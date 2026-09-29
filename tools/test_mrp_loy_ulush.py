@@ -458,9 +458,10 @@ check("G2 hasCoatable: MRP / Loy sotish / Tayyor mahsulotdan — chiqariladi",
                "it.is_coated", "&& !['mrp_product', 'loy_sotish'].includes(String(it.category || '').toLowerCase())",
                "&& !it.finished_product_id));")
       and "orderData.items.some(it => it.is_coated));" not in _h)
+# kech114 (dizayn 9): yorliq qisqa «Loy miqdori (kg)», izoh maydon OSTIDA (`#loy_kg_izoh`) — ma'nosi o'sha
 check("G3 loy maydoni izohi — penoplast detallari uchun, MRP o'z retseptidan",
-      "— qoplamali penoplast detallari uchun (MRP mahsuloti qoplamasi o'z retseptidan)</span>" in _h
-      and "— barcha detallar uchun</span>" not in _h)
+      "Faqat qoplamali penoplast detallari uchun (MRP mahsuloti qoplamasi o'z retseptidan)</div>" in _h
+      and 'id="loy_kg_izoh"' in _h and "barcha detallar uchun" not in _h)
 
 # ══════════════════════════════════════════════════════════════
 section("H. UI — dinamik (shablondagi HAQIQIY ifoda, jsdom)")

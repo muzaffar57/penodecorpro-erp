@@ -337,7 +337,10 @@ async function ichki() {
                    { id: 2, source: 'produced', created_at: '2026-09-30T18:59:00', quantity: 1, reserve: 0 },
                    { id: 3, source: 'returned', created_at: LAHZA, quantity: 1, reserve: 0 }];
     const m = muhit({ javob: { '/api/finished/stats': { in_progress_count: 0, total_value: 0 } },
-                      qoshimcha: fnlar(FIN2, PUL.concat(['loadStats', 'openHistoryModal'])) + `\nvar fpItems = ${JSON.stringify(items)};` });
+                      qoshimcha: fnlar(FIN2, PUL.concat(['loadStats', 'openHistoryModal',
+                      // kech114 (7A): statistika guruhlar va birliklar bo'yicha — loadStats yordamchilari
+                      'miqdorlarMatni', 'fpMiqdor', 'fpGuruhla', 'fpGuruhXulosa', 'fpGuruhKaliti', 'fpJarayondami',
+                      'fpGuruhKammi', 'suggestedReserve', 'fpWidth2', 'unitLabel'])) + `\nvar fpItems = ${JSON.stringify(items)};` });
     await yurgiz(m, `await loadStats(); openHistoryModal(1);`);
     tekshir('T17 TM — "bugun ishlab chiqarilgan": 1 tur (Toshkent 01.10 01:30 — bugun; 30.09 23:59 — kecha; asl: 0)',
             m.el('k-today-produced').textContent === '1 tur', m.el('k-today-produced').textContent);

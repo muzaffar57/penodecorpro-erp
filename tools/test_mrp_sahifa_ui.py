@@ -11,7 +11,7 @@ oynasida xomashyo yetadimi, «Miqdorni N qilish», «Boshlash» shu yerning o'zi
 «xomashyo yetadi / yetmaydi» belgisi; boshlash / yakunlash / batafsil / bekor qilish oynalari. Foydalanuvchi kiritgan
 matn (mahsulot, material, mijoz nomi) HTML bo'lib chizilmasligi SHART.
 
-BO'LIMLAR: U — yuklash va kartalar; R — ro'yxat va saralash; Y — yangi ishlab chiqarish oynasi; O — boshlash / yakunlash /
+BO'LIMLAR: U — yuklash va mahsulot turlari (kech114 dan — jadval, «5B»); R — ro'yxat va saralash; Y — yangi ishlab chiqarish oynasi; O — boshlash / yakunlash /
 batafsil / bekor oynalari; T — retsept oynasi; M — mahsulot turi oynasi; K — jonli sinovda topilganlar (K113-3 — o'chirilgan
 buyurtma, K113-4 — kichik miqdorlar); H — HTML in'ektsiya; X — xatolar.
 REJIMLAR: SQLite (odatiy); `PG_URL` bilan ham. Asl kodga qarshi QULAMAYDI (sahifa funksiyalari yo'q — tekshiruvlar
@@ -321,7 +321,7 @@ T, X, P = ID["trav"], ID["xtur"], ID
 QADAMLAR = [
     q("yordam", natija=YORDAM),
     q("yuklash", natija=r"""return {
-      turlar: [...document.querySelectorAll('#pt-list .pt-card')].map(__m),
+      turlar: [...document.querySelectorAll('#pt-list .pt-jadval tbody tr')].map(__m),
       po_soni: __m(document.getElementById('po-soni')),
       chiplar: __tugmalar('#po-holat-chiplar').map(__m),
       qatorlar: __qatorlar(),
@@ -445,7 +445,7 @@ QADAMLAR = [
       natija=r"""return {xss: !!window.__xss, img: document.querySelectorAll('img[onerror]').length,
         xpm: document.querySelectorAll('i.xpm').length, qalin: [...document.querySelectorAll('b')].filter(b => b.textContent === 'qalin').length,
         u: [...document.querySelectorAll('u')].filter(b => b.textContent === 'v').length,
-        turlar: [...document.querySelectorAll('#pt-list .pt-card')].map(__m)};"""),
+        turlar: [...document.querySelectorAll('#pt-list .pt-jadval tbody tr')].map(__m)};"""),
 ]
 
 section("1. Lokal server + jsdom")
@@ -519,14 +519,14 @@ def qator_matn(royxat, pid):
 
 
 # ══════════════════════════════════════════════════════════════
-section("U. Yuklash — mahsulot turlari kartalari")
+section("U. Yuklash — mahsulot turlari (kech114 dan: kartalar o'rniga jadval — egasi QARORI «5B»)")
 # ══════════════════════════════════════════════════════════════
 _y = n("yuklash")
 _trav_k = next((t for t in _y.get("turlar") or [] if t.startswith("MRU Travertin")), "")
-check("U1 karta o'zbekcha: «Birlik: m²», «Kiritish: Faqat miqdor», «Narx: birlik narxi», «Qoplama mumkin · ×2»",
-      all(x in _trav_k for x in ("Birlik: m²", "Kiritish: Faqat miqdor", "Narx: birlik narxi", "Qoplama mumkin · ×2")), _trav_k)
-check("U2 retsept qatori: «Standart (1 m² uchun)», «4 ta material», «Tahrirlash»",
-      all(x in _trav_k for x in ("Standart (1 m² uchun)", "4 ta material", "Tahrirlash")), _trav_k)
+check("U1 tur qatori o'zbekcha: «m² · Faqat miqdor · narx: birlik narxi», «Qoplama mumkin · ×2»",
+      all(x in _trav_k for x in ("m² · Faqat miqdor · narx: birlik narxi", "Qoplama mumkin · ×2")), _trav_k)
+check("U2 retsept qatori: «Standart (1 m² uchun · 4 ta material)», «Tahrirlash»",
+      all(x in _trav_k for x in ("Standart (1 m² uchun · 4 ta material)", "Tahrirlash")), _trav_k)
 check("U3 inglizcha texnik qiymat yo'q (quantity_only / unit_based / BOM)",
       all(x not in " ".join(_y.get("turlar") or []) for x in ("quantity_only", "unit_based", "BOM")), _y.get("turlar"))
 
@@ -730,7 +730,7 @@ check("K1 buyurtmasi butunlay o'chirilgan ishlab chiqarish: «Mijoz buyurtmasi»
 check("K2 uning oynasi — «Mijoz buyurtmasi — buyurtma o'chirilgan»", lambda: "Mijoz buyurtmasi — buyurtma o'chirilgan" in n("ochir_oyna")["matn"]
       and "#?" not in n("ochir_oyna")["matn"], n("ochir_oyna"))
 _qk = next((t for t in _y.get("turlar") or [] if t.startswith("MRU Qolip")), "")
-check("K3 kichik partiya — kartada «Kichik (0,125 m² uchun)» (ilgari «0,13»)", "Kichik (0,125 m² uchun)" in _qk, _qk)
+check("K3 kichik partiya — tur qatorida «Kichik (0,125 m² uchun · …)» (ilgari «0,13»)", "Kichik (0,125 m² uchun ·" in _qk, _qk)
 check("K4 retsept oynasi — «Tarkibi — 0,125 m² uchun», qator «0,00625 kg × 820» (ilgari «0,01» / 4 xona)",
       lambda: n("retsept_kichik")["tarkib"] == "Tarkibi — 0,125 m² uchun" and "0,00625 kg × 820" in n("retsept_kichik")["narx"],
       n("retsept_kichik"))
@@ -747,7 +747,7 @@ section("H. HTML in'ektsiya — foydalanuvchi matni HTML bo'lib chizilmaydi")
 _r = n("yakun")
 check("H1 skript ishlamadi (window.__xss yo'q), <img onerror> / <i class=xpm> / <b>qalin</b> / <u>v</u> elementi YO'Q",
       lambda: NAT.get("xss") is False and _r["xss"] is False and _r["img"] == 0 and _r["xpm"] == 0 and _r["qalin"] == 0 and _r["u"] == 0, _r)
-check("H2 HTML nomli mahsulot kartasi — nomi MATN", lambda: any(t.startswith(XSS_TUR) for t in _r["turlar"]), _r.get("turlar"))
+check("H2 HTML nomli mahsulot turi qatori — nomi MATN", lambda: any(t.startswith(XSS_TUR) for t in _r["turlar"]), _r.get("turlar"))
 check("H3 HTML nomli mahsulotning boshlash oynasi — nomi matn, material nomi matn",
       lambda: XSS_TUR in n("xss_oyna")["sarlavha"] and XSS_MAT in n("xss_oyna")["matn"], n("xss_oyna"))
 

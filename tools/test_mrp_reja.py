@@ -835,9 +835,12 @@ check("S4 yaratish va yangi reja — `_yaratish_tekshiruvi`; yangi reja tanasi �
       "_yaratish_tekshiruvi(" in manba(production_service, "create_production_order")
       and "_yaratish_tekshiruvi(" in manba(production_service, "ishlab_chiqarish_rejasi")
       and '_tana("ProductionOrder"' in manba(production_routes, "preview_production_order"))
-check("S5 retsept hisobi — `_compute_bom_line` va `_qoshimcha_xarajat` (ishlab chiqarish suratidagi hisob)",
-      "_compute_bom_line(" in manba(production_service, "retsept_tannarxi")
-      and "_qoshimcha_xarajat(" in manba(production_service, "retsept_tannarxi"))
+check("S5 retsept hisobi — `_compute_bom_line` va `_qoshimcha_xarajat` (ishlab chiqarish suratidagi hisob; kech114 dan — "
+      "`_retsept_satri` / `_retsept_holatlari` orqali, mahsulot turlari jadvali bilan BIR hisob)",
+      "_retsept_satri(" in manba(production_service, "retsept_tannarxi")
+      and "_retsept_holatlari(" in manba(production_service, "retsept_tannarxi")
+      and "_compute_bom_line(" in manba(production_service, "_retsept_satri")
+      and "_qoshimcha_xarajat(" in manba(production_service, "_retsept_holatlari"))
 check("S6 hech bir so'rov 500 bermadi", not XATO5, XATO5)
 
 print(f"\nNATIJA:  o'tdi = {OK}   yiqildi = {FAIL}   jami = {OK + FAIL}")
