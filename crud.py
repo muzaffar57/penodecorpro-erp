@@ -4138,6 +4138,28 @@ def _fp_tayyormi(fp) -> bool:
 
 _FP_JARAYONDA_XABAR = "Mahsulot hali ishlab chiqarilmoqda — avval \"Tayyor\" deb belgilang"
 
+# kech114 (K114-1, O'LCHANGAN — `work/k114/probe_mrp_tm.py`, asl `592a2e3`, SQLite = PG): «Tayyor mahsulotlar»
+# sahifasida JARAYONDAGI MRP mahsuloti qatorida «✓ Sotuvga tayyor» (`complete_production`) va «✕ Bekor qilish»
+# (`DELETE /api/finished/{id}`) bor edi — ikkalasi ham «Ishlab chiqarish» bo'limini CHETLAB o'tardi. MRP da xomashyo
+# ishlab chiqarish «Yakunlash»ida yechiladi va tannarx o'shanda yoziladi: «Sotuvga tayyor» TM ni tannarx 0 bilan
+# sotuvga chiqarardi (10 qop, 5 tasi 40 000 dan sotildi — foyda 200 000, aslida 168 500; keyin «Yakunlash» 63 000
+# tannarxni qolgan 5 qopga yozardi — 1 qop tannarxi 2 barobar), «Bekor qilish» TM ni o'chirardi, ishlab chiqarish
+# «jarayonda» qolardi va keyingi «Yakunlash» 63 000 so'mlik xomashyoni yechib, omborga HECH NARSA kiritmasdi.
+# Endi MRP mahsuloti (`category == "dynamic_bom"` — faqat `production_service.start_production_order` yaratadi)
+# holati faqat «Ishlab chiqarish» bo'limida o'zgaradi; jarayonda sotish / kamaytirish xabari ham o'sha yerga yo'llaydi.
+_MRP_JARAYON_XABAR = ("Bu mahsulot «Ishlab chiqarish» bo'limida ishlab chiqarilmoqda — uni o'sha yerda «Yakunlash» "
+                      "(xomashyo shunda yechiladi, tannarx yoziladi) yoki «Bekor qilish» kerak")
+
+
+def _mrp_tm_mi(fp) -> bool:
+    """MRP (Ishlab chiqarish bo'limi) yaratgan tayyor mahsulotmi — kech114 (K114-1)."""
+    return (getattr(fp, "category", None) or "") == "dynamic_bom"
+
+
+def _jarayonda_xabari(fp) -> str:
+    """Jarayondagi mahsulotdan ombordan chiqadigan amal rad etilganda — qayerda tugatilishini aytadi (kech114)."""
+    return _MRP_JARAYON_XABAR if _mrp_tm_mi(fp) else _FP_JARAYONDA_XABAR
+
 
 def _clean_order_item_update(item_data) -> dict:
     """Detal tahriri tanasini tekshiradi va tozalangan nusxasini qaytaradi.
@@ -9582,7 +9604,7 @@ def record_finished_product_loss(db: Session, data, created_by: str = None,
     if not fp:
         return {"success": False, "message": "Mahsulot topilmadi"}
     if not _fp_tayyormi(fp):
-        return {"success": False, "message": _FP_JARAYONDA_XABAR}
+        return {"success": False, "message": _jarayonda_xabari(fp)}
 
     available = float(fp.quantity or 0)
     if data.quantity > available + 0.001:
@@ -10051,7 +10073,7 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None,
 
             if not _fp_tayyormi(fp):
                 db.rollback()
-                return {"success": False, "message": f"{fp.name}: {_FP_JARAYONDA_XABAR}"}
+                return {"success": False, "message": f"{fp.name}: {_jarayonda_xabari(fp)}"}
 
             available = float(fp.quantity or 0) - float(fp.reserved_quantity or 0)
             _jami_qty = _savatda.get(fp.id, 0.0) + item.quantity
@@ -10197,7 +10219,7 @@ def sell_finished_product(db: Session, data, created_by: str = None,
     if not fp:
         return {"success": False, "message": "Mahsulot topilmadi"}
     if not _fp_tayyormi(fp):
-        return {"success": False, "message": _FP_JARAYONDA_XABAR}
+        return {"success": False, "message": _jarayonda_xabari(fp)}
 
     available = float(fp.quantity or 0)
     if data.quantity > available + 0.001:
@@ -10498,6 +10520,10 @@ def complete_production(db: Session, fp_id: int, actual_loy_kg: float = 0,
     if fp.production_status == ProductionStatus.READY:
         return {"success": False, "message": "Bu mahsulot allaqachon tayyor"}
 
+    # kech114 (K114-1): MRP mahsuloti «Sotuvga tayyor» bo'lmaydi — ishlab chiqarish «Yakunlash»i (xomashyo, tannarx).
+    if _mrp_tm_mi(fp):
+        return {"success": False, "message": _MRP_JARAYON_XABAR}
+
     fp.production_status = ProductionStatus.READY
     fp.finished_production_at = datetime.utcnow()
     # MUHIM: hodim oyligi hisoblanadigan ASL miqdorni shu yerda "muzlatib"
@@ -10554,6 +10580,21 @@ def get_finished_products(db: Session, source: Optional[str] = None, only_availa
     # tartib aniqlanmagan edi (PG da UPDATE dan keyin o'rin almashardi) —
     # `id` uchinchi (qidiruvda ikkinchi) kalit: tartib doim barqaror.
     return q.order_by(FinishedProduct.source, FinishedProduct.name, FinishedProduct.id).all()
+
+
+def fp_ishlab_chiqarish_raqamlari(db: Session, fp_idlar, company_id: int = None) -> dict:
+    """{tayyor mahsulot id: ishlab chiqarish (MRP) raqami} — kech114 (dizayn 7-band, K114-1). BITTA so'rov."""
+    idlar = sorted({int(x) for x in (fp_idlar or []) if x is not None})
+    if not idlar:
+        return {}
+    from production_models import ProductionOrder as _PO114
+    q = db.query(_PO114.finished_product_id, _PO114.id).filter(_PO114.finished_product_id.in_(idlar))
+    if company_id is not None:
+        q = q.filter(_PO114.company_id == company_id)
+    natija = {}
+    for fp_id, po_id in q.order_by(_PO114.id).all():
+        natija.setdefault(fp_id, po_id)
+    return natija
 
 
 def get_finished_products_for_main_page(db: Session, days: int = 90, show_all: bool = False,
@@ -10642,6 +10683,12 @@ def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = Fal
     # tayyor (`_fp_tayyormi` — UI bilan bir xil), u pastdagi qat'iy qoidaga
     # bo'ysunadi (qoldiq 0 bo'lishi kerak, xomashyo qaytmaydi).
     if not _fp_tayyormi(fp):
+        # kech114 (K114-1): jarayondagi MRP mahsuloti bu yerda O'CHIRILMAYDI — ishlab chiqarish «jarayonda» qolib,
+        # keyingi «Yakunlash» xomashyoni yechar va omborga hech narsa kiritmas edi. U «Ishlab chiqarish» bo'limida
+        # «Bekor qilish» bilan olib tashlanadi (`production_service.cancel_production_order`). Marshrut ham
+        # (`main.api_delete_finished`) shu qoidani o'zi tekshirib, aniq xabar beradi — bu ikkinchi to'siq.
+        if _mrp_tm_mi(fp):
+            return False
         import services as _svc
         from models import Inventory as _Inv
         # M4: qaytariladigan xomashyo ham faqat SHU mahsulotning korxonasidan.
@@ -10967,10 +11014,25 @@ def get_finished_stats(db: Session, company_id: int = None) -> dict:
     produced = [i for i in items if i.source == StockSource.PRODUCED]
     returned = [i for i in items if i.source == StockSource.RETURNED]
     in_progress = [i for i in produced if i.production_status == ProductionStatus.IN_PROGRESS]
+    tayyor = [i for i in items if _fp_tayyormi(i)]
 
     def _val(lst):
-        return sum(float(i.quantity or 0) * float(i.unit_price or 0) for i in lst)
+        return sum(_fp_ombor_qiymati(i) for i in lst)
 
+    def _miqdorlar(lst):
+        # kech114 (dizayn 7-band): «Jami miqdor» qop + m + m² ni BITTA songa qo'shardi («134 birlik») — endi
+        # har birlik alohida (katta miqdordan kichikka; birlik nomi bazadagidek — ko'rinish sahifada).
+        jami = {}
+        for i in lst:
+            b = (i.unit or "").strip() or "dona"
+            jami[b] = jami.get(b, 0.0) + float(i.quantity or 0)
+        return [{"birlik": b, "miqdor": round(m, 4)}
+                for b, m in sorted(jami.items(), key=lambda x: (-x[1], x[0]))]
+
+    narxsiz = [i for i in items if not float(i.unit_price or 0) > 0]
+    # «narxsiz N ta» izohi — faqat TAYYOR partiyalar (jarayondagi MRP mahsulotining narxi ham, tannarxi ham hali 0 —
+    # u qiymatga 0 qo'shadi, sanalsa izoh chalg'itadi)
+    narxsiz_tayyor = [i for i in narxsiz if _fp_tayyormi(i)]
     return {
         "produced_count": len(produced),
         "returned_count": len(returned),
@@ -10978,7 +11040,23 @@ def get_finished_stats(db: Session, company_id: int = None) -> dict:
         "produced_value": round(_val(produced)),
         "returned_value": round(_val(returned)),
         "total_value": round(_val(items)),
+        # kech114 (egasi QARORI — MRP sotuv narxi «Hozirgidek qo'lda»: narx 0 qoladi, sotishda yoziladi; «Ombor
+        # qiymati» narxsiz partiyani TANNARX bo'yicha qo'shadi). Yuqoridagi uch qiymat ham shu qoida bilan.
+        "narxli_qiymat": round(sum(_fp_ombor_qiymati(i) for i in items if float(i.unit_price or 0) > 0)),
+        "narxsiz_tannarx_qiymati": round(sum(_fp_ombor_qiymati(i) for i in narxsiz)),
+        "narxsiz_soni": len(narxsiz_tayyor),
+        "miqdorlar": _miqdorlar(tayyor),
+        "jarayonda_miqdorlar": _miqdorlar(in_progress),
     }
+
+
+def _fp_ombor_qiymati(fp) -> float:
+    """Tayyor mahsulot qoldig'ining ombordagi qiymati (kech114, egasi QARORI): sotuv narxi bor bo'lsa — qoldiq × narx,
+    yo'q bo'lsa (MRP — narx sotishda yoziladi) — qoldiqning tannarxi (`cost_price` — qoldiq bilan birga kamayadi)."""
+    narx = float(fp.unit_price or 0)
+    if narx > 0:
+        return float(fp.quantity or 0) * narx
+    return max(0.0, float(fp.cost_price or 0))
 
 
 class _TermoFakeOrder:
@@ -11212,7 +11290,7 @@ def reduce_production(db: Session, fp_id: int, reduce_qty: float, reason: str = 
     if not fp:
         return {"success": False, "message": "Topilmadi"}
     if not _fp_tayyormi(fp):
-        return {"success": False, "message": _FP_JARAYONDA_XABAR}
+        return {"success": False, "message": _jarayonda_xabari(fp)}
 
     if reduce_qty <= 0:
         return {"success": False, "message": "Miqdor musbat bo'lishi kerak"}

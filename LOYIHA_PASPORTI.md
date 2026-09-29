@@ -357,6 +357,36 @@ Buyurtma butunlay o'chirilsa ishlab chiqarish TARIXIY yozuv bo'lib qoladi — ik
 (`source_order_id`), bog'lam yo'q — «Mijoz buyurtmasi — buyurtma o'chirilgan», savatdagi — raqami bilan «buyurtma o'chirilgan»
 (`manba_ochirilgan`; K113-3 — jonli sinovda 13 dan 10 tasida «Buyurtma #?» edi). Miqdor ko'rinishi: 1 dan kichik — 3 ta ma'noli
 raqamgacha (0,00625 m³, 0,125 m²; K113-4), qolgani — 2 xonagacha.
+MRP tayyor mahsuloti (`finished_products.category = 'dynamic_bom'`, faqat `start_production_order` yaratadi) holati FAQAT
+«Ishlab chiqarish» bo'limida o'zgaradi (kech114, K114-1): «Tayyor mahsulotlar»dagi «Sotuvga tayyor»
+(`crud.complete_production`) va jarayondagisini o'chirish (`DELETE /api/finished/{id}` — marshrut + `crud.delete_finished_product`,
+ikki to'siq) — 400 `crud._MRP_JARAYON_XABAR`; jarayonda sotish / kamaytirish xabari — `crud._jarayonda_xabari(fp)`. Ilgari
+«Sotuvga tayyor» TM ni tannarx 0 va yechilmagan xomashyo bilan sotuvga chiqarardi, o'chirish esa ishlab chiqarishni
+«jarayonda» qoldirib, keyingi «Yakunlash» xomashyoni izsiz yechardi. Tayyor mahsuloti yo'q (yoki boshqa korxonaniki)
+jarayondagi ishlab chiqarish yakunlanmaydi — 409 `production_service.TM_YOQ_XABARI`, «Yakunlash» oynasi rejasi ham
+(`_yakunlash_tm_xatosi` — bitta qoida). Sahifada jarayondagi MRP qatorida faqat «Ishlab chiqarishda ochish →»
+(`/production?po=ID` — o'sha ishlab chiqarish oynasi); penoplast (eski yo'l) jarayondagisi — o'zgarmagan.
+«Tayyor mahsulotlar» (kech114, egasi QARORI «7A»): bir xil mahsulot (manba, turkum, MRP turi, nom, birlik, qoplama, o'lcham —
+`fpGuruhKaliti`) partiyalari bitta guruh qatorida (jami qoldiq, jarayondagi, band, 1 birlik tannarxi, narx, qiymat), bosilsa
+partiyalari («Partiya №<ishlab chiqarish raqami>» + sana, o'z amallari bilan) ochiladi — ochiq guruhlar shu brauzerda
+(`localStorage`) eslab qolinadi; bitta partiyali — oddiy qator (avvalgidek); tugagan partiya standartda yashirin
+(«Tugaganlar ham»). Ombor qiymati (QAROR — MRP sotuv narxi «qo'lda»): narxi bor — qoldiq × narx, narxsiz — qoldiq tannarxi
+(`crud._fp_ombor_qiymati`: `cost_price` qoldiq bilan birga kamayadi); `/api/finished/stats` — `total_value` (shu qoida),
+`narxli_qiymat`, `narxsiz_tannarx_qiymati`, `narxsiz_soni` (faqat tayyor), `miqdorlar` / `jarayonda_miqdorlar` (birliklar
+bo'yicha; ilgari «134 birlik» — qop + m + m² yig'indisi); `/api/finished` qatorida `ombor_qiymati`, `ishlab_chiqarish_id`
+(`crud.fp_ishlab_chiqarish_raqamlari` — bitta so'rov).
+Mahsulot turlari (kech114, QAROR «5B»): bitta jadval — `GET /api/production/product-types/xulosa`
+(`production_service.turlar_xulosasi`: turning o'z maydonlari, omborda — tayyor + qaytgan qoldiq, band, jarayonda —
+jarayondagi ishlab chiqarishlar, har FAOL retseptning 1 birlik taxminiy tannarxi «doim» / «qoplamali»; so'rovlar soni tur /
+retsept soniga bog'liq emas). Tannarx — retsept oynasi bilan BITTA hisob: `_retsept_satri` + `_retsept_holatlari`
+(`retsept_tannarxi` ham shular orqali). Sahifa ilgari har tur uchun alohida `/boms` so'rovi yuborardi.
+Yuqori panel (kech114, QAROR «6A»): sahifa tugmalari `base.html` `.tb-amallar` ichida (`{% filter trim %}` — tugmasiz
+sahifada bo'sh); telefonda (≤ 768 px) 1-qator — menyu, sarlavha, obuna belgisi, qo'ng'iroqcha, «···» (tungi rejim, Кирилл /
+Lotin — `tbKopAlmashtir`), 2-qator — sahifa tugmalari yonma-yon, teng (uzun yorliq tugma ichida 2 qatorga o'tadi); 191 → 107 px
+(tugmasiz sahifa — 58 px). CSS `base.html` ichida (`style.css` versiyasiz — brauzer keshlaydi). Yangi buyurtma oynasida
+faqat «Shu buyurtma» paneli (`orders.html` `statPanellari` — umumiy «Statistika» yashirinadi); loy yorlig'i qisqa, izoh
+maydon ostida. Namuna matnlarida haqiqiy odam / korxona nomi yo'q (kech114 — «Akmal aka», «Rustam aka», «Jo'rabek» olib
+tashlandi), «Chapdan …» yo'q (telefonda chap tomon yo'q).
 
 **Migratsiyalar.** Alembic YO'Q. `main.py` dagi `_migrate_*` funksiyalari server ishga tushganda (import paytida)
 ketma-ket yuradi — 9-bo'lim ISHGA_TUSHISH. Har biri IDEMPOTENT, o'z `try/except` va `conn.rollback()` bilan
@@ -453,6 +483,12 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
 - Server rad sababi — kpi / inventory / finished ning 29 joyi (matn, obyekt, ro'yxat): `tools/test_xato_sababi_ui.js`.
 - Loyiha tahriri (muddat, tozalash, izolyatsiya): `tools/test_loyiha_tahrir.py`, `tools/test_loyiha_tahrir_ui.js`;
   hodim avans so'rovi (tekshiruv, takror, PG poyga): `tools/test_hodim_avans.py`.
+- (kech114) K114-1 (jarayondagi MRP TM — «Sotuvga tayyor» / o'chirish / sotish / kamaytirish rad, ikki to'siq; TM yo'q yoki
+  begona — yakunlash 409 va reja), ombor qiymati (narxsiz — tannarx), miqdorlar birliklar bo'yicha, `/api/finished`
+  maydonlari (bitta so'rov), turlar jadvali (preview bilan AYNAN tannarx, faqat faol, so'rovlar soni), korxona chegarasi
+  (SQLite, PG, TF1): `tools/test_tayyor_guruh.py`; sahifalar (HAQIQIY server + jsdom — guruhlar, ochish / eslab qolish,
+  tugagan partiya, statistika, MRP havolasi, turlar jadvali, `?po=`, «···» menyusi, «Shu buyurtma», namunalar, HTML
+  in'ektsiya): `tools/test_dizayn114_ui.py`.
 - (kech113) MRP sahifasi — reja = amal (retsept tannarxi = yakunlangandagi tannarx; reja «mumkin» ⇔ boshlash / yakunlash
   o'tadi; reja xatosi = yaratish / boshlash xabari AYNAN), K113-1, K113-2, jarayondagilar bilan raqobat, ro'yxat qo'shimchalari
   (o'chirilgan / savatdagi buyurtma, o'chirilgan detal — K113-3),
@@ -509,6 +545,9 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
   o'sha kuni A ga o'zgartirildi): ro'yxat — jadval (telefonda kartalar), holat chiplari, davr / mahsulot / qidiruv; yangi
   ishlab chiqarish, retsept, boshlash / yakunlash / batafsil — oynalarda; qoralama qatorida «xomashyo yetadi / yetmaydi»
   belgisi (C dan). «Tayyor — omborga kirim» tezkor tugmasi — "Kerak emas".
+- (kech114, dizayn 5–10 — "hammasi") «Tayyor mahsulotlar» — "7A — Guruh, bosilsa ochiladi"; mahsulot turlari — "5B — Jadval";
+  telefonda yuqori panel — "6A — Bir qator + tugmalar" (hamma sahifalarga); MRP tayyor mahsulotining sotuv narxi —
+  "Hozirgidek qo'lda" (narx 0 qoladi, sotishda yoziladi; «Ombor qiymati» narxsiz partiyani TANNARX bo'yicha qo'shadi).
 
 **Buyurtma**
 - (kech85–86, "A") Buyurtma, yuk xati va loyiha raqami HECH QACHON qayta berilmaydi (faqat o'sadi, bo'shliq qoladi).
@@ -779,6 +818,13 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
   aniq chegaradagi yozuv noto'g'ri oyga tushgandek ko'rinadi.
 - (kech113) Oldindan ko'rsatiladigan hisob (reja, taxminiy tannarx) — alohida formula EMAS, amalning o'z funksiyalari
   (yordamchiga ajratib, ikkala joydan chaqiriladi); test — "reja = amal" (AYNAN xabar, AYNAN tannarx, «mumkin» ⇔ o'tadi).
+- (kech114) Dizaynni o'lchashda HAQIQIY xato topildi (K114-1): sahifadagi tugma boshqa bo'limning amalini chetlab o'tardi.
+  Yangi tugma / havola qo'shilganda — u qaysi server amalini chaqirishini va o'sha amal boshqa bo'limning qoidasini
+  (xomashyo, tannarx) chetlab o'tmasligini tekshiring. Jadval / ro'yxat test ID lari bir-biriga TENG chiqmasin (masalan,
+  ishlab chiqarish va TM raqamlari 1, 2, 3 — test ularni farqlay olmaydi; oldindan qoralama yaratib siljiting).
+- (kech114) `obuna.kunlik_tekshiruv` eslatma bosqichlari — 7 kun / 1 kun / tugadi / bloklandi («3 kun» bosqichi YO'Q);
+  sinovda Telegram o'chiq — eslatma kelmasligi kutilgan. `_send_telegram` token yo'q bo'lsa istisno bermaydi — natijada
+  `yuborildi: true` (faqat jurnal ma'lumoti).
 
 ## 9. Xarita (AVTOMATIK)
 
@@ -931,7 +977,7 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 
 ### `GET /production` → `main.py:production_page` → `templates/production.html`
 - Qorovul: auth.admin_or_warehouse
-- `production.html` API: `/api/inventory`, `/api/production/boms`, `/api/production/boms/preview`, `/api/production/boms/{}`, `/api/production/mrp-order-items`, `/api/production/orders`, `/api/production/orders/preview`, `/api/production/orders/{}/cancel`, `/api/production/orders/{}/complete`, `/api/production/orders/{}/preview`, `/api/production/orders/{}/start`, `/api/production/product-types`, `/api/production/product-types/{}/boms`
+- `production.html` API: `/api/inventory`, `/api/production/boms`, `/api/production/boms/preview`, `/api/production/boms/{}`, `/api/production/mrp-order-items`, `/api/production/orders`, `/api/production/orders/preview`, `/api/production/orders/{}/cancel`, `/api/production/orders/{}/complete`, `/api/production/orders/{}/preview`, `/api/production/orders/{}/start`, `/api/production/product-types`, `/api/production/product-types/xulosa`, `/api/production/product-types/{}/boms`
 
 ### `GET /projects` → `main.py:projects_page` → `templates/projects.html`
 - Qorovul: auth.admin_manager_accountant
@@ -1047,7 +1093,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `DELETE /api/finance/transactions/{tx_id}` → `main.py:api_delete_expense_transaction` · 🔒 auth.admin_or_financier · auth.company_id_of, crud.delete_expense_transaction
 
 #### `/api/finished` (20)
-- `GET /api/finished` → `main.py:api_get_finished` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, crud.get_finished_products, crud.get_finished_products_for_main_page
+- `GET /api/finished` → `main.py:api_get_finished` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, crud._fp_ombor_qiymati, crud.fp_ishlab_chiqarish_raqamlari, crud.get_finished_products, crud.get_finished_products_for_main_page
 - `POST /api/finished/loss` → `main.py:api_record_finished_loss` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, crud.record_finished_product_loss
 - `DELETE /api/finished/loss/{loss_id}` → `main.py:api_delete_finished_loss` · 🔒 auth.admin_only · auth.company_id_of, crud.delete_finished_product_loss
 - `POST /api/finished/produce` → `main.py:api_produce` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, crud.bitta_tranzaksiya, crud.get_low_stock_items, crud.produce_finished_product
@@ -1060,7 +1106,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `POST /api/finished/sell-batch` → `main.py:api_sell_finished_products_batch` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, crud.sell_finished_products_batch
 - `GET /api/finished/stats` → `main.py:api_finished_stats` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, crud.get_finished_stats
 - `PUT /api/finished/{fp_id}` → `main.py:api_update_finished` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, crud._clean_update, crud.get_finished_product, crud.update_finished_product
-- `DELETE /api/finished/{fp_id}` → `main.py:api_delete_finished` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, auth.finished_product_of_company, crud._fp_tayyormi, crud.bitta_tranzaksiya, crud.delete_finished_product
+- `DELETE /api/finished/{fp_id}` → `main.py:api_delete_finished` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, auth.finished_product_of_company, crud._fp_tayyormi, crud._mrp_tm_mi, crud.bitta_tranzaksiya, crud.delete_finished_product
 - `POST /api/finished/{fp_id}/add` → `main.py:api_add_production` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, crud.add_to_production, crud.bitta_tranzaksiya, crud.get_finished_product, crud.get_low_stock_items
 - `POST /api/finished/{fp_id}/complete` → `main.py:api_complete_production` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, crud.complete_production
 - `POST /api/finished/{fp_id}/image` → `main.py:api_upload_finished_image` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, auth.finished_product_of_company
@@ -1190,7 +1236,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `GET /api/platform/errors` → `main.py:api_platform_errors` · 🔒 auth.platform_admin_only
 - `GET /api/platform/summary` → `main.py:api_platform_summary` · 🔒 auth.platform_admin_only
 
-#### `/api/production` (18)
+#### `/api/production` (19)
 - `POST /api/production/boms` → `production_routes.py:create_bom` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud.log_activity
 - `POST /api/production/boms/preview` → `production_routes.py:preview_bom` · 🔒 auth.admin_or_warehouse · auth.company_id_of, production_service.retsept_tannarxi
 - `PUT /api/production/boms/{bom_id}` → `production_routes.py:update_bom` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud.log_activity
@@ -1207,6 +1253,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `POST /api/production/orders/{po_id}/start` → `production_routes.py:start_order` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, production_service.start_production_order
 - `GET /api/production/product-types` → `production_routes.py:list_product_types` · 🔒 auth.admin_or_warehouse · auth.company_id_of
 - `POST /api/production/product-types` → `production_routes.py:create_product_type` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud.log_activity
+- `GET /api/production/product-types/xulosa` → `production_routes.py:product_types_summary` · 🔒 auth.admin_or_warehouse · auth.company_id_of, production_service.turlar_xulosasi
 - `DELETE /api/production/product-types/{pt_id}` → `production_routes.py:deactivate_product_type` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud.log_activity
 - `GET /api/production/product-types/{pt_id}/boms` → `production_routes.py:list_boms_for_product` · 🔒 auth.admin_or_warehouse · auth.company_id_of
 
@@ -1396,7 +1443,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 #### `/ustalar` (1)
 - `GET /ustalar` → `main.py:masters_manage_page` · 🔒 auth.admin_or_manager
 
-Jami marshrutlar: 285 (main.py: 259, production_routes.py: 18, saas_migration.py: 8).
+Jami marshrutlar: 286 (main.py: 259, production_routes.py: 19, saas_migration.py: 8).
 <!-- AVTO:API OXIRI -->
 
 ### 9.5 Jadvallar
@@ -1482,6 +1529,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_buyurtma_oqimi.py` — buyurtmaning to'liq hayot sikli va OMBOR.
 - `test_buyurtma_raqam.py` · PG — kech86 darvozasi (100-band, FOYDALANUVCHI QARORI "A": buyurtma raqami HECH QACHON qayta berilmaydi — raqam faqat o'sadi, o'chirilgan buyurtma raqami bo'shliq bo'lib qoladi) +…
 - `test_detal_poyga.py` · PG — 5-bo'lim 14-band darvozasi (kech41, 2026-09-23): detal tahriri / o'chirish / "Tayyor" va yetkazish orasidagi poygalar.
+- `test_dizayn114_ui.py` · PG — kech114: dizayn 5–10 (egasi QARORLARI «7A — Guruh, bosilsa ochiladi», «5B — Jadval», «6A — Bir qator + tugmalar»; 9 / 10 — texnik) va K114-1 ning sahifadagi qismi — HAQIQIY sah…
 - `test_donalik_hajm_snapshot.py` · PG — kech96 (2026-09-27), 126-band.
 - `test_eski_brak_muzlash.py` · PG — 37-band darvozasi (kech51, 2026-09-24).
 - `test_eski_narx_muzlash.py` · PG — 33-band darvozasi (kech49, 2026-09-24).
@@ -1569,6 +1617,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_tan_narx_muzlash.py` · PG — K47-1 (5-bo'lim 32-band) darvozasi (kech48, 2026-09-24).
 - `test_tana_qatiy.py` · PG — kech93 darvozasi (2026-09-27, 8-band + K93-1 + K93-2): tanasi ilgari QAT'IY tekshirilmagan marshrutlar — foydalanuvchi, parol, usta KPI, sovg'a davri, material narxi / min qoldig…
 - `test_tayyor_atomik.py` · PG — kech101 darvozasi (2026-09-27, 142-band + K101-1 … K101-4).
+- `test_tayyor_guruh.py` · PG — kech114 darvozasi (2026-09-29): «Tayyor mahsulotlar» guruhlash (egasi QARORI «7A»), ombor qiymati (QAROR — MRP sotuv narxi «Hozirgidek qo'lda»: narxsiz partiya TANNARX bo'yicha…
 - `test_tayyor_mahsulot.py` — Tayyor mahsulotning UCHTA ombor funksiyasi.
 - `test_tayyor_qiymat.py` — 17-band (17a) darvozasi: TAYYOR MAHSULOT qiymat yo'llari.
 - `test_tayyor_reja_loy.py` · PG — kech112 darvozasi: K112-3 — «Tayyor» da haqiqiy loy kiritilmasa, qoplama xarajati foydadan tushib qolardi.
@@ -1626,5 +1675,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 159 (Python 129, JS 30).
+Jami test fayllari: 161 (Python 131, JS 30).
 <!-- AVTO:TESTLAR OXIRI -->

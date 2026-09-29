@@ -889,6 +889,24 @@ def start_production_order(db: Session, po_id: int, company_id: int, performed_b
 # 3. IN_PROGRESS -> COMPLETED ("Yakunlash" — haqiqiy ayirish/qo'shish)
 # ============================================================
 
+TM_YOQ_XABARI = ("Bu ishlab chiqarishning «Tayyor mahsulotlar»dagi yozuvi o'chirilgan — yakunlansa xomashyo yechilib, "
+                 "omborga hech narsa kirmaydi. Ishlab chiqarishni «Bekor qilish» bilan yopib, qaytadan yarating.")
+
+
+def _yakunlash_tm_xatosi(db: Session, po, company_id: int):
+    """kech114 (K114-1, O'LCHANGAN — `work/k114/probe_mrp_tm.py`): jarayondagi ishlab chiqarishning tayyor mahsuloti
+    («Tayyor mahsulotlar»da boshlashda yaratiladi) yo'q bo'lsa — yakunlash RAD (xabar), aks holda None. Ilgari TM
+    «Tayyor mahsulotlar»dan o'chirilsa, «Yakunlash» 200 berib xomashyoni yechar, omborga esa hech narsa kirmasdi
+    (63 000 so'mlik kley — izsiz). Endi TM u yerdan o'chirilmaydi (`crud._mrp_tm_mi`), bu — eski / chetlab o'tilgan
+    holat uchun ikkinchi to'siq. Yakunlash va «Yakunlash» oynasi rejasi (`mavjud_ishlab_chiqarish_rejasi`) — shu bitta
+    qoida."""
+    from models import FinishedProduct
+    if po.finished_product_id and db.query(FinishedProduct.id).filter(
+            FinishedProduct.id == po.finished_product_id, FinishedProduct.company_id == company_id).first():
+        return None
+    return TM_YOQ_XABARI
+
+
 def complete_production_order(db: Session, po_id: int, company_id: int, performed_by: str = None) -> dict:
     """IN_PROGRESS holatidagi buyurtmani yakunlaydi:
       1. recipe_snapshot_json'da QOTIRILGAN miqdorlarni o'qiydi (JORIY
@@ -922,6 +940,10 @@ def complete_production_order(db: Session, po_id: int, company_id: int, performe
                                                  f"chiqarish {_PO_HOLAT_NOMI.get(po.status, po.status)}"}
         if not po.recipe_snapshot_json:
             return {"success": False, "message": "Retsept surati topilmadi — bu buyurtma to'g'ri boshlanmagan bo'lishi mumkin"}
+        # kech114 (K114-1): tayyor mahsuloti yo'q ishlab chiqarish yakunlanmaydi (xomashyo izsiz yechilardi).
+        _tm_xato = _yakunlash_tm_xatosi(db, po, company_id)
+        if _tm_xato:
+            return {"success": False, "message": _tm_xato}
 
         snapshot = json.loads(po.recipe_snapshot_json)
 
@@ -1376,6 +1398,9 @@ def mavjud_ishlab_chiqarish_rejasi(db: Session, po_id: int, company_id: int) -> 
             return {"success": False, "kod": 409,
                     "message": "Retsept surati topilmadi — bu buyurtma to'g'ri boshlanmagan bo'lishi mumkin"}
         reja = _reja_hisobi(db, company_id, qatorlar, po.quantity, po.bom_id, REJA_YAKUNLASH, istisno_po_id=po.id)
+        _tm_xato = _yakunlash_tm_xatosi(db, po, company_id)       # kech114 (K114-1) — yakunlash bilan bir qoida
+        if _tm_xato:
+            xatolar.append(_tm_xato)
         _bom = db.query(BOM).filter(BOM.id == po.bom_id, BOM.company_id == company_id).first()
         reja["retsept"] = _bom.variant_name if _bom else None
         reja["partiya"] = _bom.batch_quantity if _bom else None
@@ -1395,6 +1420,40 @@ def mavjud_ishlab_chiqarish_rejasi(db: Session, po_id: int, company_id: int) -> 
     return reja
 
 
+def _retsept_satri(bi, partiya: float) -> dict:
+    """Retseptning bitta qatori PARTIYA uchun (kech114 da `retsept_tannarxi` dan AJRATILDI — saqlanmagan retsept
+    (oyna) va saqlangan retsept (mahsulot turlari jadvali, `turlar_xulosasi`) BITTA hisob bilan): `_compute_bom_line`
+    (isrof, birlik o'girish, ombordagi hozirgi narx) + ixtiyoriy / qoplama belgilari va qo'shimcha xarajat kalitlari
+    (kalit bor — `_qoshimcha_xarajat` suratdagidek hisoblaydi, bazaga murojaat qilmaydi)."""
+    line = _compute_bom_line(bi, partiya, partiya)     # partiya uchun (nisbat 1)
+    line["is_optional"] = bool(bi.is_optional)
+    line["is_coating"] = bool(bi.is_coating)
+    line["fixed_cost_per_unit"] = float(bi.fixed_cost_per_unit or 0)
+    line["percentage_cost"] = float(bi.percentage_cost or 0)
+    return line
+
+
+def _retsept_holatlari(db: Session, company_id: int, satrlar: list, partiya: float) -> dict:
+    """1 birlik tannarxi uch holatda (kech113 retsept oynasi qoidasi, kech114 da ajratildi): «doim» (faqat majburiy
+    qatorlar), «qoplamali» (+ ixtiyoriy qoplama qatorlari), «hammasi» (+ boshqa ixtiyoriy qatorlar ham)."""
+    from types import SimpleNamespace
+
+    def _holat(sharti):
+        qat = [dict(l, included=bool(sharti(l))) for l in satrlar]
+        m = sum(float(l["line_cost"] or 0) for l in qat if l["included"])
+        x = _qoshimcha_xarajat(db, SimpleNamespace(quantity=partiya, bom_id=None), qat, m, company_id)
+        return {"xomashyo": m / partiya, "qoshimcha": x / partiya, "jami": (m + x) / partiya}
+
+    return {
+        "doim": _holat(lambda l: not l["is_optional"]),
+        "qoplamali": _holat(lambda l: (not l["is_optional"]) or l["is_coating"]),
+        "hammasi": _holat(lambda l: True),
+        "qoplama_bor": any(l["is_optional"] and l["is_coating"] for l in satrlar),
+        "ixtiyoriy_bor": any(l["is_optional"] and not l["is_coating"] for l in satrlar),
+        "narxsiz": sorted({l["item_name"] for l in satrlar if not float(l["unit_price_at_time"] or 0)}),
+    }
+
+
 def retsept_tannarxi(db: Session, company_id: int, product_type, data) -> dict:
     """Retsept oynasi (kech113, dizayn 2-band): SAQLANMAGAN retseptning taxminiy tannarxi — ishlab chiqarish
     suratidagi AYNAN hisob: `_compute_bom_line` (isrof, birlik o'girish, ombordagi hozirgi narx) va
@@ -1402,8 +1461,8 @@ def retsept_tannarxi(db: Session, company_id: int, product_type, data) -> dict:
     uchun; jami — 1 birlik (`product_type.unit`) uchun, uch holatda: «doim» (faqat majburiy qatorlar),
     «qoplamali» (+ ixtiyoriy qoplama qatorlari — qoplamali buyurtma detali uchun avtomatik qo'shiladi),
     «hammasi» (+ boshqa ixtiyoriy qatorlar ham tanlansa). Hech narsa yozilmaydi: `BOMItem` obyektlari sessiyaga
-    QO'SHILMAYDI (vaqtinchalik; `Inventory` da BOMItem ga qaytuvchi bog'lam yo'q)."""
-    from types import SimpleNamespace
+    QO'SHILMAYDI (vaqtinchalik; `Inventory` da BOMItem ga qaytuvchi bog'lam yo'q). Hisob — `_retsept_satri` va
+    `_retsept_holatlari` (kech114: saqlangan retseptlar jadvali ham shu ikkisi bilan)."""
     from models import Inventory
     idlar = sorted({it.inventory_id for it in data.items})
     inv_map = {i.id: i for i in db.query(Inventory).filter(
@@ -1416,22 +1475,13 @@ def retsept_tannarxi(db: Session, company_id: int, product_type, data) -> dict:
                      is_optional=it.is_optional, is_coating=it.is_coating,
                      fixed_cost_per_unit=it.fixed_cost_per_unit, percentage_cost=it.percentage_cost)
         bi.inventory = inv_map.get(it.inventory_id)
-        line = _compute_bom_line(bi, partiya, partiya)     # partiya uchun (nisbat 1)
+        line = _retsept_satri(bi, partiya)
         line["tartib"] = tartib
-        line["is_optional"] = bool(it.is_optional)
-        line["is_coating"] = bool(it.is_coating)
-        line["fixed_cost_per_unit"] = float(it.fixed_cost_per_unit or 0)
-        line["percentage_cost"] = float(it.percentage_cost or 0)
         inv = inv_map.get(it.inventory_id)
         line["omborda"] = float(inv.stock_quantity or 0) if inv is not None else None
         satrlar.append(line)
 
-    def _holat(sharti):
-        qat = [dict(l, included=bool(sharti(l))) for l in satrlar]
-        m = sum(float(l["line_cost"] or 0) for l in qat if l["included"])
-        x = _qoshimcha_xarajat(db, SimpleNamespace(quantity=partiya, bom_id=None), qat, m, company_id)
-        return {"xomashyo": m / partiya, "qoshimcha": x / partiya, "jami": (m + x) / partiya}
-
+    holatlar = _retsept_holatlari(db, company_id, satrlar, partiya)
     return {
         "birlik": product_type.unit,
         "partiya": partiya,
@@ -1451,13 +1501,92 @@ def retsept_tannarxi(db: Session, company_id: int, product_type, data) -> dict:
             "qoshimcha_qatiy": l["fixed_cost_per_unit"],
             "qoshimcha_foiz": l["percentage_cost"],
         } for l in satrlar],
-        "doim": _holat(lambda l: not l["is_optional"]),
-        "qoplamali": _holat(lambda l: (not l["is_optional"]) or l["is_coating"]),
-        "hammasi": _holat(lambda l: True),
-        "qoplama_bor": any(l["is_optional"] and l["is_coating"] for l in satrlar),
-        "ixtiyoriy_bor": any(l["is_optional"] and not l["is_coating"] for l in satrlar),
-        "narxsiz": sorted({l["item_name"] for l in satrlar if not float(l["unit_price_at_time"] or 0)}),
+        "doim": holatlar["doim"],
+        "qoplamali": holatlar["qoplamali"],
+        "hammasi": holatlar["hammasi"],
+        "qoplama_bor": holatlar["qoplama_bor"],
+        "ixtiyoriy_bor": holatlar["ixtiyoriy_bor"],
+        "narxsiz": holatlar["narxsiz"],
     }
+
+
+def turlar_xulosasi(db: Session, company_id: int) -> list:
+    """Mahsulot turlari JADVALI (kech114 — egasi QARORI «5B — Jadval»): har FAOL tur uchun — turning o'z maydonlari
+    (`ProductTypeRead` bilan bir xil: sahifa ularni retsept / ishlab chiqarish oynalarida ham ishlatadi), omborda
+    (tayyor + qaytgan, qoldiq > 0; `crud._fp_tayyormi` qoidasi), band (shu tayyor qoldiqning buyurtmaga band qismi),
+    jarayonda (jarayondagi ishlab chiqarishlar miqdori) va har FAOL retseptning 1 birlik taxminiy tannarxi (retsept
+    oynasidagi AYNAN hisob — `_retsept_satri` + `_retsept_holatlari`: «doim» va «qoplamali»). Hech narsa yozilmaydi.
+    So'rovlar soni tur / retsept soniga BOG'LIQ EMAS (turlar, retseptlar + qatorlar + materiallar, ombor yig'indisi,
+    jarayondagi yig'indi). Ilgari sahifa har tur uchun alohida `/boms` so'rovi yuborardi."""
+    from sqlalchemy import or_
+    from sqlalchemy.orm import selectinload
+    from models import FinishedProduct, StockSource, ProductionStatus as FPStatus
+    turlar = db.query(ProductType).filter(
+        ProductType.company_id == company_id, ProductType.is_active == True  # noqa: E712
+    ).order_by(ProductType.name, ProductType.id).all()
+    if not turlar:
+        return []
+    idlar = [t.id for t in turlar]
+    retseptlar = db.query(BOM).options(selectinload(BOM.items).selectinload(BOMItem.inventory)).filter(
+        BOM.company_id == company_id, BOM.is_active == True, BOM.product_type_id.in_(idlar)  # noqa: E712
+    ).order_by(BOM.id).all()
+    ombor = {}
+    for pt_id, miqdor, band in db.query(
+            FinishedProduct.product_type_id, func.sum(FinishedProduct.quantity),
+            func.sum(FinishedProduct.reserved_quantity)).filter(
+            FinishedProduct.company_id == company_id, FinishedProduct.product_type_id.in_(idlar),
+            FinishedProduct.quantity > 0,
+            or_(FinishedProduct.source == StockSource.RETURNED,
+                FinishedProduct.production_status == FPStatus.READY)).group_by(
+            FinishedProduct.product_type_id).all():
+        ombor[pt_id] = (float(miqdor or 0), float(band or 0))
+    jarayonda = {pt_id: float(miqdor or 0) for pt_id, miqdor in db.query(
+        ProductionOrder.product_type_id, func.sum(ProductionOrder.quantity)).filter(
+        ProductionOrder.company_id == company_id, ProductionOrder.product_type_id.in_(idlar),
+        ProductionOrder.status == ProductionOrderStatus.IN_PROGRESS.value).group_by(
+        ProductionOrder.product_type_id).all()}
+    tur_retseptlari = {}
+    for bom in retseptlar:
+        partiya = float(bom.batch_quantity or 0)
+        elementlar = list(bom.items or [])
+        if partiya > 0:
+            h = _retsept_holatlari(db, company_id, [_retsept_satri(bi, partiya) for bi in elementlar], partiya)
+            tannarx = {"doim": h["doim"]["jami"], "qoplamali": h["qoplamali"]["jami"]}
+            qoplama_bor, narxsiz = h["qoplama_bor"], h["narxsiz"]
+        else:
+            tannarx, qoplama_bor, narxsiz = None, False, []
+        tur_retseptlari.setdefault(bom.product_type_id, []).append({
+            "id": bom.id,
+            "variant_name": bom.variant_name,
+            "batch_quantity": float(bom.batch_quantity or 0),
+            "materiallar": len(elementlar),
+            "tannarx": tannarx,
+            "qoplama_bor": qoplama_bor,
+            "narxsiz": narxsiz,
+        })
+    natija = []
+    for t in turlar:
+        miqdor, band = ombor.get(t.id, (0.0, 0.0))
+        natija.append({
+            "id": t.id,
+            "company_id": t.company_id,
+            "name": t.name,
+            "unit": t.unit,
+            "input_template": t.input_template,
+            "pricing_formula": t.pricing_formula,
+            "fixed_unit_price": float(t.fixed_unit_price) if t.fixed_unit_price is not None else None,
+            "supports_coating": bool(t.supports_coating),
+            "coating_price_multiplier": (float(t.coating_price_multiplier)
+                                         if t.coating_price_multiplier is not None else None),
+            "is_active": bool(t.is_active),
+            "created_at": t.created_at.isoformat() if t.created_at else None,
+            "notes": t.notes,
+            "omborda": round(miqdor, 4),
+            "band": round(band, 4),
+            "jarayonda": round(jarayonda.get(t.id, 0.0), 4),
+            "retseptlar": tur_retseptlari.get(t.id, []),
+        })
+    return natija
 
 
 def royxat_qoshimchalari(db: Session, company_id: int, rows: list) -> dict:

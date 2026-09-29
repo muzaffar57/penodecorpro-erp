@@ -88,6 +88,14 @@ def list_product_types(db: Session = Depends(get_db), current_user=Depends(auth.
     ).order_by(ProductType.name).all()
 
 
+@router.get("/product-types/xulosa")
+def product_types_summary(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+    """kech114 (egasi QARORI «5B — Jadval»): mahsulot turlari jadvali — har tur: omborda / band / jarayonda va
+    retseptlarining 1 birlik taxminiy tannarxi (`service.turlar_xulosasi`; faqat o'qiydi). Huquq — turlar ro'yxati
+    bilan bir xil."""
+    return service.turlar_xulosasi(db, auth.company_id_of(current_user))
+
+
 @router.post("/product-types", response_model=schemas.ProductTypeRead)
 def create_product_type(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     # kech93 (8-band): tana QAT'IY (`_tana`), sabab — `crud._val_rules()["ProductType"]` izohida.

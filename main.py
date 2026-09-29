@@ -7909,6 +7909,9 @@ def api_get_finished(source: Optional[str] = None, only_available: bool = False,
     else:
         items = crud.get_finished_products_for_main_page(db, days=90, show_all=show_all,
                                                          company_id=_cid)
+    # kech114 (dizayn 7-band + K114-1): MRP mahsulotining ishlab chiqarish raqami («Partiya №12», jarayondagi uchun
+    # «Ishlab chiqarishda ochish» havolasi) — BITTA so'rov (qator soniga bog'liq emas).
+    _po_raqam = crud.fp_ishlab_chiqarish_raqamlari(db, [fp.id for fp in items], company_id=_cid)
     return [{
         "id": fp.id,
         "name": fp.name,
@@ -7942,7 +7945,10 @@ def api_get_finished(source: Optional[str] = None, only_available: bool = False,
         "image_url": fp.image_url,
         "reserved_quantity": float(fp.reserved_quantity or 0),
         "reserved_for_order_item_id": fp.reserved_for_order_item_id,
-        "total_value": round(float(fp.quantity or 0) * float(fp.unit_price or 0))
+        "total_value": round(float(fp.quantity or 0) * float(fp.unit_price or 0)),
+        # kech114: ombordagi qiymat — narx bo'lmasa tannarx bo'yicha (egasi QARORI; `crud._fp_ombor_qiymati`)
+        "ombor_qiymati": round(crud._fp_ombor_qiymati(fp), 2),
+        "ishlab_chiqarish_id": _po_raqam.get(fp.id),
     } for fp in items]
 
 
@@ -8292,6 +8298,9 @@ def api_delete_finished(fp_id: int, return_to_stock: bool = False,
     # kech40 (K40-1): qaytgan (RETURNED) mahsulot bazada IN_PROGRESS bo'lib qolgan bo'lsa ham
     # TAYYOR hisoblanadi (`crud._fp_tayyormi` — UI bilan bir xil) — qoldig'i bor qaytgan
     # mahsulot ilgari jim o'chirilar va penoplasti omborga soxta qaytarilardi.
+    # kech114 (K114-1): jarayondagi MRP mahsuloti bu yerdan o'chirilmaydi — «Ishlab chiqarish» bo'limida «Bekor qilish».
+    if crud._mrp_tm_mi(fp) and not crud._fp_tayyormi(fp):
+        raise HTTPException(status_code=400, detail=crud._MRP_JARAYON_XABAR)
     if crud._fp_tayyormi(fp) and float(fp.quantity or 0) > 0.001:
         raise HTTPException(
             status_code=400,
