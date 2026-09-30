@@ -2818,8 +2818,41 @@ async def custom_http_exception_handler(request: Request, exc: _StarletteHTTPExc
         return _r
     if exc.status_code == 401 and not request.url.path.startswith("/api/"):
         return RedirectResponse(url="/login", status_code=302)
+    # kech118 (B bosqichi — audit U-11, O'LCHANGAN: `/bunday-sahifa-yoq` → oq sahifada faqat {"detail":"Not Found"};
+    # ruxsatsiz sahifa — {"detail":"Bu sahifaga faqat admin, manager kira oladi"}): BRAUZER sahifa so'raganda (GET /
+    # HEAD, `Accept` da text/html, API / statik fayl emas) — o'zbekcha sahifa, «Bosh sahifaga» tugmasi bilan. Holat kodi
+    # (404 / 403) SAQLANADI. API, statik fayl va boshqa mijozlar (Accept: */*) — avvalgidek JSON.
+    if exc.status_code in (403, 404) and _html_sahifa_sorovimi(request):
+        return _xato_sahifasi(request, exc.status_code)
     # Boshqa barcha holatlar uchun — FastAPI'ning standart javobi bilan bir xil
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail}, headers=exc.headers)
+
+
+def _html_sahifa_sorovimi(request: Request) -> bool:
+    """kech118 (U-11): brauzer SAHIFA so'rayaptimi — GET / HEAD, yo'l `/api/` yoki `/static/` emas, `Accept` da text/html."""
+    if request.method not in ("GET", "HEAD"):
+        return False
+    _yol = request.url.path or "/"
+    if _yol.startswith("/api/") or _yol.startswith("/static/") or "/api/" in _yol:
+        return False
+    return "text/html" in (request.headers.get("accept") or "").lower()
+
+
+def _xato_sahifasi(request: Request, kod: int):
+    """kech118 (U-11): 404 / 403 uchun o'zbekcha sahifa (`templates/xato_sahifa.html` — `base.html` siz: sessiya bo'lmasa
+    ham ochiladi). Hodim paneli yo'llarida «bosh sahifa» — `/hodim`."""
+    _hodim = (request.url.path or "").startswith("/hodim")
+    if kod == 403:
+        sarlavha, matn = ("Bu bo'limga ruxsatingiz yo'q",
+                          "Sizning rolingiz bu sahifani ochishga ruxsat bermaydi. "
+                          "Kerak bo'lsa, korxona administratoriga murojaat qiling.")
+    else:
+        sarlavha, matn = ("Bunday sahifa yo'q",
+                          "Manzil noto'g'ri yozilgan yoki sahifa olib tashlangan.")
+    return templates.TemplateResponse(
+        request, "xato_sahifa.html",
+        {"kod": kod, "sarlavha": sarlavha, "matn": matn, "bosh": "/hodim" if _hodim else "/"},
+        status_code=kod)
 
 
 def _json_xavfsiz(qiymat):
@@ -3059,7 +3092,7 @@ templates.env.globals["yonalishlar_royxati"] = _yonalishlar_royxati_shablon
 # brauzer/Telegram WebApp eski nusxani abadiy keshlab qolmasligi uchun.
 # Har deploy'da bu qiymat o'zgarishi kerak (masalan shu sana-vaqt) —
 # shunda "?v=..." o'zgarib, brauzer albatta YANGI faylni yuklaydi.
-templates.env.globals["static_version"] = "20260917-1"
+templates.env.globals["static_version"] = "20260930-1"   # kech118: style.css (fokus belgisi) — kesh yangilansin
 
 
 def _toshkent_filtr(qiymat, fmt="%d.%m.%Y %H:%M"):

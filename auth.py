@@ -356,6 +356,30 @@ PAGE_PERMISSIONS = {
 }
 
 
+# kech118 (B bosqichi — audit U-06 / U-11): rol nomlari foydalanuvchiga — O'ZBEKCHA (Foydalanuvchilar sahifasidagi
+# yorliqlar bilan AYNAN). Ilgari rad sababi xom qiymatlarni ko'rsatardi: «Bu sahifaga faqat admin, manager kira oladi».
+# YAGONA manba: rad sababi (`require_role`) va ruxsatsiz sahifa (`main.custom_http_exception_handler`) shundan oladi.
+ROL_NOMI = {
+    UserRole.ADMIN: "Admin",
+    UserRole.MANAGER: "Hodim",
+    UserRole.ACCOUNTANT: "Moliyachi",
+    UserRole.WAREHOUSE: "Omborchi",
+    UserRole.MASTER: "Usta",
+}
+
+
+def rollar_matni(rollar) -> str:
+    """[UserRole, ...] → «Admin va Hodim» / «Admin, Hodim va Omborchi» (takrorsiz, berilgan tartibda)."""
+    nomlar = []
+    for r in rollar:
+        n = ROL_NOMI.get(r) or str(getattr(r, "value", r))
+        if n not in nomlar:
+            nomlar.append(n)
+    if len(nomlar) <= 1:
+        return "".join(nomlar)
+    return ", ".join(nomlar[:-1]) + " va " + nomlar[-1]
+
+
 def require_role(allowed_roles: list):
     """Dekorator — faqat ruxsat etilgan rollar sahifaga kira oladi.
 
@@ -368,10 +392,9 @@ def require_role(allowed_roles: list):
     ) -> User:
         user = require_login(request, db)
         if user.role not in allowed_roles:
-            roles_str = ", ".join([r.value for r in allowed_roles])
             raise HTTPException(
                 status_code=403,
-                detail=f"Bu sahifaga faqat {roles_str} kira oladi"
+                detail=f"Bu bo'lim faqat {rollar_matni(allowed_roles)} uchun ochiq"
             )
         return user
     return checker

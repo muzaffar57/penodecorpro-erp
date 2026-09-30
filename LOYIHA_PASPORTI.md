@@ -1,6 +1,6 @@
 # PenoDecorPro ERP — LOYIHA PASPORTI
 
-*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2); kech112: zip 108 — «Tayyor» da bo'sh loy = reja (K112-3), material nomi (K112-4), MRP qoplama belgisi (K112-5); ko'p korxonali yakuniy jonli sinov; kech115: zip 112 — butun dastur auditi A bosqichi (pul va ma'lumot xatolari) 1-qismi: kirim, qarzdorlar, «Tayyor», narxsiz buyurtma, o'chirilganlar jurnali, manfiy raqamlar, taqqoslash, korxona sog'ligi, ombor filtri; kech116: zip 113 — A bosqich 2-qismi: sog'liq sabablari (K115-2), «Bugungi xulosa» (K115-3), hujjatlardagi hisob qatorlari (G2-04), «Pul oqimi» — haqiqiy pul (G1-03), «Xarajat» — bitta ta'rif va «Tannarx» (G1-02), loyiha qiymati buyurtmalardan (G2-01), haqiqiy IP va kirish cheklovi (U-01), parol oynasi va kirishlarni yopish (G6-06); zip 114 — mijoz hujjatlarida kechirilgan qarz «Chegirma» ichida (egasi qarori); kech117: zip 115 — A2: yo'nalishlar bo'yicha moliya (G3-11, G6-09); zip 116 — jonli sinovdan keyin: «Belgilanmagan» manbalari, Moliya xarajatdan keyin yangilanadi). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
+*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2); kech112: zip 108 — «Tayyor» da bo'sh loy = reja (K112-3), material nomi (K112-4), MRP qoplama belgisi (K112-5); ko'p korxonali yakuniy jonli sinov; kech115: zip 112 — butun dastur auditi A bosqichi (pul va ma'lumot xatolari) 1-qismi: kirim, qarzdorlar, «Tayyor», narxsiz buyurtma, o'chirilganlar jurnali, manfiy raqamlar, taqqoslash, korxona sog'ligi, ombor filtri; kech116: zip 113 — A bosqich 2-qismi: sog'liq sabablari (K115-2), «Bugungi xulosa» (K115-3), hujjatlardagi hisob qatorlari (G2-04), «Pul oqimi» — haqiqiy pul (G1-03), «Xarajat» — bitta ta'rif va «Tannarx» (G1-02), loyiha qiymati buyurtmalardan (G2-01), haqiqiy IP va kirish cheklovi (U-01), parol oynasi va kirishlarni yopish (G6-06); zip 114 — mijoz hujjatlarida kechirilgan qarz «Chegirma» ichida (egasi qarori); kech117: zip 115 — A2: yo'nalishlar bo'yicha moliya (G3-11, G6-09); zip 116 — jonli sinovdan keyin: «Belgilanmagan» manbalari, Moliya xarajatdan keyin yangilanadi; kech118: qolgan egasi qarorlari (6-bo'lim); zip 117 — B bosqichi 1-qism: dastur oynalari (xabar, kiritish, Esc / tashqariga bosish), o'zbekcha 404 / 403 sahifa, klaviatura fokusi). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
 *Bu faylni `main` ga ko'chirish bilan birga, keyin har katta o'zgarishda yangilab boring. 9-bo'lim AVTOMATIK
 (`python3 tools/pasport_xarita.py --yoz`), qolgani qo'lda; `tools/test_pasport.py` ikkalasini ham tekshiradi.*
 
@@ -339,6 +339,26 @@ NAT i ortidagi xodimlar bir-birini bloklamasin).
 parol bilan BITTA tranzaksiyada shu foydalanuvchining HAMMA sessiyalari o'chiriladi, faqat o'z parolini almashtirganning
 joriy sessiyasi qoladi. Hodim PIN i (`crud.set_employee_login`) — hodimning hamma panel sessiyalari o'chiriladi.
 
+**Dasturning o'z oynalari va yopish (kech118, B bosqichi — audit U-07 / U-08).** Brauzerning xom oynalari ISHLATILMAYDI:
+xabar — `base.html` `xabarOyna(matn, {sarlavha, tur, okText})` (Promise; navbat bilan; tur — matn boshidagi ❌ / ✅ / ⚠ dan),
+brauzerning native `alert` i `_xoAlertniUlash(window)` bilan shu oynaga yo'naltiriladi (eski `alert(...)` chaqiriqlari o'zgarmagan;
+test / boshqa kod oldindan o'rnatgan almashtirishga tegilmaydi — faqat `[native code]`); kiritish — `kiritishOyna(sarlavha, {izoh,
+qiymat, tur, okText, inputmode, tekshir})` (Promise: matn / `null`); tasdiq — `customConfirm`. Xom `prompt()` / `confirm()` —
+YO'Q (`tools/test_b118_oyna.py` S1). MUHIM: dastur oynasi sahifani to'xtatmaydi — xabardan KEYIN sahifa yangilanadigan /
+boshqa joyga o'tiladigan joyda `await xabarOyna(...)`. Yopish: Esc — eng ustki ochiq oynaning `data-yopish` tugmasi (oyna =
+belgining eng yaqin `position: fixed` ajdodi; eng ustkisi — z-index, teng bo'lsa hujjatda keyingisi); oynaning tashqarisiga
+(qora fonga) bosish — xuddi shunday; oynaga ma'lumot yozilgan bo'lsa (input / change) ikkalasi ham avval so'raydi («Oynaga
+yozilgan ma'lumot saqlanmaydi. Oyna yopilsinmi?» — «Yopish» / «Davom etish»). `data-yopish-ichki` — oyna ichidagi ochiluvchi
+panel (Esc avval uni yopadi); `data-esc-ozi` — o'z Esc ishlovchisi bor, yopish belgisiz oyna (platforma) — «ochiq oynalar»da
+qatnashadi: u ustida turganda global Esc ostidagi oynaga tegmaydi. Yopish tugmasi FAQAT belgi bilan topiladi (matn
+bo'yicha taxmin YO'Q: «Bekor qilish» / «✕» ba'zi joyda AMAL — ishlab chiqarishni bekor qilish `doCancel`, TM o'chirish `delFp`).
+YANGI oyna qo'shilsa — yopish tugmasiga `data-yopish` (S3 / S4 statik darvozasi har qoplamani tekshiradi).
+**Yo'q va ruxsatsiz sahifa (kech118, U-11).** `main.custom_http_exception_handler`: 404 / 403 da, brauzer SAHIFA so'rasa (GET /
+HEAD, `Accept` da text/html, yo'l `/api/` yoki `/static/` emas) — `templates/xato_sahifa.html` («Bunday sahifa yo'q» / «Bu
+bo'limga ruxsatingiz yo'q», «Bosh sahifaga», hodim yo'lida — `/hodim`), holat kodi saqlanadi. API va boshqa mijozlar — JSON
+AYNAN avvalgidek. Rol nomlari foydalanuvchiga o'zbekcha — `auth.ROL_NOMI` / `auth.rollar_matni` (rad sababi: «Bu bo'lim faqat
+Admin va Hodim uchun ochiq»). Klaviatura fokusi — `static/style.css` `:focus-visible` (hamma bosiladigan / yoziladigan element,
+inline `outline:none` ustidan); `style.css` havolalari `?v={{ static_version }}` bilan (kesh).
 **Yo'nalishlar bo'yicha moliya (kech117, A2 — egasi QARORLARI kech114 00:08; G3-11, G6-09).** Jadval `yonalishlar`
 (`models.Yonalish`: `company_id`, `nom` ≤ 60, `kod` — asosiysida 'penoplast', `yashirin`, `tartib`; `uq_yonalishlar_company_kod`).
 Har korxonada ASOSIY yo'nalish («Penoplast», `crud.standart_yonalish` — yo'q bo'lsa yaratadi; yangi korxonada — platformadan
@@ -616,6 +636,13 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   (bosh sahifa pul oqimi — haqiqiy pul), `test_loyiha_forma.js` (tanada `total_budget` yo'q), `test_tana_qatiy.py` (parol oynasi),
   `test_toshkent_korinish.py` (UTC sanasi — aniq namunalarda: haqiqiy sana 30.09 bo'lgan kuni ham to'g'ri),
   `test_transport_foyda.py` U3 (bosh sahifa «Chiqim» — yagona `/api/finance/pul-oqimi` manbasidan).
+- (kech118) B bosqichi 1-qism — dastur oynalari: statik (xom prompt / confirm yo'q, har qoplama oyna belgili — shablon va JS,
+  xavfli amal tugmasi belgisiz, xabardan keyin yangilanadigan joyda `await`), HTTP (404 / 403 sahifa — brauzer; JSON — API va
+  boshqa mijozlar; o'zbekcha rol nomlari), HAQIQIY server + jsdom (xabar oynasi va navbat, Esc / tashqariga bosish, yozilgan
+  ma'lumotda so'rash, tasdiq ustidagi Esc, ustma-ust oynalar, ichki panel, kiritish oynasi — qarz to'lovi, TM narxi, xarid
+  tahriri, «HAMMASINI-OCHIR», Telegram bot; SQLite, PG): `tools/test_b118_oyna.py`. Moslangan (sahifa endi `kiritishOyna` /
+  `xabarOyna` chaqiradi — soxta muhitga shu test soxtalariga ulangan): `test_narx_kiritish_ui.js`, `test_xarid_tahrir_ui.js`,
+  `test_xato_sababi_ui.js`, `test_toshkent_korinish_ui.js`, `test_qaytarish_ochirish_ui.js`.
 - (kech117) A2 — yo'nalishlar bo'yicha moliya: API (ro'yxat, qo'shish, takror nom, nomini o'zgartirish, yashirish, asosiyni
   himoya, ishlatilganini o'chirish rad, begona korxona), yozish yo'llari (hodim, xarajat, transport, kirim, MRP turi — yashirin /
   begona / eski `production_type`), migratsiya (idempotent), hisob D0–D18 (detal bo'yicha daromad / tannarx, chegirma, qaytarish,
@@ -797,6 +824,30 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
 - (kech107, 10f "Har safar so'rasin") Kirim hujjatini bekor qilishda «hozir to'langan» to'lov — har safar tanlov:
   to'lovni ham o'chirish yoki ta'minotchida avans qolsin; ombor, o'rtacha narx, qo'shimcha xarajatlar — avtomatik orqaga.
 - (2026-09-16) Joriy sovg'a davri ataylab yangi ustalar uchun (eski ustalar qatnashmaydi).
+
+**Qolgan egasi qarorlari (kech118, 2026-09-30 — audit «Sizning qaroringiz kerak»; QAYTA SO'RALMAYDI; D bosqichida kodlanadi,
+bajarilganlari belgilanadi)**
+- Tungi rejim — «To'liq tuzatilsin» (hamma sahifa ranglari umumiy ranglar ro'yxatiga; U-02).
+- Kassa — «Bitta: Kassa + bank»: karta nomi to'g'rilanadi (mijozning plastik / o'tkazma to'lovlari ham kiradi), boshlang'ich
+  balans kiritilmagan bo'lsa ogohlantirish (G3-14). Naqd va bank alohida EMAS.
+- Hodim paneli — «Oylik ko'rinsin»: shu oy hisoblangan / olingan / qoladi; avans so'rovini rad etishda SABAB MAJBURIY va
+  panelda ko'rinadi (G6-21).
+- Sahifalar vazifasi — «Vazifalar ajratilsin»: Bosh sahifa — bugungi holat va ogohlantirishlar; Dashboard — ish jarayoni;
+  Hisobotlar — oylik tahlil; Loyiha — mijoz kartasi (pul xulosasi, buyurtmalar), Buyurtmalar — ish joyi; takror bloklar
+  bittadan (G1-09, G2-17, G1-24).
+- Rollar: «Usta» LOGIN roli olib tashlanadi (Ustalar ro'yxati, KPI, bonus, sovg'alar QOLADI); «Moliyachi» (hisobchi) roli
+  ham olib tashlanadi (kerak bo'lsa keyin qayta); Omborchi qaytarish va brak YOZA OLADI (G2-05, G1-05, G5-03). O'lchov:
+  `main` zaxirasida (28.09) foydalanuvchilar — admin + 2 Hodim; usta / moliyachi / omborchi login yo'q.
+- Ishlab chiqarish: ikkalasi qoladi, nomi ajratiladi — Tayyor mahsulotlardagi eski oyna «Penoplast detal», yonida «Retsept
+  bo'yicha» havola (G5-01); «Loy retseptlari» (menyu) va «Mahsulot tarkibi» (Ishlab chiqarish ichida) (G4-22); brak — BITTA
+  «Brak yozish» oynasi (avval «brak qayerda chiqdi»; «Yangi qaytarish» — faqat mijozdan qaytgan butun mahsulot) (G5-04);
+  brak SABABI (ro'yxatdan) MAJBURIY, bosqich / javobgar ixtiyoriy (G5-20).
+- Nomlar lug'ati — taklif qilingani: «Ta'minotchi» (yetkazib beruvchi / hamkor / yetkazuvchi o'rniga); login roli «Menejer»
+  (hozir «Hodim»), oylik oladigan ishchi — «Hodim»; hujjatlar — «Buyurtma hisobi», «Yuk xati № …», «Sotuv cheki № …»
+  («NAKLADNOY» o'rniga) (U-12, G4-19, G6-11).
+- Buyurtmasi bor loyihani o'chirish — TAQIQLANADI («Avval buyurtmalarni o'chiring») (G2-20).
+- Tayyor mahsulot «Kam» chegarasi — har mahsulotga egasi o'zi yozadi; yozilmasa «Kam» ko'rsatilmaydi (G5-11).
+- Sotishda partiya — qo'lda tanlash QOLADI (guruh qatoriga «Sotish» — texnik) (G5-12).
 
 ## 7. Ochiq masalalar
 
@@ -1028,6 +1079,16 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
   (`read_network_requests`), skrinshotga ishonmang; tugma ko'rinmasa (gorizontal aylantiriladigan jadval) — element `.click()`.
 - (kech117) PDF `Paragraph` darvozasi (`test_pdf_matn` C2) f-satrdagi `_x(...)` chaqiruvini taniydi, `"..." + _x(...)`
   qo'shishni tanimaydi — foydalanuvchi matnini f-satr ichida `_x(...)` bilan bering; son ko'rinishlari — TIZIM ro'yxatiga.
+- (kech118) jsdom tashqi uslub faylini (`<link>` — `style.css`) sahifaning `<style>` bloklaridan KEYIN kaskadga qo'shadi
+  (brauzerda — hujjat tartibida): `style.css` dagi `.modal-overlay{display:flex}` sahifaning `display:none` i ustidan yozilib,
+  YOPIQ oynalar jsdom da «ochiq» hisoblanadi. Oyna ko'rinishini jsdom da tekshiruvchi test `style.css` ni yuklamasin (inline /
+  sahifa uslublari yetarli) yoki natijani HAQIQIY brauzerda o'lchang.
+- (kech118) Har `input` / `change` hodisasida ishlaydigan global tinglovchida `getComputedStyle` (ajdodlar zanjiri) — jsdom da
+  juda sekin (katta uslub fayli bilan har chaqiruv millisekundlar): eski test ssenariysi 5 s dan uzoq cho'zilib, test serverining
+  keep-alive ulanishi yopilgan paytga to'g'ri kelgan POST «fetch failed / other side closed» bo'ldi (test_ochirilgan_tur B0a).
+  Tez-tez hodisada — faqat arzon tekshiruv (inline uslub, klass, atribut); hisoblangan uslub — kam uchraydigan hodisada (Esc).
+- (kech118) Xom `alert` sahifani to'xtatadi — undan KEYINGI `location.reload()` xabar yopilgach bajarilardi. Dastur oynasi
+  to'xtatmaydi: shunday joyda `await xabarOyna(...)` (aks holda xabar ko'rinmay qoladi).
 
 ## 9. Xarita (AVTOMATIK)
 
@@ -1225,7 +1286,7 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 - Qorovul: auth.admin_or_manager
 - `masters_manage.html` API: `/api/masters`, `/api/masters/{}`
 
-Hech bir handler to'g'ridan-to'g'ri ko'rsatmaydigan shablonlar: yo'q
+Hech bir handler to'g'ridan-to'g'ri ko'rsatmaydigan shablonlar: `xato_sahifa.html`
 <!-- AVTO:SAHIFALAR OXIRI -->
 
 ### 9.4 API marshrutlari
@@ -1738,6 +1799,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_asosiy_penoplast.py` · PG — 18-band (K37-1) darvozasi (kech37, 2026-09-23).
 - `test_atomik_103.py` · PG — kech84 darvozasi (2026-09-27, 103-band): YOZADIGAN endpointlar atomik — nosozlik bo'lsa baza O'ZGARMAYDI, qayta urinish ishni BIR marta bajaradi.
 - `test_atomik_tolov.py` · PG — kech99 (2026-09-27), probe103 QOLDIG'I (G, H, I).
+- `test_b118_oyna.py` · PG — kech118, B bosqichi 1-qism: DASTURNING O'Z OYNALARI (xabar, kiritish, yopish) va o'zbekcha 404 / 403.
 - `test_brak_bekor.py` — xato yozilgan brakni bekor qilish.
 - `test_brak_belgi_himoya.py` · PG — K57-1 / 40-band darvozasi (kech57, 2026-09-24).
 - `test_brak_belgisi.py` · PG — 13-band 3-qadam darvozasi (kech52, 2026-09-24).
@@ -1898,5 +1960,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 170 (Python 140, JS 30).
+Jami test fayllari: 171 (Python 141, JS 30).
 <!-- AVTO:TESTLAR OXIRI -->
