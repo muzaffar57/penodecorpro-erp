@@ -959,8 +959,9 @@ check("S6 marshrutlar: ishlab chiqarish braki sabab va javobgarni uzatadi; /retu
       and _ms.count('"brak_sabablari": crud.BRAK_SABABLARI,') == 2)
 _i7 = _ms.find('@app.get("/api/reports/brak-tahlil")')
 _bosh7 = _ms[_i7:_ms.find('"""', _i7)] if _i7 >= 0 else ""
-check("S7 tahlil marshruti Moliya huquqi bilan (admin_or_financier)",
-      "def api_brak_tahlil(" in _bosh7 and "current_user=Depends(auth.admin_or_financier)" in _bosh7, _bosh7[:200])
+# kech118 (ROLLAR, MOSLANDI): qorovul — rol ruxsati «Hisobotlar: Ko'rish» (eski admin_or_financier bilan bir xil rollar)
+check("S7 tahlil marshruti Hisobotlar ruxsati bilan (auth.ruxsat(\"hisobot\", \"korish\"))",
+      "def api_brak_tahlil(" in _bosh7 and 'current_user=Depends(auth.ruxsat("hisobot", "korish"))' in _bosh7, _bosh7[:200])
 check("S8 migratsiya: 37 / 38-band migratsiyalaridan KEYIN chaqiriladi, e'londan keyin",
       tartibda(_ms, "\n_migrate_brak_belgisi()\n", "def _migrate_brak_sabab_javobgar():", "\n_migrate_brak_sabab_javobgar()\n"))
 _sv = inspect.getsource(getattr(services, "get_brak_tahlil", lambda: None))

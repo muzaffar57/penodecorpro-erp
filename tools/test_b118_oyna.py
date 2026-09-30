@@ -316,12 +316,16 @@ check("H7 ruxsatsiz sahifa (Omborchi → /users, brauzer): 403, «Bu bo'limga ru
       (r.status_code, r.text[:200]))
 r = req(C2, "get", "/api/employees")
 _d = js(r).get("detail") or ""
-check("H8 ruxsatsiz API: 403 JSON, rol nomlari o'zbekcha («Bu bo'lim faqat Admin uchun ochiq»; asl: «… faqat admin kira oladi»)",
-      r.status_code == 403 and _d == "Bu bo'lim faqat Admin uchun ochiq", (r.status_code, _d))
+# kech118 (ROLLAR, MOSLANDI): marshrut — rol ruxsati; rad sababi — qaysi bo'lim / amal ruxsati yo'qligi (o'zbekcha)
+check("H8 ruxsatsiz API: 403 JSON, sababi o'zbekcha («Sizning rolingizda «Ustalar va hodimlar → Hodimlar (oylik, avans)» "
+      "bo'limida «Ko'rish» ruxsati yo'q…»; asl: «… faqat admin kira oladi»)",
+      r.status_code == 403 and _d.startswith("Sizning rolingizda «Ustalar va hodimlar → Hodimlar (oylik, avans)»")
+      and "«Ko'rish» ruxsati yo'q" in _d, (r.status_code, _d))
 _rm = getattr(auth, "rollar_matni", None)
-check("H9 `auth.rollar_matni`: «Admin va Hodim», «Admin, Hodim va Omborchi», takrorsiz",
-      _rm is not None and _rm([UserRole.ADMIN, UserRole.MANAGER]) == "Admin va Hodim"
-      and _rm([UserRole.ADMIN, UserRole.MANAGER, UserRole.WAREHOUSE, UserRole.ADMIN]) == "Admin, Hodim va Omborchi"
+# kech118 (nomlar lug'ati — egasi qarori, MOSLANDI): login roli «Menejer» (ilgari «Hodim»)
+check("H9 `auth.rollar_matni`: «Admin va Menejer», «Admin, Menejer va Omborchi», takrorsiz",
+      _rm is not None and _rm([UserRole.ADMIN, UserRole.MANAGER]) == "Admin va Menejer"
+      and _rm([UserRole.ADMIN, UserRole.MANAGER, UserRole.WAREHOUSE, UserRole.ADMIN]) == "Admin, Menejer va Omborchi"
       and _rm([UserRole.ADMIN]) == "Admin", _rm and _rm([UserRole.ADMIN, UserRole.MANAGER]))
 _eng = [f"{f}" for f in ("admin", "manager", "warehouse", "accountant", "master") if f" {f}" in _d or f"{f}," in _d]
 check("H10 rad sababida inglizcha rol qiymati yo'q", r.status_code == 403 and not _eng, _eng)

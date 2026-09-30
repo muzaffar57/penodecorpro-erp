@@ -86,9 +86,9 @@ class _User:
 
 
 _joriy = {"u": _User(1)}
-main.app.dependency_overrides[auth.admin_or_warehouse] = lambda: _joriy["u"]
-main.app.dependency_overrides[auth.admin_only] = lambda: _joriy["u"]
-main.app.dependency_overrides[auth.admin_or_manager] = lambda: _joriy["u"]
+# kech118 (ROLLAR, MOSLANDI): marshrut qorovullari endi rol ruxsati (`auth.ruxsat(...)`) — hammasi almashtiriladi
+for _q in list(auth._RUXSAT_QOROVULLARI.values()) + [auth.admin_only]:
+    main.app.dependency_overrides[_q] = lambda: _joriy["u"]
 c = TestClient(main.app)
 
 TUR = dict(unit="metr", input_template="quantity_only", pricing_formula="unit_based")

@@ -1053,7 +1053,7 @@ async function yur() {
   EL = {}; QSA = {}; CUR = 'G3'; v('giftPeriodAddMasterSelect', K.m2); await submitAddMasterToGiftPeriod();
   EL = {}; QSA = {}; CUR = 'G4'; await submitCloseGiftPeriod(false);
   EL = {}; QSA = {}; CUR = 'U1';
-  v('f-username', ' ui_user '); v('f-password', 'Parol123!'); v('f-role', 'manager'); v('f-fullname', 'UI Foydalanuvchi');
+  v('f-username', ' ui_user '); v('f-password', 'Parol123!'); v('f-role', K.rol); v('f-fullname', 'UI Foydalanuvchi');
   await saveUser();
   EL = {}; QSA = {}; CUR = 'U2'; await changePass(990003, 'ui_user', null);
   v('parol-yangi', 'UiYangi123!'); v('parol-takror', 'UiYangi123!'); await parolSaqlash();
@@ -1082,8 +1082,24 @@ def _asosiy_yonalish_id():
         _d117.close()
 
 
+def _menejer_rol_id():
+    """kech118 (ROLLAR, MOSLANDI): users.html rol tanlovi — korxona roli id si (`rol_id`). Asl kodda (rollar yo'q) — «manager»."""
+    try:
+        from models import Rol as _Rol118
+    except ImportError:
+        return "manager"
+    _d118 = SessionLocal()
+    try:
+        _cid118 = _d118.query(User).filter(User.id == ADMIN_ID).first().company_id
+        auth.tayyor_rollar(_d118, _cid118)
+        _r = _d118.query(_Rol118).filter(_Rol118.company_id == _cid118, _Rol118.kod == "menejer").first()
+        return str(_r.id) if _r else "manager"
+    finally:
+        _d118.close()
+
+
 _kir = {"pt": PTID, "bom": BOMID, "inv": INVID, "inv2": INV2ID, "opt": OPTID, "oi": OIA2, "m1": MID, "m2": M2ID,
-        "eski": PAROL, "yangi": ADMIN_YANGI, "yon": _asosiy_yonalish_id()}
+        "eski": PAROL, "yangi": ADMIN_YANGI, "yon": _asosiy_yonalish_id(), "rol": _menejer_rol_id()}
 _skript = _harness + "\n".join(_fnlar.values()) + _ssenariy.replace("__KIRISH__", json.dumps(_kir))
 UI = {}
 _p = os.path.join(_T, "ui_tana.js")

@@ -424,8 +424,9 @@ async function tahlilBolimi() {
           b.xato || qisqa(b.el.brakTahlilBadge.textContent));
   b = await belgi({ yil: 2026, oy: 9, brak_foizi: null, meyor_foiz: 5, meyordan_oshdi: false });
   tekshir("T10c ulush yo'q → belgi bo'sh", !b.xato && b.el.brakTahlilBadge.textContent === '', b.xato);
-  tekshir("T11 belgi faqat admin uchun chaqiriladi (IS_ADMIN)",
-          RETURNS.includes('if (IS_ADMIN) loadBrakTahlilBadge();'));
+  // kech118 (ROLLAR, MOSLANDI): ilgari rol turi (IS_ADMIN) — endi «Hisobotlar» ruxsati (`KORADI_HISOBOT`; brak tahlili kartasi ham shu)
+  tekshir("T11 belgi faqat «Hisobotlar» ruxsati borga chaqiriladi (KORADI_HISOBOT)",
+          RETURNS.includes('if (KORADI_HISOBOT) loadBrakTahlilBadge();'));
 }
 
 // ══════════════════════════════════════════════════════════════
