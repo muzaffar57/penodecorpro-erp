@@ -631,3 +631,17 @@ body {
   .kpi-grid, .stat-grid { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
   .form-row, .form-row-3 { grid-template-columns: 1fr; }
 }
+
+/* ============================================================
+   kech118 (B bosqichi — audit U-14, O'LCHANGAN: Tab bilan yurganda Loyihalar 8, Kirim 7, Xarajat 9 maydon belgilanmasdi):
+   klaviatura bilan o'tganda qayerda turgani HAR elementda ko'rinsin. `!important` — shablonlardagi `outline:none`
+   (inline) ustidan. O'z hoshiyasi (focus-within) bilan belgilanadigan o'ralgan maydonlar — o'rovchisi belgilanadi.
+   ============================================================ */
+:where(a, button, input, select, textarea, summary, [tabindex], [contenteditable="true"], [onclick]):focus-visible {
+  outline: 2px solid var(--gold) !important;
+  outline-offset: 2px;
+}
+:where(input, select, textarea):focus-visible { outline-offset: 1px; }
+.unit-input-wrap input:focus-visible, .unit-input-wrap select:focus-visible,
+.dval-box input:focus-visible { outline: none !important; }
+.dval-box:focus-within { outline: 2px solid var(--gold); outline-offset: 1px; }
