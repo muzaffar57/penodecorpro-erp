@@ -1051,7 +1051,9 @@ function retseptHisobiChiz(natija, q) {
   let jami = pulKorinish(natija.doim.jami);
   if (natija.qoplama_bor) {
     qoplamaQuti.style.display = '';
-    document.getElementById('bom-jami-qoplama').textContent = '+ ' + pulKorinish(natija.qoplamali.jami - natija.doim.jami);
+    // kech118 (ROLLAR 2-qism): «Tannarx va foyda» ruxsati yo'q — server tannarxni null beradi → «—»
+    document.getElementById('bom-jami-qoplama').textContent = (natija.qoplamali.jami === null || natija.doim.jami === null)
+      ? '—' : '+ ' + pulKorinish(natija.qoplamali.jami - natija.doim.jami);
     jami += ' · qoplamali ' + pulKorinish(natija.qoplamali.jami);
   } else {
     qoplamaQuti.style.display = 'none';
@@ -1516,7 +1518,8 @@ function poChiz() {
   const davrSel = document.getElementById('po-davr');
   const davrNomi = davrSel.selectedOptions[0] ? davrSel.selectedOptions[0].textContent : '';
   const yakun = saralangan.filter(po => po.status === 'completed');
-  const jami = yakun.reduce((s, po) => s + (Number(po.total_cost) || 0), 0);
+  // kech118 (ROLLAR 2-qism): tannarx yashirin (null) — jami ham «—»
+  const jami = yakun.some(po => po.total_cost === null) ? null : yakun.reduce((s, po) => s + (Number(po.total_cost) || 0), 0);
   document.getElementById('po-xulosa').innerHTML = `
     <div>${escapeHtml(davrNomi)}: <b>${yakun.length} ta yakunlandi</b> — jami tannarx <b>${escapeHtml(pulKorinish(jami))}</b></div>
     <div>Jarayonda: <b>${son.in_progress}</b></div>
@@ -1681,7 +1684,7 @@ function showSnapshot(snapshot, status, poId){
       <div class="q"><span>Xomashyo</span><span>${escapeHtml(pulKorinish(po.total_material_cost))}</span></div>
       <div class="q"><span>Qo'shimcha xarajat</span><span>${escapeHtml(pulKorinish(po.total_extra_cost))}</span></div>
       <div class="q katta"><span>Tannarx</span><span>${escapeHtml(pulKorinish(po.total_cost))}</span></div>
-      ${miqdor > 0 ? `<div class="q"><span>1 ${escapeHtml(birlik)} tannarxi</span><span>${escapeHtml(pulKorinish(po.total_cost / miqdor))}</span></div>` : ''}
+      ${miqdor > 0 ? `<div class="q"><span>1 ${escapeHtml(birlik)} tannarxi</span><span>${escapeHtml(pulKorinish(po.total_cost === null ? null : po.total_cost / miqdor))}</span></div>` : ''}
     </div></div>`;
   }
   document.getElementById('snapshot-list').innerHTML = tana;

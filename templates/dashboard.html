@@ -459,7 +459,7 @@ async function loadAll(){
   document.getElementById('t-production').textContent=t.in_production+' ta';
   document.getElementById('t-due').textContent=t.due_today+' ta';
   document.getElementById('t-masters').textContent=t.active_masters+' ta';
-  document.getElementById('t-profit').textContent=fmt(t.today_profit)+' so\'m';
+  document.getElementById('t-profit').textContent=somYoq(t.today_profit, fmt);   // kech118 (ROLLAR 2-qism): yashirin — «—»
 
   buildStageList(c.statuses);
   buildWarnList(s.low_stock_items);
@@ -576,10 +576,11 @@ function buildWarnList(lowStockItems){
 async function loadFinishedStats(){
   try{
     const d = await fetch('/api/finished/stats').then(r=>r.json());
-    document.getElementById('fp-produced-value').textContent = fmt(d.produced_value) + " so'm";
+    // kech118 (ROLLAR 2-qism): «Tannarx va foyda» ruxsati yo'q — qiymatlar null → «—»
+    document.getElementById('fp-produced-value').textContent = somYoq(d.produced_value, fmt);
     document.getElementById('fp-progress-count').textContent = d.in_progress_count + ' ta';
-    document.getElementById('fp-returned-value').textContent = fmt(d.returned_value) + " so'm";
-    document.getElementById('fp-total-value').textContent = fmt(d.total_value) + " so'm";
+    document.getElementById('fp-returned-value').textContent = somYoq(d.returned_value, fmt);
+    document.getElementById('fp-total-value').textContent = somYoq(d.total_value, fmt);
   }catch(e){console.error('Finished stats:',e);}
 }
 
@@ -587,9 +588,9 @@ async function loadReturnStats(){
   try{
     const d = await fetch('/api/returns/stats').then(r=>r.json());
     document.getElementById('brk-month-count').textContent = (d.brak_month_count||0) + ' ta';
-    document.getElementById('brk-month-value').textContent = fmt(d.brak_month_value||0) + " so'm";
+    document.getElementById('brk-month-value').textContent = somYoq(d.brak_month_value === null ? null : (d.brak_month_value||0), fmt);
     document.getElementById('brk-whole-count').textContent = (d.whole_month_count||0) + ' ta';
-    document.getElementById('brk-total-value').textContent = fmt(d.brak_total_value||0) + " so'm";
+    document.getElementById('brk-total-value').textContent = somYoq(d.brak_total_value === null ? null : (d.brak_total_value||0), fmt);
   }catch(e){console.error('Return stats:',e);}
 }
 
@@ -637,12 +638,14 @@ async function loadMonthlyFinance(){
     // ehson, hodimlar) unga teng emas edi — transport, brak, «Boshqa» ko'rsatilmasdi). Endi: «Tannarx» — alohida qator
     // (daromaddan keyin), xarajat qatorlari — `xarajat_tarkibi` (TO'LIQ), «Jami xarajat» — `jami_xarajat` (Hisobotlar va
     // Moliya bilan BITTA ta'rif): Daromad − Tannarx − Jami xarajat = Sof foyda.
-    const tannarx = (d.tannarx_jami !== undefined && d.tannarx_jami !== null)
-      ? Number(d.tannarx_jami) : Number(d.ishlab_chiqarish_xarajat || 0);
+    // kech118 (ROLLAR 2-qism): «Tannarx va foyda» ruxsati yo'q — tannarx, brak / yo'qotish qatori, sof foyda null → «—»
+    const tannarx = d.tannarx_jami === null ? null : ((d.tannarx_jami !== undefined)
+      ? Number(d.tannarx_jami) : Number(d.ishlab_chiqarish_xarajat || 0));
     const BELGI = {doimiy:'🏢', qoshimcha:'🧾', transport:'🚚', brak:'⚠️', tm_yoqotish:'📦', usta_kpi:'🏆', ehson:'🤲', hodimlar:'👷'};
     let lines;
     if (Array.isArray(d.xarajat_tarkibi)) {
-      lines = d.xarajat_tarkibi.map(t => [`${BELGI[t.kalit] || '•'} ${t.nom}`, Number(t.summa) || 0]).filter(l => l[1] > 0);
+      lines = d.xarajat_tarkibi.map(t => [`${BELGI[t.kalit] || '•'} ${t.nom}`, t.summa === null ? null : (Number(t.summa) || 0)])
+        .filter(l => l[1] === null || l[1] > 0);
     } else {
       const x = d.xarajatlar || {};
       const fixedTotal = (x.arenda||0)+(x.elektr||0)+(x.tushlik||0)+(x.soliqlar||0);
@@ -655,20 +658,20 @@ async function loadMonthlyFinance(){
     }
 
     const tannarxQator = `<div class="dash-info-row" id="mf-tannarx-row">
-        <span class="dash-info-label">🏭 Tannarx (sotilgan mahsulot)</span><span class="dash-info-val" style="color:var(--text2)" id="mf-tannarx">−${fmt(tannarx)} so'm</span>
+        <span class="dash-info-label">🏭 Tannarx (sotilgan mahsulot)</span><span class="dash-info-val" style="color:var(--text2)" id="mf-tannarx">${tannarx === null ? '—' : '−' + fmt(tannarx) + " so'm"}</span>
       </div><div style="border-top:1px dashed var(--border);margin:2px 0"></div>`;
     document.getElementById('mf-expense-lines').innerHTML = tannarxQator + (lines.map(l =>
       `<div class="dash-info-row">
-        <span class="dash-info-label">${escapeHtml(l[0])}</span><span class="dash-info-val" style="color:var(--text2)">${fmt(l[1])} so'm</span>
+        <span class="dash-info-label">${escapeHtml(l[0])}</span><span class="dash-info-val" style="color:var(--text2)">${somYoq(l[1], fmt)}</span>
       </div>`).join('') || '<div style="text-align:center;color:var(--text3);padding:10px 0">Xarajat kiritilmagan</div>');
 
     document.getElementById('mf-jami-xarajat').textContent = fmt(d.jami_xarajat||0) + " so'm";
 
-    const sofFoyda = d.sof_foyda||0;
+    const sofFoyda = d.sof_foyda === null ? null : (d.sof_foyda||0);
     const sf = document.getElementById('mf-sof-foyda');
-    sf.textContent = fmt(sofFoyda) + " so'm";
-    sf.style.color = sofFoyda >= 0 ? '#8E44AD' : '#DC2626';
-    document.getElementById('mf-foiz').textContent = foizKor(d.foyda_foiz||0) + " foyda";   // kech118 (U-05)
+    sf.textContent = somYoq(sofFoyda, fmt);
+    sf.style.color = sofFoyda === null ? 'var(--text2)' : (sofFoyda >= 0 ? '#8E44AD' : '#DC2626');
+    document.getElementById('mf-foiz').textContent = d.foyda_foiz === null ? '—' : foizKor(d.foyda_foiz||0) + " foyda";   // kech118 (U-05)
   }catch(e){console.error('Oylik moliya:',e);}
 }
 

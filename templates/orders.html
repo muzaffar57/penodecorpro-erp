@@ -5913,7 +5913,8 @@ async function submitReadyModal() {
         html += `<br>🧱 Loy: reja ${li.planned} kg → haqiqiy ${li.actual} kg<br>${icon} ${escapeHtml(li.message)}`;
       }
       if (result.inventory_changes?.length) html += '<br><br>📦 Ombor:<br>' + result.inventory_changes.map(escapeHtml).join('<br>');
-      if (result.master_kpi) {
+      // kech118 (ROLLAR 2-qism): «Tannarx va foyda» ruxsati yo'q — server KPI summasini yashiradi (foydadan hisoblanadi)
+      if (result.master_kpi && result.master_kpi.total_kpi !== null && result.master_kpi.total_kpi !== undefined) {
         // kech103 (45-band): server endi haqiqiy qoidani beradi — shu buyurtma foydasi × ustaning KPI foizi
         const k = result.master_kpi;
         html += `<br><br>👷 Usta KPI (${escapeHtml(String(k.kpi_percent))}% — shu buyurtma foydasidan): ${formatNum(k.total_kpi)} so'm`;

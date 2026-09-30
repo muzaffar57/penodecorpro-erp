@@ -603,6 +603,9 @@ function onPPenoChange() {
 
 let fpItems = [];
 let loyCostPerKg = 0;
+// kech118 (ROLLAR 2-qism — egasi qarori): «Tannarx va foyda» ruxsati yo'q (`TANNARX_KORADI` — base.html) — server tannarx /
+// foydani null qaytaradi, sahifa «—» ko'rsatadi; mahsulot kalkulyatoridagi (mijoz tomonida hisoblanadigan) tannarx / foyda
+// qatorlari ham yashiriladi.
 let loyRecipeName = '';
 let activeChips = new Set();
 let fpReturnedOpen = false;
@@ -615,7 +618,7 @@ async function loadLoyCost(recipeId) {
   try {
     const url = recipeId ? `/api/loy-cost?recipe_id=${recipeId}` : '/api/loy-cost';
     const d = await fetch(url).then(r => r.json());
-    loyCostPerKg = d.cost_per_kg || 0;
+    loyCostPerKg = d.cost_per_kg || 0;   // «Tannarx» ruxsati yo'q — null → 0 (kalkulyatorda tannarx qatorlari yashirin)
     loyRecipeName = d.recipe || '';
     pCalc();
   } catch(e) { loyCostPerKg = 0; }
@@ -846,11 +849,12 @@ async function loadStats() {
   let s = null;
   try { s = await fetch('/api/finished/stats').then(r => r.json()); } catch(e) {}
   if (s) {
-    document.getElementById('v-total').textContent = fmt(s.total_value) + " so'm";
+    // kech118 (ROLLAR 2-qism): «Tannarx va foyda» ruxsati yo'q — server null qaytaradi → «—»
+    document.getElementById('v-total').textContent = s.total_value === null ? '—' : fmt(s.total_value) + " so'm";
     // kech114 (egasi QARORI): narxsiz (MRP) partiya ombor qiymatiga TANNARX bo'yicha qo'shiladi — izohda ko'rinadi.
     const iz = document.getElementById('v-total-izoh');
     if (iz) iz.textContent = (Number(s.narxsiz_soni) > 0)
-      ? `narxsiz ${s.narxsiz_soni} ta — tannarx bo'yicha ${fmt(s.narxsiz_tannarx_qiymati)}` : '';
+      ? (s.narxsiz_tannarx_qiymati === null ? `narxsiz ${s.narxsiz_soni} ta` : `narxsiz ${s.narxsiz_soni} ta — tannarx bo'yicha ${fmt(s.narxsiz_tannarx_qiymati)}`) : '';
     document.getElementById('k-total-qty').textContent = miqdorlarMatni(s.miqdorlar) || '0';
     document.getElementById('k-progress').textContent = miqdorlarMatni(s.jarayonda_miqdorlar) || '—';
   }
@@ -905,16 +909,19 @@ function fpGuruhXulosa(kalit, partiyalar) {
   const qoldiqli = tayyor.filter(i => (Number(i.quantity) || 0) > 0);
   const miqdor = tayyor.reduce((s, i) => s + (Number(i.quantity) || 0), 0);
   const tannarxJami = qoldiqli.reduce((s, i) => s + (Number(i.cost_price) || 0), 0);
+  // kech118 (ROLLAR 2-qism): tannarx yashirin (server null) — guruh tannarxi va narxsiz qism qiymati «—»
+  const tannarxYoq = tayyor.some(i => i.cost_price === null);
+  const qiymatYoq = qoldiqli.some(i => i.ombor_qiymati === null);
   const narxlar = [...new Set(qoldiqli.map(i => Number(i.unit_price) || 0).filter(x => x > 0))].sort((a, b) => a - b);
   return {
     kalit, partiyalar, bosh: partiyalar[0], tayyor, jarayon, miqdor,
     jarayonMiqdor: jarayon.reduce((s, i) => s + (Number(i.quantity) || 0), 0),
     band: qoldiqli.reduce((s, i) => s + (Number(i.reserved_quantity) || 0), 0),
-    birlikTannarx: miqdor > 0 ? tannarxJami / miqdor : 0,
+    birlikTannarx: tannarxYoq ? null : (miqdor > 0 ? tannarxJami / miqdor : 0),
     narxlar,
     narxsizBor: qoldiqli.some(i => !((Number(i.unit_price) || 0) > 0)),
     narxliBor: narxlar.length > 0,
-    qiymat: qoldiqli.reduce((s, i) => s + (Number(i.ombor_qiymati) || 0), 0),
+    qiymat: qiymatYoq ? null : qoldiqli.reduce((s, i) => s + (Number(i.ombor_qiymati) || 0), 0),
     oxirgi: partiyalar.reduce((m, i) => Math.max(m, tkMs(i.created_at) || 0), 0),   // server vaqti — tk yordamchisi
   };
 }
@@ -990,10 +997,10 @@ function guruhHtml(g) {
       </div>
       <div class="fp-price-col">
         <div class="fp-price">${escapeHtml(narxMatn)}</div>
-        <div style="font-size:12px;color:var(--text3)">tan: ${fmt(g.birlikTannarx)}</div>
+        <div style="font-size:12px;color:var(--text3)">tan: ${g.birlikTannarx === null ? '—' : fmt(g.birlikTannarx)}</div>
       </div>
       <div class="fp-total-col">
-        <div style="font-size:13px;font-weight:700;color:#15803D">${fmt(g.qiymat)}</div>
+        <div style="font-size:13px;font-weight:700;color:#15803D">${g.qiymat === null ? '—' : fmt(g.qiymat)}</div>
         <div class="fp-kul">${escapeHtml(qiymatIzoh)}</div>
       </div>
       <div class="fp-actions-wrap" style="display:flex;align-items:center;gap:6px;flex-shrink:0">
@@ -1185,7 +1192,7 @@ function rowHtml(i, partiyami) {
   const stColor = low ? '#DC2626' : (isKam ? '#F59E0B' : '#22C55E');
   const stLabel = low ? 'Tugagan' : (isKam ? 'Kam' : 'Yetarli');
 
-  const cpu = i.source === 'produced' && i.quantity > 0 ? (i.cost_price / i.quantity) : 0;
+  const cpu = i.cost_price === null ? null : (i.source === 'produced' && i.quantity > 0 ? (i.cost_price / i.quantity) : 0);
   {% if current_user.ruxsat('tannarx', 'korish') %}
   const profitPct = (i.source === 'produced' && i.unit_price > 0)
     ? Math.round(((i.unit_price - cpu) / i.unit_price) * 100) : null;
@@ -1266,13 +1273,13 @@ function rowHtml(i, partiyami) {
 
     <div class="fp-price-col">
       <div class="fp-price">${narxBor ? `${fmt(i.unit_price)}/${escapeHtml(unitLabel(i.unit))}` : 'sotishda yoziladi'}</div>
-      ${i.source === 'produced' ? (cpu < 0
+      ${i.source === 'produced' ? (cpu === null ? `<div style="font-size:12px;color:var(--text3)">tan: —</div>` : (cpu < 0
         ? `<div style="font-size:12px;color:#DC2626;font-weight:700" title="Tannarx hisobida xatolik bor — ombor harakatlarini tekshiring">⚠️ tan: ${fmt(cpu)}</div>`
-        : `<div style="font-size:12px;color:var(--text3)">tan: ${fmt(cpu)}</div>`) : ''}
+        : `<div style="font-size:12px;color:var(--text3)">tan: ${fmt(cpu)}</div>`)) : ''}
     </div>
 
     <div class="fp-total-col">
-      <div style="font-size:13px;font-weight:700;color:#15803D">${fmt(narxBor ? i.total_value : i.ombor_qiymati)}</div>
+      <div style="font-size:13px;font-weight:700;color:#15803D">${(narxBor ? i.total_value : i.ombor_qiymati) === null ? '—' : fmt(narxBor ? i.total_value : i.ombor_qiymati)}</div>
       <div style="font-size:12px;color:var(--text3)">${narxBor ? 'jami' : "tannarx bo'yicha"}</div>
     </div>
 
@@ -1489,7 +1496,8 @@ async function submitLoss() {
       const r = await res.json();
       if (res.ok) {
         closeLossModal();
-        showMsg(`✓ Xomashyo ayirildi! Qo'shimcha xarajat: ${fmt(r.cost_amount)} so'm (mahsulot soni o'zgarmadi)`, 'success');
+        showMsg(r.cost_amount === null ? `✓ Xomashyo ayirildi! (mahsulot soni o'zgarmadi)`
+                                       : `✓ Xomashyo ayirildi! Qo'shimcha xarajat: ${fmt(r.cost_amount)} so'm (mahsulot soni o'zgarmadi)`, 'success');
         setTimeout(() => location.reload(), 1500);
       } else {
         showMsg(xatoSababi(r), 'error');
@@ -2092,7 +2100,9 @@ function pCalc() {
   const profit = revenue - cost;
   const margin = revenue > 0 ? (profit / revenue * 100) : 0;
 
-  const loyLine = loyKg > 0
+  // kech118 (ROLLAR 2-qism): «Tannarx va foyda» ruxsati yo'q — loy narxi, tannarx va foyda ko'rsatilmaydi
+  const tannarxKoradi = (typeof TANNARX_KORADI === 'undefined' || TANNARX_KORADI);
+  const loyLine = loyKg > 0 && !tannarxKoradi ? `<br>🧱 Loy: <b>${loyKg} kg</b>` : loyKg > 0
     ? (loyCostPerKg > 0
         ? `<br>🧱 Loy: <b>${loyKg} kg × ${fmt(loyCostPerKg)} = ${fmt(loyCost)} so'm</b>${loyRecipeName ? ` <span style="color:var(--text3)">(${escapeHtml(loyRecipeName)})</span>` : ''}`
         : `<br>🧱 Loy: <b>${loyKg} kg</b> <span style="color:#B45309">— retsept tanlanmagan</span>`)
@@ -2106,15 +2116,15 @@ function pCalc() {
     : '';
 
   box.innerHTML = `
-    📦 Hajm: <b>${sonKor(volume_total, 4)} m³</b>${p ? ` · ${escapeHtml(p.name)}: <b>${sonKor(blocks, 2)} blok</b> = ${fmt(penoCost)} so'm` : ''}${volLockLine}${loyLine}<br>
+    📦 Hajm: <b>${sonKor(volume_total, 4)} m³</b>${p ? ` · ${escapeHtml(p.name)}: <b>${sonKor(blocks, 2)} blok</b>${tannarxKoradi ? ` = ${fmt(penoCost)} so'm` : ''}` : ''}${volLockLine}${loyLine}<br>
     💵 1 ${unit} narxi: <b style="color:var(--gold-dark)">${narxKorinishi(perUnitPrice)} so'm</b>${inputPrice ? ` <span style="color:var(--text3)">(kiritilgan: ${narxKorinishi(inputPrice)})</span>` : ''}<br>
-    <div style="margin:6px 0;padding:6px 0;border-top:1px dashed #ddd;border-bottom:1px dashed #ddd">
+    ${tannarxKoradi ? `<div style="margin:6px 0;padding:6px 0;border-top:1px dashed #ddd;border-bottom:1px dashed #ddd">
       💰 Tan narxi: <b style="color:#DC2626">${fmt(cost)} so'm</b>
       <span style="color:var(--text3)">(1 ${unit} = ${fmt(costPerUnit)})</span><br>
       💵 Sotuv: <b style="color:#15803D">${fmt(revenue)} so'm</b><br>
       📈 Foyda: <b style="color:${profit>0?'#15803D':'#DC2626'};font-size:13px">${fmt(profit)} so'm</b>
       <span style="color:var(--text3)">(${sonKor(margin, 1)}%)</span>
-    </div>
+    </div>` : `<div style="margin:6px 0;padding:6px 0;border-top:1px dashed #ddd;border-bottom:1px dashed #ddd">💵 Sotuv: <b style="color:#15803D">${fmt(revenue)} so'm</b></div>`}
     🏭 Natija: <b style="color:var(--gold-dark)">${count} ${unit}</b>`;
 }
 

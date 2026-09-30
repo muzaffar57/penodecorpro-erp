@@ -278,7 +278,7 @@
                   <div>
                     <span style="font-weight:700;font-size:13.5px">{{ e.name }}</span>
                     <span style="font-size:12px;font-weight:700;color:{{ '#EF4444' if e.status=='overdue' else '#F59E0B' }};background:{{ '#FEF2F2' if e.status=='overdue' else '#FFFBEB' }};padding:2px 8px;border-radius:6px;margin-left:6px">{{ e.month_label }}</span>
-                    <div style="font-size:12px;color:var(--d-text3);margin-top:2px">{{ e.detail }} — jami {{ "{:,.0f}".format(e.amount).replace(",", " ") }}, avans {{ "{:,.0f}".format(e.avans).replace(",", " ") }}</div>
+                    <div style="font-size:12px;color:var(--d-text3);margin-top:2px">{{ e.detail if current_user.ruxsat('tannarx', 'korish') else e.detail|foyda_yashir }} — jami {{ "{:,.0f}".format(e.amount).replace(",", " ") }}, avans {{ "{:,.0f}".format(e.avans).replace(",", " ") }}</div>
                   </div>
                   <div style="font-weight:800;color:#DC2626;font-size:15px">{{ "{:,.0f}".format(e.qolgan).replace(",", " ") }}</div>
                 </div>

@@ -365,6 +365,9 @@ function fmtQty(n){
   return sonKor(v, 2);   // kech118 (U-05): kasr — vergul («630,52»)
 }
 function fmtShort(n){ if(Math.abs(n)>=1e6) return (n/1e6).toFixed(1).replace('.', ',')+' mln'; if(Math.abs(n)>=1e3) return (n/1e3).toFixed(0)+' ming'; return Math.round(n||0).toString(); }
+// kech118 (ROLLAR 2-qism): «Tannarx va foyda» ruxsati yo'q — server tannarx / foydani null beradi → «—»
+const qisqaSom = n => (n === null ? '—' : fmtShort(n) + " so'm");
+const toliqSom = n => (n === null ? '—' : fmt(n) + " so'm");
 const MONTH_NAMES=['','Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust','Sentabr','Oktabr','Noyabr','Dekabr'];
 
 const TITLES = {
@@ -390,7 +393,7 @@ async function loadHealth(){
       const dot = document.querySelector(`#h-${key}`)?.closest('.bi-health-card')?.querySelector('.bi-health-dot');
       const label = document.getElementById(`h-${key}`);
       if (dot) dot.style.background = HEALTH_COLORS[status] || '#9CA3AF';
-      if (label) label.textContent = HEALTH_LABELS[status] || status;
+      if (label) label.textContent = status === null ? '—' : (HEALTH_LABELS[status] || status);   // kech118: yashirin — «—»
       // kech115 (G1-06): baho sababi — bir qator
       const sabab = h.sabablar && h.sabablar[key];
       if (label && sabab) {
@@ -412,17 +415,19 @@ async function loadKpi(){
     if (!cur) return;
     // kech116 (G1-02): «Xarajat» — BITTA ta'rif (`jami_xarajat`, Moliya bilan AYNAN); «Tannarx» — alohida karta, shunda
     // Daromad − Tannarx − Xarajat = Sof foyda ko'rinadi (ilgari 1.7 − 3.3 ≠ −2.6 — tannarx hech qayerda yo'q edi)
-    const tannarx = (cur.tannarx_jami !== undefined && cur.tannarx_jami !== null)
-      ? Number(cur.tannarx_jami) : Number(cur.ishlab_chiqarish_xarajat || 0);
+    // kech118 (ROLLAR 2-qism): «Tannarx va foyda» ruxsati yo'q — tannarx va sof foyda null → «—»
+    const tannarx = cur.tannarx_jami === null ? null : ((cur.tannarx_jami !== undefined)
+      ? Number(cur.tannarx_jami) : Number(cur.ishlab_chiqarish_xarajat || 0));
     document.getElementById('kpi-daromad').textContent = fmtShort(cur.daromad)+" so'm";
-    document.getElementById('kpi-tannarx').textContent = fmtShort(tannarx)+" so'm";
+    document.getElementById('kpi-tannarx').textContent = qisqaSom(tannarx);
     document.getElementById('kpi-xarajat').textContent = fmtShort(cur.jami_xarajat)+" so'm";
-    document.getElementById('kpi-foyda').textContent = fmtShort(cur.sof_foyda)+" so'm";
+    document.getElementById('kpi-foyda').textContent = qisqaSom(cur.sof_foyda);
     document.getElementById('kpi-buyurtma').textContent = cur.buyurtmalar_soni+' ta';
     document.getElementById('kpi-foiz').textContent = foizKor(cur.foyda_foiz);
     document.getElementById('kpi-tenglama').innerHTML =
-      `Daromad <b>${escapeHtml(fmtShort(cur.daromad))}</b> − Tannarx <b>${escapeHtml(fmtShort(tannarx))}</b> − Xarajat `
-      + `<b>${escapeHtml(fmtShort(cur.jami_xarajat))}</b> = Sof foyda <b>${escapeHtml(fmtShort(cur.sof_foyda))}</b> so'm`;
+      `Daromad <b>${escapeHtml(fmtShort(cur.daromad))}</b> − Tannarx <b>${escapeHtml(tannarx === null ? '—' : fmtShort(tannarx))}</b> − Xarajat `
+      + `<b>${escapeHtml(fmtShort(cur.jami_xarajat))}</b> = Sof foyda <b>${escapeHtml(cur.sof_foyda === null ? '—' : fmtShort(cur.sof_foyda))}</b>`
+      + (cur.sof_foyda === null ? '' : " so'm");
   } catch(e) { console.error(e); }
 
   // kech116 (G1-03 — egasi QARORI «Pul oqimi — haqiqiy pul»): shu oy mijozlardan OLINGAN pul − haqiqatda TO'LANGAN pul
@@ -459,8 +464,8 @@ async function loadKpi(){
     };
     if (comp.daromad) setCh('kpi-daromad-ch', 'daromad', comp.daromad);
     if (comp.jami_xarajat) setCh('kpi-xarajat-ch', 'jami_xarajat', comp.jami_xarajat);
-    if (comp.sof_foyda) setCh('kpi-foyda-ch', 'sof_foyda', comp.sof_foyda);
-    if (comp.foyda_foiz) setCh('kpi-foiz-ch', 'foyda_foiz', comp.foyda_foiz);
+    if (comp.sof_foyda && comp.sof_foyda.current !== null) setCh('kpi-foyda-ch', 'sof_foyda', comp.sof_foyda);
+    if (comp.foyda_foiz && comp.foyda_foiz.current !== null) setCh('kpi-foiz-ch', 'foyda_foiz', comp.foyda_foiz);
   } catch(e) {}
 }
 
@@ -476,7 +481,8 @@ async function loadCharts(){
       datasets: [
         { type:'bar', label:'Daromad', data:hist.map(h=>h.daromad), backgroundColor:'#B9783F', borderRadius:5, maxBarThickness:26 },
         { type:'bar', label:'Xarajat', data:hist.map(h=>h.jami_xarajat), backgroundColor:'#FCA5A5', borderRadius:5, maxBarThickness:26 },
-        { type:'line', label:'Sof foyda', data:hist.map(h=>h.sof_foyda), borderColor:'#16A34A', backgroundColor:'#16A34A', tension:.3, borderWidth:3, pointRadius:4, pointHoverRadius:6, pointBackgroundColor:'#fff', pointBorderColor:'#16A34A', pointBorderWidth:2.5, fill:false },
+        // kech118 (ROLLAR 2-qism): sof foyda yashirin (null) — chiziq chizilmaydi
+        ...(hist.some(h => h.sof_foyda !== null) ? [{ type:'line', label:'Sof foyda', data:hist.map(h=>h.sof_foyda), borderColor:'#16A34A', backgroundColor:'#16A34A', tension:.3, borderWidth:3, pointRadius:4, pointHoverRadius:6, pointBackgroundColor:'#fff', pointBorderColor:'#16A34A', pointBorderWidth:2.5, fill:false }] : []),
       ]
     },
     options: {
@@ -664,6 +670,8 @@ async function loadComparison(){
     Object.entries(comp).forEach(([key, v]) => {
       const el = document.getElementById(`comp-${key}`);
       if (!el) return;
+      // kech118 (ROLLAR 2-qism): «Tannarx va foyda» ruxsati yo'q — sof foyda / rentabellik yashirin → «—»
+      if (v && v.current === null && v.previous === null && v.holat === null) { el.innerHTML = '—'; el.style.color = 'var(--b-text3)'; return; }
       const o = ozgarishKorinishi(key, v);     // kech115 (G1-01): kartadagi bilan BITTA qoida
       el.innerHTML = o.html;
       el.style.color = o.rang;
@@ -689,7 +697,7 @@ async function loadForecast(){
         </div>
         <div class="bi-forecast-item">
           <div style="font-size:12px;color:var(--b-text3);font-weight:600;text-transform:uppercase">Taxminiy sof foyda</div>
-          <div style="font-size:22px;font-weight:800;color:${fc.forecast_foyda>=0?'#8E44AD':'#DC2626'};margin-top:6px">${fmt(fc.forecast_foyda)} so'm</div>
+          <div style="font-size:22px;font-weight:800;color:${fc.forecast_foyda === null ? 'var(--b-text)' : (fc.forecast_foyda>=0?'#8E44AD':'#DC2626')};margin-top:6px">${toliqSom(fc.forecast_foyda)}</div>
           <div class="bi-forecast-bar-track"><div class="bi-forecast-bar-fill" style="width:${pct}%;background:#8E44AD"></div></div>
         </div>
         <div class="bi-forecast-item">
@@ -733,7 +741,7 @@ async function buildAiSummary(alerts){
       return `${escapeHtml(nom)} o'tgan oyga nisbatan <b style="color:${matnRangi(rang, 1)}">${escapeHtml(o.matn)}</b>`;
     };
     if (comp.daromad) lines.push(qator('Daromad', 'daromad', comp.daromad));
-    if (comp.sof_foyda) {
+    if (comp.sof_foyda && comp.sof_foyda.current !== null) {   // kech118: yashirin (tannarx ruxsati yo'q) — qator yo'q
       if (Number(comp.sof_foyda.current) < 0) {
         lines.push(`Bu oy <b style="color:#B91C1C">zarar: ${escapeHtml(fmtShort(comp.sof_foyda.current))} so'm</b>`);
       } else {
@@ -951,7 +959,7 @@ async function loadSalesReport() {
     ["Oy", h => MONTH_NAMES[h.month]+' '+h.year],
     ["Daromad", h => fmt(h.daromad) + " so'm"],
     ["Buyurtmalar soni", h => h.buyurtmalar_soni + ' ta'],
-    ["Sof foyda", h => fmt(h.sof_foyda) + " so'm"],
+    ["Sof foyda", h => toliqSom(h.sof_foyda)],
     ["Rentabellik", h => foizKor(h.foyda_foiz)],
   ], hist);
 }
@@ -975,7 +983,7 @@ async function loadMastersReport() {
     ["Hudud", m => escapeHtml(m.region) || '—'],
     ["Buyurtmalar", m => m.orders_count + ' ta'],
     ["Yillik savdo", m => fmt(m.yearly_sales) + " so'm"],
-    ["Yillik foyda", m => fmt(m.yearly_profit) + " so'm"],
+    ["Yillik foyda", m => toliqSom(m.yearly_profit)],
     ["KPI %", m => foizKor(m.kpi_percent)],
     ["Bonus", m => fmt(m.gift_amount) + " so'm"],
   ], rep.masters);
@@ -1001,7 +1009,7 @@ async function loadFinanceReport() {
     ["Oy", h => MONTH_NAMES[h.month]+' '+h.year],
     ["Daromad", h => fmt(h.daromad) + " so'm"],
     ["Xarajat", h => fmt(h.jami_xarajat) + " so'm"],
-    ["Sof foyda", h => fmt(h.sof_foyda) + " so'm"],
+    ["Sof foyda", h => toliqSom(h.sof_foyda)],
     ["Rentabellik", h => foizKor(h.foyda_foiz)],
   ], hist);
 }
@@ -1013,7 +1021,7 @@ async function loadProductionReport() {
     ["Holati", i => i.production_status === 'in_progress' ? "Jarayonda" : "Tayyor"],
     ["Miqdor", i => `${i.quantity} ${escapeHtml(i.unit)}`],
     ["Sarflangan penoplast", i => sonKor(i.volume_m3||0, 3) + ' m³'],
-    ["Tan narxi", i => fmt(i.cost_price) + " so'm"],
+    ["Tan narxi", i => toliqSom(i.cost_price)],
   ], items);
 }
 

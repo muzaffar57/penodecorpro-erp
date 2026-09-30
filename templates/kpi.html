@@ -547,7 +547,7 @@ function renderMasterKpiList() {
       <div style="flex:1;min-width:0">
         <div class="mk-name" style="display:flex;align-items:center;gap:7px">${escapeHtml(m.name)} ${topBadge}</div>
         <div class="mk-meta">
-          Sotuv: ${fmt(m.yearly_sales)} · Foyda: <b style="color:#8E44AD">${fmt(m.yearly_profit)}</b> · ${m.orders_count} ta
+          Sotuv: ${fmt(m.yearly_sales)} · Foyda: <b style="color:#8E44AD">${m.yearly_profit === null ? '—' : fmt(m.yearly_profit)}</b> · ${m.orders_count} ta
           ${m.region ? `<span class="mk-region"> · <i class="ti ti-map-pin" style="font-size:12px"></i> ${escapeHtml(m.region)}</span>` : ''}
         </div>
       </div>
@@ -624,7 +624,7 @@ async function openMasterDetail(id, name) {
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border2)">
           <div>
             <div style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(r.order_number || ('#' + r.order_id))}</div>
-            <div style="font-size:13px;color:var(--text3);margin-top:2px">${dt} · Savdo: ${fmt(r.total_amount)} · Foyda: ${fmt(r.profit)}</div>
+            <div style="font-size:13px;color:var(--text3);margin-top:2px">${dt} · Savdo: ${fmt(r.total_amount)} · Foyda: ${r.profit === null ? '—' : fmt(r.profit)}</div>
           </div>
           <div style="font-size:14px;font-weight:700;color:#15803D;white-space:nowrap">+${fmt(r.kpi_amount)}</div>
         </div>`;

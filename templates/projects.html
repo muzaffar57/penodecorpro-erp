@@ -551,7 +551,7 @@ async function renderFinance(d) {
         </div>
         <div class="fin-stat fin-profit">
           <div class="fin-stat-head"><i class="ti ti-chart-line" style="font-size:15px"></i> Sof foyda</div>
-          <div class="fin-stat-val">${fmt(stats.total_profit)} so'm</div>
+          <div class="fin-stat-val">${stats.total_profit === null ? '—' : fmt(stats.total_profit) + " so'm"}</div>
         </div>
       </div>
       <div class="progress-bar"><div class="progress-fill" style="width:${budget>0?Math.min(100,Math.round(paid/budget*100)):0}%"></div></div>`;

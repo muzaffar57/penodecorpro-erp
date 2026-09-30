@@ -265,6 +265,12 @@ function qisqaSumma(n) {
   return b + Math.round(a).toString();
 }
 
+// kech118 (ROLLAR 2-qism — egasi QARORI): «Tannarx va foyda» ruxsati yo'q foydalanuvchiga server tannarx / foyda / brak
+// qiymatini null beradi (`ruxsatlar.tannarx_tozala`) — sahifa son o'rnida «—» ko'rsatadi va tannarxni o'zi hisoblamaydi.
+// `somYoq(n, f)` — «1 234 so'm» (`f` — sahifaning son ko'rinishi, standart `qisqaSumma`), null — «—».
+const TANNARX_KORADI = {{ 'true' if current_user and current_user.ruxsat('tannarx', 'korish') else 'false' }};
+function somYoq(n, f) { return n === null ? '—' : (f || qisqaSumma)(n) + " so'm"; }
+
 function showMsg(text, type) {
   const box = document.createElement('div');
   box.style.cssText = `position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:3000;
