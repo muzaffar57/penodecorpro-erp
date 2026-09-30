@@ -503,7 +503,7 @@
     <div class="form-group"><label>Izoh</label><input type="text" id="tx-f-notes" placeholder="..."></div>
     <div style="display:flex;gap:8px;margin-top:14px">
       <button class="fin-btn fin-btn-primary w-full" onclick="saveTx()" style="flex:1">Saqlash</button>
-      <button class="fin-btn fin-btn-ghost w-full" onclick="closeTxModal()" style="flex:1">Bekor</button>
+      <button data-yopish class="fin-btn fin-btn-ghost w-full" onclick="closeTxModal()" style="flex:1">Bekor</button>
     </div>
   </div>
 </div>
@@ -523,7 +523,7 @@
     <div id="cashtx-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:12px;color:#DC2626"></div>
     <div style="display:flex;gap:8px">
       <button onclick="saveCashTx()" style="flex:1;background:#B9783F;color:#fff;border:none;border-radius:9px;padding:11px;font-size:14px;font-weight:600;cursor:pointer">Saqlash</button>
-      <button onclick="document.getElementById('cashTxModal').style.display='none'" style="flex:1;background:#F3F4F6;color:#374151;border:none;border-radius:9px;padding:11px;font-size:14px;font-weight:600;cursor:pointer">Bekor</button>
+      <button data-yopish onclick="document.getElementById('cashTxModal').style.display='none'" style="flex:1;background:#F3F4F6;color:#374151;border:none;border-radius:9px;padding:11px;font-size:14px;font-weight:600;cursor:pointer">Bekor</button>
     </div>
   </div>
 </div>

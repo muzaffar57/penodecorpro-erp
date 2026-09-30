@@ -58,7 +58,7 @@
     <div id="sup-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:12px;color:#DC2626"></div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-dark w-full" onclick="saveSupplier()">Saqlash</button>
-      <button class="btn btn-outline w-full" onclick="closeSupplierModal()">Bekor</button>
+      <button data-yopish class="btn btn-outline w-full" onclick="closeSupplierModal()">Bekor</button>
     </div>
   </div>
 </div>
@@ -71,7 +71,7 @@
         <div style="font-size:16px;font-weight:600;color:var(--text)" id="hist-name">—</div>
         <div style="font-size:12px;color:#aaa;margin-top:2px" id="hist-phone">—</div>
       </div>
-      <button onclick="closeHistoryModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
+      <button data-yopish onclick="closeHistoryModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
     </div>
 
     <div style="padding:14px 22px;background:#FDF8F0;border-bottom:1px solid #F0E6D2">
@@ -1029,13 +1029,14 @@ function clearHistoryFilter() {
 
 const inFlightPurchaseEdit = new Set();
 async function editPurchase(id, qty, price, isCredit) {
-  const newQtyStr = prompt("Miqdor:", qty);
+  // kech118 (B — U-07): xom prompt() o'rniga dastur oynasi (base.html `kiritishOyna`)
+  const newQtyStr = await kiritishOyna('Miqdor', {izoh: 'Kirim yozuvi tahriri — 1-qadam (2 tadan)', qiymat: qty, inputmode: 'decimal', okText: 'Keyingisi'});
   if (newQtyStr === null) return;
   // 118-band: "1,5" → 1.5, "1 500" → 1500 (ilgari parseFloat: 1 va 1)
   const newQty = /\d/.test(newQtyStr) ? parseNum(newQtyStr) : NaN;
   if (!newQty || newQty <= 0) { showMsg('❌ Noto\'g\'ri miqdor', 'error'); return; }
 
-  const newPriceStr = prompt("1 birlik narxi:", narxKorinishi(price));
+  const newPriceStr = await kiritishOyna("1 birlik narxi (so'm)", {izoh: 'Kirim yozuvi tahriri — 2-qadam (2 tadan)', qiymat: narxKorinishi(price), inputmode: 'decimal', okText: 'Keyingisi'});
   if (newPriceStr === null) return;
   const newPrice = narxniOqi(newPriceStr);
   if (!newPrice || newPrice <= 0) { showMsg('❌ Noto\'g\'ri narx', 'error'); return; }

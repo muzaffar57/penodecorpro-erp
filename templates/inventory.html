@@ -222,7 +222,7 @@
     <div class="form-group"><label>Sabab / izoh</label><input type="text" id="chiqim-notes" placeholder="Masalan: inventarizatsiyada aniqlandi"></div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-dark w-full" id="chiqim-save-btn" style="background:#DC2626" onclick="saveChiqim()">Chiqim qilish</button>
-      <button class="btn btn-outline w-full" onclick="closeChiqimModal()">Bekor</button>
+      <button data-yopish class="btn btn-outline w-full" onclick="closeChiqimModal()">Bekor</button>
     </div>
   </div>
 </div>
@@ -234,7 +234,7 @@
     <div id="cp-hint" style="font-size:12.5px;color:var(--text3);margin-bottom:14px"></div>
     <input type="text" id="cp-input" class="i-m3price" style="width:100%;font-size:15px;font-weight:600;text-align:center" inputmode="decimal">
     <div style="display:flex;gap:8px;margin-top:16px">
-      <button class="btn btn-outline w-full" onclick="_cpCancel()">Bekor</button>
+      <button data-yopish class="btn btn-outline w-full" onclick="_cpCancel()">Bekor</button>
       <button class="btn btn-dark w-full" style="background:var(--gold);border-color:var(--gold)" onclick="_cpConfirm()">OK</button>
     </div>
   </div>
@@ -245,7 +245,7 @@
   <div style="background:#fff;border-radius:14px;width:640px;max-width:100%;max-height:86vh;display:flex;flex-direction:column">
     <div style="padding:18px 22px 14px;border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center">
       <div style="font-size:16px;font-weight:600"><i class="ti ti-receipt"></i> Xaridlar tarixi</div>
-      <button onclick="closePurchaseHistory()" style="width:30px;height:30px;border-radius:50%;background:var(--border2);border:none;font-size:15px;cursor:pointer">✕</button>
+      <button data-yopish onclick="closePurchaseHistory()" style="width:30px;height:30px;border-radius:50%;background:var(--border2);border:none;font-size:15px;cursor:pointer">✕</button>
     </div>
     <div style="padding:14px 22px;border-bottom:1px solid var(--border2);background:var(--bg)">
       <div style="display:flex;justify-content:space-between;font-size:13px">
@@ -268,7 +268,7 @@
         <div id="phDrawerTitle" style="font-weight:700;font-size:15px">—</div>
         <div id="phDrawerSub" style="font-size:12.5px;color:var(--text3);margin-top:2px">—</div>
       </div>
-      <button onclick="closePhDrawer()" style="width:30px;height:30px;border-radius:50%;background:var(--border2);border:none;font-size:15px;cursor:pointer;flex-shrink:0">✕</button>
+      <button data-yopish onclick="closePhDrawer()" style="width:30px;height:30px;border-radius:50%;background:var(--border2);border:none;font-size:15px;cursor:pointer;flex-shrink:0">✕</button>
     </div>
     <div class="mv-drawer-body" id="phDrawerBody"></div>
     <!-- kech107 (10f): butun kirim hujjatini bekor qilish (ombor, narx, qo'shimcha xarajatlar, to'lov — so'rab) -->
@@ -284,7 +284,7 @@
   <div style="background:#fff;border-radius:14px;width:640px;max-width:100%;max-height:86vh;display:flex;flex-direction:column">
     <div style="padding:18px 22px 14px;border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center">
       <div style="font-size:16px;font-weight:600"><i class="ti ti-history"></i> Ombor harakatlari</div>
-      <button onclick="closeMovements()" style="width:30px;height:30px;border-radius:50%;background:var(--border2);border:none;font-size:15px;cursor:pointer">✕</button>
+      <button data-yopish onclick="closeMovements()" style="width:30px;height:30px;border-radius:50%;background:var(--border2);border:none;font-size:15px;cursor:pointer">✕</button>
     </div>
     <div style="padding:12px 22px;border-bottom:1px solid var(--border2);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <button class="btn btn-outline btn-sm" onclick="loadMovements('')">Barchasi</button>
@@ -312,14 +312,14 @@
         <div id="mvDrawerTitle" style="font-weight:700;font-size:15px">—</div>
         <div id="mvDrawerSub" style="font-size:12.5px;color:var(--text3);margin-top:2px">—</div>
       </div>
-      <button onclick="closeMvDrawer()" style="width:30px;height:30px;border-radius:50%;background:var(--border2);border:none;font-size:15px;cursor:pointer;flex-shrink:0">✕</button>
+      <button data-yopish onclick="closeMvDrawer()" style="width:30px;height:30px;border-radius:50%;background:var(--border2);border:none;font-size:15px;cursor:pointer;flex-shrink:0">✕</button>
     </div>
     <div class="mv-drawer-body" id="mvDrawerBody"></div>
   </div>
 </div>
 
 <!-- ══ XOMASHYO RASMINI KATTA KO'RISH (lightbox) ══ -->
-<div id="invLightbox" onclick="closeInvLightbox()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2000;align-items:center;justify-content:center;cursor:zoom-out">
+<div id="invLightbox" data-yopish onclick="closeInvLightbox()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2000;align-items:center;justify-content:center;cursor:zoom-out">
   <img id="invLightboxImg" src="" alt="" style="max-width:90vw;max-height:90vh;border-radius:8px;object-fit:contain">
 </div>
 {% endblock %}
@@ -333,6 +333,7 @@ function invToast(text) {
     overlay = document.createElement('div');
     overlay.id = 'invToastOverlay';
     overlay.className = 'inv-toast-overlay';
+    overlay.setAttribute('data-yopish', '');   // kech118 (U-08): Esc ham yopadi
     overlay.innerHTML = '<div class="inv-toast" id="invToastText"></div>';
     document.body.appendChild(overlay);
     overlay.addEventListener('click', function(e) { if (e.target === overlay) invToastHide(); });

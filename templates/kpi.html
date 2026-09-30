@@ -193,7 +193,7 @@
       <div style="background:var(--white);border-radius:14px;width:640px;max-width:100%;max-height:86vh;overflow-y:auto">
         <div style="padding:18px 22px 14px;border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center">
           <div style="font-size:16px;font-weight:600">🎁 Sovg'a davrini boshqarish</div>
-          <button onclick="closeGiftPeriodModal()" style="width:30px;height:30px;border-radius:50%;background:var(--border2);border:none;font-size:15px;cursor:pointer">✕</button>
+          <button data-yopish onclick="closeGiftPeriodModal()" style="width:30px;height:30px;border-radius:50%;background:var(--border2);border:none;font-size:15px;cursor:pointer">✕</button>
         </div>
         <div style="padding:18px 22px" id="giftPeriodBox">
           <div style="text-align:center;padding:16px;color:var(--text3)">Yuklanmoqda...</div>
@@ -258,7 +258,7 @@
 
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-dark w-full" id="master-save-btn" onclick="saveMaster()">Saqlash</button>
-      <button class="btn btn-outline w-full" onclick="closeMasterModal()">Bekor</button>
+      <button data-yopish class="btn btn-outline w-full" onclick="closeMasterModal()">Bekor</button>
     </div>
   </div>
 </div>
@@ -268,7 +268,7 @@
   <div style="background:#fff;border-radius:14px;width:520px;max-width:100%;max-height:86vh;display:flex;flex-direction:column">
     <div style="padding:18px 22px 14px;border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center">
       <div style="font-size:16px;font-weight:600" id="md-title">Buyurtmalar bo'yicha KPI</div>
-      <button onclick="closeMasterDetail()" style="width:30px;height:30px;border-radius:50%;background:var(--border2);border:none;font-size:15px;cursor:pointer">✕</button>
+      <button data-yopish onclick="closeMasterDetail()" style="width:30px;height:30px;border-radius:50%;background:var(--border2);border:none;font-size:15px;cursor:pointer">✕</button>
     </div>
     <div style="padding:0 22px 20px;overflow-y:auto;flex:1" id="md-list">
       <div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>
@@ -370,7 +370,7 @@
 
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-dark w-full" id="emp-save-btn" onclick="saveEmployee()">Saqlash</button>
-      <button class="btn btn-outline w-full" onclick="closeEmpModal()">Bekor</button>
+      <button data-yopish class="btn btn-outline w-full" onclick="closeEmpModal()">Bekor</button>
     </div>
   </div>
 </div>
@@ -380,7 +380,7 @@
   <div style="background:#fff;border-radius:14px;padding:22px;width:420px;max-width:100%;max-height:80vh;overflow-y:auto">
     <div style="font-size:15px;font-weight:600;margin-bottom:14px">📜 To'lov tarixi — <span id="ch-emp-name" style="color:#B9783F"></span></div>
     <div id="ch-list"><div style="text-align:center;padding:16px;color:#bbb;font-size:13px">Yuklanmoqda...</div></div>
-    <button class="btn btn-outline w-full" style="margin-top:14px" onclick="closeCompHistoryModal()">Yopish</button>
+    <button data-yopish class="btn btn-outline w-full" style="margin-top:14px" onclick="closeCompHistoryModal()">Yopish</button>
   </div>
 </div>
 
@@ -403,7 +403,7 @@
       <div id="adv-history"></div>
     </div>
 
-    <button class="btn btn-outline w-full" style="margin-top:16px" onclick="closeAdvanceModal()">Yopish</button>
+    <button data-yopish class="btn btn-outline w-full" style="margin-top:16px" onclick="closeAdvanceModal()">Yopish</button>
   </div>
 </div>
 
@@ -420,7 +420,7 @@
 
     <div style="display:flex;gap:8px">
       <button class="btn btn-dark w-full" id="panel-access-save-btn" onclick="savePanelAccess()">Saqlash</button>
-      <button class="btn btn-outline w-full" onclick="document.getElementById('panelAccessModal').style.display='none'">Bekor</button>
+      <button data-yopish class="btn btn-outline w-full" onclick="document.getElementById('panelAccessModal').style.display='none'">Bekor</button>
     </div>
   </div>
 </div>
@@ -440,7 +440,7 @@
 
     <div style="display:flex;gap:8px">
       <button id="arModal-ok" class="btn w-full" style="background:#111;color:#fff">Saqlash</button>
-      <button class="btn btn-outline w-full" onclick="_arResolve(null)">Bekor</button>
+      <button data-yopish class="btn btn-outline w-full" onclick="_arResolve(null)">Bekor</button>
     </div>
   </div>
 </div>

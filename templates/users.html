@@ -127,7 +127,7 @@
     <div id="user-error" style="display:none;color:#DC2626;font-size:13px;font-weight:600;margin-top:2px;padding:8px 10px;background:#FEF2F2;border-radius:8px"></div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-dark w-full" id="user-save-btn" onclick="saveUser()">Saqlash</button>
-      <button class="btn btn-outline w-full" onclick="closeModal()">Bekor</button>
+      <button data-yopish class="btn btn-outline w-full" onclick="closeModal()">Bekor</button>
     </div>
   </div>
 </div>
@@ -163,7 +163,7 @@
     <div id="parol-xato" style="display:none;color:#DC2626;font-size:13px;font-weight:600;margin-bottom:8px;padding:8px 10px;background:#FEF2F2;border-radius:8px"></div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-dark w-full" id="parol-saqlash-btn" onclick="parolSaqlash()">Saqlash</button>
-      <button class="btn btn-outline w-full" onclick="parolYopish()">Bekor</button>
+      <button data-yopish class="btn btn-outline w-full" onclick="parolYopish()">Bekor</button>
     </div>
   </div>
 </div>
@@ -237,7 +237,7 @@
     <div id="hodimQrUrl" style="font-size:12px;color:var(--text3);word-break:break-all;margin-bottom:16px;font-family:monospace"></div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-outline w-full" onclick="window.print()">🖨️ Chop etish</button>
-      <button class="btn btn-dark w-full" onclick="document.getElementById('hodimQrModal').style.display='none'">Yopish</button>
+      <button data-yopish class="btn btn-dark w-full" onclick="document.getElementById('hodimQrModal').style.display='none'">Yopish</button>
     </div>
   </div>
 </div>
@@ -477,9 +477,10 @@ async function startFactoryReset(){
     {danger:true, okText:"Davom etish"}
   ))) return;
 
-  const phrase = prompt(
-    "Tasdiqlash uchun quyidagi so'zni AYNAN shunday yozing:\n\nHAMMASINI-OCHIR"
-  );
+  // kech118 (B — U-07): xom prompt() o'rniga dastur oynasi (base.html `kiritishOyna`)
+  const phrase = await kiritishOyna("Tasdiqlash uchun quyidagi so'zni AYNAN shunday yozing:", {
+    izoh: "HAMMASINI-OCHIR", okText: "O'chirish"
+  });
   if (phrase === null) return;
 
   if (phrase !== "HAMMASINI-OCHIR") {
@@ -496,7 +497,8 @@ async function startFactoryReset(){
     const r = await res.json();
     if (res.ok) {
       const lines = Object.entries(r.deleted || {}).map(([table, n]) => `${table}: ${n} ta`).join("\n");
-      alert("✅ " + r.message + "\n\n" + lines);
+      // kech118 (B): dastur oynasi sahifani to'xtatmaydi — xabar yopilgach yangilanadi
+      await xabarOyna("✅ " + r.message + "\n\n" + lines);
       location.reload();
     } else {
       alert("❌ Xato: " + (r.detail || "Noma'lum xato"));

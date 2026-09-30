@@ -229,7 +229,7 @@
 </div>
 
 <!-- ══ RASM KATTALASHTIRISH (LIGHTBOX) ══ -->
-<div id="retLightbox" onclick="closeReturnLightbox()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2000;align-items:center;justify-content:center;cursor:zoom-out">
+<div id="retLightbox" data-yopish onclick="closeReturnLightbox()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2000;align-items:center;justify-content:center;cursor:zoom-out">
   <img id="retLightboxImg" src="" alt="" style="max-width:90vw;max-height:90vh;border-radius:8px;object-fit:contain">
 </div>
 
@@ -311,7 +311,7 @@
 
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-dark w-full" id="return-save-btn" onclick="saveReturn()">Saqlash</button>
-      <button class="btn btn-outline w-full" onclick="closeModal()">Bekor</button>
+      <button data-yopish class="btn btn-outline w-full" onclick="closeModal()">Bekor</button>
     </div>
   </div>
 </div>
@@ -395,7 +395,7 @@
     </div>
 
     <div style="padding:14px 22px 18px;border-top:1px solid #f0f0f0;display:flex;gap:8px">
-      <button class="btn btn-outline" style="flex:1" onclick="closeBrakModal()">Bekor</button>
+      <button data-yopish class="btn btn-outline" style="flex:1" onclick="closeBrakModal()">Bekor</button>
       <button class="btn btn-dark" id="brak-save-btn" style="flex:2;background:#DC2626" onclick="saveBrakBatch()">🔴 Brak sifatida saqlash</button>
     </div>
   </div>
@@ -948,7 +948,8 @@ async function toggleRefund(id, current){
     if (res.ok) {
       let j = {};
       try { j = await res.json(); } catch (_) {}
-      if (j && typeof j.xabar === 'string' && j.xabar) alert('✓ ' + j.xabar);
+      // kech118 (B): dastur oynasi sahifani to'xtatmaydi — xabar yopilgach yangilanadi
+      if (j && typeof j.xabar === 'string' && j.xabar) await xabarOyna('✓ ' + j.xabar);
       location.reload();
     }
     else {

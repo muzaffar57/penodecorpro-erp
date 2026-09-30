@@ -256,7 +256,7 @@
     <div class="form-group"><label>Izoh</label><input type="text" id="f-notes" placeholder="..."></div>
     <div style="display:flex;gap:8px;margin-top:12px">
       <button class="btn btn-dark w-full" id="proj-new-save-btn" onclick="saveProject()">Saqlash</button>
-      <button class="btn btn-outline w-full" onclick="closeModal()">Bekor</button>
+      <button data-yopish class="btn btn-outline w-full" onclick="closeModal()">Bekor</button>
     </div>
   </div>
 </div>
@@ -292,13 +292,13 @@
     <div class="form-group"><label>Izoh</label><input type="text" id="e-notes"></div>
     <div style="display:flex;gap:8px;margin-top:12px">
       <button class="btn btn-dark w-full" id="proj-edit-save-btn" onclick="saveEditProject()">Saqlash</button>
-      <button class="btn btn-outline w-full" onclick="document.getElementById('editModal').style.display='none'">Bekor</button>
+      <button data-yopish class="btn btn-outline w-full" onclick="document.getElementById('editModal').style.display='none'">Bekor</button>
     </div>
   </div>
 </div>
 
 <!-- ══ RASM KATTALASHTIRISH (LIGHTBOX) ══ -->
-<div id="projLightbox" onclick="closeProjLightbox()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2000;align-items:center;justify-content:center;cursor:zoom-out">
+<div id="projLightbox" data-yopish onclick="closeProjLightbox()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2000;align-items:center;justify-content:center;cursor:zoom-out">
   <img id="projLightboxImg" src="" alt="" style="max-width:90vw;max-height:90vh;border-radius:8px;object-fit:contain">
 </div>
 
@@ -345,6 +345,7 @@ function projToast(text) {
     overlay = document.createElement('div');
     overlay.id = 'projToastOverlay';
     overlay.className = 'proj-toast-overlay';
+    overlay.setAttribute('data-yopish', '');   // kech118 (U-08): Esc ham yopadi
     overlay.innerHTML = '<div class="proj-toast" id="projToastText"></div>';
     document.body.appendChild(overlay);
     overlay.addEventListener('click', function(e) { if (e.target === overlay) projToastHide(); });

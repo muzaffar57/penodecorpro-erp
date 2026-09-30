@@ -157,7 +157,7 @@
 </div>
 
 <!-- ══ RETSEPT RASMINI KATTA KO'RISH (lightbox) ══ -->
-<div id="recLightbox" onclick="closeRecLightbox()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2000;align-items:center;justify-content:center;cursor:zoom-out">
+<div id="recLightbox" data-yopish onclick="closeRecLightbox()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2000;align-items:center;justify-content:center;cursor:zoom-out">
   <img id="recLightboxImg" src="" alt="" style="max-width:90vw;max-height:90vh;border-radius:8px;object-fit:contain">
 </div>
 {% endblock %}
@@ -179,6 +179,7 @@ function recpToast(text, type) {
     overlay = document.createElement('div');
     overlay.id = 'recpToastOverlay';
     overlay.className = 'recp-toast-overlay';
+    overlay.setAttribute('data-yopish', '');   // kech118 (U-08): Esc ham yopadi
     overlay.innerHTML = `
       <div class="recp-toast">
         <div class="recp-toast-icon" id="recpToastIcon"></div>
@@ -321,7 +322,7 @@ async function openIngredientPicker(prefix) {
       <div class="recp-picker-search">
         <i class="ti ti-search"></i>
         <input type="text" id="${prefix}-picker-search" placeholder="Qidirish..." oninput="renderIngredientPickerList('${prefix}')">
-        <button type="button" class="recp-modal-close" onclick="closeIngredientPicker('${prefix}')" style="width:24px;height:24px"><i class="ti ti-x" style="font-size:14px"></i></button>
+        <button type="button" class="recp-modal-close" data-yopish-ichki onclick="closeIngredientPicker('${prefix}')" style="width:24px;height:24px"><i class="ti ti-x" style="font-size:14px"></i></button>
       </div>
       <div class="recp-picker-list" id="${prefix}-picker-list"></div>
     </div>`;
@@ -464,7 +465,7 @@ async function saveEditRecipe() {
     <div class="recp-modal-head">
       <div class="recp-modal-icon"><i class="ti ti-flask"></i></div>
       <div class="recp-modal-title">+ Yangi retsept</div>
-      <button type="button" class="recp-modal-close" onclick="closeAddModal()"><i class="ti ti-x"></i></button>
+      <button data-yopish type="button" class="recp-modal-close" onclick="closeAddModal()"><i class="ti ti-x"></i></button>
     </div>
 
     <div class="form-row">
@@ -515,7 +516,7 @@ async function saveEditRecipe() {
 
     <div style="display:flex;gap:8px;margin-top:20px">
       <button class="btn btn-dark w-full" id="recipe-save-btn" onclick="saveRecipe()"><i class="ti ti-device-floppy" style="vertical-align:-2px"></i> Saqlash</button>
-      <button class="btn btn-outline w-full" onclick="closeAddModal()"><i class="ti ti-x" style="vertical-align:-2px"></i> Bekor</button>
+      <button data-yopish class="btn btn-outline w-full" onclick="closeAddModal()"><i class="ti ti-x" style="vertical-align:-2px"></i> Bekor</button>
     </div>
   </div>
 </div>
@@ -526,7 +527,7 @@ async function saveEditRecipe() {
     <div class="recp-modal-head">
       <div class="recp-modal-icon"><i class="ti ti-edit"></i></div>
       <div class="recp-modal-title">Retseptni tahrirlash</div>
-      <button type="button" class="recp-modal-close" onclick="closeEditModal()"><i class="ti ti-x"></i></button>
+      <button data-yopish type="button" class="recp-modal-close" onclick="closeEditModal()"><i class="ti ti-x"></i></button>
     </div>
     <input type="hidden" id="edit-id">
 
@@ -573,7 +574,7 @@ async function saveEditRecipe() {
 
     <div style="display:flex;gap:8px;margin-top:20px">
       <button class="btn btn-dark w-full" id="recipe-edit-save-btn" onclick="saveEditRecipe()">💾 Saqlash</button>
-      <button class="btn btn-outline w-full" onclick="closeEditModal()">Bekor</button>
+      <button data-yopish class="btn btn-outline w-full" onclick="closeEditModal()">Bekor</button>
     </div>
   </div>
 </div>

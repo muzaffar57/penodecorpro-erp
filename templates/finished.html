@@ -178,7 +178,7 @@ input[type=number]{-moz-appearance:textfield}
 </div>
 
 <!-- ══ RASM KATTALASHTIRISH (LIGHTBOX) ══ -->
-<div id="lightbox" onclick="closeLightbox()">
+<div id="lightbox" data-yopish onclick="closeLightbox()">
   <img id="lightbox-img" src="" alt="">
 </div>
 
@@ -190,7 +190,7 @@ input[type=number]{-moz-appearance:textfield}
         <div style="font-size:16px;font-weight:600;color:var(--text)">⚠️ Kamaytirish (brak/yo'qotish)</div>
         <div style="font-size:13px;color:#aaa;margin-top:2px" id="loss-modal-sub">—</div>
       </div>
-      <button onclick="closeLossModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
+      <button data-yopish onclick="closeLossModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
     </div>
     <div style="padding:18px 22px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:14px">
       <div id="loss-mode-toggle" style="display:none;gap:6px">
@@ -237,7 +237,7 @@ input[type=number]{-moz-appearance:textfield}
       </div>
     </div>
     <div style="padding:16px 22px 20px;display:flex;gap:10px;border-top:1px solid #f0f0f0">
-      <button onclick="closeLossModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
+      <button data-yopish onclick="closeLossModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
       <button onclick="submitLoss()" id="loss-submit-btn" style="flex:1;padding:12px;border-radius:10px;border:none;background:#D97706;color:#fff;font-weight:600;font-size:14px;cursor:pointer">⚠️ Kamaytirish</button>
     </div>
   </div>
@@ -258,7 +258,7 @@ input[type=number]{-moz-appearance:textfield}
         <div style="font-size:16px;font-weight:600;color:var(--text)">💰 Bir nechta mahsulotni sotish</div>
         <div style="font-size:13px;color:#aaa;margin-top:2px" id="batch-modal-sub">—</div>
       </div>
-      <button onclick="closeBatchSellModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
+      <button data-yopish onclick="closeBatchSellModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
     </div>
     <div style="padding:18px 22px;overflow-y:auto;flex:1">
       <div id="batch-items-list" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px"></div>
@@ -292,7 +292,7 @@ input[type=number]{-moz-appearance:textfield}
       </div>
     </div>
     <div style="padding:16px 22px 20px;display:flex;gap:10px;border-top:1px solid #f0f0f0">
-      <button onclick="closeBatchSellModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
+      <button data-yopish onclick="closeBatchSellModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
       <button onclick="submitBatchSell()" style="flex:1;padding:12px;border-radius:10px;border:none;background:#16A34A;color:#fff;font-weight:600;font-size:14px;cursor:pointer">✓ Hammasini sotish</button>
     </div>
   </div>
@@ -306,7 +306,7 @@ input[type=number]{-moz-appearance:textfield}
         <div style="font-size:16px;font-weight:600;color:var(--text)">💰 Sotish</div>
         <div style="font-size:13px;color:#aaa;margin-top:2px" id="sell-modal-sub">—</div>
       </div>
-      <button onclick="closeSellModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
+      <button data-yopish onclick="closeSellModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
     </div>
     <div style="padding:18px 22px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:14px">
       <div>
@@ -342,7 +342,7 @@ input[type=number]{-moz-appearance:textfield}
       </div>
     </div>
     <div style="padding:16px 22px 20px;display:flex;gap:10px;border-top:1px solid #f0f0f0">
-      <button onclick="closeSellModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
+      <button data-yopish onclick="closeSellModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
       <button onclick="submitSell()" style="flex:1;padding:12px;border-radius:10px;border:none;background:#16A34A;color:#fff;font-weight:600;font-size:14px;cursor:pointer">✓ Sotish</button>
     </div>
   </div>
@@ -353,7 +353,7 @@ input[type=number]{-moz-appearance:textfield}
   <div style="background:#fff;border-radius:14px;width:480px;max-width:100%;max-height:80vh;display:flex;flex-direction:column">
     <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
       <div style="font-size:16px;font-weight:600;color:var(--text)" id="hist-title">Tarix</div>
-      <button onclick="closeHistoryModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
+      <button data-yopish onclick="closeHistoryModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
     </div>
     <div style="padding:18px 22px;overflow-y:auto;flex:1" id="hist-body"></div>
   </div>
@@ -373,7 +373,7 @@ input[type=number]{-moz-appearance:textfield}
         <div style="font-weight:600;color:#DC2626">🗑️ O'chirish, xomashyo qaytarilmasin</div>
         <div style="font-size:11.5px;color:var(--text3);margin-top:2px">Masalan brak/singan bo'lsa</div>
       </button>
-      <button class="btn btn-outline" style="width:100%;margin-top:4px" onclick="_delFpResolveWith(null)">Bekor qilish</button>
+      <button data-yopish class="btn btn-outline" style="width:100%;margin-top:4px" onclick="_delFpResolveWith(null)">Bekor qilish</button>
     </div>
   </div>
 </div>
@@ -385,7 +385,7 @@ input[type=number]{-moz-appearance:textfield}
         <div style="font-size:16px;font-weight:600;color:var(--text)">🏭 Tayyor mahsulot ishlab chiqarish</div>
         <div style="font-size:12px;color:#aaa;margin-top:2px">Ombordan xomashyo yechiladi</div>
       </div>
-      <button onclick="closeProduceModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
+      <button data-yopish onclick="closeProduceModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
     </div>
 
     <div style="padding:16px 22px;overflow-y:auto;flex:1">
@@ -527,7 +527,7 @@ input[type=number]{-moz-appearance:textfield}
     </div>
 
     <div style="padding:14px 22px 18px;border-top:1px solid #f0f0f0;display:flex;gap:8px">
-      <button class="btn btn-outline" style="flex:1" onclick="closeProduceModal()">Bekor</button>
+      <button data-yopish class="btn btn-outline" style="flex:1" onclick="closeProduceModal()">Bekor</button>
       <button class="btn btn-dark" style="flex:2;background:var(--gold);border-color:var(--gold)" onclick="saveProduce()">🏭 Ishlab chiqarish</button>
     </div>
   </div>
@@ -542,13 +542,13 @@ input[type=number]{-moz-appearance:textfield}
         <div style="font-size:16px;font-weight:600;color:var(--text)">💰 Foyda hisobi</div>
         <div style="font-size:12px;color:#aaa;margin-top:2px" id="pm-sub">—</div>
       </div>
-      <button onclick="closeProfitModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
+      <button data-yopish onclick="closeProfitModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
     </div>
     <div style="padding:18px 22px;overflow-y:auto;flex:1" id="pm-body">
       <div style="text-align:center;padding:20px;color:#bbb">Yuklanmoqda...</div>
     </div>
     <div style="padding:14px 22px 18px;border-top:1px solid #f0f0f0">
-      <button class="btn btn-dark w-full" onclick="closeProfitModal()">Yopish</button>
+      <button data-yopish class="btn btn-dark w-full" onclick="closeProfitModal()">Yopish</button>
     </div>
   </div>
 </div>
@@ -1763,7 +1763,8 @@ async function submitSell(confirmBelowCost) {
 async function editPrice(id) {
   const item = fpItems.find(i => i.id === id);
   if (!item) return;
-  const v = prompt(`${item.name}\n\nSotuv narxi (1 ${item.unit} uchun):`, narxKorinishi(item.unit_price));
+  // kech118 (B — U-07): xom prompt() o'rniga dastur oynasi (base.html `kiritishOyna`)
+  const v = await kiritishOyna(`Sotuv narxi (1 ${item.unit} uchun, so'm)`, {izoh: item.name, qiymat: narxKorinishi(item.unit_price), inputmode: 'decimal', okText: 'Saqlash'});
   if (v === null) return;
   // 118-band: pul matni yagona qoida bilan; joriy narx yaxlitlanmasdan beriladi
   // (ilgari Math.round — "OK" bosilsa tiyinli narx jimgina yaxlitlanardi).

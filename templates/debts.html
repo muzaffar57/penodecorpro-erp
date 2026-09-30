@@ -355,7 +355,7 @@
     <div class="form-group"><label>Har oy nechinchi sanagacha</label><input type="number" id="cat-dueday" value="5" min="1" max="28"></div>
     <div style="display:flex;gap:8px;margin-top:14px">
       <button class="btn btn-dark w-full" onclick="saveNewCategory()">Saqlash</button>
-      <button class="btn btn-outline w-full" onclick="closeAddCategoryModal()">Bekor</button>
+      <button data-yopish class="btn btn-outline w-full" onclick="closeAddCategoryModal()">Bekor</button>
     </div>
   </div>
 </div>
@@ -366,7 +366,7 @@
     <div style="font-size:16px;font-weight:700;margin-bottom:4px" id="tl-title">To'lovlar tarixi</div>
     <div style="font-size:12.5px;color:var(--d-text3);margin-bottom:16px" id="tl-sub"></div>
     <div id="tl-list"></div>
-    <button class="btn btn-outline w-full" style="margin-top:16px" onclick="closeTimelineModal()">Yopish</button>
+    <button data-yopish class="btn btn-outline w-full" style="margin-top:16px" onclick="closeTimelineModal()">Yopish</button>
   </div>
 </div>
 {% endblock %}
@@ -559,7 +559,8 @@ async function deleteCategory(id, label){
 }
 
 async function quickPayObligation(category, label, debt, year, month){
-  const amountStr = prompt(`${label} uchun qancha to'landi?`, narxKorinishi(debt));
+  // kech118 (B — U-07): brauzerning xom prompt() oynasi o'rniga dastur oynasi (base.html `kiritishOyna`)
+  const amountStr = await kiritishOyna(`${label} uchun qancha to'landi?`, {qiymat: narxKorinishi(debt), inputmode: 'decimal', okText: "To'lovni yozish"});
   if (!amountStr) return;
   // 118-band: pul matni yagona qoida bilan o'qiladi ("1.500.000", "1 500,5");
   // noto'g'ri / manfiy / 0 summa — ANIQ rad (ilgari jimgina qaytardi yoki 10x / 100x).

@@ -1,0 +1,39 @@
+{# kech118 (B bosqichi — audit U-11): yo'q (404) va ruxsatsiz (403) sahifa — o'zbekcha, «Bosh sahifaga» tugmasi bilan.
+   `base.html` ni kengaytirmaydi: sessiya bo'lmasa ham (yoki hodim paneli yo'lida) ochiladi. Kontekst: kod, sarlavha, matn, bosh. #}
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ sarlavha }} — PenoDecorPro ERP</title>
+<link rel="stylesheet" href="/static/style.css?v={{ static_version }}">
+<script>
+  try { if (localStorage.getItem('theme') === 'dark') document.documentElement.setAttribute('data-theme', 'dark'); } catch (e) {}
+</script>
+<style>
+  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px;
+         box-sizing: border-box; background: var(--bg, #F7F5F2); color: var(--text, #222); font-family: Inter, system-ui, sans-serif; }
+  .xs-karta { background: var(--white, #fff); border: 1px solid var(--border, #E5E1DA); border-radius: 16px; padding: 32px 28px;
+              width: 440px; max-width: 100%; text-align: center; box-shadow: 0 8px 30px rgba(0,0,0,.06); }
+  .xs-kod { font-size: 13px; font-weight: 700; letter-spacing: .08em; color: var(--text2, #6B7280); margin-bottom: 10px; }
+  .xs-sarlavha { font-size: 22px; font-weight: 800; margin: 0 0 10px; }
+  .xs-matn { font-size: 15px; line-height: 1.6; color: var(--text2, #6B7280); margin: 0 0 22px; }
+  .xs-tugmalar { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .xs-tugmalar a, .xs-tugmalar button { font-size: 14.5px; font-weight: 700; padding: 11px 18px; border-radius: 10px; cursor: pointer;
+                                         text-decoration: none; min-height: 44px; box-sizing: border-box; }
+  .xs-asosiy { background: var(--gold, #B9783F); color: #fff; border: 1px solid var(--gold, #B9783F); }
+  .xs-ikkinchi { background: transparent; color: var(--text, #222); border: 1px solid var(--border, #E5E1DA); }
+</style>
+</head>
+<body>
+  <main class="xs-karta" role="main">
+    <div class="xs-kod">{{ kod }}</div>
+    <h1 class="xs-sarlavha">{{ sarlavha }}</h1>
+    <p class="xs-matn">{{ matn }}</p>
+    <div class="xs-tugmalar">
+      <a class="xs-asosiy" id="xsBosh" href="{{ bosh }}">Bosh sahifaga</a>
+      <button type="button" class="xs-ikkinchi" id="xsOrqaga" onclick="if (history.length > 1) history.back(); else document.getElementById('xsBosh').click();">Orqaga</button>
+    </div>
+  </main>
+</body>
+</html>

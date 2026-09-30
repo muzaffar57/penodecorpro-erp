@@ -228,6 +228,293 @@ function showMsg(text, type) {
   setTimeout(() => box.remove(), 4000);
 }
 
+// ══ UMUMIY (kech118, B bosqichi — audit U-07 / U-08, O'LCHANGAN): DASTURNING O'Z OYNALARI.
+// (1) `xabarOyna(matn, {sarlavha, tur, okText})` — brauzerning xom `alert()` oynasi o'rniga (u tepasida sayt manzilini
+//     ko'rsatib, sahifani to'xtatib qo'yardi; audit — 70 joy, 12 ta xom oyna chiqdi). Promise — oyna yopilganda (tugma,
+//     Enter, Esc, tashqariga bosish). Ketma-ket chaqiriqlar NAVBAT bilan birin-ketin ko'rsatiladi. `tur`: 'xato' / 'ok' /
+//     'ogoh' / 'info' (berilmasa — matn boshidagi ❌ / ✅ / ⚠ belgisidan). Brauzerning O'Z `alert` i shu oynaga
+//     yo'naltiriladi (`_xoAlertniUlash`) — eski `alert(...)` chaqiriqlari o'zgarmasdan dastur oynasini ko'rsatadi.
+//     MUHIM: xom `alert` sahifani to'xtatardi, bu oyna to'xtatmaydi — xabardan KEYIN sahifa yangilanadigan yoki boshqa
+//     joyga o'tiladigan joyda `await xabarOyna(...)` yozilsin (aks holda xabar ko'rinmay qoladi).
+// (2) `kiritishOyna(sarlavha, {izoh, qiymat, tur, okText, inputmode})` — xom `prompt()` o'rniga. Promise: kiritilgan
+//     matn yoki `null` (Bekor / Esc / tashqariga bosish). `tur: 'password'` — yashirin maydon. Qiymatni tekshirish —
+//     chaqiruvchida (avvalgidek), xato — `xabarOyna` / sahifa xabari bilan.
+// (3) OYNALARNI YOPISH (U-08 — audit: 61 oynadan 55 tasi Esc ga javob bermasdi): Esc — eng ustki ochiq oynaning yopish
+//     tugmasi bosiladi; oynaning tashqarisiga (qora fonga) bosish — xuddi shunday, lekin oynaga ma'lumot YOZILGAN bo'lsa
+//     avval so'raladi. Yopish tugmasi FAQAT `data-yopish` belgisi bilan topiladi (matn bo'yicha taxmin YO'Q: «Bekor
+//     qilish» / «✕» ba'zi joyda AMAL — ishlab chiqarishni bekor qilish, tayyor mahsulotni o'chirish). Oyna = `data-yopish`
+//     (yoki `data-esc-ozi`) elementining eng yaqin `position: fixed` ajdodi (yoki o'zi); eng ustkisi — z-index, teng
+//     bo'lsa hujjatda keyingisi. `data-esc-ozi` — o'z Esc ishlovchisi bor, yopish belgisiz oyna (platforma oynasi): «ochiq
+//     oynalar» ro'yxatida qatnashadi, shuning uchun u ustida turganda global Esc uning ostidagi oynaga tegmaydi (customConfirm
+//     «Bekor» belgili — o'zi qatnashadi). Belgisiz oyna Esc ga javob bermaydi (xavfsiz tomon).
+//     Tekshiruv: tools/test_b118_oyna.py (statik — har oyna belgili; HAQIQIY server + jsdom — sahifalarning o'z oynalari).
+var _xoNavbat = [];
+var _xoJoriy = null;
+var _XO_SARLAVHA = {xato: 'Xatolik', ok: 'Bajarildi', ogoh: 'Diqqat', info: 'Xabar'};
+var _XO_RANG = {xato: '#B91C1C', ok: '#15803D', ogoh: '#B45309', info: ''};
+function _xoTuri(matn) {
+  var t = String(matn || '').trim();
+  if (/^(❌|⛔|🚫)/.test(t) || /^xato/i.test(t) || /^server (xatosi|bilan)/i.test(t)) return 'xato';
+  if (/^(✅|✓|✔)/.test(t)) return 'ok';
+  if (/^(⚠|❗)/.test(t)) return 'ogoh';
+  return 'info';
+}
+function _xoElement() {
+  var m = document.getElementById('xoModal');
+  if (m) return m;
+  m = document.createElement('div');
+  m.id = 'xoModal';
+  m.setAttribute('role', 'alertdialog');
+  m.setAttribute('aria-modal', 'true');
+  m.setAttribute('aria-labelledby', 'xoSarlavha');
+  m.setAttribute('aria-describedby', 'xoMatn');
+  m.style.cssText = 'display:none;position:fixed;inset:0;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);' +
+    'z-index:3100;align-items:center;justify-content:center;padding:20px';
+  m.innerHTML = '<div style="background:var(--white,#fff);border-radius:14px;width:440px;max-width:100%;padding:22px 24px;' +
+    'box-shadow:0 20px 60px rgba(0,0,0,.25)">' +
+    '<div id="xoSarlavha" style="font-size:15.5px;font-weight:700;margin-bottom:8px;color:var(--text,#222)"></div>' +
+    '<div id="xoMatn" style="font-size:14px;color:var(--text,#222);line-height:1.6;white-space:pre-wrap;word-break:break-word;' +
+    'max-height:60vh;overflow:auto;margin-bottom:18px"></div>' +
+    '<button type="button" id="xoOk" class="btn btn-gold" data-yopish style="width:100%">Tushunarli</button></div>';
+  (document.body || document.documentElement).appendChild(m);
+  m.querySelector('#xoOk').onclick = function () { _xoYop(); };
+  return m;
+}
+function _xoKorsat(q) {
+  _xoJoriy = q;
+  var m = _xoElement();
+  var tur = q.opts.tur || _xoTuri(q.matn);
+  var s = m.querySelector('#xoSarlavha');
+  s.textContent = q.opts.sarlavha || _XO_SARLAVHA[tur] || 'Xabar';
+  s.style.color = _XO_RANG[tur] || '';
+  m.querySelector('#xoMatn').textContent = q.matn;
+  var ok = m.querySelector('#xoOk');
+  ok.textContent = q.opts.okText || 'Tushunarli';
+  m.setAttribute('data-tur', tur);
+  m.style.display = 'flex';
+  q.oldingiFokus = document.activeElement;
+  setTimeout(function () { try { ok.focus(); } catch (e) {} }, 0);
+}
+function _xoYop() {
+  var m = document.getElementById('xoModal');
+  if (m) m.style.display = 'none';
+  var q = _xoJoriy;
+  _xoJoriy = null;
+  if (q) {
+    try { if (q.oldingiFokus && q.oldingiFokus.focus && q.oldingiFokus !== document.body) q.oldingiFokus.focus(); } catch (e) {}
+    q.resolve();
+  }
+  if (_xoNavbat.length) _xoKorsat(_xoNavbat.shift());
+}
+function xabarOyna(matn, opts) {
+  return new Promise(function (resolve) {
+    var q = {matn: (matn === undefined || matn === null) ? '' : String(matn), opts: opts || {}, resolve: resolve};
+    function boshla() { if (_xoJoriy) _xoNavbat.push(q); else _xoKorsat(q); }
+    if (document.body) boshla();
+    else document.addEventListener('DOMContentLoaded', boshla);
+  });
+}
+function _xoAlertniUlash(w) {
+  // Faqat brauzerning HAQIQIY (native) alert i almashtiriladi: test / boshqa kod oldindan o'rnatgan almashtirish tegilmaydi.
+  try {
+    var n = w.alert;
+    if (typeof n === 'function' && /\[native code\]/.test(Function.prototype.toString.call(n))) {
+      w.alert = function (matn) { xabarOyna(matn); };
+      return true;
+    }
+  } catch (e) {}
+  return false;
+}
+_xoAlertniUlash(window);
+
+var _kiJoriy = null;
+function kiritishOyna(sarlavha, opts) {
+  opts = opts || {};
+  return new Promise(function (resolve) {
+    if (_kiJoriy) { var eski = _kiJoriy; _kiJoriy = null; eski(null); }
+    var m = document.getElementById('kiModal');
+    if (!m) {
+      m = document.createElement('div');
+      m.id = 'kiModal';
+      m.setAttribute('role', 'dialog');
+      m.setAttribute('aria-modal', 'true');
+      m.setAttribute('aria-labelledby', 'kiSarlavha');
+      m.style.cssText = 'display:none;position:fixed;inset:0;top:0;left:0;right:0;bottom:0;background:rgba(17,24,39,.5);' +
+        'z-index:3050;align-items:center;justify-content:center;padding:20px';
+      m.innerHTML = '<div style="background:var(--white,#fff);border-radius:14px;padding:22px 24px;width:400px;max-width:100%;' +
+        'box-shadow:0 20px 60px rgba(0,0,0,.25)">' +
+        '<div id="kiSarlavha" style="font-size:15.5px;font-weight:700;color:var(--text,#222);margin-bottom:6px;white-space:pre-wrap"></div>' +
+        '<div id="kiIzoh" style="font-size:13px;color:var(--text2,#6B7280);margin-bottom:12px;white-space:pre-wrap"></div>' +
+        '<input id="kiMaydon" type="text" autocomplete="off" style="width:100%;font-size:15px;font-weight:600;padding:10px 12px;' +
+        'border:1.5px solid var(--border,#E5E1DA);border-radius:10px;box-sizing:border-box">' +
+        '<div style="display:flex;gap:8px;margin-top:16px">' +
+        '<button type="button" id="kiBekor" class="btn btn-outline" data-yopish style="flex:1">Bekor</button>' +
+        '<button type="button" id="kiOk" class="btn btn-gold" style="flex:1">Tasdiqlash</button></div></div>';
+      (document.body || document.documentElement).appendChild(m);
+    }
+    var maydon = m.querySelector('#kiMaydon'), ok = m.querySelector('#kiOk'), bekor = m.querySelector('#kiBekor');
+    var izoh = m.querySelector('#kiIzoh');
+    m.querySelector('#kiSarlavha').textContent = sarlavha || '';
+    izoh.textContent = opts.izoh || '';
+    izoh.style.display = opts.izoh ? 'block' : 'none';
+    maydon.type = opts.tur === 'password' ? 'password' : 'text';
+    maydon.setAttribute('inputmode', opts.inputmode || 'text');
+    maydon.setAttribute('aria-label', sarlavha || '');
+    maydon.value = (opts.qiymat === undefined || opts.qiymat === null) ? '' : String(opts.qiymat);
+    ok.textContent = opts.okText || 'Tasdiqlash';
+    var oldingi = document.activeElement;
+    function tugat(v) {
+      if (_kiJoriy !== tugat) return;
+      _kiJoriy = null;
+      m.style.display = 'none';
+      try { if (oldingi && oldingi.focus && oldingi !== document.body) oldingi.focus(); } catch (e) {}
+      resolve(v);
+    }
+    _kiJoriy = tugat;
+    ok.onclick = function () { tugat(maydon.value); };
+    bekor.onclick = function () { tugat(null); };
+    maydon.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); ok.click(); } };
+    m.style.display = 'flex';
+    setTimeout(function () { try { maydon.focus(); maydon.select(); } catch (e) {} }, 0);
+  });
+}
+
+(function () {
+  function korinadi(el) {
+    // jsdom da o'lcham yo'q — shuning uchun geometriya emas, ajdodlar zanjiri (display / hidden / visibility)
+    if (!el || !el.isConnected) return false;
+    var cs = window.getComputedStyle(el);
+    // kech118 (audit O390, O'LCHANGAN): telefonda yopiq menyu foni `display:block; opacity:0; pointer-events:none` —
+    // ko'rinmaydi va bosilmaydi; «ochiq» deb hisoblansa Esc oynani emas, (yopiq) menyuni «yopardi» (37 oyna).
+    if (cs.visibility === 'hidden' || cs.pointerEvents === 'none' || parseFloat(cs.opacity) === 0) return false;
+    for (var e = el; e && e.nodeType === 1; e = e.parentElement) {
+      if (e.hidden) return false;
+      if (window.getComputedStyle(e).display === 'none') return false;
+    }
+    return true;
+  }
+  function fixedmi(el) {
+    return el && el.nodeType === 1 && window.getComputedStyle(el).position === 'fixed';
+  }
+  function oynasi(el) {
+    for (var e = el; e && e.nodeType === 1 && e !== document.body; e = e.parentElement) {
+      if (fixedmi(e)) return e;
+    }
+    return null;
+  }
+  function zIndex(el) { var z = parseInt(window.getComputedStyle(el).zIndex, 10); return isNaN(z) ? 0 : z; }
+  function ochiqOynalar() {
+    var tp = {}, royxat = [];
+    document.querySelectorAll('[data-yopish], [data-esc-ozi]').forEach(function (b) {
+      var ov = oynasi(b);
+      if (!ov || royxat.indexOf(ov) >= 0 || !korinadi(ov)) return;
+      royxat.push(ov);
+    });
+    royxat.sort(function (a, b) {
+      var d = zIndex(a) - zIndex(b);
+      if (d) return d;
+      return (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) ? -1 : 1;
+    });
+    return royxat;
+  }
+  function yopishTugmasi(ov) {
+    if (ov.hasAttribute('data-yopish')) return ov;
+    var b = ov.querySelectorAll('[data-yopish]');
+    for (var i = 0; i < b.length; i++) {
+      if (oynasi(b[i]) === ov && korinadi(b[i]) && !b[i].disabled) return b[i];
+    }
+    return null;
+  }
+  function ichkiPanel(ov) {
+    // oyna ichidagi ochiluvchi panel (masalan tarkib tanlash ro'yxati) — Esc avval shuni yopadi
+    var b = ov.querySelectorAll('[data-yopish-ichki]');
+    for (var i = 0; i < b.length; i++) {
+      if (oynasi(b[i]) === ov && korinadi(b[i]) && !b[i].disabled) return b[i];
+    }
+    return null;
+  }
+  var kiritilgan = new Set();
+  function belgiTozala(ov) { if (ov) { ov.__kiritildi = false; kiritilgan.delete(ov); } }
+  function yop(ov, t) { belgiTozala(ov); t.click(); }
+  function yopSorab(ov, t) {
+    // oynaga ma'lumot YOZILGAN bo'lsa — tasodifan yo'qolmasin: avval so'raladi (Esc ham, tashqariga bosish ham)
+    if (ov.__kiritildi && typeof customConfirm === 'function') {
+      customConfirm("Oynaga yozilgan ma'lumot saqlanmaydi. Oyna yopilsinmi?",
+                    {okText: 'Yopish', cancelText: 'Davom etish'}).then(function (ha) { if (ha) yop(ov, t); });
+      return;
+    }
+    yop(ov, t);
+  }
+  window._oynaYopishIchki = {ochiqOynalar: ochiqOynalar, yopishTugmasi: yopishTugmasi, oynasi: oynasi, korinadi: korinadi,
+                             ichkiPanel: ichkiPanel};
+
+  window.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape' && e.key !== 'Esc') return;
+    if (e.defaultPrevented || e.isComposing) return;
+    var o = ochiqOynalar();
+    if (!o.length) return;
+    var ust = o[o.length - 1];
+    // eng ustki oyna yopish belgisiz (`data-esc-ozi` — o'z Esc i bor) bo'lsa — global Esc hech narsa qilmaydi (ostidagi oynaga
+    // TEGMAYDI — J22d); customConfirm «Bekor» belgili — bosish o'z Esc bilan AYNAN natija (kech118 mutatsiyalari M11 / M51:
+    // alohida `return` va ccModal dagi `data-esc-ozi` ekvivalent edi — olib tashlandi).
+    var ichki = ichkiPanel(ust);
+    var t = ichki || yopishTugmasi(ust);
+    if (!t) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if (ichki) { ichki.click(); return; }
+    yopSorab(ust, t);
+  }, true);
+
+  var bosilganJoy = null;
+  document.addEventListener('mousedown', function (e) { bosilganJoy = e.target; }, true);
+  document.addEventListener('click', function (e) {
+    var ov = e.target;
+    var boshi = bosilganJoy;
+    bosilganJoy = null;
+    if (!ov || ov.nodeType !== 1 || boshi !== ov) return;      // matnni belgilab tashqarida qo'yib yuborish — yopmaydi
+    if (!fixedmi(ov) || !korinadi(ov)) return;                  // oyna o'z tashqi bosishida o'zi yopilgan bo'lsa ham
+    var o = ochiqOynalar();
+    if (!o.length || o[o.length - 1] !== ov) return;
+    var t = yopishTugmasi(ov);
+    if (!t || t === ov) return;                                  // o'zi yopiladigan (rasm) — o'z onclick i bor
+    yopSorab(ov, t);
+  });
+  // Yozishni belgilash HAR bosilgan tugmada ishlaydi — shuning uchun hisoblangan uslubsiz (getComputedStyle — jsdom da va
+  // katta sahifada sekin): oyna = inline `position: fixed` li, ma'lum oyna klassli yoki belgili eng yaqin ajdod.
+  var OYNA_KLASS = ['modal-overlay', 'pl-modal', 'mv-drawer-overlay', 'inv-toast-overlay', 'proj-toast-overlay', 'recp-toast-overlay'];
+  function oynasiTez(el) {
+    for (var e = el; e && e.nodeType === 1 && e !== document.body; e = e.parentElement) {
+      if ((e.style && e.style.position === 'fixed') || e.hasAttribute('data-esc-ozi')) return e;
+      for (var i = 0; i < OYNA_KLASS.length; i++) if (e.classList && e.classList.contains(OYNA_KLASS[i])) return e;
+    }
+    return null;
+  }
+  function kiritishBelgisi(e) {
+    var el = e.target;
+    if (!el || el.nodeType !== 1) return;
+    var ov = oynasiTez(el);
+    if (!ov || ov.id === 'xoModal' || ov.id === 'kiModal') return;
+    if (!ov.querySelector('[data-yopish]') && !ov.hasAttribute('data-yopish')) return;
+    ov.__kiritildi = true;
+    kiritilgan.add(ov);
+  }
+  document.addEventListener('input', kiritishBelgisi, true);
+  document.addEventListener('change', function (e) {
+    var el = e.target;
+    if (el && (el.tagName === 'SELECT' || el.type === 'checkbox' || el.type === 'radio' || el.type === 'file')) kiritishBelgisi(e);
+  }, true);
+  // Oyna yopilganda (qaysi yo'l bilan bo'lmasin — saqlash, o'z tugmasi) belgi tozalanadi: keyingi ochilishda so'ramaydi
+  function kuzat() {
+    if (typeof MutationObserver !== 'function' || !document.documentElement) return;
+    new MutationObserver(function () {
+      if (!kiritilgan.size) return;
+      kiritilgan.forEach(function (ov) { if (!korinadi(ov)) belgiTozala(ov); });
+    }).observe(document.documentElement, {attributes: true, subtree: true, attributeFilter: ['style', 'class', 'hidden']});
+  }
+  if (document.documentElement) kuzat(); else document.addEventListener('DOMContentLoaded', kuzat);
+})();
+
 // ══ UMUMIY: onclick="funksiya('${nom}')" ko'rinishidagi joylar uchun.
 // MUHIM (2026-09-13, xavfsizlik tekshiruvi): oddiy escapeHtml() BU YERDA
 // YETARLI EMAS — brauzer avval HTML atributini o'qiydi (shu chog'da
@@ -269,7 +556,7 @@ function jsAttrEscape(str) {
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/css/tabler-icons.min.css">
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/style.css?v={{ static_version }}">
   <style>
   /* kech114 (egasi QARORI «6A — Bir qator + tugmalar»): telefonda yuqori panel 103–191 px edi (sarlavha, tungi rejim /
      qo'ng'iroqcha / Кирилл va sahifa tugmalari alohida qatorlarda — `work/k114/olchov114.py`). Endi: 1-qator — menyu,
@@ -497,7 +784,7 @@ function jsAttrEscape(str) {
     </div>
   </aside>
 
-  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+  <div class="sidebar-overlay" id="sidebarOverlay" data-yopish onclick="closeSidebar()"></div>
 
   <script>
     window.toggleSidebar = function() {
@@ -734,7 +1021,7 @@ function jsAttrEscape(str) {
     <div id="ccModalTitle" style="font-size:15.5px;font-weight:700;color:var(--text);margin-bottom:8px;display:none"></div>
     <div id="ccModalMessage" style="font-size:14px;color:var(--text2);line-height:1.6;white-space:pre-wrap;margin-bottom:18px"></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button id="ccModalCancel" class="btn btn-outline" style="flex:1">Bekor</button>
+      <button id="ccModalCancel" data-yopish class="btn btn-outline" style="flex:1">Bekor</button>
       <button id="ccModalAlt" class="btn btn-outline" style="flex:1;display:none"></button>
       <button id="ccModalOk" class="btn btn-gold" style="flex:1">Tasdiqlash</button>
     </div>

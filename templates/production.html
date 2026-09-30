@@ -319,7 +319,7 @@
 <div class="modal-overlay" id="pt-modal">
   <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="pt-modal-title">
     <div class="modal-sarlavha"><div class="modal-title" id="pt-modal-title">Yangi mahsulot turi</div>
-      <button type="button" class="modal-yop" aria-label="Yopish" onclick="closeModal('pt-modal')"><i class="ti ti-x"></i></button></div>
+      <button data-yopish type="button" class="modal-yop" aria-label="Yopish" onclick="closeModal('pt-modal')"><i class="ti ti-x"></i></button></div>
     <div class="mf-group"><label for="pt-f-name">Nomi</label><input type="text" id="pt-f-name" placeholder="Masalan: Travertin"></div>
     {# kech117 (A2 — egasi QARORI kech114 00:08): tur yo'nalishi MAJBURIY (moliyada har yo'nalishning o'z sof foydasi) #}
     <div class="mf-group">
@@ -382,7 +382,7 @@
     <div class="mf-group"><label for="pt-f-notes">Izoh (ixtiyoriy)</label><textarea id="pt-f-notes" rows="2"></textarea></div>
     <div style="display:flex;gap:8px;margin-top:16px">
       <button class="btn btn-dark w-full" onclick="saveProductType()">Saqlash</button>
-      <button class="btn btn-outline w-full" onclick="closeModal('pt-modal')">Bekor</button>
+      <button data-yopish class="btn btn-outline w-full" onclick="closeModal('pt-modal')">Bekor</button>
     </div>
   </div>
 </div>
@@ -391,7 +391,7 @@
 <div class="modal-overlay" id="pty-modal">
   <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="pty-modal-title">
     <div class="modal-sarlavha"><div class="modal-title" id="pty-modal-title">Yo'nalish</div>
-      <button type="button" class="modal-yop" aria-label="Yopish" onclick="closeModal('pty-modal')"><i class="ti ti-x"></i></button></div>
+      <button data-yopish type="button" class="modal-yop" aria-label="Yopish" onclick="closeModal('pty-modal')"><i class="ti ti-x"></i></button></div>
     <div id="pty-tur" style="font-size:13px;color:var(--text2);margin-bottom:10px"></div>
     <input type="hidden" id="pty-f-id" value="">
     <div class="mf-group">
@@ -408,7 +408,7 @@
     </div>
     <div style="display:flex;gap:8px;margin-top:16px">
       <button class="btn btn-dark w-full" id="pty-saqla" onclick="saveTurYonalish()">Saqlash</button>
-      <button class="btn btn-outline w-full" onclick="closeModal('pty-modal')">Bekor</button>
+      <button data-yopish class="btn btn-outline w-full" onclick="closeModal('pty-modal')">Bekor</button>
     </div>
   </div>
 </div>
@@ -417,7 +417,7 @@
 <div class="modal-overlay" id="bom-modal">
   <div class="modal-box juda-keng" role="dialog" aria-modal="true" aria-labelledby="bom-modal-title">
     <div class="modal-sarlavha"><div class="modal-title" id="bom-modal-title">Yangi retsept</div>
-      <button type="button" class="modal-yop" aria-label="Yopish" onclick="closeModal('bom-modal')"><i class="ti ti-x"></i></button></div>
+      <button data-yopish type="button" class="modal-yop" aria-label="Yopish" onclick="closeModal('bom-modal')"><i class="ti ti-x"></i></button></div>
     <input type="hidden" id="bom-f-product-type-id">
     <input type="hidden" id="bom-f-editing-id">
     <div class="mf-row">
@@ -446,7 +446,7 @@
     <div class="modal-tugmalar">
       <div class="izoh">Narx — ombordagi hozirgi o'rtacha narx. Isrof miqdorga qo'shiladi: 1 kg + 10 % = 1,1 kg. Retsept o'zgarsa, boshlangan ishlab chiqarishlar eski narxda qoladi.</div>
       <div class="tugmalar">
-        <button class="btn btn-outline" onclick="closeModal('bom-modal')">Bekor</button>
+        <button data-yopish class="btn btn-outline" onclick="closeModal('bom-modal')">Bekor</button>
         <button class="btn btn-dark" onclick="saveBom()">Saqlash</button>
       </div>
     </div>
@@ -457,7 +457,7 @@
 <div class="modal-overlay" id="po-modal">
   <div class="modal-box wide" role="dialog" aria-modal="true" aria-labelledby="po-modal-title">
     <div class="modal-sarlavha"><div class="modal-title" id="po-modal-title">Yangi ishlab chiqarish</div>
-      <button type="button" class="modal-yop" aria-label="Yopish" onclick="closeModal('po-modal')"><i class="ti ti-x"></i></button></div>
+      <button data-yopish type="button" class="modal-yop" aria-label="Yopish" onclick="closeModal('po-modal')"><i class="ti ti-x"></i></button></div>
     <div class="mf-row">
       <div class="mf-group">
         <label for="po-f-product-type">Mahsulot</label>
@@ -497,7 +497,7 @@
     <div class="modal-tugmalar">
       <div class="izoh">«Boshlash» — xomashyo tekshiriladi va retsept narxi shu kunda qotadi. Ombordan yechish — «Yakunlash» da.</div>
       <div class="tugmalar">
-        <button class="btn btn-outline" onclick="closeModal('po-modal')">Bekor</button>
+        <button data-yopish class="btn btn-outline" onclick="closeModal('po-modal')">Bekor</button>
         <button class="btn btn-outline" id="po-qoralama-btn" onclick="poQoralamaSaqla()">Qoralama sifatida saqlash</button>
         <button class="btn btn-dark" id="po-boshlash-btn" onclick="poYaratibBoshla()" disabled>Boshlash</button>
       </div>
@@ -509,7 +509,7 @@
 <div class="modal-overlay" id="snapshot-modal">
   <div class="modal-box wide" role="dialog" aria-modal="true" aria-labelledby="snapshot-modal-title">
     <div class="modal-sarlavha"><div class="modal-title" id="snapshot-modal-title">Ishlab chiqarish</div>
-      <button type="button" class="modal-yop" aria-label="Yopish" onclick="closeModal('snapshot-modal')"><i class="ti ti-x"></i></button></div>
+      <button data-yopish type="button" class="modal-yop" aria-label="Yopish" onclick="closeModal('snapshot-modal')"><i class="ti ti-x"></i></button></div>
     <div id="snapshot-warnings"></div>
     <div id="snapshot-list"></div>
     <div class="modal-tugmalar" id="snapshot-tugmalar"></div>

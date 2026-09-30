@@ -412,7 +412,8 @@ async function saveTgBot() {
 }
 
 async function clearTgBot() {
-  if (!confirm("Bot sozlamasi tozalansinmi? Shundan keyin korxonangizga Telegram xabarlari kelmasligi mumkin.")) return;
+  // kech118 (B — U-07): xom confirm() o'rniga dastur oynasi
+  if (!(await customConfirm("Bot sozlamasi tozalansinmi? Shundan keyin korxonangizga Telegram xabarlari kelmasligi mumkin.", {danger: true, okText: 'Tozalash'}))) return;
   const fd = new FormData();
   fd.append('token', '-'); fd.append('chat_id', '-');
   await fetch('/api/settings/telegram-bot', { method: 'PUT', body: fd });
