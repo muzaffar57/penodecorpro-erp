@@ -278,6 +278,12 @@ def require_login(
             detail="Iltimos, tizimga kiring",
             headers={"Location": "/login"}
         )
+    # kech118 (ROLLAR 2-qism): «Tannarx va foyda» ruxsati yo'q — `/api/` javobidagi tannarx / foyda null bo'ladi
+    # (`main._TannarxHimoyasi`). Sessiya ochiq paytda hisoblanadi (javob yuborilayotganda baza yopiq).
+    try:
+        request.state.tannarx_yoq = not _rx.bormi(user, "tannarx", "korish")
+    except Exception:
+        request.state.tannarx_yoq = True
     return user
 
 

@@ -270,3 +270,182 @@ def birinchi_sahifa(user):
         if any(bormi(user, b, a) for b, a in talab):
             return url
     return None
+
+
+# ════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# «TANNARX VA FOYDA» — ruxsati YO'Q foydalanuvchiga pul sirlari «—» (egasi QARORI kech118 18:4x, tugmali; QAYTA SO'RALMAYDI):
+# «ruxsat yo'q — tannarx HAMMA joyda «—»» (Menejer / Omborchi hozir ko'radigan «tan: …», tayyor mahsulot «Ombor qiymati»,
+# MRP «Taxminiy tannarx» ham); XARID narxi (material narxi, kirim summasi, ta'minotchi qarzi) — tannarxga KIRMAYDI.
+# Server `/api/` JSON javobini foydalanuvchiga yuborishdan OLDIN tozalaydi (`main._TannarxHimoyasi`): qiymat `null` bo'ladi,
+# sahifa uni «—» ko'rsatadi. O'LCHANGAN kalitlar (work/k119/tannarx_skan3.py / 4.py — boy baza, har GET API).
+# ════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+# Har qanday chuqurlikda: shu nomli kalitning qiymati (son / matn; lug'at bo'lsa — ichidagi hamma qiymat) null bo'ladi.
+TANNARX_KALITLAR = frozenset({
+    # tannarx
+    "tannarx", "taxminiy_tannarx", "tan_narxi", "cost_price", "cost_amount", "cost_per_unit", "cost_per_kg", "total_cost",
+    "total_material_cost", "total_extra_cost", "line_cost", "loy_cost", "loy_cost_per_kg", "peno_cost", "penoplast_cost",
+    "xomashyo_cost", "unit_cost", "stock_cost", "cost_price_per_unit", "cost_price_per_unit_no_coating",
+    "narxsiz_tannarx_qiymati", "tannarx_jami", "tannarx_buyurtmalar", "tannarx_tm", "qaytarish_tannarx", "fp_sales_tannarx",
+    "ishlab_chiqarish_xarajat", "brak_xarajat", "fp_loss_xarajat", "brak_total_value", "brak_month_value",
+    # foyda
+    "profit", "profit_per_unit", "margin", "today_profit", "total_profit", "yearly_profit", "monthly_profit", "foyda",
+    "sof_foyda", "sof_daromad", "foyda_foiz", "buyurtmalar_foydasi", "fp_sales_foyda", "forecast_foyda", "current_foyda",
+    "natija", "yonalishlar_natijasi", "moliya_sof_foyda", "moliya_sof_foyda_aniq", "rentabellik", "foydada_soni",
+    "zararda_soni",
+})
+
+# Brak (xomashyo) va tayyor mahsulot yo'qotishi QIYMATI — tannarx bo'yicha baholanadi (ilgari ham «Brak qiymati» kartasi
+# faqat tannarxni ko'radiganlarga edi): xarajat tarkibi qatorlarida ham «—».
+_BRAK_QISMLAR = ("brak", "tm_yoqotish")
+
+
+def _qism_yollari(*asoslar):
+    return tuple(f"{a}.{q}" for a in asoslar for q in _BRAK_QISMLAR)
+
+
+# Nomi umumiy (boshqa joyda tannarx EMAS) kalitlar — faqat shu marshrutda. Yo'l: "a.b", "[].x", "a[].b"; "a[k=v1|v2].x" —
+# ro'yxatning faqat `k` maydoni v1 yoki v2 bo'lgan elementlari; "*~regex" — shu darajadagi (ichma-ich ham) regexga mos hamma
+# kalit.
+TANNARX_YOLLAR = {
+    "/api/finance/daily": ("sales.cost",),
+    "/api/finished/stats": ("produced_value", "returned_value", "total_value"),
+    "/api/reports/brak-materials": ("by_material[].value", "by_order[].items[].value", "by_order[].total_value",
+                                    "total_value"),
+    "/api/reports/brak-tahlil": ("*~qiymat",),
+    # ishlab chiqarish rejasi: xomashyo summasi, qo'shimcha xarajat, 1 birlik tannarxi — tannarx qismlari
+    "/api/production/orders/preview": ("qatorlar[].summa", "xomashyo", "qoshimcha", "bir_birlik"),
+    "/api/production/orders/{po_id}/preview": ("qatorlar[].summa", "xomashyo", "qoshimcha", "bir_birlik"),
+    # retsept oynasi: 1 birlik taxminiy tannarxi (oddiy / qoplamali / hammasi bilan)
+    "/api/production/boms/preview": ("qatorlar[].summa", "doim", "qoplamali", "hammasi"),
+    # buyurtma «Tayyor»: usta KPI summasi — shu buyurtma FOYDASI × foiz (foydani ochib beradi)
+    "/api/orders/{order_id}/ready": ("master_kpi.total_kpi",),
+    "/api/finance/report": _qism_yollari("sof_foyda_tarkibi") + (f"xarajat_tarkibi[kalit={'|'.join(_BRAK_QISMLAR)}].summa",),
+    "/api/finance/history": _qism_yollari("[].sof_foyda_tarkibi") + (
+        f"[].xarajat_tarkibi[kalit={'|'.join(_BRAK_QISMLAR)}].summa",),
+    # «jami xarajat (tannarx bilan)» va oldingi davr «xarajat» — tannarx ichida (ayirib topiladi)
+    "/api/finance/yonalishlar": ("yonalishlar[].som.jami_xarajat", "yonalishlar[].aniq.jami_xarajat", "jami.jami_xarajat",
+                                 "jami_aniq.jami_xarajat", "oldingi.xarajat", "ozgarish.xarajat",
+                                 "yonalishlar[].som.bevosita", "yonalishlar[].aniq.bevosita") + _qism_yollari(
+        "yonalishlar[].som.xarajat_qismlari", "yonalishlar[].aniq.xarajat_qismlari",
+        "yonalishlar[].som.bevosita_qismlari", "yonalishlar[].aniq.bevosita_qismlari",
+        "jami.xarajat_qismlari", "jami_aniq.xarajat_qismlari", "jami.bevosita_qismlari", "jami_aniq.bevosita_qismlari",
+        "jami.umumiy_qismlari", "jami_aniq.umumiy_qismlari", "umumiy_xarajatlar") + (
+        f"tarkib[kalit={'|'.join(_BRAK_QISMLAR)}].summa", f"tarkib[kalit={'|'.join(_BRAK_QISMLAR)}].foiz"),
+}
+
+
+def _tm_ombor_qiymati(data):
+    """Tayyor mahsulot ro'yxati: `ombor_qiymati` — narxi bor partiyada qoldiq × SOTUV narxi (sir emas), narxsizda (MRP) —
+    TANNARX: faqat narxsizlarda null."""
+    for i in data if isinstance(data, list) else []:
+        if isinstance(i, dict) and not (i.get("unit_price") or 0) and "ombor_qiymati" in i:
+            i["ombor_qiymati"] = None
+
+
+# Shartli qoida (maydon qiymati yozuvning boshqa maydoniga bog'liq) — marshrut → funksiya(data).
+TANNARX_SHARTLI = {
+    "/api/finished": _tm_ombor_qiymati,
+}
+
+
+# Hodim oyligi izohi (`services` — «Foydadan foiz» turi): «Foyda 673 774 × 5%» — MATN ichida foyda summasi. Umumiy `detail`
+# kalitidagi shu naqsh — «Foyda — × 5%» (boshqa izohlar, xato matni — tegilmaydi).
+_FOYDA_MATNI = __import__("re").compile(r"(Foyda )[-−]?\d[\d \u00a0\u202f.,]*( ×)")
+MATN_KALITLAR = frozenset({"detail"})
+
+
+def foyda_matni_yashir(s):
+    """«Foyda 673 774 × 5%» → «Foyda — × 5%» (Jinja filtri `foyda_yashir` ham shu); matn bo'lmasa — o'zi."""
+    return _FOYDA_MATNI.sub("\\1—\\2", s) if isinstance(s, str) else s
+
+
+def _hammasini_null(v):
+    if isinstance(v, dict):
+        return {k: _hammasini_null(x) for k, x in v.items()}
+    if isinstance(v, list):
+        return [_hammasini_null(x) for x in v]
+    return None
+
+
+def _kalit_tozala(x):
+    if isinstance(x, dict):
+        for k in list(x):
+            v = x[k]
+            if k in TANNARX_KALITLAR and not isinstance(v, bool):
+                x[k] = _hammasini_null(v) if isinstance(v, (dict, list)) else None
+            elif k in MATN_KALITLAR and isinstance(v, str):
+                x[k] = foyda_matni_yashir(v)
+            else:
+                _kalit_tozala(v)
+    elif isinstance(x, list):
+        for v in x:
+            _kalit_tozala(v)
+
+
+def _yol_tozala(x, qismlar):
+    import re as _re
+    if x is None or not qismlar:
+        return
+    q = qismlar[0]
+    if q.startswith("*~"):
+        rx = _re.compile(q[2:])
+
+        def _ichki(y):
+            if isinstance(y, dict):
+                for k in list(y):
+                    if rx.search(str(k)) and not isinstance(y[k], (dict, list, bool)):
+                        y[k] = None
+                    else:
+                        _ichki(y[k])
+            elif isinstance(y, list):
+                for v in y:
+                    _ichki(v)
+        _ichki(x)
+        return
+    _f = _re.fullmatch(r"(\w*)\[(\w+)=([\w|]+)\]", q)
+    if _f:
+        k, fk, fq = _f.group(1), _f.group(2), set(_f.group(3).split("|"))
+        royxat_ = x if k == "" else (x.get(k) if isinstance(x, dict) else None)
+        if isinstance(royxat_, list):
+            for v in royxat_:
+                if isinstance(v, dict) and str(v.get(fk)) in fq:
+                    _yol_tozala(v, qismlar[1:])
+        return
+    royxat = q.endswith("[]")
+    k = q[:-2] if royxat else q
+    if k == "":
+        if isinstance(x, list):
+            for v in x:
+                _yol_tozala(v, qismlar[1:])
+        return
+    if not isinstance(x, dict) or k not in x:
+        return
+    if royxat:
+        if isinstance(x[k], list):
+            for v in x[k]:
+                _yol_tozala(v, qismlar[1:])
+        return
+    if len(qismlar) == 1:
+        if not isinstance(x[k], bool):
+            x[k] = _hammasini_null(x[k]) if isinstance(x[k], (dict, list)) else None
+        return
+    _yol_tozala(x[k], qismlar[1:])
+
+
+def _yol_qismlari(yol):
+    """"yonalishlar[].som.x" → ["yonalishlar[]", "som", "x"]; "[].x" → ["[]", "x"]; "*~regex" — bitta qism."""
+    if yol.startswith("*~"):
+        return [yol]
+    return [p for p in yol.split(".") if p != ""]
+
+
+def tannarx_tozala(data, marshrut: str = None):
+    """«Tannarx va foyda» ruxsati yo'q foydalanuvchi uchun javobni JOYIDA tozalaydi va qaytaradi: TANNARX_KALITLAR (har qanday
+    chuqurlikda), shu marshrutning TANNARX_YOLLAR va TANNARX_SHARTLI — null."""
+    _kalit_tozala(data)
+    for yol in TANNARX_YOLLAR.get(marshrut or "", ()):
+        _yol_tozala(data, _yol_qismlari(yol))
+    if marshrut in TANNARX_SHARTLI:
+        TANNARX_SHARTLI[marshrut](data)
+    return data

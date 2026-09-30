@@ -2809,6 +2809,58 @@ async def add_security_headers(request: Request, call_next):
     return response
 
 
+class _TannarxHimoyasi:
+    """kech118 (ROLLAR 2-qism — egasi QARORI 18:4x: «Tannarx va foyda» ruxsati YO'Q — tannarx HAMMA joyda «—»): `/api/` JSON
+    javobi foydalanuvchiga ketishidan OLDIN tozalanadi (`ruxsatlar.tannarx_tozala`: tannarx / foyda kalitlari va shu marshrutning
+    maxsus yo'llari — null). Foydalanuvchi — qorovul (`auth.require_login`) belgilagan `request.state.tannarx_yoq`; qorovulsiz
+    marshrut, Admin, ruxsati borlar, JSON bo'lmagan javob (PDF, rasm, sahifa) — o'zgarmaydi (oqim to'g'ridan-to'g'ri o'tadi).
+    Sof ASGI (javobni faqat tozalash kerak bo'lganda yig'adi)."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") != "http" or not str(scope.get("path", "")).startswith("/api/"):
+            await self.app(scope, receive, send)
+            return
+        holat = {"boshi": None, "yigish": False, "qismlar": []}
+
+        async def _send(xabar):
+            if xabar["type"] == "http.response.start":
+                _st = scope.get("state") or {}
+                _tur = dict((k.lower(), v) for k, v in xabar.get("headers") or []).get(b"content-type", b"")
+                if _st.get("tannarx_yoq") and b"application/json" in _tur and 200 <= xabar.get("status", 200) < 300:
+                    holat["boshi"], holat["yigish"] = xabar, True
+                    return
+                await send(xabar)
+                return
+            if xabar["type"] == "http.response.body" and holat["yigish"]:
+                holat["qismlar"].append(xabar.get("body", b""))
+                if xabar.get("more_body"):
+                    return
+                tana = b"".join(holat["qismlar"])
+                try:
+                    import json as _js118
+                    import ruxsatlar as _rx118t
+                    _marshrut = getattr(scope.get("route"), "path", None)
+                    tana = _js118.dumps(_rx118t.tannarx_tozala(_js118.loads(tana), _marshrut), ensure_ascii=False,
+                                        allow_nan=False, separators=(",", ":")).encode("utf-8")
+                except Exception:                  # noqa: BLE001 — tozalab bo'lmasa, pul sirini OSHKOR QILMAYMIZ
+                    tana = b'{"detail":"Javobni tayyorlashda xato"}'
+                    holat["boshi"] = dict(holat["boshi"], status=500)
+                sarlavhalar = [(k, v) for k, v in holat["boshi"].get("headers") or [] if k.lower() != b"content-length"]
+                sarlavhalar.append((b"content-length", str(len(tana)).encode()))
+                await send(dict(holat["boshi"], headers=sarlavhalar))
+                await send({"type": "http.response.body", "body": tana})
+                return
+            await send(xabar)
+
+        await self.app(scope, receive, _send)
+
+
+app.add_middleware(_TannarxHimoyasi)
+
+
 @app.exception_handler(Exception)
 async def global_error_logger(request: Request, exc: Exception):
     """Kutilmagan (unhandled) xatolarni avtomatik yozib boradi va foydalanuvchiga
@@ -3204,6 +3256,9 @@ def _toshkent_filtr(qiymat, fmt="%d.%m.%Y %H:%M"):
 
 
 templates.env.filters["toshkent"] = _toshkent_filtr
+# kech118 (ROLLAR 2-qism): hodim oyligi izohidagi foyda summasi — «Tannarx va foyda» ruxsati yo'qqa «—» (`ruxsatlar`)
+import ruxsatlar as _rx118f                             # noqa: E402
+templates.env.filters["foyda_yashir"] = _rx118f.foyda_matni_yashir
 
 import os
 static_dir = os.path.join(os.path.dirname(__file__), "static")
@@ -6926,6 +6981,9 @@ def api_split_profit_pdf(year: int, month: int, gacha_yil: Optional[int] = None,
     oylar = _yonalish_davri(year, month, gacha_yil, gacha_oy)
     split = services.calculate_split_profit_report(db, year, month, company_id=auth.company_id_of(current_user),
                                                    gacha_yil=gacha_yil, gacha_oy=gacha_oy, solishtirish=True)
+    # kech118 (ROLLAR 2-qism): «Tannarx va foyda» ruxsati yo'q — sahifadagi (`/api/finance/yonalishlar`) bilan AYNAN tozalanadi
+    if not current_user.ruxsat("tannarx", "korish"):
+        _rx118.tannarx_tozala(split, "/api/finance/yonalishlar")
     pdf_bytes = finance_pdf.generate_split_profit_pdf(
         split, year, month, db=db, company_id=auth.company_id_of(current_user))
     filename = (f"yonalishlar_hisobot_{year}_{month:02d}.pdf" if len(oylar) == 1 else
@@ -6952,9 +7010,18 @@ def api_finance_report_pdf(year: int, month: int, db: Session = Depends(get_db),
     brak_by_material = brak_summary.get("by_material", [])
     debt_summary = services.get_full_debt_summary(db, year, month, company_id=auth.company_id_of(current_user))
 
+    # kech118 (ROLLAR 2-qism): «Tannarx va foyda» ruxsati yo'q — hisobot `/api/finance/report` bilan AYNAN tozalanadi, brak
+    # qiymati (`/api/reports/brak-materials` dagi kabi) ham yashirin
+    tannarx_yoq = not current_user.ruxsat("tannarx", "korish")
+    if tannarx_yoq:
+        _rx118.tannarx_tozala(report, "/api/finance/report")
+        for _m in brak_by_material:
+            if isinstance(_m, dict) and "value" in _m:
+                _m["value"] = None
+
     pdf_bytes = finance_pdf.generate_finance_report_pdf(
         report, expense_transactions, brak_by_material, year, month, debt_summary,
-        db=db, company_id=auth.company_id_of(current_user)
+        db=db, company_id=auth.company_id_of(current_user), tannarx_yoq=tannarx_yoq
     )
     filename = f"moliyaviy_hisobot_{year}_{month:02d}.pdf"
     return Response(content=pdf_bytes, media_type="application/pdf",

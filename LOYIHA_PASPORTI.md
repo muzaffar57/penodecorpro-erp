@@ -100,7 +100,8 @@ Ildizdagi Python fayllari (vazifasi; aniq marshrutlar va funksiyalar — 9-bo'li
 - `ruxsatlar.py` — (kech118) ROLLAR VA RUXSATLAR YAGONA manbasi: bo'limlar katalogi (`BOLIMLAR` — band × amal: korish /
   yaratish / tahrirlash / ochirish), tayyor rollar (`TAYYOR_ROLLAR` — Admin, Menejer, Omborchi, Moliyachi; eski «Usta (eski)»),
   eski `users.role` → tayyor rol (`ENUM_ROL`), tekshiruv (`bormi`), sahifa bog'liqligi (`SAHIFA_KERAK`), bosh sahifa
-  yo'naltirishi (`YONALTIRISH`). Baza / model importi YO'Q.
+  yo'naltirishi (`YONALTIRISH`); «Tannarx va foyda» sirlari — `TANNARX_KALITLAR` / `TANNARX_YOLLAR` / `TANNARX_SHARTLI` va
+  `tannarx_tozala` (kech118, 2-qism). Baza / model importi YO'Q.
 - `schemas.py` — Pydantic sxemalari (kirish tekshiruvi: manfiy / haddan katta qiymatlar 422).
 - `database.py` — ulanish (`pool_pre_ping`, `pool_recycle=280`), `get_db`, Toshkent vaqti yordamchilari (hisobot davri —
   `tashkent_oyida` va h.k.; ko'rinish — `tashkent_vaqt`).
@@ -385,6 +386,27 @@ sahifasida rol — korxona rollaridan tanlanadi va shu yerda almashtiriladi. Mig
 har korxonaga tayyor rollar, `rol_id` bo'sh foydalanuvchi — eski turining tayyor roliga (master — «Usta (eski)», faqat
 shunday foydalanuvchi bo'lsa). Yangi marshrut qo'shilsa — `auth.ruxsat(...)` bilan va `tools/test_rollar.py` ESKI /
 YANGI_MARSHRUTLAR jadvaliga (jadvalsiz marshrut — test yiqiladi).
+**«Tannarx va foyda» ruxsati (kech118 — ROLLAR 2-qism, egasi QARORLARI 18:4x; zip 120).** Ruxsati YO'Q foydalanuvchiga tannarx
+va foyda HAMMA joyda «—»: (1) SERVER — `auth.require_login` so'rovga `request.state.tannarx_yoq` qo'yadi; `main._TannarxHimoyasi`
+(sof ASGI qatlami) har `/api/...` JSON 2xx javobini foydalanuvchiga ketishidan OLDIN `ruxsatlar.tannarx_tozala(data,
+marshrut)` dan o'tkazadi: `TANNARX_KALITLAR` — nomi tannarx / foyda bo'lgan kalitlar (har chuqurlikda; qiymati lug'at bo'lsa —
+hamma bargi) null; `TANNARX_YOLLAR` — nomi umumiy, lekin shu marshrutda tannarx bo'lgan maydonlar (masalan
+`/api/finished/stats` `total_value`, reja `xomashyo` / `bir_birlik`, retsept oynasi `doim` / `qoplamali` / `hammasi`,
+yo'nalishlar va moliya xarajat tarkibidagi `brak` / `tm_yoqotish` qatori — `a[kalit=brak|tm_yoqotish].summa` filtri bilan,
+buyurtma «Tayyor» javobidagi usta KPI summasi — foyda × foiz); `TANNARX_SHARTLI` — narxsiz (MRP) tayyor mahsulotning
+`ombor_qiymati` (tannarx bo'yicha; narxlisida — sotuv narxi, ko'rinadi); `MATN_KALITLAR` — MATN ichidagi foyda: hodim oyligi
+izohi «Foyda 673 774 × 5%» («Foydadan foiz» turi; `detail`) → «Foyda — × 5%» (`foyda_matni_yashir`; server chizadigan
+Qarzdorlar sahifasida — Jinja filtri `foyda_yashir`). Xato javobi, HTML, PDF, fayl — tegilmaydi.
+Brak va tayyor mahsulot yo'qotishi QIYMATI — tannarx bo'yicha baholanadi (1-qismdan: «Brak qiymati» kartasi ham faqat
+tannarxni ko'radiganga) — yashirin. Xomashyo narxi, xarid / kirim summasi, ta'minotchi qarzi — tannarxga KIRMAYDI (egasi qarori
+2): ko'rinadi (material ruxsatiga ko'ra). (2) PDF — `/api/finance/report-pdf` va `/api/finance/split-profit-pdf` ma'lumotni
+sahifa bilan AYNAN tozalaydi (`tannarx_yoq=True` — `finance_pdf` da JAMI XARAJAT (tannarx bilan), SOF FOYDA, rentabellik,
+tannarx / brak qatorlari «—»; `_fmt*` None → «—»). (3) SAHIFALAR — `base.html` `TANNARX_KORADI` (bayroq) va `somYoq(n, f)`
+(null → «—», aks holda «N so'm»); har sahifa null ni «—» qiladi va null ustida hisoblamaydi (masalan qoplamali farqi, jami
+tannarx, 1 birlik tannarxi, foyda chizig'i); tayyor mahsulot kalkulyatori (mijoz tomonida hisoblaydigan) tannarx / foyda
+qatorini `TANNARX_KORADI` bilan umuman chizmaydi; retseptlar sahifasi 1 kg tannarxini (Jinja) «—». YANGI API maydoni tannarx /
+foyda bo'lsa — nomi `TANNARX_KALITLAR` da bo'lsin yoki `TANNARX_YOLLAR` ga yozilsin: `tools/test_tannarx.py` A3 / A4 / A5
+(hamma GET — «Hammasi» va «Tannarxsiz» rol farqi AYNAN tozalash) ushlaydi; sahifada — null uchun «—».
 **Son, sana, birlik ko'rinishi va o'qiladigan yozuv (kech118, B bosqichi 2-qism — audit U-03 / U-04 / U-05 / U-06).** Ekranga
 chiqadigan son — bitta qoida: ming ajratgich bo'sh joy (NBSP), kasr — VERGUL, ortiqcha nolsiz («354», «8,3», «1 234,5»), «-0» →
 «0», qiymat yo'q — «—». Brauzerda `base.html` `sonKor(x, kasr = 2)`, foiz — `foizKor(x, kasr = 1)` («33,3%»); shablonda Jinja
@@ -716,6 +738,19 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   work/k119/imzo.py — eski va yangi daraxtda har sahifa × 5 rol HTML va har marshrut × 5 rol holat kodi solishtirildi (farq —
   faqat ataylab). Moslangan: `test_b118_oyna.py` H8 / H9 (rad sababi — bo'lim / amal; «Menejer»), `test_brak_tahlil.py` S7
   (qorovul — «Hisobotlar»), `test_nom_noyobligi.py` (qorovullar — `auth._RUXSAT_QOROVULLARI`).
+- (kech118, zip 120) «Tannarx va foyda» ruxsati: `tools/test_tannarx.py` — S (`tannarx_tozala` qoidalari: umumiy kalit,
+  lug'at, ro'yxat, filtrli ro'yxat, regex, shartli, bool tegilmaydi, hodim izohidagi foyda), K (jadvaldagi har marshrut —
+  haqiqiy; qatlam ulangan;
+  tayyor rollar), A (HAQIQIY HTTP, HAMMA GET /api: «Hammasi» va «Tannarxsiz» maxsus rol — holat kodi bir xil (tannarx
+  talab qiladiganlaridan tashqari 403), javob farqi AYNAN `tannarx_tozala`, tannarx kaliti qolmagan; MAJBURIY yashirinlar
+  ro'yxati fikstura bilan; xomashyo narxi ko'rinadi; Admin / Moliyachi — tozalanmaydi; Menejer / Omborchi — tayyor mahsulot va
+  MRP rejasida tannarx yo'q; «Foydadan foiz» hodim izohi), P (POST: sotish, brak, retsept oynasi), F (PDF matni: Admin — sof
+  foyda bor, Tannarxsiz — kartalar / qatorlar aynan «—»), H (sahifalar, `TANNARX_KORADI`, retsept 1 kg tannarxi, Qarzdorlar
+  sahifasidagi hodim izohi, shablon belgilari), M (qatlam: xato / HTML / PDF tegilmaydi,
+  o'zbekcha matn, Content-Length); SQLite, PG. Isbot (bir martalik): work/k120/tannarx_skrin.py — HAQIQIY brauzer, boy baza,
+  4 foydalanuvchi × 16 sahifa: konsol xatosi, «NaN» / «null» / «— so'm» yo'q, SIR sonlar (Admin API da bor, Tannarxsiz API da
+  null) sahifa matnida yo'q; PDF lar — Admin matni o'zgarishdan oldingi bilan AYNAN (work/k120/pdf_solishtir.py). Mutatsiyalar
+  (work/k120/mutatsiya121.py, 27 ta) — hammasi ushlanadi.
 - (kech118, zip 118) Yo'nalishlar bo'yicha moliyaviy natija (egasi QARORI 15:23 — taqsim yo'q): server — `test_a117_yonalish.py`
   D bo'limi MOSLANDI (ustun D − T − O − X = N; ΣN − umumiy oylik − umumiy xarajat = Jami natija = Moliya sof foydasi — so'm va
   tiyinda; «ulush» yo'q; daromadsiz oy — taqsimsiz; D19 — yo'nalish xarajatlaridagi kasr qoldiq bilan yaxlitlash; PDF «NATIJA
@@ -941,9 +976,11 @@ bajarilganlari belgilanadi)**
   bo'lsa hamma joyda, PDF da ham «—»); tayyor rollar — Admin (doim, to'liq, o'zgarmaydi), Menejer (hozirgi 2 «Hodim»
   foydalanuvchi, ruxsatlari hozirgidek), Omborchi, Moliyachi («Ishlab chiqarish» andozasi kerak emas). «Usta» login roli yo'q.
   BAJARILDI kech118 — 1-qism (zip 119; 4-bo'lim «Rollar va ruxsatlar»): rollar, ruxsatlar, sahifa, menyu, marshrutlar,
-  migratsiya. 2-qism (keyingi): «Tannarx va foyda» ruxsati bo'lmaganga HAMMA joyda (API javoblari, sahifalar, PDF) «—»
-  (hozir — buyurtma / tayyor mahsulot foydasi oynasi, Loyihalar sof foydasi, Qaytarishlar brak qiymati, Omborxona / Buyurtmalar
-  «Moliya» bloki); sahifadagi har tugma — amal ruxsatiga ko'ra.
+  migratsiya. 2-qism BAJARILDI (zip 120; 4-bo'lim «Tannarx va foyda ruxsati»): ruxsati bo'lmaganga HAMMA joyda (API javoblari,
+  sahifalar, PDF) «—».
+- (kech118, 18:4x — tugmali) «Tannarx va foyda» ruxsati YO'Q rol — tannarx HAMMA joyda «—»: Menejer / Omborchi hozir ko'radigan
+  «tan: …», tayyor mahsulot «Ombor qiymati» (narxsiz partiya), MRP «Taxminiy tannarx» ham. Xomashyo XARID narxi (material
+  narxi, kirim summasi, ta'minotchi qarzi) — tannarxga KIRMAYDI: «Xomashyo kirimi» ruxsati borlar ko'radi.
 - Ish tartibi: zip 118 (B-2 + yo'nalishlar) → rollar (zip 119).
 
 ## 7. Ochiq masalalar
@@ -1209,6 +1246,12 @@ bajarilganlari belgilanadi)**
 - (kech118) Huquq o'zgarishining isboti — marshrut × rol HOLAT KODI matritsasi va sahifa × rol HTML (eski va yangi daraxtda) —
   dastlab «hamma narsa bir xil» emas edi: eski qorovullarning o'zi izchil emasdi (sahifa ochiq, uning so'rovi 403). Bunday joyni
   jim «tuzatmang» — ro'yxat bilan (FARQLAR) va sababi bilan yozing.
+- (kech118) Sirni sahifada yashirish yetmaydi — API javobi brauzer konsolida ko'rinadi. Yashirish — SERVERDA, javob ketishidan
+  oldin (bitta qatlam, bitta jadval); sahifa esa null ni «—» qiladi. Sirni kalit NOMI bo'yicha qidirish ham yetmaydi: nomi umumiy
+  maydonlar (`xomashyo`, `bir_birlik`, `total_value`, `qiymat`, KPI summasi = foyda × foiz) tannarxni ochib qo'yadi — qaysi
+  maydon sir ekanini HAMMA son maydonlar ro'yxatidan (ruxsatli va ruxsatsiz rol javobi farqi) qarab aniqlang
+  (work/k120/tannarx_farq.py). JS da `null − null = 0`, `Number(null) || 0 = 0`: yashirin qiymat ustida hisob «0 so'm»
+  chiqaradi — null ni hisobdan OLDIN tekshiring.
 
 ## 9. Xarita (AVTOMATIK)
 
@@ -1275,10 +1318,11 @@ bajariladigan chaqiruvlar — AYNAN shu tartibda. `_migrate_*` — idempotent sx
 31. `_migrate_loyiha_tolangan_sinxron` — 17c (2026-09-21): `projects.total_paid` ni HAQIQIY to'lovlar bilan bir marta tenglashtiradi.
 32. `app.include_router(production_router)`
 33. `app.include_router(saas_migration_router)`
-34. `_yuklama_marshrutini_oldinga`
-35. `_scheduler.add_job`
+34. `app.add_middleware`
+35. `_yuklama_marshrutini_oldinga`
 36. `_scheduler.add_job`
-37. `_scheduler.start`
+37. `_scheduler.add_job`
+38. `_scheduler.start`
 <!-- AVTO:ISHGA_TUSHISH OXIRI -->
 
 ### 9.3 Sahifalar: URL → handler → shablon → API
@@ -2047,6 +2091,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_taminotchisiz_xarid.py` · PG — kech100 darvozasi (2026-09-27, 109-band).
 - `test_tan_narx_muzlash.py` · PG — K47-1 (5-bo'lim 32-band) darvozasi (kech48, 2026-09-24).
 - `test_tana_qatiy.py` · PG — kech93 darvozasi (2026-09-27, 8-band + K93-1 + K93-2): tanasi ilgari QAT'IY tekshirilmagan marshrutlar — foydalanuvchi, parol, usta KPI, sovg'a davri, material narxi / min qoldig…
+- `test_tannarx.py` · PG — kech118 ROLLAR 2-qism: «TANNARX VA FOYDA» RUXSATI (egasi QARORLARI 2026-09-30 18:4x, tugmali, QAYTA SO'RALMAYDI: «Tannarx va foyda» ruxsati YO'Q rol — tannarx HAMMA joyda «—» (Menej…
 - `test_tayyor_atomik.py` · PG — kech101 darvozasi (2026-09-27, 142-band + K101-1 … K101-4).
 - `test_tayyor_guruh.py` · PG — kech114 darvozasi (2026-09-29): «Tayyor mahsulotlar» guruhlash (egasi QARORI «7A»), ombor qiymati (QAROR — MRP sotuv narxi «Hozirgidek qo'lda»: narxsiz partiya TANNARX bo'yicha…
 - `test_tayyor_mahsulot.py` — Tayyor mahsulotning UCHTA ombor funksiyasi.
@@ -2107,5 +2152,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 174 (Python 144, JS 30).
+Jami test fayllari: 175 (Python 145, JS 30).
 <!-- AVTO:TESTLAR OXIRI -->
