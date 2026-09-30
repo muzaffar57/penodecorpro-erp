@@ -68,9 +68,10 @@ def _hisob_qatorlari(order, db):
     """kech116 (G2-04): buyurtma pul hisobi qatorlari (yuk xati va hisob-kitob varaqasi) — `crud.buyurtma_hisob_qatorlari`
     (YAGONA qoida; buyurtma PDF i va buyurtma oynasi ham shundan). Qaytaradi: (hisob, jadval qatorlari, zarg'aldoq
     qatorlar indekslari). Ilgari bu yerda chegirma faqat `discount_percent > 0` bo'lsa chiqardi, qaytarish va kechirilgan
-    qarz umuman yo'q edi — «Buyurtma jami − To'langan ≠ Qarz qoldi»."""
+    qarz umuman yo'q edi — «Buyurtma jami − To'langan ≠ Qarz qoldi». Mijoz hujjati — to'lovda kechirilgan qarz «Chegirma»
+    qatoriga qo'shiladi, «Kechirilgan qarz» so'zi chiqmaydi (egasi QARORI kech116, `mijoz_hujjati=True`)."""
     import crud as _crud_hq
-    h = _crud_hq.buyurtma_hisob_qatorlari(db, order)
+    h = _crud_hq.buyurtma_hisob_qatorlari(db, order, mijoz_hujjati=True)
     rows, zargaldoq = [], []
     for i, q in enumerate(h["qatorlar"]):
         belgi = {"-": "− ", "+": "+ "}.get(q["ishora"], "")
@@ -669,8 +670,8 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
 
     # ---- Umumiy moliyaviy holat ----
     if order:
-        # kech116 (G2-04): qatorlar — YAGONA qoida (`_hisob_qatorlari`): jami − chegirma − qaytarish − kechirilgan =
-        # kelishilgan; kelishilgan − to'langan = qarz (yoki ortiqcha to'langan)
+        # kech116 (G2-04): qatorlar — YAGONA qoida (`_hisob_qatorlari`): jami − chegirma (to'lovda kechirilgan qarz ham
+        # shu qatorda — egasi QARORI kech116) − qaytarish = kelishilgan; kelishilgan − to'langan = qarz (yoki ortiqcha)
         _hisob, fin_rows, _zarg = _hisob_qatorlari(order, db)
 
         fin = Table(fin_rows, colWidths=[4.2*cm, 4*cm], hAlign='RIGHT')
@@ -1011,7 +1012,8 @@ def generate_summary_pdf(order, deliveries, db=None) -> bytes:
     # ---- Moliyaviy hisob ----
     # kech116 (G2-04): qatorlar — YAGONA qoida (`_hisob_qatorlari`). «Berilgan mahsulot» (yuk xatlaridagi mahsulot
     # summasi) pul hisobi orasidan olindi — u yuqoridagi jadvalning «JAMI BERILGAN MAHSULOT» qatorida; hisob qatorlari
-    # endi o'zaro qo'shiladi: jami − chegirma − qaytarish − kechirilgan = kelishilgan; kelishilgan − to'langan = qarz.
+    # endi o'zaro qo'shiladi: jami − chegirma (kechirilgan qarz bilan — egasi QARORI kech116) − qaytarish = kelishilgan;
+    # kelishilgan − to'langan = qarz.
     _hisob, fin_rows, _zarg = _hisob_qatorlari(order, db)
 
     fin = Table(fin_rows, colWidths=[4.6*cm, 4.4*cm], hAlign='RIGHT')

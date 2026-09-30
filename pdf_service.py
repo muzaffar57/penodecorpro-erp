@@ -337,10 +337,12 @@ def generate_nakladnoy(order, db=None) -> bytes:
     # kech116 (G2-04, O'LCHANGAN — audit kech114): ilgari «Chegirma» = jami − kelishilgan edi — qaytgan mahsulot
     # (36 000) va kechirilgan qarz ham «Chegirma» bo'lib yozilardi (buyurtma oynasida ular alohida), qarz esa o'z
     # formulasi bilan (`max(0, kelishilgan − to'langan)`, yarim so'm bardoshisiz). Endi qatorlar — YAGONA qoida
-    # (`crud.buyurtma_hisob_qatorlari`; yuk xati, hisob-kitob varaqasi va buyurtma oynasi ham shundan):
-    # Umumiy jami − Chegirma − Qaytarish − Kechirilgan qarz = TO'LOV SUMMASI (kelishilgan); − To'langan = QARZ QOLDI.
+    # (`crud.buyurtma_hisob_qatorlari`; yuk xati, hisob-kitob varaqasi va buyurtma oynasi ham shundan; qaytarish —
+    # alohida qator):
+    # Umumiy jami − Chegirma − Qaytarish = TO'LOV SUMMASI (kelishilgan); − To'langan = QARZ QOLDI. To'lovda kechirilgan qarz —
+    # «Chegirma» ichida (foizsiz; egasi QARORI kech116 — mijoz hujjatida «Kechirilgan qarz» so'zi chiqmaydi).
     import crud as _crud_nak
-    _hisob = _crud_nak.buyurtma_hisob_qatorlari(db, order)
+    _hisob = _crud_nak.buyurtma_hisob_qatorlari(db, order, mijoz_hujjati=True)
     _NOMI = {"jami": "Umumiy jami:", "kelishilgan": "TO'LOV SUMMASI:"}
     totals_data = []
     grand_total_row = None

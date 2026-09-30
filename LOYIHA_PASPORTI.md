@@ -1,6 +1,6 @@
 # PenoDecorPro ERP — LOYIHA PASPORTI
 
-*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2); kech112: zip 108 — «Tayyor» da bo'sh loy = reja (K112-3), material nomi (K112-4), MRP qoplama belgisi (K112-5); ko'p korxonali yakuniy jonli sinov; kech115: zip 112 — butun dastur auditi A bosqichi (pul va ma'lumot xatolari) 1-qismi: kirim, qarzdorlar, «Tayyor», narxsiz buyurtma, o'chirilganlar jurnali, manfiy raqamlar, taqqoslash, korxona sog'ligi, ombor filtri; kech116: zip 113 — A bosqich 2-qismi: sog'liq sabablari (K115-2), «Bugungi xulosa» (K115-3), hujjatlardagi hisob qatorlari (G2-04), «Pul oqimi» — haqiqiy pul (G1-03), «Xarajat» — bitta ta'rif va «Tannarx» (G1-02), loyiha qiymati buyurtmalardan (G2-01), haqiqiy IP va kirish cheklovi (U-01), parol oynasi va kirishlarni yopish (G6-06)). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
+*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2); kech112: zip 108 — «Tayyor» da bo'sh loy = reja (K112-3), material nomi (K112-4), MRP qoplama belgisi (K112-5); ko'p korxonali yakuniy jonli sinov; kech115: zip 112 — butun dastur auditi A bosqichi (pul va ma'lumot xatolari) 1-qismi: kirim, qarzdorlar, «Tayyor», narxsiz buyurtma, o'chirilganlar jurnali, manfiy raqamlar, taqqoslash, korxona sog'ligi, ombor filtri; kech116: zip 113 — A bosqich 2-qismi: sog'liq sabablari (K115-2), «Bugungi xulosa» (K115-3), hujjatlardagi hisob qatorlari (G2-04), «Pul oqimi» — haqiqiy pul (G1-03), «Xarajat» — bitta ta'rif va «Tannarx» (G1-02), loyiha qiymati buyurtmalardan (G2-01), haqiqiy IP va kirish cheklovi (U-01), parol oynasi va kirishlarni yopish (G6-06); zip 114 — mijoz hujjatlarida kechirilgan qarz «Chegirma» ichida (egasi qarori)). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
 *Bu faylni `main` ga ko'chirish bilan birga, keyin har katta o'zgarishda yangilab boring. 9-bo'lim AVTOMATIK
 (`python3 tools/pasport_xarita.py --yoz`), qolgani qo'lda; `tools/test_pasport.py` ikkalasini ham tekshiradi.*
 
@@ -299,7 +299,10 @@ QARZ QOLDI (yoki ORTIQCHA TO'LANGAN). `korinish` — butun so'mlar (HALF_UP; che
 qatorlar tiyinli summalarda ham qo'shiladi. Uchala mijoz hujjati (yuk xati, hisob-kitob varaqasi — `delivery_pdf._hisob_qatorlari`;
 buyurtma nakladnoyi — `pdf_service`) va buyurtma oynasi (`/api/orders/{id}` → `hisob`, `orders.html` `loadPayments`) shundan.
 Hisob-kitob varaqasidagi «Berilgan mahsulot» pul hisobi orasidan olindi (jadvaldagi «JAMI BERILGAN MAHSULOT» qatori qoldi).
-Kech40 dan oldingi (kamaytirishi yozilmagan) qaytarish ajratilmaydi — chegirmada qoladi.
+Kech40 dan oldingi (kamaytirishi yozilmagan) qaytarish ajratilmaydi — chegirmada qoladi. MIJOZ hujjatlarida
+(`mijoz_hujjati=True` — uchala PDF; egasi QARORI kech116) kechirilgan qarz alohida qator emas: «Chegirma» qatoriga qo'shiladi
+(narx chegirmasi + kechirilgan, FOIZSIZ; narx chegirmasi yo'q / ustama bo'lsa — kechirilgan summa o'zi «Chegirma»); kechirilgan
+qarz yo'q bo'lsa — «Chegirma (x %)» avvalgidek. Buyurtma oynasi (`/api/orders/{id}` → `hisob`) — kechirilgan qarz alohida.
 
 **Pul oqimi va kassa (kech116, G1-03 — egasi QARORI kech114 «Pul oqimi — haqiqiy pul»).** `services._kassa_qismlari` — kassa
 harakati qismlari (YAGONA manba, davr bilan): mijoz to'lovlari `paid_at` (qaytarilgan pul — manfiy to'lov), tayyor mahsulot
@@ -567,8 +570,9 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   (SQLite, PG, TF1): `tools/test_tayyor_guruh.py`; sahifalar (HAQIQIY server + jsdom — guruhlar, ochish / eslab qolish,
   tugagan partiya, statistika, MRP havolasi, turlar jadvali, `?po=`, «···» menyusi, «Shu buyurtma», namunalar, HTML
   in'ektsiya): `tools/test_dizayn114_ui.py`.
-- (kech116) A bosqich 2-qism: hujjatlardagi hisob qatorlari (qaytarish, chegirma + kechirilgan, ustama, ortiqcha to'langan,
-  tiyinli summalar — API `hisob`, yuk xati, hisob-kitob varaqasi, nakladnoy; belgilar; SQLite, PG): `tools/test_a116_pdf.py`;
+- (kech116) A bosqich 2-qism: hujjatlardagi hisob qatorlari (qaytarish, chegirma + kechirilgan, ustama, ustama + kechirilgan,
+  ortiqcha to'langan, tiyinli summalar — API `hisob` (kechirilgan alohida), yuk xati, hisob-kitob varaqasi, nakladnoy
+  (kechirilgan — chegirma ichida, foizsiz; «Kechirilgan qarz» so'zi yo'q); belgilar; SQLite, PG): `tools/test_a116_pdf.py`;
   pul oqimi (mustaqil hisob bilan AYNAN, Toshkent chegaralari, kunlar = oy, korxona, API, kassa bilan bir qoida, «Korxona
   sog'ligi»), xarajat tarkibi va tannarx: `tools/test_a116_pul.py`; haqiqiy IP (`auth.mijoz_ip` qoidasi, HAQIQIY HTTP —
   jurnalda IP), kirish cheklovi (nom 5 / IP 20), parol / PIN almashtirilganda sessiyalar: `tools/test_a116_kirish.py`; sahifalar
@@ -722,6 +726,10 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
   oylik, xarajat). BAJARILDI kech116 (4-bo'lim «Pul oqimi va kassa»).
 - (kech114) «Loyiha qiymati» — buyurtmalardan: qiymat = loyiha buyurtmalari yig'indisi, qarz = buyurtmalar qarzi (byudjet
   maydoni kerak emas). BAJARILDI kech116 (4-bo'lim «Loyiha qiymati»).
+- (kech116, zip 113 jonli ko'rilgach — «Chegirmaga qo'shilsin») MIJOZGA beriladigan hujjatlarda (yuk xati, hisob-kitob
+  varaqasi, buyurtma nakladnoyi) «Kechirilgan qarz» so'zi chiqmaydi: to'lovda kechirilgan summa «Chegirma» qatoriga
+  qo'shiladi, foiz yozilmaydi (narx chegirmasi foizi bilan chalkashmasin); buyurtma oynasida (ichki) alohida qator qoladi.
+  BAJARILDI kech116 (zip 114; 4-bo'lim «Buyurtma pul hisobi qatorlari»).
 - (kech114, 00:08) Gips — moliyadan BUTUNLAY olib tashlanadi; har yo'nalishning o'z foyda hisobi — «Ha, alohida»; yo'nalishlarni
   egasi o'zi nomlaydi va guruhlaydi (har mahsulot turi bittasiga; penoplast detallari — «Penoplast»); umumiy xarajatlar (ijara,
   svet, soliq, umumiy hodimlar) — daromad ulushiga qarab; kassa — BITTA.

@@ -5632,7 +5632,7 @@ def pul_qaytarish_kamaytirgan(db: Session, order) -> float:
     return float(sum(float(r.refund_agreed_delta or 0) for r in _qaytganlar))
 
 
-def buyurtma_hisob_qatorlari(db: Session, order, qaytarish: float = None) -> dict:
+def buyurtma_hisob_qatorlari(db: Session, order, qaytarish: float = None, mijoz_hujjati: bool = False) -> dict:
     """kech116 (G2-04, O'LCHANGAN — audit kech114: mijozga beriladigan «Yuk xati» va «Hisob-kitob varaqasi» da
     «Buyurtma jami 900 000 − To'langan 600 000», lekin «QARZ QOLDI 264 000» — 36 000 so'mlik qaytarish hech qayerda
     yozilmagan (chegirma qatori faqat `discount_percent > 0` bo'lsa chiqardi); buyurtma PDF i esa shu qaytarishni
@@ -5653,7 +5653,14 @@ def buyurtma_hisob_qatorlari(db: Session, order, qaytarish: float = None) -> dic
     `korinish` — hujjat va oynada ko'rsatiladigan BUTUN so'mlar (HALF_UP): jami, qaytarish, kechirilgan, to'langan —
     o'z qiymati; kelishilgan — o'z qiymati (qarz bardosh ichida bo'lsa — to'langanga teng); chegirma / ustama va
     qarz / ortiqcha — shu butun sonlardan AYIRMA, shuning uchun hujjatdagi qatorlar DOIM qo'shilib chiqadi (tiyinli
-    summalarda alohida yaxlitlash 1 so'm farq berardi). `qatorlar` — shu ko'rinish qiymatlari bilan. Faqat o'qiydi."""
+    summalarda alohida yaxlitlash 1 so'm farq berardi). `qatorlar` — shu ko'rinish qiymatlari bilan. Faqat o'qiydi.
+
+    `mijoz_hujjati=True` — MIJOZGA beriladigan hujjatlar (yuk xati, hisob-kitob varaqasi, buyurtma nakladnoyi; egasi QARORI
+    kech116 «Chegirmaga qo'shilsin»): «Kechirilgan qarz» so'zi hujjatda chiqmaydi — kechirilgan summa «Chegirma» qatoriga
+    qo'shiladi (narx chegirmasi + kechirilgan; ikkalasi birga foizga to'g'ri kelmagani uchun — FOIZSIZ «Chegirma»);
+    narx chegirmasi yo'q (yoki ustama) bo'lsa — kechirilgan summa o'zi «Chegirma» qatori bo'ladi (ustama alohida qoladi).
+    Kechirilgan qarz yo'q bo'lsa qatorlar AYNAN (chegirma foizi bilan). Qatorlar baribir qo'shiladi; `korinish` va boshqa
+    qiymatlar o'zgarmaydi. Buyurtma oynasi (ichki, `/api/orders/{id}`) — odatiy (kechirilgan qarz alohida qator)."""
     from decimal import Decimal as _D116, ROUND_HALF_UP as _HU116
 
     def _som(v):
@@ -5683,15 +5690,18 @@ def buyurtma_hisob_qatorlari(db: Session, order, qaytarish: float = None) -> dic
     chegirma_foiz = round(narx_farqi / jami * 100.0, 2) if (jami > 0 and narx_farqi > 0) else 0.0
 
     qatorlar = [{"kalit": "jami", "nom": "Buyurtma jami", "summa": J, "ishora": ""}]
-    if NF > 0:
-        qatorlar.append({"kalit": "chegirma", "nom": f"Chegirma ({chegirma_foiz:g}%)" if chegirma_foiz else "Chegirma",
-                         "summa": NF, "ishora": "-"})
-    elif NF < 0:
+    # mijoz hujjatida kechirilgan qarz «Chegirma» ga qo'shiladi (egasi QARORI kech116) — `K_ch`: chegirma qatoriga
+    # qo'shiladigan kechirilgan summa, `K_alohida`: alohida «Kechirilgan qarz» qatori (buyurtma oynasi)
+    K_ch, K_alohida = (K, 0) if mijoz_hujjati else (0, K)
+    if NF < 0:
         qatorlar.append({"kalit": "ustama", "nom": "Ustama", "summa": -NF, "ishora": "+"})
+    if max(NF, 0) + K_ch > 0:
+        _ch_nomi = f"Chegirma ({chegirma_foiz:g}%)" if (chegirma_foiz and not K_ch) else "Chegirma"
+        qatorlar.append({"kalit": "chegirma", "nom": _ch_nomi, "summa": max(NF, 0) + K_ch, "ishora": "-"})
     if Q:
         qatorlar.append({"kalit": "qaytarish", "nom": "Qaytarish (qaytgan mahsulot)", "summa": Q, "ishora": "-"})
-    if K:
-        qatorlar.append({"kalit": "kechirilgan", "nom": "Kechirilgan qarz", "summa": K, "ishora": "-"})
+    if K_alohida:
+        qatorlar.append({"kalit": "kechirilgan", "nom": "Kechirilgan qarz", "summa": K_alohida, "ishora": "-"})
     if len(qatorlar) > 1:
         qatorlar.append({"kalit": "kelishilgan", "nom": "Kelishilgan summa", "summa": L, "ishora": ""})
     qatorlar.append({"kalit": "tolangan", "nom": "To'langan", "summa": T, "ishora": ""})
