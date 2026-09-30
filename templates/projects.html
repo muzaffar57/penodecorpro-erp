@@ -150,7 +150,9 @@
     <div class="proj-list" id="projList">
       {% if projects %}
       {% for p in projects %}
-      {% set paid_pct = [(p.total_paid / p.total_budget * 100)|round if p.total_budget > 0 else 0, 100]|min %}
+      {# kech116 (G2-01, QAROR «Loyiha qiymati — buyurtmalardan»): foiz, qiymat, to'langan, qarz — buyurtmalardan
+         (`crud.loyiha_pul_hisobi`); ilgari qo'lda yoziladigan «Byudjet» dan edi (odatda 0 — «0% to'langan») #}
+      {% set paid_pct = p.pul.foiz %}
       <div class="proj-card {% if loop.first %}active{% endif %}" style="animation-delay:{{ (loop.index0 % 20)*0.02 }}s" onclick="selectProj(this)"
            data-id="{{ p.id }}"
            data-num="{{ p.project_number }}"
@@ -159,8 +161,10 @@
            data-phone="{{ p.client_phone or '—' }}"
            data-address="{{ p.client_address or '—' }}"
            data-status="{{ p.status.name }}"
-           data-budget="{{ p.total_budget }}"
-           data-paid="{{ p.total_paid }}"
+           data-qiymat="{{ '%.2f'|format(p.pul.qiymat) }}"
+           data-paid="{{ '%.2f'|format(p.pul.tolangan) }}"
+           data-qarz="{{ '%.2f'|format(p.pul.qarz) }}"
+           data-ortiqcha="{{ '%.2f'|format(p.pul.ortiqcha) }}"
            data-start="{{ p.start_date|toshkent('%d.%m.%Y') if p.start_date else '—' }}"
            data-start-raw="{{ p.start_date|toshkent('%Y-%m-%d') if p.start_date else '' }}"
            data-deadline="{{ p.deadline|toshkent('%d.%m.%Y') if p.deadline else '—' }}"
@@ -247,10 +251,8 @@
       <label>Mijoz Telegram ID <span style="color:var(--text3);font-weight:400">(buyurtma tayyor bo'lganda SMS uchun)</span></label>
       <input type="text" id="f-tg-id" placeholder="Masalan: 123456789">
     </div>
-    <div class="form-row">
-      <div class="form-group" style="margin:0"><label>Byudjet (so'm)</label><input type="number" id="f-budget" placeholder="0" min="0"></div>
-      <div class="form-group" style="margin:0"><label>Muddati</label><input type="date" id="f-deadline"></div>
-    </div>
+    <!-- kech116 (G2-01): «Byudjet» maydoni olib tashlandi — loyiha qiymati buyurtmalardan hisoblanadi -->
+    <div class="form-group" style="margin:0"><label>Muddati</label><input type="date" id="f-deadline"></div>
     <div class="form-group"><label>Izoh</label><input type="text" id="f-notes" placeholder="..."></div>
     <div style="display:flex;gap:8px;margin-top:12px">
       <button class="btn btn-dark w-full" id="proj-new-save-btn" onclick="saveProject()">Saqlash</button>
@@ -273,18 +275,17 @@
       <label>Mijoz Telegram ID <span style="color:var(--text3);font-weight:400">(buyurtma tayyor bo'lganda SMS uchun)</span></label>
       <input type="text" id="e-tg-id" placeholder="Masalan: 123456789">
     </div>
-    <div class="form-row">
-      <div class="form-group" style="margin:0"><label>Byudjet (so'm)</label><input type="number" id="e-budget" min="0"></div>
-      <div class="form-group" style="margin:0">
-        <label>Holati</label>
-        <select id="e-status">
-          <option value="DRAFT">Yangi</option>
-          <option value="ACTIVE">Faol</option>
-          <option value="ON_HOLD">Kutmoqda</option>
-          <option value="COMPLETED">Yakunlangan</option>
-          <option value="CANCELLED">Bekor qilingan</option>
-        </select>
-      </div>
+    <!-- kech116 (G2-01): «Byudjet» maydoni olib tashlandi — loyiha qiymati buyurtmalardan hisoblanadi (bazadagi ustunga
+         tegilmaydi: saqlash tanasida `total_budget` YO'Q) -->
+    <div class="form-group" style="margin:0">
+      <label>Holati</label>
+      <select id="e-status">
+        <option value="DRAFT">Yangi</option>
+        <option value="ACTIVE">Faol</option>
+        <option value="ON_HOLD">Kutmoqda</option>
+        <option value="COMPLETED">Yakunlangan</option>
+        <option value="CANCELLED">Bekor qilingan</option>
+      </select>
     </div>
     <!-- kech107 (10a): muddatni tahrirda ham qo'shish / o'zgartirish / olib tashlash (bo'sh — muddatsiz) -->
     <div class="form-group" style="margin-top:12px"><label>Muddati</label><input type="date" id="e-deadline"></div>
@@ -412,8 +413,10 @@ function selectProj(el) {
   statusEl.className = `status-badge st-${d.status}`;
   statusEl.textContent = (STATUS_MAP[d.status] || '').replace(/<[^>]+>/g, '') || d.status;
 
-  const budget = parseFloat(d.budget)||0, paid = parseFloat(d.paid)||0;
-  const qolgan = Math.max(0, budget - paid);
+  // kech116 (G2-01, QAROR «Loyiha qiymati — buyurtmalardan»): qiymat = buyurtmalar kelishilgan summalari, to'langan —
+  // ularning to'lovlari, qolgan to'lov — ularning qarzi (Qarzdorlar / Buyurtmalar bilan bir qoida — `crud.loyiha_pul_hisobi`)
+  const budget = parseFloat(d.qiymat)||0, paid = parseFloat(d.paid)||0;
+  const qolgan = Math.max(0, parseFloat(d.qarz)||0);
   const moneyRow = document.getElementById('moneyRow');
   moneyRow.style.display = 'grid';
   moneyRow.innerHTML = `
@@ -435,7 +438,7 @@ function selectProj(el) {
 }
 
 async function loadStatusPanel(d){
-  const budget = parseFloat(d.budget)||0;
+  const budget = parseFloat(d.qiymat)||0;     // kech116 (G2-01): loyiha qiymati — buyurtmalardan
   const paid = parseFloat(d.paid)||0;
   const paidPct = budget > 0 ? Math.min(100, Math.round(paid/budget*100)) : 0;
   const progress = progressMap[d.id] || 0;
@@ -529,11 +532,12 @@ async function renderOrders(d) {
 async function renderFinance(d) {
   try {
     const stats = await fetch(`/api/projects/${selectedProjId}/detail-stats`).then(r=>r.json());
-    const budget = parseFloat(d.budget)||0, paid = parseFloat(d.paid)||0, debt = Math.max(0, budget-paid);
+    // kech116 (G2-01): «Byudjet» o'rniga «Loyiha qiymati» (buyurtmalardan), qarz — buyurtmalar qarzi
+    const budget = parseFloat(d.qiymat)||0, paid = parseFloat(d.paid)||0, debt = Math.max(0, parseFloat(d.qarz)||0);
     document.getElementById('tabContent').innerHTML = `
       <div class="fin-grid">
         <div class="fin-stat fin-budget">
-          <div class="fin-stat-head"><i class="ti ti-wallet" style="font-size:15px"></i> Byudjet</div>
+          <div class="fin-stat-head"><i class="ti ti-wallet" style="font-size:15px"></i> Loyiha qiymati</div>
           <div class="fin-stat-val">${fmt(budget)} so'm</div>
         </div>
         <div class="fin-stat fin-paid">
@@ -740,7 +744,6 @@ function openEditModal() {
   document.getElementById('e-phone').value = d.phone === '—' ? '' : d.phone;
   document.getElementById('e-pname').value = d.name;
   document.getElementById('e-address').value = d.address === '—' ? '' : d.address;
-  document.getElementById('e-budget').value = d.budget;
   document.getElementById('e-status').value = d.status;
   // kech107 (10a): muddat — Toshkent sanasi (<input type="date">), yo'q bo'lsa bo'sh.
   document.getElementById('e-deadline').value = d.deadlineRaw ? tkISO(d.deadlineRaw) : '';
@@ -772,7 +775,6 @@ async function saveEditProject() {
     client_phone: document.getElementById('e-phone').value.trim() || null,
     project_name: document.getElementById('e-pname').value.trim(),
     client_address: document.getElementById('e-address').value.trim() || null,
-    total_budget: parseFloat(document.getElementById('e-budget').value) || 0,
     status: document.getElementById('e-status').value,
     // kech107 (10a): bo'sh maydon — muddat olib tashlanadi (server `null` ni tozalaydi).
     deadline: document.getElementById('e-deadline').value || null,
@@ -869,7 +871,6 @@ async function saveProject(){
         client_name:client,client_phone:phoneVal||null,
         client_address:document.getElementById('f-address').value.trim()||null,
         project_name:pname,
-        total_budget:parseFloat(document.getElementById('f-budget').value)||0,
         deadline:document.getElementById('f-deadline').value||null,
         // 16-band: ilgari `notes` shu obyektda IKKI MARTA edi — ikkinchisi
         // Telegram ID ni bosib ketardi. Endi bitta, loyihaIzohYasa() dan.

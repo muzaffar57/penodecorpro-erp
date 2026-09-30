@@ -270,7 +270,7 @@
         <div class="fin-hero-icon" style="background:var(--f-warning-tint);color:var(--f-warning)"><i class="ti ti-arrows-exchange"></i></div>
         <div class="fin-hero-label">Pul oqimi</div>
         <div class="fin-hero-value" id="hero-oqim">—</div>
-        <div class="fin-hero-sub">Savdo − Xarajat (bugun)</div>
+        <div class="fin-hero-sub" id="hero-oqim-sub">Olingan − to'langan pul (bugun)</div>
       </div>
     </div>
 
@@ -1229,12 +1229,26 @@ async function loadDailyFinance() {
     animateCounter(document.getElementById('hero-foyda'), d.sales.profit);
     document.getElementById('hero-tannarx-sub').textContent = "Tan narx: " + fmtFull(d.sales.cost) + " so'm";
 
-    const oqim = d.sales.total - d.expenses.total;
+    // kech116 (G1-03 — egasi QARORI «Pul oqimi — haqiqiy pul»): bugun mijozlardan OLINGAN pul − haqiqatda TO'LANGAN pul
+    // (`/api/finance/pul-oqimi?sana=` — Hisobotlar, Dashboard va kassa bilan BITTA qoida). Ilgari «Savdo − Xarajat»
+    // (yakunlangan buyurtmalar summasi − xarid) edi — pul emas.
     const oqimEl = document.getElementById('hero-oqim');
-    // kech115 (G3-10, O'LCHANGAN — audit: 1 674 000 − 25 480 000 kartada «23 806 000 so'm» — minus tashlanardi, farqi faqat
-    // rangda): ishora saqlanadi
-    animateCounter(oqimEl, oqim, " so'm");
-    oqimEl.style.color = oqim < 0 ? 'var(--f-danger)' : '';
+    try {
+      const pr = await fetch(`/api/finance/pul-oqimi?sana=${encodeURIComponent(d.date)}`);
+      const po = pr.ok ? await pr.json() : null;
+      if (po && typeof po.balans === 'number') {
+        // kech115 (G3-10, O'LCHANGAN — audit: 1 674 000 − 25 480 000 kartada «23 806 000 so'm» — minus tashlanardi, farqi
+        // faqat rangda): ishora saqlanadi
+        animateCounter(oqimEl, po.balans, " so'm");
+        oqimEl.style.color = po.balans < 0 ? 'var(--f-danger)' : '';
+        document.getElementById('hero-oqim-sub').textContent =
+          `Olingan ${fmtFull(po.kirim)} − to'langan ${fmtFull(po.chiqim)} so'm (bugun)`;
+      } else {
+        oqimEl.textContent = '—';
+      }
+    } catch (e) {
+      oqimEl.textContent = '—';
+    }
 
     // (Jami xarajat summasi allaqachon "hero-xarajat" kartasida ko'rsatilgan)
 

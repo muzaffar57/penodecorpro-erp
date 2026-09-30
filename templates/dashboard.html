@@ -519,20 +519,21 @@ async function loadTopProducts(){
 }
 
 async function loadCashFlow(){
+  // kech116 (G1-03 — egasi QARORI «Pul oqimi — haqiqiy pul», O'LCHANGAN audit: bu blok «Kirim» = yakunlangan buyurtmalar
+  // summasi, «Chiqim» = jami xarajat + naqd xarid − transport edi — Hisobotlardagi «Pul oqimi» dan 25 mln farq). Endi shu oy
+  // mijozlardan OLINGAN pul va haqiqatda TO'LANGAN pul — `/api/finance/pul-oqimi` (Hisobotlar, Moliya, kassa bilan BITTA).
   try{
     const tk = tkHozir();     // kech106: joriy oy — Toshkent (brauzer mintaqasidan qat'i nazar)
-    const d = await fetch(`/api/finance/report?year=${tk.yil}&month=${tk.oy}`).then(r=>r.json());
-    const kirim = d.daromad||0;
-    // kech87 (104-band): transport endi jami_xarajat ICHIDA — naqd xarajatdagi transport ikki marta qo'shilmasin
-    const chiqim = (d.jami_xarajat||0)+(d.naqd_xarajat_jami||0)-(d.transport_xarajat||0);
-    // kech88 (105-band): naqd xarajatda endi kirim hujjati xarajatlari ham bor; tannarxga qo'shilmaganlari
-    // jami_xarajat ichida ham (qo'shimcha xarajat) — ikki marta qo'shilmasin
-    const chiqimJami = chiqim-(d.kirim_xarajatlari_jamida||0);
-    const balans = kirim-chiqimJami;
+    const r = await fetch(`/api/finance/pul-oqimi?year=${tk.yil}&month=${tk.oy}`);
+    if (!r.ok) throw new Error('pul-oqimi ' + r.status);
+    const d = await r.json();
+    const kirim = Number(d.kirim) || 0;
+    const chiqimJami = Number(d.chiqim) || 0;
+    const balans = Number(d.balans) || 0;
     document.getElementById('cashFlow').innerHTML = `
-      <div style="display:flex;justify-content:space-between;padding:6px 0"><span style="font-size:12px;color:#166534">Kirim</span><span style="font-weight:600;color:#166534">${fmt(kirim)}</span></div>
-      <div style="display:flex;justify-content:space-between;padding:6px 0"><span style="font-size:12px;color:#991B1B">Chiqim</span><span style="font-weight:600;color:#991B1B">${fmt(chiqimJami)}</span></div>
-      <div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--border2);margin-top:4px"><span style="font-size:12px;font-weight:600">Balans</span><span style="font-weight:700;color:${balans>=0?'#A86B36':'#DC2626'}">${fmt(balans)}</span></div>`;
+      <div style="display:flex;justify-content:space-between;padding:6px 0"><span style="font-size:12px;color:#166534">Kirim (olingan pul)</span><span style="font-weight:600;color:#166534" id="cf-kirim">${fmt(kirim)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0"><span style="font-size:12px;color:#991B1B">Chiqim (to'langan pul)</span><span style="font-weight:600;color:#991B1B" id="cf-chiqim">${fmt(chiqimJami)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--border2);margin-top:4px"><span style="font-size:12px;font-weight:600">Balans</span><span style="font-weight:700;color:${balans>=0?'#A86B36':'#DC2626'}" id="cf-balans">${fmt(balans)}</span></div>`;
   }catch(e){
     document.getElementById('cashFlow').innerHTML = '<div style="text-align:center;padding:16px;color:#bbb;font-size:12px">Ma\'lumot yo\'q</div>';
   }
@@ -633,24 +634,36 @@ async function loadMonthlyFinance(){
     document.getElementById('mf-period').textContent = `${monthNames[month]} ${year}`;
     document.getElementById('mf-daromad').textContent = fmt(d.daromad) + " so'm";
 
-    const x = d.xarajatlar || {};
-    const fixedTotal = (x.arenda||0)+(x.elektr||0)+(x.tushlik||0)+(x.soliqlar||0);
+    // kech116 (G1-02, O'LCHANGAN — audit: «Jami xarajat» 4.3 mln = xarajat + tannarx, qatorlar esa (tannarx, doimiy, KPI,
+    // ehson, hodimlar) unga teng emas edi — transport, brak, «Boshqa» ko'rsatilmasdi). Endi: «Tannarx» — alohida qator
+    // (daromaddan keyin), xarajat qatorlari — `xarajat_tarkibi` (TO'LIQ), «Jami xarajat» — `jami_xarajat` (Hisobotlar va
+    // Moliya bilan BITTA ta'rif): Daromad − Tannarx − Jami xarajat = Sof foyda.
+    const tannarx = (d.tannarx_jami !== undefined && d.tannarx_jami !== null)
+      ? Number(d.tannarx_jami) : Number(d.ishlab_chiqarish_xarajat || 0);
+    const BELGI = {doimiy:'🏢', qoshimcha:'🧾', transport:'🚚', brak:'⚠️', tm_yoqotish:'📦', usta_kpi:'🏆', ehson:'🤲', hodimlar:'👷'};
+    let lines;
+    if (Array.isArray(d.xarajat_tarkibi)) {
+      lines = d.xarajat_tarkibi.map(t => [`${BELGI[t.kalit] || '•'} ${t.nom}`, Number(t.summa) || 0]).filter(l => l[1] > 0);
+    } else {
+      const x = d.xarajatlar || {};
+      const fixedTotal = (x.arenda||0)+(x.elektr||0)+(x.tushlik||0)+(x.soliqlar||0);
+      lines = [
+        ['🏢 Arenda/Elektr/Tushlik/Soliq', fixedTotal],
+        ['🏆 Usta yillik KPI', d.usta_kpi_xarajat||0],
+        ['🤲 Ehson', d.ehson_xarajat||0],
+        ['👷 Hodimlar (moslashuvchan)', d.hodimlar_moslashuvchan_xarajat||0],
+      ].filter(l => l[1] > 0);
+    }
 
-    const lines = [
-      ['🏭 Ishlab chiqarish (COGS)', d.ishlab_chiqarish_xarajat||0],
-      ['🏢 Arenda/Elektr/Tushlik/Soliq', fixedTotal],
-      ['🏆 Usta yillik KPI', d.usta_kpi_xarajat||0],
-      ['🤲 Ehson', d.ehson_xarajat||0],
-      ['👷 Hodimlar (moslashuvchan)', d.hodimlar_moslashuvchan_xarajat||0],
-    ].filter(l => l[1] > 0);
-
-    document.getElementById('mf-expense-lines').innerHTML = lines.map(l =>
+    const tannarxQator = `<div class="dash-info-row" id="mf-tannarx-row">
+        <span class="dash-info-label">🏭 Tannarx (sotilgan mahsulot)</span><span class="dash-info-val" style="color:var(--text2)" id="mf-tannarx">−${fmt(tannarx)} so'm</span>
+      </div><div style="border-top:1px dashed var(--border);margin:2px 0"></div>`;
+    document.getElementById('mf-expense-lines').innerHTML = tannarxQator + (lines.map(l =>
       `<div class="dash-info-row">
-        <span class="dash-info-label">${l[0]}</span><span class="dash-info-val" style="color:var(--text2)">${fmt(l[1])} so'm</span>
-      </div>`).join('') || '<div style="text-align:center;color:var(--text3);padding:10px 0">Xarajat kiritilmagan</div>';
+        <span class="dash-info-label">${escapeHtml(l[0])}</span><span class="dash-info-val" style="color:var(--text2)">${fmt(l[1])} so'm</span>
+      </div>`).join('') || '<div style="text-align:center;color:var(--text3);padding:10px 0">Xarajat kiritilmagan</div>');
 
-    const jamiXarajatFull = (d.jami_xarajat||0) + (d.ishlab_chiqarish_xarajat||0);
-    document.getElementById('mf-jami-xarajat').textContent = fmt(jamiXarajatFull) + " so'm";
+    document.getElementById('mf-jami-xarajat').textContent = fmt(d.jami_xarajat||0) + " so'm";
 
     const sofFoyda = d.sof_foyda||0;
     const sf = document.getElementById('mf-sof-foyda');

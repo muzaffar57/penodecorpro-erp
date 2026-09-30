@@ -43,9 +43,12 @@
 .bi-health-sabab{font-size:11px;color:var(--b-text3);margin-top:3px;line-height:1.35}
 
 /* ── KPI kartalar (2-qator) ── */
-.bi-kpi-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:14px}
-@media(max-width:1200px){.bi-kpi-grid{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:640px){.bi-kpi-grid{grid-template-columns:repeat(2,1fr)}}
+.bi-kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+@media(max-width:900px){.bi-kpi-grid{grid-template-columns:repeat(2,1fr)}}
+.bi-kpi-tenglama{margin-top:10px;font-size:12.5px;color:var(--b-text3);text-align:right}
+.bi-kpi-tenglama b{color:var(--b-text2);font-weight:700}
+.bi-flow-qator{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--b-text3);padding:3px 0}
+.bi-flow-qator span:last-child{font-weight:600;color:var(--b-text2);white-space:nowrap}
 .bi-kpi-card{background:var(--b-card);border:1px solid var(--b-border);border-radius:var(--b-radius);padding:18px;box-shadow:var(--b-shadow);transition:transform .18s,box-shadow .18s}
 .bi-kpi-card:hover{transform:translateY(-3px);box-shadow:var(--b-shadow-hover)}
 .bi-kpi-icon{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;margin-bottom:10px}
@@ -178,14 +181,19 @@
   <!-- 2-QATOR: ASOSIY KPI -->
   <div class="bi-section">
     <div class="bi-section-title"><i class="ti ti-chart-bar"></i> Asosiy ko'rsatkichlar <span style="font-weight:400;color:var(--b-text3);font-size:13px" id="kpiPeriodLabel"></span></div>
+    <!-- kech116 (G1-02 / G1-03): 1-qator — Daromad − Tannarx − Xarajat = Sof foyda (tenglama pastda); 2-qator — HAQIQIY
+         pul (Pul oqimi — shu oy olingan va to'langan pul, Kassa — hozirgi qoldiq), buyurtmalar, rentabellik. -->
     <div class="bi-kpi-grid" id="kpiGrid">
       <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:var(--b-success-tint);color:var(--b-success)"><i class="ti ti-trending-up"></i></div><div class="bi-kpi-label">Daromad</div><div class="bi-kpi-value" id="kpi-daromad">—</div><div class="bi-kpi-change" id="kpi-daromad-ch"></div></div>
+      <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:#FEF3C7;color:#B45309"><i class="ti ti-package"></i></div><div class="bi-kpi-label">Tannarx</div><div class="bi-kpi-value" id="kpi-tannarx">—</div><div class="bi-kpi-change" style="color:var(--b-text3)">sotilgan mahsulot xomashyosi</div></div>
       <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:var(--b-danger-tint);color:var(--b-danger)"><i class="ti ti-trending-down"></i></div><div class="bi-kpi-label">Xarajat</div><div class="bi-kpi-value" id="kpi-xarajat">—</div><div class="bi-kpi-change" id="kpi-xarajat-ch"></div></div>
       <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:var(--b-primary-tint);color:var(--b-primary)"><i class="ti ti-report-money"></i></div><div class="bi-kpi-label">Sof foyda</div><div class="bi-kpi-value" id="kpi-foyda">—</div><div class="bi-kpi-change" id="kpi-foyda-ch"></div></div>
-      <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:var(--b-warning-tint);color:var(--b-warning)"><i class="ti ti-arrows-exchange"></i></div><div class="bi-kpi-label">Pul oqimi</div><div class="bi-kpi-value" id="kpi-oqim">—</div><div class="bi-kpi-change" style="color:var(--b-text3)">Kirim − Chiqim</div></div>
+      <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:var(--b-warning-tint);color:var(--b-warning)"><i class="ti ti-arrows-exchange"></i></div><div class="bi-kpi-label">Pul oqimi</div><div class="bi-kpi-value" id="kpi-oqim">—</div><div class="bi-kpi-change" style="color:var(--b-text3)" id="kpi-oqim-sub">olingan − to'langan pul</div></div>
+      <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:#E0F2FE;color:#0369A1"><i class="ti ti-cash"></i></div><div class="bi-kpi-label">Kassa</div><div class="bi-kpi-value" id="kpi-kassa">—</div><div class="bi-kpi-change" style="color:var(--b-text3)">hozirgi qoldiq</div></div>
       <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:#F3E8FF;color:#8E44AD"><i class="ti ti-clipboard-list"></i></div><div class="bi-kpi-label">Buyurtmalar</div><div class="bi-kpi-value" id="kpi-buyurtma">—</div><div class="bi-kpi-change" style="color:var(--b-text3)">shu davrda</div></div>
       <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:#F8F2EB;color:#B9783F"><i class="ti ti-percentage"></i></div><div class="bi-kpi-label">Rentabellik</div><div class="bi-kpi-value" id="kpi-foiz">—</div><div class="bi-kpi-change" id="kpi-foiz-ch"></div></div>
     </div>
+    <div class="bi-kpi-tenglama" id="kpi-tenglama"></div>
   </div>
 
   <!-- 3-QATOR: FILTR -->
@@ -239,7 +247,7 @@
   <div class="bi-section">
     <div class="bi-card bi-fade">
       <div class="bi-card-body">
-        <div class="bi-section-title" style="margin-bottom:14px"><i class="ti ti-arrows-left-right"></i> Pul oqimi</div>
+        <div class="bi-section-title" style="margin-bottom:14px"><i class="ti ti-arrows-left-right"></i> Pul oqimi <span style="font-weight:400;color:var(--b-text3);font-size:13px" id="cashFlowDavr"></span></div>
         <div id="cashFlowBars"></div>
       </div>
     </div>
@@ -402,12 +410,41 @@ async function loadKpi(){
     const hist = await fetch('/api/finance/history?months=1').then(r=>r.json());
     const cur = hist.length ? hist[hist.length-1] : null;
     if (!cur) return;
+    // kech116 (G1-02): «Xarajat» — BITTA ta'rif (`jami_xarajat`, Moliya bilan AYNAN); «Tannarx» — alohida karta, shunda
+    // Daromad − Tannarx − Xarajat = Sof foyda ko'rinadi (ilgari 1.7 − 3.3 ≠ −2.6 — tannarx hech qayerda yo'q edi)
+    const tannarx = (cur.tannarx_jami !== undefined && cur.tannarx_jami !== null)
+      ? Number(cur.tannarx_jami) : Number(cur.ishlab_chiqarish_xarajat || 0);
     document.getElementById('kpi-daromad').textContent = fmtShort(cur.daromad)+" so'm";
+    document.getElementById('kpi-tannarx').textContent = fmtShort(tannarx)+" so'm";
     document.getElementById('kpi-xarajat').textContent = fmtShort(cur.jami_xarajat)+" so'm";
     document.getElementById('kpi-foyda').textContent = fmtShort(cur.sof_foyda)+" so'm";
-    document.getElementById('kpi-oqim').textContent = fmtShort(cur.daromad-cur.jami_xarajat)+" so'm";
     document.getElementById('kpi-buyurtma').textContent = cur.buyurtmalar_soni+' ta';
     document.getElementById('kpi-foiz').textContent = cur.foyda_foiz+'%';
+    document.getElementById('kpi-tenglama').innerHTML =
+      `Daromad <b>${escapeHtml(fmtShort(cur.daromad))}</b> − Tannarx <b>${escapeHtml(fmtShort(tannarx))}</b> − Xarajat `
+      + `<b>${escapeHtml(fmtShort(cur.jami_xarajat))}</b> = Sof foyda <b>${escapeHtml(fmtShort(cur.sof_foyda))}</b> so'm`;
+  } catch(e) { console.error(e); }
+
+  // kech116 (G1-03 — egasi QARORI «Pul oqimi — haqiqiy pul»): shu oy mijozlardan OLINGAN pul − haqiqatda TO'LANGAN pul
+  // (`/api/finance/pul-oqimi` — Moliya, Dashboard va «Korxona sog'ligi» bilan BITTA qoida); ilgari «daromad − xarajat»
+  // edi (pul emas, hisob). Kassa — hozirgi qoldiq (shu qoidaning butun davri + boshlang'ich balans).
+  try {
+    const [po, kassa] = await Promise.all([
+      fetch(`/api/finance/pul-oqimi?year=${tk.yil}&month=${tk.oy}`).then(r => r.ok ? r.json() : null),
+      fetch('/api/finance/cash-balance').then(r => r.ok ? r.json() : null),
+    ]);
+    const oq = document.getElementById('kpi-oqim');
+    if (po && typeof po.balans === 'number') {
+      oq.textContent = fmtShort(po.balans) + " so'm";
+      oq.style.color = po.balans < 0 ? 'var(--b-danger)' : '';
+      document.getElementById('kpi-oqim-sub').textContent =
+        `olingan ${fmtShort(po.kirim)} − to'langan ${fmtShort(po.chiqim)}`;
+    }
+    const ks = document.getElementById('kpi-kassa');
+    if (kassa && typeof kassa.balance === 'number') {
+      ks.textContent = fmtShort(kassa.balance) + " so'm";
+      ks.style.color = kassa.balance < 0 ? 'var(--b-danger)' : '';
+    }
   } catch(e) { console.error(e); }
 
   // Taqqoslash bilan % o'zgarishni ham shu yerga qo'yamiz
@@ -492,16 +529,26 @@ async function loadCharts(){
   const centerValueEl = document.getElementById('donutCenterValue');
   if (donutChartInst) donutChartInst.destroy();
   if (cur) {
-    const x = cur.xarajatlar || {};
-    const doimiy = (x.arenda||0) + (x.elektr||0) + (x.tushlik||0) + (x.soliqlar||0);
-    const qoshimcha = Object.values(cur.qoshimcha_xarajatlar || {}).reduce((a,b)=>a+b, 0);
-    const entries = [
-      ['Doimiy xarajatlar', doimiy, '#B9783F'],
-      ["Usta bonusi", cur.usta_kpi_xarajat || 0, '#F59E0B'],
-      ['Ehson', cur.ehson_xarajat || 0, '#16A34A'],
-      ['Hodimlar oyligi', cur.hodimlar_moslashuvchan_xarajat || 0, '#22C55E'],
-      ["Qo'shimcha", qoshimcha, '#8E44AD'],
-    ].filter(e => e[1] > 0);
+    // kech116 (G1-02): doira — xarajatning TO'LIQ tarkibi (`xarajat_tarkibi`: doimiy, qo'shimcha, transport, brak, tayyor
+    // mahsulot yo'qotishi, usta bonusi, ehson, hodimlar) — markazdagi «Jami» = «Xarajat» kartasi (ilgari transport va brak
+    // yo'q edi: doira 3.1 mln, karta 3.3 mln)
+    const RANG = {doimiy:'#B9783F', qoshimcha:'#8E44AD', transport:'#0EA5E9', brak:'#EF4444', tm_yoqotish:'#F97316',
+                  usta_kpi:'#F59E0B', ehson:'#16A34A', hodimlar:'#22C55E'};
+    let entries;
+    if (Array.isArray(cur.xarajat_tarkibi)) {
+      entries = cur.xarajat_tarkibi.map(t => [t.nom, Number(t.summa) || 0, RANG[t.kalit] || '#9CA3AF']).filter(e => e[1] > 0);
+    } else {
+      const x = cur.xarajatlar || {};
+      const doimiy = (x.arenda||0) + (x.elektr||0) + (x.tushlik||0) + (x.soliqlar||0);
+      const qoshimcha = Object.values(cur.qoshimcha_xarajatlar || {}).reduce((a,b)=>a+b, 0);
+      entries = [
+        ['Doimiy xarajatlar', doimiy, '#B9783F'],
+        ["Usta bonusi", cur.usta_kpi_xarajat || 0, '#F59E0B'],
+        ['Ehson', cur.ehson_xarajat || 0, '#16A34A'],
+        ['Hodimlar oyligi', cur.hodimlar_moslashuvchan_xarajat || 0, '#22C55E'],
+        ["Qo'shimcha", qoshimcha, '#8E44AD'],
+      ].filter(e => e[1] > 0);
+    }
     if (!entries.length) {
       donutEl.innerHTML = '<div style="text-align:center;padding:16px;color:var(--b-text3);font-size:12.5px">Bu oyda xarajat qayd etilmagan</div>';
       centerLabelEl.style.display = 'none';
@@ -515,23 +562,43 @@ async function loadCharts(){
           callbacks:{label:ctx=>`${ctx.label}: ${fmt(ctx.parsed)} so'm`}} } }
     });
     const total = entries.reduce((s,e)=>s+e[1],0)||1;
-    donutEl.innerHTML = entries.map(([n,v,c])=>`<div class="bi-legend-row"><span class="bi-legend-dot" style="background:${c}"></span><span class="bi-legend-name">${n}</span><span class="bi-legend-pct">${(v/total*100).toFixed(0)}%</span></div>`).join('');
+    donutEl.innerHTML = entries.map(([n,v,c])=>`<div class="bi-legend-row"><span class="bi-legend-dot" style="background:${c}"></span><span class="bi-legend-name">${escapeHtml(n)}</span><span class="bi-legend-pct">${(v/total*100).toFixed(0)}%</span></div>`).join('');
     centerLabelEl.style.display = 'block';
     centerValueEl.textContent = fmtShort(total);
   }
 
-  // Pul oqimi bar
-  if (cur) {
-    const kirim = cur.daromad||0, chiqim = cur.jami_xarajat||0, balans = kirim-chiqim, maxV = Math.max(kirim,chiqim,1);
-    document.getElementById('cashFlowBars').innerHTML = `
-      <div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13px;color:var(--b-text2);font-weight:600">Kirim</span><span style="font-weight:700;color:var(--b-success)">${fmt(kirim)} so'm</span></div><div class="bi-flow-track"><div class="bi-flow-fill" id="fb-kirim" style="background:var(--b-success)"></div></div></div>
-      <div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13px;color:var(--b-text2);font-weight:600">Chiqim</span><span style="font-weight:700;color:var(--b-danger)">${fmt(chiqim)} so'm</span></div><div class="bi-flow-track"><div class="bi-flow-fill" id="fb-chiqim" style="background:var(--b-danger)"></div></div></div>
-      <div style="text-align:center;padding:12px;border-radius:10px;background:${balans>=0?'var(--b-primary-tint)':'var(--b-warning-tint)'}"><span style="font-size:13px;font-weight:600;color:${balans>=0?'#A86B36':'#92400E'}">Balans: </span><span style="font-size:16px;font-weight:800;color:${balans>=0?'#A86B36':'#92400E'}">${fmt(balans)} so'm</span></div>`;
-    requestAnimationFrame(()=>setTimeout(()=>{
-      document.getElementById('fb-kirim').style.width=(kirim/maxV*100)+'%';
-      document.getElementById('fb-chiqim').style.width=(chiqim/maxV*100)+'%';
-    },30));
+}
+
+// Pul oqimi bar — kech116 (G1-03): shu oy HAQIQIY pul (`/api/finance/pul-oqimi`, kartadagi bilan BITTA manba); ilgari
+// «Kirim» = daromad, «Chiqim» = jami xarajat edi (pul emas) va xarajat yo'q oyda umuman chizilmasdi (doira `return` i).
+// Kirim / chiqim tarkibi — bar ostida. `loadAll` dan alohida chaqiriladi.
+async function loadCashFlowBars(){
+  const tk = tkHozir();
+  const el = document.getElementById('cashFlowBars');
+  const davrEl = document.getElementById('cashFlowDavr');
+  if (davrEl) davrEl.textContent = `— ${MONTH_NAMES[tk.oy]} ${tk.yil}, olingan va to'langan pul`;
+  let po = null;
+  try {
+    const r = await fetch(`/api/finance/pul-oqimi?year=${tk.yil}&month=${tk.oy}`);
+    po = r.ok ? await r.json() : null;
+  } catch(e) { po = null; }
+  if (!po || typeof po.balans !== 'number') {
+    el.innerHTML = '<div class="bi-empty">Pul oqimi ma\'lumoti olinmadi</div>';
+    return;
   }
+  const kirim = Number(po.kirim) || 0, chiqim = Number(po.chiqim) || 0, balans = Number(po.balans) || 0;
+  const maxV = Math.max(kirim, chiqim, 1);
+  const tarkib = rows => (rows || []).filter(q => Math.abs(Number(q.summa) || 0) >= 0.5)
+    .map(q => `<div class="bi-flow-qator"><span>${escapeHtml(q.nom)}</span><span>${fmt(q.summa)} so'm</span></div>`).join('');
+  el.innerHTML = `
+    <div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13px;color:var(--b-text2);font-weight:600">Kirim (olingan pul)</span><span style="font-weight:700;color:var(--b-success)" id="fb-kirim-summa">${fmt(kirim)} so'm</span></div><div class="bi-flow-track"><div class="bi-flow-fill" id="fb-kirim" style="background:var(--b-success)"></div></div><div id="fb-kirim-tarkib" style="margin-top:6px">${tarkib(po.kirim_qatorlar)}</div></div>
+    <div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13px;color:var(--b-text2);font-weight:600">Chiqim (to'langan pul)</span><span style="font-weight:700;color:var(--b-danger)" id="fb-chiqim-summa">${fmt(chiqim)} so'm</span></div><div class="bi-flow-track"><div class="bi-flow-fill" id="fb-chiqim" style="background:var(--b-danger)"></div></div><div id="fb-chiqim-tarkib" style="margin-top:6px">${tarkib(po.chiqim_qatorlar)}</div></div>
+    <div style="text-align:center;padding:12px;border-radius:10px;background:${balans>=0?'var(--b-primary-tint)':'var(--b-warning-tint)'}"><span style="font-size:13px;font-weight:600;color:${balans>=0?'#A86B36':'#92400E'}">Balans: </span><span style="font-size:16px;font-weight:800;color:${balans>=0?'#A86B36':'#92400E'}" id="fb-balans">${fmt(balans)} so'm</span></div>`;
+  requestAnimationFrame(()=>setTimeout(()=>{
+    const k = document.getElementById('fb-kirim'), c = document.getElementById('fb-chiqim');
+    if (k) k.style.width = (kirim/maxV*100)+'%';
+    if (c) c.style.width = (chiqim/maxV*100)+'%';
+  },30));
 }
 
 // ═══ 6. TOP REYTINGLAR ═══
@@ -624,15 +691,20 @@ async function loadForecast(){
 const ALERT_ICONS = {red:'🔴', orange:'🟠', green:'🟢'};
 const ALERT_BG = {red:'var(--b-danger-tint)', orange:'var(--b-warning-tint)', green:'var(--b-success-tint)'};
 async function loadAlerts(){
+  // kech116 (K115-3, JONLI topilgan — kech115; asl kodda ham): ogohlantirish bo'lmasa «Bugungi xulosa» umuman
+  // yig'ilmasdi (`return` dan oldin) — zarar oyida ham yashirin qolardi. Endi ro'yxat bo'sh bo'lsa ham, ogohlantirishlar
+  // o'qilmasa ham xulosa yig'iladi (taqqoslash qatorlari — daromad, sof foyda / zarar).
+  let alerts = [];
   try {
-    const alerts = await fetch('/api/reports/alerts').then(r=>r.json());
+    const javob = await fetch('/api/reports/alerts').then(r=>r.json());
+    alerts = Array.isArray(javob) ? javob : [];
     const el = document.getElementById('alertsBody');
-    if (!alerts.length) { el.innerHTML = '<div class="bi-empty">Hozircha muhim ogohlantirish yo\'q</div>'; return; }
-    el.innerHTML = alerts.map(a => `<div class="bi-alert-row" style="background:${ALERT_BG[a.level]||'var(--b-bg)'}"><span class="bi-alert-icon">${ALERT_ICONS[a.level]||'ℹ️'}</span><span>${escapeHtml(a.text)}</span></div>`).join('');
-
-    // AI Summary — shu ogohlantirishlar + taqqoslashdan avtomatik yig'iladi
-    buildAiSummary(alerts);
+    el.innerHTML = alerts.length
+      ? alerts.map(a => `<div class="bi-alert-row" style="background:${ALERT_BG[a.level]||'var(--b-bg)'}"><span class="bi-alert-icon">${ALERT_ICONS[a.level]||'ℹ️'}</span><span>${escapeHtml(a.text)}</span></div>`).join('')
+      : '<div class="bi-empty">Hozircha muhim ogohlantirish yo\'q</div>';
   } catch(e) { console.error(e); }
+  // AI Summary — shu ogohlantirishlar + taqqoslashdan avtomatik yig'iladi
+  await buildAiSummary(alerts);
 }
 
 async function buildAiSummary(alerts){
@@ -668,7 +740,7 @@ async function loadAll(){
   if (bar) bar.style.display = 'flex';
   try {
     await Promise.all([
-      loadHealth(), loadKpi(), loadCharts(), loadTopRankings(),
+      loadHealth(), loadKpi(), loadCharts(), loadCashFlowBars(), loadTopRankings(),
       loadComparison(), loadForecast(), loadAlerts(), loadReport()
     ]);
   } finally {

@@ -132,6 +132,42 @@
   </div>
 </div>
 
+<!-- kech116 (G6-06, O'LCHANGAN — audit: parol brauzerning xom `prompt()` oynasida OCHIQ yozilardi — yondagi odam ko'radi;
+     o'z parolida uch ketma-ket oyna): parol — dasturning o'z oynasida, yashirin maydonlar (ko'zcha bilan ko'rsatish),
+     yangi va takror BITTA oynada. Saqlangach o'sha odamning boshqa qurilmalardagi kirishlari yopiladi (server). -->
+<div id="parolModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:16px" onkeydown="if(event.key==='Escape')parolYopish()">
+  <div style="background:#fff;border-radius:14px;padding:24px;width:420px;max-width:100%">
+    <div style="font-size:16px;font-weight:600;margin-bottom:6px" id="parol-sarlavha">🔑 Parolni o'zgartirish</div>
+    <div style="font-size:12.5px;color:var(--text3);margin-bottom:16px" id="parol-izoh"></div>
+    <div class="form-group" id="parol-eski-qator" style="display:none">
+      <label>Joriy parol</label>
+      <div style="display:flex;gap:6px">
+        <input type="password" id="parol-eski" autocomplete="current-password" style="flex:1">
+        <button type="button" class="btn btn-outline btn-xs" onclick="parolKozcha('parol-eski', this)" title="Ko'rsatish / yashirish" aria-label="Parolni ko'rsatish">👁</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Yangi parol (kamida 6 belgi)</label>
+      <div style="display:flex;gap:6px">
+        <input type="password" id="parol-yangi" autocomplete="new-password" style="flex:1">
+        <button type="button" class="btn btn-outline btn-xs" onclick="parolKozcha('parol-yangi', this)" title="Ko'rsatish / yashirish" aria-label="Parolni ko'rsatish">👁</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Yangi parolni takrorlang</label>
+      <div style="display:flex;gap:6px">
+        <input type="password" id="parol-takror" autocomplete="new-password" style="flex:1" onkeydown="if(event.key==='Enter')parolSaqlash()">
+        <button type="button" class="btn btn-outline btn-xs" onclick="parolKozcha('parol-takror', this)" title="Ko'rsatish / yashirish" aria-label="Parolni ko'rsatish">👁</button>
+      </div>
+    </div>
+    <div id="parol-xato" style="display:none;color:#DC2626;font-size:13px;font-weight:600;margin-bottom:8px;padding:8px 10px;background:#FEF2F2;border-radius:8px"></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-dark w-full" id="parol-saqlash-btn" onclick="parolSaqlash()">Saqlash</button>
+      <button class="btn btn-outline w-full" onclick="parolYopish()">Bekor</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ XODIM PANELI — QR KOD ══ -->
 <div class="card" style="margin-top:20px">
   <div class="card-head">
@@ -274,37 +310,92 @@ async function toggleUser(id, isActive, btn){
     if (btn) { btn.disabled = false; btn.style.opacity = ''; }
   }
 }
-async function changeMyPassword() {
-  const eski = prompt("Joriy parolingizni kiriting:");
-  if (!eski) return;
-  const yangi = prompt("Yangi parol (kamida 6 belgi):");
-  if (!yangi) return;
-  if (yangi.length < 6) { alert("Parol kamida 6 belgi bo'lishi kerak!"); return; }
-  const takror = prompt("Yangi parolni takrorlang:");
-  if (yangi !== takror) { alert("Parollar mos kelmadi!"); return; }
-  const res = await fetch(`/api/users/{{ current_user.id }}/password`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ new_password: yangi, current_password: eski })
-  });
-  if (res.ok) {
-    alert("✓ Parolingiz o'zgartirildi. Keyingi safar yangi parol bilan kiring.");
-  } else {
-    const d = await res.json().catch(() => ({}));
-    alert("Xato: " + (d.detail || "parol o'zgartirilmadi"));
+// kech116 (G6-06): parol — dasturning o'z oynasida (`#parolModal`); ilgari `prompt()` — parol ochiq ko'rinardi.
+// Tugmalar avvalgi nomlarni chaqiradi: «🔑 Parolimni o'zgartirish» — changeMyPassword(), qatordagi «Parol» — changePass().
+let parolHolat = null;   // {userId, username, ozim, btn}
+function parolOynasi(userId, username, ozim, btn) {
+  parolHolat = { userId: userId, username: String(username || ''), ozim: !!ozim, btn: btn || null };
+  document.getElementById('parol-sarlavha').textContent = ozim ? "🔑 Parolimni o'zgartirish" : `🔑 «${parolHolat.username}» uchun yangi parol`;
+  document.getElementById('parol-izoh').textContent = ozim
+    ? "Saqlangach boshqa kompyuter / telefondagi kirishlaringiz yopiladi (shu oyna ochiq qoladi)."
+    : "Saqlangach bu foydalanuvchining hamma ochiq kirishlari yopiladi — yangi parol bilan qayta kiradi.";
+  document.getElementById('parol-eski-qator').style.display = ozim ? '' : 'none';
+  for (const id of ['parol-eski', 'parol-yangi', 'parol-takror']) {
+    const el = document.getElementById(id);
+    el.value = '';
+    el.type = 'password';
   }
+  const x = document.getElementById('parol-xato');
+  x.style.display = 'none';
+  x.textContent = '';
+  const b = document.getElementById('parol-saqlash-btn');
+  b.disabled = false;
+  b.textContent = 'Saqlash';
+  document.getElementById('parolModal').style.display = 'flex';
+  const birinchi = document.getElementById(ozim ? 'parol-eski' : 'parol-yangi');
+  try { birinchi.focus(); } catch (e) { /* fokus — faqat qulaylik */ }
+}
+function parolYopish() {
+  document.getElementById('parolModal').style.display = 'none';
+  for (const id of ['parol-eski', 'parol-yangi', 'parol-takror']) document.getElementById(id).value = '';
+  parolHolat = null;
+}
+function parolKozcha(id, btn) {
+  const el = document.getElementById(id);
+  const korinadi = el.type === 'password';
+  el.type = korinadi ? 'text' : 'password';
+  if (btn) btn.textContent = korinadi ? '🙈' : '👁';
+}
+function parolXato(matn) {
+  const x = document.getElementById('parol-xato');
+  x.textContent = matn;
+  x.style.display = 'block';
+}
+async function parolSaqlash() {
+  if (!parolHolat) return;
+  const b = document.getElementById('parol-saqlash-btn');
+  if (b.disabled) return;
+  const eski = document.getElementById('parol-eski').value;
+  const yangi = document.getElementById('parol-yangi').value;
+  const takror = document.getElementById('parol-takror').value;
+  if (parolHolat.ozim && !eski) { parolXato("Joriy parolni kiriting."); return; }
+  if (yangi.length < 6) { parolXato("Yangi parol kamida 6 belgi bo'lishi kerak."); return; }
+  if (yangi !== takror) { parolXato("Yangi parol va takrori mos kelmadi."); return; }
+  const tana = parolHolat.ozim ? { new_password: yangi, current_password: eski } : { new_password: yangi };
+  const holat = parolHolat;
+  b.disabled = true;
+  b.textContent = 'Saqlanmoqda...';
+  if (holat.btn) { holat.btn.disabled = true; holat.btn.style.opacity = '0.6'; }
+  try {
+    let res;
+    try {
+      res = await fetch(`/api/users/${holat.userId}/password`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(tana)
+      });
+    } catch (e) {
+      parolXato("Server bilan aloqa yo'q — parol o'zgartirilmadi. Qayta urinib ko'ring.");
+      return;
+    }
+    if (res.ok) {
+      parolYopish();
+      showMsg(holat.ozim
+        ? "✓ Parolingiz o'zgartirildi. Boshqa qurilmalardagi kirishlaringiz yopildi."
+        : `✓ «${holat.username}» paroli o'zgartirildi. Uning ochiq kirishlari yopildi.`, 'success');
+      return;
+    }
+    parolXato(await serverXatoSababi(res, "Parol o'zgartirilmadi"));
+  } finally {
+    b.disabled = false;
+    b.textContent = 'Saqlash';
+    if (holat.btn) { holat.btn.disabled = false; holat.btn.style.opacity = ''; }
+  }
+}
+async function changeMyPassword() {
+  parolOynasi({{ current_user.id|int }}, '', true, null);
 }
 
 async function changePass(id, username, btn){
-  const p=prompt(`"${username}" uchun yangi parol:`);
-  if(!p)return;
-  if(p.length<6){alert('Kamida 6 belgi!');return;}
-  if (btn) { if (btn.disabled) return; btn.disabled = true; btn.style.opacity = '0.6'; }
-  try {
-    const res=await fetch(`/api/users/${id}/password`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({new_password:p})});
-    if(res.ok)alert('✓ Parol o\'zgartirildi!');else alert('Xato');
-  } finally {
-    if (btn) { btn.disabled = false; btn.style.opacity = ''; }
-  }
+  parolOynasi(id, username, false, btn);
 }
 function showHodimQR(){
   const url = window.location.origin + '/hodim';

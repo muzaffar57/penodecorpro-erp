@@ -704,13 +704,18 @@ input[type=number]{-moz-appearance:textfield}
             <span id="pay-total" style="font-weight:600">—</span>
           </div>
           <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:14.5px" id="pay-discount-row">
-            <span style="color:var(--text2)">Chegirma:</span>
+            <span style="color:var(--text2)" id="pay-discount-label">Chegirma:</span>
             <span id="pay-discount" style="font-weight:600;color:#F59E0B">—</span>
           </div>
           <div style="display:none;justify-content:space-between;padding:6px 0;font-size:14.5px" id="pay-refund-row"
                title="Qaytarilgan mahsulot uchun pul qaytarilganda kelishilgan summa shu miqdorga kamaygan (chegirma emas)">
             <span style="color:var(--text2)">↩️ Qaytarish:</span>
             <span id="pay-refund" style="font-weight:600;color:#7C3AED">—</span>
+          </div>
+          <div style="display:none;justify-content:space-between;padding:6px 0;font-size:14.5px" id="pay-writeoff-row"
+               title="To'lov paytida kechirilgan (yopilgan) qarz — kelishilgan summa shu miqdorga kamaygan">
+            <span style="color:var(--text2)">🤝 Kechirilgan qarz:</span>
+            <span id="pay-writeoff" style="font-weight:600;color:#6B7280">—</span>
           </div>
           <div style="padding:10px 0 8px;border-top:1px solid var(--border2);margin-top:6px;padding-top:12px">
             <div style="color:var(--text2);font-weight:600;font-size:14.5px;margin-bottom:6px">Kelishilgan:</div>
@@ -2689,12 +2694,20 @@ async function loadPayments(orderId) {
     // kamaytirishi alohida qatorda. Server bu maydonlarni bermasa (eski kod) — avvalgi xulq.
     const qaytKam = Math.max(0, Number(order.pul_qaytarish_kamaytirgan) || 0);
     const aslKel = (order.kelishilgan_asl ?? null) !== null ? Number(order.kelishilgan_asl) : agreed + qaytKam;
-    const discount = Math.round((total - aslKel) * 100) / 100;
+    let discount = Math.round((total - aslKel) * 100) / 100;
+    // kech116 (G2-04): qatorlar — server YAGONA qoidasi (`order.hisob`, PDF lar bilan AYNAN): jami − chegirma (yoki +
+    // ustama) − qaytarish − kechirilgan qarz = kelishilgan; kelishilgan − to'langan = qarz. Kechirilgan qarz endi
+    // chegirmadan AJRATILGAN (ilgari «Chegirma» ichida edi); qiymatlar — hujjatdagi butun so'mlar (qatorlar qo'shiladi).
+    const hk = (order.hisob && order.hisob.korinish) ? order.hisob.korinish : null;
+    const kechirilganK = hk ? (Number(hk.kechirilgan) || 0) : 0;
+    const ustamaK = hk ? (Number(hk.ustama) || 0) : 0;
+    const refundK = hk ? (Number(hk.qaytarish) || 0) : qaytKam;
+    if (hk) discount = Number(hk.chegirma) || 0;
 
-    document.getElementById('pay-total').textContent = formatNum(total) + " so'm";
-    document.getElementById('pay-agreed').textContent = formatNum(agreed) + " so'm";
-    document.getElementById('pay-paid').textContent = formatNum(paid) + " so'm";
-    document.getElementById('pay-debt').textContent = formatNum(debt) + " so'm";
+    document.getElementById('pay-total').textContent = formatNum(hk ? hk.jami : total) + " so'm";
+    document.getElementById('pay-agreed').textContent = formatNum(hk ? hk.kelishilgan : agreed) + " so'm";
+    document.getElementById('pay-paid').textContent = formatNum(hk ? hk.tolangan : paid) + " so'm";
+    document.getElementById('pay-debt').textContent = formatNum(hk ? hk.qarz : debt) + " so'm";
     document.getElementById('pay-debt').dataset.qarz = String(debt);  // 124-band: aniq qarz (`_joriyQarz`)
 
     const sDeadline = document.getElementById('s-deadline');
@@ -2725,20 +2738,39 @@ async function loadPayments(orderId) {
     }
 
     const dRow = document.getElementById('pay-discount-row');
+    const dLabel = document.getElementById('pay-discount-label');
     if (discount > 0) {
       dRow.style.display = 'flex';
-      document.getElementById('pay-discount').textContent =
-        '−' + formatNum(discount) + " so'm (" + (order.discount_percent || 0).toFixed(1) + "%)";
+      if (dLabel) dLabel.textContent = 'Chegirma:';
+      // foiz: server qatori (`hisob.chegirma_foiz` — faqat narx chegirmasidan, PDF bilan bir xil «10%»); server
+      // `hisob` bermasa (eski kod) — avvalgi ko'rinish
+      const foiz = hk ? (Number(order.hisob.chegirma_foiz) || 0) : null;
+      document.getElementById('pay-discount').textContent = hk
+        ? '−' + formatNum(discount) + " so'm" + (foiz > 0 ? " (" + String(Math.round(foiz * 100) / 100) + "%)" : '')
+        : '−' + formatNum(discount) + " so'm (" + (order.discount_percent || 0).toFixed(1) + "%)";
+    } else if (ustamaK > 0) {
+      dRow.style.display = 'flex';
+      if (dLabel) dLabel.textContent = 'Ustama:';
+      document.getElementById('pay-discount').textContent = '+' + formatNum(ustamaK) + " so'm";
     } else {
       dRow.style.display = 'none';
     }
     const qRow = document.getElementById('pay-refund-row');
     if (qRow) {
-      if (qaytKam > 0) {
+      if (refundK > 0) {
         qRow.style.display = 'flex';
-        document.getElementById('pay-refund').textContent = '−' + formatNum(qaytKam) + " so'm";
+        document.getElementById('pay-refund').textContent = '−' + formatNum(refundK) + " so'm";
       } else {
         qRow.style.display = 'none';
+      }
+    }
+    const wRow = document.getElementById('pay-writeoff-row');
+    if (wRow) {
+      if (kechirilganK > 0) {
+        wRow.style.display = 'flex';
+        document.getElementById('pay-writeoff').textContent = '−' + formatNum(kechirilganK) + " so'm";
+      } else {
+        wRow.style.display = 'none';
       }
     }
 
