@@ -1334,6 +1334,10 @@ try:
     for _mn9, _r9 in _rules9.items():
         _cols9 = {c.name for c in _mod9[_mn9].__table__.columns}
         for _f9 in _r9:
+            # kech117 (A2): `Employee.yonalish_id` — ATAYLAB ruxsat etilgan bog'lanish (hodim yo'nalishini tahrirlash);
+            # korxonasi `crud.yonalish_tanlovi` (begona / yo'q — ValueError) va ORM qo'riqchisi (`_TENANT_REFS`) bilan.
+            if (_mn9, _f9) in (("Employee", "yonalish_id"),):
+                continue
             if _f9 in ("id", "company_id") or (_f9.endswith("_id") and _f9 != "telegram_id"):
                 _yomon9.append(f"{_mn9}.{_f9} (bog'lanish)")
             if _f9 not in _cols9 and not (_mn9 == "Employee" and _f9 in (
@@ -1743,6 +1747,8 @@ try:
     for _mn, _r in _cr10.items():
         _cols = {c.name: c for c in _mod10[_mn].__table__.columns}
         for _f in _r:
+            if (_mn, _f) in (("Employee", "yonalish_id"),):     # kech117 (A2) — 9i dagi izoh
+                continue
             if _f == "id" or _f == "company_id" or _f.endswith("_id") and _f != "telegram_id":
                 _yomon10.append(f"{_mn}.{_f} (bog'lanish)")
             elif _f not in _cols:

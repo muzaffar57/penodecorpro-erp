@@ -433,12 +433,17 @@ QADAMLAR = [
     # ── Mahsulot turi ──
     q("tur_yangi", amal=r"""closeModal('bom-modal'); openProductTypeModal();
         document.getElementById('pt-f-name').value = 'MRU Yangi tur'; document.getElementById('pt-f-unit').value = 'm²';
+        // kech117 (A2): tur yo'nalishi MAJBURIY — birinchi yo'nalish tanlanadi (asl kodda maydon yo'q)
+        { const _yo = [...((document.getElementById('pt-f-yonalish') || {}).options || [])].find(o => o.value);
+          if (_yo) __tanla('pt-f-yonalish', _yo.value); }
         __tanla('pt-f-pricing-formula', 'fixed_price'); document.getElementById('pt-f-fixed-price').value = '150 000';
         const c = document.getElementById('pt-f-supports-coating'); c.checked = true; c.dispatchEvent(new Event('change', {bubbles: true}));
         document.getElementById('pt-f-coating-mult').value = '2,5'; await saveProductType();""",
       natija="return {post: window.__sorovlar.filter(s => s.method === 'POST' && s.url === '/api/production/product-types').pop(), ochiq: __ochiq('pt-modal')};"),
     q("tur_xato", amal=r"""openProductTypeModal(); document.getElementById('pt-f-name').value = 'MRU Xato tur';
         document.getElementById('pt-f-unit').value = 'dona'; __tanla('pt-f-pricing-formula', 'fixed_price');
+        { const _yo = [...((document.getElementById('pt-f-yonalish') || {}).options || [])].find(o => o.value);
+          if (_yo) __tanla('pt-f-yonalish', _yo.value); }
         document.getElementById('pt-f-fixed-price').value = 'o\'n ming'; window.__msg = []; await saveProductType();""",
       natija="return {msg: window.__msg.slice(-1)[0], ochiq: __ochiq('pt-modal')};"),
     q("yakun", amal="closeModal('pt-modal'); await loadProductTypes(); switchProdTab('orders');",

@@ -405,8 +405,12 @@ TIZIM = {
                        "order_type", "status_txt", "str(i+1)"},
     "delivery_pdf.py": {'"<b>Transport:</b> " + "  ·  ".join(parts)', "{delivery.delivery_number}", "{group_id}",
                         "{order.order_number}", "{pct}", "{sale.id}", "{status_txt}"},
+    # kech117 (A2): `_uu` — yo'nalishlar PDF ida umumiy xarajat bo'linish usuli: o'zgarmas matn yoki `_x(nom)` + foiz
+    # (eski «Gips vs Penoplast» PDF i va uning `gips_foiz` / `penoplast_foiz` qiymatlari olib tashlandi)
     "finance_pdf.py": {"count_label", "label", "r[0]", "r[1]", "title", "{MONTH_NAMES[month]}", "{data['foyda_foiz']}",
-                       "{du.get('gips_foiz',0)}", "{du.get('penoplast_foiz',0)}", "{foyda_foiz}", "{net_sign}", "{year}"},
+                       "{foyda_foiz}", "{net_sign}", "{year}", "{_uu}",
+                       # kech117 (G6-09): son ko'rinishlari — ayiriladigan / ishorali summa, rentabellik foizi, «+» belgisi
+                       "_ayir(v) if ishora else _fmt_ishora(v)", "{f}", "{'+' if _yaxlit_butun(net) > 0 else ''}"},
 }
 
 
@@ -428,7 +432,8 @@ def buzilishlar(src, tizim):
                 if not isinstance(v, ast.FormattedValue) or v.format_spec is not None:
                     continue
                 e = v.value
-                if isinstance(e, ast.Call) and (getattr(e.func, "id", None) in ("_x", "_fmt", "_num", "len")
+                # kech117: `_fmt_ishora` — faqat son (ishora + raqamlar), `_fmt` kabi
+                if isinstance(e, ast.Call) and (getattr(e.func, "id", None) in ("_x", "_fmt", "_num", "len", "_fmt_ishora")
                                                 or getattr(e.func, "attr", None) == "strftime"):
                     continue
                 q = "{" + ast.get_source_segment(src, e) + "}"

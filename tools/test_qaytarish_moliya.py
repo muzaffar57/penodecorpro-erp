@@ -210,9 +210,28 @@ def nom(p="OY"):
     return f"{p}{_n[0]}"
 
 
-PT = (js(req(C, "post", "/api/production/product-types", json={
+
+
+def _asosiy_yonalish_id():
+    """kech117 (A2): korxonaning asosiy yo'nalishi («Penoplast»). Asl kodda (yo'nalishlar yo'q) — None."""
+    _f117 = getattr(crud, "standart_yonalish", None)
+    if _f117 is None:
+        return None
+    _d117 = SessionLocal()
+    try:
+        _y117 = _f117(_d117, 1)
+        _d117.commit()
+        return _y117.id if _y117 is not None else None
+    finally:
+        _d117.close()
+
+
+YON_ASOSIY = _asosiy_yonalish_id()
+# kech117 (A2): MRP turi ham asosiy yo'nalishga (ilgari «Penoplast va boshqa» turi) — shunda 4 shaklning hammasida
+# asosiy yo'nalish daromadi / tannarxi o'zgarishi hisobot bilan bir xil bo'lishi kerak
+PT = (js(req(C, "post", "/api/production/product-types", json=dict({
     "name": "OY Travertin", "unit": "m²", "input_template": "quantity_only",
-    "pricing_formula": "unit_based"})) or {}).get("id")
+    "pricing_formula": "unit_based"}, **({"yonalish_id": YON_ASOSIY} if YON_ASOSIY else {})))) or {}).get("id")
 BOM = (js(req(C, "post", "/api/production/boms", json={
     "product_type_id": PT, "variant_name": "Asosiy", "batch_quantity": 1,
     "items": [{"inventory_id": ID["QUM"], "quantity": 3}]})) or {}).get("id")
@@ -474,7 +493,8 @@ def hisobot(y=Y, m=M, cid=1):
     try:
         with contextlib.redirect_stdout(_quiet):
             r = services.get_monthly_report(s, y, m, company_id=cid)
-        tb = r.get("turlar_boyicha") or {}
+        # kech117 (A2): «turlar bo'yicha» o'rniga — yo'nalishlar bo'yicha daromad (asosiy yo'nalish)
+        _yd = {y.get("kalit"): y.get("daromad") for y in (r.get("yonalishlar_daromadi") or [])}
         return {"daromad_b": float(r.get("daromad_buyurtmalardan") or 0),
                 "ishlab": round(float(r.get("ishlab_chiqarish_xarajat") or 0), 2),
                 "fp_daromad": float(r.get("fp_sales_daromad") or 0),
@@ -485,7 +505,7 @@ def hisobot(y=Y, m=M, cid=1):
                 "q_daromad": float(r.get("qaytarish_daromad") or 0),
                 "q_tannarx": float(r.get("qaytarish_tannarx") or 0),
                 "q_soni": int(r.get("qaytarish_soni") or 0),
-                "tur_peno": float((tb.get("penoplast") or {}).get("daromad") or 0),
+                "tur_peno": float(_yd.get(f"y{YON_ASOSIY}") or 0),
                 "usta_kpi": float(r.get("usta_kpi_xarajat") or 0),
                 "ehson": float(r.get("ehson_xarajat") or 0),
                 "hodim": float(r.get("hodimlar_moslashuvchan_xarajat") or 0)}
@@ -525,9 +545,11 @@ def umumiy():
             bugun = float(services.get_today_stats(s, company_id=1).get("today_profit") or 0)
             split = services.calculate_split_profit_report(s, Y, M, company_id=1)
             pd = float(crud.get_projects_dashboard_stats(s, company_id=1).get("total_profit") or 0)
+        # kech117 (A2): yo'nalishlar hisoboti — asosiy yo'nalish ustuni (tannarx — tiyin aniqligida)
+        _asos = [y for y in (split.get("yonalishlar") or []) if y.get("asosiy")]
         return {"kassa": kassa, "ehson_foyda": ehs, "kun_total": float(kun.get("total") or 0),
                 "kun_cost": float(kun.get("cost") or 0), "kun_q_soni": int(kun.get("qaytarish_soni") or 0),
-                "bugun": round(bugun, 2), "split_peno": float((split.get("penoplast") or {}).get("xomashyo_xarajati") or 0),
+                "bugun": round(bugun, 2), "split_peno": float(((_asos[0].get("aniq") or {}).get("tannarx") or 0) if _asos else 0),
                 "loyihalar": pd}
     finally:
         s.close()
@@ -688,7 +710,7 @@ for sh in ("profil", "panel", "tm", "mrp"):
         check(f"{t} qaytarish qatori: tannarx = −omborga qaytgan", teng(ayir(h1, h2, "q_tannarx"), -stock), (ayir(h1, h2, "q_tannarx"), stock))
         check(f"{t} qaytarish qatori: hodisalar soni {KUTILGAN_HODISA[v]}", h2["q_soni"] - h1["q_soni"] == KUTILGAN_HODISA[v],
               (h1["q_soni"], h2["q_soni"]))
-        check(f"{t} turlar (penoplast) daromadi Δ = hisobot daromadi Δ", teng(ayir(h0, h2, "tur_peno"), ayir(h0, h2, "daromad_b")),
+        check(f"{t} asosiy yo'nalish (Penoplast) daromadi Δ = hisobot daromadi Δ", teng(ayir(h0, h2, "tur_peno"), ayir(h0, h2, "daromad_b")),
               (ayir(h0, h2, "tur_peno"), ayir(h0, h2, "daromad_b")))
         # usta KPI (buyurtma — shu oy)
         check(f"{t} usta oylik foydasi = yo'qotilgan foyda bilan", teng(u2["oy_foyda"], k_foyda), (u2["oy_foyda"], k_foyda))
@@ -702,7 +724,8 @@ for sh in ("profil", "panel", "tm", "mrp"):
               (ayir(g1, g2, "loyihalar"), delta, stock))
         _ds = js(req(C, "get", f"/api/projects/{pid}/detail-stats")) or {}
         check(f"{t} loyiha detali foydasi", teng(_ds.get("total_profit"), k_foyda, 1.01), (_ds.get("total_profit"), k_foyda))
-        check(f"{t} bo'lingan hisobot xomashyo Δ", teng(ayir(g0, g2, "split_peno"), k_tan, 1.01), (ayir(g0, g2, "split_peno"), k_tan))
+        check(f"{t} yo'nalishlar hisoboti: asosiy yo'nalish tannarxi Δ", teng(ayir(g0, g2, "split_peno"), k_tan, 1.01),
+              (ayir(g0, g2, "split_peno"), k_tan))
         # qayta sotuv
         sot = (None, 0.0, 0.0)
         if v in ("A", "D") and yz["fp"]:

@@ -737,8 +737,10 @@ except Exception as e:
     _vr = {"XATO": str(e)}
 _et = _vr.get("ExpenseTransaction", {}) if isinstance(_vr, dict) else {}
 _oa = _vr.get("OrderAgreed", {}) if isinstance(_vr, dict) else {}
-check("H qoidalar — ExpenseTransaction AYNAN 5 kalit",
-      sorted(_et) == ["amount", "category", "date", "notes", "production_type"], sorted(_et))
+# kech117 (A2): + `yonalish_id` (korxona yo'nalishi; `production_type` — eski mijozlar uchun qoldi)
+check("H qoidalar — ExpenseTransaction AYNAN 6 kalit (kech117: + yonalish_id)",
+      sorted(_et) == ["amount", "category", "date", "notes", "production_type", "yonalish_id"]
+      and _et.get("yonalish_id") == ("id", True), [sorted(_et), _et.get("yonalish_id")])
 check("H qoidalar — amount musbat, sig'im chegarasi",
       _et.get("amount") == ("son", False, True, getattr(crud, "_ORDER_ITEM_MAX_MONEY", None)),
       _et.get("amount"))

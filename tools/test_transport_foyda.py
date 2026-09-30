@@ -186,6 +186,18 @@ def sof(y=None, m=None):
     return hisobot(y, m).get("sof_foyda")
 
 
+def yon_qoshimcha(y=None, m=None):
+    """kech117 (A2): yo'nalishlar hisobotida ASOSIY yo'nalish (Penoplast) ning bevosita «qo'shimcha xarajatlar» qismi
+    (tiyin aniqligida; ilgari — `turlar_boyicha.penoplast.qoshimcha_xarajat`). Topilmasa — None."""
+    d = js(req(C, "get", "/api/finance/yonalishlar", params={"year": y or Y, "month": m or M}))
+    if not isinstance(d, dict):
+        return None
+    for yon in d.get("yonalishlar") or []:
+        if isinstance(yon, dict) and yon.get("asosiy"):
+            return ((yon.get("aniq") or {}).get("bevosita_qismlari") or {}).get("qoshimcha", 0.0)
+    return None
+
+
 def tarix_sof(y=None, m=None):
     d = js(req(C, "get", "/api/finance/history"))
     if not isinstance(d, list):
@@ -363,7 +375,7 @@ check("C1 tannarxga qo'shilmasa — sof foyda darhol −500 (oddiy xarajat)", r.
       [r.status_code, ayir(s0, s1)])
 check("C2 ... Moliya yozuvi manbasi \"inventory_receipt\", narx o'zgarmagan", tx_manba(rid3) == ["inventory_receipt"]
       and teng(narx(M_C3), 1000.0), [tx_manba(rid3), narx(M_C3)])
-tb0 = ((hisobot().get("turlar_boyicha") or {}).get("penoplast") or {}).get("qoshimcha_xarajat")
+tb0 = yon_qoshimcha()
 r = kirim(M_C4, 10, 1000.0, 500, True, "penoplast")
 rid4 = (js(r) or {}).get("receipt_id") if isinstance(js(r), dict) else None
 s2 = sof()
@@ -372,10 +384,11 @@ check("C3 tannarxga qo'shilsa — sof foyda darhol O'ZGARMAYDI (ikki marta EMAS)
 check("C4 ... narx +50 / blok (tannarxda), Moliya yozuvi manbasi KIRIM_TANNARX_MANBA",
       teng(narx(M_C4), 1050.0) and tx_manba(rid4) == [getattr(models, "KIRIM_TANNARX_MANBA", "?")],
       [narx(M_C4), tx_manba(rid4)])
-tb1 = ((hisobot().get("turlar_boyicha") or {}).get("penoplast") or {}).get("qoshimcha_xarajat")
-check("C5 turlar bo'linishi (penoplast qo'shimcha xarajati) — tannarxdagi xarajat qayta qo'shilmaydi", teng(ayir(tb0, tb1), 0),
-      [tb0, tb1])
-check("C6 ... tannarxga qo'shilmagan kirim xarajati bo'linishda BOR (nazorat)", teng(tb0, 500) or (tb0 or 0) >= 500, tb0)
+tb1 = yon_qoshimcha()
+check("C5 yo'nalishlar bo'linishi (Penoplast bevosita qo'shimcha xarajati) — tannarxdagi xarajat qayta qo'shilmaydi",
+      tb0 is not None and tb1 is not None and teng(ayir(tb0, tb1), 0), [tb0, tb1])
+check("C6 ... tannarxga qo'shilmagan kirim xarajati bo'linishda BOR (nazorat)", tb0 is not None and (teng(tb0, 500) or tb0 >= 500),
+      tb0)
 qh = hisobot().get("qoshimcha_xarajatlar") or {}
 check("C7 qo'shimcha xarajatlar ro'yxatida transport_kirim = 500 (faqat tannarxsiz hujjat)", teng(qh.get("transport_kirim"), 500), qh)
 o3, o4 = buyurtma(M_C3, 80), buyurtma(M_C4, 80)
@@ -559,8 +572,15 @@ check("H2 hisobot: YAXLITLANMAGAN qiymatlar (inbound_aniq / outbound_company_ani
       and '"inbound_aniq": float(inbound_total)' in _srct and '"outbound_company_aniq": float(outbound_company)' in _srct)
 check("H3 qo'shimcha xarajatlar: KIRIM_TANNARX_MANBA chiqariladi, NULL saqlanadi (or_)",
       "_or_kt(ExpenseTransaction.source.is_(None), ExpenseTransaction.source != _KTM)" in _srcr)
-check("H4 turlar bo'linishi: gips va penoplast ikkalasida _et_foydaga",
-      "_ET.production_type == 'gips', _et_foydaga," in _srcr and "_ET.production_type == 'penoplast', _et_foydaga," in _srcr)
+try:
+    _srcy = inspect.getsource(services.calculate_split_profit_report)
+except Exception:                          # noqa: BLE001
+    _srcy = ""
+# kech117 (A2): «turlar bo'yicha» (gips / penoplast) o'rniga — yo'nalishlar hisoboti: tannarxga qo'shilgan kirim xarajati
+# (KIRIM_TANNARX_MANBA) bevosita «qo'shimcha» ga QAYTA yozilmaydi
+check("H4 yo'nalishlar bo'linishi: KIRIM_TANNARX_MANBA yozuvi bevosita qo'shimchaga kirmaydi",
+      tartibda(_srcy, "KIRIM_TANNARX_MANBA as _KTM", "_ET.yonalish_id.isnot(None)",
+               "elif et.source is None or et.source != _KTM:", 'bevosita["qoshimcha"][k] ='))
 check("H5 kunlik: kirish transporti korxona filtri bilan qo'shiladi",
       tartibda(_srcd, "_teq_day = db.query(_func_td.sum(_TE_day.amount))", "_TE_day.company_id == company_id",
                "transport_total += float(_teq_day.scalar() or 0)", "total_expense = "))

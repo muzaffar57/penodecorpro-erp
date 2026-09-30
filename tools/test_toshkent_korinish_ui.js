@@ -251,7 +251,8 @@ async function ichki() {
             [m.el('brak-sum-start').value, m.el('brak-sum-end').value]);
   });
   await sinov('T6', async () => {
-    const m = muhit({ qoshimcha: fnlar(FIN, PUL.concat(['openTxModal', 'editTx'])) });
+    // kech117 (A2): openTxModal / editTx yashirin yo'nalish variantini `txYonalishVarianti` bilan tayyorlaydi
+    const m = muhit({ qoshimcha: fnlar(FIN, PUL.concat(['openTxModal', 'editTx', 'txYonalishVarianti'])) });
     await yurgiz(m, `openTxModal();`);
     const yangi = m.el('tx-f-date').value;
     await yurgiz(m, `editTx(5, '${LAHZA}', 'boshqa', 7000, '', '');`);

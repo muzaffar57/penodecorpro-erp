@@ -718,9 +718,14 @@ _TP = set(getattr(crud, "_TRANSPORT_TOLOVCHI", {}) or {})
 _PT = set(getattr(crud, "_ISHLAB_CHIQARISH_TURI", {}) or {})
 check("G11 transport_payer qiymatlari UI dagi bilan bir xil",
       _TP == {"none", "self", "supplier"}, f"{sorted(_TP)}")
-check("G12 production_type UI dagi tanlovlarni qamrab oladi",
-      {"penoplast", "gips"} <= _PT and '<option value="penoplast">' in RCV,
-      f"{sorted(_PT)}")
+# kech117 (A2 — ATAYLAB o'zgargan qoida): sahifa endi korxona YO'NALISHLARINI (`yonalishlar_royxati`) ko'rsatadi va
+# `yonalish_id` yuboradi; eski `production_type` (API) qabul qilinishda davom etadi ('penoplast' — asosiy yo'nalish).
+_RR = (getattr(crud, "_val_rules", lambda: {})() or {}).get("Receipt", {})
+check("G12 kirim yo'nalishi: sahifa yo'nalishlar ro'yxatidan `yonalish_id` yuboradi; qoida — id (bo'sh mumkin); eski "
+      "production_type ham qabul",
+      {"penoplast", "gips"} <= _PT and "yonalishlar_royxati(current_user.company_id)" in RCV
+      and "yonalish_id:" in RCV and _RR.get("yonalish_id") == ("id", True) and "production_type" in _RR,
+      f"{sorted(_PT)} {_RR.get('yonalish_id')}")
 
 print()
 print("=" * 60)

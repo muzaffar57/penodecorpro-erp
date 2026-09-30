@@ -184,10 +184,18 @@ def moliya_brak():
 
 
 def liniya_peno_brak():
+    """Yo'nalishlar hisobotida asosiy («Penoplast») yo'nalishning brak + tayyor mahsulot yo'qotishi (bevosita + umumiy
+    ulush, tiyinda). kech117 (A2): hisobot «Gips / Penoplast» ikkiga emas, korxona yo'nalishlariga bo'linadi — shu
+    korxonada bitta yo'nalish bo'lgani uchun u butun brakni oladi (ilgari `["penoplast"]["brak_xarajati"]`)."""
     db.expire_all()
     try:
-        r = services.calculate_split_profit_report(db, YIL, OY, company_id=1)
-        return round(float(((r or {}).get("penoplast") or {}).get("brak_xarajati", 0) or 0), 2)
+        r = services.calculate_split_profit_report(db, YIL, OY, company_id=1) or {}
+        if "yonalishlar" not in r:           # eski tuzilma (asl kod)
+            return round(float((r.get("penoplast") or {}).get("brak_xarajati", 0) or 0), 2)
+        y = next((x for x in r["yonalishlar"] if x.get("asosiy")), {})
+        a = y.get("aniq") or {}
+        return round(sum(float((a.get(q) or {}).get(k, 0) or 0) for q in ("bevosita_qismlari", "ulush_qismlari")
+                         for k in ("brak", "tm_yoqotish")), 2)
     except Exception as e:
         return f"xato: {type(e).__name__}"
 

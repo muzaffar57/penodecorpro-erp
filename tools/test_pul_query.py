@@ -1189,8 +1189,10 @@ def g_bolimi():
           all(k in vr for k in ("TransportExpense", "Payment", "GiftTier", "GiftPeriodOpen"))
           and set(vr.get("Payment", {})) == {"order_id", "amount", "payment_type", "payment_method",
                                              "received_by", "notes", "confirm_overpay"}
+          # kech117 (A2): + `yonalish_id` (transport xarajatining korxona yo'nalishi)
           and set(vr.get("TransportExpense", {})) == {"amount", "materials_note", "notes",
-                                                      "production_type"}, list(vr)[-6:])
+                                                      "production_type", "yonalish_id"},
+          [list(vr)[-6:], sorted(vr.get("TransportExpense", {}))])
     tt = getattr(crud, "_TOLOV_TURI", {})
     tu = getattr(crud, "_TOLOV_USULI_MIJOZ", {})
     from models import PaymentType, PaymentMethod

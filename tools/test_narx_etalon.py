@@ -778,22 +778,26 @@ for chiqadi, kerak in [(2.5, 30), (3.0, 10), (1.75, 7)]:
 
 
 # ════════════════════════════════════════════════════════════════
-bolim("I. LINIYA BO'YICHA MOLIYA — gips / penoplast ajratilishi")
+bolim("I. YO'NALISHLAR BO'YICHA MOLIYA (kech117, A2) — daromad, tannarx, xarajat ulushi")
 # ════════════════════════════════════════════════════════════════
-# ⚠️ BOSQICH 3 NING 12-BANDI AYNAN SHU YERNI QAYTA YOZADI.
-# Bugungi qoida IKKI QISMDAN iborat:
-#   1) Daromad: har bir detalning ulushi = (detal summasi / buyurtma jami)
-#      x kelishilgan summa. Turkumi 'gips' bo'lsa gipsga, QOLGANI HAMMASI
-#      penoplastga (dona, blok, panel, termopanel, loy_sotish, mrp_product).
-#   2) To'g'ridan-to'g'ri xomashyo: foyda breakdown'idagi qator nomi
-#      "🧱 Gips" bilan BOSHLANSA gipsga — ya'ni MATN solishtiriladi.
-# Ko'chirishdan keyin ikkala qoida ham o'zgaradi. JAMI daromad
-# o'zgarmasligi SHART.
+# kech117 (A2 — egasi QARORLARI kech114 00:08): «gips / penoplast» ikki liniyasi o'rniga — korxonaning YO'NALISHLARI
+# (Sozlamalar; «Penoplast» — asosiy, standart). Qoidalar (biznes qoidasidan, kod EMAS):
+#   1) Daromad: har detalning ulushi = (detal summasi / buyurtma jami) x kelishilgan summa. Profil, panel, dona, blok,
+#      loy sotish — ASOSIY yo'nalishga (Penoplast); MRP mahsuloti — mahsulot TURINING yo'nalishiga; turi biriktirilmagan
+#      yoki eskirgan turkum (gips, termopanel) — «Belgilanmagan» (avtomatik Penoplast EMAS).
+#   2) Tannarx — detalning o'z yo'nalishiga (aniq).
+#   3) Yo'nalishi tanlangan xarajat / hodim — 100% o'sha yo'nalishga; qolgan umumiy xarajatlar — DAROMAD ULUSHIDA
+#      (daromad yo'q oyda — ko'rinadigan yo'nalishlarga teng).
+#   4) Har ustunda Daromad − Tannarx − Jami xarajat = Sof foyda; sof foydalar yig'indisi = Moliya sof foydasi.
+# Asl kodda (yo'nalishlar yo'q) bu bo'lim YIQILADI (qulamaydi): qiymatlar `nan` bo'ladi.
 
-from models import Order as _O, OrderStatus as _OS, Employee, ExpenseTransaction  # noqa: E402
+from models import OrderStatus as _OS, Employee, ExpenseTransaction  # noqa: E402
+from production_models import ProductType as _PT117  # noqa: E402
+import crud as _crud117  # noqa: E402
 import datetime as _dt  # noqa: E402
 
 YIL, OY = 2026, 8
+NAN = float("nan")
 
 
 def _tayyorla(o, kun=15):
@@ -804,48 +808,106 @@ def _tayyorla(o, kun=15):
     return o
 
 
-# I1. Daromad ulushi — chegirma bilan
+def _xavfsiz(f):
+    """Asl kodda yo'q funksiya / kalit — None (bo'lim yiqiladi, qulamaydi)."""
+    try:
+        return f()
+    except Exception as e:                 # noqa: BLE001
+        db.rollback()
+        print(f"  ! {type(e).__name__}: {str(e)[:160]}")
+        return None
+
+
+def _n(f):
+    try:
+        v = f()
+        return NAN if v is None else float(v)
+    except Exception:                      # noqa: BLE001
+        return NAN
+
+
+Y_ASOSIY = _xavfsiz(lambda: _crud117.standart_yonalish(db, B.CID))
+db.commit()
+Y_TRAV = _xavfsiz(lambda: _crud117.yonalish_yarat(db, B.CID, "Travertin"))
+K_ASOSIY = f"y{Y_ASOSIY.id}" if Y_ASOSIY is not None else "?"
+K_TRAV = f"y{Y_TRAV.id}" if Y_TRAV is not None else "?"
+K_BELG = "belgilanmagan"
+_yon_bor = hasattr(_PT117, "yonalish_id")
+PT_TRAV = _PT117(company_id=B.CID, name="I Travertin", unit="m²", input_template="quantity_only",
+                 pricing_formula="unit_based",
+                 **({"yonalish_id": Y_TRAV.id if Y_TRAV is not None else None} if _yon_bor else {}))
+PT_BELG = _PT117(company_id=B.CID, name="I Belgisiz tur", unit="dona", input_template="quantity_only",
+                 pricing_formula="unit_based")
+db.add_all([PT_TRAV, PT_BELG])
+db.commit()
+
+
+def _hisobot(oy=OY):
+    return _xavfsiz(lambda: services.get_monthly_report(db, YIL, oy, company_id=B.CID)) or {}
+
+
+def _bolingan(oy=OY):
+    return _xavfsiz(lambda: services.calculate_split_profit_report(db, YIL, oy, company_id=B.CID)) or {}
+
+
+def _yd(rep, kalit):
+    """Oylik hisobot `yonalishlar_daromadi` — yo'nalish daromadi (yo'q bo'lsa 0; kalit ro'yxati yo'q — nan)."""
+    r = rep.get("yonalishlar_daromadi")
+    if not isinstance(r, list):
+        return NAN
+    return float(next((y.get("daromad") or 0 for y in r if y.get("kalit") == kalit), 0.0))
+
+
+def _ust(sp, kalit):
+    """Yo'nalishlar hisobotining ustuni (tiyin aniqligidagi `aniq`); yo'q — {}."""
+    return next(((y.get("aniq") or {}) for y in (sp.get("yonalishlar") or []) if y.get("kalit") == kalit), {})
+
+
+def _qism(sp, kalit, turi, nom):
+    return _n(lambda: (_ust(sp, kalit).get(turi) or {}).get(nom, 0.0) if _ust(sp, kalit) else None)
+
+
+# I1. Daromad ulushi — chegirma bilan: profil (asosiy) 800k + MRP «Travertin» 200k, kelishilgan 900k
 o = B.buyurtma_yasa(db, loyiha, [
-    dict(name="I1 gips", category="gips", quantity=10, unit_price=20_000,
-         total_price=200_000, is_coated=False, gips_unit="metr"),
+    dict(name="I1 travertin", category="mrp_product", quantity=10, unit_price=20_000,
+         total_price=200_000, is_coated=False, product_type_id=PT_TRAV.id),
     dict(name="I1 profil", category="profil", width=20, thickness=10, length=4,
          quantity=1, unit_price=800_000, total_price=800_000, is_coated=False,
          penoplast_id=inv["14P"].id),
 ], total_amount=1_000_000, agreed_amount=900_000)
 _tayyorla(o)
-rep = services.get_monthly_report(db, YIL, OY, company_id=B.CID)
-tb = rep["turlar_boyicha"]
-check("I1 gips daromadi = 200k/1mln x 900k", tb["gips"]["daromad"], 180_000)
-check("I1 penoplast daromadi = 800k/1mln x 900k",
-      tb["penoplast"]["daromad"], 720_000)
-check("I2 JAMI = gips + penoplast (chegirmadan keyingi summa)",
-      tb["gips"]["daromad"] + tb["penoplast"]["daromad"], 900_000)
+rep = _hisobot()
+check("I1 Travertin (MRP turi yo'nalishi) daromadi = 200k/1mln x 900k", _yd(rep, K_TRAV), 180_000)
+check("I1 Penoplast (asosiy: profil) daromadi = 800k/1mln x 900k", _yd(rep, K_ASOSIY), 720_000)
+check("I2 JAMI = yo'nalishlar yig'indisi (chegirmadan keyingi summa)", _yd(rep, K_TRAV) + _yd(rep, K_ASOSIY), 900_000)
 
-# I3. GIPS BO'LMAGAN BARCHA turkumlar penoplastga tushadi
-for kat, qo in (("dona", dict(unit_price_for_volume=1000)), ("blok", dict(length=1.0)),
-                ("panel", dict(width=50, thickness=2)), ("termopanel", {}),
-                ("loy_sotish", {}), ("mrp_product", {})):
+# I3. Asosiy turkumlar — Penoplastga; eskirgan turkum va turi biriktirilmagan MRP — «Belgilanmagan»
+_oldin = rep
+for kat, qo, kalit in (("dona", dict(unit_price_for_volume=1000), K_ASOSIY), ("blok", dict(length=1.0), K_ASOSIY),
+                       ("panel", dict(width=50, thickness=2), K_ASOSIY), ("loy_sotish", {}, K_ASOSIY),
+                       ("termopanel", {}, K_BELG), ("mrp_product", {}, K_BELG),
+                       ("mrp_product", dict(product_type_id=PT_BELG.id), K_BELG)):
     o2 = B.buyurtma_yasa(db, loyiha, [dict(
         name=f"I3 {kat}", category=kat, quantity=1, unit_price=100_000,
         total_price=100_000, is_coated=False, **qo)],
         total_amount=100_000, agreed_amount=100_000)
     _tayyorla(o2, kun=16)
-    yangi = services.get_monthly_report(db, YIL, OY, company_id=B.CID)["turlar_boyicha"]
-    check(f"I3 '{kat}' turkumi PENOPLASTga tushadi (gips emas)",
-          yangi["penoplast"]["daromad"] - tb["penoplast"]["daromad"], 100_000)
-    check(f"I3 '{kat}' — gips daromadi o'zgarmadi", yangi["gips"]["daromad"], 180_000)
-    tb = yangi
+    yangi = _hisobot()
+    _iz = " (turi biriktirilmagan)" if qo.get("product_type_id") else ""
+    check(f"I3 '{kat}'{_iz} turkumi — {'PENOPLAST' if kalit == K_ASOSIY else 'BELGILANMAGAN'} ga tushadi",
+          _yd(yangi, kalit) - _yd(_oldin, kalit), 100_000)
+    check(f"I3 '{kat}'{_iz} — Travertin daromadi o'zgarmadi", _yd(yangi, K_TRAV), 180_000)
+    _oldin = yangi
 
-PENO_JAMI = tb["penoplast"]["daromad"]   # 720k + 6 x 100k = 1 320 000
-check("I4 oltita turkumdan keyin penoplast daromadi", PENO_JAMI, 1_320_000)
+PENO_JAMI = _yd(_oldin, K_ASOSIY)   # 720k + 4 x 100k = 1 120 000
+check("I4 to'rtta asosiy turkumdan keyin Penoplast daromadi", PENO_JAMI, 1_120_000)
+check("I4 «Belgilanmagan» daromadi (termopanel, turisiz MRP, biriktirilmagan tur)", _yd(_oldin, K_BELG), 300_000)
 
-rep = services.get_monthly_report(db, YIL, OY, company_id=B.CID)
-check("I5 hisobotdagi umumiy daromad = gips + penoplast",
-      rep["turlar_boyicha"]["gips"]["daromad"]
-      + rep["turlar_boyicha"]["penoplast"]["daromad"],
-      round(rep["daromad"]))
+rep = _hisobot()
+check("I5 hisobotdagi umumiy daromad = yo'nalishlar yig'indisi",
+      _n(lambda: sum(float(y["daromad"]) for y in rep["yonalishlar_daromadi"])), round(rep.get("daromad", NAN)))
 
-# I6. To'g'ridan-to'g'ri xomashyo — "🧱 Gips" MATNI bo'yicha ajratiladi
+# I6. QULF: eski gips buyurtmasi — to'g'ridan-to'g'ri xomashyo yo'q (tannarx 0), daromadi — «Belgilanmagan»
 o3 = B.buyurtma_yasa(db, loyiha, [
     dict(name="I6 gips", category="gips", quantity=50, unit_price=20_000,
          total_price=1_000_000, is_coated=False, gips_unit="metr"),
@@ -857,132 +919,135 @@ gips_qatorlar = [x for x in pd["breakdown"] if str(x["nomi"]).startswith("🧱 G
 check_eq("I6 QULF: breakdown'da '🧱 Gips' qatori endi UMUMAN yo'q",
          len(gips_qatorlar), 0)
 check("I6 QULF: gips buyurtmasining tan narxi 0", pd["tan_narxi"], 0.0)
+check("I6 eski gips turkumi — «Belgilanmagan» daromadiga (+1 mln)", _yd(_hisobot(), K_BELG), 1_300_000)
 
-sp = services.calculate_split_profit_report(db, YIL, OY, company_id=B.CID)
-check("I7 QULF: split — gips xomashyo xarajati 0 (manba yo'q)",
-      sp["gips"]["xomashyo_xarajati"], 0)
-# Penoplast hajmini MUSTAQIL yig'amiz: I1 profil + I3 dona/blok/panel
-# (termopanel, loy_sotish, mrp_product — penoplast ishlatmaydi)
+sp = _bolingan()
+check("I7 QULF: «Belgilanmagan» ustuni tannarxi 0 (gips, termopanel, turisiz MRP — xomashyosiz)",
+      _n(lambda: _ust(sp, K_BELG)["tannarx"]), 0)
+# Penoplast hajmini MUSTAQIL yig'amiz: I1 profil + I3 dona/blok/panel (loy_sotish — penoplast ishlatmaydi)
 peno_hajm = (etalon_profil(20, 10, 4, 0)[0]          # I1 profil
              + etalon_dona_eski(1000, M3_14, 1)      # I3 dona
              + etalon_blok(1.0, V14)                 # I3 blok (1 blok)
              + etalon_panel(50, 2, 1, 0)[0])         # I3 panel
-check("I8 split — penoplast xomashyo xarajati (4 ta detal yig'indisi)",
-      sp["penoplast"]["xomashyo_xarajati"], round(peno_hajm * M3_14), atol=1.5)
+check("I8 Penoplast ustuni tannarxi = 4 ta detal xomashyosi yig'indisi",
+      _n(lambda: _ust(sp, K_ASOSIY)["tannarx"]), round(peno_hajm * M3_14), atol=1.5)
+check("I8 Travertin ustuni tannarxi 0 (MRP ishlab chiqarishi yo'q)", _n(lambda: _ust(sp, K_TRAV)["tannarx"]), 0)
 
-# I9. Daromad nisbati — umumiy xarajat shu nisbatda bo'linadi
-g_d = float(sp["gips"]["daromad"])
-p_d = float(sp["penoplast"]["daromad"])
-check("I9 daromad_ulushi gips_foiz = gips / (gips + penoplast)",
-      sp["daromad_ulushi"]["gips_foiz"], round(g_d / (g_d + p_d) * 100, 1))
-check("I9 daromad_ulushi penoplast_foiz = 100 - gips_foiz",
-      sp["daromad_ulushi"]["penoplast_foiz"],
-      round(100 - round(g_d / (g_d + p_d) * 100, 1), 1))
+# I9. Daromad ulushi — umumiy xarajat shu nisbatda bo'linadi («Belgilanmagan» ham daromadli ustun)
+_dar = {k: _n(lambda k=k: _ust(sp, k)["daromad"]) for k in (K_ASOSIY, K_TRAV, K_BELG)}
+_dj = sum(_dar.values())
+for k, nm in ((K_ASOSIY, "Penoplast"), (K_TRAV, "Travertin"), (K_BELG, "Belgilanmagan")):
+    check(f"I9 ulush_foiz {nm} = daromadi / jami daromad",
+          _n(lambda k=k: next(y["ulush_foiz"] for y in sp["yonalishlar"] if y["kalit"] == k)),
+          round(_dar[k] / _dj * 100, 1) if _dj else NAN)
+check_eq("I9 ulush usuli — daromad", sp.get("ulush_usuli"), "daromad")
 
-# I10. Yo'nalishi belgilangan qo'shimcha xarajat — o'z liniyasiga to'liq
+# I10. Yo'nalishi belgilangan qo'shimcha xarajat — o'z yo'nalishiga to'liq (bevosita)
+_et_yon = {"yonalish_id": Y_TRAV.id if Y_TRAV is not None else None} if hasattr(ExpenseTransaction, "yonalish_id") else {}
+_et_asos = {"yonalish_id": Y_ASOSIY.id if Y_ASOSIY is not None else None} if hasattr(ExpenseTransaction, "yonalish_id") else {}
 db.add(ExpenseTransaction(company_id=B.CID, date=_dt.datetime(YIL, OY, 10),
-                          category="boshqa", amount=500_000,
-                          production_type="gips"))
+                          category="boshqa", amount=500_000, **_et_yon))
 db.add(ExpenseTransaction(company_id=B.CID, date=_dt.datetime(YIL, OY, 10),
-                          category="boshqa", amount=300_000,
-                          production_type="penoplast"))
+                          category="boshqa", amount=300_000, **_et_asos))
 db.commit()
-tb2 = services.get_monthly_report(db, YIL, OY, company_id=B.CID)["turlar_boyicha"]
-check("I10 gips yo'nalishli xarajat = 500k", tb2["gips"]["qoshimcha_xarajat"], 500_000)
-check("I10 penoplast yo'nalishli xarajat = 300k",
-      tb2["penoplast"]["qoshimcha_xarajat"], 300_000)
+sp2 = _bolingan()
+check("I10 Travertin yo'nalishli xarajat = 500k (bevosita, qo'shimcha)",
+      _qism(sp2, K_TRAV, "bevosita_qismlari", "qoshimcha"), 500_000)
+check("I10 Penoplast yo'nalishli xarajat = 300k (bevosita, qo'shimcha)",
+      _qism(sp2, K_ASOSIY, "bevosita_qismlari", "qoshimcha"), 300_000)
+check("I10 yo'nalishli xarajat umumiy ulushga KIRMAYDI (qo'shimcha umumiy = 0)",
+      _n(lambda: sp2["umumiy_xarajatlar"]["qoshimcha"]), 0)
 
-# I11. Yo'nalishi BELGILANMAGAN xarajat — daromad nisbatida bo'linadi
-sp_old = services.calculate_split_profit_report(db, YIL, OY, company_id=B.CID)
+# I11. Yo'nalishi BELGILANMAGAN («Umumiy») xarajat — daromad nisbatida bo'linadi
+sp_old = sp2
 db.add(ExpenseTransaction(company_id=B.CID, date=_dt.datetime(YIL, OY, 11),
-                          category="boshqa", amount=1_000_000,
-                          production_type=None))
+                          category="boshqa", amount=1_000_000, production_type=None))
 db.commit()
-sp_new = services.calculate_split_profit_report(db, YIL, OY, company_id=B.CID)
-ulush_g = float(sp_new["gips"]["daromad"]) / (
-    float(sp_new["gips"]["daromad"]) + float(sp_new["penoplast"]["daromad"]))
-check("I11 belgilanmagan 1mln xarajat — gips ulushi daromad nisbatida",
-      sp_new["gips"]["umumiy_xarajat_ulushi"]
-      - sp_old["gips"]["umumiy_xarajat_ulushi"],
-      round(1_000_000 * ulush_g), atol=1.5)
-check("I11 belgilanmagan 1mln xarajat — penoplast ulushi",
-      sp_new["penoplast"]["umumiy_xarajat_ulushi"]
-      - sp_old["penoplast"]["umumiy_xarajat_ulushi"],
-      round(1_000_000 * (1 - ulush_g)), atol=1.5)
+sp_new = _bolingan()
+for k, nm in ((K_ASOSIY, "Penoplast"), (K_TRAV, "Travertin"), (K_BELG, "Belgilanmagan")):
+    check(f"I11 umumiy 1 mln xarajat — {nm} ulushi daromad nisbatida",
+          _qism(sp_new, k, "ulush_qismlari", "qoshimcha") - _qism(sp_old, k, "ulush_qismlari", "qoshimcha"),
+          1_000_000 * _dar[k] / _dj if _dj else NAN, atol=0.02)
 
-# I12. Hodim — yo'nalishi belgilangan bo'lsa 100% o'z liniyasiga
+# I12. Hodim — yo'nalishi belgilangan bo'lsa 100% o'z yo'nalishiga
 from models import PayType as _PayType  # noqa: E402
-emp = Employee(company_id=B.CID, name="I12 gips hodimi",
-               pay_type=_PayType.FIXED, fixed_amount=2_000_000,
-               production_type="gips", is_active=True,
-               hire_date=_dt.datetime(YIL, 1, 1))
+_emp_yon = {"yonalish_id": Y_TRAV.id if Y_TRAV is not None else None} if hasattr(Employee, "yonalish_id") else {}
+emp = Employee(company_id=B.CID, name="I12 travertin hodimi",
+               pay_type=_PayType.FIXED, fixed_amount=2_000_000, is_active=True,
+               hire_date=_dt.datetime(YIL, 1, 1), **_emp_yon)
 db.add(emp)
 db.commit()
-sp3 = services.calculate_split_profit_report(db, YIL, OY, company_id=B.CID)
-check("I12 yo'nalishi 'gips' bo'lgan hodim — 100% gipsga",
-      sp3["gips"]["hodim_xarajati"], 2_000_000)
-check("I12 penoplast hodim xarajati 0", sp3["penoplast"]["hodim_xarajati"], 0)
+sp3 = _bolingan()
+check("I12 yo'nalishi «Travertin» bo'lgan hodim — 100% Travertinga (bevosita)",
+      _qism(sp3, K_TRAV, "bevosita_qismlari", "hodimlar"), 2_000_000)
+check("I12 Penoplast bevosita hodim xarajati 0", _qism(sp3, K_ASOSIY, "bevosita_qismlari", "hodimlar"), 0)
 
-# I13. Yo'nalishsiz hodim — daromad nisbatida bo'linadi
+# I13. Yo'nalishsiz («Umumiy») hodim — daromad nisbatida bo'linadi
 emp2 = Employee(company_id=B.CID, name="I13 umumiy hodim",
                 pay_type=_PayType.FIXED,
                 fixed_amount=1_000_000, production_type=None, is_active=True,
                 hire_date=_dt.datetime(YIL, 1, 1))
 db.add(emp2)
 db.commit()
-sp4 = services.calculate_split_profit_report(db, YIL, OY, company_id=B.CID)
-u_g = float(sp4["gips"]["daromad"]) / (
-    float(sp4["gips"]["daromad"]) + float(sp4["penoplast"]["daromad"]))
-check("I13 yo'nalishsiz hodim — gipsga daromad nisbatida",
-      sp4["gips"]["hodim_xarajati"], 2_000_000 + 1_000_000 * u_g, atol=1.5)
-check("I13 yo'nalishsiz hodim — penoplastga qolgani",
-      sp4["penoplast"]["hodim_xarajati"], 1_000_000 * (1 - u_g), atol=1.5)
+sp4 = _bolingan()
+for k, nm in ((K_ASOSIY, "Penoplast"), (K_TRAV, "Travertin"), (K_BELG, "Belgilanmagan")):
+    check(f"I13 yo'nalishsiz hodim — {nm} ga daromad nisbatida (ulush)",
+          _qism(sp4, k, "ulush_qismlari", "hodimlar"), 1_000_000 * _dar[k] / _dj if _dj else NAN, atol=0.02)
 
-# I14. Sof foyda va foiz — ichki izchillik
-for liniya in ("gips", "penoplast"):
-    d = sp4[liniya]
-    check(f"I14 {liniya} — jami xarajat = xomashyo + hodim + brak + umumiy",
-          d["jami_xarajat"],
-          round(d["xomashyo_xarajati"] + d["hodim_xarajati"]
-                + d["brak_xarajati"] + d["umumiy_xarajat_ulushi"]), atol=1.5)
-    check(f"I14 {liniya} — sof foyda = daromad - jami xarajat",
-          d["sof_foyda"], round(d["daromad"] - d["jami_xarajat"]), atol=1.5)
-    check(f"I14 {liniya} — foyda foizi",
-          d["foyda_foiz"],
-          round(d["sof_foyda"] / d["daromad"] * 100, 1) if d["daromad"] else 0)
+# I14. Sof foyda va foiz — ichki izchillik (butun so'm va tiyin), yig'indi = Moliya sof foydasi
+for y in (sp4.get("yonalishlar") or [{"nom": "?", "som": {}, "aniq": {}}]):
+    for tur in ("som", "aniq"):
+        d = y.get(tur) or {}
+        check(f"I14 {y.get('nom')} ({tur}) — jami xarajat = bevosita + ulush",
+              _n(lambda d=d: d["jami_xarajat"]), _n(lambda d=d: d["bevosita"] + d["ulush"]), atol=0.001)
+        check(f"I14 {y.get('nom')} ({tur}) — sof foyda = daromad − tannarx − jami xarajat",
+              _n(lambda d=d: d["sof_foyda"]), _n(lambda d=d: d["daromad"] - d["tannarx"] - d["jami_xarajat"]), atol=0.001)
+        check(f"I14 {y.get('nom')} ({tur}) — qismlar yig'indisi = bevosita / ulush",
+              _n(lambda d=d: sum(d["bevosita_qismlari"].values()) + sum(d["ulush_qismlari"].values())),
+              _n(lambda d=d: d["jami_xarajat"]), atol=0.001)
+    check(f"I14 {y.get('nom')} — foyda foizi",
+          _n(lambda y=y: y["foyda_foiz"]),
+          _n(lambda y=y: round(y["som"]["sof_foyda"] / y["som"]["daromad"] * 100, 1) if y["som"]["daromad"] else 0))
+_moliya = _hisobot()
+check("I14 yo'nalishlar sof foydasi yig'indisi (so'm) = Moliya sof foydasi",
+      _n(lambda: sum(y["som"]["sof_foyda"] for y in sp4["yonalishlar"])), _n(lambda: round(_moliya["sof_foyda"])))
+check("I14 yo'nalishlar sof foydasi yig'indisi (tiyin) = Moliya sof foydasi",
+      _n(lambda: round(sum(y["aniq"]["sof_foyda"] for y in sp4["yonalishlar"]), 2)),
+      _n(lambda: round(_moliya["sof_foyda"], 2)), atol=0.001)
 
-# I15. Daromadsiz oy — 50/50 zaxira qoidasi
-sp5 = services.calculate_split_profit_report(db, YIL, 7, company_id=B.CID)
-check("I15 daromadsiz oy — gips ulushi 50%",
-      sp5["daromad_ulushi"]["gips_foiz"], 50.0)
-check("I15 daromadsiz oy — penoplast ulushi 50%",
-      sp5["daromad_ulushi"]["penoplast_foiz"], 50.0)
+# I15. Daromadsiz oy — umumiy xarajat ko'rinadigan yo'nalishlarga TENG (Penoplast, Travertin — 50 / 50)
+sp5 = _bolingan(7)
+check_eq("I15 daromadsiz oy — ulush usuli «teng»", sp5.get("ulush_usuli"), "teng")
+for k, nm in ((K_ASOSIY, "Penoplast"), (K_TRAV, "Travertin")):
+    check(f"I15 daromadsiz oy — {nm} ulushi 50%",
+          _n(lambda k=k: next(y["ulush_foiz"] for y in sp5["yonalishlar"] if y["kalit"] == k)), 50.0)
 
-# I16. Tayyor mahsulotni buyurtmasiz sotish — mahsulot KATEGORIYASI
-# bo'yicha yo'naltiriladi (buyurtma detali emas, alohida yo'l).
+# I16. Tayyor mahsulotni buyurtmasiz sotish — mahsulotning TURI (MRP) yoki TURKUMI bo'yicha
 from models import FinishedProductSale  # noqa: E402
 
-oldin = services.get_monthly_report(db, YIL, OY, company_id=B.CID)["turlar_boyicha"]
+oldin = _hisobot()
 fp_g = B.tayyor_mahsulot(db, name="I16 gips mahsulot", category="gips",
                          quantity=10, produced_quantity=10, unit="metr",
                          unit_price=50_000, cost_price=0)
 fp_p = B.tayyor_mahsulot(db, name="I16 profil mahsulot", category="profil",
                          quantity=10, produced_quantity=10, unit="metr",
                          unit_price=50_000, cost_price=0)
-db.add(FinishedProductSale(company_id=B.CID, finished_product_id=fp_g.id,
-                           product_name=fp_g.name, quantity=1, unit="metr",
-                           unit_price=400_000, total_amount=400_000,
-                           sold_at=_dt.datetime(YIL, OY, 20)))
-db.add(FinishedProductSale(company_id=B.CID, finished_product_id=fp_p.id,
-                           product_name=fp_p.name, quantity=1, unit="metr",
-                           unit_price=600_000, total_amount=600_000,
-                           sold_at=_dt.datetime(YIL, OY, 20)))
+fp_t = B.tayyor_mahsulot(db, name="I16 travertin mahsulot", category="mrp_product", product_type_id=PT_TRAV.id,
+                         quantity=10, produced_quantity=10, unit="m²",
+                         unit_price=50_000, cost_price=0)
+for _fp, _summa in ((fp_g, 400_000), (fp_p, 600_000), (fp_t, 300_000)):
+    db.add(FinishedProductSale(company_id=B.CID, finished_product_id=_fp.id,
+                               product_name=_fp.name, quantity=1, unit=_fp.unit,
+                               unit_price=_summa, total_amount=_summa,
+                               sold_at=_dt.datetime(YIL, OY, 20)))
 db.commit()
-keyin = services.get_monthly_report(db, YIL, OY, company_id=B.CID)["turlar_boyicha"]
-check("I16 gips kategoriyali tayyor mahsulot sotuvi — gipsga",
-      keyin["gips"]["daromad"] - oldin["gips"]["daromad"], 400_000)
-check("I16 profil kategoriyali tayyor mahsulot sotuvi — penoplastga",
-      keyin["penoplast"]["daromad"] - oldin["penoplast"]["daromad"], 600_000)
+keyin = _hisobot()
+check("I16 eski gips turkumli tayyor mahsulot sotuvi — «Belgilanmagan» ga",
+      _yd(keyin, K_BELG) - _yd(oldin, K_BELG), 400_000)
+check("I16 profil turkumli tayyor mahsulot sotuvi — Penoplastga",
+      _yd(keyin, K_ASOSIY) - _yd(oldin, K_ASOSIY), 600_000)
+check("I16 MRP turi «Travertin» bo'lgan tayyor mahsulot sotuvi — Travertinga",
+      _yd(keyin, K_TRAV) - _yd(oldin, K_TRAV), 300_000)
 
 # ════════════════════════════════════════════════════════════════
 bolim("J. JONLI ETALON — staging'dagi HAQIQIY 22 buyurtma")

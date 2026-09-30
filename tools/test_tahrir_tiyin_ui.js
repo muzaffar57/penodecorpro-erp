@@ -385,7 +385,8 @@ async function tolovSina(summa, qarz) {
                   fmtFull: (n) => Number(Math.round(n || 0)).toLocaleString('ru-RU') };
     vm.createContext(ctx);
     const yoq = yukla(ctx, oqi('base'), TK_FUNKS, 'base')
-      .concat(yukla(ctx, SRC.finance, YORDAMCHI.concat(['editTx', 'fillEhsonAmount']), 'finance'));
+      // kech117 (A2): editTx yashirin yo'nalish variantini `txYonalishVarianti` bilan tayyorlaydi
+      .concat(yukla(ctx, SRC.finance, YORDAMCHI.concat(['editTx', 'fillEhsonAmount', 'txYonalishVarianti']), 'finance'));
     ctx.editTx(3, '2026-09-20T00:00:00', 'boshqa', 12345.67, 'izoh', '');
     tekshir('X xarajat tahriri: summa "12 345.67" (asl: "12 346")', e['tx-f-amount'].value === '12 345.67',
             jsn({ v: e['tx-f-amount'].value, yoq }));

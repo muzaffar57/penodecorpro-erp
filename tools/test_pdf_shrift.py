@@ -392,8 +392,9 @@ PDFLAR = [
     ("B4 TM sotuvi (yakka)", f"/api/finished/sales/{ID['SALE']}/pdf", {}, [TM_NOMI, XARIDOR, "№ S-"]),
     ("B5 TM sotuvi (guruh, chegirma)", f"/api/finished/sales/batch/{ID['GROUP']}/pdf", {}, [TM_NOMI, "Ҳамид ака", "− "]),
     ("B6 oylik moliya", "/api/finance/report-pdf", {"year": _tk.year, "month": _tk.month}, ["Arenda", "Elektr", "Tushlik", "Soliqlar"]),
-    ("B7 foyda ulushi", "/api/finance/split-profit-pdf", {"year": _tk.year, "month": _tk.month},
-     ["PENOPLAST VA BOSHQA", "GIPS", "Eslatma:"]),
+    # kech117 (A2): «Gips vs Penoplast» o'rniga — yo'nalishlar bo'yicha sof foyda hisoboti
+    ("B7 yo'nalishlar bo'yicha sof foyda", "/api/finance/split-profit-pdf", {"year": _tk.year, "month": _tk.month},
+     ["Yo'nalishlar bo'yicha sof foyda hisoboti", "Moliya hisobotidagi sof foyda", "Penoplast", "SOF FOYDA"]),
 ]
 _JAMI_KV = 0
 for _nom, _url, _par, _kutilgan in PDFLAR:

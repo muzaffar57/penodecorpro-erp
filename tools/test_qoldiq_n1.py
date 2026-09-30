@@ -876,11 +876,21 @@ _m1_null = sum(1 for x in _m1_sanalar if x is None)
 _bd = [x["text"] for x in services.get_notifications(_s, company_id=1)]
 _t1 = services.get_today_stats(_s, company_id=1)
 _kun0 = tashkent_today_start_utc()
-_gips = sum((d2(x.total_amount) for x in _s.query(FinishedProductSale).outerjoin(
+# kech117 (A2): «Gips» yo'nalishi yo'q — bugungi daromad yo'nalishlar bo'yicha (`today_yonalishlar`). Mahsulot turi va
+# asosiy turkumi (profil, panel, dona …) bo'lmagan TM sotuvi (Gips turkumi, mahsuloti o'chirilgan sotuv) — «Belgilanmagan».
+import models as _models117                          # noqa: E402
+_ASOSIY_T = getattr(_models117, "YONALISH_ASOSIY_TURKUMLAR",
+                    frozenset({"profil", "karniz", "panel", "dona", "blok", "loy_sotish"}))
+_belg = sum((d2(x.total_amount) for x, fp in _s.query(FinishedProductSale, FinishedProduct).outerjoin(
+    FinishedProduct, FinishedProductSale.finished_product_id == FinishedProduct.id).filter(
+    FinishedProductSale.company_id == 1,
+    FinishedProductSale.sold_at >= _kun0, FinishedProductSale.sold_at < _kun0 + timedelta(days=1)).all()
+    if fp is None or (getattr(fp, "product_type_id", None) is None and (fp.category or "").lower() not in _ASOSIY_T)),
+    Decimal("0"))
+_gips_bor = _s.query(FinishedProductSale).join(
     FinishedProduct, FinishedProductSale.finished_product_id == FinishedProduct.id).filter(
     FinishedProductSale.company_id == 1, func.lower(FinishedProduct.category) == "gips",
-    FinishedProductSale.sold_at >= _kun0, FinishedProductSale.sold_at < _kun0 + timedelta(days=1)).all()),
-    Decimal("0"))
+    FinishedProductSale.sold_at >= _kun0, FinishedProductSale.sold_at < _kun0 + timedelta(days=1)).count()
 _s.close()
 check("D6 MNULL1: NULL sanali 'Tayyor' e'tiborsiz — eng so'nggi HAQIQIY sana (o'chirilgan 'Tayyor' ham, asl kabi)",
       _m1_null == 1 and len(_m1_sanalar) >= 4
@@ -892,8 +902,11 @@ check("D7 MNULL2 (yagona 'Tayyor' NULL) va MNONE (buyurtmasiz) — sana yo'q",
 check("D8 bildirishnoma: N3 (aniq 7 kun) BOR, N2 (> 7; B korxona chiqimi hisoblanmaydi), N4 (eski), N5 (o'chirilgan) YO'Q",
       "QN1 N3 7 kundan keyin tugaydi" in _bd and not any(x.startswith(("QN1 N2 ", "QN1 N4 ", "QN1 N5 ", "QN1 NB "))
                                                             for x in _bd), _bd)
-check("D9 bugungi Gips tushumi Gips turkumli TM sotuvlarini o'z ichiga oladi (o'chirilgan mahsulotli sotuv — penoplastda)",
-      _gips > 0 and _t1.get("today_gips_revenue") == round(float(_gips)), (_t1, _gips))
+_ty1 = {y.get("nom"): y.get("daromad") for y in (_t1.get("today_yonalishlar") or [])}
+check("D9 bugungi daromad yo'nalishlar bo'yicha: Gips turkumli va mahsuloti o'chirilgan TM sotuvlari — «Belgilanmagan» "
+      "(avtomatik Penoplast EMAS), qolgani — Penoplast; eski today_gips_revenue yo'q",
+      _gips_bor > 0 and _belg > 0 and _ty1.get("Belgilanmagan") == round(float(_belg)) and (_ty1.get("Penoplast") or 0) > 0
+      and "today_gips_revenue" not in _t1, (_t1, _belg, _gips_bor))
 
 # ── E. Begona korxona ───────────────────────────────────────────────────────────────────────────────────────
 section("E begona korxona")

@@ -335,8 +335,13 @@ with _Soat(datetime(2026, 10, 1, 1, 0)):          # Toshkent 01.10 06:00
         _s.close()
     _rd = req(C, "get", "/api/finance/daily")
 _ogoh_txt = [a.get("text") for a in (_ogoh if isinstance(_ogoh, list) else []) if "Bugun" in str(a.get("text"))]
-check("E1 'Bugun' oynasi (01.10 06:00) — T2 + T3 + T4 savdosi 1 400 000",
-      isinstance(_bugun, dict) and round(float(_bugun.get("today_penoplast_revenue") or 0)) == 1_400_000, _bugun)
+# kech117 (A2): bugungi daromad yo'nalishlar bo'yicha (`today_yonalishlar`; eski `today_penoplast_revenue` yo'q) —
+# profil buyurtmalari asosiy yo'nalishga (Penoplast)
+_bugun_yon = {y.get("nom"): y.get("daromad") for y in ((_bugun or {}).get("today_yonalishlar") or [])} \
+    if isinstance(_bugun, dict) else {}
+check("E1 'Bugun' oynasi (01.10 06:00) — T2 + T3 + T4 savdosi 1 400 000 (asosiy yo'nalish — Penoplast)",
+      isinstance(_bugun, dict) and round(float(_bugun_yon.get("Penoplast") or 0)) == 1_400_000
+      and round(sum(float(v or 0) for v in _bugun_yon.values())) == 1_400_000, _bugun)
 check("E2 ogohlantirish oyna bilan BIR XIL: 'Bugun 3 ta buyurtma yakunlandi' (asl: 1 ta)",
       _ogoh_txt == ["Bugun 3 ta buyurtma yakunlandi"], _ogoh_txt)
 check("E3 /api/finance/daily sanasiz — Toshkent 'bugun' (2026-10-01), 3 buyurtma",

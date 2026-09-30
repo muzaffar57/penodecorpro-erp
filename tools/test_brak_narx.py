@@ -339,7 +339,14 @@ def split_brak():
     try:
         with contextlib.redirect_stdout(_quiet):
             r = services.calculate_split_profit_report(d, YIL, OY, company_id=1)
-        return (r["penoplast"]["brak_xarajati"], r["penoplast"]["sof_foyda"])
+        # kech117 (A2): yo'nalishlar hisoboti — asosiy («Penoplast») yo'nalishning brak + TM yo'qotishi va sof foydasi
+        # (butun so'm; ilgari «Gips / Penoplast» ikkiga bo'lingan `["penoplast"]`). Eski tuzilma (asl kod) — avvalgidek.
+        if "yonalishlar" not in r:
+            return (r["penoplast"]["brak_xarajati"], r["penoplast"]["sof_foyda"])
+        y = next(x for x in r["yonalishlar"] if x.get("asosiy"))
+        s_ = y["som"]
+        return (sum(s_[q].get(k, 0) for q in ("bevosita_qismlari", "ulush_qismlari") for k in ("brak", "tm_yoqotish")),
+                s_["sof_foyda"])
     except Exception as e:                 # noqa: BLE001
         return f"{type(e).__name__}: {e}"
     finally:

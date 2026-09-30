@@ -1016,10 +1016,12 @@ async function yur() {
   EL = {}; QSA = {}; CUR = 'P1';
   v('pt-f-name', 'UI tur 1'); v('pt-f-unit', 'm²'); v('pt-f-input-template', 'area_2d'); v('pt-f-pricing-formula', 'fixed_price');
   v('pt-f-fixed-price', '150000'); c('pt-f-supports-coating', true); v('pt-f-coating-mult', '2.5'); v('pt-f-notes', '');
+  if (K.yon) v('pt-f-yonalish', K.yon);     // kech117 (A2): tur yo'nalishi MAJBURIY
   await saveProductType();
   EL = {}; QSA = {}; CUR = 'P2';
   v('pt-f-name', ' UI tur 2 '); v('pt-f-unit', 'dona'); v('pt-f-input-template', 'quantity_only'); v('pt-f-pricing-formula', 'unit_based');
   v('pt-f-fixed-price', ''); c('pt-f-supports-coating', false); v('pt-f-coating-mult', ''); v('pt-f-notes', 'izoh');
+  if (K.yon) v('pt-f-yonalish', K.yon);
   await saveProductType();
   EL = {}; QSA = {}; CUR = 'B1';
   v('bom-f-product-type-id', K.pt); v('bom-f-editing-id', ''); v('bom-f-variant', ''); v('bom-f-batch', '10'); v('bom-f-notes', '');
@@ -1061,8 +1063,27 @@ async function yur() {
 }
 yur().catch(e => process.stdout.write(JSON.stringify({XATO: String(e && e.stack || e)})));
 """
+
+
+def _asosiy_yonalish_id():
+    """kech117 (A2): korxonaning asosiy yo'nalishi (mahsulot turi oynasida yo'nalish MAJBURIY). Asl kodda — None."""
+    import crud as _crud117
+    _f117 = getattr(_crud117, "standart_yonalish", None)
+    if _f117 is None:
+        return None
+    _d117 = SessionLocal()
+    try:
+        _y117 = _f117(_d117, 1)
+        _d117.commit()
+        return _y117.id if _y117 is not None else None
+    except Exception:                      # noqa: BLE001
+        return None
+    finally:
+        _d117.close()
+
+
 _kir = {"pt": PTID, "bom": BOMID, "inv": INVID, "inv2": INV2ID, "opt": OPTID, "oi": OIA2, "m1": MID, "m2": M2ID,
-        "eski": PAROL, "yangi": ADMIN_YANGI}
+        "eski": PAROL, "yangi": ADMIN_YANGI, "yon": _asosiy_yonalish_id()}
 _skript = _harness + "\n".join(_fnlar.values()) + _ssenariy.replace("__KIRISH__", json.dumps(_kir))
 UI = {}
 _p = os.path.join(_T, "ui_tana.js")

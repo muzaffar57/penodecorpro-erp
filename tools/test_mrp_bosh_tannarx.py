@@ -447,7 +447,9 @@ check("X1 test davomida 5xx yo'q", not XATOLAR_5XX, XATOLAR_5XX[:5])
 section("S. Statik")
 _cp = manba(services, "calculate_order_profit")
 check("S1 calculate_order_profit: MRP shoxi — _mrp_detal_tannarxi (PO ro'yxati bilan)",
-      tartibda(_cp, "_po_royxat = _pq.all()", "tayyor_mahsulot_xarajat += _mrp_detal_tannarxi(db, order, item, _po_royxat)"), "")
+      # kech117 (A2): qiymat avval o'zgaruvchiga olinadi (yo'nalishlar hisoboti uchun `tannarx_qismlari` ga ham yoziladi)
+      tartibda(_cp, "_po_royxat = _pq.all()", "_mrp_t117 = _mrp_detal_tannarxi(db, order, item, _po_royxat)",
+               "tayyor_mahsulot_xarajat += _mrp_t117"), "")
 _md = manba(services, "_mrp_detal_tannarxi")
 check("S2 yordamchi: miqdor ≥ ishlab chiqarilgan — asl qoida (so'rovsiz); manbasiz yuk — asl qoida; korxona sharti; T × ishlatilgan / Q",
       tartibda(_md, 'if miqdor <= 0 or float(item.quantity or 0) - float(getattr(item, "ortiqcha_qty", 0) or 0) >= miqdor - 1e-6:',
