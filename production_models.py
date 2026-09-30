@@ -229,6 +229,10 @@ class ProductType(Base):
     is_active = Column(Boolean, default=True)  # "O'chirilgan" emas, balki "hozircha ishlatilmaydi"
     created_at = Column(DateTime, default=datetime.utcnow)
     notes = Column(Text, nullable=True)
+    # kech117 (A2 — egasi QARORI kech114 00:08): mahsulot turi qaysi YO'NALISHGA tegishli (`models.Yonalish`). Tur
+    # yaratish / tahrirlash oynasida MAJBURIY tanlanadi; NULL — «Belgilanmagan» (eski turlar: egasi biriktiradi,
+    # «Penoplast» ga jim tushirilmaydi — yo'nalishlar hisobotida alohida ustun va ogohlantirish).
+    yonalish_id = Column(Integer, ForeignKey("yonalishlar.id"), nullable=True, index=True)
 
     boms = relationship("BOM", back_populates="product_type", cascade="all, delete-orphan")
 

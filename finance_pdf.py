@@ -53,17 +53,49 @@ def _fmt(n):
         return "0"
 
 
+def _fmt_ishora(n):
+    """kech117 (G6-09): manfiy summa — BITTA ko'rinish: "−2 618 028" (U+2212, bo'shliqsiz; ilgari bir hujjatda
+    "− 5 731 000" va "-2 618 028" ikki xil)."""
+    try:
+        v = int(round(float(n)))
+    except (TypeError, ValueError):
+        return "0"
+    return ("\u2212" if v < 0 else "") + f"{abs(v):,}".replace(",", " ")
+
+
+def _yaxlit_butun(x) -> int:
+    """HALF_UP butun so'mga (manfiyda simmetrik) — `services._yaxlit` bilan bir qoida."""
+    from decimal import Decimal, ROUND_HALF_UP
+    return int((Decimal(repr(float(x or 0)))).quantize(Decimal(1), rounding=ROUND_HALF_UP))
+
+
+def _qatorlarni_taqsimla(qatorlar, jami_butun):
+    """kech117 (G6-09): [(nom, summa)] ni butun so'mga — yig'indisi AYNAN `jami_butun` (eng katta qoldiq usuli), shunda
+    hujjat qatorlari qo'shilsa jami chiqadi."""
+    import math
+    if not qatorlar:
+        return []
+    past = [math.floor(float(v) + 1e-9) for _n, v in qatorlar]
+    farq = int(jami_butun) - sum(past)
+    tartib = sorted(range(len(qatorlar)), key=lambda i: -(float(qatorlar[i][1]) - past[i]))
+    for i in range(abs(farq)):
+        j = tartib[i % len(tartib)] if farq > 0 else tartib[-1 - (i % len(tartib))]
+        past[j] += 1 if farq > 0 else -1
+    return [(qatorlar[i][0], past[i]) for i in range(len(qatorlar))]
+
+
 def generate_split_profit_pdf(split: dict, year: int, month: int,
                               db=None, company_id=None) -> bytes:
-    """Gips va Penoplast uchun MUSTAQIL sof foyda hisoboti — PDF.
-    split — services.calculate_split_profit_report() natijasi."""
+    """kech117 (A2 — egasi QARORLARI kech114 00:08): YO'NALISHLAR bo'yicha sof foyda hisoboti — PDF (ilgari «Gips va
+    Penoplast»). `split` — `services.calculate_split_profit_report()` natijasi. Har ustunda Daromad − Tannarx − Jami
+    xarajat = Sof foyda, sof foydalar yig'indisi = Moliya hisobotidagi sof foyda (tepada solishtirma qatori; G3-11)."""
     _brand = get_brand(db, company_id)
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
         buf, pagesize=A4,
         leftMargin=1.3*cm, rightMargin=1.3*cm,
         topMargin=1*cm, bottomMargin=1*cm,
-        title=f"Gips-Penoplast hisobot {MONTH_NAMES[month]} {year}"
+        title=f"Yo'nalishlar hisoboti {MONTH_NAMES[month]} {year}"
     )
     W = A4[0] - 2.6*cm
 
@@ -71,15 +103,14 @@ def generate_split_profit_pdf(split: dict, year: int, month: int,
                               textColor=colors.white, alignment=TA_CENTER, leading=20)
     st_sub = ParagraphStyle('s', fontName='Helvetica', fontSize=9,
                             textColor=GOLD, alignment=TA_CENTER, leading=12)
-    st_sec = ParagraphStyle('sec', fontName='Helvetica-Bold', fontSize=13,
-                            textColor=colors.white, alignment=TA_CENTER, leading=16)
-    st_small = ParagraphStyle('sm', fontName='Helvetica', fontSize=9,
-                              textColor=GRAY, alignment=TA_CENTER)
+    st_small = ParagraphStyle('sm', fontName='Helvetica', fontSize=8.5,
+                              textColor=GRAY, alignment=TA_CENTER, leading=11)
+    st_note = ParagraphStyle('note', fontName='Helvetica-Oblique', fontSize=8, textColor=GRAY, leading=11)
+    st_warn = ParagraphStyle('warn', fontName='Helvetica-Bold', fontSize=8.5, textColor=RED, leading=11)
 
     el = []
-
-    header = Table([[Paragraph(_x(_brand["name"].upper()), st_title)],   # kech106 (K106-4): ilgari qattiq "PENODECORPRO"
-                     [Paragraph("Gips va Penoplast — mustaqil sof foyda hisoboti", st_sub)]], colWidths=[W])
+    header = Table([[Paragraph(_x(_brand["name"].upper()), st_title)],   # kech106 (K106-4): korxona nomi
+                    [Paragraph("Yo'nalishlar bo'yicha sof foyda hisoboti", st_sub)]], colWidths=[W])
     header.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), DARK),
         ('TOPPADDING', (0, 0), (-1, 0), 10),
@@ -88,66 +119,117 @@ def generate_split_profit_pdf(split: dict, year: int, month: int,
     el.append(header)
     el.append(Spacer(1, 4))
     el.append(Paragraph(f"<b>{MONTH_NAMES[month]} {year}</b>", ParagraphStyle('m', fontName='Helvetica-Bold', fontSize=12, alignment=TA_CENTER, textColor=DARK)))
+    el.append(Spacer(1, 8))
+
+    yonalishlar = split.get("yonalishlar", []) or []
+    jami = split.get("jami", {}) or {}
+    moliya = split.get("moliya_sof_foyda", 0)
+    el.append(Paragraph(
+        f"Moliya hisobotidagi sof foyda: <b>{_fmt_ishora(moliya)} so'm</b> — shu summa yo'nalishlarga bo'lindi "
+        f"(yo'nalishlar yig'indisi: <b>{_fmt_ishora(jami.get('sof_foyda', 0))} so'm</b>)", st_small))
+    if split.get("ulush_usuli") == "teng":
+        _uu = "bu oy daromad yo'q — ko'rinadigan yo'nalishlarga teng"
+    else:
+        _uu = "daromad ulushiga qarab — " + ", ".join(
+            f"{_x(y['nom'])} {y.get('ulush_foiz', 0)}%" for y in yonalishlar if y.get("ulush_foiz"))
+    el.append(Paragraph(f"Umumiy xarajatlar (arenda, svet, soliq, tushlik, Ehson, usta KPI, belgilanmagan): {_uu}",
+                        st_small))
+    for iz in split.get("izohlar", []) or []:
+        el.append(Paragraph(_x(iz), st_warn))
+    if split.get("belgilanmagan_turlar"):
+        el.append(Paragraph(f"Yo'nalishi belgilanmagan MRP mahsulot turlari: {_x(', '.join(split['belgilanmagan_turlar']))}"
+                            " — Ishlab chiqarish sahifasida yo'nalish biriktiring", st_warn))
     el.append(Spacer(1, 10))
 
-    du = split.get("daromad_ulushi", {})
-    el.append(Paragraph(
-        f"Daromad ulushi: Penoplast {du.get('penoplast_foiz',0)}% · Gips {du.get('gips_foiz',0)}%"
-        f" &nbsp;&nbsp;|&nbsp;&nbsp; Umumiy xarajatlar (arenda/svet/soliq/Ehson/brak) shu nisbatda taqsimlangan",
-        st_small
-    ))
-    el.append(Spacer(1, 14))
+    nomlar = split.get("xarajat_nomlari", {}) or {}
 
-    def section(title, bg, data):
-        rows = [
-            ["Daromad", f"{_fmt(data['daromad'])} so'm"],
-            ["Xomashyo va belgilangan xarajatlar (Yo'nalish tanlanganlar)", f"-{_fmt(data['xomashyo_xarajati'])} so'm"],
-            ["Hodim to'lovi", f"-{_fmt(data['hodim_xarajati'])} so'm"],
-            ["Brak/yo'qotish (aniq)", f"-{_fmt(data['brak_xarajati'])} so'm"],
-            ["Umumiy xarajat ulushi (arenda/svet/soliq/Ehson) — taxminiy", f"-{_fmt(data['umumiy_xarajat_ulushi'])} so'm"],
-            ["Jami xarajat", f"-{_fmt(data['jami_xarajat'])} so'm"],
+    def _jadval(ustunlar, jami_bilan):
+        n = len(ustunlar) + (1 if jami_bilan else 0)
+        shr = 9 if n <= 3 else 8
+        c_nom = ParagraphStyle('cn', fontName='Helvetica', fontSize=shr, textColor=DARK, leading=shr + 2)
+        c_kic = ParagraphStyle('ck', fontName='Helvetica', fontSize=shr - 1, textColor=GRAY, leading=shr + 1,
+                               leftIndent=8)
+        c_son = ParagraphStyle('cs', fontName='Helvetica', fontSize=shr, textColor=DARK, alignment=TA_RIGHT)
+        c_kson = ParagraphStyle('cks', fontName='Helvetica', fontSize=shr - 1, textColor=GRAY, alignment=TA_RIGHT)
+        c_bosh = ParagraphStyle('cb', fontName='Helvetica-Bold', fontSize=shr, textColor=colors.white,
+                                alignment=TA_RIGHT, leading=shr + 2)
+        c_bold = ParagraphStyle('cbo', fontName='Helvetica-Bold', fontSize=shr + 0.5, textColor=DARK)
+        ustun_som = [y["som"] for y in ustunlar] + ([jami] if jami_bilan else [])
+        sar = [Paragraph("", c_nom)] + [Paragraph(_x(y["nom"] + (" (!)" if y.get("belgilanmagan") else "")), c_bosh)
+                                        for y in ustunlar] + ([Paragraph("JAMI", c_bosh)] if jami_bilan else [])
+        qatorlar = [sar]
+        uslub = [('BACKGROUND', (0, 0), (-1, 0), DARK)]
+
+        def _ayir(v):
+            """Ayiriladigan summa: musbat — "−N", manfiy (masalan qaytgan tannarx) — "+N", 0 — "0"."""
+            v = int(round(float(v or 0)))
+            return ("\u2212" + _fmt(v)) if v > 0 else (("+" + _fmt(-v)) if v < 0 else "0")
+
+        def qator(nom, kalit, ishora="", kichik=False, qism=None):
+            vals = []
+            for d in ustun_som:
+                v = (d.get(qism, {}) or {}).get(kalit, 0) if qism else d.get(kalit, 0)
+                if qism and jami_bilan and d is jami:
+                    v = sum((y["som"].get(qism, {}) or {}).get(kalit, 0) for y in yonalishlar)
+                vals.append(v)
+            if kichik and not any(vals):
+                return
+            qatorlar.append([Paragraph(_x(nom), c_kic if kichik else c_nom)]
+                            + [Paragraph(_ayir(v) if ishora else _fmt_ishora(v),
+                                         c_kson if kichik else c_son) for v in vals])
+
+        qator("Daromad", "daromad")
+        qator("Tannarx (sotilgan mahsulot)", "tannarx", ishora="\u2212")
+        qator("Bevosita xarajatlar (o'z yo'nalishiga yozilgan)", "bevosita", ishora="\u2212")
+        for k, nm in nomlar.items():
+            qator("shundan: " + nm, k, ishora="\u2212", kichik=True, qism="bevosita_qismlari")
+        qator("Umumiy xarajat ulushi", "ulush", ishora="\u2212")
+        for k, nm in nomlar.items():
+            qator("shundan: " + nm, k, ishora="\u2212", kichik=True, qism="ulush_qismlari")
+        qator("Jami xarajat", "jami_xarajat", ishora="\u2212")
+        i_sof = len(qatorlar)
+        sof_q = [Paragraph("SOF FOYDA", c_bold)]
+        for d in ustun_som:
+            v = d.get("sof_foyda", 0)
+            sof_q.append(Paragraph(f"{_fmt_ishora(v)}", ParagraphStyle(
+                'sf', fontName='Helvetica-Bold', fontSize=shr + 1, textColor=(GREEN if v >= 0 else RED),
+                alignment=TA_RIGHT)))
+        qatorlar.append(sof_q)
+        ren = [Paragraph("Rentabellik", c_kic)]
+        for d in ustun_som:
+            dr = d.get("daromad", 0)
+            f = round(d.get("sof_foyda", 0) / dr * 100, 1) if dr else 0
+            ren.append(Paragraph(f"{f}%", ParagraphStyle('rf', fontName='Helvetica', fontSize=shr - 1,
+                                                        textColor=(GREEN if f >= 0 else RED), alignment=TA_RIGHT)))
+        qatorlar.append(ren)
+        nom_kengligi = W * (0.40 if n <= 3 else 0.32)
+        tbl = Table(qatorlar, colWidths=[nom_kengligi] + [(W - nom_kengligi) / n] * n, repeatRows=1)
+        uslub += [
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+            ('LINEBELOW', (0, 1), (-1, -1), 0.3, colors.HexColor("#E5E1D8")),
+            ('LINEABOVE', (0, i_sof), (-1, i_sof), 1.2, DARK),
+            ('BACKGROUND', (0, i_sof), (-1, i_sof), LIGHT),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ]
-        tbl_data = [[Paragraph(r[0], ParagraphStyle('c1', fontName='Helvetica', fontSize=9.5, textColor=DARK)),
-                     Paragraph(r[1], ParagraphStyle('c2', fontName='Helvetica', fontSize=9.5, textColor=DARK, alignment=TA_RIGHT))]
-                    for r in rows]
-        foyda_color = GREEN if data['sof_foyda'] >= 0 else RED
-        tbl_data.append([
-            Paragraph("SOF FOYDA", ParagraphStyle('f1', fontName='Helvetica-Bold', fontSize=11, textColor=DARK)),
-            Paragraph(f"{_fmt(data['sof_foyda'])} so'm", ParagraphStyle('f2', fontName='Helvetica-Bold', fontSize=11, textColor=foyda_color, alignment=TA_RIGHT))
-        ])
-        tbl_data.append([
-            Paragraph("Rentabellik", ParagraphStyle('r1', fontName='Helvetica', fontSize=9, textColor=GRAY)),
-            Paragraph(f"{data['foyda_foiz']}%", ParagraphStyle('r2', fontName='Helvetica', fontSize=9, textColor=foyda_color, alignment=TA_RIGHT))
-        ])
+        if jami_bilan:
+            uslub.append(('BACKGROUND', (-1, 1), (-1, -1), colors.HexColor("#F0EBE0")))
+        tbl.setStyle(TableStyle(uslub))
+        return tbl
 
-        tbl = Table(tbl_data, colWidths=[W*0.62, W*0.38])
-        tbl.setStyle(TableStyle([
-            ('TOPPADDING', (0, 0), (-1, -1), 6),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-            ('LINEBELOW', (0, 0), (-1, -3), 0.4, colors.HexColor("#E5E1D8")),
-            ('LINEABOVE', (0, -2), (-1, -2), 1.2, DARK),
-            ('LEFTPADDING', (0, 0), (-1, -1), 12),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 12),
-        ]))
+    # 4 tadan ko'p yo'nalish — bir necha jadval (har birida 4 ustun); JAMI — oxirgisida.
+    guruhlar = [yonalishlar[i:i + 4] for i in range(0, len(yonalishlar), 4)] or [[]]
+    for gi, guruh in enumerate(guruhlar):
+        el.append(KeepTogether([_jadval(guruh, gi == len(guruhlar) - 1), Spacer(1, 12)]))
 
-        head = Table([[Paragraph(title, st_sec)]], colWidths=[W])
-        head.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, -1), bg),
-            ('TOPPADDING', (0, 0), (-1, -1), 8),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ]))
-        return KeepTogether([head, tbl, Spacer(1, 16)])
-
-    el.append(section("PENOPLAST VA BOSHQA", colors.HexColor("#1E40AF"), split["penoplast"]))
-    el.append(section("GIPS", colors.HexColor("#9D174D"), split["gips"]))
-
-    el.append(Spacer(1, 6))
+    el.append(Spacer(1, 4))
     el.append(Paragraph(
-        "Eslatma: Yo'nalishi aniq belgilanmagan hodimlar va umumiy xarajatlar (arenda, svet, soliq, Ehson) — "
-        "ikkala yo'nalish ham bitta joyda faoliyat yuritgani uchun, daromad nisbatiga qarab taxminiy taqsimlangan. "
-        "Xomashyo va Brak/yo'qotish — aniq, materialning o'z turi bo'yicha hisoblangan.",
-        ParagraphStyle('note', fontName='Helvetica-Oblique', fontSize=8, textColor=GRAY, leading=11)
-    ))
+        "Qoida: daromad va tannarx — sotilgan mahsulot yo'nalishiga aniq (profil, panel, donali, blok, loy sotish — "
+        "asosiy yo'nalish; MRP mahsuloti — mahsulot turining yo'nalishi). Yo'nalishi belgilangan hodim, xarajat, "
+        "transport va kirim xarajatlari, brak va tayyor mahsulot yo'qotishi — o'z yo'nalishiga. Qolgan umumiy "
+        "xarajatlar — yo'nalishlar daromad ulushiga qarab bo'lingan. Kassa bo'linmaydi.", st_note))
 
     doc.build(el)
     return buf.getvalue()
@@ -220,23 +302,38 @@ def generate_finance_report_pdf(report: dict, expense_transactions: list,
     el.append(Spacer(1, 10))
 
     # ── UMUMIY KO'RSATKICHLAR (4 karta) ──
-    daromad = float(report.get("daromad", 0))
-    jami_xarajat_full = float(report.get("jami_xarajat", 0)) + float(report.get("ishlab_chiqarish_xarajat", 0))
+    # kech117 (G6-09, O'LCHANGAN audit kech114: 1 674 000 − 4 288 944 = −2 614 944, SOF FOYDA esa −2 618 028 — tayyor
+    # mahsulot sotuvi tannarxi (3 084) hech qaysi qatorda yo'q edi). Endi: JAMI XARAJAT = sotilgan mahsulot tannarxi
+    # (buyurtmalar + tayyor mahsulot sotuvi) + sof foydadan ayriladigan xarajatlar — butun so'mda JAMI DAROMAD − JAMI
+    # XARAJAT = SOF FOYDA AYNAN; qatorlar (daromad tarkibi va xarajatlar) qo'shilsa o'z jamisi chiqadi.
+    _t = report.get("sof_foyda_tarkibi") or {}
     sof_foyda = float(report.get("sof_foyda", 0))
     foyda_foiz = report.get("foyda_foiz", 0)
+    if _t:
+        _daromad_aniq = float(_t.get("daromad_buyurtmalar", 0)) + float(_t.get("daromad_tm", 0))
+    else:
+        _daromad_aniq = float(report.get("daromad", 0))
+    daromad = _yaxlit_butun(_daromad_aniq)
+    sof_foyda_butun = _yaxlit_butun(sof_foyda)
+    jami_xarajat_full = daromad - sof_foyda_butun
+    _xarajat_aniq = _daromad_aniq - sof_foyda
 
     def _summary_card(label, value, color):
         return [
             Paragraph(label, ParagraphStyle('cl', fontName='Helvetica', fontSize=8, textColor=GRAY, alignment=TA_CENTER)),
-            Paragraph(f"{_fmt(value)} so'm", ParagraphStyle('cv', fontName='Helvetica-Bold', fontSize=12.5, textColor=color, alignment=TA_CENTER)),
+            Paragraph(f"{_fmt_ishora(value)} so'm", ParagraphStyle('cv', fontName='Helvetica-Bold', fontSize=12.5, textColor=color, alignment=TA_CENTER)),
         ]
 
+    # kech117 (G6-09): zarar — qizil, foyda — yashil (ilgari sof foyda binafsha, rentabellik sariq — zararda ham)
+    _sof_rang = GREEN if sof_foyda_butun >= 0 else RED
     cards = Table([[
         _summary_card("JAMI DAROMAD", daromad, GREEN),
         _summary_card("JAMI XARAJAT", jami_xarajat_full, RED),
-        _summary_card("SOF FOYDA", sof_foyda, colors.HexColor("#7C3AED")),
+        _summary_card("SOF FOYDA", sof_foyda_butun, _sof_rang),
         [Paragraph("RENTABELLIK", ParagraphStyle('cl2', fontName='Helvetica', fontSize=8, textColor=GRAY, alignment=TA_CENTER)),
-         Paragraph(f"{foyda_foiz}%", ParagraphStyle('cv2', fontName='Helvetica-Bold', fontSize=12.5, textColor=GOLD, alignment=TA_CENTER))],
+         Paragraph(f"{foyda_foiz}%", ParagraphStyle('cv2', fontName='Helvetica-Bold', fontSize=12.5,
+                                                    textColor=(GREEN if float(foyda_foiz or 0) >= 0 else RED),
+                                                    alignment=TA_CENTER))],
     ]], colWidths=[W/4]*4)
     cards.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), LIGHT),
@@ -292,10 +389,10 @@ def generate_finance_report_pdf(report: dict, expense_transactions: list,
 
         net = debt_summary["net_position"]
         net_color = GREEN if net >= 0 else RED
-        net_sign = "+" if net >= 0 else "−"
+        # kech117 (G6-09): ishora hujjat bo'ylab BIR xil ("+N" / "−N", bo'shliqsiz)
         net_row = Table([[
             Paragraph("Sof holat (bizga qarz − bizdan qarz)", ParagraphStyle('nl', fontName='Helvetica-Bold', fontSize=9, textColor=DARK)),
-            Paragraph(f"{net_sign} {_fmt(abs(net))} so'm", ParagraphStyle('nv', fontName='Helvetica-Bold', fontSize=11, textColor=net_color, alignment=TA_RIGHT)),
+            Paragraph(f"{'+' if _yaxlit_butun(net) > 0 else ''}{_fmt_ishora(net)} so'm", ParagraphStyle('nv', fontName='Helvetica-Bold', fontSize=11, textColor=net_color, alignment=TA_RIGHT)),
         ]], colWidths=[W*0.6, W*0.4])
         net_row.setStyle(TableStyle([
             ('LINEABOVE', (0, 0), (-1, 0), 0.7, colors.HexColor("#E5E1D8")),
@@ -305,22 +402,51 @@ def generate_finance_report_pdf(report: dict, expense_transactions: list,
         el.append(net_row)
         el.append(Spacer(1, 16))
 
+    # ── DAROMAD TARKIBI (kech117, G6-09) ──
+    # Buyurtmalardan (shu oy «Tayyor», qaytarishlar ayirilgan) + tayyor mahsulot sotuvi (buyurtmasiz) = JAMI DAROMAD.
+    el.append(Paragraph("Daromad tarkibi", st_section))
+    el.append(Spacer(1, 6))
+    _d_qatorlar = [(n, v) for n, v in (
+        ("Buyurtmalardan (shu oy «Tayyor», qaytarishlar ayirilgan)",
+         float(_t.get("daromad_buyurtmalar", report.get("daromad_buyurtmalardan", 0)) if _t else report.get("daromad_buyurtmalardan", 0))),
+        ("Tayyor mahsulot sotuvi (buyurtmasiz)",
+         float(_t.get("daromad_tm", 0)) if _t else float(report.get("fp_sales_daromad", 0) or 0)),
+    ) if float(v or 0) != 0]
+    _d_rows = [[Paragraph("Daromad manbai", st_th), Paragraph("Summa", st_th)]]
+    for _n, _v in _qatorlarni_taqsimla(_d_qatorlar, daromad):
+        _d_rows.append([Paragraph(_x(_n), st_cell), Paragraph(f"{_fmt_ishora(_v)} so'm", st_cell_r)])
+    _d_rows.append([Paragraph("<b>JAMI DAROMAD</b>", ParagraphStyle('tdf', fontName='Helvetica-Bold', fontSize=9.5, textColor=DARK)),
+                    Paragraph(f"<b>{_fmt_ishora(daromad)} so'm</b>", ParagraphStyle('tdr', fontName='Helvetica-Bold', fontSize=9.5, textColor=GREEN, alignment=TA_RIGHT))])
+    _dt = Table(_d_rows, colWidths=[W*0.72, W*0.28])
+    _dt.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), DARK),
+        ('GRID', (0, 0), (-1, -2), 0.4, colors.HexColor("#E5E1D8")),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('BACKGROUND', (0, len(_d_rows) - 1), (-1, len(_d_rows) - 1), colors.HexColor("#F0FDF4")),
+        ('LINEABOVE', (0, len(_d_rows) - 1), (-1, len(_d_rows) - 1), 1.2, DARK),
+    ]))
+    el.append(_dt)
+    el.append(Spacer(1, 14))
+
     # ── XARAJATLAR — NOMMA-NOM ──
     el.append(Paragraph("Xarajatlar tafsiloti (nomma-nom)", st_section))
     el.append(Spacer(1, 6))
 
     rows = [[Paragraph("Xarajat nomi", st_th), Paragraph("Summa", st_th)]]
     row_colors = [DARK]
+    _xarajat_qatorlari = []      # kech117 (G6-09): avval yig'iladi, keyin butun so'mga (yig'indi = JAMI XARAJAT)
 
     def _add_row(name, amount, bg=colors.white):
         if amount and float(amount) != 0:
-            # kech106 (K106-2): nom — foydalanuvchi matni (turkum, izoh, usta / hodim ismi) bo'lishi mumkin; ReportLab
-            # Paragraph uni belgilash sifatida o'qimasin ("a<b>c" — qalin "c", "&amp;" — "&") — matn AYNAN ko'rinadi.
-            rows.append([Paragraph(_x(name), st_cell), Paragraph(f"{_fmt(amount)} so'm", st_cell_r)])
-            row_colors.append(bg)
+            _xarajat_qatorlari.append((name, float(amount), bg))
 
-    # 1) Ishlab chiqarish xarajati (tan narx)
+    # 1) Sotilgan mahsulot tannarxi: buyurtmalar (xomashyo tan narxi) va tayyor mahsulot sotuvi (kech117, G6-09 — ilgari
+    #    YO'Q edi: 3 084 so'm farq)
     _add_row("Ishlab chiqarish xarajati (xomashyo tan narxi)", report.get("ishlab_chiqarish_xarajat", 0))
+    _add_row("Tayyor mahsulot sotuvi tannarxi", float(_t.get("tannarx_tm", 0)) if _t else report.get("fp_sales_tannarx", 0))
 
     # 1b) Arenda/Elektr/Tushlik/Soliqlar — eski (asosiy maydonlar) mexanizmi
     # orqali kiritilgan bo'lsa (Xarajat qo'shish oynasidagi "asosiy" turlar)
@@ -396,9 +522,21 @@ def generate_finance_report_pdf(report: dict, expense_transactions: list,
         if abs(qoldiq) >= 0.5:
             _add_row(f"{CAT_LABELS.get(cat, cat)} — boshqa yozuvlar", qoldiq)
 
+    # kech117 (G6-09): qatorlar butun so'mga — yig'indisi AYNAN JAMI XARAJAT. Yig'ilgan qatorlar hisobot xarajatidan 1
+    # so'mdan ko'p farq qilsa (bo'lmasligi kerak — test tekshiradi) — farq ALOHIDA qatorda ko'rinadi, yashirilmaydi.
+    _farq = _xarajat_aniq - sum(v for _n, v, _b in _xarajat_qatorlari)
+    if abs(_farq) >= 1:
+        _xarajat_qatorlari.append(("Hisob farqi (qatorlarda ko'rinmagan)", _farq, colors.white))
+    for (_n, _v), (_n2, _v2, _bg) in zip(_qatorlarni_taqsimla([(n, v) for n, v, _b in _xarajat_qatorlari],
+                                                              jami_xarajat_full), _xarajat_qatorlari):
+        # kech106 (K106-2): nom — foydalanuvchi matni (turkum, izoh, usta / hodim ismi) bo'lishi mumkin; ReportLab
+        # Paragraph uni belgilash sifatida o'qimasin ("a<b>c" — qalin "c", "&amp;" — "&") — matn AYNAN ko'rinadi.
+        rows.append([Paragraph(_x(_n), st_cell), Paragraph(f"{_fmt_ishora(_v)} so'm", st_cell_r)])
+        row_colors.append(_bg)
+
     # Jami xarajat qatori
     rows.append([Paragraph("<b>JAMI XARAJAT</b>", ParagraphStyle('tf', fontName='Helvetica-Bold', fontSize=9.5, textColor=DARK)),
-                 Paragraph(f"<b>{_fmt(jami_xarajat_full)} so'm</b>", ParagraphStyle('tfr', fontName='Helvetica-Bold', fontSize=9.5, textColor=RED, alignment=TA_RIGHT))])
+                 Paragraph(f"<b>{_fmt_ishora(jami_xarajat_full)} so'm</b>", ParagraphStyle('tfr', fontName='Helvetica-Bold', fontSize=9.5, textColor=RED, alignment=TA_RIGHT))])
     row_colors.append(RED)
 
     tbl = Table(rows, colWidths=[W*0.72, W*0.28], repeatRows=1)
@@ -424,16 +562,17 @@ def generate_finance_report_pdf(report: dict, expense_transactions: list,
     final = Table([
         [Paragraph("SOF FOYDA (barcha xarajat va brak ayirilgandan keyin)",
                    ParagraphStyle('fl', fontName='Helvetica-Bold', fontSize=10, textColor=DARK, alignment=TA_CENTER)), ""],
-        [Paragraph(f"{_fmt(sof_foyda)} so'm",
+        [Paragraph(f"{_fmt_ishora(sof_foyda_butun)} so'm",
                    ParagraphStyle('fv', fontName='Helvetica-Bold', fontSize=20,
-                                  textColor=(GREEN if sof_foyda >= 0 else RED), alignment=TA_CENTER)),
+                                  textColor=(GREEN if sof_foyda_butun >= 0 else RED), alignment=TA_CENTER)),
          Paragraph(f"{foyda_foiz}% rentabellik",
-                   ParagraphStyle('fp', fontName='Helvetica', fontSize=9, textColor=GRAY, alignment=TA_CENTER))],
+                   ParagraphStyle('fp', fontName='Helvetica', fontSize=9,
+                                  textColor=(GREEN if float(foyda_foiz or 0) >= 0 else RED), alignment=TA_CENTER))],
     ], colWidths=[W*0.6, W*0.4])
     final.setStyle(TableStyle([
         ('SPAN', (0, 0), (1, 0)),
-        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#F5F0FA") if sof_foyda >= 0 else colors.HexColor("#FDF2F2")),
-        ('BOX', (0, 0), (-1, -1), 1, colors.HexColor("#7C3AED") if sof_foyda >= 0 else RED),
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#F0FDF4") if sof_foyda_butun >= 0 else colors.HexColor("#FDF2F2")),
+        ('BOX', (0, 0), (-1, -1), 1, GREEN if sof_foyda_butun >= 0 else RED),
         ('TOPPADDING', (0, 0), (-1, -1), 10),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),

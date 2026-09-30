@@ -2525,6 +2525,116 @@ def _migrate_platforma_obuna():
 
 _migrate_platforma_obuna()
 
+
+_YONALISH_JADVALLARI = ("employees", "expense_transactions", "transport_expenses", "inventory_receipts",
+                        "product_types")
+
+
+def _migrate_yonalishlar():
+    """kech117 (A2 — YO'NALISHLAR BO'YICHA MOLIYA; egasi QARORLARI kech114 00:08) — IDEMPOTENT, PG va SQLite.
+
+    * `yonalishlar` jadvali — `init_database()` (`create_all`) yaratadi; `yonalish_id` ustunlari (5 jadval) —
+      `database.sync_missing_columns()` (NULL); yo'q bo'lsa shu yerda. PostgreSQL da indeks va chet el kaliti
+      (sync ular qo'shmaydi) — alohida, yetim qiymat bo'lsa kalit QO'YILMAYDI (faqat xabar).
+    * Har korxonada ASOSIY yo'nalish («Penoplast», `kod = 'penoplast'`) — yo'q bo'lsa yaratiladi.
+    * TO'LDIRISH (faqat `yonalish_id IS NULL` qatorlar — qayta ishga tushishda hech narsa o'zgarmaydi): eski
+      `production_type = 'penoplast'` — asosiy yo'nalish; 'umumiy' / NULL — «Umumiy» (NULL qoladi); 'gips' — «Umumiy»
+      (O'LCHANGAN kech117: `main` zaxirasida 0 ta, sinovda 1 ta — o'chirilgan sinov hodimi; egasi qarori «Gips
+      moliyadan butunlay olib tashlanadi»). Yangi kod yozganda asosiydan boshqa tanlovda `production_type` ni NULL
+      qiladi (`crud.yonalish_tanlovi`), shuning uchun «Umumiy» ga o'tkazilgan qator qayta «Penoplast» bo'lmaydi.
+      MRP mahsulot turlari — TO'LDIRILMAYDI (egasi biriktiradi; NULL — «Belgilanmagan»)."""
+    from sqlalchemy import text, inspect as _insp
+    from database import engine, SessionLocal as _SL117
+    from production_models import Company as _Co117
+    try:
+        _i = _insp(engine)
+        _jadvallar = set(_i.get_table_names())
+        if "yonalishlar" not in _jadvallar:
+            print("⚠ yonalishlar jadvali yo'q — migratsiya o'tkazib yuborildi")
+            return
+        for _j in _YONALISH_JADVALLARI:
+            if _j not in _jadvallar:
+                continue
+            if "yonalish_id" not in {c["name"] for c in _i.get_columns(_j)}:
+                with engine.connect() as conn:
+                    conn.execute(text(f"ALTER TABLE {_j} ADD COLUMN yonalish_id INTEGER"))
+                    conn.commit()
+                print(f"✓ {_j}.yonalish_id qo'shildi")
+        if engine.dialect.name == "postgresql":
+            with engine.connect() as conn:
+                for _j in _YONALISH_JADVALLARI:
+                    if _j not in _jadvallar:
+                        continue
+                    conn.execute(text(f"CREATE INDEX IF NOT EXISTS ix_{_j}_yonalish_id ON {_j} (yonalish_id)"))
+                    conn.commit()
+                    _kalit = f"{_j}_yonalish_id_fkey"
+                    if conn.execute(text(
+                            "SELECT 1 FROM pg_constraint c JOIN pg_class t ON t.oid = c.conrelid "
+                            "WHERE t.relname = :j AND c.contype = 'f' AND c.conname = :k"),
+                            {"j": _j, "k": _kalit}).first():
+                        continue
+                    _yetim = conn.execute(text(
+                        f"SELECT COUNT(*) FROM {_j} x LEFT JOIN yonalishlar y ON y.id = x.yonalish_id "
+                        f"WHERE x.yonalish_id IS NOT NULL AND y.id IS NULL")).scalar() or 0
+                    if _yetim:
+                        print(f"⚠ {_j}.yonalish_id: {_yetim} ta yetim qiymat — chet el kaliti QO'YILMADI")
+                        continue
+                    try:
+                        conn.execute(text(f"ALTER TABLE {_j} ADD CONSTRAINT {_kalit} "
+                                          f"FOREIGN KEY (yonalish_id) REFERENCES yonalishlar(id)"))
+                        conn.commit()
+                        print(f"✓ {_kalit} chet el kaliti qo'shildi")
+                    except Exception as _fe:
+                        conn.rollback()
+                        print(f"⚠ {_kalit} qo'shilmadi: {_fe}")
+    except Exception as e:
+        print(f"⚠ yonalishlar ustunlari tekshiruvi o'tkazib yuborildi: {e}")
+        return
+    _d = _SL117()
+    try:
+        _yangi = 0
+        for (_cid,) in _d.query(_Co117.id).order_by(_Co117.id).all():
+            if crud.standart_yonalish(_d, _cid, yarat=False) is None:
+                crud.standart_yonalish(_d, _cid)
+                _yangi += 1
+        _d.commit()
+        if _yangi:
+            print(f"✓ asosiy yo'nalish («Penoplast») yaratildi: {_yangi} ta korxona")
+    except Exception as e:
+        _d.rollback()
+        _d.close()
+        print(f"⚠ asosiy yo'nalishlar yaratilmadi: {e}")
+        return
+    try:
+        _jami = 0
+        for _j in _YONALISH_JADVALLARI[:4]:
+            if "production_type" not in {c["name"] for c in _insp(engine).get_columns(_j)}:
+                continue
+            _n = _d.execute(text(
+                f"UPDATE {_j} SET yonalish_id = (SELECT y.id FROM yonalishlar y WHERE y.company_id = {_j}.company_id "
+                f"AND y.kod = 'penoplast') WHERE yonalish_id IS NULL AND production_type = 'penoplast' "
+                f"AND EXISTS (SELECT 1 FROM yonalishlar y2 WHERE y2.company_id = {_j}.company_id "
+                f"AND y2.kod = 'penoplast')")).rowcount or 0
+            _jami += _n
+            if _n:
+                print(f"✓ {_j}: {_n} ta yozuv «Penoplast» yo'nalishiga o'tkazildi")
+        _d.commit()
+        if engine.dialect.name == "postgresql":
+            for _j in _YONALISH_JADVALLARI:
+                _chalkash = _d.execute(text(
+                    f"SELECT COUNT(*) FROM {_j} x JOIN yonalishlar y ON y.id = x.yonalish_id "
+                    f"WHERE x.company_id IS DISTINCT FROM y.company_id")).scalar() or 0
+                if _chalkash:
+                    print(f"⚠ {_j}: {_chalkash} ta yozuv BOSHQA korxonaning yo'nalishiga ishora qilyapti!")
+    except Exception as e:
+        _d.rollback()
+        print(f"⚠ yo'nalishlarni to'ldirish o'tkazib yuborildi: {e}")
+    finally:
+        _d.close()
+
+
+_migrate_yonalishlar()
+
 from database import SessionLocal
 _db = SessionLocal()
 try:
@@ -2923,6 +3033,28 @@ def _obuna_banneri(user):
 
 templates.env.globals["obuna_banneri"] = _obuna_banneri
 templates.env.globals["cat_on"] = cat_on
+
+
+def _yonalishlar_royxati_shablon(company_id):
+    """kech117 (A2): sahifalardagi «Yo'nalish» tanlovi uchun korxonaning KO'RINADIGAN yo'nalishlari
+    [{id, nom, asosiy, yashirin}] (asosiy birinchi) — `crud.yonalishlar_royxati` (YAGONA manba). Asosiy yo'nalish
+    yo'q bo'lsa (yangi korxona) — yaratiladi. Xato bo'lsa — bo'sh ro'yxat (sahifa baribir ochiladi)."""
+    if company_id is None:
+        return []
+    try:
+        from database import SessionLocal as _SL
+        _d = _SL()
+        try:
+            natija = [crud.yonalish_dict(y) for y in crud.yonalishlar_royxati(_d, company_id)]
+            _d.commit()
+            return natija
+        finally:
+            _d.close()
+    except Exception:
+        return []
+
+
+templates.env.globals["yonalishlar_royxati"] = _yonalishlar_royxati_shablon
 # 2026-09-17: statik fayllar (masalan translit.js) uchun cache-busting —
 # brauzer/Telegram WebApp eski nusxani abadiy keshlab qolmasligi uchun.
 # Har deploy'da bu qiymat o'zgarishi kerak (masalan shu sana-vaqt) —
@@ -3830,6 +3962,8 @@ def api_create_inventory_receipt(data: dict = Body(...), db: Session = Depends(g
                 add_to_cost=data.add_to_cost, supplier_id=data.supplier_id,
                 document_number=data.document_number, paid_now=_paid_now,
                 notes=data.notes, created_by=who, production_type=getattr(data, 'production_type', None),
+                # kech117 (A2): yo'nalish (yuborilmasa — eski `production_type` qoidasi)
+                yonalish_id=(data.yonalish_id if "yonalish_id" in data.model_fields_set else crud._YON_YOQ),
                 company_id=auth.company_id_of(current_user),
                 # kech115 (G4-03): formadagi sana va to'lov muddati (ilgari yuborilmasdi / saqlanmasdi)
                 receipt_date=data.receipt_date, payment_due_date=data.payment_due_date
@@ -4037,7 +4171,8 @@ def api_get_transport(limit: int = 100, db: Session = Depends(get_db), current_u
         "materials_note": e.materials_note,
         "expense_date": e.expense_date.isoformat() if e.expense_date else None,
         "created_by": e.created_by,
-        "notes": e.notes
+        "notes": e.notes,
+        "yonalish_id": e.yonalish_id,      # kech117 (A2): NULL — «Umumiy»
     } for e in items]
 
 
@@ -4072,6 +4207,8 @@ def api_create_employee(data: dict = Body(...), db: Session = Depends(get_db), c
 def api_get_employees(only_active: bool = True, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     items = crud.get_employees(db, only_active=only_active,
                                company_id=auth.company_id_of(current_user))
+    # kech117 (A2): hodim yo'nalishi (NULL — «Umumiy») va nomi
+    _ynom = crud.yonalish_nomlari(db, auth.company_id_of(current_user))
     return [{
         "id": e.id, "name": e.name, "position": e.position,
         "pay_type": e.pay_type.value,
@@ -4081,6 +4218,8 @@ def api_get_employees(only_active: bool = True, db: Session = Depends(get_db), c
         "per_unit_type": e.per_unit_type,
         "extra_monthly": float(e.extra_monthly) if e.extra_monthly is not None else None,
         "production_type": e.production_type,
+        "yonalish_id": e.yonalish_id,
+        "yonalish_nom": _ynom.get(e.yonalish_id) if e.yonalish_id else None,
         "is_active": e.is_active,
         "notes": e.notes
     } for e in items]
@@ -6395,16 +6534,28 @@ def api_finance_debt_summary(year: int, month: int, db: Session = Depends(get_db
     return services.get_full_debt_summary(db, year, month, company_id=auth.company_id_of(current_user))
 
 
+@app.get("/api/finance/yonalishlar")
+def api_finance_yonalishlar(year: int, month: int, db: Session = Depends(get_db),
+                            current_user=Depends(auth.admin_or_financier)):
+    """kech117 (A2): yo'nalishlar bo'yicha sof foyda (Moliya sahifasi jadvali) — `services.
+    calculate_split_profit_report`; sof foydalar yig'indisi = Moliya sof foydasi. Oy 1–12, yil 2000–2100 (aks holda 400)."""
+    if not (1 <= month <= 12) or not (2000 <= year <= 2100):
+        raise HTTPException(status_code=400, detail="Oy 1–12, yil 2000–2100 oralig'ida bo'lishi kerak")
+    return services.calculate_split_profit_report(db, year, month, company_id=auth.company_id_of(current_user))
+
+
 @app.get("/api/finance/split-profit-pdf")
 def api_split_profit_pdf(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    """Gips va Penoplast uchun mustaqil sof foyda hisoboti — PDF."""
+    """kech117 (A2): YO'NALISHLAR bo'yicha sof foyda hisoboti — PDF (ilgari «Gips va Penoplast»)."""
     from fastapi.responses import Response
     import finance_pdf
 
+    if not (1 <= month <= 12) or not (2000 <= year <= 2100):
+        raise HTTPException(status_code=400, detail="Oy 1–12, yil 2000–2100 oralig'ida bo'lishi kerak")
     split = services.calculate_split_profit_report(db, year, month, company_id=auth.company_id_of(current_user))
     pdf_bytes = finance_pdf.generate_split_profit_pdf(
         split, year, month, db=db, company_id=auth.company_id_of(current_user))
-    filename = f"gips_penoplast_hisobot_{year}_{month:02d}.pdf"
+    filename = f"yonalishlar_hisobot_{year}_{month:02d}.pdf"
     return Response(content=pdf_bytes, media_type="application/pdf",
                     headers={"Content-Disposition": f'inline; filename="{filename}"'})
 
@@ -7424,6 +7575,8 @@ def api_platform_create_company(name: str = Form(...), admin_username: str = For
         _obuna.sinov_ber(korxona)
         db.add(korxona)
         db.flush()                      # id kerak
+        # kech117 (A2): har korxonada ASOSIY yo'nalish («Penoplast») — korxona bilan BIR tranzaksiyada
+        crud.standart_yonalish(db, korxona.id)
         auth.create_user(db, login, parol, _UR.ADMIN,
                          (admin_full_name or nom).strip(),
                          company_id=korxona.id)
@@ -7615,6 +7768,72 @@ def api_set_categories(codes: str = Form(""), db: Session = Depends(get_db),
     crud.set_setting(db, "enabled_categories", ",".join(tanlangan), company_id=_cid)
     _clear_category_cache(_cid)
     return {"status": "ok", "enabled": tanlangan}
+
+
+# ============================================================
+# kech117 (A2) — YO'NALISHLAR (egasi QARORLARI kech114 00:08): ro'yxat — hamma xodim (tanlovlar uchun);
+# qo'shish / nomini o'zgartirish / yashirish / o'chirish — faqat admin (Sozlamalar sahifasi).
+# ============================================================
+@app.get("/api/yonalishlar")
+def api_yonalishlar(hammasi: bool = False, db: Session = Depends(get_db),
+                    current_user=Depends(auth.all_staff)):
+    """Korxona yo'nalishlari (asosiy birinchi). `hammasi=true` — yashirinlari ham va har birining ishlatilishi
+    (o'chirish mumkinmi — Sozlamalar sahifasi uchun)."""
+    cid = auth.company_id_of(current_user)
+    royxat = crud.yonalishlar_royxati(db, cid, yashirinlar=hammasi)
+    db.commit()     # asosiy yo'nalish endi yaratilgan bo'lsa
+    natija = []
+    for y in royxat:
+        d = crud.yonalish_dict(y)
+        if hammasi:
+            d["ishlatilishi"] = crud.yonalish_ishlatilishi(db, y.id, cid)
+        natija.append(d)
+    return natija
+
+
+@app.post("/api/yonalishlar")
+def api_yonalish_yarat(data: dict = Body(...), db: Session = Depends(get_db),
+                       current_user=Depends(auth.admin_only)):
+    """Yangi yo'nalish: {"nom": "..."} (1–60 belgi, ko'rinadiganlar orasida takrorlanmaydi)."""
+    if not isinstance(data, dict) or set(data) - {"nom"}:
+        raise HTTPException(status_code=400, detail="Faqat 'nom' yuboriladi")
+    try:
+        y = crud.yonalish_yarat(db, auth.company_id_of(current_user), data.get("nom"),
+                                created_by=current_user.full_name or current_user.username)
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    return crud.yonalish_dict(y)
+
+
+@app.put("/api/yonalishlar/{yonalish_id}")
+def api_yonalish_yangila(yonalish_id: int, data: dict = Body(...), db: Session = Depends(get_db),
+                         current_user=Depends(auth.admin_only)):
+    """Nomini o'zgartirish ({"nom"}) va / yoki yashirish / ko'rsatish ({"yashirin": true/false})."""
+    try:
+        y = crud.yonalish_yangila(db, yonalish_id, auth.company_id_of(current_user), data,
+                                  kim=current_user.full_name or current_user.username)
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    if y is None:
+        raise HTTPException(status_code=404, detail="Yo'nalish topilmadi")
+    return crud.yonalish_dict(y)
+
+
+@app.delete("/api/yonalishlar/{yonalish_id}")
+def api_yonalish_ochir(yonalish_id: int, db: Session = Depends(get_db),
+                       current_user=Depends(auth.admin_only)):
+    """Ishlatilmagan yo'nalishni o'chiradi (ishlatilgan / asosiy — 400, faqat yashirish)."""
+    try:
+        ok = crud.yonalish_ochir(db, yonalish_id, auth.company_id_of(current_user),
+                                 kim=current_user.full_name or current_user.username)
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    if ok is None:
+        raise HTTPException(status_code=404, detail="Yo'nalish topilmadi")
+    return {"status": "ok"}
 
 
 @app.post("/api/settings/company/logo")

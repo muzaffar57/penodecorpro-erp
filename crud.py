@@ -426,6 +426,220 @@ def get_item_locked(db: Session, item_id: int, company_id: int = None) -> Option
     return q.with_for_update().first()
 
 
+# ============================================================
+# kech117 (A2) — YO'NALISHLAR (egasi QARORLARI kech114 00:08 — QAYTA SO'RALMAYDI)
+# ============================================================
+# Korxona o'z ish yo'nalishlarini yuritadi («Penoplast» — asosiy, kodda doimiy qolgan turkumlar shunga; boshqalarini o'zi
+# qo'shadi, nomini o'zgartiradi, ishlatilganini faqat yashiradi). Hodim, xarajat, transport, kirim va MRP mahsulot turi
+# `yonalish_id` bilan bog'lanadi (NULL — «Umumiy»; MRP turida — «Belgilanmagan»). Hisob — `services.
+# calculate_split_profit_report` (har yo'nalish sof foydasi, yig'indisi = Moliyadagi sof foyda).
+_YONALISH_NOM_MAX = 60
+_YON_YOQ = object()      # "kalit yuborilmagan" belgisi (None — «Umumiy» tanlangan degani)
+
+
+def standart_yonalish(db: Session, company_id: int, yarat: bool = True):
+    """Korxonaning ASOSIY yo'nalishi (`kod = 'penoplast'`). Yo'q bo'lsa va `yarat` — yaratiladi (faqat `flush`;
+    `commit` — chaqiruvchida). PostgreSQL da parallel yaratish `uq_yonalishlar_company_kod` bilan to'siladi:
+    savepoint ichida urinib, band bo'lsa mavjudini qaytaradi."""
+    from models import Yonalish, YONALISH_ASOSIY_KOD, YONALISH_ASOSIY_NOM
+    from sqlalchemy.exc import IntegrityError as _IE117
+    if company_id is None:
+        return None
+    y = db.query(Yonalish).filter(Yonalish.company_id == company_id,
+                                  Yonalish.kod == YONALISH_ASOSIY_KOD).first()
+    if y is not None or not yarat:
+        return y
+    y = Yonalish(company_id=company_id, nom=YONALISH_ASOSIY_NOM, kod=YONALISH_ASOSIY_KOD,
+                 yashirin=False, tartib=0)
+    if db.bind.dialect.name == "postgresql":
+        try:
+            with db.begin_nested():
+                db.add(y)
+                db.flush()
+        except _IE117:
+            return db.query(Yonalish).filter(Yonalish.company_id == company_id,
+                                             Yonalish.kod == YONALISH_ASOSIY_KOD).first()
+    else:
+        db.add(y)
+        db.flush()
+    return y
+
+
+def yonalishlar_royxati(db: Session, company_id: int, yashirinlar: bool = False) -> list:
+    """Korxona yo'nalishlari: asosiy birinchi, keyin `tartib`, `id`. `yashirinlar=False` — faqat ko'rinadiganlar
+    (yangi yozuv tanlovi uchun). Asosiy yo'nalish yo'q bo'lsa — yaratiladi (flush)."""
+    from models import Yonalish, YONALISH_ASOSIY_KOD
+    if company_id is None:
+        return []
+    standart_yonalish(db, company_id)
+    q = db.query(Yonalish).filter(Yonalish.company_id == company_id)
+    if not yashirinlar:
+        q = q.filter((Yonalish.yashirin.is_(None)) | (Yonalish.yashirin.is_(False)))
+    royxat = q.all()
+    return sorted(royxat, key=lambda y: (0 if y.kod == YONALISH_ASOSIY_KOD else 1, y.tartib or 0, y.id))
+
+
+def yonalish_of_company(db: Session, yonalish_id, company_id: int):
+    """Yo'nalish FAQAT shu korxonadan (begona / yo'q — None)."""
+    from models import Yonalish
+    if yonalish_id is None or company_id is None:
+        return None
+    return db.query(Yonalish).filter(Yonalish.id == yonalish_id, Yonalish.company_id == company_id).first()
+
+
+def yonalish_dict(y) -> dict:
+    return {"id": y.id, "nom": y.nom, "asosiy": bool(y.asosiy), "yashirin": bool(y.yashirin)}
+
+
+def _yonalish_nomi_toza(nom) -> str:
+    if not isinstance(nom, str):
+        raise ValueError("Yo'nalish nomi matn bo'lishi kerak")
+    toza = " ".join(nom.split())
+    if not toza:
+        raise ValueError("Yo'nalish nomini kiriting")
+    if len(toza) > _YONALISH_NOM_MAX:
+        raise ValueError(f"Yo'nalish nomi juda uzun ({_YONALISH_NOM_MAX} belgidan ko'p)")
+    return toza
+
+
+def _yonalish_nomi_bandmi(db: Session, company_id: int, nom: str, istisno_id=None) -> bool:
+    """Ko'rinadigan yo'nalishlar orasida bir xil nom (katta / kichik harf farqsiz) bormi."""
+    for y in yonalishlar_royxati(db, company_id):
+        if y.id != istisno_id and y.nom.strip().lower() == nom.lower():
+            return True
+    return False
+
+
+def yonalish_yarat(db: Session, company_id: int, nom, created_by: str = None):
+    """Yangi yo'nalish. Nom 1–60 belgi, ko'rinadiganlar orasida takrorlanmaydi. Xato — `ValueError`."""
+    from models import Yonalish
+    toza = _yonalish_nomi_toza(nom)
+    if _yonalish_nomi_bandmi(db, company_id, toza):
+        raise ValueError(f"«{toza}» nomli yo'nalish allaqachon bor")
+    oxirgi = max([y.tartib or 0 for y in yonalishlar_royxati(db, company_id, yashirinlar=True)] or [0])
+    y = Yonalish(company_id=company_id, nom=toza, kod=None, yashirin=False, tartib=oxirgi + 1,
+                 created_by=created_by)
+    db.add(y)
+    db.flush()
+    log_activity(db, "created", "yonalish", y.id, f"Yo'nalish «{y.nom}»", created_by,
+                 company_id=company_id, commit=False)
+    db.commit()
+    db.refresh(y)
+    return y
+
+
+def yonalish_yangila(db: Session, yonalish_id: int, company_id: int, data: dict, kim: str = None):
+    """Nomini o'zgartirish (`nom`) va / yoki yashirish / ko'rsatish (`yashirin`). Asosiy yo'nalish yashirilmaydi.
+    Noma'lum kalit / noto'g'ri tur — `ValueError`; topilmasa — None."""
+    if not isinstance(data, dict):
+        raise ValueError("Noto'g'ri so'rov")
+    notogri = sorted(str(k)[:40] for k in data if k not in ("nom", "yashirin"))
+    if notogri:
+        raise ValueError("Bu maydonni o'zgartirib bo'lmaydi: " + ", ".join(notogri[:10]))
+    y = yonalish_of_company(db, yonalish_id, company_id)
+    if y is None:
+        return None
+    eski = f"{y.nom}{' (yashirin)' if y.yashirin else ''}"
+    if "nom" in data:
+        toza = _yonalish_nomi_toza(data["nom"])
+        if _yonalish_nomi_bandmi(db, company_id, toza, istisno_id=y.id):
+            raise ValueError(f"«{toza}» nomli yo'nalish allaqachon bor")
+        y.nom = toza
+    if "yashirin" in data:
+        if not isinstance(data["yashirin"], bool):
+            raise ValueError("'yashirin' true yoki false bo'lishi kerak")
+        if data["yashirin"] and y.asosiy:
+            raise ValueError("Asosiy yo'nalish yashirilmaydi — profil, panel, donali, blok va loy sotish "
+                             "buyurtmalari shunga yoziladi (nomini o'zgartirish mumkin)")
+        if not data["yashirin"] and y.yashirin and _yonalish_nomi_bandmi(db, company_id, y.nom, istisno_id=y.id):
+            raise ValueError(f"«{y.nom}» nomli boshqa yo'nalish ko'rinib turibdi — avval nomini o'zgartiring")
+        y.yashirin = data["yashirin"]
+    yangi = f"{y.nom}{' (yashirin)' if y.yashirin else ''}"
+    log_activity(db, "updated", "yonalish", y.id, f"Yo'nalish «{y.nom}»", kim, old_value=eski, new_value=yangi,
+                 company_id=company_id, commit=False)
+    db.commit()
+    db.refresh(y)
+    return y
+
+
+_YONALISH_BOGLAMLARI = (
+    ("employees", "Employee", "hodim"),
+    ("expense_transactions", "ExpenseTransaction", "xarajat"),
+    ("transport_expenses", "TransportExpense", "transport"),
+    ("inventory_receipts", "InventoryReceipt", "kirim"),
+    ("product_types", "ProductType", "MRP mahsulot turi"),
+)
+
+
+def yonalish_ishlatilishi(db: Session, yonalish_id: int, company_id: int) -> dict:
+    """{nom: soni} — shu yo'nalishga bog'langan yozuvlar (o'chirilganlari ham — tarix buzilmasin)."""
+    import models as _m117
+    import production_models as _pm117
+    from sqlalchemy import func as _f117
+    natija = {}
+    for _jadval, _model, _nom in _YONALISH_BOGLAMLARI:
+        _cls = getattr(_m117, _model, None) or getattr(_pm117, _model)
+        n = db.query(_f117.count(_cls.id)).filter(_cls.yonalish_id == yonalish_id,
+                                                  _cls.company_id == company_id).scalar() or 0
+        if n:
+            natija[_nom] = int(n)
+    return natija
+
+
+def yonalish_ochir(db: Session, yonalish_id: int, company_id: int, kim: str = None):
+    """Ishlatilmagan yo'nalishni o'chiradi. Asosiy — o'chirilmaydi; ishlatilgan — `ValueError` (faqat yashirish).
+    Topilmasa — None; o'chirilsa — True."""
+    y = yonalish_of_company(db, yonalish_id, company_id)
+    if y is None:
+        return None
+    if y.asosiy:
+        raise ValueError("Asosiy yo'nalish o'chirilmaydi")
+    ish = yonalish_ishlatilishi(db, yonalish_id, company_id)
+    if ish:
+        raise ValueError("Bu yo'nalish ishlatilgan (" + ", ".join(f"{k}: {v}" for k, v in ish.items())
+                         + ") — o'chirib bo'lmaydi, faqat yashirish mumkin")
+    nom = y.nom
+    db.delete(y)
+    log_activity(db, "deleted", "yonalish", yonalish_id, f"Yo'nalish «{nom}»", kim, company_id=company_id,
+                 commit=False)
+    db.commit()
+    return True
+
+
+def yonalish_tanlovi(db: Session, company_id: int, yonalish_id=_YON_YOQ, production_type=_YON_YOQ,
+                     joriy_id=None):
+    """Yozuvga yoziladigan (yonalish_id, production_type) juftligi — YAGONA qoida (hodim, xarajat, transport, kirim).
+
+    * `yonalish_id` yuborilgan (None ham) — YANGI tanlov: None — «Umumiy»; son — shu korxonaning yo'nalishi bo'lishi
+      SHART (begona / yo'q — `ValueError` "topilmadi", oracle yo'q), yashirin bo'lsa faqat o'zgarmagan (joriy)
+      qiymat qabul qilinadi. Eski `production_type` belgisi — asosiy yo'nalishda 'penoplast', aks holda None (shunda
+      ishga tushish migratsiyasi uni qayta asosiyga o'tkazmaydi).
+    * Faqat eski `production_type` (API / eski sahifa): 'penoplast' — asosiy yo'nalish; boshqa qiymat ('umumiy',
+      'gips', bo'sh) — «Umumiy», matn o'zgarmay saqlanadi (Gips moliyadan olib tashlangan — egasi qarori kech114).
+    * Ikkalasi ham yo'q — (`_YON_YOQ`, `_YON_YOQ`): o'zgarmaydi (tahrirda)."""
+    from models import YONALISH_ASOSIY_KOD
+    if yonalish_id is not _YON_YOQ:
+        if yonalish_id is None:
+            return None, None
+        y = yonalish_of_company(db, yonalish_id, company_id)
+        if y is None:
+            raise ValueError("Yo'nalish topilmadi")
+        if y.yashirin and y.id != joriy_id:
+            raise ValueError(f"«{y.nom}» yo'nalishi yashirilgan — avval uni Sozlamalarda ko'rsating")
+        return y.id, (YONALISH_ASOSIY_KOD if y.kod == YONALISH_ASOSIY_KOD else None)
+    if production_type is not _YON_YOQ:
+        if production_type == YONALISH_ASOSIY_KOD:
+            s = standart_yonalish(db, company_id)
+            return (s.id if s is not None else None), YONALISH_ASOSIY_KOD
+        return None, production_type
+    return _YON_YOQ, _YON_YOQ
+
+
+def yonalish_nomlari(db: Session, company_id: int) -> dict:
+    """{id: nom} — korxonaning HAMMA yo'nalishi (yashirinlari ham) — ro'yxatlarda nom ko'rsatish uchun."""
+    return {y.id: y.nom for y in yonalishlar_royxati(db, company_id, yashirinlar=True)}
+
+
 def create_expense_transaction(db: Session, data, performed_by: Optional[str] = None, source: str = "manual",
                                company_id: int = None):
     """Yangi xarajat tranzaksiyasini yaratadi. Bu funksiya faqat YANGI ExpenseTransaction
@@ -435,6 +649,12 @@ def create_expense_transaction(db: Session, data, performed_by: Optional[str] = 
     # kategoriya 1–30 belgi, yo'nalish ro'yxatdan, sana 2000–2100).
     # Marshrut ham tekshiradi; bu qatlam boshqa chaqiruvchilar uchun.
     data = _clean_val("ExpenseTransaction", _val_dump(data, "ExpenseTransaction"))
+    # kech117 (A2): yo'nalish — YAGONA qoida (`yonalish_tanlovi`; begona / yo'q / yashirin — ValueError, hech narsa
+    # yozilmaydi). Hech biri yuborilmasa — «Umumiy».
+    _yid, _pt = yonalish_tanlovi(db, company_id, data.get("yonalish_id", _YON_YOQ),
+                                 data.get("production_type", _YON_YOQ))
+    if _yid is _YON_YOQ:
+        _yid, _pt = None, None
     # M6 — TENANT: company_id ANIQ beriladi (ota-FK yo'q, DEFAULT 1 ga tushmasin).
     tx = ExpenseTransaction(
         company_id=company_id,
@@ -444,7 +664,8 @@ def create_expense_transaction(db: Session, data, performed_by: Optional[str] = 
         notes=data.get("notes"),
         created_by=performed_by,
         source=source,
-        production_type=data.get("production_type"),
+        production_type=_pt,
+        yonalish_id=_yid,
     )
     db.add(tx)
     db.commit()
@@ -479,8 +700,14 @@ def update_expense_transaction(db: Session, tx_id: int, data,
         tx.amount = data["amount"]
     if "notes" in data:
         tx.notes = data["notes"]
-    if "production_type" in data:
-        tx.production_type = data["production_type"]
+    # kech117 (A2): yo'nalish — yaratish bilan BIR qoida; kalit yuborilmasa o'zgarmaydi. Yashirin yo'nalishli eski
+    # yozuvni tahrirlash (yo'nalishi o'zgarmasa) — ruxsat.
+    _yid, _pt = yonalish_tanlovi(db, company_id if company_id is not None else tx.company_id,
+                                 data.get("yonalish_id", _YON_YOQ), data.get("production_type", _YON_YOQ),
+                                 joriy_id=tx.yonalish_id)
+    if _yid is not _YON_YOQ:
+        tx.yonalish_id = _yid
+        tx.production_type = _pt
     db.commit()
     db.refresh(tx)
     return tx
@@ -980,7 +1207,8 @@ def create_inventory_receipt(db: Session, items: list, transport_cost: float = 0
                               supplier_id: int = None, document_number: str = None,
                               paid_now: float = 0.0, notes: str = None, created_by: str = None,
                               production_type: str = None, company_id: int = None,
-                              receipt_date: str = None, payment_due_date: str = None) -> dict:
+                              receipt_date: str = None, payment_due_date: str = None,
+                              yonalish_id=_YON_YOQ) -> dict:
     """Ombor Kirim hujjati — bir nechta mahsulotni, qo'shimcha xarajatlar
     (Transport, Tushirish/Grushchik, Yuklash, Boshqa) bilan birga, BITTA
     yagona tranzaksiya sifatida saqlaydi. Xato bo'lsa — HAMMASI (barcha
@@ -1028,13 +1256,18 @@ def create_inventory_receipt(db: Session, items: list, transport_cost: float = 0
         # NULL bo'lishi mumkin — ta'minotchisiz kirim. U holda model
         # qo'riqchisi korxonani aniqlay olmaydi, shuning uchun tenant
         # ANIQ beriladi. (Ilgari vaqtinchalik `DEFAULT 1` to'ldirardi.)
+        # kech117 (A2): kirim yo'nalishi — YAGONA qoida (`yonalish_tanlovi`); kirimning qo'shimcha xarajatlari
+        # (pastda, `ExpenseTransaction`) AYNAN shu yo'nalishni oladi. Hech biri berilmasa — «Umumiy».
+        _yid_k, _pt_k = yonalish_tanlovi(db, company_id, yonalish_id, production_type)
+        if _yid_k is _YON_YOQ:
+            _yid_k, _pt_k = None, None
         receipt = InventoryReceipt(
             company_id=company_id,
             supplier_id=supplier_id, document_number=document_number,
             transport_cost=transport_cost or 0, tushirish_cost=tushirish_cost or 0,
             yuklash_cost=yuklash_cost or 0, boshqa_cost=boshqa_cost or 0,
             add_to_cost=add_to_cost, notes=notes, created_by=created_by,
-            production_type=production_type
+            production_type=_pt_k, yonalish_id=_yid_k
         )
         if _kirim_vaqti is not None:          # kech115 (G4-03): tanlangan o'tgan sana
             receipt.receipt_date = _kirim_vaqti
@@ -1122,7 +1355,7 @@ def create_inventory_receipt(db: Session, items: list, transport_cost: float = 0
                     notes=f"{label} — Kirim #{receipt.id}" + (f" ({document_number})" if document_number else ""),
                     created_by=created_by,
                     source=(KIRIM_TANNARX_MANBA if _tannarxga else "inventory_receipt"),
-                    production_type=production_type
+                    production_type=_pt_k, yonalish_id=_yid_k
                 )
                 db.add(tx)
 
@@ -3255,6 +3488,8 @@ def _upd_rules():
             "extra_monthly": ("son", True, False, money),
             "production_type": ("tanlov", True, {"penoplast": "penoplast", "gips": "gips",
                                                  "umumiy": "umumiy"}),
+            # kech117 (A2): korxona yo'nalishi (`models.Yonalish`); NULL — «Umumiy». Korxonasi — `yonalish_tanlovi`.
+            "yonalish_id": ("id", True),
             "is_active": ("bool", False),
             "notes": ("matn", False, _UPD_MATN_CHEGARA),
             "effective_year": ("butun", True, 2000, 2100),
@@ -3834,6 +4069,8 @@ def _val_rules():
             "add_to_cost": ("bool", False),
             "notes": ("matn", False, matn),
             "production_type": ("tanlov", True, _ISHLAB_CHIQARISH_TURI),
+            # kech117 (A2): korxona yo'nalishi (`models.Yonalish`); NULL — «Umumiy». Korxonasi — `yonalish_tanlovi`.
+            "yonalish_id": ("id", True),
             # kech115 (G4-03): kirim sanasi va qarz muddati (sana haqiqiyligi shu yerda, chegaralar —
             # `kirim_sanalari`).
             "receipt_date": ("sana", True),
@@ -3875,6 +4112,8 @@ def _val_rules():
             "amount": ("son", False, True, money),
             "notes": ("matn", False, matn),
             "production_type": ("tanlov", True, _ISHLAB_CHIQARISH_TURI),
+            # kech117 (A2): korxona yo'nalishi (`models.Yonalish`); NULL — «Umumiy». Korxonasi — `yonalish_tanlovi`.
+            "yonalish_id": ("id", True),
         },
         # 17e: buyurtmaning kelishilgan summasi (`orders.html`
         # `editAgreedAmount` — faqat shu bitta kalit). MUSBAT: 0 ikki xil
@@ -3894,6 +4133,8 @@ def _val_rules():
             "materials_note": ("matn", False, 255),
             "notes": ("matn", False, matn),
             "production_type": ("tanlov", True, _ISHLAB_CHIQARISH_TURI),
+            # kech117 (A2): korxona yo'nalishi (`models.Yonalish`); NULL — «Umumiy». Korxonasi — `yonalish_tanlovi`.
+            "yonalish_id": ("id", True),
         },
         # Mijoz to'lovi (`POST /api/payments`) — `orders.html` (to'lov oynasi
         # va zaklat), `debts.html` (qarzni yopish) AYNAN shu kalitlarni
@@ -4036,6 +4277,8 @@ def _val_rules():
             "supports_coating": ("bool", False),
             "coating_price_multiplier": ("son", True, True, _QOPLAMA_KOEF_MAX),
             "notes": ("matn", False, matn),
+            # kech117 (A2): mahsulot turi yo'nalishi (UI da majburiy; API da NULL — «Belgilanmagan»)
+            "yonalish_id": ("id", True),
         },
         "BOMItem": {
             "inventory_id": ("id", False),
@@ -7660,6 +7903,7 @@ def _reset_table_order():
         MasterGiftPeriodRedemption, GiftPeriodParticipant, GiftPeriodTier,
         GiftPeriod, Master, Project, Supplier, CashTransaction, ActivityLog,
         ErrorLog, LoginHistory, CompanySetting, RecurringObligation, Inventory,
+        Yonalish,
     )
     return [
         ProductionOrder,
@@ -7673,6 +7917,9 @@ def _reset_table_order():
         EmployeeMonthlyAdjustment, EmployeeCompensationHistory, Employee,
         RecipeIngredient, Recipe,
         BOMItem, BOM, ProductType, Inventory,
+        # kech117 (A2): yo'nalish — unga ishora qiluvchilardan (hodim, xarajat, transport, kirim, MRP turi) KEYIN
+        # o'chiriladi, tiklashda ulardan OLDIN qo'shiladi.
+        Yonalish,
         MasterGiftRedemption, MasterGift,
         MasterGiftPeriodRedemption, GiftPeriodParticipant, GiftPeriodTier, GiftPeriod,
         Master, Project, Supplier,
@@ -11774,6 +12021,11 @@ def create_transport_expense(db: Session, data: TransportExpenseCreate, created_
     # ichki chaqiruvchi (xarid marshrutidagi "o'z hisobimdan" transport) va
     # boshqa chaqiruvchilar uchun. `data` — lug'at, pydantic yoki oddiy obyekt.
     toza = _clean_val("TransportExpense", _val_dump(data, "TransportExpense"))
+    # kech117 (A2): yo'nalish — YAGONA qoida (`yonalish_tanlovi`); hech biri yuborilmasa — «Umumiy».
+    _yid, _pt = yonalish_tanlovi(db, company_id, toza.get("yonalish_id", _YON_YOQ),
+                                 toza.get("production_type", _YON_YOQ))
+    if _yid is _YON_YOQ:
+        _yid, _pt = None, None
     # M6 — TENANT: company_id ANIQ beriladi.
     exp = TransportExpense(
         company_id=company_id,
@@ -11781,7 +12033,8 @@ def create_transport_expense(db: Session, data: TransportExpenseCreate, created_
         materials_note=toza.get("materials_note"),
         created_by=created_by,
         notes=toza.get("notes"),
-        production_type=toza.get("production_type")
+        production_type=_pt,
+        yonalish_id=_yid,
     )
     db.add(exp)
     db.commit()
@@ -11879,6 +12132,11 @@ def create_employee(db: Session, data: EmployeeCreate, company_id: int = None) -
     # Tanlov maydonlari tozalangan (kanonik) qiymatdan olinadi.
     toza = _clean_create("Employee", data.model_dump(exclude_unset=True))
     pt = PayType(toza["pay_type"])
+    # kech117 (A2): hodim yo'nalishi — YAGONA qoida (`yonalish_tanlovi`); hech biri berilmasa — «Umumiy».
+    _yid, _pt = yonalish_tanlovi(db, company_id, toza.get("yonalish_id", _YON_YOQ),
+                                 toza.get("production_type", _YON_YOQ))
+    if _yid is _YON_YOQ:
+        _yid, _pt = None, None
 
     emp = Employee(
         company_id=company_id,
@@ -11890,7 +12148,8 @@ def create_employee(db: Session, data: EmployeeCreate, company_id: int = None) -
         per_unit_rate=data.per_unit_rate,
         per_unit_type=toza.get("per_unit_type", data.per_unit_type),
         extra_monthly=getattr(data, 'extra_monthly', None),
-        production_type=toza.get("production_type"),
+        production_type=_pt,
+        yonalish_id=_yid,
         notes=data.notes
     )
     db.add(emp)
@@ -12133,6 +12392,13 @@ def update_employee(db: Session, emp_id: int, data: EmployeeUpdate, updated_by: 
     effective_year = update_data.pop("effective_year", None)
     effective_month = update_data.pop("effective_month", None)
     reason = update_data.pop("reason", None)
+    # kech117 (A2): yo'nalish — yaratish bilan BIR qoida (`yonalish_tanlovi`); kalit yuborilmasa o'zgarmaydi,
+    # yashirin yo'nalishli hodimni boshqa maydoni bilan tahrirlash — ruxsat.
+    _yid, _pt = yonalish_tanlovi(db, emp.company_id, update_data.pop("yonalish_id", _YON_YOQ),
+                                 update_data.pop("production_type", _YON_YOQ), joriy_id=emp.yonalish_id)
+    if _yid is not _YON_YOQ:
+        update_data["yonalish_id"] = _yid
+        update_data["production_type"] = _pt
 
     if "pay_type" in update_data:
         try:
@@ -14065,7 +14331,7 @@ def brak_yozuv_qiymatlari(db: Session, return_item_ids, company_id: int = None) 
 
 
 def get_brak_material_summary(db: Session, start_date=None, end_date=None,
-                             company_id: int = None) -> dict:
+                             company_id: int = None, harakatlar: bool = False) -> dict:
     """Brak (defekt) sabab ombordan yechilgan XOMASHYO bo'yicha xulosa.
 
     Qaytaradi:
@@ -14078,7 +14344,11 @@ def get_brak_material_summary(db: Session, start_date=None, end_date=None,
     Faqat o'qish. kech46 (13-band, 2-qadam): har harakat CHIQIM paytidagi
     muzlatilgan narx (`unit_cost`) bilan baholanadi; u yo'q (eski harakat)
     bo'lsa — materialning joriy narxi (`price_per_unit`), avvalgidek.
-    `by_material[].unit_price` — o'rtacha narx (qiymat / miqdor)."""
+    `by_material[].unit_price` — o'rtacha narx (qiymat / miqdor).
+
+    kech117 (A2): `harakatlar=True` — har brak harakati {return_item_id, order_id, value} (yaxlitlanmagan; yo'nalishlar
+    hisoboti bog'langan yozuv yo'nalishiga taqsimlaydi). Eski «gips / penoplast» ikkiga bo'linishi olib tashlandi (Gips
+    moliyadan butunlay olib tashlangan — egasi qarori kech114; ishlatuvchisi — eski bo'lingan hisobot — o'zgardi)."""
     from models import Inventory, InventoryMovement, Order
 
     def _harakat_narxi(harakat, inv):
@@ -14102,8 +14372,10 @@ def get_brak_material_summary(db: Session, start_date=None, end_date=None,
     rows = q.order_by(InventoryMovement.created_at.desc()).all()
 
     if not rows:
-        return {"by_material": [], "by_order": [], "total_value": 0, "total_penoplast_m3": 0,
-                "gips_brak_value": 0, "penoplast_brak_value": 0}
+        _bosh = {"by_material": [], "by_order": [], "total_value": 0, "total_penoplast_m3": 0}
+        if harakatlar:
+            _bosh["harakatlar"] = []
+        return _bosh
 
     # Barcha kerakli Inventory va Order obyektlarini oldindan yuklaymiz
     inv_ids = {r.inventory_id for r in rows if r.inventory_id}
@@ -14121,8 +14393,7 @@ def get_brak_material_summary(db: Session, start_date=None, end_date=None,
     by_material_agg = {}
     total_value = 0.0
     total_m3 = 0.0
-    gips_brak_value = 0.0
-    penoplast_brak_value = 0.0
+    harakat_royxati = []      # kech117 (A2)
     for r in rows:
         inv = inv_map.get(r.inventory_id)
         price = _harakat_narxi(r, inv)
@@ -14130,10 +14401,8 @@ def get_brak_material_summary(db: Session, start_date=None, end_date=None,
         m3 = m3_for(inv, r.quantity)
         total_value += value
         total_m3 += m3
-        if inv and (inv.category or '').lower() == 'gips':
-            gips_brak_value += value
-        else:
-            penoplast_brak_value += value
+        if harakatlar:
+            harakat_royxati.append({"return_item_id": r.return_item_id, "order_id": r.order_id, "value": value})
         key = r.item_name
         if key not in by_material_agg:
             by_material_agg[key] = {"item_name": r.item_name, "quantity": 0.0, "unit": r.unit,
@@ -14181,14 +14450,15 @@ def get_brak_material_summary(db: Session, start_date=None, end_date=None,
         o["total_value"] = round(o["total_value"])
         o["total_m3"] = round(o["total_m3"], 3) if o["total_m3"] > 0 else None
 
-    return {
+    natija = {
         "by_material": by_material,
         "by_order": by_order,
         "total_value": round(total_value),
         "total_penoplast_m3": round(total_m3, 3),
-        "gips_brak_value": round(gips_brak_value),
-        "penoplast_brak_value": round(penoplast_brak_value)
     }
+    if harakatlar:
+        natija["harakatlar"] = harakat_royxati
+    return natija
 
 
 

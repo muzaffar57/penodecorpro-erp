@@ -120,12 +120,50 @@ def create_product_type(data: dict = Body(...), db: Session = Depends(get_db), c
             detail=f"'{_nom}' nomli mahsulot turi allaqachon bor. Boshqa nom tanlang.")
     _payload = data.model_dump()
     _payload["name"] = _nom
+    # kech117 (A2): yo'nalish FAQAT shu korxonaniki va ko'rinadigan (begona / yo'q — "topilmadi", oracle yo'q)
+    if _payload.get("yonalish_id") is not None:
+        try:
+            _payload["yonalish_id"], _ = crud.yonalish_tanlovi(db, _cid, _payload["yonalish_id"])
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
     pt = ProductType(company_id=_cid, **_payload)
     db.add(pt)
     db.flush()
     # kech110 (2c): Faoliyat jurnali — amal bilan BITTA tranzaksiyada
     crud.log_activity(db, "created", "product_type", pt.id, f"Mahsulot turi «{pt.name}»", _kim(current_user),
                       new_value=f"birlik: {pt.unit}", company_id=_cid, commit=False)
+    db.commit()
+    db.refresh(pt)
+    return pt
+
+
+@router.patch("/product-types/{pt_id}", response_model=schemas.ProductTypeRead)
+def set_product_type_yonalish(pt_id: int, data: dict = Body(...), db: Session = Depends(get_db),
+                              current_user=Depends(auth.admin_or_warehouse)):
+    """kech117 (A2 — egasi QARORI «mavjud turlar — egasi biriktiradi»): turga yo'nalish biriktirish / almashtirish.
+    Faqat `yonalish_id` (shu korxonaning ko'rinadigan yo'nalishi). Turning boshqa maydonlari (birlik, narx usuli)
+    ATAYLAB o'zgartirilmaydi — eski buyurtma / ishlab chiqarish tarixi shularga tayanadi. Yo'nalish almashsa, o'tgan
+    oylar hisoboti ham yangi yo'nalish bo'yicha bo'linadi (tur — yagona manba; sof foyda jami o'zgarmaydi)."""
+    _cid = auth.company_id_of(current_user)
+    pt = db.query(ProductType).filter(ProductType.id == pt_id, ProductType.company_id == _cid).first()
+    if not pt:
+        raise HTTPException(status_code=404, detail="Mahsulot turi topilmadi")
+    try:
+        toza = schemas.ProductTypeYonalish(**data) if isinstance(data, dict) else None
+    except Exception:
+        toza = None
+    if toza is None:
+        raise HTTPException(status_code=400, detail="Faqat 'yonalish_id' (butun son) yuboriladi")
+    try:
+        _yid, _ = crud.yonalish_tanlovi(db, _cid, toza.yonalish_id, joriy_id=pt.yonalish_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    _nomlar = crud.yonalish_nomlari(db, _cid)
+    _eski = _nomlar.get(pt.yonalish_id, "Belgilanmagan") if pt.yonalish_id else "Belgilanmagan"
+    pt.yonalish_id = _yid
+    crud.log_activity(db, "updated", "product_type", pt.id, f"Mahsulot turi «{pt.name}»", _kim(current_user),
+                      old_value=f"yo'nalish: {_eski}", new_value=f"yo'nalish: {_nomlar.get(_yid, '')}",
+                      company_id=_cid, commit=False)
     db.commit()
     db.refresh(pt)
     return pt

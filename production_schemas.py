@@ -53,6 +53,9 @@ class ProductTypeCreate(BaseModel):
         default=None, gt=0, le=100,
         description="Qoplamali narx koeffitsiyenti, masalan 2 yoki 2.5")
     notes: Optional[str] = Field(default=None, max_length=_MATN_MAX)
+    # kech117 (A2 — egasi QARORI kech114 00:08): tur yo'nalishi. Sahifada MAJBURIY tanlanadi; API da NULL —
+    # «Belgilanmagan» (yo'nalishlar hisobotida alohida ustun). Korxonasi — `crud.yonalish_tanlovi`.
+    yonalish_id: Optional[int] = Field(default=None, ge=1, le=2_147_483_647)
 
     @model_validator(mode="after")
     def _qoplama_tekshir(self):
@@ -81,8 +84,16 @@ class ProductTypeRead(BaseModel):
     is_active: bool
     created_at: datetime
     notes: Optional[str] = None
+    yonalish_id: Optional[int] = None      # kech117 (A2)
 
     model_config = {"from_attributes": True}
+
+
+class ProductTypeYonalish(BaseModel):
+    """kech117 (A2 — egasi QARORI «mavjud turlar — egasi biriktiradi»): turga yo'nalish biriktirish / almashtirish
+    (`PATCH /api/production/product-types/{id}`). Faqat shu bitta kalit; NULL ga qaytarib bo'lmaydi."""
+    model_config = _QATIY
+    yonalish_id: int = Field(..., ge=1, le=2_147_483_647)
 
 
 # ============================================================

@@ -1299,6 +1299,10 @@ class InventoryReceipt(Base):
     # Yo'nalish (ixtiyoriy): umumiy / penoplast / gips — hisobotda
     # Transport va boshqa qo'shimcha xarajatlarni ajratib ko'rish uchun
     production_type = Column(String(20), nullable=True)
+    # kech117 (A2 — egasi QARORLARI kech114 00:08): korxona YO'NALISHI (`Yonalish`). NULL — «Umumiy» (umumiy xarajat
+    # daromad ulushiga qarab bo'linadi). `production_type` — ESKI matn belgisi, faqat migratsiya o'qiydi
+    # (`main._migrate_yonalishlar`: 'penoplast' → asosiy yo'nalish); hisob `yonalish_id` dan.
+    yonalish_id = Column(Integer, ForeignKey("yonalishlar.id"), nullable=True, index=True)
 
     # "☑ Qo'shimcha xarajatlarni tannarxga qo'shish" — yoqilgan bo'lsa,
     # yuqoridagi 4 ta xarajat, mahsulotlar qiymatiga proporsional taqsimlanib,
@@ -1370,6 +1374,10 @@ class Employee(Base):
     # yozmaydi ham.
     extra_monthly = Column(Numeric(12, 2), nullable=True)   # Istalgan to'lov turiga qo'shiladigan, ixtiyoriy doimiy oylik
     production_type = Column(String(20), nullable=True)     # penoplast / gips / umumiy — Gips/Penoplast mustaqil hisobot uchun
+    # kech117 (A2 — egasi QARORLARI kech114 00:08): korxona YO'NALISHI (`Yonalish`). NULL — «Umumiy» (umumiy xarajat
+    # daromad ulushiga qarab bo'linadi). `production_type` — ESKI matn belgisi, faqat migratsiya o'qiydi
+    # (`main._migrate_yonalishlar`: 'penoplast' → asosiy yo'nalish); hisob `yonalish_id` dan.
+    yonalish_id = Column(Integer, ForeignKey("yonalishlar.id"), nullable=True, index=True)
 
     is_active = Column(Boolean, default=True)
     hire_date = Column(DateTime, default=datetime.utcnow)
@@ -1752,6 +1760,10 @@ class TransportExpense(Base):
     created_by = Column(String(100), nullable=True)
     notes = Column(Text, nullable=True)
     production_type = Column(String(20), nullable=True)  # umumiy / penoplast / gips
+    # kech117 (A2 — egasi QARORLARI kech114 00:08): korxona YO'NALISHI (`Yonalish`). NULL — «Umumiy» (umumiy xarajat
+    # daromad ulushiga qarab bo'linadi). `production_type` — ESKI matn belgisi, faqat migratsiya o'qiydi
+    # (`main._migrate_yonalishlar`: 'penoplast' → asosiy yo'nalish); hisob `yonalish_id` dan.
+    yonalish_id = Column(Integer, ForeignKey("yonalishlar.id"), nullable=True, index=True)
 
     def __repr__(self):
         return f"<TransportExpense {self.amount}>"
@@ -2119,6 +2131,47 @@ KIRIM_TANNARX_MANBA = "kirim_tannarx"
 KIRIM_XARAJAT_MANBA = "inventory_receipt"
 
 
+class Yonalish(Base):
+    """kech117 (A2 — YO'NALISHLAR BO'YICHA MOLIYA; egasi QARORLARI kech114 00:08, QAYTA SO'RALMAYDI): korxonaning
+    ish yo'nalishlari (masalan «Penoplast», «Metall»). Har yo'nalishning o'z sof foydasi hisoblanadi
+    (`services.calculate_split_profit_report`), ularning yig'indisi Moliyadagi sof foydaga TENG.
+
+    * `kod = 'penoplast'` — ASOSIY yo'nalish (har korxonada bittadan — `uq_yonalishlar_company_kod`): kodda doimiy
+      qolgan turkumlar (profil, panel, donali, blok, loy sotish) shu yo'nalishga yoziladi. Nomini o'zgartirish
+      mumkin, yashirib / o'chirib bo'lmaydi. Boshqa yo'nalishlarda `kod` NULL (NULL lar noyoblikka kirmaydi).
+    * Yo'nalishni korxona o'zi qo'shadi va nomini o'zgartiradi; ishlatilgan yo'nalish o'chirilmaydi — faqat
+      yashiriladi (`yashirin`: yangi yozuv tanlovida chiqmaydi, eski yozuvlar va hisobot o'zgarmaydi).
+    * Bog'lanadiganlar (`yonalish_id`, NULL — «Umumiy» / MRP turida «Belgilanmagan»): `employees`,
+      `expense_transactions`, `transport_expenses`, `inventory_receipts`, `product_types`.
+    """
+    __tablename__ = "yonalishlar"
+    __table_args__ = (
+        UniqueConstraint("company_id", "kod", name="uq_yonalishlar_company_kod"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    nom = Column(String(60), nullable=False)
+    kod = Column(String(20), nullable=True)              # 'penoplast' — asosiy; boshqalar NULL
+    yashirin = Column(Boolean, default=False, nullable=True)
+    tartib = Column(Integer, default=0, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    created_by = Column(String(100), nullable=True)
+
+    @property
+    def asosiy(self) -> bool:
+        return self.kod == YONALISH_ASOSIY_KOD
+
+    def __repr__(self):
+        return f"<Yonalish {self.nom}>"
+
+
+# kech117 (A2): asosiy yo'nalish kodi va standart nomi; kodda doimiy qolgan buyurtma turkumlari shu yo'nalishga yoziladi.
+YONALISH_ASOSIY_KOD = "penoplast"
+YONALISH_ASOSIY_NOM = "Penoplast"
+YONALISH_ASOSIY_TURKUMLAR = frozenset({"profil", "karniz", "panel", "dona", "blok", "loy_sotish"})
+
+
 class ExpenseTransaction(Base):
     """Har bir xarajatni ALOHIDA tranzaksiya sifatida saqlaydi (SaaS arxitekturasi uchun).
 
@@ -2150,6 +2203,10 @@ class ExpenseTransaction(Base):
     source = Column(String(20), default="manual")
     # Yo'nalish bo'yicha ajratish (ixtiyoriy): umumiy / penoplast / gips
     production_type = Column(String(20), nullable=True)
+    # kech117 (A2 — egasi QARORLARI kech114 00:08): korxona YO'NALISHI (`Yonalish`). NULL — «Umumiy» (umumiy xarajat
+    # daromad ulushiga qarab bo'linadi). `production_type` — ESKI matn belgisi, faqat migratsiya o'qiydi
+    # (`main._migrate_yonalishlar`: 'penoplast' → asosiy yo'nalish); hisob `yonalish_id` dan.
+    yonalish_id = Column(Integer, ForeignKey("yonalishlar.id"), nullable=True, index=True)
 
     def __repr__(self):
         return f"<ExpenseTransaction {self.category}: {self.amount}>"
@@ -2351,7 +2408,9 @@ _TENANT_REFS = {
     # Xarid — qaysi material va qaysi ta'minotchidan
     "InventoryPurchase": [("inventory_id", "Inventory"), ("supplier_id", "Supplier")],
     # Ombor kirimi — qaysi ta'minotchidan
-    "InventoryReceipt": [("supplier_id", "Supplier")],
+    "InventoryReceipt": [("supplier_id", "Supplier"),
+                         # kech117 (A2): kirim yo'nalishi — o'z korxonasiniki
+                         ("yonalish_id", "Yonalish")],
     # Ta'minotchiga to'lov
     "SupplierPayment": [("supplier_id", "Supplier")],
     # Tayyor mahsulot — qaysi buyurtma/retsept/materialga
@@ -2401,6 +2460,14 @@ _TENANT_REFS = {
     "EmployeeMonthlyAdjustment":   [("employee_id", "Employee")],
     "AdvanceRequest":              [("employee_id", "Employee")],
     "EmployeeSession":             [("employee_id", "Employee")],
+
+    # --- kech117 (A2 — yo'nalishlar bo'yicha moliya) ---
+    # Hodim, xarajat, transport va MRP mahsulot turi — FAQAT o'z korxonasining yo'nalishiga. Aks holda A ning xarajati
+    # B ning yo'nalishiga yozilib, B ning yo'nalishlar hisobotida (va A ning sof foydasi bo'linishida) chiqardi.
+    "Employee":                    [("yonalish_id", "Yonalish")],
+    "ExpenseTransaction":          [("yonalish_id", "Yonalish")],
+    "TransportExpense":            [("yonalish_id", "Yonalish")],
+    "ProductType":                 [("yonalish_id", "Yonalish")],
 }
 
 

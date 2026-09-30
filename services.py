@@ -1091,8 +1091,6 @@ def get_today_stats(db: Session, company_id: int = None) -> Dict:
     ).all()
     _hk_tayyorla(db, completed_today)    # kech90 (110-band): N+1 o'rniga bir necha IN so'rovi
     today_profit = 0.0
-    today_gips_revenue = 0.0
-    today_penoplast_revenue = 0.0
     for o in completed_today:
         try:
             p = yakun_foydasi(db, o, company_id=company_id)      # kech102 (144-band): yakunlangan paytdagi
@@ -1100,22 +1098,10 @@ def get_today_stats(db: Session, company_id: int = None) -> Dict:
                 today_profit += p.get("foyda", 0)
         except Exception:
             db.rollback()
-        o_total = float(o.total_amount or 0)
-        o_agreed = yakun_daromadi(db, o)
-        if o_total > 0:
-            for it in o.items:
-                share = (float(it.total_price or 0) / o_total) * o_agreed
-                if (it.category or '').lower() == 'gips':
-                    today_gips_revenue += share
-                else:
-                    today_penoplast_revenue += share
     # kech102 (144-band, QAROR "Qaytarish oyida"): bugun bo'lgan qaytarishlar (yakunlangan buyurtmalardan keyin)
-    for _h144 in davr_qaytarishlari(db, today_start, today_end, company_id=company_id):
+    _bugun_qaytarish = davr_qaytarishlari(db, today_start, today_end, company_id=company_id)
+    for _h144 in _bugun_qaytarish:
         today_profit += _h144["foyda"]
-        if _h144["gips"]:
-            today_gips_revenue += _h144["daromad"]
-        else:
-            today_penoplast_revenue += _h144["daromad"]
 
     # ── Tayyor mahsulotlar bo'limidan to'g'ridan-to'g'ri (buyurtmasiz)
     # sotilganlar — avval bu "Bugungi" statistikada hisobga olinmasdi. ──
@@ -1135,11 +1121,13 @@ def get_today_stats(db: Session, company_id: int = None) -> Dict:
         s_cost = float(s.cost_amount or 0)
         today_revenue += s_total
         today_profit += (s_total - s_cost)
-        cat = (s.finished_product.category if s.finished_product else '') or ''
-        if cat.lower() == 'gips':
-            today_gips_revenue += s_total
-        else:
-            today_penoplast_revenue += s_total
+
+    # kech117 (A2): bugungi daromad YO'NALISHLAR bo'yicha (ilgari «Gips / Penoplast») — YAGONA qoida
+    # (`yonalish_daromadlari`, oylik hisobot bilan bir): yakunlangan buyurtmalar, bugungi qaytarishlar, TM sotuvi.
+    _yx_t = _YonXarita(db, company_id)
+    today_yonalishlar = yonalishlar_royxati_hisobot(_yx_t, yonalish_daromadlari(
+        db, company_id, completed_today, lambda _o: yakun_daromadi(db, _o), qaytarishlar=_bugun_qaytarish,
+        tm_sotuvlari=fp_sales_today, xarita=_yx_t))
 
     return {
         "today_revenue": float(today_revenue),
@@ -1148,8 +1136,7 @@ def get_today_stats(db: Session, company_id: int = None) -> Dict:
         "due_today": due_today,
         "active_masters": active_masters,
         "today_profit": today_profit,
-        "today_gips_revenue": round(today_gips_revenue),
-        "today_penoplast_revenue": round(today_penoplast_revenue),
+        "today_yonalishlar": [dict(y, daromad=round(y["daromad"])) for y in today_yonalishlar],
     }
 
 
@@ -1628,6 +1615,8 @@ def get_chart_data(db: Session, company_id: int = None) -> Dict:
 
     # --- 1. Oxirgi 6 oylik buyurtmalar soni ---
     months_data = []
+    _yx_c = _YonXarita(db, company_id)     # kech117 (A2): yo'nalishlar (grafik bir marta o'qiydi)
+    _yon_nomlari = {}
     # kech105 (9 + 50-band, QAROR "Toshkent vaqti bo'yicha"): oxirgi 6 oy — TOSHKENT kalendar oylari. Ilgari oy
     # boshi `now − i × 30 kun` dan olinardi (UTC; 31 kunlik oylar ketma-ket kelganda bir oy ikki marta / tushib
     # qolishi mumkin edi) va chegara Toshkent vaqti bilan 05:00 da edi.
@@ -1663,19 +1652,8 @@ def get_chart_data(db: Session, company_id: int = None) -> Dict:
             Order.completed_at < month_end,
             Order.status == OrderStatus.READY
         )).options(_sil_cd(Order.items)).all()
-        gips_rev = 0.0
-        peno_rev = 0.0
-        for o in month_orders:
-            o_total = float(o.total_amount or 0)
-            o_agreed = o.kelishilgan_summa
-            if o_total <= 0:
-                continue
-            for it in o.items:
-                share = (float(it.total_price or 0) / o_total) * o_agreed
-                if (it.category or '').lower() == 'gips':
-                    gips_rev += share
-                else:
-                    peno_rev += share
+        # kech117 (A2): yo'nalishlar bo'yicha — YAGONA qoida (`yonalish_daromadlari`); bu grafikda avvalgidek
+        # joriy kelishilgan summa (qaytarish hodisalarisiz) — faqat taqsimot «Gips / Penoplast» o'rniga yo'nalishlar.
 
         # Tayyor mahsulotlar bo'limidan to'g'ridan-to'g'ri (buyurtmasiz)
         # sotilganlar — avval bu grafikda hisobga olinmasdi.
@@ -1696,16 +1674,14 @@ def get_chart_data(db: Session, company_id: int = None) -> Dict:
         for s in month_fp_sales:
             s_total = float(s.total_amount or 0)
             revenue += s_total
-            cat = (s.finished_product.category if s.finished_product else '') or ''
-            if cat.lower() == 'gips':
-                gips_rev += s_total
-            else:
-                peno_rev += s_total
+        _oy_yon = yonalish_daromadlari(db, company_id, month_orders, lambda _o: _o.kelishilgan_summa,
+                                       tm_sotuvlari=month_fp_sales, xarita=_yx_c)
+        for _k in _oy_yon:
+            _yon_nomlari[_k] = _yx_c.nom(_k)
 
         months_data.append({
             "label": datetime(_oy_y, _oy_m, 1).strftime("%b %Y"),
-            "gips_revenue": round(gips_rev),
-            "penoplast_revenue": round(peno_rev),
+            "yonalishlar": {_k: round(_v) for _k, _v in _oy_yon.items()},
             "orders": count,
             "revenue": float(revenue)
         })
@@ -1801,8 +1777,13 @@ def get_chart_data(db: Session, company_id: int = None) -> Dict:
     # --- 5. Omborxona holati (top yetishmayotganlar) ---
     low_stock = check_low_stock(db, company_id)
 
+    # kech117 (A2): yo'nalishlar ro'yxati (grafik ustunlari) — ko'rinadiganlar + 6 oyda daromadi borlari
+    for _k in _yx_c.korinadigan():
+        _yon_nomlari.setdefault(_k, _yx_c.nom(_k))
     return {
         "months": months_data,
+        "yonalishlar": [{"kalit": _k, "nom": _yon_nomlari[_k]} for _k in _yx_c.tartibla(_yon_nomlari)],
+        "yonalishlar_soni": len(_yx_c.korinadigan()),
         "statuses": statuses,
         "master_kpi": master_kpi,
         "finance": {
@@ -2391,20 +2372,21 @@ def davr_qaytarishlari(db: Session, boshi, oxiri, company_id: int = None, master
             _c = o.completed_at
             _hod = _qaytarish_hodisalari(db, o)
             _vaqtlar = sorted({vaqt for _t, vaqt, _s, _r in _hod if a <= vaqt < b and vaqt >= _c})
-            _gips_detal = {it.id for it in (o.items or []) if (it.category or "").lower() == "gips"}
             for _v in _vaqtlar:
                 _p0 = calculate_order_profit(db, o.id, company_id=company_id, holat_vaqti=_v)
                 _p1 = calculate_order_profit(db, o.id, company_id=company_id, holat_vaqti=_v + _eps)
                 if not (_p0.get("success") and _p1.get("success")):
                     continue
-                _shu = [(t, r) for t, vaqt, _s, r in _hod if vaqt == _v]
+                _shu = [(t, r, _s) for t, vaqt, _s, r in _hod if vaqt == _v]
                 natija.append({
                     "order": o, "order_id": o.id, "master_id": o.master_id, "vaqt": _v,
-                    "tur": "+".join(sorted({t for t, _r in _shu})),
+                    "tur": "+".join(sorted({t for t, _r, _s in _shu})),
                     "daromad": float(_p1["sotuv_narxi"]) - float(_p0["sotuv_narxi"]),
                     "tannarx": float(_p1["tan_narxi"]) - float(_p0["tan_narxi"]),
                     "foyda": float(_p1["foyda"]) - float(_p0["foyda"]),
-                    "gips": any(r.order_item_id in _gips_detal for _t, r in _shu),
+                    # kech117 (A2): hodisadagi qaytarishlar — (detal id, vazn: qaytarilgan pul / omborga qaytgan
+                    # tannarx); yo'nalishlar hisoboti hodisani shu detallar yo'nalishiga taqsimlaydi (ilgari "gips" belgisi)
+                    "detallar": [(getattr(r, "order_item_id", None), float(_s or 0)) for _t, r, _s in _shu],
                 })
     _hk_qoy(db, "qaytarish_davr", _kalit, natija)
     return natija
@@ -2448,6 +2430,10 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None, h
     sotuv_narxi = order.kelishilgan_summa
     breakdown = []
     tan_narxi_jami = 0.0
+    # kech117 (A2 — yo'nalishlar bo'yicha moliya): tannarxning QISMLARI (yig'indisi AYNAN `tan_narxi`) — qaysi detalga
+    # tegishli (`detal_id`; None — buyurtma darajasidagi: penoplast hajmi, qoplama loyi, usta haqi). Yo'nalishlar
+    # hisoboti (`calculate_split_profit_report`) tannarxni shu bo'yicha yo'nalishlarga taqsimlaydi. Hisob O'ZGARMAGAN.
+    _tannarx_qismlari = []
 
     # ── 1. PENOPLAST XARAJATI ────────────────────────────────
     # MUHIM: har bir detal O'ZINING penoplast_id'siga (ya'ni aynan tanlangan
@@ -2553,6 +2539,7 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None, h
             "nomi": f"{data['nomi']} ({data['vol']:.2f} m³ × {data['narx_per_m3']:,.0f} so'm/m³)",
             "summa": summa
         })
+        _tannarx_qismlari.append({"tur": "penoplast", "summa": summa, "detal_id": None})
         penoplast_xarajat += summa
     tan_narxi_jami += penoplast_xarajat
 
@@ -2565,6 +2552,7 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None, h
     # sun'iy oshirib ko'rsatilgan bo'lardi.
     from models import FinishedProduct as _FP_cost
     tayyor_mahsulot_xarajat = 0.0
+    _tm_qismlari = []       # kech117 (A2): har detal ulushi
     for item in order.items:
         fpid = getattr(item, 'finished_product_id', None)
         if not fpid:
@@ -2603,7 +2591,9 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None, h
                         _pq = _pq.filter(_PO_cost.company_id == _ord_cid0)
                     _po_royxat = _pq.all()
                 # kech101 (138-band): bo'shagan dona tannarxi buyurtmaga KIRMAYDI — `_mrp_detal_tannarxi` (izohi o'sha yerda).
-                tayyor_mahsulot_xarajat += _mrp_detal_tannarxi(db, order, item, _po_royxat)
+                _mrp_t117 = _mrp_detal_tannarxi(db, order, item, _po_royxat)
+                tayyor_mahsulot_xarajat += _mrp_t117
+                _tm_qismlari.append({"tur": "tayyor", "summa": _mrp_t117, "detal_id": item.id})
             except Exception:
                 pass
             continue
@@ -2650,12 +2640,14 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None, h
             unit_cost = float(fp_c.cost_price) / base_qty
         used_qty = float(item.length if (item.category or '').lower() == 'profil' else item.quantity or 0)
         tayyor_mahsulot_xarajat += unit_cost * used_qty
+        _tm_qismlari.append({"tur": "tayyor", "summa": unit_cost * used_qty, "detal_id": item.id})
     if tayyor_mahsulot_xarajat > 0:
         breakdown.append({
             "nomi": f"Tayyor mahsulotdan olingan detallar (tan narxi)",
             "summa": tayyor_mahsulot_xarajat
         })
         tan_narxi_jami += tayyor_mahsulot_xarajat
+        _tannarx_qismlari.extend(_tm_qismlari)
 
 
     # ── 1C. LOY SOTISH XARAJATI ──────────────────────────────
@@ -2696,6 +2688,7 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None, h
                 "summa": loy_sotish_xarajat
             })
             tan_narxi_jami += loy_sotish_xarajat
+            _tannarx_qismlari.append({"tur": "loy_sotish", "summa": loy_sotish_xarajat, "detal_id": item.id})
 
     # ── 2. QOPLAMA XOMASHYOSI XARAJATI ──────────────────────
     # MUHIM: loy_kg — hech qanday formula/taxmin bilan hisoblanmaydi,
@@ -2769,16 +2762,20 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None, h
                     "summa": qoplama_xarajat
                 })
                 tan_narxi_jami += qoplama_xarajat
+                _tannarx_qismlari.append({"tur": "qoplama", "summa": qoplama_xarajat, "detal_id": None})
 
     # ── 2b. QAYTARISHLAR (144-band, kech102) ─────────────────
     # Omborga qaytgan mahsulot buyurtmadan CHIQDI — uning tannarxi (`stock_cost`; qayta sotilganda TM sotuvi tannarxida
     # hisoblanadi) shu yerda ayriladi. "Pul qaytdi" joriy kelishilgan summada allaqachon bor; `holat_vaqti` berilsa —
     # undan KEYINGI pul qaytarish qaytarib qo'shiladi, keyingi omborga qaytish esa ayrilmaydi (ular o'z davrida).
     _omborga_qaytgan = 0.0
+    _qaytgan_qismlari = []      # kech117 (A2): qaysi detal qaytgani bo'yicha
     for _tur144, _vaqt144, _summa144, _r144 in _qaytarish_hodisalari(db, order):
         if _tur144 == "ombor":
             if holat_vaqti is None or _vaqt144 < holat_vaqti:
                 _omborga_qaytgan += _summa144
+                _qaytgan_qismlari.append({"tur": "qaytgan", "summa": -_summa144,
+                                          "detal_id": getattr(_r144, "order_item_id", None)})
         elif holat_vaqti is not None and _vaqt144 >= holat_vaqti:
             sotuv_narxi += _summa144
     if _omborga_qaytgan > 0:
@@ -2787,6 +2784,7 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None, h
             "summa": -_omborga_qaytgan
         })
         tan_narxi_jami -= _omborga_qaytgan
+        _tannarx_qismlari.extend(_qaytgan_qismlari)
 
     # ── 3. USTA HAQI (cashback% — foydadan) ─────────────────
     usta_haqi = 0.0
@@ -2799,6 +2797,7 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None, h
             "summa": usta_haqi
         })
         tan_narxi_jami += usta_haqi
+        _tannarx_qismlari.append({"tur": "usta", "summa": usta_haqi, "detal_id": None})
 
     # ── 4. NATIJA ────────────────────────────────────────────
     foyda = sotuv_narxi - tan_narxi_jami
@@ -2813,6 +2812,7 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None, h
         "foyda_foiz": round(foyda_foiz, 1),
         "breakdown": breakdown,
         "volume_m3": round(sum(d["vol"] for d in penoplast_breakdown_by_item.values()), 3),
+        "tannarx_qismlari": _tannarx_qismlari,     # kech117 (A2): yig'indisi = tan_narxi
     }
 
 
@@ -3704,70 +3704,13 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     kirim_xarajatlari_jamida = float(_kx.get(_KXM_nq, 0.0))
     naqd_xarajat_jami = xomashyo_xaridi + transport_kirish + transport_chiqish + kirim_xarajatlari
 
-    # ── 6. TURLAR BO'YICHA TAQSIMOT (informatsion, faqat ko'rsatish uchun) ──
-    # Daromad — har bir detalning ulushi bo'yicha (kelishilgan summaga mos
-    # proporsiyada), Gips va qolgan (Penoplast va h.k.) ga bo'linadi.
-    gips_daromad = 0.0
-    penoplast_daromad = 0.0
-    for order in ready_orders:
-        order_total = float(order.total_amount or 0)
-        order_agreed = yakun_daromadi(db, order)     # kech102 (144-band): yakunlangan paytdagi
-        if order_total <= 0:
-            continue
-        for item in order.items:
-            share = (float(item.total_price or 0) / order_total) * order_agreed
-            if (item.category or '').lower() == 'gips':
-                gips_daromad += share
-            else:
-                penoplast_daromad += share
-    # kech102 (144-band): shu oydagi qaytarishlar — qaytgan detal turi bo'yicha
-    for _h144 in _qaytarishlar:
-        if _h144["gips"]:
-            gips_daromad += _h144["daromad"]
-        else:
-            penoplast_daromad += _h144["daromad"]
-
-    # Tayyor mahsulotlar bo'limidan to'g'ridan-to'g'ri (buyurtmasiz)
-    # sotilganlar — shu yuqoridagi fp_sales ro'yxatidan, kategoriyasi
-    # bo'yicha taqsimlanadi (avval bu grafikda hisobga olinmasdi).
-    for s in fp_sales:
-        s_total = float(s.total_amount or 0)
-        cat = (s.finished_product.category if s.finished_product else '') or ''
-        if cat.lower() == 'gips':
-            gips_daromad += s_total
-        else:
-            penoplast_daromad += s_total
-
-    # Xarajat — "Xarajat qo'shish"da yo'nalish belgilangan tranzaksiyalar
-    # (Umumiy/Penoplast/Gips), shu oy uchun.
-    from models import ExpenseTransaction as _ET, TransportExpense as _TE
-    from sqlalchemy import func as _func_pt, or_ as _or_pt
-    from models import KIRIM_TANNARX_MANBA as _KTM_pt
-    # kech87 (104-band): tannarxga qo'shilgan kirim xarajati — xomashyo tannarxida (sof foyda bilan bir qoida)
-    _et_foydaga = _or_pt(_ET.source.is_(None), _ET.source != _KTM_pt)
-    # M6 — TENANT: gips/penoplast bo'linishidagi 4 ta agregat.
-    def _pt_scope(q, model):
-        return q.filter(model.company_id == company_id) if company_id is not None else q
-
-    gips_qoshimcha_xarajat = float(_pt_scope(db.query(_func_pt.sum(_ET.amount)).filter(
-        _ET.production_type == 'gips', _et_foydaga,
-        _tashkent_oyida(_ET.date, year, month)
-    ), _ET).scalar() or 0) + float(_pt_scope(db.query(_func_pt.sum(_TE.amount)).filter(
-        _TE.production_type == 'gips',
-        _tashkent_oyida(_TE.expense_date, year, month)
-    ), _TE).scalar() or 0)
-    penoplast_qoshimcha_xarajat = float(_pt_scope(db.query(_func_pt.sum(_ET.amount)).filter(
-        _ET.production_type == 'penoplast', _et_foydaga,
-        _tashkent_oyida(_ET.date, year, month)
-    ), _ET).scalar() or 0) + float(_pt_scope(db.query(_func_pt.sum(_TE.amount)).filter(
-        _TE.production_type == 'penoplast',
-        _tashkent_oyida(_TE.expense_date, year, month)
-    ), _TE).scalar() or 0)
-
-    turlar_boyicha = {
-        "gips": {"daromad": round(gips_daromad), "qoshimcha_xarajat": round(gips_qoshimcha_xarajat)},
-        "penoplast": {"daromad": round(penoplast_daromad), "qoshimcha_xarajat": round(penoplast_qoshimcha_xarajat)},
-    }
+    # ── 6. YO'NALISHLAR BO'YICHA DAROMAD (kech117, A2 — egasi QARORLARI kech114; ilgari «Gips / Penoplast» ikkiga) ──
+    # YAGONA qoida — `yonalish_daromadlari` (yo'nalishlar hisoboti, bugungi ko'rsatkich, dashboard grafigi bilan bir):
+    # buyurtma — detallar narx ulushida, qaytarish — qaytgan detal, tayyor mahsulot sotuvi — mahsulot turi.
+    _yx = _YonXarita(db, company_id)
+    yonalishlar_daromadi = yonalishlar_royxati_hisobot(_yx, yonalish_daromadlari(
+        db, company_id, ready_orders, lambda _o: yakun_daromadi(db, _o), qaytarishlar=_qaytarishlar,
+        tm_sotuvlari=fp_sales, xarita=_yx))
 
     # kech116 (G1-02, O'LCHANGAN — audit kech114: bir oy uchun «Xarajat» Hisobotlar kartasida 3.3 mln, shu sahifadagi
     # «Xarajat tarkibi» doirasida 3.1 mln (transport va brak yo'q), Dashboard «Jami xarajat» 4.3 mln (tannarx qo'shilgan),
@@ -3834,7 +3777,18 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
         # Moslashuvchan hodimlar
         "hodimlar_moslashuvchan_xarajat": hodimlar_moslashuvchan_xarajat,
         "hodimlar_moslashuvchan_breakdown": emp_result["breakdown"],
-        "turlar_boyicha": turlar_boyicha,
+        # kech117 (A2): yo'nalishlar bo'yicha daromad [{kalit, nom, daromad}] (yig'indisi = daromad)
+        "yonalishlar_daromadi": yonalishlar_daromadi,
+        # kech117 (A2, G3-11 / G6-09): sof foydaning AYNAN qismlari (yaxlitlanmagan):
+        # daromad_buyurtmalar + daromad_tm − tannarx_buyurtmalar − tannarx_tm − (8 xarajat) = sof_foyda
+        "sof_foyda_tarkibi": {
+            "daromad_buyurtmalar": daromad, "daromad_tm": fp_sales_daromad,
+            "tannarx_buyurtmalar": ishlab_chiqarish_xarajat, "tannarx_tm": fp_sales_tannarx,
+            "doimiy": xarajatlar["arenda"] + xarajatlar["elektr"] + xarajatlar["tushlik"] + xarajatlar["soliqlar"],
+            "qoshimcha": qoshimcha_xarajat_jami, "transport": transport_xarajat, "brak": brak_xarajat,
+            "tm_yoqotish": fp_loss_xarajat, "usta_kpi": usta_kpi_xarajat, "ehson": ehson_xarajat,
+            "hodimlar": hodimlar_moslashuvchan_xarajat,
+        },
         # kech116 (G1-02): xarajatning YAGONA tarkibi (yig'indisi = jami_xarajat) va to'liq tannarx
         "xarajat_tarkibi": xarajat_tarkibi,
         "tannarx_jami": round(tannarx_jami, 2),
@@ -3856,198 +3810,471 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     }
 
 
+# ============================================================
+# kech117 (A2) — YO'NALISHLAR BO'YICHA MOLIYA (egasi QARORLARI kech114 00:08 — QAYTA SO'RALMAYDI)
+# ============================================================
+# «Sof foyda» — BITTA raqam (Moliya); yo'nalishlar hisoboti AYNAN shuni bo'ladi (yig'indisi teng — tiyinigacha va
+# ko'rsatiladigan butun so'mda ham). Qoidalar:
+#   * daromad va tannarx — sotilgan mahsulot yo'nalishiga ANIQ: kodda doimiy turkumlar (profil, panel, donali, blok,
+#     loy sotish) — asosiy yo'nalish; MRP detali / MRP tayyor mahsuloti — mahsulot turining yo'nalishi (biriktirilmagan
+#     — «Belgilanmagan»); buyurtma kelishilgan summasi detallarga narx ulushida; qaytarish — qaytgan detal bo'yicha;
+#   * yo'nalishi belgilangan hodim, xarajat, transport (va kirimning qo'shimcha xarajatlari) — 100 % o'sha yo'nalishga;
+#     brak — brak yozuvining detali / tayyor mahsuloti yo'nalishiga; omborda tayyor mahsulot yo'qotishi — mahsulotiga;
+#   * qolgani UMUMIY (arenda, svet, soliq, tushlik, Ehson, usta KPI, belgilanmagan transport / «Boshqa», umumiy
+#     hodimlar, detalga bog'lanmagan brak) — yo'nalishlar DAROMAD ULUSHIGA qarab; shu oy daromad yo'q bo'lsa — ko'rinadigan
+#     yo'nalishlarga teng (hisobotda izoh bilan). Kassa — BITTA (bo'linmaydi).
+_YON_BELGILANMAGAN = "belgilanmagan"
+_YON_ASOSIY_VIRTUAL = "asosiy"
+
+
+class _YonXarita:
+    """Korxona yo'nalishlari va bog'lamlar — faqat O'QIYDI (hisobot hech narsa yozmaydi). Kalit: "y<id>" (yo'nalish),
+    "belgilanmagan" (MRP turi biriktirilmagan / eski turkum), "asosiy" (asosiy yo'nalish hali yaratilmagan korxona)."""
+
+    def __init__(self, db: Session, company_id: int = None):
+        from models import Yonalish, YONALISH_ASOSIY_KOD
+        self.db = db
+        self.cid = company_id
+        q = db.query(Yonalish)
+        if company_id is not None:
+            q = q.filter(Yonalish.company_id == company_id)
+        self.royxat = q.all()
+        std = sorted((y for y in self.royxat if y.kod == YONALISH_ASOSIY_KOD), key=lambda y: y.id)
+        self.asosiy = std[0] if std else None
+        self.asosiy_kalit = f"y{self.asosiy.id}" if self.asosiy is not None else _YON_ASOSIY_VIRTUAL
+        self.nomlar = {f"y{y.id}": y for y in self.royxat}
+        self._pt = None
+
+    def _turlar(self) -> dict:
+        if self._pt is None:
+            from production_models import ProductType as _PT117
+            db, company_id = self.db, self.cid
+            q = db.query(_PT117.id, _PT117.yonalish_id)
+            if company_id is not None:
+                q = q.filter(_PT117.company_id == company_id)
+            self._pt = {i: y for i, y in q.all()}
+        return self._pt
+
+    def yid_kalit(self, yid):
+        """`yonalish_id` → kalit; NULL / begona — None («Umumiy»)."""
+        if yid is None:
+            return None
+        k = f"y{yid}"
+        return k if k in self.nomlar else None
+
+    def tur_kalit(self, pt_id) -> str:
+        return self.yid_kalit(self._turlar().get(pt_id)) or _YON_BELGILANMAGAN
+
+    def detal_kalit(self, item) -> str:
+        from models import YONALISH_ASOSIY_TURKUMLAR
+        cat = (getattr(item, "category", None) or "").lower()
+        if cat in YONALISH_ASOSIY_TURKUMLAR:
+            return self.asosiy_kalit
+        if cat == "mrp_product" and getattr(item, "product_type_id", None):
+            return self.tur_kalit(item.product_type_id)
+        return _YON_BELGILANMAGAN
+
+    def tm_kalit(self, fp) -> str:
+        from models import YONALISH_ASOSIY_TURKUMLAR
+        if fp is None:
+            return _YON_BELGILANMAGAN
+        if getattr(fp, "product_type_id", None):
+            return self.tur_kalit(fp.product_type_id)
+        if (fp.category or "").lower() in YONALISH_ASOSIY_TURKUMLAR:
+            return self.asosiy_kalit
+        return _YON_BELGILANMAGAN
+
+    def nom(self, kalit) -> str:
+        from models import YONALISH_ASOSIY_NOM
+        if kalit == _YON_BELGILANMAGAN:
+            return "Belgilanmagan"
+        if kalit == _YON_ASOSIY_VIRTUAL:
+            return YONALISH_ASOSIY_NOM
+        y = self.nomlar.get(kalit)
+        return y.nom if y is not None else str(kalit)
+
+    def korinadigan(self) -> list:
+        """Ko'rinadigan (yashirilmagan) yo'nalish kalitlari: asosiy birinchi, keyin `tartib`, `id`."""
+        from models import YONALISH_ASOSIY_KOD
+        ys = [y for y in self.royxat if not y.yashirin]
+        ys.sort(key=lambda y: (0 if y.kod == YONALISH_ASOSIY_KOD else 1, y.tartib or 0, y.id))
+        k = [f"y{y.id}" for y in ys]
+        if self.asosiy is None:
+            k.insert(0, _YON_ASOSIY_VIRTUAL)
+        return k
+
+    def tartibla(self, kalitlar) -> list:
+        """Kalitlarni ko'rsatish tartibida: ko'rinadiganlar, keyin yashirinlar (`id`), oxirida «Belgilanmagan»."""
+        asos = self.korinadigan()
+        qolgan = sorted((k for k in set(kalitlar) if k not in asos and k != _YON_BELGILANMAGAN),
+                        key=lambda k: (int(k[1:]) if k[:1] == "y" and k[1:].isdigit() else 0, k))
+        natija = [k for k in asos if k in set(kalitlar)] + qolgan
+        if _YON_BELGILANMAGAN in set(kalitlar):
+            natija.append(_YON_BELGILANMAGAN)
+        return natija
+
+
+def _vaznli_taqsim(summa, vaznlar) -> dict:
+    """`summa` ni [(kalit, vazn)] nisbatida bo'ladi (manfiy vazn — 0). Yig'indi AYNAN `summa` (oxirgi qism — qoldiq).
+    Vazn yig'indisi 0 — qatorlarga teng; ro'yxat bo'sh — hammasi «Belgilanmagan»."""
+    summa = float(summa or 0)
+    qatorlar = [(k, max(float(v or 0), 0.0)) for k, v in (vaznlar or [])]
+    if not qatorlar:
+        return {_YON_BELGILANMAGAN: summa} if summa else {}
+    jami = sum(v for _k, v in qatorlar)
+    if jami <= 0:
+        qatorlar = [(k, 1.0) for k, _v in qatorlar]
+        jami = float(len(qatorlar))
+    natija, qoldi = {}, summa
+    for i, (k, v) in enumerate(qatorlar):
+        ulush = qoldi if i == len(qatorlar) - 1 else summa * v / jami
+        natija[k] = natija.get(k, 0.0) + ulush
+        qoldi -= ulush if i < len(qatorlar) - 1 else 0.0
+    return natija
+
+
+def _buyurtma_vaznlari(xarita: "_YonXarita", order) -> list:
+    """Buyurtma detallari yo'nalishi va vazni (detal narxi) — kelishilgan summa va buyurtma darajasidagi tannarx
+    (usta haqi) shu nisbatda bo'linadi (eski «turlar bo'yicha» taqsimot ham shu ulushni ishlatardi)."""
+    return [(xarita.detal_kalit(it), float(it.total_price or 0)) for it in (order.items or [])]
+
+
+def _qosh(d: dict, qism: dict, ishora: float = 1.0) -> None:
+    for k, v in qism.items():
+        d[k] = d.get(k, 0.0) + ishora * v
+
+
+def yonalish_daromadlari(db: Session, company_id: int, buyurtmalar, summa_fn, qaytarishlar=(), tm_sotuvlari=(),
+                         xarita: "_YonXarita" = None) -> dict:
+    """Daromadning yo'nalishlarga taqsimoti {kalit: summa} — YAGONA qoida (oylik hisobot, yo'nalishlar hisoboti,
+    bugungi ko'rsatkich, dashboard grafigi). `summa_fn(order)` — buyurtma daromadi (hisobotda `yakun_daromadi`);
+    `qaytarishlar` — `davr_qaytarishlari` hodisalari; `tm_sotuvlari` — `FinishedProductSale` lar."""
+    x = xarita or _YonXarita(db, company_id)
+    natija = {}
+    for o in buyurtmalar:
+        _qosh(natija, _vaznli_taqsim(summa_fn(o), _buyurtma_vaznlari(x, o)))
+    for h in qaytarishlar:
+        _qosh(natija, _vaznli_taqsim(h["daromad"], _qaytarish_vaznlari(x, h)))
+    for sv in tm_sotuvlari:
+        k = x.tm_kalit(getattr(sv, "finished_product", None))
+        natija[k] = natija.get(k, 0.0) + float(sv.total_amount or 0)
+    return natija
+
+
+def _qaytarish_vaznlari(xarita: "_YonXarita", h: dict) -> list:
+    """Qaytarish hodisasi — qaytgan detallar yo'nalishi (vazn: qaytarilgan pul / omborga qaytgan tannarx); detali
+    ma'lum emas — buyurtma detallari ulushida."""
+    o = h["order"]
+    detallar = {it.id: it for it in (o.items or [])}
+    vazn = [(xarita.detal_kalit(detallar[i]), w) for i, w in (h.get("detallar") or [])
+            if i in detallar and float(w or 0) > 0]
+    return vazn or _buyurtma_vaznlari(xarita, o)
+
+
+def yonalishlar_royxati_hisobot(xarita: "_YonXarita", summalar: dict) -> list:
+    """{kalit: summa} → [{"kalit", "nom", "daromad"}] (ko'rsatish tartibida, ko'rinadigan yo'nalishlar — 0 bo'lsa ham)."""
+    kalitlar = set(xarita.korinadigan()) | {k for k, v in summalar.items() if abs(v) >= 0.005}
+    return [{"kalit": k, "nom": xarita.nom(k), "daromad": round(summalar.get(k, 0.0), 2)}
+            for k in xarita.tartibla(kalitlar)]
+
+
+def _yaxlit_taqsim(qiymatlar: dict, jami_birlik: int, birlik: int) -> dict:
+    """{kalit: qiymat} ni `birlik` (1 — so'm, 100 — tiyin) butunlariga yaxlitlaydi, yig'indisi AYNAN `jami_birlik`
+    (eng katta qoldiq usuli)."""
+    import math
+    kalitlar = list(qiymatlar)
+    if not kalitlar:
+        return {}
+    xom = {k: float(qiymatlar[k]) * birlik for k in kalitlar}
+    past = {k: math.floor(xom[k] + 1e-9) for k in kalitlar}
+    farq = int(jami_birlik) - sum(past.values())
+    tartib = sorted(kalitlar, key=lambda k: -(xom[k] - past[k]))
+    if farq >= 0:
+        for i in range(farq):
+            past[tartib[i % len(tartib)]] += 1
+    else:
+        for i in range(-farq):
+            past[tartib[-1 - (i % len(tartib))]] -= 1
+    return past
+
+
+def _yaxlit(x: float, birlik: int) -> int:
+    """Yarmidan yuqoriga (HALF_UP) yaxlitlash `birlik` butunlariga (manfiyda ham simmetrik)."""
+    from decimal import Decimal, ROUND_HALF_UP
+    return int((Decimal(repr(float(x))) * birlik).quantize(Decimal(1), rounding=ROUND_HALF_UP))
+
+
+_YON_XARAJAT_NOMLARI = (
+    ("hodimlar", "Hodimlar oyligi"),
+    ("doimiy", "Doimiy (arenda, elektr, tushlik, soliq)"),
+    ("qoshimcha", "Qo'shimcha xarajatlar"),
+    ("transport", "Transport"),
+    ("brak", "Brak (xomashyo)"),
+    ("tm_yoqotish", "Tayyor mahsulot yo'qotishi"),
+    ("usta_kpi", "Usta bonusi (KPI)"),
+    ("ehson", "Ehson"),
+)
+
+
 @_hisobot_keshi_bilan
 def calculate_split_profit_report(db: Session, year: int, month: int, company_id: int = None) -> dict:
-    """Gips va Penoplast uchun MUSTAQIL, to'liq ajratilgan sof foyda hisoboti.
+    """kech117 (A2) — YO'NALISHLAR BO'YICHA sof foyda (G3-11 / G6-09 shu ichida). Manba — `get_monthly_report` ning
+    `sof_foyda_tarkibi` (sof foydaning AYNAN qismlari); har qism yo'nalishlarga taqsimlanadi (qoidalar — bo'lim
+    boshida). Natija: har yo'nalish — daromad, tannarx, bevosita xarajat (qismlari bilan), umumiy xarajat ulushi,
+    jami xarajat, sof foyda, rentabellik; `som` (butun so'm) va `aniq` (tiyin) — ikkalasida ham har ustunda
+    daromad − tannarx − jami xarajat = sof foyda, sof foydalar yig'indisi = Moliya sof foydasi (`moliya_sof_foyda`)."""
+    from models import (ExpenseTransaction as _ET, TransportExpense as _TE, Employee as _Emp,
+                        FinishedProductSale as _FPS, FinishedProductLoss as _FPL, FinishedProduct as _FP,
+                        ReturnItem as _RI, KIRIM_TANNARX_MANBA as _KTM)
+    from sqlalchemy.orm import selectinload as _sil
+    import crud as _crud
 
-    Taqsimlash mantiqi:
-    - To'g'ridan-to'g'ri xarajatlar (xomashyo, brak) — aniq, buyurtma
-      detali darajasida ajratiladi.
-    - Hodim to'lovi — har bir hodimning belgilangan Yo'nalishiga (Employee.
-      production_type) 100% yoziladi. Yo'nalish belgilanmagan hodimlar —
-      daromad nisbatiga qarab bo'linadi.
-    - Umumiy xarajatlar (arenda, svet, soliq, tushlik, Ehson, Yo'nalish
-      belgilanmagan qo'shimcha xarajatlar) — daromad nisbatiga qarab
-      bo'linadi (bitta joyda ikkalasi ham faoliyat yuritgani uchun).
-    """
-    from models import Employee
-    from sqlalchemy import func
-
-    # M6 (2026-09-18) — TENANT: bo'lingan foyda hisobotining barcha qismlari.
     full = get_monthly_report(db, year, month, company_id=company_id)
-    tb = full.get("turlar_boyicha", {})
-    gips_daromad = float(tb.get("gips", {}).get("daromad", 0))
-    peno_daromad = float(tb.get("penoplast", {}).get("daromad", 0))
-    total_daromad = gips_daromad + peno_daromad
-    gips_share = (gips_daromad / total_daromad) if total_daromad > 0 else 0.5
-    peno_share = 1 - gips_share
+    t = full["sof_foyda_tarkibi"]
+    x = _YonXarita(db, company_id)
+    boshi, oxiri = _tashkent_oy_oraligi(year, month)
+    izohlar = []
 
-    # ── 1. TO'G'RIDAN-TO'G'RI XARAJAT (xomashyo tan narxi) — buyurtma
-    # detali darajasida, calculate_order_profit()ning breakdown'idan,
-    # "🧱 Gips" bilan boshlanuvchi qatorlarni ajratib olamiz.
-    _spq = db.query(Order).filter(
-        Order.status == OrderStatus.READY,
-        _tashkent_oyida(Order.completed_at, year, month)
-    )
+    def _qoldiq_bilan(nom: str, taqsim: dict, pul: float, qoldiq_kalit=None) -> dict:
+        """Taqsimot yig'indisi hovuzga teng bo'lishi SHART: suzuvchi nuqta qoldig'i (< 1 tiyin) — eng kattasiga;
+        haqiqiy farq — `qoldiq_kalit` ga (None — «Belgilanmagan») va izoh."""
+        farq = float(pul) - sum(taqsim.values())
+        if abs(farq) < 0.005:
+            if taqsim:
+                k = max(taqsim, key=lambda q: abs(taqsim[q]))
+                taqsim[k] += farq
+            elif farq:
+                taqsim[qoldiq_kalit or x.asosiy_kalit] = farq
+        else:
+            k = qoldiq_kalit or _YON_BELGILANMAGAN
+            taqsim[k] = taqsim.get(k, 0.0) + farq
+            if qoldiq_kalit is None:
+                izohlar.append(f"{nom}: {round(farq, 2)} so'm yo'nalishga bog'lanmadi")
+        return taqsim
+
+    # ── 1. BUYURTMALAR: daromad va tannarx (yakunlangan paytdagi holat) ──
+    _oq = db.query(Order).filter(Order.status == OrderStatus.READY, _tashkent_oyida(Order.completed_at, year, month))
     if company_id is not None:
-        _spq = _spq.filter(Order.company_id == company_id)
-    ready_orders = _spq.all()
-    _hk_tayyorla(db, ready_orders)       # kech89 (52-band)
-    gips_direct_cost = 0.0
-    peno_direct_cost = 0.0
-    for o in ready_orders:
+        _oq = _oq.filter(Order.company_id == company_id)
+    buyurtmalar = _oq.all()
+    _hk_tayyorla(db, buyurtmalar)
+    daromad_b, tannarx_b = {}, {}
+    for o in buyurtmalar:
+        vazn = _buyurtma_vaznlari(x, o)
+        _qosh(daromad_b, _vaznli_taqsim(yakun_daromadi(db, o), vazn))
         try:
-            profit_data = yakun_foydasi(db, o, company_id=company_id)    # kech102 (144-band)
+            p = yakun_foydasi(db, o, company_id=company_id)
         except Exception:
             continue
-        for line in profit_data.get("breakdown", []):
-            amt = float(line.get("summa", 0))
-            if str(line.get("nomi", "")).startswith("🧱 Gips"):
-                gips_direct_cost += amt
-            else:
-                peno_direct_cost += amt
-    # kech102 (144-band): shu oydagi qaytarishlar tannarxi (oylik hisobot `qaytarish_tannarx` bilan bir manba)
-    for _h144 in davr_qaytarishlari(db, *_tashkent_oy_oraligi(year, month),
-                                   company_id=company_id):
-        if _h144["gips"]:
-            gips_direct_cost += _h144["tannarx"]
-        else:
-            peno_direct_cost += _h144["tannarx"]
-
-    # ── 2. HODIM TO'LOVI — Yo'nalish bo'yicha aniq, belgilanmaganlar ulush bo'yicha
-    gips_emp = 0.0
-    peno_emp = 0.0
-    umumiy_emp = 0.0
-    emp_ids = {b["employee_id"] for b in full.get("hodimlar_breakdown", [])}
-    emp_map = {e.id: e for e in db.query(Employee).filter(Employee.id.in_(emp_ids)).all()} if emp_ids else {}
-    for b in full.get("hodimlar_breakdown", []):
-        emp = emp_map.get(b["employee_id"])
-        pt = (emp.production_type if emp else None) or None
-        amt = float(b.get("amount", 0))
-        if pt == "gips":
-            gips_emp += amt
-        elif pt == "penoplast":
-            peno_emp += amt
-        else:
-            umumiy_emp += amt
-    gips_emp += umumiy_emp * gips_share
-    peno_emp += umumiy_emp * peno_share
-
-    # ── 3. UMUMIY XARAJATLAR (arenda/svet/tushlik/soliq/qo'shimcha/Ehson/
-    # brak) — bitta joyda faoliyat yuritilgani uchun, daromad nisbatida
-    xarajatlar = full.get("xarajatlar", {})
-    umumiy_overhead = (
-        float(xarajatlar.get("arenda", 0)) + float(xarajatlar.get("elektr", 0)) +
-        float(xarajatlar.get("tushlik", 0)) + float(xarajatlar.get("soliqlar", 0))
-    )
-    # Yo'nalish BELGILANMAGAN qo'shimcha xarajatlar (production_type=None bo'lganlar)
-    from models import ExpenseTransaction as _ET2
-    _s, _e = _tashkent_oy_oraligi(year, month)
-    # Yo'nalish BELGILANMAGAN qo'shimcha xarajatlar (production_type=None) —
-    # bular taxminiy (nisbat bo'yicha) taqsimlanadi
-    def _sp_scope(q, model):
-        """M6 — TENANT."""
-        return q.filter(model.company_id == company_id) if company_id is not None else q
-
-    untagged_expenses = float(_sp_scope(db.query(func.sum(_ET2.amount)).filter(
-        _ET2.date >= _s, _ET2.date < _e,
-        _ET2.production_type.is_(None),
-        _ET2.category.notin_(["arenda", "elektr", "tushlik", "soliqlar"])
-    ), _ET2).scalar() or 0)
-
-    # Yo'nalish ANIQ belgilangan xarajatlar (masalan "Kutilmagan xarajat —
-    # Gips" deb belgilangan) — bular TAXMIN qilinmaydi, to'g'ridan-to'g'ri
-    # o'sha turga qo'shiladi (Transport ham shu jumladan)
-    from models import TransportExpense as _TE2
-    gips_tagged_expense = float(_sp_scope(db.query(func.sum(_ET2.amount)).filter(
-        _ET2.date >= _s, _ET2.date < _e, _ET2.production_type == 'gips'
-    ), _ET2).scalar() or 0) + float(_sp_scope(db.query(func.sum(_TE2.amount)).filter(
-        _TE2.expense_date >= _s, _TE2.expense_date < _e, _TE2.production_type == 'gips'
-    ), _TE2).scalar() or 0)
-    peno_tagged_expense = float(_sp_scope(db.query(func.sum(_ET2.amount)).filter(
-        _ET2.date >= _s, _ET2.date < _e, _ET2.production_type == 'penoplast'
-    ), _ET2).scalar() or 0) + float(_sp_scope(db.query(func.sum(_TE2.amount)).filter(
-        _TE2.expense_date >= _s, _TE2.expense_date < _e, _TE2.production_type == 'penoplast'
-    ), _TE2).scalar() or 0)
-    umumiy_overhead += untagged_expenses
-
-    ehson_xarajat = float(full.get("ehson_xarajat", 0) or 0)
-
-    # BRAK — endi TAXMINIY emas, ANIQ ajratiladi:
-    # 1) Xomashyo braki — get_brak_material_summary() ombordagi materialning
-    #    o'z kategoriyasidan (Gips yoki boshqa) aniq bilinadi.
-    import crud as _crud_brak2
-    _bs, _be = _tashkent_oy_oraligi(year, month)
-    _brak_mat = _crud_brak2.get_brak_material_summary(db, start_date=_bs, end_date=_be,
-                                                      company_id=company_id)
-    gips_brak = float(_brak_mat.get("gips_brak_value", 0))
-    peno_brak = float(_brak_mat.get("penoplast_brak_value", 0))
-
-    # 2) Tayyor mahsulot braki (finished.html'dagi "Kamaytirish") — bu
-    #    jadvalning o'zida category maydoni bor, to'g'ridan-to'g'ri ajratamiz.
-    #    MUHIM: "ishlab chiqarish braki" yozuvlari bu yerga KIRMAYDI — ularning
-    #    xomashyo tan narxi yuqorida _brak_mat (get_brak_material_summary,
-    #    InventoryMovement asosida) orqali ALLAQACHON hisoblangan; bu yerda
-    #    ham qo'shilsa, IKKI MARTA hisoblangan bo'lardi (get_monthly_report
-    #    dagi bir xil tuzatishga qarang).
-    from models import FinishedProductLoss as _FPL2
-    # kech57 (40-band): belgi — YAGONA manba `crud._ISH_BRAK_BELGI`.
-    import crud as _crud_belgi2
-    _PROD_BRAK_MARKER2 = _crud_belgi2._ISH_BRAK_BELGI
-    _fplq2 = db.query(_FPL2).filter(
-        _tashkent_oyida(_FPL2.lost_at, year, month)
-    )
-    if company_id is not None:      # M6
-        _fplq2 = _fplq2.filter(_FPL2.company_id == company_id)
-    _fp_losses = _fplq2.all()
-    for l in _fp_losses:
-        if (l.reason or '').startswith(_PROD_BRAK_MARKER2):
+        if not p.get("success"):
             continue
-        amt = float(l.cost_amount or 0)
-        if (l.category or '').lower() == 'gips':
-            gips_brak += amt
+        detallar = {it.id: it for it in (o.items or [])}
+        for q in p.get("tannarx_qismlari", []):
+            summa = float(q.get("summa") or 0)
+            did = q.get("detal_id")
+            if did is not None and did in detallar:
+                k = x.detal_kalit(detallar[did])
+                tannarx_b[k] = tannarx_b.get(k, 0.0) + summa
+            elif q.get("tur") in ("penoplast", "qoplama", "loy_sotish"):
+                tannarx_b[x.asosiy_kalit] = tannarx_b.get(x.asosiy_kalit, 0.0) + summa
+            else:
+                _qosh(tannarx_b, _vaznli_taqsim(summa, vazn))
+    for h in davr_qaytarishlari(db, boshi, oxiri, company_id=company_id):
+        vazn = _qaytarish_vaznlari(x, h)
+        _qosh(daromad_b, _vaznli_taqsim(h["daromad"], vazn))
+        _qosh(tannarx_b, _vaznli_taqsim(h["tannarx"], vazn))
+    _qoldiq_bilan("Buyurtmalar daromadi", daromad_b, t["daromad_buyurtmalar"])
+    _qoldiq_bilan("Buyurtmalar tannarxi", tannarx_b, t["tannarx_buyurtmalar"])
+
+    # ── 2. TAYYOR MAHSULOT SOTUVI (buyurtmasiz) ──
+    _sq = db.query(_FPS).filter(_tashkent_oyida(_FPS.sold_at, year, month))
+    if company_id is not None:
+        _sq = _sq.filter(_FPS.company_id == company_id)
+    daromad_tm, tannarx_tm = {}, {}
+    for sv in _sq.options(_sil(_FPS.finished_product)).all():
+        k = x.tm_kalit(sv.finished_product)
+        daromad_tm[k] = daromad_tm.get(k, 0.0) + float(sv.total_amount or 0)
+        tannarx_tm[k] = tannarx_tm.get(k, 0.0) + float(sv.cost_amount or 0)
+    _qoldiq_bilan("Tayyor mahsulot sotuvi", daromad_tm, t["daromad_tm"])
+    _qoldiq_bilan("Tayyor mahsulot sotuvi tannarxi", tannarx_tm, t["tannarx_tm"])
+
+    # ── 3. XARAJATLAR — bevosita (yo'nalishi belgilangan / yozuvi bog'langan) ──
+    bevosita = {nom: {} for nom, _n in _YON_XARAJAT_NOMLARI}
+
+    def _et_q():
+        q = db.query(_ET).filter(_tashkent_oyida(_ET.date, year, month), _ET.yonalish_id.isnot(None))
+        return q.filter(_ET.company_id == company_id) if company_id is not None else q
+    _DOIMIY = {"arenda", "elektr", "tushlik", "soliqlar"}
+    for et in _et_q().all():
+        k = x.yid_kalit(et.yonalish_id)
+        if k is None:
+            continue
+        if et.category in _DOIMIY:
+            bevosita["doimiy"][k] = bevosita["doimiy"].get(k, 0.0) + float(et.amount or 0)
+        elif et.source is None or et.source != _KTM:
+            bevosita["qoshimcha"][k] = bevosita["qoshimcha"].get(k, 0.0) + float(et.amount or 0)
+    _tq = db.query(_TE).filter(_TE.expense_date >= boshi, _TE.expense_date < oxiri, _TE.yonalish_id.isnot(None))
+    if company_id is not None:
+        _tq = _tq.filter(_TE.company_id == company_id)
+    for te in _tq.all():
+        k = x.yid_kalit(te.yonalish_id)
+        if k is not None:
+            bevosita["transport"][k] = bevosita["transport"].get(k, 0.0) + float(te.amount or 0)
+    # Hodimlar — oylik hisobotdagi AYNAN summalar (`hodimlar_breakdown`)
+    _hb = full.get("hodimlar_breakdown", []) or []
+    _eids = {b.get("employee_id") for b in _hb if b.get("employee_id")}
+    _emap = {}
+    if _eids:
+        _eq = db.query(_Emp).filter(_Emp.id.in_(_eids))
+        if company_id is not None:
+            _eq = _eq.filter(_Emp.company_id == company_id)
+        _emap = {e.id: e for e in _eq.all()}
+    for b in _hb:
+        e = _emap.get(b.get("employee_id"))
+        k = x.yid_kalit(e.yonalish_id) if e is not None else None
+        if k is not None:
+            bevosita["hodimlar"][k] = bevosita["hodimlar"].get(k, 0.0) + float(b.get("amount") or 0)
+    # Brak (xomashyo) — brak yozuviga bog'langan harakatlar (qaytarish detali / tayyor mahsuloti yo'nalishi) va ishlab
+    # chiqarish braki (tayyor mahsulot yozuvi — `_ISH_BRAK_BELGI`) — o'z yo'nalishiga; bog'lanmagani (qo'lda «Brak»
+    # chiqimi) — umumiy.
+    _brak = _crud.get_brak_material_summary(db, start_date=boshi, end_date=oxiri, company_id=company_id,
+                                            harakatlar=True)
+    _ri_ids = {h["return_item_id"] for h in _brak.get("harakatlar", []) if h.get("return_item_id")}
+    _ri = {}
+    if _ri_ids:
+        _rq = db.query(_RI).filter(_RI.id.in_(_ri_ids))
+        if company_id is not None:
+            _rq = _rq.filter(_RI.company_id == company_id)
+        _ri = {r.id: r for r in _rq.all()}
+    _oi_ids = {r.order_item_id for r in _ri.values() if r.order_item_id}
+    _fp_ids = {r.finished_product_id for r in _ri.values() if r.finished_product_id}
+    _oi = {}
+    if _oi_ids:
+        _iq = db.query(OrderItem).filter(OrderItem.id.in_(_oi_ids))
+        if company_id is not None:
+            _iq = _iq.filter(OrderItem.company_id == company_id)
+        _oi = {i.id: i for i in _iq.all()}
+    _fpl_q = db.query(_FPL).filter(_tashkent_oyida(_FPL.lost_at, year, month))
+    if company_id is not None:
+        _fpl_q = _fpl_q.filter(_FPL.company_id == company_id)
+    _yoqotishlar = _fpl_q.all()
+    _fp_ids |= {l.finished_product_id for l in _yoqotishlar if l.finished_product_id}
+    _fp = {}
+    if _fp_ids:
+        _fq = db.query(_FP).filter(_FP.id.in_(_fp_ids))
+        if company_id is not None:
+            _fq = _fq.filter(_FP.company_id == company_id)
+        _fp = {f.id: f for f in _fq.all()}
+    for h in _brak.get("harakatlar", []):
+        r = _ri.get(h.get("return_item_id"))
+        k = None
+        if r is not None and r.order_item_id in _oi:
+            k = x.detal_kalit(_oi[r.order_item_id])
+        elif r is not None and r.finished_product_id in _fp:
+            k = x.tm_kalit(_fp[r.finished_product_id])
+        if k is not None:
+            bevosita["brak"][k] = bevosita["brak"].get(k, 0.0) + float(h.get("value") or 0)
+    _ISH = _crud._ISH_BRAK_BELGI
+    for l in _yoqotishlar:
+        k = x.tm_kalit(_fp.get(l.finished_product_id)) if l.finished_product_id in _fp else None
+        if k is None:
+            continue
+        if (l.reason or "").startswith(_ISH):
+            bevosita["brak"][k] = bevosita["brak"].get(k, 0.0) + float(l.cost_amount or 0)
         else:
-            peno_brak += amt
+            bevosita["tm_yoqotish"][k] = bevosita["tm_yoqotish"].get(k, 0.0) + float(l.cost_amount or 0)
 
-    gips_direct_cost += gips_tagged_expense
-    peno_direct_cost += peno_tagged_expense
+    # ── 4. UMUMIY qism (hovuz − bevosita) — daromad ulushida ──
+    daromad = {}
+    _qosh(daromad, daromad_b)
+    _qosh(daromad, daromad_tm)
+    vaznlar = {k: max(v, 0.0) for k, v in daromad.items() if v > 0}
+    if sum(vaznlar.values()) > 0:
+        ulush_usuli = "daromad"
+        _ulush_vazn = [(k, vaznlar[k]) for k in x.tartibla(vaznlar)]
+    else:
+        ulush_usuli = "teng"
+        _ulush_vazn = [(k, 1.0) for k in x.korinadigan()] or [(x.asosiy_kalit, 1.0)]
+        izohlar.append("Bu oy daromad yo'q — umumiy xarajatlar ko'rinadigan yo'nalishlarga teng bo'lindi")
+    umumiy = {}
+    ulush = {nom: {} for nom, _n in _YON_XARAJAT_NOMLARI}
+    for nom, _n in _YON_XARAJAT_NOMLARI:
+        qism = float(t[nom]) - sum(bevosita[nom].values())
+        umumiy[nom] = qism
+        ulush[nom] = _vaznli_taqsim(qism, _ulush_vazn) if abs(qism) >= 1e-9 else {}
 
-    umumiy_split_base = umumiy_overhead + ehson_xarajat
-    gips_overhead_only = umumiy_split_base * gips_share
-    peno_overhead_only = umumiy_split_base * peno_share
-    gips_overhead = gips_overhead_only + gips_brak
-    peno_overhead = peno_overhead_only + peno_brak
+    # ── 5. Yo'nalish ustunlari (aniq) ──
+    kalitlar = set(x.korinadigan())
+    for d in [daromad_b, daromad_tm, tannarx_b, tannarx_tm] + list(bevosita.values()) + list(ulush.values()):
+        kalitlar |= {k for k, v in d.items() if abs(v) >= 0.005}
+    tartib = x.tartibla(kalitlar)
+    aniq = {}
+    for k in tartib:
+        _d = daromad_b.get(k, 0.0) + daromad_tm.get(k, 0.0)
+        _t = tannarx_b.get(k, 0.0) + tannarx_tm.get(k, 0.0)
+        _b = sum(bevosita[n].get(k, 0.0) for n, _x in _YON_XARAJAT_NOMLARI)
+        _u = sum(ulush[n].get(k, 0.0) for n, _x in _YON_XARAJAT_NOMLARI)
+        aniq[k] = {"daromad": _d, "tannarx": _t, "bevosita": _b, "ulush": _u, "jami_xarajat": _b + _u,
+                   "sof_foyda": _d - _t - _b - _u}
+    sof = float(full["sof_foyda"])
+    tekshiruv_farq = sof - sum(v["sof_foyda"] for v in aniq.values())
 
-    # ── 4. YAKUNIY HISOB ──
-    gips_xarajat_jami = gips_direct_cost + gips_emp + gips_overhead
-    peno_xarajat_jami = peno_direct_cost + peno_emp + peno_overhead
-    gips_foyda = gips_daromad - gips_xarajat_jami
-    peno_foyda = peno_daromad - peno_xarajat_jami
+    def _ustunlar(birlik: int) -> dict:
+        """Butun `birlik` (1 — so'm, 100 — tiyin) larda: ustun ichida D − T − J = S, qatorlar yig'indisi = jami."""
+        D = _yaxlit_taqsim({k: aniq[k]["daromad"] for k in tartib}, _yaxlit(sum(a["daromad"] for a in aniq.values()), birlik), birlik)
+        T = _yaxlit_taqsim({k: aniq[k]["tannarx"] for k in tartib}, _yaxlit(sum(a["tannarx"] for a in aniq.values()), birlik), birlik)
+        B = _yaxlit_taqsim({k: aniq[k]["bevosita"] for k in tartib}, _yaxlit(sum(a["bevosita"] for a in aniq.values()), birlik), birlik)
+        S = _yaxlit_taqsim({k: aniq[k]["sof_foyda"] for k in tartib}, _yaxlit(sof, birlik), birlik)
+        natija = {}
+        for k in tartib:
+            U = D[k] - T[k] - B[k] - S[k]
+            bq = _yaxlit_taqsim({n: bevosita[n].get(k, 0.0) for n, _x in _YON_XARAJAT_NOMLARI}, B[k], birlik)
+            uq = _yaxlit_taqsim({n: ulush[n].get(k, 0.0) for n, _x in _YON_XARAJAT_NOMLARI}, U, birlik)
+            f = (lambda v: v) if birlik == 1 else (lambda v: v / birlik)
+            natija[k] = {"daromad": f(D[k]), "tannarx": f(T[k]), "bevosita": f(B[k]), "ulush": f(U),
+                         "jami_xarajat": f(B[k] + U), "sof_foyda": f(S[k]),
+                         "bevosita_qismlari": {n: f(v) for n, v in bq.items()},
+                         "ulush_qismlari": {n: f(v) for n, v in uq.items()}}
+        return natija
 
+    som, tiyin = _ustunlar(1), _ustunlar(100)
+    _ulush_jami = sum(v for _k, v in _ulush_vazn)
+    yonalishlar = []
+    for k in tartib:
+        s_ = som[k]
+        yonalishlar.append({
+            "kalit": k, "nom": x.nom(k),
+            "asosiy": k == x.asosiy_kalit,
+            "belgilanmagan": k == _YON_BELGILANMAGAN,
+            "yashirin": bool(x.nomlar[k].yashirin) if k in x.nomlar else False,
+            "som": s_, "aniq": tiyin[k],
+            "foyda_foiz": round(s_["sof_foyda"] / s_["daromad"] * 100, 1) if s_["daromad"] else 0.0,
+            "ulush_foiz": round(dict(_ulush_vazn).get(k, 0.0) / _ulush_jami * 100, 1) if _ulush_jami else 0.0,
+        })
+    _jami_som = {f: sum(som[k][f] for k in tartib) for f in ("daromad", "tannarx", "bevosita", "ulush",
+                                                           "jami_xarajat", "sof_foyda")}
+    # «Belgilanmagan» — qaysi MRP turlari biriktirilmagan (egasiga ko'rsatiladi)
+    belgilanmagan_turlar = []
+    if _YON_BELGILANMAGAN in tartib:
+        from production_models import ProductType as _PT117b
+        _pq = db.query(_PT117b.name).filter(_PT117b.yonalish_id.is_(None), _PT117b.is_active == True)  # noqa: E712
+        if company_id is not None:
+            _pq = _pq.filter(_PT117b.company_id == company_id)
+        belgilanmagan_turlar = sorted(r[0] for r in _pq.all())
     return {
         "year": year, "month": month,
-        "gips": {
-            "daromad": round(gips_daromad),
-            "xomashyo_xarajati": round(gips_direct_cost),
-            "hodim_xarajati": round(gips_emp),
-            "brak_xarajati": round(gips_brak),
-            "umumiy_xarajat_ulushi": round(gips_overhead_only),
-            "jami_xarajat": round(gips_xarajat_jami),
-            "sof_foyda": round(gips_foyda),
-            "foyda_foiz": round((gips_foyda / gips_daromad * 100) if gips_daromad > 0 else 0, 1),
-        },
-        "penoplast": {
-            "daromad": round(peno_daromad),
-            "xomashyo_xarajati": round(peno_direct_cost),
-            "hodim_xarajati": round(peno_emp),
-            "brak_xarajati": round(peno_brak),
-            "umumiy_xarajat_ulushi": round(peno_overhead_only),
-            "jami_xarajat": round(peno_xarajat_jami),
-            "sof_foyda": round(peno_foyda),
-            "foyda_foiz": round((peno_foyda / peno_daromad * 100) if peno_daromad > 0 else 0, 1),
-        },
-        "daromad_ulushi": {"gips_foiz": round(gips_share * 100, 1), "penoplast_foiz": round(peno_share * 100, 1)},
-        "umumiy_taqsimlangan": round(umumiy_split_base),
+        "yonalishlar": yonalishlar,
+        "jami": _jami_som,
+        "moliya_sof_foyda": _yaxlit(sof, 1),
+        "moliya_sof_foyda_aniq": _yaxlit(sof, 100) / 100,
+        "moliya_daromad": _yaxlit(float(t["daromad_buyurtmalar"]) + float(t["daromad_tm"]), 1),
+        "ulush_usuli": ulush_usuli,
+        "umumiy_xarajatlar": {n: round(umumiy[n], 2) for n, _x in _YON_XARAJAT_NOMLARI},
+        "xarajat_nomlari": dict(_YON_XARAJAT_NOMLARI),
+        "korinadigan_soni": len(x.korinadigan()),
+        "belgilanmagan_turlar": belgilanmagan_turlar,
+        "izohlar": izohlar,
+        "tekshiruv_farq": round(tekshiruv_farq, 6),
     }
 
 

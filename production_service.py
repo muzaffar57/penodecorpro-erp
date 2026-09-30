@@ -1564,6 +1564,9 @@ def turlar_xulosasi(db: Session, company_id: int) -> list:
             "qoplama_bor": qoplama_bor,
             "narxsiz": narxsiz,
         })
+    # kech117 (A2): tur yo'nalishi (NULL — «Belgilanmagan»); nomlar — korxonaning HAMMA yo'nalishi (yashirini ham)
+    import crud as _crud117
+    _ynom = _crud117.yonalish_nomlari(db, company_id)
     natija = []
     for t in turlar:
         miqdor, band = ombor.get(t.id, (0.0, 0.0))
@@ -1571,6 +1574,8 @@ def turlar_xulosasi(db: Session, company_id: int) -> list:
             "id": t.id,
             "company_id": t.company_id,
             "name": t.name,
+            "yonalish_id": t.yonalish_id,
+            "yonalish_nom": _ynom.get(t.yonalish_id) if t.yonalish_id else None,
             "unit": t.unit,
             "input_template": t.input_template,
             "pricing_formula": t.pricing_formula,

@@ -162,6 +162,8 @@ class InventoryReceiptCreate(BaseModel):
     add_to_cost: bool = Field(default=False, description="Qo'shimcha xarajatlarni tannarxga qo'shish")
     notes: Optional[str] = None
     production_type: Optional[str] = Field(default=None, description="umumiy / penoplast / gips")
+    # kech117 (A2): korxona yo'nalishi (`models.Yonalish`); NULL — «Umumiy».
+    yonalish_id: Optional[int] = Field(default=None, ge=1, le=2_147_483_647)
     # kech115 (G4-03): formadagi «Sana» va «To'lov muddati» — ilgari serverga umuman yuborilmasdi (kirim doim bugungi
     # sana bilan yozilardi, qarz muddati hech qayerda saqlanmasdi). YYYY-MM-DD; bo'sh — bugun / muddatsiz.
     receipt_date: Optional[str] = Field(default=None, description="Kirim sanasi (YYYY-MM-DD, Toshkent kalendari)")
@@ -413,6 +415,8 @@ class ExpenseTransactionCreate(BaseModel):
     notes: Optional[str] = Field(default=None, max_length=10_000)
     production_type: Optional[Literal["umumiy", "penoplast", "gips"]] = Field(
         default=None, description="umumiy / penoplast / gips")
+    # kech117 (A2): korxona yo'nalishi (`models.Yonalish`); NULL — «Umumiy».
+    yonalish_id: Optional[int] = Field(default=None, ge=1, le=2_147_483_647)
 
 
 class ExpenseTransactionRead(BaseModel):
@@ -425,6 +429,7 @@ class ExpenseTransactionRead(BaseModel):
     created_at: datetime
     source: str = "manual"
     production_type: Optional[str] = None
+    yonalish_id: Optional[int] = None
     model_config = {"from_attributes": True}
 
 
@@ -695,6 +700,8 @@ class EmployeeCreate(BaseModel):
     per_unit_type: str = Field(default="blok", description="blok/metr/dona")
     extra_monthly: Optional[float] = Field(default=None, description="Ixtiyoriy qo'shimcha doimiy oylik")
     production_type: Optional[str] = Field(default=None, description="penoplast / gips / umumiy")
+    # kech117 (A2): korxona yo'nalishi (`models.Yonalish`); NULL — «Umumiy».
+    yonalish_id: Optional[int] = Field(default=None, ge=1, le=2_147_483_647)
     notes: Optional[str] = None
 
 
@@ -708,6 +715,8 @@ class EmployeeUpdate(BaseModel):
     per_unit_type: Optional[str] = None
     extra_monthly: Optional[float] = None
     production_type: Optional[str] = None
+    # kech117 (A2): korxona yo'nalishi (`models.Yonalish`); NULL — «Umumiy».
+    yonalish_id: Optional[int] = Field(default=None, ge=1, le=2_147_483_647)
     is_active: Optional[bool] = None
     notes: Optional[str] = None
     # To'lov o'zgarishi qaysi oydan kuchga kirishi kerak (masalan, oylik
@@ -728,6 +737,7 @@ class EmployeeRead(BaseModel):
     per_unit_type: str
     extra_monthly: Optional[float] = None
     production_type: Optional[str] = None
+    yonalish_id: Optional[int] = None
     is_active: bool
     notes: Optional[str] = None
     phone: Optional[str] = None
@@ -757,6 +767,8 @@ class TransportExpenseCreate(BaseModel):
     notes: Optional[str] = Field(default=None, max_length=10_000)
     production_type: Optional[Literal["umumiy", "penoplast", "gips"]] = Field(
         default=None, description="umumiy / penoplast / gips")
+    # kech117 (A2): korxona yo'nalishi (`models.Yonalish`); NULL — «Umumiy».
+    yonalish_id: Optional[int] = Field(default=None, ge=1, le=2_147_483_647)
 
 
 class PaymentCreate(BaseModel):
