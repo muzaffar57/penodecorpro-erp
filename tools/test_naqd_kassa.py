@@ -192,7 +192,12 @@ check("0 login", _lr.status_code in (200, 302, 303), _lr.status_code)
 
 def hisobot(y=None, m=None):
     d = js(req(C, "get", "/api/finance/report", params={"year": y or Y, "month": m or M}))
-    return d if isinstance(d, dict) else {}
+    d = d if isinstance(d, dict) else {}
+    # kech116 (G1-03, egasi QARORI «Pul oqimi — haqiqiy pul»): bosh sahifa «Pul oqimi (bu oy)» endi
+    # `/api/finance/pul-oqimi` dan — shu paytdagi holati hisobot bilan birga olinadi (B / A bo'limlari solishtiradi)
+    po = js(req(C, "get", "/api/finance/pul-oqimi", params={"year": y or Y, "month": m or M}))
+    d["__pul_oqimi"] = po if isinstance(po, dict) else {}
+    return d
 
 
 def tarix(y=None, m=None):
@@ -320,8 +325,9 @@ _CASHFLOW = shablon_funksiya("dashboard.html", "async function loadCashFlow(")
 
 
 def bosh_sahifa(rep):
-    """Bosh sahifa "Kirim / Chiqim / Balans" — sahifaning O'Z `loadCashFlow` funksiyasi bilan."""
-    o = js_yurgiz(_CASHFLOW, rep)
+    """Bosh sahifa "Kirim / Chiqim / Balans" — sahifaning O'Z `loadCashFlow` funksiyasi bilan. kech116 (G1-03): funksiya
+    `/api/finance/pul-oqimi` ni o'qiydi — soxta `fetch` shu paytdagi pul oqimi javobini qaytaradi (`hisobot()` oladi)."""
+    o = js_yurgiz(_CASHFLOW, rep.get("__pul_oqimi") or {})
     h = ((o.get("cashFlow") or {}).get("h")) if isinstance(o, dict) else None
     if not h:
         return None
@@ -434,10 +440,12 @@ check("A10 tarix (/api/finance/history) shu oy — hisobot bilan AYNAN (naqd, ki
       and teng(_t9.get("sof_foyda"), h9.get("sof_foyda")),
       [_t9.get("naqd_xarajat_jami"), h9.get("naqd_xarajat_jami"), _t9.get("kirim_xarajatlari")])
 _bs = bosh_sahifa(h9)
-_kut = (h9.get("jami_xarajat") or 0) + (h9.get("naqd_xarajat_jami") or 0) - (h9.get("transport_xarajat") or 0) \
-    - (h9.get("kirim_xarajatlari_jamida") or 0)
-check("A11 bosh sahifa: Chiqim = jami + naqd − transport − kirim_xarajatlari_jamida; Balans = Kirim − Chiqim",
-      _bs is not None and teng(_bs[1], round(_kut, 2), 0.011) and teng(_bs[2], round(_bs[0] - _bs[1], 2), 0.011),
+# kech116 (G1-03, egasi QARORI «Pul oqimi — haqiqiy pul»): ilgari Chiqim = jami + naqd − transport −
+# kirim_xarajatlari_jamida (hisob, pul emas) edi; endi — shu oy haqiqatda to'langan pul (`/api/finance/pul-oqimi`)
+_kut = float((h9.get("__pul_oqimi") or {}).get("chiqim") or 0)
+check("A11 bosh sahifa: Kirim / Chiqim = shu oy olingan / to'langan pul (`/api/finance/pul-oqimi`); Balans = Kirim − Chiqim",
+      _bs is not None and teng(_bs[1], round(_kut, 2), 0.011) and teng(_bs[2], round(_bs[0] - _bs[1], 2), 0.011)
+      and teng(_bs[0], float((h9.get("__pul_oqimi") or {}).get("kirim") or 0), 0.011),
       [_bs, _kut])
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -612,7 +620,10 @@ try:
 except Exception:                          # noqa: BLE001
     _srcr = ""
 try:
-    _srck = inspect.getsource(services.get_cash_balance)
+    # kech116 (G1-03): kassa qismlari — `_kassa_qismlari` (kassa balansi va pul oqimi uchun YAGONA), jami —
+    # `get_cash_balance` da (tartib: qismlar, keyin jami)
+    _srck = (inspect.getsource(services._kassa_qismlari) if hasattr(services, "_kassa_qismlari") else "") \
+        + inspect.getsource(services.get_cash_balance)
 except Exception:                          # noqa: BLE001
     _srck = ""
 try:
@@ -632,9 +643,9 @@ check("H3 kassa: yetkazish transporti korxona filtri bilan va jami chiqimda",
 check("H4 kassa: eski MonthlyExpense faqat tranzaksiyasi yo'q oy / kategoriya uchun (korxona filtri bilan)",
       tartibda(_srck, "_mtq = db.query(", "_mtq = _mtq.filter(ExpenseTransaction.company_id == company_id)",
                "_tranzaksiyali = ", "if (int(m.year), int(m.month), cat) not in _tranzaksiyali"))
-check("H5 bosh sahifa: chiqimJami = chiqim − kirim_xarajatlari_jamida, balans va ko'rinish shundan",
-      tartibda(_dash, "const chiqim = (d.jami_xarajat||0)+(d.naqd_xarajat_jami||0)-(d.transport_xarajat||0);",
-               "const chiqimJami = chiqim-(d.kirim_xarajatlari_jamida||0);", "const balans = kirim-chiqimJami;",
+check("H5 bosh sahifa (kech116 — haqiqiy pul): Kirim / Chiqim / Balans — `/api/finance/pul-oqimi` javobidan, ko'rinish shundan",
+      tartibda(_dash, "fetch(`/api/finance/pul-oqimi?year=${tk.yil}&month=${tk.oy}`)", "const kirim = Number(d.kirim) || 0;",
+               "const chiqimJami = Number(d.chiqim) || 0;", "const balans = Number(d.balans) || 0;",
                "${fmt(chiqimJami)}"))
 check("H6 node mavjud (B / U bo'limlari sahifa funksiyasini yurgizadi)", bool(_NODE) and bool(_CASHFLOW))
 

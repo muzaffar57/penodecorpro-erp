@@ -316,17 +316,17 @@ async function main() {
     teng('E11 bo\'shliqlar kesiladi (ID, izoh)', r6.tana && r6.tana.notes, 'tg_id=777, izoh');
     teng('E12 manzil kesiladi', r6.tana && r6.tana.client_address, 'Andijon');
     teng('E13 telefon kesiladi', r6.tana && r6.tana.client_phone, '+998901234567');
-    // 15-band nazorati — boshqa maydonlar buzilmagan
+    // 15-band nazorati — boshqa maydonlar buzilmagan. kech116 (G2-01, QAROR «Loyiha qiymati — buyurtmalardan»): «Byudjet»
+    // maydoni formadan olindi — tanada `total_budget` YO'Q (server standarti 0; qiymat buyurtmalardan hisoblanadi).
     teng('E14 qolgan maydonlar AYNAN', r1.tana && {
       client_name: r1.tana.client_name, project_name: r1.tana.project_name,
       total_budget: r1.tana.total_budget, deadline: r1.tana.deadline,
       client_phone: r1.tana.client_phone, client_address: r1.tana.client_address },
-      { client_name: 'Karimov Botir', project_name: 'Hovli fasadi', total_budget: 1000,
+      { client_name: 'Karimov Botir', project_name: 'Hovli fasadi', total_budget: undefined,
         deadline: '2026-10-15', client_phone: null, client_address: null });
-    teng('E15 tanada ortiqcha kalit yo\'q (server "Noma\'lum maydon" bermasin)',
+    teng('E15 tanada ortiqcha kalit yo\'q (server "Noma\'lum maydon" bermasin; kech116 — `total_budget` yo\'q)',
          r1.tana && Object.keys(r1.tana).sort(),
-         ['client_address', 'client_name', 'client_phone', 'deadline', 'notes', 'project_name',
-          'total_budget']);
+         ['client_address', 'client_name', 'client_phone', 'deadline', 'notes', 'project_name']);
     const r7 = await yaratish({ 'f-client': '', 'f-tg-id': '5' });
     teng('E16 mijoz bo\'sh → so\'rov yo\'q (eski tekshiruv joyida)', r7.post ? r7.post.length : -1, 0);
     const r8 = await yaratish({ 'f-phone': 'Abc', 'f-tg-id': '5' });
@@ -391,10 +391,10 @@ async function main() {
     } else tekshir('F12 tuzatilgach qayta bosish → PUT ketadi', false, 'muhit yo\'q');
     teng('F13 server tahrirdan keyin ham ID ni o\'qiydi', serverOqiydi(t3.tana && t3.tana.notes), '987654321');
     // kech107 (10a): tahrir oynasida "Muddati" — tana `deadline` ni ham yuboradi (bo'sh — null); qolgan kalitlar AYNAN.
-    teng('F14 tahrir tanasining kalitlari o\'zgarmagan (14-band qoidasi; kech107 — + deadline)',
+    // kech116 (G2-01): «Byudjet» maydoni olindi — tanada `total_budget` YO'Q (bazadagi ustunga tegilmaydi).
+    teng('F14 tahrir tanasining kalitlari o\'zgarmagan (14-band qoidasi; kech107 — + deadline; kech116 — − total_budget)',
          t1.tana && Object.keys(t1.tana).sort(),
-         ['client_address', 'client_name', 'client_phone', 'deadline', 'notes', 'project_name', 'status',
-          'total_budget']);
+         ['client_address', 'client_name', 'client_phone', 'deadline', 'notes', 'project_name', 'status']);
   }
 
   // ================================================================

@@ -521,9 +521,13 @@ check("U1 Moliya: transport qatori (d.transport_xarajat) \"Jami xarajat\" qatori
                "${fmtFull(d.transport_xarajat||0)}", "<span>Jami xarajat:</span>"))
 check("U2 Moliya: manba nomlari — kirim_tannarx va inventory_receipt",
       "kirim_tannarx:'Kirim (tannarxda)'" in _fin and "inventory_receipt:'Kirim hujjati'" in _fin)
-check("U3 Bosh sahifa \"Chiqim\": transport ikki marta qo'shilmaydi",
-      "const chiqim = (d.jami_xarajat||0)+(d.naqd_xarajat_jami||0)-(d.transport_xarajat||0);" in _dash
-      and "const chiqim = (d.jami_xarajat||0)+(d.naqd_xarajat_jami||0);" not in _dash)
+# kech116 (G1-03, egasi QARORI «Pul oqimi — haqiqiy pul»): bosh sahifa «Chiqim» endi sahifada qo'lda yig'ilmaydi
+# (ilgari `jami_xarajat + naqd_xarajat_jami − transport_xarajat` — transport ikki joyda bo'lgani uchun ayirilardi) —
+# YAGONA `services.get_pul_oqimi` (`/api/finance/pul-oqimi`, kassa qismlari bilan bir manba: transport BIR marta —
+# `test_a116_pul` P1 tiyin aniqligida). Tekshiruv yangi ma'noga: sahifa yagona manbadan oladi, eski yig'indi yo'q.
+check("U3 Bosh sahifa \"Chiqim\": yagona pul oqimi manbasidan (/api/finance/pul-oqimi) — sahifada transport qo'shib / "
+      "ayirib yig'ilmaydi",
+      "/api/finance/pul-oqimi" in _dash and "(d.jami_xarajat||0)+(d.naqd_xarajat_jami||0)" not in _dash)
 
 # ═══════════════════════════════════════════════════════════════════════════
 section("H — kod tartibi (statik)")

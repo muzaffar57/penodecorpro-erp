@@ -149,6 +149,24 @@ T_HOZIR = "01.10.2026 01:59"
 T_LAHZA = "01.10.2026 01:30"
 T_SANA = "01.10.2026"
 UTC_SANA = "30.09.2026"                        # asl (UTC) ko'rinish — BO'LMASLIGI kerak
+# kech116: sahifa tekshiruvlari (C1 / C2 / C8) UTC sanasini butun sahifada emas, ANIQ asl ko'rinish namunalarida qidiradi —
+# sahifada HAQIQIY joriy vaqt ham bor (sarlavha, «Joriy siz» — soat almashtirilmagan so'rovlar): haqiqiy Toshkent sanasi
+# 30.09.2026 bo'lgan kuni (kech115 etaloni) butun sahifa qidiruvi asl kodda ham yiqilardi (bizning o'zgarish emas).
+# Asl xato ko'rinishi — fikstura lahzalarining UTC matni va UTC sanali katak — shu namunalar bilan AYNAN ushlanadi.
+UTC_NAMUNALAR = ("30.09.2026 20:30", "30.09.2026 20:59", ">30.09.2026</td>", ">30.09.2026<", "30.09.2026</span>")
+
+
+def utc_korinishi_yoq(matn):
+    return not any(x in (matn or "") for x in UTC_NAMUNALAR)
+
+
+def fikstura_qatori(matn, login):
+    """/users jadvalida FIKSTURA foydalanuvchisining qatori (`<tr id="urow-…">` … `</tr>`) — standart admin (haqiqiy
+    joriy vaqtda yaratilgan) qatori tekshiruvga kirmaydi."""
+    for m in re.finditer(r'<tr id="urow-\d+">(.*?)</tr>', matn or "", re.S):
+        if f">{login}</span>" in m.group(1):
+            return m.group(1)
+    return ""
 MODULLAR = (database, main, crud, services, pdf_service, delivery_pdf, finance_pdf)
 
 
@@ -523,10 +541,11 @@ def sahifa(url):
 
 _st, _h = sahifa("/users")
 check("C1 /users: foydalanuvchi yaratilgan 01.10.2026, \"Joriy siz\" vaqti 01.10.2026 01:59 (asl: 30.09)",
-      _st == 200 and f">{T_SANA}</td>" in _h and T_HOZIR in _h and UTC_SANA not in _h, [_st, sanalar(_h)])
+      _st == 200 and f">{T_SANA}</td>" in fikstura_qatori(_h, "tk_admin") and T_HOZIR in _h
+      and utc_korinishi_yoq(fikstura_qatori(_h, "tk_admin")) and "30.09.2026 20:59" not in _h, [_st, sanalar(_h)])
 _st, _h = sahifa("/logs")
 check("C2 /logs: kirish va faoliyat 01.10.2026 01:30 (asl: 30.09.2026 20:30); UTC sanasi YO'Q",
-      _st == 200 and _h.count(T_LAHZA) >= 3 and UTC_SANA not in _h, [_st, sanalar(_h)])
+      _st == 200 and _h.count(T_LAHZA) >= 3 and utc_korinishi_yoq(_h), [_st, sanalar(_h)])
 check("C3 /logs: xato jurnali (allaqachon Toshkentda yozilgan) — 01.10.2026 01:30, IKKINCHI marta siljimagan (06:30 YO'Q)",
       "TK xato jurnali" in _h and "01.10.2026 06:30" not in _h, sanalar(_h))
 _st, _h = sahifa("/orders")
@@ -545,7 +564,7 @@ _st, _h = sahifa("/returns")
 check("C7 /returns: qaytarish sanasi 01.10.2026", _st == 200 and re.search(r'class="ret-date"[^>]*>' + re.escape(T_SANA), _h),
       [_st, re.findall(r'class="ret-date"[^>]*>[\d.]+', _h)])
 _st, _h = sahifa("/trash")
-check("C8 /trash: o'chirish vaqti 01.10.2026 01:30", _st == 200 and T_LAHZA in _h and UTC_SANA not in _h,
+check("C8 /trash: o'chirish vaqti 01.10.2026 01:30", _st == 200 and T_LAHZA in _h and utc_korinishi_yoq(_h),
       [_st, sanalar(_h)])
 _st, _h = sahifa("/debts")
 check("C9 /debts: buyurtma muddati 05.10.2026 (kalendar kuni — siljimaydi)", _st == 200

@@ -10,6 +10,9 @@ NIMA UCHUN KERAK (audit kech114 — O'LCHANGAN, asl kod = `staging` d1ba2b0)
                  kartada xarajat o'sishi yashil, pastda qizil.
   G1-06          «Ombor» va «Ishlab chiqarish» kodda DOIM yashil; bo'sh korxonaga birinchi kuni qizil «Rentabellik».
   G4-06          Omborxona «Kam» filtri faqat «Oz» larni ko'rsatardi, «Kam!» lar «Tugagan» da; karta soni bilan mos emas.
+  (kech116) K115-2  «Korxona sog'ligi» sababi holatdan qat'i nazar «(yaxshi — 15 % dan yuqori)» derdi (qizil kartada);
+                    qarz sababida chegara yo'q edi. Endi matn holatga qarab (yaxshi / o'rtacha / past, chegara bilan) — H8–H10.
+  (kech116) K115-3  Ogohlantirish bo'lmasa «Bugungi xulosa» umuman yig'ilmasdi (zarar oyida ham yashirin) — R10 / R11.
 BO'LIMLAR: C — taqqoslash (server); H — sog'liq (server); R / I / F / D — Hisobotlar / Omborxona / Moliya / Dashboard
            sahifalari (jsdom); X — xatolar.
 REJIMLAR: SQLite (odatiy); `PG_URL` bilan HAQIQIY PostgreSQL 16. Asl kodga qarshi QULAMAYDI.
@@ -254,6 +257,43 @@ s.close()
 _rep = js(req(C, "get", f"/api/finance/report?year={BUGUN.year}&month={BUGUN.month}"))
 check("0 moliya: shu oy sof foyda manfiy (zarar)", float(_rep.get("sof_foyda", 0) or 0) < 0, _rep.get("sof_foyda"))
 
+# kech116 (K115-2): sabab matni holatga qarab
+import re as _re_k1152                             # noqa: E402
+h = sogliq(1)
+_rs = (h.get("sabablar") or {}).get("rentabellik", "")
+check("H8 (K115-2) zarar oyi: rentabellik «red», sabab «… — past (5 % dan kam)», «yaxshi» so'zi YO'Q "
+      "(asl: «(yaxshi — 15 % dan yuqori)»)", h.get("rentabellik") == "red" and _rs.startswith("Rentabellik -")
+      and _rs.endswith(" % — past (5 % dan kam)") and "yaxshi" not in _rs, h)
+
+
+def sogliq_soxta(foiz, daromad=1000000):
+    services.get_monthly_report = lambda db, y, m, company_id=None: {
+        "foyda_foiz": foiz, "daromad": daromad, "sof_foyda": 1, "jami_xarajat": 1, "naqd_xarajat_jami": 0}
+    try:
+        return sogliq(1)
+    finally:
+        services.get_monthly_report = _asl_report
+
+
+_REN = {"green": "yaxshi (15 % va undan yuqori)", "orange": "o'rtacha (5–15 %)", "red": "past (5 % dan kam)"}
+_chegaralar = [(15, "green"), (37.5, "green"), (14.9, "orange"), (5, "orange"), (4.9, "red"), (-8.4, "red"), (0, "red")]
+_natija = []
+for _foiz, _kut in _chegaralar:
+    _h = sogliq_soxta(_foiz)
+    _natija.append((_foiz, _h.get("rentabellik"), (_h.get("sabablar") or {}).get("rentabellik")))
+check("H9 (K115-2) rentabellik chegaralari 15 / 5: baho va sabab BITTA qoida (15 → yaxshi, 14.9 / 5 → o'rtacha, "
+      "4.9 / manfiy → past)",
+      all(b == k and t == f"Rentabellik {f:g} % — {_REN[k]}" for (f, b, t), (_f2, k) in zip(_natija, _chegaralar)), _natija)
+_qs = (h.get("sabablar") or {}).get("qarzdorlik", "")
+_qm = _re_k1152.match(r"^Qarz — sotuvning (-?[0-9.]+) % — (.+)$", _qs or "")
+_QAR = {"green": "yaxshi (15 % dan kam)", "orange": "o'rtacha (15–30 %)", "red": "yuqori (30 % va undan ko'p)"}
+_qkut = None
+if _qm:
+    _qf = float(_qm.group(1))
+    _qkut = "green" if _qf < 15 else ("orange" if _qf < 30 else "red")
+check("H10 (K115-2) qarzdorlik sababi chegara bilan, baho ko'rsatilgan foizga mos (asl: «Qarz — sotuvning N %» — chegarasiz)",
+      _qm is not None and h.get("qarzdorlik") == _qkut and _qm.group(2) == _QAR.get(_qkut), (h.get("qarzdorlik"), _qs))
+
 # ══════════════════════════════════════════════════════════════
 # jsdom
 # ══════════════════════════════════════════════════════════════
@@ -353,6 +393,17 @@ HIS = [
         ch: ['kpi-daromad-ch','kpi-xarajat-ch','kpi-foyda-ch','kpi-foiz-ch'].map(i => __m(document.getElementById(i))),
         comp: ['comp-daromad','comp-jami_xarajat','comp-sof_foyda'].map(i => __m(document.getElementById(i))),
         ai: __m(document.getElementById('aiSummaryList'))};"""),
+    # kech116 (K115-3): ogohlantirishlar ro'yxati BO'SH bo'lsa ham «Bugungi xulosa» yig'iladi (sahifaning O'Z loadAlerts i;
+    # faqat /api/reports/alerts javobi bo'sh ro'yxat bilan almashtiriladi — boshqa so'rovlar HAQIQIY server)
+    q("r_xulosa", amal=r"""
+      document.getElementById('aiSummary').style.display = 'none';
+      document.getElementById('aiSummaryList').textContent = 'Yuklanmoqda...';
+      const __asl = window.fetch;
+      window.fetch = (u, o) => String(u).indexOf('/api/reports/alerts') >= 0
+        ? Promise.resolve({ok: true, status: 200, json: async () => []}) : __asl(u, o);
+      try { await loadAlerts(); } finally { window.fetch = __asl; }""",
+      natija=M + r"""return {display: document.getElementById('aiSummary').style.display,
+        matn: __m(document.getElementById('aiSummaryList')), bosh: __m(document.getElementById('alertsBody'))};"""),
     q("r_fn", natija=r"""return {
         yoq: ozgarishKorinishi('daromad', {change_pct: null, holat: 'malumot_yoq'}),
         ozg: ozgarishKorinishi('daromad', {change_pct: null, holat: 'ozgarmadi'}),
@@ -471,6 +522,14 @@ check("R8 kartalarda (o'tgan oy bo'sh) «o'tgan oyda ma'lumot yo'q» — «100%�
       and sum(1 for x in g("r", "ch") if "o'tgan oyda ma'lumot yo'q" in (x or "")) >= 2, g("r", "ch"))
 check("R9 xulosada «Bu oy zarar: …» (asl: «Sof foyda 100% oshdi»)", "Bu oy zarar" in (g("r", "ai") or "")
       and "100% oshdi" not in (g("r", "ai") or ""), g("r", "ai"))
+check("R10 (K115-3) ogohlantirish YO'Q bo'lsa ham «Bugungi xulosa» ko'rinadi: «Bu oy zarar: …» (asl: yashirin, «Yuklanmoqda...»)",
+      g("r_xulosa", "display") == "flex" and "Bu oy zarar" in (g("r_xulosa", "matn") or "")
+      and "Yuklanmoqda" not in (g("r_xulosa", "matn") or ""), N.get("r_xulosa"))
+check("R11 (K115-3) bo'sh ro'yxat matni «Hozircha muhim ogohlantirish yo'q»",
+      "Hozircha muhim ogohlantirish yo'q" in (g("r_xulosa", "bosh") or ""), N.get("r_xulosa"))
+check("R12 (K115-2) sahifadagi «Rentabellik» sababi — «past (5 % dan kam)», «yaxshi» YO'Q",
+      ((_k.get("rentabellik") or {}).get("sabab") or "").endswith("— past (5 % dan kam)")
+      and "yaxshi" not in ((_k.get("rentabellik") or {}).get("sabab") or ""), _k.get("rentabellik"))
 
 section("I. Omborxona — G4-06")
 _ki = g("i") or {}

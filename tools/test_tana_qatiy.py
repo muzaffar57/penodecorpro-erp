@@ -976,9 +976,13 @@ _fnlar = {n: js_funksiya(_prod, n) for n in ("sonOqi", "retseptQatorlari", "save
                                              "saveProductionOrder")}
 _fnlar.update({n: js_funksiya(_kpi, n) for n in ("saveMasterKpi", "submitOpenGiftPeriod", "saveTierEdit",
                                                  "submitAddMasterToGiftPeriod", "submitCloseGiftPeriod", "parseNum", "fmt")})
-_fnlar.update({n: js_funksiya(_usr, n) for n in ("saveUser", "changePass", "changeMyPassword")})
+# kech116 (G6-06): parol — `prompt()` o'rniga dastur oynasi (`parolOynasi` → maydonlar → `parolSaqlash`); tana o'sha
+# (`{new_password}` / `{new_password, current_password}`), yuborish — `parolSaqlash` da.
+_fnlar.update({n: js_funksiya(_usr, n) for n in ("saveUser", "changePass", "changeMyPassword", "parolOynasi", "parolYopish",
+                                                 "parolKozcha", "parolXato", "parolSaqlash")})
 check("U0 hamma UI funksiyalari shablonlarda topildi", all(_fnlar.values()), [k for k, v in _fnlar.items() if not v])
-_fnlar["changeMyPassword"] = _fnlar["changeMyPassword"].replace("{{ current_user.id }}", "990001")
+_fnlar["changeMyPassword"] = _fnlar["changeMyPassword"].replace("{{ current_user.id|int }}", "990001").replace(
+    "{{ current_user.id }}", "990001")
 ADMIN_YANGI = "AdminYangi1!"
 _harness = r"""
 const SENT = {}; let CUR = null;
@@ -997,6 +1001,8 @@ for (const n of ['showMsg', 'closeModal', 'loadProductTypes', 'switchProdTab', '
   globalThis[n] = () => {};
 globalThis.location = {reload(){}};
 var isOpeningGiftPeriod = false, isSavingTierEdit = false, isClosingGiftPeriod = false, isSavingUser = false;
+var parolHolat = null;
+globalThis.serverXatoSababi = async (res, std) => std;
 var inFlightMasterKpi = new Set(); var _newPeriodTiers = [];
 function v(id, val) { EL[id] = mkEl({value: String(val)}); }
 function c(id, val) { EL[id] = mkEl({checked: !!val}); }
@@ -1047,8 +1053,10 @@ async function yur() {
   EL = {}; QSA = {}; CUR = 'U1';
   v('f-username', ' ui_user '); v('f-password', 'Parol123!'); v('f-role', 'manager'); v('f-fullname', 'UI Foydalanuvchi');
   await saveUser();
-  EL = {}; QSA = {}; CUR = 'U2'; PROMPTS = ['UiYangi123!']; await changePass(990003, 'ui_user', null);
-  EL = {}; QSA = {}; CUR = 'U3'; PROMPTS = [K.eski, K.yangi, K.yangi]; await changeMyPassword();
+  EL = {}; QSA = {}; CUR = 'U2'; await changePass(990003, 'ui_user', null);
+  v('parol-yangi', 'UiYangi123!'); v('parol-takror', 'UiYangi123!'); await parolSaqlash();
+  EL = {}; QSA = {}; CUR = 'U3'; await changeMyPassword();
+  v('parol-eski', K.eski); v('parol-yangi', K.yangi); v('parol-takror', K.yangi); await parolSaqlash();
   process.stdout.write(JSON.stringify(SENT));
 }
 yur().catch(e => process.stdout.write(JSON.stringify({XATO: String(e && e.stack || e)})));
