@@ -116,6 +116,10 @@ async function sinov(o) {
     customConfirm: async () => true,
     customPrompt: async () => (o.prompt !== undefined ? o.prompt : '1500'),
     prompt: () => (o.prompt !== undefined ? o.prompt : '1500'),
+    // kech118 (B — U-07, MOSLANDI): sahifa xom prompt() / alert() o'rniga dastur oynalarini chaqiradi (base.html
+    // `kiritishOyna` — Promise, standart qiymat `o.qiymat`; `xabarOyna`) — soxta muhitda shu testning prompt / alert soxtalariga ulanadi.
+    kiritishOyna: async () => (o.prompt !== undefined ? o.prompt : '1500'),
+    xabarOyna: async (t) => { xabarlar.push(String(t)); },
     promptAmountReason: async () => ({ amount: 1000, reason: 'KB' }),
     confirmDeleteFp: async () => 'keep',
   };

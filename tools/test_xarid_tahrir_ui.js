@@ -82,6 +82,9 @@ function muhitYarat(javob, promptlar, tasdiq) {
   const ctx = {
     console, JSON, String, Number, Math, Promise, parseFloat, isNaN, Set,
     prompt: () => (pi < promptlar.length ? promptlar[pi++] : null),
+    // kech118 (B — U-07, MOSLANDI): sahifa xom prompt() / alert() o'rniga dastur oynalarini chaqiradi (base.html
+    // `kiritishOyna` — Promise, standart qiymat `o.qiymat`; `xabarOyna`) — soxta muhitda shu testning prompt / alert soxtalariga ulanadi.
+    kiritishOyna: async () => (pi < promptlar.length ? promptlar[pi++] : null),
     customConfirm: async (matn, opts) => {
       tasdiqMatnlari.push({ matn: String(matn), opts });
       return tasdiq;

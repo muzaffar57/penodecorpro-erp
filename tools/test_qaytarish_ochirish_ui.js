@@ -83,6 +83,9 @@ function muhit(opts) {
     document: { getElementById: (id) => qatorlar[id] || null },
     location: { reload: () => { yozuv.reload++; } },
     alert: (m) => { yozuv.alert.push(String(m)); },
+    // kech118 (B — U-07, MOSLANDI): sahifa xom prompt() / alert() o'rniga dastur oynalarini chaqiradi (base.html
+    // `kiritishOyna` — Promise, standart qiymat `o.qiymat`; `xabarOyna`) — soxta muhitda shu testning prompt / alert soxtalariga ulanadi.
+    xabarOyna: async (m) => { yozuv.alert.push(String(m)); },
     customConfirm: async (...a) => { yozuv.confirm.push(a); return o.tasdiq; },
     confirmDeleteFp: async () => 'delete',
     showMsg: (m, t) => { yozuv.showMsg.push([String(m), t]); },

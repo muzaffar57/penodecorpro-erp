@@ -410,6 +410,10 @@ function sorovMuhit(promptlar) {
   q.ctx = {
     prompt: (m, d) => { q.promptArg.push(d); return pi < promptlar.length ? promptlar[pi++] : null; },
     customPrompt: async (t, h, d) => { q.promptArg.push(d); return pi < promptlar.length ? promptlar[pi++] : null; },
+    // kech118 (B — U-07, MOSLANDI): sahifa xom prompt() / alert() o'rniga dastur oynalarini chaqiradi (base.html
+    // `kiritishOyna` — Promise, standart qiymat `o.qiymat`; `xabarOyna`) — soxta muhitda shu testning prompt / alert soxtalariga ulanadi.
+    kiritishOyna: async (t, o) => { q.promptArg.push(o && o.qiymat); return pi < promptlar.length ? promptlar[pi++] : null; },
+    xabarOyna: async (m) => { q.alertlar.push(String(m)); },
     customConfirm: async () => true,
     alert: (m) => { q.alertlar.push(String(m)); },
     showMsg: (t, tur) => { q.xabarlar.push([String(t), tur]); },

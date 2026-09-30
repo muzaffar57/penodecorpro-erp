@@ -124,6 +124,9 @@ async function ichki() {
       Math, JSON, Promise, Object, Array, String, Number, parseInt, parseFloat, isNaN, RegExp, Intl, Error,
       setTimeout: (f) => { try { f(); } catch (e) {} return 0; }, clearTimeout() {},
       alert: (m) => { ctx.__alert = String(m); }, confirm: () => true, prompt: () => o.prompt === undefined ? null : o.prompt,
+      // kech118 (B — U-07, MOSLANDI): sahifa xom prompt() / alert() o'rniga dastur oynalarini chaqiradi (base.html
+      // `kiritishOyna` — Promise, standart qiymat `o.qiymat`; `xabarOyna`) — soxta muhitda shu testning prompt / alert soxtalariga ulanadi.
+      kiritishOyna: async () => (o.prompt === undefined ? null : o.prompt), xabarOyna: async (m) => { ctx.__alert = String(m); },
       location: { reload() { ctx.__reload = true; }, href: '' },
       showMsg() {}, customConfirm: async () => true, showConfirmModal: async () => true,
       document: {
