@@ -1,6 +1,6 @@
 # PenoDecorPro ERP — LOYIHA PASPORTI
 
-*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2); kech112: zip 108 — «Tayyor» da bo'sh loy = reja (K112-3), material nomi (K112-4), MRP qoplama belgisi (K112-5); ko'p korxonali yakuniy jonli sinov; kech115: zip 112 — butun dastur auditi A bosqichi (pul va ma'lumot xatolari) 1-qismi: kirim, qarzdorlar, «Tayyor», narxsiz buyurtma, o'chirilganlar jurnali, manfiy raqamlar, taqqoslash, korxona sog'ligi, ombor filtri; kech116: zip 113 — A bosqich 2-qismi: sog'liq sabablari (K115-2), «Bugungi xulosa» (K115-3), hujjatlardagi hisob qatorlari (G2-04), «Pul oqimi» — haqiqiy pul (G1-03), «Xarajat» — bitta ta'rif va «Tannarx» (G1-02), loyiha qiymati buyurtmalardan (G2-01), haqiqiy IP va kirish cheklovi (U-01), parol oynasi va kirishlarni yopish (G6-06); zip 114 — mijoz hujjatlarida kechirilgan qarz «Chegirma» ichida (egasi qarori); kech117: zip 115 — A2: yo'nalishlar bo'yicha moliya (G3-11, G6-09); zip 116 — jonli sinovdan keyin: «Belgilanmagan» manbalari, Moliya xarajatdan keyin yangilanadi; kech118: qolgan egasi qarorlari (6-bo'lim); zip 117 — B bosqichi 1-qism: dastur oynalari (xabar, kiritish, Esc / tashqariga bosish), o'zbekcha 404 / 403 sahifa, klaviatura fokusi). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
+*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2); kech112: zip 108 — «Tayyor» da bo'sh loy = reja (K112-3), material nomi (K112-4), MRP qoplama belgisi (K112-5); ko'p korxonali yakuniy jonli sinov; kech115: zip 112 — butun dastur auditi A bosqichi (pul va ma'lumot xatolari) 1-qismi: kirim, qarzdorlar, «Tayyor», narxsiz buyurtma, o'chirilganlar jurnali, manfiy raqamlar, taqqoslash, korxona sog'ligi, ombor filtri; kech116: zip 113 — A bosqich 2-qismi: sog'liq sabablari (K115-2), «Bugungi xulosa» (K115-3), hujjatlardagi hisob qatorlari (G2-04), «Pul oqimi» — haqiqiy pul (G1-03), «Xarajat» — bitta ta'rif va «Tannarx» (G1-02), loyiha qiymati buyurtmalardan (G2-01), haqiqiy IP va kirish cheklovi (U-01), parol oynasi va kirishlarni yopish (G6-06); zip 114 — mijoz hujjatlarida kechirilgan qarz «Chegirma» ichida (egasi qarori); kech117: zip 115 — A2: yo'nalishlar bo'yicha moliya (G3-11, G6-09); zip 116 — jonli sinovdan keyin: «Belgilanmagan» manbalari, Moliya xarajatdan keyin yangilanadi; kech118: qolgan egasi qarorlari (6-bo'lim); zip 117 — B bosqichi 1-qism: dastur oynalari (xabar, kiritish, Esc / tashqariga bosish), o'zbekcha 404 / 403 sahifa, klaviatura fokusi; zip 118 — B bosqichi 2-qism: son / sana / birlik ko'rinishi, o'qiladigan rang, 12 px + yo'nalishlar bo'yicha moliyaviy natija (egasi qarori: taqsim yo'q, oyliklar alohida, davr, solishtirish); yangi qarorlar — rollar va ruxsatlar (6-bo'lim)). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
 *Bu faylni `main` ga ko'chirish bilan birga, keyin har katta o'zgarishda yangilab boring. 9-bo'lim AVTOMATIK
 (`python3 tools/pasport_xarita.py --yoz`), qolgani qo'lda; `tools/test_pasport.py` ikkalasini ham tekshiradi.*
 
@@ -359,6 +359,24 @@ bo'limga ruxsatingiz yo'q», «Bosh sahifaga», hodim yo'lida — `/hodim`), hol
 AYNAN avvalgidek. Rol nomlari foydalanuvchiga o'zbekcha — `auth.ROL_NOMI` / `auth.rollar_matni` (rad sababi: «Bu bo'lim faqat
 Admin va Hodim uchun ochiq»). Klaviatura fokusi — `static/style.css` `:focus-visible` (hamma bosiladigan / yoziladigan element,
 inline `outline:none` ustidan); `style.css` havolalari `?v={{ static_version }}` bilan (kesh).
+**Son, sana, birlik ko'rinishi va o'qiladigan yozuv (kech118, B bosqichi 2-qism — audit U-03 / U-04 / U-05 / U-06).** Ekranga
+chiqadigan son — bitta qoida: ming ajratgich bo'sh joy (NBSP), kasr — VERGUL, ortiqcha nolsiz («354», «8,3», «1 234,5»), «-0» →
+«0», qiymat yo'q — «—». Brauzerda `base.html` `sonKor(x, kasr = 2)`, foiz — `foizKor(x, kasr = 1)` («33,3%»); shablonda Jinja
+`|son(k)` (`main._son_filtri`); server yozadigan matnda (ogohlantirish, sabab) — `services._son_uz` (`:g` + vergul, «5,01 %»).
+`qisqaSumma` — «1,6 mln». Kiritish maydonining QIYMATI (`input.value`, `editMinStock` standarti) — nuqta, avvalgidek (`parseNum`
+ikkalasini oladi). Sana / vaqt — tk yordamchilari standart ('uz' / til berilmagan) ko'rinishni QO'LDA yozadi, brauzer tiliga
+bog'liq emas: «01.10.2026», «01:30», «01.10.2026 01:30», «01.10.2026, 01:30:00», oy nomi bilan «1-oktabr, 2026»; boshqa til
+('ru-RU') — brauzerning o'zi. Grafik oy yorlig'i — `services._OY_QISQA` («Okt 2026»). Birlik — `birlikKor` (m2 → m², m3 → m³).
+Yozuv rangi oq / och fonda ≥ 4.5:1: `--text2` #5B6170, `--text3` #696D78, `--gold-dark` #8F5B2A (oltin rangdagi YOZUV — `--gold-dark`,
+`--gold` — fon / chiziq / qorong'i fondagi yozuv); OQ yozuvli oltin tugma / belgi foni — `--gold-btn` #9A6231 (`--gold` bilan 3.6:1
+edi); sahifa to'plamlari (Moliya `--f-*`, Kirim `--r-*`, Hisobotlar `--b-*`, Qarzdorlar `--d-*`) `--*-primary` — #9A6231 (matn ham,
+tugma foni ham). Holat ranglari (#22C55E, #16A34A, #F59E0B, #EF4444, #0EA5E9, #94A3B8 …) chiziq / nuqta / fon uchun qoladi, YOZUVGA —
+`matnRangi(c)` to'q tusi (#15803D, #B45309, #DC2626, #0369A1, #696D78 …); yozuv och RANGLI fonda (#FEF2F2, #F0FDF4, `${rang}22` …) —
+`matnRangi(c, 1)` (#166534, #B91C1C, #92400E, #075985 …). O'zgaruvchidan keladigan yozuv rangi (`color:${rang}`) — doim
+`matnRangi(...)` orqali; qorong'i kartada (Moliya «Kassa balansi» — gradient) och yozuv. Eng kichik yozuv — 12 px (style.css va
+shablonlar; `tools/test_b118_korinish.py` S statik darvozasi). Xom kalit ekranga chiqmaydi (moliya: `transport_kirim` →
+«Transport (kirim)» va h.k. — `CAT_LABELS`). YANGI sahifa kodida: son — `sonKor` / `|son`, rangli yozuv — to'q tus. `style.css`
+o'zgarsa — `main.py` `static_version` ham yangilanadi (aks holda brauzer eski uslubni keshdan oladi; kech118 — «20260930-2»).
 **Yo'nalishlar bo'yicha moliya (kech117, A2 — egasi QARORLARI kech114 00:08; G3-11, G6-09).** Jadval `yonalishlar`
 (`models.Yonalish`: `company_id`, `nom` ≤ 60, `kod` — asosiysida 'penoplast', `yashirin`, `tartib`; `uq_yonalishlar_company_kod`).
 Har korxonada ASOSIY yo'nalish («Penoplast», `crud.standart_yonalish` — yo'q bo'lsa yaratadi; yangi korxonada — platformadan
@@ -376,14 +394,25 @@ Hisob — `services.calculate_split_profit_report` (manba — `get_monthly_repor
 AYNAN qismlari): daromad va tannarx — detal bo'yicha aniq (`services._YonXarita`: profil, karniz, panel, dona, blok, loy sotish
 — asosiy; MRP — turining yo'nalishi; turi yo'q / eskirgan turkum (gips, termopanel) / mahsuloti o'chirilgan TM sotuvi —
 «Belgilanmagan», avtomatik Penoplast EMAS); qaytarish — detalining yo'nalishiga; brak va TM yo'qotishi — detal / mahsulot
-bo'yicha; yo'nalishi tanlangan hodim (hisobotdagi AYNAN summa), xarajat (KIRIM_TANNARX_MANBA — tannarxda, qayta emas),
-transport — 100% o'ziga; qolgan hamma xarajat (arenda, svet, soliq, tushlik, Ehson, usta KPI, transport, «Boshqa», umumiy
-hodimlar) — DAROMAD ULUSHIDA (daromadli hamma ustun, «Belgilanmagan» ham; daromad yo'q oy — ko'rinadigan yo'nalishlarga
-TENG, izoh bilan). Qoldiq (< 1 tiyin) — eng kattasiga; haqiqiy farq — «Belgilanmagan» ga izoh bilan. Natija `som` (butun
-so'm) va `aniq` (tiyin) — ikkalasida har ustunda Daromad − Tannarx − Jami xarajat = Sof foyda, qismlar yig'indisi = qator,
-sof foydalar yig'indisi = Moliya sof foydasi (eng katta qoldiq usuli, `_yaxlit_taqsim`). `GET /api/finance/yonalishlar`,
-PDF `/api/finance/split-profit-pdf` (fayl `yonalishlar_hisobot_YYYY_MM.pdf`). Sahifalar: Moliya — «Yo'nalishlar bo'yicha sof
-foyda» jadvali (bitta yo'nalish bo'lsa yashirin), daromad doirasi yo'nalishlar bo'yicha, «Tannarx» kartasi; Dashboard /
+bo'yicha; yo'nalishi tanlangan hodim (hisobotdagi AYNAN summa) — OYLIK, xarajat (KIRIM_TANNARX_MANBA — tannarxda, qayta
+emas), transport — 100% o'ziga. **kech118 (egasi QARORI 15:23 — kech114 «daromad ulushida» BEKOR):** qolgan hamma xarajat
+(arenda, svet, soliq, tushlik, Ehson, usta KPI, transport, «Boshqa», yo'nalishsiz hodimlar) TAQSIMLANMAYDI — faqat «Jami»
+ustunida (`umumiy_oylik`, `umumiy_xarajat`, `umumiy_qismlari`). Ustun: `daromad`, `tannarx`, `oylik`, `xarajat`
+(`xarajat_qismlari`), `natija` = D − T − O − X; Jami: `oylik` / `xarajat` = ustunlar + umumiy, `natija` = Moliya sof foydasi
+(`yonalishlar_natijasi` − umumiy). Moslik maydonlari: `bevosita` = O + X, `bevosita_qismlari`, `sof_foyda` = natija. Butun so'm
+(`som`, `jami`) va tiyin (`aniq`, `jami_aniq`) — eng katta qoldiq usuli (`_yaxlit_taqsim`): ustun ichida D − T − O − X = N,
+ΣN − umumiy = Moliya sof foydasi (AYNAN). Qoldiq (< 1 tiyin) — eng kattasiga; haqiqiy farq — «Belgilanmagan» ga izoh bilan.
+Davr — OY bo'yicha (`services.yonalish_davr_oylari`: `year-month` … `gacha_yil-gacha_oy`, ko'pi bilan 36 oy; har oy — oylik
+hisobotdan, yig'iladi); `solishtirish` — oldingi davr (`yonalish_oldingi_davr`: yanvardan boshlangan davr — o'tgan yilning
+shu oylari, qolgani — oldingi teng davr) `oldingi` / `ozgarish` (foiz); `tarkib` — xarajatlar tarkibi (tannarxsiz, oylik +
+har xarajat turi, foizi bilan); `rentabellik`, `foydada_soni` / `zararda_soni`, `davr.nom` («Iyul – Sentabr 2026»).
+`GET /api/finance/yonalishlar?year&month[&gacha_yil&gacha_oy]` (noto'g'ri davr — 400 o'zbekcha), PDF
+`/api/finance/split-profit-pdf` (shu davr; fayl `yonalishlar_hisobot_YYYY_MM[_YYYY_MM].pdf`). Sahifalar: Moliya — «Yo'nalishlar
+bo'yicha moliyaviy natija» bo'limi (bitta yo'nalish bo'lsa yashirin): davr tanlovi (tanlangan oy / chorak boshidan / yil
+boshidan / oraliq), 4 karta (daromad, xarajatlar tannarx bilan, natija + rentabellik, yo'nalishlar soni — foydada / zararda;
+oldingi davr bilan o'zgarish), jadval (1 Daromad, 2 Tannarx, 3 Oyliklar + yo'nalishsiz, 4 Xarajatlar + turlari + umumiy,
+Natija +/−, Rentabellik; birinchi ustun telefonda joyida), tekshiruv qatori, xarajatlar tarkibi doirasi, rentabellik
+chiziqlari, izoh; daromad doirasi yo'nalishlar bo'yicha, «Tannarx» kartasi; Dashboard /
 Hisobotlar grafiklari (`today_yonalishlar`, `months[].yonalishlar`, `yonalishlar_daromadi`) — bitta yo'nalishda yashirin;
 yashirilgan yo'nalishli yozuvni tahrirlashda vaqtincha «(yashirin)» varianti (yo'nalish yo'qolmaydi). «Belgilanmagan»
 ustuni sababi — `belgilanmagan_turlar` (yo'nalishi biriktirilmagan MRP turlari) va `belgilanmagan_manbalar` (qolgan manbalar
@@ -643,6 +672,21 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   tahriri, «HAMMASINI-OCHIR», Telegram bot; SQLite, PG): `tools/test_b118_oyna.py`. Moslangan (sahifa endi `kiritishOyna` /
   `xabarOyna` chaqiradi — soxta muhitga shu test soxtalariga ulangan): `test_narx_kiritish_ui.js`, `test_xarid_tahrir_ui.js`,
   `test_xato_sababi_ui.js`, `test_toshkent_korinish_ui.js`, `test_qaytarish_ochirish_ui.js`.
+- (kech118) B bosqichi 2-qism — son / sana / birlik ko'rinishi, kontrast, mayda yozuv: statik (12 px dan kichik yozuv yo'q,
+  xira yozuv rangi yo'q, `--text3` / `--gold-dark` o'lchami — kontrast hisobi, kirish sahifalari, yangi global nom yo'q),
+  yordamchilar (`sonKor`, `foizKor`, `birlikKor`, `matnRangi`, tk sana — node da haqiqiy funksiya; `|son`, `_son_uz`), HAQIQIY
+  server sahifalari (ombor «8,3 kg», retsept «33,3%», grafik oy yorliqlari, korxona sog'ligi sabablari, moliya kassa kartasi;
+  SQLite, PG): `tools/test_b118_korinish.py`. Moslangan (vergul, to'q yashil #15803D, kontekstga `sonKor`…, aniq sana matni):
+  `test_a115_korinish.py`, `test_brak_bitta_raqam_ui.js`, `test_brak_tahlil_ui.js`, `test_brak_tahlil.py` (D2 «5,01 %»),
+  `test_narx_kiritish_ui.js`, `test_toshkent_korinish_ui.js` (+ `soz` bir necha qatorli obyektni oladi), `test_kichik103_ui.js`,
+  `test_kam_qoldiq_ui.js` (kontekstga `sonKor` / `matnRangi`), `test_ombor_kpi_loy.py` («5 kg»), `test_html_escape.py`
+  (`matnRangi(x)` — «shaffof»: xavfsizligi x niki).
+- (kech118, zip 118) Yo'nalishlar bo'yicha moliyaviy natija (egasi QARORI 15:23 — taqsim yo'q): server — `test_a117_yonalish.py`
+  D bo'limi MOSLANDI (ustun D − T − O − X = N; ΣN − umumiy oylik − umumiy xarajat = Jami natija = Moliya sof foydasi — so'm va
+  tiyinda; «ulush» yo'q; daromadsiz oy — taqsimsiz; D19 — yo'nalish xarajatlaridagi kasr qoldiq bilan yaxlitlash; PDF «NATIJA
+  (+ / −)» qatori); sahifa — `test_a117_ui.py` M1–M2d (natija qatori ishorasi bilan, oyliklar bloki, umumiy — faqat Jami,
+  kartalar, doira, rentabellik, izoh) va M13–M15 (davr: chorak boshidan, yil boshidan + PDF shu davr, oraliq + noto'g'ri
+  oraliqda so'rov yo'q). Davr / solishtirish / tarkib — `tools/test_yonalish_natija.py`.
 - (kech117) A2 — yo'nalishlar bo'yicha moliya: API (ro'yxat, qo'shish, takror nom, nomini o'zgartirish, yashirish, asosiyni
   himoya, ishlatilganini o'chirish rad, begona korxona), yozish yo'llari (hodim, xarajat, transport, kirim, MRP turi — yashirin /
   begona / eski `production_type`), migratsiya (idempotent), hisob D0–D18 (detal bo'yicha daromad / tannarx, chegirma, qaytarish,
@@ -805,7 +849,7 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
   BAJARILDI kech116 (zip 114; 4-bo'lim «Buyurtma pul hisobi qatorlari»).
 - (kech114, 00:08) Gips — moliyadan BUTUNLAY olib tashlanadi; har yo'nalishning o'z foyda hisobi — «Ha, alohida»; yo'nalishlarni
   egasi o'zi nomlaydi va guruhlaydi (har mahsulot turi bittasiga; penoplast detallari — «Penoplast»); umumiy xarajatlar (ijara,
-  svet, soliq, umumiy hodimlar) — daromad ulushiga qarab; kassa — BITTA.
+  svet, soliq, umumiy hodimlar) — daromad ulushiga qarab [BEKOR — kech118 15:23 qarori, pastda]; kassa — BITTA.
   Tafsilotlari (kech114 00:08, QAYTA SO'RALMAYDI): yo'nalishlar ro'yxati korxonaniki («Penoplast» — standart; korxona qo'shadi,
   nomini o'zgartiradi; ishlatilgani faqat yashiriladi); MRP turi yo'nalishi — UIda majburiy, mavjud turlarni egasi biriktiradi,
   biriktirilmagani — «Belgilanmagan» ogohlantirishi (avtomatik Penoplast EMAS); hodim / xarajat / transport / kirim — yo'nalish
@@ -848,6 +892,20 @@ bajarilganlari belgilanadi)**
 - Buyurtmasi bor loyihani o'chirish — TAQIQLANADI («Avval buyurtmalarni o'chiring») (G2-20).
 - Tayyor mahsulot «Kam» chegarasi — har mahsulotga egasi o'zi yozadi; yozilmasa «Kam» ko'rsatilmaydi (G5-11).
 - Sotishda partiya — qo'lda tanlash QOLADI (guruh qatoriga «Sotish» — texnik) (G5-12).
+
+**Yangi qarorlar (kech118, 2026-09-30 15:16–15:30 — egasi o'zi yozdi, rasmlar bilan; tugmali javoblar; QAYTA SO'RALMAYDI)**
+- YO'NALISHLAR BO'YICHA NATIJA: umumiy xarajatlar TAQSIMLANMAYDI (kech114 «daromad ulushiga qarab» BEKOR) — faqat «Jami»
+  ustunida; oyliklar ALOHIDA blok (yo'nalishi belgilangan hodim — o'z ustunida, yo'nalishsizlari — faqat Jami da); xarajatlar
+  alohida blok (o'ziniki ustunda, umumiy — Jami da); oxirida NATIJA +/−. Misol (tasdiqlangan): Penoplast 30 000 000 −
+  15 000 000 − 10 000 000 − 2 000 000 = +3 000 000; Travertin +6 000 000; Jami 50 000 000 − 24 000 000 − 17 000 000
+  (yo'nalishsiz 3 000 000 bilan) − 8 000 000 (umumiy 5 000 000 bilan) = +1 000 000. Joyi — MOLIYA sahifasida; qo'shimchalar —
+  o'tgan davr bilan solishtirish, xarajatlar tarkibi doirasi, rentabellik chiziqlari, davr tanlash (hammasi). BAJARILDI kech118
+  (zip 118; 4-bo'lim «Yo'nalishlar bo'yicha moliya»).
+- ROLLAR VA RUXSATLAR (keyingi ish, zip 119+): admin o'zi rol yaratadi va boshqaradi; ruxsat — har bo'lim / amalda 4 belgi
+  (Ko'rish, Yaratish, Tahrirlash, O'chirish) + bo'limni bir tugmada yoqish; «Tannarx va foydani ko'rish» — ALOHIDA ruxsat (yo'q
+  bo'lsa hamma joyda, PDF da ham «—»); tayyor rollar — Admin (doim, to'liq, o'zgarmaydi), Menejer (hozirgi 2 «Hodim»
+  foydalanuvchi, ruxsatlari hozirgidek), Omborchi, Moliyachi («Ishlab chiqarish» andozasi kerak emas). «Usta» login roli yo'q.
+- Ish tartibi: zip 118 (B-2 + yo'nalishlar) → rollar (zip 119).
 
 ## 7. Ochiq masalalar
 
@@ -1089,6 +1147,22 @@ bajarilganlari belgilanadi)**
   Tez-tez hodisada — faqat arzon tekshiruv (inline uslub, klass, atribut); hisoblangan uslub — kam uchraydigan hodisada (Esc).
 - (kech118) Xom `alert` sahifani to'xtatadi — undan KEYINGI `location.reload()` xabar yopilgach bajarilardi. Dastur oynasi
   to'xtatmaydi: shunday joyda `await xabarOyna(...)` (aks holda xabar ko'rinmay qoladi).
+- (kech118) `toLocaleDateString('uz')` brauzerga bog'liq: node — «01/10/2026», Chromium (audit) — «2026-09-29» va oy nomi bilan
+  «2026 M09 29». O'zbekcha ko'rinishni brauzer tiliga TOPSHIRMANG — qo'lda yozing (tk yordamchilari); testda kutilgan qiymat —
+  aniq matn, `toLocale…('uz')` natijasi emas.
+- (kech118) `toLocaleString('ru-RU')` ming ajratgichi — oddiy bo'sh joy EMAS, NBSP (U+00A0): matnni solishtiruvchi test
+  kutilgan qiymatda ham NBSP yozsin yoki ikkalasini bir xil ko'rinishga keltirsin.
+- (kech118) Testlar sahifa funksiyalarini NOMI bo'yicha kesib oladi (`olib(src, 'funksiya')`) — `base.html` ga yangi global
+  `const` / yordamchi qo'shilsa, uni chaqiruvchi sahifa funksiyasi soxta muhitda «X is not defined» bilan yiqiladi (platforma,
+  toshkent testlari). Yordamchini ichki (mahalliy) massiv bilan yozing; yangi global funksiya qo'shilsa — testlarning yordamchi
+  ro'yxatiga (TK_FUNKS / TK_NOMLAR / tk) qo'shing.
+- (kech118) Umumiy rang o'zgaruvchisini (`--text3`) och fon uchun to'qlashtirish QORONG'I kartadagi yozuvni o'qib bo'lmaydigan qildi
+  (Moliya «Kassa balansi»: #696D78 gradient #111827 ustida — 2.8:1). Audit fon rangini ajdodlarning `background-color` idan olardi —
+  gradient (`background-image`) ko'rinmasdi. Kontrast o'lchovi gradient to'xtashlarini ham olsin (eng yomoni bilan), rangni almashtirgach
+  qorong'i joylarni alohida tekshiring.
+- (kech118) HAQIQIY server + jsdom testlari (masalan `test_mrp_sahifa_ui`) bir vaqtda 2 yadroda etalon + audit + regress yurganda
+  «fetch failed» bilan yiqilishi mumkin (keep-alive / vaqt); yolg'iz qayta yurgizilganda o'tdi. Yiqilishni «yuk» deb yozishdan oldin
+  — yolg'iz qayta yurgizing.
 
 ## 9. Xarita (AVTOMATIK)
 
@@ -1799,6 +1873,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_asosiy_penoplast.py` · PG — 18-band (K37-1) darvozasi (kech37, 2026-09-23).
 - `test_atomik_103.py` · PG — kech84 darvozasi (2026-09-27, 103-band): YOZADIGAN endpointlar atomik — nosozlik bo'lsa baza O'ZGARMAYDI, qayta urinish ishni BIR marta bajaradi.
 - `test_atomik_tolov.py` · PG — kech99 (2026-09-27), probe103 QOLDIG'I (G, H, I).
+- `test_b118_korinish.py` · PG — kech118, B bosqichi 2-qism: YAGONA KO'RINISH — o'qiladigan rang va yozuv o'lchami, raqam / sana / birlik yozilishi, inglizcha va xom so'zlar.
 - `test_b118_oyna.py` · PG — kech118, B bosqichi 1-qism: DASTURNING O'Z OYNALARI (xabar, kiritish, yopish) va o'zbekcha 404 / 403.
 - `test_brak_bekor.py` — xato yozilgan brakni bekor qilish.
 - `test_brak_belgi_himoya.py` · PG — K57-1 / 40-band darvozasi (kech57, 2026-09-24).
@@ -1928,6 +2003,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_xarid_tahrir.py` — 21-band: xarid TAHRIRI ombor bilan mos, va ta'minotchini o'chirish FK cheklovida yiqilmaydi.
 - `test_yashirin_material.py` · PG — K34-1 darvozasi (kech34, 2026-09-22).
 - `test_yetkazish_detal_tolov.py` · PG — 5-bo'lim 6-band va 13-band darvozasi (kech38, 2026-09-23).
+- `test_yonalish_natija.py` · PG — kech118 (egasi QARORI 2026-09-30 15:23, tugmali javoblar 15:30 — QAYTA SO'RALMAYDI): YO'NALISHLAR BO'YICHA MOLIYAVIY NATIJA — umumiy xarajat TAQSIMLANMAYDI, oyliklar alohida…
 - `test_zaxira_loy_narx.py` · PG — kech107, 36-band darvozasi: TAYYOR LOY ZAXIRASIDAN olingan qoplama narxi.
 - `test_brak_bitta_raqam_ui.js` · JS — kech107, 49-band ("Bitta raqam", egasi qarori) UI darvozasi.
 - `test_brak_bosqich_ui.js` · JS — 13-band 1-qadam (kech53, 2026-09-24): brak BOSQICHI tanlovi UI si.
@@ -1960,5 +2036,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 171 (Python 141, JS 30).
+Jami test fayllari: 173 (Python 143, JS 30).
 <!-- AVTO:TESTLAR OXIRI -->

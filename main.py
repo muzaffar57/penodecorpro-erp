@@ -3092,7 +3092,24 @@ templates.env.globals["yonalishlar_royxati"] = _yonalishlar_royxati_shablon
 # brauzer/Telegram WebApp eski nusxani abadiy keshlab qolmasligi uchun.
 # Har deploy'da bu qiymat o'zgarishi kerak (masalan shu sana-vaqt) —
 # shunda "?v=..." o'zgarib, brauzer albatta YANGI faylni yuklaydi.
-templates.env.globals["static_version"] = "20260930-1"   # kech118: style.css (fokus belgisi) — kesh yangilansin
+def _son_filtri(qiymat, kasr=2):
+    """kech118 (B — U-05): shablondagi son KO'RINISHI — brauzerdagi `sonKor` bilan bir qoida: ming ajratgich — bo'sh joy
+    (NBSP), kasr — vergul, ortiqcha nolsiz («354», «8,3», «1 234,5»). Qiymat yo'q / son emas — «—»."""
+    try:
+        x = float(qiymat)
+    except (TypeError, ValueError):
+        return "—"
+    if x != x or x in (float("inf"), float("-inf")):
+        return "—"
+    s = f"{x:,.{max(int(kasr), 0)}f}"
+    if "." in s:
+        s = s.rstrip("0").rstrip(".")
+    s = s.replace(",", "\u00a0").replace(".", ",")
+    return "0" if s in ("-0", "") else s
+
+
+templates.env.filters["son"] = _son_filtri
+templates.env.globals["static_version"] = "20260930-2"   # kech118: style.css (fokus belgisi; 2-qism — ranglar, 12 px) — kesh yangilansin
 
 
 def _toshkent_filtr(qiymat, fmt="%d.%m.%Y %H:%M"):
@@ -6567,28 +6584,40 @@ def api_finance_debt_summary(year: int, month: int, db: Session = Depends(get_db
     return services.get_full_debt_summary(db, year, month, company_id=auth.company_id_of(current_user))
 
 
+def _yonalish_davri(year, month, gacha_yil, gacha_oy):
+    """Yo'nalishlar hisoboti davri (`services.yonalish_davr_oylari`): noto'g'ri davr — 400 (o'zbekcha sabab)."""
+    try:
+        return services.yonalish_davr_oylari(year, month, gacha_yil, gacha_oy)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @app.get("/api/finance/yonalishlar")
-def api_finance_yonalishlar(year: int, month: int, db: Session = Depends(get_db),
-                            current_user=Depends(auth.admin_or_financier)):
-    """kech117 (A2): yo'nalishlar bo'yicha sof foyda (Moliya sahifasi jadvali) — `services.
-    calculate_split_profit_report`; sof foydalar yig'indisi = Moliya sof foydasi. Oy 1–12, yil 2000–2100 (aks holda 400)."""
-    if not (1 <= month <= 12) or not (2000 <= year <= 2100):
-        raise HTTPException(status_code=400, detail="Oy 1–12, yil 2000–2100 oralig'ida bo'lishi kerak")
-    return services.calculate_split_profit_report(db, year, month, company_id=auth.company_id_of(current_user))
+def api_finance_yonalishlar(year: int, month: int, gacha_yil: Optional[int] = None, gacha_oy: Optional[int] = None,
+                            db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+    """kech117 (A2) / kech118 (egasi QARORI 15:23): yo'nalishlar bo'yicha moliyaviy natija (Moliya sahifasi) —
+    `services.calculate_split_profit_report`: umumiy xarajat TAQSIMLANMAYDI (faqat Jami), oyliklar alohida, Jami natija
+    = Moliya sof foydasi. Davr: `year-month` dan `gacha_yil-gacha_oy` gacha (berilmasa — bir oy; ko'pi bilan 36 oy);
+    oldingi davr bilan solishtirish (`oldingi`, `ozgarish`). Noto'g'ri davr — 400."""
+    _yonalish_davri(year, month, gacha_yil, gacha_oy)
+    return services.calculate_split_profit_report(db, year, month, company_id=auth.company_id_of(current_user),
+                                                  gacha_yil=gacha_yil, gacha_oy=gacha_oy, solishtirish=True)
 
 
 @app.get("/api/finance/split-profit-pdf")
-def api_split_profit_pdf(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    """kech117 (A2): YO'NALISHLAR bo'yicha sof foyda hisoboti — PDF (ilgari «Gips va Penoplast»)."""
+def api_split_profit_pdf(year: int, month: int, gacha_yil: Optional[int] = None, gacha_oy: Optional[int] = None,
+                         db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+    """kech117 (A2) / kech118: YO'NALISHLAR bo'yicha moliyaviy natija — PDF (sahifadagi davr bilan AYNAN)."""
     from fastapi.responses import Response
     import finance_pdf
 
-    if not (1 <= month <= 12) or not (2000 <= year <= 2100):
-        raise HTTPException(status_code=400, detail="Oy 1–12, yil 2000–2100 oralig'ida bo'lishi kerak")
-    split = services.calculate_split_profit_report(db, year, month, company_id=auth.company_id_of(current_user))
+    oylar = _yonalish_davri(year, month, gacha_yil, gacha_oy)
+    split = services.calculate_split_profit_report(db, year, month, company_id=auth.company_id_of(current_user),
+                                                   gacha_yil=gacha_yil, gacha_oy=gacha_oy, solishtirish=True)
     pdf_bytes = finance_pdf.generate_split_profit_pdf(
         split, year, month, db=db, company_id=auth.company_id_of(current_user))
-    filename = f"yonalishlar_hisobot_{year}_{month:02d}.pdf"
+    filename = (f"yonalishlar_hisobot_{year}_{month:02d}.pdf" if len(oylar) == 1 else
+                f"yonalishlar_hisobot_{oylar[0][0]}_{oylar[0][1]:02d}_{oylar[-1][0]}_{oylar[-1][1]:02d}.pdf")
     return Response(content=pdf_bytes, media_type="application/pdf",
                     headers={"Content-Disposition": f'inline; filename="{filename}"'})
 

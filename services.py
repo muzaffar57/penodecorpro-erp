@@ -32,6 +32,16 @@ from models import (
 # 4. MINIMAL QOLDIQ OGOHLANTIRISHI
 # ============================================================
 
+# kech118 (B — U-05 / U-06): foydalanuvchiga ko'rinadigan matndagi son — kasr VERGUL bilan («-156,4»; brauzerdagi `sonKor`
+# bilan bir qoida); grafik oy nomlari — o'zbekcha qisqa (ilgari `strftime("%b")` — «Sep 2026», kirillda «Сеп» emas «Sep»).
+_OY_QISQA = ("Yan", "Fev", "Mar", "Apr", "May", "Iyun", "Iyul", "Avg", "Sen", "Okt", "Noy", "Dek")
+
+
+def _son_uz(x) -> str:
+    # `:g` ko'rinishi (ortiqcha nolsiz), kasr — vergul: -156.4 → «-156,4», 12.0 → «12»
+    return f"{x:g}".replace(".", ",")
+
+
 def get_top_products_report(db: Session, days: int = 90, limit: int = 15,
                             company_id: int = None) -> list:
     """Eng ko'p daromad keltirgan mahsulotlar — nomi bo'yicha guruhlangan,
@@ -446,7 +456,7 @@ def get_business_health(db: Session, company_id: int = None) -> dict:
     if _daromad <= 0:
         rentabellik_status, rent_sabab = "gray", "Bu oy daromad yo'q — rentabellik hisoblanmaydi"
     else:
-        rent_sabab = f"Rentabellik {foyda_foiz:g} % — " + {
+        rent_sabab = f"Rentabellik {_son_uz(foyda_foiz)} % — " + {
             "green": "yaxshi (15 % va undan yuqori)",
             "orange": "o'rtacha (5–15 %)",
             "red": "past (5 % dan kam)",
@@ -456,7 +466,7 @@ def get_business_health(db: Session, company_id: int = None) -> dict:
     else:
         _qarz_foiz = round(debt_ratio, 1)
         debt_status = "green" if _qarz_foiz < 15 else ("orange" if _qarz_foiz < 30 else "red")
-        qarz_sabab = f"Qarz — sotuvning {_qarz_foiz:g} % — " + {
+        qarz_sabab = f"Qarz — sotuvning {_son_uz(_qarz_foiz)} % — " + {
             "green": "yaxshi (15 % dan kam)",
             "orange": "o'rtacha (15–30 %)",
             "red": "yuqori (30 % va undan ko'p)",
@@ -1607,7 +1617,6 @@ def get_chart_data(db: Session, company_id: int = None) -> Dict:
     from models import Project, Master, Order, OrderItem, OrderStatus, FinishedProductSale, FinishedProduct
     from sqlalchemy import func
     from sqlalchemy.orm import selectinload as _sil_cd
-    from datetime import datetime
 
     def _oc(q):
         """Order bo'yicha so'rovni joriy korxona bilan cheklaydi."""
@@ -1680,7 +1689,7 @@ def get_chart_data(db: Session, company_id: int = None) -> Dict:
             _yon_nomlari[_k] = _yx_c.nom(_k)
 
         months_data.append({
-            "label": datetime(_oy_y, _oy_m, 1).strftime("%b %Y"),
+            "label": f"{_OY_QISQA[_oy_m - 1]} {_oy_y}",    # kech118 (U-06): o'zbekcha (ilgari "%b" — «Sep 2026»)
             "yonalishlar": {_k: round(_v) for _k, _v in _oy_yon.items()},
             "orders": count,
             "revenue": float(revenue)
@@ -3169,7 +3178,8 @@ def get_brak_tahlil(db: Session, year: int, month: int, company_id: int = None,
         "ishlab_chiqarish_xarajat": joriy["ishlab_chiqarish_xarajat"],
         "brak_foizi": foiz,
         "meyordan_oshdi": oshdi,
-        "ogohlantirish": (f"Brak me'yordan oshdi: {foiz:g} % (me'yor {meyor:g} %)" if oshdi else None),
+        # kech118 (U-05): kasr — vergul («5,01 %»); ekranga shu matn chiqadi
+        "ogohlantirish": (f"Brak me'yordan oshdi: {_son_uz(foiz)} % (me'yor {_son_uz(meyor)} %)" if oshdi else None),
         "yozuvlar_soni": len(yozuvlar),
         "yozuvlar_qiymati": round(jami_qiymat, 2),
         "boglanmagan_qiymat": boglanmagan_qiymat,
@@ -3820,9 +3830,11 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
 #     — «Belgilanmagan»); buyurtma kelishilgan summasi detallarga narx ulushida; qaytarish — qaytgan detal bo'yicha;
 #   * yo'nalishi belgilangan hodim, xarajat, transport (va kirimning qo'shimcha xarajatlari) — 100 % o'sha yo'nalishga;
 #     brak — brak yozuvining detali / tayyor mahsuloti yo'nalishiga; omborda tayyor mahsulot yo'qotishi — mahsulotiga;
-#   * qolgani UMUMIY (arenda, svet, soliq, tushlik, Ehson, usta KPI, belgilanmagan transport / «Boshqa», umumiy
-#     hodimlar, detalga bog'lanmagan brak) — yo'nalishlar DAROMAD ULUSHIGA qarab; shu oy daromad yo'q bo'lsa — ko'rinadigan
-#     yo'nalishlarga teng (hisobotda izoh bilan). Kassa — BITTA (bo'linmaydi).
+#   * qolgani UMUMIY (arenda, svet, soliq, tushlik, Ehson, usta KPI, belgilanmagan transport / «Boshqa», yo'nalishsiz
+#     hodimlar, detalga bog'lanmagan brak) — TAQSIMLANMAYDI (egasi QARORI kech118, 15:23 — kech114 dagi «daromad
+#     ulushiga qarab» qoidasi BEKOR): faqat «Jami» ustunida alohida qator. Yo'nalish ustunida NATIJA = daromad −
+#     tannarx − oyliklar (o'z hodimlari) − xarajatlar (o'ziniki); Jami NATIJA = korxona sof foydasi (Moliya bilan AYNAN).
+#     Kassa — BITTA (bo'linmaydi).
 _YON_BELGILANMAGAN = "belgilanmagan"
 _YON_ASOSIY_VIRTUAL = "asosiy"
 
@@ -4016,13 +4028,58 @@ _YON_XARAJAT_NOMLARI = (
 )
 
 
-@_hisobot_keshi_bilan
-def calculate_split_profit_report(db: Session, year: int, month: int, company_id: int = None) -> dict:
-    """kech117 (A2) — YO'NALISHLAR BO'YICHA sof foyda (G3-11 / G6-09 shu ichida). Manba — `get_monthly_report` ning
-    `sof_foyda_tarkibi` (sof foydaning AYNAN qismlari); har qism yo'nalishlarga taqsimlanadi (qoidalar — bo'lim
-    boshida). Natija: har yo'nalish — daromad, tannarx, bevosita xarajat (qismlari bilan), umumiy xarajat ulushi,
-    jami xarajat, sof foyda, rentabellik; `som` (butun so'm) va `aniq` (tiyin) — ikkalasida ham har ustunda
-    daromad − tannarx − jami xarajat = sof foyda, sof foydalar yig'indisi = Moliya sof foydasi (`moliya_sof_foyda`)."""
+_YON_OYLIK = "hodimlar"
+_YON_XARAJAT_QISMLARI = tuple(n for n, _x in _YON_XARAJAT_NOMLARI if n != _YON_OYLIK)
+_YON_DAVR_MAX_OY = 36
+_OY_TOLIQ = ("Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun", "Iyul", "Avgust", "Sentabr", "Oktabr", "Noyabr",
+             "Dekabr")
+
+
+def yonalish_davr_oylari(yil: int, oy: int, gacha_yil: int = None, gacha_oy: int = None) -> list:
+    """kech118 (egasi QARORI — «davr tanlash»): [(yil, oy), …] — `yil-oy` dan `gacha_yil-gacha_oy` gacha (ikkalasi
+    ham kiradi). Davr OY bo'yicha (hisobotning hamma qismi — oylik hisobotdan, Moliya sof foydasi bilan AYNAN bo'lishi
+    uchun). Noto'g'ri davr — ValueError (API 400 ga aylantiradi)."""
+    gy = yil if gacha_yil is None else int(gacha_yil)
+    go = oy if gacha_oy is None else int(gacha_oy)
+    for _y, _o in ((yil, oy), (gy, go)):
+        if not (1 <= int(_o) <= 12) or not (2000 <= int(_y) <= 2100):
+            raise ValueError("Oy 1–12, yil 2000–2100 oralig'ida bo'lishi kerak")
+    boshi, oxiri = int(yil) * 12 + int(oy) - 1, gy * 12 + go - 1
+    if oxiri < boshi:
+        raise ValueError("Davr oxiri boshidan oldin bo'lmasin")
+    if oxiri - boshi + 1 > _YON_DAVR_MAX_OY:
+        raise ValueError(f"Davr ko'pi bilan {_YON_DAVR_MAX_OY} oy bo'lsin")
+    return [(k // 12, k % 12 + 1) for k in range(boshi, oxiri + 1)]
+
+
+def yonalish_davr_nomi(oylar: list) -> str:
+    """«Sentabr 2026», «Iyul – Sentabr 2026», «Noyabr 2025 – Fevral 2026»."""
+    if not oylar:
+        return ""
+    (y1, o1), (y2, o2) = oylar[0], oylar[-1]
+    if (y1, o1) == (y2, o2):
+        return f"{_OY_TOLIQ[o1 - 1]} {y1}"
+    if y1 == y2:
+        return f"{_OY_TOLIQ[o1 - 1]} – {_OY_TOLIQ[o2 - 1]} {y2}"
+    return f"{_OY_TOLIQ[o1 - 1]} {y1} – {_OY_TOLIQ[o2 - 1]} {y2}"
+
+
+def yonalish_oldingi_davr(oylar: list) -> list:
+    """Solishtirish davri: yil boshidan (yanvardan) boshlangan davr — o'tgan yilning AYNAN shu oylari; qolgani —
+    oldingi TENG uzunlikdagi davr (bir oy — o'tgan oy; chorak — o'tgan chorak)."""
+    if not oylar:
+        return []
+    (y1, o1), y2 = oylar[0], oylar[-1][0]
+    if o1 == 1 and y1 == y2 and len(oylar) > 1:
+        return [(y - 1, o) for y, o in oylar]
+    n = len(oylar)
+    boshi = y1 * 12 + o1 - 1 - n
+    return [((boshi + i) // 12, (boshi + i) % 12 + 1) for i in range(n)]
+
+
+def _yon_oy_aniq(db: Session, year: int, month: int, company_id, x: "_YonXarita") -> dict:
+    """BIR oyning yo'nalishlar qismlari (yaxlitlanmagan): daromad / tannarx {kalit}, bevosita {qism: {kalit}},
+    oylik hisobotning AYNAN qismlari `t` (sof foyda tarkibi), `sof`, «Belgilanmagan» manbalari va izohlar."""
     from models import (ExpenseTransaction as _ET, TransportExpense as _TE, Employee as _Emp,
                         FinishedProductSale as _FPS, FinishedProductLoss as _FPL, FinishedProduct as _FP,
                         ReturnItem as _RI, KIRIM_TANNARX_MANBA as _KTM)
@@ -4031,7 +4088,6 @@ def calculate_split_profit_report(db: Session, year: int, month: int, company_id
 
     full = get_monthly_report(db, year, month, company_id=company_id)
     t = full["sof_foyda_tarkibi"]
-    x = _YonXarita(db, company_id)
     boshi, oxiri = _tashkent_oy_oraligi(year, month)
     izohlar = []
 
@@ -4218,62 +4274,120 @@ def calculate_split_profit_report(db: Session, year: int, month: int, company_id
             bevosita["brak"][k] = bevosita["brak"].get(k, 0.0) + float(l.cost_amount or 0)
         else:
             bevosita["tm_yoqotish"][k] = bevosita["tm_yoqotish"].get(k, 0.0) + float(l.cost_amount or 0)
+    return {"daromad_b": daromad_b, "daromad_tm": daromad_tm, "tannarx_b": tannarx_b, "tannarx_tm": tannarx_tm,
+            "bevosita": bevosita, "t": {k: float(v or 0) for k, v in t.items()}, "sof": float(full["sof_foyda"]),
+            "belg_manbalar": belg_manbalar, "izohlar": izohlar}
 
-    # ── 4. UMUMIY qism (hovuz − bevosita) — daromad ulushida ──
-    daromad = {}
-    _qosh(daromad, daromad_b)
-    _qosh(daromad, daromad_tm)
-    vaznlar = {k: max(v, 0.0) for k, v in daromad.items() if v > 0}
-    if sum(vaznlar.values()) > 0:
-        ulush_usuli = "daromad"
-        _ulush_vazn = [(k, vaznlar[k]) for k in x.tartibla(vaznlar)]
-    else:
-        ulush_usuli = "teng"
-        _ulush_vazn = [(k, 1.0) for k in x.korinadigan()] or [(x.asosiy_kalit, 1.0)]
-        izohlar.append("Bu oy daromad yo'q — umumiy xarajatlar ko'rinadigan yo'nalishlarga teng bo'lindi")
-    umumiy = {}
-    ulush = {nom: {} for nom, _n in _YON_XARAJAT_NOMLARI}
-    for nom, _n in _YON_XARAJAT_NOMLARI:
-        qism = float(t[nom]) - sum(bevosita[nom].values())
-        umumiy[nom] = qism
-        ulush[nom] = _vaznli_taqsim(qism, _ulush_vazn) if abs(qism) >= 1e-9 else {}
 
-    # ── 5. Yo'nalish ustunlari (aniq) ──
+def _yon_davr_jami(db: Session, oylar: list, company_id=None) -> dict:
+    """Solishtirish uchun davr yig'indisi (oylik hisobotdan): daromad, xarajat (tannarx + oylik + xarajatlar), natija
+    (sof foyda). Butun so'mda."""
+    d = x_ = n = 0.0
+    for _y, _o in oylar:
+        f = get_monthly_report(db, _y, _o, company_id=company_id)
+        t = f["sof_foyda_tarkibi"]
+        _d = float(t["daromad_buyurtmalar"]) + float(t["daromad_tm"])
+        d += _d
+        n += float(f["sof_foyda"])
+        x_ += _d - float(f["sof_foyda"])
+    return {"daromad": _yaxlit(d, 1), "xarajat": _yaxlit(x_, 1), "natija": _yaxlit(n, 1)}
+
+
+def _ozgarish_foiz(joriy, oldingi):
+    """(joriy − oldingi) / |oldingi| × 100, 1 xona; oldingi 0 — None (foiz ma'nosiz)."""
+    joriy, oldingi = float(joriy or 0), float(oldingi or 0)
+    if abs(oldingi) < 0.5:
+        return None
+    return round((joriy - oldingi) / abs(oldingi) * 100, 1)
+
+
+@_hisobot_keshi_bilan
+def calculate_split_profit_report(db: Session, year: int, month: int, company_id: int = None,
+                                  gacha_yil: int = None, gacha_oy: int = None, solishtirish: bool = False) -> dict:
+    """YO'NALISHLAR bo'yicha moliyaviy natija (kech117 A2; kech118 — egasi QARORI 15:23: umumiy xarajat TAQSIMLANMAYDI,
+    oyliklar alohida, oxirida natija +/−; davr — bir yoki bir necha oy).
+
+    Har yo'nalish ustuni (`som` — butun so'm, `aniq` — tiyin): daromad, tannarx, oylik (yo'nalishi belgilangan hodimlar
+    — oylik hisobotdagi AYNAN summa), xarajat (o'ziga yozilgan: doimiy, qo'shimcha, transport, brak, tayyor mahsulot
+    yo'qotishi …, `xarajat_qismlari`), natija = daromad − tannarx − oylik − xarajat. «Jami»: hamma ustunlar + yo'nalishsiz
+    (umumiy) oylik va xarajatlar (`umumiy_oylik`, `umumiy_xarajat`, `umumiy_qismlari` — faqat shu yerda); Jami natija =
+    Moliya sof foydasi (davr oylari yig'indisi; tiyinigacha va butun so'mda AYNAN). Moslik uchun: `bevosita` = oylik +
+    xarajat, `bevosita_qismlari` (hodimlar + xarajat qismlari), `sof_foyda` = natija, `jami_xarajat` = oylik + xarajat.
+    `solishtirish` — oldingi davr (`yonalish_oldingi_davr`) daromad / xarajat / natijasi va o'zgarish foizi."""
+    oylar = yonalish_davr_oylari(year, month, gacha_yil, gacha_oy)
+    x = _YonXarita(db, company_id)
+    daromad, tannarx = {}, {}
+    bevosita = {nom: {} for nom, _n in _YON_XARAJAT_NOMLARI}
+    t_jami = {}
+    sof = 0.0
+    belg_manbalar, izohlar = {}, []
+    ko_p_oy = len(oylar) > 1
+    for _y, _o in oylar:
+        q = _yon_oy_aniq(db, _y, _o, company_id, x)
+        _qosh(daromad, q["daromad_b"])
+        _qosh(daromad, q["daromad_tm"])
+        _qosh(tannarx, q["tannarx_b"])
+        _qosh(tannarx, q["tannarx_tm"])
+        for nom, _n in _YON_XARAJAT_NOMLARI:
+            _qosh(bevosita[nom], q["bevosita"][nom])
+        for k, v in q["t"].items():
+            t_jami[k] = t_jami.get(k, 0.0) + v
+        sof += q["sof"]
+        _qosh(belg_manbalar, q["belg_manbalar"])
+        izohlar += [(f"{_OY_TOLIQ[_o - 1]} {_y}: " if ko_p_oy else "") + iz for iz in q["izohlar"]]
+
+    # ── Yo'nalish ustunlari (aniq) ──
     kalitlar = set(x.korinadigan())
-    for d in [daromad_b, daromad_tm, tannarx_b, tannarx_tm] + list(bevosita.values()) + list(ulush.values()):
+    for d in [daromad, tannarx] + list(bevosita.values()):
         kalitlar |= {k for k, v in d.items() if abs(v) >= 0.005}
     tartib = x.tartibla(kalitlar)
+    umumiy = {nom: float(t_jami.get(nom, 0.0)) - sum(bevosita[nom].values()) for nom, _n in _YON_XARAJAT_NOMLARI}
     aniq = {}
     for k in tartib:
-        _d = daromad_b.get(k, 0.0) + daromad_tm.get(k, 0.0)
-        _t = tannarx_b.get(k, 0.0) + tannarx_tm.get(k, 0.0)
-        _b = sum(bevosita[n].get(k, 0.0) for n, _x in _YON_XARAJAT_NOMLARI)
-        _u = sum(ulush[n].get(k, 0.0) for n, _x in _YON_XARAJAT_NOMLARI)
-        aniq[k] = {"daromad": _d, "tannarx": _t, "bevosita": _b, "ulush": _u, "jami_xarajat": _b + _u,
-                   "sof_foyda": _d - _t - _b - _u}
-    sof = float(full["sof_foyda"])
-    tekshiruv_farq = sof - sum(v["sof_foyda"] for v in aniq.values())
+        _d, _t = daromad.get(k, 0.0), tannarx.get(k, 0.0)
+        _ol = bevosita[_YON_OYLIK].get(k, 0.0)
+        _xr = sum(bevosita[n].get(k, 0.0) for n in _YON_XARAJAT_QISMLARI)
+        aniq[k] = {"daromad": _d, "tannarx": _t, "oylik": _ol, "xarajat": _xr, "natija": _d - _t - _ol - _xr}
+    tekshiruv_farq = sof - (sum(a["natija"] for a in aniq.values()) - sum(umumiy.values()))
 
-    def _ustunlar(birlik: int) -> dict:
-        """Butun `birlik` (1 — so'm, 100 — tiyin) larda: ustun ichida D − T − J = S, qatorlar yig'indisi = jami."""
+    def _ustunlar(birlik: int):
+        """Butun `birlik` (1 — so'm, 100 — tiyin) larda: ustun ichida D − T − O − X = N; Jami: ΣN − umumiy = sof."""
         D = _yaxlit_taqsim({k: aniq[k]["daromad"] for k in tartib}, _yaxlit(sum(a["daromad"] for a in aniq.values()), birlik), birlik)
         T = _yaxlit_taqsim({k: aniq[k]["tannarx"] for k in tartib}, _yaxlit(sum(a["tannarx"] for a in aniq.values()), birlik), birlik)
-        B = _yaxlit_taqsim({k: aniq[k]["bevosita"] for k in tartib}, _yaxlit(sum(a["bevosita"] for a in aniq.values()), birlik), birlik)
-        S = _yaxlit_taqsim({k: aniq[k]["sof_foyda"] for k in tartib}, _yaxlit(sof, birlik), birlik)
-        natija = {}
+        O = _yaxlit_taqsim({k: aniq[k]["oylik"] for k in tartib}, _yaxlit(sum(a["oylik"] for a in aniq.values()), birlik), birlik)
+        X = _yaxlit_taqsim({k: aniq[k]["xarajat"] for k in tartib}, _yaxlit(sum(a["xarajat"] for a in aniq.values()), birlik), birlik)
+        f = (lambda v: v) if birlik == 1 else (lambda v: v / birlik)
+        natija, jn = {}, 0
+        jq = {n: 0 for n in _YON_XARAJAT_QISMLARI}
         for k in tartib:
-            U = D[k] - T[k] - B[k] - S[k]
-            bq = _yaxlit_taqsim({n: bevosita[n].get(k, 0.0) for n, _x in _YON_XARAJAT_NOMLARI}, B[k], birlik)
-            uq = _yaxlit_taqsim({n: ulush[n].get(k, 0.0) for n, _x in _YON_XARAJAT_NOMLARI}, U, birlik)
-            f = (lambda v: v) if birlik == 1 else (lambda v: v / birlik)
-            natija[k] = {"daromad": f(D[k]), "tannarx": f(T[k]), "bevosita": f(B[k]), "ulush": f(U),
-                         "jami_xarajat": f(B[k] + U), "sof_foyda": f(S[k]),
-                         "bevosita_qismlari": {n: f(v) for n, v in bq.items()},
-                         "ulush_qismlari": {n: f(v) for n, v in uq.items()}}
-        return natija
+            N = D[k] - T[k] - O[k] - X[k]
+            jn += N
+            xq = _yaxlit_taqsim({n: bevosita[n].get(k, 0.0) for n in _YON_XARAJAT_QISMLARI}, X[k], birlik)
+            for n in _YON_XARAJAT_QISMLARI:
+                jq[n] += xq[n]
+            natija[k] = {"daromad": f(D[k]), "tannarx": f(T[k]), "oylik": f(O[k]), "xarajat": f(X[k]), "natija": f(N),
+                         "xarajat_qismlari": {n: f(v) for n, v in xq.items()},
+                         # moslik (eski maydonlar — bevosita = o'ziga yozilgan hamma xarajat)
+                         "bevosita": f(O[k] + X[k]), "jami_xarajat": f(O[k] + X[k]), "sof_foyda": f(N),
+                         "bevosita_qismlari": dict({_YON_OYLIK: f(O[k])}, **{n: f(v) for n, v in xq.items()})}
+        NJ = _yaxlit(sof, birlik)
+        UJ = jn - NJ                                        # umumiy (yo'nalishsiz) oylik + xarajat, butun birlikda
+        _uxr = sum(umumiy[n] for n in _YON_XARAJAT_QISMLARI)
+        U = _yaxlit_taqsim({"oylik": umumiy[_YON_OYLIK], "xarajat": _uxr}, UJ, birlik)
+        uq = _yaxlit_taqsim({n: umumiy[n] for n in _YON_XARAJAT_QISMLARI}, U["xarajat"], birlik)
+        so = sum(O.values()) + U["oylik"]
+        sx = sum(X.values()) + U["xarajat"]
+        jami = {"daromad": f(sum(D.values())), "tannarx": f(sum(T.values())), "oylik": f(so), "xarajat": f(sx),
+                "natija": f(NJ), "umumiy_oylik": f(U["oylik"]), "umumiy_xarajat": f(U["xarajat"]),
+                "yonalishlar_oyligi": f(sum(O.values())), "yonalishlar_xarajati": f(sum(X.values())),
+                "yonalishlar_natijasi": f(jn),
+                "umumiy_qismlari": dict({_YON_OYLIK: f(U["oylik"])}, **{n: f(v) for n, v in uq.items()}),
+                "xarajat_qismlari": {n: f(jq[n] + uq[n]) for n in _YON_XARAJAT_QISMLARI},
+                "bevosita": f(sum(O.values()) + sum(X.values())), "jami_xarajat": f(so + sx), "sof_foyda": f(NJ),
+                "bevosita_qismlari": dict({_YON_OYLIK: f(sum(O.values()))}, **{n: f(jq[n]) for n in _YON_XARAJAT_QISMLARI})}
+        return natija, jami
 
-    som, tiyin = _ustunlar(1), _ustunlar(100)
-    _ulush_jami = sum(v for _k, v in _ulush_vazn)
+    (som, jami_som), (tiyin, jami_tiyin) = _ustunlar(1), _ustunlar(100)
     yonalishlar = []
     for k in tartib:
         s_ = som[k]
@@ -4283,11 +4397,16 @@ def calculate_split_profit_report(db: Session, year: int, month: int, company_id
             "belgilanmagan": k == _YON_BELGILANMAGAN,
             "yashirin": bool(x.nomlar[k].yashirin) if k in x.nomlar else False,
             "som": s_, "aniq": tiyin[k],
-            "foyda_foiz": round(s_["sof_foyda"] / s_["daromad"] * 100, 1) if s_["daromad"] else 0.0,
-            "ulush_foiz": round(dict(_ulush_vazn).get(k, 0.0) / _ulush_jami * 100, 1) if _ulush_jami else 0.0,
+            "rentabellik": round(s_["natija"] / s_["daromad"] * 100, 1) if s_["daromad"] else None,
+            "foyda_foiz": round(s_["natija"] / s_["daromad"] * 100, 1) if s_["daromad"] else 0.0,
         })
-    _jami_som = {f: sum(som[k][f] for k in tartib) for f in ("daromad", "tannarx", "bevosita", "ulush",
-                                                           "jami_xarajat", "sof_foyda")}
+    # Xarajatlar tarkibi (doira): tannarxsiz — oyliklar va har xarajat turi (yo'nalishniki + umumiy)
+    _tarkib = [(_YON_OYLIK, "Hodimlar oyligi", jami_som["oylik"])] + [
+        (n, dict(_YON_XARAJAT_NOMLARI)[n], jami_som["xarajat_qismlari"][n]) for n in _YON_XARAJAT_QISMLARI]
+    _musbat = sum(v for _k, _n, v in _tarkib if v > 0)
+    tarkib = [{"kalit": k, "nom": nm, "summa": v, "foiz": round(v / _musbat * 100, 1) if _musbat and v > 0 else 0.0}
+              for k, nm, v in _tarkib if v != 0]
+    tarkib.sort(key=lambda r: -r["summa"])
     # «Belgilanmagan» — qaysi MRP turlari biriktirilmagan (egasiga ko'rsatiladi)
     belgilanmagan_turlar = []
     if _YON_BELGILANMAGAN in tartib:
@@ -4296,16 +4415,24 @@ def calculate_split_profit_report(db: Session, year: int, month: int, company_id
         if company_id is not None:
             _pq = _pq.filter(_PT117b.company_id == company_id)
         belgilanmagan_turlar = sorted(r[0] for r in _pq.all())
-    return {
+    _y_ustun = [y for y in yonalishlar if not y["belgilanmagan"] and (y["som"]["daromad"] or y["som"]["natija"])]
+    natija = {
         "year": year, "month": month,
+        "davr": {"dan": f"{oylar[0][0]}-{oylar[0][1]:02d}", "gacha": f"{oylar[-1][0]}-{oylar[-1][1]:02d}",
+                 "oylar": len(oylar), "nom": yonalish_davr_nomi(oylar)},
         "yonalishlar": yonalishlar,
-        "jami": _jami_som,
+        "jami": jami_som,
+        "jami_aniq": jami_tiyin,
+        "rentabellik": round(jami_som["natija"] / jami_som["daromad"] * 100, 1) if jami_som["daromad"] else None,
+        "foydada_soni": sum(1 for y in _y_ustun if y["som"]["natija"] > 0),
+        "zararda_soni": sum(1 for y in _y_ustun if y["som"]["natija"] < 0),
         "moliya_sof_foyda": _yaxlit(sof, 1),
         "moliya_sof_foyda_aniq": _yaxlit(sof, 100) / 100,
-        "moliya_daromad": _yaxlit(float(t["daromad_buyurtmalar"]) + float(t["daromad_tm"]), 1),
-        "ulush_usuli": ulush_usuli,
+        "moliya_daromad": _yaxlit(float(t_jami.get("daromad_buyurtmalar", 0)) + float(t_jami.get("daromad_tm", 0)), 1),
         "umumiy_xarajatlar": {n: round(umumiy[n], 2) for n, _x in _YON_XARAJAT_NOMLARI},
         "xarajat_nomlari": dict(_YON_XARAJAT_NOMLARI),
+        "xarajat_qism_nomlari": {n: dict(_YON_XARAJAT_NOMLARI)[n] for n in _YON_XARAJAT_QISMLARI},
+        "tarkib": tarkib,
         "korinadigan_soni": len(x.korinadigan()),
         "belgilanmagan_turlar": belgilanmagan_turlar,
         # «Belgilanmagan» ustunidagi daromadning MRP turidan boshqa manbalari (eng kattasi birinchi, ko'pi bilan 10 ta)
@@ -4315,6 +4442,16 @@ def calculate_split_profit_report(db: Session, year: int, month: int, company_id
         "izohlar": izohlar,
         "tekshiruv_farq": round(tekshiruv_farq, 6),
     }
+    if solishtirish:
+        _old = yonalish_oldingi_davr(oylar)
+        _oj = _yon_davr_jami(db, _old, company_id=company_id)
+        _jx = jami_som["tannarx"] + jami_som["oylik"] + jami_som["xarajat"]
+        natija["oldingi"] = dict(_oj, davr={"dan": f"{_old[0][0]}-{_old[0][1]:02d}",
+                                            "gacha": f"{_old[-1][0]}-{_old[-1][1]:02d}", "nom": yonalish_davr_nomi(_old)})
+        natija["ozgarish"] = {"daromad": _ozgarish_foiz(jami_som["daromad"], _oj["daromad"]),
+                              "xarajat": _ozgarish_foiz(_jx, _oj["xarajat"]),
+                              "natija": _ozgarish_foiz(jami_som["natija"], _oj["natija"])}
+    return natija
 
 
 def _kassa_qismlari(db: Session, company_id: int = None, boshi=None, oxiri=None) -> dict:
