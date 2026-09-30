@@ -76,7 +76,10 @@ function olib(src, nom) {
   }
   return null;
 }
+// kech118 (B — U-05, MOSLANDI): sahifa funksiyalari ko'rinadigan son uchun base.html `sonKor` … ni chaqiradi — har muhitga bir marta
+const BASE_YORDAM = ['sonKor', 'foizKor', 'birlikKor', 'matnRangi'].map(n => olib(oqi('base'), n)).filter(Boolean).join('\n');
 function yukla(ctx, src, nomlar, sahifa) {
+  if (!ctx.__baseYordam) { try { vm.runInContext(BASE_YORDAM, ctx, { filename: 'base.html' }); ctx.__baseYordam = true; } catch (e) { /* bo'sh */ } }
   const yoq = [];
   for (const n of nomlar) {
     const f = olib(src, n);

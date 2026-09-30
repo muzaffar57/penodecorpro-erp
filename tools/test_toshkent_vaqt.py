@@ -393,10 +393,11 @@ with _Soat(datetime(2026, 10, 1, 1, 0)):
 _oylar = (_ch or {}).get("months") if isinstance(_ch, dict) else None
 _oylar = _oylar if isinstance(_oylar, list) else []
 _rev = [round(float(m.get("revenue") or 0)) for m in _oylar]
-check("E8 grafik: 6 oy, oxirgisi 'Oct 2026' — daromad T2+T3+T4 = 1 400 000 («Tayyor» oyi — T2 15.09 da yaratilgan), "
-      "'Sep 2026' — T1 = 100 000 (asl: UTC 30 kunlik, yaratilgan oyi)",
+# kech118 (U-06, MOSLANDI): oy nomi o'zbekcha — «Sen 2026», «Okt 2026» (ilgari "%b" — «Sep 2026», «Oct 2026»)
+check("E8 grafik: 6 oy, oxirgisi 'Okt 2026' — daromad T2+T3+T4 = 1 400 000 («Tayyor» oyi — T2 15.09 da yaratilgan), "
+      "'Sen 2026' — T1 = 100 000 (asl: UTC 30 kunlik, yaratilgan oyi)",
       len(_oylar) == 6 and _rev[-1] == 1_400_000 and _rev[-2] == 100_000
-      and [m.get("label") for m in _oylar[-2:]] == ["Sep 2026", "Oct 2026"], [_oylar[-2:] if _oylar else _ch])
+      and [m.get("label") for m in _oylar[-2:]] == ["Sen 2026", "Okt 2026"], [_oylar[-2:] if _oylar else _ch])
 
 # qaytarishlar / loyihalar "shu oy" (hozir = Toshkent 01.10 06:00): 30.09 20:30 UTC dagi brak — oktyabr
 _s = SessionLocal()

@@ -362,7 +362,8 @@ except Exception:
 check("E-a /api/inventory da qoldiq −12.5", bool(satr) and yaqin(satr[0]["stock_quantity"], -12.5),
       str(satr)[:200])
 r = req("get", "/inventory")
-check("E-b /inventory sahifasida '-12.5 kg'", "-12.5 kg" in r.text)
+# kech118 (B — U-05, MOSLANDI): qoldiq `|son(2)` — kasr vergul bilan («-12,5 kg»; ilgari «-12.5 kg»)
+check("E-b /inventory sahifasida '-12,5 kg'", "-12,5 kg" in r.text)
 with contextlib.redirect_stdout(_quiet):
     kam = crud.get_low_stock_items(db, company_id=1)
 check("E-c kam qolganlar ro'yxatida sement bor", any(i.id == S_ID for i in kam))

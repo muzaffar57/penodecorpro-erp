@@ -120,7 +120,9 @@ async function ishga(m, kod, chaqiruv) {
   }
 }
 
-const ESC = olib(BASE, 'escapeHtml') || 'function escapeHtml(s){return String(s);}';
+// kech118 (B — U-03 / U-05, MOSLANDI): sahifa funksiyalari base.html `sonKor` / `matnRangi` … ni ham chaqiradi — birga yuklanadi
+const ESC = (olib(BASE, 'escapeHtml') || 'function escapeHtml(s){return String(s);}') + '\n'
+  + ['sonKor', 'foizKor', 'birlikKor', 'matnRangi'].map(n => olib(BASE, n)).filter(Boolean).join('\n');
 
 (async () => {
   // ═══════════════════════════════════════════════════════════
@@ -156,7 +158,8 @@ const ESC = olib(BASE, 'escapeHtml') || 'function escapeHtml(s){return String(s)
     tekshir("A4 ortiqchasiz to'liq topshirilgan detal — '✅ To'liq topshirilgan' AYNAN",
       (h.match(/✅ To'liq topshirilgan/g) || []).length === 1, matn(h));
     tekshir("A5 MRP 4 / 10: '🏭 tayyor: 4 m²' qizil (kam)", /🏭 tayyor: <b style="color:#DC2626">4 m²<\/b>/.test(h), matn(h));
-    tekshir("A6 MRP 6 / 6: tayyor yashil", /🏭 tayyor: <b style="color:#16A34A">6 m²<\/b>/.test(h), matn(h));
+    // kech118 (B — U-03, MOSLANDI): yashil YOZUV — to'q tusi #15803D (oq fonda ≥ 4.5:1; avval #16A34A — 3.3:1)
+    tekshir("A6 MRP 6 / 6: tayyor yashil", /🏭 tayyor: <b style="color:#15803D">6 m²<\/b>/.test(h), matn(h));
     tekshir("A7 MRP emas detalda 'tayyor' yo'q", !/Karniz[\s\S]*?tayyor:[\s\S]*?Travertin/.test(h), matn(h));
     tekshir("A8 kiritish maydonida data-tayyor (MRP 4, boshqasi bo'sh)", h.includes('id="dlv-12" data-max="10" data-tayyor="4"')
       && h.includes('id="dlv-11" data-max="3" data-tayyor=""'), h.slice(0, 300));
@@ -314,7 +317,9 @@ const ESC = olib(BASE, 'escapeHtml') || 'function escapeHtml(s){return String(s)
   async function opm(i, profit) {
     const e = { 'pm-sub': el(), profitModal: el(), 'pm-body': el() };
     const m = muhit({ elementlar: e, javobFn: async () => javob(200, profit), globallar: { fpItems: [i] } });
-    const r = await ishga(m, ESC + '\n' + W2 + '\n' + OPM, `openProfitModal(${i.id})`);
+    // kech118 (B — U-05, MOSLANDI): oyna miqdorni `fpMiqdor`, birlikni `unitLabel` bilan yozadi (sahifaning o'z yordamchilari)
+    const FY = ['fpMiqdor', 'unitLabel'].map(n => olib(FINISHED, n)).filter(Boolean).join('\n');
+    const r = await ishga(m, ESC + '\n' + W2 + '\n' + FY + '\n' + OPM, `openProfitModal(${i.id})`);
     return { xato: r.xato, t: matn(e['pm-body'].innerHTML), h: e['pm-body'].innerHTML };
   }
   {
@@ -325,7 +330,7 @@ const ESC = olib(BASE, 'escapeHtml') || 'function escapeHtml(s){return String(s)
       && r.t.includes("↕ Narx farqi (qatorlar joriy narxda, tan narxi ishlab chiqarilgan paytda) -600000 so'm")
       && r.t.includes("Tan narxi 600000 so'm"), r.t);
     tekshir("G2 penoplast / loy qatorlari o'zgarmagan", r.t.includes("📦 Penoplast 1000000 so'm")
-      && r.t.includes("🧱 Loy (50 kg × 4000) 200000 so'm") && r.t.includes('Hajm (qoldiq): 1.0000 m³'), r.t);
+      && r.t.includes("🧱 Loy (50 kg × 4000) 200000 so'm") && r.t.includes('Hajm (qoldiq): 1 m³'), r.t);   // kech118 (U-05): «1.0000» → «1»
   }
   {
     const r = await opm({ id: 2, name: 'TM2', unit: 'metr', quantity: 100, unit_price: 30000, cost_price: 1200000, width: 20,

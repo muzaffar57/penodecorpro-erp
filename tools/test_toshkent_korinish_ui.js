@@ -41,7 +41,10 @@ const cp = require('child_process');
 
 const ROOT = process.env.REPO || path.dirname(__dirname);
 const MINTAQALAR = ['Asia/Tashkent', 'UTC', 'America/New_York'];
-const TK_NOMLAR = ['tkMs', 'tkDate', 'tkSana', 'tkVaqt', 'tkSanaVaqt', 'tkToliq', 'tkISO', 'tkHozir', 'tkKunFarqi'];
+// kech118 (B — U-05, MOSLANDI): sahifa funksiyalari son / birlik / yozuv rangi uchun base.html `sonKor` / `foizKor` /
+// `birlikKor` / `matnRangi` ni ham chaqiradi — ro'yxatga qo'shildi (sahifada yo'g'i — o'tkazib yuboriladi)
+const TK_NOMLAR = ['tkMs', 'tkDate', 'tkSana', 'tkVaqt', 'tkSanaVaqt', 'tkToliq', 'tkISO', 'tkHozir', 'tkKunFarqi',
+                   'sonKor', 'foizKor', 'birlikKor', 'matnRangi'];
 
 function oqi(nom) {
   try { return fs.readFileSync(path.join(ROOT, 'templates', nom), 'utf8'); } catch (e) { return ''; }
@@ -87,12 +90,16 @@ async function ichki() {
   const HOZIR = RealDate.UTC(2026, 8, 30, 21, 0, 0);            // Toshkent 01.10.2026 02:00
   const LAHZA = '2026-09-30T20:30:00';                          // Toshkent 01.10.2026 01:30
   const T_MS = RealDate.UTC(2026, 9, 1, 1, 30, 0);             // Toshkent devor soati (UTC maydonlarida)
-  const S_UZ = new RealDate(T_MS).toLocaleDateString('uz', {timeZone: 'UTC'});
-  const V_UZ = new RealDate(T_MS).toLocaleTimeString('uz', {hour: '2-digit', minute: '2-digit', timeZone: 'UTC'});
+  // kech118 (B — U-05, MOSLANDI): standart ('uz') ko'rinish endi brauzerning o'zbek tili ma'lumotiga BOG'LIQ EMAS —
+  // tk yordamchilari QO'LDA yozadi (Chromium 'uz' «2026-09-29» / «2026 M09 29» bergani o'lchangan). Kutilgan qiymatlar —
+  // aniq matn (avval node ning `toLocale…('uz')` natijasi «01/10/2026» edi). 'ru-RU' — avvalgidek brauzerning o'zi.
+  const S_UZ = '01.10.2026';
+  const V_UZ = '01:30';
   const SV_UZ = S_UZ + ' ' + V_UZ;
-  const T_UZ = new RealDate(T_MS).toLocaleString('uz', {timeZone: 'UTC'});
+  const T_UZ = '01.10.2026, 01:30:00';
   const S_RU = new RealDate(T_MS).toLocaleDateString('ru-RU', {timeZone: 'UTC'});
-  const UTC_UZ = new RealDate(RealDate.UTC(2026, 8, 30, 20, 30)).toLocaleDateString('uz', {timeZone: 'UTC'});   // "30/09/2026"
+  const UTC_UZ = '30.09.2026';   // eski (xato) ko'rinish — brauzer mintaqasi UTC bo'lsa chiqadigan sana
+  const UZUN_OY = '1-oktabr, 2026';
 
   function soxtaDate(ms) {
     return class D extends RealDate {
@@ -154,7 +161,10 @@ async function ichki() {
     const p = vm.runInContext(`(async () => { ${kod} })()`, m.ctx);
     return await Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('vaqt tugadi')), 3000))]);
   }
-  function soz(src, nom) {   // `const NOM = …;` (bir qatorli)
+  function soz(src, nom) {   // `const NOM = …;` (bir qatorli) yoki `const NOM = {…};` (bir necha qatorli obyekt)
+    // kech118 (B — U-06, MOSLANDI): moliya `CAT_LABELS` / `CAT_ICONS` ga kirim xarajati turlari qo'shildi — obyekt 2 qatorga o'tdi
+    const ob = new RegExp('const\\s+' + nom + '\\s*=\\s*(\\{[\\s\\S]*?\\});').exec(src);
+    if (ob) return `var ${nom} = ${ob[1]};`;
     const m = new RegExp('const\\s+' + nom + '\\s*=\\s*([^\\n]*);').exec(src);
     return m ? `var ${nom} = ${m[1]};` : '';
   }
@@ -187,7 +197,7 @@ async function ichki() {
   tekshir(`H7 til / format saqlanadi: tkSana(v, 'ru-RU') — "${S_RU}"; uzun oy nomi`,
           hv(`tkSana('${LAHZA}', 'ru-RU')`) === S_RU
           && hv(`tkSana('2026-10-01', 'uz', {day:'numeric', month:'long', year:'numeric'})`)
-             === new RealDate(RealDate.UTC(2026, 9, 1)).toLocaleDateString('uz', {day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC'}),
+             === UZUN_OY,
           [hv(`tkSana('${LAHZA}', 'ru-RU')`)]);
   tekshir('H8 Toshkent kun chegarasi: UTC 30.09 18:59:59 → "2026-09-30", 19:00:00 → "2026-10-01"',
           hv(`tkISO('2026-09-30T18:59:59')`) === '2026-09-30' && hv(`tkISO('2026-09-30T19:00:00')`) === '2026-10-01',
@@ -288,7 +298,7 @@ async function ichki() {
                                                           expenses: { total: 0, material: { breakdown: [] }, other: { breakdown: [] }, transport: null } } },
                       qoshimcha: fnlar(FIN, PUL.concat(['loadDailyFinance'])) + '\nfunction animateCounter() {}' });
     await yurgiz(m, `await loadDailyFinance();`);
-    const kut = new RealDate(RealDate.UTC(2026, 9, 1)).toLocaleDateString('uz', {day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC'});
+    const kut = UZUN_OY;
     tekshir(`T10 moliya — kunlik hisobot sanasi "${kut}" (asl: G'arb mintaqasida — oldingi kun)`, m.el('daily-date').textContent === kut,
             m.el('daily-date').textContent);
   });
@@ -401,7 +411,7 @@ async function ichki() {
             [d(LAHZA), d('2026-09-30T18:59:00'), d('2026-09-29T19:00:00'), d('2026-09-20T12:00:00')]);
     const eski = d('2026-08-01T20:00:00');           // Toshkent 02.08.2026 01:00
     tekshir('T26 ta\'minotchilar — 30 kundan eski TUNGI xarid — Toshkent sanasi 02.08 (asl: mahalliy 01.08)',
-            eski === new RealDate(RealDate.UTC(2026, 7, 2, 1)).toLocaleDateString('uz', {timeZone: 'UTC'}), eski);
+            eski === '02.08.2026', eski);
   });
   await sinov('T27', async () => {
     const m = muhit({ qoshimcha: fnlar(INV, ['mvRowHtml', 'mvFmtQty']) });

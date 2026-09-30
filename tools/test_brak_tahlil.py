@@ -619,7 +619,7 @@ _s, _d2 = _tahlil_soxta(2030, 4)
 _d2 = _d2 or {}
 check("D2 me'yordan oshdi (5.01 %) → meyordan_oshdi, ogohlantirish matni AYNAN",
       _s == 200 and _d2.get("brak_foizi") == 5.01 and _d2.get("meyordan_oshdi") is True
-      and _d2.get("ogohlantirish") == "Brak me'yordan oshdi: 5.01 % (me'yor 5 %)", (_s, str(_d2)[:300]))
+      and _d2.get("ogohlantirish") == "Brak me'yordan oshdi: 5,01 % (me'yor 5 %)", (_s, str(_d2)[:300]))
 FAKE[(2030, 5)] = (5_004, 100_000)
 _s, _d2b = _tahlil_soxta(2030, 5)
 check("D2b 5.004 % → 5.0 (2 xona) — ko'rsatilgan son bilan bir xil: ogohlantirish YO'Q",

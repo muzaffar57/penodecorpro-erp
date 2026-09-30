@@ -395,8 +395,19 @@ FIN = [
                              return tr ? [...tr.cells].slice(1).map(__m) : null; };
       return {api, rep: {sof_foyda: rep.sof_foyda, tannarx_jami: rep.tannarx_jami, jami_xarajat: rep.jami_xarajat,
                          fp_sales_tannarx: rep.fp_sales_tannarx},
-        bolim: __vis('yonBolim'), bosh, sof: qator('Sof foyda'), daromad: qator('Daromad'),
-        tannarx: qator('Tannarx (sotilgan mahsulot)'), tekshir: __m(document.getElementById('yonTekshiruv')),
+        bolim: __vis('yonBolim'), bosh, sof: qator('Natija (+ / −)'), daromad: qator('1. Daromad'),
+        tannarx: qator('2. Sotilgan mahsulot tannarxi'), tekshir: __m(document.getElementById('yonTekshiruv')),
+        // kech118 (egasi QARORI): oyliklar alohida, umumiy — faqat Jami; kartalar, doira, rentabellik, davr
+        oylik: qator('3. Oyliklar'), xarajat: qator('4. Xarajatlar'), umumiy_oylik: qator("yo'nalishsiz hodimlar (umumiy)"),
+        umumiy_xarajat: qator("shundan umumiy (yo'nalishsiz, taqsimlanmaydi)"), ren: qator('Rentabellik'),
+        kartalar: [...document.querySelectorAll('#yonKartalar .yon-karta')].map(__m),
+        davr_nomi: __m(document.getElementById('yonDavrNomi')),
+        davr_opts: [...document.querySelectorAll('#yonDavr option')].map(o => o.value),
+        tarkib: [...document.querySelectorAll('#yonTarkibRoyxat .yon-tarkib-qator')].map(__m),
+        tarkib_grafik: ((window.__grafiklar || []).filter(c => c && c.type === 'doughnut' && c.data && c.data.datasets
+          && c.data.labels && c.data.labels.includes('Hodimlar oyligi')).pop() || {data: {labels: null}}).data.labels,
+        rentabellik: [...document.querySelectorAll('#yonRentabellik .yon-ren-qator')].map(__m),
+        izoh: __m(document.getElementById('yonIzoh')),
         ogoh: __m(document.getElementById('yonOgoh')), ogoh_vis: __vis('yonOgoh'),
         img: document.querySelectorAll('#yonJadval img, #revDonutLegend img, #yonOgoh img').length, xss: window.__xss || 0,
         tannarx_karta: __m(document.getElementById('r-tannarx')),
@@ -418,9 +429,9 @@ FIN = [
       natija=M + SOR + TK + r"""
       const api = await (await fetch(`/api/finance/yonalishlar?year=${__y}&month=${__o}`)).json();
       const t = document.querySelector('#yonJadval table');
-      const sof = t ? [...[...t.rows].find(r => __m(r.cells[0]) === 'Sof foyda').cells].slice(1).map(__m) : null;
-      return {post: __s('POST', '/api/finance/transactions').map(x => x.body), sof, api_sof: api.yonalishlar.map(y => y.som.sof_foyda)
-        .concat([api.jami.sof_foyda]), report_qayta: window.__f3n.rep, yon_qayta: window.__f3n.yon,
+      const sof = t ? [...[...t.rows].find(r => __m(r.cells[0]) === 'Natija (+ / −)').cells].slice(1).map(__m) : null;
+      return {post: __s('POST', '/api/finance/transactions').map(x => x.body), sof, api_sof: api.yonalishlar.map(y => y.som.natija)
+        .concat([api.jami.natija]), report_qayta: window.__f3n.rep, yon_qayta: window.__f3n.yon,
         tx_sana: document.getElementById('tx-date').value};"""),
     q("f4", amal=f"""window.__sorovlar.length = 0;
       editTx({TX_YASH}, '{T.strftime("%Y-%m-%dT%H:%M:%S")}', 'boshqa', 1234, '', '{Y_YASH}');
@@ -428,6 +439,34 @@ FIN = [
                      opts: [...document.querySelectorAll('#tx-f-prodtype option')].map(o => o.value)}};
       await saveTx();""",
       natija=SOR + r"""return {oldin: window.__f4, put: __s('PUT', '/api/finance/transactions/').map(x => x.body)};"""),
+    # kech118 (egasi QARORI — davr tanlash): chorak boshidan / yil boshidan / oraliq; PDF shu davr bilan; noto'g'ri oraliq — xabar
+    q("f5", amal="""window.__sorovlar.length = 0; document.getElementById('yonDavr').value = 'chorak'; yonDavrOzgardi();
+      await new Promise(r => setTimeout(r, 900));""", natija=M + SOR + TK + r"""
+      const u = __s('GET', '/api/finance/yonalishlar?').map(x => x.url);
+      return {url: u[u.length - 1] || null, nomi: __m(document.getElementById('yonDavrNomi')), bolim: __vis('yonBolim'),
+        chorak_boshi: Math.floor((__o - 1) / 3) * 3 + 1};"""),
+    q("f6", amal="""window.__sorovlar.length = 0; document.getElementById('yonDavr').value = 'yil'; yonDavrOzgardi();
+      await new Promise(r => setTimeout(r, 900));
+      window.__ochilgan = []; window.open = (u) => { window.__ochilgan.push(String(u)); return null; };
+      downloadSplitProfitPdf();""", natija=M + SOR + r"""
+      const u = __s('GET', '/api/finance/yonalishlar?').map(x => x.url);
+      return {url: u[u.length - 1] || null, pdf: window.__ochilgan, nomi: __m(document.getElementById('yonDavrNomi'))};"""),
+    q("f7", amal="""window.__sorovlar.length = 0; window.__xabarlar = []; const _sm = window.showMsg;
+      window.showMsg = (t, tur) => { window.__xabarlar.push([String(t), tur]); };
+      document.getElementById('yonDavr').value = 'oraliq'; yonDavrOzgardi();
+      window.__f7_korinadi = document.getElementById('yonOraliq').style.display;
+      document.getElementById('yonDanOy').value = '9'; document.getElementById('yonDanYil').value = '2026';
+      document.getElementById('yonGachaOy').value = '3'; document.getElementById('yonGachaYil').value = '2026';
+      await loadYonalishlar();
+      window.__f7_xato = window.__xabarlar.slice(); window.__f7_sorov = __f7n();
+      function __f7n() { return window.__sorovlar.filter(x => x.method === 'GET' && x.url.includes('/api/finance/yonalishlar?')).length; }
+      document.getElementById('yonDanOy').value = '7'; document.getElementById('yonDanYil').value = '2025';
+      document.getElementById('yonGachaOy').value = '2'; document.getElementById('yonGachaYil').value = '2026';
+      await loadYonalishlar(); await new Promise(r => setTimeout(r, 600));
+      window.showMsg = _sm;""", natija=M + SOR + r"""
+      const u = __s('GET', '/api/finance/yonalishlar?').map(x => x.url);
+      return {korinadi: window.__f7_korinadi, xato: window.__f7_xato, xato_sorov: window.__f7_sorov, url: u[u.length - 1] || null,
+        nomi: __m(document.getElementById('yonDavrNomi'))};"""),
 ]
 RCV = [
     q("r1", natija=M + r"""return {opts: [...document.querySelectorAll('#ap-prod-type-toggle .rcv-cat-opt')].map(e => [e.dataset.value, __m(e)]),
@@ -631,17 +670,52 @@ def _num(v):
         return 0.0
 
 
-_sof_k = [_f(((y.get("som") or {}).get("sof_foyda"))) for y in _sp] + [_f((_API.get("jami") or {}).get("sof_foyda"))]
+def _fn(v):
+    # kech118: natija — musbat «+N», manfiy «−N»
+    n = int(round(float(v or 0)))
+    return ("+" if n > 0 else ("−" if n < 0 else "")) + str(abs(n))
+
+
+_JM = _API.get("jami") or {}
+_sof_k = [_fn(((y.get("som") or {}).get("natija"))) for y in _sp] + [_fn(_JM.get("natija"))]
 _sof_s = [_toza(x) for x in (g("f1", "sof") or [])]
 _bosh_k = [y.get("nom", "") + (" (yashirin)" if y.get("yashirin") else "") for y in _sp] + ["Jami"]
-check("M1 bo'lim ko'rinadi; ustunlar = yo'nalishlar (yashirini «(yashirin)» bilan) + Jami; «Sof foyda» qatori = server",
+check("M1 bo'lim ko'rinadi; ustunlar = yo'nalishlar (yashirini «(yashirin)» bilan) + Jami; «Natija (+ / −)» qatori = server "
+      "(ishorasi bilan)",
       g("f1", "bolim") is True and len(_sp) >= 4 and g("f1", "bosh") == _bosh_k and _sof_s == _sof_k,
       [g("f1", "bosh"), _bosh_k, _sof_s, _sof_k])
-_yig = sum(int(round(_num((y.get("som") or {}).get("sof_foyda")))) for y in _sp)
-check("M2 yig'indi: ustunlar sof foydasi = Jami = Moliya sof foydasi (sahifa ko'rsatgan hisobot bilan, so'mgacha)",
-      _yig == int(round(_num((_API.get("jami") or {}).get("sof_foyda")))) == int(round(_num(_REPJ.get("sof_foyda"))))
-      and "Moliya hisobotidagi sof foyda" in (g("f1", "tekshir") or "") and "daromad ulushiga qarab" in (g("f1", "tekshir") or ""),
-      [_yig, (_API.get("jami") or {}).get("sof_foyda"), _REPJ.get("sof_foyda"), g("f1", "tekshir")])
+_yig = sum(int(round(_num((y.get("som") or {}).get("natija")))) for y in _sp) - int(round(_num(_JM.get("umumiy_oylik")))) \
+    - int(round(_num(_JM.get("umumiy_xarajat"))))
+check("M2 yig'indi (kech118 — taqsim yo'q): yo'nalishlar natijasi − yo'nalishsiz oylik − umumiy xarajat = Jami natija = Moliya "
+      "sof foydasi; tekshiruv qatori shuni yozadi",
+      _yig == int(round(_num(_JM.get("natija")))) == int(round(_num(_REPJ.get("sof_foyda"))))
+      and "Moliya hisobotidagi sof foyda" in (g("f1", "tekshir") or "") and "korxona natijasi" in (g("f1", "tekshir") or "")
+      and "daromad ulushiga" not in (g("f1", "tekshir") or ""),
+      [_yig, _JM.get("natija"), _REPJ.get("sof_foyda"), g("f1", "tekshir")])
+_uo = [_toza(x) for x in (g("f1", "umumiy_oylik") or [])]
+_ux = [_toza(x) for x in (g("f1", "umumiy_xarajat") or [])]
+check("M2b oyliklar ALOHIDA blok; yo'nalishsiz oylik va umumiy xarajat — faqat Jami ustunida (yo'nalish ustunlarida «—»)",
+      g("f1", "oylik") is not None and g("f1", "xarajat") is not None
+      and (not _uo or (all(x == "—" for x in _uo[:-1]) and _uo[-1] == _toza(("−" if _num(_JM.get("umumiy_oylik")) > 0 else "")
+                                                                        + f"{int(round(_num(_JM.get('umumiy_oylik')))):,}".replace(",", ""))))
+      and ((_ux and all(x == "—" for x in _ux[:-1])) if _num(_JM.get("umumiy_xarajat")) else not _ux)
+      and _uo and _num(_JM.get("umumiy_oylik")) > 0,
+      [g("f1", "oylik"), _uo, _ux, _JM.get("umumiy_oylik"), _JM.get("umumiy_xarajat")])
+_kr = g("f1", "kartalar") or []
+check("M2c kartalar: umumiy daromad, xarajatlar (tannarx bilan), natija (korxona) + rentabellik, yo'nalishlar soni "
+      "(foydada / zararda); oldingi davr bilan solishtirish matni",
+      len(_kr) == 4 and "Umumiy daromad" in _kr[0] and _toza(f"{int(round(_num(_JM.get('daromad')))):,}".replace(",", "")) in _toza(_kr[0])
+      and "Umumiy xarajatlar" in _kr[1] and "Natija (korxona)" in _kr[2] and _toza(_fn(_JM.get("natija"))) in _toza(_kr[2])
+      and "Rentabellik" in _kr[2] and "ta foydada" in _kr[3] and "ta zararda" in _kr[3]
+      and ("oldingi davrga nisbatan" in _kr[0] or "solishtirib bo'lmaydi" in _kr[0]), _kr)
+check("M2d xarajatlar tarkibi (doira): «Hodimlar oyligi» va boshqa turlar, foizi bilan; grafik (doughnut) shu nomlar bilan; "
+      "rentabellik chiziqlari — daromadli yo'nalishlar; izohda «taqsimlanmaydi»; davr tanlovi 4 ta",
+      any("Hodimlar oyligi" in x for x in (g("f1", "tarkib") or [])) and all("%" in x for x in (g("f1", "tarkib") or []))
+      and "Hodimlar oyligi" in (g("f1", "tarkib_grafik") or [])
+      and len(g("f1", "rentabellik") or []) == len([y for y in _sp if _num((y.get("som") or {}).get("daromad"))
+                                                    or _num((y.get("som") or {}).get("natija"))])
+      and "taqsimlanmaydi" in (g("f1", "izoh") or "") and g("f1", "davr_opts") == ["oy", "chorak", "yil", "oraliq"],
+      [g("f1", "tarkib"), g("f1", "tarkib_grafik"), g("f1", "rentabellik"), g("f1", "izoh"), g("f1", "davr_opts")])
 _belg = [y for y in _sp if y.get("belgilanmagan")]
 check("M3 «Belgilanmagan» ustuni va ogohlantirish (yo'nalishsiz MRP turi nomi bilan)",
       len(_belg) == 1 and "U117 Belgisiz2" in (_API.get("belgilanmagan_turlar") or [])
@@ -675,14 +749,31 @@ _f3 = g("f3", "post") or []
 check("M10 yangi xarajat: POST tanasida yonalish_id (son), production_type yo'q", len(_f3) == 1
       and _f3[0].get("yonalish_id") == Y_M and "production_type" not in _f3[0], _f3)
 _f3s = [_toza(x) for x in (g("f3", "sof") or [])]
-check("M12 xarajat saqlangach Moliya hisoboti va yo'nalishlar jadvali YANGILANDI (sahifani qayta ochmasdan; «Sof foyda» = "
+check("M12 xarajat saqlangach Moliya hisoboti va yo'nalishlar jadvali YANGILANDI (sahifani qayta ochmasdan; «Natija» = "
       "server), kunlik ro'yxat sanasi joyida", (g("f3", "report_qayta") or 0) >= 1 and (g("f3", "yon_qayta") or 0) >= 1
-      and _f3s == [_f(v) for v in (g("f3", "api_sof") or [])] and g("f3", "tx_sana") == T.strftime("%Y-%m") + "-15",
+      and _f3s == [_fn(v) for v in (g("f3", "api_sof") or [])] and g("f3", "tx_sana") == T.strftime("%Y-%m") + "-15",
       [g("f3", "report_qayta"), g("f3", "yon_qayta"), _f3s, g("f3", "api_sof"), g("f3", "tx_sana")])
 _f4 = g("f4", "put") or []
 check("M11 yashirin yo'nalishli xarajatni tahrirlash: vaqtincha variant tanlangan, PUT da o'sha id (yo'qolmaydi)",
       (g("f4", "oldin") or {}).get("qiymat") == str(Y_YASH) and str(Y_YASH) in ((g("f4", "oldin") or {}).get("opts") or [])
       and len(_f4) == 1 and _f4[0].get("yonalish_id") == Y_YASH, g("f4"))
+
+_OYN = ["Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun", "Iyul", "Avgust", "Sentabr", "Oktabr", "Noyabr", "Dekabr"]
+_cb = ((BUGUN.month - 1) // 3) * 3 + 1
+check("M13 davr «Chorak boshidan»: so'rov chorak boshidan tanlangan oygacha (gacha_yil / gacha_oy bilan), nomi yangilandi",
+      (g("f5", "url") or "").endswith(f"year={BUGUN.year}&month={_cb}&gacha_yil={BUGUN.year}&gacha_oy={BUGUN.month}")
+      and g("f5", "bolim") is True and (g("f5", "nomi") or "").endswith(f"{_OYN[BUGUN.month - 1]} {BUGUN.year}"),
+      [g("f5", "url"), g("f5", "nomi")])
+check("M14 «Yil boshidan»: yanvardan tanlangan oygacha; PDF tugmasi AYNAN shu davr bilan ochadi",
+      (g("f6", "url") or "").endswith(f"year={BUGUN.year}&month=1&gacha_yil={BUGUN.year}&gacha_oy={BUGUN.month}")
+      and g("f6", "pdf") == [f"/api/finance/split-profit-pdf?year={BUGUN.year}&month=1&gacha_yil={BUGUN.year}&gacha_oy={BUGUN.month}"],
+      [g("f6", "url"), g("f6", "pdf"), g("f6", "nomi")])
+check("M15 «Oraliq»: maydonlar ko'rinadi; oxiri boshidan oldin — xabar, so'rov YUBORILMAYDI; Iyul 2025 — Fevral 2026 — so'rov "
+      "va nomi «Iyul 2025 – Fevral 2026»",
+      g("f7", "korinadi") == "inline-flex" and (g("f7", "xato") or [[""]])[0][0].startswith("Oxirgi oy boshlanish oyidan oldin")
+      and g("f7", "xato_sorov") == 0
+      and (g("f7", "url") or "").endswith("year=2025&month=7&gacha_yil=2026&gacha_oy=2")
+      and "Iyul 2025 – Fevral 2026" in (g("f7", "nomi") or ""), g("f7"))
 
 section("R. Kirim — yo'nalish tanlovi")
 _ro = g("r1", "opts") or []

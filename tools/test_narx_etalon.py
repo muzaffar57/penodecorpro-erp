@@ -778,7 +778,7 @@ for chiqadi, kerak in [(2.5, 30), (3.0, 10), (1.75, 7)]:
 
 
 # ════════════════════════════════════════════════════════════════
-bolim("I. YO'NALISHLAR BO'YICHA MOLIYA (kech117, A2) — daromad, tannarx, xarajat ulushi")
+bolim("I. YO'NALISHLAR BO'YICHA MOLIYA (kech117, A2; kech118 — taqsim yo'q) — daromad, tannarx, oylik, xarajat")
 # ════════════════════════════════════════════════════════════════
 # kech117 (A2 — egasi QARORLARI kech114 00:08): «gips / penoplast» ikki liniyasi o'rniga — korxonaning YO'NALISHLARI
 # (Sozlamalar; «Penoplast» — asosiy, standart). Qoidalar (biznes qoidasidan, kod EMAS):
@@ -786,9 +786,11 @@ bolim("I. YO'NALISHLAR BO'YICHA MOLIYA (kech117, A2) — daromad, tannarx, xaraj
 #      loy sotish — ASOSIY yo'nalishga (Penoplast); MRP mahsuloti — mahsulot TURINING yo'nalishiga; turi biriktirilmagan
 #      yoki eskirgan turkum (gips, termopanel) — «Belgilanmagan» (avtomatik Penoplast EMAS).
 #   2) Tannarx — detalning o'z yo'nalishiga (aniq).
-#   3) Yo'nalishi tanlangan xarajat / hodim — 100% o'sha yo'nalishga; qolgan umumiy xarajatlar — DAROMAD ULUSHIDA
-#      (daromad yo'q oyda — ko'rinadigan yo'nalishlarga teng).
-#   4) Har ustunda Daromad − Tannarx − Jami xarajat = Sof foyda; sof foydalar yig'indisi = Moliya sof foydasi.
+#   3) Yo'nalishi tanlangan xarajat / hodim — 100% o'sha yo'nalishga (hodim — «Oyliklar», qolgani — «Xarajatlar»).
+#      kech118 (egasi QARORI 2026-09-30 15:23 — kech114 «daromad ulushida» BEKOR): qolgan umumiy xarajatlar va yo'nalishsiz
+#      hodimlar TAQSIMLANMAYDI — faqat «Jami» ustunida (`umumiy_xarajat`, `umumiy_oylik`, `umumiy_qismlari`).
+#   4) Har ustunda Daromad − Tannarx − Oylik − Xarajat = Natija; ustunlar natijasi − umumiy = Jami natija = Moliya sof
+#      foydasi.
 # Asl kodda (yo'nalishlar yo'q) bu bo'lim YIQILADI (qulamaydi): qiymatlar `nan` bo'ladi.
 
 from models import OrderStatus as _OS, Employee, ExpenseTransaction  # noqa: E402
@@ -933,14 +935,12 @@ check("I8 Penoplast ustuni tannarxi = 4 ta detal xomashyosi yig'indisi",
       _n(lambda: _ust(sp, K_ASOSIY)["tannarx"]), round(peno_hajm * M3_14), atol=1.5)
 check("I8 Travertin ustuni tannarxi 0 (MRP ishlab chiqarishi yo'q)", _n(lambda: _ust(sp, K_TRAV)["tannarx"]), 0)
 
-# I9. Daromad ulushi — umumiy xarajat shu nisbatda bo'linadi («Belgilanmagan» ham daromadli ustun)
+# I9. kech118: ULUSH YO'Q — umumiy xarajat bo'linmaydi (ustunlarda «ulush» maydoni ham, «ulush_usuli» ham yo'q)
 _dar = {k: _n(lambda k=k: _ust(sp, k)["daromad"]) for k in (K_ASOSIY, K_TRAV, K_BELG)}
 _dj = sum(_dar.values())
 for k, nm in ((K_ASOSIY, "Penoplast"), (K_TRAV, "Travertin"), (K_BELG, "Belgilanmagan")):
-    check(f"I9 ulush_foiz {nm} = daromadi / jami daromad",
-          _n(lambda k=k: next(y["ulush_foiz"] for y in sp["yonalishlar"] if y["kalit"] == k)),
-          round(_dar[k] / _dj * 100, 1) if _dj else NAN)
-check_eq("I9 ulush usuli — daromad", sp.get("ulush_usuli"), "daromad")
+    check_eq(f"I9 {nm} ustunida «ulush» maydoni YO'Q (taqsim yo'q)", "ulush" in _ust(sp, k), False)
+check_eq("I9 «ulush_usuli» YO'Q", "ulush_usuli" in sp, False)
 
 # I10. Yo'nalishi belgilangan qo'shimcha xarajat — o'z yo'nalishiga to'liq (bevosita)
 _et_yon = {"yonalish_id": Y_TRAV.id if Y_TRAV is not None else None} if hasattr(ExpenseTransaction, "yonalish_id") else {}
@@ -958,16 +958,18 @@ check("I10 Penoplast yo'nalishli xarajat = 300k (bevosita, qo'shimcha)",
 check("I10 yo'nalishli xarajat umumiy ulushga KIRMAYDI (qo'shimcha umumiy = 0)",
       _n(lambda: sp2["umumiy_xarajatlar"]["qoshimcha"]), 0)
 
-# I11. Yo'nalishi BELGILANMAGAN («Umumiy») xarajat — daromad nisbatida bo'linadi
+# I11. Yo'nalishi BELGILANMAGAN («Umumiy») xarajat — kech118: TAQSIMLANMAYDI, faqat Jami (umumiy qism)
 sp_old = sp2
 db.add(ExpenseTransaction(company_id=B.CID, date=_dt.datetime(YIL, OY, 11),
                           category="boshqa", amount=1_000_000, production_type=None))
 db.commit()
 sp_new = _bolingan()
 for k, nm in ((K_ASOSIY, "Penoplast"), (K_TRAV, "Travertin"), (K_BELG, "Belgilanmagan")):
-    check(f"I11 umumiy 1 mln xarajat — {nm} ulushi daromad nisbatida",
-          _qism(sp_new, k, "ulush_qismlari", "qoshimcha") - _qism(sp_old, k, "ulush_qismlari", "qoshimcha"),
-          1_000_000 * _dar[k] / _dj if _dj else NAN, atol=0.02)
+    check(f"I11 umumiy 1 mln xarajat — {nm} ustuni O'ZGARMADI (taqsim yo'q)",
+          _n(lambda k=k: _ust(sp_new, k)["xarajat"] - _ust(sp_old, k)["xarajat"]), 0, atol=0.001)
+check("I11 umumiy 1 mln xarajat — Jami umumiy «qo'shimcha» +1 000 000",
+      _n(lambda: sp_new["jami_aniq"]["umumiy_qismlari"]["qoshimcha"] - sp_old["jami_aniq"]["umumiy_qismlari"]["qoshimcha"]),
+      1_000_000, atol=0.001)
 
 # I12. Hodim — yo'nalishi belgilangan bo'lsa 100% o'z yo'nalishiga
 from models import PayType as _PayType  # noqa: E402
@@ -981,6 +983,8 @@ sp3 = _bolingan()
 check("I12 yo'nalishi «Travertin» bo'lgan hodim — 100% Travertinga (bevosita)",
       _qism(sp3, K_TRAV, "bevosita_qismlari", "hodimlar"), 2_000_000)
 check("I12 Penoplast bevosita hodim xarajati 0", _qism(sp3, K_ASOSIY, "bevosita_qismlari", "hodimlar"), 0)
+check("I12 kech118: Travertin «Oyliklar» qatori = shu hodim oyligi (xarajatlardan alohida)",
+      _n(lambda: _ust(sp3, K_TRAV)["oylik"]), 2_000_000, atol=0.001)
 
 # I13. Yo'nalishsiz («Umumiy») hodim — daromad nisbatida bo'linadi
 emp2 = Employee(company_id=B.CID, name="I13 umumiy hodim",
@@ -991,36 +995,44 @@ db.add(emp2)
 db.commit()
 sp4 = _bolingan()
 for k, nm in ((K_ASOSIY, "Penoplast"), (K_TRAV, "Travertin"), (K_BELG, "Belgilanmagan")):
-    check(f"I13 yo'nalishsiz hodim — {nm} ga daromad nisbatida (ulush)",
-          _qism(sp4, k, "ulush_qismlari", "hodimlar"), 1_000_000 * _dar[k] / _dj if _dj else NAN, atol=0.02)
+    check(f"I13 yo'nalishsiz hodim — {nm} ustuni oyligi O'ZGARMADI (taqsim yo'q)",
+          _n(lambda k=k: _ust(sp4, k)["oylik"] - _ust(sp3, k)["oylik"]), 0, atol=0.001)
+check("I13 yo'nalishsiz hodim — faqat Jami: umumiy oylik = 1 000 000",
+      _n(lambda: sp4["jami_aniq"]["umumiy_oylik"]), 1_000_000, atol=0.001)
 
 # I14. Sof foyda va foiz — ichki izchillik (butun so'm va tiyin), yig'indi = Moliya sof foydasi
 for y in (sp4.get("yonalishlar") or [{"nom": "?", "som": {}, "aniq": {}}]):
     for tur in ("som", "aniq"):
         d = y.get(tur) or {}
-        check(f"I14 {y.get('nom')} ({tur}) — jami xarajat = bevosita + ulush",
-              _n(lambda d=d: d["jami_xarajat"]), _n(lambda d=d: d["bevosita"] + d["ulush"]), atol=0.001)
-        check(f"I14 {y.get('nom')} ({tur}) — sof foyda = daromad − tannarx − jami xarajat",
-              _n(lambda d=d: d["sof_foyda"]), _n(lambda d=d: d["daromad"] - d["tannarx"] - d["jami_xarajat"]), atol=0.001)
-        check(f"I14 {y.get('nom')} ({tur}) — qismlar yig'indisi = bevosita / ulush",
-              _n(lambda d=d: sum(d["bevosita_qismlari"].values()) + sum(d["ulush_qismlari"].values())),
-              _n(lambda d=d: d["jami_xarajat"]), atol=0.001)
-    check(f"I14 {y.get('nom')} — foyda foizi",
+        check(f"I14 {y.get('nom')} ({tur}) — jami xarajat = oylik + xarajat (o'ziniki)",
+              _n(lambda d=d: d["jami_xarajat"]), _n(lambda d=d: d["oylik"] + d["xarajat"]), atol=0.001)
+        check(f"I14 {y.get('nom')} ({tur}) — natija = daromad − tannarx − oylik − xarajat",
+              _n(lambda d=d: d["natija"]), _n(lambda d=d: d["daromad"] - d["tannarx"] - d["oylik"] - d["xarajat"]), atol=0.001)
+        check(f"I14 {y.get('nom')} ({tur}) — xarajat qismlari yig'indisi = xarajat",
+              _n(lambda d=d: sum(d["xarajat_qismlari"].values())), _n(lambda d=d: d["xarajat"]), atol=0.001)
+    check(f"I14 {y.get('nom')} — rentabellik (natija / daromad)",
           _n(lambda y=y: y["foyda_foiz"]),
-          _n(lambda y=y: round(y["som"]["sof_foyda"] / y["som"]["daromad"] * 100, 1) if y["som"]["daromad"] else 0))
+          _n(lambda y=y: round(y["som"]["natija"] / y["som"]["daromad"] * 100, 1) if y["som"]["daromad"] else 0))
 _moliya = _hisobot()
-check("I14 yo'nalishlar sof foydasi yig'indisi (so'm) = Moliya sof foydasi",
-      _n(lambda: sum(y["som"]["sof_foyda"] for y in sp4["yonalishlar"])), _n(lambda: round(_moliya["sof_foyda"])))
-check("I14 yo'nalishlar sof foydasi yig'indisi (tiyin) = Moliya sof foydasi",
-      _n(lambda: round(sum(y["aniq"]["sof_foyda"] for y in sp4["yonalishlar"]), 2)),
+check("I14 ustunlar natijasi − umumiy oylik − umumiy xarajat (so'm) = Jami natija = Moliya sof foydasi",
+      _n(lambda: sum(y["som"]["natija"] for y in sp4["yonalishlar"]) - sp4["jami"]["umumiy_oylik"]
+         - sp4["jami"]["umumiy_xarajat"]), _n(lambda: round(_moliya["sof_foyda"])))
+check("I14 ... (tiyin) = Moliya sof foydasi",
+      _n(lambda: round(sum(y["aniq"]["natija"] for y in sp4["yonalishlar"]) - sp4["jami_aniq"]["umumiy_oylik"]
+                       - sp4["jami_aniq"]["umumiy_xarajat"], 2)),
       _n(lambda: round(_moliya["sof_foyda"], 2)), atol=0.001)
 
-# I15. Daromadsiz oy — umumiy xarajat ko'rinadigan yo'nalishlarga TENG (Penoplast, Travertin — 50 / 50)
+# I15. Daromadsiz oy — kech118: umumiy xarajat hech kimga bo'linmaydi (ilgari — ko'rinadigan yo'nalishlarga TENG)
 sp5 = _bolingan(7)
-check_eq("I15 daromadsiz oy — ulush usuli «teng»", sp5.get("ulush_usuli"), "teng")
+_moliya7 = _hisobot(7)
+check_eq("I15 daromadsiz oy — «ulush_usuli» YO'Q (taqsim yo'q)", "ulush_usuli" in sp5, False)
 for k, nm in ((K_ASOSIY, "Penoplast"), (K_TRAV, "Travertin")):
-    check(f"I15 daromadsiz oy — {nm} ulushi 50%",
-          _n(lambda k=k: next(y["ulush_foiz"] for y in sp5["yonalishlar"] if y["kalit"] == k)), 50.0)
+    check_eq(f"I15 daromadsiz oy — {nm} ustunida «ulush» maydoni YO'Q", "ulush" in _ust(sp5, k), False)
+check("I15 daromadsiz oy — ustunlar natijasi − umumiy = Jami natija = Moliya sof foydasi",
+      _n(lambda: sum(y["som"]["natija"] for y in sp5["yonalishlar"]) - sp5["jami"]["umumiy_oylik"]
+         - sp5["jami"]["umumiy_xarajat"]), _n(lambda: round(_moliya7["sof_foyda"])))
+check("I15 daromadsiz oy — yo'nalishsiz hodimlar oyligi (I13 dagi 1 000 000) faqat Jami da",
+      _n(lambda: sp5["jami"]["umumiy_oylik"]), _n(lambda: sp5["jami"]["oylik"] - sum(y["som"]["oylik"] for y in sp5["yonalishlar"])))
 
 # I16. Tayyor mahsulotni buyurtmasiz sotish — mahsulotning TURI (MRP) yoki TURKUMI bo'yicha
 from models import FinishedProductSale  # noqa: E402

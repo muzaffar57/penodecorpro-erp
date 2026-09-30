@@ -130,6 +130,8 @@ vm.createContext(ctxA);
 for (const nom of ['parseNum', 'narxMatni', 'narxKorinishi', 'formatNum', '_onlikQism', '_tiyinHalfUp',
                    'buyurtmaJami', 'calcSubDetailRow', 'calculateItem'])
   vm.runInContext(olib(ORDERS, nom), ctxA, { filename: `orders.html:${nom}` });
+// kech118 (B — U-05, MOSLANDI): ko'rinadigan hajm / son — base.html `sonKor` (hisobga ta'sir qilmaydi)
+vm.runInContext(olib(T('base.html'), 'sonKor'), ctxA, { filename: 'base.html:sonKor' });
 
 const BAZA = 1000000;
 
@@ -277,6 +279,7 @@ vm.createContext(ctxC);
 // orders.html bilan AYNAN qoida), xulosa oynasi `narxKorinishi` — ular ham finished.html dan yuklanadi.
 for (const nom of ['parseNum', 'narxMatni', 'narxKorinishi', '_onlikQism', '_tiyinHalfUp', 'buyurtmaJami', 'tiyinga', 'pCalc'])
   vm.runInContext(olib(FINISHED, nom), ctxC, { filename: `finished.html:${nom}` });
+vm.runInContext(olib(T('base.html'), 'sonKor'), ctxC, { filename: 'base.html:sonKor' });   // kech118 (U-05, MOSLANDI)
 
 function pIshlat(qiymatlar) {
   for (const k of Object.keys(pMaydon)) delete pMaydon[k];

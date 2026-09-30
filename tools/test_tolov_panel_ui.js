@@ -89,6 +89,9 @@ function formatNum(n) {
 const FN = olib(ORDERS, 'loadPayments');
 const K1 = konst(ORDERS, 'PAY_TYPE_LABEL');
 const K2 = konst(ORDERS, 'PAY_METHOD_ICON');
+// kech118 (B — U-05, MOSLANDI): chegirma foizi base.html `sonKor` bilan («10%»; avval «10.0%»)
+const BASE = require('fs').readFileSync(require('path').join(require('path').dirname(process.argv[2] || require('path').join(ROOT, 'templates', 'orders.html')), 'base.html'), 'utf8');
+const BY = ['sonKor', 'tkMs', 'tkDate', 'tkSana', 'tkVaqt', 'tkSanaVaqt', 'tkToliq'].map(n => olib(BASE, n)).filter(Boolean).join('\n');
 
 async function panel(order) {
   const el = {};
@@ -109,7 +112,7 @@ async function panel(order) {
   let xato = null;
   try {
     if (!FN) throw new Error('loadPayments topilmadi');
-    vm.runInContext([K1 || '', K2 || '', FN].join('\n'), ctx);
+    vm.runInContext([BY, K1 || '', K2 || '', FN].join('\n'), ctx);
     await vm.runInContext('loadPayments(198)', ctx);
   } catch (e) {
     xato = String(e && e.message || e);
@@ -166,8 +169,8 @@ async function asosiy() {
     }));
     tekshir('3a funksiya xatosiz ishladi', !r.xato && !r.xatolar.length, r.xato || r.xatolar.join(' | '));
     tekshir('3b Chegirma ko\'rinadi', kor(r.el['pay-discount-row']) === 'flex', kor(r.el['pay-discount-row']));
-    tekshir('3c Chegirma = −50000 so\'m (10.0%) — ASL summadan',
-      r.el['pay-discount'].textContent === "−50000 so'm (10.0%)", r.el['pay-discount'].textContent);
+    tekshir('3c Chegirma = −50000 so\'m (10%) — ASL summadan',
+      r.el['pay-discount'].textContent === "−50000 so'm (10%)", r.el['pay-discount'].textContent);
     tekshir('3d Qaytarish = −35000 so\'m', r.el['pay-refund'].textContent === "−35000 so'm", r.el['pay-refund'].textContent);
     tekshir('3e Qaytarish qatori ko\'rinadi', kor(r.el['pay-refund-row']) === 'flex', kor(r.el['pay-refund-row']));
   }
@@ -191,7 +194,7 @@ async function asosiy() {
       total_amount: 500000, agreed_amount: 450000, debt_amount: 450000, discount_percent: 10,
     }));
     tekshir('5a funksiya xatosiz ishladi', !r.xato && !r.xatolar.length, r.xato || r.xatolar.join(' | '));
-    tekshir('5b Chegirma = −50000 so\'m (10.0%)', r.el['pay-discount'].textContent === "−50000 so'm (10.0%)", r.el['pay-discount'].textContent);
+    tekshir('5b Chegirma = −50000 so\'m (10%)', r.el['pay-discount'].textContent === "−50000 so'm (10%)", r.el['pay-discount'].textContent);
     tekshir('5c Chegirma qatori ko\'rinadi', kor(r.el['pay-discount-row']) === 'flex', kor(r.el['pay-discount-row']));
     tekshir('5d Qaytarish qatori yashirin', kor(r.el['pay-refund-row']) === 'none', kor(r.el['pay-refund-row']));
   }

@@ -328,7 +328,8 @@ function tahlilKodi() {
   const qismlar = [olib(BASE, 'escapeHtml'), konst(RETURNS, 'BRAK_OY_NOMLARI'), olib(RETURNS, 'brakTahlilOyMatn'),
                    olib(RETURNS, 'brakFoizMatn'), olib(RETURNS, 'brakTahlilHtml')];
   // kech106: yo'qotish sanasi `tkISO` (base.html — Toshkent vaqti yordamchilari) orqali
-  const tk = ['tkMs', 'tkDate', 'tkSana', 'tkVaqt', 'tkSanaVaqt', 'tkToliq', 'tkISO', 'tkHozir', 'tkKunFarqi']
+  // kech118 (B — U-05, MOSLANDI): sahifa funksiyalari endi base.html `sonKor` / `foizKor` ni chaqiradi — ro'yxatga qo'shildi
+  const tk = ['tkMs', 'tkDate', 'tkSana', 'tkVaqt', 'tkSanaVaqt', 'tkToliq', 'tkISO', 'tkHozir', 'tkKunFarqi', 'sonKor', 'foizKor', 'matnRangi']
     .map(n => olib(BASE, n)).filter(Boolean);
   return qismlar.every(Boolean) ? tk.concat(qismlar).join('\n') : null;
 }
@@ -346,11 +347,12 @@ async function tahlilBolimi() {
   bolim('returns.html — "Brak tahlili" kartasi (brakTahlilHtml, loadBrakTahlil, loadBrakTahlilBadge)');
   let r = await tahlilChiz(tahlilNamuna());
   const h = r.natija;
-  tekshir("T1 chiziladi: ulush 3.93 %, me'yor 5 %, Moliya va ishlab chiqarish summalari",
-          !r.xato && h.includes('class="brak-foiz"') && h.includes('3.93 %') && h.includes("Me'yor: 5 %")
+  // kech118 (B — U-05 / U-03, MOSLANDI): kasr — vergul («3,93 %»), yashil yozuv — to'q tus #15803D (oq fonda 5.0:1)
+  tekshir("T1 chiziladi: ulush 3,93 %, me'yor 5 %, Moliya va ishlab chiqarish summalari",
+          !r.xato && h.includes('class="brak-foiz"') && h.includes('3,93 %') && h.includes("Me'yor: 5 %")
           && h.includes('Sentyabr 2026'), r.xato || qisqa(h));
   tekshir("T2 me'yordan oshmagan → ogohlantirish bloki YO'Q, ulush yashil",
-          !r.xato && !h.includes('brak-ogohlantirish') && h.includes('#16A34A'), r.xato || qisqa(h));
+          !r.xato && !h.includes('brak-ogohlantirish') && h.includes('#15803D'), r.xato || qisqa(h));
   tekshir("T3 hodim / detal / birlik / mahsulot / yozgan — HTML sifatida chizilmaydi (escape), __xss yo'q",
           !r.xato && !h.includes('<img') && (h.match(/&lt;img src=x onerror=__xss=1&gt;&quot;&#39;&amp;/g) || []).length === 6
           && r.ctx && r.ctx.__xss === undefined, r.xato || qisqa(h));
@@ -360,12 +362,12 @@ async function tahlilBolimi() {
           !r.xato && (h.match(/class="brak-yoqotish-qator"/g) || []).length === 1 && h.includes('Ishlab chiqarish braki')
           && h.includes('Uskuna / stanok nosozligi') && h.includes('2026-09-20'), r.xato || qisqa(h));
   r = await tahlilChiz(tahlilNamuna({ brak_foizi: 5.01, meyordan_oshdi: true,
-                                      ogohlantirish: "Brak me'yordan oshdi: 5.01 % (me'yor 5 %) <b>x</b>",
+                                      ogohlantirish: "Brak me'yordan oshdi: 5,01 % (me'yor 5 %) <b>x</b>",
                                       trend: [{ yil: 2026, oy: 9, brak_xarajat: 5010, ishlab_chiqarish_xarajat: 100000,
                                                 brak_foizi: 5.01, meyordan_oshdi: true }] }));
   tekshir("T6 me'yordan oshdi → ogohlantirish bloki (matn escape), ulush qizil, oylar qatorida ⚠️",
           !r.xato && r.natija.includes('class="brak-ogohlantirish"') && r.natija.includes('&lt;b&gt;x&lt;/b&gt;')
-          && !r.natija.includes('<b>x</b>') && r.natija.includes('#DC2626') && r.natija.includes('⚠️ 5.01 %'),
+          && !r.natija.includes('<b>x</b>') && r.natija.includes('#DC2626') && r.natija.includes('⚠️ 5,01 %'),
           r.xato || qisqa(r.natija));
   r = await tahlilChiz(tahlilNamuna({ brak_foizi: null, ishlab_chiqarish_xarajat: 0, bosqichlar: [], sabablar: [],
                                       javobgarlar: [], top_detallar: [], yoqotishlar: [], trend: [] }));
@@ -405,19 +407,20 @@ async function tahlilBolimi() {
     const el = { brakTahlilBadge: element(''), 'brak-tahlil-oy': element(oyQiymati || '') };
     el.brakTahlilBadge.style = {};
     const m = muhit(el, {}, {}, { fetch: async () => javob(200, d) });
-    const kod = [olib(RETURNS, 'brakTahlilOyMatn'), olib(RETURNS, 'brakFoizMatn'), lb];
+    // kech118 (B — U-05, MOSLANDI): `brakFoizMatn` base.html `sonKor` ni chaqiradi
+    const kod = [olib(BASE, 'sonKor'), olib(RETURNS, 'brakTahlilOyMatn'), olib(RETURNS, 'brakFoizMatn'), lb];
     const r = kod.every(Boolean) ? await ishga(m, kod.join('\n'), 'loadBrakTahlilBadge()') : { xato: 'topilmadi' };
     return { xato: r.xato, el };
   };
   let b = await belgi({ yil: 2026, oy: 9, brak_foizi: 6.2, meyor_foiz: 5, meyordan_oshdi: true });
-  tekshir("T10 belgi: me'yordan oshgan → '⚠️ bu oy 6.2 % (me'yor 5 %)' qizil; oy maydoni to'ldiriladi",
-          !b.xato && b.el.brakTahlilBadge.textContent === "⚠️ bu oy 6.2 % (me'yor 5 %)"
+  tekshir("T10 belgi: me'yordan oshgan → '⚠️ bu oy 6,2 % (me'yor 5 %)' qizil; oy maydoni to'ldiriladi",
+          !b.xato && b.el.brakTahlilBadge.textContent === "⚠️ bu oy 6,2 % (me'yor 5 %)"
           && b.el.brakTahlilBadge.style.color === '#DC2626' && b.el['brak-tahlil-oy'].value === '2026-09',
           b.xato || qisqa({ t: b.el.brakTahlilBadge.textContent, oy: b.el['brak-tahlil-oy'].value }));
   b = await belgi({ yil: 2026, oy: 9, brak_foizi: 3.93, meyor_foiz: 5, meyordan_oshdi: false }, '2026-05');
   tekshir("T10b me'yorda → yashil, ⚠️ yo'q; tanlangan oy O'ZGARTIRILMAYDI",
-          !b.xato && b.el.brakTahlilBadge.textContent === "bu oy 3.93 % (me'yor 5 %)"
-          && b.el.brakTahlilBadge.style.color === '#16A34A' && b.el['brak-tahlil-oy'].value === '2026-05',
+          !b.xato && b.el.brakTahlilBadge.textContent === "bu oy 3,93 % (me'yor 5 %)"
+          && b.el.brakTahlilBadge.style.color === '#15803D' && b.el['brak-tahlil-oy'].value === '2026-05',
           b.xato || qisqa(b.el.brakTahlilBadge.textContent));
   b = await belgi({ yil: 2026, oy: 9, brak_foizi: null, meyor_foiz: 5, meyordan_oshdi: false });
   tekshir("T10c ulush yo'q → belgi bo'sh", !b.xato && b.el.brakTahlilBadge.textContent === '', b.xato);
@@ -436,20 +439,22 @@ async function dashBolimi() {
     el['brk-foiz'].style = {};
     const urllar = [];
     const m = muhit(el, {}, {}, { fetch: async (u) => { urllar.push(String(u)); return javob(status, d); } });
-    const r = fn ? await ishga(m, fn, 'loadBrakFoiz()') : { xato: 'topilmadi' };
+    // kech118 (B — U-05, MOSLANDI): `loadBrakFoiz` base.html `sonKor` ni chaqiradi
+    const sk = olib(BASE, 'sonKor');
+    const r = (fn && sk) ? await ishga(m, sk + '\n' + fn, 'loadBrakFoiz()') : { xato: 'topilmadi' };
     return { xato: r.xato, el, urllar };
   };
-  let s = await sina(200, { brak_foizi: 6.5, meyor_foiz: 5, meyordan_oshdi: true, ogohlantirish: "Brak me'yordan oshdi: 6.5 % (me'yor 5 %)" });
-  tekshir("D1 me'yordan oshdi → ulush '6.5 %' qizil, me'yor '5 %', ogohlantirish ko'rinadi (textContent)",
-          !s.xato && s.urllar[0] === '/api/reports/brak-tahlil?oylar=1' && s.el['brk-foiz'].textContent === '6.5 %'
+  let s = await sina(200, { brak_foizi: 6.5, meyor_foiz: 5, meyordan_oshdi: true, ogohlantirish: "Brak me'yordan oshdi: 6,5 % (me'yor 5 %)" });
+  tekshir("D1 me'yordan oshdi → ulush '6,5 %' qizil, me'yor '5 %', ogohlantirish ko'rinadi (textContent)",
+          !s.xato && s.urllar[0] === '/api/reports/brak-tahlil?oylar=1' && s.el['brk-foiz'].textContent === '6,5 %'
           && s.el['brk-foiz'].style.color === '#DC2626' && s.el['brk-meyor'].textContent === '5 %'
           && s.el['brk-ogohlantirish'].style.display === 'block'
-          && s.el['brk-ogohlantirish'].textContent === "⚠️ Brak me'yordan oshdi: 6.5 % (me'yor 5 %)"
+          && s.el['brk-ogohlantirish'].textContent === "⚠️ Brak me'yordan oshdi: 6,5 % (me'yor 5 %)"
           && s.el['brk-ogohlantirish'].innerHTML === '',
           s.xato || qisqa({ f: s.el['brk-foiz'].textContent, o: s.el['brk-ogohlantirish'].textContent }));
   s = await sina(200, { brak_foizi: 3.93, meyor_foiz: 5, meyordan_oshdi: false, ogohlantirish: null });
   tekshir("D2 me'yorda → yashil, ogohlantirish yashirin",
-          !s.xato && s.el['brk-foiz'].textContent === '3.93 %' && s.el['brk-foiz'].style.color === '#16A34A'
+          !s.xato && s.el['brk-foiz'].textContent === '3,93 %' && s.el['brk-foiz'].style.color === '#15803D'
           && s.el['brk-ogohlantirish'].style.display === 'none', s.xato || qisqa(s.el['brk-foiz']));
   s = await sina(200, { brak_foizi: null, meyor_foiz: 5, meyordan_oshdi: false, ogohlantirish: null });
   tekshir("D3 ulush yo'q → '—'", !s.xato && s.el['brk-foiz'].textContent === '—', s.xato || qisqa(s.el['brk-foiz']));

@@ -192,6 +192,11 @@ def liniya_peno_brak():
         r = services.calculate_split_profit_report(db, YIL, OY, company_id=1) or {}
         if "yonalishlar" not in r:           # eski tuzilma (asl kod)
             return round(float((r.get("penoplast") or {}).get("brak_xarajati", 0) or 0), 2)
+        if "jami_aniq" in r:
+            # kech118 (egasi QARORI 15:23 — MOSLANDI): umumiy xarajat TAQSIMLANMAYDI — yo'nalishsiz brak «Jami» da; hisobotdagi
+            # butun brak + TM yo'qotishi = Jami `xarajat_qismlari` (ustunlar + umumiy), tiyinda
+            q = r["jami_aniq"].get("xarajat_qismlari") or {}
+            return round(sum(float(q.get(k, 0) or 0) for k in ("brak", "tm_yoqotish")), 2)
         y = next((x for x in r["yonalishlar"] if x.get("asosiy")), {})
         a = y.get("aniq") or {}
         return round(sum(float((a.get(q) or {}).get(k, 0) or 0) for q in ("bevosita_qismlari", "ulush_qismlari")

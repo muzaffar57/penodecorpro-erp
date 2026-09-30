@@ -66,7 +66,8 @@ function ishga(qismlar, ifoda, qosh) {
     return { xato: null, v: vm.runInContext(ifoda, ctx) };
   } catch (e) { return { xato: String(e && e.message || e), v: null }; }
 }
-const ESC = olib(BASE, 'escapeHtml');
+// kech118 (B — U-03 / U-05, MOSLANDI): sahifa funksiyalari base.html `sonKor` / `matnRangi` … ni ham chaqiradi — birga yuklanadi
+const ESC = ['escapeHtml', 'sonKor', 'foizKor', 'birlikKor', 'matnRangi'].map(n => olib(BASE, n)).filter(Boolean).join('\n');
 const A = { item_name: 'Penoplast 10P', stock_quantity: -0.06190476190476213, min_stock: 0, unit: 'dona' };
 const B0 = { item_name: 'Mel', stock_quantity: 0, min_stock: 0, unit: 'kg' };
 const D = { item_name: 'Akril', stock_quantity: 5, min_stock: 10, unit: 'kg' };

@@ -283,13 +283,14 @@ for _foiz, _kut in _chegaralar:
     _natija.append((_foiz, _h.get("rentabellik"), (_h.get("sabablar") or {}).get("rentabellik")))
 check("H9 (K115-2) rentabellik chegaralari 15 / 5: baho va sabab BITTA qoida (15 → yaxshi, 14.9 / 5 → o'rtacha, "
       "4.9 / manfiy → past)",
-      all(b == k and t == f"Rentabellik {f:g} % — {_REN[k]}" for (f, b, t), (_f2, k) in zip(_natija, _chegaralar)), _natija)
+      all(b == k and t == f"Rentabellik {f:g} % — {_REN[k]}".replace(".", ",")      # kech118 (U-05): kasr — vergul
+          for (f, b, t), (_f2, k) in zip(_natija, _chegaralar)), _natija)
 _qs = (h.get("sabablar") or {}).get("qarzdorlik", "")
-_qm = _re_k1152.match(r"^Qarz — sotuvning (-?[0-9.]+) % — (.+)$", _qs or "")
+_qm = _re_k1152.match(r"^Qarz — sotuvning (-?[0-9,]+) % — (.+)$", _qs or "")     # kech118 (U-05): kasr — vergul
 _QAR = {"green": "yaxshi (15 % dan kam)", "orange": "o'rtacha (15–30 %)", "red": "yuqori (30 % va undan ko'p)"}
 _qkut = None
 if _qm:
-    _qf = float(_qm.group(1))
+    _qf = float(_qm.group(1).replace(",", "."))
     _qkut = "green" if _qf < 15 else ("orange" if _qf < 30 else "red")
 check("H10 (K115-2) qarzdorlik sababi chegara bilan, baho ko'rsatilgan foizga mos (asl: «Qarz — sotuvning N %» — chegarasiz)",
       _qm is not None and h.get("qarzdorlik") == _qkut and _qm.group(2) == _QAR.get(_qkut), (h.get("qarzdorlik"), _qs))
@@ -548,16 +549,18 @@ section("F. Moliya — G3-10 / G1-04")
 check("F1 «Pul oqimi» (bugun) — MINUS bilan, qizil (asl: minussiz)", bosh(g("f", "oqim")).startswith("-")
       and len(bosh(g("f", "oqim"))) > 8 and g("f", "oqim_rang") == "var(--f-danger)", N.get("f"))
 _SOF = float(_rep.get("sof_foyda", 0) or 0)
-_SOF_Q = ("-" if _SOF < 0 else "") + f"{abs(_SOF) / 1e6:.1f} mln so'm"
+# kech118 (B — U-05, MOSLANDI: qoida o'sha, ko'rinish yangi qarorga — kasr VERGUL bilan; egasi qarorlari lug'ati / audit U-05)
+_SOF_Q = ("-" if _SOF < 0 else "") + f"{abs(_SOF) / 1e6:.1f} mln so'm".replace(".", ",")
 check(f"F2 oylik sof foyda — «{_SOF_Q}» (asl: ajratgichsiz «{int(_SOF)}»)", _SOF <= -1e6 and bosh(g("f", "foyda")) == _SOF_Q,
       (g("f", "foyda"), _SOF))
 check("F3 manfiy rentabellik — QIZIL (asl: yashil)", g("f", "foiz_rang") == "var(--f-danger)", (g("f", "foiz"), g("f", "foiz_rang")))
-check("F4 qisqaSumma: -2.6 mln / -500 / 0 / 2 ming / -26.8 mln / 1 000 dan kichik — butun",
-      g("f", "q") == ["-2.6 mln", "-500", "0", "2 ming", "-26.8 mln", "1 ming", "1.0 mln", "0"], g("f", "q"))
+check("F4 qisqaSumma: -2,6 mln / -500 / 0 / 2 ming / -26,8 mln / 1 000 dan kichik — butun (kech118: kasr — vergul)",
+      g("f", "q") == ["-2,6 mln", "-500", "0", "2 ming", "-26,8 mln", "1 ming", "1,0 mln", "0"], g("f", "q"))
 
 section("D. Dashboard — G3-10")
 check(f"D1 «Bu oy moliyaviy holat» sof foyda — «{_SOF_Q}» (asl: ajratgichsiz)", bosh(g("d", "sof")) == _SOF_Q, (g("d", "sof"), _SOF))
-check("D2 fmt: manfiy ham qisqa (-2.6 mln / -26.8 mln / -700)", g("d", "fmt") == ["-2.6 mln", "-26.8 mln", "-700"], g("d", "fmt"))
+check("D2 fmt: manfiy ham qisqa (-2,6 mln / -26,8 mln / -700; kech118: kasr — vergul)", g("d", "fmt") == ["-2,6 mln", "-26,8 mln", "-700"],
+      g("d", "fmt"))
 
 section("X. Xatolar")
 check("X1 sahifa JS xatosi yo'q, 5xx yo'q", not NAT.get("xato") and not NAT.get("api_xato"), (NAT.get("xato"), NAT.get("api_xato")))

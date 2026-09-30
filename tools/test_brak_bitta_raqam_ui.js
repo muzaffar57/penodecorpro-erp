@@ -103,7 +103,8 @@ function tahlilNamuna(qosh) {
 function tahlilChiz(d) {
   const qismlar = [olib(BASE, 'escapeHtml'), konst(RETURNS, 'BRAK_OY_NOMLARI'), olib(RETURNS, 'brakTahlilOyMatn'),
                    olib(RETURNS, 'brakFoizMatn'), olib(RETURNS, 'brakTahlilHtml')];
-  const tk = ['tkMs', 'tkDate', 'tkSana', 'tkVaqt', 'tkSanaVaqt', 'tkToliq', 'tkISO', 'tkHozir', 'tkKunFarqi']
+  // kech118 (B — U-05, MOSLANDI): sahifa funksiyalari endi base.html `sonKor` / `foizKor` ni chaqiradi — ro'yxatga qo'shildi
+  const tk = ['tkMs', 'tkDate', 'tkSana', 'tkVaqt', 'tkSanaVaqt', 'tkToliq', 'tkISO', 'tkHozir', 'tkKunFarqi', 'sonKor', 'foizKor']
     .map(n => olib(BASE, n)).filter(Boolean);
   if (!qismlar.every(Boolean)) return { xato: 'funksiyalar topilmadi', html: '' };
   const ctx = kontekst();
@@ -146,7 +147,8 @@ tekshir("T5 manfiy farq ham ko'rsatiladi (yashirilmaydi)", !r.xato && iz.include
 // M — finance.html: xarajatlar ro'yxati
 // ══════════════════════════════════════════════════════════════
 function moliyaChiz(d) {
-  const kod = [olib(BASE, 'escapeHtml'), olib(FINANCE, 'fmt'), olib(FINANCE, 'fmtFull'), olib(FINANCE, 'buildExpDetail')];
+  const kod = [olib(BASE, 'escapeHtml'), olib(BASE, 'sonKor'), olib(BASE, 'foizKor'),   // kech118 (U-05): sahifa ularni chaqiradi
+               olib(FINANCE, 'fmt'), olib(FINANCE, 'fmtFull'), olib(FINANCE, 'buildExpDetail')];
   if (!kod.every(Boolean)) return { xato: 'funksiyalar topilmadi', html: '', el: {} };
   const el = {};
   const ol = (id) => { if (!el[id]) el[id] = { innerHTML: '', textContent: '', style: {} }; return el[id]; };

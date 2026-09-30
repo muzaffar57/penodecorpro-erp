@@ -573,7 +573,8 @@ check("H2 hisobot: YAXLITLANMAGAN qiymatlar (inbound_aniq / outbound_company_ani
 check("H3 qo'shimcha xarajatlar: KIRIM_TANNARX_MANBA chiqariladi, NULL saqlanadi (or_)",
       "_or_kt(ExpenseTransaction.source.is_(None), ExpenseTransaction.source != _KTM)" in _srcr)
 try:
-    _srcy = inspect.getsource(services.calculate_split_profit_report)
+    # kech118: bir oylik qismlar `_yon_oy_aniq` ga ko'chdi (hisobot endi davr — bir necha oy — bo'yicha yig'adi)
+    _srcy = inspect.getsource(getattr(services, "_yon_oy_aniq", None) or services.calculate_split_profit_report)
 except Exception:                          # noqa: BLE001
     _srcy = ""
 # kech117 (A2): «turlar bo'yicha» (gips / penoplast) o'rniga — yo'nalishlar hisoboti: tannarxga qo'shilgan kirim xarajati

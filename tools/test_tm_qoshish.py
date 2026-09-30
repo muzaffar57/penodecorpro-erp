@@ -443,7 +443,8 @@ check("F3 '+' oldindan ko'rish: jami / produced_quantity",
       "const bol = (item.produced_quantity > 0) ? item.produced_quantity : item.quantity;" in _h
       and "unitVol = (item.volume_m3 || 0) / bol;" in _h and "unitLoy = (item.actual_loy_kg || 0) / bol;" in _h)
 check("F4 foyda oynasi hajm / loy serverdan (qoldiq)",
-      "qVol = d.volume_m3 || 0;" in _h and "📦 Hajm (qoldiq): <b>${qVol.toFixed(4)} m³</b>" in _h
+      # kech118 (U-05, MOSLANDI): hajm — `sonKor` (kasr vergul, ortiqcha nolsiz; avval `toFixed(4)`)
+      "qVol = d.volume_m3 || 0;" in _h and "📦 Hajm (qoldiq): <b>${sonKor(qVol, 4)} m³</b>" in _h
       and "row(`🧱 Loy (${qLoyTxt} kg" in _h and "row(`🧱 Loy (${i.actual_loy_kg} kg" not in _h)
 _c = inspect.getsource(crud.add_to_production)
 check("F5 crud: MRP sharti base_qty dan OLDIN, umumiy to'siq yetarlilik tekshiruvidan OLDIN",

@@ -410,7 +410,10 @@ TIZIM = {
     "finance_pdf.py": {"count_label", "label", "r[0]", "r[1]", "title", "{MONTH_NAMES[month]}", "{data['foyda_foiz']}",
                        "{foyda_foiz}", "{net_sign}", "{year}", "{_uu}",
                        # kech117 (G6-09): son ko'rinishlari — ayiriladigan / ishorali summa, rentabellik foizi, «+» belgisi
-                       "_ayir(v) if ishora else _fmt_ishora(v)", "{f}", "{'+' if _yaxlit_butun(net) > 0 else ''}"},
+                       "_ayir(v) if ishora else _fmt_ishora(v)", "{f}", "{'+' if _yaxlit_butun(net) > 0 else ''}",
+                       # kech118 (yo'nalishlar natijasi — egasi QARORI 15:23): «—» (faqat Jami qatori) / ayiriladigan
+                       # summa, natija «+N» / «−N» — faqat son
+                       '"\\u2014" if v is None else (_ayir(v) if ayir else _fmt_ishora(v))', "_fmt_natija(v)"},
 }
 
 
@@ -433,7 +436,9 @@ def buzilishlar(src, tizim):
                     continue
                 e = v.value
                 # kech117: `_fmt_ishora` — faqat son (ishora + raqamlar), `_fmt` kabi
-                if isinstance(e, ast.Call) and (getattr(e.func, "id", None) in ("_x", "_fmt", "_num", "len", "_fmt_ishora")
+                # kech118: `_fmt_natija` / `_foiz_uz` / `_ozgarish_matni` — faqat son (ishora, raqam, vergul, «%»)
+                if isinstance(e, ast.Call) and (getattr(e.func, "id", None) in ("_x", "_fmt", "_num", "len", "_fmt_ishora",
+                                                                                "_fmt_natija", "_foiz_uz", "_ozgarish_matni")
                                                 or getattr(e.func, "attr", None) == "strftime"):
                     continue
                 q = "{" + ast.get_source_segment(src, e) + "}"

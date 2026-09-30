@@ -80,7 +80,8 @@ function javob(status, data) {
            clone() { return this; } };
 }
 
-const BASE_FN = ['escapeHtml', 'xatoSababi', 'serverXatoSababi'];
+// kech118 (B — U-05, MOSLANDI): sahifa funksiyalari base.html `sonKor` / `matnRangi` … ni ham chaqiradi
+const BASE_FN = ['escapeHtml', 'xatoSababi', 'serverXatoSababi', 'sonKor', 'foizKor', 'birlikKor', 'matnRangi'];
 function kod(src, nomlar) {
   const qism = [];
   const yoq = [];

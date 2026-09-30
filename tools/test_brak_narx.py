@@ -343,6 +343,11 @@ def split_brak():
         # (butun so'm; ilgari «Gips / Penoplast» ikkiga bo'lingan `["penoplast"]`). Eski tuzilma (asl kod) — avvalgidek.
         if "yonalishlar" not in r:
             return (r["penoplast"]["brak_xarajati"], r["penoplast"]["sof_foyda"])
+        if "jami_aniq" in r:
+            # kech118 (egasi QARORI 15:23 — MOSLANDI): umumiy xarajat TAQSIMLANMAYDI — yo'nalishsiz brak «Jami» da; butun brak
+            # + TM yo'qotishi = Jami `xarajat_qismlari`, korxona natijasi = Jami `natija` (= Moliya sof foydasi)
+            j = r["jami"]
+            return (sum((j.get("xarajat_qismlari") or {}).get(k, 0) for k in ("brak", "tm_yoqotish")), j["natija"])
         y = next(x for x in r["yonalishlar"] if x.get("asosiy"))
         s_ = y["som"]
         return (sum(s_[q].get(k, 0) for q in ("bevosita_qismlari", "ulush_qismlari") for k in ("brak", "tm_yoqotish")),

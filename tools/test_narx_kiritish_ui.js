@@ -96,7 +96,8 @@ function sana(src, nom) {
 
 // Sahifaning 5 yordamchisi yuklangan soxta muhit.
 // kech106: sahifa funksiyalari joriy oy / "bugun" ni base.html dagi Toshkent vaqti yordamchilaridan oladi
-const TK_FUNKS = ['tkMs', 'tkDate', 'tkSana', 'tkVaqt', 'tkSanaVaqt', 'tkToliq', 'tkISO', 'tkHozir', 'tkKunFarqi'];
+// kech118 (B — U-05, MOSLANDI): son / birlik ko'rinishi base.html `sonKor` / `birlikKor` orqali — ro'yxatga qo'shildi
+const TK_FUNKS = ['tkMs', 'tkDate', 'tkSana', 'tkVaqt', 'tkSanaVaqt', 'tkToliq', 'tkISO', 'tkHozir', 'tkKunFarqi', 'sonKor', 'foizKor', 'birlikKor', 'matnRangi'];
 const BASE_SRC = (() => { try { return fs.readFileSync(path.join(TDIR, 'base.html'), 'utf8'); } catch (e) { return ''; } })();
 function muhit(sahifa, qoshimcha) {
   const ctx = Object.assign({ console }, qoshimcha || {});

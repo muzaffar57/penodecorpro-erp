@@ -418,6 +418,9 @@ def js_funksiya(src, nom_):
 
 _fin = open(os.path.join(ROOT, "templates", "finance.html"), encoding="utf-8").read()
 _fn = js_funksiya(_fin, "buildExpDetail")
+# kech118 (B — U-05 / U-03, MOSLANDI): buildExpDetail endi base.html `foizKor` / `matnRangi` ni chaqiradi — kontekstga qo'shiladi
+_base = open(os.path.join(ROOT, "templates", "base.html"), encoding="utf-8").read()
+_yordam = "\n".join(filter(None, (js_funksiya(_base, _n) for _n in ("sonKor", "foizKor", "birlikKor", "matnRangi"))))
 _JS = r"""
 const elementlar = {};
 const document = {getElementById: (id) => (elementlar[id] = elementlar[id] || {style: {}, textContent: '', innerHTML: ''})};
@@ -433,7 +436,7 @@ process.stdout.write(JSON.stringify(elementlar['expDetail'].innerHTML));
 _h = ""
 if _fn:
     try:
-        _p = subprocess.run(["node", "-e", _JS.replace("__FN__", _fn)], input=json.dumps(REP), capture_output=True, text=True,
+        _p = subprocess.run(["node", "-e", _JS.replace("__FN__", _yordam + "\n" + _fn)], input=json.dumps(REP), capture_output=True, text=True,
                             timeout=60)
         _h = json.loads(_p.stdout) if _p.returncode == 0 else ""
         if not _h:

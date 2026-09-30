@@ -998,6 +998,9 @@ def js_funksiya(src, nom_):
 _fin = open(os.path.join(ROOT, "templates", "finance.html"), encoding="utf-8").read()
 _fn = js_funksiya(_fin, "buildExpDetail")
 check("U buildExpDetail topildi", _fn is not None)
+# kech118 (B — U-05 / U-03, MOSLANDI): buildExpDetail endi base.html `foizKor` / `matnRangi` ni chaqiradi — kontekstga qo'shiladi
+_base = open(os.path.join(ROOT, "templates", "base.html"), encoding="utf-8").read()
+_yordam = "\n".join(filter(None, (js_funksiya(_base, _n) for _n in ("sonKor", "foizKor", "birlikKor", "matnRangi"))))
 _JS = r"""
 const elementlar = {};
 const document = {getElementById: (id) => (elementlar[id] = elementlar[id] || {style: {}, textContent: '', innerHTML: ''})};
@@ -1021,7 +1024,7 @@ _holatlar = [dict(_asos, qaytarish_soni=2, qaytarish_daromad=-150_000, qaytarish
 _u = None
 if _fn:
     try:
-        _p = subprocess.run(["node", "-e", _JS.replace("__FN__", _fn)], input=json.dumps(_holatlar), capture_output=True,
+        _p = subprocess.run(["node", "-e", _JS.replace("__FN__", _yordam + "\n" + _fn)], input=json.dumps(_holatlar), capture_output=True,
                             text=True, timeout=60)
         _u = json.loads(_p.stdout) if _p.returncode == 0 else None
         if _u is None:
@@ -1056,9 +1059,12 @@ check("S6b davr_qaytarishlari — hisobot keshida eslab qolinadi (bir hisobotda 
       tartibda(manba(services, "davr_qaytarishlari"), '_x = _hk_ol(db, "qaytarish_davr", _kalit)', "if _x is not _HK_YOQ:", "return _x",
                '_hk_qoy(db, "qaytarish_davr", _kalit, natija)'))
 check("S7 finance.html — qaytarish guruhi", "Qaytarishlar (${d.qaytarish_soni} ta, shu oyda)" in _fin)
-for _nm in ("calculate_monthly_master_kpi", "calculate_monthly_ehson", "get_daily_finance_summary", "get_today_stats",
-            "calculate_split_profit_report"):
+for _nm in ("calculate_monthly_master_kpi", "calculate_monthly_ehson", "get_daily_finance_summary", "get_today_stats"):
     check(f"S8 {_nm} — davr_qaytarishlari", "davr_qaytarishlari(" in manba(services, _nm))
+# kech118 (yo'nalishlar — egasi qarori 15:23, MOSLANDI): hisobot davr oylarini `_yon_oy_aniq` da yig'adi; qaytarishlar —
+# oylik `_yon_oy_aniq` da (`_yon_davr_jami` — faqat oldingi davr solishtiruvi, oylik hisobotdan)
+check("S8 calculate_split_profit_report — davr_qaytarishlari (_yon_oy_aniq orqali)",
+      "davr_qaytarishlari(" in manba(services, "_yon_oy_aniq") and "_yon_oy_aniq(" in manba(services, "calculate_split_profit_report"))
 for _nm in ("get_master_kpi_detail", "get_masters_kpi_report", "_gift_period_profit_since", "get_master_yearly_cashback"):
     check(f"S9 crud.{_nm} — yakun_foydasi + davr_qaytarishlari",
           "services.yakun_foydasi(db, o)" in manba(crud, _nm) and "services.davr_qaytarishlari(" in manba(crud, _nm))

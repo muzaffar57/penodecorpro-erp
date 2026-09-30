@@ -29,6 +29,9 @@ const ROOT = path.dirname(__dirname);
 const TDIR = process.argv[2] || path.join(ROOT, 'templates');
 let SRC = '';
 try { SRC = fs.readFileSync(path.join(TDIR, 'orders.html'), 'utf8'); } catch (e) { SRC = ''; }
+// kech118 (B — U-05, MOSLANDI): eslatma / chegirma foizi base.html `sonKor` bilan («10%», «+12,5%»; avval «10.00%»)
+let BASE_SRC = '';
+try { BASE_SRC = fs.readFileSync(path.join(TDIR, 'base.html'), 'utf8'); } catch (e) { BASE_SRC = ''; }
 
 let OK = 0, FAIL = 0;
 const FAILED = [];
@@ -108,6 +111,7 @@ function muhit() {
     'function collectItems(){ return Array.from(document.querySelectorAll(".detal")).filter(r => r.querySelector(".i-name").value.trim()).map(r => ({name: r.querySelector(".i-name").value, category: "panel", quantity: 1, unit_price: parseFloat(r.dataset.price)})); }',
     'window.__tanalar = []; window.fetch = async (url, o) => { window.__tanalar.push({url: String(url), body: o && o.body ? JSON.parse(o.body) : null}); return { ok: false, status: 400, json: async () => ({ detail: "sinov" }) }; };',
     ...FUNK.map(f => KOD[f] || ''),
+    ...['sonKor', 'foizKor'].map(f => olib(BASE_SRC, f) || ''),
     'function __yukla(order) { editMode = true; currentEditOrderId = order.id; var editId = order.id;',
     QISM_YUKLASH || 'throw new Error("QISM_YUKLASH topilmadi");',
     QISM_OXIR || 'throw new Error("QISM_OXIR topilmadi");',
@@ -195,9 +199,9 @@ function davom2() {
     ochir(w, 'B');
     qayta(w);
     const h = holat(w);
-    tekshir('U2 10 % chegirma (360 000): yuklanganda «10.00% chegirma bor»; B olib tashlandi — 270 000, «Chegirma 10.00% saqlandi»',
-      x === null && h0.hint.includes('10.00%') && h0.hint.includes('chegirma') && h.fp === '270 000'
-      && h.hint.includes('Chegirma') && h.hint.includes('10.00%'), { x, h0, h });
+    tekshir('U2 10 % chegirma (360 000): yuklanganda «10% chegirma bor»; B olib tashlandi — 270 000, «Chegirma 10% saqlandi»',
+      x === null && h0.hint.includes(' 10% chegirma') && h0.hint.includes('chegirma') && h.fp === '270 000'
+      && h.hint.includes('Chegirma') && h.hint.includes('Chegirma 10% saqlandi'), { x, h0, h });
   }
   // U3 ustama
   {
@@ -206,9 +210,9 @@ function davom2() {
     ochir(w, 'B');
     qayta(w);
     const h = holat(w);
-    tekshir('U3 ustama 450 000: yuklanganda «+12.50% ustama»; B olib tashlandi — 337 500 (asl: 450 000), «Ustama +12.50%»',
-      x === null && h0.hint.includes('+12.50%') && h0.hint.includes('ustama') && h.fp === '337 500'
-      && h.hint.includes('Ustama +12.50%'), { x, h0, h });
+    tekshir('U3 ustama 450 000: yuklanganda «+12,5% ustama»; B olib tashlandi — 337 500 (asl: 450 000), «Ustama +12,5%»',
+      x === null && h0.hint.includes('+12,5%') && h0.hint.includes('ustama') && h.fp === '337 500'
+      && h.hint.includes('Ustama +12,5%'), { x, h0, h });
   }
   // U4 kechirilgan (chegirmasiz)
   {
@@ -239,7 +243,7 @@ function davom2() {
     qayta(w);
     const h = holat(w);
     tekshir('U6 10 % chegirma + nomsiz (saqlanmaydigan) qator 100 000: kelishilgan 360 000 qoladi (asl: 450 000), eslatma o\'zgarmaydi',
-      x === null && h.fp === '360 000' && h.hint === h0.hint && h.info.includes('10.0%'), { x, h0, h });
+      x === null && h.fp === '360 000' && h.hint === h0.hint && h.info.includes('(10%)'), { x, h0, h });
   }
   // U7 tiyinli chegirmasiz — ko'rinish
   {
@@ -265,8 +269,8 @@ function davom2() {
     ochir(w, 'B');
     qayta(w);
     const h = holat(w);
-    tekshir('U8a qo\'lda 420 000 (+5 %), so\'ng B olib tashlandi — 315 000 (asl: 420 000 qolardi), «Ustama +5.00%»',
-      x === null && x2 === null && h.fp === '315 000' && h.hint.includes('Ustama +5.00%'), { x, x2, h });
+    tekshir('U8a qo\'lda 420 000 (+5 %), so\'ng B olib tashlandi — 315 000 (asl: 420 000 qolardi), «Ustama +5%»',
+      x === null && x2 === null && h.fp === '315 000' && h.hint.includes('Ustama +5% '), { x, x2, h });
     w.__tanalar.length = 0;
     let x3 = null;
     (async () => { try { await w.updateOrder(5); } catch (e) { x3 = String(e && e.message || e); } })().then(() => {
@@ -334,7 +338,7 @@ function davom3() {
     const { w, x } = tahrirda({ agreed_amount: 310000, kelishilgan_asl: 360000, discount_percent: 10, pul_qaytarish_kamaytirgan: 50000 });
     const h0 = holat(w);
     tekshir('U12 pul qaytarish (50 000) + 10 % chegirma: forma ASL 360 000, ikkala eslatma (chegirma, qaytarish)',
-      x === null && h0.fp === '360 000' && h0.hint.includes('10.00%') && h0.hint.includes('50 000'), { x, h0 });
+      x === null && h0.fp === '360 000' && h0.hint.includes(' 10% chegirma') && h0.hint.includes('50 000'), { x, h0 });
     ochir(w, 'B');
     qayta(w);
     const h1 = holat(w);

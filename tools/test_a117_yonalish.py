@@ -688,24 +688,37 @@ check("D1 API 200 va natija xizmat bilan AYNAN; ustunlar: Penoplast, Metall, Yog
       [_api.status_code, [y.get("nom") for y in (SP.get("yonalishlar") or [])] if isinstance(SP, dict) else SP])
 _som = [y["som"] for y in SP.get("yonalishlar", [])] if isinstance(SP, dict) else []
 _aniq = [y["aniq"] for y in SP.get("yonalishlar", [])] if isinstance(SP, dict) else []
-check("D2 butun so'mda: sof foydalar yig'indisi = Moliya sof foydasi (HALF_UP) = `moliya_sof_foyda`",
-      _som and sum(x["sof_foyda"] for x in _som) == yaxlit(SOF) == SP.get("moliya_sof_foyda"),
-      [sum(x["sof_foyda"] for x in _som) if _som else None, yaxlit(SOF), SP.get("moliya_sof_foyda") if isinstance(SP, dict) else SP])
-check("D3 tiyinda: sof foydalar yig'indisi = Moliya sof foydasi (tiyin, butun sonlar)",
-      _aniq and sum(yaxlit(x["sof_foyda"], 100) for x in _aniq) == yaxlit(SOF, 100),
-      [sum(yaxlit(x["sof_foyda"], 100) for x in _aniq) if _aniq else None, yaxlit(SOF, 100)])
-_ust_ok = all(x["daromad"] - x["tannarx"] - x["jami_xarajat"] == x["sof_foyda"]
-              and x["jami_xarajat"] == x["bevosita"] + x["ulush"]
-              and sum(x["bevosita_qismlari"].values()) == x["bevosita"] and sum(x["ulush_qismlari"].values()) == x["ulush"]
-              for x in _som)
-_ust_ok_t = all(yaxlit(x["daromad"], 100) - yaxlit(x["tannarx"], 100) - yaxlit(x["jami_xarajat"], 100) == yaxlit(x["sof_foyda"], 100)
-                for x in _aniq)
-check("D4 har ustunda: daromad − tannarx − jami xarajat = sof foyda; jami = bevosita + ulush; qismlar yig'indisi (so'm va tiyin)",
-      _som and _ust_ok and _ust_ok_t, _som)
+# kech118 (egasi QARORI 15:23 — MOSLANDI): umumiy (yo'nalishsiz) oylik va xarajatlar TAQSIMLANMAYDI — faqat «Jami»:
+# yo'nalishlar natijasi yig'indisi − umumiy oylik − umumiy xarajat = Jami natija = Moliya sof foydasi.
 _jam = SP.get("jami", {}) if isinstance(SP, dict) else {}
-check("D5 JAMI ustuni = qatorlar yig'indisi; JAMI daromad = Moliya daromadi, JAMI tannarx = tannarx_jami (butun so'm)",
-      _som and all(_jam.get(k) == sum(x[k] for x in _som) for k in ("daromad", "tannarx", "bevosita", "ulush",
-                                                                 "jami_xarajat", "sof_foyda"))
+_jaq = SP.get("jami_aniq", {}) if isinstance(SP, dict) else {}
+check("D2 butun so'mda: yo'nalishlar natijasi − umumiy oylik − umumiy xarajat = Jami natija = Moliya sof foydasi (HALF_UP) "
+      "= `moliya_sof_foyda`",
+      _som and sum(x["natija"] for x in _som) - _jam.get("umumiy_oylik", 0) - _jam.get("umumiy_xarajat", 0)
+      == _jam.get("natija") == yaxlit(SOF) == SP.get("moliya_sof_foyda") == _jam.get("sof_foyda"),
+      [sum(x["natija"] for x in _som) if _som else None, _jam, yaxlit(SOF), SP.get("moliya_sof_foyda") if isinstance(SP, dict) else SP])
+check("D3 tiyinda: yo'nalishlar natijasi − umumiy = Moliya sof foydasi (tiyin, butun sonlar)",
+      _aniq and sum(yaxlit(x["natija"], 100) for x in _aniq) - yaxlit(_jaq.get("umumiy_oylik", 0), 100)
+      - yaxlit(_jaq.get("umumiy_xarajat", 0), 100) == yaxlit(SOF, 100) == yaxlit(_jaq.get("natija", 0), 100),
+      [sum(yaxlit(x["natija"], 100) for x in _aniq) if _aniq else None, _jaq, yaxlit(SOF, 100)])
+_ust_ok = all(x["daromad"] - x["tannarx"] - x["oylik"] - x["xarajat"] == x["natija"] == x["sof_foyda"]
+              and x["bevosita"] == x["jami_xarajat"] == x["oylik"] + x["xarajat"] and "ulush" not in x
+              and sum(x["xarajat_qismlari"].values()) == x["xarajat"] and x["bevosita_qismlari"].get("hodimlar") == x["oylik"]
+              and sum(x["bevosita_qismlari"].values()) == x["bevosita"]
+              for x in _som)
+_ust_ok_t = all(yaxlit(x["daromad"], 100) - yaxlit(x["tannarx"], 100) - yaxlit(x["oylik"], 100) - yaxlit(x["xarajat"], 100)
+                == yaxlit(x["natija"], 100) for x in _aniq)
+check("D4 har ustunda: daromad − tannarx − oylik − xarajat = natija; «ulush» YO'Q; xarajat qismlari yig'indisi (so'm va tiyin)",
+      _som and _ust_ok and _ust_ok_t, _som)
+check("D5 JAMI: daromad / tannarx = ustunlar yig'indisi (= Moliya daromadi / tannarx_jami); oylik = ustunlar + umumiy; xarajat = "
+      "ustunlar + umumiy; umumiy qismlari yig'indisi; har xarajat turi = ustunlardagi + umumiy",
+      _som and _jam.get("daromad") == sum(x["daromad"] for x in _som) and _jam.get("tannarx") == sum(x["tannarx"] for x in _som)
+      and _jam.get("oylik") == sum(x["oylik"] for x in _som) + _jam.get("umumiy_oylik", 0)
+      and _jam.get("xarajat") == sum(x["xarajat"] for x in _som) + _jam.get("umumiy_xarajat", 0)
+      and _jam.get("daromad") - _jam.get("tannarx") - _jam.get("oylik") - _jam.get("xarajat") == _jam.get("natija")
+      and sum(_jam.get("umumiy_qismlari", {}).values()) == _jam.get("umumiy_oylik", 0) + _jam.get("umumiy_xarajat", 0)
+      and all(_jam.get("xarajat_qismlari", {}).get(n) == sum(x["xarajat_qismlari"][n] for x in _som)
+              + _jam.get("umumiy_qismlari", {}).get(n, 0) for n in _jam.get("xarajat_qismlari", {}))
       and _jam.get("daromad") == yaxlit(float(TK.get("daromad_buyurtmalar", 0)) + float(TK.get("daromad_tm", 0)))
       and abs(_jam.get("tannarx", 0) - float(REP.get("tannarx_jami", 0))) <= 1, [_jam, TK, REP.get("tannarx_jami") if isinstance(REP, dict) else None])
 _d = {n: YL.get(n, {}).get("aniq", {}).get("daromad") for n in ("Penoplast", "Metall", "Yog'och", "Belgilanmagan")}
@@ -722,13 +735,14 @@ check("D7 tannarx yo'nalishga: Penoplast = hajm + 80% usta haqi + TM 100 000; Me
       teng(_t["Penoplast"], round(_peno + _usta * 0.8 + 100_000, 2), 0.011)
       and teng(_t["Metall"], round(60_000 + _usta * 0.2 - 5_000 + 50_000, 2), 0.011) and teng(_t["Belgilanmagan"], 0),
       [_t, round(_peno + _usta * 0.8 + 100_000, 2), round(60_000 + _usta * 0.2 - 5_000 + 50_000, 2)])
-_bq = {n: YL.get(n, {}).get("som", {}).get("bevosita_qismlari", {}) for n in ("Penoplast", "Metall", "Yog'och")}
-check("D8 bevosita: Metall — hodim 2 000 000, arenda 200 000, transport 70 000, TM yo'qotishi 40 000; Yog'och — kirim "
+_bq = {n: YL.get(n, {}).get("som", {}).get("xarajat_qismlari", {}) for n in ("Penoplast", "Metall", "Yog'och")}
+_ol = {n: YL.get(n, {}).get("som", {}).get("oylik") for n in ("Penoplast", "Metall", "Yog'och")}
+check("D8 o'ziniki: Metall — OYLIK 2 000 000 (alohida), arenda 200 000, transport 70 000, TM yo'qotishi 40 000; Yog'och — kirim "
       "transporti 7 000 + «Boshqa» 300 000; Penoplast — brak 15 000 (detal) + 25 000 (ishlab chiqarish braki)",
-      _bq["Metall"].get("hodimlar") == 2_000_000 and _bq["Metall"].get("doimiy") == 200_000
+      _ol == {"Penoplast": 0, "Metall": 2_000_000, "Yog'och": 0} and _bq["Metall"].get("doimiy") == 200_000
       and _bq["Metall"].get("transport") == 70_000 and _bq["Metall"].get("tm_yoqotish") == 40_000
       and _bq["Yog'och"].get("qoshimcha") == 307_000 and _bq["Penoplast"].get("brak") == 40_000
-      and sum(v for k, v in _bq["Penoplast"].items() if k != "brak") == 0, _bq)
+      and sum(v for k, v in _bq["Penoplast"].items() if k != "brak") == 0 and "hodimlar" not in _bq["Metall"], [_ol, _bq])
 _um = SP.get("umumiy_xarajatlar", {}) if isinstance(SP, dict) else {}
 check("D9 umumiy qism: arenda 1 000 000, reklama 123 456.78, transport 30 000, qo'lda brak 10 000, umumiy hodim 1 000 000, "
       "Ehson (5 %) — hisobotdagi bilan; tannarxga qo'shilgan kirim xarajati (9 999) hech qayerda yo'q",
@@ -738,12 +752,15 @@ check("D9 umumiy qism: arenda 1 000 000, reklama 123 456.78, transport 30 000, q
       and float(REP.get("ehson_xarajat", 0)) > 0 and not teng(float(TK.get("qoshimcha", 0)) - 123_456.78 - 307_000, 9_999, 1),
       [_um, REP.get("ehson_xarajat") if isinstance(REP, dict) else None, TK.get("qoshimcha")])
 _umumiy_jami = sum(float(v) for v in _um.values())
-_ul = {n: YL.get(n, {}).get("aniq", {}).get("ulush") for n in ("Penoplast", "Metall", "Yog'och", "Belgilanmagan")}
-_vazn = {"Penoplast": 1_020_000, "Metall": 330_000, "Yog'och": 0, "Belgilanmagan": 100_000}
-check("D10 umumiy qism DAROMAD ULUSHIDA (Yog'och — daromadsiz, ulushsiz); ulush foizlari",
-      all(teng(_ul[n], _umumiy_jami * _vazn[n] / 1_450_000, 0.02) for n in _ul) and SP.get("ulush_usuli") == "daromad"
-      and YL.get("Penoplast", {}).get("ulush_foiz") == round(1_020_000 / 1_450_000 * 100, 1),
-      [_ul, _umumiy_jami, SP.get("ulush_usuli") if isinstance(SP, dict) else None])
+_na = {n: YL.get(n, {}).get("aniq", {}) for n in ("Penoplast", "Metall", "Yog'och", "Belgilanmagan")}
+check("D10 umumiy qism TAQSIMLANMAYDI (kech118): ustunlarda faqat o'ziniki (Belgilanmagan — oylik / xarajat 0), «ulush» maydoni "
+      "yo'q; Jami: umumiy oylik = yo'nalishsiz hodim 1 000 000, umumiy xarajat = qolgan umumiy qismlar (±1 so'm)",
+      all("ulush" not in (a or {}) for a in _na.values()) and teng(_na["Belgilanmagan"].get("oylik"), 0)
+      and teng(_na["Belgilanmagan"].get("xarajat"), 0) and "ulush_usuli" not in SP
+      and abs(_jam.get("umumiy_oylik", 0) - 1_000_000) <= 1
+      and abs(_jam.get("umumiy_xarajat", 0) - (_umumiy_jami - float(_um.get("hodimlar", 0)))) <= 1,
+      [{k: (v.get("oylik"), v.get("xarajat")) for k, v in _na.items()}, _jam.get("umumiy_oylik"), _jam.get("umumiy_xarajat"),
+       _umumiy_jami])
 check("D11 «Belgilanmagan» — qaysi MRP turi (nomi bilan); izoh / hisob farqi yo'q",
       SP.get("belgilanmagan_turlar") == ["A117 Belgisiz tur"] and SP.get("izohlar") == []
       and abs(float(SP.get("tekshiruv_farq", 1))) < 1e-6, [SP.get("belgilanmagan_turlar"), SP.get("izohlar"),
@@ -766,10 +783,10 @@ try:
 finally:
     d.close()
 YL2 = {y.get("nom"): y for y in (SP2.get("yonalishlar") or [])} if isinstance(SP2, dict) else {}
-check("D14 turga yo'nalish biriktirildi (PATCH 200): «Belgilanmagan» ustuni yo'qoldi, Yog'och daromadi 100 000, jami sof "
-      "foyda o'zgarmadi", _pa.status_code == 200 and "Belgilanmagan" not in YL2
+check("D14 turga yo'nalish biriktirildi (PATCH 200): «Belgilanmagan» ustuni yo'qoldi, Yog'och daromadi 100 000, jami natija "
+      "o'zgarmadi", _pa.status_code == 200 and "Belgilanmagan" not in YL2
       and YL2.get("Yog'och", {}).get("som", {}).get("daromad") == 100_000
-      and SP2.get("jami", {}).get("sof_foyda") == SP.get("jami", {}).get("sof_foyda") and SP2.get("belgilanmagan_turlar") == [],
+      and SP2.get("jami", {}).get("natija") == SP.get("jami", {}).get("natija") and SP2.get("belgilanmagan_turlar") == [],
       [_pa.status_code, {k: v.get("som", {}).get("daromad") for k, v in YL2.items()}])
 # Daromadsiz o'tgan oy: faqat xarajat — umumiy qism ko'rinadigan yo'nalishlarga TENG, izoh bilan
 d = SessionLocal()
@@ -783,12 +800,14 @@ try:
 finally:
     d.close()
 YL3 = {y.get("nom"): y.get("som", {}) for y in (SP3.get("yonalishlar") or [])} if isinstance(SP3, dict) else {}
-check("D15 daromadsiz oy: `teng` usuli + izoh; arenda 300 000 → 100 000 × 3; Metall + 90 000 bevosita; yig'indi = −390 000",
-      isinstance(SP3, dict) and SP3.get("ulush_usuli") == "teng" and any("daromad yo'q" in i for i in SP3.get("izohlar", []))
-      and YL3.get("Penoplast", {}).get("ulush") == 100_000 and YL3.get("Yog'och", {}).get("ulush") == 100_000
-      and YL3.get("Metall", {}).get("jami_xarajat") == 190_000
-      and sum(v.get("sof_foyda", 0) for v in YL3.values()) == yaxlit(float(REP3.get("sof_foyda", 0))) == -390_000,
-      [SP3 if not isinstance(SP3, dict) else (SP3.get("ulush_usuli"), SP3.get("izohlar"), YL3)])
+check("D15 daromadsiz oy (kech118 — taqsim yo'q): Penoplast / Yog'och natija 0; Metall −90 000 (o'z xarajati); arenda 300 000 — "
+      "faqat Jami (umumiy); Jami natija = Moliya = −390 000; «teng» izohi YO'Q",
+      isinstance(SP3, dict) and not any("daromad yo'q" in i for i in SP3.get("izohlar", []))
+      and YL3.get("Penoplast", {}).get("natija") == 0 and YL3.get("Yog'och", {}).get("natija") == 0
+      and YL3.get("Metall", {}).get("natija") == -90_000 and YL3.get("Metall", {}).get("xarajat") == 90_000
+      and SP3.get("jami", {}).get("umumiy_xarajat") == 300_000
+      and SP3.get("jami", {}).get("natija") == yaxlit(float(REP3.get("sof_foyda", 0))) == -390_000,
+      [SP3 if not isinstance(SP3, dict) else (SP3.get("izohlar"), YL3, SP3.get("jami"))])
 # Yashirilgan yo'nalish: shu oyda summasi bo'lsa — ustun qoladi («yashirin» belgisi), aks holda — yo'q; tanlovda yo'q
 _h = req(CA, "put", f"/api/yonalishlar/{YID}", json={"yashirin": True})
 d = SessionLocal()
@@ -844,21 +863,30 @@ for _i19 in range(7):
     finally:
         d.close()
     _y19 = (_sp19.get("yonalishlar") or []) if isinstance(_sp19, dict) else []
-    _oddiy = sum(yaxlit((y.get("aniq") or {}).get("sof_foyda", 0)) for y in _y19)
+    _ja19 = (_sp19.get("jami_aniq") or {}) if isinstance(_sp19, dict) else {}
+    _oddiy = sum(yaxlit((y.get("aniq") or {}).get("natija", 0)) for y in _y19) \
+        - yaxlit(_ja19.get("umumiy_oylik", 0)) - yaxlit(_ja19.get("umumiy_xarajat", 0))
     if _y19 and _oddiy != _sp19.get("moliya_sof_foyda"):
         _d19 = _sp19
         break
+    # kech118 (MOSLANDI): umumiy xarajat endi taqsimlanmaydi — kasr qoldiqni YO'NALISH xarajatlari (0,4 so'mdan uchta
+    # yo'nalishga) beradi: har ustun alohida yaxlitlansa yig'indi Moliya sof foydasidan farq qiladi
     d = SessionLocal()
     try:
-        d.add(ExpenseTransaction(company_id=1, date=T_OTGAN, category="boshqa", amount=1))
+        for _yid19 in (AID, MID, YID):
+            d.add(ExpenseTransaction(company_id=1, date=T_OTGAN, category="boshqa", amount=0.4,
+                                     **({"yonalish_id": _yid19} if hasattr(ExpenseTransaction, "yonalish_id") else {})))
         d.commit()
     finally:
         d.close()
 _s19 = [(y.get("som") or {}) for y in ((_d19 or {}).get("yonalishlar") or [])]
-check("D19 ustunlarni alohida yaxlitlash yig'indini buzadigan oyda ham: sof foydalar yig'indisi (so'm) = Moliya sof foydasi, "
-      "har ustunda D − T − J = S (eng katta qoldiq usuli)",
-      _d19 is not None and len(_s19) >= 3 and sum(x.get("sof_foyda", 0) for x in _s19) == _d19.get("moliya_sof_foyda")
-      and all(x["daromad"] - x["tannarx"] - x["jami_xarajat"] == x["sof_foyda"] for x in _s19),
+_j19 = (_d19 or {}).get("jami") or {}
+check("D19 ustunlarni alohida yaxlitlash yig'indini buzadigan oyda ham: yo'nalishlar natijasi − umumiy (so'm) = Moliya sof "
+      "foydasi, har ustunda D − T − O − X = N (eng katta qoldiq usuli)",
+      _d19 is not None and len(_s19) >= 3
+      and sum(x.get("natija", 0) for x in _s19) - _j19.get("umumiy_oylik", 0) - _j19.get("umumiy_xarajat", 0)
+      == _d19.get("moliya_sof_foyda") == _j19.get("natija")
+      and all(x["daromad"] - x["tannarx"] - x["oylik"] - x["xarajat"] == x["natija"] for x in _s19),
       [(_d19 or {}).get("moliya_sof_foyda"), _s19[:4], _oddiy if _y19 else None])
 
 # D20. «Belgilanmagan» daromadning MRP turidan boshqa MANBALARI (zip 115 jonli sinovi: sinovda 140 000 so'm «Belgilanmagan»
@@ -946,7 +974,7 @@ _rp = req(CA, "get", "/api/finance/split-profit-pdf", params={"year": YIL, "mont
 SAT = pdf_satrlar(_rp.content) if _rp.status_code == 200 and (_rp.content or b"").startswith(b"%PDF") else []
 _mat = "\n".join(SAT)
 check("E3 yo'nalishlar PDF: 200, sarlavha, yo'nalish nomlari, «Moliya hisobotidagi sof foyda», «Gips» so'zi yo'q, fayl nomi",
-      _rp.status_code == 200 and "Yo'nalishlar bo'yicha sof foyda hisoboti" in _mat and "Metall" in _mat and "Penoplast" in _mat
+      _rp.status_code == 200 and "Yo'nalishlar bo'yicha moliyaviy natija" in _mat and "Metall" in _mat and "Penoplast" in _mat
       and "Moliya hisobotidagi sof foyda" in _mat and "Gips" not in _mat and "■" not in _mat
       and "yonalishlar_hisobot" in (_rp.headers.get("content-disposition") or ""), [_rp.status_code, SAT[:30]])
 d = SessionLocal()
@@ -954,14 +982,16 @@ try:
     SPN = xavfsiz(services.calculate_split_profit_report, d, YIL, OY, company_id=1)
 finally:
     d.close()
+# kech118 (MOSLANDI): PDF oxirgi qatori — «NATIJA (+ / −)» (musbat «+N», manfiy «−N»); JAMI = Moliya sof foydasi
 _sof_pdf = []
 for i, q in enumerate(SAT):
-    if q == "SOF FOYDA":
-        _sof_pdf = [son(x) for x in SAT[i + 1:i + 1 + len(SPN.get("yonalishlar", [])) + 1]]
-check("E4 PDF dagi SOF FOYDA qatori = hisobot (har ustun va JAMI)",
+    if q.startswith("NATIJA (+"):
+        _sof_pdf = [son(x.lstrip("+")) for x in SAT[i + 1:i + 1 + len(SPN.get("yonalishlar", [])) + 1]]
+check("E4 PDF dagi NATIJA qatori = hisobot (har ustun va JAMI; JAMI = Moliya sof foydasi)",
       isinstance(SPN, dict) and isinstance(SPN.get("yonalishlar"), list) and "jami" in SPN
-      and _sof_pdf == [y["som"]["sof_foyda"] for y in SPN["yonalishlar"]] + [SPN["jami"]["sof_foyda"]],
-      [_sof_pdf, [y["som"]["sof_foyda"] for y in SPN.get("yonalishlar", [])] if isinstance(SPN, dict) else SPN])
+      and _sof_pdf == [y["som"]["natija"] for y in SPN["yonalishlar"]] + [SPN["jami"]["natija"]]
+      and SPN["jami"]["natija"] == SPN.get("moliya_sof_foyda"),
+      [_sof_pdf, [y["som"]["natija"] for y in SPN.get("yonalishlar", [])] if isinstance(SPN, dict) else SPN])
 _rf = req(CA, "get", "/api/finance/report-pdf", params={"year": YIL, "month": OY})
 FS = pdf_satrlar(_rf.content) if _rf.status_code == 200 and (_rf.content or b"").startswith(b"%PDF") else []
 

@@ -289,6 +289,8 @@ XAVFSIZ_FN = (
     # `escapeHtml(cat)` bor, qolgan qismi kod konstantalari.
     "catBadge(",
 )
+# Natijasi argumentning o'zi (yoki kod konstantasi) bo'lgan funksiyalar — xavfsizligi 1-argumentniki (kech118).
+_SHAFFOF_FN = ("matnRangi(",)
 # onX atributida FAQAT shular xavfsiz (escapeHtml ATAYLAB yo'q).
 XAVFSIZ_FN_ATRIBUT = (
     "jsAttrEscape(", "encodeURIComponent(", "encodeURI(",
@@ -615,6 +617,12 @@ def xavfsizmi(ifoda, atributda=False):
                        for q in QIYMATLAR[ifoda])
         finally:
             _KORILGAN_NOM.discard(ifoda)
+    # kech118 (B — U-03): `matnRangi(x[, fon])` (base.html) natijasi — x ning O'ZI yoki kod jadvalidagi rang, ya'ni
+    # xavfsizligi x niki: birinchi argument tekshiriladi (foydalanuvchi matni bo'lsa — baribir USHLANADI).
+    for _fn in _SHAFFOF_FN:
+        if ifoda.startswith(_fn) and _qavs_ichi(ifoda, len(_fn) - 1) == len(ifoda) - 1:
+            _arg = _tepa_bolish(ifoda[len(_fn):-1], [","])[0].strip()
+            return xavfsizmi(_arg, atributda) or not matn_tegadimi(_arg)
     fn_royxat = XAVFSIZ_FN_ATRIBUT if atributda else XAVFSIZ_FN
     if LITERAL_NAQSH.fullmatch(ifoda):
         return True

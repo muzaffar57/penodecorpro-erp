@@ -513,8 +513,9 @@ _mu = {x: min_ustun(loy_nomi(x)) for x in (L0, L1, L2)}
 check("Tayyor loy qatorlari (L0, L1, L2): chegara ustuni '—', 'Chegarani tuzatish' (editMinStock) tugmasi YO'Q",
       all(v is not None and ">—<" in v and "editMinStock(" not in v for v in _mu.values()), str(_mu)[:300])
 _mu1 = min_ustun(M1)
-check("oddiy M1 qatori: chegara '5.0 kg' va editMinStock tugmasi avvalgidek BOR",
-      _mu1 is not None and "editMinStock(" in _mu1 and "5.0 kg" in _mu1, str(_mu1)[:200])
+# kech118 (B — U-05, MOSLANDI): son ko'rinishi `|son` filtri — ortiqcha «.0» yo'q, kasr — vergul («5.0 kg» → «5 kg»)
+check("oddiy M1 qatori: chegara '5 kg' va editMinStock tugmasi avvalgidek BOR",
+      _mu1 is not None and "editMinStock(" in _mu1 and ">5 kg<" in _mu1, str(_mu1)[:200])
 _fl = re.search(r'class="stock-fill[^"]*" style="width:([^%"]*)%', _blok.get(loy_nomi(L2).lower(), ""))
 check("L2 Tayyor loy 3 / 10 — chizig'i chegaraga nisbatan EMAS: 100 % (ilgari 30 %)",
       bool(_fl) and _fl.group(1).strip() == "100", _fl.group(1) if _fl else "topilmadi")

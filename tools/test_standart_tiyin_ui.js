@@ -115,8 +115,11 @@ function kontekst(qo) {
                               escapeHtml: (x) => String(x == null ? '' : x) }, qo || {});
   ctx.window = ctx;
   vm.createContext(ctx);
+  // kech118 (B — U-05, MOSLANDI): ko'rinadigan son / hajm — base.html `sonKor` … (hisobga ta'sir qilmaydi)
+  yukla(ctx, BASE_SRC, ['sonKor', 'foizKor', 'birlikKor', 'matnRangi'], 'base.html');
   return ctx;
 }
+const BASE_SRC = oqi('base');
 function qator(elementlar, dataset) {
   return { dataset: dataset || {}, querySelector: (s) => (Object.prototype.hasOwnProperty.call(elementlar, s) ? elementlar[s] : null),
            querySelectorAll: () => [], closest: () => null };
