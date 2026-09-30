@@ -12,9 +12,11 @@ NIMA UCHUN KERAK (audit kech114 — O'LCHANGAN, asl kod = `staging` 44c40ee)
   bilan (`max(0, kelishilgan − to'langan)`). Mijoz raqamlarni qo'shib chiqolmasdi.
 TALAB: hamma hujjatda bir xil qatorlar va ular qo'shiladi — jami − chegirma (yoki + ustama) − qaytarish − kechirilgan =
   kelishilgan; kelishilgan − to'langan = qarz (yoki ortiqcha to'langan); tiyinli summalarda ham (ko'rsatilgan butun
-  so'mlarda) AYNAN.
+  so'mlarda) AYNAN. EGASI QARORI (kech116, zip 113 jonli ko'rilgach): MIJOZ hujjatlarida (yuk xati, hisob-kitob
+  varaqasi, nakladnoy) «Kechirilgan qarz» so'zi chiqmaydi — kechirilgan summa «Chegirma» qatoriga qo'shiladi (FOIZSIZ;
+  kechirilgan qarz yo'q bo'lsa — foiz bilan, avvalgidek); buyurtma oynasida (ichki API `hisob`) — alohida qator.
 BO'LIMLAR: A — audit holati (qaytarish, chegirmasiz); B — chegirma + kechirilgan qarz; C — ustama; D — ortiqcha to'langan;
-  E — tiyinli summalar; X — xatolar. Har bo'limda: API `hisob`, yuk xati PDF, hisob-kitob varaqasi PDF, nakladnoy PDF
+  E — tiyinli summalar; F — ustama + kechirilgan qarz; X — xatolar. Har bo'limda: API `hisob`, yuk xati PDF, hisob-kitob varaqasi PDF, nakladnoy PDF
   (matn kutubxonasiz o'qiladi — `tools/test_pdf_matn.py` usuli).
 REJIMLAR: SQLite (odatiy); `PG_URL` bilan HAQIQIY PostgreSQL 16. Asl kodga qarshi QULAMAYDI.
 ISHLATISH: python3 tools/test_a116_pdf.py
@@ -357,8 +359,18 @@ def qoshiladimi(b, jami_y, kel_y):
         "tolangan": tol, "qarz": qarz, "ortiqcha": ort}
 
 
+def mijoz_kutilgani(kutil):
+    """Mijoz hujjatida kutilgan qatorlar (egasi QARORI kech116): kechirilgan qarz — «Chegirma» ichida, alohida qator yo'q."""
+    k = dict(kutil)
+    k["chegirma"] = kutil.get("chegirma", 0) + kutil.get("kechirilgan", 0)
+    k["kechirilgan"] = 0
+    return k
+
+
 def tekshir_hammasi(bol, oid, did, kutil):
-    """Bitta buyurtma: API `hisob`, yuk xati, hisob-kitob varaqasi, nakladnoy — kutilgan butun so'mlar (`kutil`)."""
+    """Bitta buyurtma: API `hisob` (buyurtma oynasi — `kutil`, kechirilgan qarz alohida), yuk xati, hisob-kitob varaqasi,
+    nakladnoy (mijoz hujjatlari — `mijoz_kutilgani(kutil)`: kechirilgan qarz chegirma ichida) — butun so'mlar."""
+    kpdf = mijoz_kutilgani(kutil)
     o = order_api(oid)
     h = o.get("hisob") or {}
     k = h.get("korinish") or {}
@@ -376,11 +388,13 @@ def tekshir_hammasi(bol, oid, did, kutil):
         b, cheg = yx_bloki(st)
         q, qiy = qoshiladimi(b, "Buyurtma jami:", "Kelishilgan summa:")
         check(f"{bol}3 {nom}: PDF 200, qatorlar qo'shiladi ({qiy})", ok and b and q, (kod, b))
-        check(f"{bol}4 {nom}: qiymatlar = kutilgan (qaytarish {kutil.get('qaytarish', 0)}, kechirilgan "
-              f"{kutil.get('kechirilgan', 0)}, chegirma {kutil.get('chegirma', 0)}, ustama {kutil.get('ustama', 0)}, "
-              f"qarz {kutil.get('qarz', 0)}, ortiqcha {kutil.get('ortiqcha', 0)})",
-              ok and all(qiy.get(x) == kutil.get(x, 0) for x in ("jami", "chegirma", "ustama", "qaytarish", "kechirilgan",
-                                                                  "kelishilgan", "tolangan", "qarz", "ortiqcha")), (qiy, b))
+        check(f"{bol}4 {nom}: qiymatlar = kutilgan (qaytarish {kpdf.get('qaytarish', 0)}, chegirma {kpdf.get('chegirma', 0)}"
+              f" — kechirilgan {kutil.get('kechirilgan', 0)} shu ichida, ustama {kpdf.get('ustama', 0)}, "
+              f"qarz {kpdf.get('qarz', 0)}, ortiqcha {kpdf.get('ortiqcha', 0)})",
+              ok and all(qiy.get(x) == kpdf.get(x, 0) for x in ("jami", "chegirma", "ustama", "qaytarish", "kechirilgan",
+                                                                 "kelishilgan", "tolangan", "qarz", "ortiqcha")), (qiy, b))
+        check(f"{bol}9 {nom}: «Kechirilgan qarz» so'zi mijoz hujjatida YO'Q (egasi qarori kech116)",
+              ok and not any("echirilgan" in x for x in st), [x for x in st if "echirilgan" in x])
         _bel = [(y, (b.get(y) or ("", None))[1]) for y in ("Chegirma:", "Qaytarish (qaytgan mahsulot):", "Kechirilgan qarz:",
                                                            "Ustama:") if y in b]
         check(f"{bol}8 {nom}: ayiriladigan qatorlar MINUS bilan, ustama PLYUS bilan (belgi yo'qolmagan)",
@@ -394,11 +408,12 @@ def tekshir_hammasi(bol, oid, did, kutil):
     b = nk_bloki(st)
     q, qiy = qoshiladimi(b, "Umumiy jami:", "TO'LOV SUMMASI:")
     check(f"{bol}6 nakladnoy: PDF 200, qatorlar qo'shiladi, «TO'LOV SUMMASI» = kelishilgan ({qiy})",
-          ok and b and q and qiy.get("kelishilgan") == kutil.get("kelishilgan"), (kod, b))
-    check(f"{bol}7 nakladnoy: qaytarish va kechirilgan qarz «Chegirma» EMAS (chegirma = faqat narx chegirmasi "
-          f"{kutil.get('chegirma', 0)})",
-          ok and qiy.get("chegirma") == kutil.get("chegirma", 0) and qiy.get("qaytarish") == kutil.get("qaytarish", 0)
-          and qiy.get("kechirilgan") == kutil.get("kechirilgan", 0) and qiy.get("ustama") == kutil.get("ustama", 0), (qiy, b))
+          ok and b and q and qiy.get("kelishilgan") == kpdf.get("kelishilgan"), (kod, b))
+    check(f"{bol}7 nakladnoy: qaytarish «Chegirma» EMAS (alohida qator); chegirma = narx chegirmasi + kechirilgan qarz "
+          f"({kpdf.get('chegirma', 0)}), «Kechirilgan qarz» qatori yo'q",
+          ok and qiy.get("chegirma") == kpdf.get("chegirma", 0) and qiy.get("qaytarish") == kpdf.get("qaytarish", 0)
+          and qiy.get("kechirilgan") == 0 and qiy.get("ustama") == kpdf.get("ustama", 0)
+          and not any("echirilgan" in x for x in st), (qiy, b))
     return h
 
 
@@ -430,8 +445,16 @@ _hB = tekshir_hammasi("B", oB, dB, {"jami": 1000000, "chegirma": 100000, "kechir
                                     "tolangan": 895000, "qarz": 0})
 check("B8 chegirma foizi — faqat narx chegirmasidan (10 %), kechirilgan qarz kirmaydi",
       abs(float(_hB.get("chegirma_foiz", 0)) - 10.0) < 0.001, _hB.get("chegirma_foiz"))
-ok, st, _ = pdf(f"/api/deliveries/{dB}/pdf")
-check("B9 yuk xatida chegirma yorlig'i foiz bilan: «Chegirma (10%):»", ok and "Chegirma (10%):" in st, [x for x in st if "hegirma" in x])
+_yB = [pdf(u) for u in (f"/api/deliveries/{dB}/pdf", f"/api/orders/{oB}/summary-pdf", f"/api/orders/{oB}/pdf")]
+check("B10 kechirilgan qarz bor — uchala mijoz hujjatida chegirma FOIZSIZ «Chegirma:» (105 000 = 100 000 + 5 000; «10%» "
+      "yo'q — ikkalasi birga 10 % emas)",
+      all(ok and "Chegirma:" in st and not any(re.match(r"^Chegirma \(", x) for x in st) for ok, st, _ in _yB),
+      [[x for x in st if "hegirma" in x] for ok, st, _ in _yB])
+_qB = [q.get("kalit") for q in (_hB.get("qatorlar") or [])]
+check("B11 buyurtma oynasi (ichki API `hisob.qatorlar`) — kechirilgan qarz ALOHIDA qator, chegirma foiz bilan",
+      "kechirilgan" in _qB and any(q.get("nom") == "Chegirma (10%)" and q.get("summa") == 100000 for q in (_hB.get("qatorlar") or []))
+      and any(q.get("kalit") == "kechirilgan" and q.get("summa") == 5000 for q in (_hB.get("qatorlar") or [])),
+      _hB.get("qatorlar"))
 
 # ══════════════════════════════════════════════════════════════
 section("C. Ustama — kelishilgan jamidan katta")
@@ -470,6 +493,26 @@ check("E0 fikstura: jami 99 999.99, kelishilgan 89 999.70, to'langan 40 000.50",
       and abs(_bE.get("tolangan", 0) - 40000.5) < 0.001, (_bE, getattr(_tE, "text", "")[:200]))
 # kutilgan ko'rinish (HALF_UP): jami 100 000, to'langan 40 001, kelishilgan 90 000, qarz 49 999, chegirma 10 000
 tekshir_hammasi("E", oE, dE, {"jami": 100000, "chegirma": 10000, "kelishilgan": 90000, "tolangan": 40001, "qarz": 49999})
+ok, st, _ = pdf(f"/api/deliveries/{dE}/pdf")
+check("E10 kechirilgan qarz YO'Q — yuk xatida chegirma foiz bilan (avvalgidek): «Chegirma (10%):»",
+      ok and "Chegirma (10%):" in st, [x for x in st if "hegirma" in x])
+
+# ══════════════════════════════════════════════════════════════
+section("F. Ustama + to'lovda kechirilgan qarz 10 000")
+# ══════════════════════════════════════════════════════════════
+oF, iF, nF, stF = buyurtma(50000, 20, kelishilgan=1100000)
+dF = yuk(oF, iF, 4) if oF else None
+_tF = tolov(oF, 1090000, kechir=True) if oF else None
+_bF = db_order(oF) if oF else {}
+check("F0 fikstura: jami 1 000 000, ustama 100 000, to'langan 1 090 000 + kechirilgan 10 000 → kelishilgan 1 090 000, qarz 0",
+      stF == 200 and dF and _tF is not None and _tF.status_code == 200 and abs(_bF.get("kechirilgan", 0) - 10000) < 0.01
+      and abs(_bF.get("kelishilgan", 0) - 1090000) < 0.01 and _bF.get("qarz") == 0, (_bF, getattr(_tF, "text", "")[:200]))
+tekshir_hammasi("F", oF, dF, {"jami": 1000000, "ustama": 100000, "kechirilgan": 10000, "kelishilgan": 1090000,
+                              "tolangan": 1090000, "qarz": 0})
+ok, st, _ = pdf(f"/api/deliveries/{dF}/pdf")
+b, _c = yx_bloki(st)
+check("F10 yuk xati: «Ustama: + 100 000» va kechirilgan qarz — alohida «Chegirma: − 10 000» (ustamaga qo'shilmaydi)",
+      ok and (b.get("Ustama:") or ("", 0))[1] == 100000 and (b.get("Chegirma:") or ("", 0))[1] == -10000, b)
 
 # ══════════════════════════════════════════════════════════════
 section("X. Xatolar")
