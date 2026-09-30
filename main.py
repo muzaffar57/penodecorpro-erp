@@ -2642,6 +2642,86 @@ try:
 finally:
     _db.close()
 
+
+def _migrate_rollar():
+    """kech118 (ROLLAR VA RUXSATLAR — egasi QARORI 15:23, tugmali javoblar 15:30) — IDEMPOTENT, PG va SQLite.
+
+    * `rollar` jadvali — `init_database()` (`create_all`) yaratadi; `users.rol_id` — `database.sync_missing_columns()`
+      (NULL); yo'q bo'lsa shu yerda. PostgreSQL da indeks va chet el kaliti (yetim qiymat bo'lsa kalit QO'YILMAYDI).
+    * Har korxonada TAYYOR rollar (Admin, Menejer, Omborchi, Moliyachi — `ruxsatlar.TAYYOR_ROLLAR`) — yo'q bo'lsa yaratiladi.
+    * TO'LDIRISH (faqat `rol_id IS NULL` — qayta ishga tushishda hech narsa o'zgarmaydi): eski `role` → tayyor rol
+      (admin → Admin, manager → Menejer, warehouse → Omborchi, accountant → Moliyachi; master → «Usta (eski)» — faqat
+      shunday foydalanuvchi bo'lsa yaratiladi). Tayyor rollar ruxsatlari ESKI huquqlardan hisoblangan — hech kim huquq
+      yo'qotmaydi (Menejer — AYNAN hozirgidek). O'LCHANGAN (kech118): `main` zaxirasida (28.09) 3 foydalanuvchi —
+      admin + 2 manager."""
+    from sqlalchemy import text, inspect as _insp
+    from database import engine, SessionLocal as _SL118
+    from models import User as _U118, Rol as _R118
+    import ruxsatlar as _rx118
+    try:
+        _i = _insp(engine)
+        _jadvallar = set(_i.get_table_names())
+        if "rollar" not in _jadvallar or "users" not in _jadvallar:
+            print("⚠ rollar jadvali yo'q — migratsiya o'tkazib yuborildi")
+            return
+        if "rol_id" not in {c["name"] for c in _i.get_columns("users")}:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE users ADD COLUMN rol_id INTEGER"))
+                conn.commit()
+            print("✓ users.rol_id qo'shildi")
+        if engine.dialect.name == "postgresql":
+            with engine.connect() as conn:
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_users_rol_id ON users (rol_id)"))
+                conn.commit()
+                if not conn.execute(text(
+                        "SELECT 1 FROM pg_constraint c JOIN pg_class t ON t.oid = c.conrelid "
+                        "WHERE t.relname = 'users' AND c.contype = 'f' AND c.conname = 'users_rol_id_fkey'")).first():
+                    _yetim = conn.execute(text(
+                        "SELECT COUNT(*) FROM users u LEFT JOIN rollar r ON r.id = u.rol_id "
+                        "WHERE u.rol_id IS NOT NULL AND r.id IS NULL")).scalar() or 0
+                    if _yetim:
+                        print(f"⚠ users.rol_id: {_yetim} ta yetim qiymat — chet el kaliti QO'YILMADI")
+                    else:
+                        try:
+                            conn.execute(text("ALTER TABLE users ADD CONSTRAINT users_rol_id_fkey "
+                                              "FOREIGN KEY (rol_id) REFERENCES rollar(id)"))
+                            conn.commit()
+                            print("✓ users_rol_id_fkey chet el kaliti qo'shildi")
+                        except Exception as _fe:
+                            conn.rollback()
+                            print(f"⚠ users_rol_id_fkey qo'shilmadi: {_fe}")
+    except Exception as e:
+        print(f"⚠ rollar ustunlari tekshiruvi o'tkazib yuborildi: {e}")
+        return
+    _d = _SL118()
+    try:
+        _korxonalar = sorted({c for (c,) in _d.query(_U118.company_id).distinct().all() if c is not None})
+        _yangi_rol = _ulandi = 0
+        for _cid in _korxonalar:
+            _oldin = _d.query(_R118).filter(_R118.company_id == _cid).count()
+            _kerak = list(_rx118.TAYYOR_TARTIB)
+            if _d.query(_U118).filter(_U118.company_id == _cid, _U118.rol_id.is_(None),
+                                      _U118.role == UserRole.MASTER).count():
+                _kerak.append("usta")
+            _tayyor = auth.tayyor_rollar(_d, _cid, _kerak)
+            _yangi_rol += _d.query(_R118).filter(_R118.company_id == _cid).count() - _oldin
+            for _u in _d.query(_U118).filter(_U118.company_id == _cid, _U118.rol_id.is_(None)).all():
+                _r = _tayyor.get(_rx118.ENUM_ROL.get(getattr(_u.role, "value", ""), ""))
+                if _r is not None:
+                    _u.rol_id = _r.id
+                    _ulandi += 1
+            _d.commit()
+        if _yangi_rol or _ulandi:
+            print(f"✓ rollar: {_yangi_rol} ta tayyor rol yaratildi, {_ulandi} ta foydalanuvchi roliga biriktirildi")
+    except Exception as e:
+        _d.rollback()
+        print(f"⚠ rollar migratsiyasi o'tkazib yuborildi: {e}")
+    finally:
+        _d.close()
+
+
+_migrate_rollar()
+
 # Bir martalik (lekin xavfsiz — qayta-qayta chaqirilsa ham hech narsa
 # buzmaydigan) migratsiya: to'lov tarixi yozuvi hali yo'q hodimlarga
 # boshlang'ich tarix yaratadi (2026-09-06, oylik versiyalash tizimi).
@@ -2823,7 +2903,7 @@ async def custom_http_exception_handler(request: Request, exc: _StarletteHTTPExc
     # HEAD, `Accept` da text/html, API / statik fayl emas) — o'zbekcha sahifa, «Bosh sahifaga» tugmasi bilan. Holat kodi
     # (404 / 403) SAQLANADI. API, statik fayl va boshqa mijozlar (Accept: */*) — avvalgidek JSON.
     if exc.status_code in (403, 404) and _html_sahifa_sorovimi(request):
-        return _xato_sahifasi(request, exc.status_code)
+        return _xato_sahifasi(request, exc.status_code, exc.detail if isinstance(exc.detail, str) else None)
     # Boshqa barcha holatlar uchun — FastAPI'ning standart javobi bilan bir xil
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail}, headers=exc.headers)
 
@@ -2838,13 +2918,14 @@ def _html_sahifa_sorovimi(request: Request) -> bool:
     return "text/html" in (request.headers.get("accept") or "").lower()
 
 
-def _xato_sahifasi(request: Request, kod: int):
+def _xato_sahifasi(request: Request, kod: int, izoh: str = None):
     """kech118 (U-11): 404 / 403 uchun o'zbekcha sahifa (`templates/xato_sahifa.html` — `base.html` siz: sessiya bo'lmasa
-    ham ochiladi). Hodim paneli yo'llarida «bosh sahifa» — `/hodim`."""
+    ham ochiladi). Hodim paneli yo'llarida «bosh sahifa» — `/hodim`. kech118 (ROLLAR): 403 — rad sababi (qaysi bo'lim /
+    amal ruxsati yo'qligi) berilsa, shu matn ko'rsatiladi."""
     _hodim = (request.url.path or "").startswith("/hodim")
     if kod == 403:
         sarlavha, matn = ("Bu bo'limga ruxsatingiz yo'q",
-                          "Sizning rolingiz bu sahifani ochishga ruxsat bermaydi. "
+                          (izoh or "").strip() or "Sizning rolingiz bu sahifani ochishga ruxsat bermaydi. "
                           "Kerak bo'lsa, korxona administratoriga murojaat qiling.")
     else:
         sarlavha, matn = ("Bunday sahifa yo'q",
@@ -3109,7 +3190,7 @@ def _son_filtri(qiymat, kasr=2):
 
 
 templates.env.filters["son"] = _son_filtri
-templates.env.globals["static_version"] = "20260930-2"   # kech118: style.css (fokus belgisi; 2-qism — ranglar, 12 px) — kesh yangilansin
+templates.env.globals["static_version"] = "20260930-3"   # kech118: style.css (fokus belgisi; 2-qism — ranglar, 12 px; zip 118 da style.css kechikib yuklandi — eski nusxa «-2» bilan keshda qolmasin) — kesh yangilansin
 
 
 def _toshkent_filtr(qiymat, fmt="%d.%m.%Y %H:%M"):
@@ -3351,11 +3432,24 @@ async def logout(request: Request, db: Session = Depends(get_db)):
 @app.get("/users", response_class=HTMLResponse)
 async def users_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     users = auth.get_all_users(db, company_id=auth.company_id_of(current_user))
-    return templates.TemplateResponse(request, "users.html", {"users": users, "current_user": current_user, "now": _t_vaqt().strftime("%d.%m.%Y %H:%M"), "active_page": "users"})
+    # kech118 (ROLLAR): korxona rollari — rol tanlovi va «Rollar va huquqlar» ro'yxati (tayyorlari yo'q bo'lsa yaratiladi)
+    _cid = auth.company_id_of(current_user)
+    auth.tayyor_rollar(db, _cid)
+    from models import Rol as _Rol
+    import ruxsatlar as _rx
+    _tartib = {k: i for i, k in enumerate(_rx.TAYYOR_TARTIB)}
+    rollar = db.query(_Rol).filter(_Rol.company_id == _cid).all()
+    rollar.sort(key=lambda r: (_tartib.get(r.kod, 50 if r.kod else 100), (r.nom or "").lower()))
+    rol_soni = {}
+    for u in users:
+        rol_soni[u.rol_id] = rol_soni.get(u.rol_id, 0) + 1
+    return templates.TemplateResponse(request, "users.html", {"users": users, "rollar": rollar, "rol_soni": rol_soni,
+                                                              "current_user": current_user,
+                                                              "now": _t_vaqt().strftime("%d.%m.%Y %H:%M"), "active_page": "users"})
 
 
 @app.get("/trash", response_class=HTMLResponse)
-async def trash_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+async def trash_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("savat", "korish"))):
     """O'chirilgan buyurtma, loyiha va xodimlar — inson xatosidan himoya uchun tiklash imkoni."""
     deleted_orders = crud.get_deleted_orders(db, company_id=auth.company_id_of(current_user))
     deleted_projects = crud.get_deleted_projects(db, company_id=auth.company_id_of(current_user))
@@ -3392,7 +3486,7 @@ async def platforma_page(request: Request, db: Session = Depends(get_db)):
 
 
 @app.get("/logs", response_class=HTMLResponse)
-async def logs_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+async def logs_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("jurnal", "korish"))):
     """Tizim jurnallari — kirish tarixi va backend xatoliklari (faqat admin)."""
     # M7: audit izi va kirish tarixi FAQAT joriy korxonaniki.
     # Faza 3 (2026-09-19): `error_logs.company_id` ustuni qo'shildi —
@@ -3419,7 +3513,7 @@ async def logs_page(request: Request, db: Session = Depends(get_db), current_use
 
 
 @app.get("/api/system/health-check")
-def api_system_health_check(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_system_health_check(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("jurnal", "korish"))):
     """Tizimdagi barcha ENUM ustunlarini tekshiradi (faqat o'qish, hech
     narsani o'zgartirmaydi) — noto'g'ri (masalan katta/kichik harf mos
     kelmaydigan) qiymatlarni oldindan aniqlash uchun."""
@@ -3465,7 +3559,7 @@ def api_system_health_check(db: Session = Depends(get_db), current_user=Depends(
 
 
 @app.post("/api/orders/{order_id}/restore")
-def api_restore_order(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_restore_order(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("savat", "tahrirlash"))):
     # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
@@ -3476,7 +3570,7 @@ def api_restore_order(order_id: int, db: Session = Depends(get_db), current_user
 
 
 @app.post("/api/projects/{project_id}/restore")
-def api_restore_project(project_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_restore_project(project_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("savat", "tahrirlash"))):
     # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.project_of_company(db, project_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
@@ -3487,7 +3581,7 @@ def api_restore_project(project_id: int, db: Session = Depends(get_db), current_
 
 
 @app.delete("/api/orders/{order_id}/permanent")
-def api_permanent_delete_order(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_permanent_delete_order(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("savat", "ochirish"))):
     """Butunlay o'chirish — faqat 'chiqindi qutisi'dagi (avval yumshoq o'chirilgan) buyurtma uchun."""
     # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
@@ -3503,7 +3597,7 @@ def api_permanent_delete_order(order_id: int, db: Session = Depends(get_db), cur
 
 
 @app.delete("/api/projects/{project_id}/permanent")
-def api_permanent_delete_project(project_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_permanent_delete_project(project_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("savat", "ochirish"))):
     """Butunlay o'chirish — faqat 'chiqindi qutisi'dagi (avval yumshoq o'chirilgan) loyiha uchun."""
     # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.project_of_company(db, project_id, auth.company_id_of(current_user)):
@@ -3532,10 +3626,12 @@ def api_create_user(data: dict, db: Session = Depends(get_db), current_user=Depe
         raise HTTPException(status_code=400, detail=str(e))
     role = UserRole(toza.get("role") or "manager")
     # M1: yangi foydalanuvchi ALBATTA joriy adminning korxonasiga tegishli.
+    # kech118 (ROLLAR): `rol_id` — korxona roli (sahifa shuni yuboradi); berilmasa — `role` turining tayyor roli.
     user = auth.create_user(db, toza["username"], toza["password"], role,
                             toza.get("full_name", ""),
-                            company_id=auth.company_id_of(current_user))
-    return {"id": user.id, "username": user.username, "role": user.role.value}
+                            company_id=auth.company_id_of(current_user), rol_id=toza.get("rol_id"))
+    return {"id": user.id, "username": user.username, "role": user.role.value, "rol_id": user.rol_id,
+            "rol_nomi": user.rol_nomi}
 
 
 @app.post("/api/users/{user_id}/toggle")
@@ -3584,26 +3680,242 @@ def api_change_password(user_id: int, data: dict, request: Request, db: Session 
     return {"status": "ok", "sessiyalar_yopildi": True}
 
 
+# ============================================================
+# ROLLAR VA RUXSATLAR (kech118 — egasi QARORI 15:23: «Hodim rollarini admin o'zi boshqaradigan qilaylik»; tugmali
+# javoblar 15:30 — 4 belgi, «Tannarx va foyda» alohida, tayyor rollar Admin / Menejer / Omborchi / Moliyachi)
+# ============================================================
+# FAQAT Admin (rolga topshirilmaydi). Katalog va tayyor rollar — `ruxsatlar.py`; baza — `auth.tayyor_rollar`,
+# `auth.rol_biriktir`. Har o'zgarish — «Tizim jurnallari» ga yoziladi (kim, qachon, nima o'zgardi).
+
+import ruxsatlar as _rx118
+
+
+def _rol_dict(db, rol, cid):
+    _fl = auth.rol_foydalanuvchilari(db, rol.id, cid)
+    _ad = rol.kod == "admin"
+    return {"id": rol.id, "nom": rol.nom, "tavsif": rol.tavsif or "", "kod": rol.kod, "tayyor": rol.kod is not None,
+            "admin": _ad,
+            "ruxsatlar": ({b: list(v["amallar"]) for b, v in _rx118.BANDLAR.items()} if _ad
+                          else {b: sorted(a, key=[x for x, _ in _rx118.AMALLAR].index)
+                                for b, a in _rx118.ruxsatlar_oqi(rol.ruxsatlar).items()}),
+            "foydalanuvchilar": [{"id": u.id, "username": u.username, "full_name": u.full_name or "",
+                                  "is_active": bool(u.is_active)} for u in _fl],
+            "ozgartirish_mumkin": not _ad, "ochirish_mumkin": (rol.kod is None and not _fl),
+            "andozaga_qaytarish_mumkin": rol.kod in _rx118.TAYYOR_ROLLAR and not _ad,
+            "updated_at": _toshkent_filtr(rol.updated_at) or None, "updated_by": rol.updated_by}
+
+
+def _rol_tana(data, yangi: bool) -> dict:
+    """Rol tanasi QAT'IY: faqat nom (1–60 belgi), tavsif (≤ 300), ruxsatlar ({band: [amal]}). Xato — ValueError."""
+    if not isinstance(data, dict):
+        raise ValueError("Ma'lumot noto'g'ri yuborildi")
+    ortiq = set(data) - {"nom", "tavsif", "ruxsatlar"}
+    if ortiq:
+        raise ValueError("Noma'lum maydon: " + ", ".join(sorted(ortiq)))
+    toza = {}
+    if "nom" in data or yangi:
+        nom = data.get("nom")
+        if not isinstance(nom, str) or not nom.strip():
+            raise ValueError("Rol nomini yozing")
+        nom = " ".join(nom.split())
+        if len(nom) > 60:
+            raise ValueError("Rol nomi ko'pi bilan 60 belgi")
+        toza["nom"] = nom
+    if "tavsif" in data:
+        t = data.get("tavsif")
+        if t is not None and not isinstance(t, str):
+            raise ValueError("Tavsif matn bo'lishi kerak")
+        t = (t or "").strip()
+        if len(t) > 300:
+            raise ValueError("Tavsif ko'pi bilan 300 belgi")
+        toza["tavsif"] = t
+    if "ruxsatlar" in data:
+        toza["ruxsatlar"] = _rx118.ruxsatlar_tozala(data.get("ruxsatlar"))
+    return toza
+
+
+def _rol_nomi_band(db, cid, nom, rol_id=None) -> bool:
+    from models import Rol as _Rol
+    q = db.query(_Rol).filter(_Rol.company_id == cid)
+    if rol_id is not None:
+        q = q.filter(_Rol.id != rol_id)
+    return any((r.nom or "").strip().lower() == nom.lower() for r in q.all())
+
+
+def _ruxsat_farqi(eski: dict, yangi: dict) -> str:
+    """Jurnal uchun: «+ Buyurtmalar: O'chirish; − Kassa: Ko'rish» (katalog tartibida)."""
+    q = []
+    for b, v in _rx118.BANDLAR.items():
+        e, y = set(eski.get(b) or ()), set(yangi.get(b) or ())
+        for a, an in _rx118.AMALLAR:
+            if a in y and a not in e:
+                q.append(f"+ {v['nom']}: {an}")
+            elif a in e and a not in y:
+                q.append(f"− {v['nom']}: {an}")
+    return "; ".join(q) if q else "ruxsatlar o'zgarmadi"
+
+
+@app.get("/rollar", response_class=HTMLResponse)
+async def rollar_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    return templates.TemplateResponse(request, "rollar.html", {"current_user": current_user, "active_page": "rollar"})
+
+
+@app.get("/api/rollar")
+def api_rollar(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    from models import Rol as _Rol
+    cid = auth.company_id_of(current_user)
+    auth.tayyor_rollar(db, cid)
+    _tartib = {k: i for i, k in enumerate(_rx118.TAYYOR_TARTIB)}
+    rollar = db.query(_Rol).filter(_Rol.company_id == cid).all()
+    rollar.sort(key=lambda r: (_tartib.get(r.kod, 50 if r.kod else 100), (r.nom or "").lower()))
+    users = auth.get_all_users(db, company_id=cid)
+    return {"katalog": _rx118.katalog(), "amallar": [{"kod": a, "nom": n} for a, n in _rx118.AMALLAR],
+            "rollar": [_rol_dict(db, r, cid) for r in rollar],
+            "foydalanuvchilar": [{"id": u.id, "username": u.username, "full_name": u.full_name or "",
+                                  "is_active": bool(u.is_active), "rol_id": u.rol_id, "rol_nomi": u.rol_nomi,
+                                  "ozim": u.id == current_user.id} for u in users]}
+
+
+@app.post("/api/rollar")
+def api_rol_yarat(data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    from models import Rol as _Rol
+    cid = auth.company_id_of(current_user)
+    try:
+        toza = _rol_tana(data, yangi=True)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if _rol_nomi_band(db, cid, toza["nom"]):
+        raise HTTPException(status_code=400, detail=f"«{toza['nom']}» nomli rol bor — boshqa nom yozing")
+    rol = _Rol(company_id=cid, nom=toza["nom"], tavsif=toza.get("tavsif", ""), kod=None,
+               ruxsatlar=_rx118.ruxsatlar_json(toza.get("ruxsatlar", {})), created_at=datetime.utcnow(),
+               updated_at=datetime.utcnow(), updated_by=current_user.username)
+    db.add(rol)
+    db.flush()
+    crud.log_activity(db, "created", "rol", rol.id, f"Rol «{rol.nom}»", performed_by=current_user.username,
+                      new_value=_ruxsat_farqi({}, toza.get("ruxsatlar", {})), company_id=cid, commit=False)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=f"«{toza['nom']}» nomli rol bor — boshqa nom yozing")
+    return _rol_dict(db, rol, cid)
+
+
+@app.put("/api/rollar/{rol_id}")
+def api_rol_yangila(rol_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    cid = auth.company_id_of(current_user)
+    rol = auth.rol_of_company(db, rol_id, cid)
+    if rol is None:
+        raise HTTPException(status_code=404, detail="Rol topilmadi")
+    if rol.kod == "admin":
+        raise HTTPException(status_code=400, detail="Admin roli o'zgartirilmaydi — u doim hamma narsaga ega")
+    try:
+        toza = _rol_tana(data, yangi=False)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if "nom" in toza and _rol_nomi_band(db, cid, toza["nom"], rol.id):
+        raise HTTPException(status_code=400, detail=f"«{toza['nom']}» nomli rol bor — boshqa nom yozing")
+    eski_nom, eski_r = rol.nom, _rx118.ruxsatlar_oqi(rol.ruxsatlar)
+    ozg = []
+    if "nom" in toza and toza["nom"] != rol.nom:
+        ozg.append(f"nomi: «{rol.nom}» → «{toza['nom']}»")
+        rol.nom = toza["nom"]
+    if "tavsif" in toza and toza["tavsif"] != (rol.tavsif or ""):
+        ozg.append("tavsifi o'zgardi")
+        rol.tavsif = toza["tavsif"]
+    if "ruxsatlar" in toza:
+        yangi_j = _rx118.ruxsatlar_json(toza["ruxsatlar"])
+        if _rx118.ruxsatlar_oqi(yangi_j) != eski_r:
+            ozg.append(_ruxsat_farqi(eski_r, toza["ruxsatlar"]))
+            rol.ruxsatlar = yangi_j
+    if ozg:
+        rol.updated_at = datetime.utcnow()
+        rol.updated_by = current_user.username
+        crud.log_activity(db, "updated", "rol", rol.id, f"Rol «{eski_nom}»", performed_by=current_user.username,
+                          new_value="; ".join(ozg), company_id=cid, commit=False)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Bu nomli rol bor — boshqa nom yozing")
+    return _rol_dict(db, rol, cid)
+
+
+@app.post("/api/rollar/{rol_id}/andoza")
+def api_rol_andoza(rol_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Tayyor rol (Menejer / Omborchi / Moliyachi) ruxsatlarini boshlang'ich holatiga qaytaradi."""
+    cid = auth.company_id_of(current_user)
+    rol = auth.rol_of_company(db, rol_id, cid)
+    if rol is None:
+        raise HTTPException(status_code=404, detail="Rol topilmadi")
+    if rol.kod not in _rx118.TAYYOR_ROLLAR or rol.kod == "admin":
+        raise HTTPException(status_code=400, detail="Faqat tayyor rolni boshlang'ich holatiga qaytarish mumkin")
+    eski = _rx118.ruxsatlar_oqi(rol.ruxsatlar)
+    yangi = _rx118.TAYYOR_ROLLAR[rol.kod]["ruxsatlar"]
+    rol.ruxsatlar = _rx118.ruxsatlar_json(yangi)
+    rol.updated_at = datetime.utcnow()
+    rol.updated_by = current_user.username
+    crud.log_activity(db, "updated", "rol", rol.id, f"Rol «{rol.nom}»", performed_by=current_user.username,
+                      new_value="boshlang'ich ruxsatlarga qaytarildi: " + _ruxsat_farqi(eski, yangi), company_id=cid,
+                      commit=False)
+    db.commit()
+    return _rol_dict(db, rol, cid)
+
+
+@app.delete("/api/rollar/{rol_id}")
+def api_rol_ochir(rol_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    cid = auth.company_id_of(current_user)
+    rol = auth.rol_of_company(db, rol_id, cid)
+    if rol is None:
+        raise HTTPException(status_code=404, detail="Rol topilmadi")
+    if rol.kod is not None:
+        raise HTTPException(status_code=400, detail="Tayyor rol o'chirilmaydi — ruxsatlarini o'zgartirish mumkin")
+    n = len(auth.rol_foydalanuvchilari(db, rol.id, cid))
+    if n:
+        raise HTTPException(status_code=400,
+                            detail=f"Bu rolda {n} ta foydalanuvchi bor — avval ularni boshqa rolga o'tkazing")
+    nom = rol.nom
+    db.delete(rol)
+    crud.log_activity(db, "deleted", "rol", rol_id, f"Rol «{nom}»", performed_by=current_user.username, company_id=cid,
+                      commit=False)
+    db.commit()
+    return {"status": "ok"}
+
+
+@app.put("/api/users/{user_id}/rol")
+def api_user_rol(user_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    cid = auth.company_id_of(current_user)
+    if not isinstance(data, dict) or set(data) != {"rol_id"} or isinstance(data.get("rol_id"), bool) \
+            or not isinstance(data.get("rol_id"), int):
+        raise HTTPException(status_code=400, detail="rol_id yuboring")
+    user, eski = auth.rol_biriktir(db, user_id, data["rol_id"], cid, current_user)
+    if eski != user.rol_nomi:
+        crud.log_activity(db, "updated", "user", user.id, f"Foydalanuvchi «{user.username}» roli",
+                          performed_by=current_user.username, old_value=eski, new_value=user.rol_nomi, company_id=cid,
+                          commit=False)
+    db.commit()
+    return {"id": user.id, "rol_id": user.rol_id, "rol_nomi": user.rol_nomi, "role": user.role.value}
+
+
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request, db: Session = Depends(get_db)):
     current_user = auth.get_current_user(request, db)
     if not current_user:
         return RedirectResponse("/login", status_code=302)
-    # home.html moliyaviy ko'rsatkichlarni (bugungi foyda va h.k.) ko'rsatadi —
-    # shuning uchun bu faqat Admin/Moliyachi uchun. Boshqa rollar — o'z asosiy
-    # ish maydoniga yo'naltiriladi.
-    role = current_user.role.value
-    if role == "manager":
-        return RedirectResponse("/orders", status_code=302)
-    if role == "warehouse":
-        return RedirectResponse("/inventory", status_code=302)
-    if role == "master":
-        return RedirectResponse("/orders", status_code=302)
+    # home.html moliyaviy ko'rsatkichlarni (bugungi foyda va h.k.) ko'rsatadi — shuning uchun faqat «Bosh sahifa va
+    # Dashboard» ruxsati borlarga. kech118 (ROLLAR): boshqalar — birinchi ochiq sahifasiga (`ruxsatlar.YONALTIRISH`,
+    # eski qoida bilan AYNAN: Menejer — /orders, Omborchi — /inventory); hech bir bo'lim berilmagan — 403 sahifa.
+    if not current_user.ruxsat("dashboard", "korish"):
+        import ruxsatlar as _rx118
+        _url = _rx118.birinchi_sahifa(current_user)
+        if _url:
+            return RedirectResponse(_url, status_code=302)
+        raise HTTPException(status_code=403, detail="Sizning rolingizga hali birorta bo'lim berilmagan. Admin bilan bog'laning.")
     return templates.TemplateResponse(request, "home.html", {"current_user": current_user, "active_page": "home"})
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
-async def dashboard_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+async def dashboard_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("dashboard", "korish"))):
     stats = services.get_dashboard_stats(db, company_id=auth.company_id_of(current_user))
     return templates.TemplateResponse(request, "dashboard.html", {"stats": stats, "current_user": current_user, "active_page": "dashboard"})
 
@@ -3616,7 +3928,7 @@ async def masters_page_redirect():
 
 
 @app.get("/ustalar", response_class=HTMLResponse)
-async def masters_manage_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+async def masters_manage_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("usta", "korish"))):
     """Usta qo'shish/tahrirlash — Manager uchun, Moliya/KPI ma'lumotisiz.
     /kpi sahifasi faqat admin_or_financier ga ochiq bo'lgani uchun, Manager
     'Yangi usta' tugmasiga hech qachon yeta olmasdi — bu sahifa o'sha
@@ -3627,7 +3939,7 @@ async def masters_manage_page(request: Request, db: Session = Depends(get_db), c
 
 
 @app.get("/inventory", response_class=HTMLResponse)
-async def inventory_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.inventory_view)):
+async def inventory_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("material", "korish"))):
     items = crud.get_inventory(db, company_id=auth.company_id_of(current_user))
     kpi = services.get_inventory_kpi(db, company_id=auth.company_id_of(current_user))
     suppliers = crud.get_suppliers(db, company_id=auth.company_id_of(current_user))
@@ -3636,7 +3948,7 @@ async def inventory_page(request: Request, db: Session = Depends(get_db), curren
 
 @app.post("/api/inventory/{item_id}/image")
 def api_upload_inventory_image(item_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
-                                current_user=Depends(auth.admin_or_warehouse)):
+                                current_user=Depends(auth.ruxsat("material", "tahrirlash"))):
     # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.inventory_of_company(db, item_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Material topilmadi")
@@ -3651,19 +3963,19 @@ def api_upload_inventory_image(item_id: int, file: UploadFile = File(...), db: S
 
 
 @app.get("/api/inventory/kpi")
-def api_inventory_kpi(db: Session = Depends(get_db), current_user=Depends(auth.inventory_view)):
+def api_inventory_kpi(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("material", "korish"))):
     return services.get_inventory_kpi(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/recipes", response_class=HTMLResponse)
-async def recipes_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+async def recipes_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("retsept", "korish"))):
     recipes = crud.get_recipes(db, company_id=auth.company_id_of(current_user))
     insights = {r.id: crud.get_recipe_insights(db, r.id) for r in recipes}
     return templates.TemplateResponse(request, "recipes.html", {"recipes": recipes, "insights": insights, "current_user": current_user, "active_page": "recipes"})
 
 
 @app.get("/production", response_class=HTMLResponse)
-async def production_page(request: Request, current_user=Depends(auth.admin_or_warehouse)):
+async def production_page(request: Request, current_user=Depends(auth.ruxsat("mahsulot_turi", "korish"))):
     """2026-09-16: yangi Dinamik Ishlab chiqarish (Production/MRP) sahifasi.
     Barcha ma'lumotlar (mahsulot turlari, retseptlar, buyurtmalar)
     frontendda AJAX orqali /api/production/... dan yuklanadi — shuning
@@ -3680,14 +3992,14 @@ async def production_page(request: Request, current_user=Depends(auth.admin_or_w
 
 
 @app.get("/projects", response_class=HTMLResponse)
-async def projects_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_manager_accountant)):
+async def projects_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat_biri(("loyiha", "korish"), ("loyiha_korsatkich", "korish")))):
     projects = crud.get_projects_with_stats(db, company_id=auth.company_id_of(current_user))
     kpi = crud.get_projects_dashboard_stats(db, company_id=auth.company_id_of(current_user))
     return templates.TemplateResponse(request, "projects.html", {"projects": projects, "kpi": kpi, "current_user": current_user, "active_page": "projects"})
 
 
 @app.get("/api/projects/progress-map")
-def api_projects_progress_map(db: Session = Depends(get_db), current_user=Depends(auth.admin_manager_accountant)):
+def api_projects_progress_map(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("loyiha_korsatkich", "korish"))):
     """Har bir loyiha uchun bajarilish foizi (tayyor/yetkazilgan buyurtmalar ulushi) — faqat o'qish.
 
     kech101 (139-band, O'LCHANGAN — `work/probe139.py`, SQLite = PG): o'chirilgan buyurtmalar (Savatdagi — kech100 dan oldingi
@@ -3714,12 +4026,12 @@ def api_projects_progress_map(db: Session = Depends(get_db), current_user=Depend
 
 
 @app.get("/api/projects/dashboard-stats")
-def api_projects_dashboard_stats(db: Session = Depends(get_db), current_user=Depends(auth.admin_manager_accountant)):
+def api_projects_dashboard_stats(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("loyiha_korsatkich", "korish"))):
     return crud.get_projects_dashboard_stats(db, company_id=auth.company_id_of(current_user))
 
 
 @app.post("/api/projects/{project_id}/payment")
-def api_add_payment(project_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_manager_accountant)):
+def api_add_payment(project_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("tolov", "yaratish"))):
     """17c (2026-09-21) — OLIB TASHLANGAN yo'l, foydalanuvchi qarori "1".
 
     Bu marshrut loyihaga pulni TO'LOV YOZUVISIZ `total_paid` ga qo'shardi:
@@ -3738,7 +4050,7 @@ def api_add_payment(project_id: int, db: Session = Depends(get_db), current_user
 
 
 @app.get("/orders", response_class=HTMLResponse)
-async def orders_page(request: Request, show_all: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.orders_page_access)):
+async def orders_page(request: Request, show_all: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat_biri(("buyurtma", "korish"), ("buyurtma_fayl", "yaratish")))):
     orders = crud.get_orders_for_main_page(db, days=90, show_all=show_all, company_id=auth.company_id_of(current_user),
                                            royxat_uchun=True)     # kech97 (116-band): ro'yxatlar oldindan
     for o in orders:
@@ -3800,7 +4112,7 @@ async def orders_page(request: Request, show_all: bool = False, db: Session = De
 
 
 @app.post("/api/masters", response_model=schemas.MasterRead)
-def api_create_master(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_create_master(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("usta", "yaratish"))):
     # 15-band: xom JSON qat'iy tekshiriladi (pydantic `true` → 1.0, "5" → 5
     # kabi JIM o'girardi; NaN → 500) — qoida buzilsa 400, hech narsa yozilmaydi.
     try:
@@ -3835,7 +4147,7 @@ def api_create_master(data: dict = Body(...), db: Session = Depends(get_db), cur
 
 
 @app.delete("/api/masters/{master_id}/delete")
-def api_delete_master_permanent(master_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_delete_master_permanent(master_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("savat", "ochirish"))):
     # M5: usta FAQAT joriy korxonadan (aks holda 404).
     master = auth.master_of_company(db, master_id, auth.company_id_of(current_user))
     if not master:
@@ -3846,13 +4158,13 @@ def api_delete_master_permanent(master_id: int, db: Session = Depends(get_db), c
 
 
 @app.get("/api/masters", response_model=List[schemas.MasterRead])
-def api_get_masters(only_active: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_get_masters(only_active: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("usta", "korish"))):
     return crud.get_masters(db, only_active=only_active,
                            company_id=auth.company_id_of(current_user))
 
 
 @app.put("/api/masters/{master_id}", response_model=schemas.MasterRead)
-def api_update_master(master_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_update_master(master_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("usta", "tahrirlash"))):
     # 14-band: avval obyekt korxonadan (404) — tana tekshiruvi undan KEYIN,
     # aks holda begona ID + noto'g'ri tana 400 berib, ID borligini oshkor qilardi.
     cid = auth.company_id_of(current_user)
@@ -3872,14 +4184,14 @@ def api_update_master(master_id: int, data: dict = Body(...), db: Session = Depe
 
 
 @app.delete("/api/masters/{master_id}")
-def api_delete_master(master_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_delete_master(master_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("usta", "ochirish"))):
     if not crud.delete_master(db, master_id, company_id=auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Usta topilmadi")
     return {"status": "ok"}
 
 
 @app.post("/api/inventory", response_model=schemas.InventoryRead)
-def api_create_item(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_create_item(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("material", "yaratish"))):
     # 15-band: xom JSON qat'iy tekshiriladi (manfiy / juda katta narx, NaN,
     # Infinity, `true` → 1.0, uzun matn, bo'sh birlik) — 400, hech narsa
     # yozilmaydi.
@@ -3907,12 +4219,12 @@ def api_create_item(data: dict = Body(...), db: Session = Depends(get_db), curre
 
 
 @app.get("/api/inventory", response_model=List[schemas.InventoryRead])
-def api_get_inventory(db: Session = Depends(get_db), current_user=Depends(auth.inventory_view)):
+def api_get_inventory(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("material", "korish"))):
     return crud.get_inventory(db, company_id=auth.company_id_of(current_user))
 
 
 @app.post("/api/inventory/{item_id}/stock", response_model=schemas.InventoryRead)
-def api_update_stock(item_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_update_stock(item_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("qoldiq", "tahrirlash"))):
     """Qoldiqni narxsiz tuzatish (inventarizatsiya, kamomad va h.k.).
 
     19-band (2026-09-21): tana xom JSON — qat'iy tekshiriladi (NaN/cheksiz/
@@ -3937,7 +4249,7 @@ def api_update_stock(item_id: int, data: dict = Body(...), db: Session = Depends
 
 
 @app.put("/api/inventory/{item_id}")
-def api_update_inventory_item(item_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_update_inventory_item(item_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("material", "tahrirlash"))):
     """Xomashyo ma'lumotlarini yangilash (nomi, min qoldiq, kategoriya va h.k.)."""
     # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.inventory_of_company(db, item_id, auth.company_id_of(current_user)):
@@ -3962,7 +4274,7 @@ def api_update_inventory_item(item_id: int, data: dict = Body(...), db: Session 
 
 @app.post("/api/inventory/receipt")
 def api_create_inventory_receipt(data: dict = Body(...), db: Session = Depends(get_db),
-                                  current_user=Depends(auth.admin_or_warehouse)):
+                                  current_user=Depends(auth.ruxsat("kirim", "yaratish"))):
     """Ombor Kirim hujjati — bir nechta mahsulotni, qo'shimcha xarajatlar
     (Transport/Tushirish/Yuklash/Boshqa) bilan birga, BITTA yagona
     tranzaksiyada saqlaydi. Xato bo'lsa — hech narsa saqlanmaydi (rollback).
@@ -4031,7 +4343,7 @@ def api_create_inventory_receipt(data: dict = Body(...), db: Session = Depends(g
 
 
 @app.post("/api/inventory/{item_id}/purchase")
-def api_purchase_stock(item_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_purchase_stock(item_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kirim", "yaratish"))):
     """Ombor kirimi — xarid narxi bilan. O'rtacha vaznli narx hisoblanadi.
     paid_now > 0 bo'lsa — bir vaqtning o'zida xarid HAM yoziladi, HAM to'lov qilinadi,
     qolgan qismi avtomatik qarz sifatida qoladi.
@@ -4167,7 +4479,7 @@ def api_purchase_stock(item_id: int, data: dict = Body(...), db: Session = Depen
 
 @app.get("/api/inventory/purchases")
 def api_get_purchases(item_id: Optional[int] = None, limit: int = 100,
-                      db: Session = Depends(get_db), current_user=Depends(auth.inventory_view)):
+                      db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kirim", "korish"))):
     """Xaridlar tarixi."""
     items = crud.get_purchases(db, limit=limit, item_id=item_id, company_id=auth.company_id_of(current_user))
     return [{
@@ -4187,13 +4499,13 @@ def api_get_purchases(item_id: Optional[int] = None, limit: int = 100,
 
 @app.get("/api/inventory/purchase-stats")
 def api_purchase_stats(year: Optional[int] = None, month: Optional[int] = None,
-                       db: Session = Depends(get_db), current_user=Depends(auth.inventory_view)):
+                       db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kirim", "korish"))):
     """Material bo'yicha xarid statistikasi (oylik)."""
     return crud.get_purchase_stats(db, year=year, month=month, company_id=auth.company_id_of(current_user))
 
 
 @app.post("/api/transport-expenses")
-def api_create_transport(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_create_transport(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("yetkazish", "yaratish"))):
     """Kirish transporti xarajatini qo'shish."""
     # 17f (2026-09-22): xom JSON QAT'IY tekshiriladi (`crud._clean_val
     # ("TransportExpense")`). HAQIQIY PostgreSQL da O'LCHANGAN: `Infinity` /
@@ -4212,7 +4524,7 @@ def api_create_transport(data: dict = Body(...), db: Session = Depends(get_db), 
 
 
 @app.get("/api/transport-expenses")
-def api_get_transport(limit: int = 100, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_get_transport(limit: int = 100, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("yetkazish", "korish"))):
     """Kirish transporti tarixi."""
     items = crud.get_transport_expenses(db, limit=limit, company_id=auth.company_id_of(current_user))
     return [{
@@ -4227,7 +4539,7 @@ def api_get_transport(limit: int = 100, db: Session = Depends(get_db), current_u
 
 
 @app.delete("/api/transport-expenses/{exp_id}")
-def api_delete_transport(exp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_delete_transport(exp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("yetkazish", "ochirish"))):
     if not crud.delete_transport_expense(db, exp_id, company_id=auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok"}
@@ -4238,7 +4550,7 @@ def api_delete_transport(exp_id: int, db: Session = Depends(get_db), current_use
 # ============================================================
 
 @app.post("/api/employees")
-def api_create_employee(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_create_employee(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("hodim", "yaratish"))):
     # M1/M8-F1: xodim joriy adminning korxonasiga biriktiriladi — tenant
     # endi `create_employee()` ga BOSHIDAN uzatiladi (ilgari qaytgandan
     # keyin qo'yilardi va ichki commit vaqtida ustun bo'sh qolardi).
@@ -4254,7 +4566,7 @@ def api_create_employee(data: dict = Body(...), db: Session = Depends(get_db), c
 
 
 @app.get("/api/employees")
-def api_get_employees(only_active: bool = True, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_get_employees(only_active: bool = True, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("hodim", "korish"))):
     items = crud.get_employees(db, only_active=only_active,
                                company_id=auth.company_id_of(current_user))
     # kech117 (A2): hodim yo'nalishi (NULL — «Umumiy») va nomi
@@ -4279,7 +4591,7 @@ def api_get_employees(only_active: bool = True, db: Session = Depends(get_db), c
 def api_create_employee_advance(employee_id: int, amount: Optional[str] = None,
                                   notes: Optional[str] = None,
                                   adv_date: Optional[str] = None,
-                                  db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+                                  db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("hodim", "tahrirlash"))):
     """Hodimga avans (oldindan pul) berilganini qayd etadi.
     adv_date — YYYY-MM-DD formatida, ixtiyoriy (berilmasa yoki bo'sh — bugungi sana).
 
@@ -4304,7 +4616,7 @@ def api_create_employee_advance(employee_id: int, amount: Optional[str] = None,
 
 @app.get("/api/employees/{employee_id}/advances")
 def api_get_employee_advances(employee_id: int, year: int, month: int,
-                                db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+                                db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("hodim", "korish"))):
     """Hodimga shu oyda berilgan barcha avanslar ro'yxati."""
     # M1: xodim FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.employee_of_company(db, employee_id, auth.company_id_of(current_user)):
@@ -4317,7 +4629,7 @@ def api_get_employee_advances(employee_id: int, year: int, month: int,
 
 @app.get("/api/employees/{employee_id}/monthly-adjustment")
 def api_get_employee_adjustment(employee_id: int, year: int, month: int,
-                                  db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+                                  db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("hodim", "korish"))):
     """Hodim uchun, shu oy uchun saqlangan qo'lda kamaytirish/bonusni qaytaradi."""
     # M1: xodim FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.employee_of_company(db, employee_id, auth.company_id_of(current_user)):
@@ -4335,7 +4647,7 @@ def api_get_employee_adjustment(employee_id: int, year: int, month: int,
 def api_set_employee_adjustment(employee_id: int, year: Optional[str] = None, month: Optional[str] = None,
                                   reduction_amount: Optional[str] = None, reason: Optional[str] = None,
                                   bonus_amount: Optional[str] = None, bonus_reason: Optional[str] = None,
-                                  db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+                                  db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("hodim", "tahrirlash"))):
     """Hodim uchun, shu oy uchun qo'lda kamaytirish va/yoki bonusni yozadi/yangilaydi/o'chiradi.
 
     17c (2026-09-21): qiymatlar MATN sifatida olinadi va
@@ -4360,7 +4672,7 @@ def api_set_employee_adjustment(employee_id: int, year: Optional[str] = None, mo
 
 
 @app.delete("/api/employees/advance/{advance_id}")
-def api_delete_employee_advance(advance_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_delete_employee_advance(advance_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("hodim", "tahrirlash"))):
     # M1: avansning O'ZIDA company_id yo'q — u xodimga bog'langan.
     # Shuning uchun ota (xodim) orqali tekshiramiz.
     from models import EmployeeAdvance as _EA
@@ -4374,7 +4686,7 @@ def api_delete_employee_advance(advance_id: int, db: Session = Depends(get_db), 
 
 
 @app.put("/api/employees/{emp_id}")
-def api_update_employee(emp_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_update_employee(emp_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("hodim", "tahrirlash"))):
     # M1: xodim FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.employee_of_company(db, emp_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Xodim topilmadi")
@@ -4392,7 +4704,7 @@ def api_update_employee(emp_id: int, data: dict = Body(...), db: Session = Depen
 
 
 @app.get("/api/employees/{emp_id}/compensation-history")
-def api_employee_compensation_history(emp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_employee_compensation_history(emp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("hodim", "korish"))):
     """Hodimning to'lov (oylik/foiz/birlik narxi) o'zgarishlar tarixi —
     eng yangisi birinchi bo'lib qaytadi."""
     # M1: xodim FAQAT joriy korxonadan topiladi (aks holda 404).
@@ -4420,7 +4732,7 @@ def api_employee_compensation_history(emp_id: int, db: Session = Depends(get_db)
 
 
 @app.post("/api/employees/backfill-compensation-history")
-def api_backfill_compensation_history(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_backfill_compensation_history(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("hodim", "tahrirlash"))):
     """Bir martalik migratsiya — tarix yozuvi hali yo'q eski hodimlar
     uchun boshlang'ich to'lov tarixini yaratadi. Xavfsiz — bir necha marta
     bossa ham, allaqachon tarixi bor hodimlarga qayta tegilmaydi."""
@@ -4429,7 +4741,7 @@ def api_backfill_compensation_history(db: Session = Depends(get_db), current_use
 
 
 @app.delete("/api/employees/{emp_id}")
-def api_delete_employee(emp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_delete_employee(emp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("hodim", "ochirish"))):
     # M1: xodim FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.employee_of_company(db, emp_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Xodim topilmadi")
@@ -4440,7 +4752,7 @@ def api_delete_employee(emp_id: int, db: Session = Depends(get_db), current_user
 
 
 @app.post("/api/employees/{emp_id}/restore")
-def api_restore_employee(emp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_restore_employee(emp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("hodim", "tahrirlash"))):
     # M1: xodim FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.employee_of_company(db, emp_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Xodim topilmadi")
@@ -4451,7 +4763,7 @@ def api_restore_employee(emp_id: int, db: Session = Depends(get_db), current_use
 
 
 @app.delete("/api/employees/{emp_id}/permanent")
-def api_permanent_delete_employee(emp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_permanent_delete_employee(emp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("hodim", "ochirish"))):
     # M1: xodim FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.employee_of_company(db, emp_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Xodim topilmadi")
@@ -4463,7 +4775,7 @@ def api_permanent_delete_employee(emp_id: int, db: Session = Depends(get_db), cu
 
 @app.post("/api/employees/{emp_id}/set-login")
 def api_set_employee_login(emp_id: int, phone: str = Form(...), pin: str = Form(...),
-                            db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+                            db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("hodim", "tahrirlash"))):
     """Admin — xodimga telefon+PIN belgilaydi, shu orqali u o'z paneliga kira oladi."""
     # M1: xodim FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.employee_of_company(db, emp_id, auth.company_id_of(current_user)):
@@ -4597,12 +4909,12 @@ def api_hodim_advance_request(amount: Optional[str] = Form(None), requested_date
 # ============================================================
 
 @app.get("/api/admin/pending-advance-requests")
-def api_pending_advance_requests(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+def api_pending_advance_requests(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("avans_sorov", "korish"))):
     return crud.get_pending_advance_requests(db, company_id=auth.company_id_of(current_user))
 
 
 @app.post("/api/admin/advance-requests/{request_id}/confirm")
-def api_confirm_advance_request(request_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+def api_confirm_advance_request(request_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("avans_sorov", "tahrirlash"))):
     result = crud.confirm_advance_request(db, request_id, current_user.full_name or current_user.username,
                                          company_id=auth.company_id_of(current_user))
     if not result:
@@ -4611,7 +4923,7 @@ def api_confirm_advance_request(request_id: int, db: Session = Depends(get_db), 
 
 
 @app.post("/api/admin/advance-requests/{request_id}/reject")
-def api_reject_advance_request(request_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+def api_reject_advance_request(request_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("avans_sorov", "tahrirlash"))):
     if not crud.reject_advance_request(db, request_id, current_user.full_name or current_user.username,
                                       company_id=auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="So'rov topilmadi yoki allaqachon ko'rib chiqilgan")
@@ -4623,7 +4935,7 @@ def api_reject_advance_request(request_id: int, db: Session = Depends(get_db), c
 # ============================================================
 
 @app.put("/api/masters/{master_id}/kpi")
-def api_update_master_kpi(master_id: int, data: schemas.MasterKpiUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+def api_update_master_kpi(master_id: int, data: schemas.MasterKpiUpdate, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kpi", "tahrirlash"))):
     # kech93 (8-band): tana — `schemas.MasterKpiUpdate` (strict, noma'lum kalit
     # yo'q, NaN / cheksiz yo'q → 422); crud ildizi ham tekshiradi (→ 400).
     try:
@@ -4637,14 +4949,14 @@ def api_update_master_kpi(master_id: int, data: schemas.MasterKpiUpdate, db: Ses
 
 
 @app.get("/api/settings/ehson-percent")
-def api_get_ehson_percent(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+def api_get_ehson_percent(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kpi", "korish"))):
     """Ehson (xayriya) foizini o'qiydi — admin belgilagan, sof foydadan ajratiladigan ulush."""
     percent = crud.get_setting(db, "ehson_percent", "0", company_id=auth.company_id_of(current_user))
     return {"ehson_percent": float(percent or 0)}
 
 
 @app.put("/api/settings/ehson-percent")
-def api_set_ehson_percent(percent: float = Form(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_set_ehson_percent(percent: float = Form(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("sozlama", "tahrirlash"))):
     """Ehson foizini belgilaydi — faqat Admin o'zgartira oladi."""
     if percent < 0 or percent > 100:
         raise HTTPException(status_code=400, detail="Foiz 0 dan 100 gacha bo'lishi kerak")
@@ -4654,7 +4966,7 @@ def api_set_ehson_percent(percent: float = Form(...), db: Session = Depends(get_
 
 @app.get("/api/masters/kpi-report")
 def api_masters_kpi_report(year: Optional[int] = None, include_inactive: bool = False,
-                            db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+                            db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kpi", "korish"))):
     from database import tashkent_date as _t_sana
     y = year or _t_sana().year     # kech105 (9 + 50-band): joriy yil — Toshkent kalendari
     return crud.get_masters_kpi_report(db, y, include_inactive=include_inactive,
@@ -4663,7 +4975,7 @@ def api_masters_kpi_report(year: Optional[int] = None, include_inactive: bool = 
 
 @app.get("/api/masters/{master_id}/kpi-detail")
 def api_master_kpi_detail(master_id: int, year: Optional[int] = None,
-                           db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+                           db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kpi", "korish"))):
     from database import tashkent_date as _t_sana
     y = year or _t_sana().year     # kech105 (9 + 50-band): joriy yil — Toshkent kalendari
     return crud.get_master_kpi_detail(db, master_id, y,
@@ -4672,12 +4984,12 @@ def api_master_kpi_detail(master_id: int, year: Optional[int] = None,
 
 # ── "Sovg'a davri" (2026-09-12, savdo-summasi asosidagi, davriy) ──────
 @app.get("/api/gift-period")
-def api_get_gift_period(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+def api_get_gift_period(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kpi", "korish"))):
     return crud.get_gift_period_overview(db, company_id=auth.company_id_of(current_user))
 
 
 @app.post("/api/gift-period/open")
-def api_open_gift_period(data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+def api_open_gift_period(data: dict, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kpi", "tahrirlash"))):
     # kech93 (8-band): faqat `kpi.html` yuboradigan ikki kalit (`tiers`,
     # `master_ids`); qiymatlarni `crud.open_gift_period` QAT'IY tekshiradi (17f).
     # O'LCHANGAN: noma'lum kalit jim e'tiborsiz qolardi.
@@ -4694,7 +5006,7 @@ def api_open_gift_period(data: dict, db: Session = Depends(get_db), current_user
 
 
 @app.put("/api/gift-period/tier/{tier_id}")
-def api_update_gift_period_tier(tier_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+def api_update_gift_period_tier(tier_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kpi", "tahrirlash"))):
     # kech93 (8-band): faqat `kpi.html` yuboradigan ikki kalit; qiymatlarni
     # `crud.update_gift_period_tier` tekshiradi. O'LCHANGAN: noma'lum kalit
     # (`period_id`) jim e'tiborsiz qolardi (200).
@@ -4710,7 +5022,7 @@ def api_update_gift_period_tier(tier_id: int, data: dict, db: Session = Depends(
 
 
 @app.post("/api/gift-period/add-master")
-def api_add_master_to_gift_period(data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+def api_add_master_to_gift_period(data: dict, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kpi", "tahrirlash"))):
     """2026-09-16: davrni to'xtatmasdan, yangi/faollashtirilgan ustani
     aniq-ishtirokchi ro'yxatiga qo'shish uchun."""
     # kech93 (8-band): `{"master_id": <musbat butun son>}` — boshqa hech narsa.
@@ -4729,7 +5041,7 @@ def api_add_master_to_gift_period(data: dict, db: Session = Depends(get_db), cur
 
 
 @app.post("/api/gift-period/close")
-def api_close_gift_period(data: dict = Body(default={}), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+def api_close_gift_period(data: dict = Body(default={}), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kpi", "tahrirlash"))):
     who = current_user.full_name or current_user.username
     # kech93 (8-band): `force` — FAQAT true / false (yoki berilmagan / null).
     # O'LCHANGAN: `bool("false")` = True va `{"force": 1}` → MAJBURIY yopish;
@@ -4747,7 +5059,7 @@ def api_close_gift_period(data: dict = Body(default={}), db: Session = Depends(g
 
 
 @app.post("/api/gift-period/redeem/{master_id}/{tier_id}")
-def api_redeem_gift_period_tier(master_id: int, tier_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+def api_redeem_gift_period_tier(master_id: int, tier_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kpi", "tahrirlash"))):
     who = current_user.full_name or current_user.username
     result = crud.redeem_gift_period_tier(db, master_id, tier_id, performed_by=who,
                                          company_id=auth.company_id_of(current_user))
@@ -4758,7 +5070,7 @@ def api_redeem_gift_period_tier(master_id: int, tier_id: int, db: Session = Depe
 
 @app.get("/api/transport-stats")
 def api_transport_stats(year: Optional[int] = None, month: Optional[int] = None,
-                        db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+                        db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("dashboard", "korish"))):
     """Transport xarajatlari statistikasi (kirish + chiqish)."""
     return crud.get_transport_stats(db, year=year, month=month, company_id=auth.company_id_of(current_user))
 
@@ -4768,12 +5080,12 @@ def api_transport_stats(year: Optional[int] = None, month: Optional[int] = None,
 # ============================================================
 
 @app.get("/suppliers", response_class=HTMLResponse)
-async def suppliers_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+async def suppliers_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("taminotchi", "korish"))):
     return templates.TemplateResponse(request, "suppliers.html", {"current_user": current_user, "active_page": "suppliers"})
 
 
 @app.get("/suppliers/receive", response_class=HTMLResponse)
-async def supplier_receive_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+async def supplier_receive_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kirim", "yaratish"))):
     """Yetkazib beruvchidan mahsulot kirim qilish — to'liq sahifa ko'rinishi.
     Backend/API o'zgarmagan — xuddi suppliers.html'dagi (sinalgan) xarid
     mexanizmining o'zi, faqat kattaroq, tartibli sahifa dizaynida."""
@@ -4784,7 +5096,7 @@ async def supplier_receive_page(request: Request, db: Session = Depends(get_db),
 
 
 @app.post("/api/suppliers")
-def api_create_supplier(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_create_supplier(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("taminotchi", "yaratish"))):
     # M8/F1a: ta'minotchi joriy adminning korxonasiga biriktiriladi.
     # 15-band: xom JSON qat'iy tekshiriladi (bo'shliqdan iborat nom, uzun
     # telefon) — 400, hech narsa yozilmaydi.
@@ -4798,12 +5110,12 @@ def api_create_supplier(data: dict = Body(...), db: Session = Depends(get_db), c
 
 
 @app.get("/api/suppliers")
-def api_get_suppliers(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_get_suppliers(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("taminotchi", "korish"))):
     return crud.get_suppliers_with_debt(db, company_id=auth.company_id_of(current_user))
 
 
 @app.put("/api/suppliers/{supplier_id}")
-def api_update_supplier(supplier_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_update_supplier(supplier_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("taminotchi", "tahrirlash"))):
     # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.supplier_of_company(db, supplier_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
@@ -4820,7 +5132,7 @@ def api_update_supplier(supplier_id: int, data: dict = Body(...), db: Session = 
 
 
 @app.delete("/api/suppliers/{supplier_id}")
-def api_delete_supplier(supplier_id: int, force: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_delete_supplier(supplier_id: int, force: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("taminotchi", "ochirish"))):
     """Yetkazib beruvchini o'chirish. Qarzi bo'lsa force=true kerak."""
     # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.supplier_of_company(db, supplier_id, auth.company_id_of(current_user)):
@@ -4834,7 +5146,7 @@ def api_delete_supplier(supplier_id: int, force: bool = False, db: Session = Dep
 @app.get("/api/suppliers/{supplier_id}/history")
 def api_supplier_history(supplier_id: int, start_date: Optional[str] = None, end_date: Optional[str] = None,
                          page: int = 1, page_size: int = 20,
-                         db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+                         db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("taminotchi", "korish"))):
     """Yetkazib beruvchi tarixi. start_date/end_date — YYYY-MM-DD formatida (ixtiyoriy).
     page/page_size — xaridlar ro'yxati sahifalanadi (standart: 20 tadan)."""
     from datetime import datetime as dt
@@ -4858,7 +5170,7 @@ def api_supplier_history(supplier_id: int, start_date: Optional[str] = None, end
 
 
 @app.put("/api/inventory/purchases/{purchase_id}")
-def api_update_purchase(purchase_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_update_purchase(purchase_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kirim", "tahrirlash"))):
     """Xarid yozuvini tahrirlash.
 
     21-band (2026-09-21): MIQDOR o'zgartirilsa — farqi OMBORGA ham
@@ -4890,7 +5202,7 @@ def api_update_purchase(purchase_id: int, data: dict = Body(...), db: Session = 
 
 
 @app.delete("/api/inventory/purchases/{purchase_id}")
-def api_delete_purchase(purchase_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_delete_purchase(purchase_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kirim", "ochirish"))):
     """Xarid yozuvini o'chirish — ham OMBORdan miqdorni qaytaradi, ham pul oqimidan olib tashlaydi (to'liq bekor qilish)."""
     # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.purchase_of_company(db, purchase_id, auth.company_id_of(current_user)):
@@ -4901,7 +5213,7 @@ def api_delete_purchase(purchase_id: int, db: Session = Depends(get_db), current
 
 
 @app.get("/api/inventory/receipts/{receipt_id}/cancel-plan")
-def api_receipt_cancel_plan(receipt_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_receipt_cancel_plan(receipt_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kirim", "ochirish"))):
     """kech107 (10f): kirim hujjatini bekor qilish REJASI — hech narsa o'zgarmaydi (oynada ko'rsatiladi)."""
     natija = crud.kirim_hujjatini_bekor_qilish(db, receipt_id, company_id=auth.company_id_of(current_user),
                                                faqat_hisob=True)
@@ -4912,7 +5224,7 @@ def api_receipt_cancel_plan(receipt_id: int, db: Session = Depends(get_db), curr
 
 @app.post("/api/inventory/receipts/{receipt_id}/cancel")
 def api_receipt_cancel(receipt_id: int, tolov: Optional[str] = None, db: Session = Depends(get_db),
-                       current_user=Depends(auth.admin_or_warehouse)):
+                       current_user=Depends(auth.ruxsat("kirim", "ochirish"))):
     """kech107 (10f): kirim hujjatini butunlay bekor qilish — BITTA tranzaksiyada (`crud.kirim_hujjatini_bekor_qilish`).
     `tolov` — hujjat bilan to'langan pul: `ochirish` yoki `avans` (egasi qarori "Har safar so'rasin"; to'lov bor-u
     berilmasa — 409 `receipt_has_payment`, hech narsa o'zgarmaydi)."""
@@ -4932,7 +5244,7 @@ def api_receipt_cancel(receipt_id: int, tolov: Optional[str] = None, db: Session
 
 
 @app.post("/api/suppliers/{supplier_id}/payment")
-def api_supplier_payment(supplier_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_supplier_payment(supplier_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("taminotchi_tolov", "yaratish"))):
     # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     # Egalik tekshiruvi TANA tekshiruvidan OLDIN — begona id uchun oracle yo'q.
     if not auth.supplier_of_company(db, supplier_id, auth.company_id_of(current_user)):
@@ -4964,14 +5276,14 @@ def api_supplier_payment(supplier_id: int, data: dict = Body(...), db: Session =
 
 
 @app.delete("/api/suppliers/payments/{payment_id}")
-def api_delete_supplier_payment(payment_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_delete_supplier_payment(payment_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("taminotchi_tolov", "ochirish"))):
     if not crud.delete_supplier_payment(db, payment_id, company_id=auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok"}
 
 
 @app.get("/api/suppliers/debt-total")
-def api_suppliers_debt_total(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_suppliers_debt_total(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("taminotchi", "korish"))):
     """Barcha yetkazib beruvchilarga jami qarz — dashboard uchun."""
     suppliers = crud.get_suppliers_with_debt(db, company_id=auth.company_id_of(current_user))
     total = sum(s["debt"] for s in suppliers)
@@ -4979,25 +5291,25 @@ def api_suppliers_debt_total(db: Session = Depends(get_db), current_user=Depends
 
 
 @app.get("/api/suppliers/due-dates")
-def api_suppliers_due_dates(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_suppliers_due_dates(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("taminotchi", "korish"))):
     """Qarz to'lash muddatlari — Dashboard ogohlantirishi uchun."""
     return crud.get_supplier_payment_due_dates(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/suppliers/{supplier_id}/purchased-items")
-def api_supplier_purchased_items(supplier_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_supplier_purchased_items(supplier_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("taminotchi", "korish"))):
     """Shu yetkazib beruvchidan ilgari xarid qilingan materiallar — Kirim sahifasida qulaylik uchun."""
     return crud.get_supplier_purchased_items(db, supplier_id, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/inventory/purchase-trend")
-def api_purchase_trend(months: int = 6, db: Session = Depends(get_db), current_user=Depends(auth.inventory_view)):
+def api_purchase_trend(months: int = 6, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kirim", "korish"))):
     """Oxirgi N oy xarid tendensiyasi."""
     return crud.get_purchase_stats_range(db, months=months, company_id=auth.company_id_of(current_user))
 
 
 @app.post("/api/inventory/{item_id}/price")
-def api_update_price(item_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_update_price(item_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("material", "tahrirlash"))):
     # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.inventory_of_company(db, item_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Material topilmadi")
@@ -5038,7 +5350,7 @@ def api_update_price(item_id: int, data: dict, db: Session = Depends(get_db), cu
 
 
 @app.post("/api/inventory/{item_id}/min-stock")
-def api_update_min_stock(item_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_update_min_stock(item_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("material", "tahrirlash"))):
     """Xomashyoning 'kam qoldi' ogohlantirishi ishga tushadigan chegarasini
     (min_stock) o'zgartiradi — admin/ombor xodimi o'zi belgilaydi."""
     # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
@@ -5068,7 +5380,7 @@ def api_update_min_stock(item_id: int, data: dict, db: Session = Depends(get_db)
 
 
 @app.post("/api/inventory/full-stock-report")
-def api_full_stock_report(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_full_stock_report(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("material", "yaratish"))):
     from models import Inventory as Inv
     # M3: SMS hisoboti FAQAT joriy korxonaning materiallari bo'yicha.
     # kech34 (K34-1): yashirilgan (o'chirilgan) materiallar hisobotga va
@@ -5106,7 +5418,7 @@ def api_full_stock_report(db: Session = Depends(get_db), current_user=Depends(au
 
 
 @app.post("/api/inventory/low-stock-alert")
-def api_low_stock_alert(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_low_stock_alert(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("material", "yaratish"))):
     low_items = crud.get_low_stock_items(db, company_id=auth.company_id_of(current_user))
     if not low_items:
         return {"sent": False, "message": "Barcha xomashyolar yetarli — SMS yuborilmadi!"}
@@ -5248,7 +5560,7 @@ def api_find_chat_id(secret: str = ""):
 
 
 @app.delete("/api/inventory/{item_id}")
-def api_delete_item(item_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_delete_item(item_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("material", "ochirish"))):
     # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.inventory_of_company(db, item_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Material topilmadi")
@@ -5264,7 +5576,7 @@ def api_delete_item(item_id: int, db: Session = Depends(get_db), current_user=De
 
 
 @app.post("/api/recipes", response_model=schemas.RecipeRead)
-def api_create_recipe(recipe: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_create_recipe(recipe: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("retsept", "yaratish"))):
     """17b (2026-09-21): tana QAT'IY tekshiriladi. O'LCHANGAN kamchiliklar —
     nom `"   "` (BO'SH nomli retsept saqlanardi), `batch_size_kg: Infinity`,
     `batch_size_kg`/`quantity_kg` `1e20`, tarkibsiz retsept, bir material
@@ -5276,7 +5588,7 @@ def api_create_recipe(recipe: dict = Body(...), db: Session = Depends(get_db), c
 
 
 @app.put("/api/recipes/{recipe_id}", response_model=schemas.RecipeRead)
-def api_update_recipe(recipe_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_update_recipe(recipe_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("retsept", "tahrirlash"))):
     """17b: tahrir tanasi ham AYNAN shu qoidalar bilan tekshiriladi.
     ⚠ Eng muhimi — `ingredients: []` bilan PUT yuborilsa retsept TARKIBI
     BUTUNLAY o'chib ketardi (o'lchandi: 200 va ingredientlar 1 → 0).
@@ -5295,7 +5607,7 @@ def api_update_recipe(recipe_id: int, data: dict = Body(...), db: Session = Depe
 
 @app.post("/api/recipes/{recipe_id}/image")
 def api_upload_recipe_image(recipe_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
-                             current_user=Depends(auth.admin_or_warehouse)):
+                             current_user=Depends(auth.ruxsat("retsept", "tahrirlash"))):
     # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.recipe_of_company(db, recipe_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Retsept topilmadi")
@@ -5310,7 +5622,7 @@ def api_upload_recipe_image(recipe_id: int, file: UploadFile = File(...), db: Se
 
 
 @app.delete("/api/recipes/{recipe_id}")
-def api_delete_recipe(recipe_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_delete_recipe(recipe_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("retsept", "ochirish"))):
     from models import Recipe
     # M3: retsept FAQAT joriy korxonadan (aks holda 404).
     recipe = db.query(Recipe).filter(
@@ -5324,12 +5636,12 @@ def api_delete_recipe(recipe_id: int, db: Session = Depends(get_db), current_use
 
 
 @app.get("/api/recipes", response_model=List[schemas.RecipeRead])
-def api_get_recipes(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_get_recipes(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("retsept", "korish"))):
     return crud.get_recipes(db, company_id=auth.company_id_of(current_user))
 
 
 @app.post("/api/projects", response_model=schemas.ProjectRead)
-def api_create_project(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_create_project(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("loyiha", "yaratish"))):
     # M8/F1a: loyiha joriy adminning korxonasiga biriktiriladi.
     # 15-band: xom JSON qat'iy tekshiriladi (manfiy / juda katta byudjet,
     # NaN, Infinity, `total_paid` / `status` qo'lda) — 400; formadagi
@@ -5343,12 +5655,12 @@ def api_create_project(data: dict = Body(...), db: Session = Depends(get_db), cu
 
 
 @app.get("/api/projects", response_model=List[schemas.ProjectRead])
-def api_get_projects(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_get_projects(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("loyiha", "korish"))):
     return crud.get_projects(db, company_id=auth.company_id_of(current_user))
 
 
 @app.put("/api/projects/{project_id}", response_model=schemas.ProjectRead)
-def api_update_project(project_id: int, project: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_update_project(project_id: int, project: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("loyiha", "tahrirlash"))):
     # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.project_of_company(db, project_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
@@ -5366,7 +5678,7 @@ def api_update_project(project_id: int, project: dict = Body(...), db: Session =
 
 
 @app.delete("/api/projects/{project_id}")
-def api_delete_project(project_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_delete_project(project_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("loyiha", "ochirish"))):
     # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.project_of_company(db, project_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
@@ -5377,7 +5689,7 @@ def api_delete_project(project_id: int, db: Session = Depends(get_db), current_u
 
 
 @app.post("/api/orders/coating-notify-new")
-def api_coating_notify_with_loy(current_user=Depends(auth.admin_or_manager)):
+def api_coating_notify_with_loy(current_user=Depends(auth.ruxsat("buyurtma", "yaratish"))):
     """17d (2026-09-21): ESKIRGAN. Tanasi faqat `pass` edi — har qanday
     so'rovga (hatto `loy_kg=inf`) 200 `null` qaytarib, hech narsa qilmasdi.
     Hech bir sahifa chaqirmaydi; ishlaydigan yo'l —
@@ -5389,7 +5701,7 @@ def api_coating_notify_with_loy(current_user=Depends(auth.admin_or_manager)):
 @app.post("/api/orders", response_model=schemas.OrderRead)
 def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[str] = None,
                       confirm_shortage: bool = False,
-                      db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+                      db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "yaratish"))):
     # 2026-09-21 — TENANT (11-sizish): loyiha FAQAT joriy korxonadan.
     # Buyurtmaning korxonasi loyihadan olinadi — begona loyiha = begona
     # korxonada buyurtma va begona ombordan chiqim. Eng birinchi qator:
@@ -5476,13 +5788,13 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[str] = None,
 
 
 @app.get("/api/orders", response_model=List[schemas.OrderRead])
-def api_get_orders(project_id: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_get_orders(project_id: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "korish"))):
     return crud.get_orders(db, project_id=project_id,
                            company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/orders/pinned")
-def api_get_pinned_orders(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_get_pinned_orders(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "korish"))):
     # MUHIM: bu — statik yo'l, shuning uchun quyidagi /api/orders/{order_id}
     # (dinamik) marshrutdan OLDIN turishi SHART — aks holda FastAPI
     # "pinned" so'zini order_id sifatida ushlab, xato qaytaradi (2026-09-13
@@ -5491,7 +5803,7 @@ def api_get_pinned_orders(db: Session = Depends(get_db), current_user=Depends(au
 
 
 @app.get("/api/orders/{order_id}")
-def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "korish"))):
     order = crud.get_order(db, order_id, company_id=auth.company_id_of(current_user))
     if not order:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
@@ -5606,7 +5918,7 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
 @app.put("/api/orders/{order_id}")
 def api_update_order(order_id: int, order: schemas.OrderCreate, loy_kg: Optional[str] = None,
                      confirm_shortage: bool = False,
-                     db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+                     db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "tahrirlash"))):
     """Buyurtmani tahrirlash — ombor faqat FARQ bo'yicha to'g'rilanadi."""
     # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
@@ -5656,7 +5968,7 @@ def api_update_order(order_id: int, order: schemas.OrderCreate, loy_kg: Optional
 
     return result
 @app.put("/api/orders/{order_id}/loy")
-def api_update_loy(order_id: int, loy_kg: Optional[str] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_update_loy(order_id: int, loy_kg: Optional[str] = None, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "tahrirlash"))):
     """Loy rejasini o'zgartirish."""
     # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
@@ -5706,7 +6018,7 @@ def _send_telegram_to_qoplamachi(text: str, company_id=None):
 
 
 @app.post("/api/orders/{order_id}/coating-notify")
-def api_coating_notify(order_id: int, loy_kg: Optional[str] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_coating_notify(order_id: int, loy_kg: Optional[str] = None, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "tahrirlash"))):
     """Rejalashtirilgan loy: xomashyoni ayiradi + qoplamachiga xabar."""
     order = crud.get_order(db, order_id, company_id=auth.company_id_of(current_user))
     if not order:
@@ -5754,7 +6066,7 @@ def api_coating_notify(order_id: int, loy_kg: Optional[str] = None, db: Session 
 
 @app.post("/api/orders/{order_id}/ready")
 def api_mark_order_ready(order_id: int, loy_kg: Optional[str] = None,
-                          db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+                          db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "tahrirlash"))):
     # ⚠ 2026-09-21, IDOR testi bilan topildi (tools/test_idor.py):
     # M2 qo'riqchisi TUSHIB QOLGAN edi. Pastdagi `crud.get_order(...)`
     # korxona bo'yicha cheklangan, LEKIN u faqat Telegram xabari uchun —
@@ -5841,7 +6153,7 @@ def api_mark_order_ready(order_id: int, loy_kg: Optional[str] = None,
 
 
 @app.post("/api/orders/mark-all-ready")
-def api_mark_all_ready(current_user=Depends(auth.admin_or_manager)):
+def api_mark_all_ready(current_user=Depends(auth.ruxsat("buyurtma", "tahrirlash"))):
     """17d (2026-09-21): O'CHIRILDI — aniq 410.
 
     O'LCHANGAN (`work/probe17d.py`): bitta so'rov korxonaning "Tayyor"
@@ -5928,7 +6240,7 @@ def _buyurtma_ochirish_rejasi(order) -> dict:
 
 
 @app.delete("/api/orders/{order_id}")
-def api_delete_order(order_id: int, actual_loy_kg: Optional[str] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_delete_order(order_id: int, actual_loy_kg: Optional[str] = None, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "ochirish"))):
     """Buyurtmani o'chirish — xomashyo omborga qaytariladi.
     actual_loy_kg — agar berilsa, rejalashtirilgan loy bilan solishtirilib,
     ortgan qismi omborga qaytariladi (xuddi buyurtma yakunlanganidagi kabi)."""
@@ -6122,7 +6434,7 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[str] = None, db: Ses
 
 
 @app.delete("/api/order-items/{item_id}")
-def api_delete_order_item(item_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_delete_order_item(item_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "ochirish"))):
     # kech60 (57-band): omborga ortiqcha qo'yilgan detal — aniq sabab bilan 400 (hech narsa o'zgarmaydi)
     try:
         _ok = crud.delete_order_item(db, item_id, company_id=auth.company_id_of(current_user))
@@ -6135,7 +6447,7 @@ def api_delete_order_item(item_id: int, db: Session = Depends(get_db), current_u
 
 
 @app.put("/api/order-items/{item_id}")
-def api_update_order_item(item_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_update_order_item(item_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "tahrirlash"))):
     # 2026-09-21 (13-sizish): crud faqat ruxsat etilgan maydonlarni qabul
     # qiladi; noto'g'ri kalit/qiymat va "topshirilgandan kam" — ValueError
     # → 400. Begona `penoplast_id` — crud ichidan HTTPException 404.
@@ -6150,17 +6462,17 @@ def api_update_order_item(item_id: int, data: dict, db: Session = Depends(get_db
 
 
 @app.get("/api/dashboard/stats")
-def api_dashboard_stats(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+def api_dashboard_stats(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("dashboard", "korish"))):
     return services.get_dashboard_stats(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/dashboard/today")
-def api_dashboard_today(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+def api_dashboard_today(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("dashboard", "korish"))):
     return services.get_today_stats(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/dashboard/charts")
-def api_dashboard_charts(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+def api_dashboard_charts(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("dashboard", "korish"))):
     return services.get_chart_data(db, company_id=auth.company_id_of(current_user))
 
 
@@ -6180,7 +6492,7 @@ def api_today_tasks(db: Session = Depends(get_db), current_user=Depends(auth.req
 
 
 @app.get("/api/dashboard/production-periods")
-def api_production_periods(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+def api_production_periods(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("dashboard", "korish"))):
     return services.get_production_period_stats(db, company_id=auth.company_id_of(current_user))
 
 
@@ -6188,7 +6500,7 @@ def api_production_periods(db: Session = Depends(get_db), current_user=Depends(a
 def api_inventory_movements(item_id: Optional[int] = None, movement_type: Optional[str] = None,
                              order_id: Optional[int] = None, date_from: Optional[str] = None,
                              date_to: Optional[str] = None, limit: int = 100, db: Session = Depends(get_db),
-                             current_user=Depends(auth.inventory_view)):
+                             current_user=Depends(auth.ruxsat("material", "korish"))):
     """Ombor harakatlari jurnali — kirim va chiqimlar tarixi (faqat o'qish).
 
     M3: faqat joriy korxonaning harakatlari.
@@ -6225,7 +6537,7 @@ def api_inventory_movements(item_id: Optional[int] = None, movement_type: Option
 
 
 @app.get("/api/projects/{project_id}/detail-stats")
-def api_project_detail_stats(project_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_manager_accountant)):
+def api_project_detail_stats(project_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("loyiha_korsatkich", "korish"))):
     """Loyiha detali uchun qo'shimcha ko'rsatkichlar — faqat o'qish, mavjud
     calculate_order_profit() dan foydalanadi, hech narsani o'zgartirmaydi."""
     # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
@@ -6277,7 +6589,7 @@ def api_project_detail_stats(project_id: int, db: Session = Depends(get_db), cur
 
 
 @app.get("/debts", response_class=HTMLResponse)
-async def debts_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+async def debts_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("qarz", "korish"))):
     """Qarzdorlar sahifasi — ikkita yo'nalish:
     1) Bizga qarzdorlar — mijozlar (Order.debt_amount asosida, ESKI
        Project.total_budget emas — bu qadimgi, buyurtma to'lovlariga
@@ -6330,18 +6642,18 @@ async def debts_page(request: Request, db: Session = Depends(get_db), current_us
 
 
 @app.get("/reports", response_class=HTMLResponse)
-async def reports_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+async def reports_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("hisobot", "korish"))):
     return templates.TemplateResponse(request, "reports.html", {"current_user": current_user, "active_page": "reports"})
 
 
 @app.get("/api/reports/top-products")
-def api_reports_top_products(days: int = 90, limit: int = 15, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+def api_reports_top_products(days: int = 90, limit: int = 15, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("hisobot", "korish"))):
     return services.get_top_products_report(
         db, days=days, limit=limit, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/dashboard/top-finished-products")
-def api_dashboard_top_finished_products(days: int = 30, limit: int = 5, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+def api_dashboard_top_finished_products(days: int = 30, limit: int = 5, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("dashboard", "korish"))):
     """Dashboard uchun — faqat Tayyor mahsulotlardan sotilgan tovarlar (qaytganlari ayrilgan)."""
     # kech78 (98-band): korxona filtri — global `TENANT_FILTER` ga tayanmasdan.
     return services.get_top_finished_products_sold(
@@ -6349,38 +6661,38 @@ def api_dashboard_top_finished_products(days: int = 30, limit: int = 5, db: Sess
 
 
 @app.get("/api/reports/top-materials")
-def api_reports_top_materials(days: int = 90, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+def api_reports_top_materials(days: int = 90, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("hisobot", "korish"))):
     return services.get_top_materials_report(db, days=days, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/reports/top-customers")
-def api_reports_top_customers(days: int = 90, limit: int = 10, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+def api_reports_top_customers(days: int = 90, limit: int = 10, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("hisobot", "korish"))):
     return services.get_top_customers_report(db, days=days, limit=limit, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/reports/top-suppliers")
-def api_reports_top_suppliers(days: int = 90, limit: int = 10, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+def api_reports_top_suppliers(days: int = 90, limit: int = 10, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("hisobot", "korish"))):
     return services.get_top_suppliers_report(db, days=days, limit=limit, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/reports/comparison")
-def api_reports_comparison(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+def api_reports_comparison(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("hisobot", "korish"))):
     return services.get_monthly_comparison(db, year, month, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/reports/forecast")
-def api_reports_forecast(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+def api_reports_forecast(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("hisobot", "korish"))):
     return services.get_simple_forecast(db, year, month, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/reports/alerts")
-def api_reports_alerts(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+def api_reports_alerts(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("hisobot", "korish"))):
     return services.get_business_alerts(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/reports/brak-tahlil")
 def api_brak_tahlil(year: Optional[int] = None, month: Optional[int] = None, oylar: int = 6,
-                    db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+                    db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("hisobot", "korish"))):
     """kech56 (13-band, 7-qadam): oylik brak tahlili — ulush (Moliyadagi brak xarajati ÷
     ishlab chiqarish tan narxi), me'yor (`crud.BRAK_MEYORI_FOIZ`, foydalanuvchi qarori
     5 %) va ogohlantirish, bosqich / sabab / javobgar / detal bo'yicha taqsimot, tayyor
@@ -6399,7 +6711,7 @@ def api_brak_tahlil(year: Optional[int] = None, month: Optional[int] = None, oyl
 
 @app.get("/api/reports/brak-materials")
 def api_reports_brak_materials(start_date: Optional[str] = None, end_date: Optional[str] = None,
-                                 db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+                                 db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("hisobot", "korish"))):
     """Brak sabab sarflangan xomashyo — nomi, miqdori, tan narxi bo'yicha qiymati."""
     from datetime import datetime as dt
     from database import TASHKENT_OFFSET
@@ -6409,12 +6721,12 @@ def api_reports_brak_materials(start_date: Optional[str] = None, end_date: Optio
 
 
 @app.get("/api/reports/business-health")
-def api_reports_business_health(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+def api_reports_business_health(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("hisobot", "korish"))):
     return services.get_business_health(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/obligations/recurring")
-def api_get_recurring_obligations(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+def api_get_recurring_obligations(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("qarz", "korish"))):
     return services.get_recurring_obligations(db, company_id=auth.company_id_of(current_user))
 
 
@@ -6422,7 +6734,7 @@ def api_get_recurring_obligations(db: Session = Depends(get_db), current_user=De
 def api_set_recurring_obligation(category: Optional[str] = None, label: Optional[str] = None,
                                    monthly_target: Optional[str] = None,
                                    icon: Optional[str] = "📦", due_day: Optional[str] = None,
-                                   db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+                                   db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("qarz", "yaratish"))):
     """17d (2026-09-21): qiymatlar MATN sifatida olinadi va QAT'IY o'qiladi
     (`crud._clean_majburiyat`) — summa musbat va chekli, kun 1–31, kod
     ≤ 30, nom ≤ 60, belgi ≤ 10 belgi. Xato → 400 (`detail` MATN — `debts.html`
@@ -6439,24 +6751,24 @@ def api_set_recurring_obligation(category: Optional[str] = None, label: Optional
 
 
 @app.delete("/api/obligations/recurring/{obligation_id}")
-def api_delete_recurring_obligation(obligation_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_delete_recurring_obligation(obligation_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("qarz", "ochirish"))):
     if not services.delete_recurring_obligation(db, obligation_id, company_id=auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok"}
 
 
 @app.get("/api/obligations/status")
-def api_obligations_status(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_obligations_status(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("dashboard", "korish"))):
     return services.get_company_obligations_status(db, year, month, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/obligations/timeline")
-def api_obligations_timeline(category: str, year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_obligations_timeline(category: str, year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("qarz", "korish"))):
     return services.get_obligation_timeline(db, category, year, month, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/obligations/employee/{employee_id}/timeline")
-def api_employee_obligation_timeline(employee_id: int, year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_employee_obligation_timeline(employee_id: int, year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("qarz", "korish"))):
     # M5: xodim FAQAT joriy korxonadan (aks holda 404).
     if not auth.employee_of_company(db, employee_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Xodim topilmadi")
@@ -6466,7 +6778,7 @@ def api_employee_obligation_timeline(employee_id: int, year: int, month: int, db
 @app.post("/api/obligations/employee/{employee_id}/close")
 def api_close_employee_debt(employee_id: int, year: Optional[str] = None, month: Optional[str] = None,
                               amount: Optional[str] = None,
-                              db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+                              db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("qarz", "tahrirlash"))):
     # M5: xodim FAQAT joriy korxonadan (aks holda 404).
     if not auth.employee_of_company(db, employee_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Xodim topilmadi")
@@ -6484,14 +6796,14 @@ def api_close_employee_debt(employee_id: int, year: Optional[str] = None, month:
 
 
 @app.get("/api/finance/cash-balance")
-def api_get_cash_balance(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+def api_get_cash_balance(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kassa", "korish"))):
     """Kassa balansi — kompaniyada hozir haqiqatda qancha naqd pul bor."""
     return services.get_cash_balance(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/finance/pul-oqimi")
 def api_finance_pul_oqimi(year: Optional[str] = None, month: Optional[str] = None, sana: Optional[str] = None,
-                          db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+                          db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kassa", "korish"))):
     """kech116 (G1-03 — egasi QARORI kech114 «Pul oqimi — haqiqiy pul»): shu davrda HAQIQATDA olingan va to'langan pul
     (`services.get_pul_oqimi` — kassa bilan BITTA qoida). Davr: `sana=YYYY-MM-DD` (Toshkent kuni) yoki `year` + `month`
     (Toshkent oyi); hech biri berilmasa — joriy oy. Hisobotlar, Moliya, Dashboard va «Korxona sog'ligi» shundan.
@@ -6519,7 +6831,7 @@ def api_finance_pul_oqimi(year: Optional[str] = None, month: Optional[str] = Non
 
 
 @app.get("/api/finance/cash-transactions")
-def api_get_cash_transactions(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+def api_get_cash_transactions(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kassa", "korish"))):
     """Kassaga qo'lda qilingan yozuvlar tarixi."""
     rows = crud.get_cash_transactions(db, company_id=auth.company_id_of(current_user))
     return [{
@@ -6531,7 +6843,7 @@ def api_get_cash_transactions(db: Session = Depends(get_db), current_user=Depend
 
 @app.delete("/api/finance/cash-transactions/{tx_id}")
 def api_delete_cash_transaction(tx_id: int, db: Session = Depends(get_db),
-                                current_user=Depends(auth.admin_only)):
+                                current_user=Depends(auth.ruxsat("kassa", "ochirish"))):
     """Kassaga qo'lda qo'shilgan yozuvni o'chiradi — faqat Admin.
     Yozuv FAQAT joriy korxonadan topiladi (aks holda 404)."""
     _cid = auth.company_id_of(current_user)
@@ -6545,7 +6857,7 @@ def api_delete_cash_transaction(tx_id: int, db: Session = Depends(get_db),
 @app.post("/api/finance/cash-transaction")
 def api_record_cash_transaction(category: str = Form(...), amount: float = Form(...),
                                  notes: str = Form(None), db: Session = Depends(get_db),
-                                 current_user=Depends(auth.admin_only)):
+                                 current_user=Depends(auth.ruxsat("kassa", "yaratish"))):
     """Kassaga qo'lda yozuv qo'shadi — faqat Admin.
     category: 'boshlangich' (musbat) / 'usta_kpi' (manfiy) / 'ehson' (manfiy)."""
     if category not in ("boshlangich", "usta_kpi", "ehson"):
@@ -6557,12 +6869,12 @@ def api_record_cash_transaction(category: str = Form(...), amount: float = Form(
 
 
 @app.get("/finance", response_class=HTMLResponse)
-async def finance_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+async def finance_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("moliya", "korish"))):
     return templates.TemplateResponse(request, "finance.html", {"current_user": current_user, "active_page": "finance"})
 
 
 @app.get("/kunlik-xarajat", response_class=HTMLResponse)
-async def kunlik_xarajat_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_manager_accountant)):
+async def kunlik_xarajat_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat_biri(("kunlik", "korish"), ("kunlik", "yaratish")))):
     """Manager (Hodim) uchun — daromad/foyda/qarzlarni KO'RSATMASDAN, faqat
     kunlik xarajat (tushlik, kutilmagan va h.k.) qo'shish uchun, alohida,
     kichik sahifa (2026-09)."""
@@ -6570,7 +6882,7 @@ async def kunlik_xarajat_page(request: Request, db: Session = Depends(get_db), c
 
 
 @app.get("/api/finance/report")
-def api_finance_report(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+def api_finance_report(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("moliya", "korish"))):
     # M4: hisobotning tayyor mahsulot qismi joriy korxona bilan cheklanadi
     # (qolgan qismlari M6 da ko'riladi).
     return services.get_monthly_report(db, year, month,
@@ -6578,7 +6890,7 @@ def api_finance_report(year: int, month: int, db: Session = Depends(get_db), cur
 
 
 @app.get("/api/finance/debt-summary")
-def api_finance_debt_summary(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+def api_finance_debt_summary(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("moliya", "korish"))):
     """Mijoz, yetkazuvchi, hodim va doimiy majburiyatlar qarzini — bitta
     joyga jamlab beradi ("Moliya" sahifasidagi yangi bo'lim uchun)."""
     return services.get_full_debt_summary(db, year, month, company_id=auth.company_id_of(current_user))
@@ -6594,7 +6906,7 @@ def _yonalish_davri(year, month, gacha_yil, gacha_oy):
 
 @app.get("/api/finance/yonalishlar")
 def api_finance_yonalishlar(year: int, month: int, gacha_yil: Optional[int] = None, gacha_oy: Optional[int] = None,
-                            db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+                            db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("moliya", "korish"))):
     """kech117 (A2) / kech118 (egasi QARORI 15:23): yo'nalishlar bo'yicha moliyaviy natija (Moliya sahifasi) —
     `services.calculate_split_profit_report`: umumiy xarajat TAQSIMLANMAYDI (faqat Jami), oyliklar alohida, Jami natija
     = Moliya sof foydasi. Davr: `year-month` dan `gacha_yil-gacha_oy` gacha (berilmasa — bir oy; ko'pi bilan 36 oy);
@@ -6606,7 +6918,7 @@ def api_finance_yonalishlar(year: int, month: int, gacha_yil: Optional[int] = No
 
 @app.get("/api/finance/split-profit-pdf")
 def api_split_profit_pdf(year: int, month: int, gacha_yil: Optional[int] = None, gacha_oy: Optional[int] = None,
-                         db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+                         db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("moliya", "korish"))):
     """kech117 (A2) / kech118: YO'NALISHLAR bo'yicha moliyaviy natija — PDF (sahifadagi davr bilan AYNAN)."""
     from fastapi.responses import Response
     import finance_pdf
@@ -6623,7 +6935,7 @@ def api_split_profit_pdf(year: int, month: int, gacha_yil: Optional[int] = None,
 
 
 @app.get("/api/finance/report-pdf")
-def api_finance_report_pdf(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+def api_finance_report_pdf(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("moliya", "korish"))):
     """Bir oylik to'liq moliyaviy hisobot — PDF (yuklab olish uchun)."""
     from fastapi.responses import Response
     import finance_pdf
@@ -6650,7 +6962,7 @@ def api_finance_report_pdf(year: int, month: int, db: Session = Depends(get_db),
 
 
 @app.get("/api/finance/daily")
-def api_finance_daily(target_date: Optional[str] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+def api_finance_daily(target_date: Optional[str] = None, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("moliya", "korish"))):
     """Bitta kun uchun moliyaviy ko'rinish (savdo/foyda/tan narx + xarajatlar).
     target_date berilmasa — bugungi kun olinadi. Format: YYYY-MM-DD"""
     from datetime import date as date_cls
@@ -6665,13 +6977,13 @@ def api_finance_daily(target_date: Optional[str] = None, db: Session = Depends(g
 
 
 @app.get("/api/finance/history")
-def api_finance_history(months: int = 12, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+def api_finance_history(months: int = 12, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("moliya", "korish"))):
     return services.get_finance_history(db, months, company_id=auth.company_id_of(current_user))
 
 
 @app.post("/api/finance/transactions")
 def api_create_expense_transaction(data: dict = Body(...), db: Session = Depends(get_db),
-                                    current_user=Depends(auth.admin_manager_accountant)):
+                                    current_user=Depends(auth.ruxsat("kunlik", "yaratish"))):
     # 17e (2026-09-22): xom JSON QAT'IY tekshiriladi (`crud._clean_val`).
     # O'LCHANGAN: `Infinity` summa 500 bersa ham yozuv SAQLANIB, Moliya
     # tarixini BUTUNLAY buzardi; `true` → 1 so'm, `"5000"`, 0, 31+ belgili
@@ -6690,7 +7002,7 @@ def api_create_expense_transaction(data: dict = Body(...), db: Session = Depends
 @app.get("/api/finance/transactions")
 def api_list_expense_transactions(year: Optional[int] = None, month: Optional[int] = None,
                                    day: Optional[int] = None, category: Optional[str] = None,
-                                   db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+                                   db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kunlik", "korish"))):
     try:
         rows = crud.get_expense_transactions(db, year=year, month=month, day=day, category=category,
                                              company_id=auth.company_id_of(current_user))
@@ -6700,7 +7012,7 @@ def api_list_expense_transactions(year: Optional[int] = None, month: Optional[in
 
 
 @app.delete("/api/finance/transactions/{tx_id}")
-def api_delete_expense_transaction(tx_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+def api_delete_expense_transaction(tx_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kunlik", "ochirish"))):
     ok = crud.delete_expense_transaction(db, tx_id, company_id=auth.company_id_of(current_user))
     if not ok:
         raise HTTPException(status_code=404, detail="Tranzaksiya topilmadi")
@@ -6709,7 +7021,7 @@ def api_delete_expense_transaction(tx_id: int, db: Session = Depends(get_db), cu
 
 @app.put("/api/finance/transactions/{tx_id}")
 def api_update_expense_transaction(tx_id: int, data: dict = Body(...), db: Session = Depends(get_db),
-                                    current_user=Depends(auth.admin_manager_accountant)):
+                                    current_user=Depends(auth.ruxsat("kunlik", "tahrirlash"))):
     """2026-09-16: foydalanuvchi so'rovi bo'yicha qo'shildi — xato kiritilgan
     xarajat summasini o'chirib-qayta yozish o'rniga, to'g'ridan-to'g'ri
     tahrirlash imkonini beradi (masalan "125" o'rniga "125 000" bo'lishi
@@ -6731,7 +7043,7 @@ def api_update_expense_transaction(tx_id: int, data: dict = Body(...), db: Sessi
 
 
 @app.post("/api/finance/expense")
-def api_save_expense(current_user=Depends(auth.admin_or_financier)):
+def api_save_expense(current_user=Depends(auth.ruxsat("moliya", "tahrirlash"))):
     """17d (2026-09-21): ESKIRGAN — aniq 410.
 
     Eski "oylik xarajat formasi" yo'li. Hech bir sahifa chaqirmaydi
@@ -6748,7 +7060,7 @@ def api_save_expense(current_user=Depends(auth.admin_or_financier)):
 
 
 @app.get("/api/orders/{order_id}/profit")
-def api_order_profit(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_order_profit(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat_hammasi(("tannarx", "korish"), ("buyurtma", "korish")))):
     # M2: buyurtma FAQAT joriy korxonadan (aks holda 404).
     if not crud.get_order(db, order_id, company_id=auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
@@ -6756,7 +7068,7 @@ def api_order_profit(order_id: int, db: Session = Depends(get_db), current_user=
 
 
 @app.get("/api/orders/{order_id}/pdf")
-def api_order_pdf(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_order_pdf(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "korish"))):
     from fastapi.responses import Response
     import pdf_service
     import traceback
@@ -6779,7 +7091,7 @@ async def health():
 
 
 @app.get("/returns", response_class=HTMLResponse)
-async def returns_page(request: Request, show_all: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.manager_or_warehouse)):
+async def returns_page(request: Request, show_all: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("qaytarish", "korish"))):
     returns = crud.get_return_items_for_main_page(db, days=90, show_all=show_all, company_id=auth.company_id_of(current_user))
     orders  = crud.get_orders_for_main_page(db, days=90, show_all=True,
                                             company_id=auth.company_id_of(current_user))
@@ -6798,7 +7110,7 @@ async def returns_page(request: Request, show_all: bool = False, db: Session = D
 
 
 @app.get("/api/projects/{project_id}/items")
-def api_get_project_items(project_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_get_project_items(project_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("loyiha", "korish"))):
     """Loyihadagi barcha buyurtmalar detallari — brak yozish uchun (narxsiz)."""
     # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.project_of_company(db, project_id, auth.company_id_of(current_user)):
@@ -6828,7 +7140,7 @@ def api_get_project_items(project_id: int, db: Session = Depends(get_db), curren
 
 
 @app.post("/api/returns")
-def api_create_return(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.manager_or_warehouse)):
+def api_create_return(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("qaytarish", "yaratish"))):
     # 17g (2026-09-22): xom JSON QAT'IY tekshiriladi (`crud._clean_val
     # ("Return")`), keyin sxemaga (berilmagan yoki `null` maydonlar — sxema
     # standarti: birlik "dona", summa 0, omborga qaytsin). HAQIQIY PostgreSQL da
@@ -6870,17 +7182,17 @@ def api_create_return(data: dict = Body(...), db: Session = Depends(get_db), cur
 
 
 @app.get("/api/returns")
-def api_get_returns(order_id: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(auth.manager_or_warehouse)):
+def api_get_returns(order_id: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("qaytarish", "korish"))):
     return crud.get_return_items(db, order_id=order_id, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/returns/stats")
-def api_return_stats(db: Session = Depends(get_db), current_user=Depends(auth.manager_or_warehouse)):
+def api_return_stats(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("qaytarish", "korish"))):
     return crud.get_return_stats(db, company_id=auth.company_id_of(current_user))
 
 
 @app.post("/api/returns/{return_id}/refund")
-def api_mark_refunded(return_id: int, db: Session = Depends(get_db), current_user=Depends(auth.manager_or_warehouse)):
+def api_mark_refunded(return_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("qaytarish", "tahrirlash"))):
     # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.return_of_company(db, return_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Qaytarish topilmadi")
@@ -6912,7 +7224,7 @@ def api_mark_refunded(return_id: int, db: Session = Depends(get_db), current_use
 
 
 @app.delete("/api/returns/{return_id}")
-def api_delete_return(return_id: int, db: Session = Depends(get_db), current_user=Depends(auth.manager_or_warehouse)):
+def api_delete_return(return_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("qaytarish", "ochirish"))):
     # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.return_of_company(db, return_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Qaytarish topilmadi")
@@ -6967,7 +7279,7 @@ def _tolov_qoldigini_chegirmaga(db: Session, order):
 
 
 @app.post("/api/payments")
-def api_create_payment(data: dict = Body(...), write_off_remainder: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.order_payments)):
+def api_create_payment(data: dict = Body(...), write_off_remainder: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("tolov", "yaratish"))):
     """Yangi to'lov qo'shish.
     write_off_remainder=true bo'lsa — to'lovdan keyin qolgan (kichik) qarz
     CHEGIRMA sifatida yozib yuboriladi (jami summadan ham ayiriladi —
@@ -7044,7 +7356,7 @@ def _ortiqcha_qator(o) -> dict:
 
 
 @app.get("/api/ortiqcha-tolovlar")
-def api_ortiqcha_tolovlar(db: Session = Depends(get_db), current_user=Depends(auth.order_payments)):
+def api_ortiqcha_tolovlar(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("tolov", "korish"))):
     """kech100 (131-band): mijozga QAYTARILISHI kerak bo'lgan ortiqcha to'lovlar (o'chirilgan buyurtmalar ham)."""
     from models import pul_tiyin_yigindi as _pty131
     royxat = crud.get_ortiqcha_tolovlar(db, company_id=auth.company_id_of(current_user))
@@ -7094,7 +7406,7 @@ def _qaytarish_tanasi(data):
 
 @app.post("/api/orders/{order_id}/refund-overpayment")
 def api_refund_overpayment(order_id: int, data: Optional[dict] = Body(default=None), db: Session = Depends(get_db),
-                           current_user=Depends(auth.order_payments)):
+                           current_user=Depends(auth.ruxsat("tolov", "yaratish"))):
     """kech100 (131-band, QAROR "B"): ortiqcha to'lov mijozga QAYTARILDI — manfiy to'lov (kassadan chiqim);
     buyurtma "Mijozga qaytarish kerak" ro'yxatidan chiqadi (qisman qaytarishda — qolgani bilan qoladi)."""
     try:
@@ -7124,7 +7436,7 @@ def api_refund_overpayment(order_id: int, data: Optional[dict] = Body(default=No
 
 
 @app.get("/api/payments")
-def api_get_payments(order_id: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(auth.order_payments)):
+def api_get_payments(order_id: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("tolov", "korish"))):
     """To'lovlar ro'yxati."""
     payments = crud.get_payments(db, order_id=order_id, company_id=auth.company_id_of(current_user))
     return [{
@@ -7140,7 +7452,7 @@ def api_get_payments(order_id: Optional[int] = None, db: Session = Depends(get_d
 
 
 @app.delete("/api/payments/{payment_id}")
-def api_delete_payment(payment_id: int, db: Session = Depends(get_db), current_user=Depends(auth.order_payments)):
+def api_delete_payment(payment_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("tolov", "ochirish"))):
     """To'lovni o'chirish."""
     who = current_user.full_name or current_user.username
     # kech99 (probe103 qoldig'i H, O'LCHANGAN): audit ("deleted") o'zi `commit` qilinib, keyin to'lov o'chirishda xato
@@ -7153,7 +7465,7 @@ def api_delete_payment(payment_id: int, db: Session = Depends(get_db), current_u
 
 
 @app.put("/api/orders/{order_id}/agreed-amount")
-def api_update_agreed_amount(order_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_update_agreed_amount(order_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "tahrirlash"))):
     """Kelishilgan summani (chegirmadan keyingi narx) yangilash."""
     # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
@@ -7183,7 +7495,7 @@ def api_update_agreed_amount(order_id: int, data: dict = Body(...), db: Session 
 
 
 @app.get("/api/penoplasts")
-def api_get_penoplasts(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_get_penoplasts(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "korish"))):
     """Penoplast (plotnost) turlari ro'yxati."""
     # 2026-09-21 — TENANT: A ning penoplastlari B ga qaytarilardi (O'LCHANGAN)
     _cid = auth.company_id_of(current_user)
@@ -7204,7 +7516,7 @@ def api_get_penoplasts(db: Session = Depends(get_db), current_user=Depends(auth.
 
 
 @app.post("/api/inventory/{item_id}/set-default-penoplast")
-def api_set_default_penoplast(item_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_set_default_penoplast(item_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("material", "tahrirlash"))):
     """Asosiy plotnost qilib belgilash."""
     # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.inventory_of_company(db, item_id, auth.company_id_of(current_user)):
@@ -7236,7 +7548,7 @@ def api_set_default_penoplast(item_id: int, db: Session = Depends(get_db), curre
 
 
 @app.post("/api/orders/{order_id}/activate")
-def api_activate_draft(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_activate_draft(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "tahrirlash"))):
     """Qoralamani jarayonga olish — ombordan xomashyo yechiladi."""
     # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
@@ -7252,7 +7564,7 @@ def api_activate_draft(order_id: int, db: Session = Depends(get_db), current_use
 # ============================================================
 
 @app.get("/finished", response_class=HTMLResponse)
-async def finished_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
+async def finished_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat_biri(("tayyor", "korish"), ("sotuv", "korish")))):
     """Tayyor mahsulotlar sahifasi."""
     # M4 (2026-09-18): SAHIFA ham API kabi tenant bilan cheklanadi —
     # M2 saboqi: server chizadigan sahifa boshqa funksiyalardan o'qiydi.
@@ -7761,7 +8073,7 @@ def api_set_company(name: str = Form(...), slogan: str = Form(None),
                     phone: str = Form(None), address: str = Form(None),
                     tg_tagline: str = Form(None),
                     db: Session = Depends(get_db),
-                    current_user=Depends(auth.admin_only)):
+                    current_user=Depends(auth.ruxsat("sozlama", "tahrirlash"))):
     """Korxona brendi: nomi, shiori, telefoni, manzili.
 
     Bu ma'lumot yuk xati, nakladnoy va moliya hisobotlarida ishlatiladi.
@@ -7808,7 +8120,7 @@ def api_set_company(name: str = Form(...), slogan: str = Form(None),
 
 @app.get("/api/settings/categories")
 def api_get_categories(db: Session = Depends(get_db),
-                       current_user=Depends(auth.admin_only)):
+                       current_user=Depends(auth.ruxsat("sozlama", "korish"))):
     """Ixtiyoriy kategoriyalar va ularning holati."""
     cid = auth.company_id_of(current_user)
     yoqilgan = enabled_categories_of(cid)
@@ -7818,7 +8130,7 @@ def api_get_categories(db: Session = Depends(get_db),
 
 @app.put("/api/settings/categories")
 def api_set_categories(codes: str = Form(""), db: Session = Depends(get_db),
-                       current_user=Depends(auth.admin_only)):
+                       current_user=Depends(auth.ruxsat("sozlama", "tahrirlash"))):
     """Yoqilgan kategoriyalarni saqlaydi (vergul bilan ajratilgan).
 
     Bo'sh yuborilsa — barcha ixtiyoriy turlar o'chadi (faqat asosiy
@@ -7855,7 +8167,7 @@ def api_yonalishlar(hammasi: bool = False, db: Session = Depends(get_db),
 
 @app.post("/api/yonalishlar")
 def api_yonalish_yarat(data: dict = Body(...), db: Session = Depends(get_db),
-                       current_user=Depends(auth.admin_only)):
+                       current_user=Depends(auth.ruxsat("sozlama", "yaratish"))):
     """Yangi yo'nalish: {"nom": "..."} (1–60 belgi, ko'rinadiganlar orasida takrorlanmaydi)."""
     if not isinstance(data, dict) or set(data) - {"nom"}:
         raise HTTPException(status_code=400, detail="Faqat 'nom' yuboriladi")
@@ -7870,7 +8182,7 @@ def api_yonalish_yarat(data: dict = Body(...), db: Session = Depends(get_db),
 
 @app.put("/api/yonalishlar/{yonalish_id}")
 def api_yonalish_yangila(yonalish_id: int, data: dict = Body(...), db: Session = Depends(get_db),
-                         current_user=Depends(auth.admin_only)):
+                         current_user=Depends(auth.ruxsat("sozlama", "tahrirlash"))):
     """Nomini o'zgartirish ({"nom"}) va / yoki yashirish / ko'rsatish ({"yashirin": true/false})."""
     try:
         y = crud.yonalish_yangila(db, yonalish_id, auth.company_id_of(current_user), data,
@@ -7885,7 +8197,7 @@ def api_yonalish_yangila(yonalish_id: int, data: dict = Body(...), db: Session =
 
 @app.delete("/api/yonalishlar/{yonalish_id}")
 def api_yonalish_ochir(yonalish_id: int, db: Session = Depends(get_db),
-                       current_user=Depends(auth.admin_only)):
+                       current_user=Depends(auth.ruxsat("sozlama", "ochirish"))):
     """Ishlatilmagan yo'nalishni o'chiradi (ishlatilgan / asosiy — 400, faqat yashirish)."""
     try:
         ok = crud.yonalish_ochir(db, yonalish_id, auth.company_id_of(current_user),
@@ -7901,7 +8213,7 @@ def api_yonalish_ochir(yonalish_id: int, db: Session = Depends(get_db),
 @app.post("/api/settings/company/logo")
 async def api_upload_company_logo(file: UploadFile = File(...),
                                   db: Session = Depends(get_db),
-                                  current_user=Depends(auth.admin_only)):
+                                  current_user=Depends(auth.ruxsat("sozlama", "tahrirlash"))):
     """Korxona logotipini yuklaydi (hujjatlarda ishlatiladi).
 
     Faqat rasm, 2 MB gacha. Fayl `static/uploads/logos/company_<id>.<kengaytma>`
@@ -7948,7 +8260,7 @@ async def api_upload_company_logo(file: UploadFile = File(...),
 
 @app.get("/api/settings/telegram-bot")
 def api_get_telegram_bot(db: Session = Depends(get_db),
-                         current_user=Depends(auth.admin_only)):
+                         current_user=Depends(auth.ruxsat("sozlama", "korish"))):
     """Korxonaning o'z Telegram boti sozlamasi (Faza 3).
 
     Token QAYTARILMAYDI — faqat sozlangan yoki yo'qligi va oxirgi 4 belgisi.
@@ -7967,7 +8279,7 @@ def api_get_telegram_bot(db: Session = Depends(get_db),
 @app.put("/api/settings/telegram-bot")
 def api_set_telegram_bot(token: str = Form(""), chat_id: str = Form(""),
                          db: Session = Depends(get_db),
-                         current_user=Depends(auth.admin_only)):
+                         current_user=Depends(auth.ruxsat("sozlama", "tahrirlash"))):
     """Korxonaning Telegram boti tokenini va xabar manzilini saqlaydi.
 
     Har korxona O'Z botiga ega bo'ladi (@BotFather orqali yaratiladi).
@@ -8211,7 +8523,7 @@ def api_factory_reset(confirm: str = "", keep_only_self: bool = False,
 
 
 @app.get("/kpi", response_class=HTMLResponse)
-async def kpi_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+async def kpi_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kpi", "korish"))):
     """Ustalar yillik KPI va moslashuvchan hodim to'lovi sahifasi."""
     return templates.TemplateResponse(request, "kpi.html", {
         "current_user": current_user, "active_page": "kpi"
@@ -8220,7 +8532,7 @@ async def kpi_page(request: Request, db: Session = Depends(get_db), current_user
 
 @app.get("/api/finished")
 def api_get_finished(source: Optional[str] = None, only_available: bool = False, show_all: bool = False,
-                     db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
+                     db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("tayyor", "korish"))):
     """Tayyor mahsulotlar ro'yxati."""
     _cid = auth.company_id_of(current_user)   # M4
     if source or only_available:
@@ -8274,7 +8586,7 @@ def api_get_finished(source: Optional[str] = None, only_available: bool = False,
 
 @app.post("/api/finished/{fp_id}/image")
 def api_upload_finished_image(fp_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
-                               current_user=Depends(auth.admin_warehouse_or_manager)):
+                               current_user=Depends(auth.ruxsat("tayyor", "tahrirlash"))):
     # M4: mahsulot FAQAT joriy korxonadan (aks holda 404).
     fp = auth.finished_product_of_company(db, fp_id, auth.company_id_of(current_user))
     if not fp:
@@ -8287,7 +8599,7 @@ def api_upload_finished_image(fp_id: int, file: UploadFile = File(...), db: Sess
 
 @app.post("/api/projects/{project_id}/image")
 def api_upload_project_image(project_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
-                              current_user=Depends(auth.admin_manager_accountant)):
+                              current_user=Depends(auth.ruxsat("loyiha_korsatkich", "tahrirlash"))):
     # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.project_of_company(db, project_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
@@ -8303,7 +8615,7 @@ def api_upload_project_image(project_id: int, file: UploadFile = File(...), db: 
 
 @app.post("/api/returns/{return_id}/image")
 def api_upload_return_image(return_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
-                             current_user=Depends(auth.manager_or_warehouse)):
+                             current_user=Depends(auth.ruxsat("qaytarish", "tahrirlash"))):
     # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.return_of_company(db, return_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Qaytarish topilmadi")
@@ -8318,12 +8630,12 @@ def api_upload_return_image(return_id: int, file: UploadFile = File(...), db: Se
 
 
 @app.get("/api/finished/stats")
-def api_finished_stats(db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
+def api_finished_stats(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("tayyor", "korish"))):
     return crud.get_finished_stats(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/finished/search")
-def api_search_finished(q: str = "", category: Optional[str] = None, exclude_category: Optional[str] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
+def api_search_finished(q: str = "", category: Optional[str] = None, exclude_category: Optional[str] = None, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("tayyor", "korish"))):
     """Nom bo'yicha qidirish — buyurtmada taklif uchun. category — masalan
     'profil', faqat shu turdagi mahsulotlarni ko'rsatish uchun (ixtiyoriy)."""
     try:
@@ -8366,7 +8678,7 @@ def _fp_tana(model: str, data, sxema):
 
 @app.post("/api/finished/loss")
 def api_record_finished_loss(data: dict = Body(...), db: Session = Depends(get_db),
-                               current_user=Depends(auth.admin_warehouse_or_manager)):
+                               current_user=Depends(auth.ruxsat("brak", "yaratish"))):
     """Tayyor mahsulotdan brak/yo'qotish sababli miqdorni kamaytirish (o'chirish emas)."""
     data = _fp_tana("Loss", data, schemas.FinishedProductLossCreate)
     who = current_user.full_name or current_user.username
@@ -8379,7 +8691,7 @@ def api_record_finished_loss(data: dict = Body(...), db: Session = Depends(get_d
 
 @app.delete("/api/finished/loss/{loss_id}")
 def api_delete_finished_loss(loss_id: int, db: Session = Depends(get_db),
-                             current_user=Depends(auth.admin_only)):
+                             current_user=Depends(auth.ruxsat("brak", "ochirish"))):
     """Xato yozilgan brakni bekor qiladi (2026-09-20 da qo'shildi).
 
     Ilgari brakni orqaga qaytarish yo'li UMUMAN yo'q edi — bir marta
@@ -8401,7 +8713,7 @@ def api_delete_finished_loss(loss_id: int, db: Session = Depends(get_db),
 
 @app.post("/api/finished/{fp_id}/release-reservation")
 def api_release_finished_product_reservation(fp_id: int, db: Session = Depends(get_db),
-                                               current_user=Depends(auth.admin_warehouse_or_manager)):
+                                               current_user=Depends(auth.ruxsat("tayyor", "tahrirlash"))):
     """2026-09-17: Production/MRP orqali biror buyurtmaga band qilingan
     tayyor mahsulotni ozod qilib, umumiy sotuvga qaytaradi."""
     who = current_user.full_name or current_user.username
@@ -8414,7 +8726,7 @@ def api_release_finished_product_reservation(fp_id: int, db: Session = Depends(g
 
 @app.post("/api/finished/production-brak")
 def api_finished_production_brak(data: dict = Body(...), db: Session = Depends(get_db),
-                                   current_user=Depends(auth.admin_warehouse_or_manager)):
+                                   current_user=Depends(auth.ruxsat("brak", "yaratish"))):
     """Tayyor mahsulot ISHLAB CHIQARISH JARAYONIDA chiqqan brak — mahsulot
     soniga tegmaydi, faqat qo'shimcha xomashyo ombordan ayiriladi.
     Profil/Panel/Donali/Blok — `brak_qty` (mahsulot birligida) orqali,
@@ -8438,7 +8750,7 @@ def api_finished_production_brak(data: dict = Body(...), db: Session = Depends(g
 
 @app.post("/api/finished/sell-batch")
 def api_sell_finished_products_batch(data: dict = Body(...), db: Session = Depends(get_db),
-                                       current_user=Depends(auth.admin_warehouse_or_manager)):
+                                       current_user=Depends(auth.ruxsat("sotuv", "yaratish"))):
     """Bir nechta turli tayyor mahsulotni, bitta xaridorga, bitta Yuk xati bilan sotish."""
     data = _fp_tana("SaleBatch", data, schemas.FinishedProductSaleBatchCreate)
     who = current_user.full_name or current_user.username
@@ -8451,7 +8763,7 @@ def api_sell_finished_products_batch(data: dict = Body(...), db: Session = Depen
 
 @app.post("/api/finished/sell")
 def api_sell_finished_product(data: dict = Body(...), db: Session = Depends(get_db),
-                                current_user=Depends(auth.admin_warehouse_or_manager)):
+                                current_user=Depends(auth.ruxsat("sotuv", "yaratish"))):
     """Tayyor mahsulotni to'g'ridan-to'g'ri sotish (buyurtma/Yuk xatisiz)."""
     data = _fp_tana("Sale", data, schemas.FinishedProductSaleCreate)
     who = current_user.full_name or current_user.username
@@ -8464,7 +8776,7 @@ def api_sell_finished_product(data: dict = Body(...), db: Session = Depends(get_
 
 @app.get("/api/finished/sales")
 def api_get_finished_sales(year: Optional[int] = None, month: Optional[int] = None,
-                            db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
+                            db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("sotuv", "korish"))):
     """Tayyor mahsulot savdolari tarixi (ixtiyoriy oy/yil filtri bilan)."""
     from models import FinishedProductSale
     from database import tashkent_oyida as _t_oyida, tashkent_yilida as _t_yilida
@@ -8489,7 +8801,7 @@ def api_get_finished_sales(year: Optional[int] = None, month: Optional[int] = No
 
 
 @app.post("/api/finished/produce")
-def api_produce(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
+def api_produce(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("tayyor", "yaratish"))):
     """Tayyor mahsulot ishlab chiqarish."""
     data = _fp_tana("Produce", data, schemas.ProduceCreate)
     who = current_user.full_name or current_user.username
@@ -8517,7 +8829,7 @@ def api_produce(data: dict = Body(...), db: Session = Depends(get_db), current_u
 
     return result
 @app.post("/api/finished/{fp_id}/complete")
-def api_complete_production(fp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
+def api_complete_production(fp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("tayyor", "tahrirlash"))):
     """Mahsulotni 'Tayyor' deb belgilash — sotuvga tayyor."""
     result = crud.complete_production(db, fp_id, company_id=auth.company_id_of(current_user))
     if not result["success"]:
@@ -8526,7 +8838,7 @@ def api_complete_production(fp_id: int, db: Session = Depends(get_db), current_u
 
 
 @app.get("/api/finished/{fp_id}/profit")
-def api_finished_profit(fp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+def api_finished_profit(fp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("tannarx", "korish"))):
     """Tayyor mahsulot foydasi (faqat admin)."""
     result = crud.get_finished_profit(db, fp_id, company_id=auth.company_id_of(current_user))
     if not result["success"]:
@@ -8536,7 +8848,7 @@ def api_finished_profit(fp_id: int, db: Session = Depends(get_db), current_user=
 
 @app.post("/api/finished/{fp_id}/add")
 def api_add_production(fp_id: int, data: dict = Body(...),
-                       db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
+                       db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("tayyor", "tahrirlash"))):
     """Tayyor mahsulotga miqdor qo'shish — xomashyo proporsional yechiladi."""
     # 17-band: begona / mavjud bo'lmagan ID — tana tekshiruvidan OLDIN 404
     # (aks holda yomon tana 400 berib, ID borligini oshkor qilardi).
@@ -8570,7 +8882,7 @@ def api_add_production(fp_id: int, data: dict = Body(...),
 
 @app.post("/api/finished/{fp_id}/reduce")
 def api_reduce_production(fp_id: int, data: dict = Body(...),
-                          db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
+                          db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("tayyor", "tahrirlash"))):
     """Tayyor mahsulot miqdorini kamaytirish (brak/singan) — xomashyo qaytmaydi."""
     # 17-band: begona ID — tana tekshiruvidan OLDIN 404 (oracle bo'lmasin).
     if not crud.get_finished_product(db, fp_id, auth.company_id_of(current_user)):
@@ -8585,7 +8897,7 @@ def api_reduce_production(fp_id: int, data: dict = Body(...),
 
 @app.put("/api/finished/{fp_id}")
 def api_update_finished(fp_id: int, data: dict = Body(...),
-                        db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
+                        db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("tayyor", "tahrirlash"))):
     """Tayyor mahsulotni tahrirlash."""
     cid = auth.company_id_of(current_user)
     # 14-band: avval obyekt korxonadan (404) — tana tekshiruvi undan KEYIN
@@ -8606,7 +8918,7 @@ def api_update_finished(fp_id: int, data: dict = Body(...),
 
 @app.delete("/api/finished/{fp_id}")
 def api_delete_finished(fp_id: int, return_to_stock: bool = False,
-                        db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
+                        db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("tayyor", "ochirish"))):
     """Tayyor mahsulotni o'chirish.
     - IN_PROGRESS: xato tuzatish deb hisoblanadi — o'chadi, xomashyo qaytadi.
     - READY: faqat qoldiq 0 bo'lsa o'chadi, xomashyo qaytmaydi."""
@@ -8642,7 +8954,7 @@ def api_delete_finished(fp_id: int, return_to_stock: bool = False,
 # ============================================================
 
 @app.get("/api/orders/{order_id}/delivery-status")
-def api_delivery_status(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_delivery_status(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "korish"))):
     """Buyurtmaning yetkazish holati."""
     # M2: buyurtma FAQAT joriy korxonadan (aks holda 404).
     if not crud.get_order(db, order_id, company_id=auth.company_id_of(current_user)):
@@ -8654,7 +8966,7 @@ def api_delivery_status(order_id: int, db: Session = Depends(get_db), current_us
 
 
 @app.post("/api/orders/{order_id}/pin")
-def api_toggle_order_pin(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_toggle_order_pin(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "tahrirlash"))):
     # ⚠ 2026-09-21, IDOR testi bilan topildi (tools/test_idor.py):
     # bu yerda M2 qo'riqchisi TUSHIB QOLGAN edi. `crud.toggle_order_pin`
     # buyurtmani faqat ID bo'yicha topadi, korxonani tekshirmaydi —
@@ -8673,7 +8985,7 @@ def api_toggle_order_pin(order_id: int, db: Session = Depends(get_db), current_u
 
 
 @app.post("/api/deliveries")
-def api_create_delivery(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_create_delivery(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("yetkazish", "yaratish"))):
     """Yangi yetkazish."""
     # 17g (2026-09-22): xom JSON QAT'IY tekshiriladi (`crud._clean_val
     # ("Delivery")`), keyin sxemaga (`null` maydonlar — sxema standarti).
@@ -8736,7 +9048,7 @@ def api_create_delivery(data: dict = Body(...), db: Session = Depends(get_db), c
 
 
 @app.get("/api/finished/sales/batch/{group_id}/pdf")
-def api_finished_sale_batch_pdf(group_id: str, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_finished_sale_batch_pdf(group_id: str, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("sotuv", "korish"))):
     """Bir nechta mahsulot — bitta Yuk xati (guruh bo'yicha)."""
     from fastapi.responses import Response
     import delivery_pdf
@@ -8763,7 +9075,7 @@ def api_finished_sale_batch_pdf(group_id: str, db: Session = Depends(get_db), cu
 
 
 @app.get("/api/finished/sales/{sale_id}/pdf")
-def api_finished_sale_pdf(sale_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_finished_sale_pdf(sale_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("sotuv", "korish"))):
     """Tayyor mahsulot sotuvi uchun Yuk xati (PDF)."""
     from fastapi.responses import Response
     import delivery_pdf
@@ -8789,7 +9101,7 @@ def api_finished_sale_pdf(sale_id: int, db: Session = Depends(get_db), current_u
 
 
 @app.get("/api/deliveries/{delivery_id}/pdf")
-def api_delivery_pdf(delivery_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_delivery_pdf(delivery_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("yetkazish", "korish"))):
     """Yetkazish nakladnoyi (PDF)."""
     from fastapi.responses import Response
     import delivery_pdf
@@ -8810,7 +9122,7 @@ def api_delivery_pdf(delivery_id: int, db: Session = Depends(get_db), current_us
 
 
 @app.get("/api/orders/{order_id}/summary-pdf")
-def api_summary_pdf(order_id: int, ids: str = "", db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_summary_pdf(order_id: int, ids: str = "", db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "korish"))):
     """Hisob-kitob varaqasi — tanlangan nakladnoylar bo'yicha.
     ids — vergul bilan ajratilgan delivery ID lar: '3,5,7'. Bo'sh bo'lsa — hammasi."""
     # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
@@ -8920,7 +9232,7 @@ def _save_upload(file: UploadFile, subfolder: str, allowed_ext: set) -> str:
 
 @app.post("/api/order-items/{item_id}/image")
 def api_upload_order_item_image(item_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
-                                 current_user=Depends(auth.orders_page_access)):
+                                 current_user=Depends(auth.ruxsat("buyurtma_fayl", "yaratish"))):
     # M2: detal FAQAT joriy korxonadan (aks holda 404).
     from models import OrderItem as _OI_g
     if not db.query(_OI_g).filter(
@@ -8939,7 +9251,7 @@ def api_upload_order_item_image(item_id: int, file: UploadFile = File(...), db: 
 
 @app.delete("/api/order-items/{item_id}/image")
 def api_delete_order_item_image(item_id: int, db: Session = Depends(get_db),
-                                 current_user=Depends(auth.orders_page_access)):
+                                 current_user=Depends(auth.ruxsat("buyurtma_fayl", "ochirish"))):
     # M2: detal FAQAT joriy korxonadan (aks holda 404).
     from models import OrderItem as _OI_g
     if not db.query(_OI_g).filter(
@@ -8957,7 +9269,7 @@ def api_delete_order_item_image(item_id: int, db: Session = Depends(get_db),
 
 @app.post("/api/orders/{order_id}/attachments")
 def api_upload_order_attachment(order_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
-                                 current_user=Depends(auth.orders_page_access)):
+                                 current_user=Depends(auth.ruxsat("buyurtma_fayl", "yaratish"))):
     from models import OrderAttachment, Order
     # M2: fayl FAQAT o'z korxonasining buyurtmasiga biriktiriladi.
     order = db.query(Order).filter(
@@ -8977,7 +9289,7 @@ def api_upload_order_attachment(order_id: int, file: UploadFile = File(...), db:
 
 
 @app.get("/api/orders/{order_id}/attachments")
-def api_list_order_attachments(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_list_order_attachments(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "korish"))):
     from models import OrderAttachment
     # M2: buyurtma FAQAT joriy korxonadan (aks holda 404).
     if not crud.get_order(db, order_id, company_id=auth.company_id_of(current_user)):
@@ -8988,7 +9300,7 @@ def api_list_order_attachments(order_id: int, db: Session = Depends(get_db), cur
 
 @app.delete("/api/orders/attachments/{attachment_id}")
 def api_delete_order_attachment(attachment_id: int, db: Session = Depends(get_db),
-                                 current_user=Depends(auth.orders_page_access)):
+                                 current_user=Depends(auth.ruxsat("buyurtma_fayl", "ochirish"))):
     from models import OrderAttachment
     # M2: biriktirmada company_id yo'q — ota (buyurtma) orqali tekshiriladi.
     from models import Order as _Ord
@@ -9014,7 +9326,7 @@ def api_delete_order_attachment(attachment_id: int, db: Session = Depends(get_db
 
 
 @app.delete("/api/deliveries/{delivery_id}")
-def api_delete_delivery(delivery_id: int, tolov: Optional[str] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_delete_delivery(delivery_id: int, tolov: Optional[str] = None, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("yetkazish", "ochirish"))):
     """Yetkazishni o'chirish.
 
     kech38 (5-bo'lim 12-band): yukka to'lov bog'langan bo'lsa va `tolov`
@@ -9049,14 +9361,14 @@ def api_delete_delivery(delivery_id: int, tolov: Optional[str] = None, db: Sessi
 
 
 @app.get("/api/loy-cost")
-def api_loy_cost(recipe_id: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_loy_cost(recipe_id: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "korish"))):
     """1 kg loyning tan narxi (retsept bo'yicha)."""
     return services.get_loy_cost_per_kg(
         db, recipe_id, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/loy-stock")
-def api_loy_stock(recipe_id: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_loy_stock(recipe_id: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "korish"))):
     """Tayyor loy zaxirasi."""
     from models import Recipe
     # ⚠ 2026-09-21: ikkala so'rov ham korxona bo'yicha cheklanmagan edi.
@@ -9086,7 +9398,7 @@ def api_loy_stock(recipe_id: Optional[int] = None, db: Session = Depends(get_db)
 
 
 @app.get("/api/orders/{order_id}/planned-loy")
-def api_planned_loy(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_planned_loy(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "korish"))):
     """Buyurtmada rejalashtirilgan loy miqdori (qoplama uchun)."""
     order = crud.get_order(db, order_id, company_id=auth.company_id_of(current_user))
     if not order:
@@ -9095,13 +9407,13 @@ def api_planned_loy(order_id: int, db: Session = Depends(get_db), current_user=D
 
 
 @app.get("/api/dashboard/deliveries")
-def api_delivery_stats(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_delivery_stats(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("dashboard", "korish"))):
     """Yetkazish statistikasi."""
     return crud.get_delivery_stats(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/dashboard/debts")
-def api_debt_stats(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_debt_stats(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("dashboard", "korish"))):
     """Qarzdorlik statistikasi."""
     return crud.get_debt_stats(db, company_id=auth.company_id_of(current_user))
 

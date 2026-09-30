@@ -1,6 +1,6 @@
 # PenoDecorPro ERP — LOYIHA PASPORTI
 
-*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2); kech112: zip 108 — «Tayyor» da bo'sh loy = reja (K112-3), material nomi (K112-4), MRP qoplama belgisi (K112-5); ko'p korxonali yakuniy jonli sinov; kech115: zip 112 — butun dastur auditi A bosqichi (pul va ma'lumot xatolari) 1-qismi: kirim, qarzdorlar, «Tayyor», narxsiz buyurtma, o'chirilganlar jurnali, manfiy raqamlar, taqqoslash, korxona sog'ligi, ombor filtri; kech116: zip 113 — A bosqich 2-qismi: sog'liq sabablari (K115-2), «Bugungi xulosa» (K115-3), hujjatlardagi hisob qatorlari (G2-04), «Pul oqimi» — haqiqiy pul (G1-03), «Xarajat» — bitta ta'rif va «Tannarx» (G1-02), loyiha qiymati buyurtmalardan (G2-01), haqiqiy IP va kirish cheklovi (U-01), parol oynasi va kirishlarni yopish (G6-06); zip 114 — mijoz hujjatlarida kechirilgan qarz «Chegirma» ichida (egasi qarori); kech117: zip 115 — A2: yo'nalishlar bo'yicha moliya (G3-11, G6-09); zip 116 — jonli sinovdan keyin: «Belgilanmagan» manbalari, Moliya xarajatdan keyin yangilanadi; kech118: qolgan egasi qarorlari (6-bo'lim); zip 117 — B bosqichi 1-qism: dastur oynalari (xabar, kiritish, Esc / tashqariga bosish), o'zbekcha 404 / 403 sahifa, klaviatura fokusi; zip 118 — B bosqichi 2-qism: son / sana / birlik ko'rinishi, o'qiladigan rang, 12 px + yo'nalishlar bo'yicha moliyaviy natija (egasi qarori: taqsim yo'q, oyliklar alohida, davr, solishtirish); yangi qarorlar — rollar va ruxsatlar (6-bo'lim)). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
+*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2); kech112: zip 108 — «Tayyor» da bo'sh loy = reja (K112-3), material nomi (K112-4), MRP qoplama belgisi (K112-5); ko'p korxonali yakuniy jonli sinov; kech115: zip 112 — butun dastur auditi A bosqichi (pul va ma'lumot xatolari) 1-qismi: kirim, qarzdorlar, «Tayyor», narxsiz buyurtma, o'chirilganlar jurnali, manfiy raqamlar, taqqoslash, korxona sog'ligi, ombor filtri; kech116: zip 113 — A bosqich 2-qismi: sog'liq sabablari (K115-2), «Bugungi xulosa» (K115-3), hujjatlardagi hisob qatorlari (G2-04), «Pul oqimi» — haqiqiy pul (G1-03), «Xarajat» — bitta ta'rif va «Tannarx» (G1-02), loyiha qiymati buyurtmalardan (G2-01), haqiqiy IP va kirish cheklovi (U-01), parol oynasi va kirishlarni yopish (G6-06); zip 114 — mijoz hujjatlarida kechirilgan qarz «Chegirma» ichida (egasi qarori); kech117: zip 115 — A2: yo'nalishlar bo'yicha moliya (G3-11, G6-09); zip 116 — jonli sinovdan keyin: «Belgilanmagan» manbalari, Moliya xarajatdan keyin yangilanadi; kech118: qolgan egasi qarorlari (6-bo'lim); zip 117 — B bosqichi 1-qism: dastur oynalari (xabar, kiritish, Esc / tashqariga bosish), o'zbekcha 404 / 403 sahifa, klaviatura fokusi; zip 118 — B bosqichi 2-qism: son / sana / birlik ko'rinishi, o'qiladigan rang, 12 px + yo'nalishlar bo'yicha moliyaviy natija (egasi qarori: taqsim yo'q, oyliklar alohida, davr, solishtirish); yangi qarorlar — rollar va ruxsatlar (6-bo'lim); zip 119 — rollar va ruxsatlar 1-qism (admin rollarni o'zi boshqaradi)). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
 *Bu faylni `main` ga ko'chirish bilan birga, keyin har katta o'zgarishda yangilab boring. 9-bo'lim AVTOMATIK
 (`python3 tools/pasport_xarita.py --yoz`), qolgani qo'lda; `tools/test_pasport.py` ikkalasini ham tekshiradi.*
 
@@ -94,8 +94,13 @@ Ildizdagi Python fayllari (vazifasi; aniq marshrutlar va funksiyalar — 9-bo'li
   `product_types`, `boms`, `bom_items`, `production_orders`).
 - `production_routes.py`, `production_service.py`, `production_schemas.py` — dinamik ishlab chiqarish (MRP):
   mahsulot turi, retsept (BOM), ishlab chiqarish buyurtmasi (qoralama → boshlash → yakunlash / bekor).
-- `auth.py` — login (cookie sessiya, bcrypt), rollar va qorovullar (`admin_only`, `platform_admin_only`, …),
-  korxona qorovullari (`order_of_company` va h.k.), hodim (PIN) paneli sessiyasi.
+- `auth.py` — login (cookie sessiya, bcrypt), marshrut qorovullari — ROL RUXSATI (`ruxsat(band, amal)`, `ruxsat_biri`,
+  `ruxsat_hammasi`; `admin_only` — faqat Admin: foydalanuvchilar va rollar; `platform_admin_only`), korxona rollari
+  (`tayyor_rollar`, `rol_of_company`, `rol_biriktir`), korxona qorovullari (`order_of_company` va h.k.), hodim (PIN) paneli.
+- `ruxsatlar.py` — (kech118) ROLLAR VA RUXSATLAR YAGONA manbasi: bo'limlar katalogi (`BOLIMLAR` — band × amal: korish /
+  yaratish / tahrirlash / ochirish), tayyor rollar (`TAYYOR_ROLLAR` — Admin, Menejer, Omborchi, Moliyachi; eski «Usta (eski)»),
+  eski `users.role` → tayyor rol (`ENUM_ROL`), tekshiruv (`bormi`), sahifa bog'liqligi (`SAHIFA_KERAK`), bosh sahifa
+  yo'naltirishi (`YONALTIRISH`). Baza / model importi YO'Q.
 - `schemas.py` — Pydantic sxemalari (kirish tekshiruvi: manfiy / haddan katta qiymatlar 422).
 - `database.py` — ulanish (`pool_pre_ping`, `pool_recycle=280`), `get_db`, Toshkent vaqti yordamchilari (hisobot davri —
   `tashkent_oyida` va h.k.; ko'rinish — `tashkent_vaqt`).
@@ -357,8 +362,29 @@ YANGI oyna qo'shilsa — yopish tugmasiga `data-yopish` (S3 / S4 statik darvozas
 HEAD, `Accept` da text/html, yo'l `/api/` yoki `/static/` emas) — `templates/xato_sahifa.html` («Bunday sahifa yo'q» / «Bu
 bo'limga ruxsatingiz yo'q», «Bosh sahifaga», hodim yo'lida — `/hodim`), holat kodi saqlanadi. API va boshqa mijozlar — JSON
 AYNAN avvalgidek. Rol nomlari foydalanuvchiga o'zbekcha — `auth.ROL_NOMI` / `auth.rollar_matni` (rad sababi: «Bu bo'lim faqat
-Admin va Hodim uchun ochiq»). Klaviatura fokusi — `static/style.css` `:focus-visible` (hamma bosiladigan / yoziladigan element,
+Admin uchun ochiq»; kech118 — «Menejer»). 403 sahifada rad sababi (qaysi bo'lim / amal ruxsati yo'q) ko'rsatiladi. Klaviatura fokusi — `static/style.css` `:focus-visible` (hamma bosiladigan / yoziladigan element,
 inline `outline:none` ustidan); `style.css` havolalari `?v={{ static_version }}` bilan (kesh).
+**Rollar va ruxsatlar (kech118 — egasi QARORI 15:23 / 15:30; zip 119).** Huquq endi kodga qotirilmagan: korxona rollari
+`rollar` jadvalida (`models.Rol`: nom korxona ichida yagona, `kod` — tayyor rol, `ruxsatlar` — JSON {band: [amal]}),
+foydalanuvchi — `users.rol_id`. Katalog — `ruxsatlar.BOLIMLAR` (13 bo'lim, 32 band; har band o'z amallari bilan — masalan
+Dashboard faqat Ko'rish; «Tannarx va foyda» — alohida band). Har marshrut qorovuli — `Depends(auth.ruxsat("band", "amal"))`
+(sahifa — `ruxsat_biri`: birortasi yetadi; buyurtma foydasi — `ruxsat_hammasi(tannarx, buyurtma)`); menyu, bosh sahifa
+yo'naltirishi va sahifadagi tugmalar — `current_user.ruxsat(band, amal)` (amal berilmasa — bandning istalgani). ADMIN
+(`users.role == ADMIN`) — hamma narsa, ruxsati tekshirilmaydi; Admin roli o'zgartirilmaydi / o'chirilmaydi. «Foydalanuvchilar
+va rollar» — FAQAT Admin (`admin_only`; rolga topshirilmaydi — aks holda istalgan rol o'zini Admin qila olardi).
+Tayyor rollar ruxsatlari — o'zgarishdan OLDINGI qorovullardan HISOBLANGAN (work/k119/tayinlash.py): Admin / Menejer uchun
+kirish AYNAN; ataylab 14 farq (Moliyachi — Dashboard / Qarzdorlar sahifasining 6 so'rovi ochildi; Omborchi — sotuv cheki PDF;
+Menejer — hech bir sahifasi ishlatmaydigan 6 so'rov yopildi) — `tools/test_rollar.py` FARQLAR ro'yxati. Rol biriktirilmagan
+(yoki boshqa korxonaning roli) foydalanuvchi — eski `role` turining tayyor andozasi (xavfsiz tomon). Qoidalar: o'z rolini
+o'zgartirib bo'lmaydi; korxonada kamida bitta FAOL Admin qoladi; foydalanuvchisi bor rol va tayyor rol o'chirilmaydi (tayyor
+rol — «Boshlang'ich holat»ga qaytariladi); rol / ruxsat / foydalanuvchi roli o'zgarishi — «Tizim jurnallari»ga (kim, nima:
+«+ Hisobotlar: Ko'rish; − Kassa: Ko'rish»). O'zgarish DARHOL ta'sir qiladi (har so'rovda bazadan; qayta kirish shart emas).
+Sahifa — `/rollar` (`templates/rollar.html`: rollar ro'yxati, bo'lim × 4 belgi, bo'limlar tezkor tugmalari, rol ma'lumoti, rolga
+biriktirilgan foydalanuvchilar; sahifasi o'zida bo'lmagan band berilsa — ogohlantirish `SAHIFA_KERAK`). Foydalanuvchilar
+sahifasida rol — korxona rollaridan tanlanadi va shu yerda almashtiriladi. Migratsiya `main._migrate_rollar` (IDEMPOTENT):
+har korxonaga tayyor rollar, `rol_id` bo'sh foydalanuvchi — eski turining tayyor roliga (master — «Usta (eski)», faqat
+shunday foydalanuvchi bo'lsa). Yangi marshrut qo'shilsa — `auth.ruxsat(...)` bilan va `tools/test_rollar.py` ESKI /
+YANGI_MARSHRUTLAR jadvaliga (jadvalsiz marshrut — test yiqiladi).
 **Son, sana, birlik ko'rinishi va o'qiladigan yozuv (kech118, B bosqichi 2-qism — audit U-03 / U-04 / U-05 / U-06).** Ekranga
 chiqadigan son — bitta qoida: ming ajratgich bo'sh joy (NBSP), kasr — VERGUL, ortiqcha nolsiz («354», «8,3», «1 234,5»), «-0» →
 «0», qiymat yo'q — «—». Brauzerda `base.html` `sonKor(x, kasr = 2)`, foiz — `foizKor(x, kasr = 1)` («33,3%»); shablonda Jinja
@@ -681,6 +707,15 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   `test_narx_kiritish_ui.js`, `test_toshkent_korinish_ui.js` (+ `soz` bir necha qatorli obyektni oladi), `test_kichik103_ui.js`,
   `test_kam_qoldiq_ui.js` (kontekstga `sonKor` / `matnRangi`), `test_ombor_kpi_loy.py` («5 kg»), `test_html_escape.py`
   (`matnRangi(x)` — «shaffof»: xavfsizligi x niki).
+- (kech118, zip 119) Rollar va ruxsatlar: `tools/test_rollar.py` — S (katalog, tayyor rollar; HAR marshrut ESKI jadvalda;
+  qorovul + tayyor rol = ESKI huquq, farq — faqat 14 ta ataylab; eski qorovul nomlari va shablonlarda rol turi sharti yo'q),
+  H (HAQIQIY HTTP: hamma qorovulli marshrut × 5 eski rol ≈ 1 400 so'rov; bosh sahifa yo'naltirishi; menyu havolalari; o'zbekcha
+  rad sababi va 403 sahifa; Omborxona / Buyurtmalar tugmalari), R (rollar API: tekshiruv, Admin qulfi, o'chirish qoidalari,
+  andoza, biriktirish — o'zini / oxirgi Admin / boshqa korxona, jurnal, DARHOL ta'sir; HAR (band, amal) uchun yakka ruxsatli
+  rol × hamma marshrut qorovuli), M (migratsiya, takroriy ishga tushish, zaxira qoida); SQLite, PG. Isbot (bir martalik):
+  work/k119/imzo.py — eski va yangi daraxtda har sahifa × 5 rol HTML va har marshrut × 5 rol holat kodi solishtirildi (farq —
+  faqat ataylab). Moslangan: `test_b118_oyna.py` H8 / H9 (rad sababi — bo'lim / amal; «Menejer»), `test_brak_tahlil.py` S7
+  (qorovul — «Hisobotlar»), `test_nom_noyobligi.py` (qorovullar — `auth._RUXSAT_QOROVULLARI`).
 - (kech118, zip 118) Yo'nalishlar bo'yicha moliyaviy natija (egasi QARORI 15:23 — taqsim yo'q): server — `test_a117_yonalish.py`
   D bo'limi MOSLANDI (ustun D − T − O − X = N; ΣN − umumiy oylik − umumiy xarajat = Jami natija = Moliya sof foydasi — so'm va
   tiyinda; «ulush» yo'q; daromadsiz oy — taqsimsiz; D19 — yo'nalish xarajatlaridagi kasr qoldiq bilan yaxlitlash; PDF «NATIJA
@@ -901,10 +936,14 @@ bajarilganlari belgilanadi)**
   (yo'nalishsiz 3 000 000 bilan) − 8 000 000 (umumiy 5 000 000 bilan) = +1 000 000. Joyi — MOLIYA sahifasida; qo'shimchalar —
   o'tgan davr bilan solishtirish, xarajatlar tarkibi doirasi, rentabellik chiziqlari, davr tanlash (hammasi). BAJARILDI kech118
   (zip 118; 4-bo'lim «Yo'nalishlar bo'yicha moliya»).
-- ROLLAR VA RUXSATLAR (keyingi ish, zip 119+): admin o'zi rol yaratadi va boshqaradi; ruxsat — har bo'lim / amalda 4 belgi
+- ROLLAR VA RUXSATLAR: admin o'zi rol yaratadi va boshqaradi; ruxsat — har bo'lim / amalda 4 belgi
   (Ko'rish, Yaratish, Tahrirlash, O'chirish) + bo'limni bir tugmada yoqish; «Tannarx va foydani ko'rish» — ALOHIDA ruxsat (yo'q
   bo'lsa hamma joyda, PDF da ham «—»); tayyor rollar — Admin (doim, to'liq, o'zgarmaydi), Menejer (hozirgi 2 «Hodim»
   foydalanuvchi, ruxsatlari hozirgidek), Omborchi, Moliyachi («Ishlab chiqarish» andozasi kerak emas). «Usta» login roli yo'q.
+  BAJARILDI kech118 — 1-qism (zip 119; 4-bo'lim «Rollar va ruxsatlar»): rollar, ruxsatlar, sahifa, menyu, marshrutlar,
+  migratsiya. 2-qism (keyingi): «Tannarx va foyda» ruxsati bo'lmaganga HAMMA joyda (API javoblari, sahifalar, PDF) «—»
+  (hozir — buyurtma / tayyor mahsulot foydasi oynasi, Loyihalar sof foydasi, Qaytarishlar brak qiymati, Omborxona / Buyurtmalar
+  «Moliya» bloki); sahifadagi har tugma — amal ruxsatiga ko'ra.
 - Ish tartibi: zip 118 (B-2 + yo'nalishlar) → rollar (zip 119).
 
 ## 7. Ochiq masalalar
@@ -1164,6 +1203,13 @@ bajarilganlari belgilanadi)**
   «fetch failed» bilan yiqilishi mumkin (keep-alive / vaqt); yolg'iz qayta yurgizilganda o'tdi. Yiqilishni «yuk» deb yozishdan oldin
   — yolg'iz qayta yurgizing.
 
+- (kech118) FastAPI 0.141 da `app.include_router(router)` DANGASA: marshrutlar `app.routes` da `_IncludedRouter` ichida turadi —
+  `for r in app.routes: isinstance(r, APIRoute)` `/api/production/*` 20 marshrutni KO'RMAYDI (lekin ular ishlaydi). Marshrutlar
+  xaritasi / huquq tekshiruvi `_IncludedRouter.original_router.routes` ga ham kirsin (`tools/test_rollar.py` `marshrutlar()`).
+- (kech118) Huquq o'zgarishining isboti — marshrut × rol HOLAT KODI matritsasi va sahifa × rol HTML (eski va yangi daraxtda) —
+  dastlab «hamma narsa bir xil» emas edi: eski qorovullarning o'zi izchil emasdi (sahifa ochiq, uning so'rovi 403). Bunday joyni
+  jim «tuzatmang» — ro'yxat bilan (FARQLAR) va sababi bilan yozing.
+
 ## 9. Xarita (AVTOMATIK)
 
 Quyidagi bloklar `python3 tools/pasport_xarita.py --yoz` bilan KODDAN yasaladi — qo'lda tahrirlamang.
@@ -1224,14 +1270,15 @@ bajariladigan chaqiruvlar — AYNAN shu tartibda. `_migrate_*` — idempotent sx
 26. `_migrate_platforma_obuna` — kech111 (admin paneli — egasi QARORLARI kech109 / kech110 / kech111) — IDEMPOTENT, PG va SQLite.
 27. `_migrate_yonalishlar` — kech117 (A2 — YO'NALISHLAR BO'YICHA MOLIYA; egasi QARORLARI kech114 00:08) — IDEMPOTENT, PG va SQLite.
 28. `auth.create_default_admin`
-29. `crud.backfill_employee_compensation_history`
-30. `_migrate_loyiha_tolangan_sinxron` — 17c (2026-09-21): `projects.total_paid` ni HAQIQIY to'lovlar bilan bir marta tenglashtiradi.
-31. `app.include_router(production_router)`
-32. `app.include_router(saas_migration_router)`
-33. `_yuklama_marshrutini_oldinga`
-34. `_scheduler.add_job`
+29. `_migrate_rollar` — kech118 (ROLLAR VA RUXSATLAR — egasi QARORI 15:23, tugmali javoblar 15:30) — IDEMPOTENT, PG va SQLite.
+30. `crud.backfill_employee_compensation_history`
+31. `_migrate_loyiha_tolangan_sinxron` — 17c (2026-09-21): `projects.total_paid` ni HAQIQIY to'lovlar bilan bir marta tenglashtiradi.
+32. `app.include_router(production_router)`
+33. `app.include_router(saas_migration_router)`
+34. `_yuklama_marshrutini_oldinga`
 35. `_scheduler.add_job`
-36. `_scheduler.start`
+36. `_scheduler.add_job`
+37. `_scheduler.start`
 <!-- AVTO:ISHGA_TUSHISH OXIRI -->
 
 ### 9.3 Sahifalar: URL → handler → shablon → API
@@ -1247,22 +1294,23 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 - `home.html` API: `/api/dashboard/charts`, `/api/dashboard/stats`, `/api/orders`
 
 ### `GET /dashboard` → `main.py:dashboard_page` → `templates/dashboard.html`
-- Qorovul: auth.admin_or_financier
-- Server chaqiruvlari: auth.company_id_of, services.get_dashboard_stats
+- Qorovul: auth.ruxsat('dashboard', 'korish')
+- Server chaqiruvlari: auth.company_id_of, auth.ruxsat, services.get_dashboard_stats
 - `dashboard.html` API: `/api/admin/advance-requests/{}/confirm`, `/api/admin/advance-requests/{}/reject`, `/api/admin/pending-advance-requests`, `/api/dashboard/charts`, `/api/dashboard/debts`, `/api/dashboard/deliveries`, `/api/dashboard/production-periods`, `/api/dashboard/stats`, `/api/dashboard/today`, `/api/dashboard/today-tasks`, `/api/dashboard/top-finished-products`, `/api/finance/pul-oqimi`, `/api/finance/report`, `/api/finished/stats`, `/api/inventory/purchase-stats`, `/api/obligations/status`, `/api/reports/brak-tahlil`, `/api/returns/stats`, `/api/suppliers`, `/api/suppliers/debt-total`, `/api/suppliers/due-dates`, `/api/transport-stats`
 
 ### `GET /debts` → `main.py:debts_page` → `templates/debts.html`
-- Qorovul: auth.admin_or_financier
-- Server chaqiruvlari: auth.company_id_of, crud.get_ortiqcha_tolovlar, crud.get_suppliers_with_debt, crud.qarz_hisobidagi_buyurtma_sharti, services.get_company_obligations_status, services.get_recurring_obligations
+- Qorovul: auth.ruxsat('qarz', 'korish')
+- Server chaqiruvlari: auth.company_id_of, auth.ruxsat, crud.get_ortiqcha_tolovlar, crud.get_suppliers_with_debt, crud.qarz_hisobidagi_buyurtma_sharti, services.get_company_obligations_status, services.get_recurring_obligations
 - `debts.html` API: `/api/finance/transactions`, `/api/obligations/employee/{}/close`, `/api/obligations/employee/{}/timeline`, `/api/obligations/recurring`, `/api/obligations/recurring/{}`, `/api/obligations/timeline`, `/api/orders/{}/refund-overpayment`, `/api/payments`
 
 ### `GET /finance` → `main.py:finance_page` → `templates/finance.html`
-- Qorovul: auth.admin_or_financier
+- Qorovul: auth.ruxsat('moliya', 'korish')
+- Server chaqiruvlari: auth.ruxsat
 - `finance.html` API: `/api/finance/cash-balance`, `/api/finance/cash-transaction`, `/api/finance/cash-transactions`, `/api/finance/daily`, `/api/finance/debt-summary`, `/api/finance/pul-oqimi`, `/api/finance/report`, `/api/finance/report-pdf`, `/api/finance/split-profit-pdf`, `/api/finance/transactions`, `/api/finance/transactions/{}`, `/api/finance/yonalishlar`, `/api/inventory/kpi`
 
 ### `GET /finished` → `main.py:finished_page` → `templates/finished.html`
-- Qorovul: auth.admin_warehouse_or_manager
-- Server chaqiruvlari: auth.company_id_of, crud.get_employees, crud.get_finished_products, crud.get_finished_stats, crud.get_masters, crud.get_recipes, services.get_default_penoplast, services.get_penoplast_list
+- Qorovul: auth.ruxsat_biri(('tayyor', 'korish'), ('sotuv', 'korish'))
+- Server chaqiruvlari: auth.company_id_of, auth.ruxsat_biri, crud.get_employees, crud.get_finished_products, crud.get_finished_stats, crud.get_masters, crud.get_recipes, services.get_default_penoplast, services.get_penoplast_list
 - `finished.html` API: `/api/finished`, `/api/finished/loss`, `/api/finished/produce`, `/api/finished/production-brak`, `/api/finished/sales/batch/{}/pdf`, `/api/finished/sales/{}/pdf`, `/api/finished/sell`, `/api/finished/sell-batch`, `/api/finished/stats`, `/api/finished/{}`, `/api/finished/{}/add`, `/api/finished/{}/complete`, `/api/finished/{}/image`, `/api/finished/{}/profit`, `/api/finished/{}/release-reservation`, `/api/loy-cost`
 
 ### `GET /hodim` → `main.py:hodim_panel` → `templates/hodim_panel.html`
@@ -1279,16 +1327,18 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 - Server chaqiruvlari: auth.create_employee_session, auth.mijoz_ip, crud.authenticate_employee, crud.check_login_rate_limit, crud.log_login_attempt, crud.resolve_company_by_code
 
 ### `GET /inventory` → `main.py:inventory_page` → `templates/inventory.html`
-- Qorovul: auth.inventory_view
-- Server chaqiruvlari: auth.company_id_of, crud.get_inventory, crud.get_suppliers, services.get_inventory_kpi
+- Qorovul: auth.ruxsat('material', 'korish')
+- Server chaqiruvlari: auth.company_id_of, auth.ruxsat, crud.get_inventory, crud.get_suppliers, services.get_inventory_kpi
 - `inventory.html` API: `/api/inventory/full-stock-report`, `/api/inventory/low-stock-alert`, `/api/inventory/movements`, `/api/inventory/purchase-stats`, `/api/inventory/purchases`, `/api/inventory/purchases/{}`, `/api/inventory/receipts/{}/cancel`, `/api/inventory/receipts/{}/cancel-plan`, `/api/inventory/{}`, `/api/inventory/{}/image`, `/api/inventory/{}/min-stock`, `/api/inventory/{}/price`, `/api/inventory/{}/set-default-penoplast`, `/api/inventory/{}/stock`
 
 ### `GET /kpi` → `main.py:kpi_page` → `templates/kpi.html`
-- Qorovul: auth.admin_or_financier
+- Qorovul: auth.ruxsat('kpi', 'korish')
+- Server chaqiruvlari: auth.ruxsat
 - `kpi.html` API: `/api/employees`, `/api/employees/advance/{}`, `/api/employees/{}`, `/api/employees/{}/advance`, `/api/employees/{}/advances`, `/api/employees/{}/compensation-history`, `/api/employees/{}/monthly-adjustment`, `/api/employees/{}/set-login`, `/api/finance/report`, `/api/gift-period`, `/api/gift-period/add-master`, `/api/gift-period/close`, `/api/gift-period/open`, `/api/gift-period/redeem/{}/{}`, `/api/gift-period/tier/{}`, `/api/masters`, `/api/masters/kpi-report`, `/api/masters/{}`, `/api/masters/{}/kpi`, `/api/masters/{}/kpi-detail`, `/api/settings/ehson-percent`
 
 ### `GET /kunlik-xarajat` → `main.py:kunlik_xarajat_page` → `templates/kunlik_xarajat.html`
-- Qorovul: auth.admin_manager_accountant
+- Qorovul: auth.ruxsat_biri(('kunlik', 'korish'), ('kunlik', 'yaratish'))
+- Server chaqiruvlari: auth.ruxsat_biri
 - `kunlik_xarajat.html` API: `/api/finance/transactions`
 
 ### `GET /login` → `main.py:login_page` → `templates/login.html`
@@ -1300,13 +1350,13 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 - Server chaqiruvlari: auth.create_session, auth.mijoz_ip, auth.verify_and_upgrade_password, crud.check_login_rate_limit, crud.log_login_attempt
 
 ### `GET /logs` → `main.py:logs_page` → `templates/logs.html`
-- Qorovul: auth.admin_only
-- Server chaqiruvlari: auth.company_id_of, crud.get_activity_log, crud.get_error_logs, crud.get_login_history
+- Qorovul: auth.ruxsat('jurnal', 'korish')
+- Server chaqiruvlari: auth.company_id_of, auth.ruxsat, crud.get_activity_log, crud.get_error_logs, crud.get_login_history
 - `logs.html` API: `/api/settings/categories`, `/api/settings/company`, `/api/settings/company/logo`, `/api/settings/telegram-bot`, `/api/system/backup`, `/api/system/health-check`, `/api/yonalishlar`, `/api/yonalishlar/{}`
 
 ### `GET /orders` → `main.py:orders_page` → `templates/orders.html`
-- Qorovul: auth.orders_page_access
-- Server chaqiruvlari: auth.company_id_of, crud.get_deadline_urgency, crud.get_masters, crud.get_orders_for_main_page, crud.get_projects, crud.get_recipes, services.get_default_penoplast, services.get_penoplast_list
+- Qorovul: auth.ruxsat_biri(('buyurtma', 'korish'), ('buyurtma_fayl', 'yaratish'))
+- Server chaqiruvlari: auth.company_id_of, auth.ruxsat_biri, crud.get_deadline_urgency, crud.get_masters, crud.get_orders_for_main_page, crud.get_projects, crud.get_recipes, services.get_default_penoplast, services.get_penoplast_list
 - `orders.html` API: `/api/deliveries`, `/api/deliveries/{}`, `/api/deliveries/{}/pdf`, `/api/finished`, `/api/finished/search`, `/api/loy-stock`, `/api/order-items/{}/image`, `/api/orders`, `/api/orders/attachments/{}`, `/api/orders/pinned`, `/api/orders/{}`, `/api/orders/{}/activate`, `/api/orders/{}/agreed-amount`, `/api/orders/{}/attachments`, `/api/orders/{}/coating-notify`, `/api/orders/{}/delivery-status`, `/api/orders/{}/pdf`, `/api/orders/{}/pin`, `/api/orders/{}/planned-loy`, `/api/orders/{}/profit`, `/api/orders/{}/ready`, `/api/orders/{}/summary-pdf`, `/api/payments`, `/api/payments/{}`, `/api/production/product-types`, `/api/warnings/low-stock`
 
 ### `GET /platforma` → `main.py:platforma_page` → `templates/platforma.html`
@@ -1315,49 +1365,57 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 - `platforma.html` API: `/api/platform/companies`, `/api/platform/companies/{}/block`, `/api/platform/companies/{}/extend`, `/api/platform/companies/{}/reset-admin-password`, `/api/platform/companies/{}/unblock`, `/api/platform/contact-phone`, `/api/platform/errors`, `/api/platform/summary`
 
 ### `GET /production` → `main.py:production_page` → `templates/production.html`
-- Qorovul: auth.admin_or_warehouse
+- Qorovul: auth.ruxsat('mahsulot_turi', 'korish')
+- Server chaqiruvlari: auth.ruxsat
 - `production.html` API: `/api/inventory`, `/api/production/boms`, `/api/production/boms/preview`, `/api/production/boms/{}`, `/api/production/mrp-order-items`, `/api/production/orders`, `/api/production/orders/preview`, `/api/production/orders/{}/cancel`, `/api/production/orders/{}/complete`, `/api/production/orders/{}/preview`, `/api/production/orders/{}/start`, `/api/production/product-types`, `/api/production/product-types/xulosa`, `/api/production/product-types/{}`, `/api/production/product-types/{}/boms`
 
 ### `GET /projects` → `main.py:projects_page` → `templates/projects.html`
-- Qorovul: auth.admin_manager_accountant
-- Server chaqiruvlari: auth.company_id_of, crud.get_projects_dashboard_stats, crud.get_projects_with_stats
+- Qorovul: auth.ruxsat_biri(('loyiha', 'korish'), ('loyiha_korsatkich', 'korish'))
+- Server chaqiruvlari: auth.company_id_of, auth.ruxsat_biri, crud.get_projects_dashboard_stats, crud.get_projects_with_stats
 - `projects.html` API: `/api/inventory/movements`, `/api/orders`, `/api/payments`, `/api/projects`, `/api/projects/progress-map`, `/api/projects/{}`, `/api/projects/{}/detail-stats`, `/api/projects/{}/image`, `/api/projects/{}/items`
 
 ### `GET /recipes` → `main.py:recipes_page` → `templates/recipes.html`
-- Qorovul: auth.admin_or_warehouse
-- Server chaqiruvlari: auth.company_id_of, crud.get_recipe_insights, crud.get_recipes
+- Qorovul: auth.ruxsat('retsept', 'korish')
+- Server chaqiruvlari: auth.company_id_of, auth.ruxsat, crud.get_recipe_insights, crud.get_recipes
 - `recipes.html` API: `/api/inventory`, `/api/recipes`, `/api/recipes/{}`, `/api/recipes/{}/image`
 
 ### `GET /reports` → `main.py:reports_page` → `templates/reports.html`
-- Qorovul: auth.admin_or_financier
+- Qorovul: auth.ruxsat('hisobot', 'korish')
+- Server chaqiruvlari: auth.ruxsat
 - `reports.html` API: `/api/dashboard/top-finished-products`, `/api/finance/cash-balance`, `/api/finance/history`, `/api/finance/pul-oqimi`, `/api/finance/report`, `/api/finished`, `/api/inventory`, `/api/inventory/kpi`, `/api/masters/kpi-report`, `/api/reports/alerts`, `/api/reports/business-health`, `/api/reports/comparison`, `/api/reports/forecast`, `/api/reports/top-customers`, `/api/reports/top-materials`, `/api/reports/top-suppliers`
 
 ### `GET /returns` → `main.py:returns_page` → `templates/returns.html`
-- Qorovul: auth.manager_or_warehouse
-- Server chaqiruvlari: auth.company_id_of, crud.get_employees, crud.get_orders_for_main_page, crud.get_projects, crud.get_return_items_for_main_page, crud.hodim_nomlari
+- Qorovul: auth.ruxsat('qaytarish', 'korish')
+- Server chaqiruvlari: auth.company_id_of, auth.ruxsat, crud.get_employees, crud.get_orders_for_main_page, crud.get_projects, crud.get_return_items_for_main_page, crud.hodim_nomlari
 - `returns.html` API: `/api/orders/{}`, `/api/projects/{}/items`, `/api/reports/brak-materials`, `/api/reports/brak-tahlil`, `/api/returns`, `/api/returns/stats`, `/api/returns/{}`, `/api/returns/{}/image`, `/api/returns/{}/refund`
 
+### `GET /rollar` → `main.py:rollar_page` → `templates/rollar.html`
+- Qorovul: auth.admin_only
+- `rollar.html` API: `/api/rollar`, `/api/rollar/{}`, `/api/rollar/{}/andoza`, `/api/users/{}/rol`
+
 ### `GET /suppliers` → `main.py:suppliers_page` → `templates/suppliers.html`
-- Qorovul: auth.admin_or_warehouse
+- Qorovul: auth.ruxsat('taminotchi', 'korish')
+- Server chaqiruvlari: auth.ruxsat
 - `suppliers.html` API: `/api/inventory`, `/api/inventory/purchases/{}`, `/api/inventory/{}/purchase`, `/api/suppliers`, `/api/suppliers/payments/{}`, `/api/suppliers/{}`, `/api/suppliers/{}/history`, `/api/suppliers/{}/payment`
 
 ### `GET /suppliers/receive` → `main.py:supplier_receive_page` → `templates/supplier_receive.html`
-- Qorovul: auth.admin_or_warehouse
-- Server chaqiruvlari: auth.company_id_of, crud.get_suppliers
+- Qorovul: auth.ruxsat('kirim', 'yaratish')
+- Server chaqiruvlari: auth.company_id_of, auth.ruxsat, crud.get_suppliers
 - `supplier_receive.html` API: `/api/inventory`, `/api/inventory/receipt`, `/api/suppliers`, `/api/suppliers/{}/history`, `/api/suppliers/{}/payment`, `/api/suppliers/{}/purchased-items`
 
 ### `GET /trash` → `main.py:trash_page` → `templates/trash.html`
-- Qorovul: auth.admin_only
-- Server chaqiruvlari: auth.company_id_of, crud.get_activity_log, crud.get_deleted_employees, crud.get_deleted_orders, crud.get_deleted_projects
+- Qorovul: auth.ruxsat('savat', 'korish')
+- Server chaqiruvlari: auth.company_id_of, auth.ruxsat, crud.get_activity_log, crud.get_deleted_employees, crud.get_deleted_orders, crud.get_deleted_projects
 - `trash.html` API: `/api/employees/{}/permanent`, `/api/employees/{}/restore`, `/api/orders/{}/permanent`, `/api/orders/{}/restore`, `/api/projects/{}/permanent`, `/api/projects/{}/restore`
 
 ### `GET /users` → `main.py:users_page` → `templates/users.html`
 - Qorovul: auth.admin_only
-- Server chaqiruvlari: auth.company_id_of, auth.get_all_users
-- `users.html` API: `/api/system/factory-reset`, `/api/system/telegram-delete-webhook`, `/api/system/telegram-setup-webhook-security`, `/api/users`, `/api/users/{}/password`, `/api/users/{}/toggle`
+- Server chaqiruvlari: auth.company_id_of, auth.get_all_users, auth.tayyor_rollar
+- `users.html` API: `/api/system/factory-reset`, `/api/system/telegram-delete-webhook`, `/api/system/telegram-setup-webhook-security`, `/api/users`, `/api/users/{}/password`, `/api/users/{}/rol`, `/api/users/{}/toggle`
 
 ### `GET /ustalar` → `main.py:masters_manage_page` → `templates/masters_manage.html`
-- Qorovul: auth.admin_or_manager
+- Qorovul: auth.ruxsat('usta', 'korish')
+- Server chaqiruvlari: auth.ruxsat
 - `masters_manage.html` API: `/api/masters`, `/api/masters/{}`
 
 Hech bir handler to'g'ridan-to'g'ri ko'rsatmaydigan shablonlar: `xato_sahifa.html`
@@ -1374,9 +1432,9 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `GET /` → `main.py:home` · 🔓 · auth.get_current_user
 
 #### `/api/admin` (3)
-- `POST /api/admin/advance-requests/{request_id}/confirm` → `main.py:api_confirm_advance_request` · 🔒 auth.admin_or_financier · auth.company_id_of, crud.confirm_advance_request
-- `POST /api/admin/advance-requests/{request_id}/reject` → `main.py:api_reject_advance_request` · 🔒 auth.admin_or_financier · auth.company_id_of, crud.reject_advance_request
-- `GET /api/admin/pending-advance-requests` → `main.py:api_pending_advance_requests` · 🔒 auth.admin_or_financier · auth.company_id_of, crud.get_pending_advance_requests
+- `POST /api/admin/advance-requests/{request_id}/confirm` → `main.py:api_confirm_advance_request` · 🔒 auth.ruxsat('avans_sorov', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud.confirm_advance_request
+- `POST /api/admin/advance-requests/{request_id}/reject` → `main.py:api_reject_advance_request` · 🔒 auth.ruxsat('avans_sorov', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud.reject_advance_request
+- `GET /api/admin/pending-advance-requests` → `main.py:api_pending_advance_requests` · 🔒 auth.ruxsat('avans_sorov', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_pending_advance_requests
 
 #### `/api/cron` (3)
 - `GET /api/cron/cleanup-sessions` → `main.py:api_cron_cleanup_sessions` · 🔓 · auth.cleanup_expired_sessions
@@ -1384,84 +1442,84 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `GET /api/cron/low-stock-check` → `main.py:api_cron_low_stock_check` · 🔓 · crud.get_low_stock_items
 
 #### `/api/dashboard` (8)
-- `GET /api/dashboard/charts` → `main.py:api_dashboard_charts` · 🔒 auth.admin_or_financier · auth.company_id_of, services.get_chart_data
-- `GET /api/dashboard/debts` → `main.py:api_debt_stats` · 🔒 auth.admin_or_manager · auth.company_id_of, crud.get_debt_stats
-- `GET /api/dashboard/deliveries` → `main.py:api_delivery_stats` · 🔒 auth.admin_or_manager · auth.company_id_of, crud.get_delivery_stats
-- `GET /api/dashboard/production-periods` → `main.py:api_production_periods` · 🔒 auth.admin_or_financier · auth.company_id_of, services.get_production_period_stats
-- `GET /api/dashboard/stats` → `main.py:api_dashboard_stats` · 🔒 auth.admin_or_financier · auth.company_id_of, services.get_dashboard_stats
-- `GET /api/dashboard/today` → `main.py:api_dashboard_today` · 🔒 auth.admin_or_financier · auth.company_id_of, services.get_today_stats
+- `GET /api/dashboard/charts` → `main.py:api_dashboard_charts` · 🔒 auth.ruxsat('dashboard', 'korish') · auth.company_id_of, auth.ruxsat, services.get_chart_data
+- `GET /api/dashboard/debts` → `main.py:api_debt_stats` · 🔒 auth.ruxsat('dashboard', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_debt_stats
+- `GET /api/dashboard/deliveries` → `main.py:api_delivery_stats` · 🔒 auth.ruxsat('dashboard', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_delivery_stats
+- `GET /api/dashboard/production-periods` → `main.py:api_production_periods` · 🔒 auth.ruxsat('dashboard', 'korish') · auth.company_id_of, auth.ruxsat, services.get_production_period_stats
+- `GET /api/dashboard/stats` → `main.py:api_dashboard_stats` · 🔒 auth.ruxsat('dashboard', 'korish') · auth.company_id_of, auth.ruxsat, services.get_dashboard_stats
+- `GET /api/dashboard/today` → `main.py:api_dashboard_today` · 🔒 auth.ruxsat('dashboard', 'korish') · auth.company_id_of, auth.ruxsat, services.get_today_stats
 - `GET /api/dashboard/today-tasks` → `main.py:api_today_tasks` · 🔒 auth.require_login · auth.company_id_of, services.get_today_tasks
-- `GET /api/dashboard/top-finished-products` → `main.py:api_dashboard_top_finished_products` · 🔒 auth.admin_or_financier · auth.company_id_of, services.get_top_finished_products_sold
+- `GET /api/dashboard/top-finished-products` → `main.py:api_dashboard_top_finished_products` · 🔒 auth.ruxsat('dashboard', 'korish') · auth.company_id_of, auth.ruxsat, services.get_top_finished_products_sold
 
 #### `/api/deliveries` (3)
-- `POST /api/deliveries` → `main.py:api_create_delivery` · 🔒 auth.admin_or_manager · auth.company_id_of, crud._clean_val, crud.create_delivery, crud.get_delivery
-- `DELETE /api/deliveries/{delivery_id}` → `main.py:api_delete_delivery` · 🔒 auth.admin_or_manager · auth.company_id_of, auth.delivery_of_company, crud.delete_delivery
-- `GET /api/deliveries/{delivery_id}/pdf` → `main.py:api_delivery_pdf` · 🔒 auth.admin_or_manager · auth.company_id_of, crud.get_delivery, delivery_pdf.generate_delivery_pdf
+- `POST /api/deliveries` → `main.py:api_create_delivery` · 🔒 auth.ruxsat('yetkazish', 'yaratish') · auth.company_id_of, auth.ruxsat, crud._clean_val, crud.create_delivery, crud.get_delivery
+- `DELETE /api/deliveries/{delivery_id}` → `main.py:api_delete_delivery` · 🔒 auth.ruxsat('yetkazish', 'ochirish') · auth.company_id_of, auth.delivery_of_company, auth.ruxsat, crud.delete_delivery
+- `GET /api/deliveries/{delivery_id}/pdf` → `main.py:api_delivery_pdf` · 🔒 auth.ruxsat('yetkazish', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_delivery, delivery_pdf.generate_delivery_pdf
 
 #### `/api/employees` (14)
-- `GET /api/employees` → `main.py:api_get_employees` · 🔒 auth.admin_only · auth.company_id_of, crud.get_employees, crud.yonalish_nomlari
-- `POST /api/employees` → `main.py:api_create_employee` · 🔒 auth.admin_only · auth.company_id_of, crud._clean_create, crud.create_employee
-- `DELETE /api/employees/advance/{advance_id}` → `main.py:api_delete_employee_advance` · 🔒 auth.admin_only · auth.company_id_of, auth.employee_of_company, crud.delete_employee_advance
-- `POST /api/employees/backfill-compensation-history` → `main.py:api_backfill_compensation_history` · 🔒 auth.admin_only · auth.company_id_of, crud.backfill_employee_compensation_history
-- `PUT /api/employees/{emp_id}` → `main.py:api_update_employee` · 🔒 auth.admin_only · auth.company_id_of, auth.employee_of_company, crud._clean_update, crud.update_employee
-- `DELETE /api/employees/{emp_id}` → `main.py:api_delete_employee` · 🔒 auth.admin_only · auth.company_id_of, auth.employee_of_company, crud.delete_employee
-- `GET /api/employees/{emp_id}/compensation-history` → `main.py:api_employee_compensation_history` · 🔒 auth.admin_only · auth.company_id_of, auth.employee_of_company
-- `DELETE /api/employees/{emp_id}/permanent` → `main.py:api_permanent_delete_employee` · 🔒 auth.admin_only · auth.company_id_of, auth.employee_of_company, crud.permanent_delete_employee
-- `POST /api/employees/{emp_id}/restore` → `main.py:api_restore_employee` · 🔒 auth.admin_only · auth.company_id_of, auth.employee_of_company, crud.restore_employee
-- `POST /api/employees/{emp_id}/set-login` → `main.py:api_set_employee_login` · 🔒 auth.admin_only · auth.company_id_of, auth.employee_of_company, crud.set_employee_login
-- `POST /api/employees/{employee_id}/advance` → `main.py:api_create_employee_advance` · 🔒 auth.admin_only · auth.company_id_of, auth.employee_of_company, crud._clean_avans, crud.create_employee_advance
-- `GET /api/employees/{employee_id}/advances` → `main.py:api_get_employee_advances` · 🔒 auth.admin_only · auth.company_id_of, auth.employee_of_company, services.get_employee_advances_list, services.get_employee_advances_total
-- `GET /api/employees/{employee_id}/monthly-adjustment` → `main.py:api_get_employee_adjustment` · 🔒 auth.admin_only · auth.company_id_of, auth.employee_of_company, crud.get_employee_monthly_adjustment
-- `POST /api/employees/{employee_id}/monthly-adjustment` → `main.py:api_set_employee_adjustment` · 🔒 auth.admin_only · auth.company_id_of, auth.employee_of_company, crud._clean_oylik_tuzatish, crud.set_employee_monthly_adjustment
+- `GET /api/employees` → `main.py:api_get_employees` · 🔒 auth.ruxsat('hodim', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_employees, crud.yonalish_nomlari
+- `POST /api/employees` → `main.py:api_create_employee` · 🔒 auth.ruxsat('hodim', 'yaratish') · auth.company_id_of, auth.ruxsat, crud._clean_create, crud.create_employee
+- `DELETE /api/employees/advance/{advance_id}` → `main.py:api_delete_employee_advance` · 🔒 auth.ruxsat('hodim', 'tahrirlash') · auth.company_id_of, auth.employee_of_company, auth.ruxsat, crud.delete_employee_advance
+- `POST /api/employees/backfill-compensation-history` → `main.py:api_backfill_compensation_history` · 🔒 auth.ruxsat('hodim', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud.backfill_employee_compensation_history
+- `PUT /api/employees/{emp_id}` → `main.py:api_update_employee` · 🔒 auth.ruxsat('hodim', 'tahrirlash') · auth.company_id_of, auth.employee_of_company, auth.ruxsat, crud._clean_update, crud.update_employee
+- `DELETE /api/employees/{emp_id}` → `main.py:api_delete_employee` · 🔒 auth.ruxsat('hodim', 'ochirish') · auth.company_id_of, auth.employee_of_company, auth.ruxsat, crud.delete_employee
+- `GET /api/employees/{emp_id}/compensation-history` → `main.py:api_employee_compensation_history` · 🔒 auth.ruxsat('hodim', 'korish') · auth.company_id_of, auth.employee_of_company, auth.ruxsat
+- `DELETE /api/employees/{emp_id}/permanent` → `main.py:api_permanent_delete_employee` · 🔒 auth.ruxsat('hodim', 'ochirish') · auth.company_id_of, auth.employee_of_company, auth.ruxsat, crud.permanent_delete_employee
+- `POST /api/employees/{emp_id}/restore` → `main.py:api_restore_employee` · 🔒 auth.ruxsat('hodim', 'tahrirlash') · auth.company_id_of, auth.employee_of_company, auth.ruxsat, crud.restore_employee
+- `POST /api/employees/{emp_id}/set-login` → `main.py:api_set_employee_login` · 🔒 auth.ruxsat('hodim', 'tahrirlash') · auth.company_id_of, auth.employee_of_company, auth.ruxsat, crud.set_employee_login
+- `POST /api/employees/{employee_id}/advance` → `main.py:api_create_employee_advance` · 🔒 auth.ruxsat('hodim', 'tahrirlash') · auth.company_id_of, auth.employee_of_company, auth.ruxsat, crud._clean_avans, crud.create_employee_advance
+- `GET /api/employees/{employee_id}/advances` → `main.py:api_get_employee_advances` · 🔒 auth.ruxsat('hodim', 'korish') · auth.company_id_of, auth.employee_of_company, auth.ruxsat, services.get_employee_advances_list, services.get_employee_advances_total
+- `GET /api/employees/{employee_id}/monthly-adjustment` → `main.py:api_get_employee_adjustment` · 🔒 auth.ruxsat('hodim', 'korish') · auth.company_id_of, auth.employee_of_company, auth.ruxsat, crud.get_employee_monthly_adjustment
+- `POST /api/employees/{employee_id}/monthly-adjustment` → `main.py:api_set_employee_adjustment` · 🔒 auth.ruxsat('hodim', 'tahrirlash') · auth.company_id_of, auth.employee_of_company, auth.ruxsat, crud._clean_oylik_tuzatish, crud.set_employee_monthly_adjustment
 
 #### `/api/finance` (17)
-- `GET /api/finance/cash-balance` → `main.py:api_get_cash_balance` · 🔒 auth.admin_or_financier · auth.company_id_of, services.get_cash_balance
-- `POST /api/finance/cash-transaction` → `main.py:api_record_cash_transaction` · 🔒 auth.admin_only · auth.company_id_of, crud.record_cash_transaction, services.get_cash_balance
-- `GET /api/finance/cash-transactions` → `main.py:api_get_cash_transactions` · 🔒 auth.admin_or_financier · auth.company_id_of, crud.get_cash_transactions
-- `DELETE /api/finance/cash-transactions/{tx_id}` → `main.py:api_delete_cash_transaction` · 🔒 auth.admin_only · auth.cash_transaction_of_company, auth.company_id_of, crud.delete_cash_transaction
-- `GET /api/finance/daily` → `main.py:api_finance_daily` · 🔒 auth.admin_or_financier · auth.company_id_of, services.get_daily_finance_summary
-- `GET /api/finance/debt-summary` → `main.py:api_finance_debt_summary` · 🔒 auth.admin_or_financier · auth.company_id_of, services.get_full_debt_summary
-- `POST /api/finance/expense` → `main.py:api_save_expense` · 🔒 auth.admin_or_financier
-- `GET /api/finance/history` → `main.py:api_finance_history` · 🔒 auth.admin_or_financier · auth.company_id_of, services.get_finance_history
-- `GET /api/finance/pul-oqimi` → `main.py:api_finance_pul_oqimi` · 🔒 auth.admin_or_financier · auth.company_id_of, crud._query_butun, services.get_pul_oqimi
-- `GET /api/finance/report` → `main.py:api_finance_report` · 🔒 auth.admin_or_financier · auth.company_id_of, services.get_monthly_report
-- `GET /api/finance/report-pdf` → `main.py:api_finance_report_pdf` · 🔒 auth.admin_or_financier · auth.company_id_of, crud.get_brak_material_summary, crud.get_expense_transactions, finance_pdf.generate_finance_report_pdf, services.get_full_debt_summary, services.get_monthly_report
-- `GET /api/finance/split-profit-pdf` → `main.py:api_split_profit_pdf` · 🔒 auth.admin_or_financier · auth.company_id_of, finance_pdf.generate_split_profit_pdf, services.calculate_split_profit_report
-- `GET /api/finance/transactions` → `main.py:api_list_expense_transactions` · 🔒 auth.admin_or_financier · auth.company_id_of, crud.get_expense_transactions
-- `POST /api/finance/transactions` → `main.py:api_create_expense_transaction` · 🔒 auth.admin_manager_accountant · auth.company_id_of, crud._clean_val, crud.create_expense_transaction
-- `PUT /api/finance/transactions/{tx_id}` → `main.py:api_update_expense_transaction` · 🔒 auth.admin_manager_accountant · auth.company_id_of, auth.expense_of_company, crud._clean_val, crud.update_expense_transaction
-- `DELETE /api/finance/transactions/{tx_id}` → `main.py:api_delete_expense_transaction` · 🔒 auth.admin_or_financier · auth.company_id_of, crud.delete_expense_transaction
-- `GET /api/finance/yonalishlar` → `main.py:api_finance_yonalishlar` · 🔒 auth.admin_or_financier · auth.company_id_of, services.calculate_split_profit_report
+- `GET /api/finance/cash-balance` → `main.py:api_get_cash_balance` · 🔒 auth.ruxsat('kassa', 'korish') · auth.company_id_of, auth.ruxsat, services.get_cash_balance
+- `POST /api/finance/cash-transaction` → `main.py:api_record_cash_transaction` · 🔒 auth.ruxsat('kassa', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.record_cash_transaction, services.get_cash_balance
+- `GET /api/finance/cash-transactions` → `main.py:api_get_cash_transactions` · 🔒 auth.ruxsat('kassa', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_cash_transactions
+- `DELETE /api/finance/cash-transactions/{tx_id}` → `main.py:api_delete_cash_transaction` · 🔒 auth.ruxsat('kassa', 'ochirish') · auth.cash_transaction_of_company, auth.company_id_of, auth.ruxsat, crud.delete_cash_transaction
+- `GET /api/finance/daily` → `main.py:api_finance_daily` · 🔒 auth.ruxsat('moliya', 'korish') · auth.company_id_of, auth.ruxsat, services.get_daily_finance_summary
+- `GET /api/finance/debt-summary` → `main.py:api_finance_debt_summary` · 🔒 auth.ruxsat('moliya', 'korish') · auth.company_id_of, auth.ruxsat, services.get_full_debt_summary
+- `POST /api/finance/expense` → `main.py:api_save_expense` · 🔒 auth.ruxsat('moliya', 'tahrirlash') · auth.ruxsat
+- `GET /api/finance/history` → `main.py:api_finance_history` · 🔒 auth.ruxsat('moliya', 'korish') · auth.company_id_of, auth.ruxsat, services.get_finance_history
+- `GET /api/finance/pul-oqimi` → `main.py:api_finance_pul_oqimi` · 🔒 auth.ruxsat('kassa', 'korish') · auth.company_id_of, auth.ruxsat, crud._query_butun, services.get_pul_oqimi
+- `GET /api/finance/report` → `main.py:api_finance_report` · 🔒 auth.ruxsat('moliya', 'korish') · auth.company_id_of, auth.ruxsat, services.get_monthly_report
+- `GET /api/finance/report-pdf` → `main.py:api_finance_report_pdf` · 🔒 auth.ruxsat('moliya', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_brak_material_summary, crud.get_expense_transactions, finance_pdf.generate_finance_report_pdf, services.get_full_debt_summary, services.get_monthly_report
+- `GET /api/finance/split-profit-pdf` → `main.py:api_split_profit_pdf` · 🔒 auth.ruxsat('moliya', 'korish') · auth.company_id_of, auth.ruxsat, finance_pdf.generate_split_profit_pdf, services.calculate_split_profit_report
+- `GET /api/finance/transactions` → `main.py:api_list_expense_transactions` · 🔒 auth.ruxsat('kunlik', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_expense_transactions
+- `POST /api/finance/transactions` → `main.py:api_create_expense_transaction` · 🔒 auth.ruxsat('kunlik', 'yaratish') · auth.company_id_of, auth.ruxsat, crud._clean_val, crud.create_expense_transaction
+- `PUT /api/finance/transactions/{tx_id}` → `main.py:api_update_expense_transaction` · 🔒 auth.ruxsat('kunlik', 'tahrirlash') · auth.company_id_of, auth.expense_of_company, auth.ruxsat, crud._clean_val, crud.update_expense_transaction
+- `DELETE /api/finance/transactions/{tx_id}` → `main.py:api_delete_expense_transaction` · 🔒 auth.ruxsat('kunlik', 'ochirish') · auth.company_id_of, auth.ruxsat, crud.delete_expense_transaction
+- `GET /api/finance/yonalishlar` → `main.py:api_finance_yonalishlar` · 🔒 auth.ruxsat('moliya', 'korish') · auth.company_id_of, auth.ruxsat, services.calculate_split_profit_report
 
 #### `/api/finished` (20)
-- `GET /api/finished` → `main.py:api_get_finished` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, crud._fp_ombor_qiymati, crud.fp_ishlab_chiqarish_raqamlari, crud.get_finished_products, crud.get_finished_products_for_main_page
-- `POST /api/finished/loss` → `main.py:api_record_finished_loss` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, crud.record_finished_product_loss
-- `DELETE /api/finished/loss/{loss_id}` → `main.py:api_delete_finished_loss` · 🔒 auth.admin_only · auth.company_id_of, crud.delete_finished_product_loss
-- `POST /api/finished/produce` → `main.py:api_produce` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, crud.bitta_tranzaksiya, crud.get_low_stock_items, crud.produce_finished_product
-- `POST /api/finished/production-brak` → `main.py:api_finished_production_brak` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, crud.bitta_tranzaksiya, crud.record_finished_product_production_brak
-- `GET /api/finished/sales` → `main.py:api_get_finished_sales` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of
-- `GET /api/finished/sales/batch/{group_id}/pdf` → `main.py:api_finished_sale_batch_pdf` · 🔒 auth.admin_or_manager · auth.company_id_of, delivery_pdf.generate_finished_sale_batch_pdf
-- `GET /api/finished/sales/{sale_id}/pdf` → `main.py:api_finished_sale_pdf` · 🔒 auth.admin_or_manager · auth.company_id_of, delivery_pdf.generate_finished_sale_pdf
-- `GET /api/finished/search` → `main.py:api_search_finished` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, crud.search_finished_products
-- `POST /api/finished/sell` → `main.py:api_sell_finished_product` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, crud.sell_finished_product
-- `POST /api/finished/sell-batch` → `main.py:api_sell_finished_products_batch` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, crud.sell_finished_products_batch
-- `GET /api/finished/stats` → `main.py:api_finished_stats` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, crud.get_finished_stats
-- `PUT /api/finished/{fp_id}` → `main.py:api_update_finished` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, crud._clean_update, crud.get_finished_product, crud.update_finished_product
-- `DELETE /api/finished/{fp_id}` → `main.py:api_delete_finished` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, auth.finished_product_of_company, crud._fp_tayyormi, crud._mrp_tm_mi, crud.bitta_tranzaksiya, crud.delete_finished_product
-- `POST /api/finished/{fp_id}/add` → `main.py:api_add_production` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, crud.add_to_production, crud.bitta_tranzaksiya, crud.get_finished_product, crud.get_low_stock_items
-- `POST /api/finished/{fp_id}/complete` → `main.py:api_complete_production` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, crud.complete_production
-- `POST /api/finished/{fp_id}/image` → `main.py:api_upload_finished_image` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, auth.finished_product_of_company
-- `GET /api/finished/{fp_id}/profit` → `main.py:api_finished_profit` · 🔒 auth.admin_or_financier · auth.company_id_of, crud.get_finished_profit
-- `POST /api/finished/{fp_id}/reduce` → `main.py:api_reduce_production` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, crud.get_finished_product, crud.reduce_production
-- `POST /api/finished/{fp_id}/release-reservation` → `main.py:api_release_finished_product_reservation` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, crud.release_finished_product_reservation
+- `GET /api/finished` → `main.py:api_get_finished` · 🔒 auth.ruxsat('tayyor', 'korish') · auth.company_id_of, auth.ruxsat, crud._fp_ombor_qiymati, crud.fp_ishlab_chiqarish_raqamlari, crud.get_finished_products, crud.get_finished_products_for_main_page
+- `POST /api/finished/loss` → `main.py:api_record_finished_loss` · 🔒 auth.ruxsat('brak', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.record_finished_product_loss
+- `DELETE /api/finished/loss/{loss_id}` → `main.py:api_delete_finished_loss` · 🔒 auth.ruxsat('brak', 'ochirish') · auth.company_id_of, auth.ruxsat, crud.delete_finished_product_loss
+- `POST /api/finished/produce` → `main.py:api_produce` · 🔒 auth.ruxsat('tayyor', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.bitta_tranzaksiya, crud.get_low_stock_items, crud.produce_finished_product
+- `POST /api/finished/production-brak` → `main.py:api_finished_production_brak` · 🔒 auth.ruxsat('brak', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.bitta_tranzaksiya, crud.record_finished_product_production_brak
+- `GET /api/finished/sales` → `main.py:api_get_finished_sales` · 🔒 auth.ruxsat('sotuv', 'korish') · auth.company_id_of, auth.ruxsat
+- `GET /api/finished/sales/batch/{group_id}/pdf` → `main.py:api_finished_sale_batch_pdf` · 🔒 auth.ruxsat('sotuv', 'korish') · auth.company_id_of, auth.ruxsat, delivery_pdf.generate_finished_sale_batch_pdf
+- `GET /api/finished/sales/{sale_id}/pdf` → `main.py:api_finished_sale_pdf` · 🔒 auth.ruxsat('sotuv', 'korish') · auth.company_id_of, auth.ruxsat, delivery_pdf.generate_finished_sale_pdf
+- `GET /api/finished/search` → `main.py:api_search_finished` · 🔒 auth.ruxsat('tayyor', 'korish') · auth.company_id_of, auth.ruxsat, crud.search_finished_products
+- `POST /api/finished/sell` → `main.py:api_sell_finished_product` · 🔒 auth.ruxsat('sotuv', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.sell_finished_product
+- `POST /api/finished/sell-batch` → `main.py:api_sell_finished_products_batch` · 🔒 auth.ruxsat('sotuv', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.sell_finished_products_batch
+- `GET /api/finished/stats` → `main.py:api_finished_stats` · 🔒 auth.ruxsat('tayyor', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_finished_stats
+- `PUT /api/finished/{fp_id}` → `main.py:api_update_finished` · 🔒 auth.ruxsat('tayyor', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud._clean_update, crud.get_finished_product, crud.update_finished_product
+- `DELETE /api/finished/{fp_id}` → `main.py:api_delete_finished` · 🔒 auth.ruxsat('tayyor', 'ochirish') · auth.company_id_of, auth.finished_product_of_company, auth.ruxsat, crud._fp_tayyormi, crud._mrp_tm_mi, crud.bitta_tranzaksiya, crud.delete_finished_product
+- `POST /api/finished/{fp_id}/add` → `main.py:api_add_production` · 🔒 auth.ruxsat('tayyor', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud.add_to_production, crud.bitta_tranzaksiya, crud.get_finished_product, crud.get_low_stock_items
+- `POST /api/finished/{fp_id}/complete` → `main.py:api_complete_production` · 🔒 auth.ruxsat('tayyor', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud.complete_production
+- `POST /api/finished/{fp_id}/image` → `main.py:api_upload_finished_image` · 🔒 auth.ruxsat('tayyor', 'tahrirlash') · auth.company_id_of, auth.finished_product_of_company, auth.ruxsat
+- `GET /api/finished/{fp_id}/profit` → `main.py:api_finished_profit` · 🔒 auth.ruxsat('tannarx', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_finished_profit
+- `POST /api/finished/{fp_id}/reduce` → `main.py:api_reduce_production` · 🔒 auth.ruxsat('tayyor', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud.get_finished_product, crud.reduce_production
+- `POST /api/finished/{fp_id}/release-reservation` → `main.py:api_release_finished_product_reservation` · 🔒 auth.ruxsat('tayyor', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud.release_finished_product_reservation
 
 #### `/api/gift-period` (6)
-- `GET /api/gift-period` → `main.py:api_get_gift_period` · 🔒 auth.admin_or_financier · auth.company_id_of, crud.get_gift_period_overview
-- `POST /api/gift-period/add-master` → `main.py:api_add_master_to_gift_period` · 🔒 auth.admin_or_financier · auth.company_id_of, crud._clean_val, crud.add_master_to_active_gift_period
-- `POST /api/gift-period/close` → `main.py:api_close_gift_period` · 🔒 auth.admin_or_financier · auth.company_id_of, crud._clean_val, crud.close_gift_period
-- `POST /api/gift-period/open` → `main.py:api_open_gift_period` · 🔒 auth.admin_or_financier · auth.company_id_of, crud._faqat_kalitlar, crud.open_gift_period
-- `POST /api/gift-period/redeem/{master_id}/{tier_id}` → `main.py:api_redeem_gift_period_tier` · 🔒 auth.admin_or_financier · auth.company_id_of, crud.redeem_gift_period_tier
-- `PUT /api/gift-period/tier/{tier_id}` → `main.py:api_update_gift_period_tier` · 🔒 auth.admin_or_financier · auth.company_id_of, crud._faqat_kalitlar, crud.update_gift_period_tier
+- `GET /api/gift-period` → `main.py:api_get_gift_period` · 🔒 auth.ruxsat('kpi', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_gift_period_overview
+- `POST /api/gift-period/add-master` → `main.py:api_add_master_to_gift_period` · 🔒 auth.ruxsat('kpi', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud._clean_val, crud.add_master_to_active_gift_period
+- `POST /api/gift-period/close` → `main.py:api_close_gift_period` · 🔒 auth.ruxsat('kpi', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud._clean_val, crud.close_gift_period
+- `POST /api/gift-period/open` → `main.py:api_open_gift_period` · 🔒 auth.ruxsat('kpi', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud._faqat_kalitlar, crud.open_gift_period
+- `POST /api/gift-period/redeem/{master_id}/{tier_id}` → `main.py:api_redeem_gift_period_tier` · 🔒 auth.ruxsat('kpi', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud.redeem_gift_period_tier
+- `PUT /api/gift-period/tier/{tier_id}` → `main.py:api_update_gift_period_tier` · 🔒 auth.ruxsat('kpi', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud._faqat_kalitlar, crud.update_gift_period_tier
 
 #### `/api/health` (1)
 - `GET /api/health` → `main.py:health` · 🔓
@@ -1471,100 +1529,100 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `GET /api/hodim/my-requests` → `main.py:api_hodim_my_requests` · 🔒 auth.require_employee_login · crud.get_employee_own_requests
 
 #### `/api/inventory` (22)
-- `GET /api/inventory` → `main.py:api_get_inventory` · 🔒 auth.inventory_view · auth.company_id_of, crud.get_inventory
-- `POST /api/inventory` → `main.py:api_create_item` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud._clean_create, crud.add_item
-- `POST /api/inventory/full-stock-report` → `main.py:api_full_stock_report` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud.kam_qoldiqmi
-- `GET /api/inventory/kpi` → `main.py:api_inventory_kpi` · 🔒 auth.inventory_view · auth.company_id_of, services.get_inventory_kpi
-- `POST /api/inventory/low-stock-alert` → `main.py:api_low_stock_alert` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud.get_low_stock_items
-- `GET /api/inventory/movements` → `main.py:api_inventory_movements` · 🔒 auth.inventory_view · auth.company_id_of
-- `GET /api/inventory/purchase-stats` → `main.py:api_purchase_stats` · 🔒 auth.inventory_view · auth.company_id_of, crud.get_purchase_stats
-- `GET /api/inventory/purchase-trend` → `main.py:api_purchase_trend` · 🔒 auth.inventory_view · auth.company_id_of, crud.get_purchase_stats_range
-- `GET /api/inventory/purchases` → `main.py:api_get_purchases` · 🔒 auth.inventory_view · auth.company_id_of, crud.get_purchases
-- `PUT /api/inventory/purchases/{purchase_id}` → `main.py:api_update_purchase` · 🔒 auth.admin_or_warehouse · auth.company_id_of, auth.purchase_of_company, crud.update_purchase
-- `DELETE /api/inventory/purchases/{purchase_id}` → `main.py:api_delete_purchase` · 🔒 auth.admin_or_warehouse · auth.company_id_of, auth.purchase_of_company, crud.delete_purchase
-- `POST /api/inventory/receipt` → `main.py:api_create_inventory_receipt` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud._pul_yigindi, crud._require_inventory_of_company, crud._xarid_narx_jami, crud.bitta_tranzaksiya, crud.create_inventory_receipt, crud.get_supplier
-- `POST /api/inventory/receipts/{receipt_id}/cancel` → `main.py:api_receipt_cancel` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud.bitta_tranzaksiya, crud.kirim_hujjatini_bekor_qilish
-- `GET /api/inventory/receipts/{receipt_id}/cancel-plan` → `main.py:api_receipt_cancel_plan` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud.kirim_hujjatini_bekor_qilish
-- `PUT /api/inventory/{item_id}` → `main.py:api_update_inventory_item` · 🔒 auth.admin_or_warehouse · auth.company_id_of, auth.inventory_of_company, crud._clean_update, crud.update_item
-- `DELETE /api/inventory/{item_id}` → `main.py:api_delete_item` · 🔒 auth.admin_only · auth.company_id_of, auth.inventory_of_company, crud.delete_item
-- `POST /api/inventory/{item_id}/image` → `main.py:api_upload_inventory_image` · 🔒 auth.admin_or_warehouse · auth.company_id_of, auth.inventory_of_company
-- `POST /api/inventory/{item_id}/min-stock` → `main.py:api_update_min_stock` · 🔒 auth.admin_or_warehouse · auth.company_id_of, auth.inventory_of_company, crud._faqat_kalitlar, crud._json_son
-- `POST /api/inventory/{item_id}/price` → `main.py:api_update_price` · 🔒 auth.admin_or_warehouse · auth.company_id_of, auth.inventory_of_company, crud._faqat_kalitlar, crud._json_son
-- `POST /api/inventory/{item_id}/purchase` → `main.py:api_purchase_stock` · 🔒 auth.admin_or_warehouse · auth.company_id_of, auth.inventory_of_company, crud._xarid_narx_jami, crud.bitta_tranzaksiya, crud.create_supplier_payment, crud.create_transport_expense, crud.get_supplier, crud.get_supplier_debt, crud.get_suppliers_with_debt, crud.purchase_stock
-- `POST /api/inventory/{item_id}/set-default-penoplast` → `main.py:api_set_default_penoplast` · 🔒 auth.admin_or_warehouse · auth.company_id_of, auth.inventory_of_company
-- `POST /api/inventory/{item_id}/stock` → `main.py:api_update_stock` · 🔒 auth.admin_only · auth.company_id_of, auth.inventory_of_company, crud._clean_stock_change, crud.update_stock
+- `GET /api/inventory` → `main.py:api_get_inventory` · 🔒 auth.ruxsat('material', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_inventory
+- `POST /api/inventory` → `main.py:api_create_item` · 🔒 auth.ruxsat('material', 'yaratish') · auth.company_id_of, auth.ruxsat, crud._clean_create, crud.add_item
+- `POST /api/inventory/full-stock-report` → `main.py:api_full_stock_report` · 🔒 auth.ruxsat('material', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.kam_qoldiqmi
+- `GET /api/inventory/kpi` → `main.py:api_inventory_kpi` · 🔒 auth.ruxsat('material', 'korish') · auth.company_id_of, auth.ruxsat, services.get_inventory_kpi
+- `POST /api/inventory/low-stock-alert` → `main.py:api_low_stock_alert` · 🔒 auth.ruxsat('material', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.get_low_stock_items
+- `GET /api/inventory/movements` → `main.py:api_inventory_movements` · 🔒 auth.ruxsat('material', 'korish') · auth.company_id_of, auth.ruxsat
+- `GET /api/inventory/purchase-stats` → `main.py:api_purchase_stats` · 🔒 auth.ruxsat('kirim', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_purchase_stats
+- `GET /api/inventory/purchase-trend` → `main.py:api_purchase_trend` · 🔒 auth.ruxsat('kirim', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_purchase_stats_range
+- `GET /api/inventory/purchases` → `main.py:api_get_purchases` · 🔒 auth.ruxsat('kirim', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_purchases
+- `PUT /api/inventory/purchases/{purchase_id}` → `main.py:api_update_purchase` · 🔒 auth.ruxsat('kirim', 'tahrirlash') · auth.company_id_of, auth.purchase_of_company, auth.ruxsat, crud.update_purchase
+- `DELETE /api/inventory/purchases/{purchase_id}` → `main.py:api_delete_purchase` · 🔒 auth.ruxsat('kirim', 'ochirish') · auth.company_id_of, auth.purchase_of_company, auth.ruxsat, crud.delete_purchase
+- `POST /api/inventory/receipt` → `main.py:api_create_inventory_receipt` · 🔒 auth.ruxsat('kirim', 'yaratish') · auth.company_id_of, auth.ruxsat, crud._pul_yigindi, crud._require_inventory_of_company, crud._xarid_narx_jami, crud.bitta_tranzaksiya, crud.create_inventory_receipt, crud.get_supplier
+- `POST /api/inventory/receipts/{receipt_id}/cancel` → `main.py:api_receipt_cancel` · 🔒 auth.ruxsat('kirim', 'ochirish') · auth.company_id_of, auth.ruxsat, crud.bitta_tranzaksiya, crud.kirim_hujjatini_bekor_qilish
+- `GET /api/inventory/receipts/{receipt_id}/cancel-plan` → `main.py:api_receipt_cancel_plan` · 🔒 auth.ruxsat('kirim', 'ochirish') · auth.company_id_of, auth.ruxsat, crud.kirim_hujjatini_bekor_qilish
+- `PUT /api/inventory/{item_id}` → `main.py:api_update_inventory_item` · 🔒 auth.ruxsat('material', 'tahrirlash') · auth.company_id_of, auth.inventory_of_company, auth.ruxsat, crud._clean_update, crud.update_item
+- `DELETE /api/inventory/{item_id}` → `main.py:api_delete_item` · 🔒 auth.ruxsat('material', 'ochirish') · auth.company_id_of, auth.inventory_of_company, auth.ruxsat, crud.delete_item
+- `POST /api/inventory/{item_id}/image` → `main.py:api_upload_inventory_image` · 🔒 auth.ruxsat('material', 'tahrirlash') · auth.company_id_of, auth.inventory_of_company, auth.ruxsat
+- `POST /api/inventory/{item_id}/min-stock` → `main.py:api_update_min_stock` · 🔒 auth.ruxsat('material', 'tahrirlash') · auth.company_id_of, auth.inventory_of_company, auth.ruxsat, crud._faqat_kalitlar, crud._json_son
+- `POST /api/inventory/{item_id}/price` → `main.py:api_update_price` · 🔒 auth.ruxsat('material', 'tahrirlash') · auth.company_id_of, auth.inventory_of_company, auth.ruxsat, crud._faqat_kalitlar, crud._json_son
+- `POST /api/inventory/{item_id}/purchase` → `main.py:api_purchase_stock` · 🔒 auth.ruxsat('kirim', 'yaratish') · auth.company_id_of, auth.inventory_of_company, auth.ruxsat, crud._xarid_narx_jami, crud.bitta_tranzaksiya, crud.create_supplier_payment, crud.create_transport_expense, crud.get_supplier, crud.get_supplier_debt, crud.get_suppliers_with_debt, crud.purchase_stock
+- `POST /api/inventory/{item_id}/set-default-penoplast` → `main.py:api_set_default_penoplast` · 🔒 auth.ruxsat('material', 'tahrirlash') · auth.company_id_of, auth.inventory_of_company, auth.ruxsat
+- `POST /api/inventory/{item_id}/stock` → `main.py:api_update_stock` · 🔒 auth.ruxsat('qoldiq', 'tahrirlash') · auth.company_id_of, auth.inventory_of_company, auth.ruxsat, crud._clean_stock_change, crud.update_stock
 
 #### `/api/loy-cost` (1)
-- `GET /api/loy-cost` → `main.py:api_loy_cost` · 🔒 auth.admin_or_manager · auth.company_id_of, services.get_loy_cost_per_kg
+- `GET /api/loy-cost` → `main.py:api_loy_cost` · 🔒 auth.ruxsat('buyurtma', 'korish') · auth.company_id_of, auth.ruxsat, services.get_loy_cost_per_kg
 
 #### `/api/loy-stock` (1)
-- `GET /api/loy-stock` → `main.py:api_loy_stock` · 🔒 auth.admin_or_manager · auth.company_id_of, services.get_or_create_loy_stock
+- `GET /api/loy-stock` → `main.py:api_loy_stock` · 🔒 auth.ruxsat('buyurtma', 'korish') · auth.company_id_of, auth.ruxsat, services.get_or_create_loy_stock
 
 #### `/api/masters` (8)
-- `GET /api/masters` → `main.py:api_get_masters` · 🔒 auth.admin_or_manager · auth.company_id_of, crud.get_masters
-- `POST /api/masters` → `main.py:api_create_master` · 🔒 auth.admin_or_manager · auth.company_id_of, crud._clean_create, crud.create_master
-- `GET /api/masters/kpi-report` → `main.py:api_masters_kpi_report` · 🔒 auth.admin_or_financier · auth.company_id_of, crud.get_masters_kpi_report
-- `PUT /api/masters/{master_id}` → `main.py:api_update_master` · 🔒 auth.admin_or_manager · auth.company_id_of, crud._clean_update, crud.get_master, crud.update_master
-- `DELETE /api/masters/{master_id}` → `main.py:api_delete_master` · 🔒 auth.admin_or_manager · auth.company_id_of, crud.delete_master
-- `DELETE /api/masters/{master_id}/delete` → `main.py:api_delete_master_permanent` · 🔒 auth.admin_only · auth.company_id_of, auth.master_of_company
-- `PUT /api/masters/{master_id}/kpi` → `main.py:api_update_master_kpi` · 🔒 auth.admin_or_financier · auth.company_id_of, crud.update_master_kpi
-- `GET /api/masters/{master_id}/kpi-detail` → `main.py:api_master_kpi_detail` · 🔒 auth.admin_or_financier · auth.company_id_of, crud.get_master_kpi_detail
+- `GET /api/masters` → `main.py:api_get_masters` · 🔒 auth.ruxsat('usta', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_masters
+- `POST /api/masters` → `main.py:api_create_master` · 🔒 auth.ruxsat('usta', 'yaratish') · auth.company_id_of, auth.ruxsat, crud._clean_create, crud.create_master
+- `GET /api/masters/kpi-report` → `main.py:api_masters_kpi_report` · 🔒 auth.ruxsat('kpi', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_masters_kpi_report
+- `PUT /api/masters/{master_id}` → `main.py:api_update_master` · 🔒 auth.ruxsat('usta', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud._clean_update, crud.get_master, crud.update_master
+- `DELETE /api/masters/{master_id}` → `main.py:api_delete_master` · 🔒 auth.ruxsat('usta', 'ochirish') · auth.company_id_of, auth.ruxsat, crud.delete_master
+- `DELETE /api/masters/{master_id}/delete` → `main.py:api_delete_master_permanent` · 🔒 auth.ruxsat('savat', 'ochirish') · auth.company_id_of, auth.master_of_company, auth.ruxsat
+- `PUT /api/masters/{master_id}/kpi` → `main.py:api_update_master_kpi` · 🔒 auth.ruxsat('kpi', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud.update_master_kpi
+- `GET /api/masters/{master_id}/kpi-detail` → `main.py:api_master_kpi_detail` · 🔒 auth.ruxsat('kpi', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_master_kpi_detail
 
 #### `/api/notifications` (1)
 - `GET /api/notifications` → `main.py:api_notifications` · 🔒 auth.require_login · auth.company_id_of, services.get_notifications
 
 #### `/api/obligations` (7)
-- `POST /api/obligations/employee/{employee_id}/close` → `main.py:api_close_employee_debt` · 🔒 auth.admin_only · auth.company_id_of, auth.employee_of_company, crud._clean_oylik_yopish, services.close_employee_debt
-- `GET /api/obligations/employee/{employee_id}/timeline` → `main.py:api_employee_obligation_timeline` · 🔒 auth.admin_or_manager · auth.company_id_of, auth.employee_of_company, services.get_employee_payment_timeline
-- `GET /api/obligations/recurring` → `main.py:api_get_recurring_obligations` · 🔒 auth.admin_or_financier · auth.company_id_of, services.get_recurring_obligations
-- `POST /api/obligations/recurring` → `main.py:api_set_recurring_obligation` · 🔒 auth.admin_only · auth.company_id_of, crud._clean_majburiyat, services.set_recurring_obligation
-- `DELETE /api/obligations/recurring/{obligation_id}` → `main.py:api_delete_recurring_obligation` · 🔒 auth.admin_only · auth.company_id_of, services.delete_recurring_obligation
-- `GET /api/obligations/status` → `main.py:api_obligations_status` · 🔒 auth.admin_or_manager · auth.company_id_of, services.get_company_obligations_status
-- `GET /api/obligations/timeline` → `main.py:api_obligations_timeline` · 🔒 auth.admin_or_manager · auth.company_id_of, services.get_obligation_timeline
+- `POST /api/obligations/employee/{employee_id}/close` → `main.py:api_close_employee_debt` · 🔒 auth.ruxsat('qarz', 'tahrirlash') · auth.company_id_of, auth.employee_of_company, auth.ruxsat, crud._clean_oylik_yopish, services.close_employee_debt
+- `GET /api/obligations/employee/{employee_id}/timeline` → `main.py:api_employee_obligation_timeline` · 🔒 auth.ruxsat('qarz', 'korish') · auth.company_id_of, auth.employee_of_company, auth.ruxsat, services.get_employee_payment_timeline
+- `GET /api/obligations/recurring` → `main.py:api_get_recurring_obligations` · 🔒 auth.ruxsat('qarz', 'korish') · auth.company_id_of, auth.ruxsat, services.get_recurring_obligations
+- `POST /api/obligations/recurring` → `main.py:api_set_recurring_obligation` · 🔒 auth.ruxsat('qarz', 'yaratish') · auth.company_id_of, auth.ruxsat, crud._clean_majburiyat, services.set_recurring_obligation
+- `DELETE /api/obligations/recurring/{obligation_id}` → `main.py:api_delete_recurring_obligation` · 🔒 auth.ruxsat('qarz', 'ochirish') · auth.company_id_of, auth.ruxsat, services.delete_recurring_obligation
+- `GET /api/obligations/status` → `main.py:api_obligations_status` · 🔒 auth.ruxsat('dashboard', 'korish') · auth.company_id_of, auth.ruxsat, services.get_company_obligations_status
+- `GET /api/obligations/timeline` → `main.py:api_obligations_timeline` · 🔒 auth.ruxsat('qarz', 'korish') · auth.company_id_of, auth.ruxsat, services.get_obligation_timeline
 
 #### `/api/order-items` (4)
-- `PUT /api/order-items/{item_id}` → `main.py:api_update_order_item` · 🔒 auth.admin_or_manager · auth.company_id_of, crud.update_order_item
-- `DELETE /api/order-items/{item_id}` → `main.py:api_delete_order_item` · 🔒 auth.admin_or_manager · auth.company_id_of, crud.delete_order_item
-- `POST /api/order-items/{item_id}/image` → `main.py:api_upload_order_item_image` · 🔒 auth.orders_page_access · auth.company_id_of
-- `DELETE /api/order-items/{item_id}/image` → `main.py:api_delete_order_item_image` · 🔒 auth.orders_page_access · auth.company_id_of
+- `PUT /api/order-items/{item_id}` → `main.py:api_update_order_item` · 🔒 auth.ruxsat('buyurtma', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud.update_order_item
+- `DELETE /api/order-items/{item_id}` → `main.py:api_delete_order_item` · 🔒 auth.ruxsat('buyurtma', 'ochirish') · auth.company_id_of, auth.ruxsat, crud.delete_order_item
+- `POST /api/order-items/{item_id}/image` → `main.py:api_upload_order_item_image` · 🔒 auth.ruxsat('buyurtma_fayl', 'yaratish') · auth.company_id_of, auth.ruxsat
+- `DELETE /api/order-items/{item_id}/image` → `main.py:api_delete_order_item_image` · 🔒 auth.ruxsat('buyurtma_fayl', 'ochirish') · auth.company_id_of, auth.ruxsat
 
 #### `/api/orders` (25)
-- `GET /api/orders` → `main.py:api_get_orders` · 🔒 auth.admin_or_manager · auth.company_id_of, crud.get_orders
-- `POST /api/orders` → `main.py:api_create_order` · 🔒 auth.admin_or_manager · auth.company_id_of, auth.project_of_company, crud._buyurtma_sigim_tekshir, crud._detal_turi_tekshir, crud._json_loy, crud._query_loy, crud.bitta_tranzaksiya, crud.check_finished_for_order, crud.create_order, crud.get_low_stock_items, crud.qoplama_retsepti_tekshir, services.check_inventory_for_order, services.check_loy_ingredients_for_order, services.deduct_inventory_for_order
-- `DELETE /api/orders/attachments/{attachment_id}` → `main.py:api_delete_order_attachment` · 🔒 auth.orders_page_access · auth.company_id_of, crud.log_error
-- `POST /api/orders/coating-notify-new` → `main.py:api_coating_notify_with_loy` · 🔒 auth.admin_or_manager
-- `POST /api/orders/mark-all-ready` → `main.py:api_mark_all_ready` · 🔒 auth.admin_or_manager
-- `GET /api/orders/pinned` → `main.py:api_get_pinned_orders` · 🔒 auth.admin_or_manager · auth.company_id_of, crud.get_pinned_orders
-- `GET /api/orders/{order_id}` → `main.py:api_get_order` · 🔒 auth.admin_or_manager · auth.company_id_of, crud.buyurtma_hisob_qatorlari, crud.get_order, crud.pul_qaytarish_kamaytirgan, crud.qaytarish_birlik_narxi, crud.qaytarish_narx_koeffitsienti, production_service.get_order_mrp_readiness, services.get_order_item_unit_cost
-- `PUT /api/orders/{order_id}` → `main.py:api_update_order` · 🔒 auth.admin_or_manager · auth.company_id_of, auth.order_of_company, crud._query_loy, crud.get_low_stock_items, crud.get_order, crud.update_order_full, crud.update_order_loy
-- `DELETE /api/orders/{order_id}` → `main.py:api_delete_order` · 🔒 auth.admin_or_manager · auth.company_id_of, crud._pul_qulfi, crud._query_loy, crud._return_finished_for_order, crud.bitta_tranzaksiya, crud.delete_order, crud.get_order, crud.ochirishda_topshirilganni_yopish, crud.ochirishda_yopiladimi, crud.ochirishda_yumshoqmi, services._get_planned_loy, services.buyurtmadan_qisman_chiqqan, services.deduct_loy_ingredients, services.loy_manba_ochirish_boshla, services.loy_manba_rejimi, services.loy_relevant_remaining_fraction, services.return_inventory_for_order, services.return_inventory_for_order_partial, services.return_loy_ingredients
-- `POST /api/orders/{order_id}/activate` → `main.py:api_activate_draft` · 🔒 auth.admin_or_manager · auth.company_id_of, auth.order_of_company, crud.activate_draft_order
-- `PUT /api/orders/{order_id}/agreed-amount` → `main.py:api_update_agreed_amount` · 🔒 auth.admin_or_manager · auth.company_id_of, auth.order_of_company, crud._clean_val, crud.update_order_agreed_amount
-- `GET /api/orders/{order_id}/attachments` → `main.py:api_list_order_attachments` · 🔒 auth.admin_or_manager · auth.company_id_of, crud.get_order
-- `POST /api/orders/{order_id}/attachments` → `main.py:api_upload_order_attachment` · 🔒 auth.orders_page_access · auth.company_id_of
-- `POST /api/orders/{order_id}/coating-notify` → `main.py:api_coating_notify` · 🔒 auth.admin_or_manager · auth.company_id_of, crud._query_loy, crud.get_order, services._set_planned_loy
-- `GET /api/orders/{order_id}/delivery-status` → `main.py:api_delivery_status` · 🔒 auth.admin_or_manager · auth.company_id_of, crud.get_delivery_status, crud.get_order
-- `PUT /api/orders/{order_id}/loy` → `main.py:api_update_loy` · 🔒 auth.admin_or_manager · auth.company_id_of, auth.order_of_company, crud.bitta_tranzaksiya, crud.update_order_loy
-- `GET /api/orders/{order_id}/pdf` → `main.py:api_order_pdf` · 🔒 auth.admin_or_manager · auth.company_id_of, crud.get_order, pdf_service.generate_nakladnoy
-- `DELETE /api/orders/{order_id}/permanent` → `main.py:api_permanent_delete_order` · 🔒 auth.admin_only · auth.company_id_of, auth.order_of_company, crud.bitta_tranzaksiya, crud.permanent_delete_order
-- `POST /api/orders/{order_id}/pin` → `main.py:api_toggle_order_pin` · 🔒 auth.admin_or_manager · auth.company_id_of, auth.order_of_company, crud.toggle_order_pin
-- `GET /api/orders/{order_id}/planned-loy` → `main.py:api_planned_loy` · 🔒 auth.admin_or_manager · auth.company_id_of, crud.get_order, services._get_planned_loy
-- `GET /api/orders/{order_id}/profit` → `main.py:api_order_profit` · 🔒 auth.admin_only · auth.company_id_of, crud.get_order, services.calculate_order_profit
-- `POST /api/orders/{order_id}/ready` → `main.py:api_mark_order_ready` · 🔒 auth.admin_or_manager · auth.company_id_of, auth.order_of_company, crud._query_loy, crud.bitta_tranzaksiya, crud.get_order, crud.log_error, services.complete_order
-- `POST /api/orders/{order_id}/refund-overpayment` → `main.py:api_refund_overpayment` · 🔒 auth.order_payments · auth.company_id_of, crud.bitta_tranzaksiya, crud.ortiqcha_tolovni_qaytar
-- `POST /api/orders/{order_id}/restore` → `main.py:api_restore_order` · 🔒 auth.admin_only · auth.company_id_of, auth.order_of_company, crud.restore_order
-- `GET /api/orders/{order_id}/summary-pdf` → `main.py:api_summary_pdf` · 🔒 auth.admin_or_manager · auth.company_id_of, auth.order_of_company
+- `GET /api/orders` → `main.py:api_get_orders` · 🔒 auth.ruxsat('buyurtma', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_orders
+- `POST /api/orders` → `main.py:api_create_order` · 🔒 auth.ruxsat('buyurtma', 'yaratish') · auth.company_id_of, auth.project_of_company, auth.ruxsat, crud._buyurtma_sigim_tekshir, crud._detal_turi_tekshir, crud._json_loy, crud._query_loy, crud.bitta_tranzaksiya, crud.check_finished_for_order, crud.create_order, crud.get_low_stock_items, crud.qoplama_retsepti_tekshir, services.check_inventory_for_order, services.check_loy_ingredients_for_order, services.deduct_inventory_for_order
+- `DELETE /api/orders/attachments/{attachment_id}` → `main.py:api_delete_order_attachment` · 🔒 auth.ruxsat('buyurtma_fayl', 'ochirish') · auth.company_id_of, auth.ruxsat, crud.log_error
+- `POST /api/orders/coating-notify-new` → `main.py:api_coating_notify_with_loy` · 🔒 auth.ruxsat('buyurtma', 'yaratish') · auth.ruxsat
+- `POST /api/orders/mark-all-ready` → `main.py:api_mark_all_ready` · 🔒 auth.ruxsat('buyurtma', 'tahrirlash') · auth.ruxsat
+- `GET /api/orders/pinned` → `main.py:api_get_pinned_orders` · 🔒 auth.ruxsat('buyurtma', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_pinned_orders
+- `GET /api/orders/{order_id}` → `main.py:api_get_order` · 🔒 auth.ruxsat('buyurtma', 'korish') · auth.company_id_of, auth.ruxsat, crud.buyurtma_hisob_qatorlari, crud.get_order, crud.pul_qaytarish_kamaytirgan, crud.qaytarish_birlik_narxi, crud.qaytarish_narx_koeffitsienti, production_service.get_order_mrp_readiness, services.get_order_item_unit_cost
+- `PUT /api/orders/{order_id}` → `main.py:api_update_order` · 🔒 auth.ruxsat('buyurtma', 'tahrirlash') · auth.company_id_of, auth.order_of_company, auth.ruxsat, crud._query_loy, crud.get_low_stock_items, crud.get_order, crud.update_order_full, crud.update_order_loy
+- `DELETE /api/orders/{order_id}` → `main.py:api_delete_order` · 🔒 auth.ruxsat('buyurtma', 'ochirish') · auth.company_id_of, auth.ruxsat, crud._pul_qulfi, crud._query_loy, crud._return_finished_for_order, crud.bitta_tranzaksiya, crud.delete_order, crud.get_order, crud.ochirishda_topshirilganni_yopish, crud.ochirishda_yopiladimi, crud.ochirishda_yumshoqmi, services._get_planned_loy, services.buyurtmadan_qisman_chiqqan, services.deduct_loy_ingredients, services.loy_manba_ochirish_boshla, services.loy_manba_rejimi, services.loy_relevant_remaining_fraction, services.return_inventory_for_order, services.return_inventory_for_order_partial, services.return_loy_ingredients
+- `POST /api/orders/{order_id}/activate` → `main.py:api_activate_draft` · 🔒 auth.ruxsat('buyurtma', 'tahrirlash') · auth.company_id_of, auth.order_of_company, auth.ruxsat, crud.activate_draft_order
+- `PUT /api/orders/{order_id}/agreed-amount` → `main.py:api_update_agreed_amount` · 🔒 auth.ruxsat('buyurtma', 'tahrirlash') · auth.company_id_of, auth.order_of_company, auth.ruxsat, crud._clean_val, crud.update_order_agreed_amount
+- `GET /api/orders/{order_id}/attachments` → `main.py:api_list_order_attachments` · 🔒 auth.ruxsat('buyurtma', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_order
+- `POST /api/orders/{order_id}/attachments` → `main.py:api_upload_order_attachment` · 🔒 auth.ruxsat('buyurtma_fayl', 'yaratish') · auth.company_id_of, auth.ruxsat
+- `POST /api/orders/{order_id}/coating-notify` → `main.py:api_coating_notify` · 🔒 auth.ruxsat('buyurtma', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud._query_loy, crud.get_order, services._set_planned_loy
+- `GET /api/orders/{order_id}/delivery-status` → `main.py:api_delivery_status` · 🔒 auth.ruxsat('buyurtma', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_delivery_status, crud.get_order
+- `PUT /api/orders/{order_id}/loy` → `main.py:api_update_loy` · 🔒 auth.ruxsat('buyurtma', 'tahrirlash') · auth.company_id_of, auth.order_of_company, auth.ruxsat, crud.bitta_tranzaksiya, crud.update_order_loy
+- `GET /api/orders/{order_id}/pdf` → `main.py:api_order_pdf` · 🔒 auth.ruxsat('buyurtma', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_order, pdf_service.generate_nakladnoy
+- `DELETE /api/orders/{order_id}/permanent` → `main.py:api_permanent_delete_order` · 🔒 auth.ruxsat('savat', 'ochirish') · auth.company_id_of, auth.order_of_company, auth.ruxsat, crud.bitta_tranzaksiya, crud.permanent_delete_order
+- `POST /api/orders/{order_id}/pin` → `main.py:api_toggle_order_pin` · 🔒 auth.ruxsat('buyurtma', 'tahrirlash') · auth.company_id_of, auth.order_of_company, auth.ruxsat, crud.toggle_order_pin
+- `GET /api/orders/{order_id}/planned-loy` → `main.py:api_planned_loy` · 🔒 auth.ruxsat('buyurtma', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_order, services._get_planned_loy
+- `GET /api/orders/{order_id}/profit` → `main.py:api_order_profit` · 🔒 auth.ruxsat_hammasi(('tannarx', 'korish'), ('buyurtma', 'korish')) · auth.company_id_of, auth.ruxsat_hammasi, crud.get_order, services.calculate_order_profit
+- `POST /api/orders/{order_id}/ready` → `main.py:api_mark_order_ready` · 🔒 auth.ruxsat('buyurtma', 'tahrirlash') · auth.company_id_of, auth.order_of_company, auth.ruxsat, crud._query_loy, crud.bitta_tranzaksiya, crud.get_order, crud.log_error, services.complete_order
+- `POST /api/orders/{order_id}/refund-overpayment` → `main.py:api_refund_overpayment` · 🔒 auth.ruxsat('tolov', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.bitta_tranzaksiya, crud.ortiqcha_tolovni_qaytar
+- `POST /api/orders/{order_id}/restore` → `main.py:api_restore_order` · 🔒 auth.ruxsat('savat', 'tahrirlash') · auth.company_id_of, auth.order_of_company, auth.ruxsat, crud.restore_order
+- `GET /api/orders/{order_id}/summary-pdf` → `main.py:api_summary_pdf` · 🔒 auth.ruxsat('buyurtma', 'korish') · auth.company_id_of, auth.order_of_company, auth.ruxsat
 
 #### `/api/ortiqcha-tolovlar` (1)
-- `GET /api/ortiqcha-tolovlar` → `main.py:api_ortiqcha_tolovlar` · 🔒 auth.order_payments · auth.company_id_of, crud.get_ortiqcha_tolovlar
+- `GET /api/ortiqcha-tolovlar` → `main.py:api_ortiqcha_tolovlar` · 🔒 auth.ruxsat('tolov', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_ortiqcha_tolovlar
 
 #### `/api/payments` (3)
-- `GET /api/payments` → `main.py:api_get_payments` · 🔒 auth.order_payments · auth.company_id_of, crud.get_payments
-- `POST /api/payments` → `main.py:api_create_payment` · 🔒 auth.order_payments · auth.company_id_of, crud._clean_val, crud.bitta_tranzaksiya, crud.create_payment, crud.get_order
-- `DELETE /api/payments/{payment_id}` → `main.py:api_delete_payment` · 🔒 auth.order_payments · auth.company_id_of, crud.bitta_tranzaksiya, crud.delete_payment
+- `GET /api/payments` → `main.py:api_get_payments` · 🔒 auth.ruxsat('tolov', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_payments
+- `POST /api/payments` → `main.py:api_create_payment` · 🔒 auth.ruxsat('tolov', 'yaratish') · auth.company_id_of, auth.ruxsat, crud._clean_val, crud.bitta_tranzaksiya, crud.create_payment, crud.get_order
+- `DELETE /api/payments/{payment_id}` → `main.py:api_delete_payment` · 🔒 auth.ruxsat('tolov', 'ochirish') · auth.company_id_of, auth.ruxsat, crud.bitta_tranzaksiya, crud.delete_payment
 
 #### `/api/penoplasts` (1)
-- `GET /api/penoplasts` → `main.py:api_get_penoplasts` · 🔒 auth.admin_or_manager · auth.company_id_of, services.get_default_penoplast, services.get_penoplast_list
+- `GET /api/penoplasts` → `main.py:api_get_penoplasts` · 🔒 auth.ruxsat('buyurtma', 'korish') · auth.company_id_of, auth.ruxsat, services.get_default_penoplast, services.get_penoplast_list
 
 #### `/api/platform` (9)
 - `GET /api/platform/companies` → `main.py:api_platform_companies` · 🔒 auth.platform_admin_only
@@ -1578,116 +1636,124 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `GET /api/platform/summary` → `main.py:api_platform_summary` · 🔒 auth.platform_admin_only
 
 #### `/api/production` (20)
-- `POST /api/production/boms` → `production_routes.py:create_bom` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud.log_activity
-- `POST /api/production/boms/preview` → `production_routes.py:preview_bom` · 🔒 auth.admin_or_warehouse · auth.company_id_of, production_service.retsept_tannarxi
-- `PUT /api/production/boms/{bom_id}` → `production_routes.py:update_bom` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud.log_activity
-- `DELETE /api/production/boms/{bom_id}` → `production_routes.py:deactivate_bom` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud.log_activity
-- `GET /api/production/company-settings` → `production_routes.py:get_company_settings` · 🔒 auth.admin_only · auth.company_id_of
-- `PUT /api/production/company-settings` → `production_routes.py:update_company_settings` · 🔒 auth.admin_only · auth.company_id_of, crud.log_activity
-- `GET /api/production/mrp-order-items` → `production_routes.py:list_mrp_order_items_pending` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, production_service.get_mrp_order_items_status
-- `GET /api/production/orders` → `production_routes.py:list_production_orders` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, production_service.royxat_qoshimchalari
-- `POST /api/production/orders` → `production_routes.py:create_order` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, production_service.create_production_order
-- `GET /api/production/orders/preview` → `production_routes.py:preview_production_order` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, production_service.ishlab_chiqarish_rejasi
-- `POST /api/production/orders/{po_id}/cancel` → `production_routes.py:cancel_order` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, production_service.cancel_production_order
-- `POST /api/production/orders/{po_id}/complete` → `production_routes.py:complete_order` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, production_service.complete_production_order
-- `GET /api/production/orders/{po_id}/preview` → `production_routes.py:preview_existing_production_order` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, production_service.mavjud_ishlab_chiqarish_rejasi
-- `POST /api/production/orders/{po_id}/start` → `production_routes.py:start_order` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, production_service.start_production_order
-- `GET /api/production/product-types` → `production_routes.py:list_product_types` · 🔒 auth.admin_or_warehouse · auth.company_id_of
-- `POST /api/production/product-types` → `production_routes.py:create_product_type` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud.log_activity, crud.yonalish_tanlovi
-- `GET /api/production/product-types/xulosa` → `production_routes.py:product_types_summary` · 🔒 auth.admin_or_warehouse · auth.company_id_of, production_service.turlar_xulosasi
-- `DELETE /api/production/product-types/{pt_id}` → `production_routes.py:deactivate_product_type` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud.log_activity
-- `PATCH /api/production/product-types/{pt_id}` → `production_routes.py:set_product_type_yonalish` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud.log_activity, crud.yonalish_nomlari, crud.yonalish_tanlovi
-- `GET /api/production/product-types/{pt_id}/boms` → `production_routes.py:list_boms_for_product` · 🔒 auth.admin_or_warehouse · auth.company_id_of
+- `POST /api/production/boms` → `production_routes.py:create_bom` · 🔒 auth.ruxsat('mahsulot_turi', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.log_activity
+- `POST /api/production/boms/preview` → `production_routes.py:preview_bom` · 🔒 auth.ruxsat('mahsulot_turi', 'korish') · auth.company_id_of, auth.ruxsat, production_service.retsept_tannarxi
+- `PUT /api/production/boms/{bom_id}` → `production_routes.py:update_bom` · 🔒 auth.ruxsat('mahsulot_turi', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud.log_activity
+- `DELETE /api/production/boms/{bom_id}` → `production_routes.py:deactivate_bom` · 🔒 auth.ruxsat('mahsulot_turi', 'ochirish') · auth.company_id_of, auth.ruxsat, crud.log_activity
+- `GET /api/production/company-settings` → `production_routes.py:get_company_settings` · 🔒 auth.ruxsat('sozlama', 'korish') · auth.company_id_of, auth.ruxsat
+- `PUT /api/production/company-settings` → `production_routes.py:update_company_settings` · 🔒 auth.ruxsat('sozlama', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud.log_activity
+- `GET /api/production/mrp-order-items` → `production_routes.py:list_mrp_order_items_pending` · 🔒 auth.ruxsat('ishlab_buyurtma', 'korish') · auth.company_id_of, auth.ruxsat, production_service.get_mrp_order_items_status
+- `GET /api/production/orders` → `production_routes.py:list_production_orders` · 🔒 auth.ruxsat('ishlab_buyurtma', 'korish') · auth.company_id_of, auth.ruxsat, production_service.royxat_qoshimchalari
+- `POST /api/production/orders` → `production_routes.py:create_order` · 🔒 auth.ruxsat('ishlab_buyurtma', 'yaratish') · auth.company_id_of, auth.ruxsat, production_service.create_production_order
+- `GET /api/production/orders/preview` → `production_routes.py:preview_production_order` · 🔒 auth.ruxsat('ishlab_buyurtma', 'korish') · auth.company_id_of, auth.ruxsat, production_service.ishlab_chiqarish_rejasi
+- `POST /api/production/orders/{po_id}/cancel` → `production_routes.py:cancel_order` · 🔒 auth.ruxsat('ishlab_buyurtma', 'ochirish') · auth.company_id_of, auth.ruxsat, production_service.cancel_production_order
+- `POST /api/production/orders/{po_id}/complete` → `production_routes.py:complete_order` · 🔒 auth.ruxsat('ishlab_buyurtma', 'tahrirlash') · auth.company_id_of, auth.ruxsat, production_service.complete_production_order
+- `GET /api/production/orders/{po_id}/preview` → `production_routes.py:preview_existing_production_order` · 🔒 auth.ruxsat('ishlab_buyurtma', 'korish') · auth.company_id_of, auth.ruxsat, production_service.mavjud_ishlab_chiqarish_rejasi
+- `POST /api/production/orders/{po_id}/start` → `production_routes.py:start_order` · 🔒 auth.ruxsat('ishlab_buyurtma', 'tahrirlash') · auth.company_id_of, auth.ruxsat, production_service.start_production_order
+- `GET /api/production/product-types` → `production_routes.py:list_product_types` · 🔒 auth.ruxsat('mahsulot_turi', 'korish') · auth.company_id_of, auth.ruxsat
+- `POST /api/production/product-types` → `production_routes.py:create_product_type` · 🔒 auth.ruxsat('mahsulot_turi', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.log_activity, crud.yonalish_tanlovi
+- `GET /api/production/product-types/xulosa` → `production_routes.py:product_types_summary` · 🔒 auth.ruxsat('mahsulot_turi', 'korish') · auth.company_id_of, auth.ruxsat, production_service.turlar_xulosasi
+- `DELETE /api/production/product-types/{pt_id}` → `production_routes.py:deactivate_product_type` · 🔒 auth.ruxsat('mahsulot_turi', 'ochirish') · auth.company_id_of, auth.ruxsat, crud.log_activity
+- `PATCH /api/production/product-types/{pt_id}` → `production_routes.py:set_product_type_yonalish` · 🔒 auth.ruxsat('mahsulot_turi', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud.log_activity, crud.yonalish_nomlari, crud.yonalish_tanlovi
+- `GET /api/production/product-types/{pt_id}/boms` → `production_routes.py:list_boms_for_product` · 🔒 auth.ruxsat('mahsulot_turi', 'korish') · auth.company_id_of, auth.ruxsat
 
 #### `/api/projects` (12)
-- `GET /api/projects` → `main.py:api_get_projects` · 🔒 auth.admin_or_manager · auth.company_id_of, crud.get_projects
-- `POST /api/projects` → `main.py:api_create_project` · 🔒 auth.admin_or_manager · auth.company_id_of, crud._clean_create, crud.create_project
-- `GET /api/projects/dashboard-stats` → `main.py:api_projects_dashboard_stats` · 🔒 auth.admin_manager_accountant · auth.company_id_of, crud.get_projects_dashboard_stats
-- `GET /api/projects/progress-map` → `main.py:api_projects_progress_map` · 🔒 auth.admin_manager_accountant · auth.company_id_of
-- `PUT /api/projects/{project_id}` → `main.py:api_update_project` · 🔒 auth.admin_or_manager · auth.company_id_of, auth.project_of_company, crud._clean_update, crud.update_project
-- `DELETE /api/projects/{project_id}` → `main.py:api_delete_project` · 🔒 auth.admin_or_manager · auth.company_id_of, auth.project_of_company, crud.delete_project
-- `GET /api/projects/{project_id}/detail-stats` → `main.py:api_project_detail_stats` · 🔒 auth.admin_manager_accountant · auth.company_id_of, auth.project_of_company, crud.log_error, crud.loyiha_bajarilish_foizi, services._hk_tayyorla, services.calculate_order_profit, services.hisobot_keshi
-- `POST /api/projects/{project_id}/image` → `main.py:api_upload_project_image` · 🔒 auth.admin_manager_accountant · auth.company_id_of, auth.project_of_company
-- `GET /api/projects/{project_id}/items` → `main.py:api_get_project_items` · 🔒 auth.admin_or_manager · auth.company_id_of, auth.project_of_company
-- `POST /api/projects/{project_id}/payment` → `main.py:api_add_payment` · 🔒 auth.admin_manager_accountant · auth.company_id_of, auth.project_of_company
-- `DELETE /api/projects/{project_id}/permanent` → `main.py:api_permanent_delete_project` · 🔒 auth.admin_only · auth.company_id_of, auth.project_of_company, crud.bitta_tranzaksiya, crud.permanent_delete_project
-- `POST /api/projects/{project_id}/restore` → `main.py:api_restore_project` · 🔒 auth.admin_only · auth.company_id_of, auth.project_of_company, crud.restore_project
+- `GET /api/projects` → `main.py:api_get_projects` · 🔒 auth.ruxsat('loyiha', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_projects
+- `POST /api/projects` → `main.py:api_create_project` · 🔒 auth.ruxsat('loyiha', 'yaratish') · auth.company_id_of, auth.ruxsat, crud._clean_create, crud.create_project
+- `GET /api/projects/dashboard-stats` → `main.py:api_projects_dashboard_stats` · 🔒 auth.ruxsat('loyiha_korsatkich', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_projects_dashboard_stats
+- `GET /api/projects/progress-map` → `main.py:api_projects_progress_map` · 🔒 auth.ruxsat('loyiha_korsatkich', 'korish') · auth.company_id_of, auth.ruxsat
+- `PUT /api/projects/{project_id}` → `main.py:api_update_project` · 🔒 auth.ruxsat('loyiha', 'tahrirlash') · auth.company_id_of, auth.project_of_company, auth.ruxsat, crud._clean_update, crud.update_project
+- `DELETE /api/projects/{project_id}` → `main.py:api_delete_project` · 🔒 auth.ruxsat('loyiha', 'ochirish') · auth.company_id_of, auth.project_of_company, auth.ruxsat, crud.delete_project
+- `GET /api/projects/{project_id}/detail-stats` → `main.py:api_project_detail_stats` · 🔒 auth.ruxsat('loyiha_korsatkich', 'korish') · auth.company_id_of, auth.project_of_company, auth.ruxsat, crud.log_error, crud.loyiha_bajarilish_foizi, services._hk_tayyorla, services.calculate_order_profit, services.hisobot_keshi
+- `POST /api/projects/{project_id}/image` → `main.py:api_upload_project_image` · 🔒 auth.ruxsat('loyiha_korsatkich', 'tahrirlash') · auth.company_id_of, auth.project_of_company, auth.ruxsat
+- `GET /api/projects/{project_id}/items` → `main.py:api_get_project_items` · 🔒 auth.ruxsat('loyiha', 'korish') · auth.company_id_of, auth.project_of_company, auth.ruxsat
+- `POST /api/projects/{project_id}/payment` → `main.py:api_add_payment` · 🔒 auth.ruxsat('tolov', 'yaratish') · auth.company_id_of, auth.project_of_company, auth.ruxsat
+- `DELETE /api/projects/{project_id}/permanent` → `main.py:api_permanent_delete_project` · 🔒 auth.ruxsat('savat', 'ochirish') · auth.company_id_of, auth.project_of_company, auth.ruxsat, crud.bitta_tranzaksiya, crud.permanent_delete_project
+- `POST /api/projects/{project_id}/restore` → `main.py:api_restore_project` · 🔒 auth.ruxsat('savat', 'tahrirlash') · auth.company_id_of, auth.project_of_company, auth.ruxsat, crud.restore_project
 
 #### `/api/recipes` (5)
-- `GET /api/recipes` → `main.py:api_get_recipes` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud.get_recipes
-- `POST /api/recipes` → `main.py:api_create_recipe` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud.create_recipe
-- `PUT /api/recipes/{recipe_id}` → `main.py:api_update_recipe` · 🔒 auth.admin_or_warehouse · auth.company_id_of, auth.recipe_of_company, crud.update_recipe
-- `DELETE /api/recipes/{recipe_id}` → `main.py:api_delete_recipe` · 🔒 auth.admin_or_warehouse · auth.company_id_of
-- `POST /api/recipes/{recipe_id}/image` → `main.py:api_upload_recipe_image` · 🔒 auth.admin_or_warehouse · auth.company_id_of, auth.recipe_of_company
+- `GET /api/recipes` → `main.py:api_get_recipes` · 🔒 auth.ruxsat('retsept', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_recipes
+- `POST /api/recipes` → `main.py:api_create_recipe` · 🔒 auth.ruxsat('retsept', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.create_recipe
+- `PUT /api/recipes/{recipe_id}` → `main.py:api_update_recipe` · 🔒 auth.ruxsat('retsept', 'tahrirlash') · auth.company_id_of, auth.recipe_of_company, auth.ruxsat, crud.update_recipe
+- `DELETE /api/recipes/{recipe_id}` → `main.py:api_delete_recipe` · 🔒 auth.ruxsat('retsept', 'ochirish') · auth.company_id_of, auth.ruxsat
+- `POST /api/recipes/{recipe_id}/image` → `main.py:api_upload_recipe_image` · 🔒 auth.ruxsat('retsept', 'tahrirlash') · auth.company_id_of, auth.recipe_of_company, auth.ruxsat
 
 #### `/api/reports` (10)
-- `GET /api/reports/alerts` → `main.py:api_reports_alerts` · 🔒 auth.admin_or_financier · auth.company_id_of, services.get_business_alerts
-- `GET /api/reports/brak-materials` → `main.py:api_reports_brak_materials` · 🔒 auth.admin_or_financier · auth.company_id_of, crud.get_brak_material_summary
-- `GET /api/reports/brak-tahlil` → `main.py:api_brak_tahlil` · 🔒 auth.admin_or_financier · auth.company_id_of, services.get_brak_tahlil
-- `GET /api/reports/business-health` → `main.py:api_reports_business_health` · 🔒 auth.admin_or_financier · auth.company_id_of, services.get_business_health
-- `GET /api/reports/comparison` → `main.py:api_reports_comparison` · 🔒 auth.admin_or_financier · auth.company_id_of, services.get_monthly_comparison
-- `GET /api/reports/forecast` → `main.py:api_reports_forecast` · 🔒 auth.admin_or_financier · auth.company_id_of, services.get_simple_forecast
-- `GET /api/reports/top-customers` → `main.py:api_reports_top_customers` · 🔒 auth.admin_or_financier · auth.company_id_of, services.get_top_customers_report
-- `GET /api/reports/top-materials` → `main.py:api_reports_top_materials` · 🔒 auth.admin_or_financier · auth.company_id_of, services.get_top_materials_report
-- `GET /api/reports/top-products` → `main.py:api_reports_top_products` · 🔒 auth.admin_or_financier · auth.company_id_of, services.get_top_products_report
-- `GET /api/reports/top-suppliers` → `main.py:api_reports_top_suppliers` · 🔒 auth.admin_or_financier · auth.company_id_of, services.get_top_suppliers_report
+- `GET /api/reports/alerts` → `main.py:api_reports_alerts` · 🔒 auth.ruxsat('hisobot', 'korish') · auth.company_id_of, auth.ruxsat, services.get_business_alerts
+- `GET /api/reports/brak-materials` → `main.py:api_reports_brak_materials` · 🔒 auth.ruxsat('hisobot', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_brak_material_summary
+- `GET /api/reports/brak-tahlil` → `main.py:api_brak_tahlil` · 🔒 auth.ruxsat('hisobot', 'korish') · auth.company_id_of, auth.ruxsat, services.get_brak_tahlil
+- `GET /api/reports/business-health` → `main.py:api_reports_business_health` · 🔒 auth.ruxsat('hisobot', 'korish') · auth.company_id_of, auth.ruxsat, services.get_business_health
+- `GET /api/reports/comparison` → `main.py:api_reports_comparison` · 🔒 auth.ruxsat('hisobot', 'korish') · auth.company_id_of, auth.ruxsat, services.get_monthly_comparison
+- `GET /api/reports/forecast` → `main.py:api_reports_forecast` · 🔒 auth.ruxsat('hisobot', 'korish') · auth.company_id_of, auth.ruxsat, services.get_simple_forecast
+- `GET /api/reports/top-customers` → `main.py:api_reports_top_customers` · 🔒 auth.ruxsat('hisobot', 'korish') · auth.company_id_of, auth.ruxsat, services.get_top_customers_report
+- `GET /api/reports/top-materials` → `main.py:api_reports_top_materials` · 🔒 auth.ruxsat('hisobot', 'korish') · auth.company_id_of, auth.ruxsat, services.get_top_materials_report
+- `GET /api/reports/top-products` → `main.py:api_reports_top_products` · 🔒 auth.ruxsat('hisobot', 'korish') · auth.company_id_of, auth.ruxsat, services.get_top_products_report
+- `GET /api/reports/top-suppliers` → `main.py:api_reports_top_suppliers` · 🔒 auth.ruxsat('hisobot', 'korish') · auth.company_id_of, auth.ruxsat, services.get_top_suppliers_report
 
 #### `/api/returns` (6)
-- `GET /api/returns` → `main.py:api_get_returns` · 🔒 auth.manager_or_warehouse · auth.company_id_of, crud.get_return_items
-- `POST /api/returns` → `main.py:api_create_return` · 🔒 auth.manager_or_warehouse · auth.company_id_of, auth.order_of_company, crud._clean_val, crud.bitta_tranzaksiya, crud.create_return_item
-- `GET /api/returns/stats` → `main.py:api_return_stats` · 🔒 auth.manager_or_warehouse · auth.company_id_of, crud.get_return_stats
-- `DELETE /api/returns/{return_id}` → `main.py:api_delete_return` · 🔒 auth.manager_or_warehouse · auth.company_id_of, auth.return_of_company, crud.delete_return_item
-- `POST /api/returns/{return_id}/image` → `main.py:api_upload_return_image` · 🔒 auth.manager_or_warehouse · auth.company_id_of, auth.return_of_company
-- `POST /api/returns/{return_id}/refund` → `main.py:api_mark_refunded` · 🔒 auth.manager_or_warehouse · auth.company_id_of, auth.return_of_company, crud.mark_refunded
+- `GET /api/returns` → `main.py:api_get_returns` · 🔒 auth.ruxsat('qaytarish', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_return_items
+- `POST /api/returns` → `main.py:api_create_return` · 🔒 auth.ruxsat('qaytarish', 'yaratish') · auth.company_id_of, auth.order_of_company, auth.ruxsat, crud._clean_val, crud.bitta_tranzaksiya, crud.create_return_item
+- `GET /api/returns/stats` → `main.py:api_return_stats` · 🔒 auth.ruxsat('qaytarish', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_return_stats
+- `DELETE /api/returns/{return_id}` → `main.py:api_delete_return` · 🔒 auth.ruxsat('qaytarish', 'ochirish') · auth.company_id_of, auth.return_of_company, auth.ruxsat, crud.delete_return_item
+- `POST /api/returns/{return_id}/image` → `main.py:api_upload_return_image` · 🔒 auth.ruxsat('qaytarish', 'tahrirlash') · auth.company_id_of, auth.return_of_company, auth.ruxsat
+- `POST /api/returns/{return_id}/refund` → `main.py:api_mark_refunded` · 🔒 auth.ruxsat('qaytarish', 'tahrirlash') · auth.company_id_of, auth.return_of_company, auth.ruxsat, crud.mark_refunded
+
+#### `/api/rollar` (5)
+- `GET /api/rollar` → `main.py:api_rollar` · 🔒 auth.admin_only · auth.company_id_of, auth.get_all_users, auth.tayyor_rollar
+- `POST /api/rollar` → `main.py:api_rol_yarat` · 🔒 auth.admin_only · auth.company_id_of, crud.log_activity
+- `PUT /api/rollar/{rol_id}` → `main.py:api_rol_yangila` · 🔒 auth.admin_only · auth.company_id_of, auth.rol_of_company, crud.log_activity
+- `DELETE /api/rollar/{rol_id}` → `main.py:api_rol_ochir` · 🔒 auth.admin_only · auth.company_id_of, auth.rol_foydalanuvchilari, auth.rol_of_company, crud.log_activity
+- `POST /api/rollar/{rol_id}/andoza` → `main.py:api_rol_andoza` · 🔒 auth.admin_only · auth.company_id_of, auth.rol_of_company, crud.log_activity
 
 #### `/api/saas-migration` (2)
 - `GET /api/saas-migration/status` → `saas_migration.py:api_status` · 🔒 auth.admin_only
 - `POST /api/saas-migration/step/{kalit}` → `saas_migration.py:api_step` · 🔒 auth.admin_only
 
 #### `/api/settings` (9)
-- `GET /api/settings/categories` → `main.py:api_get_categories` · 🔒 auth.admin_only · auth.company_id_of
-- `PUT /api/settings/categories` → `main.py:api_set_categories` · 🔒 auth.admin_only · auth.company_id_of, crud.set_setting
+- `GET /api/settings/categories` → `main.py:api_get_categories` · 🔒 auth.ruxsat('sozlama', 'korish') · auth.company_id_of, auth.ruxsat
+- `PUT /api/settings/categories` → `main.py:api_set_categories` · 🔒 auth.ruxsat('sozlama', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud.set_setting
 - `GET /api/settings/company` → `main.py:api_get_company` · 🔒 auth.require_login · auth.company_id_of
-- `PUT /api/settings/company` → `main.py:api_set_company` · 🔒 auth.admin_only · auth.company_id_of, crud.set_setting
-- `POST /api/settings/company/logo` → `main.py:api_upload_company_logo` · 🔒 auth.admin_only · auth.company_id_of
-- `GET /api/settings/ehson-percent` → `main.py:api_get_ehson_percent` · 🔒 auth.admin_or_financier · auth.company_id_of, crud.get_setting
-- `PUT /api/settings/ehson-percent` → `main.py:api_set_ehson_percent` · 🔒 auth.admin_only · auth.company_id_of, crud.set_setting
-- `GET /api/settings/telegram-bot` → `main.py:api_get_telegram_bot` · 🔒 auth.admin_only · auth.company_id_of, crud.get_setting
-- `PUT /api/settings/telegram-bot` → `main.py:api_set_telegram_bot` · 🔒 auth.admin_only · auth.company_id_of, crud.set_setting
+- `PUT /api/settings/company` → `main.py:api_set_company` · 🔒 auth.ruxsat('sozlama', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud.set_setting
+- `POST /api/settings/company/logo` → `main.py:api_upload_company_logo` · 🔒 auth.ruxsat('sozlama', 'tahrirlash') · auth.company_id_of, auth.ruxsat
+- `GET /api/settings/ehson-percent` → `main.py:api_get_ehson_percent` · 🔒 auth.ruxsat('kpi', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_setting
+- `PUT /api/settings/ehson-percent` → `main.py:api_set_ehson_percent` · 🔒 auth.ruxsat('sozlama', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud.set_setting
+- `GET /api/settings/telegram-bot` → `main.py:api_get_telegram_bot` · 🔒 auth.ruxsat('sozlama', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_setting
+- `PUT /api/settings/telegram-bot` → `main.py:api_set_telegram_bot` · 🔒 auth.ruxsat('sozlama', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud.set_setting
 
 #### `/api/suppliers` (10)
-- `GET /api/suppliers` → `main.py:api_get_suppliers` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud.get_suppliers_with_debt
-- `POST /api/suppliers` → `main.py:api_create_supplier` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud._clean_create, crud.create_supplier
-- `GET /api/suppliers/debt-total` → `main.py:api_suppliers_debt_total` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud.get_suppliers_with_debt
-- `GET /api/suppliers/due-dates` → `main.py:api_suppliers_due_dates` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud.get_supplier_payment_due_dates
-- `DELETE /api/suppliers/payments/{payment_id}` → `main.py:api_delete_supplier_payment` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud.delete_supplier_payment
-- `PUT /api/suppliers/{supplier_id}` → `main.py:api_update_supplier` · 🔒 auth.admin_or_warehouse · auth.company_id_of, auth.supplier_of_company, crud._clean_update, crud.update_supplier
-- `DELETE /api/suppliers/{supplier_id}` → `main.py:api_delete_supplier` · 🔒 auth.admin_or_warehouse · auth.company_id_of, auth.supplier_of_company, crud.delete_supplier
-- `GET /api/suppliers/{supplier_id}/history` → `main.py:api_supplier_history` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud.get_supplier, crud.get_supplier_history
-- `POST /api/suppliers/{supplier_id}/payment` → `main.py:api_supplier_payment` · 🔒 auth.admin_or_warehouse · auth.company_id_of, auth.supplier_of_company, crud._clean_val, crud.create_supplier_payment, crud.get_supplier_debt
-- `GET /api/suppliers/{supplier_id}/purchased-items` → `main.py:api_supplier_purchased_items` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud.get_supplier_purchased_items
+- `GET /api/suppliers` → `main.py:api_get_suppliers` · 🔒 auth.ruxsat('taminotchi', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_suppliers_with_debt
+- `POST /api/suppliers` → `main.py:api_create_supplier` · 🔒 auth.ruxsat('taminotchi', 'yaratish') · auth.company_id_of, auth.ruxsat, crud._clean_create, crud.create_supplier
+- `GET /api/suppliers/debt-total` → `main.py:api_suppliers_debt_total` · 🔒 auth.ruxsat('taminotchi', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_suppliers_with_debt
+- `GET /api/suppliers/due-dates` → `main.py:api_suppliers_due_dates` · 🔒 auth.ruxsat('taminotchi', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_supplier_payment_due_dates
+- `DELETE /api/suppliers/payments/{payment_id}` → `main.py:api_delete_supplier_payment` · 🔒 auth.ruxsat('taminotchi_tolov', 'ochirish') · auth.company_id_of, auth.ruxsat, crud.delete_supplier_payment
+- `PUT /api/suppliers/{supplier_id}` → `main.py:api_update_supplier` · 🔒 auth.ruxsat('taminotchi', 'tahrirlash') · auth.company_id_of, auth.ruxsat, auth.supplier_of_company, crud._clean_update, crud.update_supplier
+- `DELETE /api/suppliers/{supplier_id}` → `main.py:api_delete_supplier` · 🔒 auth.ruxsat('taminotchi', 'ochirish') · auth.company_id_of, auth.ruxsat, auth.supplier_of_company, crud.delete_supplier
+- `GET /api/suppliers/{supplier_id}/history` → `main.py:api_supplier_history` · 🔒 auth.ruxsat('taminotchi', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_supplier, crud.get_supplier_history
+- `POST /api/suppliers/{supplier_id}/payment` → `main.py:api_supplier_payment` · 🔒 auth.ruxsat('taminotchi_tolov', 'yaratish') · auth.company_id_of, auth.ruxsat, auth.supplier_of_company, crud._clean_val, crud.create_supplier_payment, crud.get_supplier_debt
+- `GET /api/suppliers/{supplier_id}/purchased-items` → `main.py:api_supplier_purchased_items` · 🔒 auth.ruxsat('taminotchi', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_supplier_purchased_items
 
 #### `/api/system` (8)
 - `GET /api/system/backup` → `main.py:api_system_backup` · 🔒 auth.platform_admin_only · auth.company_id_of, crud.export_full_backup
 - `POST /api/system/backup/send-now` → `main.py:api_backup_send_now` · 🔒 auth.platform_admin_only
 - `POST /api/system/factory-reset` → `main.py:api_factory_reset` · 🔒 auth.platform_admin_only · auth.company_id_of, crud.factory_reset_all_data
-- `GET /api/system/health-check` → `main.py:api_system_health_check` · 🔒 auth.admin_only · auth.company_id_of, crud.check_financial_consistency, crud.check_system_health
+- `GET /api/system/health-check` → `main.py:api_system_health_check` · 🔒 auth.ruxsat('jurnal', 'korish') · auth.company_id_of, auth.ruxsat, crud.check_financial_consistency, crud.check_system_health
 - `POST /api/system/restore` → `main.py:api_restore_backup` · 🔒 auth.platform_admin_only · auth.company_id_of, crud.import_full_backup
 - `GET /api/system/telegram-debug` → `main.py:api_telegram_debug` · 🔒 auth.platform_admin_only
 - `POST /api/system/telegram-delete-webhook` → `main.py:api_telegram_delete_webhook` · 🔒 auth.platform_admin_only
 - `POST /api/system/telegram-setup-webhook-security` → `main.py:api_telegram_setup_webhook_security` · 🔒 auth.platform_admin_only
 
 #### `/api/transport-expenses` (3)
-- `GET /api/transport-expenses` → `main.py:api_get_transport` · 🔒 auth.admin_or_manager · auth.company_id_of, crud.get_transport_expenses
-- `POST /api/transport-expenses` → `main.py:api_create_transport` · 🔒 auth.admin_or_manager · auth.company_id_of, crud._clean_val, crud.create_transport_expense
-- `DELETE /api/transport-expenses/{exp_id}` → `main.py:api_delete_transport` · 🔒 auth.admin_or_manager · auth.company_id_of, crud.delete_transport_expense
+- `GET /api/transport-expenses` → `main.py:api_get_transport` · 🔒 auth.ruxsat('yetkazish', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_transport_expenses
+- `POST /api/transport-expenses` → `main.py:api_create_transport` · 🔒 auth.ruxsat('yetkazish', 'yaratish') · auth.company_id_of, auth.ruxsat, crud._clean_val, crud.create_transport_expense
+- `DELETE /api/transport-expenses/{exp_id}` → `main.py:api_delete_transport` · 🔒 auth.ruxsat('yetkazish', 'ochirish') · auth.company_id_of, auth.ruxsat, crud.delete_transport_expense
 
 #### `/api/transport-stats` (1)
-- `GET /api/transport-stats` → `main.py:api_transport_stats` · 🔒 auth.admin_or_manager · auth.company_id_of, crud.get_transport_stats
+- `GET /api/transport-stats` → `main.py:api_transport_stats` · 🔒 auth.ruxsat('dashboard', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_transport_stats
 
-#### `/api/users` (3)
+#### `/api/users` (4)
 - `POST /api/users` → `main.py:api_create_user` · 🔒 auth.admin_only · auth.company_id_of, auth.create_user, crud._clean_val
 - `POST /api/users/{user_id}/password` → `main.py:api_change_password` · 🔒 auth.admin_only · auth.change_password, auth.company_id_of, auth.verify_and_upgrade_password, crud._clean_val
+- `PUT /api/users/{user_id}/rol` → `main.py:api_user_rol` · 🔒 auth.admin_only · auth.company_id_of, auth.rol_biriktir, crud.log_activity
 - `POST /api/users/{user_id}/toggle` → `main.py:api_toggle_user` · 🔒 auth.admin_only · auth.company_id_of, auth.toggle_user_active
 
 #### `/api/warnings` (1)
@@ -1695,21 +1761,21 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 
 #### `/api/yonalishlar` (4)
 - `GET /api/yonalishlar` → `main.py:api_yonalishlar` · 🔒 auth.all_staff · auth.company_id_of, crud.yonalish_dict, crud.yonalish_ishlatilishi, crud.yonalishlar_royxati
-- `POST /api/yonalishlar` → `main.py:api_yonalish_yarat` · 🔒 auth.admin_only · auth.company_id_of, crud.yonalish_dict, crud.yonalish_yarat
-- `PUT /api/yonalishlar/{yonalish_id}` → `main.py:api_yonalish_yangila` · 🔒 auth.admin_only · auth.company_id_of, crud.yonalish_dict, crud.yonalish_yangila
-- `DELETE /api/yonalishlar/{yonalish_id}` → `main.py:api_yonalish_ochir` · 🔒 auth.admin_only · auth.company_id_of, crud.yonalish_ochir
+- `POST /api/yonalishlar` → `main.py:api_yonalish_yarat` · 🔒 auth.ruxsat('sozlama', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.yonalish_dict, crud.yonalish_yarat
+- `PUT /api/yonalishlar/{yonalish_id}` → `main.py:api_yonalish_yangila` · 🔒 auth.ruxsat('sozlama', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud.yonalish_dict, crud.yonalish_yangila
+- `DELETE /api/yonalishlar/{yonalish_id}` → `main.py:api_yonalish_ochir` · 🔒 auth.ruxsat('sozlama', 'ochirish') · auth.company_id_of, auth.ruxsat, crud.yonalish_ochir
 
 #### `/dashboard` (1)
-- `GET /dashboard` → `main.py:dashboard_page` · 🔒 auth.admin_or_financier · auth.company_id_of, services.get_dashboard_stats
+- `GET /dashboard` → `main.py:dashboard_page` · 🔒 auth.ruxsat('dashboard', 'korish') · auth.company_id_of, auth.ruxsat, services.get_dashboard_stats
 
 #### `/debts` (1)
-- `GET /debts` → `main.py:debts_page` · 🔒 auth.admin_or_financier · auth.company_id_of, crud.get_ortiqcha_tolovlar, crud.get_suppliers_with_debt, crud.qarz_hisobidagi_buyurtma_sharti, services.get_company_obligations_status, services.get_recurring_obligations
+- `GET /debts` → `main.py:debts_page` · 🔒 auth.ruxsat('qarz', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_ortiqcha_tolovlar, crud.get_suppliers_with_debt, crud.qarz_hisobidagi_buyurtma_sharti, services.get_company_obligations_status, services.get_recurring_obligations
 
 #### `/finance` (1)
-- `GET /finance` → `main.py:finance_page` · 🔒 auth.admin_or_financier
+- `GET /finance` → `main.py:finance_page` · 🔒 auth.ruxsat('moliya', 'korish') · auth.ruxsat
 
 #### `/finished` (1)
-- `GET /finished` → `main.py:finished_page` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, crud.get_employees, crud.get_finished_products, crud.get_finished_stats, crud.get_masters, crud.get_recipes, services.get_default_penoplast, services.get_penoplast_list
+- `GET /finished` → `main.py:finished_page` · 🔒 auth.ruxsat_biri(('tayyor', 'korish'), ('sotuv', 'korish')) · auth.company_id_of, auth.ruxsat_biri, crud.get_employees, crud.get_finished_products, crud.get_finished_stats, crud.get_masters, crud.get_recipes, services.get_default_penoplast, services.get_penoplast_list
 
 #### `/hodim` (4)
 - `GET /hodim` → `main.py:hodim_panel` · 🔓 · auth.get_current_employee
@@ -1718,13 +1784,13 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `GET /hodim/logout` → `main.py:hodim_logout` · 🔓 · auth.delete_employee_session
 
 #### `/inventory` (1)
-- `GET /inventory` → `main.py:inventory_page` · 🔒 auth.inventory_view · auth.company_id_of, crud.get_inventory, crud.get_suppliers, services.get_inventory_kpi
+- `GET /inventory` → `main.py:inventory_page` · 🔒 auth.ruxsat('material', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_inventory, crud.get_suppliers, services.get_inventory_kpi
 
 #### `/kpi` (1)
-- `GET /kpi` → `main.py:kpi_page` · 🔒 auth.admin_or_financier
+- `GET /kpi` → `main.py:kpi_page` · 🔒 auth.ruxsat('kpi', 'korish') · auth.ruxsat
 
 #### `/kunlik-xarajat` (1)
-- `GET /kunlik-xarajat` → `main.py:kunlik_xarajat_page` · 🔒 auth.admin_manager_accountant
+- `GET /kunlik-xarajat` → `main.py:kunlik_xarajat_page` · 🔒 auth.ruxsat_biri(('kunlik', 'korish'), ('kunlik', 'yaratish')) · auth.ruxsat_biri
 
 #### `/login` (2)
 - `GET /login` → `main.py:login_page` · 🔓 · auth.get_current_user
@@ -1734,31 +1800,34 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `GET /logout` → `main.py:logout` · 🔓 · auth.delete_session
 
 #### `/logs` (1)
-- `GET /logs` → `main.py:logs_page` · 🔒 auth.admin_only · auth.company_id_of, crud.get_activity_log, crud.get_error_logs, crud.get_login_history
+- `GET /logs` → `main.py:logs_page` · 🔒 auth.ruxsat('jurnal', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_activity_log, crud.get_error_logs, crud.get_login_history
 
 #### `/masters` (1)
 - `GET /masters` → `main.py:masters_page_redirect` · 🔓
 
 #### `/orders` (1)
-- `GET /orders` → `main.py:orders_page` · 🔒 auth.orders_page_access · auth.company_id_of, crud.get_deadline_urgency, crud.get_masters, crud.get_orders_for_main_page, crud.get_projects, crud.get_recipes, services.get_default_penoplast, services.get_penoplast_list
+- `GET /orders` → `main.py:orders_page` · 🔒 auth.ruxsat_biri(('buyurtma', 'korish'), ('buyurtma_fayl', 'yaratish')) · auth.company_id_of, auth.ruxsat_biri, crud.get_deadline_urgency, crud.get_masters, crud.get_orders_for_main_page, crud.get_projects, crud.get_recipes, services.get_default_penoplast, services.get_penoplast_list
 
 #### `/platforma` (1)
 - `GET /platforma` → `main.py:platforma_page` · 🔓 · auth.get_current_user
 
 #### `/production` (1)
-- `GET /production` → `main.py:production_page` · 🔒 auth.admin_or_warehouse
+- `GET /production` → `main.py:production_page` · 🔒 auth.ruxsat('mahsulot_turi', 'korish') · auth.ruxsat
 
 #### `/projects` (1)
-- `GET /projects` → `main.py:projects_page` · 🔒 auth.admin_manager_accountant · auth.company_id_of, crud.get_projects_dashboard_stats, crud.get_projects_with_stats
+- `GET /projects` → `main.py:projects_page` · 🔒 auth.ruxsat_biri(('loyiha', 'korish'), ('loyiha_korsatkich', 'korish')) · auth.company_id_of, auth.ruxsat_biri, crud.get_projects_dashboard_stats, crud.get_projects_with_stats
 
 #### `/recipes` (1)
-- `GET /recipes` → `main.py:recipes_page` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud.get_recipe_insights, crud.get_recipes
+- `GET /recipes` → `main.py:recipes_page` · 🔒 auth.ruxsat('retsept', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_recipe_insights, crud.get_recipes
 
 #### `/reports` (1)
-- `GET /reports` → `main.py:reports_page` · 🔒 auth.admin_or_financier
+- `GET /reports` → `main.py:reports_page` · 🔒 auth.ruxsat('hisobot', 'korish') · auth.ruxsat
 
 #### `/returns` (1)
-- `GET /returns` → `main.py:returns_page` · 🔒 auth.manager_or_warehouse · auth.company_id_of, crud.get_employees, crud.get_orders_for_main_page, crud.get_projects, crud.get_return_items_for_main_page, crud.hodim_nomlari
+- `GET /returns` → `main.py:returns_page` · 🔒 auth.ruxsat('qaytarish', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_employees, crud.get_orders_for_main_page, crud.get_projects, crud.get_return_items_for_main_page, crud.hodim_nomlari
+
+#### `/rollar` (1)
+- `GET /rollar` → `main.py:rollar_page` · 🔒 auth.admin_only
 
 #### `/saas-migratsiya` (6)
 - `GET /saas-migratsiya` → `saas_migration.py:panel_page` · 🔒 auth.admin_only
@@ -1772,8 +1841,8 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `GET /static/uploads/{papka}/{fayl}` → `main.py:yuklangan_fayl` · 🔓 · auth.company_id_of, auth.get_current_user
 
 #### `/suppliers` (2)
-- `GET /suppliers` → `main.py:suppliers_page` · 🔒 auth.admin_or_warehouse
-- `GET /suppliers/receive` → `main.py:supplier_receive_page` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud.get_suppliers
+- `GET /suppliers` → `main.py:suppliers_page` · 🔒 auth.ruxsat('taminotchi', 'korish') · auth.ruxsat
+- `GET /suppliers/receive` → `main.py:supplier_receive_page` · 🔒 auth.ruxsat('kirim', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.get_suppliers
 
 #### `/telegram` (1)
 - `POST /telegram/webhook` → `main.py:telegram_webhook` · 🔓 · crud.get_master_gift_period_progress, crud.get_master_yearly_cashback
@@ -1783,15 +1852,15 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `POST /tiklash` → `main.py:tiklash_bajarish` · 🔒 auth.platform_admin_only · auth.company_id_of, crud.import_full_backup, crud.log_activity
 
 #### `/trash` (1)
-- `GET /trash` → `main.py:trash_page` · 🔒 auth.admin_only · auth.company_id_of, crud.get_activity_log, crud.get_deleted_employees, crud.get_deleted_orders, crud.get_deleted_projects
+- `GET /trash` → `main.py:trash_page` · 🔒 auth.ruxsat('savat', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_activity_log, crud.get_deleted_employees, crud.get_deleted_orders, crud.get_deleted_projects
 
 #### `/users` (1)
-- `GET /users` → `main.py:users_page` · 🔒 auth.admin_only · auth.company_id_of, auth.get_all_users
+- `GET /users` → `main.py:users_page` · 🔒 auth.admin_only · auth.company_id_of, auth.get_all_users, auth.tayyor_rollar
 
 #### `/ustalar` (1)
-- `GET /ustalar` → `main.py:masters_manage_page` · 🔒 auth.admin_or_manager
+- `GET /ustalar` → `main.py:masters_manage_page` · 🔒 auth.ruxsat('usta', 'korish') · auth.ruxsat
 
-Jami marshrutlar: 293 (main.py: 265, production_routes.py: 20, saas_migration.py: 8).
+Jami marshrutlar: 300 (main.py: 272, production_routes.py: 20, saas_migration.py: 8).
 <!-- AVTO:API OXIRI -->
 
 ### 9.5 Jadvallar
@@ -1845,14 +1914,15 @@ ORM qorovuli yangi / o'zgargan qatorda ota yozuv korxonasini tekshiradi.
 - `recipes` — `Recipe` (`models.py`, 8) — o'z `company_id`
 - `recurring_obligations` — `RecurringObligation` (`models.py`, 9) — o'z `company_id`
 - `return_items` — `ReturnItem` (`models.py`, 26) — o'z `company_id` + ota tekshiruvi (order_id→Order, finished_product_id→FinishedProduct)
+- `rollar` — `Rol` (`models.py`, 9) — o'z `company_id`
 - `supplier_payments` — `SupplierPayment` (`models.py`, 6) — ota orqali (supplier_id→Supplier)
 - `suppliers` — `Supplier` (`models.py`, 7) — o'z `company_id`
 - `transport_expenses` — `TransportExpense` (`models.py`, 9) — o'z `company_id`
 - `user_sessions` — `UserSession` (`models.py`, 4) — korxonasiz
-- `users` — `User` (`models.py`, 10) — o'z `company_id`
+- `users` — `User` (`models.py`, 11) — o'z `company_id`
 - `yonalishlar` — `Yonalish` (`models.py`, 8) — o'z `company_id`
 
-Jami jadvallar: 51.
+Jami jadvallar: 52.
 <!-- AVTO:MODELLAR OXIRI -->
 
 ### 9.6 Testlar katalogi
@@ -1969,6 +2039,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_qoplama_retsept.py` · PG — K58-1 / K58-2 / K58-3 (5-bo'lim 43-band) darvozasi (kech58, 2026-09-24).
 - `test_qoplama_vaqti.py` — 22-band: qoplamachi bonusi (va ishlab chiqarish miqdoriga bog'liq hodim to'lovi) FAQAT mahsulot "Sotuvga tayyor" (READY) bo'lganda, va u TAYYOR BO'LGAN oyda hisoblanadi.
 - `test_retsept_almashtirish.py` · PG — 5-bo'lim 53-band (+ 67-band) darvozasi (kech63, 2026-09-24): jarayondagi buyurtmada QOPLAMA RETSEPTI o'zgartirilsa eski retsept loyi omborga QAYTADI, yangisidan YECHILA…
+- `test_rollar.py` · PG — kech118 ROLLAR VA RUXSATLAR (egasi QARORI 2026-09-30 15:23: «Hodim rollarini admin o'zi boshqaradigan qilaylik»; tugmali javoblar 15:30 — rasmdagidek 4 belgi (Ko'rish / Yaratish / Ta…
 - `test_royxat_n1.py` · PG — kech97 (2026-09-27), 116-band 1-qadam (buyurtma / loyiha N+1) + 114-band (ro'yxat tartibi).
 - `test_saas_otish.py` · PG — kech109 darvozasi: `main` ko'chirishi (K108-1) — `saas_otish.py` va korxona id ketma-ketligi (K109-3).
 - `test_soat_utc.py` — kech96 (2026-09-27), 123-band.
@@ -2036,5 +2107,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 173 (Python 143, JS 30).
+Jami test fayllari: 174 (Python 144, JS 30).
 <!-- AVTO:TESTLAR OXIRI -->

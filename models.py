@@ -208,9 +208,57 @@ class User(Base):
                                server_default=sa_text("false"))
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    # kech118 (ROLLAR — egasi QARORI 15:23): foydalanuvchining roli (`rollar`). Huquq — `ruxsatlar.bormi` (rol ruxsatlari);
+    # Admin — `role == ADMIN` (hamma narsa). NULL — eski foydalanuvchi (migratsiyadan oldin): `role` qiymatining tayyor
+    # andozasi ishlatiladi. `role` ustuni QOLADI: Admin belgisi va rolning eski turiga mos qiymat (`ruxsatlar.ROL_ENUM`).
+    rol_id = Column(Integer, ForeignKey("rollar.id"), nullable=True, index=True)
+    rol = relationship("Rol", foreign_keys=[rol_id], lazy="select")
+
+    def ruxsat(self, band: str, amal: str = None) -> bool:
+        """Shablon va kod uchun: `current_user.ruxsat('buyurtma', 'yaratish')`; amal berilmasa — bandning istalgan amali."""
+        import ruxsatlar as _rx
+        return _rx.bormi(self, band, amal)
+
+    @property
+    def rol_nomi(self) -> str:
+        """Ko'rinadigan rol nomi (menyu, Foydalanuvchilar): biriktirilgan rol nomi, bo'lmasa — eski turning tayyor nomi."""
+        import ruxsatlar as _rx
+        r = self.rol if self.rol_id else None
+        if r is not None and r.company_id == self.company_id:
+            return r.nom
+        k = _rx.ENUM_ROL.get(getattr(self.role, "value", ""), "")
+        return _rx.TAYYOR_ROLLAR.get(k, {}).get("nom", "—")
 
     def __repr__(self):
         return f"<User {self.username} ({self.role.value})>"
+
+
+class Rol(Base):
+    """kech118 (ROLLAR VA RUXSATLAR — egasi QARORI 15:23, tugmali javoblar 15:30; QAYTA SO'RALMAYDI): korxona roli.
+
+    * `ruxsatlar` — JSON matn {band: [amal, ...]} (katalog — `ruxsatlar.BOLIMLAR`; amallar: korish / yaratish /
+      tahrirlash / ochirish). Noma'lum band / amal o'qishda tashlanadi.
+    * `kod` — tayyor rol: 'admin' (o'zgarmaydi, o'chirilmaydi; ruxsati tekshirilmaydi — Admin hamma narsa), 'menejer',
+      'omborchi', 'moliyachi', 'usta' (eski «Usta» foydalanuvchisi bo'lsa). O'zi yaratilgan rol — NULL.
+    * Rol nomi korxona ichida yagona (`uq_rollar_company_nom`); foydalanuvchisi bor rol o'chirilmaydi."""
+    __tablename__ = "rollar"
+    __table_args__ = (
+        UniqueConstraint("company_id", "nom", name="uq_rollar_company_nom"),
+        UniqueConstraint("company_id", "kod", name="uq_rollar_company_kod"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    nom = Column(String(60), nullable=False)
+    tavsif = Column(String(300), nullable=True)
+    kod = Column(String(20), nullable=True)
+    ruxsatlar = Column(Text, nullable=False, default="{}")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=True)
+    updated_by = Column(String(100), nullable=True)
+
+    def __repr__(self):
+        return f"<Rol {self.nom}>"
 
 
 # ============================================================

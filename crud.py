@@ -4232,6 +4232,8 @@ def _val_rules():
             "password": ("matn", True, _PAROL_MAX_BELGI),
             "full_name": ("matn", False, _TOLIQ_ISM_MAX),
             "role": ("tanlov", False, rol),
+            # kech118 (ROLLAR): korxona roli (berilsa — `role` e'tiborga olinmaydi, rol turi roldan olinadi)
+            "rol_id": ("id", False),
         },
         # Parolni almashtirish (`users.html`: `new_password`, o'z parolida
         # `current_password` ham). O'LCHANGAN: `new_password` `true` / son /

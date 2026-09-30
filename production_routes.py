@@ -82,14 +82,14 @@ def _retsept_xulosa(bom, unit: str) -> str:
 
 
 @router.get("/product-types", response_model=list[schemas.ProductTypeRead])
-def list_product_types(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def list_product_types(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("mahsulot_turi", "korish"))):
     return db.query(ProductType).filter(
         ProductType.company_id == auth.company_id_of(current_user), ProductType.is_active == True
     ).order_by(ProductType.name).all()
 
 
 @router.get("/product-types/xulosa")
-def product_types_summary(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def product_types_summary(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("mahsulot_turi", "korish"))):
     """kech114 (egasi QARORI «5B — Jadval»): mahsulot turlari jadvali — har tur: omborda / band / jarayonda va
     retseptlarining 1 birlik taxminiy tannarxi (`service.turlar_xulosasi`; faqat o'qiydi). Huquq — turlar ro'yxati
     bilan bir xil."""
@@ -97,7 +97,7 @@ def product_types_summary(db: Session = Depends(get_db), current_user=Depends(au
 
 
 @router.post("/product-types", response_model=schemas.ProductTypeRead)
-def create_product_type(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def create_product_type(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("mahsulot_turi", "yaratish"))):
     # kech93 (8-band): tana QAT'IY (`_tana`), sabab — `crud._val_rules()["ProductType"]` izohida.
     data = _tana("ProductType", data, schemas.ProductTypeCreate)
     _cid = auth.company_id_of(current_user)
@@ -139,7 +139,7 @@ def create_product_type(data: dict = Body(...), db: Session = Depends(get_db), c
 
 @router.patch("/product-types/{pt_id}", response_model=schemas.ProductTypeRead)
 def set_product_type_yonalish(pt_id: int, data: dict = Body(...), db: Session = Depends(get_db),
-                              current_user=Depends(auth.admin_or_warehouse)):
+                              current_user=Depends(auth.ruxsat("mahsulot_turi", "tahrirlash"))):
     """kech117 (A2 — egasi QARORI «mavjud turlar — egasi biriktiradi»): turga yo'nalish biriktirish / almashtirish.
     Faqat `yonalish_id` (shu korxonaning ko'rinadigan yo'nalishi). Turning boshqa maydonlari (birlik, narx usuli)
     ATAYLAB o'zgartirilmaydi — eski buyurtma / ishlab chiqarish tarixi shularga tayanadi. Yo'nalish almashsa, o'tgan
@@ -170,7 +170,7 @@ def set_product_type_yonalish(pt_id: int, data: dict = Body(...), db: Session = 
 
 
 @router.delete("/product-types/{pt_id}")
-def deactivate_product_type(pt_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def deactivate_product_type(pt_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("mahsulot_turi", "ochirish"))):
     """O'chirilmaydi (eski BOM/ProductionOrder tarixi buzilmasligi
     uchun) — faqat 'nofaol' qilib belgilanadi, xuddi mavjud
     Inventory.is_deleted naqshiga o'xshab."""
@@ -190,14 +190,14 @@ def deactivate_product_type(pt_id: int, db: Session = Depends(get_db), current_u
 # ============================================================
 
 @router.get("/product-types/{pt_id}/boms", response_model=list[schemas.BOMRead])
-def list_boms_for_product(pt_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def list_boms_for_product(pt_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("mahsulot_turi", "korish"))):
     return db.query(BOM).filter(
         BOM.product_type_id == pt_id, BOM.company_id == auth.company_id_of(current_user), BOM.is_active == True
     ).all()
 
 
 @router.post("/boms", response_model=schemas.BOMRead)
-def create_bom(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def create_bom(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("mahsulot_turi", "yaratish"))):
     # kech93 (8-band): tana QAT'IY (`_tana`), materiallar — shu korxonadan.
     data = _tana("BOM", data, schemas.BOMCreate)
     pt = db.query(ProductType).filter(ProductType.id == data.product_type_id, ProductType.company_id == auth.company_id_of(current_user)).first()
@@ -242,7 +242,7 @@ def create_bom(data: dict = Body(...), db: Session = Depends(get_db), current_us
 
 
 @router.post("/boms/preview")
-def preview_bom(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def preview_bom(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("mahsulot_turi", "korish"))):
     """kech113 (dizayn 2-band — retsept oynasi): SAQLANMAGAN retseptning taxminiy tannarxi (1 birlik uchun: oddiy,
     qoplamali, hamma ixtiyoriy bilan) va har qator narxi — ishlab chiqarish suratidagi AYNAN hisob
     (`production_service.retsept_tannarxi`). Tana — retsept yaratish bilan bir xil (qat'iy tekshiruv, materiallar —
@@ -257,7 +257,7 @@ def preview_bom(data: dict = Body(...), db: Session = Depends(get_db), current_u
 
 
 @router.put("/boms/{bom_id}", response_model=schemas.BOMRead)
-def update_bom(bom_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def update_bom(bom_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("mahsulot_turi", "tahrirlash"))):
     """MUHIM: bu FAQAT hali IN_PROGRESS/COMPLETED bo'lmagan kelajakdagi
     ishlab chiqarishlarga ta'sir qiladi — chunki boshlangan buyurtmalar
     o'zining recipe_snapshot_json'idan foydalanadi, JORIY BOM'ni emas."""
@@ -302,7 +302,7 @@ def update_bom(bom_id: int, data: dict = Body(...), db: Session = Depends(get_db
 
 
 @router.delete("/boms/{bom_id}")
-def deactivate_bom(bom_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def deactivate_bom(bom_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("mahsulot_turi", "ochirish"))):
     """2026-09-16: ProductType.is_active bilan bir xil naqsh — BOM
     o'chirilmaydi (eski ProductionOrder'lar o'zining recipe_snapshot_json
     surati bilan ishlaydi, JORIY BOM'ga bog'liq emas, shuning uchun
@@ -340,7 +340,7 @@ def _oy_qiymati(oy: str):
 
 @router.get("/orders", response_model=list[schemas.ProductionOrderListItem])
 def list_production_orders(status: str = None, oy: str = None, db: Session = Depends(get_db),
-                           current_user=Depends(auth.admin_warehouse_or_manager)):
+                           current_user=Depends(auth.ruxsat("ishlab_buyurtma", "korish"))):
     """kech113 (dizayn 4-band): `oy` = "YYYY-MM" — shu Toshkent oyida YAKUNLANGAN / BEKOR QILINGANLAR va HAMMA hali
     ochiq (qoralama, jarayondagi) ishlab chiqarishlar (ochiq ish oy o'tsa ham ro'yxatdan tushib qolmasin);
     `oy` yo'q yoki "hammasi" — hammasi (avvalgidek). Har qatorga ko'rsatish uchun qo'shimcha maydonlar —
@@ -374,7 +374,7 @@ def preview_production_order(product_type_id: int = Query(...), bom_id: int = Qu
                              source_type: str = Query("warehouse_stock"),
                              source_order_item_id: Optional[int] = Query(None),
                              selected_optional_bom_item_ids: List[int] = Query(default=[]),
-                             db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
+                             db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("ishlab_buyurtma", "korish"))):
     """kech113 (dizayn 3-band — «Yangi ishlab chiqarish» oynasi): yaratish + boshlash natijasi OLDINDAN — xomashyo
     yetadimi, qanchasi yetmaydi, eng ko'pi qancha chiqadi, taxminiy tannarx. Hech narsa yozilmaydi; tekshiruvlar
     yaratish / boshlash bilan AYNAN (`production_service.ishlab_chiqarish_rejasi`). Qiymatlar YARATISH tanasi
@@ -393,7 +393,7 @@ def preview_production_order(product_type_id: int = Query(...), bom_id: int = Qu
 
 @router.get("/orders/{po_id}/preview")
 def preview_existing_production_order(po_id: int, db: Session = Depends(get_db),
-                                      current_user=Depends(auth.admin_warehouse_or_manager)):
+                                      current_user=Depends(auth.ruxsat("ishlab_buyurtma", "korish"))):
     """kech113 («Boshlash» / «Yakunlash» oynasi): qoralama — joriy retsept bilan boshlash rejasi, jarayondagi — qotgan
     surat bilan yakunlash rejasi (`production_service.mavjud_ishlab_chiqarish_rejasi`). Hech narsa yozilmaydi."""
     natija = service.mavjud_ishlab_chiqarish_rejasi(db, po_id, auth.company_id_of(current_user))
@@ -403,7 +403,7 @@ def preview_existing_production_order(po_id: int, db: Session = Depends(get_db),
 
 
 @router.get("/mrp-order-items")
-def list_mrp_order_items_pending(product_type_id: int = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
+def list_mrp_order_items_pending(product_type_id: int = None, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("ishlab_buyurtma", "korish"))):
     """2026-09-17: "Mijoz buyurtmasi asosida" ishlab chiqarish uchun —
     hali to'liq ta'minlanmagan (remaining_quantity > 0) buyurtma-
     detallari ro'yxati, ixtiyoriy ravishda bitta mahsulot turi bo'yicha
@@ -412,7 +412,7 @@ def list_mrp_order_items_pending(product_type_id: int = None, db: Session = Depe
 
 
 @router.post("/orders")
-def create_order(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
+def create_order(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("ishlab_buyurtma", "yaratish"))):
     # kech93 (8-band): tana QAT'IY (`_tana`); manba bog'lanishlari — servisda (K93-1).
     data = _tana("ProductionOrder", data, schemas.ProductionOrderCreate)
     result = service.create_production_order(db, auth.company_id_of(current_user), data, created_by=current_user.full_name or current_user.username)
@@ -422,7 +422,7 @@ def create_order(data: dict = Body(...), db: Session = Depends(get_db), current_
 
 
 @router.post("/orders/{po_id}/start")
-def start_order(po_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
+def start_order(po_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("ishlab_buyurtma", "tahrirlash"))):
     # ESLATMA (qoida #4): "Guardrails" talabida qattiq bloklashda HTTP 400
     # so'ralgan edi; bu yerda ATAYLAB 409 (Conflict) qoldirildi — chunki bu
     # "so'rov noto'g'ri tuzilgan" (400 ning ma'nosi) emas, balki "so'rov
@@ -442,7 +442,7 @@ def start_order(po_id: int, db: Session = Depends(get_db), current_user=Depends(
 
 
 @router.post("/orders/{po_id}/complete")
-def complete_order(po_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
+def complete_order(po_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("ishlab_buyurtma", "tahrirlash"))):
     result = service.complete_production_order(db, po_id, auth.company_id_of(current_user), performed_by=current_user.full_name or current_user.username)
     if not result["success"]:
         raise HTTPException(status_code=409, detail=result["message"])
@@ -450,7 +450,7 @@ def complete_order(po_id: int, db: Session = Depends(get_db), current_user=Depen
 
 
 @router.post("/orders/{po_id}/cancel")
-def cancel_order(po_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
+def cancel_order(po_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("ishlab_buyurtma", "ochirish"))):
     result = service.cancel_production_order(db, po_id, auth.company_id_of(current_user), performed_by=current_user.full_name or current_user.username)
     if not result["success"]:
         raise HTTPException(status_code=409, detail=result["message"])
@@ -462,7 +462,7 @@ def cancel_order(po_id: int, db: Session = Depends(get_db), current_user=Depends
 # ============================================================
 
 @router.get("/company-settings")
-def get_company_settings(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def get_company_settings(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("sozlama", "korish"))):
     c = db.query(Company).filter(Company.id == auth.company_id_of(current_user)).first()
     if not c:
         raise HTTPException(status_code=404, detail="Korxona topilmadi (init_production_module ishga tushirilmagan bo'lishi mumkin)")
@@ -470,7 +470,7 @@ def get_company_settings(db: Session = Depends(get_db), current_user=Depends(aut
 
 
 @router.put("/company-settings")
-def update_company_settings(allow_negative_stock: bool, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def update_company_settings(allow_negative_stock: bool, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("sozlama", "tahrirlash"))):
     c = db.query(Company).filter(Company.id == auth.company_id_of(current_user)).first()
     if not c:
         raise HTTPException(status_code=404, detail="Korxona topilmadi")

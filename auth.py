@@ -3,11 +3,9 @@ PenoDecorPro ERP — Auth (Login) tizimi
 ========================================
 Cookie asosida sessiya, rol bo'yicha ruxsatlar.
 
-Rollar:
-- ADMIN      — hamma narsaga kirish
-- MANAGER    — loyihalar, buyurtmalar, omborxona, ustalar
-- ACCOUNTANT — faqat loyihalar va dashboard (to'lov ko'rish)
-- MASTER     — faqat o'zining buyurtmalari
+Rollar (kech118 — egasi qarori: rollarni admin o'zi boshqaradi): korxona rollari `rollar` jadvalida, ruxsat katalogi va
+tayyor rollar (Admin, Menejer, Omborchi, Moliyachi) — `ruxsatlar.py`; marshrut qorovuli — `ruxsat(band, amal)`.
+Admin (`users.role == ADMIN`) — hamma narsa.
 """
 
 import hashlib
@@ -21,7 +19,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
 from database import get_db
-from models import User, UserRole
+from models import User, UserRole, Rol
 
 
 # ============================================================
@@ -340,28 +338,19 @@ def get_current_company_id(
 # Rol bo'yicha ruxsatlar
 # ============================================================
 
-# Har bir sahifaga kimlar kira oladi
-# ESLATMA: bu lug'at hozircha DASTURDA ishlatilmaydi — haqiqiy nazorat har bir
-# endpoint'dagi Depends(auth.X) orqali amalga oshadi. Shu yerda faqat izoh/hujjat
-# sifatida yangi tuzilishga moslab qo'yildi.
-PAGE_PERMISSIONS = {
-    "/dashboard":  [UserRole.ADMIN, UserRole.ACCOUNTANT],
-    "/masters":    [UserRole.ADMIN, UserRole.ACCOUNTANT],
-    "/inventory":  [UserRole.ADMIN, UserRole.WAREHOUSE, UserRole.MANAGER],
-    "/recipes":    [UserRole.ADMIN, UserRole.WAREHOUSE],
-    "/projects":   [UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT],
-    "/orders":     [UserRole.ADMIN, UserRole.MANAGER, UserRole.MASTER],
-    "/returns":    [UserRole.ADMIN, UserRole.MANAGER, UserRole.WAREHOUSE],
-    "/users":      [UserRole.ADMIN],
-}
+# kech118 (ROLLAR VA RUXSATLAR — egasi QARORI 15:23): marshrutlar endi ROL RUXSATI bilan qo'riqlanadi — `ruxsat(band,
+# amal)` (katalog va tayyor rollar — `ruxsatlar.py`, YAGONA manba). Eski rol-ro'yxatli qorovullar (admin_or_manager,
+# admin_or_financier, …) olib tashlandi: har marshrut → (band, amal) xaritasi va tayyor rollar ESKI huquqlardan
+# hisoblangan (work/k119/tayinlash.py); tekshiruv — tools/test_rollar.py (marshrut × eski rol kirish matritsasi).
+# Qolganlari: `admin_only` — FAQAT Admin (foydalanuvchilar va rollar boshqaruvi — topshirilmaydi), `all_staff` — har
+# qanday korxona foydalanuvchisi, `platform_admin_only` — platforma egasi.
+import ruxsatlar as _rx
 
-
-# kech118 (B bosqichi — audit U-06 / U-11): rol nomlari foydalanuvchiga — O'ZBEKCHA (Foydalanuvchilar sahifasidagi
-# yorliqlar bilan AYNAN). Ilgari rad sababi xom qiymatlarni ko'rsatardi: «Bu sahifaga faqat admin, manager kira oladi».
-# YAGONA manba: rad sababi (`require_role`) va ruxsatsiz sahifa (`main.custom_http_exception_handler`) shundan oladi.
+# Eski rol turlari (`users.role`) nomlari — rad sababi uchun (`require_role`). kech118 nomlar lug'ati (egasi qarori):
+# login roli «Menejer» (ilgari «Hodim» — u endi oylik oladigan ishchi).
 ROL_NOMI = {
     UserRole.ADMIN: "Admin",
-    UserRole.MANAGER: "Hodim",
+    UserRole.MANAGER: "Menejer",
     UserRole.ACCOUNTANT: "Moliyachi",
     UserRole.WAREHOUSE: "Omborchi",
     UserRole.MASTER: "Usta",
@@ -369,7 +358,7 @@ ROL_NOMI = {
 
 
 def rollar_matni(rollar) -> str:
-    """[UserRole, ...] → «Admin va Hodim» / «Admin, Hodim va Omborchi» (takrorsiz, berilgan tartibda)."""
+    """[UserRole, ...] → «Admin va Menejer» / «Admin, Menejer va Omborchi» (takrorsiz, berilgan tartibda)."""
     nomlar = []
     for r in rollar:
         n = ROL_NOMI.get(r) or str(getattr(r, "value", r))
@@ -381,11 +370,7 @@ def rollar_matni(rollar) -> str:
 
 
 def require_role(allowed_roles: list):
-    """Dekorator — faqat ruxsat etilgan rollar sahifaga kira oladi.
-
-    Ishlatilishi:
-        user = require_role([UserRole.ADMIN, UserRole.MANAGER])(request, db)
-    """
+    """Eski rol turi bo'yicha qorovul (faqat `admin_only` va `all_staff` uchun qoldi)."""
     def checker(
         request: Request,
         db: Session = Depends(get_db)
@@ -398,6 +383,52 @@ def require_role(allowed_roles: list):
             )
         return user
     return checker
+
+
+_RUXSAT_QOROVULLARI = {}
+
+
+def _ruxsat_qorovuli(tur: str, juftlar: tuple):
+    """Rol ruxsati qorovuli (FastAPI bog'lamasi). `tur`: 'bitta' — bitta (band, amal); 'biri' — birortasi yetadi
+    (sahifalar); 'hammasi' — hammasi kerak. Har talab uchun BITTA funksiya (eslab qolinadi): FastAPI bir so'rovda bir xil
+    bog'lamani bir marta chaqiradi; nomi (`ruxsat__band__amal`) — marshrutlar xaritasi va testlar uchun."""
+    for b, a in juftlar:
+        if b not in _rx.BANDLAR or a not in _rx.BANDLAR[b]["amallar"]:
+            raise ValueError(f"ruxsat katalogida yo'q: {b}.{a}")
+    kalit = (tur, juftlar)
+    f = _RUXSAT_QOROVULLARI.get(kalit)
+    if f is not None:
+        return f
+
+    def qorovul(request: Request, db: Session = Depends(get_db)) -> User:
+        user = require_login(request, db)
+        bor = [_rx.bormi(user, b, a) for b, a in juftlar]
+        if (any(bor) if tur == "biri" else all(bor)):
+            return user
+        b, a = next(j for j, x in zip(juftlar, bor) if not x) if tur != "biri" else juftlar[0]
+        raise HTTPException(status_code=403, detail=_rx.rad_matni(b, a))
+
+    nom = "ruxsat__" + ("__yoki__" if tur == "biri" else "__va__").join(f"{b}__{a}" for b, a in juftlar)
+    qorovul.__name__ = qorovul.__qualname__ = nom
+    qorovul.ruxsat_talabi = (tur, juftlar)
+    _RUXSAT_QOROVULLARI[kalit] = qorovul
+    return qorovul
+
+
+def ruxsat(band: str, amal: str):
+    """Marshrut qorovuli: rolda (band, amal) ruxsati bo'lsin. Ishlatilishi: `current_user=Depends(auth.ruxsat("buyurtma",
+    "yaratish"))`. Admin — doim o'tadi. Yo'q — 403 («Sizning rolingizda … ruxsati yo'q»)."""
+    return _ruxsat_qorovuli("bitta", ((band, amal),))
+
+
+def ruxsat_biri(*juftlar):
+    """Sahifa qorovuli: berilgan (band, amal) juftlaridan BIRORTASI yetadi."""
+    return _ruxsat_qorovuli("biri", tuple(juftlar))
+
+
+def ruxsat_hammasi(*juftlar):
+    """Qorovul: berilgan (band, amal) juftlarining HAMMASI kerak (masalan buyurtma foydasi — Tannarx va Buyurtmalar)."""
+    return _ruxsat_qorovuli("hammasi", tuple(juftlar))
 
 
 # Tayyor checker funksiyalar — main.py da ishlatiladi
@@ -419,57 +450,9 @@ def platform_admin_only(request: Request, db: Session = Depends(get_db)) -> User
 
 
 def admin_only(request: Request, db: Session = Depends(get_db)) -> User:
+    """FAQAT Admin — foydalanuvchilar va rollar boshqaruvi (rolga topshirilmaydi: aks holda istalgan rol o'zini Admin
+    qila olardi)."""
     return require_role([UserRole.ADMIN])(request, db)
-
-
-def admin_or_manager(request: Request, db: Session = Depends(get_db)) -> User:
-    """Buyurtma/Loyiha/Yetkazish — Hodim (Menejer)ning asosiy ish maydoni."""
-    return require_role([UserRole.ADMIN, UserRole.MANAGER])(request, db)
-
-
-def orders_page_access(request: Request, db: Session = Depends(get_db)) -> User:
-    """Buyurtmalar SAHIFASI — Admin, Hodim va Usta (Usta faqat o'zining
-    buyurtmalarini ko'rish uchun kiradi)."""
-    return require_role([UserRole.ADMIN, UserRole.MANAGER, UserRole.MASTER])(request, db)
-
-
-def admin_manager_accountant(request: Request, db: Session = Depends(get_db)) -> User:
-    return require_role([UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT])(request, db)
-
-
-def admin_or_financier(request: Request, db: Session = Depends(get_db)) -> User:
-    """Moliya, Hisobotlar, Qarzdorlik, Ustalar KPI, xodim avansini tasdiqlash —
-    faqat Admin va Moliyachi (ACCOUNTANT roli)."""
-    return require_role([UserRole.ADMIN, UserRole.ACCOUNTANT])(request, db)
-
-
-def admin_or_warehouse(request: Request, db: Session = Depends(get_db)) -> User:
-    """Omborxona (to'liq boshqarish), Xomashyo ta'minoti,
-    Retseptlar — faqat Admin va Omborchi."""
-    return require_role([UserRole.ADMIN, UserRole.WAREHOUSE])(request, db)
-
-
-def admin_warehouse_or_manager(request: Request, db: Session = Depends(get_db)) -> User:
-    """Tayyor mahsulot — Admin, Omborchi VA Hodim (Manager) — 2026-09'da,
-    Hodimga ham shu bo'limni ochib berish so'ralgani uchun qo'shildi."""
-    return require_role([UserRole.ADMIN, UserRole.WAREHOUSE, UserRole.MANAGER])(request, db)
-
-
-def inventory_view(request: Request, db: Session = Depends(get_db)) -> User:
-    """Omborni FAQAT KO'RISH (miqdor) — Hodim buyurtma yaratayotganda xomashyo
-    yetarli-yetarli emasligini bilishi uchun, lekin boshqarish huquqisiz."""
-    return require_role([UserRole.ADMIN, UserRole.WAREHOUSE, UserRole.MANAGER])(request, db)
-
-
-def order_payments(request: Request, db: Session = Depends(get_db)) -> User:
-    """To'lov qo'shish — Hodim (o'z buyurtmasiga) va Moliyachi (barchasiga)."""
-    return require_role([UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT])(request, db)
-
-
-def manager_or_warehouse(request: Request, db: Session = Depends(get_db)) -> User:
-    """Qaytarishlar — ham Hodim (buyurtma tomonidan), ham Omborchi (ombor
-    tomonidan) kirishi kerak bo'lgan, ikkalasiga umumiy joy."""
-    return require_role([UserRole.ADMIN, UserRole.MANAGER, UserRole.WAREHOUSE])(request, db)
 
 
 def all_staff(request: Request, db: Session = Depends(get_db)) -> User:
@@ -491,7 +474,7 @@ def _login_egasi(db: Session, username: str):
 
 def create_user(db: Session, username: str, password: str,
                 role: UserRole, full_name: str = "",
-                company_id: int = None) -> User:
+                company_id: int = None, rol_id: int = None) -> User:
     # 2026-09-18 — M1: company_id endi MAJBURIY.
     # Ilgari berilmasa DEFAULT_COMPANY_ID (=1) qo'yilardi — ya'ni B korxona
     # admini yangi foydalanuvchi yaratsa, u A korxonaga tushib qolardi.
@@ -521,11 +504,22 @@ def create_user(db: Session, username: str, password: str,
     if existing:
         raise HTTPException(status_code=400, detail="Bu username band")
 
+    # kech118 (ROLLAR): har yangi foydalanuvchi korxonaning ROLIGA biriktiriladi. `rol_id` berilsa — shu rol (korxonaniki
+    # bo'lishi SHART), `role` rolga moslanadi (Admin roli — ADMIN); berilmasa — `role` turining tayyor roli.
+    if rol_id is not None:
+        rol = rol_of_company(db, rol_id, company_id)
+        if rol is None:
+            raise HTTPException(status_code=400, detail="Rol topilmadi")
+        role = rol_turi(rol)
+    else:
+        rol = tayyor_rol(db, company_id, _rx.ENUM_ROL.get(getattr(role, "value", role), "menejer"))
+
     user = User(
         company_id=company_id,
         username=username,
         password_hash=hash_password(password),
         role=role,
+        rol_id=rol.id if rol is not None else None,
         full_name=full_name,
         is_active=True,
         created_at=datetime.utcnow()
@@ -541,6 +535,82 @@ def create_user(db: Session, username: str, password: str,
         raise
     db.refresh(user)
     return user
+
+
+# ============================================================
+# Rollar (kech118 — egasi QARORI 15:23: «Hodim rollarini admin o'zi boshqaradigan qilaylik»)
+# ============================================================
+
+def rol_of_company(db: Session, rol_id, company_id: int):
+    """Rol FAQAT shu korxonadan (boshqa korxonaniki / yo'q — None)."""
+    try:
+        rid = int(rol_id)
+    except (TypeError, ValueError):
+        return None
+    return db.query(Rol).filter(Rol.id == rid, Rol.company_id == company_id).first()
+
+
+def rol_turi(rol) -> UserRole:
+    """Rol → `users.role` qiymati: Admin roli — ADMIN; tayyor rollar — eski turi; o'zi yaratilgan — MANAGER (faqat
+    ma'lumot uchun: huquq rol ruxsatlaridan olinadi)."""
+    return UserRole(_rx.ROL_ENUM.get(rol.kod or "", "manager"))
+
+
+def tayyor_rollar(db: Session, company_id: int, kodlar=None) -> dict:
+    """Korxonaning tayyor rollari {kod: Rol}; yo'qlari andozadan yaratiladi (COMMIT qiladi — chaqiruvchida yozilmagan
+    o'zgarish qolmasin). `kodlar` — qaysilari (standart: Admin, Menejer, Omborchi, Moliyachi). Parallel yaratishda
+    (noyoblik xatosi) — qayta o'qiladi. Nom band bo'lsa (admin shu nomli o'z rolini yaratgan) — «Menejer (tayyor)»."""
+    kodlar = tuple(kodlar or _rx.TAYYOR_TARTIB)
+    bor = {r.kod: r for r in db.query(Rol).filter(Rol.company_id == company_id, Rol.kod.in_(kodlar)).all()}
+    yoq = [k for k in kodlar if k not in bor]
+    if not yoq:
+        return bor
+    nomlar = {(n or "").strip().lower() for (n,) in db.query(Rol.nom).filter(Rol.company_id == company_id).all()}
+    for k in yoq:
+        a = _rx.TAYYOR_ROLLAR[k]
+        nom = a["nom"] if a["nom"].lower() not in nomlar else f"{a['nom']} (tayyor)"
+        nomlar.add(nom.lower())
+        db.add(Rol(company_id=company_id, nom=nom, tavsif=a["tavsif"], kod=k,
+                   ruxsatlar=_rx.ruxsatlar_json(a["ruxsatlar"]), created_at=datetime.utcnow()))
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+    return {r.kod: r for r in db.query(Rol).filter(Rol.company_id == company_id, Rol.kod.in_(kodlar)).all()}
+
+
+def tayyor_rol(db: Session, company_id: int, kod: str):
+    return tayyor_rollar(db, company_id, (kod,)).get(kod)
+
+
+def rol_foydalanuvchilari(db: Session, rol_id: int, company_id: int) -> list:
+    return (db.query(User).filter(User.company_id == company_id, User.rol_id == rol_id)
+            .order_by(User.username).all())
+
+
+def rol_biriktir(db: Session, user_id: int, rol_id: int, company_id: int, bajaruvchi) -> tuple:
+    """Foydalanuvchiga rol biriktiradi. Qoidalar: faqat o'z korxonasi; O'Z rolini o'zgartirib bo'lmaydi (Admin o'zini
+    tasodifan Admin emas qilib qo'ymasin); korxonada kamida bitta FAOL Admin qoladi. Qaytaradi: (user, eski_rol_nomi)."""
+    user = db.query(User).filter(User.id == user_id, User.company_id == company_id).first()
+    if user is None:
+        raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
+    rol = rol_of_company(db, rol_id, company_id)
+    if rol is None:
+        raise HTTPException(status_code=400, detail="Rol topilmadi")
+    if bajaruvchi is not None and user.id == bajaruvchi.id:
+        raise HTTPException(status_code=400, detail="O'z rolingizni o'zgartira olmaysiz")
+    yangi_tur = rol_turi(rol)
+    if user.role == UserRole.ADMIN and yangi_tur != UserRole.ADMIN and user.is_active:
+        boshqa = (db.query(User).filter(User.company_id == company_id, User.role == UserRole.ADMIN,
+                                        User.is_active == True, User.id != user.id).count())   # noqa: E712
+        if not boshqa:
+            raise HTTPException(status_code=400, detail="Korxonada kamida bitta faol Admin qolishi kerak")
+    eski = user.rol_nomi
+    user.rol_id = rol.id
+    user.role = yangi_tur
+    user.__dict__.pop("_ruxsat_kesh", None)
+    db.flush()
+    return user, eski
 
 
 def get_all_users(db: Session, company_id: int) -> list:
