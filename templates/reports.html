@@ -8,11 +8,11 @@
 @keyframes bi-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .bi-wrap{
   --b-bg:#F8F8F6; --b-card:#FFFFFF; --b-border:#E8E3DD;
-  --b-primary:#B9783F; --b-primary-tint:#F8F2EB;
-  --b-success:#22C55E; --b-success-tint:#F0FDF4;
-  --b-warning:#F59E0B; --b-warning-tint:#FFFBEB;
-  --b-danger:#EF4444; --b-danger-tint:#FEF2F2;
-  --b-text:#222222; --b-text2:#6B7280; --b-text3:#9CA3AF;
+  --b-primary:#9A6231; --b-primary-tint:#F8F2EB;
+  --b-success:#15803D; --b-success-tint:#F0FDF4;
+  --b-warning:#B45309; --b-warning-tint:#FFFBEB;
+  --b-danger:#DC2626; --b-danger-tint:#FEF2F2;
+  --b-text:#222222; --b-text2:#5B6170; --b-text3:#696D78;
   --b-radius:14px; --b-shadow:0 1px 2px rgba(24,27,34,.04),0 4px 16px rgba(24,27,34,.06);
   --b-shadow-hover:0 4px 8px rgba(24,27,34,.06),0 12px 28px rgba(24,27,34,.10);
   background:var(--b-bg); padding:16px; height:calc(100vh - 58px); overflow-y:auto; font-variant-numeric:tabular-nums;
@@ -28,7 +28,7 @@
 /* ── AI Summary ── */
 .bi-summary{background:linear-gradient(135deg,#F8F2EB,#FBF7F2);border:1px solid #E8D5C0;border-radius:var(--b-radius);padding:18px 22px;margin-bottom:24px;display:flex;gap:14px;align-items:flex-start}
 .bi-summary-icon{width:38px;height:38px;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;box-shadow:var(--b-shadow)}
-.bi-summary-title{font-size:13px;font-weight:700;color:#A86B36;margin-bottom:6px}
+.bi-summary-title{font-size:13px;font-weight:700;color:var(--gold-dark);margin-bottom:6px}
 .bi-summary-list{font-size:13px;color:#374151;line-height:1.9}
 
 /* ── Business Health (1-qator) ── */
@@ -39,8 +39,8 @@
 .bi-health-card:hover{transform:translateY(-2px);box-shadow:var(--b-shadow-hover)}
 .bi-health-dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:6px}
 .bi-health-label{font-size:12px;color:var(--b-text2);font-weight:600}
-.bi-health-status{font-size:11.5px;color:var(--b-text3);margin-top:4px}   /* kech115: har so'z bosh harf bilan emas */
-.bi-health-sabab{font-size:11px;color:var(--b-text3);margin-top:3px;line-height:1.35}
+.bi-health-status{font-size:12px;color:var(--b-text3);margin-top:4px}   /* kech115: har so'z bosh harf bilan emas */
+.bi-health-sabab{font-size:12px;color:var(--b-text3);margin-top:3px;line-height:1.35}
 
 /* ── KPI kartalar (2-qator) ── */
 .bi-kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
@@ -52,9 +52,9 @@
 .bi-kpi-card{background:var(--b-card);border:1px solid var(--b-border);border-radius:var(--b-radius);padding:18px;box-shadow:var(--b-shadow);transition:transform .18s,box-shadow .18s}
 .bi-kpi-card:hover{transform:translateY(-3px);box-shadow:var(--b-shadow-hover)}
 .bi-kpi-icon{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;margin-bottom:10px}
-.bi-kpi-label{font-size:11.5px;font-weight:600;color:var(--b-text3);text-transform:uppercase;letter-spacing:.03em}
+.bi-kpi-label{font-size:12px;font-weight:600;color:var(--b-text3);text-transform:uppercase;letter-spacing:.03em}
 .bi-kpi-value{font-size:22px;font-weight:800;color:var(--b-text);margin-top:4px;letter-spacing:-.01em}
-.bi-kpi-change{font-size:11.5px;margin-top:6px;display:flex;align-items:center;gap:3px;font-weight:600}
+.bi-kpi-change{font-size:12px;margin-top:6px;display:flex;align-items:center;gap:3px;font-weight:600}
 
 /* ── Filtr paneli (3-qator) ── */
 .bi-filterbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--b-card);border:1px solid var(--b-border);border-radius:12px;padding:10px 14px;box-shadow:var(--b-shadow)}
@@ -83,7 +83,7 @@
 @media(max-width:640px){.bi-top-grid{grid-template-columns:1fr}}
 .bi-top-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--b-border);font-size:12.5px}
 .bi-top-row:last-child{border-bottom:none}
-.bi-top-rank{width:18px;height:18px;border-radius:5px;background:var(--b-bg);color:var(--b-text3);font-size:10.5px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;margin-right:8px}
+.bi-top-rank{width:18px;height:18px;border-radius:5px;background:var(--b-bg);color:var(--b-text3);font-size:12px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;margin-right:8px}
 .bi-top-name{color:var(--b-text2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bi-top-val{font-weight:700;color:var(--b-text);flex-shrink:0;margin-left:6px}
 
@@ -113,7 +113,7 @@
 .bi-tab:hover:not(.active){background:var(--b-bg)}
 .bi-table-wrap{overflow-x:auto}
 .bi-table{width:100%;border-collapse:collapse;font-size:13px}
-.bi-table thead th{position:sticky;top:0;background:var(--b-card);text-align:left;padding:11px 14px;color:var(--b-text3);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid var(--b-border)}
+.bi-table thead th{position:sticky;top:0;background:var(--b-card);text-align:left;padding:11px 14px;color:var(--b-text3);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid var(--b-border)}
 .bi-table tbody td{padding:11px 14px;border-bottom:1px solid var(--b-border);color:var(--b-text2)}
 .bi-table tbody tr:nth-child(even){background:var(--b-bg)}
 .bi-table tbody tr:hover{background:var(--b-primary-tint)}
@@ -191,7 +191,7 @@
       <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:var(--b-warning-tint);color:var(--b-warning)"><i class="ti ti-arrows-exchange"></i></div><div class="bi-kpi-label">Pul oqimi</div><div class="bi-kpi-value" id="kpi-oqim">—</div><div class="bi-kpi-change" style="color:var(--b-text3)" id="kpi-oqim-sub">olingan − to'langan pul</div></div>
       <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:#E0F2FE;color:#0369A1"><i class="ti ti-cash"></i></div><div class="bi-kpi-label">Kassa</div><div class="bi-kpi-value" id="kpi-kassa">—</div><div class="bi-kpi-change" style="color:var(--b-text3)">hozirgi qoldiq</div></div>
       <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:#F3E8FF;color:#8E44AD"><i class="ti ti-clipboard-list"></i></div><div class="bi-kpi-label">Buyurtmalar</div><div class="bi-kpi-value" id="kpi-buyurtma">—</div><div class="bi-kpi-change" style="color:var(--b-text3)">shu davrda</div></div>
-      <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:#F8F2EB;color:#B9783F"><i class="ti ti-percentage"></i></div><div class="bi-kpi-label">Rentabellik</div><div class="bi-kpi-value" id="kpi-foiz">—</div><div class="bi-kpi-change" id="kpi-foiz-ch"></div></div>
+      <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:#F8F2EB;color:var(--gold-dark)"><i class="ti ti-percentage"></i></div><div class="bi-kpi-label">Rentabellik</div><div class="bi-kpi-value" id="kpi-foiz">—</div><div class="bi-kpi-change" id="kpi-foiz-ch"></div></div>
     </div>
     <div class="bi-kpi-tenglama" id="kpi-tenglama"></div>
   </div>
@@ -223,7 +223,7 @@
           <div class="bi-chart-sm" style="position:relative">
             <canvas id="expenseDonut"></canvas>
             <div id="donutCenterLabel" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;display:none">
-              <div style="font-size:10px;color:var(--b-text3);font-weight:600;text-transform:uppercase;letter-spacing:.03em">Jami</div>
+              <div style="font-size:12px;color:var(--b-text3);font-weight:600;text-transform:uppercase;letter-spacing:.03em">Jami</div>
               <div id="donutCenterValue" style="font-size:16px;font-weight:800;color:var(--b-text)">—</div>
             </div>
           </div>
@@ -255,22 +255,22 @@
 
   <!-- 6-QATOR: TOP REYTINGLAR -->
   <div class="bi-section">
-    <div class="bi-section-title"><i class="ti ti-trophy"></i> Top reytinglar</div>
+    <div class="bi-section-title"><i class="ti ti-trophy"></i> Reytinglar</div>
     <div class="bi-top-grid">
       <div class="bi-card bi-fade"><div class="bi-card-body">
-        <div style="font-size:12.5px;font-weight:700;color:var(--b-text3);text-transform:uppercase;letter-spacing:.03em;margin-bottom:10px">👤 Top mijozlar</div>
+        <div style="font-size:12.5px;font-weight:700;color:var(--b-text3);text-transform:uppercase;letter-spacing:.03em;margin-bottom:10px">👤 Eng yirik mijozlar</div>
         <div id="topCustomers"><div class="bi-empty" style="padding:16px 0">Yuklanmoqda...</div></div>
       </div></div>
       <div class="bi-card bi-fade"><div class="bi-card-body">
-        <div style="font-size:12.5px;font-weight:700;color:var(--b-text3);text-transform:uppercase;letter-spacing:.03em;margin-bottom:10px">📦 Top mahsulotlar (Tayyor)</div>
+        <div style="font-size:12.5px;font-weight:700;color:var(--b-text3);text-transform:uppercase;letter-spacing:.03em;margin-bottom:10px">📦 Ko'p sotilgan mahsulotlar (Tayyor)</div>
         <div id="topProducts"><div class="bi-empty" style="padding:16px 0">Yuklanmoqda...</div></div>
       </div></div>
       <div class="bi-card bi-fade"><div class="bi-card-body">
-        <div style="font-size:12.5px;font-weight:700;color:var(--b-text3);text-transform:uppercase;letter-spacing:.03em;margin-bottom:10px">🧱 Top xomashyo sarfi</div>
+        <div style="font-size:12.5px;font-weight:700;color:var(--b-text3);text-transform:uppercase;letter-spacing:.03em;margin-bottom:10px">🧱 Eng ko'p sarflangan xomashyo</div>
         <div id="topMaterials"><div class="bi-empty" style="padding:16px 0">Yuklanmoqda...</div></div>
       </div></div>
       <div class="bi-card bi-fade"><div class="bi-card-body">
-        <div style="font-size:12.5px;font-weight:700;color:var(--b-text3);text-transform:uppercase;letter-spacing:.03em;margin-bottom:10px">🚚 Top yetkazib beruvchilar</div>
+        <div style="font-size:12.5px;font-weight:700;color:var(--b-text3);text-transform:uppercase;letter-spacing:.03em;margin-bottom:10px">🚚 Eng yirik yetkazib beruvchilar</div>
         <div id="topSuppliers"><div class="bi-empty" style="padding:16px 0">Yuklanmoqda...</div></div>
       </div></div>
     </div>
@@ -362,9 +362,9 @@ function fmtQty(n){
   // "1"ga aylantirib yubormaslik uchun), faqat 2 xonagacha yaxlitlab,
   // ortiqcha nollarni olib tashlaymiz (masalan "630.52", "45" — "0" emas).
   const v = parseFloat(n) || 0;
-  return v.toFixed(2).replace(/\.?0+$/, '') || '0';
+  return sonKor(v, 2);   // kech118 (U-05): kasr — vergul («630,52»)
 }
-function fmtShort(n){ if(Math.abs(n)>=1e6) return (n/1e6).toFixed(1)+' mln'; if(Math.abs(n)>=1e3) return (n/1e3).toFixed(0)+' ming'; return Math.round(n||0).toString(); }
+function fmtShort(n){ if(Math.abs(n)>=1e6) return (n/1e6).toFixed(1).replace('.', ',')+' mln'; if(Math.abs(n)>=1e3) return (n/1e3).toFixed(0)+' ming'; return Math.round(n||0).toString(); }
 const MONTH_NAMES=['','Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust','Sentabr','Oktabr','Noyabr','Dekabr'];
 
 const TITLES = {
@@ -419,7 +419,7 @@ async function loadKpi(){
     document.getElementById('kpi-xarajat').textContent = fmtShort(cur.jami_xarajat)+" so'm";
     document.getElementById('kpi-foyda').textContent = fmtShort(cur.sof_foyda)+" so'm";
     document.getElementById('kpi-buyurtma').textContent = cur.buyurtmalar_soni+' ta';
-    document.getElementById('kpi-foiz').textContent = cur.foyda_foiz+'%';
+    document.getElementById('kpi-foiz').textContent = foizKor(cur.foyda_foiz);
     document.getElementById('kpi-tenglama').innerHTML =
       `Daromad <b>${escapeHtml(fmtShort(cur.daromad))}</b> − Tannarx <b>${escapeHtml(fmtShort(tannarx))}</b> − Xarajat `
       + `<b>${escapeHtml(fmtShort(cur.jami_xarajat))}</b> = Sof foyda <b>${escapeHtml(fmtShort(cur.sof_foyda))}</b> so'm`;
@@ -606,7 +606,7 @@ async function loadCashFlowBars(){
   el.innerHTML = `
     <div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13px;color:var(--b-text2);font-weight:600">Kirim (olingan pul)</span><span style="font-weight:700;color:var(--b-success)" id="fb-kirim-summa">${fmt(kirim)} so'm</span></div><div class="bi-flow-track"><div class="bi-flow-fill" id="fb-kirim" style="background:var(--b-success)"></div></div><div id="fb-kirim-tarkib" style="margin-top:6px">${tarkib(po.kirim_qatorlar)}</div></div>
     <div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13px;color:var(--b-text2);font-weight:600">Chiqim (to'langan pul)</span><span style="font-weight:700;color:var(--b-danger)" id="fb-chiqim-summa">${fmt(chiqim)} so'm</span></div><div class="bi-flow-track"><div class="bi-flow-fill" id="fb-chiqim" style="background:var(--b-danger)"></div></div><div id="fb-chiqim-tarkib" style="margin-top:6px">${tarkib(po.chiqim_qatorlar)}</div></div>
-    <div style="text-align:center;padding:12px;border-radius:10px;background:${balans>=0?'var(--b-primary-tint)':'var(--b-warning-tint)'}"><span style="font-size:13px;font-weight:600;color:${balans>=0?'#A86B36':'#92400E'}">Balans: </span><span style="font-size:16px;font-weight:800;color:${balans>=0?'#A86B36':'#92400E'}" id="fb-balans">${fmt(balans)} so'm</span></div>`;
+    <div style="text-align:center;padding:12px;border-radius:10px;background:${balans>=0?'var(--b-primary-tint)':'var(--b-warning-tint)'}"><span style="font-size:13px;font-weight:600;color:${balans>=0?'#8F5B2A':'#92400E'}">Balans: </span><span style="font-size:16px;font-weight:800;color:${balans>=0?'#8F5B2A':'#92400E'}" id="fb-balans">${fmt(balans)} so'm</span></div>`;
   requestAnimationFrame(()=>setTimeout(()=>{
     const k = document.getElementById('fb-kirim'), c = document.getElementById('fb-chiqim');
     if (k) k.style.width = (kirim/maxV*100)+'%';
@@ -650,9 +650,10 @@ function ozgarishKorinishi(key, v) {
   const up = v.holat ? v.holat === 'oshdi' : Number(v.change_pct) > 0;
   const good = key === 'jami_xarajat' ? !up : up;
   const foiz = Math.abs(Number(v.change_pct));
-  return { html: `<i class="ti ti-arrow-${up ? 'up-right' : 'down-right'}"></i> ${foiz}%`,
+  // kech118 (U-05): kasr — vergul («12,5%»)
+  return { html: `<i class="ti ti-arrow-${up ? 'up-right' : 'down-right'}"></i> ${foizKor(foiz)}`,
            rang: good ? 'var(--b-success)' : 'var(--b-danger)', foizli: true,
-           matn: `${foiz}% ${up ? 'oshdi' : 'kamaydi'}`, yaxshi: good };
+           matn: `${foizKor(foiz)} ${up ? 'oshdi' : 'kamaydi'}`, yaxshi: good };
 }
 
 // ═══ 7. TAQQOSLASH ═══
@@ -688,7 +689,7 @@ async function loadForecast(){
         </div>
         <div class="bi-forecast-item">
           <div style="font-size:12px;color:var(--b-text3);font-weight:600;text-transform:uppercase">Taxminiy sof foyda</div>
-          <div style="font-size:22px;font-weight:800;color:${fc.forecast_foyda>=0?'#8E44AD':'#EF4444'};margin-top:6px">${fmt(fc.forecast_foyda)} so'm</div>
+          <div style="font-size:22px;font-weight:800;color:${fc.forecast_foyda>=0?'#8E44AD':'#DC2626'};margin-top:6px">${fmt(fc.forecast_foyda)} so'm</div>
           <div class="bi-forecast-bar-track"><div class="bi-forecast-bar-fill" style="width:${pct}%;background:#8E44AD"></div></div>
         </div>
         <div class="bi-forecast-item">
@@ -729,12 +730,12 @@ async function buildAiSummary(alerts){
     const qator = (nom, key, v) => {
       const o = ozgarishKorinishi(key, v);
       const rang = o.foizli ? (o.yaxshi ? '#22C55E' : '#EF4444') : '#6B7280';
-      return `${escapeHtml(nom)} o'tgan oyga nisbatan <b style="color:${rang}">${escapeHtml(o.matn)}</b>`;
+      return `${escapeHtml(nom)} o'tgan oyga nisbatan <b style="color:${matnRangi(rang, 1)}">${escapeHtml(o.matn)}</b>`;
     };
     if (comp.daromad) lines.push(qator('Daromad', 'daromad', comp.daromad));
     if (comp.sof_foyda) {
       if (Number(comp.sof_foyda.current) < 0) {
-        lines.push(`Bu oy <b style="color:#EF4444">zarar: ${escapeHtml(fmtShort(comp.sof_foyda.current))} so'm</b>`);
+        lines.push(`Bu oy <b style="color:#B91C1C">zarar: ${escapeHtml(fmtShort(comp.sof_foyda.current))} so'm</b>`);
       } else {
         lines.push(qator('Sof foyda', 'sof_foyda', comp.sof_foyda));
       }
@@ -884,7 +885,7 @@ async function loadReport() {
     else if (currentReport === 'top-products') await loadTopProducts();
     else if (currentReport === 'top-materials') await loadTopMaterials();
   } catch(e) {
-    document.getElementById('repBody').innerHTML = `<tr><td style="text-align:center;padding:30px;color:#EF4444">Yuklashda xato</td></tr>`;
+    document.getElementById('repBody').innerHTML = `<tr><td style="text-align:center;padding:30px;color:#DC2626">Yuklashda xato</td></tr>`;
     console.error(e);
   }
 }
@@ -905,7 +906,7 @@ async function loadInventoryReport() {
     if (!cat || cat === '—') return '—';
     const key = cat.toLowerCase();
     const [bg, fg] = CAT_COLORS[key] || ['var(--b-bg)','var(--b-text2)'];
-    return `<span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:11.5px;font-weight:600;background:${bg};color:${fg}">${escapeHtml(cat)}</span>`;
+    return `<span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;background:${bg};color:${matnRangi(fg, 1)}">${escapeHtml(cat)}</span>`;
   }
   function stockDot(i) {
     const qty = i.stock_quantity;
@@ -926,7 +927,7 @@ async function loadInventoryReport() {
     ["Qoldiq", i => `${stockDot(i)}${fmtQty(i.stock_quantity)} ${escapeHtml(i.unit)}`],
     ["Min. qoldiq", i => `${fmtQty(i.min_stock)} ${escapeHtml(i.unit)}`],
     ["1 birlik narxi", i => fmt(i.price_per_unit) + " so'm"],
-    ["Jami qiymat", i => `<span style="color:${(i.stock_quantity * (i.price_per_unit||0)) < 0 ? '#EF4444' : '#16A34A'};font-weight:600">${fmt(i.stock_quantity * (i.price_per_unit||0))} so'm</span>`],
+    ["Jami qiymat", i => `<span style="color:${(i.stock_quantity * (i.price_per_unit||0)) < 0 ? '#DC2626' : '#15803D'};font-weight:600">${fmt(i.stock_quantity * (i.price_per_unit||0))} so'm</span>`],
   ], items);
 
   // Jami ombor qiymati — kartochka ko'rinishida, jadval ostida
@@ -937,7 +938,7 @@ async function loadInventoryReport() {
     totalBox.innerHTML = `
       <div style="width:46px;height:46px;border-radius:12px;background:var(--b-primary-tint);color:var(--b-primary);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0"><i class="ti ti-building-warehouse"></i></div>
       <div>
-        <div style="font-size:11.5px;color:var(--b-text3);font-weight:600;text-transform:uppercase;letter-spacing:.03em">Jami ombor qiymati</div>
+        <div style="font-size:12px;color:var(--b-text3);font-weight:600;text-transform:uppercase;letter-spacing:.03em">Jami ombor qiymati</div>
         <div style="font-size:22px;font-weight:800;color:var(--b-primary)">${fmt(totalVal)} so'm</div>
       </div>`;
   }
@@ -951,7 +952,7 @@ async function loadSalesReport() {
     ["Daromad", h => fmt(h.daromad) + " so'm"],
     ["Buyurtmalar soni", h => h.buyurtmalar_soni + ' ta'],
     ["Sof foyda", h => fmt(h.sof_foyda) + " so'm"],
-    ["Rentabellik", h => h.foyda_foiz + '%'],
+    ["Rentabellik", h => foizKor(h.foyda_foiz)],
   ], hist);
 }
 
@@ -975,7 +976,7 @@ async function loadMastersReport() {
     ["Buyurtmalar", m => m.orders_count + ' ta'],
     ["Yillik savdo", m => fmt(m.yearly_sales) + " so'm"],
     ["Yillik foyda", m => fmt(m.yearly_profit) + " so'm"],
-    ["KPI %", m => m.kpi_percent + '%'],
+    ["KPI %", m => foizKor(m.kpi_percent)],
     ["Bonus", m => fmt(m.gift_amount) + " so'm"],
   ], rep.masters);
 
@@ -1001,7 +1002,7 @@ async function loadFinanceReport() {
     ["Daromad", h => fmt(h.daromad) + " so'm"],
     ["Xarajat", h => fmt(h.jami_xarajat) + " so'm"],
     ["Sof foyda", h => fmt(h.sof_foyda) + " so'm"],
-    ["Rentabellik", h => h.foyda_foiz + '%'],
+    ["Rentabellik", h => foizKor(h.foyda_foiz)],
   ], hist);
 }
 
@@ -1011,7 +1012,7 @@ async function loadProductionReport() {
     ["Nomi", i => escapeHtml(i.name)],
     ["Holati", i => i.production_status === 'in_progress' ? "Jarayonda" : "Tayyor"],
     ["Miqdor", i => `${i.quantity} ${escapeHtml(i.unit)}`],
-    ["Sarflangan penoplast", i => (i.volume_m3||0).toFixed(3) + ' m³'],
+    ["Sarflangan penoplast", i => sonKor(i.volume_m3||0, 3) + ' m³'],
     ["Tan narxi", i => fmt(i.cost_price) + " so'm"],
   ], items);
 }

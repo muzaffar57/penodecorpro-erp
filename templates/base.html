@@ -138,21 +138,36 @@ function tkDate(v) {
   const SILJISH_MS = 5 * 60 * 60 * 1000;
   return new Date((arguments.length ? tkMs(v) : Date.now()) + SILJISH_MS);
 }
-function tkSana(v, til, opt) {   // "01/10/2026" ('uz'), "01.10.2026" ('ru-RU'); qiymat yo'q — ''
+// kech118 (B — U-05, O'LCHANGAN: audit Chromium da 'uz' tili «2026-09-29» va «2026 M09 29» berdi — brauzerning o'zbek
+// tili ma'lumotiga bog'liq): standart ('uz' / til berilmagan) ko'rinish — QO'LDA, har brauzerda bir xil: sana «01.10.2026»,
+// oy nomi bilan «1-oktabr, 2026», vaqt «01:30». Boshqa til ('ru-RU') — brauzerning o'zi (avvalgidek). Yangi global nom YO'Q
+// (oy nomlari va nol qo'shish — funksiya ichida): sahifadan funksiya olib ishlatadigan testlar o'zgarmaydi.
+function tkSana(v, til, opt) {   // "01.10.2026" ('uz'); {month: 'long'} — "1-oktabr, 2026"; 'ru-RU' — brauzer; yo'q — ''
   const d = tkDate(v);
-  return isNaN(d.getTime()) ? '' : d.toLocaleDateString(til || 'uz', Object.assign({}, opt || {}, {timeZone: 'UTC'}));
+  if (isNaN(d.getTime())) return '';
+  if (til && til !== 'uz') return d.toLocaleDateString(til, Object.assign({}, opt || {}, {timeZone: 'UTC'}));
+  const k = d.getUTCDate(), o = d.getUTCMonth(), y = d.getUTCFullYear();
+  if (opt && opt.month === 'long') {
+    const OY = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avgust', 'sentabr', 'oktabr', 'noyabr', 'dekabr'];
+    return k + '-' + OY[o] + (opt.year ? ', ' + y : '');
+  }
+  return String(k).padStart(2, '0') + '.' + String(o + 1).padStart(2, '0') + '.' + y;
 }
 function tkVaqt(v, til) {        // "01:30"
   const d = tkDate(v);
-  return isNaN(d.getTime()) ? '' : d.toLocaleTimeString(til || 'uz', {hour: '2-digit', minute: '2-digit', timeZone: 'UTC'});
+  if (isNaN(d.getTime())) return '';
+  if (til && til !== 'uz') return d.toLocaleTimeString(til, {hour: '2-digit', minute: '2-digit', timeZone: 'UTC'});
+  return String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0');
 }
-function tkSanaVaqt(v) {         // "01/10/2026 01:30"
+function tkSanaVaqt(v) {         // "01.10.2026 01:30"
   const s = tkSana(v);
   return s ? s + ' ' + tkVaqt(v) : '';
 }
-function tkToliq(v, til) {       // "01/10/2026, 01:30:00" (toLocaleString)
+function tkToliq(v, til) {       // "01.10.2026, 01:30:00"
   const d = tkDate(v);
-  return isNaN(d.getTime()) ? '' : d.toLocaleString(til || 'uz', {timeZone: 'UTC'});
+  if (isNaN(d.getTime())) return '';
+  if (til && til !== 'uz') return d.toLocaleString(til, {timeZone: 'UTC'});
+  return tkSana(v) + ', ' + tkVaqt(v) + ':' + String(d.getUTCSeconds()).padStart(2, '0');
 }
 function tkISO(v) {              // "2026-10-01" — Toshkent sanasi (<input type="date">); argumentsiz — BUGUN
   const d = arguments.length ? tkDate(v) : tkDate();
@@ -205,13 +220,47 @@ async function serverXatoSababi(res, standart) {
 // kech115 (G3-10 / G1-04, O'LCHANGAN — audit: zarar oyida «−2618028 so'm» ajratgichsiz, «Pul oqimi» minussiz): qisqa
 // summa — YAGONA qoida (Moliya, Dashboard): chegara MODUL bo'yicha (manfiy son ham «mln» / «ming»), ishora saqlanadi,
 // 1 000 dan kichigi ajratgich bilan. Ishora — `toLocaleString('ru-RU')` dagi kabi «-».
+// kech118 (B — U-05, O'LCHANGAN: audit — nuqtali kasr 96 joyda («1.0 mln», «354.0 kg», «-156.4%»), vergulli boshqa
+// joyda): son KO'RINISHI — YAGONA qoida: ming ajratgich — bo'sh joy, kasr — VERGUL, ortiqcha nolsiz («1 234,5», «354»).
+// FAQAT ko'rsatish uchun (maydon qiymati — nuqtali son, o'zgarmaydi). `sonKor(x, kasr)` — eng ko'pi `kasr` xona (standart 2);
+// `foizKor(x, kasr)` — «-156,4%» (standart 1); `birlikKor(b)` — foydalanuvchi yozgan «m2» / «m3» → «m²» / «m³».
+function sonKor(x, kasr) {
+  const n = Number(x);
+  if (x === null || x === undefined || x === '' || !isFinite(n)) return '—';
+  const k = (kasr === undefined || kasr === null) ? 2 : kasr;
+  const s = n.toLocaleString('ru-RU', {maximumFractionDigits: k, minimumFractionDigits: 0});
+  return (s === '-0' || s === '−0') ? '0' : s;
+}
+function foizKor(x, kasr) {
+  const s = sonKor(x, (kasr === undefined || kasr === null) ? 1 : kasr);
+  return s === '—' ? s : s + '%';
+}
+// kech118 (U-03): holat rangi chiziq / nuqta (fon) uchun yorqin, YOZUV uchun — to'q tusi (oq fonda ≥ 4.5:1)
+// `fon` — yozuv och RANGLI fon (holat rangining och tusi: #FEF2F2, #F0FDF4 …) ustida: undan ham to'qroq tus (≥ 5:1)
+function matnRangi(c, fon) {
+  const T = {'#22c55e': '#15803D', '#16a34a': '#15803D', '#f59e0b': '#B45309', '#d97706': '#B45309', '#ef4444': '#DC2626',
+             '#0ea5e9': '#0369A1', '#94a3b8': '#696D78', '#9ca3af': '#696D78', '#b9783f': '#8F5B2A', '#a86b36': '#8F5B2A',
+             '#b7770d': '#92400E', '#ca8a04': '#854D0E', '#eab308': '#854D0E', '#0891b2': '#0E7490', '#06b6d4': '#0E7490',
+             '#db2777': '#BE185D', '#ec4899': '#BE185D', '#f97316': '#C2410C', '#ea580c': '#C2410C', '#3b82f6': '#1D4ED8',
+             '#64748b': '#475569', '#bdc3c7': '#696D78', '#95a5a6': '#696D78', '#7f8c8d': '#5B6170', '#10b981': '#047857',
+             '#0d9488': '#0F766E', '#8b5cf6': '#6D28D9', '#6b7280': '#5B6170'};
+  const F = {'#15803d': '#166534', '#dc2626': '#B91C1C', '#b45309': '#92400E', '#0369a1': '#075985', '#696d78': '#5B6170',
+             '#8f5b2a': '#7A4D23', '#be185d': '#9D174D', '#0e7490': '#155E75', '#c2410c': '#9A3412'};
+  const k = String(c || '').toLowerCase();
+  const t = T[k] || c;
+  return (fon && F[String(t || '').toLowerCase()]) || t;
+}
+function birlikKor(b) {
+  const s = (b === null || b === undefined) ? '' : String(b);
+  return s.replace(/^(m|sm|mm)2$/i, (a, u) => u.toLowerCase() + '²').replace(/^(m|sm|mm)3$/i, (a, u) => u.toLowerCase() + '³');
+}
 function qisqaSumma(n) {
   const x = Number(n) || 0;
   const a = Math.abs(x);
-  // chegara — ko'rinishdagi yaxlitlashdan keyin (999 999.6 → «1.0 mln», 999.6 → «1 ming», «1000 ming» / «1000» emas);
+  // chegara — ko'rinishdagi yaxlitlashdan keyin (999 999.6 → «1,0 mln», 999.6 → «1 ming», «1000 ming» / «1000» emas);
   // yaxlitlanib 0 bo'lgan manfiy — «0» («-0» emas)
   const b = (x < 0 && Math.round(a) !== 0) ? '-' : '';
-  if (a >= 999500) return b + (a / 1e6).toFixed(1) + ' mln';
+  if (a >= 999500) return b + (a / 1e6).toFixed(1).replace('.', ',') + ' mln';   // kech118 (U-05): kasr — vergul
   if (a >= 999.5) return b + (a / 1e3).toFixed(0) + ' ming';
   return b + Math.round(a).toString();
 }
@@ -841,7 +890,7 @@ function jsAttrEscape(str) {
         <div id="notifWrap" style="position:relative;margin-right:10px">
           <button id="notifBell" onclick="toggleNotifPanel()" style="position:relative;width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2)">
             <i class="ti ti-bell" style="font-size:17px"></i>
-            <span id="notifBadge" style="display:none;position:absolute;top:-4px;right:-4px;background:#EF4444;color:#fff;font-size:9px;font-weight:700;min-width:16px;height:16px;border-radius:8px;align-items:center;justify-content:center;padding:0 3px">0</span>
+            <span id="notifBadge" style="display:none;position:absolute;top:-4px;right:-4px;background:#EF4444;color:#fff;font-size:12px;font-weight:700;min-width:16px;height:16px;border-radius:8px;align-items:center;justify-content:center;padding:0 3px">0</span>
           </button>
           <div id="notifPanel" style="display:none;position:absolute;top:44px;right:0;width:340px;max-width:calc(100vw - 24px);max-height:420px;overflow-y:auto;background:var(--white);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-card);z-index:1000">
             <div style="padding:12px 16px;border-bottom:1px solid var(--border2);font-size:13px;font-weight:600;color:var(--text)">Bildirishnomalar</div>

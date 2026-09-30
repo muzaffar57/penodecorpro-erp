@@ -9,12 +9,12 @@
     body{background:#f8f8f6;margin:0;min-height:100vh}
     .h-topbar{background:#fff;border-bottom:1px solid #eee;padding:16px 20px;display:flex;justify-content:space-between;align-items:center}
     .h-topbar .name{font-size:15px;font-weight:700;color:#111}
-    .h-topbar .role{font-size:12px;color:#999}
+    .h-topbar .role{font-size:12px;color:var(--text3)}
     .h-logout{font-size:13px;color:#DC2626;text-decoration:none;padding:8px 12px;border-radius:7px;border:1px solid #FADBD8}
     .h-body{max-width:480px;margin:0 auto;padding:18px}
     .h-card{background:#fff;border-radius:16px;border:1px solid #ebebeb;padding:22px;margin-bottom:16px}
     .h-card-title{font-size:16px;font-weight:700;color:#111;margin-bottom:16px;display:flex;align-items:center;gap:8px}
-    .field-label{font-size:11px;color:#999;font-weight:500;text-transform:uppercase;letter-spacing:.3px;margin-bottom:5px;display:block}
+    .field-label{font-size:12px;color:var(--text3);font-weight:500;text-transform:uppercase;letter-spacing:.3px;margin-bottom:5px;display:block}
     .field-input{width:100%;padding:13px 14px;border:1.5px solid #e8e8e8;border-radius:9px;font-size:16px;color:#111;outline:none;background:#fafafa;margin-bottom:14px;box-sizing:border-box}
     .field-input:focus{border-color:#2563EB;background:#fff}
     .h-btn{width:100%;padding:14px;background:#2563EB;color:#fff;border:none;border-radius:9px;font-size:15px;font-weight:600;cursor:pointer}
@@ -25,12 +25,12 @@
     .req-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #f5f5f5}
     .req-row:last-child{border-bottom:none}
     .req-amount{font-weight:700;font-size:14.5px;color:#111}
-    .req-date{font-size:12px;color:#999;margin-top:2px}
-    .req-status{font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px}
-    .st-pending{background:#FFFBEB;color:#D97706}
+    .req-date{font-size:12px;color:var(--text3);margin-top:2px}
+    .req-status{font-size:12px;font-weight:700;padding:4px 10px;border-radius:20px}
+    .st-pending{background:#FFFBEB;color:#B45309}
     .st-confirmed{background:#DCFCE7;color:#166534}
     .st-rejected{background:#FEE2E2;color:#DC2626}
-    .empty{text-align:center;padding:24px;color:#bbb;font-size:13px}
+    .empty{text-align:center;padding:24px;color:var(--text3);font-size:13px}
   </style>
 </head>
 <body>
@@ -58,7 +58,7 @@
 
         <button type="submit" class="h-btn" id="submit-btn">Yuborish</button>
       </form>
-      <div style="font-size:12px;color:#aaa;margin-top:10px;text-align:center">
+      <div style="font-size:12px;color:var(--text3);margin-top:10px;text-align:center">
         Yuborilgandan keyin — admin tasdiqlashi kerak
       </div>
     </div>
@@ -107,21 +107,36 @@ function tkDate(v) {
   const SILJISH_MS = 5 * 60 * 60 * 1000;
   return new Date((arguments.length ? tkMs(v) : Date.now()) + SILJISH_MS);
 }
-function tkSana(v, til, opt) {   // "01/10/2026" ('uz'), "01.10.2026" ('ru-RU'); qiymat yo'q — ''
+// kech118 (B — U-05, O'LCHANGAN: audit Chromium da 'uz' tili «2026-09-29» va «2026 M09 29» berdi — brauzerning o'zbek
+// tili ma'lumotiga bog'liq): standart ('uz' / til berilmagan) ko'rinish — QO'LDA, har brauzerda bir xil: sana «01.10.2026»,
+// oy nomi bilan «1-oktabr, 2026», vaqt «01:30». Boshqa til ('ru-RU') — brauzerning o'zi (avvalgidek). Yangi global nom YO'Q
+// (oy nomlari va nol qo'shish — funksiya ichida): sahifadan funksiya olib ishlatadigan testlar o'zgarmaydi.
+function tkSana(v, til, opt) {   // "01.10.2026" ('uz'); {month: 'long'} — "1-oktabr, 2026"; 'ru-RU' — brauzer; yo'q — ''
   const d = tkDate(v);
-  return isNaN(d.getTime()) ? '' : d.toLocaleDateString(til || 'uz', Object.assign({}, opt || {}, {timeZone: 'UTC'}));
+  if (isNaN(d.getTime())) return '';
+  if (til && til !== 'uz') return d.toLocaleDateString(til, Object.assign({}, opt || {}, {timeZone: 'UTC'}));
+  const k = d.getUTCDate(), o = d.getUTCMonth(), y = d.getUTCFullYear();
+  if (opt && opt.month === 'long') {
+    const OY = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avgust', 'sentabr', 'oktabr', 'noyabr', 'dekabr'];
+    return k + '-' + OY[o] + (opt.year ? ', ' + y : '');
+  }
+  return String(k).padStart(2, '0') + '.' + String(o + 1).padStart(2, '0') + '.' + y;
 }
 function tkVaqt(v, til) {        // "01:30"
   const d = tkDate(v);
-  return isNaN(d.getTime()) ? '' : d.toLocaleTimeString(til || 'uz', {hour: '2-digit', minute: '2-digit', timeZone: 'UTC'});
+  if (isNaN(d.getTime())) return '';
+  if (til && til !== 'uz') return d.toLocaleTimeString(til, {hour: '2-digit', minute: '2-digit', timeZone: 'UTC'});
+  return String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0');
 }
-function tkSanaVaqt(v) {         // "01/10/2026 01:30"
+function tkSanaVaqt(v) {         // "01.10.2026 01:30"
   const s = tkSana(v);
   return s ? s + ' ' + tkVaqt(v) : '';
 }
-function tkToliq(v, til) {       // "01/10/2026, 01:30:00" (toLocaleString)
+function tkToliq(v, til) {       // "01.10.2026, 01:30:00"
   const d = tkDate(v);
-  return isNaN(d.getTime()) ? '' : d.toLocaleString(til || 'uz', {timeZone: 'UTC'});
+  if (isNaN(d.getTime())) return '';
+  if (til && til !== 'uz') return d.toLocaleString(til, {timeZone: 'UTC'});
+  return tkSana(v) + ', ' + tkVaqt(v) + ':' + String(d.getUTCSeconds()).padStart(2, '0');
 }
 function tkISO(v) {              // "2026-10-01" — Toshkent sanasi (<input type="date">); argumentsiz — BUGUN
   const d = arguments.length ? tkDate(v) : tkDate();

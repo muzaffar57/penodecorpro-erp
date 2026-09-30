@@ -6,7 +6,7 @@
 {% block head %}
 <style>
 /* kech117 (A2): Sozlamalar — yo'nalishlar ro'yxati belgilari */
-.yon-chip{display:inline-block;font-size:11px;font-weight:600;color:var(--text3);background:var(--bg);padding:2px 8px;border-radius:10px;white-space:nowrap}
+.yon-chip{display:inline-block;font-size:12px;font-weight:600;color:var(--text3);background:var(--bg);padding:2px 8px;border-radius:10px;white-space:nowrap}
 .yon-chip.yon-asosiy{color:#1E40AF;background:#EFF6FF}
 .yon-chip.yon-yashirin{color:#92400E;background:#FEF3C7}
 </style>
@@ -69,7 +69,7 @@
         </div>
         <div style="font-size:12px;color:var(--text3);margin-top:4px">{{ e.method or '' }} {{ e.endpoint or '' }} {% if e.performed_by %}· {{ e.performed_by }}{% endif %} <span style="color:var(--f-primary,#B9783F)">— bosib to'liq ko'ring ▾</span></div>
         {% if e.stack_trace %}
-        <pre class="err-detail" style="display:none;margin-top:10px;padding:12px;background:#1F2937;color:#E5E7EB;border-radius:8px;font-size:11.5px;white-space:pre-wrap;word-break:break-word;max-height:400px;overflow-y:auto">{{ e.stack_trace }}</pre>
+        <pre class="err-detail" style="display:none;margin-top:10px;padding:12px;background:#1F2937;color:#E5E7EB;border-radius:8px;font-size:12px;white-space:pre-wrap;word-break:break-word;max-height:400px;overflow-y:auto">{{ e.stack_trace }}</pre>
         {% endif %}
       </div>
       {% endfor %}
@@ -103,9 +103,9 @@
           <div style="font-size:12px;color:var(--text3);white-space:nowrap">{{ a.performed_by or '—' }} · {{ a.created_at|toshkent }}</div>
         </div>
         {% if a.action == 'updated' and a.old_value and a.new_value %}
-        <div style="font-size:11.5px;color:var(--text3);margin-top:3px;padding-left:22px">{{ a.old_value }} <span style="color:var(--gold-dark)">→</span> {{ a.new_value }}</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:3px;padding-left:22px">{{ a.old_value }} <span style="color:var(--gold-dark)">→</span> {{ a.new_value }}</div>
         {% elif a.new_value %}
-        <div style="font-size:11.5px;color:var(--text3);margin-top:3px;padding-left:22px">{{ a.new_value }}</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:3px;padding-left:22px">{{ a.new_value }}</div>
         {% endif %}
       </div>
       {% endfor %}
@@ -136,31 +136,31 @@
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
         <div>
-          <label style="display:block;font-size:11.5px;color:var(--text3);margin-bottom:4px">Nomi</label>
+          <label style="display:block;font-size:12px;color:var(--text3);margin-bottom:4px">Nomi</label>
           <input type="text" id="co-name" class="input-field" maxlength="200"
                  style="width:280px" placeholder="Korxona nomi">
         </div>
         <div>
-          <label style="display:block;font-size:11.5px;color:var(--text3);margin-bottom:4px">Shiori</label>
+          <label style="display:block;font-size:12px;color:var(--text3);margin-bottom:4px">Shiori</label>
           <input type="text" id="co-slogan" class="input-field" maxlength="150"
                  style="width:220px" placeholder="Fasad bezaklari">
         </div>
         <div>
-          <label style="display:block;font-size:11.5px;color:var(--text3);margin-bottom:4px">Telegram: ustaga salom shiori</label>
+          <label style="display:block;font-size:12px;color:var(--text3);margin-bottom:4px">Telegram: ustaga salom shiori</label>
           <input type="text" id="co-tg-tagline" class="input-field" maxlength="150"
                  style="width:280px" placeholder="bo'sh qoldirilsa — chiqmaydi">
-          <div style="font-size:11px;color:var(--text3);margin-top:3px">
+          <div style="font-size:12px;color:var(--text3);margin-top:3px">
             Yangi usta qo'shilganda botdagi salom xabari oxirida nom yonida chiqadi</div>
         </div>
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
         <div>
-          <label style="display:block;font-size:11.5px;color:var(--text3);margin-bottom:4px">Telefon</label>
+          <label style="display:block;font-size:12px;color:var(--text3);margin-bottom:4px">Telefon</label>
           <input type="text" id="co-phone" class="input-field" maxlength="60"
                  style="width:200px" placeholder="+998 90 123 45 67">
         </div>
         <div>
-          <label style="display:block;font-size:11.5px;color:var(--text3);margin-bottom:4px">Manzil</label>
+          <label style="display:block;font-size:12px;color:var(--text3);margin-bottom:4px">Manzil</label>
           <input type="text" id="co-address" class="input-field" maxlength="200"
                  style="width:220px" placeholder="Andijon">
         </div>
@@ -207,7 +207,7 @@
       <div id="yon-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">Yuklanmoqda…</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
         <div>
-          <label for="yon-yangi" style="display:block;font-size:11.5px;color:var(--text3);margin-bottom:4px">Yangi yo'nalish</label>
+          <label for="yon-yangi" style="display:block;font-size:12px;color:var(--text3);margin-bottom:4px">Yangi yo'nalish</label>
           <input type="text" id="yon-yangi" class="input-field" maxlength="60" style="width:260px"
                  placeholder="Masalan: Metall konstruksiya">
         </div>
@@ -224,12 +224,12 @@
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">
         <div>
-          <label style="display:block;font-size:11.5px;color:var(--text3);margin-bottom:4px">Bot tokeni</label>
+          <label style="display:block;font-size:12px;color:var(--text3);margin-bottom:4px">Bot tokeni</label>
           <input type="text" id="tg-token" class="input-field" placeholder="o'zgartirmaslik uchun bo'sh qoldiring"
                  style="width:280px;font-family:monospace;font-size:12px">
         </div>
         <div>
-          <label style="display:block;font-size:11.5px;color:var(--text3);margin-bottom:4px">Chat ID (vergul bilan)</label>
+          <label style="display:block;font-size:12px;color:var(--text3);margin-bottom:4px">Chat ID (vergul bilan)</label>
           <input type="text" id="tg-chat" class="input-field" placeholder="123456789,987654321"
                  style="width:220px;font-family:monospace;font-size:12px">
         </div>
@@ -265,7 +265,7 @@
   <div id="tab-health" class="card" style="display:none">
     <div class="card-head">
       <h3>{% if current_user.is_platform_admin %}🩺 Tizim salomatligi{% else %}💰 Moliyaviy tekshiruv{% endif %}</h3>
-      <button class="btn btn-dark btn-sm" id="health-check-btn" onclick="runHealthCheck()" style="background:var(--gold);border-color:var(--gold)">Tekshirish</button>
+      <button class="btn btn-dark btn-sm" id="health-check-btn" onclick="runHealthCheck()" style="background:var(--gold-btn);border-color:var(--gold-btn)">Tekshirish</button>
     </div>
     <div style="padding:16px 18px;font-size:12.5px;color:var(--text3);border-bottom:1px solid var(--border2)">
       {% if current_user.is_platform_admin %}
@@ -321,7 +321,7 @@ async function loadCompany() {
 async function uploadLogo() {
   const inp = document.getElementById('co-logo-file');
   const el = document.getElementById('co-logo-status');
-  if (!inp.files || !inp.files[0]) { el.innerHTML = '<span style="color:#c00">Rasm tanlang</span>'; return; }
+  if (!inp.files || !inp.files[0]) { el.innerHTML = '<span style="color:#B91C1C">Rasm tanlang</span>'; return; }
   const fd = new FormData();
   fd.append('file', inp.files[0]);
   const r = await fetch('/api/settings/company/logo', { method: 'POST', body: fd });
@@ -331,14 +331,14 @@ async function uploadLogo() {
     inp.value = '';
     loadCompany();
   } else {
-    el.innerHTML = '<span style="color:#c00">' + escapeHtml(d.detail || 'Xato') + '</span>';
+    el.innerHTML = '<span style="color:#B91C1C">' + escapeHtml(d.detail || 'Xato') + '</span>';
   }
 }
 
 async function saveCompany() {
   const nom = document.getElementById('co-name').value.trim();
   const el = document.getElementById('co-status');
-  if (nom.length < 2) { el.innerHTML = '<span style="color:#c00">Nom juda qisqa</span>'; return; }
+  if (nom.length < 2) { el.innerHTML = '<span style="color:#B91C1C">Nom juda qisqa</span>'; return; }
   const fd = new FormData();
   fd.append('name', nom);
   fd.append('slogan', document.getElementById('co-slogan').value.trim());
@@ -351,7 +351,7 @@ async function saveCompany() {
     setTimeout(() => location.reload(), 900);
   } else {
     const d = await r.json().catch(() => ({}));
-    el.innerHTML = '<span style="color:#c00">' + escapeHtml(d.detail || 'Xato') + '</span>';
+    el.innerHTML = '<span style="color:#B91C1C">' + escapeHtml(d.detail || 'Xato') + '</span>';
   }
 }
 
@@ -379,7 +379,7 @@ async function saveCategories() {
     el.innerHTML = '<span style="color:var(--green,#0a0)">✓ Saqlandi</span>';
     setTimeout(() => location.reload(), 900);
   } else {
-    el.innerHTML = '<span style="color:#c00">Xato</span>';
+    el.innerHTML = '<span style="color:#B91C1C">Xato</span>';
   }
 }
 
@@ -394,7 +394,7 @@ async function loadTgBot() {
     } else {
       el.innerHTML = d.uses_system_bot
         ? '<span style="color:var(--text3)">Sozlanmagan — tizimning umumiy boti ishlatiladi</span>'
-        : '<span style="color:#c00">Sozlanmagan — Telegram xabarlari YUBORILMAYDI. Botni sozlang.</span>';
+        : '<span style="color:#B91C1C">Sozlanmagan — Telegram xabarlari YUBORILMAYDI. Botni sozlang.</span>';
     }
   } catch (e) { /* jim */ }
 }
@@ -407,7 +407,7 @@ async function saveTgBot() {
   document.getElementById('tg-token').value = '';
   document.getElementById('tg-status').innerHTML = r.ok
     ? '<span style="color:var(--green,#0a0)">✓ Saqlandi</span>'
-    : '<span style="color:#c00">Saqlashda xato</span>';
+    : '<span style="color:#B91C1C">Saqlashda xato</span>';
   if (r.ok) setTimeout(loadTgBot, 600);
 }
 
@@ -442,7 +442,7 @@ function yonQatori(y) {
                 '" data-yashirin="' + (y.yashirin ? '0' : '1') + '" onclick="yonYashir(this)">' +
                 (y.yashirin ? "Ko'rsatish" : 'Yashirish') + '</button>';
     if (!ishlatilgan) {
-      tugmalar += '<button class="btn btn-sm yon-ochir" style="background:var(--bg);color:#c00" data-id="' + y.id +
+      tugmalar += '<button class="btn btn-sm yon-ochir" style="background:var(--bg);color:#B91C1C" data-id="' + y.id +
                   '" data-bosqich="0" onclick="yonOchir(this)">O\'chirish</button>';
     }
   }
@@ -531,7 +531,7 @@ async function runHealthCheck() {
     } else if (d.issues_found === 0) {
       html += `<div style="text-align:center;padding:30px;background:#F0FDF4;border-radius:12px">
         <div style="font-size:32px;margin-bottom:8px">✅</div>
-        <div style="font-weight:700;color:#16A34A;font-size:15px">Hammasi joyida!</div>
+        <div style="font-weight:700;color:#15803D;font-size:15px">Hammasi joyida!</div>
         <div style="font-size:12.5px;color:var(--text3);margin-top:4px">Hech qanday noto'g'ri qiymat topilmadi.</div>
       </div>`;
     } else {
@@ -542,13 +542,13 @@ async function runHealthCheck() {
         html += `<div style="border:1px solid var(--border2);border-radius:10px;padding:14px 16px;margin-bottom:10px">
           <div style="font-size:13px;font-weight:600;color:var(--text)">${issue.label ? escapeHtml(issue.label) : ('#' + issue.id)} <span style="color:var(--text3);font-weight:400">(${issue.table}.${issue.column})</span></div>
           <div style="font-size:12.5px;color:#DC2626;margin-top:4px">Noto'g'ri qiymat: <code style="background:#FEF2F2;padding:2px 6px;border-radius:4px">${escapeHtml(issue.bad_value)}</code></div>
-          <div style="font-size:11.5px;color:var(--text3);margin-top:4px">To'g'ri qiymatlar: ${issue.valid_names.join(', ')}</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:4px">To'g'ri qiymatlar: ${issue.valid_names.join(', ')}</div>
         </div>`;
       });
     }
 
     if (!d.technical_hidden && d.check_errors && d.check_errors.length) {
-      html += `<div style="margin-top:14px;font-size:11.5px;color:var(--text3)">
+      html += `<div style="margin-top:14px;font-size:12px;color:var(--text3)">
         ⚠️ ${d.check_errors.length} ta jadval tekshirilmadi (eski deploy versiyasi bo'lishi mumkin).
       </div>`;
     }
@@ -561,7 +561,7 @@ async function runHealthCheck() {
       if (fin.issues_found === 0) {
         html += `<div style="text-align:center;padding:24px;background:#F0FDF4;border-radius:12px">
           <div style="font-size:28px;margin-bottom:6px">✅</div>
-          <div style="font-weight:700;color:#16A34A;font-size:14px">Hisob-kitoblar to'g'ri!</div>
+          <div style="font-weight:700;color:#15803D;font-size:14px">Hisob-kitoblar to'g'ri!</div>
         </div>`;
       } else {
         const TYPE_LABEL = {

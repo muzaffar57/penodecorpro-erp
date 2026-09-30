@@ -56,7 +56,7 @@
                 <button class="btn btn-outline btn-xs" data-username="{{ u.username }}" onclick="changePass({{ u.id }}, this.dataset.username, this)">Parol</button>
               </div>
               {% else %}
-              <span style="font-size:11px;color:var(--text3)">Joriy</span>
+              <span style="font-size:12px;color:var(--text3)">Joriy</span>
               {% endif %}
             </td>
           </tr>
@@ -76,7 +76,7 @@
             ('manager', 'Hodim', '#1a6fa8', "Loyiha va buyurtma yaratish, ombor (ko'rish), Tayyor mahsulot. Moliya, foyda, Ustalar KPI ko'RINMAYDI"),
             ('accountant', 'Moliyachi', '#1e7e34', 'Moliya, Hisobotlar, Qarzdorlik, Ustalar KPI, xodim avansini tasdiqlash'),
             ('warehouse', 'Omborchi', '#8E44AD', "Omborxona, Xomashyo ta'minoti, Tayyor mahsulot, Retseptlar"),
-            ('master', 'Usta', '#b7770d', 'Faqat buyurtmalar')
+            ('master', 'Usta', '#92400E', 'Faqat buyurtmalar')
           ] %}
           <div style="padding:12px 0;border-bottom:1px solid var(--border2)">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
@@ -92,7 +92,7 @@
         <div class="card-body">
           <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">👤 Joriy siz</div>
           <div style="font-size:13px;color:var(--text2)">{{ current_user.full_name or current_user.username }}</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:4px">{{ now }}</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:4px">{{ now }}</div>
           {# 2026-09-20: admin O'Z parolini almashtira olishi SHART —
              yangi korxonaga tizim tasodifiy parol beradi va egasi uni
              birinchi kirishda o'zinikiga almashtirishi kerak. Ilgari

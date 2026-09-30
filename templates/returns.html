@@ -31,14 +31,14 @@
 .ret-icon{width:70px;align-self:stretch;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;position:relative;overflow:hidden;cursor:pointer}
 .ret-icon img{width:100%;height:100%;object-fit:cover}
 .ret-icon input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
-.ret-icon .cam-overlay{position:absolute;right:2px;bottom:2px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;color:#fff;font-size:11px;cursor:pointer;z-index:2}
+.ret-icon .cam-overlay{position:absolute;right:2px;bottom:2px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;color:#fff;font-size:12px;cursor:pointer;z-index:2}
 .ret-icon:hover .cam-overlay{opacity:1}
 .ret-icon.whole{background:#DCFCE7;color:#166534}
 .ret-icon.defect{background:#FEE2E2;color:#991B1B}
-.dest-badge{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:20px;white-space:nowrap}
+.dest-badge{font-size:12px;font-weight:600;padding:2px 8px;border-radius:20px;white-space:nowrap}
 .dest-stock{background:#E6F1FB;color:#0C447C}
 .dest-scrap{background:#F1F5F9;color:#475569}
-.refund-badge{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:20px}
+.refund-badge{font-size:12px;font-weight:600;padding:2px 8px;border-radius:20px}
 .refund-yes{background:#DCFCE7;color:#166534}
 .refund-no{background:#FEF3C7;color:#92400E}
 .ret-page{
@@ -109,7 +109,7 @@
         <button class="btn btn-dark btn-sm" onclick="loadBrakTahlil()">🔍 Ko'rsatish</button>
       </div>
       <div id="brakTahlilContent">
-        <div style="text-align:center;padding:24px;color:#bbb;font-size:13px">Yuklanmoqda...</div>
+        <div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Yuklanmoqda...</div>
       </div>
     </div>
   </div>
@@ -135,7 +135,7 @@
         <button class="btn btn-outline btn-sm" onclick="brakSummaryThisMonth()">Shu oy</button>
       </div>
       <div id="brakSummaryContent">
-        <div style="text-align:center;padding:24px;color:#bbb;font-size:13px">Sana tanlab, "Ko'rsatish" tugmasini bosing</div>
+        <div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Sana tanlab, "Ko'rsatish" tugmasini bosing</div>
       </div>
     </div>
   </div>
@@ -149,7 +149,7 @@
   {% else %}
   <div style="padding:8px 14px;background:#FFFBEB;font-size:12.5px;color:#92400E;display:flex;justify-content:space-between;align-items:center;border-radius:8px;margin-bottom:12px">
     <span>⚠️ Barcha qaytarishlar ko'rsatilmoqda</span>
-    <a href="/returns" style="color:#D97706;font-weight:600;text-decoration:none">← Qisqartirish</a>
+    <a href="/returns" style="color:#B45309;font-weight:600;text-decoration:none">← Qisqartirish</a>
   </div>
   {% endif %}
 
@@ -196,7 +196,7 @@
         <div style="font-size:13px;font-weight:600">{{ r.quantity }} {{ r.unit }}</div>
       </div>
       <div class="ret-status" style="min-width:100px;text-align:center">
-        {% if is_defect %}<span class="badge badge-danger">🔴 Brak</span>{% if r.brak_bosqich %}<div class="brak-bosqich" style="font-size:11px;color:#991B1B;margin-top:4px">{{ (brak_bosqichlari or {}).get(r.brak_bosqich, r.brak_bosqich) }}</div>{% endif %}{% if r.brak_sabab %}<div class="brak-sabab" style="font-size:11px;color:#991B1B;margin-top:2px">{{ (brak_sabablari or {}).get(r.brak_sabab, r.brak_sabab) }}</div>{% endif %}{% if r.brak_javobgar_id %}<div class="brak-javobgar" style="font-size:11px;color:#64748B;margin-top:2px">👤 {{ (hodim_nomlari or {}).get(r.brak_javobgar_id, "O'chirilgan hodim") }}</div>{% endif %}{% else %}<span class="badge badge-ready">🟢 Butun</span>{% endif %}
+        {% if is_defect %}<span class="badge badge-danger">🔴 Brak</span>{% if r.brak_bosqich %}<div class="brak-bosqich" style="font-size:12px;color:#991B1B;margin-top:4px">{{ (brak_bosqichlari or {}).get(r.brak_bosqich, r.brak_bosqich) }}</div>{% endif %}{% if r.brak_sabab %}<div class="brak-sabab" style="font-size:12px;color:#991B1B;margin-top:2px">{{ (brak_sabablari or {}).get(r.brak_sabab, r.brak_sabab) }}</div>{% endif %}{% if r.brak_javobgar_id %}<div class="brak-javobgar" style="font-size:12px;color:#64748B;margin-top:2px">👤 {{ (hodim_nomlari or {}).get(r.brak_javobgar_id, "O'chirilgan hodim") }}</div>{% endif %}{% else %}<span class="badge badge-ready">🟢 Butun</span>{% endif %}
       </div>
       <div class="ret-dest" style="min-width:130px;text-align:center">
         {% if is_defect %}<span class="dest-badge dest-scrap"><i class="ti ti-trash" style="font-size:12px"></i> Chiqindiga ketdi</span>
@@ -215,7 +215,7 @@
       </div>
       {% endif %}
       <div class="ret-date" style="min-width:80px;text-align:right;font-size:13px;color:var(--text3)">{{ r.returned_at|toshkent('%d.%m.%Y') }}</div>
-      <button class="mini-btn" style="color:#EF4444;border-color:#FADBD8" onclick="deleteReturn({{ r.id }})" title="O'chirish"><i class="ti ti-trash" style="font-size:12px"></i></button>
+      <button class="mini-btn" style="color:#DC2626;border-color:#FADBD8" onclick="deleteReturn({{ r.id }})" title="O'chirish"><i class="ti ti-trash" style="font-size:12px"></i></button>
     </div>
     {% endfor %}
     {% else %}
@@ -261,7 +261,7 @@
       {% if current_user.role.value == 'admin' %}
       <div class="form-group" style="margin:0">
         <label id="f-price-label">1 birlik narxi</label>
-        <input type="text" id="f-unit-price" disabled style="background:#f5f5f5;color:#888">
+        <input type="text" id="f-unit-price" disabled style="background:#f5f5f5;color:var(--text3)">
       </div>
       {% endif %}
     </div>
@@ -278,7 +278,7 @@
           <span style="font-size:13px;font-weight:600;color:#DC2626">🔴 Brak</span>
         </label>
       </div>
-      <div id="reason-hint" style="font-size:13px;color:#aaa;margin-top:6px">Butun — tayyor mahsulotlar omboriga qaytadi</div>
+      <div id="reason-hint" style="font-size:13px;color:var(--text3);margin-top:6px">Butun — tayyor mahsulotlar omboriga qaytadi</div>
     </div>
 
     <div class="form-group" id="coating-applied-wrap" style="display:none">
@@ -293,7 +293,7 @@
           <span style="font-size:13px">🎨 Ha — loy tortilgandan keyin</span>
         </label>
       </div>
-      <div style="font-size:12px;color:#aaa;margin-top:6px">Bu — sarflangan xomashyoni to'g'ri hisoblash uchun kerak: agar loy tortilmasdan brak bo'lgan bo'lsa, faqat Penoplast hisobga olinadi.</div>
+      <div style="font-size:12px;color:var(--text3);margin-top:6px">Bu — sarflangan xomashyoni to'g'ri hisoblash uchun kerak: agar loy tortilmasdan brak bo'lgan bo'lsa, faqat Penoplast hisobga olinadi.</div>
     </div>
 
     {% if current_user.role.value == 'admin' %}
@@ -321,12 +321,12 @@
   <div style="background:#fff;border-radius:14px;width:560px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
     <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0">
       <div style="font-size:16px;font-weight:600;color:#DC2626">🔴 Brak yozish</div>
-      <div style="font-size:12px;color:#aaa;margin-top:2px">Loyihadagi buyurtma detali brak bo'lganda shu yerdan yozing</div>
+      <div style="font-size:12px;color:var(--text3);margin-top:2px">Loyihadagi buyurtma detali brak bo'lganda shu yerdan yozing</div>
     </div>
 
     <div style="padding:14px 22px;overflow-y:auto;flex:1">
 
-      <div style="padding:10px 12px;background:#F8F2EB;border:1px solid #E5D5C0;border-radius:8px;font-size:12px;color:#A86B36;margin-bottom:14px">
+      <div style="padding:10px 12px;background:#F8F2EB;border:1px solid #E5D5C0;border-radius:8px;font-size:12px;color:var(--gold-dark);margin-bottom:14px">
         ℹ️ Buyurtmaga bog'liq bo'lmagan, to'g'ridan-to'g'ri ishlab chiqarishda (masalan kesish/qoplama paytida) chiqqan brak uchun —
         <b>"Tayyor mahsulotlar"</b> bo'limidagi ⚠️ (Kamaytirish) tugmasidan foydalaning.
       </div>
@@ -341,7 +341,7 @@
         </div>
 
         <div id="brakList" style="margin-top:10px">
-          <div style="text-align:center;padding:20px;color:#bbb;font-size:13px">Avval loyiha tanlang</div>
+          <div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">Avval loyiha tanlang</div>
         </div>
 
         <div class="form-group">
@@ -362,7 +362,7 @@
       <!-- kech53 (13-band, 1-qadam): brak BOSQICHI — ixtiyoriy, butun ro'yxat uchun
            bitta ("loy tortilganmi" savoli kabi). Tanlanmasa tana O'ZGARMAYDI. -->
       <div class="form-group" style="margin-top:12px">
-        <label>Qaysi bosqichda brak bo'ldi? <span style="color:#aaa;font-weight:400">(ixtiyoriy)</span></label>
+        <label>Qaysi bosqichda brak bo'ldi? <span style="color:var(--text3);font-weight:400">(ixtiyoriy)</span></label>
         <select id="brak-stage">
           <option value="">— Tanlanmagan —</option>
           {% for k, v in (brak_bosqichlari or {}).items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
@@ -372,14 +372,14 @@
       <!-- kech56 (13-band, 7-qadam; foydalanuvchi qarori): brak SABABI va JAVOBGAR hodim —
            ixtiyoriy, butun ro'yxat uchun bitta. Tanlanmasa tana O'ZGARMAYDI. -->
       <div class="form-group" style="margin-top:12px">
-        <label>Nima sababdan brak bo'ldi? <span style="color:#aaa;font-weight:400">(ixtiyoriy)</span></label>
+        <label>Nima sababdan brak bo'ldi? <span style="color:var(--text3);font-weight:400">(ixtiyoriy)</span></label>
         <select id="brak-cause">
           <option value="">— Tanlanmagan —</option>
           {% for k, v in (brak_sabablari or {}).items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
         </select>
       </div>
       <div class="form-group" style="margin-top:12px">
-        <label>Brakka kim sabab bo'ldi? <span style="color:#aaa;font-weight:400">(ixtiyoriy)</span></label>
+        <label>Brakka kim sabab bo'ldi? <span style="color:var(--text3);font-weight:400">(ixtiyoriy)</span></label>
         <select id="brak-worker">
           <option value="">— Tanlanmagan —</option>
           {% for h in (brak_hodimlari or []) %}<option value="{{ h.id }}">{{ h.name }}{% if h.position %} — {{ h.position }}{% endif %}</option>{% endfor %}
@@ -445,7 +445,7 @@ const IS_MANAGER = {{ 'true' if current_user.role.value == 'manager' else 'false
 const BRAK_OY_NOMLARI = ['Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun', 'Iyul', 'Avgust',
                          'Sentyabr', 'Oktyabr', 'Noyabr', 'Dekabr'];
 function brakTahlilOyMatn(y, m) { return String(y) + '-' + String(m).padStart(2, '0'); }
-function brakFoizMatn(f) { return (f === null || f === undefined) ? '—' : (Number(f) + ' %'); }
+function brakFoizMatn(f) { return (f === null || f === undefined) ? '—' : (sonKor(f, 2) + ' %'); }   // kech118 (U-05): kasr — vergul
 
 function toggleBrakTahlil(){
   const body = document.getElementById('brakTahlilBody');
@@ -471,7 +471,7 @@ async function loadBrakTahlilBadge(){
     if (d.brak_foizi === null || d.brak_foizi === undefined) { b.textContent = ''; return; }
     b.textContent = (d.meyordan_oshdi ? '⚠️ ' : '') + 'bu oy ' + brakFoizMatn(d.brak_foizi) +
                     " (me'yor " + brakFoizMatn(d.meyor_foiz) + ')';
-    b.style.color = d.meyordan_oshdi ? '#DC2626' : '#16A34A';
+    b.style.color = d.meyordan_oshdi ? '#DC2626' : '#15803D';
   } catch (e) { /* belgi — qo'shimcha; xato sahifani to'xtatmaydi */ }
 }
 
@@ -482,7 +482,7 @@ async function loadBrakTahlil(){
   let url = '/api/reports/brak-tahlil?oylar=6';
   const t = oyEl ? /^(\d{4})-(\d{2})$/.exec(oyEl.value || '') : null;
   if (t) url += '&year=' + parseInt(t[1], 10) + '&month=' + parseInt(t[2], 10);
-  content.innerHTML = '<div style="text-align:center;padding:20px;color:#bbb;font-size:13px">Yuklanmoqda...</div>';
+  content.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">Yuklanmoqda...</div>';
   let d;
   try {
     const r = await fetch(url);
@@ -506,7 +506,7 @@ function brakTahlilHtml(d){
   const foizBor = d.brak_foizi !== null && d.brak_foizi !== undefined;
   const oshdi = !!d.meyordan_oshdi;
   const sarlavha = s => '<div style="font-size:13px;font-weight:700;color:#555;margin:6px 0 8px">' + escapeHtml(s) + '</div>';
-  const bosh = '<div style="color:#bbb;font-size:13px;margin-bottom:16px">Ma\'lumot yo\'q</div>';
+  const bosh = '<div style="color:var(--text3);font-size:13px;margin-bottom:16px">Ma\'lumot yo\'q</div>';
   const th = 'padding:8px 6px';
   const td = 'padding:8px 6px';
   let html = '';
@@ -515,21 +515,21 @@ function brakTahlilHtml(d){
   }
   html += `<div style="display:flex;gap:14px;margin-bottom:18px;flex-wrap:wrap">
       <div style="flex:1;min-width:180px;background:${oshdi ? '#FEE2E2' : '#DCFCE7'};border-radius:10px;padding:14px 16px">
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#475569">Brak ulushi — ${escapeHtml(oyNomi(d.yil, d.oy))}</div>
-        <div class="brak-foiz" style="font-size:24px;font-weight:800;color:${foizBor ? (oshdi ? '#DC2626' : '#16A34A') : '#94A3B8'};margin-top:4px">${escapeHtml(brakFoizMatn(d.brak_foizi))}</div>
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:#475569">Brak ulushi — ${escapeHtml(oyNomi(d.yil, d.oy))}</div>
+        <div class="brak-foiz" style="font-size:24px;font-weight:800;color:${foizBor ? (oshdi ? '#DC2626' : '#15803D') : '#696D78'};margin-top:4px">${escapeHtml(brakFoizMatn(d.brak_foizi))}</div>
         <div style="font-size:12px;color:#64748B;margin-top:2px">Me'yor: ${escapeHtml(brakFoizMatn(d.meyor_foiz))}</div>
       </div>
       <div style="flex:1;min-width:180px;background:#F8FAFC;border-radius:10px;padding:14px 16px;font-size:13px;color:#334155">
         <div>Brak xarajati (Moliya): <b>${fmt(d.brak_xarajat)} so'm</b></div>
         <div style="margin-top:4px">Ishlab chiqarish tan narxi: <b>${fmt(d.ishlab_chiqarish_xarajat)} so'm</b></div>
-        ${foizBor ? '' : '<div style="margin-top:4px;color:#94A3B8">Bu oyda tayyor bo\'lgan buyurtma yo\'q — ulushni hisoblab bo\'lmaydi</div>'}
+        ${foizBor ? '' : '<div style="margin-top:4px;color:var(--text3)">Bu oyda tayyor bo\'lgan buyurtma yo\'q — ulushni hisoblab bo\'lmaydi</div>'}
       </div>
     </div>`;
   // kech107 (49-band, egasi qarori "Bitta raqam"): taqsimot — shu oyning BRAK yozuvlari, qiymati haqiqiy xomashyo
   // narxi (Moliyadagi «Brak» qatori bilan bir hisob). Omborda tayyor turgan mahsulot yo'qotishi — alohida (ulushga kirmaydi).
   const bogl = Number(d.boglanmagan_qiymat) || 0;
   const tayyorYoq = Number(d.tayyor_yoqotish_qiymati) || 0;
-  html += `<div class="brak-izoh" style="font-size:12px;color:#94A3B8;margin-bottom:12px">Quyidagi taqsimot — shu oyning brak yozuvlari bo'yicha (${Number(d.yozuvlar_soni) || 0} ta, ${fmt(d.yozuvlar_qiymati)} so'm — haqiqiy xomashyo narxi, Moliyadagi «Brak» qatori bilan bir hisob).`
+  html += `<div class="brak-izoh" style="font-size:12px;color:var(--text3);margin-bottom:12px">Quyidagi taqsimot — shu oyning brak yozuvlari bo'yicha (${Number(d.yozuvlar_soni) || 0} ta, ${fmt(d.yozuvlar_qiymati)} so'm — haqiqiy xomashyo narxi, Moliyadagi «Brak» qatori bilan bir hisob).`
     + (Math.abs(bogl) >= 1 ? ` Yozuvga bog'lanmagan (eski) brak harakatlari: ${fmt(bogl)} so'm.` : '')
     + (tayyorYoq > 0 ? ` Omborda tayyor turgan mahsulot yo'qotishlari: ${fmt(tayyorYoq)} so'm — Moliyada alohida qator, brak ulushiga kirmaydi.` : '')
     + `</div>`;
@@ -537,7 +537,7 @@ function brakTahlilHtml(d){
   const guruh = (nom, arr) => {
     if (!arr || !arr.length) return sarlavha(nom) + bosh;
     return sarlavha(nom) + `<table style="width:100%;border-collapse:collapse;font-size:13.5px;margin-bottom:18px">
-      <thead><tr style="border-bottom:2px solid #eee;text-align:left;color:#888;font-size:12px;text-transform:uppercase">
+      <thead><tr style="border-bottom:2px solid #eee;text-align:left;color:var(--text3);font-size:12px;text-transform:uppercase">
         <th style="${th}">Nomi</th><th style="${th};text-align:right">Soni</th>
         <th style="${th};text-align:right">Qiymati</th><th style="${th};text-align:right">Ulushi</th></tr></thead>
       <tbody>${arr.map(x => `<tr style="border-bottom:1px solid #f5f5f5">
@@ -553,7 +553,7 @@ function brakTahlilHtml(d){
   const top = d.top_detallar || [];
   html += sarlavha('🔝 Eng ko\'p brak — 5 ta mahsulot / detal');
   html += !top.length ? bosh : `<table style="width:100%;border-collapse:collapse;font-size:13.5px;margin-bottom:18px">
-      <thead><tr style="border-bottom:2px solid #eee;text-align:left;color:#888;font-size:12px;text-transform:uppercase">
+      <thead><tr style="border-bottom:2px solid #eee;text-align:left;color:var(--text3);font-size:12px;text-transform:uppercase">
         <th style="${th}">Nomi</th><th style="${th};text-align:right">Miqdor</th><th style="${th};text-align:right">Soni</th>
         <th style="${th};text-align:right">Qiymati</th></tr></thead>
       <tbody>${top.map(x => `<tr style="border-bottom:1px solid #f5f5f5">
@@ -565,7 +565,7 @@ function brakTahlilHtml(d){
   const tr = d.trend || [];
   html += sarlavha('📈 Oylar bo\'yicha brak ulushi');
   html += !tr.length ? bosh : `<table style="width:100%;border-collapse:collapse;font-size:13.5px;margin-bottom:18px">
-      <thead><tr style="border-bottom:2px solid #eee;text-align:left;color:#888;font-size:12px;text-transform:uppercase">
+      <thead><tr style="border-bottom:2px solid #eee;text-align:left;color:var(--text3);font-size:12px;text-transform:uppercase">
         <th style="${th}">Oy</th><th style="${th};text-align:right">Brak</th><th style="${th};text-align:right">Ishlab chiqarish</th>
         <th style="${th};text-align:right">Ulushi</th></tr></thead>
       <tbody>${tr.map(x => `<tr class="brak-trend-qator" style="border-bottom:1px solid #f5f5f5">
@@ -577,7 +577,7 @@ function brakTahlilHtml(d){
   const yq = d.yoqotishlar || [];
   html += sarlavha('📦 Tayyor mahsulot yo\'qotishlari va ishlab chiqarish braki');
   html += !yq.length ? bosh : `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:8px">
-      <thead><tr style="border-bottom:2px solid #eee;text-align:left;color:#888;font-size:12px;text-transform:uppercase">
+      <thead><tr style="border-bottom:2px solid #eee;text-align:left;color:var(--text3);font-size:12px;text-transform:uppercase">
         <th style="${th}">Sana</th><th style="${th}">Mahsulot</th><th style="${th};text-align:right">Miqdor</th>
         <th style="${th}">Turi</th><th style="${th}">Bosqich</th><th style="${th}">Sabab</th><th style="${th}">Javobgar</th>
         <th style="${th};text-align:right">Qiymati</th><th style="${th}">Yozgan</th></tr></thead>
@@ -618,7 +618,7 @@ async function loadBrakSummary(){
   const start = document.getElementById('brak-sum-start').value;
   const end = document.getElementById('brak-sum-end').value;
   const content = document.getElementById('brakSummaryContent');
-  content.innerHTML = '<div style="text-align:center;padding:20px;color:#bbb;font-size:13px">Yuklanmoqda...</div>';
+  content.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">Yuklanmoqda...</div>';
   try {
     let url = '/api/reports/brak-materials';
     const params = [];
@@ -627,7 +627,7 @@ async function loadBrakSummary(){
     if (params.length) url += '?' + params.join('&');
     const data = await fetch(url).then(r => r.json());
     if (!data.by_material || !data.by_material.length) {
-      content.innerHTML = '<div style="text-align:center;padding:20px;color:#bbb;font-size:13px">Bu davrda brak sababli sarflangan xomashyo topilmadi</div>';
+      content.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">Bu davrda brak sababli sarflangan xomashyo topilmadi</div>';
       return;
     }
     const fmt = n => Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' ');
@@ -636,19 +636,19 @@ async function loadBrakSummary(){
     let html = `
       <div style="display:flex;gap:14px;margin-bottom:18px;flex-wrap:wrap">
         <div style="flex:1;min-width:160px;background:#FEE2E2;border-radius:10px;padding:14px 16px">
-          <div style="font-size:11px;color:#991B1B;font-weight:700;text-transform:uppercase">Jami yo'qotish</div>
+          <div style="font-size:12px;color:#991B1B;font-weight:700;text-transform:uppercase">Jami yo'qotish</div>
           <div style="font-size:20px;font-weight:800;color:#DC2626;margin-top:4px">${fmt(data.total_value)} so'm</div>
         </div>
         ${data.total_penoplast_m3 > 0 ? `
         <div style="flex:1;min-width:160px;background:#FFF7ED;border-radius:10px;padding:14px 16px">
-          <div style="font-size:11px;color:#9A3412;font-weight:700;text-transform:uppercase">Jami Penoplast brak</div>
-          <div style="font-size:20px;font-weight:800;color:#EA580C;margin-top:4px">${data.total_penoplast_m3} m³</div>
+          <div style="font-size:12px;color:#9A3412;font-weight:700;text-transform:uppercase">Jami Penoplast brak</div>
+          <div style="font-size:20px;font-weight:800;color:#C2410C;margin-top:4px">${data.total_penoplast_m3} m³</div>
         </div>` : ''}
       </div>
 
       <div style="font-size:13px;font-weight:700;color:#555;margin-bottom:8px">📊 Material bo'yicha jami</div>
       <table style="width:100%;border-collapse:collapse;font-size:13.5px;margin-bottom:20px">
-        <thead><tr style="border-bottom:2px solid #eee;text-align:left;color:#888;font-size:12px;text-transform:uppercase">
+        <thead><tr style="border-bottom:2px solid #eee;text-align:left;color:var(--text3);font-size:12px;text-transform:uppercase">
           <th style="padding:8px 6px">Xomashyo</th>
           <th style="padding:8px 6px;text-align:right">Miqdor</th>
           <th style="padding:8px 6px;text-align:right">m³</th>
@@ -659,7 +659,7 @@ async function loadBrakSummary(){
             <tr style="border-bottom:1px solid #f5f5f5">
               <td style="padding:9px 6px;font-weight:600">${escapeHtml(it.item_name)}</td>
               <td style="padding:9px 6px;text-align:right">${it.quantity} ${escapeHtml(it.unit || '')}</td>
-              <td style="padding:9px 6px;text-align:right;color:#EA580C;font-weight:600">${it.m3 ? it.m3 + ' m³' : '—'}</td>
+              <td style="padding:9px 6px;text-align:right;color:#C2410C;font-weight:600">${it.m3 ? it.m3 + ' m³' : '—'}</td>
               <td style="padding:9px 6px;text-align:right;font-weight:700;color:#DC2626">${fmt(it.value)} so'm</td>
             </tr>`).join('')}
         </tbody>
@@ -670,14 +670,14 @@ async function loadBrakSummary(){
       html += data.by_order.map(o => `
         <div style="border:1px solid #eee;border-radius:10px;padding:12px 14px;margin-bottom:8px">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-            <div style="font-weight:700;font-size:13.5px">${o.order_number} <span style="font-weight:400;color:#999">— ${o.client_name ? escapeHtml(o.client_name) : '—'}</span></div>
+            <div style="font-weight:700;font-size:13.5px">${o.order_number} <span style="font-weight:400;color:var(--text3)">— ${o.client_name ? escapeHtml(o.client_name) : '—'}</span></div>
             <div style="text-align:right">
-              ${o.total_m3 ? `<span style="color:#EA580C;font-weight:700;font-size:13px">${o.total_m3} m³</span> · ` : ''}
+              ${o.total_m3 ? `<span style="color:#C2410C;font-weight:700;font-size:13px">${o.total_m3} m³</span> · ` : ''}
               <span style="color:#DC2626;font-weight:700;font-size:13.5px">${fmt(o.total_value)} so'm</span>
             </div>
           </div>
           ${o.items.map(it => `
-            <div style="font-size:12.5px;color:#888;padding:3px 0">
+            <div style="font-size:12.5px;color:var(--text3);padding:3px 0">
               • ${escapeHtml(it.item_name)}: ${it.quantity} ${escapeHtml(it.unit || '')} ${it.m3 ? `(${it.m3} m³)` : ''} — ${fmt(it.value)} so'm
             </div>`).join('')}
         </div>`).join('');
@@ -1043,7 +1043,7 @@ function showBrakModal(){
   const _javobgarSel = document.getElementById('brak-worker'); // kech56
   if (_javobgarSel) _javobgarSel.value = '';
   document.getElementById('brak-error').style.display = 'none';
-  document.getElementById('brakList').innerHTML = '<div style="text-align:center;padding:20px;color:#bbb;font-size:13px">Avval loyiha tanlang</div>';
+  document.getElementById('brakList').innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">Avval loyiha tanlang</div>';
   brakItems = [];
 }
 function closeBrakModal(){
@@ -1069,31 +1069,31 @@ async function onBrakProjectChange(){
   const projectId = document.getElementById('brak-project').value;
   const list = document.getElementById('brakList');
   if (!projectId) {
-    list.innerHTML = '<div style="text-align:center;padding:20px;color:#bbb;font-size:13px">Avval loyiha tanlang</div>';
+    list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">Avval loyiha tanlang</div>';
     brakItems = [];
     return;
   }
-  list.innerHTML = '<div style="text-align:center;padding:20px;color:#bbb;font-size:13px">Yuklanmoqda...</div>';
+  list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">Yuklanmoqda...</div>';
 
   try {
     const d = await fetch(`/api/projects/${projectId}/items`).then(r => r.json());
     brakItems = d.items || [];
     if (!brakItems.length) {
-      list.innerHTML = '<div style="text-align:center;padding:20px;color:#bbb;font-size:13px">Bu loyihada detal topilmadi</div>';
+      list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">Bu loyihada detal topilmadi</div>';
       return;
     }
     list.innerHTML = brakItems.map((it, idx) => `
       <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #f5f5f5">
         <div style="flex:1;min-width:0">
           <div style="font-size:13px;font-weight:500;color:#1a1a1a">${escapeHtml(it.name)}</div>
-          <div style="font-size:13px;color:#aaa;margin-top:1px">
+          <div style="font-size:13px;color:var(--text3);margin-top:1px">
             ${it.order_number} · jami ${it.order_qty_normalized} ${unitShortLabel(it.delivery_unit)}${it.is_coated ? ' · qoplamali' : ''}
           </div>
         </div>
         <input type="number" class="brak-qty-inp" data-idx="${idx}" placeholder="0"
                min="0" max="${it.order_qty_normalized}" step="0.1"
                style="width:74px;height:32px;text-align:center;border:1.5px solid #e5e5e5;border-radius:7px;font-size:13px;font-weight:600;outline:none">
-        <span style="font-size:13px;color:#aaa;width:32px">${unitShortLabel(it.delivery_unit)}</span>
+        <span style="font-size:13px;color:var(--text3);width:32px">${unitShortLabel(it.delivery_unit)}</span>
       </div>`).join('');
   } catch(e) {
     list.innerHTML = '<div style="text-align:center;padding:20px;color:#DC2626;font-size:13px">Yuklashda xato</div>';

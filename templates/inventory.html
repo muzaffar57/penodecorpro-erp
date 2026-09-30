@@ -4,8 +4,8 @@
 {% block page_sub %}Xomashyo va materiallar qoldig'i{% endblock %}
 
 {% block topbar_actions %}
-<button class="btn btn-outline btn-sm" onclick="sendFullStockReport()" style="border-color:#B9783F;color:#B9783F"><i class="ti ti-clipboard-list" style="vertical-align:-2px"></i> Ombor hisoboti SMS</button>
-<button class="btn btn-outline btn-sm" onclick="sendLowStockAlert()" style="border-color:#EF4444;color:#EF4444"><i class="ti ti-bell" style="vertical-align:-2px"></i> Kam qoldiqlar SMS</button>
+<button class="btn btn-outline btn-sm" onclick="sendFullStockReport()" style="border-color:#B9783F;color:var(--gold-dark)"><i class="ti ti-clipboard-list" style="vertical-align:-2px"></i> Ombor hisoboti SMS</button>
+<button class="btn btn-outline btn-sm" onclick="sendLowStockAlert()" style="border-color:#EF4444;color:#DC2626"><i class="ti ti-bell" style="vertical-align:-2px"></i> Kam qoldiqlar SMS</button>
 
 {% endblock %}
 
@@ -28,7 +28,7 @@
 .mat-thumb{width:70px;align-self:stretch;border-radius:12px;background:var(--gold-tint);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;color:var(--gold-dark);font-size:26px;position:relative;cursor:pointer}
 .mat-thumb img{width:100%;height:100%;object-fit:cover;cursor:zoom-in}
 .mat-thumb input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
-.mat-thumb-cam{position:absolute;right:3px;bottom:3px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;cursor:pointer;z-index:2}
+.mat-thumb-cam{position:absolute;right:3px;bottom:3px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;cursor:pointer;z-index:2}
 .stock-bar{height:6px;background:#F0F0F0;border-radius:6px;overflow:hidden;width:160px;max-width:100%}
 .stock-fill{height:100%;border-radius:6px;background:linear-gradient(90deg,#22C55E,#16A34A);transition:width .4s ease}
 .stock-fill.warn{background:linear-gradient(90deg,#F59E0B,#D97706)}
@@ -86,7 +86,7 @@
     <div class="stat-card"><div class="stat-icon" style="background:#DCFCE7;color:#166534"><i class="ti ti-arrow-down-left"></i></div><div class="stat-label">Bugungi kirim</div><div class="stat-val">{{ kpi.today_in_count }} marta</div></div>
     <div class="stat-card"><div class="stat-icon" style="background:#FEE2E2;color:#991B1B"><i class="ti ti-arrow-up-right"></i></div><div class="stat-label">Bugungi chiqim</div><div class="stat-val">{{ kpi.today_out_count }} marta</div></div>
     {% if current_user.role.value != 'manager' %}
-    <div class="stat-card"><div class="stat-icon" style="background:#EDE9FE;color:#6D28D9"><i class="ti ti-currency-dollar"></i></div><div class="stat-label">Ombor qiymati</div><div class="stat-val">{{ "%.1f"|format(kpi.total_value/1000000) }} mln</div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:#EDE9FE;color:#6D28D9"><i class="ti ti-currency-dollar"></i></div><div class="stat-label">Ombor qiymati</div><div class="stat-val">{{ (kpi.total_value/1000000)|son(1) }} mln</div></div>
     {% endif %}
   </div>
 
@@ -168,18 +168,18 @@
           {{ item.item_name }}
           {% if item.is_penoplast %}
             {% if item.is_default_penoplast %}
-            <span style="font-size:9px;background:var(--gold);color:#fff;padding:2px 7px;border-radius:10px;font-weight:600;margin-left:4px">★ Asosiy</span>
+            <span style="font-size:12px;background:var(--gold-btn);color:#fff;padding:2px 7px;border-radius:10px;font-weight:600;margin-left:4px">★ Asosiy</span>
             {% else %}
-            <button onclick="setDefaultPenoplast({{ item.id }})" style="font-size:9px;background:var(--border2);color:var(--text3);padding:2px 7px;border-radius:10px;border:none;cursor:pointer;margin-left:4px" title="Asosiy qilish">☆ Asosiy qilish</button>
+            <button onclick="setDefaultPenoplast({{ item.id }})" style="font-size:12px;background:var(--border2);color:var(--text3);padding:2px 7px;border-radius:10px;border:none;cursor:pointer;margin-left:4px" title="Asosiy qilish">☆ Asosiy qilish</button>
             {% endif %}
           {% endif %}
         </div>
-        <div class="mat-sub">{{ item.unit }}{% if item.is_penoplast %} · {{ item.volume_per_unit }} m³/blok{% endif %}</div>
+        <div class="mat-sub">{{ item.unit }}{% if item.is_penoplast %} · {{ item.volume_per_unit|son(3) }} m³/blok{% endif %}</div>
         <span class="cat-badge {{ cat_css }}" onclick="editCategory(this)" data-id="{{ item.id }}" data-category="{{ item.category or '' }}" style="cursor:pointer" title="O'zgartirish">{{ cat_label }}</span>
         </div>
       </div>
       <div>
-        <div class="mat-qty-val" style="color:{% if st=='danger' %}#DC2626{% elif st=='warn' %}#B45309{% else %}var(--text){% endif %}">{{ "%.1f"|format(qty) }} {{ item.unit }}</div>
+        <div class="mat-qty-val" style="color:{% if st=='danger' %}#DC2626{% elif st=='warn' %}#B45309{% else %}var(--text){% endif %}">{{ qty|son(2) }} {{ item.unit }}</div>
         <div class="stock-bar" style="margin-top:6px"><div class="stock-fill {{ st if st != 'ok' else '' }}" style="width:{{ pct }}%"></div></div>
       </div>
       <div class="mat-col-min" style="color:var(--text3);font-size:14.5px">
@@ -188,7 +188,7 @@
            shuning uchun ko'rsatilmaydi va tahrirlash tugmasi ham yo'q #}
         <span id="minstock-{{ item.id }}" title="Ortgan loy — minimal chegara qo'yilmaydi">—</span>
         {% else %}
-        <span id="minstock-{{ item.id }}">{{ item.min_stock }} {{ item.unit }}</span>
+        <span id="minstock-{{ item.id }}">{{ item.min_stock|son(2) }} {{ item.unit }}</span>
         <button class="btn btn-outline btn-xs" data-unit="{{ item.unit }}" onclick="editMinStock({{ item.id }}, {{ item.min_stock or 0 }}, this.dataset.unit)" title="Chegarani tuzatish" style="margin-left:4px"><i class="ti ti-edit" style="font-size:12px"></i></button>
         {% endif %}
       </div>
@@ -235,7 +235,7 @@
     <input type="text" id="cp-input" class="i-m3price" style="width:100%;font-size:15px;font-weight:600;text-align:center" inputmode="decimal">
     <div style="display:flex;gap:8px;margin-top:16px">
       <button data-yopish class="btn btn-outline w-full" onclick="_cpCancel()">Bekor</button>
-      <button class="btn btn-dark w-full" style="background:var(--gold);border-color:var(--gold)" onclick="_cpConfirm()">OK</button>
+      <button class="btn btn-dark w-full" style="background:var(--gold-btn);border-color:var(--gold-btn)" onclick="_cpConfirm()">OK</button>
     </div>
   </div>
 </div>
@@ -623,7 +623,7 @@ async function editMinStock(id, currentMin, unit) {
       body: JSON.stringify({min_stock: miqdor})
     });
     if (res.ok) {
-      document.getElementById('minstock-'+id).textContent = miqdor + ' ' + unit;
+      document.getElementById('minstock-'+id).textContent = sonKor(miqdor, 2) + ' ' + unit;   // kech118 (U-05)
       invToast('✓ Chegara yangilandi!');
     } else invToast('❌ ' + await serverXatoSababi(res));
   } finally {
@@ -765,7 +765,7 @@ async function openPurchaseHistory() {
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:10px">
-            <div style="font-size:13px;font-weight:700;color:#22C55E;white-space:nowrap">${fmt(p.total_amount)} so'm</div>
+            <div style="font-size:13px;font-weight:700;color:#15803D;white-space:nowrap">${fmt(p.total_amount)} so'm</div>
             <button onclick="deletePurchase(${p.id}, '${jsAttrEscape(p.item_name||'')}', ${p.quantity})"
                     title="Bu xaridni bekor qilish (ombordan ham, puldan ham)"
                     style="width:30px;height:30px;border:1px solid #FCA5A5;background:#FEF2F2;color:#DC2626;border-radius:7px;cursor:pointer;flex-shrink:0">
@@ -786,7 +786,7 @@ async function openPurchaseHistory() {
         </div>
         <div style="text-align:right;flex-shrink:0;margin-left:10px">
           <div class="mv-order-count">${e.items.length} ta material →</div>
-          <div style="font-size:12.5px;font-weight:700;color:#22C55E;margin-top:4px">${fmt(total)} so'm</div>
+          <div style="font-size:12.5px;font-weight:700;color:#15803D;margin-top:4px">${fmt(total)} so'm</div>
         </div>
       </div>`;
     }).join('');
@@ -812,7 +812,7 @@ function openPhDrawer(receiptId) {
         <div style="font-size:13px;color:var(--text3);margin-top:2px">${p.quantity} ${escapeHtml(p.unit||'')} × ${fmt(p.price_per_unit)} · ${ds}${p.purchased_by ? ' · '+escapeHtml(p.purchased_by) : ''}</div>
       </div>
       <div style="text-align:right;flex-shrink:0;margin-left:10px">
-        <div style="font-weight:700;color:#22C55E">${fmt(p.total_amount)} so'm</div>
+        <div style="font-weight:700;color:#15803D">${fmt(p.total_amount)} so'm</div>
         <button onclick="deletePurchase(${p.id}, '${jsAttrEscape(p.item_name||'')}', ${p.quantity})"
                 title="Bu xaridni bekor qilish" style="margin-top:4px;width:26px;height:26px;border:1px solid #FCA5A5;background:#FEF2F2;color:#DC2626;border-radius:6px;cursor:pointer">
           <i class="ti ti-trash" style="font-size:12px"></i>
@@ -915,8 +915,8 @@ let mvCurType = '';
 function mvFmtQty(q) {
   const n = parseFloat(q) || 0;
   // 2 xonagacha yaxlitlab, ortiqcha nollarni olib tashlaymiz (masalan
-  // "0.80" emas "0.8", "5.00" emas "5")
-  return n.toFixed(2).replace(/\.?0+$/, '');
+  // "0.80" emas "0.8", "5.00" emas "5"); kech118 (U-05): kasr — vergul («0,8»)
+  return sonKor(n, 2);
 }
 
 async function loadMovements(type) {
@@ -949,11 +949,11 @@ async function loadMovements(type) {
     const summaryHtml = Object.values(totals).map(t => `
       <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:12.5px">
         <span style="color:var(--text2)">${escapeHtml(t.name)}</span>
-        <span>${t.out > 0 ? `<span style="color:#991B1B">−${t.out.toFixed(2)}</span>` : ''}${t.out > 0 && t.in > 0 ? ' · ' : ''}${t.in > 0 ? `<span style="color:#166534">+${t.in.toFixed(2)}</span>` : ''} ${escapeHtml(t.unit)}</span>
+        <span>${t.out > 0 ? `<span style="color:#991B1B">−${sonKor(t.out, 2)}</span>` : ''}${t.out > 0 && t.in > 0 ? ' · ' : ''}${t.in > 0 ? `<span style="color:#166534">+${sonKor(t.in, 2)}</span>` : ''} ${escapeHtml(t.unit)}</span>
       </div>`).join('');
     const summaryBlock = (document.getElementById('mv-date-from').value || document.getElementById('mv-date-to').value)
       ? `<div style="background:var(--bg);border-radius:10px;padding:10px 14px;margin-bottom:12px">
-           <div style="font-size:11.5px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Tanlangan davr — jami</div>
+           <div style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Tanlangan davr — jami</div>
            ${summaryHtml}
          </div>` : '';
 

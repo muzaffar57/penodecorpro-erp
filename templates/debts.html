@@ -5,7 +5,7 @@
 
 {% block head %}
 <style>
-.dbt-wrap{--d-bg:#F8F8F6;--d-card:#FFFFFF;--d-border:#E8E3DD;--d-danger:#EF4444;--d-warning:#F59E0B;--d-success:#22C55E;--d-primary:#B9783F;--d-primary-dark:#A86B36;--d-primary-tint:#F8F2EB;--d-text:#222222;--d-text2:#6B7280;--d-text3:#9CA3AF;background:var(--d-bg);padding:16px;height:calc(100vh - 58px);overflow-y:auto}
+.dbt-wrap{--d-bg:#F8F8F6;--d-card:#FFFFFF;--d-border:#E8E3DD;--d-danger:#B91C1C;--d-warning:#B45309;--d-success:#15803D;--d-primary:#9A6231;--d-primary-dark:#8F5B2A;--d-primary-tint:#F8F2EB;--d-text:#222222;--d-text2:#5B6170;--d-text3:#696D78;background:var(--d-bg);padding:16px;height:calc(100vh - 58px);overflow-y:auto}
 .dbt-wrap *{box-sizing:border-box}
 .dbt-summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
 @media(max-width:800px){.dbt-summary-grid{grid-template-columns:1fr}}
@@ -27,7 +27,7 @@
 .dbt-avatar{width:36px;height:36px;border-radius:50%;background:var(--d-primary-tint);color:var(--d-primary-dark);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0}
 .dbt-item-body{flex:1;min-width:0}
 .dbt-item-name{font-size:13.5px;font-weight:700;color:var(--d-text)}
-.dbt-item-sub{font-size:11.5px;color:var(--d-text3);margin-top:2px}
+.dbt-item-sub{font-size:12px;color:var(--d-text3);margin-top:2px}
 .dbt-item-amount{font-size:15.5px;font-weight:800;color:var(--d-danger);white-space:nowrap}
 .dbt-progress-track{height:5px;background:#F3F4F6;border-radius:3px;margin-top:8px}
 .dbt-progress-fill{height:100%;background:var(--d-success);border-radius:3px}
@@ -49,14 +49,14 @@
 
   <div class="dbt-summary-grid">
     <div class="dbt-summary-card">
-      <div class="dbt-summary-icon" style="background:#FEF2F2;color:#EF4444"><i class="ti ti-arrow-down-left"></i></div>
+      <div class="dbt-summary-icon" style="background:#FEF2F2;color:#DC2626"><i class="ti ti-arrow-down-left"></i></div>
       <div>
         <div class="dbt-summary-label">Bizga qarzdorlar (mijozlar)</div>
         <div class="dbt-summary-value">{{ "{:,.0f}".format(total_customer_debt).replace(",", " ") }} so'm</div>
       </div>
     </div>
     <div class="dbt-summary-card">
-      <div class="dbt-summary-icon" style="background:#FFFBEB;color:#F59E0B"><i class="ti ti-arrow-up-right"></i></div>
+      <div class="dbt-summary-icon" style="background:#FFFBEB;color:#B45309"><i class="ti ti-arrow-up-right"></i></div>
       <div>
         <div class="dbt-summary-label">Biz qarzdormiz (yetkazib beruvchilar)</div>
         <div class="dbt-summary-value">{{ "{:,.0f}".format(total_supplier_debt).replace(",", " ") }} so'm</div>
@@ -176,7 +176,7 @@
                     <div class="dbt-item-name">{{ o.project.client_name if o.project else '—' }}</div>
                     <div class="dbt-item-sub">{{ o.order_number }} · {{ o.project.project_name if o.project else '—' }}{% if o.is_deleted %} · <span style="color:#DC2626">o'chirilgan</span>{% endif %}</div>
                   </div>
-                  <div class="dbt-item-amount" style="color:#EA580C">↩ {{ ("{:,.2f}" if (ort % 1) else "{:,.0f}").format(ort).replace(",", " ") }} so'm</div>
+                  <div class="dbt-item-amount" style="color:#C2410C">↩ {{ ("{:,.2f}" if (ort % 1) else "{:,.0f}").format(ort).replace(",", " ") }} so'm</div>
                 </div>
               </div>
             </div>
@@ -237,7 +237,7 @@
                     <div class="dbt-item-name">{{ s.name }}</div>
                     <div class="dbt-item-sub">{{ s.phone or '—' }} · {{ s.purchase_count }} ta xarid</div>
                   </div>
-                  <div class="dbt-item-amount" style="color:#F59E0B">{{ "{:,.0f}".format(s.debt).replace(",", " ") }} so'm</div>
+                  <div class="dbt-item-amount" style="color:#B45309">{{ "{:,.0f}".format(s.debt).replace(",", " ") }} so'm</div>
                 </div>
                 <div class="dbt-progress-track"><div class="dbt-progress-fill" style="width:{{ spaid_pct|round }}%;background:#F59E0B"></div></div>
               </div>
@@ -277,10 +277,10 @@
                 <div style="display:flex;justify-content:space-between;align-items:flex-start">
                   <div>
                     <span style="font-weight:700;font-size:13.5px">{{ e.name }}</span>
-                    <span style="font-size:11px;font-weight:700;color:{{ '#EF4444' if e.status=='overdue' else '#F59E0B' }};background:{{ '#FEF2F2' if e.status=='overdue' else '#FFFBEB' }};padding:2px 8px;border-radius:6px;margin-left:6px">{{ e.month_label }}</span>
-                    <div style="font-size:11.5px;color:var(--d-text3);margin-top:2px">{{ e.detail }} — jami {{ "{:,.0f}".format(e.amount).replace(",", " ") }}, avans {{ "{:,.0f}".format(e.avans).replace(",", " ") }}</div>
+                    <span style="font-size:12px;font-weight:700;color:{{ '#EF4444' if e.status=='overdue' else '#F59E0B' }};background:{{ '#FEF2F2' if e.status=='overdue' else '#FFFBEB' }};padding:2px 8px;border-radius:6px;margin-left:6px">{{ e.month_label }}</span>
+                    <div style="font-size:12px;color:var(--d-text3);margin-top:2px">{{ e.detail }} — jami {{ "{:,.0f}".format(e.amount).replace(",", " ") }}, avans {{ "{:,.0f}".format(e.avans).replace(",", " ") }}</div>
                   </div>
-                  <div style="font-weight:800;color:#EF4444;font-size:15px">{{ "{:,.0f}".format(e.qolgan).replace(",", " ") }}</div>
+                  <div style="font-weight:800;color:#DC2626;font-size:15px">{{ "{:,.0f}".format(e.qolgan).replace(",", " ") }}</div>
                 </div>
                 <button class="btn btn-outline btn-xs" style="margin-top:8px" data-qolgan="{{ e.qolgan }}" onclick="event.stopPropagation();closeEmployeeDebt(this.closest('.oblig-item').dataset.empId, this.closest('.oblig-item').dataset.empName, parseFloat(this.dataset.qolgan), this.closest('.oblig-item').dataset.year, this.closest('.oblig-item').dataset.month)">✓ To'liq to'landi deb belgilash</button>
               </div>
@@ -309,13 +309,13 @@
                   <div style="display:flex;align-items:center;gap:6px">
                     <span class="oblig-status-dot" style="background:{{ status_color[r.status] }}"></span>
                     <span style="font-weight:600;font-size:13.5px">{{ r.icon }} {{ r.label }}</span>
-                    <span style="font-size:11px;font-weight:700;color:{{ status_color[r.status] }};background:{{ status_color[r.status] }}1A;padding:2px 8px;border-radius:6px">{{ r.month_label }}</span>
+                    <span style="font-size:12px;font-weight:700;color:{{ status_color[r.status] }};background:{{ status_color[r.status] }}1A;padding:2px 8px;border-radius:6px">{{ r.month_label }}</span>
                   </div>
-                  <div style="font-size:11.5px;color:var(--d-text3);margin-top:2px">Maqsad: {{ "{:,.0f}".format(r.target).replace(",", " ") }} · To'langan: {{ "{:,.0f}".format(r.paid).replace(",", " ") }} · Har oy {{ r.due_day }}-sanagacha</div>
+                  <div style="font-size:12px;color:var(--d-text3);margin-top:2px">Maqsad: {{ "{:,.0f}".format(r.target).replace(",", " ") }} · To'langan: {{ "{:,.0f}".format(r.paid).replace(",", " ") }} · Har oy {{ r.due_day }}-sanagacha</div>
                 </div>
                 <div style="text-align:right">
                   <div style="font-weight:800;color:{{ status_color[r.status] }};font-size:15px">{{ "{:,.0f}".format(r.debt).replace(",", " ") }}</div>
-                  <div style="font-size:10.5px;color:{{ status_color[r.status] }};font-weight:600">{{ status_label[r.status] }}</div>
+                  <div style="font-size:12px;color:{{ status_color[r.status] }};font-weight:600">{{ status_label[r.status] }}</div>
                 </div>
               </div>
               <div class="dbt-progress-track"><div class="dbt-progress-fill" style="width:{{ (r.paid/r.target*100)|round if r.target>0 else 0 }}%;background:{{ status_color[r.status] }}"></div></div>
@@ -328,11 +328,11 @@
 
           {% if recurring_targets %}
           <div style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--d-border)">
-            <div style="font-size:11px;color:var(--d-text3);margin-bottom:6px">Barcha sozlangan kategoriyalar:</div>
+            <div style="font-size:12px;color:var(--d-text3);margin-bottom:6px">Barcha sozlangan kategoriyalar:</div>
             {% for t in recurring_targets %}
-            <span style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;background:var(--d-bg);padding:4px 9px;border-radius:12px;margin:2px 4px 2px 0">
+            <span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;background:var(--d-bg);padding:4px 9px;border-radius:12px;margin:2px 4px 2px 0">
               {{ t.icon }} {{ t.label }}
-              <span data-id="{{ t.id }}" data-label="{{ t.label }}" onclick="deleteCategory(this.dataset.id, this.dataset.label)" style="cursor:pointer;color:#EF4444;margin-left:2px">✕</span>
+              <span data-id="{{ t.id }}" data-label="{{ t.label }}" onclick="deleteCategory(this.dataset.id, this.dataset.label)" style="cursor:pointer;color:#DC2626;margin-left:2px">✕</span>
             </span>
             {% endfor %}
           </div>
@@ -593,34 +593,34 @@ async function quickPayObligation(category, label, debt, year, month){
 async function openObligTimeline(category, label){
   document.getElementById('tl-title').textContent = `📋 ${label} — to'lovlar tarixi`;
   document.getElementById('tl-sub').textContent = 'Shu oy';
-  document.getElementById('tl-list').innerHTML = '<div style="text-align:center;padding:20px;color:#9CA3AF">Yuklanmoqda...</div>';
+  document.getElementById('tl-list').innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>';
   document.getElementById('timelineModal').style.display = 'flex';
   const tk = tkHozir();     // kech106: "Shu oy" — Toshkent
   try {
     const rows = await fetch(`/api/obligations/timeline?category=${category}&year=${tk.yil}&month=${tk.oy}`).then(r=>r.json());
     renderTimeline(rows);
-  } catch(e) { document.getElementById('tl-list').innerHTML = '<div style="text-align:center;padding:20px;color:#EF4444">Xato yuz berdi</div>'; }
+  } catch(e) { document.getElementById('tl-list').innerHTML = '<div style="text-align:center;padding:20px;color:#DC2626">Xato yuz berdi</div>'; }
 }
 
 async function openEmpTimeline(empId, name){
   document.getElementById('tl-title').textContent = `👷 ${name} — to'lovlar tarixi`;
   document.getElementById('tl-sub').textContent = 'Shu oy (avans + yakuniy to\'lovlar)';
-  document.getElementById('tl-list').innerHTML = '<div style="text-align:center;padding:20px;color:#9CA3AF">Yuklanmoqda...</div>';
+  document.getElementById('tl-list').innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>';
   document.getElementById('timelineModal').style.display = 'flex';
   const tk = tkHozir();     // kech106: "Shu oy" — Toshkent
   try {
     const rows = await fetch(`/api/obligations/employee/${empId}/timeline?year=${tk.yil}&month=${tk.oy}`).then(r=>r.json());
     renderTimeline(rows);
-  } catch(e) { document.getElementById('tl-list').innerHTML = '<div style="text-align:center;padding:20px;color:#EF4444">Xato yuz berdi</div>'; }
+  } catch(e) { document.getElementById('tl-list').innerHTML = '<div style="text-align:center;padding:20px;color:#DC2626">Xato yuz berdi</div>'; }
 }
 
 function renderTimeline(rows){
   const el = document.getElementById('tl-list');
-  if (!rows.length) { el.innerHTML = '<div style="text-align:center;padding:20px;color:#9CA3AF">Bu oy hali to\'lov bo\'lmagan</div>'; return; }
+  if (!rows.length) { el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">Bu oy hali to\'lov bo\'lmagan</div>'; return; }
   el.innerHTML = rows.map(r => {
     return `<div class="tl-row">
-      <div><div style="font-weight:500">${tkSana(r.date)}</div><div style="font-size:11.5px;color:#9CA3AF">${escapeHtml(r.notes||'')} ${r.created_by?'· '+escapeHtml(r.created_by):''}</div></div>
-      <div style="font-weight:700;color:#22C55E">${fmt(r.amount)} so'm</div>
+      <div><div style="font-weight:500">${tkSana(r.date)}</div><div style="font-size:12px;color:var(--text3)">${escapeHtml(r.notes||'')} ${r.created_by?'· '+escapeHtml(r.created_by):''}</div></div>
+      <div style="font-weight:700;color:#15803D">${fmt(r.amount)} so'm</div>
     </div>`;
   }).join('');
 }
@@ -654,20 +654,20 @@ function selectOrderDebt(el){
   document.getElementById('cd-name').textContent = d.client;
   document.getElementById('cd-avatar').textContent = (d.client || '?')[0].toUpperCase();
   document.getElementById('cd-body').innerHTML = `
-    <div class="dbt-sum-row"><span style="color:#9CA3AF">Buyurtma</span><span style="font-weight:600">${escapeHtml(d.orderNumber)}</span></div>
-    <div class="dbt-sum-row"><span style="color:#9CA3AF">Loyiha</span><span>${escapeHtml(d.project)}</span></div>
-    <div class="dbt-sum-row"><span style="color:#9CA3AF">Telefon</span><span>${escapeHtml(d.phone)}</span></div>
-    <div class="dbt-sum-row"><span style="color:#9CA3AF">Muddat</span><span style="color:#F59E0B">${escapeHtml(d.deadline)}</span></div>
-    <div class="dbt-sum-row"><span style="color:#9CA3AF">Kelishilgan summa</span><span style="font-weight:600">${fmt(agreed)} so'm</span></div>
-    <div class="dbt-sum-row"><span style="color:#9CA3AF">To'langan</span><span style="font-weight:600;color:#22C55E">${fmt(paid)} so'm</span></div>
+    <div class="dbt-sum-row"><span style="color:var(--text3)">Buyurtma</span><span style="font-weight:600">${escapeHtml(d.orderNumber)}</span></div>
+    <div class="dbt-sum-row"><span style="color:var(--text3)">Loyiha</span><span>${escapeHtml(d.project)}</span></div>
+    <div class="dbt-sum-row"><span style="color:var(--text3)">Telefon</span><span>${escapeHtml(d.phone)}</span></div>
+    <div class="dbt-sum-row"><span style="color:var(--text3)">Muddat</span><span style="color:#B45309">${escapeHtml(d.deadline)}</span></div>
+    <div class="dbt-sum-row"><span style="color:var(--text3)">Kelishilgan summa</span><span style="font-weight:600">${fmt(agreed)} so'm</span></div>
+    <div class="dbt-sum-row"><span style="color:var(--text3)">To'langan</span><span style="font-weight:600;color:#15803D">${fmt(paid)} so'm</span></div>
     <div class="dbt-sum-row" style="border-top:2px solid #EF4444;padding-top:10px;margin-top:4px">
-      <span style="font-weight:700">QARZ:</span><span style="font-weight:800;font-size:17px;color:#EF4444">${fmt(debt)} so'm</span>
+      <span style="font-weight:700">QARZ:</span><span style="font-weight:800;font-size:17px;color:#DC2626">${fmt(debt)} so'm</span>
     </div>
     <div style="margin-top:10px"><div class="dbt-progress-track"><div class="dbt-progress-fill" style="width:${pct}%"></div></div>
-      <div style="font-size:11px;color:#9CA3AF;margin-top:4px;text-align:right">${pct}% to'langan</div></div>
+      <div style="font-size:12px;color:var(--text3);margin-top:4px;text-align:right">${pct}% to'langan</div></div>
     ${d.deleted === 'true'
-      ? '<div style="margin-top:12px;font-size:12px;color:#DC2626;text-align:center">Buyurtma o\'chirilgan (topshirilgan qismi hisobotda) — qarz undirilishi kerak</div><a href="/trash" style="display:block;margin-top:6px;text-align:center;font-size:12.5px;color:#B9783F;text-decoration:none">O\'chirilganlar sahifasida ochish →</a>'
-      : '<a href="/orders" style="display:block;margin-top:12px;text-align:center;font-size:12.5px;color:#B9783F;text-decoration:none">Buyurtmalar sahifasida ochish →</a>'}`;
+      ? '<div style="margin-top:12px;font-size:12px;color:#DC2626;text-align:center">Buyurtma o\'chirilgan (topshirilgan qismi hisobotda) — qarz undirilishi kerak</div><a href="/trash" style="display:block;margin-top:6px;text-align:center;font-size:12.5px;color:var(--gold-dark);text-decoration:none">O\'chirilganlar sahifasida ochish →</a>'
+      : '<a href="/orders" style="display:block;margin-top:12px;text-align:center;font-size:12.5px;color:var(--gold-dark);text-decoration:none">Buyurtmalar sahifasida ochish →</a>'}`;
 
   document.getElementById('payCard').style.display = 'block';
   // kech115 (G3-01, O'LCHANGAN — audit: robot tugmani BIR marta bosganda to'lov haqiqatan yozildi, kassa +380 000):
@@ -790,13 +790,13 @@ function selectRefund(el){
   document.getElementById('rd-name').textContent = d.client;
   document.getElementById('rd-avatar').textContent = (d.client || '?')[0].toUpperCase();
   document.getElementById('rd-body').innerHTML = `
-    <div class="dbt-sum-row"><span style="color:#9CA3AF">Buyurtma</span><span style="font-weight:600">${escapeHtml(d.orderNumber)}${d.deleted === 'true' ? ' <span style="color:#DC2626">(o\'chirilgan)</span>' : ''}</span></div>
-    <div class="dbt-sum-row"><span style="color:#9CA3AF">Loyiha</span><span>${escapeHtml(d.project)}</span></div>
-    <div class="dbt-sum-row"><span style="color:#9CA3AF">Telefon</span><span>${escapeHtml(d.phone)}</span></div>
-    <div class="dbt-sum-row"><span style="color:#9CA3AF">Kelishilgan summa</span><span style="font-weight:600">${escapeHtml(narxKorinishi(agreed))} so'm</span></div>
-    <div class="dbt-sum-row"><span style="color:#9CA3AF">To'langan</span><span style="font-weight:600;color:#22C55E">${escapeHtml(narxKorinishi(paid))} so'm</span></div>
+    <div class="dbt-sum-row"><span style="color:var(--text3)">Buyurtma</span><span style="font-weight:600">${escapeHtml(d.orderNumber)}${d.deleted === 'true' ? ' <span style="color:#DC2626">(o\'chirilgan)</span>' : ''}</span></div>
+    <div class="dbt-sum-row"><span style="color:var(--text3)">Loyiha</span><span>${escapeHtml(d.project)}</span></div>
+    <div class="dbt-sum-row"><span style="color:var(--text3)">Telefon</span><span>${escapeHtml(d.phone)}</span></div>
+    <div class="dbt-sum-row"><span style="color:var(--text3)">Kelishilgan summa</span><span style="font-weight:600">${escapeHtml(narxKorinishi(agreed))} so'm</span></div>
+    <div class="dbt-sum-row"><span style="color:var(--text3)">To'langan</span><span style="font-weight:600;color:#15803D">${escapeHtml(narxKorinishi(paid))} so'm</span></div>
     <div class="dbt-sum-row" style="border-top:2px solid #F97316;padding-top:10px;margin-top:4px">
-      <span style="font-weight:700">QAYTARISH KERAK:</span><span style="font-weight:800;font-size:17px;color:#EA580C">${escapeHtml(narxKorinishi(ort))} so'm</span>
+      <span style="font-weight:700">QAYTARISH KERAK:</span><span style="font-weight:800;font-size:17px;color:#C2410C">${escapeHtml(narxKorinishi(ort))} so'm</span>
     </div>`;
   document.getElementById('refundCard').style.display = 'block';
   // Aniq (tiyinli) summa — butun ortiqcha; qisman qaytarish uchun o'zgartirish mumkin
@@ -855,15 +855,15 @@ function selectSupplierDebt(el){
   document.getElementById('sd-name').textContent = d.name;
   document.getElementById('sd-avatar').textContent = (d.name || '?')[0].toUpperCase();
   document.getElementById('sd-body').innerHTML = `
-    <div class="dbt-sum-row"><span style="color:#9CA3AF">Telefon</span><span>${escapeHtml(d.phone)}</span></div>
-    <div class="dbt-sum-row"><span style="color:#9CA3AF">Nasiya xaridlar</span><span>${d.count} ta</span></div>
-    <div class="dbt-sum-row"><span style="color:#9CA3AF">Jami nasiya summasi</span><span style="font-weight:600">${fmt(credit)} so'm</span></div>
-    <div class="dbt-sum-row"><span style="color:#9CA3AF">To'langan</span><span style="font-weight:600;color:#22C55E">${fmt(paid)} so'm</span></div>
+    <div class="dbt-sum-row"><span style="color:var(--text3)">Telefon</span><span>${escapeHtml(d.phone)}</span></div>
+    <div class="dbt-sum-row"><span style="color:var(--text3)">Nasiya xaridlar</span><span>${d.count} ta</span></div>
+    <div class="dbt-sum-row"><span style="color:var(--text3)">Jami nasiya summasi</span><span style="font-weight:600">${fmt(credit)} so'm</span></div>
+    <div class="dbt-sum-row"><span style="color:var(--text3)">To'langan</span><span style="font-weight:600;color:#15803D">${fmt(paid)} so'm</span></div>
     <div class="dbt-sum-row" style="border-top:2px solid #F59E0B;padding-top:10px;margin-top:4px">
-      <span style="font-weight:700">QARZ:</span><span style="font-weight:800;font-size:17px;color:#F59E0B">${fmt(debt)} so'm</span>
+      <span style="font-weight:700">QARZ:</span><span style="font-weight:800;font-size:17px;color:#B45309">${fmt(debt)} so'm</span>
     </div>
     <div style="margin-top:10px"><div class="dbt-progress-track"><div class="dbt-progress-fill" style="width:${pct}%;background:#F59E0B"></div></div></div>
-    <a href="/suppliers/receive?supplier_id=${d.id}" style="display:block;margin-top:12px;text-align:center;font-size:12.5px;color:#B9783F;text-decoration:none">To'lov qilish →</a>`;
+    <a href="/suppliers/receive?supplier_id=${d.id}" style="display:block;margin-top:12px;text-align:center;font-size:12.5px;color:var(--gold-dark);text-decoration:none">To'lov qilish →</a>`;
 }
 
 window.addEventListener('load', () => {

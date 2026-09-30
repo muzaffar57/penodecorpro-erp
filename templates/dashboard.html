@@ -24,8 +24,8 @@
 .dash-info-row.grand .dash-info-val{font-size:19px;font-weight:800}
 .master-item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #f5f5f5}
 .master-item:last-child{border-bottom:none}
-.master-rank{width:24px;height:24px;border-radius:6px;background:#f5f5f5;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#999;flex-shrink:0}
-.master-rank.top{background:var(--gold);color:#fff}
+.master-rank{width:24px;height:24px;border-radius:6px;background:#f5f5f5;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:var(--text3);flex-shrink:0}
+.master-rank.top{background:var(--gold-btn);color:#fff}
 
 /* Mobile carousel — faqat telefon kengligida ishlaydi, desktop o'zgarmaydi */
 @media(max-width:768px){
@@ -97,7 +97,7 @@
   <div class="card mb-16" id="tasksCard">
     <div class="card-head"><h3><i class="ti ti-checklist" style="vertical-align:-2px;color:var(--gold-dark)"></i> Bugungi vazifalar</h3></div>
     <div class="card-body" id="tasksList" style="padding:10px 20px">
-      <div style="text-align:center;padding:10px;color:#bbb">Yuklanmoqda...</div>
+      <div style="text-align:center;padding:10px;color:var(--text3)">Yuklanmoqda...</div>
     </div>
   </div>
 
@@ -106,7 +106,7 @@
     <div class="card">
       <div class="card-head"><h3>Ishlab chiqarish holati</h3></div>
       <div class="card-body" id="stageList">
-        <div style="text-align:center;padding:20px;color:#bbb">Yuklanmoqda…</div>
+        <div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda…</div>
       </div>
     </div>
 
@@ -120,7 +120,7 @@
     <div class="card">
       <div class="card-head"><h3>🏗 Ombor ogohlantirishlari</h3></div>
       <div class="card-body" id="warnList" style="padding:8px 16px">
-        <div style="text-align:center;padding:12px;color:#bbb;font-size:12px">Yuklanmoqda…</div>
+        <div style="text-align:center;padding:12px;color:var(--text3);font-size:12px">Yuklanmoqda…</div>
       </div>
     </div>
 
@@ -141,7 +141,7 @@
   {% if current_user.role.value == 'admin' %}
   <div class="kpi-grid mb-16" style="grid-template-columns:repeat(4,1fr)" id="finGrid">
     <div class="kpi-card"><div class="kpi-val text-green" id="f-revenue">—</div><div class="kpi-label">Jami daromad</div></div>
-    <div class="kpi-card"><div class="kpi-val" style="color:#0EA5E9" id="f-paid">—</div><div class="kpi-label">To'langan</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#0369A1" id="f-paid">—</div><div class="kpi-label">To'langan</div></div>
     <div class="kpi-card"><div class="kpi-val text-gold" id="f-budget">—</div><div class="kpi-label">Jami byudjet</div></div>
     <div class="kpi-card"><div class="kpi-val text-red" id="f-debt">—</div><div class="kpi-label">Qarz</div></div>
   </div>
@@ -165,7 +165,7 @@
       <div class="kpi-label">Jami qarzdorlik</div>
     </div>
     <div class="kpi-card" style="border-left:3px solid #F59E0B">
-      <div class="kpi-val" style="color:#F59E0B" id="d-count">—</div>
+      <div class="kpi-val" style="color:#B45309" id="d-count">—</div>
       <div class="kpi-label">Qarzdor buyurtmalar</div>
     </div>
     <div class="kpi-card" style="border-left:3px solid #8E44AD">
@@ -217,7 +217,7 @@
     </div>
     <div class="card-body" style="padding:0">
       <div id="purchList" style="max-height:280px;overflow-y:auto">
-        <div style="text-align:center;padding:20px;color:#bbb">Yuklanmoqda...</div>
+        <div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>
       </div>
     </div>
   </div>
@@ -225,11 +225,11 @@
   <!-- YETKAZIB BERUVCHI QARZI -->
   <div class="card mb-16" style="border-left:3px solid #F59E0B;border-radius:0 12px 12px 0">
     <div class="card-head">
-      <h3 style="color:#F59E0B"><i class="ti ti-truck"></i> Yetkazib beruvchilarga nasiya qarzi</h3>
+      <h3 style="color:#B45309"><i class="ti ti-truck"></i> Yetkazib beruvchilarga nasiya qarzi</h3>
       <span id="sup-debt-total" style="font-size:16px;font-weight:800;color:#DC2626">—</span>
     </div>
     <div class="card-body" style="padding:10px 16px">
-      <span id="sup-debt-count" style="font-size:12px;color:#888"></span>
+      <span id="sup-debt-count" style="font-size:12px;color:var(--text3)"></span>
     </div>
   </div>
 
@@ -246,11 +246,11 @@
         </div>
         <div class="dash-info-row">
           <span class="dash-info-label"><i class="ti ti-hourglass" style="font-size:13px"></i> Jarayonda (loy kutmoqda)</span>
-          <span id="fp-progress-count" class="dash-info-val" style="color:#F59E0B">—</span>
+          <span id="fp-progress-count" class="dash-info-val" style="color:#B45309">—</span>
         </div>
         <div class="dash-info-row">
           <span class="dash-info-label"><i class="ti ti-recycle" style="font-size:13px"></i> Qaytgan mahsulot qiymati</span>
-          <span id="fp-returned-value" class="dash-info-val" style="color:#22C55E">—</span>
+          <span id="fp-returned-value" class="dash-info-val" style="color:#15803D">—</span>
         </div>
         <div class="dash-info-row total">
           <span>Jami ombor qiymati</span>
@@ -273,8 +273,8 @@
           <span id="brk-month-value" class="dash-info-val" style="color:#DC2626">—</span>
         </div>
         <div class="dash-info-row">
-          <span class="dash-info-label"><i class="ti ti-circle-check" style="color:#22C55E"></i> Butun qaytgan (bu oy)</span>
-          <span id="brk-whole-count" class="dash-info-val" style="color:#22C55E">—</span>
+          <span class="dash-info-label"><i class="ti ti-circle-check" style="color:#15803D"></i> Butun qaytgan (bu oy)</span>
+          <span id="brk-whole-count" class="dash-info-val" style="color:#15803D">—</span>
         </div>
         <!-- kech56 (13-band, 7-qadam): brak ulushi (Moliya bilan bir manba) va me'yor -->
         <div class="dash-info-row">
@@ -294,12 +294,12 @@
   <div class="card mb-16" style="border-left:3px solid #8E44AD;border-radius:0 12px 12px 0">
     <div class="card-head">
       <h3 style="color:#8E44AD"><i class="ti ti-report-money"></i> Bu oy moliyaviy holat</h3>
-      <span id="mf-period" style="font-size:13px;color:#aaa"></span>
+      <span id="mf-period" style="font-size:13px;color:var(--text3)"></span>
     </div>
     <div class="card-body">
       <div class="dash-info-row">
         <span class="dash-info-label">Daromad</span>
-        <span id="mf-daromad" class="dash-info-val" style="color:#22C55E">—</span>
+        <span id="mf-daromad" class="dash-info-val" style="color:#15803D">—</span>
       </div>
       <div style="border-top:1px dashed var(--border);margin:2px 0"></div>
 
@@ -307,7 +307,7 @@
 
       <div class="dash-info-row total">
         <span>Jami xarajat</span>
-        <span id="mf-jami-xarajat" style="color:#EF4444">—</span>
+        <span id="mf-jami-xarajat" style="color:#DC2626">—</span>
       </div>
       <div class="dash-info-row grand">
         <span>SOF FOYDA</span>
@@ -324,7 +324,7 @@
       <div class="kpi-label">To'liq topshirilgan</div>
     </div>
     <div class="kpi-card" style="border-left:3px solid #F59E0B">
-      <div class="kpi-val" style="color:#F59E0B" id="dl-partial">—</div>
+      <div class="kpi-val" style="color:#B45309" id="dl-partial">—</div>
       <div class="kpi-label">Qisman topshirilgan</div>
     </div>
     <div class="kpi-card" style="border-left:3px solid #BDC3C7">
@@ -337,11 +337,11 @@
   <div class="card mb-16" style="border-left:3px solid #F59E0B;border-radius:0 12px 12px 0" id="partialCard">
     <div class="card-head">
       <h3 style="color:#d35400"><i class="ti ti-package"></i> Qisman topshirilgan buyurtmalar</h3>
-      <span style="font-size:13px;color:#aaa" id="partial-label">—</span>
+      <span style="font-size:13px;color:var(--text3)" id="partial-label">—</span>
     </div>
     <div class="card-body" style="padding:0">
       <div id="partialList" style="max-height:300px;overflow-y:auto">
-        <div style="text-align:center;padding:20px;color:#bbb">Yuklanmoqda...</div>
+        <div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>
       </div>
     </div>
   </div>
@@ -350,11 +350,11 @@
   <div class="card mb-16" style="border-left:3px solid #DC2626;border-radius:0 12px 12px 0">
     <div class="card-head">
       <h3 style="color:#DC2626"><i class="ti ti-credit-card"></i> Qarzdor buyurtmalar</h3>
-      <span style="font-size:13px;color:#aaa" id="debt-count-label">—</span>
+      <span style="font-size:13px;color:var(--text3)" id="debt-count-label">—</span>
     </div>
     <div class="card-body" style="padding:0">
       <div id="debtList" style="max-height:340px;overflow-y:auto">
-        <div style="text-align:center;padding:20px;color:#bbb">Yuklanmoqda...</div>
+        <div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>
       </div>
     </div>
   </div>
@@ -362,7 +362,7 @@
   <div class="card mb-16">
     <div class="card-head"><h3>Usta reytingi (top 5)</h3></div>
     <div class="card-body" style="padding:0 16px">
-      <div id="masterList"><div style="text-align:center;padding:20px;color:#bbb">Yuklanmoqda...</div></div>
+      <div id="masterList"><div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div></div>
     </div>
   </div>
 
@@ -370,19 +370,19 @@
     <div class="card">
       <div class="card-head"><h3>Ishlab chiqarish</h3></div>
       <div class="card-body" id="prodPeriods" style="display:flex;justify-content:space-around;text-align:center;padding:18px 12px">
-        <div style="text-align:center;padding:20px;color:#bbb">Yuklanmoqda...</div>
+        <div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>
       </div>
     </div>
     <div class="card">
       <div class="card-head"><h3>Eng ko'p sotilgan</h3></div>
       <div class="card-body" id="topProducts" style="padding:8px 16px">
-        <div style="text-align:center;padding:20px;color:#bbb">Yuklanmoqda...</div>
+        <div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>
       </div>
     </div>
     <div class="card">
       <div class="card-head"><h3>Pul oqimi (bu oy)</h3></div>
       <div class="card-body" id="cashFlow" style="padding:12px 16px">
-        <div style="text-align:center;padding:20px;color:#bbb">Yuklanmoqda...</div>
+        <div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>
       </div>
     </div>
   </div>
@@ -396,7 +396,7 @@
   <div style="background:#fff;border-radius:16px;width:460px;max-width:100%;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.25)">
     <div style="padding:20px 22px 14px;border-bottom:1px solid #f0f0f0">
       <div style="font-size:16px;font-weight:700;color:#111">💰 Xodimlar yozgan avans so'rovlari</div>
-      <div style="font-size:13px;color:#888;margin-top:4px">Rostdan ham shu summani berganingizni tasdiqlang</div>
+      <div style="font-size:13px;color:var(--text3);margin-top:4px">Rostdan ham shu summani berganingizni tasdiqlang</div>
     </div>
     <div id="advReqList" style="padding:14px 22px;overflow-y:auto;flex:1"></div>
     <div style="padding:14px 22px;border-top:1px solid #f0f0f0">
@@ -469,7 +469,7 @@ async function loadAll(){
   const pgSplit = document.getElementById('pg-today-split');
   if (pgSplit) {
     pgSplit.innerHTML = (t.today_yonalishlar || []).map((y, i) =>
-      `<span style="color:${YON_RANGI(i, y.kalit)};font-weight:600">${escapeHtml(y.nom)}: ${fmt(y.daromad||0)} so'm</span>`).join('');
+      `<span style="color:${matnRangi(YON_RANGI(i, y.kalit))};font-weight:600">${escapeHtml(y.nom)}: ${fmt(y.daromad||0)} so'm</span>`).join('');
   }
   loadDebts();
   loadDeliveryStats();
@@ -500,16 +500,16 @@ async function loadProdPeriods(){
   try{
     const p = await fetch('/api/dashboard/production-periods').then(r=>r.json());
     document.getElementById('prodPeriods').innerHTML = `
-      <div><div style="font-size:20px;font-weight:700;color:var(--gold-dark)">${p.today}</div><div style="font-size:13px;color:#aaa">Bugun</div></div>
-      <div><div style="font-size:20px;font-weight:700;color:var(--gold-dark)">${p.week}</div><div style="font-size:13px;color:#aaa">Hafta</div></div>
-      <div><div style="font-size:20px;font-weight:700;color:var(--gold-dark)">${p.month}</div><div style="font-size:13px;color:#aaa">Oy</div></div>`;
+      <div><div style="font-size:20px;font-weight:700;color:var(--gold-dark)">${p.today}</div><div style="font-size:13px;color:var(--text3)">Bugun</div></div>
+      <div><div style="font-size:20px;font-weight:700;color:var(--gold-dark)">${p.week}</div><div style="font-size:13px;color:var(--text3)">Hafta</div></div>
+      <div><div style="font-size:20px;font-weight:700;color:var(--gold-dark)">${p.month}</div><div style="font-size:13px;color:var(--text3)">Oy</div></div>`;
   }catch(e){}
 }
 
 async function loadTopProducts(){
   try{
     const rows = await fetch('/api/dashboard/top-finished-products?days=30&limit=5').then(r=>r.json());
-    if(!rows.length){document.getElementById('topProducts').innerHTML='<div style="text-align:center;padding:16px;color:#bbb;font-size:12px">Ma\'lumot yo\'q</div>';return;}
+    if(!rows.length){document.getElementById('topProducts').innerHTML='<div style="text-align:center;padding:16px;color:var(--text3);font-size:12px">Ma\'lumot yo\'q</div>';return;}
     document.getElementById('topProducts').innerHTML = rows.map(r=>`
       <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border2);font-size:12.5px">
         <span style="color:var(--text)">${escapeHtml(r.name)}</span><span style="font-weight:600;color:var(--gold-dark)">${fmt(r.revenue)}</span>
@@ -532,9 +532,9 @@ async function loadCashFlow(){
     document.getElementById('cashFlow').innerHTML = `
       <div style="display:flex;justify-content:space-between;padding:6px 0"><span style="font-size:12px;color:#166534">Kirim (olingan pul)</span><span style="font-weight:600;color:#166534" id="cf-kirim">${fmt(kirim)}</span></div>
       <div style="display:flex;justify-content:space-between;padding:6px 0"><span style="font-size:12px;color:#991B1B">Chiqim (to'langan pul)</span><span style="font-weight:600;color:#991B1B" id="cf-chiqim">${fmt(chiqimJami)}</span></div>
-      <div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--border2);margin-top:4px"><span style="font-size:12px;font-weight:600">Balans</span><span style="font-weight:700;color:${balans>=0?'#A86B36':'#DC2626'}" id="cf-balans">${fmt(balans)}</span></div>`;
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--border2);margin-top:4px"><span style="font-size:12px;font-weight:600">Balans</span><span style="font-weight:700;color:${balans>=0?'#8F5B2A':'#DC2626'}" id="cf-balans">${fmt(balans)}</span></div>`;
   }catch(e){
-    document.getElementById('cashFlow').innerHTML = '<div style="text-align:center;padding:16px;color:#bbb;font-size:12px">Ma\'lumot yo\'q</div>';
+    document.getElementById('cashFlow').innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3);font-size:12px">Ma\'lumot yo\'q</div>';
   }
 }
 
@@ -550,7 +550,7 @@ function buildStageList(statuses){
     const count=statuses[st.key]||0;
     const pct=Math.round(count/total*100);
     return `<div class="stock-row">
-      <div class="stock-head"><span class="stock-name">${escapeHtml(st.label)}</span><span class="stock-qty" style="color:${st.color}">${count} ta</span></div>
+      <div class="stock-head"><span class="stock-name">${escapeHtml(st.label)}</span><span class="stock-qty" style="color:${matnRangi(st.color)}">${count} ta</span></div>
       <div class="stock-bar"><div class="stock-bar-fill" style="width:${pct}%;background:${st.color}"></div></div>
     </div>`;
   }).join('');
@@ -560,7 +560,7 @@ function buildWarnList(lowStockItems){
   const el=document.getElementById('warnList');
   const items=(lowStockItems||[]).slice(0,4);
   if(!items.length){
-    el.innerHTML='<div style="text-align:center;padding:12px;color:#22C55E;font-size:12px;font-weight:500">✓ Ombor holati yaxshi</div>';
+    el.innerHTML='<div style="text-align:center;padding:12px;color:#15803D;font-size:12px;font-weight:500">✓ Ombor holati yaxshi</div>';
     return;
   }
   el.innerHTML=items.map(item=>`
@@ -599,13 +599,13 @@ async function loadBrakFoiz(){
     const r = await fetch('/api/reports/brak-tahlil?oylar=1');
     if (!r.ok) return;
     const d = await r.json();
-    const foizMatn = f => (f === null || f === undefined) ? '—' : (Number(f) + ' %');
+    const foizMatn = f => (f === null || f === undefined) ? '—' : (sonKor(f, 2) + ' %');   // kech118 (U-05): kasr — vergul
     const mey = document.getElementById('brk-meyor');
     if (mey) mey.textContent = foizMatn(d.meyor_foiz);
     const el = document.getElementById('brk-foiz');
     if (el) {
       el.textContent = foizMatn(d.brak_foizi);
-      el.style.color = d.meyordan_oshdi ? '#DC2626' : '#16A34A';
+      el.style.color = d.meyordan_oshdi ? '#DC2626' : '#15803D';
     }
     const og = document.getElementById('brk-ogohlantirish');
     if (og) {
@@ -667,8 +667,8 @@ async function loadMonthlyFinance(){
     const sofFoyda = d.sof_foyda||0;
     const sf = document.getElementById('mf-sof-foyda');
     sf.textContent = fmt(sofFoyda) + " so'm";
-    sf.style.color = sofFoyda >= 0 ? '#8E44AD' : '#EF4444';
-    document.getElementById('mf-foiz').textContent = (d.foyda_foiz||0) + "% foyda";
+    sf.style.color = sofFoyda >= 0 ? '#8E44AD' : '#DC2626';
+    document.getElementById('mf-foiz').textContent = foizKor(d.foyda_foiz||0) + " foyda";   // kech118 (U-05)
   }catch(e){console.error('Oylik moliya:',e);}
 }
 
@@ -687,7 +687,7 @@ async function loadPurchaseStats(){
 
     const el = document.getElementById('purchList');
     if(!d.by_material || !d.by_material.length){
-      el.innerHTML = '<div style="text-align:center;padding:20px;color:#bbb">Bu oy xomashyo xaridi bo\'lmagan</div>';
+      el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">Bu oy xomashyo xaridi bo\'lmagan</div>';
       return;
     }
 
@@ -713,20 +713,20 @@ async function loadPurchaseStats(){
         <div style="padding:8px 16px;border-bottom:1px solid #f5f5f5">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
             <span style="font-size:13px;font-weight:600;color:#1a1a1a">${escapeHtml(m.name)}</span>
-            <span style="font-size:13px;font-weight:700;color:#A86B36">${fmt(m.total)} so'm</span>
+            <span style="font-size:13px;font-weight:700;color:var(--gold-dark)">${fmt(m.total)} so'm</span>
           </div>
           <div style="display:flex;align-items:center;gap:8px">
             <div style="flex:1;height:5px;background:#f0f0f0;border-radius:3px;overflow:hidden">
               <div style="height:100%;width:${pct}%;background:#B9783F;border-radius:3px"></div>
             </div>
-            <span style="font-size:12.5px;color:#aaa;white-space:nowrap">${m.quantity}${m.unit ? ' ' + escapeHtml(m.unit) : ''} · ~${fmt(m.avg_price)}/${escapeHtml(m.unit || 'dona')}</span>
+            <span style="font-size:12.5px;color:var(--text3);white-space:nowrap">${m.quantity}${m.unit ? ' ' + escapeHtml(m.unit) : ''} · ~${fmt(m.avg_price)}/${escapeHtml(m.unit || 'dona')}</span>
           </div>
         </div>`;
       }).join('');
       return `
         <div style="padding:6px 16px;background:#FAFAF8;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between">
-          <span style="font-size:13.5px;font-weight:700;color:#A86B36">${catIcons[cat]||'📦'} ${escapeHtml(cat)}</span>
-          <span style="font-size:13.5px;font-weight:700;color:#A86B36">${fmt(g.total)} so'm</span>
+          <span style="font-size:13.5px;font-weight:700;color:var(--gold-dark)">${catIcons[cat]||'📦'} ${escapeHtml(cat)}</span>
+          <span style="font-size:13.5px;font-weight:700;color:var(--gold-dark)">${fmt(g.total)} so'm</span>
         </div>
         ${rows}`;
     }).join('');
@@ -753,15 +753,15 @@ async function loadDeliveryStats(){
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:6px">
             <span style="font-size:13px;font-weight:600;color:#1a1a1a">${o.order_number}</span>
-            <span style="font-size:12px;background:#FEF3C7;color:#b7770d;padding:2px 6px;border-radius:8px;font-weight:600">${o.items_pending} ta detal qoldi</span>
+            <span style="font-size:12px;background:#FEF3C7;color:#92400E;padding:2px 6px;border-radius:8px;font-weight:600">${o.items_pending} ta detal qoldi</span>
           </div>
-          <div style="font-size:13px;color:#888;margin-top:2px">${escapeHtml(o.client_name)}</div>
+          <div style="font-size:13px;color:var(--text3);margin-top:2px">${escapeHtml(o.client_name)}</div>
           <div style="margin-top:5px;height:4px;background:#f0f0f0;border-radius:2px;overflow:hidden">
             <div style="height:100%;width:${o.percent}%;background:#F59E0B;border-radius:2px"></div>
           </div>
         </div>
         <div style="text-align:right;flex-shrink:0">
-          <div style="font-size:14px;font-weight:700;color:#F59E0B">${o.percent}%</div>
+          <div style="font-size:14px;font-weight:700;color:#B45309">${o.percent}%</div>
           ${o.debt_amount>0?`<div style="font-size:12px;color:#DC2626;margin-top:1px">qarz ${fmt(o.debt_amount)}</div>`:''}
         </div>
       </div>`).join('');
@@ -783,7 +783,7 @@ async function loadDebts(){
 function buildDebtList(debts){
   const el=document.getElementById('debtList');
   if(!debts||!debts.length){
-    el.innerHTML='<div style="text-align:center;padding:24px;color:#22C55E;font-weight:500">✓ Qarzdorlik yo\'q</div>';
+    el.innerHTML='<div style="text-align:center;padding:24px;color:#15803D;font-weight:500">✓ Qarzdorlik yo\'q</div>';
     return;
   }
   const ST={'unpaid':['🔴','To\'lanmagan','#DC2626'],'partial':['🟡','Qisman','#F59E0B'],'paid':['✅','To\'langan','#22C55E']};
@@ -795,18 +795,18 @@ function buildDebtList(debts){
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;gap:6px">
           <span style="font-size:13px;font-weight:600;color:#1a1a1a">${d.order_number}</span>
-          <span style="font-size:12px;color:${s[2]};font-weight:600">${s[0]} ${s[1]}</span>
-          ${d.is_overdue?'<span style="font-size:11px;background:#FEE2E2;color:#DC2626;padding:2px 6px;border-radius:8px;font-weight:600">'+d.days_passed+' kun</span>':''}
-          ${d.is_deleted?'<span class="qarz-ochirilgan" style="font-size:11px;color:#DC2626;font-weight:600">o\'chirilgan</span>':''}
+          <span style="font-size:12px;color:${matnRangi(s[2])};font-weight:600">${s[0]} ${s[1]}</span>
+          ${d.is_overdue?'<span style="font-size:12px;background:#FEE2E2;color:#DC2626;padding:2px 6px;border-radius:8px;font-weight:600">'+d.days_passed+' kun</span>':''}
+          ${d.is_deleted?'<span class="qarz-ochirilgan" style="font-size:12px;color:#DC2626;font-weight:600">o\'chirilgan</span>':''}
         </div>
-        <div style="font-size:13px;color:#888;margin-top:2px">${escapeHtml(d.client_name)} · ${escapeHtml(d.project_name)}</div>
+        <div style="font-size:13px;color:var(--text3);margin-top:2px">${escapeHtml(d.client_name)} · ${escapeHtml(d.project_name)}</div>
         <div style="margin-top:5px;height:4px;background:#f0f0f0;border-radius:2px;overflow:hidden">
           <div style="height:100%;width:${pct}%;background:${s[2]};border-radius:2px"></div>
         </div>
       </div>
       <div style="text-align:right;flex-shrink:0">
         <div style="font-size:13px;font-weight:700;color:#DC2626">${fmt(d.debt_amount)} so'm</div>
-        <div style="font-size:12px;color:#aaa;margin-top:1px">${fmt(d.paid_amount)} / ${fmt(d.agreed_amount)}</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:1px">${fmt(d.paid_amount)} / ${fmt(d.agreed_amount)}</div>
       </div>
     </div>`;
   }).join('');
@@ -867,12 +867,12 @@ function buildStatusChart(statuses){
 }
 function buildMasterList(masters){
   const el=document.getElementById('masterList');
-  if(!masters||!masters.length){el.innerHTML='<div style="text-align:center;padding:20px;color:#bbb">Ma\'lumot yo\'q</div>';return;}
+  if(!masters||!masters.length){el.innerHTML='<div style="text-align:center;padding:20px;color:var(--text3)">Ma\'lumot yo\'q</div>';return;}
   el.innerHTML=masters.map((m,i)=>`
     <div class="master-item">
       <div class="master-rank ${i===0?'top':''}">${i+1}</div>
-      <div style="flex:1"><div style="font-size:13px;font-weight:500">${escapeHtml(m.name)}</div><div style="font-size:13px;color:#aaa">${m.orders} ta buyurtma</div></div>
-      <div style="font-size:13px;font-weight:600;color:#22C55E">${fmt(m.total)} so'm</div>
+      <div style="flex:1"><div style="font-size:13px;font-weight:500">${escapeHtml(m.name)}</div><div style="font-size:13px;color:var(--text3)">${m.orders} ta buyurtma</div></div>
+      <div style="font-size:13px;font-weight:600;color:#15803D">${fmt(m.total)} so'm</div>
     </div>`).join('');
 }
 async function loadObligationsWidget(){
@@ -924,14 +924,14 @@ async function loadObligationsWidget(){
     ['recurring', 'employee', 'supplier'].forEach(groupKey => {
       const groupItems = items.filter(it => it.group === groupKey);
       if (!groupItems.length) return;
-      html += `<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.03em;padding:${rowIdx===0?'0':'14px'} 0 6px">${GROUP_LABELS[groupKey]}</div>`;
+      html += `<div style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.03em;padding:${rowIdx===0?'0':'14px'} 0 6px">${GROUP_LABELS[groupKey]}</div>`;
       groupItems.forEach(it => {
         const zebra = rowIdx % 2 === 0 ? 'transparent' : 'var(--bg)';
         const badgeColor = STATUS_COLOR[it.status] || '#EF4444';
         const badgeLabel = STATUS_LABEL[it.status] || '';
         const badgeBg = STATUS_BG[it.status] || '#FEF2F2';
         const avatarHtml = it.group === 'employee'
-          ? `<div style="width:26px;height:26px;border-radius:50%;background:${avatarColor[it.name.length % 5]};color:${avatarText[it.name.length % 5]};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;flex-shrink:0">${(it.name||'?')[0].toUpperCase()}</div>`
+          ? `<div style="width:26px;height:26px;border-radius:50%;background:${avatarColor[it.name.length % 5]};color:${matnRangi(avatarText[it.name.length % 5], 1)};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0">${(it.name||'?')[0].toUpperCase()}</div>`
           : `<div style="width:26px;height:26px;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">${escapeHtml(it.icon)}</div>`;
         html += `
           <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 8px;margin:0 -8px;background:${zebra};border-radius:6px">
@@ -940,8 +940,8 @@ async function loadObligationsWidget(){
               <span style="font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${it.label}</span>
             </div>
             <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
-              ${badgeLabel ? `<span style="font-size:10px;font-weight:700;color:${badgeColor};background:${badgeBg};padding:2px 8px;border-radius:20px;white-space:nowrap">${badgeLabel}</span>` : ''}
-              <span style="font-weight:700;color:${badgeColor};white-space:nowrap">${fmtN(it.amount)} so'm</span>
+              ${badgeLabel ? `<span style="font-size:12px;font-weight:700;color:${matnRangi(badgeColor, 1)};background:${badgeBg};padding:2px 8px;border-radius:20px;white-space:nowrap">${badgeLabel}</span>` : ''}
+              <span style="font-weight:700;color:${matnRangi(badgeColor)};white-space:nowrap">${fmtN(it.amount)} so'm</span>
             </div>
           </div>`;
         rowIdx++;
@@ -950,7 +950,7 @@ async function loadObligationsWidget(){
 
     const total = items.reduce((s,it)=>s+it.amount, 0);
     html += `<div style="display:flex;justify-content:space-between;padding:12px 0 0;margin-top:8px;border-top:2px solid var(--border);font-weight:700">
-      <span>Jami majburiyat</span><span style="color:#EF4444">${fmtN(total)} so'm</span></div>`;
+      <span>Jami majburiyat</span><span style="color:#DC2626">${fmtN(total)} so'm</span></div>`;
 
     document.getElementById('obligList').innerHTML = html;
   } catch(e) { console.error(e); }
@@ -967,11 +967,11 @@ async function checkPendingAdvanceRequests(){
         <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px">
           <div>
             <div style="font-weight:700;font-size:14.5px">${escapeHtml(r.employee_name)}</div>
-            <div style="font-size:12.5px;color:#888;margin-top:2px">${tkSana(r.requested_date)} kuni oldim deb yozgan</div>
+            <div style="font-size:12.5px;color:var(--text3);margin-top:2px">${tkSana(r.requested_date)} kuni oldim deb yozgan</div>
           </div>
-          <div style="font-weight:800;font-size:16px;color:#D97706">${fmt(r.amount)} so'm</div>
+          <div style="font-weight:800;font-size:16px;color:#B45309">${fmt(r.amount)} so'm</div>
         </div>
-        ${r.notes ? `<div style="font-size:12.5px;color:#999;margin-bottom:10px">💬 ${escapeHtml(r.notes)}</div>` : ''}
+        ${r.notes ? `<div style="font-size:12.5px;color:var(--text3);margin-bottom:10px">💬 ${escapeHtml(r.notes)}</div>` : ''}
         <div style="display:flex;gap:8px">
           <button class="btn btn-dark" style="flex:1;height:38px;font-size:13px" onclick="confirmAdvReq(${r.id})">✅ Ha, berganman</button>
           <button class="btn btn-outline" style="flex:1;height:38px;font-size:13px;color:#DC2626;border-color:#FADBD8" onclick="rejectAdvReq(${r.id})">❌ Yo'q</button>

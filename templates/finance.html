@@ -10,11 +10,11 @@
    ============================================================ */
 :root{
   --f-bg:#F8F8F6; --f-card:#FFFFFF; --f-border:#E8E3DD;
-  --f-primary:#B9783F; --f-primary-tint:#F8F2EB;
-  --f-success:#22C55E; --f-success-tint:#F0FDF4;
-  --f-warning:#F59E0B; --f-warning-tint:#FFFBEB;
-  --f-danger:#EF4444; --f-danger-tint:#FEF2F2;
-  --f-text:#222222; --f-text2:#6B7280; --f-text3:#9CA3AF;
+  --f-primary:#9A6231; --f-primary-tint:#F8F2EB;   /* kech118 (U-03): matn / oq yozuvli tugma foni ≥ 4.5:1 (#B9783F — 3.2–3.6) */
+  --f-success:#15803D; --f-success-tint:#F0FDF4;
+  --f-warning:#B45309; --f-warning-tint:#FFFBEB;
+  --f-danger:#DC2626; --f-danger-tint:#FEF2F2;
+  --f-text:#222222; --f-text2:#5B6170; --f-text3:#696D78;
   --f-radius:14px; --f-radius-sm:10px;
   --f-shadow:0 1px 2px rgba(24,27,34,.04), 0 4px 16px rgba(24,27,34,.06);
   --f-shadow-hover:0 4px 8px rgba(24,27,34,.06), 0 12px 28px rgba(24,27,34,.10);
@@ -50,7 +50,7 @@
   font-size:13.5px; font-weight:600; transition:transform .12s, box-shadow .12s, background .15s;
 }
 .fin-btn-primary{ background:var(--f-primary); color:#fff; }
-.fin-btn-primary:hover{ background:#A86B36; box-shadow:0 4px 12px rgba(185,120,63,.3); }
+.fin-btn-primary:hover{ background:#8F5B2A; box-shadow:0 4px 12px rgba(185,120,63,.3); }
 .fin-btn-primary:active{ transform:scale(.97); }
 .fin-btn-ghost{ background:#fff; color:var(--f-text2); border:1px solid var(--f-border); }
 .fin-btn-ghost:hover{ background:var(--f-bg); }
@@ -85,7 +85,7 @@
   padding:14px 16px; box-shadow:var(--f-shadow); transition:box-shadow .15s, transform .15s;
 }
 .fin-mini-card:hover{ box-shadow:var(--f-shadow-hover); transform:translateY(-2px); }
-.fin-mini-label{ font-size:11.5px; color:var(--f-text3); font-weight:600; text-transform:uppercase; letter-spacing:.03em; }
+.fin-mini-label{ font-size:12px; color:var(--f-text3); font-weight:600; text-transform:uppercase; letter-spacing:.03em; }
 .fin-mini-value{ font-size:19px; font-weight:700; color:var(--f-text); margin-top:5px; }
 
 /* ── Kartalar (umumiy) ── */
@@ -105,7 +105,7 @@
 @media(max-width:900px){ .fin-analytics-grid{ grid-template-columns:1fr; } }
 .fin-info-note{
   background:var(--f-primary-tint); border:1px solid #E8D5C0; border-radius:10px;
-  padding:11px 14px; font-size:12.5px; color:#A86B36; line-height:1.6; margin-bottom:14px;
+  padding:11px 14px; font-size:12.5px; color:var(--gold-dark); line-height:1.6; margin-bottom:14px;
 }
 .fin-exp-row{ display:flex; justify-content:space-between; align-items:center; padding:9px 0; border-bottom:1px solid var(--f-border); font-size:13.5px; }
 .fin-exp-row:last-child{ border-bottom:none; }
@@ -130,7 +130,7 @@
 }
 .fin-exp-group-total{ font-size:14.5px; font-weight:700; color:var(--f-primary); white-space:nowrap; }
 .fin-exp-group-count{
-  font-size:11px; font-weight:600; color:var(--f-primary); background:#fff;
+  font-size:12px; font-weight:600; color:var(--f-primary); background:#fff;
   padding:2px 9px; border-radius:20px; margin-left:8px; white-space:nowrap;
 }
 .fin-exp-group-body{ padding:2px 14px; background:var(--f-card); }
@@ -148,7 +148,7 @@
 .fin-table{ width:100%; border-collapse:collapse; font-size:13.5px; min-width:720px; }
 .fin-table thead th{
   position:sticky; top:0; z-index:2; background:var(--f-card);
-  text-align:left; padding:12px 16px; color:var(--f-text3); font-weight:600; font-size:11.5px;
+  text-align:left; padding:12px 16px; color:var(--f-text3); font-weight:600; font-size:12px;
   text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid var(--f-border);
 }
 .fin-table tbody td{ padding:13px 16px; border-bottom:1px solid var(--f-border); color:var(--f-text2); }
@@ -172,6 +172,67 @@
 .fin-empty-title{ font-size:15px; font-weight:600; color:var(--f-text2); margin-bottom:5px; }
 .fin-skeleton{ background:linear-gradient(90deg,#F0F1F3 25%,#F7F8F9 37%,#F0F1F3 63%); background-size:400% 100%; animation:finSkeleton 1.4s ease infinite; border-radius:8px; }
 @keyframes finSkeleton{ 0%{background-position:100% 50%} 100%{background-position:0 50%} }
+
+/* ── kech118: Yo'nalishlar bo'yicha moliyaviy natija ── */
+.yon-bosh{ flex-wrap:wrap; gap:10px; margin-bottom:12px; }
+.yon-davr-nomi{ font-size:13px; font-weight:600; color:var(--f-text2); margin-left:6px; }
+.yon-boshqaruv{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.yon-boshqaruv select, .yon-boshqaruv input{ height:36px; padding:0 10px; border:1px solid var(--f-border); border-radius:8px; font-size:13px; background:#fff; color:var(--f-text); }
+.yon-boshqaruv input{ width:84px; }
+.yon-oraliq{ display:none; align-items:center; gap:6px; flex-wrap:wrap; }
+.yon-kartalar{ display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:12px; margin-bottom:14px; }
+.yon-karta{ border:1px solid var(--f-border); border-radius:12px; padding:14px 16px; background:#fff; min-width:0; }
+.yon-karta-yorliq{ font-size:12.5px; font-weight:600; color:var(--f-text2); margin-bottom:6px; }
+.yon-karta-qiymat{ font-size:22px; font-weight:800; color:var(--f-text); white-space:nowrap; }
+.yon-karta-izoh{ font-size:12px; color:var(--f-text2); margin-top:6px; }
+.yon-yashil{ color:#15803D; } .yon-qizil{ color:#B91C1C; }
+.yon-asosiy{ display:grid; grid-template-columns:minmax(0, 1fr) 300px; gap:16px; align-items:start; }
+.yon-asosiy > div{ min-width:0; }   /* grid bolasi jadval kengligiga cho'zilmasin (telefonda gorizontal toshish) */
+.yon-jadval-quti{ overflow-x:auto; border:1px solid var(--f-border); border-radius:12px; }
+.yon-jadval{ width:100%; border-collapse:collapse; font-size:13px; }
+.yon-jadval th{ text-align:right; padding:10px 12px; white-space:nowrap; background:#FAF7F2; font-weight:700; color:var(--f-text); border-bottom:1px solid var(--f-border); }
+.yon-jadval th:first-child{ text-align:left; }
+.yon-jadval th.yon-jami, .yon-jadval td.yon-jami{ background:#F0EBE0; }
+.yon-jadval td{ padding:7px 12px; text-align:right; white-space:nowrap; border-bottom:1px solid var(--f-border); color:var(--f-text); }
+.yon-jadval td:first-child{ text-align:left; white-space:normal; }
+/* telefonda jadval yonga suriladi — ko'rsatkich nomi ustuni joyida qoladi */
+.yon-jadval th:first-child, .yon-jadval td:first-child{ position:sticky; left:0; z-index:1; background:#fff; min-width:150px; }
+.yon-jadval th:first-child{ background:#FAF7F2; }
+.yon-jadval tr.yon-blok td{ font-weight:700; }
+.yon-jadval tr.yon-blok td:first-child{ text-transform:uppercase; letter-spacing:.02em; }
+.yon-jadval tr.yon-daromad td{ background:#F0FDF4; }
+.yon-jadval tr.yon-tannarx td{ background:#FEF2F2; }
+.yon-jadval tr.yon-oylik td{ background:#EFF6FF; }
+.yon-jadval tr.yon-xarajat td{ background:#FFFBEB; }
+.yon-jadval tr.yon-daromad td.yon-jami, .yon-jadval tr.yon-tannarx td.yon-jami, .yon-jadval tr.yon-oylik td.yon-jami,
+.yon-jadval tr.yon-xarajat td.yon-jami{ background:#EDE6D8; }
+.yon-jadval tr.yon-qism td{ font-size:12.5px; color:var(--f-text2); }
+.yon-jadval tr.yon-qism td:first-child{ padding-left:26px; }
+.yon-jadval tr.yon-umumiy td:first-child{ font-style:italic; }
+.yon-jadval tr.yon-natija td{ font-weight:800; font-size:15px; border-top:2px solid var(--f-text); background:#FAF7F2; }
+.yon-jadval tr.yon-natija td.yon-jami{ background:#EDE6D8; }
+.yon-jadval tr.yon-ren td{ font-size:12.5px; font-weight:600; }
+.yon-jadval td.yon-yoq{ color:var(--f-text3); }
+.yon-yon{ display:flex; flex-direction:column; gap:14px; }
+.yon-panel{ border:1px solid var(--f-border); border-radius:12px; padding:14px 16px; background:#fff; }
+.yon-panel-sar{ font-size:14px; font-weight:700; color:var(--f-text); margin-bottom:10px; }
+.yon-donut{ position:relative; width:180px; height:180px; margin:0 auto 10px; }
+.yon-donut-markaz{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; pointer-events:none; text-align:center; }
+.yon-donut-markaz b{ font-size:15px; color:var(--f-text); } .yon-donut-markaz span{ font-size:12px; color:var(--f-text2); }
+.yon-tarkib-qator{ display:flex; align-items:center; gap:8px; font-size:12.5px; padding:5px 0; border-bottom:1px solid var(--f-border); }
+.yon-tarkib-qator:last-child{ border-bottom:none; }
+.yon-tarkib-nuqta{ width:10px; height:10px; border-radius:3px; flex-shrink:0; }
+.yon-tarkib-nom{ flex:1; color:var(--f-text); } .yon-tarkib-foiz{ font-weight:700; color:var(--f-text); }
+.yon-tarkib-summa{ color:var(--f-text2); min-width:92px; text-align:right; }
+.yon-ren-qator{ display:grid; grid-template-columns:minmax(0, 1fr) 70px; gap:4px 10px; align-items:center; margin-bottom:10px; font-size:12.5px; }
+.yon-ren-nom{ color:var(--f-text); font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.yon-ren-foiz{ text-align:right; font-weight:700; }
+.yon-ren-chiziq{ grid-column:1 / -1; height:8px; background:#F1EEE8; border-radius:4px; overflow:hidden; }
+.yon-ren-chiziq > div{ height:100%; border-radius:4px; }
+.yon-izoh ul{ margin:0; padding-left:18px; font-size:12.5px; color:var(--f-text2); line-height:1.55; }
+@media(max-width:1100px){ .yon-asosiy{ grid-template-columns:minmax(0, 1fr); } .yon-kartalar{ grid-template-columns:repeat(2, minmax(0, 1fr)); } }
+@media(max-width:640px){ .yon-kartalar{ grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px; } .yon-karta{ padding:12px; }
+  .yon-karta-qiymat{ font-size:16px; white-space:normal; } .yon-davr-nomi{ display:block; margin:2px 0 0; } }
 
 @media print{
   .sidebar,.erp-topbar,.fin-filterbar,.no-print{display:none !important}
@@ -220,7 +281,7 @@
   <div class="fin-section">
     <div style="background:linear-gradient(135deg,#111827,#1F2937);border-radius:16px;padding:22px 26px;color:#fff;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px">
       <div>
-        <div style="font-size:12.5px;color:#9CA3AF;font-weight:600;text-transform:uppercase;letter-spacing:.04em">💰 Kassa balansi — hozir qancha naqd pul bor</div>
+        <div style="font-size:12.5px;color:#CBD5E1;font-weight:600;text-transform:uppercase;letter-spacing:.04em">💰 Kassa balansi — hozir qancha naqd pul bor</div>
         <div id="cash-balance-val" style="font-size:32px;font-weight:800;margin-top:6px">—</div>
       </div>
       {% if current_user.role.value == 'admin' %}
@@ -336,24 +397,24 @@
       <div class="fin-card" style="padding:20px">
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px" id="debt-summary-grid">
           <div class="dg-box" style="background:#F0FDF4;border-radius:12px;padding:14px">
-            <div style="font-size:12px;font-weight:600;color:#16A34A;margin-bottom:6px">💚 Bizga qarzdorlar</div>
-            <div style="font-size:18px;font-weight:800;color:#16A34A" id="dg-customer">—</div>
-            <div style="font-size:11px;margin-top:4px;color:#16A34A;opacity:.8" id="dg-customer-n">—</div>
+            <div style="font-size:12px;font-weight:600;color:#166534;margin-bottom:6px">💚 Bizga qarzdorlar</div>
+            <div style="font-size:18px;font-weight:800;color:#166534" id="dg-customer">—</div>
+            <div style="font-size:12px;margin-top:4px;color:#166534" id="dg-customer-n">—</div>
           </div>
           <div class="dg-box" style="background:#FEF2F2;border-radius:12px;padding:14px">
-            <div style="font-size:12px;font-weight:600;color:#DC2626;margin-bottom:6px">📦 Yetkazuvchiga qarzimiz</div>
-            <div style="font-size:18px;font-weight:800;color:#DC2626" id="dg-supplier">—</div>
-            <div style="font-size:11px;margin-top:4px;color:#DC2626;opacity:.8" id="dg-supplier-n">—</div>
+            <div style="font-size:12px;font-weight:600;color:#B91C1C;margin-bottom:6px">📦 Yetkazuvchiga qarzimiz</div>
+            <div style="font-size:18px;font-weight:800;color:#B91C1C" id="dg-supplier">—</div>
+            <div style="font-size:12px;margin-top:4px;color:#B91C1C" id="dg-supplier-n">—</div>
           </div>
           <div class="dg-box" style="background:#FFFBEB;border-radius:12px;padding:14px">
-            <div style="font-size:12px;font-weight:600;color:#D97706;margin-bottom:6px">👷 Hodimlarga qarzimiz</div>
-            <div style="font-size:18px;font-weight:800;color:#D97706" id="dg-employee">—</div>
-            <div style="font-size:11px;margin-top:4px;color:#D97706;opacity:.8" id="dg-employee-n">oxirgi 3 oy</div>
+            <div style="font-size:12px;font-weight:600;color:#92400E;margin-bottom:6px">👷 Hodimlarga qarzimiz</div>
+            <div style="font-size:18px;font-weight:800;color:#92400E" id="dg-employee">—</div>
+            <div style="font-size:12px;margin-top:4px;color:#92400E" id="dg-employee-n">oxirgi 3 oy</div>
           </div>
           <div class="dg-box" style="background:#FEF2F2;border-radius:12px;padding:14px">
-            <div style="font-size:12px;font-weight:600;color:#DC2626;margin-bottom:6px">🏛️ Arenda/Soliq/Kommunal</div>
-            <div style="font-size:18px;font-weight:800;color:#DC2626" id="dg-recurring">—</div>
-            <div style="font-size:11px;margin-top:4px;color:#DC2626;opacity:.8" id="dg-recurring-n">—</div>
+            <div style="font-size:12px;font-weight:600;color:#B91C1C;margin-bottom:6px">🏛️ Arenda/Soliq/Kommunal</div>
+            <div style="font-size:18px;font-weight:800;color:#B91C1C" id="dg-recurring">—</div>
+            <div style="font-size:12px;margin-top:4px;color:#B91C1C" id="dg-recurring-n">—</div>
           </div>
         </div>
         <div style="margin-top:14px;padding-top:14px;border-top:1px dashed #E5E1D8;display:flex;justify-content:space-between;align-items:center">
@@ -408,14 +469,14 @@
               <div style="position:relative;width:120px;height:120px;flex-shrink:0">
                 <canvas id="revDonutChart"></canvas>
                 <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none">
-                  <div style="font-size:10px;color:var(--f-text3);font-weight:700;text-transform:uppercase;letter-spacing:.05em">Jami</div>
-                  <div id="revDonutTotal" style="font-size:18px;font-weight:800;color:#16A34A;letter-spacing:-.02em;margin-top:2px">—</div>
+                  <div style="font-size:12px;color:var(--f-text3);font-weight:700;text-transform:uppercase;letter-spacing:.05em">Jami</div>
+                  <div id="revDonutTotal" style="font-size:18px;font-weight:800;color:#15803D;letter-spacing:-.02em;margin-top:2px">—</div>
                 </div>
               </div>
               <div id="revDonutLegend" style="flex:1;font-size:12.5px"></div>
             </div>
             <div id="revDonutEmpty" style="display:none;text-align:center;padding:24px;color:var(--f-text3);font-size:13px">Ma'lumot yo'q</div>
-            <div style="font-size:11px;color:var(--f-text3);margin-top:12px">Yo'nalishlar bo'yicha — umumiy daromadga nisbatan.</div>
+            <div style="font-size:12px;color:var(--f-text3);margin-top:12px">Yo'nalishlar bo'yicha — umumiy daromadga nisbatan.</div>
           </div>
         </div>
 
@@ -424,16 +485,52 @@
 
     <!-- ═══ kech117 (A2 — egasi QARORLARI kech114 00:08; G3-11): YO'NALISHLAR BO'YICHA SOF FOYDA — yig'indisi Moliya sof
          foydasiga TENG; bitta yo'nalish bo'lsa bo'lim yashirin ═══ -->
+    <!-- kech118 (egasi QARORI 15:23): umumiy xarajat TAQSIMLANMAYDI, oyliklar alohida, oxirida NATIJA +/−; davr tanlash -->
     <div class="fin-section" id="yonBolim" style="display:none">
       <div class="fin-card"><div class="fin-card-body">
-        <div class="fin-section-head" style="margin-bottom:8px;flex-wrap:wrap;gap:8px">
-          <div class="fin-section-title"><i class="ti ti-arrows-split-2"></i> Yo'nalishlar bo'yicha sof foyda</div>
-          <button class="fin-btn" onclick="downloadSplitProfitPdf()" title="Yo'nalishlar bo'yicha sof foyda hisoboti — PDF"><i class="ti ti-file-type-pdf" style="vertical-align:-2px"></i> PDF</button>
+        <div class="fin-section-head yon-bosh">
+          <div class="fin-section-title"><i class="ti ti-arrows-split-2"></i> Yo'nalishlar bo'yicha moliyaviy natija <span id="yonDavrNomi" class="yon-davr-nomi"></span></div>
+          <div class="yon-boshqaruv no-print">
+            <select id="yonDavr" onchange="yonDavrOzgardi()" aria-label="Davr">
+              <option value="oy">Tanlangan oy</option>
+              <option value="chorak">Chorak boshidan</option>
+              <option value="yil">Yil boshidan</option>
+              <option value="oraliq">Oraliq (oydan — oygacha)</option>
+            </select>
+            <span id="yonOraliq" class="yon-oraliq">
+              <select id="yonDanOy" aria-label="Boshlanish oyi"></select>
+              <input type="number" id="yonDanYil" min="2020" max="2100" aria-label="Boshlanish yili">
+              <span>—</span>
+              <select id="yonGachaOy" aria-label="Oxirgi oy"></select>
+              <input type="number" id="yonGachaYil" min="2020" max="2100" aria-label="Oxirgi yil">
+              <button class="fin-btn" onclick="loadYonalishlar()">Ko'rish</button>
+            </span>
+            <button class="fin-btn" onclick="downloadSplitProfitPdf()" title="Yo'nalishlar bo'yicha moliyaviy natija — PDF (shu davr)"><i class="ti ti-file-type-pdf" style="vertical-align:-2px"></i> PDF</button>
+          </div>
         </div>
-        <div id="yonTekshiruv" class="fin-info-note"></div>
-        <div id="yonOgoh" style="display:none;margin:0 0 10px;padding:9px 12px;border-radius:10px;background:var(--f-danger-tint);color:#B91C1C;font-size:12.5px"></div>
-        <div id="yonJadval" style="overflow-x:auto"></div>
-        <div id="yonIzoh" style="font-size:11.5px;color:var(--f-text3);margin-top:10px;line-height:1.55"></div>
+        <div id="yonKartalar" class="yon-kartalar"></div>
+        <div id="yonOgoh" style="display:none;margin:0 0 12px;padding:9px 12px;border-radius:10px;background:var(--f-danger-tint);color:#B91C1C;font-size:12.5px"></div>
+        <div class="yon-asosiy">
+          <div>
+            <div id="yonJadval" class="yon-jadval-quti"></div>
+            <div id="yonTekshiruv" class="fin-info-note" style="margin:12px 0 0"></div>
+          </div>
+          <div class="yon-yon">
+            <div class="yon-panel">
+              <div class="yon-panel-sar">Xarajatlar tarkibi (tannarxsiz)</div>
+              <div class="yon-donut"><canvas id="yonTarkibChart" aria-label="Xarajatlar tarkibi"></canvas><div class="yon-donut-markaz" id="yonTarkibMarkaz"></div></div>
+              <div id="yonTarkibRoyxat"></div>
+            </div>
+            <div class="yon-panel">
+              <div class="yon-panel-sar">Yo'nalishlar rentabelligi</div>
+              <div id="yonRentabellik"></div>
+            </div>
+            <div class="yon-panel yon-izoh">
+              <div class="yon-panel-sar">Hisobot bo'yicha izoh</div>
+              <div id="yonIzoh"></div>
+            </div>
+          </div>
+        </div>
       </div></div>
     </div>
 
@@ -493,7 +590,7 @@
     </div>
     <div class="form-group"><label>Summa (so'm)</label><input type="text" id="tx-f-amount" placeholder="0" oninput="formatPriceInput(this)"></div>
     <div class="form-group">
-      <label>Yo'nalish <span style="font-weight:400;color:#9CA3AF;font-size:11.5px">— ixtiyoriy, hisobotda ajratib ko'rish uchun</span></label>
+      <label>Yo'nalish <span style="font-weight:400;color:var(--text3);font-size:12px">— ixtiyoriy, hisobotda ajratib ko'rish uchun</span></label>
       {# kech117 (A2): korxona yo'nalishlari (Sozlamalar); «Umumiy» — umumiy xarajat (daromad ulushida bo'linadi) #}
       <select id="tx-f-prodtype">
         <option value="">Umumiy</option>
@@ -512,7 +609,7 @@
 <div id="cashTxModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2000;align-items:center;justify-content:center;padding:20px">
   <div style="background:#fff;border-radius:14px;padding:24px;width:400px;max-width:100%">
     <div id="cashTxTitle" style="font-size:16px;font-weight:700;margin-bottom:4px">—</div>
-    <div id="cashTxHint" style="font-size:12.5px;color:#888;margin-bottom:16px"></div>
+    <div id="cashTxHint" style="font-size:12.5px;color:var(--text3);margin-bottom:16px"></div>
     <div id="ehsonFetchBtnWrap" style="display:none;margin-bottom:14px">
       <button type="button" onclick="fillEhsonAmount()" style="width:100%;background:#F0FDF4;color:#166534;border:1.5px solid #BBF7D0;border-radius:9px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">
         🤲 Jami hisoblangan Ehson summasini olish
@@ -522,7 +619,7 @@
     <div class="form-group"><label>Izoh (ixtiyoriy)</label><input type="text" id="cashtx-notes" placeholder="masalan: hodimga 500 000 avans berildi"></div>
     <div id="cashtx-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:12px;color:#DC2626"></div>
     <div style="display:flex;gap:8px">
-      <button onclick="saveCashTx()" style="flex:1;background:#B9783F;color:#fff;border:none;border-radius:9px;padding:11px;font-size:14px;font-weight:600;cursor:pointer">Saqlash</button>
+      <button onclick="saveCashTx()" style="flex:1;background:var(--gold-btn);color:#fff;border:none;border-radius:9px;padding:11px;font-size:14px;font-weight:600;cursor:pointer">Saqlash</button>
       <button data-yopish onclick="document.getElementById('cashTxModal').style.display='none'" style="flex:1;background:#F3F4F6;color:#374151;border:none;border-radius:9px;padding:11px;font-size:14px;font-weight:600;cursor:pointer">Bekor</button>
     </div>
   </div>
@@ -570,7 +667,7 @@ async function loadCashBalance(){
       // uchun, endi ilovaning standart "xavfli" rangida (--red) va ⚠️
       // belgisi bilan chiqadi.
       el.textContent = (isNegative ? '⚠️ ' : '') + fmtCash(d.balance) + " so'm";
-      el.style.color = isNegative ? '#EF4444' : '#fff';
+      el.style.color = isNegative ? '#F87171' : '#fff';   // kech118 (U-03): qorong'i kartada o'qiladigan qizil
     }
   } catch(e) { console.error(e); }
 }
@@ -601,13 +698,13 @@ async function loadCashTxHistory(){
       return `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--f-border);font-size:13px">
         <div>
           <div style="font-weight:600">${escapeHtml(labels[r.category] || r.category)}</div>
-          <div style="color:var(--f-text3);font-size:11.5px;margin-top:2px">${dt}${r.performed_by ? ' · ' + escapeHtml(r.performed_by) : ''}${r.notes ? ' · ' + escapeHtml(r.notes) : ''}</div>
+          <div style="color:var(--f-text3);font-size:12px;margin-top:2px">${dt}${r.performed_by ? ' · ' + escapeHtml(r.performed_by) : ''}${r.notes ? ' · ' + escapeHtml(r.notes) : ''}</div>
         </div>
-        <div style="font-weight:700;color:${color};white-space:nowrap">${sign}${fmtFull(r.amount)} so'm</div>
+        <div style="font-weight:700;color:${matnRangi(color)};white-space:nowrap">${sign}${fmtFull(r.amount)} so'm</div>
       </div>`;
     }).join('');
   } catch(e) {
-    list.innerHTML = '<div style="padding:12px 0;color:#EF4444;font-size:12.5px">Yuklashda xato</div>';
+    list.innerHTML = '<div style="padding:12px 0;color:#DC2626;font-size:12.5px">Yuklashda xato</div>';
   }
 }
 
@@ -814,9 +911,10 @@ function downloadFinancePdf(){
 }
 
 function downloadSplitProfitPdf(){
-  const month=document.getElementById('sel-month').value;
-  const year=document.getElementById('sel-year').value;
-  window.open(`/api/finance/split-profit-pdf?year=${year}&month=${month}`, '_blank');
+  // kech118: yo'nalishlar bo'limida tanlangan davr bilan AYNAN (bir oy / chorak / yil / oraliq)
+  const d = yonDavrParam();
+  if (d.xato) { showMsg(d.xato, 'error'); return; }
+  window.open(`/api/finance/split-profit-pdf?${d.qs}`, '_blank');
 }
 
 // kech117 (zip 115 jonli sinovi): `txSaqla` — xarajat qo'shilgach / tahrirlangach / o'chirilgach hisobot, kartalar va
@@ -842,8 +940,8 @@ async function loadReport(opts){
   document.getElementById('r-tannarx').textContent=fmt(Number(d.tannarx_jami ?? d.ishlab_chiqarish_xarajat ?? 0))+" so'm";
   document.getElementById('r-xarajat').textContent=fmt(d.jami_xarajat)+" so'm";
   document.getElementById('r-foyda').textContent=fmt(d.sof_foyda)+" so'm";
-  document.getElementById('r-foyda').style.color=d.sof_foyda>=0?'#8E44AD':'#EF4444';
-  document.getElementById('r-foiz').textContent=d.foyda_foiz+'%';
+  document.getElementById('r-foyda').style.color=d.sof_foyda>=0?'#8E44AD':'#DC2626';
+  document.getElementById('r-foiz').textContent=foizKor(d.foyda_foiz);
   // kech115 (G1-04): manfiy rentabellik — qizil (ilgari doim yashil)
   document.getElementById('r-foiz').style.color = (Number(d.foyda_foiz) || 0) < 0 ? 'var(--f-danger)' : 'var(--f-success)';
   document.getElementById('r-buyurtma').textContent=d.buyurtmalar_soni+' ta';
@@ -866,29 +964,83 @@ async function loadReport(opts){
     const netEl = document.getElementById('dg-net');
     const sign = dg.net_position >= 0 ? '+ ' : '− ';
     netEl.textContent = sign + fmt(Math.abs(dg.net_position)) + " so'm";
-    netEl.style.color = dg.net_position >= 0 ? '#16A34A' : '#DC2626';
+    netEl.style.color = dg.net_position >= 0 ? '#15803D' : '#DC2626';
   }
 
   buildExpDetail(d);
   buildCashSection(d);
   if (!txSaqla) initDailyTx();
-  loadYonalishlar(year, month);
+  loadYonalishlar();
 }
 
-// ── kech117 (A2 — egasi QARORLARI kech114; G3-11): YO'NALISHLAR BO'YICHA SOF FOYDA ────────────────────────────────
-// Server (`/api/finance/yonalishlar`) har ustunda Daromad − Tannarx − Jami xarajat = Sof foyda va sof foydalar
-// yig'indisi = Moliya sof foydasi qilib BUTUN so'mda beradi — sahifa faqat ko'rsatadi (qayta hisoblamaydi).
+// ── kech117 (A2) / kech118 (egasi QARORI 15:23 — tugmali javoblar 15:30): YO'NALISHLAR BO'YICHA MOLIYAVIY NATIJA ──────
+// Server (`/api/finance/yonalishlar`) har ustunda Daromad − Tannarx − Oyliklar − Xarajatlar = Natija (butun so'mda) va
+// Jami (umumiy — yo'nalishsiz oylik va xarajatlar faqat shu yerda) natija = Moliya sof foydasi qilib beradi — sahifa faqat
+// ko'rsatadi (qayta hisoblamaydi). Davr — oy bo'yicha (tanlangan oy / chorak boshidan / yil boshidan / oraliq).
 function yonSumma(v, ayir) {
   const n = Math.round(Number(v) || 0);
   if (!ayir) return (n < 0 ? '−' : '') + Math.abs(n).toLocaleString('ru-RU');
   return n > 0 ? '−' + n.toLocaleString('ru-RU') : (n < 0 ? '+' + Math.abs(n).toLocaleString('ru-RU') : '0');
 }
-async function loadYonalishlar(year, month) {
+function yonNatija(v) {       // natija: musbat — «+N», manfiy — «−N»
+  const n = Math.round(Number(v) || 0);
+  return (n > 0 ? '+' : (n < 0 ? '−' : '')) + Math.abs(n).toLocaleString('ru-RU');
+}
+function yonFoiz(f) {         // foiz — manfiy belgisi summalar bilan bir xil («−247,8%»)
+  const n = Number(f) || 0;
+  return (n < 0 ? '−' : '') + foizKor(Math.abs(n));
+}
+const YON_OYLAR = ['Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun', 'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr'];
+function yonDavrParam() {
+  const oy = parseInt(document.getElementById('sel-month').value, 10);
+  const yil = parseInt(document.getElementById('sel-year').value, 10);
+  const tur = (document.getElementById('yonDavr') || {}).value || 'oy';
+  let dy = yil, doy = oy, gy = yil, go = oy;
+  if (tur === 'chorak') doy = Math.floor((oy - 1) / 3) * 3 + 1;
+  else if (tur === 'yil') doy = 1;
+  else if (tur === 'oraliq') {
+    doy = parseInt(document.getElementById('yonDanOy').value, 10);
+    dy = parseInt(document.getElementById('yonDanYil').value, 10);
+    go = parseInt(document.getElementById('yonGachaOy').value, 10);
+    gy = parseInt(document.getElementById('yonGachaYil').value, 10);
+    if (![doy, dy, go, gy].every(Number.isFinite)) return { xato: "Oraliq uchun oy va yilni tanlang" };
+    if (gy * 12 + go < dy * 12 + doy) return { xato: "Oxirgi oy boshlanish oyidan oldin bo'lmasin" };
+    if (gy * 12 + go - (dy * 12 + doy) + 1 > 36) return { xato: "Oraliq ko'pi bilan 36 oy bo'lsin" };
+  }
+  return { dy, doy, gy, go, qs: `year=${dy}&month=${doy}&gacha_yil=${gy}&gacha_oy=${go}` };
+}
+function yonDavrOzgardi() {
+  const tur = document.getElementById('yonDavr').value;
+  const or = document.getElementById('yonOraliq');
+  if (tur === 'oraliq') {
+    const oy = document.getElementById('sel-month').value, yil = document.getElementById('sel-year').value;
+    ['yonDanOy', 'yonGachaOy'].forEach(id => {
+      const s = document.getElementById(id);
+      if (!s.options.length) s.innerHTML = YON_OYLAR.map((n, i) => `<option value="${i + 1}">${n}</option>`).join('');
+    });
+    if (!document.getElementById('yonDanYil').value) {
+      document.getElementById('yonDanOy').value = '1';
+      document.getElementById('yonDanYil').value = yil;
+      document.getElementById('yonGachaOy').value = oy;
+      document.getElementById('yonGachaYil').value = yil;
+    }
+    or.style.display = 'inline-flex';
+    return;
+  }
+  or.style.display = 'none';
+  loadYonalishlar();
+}
+let yonTarkibInst = null;
+const YON_TARKIB_RANGLAR = ['#2563EB', '#D97706', '#16A34A', '#9333EA', '#DC2626', '#0891B2', '#64748B', '#DB2777'];
+async function loadYonalishlar() {
   const bolim = document.getElementById('yonBolim');
+  const p = yonDavrParam();
+  if (p.xato) { showMsg(p.xato, 'error'); return; }
   let d = null;
   try {
-    const r = await fetch(`/api/finance/yonalishlar?year=${year}&month=${month}`);
+    const r = await fetch(`/api/finance/yonalishlar?${p.qs}`);
     if (r.ok) d = await r.json();
+    else if (r.status === 400) showMsg(await serverXatoSababi(r, "Davr noto'g'ri"), 'error');
   } catch (e) { d = null; }
   if (!d || !Array.isArray(d.yonalishlar) || !(d.korinadigan_soni > 1 || d.yonalishlar.length > 1)) {
     bolim.style.display = 'none';
@@ -896,11 +1048,27 @@ async function loadYonalishlar(year, month) {
   }
   bolim.style.display = 'block';
   const jami = d.jami || {};
-  document.getElementById('yonTekshiruv').innerHTML =
-    `Moliya hisobotidagi sof foyda: <b>${yonSumma(d.moliya_sof_foyda)} so'm</b> — shu summa yo'nalishlarga bo'lindi ` +
-    `(yo'nalishlar yig'indisi: <b>${yonSumma(jami.sof_foyda)} so'm</b>). Umumiy xarajatlar — ` +
-    (d.ulush_usuli === 'teng' ? "bu oy daromad yo'q — ko'rinadigan yo'nalishlarga teng."
-      : 'daromad ulushiga qarab: ' + d.yonalishlar.filter(y => y.ulush_foiz).map(y => `${escapeHtml(y.nom)} ${y.ulush_foiz}%`).join(', ') + '.');
+  document.getElementById('yonDavrNomi').textContent = '· ' + ((d.davr || {}).nom || '');
+
+  // ── Kartalar ──
+  const oz = d.ozgarish || {}, old = d.oldingi || null;
+  const ozMatn = (v, yaxshiOsish) => {
+    if (v === null || v === undefined || !old) return `<div class="yon-karta-izoh">Oldingi davr bilan solishtirib bo'lmaydi</div>`;
+    const yaxshi = yaxshiOsish ? v >= 0 : v <= 0;
+    return `<div class="yon-karta-izoh"><span class="${yaxshi ? 'yon-yashil' : 'yon-qizil'}" style="font-weight:700">${v > 0 ? '↗ +' : (v < 0 ? '↘ −' : '')}${foizKor(Math.abs(v))}</span> oldingi davrga nisbatan (${escapeHtml((old.davr || {}).nom || '')})</div>`;
+  };
+  const jx = (Number(jami.tannarx) || 0) + (Number(jami.oylik) || 0) + (Number(jami.xarajat) || 0);
+  const nat = Number(jami.natija) || 0;
+  const yonSoni = d.yonalishlar.filter(y => !y.belgilanmagan).length;
+  document.getElementById('yonKartalar').innerHTML = `
+    <div class="yon-karta"><div class="yon-karta-yorliq">Umumiy daromad</div><div class="yon-karta-qiymat">${yonSumma(jami.daromad)} so'm</div>${ozMatn(oz.daromad, true)}</div>
+    <div class="yon-karta"><div class="yon-karta-yorliq">Umumiy xarajatlar (tannarx bilan)</div><div class="yon-karta-qiymat yon-qizil">${yonSumma(jx)} so'm</div>${ozMatn(oz.xarajat, false)}</div>
+    <div class="yon-karta"><div class="yon-karta-yorliq">Natija (korxona)</div><div class="yon-karta-qiymat ${nat >= 0 ? 'yon-yashil' : 'yon-qizil'}">${yonNatija(nat)} so'm</div>
+      <div class="yon-karta-izoh">Rentabellik: <b class="${nat >= 0 ? 'yon-yashil' : 'yon-qizil'}">${d.rentabellik === null || d.rentabellik === undefined ? '—' : yonFoiz(d.rentabellik)}</b>${ozMatn(oz.natija, true).replace('<div class="yon-karta-izoh">', ' · ').replace(/<\/div>$/, '')}</div></div>
+    <div class="yon-karta"><div class="yon-karta-yorliq">Yo'nalishlar</div><div class="yon-karta-qiymat">${yonSoni} ta</div>
+      <div class="yon-karta-izoh"><span class="yon-yashil" style="font-weight:700">${Number(d.foydada_soni) || 0} ta foydada</span> · <span class="yon-qizil" style="font-weight:700">${Number(d.zararda_soni) || 0} ta zararda</span></div></div>`;
+
+  // ── Ogohlantirishlar ──
   const ogoh = document.getElementById('yonOgoh');
   const ogohlar = (d.izohlar || []).map(escapeHtml);
   if ((d.belgilanmagan_turlar || []).length) {
@@ -914,46 +1082,91 @@ async function loadYonalishlar(year, month) {
   }
   ogoh.style.display = ogohlar.length ? 'block' : 'none';
   ogoh.innerHTML = ogohlar.join('<br>');
+
+  // ── Jadval ──
   const ustunlar = d.yonalishlar.map(y => ({nom: y.nom + (y.yashirin ? ' (yashirin)' : ''), s: y.som, belg: y.belgilanmagan}))
     .concat([{nom: 'Jami', s: jami, jami: true}]);
-  const nomlar = d.xarajat_nomlari || {};
-  const qism = (s, turi, k) => (s[turi] || {})[k] || 0;
-  const qismJami = (turi, k) => d.yonalishlar.reduce((a, y) => a + qism(y.som, turi, k), 0);
-  const th = ustunlar.map(u => `<th style="text-align:right;padding:8px 10px;white-space:nowrap;${u.jami ? 'background:#F0EBE0' : ''}${u.belg ? ';color:#B91C1C' : ''}">${escapeHtml(u.nom)}</th>`).join('');
-  const qator = (nom, kalit, ayir, kichik) => {
-    const tds = ustunlar.map(u => `<td style="text-align:right;padding:6px 10px;white-space:nowrap;${u.jami ? 'background:#FAF7F2;' : ''}${kichik ? 'color:var(--f-text3);font-size:12px' : ''}">${yonSumma(u.s[kalit], ayir)}</td>`).join('');
-    return `<tr><td style="padding:6px 10px;${kichik ? 'padding-left:22px;color:var(--f-text3);font-size:12px' : 'font-weight:600'}">${escapeHtml(nom)}</td>${tds}</tr>`;
+  const qnom = d.xarajat_qism_nomlari || {};
+  const td = (u, matn, cls) => `<td class="${u.jami ? 'yon-jami' : ''}${cls ? ' ' + cls : ''}">${matn}</td>`;
+  const th = ustunlar.map(u => `<th class="${u.jami ? 'yon-jami' : ''}"${u.belg ? ' style="color:#B91C1C"' : ''}>${escapeHtml(u.nom)}</th>`).join('');
+  const blok = (cls, nom, olish, ayir) => `<tr class="yon-blok ${cls}"><td>${escapeHtml(nom)}</td>${ustunlar.map(u => td(u, yonSumma(olish(u.s), ayir))).join('')}</tr>`;
+  const qism = (nom, olish, faqatJami, cls) => {
+    const qiymatlar = ustunlar.map(u => (faqatJami && !u.jami) ? null : (Number(olish(u.s)) || 0));
+    if (!qiymatlar.some(v => v)) return '';
+    return `<tr class="yon-qism${cls ? ' ' + cls : ''}"><td>${escapeHtml(nom)}</td>${ustunlar.map((u, i) => qiymatlar[i] === null ? td(u, '—', 'yon-yoq') : td(u, yonSumma(qiymatlar[i], true))).join('')}</tr>`;
   };
-  const qismQatorlari = turi => Object.keys(nomlar).filter(k => ustunlar.some(u => (u.jami ? qismJami(turi, k) : qism(u.s, turi, k)) !== 0)).map(k => {
-    const tds = ustunlar.map(u => `<td style="text-align:right;padding:4px 10px;white-space:nowrap;color:var(--f-text3);font-size:12px;${u.jami ? 'background:#FAF7F2' : ''}">${yonSumma(u.jami ? qismJami(turi, k) : qism(u.s, turi, k), true)}</td>`).join('');
-    return `<tr><td style="padding:4px 10px 4px 22px;color:var(--f-text3);font-size:12px">shundan: ${escapeHtml(nomlar[k])}</td>${tds}</tr>`;
+  const xarajatQismlari = Object.keys(qnom).map(k => qism(qnom[k], s => (s.xarajat_qismlari || {})[k], false)).join('');
+  const natTd = ustunlar.map(u => {
+    const v = Math.round(Number(u.s.natija) || 0);
+    return td(u, yonNatija(v), v > 0 ? 'yon-yashil' : (v < 0 ? 'yon-qizil' : ''));
   }).join('');
-  const sofTds = ustunlar.map(u => {
-    const v = Math.round(Number(u.s.sof_foyda) || 0);
-    return `<td style="text-align:right;padding:8px 10px;white-space:nowrap;font-weight:800;font-size:14.5px;color:${v >= 0 ? '#16A34A' : '#DC2626'};${u.jami ? 'background:#F0EBE0' : ''}">${yonSumma(v)}</td>`;
-  }).join('');
-  const renTds = ustunlar.map(u => {
+  const renTd = ustunlar.map(u => {
     const dr = Number(u.s.daromad) || 0;
-    const f = dr ? Math.round((Number(u.s.sof_foyda) || 0) / dr * 1000) / 10 : 0;
-    return `<td style="text-align:right;padding:4px 10px;font-size:12px;color:${f >= 0 ? '#16A34A' : '#DC2626'};${u.jami ? 'background:#FAF7F2' : ''}">${f}%</td>`;
+    if (!dr) return td(u, '—', 'yon-yoq');
+    const f = Math.round((Number(u.s.natija) || 0) / dr * 1000) / 10;
+    return td(u, yonFoiz(f), f >= 0 ? 'yon-yashil' : 'yon-qizil');
   }).join('');
-  document.getElementById('yonJadval').innerHTML = `<table class="yon-jadval" style="width:100%;border-collapse:collapse;font-size:13px">
-    <thead><tr style="border-bottom:1.5px solid var(--f-border)"><th style="text-align:left;padding:8px 10px"></th>${th}</tr></thead>
+  document.getElementById('yonJadval').innerHTML = `<table class="yon-jadval">
+    <thead><tr><th>Ko'rsatkich</th>${th}</tr></thead>
     <tbody>
-      ${qator('Daromad', 'daromad', false)}
-      ${qator('Tannarx (sotilgan mahsulot)', 'tannarx', true)}
-      ${qator("Bevosita xarajatlar (o'z yo'nalishiga)", 'bevosita', true)}
-      ${qismQatorlari('bevosita_qismlari')}
-      ${qator('Umumiy xarajat ulushi', 'ulush', true)}
-      ${qismQatorlari('ulush_qismlari')}
-      ${qator('Jami xarajat', 'jami_xarajat', true)}
-      <tr style="border-top:1.5px solid var(--f-text)"><td style="padding:8px 10px;font-weight:800">Sof foyda</td>${sofTds}</tr>
-      <tr><td style="padding:4px 10px;color:var(--f-text3);font-size:12px">Rentabellik</td>${renTds}</tr>
+      ${blok('yon-daromad', '1. Daromad', s => s.daromad, false)}
+      ${blok('yon-tannarx', '2. Sotilgan mahsulot tannarxi', s => s.tannarx, true)}
+      ${blok('yon-oylik', '3. Oyliklar', s => s.oylik, true)}
+      ${qism("yo'nalishsiz hodimlar (umumiy)", s => s.umumiy_oylik, true, 'yon-umumiy')}
+      ${blok('yon-xarajat', '4. Xarajatlar', s => s.xarajat, true)}
+      ${xarajatQismlari}
+      ${qism("shundan umumiy (yo'nalishsiz, taqsimlanmaydi)", s => s.umumiy_xarajat, true, 'yon-umumiy')}
+      <tr class="yon-natija"><td>Natija (+ / −)</td>${natTd}</tr>
+      <tr class="yon-ren"><td>Rentabellik</td>${renTd}</tr>
     </tbody></table>`;
-  document.getElementById('yonIzoh').textContent =
-    "Daromad va tannarx — sotilgan mahsulot yo'nalishiga aniq (profil, panel, donali, blok, loy sotish — asosiy yo'nalish; " +
-    "MRP mahsuloti — mahsulot turining yo'nalishi). Yo'nalishi tanlangan hodim, xarajat, transport va kirim xarajatlari, brak " +
-    "— o'z yo'nalishiga; qolgan umumiy xarajatlar — daromad ulushiga qarab. Kassa bo'linmaydi.";
+  document.getElementById('yonTekshiruv').innerHTML =
+    `Yo'nalishlar natijasi: <b>${yonNatija(jami.yonalishlar_natijasi)} so'm</b> − yo'nalishsiz oyliklar <b>${yonSumma(jami.umumiy_oylik)} so'm</b>` +
+    ` − umumiy xarajatlar <b>${yonSumma(jami.umumiy_xarajat)} so'm</b> = korxona natijasi <b>${yonNatija(jami.natija)} so'm</b>` +
+    ` (Moliya hisobotidagi sof foyda: <b>${yonSumma(d.moliya_sof_foyda)} so'm</b>).`;
+
+  // ── Xarajatlar tarkibi (doira) ──
+  const tarkib = (d.tarkib || []).filter(r => Number(r.summa) > 0);
+  const tarkibJami = tarkib.reduce((a, r) => a + Number(r.summa), 0);
+  document.getElementById('yonTarkibMarkaz').innerHTML = `<b>${yonSumma(tarkibJami)}</b><span>so'm</span>`;
+  document.getElementById('yonTarkibRoyxat').innerHTML = tarkib.length ? tarkib.map((r, i) => `
+    <div class="yon-tarkib-qator"><span class="yon-tarkib-nuqta" style="background:${YON_TARKIB_RANGLAR[i % YON_TARKIB_RANGLAR.length]}"></span>
+      <span class="yon-tarkib-nom">${escapeHtml(r.nom)}</span><span class="yon-tarkib-foiz">${foizKor(r.foiz)}</span>
+      <span class="yon-tarkib-summa">${yonSumma(r.summa)}</span></div>`).join('')
+    : `<div style="font-size:12.5px;color:var(--f-text2)">Bu davrda xarajat yo'q</div>`;
+  try {
+    if (yonTarkibInst) { yonTarkibInst.destroy(); yonTarkibInst = null; }
+    if (typeof Chart !== 'undefined' && tarkib.length) {
+      yonTarkibInst = new Chart(document.getElementById('yonTarkibChart'), {
+        type: 'doughnut',
+        data: { labels: tarkib.map(r => r.nom), datasets: [{ data: tarkib.map(r => Number(r.summa)),
+          backgroundColor: tarkib.map((r, i) => YON_TARKIB_RANGLAR[i % YON_TARKIB_RANGLAR.length]), borderWidth: 2, borderColor: '#fff' }] },
+        options: { cutout: '68%', responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${c.label}: ${yonSumma(c.raw)} so'm` } } } }
+      });
+    }
+  } catch (e) { /* grafik chizilmasa ham jadval ishlaydi */ }
+
+  // ── Rentabellik chiziqlari ──
+  const ren = d.yonalishlar.filter(y => Number(y.som.daromad) || Number(y.som.natija));
+  document.getElementById('yonRentabellik').innerHTML = ren.length ? ren.map(y => {
+    if (!Number(y.som.daromad)) {
+      return `<div class="yon-ren-qator"><span class="yon-ren-nom">${escapeHtml(y.nom)}</span>
+      <span class="yon-ren-foiz" style="color:var(--f-text2);font-weight:600">daromad yo'q</span>
+      <div class="yon-ren-chiziq"><div style="width:0"></div></div></div>`;
+    }
+    const f = Math.round((Number(y.som.natija) || 0) / Number(y.som.daromad) * 1000) / 10;
+    const kenglik = Math.min(Math.abs(f), 100);
+    return `<div class="yon-ren-qator"><span class="yon-ren-nom">${escapeHtml(y.nom)}</span>
+      <span class="yon-ren-foiz ${f >= 0 ? 'yon-yashil' : 'yon-qizil'}">${yonFoiz(f)}</span>
+      <div class="yon-ren-chiziq"><div style="width:${kenglik}%;background:${f >= 0 ? '#16A34A' : '#DC2626'}"></div></div></div>`;
+  }).join('') : `<div style="font-size:12.5px;color:var(--f-text2)">Bu davrda daromad yo'q</div>`;
+
+  document.getElementById('yonIzoh').innerHTML = `<ul>
+    <li>Yo'nalish natijasi = daromad − sotilgan mahsulot tannarxi − o'z hodimlari oyligi − o'ziga yozilgan xarajatlar.</li>
+    <li>Yo'nalishi belgilanmagan hodimlar oyligi va umumiy xarajatlar (arenda, svet, soliq, tushlik, usta bonusi…) yo'nalishlarga <b>taqsimlanmaydi</b> — faqat «Jami» ustunida.</li>
+    <li>«Jami» natija — korxonaning sof foydasi (Moliya hisobotidagi bilan bir xil).</li>
+    <li>Daromad va tannarx — sotilgan mahsulot yo'nalishiga (MRP mahsuloti — mahsulot turining yo'nalishi). Rentabellik = natija / daromad.</li>
+  </ul>`;
 }
 
 function buildCashSection(d){
@@ -1035,7 +1248,7 @@ function buildExpDetail(d){
           <span style="font-weight:700;color:var(--f-text);font-size:13.5px">${escapeHtml(b.master_name)}</span>
           <span class="fin-exp-group-row-val">${fmtFull(b.kpi_amount)} so'm</span>
         </div>
-        <div style="font-size:11.5px;color:var(--f-text3);padding-left:1px">${b.kpi_percent}% × foyda ${fmt(b.monthly_profit)}</div>
+        <div style="font-size:12px;color:var(--f-text3);padding-left:1px">${b.kpi_percent}% × foyda ${fmt(b.monthly_profit)}</div>
       </div>`
     ).join('');
     const total = d.usta_kpi_breakdown.reduce((s,b)=>s+b.kpi_amount, 0);
@@ -1046,14 +1259,14 @@ function buildExpDetail(d){
   if (d.hodimlar_moslashuvchan_breakdown && d.hodimlar_moslashuvchan_breakdown.length) {
     const rowsHtml = d.hodimlar_moslashuvchan_breakdown.map(b => {
       const isPaid = (b.qolgan !== undefined) && b.qolgan <= 0.5;
-      const paidBadge = isPaid ? '<span style="font-size:10px;font-weight:700;color:#22C55E;background:#F0FDF4;padding:1px 7px;border-radius:10px;margin-left:6px;white-space:nowrap">✓ To\'landi</span>' : '';
-      const posBadge = b.position ? `<span style="font-size:10.5px;font-weight:600;color:var(--f-text3);background:var(--f-bg);padding:1px 8px;border-radius:10px;margin-left:6px">${escapeHtml(b.position)}</span>` : '';
+      const paidBadge = isPaid ? '<span style="font-size:12px;font-weight:700;color:#15803D;background:#F0FDF4;padding:1px 7px;border-radius:10px;margin-left:6px;white-space:nowrap">✓ To\'landi</span>' : '';
+      const posBadge = b.position ? `<span style="font-size:12px;font-weight:600;color:var(--f-text3);background:var(--f-bg);padding:1px 8px;border-radius:10px;margin-left:6px">${escapeHtml(b.position)}</span>` : '';
       return `<div class="fin-exp-group-row" style="flex-direction:column;align-items:stretch;gap:3px">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <span style="font-weight:700;color:var(--f-text);font-size:13.5px">${escapeHtml(b.name)}${posBadge}${paidBadge}</span>
           <span class="fin-exp-group-row-val">${fmtFull(b.amount)} so'm</span>
         </div>
-        <div style="font-size:11.5px;color:var(--f-text3);padding-left:1px">${escapeHtml(b.detail)}</div>
+        <div style="font-size:12px;color:var(--f-text3);padding-left:1px">${escapeHtml(b.detail)}</div>
       </div>`;
     }).join('');
     const total = d.hodimlar_moslashuvchan_breakdown.reduce((s,b)=>s+b.amount, 0);
@@ -1063,15 +1276,15 @@ function buildExpDetail(d){
   // ── kech102 (144-band, QAROR "Qaytarish oyida"): shu oyda bo'lgan qaytarishlar — "Jami daromad" va
   // "Ishlab chiqarish xarajati" ICHIDA (o'tgan oy hisoboti o'zgarmaydi); guruh jami — sof foydaga ta'siri ──
   if ((d.qaytarish_soni||0) > 0) {
-    let rowsHtml = `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name" style="font-weight:700;color:var(--f-text)">Mijozga qaytarilgan pul (daromaddan ayrildi)</span><span class="fin-exp-group-row-val" style="color:#EF4444">${fmtFull(d.qaytarish_daromad||0)} so'm</span></div>`;
-    rowsHtml += `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name" style="font-weight:700;color:var(--f-text)">Omborga qaytgan mahsulot (ishlab chiqarish xarajatidan ayrildi)</span><span class="fin-exp-group-row-val" style="color:#16A34A">${fmtFull(d.qaytarish_tannarx||0)} so'm</span></div>`;
+    let rowsHtml = `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name" style="font-weight:700;color:var(--f-text)">Mijozga qaytarilgan pul (daromaddan ayrildi)</span><span class="fin-exp-group-row-val" style="color:#DC2626">${fmtFull(d.qaytarish_daromad||0)} so'm</span></div>`;
+    rowsHtml += `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name" style="font-weight:700;color:var(--f-text)">Omborga qaytgan mahsulot (ishlab chiqarish xarajatidan ayrildi)</span><span class="fin-exp-group-row-val" style="color:#15803D">${fmtFull(d.qaytarish_tannarx||0)} so'm</span></div>`;
     groupsHtml += expGroup('↩️', `Qaytarishlar (${d.qaytarish_soni} ta, shu oyda)`, rowsHtml, (d.qaytarish_daromad||0) - (d.qaytarish_tannarx||0));
   }
 
   // ── Tayyor mahsulot to'g'ridan-to'g'ri sotuvi ──
   if (d.fp_sales_daromad > 0) {
-    let rowsHtml = `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name" style="font-weight:700;color:var(--f-text)">Sotildi (${d.fp_sales_soni} marta)</span><span class="fin-exp-group-row-val" style="color:#16A34A">${fmtFull(d.fp_sales_daromad)} so'm</span></div>`;
-    rowsHtml += `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name" style="padding-left:10px">↳ Sof foyda (tan narxsiz)</span><span class="fin-exp-group-row-val" style="color:#16A34A">${fmtFull(d.fp_sales_foyda)} so'm</span></div>`;
+    let rowsHtml = `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name" style="font-weight:700;color:var(--f-text)">Sotildi (${d.fp_sales_soni} marta)</span><span class="fin-exp-group-row-val" style="color:#15803D">${fmtFull(d.fp_sales_daromad)} so'm</span></div>`;
+    rowsHtml += `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name" style="padding-left:10px">↳ Sof foyda (tan narxsiz)</span><span class="fin-exp-group-row-val" style="color:#15803D">${fmtFull(d.fp_sales_foyda)} so'm</span></div>`;
     groupsHtml += expGroup('💰', "Tayyor mahsulot to'g'ridan-to'g'ri sotuvi", rowsHtml, d.fp_sales_daromad);
   }
 
@@ -1090,14 +1303,14 @@ function buildExpDetail(d){
   }
   if ((d.ehson_xarajat||0) > 0) {
     tailHtml += `<div class="fin-exp-row">
-        <span class="fin-exp-name" style="color:#22C55E">🤲 Ehson (xayriya)</span>
-        <span class="fin-exp-val" style="color:#22C55E">${fmtFull(d.ehson_xarajat||0)} so'm</span>
+        <span class="fin-exp-name" style="color:#15803D">🤲 Ehson (xayriya)</span>
+        <span class="fin-exp-val" style="color:#15803D">${fmtFull(d.ehson_xarajat||0)} so'm</span>
       </div>`;
   }
   if ((d.brak_xarajat||0) > 0) {
     tailHtml += `<div class="fin-exp-row">
-        <span class="fin-exp-name" style="color:#EF4444">🗑️ Brak (yaroqsiz xomashyo)</span>
-        <span class="fin-exp-val" style="color:#EF4444">${fmtFull(d.brak_xarajat||0)} so'm</span>
+        <span class="fin-exp-name" style="color:#DC2626">🗑️ Brak (yaroqsiz xomashyo)</span>
+        <span class="fin-exp-val" style="color:#DC2626">${fmtFull(d.brak_xarajat||0)} so'm</span>
       </div>`;
   }
   // kech107 (49-band, "Bitta raqam"): omborda tayyor turgan mahsulot yo'qotishi — Brakdan ALOHIDA qator (jami xarajat ichida)
@@ -1110,8 +1323,8 @@ function buildExpDetail(d){
   // kech87 (104-band): korxona to'lagan transport — sof foydadan ayriladi (jami xarajat ichida)
   if ((d.transport_xarajat||0) > 0) {
     tailHtml += `<div class="fin-exp-row">
-        <span class="fin-exp-name" style="color:#D97706">🚚 Transport (kirish + yetkazish)</span>
-        <span class="fin-exp-val" style="color:#D97706">${fmtFull(d.transport_xarajat||0)} so'm</span>
+        <span class="fin-exp-name" style="color:#B45309">🚚 Transport (kirish + yetkazish)</span>
+        <span class="fin-exp-val" style="color:#B45309">${fmtFull(d.transport_xarajat||0)} so'm</span>
       </div>`;
   }
   tailHtml += `<div class="fin-total-row"><span>Jami xarajat:</span><span style="color:var(--f-danger)">${fmtFull(d.jami_xarajat+Number(d.tannarx_jami ?? d.ishlab_chiqarish_xarajat ?? 0))} so'm</span></div>
@@ -1121,8 +1334,8 @@ function buildExpDetail(d){
   const pb=document.getElementById('profitBlock');
   pb.style.display='block';
   document.getElementById('profitBig').textContent=fmtFull(d.sof_foyda)+" so'm";
-  document.getElementById('profitBig').style.color=d.sof_foyda>=0?'var(--f-primary)':'#EF4444';
-  document.getElementById('profitPct').textContent=d.foyda_foiz+'% foyda';
+  document.getElementById('profitBig').style.color=d.sof_foyda>=0?'var(--f-primary)':'#DC2626';
+  document.getElementById('profitPct').textContent=foizKor(d.foyda_foiz)+' foyda';
 
   buildRevDonut(d);
 }
@@ -1169,13 +1382,13 @@ function buildRevDonut(d){
     <div style="display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:1px solid var(--f-border)">
       <span style="width:9px;height:9px;border-radius:50%;background:${color};flex-shrink:0"></span>
       <span style="flex:1;color:var(--f-text);font-weight:600;font-size:13px">${escapeHtml(name)}</span>
-      <span style="font-weight:800;color:${color};font-size:13.5px;white-space:nowrap;letter-spacing:-.01em">${fmtFull(val)} so'm</span>
-      <span style="background:${color}1A;color:${color};font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;white-space:nowrap">${(val/total*100).toFixed(1)}%</span>
+      <span style="font-weight:800;color:${matnRangi(color)};font-size:13.5px;white-space:nowrap;letter-spacing:-.01em">${fmtFull(val)} so'm</span>
+      <span style="background:${color}1A;color:${matnRangi(color, 1)};font-size:12px;font-weight:700;padding:2px 8px;border-radius:20px;white-space:nowrap">${foizKor(val/total*100)}</span>
     </div>`).join('');
 }
 
 function fmtShortM(n){
-  return (n/1000000).toFixed(1) + ' mln';
+  return (n/1000000).toFixed(1).replace('.', ',') + ' mln';   // kech118 (U-05): kasr — vergul
 }
 
 // ── BUGUNGI XARAJAT BATAFSIL (Xarajat kartasidan ochiladi) ──
@@ -1194,9 +1407,12 @@ function initDailyTx(){
   loadDailyTransactions();
 }
 
-const CAT_LABELS = {arenda:'Arenda', elektr:'Elektr', tushlik:'Tushlik', soliqlar:'Soliqlar', reklama:'Reklama', kutilmagan:'Kutilmagan xarajat', boshqa:'Boshqa'};
+// kech118 (U-06, O'LCHANGAN — audit: kirim hujjati xarajatlari ro'yxatda «transport_kirim», «tushirish_kirim» xom kalit bilan chiqardi)
+const CAT_LABELS = {arenda:'Arenda', elektr:'Elektr', tushlik:'Tushlik', soliqlar:'Soliqlar', reklama:'Reklama', kutilmagan:'Kutilmagan xarajat', boshqa:'Boshqa',
+                    transport_kirim:'Transport (kirim)', tushirish_kirim:'Tushirish (Grushchik)', yuklash_kirim:'Yuklash', kirim_boshqa:'Boshqa xarajat (kirim)'};
 const SOURCE_LABELS = {monthly_form:'Oylik forma', manual:'Qo\'lda kiritilgan', inventory_receipt:'Kirim hujjati', kirim_tannarx:'Kirim (tannarxda)'};
-const CAT_ICONS = {arenda:'🏠', elektr:'⚡', tushlik:'🍽️', soliqlar:'📋', reklama:'📢', kutilmagan:'⚠️', boshqa:'📦'};
+const CAT_ICONS = {arenda:'🏠', elektr:'⚡', tushlik:'🍽️', soliqlar:'📋', reklama:'📢', kutilmagan:'⚠️', boshqa:'📦',
+                   transport_kirim:'🚚', tushirish_kirim:'📦', yuklash_kirim:'⬆️', kirim_boshqa:'➕'};
 
 async function loadDailyTransactions(){
   const dateVal = document.getElementById('tx-date').value;
