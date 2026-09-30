@@ -114,6 +114,7 @@ BUGUN = tashkent_date()
 OY_BOSHI, _oy_oxiri = tashkent_oy_oraligi(BUGUN.year, BUGUN.month)
 T = OY_BOSHI + timedelta(days=1, hours=3)
 XSS = "Yog'och <img src=x onerror=\"window.__xss=1\">"
+TM_XSS = "U117 gips <img src=x onerror=\"window.__xss=2\">"
 s = SessionLocal()
 if not s.get(Company, 2):
     s.add(Company(id=2, name="U117 B korxona"))
@@ -186,6 +187,13 @@ try:
                     unit_price=50_000, total_price=50_000, product_type_id=PT_X))
     s.add(FinishedProductSale(company_id=1, finished_product_id=fp_p.id, product_name=fp_p.name, quantity=1, unit="metr",
                               unit_price=90_000, total_amount=90_000, cost_amount=30_000, sold_at=T))
+    # kech117 (zip 115 jonli sinovi): turi / asosiy turkumi yo'q TM sotuvi — «Belgilanmagan» manbasi (nomi HTML emas)
+    fp_g = FinishedProduct(company_id=1, name=TM_XSS, category="gips", quantity=1, produced_quantity=2, unit="dona",
+                           cost_price=1_000, source=StockSource.PRODUCED, production_status=ProductionStatus.READY)
+    s.add(fp_g)
+    s.flush()
+    s.add(FinishedProductSale(company_id=1, finished_product_id=fp_g.id, product_name=fp_g.name, quantity=1, unit="dona",
+                              unit_price=5_000, total_amount=5_000, cost_amount=1_000, sold_at=T))
     # B korxona — bitta yo'nalish, daromad bor (bo'limlar YASHIRIN bo'lishi kerak)
     ob = Order(company_id=2, order_number="U117B-1", project_id=ID["PRJB"], order_type=OrderType.PRODUCT,
                total_amount=500_000, agreed_amount=500_000, status=OrderStatus.READY, completed_at=T)
@@ -401,9 +409,19 @@ FIN = [
         turlar: document.getElementById('expDetail').textContent.includes("Turlar bo'yicha")};"""),
     q("f2", natija=r"""return {opts: [...document.querySelectorAll('#tx-f-prodtype option')].map(o => [o.value, o.textContent]),
       img: document.querySelectorAll('#tx-f-prodtype img').length};"""),
-    q("f3", amal=f"""window.__sorovlar.length = 0; openTxModal(); document.getElementById('tx-f-amount').value = '5 000';
-      document.getElementById('tx-f-prodtype').value = '{Y_M}'; await saveTx();""",
-      natija=SOR + r"""return {post: __s('POST', '/api/finance/transactions').map(x => x.body)};"""),
+    q("f3", amal=f"""window.__sorovlar.length = 0; document.getElementById('tx-date').value = '{T.strftime("%Y-%m")}-15';
+      openTxModal(); document.getElementById('tx-f-amount').value = '5 000';
+      document.getElementById('tx-f-prodtype').value = '{Y_M}'; await saveTx();
+      await new Promise(r => setTimeout(r, 900));
+      const __n = q => window.__sorovlar.filter(x => x.method === 'GET' && x.url.includes(q)).length;
+      window.__f3n = {{rep: __n('/api/finance/report?'), yon: __n('/api/finance/yonalishlar?')}};""",
+      natija=M + SOR + TK + r"""
+      const api = await (await fetch(`/api/finance/yonalishlar?year=${__y}&month=${__o}`)).json();
+      const t = document.querySelector('#yonJadval table');
+      const sof = t ? [...[...t.rows].find(r => __m(r.cells[0]) === 'Sof foyda').cells].slice(1).map(__m) : null;
+      return {post: __s('POST', '/api/finance/transactions').map(x => x.body), sof, api_sof: api.yonalishlar.map(y => y.som.sof_foyda)
+        .concat([api.jami.sof_foyda]), report_qayta: window.__f3n.rep, yon_qayta: window.__f3n.yon,
+        tx_sana: document.getElementById('tx-date').value};"""),
     q("f4", amal=f"""window.__sorovlar.length = 0;
       editTx({TX_YASH}, '{T.strftime("%Y-%m-%dT%H:%M:%S")}', 'boshqa', 1234, '', '{Y_YASH}');
       window.__f4 = {{qiymat: document.getElementById('tx-f-prodtype').value,
@@ -629,6 +647,9 @@ check("M3 «Belgilanmagan» ustuni va ogohlantirish (yo'nalishsiz MRP turi nomi 
       len(_belg) == 1 and "U117 Belgisiz2" in (_API.get("belgilanmagan_turlar") or [])
       and g("f1", "ogoh_vis") is True and "U117 Belgisiz2" in (g("f1", "ogoh") or "")
       and _belg[0].get("nom") in (g("f1", "bosh") or []), [g("f1", "ogoh"), _API.get("belgilanmagan_turlar"), _belg])
+check("M3b ogohlantirishda «Belgilanmagan» ning boshqa manbasi — TM sotuvi nomi (MATN, HTML emas) va summasi (5 000)",
+      "boshqa daromad" in (g("f1", "ogoh") or "") and f"Tayyor mahsulot sotuvi «{TM_XSS}» (turkumi: gips) — 5 000 so'm"
+      in (g("f1", "ogoh") or "").replace("\xa0", " "), g("f1", "ogoh"))
 check("M4 XSS: jadval sarlavhasida nom MATN; jadval, ogohlantirish va doira afsonasida rasm elementi yo'q, skript bajarilmadi",
       XSS in (g("f1", "bosh") or []) and g("f1", "img") == 0 and g("f1", "xss") == 0,
       [g("f1", "bosh"), g("f1", "img"), g("f1", "xss")])
@@ -636,9 +657,9 @@ _tn = _num(_REPJ.get("tannarx_jami"))
 check("M5 «Tannarx» kartasi to'ldirilgan; eski «Gips vs Penoplast» tugmasi yo'q, PDF tugmasi bo'limda",
       g("f1", "tannarx_karta") not in (None, "", "—") and _tn > 0 and g("f1", "pdf") is True and g("f1", "eski_pdf") is False,
       [g("f1", "tannarx_karta"), _tn, g("f1", "pdf"), g("f1", "eski_pdf")])
-check("M6 xarajat tafsiloti: «Tayyor mahsulot sotuvi tannarxi» qatori (30 000), «Turlar bo'yicha» guruhi yo'q",
-      len(g("f1", "tm_tannarx") or []) == 1 and "30000" in _toza((g("f1", "tm_tannarx") or [""])[0])
-      and int(round(_num(_REPJ.get("fp_sales_tannarx")))) == 30000 and g("f1", "turlar") is False,
+check("M6 xarajat tafsiloti: «Tayyor mahsulot sotuvi tannarxi» qatori (30 000 + 1 000), «Turlar bo'yicha» guruhi yo'q",
+      len(g("f1", "tm_tannarx") or []) == 1 and "31000" in _toza((g("f1", "tm_tannarx") or [""])[0])
+      and int(round(_num(_REPJ.get("fp_sales_tannarx")))) == 31000 and g("f1", "turlar") is False,
       [g("f1", "tm_tannarx"), _REPJ.get("fp_sales_tannarx"), g("f1", "turlar")])
 _jx = _num(_REPJ.get("jami_xarajat")) + _tn
 check("M7 «Jami xarajat» = xarajat + tannarx (tayyor mahsulot tannarxi ham)",
@@ -653,6 +674,11 @@ check("M9 xarajat oynasi: «Umumiy» + ko'rinadigan yo'nalishlar (Gips / penopla
 _f3 = g("f3", "post") or []
 check("M10 yangi xarajat: POST tanasida yonalish_id (son), production_type yo'q", len(_f3) == 1
       and _f3[0].get("yonalish_id") == Y_M and "production_type" not in _f3[0], _f3)
+_f3s = [_toza(x) for x in (g("f3", "sof") or [])]
+check("M12 xarajat saqlangach Moliya hisoboti va yo'nalishlar jadvali YANGILANDI (sahifani qayta ochmasdan; «Sof foyda» = "
+      "server), kunlik ro'yxat sanasi joyida", (g("f3", "report_qayta") or 0) >= 1 and (g("f3", "yon_qayta") or 0) >= 1
+      and _f3s == [_f(v) for v in (g("f3", "api_sof") or [])] and g("f3", "tx_sana") == T.strftime("%Y-%m") + "-15",
+      [g("f3", "report_qayta"), g("f3", "yon_qayta"), _f3s, g("f3", "api_sof"), g("f3", "tx_sana")])
 _f4 = g("f4", "put") or []
 check("M11 yashirin yo'nalishli xarajatni tahrirlash: vaqtincha variant tanlangan, PUT da o'sha id (yo'qolmaydi)",
       (g("f4", "oldin") or {}).get("qiymat") == str(Y_YASH) and str(Y_YASH) in ((g("f4", "oldin") or {}).get("opts") or [])

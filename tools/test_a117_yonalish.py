@@ -861,6 +861,58 @@ check("D19 ustunlarni alohida yaxlitlash yig'indini buzadigan oyda ham: sof foyd
       and all(x["daromad"] - x["tannarx"] - x["jami_xarajat"] == x["sof_foyda"] for x in _s19),
       [(_d19 or {}).get("moliya_sof_foyda"), _s19[:4], _oddiy if _y19 else None])
 
+# D20. «Belgilanmagan» daromadning MRP turidan boshqa MANBALARI (zip 115 jonli sinovi: sinovda 140 000 so'm «Belgilanmagan»
+# edi, sababi ko'rinmasdi) — eski turkumli detal, turi tanlanmagan MRP detali, turi / asosiy turkumi yo'q TM sotuvi,
+# mahsuloti o'chirilgan TM sotuvi: nomi va AYNAN summasi bilan (o'tgan oyda)
+d = SessionLocal()
+try:
+    # yangi, yo'nalishi BIRIKTIRILMAGAN tur (PT_N D14 da biriktirilgan)
+    _pt20 = ProductType(company_id=1, name="A117 D20 belgisiz tur", unit="dona", input_template="quantity_only",
+                        pricing_formula="unit_based")
+    d.add(_pt20)
+    d.flush()
+    o20 = Order(company_id=1, order_number="A117-20", project_id=ID["PRJ"], order_type=OrderType.PRODUCT,
+                total_amount=45_000, agreed_amount=45_000, status=OrderStatus.READY, completed_at=T_OTGAN)
+    d.add(o20)
+    d.flush()
+    d.add_all([OrderItem(company_id=1, order_id=o20.id, name="A117 D20 termopanel", category="termopanel", quantity=1,
+                         unit_price=20_000, total_price=20_000),
+               OrderItem(company_id=1, order_id=o20.id, name="A117 D20 turisiz", category="mrp_product", quantity=1,
+                         unit_price=10_000, total_price=10_000),
+               # turi BOR, lekin yo'nalishi biriktirilmagan — manbalarda EMAS (u `belgilanmagan_turlar` da)
+               OrderItem(company_id=1, order_id=o20.id, name="A117 D20 belgisiz tur", category="mrp_product", quantity=1,
+                         unit_price=15_000, total_price=15_000, product_type_id=_pt20.id)])
+    fp20 = FinishedProduct(company_id=1, name="A117 gips TM", category="gips", quantity=3, produced_quantity=5,
+                           unit="dona", cost_price=1_000, source=StockSource.PRODUCED,
+                           production_status=ProductionStatus.READY)
+    d.add(fp20)
+    d.flush()
+    d.add_all([FinishedProductSale(company_id=1, finished_product_id=fp20.id, product_name=fp20.name, quantity=1,
+                                   unit="dona", unit_price=12_345, total_amount=12_345, cost_amount=1_000, sold_at=T_OTGAN),
+               FinishedProductSale(company_id=1, finished_product_id=None, product_name="A117 o'chirilgan TM", quantity=1,
+                                   unit="dona", unit_price=7_000, total_amount=7_000, cost_amount=0, sold_at=T_OTGAN)])
+    d.commit()
+finally:
+    d.close()
+d = SessionLocal()
+try:
+    _sp20 = xavfsiz(services.calculate_split_profit_report, d, O_YIL, O_OY, company_id=1)
+finally:
+    d.close()
+_bm20 = {b.get("nom"): b.get("summa") for b in ((_sp20 or {}).get("belgilanmagan_manbalar") or [])} \
+    if isinstance(_sp20, dict) else {}
+_kut20 = {"Eski «termopanel» turkumli detal": 20_000.0, "MRP detali — mahsulot turi tanlanmagan": 10_000.0,
+          "Tayyor mahsulot sotuvi «A117 gips TM» (turkumi: gips)": 12_345.0,
+          "Tayyor mahsulot sotuvi «A117 o'chirilgan TM» — mahsulot o'chirilgan": 7_000.0}
+_b20 = [y for y in ((_sp20 or {}).get("yonalishlar") or []) if y.get("belgilanmagan")] if isinstance(_sp20, dict) else []
+check("D20 «Belgilanmagan» manbalari: eski turkum, turisiz MRP detali, gips TM, o'chirilgan mahsulot sotuvi — nomi va AYNAN "
+      "summasi; biriktirilmagan MRP turi (A117 D20 belgisiz tur) bu ro'yxatda EMAS (u — belgilanmagan_turlar)",
+      all(teng(_bm20.get(k), v) for k, v in _kut20.items()) and not any("belgisiz tur" in (k or "") for k in _bm20)
+      and "A117 D20 belgisiz tur" in ((_sp20 or {}).get("belgilanmagan_turlar") or [])
+      and len(_b20) == 1 and (_b20[0].get("aniq") or {}).get("daromad", 0) + 0.005 >= sum(_bm20.values()),
+      [_bm20, (_sp20 or {}).get("belgilanmagan_turlar") if isinstance(_sp20, dict) else _sp20,
+       [(y.get("nom"), (y.get("aniq") or {}).get("daromad")) for y in _b20]])
+
 # ════════════════════════════════════════════════════════════════════════════════════════════════════════════
 section("E. Boshqa ko'rinishlar — bugun, grafik, PDF")
 # ════════════════════════════════════════════════════════════════════════════════════════════════════════════
