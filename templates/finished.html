@@ -1186,11 +1186,11 @@ function rowHtml(i, partiyami) {
   const stLabel = low ? 'Tugagan' : (isKam ? 'Kam' : 'Yetarli');
 
   const cpu = i.source === 'produced' && i.quantity > 0 ? (i.cost_price / i.quantity) : 0;
-  {% if current_user.role.value == 'admin' %}
+  {% if current_user.ruxsat('tannarx', 'korish') %}
   const profitPct = (i.source === 'produced' && i.unit_price > 0)
     ? Math.round(((i.unit_price - cpu) / i.unit_price) * 100) : null;
   {% else %}
-  const profitPct = null;  // Faqat Admin — Hodim/Omborchi foydani ko'rmasligi kerak
+  const profitPct = null;  // «Tannarx va foyda» ruxsati yo'q — foyda ko'rinmaydi
   {% endif %}
 
   const actionBtns = mrpJarayon ? `
@@ -1220,7 +1220,7 @@ function rowHtml(i, partiyami) {
       ${i.source !== 'produced' ? `<button class="mini-btn" onclick="openLossModal(${i.id}, '${jsAttrEscape(i.name)}', ${i.quantity}, '${jsAttrEscape(i.unit)}', '${jsAttrEscape(i.category || '')}')" title="Kamaytirish (brak/yo'qotish)" style="color:#B45309;border-color:#FED7AA"><i class="ti ti-alert-triangle"></i></button>` : ''}
       <button class="mini-btn" onclick="openHistoryModal(${i.id})" title="Tarixni ko'rish"><i class="ti ti-history"></i></button>
       ${i.reserved_quantity > 0 ? `<button class="mini-btn" onclick="releaseFpReservation(${i.id}, '${jsAttrEscape(i.name)}')" title="Band qilishni bekor qilib, umumiy sotuvga qaytarish" style="color:#B91C1C;border-color:#FECACA"><i class="ti ti-lock-open"></i></button>` : ''}
-      {% if current_user.role.value == 'admin' %}
+      {% if current_user.ruxsat('tannarx', 'korish') %}
       <button class="mini-btn" onclick="openProfitModal(${i.id})" title="Foyda hisobi"
               style="color:var(--gold-dark);border-color:#E5DFD3"><i class="ti ti-report-money"></i></button>
       {% endif %}
@@ -1298,7 +1298,7 @@ function openHistoryModal(id) {
   if (item.source === 'produced') {
     rows.push(['Sarflangan penoplast', item.volume_m3 ? sonKor(item.volume_m3, 4) + ' m³' : '—']);
     if (item.actual_loy_kg) rows.push(['Sarflangan loy', item.actual_loy_kg + ' kg']);
-    {% if current_user.role.value == 'admin' %}
+    {% if current_user.ruxsat('tannarx', 'korish') %}
     rows.push(['Tan narxi (jami)', fmt(item.cost_price) + " so'm"]);
     {% endif %}
   }
@@ -1464,7 +1464,7 @@ async function submitLoss() {
       const r = await res.json();
       if (res.ok) {
         closeLossModal();
-        {% if current_user.role.value == 'admin' %}
+        {% if current_user.ruxsat('tannarx', 'korish') %}
         showMsg(`✓ Kamaytirildi! Tan narxi (${fmt(r.cost_amount)} so'm) Moliyada «Tayyor mahsulot yo'qotishi» qatoriga qo'shildi`, 'success');
         {% else %}
         showMsg(`✓ Kamaytirildi!`, 'success');
@@ -1741,7 +1741,7 @@ async function submitSell(confirmBelowCost) {
     const r = await res.json();
     if (res.ok) {
       closeSellModal();
-      {% if current_user.role.value == 'admin' %}
+      {% if current_user.ruxsat('tannarx', 'korish') %}
       showMsg(`✓ Sotildi! ${fmt(r.total_amount)} so'm (foyda: ${fmt(r.profit)} so'm)`, 'success');
       {% else %}
       showMsg(`✓ Sotildi! ${fmt(r.total_amount)} so'm`, 'success');
@@ -2237,7 +2237,7 @@ async function saveProduce() {
       loadFp();
       let msg = `⏳ ${r.name}: ${r.quantity} ${r.unit} — ishlab chiqarish boshlandi`;
       if (r.inventory_log?.length) msg += '\n\n📦 Ombordan:\n' + r.inventory_log.join('\n');
-      {% if current_user.role.value == 'admin' %}
+      {% if current_user.ruxsat('tannarx', 'korish') %}
       msg += `\n\n💰 Tan narxi: ${fmt(r.total_cost)} so'm`;
       msg += `\n📈 Foyda: ${fmt(r.profit)} so'm (${r.margin}%)`;
       {% endif %}

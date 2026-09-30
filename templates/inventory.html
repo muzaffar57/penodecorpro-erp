@@ -85,7 +85,7 @@
     <div class="stat-card" id="kamQolganKarta" role="button" tabindex="0" title="Ro'yxatda ko'rsatish" style="cursor:pointer" onclick="kamQolganlarniKorsat()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();kamQolganlarniKorsat();}"><div class="stat-icon" style="background:#FEE2E2;color:#DC2626"><i class="ti ti-alert-triangle"></i></div><div class="stat-label">Kam qolganlar</div><div class="stat-val">{{ kpi.low_count }} ta</div></div>
     <div class="stat-card"><div class="stat-icon" style="background:#DCFCE7;color:#166534"><i class="ti ti-arrow-down-left"></i></div><div class="stat-label">Bugungi kirim</div><div class="stat-val">{{ kpi.today_in_count }} marta</div></div>
     <div class="stat-card"><div class="stat-icon" style="background:#FEE2E2;color:#991B1B"><i class="ti ti-arrow-up-right"></i></div><div class="stat-label">Bugungi chiqim</div><div class="stat-val">{{ kpi.today_out_count }} marta</div></div>
-    {% if current_user.role.value != 'manager' %}
+    {% if current_user.ruxsat('material', 'tahrirlash') %}
     <div class="stat-card"><div class="stat-icon" style="background:#EDE9FE;color:#6D28D9"><i class="ti ti-currency-dollar"></i></div><div class="stat-label">Ombor qiymati</div><div class="stat-val">{{ (kpi.total_value/1000000)|son(1) }} mln</div></div>
     {% endif %}
   </div>
@@ -113,7 +113,7 @@
       <option value="qty_asc">Qoldiq (kamdan-ko'pga)</option>
       <option value="qty_desc">Qoldiq (ko'pdan-kamga)</option>
     </select>
-    {% if current_user.role.value != 'manager' %}
+    {% if current_user.ruxsat('kirim', 'yaratish') %}
     <button class="btn btn-outline btn-sm" onclick="openPurchaseHistory()"><i class="ti ti-receipt" style="vertical-align:-2px"></i> Xaridlar tarixi</button>
     {% endif %}
     <button class="btn btn-outline btn-sm" onclick="openMovements()"><i class="ti ti-history" style="vertical-align:-2px"></i> Ombor harakatlari</button>
@@ -194,7 +194,7 @@
       </div>
       <div><span class="stat-badge {{ st }}">{{ st_label }}</span></div>
       <div class="mat-col-updated" style="font-size:13.5px;color:var(--text3)">
-        {% if current_user.role.value != 'manager' %}
+        {% if current_user.ruxsat('material', 'tahrirlash') %}
         <span id="price-{{ item.id }}">{{ "{:,.0f}".format(item.price_per_unit).replace(",", " ") if item.price_per_unit else "—" }} so'm</span>
         <button class="btn btn-outline btn-xs" onclick="editPrice({{ item.id }}, {{ item.price_per_unit or 0 }})" title="Narxni tuzatish" style="margin-left:4px"><i class="ti ti-edit" style="font-size:12px"></i></button>
         {% else %}
@@ -202,8 +202,10 @@
         {% endif %}
       </div>
       <div class="mat-actions">
-        {% if current_user.role.value == 'admin' %}
+        {% if current_user.ruxsat('qoldiq', 'tahrirlash') %}
         <button class="act-btn out" data-name="{{ item.item_name }}" data-unit="{{ item.unit }}" onclick="openChiqimModal({{ item.id }}, this.dataset.name, this.dataset.unit, {{ qty }})" title="Chiqim (tuzatish)"><i class="ti ti-minus"></i></button>
+        {% endif %}
+        {% if current_user.ruxsat('material', 'ochirish') %}
         <button class="act-btn danger" onclick="deleteItem({{ item.id }})" title="O'chirish"><i class="ti ti-trash"></i></button>
         {% endif %}
       </div>

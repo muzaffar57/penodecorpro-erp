@@ -36,11 +36,15 @@
             <td><span style="font-weight:500;color:var(--text)">{{ u.username }}</span></td>
             <td>{{ u.full_name or '—' }}</td>
             <td>
-              {% if u.role.value == 'admin' %}<span class="badge" style="background:var(--dark);color:var(--gold)">Admin</span>
-              {% elif u.role.value == 'manager' %}<span class="badge badge-info">Hodim</span>
-              {% elif u.role.value == 'accountant' %}<span class="badge badge-ready">Moliyachi</span>
-              {% elif u.role.value == 'warehouse' %}<span class="badge" style="background:#F3E8FF;color:#8E44AD">Omborchi</span>
-              {% else %}<span class="badge badge-warning">Usta</span>{% endif %}
+              {# kech118 (ROLLAR): rol — korxona roli (nomi admin o'zi bergan). O'zidan boshqasiga — rolni shu yerda almashtirish. #}
+              {% if u.username != current_user.username %}
+              <select class="u-rol-tanlov" aria-label="{{ u.username }} roli" data-eski="{{ u.rol_id or '' }}"
+                      onchange="userRoli({{ u.id }}, this)" style="font-size:13px;padding:4px 6px;max-width:150px">
+                {% if not u.rol_id %}<option value="" selected>{{ u.rol_nomi }}</option>{% endif %}
+                {% for r in rollar %}<option value="{{ r.id }}" {% if r.id == u.rol_id %}selected{% endif %}>{{ r.nom }}</option>{% endfor %}
+              </select>
+              {% elif u.role.value == 'admin' %}<span class="badge" style="background:var(--dark);color:var(--gold)">{{ u.rol_nomi }}</span>
+              {% else %}<span class="badge badge-info">{{ u.rol_nomi }}</span>{% endif %}
             </td>
             <td>
               {% if u.is_active %}<span class="badge badge-ready">Faol</span>
@@ -69,20 +73,16 @@
     <!-- O'ng: rollar haqida -->
     <div style="display:flex;flex-direction:column;gap:12px">
       <div class="card">
-        <div class="card-head"><h3>Rollar va huquqlar</h3></div>
+        <div class="card-head"><h3>Rollar va huquqlar</h3><a href="/rollar" class="ch-action">Sozlash →</a></div>
         <div class="card-body">
-          {% for role, label, color, perms in [
-            ('admin', 'Admin', 'var(--dark)', 'Hamma narsa - moliya, ombor, foydalanuvchilar, sozlamalar'),
-            ('manager', 'Hodim', '#1a6fa8', "Loyiha va buyurtma yaratish, ombor (ko'rish), Tayyor mahsulot. Moliya, foyda, Ustalar KPI ko'RINMAYDI"),
-            ('accountant', 'Moliyachi', '#1e7e34', 'Moliya, Hisobotlar, Qarzdorlik, Ustalar KPI, xodim avansini tasdiqlash'),
-            ('warehouse', 'Omborchi', '#8E44AD', "Omborxona, Xomashyo ta'minoti, Tayyor mahsulot, Retseptlar"),
-            ('master', 'Usta', '#92400E', 'Faqat buyurtmalar')
-          ] %}
+          {# kech118 (ROLLAR — egasi qarori): rollar ro'yxati korxonaning o'z rollaridan; ruxsatlar — «Rollar va ruxsatlar» sahifasida. #}
+          {% for r in rollar %}
           <div style="padding:12px 0;border-bottom:1px solid var(--border2)">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-              <span class="badge" style="background:{% if role == 'admin' %}var(--dark){% elif role == 'manager' %}#EFF6FF{% elif role == 'accountant' %}#DCFCE7{% elif role == 'warehouse' %}#F3E8FF{% else %}#FEF3C7{% endif %};color:{% if role == 'admin' %}var(--gold){% else %}{{ color }}{% endif %}">{{ label }}</span>
+              <span class="badge" style="{% if r.kod == 'admin' %}background:var(--dark);color:var(--gold){% else %}background:var(--gold-tint);color:var(--gold-dark){% endif %}">{{ r.nom }}</span>
+              <span style="font-size:12px;color:var(--text3)">{{ rol_soni.get(r.id, 0) }} ta foydalanuvchi</span>
             </div>
-            <div style="font-size:12px;color:var(--text3)">{{ perms }}</div>
+            <div style="font-size:12px;color:var(--text3)">{{ r.tavsif or '—' }}</div>
           </div>
           {% endfor %}
         </div>
@@ -116,11 +116,7 @@
       <div class="form-group" style="margin:0"><label>Parol</label><input type="password" id="f-password" placeholder="Kamida 6 belgi"></div>
       <div class="form-group" style="margin:0"><label>Rol</label>
         <select id="f-role">
-          <option value="manager">Hodim</option>
-          <option value="accountant">Moliyachi</option>
-          <option value="warehouse">Omborchi</option>
-          <option value="master">Usta</option>
-          <option value="admin">Admin</option>
+          {% for r in rollar %}<option value="{{ r.id }}" {% if r.kod == 'menejer' %}selected{% endif %}>{{ r.nom }}</option>{% endfor %}
         </select>
       </div>
     </div>
@@ -527,6 +523,21 @@ function showAddedToast(){
 }
 
 let isSavingUser = false;
+// kech118 (ROLLAR): foydalanuvchi rolini almashtirish — PUT /api/users/{id}/rol (tasdiq bilan; xato — eski qiymatga qaytadi)
+async function userRoli(userId, sel) {
+  const eski = sel.dataset.eski || '';
+  const nom = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
+  const ha = await customConfirm("Rolni o'zgartirish", `Bu foydalanuvchi endi «${nom}» rolida ishlaydi. Tasdiqlaysizmi?`, {okText: "O'zgartirish"});
+  if (!ha) { sel.value = eski; return; }
+  try {
+    const res = await fetch(`/api/users/${userId}/rol`, {method: 'PUT', headers: {'Content-Type': 'application/json'},
+                                                         body: JSON.stringify({rol_id: parseInt(sel.value)})});
+    if (!res.ok) { showMsg(await serverXatoSababi(res, "O'zgartirilmadi"), 'error'); sel.value = eski; return; }
+    sel.dataset.eski = sel.value;
+    showMsg(`✓ Rol o'zgartirildi: ${nom}`, 'success');
+  } catch (e) { showMsg('Internet aloqasini tekshiring', 'error'); sel.value = eski; }
+}
+
 async function saveUser(){
   const username=document.getElementById('f-username').value.trim();
   const password=document.getElementById('f-password').value;
@@ -544,7 +555,7 @@ async function saveUser(){
   if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
   try {
     const res=await fetch('/api/users',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({username,password,role:document.getElementById('f-role').value,full_name:document.getElementById('f-fullname').value})});
+      body:JSON.stringify({username,password,rol_id:parseInt(document.getElementById('f-role').value),full_name:document.getElementById('f-fullname').value})});
     if(res.ok){ showAddedToast(); return; }else{const e=await res.json(); err.textContent='Xato: '+(e.detail||''); err.style.display='block';}
   } finally {
     isSavingUser = false;

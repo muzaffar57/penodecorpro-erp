@@ -284,7 +284,7 @@
         <div style="font-size:12.5px;color:#CBD5E1;font-weight:600;text-transform:uppercase;letter-spacing:.04em">💰 Kassa balansi — hozir qancha naqd pul bor</div>
         <div id="cash-balance-val" style="font-size:32px;font-weight:800;margin-top:6px">—</div>
       </div>
-      {% if current_user.role.value == 'admin' %}
+      {% if current_user.ruxsat('kassa', 'yaratish') %}
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-outline" style="background:rgba(255,255,255,.08);border-color:#4B5563;color:#fff" onclick="openCashTxModal('boshlangich')">+ Boshlang'ich balans</button>
         <button class="btn btn-outline" style="background:rgba(255,255,255,.08);border-color:#4B5563;color:#fff" onclick="openCashTxModal('usta_kpi')">− Usta KPI to'landi</button>

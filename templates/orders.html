@@ -4,8 +4,6 @@
 {% block page_sub %}Jami {{ orders|length }} ta · {{ orders|selectattr('status.value', 'ne', 'ready')|list|length }} faol{% endblock %}
 
 {% block topbar_actions %}
-{% if current_user.role.value == 'admin' %}
-{% endif %}
 {% endblock %}
 
 {% block head %}
@@ -735,8 +733,8 @@ input[type=number]{-moz-appearance:textfield}
           <div id="pay-status-badge" style="margin-top:8px;text-align:center"></div>
         </div>
 
-        {% if current_user.role.value == 'admin' %}
-        <div class="sum-title">Moliya (Admin)</div>
+        {% if current_user.ruxsat('tannarx', 'korish') %}
+        <div class="sum-title">Moliya</div>
         <div class="sum-item"><span class="si-l">Sotuv narxi</span><span class="si-v green" id="s-total">—</span></div>
         <div class="sum-item" id="profitRow" style="display:none">
           <span class="si-l">Tan narxi</span><span class="si-v red" id="s-cost">—</span>
@@ -753,7 +751,7 @@ input[type=number]{-moz-appearance:textfield}
           <button class="btn btn-outline w-full btn-sm" id="btn-edit" onclick="editSelected()" style="display:none;border-color:#B9783F;color:var(--gold-dark)">✏️ Tahrirlash</button>
           <button class="btn btn-outline w-full btn-sm" id="btn-duplicate" onclick="duplicateSelected()" title="Shu buyurtma asosida, loyiha/usta/detallar oldindan to'ldirilgan YANGI buyurtma ochadi (eskisiga tegmaydi)" style="display:none;border-color:#6366F1;color:#6366F1">📋 Nusxa olish (yangi buyurtma)</button>
           <a id="btn-pdf" href="#" target="_blank" class="btn btn-outline w-full btn-sm" style="text-align:center;display:none">📄 PDF chiqarish</a>
-          {% if current_user.role.value == 'admin' %}
+          {% if current_user.ruxsat('tannarx', 'korish') %}
           <button class="btn btn-outline w-full btn-sm" id="btn-profit" onclick="loadProfit()" style="display:none;border-color:#B9783F;color:var(--gold-dark)">💰 Foyda hisoblash</button>
           {% endif %}
           <button class="btn btn-outline w-full btn-sm" id="btn-delete" onclick="deleteSelected()" style="display:none;border-color:#EF4444;color:#DC2626">🗑 O'chirish</button>

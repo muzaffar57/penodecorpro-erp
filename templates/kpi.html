@@ -159,7 +159,7 @@
       </div>
     </div>
 
-    {% if current_user.role.value == 'admin' %}
+    {% if current_user.ruxsat('sozlama', 'tahrirlash') %}
     <!-- EHSON SOZLAMASI — ixcham, bitta qator -->
     <div class="card" style="grid-column:1/-1">
       <div class="card-body" style="display:flex;align-items:center;gap:12px">

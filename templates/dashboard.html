@@ -137,8 +137,8 @@
   <div id="topGridDots"></div>
   <style>@media(max-width:1200px){ #topGrid{grid-template-columns:1fr 1fr} }</style>
 
-  <!-- Moliya (faqat admin) -->
-  {% if current_user.role.value == 'admin' %}
+  <!-- Moliya — kech118 (ROLLAR): «Moliyaviy hisobot» ruxsati borlarga (ilgari faqat Admin) -->
+  {% if current_user.ruxsat('moliya', 'korish') %}
   <div class="kpi-grid mb-16" style="grid-template-columns:repeat(4,1fr)" id="finGrid">
     <div class="kpi-card"><div class="kpi-val text-green" id="f-revenue">—</div><div class="kpi-label">Jami daromad</div></div>
     <div class="kpi-card"><div class="kpi-val" style="color:#0369A1" id="f-paid">—</div><div class="kpi-label">To'langan</div></div>
@@ -147,8 +147,8 @@
   </div>
   {% endif %}
 
-  <!-- TO'LANISHI KERAK BO'LGAN MAJBURIYATLAR -->
-  {% if current_user.role.value == 'admin' %}
+  <!-- TO'LANISHI KERAK BO'LGAN MAJBURIYATLAR — kech118 (ROLLAR): «Qarzlar» ruxsati borlarga (ilgari faqat Admin) -->
+  {% if current_user.ruxsat('qarz', 'korish') %}
   <div class="card mb-16" id="obligWidget" style="display:none;border-left:3px solid #EF4444">
     <div class="card-head">
       <h3>⚠️ To'lanishi kerak bo'lgan majburiyatlar</h3>

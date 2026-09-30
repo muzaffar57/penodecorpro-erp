@@ -82,17 +82,17 @@
 
   <div class="stat-grid mb-16" id="kpiRow">
     <div class="stat-card"><div class="stat-icon" style="background:#FEE2E2;color:#DC2626"><i class="ti ti-alert-triangle"></i></div><div class="stat-label">Brak (bu oy)</div><div class="stat-val" id="k-brak-month">—</div></div>
-    {% if current_user.role.value == 'admin' %}
+    {% if current_user.ruxsat('tannarx', 'korish') %}
     <div class="stat-card"><div class="stat-icon" style="background:#FEE2E2;color:#DC2626"><i class="ti ti-report-money"></i></div><div class="stat-label">Brak qiymati (bu oy)</div><div class="stat-val" id="k-brak-value">—</div></div>
     {% endif %}
     <div class="stat-card"><div class="stat-icon" style="background:#DCFCE7;color:#166534"><i class="ti ti-recycle"></i></div><div class="stat-label">Butun qaytgan (bu oy)</div><div class="stat-val" id="k-whole-month">—</div></div>
     <div class="stat-card"><div class="stat-icon"><i class="ti ti-history"></i></div><div class="stat-label">Jami qaytarishlar</div><div class="stat-val" id="k-total">—</div></div>
-    {% if current_user.role.value == 'admin' %}
+    {% if current_user.ruxsat('tannarx', 'korish') %}
     <div class="stat-card"><div class="stat-icon" style="background:#FEE2E2;color:#DC2626"><i class="ti ti-trash"></i></div><div class="stat-label">Jami brak qiymati</div><div class="stat-val" id="k-brak-total-value">—</div></div>
     {% endif %}
   </div>
 
-  {% if current_user.role.value == 'admin' %}
+  {% if current_user.ruxsat('hisobot', 'korish') %}
   <!-- kech56 (13-band, 7-qadam): BRAK TAHLILI — ulush (Moliya bilan bir manba), me'yor
        (foydalanuvchi qarori 5 %), bosqich / sabab / javobgar / detal, oylar, yo'qotishlar. -->
   <div class="card" style="margin-bottom:14px" id="brakTahlilCard">
@@ -115,7 +115,7 @@
   </div>
   {% endif %}
 
-  {% if current_user.role.value == 'admin' %}
+  {% if current_user.ruxsat('hisobot', 'korish') %}
   <div class="card" style="margin-bottom:14px">
     <div class="card-head" style="cursor:pointer;user-select:none" onclick="toggleBrakSummary()">
       <h3>🧱 Brak — sarflangan xomashyo xulosasi</h3>
@@ -202,7 +202,7 @@
         {% if is_defect %}<span class="dest-badge dest-scrap"><i class="ti ti-trash" style="font-size:12px"></i> Chiqindiga ketdi</span>
         {% else %}<span class="dest-badge dest-stock"><i class="ti ti-building-warehouse" style="font-size:12px"></i> Omborga qaytdi</span>{% endif %}
       </div>
-      {% if current_user.role.value == 'admin' %}
+      {% if current_user.ruxsat('tannarx', 'korish') %}
       <div class="ret-money" style="text-align:right;min-width:110px">
         <div style="font-size:12.5px;font-weight:600;color:{{ '#DC2626' if is_defect else '#22C55E' }}">
           {% if r.refund_amount > 0 %}{{ "{:,.0f}".format(r.refund_amount).replace(",", " ") }} so'm{% else %}—{% endif %}
@@ -258,7 +258,7 @@
         <label>Miqdor (<span id="f-unit-label">—</span>)</label>
         <input type="number" id="f-qty" placeholder="0" min="0.1" step="0.1" oninput="calcValue()">
       </div>
-      {% if current_user.role.value == 'admin' %}
+      {% if current_user.ruxsat('tannarx', 'korish') %}
       <div class="form-group" style="margin:0">
         <label id="f-price-label">1 birlik narxi</label>
         <input type="text" id="f-unit-price" disabled style="background:#f5f5f5;color:var(--text3)">
@@ -296,7 +296,7 @@
       <div style="font-size:12px;color:var(--text3);margin-top:6px">Bu — sarflangan xomashyoni to'g'ri hisoblash uchun kerak: agar loy tortilmasdan brak bo'lgan bo'lsa, faqat Penoplast hisobga olinadi.</div>
     </div>
 
-    {% if current_user.role.value == 'admin' %}
+    {% if current_user.ruxsat('tannarx', 'korish') %}
     <div class="form-group">
       <label>Qiymati (avtomatik, o'zgartirish mumkin)</label>
       <input type="number" id="f-value" placeholder="0" min="0">
@@ -437,8 +437,11 @@ function unitShortLabel(unit) {
 </script>
 
 <script>
-const IS_ADMIN = {{ 'true' if current_user.role.value == 'admin' else 'false' }};
-const IS_MANAGER = {{ 'true' if current_user.role.value == 'manager' else 'false' }};
+// kech118 (ROLLAR): ilgari IS_ADMIN / IS_MANAGER (rol turi) — endi ruxsat: brak qiymati — «Tannarx va foyda»; brak tahlili —
+// «Hisobotlar»; tannarx yashirish — «Tannarx va foyda» ruxsati yo'q bo'lsa.
+const KORADI_TANNARX = {{ 'true' if current_user.ruxsat('tannarx', 'korish') else 'false' }};
+const KORADI_HISOBOT = {{ 'true' if current_user.ruxsat('hisobot', 'korish') else 'false' }};
+const YASHIR_TANNARX = !KORADI_TANNARX;
 
 // kech56 (13-band, 7-qadam): BRAK TAHLILI. Ulush va me'yor — server (`/api/reports/brak-tahlil`,
 // Moliya bilan bir manba); bu yerda faqat chiziladi. Har matn `escapeHtml` bilan.
@@ -875,7 +878,7 @@ function calcValue(){
   const unitPrice = currentUnitPrice(item);
   const priceLabel = document.getElementById('f-price-label');
   const priceInput = document.getElementById('f-unit-price');
-  const hideForManager = IS_MANAGER && reason === 'Brak';  // tan narxi — moliyaviy ma'lumot
+  const hideForManager = YASHIR_TANNARX && reason === 'Brak';  // tan narxi — moliyaviy ma'lumot
   if (priceLabel) priceLabel.textContent = (reason === 'Brak') ? "1 birlik TAN narxi (xomashyo)" : "1 birlik narxi (kelishilgan, chegirma bilan)";
   if (priceInput) priceInput.value = hideForManager ? '— (moliyaviy)' : (fmt(unitPrice) + " so'm");
 
@@ -1204,12 +1207,12 @@ fetch('/api/returns/stats').then(r=>r.json()).then(s=>{
   document.getElementById('k-brak-month').textContent = s.brak_month_count + ' ta';
   document.getElementById('k-whole-month').textContent = s.whole_month_count + ' ta';
   document.getElementById('k-total').textContent = s.total_count + ' ta';
-  if (IS_ADMIN) {
+  if (KORADI_TANNARX) {
     const bv = document.getElementById('k-brak-value'); if (bv) bv.textContent = fmt(s.brak_month_value) + " so'm";
     const btv = document.getElementById('k-brak-total-value'); if (btv) btv.textContent = fmt(s.brak_total_value) + " so'm";
   }
 }).catch(()=>{});
 // kech56 (13-band, 7-qadam): brak tahlili sarlavhasidagi joriy oy ulushi (faqat admin).
-if (IS_ADMIN) loadBrakTahlilBadge();
+if (KORADI_HISOBOT) loadBrakTahlilBadge();
 </script>
 {% endblock %}

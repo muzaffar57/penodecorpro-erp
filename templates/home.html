@@ -5,7 +5,6 @@
 {% block page_sub %}Bugungi holat va tezkor kirish{% endblock %}
 
 {% block head %}
-{% set role = current_user.role.value %}
 <style>
 .chart-wrap { position: relative; height: 200px; }
 .section-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 14px; }
@@ -17,11 +16,11 @@
 {% endblock %}
 
 {% block content %}
-{% set role = current_user.role.value %}
+{% set u = current_user %}
 <div class="erp-content">
 
-  {% if role in ['admin','manager','accountant'] %}
-  {# ============ BOY ANALITIKA — ADMIN / MANAGER / ACCOUNTANT ============ #}
+  {% if u.ruxsat('dashboard', 'korish') %}
+  {# ============ BOY ANALITIKA — «Bosh sahifa va Dashboard» ruxsati (kech118 — ROLLAR) ============ #}
 
   <div class="stat-grid mb-16" id="statGrid">
     <div class="stat-card">
@@ -99,7 +98,7 @@
   <div class="card-head" style="border:none;padding:0 0 12px"><h3>Tezkor kirish</h3></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px">
 
-    {% if role in ['admin','manager','accountant'] %}
+    {% if u.ruxsat('loyiha', 'korish') or u.ruxsat('loyiha_korsatkich', 'korish') %}
     <a href="/projects" style="text-decoration:none">
       <div class="card" style="padding:20px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor='#B9783F'" onmouseout="this.style.borderColor='#ebebeb'">
         <div class="stat-icon" style="margin-bottom:12px"><i class="ti ti-briefcase"></i></div>
@@ -109,6 +108,7 @@
     </a>
     {% endif %}
 
+    {% if u.ruxsat('buyurtma', 'korish') or u.ruxsat('buyurtma_fayl', 'yaratish') %}
     <a href="/orders" style="text-decoration:none">
       <div class="card" style="padding:20px;cursor:pointer;transition:all .2s;border-color:#B9783F" onmouseover="this.style.borderColor='#A86B36'" onmouseout="this.style.borderColor='#B9783F'">
         <div class="stat-icon" style="margin-bottom:12px"><i class="ti ti-receipt"></i></div>
@@ -117,8 +117,10 @@
       </div>
     </a>
 
-    {% if role in ['admin','manager'] %}
-    <a href="/masters" style="text-decoration:none">
+    {% endif %}
+
+    {% if u.ruxsat('usta', 'korish') %}
+    <a href="{{ '/masters' if u.ruxsat('kpi', 'korish') else '/ustalar' }}" style="text-decoration:none">
       <div class="card" style="padding:20px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor='#B9783F'" onmouseout="this.style.borderColor='#ebebeb'">
         <div class="stat-icon" style="margin-bottom:12px"><i class="ti ti-hammer"></i></div>
         <div style="font-size:14px;font-weight:600;color:#111;margin-bottom:4px">Ustalar</div>
@@ -127,7 +129,7 @@
     </a>
     {% endif %}
 
-    {% if role == 'admin' %}
+    {% if u.ruxsat('material', 'korish') %}
     <a href="/inventory" style="text-decoration:none">
       <div class="card" style="padding:20px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor='#B9783F'" onmouseout="this.style.borderColor='#ebebeb'">
         <div class="stat-icon" style="margin-bottom:12px"><i class="ti ti-package"></i></div>
@@ -136,6 +138,8 @@
       </div>
     </a>
 
+    {% endif %}
+    {% if u.ruxsat('retsept', 'korish') %}
     <a href="/recipes" style="text-decoration:none">
       <div class="card" style="padding:20px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor='#B9783F'" onmouseout="this.style.borderColor='#ebebeb'">
         <div class="stat-icon" style="margin-bottom:12px"><i class="ti ti-flask"></i></div>
@@ -145,7 +149,7 @@
     </a>
     {% endif %}
 
-    {% if role in ['admin','manager'] %}
+    {% if u.ruxsat('qaytarish', 'korish') %}
     <a href="/returns" style="text-decoration:none">
       <div class="card" style="padding:20px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor='#B9783F'" onmouseout="this.style.borderColor='#ebebeb'">
         <div class="stat-icon" style="margin-bottom:12px"><i class="ti ti-arrow-back-up"></i></div>
@@ -154,6 +158,8 @@
       </div>
     </a>
 
+    {% endif %}
+    {% if u.ruxsat('qarz', 'korish') %}
     <a href="/debts" style="text-decoration:none">
       <div class="card" style="padding:20px;cursor:pointer;transition:all .2s;border-color:#FEE2E2" onmouseover="this.style.borderColor='#EF4444'" onmouseout="this.style.borderColor='#FEE2E2'">
         <div class="stat-icon" style="margin-bottom:12px;background:#FEE2E2;color:#DC2626"><i class="ti ti-credit-card"></i></div>
@@ -163,7 +169,7 @@
     </a>
     {% endif %}
 
-    {% if role == 'admin' %}
+    {% if u.ruxsat('dashboard', 'korish') %}
     <a href="/dashboard" style="text-decoration:none">
       <div class="card" style="padding:20px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor='#B9783F'" onmouseout="this.style.borderColor='#ebebeb'">
         <div class="stat-icon" style="margin-bottom:12px"><i class="ti ti-chart-bar"></i></div>
@@ -172,6 +178,8 @@
       </div>
     </a>
 
+    {% endif %}
+    {% if u.ruxsat('moliya', 'korish') %}
     <a href="/finance" style="text-decoration:none">
       <div class="card" style="padding:20px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor='#B9783F'" onmouseout="this.style.borderColor='#ebebeb'">
         <div class="stat-icon" style="margin-bottom:12px"><i class="ti ti-trending-up"></i></div>
@@ -186,8 +194,7 @@
 {% endblock %}
 
 {% block scripts %}
-{% set role = current_user.role.value %}
-{% if role in ['admin','manager','accountant'] %}
+{% if current_user.ruxsat('dashboard', 'korish') %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
 const fmt = n => new Intl.NumberFormat('uz-UZ').format(Math.round(n));

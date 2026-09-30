@@ -681,64 +681,90 @@ function jsAttrEscape(str) {
       <div class="u-avatar">{{ (current_user.full_name or current_user.username)[0].upper() }}</div>
       <div>
         <div class="u-name">{{ current_user.full_name or current_user.username }}</div>
-        <div class="u-role">{{ current_user.role.value | capitalize }}</div>
+        <div class="u-role">{{ current_user.rol_nomi }}</div>
       </div>
     </div>
 
     <nav class="s-nav">
-      {% set role = current_user.role.value %}
+      {# kech118 (ROLLAR — egasi qarori: rollarni admin boshqaradi): menyu — ROL RUXSATI bo'yicha (ilgari rol turi ro'yxati).
+         Har havola — o'sha sahifaning qorovuli bilan AYNAN bir shart (sahifa ochiladigan bo'lsa — havola ko'rinadi).
+         Istisnolar (eskisi bilan AYNAN): «Xarajat qo'shish» va «Ustalar» — faqat Moliya / KPI sahifasi YO'Q rolga (ular
+         xarajatni Moliyada, ustani KPI sahifasida qo'shadi). Guruh sarlavhasi — guruhda kamida bitta havola bo'lsa. #}
+      {% set u = current_user %}
+      {% set m_bosh = u.ruxsat('dashboard', 'korish') %}
+      {% set m_loyiha = u.ruxsat('loyiha', 'korish') or u.ruxsat('loyiha_korsatkich', 'korish') %}
+      {% set m_buyurtma = u.ruxsat('buyurtma', 'korish') or u.ruxsat('buyurtma_fayl', 'yaratish') %}
+      {% set m_ombor = u.ruxsat('material', 'korish') %}
+      {% set m_kirim = u.ruxsat('kirim', 'yaratish') %}
+      {% set m_retsept = u.ruxsat('retsept', 'korish') %}
+      {% set m_ishlab = u.ruxsat('mahsulot_turi', 'korish') %}
+      {% set m_tayyor = u.ruxsat('tayyor', 'korish') or u.ruxsat('sotuv', 'korish') %}
+      {% set m_moliya = u.ruxsat('moliya', 'korish') %}
+      {% set m_kunlik = (u.ruxsat('kunlik', 'korish') or u.ruxsat('kunlik', 'yaratish')) and not m_moliya %}
+      {% set m_qaytarish = u.ruxsat('qaytarish', 'korish') %}
+      {% set m_kpi = u.ruxsat('kpi', 'korish') %}
+      {% set m_usta = u.ruxsat('usta', 'korish') and not m_kpi %}
+      {% set m_qarz = u.ruxsat('qarz', 'korish') %}
+      {% set m_hisobot = u.ruxsat('hisobot', 'korish') %}
+      {% set m_admin = u.role.value == 'admin' %}
+      {% set m_savat = u.ruxsat('savat', 'korish') %}
+      {% set m_jurnal = u.ruxsat('jurnal', 'korish') %}
 
       <div class="nav-label">Asosiy</div>
 
-      {% if role in ['admin', 'accountant'] %}
+      {% if m_bosh %}
       <a href="/" class="nav-item {% if active_page == 'home' %}active{% endif %}">
         <i class="ti ti-home n-ico"></i>
         <span class="n-txt">Bosh sahifa</span>
       </a>
       {% endif %}
 
-      {% if role in ['admin', 'accountant'] %}
+      {% if m_bosh %}
       <a href="/dashboard" class="nav-item {% if active_page == 'dashboard' %}active{% endif %}">
         <i class="ti ti-chart-bar n-ico"></i>
         <span class="n-txt">Dashboard</span>
       </a>
       {% endif %}
 
-      {% if role in ['admin', 'manager', 'accountant'] %}
+      {% if m_loyiha %}
       <a href="/projects" class="nav-item {% if active_page == 'projects' %}active{% endif %}">
         <i class="ti ti-clipboard-list n-ico"></i>
         <span class="n-txt">Loyihalar</span>
       </a>
       {% endif %}
 
-      {% if role in ['admin', 'manager', 'master'] %}
+      {% if m_buyurtma %}
       <a href="/orders" class="nav-item {% if active_page == 'orders' %}active{% endif %}">
         <i class="ti ti-receipt n-ico"></i>
         <span class="n-txt">Buyurtmalar</span>
       </a>
       {% endif %}
 
-      {% if role in ['admin', 'warehouse', 'manager'] %}
+      {% if m_ombor or m_kirim or m_retsept or m_ishlab or m_tayyor %}
       <div class="nav-label">Ishlab chiqarish</div>
       {% endif %}
 
-      {% if role in ['admin', 'warehouse', 'manager'] %}
+      {% if m_ombor %}
       <a href="/inventory" class="nav-item {% if active_page == 'inventory' %}active{% endif %}">
         <i class="ti ti-package n-ico"></i>
         <span class="n-txt">Omborxona</span>
       </a>
       {% endif %}
 
-      {% if role in ['admin', 'warehouse'] %}
+      {% if m_kirim %}
       <a href="/suppliers/receive" class="nav-item {% if active_page in ['suppliers', 'supplier_receive'] %}active{% endif %}">
         <i class="ti ti-truck n-ico"></i>
         <span class="n-txt">Xomashyo ta'minoti</span>
       </a>
+      {% endif %}
+      {% if m_retsept %}
 
       <a href="/recipes" class="nav-item {% if active_page == 'recipes' %}active{% endif %}">
         <i class="ti ti-flask n-ico"></i>
         <span class="n-txt">Retseptlar</span>
       </a>
+      {% endif %}
+      {% if m_ishlab %}
 
       <a href="/production" class="nav-item {% if active_page == 'production' %}active{% endif %}">
         <i class="ti ti-settings-automation n-ico"></i>
@@ -746,53 +772,59 @@ function jsAttrEscape(str) {
       </a>
       {% endif %}
 
-      {% if role in ['admin', 'warehouse', 'manager'] %}
+      {% if m_tayyor %}
       <a href="/finished" class="nav-item {% if active_page == 'finished' %}active{% endif %}">
         <i class="ti ti-building-factory-2 n-ico"></i>
         <span class="n-txt">Tayyor mahsulotlar</span>
       </a>
       {% endif %}
 
-      {% if role in ['admin', 'manager', 'warehouse', 'accountant'] %}
+      {% if m_kunlik or m_qaytarish or m_usta or m_qarz or m_moliya or m_kpi or m_hisobot %}
       <div class="nav-label">Hisobot</div>
       {% endif %}
 
-      {% if role == 'manager' %}
+      {% if m_kunlik %}
       <a href="/kunlik-xarajat" class="nav-item {% if active_page == 'kunlik_xarajat' %}active{% endif %}">
         <i class="ti ti-receipt-2 n-ico"></i>
         <span class="n-txt">Xarajat qo'shish</span>
       </a>
       {% endif %}
 
-      {% if role in ['admin', 'manager', 'warehouse'] %}
+      {% if m_qaytarish %}
       <a href="/returns" class="nav-item {% if active_page == 'returns' %}active{% endif %}">
         <i class="ti ti-arrow-back-up n-ico"></i>
         <span class="n-txt">Qaytarishlar</span>
       </a>
       {% endif %}
 
-      {% if role == 'manager' %}
+      {% if m_usta %}
       <a href="/ustalar" class="nav-item {% if active_page == 'ustalar' %}active{% endif %}">
         <i class="ti ti-users n-ico"></i>
         <span class="n-txt">Ustalar</span>
       </a>
       {% endif %}
 
-      {% if role in ['admin', 'accountant'] %}
+      {% if m_qarz %}
       <a href="/debts" class="nav-item {% if active_page == 'debts' %}active{% endif %}">
         <i class="ti ti-credit-card n-ico"></i>
         <span class="n-txt">Qarzdorlar</span>
       </a>
+      {% endif %}
+      {% if m_moliya %}
 
       <a href="/finance" class="nav-item {% if active_page == 'finance' %}active{% endif %}">
         <i class="ti ti-trending-up n-ico"></i>
         <span class="n-txt">Moliya</span>
       </a>
+      {% endif %}
+      {% if m_kpi %}
 
       <a href="/kpi" class="nav-item {% if active_page == 'kpi' %}active{% endif %}">
         <i class="ti ti-trophy n-ico"></i>
         <span class="n-txt">Ustalar KPI / Hodimlar</span>
       </a>
+      {% endif %}
+      {% if m_hisobot %}
 
       <a href="/reports" class="nav-item {% if active_page == 'reports' %}active{% endif %}">
         <i class="ti ti-report n-ico"></i>
@@ -800,17 +832,27 @@ function jsAttrEscape(str) {
       </a>
       {% endif %}
 
-      {% if role == 'admin' %}
+      {% if m_admin or m_savat or m_jurnal %}
       <div class="nav-label">Boshqaruv</div>
+      {% endif %}
+      {% if m_admin %}
 
       <a href="/users" class="nav-item {% if active_page == 'users' %}active{% endif %}">
         <i class="ti ti-users n-ico"></i>
         <span class="n-txt">Foydalanuvchilar</span>
       </a>
+      <a href="/rollar" class="nav-item {% if active_page == 'rollar' %}active{% endif %}">
+        <i class="ti ti-shield-lock n-ico"></i>
+        <span class="n-txt">Rollar va ruxsatlar</span>
+      </a>
+      {% endif %}
+      {% if m_savat %}
       <a href="/trash" class="nav-item {% if active_page == 'trash' %}active{% endif %}">
         <i class="ti ti-trash n-ico"></i>
         <span class="n-txt">O'chirilganlar</span>
       </a>
+      {% endif %}
+      {% if m_jurnal %}
       <a href="/logs" class="nav-item {% if active_page == 'logs' %}active{% endif %}">
         <i class="ti ti-file-text n-ico"></i>
         <span class="n-txt">Tizim jurnallari</span>
