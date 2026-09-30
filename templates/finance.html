@@ -819,7 +819,10 @@ function downloadSplitProfitPdf(){
   window.open(`/api/finance/split-profit-pdf?year=${year}&month=${month}`, '_blank');
 }
 
-async function loadReport(){
+// kech117 (zip 115 jonli sinovi): `txSaqla` — xarajat qo'shilgach / tahrirlangach / o'chirilgach hisobot, kartalar va
+// yo'nalishlar jadvali yangilanadi, kunlik ro'yxat sanasi joyida qoladi (ilgari sahifa qayta ochilmaguncha eski raqamlar).
+async function loadReport(opts){
+  const txSaqla = !!(opts && opts.txSaqla);
   const month=document.getElementById('sel-month').value;
   const year=document.getElementById('sel-year').value;
   const [res, invRes, debtRes] = await Promise.all([
@@ -868,7 +871,7 @@ async function loadReport(){
 
   buildExpDetail(d);
   buildCashSection(d);
-  initDailyTx();
+  if (!txSaqla) initDailyTx();
   loadYonalishlar(year, month);
 }
 
@@ -903,6 +906,11 @@ async function loadYonalishlar(year, month) {
   if ((d.belgilanmagan_turlar || []).length) {
     ogohlar.push("Yo'nalishi belgilanmagan MRP mahsulot turlari: <b>" + d.belgilanmagan_turlar.map(escapeHtml).join(', ') +
                  "</b> — Ishlab chiqarish sahifasida yo'nalish biriktiring (hozircha «Belgilanmagan» ustunida).");
+  }
+  // kech117 (zip 115 jonli sinovi): «Belgilanmagan» daromadning boshqa manbalari (eski turkum, turi yo'q tayyor mahsulot…)
+  if ((d.belgilanmagan_manbalar || []).length) {
+    ogohlar.push("«Belgilanmagan» ustunidagi boshqa daromad (yo'nalishini aniqlab bo'lmadi): " +
+                 d.belgilanmagan_manbalar.map(b => escapeHtml(b.nom) + ' — <b>' + yonSumma(b.summa) + " so'm</b>").join('; ') + '.');
   }
   ogoh.style.display = ogohlar.length ? 'block' : 'none';
   ogoh.innerHTML = ogohlar.join('<br>');
@@ -1298,6 +1306,7 @@ async function saveTx(){
     if (res.ok) {
       closeTxModal();
       loadDailyTransactions();
+      if (currentData) loadReport({txSaqla: true});
     } else { const e = await res.json(); alert('Xato: ' + (e.detail || '')); }
   } catch(e) { alert('Server xatosi'); }
 }
@@ -1307,6 +1316,7 @@ async function deleteTx(id){
   try {
     await fetch(`/api/finance/transactions/${id}`, {method:'DELETE'});
     loadDailyTransactions();
+    if (currentData) loadReport({txSaqla: true});
   } catch(e) { alert('Server xatosi'); }
 }
 
