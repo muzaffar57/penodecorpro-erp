@@ -3,6 +3,15 @@
 {% block page_title %}Tizim jurnallari{% endblock %}
 {% block page_sub %}Kirish tarixi, xatoliklar va amallar tarixi — faqat administrator uchun{% endblock %}
 
+{% block head %}
+<style>
+/* kech117 (A2): Sozlamalar — yo'nalishlar ro'yxati belgilari */
+.yon-chip{display:inline-block;font-size:11px;font-weight:600;color:var(--text3);background:var(--bg);padding:2px 8px;border-radius:10px;white-space:nowrap}
+.yon-chip.yon-asosiy{color:#1E40AF;background:#EFF6FF}
+.yon-chip.yon-yashirin{color:#92400E;background:#FEF3C7}
+</style>
+{% endblock %}
+
 {% block content %}
 <div style="padding:14px">
 
@@ -183,6 +192,28 @@
       </div>
       <button class="btn btn-dark btn-sm" onclick="saveCategories()">Saqlash</button>
       <span id="cat-status" style="font-size:12.5px;margin-left:8px"></span>
+    </div>
+
+    {# kech117 (A2 — egasi QARORLARI kech114 00:08): korxona yo'nalishlari — qo'shish, nomini o'zgartirish, yashirish,
+       ishlatilmaganini o'chirish (ishlatilgani — faqat yashirish). Hammasi `/api/yonalishlar`. #}
+    <div style="padding:18px;border-bottom:1px solid var(--border2)" id="yon-bolim">
+      <div style="font-size:13.5px;font-weight:700;margin-bottom:6px">🧭 Yo'nalishlar</div>
+      <div style="font-size:12.5px;color:var(--text3);line-height:1.6;margin-bottom:12px">
+        Har yo'nalishning o'z sof foydasi Moliya sahifasida alohida ko'rinadi (yig'indisi — umumiy sof foyda).
+        <b>Asosiy</b> yo'nalishga profil, panel, donali, blok va loy sotish buyurtmalari yoziladi — nomini
+        o'zgartirish mumkin. MRP mahsulot turi, hodim, xarajat va kirimda yo'nalish tanlanadi. Ishlatilgan
+        yo'nalish o'chirilmaydi — faqat yashiriladi (eski yozuvlar va hisobot o'zgarmaydi).
+      </div>
+      <div id="yon-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">Yuklanmoqda…</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+        <div>
+          <label for="yon-yangi" style="display:block;font-size:11.5px;color:var(--text3);margin-bottom:4px">Yangi yo'nalish</label>
+          <input type="text" id="yon-yangi" class="input-field" maxlength="60" style="width:260px"
+                 placeholder="Masalan: Metall konstruksiya">
+        </div>
+        <button class="btn btn-dark btn-sm" id="yon-qosh-btn" onclick="yonQosh()">+ Qo'shish</button>
+        <span id="yon-status" style="font-size:12.5px"></span>
+      </div>
     </div>
 
     <div style="padding:18px">
@@ -389,7 +420,86 @@ async function clearTgBot() {
   loadTgBot();
 }
 
-document.addEventListener('DOMContentLoaded', () => { loadTgBot(); loadCompany(); loadCategories(); });
+// ── kech117 (A2): YO'NALISHLAR (Sozlamalar) ──────────────────────────────────────────────────────────────────
+const YON_ISH_NOMI = {hodim: 'hodim', xarajat: 'xarajat', transport: 'transport', kirim: 'kirim',
+                      'MRP mahsulot turi': 'MRP turi'};
+function yonHolat(matn, xato) {
+  const el = document.getElementById('yon-status');
+  if (!el) return;
+  el.innerHTML = matn ? '<span style="color:' + (xato ? '#c00' : 'var(--green,#0a0)') + '">' + escapeHtml(matn) + '</span>' : '';
+}
+function yonQatori(y) {
+  const ish = y.ishlatilishi || {};
+  const ishMatn = Object.keys(ish).map(k => (YON_ISH_NOMI[k] || k) + ': ' + ish[k]).join(', ');
+  const ishlatilgan = Object.keys(ish).length > 0;
+  const belgilar = (y.asosiy ? '<span class="yon-chip yon-asosiy">Asosiy</span>' : '') +
+                   (y.yashirin ? '<span class="yon-chip yon-yashirin">Yashirin</span>' : '') +
+                   (ishlatilgan ? '<span class="yon-chip">' + escapeHtml(ishMatn) + '</span>' : '<span class="yon-chip">ishlatilmagan</span>');
+  let tugmalar = '<button class="btn btn-sm" style="background:var(--bg);color:var(--text2)" data-id="' + y.id + '" onclick="yonNomSaqla(this)">Nomini saqlash</button>';
+  if (!y.asosiy) {
+    tugmalar += '<button class="btn btn-sm" style="background:var(--bg);color:var(--text2)" data-id="' + y.id +
+                '" data-yashirin="' + (y.yashirin ? '0' : '1') + '" onclick="yonYashir(this)">' +
+                (y.yashirin ? "Ko'rsatish" : 'Yashirish') + '</button>';
+    if (!ishlatilgan) {
+      tugmalar += '<button class="btn btn-sm yon-ochir" style="background:var(--bg);color:#c00" data-id="' + y.id +
+                  '" data-bosqich="0" onclick="yonOchir(this)">O\'chirish</button>';
+    }
+  }
+  return '<div class="yon-qator" data-id="' + y.id + '" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap' +
+         (y.yashirin ? ';opacity:.65' : '') + '">' +
+         '<input type="text" class="input-field yon-nom" maxlength="60" style="width:220px" value="' + escapeHtml(y.nom) +
+         '" aria-label="Yo\'nalish nomi">' + belgilar + tugmalar + '</div>';
+}
+async function yonYukla() {
+  const el = document.getElementById('yon-list');
+  if (!el) return;
+  try {
+    const r = await fetch('/api/yonalishlar?hammasi=true');
+    if (!r.ok) { el.textContent = await serverXatoSababi(r, "Yuklab bo'lmadi"); return; }
+    const royxat = await r.json();
+    el.innerHTML = royxat.length ? royxat.map(yonQatori).join('') : '<span style="color:var(--text3)">Yo\'nalish yo\'q</span>';
+  } catch (e) { el.textContent = "Yuklab bo'lmadi"; }
+}
+async function yonSorov(url, metod, tana) {
+  const opt = {method: metod, headers: {'Content-Type': 'application/json'}};
+  if (tana !== undefined) opt.body = JSON.stringify(tana);
+  const r = await fetch(url, opt);
+  if (!r.ok) { yonHolat(await serverXatoSababi(r, 'Saqlanmadi'), true); return false; }
+  return true;
+}
+async function yonQosh() {
+  const inp = document.getElementById('yon-yangi');
+  const nom = (inp.value || '').trim();
+  if (!nom) { yonHolat("Yo'nalish nomini kiriting", true); inp.focus(); return; }
+  const btn = document.getElementById('yon-qosh-btn');
+  btn.disabled = true;
+  try {
+    if (await yonSorov('/api/yonalishlar', 'POST', {nom})) { inp.value = ''; yonHolat("✓ Qo'shildi"); yonYukla(); }
+  } finally { btn.disabled = false; }
+}
+async function yonNomSaqla(btn) {
+  const qator = btn.closest('.yon-qator');
+  const nom = (qator.querySelector('.yon-nom').value || '').trim();
+  if (!nom) { yonHolat("Yo'nalish nomini kiriting", true); return; }
+  if (await yonSorov('/api/yonalishlar/' + btn.dataset.id, 'PUT', {nom})) { yonHolat('✓ Saqlandi'); yonYukla(); }
+}
+async function yonYashir(btn) {
+  if (await yonSorov('/api/yonalishlar/' + btn.dataset.id, 'PUT', {yashirin: btn.dataset.yashirin === '1'})) {
+    yonHolat('✓ Saqlandi'); yonYukla();
+  }
+}
+async function yonOchir(btn) {
+  // Ikki bosqich (tasdiq oynasisiz): birinchi bosish — «Tasdiqlaysizmi?», ikkinchisi — o'chiradi.
+  if (btn.dataset.bosqich !== '1') {
+    btn.dataset.bosqich = '1';
+    btn.textContent = "Rostdan o'chirilsinmi? Yana bosing";
+    setTimeout(() => { if (btn.isConnected) { btn.dataset.bosqich = '0'; btn.textContent = "O'chirish"; } }, 5000);
+    return;
+  }
+  if (await yonSorov('/api/yonalishlar/' + btn.dataset.id, 'DELETE')) { yonHolat("✓ O'chirildi"); yonYukla(); }
+}
+
+document.addEventListener('DOMContentLoaded', () => { loadTgBot(); loadCompany(); loadCategories(); yonYukla(); });
 
 async function runHealthCheck() {
   const btn = document.getElementById('health-check-btn');

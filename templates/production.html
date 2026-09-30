@@ -30,6 +30,8 @@
 .pt-head .btn,.bom-row .btn{white-space:nowrap;flex-shrink:0}
 .pt-chip{font-size:12px;font-weight:600;padding:3px 9px;border-radius:6px;background:#F3F4F6;color:#374151}
 .pt-chip-oltin{background:var(--gold-tint);color:#8A5526}
+.pt-chip-yon{background:#EFF6FF;color:#1E40AF}
+.pt-chip-ogoh{background:#FEF2F2;color:#B91C1C}
 .bom-row{display:flex;justify-content:space-between;align-items:center;gap:6px;padding:9px 0;border-top:1px solid var(--border2);font-size:13px}
 .bom-row:first-of-type{margin-top:10px}
 .bom-row>div:first-child{flex:1;min-width:0}
@@ -319,6 +321,18 @@
     <div class="modal-sarlavha"><div class="modal-title" id="pt-modal-title">Yangi mahsulot turi</div>
       <button type="button" class="modal-yop" aria-label="Yopish" onclick="closeModal('pt-modal')"><i class="ti ti-x"></i></button></div>
     <div class="mf-group"><label for="pt-f-name">Nomi</label><input type="text" id="pt-f-name" placeholder="Masalan: Travertin"></div>
+    {# kech117 (A2 — egasi QARORI kech114 00:08): tur yo'nalishi MAJBURIY (moliyada har yo'nalishning o'z sof foydasi) #}
+    <div class="mf-group">
+      <label for="pt-f-yonalish">Yo'nalish <span style="color:#DC2626">*</span></label>
+      <select id="pt-f-yonalish">
+        <option value="">— tanlang —</option>
+{% for y in yonalishlar_royxati(current_user.company_id) %}          <option value="{{ y.id }}">{{ y.nom }}</option>
+{% endfor %}
+      </select>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px">
+        Moliyada har yo'nalishning o'z sof foydasi ko'rinadi. Yangi yo'nalish — Tizim jurnallari → Sozlamalar.
+      </div>
+    </div>
     <div class="mf-row">
       <div class="mf-group"><label for="pt-f-unit">O'lchov birligi</label><input type="text" id="pt-f-unit" placeholder="dona / m² / kg / litr"></div>
       <div class="mf-group">
@@ -369,6 +383,32 @@
     <div style="display:flex;gap:8px;margin-top:16px">
       <button class="btn btn-dark w-full" onclick="saveProductType()">Saqlash</button>
       <button class="btn btn-outline w-full" onclick="closeModal('pt-modal')">Bekor</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ kech117 (A2): TURGA YO'NALISH BIRIKTIRISH / ALMASHTIRISH ═══ -->
+<div class="modal-overlay" id="pty-modal">
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="pty-modal-title">
+    <div class="modal-sarlavha"><div class="modal-title" id="pty-modal-title">Yo'nalish</div>
+      <button type="button" class="modal-yop" aria-label="Yopish" onclick="closeModal('pty-modal')"><i class="ti ti-x"></i></button></div>
+    <div id="pty-tur" style="font-size:13px;color:var(--text2);margin-bottom:10px"></div>
+    <input type="hidden" id="pty-f-id" value="">
+    <div class="mf-group">
+      <label for="pty-f-yonalish">Yo'nalish</label>
+      <select id="pty-f-yonalish">
+        <option value="">— tanlang —</option>
+{% for y in yonalishlar_royxati(current_user.company_id) %}          <option value="{{ y.id }}">{{ y.nom }}</option>
+{% endfor %}
+      </select>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px">
+        Yo'nalish almashsa, shu turning o'tgan oylardagi daromadi va tannarxi ham yangi yo'nalishda ko'rinadi
+        (umumiy sof foyda o'zgarmaydi).
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn btn-dark w-full" id="pty-saqla" onclick="saveTurYonalish()">Saqlash</button>
+      <button class="btn btn-outline w-full" onclick="closeModal('pty-modal')">Bekor</button>
     </div>
   </div>
 </div>
@@ -572,6 +612,7 @@ function maksTavsiya(m) {       // "eng ko'pi" — butun songa (1 dan kichik bo'
 
 function openProductTypeModal(){
   document.getElementById('pt-f-name').value = '';
+  document.getElementById('pt-f-yonalish').value = '';
   document.getElementById('pt-f-unit').value = '';
   document.getElementById('pt-f-input-template').value = 'quantity_only';
   document.getElementById('pt-f-pricing-formula').value = 'unit_based';
@@ -600,6 +641,9 @@ async function saveProductType(){
   const name = document.getElementById('pt-f-name').value.trim();
   const unit = document.getElementById('pt-f-unit').value.trim();
   if (!name || !unit) { showMsg("Nomi va o'lchov birligini kiriting", 'error'); return; }
+  // kech117 (A2): yo'nalish MAJBURIY
+  const yonalish = document.getElementById('pt-f-yonalish').value;
+  if (!yonalish) { showMsg("Yo'nalishni tanlang", 'error'); document.getElementById('pt-f-yonalish').focus(); return; }
   // kech113: son maydonlari matn — "150 000" / "2,5" to'g'ri o'qiladi (ilgari parseFloat("150 000") = 150 edi).
   const narxMatn = String(document.getElementById('pt-f-fixed-price').value || '').trim();
   const narx = narxMatn === '' ? null : sonOqi(narxMatn);
@@ -616,6 +660,7 @@ async function saveProductType(){
     supports_coating: qoplamaBor,
     coating_price_multiplier: koef,
     notes: document.getElementById('pt-f-notes').value || null,
+    yonalish_id: Number(yonalish),
   };
   const res = await fetch('/api/production/product-types', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
   if (res.ok) { closeModal('pt-modal'); loadProductTypes(); } else { showMsg(await serverXatoSababi(res, 'Mahsulot turi saqlanmadi'), 'error'); }
@@ -671,16 +716,37 @@ async function loadProductTypes(){
       <td class="pt-c-tur">
         <div class="pt-tur-nomi">${escapeHtml(pt.name)}</div>
         <div class="pt-tur-izoh">${escapeHtml(turTavsifi(pt))}</div>
-        ${pt.supports_coating ? `<div class="pt-badges"><span class="pt-chip pt-chip-oltin">Qoplama mumkin · ×${escapeHtml(sonKorinish(pt.coating_price_multiplier))}</span></div>` : ''}
+        <div class="pt-badges">${pt.yonalish_id ? `<span class="pt-chip pt-chip-yon">🧭 ${escapeHtml(pt.yonalish_nom || '')}</span>` : '<span class="pt-chip pt-chip-ogoh">Yo\'nalish belgilanmagan</span>'}${pt.supports_coating ? `<span class="pt-chip pt-chip-oltin">Qoplama mumkin · ×${escapeHtml(sonKorinish(pt.coating_price_multiplier))}</span>` : ''}</div>
       </td>
       <td class="pt-c-retsept">${retseptlar}</td>
       <td class="o pt-c-ombor" data-yorliq="Omborda">${turSoni(pt.omborda, pt, '')}</td>
       <td class="o pt-c-jarayon" data-yorliq="Jarayonda">${turSoni(pt.jarayonda, pt, 'jarayon')}</td>
       <td class="o pt-c-band" data-yorliq="Band">${turSoni(pt.band, pt, 'band')}</td>
-      <td class="pt-c-amal"><div class="pt-amallar"><button class="btn btn-outline btn-sm" onclick="openBomModal(${pt.id})">+ Retsept</button></div></td>
+      <td class="pt-c-amal"><div class="pt-amallar"><button class="btn btn-outline btn-sm" onclick="openBomModal(${pt.id})">+ Retsept</button><button class="btn btn-outline btn-sm" data-id="${pt.id}" data-yonalish="${pt.yonalish_id || ''}" data-nom="${escapeHtml(pt.name)}" onclick="openTurYonalish(this)">${pt.yonalish_id ? "Yo'nalish" : "Yo'nalish tanlash"}</button></div></td>
     </tr>`;
   }).join('');
   wrap.innerHTML = `<table class="pt-jadval"><thead><tr><th>Mahsulot turi</th><th>Retseptlar va 1 birlik taxminiy tannarxi</th><th class="o">Omborda</th><th class="o">Jarayonda</th><th class="o">Band</th><th></th></tr></thead><tbody>${qatorlar}</tbody></table>`;
+}
+
+// kech117 (A2): turga yo'nalish biriktirish / almashtirish — PATCH /api/production/product-types/{id}
+function openTurYonalish(btn) {
+  document.getElementById('pty-f-id').value = btn.dataset.id;
+  document.getElementById('pty-tur').textContent = 'Mahsulot turi: ' + (btn.dataset.nom || '');
+  document.getElementById('pty-f-yonalish').value = btn.dataset.yonalish || '';
+  openModalEl('pty-modal');
+}
+async function saveTurYonalish() {
+  const id = document.getElementById('pty-f-id').value;
+  const y = document.getElementById('pty-f-yonalish').value;
+  if (!y) { showMsg("Yo'nalishni tanlang", 'error'); return; }
+  const btn = document.getElementById('pty-saqla');
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/production/product-types/' + id, {method: 'PATCH', headers: {'Content-Type': 'application/json'},
+                                                                      body: JSON.stringify({yonalish_id: Number(y)})});
+    if (res.ok) { closeModal('pty-modal'); showMsg("Yo'nalish saqlandi", 'success'); loadProductTypes(); }
+    else { showMsg(await serverXatoSababi(res, "Yo'nalish saqlanmadi"), 'error'); }
+  } finally { btn.disabled = false; }
 }
 
 // ============================================================

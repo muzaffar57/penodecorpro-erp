@@ -79,7 +79,7 @@
 .fin-hero-card:nth-child(4){ animation-delay:.20s; }
 
 /* ── Ikkinchi darajali oylik KPI chizig'i ── */
-.fin-mini-grid{ display:grid; grid-template-columns:repeat(6,1fr); gap:12px; }
+.fin-mini-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; }
 .fin-mini-card{
   background:var(--f-card); border:1px solid var(--f-border); border-radius:12px;
   padding:14px 16px; box-shadow:var(--f-shadow); transition:box-shadow .15s, transform .15s;
@@ -306,12 +306,12 @@
       <input type="number" id="sel-year" value="2026" min="2024" max="2030" style="width:84px">
       <button class="fin-btn fin-btn-primary" onclick="loadReport()">Ko'rish</button>
       <button class="fin-btn" onclick="downloadFinancePdf()" title="Shu oy uchun to'liq hisobotni PDF qilib yuklab olish"><i class="ti ti-file-type-pdf" style="vertical-align:-2px"></i> PDF yuklab olish</button>
-      <button class="fin-btn" onclick="downloadSplitProfitPdf()" title="Gips va Penoplast uchun mustaqil sof foyda hisoboti" style="border-color:#9D174D;color:#9D174D"><i class="ti ti-scale" style="vertical-align:-2px"></i> 🧱 Gips vs 🏭 Penoplast PDF</button>
       <span style="font-size:12.5px;color:var(--f-text3);margin-left:auto">Tanlangan oy bo'yicha to'liq hisobot</span>
     </div>
 
     <div class="fin-mini-grid" id="finReport" style="display:none">
       <div class="fin-mini-card"><div class="fin-mini-label">Daromad</div><div class="fin-mini-value" id="r-daromad" style="color:var(--f-success)">—</div></div>
+      <div class="fin-mini-card"><div class="fin-mini-label">Tannarx</div><div class="fin-mini-value" id="r-tannarx" style="color:var(--f-danger)">—</div></div>
       <div class="fin-mini-card"><div class="fin-mini-label">Xarajat</div><div class="fin-mini-value" id="r-xarajat" style="color:var(--f-danger)">—</div></div>
       <div class="fin-mini-card"><div class="fin-mini-label">Sof foyda</div><div class="fin-mini-value" id="r-foyda">—</div></div>
       <div class="fin-mini-card"><div class="fin-mini-label">Ombor qiymati</div><div class="fin-mini-value" id="r-ombor">—</div></div>
@@ -400,8 +400,8 @@
           </div>
         </div>
 
-        <!-- Daromad taqsimoti (Penoplast vs Gips) -->
-        <div class="fin-card" style="align-self:start">
+        <!-- Daromad taqsimoti — kech117 (A2): yo'nalishlar bo'yicha (bitta yo'nalish bo'lsa — yashirin) -->
+        <div class="fin-card" id="revDonutCard" style="align-self:start">
           <div class="fin-card-body">
             <div class="fin-section-title" style="margin-bottom:14px"><i class="ti ti-chart-donut"></i> Daromad taqsimoti</div>
             <div id="revDonutWrap" style="display:flex;align-items:center;gap:18px">
@@ -415,11 +415,26 @@
               <div id="revDonutLegend" style="flex:1;font-size:12.5px"></div>
             </div>
             <div id="revDonutEmpty" style="display:none;text-align:center;padding:24px;color:var(--f-text3);font-size:13px">Ma'lumot yo'q</div>
-            <div style="font-size:11px;color:var(--f-text3);margin-top:12px">Daromadlar hisobi umumiy tushumga nisbatan ko'rsatilgan.</div>
+            <div style="font-size:11px;color:var(--f-text3);margin-top:12px">Yo'nalishlar bo'yicha — umumiy daromadga nisbatan.</div>
           </div>
         </div>
 
       </div>
+    </div>
+
+    <!-- ═══ kech117 (A2 — egasi QARORLARI kech114 00:08; G3-11): YO'NALISHLAR BO'YICHA SOF FOYDA — yig'indisi Moliya sof
+         foydasiga TENG; bitta yo'nalish bo'lsa bo'lim yashirin ═══ -->
+    <div class="fin-section" id="yonBolim" style="display:none">
+      <div class="fin-card"><div class="fin-card-body">
+        <div class="fin-section-head" style="margin-bottom:8px;flex-wrap:wrap;gap:8px">
+          <div class="fin-section-title"><i class="ti ti-arrows-split-2"></i> Yo'nalishlar bo'yicha sof foyda</div>
+          <button class="fin-btn" onclick="downloadSplitProfitPdf()" title="Yo'nalishlar bo'yicha sof foyda hisoboti — PDF"><i class="ti ti-file-type-pdf" style="vertical-align:-2px"></i> PDF</button>
+        </div>
+        <div id="yonTekshiruv" class="fin-info-note"></div>
+        <div id="yonOgoh" style="display:none;margin:0 0 10px;padding:9px 12px;border-radius:10px;background:var(--f-danger-tint);color:#B91C1C;font-size:12.5px"></div>
+        <div id="yonJadval" style="overflow-x:auto"></div>
+        <div id="yonIzoh" style="font-size:11.5px;color:var(--f-text3);margin-top:10px;line-height:1.55"></div>
+      </div></div>
     </div>
 
     <!-- ═══ 5-QATOR: TRANZAKSIYALAR JADVALI ═══ -->
@@ -479,11 +494,11 @@
     <div class="form-group"><label>Summa (so'm)</label><input type="text" id="tx-f-amount" placeholder="0" oninput="formatPriceInput(this)"></div>
     <div class="form-group">
       <label>Yo'nalish <span style="font-weight:400;color:#9CA3AF;font-size:11.5px">— ixtiyoriy, hisobotda ajratib ko'rish uchun</span></label>
+      {# kech117 (A2): korxona yo'nalishlari (Sozlamalar); «Umumiy» — umumiy xarajat (daromad ulushida bo'linadi) #}
       <select id="tx-f-prodtype">
         <option value="">Umumiy</option>
-        <option value="penoplast">🏭 Penoplast</option>
-{% if cat_on('gips', current_user.company_id) %}        <option value="gips">🧱 Gips</option>{% endif %}
-      </select>
+{% for y in yonalishlar_royxati(current_user.company_id) %}        <option value="{{ y.id }}">{{ y.nom }}</option>
+{% endfor %}      </select>
     </div>
     <div class="form-group"><label>Izoh</label><input type="text" id="tx-f-notes" placeholder="..."></div>
     <div style="display:flex;gap:8px;margin-top:14px">
@@ -820,6 +835,8 @@ async function loadReport(){
   document.getElementById('emptyState').style.display='none';
 
   document.getElementById('r-daromad').textContent=fmt(d.daromad)+" so'm";
+  // kech117 (G6-09): Tannarx alohida karta (Hisobotlar / Dashboard bilan bir: Daromad − Tannarx − Xarajat = Sof foyda)
+  document.getElementById('r-tannarx').textContent=fmt(Number(d.tannarx_jami ?? d.ishlab_chiqarish_xarajat ?? 0))+" so'm";
   document.getElementById('r-xarajat').textContent=fmt(d.jami_xarajat)+" so'm";
   document.getElementById('r-foyda').textContent=fmt(d.sof_foyda)+" so'm";
   document.getElementById('r-foyda').style.color=d.sof_foyda>=0?'#8E44AD':'#EF4444';
@@ -852,6 +869,83 @@ async function loadReport(){
   buildExpDetail(d);
   buildCashSection(d);
   initDailyTx();
+  loadYonalishlar(year, month);
+}
+
+// ── kech117 (A2 — egasi QARORLARI kech114; G3-11): YO'NALISHLAR BO'YICHA SOF FOYDA ────────────────────────────────
+// Server (`/api/finance/yonalishlar`) har ustunda Daromad − Tannarx − Jami xarajat = Sof foyda va sof foydalar
+// yig'indisi = Moliya sof foydasi qilib BUTUN so'mda beradi — sahifa faqat ko'rsatadi (qayta hisoblamaydi).
+function yonSumma(v, ayir) {
+  const n = Math.round(Number(v) || 0);
+  if (!ayir) return (n < 0 ? '−' : '') + Math.abs(n).toLocaleString('ru-RU');
+  return n > 0 ? '−' + n.toLocaleString('ru-RU') : (n < 0 ? '+' + Math.abs(n).toLocaleString('ru-RU') : '0');
+}
+async function loadYonalishlar(year, month) {
+  const bolim = document.getElementById('yonBolim');
+  let d = null;
+  try {
+    const r = await fetch(`/api/finance/yonalishlar?year=${year}&month=${month}`);
+    if (r.ok) d = await r.json();
+  } catch (e) { d = null; }
+  if (!d || !Array.isArray(d.yonalishlar) || !(d.korinadigan_soni > 1 || d.yonalishlar.length > 1)) {
+    bolim.style.display = 'none';
+    return;
+  }
+  bolim.style.display = 'block';
+  const jami = d.jami || {};
+  document.getElementById('yonTekshiruv').innerHTML =
+    `Moliya hisobotidagi sof foyda: <b>${yonSumma(d.moliya_sof_foyda)} so'm</b> — shu summa yo'nalishlarga bo'lindi ` +
+    `(yo'nalishlar yig'indisi: <b>${yonSumma(jami.sof_foyda)} so'm</b>). Umumiy xarajatlar — ` +
+    (d.ulush_usuli === 'teng' ? "bu oy daromad yo'q — ko'rinadigan yo'nalishlarga teng."
+      : 'daromad ulushiga qarab: ' + d.yonalishlar.filter(y => y.ulush_foiz).map(y => `${escapeHtml(y.nom)} ${y.ulush_foiz}%`).join(', ') + '.');
+  const ogoh = document.getElementById('yonOgoh');
+  const ogohlar = (d.izohlar || []).map(escapeHtml);
+  if ((d.belgilanmagan_turlar || []).length) {
+    ogohlar.push("Yo'nalishi belgilanmagan MRP mahsulot turlari: <b>" + d.belgilanmagan_turlar.map(escapeHtml).join(', ') +
+                 "</b> — Ishlab chiqarish sahifasida yo'nalish biriktiring (hozircha «Belgilanmagan» ustunida).");
+  }
+  ogoh.style.display = ogohlar.length ? 'block' : 'none';
+  ogoh.innerHTML = ogohlar.join('<br>');
+  const ustunlar = d.yonalishlar.map(y => ({nom: y.nom + (y.yashirin ? ' (yashirin)' : ''), s: y.som, belg: y.belgilanmagan}))
+    .concat([{nom: 'Jami', s: jami, jami: true}]);
+  const nomlar = d.xarajat_nomlari || {};
+  const qism = (s, turi, k) => (s[turi] || {})[k] || 0;
+  const qismJami = (turi, k) => d.yonalishlar.reduce((a, y) => a + qism(y.som, turi, k), 0);
+  const th = ustunlar.map(u => `<th style="text-align:right;padding:8px 10px;white-space:nowrap;${u.jami ? 'background:#F0EBE0' : ''}${u.belg ? ';color:#B91C1C' : ''}">${escapeHtml(u.nom)}</th>`).join('');
+  const qator = (nom, kalit, ayir, kichik) => {
+    const tds = ustunlar.map(u => `<td style="text-align:right;padding:6px 10px;white-space:nowrap;${u.jami ? 'background:#FAF7F2;' : ''}${kichik ? 'color:var(--f-text3);font-size:12px' : ''}">${yonSumma(u.s[kalit], ayir)}</td>`).join('');
+    return `<tr><td style="padding:6px 10px;${kichik ? 'padding-left:22px;color:var(--f-text3);font-size:12px' : 'font-weight:600'}">${escapeHtml(nom)}</td>${tds}</tr>`;
+  };
+  const qismQatorlari = turi => Object.keys(nomlar).filter(k => ustunlar.some(u => (u.jami ? qismJami(turi, k) : qism(u.s, turi, k)) !== 0)).map(k => {
+    const tds = ustunlar.map(u => `<td style="text-align:right;padding:4px 10px;white-space:nowrap;color:var(--f-text3);font-size:12px;${u.jami ? 'background:#FAF7F2' : ''}">${yonSumma(u.jami ? qismJami(turi, k) : qism(u.s, turi, k), true)}</td>`).join('');
+    return `<tr><td style="padding:4px 10px 4px 22px;color:var(--f-text3);font-size:12px">shundan: ${escapeHtml(nomlar[k])}</td>${tds}</tr>`;
+  }).join('');
+  const sofTds = ustunlar.map(u => {
+    const v = Math.round(Number(u.s.sof_foyda) || 0);
+    return `<td style="text-align:right;padding:8px 10px;white-space:nowrap;font-weight:800;font-size:14.5px;color:${v >= 0 ? '#16A34A' : '#DC2626'};${u.jami ? 'background:#F0EBE0' : ''}">${yonSumma(v)}</td>`;
+  }).join('');
+  const renTds = ustunlar.map(u => {
+    const dr = Number(u.s.daromad) || 0;
+    const f = dr ? Math.round((Number(u.s.sof_foyda) || 0) / dr * 1000) / 10 : 0;
+    return `<td style="text-align:right;padding:4px 10px;font-size:12px;color:${f >= 0 ? '#16A34A' : '#DC2626'};${u.jami ? 'background:#FAF7F2' : ''}">${f}%</td>`;
+  }).join('');
+  document.getElementById('yonJadval').innerHTML = `<table class="yon-jadval" style="width:100%;border-collapse:collapse;font-size:13px">
+    <thead><tr style="border-bottom:1.5px solid var(--f-border)"><th style="text-align:left;padding:8px 10px"></th>${th}</tr></thead>
+    <tbody>
+      ${qator('Daromad', 'daromad', false)}
+      ${qator('Tannarx (sotilgan mahsulot)', 'tannarx', true)}
+      ${qator("Bevosita xarajatlar (o'z yo'nalishiga)", 'bevosita', true)}
+      ${qismQatorlari('bevosita_qismlari')}
+      ${qator('Umumiy xarajat ulushi', 'ulush', true)}
+      ${qismQatorlari('ulush_qismlari')}
+      ${qator('Jami xarajat', 'jami_xarajat', true)}
+      <tr style="border-top:1.5px solid var(--f-text)"><td style="padding:8px 10px;font-weight:800">Sof foyda</td>${sofTds}</tr>
+      <tr><td style="padding:4px 10px;color:var(--f-text3);font-size:12px">Rentabellik</td>${renTds}</tr>
+    </tbody></table>`;
+  document.getElementById('yonIzoh').textContent =
+    "Daromad va tannarx — sotilgan mahsulot yo'nalishiga aniq (profil, panel, donali, blok, loy sotish — asosiy yo'nalish; " +
+    "MRP mahsuloti — mahsulot turining yo'nalishi). Yo'nalishi tanlangan hodim, xarajat, transport va kirim xarajatlari, brak " +
+    "— o'z yo'nalishiga; qolgan umumiy xarajatlar — daromad ulushiga qarab. Kassa bo'linmaydi.";
 }
 
 function buildCashSection(d){
@@ -895,7 +989,7 @@ function buildExpDetail(d){
   // kech107 (49-band yonida, O'LCHANGAN — tools/test_brak_bitta_raqam_ui.js): faqat brak / tayyor mahsulot yo'qotishi /
   // transport / ishlab chiqarish / ehson (yoki faqat daromad) bo'lgan oyda ham "Xarajat kiritilmagan" chiqib, pastdagi
   // qatorlar, jami xarajat va sof foyda bloki YASHIRINARDI. Endi bo'sh holat — faqat HECH qanday xarajat va daromad bo'lmasa.
-  const hisobotSummasi = Math.abs(d.jami_xarajat||0) + Math.abs(d.ishlab_chiqarish_xarajat||0) + Math.abs(d.daromad||0);
+  const hisobotSummasi = Math.abs(d.jami_xarajat||0) + Math.abs(Number(d.tannarx_jami ?? d.ishlab_chiqarish_xarajat ?? 0)) + Math.abs(d.daromad||0);
   if(!rows.length && !(d.usta_kpi_breakdown&&d.usta_kpi_breakdown.length) && !(d.hodimlar_moslashuvchan_breakdown&&d.hodimlar_moslashuvchan_breakdown.length) && !((d.qaytarish_soni||0) > 0) && !(hisobotSummasi > 0)){
     el.innerHTML='<div class="fin-empty" style="padding:24px"><span style="font-size:13px">Xarajat kiritilmagan</span></div>';
     document.getElementById('profitBlock').style.display='none';
@@ -958,21 +1052,6 @@ function buildExpDetail(d){
     groupsHtml += expGroup('👷', 'Hodimlar (moslashuvchan)', rowsHtml, total);
   }
 
-  // ── Turlar bo'yicha daromad taqsimoti ──
-  if (d.turlar_boyicha && (d.turlar_boyicha.gips.daromad > 0 || d.turlar_boyicha.penoplast.daromad > 0)) {
-    const tb = d.turlar_boyicha;
-    let rowsHtml = `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name" style="font-weight:700;color:var(--f-text)">🏭 Penoplast (va boshqa)</span><span class="fin-exp-group-row-val" style="color:#16A34A">${fmtFull(tb.penoplast.daromad)} so'm</span></div>`;
-    rowsHtml += `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name" style="font-weight:700;color:var(--f-text)">🧱 Gips</span><span class="fin-exp-group-row-val" style="color:#16A34A">${fmtFull(tb.gips.daromad)} so'm</span></div>`;
-    if (tb.gips.qoshimcha_xarajat > 0) {
-      rowsHtml += `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name" style="padding-left:10px">↳ Gips uchun qo'shimcha xarajat</span><span class="fin-exp-group-row-val">-${fmtFull(tb.gips.qoshimcha_xarajat)} so'm</span></div>`;
-    }
-    if (tb.penoplast.qoshimcha_xarajat > 0) {
-      rowsHtml += `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name" style="padding-left:10px">↳ Penoplast uchun qo'shimcha xarajat</span><span class="fin-exp-group-row-val">-${fmtFull(tb.penoplast.qoshimcha_xarajat)} so'm</span></div>`;
-    }
-    const total = tb.penoplast.daromad + tb.gips.daromad;
-    groupsHtml += expGroup('📊', "Turlar bo'yicha daromad taqsimoti", rowsHtml, total);
-  }
-
   // ── kech102 (144-band, QAROR "Qaytarish oyida"): shu oyda bo'lgan qaytarishlar — "Jami daromad" va
   // "Ishlab chiqarish xarajati" ICHIDA (o'tgan oy hisoboti o'zgarmaydi); guruh jami — sof foydaga ta'siri ──
   if ((d.qaytarish_soni||0) > 0) {
@@ -993,6 +1072,14 @@ function buildExpDetail(d){
       <span class="fin-exp-name" style="color:var(--f-primary)">🏭 Ishlab chiqarish xarajati</span>
       <span class="fin-exp-val" style="color:var(--f-primary)">${fmtFull(d.ishlab_chiqarish_xarajat||0)} so'm</span>
     </div>`;
+  // kech117 (G6-09): tayyor mahsulot sotuvi tannarxi — ilgari hech qaysi qatorda yo'q edi (jami xarajat va sof foyda
+  // qatorlarini qo'shganda farq chiqardi)
+  if (Number(d.fp_sales_tannarx || 0) !== 0) {
+    tailHtml += `<div class="fin-exp-row">
+        <span class="fin-exp-name" style="color:var(--f-primary)">📦 Tayyor mahsulot sotuvi tannarxi</span>
+        <span class="fin-exp-val" style="color:var(--f-primary)">${fmtFull(d.fp_sales_tannarx||0)} so'm</span>
+      </div>`;
+  }
   if ((d.ehson_xarajat||0) > 0) {
     tailHtml += `<div class="fin-exp-row">
         <span class="fin-exp-name" style="color:#22C55E">🤲 Ehson (xayriya)</span>
@@ -1019,7 +1106,7 @@ function buildExpDetail(d){
         <span class="fin-exp-val" style="color:#D97706">${fmtFull(d.transport_xarajat||0)} so'm</span>
       </div>`;
   }
-  tailHtml += `<div class="fin-total-row"><span>Jami xarajat:</span><span style="color:var(--f-danger)">${fmtFull(d.jami_xarajat+(d.ishlab_chiqarish_xarajat||0))} so'm</span></div>
+  tailHtml += `<div class="fin-total-row"><span>Jami xarajat:</span><span style="color:var(--f-danger)">${fmtFull(d.jami_xarajat+Number(d.tannarx_jami ?? d.ishlab_chiqarish_xarajat ?? 0))} so'm</span></div>
     <div class="fin-total-row" style="margin-top:6px;border-top:none;padding-top:0"><span>Jami daromad:</span><span style="color:var(--f-success)">${fmtFull(d.daromad)} so'm</span></div>`;
 
   el.innerHTML = groupsHtml + tailHtml;
@@ -1032,30 +1119,28 @@ function buildExpDetail(d){
   buildRevDonut(d);
 }
 
-// ── DAROMAD TAQSIMOTI (Penoplast vs Gips) — donut, markazida jami summa ──
+// ── DAROMAD TAQSIMOTI — kech117 (A2): YO'NALISHLAR bo'yicha (`yonalishlar_daromadi`), markazida jami summa; daromadli
+// yo'nalish bittadan kam bo'lsa karta yashirin (ilgari «Penoplast va boshqa / Gips») ──
 let revDonutInst = null;
+const YON_RANGLAR = ['#B9783F', '#1E40AF', '#16A34A', '#9333EA', '#DB2777', '#0891B2', '#CA8A04', '#64748B'];
 function buildRevDonut(d){
   const wrap = document.getElementById('revDonutWrap');
   const emptyEl = document.getElementById('revDonutEmpty');
-  const tb = d.turlar_boyicha;
-  const peno = tb ? (tb.penoplast.daromad || 0) : 0;
-  const gips = tb ? (tb.gips.daromad || 0) : 0;
-  const total = peno + gips;
+  const card = document.getElementById('revDonutCard');
+  const royxat = (d.yonalishlar_daromadi || []).filter(y => Number(y.daromad) > 0);
+  const total = royxat.reduce((a, y) => a + Number(y.daromad), 0);
 
   if (revDonutInst) { revDonutInst.destroy(); revDonutInst = null; }
 
-  if (total <= 0) {
-    wrap.style.display = 'none';
-    emptyEl.style.display = 'block';
+  if (royxat.length < 2) {
+    card.style.display = 'none';
     return;
   }
+  card.style.display = '';
   wrap.style.display = 'flex';
   emptyEl.style.display = 'none';
 
-  const entries = [
-    ['Penoplast va boshqa', peno, '#B9783F'],
-    ['Gips', gips, '#9D174D'],
-  ].filter(e => e[1] > 0);
+  const entries = royxat.map((y, i) => [y.nom, Number(y.daromad), y.kalit === 'belgilanmagan' ? '#DC2626' : YON_RANGLAR[i % YON_RANGLAR.length]]);
 
   revDonutInst = new Chart(document.getElementById('revDonutChart'), {
     type: 'doughnut',
@@ -1075,7 +1160,7 @@ function buildRevDonut(d){
   document.getElementById('revDonutLegend').innerHTML = entries.map(([name, val, color]) => `
     <div style="display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:1px solid var(--f-border)">
       <span style="width:9px;height:9px;border-radius:50%;background:${color};flex-shrink:0"></span>
-      <span style="flex:1;color:var(--f-text);font-weight:600;font-size:13px">${name}</span>
+      <span style="flex:1;color:var(--f-text);font-weight:600;font-size:13px">${escapeHtml(name)}</span>
       <span style="font-weight:800;color:${color};font-size:13.5px;white-space:nowrap;letter-spacing:-.01em">${fmtFull(val)} so'm</span>
       <span style="background:${color}1A;color:${color};font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;white-space:nowrap">${(val/total*100).toFixed(1)}%</span>
     </div>`).join('');
@@ -1137,7 +1222,7 @@ async function loadDailyTransactions(){
         <td class="no-print" style="text-align:right;white-space:nowrap">
           <button class="fin-row-action" title="Tahrirlash"
                   data-tx-id="${t.id}" data-tx-date="${t.date}" data-tx-category="${escapeHtml(t.category)}"
-                  data-tx-amount="${t.amount}" data-tx-notes="${escapeHtml(t.notes||'')}" data-tx-prodtype="${escapeHtml(t.production_type||'')}"
+                  data-tx-amount="${t.amount}" data-tx-notes="${escapeHtml(t.notes||'')}" data-tx-yonalish="${t.yonalish_id || ''}"
                   onclick="editTxFromRow(this)"><i class="ti ti-edit" style="font-size:13px"></i></button>
           <button class="fin-row-action" onclick="deleteTx(${t.id})" title="O'chirish"><i class="ti ti-trash" style="font-size:13px"></i></button>
         </td>
@@ -1156,8 +1241,19 @@ function openTxModal(){
   document.getElementById('tx-f-category').value = 'boshqa';
   document.getElementById('tx-f-amount').value = '';
   document.getElementById('tx-f-notes').value = '';
+  txYonalishVarianti('');
   document.getElementById('tx-f-prodtype').value = '';
   document.getElementById('txModal').style.display = 'flex';
+}
+// kech117 (A2): tahrirlanayotgan xarajatning yo'nalishi yashirilgan bo'lsa — tanlovga vaqtincha qo'shiladi (boshqa maydonni
+// tahrirlash yo'nalishni «Umumiy» ga tushirib yubormasin).
+function txYonalishVarianti(id) {
+  const sel = document.getElementById('tx-f-prodtype');
+  sel.querySelectorAll('option[data-vaqtincha]').forEach(o => o.remove());
+  if (!id || [...sel.options].some(o => o.value === String(id))) return;
+  const o = document.createElement('option');
+  o.value = String(id); o.dataset.vaqtincha = '1'; o.textContent = "Yashirin yo'nalish";
+  sel.appendChild(o);
 }
 function closeTxModal(){ document.getElementById('txModal').style.display = 'none'; }
 
@@ -1169,10 +1265,10 @@ function closeTxModal(){ document.getElementById('txModal').style.display = 'non
 // holda, va saqlashda POST o'rniga PUT so'rovi yuboriladi.
 function editTxFromRow(btn){
   const d = btn.dataset;
-  editTx(d.txId, d.txDate, d.txCategory, parseFloat(d.txAmount) || 0, d.txNotes, d.txProdtype);
+  editTx(d.txId, d.txDate, d.txCategory, parseFloat(d.txAmount) || 0, d.txNotes, d.txYonalish);
 }
 
-function editTx(id, dateIso, category, amount, notes, prodType){
+function editTx(id, dateIso, category, amount, notes, yonalishId){
   document.getElementById('tx-f-editing-id').value = id;
   document.getElementById('tx-modal-title').textContent = "✏️ Xarajatni tahrirlash";
   // kech106: tungi (Toshkent 00:00–05:00) xarajat — Toshkent kuni; ilgari UTC sanasi — saqlansa O'TGAN kunga ko'chardi
@@ -1181,7 +1277,8 @@ function editTx(id, dateIso, category, amount, notes, prodType){
   // 124-band (kech95, O'LCHANGAN `work/probe124.py` X1: 12 345.67 tahrirlanganda 12 346 bo'lib saqlanardi)
   document.getElementById('tx-f-amount').value = narxKorinishi(amount);
   document.getElementById('tx-f-notes').value = notes || '';
-  document.getElementById('tx-f-prodtype').value = prodType || '';
+  txYonalishVarianti(yonalishId || '');
+  document.getElementById('tx-f-prodtype').value = yonalishId || '';
   document.getElementById('txModal').style.display = 'flex';
 }
 
@@ -1196,7 +1293,7 @@ async function saveTx(){
   try {
     const res = await fetch(url, {
       method, headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ date: date+'T00:00:00', category, amount, notes: document.getElementById('tx-f-notes').value || null, production_type: document.getElementById('tx-f-prodtype').value || null })
+      body: JSON.stringify({ date: date+'T00:00:00', category, amount, notes: document.getElementById('tx-f-notes').value || null, yonalish_id: document.getElementById('tx-f-prodtype').value ? Number(document.getElementById('tx-f-prodtype').value) : null })
     });
     if (res.ok) {
       closeTxModal();

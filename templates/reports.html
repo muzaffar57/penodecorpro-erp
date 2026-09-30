@@ -233,11 +233,11 @@
     </div>
   </div>
 
-  <!-- Penoplast vs Gips -->
-  <div class="bi-section">
+  <!-- kech117 (A2): YO'NALISHLAR — daromad dinamikasi (ilgari «Penoplast va Gips»); bitta yo'nalish bo'lsa yashirin -->
+  <div class="bi-section" id="yonDinamika" style="display:none">
     <div class="bi-card bi-fade">
       <div class="bi-card-body">
-        <div class="bi-section-title" style="margin-bottom:12px"><i class="ti ti-scale"></i> 🏭 Penoplast va 🧱 Gips — daromad dinamikasi</div>
+        <div class="bi-section-title" style="margin-bottom:12px"><i class="ti ti-arrows-split-2"></i> Yo'nalishlar — daromad dinamikasi</div>
         <div class="bi-chart-tall"><canvas id="prodTypeTrendChart"></canvas></div>
       </div>
     </div>
@@ -494,17 +494,30 @@ async function loadCharts(){
     }
   });
 
-  // Penoplast vs Gips — daromad dinamikasi (get_monthly_report'dagi
-  // turlar_boyicha maydonidan, qo'shimcha so'rov shart emas)
-  if (window._ptTrendC) window._ptTrendC.destroy();
-  window._ptTrendC = new Chart(document.getElementById('prodTypeTrendChart'), {
+  // kech117 (A2): yo'nalishlar — daromad dinamikasi (get_monthly_report'dagi `yonalishlar_daromadi` dan, qo'shimcha
+  // so'rov shart emas); oylar bo'yicha birortasida ham bittadan ko'p yo'nalish bo'lmasa — bo'lim yashirin.
+  if (window._ptTrendC) { window._ptTrendC.destroy(); window._ptTrendC = null; }
+  const _yonTartib = [];
+  const _yonNom = {};
+  let _yonKop = false;
+  hist.forEach(h => {
+    const r = h.yonalishlar_daromadi || [];
+    if (r.length > 1) _yonKop = true;
+    r.forEach(y => { if (!(y.kalit in _yonNom)) { _yonNom[y.kalit] = y.nom; _yonTartib.push(y.kalit); } });
+  });
+  const _yonBolim = document.getElementById('yonDinamika');
+  if (_yonBolim) _yonBolim.style.display = _yonKop ? '' : 'none';
+  const _YR = ['rgba(185,120,63,.75)', 'rgba(30,64,175,.75)', 'rgba(22,163,74,.75)', 'rgba(147,51,234,.75)',
+               'rgba(219,39,119,.75)', 'rgba(8,145,178,.75)', 'rgba(202,138,4,.75)', 'rgba(100,116,139,.75)'];
+  if (_yonKop) window._ptTrendC = new Chart(document.getElementById('prodTypeTrendChart'), {
     type: 'bar',
     data: {
       labels: hist.map(h => MONTH_NAMES[h.month]+" '"+String(h.year).slice(2)),
-      datasets: [
-        { label:'🏭 Penoplast va boshqa', data:hist.map(h=>h.turlar_boyicha?.penoplast?.daromad||0), backgroundColor:'rgba(185,120,63,.75)', borderRadius:5 },
-        { label:'🧱 Gips', data:hist.map(h=>h.turlar_boyicha?.gips?.daromad||0), backgroundColor:'rgba(157,23,77,.75)', borderRadius:5 }
-      ]
+      datasets: _yonTartib.map((k, i) => ({
+        label: _yonNom[k], borderRadius: 5,
+        backgroundColor: k === 'belgilanmagan' ? 'rgba(220,38,38,.75)' : _YR[i % _YR.length],
+        data: hist.map(h => ((h.yonalishlar_daromadi || []).find(y => y.kalit === k) || {}).daromad || 0)
+      }))
     },
     options: {
       responsive:true, maintainAspectRatio:false, animation:{duration:800,easing:'easeOutQuart'},

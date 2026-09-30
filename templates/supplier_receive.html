@@ -117,17 +117,16 @@
 
           <div class="rcv-field" style="margin-bottom:16px">
             <label>Yo'nalish <span style="font-weight:400;color:var(--r-text3);font-size:11.5px">— Moliya hisobotida to'g'ri taqsimlanishi uchun MUHIM, majburiy</span></label>
+            {# kech117 (A2): korxona yo'nalishlari (Sozlamalar); kirimning qo'shimcha xarajatlari shu yo'nalishga yoziladi #}
             <div class="rcv-cat-toggle" id="ap-prod-type-toggle">
-              <div class="rcv-cat-opt" data-value="" onclick="selectProdType(this,'')">Umumiy</div>
-              <div class="rcv-cat-opt" data-value="penoplast" onclick="selectProdType(this,'penoplast')">🏭 Penoplast</div>
-{% if cat_on('gips', current_user.company_id) %}              <div class="rcv-cat-opt" data-value="gips" onclick="selectProdType(this,'gips')">🧱 Gips</div>{% endif %}
-            </div>
-            <div style="font-size:11px;color:var(--r-text3);margin-top:5px">"Umumiy" — faqat Penoplast yoki Gipsga aloqasi yo'q xarid uchun (masalan podveska, setka yoki boshqa material)</div>
+              <div class="rcv-cat-opt" data-value="" onclick="selectProdType(this, this.dataset.value)">Umumiy</div>
+{% for y in yonalishlar_royxati(current_user.company_id) %}              <div class="rcv-cat-opt" data-value="{{ y.id }}" onclick="selectProdType(this, this.dataset.value)">{{ y.nom }}</div>
+{% endfor %}            </div>
+            <div style="font-size:11px;color:var(--r-text3);margin-top:5px">"Umumiy" — bitta yo'nalishga tegishli bo'lmagan xarid uchun (masalan podveska, setka yoki bir nechta yo'nalishga ketadigan material); kirim xarajatlari umumiy xarajat bo'lib, yo'nalishlarga daromad ulushida bo'linadi</div>
             <select id="ap-prod-type" style="display:none">
               <option value="">Umumiy</option>
-              <option value="penoplast">🏭 Penoplast</option>
-{% if cat_on('gips', current_user.company_id) %}              <option value="gips">🧱 Gips</option>{% endif %}
-            </select>
+{% for y in yonalishlar_royxati(current_user.company_id) %}              <option value="{{ y.id }}">{{ y.nom }}</option>
+{% endfor %}            </select>
           </div>
 
           <div style="font-size:11.5px;color:var(--r-text3);margin-bottom:8px">👤 Quyidagi ma'lumotlar — faqat <b>tanlangan yetkazib beruvchi</b>ga tegishli:</div>
@@ -533,7 +532,7 @@ let currentSupplierId = null;
 let invItems = [];
 let apBasket = [];
 let apCreatingNewItem = false;
-let prodTypeChosen = false; // Yo'nalish (Umumiy/Penoplast/Gips) ONGLI ravishda tanlanganmi — "Umumiy"ning qiymati ("") bo'sh qiymat bilan bir xil bo'lgani uchun, buni alohida kuzatamiz
+let prodTypeChosen = false; // Yo'nalish («Umumiy» yoki korxona yo'nalishi — kech117) ONGLI ravishda tanlanganmi — "Umumiy"ning qiymati ("") bo'sh qiymat bilan bir xil bo'lgani uchun, buni alohida kuzatamiz
 
 // ── QORALAMA (localStorage) — sahifadan tasodifan chiqib qolsa,
 // kiritilgan mahsulotlar/qiymatlar yo'qolmasin, qayta kirganda tiklansin ──
@@ -1019,12 +1018,12 @@ async function submitReceive(){
   if (!currentSupplierId) { showMsg('❌ Yetkazib beruvchini tanlang', 'error'); return; }
   if (isSubmittingReceive) return; // Ikki marta bosishdan himoya
 
-  // Yo'nalish (Umumiy/Penoplast/Gips) ONGLI ravishda tanlanmagan bo'lsa —
+  // Yo'nalish («Umumiy» yoki korxona yo'nalishi — kech117) ONGLI ravishda tanlanmagan bo'lsa —
   // endi bu MAJBURIY: davom etishga umuman ruxsat berilmaydi. ("Umumiy"ning
   // o'zi ham to'liq huquqli tanlov — Bazalt va h.k. Penoplast/Gips'ga
   // aloqasi yo'q xaridlar uchun. Faqat "hech narsa bosilmagan" holat bloklanadi.)
   if (!prodTypeChosen) {
-    showMsg("❌ Yo'nalishni tanlang: Umumiy, Penoplast yoki Gips", 'error');
+    showMsg("❌ Yo'nalishni tanlang (yoki «Umumiy»)", 'error');
     document.getElementById('ap-prod-type-toggle').classList.add('rcv-cat-error');
     document.getElementById('ap-prod-type-toggle').scrollIntoView({behavior:'smooth', block:'center'});
     return;
@@ -1087,7 +1086,8 @@ async function submitReceive(){
     yuklash_cost: ec.yuklash, boshqa_cost: ec.boshqa,
     add_to_cost: addToCost,
     notes: notes || "Kirim sahifasidan qo'shildi",
-    production_type: document.getElementById('ap-prod-type')?.value || null,
+    // kech117 (A2): yo'nalish id si; «Umumiy» — null
+    yonalish_id: document.getElementById('ap-prod-type')?.value ? Number(document.getElementById('ap-prod-type').value) : null,
     // kech115 (G4-03): ilgari ikkalasi ham yuborilmasdi — kirim doim bugun, qarz muddati hech qayerda saqlanmasdi
     receipt_date: receiptDate,
     payment_due_date: isOpeningStock ? null : dueDate

@@ -36,13 +36,14 @@
 .emp-tag{font-size:11.5px;padding:2px 8px;border-radius:9px;font-weight:600;white-space:nowrap}
 .mini-btn{width:26px;height:26px;border-radius:6px;border:1.5px solid #e5e5e5;background:#fff;font-size:13px;color:#555;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .mini-btn:hover{background:var(--dark);color:#fff;border-color:var(--dark)}
-/* Yo'nalish — Penoplast/Gips tugma tanlovi (dropdown o'rniga, majburiy) */
-.dir-toggle{display:flex;border:1.5px solid var(--border);border-radius:9px;overflow:hidden;height:42px}
-.dir-opt{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px;font-weight:700;cursor:pointer;color:var(--text3);background:#FAFAF8;transition:all .15s}
+/* Yo'nalish — tugma tanlovi (dropdown o'rniga, majburiy). kech117 (A2): variantlar — «Umumiy» + korxona yo'nalishlari
+   (Sozlamalar), ko'p bo'lsa keyingi qatorga o'tadi. */
+.dir-toggle{display:flex;flex-wrap:wrap;border:1.5px solid var(--border);border-radius:9px;overflow:hidden;min-height:42px}
+.dir-opt{flex:1 1 auto;display:flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:0 12px;font-size:13px;font-weight:700;cursor:pointer;color:var(--text3);background:#FAFAF8;transition:all .15s}
 .dir-opt:not(:last-child){border-right:1px solid var(--border)}
 .dir-opt:hover{color:var(--text2)}
-.dir-opt.active.dir-penoplast{background:#DBEAFE;color:#1E40AF}
-.dir-opt.active.dir-gips{background:#FDE68A;color:#92400E}
+.dir-opt.active{background:#DBEAFE;color:#1E40AF}
+.dir-opt.active.dir-umumiy{background:#F3F4F6;color:#374151}
 .dir-toggle.dir-error{border-color:var(--red)}
 
 /* Kartochka bo'limlariga ajratish uchun umumiy uslub (Hodim, Usta va h.k. modallarida) */
@@ -286,11 +287,11 @@
       <div class="form-group" style="margin:0"><label>Lavozimi</label><input type="text" id="e-position" placeholder="Kesuvchi"></div>
     </div>
 
-    <div class="modal-section-label">Yo'nalish <span class="modal-hint">— Gips/Penoplast mustaqil hisobot uchun, majburiy</span></div>
+    <div class="modal-section-label">Yo'nalish <span class="modal-hint">— har yo'nalishning o'z sof foydasi uchun, majburiy («Umumiy» — daromad ulushida bo'linadi)</span></div>
     <div class="dir-toggle" id="e-prodtype-toggle">
-      <div class="dir-opt dir-penoplast" data-val="penoplast" onclick="setProdType('penoplast')">🏭 Penoplast</div>
-{% if cat_on('gips', current_user.company_id) %}      <div class="dir-opt dir-gips" data-val="gips" onclick="setProdType('gips')">🧱 Gips</div>{% endif %}
-    </div>
+      <div class="dir-opt dir-umumiy" data-val="umumiy" onclick="setProdType(this.dataset.val)">Umumiy</div>
+{% for y in yonalishlar_royxati(current_user.company_id) %}      <div class="dir-opt" data-val="{{ y.id }}" onclick="setProdType(this.dataset.val)">{{ y.nom }}</div>
+{% endfor %}    </div>
     <input type="hidden" id="e-prodtype" value="">
 
     <div class="modal-section-label">To'lov</div>
@@ -1050,6 +1051,21 @@ function formatPriceInput(input) {
   } catch (e) { /* kursor — faqat qulaylik */ }
 }
 
+// kech117 (A2): tanlov qiymati — "umumiy" yoki yo'nalish id si (matn). Hodimning yo'nalishi yashirilgan bo'lsa — shu hodim
+// uchun vaqtincha variant qo'shiladi (tahrirda boshqa maydonni o'zgartirish yo'nalishni yo'qotmasin).
+function hodimYonalishVarianti(id, nom) {
+  const t = document.getElementById('e-prodtype-toggle');
+  t.querySelectorAll('.dir-opt[data-vaqtincha]').forEach(el => el.remove());
+  if (!id || t.querySelector('.dir-opt[data-val="' + id + '"]')) return;
+  const el = document.createElement('div');
+  el.className = 'dir-opt';
+  el.dataset.val = String(id);
+  el.dataset.vaqtincha = '1';
+  el.textContent = (nom || "Yo'nalish") + ' (yashirin)';
+  el.onclick = () => setProdType(el.dataset.val);
+  t.appendChild(el);
+}
+
 function setProdType(val) {
   document.getElementById('e-prodtype').value = val;
   document.querySelectorAll('#e-prodtype-toggle .dir-opt').forEach(el => {
@@ -1064,6 +1080,7 @@ function openEmpModal() {
   editingEmpId = null;
   document.getElementById('emp-modal-title').textContent = "+ Yangi hodim";
   ['e-name','e-position','e-fixed','e-percent','e-unitrate','e-notes','e-extramonthly'].forEach(id => document.getElementById(id).value = '');
+  hodimYonalishVarianti(null);
   setProdType('');
   document.getElementById('e-paytype').value = 'fixed';
   document.getElementById('e-unittype').value = 'blok';
@@ -1159,7 +1176,8 @@ function editEmployee(id) {
   document.getElementById('e-coatingrate').value = e.per_unit_rate || 1000;
   document.getElementById('e-notes').value = e.notes || '';
   document.getElementById('e-extramonthly').value = e.extra_monthly ? fmt(e.extra_monthly) : '';
-  setProdType(e.production_type || '');
+  hodimYonalishVarianti(e.yonalish_id, e.yonalish_nom);
+  setProdType(e.yonalish_id ? String(e.yonalish_id) : 'umumiy');
   document.getElementById('emp-error').style.display = 'none';
 
   const tk = tkHozir();     // kech106: joriy oy — Toshkent
@@ -1188,7 +1206,7 @@ async function saveEmployee() {
   const prodType = document.getElementById('e-prodtype').value;
   if (!prodType) {
     err.style.display = 'block';
-    err.textContent = "❌ Yo'nalishni tanlang: Penoplast yoki Gips";
+    err.textContent = "❌ Yo'nalishni tanlang (yoki «Umumiy»)";
     document.getElementById('e-prodtype-toggle').classList.add('dir-error');
     return;
   }
@@ -1208,7 +1226,8 @@ async function saveEmployee() {
     per_unit_rate: unitRate,
     per_unit_type: document.getElementById('e-unittype').value,
     extra_monthly: parseNum(document.getElementById('e-extramonthly').value) || null,
-    production_type: document.getElementById('e-prodtype').value || null,
+    // kech117 (A2): yo'nalish id si; «Umumiy» — null
+    yonalish_id: prodType === 'umumiy' ? null : Number(prodType),
     notes: document.getElementById('e-notes').value.trim() || null
   };
 
