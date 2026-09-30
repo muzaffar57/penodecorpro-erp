@@ -437,8 +437,10 @@ def buzilishlar(src, tizim):
                 e = v.value
                 # kech117: `_fmt_ishora` — faqat son (ishora + raqamlar), `_fmt` kabi
                 # kech118: `_fmt_natija` / `_foiz_uz` / `_ozgarish_matni` — faqat son (ishora, raqam, vergul, «%»)
+                # kech118 (ROLLAR 2-qism): `_som` — son ko'rinishi (`_fmt` / `_fmt_ishora` / `_fmt_natija`) + « so'm» yoki «—»
                 if isinstance(e, ast.Call) and (getattr(e.func, "id", None) in ("_x", "_fmt", "_num", "len", "_fmt_ishora",
-                                                                                "_fmt_natija", "_foiz_uz", "_ozgarish_matni")
+                                                                                "_fmt_natija", "_foiz_uz", "_ozgarish_matni",
+                                                                                "_som")
                                                 or getattr(e.func, "attr", None) == "strftime"):
                     continue
                 q = "{" + ast.get_source_segment(src, e) + "}"

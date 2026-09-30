@@ -529,8 +529,10 @@ try:
     _dash = open(os.path.join(ROOT, "templates", "dashboard.html"), encoding="utf-8").read()
 except Exception:                          # noqa: BLE001
     _dash = ""
+# kech118 (ROLLAR 2-qism, MOSLANDI): brak qatori sharti endi yashirin (null) holatni ham oladi —
+# `if (d.brak_xarajat === null || (d.brak_xarajat||0) > 0)`; tartib o'zgarmagan
 check("U1 Moliya: transport qatori (d.transport_xarajat) \"Jami xarajat\" qatoridan OLDIN, tailHtml ichida",
-      tartibda(_fin, "if ((d.brak_xarajat||0) > 0)", "if ((d.transport_xarajat||0) > 0)", "tailHtml +=",
+      tartibda(_fin, "(d.brak_xarajat||0) > 0)", "if ((d.transport_xarajat||0) > 0)", "tailHtml +=",
                "${fmtFull(d.transport_xarajat||0)}", "<span>Jami xarajat:</span>"))
 check("U2 Moliya: manba nomlari — kirim_tannarx va inventory_receipt",
       "kirim_tannarx:'Kirim (tannarxda)'" in _fin and "inventory_receipt:'Kirim hujjati'" in _fin)

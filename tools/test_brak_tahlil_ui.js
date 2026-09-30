@@ -329,7 +329,9 @@ function tahlilKodi() {
                    olib(RETURNS, 'brakFoizMatn'), olib(RETURNS, 'brakTahlilHtml')];
   // kech106: yo'qotish sanasi `tkISO` (base.html — Toshkent vaqti yordamchilari) orqali
   // kech118 (B — U-05, MOSLANDI): sahifa funksiyalari endi base.html `sonKor` / `foizKor` ni chaqiradi — ro'yxatga qo'shildi
-  const tk = ['tkMs', 'tkDate', 'tkSana', 'tkVaqt', 'tkSanaVaqt', 'tkToliq', 'tkISO', 'tkHozir', 'tkKunFarqi', 'sonKor', 'foizKor', 'matnRangi']
+  // kech118 (ROLLAR 2-qism, MOSLANDI): summa yoki «—» — base.html `somYoq` (va uning standart ko'rinishi `qisqaSumma`)
+  const tk = ['tkMs', 'tkDate', 'tkSana', 'tkVaqt', 'tkSanaVaqt', 'tkToliq', 'tkISO', 'tkHozir', 'tkKunFarqi', 'sonKor', 'foizKor', 'matnRangi',
+              'qisqaSumma', 'somYoq']
     .map(n => olib(BASE, n)).filter(Boolean);
   return qismlar.every(Boolean) ? tk.concat(qismlar).join('\n') : null;
 }

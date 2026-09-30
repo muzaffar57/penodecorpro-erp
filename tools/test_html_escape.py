@@ -288,6 +288,9 @@ XAVFSIZ_FN = (
     # `catBadge(cat)` — `reports.html:791` da O'QILDI: natija ichida
     # `escapeHtml(cat)` bor, qolgan qismi kod konstantalari.
     "catBadge(",
+    # kech118 (ROLLAR 2-qism): summa yoki «—» — natija faqat son ko'rinishi (`fmt` / `fmtShort` / `qisqaSumma`) + « so'm»
+    # yoki «—» (`base.html` `somYoq`, `reports.html` `toliqSom` / `qisqaSom`).
+    "somYoq(", "toliqSom(", "qisqaSom(",
 )
 # Natijasi argumentning o'zi (yoki kod konstantasi) bo'lgan funksiyalar — xavfsizligi 1-argumentniki (kech118).
 _SHAFFOF_FN = ("matnRangi(",)

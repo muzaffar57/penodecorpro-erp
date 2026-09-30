@@ -104,7 +104,9 @@ function tahlilChiz(d) {
   const qismlar = [olib(BASE, 'escapeHtml'), konst(RETURNS, 'BRAK_OY_NOMLARI'), olib(RETURNS, 'brakTahlilOyMatn'),
                    olib(RETURNS, 'brakFoizMatn'), olib(RETURNS, 'brakTahlilHtml')];
   // kech118 (B — U-05, MOSLANDI): sahifa funksiyalari endi base.html `sonKor` / `foizKor` ni chaqiradi — ro'yxatga qo'shildi
-  const tk = ['tkMs', 'tkDate', 'tkSana', 'tkVaqt', 'tkSanaVaqt', 'tkToliq', 'tkISO', 'tkHozir', 'tkKunFarqi', 'sonKor', 'foizKor']
+  // kech118 (ROLLAR 2-qism, MOSLANDI): summa yoki «—» — base.html `somYoq` (va uning standart ko'rinishi `qisqaSumma`)
+  const tk = ['tkMs', 'tkDate', 'tkSana', 'tkVaqt', 'tkSanaVaqt', 'tkToliq', 'tkISO', 'tkHozir', 'tkKunFarqi', 'sonKor', 'foizKor',
+              'qisqaSumma', 'somYoq']
     .map(n => olib(BASE, n)).filter(Boolean);
   if (!qismlar.every(Boolean)) return { xato: 'funksiyalar topilmadi', html: '' };
   const ctx = kontekst();
