@@ -1,6 +1,6 @@
 # PenoDecorPro ERP — LOYIHA PASPORTI
 
-*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2); kech112: zip 108 — «Tayyor» da bo'sh loy = reja (K112-3), material nomi (K112-4), MRP qoplama belgisi (K112-5); ko'p korxonali yakuniy jonli sinov; kech115: zip 112 — butun dastur auditi A bosqichi (pul va ma'lumot xatolari) 1-qismi: kirim, qarzdorlar, «Tayyor», narxsiz buyurtma, o'chirilganlar jurnali, manfiy raqamlar, taqqoslash, korxona sog'ligi, ombor filtri). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
+*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2); kech112: zip 108 — «Tayyor» da bo'sh loy = reja (K112-3), material nomi (K112-4), MRP qoplama belgisi (K112-5); ko'p korxonali yakuniy jonli sinov; kech115: zip 112 — butun dastur auditi A bosqichi (pul va ma'lumot xatolari) 1-qismi: kirim, qarzdorlar, «Tayyor», narxsiz buyurtma, o'chirilganlar jurnali, manfiy raqamlar, taqqoslash, korxona sog'ligi, ombor filtri; kech116: zip 113 — A bosqich 2-qismi: sog'liq sabablari (K115-2), «Bugungi xulosa» (K115-3), hujjatlardagi hisob qatorlari (G2-04), «Pul oqimi» — haqiqiy pul (G1-03), «Xarajat» — bitta ta'rif va «Tannarx» (G1-02), loyiha qiymati buyurtmalardan (G2-01), haqiqiy IP va kirish cheklovi (U-01), parol oynasi va kirishlarni yopish (G6-06)). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
 *Bu faylni `main` ga ko'chirish bilan birga, keyin har katta o'zgarishda yangilab boring. 9-bo'lim AVTOMATIK
 (`python3 tools/pasport_xarita.py --yoz`), qolgani qo'lda; `tools/test_pasport.py` ikkalasini ham tekshiradi.*
 
@@ -285,10 +285,56 @@ qabul qiladi — tekin namuna mumkin).
 qizil. Taqqoslash (`services.get_monthly_comparison`): o'tgan oy 0 — `change_pct: None`, `holat` («malumot_yoq» /
 «ozgarmadi» / «oshdi» / «kamaydi»); sahifada BITTA ko'rinish qoidasi `ozgarishKorinishi` (xarajat o'sishi — qizil), zarar oyi —
 «Bu oy zarar». Korxona sog'ligi (`services.get_business_health`): ombor — kam / tugagan soni (`kam_qoldiq_sharti`), ishlab
-chiqarish — muddati o'tgan faol buyurtmalar (0 / 1–2 / 3+), ma'lumot yo'q — «gray», har baho `sabablar` bilan. Omborxona
+chiqarish — muddati o'tgan faol buyurtmalar (0 / 1–2 / 3+), ma'lumot yo'q — «gray», har baho `sabablar` bilan (kech116,
+K115-2: rentabellik va qarz sababi holatga qarab — «yaxshi / o'rtacha / past (yuqori)» chegarasi bilan; baho ko'rsatilgan,
+1 xonagacha yaxlitlangan foizdan). «Bugungi xulosa» — ogohlantirish bo'lmasa ham yig'iladi (K115-3). Omborxona
 holat filtri — belgilar bilan bir xil (`data-holat`: yetarli / oz / kam / tugagan; «Kam qolganlar» = kam + tugagan = karta
 soni, karta bosilsa filtrlanadi). O'chirilganlar jurnali — faqat `crud.CHIQINDI_JURNAL_AMALLARI` (o'chirildi / tiklandi /
 butunlay o'chirildi), boshqa amallar — «Tizim jurnallari».
+
+**Buyurtma pul hisobi qatorlari (kech116, G2-04).** `crud.buyurtma_hisob_qatorlari` — YAGONA qatorlar: Buyurtma jami −
+Chegirma (narx kelishuvi; kelishilgan jamidan katta bo'lsa — «Ustama») − Qaytarish (pul qaytarish kamaytirishi,
+`pul_qaytarish_kamaytirgan`) − Kechirilgan qarz (`Order.kechirilgan_qarz`) = Kelishilgan summa; Kelishilgan − To'langan (sof) =
+QARZ QOLDI (yoki ORTIQCHA TO'LANGAN). `korinish` — butun so'mlar (HALF_UP; chegirma / qarz — AYIRMA), shuning uchun hujjatdagi
+qatorlar tiyinli summalarda ham qo'shiladi. Uchala mijoz hujjati (yuk xati, hisob-kitob varaqasi — `delivery_pdf._hisob_qatorlari`;
+buyurtma nakladnoyi — `pdf_service`) va buyurtma oynasi (`/api/orders/{id}` → `hisob`, `orders.html` `loadPayments`) shundan.
+Hisob-kitob varaqasidagi «Berilgan mahsulot» pul hisobi orasidan olindi (jadvaldagi «JAMI BERILGAN MAHSULOT» qatori qoldi).
+Kech40 dan oldingi (kamaytirishi yozilmagan) qaytarish ajratilmaydi — chegirmada qoladi.
+
+**Pul oqimi va kassa (kech116, G1-03 — egasi QARORI kech114 «Pul oqimi — haqiqiy pul»).** `services._kassa_qismlari` — kassa
+harakati qismlari (YAGONA manba, davr bilan): mijoz to'lovlari `paid_at` (qaytarilgan pul — manfiy to'lov), tayyor mahsulot
+sotuvi `sold_at`, naqd xarid `purchased_at` (nasiya va boshlang'ich ombor — YO'Q; nasiya to'lanishi — ta'minotchiga to'lov),
+ta'minotchiga to'lov, xarajatlar, kirish transporti, yetkazishning korxona ulushi `delivered_at`, hodimga avans / oylik
+(`EmployeeAdvance`), kassaga qo'lda yozuv (boshlang'ich balans — harakat EMAS). Eski oylik shakl — oyning 1-kuniga.
+`get_cash_balance` — butun davr (natija o'zgarmadi); `get_pul_oqimi(year, month | sana)` / `_pul_oqimi_oraliq` — davr,
+`/api/finance/pul-oqimi` (`sana=` — Toshkent kuni; parametrsiz — joriy oy; noto'g'ri — 400). Butun davr oqimi + boshlang'ich =
+kassa; oy = kunlar yig'indisi. Hisobotlar (karta, blok), Moliya (bugungi karta), Dashboard («Pul oqimi (bu oy)») va «Korxona
+sog'ligi» (yashil — kirim ≥ chiqim; sariq — chiqim ko'p, kassada pul bor; qizil — kassa ham manfiy; kulrang — harakat yo'q) shundan.
+
+**Xarajat — bitta ta'rif (kech116, G1-02).** «Xarajat» = `jami_xarajat` (sof foydadan ayriladigan; tannarx ALOHIDA) hamma
+sahifada. `get_monthly_report` → `xarajat_tarkibi` (8 guruh: doimiy, qo'shimcha, transport, brak, TM yo'qotishi, usta KPI,
+ehson, hodimlar — yig'indisi = `jami_xarajat`), `tannarx_jami` (buyurtmalar + TM sotuvi tannarxi), `fp_sales_tannarx`:
+daromad − tannarx_jami − jami_xarajat = sof foyda. Hisobotlar — 8 karta (Daromad, Tannarx, Xarajat, Sof foyda / Pul oqimi,
+Kassa, Buyurtmalar, Rentabellik) va tenglama qatori, «Xarajat tarkibi» doirasi — to'liq tarkib; Dashboard «Bu oy moliyaviy
+holat» — Tannarx qatori alohida, qatorlar = tarkib, «Jami xarajat» = `jami_xarajat`.
+
+**Loyiha qiymati (kech116, G2-01 — egasi QARORI kech114 «Loyiha qiymati — buyurtmalardan»).** `crud.loyiha_pul_hisobi` —
+qiymat = buyurtmalar kelishilgan summalari, to'langan = ularning to'lovlari, qarz = ularning `debt_amount` i (Qarzdorlar
+sharti `qarz_hisobidagi_buyurtma_sharti`; qoralama va bekor qilingan — KIRMAYDI). `get_projects_with_stats` → `p.pul`;
+Loyihalar sahifasi (karta foizi, «Loyiha qiymati / To'langan / Qolgan to'lov», holat paneli, «Moliya» yorlig'i) shundan.
+«Byudjet» maydoni formalardan olindi (`total_budget` ustuni bazada qoladi, saqlash tanasida yuborilmaydi).
+
+**Haqiqiy IP va kirish cheklovi (kech116, U-01).** `auth.mijoz_ip`: ulanish manzili ichki (xususiy / CGNAT 100.64/10 /
+loopback / link-local — Railway proksisi) bo'lsa — `X-Forwarded-For` dagi ENG O'NG ochiq manzil (mijoz yozgan soxta
+qiymatlar undan chapda qoladi), bo'lmasa `X-Real-IP`, aks holda ulanish manzili; ulanish ochiq bo'lsa — sarlavhalarga
+ISHONILMAYDI. (`uvicorn --forwarded-allow-ips='*'` ISHLATILMAYDI — 0.30.6 da XFF ning eng CHAP manzilini oladi.) Admin va hodim
+kirishi shundan. `crud.check_login_rate_limit`: 15 daqiqada foydalanuvchi nomi bo'yicha 5, IP bo'yicha 20 xato (bitta ofis
+NAT i ortidagi xodimlar bir-birini bloklamasin).
+
+**Parol va kirishlar (kech116, G6-06).** Parol — `users.html` dastur oynasi (`#parolModal`: yashirin maydonlar, ko'zcha, yangi
++ takror bitta oynada, o'z parolida joriy parol; server rad sababi oynada). `auth.change_password(…, saqlanadigan_token)` —
+parol bilan BITTA tranzaksiyada shu foydalanuvchining HAMMA sessiyalari o'chiriladi, faqat o'z parolini almashtirganning
+joriy sessiyasi qoladi. Hodim PIN i (`crud.set_employee_login`) — hodimning hamma panel sessiyalari o'chiriladi.
 
 **Platforma — obuna va bloklash (kech111; egasi QARORLARI kech109 / kech110 / kech111, 6-bo'lim).** Hisob — `obuna.py`
 (YAGONA manba); `companies` ustunlari (hammasi NULL, `default=` siz): `bloklangan_at`, `blok_sabab`, `blok_izoh`, `bloklagan`,
@@ -521,6 +567,16 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   (SQLite, PG, TF1): `tools/test_tayyor_guruh.py`; sahifalar (HAQIQIY server + jsdom — guruhlar, ochish / eslab qolish,
   tugagan partiya, statistika, MRP havolasi, turlar jadvali, `?po=`, «···» menyusi, «Shu buyurtma», namunalar, HTML
   in'ektsiya): `tools/test_dizayn114_ui.py`.
+- (kech116) A bosqich 2-qism: hujjatlardagi hisob qatorlari (qaytarish, chegirma + kechirilgan, ustama, ortiqcha to'langan,
+  tiyinli summalar — API `hisob`, yuk xati, hisob-kitob varaqasi, nakladnoy; belgilar; SQLite, PG): `tools/test_a116_pdf.py`;
+  pul oqimi (mustaqil hisob bilan AYNAN, Toshkent chegaralari, kunlar = oy, korxona, API, kassa bilan bir qoida, «Korxona
+  sog'ligi»), xarajat tarkibi va tannarx: `tools/test_a116_pul.py`; haqiqiy IP (`auth.mijoz_ip` qoidasi, HAQIQIY HTTP —
+  jurnalda IP), kirish cheklovi (nom 5 / IP 20), parol / PIN almashtirilganda sessiyalar: `tools/test_a116_kirish.py`; sahifalar
+  (HAQIQIY server + jsdom — buyurtma «Hisob-kitob», Hisobotlar, Moliya, Dashboard, Loyihalar, parol oynasi, in'ektsiya):
+  `tools/test_a116_ui.py`. `test_a115_korinish.py` ga K115-2 / K115-3 (H8–H10, R10–R12). Moslangan: `test_naqd_kassa.py`
+  (bosh sahifa pul oqimi — haqiqiy pul), `test_loyiha_forma.js` (tanada `total_budget` yo'q), `test_tana_qatiy.py` (parol oynasi),
+  `test_toshkent_korinish.py` (UTC sanasi — aniq namunalarda: haqiqiy sana 30.09 bo'lgan kuni ham to'g'ri),
+  `test_transport_foyda.py` U3 (bosh sahifa «Chiqim» — yagona `/api/finance/pul-oqimi` manbasidan).
 - (kech115) A bosqich 1-qism: kirim (takror qator, sana / muddat chegaralari va pul yozuvlari sanasi, sahifa ssenariylari —
   yo'nalishsiz bosish, tarmoq uzilishi, takror / chala qator, boshlang'ich ombor, o'tgan sana, K115-1 — SQLite, PG):
   `tools/test_kirim_a115.py`; Qarzdorlar (bo'sh summa, «Butun qarz», kechiriladigan summa, tasdiq), «Tayyor» (rad, tarmoq,
@@ -663,9 +719,9 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
 - (kech114) «Sof foyda» — BITTA raqam: Moliyadagi sof foyda asosiy; bo'lingan hisobot (yo'nalishlar) aynan shuni bo'ladi
   (yig'indisi teng).
 - (kech114) «Pul oqimi» — HAQIQIY pul: kirim — shu oy mijozlardan olingan to'lovlar, chiqim — haqiqatda to'langan pul (xarid,
-  oylik, xarajat).
+  oylik, xarajat). BAJARILDI kech116 (4-bo'lim «Pul oqimi va kassa»).
 - (kech114) «Loyiha qiymati» — buyurtmalardan: qiymat = loyiha buyurtmalari yig'indisi, qarz = buyurtmalar qarzi (byudjet
-  maydoni kerak emas).
+  maydoni kerak emas). BAJARILDI kech116 (4-bo'lim «Loyiha qiymati»).
 - (kech114, 00:08) Gips — moliyadan BUTUNLAY olib tashlanadi; har yo'nalishning o'z foyda hisobi — «Ha, alohida»; yo'nalishlarni
   egasi o'zi nomlaydi va guruhlaydi (har mahsulot turi bittasiga; penoplast detallari — «Penoplast»); umumiy xarajatlar (ijara,
   svet, soliq, umumiy hodimlar) — daromad ulushiga qarab; kassa — BITTA.
@@ -886,6 +942,20 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
   ushlaydi — soxta konstruktorni `beforeParse` da emas, resurs yuklovchi orqali CDN manzili o'rnida bering.
 - (kech115) Sahifadagi so'rov hisoblagichi URL prefiksi bilan (`/api/orders`) boshqa marshrutlarni ham sanaydi
   (`/api/orders/5/ready`) — aniq yo'l yoki `?` bilan solishtiring.
+- (kech116) `uvicorn --proxy-headers --forwarded-allow-ips='*'` (0.30.6) `X-Forwarded-For` ning ENG CHAP (mijoz yozadigan)
+  manzilini oladi — IP cheklovini soxta sarlavha bilan aylanib o'tish mumkin; haqiqiy IP — `auth.mijoz_ip` (O'LCHANGAN manba kodi).
+  Testda IP bo'yicha cheklov hisoblari aralashmasin — `TestClient(..., client=(ip, port))` (har bo'lim o'z manzili).
+- (kech116) Sahifa `toLocaleString('ru-RU')` bo'shlig'i — NBSP (U+00A0); jsdom `textContent` ni `\s+` bilan normallashtirsangiz,
+  kutilgan satrni ham normallashtiring (aks holda «1 565 000» ≠ «1 565 000»).
+- (kech116) Eski test ma'lum formulani matn sifatida tekshirsa (`test_naqd_kassa` H5 — bosh sahifa «Chiqim» formulasi) va egasi
+  qarori formulani o'zgartirsa — test yangi qarorga MOSLANADI (izoh bilan), eski formulani saqlash uchun kod o'zgartirilmaydi.
+- (kech116) Testdagi uvicorn (`uvicorn.Config` standarti — `proxy_headers=True`, 127.0.0.1 ga ishonadi) ulanish 127.0.0.1
+  bo'lganda `X-Forwarded-For` ni O'ZI almashtiradi — `request.client.host` ga qaytgan kod ham testda «to'g'ri» IP ko'rsatadi
+  (mutatsiya ushlanmadi). Jonlida (Railway, proksi 100.64.x — uvicorn ishonmaydi) almashtirish yo'q — testda
+  `proxy_headers=False` (jonlidagi kabi).
+- (kech116) Python `max(-0.0, 0.0)` → `-0.0` (teng qiymatlarda BIRINCHISI qaytadi) — JSON da «-0.0»; pul qiymatini ishora
+  sharti bilan (`x if x > 0 else 0.0`) yoki `pul_tiyin` bilan chiqaring. Jinja `{{ float }}` — «220000.0», `Numeric` ustuni —
+  «220000.00»: `data-*` atributlari `'%.2f'|format(...)` bilan (eski testlar va JS `parseFloat` uchun bir xil).
 
 ## 9. Xarita (AVTOMATIK)
 
@@ -971,7 +1041,7 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 ### `GET /dashboard` → `main.py:dashboard_page` → `templates/dashboard.html`
 - Qorovul: auth.admin_or_financier
 - Server chaqiruvlari: auth.company_id_of, services.get_dashboard_stats
-- `dashboard.html` API: `/api/admin/advance-requests/{}/confirm`, `/api/admin/advance-requests/{}/reject`, `/api/admin/pending-advance-requests`, `/api/dashboard/charts`, `/api/dashboard/debts`, `/api/dashboard/deliveries`, `/api/dashboard/production-periods`, `/api/dashboard/stats`, `/api/dashboard/today`, `/api/dashboard/today-tasks`, `/api/dashboard/top-finished-products`, `/api/finance/report`, `/api/finished/stats`, `/api/inventory/purchase-stats`, `/api/obligations/status`, `/api/reports/brak-tahlil`, `/api/returns/stats`, `/api/suppliers`, `/api/suppliers/debt-total`, `/api/suppliers/due-dates`, `/api/transport-stats`
+- `dashboard.html` API: `/api/admin/advance-requests/{}/confirm`, `/api/admin/advance-requests/{}/reject`, `/api/admin/pending-advance-requests`, `/api/dashboard/charts`, `/api/dashboard/debts`, `/api/dashboard/deliveries`, `/api/dashboard/production-periods`, `/api/dashboard/stats`, `/api/dashboard/today`, `/api/dashboard/today-tasks`, `/api/dashboard/top-finished-products`, `/api/finance/pul-oqimi`, `/api/finance/report`, `/api/finished/stats`, `/api/inventory/purchase-stats`, `/api/obligations/status`, `/api/reports/brak-tahlil`, `/api/returns/stats`, `/api/suppliers`, `/api/suppliers/debt-total`, `/api/suppliers/due-dates`, `/api/transport-stats`
 
 ### `GET /debts` → `main.py:debts_page` → `templates/debts.html`
 - Qorovul: auth.admin_or_financier
@@ -980,7 +1050,7 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 
 ### `GET /finance` → `main.py:finance_page` → `templates/finance.html`
 - Qorovul: auth.admin_or_financier
-- `finance.html` API: `/api/finance/cash-balance`, `/api/finance/cash-transaction`, `/api/finance/cash-transactions`, `/api/finance/daily`, `/api/finance/debt-summary`, `/api/finance/report`, `/api/finance/report-pdf`, `/api/finance/split-profit-pdf`, `/api/finance/transactions`, `/api/finance/transactions/{}`, `/api/inventory/kpi`
+- `finance.html` API: `/api/finance/cash-balance`, `/api/finance/cash-transaction`, `/api/finance/cash-transactions`, `/api/finance/daily`, `/api/finance/debt-summary`, `/api/finance/pul-oqimi`, `/api/finance/report`, `/api/finance/report-pdf`, `/api/finance/split-profit-pdf`, `/api/finance/transactions`, `/api/finance/transactions/{}`, `/api/inventory/kpi`
 
 ### `GET /finished` → `main.py:finished_page` → `templates/finished.html`
 - Qorovul: auth.admin_warehouse_or_manager
@@ -998,7 +1068,7 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 
 ### `POST /hodim/login` → `main.py:hodim_login_submit` → `templates/hodim_login.html`
 - Qorovul: — (tanada tekshiriladi yoki ochiq)
-- Server chaqiruvlari: auth.create_employee_session, crud.authenticate_employee, crud.check_login_rate_limit, crud.log_login_attempt, crud.resolve_company_by_code
+- Server chaqiruvlari: auth.create_employee_session, auth.mijoz_ip, crud.authenticate_employee, crud.check_login_rate_limit, crud.log_login_attempt, crud.resolve_company_by_code
 
 ### `GET /inventory` → `main.py:inventory_page` → `templates/inventory.html`
 - Qorovul: auth.inventory_view
@@ -1019,7 +1089,7 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 
 ### `POST /login` → `main.py:login_submit` → `templates/login.html`
 - Qorovul: — (tanada tekshiriladi yoki ochiq)
-- Server chaqiruvlari: auth.create_session, auth.verify_and_upgrade_password, crud.check_login_rate_limit, crud.log_login_attempt
+- Server chaqiruvlari: auth.create_session, auth.mijoz_ip, auth.verify_and_upgrade_password, crud.check_login_rate_limit, crud.log_login_attempt
 
 ### `GET /logs` → `main.py:logs_page` → `templates/logs.html`
 - Qorovul: auth.admin_only
@@ -1052,7 +1122,7 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 
 ### `GET /reports` → `main.py:reports_page` → `templates/reports.html`
 - Qorovul: auth.admin_or_financier
-- `reports.html` API: `/api/dashboard/top-finished-products`, `/api/finance/history`, `/api/finance/report`, `/api/finished`, `/api/inventory`, `/api/inventory/kpi`, `/api/masters/kpi-report`, `/api/reports/alerts`, `/api/reports/business-health`, `/api/reports/comparison`, `/api/reports/forecast`, `/api/reports/top-customers`, `/api/reports/top-materials`, `/api/reports/top-suppliers`
+- `reports.html` API: `/api/dashboard/top-finished-products`, `/api/finance/cash-balance`, `/api/finance/history`, `/api/finance/pul-oqimi`, `/api/finance/report`, `/api/finished`, `/api/inventory`, `/api/inventory/kpi`, `/api/masters/kpi-report`, `/api/reports/alerts`, `/api/reports/business-health`, `/api/reports/comparison`, `/api/reports/forecast`, `/api/reports/top-customers`, `/api/reports/top-materials`, `/api/reports/top-suppliers`
 
 ### `GET /returns` → `main.py:returns_page` → `templates/returns.html`
 - Qorovul: auth.manager_or_warehouse
@@ -1136,7 +1206,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `GET /api/employees/{employee_id}/monthly-adjustment` → `main.py:api_get_employee_adjustment` · 🔒 auth.admin_only · auth.company_id_of, auth.employee_of_company, crud.get_employee_monthly_adjustment
 - `POST /api/employees/{employee_id}/monthly-adjustment` → `main.py:api_set_employee_adjustment` · 🔒 auth.admin_only · auth.company_id_of, auth.employee_of_company, crud._clean_oylik_tuzatish, crud.set_employee_monthly_adjustment
 
-#### `/api/finance` (15)
+#### `/api/finance` (16)
 - `GET /api/finance/cash-balance` → `main.py:api_get_cash_balance` · 🔒 auth.admin_or_financier · auth.company_id_of, services.get_cash_balance
 - `POST /api/finance/cash-transaction` → `main.py:api_record_cash_transaction` · 🔒 auth.admin_only · auth.company_id_of, crud.record_cash_transaction, services.get_cash_balance
 - `GET /api/finance/cash-transactions` → `main.py:api_get_cash_transactions` · 🔒 auth.admin_or_financier · auth.company_id_of, crud.get_cash_transactions
@@ -1145,6 +1215,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `GET /api/finance/debt-summary` → `main.py:api_finance_debt_summary` · 🔒 auth.admin_or_financier · auth.company_id_of, services.get_full_debt_summary
 - `POST /api/finance/expense` → `main.py:api_save_expense` · 🔒 auth.admin_or_financier
 - `GET /api/finance/history` → `main.py:api_finance_history` · 🔒 auth.admin_or_financier · auth.company_id_of, services.get_finance_history
+- `GET /api/finance/pul-oqimi` → `main.py:api_finance_pul_oqimi` · 🔒 auth.admin_or_financier · auth.company_id_of, crud._query_butun, services.get_pul_oqimi
 - `GET /api/finance/report` → `main.py:api_finance_report` · 🔒 auth.admin_or_financier · auth.company_id_of, services.get_monthly_report
 - `GET /api/finance/report-pdf` → `main.py:api_finance_report_pdf` · 🔒 auth.admin_or_financier · auth.company_id_of, crud.get_brak_material_summary, crud.get_expense_transactions, finance_pdf.generate_finance_report_pdf, services.get_full_debt_summary, services.get_monthly_report
 - `GET /api/finance/split-profit-pdf` → `main.py:api_split_profit_pdf` · 🔒 auth.admin_or_financier · auth.company_id_of, finance_pdf.generate_split_profit_pdf, services.calculate_split_profit_report
@@ -1255,7 +1326,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `POST /api/orders/coating-notify-new` → `main.py:api_coating_notify_with_loy` · 🔒 auth.admin_or_manager
 - `POST /api/orders/mark-all-ready` → `main.py:api_mark_all_ready` · 🔒 auth.admin_or_manager
 - `GET /api/orders/pinned` → `main.py:api_get_pinned_orders` · 🔒 auth.admin_or_manager · auth.company_id_of, crud.get_pinned_orders
-- `GET /api/orders/{order_id}` → `main.py:api_get_order` · 🔒 auth.admin_or_manager · auth.company_id_of, crud.get_order, crud.pul_qaytarish_kamaytirgan, crud.qaytarish_birlik_narxi, crud.qaytarish_narx_koeffitsienti, production_service.get_order_mrp_readiness, services.get_order_item_unit_cost
+- `GET /api/orders/{order_id}` → `main.py:api_get_order` · 🔒 auth.admin_or_manager · auth.company_id_of, crud.buyurtma_hisob_qatorlari, crud.get_order, crud.pul_qaytarish_kamaytirgan, crud.qaytarish_birlik_narxi, crud.qaytarish_narx_koeffitsienti, production_service.get_order_mrp_readiness, services.get_order_item_unit_cost
 - `PUT /api/orders/{order_id}` → `main.py:api_update_order` · 🔒 auth.admin_or_manager · auth.company_id_of, auth.order_of_company, crud._query_loy, crud.get_low_stock_items, crud.get_order, crud.update_order_full, crud.update_order_loy
 - `DELETE /api/orders/{order_id}` → `main.py:api_delete_order` · 🔒 auth.admin_or_manager · auth.company_id_of, crud._pul_qulfi, crud._query_loy, crud._return_finished_for_order, crud.bitta_tranzaksiya, crud.delete_order, crud.get_order, crud.ochirishda_topshirilganni_yopish, crud.ochirishda_yopiladimi, crud.ochirishda_yumshoqmi, services._get_planned_loy, services.buyurtmadan_qisman_chiqqan, services.deduct_loy_ingredients, services.loy_manba_ochirish_boshla, services.loy_manba_rejimi, services.loy_relevant_remaining_fraction, services.return_inventory_for_order, services.return_inventory_for_order_partial, services.return_loy_ingredients
 - `POST /api/orders/{order_id}/activate` → `main.py:api_activate_draft` · 🔒 auth.admin_or_manager · auth.company_id_of, auth.order_of_company, crud.activate_draft_order
@@ -1427,7 +1498,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 #### `/hodim` (4)
 - `GET /hodim` → `main.py:hodim_panel` · 🔓 · auth.get_current_employee
 - `GET /hodim/login` → `main.py:hodim_login_page` · 🔓 · auth.get_current_employee
-- `POST /hodim/login` → `main.py:hodim_login_submit` · 🔓 · auth.create_employee_session, crud.authenticate_employee, crud.check_login_rate_limit, crud.log_login_attempt, crud.resolve_company_by_code
+- `POST /hodim/login` → `main.py:hodim_login_submit` · 🔓 · auth.create_employee_session, auth.mijoz_ip, crud.authenticate_employee, crud.check_login_rate_limit, crud.log_login_attempt, crud.resolve_company_by_code
 - `GET /hodim/logout` → `main.py:hodim_logout` · 🔓 · auth.delete_employee_session
 
 #### `/inventory` (1)
@@ -1441,7 +1512,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 
 #### `/login` (2)
 - `GET /login` → `main.py:login_page` · 🔓 · auth.get_current_user
-- `POST /login` → `main.py:login_submit` · 🔓 · auth.create_session, auth.verify_and_upgrade_password, crud.check_login_rate_limit, crud.log_login_attempt
+- `POST /login` → `main.py:login_submit` · 🔓 · auth.create_session, auth.mijoz_ip, auth.verify_and_upgrade_password, crud.check_login_rate_limit, crud.log_login_attempt
 
 #### `/logout` (1)
 - `GET /logout` → `main.py:logout` · 🔓 · auth.delete_session
@@ -1504,7 +1575,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 #### `/ustalar` (1)
 - `GET /ustalar` → `main.py:masters_manage_page` · 🔒 auth.admin_or_manager
 
-Jami marshrutlar: 286 (main.py: 259, production_routes.py: 19, saas_migration.py: 8).
+Jami marshrutlar: 287 (main.py: 260, production_routes.py: 19, saas_migration.py: 8).
 <!-- AVTO:API OXIRI -->
 
 ### 9.5 Jadvallar
@@ -1576,6 +1647,10 @@ Tavsif — faylning birinchi izoh xatboshisi.
 
 - `test_a115_korinish.py` · PG — kech115, A bosqich, ko'rinish guruhi: G3-10 / G1-04 (manfiy raqamlar), G1-01 (o'tgan oy 0 — «100 % oshdi»), G1-06 («Korxona sog'ligi»), G4-06 («Kam» filtri). Server funksiyala…
 - `test_a115_ui.py` · PG — kech115, A bosqich (pul va ma'lumot xatolari): «Qarzdorlar», «Buyurtmalar», «O'chirilganlar» sahifalari — HAQIQIY sahifalar (server bergan HTML, shablon + base.html skriptlari) jsdo…
+- `test_a116_kirish.py` · PG — kech116, A bosqich 2-qism: U-01 (mijozning HAQIQIY IP manzili, kirish cheklovi) va G6-06 (parol / PIN almashtirilganda o'sha odamning boshqa kirishlari yopiladi). Server qismi;…
+- `test_a116_pdf.py` · PG — kech116, A bosqich 2-qism, G2-04: buyurtma pul hisobi qatorlari — YAGONA qoida (`crud.buyurtma_hisob_qatorlari`), uchala mijoz hujjati (yuk xati, hisob-kitob varaqasi, buyurtma nak…
+- `test_a116_pul.py` · PG — kech116, A bosqich 2-qism: G1-03 («Pul oqimi» — HAQIQIY pul, egasi QARORI kech114) va G1-02 («Xarajat» — BITTA ta'rif, «Tannarx» alohida). Server qismi: `services.get_pul_oqimi` /…
+- `test_a116_ui.py` · PG — kech116, A bosqich 2-qism: sahifalar (HAQIQIY server — uvicorn, sahifalar — jsdom, sahifaning O'Z JavaScript'i). Server qoidalari — `tools/test_a116_pdf.py`, `tools/test_a116_pul.py…
 - `test_asosiy_penoplast.py` · PG — 18-band (K37-1) darvozasi (kech37, 2026-09-23).
 - `test_atomik_103.py` · PG — kech84 darvozasi (2026-09-27, 103-band): YOZADIGAN endpointlar atomik — nosozlik bo'lsa baza O'ZGARMAYDI, qayta urinish ishni BIR marta bajaradi.
 - `test_atomik_tolov.py` · PG — kech99 (2026-09-27), probe103 QOLDIG'I (G, H, I).
@@ -1739,5 +1814,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 164 (Python 134, JS 30).
+Jami test fayllari: 168 (Python 138, JS 30).
 <!-- AVTO:TESTLAR OXIRI -->

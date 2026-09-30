@@ -1644,6 +1644,31 @@ def get_projects_dashboard_stats(db: Session, company_id: int = None) -> dict:
     }
 
 
+def loyiha_pul_hisobi(orders) -> dict:
+    """kech116 (G2-01 — egasi QARORI kech114 «Loyiha qiymati — buyurtmalardan», O'LCHANGAN audit: Loyihalar sahifasidagi
+    «Loyiha qiymati», «Qolgan to'lov», «N% to'langan» va «Moliya» yorlig'idagi «Qarz» qo'lda yoziladigan «Byudjet»
+    maydonidan edi (odatda 0) — 3 buyurtmasida 764 000 qarzi bor loyiha «Qiymati 0, Qolgan to'lov 0» (yashil) ko'rinardi,
+    60 loyihaning hammasi «0 so'm»). Loyiha pul hisobi — BUYURTMALARDAN (byudjet maydoni kerak emas):
+
+      qiymat   = buyurtmalar kelishilgan summalari yig'indisi,
+      to'langan = shu buyurtmalar to'lovlari (sof — qaytarilgan pul ayrilgan),
+      qarz     = shu buyurtmalar qarzlari (`Order.debt_amount` — Qarzdorlar / Buyurtmalar sahifasi bilan bir qoida),
+      ortiqcha = ortiqcha to'langan (mijozga qaytarilishi kerak) buyurtmalar yig'indisi.
+
+    Qaysi buyurtmalar: Qarzdorlar sharti (`qarz_hisobidagi_buyurtma_sharti`, 134-band «A» — o'chirilmagan YOKI o'chirilgan,
+    lekin READY / DELIVERED), qoralama (hali buyurtma emas — K100-5) va bekor qilingan — KIRMAYDI. Tiyin aniqligida."""
+    tanlangan = [o for o in (orders or [])
+                 if (not o.is_deleted or o.status in (OrderStatus.READY, OrderStatus.DELIVERED))
+                 and o.status not in (OrderStatus.DRAFT, OrderStatus.CANCELLED)]
+    qiymat = pul_tiyin_yigindi(o.kelishilgan_summa for o in tanlangan)
+    tolangan = pul_tiyin_yigindi(o.paid_amount for o in tanlangan)
+    qarz = pul_tiyin_yigindi(o.debt_amount for o in tanlangan)
+    ortiqcha = pul_tiyin_yigindi(o.ortiqcha_tolov for o in tanlangan)
+    foiz = min(100, round(tolangan / qiymat * 100)) if qiymat > 0 else 0
+    return {"qiymat": qiymat, "tolangan": tolangan, "qarz": qarz, "ortiqcha": ortiqcha, "foiz": max(0, foiz),
+            "soni": len(tanlangan)}
+
+
 def get_projects_with_stats(db: Session, company_id: int = None) -> List:
     """Loyihalar + buyurtmalar summasi + qarz hisobi (orders ham qo'shilgan)."""
     from sqlalchemy.orm import selectinload as _sil_ps
@@ -1652,23 +1677,24 @@ def get_projects_with_stats(db: Session, company_id: int = None) -> List:
         _pq = _pq.filter(Project.company_id == company_id)
     # kech97 (116-band, O'LCHANGAN `work/probe116.py`): `p.orders` loyiha boshiga alohida so'rov edi (+10 loyiha —
     # +10 so'rov); endi bitta IN so'rovi (tartib — `Project.orders` order_by=id).
-    projects = _pq.options(_sil_ps(Project.orders)).order_by(Project.start_date.desc()).all()
+    # kech116 (G2-01): loyiha pul hisobi buyurtma to'lovlarini o'qiydi — to'lovlar ham bitta IN so'rovi (N+1 emas)
+    projects = _pq.options(_sil_ps(Project.orders).selectinload(Order.payments)).order_by(Project.start_date.desc()).all()
     for p in projects:
         # kech98 (130-band, O'LCHANGAN `work/probe130.py`): kartadagi "N ta buyurtma" yumshoq o'chirilganlarni ham
         # sanardi (3), loyihaning "Buyurtmalar" yorlig'i (`get_orders`) va detali (`total_orders`) — 2. Endi soni —
         # o'chirilmaganlar (yorliq bilan bir xil); summa — moliyaviy tarix (o'chirilganlar ham, avvalgidek).
         orders_count = sum(1 for o in (p.orders or []) if not o.is_deleted)
         orders_sum = sum(float(o.total_amount or 0) for o in (p.orders or []))
-        budget = float(p.total_budget or 0)
-        paid = float(p.total_paid or 0)
-        actual = budget if budget > 0 else orders_sum
-        debt = actual - paid
+        # kech116 (G2-01, QAROR «Loyiha qiymati — buyurtmalardan»): qiymat / to'langan / qarz — `loyiha_pul_hisobi`
+        # (ilgari: byudjet > 0 bo'lsa byudjet, aks holda buyurtmalar JAMI summasi (chegirmasiz) − `total_paid`).
+        pul = loyiha_pul_hisobi(p.orders or [])
 
         # Atributlar qo'shamiz (template uchun)
         p.orders_count = orders_count
         p.orders_sum = orders_sum
-        p.debt = debt
-        p.actual_sum = actual
+        p.pul = pul
+        p.debt = pul["qarz"]
+        p.actual_sum = pul["qiymat"]
     return projects
 
 
@@ -4665,11 +4691,15 @@ def log_login_attempt(db: Session, username: str, success: bool, ip_address: str
 
 
 def check_login_rate_limit(db: Session, username: str, ip_address: str = None,
-                            max_attempts: int = 5, window_minutes: int = 15) -> dict:
-    """Rate limit — oxirgi `window_minutes` daqiqada, shu username YOKI shu
-    IP manzildan `max_attempts` martadan ko'p MUVAFFAQIYATSIZ urinish
-    bo'lgan bo'lsa, kirishni bloklaydi. Mavjud LoginHistory jadvalidan
-    foydalanadi — yangi jadval kerak emas.
+                            max_attempts: int = 5, window_minutes: int = 15, ip_max_attempts: int = 20) -> dict:
+    """Rate limit — oxirgi `window_minutes` daqiqada, shu username bo'yicha `max_attempts` YOKI shu IP manzildan
+    `ip_max_attempts` martadan ko'p MUVAFFAQIYATSIZ urinish bo'lgan bo'lsa, kirishni bloklaydi. Mavjud LoginHistory
+    jadvalidan foydalanadi — yangi jadval kerak emas.
+
+    kech116 (U-01): IP chegarasi 5 → 20 (foydalanuvchi nomi — 5, o'zgarmadi). Sabab (O'LCHANGAN): bitta ofis / bitta
+    uyali operator NAT i ortidagi hamma xodim bitta IP da — bitta xodimning 5 xatosi butun ofisni 15 daqiqa kiritmay
+    qo'yardi (ilgari esa IP Railway proksisiniki edi — hamma korxonani). Parol terish hujumi baribir: bitta hisobga — 5,
+    bitta IP dan turli hisoblarga — 20 urinish.
 
     Qaytaradi: {"blocked": bool, "retry_after_minutes": int}"""
     from models import LoginHistory
@@ -4697,8 +4727,7 @@ def check_login_rate_limit(db: Session, username: str, ip_address: str = None,
     by_username = _uq.count()
     by_ip = q.filter(LoginHistory.ip_address == ip_address).count() if ip_address else 0
 
-    attempts = max(by_username, by_ip)
-    if attempts >= max_attempts:
+    if by_username >= max_attempts or by_ip >= ip_max_attempts:
         return {"blocked": True, "retry_after_minutes": window_minutes}
     return {"blocked": False, "retry_after_minutes": 0}
 
@@ -5601,6 +5630,85 @@ def pul_qaytarish_kamaytirgan(db: Session, order) -> float:
         ReturnItem.is_refunded.is_(True),
         ReturnItem.refunded_at.isnot(None)).all()
     return float(sum(float(r.refund_agreed_delta or 0) for r in _qaytganlar))
+
+
+def buyurtma_hisob_qatorlari(db: Session, order, qaytarish: float = None) -> dict:
+    """kech116 (G2-04, O'LCHANGAN — audit kech114: mijozga beriladigan «Yuk xati» va «Hisob-kitob varaqasi» da
+    «Buyurtma jami 900 000 − To'langan 600 000», lekin «QARZ QOLDI 264 000» — 36 000 so'mlik qaytarish hech qayerda
+    yozilmagan (chegirma qatori faqat `discount_percent > 0` bo'lsa chiqardi); buyurtma PDF i esa shu qaytarishni
+    «Chegirma» derdi; hisob-kitob varaqasida «Berilgan mahsulot» qatori summalar orasida turardi). Buyurtma pul
+    hisobining YAGONA qatorlari — uchala PDF va buyurtma oynasi (`/api/orders/{id}` → `hisob`) shundan:
+
+        Buyurtma jami − Chegirma (yoki + Ustama) − Qaytarish − Kechirilgan qarz = Kelishilgan summa
+        Kelishilgan summa − To'langan = Qarz qoldi (yoki Ortiqcha to'langan)
+
+    Tarkib (O'LCHANGAN — `Order` va `crud` qoidalari): kelishilgan summa = narx kelishuvi − to'lovda kechirilgan qarz
+    (`Order.kechirilgan_qarz`, K110-1) − pul qaytarish kamaytirishi (`pul_qaytarish_kamaytirgan`, 28-band); narx
+    chegirmasi (ustama — manfiy) = jami − shu uchalasining yig'indisi. Yangilanishdan oldingi (kech40 dan oldin, qancha
+    kamaytirgani yozilmagan) qaytarish ajratib bo'lmaydi — u chegirmada qoladi (taxmin qilinmaydi). To'langan — sof
+    (mijozga qaytarilgan pul — manfiy to'lov — ayrilgan), qarz va ortiqcha — `Order.debt_amount` / `ortiqcha_tolov`
+    qoidasi (tiyin, yarim so'm bardoshi). `qaytarish` — chaqiruvchi `pul_qaytarish_kamaytirgan` ni allaqachon o'qigan
+    bo'lsa (buyurtma oynasi API si) — qayta so'rov qilinmaydi.
+
+    `korinish` — hujjat va oynada ko'rsatiladigan BUTUN so'mlar (HALF_UP): jami, qaytarish, kechirilgan, to'langan —
+    o'z qiymati; kelishilgan — o'z qiymati (qarz bardosh ichida bo'lsa — to'langanga teng); chegirma / ustama va
+    qarz / ortiqcha — shu butun sonlardan AYIRMA, shuning uchun hujjatdagi qatorlar DOIM qo'shilib chiqadi (tiyinli
+    summalarda alohida yaxlitlash 1 so'm farq berardi). `qatorlar` — shu ko'rinish qiymatlari bilan. Faqat o'qiydi."""
+    from decimal import Decimal as _D116, ROUND_HALF_UP as _HU116
+
+    def _som(v):
+        return int(_D116(repr(float(v or 0))).quantize(_D116("1"), rounding=_HU116))
+
+    jami = pul_tiyin(float(order.total_amount or 0))
+    if qaytarish is None:
+        qaytarish = pul_qaytarish_kamaytirgan(db, order) if db is not None else 0.0
+    qaytarish = pul_tiyin(qaytarish)
+    kechirilgan = pul_tiyin(order.kechirilgan)
+    kelishilgan = pul_tiyin(order.kelishilgan_summa)
+    narx_farqi = pul_tiyin(jami - kelishilgan - qaytarish - kechirilgan)     # > 0 — chegirma, < 0 — ustama
+    tolangan = pul_tiyin(order.paid_amount)
+    qarz = float(order.debt_amount or 0) + 0.0
+    ortiqcha = float(order.ortiqcha_tolov or 0) + 0.0
+
+    J, Q, K, T = _som(jami), _som(qaytarish), _som(kechirilgan), _som(tolangan)
+    if qarz > 0:
+        L = _som(kelishilgan)
+        QZ, OR = max(L - T, 0), 0
+    elif ortiqcha > 0:
+        L = _som(kelishilgan)
+        QZ, OR = 0, max(T - L, 0)
+    else:
+        L, QZ, OR = T, 0, 0          # qoldiq yarim so'm bardoshi ichida — qarz yo'q (Order.debt_amount)
+    NF = J - Q - K - L                   # ko'rsatiladigan narx farqi (> 0 — chegirma, < 0 — ustama)
+    chegirma_foiz = round(narx_farqi / jami * 100.0, 2) if (jami > 0 and narx_farqi > 0) else 0.0
+
+    qatorlar = [{"kalit": "jami", "nom": "Buyurtma jami", "summa": J, "ishora": ""}]
+    if NF > 0:
+        qatorlar.append({"kalit": "chegirma", "nom": f"Chegirma ({chegirma_foiz:g}%)" if chegirma_foiz else "Chegirma",
+                         "summa": NF, "ishora": "-"})
+    elif NF < 0:
+        qatorlar.append({"kalit": "ustama", "nom": "Ustama", "summa": -NF, "ishora": "+"})
+    if Q:
+        qatorlar.append({"kalit": "qaytarish", "nom": "Qaytarish (qaytgan mahsulot)", "summa": Q, "ishora": "-"})
+    if K:
+        qatorlar.append({"kalit": "kechirilgan", "nom": "Kechirilgan qarz", "summa": K, "ishora": "-"})
+    if len(qatorlar) > 1:
+        qatorlar.append({"kalit": "kelishilgan", "nom": "Kelishilgan summa", "summa": L, "ishora": ""})
+    qatorlar.append({"kalit": "tolangan", "nom": "To'langan", "summa": T, "ishora": ""})
+    if OR > 0:
+        qatorlar.append({"kalit": "ortiqcha", "nom": "ORTIQCHA TO'LANGAN", "summa": OR, "ishora": ""})
+    else:
+        qatorlar.append({"kalit": "qarz", "nom": "QARZ QOLDI", "summa": QZ, "ishora": ""})
+    return {
+        # ishora sharti bilan (`max(-0.0, 0.0)` → −0.0 — javobda «-0.0» shovqini, test_qarz_tiyin C17)
+        "jami": jami, "chegirma": narx_farqi if narx_farqi > 0 else 0.0, "ustama": -narx_farqi if narx_farqi < 0 else 0.0,
+        "chegirma_foiz": chegirma_foiz,
+        "qaytarish": qaytarish, "kechirilgan": kechirilgan, "kelishilgan": kelishilgan, "tolangan": tolangan,
+        "qarz": qarz, "ortiqcha": ortiqcha,
+        "korinish": {"jami": J, "chegirma": max(NF, 0), "ustama": max(-NF, 0), "qaytarish": Q, "kechirilgan": K,
+                     "kelishilgan": L, "tolangan": T, "qarz": QZ, "ortiqcha": OR},
+        "qatorlar": qatorlar,
+    }
 
 
 def qaytarish_narx_koeffitsienti(db: Session, order) -> float:
@@ -12132,6 +12240,13 @@ def set_employee_login(db: Session, emp_id: int, phone: str, pin: str) -> Option
         return None
     emp.phone = phone.strip()
     emp.pin_hash = auth.hash_pin(pin.strip())
+    # kech116 (G6-06, O'LCHANGAN — audit: PIN almashtirilgach eski kirish 14 kungacha ishlardi): hodimning HAMMA panel
+    # sessiyalari PIN bilan BITTA tranzaksiyada o'chiriladi — yangi PIN bilan qayta kiradi.
+    from models import EmployeeSession as _ES116
+    db.query(_ES116).filter(
+        _ES116.employee_id == emp.id,
+        _ES116.employee_id.in_(db.query(Employee.id).filter(Employee.company_id == emp.company_id)),
+    ).delete(synchronize_session=False)
     db.commit()
     db.refresh(emp)
     return emp

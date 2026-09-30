@@ -3122,7 +3122,7 @@ async def login_page(request: Request, b: str = "", db: Session = Depends(get_db
 async def login_submit(request: Request, username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
     from models import User
     username = username.strip()
-    ip = request.client.host if request.client else None
+    ip = auth.mijoz_ip(request)     # kech116 (U-01): haqiqiy mijoz manzili (Railway proksisi emas)
     ua = request.headers.get("user-agent", "")[:250]
 
     rl = crud.check_login_rate_limit(db, username, ip)
@@ -3366,7 +3366,7 @@ def api_toggle_user(user_id: int, db: Session = Depends(get_db), current_user=De
 
 
 @app.post("/api/users/{user_id}/password")
-def api_change_password(user_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_change_password(user_id: int, data: dict, request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     # kech93 (8-band): xom JSON QAT'IY (`crud._clean_val("UserPassword")`).
     # O'LCHANGAN: `new_password` `true` / son / ro'yxat / `null` → 500; o'z
     # parolida `current_password` son / ro'yxat / `true` → 500; noma'lum kalit
@@ -3393,10 +3393,13 @@ def api_change_password(user_id: int, data: dict, db: Session = Depends(get_db),
         if not auth.verify_and_upgrade_password(db, current_user, eski):
             raise HTTPException(status_code=400, detail="Joriy parol noto'g'ri")
 
+    # kech116 (G6-06): shu foydalanuvchining boshqa sessiyalari o'chiriladi; o'z parolini almashtirgan odamning JORIY
+    # sessiyasi qoladi (boshqa qurilmalardagi kirishlari yopiladi).
+    _joriy = request.cookies.get("session_token") if user_id == current_user.id else None
     if not auth.change_password(db, user_id, new_pass,
-                                company_id=auth.company_id_of(current_user)):
+                                company_id=auth.company_id_of(current_user), saqlanadigan_token=_joriy):
         raise HTTPException(status_code=404, detail="Topilmadi")
-    return {"status": "ok"}
+    return {"status": "ok", "sessiyalar_yopildi": True}
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -4312,7 +4315,7 @@ async def hodim_login_page(request: Request, b: str = "", db: Session = Depends(
 @app.post("/hodim/login")
 async def hodim_login_submit(request: Request, phone: str = Form(...), pin: str = Form(...),
                               korxona: str = Form(""), db: Session = Depends(get_db)):
-    ip = request.client.host if request.client else None
+    ip = auth.mijoz_ip(request)     # kech116 (U-01): haqiqiy mijoz manzili (Railway proksisi emas)
     ua = request.headers.get("user-agent", "")[:250]
 
     rl = crud.check_login_rate_limit(db, phone, ip)
@@ -5322,6 +5325,9 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
         "kelishilgan_asl": round(order.kelishilgan_summa + _qkam, 2),
         # kech110 (K110-1): to'lovda kechirilgan qarz (so'm) — tahrir formasi kelishilgan summani shu bilan qayta hisoblaydi
         "kechirilgan_qarz": order.kechirilgan,
+        # kech116 (G2-04): pul hisobi qatorlari — PDF lar bilan YAGONA qoida (jami − chegirma − qaytarish − kechirilgan =
+        # kelishilgan; kelishilgan − to'langan = qarz), buyurtma oynasi «Hisob-kitob» bloki shundan
+        "hisob": crud.buyurtma_hisob_qatorlari(db, order, qaytarish=_qkam),
         "discount_percent": order.discount_percent or 0,
         "payment_status": order.payment_status.value if order.payment_status else "unpaid",
         "paid_amount": order.paid_amount,
@@ -6292,6 +6298,35 @@ def api_close_employee_debt(employee_id: int, year: Optional[str] = None, month:
 def api_get_cash_balance(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     """Kassa balansi — kompaniyada hozir haqiqatda qancha naqd pul bor."""
     return services.get_cash_balance(db, company_id=auth.company_id_of(current_user))
+
+
+@app.get("/api/finance/pul-oqimi")
+def api_finance_pul_oqimi(year: Optional[str] = None, month: Optional[str] = None, sana: Optional[str] = None,
+                          db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+    """kech116 (G1-03 — egasi QARORI kech114 «Pul oqimi — haqiqiy pul»): shu davrda HAQIQATDA olingan va to'langan pul
+    (`services.get_pul_oqimi` — kassa bilan BITTA qoida). Davr: `sana=YYYY-MM-DD` (Toshkent kuni) yoki `year` + `month`
+    (Toshkent oyi); hech biri berilmasa — joriy oy. Hisobotlar, Moliya, Dashboard va «Korxona sog'ligi» shundan.
+    Noto'g'ri qiymat — 400 (matn)."""
+    from database import tashkent_date as _t_sana_po
+    from datetime import date as _date_po
+    try:
+        if sana:
+            try:
+                kun = _date_po.fromisoformat(str(sana).strip())
+            except ValueError:
+                raise ValueError("'sana' YYYY-MM-DD ko'rinishida bo'lishi kerak")
+            if not (crud._YIL_KICHIK <= kun.year <= crud._YIL_KATTA):
+                raise ValueError(f"'sana' yili {crud._YIL_KICHIK}–{crud._YIL_KATTA} oralig'ida bo'lishi kerak")
+            return services.get_pul_oqimi(db, sana=kun, company_id=auth.company_id_of(current_user))
+        if year is None and month is None:
+            bugun = _t_sana_po()
+            yil, oy = bugun.year, bugun.month
+        else:
+            yil = crud._query_butun("year", year, crud._YIL_KICHIK, crud._YIL_KATTA)
+            oy = crud._query_butun("month", month, 1, 12)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return services.get_pul_oqimi(db, yil, oy, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/finance/cash-transactions")

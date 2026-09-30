@@ -60,6 +60,33 @@ def _num(n, digits=2):
         return "0"
 
 
+ORANGE = colors.HexColor("#E67E22")
+QAYTAR_RANG = colors.HexColor("#C2410C")
+
+
+def _hisob_qatorlari(order, db):
+    """kech116 (G2-04): buyurtma pul hisobi qatorlari (yuk xati va hisob-kitob varaqasi) — `crud.buyurtma_hisob_qatorlari`
+    (YAGONA qoida; buyurtma PDF i va buyurtma oynasi ham shundan). Qaytaradi: (hisob, jadval qatorlari, zarg'aldoq
+    qatorlar indekslari). Ilgari bu yerda chegirma faqat `discount_percent > 0` bo'lsa chiqardi, qaytarish va kechirilgan
+    qarz umuman yo'q edi — «Buyurtma jami − To'langan ≠ Qarz qoldi»."""
+    import crud as _crud_hq
+    h = _crud_hq.buyurtma_hisob_qatorlari(db, order)
+    rows, zargaldoq = [], []
+    for i, q in enumerate(h["qatorlar"]):
+        belgi = {"-": "− ", "+": "+ "}.get(q["ishora"], "")
+        rows.append([q["nom"] + ":", belgi + _fmt(q["summa"]) + " so'm"])
+        if q["kalit"] in ("chegirma", "ustama", "qaytarish", "kechirilgan"):
+            zargaldoq.append(i)
+    return h, rows, zargaldoq
+
+
+def _hisob_oxirgi_rang(h):
+    """Oxirgi qator rangi: qarz — qizil, ortiqcha to'langan (mijozga qaytariladi) — to'q zarg'aldoq, qarz yo'q — yashil."""
+    if (h.get("korinish") or {}).get("ortiqcha", 0) > 0:
+        return QAYTAR_RANG
+    return RED if (h.get("korinish") or {}).get("qarz", 0) > 0 else GREEN
+
+
 def generate_finished_sale_batch_pdf(sales: list, group_id: str, db=None) -> bytes:
     """Bir nechta turli tayyor mahsulot — BITTA xaridorga, BITTA Yuk xati
     sifatida. `sales` — FinishedProductSale obyektlari ro'yxati (bitta
@@ -642,18 +669,9 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
 
     # ---- Umumiy moliyaviy holat ----
     if order:
-        total_amount = float(order.total_amount or 0)
-        agreed = order.kelishilgan_summa
-        disc_pct = float(order.discount_percent or 0)
-        paid = order.paid_amount
-        debt = order.debt_amount
-
-        fin_rows = [["Buyurtma jami:", _fmt(total_amount) + " so'm"]]
-        if disc_pct > 0:
-            fin_rows.append([f"Chegirma ({disc_pct:g}%):", "-" + _fmt(total_amount - agreed) + " so'm"])
-            fin_rows.append(["Kelishilgan summa:", _fmt(agreed) + " so'm"])
-        fin_rows.append(["To'langan:", _fmt(paid) + " so'm"])
-        fin_rows.append(["QARZ QOLDI:", _fmt(debt) + " so'm"])
+        # kech116 (G2-04): qatorlar — YAGONA qoida (`_hisob_qatorlari`): jami − chegirma − qaytarish − kechirilgan =
+        # kelishilgan; kelishilgan − to'langan = qarz (yoki ortiqcha to'langan)
+        _hisob, fin_rows, _zarg = _hisob_qatorlari(order, db)
 
         fin = Table(fin_rows, colWidths=[4.2*cm, 4*cm], hAlign='RIGHT')
         fin_style = [
@@ -670,12 +688,12 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
             ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
             ('FONTSIZE', (0, -1), (-1, -1), 9.5),
             ('TEXTCOLOR', (0, -1), (0, -1), DARK),
-            ('TEXTCOLOR', (1, -1), (1, -1), RED if debt > 0 else GREEN),
+            ('TEXTCOLOR', (1, -1), (1, -1), _hisob_oxirgi_rang(_hisob)),
             ('LINEABOVE', (0, -1), (-1, -1), 1, DARK),
             ('TOPPADDING', (0, -1), (-1, -1), 5),
         ]
-        if disc_pct > 0:
-            fin_style.append(('TEXTCOLOR', (1, 1), (1, 1), colors.HexColor("#E67E22")))
+        for _qi in _zarg:
+            fin_style.append(('TEXTCOLOR', (1, _qi), (1, _qi), ORANGE))
         fin.setStyle(TableStyle(fin_style))
         el.append(fin)
         el.append(Spacer(1, sp(7)))
@@ -991,19 +1009,10 @@ def generate_summary_pdf(order, deliveries, db=None) -> bytes:
     el.append(Spacer(1, 12))
 
     # ---- Moliyaviy hisob ----
-    total_amount = float(order.total_amount or 0)
-    agreed = order.kelishilgan_summa
-    disc_pct = float(order.discount_percent or 0)
-    paid = order.paid_amount
-    debt = order.debt_amount
-
-    fin_rows = [["Buyurtma jami:", _fmt(total_amount) + " so'm"]]
-    if disc_pct > 0:
-        fin_rows.append([f"Chegirma ({disc_pct:g}%):", "-" + _fmt(total_amount - agreed) + " so'm"])
-        fin_rows.append(["Kelishilgan summa:", _fmt(agreed) + " so'm"])
-    fin_rows.append(["Berilgan mahsulot:", _fmt(grand_total) + " so'm"])
-    fin_rows.append(["To'langan:", _fmt(paid) + " so'm"])
-    fin_rows.append(["QARZ QOLDI:", _fmt(debt) + " so'm"])
+    # kech116 (G2-04): qatorlar — YAGONA qoida (`_hisob_qatorlari`). «Berilgan mahsulot» (yuk xatlaridagi mahsulot
+    # summasi) pul hisobi orasidan olindi — u yuqoridagi jadvalning «JAMI BERILGAN MAHSULOT» qatorida; hisob qatorlari
+    # endi o'zaro qo'shiladi: jami − chegirma − qaytarish − kechirilgan = kelishilgan; kelishilgan − to'langan = qarz.
+    _hisob, fin_rows, _zarg = _hisob_qatorlari(order, db)
 
     fin = Table(fin_rows, colWidths=[4.6*cm, 4.4*cm], hAlign='RIGHT')
     fin_style = [
@@ -1019,12 +1028,12 @@ def generate_summary_pdf(order, deliveries, db=None) -> bytes:
         ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
         ('FONTSIZE', (0, -1), (-1, -1), 10.5),
         ('TEXTCOLOR', (0, -1), (0, -1), DARK),
-        ('TEXTCOLOR', (1, -1), (1, -1), RED if debt > 0 else GREEN),
+        ('TEXTCOLOR', (1, -1), (1, -1), _hisob_oxirgi_rang(_hisob)),
         ('LINEABOVE', (0, -1), (-1, -1), 1.2, DARK),
         ('TOPPADDING', (0, -1), (-1, -1), 6),
     ]
-    if disc_pct > 0:
-        fin_style.append(('TEXTCOLOR', (1, 1), (1, 1), colors.HexColor("#E67E22")))
+    for _qi in _zarg:
+        fin_style.append(('TEXTCOLOR', (1, _qi), (1, _qi), ORANGE))
     fin.setStyle(TableStyle(fin_style))
     el.append(fin)
 

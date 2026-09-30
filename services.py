@@ -422,23 +422,45 @@ def get_business_health(db: Session, company_id: int = None) -> dict:
         ishlab_status, ishlab_sabab = "green", f"{_faol_soni} ta buyurtma — muddati o'tgani yo'q"
 
     _daromad = float(report.get("daromad", 0) or 0)
-    _sof = float(report.get("sof_foyda", 0) or 0)
     _jami_x = float(report.get("jami_xarajat", 0) or 0)
     _naqd_x = float(report.get("naqd_xarajat_jami", 0) or 0)
     _malumot = bool(_daromad or _jami_x or _naqd_x)
-    if not _malumot:
-        pul_status, pul_sabab = "gray", "Bu oy daromad va xarajat hali yo'q"
+    # kech116 (G1-03 — egasi QARORI kech114 «Pul oqimi — haqiqiy pul»; audit: 13.4 mln tushgan kuni «Pul oqimi — Yaxshi,
+    # 0 so'm» — baho sof foyda ishorasidan edi): baho — shu oyning HAQIQIY pul harakati (`get_pul_oqimi` — Hisobotlar,
+    # Moliya, Dashboard bilan BITTA qoida). Kirim ≥ chiqim — yashil; chiqim ko'p, lekin kassada pul bor — sariq (masalan
+    # katta xomashyo xaridi oyi); chiqim ko'p va kassa ham manfiy — qizil; harakat yo'q — kulrang.
+    _po = get_pul_oqimi(db, now.year, now.month, company_id=company_id)
+    _po_farq = f"{abs(float(_po['balans'])):,.0f}".replace(",", " ") + " so'm"
+    if not _po.get("harakat_bor"):
+        pul_status, pul_sabab = "gray", "Bu oy pul harakati hali yo'q"
+    elif float(_po["balans"]) >= 0:
+        pul_status, pul_sabab = "green", f"Bu oy kirim chiqimdan {_po_farq} ko'p"
     else:
-        pul_status = "green" if _sof >= 0 else "red"
-        pul_sabab = "Sof foyda bo'yicha: " + ("foyda" if _sof >= 0 else "zarar")
+        _kassa = float(get_cash_balance(db, company_id=company_id).get("balance") or 0)
+        if _kassa >= 0:
+            pul_status, pul_sabab = "orange", f"Bu oy chiqim kirimdan {_po_farq} ko'p (kassada pul bor)"
+        else:
+            pul_status, pul_sabab = "red", f"Bu oy chiqim kirimdan {_po_farq} ko'p, kassa ham manfiy"
+    # kech116 (K115-2, JONLI topilgan — kech115: qizil kartada «Rentabellik -8.4 % (yaxshi — 15 % dan yuqori)»): sabab
+    # matni HOLATGA qarab — chegara bilan birga; baho va matn BITTA (ko'rsatilgan, 1 xonagacha yaxlitlangan) sondan.
     if _daromad <= 0:
         rentabellik_status, rent_sabab = "gray", "Bu oy daromad yo'q — rentabellik hisoblanmaydi"
     else:
-        rent_sabab = f"Rentabellik {foyda_foiz:g} % (yaxshi — 15 % dan yuqori)"
+        rent_sabab = f"Rentabellik {foyda_foiz:g} % — " + {
+            "green": "yaxshi (15 % va undan yuqori)",
+            "orange": "o'rtacha (5–15 %)",
+            "red": "past (5 % dan kam)",
+        }[rentabellik_status]
     if not orders:
         debt_status, qarz_sabab = "gray", "Qarz hisobidagi buyurtma yo'q"
     else:
-        qarz_sabab = f"Qarz — sotuvning {debt_ratio:.0f} %"
+        _qarz_foiz = round(debt_ratio, 1)
+        debt_status = "green" if _qarz_foiz < 15 else ("orange" if _qarz_foiz < 30 else "red")
+        qarz_sabab = f"Qarz — sotuvning {_qarz_foiz:g} % — " + {
+            "green": "yaxshi (15 % dan kam)",
+            "orange": "o'rtacha (15–30 %)",
+            "red": "yuqori (30 % va undan ko'p)",
+        }[debt_status]
     if not _malumot:
         sarf_status, sarf_sabab = "gray", "Bu oy xarid va daromad hali yo'q"
     else:
@@ -3747,6 +3769,25 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
         "penoplast": {"daromad": round(penoplast_daromad), "qoshimcha_xarajat": round(penoplast_qoshimcha_xarajat)},
     }
 
+    # kech116 (G1-02, O'LCHANGAN — audit kech114: bir oy uchun «Xarajat» Hisobotlar kartasida 3.3 mln, shu sahifadagi
+    # «Xarajat tarkibi» doirasida 3.1 mln (transport va brak yo'q), Dashboard «Jami xarajat» 4.3 mln (tannarx qo'shilgan),
+    # Dashboard qatorlari esa hech biriga teng emas; 1.0 mln tannarx Hisobotlarda ko'rinmasdi). «Xarajat» — BITTA ta'rif:
+    # `jami_xarajat` (sof foydadan ayriladigan xarajatlar; tannarx ALOHIDA). `xarajat_tarkibi` — uning to'liq tarkibi
+    # (yig'indisi = `jami_xarajat`); `tannarx_jami` — sotilgan mahsulot tannarxi (buyurtmalar + tayyor mahsulot sotuvi),
+    # shunda: daromad − tannarx_jami − jami_xarajat = sof_foyda. Hisobotlar, Dashboard (va Moliya) shundan.
+    xarajat_tarkibi = [
+        {"kalit": "doimiy", "nom": "Doimiy (arenda, elektr, tushlik, soliq)",
+         "summa": round(xarajatlar["arenda"] + xarajatlar["elektr"] + xarajatlar["tushlik"] + xarajatlar["soliqlar"], 2)},
+        {"kalit": "qoshimcha", "nom": "Qo'shimcha xarajatlar", "summa": round(qoshimcha_xarajat_jami, 2)},
+        {"kalit": "transport", "nom": "Transport", "summa": round(transport_xarajat, 2)},
+        {"kalit": "brak", "nom": "Brak (xomashyo)", "summa": round(brak_xarajat, 2)},
+        {"kalit": "tm_yoqotish", "nom": "Tayyor mahsulot yo'qotishi", "summa": round(fp_loss_xarajat, 2)},
+        {"kalit": "usta_kpi", "nom": "Usta bonusi (KPI)", "summa": round(usta_kpi_xarajat, 2)},
+        {"kalit": "ehson", "nom": "Ehson", "summa": round(ehson_xarajat, 2)},
+        {"kalit": "hodimlar", "nom": "Hodimlar oyligi", "summa": round(hodimlar_moslashuvchan_xarajat, 2)},
+    ]
+    tannarx_jami = ishlab_chiqarish_xarajat + fp_sales_tannarx
+
     return {
         "year": year,
         "month": month,
@@ -3794,6 +3835,10 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
         "hodimlar_moslashuvchan_xarajat": hodimlar_moslashuvchan_xarajat,
         "hodimlar_moslashuvchan_breakdown": emp_result["breakdown"],
         "turlar_boyicha": turlar_boyicha,
+        # kech116 (G1-02): xarajatning YAGONA tarkibi (yig'indisi = jami_xarajat) va to'liq tannarx
+        "xarajat_tarkibi": xarajat_tarkibi,
+        "tannarx_jami": round(tannarx_jami, 2),
+        "fp_sales_tannarx": round(fp_sales_tannarx, 2),
         "jami_blok": round(jami_blok, 2),
         # Naqd xarajatlar (alohida ko'rsatkich — foyda hisobiga kirmaydi)
         "xomashyo_xaridi": xomashyo_xaridi,
@@ -4006,15 +4051,18 @@ def calculate_split_profit_report(db: Session, year: int, month: int, company_id
     }
 
 
-def get_cash_balance(db: Session, company_id: int = None) -> dict:
-    """Kassa balansi — kompaniyada HOZIR haqiqatda qancha naqd pul bor.
+def _kassa_qismlari(db: Session, company_id: int = None, boshi=None, oxiri=None) -> dict:
+    """kech116 (G1-03 — egasi QARORI kech114 «Pul oqimi — haqiqiy pul»): kassa harakatlarining qismlari — YAGONA manba.
+    Kassa balansi (`get_cash_balance` — butun davr) va «Pul oqimi» (`get_pul_oqimi` — oy / kun) shu funksiyadan, shuning
+    uchun bir kassa qoidasi: har kunning pul oqimi yig'indisi + boshlang'ich balans = kassa balansi.
 
-    ➕ Kirim: mijozlardan kelgan barcha to'lovlar
-    ➖ Chiqim: naqd to'langan xomashyo xaridi, yetkazib beruvchiga to'lovlar,
-       oylik xarajatlar, transport, xodim avanslari
-    ➕/➖ Qo'lda: boshlang'ich balans, "Usta KPI to'landi", "Ehson to'landi"
-       (bular — FAQAT admin aniq belgilaganda hisoblanadi, oy oxirida
-       o'zi avtomatik chiqib ketmaydi)."""
+    `boshi` / `oxiri` — UTC (naive) davr `[boshi, oxiri)` (Toshkent kun / oy chegaralari — `database.tashkent_*_oraligi`);
+    ikkalasi `None` — butun davr (kassa). Har qism o'z sanasi bo'yicha: mijoz to'lovi `paid_at` (qaytarilgan pul — manfiy
+    to'lov — ayriladi), tayyor mahsulot sotuvi `sold_at`, naqd xarid `purchased_at` (nasiya va boshlang'ich ombor — yo'q,
+    nasiya to'lanishi — ta'minotchiga to'lov), ta'minotchiga to'lov `paid_at`, xarajat `date`, kirish transporti
+    `expense_date`, yetkazishning korxona ulushi `delivered_at`, hodimga avans / oylik (`EmployeeAdvance` — oylik qarzini
+    yopish ham shu yozuv) `date`, kassaga qo'lda yozuv `created_at`. Eski oylik shakl (`MonthlyExpense` — shu oy / turkum
+    uchun tranzaksiya bo'lmasa) — oyning 1-kuniga (Toshkent) tegishli. Faqat o'qiydi."""
     from models import (Payment, InventoryPurchase, SupplierPayment, MonthlyExpense,
                          ExpenseTransaction, TransportExpense, EmployeeAdvance, CashTransaction,
                          FinishedProductSale)
@@ -4026,11 +4074,19 @@ def get_cash_balance(db: Session, company_id: int = None) -> dict:
     # cheklanadi; qolganlarida ustunning o'zi bor.
     from models import Order as _Ord_cash, Supplier as _Sup_cash, Inventory as _Inv_cash
 
+    def _davr(q, ustun):
+        """kech116: davr sharti (butun davr — shartsiz)."""
+        if boshi is not None:
+            q = q.filter(ustun >= boshi)
+        if oxiri is not None:
+            q = q.filter(ustun < oxiri)
+        return q
+
     _pq = db.query(func.sum(Payment.amount))
     if company_id is not None:
         _pq = _pq.join(_Ord_cash, _Ord_cash.id == Payment.order_id).filter(
             _Ord_cash.company_id == company_id)
-    kirim_tolov = float(_pq.scalar() or 0)
+    kirim_tolov = float(_davr(_pq, Payment.paid_at).scalar() or 0)
 
     # MUHIM: Tayyor mahsulotni to'g'ridan-to'g'ri (buyurtmasiz) sotishdan
     # kelgan pul ham kassa KIRIMI — avval bu umuman hisobga olinmasdi,
@@ -4038,7 +4094,7 @@ def get_cash_balance(db: Session, company_id: int = None) -> dict:
     _fsq = db.query(func.sum(FinishedProductSale.total_amount))
     if company_id is not None:
         _fsq = _fsq.filter(FinishedProductSale.company_id == company_id)
-    kirim_tayyor_sotuv = float(_fsq.scalar() or 0)
+    kirim_tayyor_sotuv = float(_davr(_fsq, FinishedProductSale.sold_at).scalar() or 0)
 
     _ipq = db.query(func.sum(InventoryPurchase.total_amount)).filter(
         InventoryPurchase.is_credit == False,
@@ -4047,13 +4103,13 @@ def get_cash_balance(db: Session, company_id: int = None) -> dict:
     if company_id is not None:
         _ipq = _ipq.join(_Inv_cash, _Inv_cash.id == InventoryPurchase.inventory_id).filter(
             _Inv_cash.company_id == company_id)
-    chiqim_xomashyo_naqd = float(_ipq.scalar() or 0)
+    chiqim_xomashyo_naqd = float(_davr(_ipq, InventoryPurchase.purchased_at).scalar() or 0)
 
     _spq = db.query(func.sum(SupplierPayment.amount))
     if company_id is not None:
         _spq = _spq.join(_Sup_cash, _Sup_cash.id == SupplierPayment.supplier_id).filter(
             _Sup_cash.company_id == company_id)
-    chiqim_yetkazib_beruvchi = float(_spq.scalar() or 0)
+    chiqim_yetkazib_beruvchi = float(_davr(_spq, SupplierPayment.paid_at).scalar() or 0)
 
     _meq = db.query(MonthlyExpense)
     if company_id is not None:
@@ -4073,20 +4129,31 @@ def get_cash_balance(db: Session, company_id: int = None) -> dict:
     # qoida; ilgari SQL `extract` — UTC oyi).
     _tranzaksiyali = {(_tashkent_date(d).year, _tashkent_date(d).month, cat)
                       for d, cat in _mtq.distinct().all() if d is not None}
+
+    def _oy_davrda(m):
+        """kech116: eski oylik shakl qatori — oyning 1-kuni (Toshkent) davrdami (butun davr — har doim)."""
+        if boshi is None and oxiri is None:
+            return True
+        try:
+            _b, _ = _tashkent_oy_oraligi(int(m.year), int(m.month))
+        except Exception:
+            return False
+        return (boshi is None or _b >= boshi) and (oxiri is None or _b < oxiri)
+
     chiqim_oylik = sum(
         float(getattr(m, cat) or 0)
-        for m in me_rows for cat in _OYLIK_KAT
+        for m in me_rows if _oy_davrda(m) for cat in _OYLIK_KAT
         if (int(m.year), int(m.month), cat) not in _tranzaksiyali
     )
     _etq = db.query(func.sum(ExpenseTransaction.amount))
     if company_id is not None:
         _etq = _etq.filter(ExpenseTransaction.company_id == company_id)
-    chiqim_qoshimcha = float(_etq.scalar() or 0)
+    chiqim_qoshimcha = float(_davr(_etq, ExpenseTransaction.date).scalar() or 0)
 
     _teq = db.query(func.sum(TransportExpense.amount))
     if company_id is not None:
         _teq = _teq.filter(TransportExpense.company_id == company_id)
-    chiqim_transport = float(_teq.scalar() or 0)
+    chiqim_transport = float(_davr(_teq, TransportExpense.expense_date).scalar() or 0)
 
     # kech88 (107-band, O'LCHANGAN — probe105b C4 / C5; 104-band QARORI: korxona to'lagan yetkazish transporti —
     # xarajat): mijozga yuk yetkazishda korxona to'lagan qism ("company" — to'liq, "split" — yarmi,
@@ -4097,7 +4164,8 @@ def get_cash_balance(db: Session, company_id: int = None) -> dict:
     if company_id is not None:      # M6: ota (buyurtma) orqali
         _dvq = _dvq.join(_Ord_cash, _Ord_cash.id == _Dlv_cash.order_id).filter(
             _Ord_cash.company_id == company_id)
-    chiqim_yetkazish_transport = float(sum(float(d.company_transport_cost or 0) for d in _dvq.all()))
+    chiqim_yetkazish_transport = float(sum(float(d.company_transport_cost or 0)
+                                           for d in _davr(_dvq, _Dlv_cash.delivered_at).all()))
     # M5 — avans yig'indisi: `EmployeeAdvance`da company_id ustuni yo'q,
     # tenant otasi (Employee) orqali cheklanadi.
     _avq = db.query(func.sum(EmployeeAdvance.amount))
@@ -4105,12 +4173,56 @@ def get_cash_balance(db: Session, company_id: int = None) -> dict:
         from models import Employee as _Emp_cash
         _avq = _avq.join(_Emp_cash, _Emp_cash.id == EmployeeAdvance.employee_id
                          ).filter(_Emp_cash.company_id == company_id)
-    chiqim_avans = float(_avq.scalar() or 0)
+    chiqim_avans = float(_davr(_avq, EmployeeAdvance.date).scalar() or 0)
 
     _ctq = db.query(func.sum(CashTransaction.amount))
     if company_id is not None:
         _ctq = _ctq.filter(CashTransaction.company_id == company_id)
-    qolda_jami = float(_ctq.scalar() or 0)
+    qolda_jami = float(_davr(_ctq, CashTransaction.created_at).scalar() or 0)
+    # kech116: boshlang'ich balans — pul HARAKATI emas (tizimga kirishdagi qoldiq); pul oqimi uni olmaydi
+    _cbq = db.query(func.sum(CashTransaction.amount)).filter(CashTransaction.category == "boshlangich")
+    if company_id is not None:
+        _cbq = _cbq.filter(CashTransaction.company_id == company_id)
+    qolda_boshlangich = float(_davr(_cbq, CashTransaction.created_at).scalar() or 0)
+
+    return {
+        "kirim_tolov": kirim_tolov,
+        "kirim_tayyor_sotuv": kirim_tayyor_sotuv,
+        "chiqim_xomashyo_naqd": chiqim_xomashyo_naqd,
+        "chiqim_yetkazib_beruvchi": chiqim_yetkazib_beruvchi,
+        "chiqim_oylik": chiqim_oylik,
+        "chiqim_qoshimcha": chiqim_qoshimcha,
+        "chiqim_transport": chiqim_transport,
+        "chiqim_yetkazish_transport": chiqim_yetkazish_transport,
+        "chiqim_avans": chiqim_avans,
+        "qolda_jami": qolda_jami,
+        "qolda_boshlangich": qolda_boshlangich,
+    }
+
+
+def get_cash_balance(db: Session, company_id: int = None) -> dict:
+    """Kassa balansi — kompaniyada HOZIR haqiqatda qancha naqd pul bor.
+
+    ➕ Kirim: mijozlardan kelgan barcha to'lovlar
+    ➖ Chiqim: naqd to'langan xomashyo xaridi, yetkazib beruvchiga to'lovlar,
+       oylik xarajatlar, transport, xodim avanslari
+    ➕/➖ Qo'lda: boshlang'ich balans, "Usta KPI to'landi", "Ehson to'landi"
+       (bular — FAQAT admin aniq belgilaganda hisoblanadi, oy oxirida
+       o'zi avtomatik chiqib ketmaydi).
+
+    kech116 (G1-03): qismlar — `_kassa_qismlari` (butun davr); «Pul oqimi» (`get_pul_oqimi`) ham AYNAN shu qismlardan
+    (davr bilan) — natija o'zgarmadi."""
+    q = _kassa_qismlari(db, company_id=company_id)
+    kirim_tolov = q["kirim_tolov"]
+    kirim_tayyor_sotuv = q["kirim_tayyor_sotuv"]
+    chiqim_xomashyo_naqd = q["chiqim_xomashyo_naqd"]
+    chiqim_yetkazib_beruvchi = q["chiqim_yetkazib_beruvchi"]
+    chiqim_oylik = q["chiqim_oylik"]
+    chiqim_qoshimcha = q["chiqim_qoshimcha"]
+    chiqim_transport = q["chiqim_transport"]
+    chiqim_yetkazish_transport = q["chiqim_yetkazish_transport"]
+    chiqim_avans = q["chiqim_avans"]
+    qolda_jami = q["qolda_jami"]
 
     jami_kirim = kirim_tolov + kirim_tayyor_sotuv
     jami_chiqim = (chiqim_xomashyo_naqd + chiqim_yetkazib_beruvchi + chiqim_oylik +
@@ -4132,6 +4244,56 @@ def get_cash_balance(db: Session, company_id: int = None) -> dict:
         "chiqim_avans": round(chiqim_avans),
         "qolda_jami": round(qolda_jami),
     }
+
+
+def _pul_oqimi_oraliq(db: Session, boshi, oxiri, company_id: int = None) -> dict:
+    """kech116 (G1-03): `[boshi, oxiri)` (UTC, naive) davrdagi HAQIQIY pul harakati — `_kassa_qismlari` dan (kassa bilan
+    BITTA qoida). Kirim — mijozlardan olingan to'lovlar (qaytarilgan pul ayrilgan) + tayyor mahsulot sotuvi; chiqim —
+    naqd xarid, ta'minotchiga to'lov, hodimlarga (avans / oylik), xarajatlar, transport, yetkazishning korxona ulushi,
+    kassadan qo'lda to'langan (Usta KPI, Ehson). Boshlang'ich balans — harakat emas (kirmaydi). Qiymatlar — tiyin."""
+    from models import pul_tiyin, pul_tiyin_yigindi
+    q = _kassa_qismlari(db, company_id=company_id, boshi=boshi, oxiri=oxiri)
+    _pt = pul_tiyin
+    qolda_chiqim = _pt(-(q["qolda_jami"] - q["qolda_boshlangich"]))     # "Usta KPI / Ehson to'landi" — manfiy yozuvlar
+    kirim_qatorlar = [
+        {"kalit": "mijoz_tolovlari", "nom": "Mijozlardan to'lovlar", "summa": _pt(q["kirim_tolov"])},
+        {"kalit": "tayyor_sotuv", "nom": "Tayyor mahsulot sotuvi", "summa": _pt(q["kirim_tayyor_sotuv"])},
+    ]
+    chiqim_qatorlar = [
+        {"kalit": "xomashyo_naqd", "nom": "Xomashyo xaridi (naqd)", "summa": _pt(q["chiqim_xomashyo_naqd"])},
+        {"kalit": "taminotchiga", "nom": "Ta'minotchilarga to'lov", "summa": _pt(q["chiqim_yetkazib_beruvchi"])},
+        {"kalit": "hodimlarga", "nom": "Hodimlarga (avans / oylik)", "summa": _pt(q["chiqim_avans"])},
+        {"kalit": "xarajatlar", "nom": "Xarajatlar (arenda, elektr, boshqa)",
+         "summa": _pt(q["chiqim_qoshimcha"] + q["chiqim_oylik"])},
+        {"kalit": "transport", "nom": "Transport (kirish)", "summa": _pt(q["chiqim_transport"])},
+        {"kalit": "yetkazish_transport", "nom": "Yetkazish transporti (korxona ulushi)",
+         "summa": _pt(q["chiqim_yetkazish_transport"])},
+        {"kalit": "kassadan_qolda", "nom": "Kassadan to'langan (Usta KPI, Ehson)", "summa": qolda_chiqim},
+    ]
+    kirim = pul_tiyin_yigindi(x["summa"] for x in kirim_qatorlar)
+    chiqim = pul_tiyin_yigindi(x["summa"] for x in chiqim_qatorlar)
+    return {
+        "kirim": kirim, "chiqim": chiqim, "balans": pul_tiyin(kirim - chiqim),
+        "kirim_qatorlar": kirim_qatorlar, "chiqim_qatorlar": chiqim_qatorlar,
+        "harakat_bor": any(abs(x["summa"]) >= 0.01 for x in kirim_qatorlar + chiqim_qatorlar),
+    }
+
+
+def get_pul_oqimi(db: Session, year: int = None, month: int = None, sana=None, company_id: int = None) -> dict:
+    """kech116 (G1-03 — egasi QARORI kech114 «Pul oqimi — haqiqiy pul», O'LCHANGAN audit: Hisobotlar kartasi «Pul oqimi»
+    = daromad − jami xarajat (−1.6 mln), Dashboard «Pul oqimi (bu oy)» = daromad − (xarajat + naqd xarid − transport)
+    (−26.8 mln), Moliya «Pul oqimi» = bugungi savdo − xarajat; hech biri mijoz haqiqatda to'lagan pul emas — Katta
+    korxonada 13.4 mln tushgan kuni Hisobotlar «0 so'm, Yaxshi» derdi). YAGONA «Pul oqimi»: Toshkent oyi (`year`,
+    `month`) yoki kuni (`sana` — `date`) uchun `_pul_oqimi_oraliq`; uchala sahifa va «Korxona sog'ligi» shundan."""
+    if sana is not None:
+        boshi, oxiri = _tashkent_kun_oraligi(sana)
+        davr = {"tur": "kun", "sana": sana.isoformat()}
+    else:
+        boshi, oxiri = _tashkent_oy_oraligi(year, month)
+        davr = {"tur": "oy", "year": int(year), "month": int(month)}
+    natija = _pul_oqimi_oraliq(db, boshi, oxiri, company_id=company_id)
+    natija["davr"] = davr
+    return natija
 
 
 def get_purchase_stats_for_period(db: Session, year: int, month: int,

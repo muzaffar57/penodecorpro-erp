@@ -327,50 +327,50 @@ def generate_nakladnoy(order, db=None) -> bytes:
     story.append(Spacer(1, 10*(1-cx*0.7)))
 
     # ── JAMI HISOB ────────────────────────────────────────────
-    subtotal = sum(float(i.total_price or 0) for i in items)
-    total    = float(order.total_amount or subtotal or 0)
-    agreed   = float(order.agreed_amount) if order.agreed_amount is not None else total  # kech42 K42-1
-    discount = max(total - agreed, 0)
-
     # MUHIM: Yetkazib berishda mijoz o'z ulushini (masalan 50/50 holatda)
     # to'g'ridan-to'g'ri HAYDOVCHIGA naqd beradi — kompaniyaning bu pulga
     # aloqasi yo'q, shuning uchun bu HECH QACHON "qarz" yoki "to'lov
     # summasi"ga qo'shilmaydi. Faqat kompaniya o'z zimmasiga olgan ulush
     # (company_transport_cost) — bu alohida, Moliya xarajati sifatida
     # hisoblanadi (bu yerga umuman aloqasi yo'q).
-    grand_total = agreed
-    paid  = order.paid_amount if hasattr(order, 'paid_amount') else 0
-    qarz  = max(0, grand_total - paid)
-
+    #
+    # kech116 (G2-04, O'LCHANGAN — audit kech114): ilgari «Chegirma» = jami − kelishilgan edi — qaytgan mahsulot
+    # (36 000) va kechirilgan qarz ham «Chegirma» bo'lib yozilardi (buyurtma oynasida ular alohida), qarz esa o'z
+    # formulasi bilan (`max(0, kelishilgan − to'langan)`, yarim so'm bardoshisiz). Endi qatorlar — YAGONA qoida
+    # (`crud.buyurtma_hisob_qatorlari`; yuk xati, hisob-kitob varaqasi va buyurtma oynasi ham shundan):
+    # Umumiy jami − Chegirma − Qaytarish − Kechirilgan qarz = TO'LOV SUMMASI (kelishilgan); − To'langan = QARZ QOLDI.
+    import crud as _crud_nak
+    _hisob = _crud_nak.buyurtma_hisob_qatorlari(db, order)
+    _NOMI = {"jami": "Umumiy jami:", "kelishilgan": "TO'LOV SUMMASI:"}
     totals_data = []
-    totals_data.append([
-        Paragraph("Umumiy jami:", st["total_label"]),
-        Paragraph(f"{total:,.0f} so'm", st["total_label"]),
-    ])
-    if discount > 1:
+    grand_total_row = None
+    for q in _hisob["qatorlar"]:
+        if q["kalit"] == "tolangan" and q["summa"] == 0:
+            continue                                  # to'lov yo'q — qator ko'rsatilmaydi (avvalgidek)
+        if q["kalit"] == "qarz" and q["summa"] == 0:
+            continue                                  # qarz yo'q — qator ko'rsatilmaydi (avvalgidek)
+        if q["kalit"] == "tolangan":
+            totals_data.append([
+                Paragraph("To'langan:", st["doc_num"]),
+                Paragraph(f"{q['summa']:,.0f} so'm", st["doc_num"]),
+            ])
+            continue
+        belgi = {"-": "- ", "+": "+ "}.get(q["ishora"], "")
+        nom = _NOMI.get(q["kalit"], q["nom"] + ":")
+        katta = q["kalit"] in ("kelishilgan", "qarz", "ortiqcha")
         totals_data.append([
-            Paragraph("Chegirma:", st["total_label"]),
-            Paragraph(f"- {discount:,.0f} so'm", st["total_label"]),
+            Paragraph(_x(nom), st["total_label"]),
+            Paragraph(f"{_x(belgi)}{q['summa']:,.0f} so'm", st["total_value"] if katta else st["total_label"]),
         ])
-        totals_data.append([
-            Paragraph("Kelishilgan summa:", st["total_label"]),
-            Paragraph(f"{agreed:,.0f} so'm", st["total_label"]),
+        if q["kalit"] == "kelishilgan":
+            grand_total_row = len(totals_data) - 1
+    if grand_total_row is None:
+        # chegirma / qaytarish / kechirilgan yo'q — kelishilgan = jami: «TO'LOV SUMMASI» qatori jami qatoridan keyin
+        totals_data.insert(1, [
+            Paragraph("TO'LOV SUMMASI:", st["total_label"]),
+            Paragraph(f"{_hisob['korinish']['kelishilgan']:,.0f} so'm", st["total_value"]),
         ])
-    grand_total_row = len(totals_data)
-    totals_data.append([
-        Paragraph("TO'LOV SUMMASI:", st["total_label"]),
-        Paragraph(f"{grand_total:,.0f} so'm", st["total_value"]),
-    ])
-    if paid > 0:
-        totals_data.append([
-            Paragraph("To'langan:", st["doc_num"]),
-            Paragraph(f"{paid:,.0f} so'm", st["doc_num"]),
-        ])
-    if qarz > 0:
-        totals_data.append([
-            Paragraph("QARZ QOLDI:", st["total_label"]),
-            Paragraph(f"{qarz:,.0f} so'm", st["total_value"]),
-        ])
+        grand_total_row = 1
 
     totals_tbl = Table(totals_data, colWidths=[W*0.7, W*0.3])
     totals_tbl.setStyle(TableStyle([

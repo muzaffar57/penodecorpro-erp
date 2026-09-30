@@ -83,6 +83,78 @@ def verify_and_upgrade_password(db: Session, user, plain_password: str) -> bool:
 SESSION_HOURS = 8
 
 
+# ============================================================
+# kech116 (U-01, O'LCHANGAN — audit kech114, jonli `/logs`): mijozning HAQIQIY IP manzili
+# ============================================================
+# Railway ilovaga ichki proksi orqali ulanadi — `request.client.host` doim 100.64.0.x (CGNAT, 23 xil manzil 100 ta kirishda).
+# Natija: «Tizim jurnallari» dagi IP ustuni hech narsa bildirmasdi, kirish cheklovi (5 xato → 15 daqiqa) esa BITTA proksi
+# manzilidan kelayotgan HAMMA foydalanuvchini (boshqa korxonalarni ham) birga bloklashi mumkin edi.
+# `uvicorn --proxy-headers --forwarded-allow-ips='*'` YECHIM EMAS (O'LCHANGAN, uvicorn 0.30.6 `ProxyHeadersMiddleware`):
+# '*' da `X-Forwarded-For` ning ENG CHAP (mijoz o'zi yozishi mumkin bo'lgan) manzilini oladi — soxta sarlavha bilan IP
+# cheklovini aylanib o'tish mumkin bo'lardi. Qoida (texnik — Claude):
+#   * ulanish manzili ichki (xususiy / CGNAT / loopback / link-local) bo'lsa — so'rov proksidan keldi: `X-Forwarded-For`
+#     dagi ENG O'NG ochiq manzil (chekka proksi uni o'zi qo'shadi; mijoz yuborgan soxta qiymatlar undan CHAPDA qoladi),
+#     bo'lmasa `X-Real-IP` (ochiq bo'lsa), aks holda ulanish manzili;
+#   * ulanish manzili ochiq (to'g'ridan-to'g'ri ulanish) — sarlavhalarga ISHONILMAYDI.
+_ICHKI_TARMOQLAR = None
+
+
+def _ichki_tarmoqlar():
+    global _ICHKI_TARMOQLAR
+    if _ICHKI_TARMOQLAR is None:
+        import ipaddress
+        _ICHKI_TARMOQLAR = [ipaddress.ip_network(x) for x in (
+            "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "127.0.0.0/8", "169.254.0.0/16",
+            "0.0.0.0/8", "::1/128", "fc00::/7", "fe80::/10", "::/128")]
+    return _ICHKI_TARMOQLAR
+
+
+def _toza_ip(qiymat):
+    """Sarlavhadagi bitta manzil → normallashgan IP matni (port, qavslar olib tashlanadi) yoki None (IP emas)."""
+    import ipaddress
+    t = (qiymat or "").strip().strip('"')
+    if not t or len(t) > 64:
+        return None
+    if t.startswith("["):                       # [2001:db8::1]:443
+        t = t[1:t.find("]")] if "]" in t else t[1:]
+    elif t.count(":") == 1:                     # 203.0.113.7:5678
+        t = t.split(":", 1)[0]
+    try:
+        ip = ipaddress.ip_address(t)
+    except ValueError:
+        return None
+    if getattr(ip, "ipv4_mapped", None):
+        ip = ip.ipv4_mapped
+    return str(ip)
+
+
+def _ichki_manzilmi(ip_matn) -> bool:
+    """IP ichki tarmoqdami (proksi / konteyner / loopback). IP bo'lmagan qiymat — ichki EMAS (ishonilmaydi)."""
+    import ipaddress
+    t = _toza_ip(ip_matn)
+    if not t:
+        return False
+    ip = ipaddress.ip_address(t)
+    return any(ip in n for n in _ichki_tarmoqlar() if n.version == ip.version)
+
+
+def mijoz_ip(request) -> Optional[str]:
+    """kech116 (U-01): so'rov yuborgan mijozning haqiqiy IP manzili (yuqoridagi qoida). Kirish jurnali va kirish cheklovi
+    shundan foydalanadi."""
+    ulanish = request.client.host if getattr(request, "client", None) else None
+    if not ulanish or not _ichki_manzilmi(ulanish):
+        return ulanish
+    xff = request.headers.get("x-forwarded-for", "") or ""
+    for qism in reversed(xff.split(",")):
+        ip = _toza_ip(qism)
+        if ip and not _ichki_manzilmi(ip):
+            return ip
+    real = _toza_ip(request.headers.get("x-real-ip", "") or "")
+    if real and not _ichki_manzilmi(real):
+        return real
+    return ulanish
+
+
 def create_session(db: Session, user_id: int) -> str:
     """Yangi sessiya token yaratadi va BAZAGA saqlaydi."""
     from models import UserSession
@@ -475,12 +547,18 @@ def toggle_user_active(db: Session, user_id: int, company_id: int) -> Optional[U
 
 
 def change_password(db: Session, user_id: int, new_password: str,
-                    company_id: int = None) -> bool:
+                    company_id: int = None, saqlanadigan_token: str = None) -> bool:
     """Parolni yangilaydi.
 
     2026-09-18 — M1: company_id shart (eng jiddiy topilma). Ilgari faqat id
     bo'yicha qidirilardi — A korxona admini B korxona adminining parolini
-    almashtirib, o'sha korxonaga to'liq kirish huquqini olishi mumkin edi."""
+    almashtirib, o'sha korxonaga to'liq kirish huquqini olishi mumkin edi.
+
+    kech116 (G6-06, O'LCHANGAN — audit kech114): parol almashtirilgach o'sha odamning boshqa kompyuter / telefondagi
+    kirishi YOPILMASDI (8 soatgacha ishlayverardi) — ishdan ketgan odamni «parolini almashtirib» chiqarib bo'lmasdi.
+    Endi shu foydalanuvchining HAMMA sessiyalari parol bilan BITTA tranzaksiyada o'chiriladi; faqat
+    `saqlanadigan_token` (o'z parolini almashtirayotgan odamning JORIY sessiyasi) qoladi."""
+    from models import UserSession
     if not company_id:
         raise HTTPException(
             status_code=500,
@@ -490,6 +568,10 @@ def change_password(db: Session, user_id: int, new_password: str,
     if not user:
         return False
     user.password_hash = hash_password(new_password)
+    _sq = db.query(UserSession).filter(UserSession.user_id == user.id)
+    if saqlanadigan_token:
+        _sq = _sq.filter(UserSession.token != saqlanadigan_token)
+    _sq.delete(synchronize_session=False)
     db.commit()
     return True
 
