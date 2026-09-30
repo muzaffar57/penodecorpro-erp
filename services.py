@@ -4059,9 +4059,39 @@ def calculate_split_profit_report(db: Session, year: int, month: int, company_id
     buyurtmalar = _oq.all()
     _hk_tayyorla(db, buyurtmalar)
     daromad_b, tannarx_b = {}, {}
+    # kech117 (zip 115 jonli sinovi): «Belgilanmagan» daromadning MRP turidan boshqa manbalari (eski turkumli detal,
+    # turi tanlanmagan MRP detali, detalsiz buyurtma, turi / asosiy turkumi yo'q tayyor mahsulot sotuvi) — egasiga nomi
+    # bilan ko'rsatiladi (ilgari ustunda summa bor, sababi yo'q edi). Turi biriktirilmagan MRP — `belgilanmagan_turlar`.
+    belg_manbalar = {}
+
+    def _belg_qosh(nom: str, summa: float) -> None:
+        if abs(float(summa or 0)) >= 0.005:
+            belg_manbalar[nom] = belg_manbalar.get(nom, 0.0) + float(summa)
+
+    def _buyurtma_belg_manbalari(o, daromad_summa: float) -> None:
+        detallar = list(o.items or [])
+        if not detallar:
+            _belg_qosh(f"Buyurtma {o.order_number or o.id} — detalsiz", daromad_summa)
+            return
+        vaznlar = [max(float(it.total_price or 0), 0.0) for it in detallar]
+        jami_v = sum(vaznlar)
+        if jami_v <= 0:
+            vaznlar, jami_v = [1.0] * len(detallar), float(len(detallar))
+        for it, w in zip(detallar, vaznlar):
+            if x.detal_kalit(it) != _YON_BELGILANMAGAN:
+                continue
+            cat = (getattr(it, "category", None) or "").lower()
+            if cat == "mrp_product" and getattr(it, "product_type_id", None):
+                continue
+            nom = ("MRP detali — mahsulot turi tanlanmagan" if cat == "mrp_product"
+                   else f"Eski «{cat or '—'}» turkumli detal")
+            _belg_qosh(nom, daromad_summa * w / jami_v)
+
     for o in buyurtmalar:
         vazn = _buyurtma_vaznlari(x, o)
-        _qosh(daromad_b, _vaznli_taqsim(yakun_daromadi(db, o), vazn))
+        _o_daromad = yakun_daromadi(db, o)
+        _qosh(daromad_b, _vaznli_taqsim(_o_daromad, vazn))
+        _buyurtma_belg_manbalari(o, _o_daromad)
         try:
             p = yakun_foydasi(db, o, company_id=company_id)
         except Exception:
@@ -4095,6 +4125,11 @@ def calculate_split_profit_report(db: Session, year: int, month: int, company_id
         k = x.tm_kalit(sv.finished_product)
         daromad_tm[k] = daromad_tm.get(k, 0.0) + float(sv.total_amount or 0)
         tannarx_tm[k] = tannarx_tm.get(k, 0.0) + float(sv.cost_amount or 0)
+        _fp_s = sv.finished_product
+        if k == _YON_BELGILANMAGAN and (_fp_s is None or not getattr(_fp_s, "product_type_id", None)):
+            _belg_qosh(f"Tayyor mahsulot sotuvi «{sv.product_name or '—'}» — mahsulot o'chirilgan" if _fp_s is None
+                       else f"Tayyor mahsulot sotuvi «{_fp_s.name or sv.product_name or '—'}» (turkumi: "
+                            f"{_fp_s.category or '—'})", float(sv.total_amount or 0))
     _qoldiq_bilan("Tayyor mahsulot sotuvi", daromad_tm, t["daromad_tm"])
     _qoldiq_bilan("Tayyor mahsulot sotuvi tannarxi", tannarx_tm, t["tannarx_tm"])
 
@@ -4273,6 +4308,10 @@ def calculate_split_profit_report(db: Session, year: int, month: int, company_id
         "xarajat_nomlari": dict(_YON_XARAJAT_NOMLARI),
         "korinadigan_soni": len(x.korinadigan()),
         "belgilanmagan_turlar": belgilanmagan_turlar,
+        # «Belgilanmagan» ustunidagi daromadning MRP turidan boshqa manbalari (eng kattasi birinchi, ko'pi bilan 10 ta)
+        "belgilanmagan_manbalar": ([{"nom": n, "summa": round(v, 2)} for n, v in
+                                    sorted(belg_manbalar.items(), key=lambda q: -abs(q[1]))[:10]]
+                                   if _YON_BELGILANMAGAN in tartib else []),
         "izohlar": izohlar,
         "tekshiruv_farq": round(tekshiruv_farq, 6),
     }

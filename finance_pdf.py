@@ -139,6 +139,10 @@ def generate_split_profit_pdf(split: dict, year: int, month: int,
     if split.get("belgilanmagan_turlar"):
         el.append(Paragraph(f"Yo'nalishi belgilanmagan MRP mahsulot turlari: {_x(', '.join(split['belgilanmagan_turlar']))}"
                             " — Ishlab chiqarish sahifasida yo'nalish biriktiring", st_warn))
+    if split.get("belgilanmagan_manbalar"):
+        # kech117 (zip 115 jonli sinovi): «Belgilanmagan» daromadning boshqa manbalari (nomi va summasi)
+        _bm = "; ".join(f"{b.get('nom', '')} — {_fmt_ishora(b.get('summa', 0))} so'm" for b in split["belgilanmagan_manbalar"])
+        el.append(Paragraph(f"«Belgilanmagan» ustunidagi boshqa daromad (yo'nalishini aniqlab bo'lmadi): {_x(_bm)}", st_warn))
     el.append(Spacer(1, 10))
 
     nomlar = split.get("xarajat_nomlari", {}) or {}

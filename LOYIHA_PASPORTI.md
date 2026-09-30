@@ -1,6 +1,6 @@
 # PenoDecorPro ERP — LOYIHA PASPORTI
 
-*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2); kech112: zip 108 — «Tayyor» da bo'sh loy = reja (K112-3), material nomi (K112-4), MRP qoplama belgisi (K112-5); ko'p korxonali yakuniy jonli sinov; kech115: zip 112 — butun dastur auditi A bosqichi (pul va ma'lumot xatolari) 1-qismi: kirim, qarzdorlar, «Tayyor», narxsiz buyurtma, o'chirilganlar jurnali, manfiy raqamlar, taqqoslash, korxona sog'ligi, ombor filtri; kech116: zip 113 — A bosqich 2-qismi: sog'liq sabablari (K115-2), «Bugungi xulosa» (K115-3), hujjatlardagi hisob qatorlari (G2-04), «Pul oqimi» — haqiqiy pul (G1-03), «Xarajat» — bitta ta'rif va «Tannarx» (G1-02), loyiha qiymati buyurtmalardan (G2-01), haqiqiy IP va kirish cheklovi (U-01), parol oynasi va kirishlarni yopish (G6-06); zip 114 — mijoz hujjatlarida kechirilgan qarz «Chegirma» ichida (egasi qarori); kech117: zip 115 — A2: yo'nalishlar bo'yicha moliya (G3-11, G6-09)). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
+*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2); kech112: zip 108 — «Tayyor» da bo'sh loy = reja (K112-3), material nomi (K112-4), MRP qoplama belgisi (K112-5); ko'p korxonali yakuniy jonli sinov; kech115: zip 112 — butun dastur auditi A bosqichi (pul va ma'lumot xatolari) 1-qismi: kirim, qarzdorlar, «Tayyor», narxsiz buyurtma, o'chirilganlar jurnali, manfiy raqamlar, taqqoslash, korxona sog'ligi, ombor filtri; kech116: zip 113 — A bosqich 2-qismi: sog'liq sabablari (K115-2), «Bugungi xulosa» (K115-3), hujjatlardagi hisob qatorlari (G2-04), «Pul oqimi» — haqiqiy pul (G1-03), «Xarajat» — bitta ta'rif va «Tannarx» (G1-02), loyiha qiymati buyurtmalardan (G2-01), haqiqiy IP va kirish cheklovi (U-01), parol oynasi va kirishlarni yopish (G6-06); zip 114 — mijoz hujjatlarida kechirilgan qarz «Chegirma» ichida (egasi qarori); kech117: zip 115 — A2: yo'nalishlar bo'yicha moliya (G3-11, G6-09); zip 116 — jonli sinovdan keyin: «Belgilanmagan» manbalari, Moliya xarajatdan keyin yangilanadi). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
 *Bu faylni `main` ga ko'chirish bilan birga, keyin har katta o'zgarishda yangilab boring. 9-bo'lim AVTOMATIK
 (`python3 tools/pasport_xarita.py --yoz`), qolgani qo'lda; `tools/test_pasport.py` ikkalasini ham tekshiradi.*
 
@@ -365,7 +365,12 @@ sof foydalar yig'indisi = Moliya sof foydasi (eng katta qoldiq usuli, `_yaxlit_t
 PDF `/api/finance/split-profit-pdf` (fayl `yonalishlar_hisobot_YYYY_MM.pdf`). Sahifalar: Moliya — «Yo'nalishlar bo'yicha sof
 foyda» jadvali (bitta yo'nalish bo'lsa yashirin), daromad doirasi yo'nalishlar bo'yicha, «Tannarx» kartasi; Dashboard /
 Hisobotlar grafiklari (`today_yonalishlar`, `months[].yonalishlar`, `yonalishlar_daromadi`) — bitta yo'nalishda yashirin;
-yashirilgan yo'nalishli yozuvni tahrirlashda vaqtincha «(yashirin)» varianti (yo'nalish yo'qolmaydi). Oylik moliya PDF i
+yashirilgan yo'nalishli yozuvni tahrirlashda vaqtincha «(yashirin)» varianti (yo'nalish yo'qolmaydi). «Belgilanmagan»
+ustuni sababi — `belgilanmagan_turlar` (yo'nalishi biriktirilmagan MRP turlari) va `belgilanmagan_manbalar` (qolgan manbalar
+nomi va summasi: eski turkumli detal, turi tanlanmagan MRP detali, detalsiz buyurtma, turi / asosiy turkumi yo'q yoki
+mahsuloti o'chirilgan TM sotuvi; ko'pi bilan 10 ta) — Moliya ogohlantirishida va PDF da (kech117, zip 115 jonli sinovi:
+sinovda 140 000 so'm sababsiz edi). Moliyada xarajat qo'shilsa / tahrirlansa / o'chirilsa — hisobot, kartalar va
+yo'nalishlar jadvali darhol yangilanadi (`loadReport({txSaqla: true})` — kunlik ro'yxat sanasi joyida). Oylik moliya PDF i
 (G6-09): «Daromad tarkibi», «Tayyor mahsulot sotuvi tannarxi» qatori, qatorlar butun so'mda yig'indiga teng, ishora bitta
 ko'rinishda («−N»). Eski «Gips vs Penoplast» (`turlar_boyicha`, `today_gips_revenue`, `gips_revenue`) — YO'Q.
 
@@ -1018,6 +1023,9 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
 - (kech117) UIda yangi MAJBURIY maydon (masalan MRP turi yo'nalishi) eski UI testlarida «saqlash» ni jim to'xtatadi (so'rov
   ketmaydi — test boshqa sabab bilan yiqiladi): ssenariyga tanlovni qo'shing (asl kodda maydon yo'q bo'lsa — o'tkazib yuboring).
   Sahifadan olib, alohida yuklanadigan funksiya (harness `olib(...)`) yangi yordamchini chaqirsa — ro'yxatga o'sha yordamchini ham.
+- (kech117) Ichki brauzer paneli (Claude_Browser): sahifaga o'tgandan keyingi BIRINCHI sichqoncha bosishi ko'pincha
+  yo'qoladi va skrinshot 1–2 soniya kechikadi — bosishdan keyin natijani DOM / tarmoq so'rovlari bilan tekshiring
+  (`read_network_requests`), skrinshotga ishonmang; tugma ko'rinmasa (gorizontal aylantiriladigan jadval) — element `.click()`.
 - (kech117) PDF `Paragraph` darvozasi (`test_pdf_matn` C2) f-satrdagi `_x(...)` chaqiruvini taniydi, `"..." + _x(...)`
   qo'shishni tanimaydi — foydalanuvchi matnini f-satr ichida `_x(...)` bilan bering; son ko'rinishlari — TIZIM ro'yxatiga.
 
