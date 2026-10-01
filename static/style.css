@@ -601,10 +601,13 @@ body {
     z-index: 1300;
     transform: translateX(-100%);
     transition: transform .25s ease;
-    box-shadow: 4px 0 24px rgba(0,0,0,.25);
+    /* kech119 (C — telefon, O'LCHANGAN skrinshotlarda): yopiq menyuning soyasi ekranning chap chetiga ~20 px kirib,
+       har sahifada qora chiziq ko'rinardi — soya faqat menyu OCHIQ bo'lganda */
+    box-shadow: none;
   }
   .sidebar.sidebar-open {
     transform: translateX(0);
+    box-shadow: 4px 0 24px rgba(0,0,0,.25);
   }
 
   .sidebar-overlay {
@@ -645,6 +648,48 @@ body {
   /* Ko'p ustunli setkalar mobil ekranda 1-2 ustunga tushadi */
   .kpi-grid, .stat-grid { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
   .form-row, .form-row-3 { grid-template-columns: 1fr; }
+}
+
+/* kech119 (C BOSQICH — telefon; audit G5-16): rasm qo'shish / almashtirish belgisi (kamera) faqat sichqoncha ustiga kelganda
+   ko'rinardi — telefonda (sichqonchasiz qurilma) umuman ko'rinmasdi. Sichqonchasiz qurilmada va tor ekranda doim ko'rinadi,
+   barmoq uchun kattaroq. */
+@media (hover: none), (max-width: 768px) {
+  .cam-overlay, .proj-thumb-cam, .mat-thumb-cam { opacity: 1 !important; width: 26px !important; height: 26px !important; font-size: 14px !important; }
+}
+
+/* kech119 (C BOSQICH — telefon; audit G5-15, G2-18, O'LCHANGAN work/k125/telefon.py: 390 px da Tayyor mahsulotlar /
+   Qaytarishlar / Loyihalar birinchi ekranini 5–6 ta katta raqam kartasi egallardi — birinchi mahsulot 954 px da, ekran
+   844 px): telefonda raqam kartalari IXCHAM — ikki ustun, belgi chapda, raqam yonida (karta ~60 px). */
+@media (max-width: 600px) {
+  .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px; }
+  .stat-card { padding: 10px 12px; display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 10px; align-items: center; }
+  .stat-card > * { grid-column: 2; min-width: 0; }
+  .stat-card > .stat-icon { grid-column: 1; grid-row: 1 / span 3; width: 30px; height: 30px; font-size: 16px; margin-bottom: 0; border-radius: 9px; }
+  .stat-label { font-size: 12px; margin-bottom: 0; line-height: 1.3; }
+  .stat-val { font-size: 17px; line-height: 1.25; overflow-wrap: anywhere; }
+  .stat-trend { margin-top: 2px; font-size: 12px; }
+  /* kech119 (C — telefon, G1-20 / G6-15, O'LCHANGAN: Dashboard pul kartalari shablonda «4 / 3 ustun» qat'iy (har biri ~80 px,
+     «764 ming so'm» sig'masdi), KPI sahifasi kartalari 390 px da sahifani 456 px ga kengaytirardi): telefonda IKKI ustun,
+     raqam sig'masa keyingi qatorga o'tadi (shablondagi ustun soni — `!important` bilan bekor) */
+  .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px; }
+  .kpi-card { padding: 10px 12px; min-width: 0; gap: 10px !important; }
+  .kpi-card > div { min-width: 0; }
+  .kpi-val { font-size: 17px; overflow-wrap: anywhere; }
+  .kpi-ikon { width: 32px !important; height: 32px !important; font-size: 16px !important; border-radius: 9px !important; }
+
+  /* kech119 (C — telefon, G3-19 / G6-15): keng jadval telefonda KARTALAR — har qator alohida karta, har katak «nomi — qiymati»
+     (`data-label`), amal tugmalari kartaning pastida ko'rinib turadi (ilgari jadval 720 px, ✎ / 🗑, «O'chir» / «Parol» o'ng
+     chetda ekrandan tashqarida — surish kerakligini hech narsa bildirmasdi). Jadvalga `telefon-karta` sinfi, kataklarga
+     `data-label` beriladi; nomsiz katak (`data-label=""`) — faqat qiymat (tugmalar). */
+  table.telefon-karta, table.telefon-karta > tbody, table.telefon-karta > tbody > tr, table.telefon-karta > tbody > tr > td { display: block; width: 100%; }
+  table.telefon-karta { min-width: 0 !important; }
+  table.telefon-karta > thead { display: none; }
+  table.telefon-karta > tbody > tr { border: 1px solid var(--border); border-radius: 12px; padding: 8px 12px; margin-bottom: 10px; background: var(--white); }
+  table.telefon-karta > tbody > tr > td { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 0 !important; border: none !important; text-align: right !important; min-width: 0; overflow-wrap: anywhere; }
+  table.telefon-karta > tbody > tr > td::before { content: attr(data-label); color: var(--text3); font-size: 12px; font-weight: 600; text-align: left; flex-shrink: 0; max-width: 45%; }
+  table.telefon-karta > tbody > tr > td[data-label=""]::before, table.telefon-karta > tbody > tr > td:not([data-label])::before { content: none; }
+  table.telefon-karta > tbody > tr > td[data-label=""], table.telefon-karta > tbody > tr > td:not([data-label]) { justify-content: flex-end; flex-wrap: wrap; }
+  table.telefon-karta > tbody > tr > td[colspan] { justify-content: center; text-align: center !important; }
 }
 
 /* ============================================================
