@@ -424,7 +424,7 @@ partiya nomi `fpSavatNomi`; suzuvchi panel ochiq bo'lsa ro'yxat ostida joy (tele
 (G5-20): YANGI brak — sabab (`crud.BRAK_SABABLARI`) MAJBURIY hamma yo'lda: `POST /api/finished/loss`, `/api/finished/production-brak`,
 `/api/returns` («Brak») — sababsiz 400 `main.BRAK_SABABI_XATO` (tekshiruv MARSHRUTDA; crud eski / ichki yozuvlarga ruxsat
 beradi — tahlilda «Belgilanmagan» faqat eski yozuvlardan); bosqich va javobgar — ixtiyoriy. Oynalarda sabab ro'yxati BIRINCHI
-(«— Tanlang —», «*»), yozma maydon — «Izoh (ixtiyoriy)»; «Yangi qaytarish» → «Brak» da ham sabab / bosqich / javobgar.
+(«— Tanlang —», «*»), yozma maydon — «Izoh (ixtiyoriy)» (zip 123 dan — bitta «Brak yozish» oynasida, quyida).
 (5) AVANS SO'ROVI (G6-21): rad etish — tana {"sabab": 1..300 belgi} MAJBURIY (`advance_requests.rad_sababi`), hodim o'z
 «Mening so'rovlarim» ida ko'radi. HODIM PANELI «Oyligim» — `GET /api/hodim/oylik` (`services.hodim_oylik_xulosa`): joriy va
 o'tgan Toshkent oyi — hisoblangan (bonus / kamaytirish bilan), olingan (avans va to'lovlar), qolgan (manfiy — «Ortiqcha
@@ -437,6 +437,23 @@ server xabarlari, Telegram, moliya PDF; «Hamkor ustalar» — usta, o'zgarmagan
 (forma, «Xomashyo kirimi») va «Ta'minotchilar» (ro'yxat, «Ta'minotchilar: Ko'rish»); hujjatlar — «BUYURTMA HISOBI»
 (`buyurtma_hisobi_….pdf`), «YUK XATI № …» (`yuk_xati_….pdf`), «SOTUV CHEKI № S-…» (`sotuv_cheki_….pdf`); «NAKLADNOY» yo'q.
 Yangi ombor harakati sababi «Ta'minotchi: …» (eski yozuvlar — o'zgarmagan). Testlar: `tools/test_d121.py`, `tools/test_d121_ui.js`.
+**Brak — bitta oyna; «Penoplast detal»; «Loy retseptlari» / «Mahsulot tarkibi» (kech118, D bosqichi 3-qism — egasi QARORLARI
+G5-04, G5-01, G4-22; zip 123).** BRAK HAMMA yo'ldan BITTA oynada — `templates/_brak_oyna.html` (`{% include %}` — Qaytarishlar
+«Brak yozish» va Tayyor mahsulotlar «−»): avval «Brak qayerda chiqdi?» — (A) «Buyurtma detalida» (loyiha → detallar miqdori, har
+detalga `POST /api/returns` reason «Brak», `saveBrakBatch`; faqat `projects` bor sahifada va «Qaytarishlar: Yaratish»), (B)
+«Omborda turgan tayyor mahsulotda» (`POST /api/finished/loss` — miqdor kamayadi, Moliya «Tayyor mahsulot yo'qotishi»), (C) «Ishlab
+chiqarishda» (`POST /api/finished/production-brak` — mahsulot soni o'zgarmaydi, qo'shimcha xomashyo; faqat
+`PROD_BRAK_CATEGORIES` turlari) — B / C «Brak: Yaratish» bilan; Qaytarishlarda mahsulot `/api/finished` dan tanlanadi (tayyor,
+qoldig'i bor), «−» dan — mahsulot qotirilgan (A yo'q). Maydonlar hamma yo'lda bir xil: `brak-cause` (MAJBURIY), `brak-stage`,
+`brak-worker`, `brak-notes`; yo'l tanlanmasa / sabab tanlanmasa so'rov yo'q. Funksiya nomlari avvalgidek (`showBrakModal`,
+`openLossModal`, `setLossMode`, `submitLoss`, `lossBosqichTana`, `closeLossModal` = `closeBrakModal`); eski #lossModal va loss-cause
+/ loss-stage / loss-worker / loss-reason YO'Q. «Yangi qaytarish» — FAQAT mijozdan qaytgan butun mahsulot (yashirin `f-reason`
+«Ortiqcha», brak maydonlari yo'q; server `/api/returns` «Brak» ni A yo'li uchun qabul qiladi). «Brak yozish» tugmasi —
+«Qaytarishlar: Yaratish» yoki «Brak: Yaratish» bo'lsa. Tayyor mahsulotlar: «+ Penoplast detal» (eski oyna — plotnost, 1 m³ narxi,
+loy; sarlavha «Penoplast detal ishlab chiqarish») va «Retsept bo'yicha →» (`/production`, «Mahsulot turlari: Ko'rish» bo'lsa).
+Nomlar: menyu va sahifa — «Loy retseptlari» («Yangi loy retsepti»); Ishlab chiqarishdagi BOM — «Mahsulot tarkibi» («+ Tarkib»,
+«Yangi mahsulot tarkibi», «Tarkib nomi», «Tarkib bo'yicha», server: «Mahsulot tarkibi topilmadi», «nomli tarkib allaqachon bor»).
+Testlar: `tools/test_d123.py`, `tools/test_d123_ui.js`.
 **Ranglar va tungi rejim (kech118, D bosqichi 2-qism — egasi QARORI «To'liq tuzatilsin — har sahifa ranglari umumiy ranglar
 ro'yxatiga», U-02; zip 122).** Shablon / `style.css` dagi rang XOSSASIGA qarab UMUMIY RO'YXATDAN olinadi — `static/ranglar.css`
 (`base.html` va mustaqil sahifalar — kirish, hodim kirishi / paneli, xato sahifasi — `style.css` dan KEYIN ulaydi):
@@ -475,7 +492,7 @@ tugma foni ham). Holat ranglari (#22C55E, #16A34A, #F59E0B, #EF4444, #0EA5E9, #9
 `matnRangi(...)` orqali; qorong'i kartada (Moliya «Kassa balansi» — gradient) och yozuv. Eng kichik yozuv — 12 px (style.css va
 shablonlar; `tools/test_b118_korinish.py` S statik darvozasi). Xom kalit ekranga chiqmaydi (moliya: `transport_kirim` →
 «Transport (kirim)» va h.k. — `CAT_LABELS`). YANGI sahifa kodida: son — `sonKor` / `|son`, rangli yozuv — to'q tus. `style.css`
-o'zgarsa — `main.py` `static_version` ham yangilanadi (aks holda brauzer eski uslubni keshdan oladi; zip 122 — «20261001-1»).
+o'zgarsa — `main.py` `static_version` ham yangilanadi (aks holda brauzer eski uslubni keshdan oladi; zip 123 — «20261001-2»).
 **Yo'nalishlar bo'yicha moliya (kech117, A2 — egasi QARORLARI kech114 00:08; G3-11, G6-09).** Jadval `yonalishlar`
 (`models.Yonalish`: `company_id`, `nom` ≤ 60, `kod` — asosiysida 'penoplast', `yashirin`, `tartib`; `uq_yonalishlar_company_kod`).
 Har korxonada ASOSIY yo'nalish («Penoplast», `crud.standart_yonalish` — yo'q bo'lsa yaratadi; yangi korxonada — platformadan
@@ -818,6 +835,21 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   «Ta'minotchilar»), `test_yetkazish_ui` («Yuk xati tayyor»; «Brak yozish» tanasida sabab, sababsiz so'rov yo'q),
   `test_xato_sababi_ui` / `test_tahrir_tiyin_ui` / `test_toshkent_korinish_ui` (savatcha va «Kam» yordamchilari, «1 partiya»),
   `test_b118_korinish` (qoldiq rangi faqat holat ko'rinsa), `test_zaxira_loy_narx` (brak tanasi).
+- (kech118, zip 123) D bosqichi 3-qism — bitta «Brak yozish» oynasi, «Penoplast detal» / «Retsept bo'yicha», «Loy retseptlari» /
+  «Mahsulot tarkibi»: `tools/test_d123.py` — B (Qaytarishlar va Tayyor mahsulotlarda AYNAN bitta oyna, yo'llar sahifaga va
+  ruxsatga qarab — maxsus rollar: faqat «Qaytarishlar: Yaratish» → faqat buyurtma detali, faqat «Brak: Yaratish» → ombor /
+  ishlab chiqarish, ikkalasi yo'q → tugma yo'q; umumiy maydonlar tartibi; eski oyna va loss-* maydonlari yo'q), Q («Yangi
+  qaytarish» — faqat butun), N (nomlar, havola ruxsatga qarab, server xabarlari), T (sahifa skriptlari: sintaksis, yuqori
+  darajadagi let / const takrorlanmagan); SQLite, PG, TF1 — asl kodda 17 / 23 yiqiladi, qulamaydi. `tools/test_d123_ui.js` — oyna
+  xatti-harakati: yo'l tanlanmasa saqlanmaydi, A — har detalga /api/returns (Brak), B / C — ro'yxat (tayyor, qoldig'i bor; C —
+  ishlab chiqariladigan turlar), /api/finished/loss va /production-brak tanalari, sabab majburiy, «−» dan — mahsulot qotirilgan,
+  403 — tushunarli; «Yangi qaytarish» tanasi — asl shablonlarda 28 / 29 yiqiladi. Mutatsiyalar (work/k123/mutatsiya124.py, 26 ta) —
+  hammasi ushlanadi. Haqiqiy brauzer (work/k123/audit_brak.py):
+  uch yo'l va «−» — yorug' / tungi rejimda kontrast xatosi 0, JS xatosi 0. Moslangan eski testlar (oyna endi `_brak_oyna.html` da,
+  maydonlar brak-*; nomlar): `test_d121` (B7 / B8), `test_d121_ui` (R5–R7), `test_d122` (S2 — «_» qism-shablon), `test_brak_bosqich`
+  (C5), `test_brak_tahlil` (C5), `test_brak_bosqich_ui`, `test_brak_tahlil_ui`, `test_brak_mrp_ui`, `test_brak_bitta_raqam_ui`,
+  `test_yetkazish_ui`, `test_xato_sababi_ui`, `test_qaytarish_query` (G), `test_tannarx` (H4), `test_kichik103_ui` (I2),
+  `test_mrp_sahifa_ui` (R4, O6, T1, T10, K6), `test_dizayn114_ui` (P1, P2, P6, B1).
 - (kech118, zip 122) D bosqichi 2-qism — tungi rejim (U-02): `tools/test_d122.py` — P (umumiy ranglar ro'yxati: ikki blokda bir
   xil nomlar, `--doim-` faqat yorug' blokda, yorug' qiymat = nomdagi rang, ishlatilgan har rang bor, eskirgani yo'q; tungi
   qiymatlar: matn qorong'i kartada / sahifada va och-tusli belgi fonida ≥ 4.5:1, standart yozuv har fonda ≥ 4.5:1, fon / chiziq
@@ -1039,8 +1071,8 @@ bajarilganlari belgilanadi)**
   `main` zaxirasida (28.09) foydalanuvchilar — admin + 2 Hodim; usta / moliyachi / omborchi login yo'q.
 - Ishlab chiqarish: ikkalasi qoladi, nomi ajratiladi — Tayyor mahsulotlardagi eski oyna «Penoplast detal», yonida «Retsept
   bo'yicha» havola (G5-01); «Loy retseptlari» (menyu) va «Mahsulot tarkibi» (Ishlab chiqarish ichida) (G4-22); brak — BITTA
-  «Brak yozish» oynasi (avval «brak qayerda chiqdi»; «Yangi qaytarish» — faqat mijozdan qaytgan butun mahsulot) (G5-04);
-  brak SABABI (ro'yxatdan) MAJBURIY, bosqich / javobgar ixtiyoriy (G5-20) — BAJARILDI (zip 121).
+  «Brak yozish» oynasi (avval «brak qayerda chiqdi»; «Yangi qaytarish» — faqat mijozdan qaytgan butun mahsulot) (G5-04) —
+  BAJARILDI (zip 123); brak SABABI (ro'yxatdan) MAJBURIY, bosqich / javobgar ixtiyoriy (G5-20) — BAJARILDI (zip 121).
 - Nomlar lug'ati — taklif qilingani: «Ta'minotchi» (yetkazib beruvchi / hamkor / yetkazuvchi o'rniga); login roli «Menejer»
   (hozir «Hodim»), oylik oladigan ishchi — «Hodim»; hujjatlar — «Buyurtma hisobi», «Yuk xati № …», «Sotuv cheki № …»
   («NAKLADNOY» o'rniga) (U-12, G4-19, G6-11). BAJARILDI (zip 121; menyu — «Kirim qilish» va «Ta'minotchilar», Kirim
@@ -1357,6 +1389,11 @@ bajarilganlari belgilanadi)**
   ishlaydi — jadval / ifodadagi rangni ko'rmaydi.
 - (kech118, zip 122) O'zgarmas to'yingan fon (oltin / kumush medal, rangli tugma) ustidagi to'q yozuvni tungi rejimda
   yorug'lashadigan `--m-` rangga o'tkazmang (oltin ustida 1.6:1 bo'ldi) — `--doim-<hex>` (ikkala rejimda bir xil).
+- (kech118, zip 123) Bir necha sahifa ulaydigan qism-shablon (`{% include "_brak_oyna.html" %}`): (1) JS testlari shablonni FAYLDAN
+  o'qiydi — funksiya endi qismda: test manbasiga qismni qo'shing (`oqi('finished.html') + oqi('_brak_oyna.html')`); (2) sahifadan
+  ko'chirilgan `let` / `const` sahifada QOLIB KETSA — ikkinchi skript butunlay ishlamaydi (SyntaxError) — `test_d123` T1 tekshiradi;
+  (3) testlar funksiyalarni ALOHIDA oladi — eski nomli funksiyalar (showBrakModal, closeBrakModal, submitLoss, lossBosqichTana) o'zi
+  yetarli bo'lsin (yangi yordamchiga tayanmasin), aks holda ReferenceError «sabab» ko'rinmay qoladi.
 - (kech118, zip 122) Rejimga qarab rang tanlaydigan JS (`matnRangi`, grafik) chizilgan PAYTDAGI rejimni oladi — rejim
   almashtirilganda sahifa qayta yuklanadi (`toggleTheme` — `location.reload()`), aks holda eski rejim ranglari qoladi.
 
@@ -1462,7 +1499,7 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 ### `GET /finished` → `main.py:finished_page` → `templates/finished.html`
 - Qorovul: auth.ruxsat_biri(('tayyor', 'korish'), ('sotuv', 'korish'))
 - Server chaqiruvlari: auth.company_id_of, auth.ruxsat_biri, crud.get_employees, crud.get_finished_products, crud.get_finished_stats, crud.get_masters, crud.get_recipes, services.get_default_penoplast, services.get_penoplast_list
-- `finished.html` API: `/api/finished`, `/api/finished/loss`, `/api/finished/produce`, `/api/finished/production-brak`, `/api/finished/sales/batch/{}/pdf`, `/api/finished/sales/{}/pdf`, `/api/finished/sell`, `/api/finished/sell-batch`, `/api/finished/stats`, `/api/finished/{}`, `/api/finished/{}/add`, `/api/finished/{}/complete`, `/api/finished/{}/image`, `/api/finished/{}/kam-chegara`, `/api/finished/{}/profit`, `/api/finished/{}/release-reservation`, `/api/loy-cost`
+- `finished.html` API: `/api/finished`, `/api/finished/produce`, `/api/finished/sales/batch/{}/pdf`, `/api/finished/sales/{}/pdf`, `/api/finished/sell`, `/api/finished/sell-batch`, `/api/finished/stats`, `/api/finished/{}`, `/api/finished/{}/add`, `/api/finished/{}/complete`, `/api/finished/{}/image`, `/api/finished/{}/kam-chegara`, `/api/finished/{}/profit`, `/api/finished/{}/release-reservation`, `/api/loy-cost`
 
 ### `GET /hodim` → `main.py:hodim_panel` → `templates/hodim_panel.html`
 - Qorovul: — (tanada tekshiriladi yoki ochiq)
@@ -1538,7 +1575,7 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 ### `GET /returns` → `main.py:returns_page` → `templates/returns.html`
 - Qorovul: auth.ruxsat('qaytarish', 'korish')
 - Server chaqiruvlari: auth.company_id_of, auth.ruxsat, crud.get_employees, crud.get_orders_for_main_page, crud.get_projects, crud.get_return_items_for_main_page, crud.hodim_nomlari
-- `returns.html` API: `/api/orders/{}`, `/api/projects/{}/items`, `/api/reports/brak-materials`, `/api/reports/brak-tahlil`, `/api/returns`, `/api/returns/stats`, `/api/returns/{}`, `/api/returns/{}/image`, `/api/returns/{}/refund`
+- `returns.html` API: `/api/orders/{}`, `/api/reports/brak-materials`, `/api/reports/brak-tahlil`, `/api/returns`, `/api/returns/stats`, `/api/returns/{}`, `/api/returns/{}/image`, `/api/returns/{}/refund`
 
 ### `GET /rollar` → `main.py:rollar_page` → `templates/rollar.html`
 - Qorovul: auth.admin_only
@@ -1569,7 +1606,7 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 - Server chaqiruvlari: auth.ruxsat
 - `masters_manage.html` API: `/api/masters`, `/api/masters/{}`
 
-Hech bir handler to'g'ridan-to'g'ri ko'rsatmaydigan shablonlar: `xato_sahifa.html`
+Hech bir handler to'g'ridan-to'g'ri ko'rsatmaydigan shablonlar: `_brak_oyna.html`, `xato_sahifa.html`
 <!-- AVTO:SAHIFALAR OXIRI -->
 
 ### 9.4 API marshrutlari
@@ -2113,6 +2150,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_buyurtma_raqam.py` · PG — kech86 darvozasi (100-band, FOYDALANUVCHI QARORI "A": buyurtma raqami HECH QACHON qayta berilmaydi — raqam faqat o'sadi, o'chirilgan buyurtma raqami bo'shliq bo'lib qoladi) +…
 - `test_d121.py` · PG — kech118 D BOSQICHI 1-qism (zip 121): MAYDA QOIDALAR VA NOMLAR (egasi QARORLARI kech118 11:40, tugmali, QAYTA SO'RALMAYDI).
 - `test_d122.py` · PG — kech118 D BOSQICHI 2-qism (zip 122): TUNGI REJIM TO'LIQ (audit U-02; egasi QARORI «To'liq tuzatilsin — har sahifa ranglari umumiy ranglar ro'yxatiga», tugmali, QAYTA SO'RALMAYDI).
+- `test_d123.py` · PG — kech118 D BOSQICHI 3-qism (zip 123): BRAK — BITTA OYNA, «PENOPLAST DETAL» / «RETSEPT BO'YICHA», «LOY RETSEPTLARI» / «MAHSULOT TARKIBI» (egasi QARORLARI kech118 11:40 — G5-04, G5-01, G4…
 - `test_detal_poyga.py` · PG — 5-bo'lim 14-band darvozasi (kech41, 2026-09-23): detal tahriri / o'chirish / "Tayyor" va yetkazish orasidagi poygalar.
 - `test_dizayn114_ui.py` · PG — kech114: dizayn 5–10 (egasi QARORLARI «7A — Guruh, bosilsa ochiladi», «5B — Jadval», «6A — Bir qator + tugmalar»; 9 / 10 — texnik) va K114-1 ning sahifadagi qismi — HAQIQIY sah…
 - `test_donalik_hajm_snapshot.py` · PG — kech96 (2026-09-27), 126-band.
@@ -2239,6 +2277,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_brak_tahlil_ui.js` · JS — 13-band 7-qadam (kech56, 2026-09-24): brak SABABI, JAVOBGAR hodim va BRAK TAHLILI UI si.
 - `test_d121_ui.js` · JS — kech118 D BOSQICHI 1-qism (zip 121): sahifalardagi XATTI-HARAKAT (egasi QARORLARI kech118 11:40).
 - `test_d122_ui.js` · JS — kech118 D BOSQICHI 2-qism (zip 122): TUNGI REJIM — sahifa JS i chizadigan ranglar (audit U-02; egasi QARORI «To'liq tuzatilsin — har sahifa ranglari umumiy ranglar ro'yxatiga», QAYT…
+- `test_d123_ui.js` · JS — kech118 D BOSQICHI 3-qism (zip 123): BITTA «Brak yozish» oynasi (egasi QARORI G5-04, QAYTA SO'RALMAYDI).
 - `test_kam_qoldiq_ui.js` · JS — kech108, K108-2 (19-band, EGASI QARORI "Ha, ko'rinsin"): «kam qolgan xomashyo» brauzer qismi.
 - `test_kelishilgan_tahrir_ui.js` · JS — kech110, K110-1: buyurtma TAHRIRIDA kelishilgan summa (templates/orders.html).
 - `test_kichik103_ui.js` · JS — kech103 kichik bandlari (UI) darvozasi.
@@ -2266,5 +2305,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 179 (Python 147, JS 32).
+Jami test fayllari: 181 (Python 148, JS 33).
 <!-- AVTO:TESTLAR OXIRI -->

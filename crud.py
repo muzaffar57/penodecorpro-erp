@@ -8389,7 +8389,7 @@ def qoplama_retsepti_tekshir(db: Session, company_id, loy_kg, detallar, buyurtma
     raise ValueError(
         f"Qoplama retsepti tanlanmagan: buyurtmada {_kg} kg loy rejalashtirilgan, lekin loy qaysi retseptdan "
         f"tayyorlanishi ko'rsatilmagan. «Retsept» maydonidan retseptni tanlang (korxonada retsept bo'lmasa — avval "
-        f"«Retseptlar» bo'limida yarating). Hech narsa saqlanmadi")
+        f"«Loy retseptlari» bo'limida yarating). Hech narsa saqlanmadi")
 
 
 def _mrp_faol_boglamlar(db: Session, detallar) -> list:
@@ -10465,7 +10465,7 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
                                     f"omborda: {float(_inv.stock_quantity or 0):.2f} {_inv.unit}")}
             _mrp_qatorlar.append((_inv, _kerak))
         if not _mrp_qatorlar:
-            return {"success": False, "message": ("Bu mahsulotning ishlab chiqarish retsepti surati topilmadi "
+            return {"success": False, "message": ("Bu mahsulotning ishlab chiqarish tarkibi surati topilmadi "
                                                   "(hali ishlab chiqarilmagan bo'lishi mumkin) — qo'lda hisoblash kerak")}
 
     if _mrp_qatorlar is None and penoplast_vol_needed <= 0 and loy_kg_needed <= 0:
@@ -11639,8 +11639,8 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
     # ko'paytiriladi — u yerda xomashyo yechiladi va tannarx muzlaydi.
     if fp.category == "dynamic_bom" or getattr(fp, "product_type_id", None) is not None:
         return {"success": False,
-                "message": "Bu mahsulot «Ishlab chiqarish» bo'limida retsept bo'yicha tayyorlanadi — "
-                           "qo'shimcha partiyani o'sha yerda yarating (xomashyo retsept bo'yicha yechiladi)"}
+                "message": "Bu mahsulot «Ishlab chiqarish» bo'limida mahsulot tarkibi bo'yicha tayyorlanadi — "
+                           "qo'shimcha partiyani o'sha yerda yarating (xomashyo tarkib bo'yicha yechiladi)"}
 
     base_qty = float(fp.quantity or 0)
     # kech59 (47-band): qo'shishdan OLDINGI 1 birlik tannarxi (og'irlikli o'rtacha uchun)

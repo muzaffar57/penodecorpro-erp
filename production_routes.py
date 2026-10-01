@@ -217,7 +217,7 @@ def create_bom(data: dict = Body(...), db: Session = Depends(get_db), current_us
     if _bor:
         raise HTTPException(
             status_code=400,
-            detail=f"Bu mahsulotda '{_vnom}' nomli retsept allaqachon bor. Boshqa nom tanlang.")
+            detail=f"Bu mahsulotda '{_vnom}' nomli tarkib allaqachon bor. Boshqa nom tanlang.")
     bom = BOM(
         company_id=auth.company_id_of(current_user),
         product_type_id=pt.id,
@@ -265,7 +265,7 @@ def update_bom(bom_id: int, data: dict = Body(...), db: Session = Depends(get_db
     data = _tana("BOM", data, schemas.BOMCreate)
     bom = db.query(BOM).filter(BOM.id == bom_id, BOM.company_id == auth.company_id_of(current_user)).first()
     if not bom:
-        raise HTTPException(status_code=404, detail="Retsept topilmadi")
+        raise HTTPException(status_code=404, detail="Mahsulot tarkibi topilmadi")
     _retsept_materiallari(db, data.items, auth.company_id_of(current_user))
     _vnom = (data.variant_name or "").strip() or "Standart"
     _bor = db.query(BOM).filter(
@@ -278,7 +278,7 @@ def update_bom(bom_id: int, data: dict = Body(...), db: Session = Depends(get_db
     if _bor:
         raise HTTPException(
             status_code=400,
-            detail=f"Bu mahsulotda '{_vnom}' nomli boshqa retsept bor. Boshqa nom tanlang.")
+            detail=f"Bu mahsulotda '{_vnom}' nomli boshqa tarkib bor. Boshqa nom tanlang.")
     _pt110 = db.query(ProductType).filter(ProductType.id == bom.product_type_id,
                                           ProductType.company_id == bom.company_id).first()
     _unit110 = _pt110.unit if _pt110 else ""
@@ -310,7 +310,7 @@ def deactivate_bom(bom_id: int, db: Session = Depends(get_db), current_user=Depe
     tanlov ro'yxatidan yashiriladi."""
     bom = db.query(BOM).filter(BOM.id == bom_id, BOM.company_id == auth.company_id_of(current_user)).first()
     if not bom:
-        raise HTTPException(status_code=404, detail="Retsept topilmadi")
+        raise HTTPException(status_code=404, detail="Mahsulot tarkibi topilmadi")
     bom.is_active = False
     _pt110 = db.query(ProductType).filter(ProductType.id == bom.product_type_id,
                                           ProductType.company_id == bom.company_id).first()

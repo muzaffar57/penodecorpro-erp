@@ -697,7 +697,7 @@ def start_production_order(db: Session, po_id: int, company_id: int, performed_b
 
         bom = db.query(BOM).filter(BOM.id == po.bom_id, BOM.company_id == company_id).first()
         if not bom:
-            return {"success": False, "message": "Retsept topilmadi"}
+            return {"success": False, "message": "Mahsulot tarkibi topilmadi"}
 
         company = _get_company(db, company_id)
         allow_negative = bool(company.allow_negative_stock) if company else False
@@ -939,7 +939,7 @@ def complete_production_order(db: Session, po_id: int, company_id: int, performe
             return {"success": False, "message": f"Faqat jarayondagi ishlab chiqarishni yakunlash mumkin — bu ishlab "
                                                  f"chiqarish {_PO_HOLAT_NOMI.get(po.status, po.status)}"}
         if not po.recipe_snapshot_json:
-            return {"success": False, "message": "Retsept surati topilmadi — bu buyurtma to'g'ri boshlanmagan bo'lishi mumkin"}
+            return {"success": False, "message": "Mahsulot tarkibi surati topilmadi — bu buyurtma to'g'ri boshlanmagan bo'lishi mumkin"}
         # kech114 (K114-1): tayyor mahsuloti yo'q ishlab chiqarish yakunlanmaydi (xomashyo izsiz yechilardi).
         _tm_xato = _yakunlash_tm_xatosi(db, po, company_id)
         if _tm_xato:
@@ -1362,7 +1362,7 @@ def mavjud_ishlab_chiqarish_rejasi(db: Session, po_id: int, company_id: int) -> 
     if po.status == ProductionOrderStatus.DRAFT.value:
         bom = db.query(BOM).filter(BOM.id == po.bom_id, BOM.company_id == company_id).first()
         if not bom:
-            return {"success": False, "kod": 409, "message": "Retsept topilmadi"}
+            return {"success": False, "kod": 409, "message": "Mahsulot tarkibi topilmadi"}
         try:
             tanlangan = json.loads(po.selected_optional_bom_item_ids_json or "[]")
         except (TypeError, ValueError):
@@ -1396,7 +1396,7 @@ def mavjud_ishlab_chiqarish_rejasi(db: Session, po_id: int, company_id: int) -> 
             qatorlar = []
         if not isinstance(qatorlar, list) or not qatorlar:
             return {"success": False, "kod": 409,
-                    "message": "Retsept surati topilmadi — bu buyurtma to'g'ri boshlanmagan bo'lishi mumkin"}
+                    "message": "Mahsulot tarkibi surati topilmadi — bu buyurtma to'g'ri boshlanmagan bo'lishi mumkin"}
         reja = _reja_hisobi(db, company_id, qatorlar, po.quantity, po.bom_id, REJA_YAKUNLASH, istisno_po_id=po.id)
         _tm_xato = _yakunlash_tm_xatosi(db, po, company_id)       # kech114 (K114-1) — yakunlash bilan bir qoida
         if _tm_xato:
