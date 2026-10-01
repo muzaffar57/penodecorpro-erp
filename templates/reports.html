@@ -91,6 +91,13 @@ html[data-theme="dark"] .bi-wrap{
 .bi-top-rank{width:18px;height:18px;border-radius:5px;background:var(--b-bg);color:var(--b-text3);font-size:12px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;margin-right:8px}
 .bi-top-name{color:var(--b-text2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bi-top-val{font-weight:700;color:var(--b-text);flex-shrink:0;margin-left:6px}
+/* kech119 (C — telefon, O'LCHANGAN test_c_telefon: uzun material nomi («… Kley akril (oq, ichki va tashqi ishlar uchun)»)
+   reyting ustunini kengaytirib, sahifani 390 px da 444 px qilardi — summa ekrandan chiqardi): katak mazmun bilan kengaymaydi,
+   nom «…» bilan qisqaradi (to'liq nomi — sichqoncha ustida `title`) */
+.bi-top-grid > *{min-width:0}
+.bi-top-name{min-width:0}
+/* telefonda (bitta ustun) nom 2 qatorgacha o'raladi — sichqoncha yo'q, `title` ko'rinmaydi */
+@media(max-width:640px){.bi-top-name{white-space:normal;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.35}}
 
 /* ── Taqqoslash (7-qator) ── */
 .bi-comp-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
@@ -113,6 +120,13 @@ html[data-theme="dark"] .bi-wrap{
 
 /* ── Jadval (11-qator) ── */
 .bi-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+/* kech119 (C — telefon, O'LCHANGAN work/k125/telefon.py: 390 px da jadval paneli «Qidirish», «Excel», «Chop etish» bir qatorda —
+   sahifa 424 px, «Chop etish» ekrandan chiqardi): telefonda tugmalar keyingi qatorga o'tadi, qidiruv butun kenglikda */
+@media(max-width:600px){
+  .bi-jadval-amallar{flex-wrap:wrap;width:100%}
+  .bi-jadval-amallar .bi-search{flex:1 1 100%;min-width:0}
+  .bi-jadval-amallar .bi-btn{flex:1 1 auto}
+}
 .bi-tab{padding:8px 14px;font-size:12.5px;font-weight:600;border-radius:8px;border:1px solid var(--b-border);background:var(--b-card);color:var(--b-text2);cursor:pointer;transition:.12s}
 .bi-tab.active{background:#222222;color:#fff;border-color:#222222}
 html[data-theme="dark"] .bi-tab.active{background:var(--f-eceae6);color:var(--m-16181f);border-color:var(--ch-eceae6)}
@@ -325,7 +339,7 @@ html[data-theme="dark"] .bi-tab.active{background:var(--f-eceae6);color:var(--m-
     <div class="bi-card bi-fade">
       <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:1px solid var(--b-border);flex-wrap:wrap;gap:10px">
         <div class="bi-section-title" style="margin:0" id="repTitle">Ombor hisoboti</div>
-        <div style="display:flex;gap:8px;align-items:center" class="no-print">
+        <div style="display:flex;gap:8px;align-items:center" class="no-print bi-jadval-amallar">
           <input type="text" class="bi-search" id="tableSearch" placeholder="Qidirish..." oninput="filterTable()">
           <button class="bi-btn bi-btn-ghost" onclick="exportCSV()"><i class="ti ti-file-spreadsheet" style="vertical-align:-2px"></i> Excel</button>
           <button class="bi-btn bi-btn-ghost" onclick="window.print()"><i class="ti ti-printer" style="vertical-align:-2px"></i> Chop etish</button>
@@ -627,7 +641,7 @@ async function loadCashFlowBars(){
 // `tayyorMatn` — qiymat allaqachon ko'rinish matni (miqdor + birlik): qisqartirilmaydi, faqat escape qilinadi
 function topListHtml(rows, nameKey, valKey, valSuffix, tayyorMatn){
   if (!rows.length) return '<div class="bi-empty" style="padding:16px 0;font-size:12.5px">Ma\'lumot yo\'q</div>';
-  return rows.slice(0,8).map((r,i)=>`<div class="bi-top-row"><span class="bi-top-rank">${i+1}</span><span class="bi-top-name">${escapeHtml(r[nameKey])}</span><span class="bi-top-val">${tayyorMatn ? escapeHtml(r[valKey]) : fmtShort(r[valKey])}${valSuffix||''}</span></div>`).join('');
+  return rows.slice(0,8).map((r,i)=>`<div class="bi-top-row"><span class="bi-top-rank">${i+1}</span><span class="bi-top-name" title="${escapeHtml(r[nameKey])}">${escapeHtml(r[nameKey])}</span><span class="bi-top-val">${tayyorMatn ? escapeHtml(r[valKey]) : fmtShort(r[valKey])}${valSuffix||''}</span></div>`).join('');
 }
 
 async function loadTopRankings(){

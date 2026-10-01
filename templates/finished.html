@@ -79,6 +79,14 @@
   .fp-total-col{order:3;text-align:left;min-width:0;flex:1}
   .fp-actions-wrap{order:4;flex-basis:100%;flex-wrap:wrap;padding-left:58px}
 }
+/* kech119 (C BOSQICH — telefon, audit G5-15, O'LCHANGAN work/k125/telefon.py: 360 × 740 da 5 ta raqam kartasi (3 qator,
+   ~500 px) birinchi mahsulotni 790 px ga surardi — ro'yxat birinchi ekranda yo'q edi): telefonda kartalar BITTA qatorda,
+   yon tomonga suriladi (ikkitasi va uchinchisining cheti ko'rinadi — surish mumkinligi bilinadi) */
+@media(max-width:600px){
+  .fp-stat-tasma{display:flex !important;overflow-x:auto;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;gap:8px;padding:2px 2px 6px;margin-left:-2px;margin-right:-2px;scrollbar-width:none}
+  .fp-stat-tasma::-webkit-scrollbar{display:none}
+  .fp-stat-tasma > .stat-card{flex:0 0 46%;scroll-snap-align:start}
+}
 .mini-btn{width:36px;height:36px;border-radius:8px;border:1.5px solid var(--ch-e5e5e5);background:var(--white);font-size:18px;font-weight:700;color:var(--m-555555);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1}
 .mini-btn:hover{background:var(--dark);color:#fff;border-color:var(--dark)}
 .fp-actions-wrap{position:relative}
@@ -139,7 +147,7 @@ input[type=number]{-moz-appearance:textfield}
 {% block content %}
 <div class="fp-page" style="padding:14px">
 
-  <div class="stat-grid mb-16">
+  <div class="stat-grid fp-stat-tasma mb-16">
     <div class="stat-card"><div class="stat-icon"><i class="ti ti-category"></i></div><div class="stat-label">Mahsulotlar</div><div class="stat-val" id="k-types">—</div><div class="stat-izoh" id="k-partiya"></div></div>
     <div class="stat-card"><div class="stat-icon"><i class="ti ti-stack-2"></i></div><div class="stat-label">Omborda</div><div class="stat-val kichik" id="k-total-qty">—</div></div>
     <div class="stat-card"><div class="stat-icon"><i class="ti ti-currency-dollar"></i></div><div class="stat-label">Ombor qiymati</div><div class="stat-val" id="v-total">—</div><div class="stat-izoh" id="v-total-izoh"></div></div>

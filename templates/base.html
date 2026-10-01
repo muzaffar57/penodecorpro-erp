@@ -671,7 +671,9 @@ function jsAttrEscape(str) {
   @media (max-width: 768px) {
     .erp-topbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 10px}
     .erp-topbar .tb-left{flex:1 1 0;min-width:0}
-    .erp-topbar .tb-left .page-title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+    /* kech119 (C — telefon, O'LCHANGAN: Bosh sahifa «Assalomu alaykum, Namuna Dekor» 390 px da «…Namuna De…» deb kesilardi):
+       sarlavha 2 qatorgacha o'raladi (undan uzuni — «…» bilan) */
+    .erp-topbar .tb-left .page-title{white-space:normal;overflow:hidden;min-width:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.25;overflow-wrap:anywhere}
     .erp-topbar .tb-right{display:contents}
     .erp-topbar .tb-right>*{margin-right:0!important}
     .erp-topbar .tb-keng{display:none!important}

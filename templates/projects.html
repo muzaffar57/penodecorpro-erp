@@ -23,6 +23,27 @@
 .proj-filters input,.proj-filters select{height:38px;padding:0 12px;border:1.5px solid var(--border);border-radius:10px;font-size:13px;outline:none;transition:border .15s}
 .proj-filters input:focus,.proj-filters select:focus{border-color:var(--gold)}
 .proj-layout{display:grid;grid-template-columns:400px 1fr;gap:16px;height:calc(100vh - 230px);min-height:520px}
+/* kech119 (C — telefon, G2-18, O'LCHANGAN: 390 px da sahifa 776 px kenglikda — 8 ta tab tugmasi ustunni kengaytirardi,
+   karta o'ng qismi, «Faol», «% to'langan» ko'rinmasdi): ustun mazmun bilan kengaymaydi — tablar o'z joyida yon tomonga suriladi */
+.proj-layout > *{min-width:0}
+.status-panel > *{min-width:0}
+.status-panel-val{overflow-wrap:break-word}
+#moneyRow > *{min-width:0}
+@media (max-width:600px){
+  .proj-filters > *{flex:1 1 140px;min-width:0}
+  /* `!important` — quyidagi asosiy `.status-panel…` qoidalari (12px, 14px 16px, 19 px) keyin keladi: «Kutilmoqda» 19 px da
+     145 px li qutiga sig'masdi */
+  .status-panel{gap:8px !important}
+  .status-panel-item{padding:10px 12px !important}
+  .status-panel-val{font-size:16px !important}
+  /* loyiha tanlangach «Loyiha qiymati / To'langan / Qolgan to'lov» — uch ustunda «Qolgan to'lov» 390 px da ekrandan
+     15 px, 360 px da 45 px chiqib qirqilardi (O'LCHANGAN): bitta ustun, har biri — nom chapda, summa o'ngda */
+  #moneyRow{grid-template-columns:1fr !important;gap:8px !important}
+  #moneyRow > div{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:10px 14px !important}
+  #moneyRow > div > div:last-child{margin-top:0 !important;font-size:17px !important;text-align:right;white-space:nowrap}
+  /* ro'yxatda mijoz nomi va telefoni («… · +998…») qisqartirilmaydi — ikki qatorga o'tadi */
+  .proj-name, .proj-client{white-space:normal !important;overflow-wrap:anywhere}
+}
 @media (max-width:1000px){
   .proj-layout{grid-template-columns:1fr;height:auto}
   /* Mobilda ichki scroll konteynerlarni o'chirib, butun sahifa bitta scroll bo'lishini ta'minlaymiz */

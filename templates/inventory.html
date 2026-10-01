@@ -21,9 +21,19 @@
 .mat-row{display:grid;grid-template-columns:2.2fr 1.3fr 1fr .9fr 1fr 1.1fr;gap:16px;align-items:center;padding:18px 20px;border:1px solid var(--border);border-radius:14px;background:var(--white);margin-bottom:12px;transition:box-shadow .15s,border-color .15s;opacity:0;animation:matFadeIn .3s ease forwards}
 @keyframes matFadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 .mat-row:hover{box-shadow:var(--shadow-card);border-color:var(--border-strong)}
+/* kech119 (C BOSQICH — telefon, audit G4-11, O'LCHANGAN work/k125/telefon.py): ilgari 1100 px dan tor ekranda (telefon,
+   planshet, kichik noutbuk) «Min. qoldiq» va «1 birlik narxi» ustunlari YASHIRILARDI — ko'rib ham, tuzatib ham bo'lmasdi.
+   Endi ko'rinadi — yorlig'i bilan («Chegara:», «Narx:»), tuzatish tugmasi barmoq uchun kattaroq; telefonda qator ikki
+   ustunli (qoldiq | chegara, holat | narx), qidiruv va filtrlar ekran kengligida. */
 @media (max-width:1100px){.mat-row{grid-template-columns:1.8fr 1fr .8fr;row-gap:10px}
-  .mat-col-min,.mat-col-updated{display:none}}
-@media (max-width:640px){.mat-row{grid-template-columns:1fr}}
+  .mat-col-min,.mat-col-updated{display:flex;align-items:center;flex-wrap:wrap;gap:4px;font-size:13px !important}
+  .mat-col-min::before{content:"Chegara:";color:var(--text3);font-size:12px;font-weight:600}
+  .mat-col-updated::before{content:"Narx:";color:var(--text3);font-size:12px;font-weight:600}
+  .mat-col-min .btn-xs,.mat-col-updated .btn-xs{min-width:34px;min-height:32px}}
+@media (max-width:640px){.mat-row{grid-template-columns:repeat(2,minmax(0,1fr));column-gap:12px;row-gap:8px;padding:14px}
+  .mat-row > :first-child,.mat-row > .mat-actions{grid-column:1 / -1}
+  .inv-filters > *{flex:1 1 140px;min-width:0;max-width:100%}
+  .inv-search{min-width:0 !important;flex-basis:100% !important}}
 .mat-name{font-size:16px;font-weight:600;color:var(--text)}
 .mat-thumb{width:70px;align-self:stretch;border-radius:12px;background:var(--gold-tint);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;color:var(--gold-dark);font-size:26px;position:relative;cursor:pointer}
 .mat-thumb img{width:100%;height:100%;object-fit:cover;cursor:zoom-in}

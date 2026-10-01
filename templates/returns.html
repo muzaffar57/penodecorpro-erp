@@ -283,6 +283,9 @@
     {% endif %}
 
     <div class="form-group"><label>Izoh</label><input type="text" id="f-notes" placeholder="Masalan: kesish jarayonida sinib ketdi"></div>
+    {# kech119 (C BOSQICH — telefon, audit G5-16): ilgari oynada rasm maydoni yo'q edi — faqat saqlangandan keyin ro'yxatdagi kichik
+       belgini bosib (telefonda ko'rinmasdi). Rasm ixtiyoriy: qaytarish saqlangach shu yozuvga yuklanadi. #}
+    <div class="form-group"><label for="f-rasm">Rasm (ixtiyoriy)</label><input type="file" id="f-rasm" accept="image/*"></div>
 
     <div id="add-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:var(--f-fee2e2);border-radius:7px;font-size:12px;color:var(--m-dc2626)"></div>
 
@@ -626,6 +629,8 @@ function showAddModal(){
   document.getElementById('f-value').value = '';
   document.getElementById('f-notes').value = '';
   document.getElementById('f-unit-label').textContent = '—';
+  // kech119 (C — telefon, G5-16): oldingi ochilishda tanlangan (saqlanmagan) rasm yangi qaytarishga tushmasin
+  const rsmEl = document.getElementById('f-rasm'); if (rsmEl) rsmEl.value = '';
   document.getElementById('add-error').style.display = 'none';
   document.querySelector('input[name="f-reason"][value="Ortiqcha"]').checked = true;
   updateReasonHint();
@@ -894,6 +899,21 @@ async function saveReturn(){
     });
 
     if (res.ok) {
+      // kech119 (C — telefon, G5-16): tanlangan rasm — yangi qaytarishga (ro'yxatdagi kamera belgisi bilan bir marshrut); yuklanmasa — qaytarish
+      // saqlangan, sabab aytiladi (keyin ro'yxatdagi kamera belgisidan qayta yuklash mumkin)
+      const rasm = document.getElementById('f-rasm');
+      const fayl = rasm && rasm.files ? rasm.files[0] : null;
+      if (fayl) {
+        let yangi = null;
+        try { yangi = await res.json(); } catch (e2) { yangi = null; }
+        let rasmOk = false;
+        if (yangi && yangi.id) {
+          const fd = new FormData();
+          fd.append('file', fayl);
+          try { const r2 = await fetch(`/api/returns/${yangi.id}/image`, { method: 'POST', body: fd }); rasmOk = r2.ok; } catch (e3) { rasmOk = false; }
+        }
+        if (!rasmOk) await xabarOyna("Qaytarish saqlandi, lekin rasm yuklanmadi — ro'yxatdagi kamera belgisi orqali qayta yuklang", { tur: 'ogoh' });
+      }
       location.reload();
       return;
     } else {

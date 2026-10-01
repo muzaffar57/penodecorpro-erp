@@ -203,6 +203,7 @@
 .bomitem-row select,.bomitem-row input{height:36px;padding:0 8px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--white);color:var(--text);min-width:0;box-sizing:border-box}
 .bi-inventory{width:100%}
 .bi-guruh{display:flex;height:36px;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--white)}
+.bi-yorliq{display:none}
 .bi-guruh input{flex:1;height:100%!important;border:0!important;border-radius:0!important}
 .bi-guruh span{padding:0 9px;display:flex;align-items:center;background:var(--f-faf8f5);font-size:12.5px;color:var(--text2);white-space:nowrap}
 .bi-narx{text-align:right;font-size:13px;font-weight:600;line-height:1.3}
@@ -237,7 +238,12 @@
   .modal-box,.modal-box.wide,.modal-box.juda-keng{width:100%;max-height:94vh;border-radius:16px 16px 0 0;padding:18px 16px}
   .mf-row{flex-direction:column;gap:0}
   .bom-ustunlar{display:none}
-  .bi-asosiy{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"mat mat" "miq isr" "narx amal"}
+  /* kech119 (C BOSQICH — telefon, audit G5-25): ustun sarlavhalari yashiringanda har maydon ustida nomi («Miqdor», «Isrof») —
+     ilgari ikkita nomsiz maydon («8 kg», «0 %») qolardi, isrof miqdor bilan adashtirilardi */
+  .bi-asosiy>.bi-yorliq{display:block;font-size:12px;font-weight:600;color:var(--text3);margin-bottom:-4px}
+  .bi-asosiy>.bi-yorliq-miq{grid-area:lmiq}
+  .bi-asosiy>.bi-yorliq-isr{grid-area:lisr}
+  .bi-asosiy{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"mat mat" "lmiq lisr" "miq isr" "narx amal"}
   .bi-asosiy>.bi-inventory{grid-area:mat}
   .bi-asosiy>.bi-guruh.miq{grid-area:miq}
   .bi-asosiy>.bi-guruh.isr{grid-area:isr}
@@ -801,6 +807,8 @@ function addBomItemRow(existing){
   row.innerHTML = `
     <div class="bi-asosiy">
       <select class="bi-inventory" aria-label="Material"></select>
+      <span class="bi-yorliq bi-yorliq-miq" aria-hidden="true">Miqdor</span>
+      <span class="bi-yorliq bi-yorliq-isr" aria-hidden="true">Isrof</span>
       <div class="bi-guruh miq"><input class="bi-quantity" type="text" inputmode="decimal" placeholder="Miqdor" aria-label="Miqdor"><span class="bi-birlik">—</span></div>
       <div class="bi-guruh isr"><input class="bi-scrap" type="text" inputmode="decimal" placeholder="0" aria-label="Isrof foizi"><span>%</span></div>
       <div class="bi-narx"><span class="bi-narx-summa">—</span><small class="bi-narx-izoh"></small></div>

@@ -9,6 +9,8 @@
 
 {% block head %}
 <style>
+/* kech119 (C — telefon, G6-15): telefonda (≤ 600 px) jadval — kartalar (`telefon-karta`, style.css), tugmalar ko'rinib turadi */
+.users-grid > *{ min-width:0; }
 @media (max-width:768px){
   .users-grid{ grid-template-columns:1fr !important; }
   .users-table-wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
@@ -25,17 +27,17 @@
     <div class="card">
       <div class="card-head"><h3>Foydalanuvchilar ({{ users|length }} ta)</h3></div>
       <div class="users-table-wrap">
-      <table class="erp-table">
+      <table class="erp-table telefon-karta">
         <thead>
           <tr><th>#</th><th>Login</th><th>Ismi</th><th>Rol</th><th>Holat</th><th>Yaratilgan</th><th></th></tr>
         </thead>
         <tbody>
           {% for u in users %}
           <tr id="urow-{{ u.id }}">
-            <td style="color:var(--text3)">{{ loop.index }}</td>
-            <td><span style="font-weight:500;color:var(--text)">{{ u.username }}</span></td>
-            <td>{{ u.full_name or '—' }}</td>
-            <td>
+            <td data-label="#" style="color:var(--text3)">{{ loop.index }}</td>
+            <td data-label="Login"><span style="font-weight:500;color:var(--text)">{{ u.username }}</span></td>
+            <td data-label="Ismi">{{ u.full_name or '—' }}</td>
+            <td data-label="Rol">
               {# kech118 (ROLLAR): rol — korxona roli (nomi admin o'zi bergan). O'zidan boshqasiga — rolni shu yerda almashtirish. #}
               {% if u.username != current_user.username %}
               <select class="u-rol-tanlov" aria-label="{{ u.username }} roli" data-eski="{{ u.rol_id or '' }}"
@@ -46,12 +48,12 @@
               {% elif u.role.value == 'admin' %}<span class="badge" style="background:var(--dark);color:var(--gold)">{{ u.rol_nomi }}</span>
               {% else %}<span class="badge badge-info">{{ u.rol_nomi }}</span>{% endif %}
             </td>
-            <td>
+            <td data-label="Holat">
               {% if u.is_active %}<span class="badge badge-ready">Faol</span>
               {% else %}<span class="badge badge-cancelled">O'chirilgan</span>{% endif %}
             </td>
-            <td style="color:var(--text3);font-size:12px">{{ u.created_at|toshkent('%d.%m.%Y') if u.created_at else '—' }}</td>
-            <td>
+            <td data-label="Yaratilgan" style="color:var(--text3);font-size:12px">{{ u.created_at|toshkent('%d.%m.%Y') if u.created_at else '—' }}</td>
+            <td data-label="">
               {% if u.username != current_user.username %}
               <div style="display:flex;gap:4px">
                 <button class="btn btn-outline btn-xs" onclick="toggleUser({{ u.id }}, {{ 'true' if u.is_active else 'false' }}, this)">

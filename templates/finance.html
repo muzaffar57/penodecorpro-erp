@@ -151,6 +151,24 @@ html[data-theme="dark"]{
 /* ── Jadval (premium) ── */
 .fin-table-wrap{ overflow-x:auto; border-radius:var(--f-radius); }
 .fin-table{ width:100%; border-collapse:collapse; font-size:13.5px; min-width:720px; }
+/* kech119 (C — telefon, G3-19, O'LCHANGAN: 390 px da «Qarzlar va majburiyatlar» 4 qutisi bir qatorda (har biri ~72 px, «Arenda /
+   Soliq / Kommunal» 376..518 px — ekrandan tashqarida), tranzaksiyalar jadvali 720 px): telefonda qutilar 2 × 2, jadval — kartalar */
+#debt-summary-grid > *{ min-width:0; }
+/* xarajat guruhi sarlavhasi: uzun nom summani ekrandan surib chiqarardi (360 px, kengroq shrift — O'LCHANGAN) — nom torayadi */
+.fin-exp-group-head > .fin-exp-group-title{ min-width:0; overflow-wrap:break-word; }
+@media (max-width:640px){
+  #debt-summary-grid{ grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+  #debt-summary-grid [id^="dg-"]{ overflow-wrap:anywhere; }
+}
+@media (max-width:600px){
+  .fin-table-wrap{ padding:12px !important; }
+  /* «Daromad taqsimoti»: doira (120 px) yonida izoh ~190 px qolardi — «1 224 000 so'm» va «73,1%» 390 / 360 px da ekrandan
+     chiqardi (O'LCHANGAN): telefonda doira tepada, izoh uning ostida butun kenglikda */
+  #revDonutWrap{ flex-direction:column; align-items:stretch !important; gap:12px !important; }
+  #revDonutWrap > div:first-child{ align-self:center; }
+  #revDonutLegend{ width:100%; min-width:0; }
+  #revDonutLegend > div > span:nth-child(2){ min-width:0; overflow-wrap:anywhere; }
+}
 .fin-table thead th{
   position:sticky; top:0; z-index:2; background:var(--f-card);
   text-align:left; padding:12px 16px; color:var(--f-text3); font-weight:600; font-size:12px;
@@ -569,7 +587,7 @@ html[data-theme="dark"]{
           </select>
         </div>
         <div class="fin-table-wrap" style="padding:16px 20px 20px">
-          <table class="fin-table">
+          <table class="fin-table telefon-karta">
             <thead><tr><th>Sana</th><th>Kategoriya</th><th>Summa</th><th>Izoh</th><th>Kim</th><th>Manba</th><th class="no-print"></th></tr></thead>
             <tbody id="tx-body"><tr><td colspan="7" style="text-align:center;padding:24px;color:var(--f-text3)">Sana tanlang</td></tr></tbody>
           </table>
@@ -1466,14 +1484,15 @@ async function loadDailyTransactions(){
     }
     tbody.innerHTML = rows.map(t => {
       const icon = CAT_ICONS[t.category] || '📄';
+      // kech119 (C — telefon, G3-19): `data-label` — telefonda jadval kartalarga aylanadi (style.css `telefon-karta`)
       return `<tr>
-        <td>${tkSana(t.date)}</td>
-        <td><span class="fin-cat-badge">${icon} ${escapeHtml(CAT_LABELS[t.category] || t.category)}</span></td>
-        <td style="font-weight:700;color:var(--f-danger)">${fmtFull(t.amount)} so'm</td>
-        <td style="color:var(--f-text3)">${t.notes ? escapeHtml(t.notes) : '—'}</td>
-        <td style="color:var(--f-text3)">${t.created_by ? escapeHtml(t.created_by) : '—'}</td>
-        <td style="color:var(--f-text3);font-size:12.5px">${escapeHtml(SOURCE_LABELS[t.source] || t.source)}</td>
-        <td class="no-print" style="text-align:right;white-space:nowrap">
+        <td data-label="Sana">${tkSana(t.date)}</td>
+        <td data-label="Kategoriya"><span class="fin-cat-badge">${icon} ${escapeHtml(CAT_LABELS[t.category] || t.category)}</span></td>
+        <td data-label="Summa" style="font-weight:700;color:var(--f-danger)">${fmtFull(t.amount)} so'm</td>
+        <td data-label="Izoh" style="color:var(--f-text3)">${t.notes ? escapeHtml(t.notes) : '—'}</td>
+        <td data-label="Kim" style="color:var(--f-text3)">${t.created_by ? escapeHtml(t.created_by) : '—'}</td>
+        <td data-label="Manba" style="color:var(--f-text3);font-size:12.5px">${escapeHtml(SOURCE_LABELS[t.source] || t.source)}</td>
+        <td data-label="" class="no-print" style="text-align:right;white-space:nowrap">
           <button class="fin-row-action" title="Tahrirlash"
                   data-tx-id="${t.id}" data-tx-date="${t.date}" data-tx-category="${escapeHtml(t.category)}"
                   data-tx-amount="${t.amount}" data-tx-notes="${escapeHtml(t.notes||'')}" data-tx-yonalish="${t.yonalish_id || ''}"

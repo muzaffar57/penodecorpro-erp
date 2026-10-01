@@ -194,6 +194,48 @@
 input[type=number]::-webkit-inner-spin-button,
 input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 input[type=number]{-moz-appearance:textfield}
+/* kech119 (C BOSQICH — telefon; audit G2-02, G2-21, O'LCHANGAN work/k125/telefon.py, 390 / 360 px): ustun elementi ichidagi
+   keng mazmun (tugmali sarlavha) grid ustunini kengaytirmasin (tanlangandan keyin sahifa 530 px — yon tomonga surilardi) */
+.ord-layout > *{min-width:0}
+@media (max-width:900px){
+  /* bitta ustun: ro'yxat → tanlangan buyurtma xulosasi va AMALLAR → tafsilot (ilgari amallar butun tafsilotdan keyin,
+     ~2 000 px pastda); yangi buyurtma ochiq bo'lsa — hisob-kitob paneli formadan KEYIN */
+  .ord-layout > .ord-chap{order:1}
+  .ord-layout > .right-panel{order:2}
+  .ord-layout > .mid-panel{order:3}
+  .ord-layout.yangi-forma > .right-panel{order:4}
+  .ord-list{max-height:280px}
+  #sumBody{display:flex;flex-direction:column}
+  #sumBody > .yb-amallar-sarlavha{order:-2}
+  #sumBody > .yb-amallar{order:-1;margin-bottom:6px;display:grid !important;grid-template-columns:1fr 1fr}
+  #sumBody > .yb-amallar .btn{min-height:44px;font-size:13.5px;display:flex;align-items:center;justify-content:center;text-align:center;line-height:1.25;white-space:normal}
+  #sumBody > .yb-amallar #btn-ready, #sumBody > .yb-amallar #btn-duplicate{grid-column:1 / -1}
+  .yb-sarlavha-tugmalar{flex-wrap:wrap;justify-content:flex-end;row-gap:6px}
+  #orderDetail .card-head{flex-wrap:wrap;row-gap:8px}
+  .pf-qator{flex-wrap:wrap}
+  .pf-qator > div{flex:1 1 140px !important;min-width:0}
+}
+@media (max-width:600px){
+  /* yangi buyurtma: maydonlar bitta ustunda, detal ichidagi o'lcham / narx maydonlari ustma-ust (ilgari 26 px kenglikdagi
+     «Eni», «Kengligi», «Uzunlik», 360 px da «Uzunlik» ekrandan chiqardi) */
+  .yb-forma-grid, .yb-ikki-ustun{grid-template-columns:1fr !important}
+  .yb-forma-ong{border-left:none !important;padding-left:0 !important;border-top:1px solid var(--border2);padding-top:14px}
+  .detal-grid{grid-template-columns:1fr}
+  .dgrp-flex-row{flex-direction:column}
+  .dgrp-row{grid-template-columns:repeat(2,minmax(0,1fr)) !important}
+  .dgrp-row.yb-qoplama-qator{grid-template-columns:1fr !important}
+  .dgrp{padding:12px}
+  .dif{padding:10px 12px}
+  /* ichma-ich qutilar (detal → guruh → maydon) 360 px da «Bo'yi» / «Qalinligi» maydonini 46 px ga tushirardi (O'LCHANGAN —
+     yozish joyi ~20 px): tashqi detal va ichki maydon chekkalari kichikroq */
+  .detal{padding:14px 12px}
+  .dgrp-row{gap:8px}
+  .dgrp-row > .dif{padding:8px}
+  .dgrp-row .unit-input-wrap input, .dgrp-row .unit-input-wrap select{padding:10px}
+  .dgrp-row .unit-input-wrap .unit-suffix{padding:0 8px}
+  .yb-saqlash-qator{flex-direction:column}
+  .yb-saqlash-qator .btn{flex:none !important;width:100%}
+}
 </style>
 {% endblock %}
 
@@ -202,7 +244,7 @@ input[type=number]{-moz-appearance:textfield}
 <div class="ord-layout">
 
   <!-- CHAP: Buyurtmalar ro'yxati -->
-  <div class="card" style="overflow:hidden;display:flex;flex-direction:column">
+  <div class="card ord-chap" style="overflow:hidden;display:flex;flex-direction:column">
     <div class="card-head" style="padding:10px 14px">
       <h3>Buyurtmalar</h3>
       <input placeholder="Qidirish..." oninput="searchOrders(this.value)"
@@ -411,7 +453,7 @@ input[type=number]{-moz-appearance:textfield}
           <h3 id="formTitle">Yangi buyurtma</h3>
           <button class="btn btn-outline btn-sm" onclick="clearDraftLS();hideNewForm()">✕ Yopish</button>
         </div>
-        <div style="padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="yb-forma-grid" style="padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
 
           <!-- Buyurtma ma'lumotlari -->
           <div>
@@ -447,7 +489,7 @@ input[type=number]{-moz-appearance:textfield}
           </div>
 
           <!-- Narx va ishlab chiqarish -->
-          <div style="border-left:1px solid var(--border2);padding-left:16px">
+          <div class="yb-forma-ong" style="border-left:1px solid var(--border2);padding-left:16px">
             <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:12px">Narx va ishlab chiqarish</div>
             <div class="form-group" style="margin-bottom:12px">
               <label>1 m³ asosiy narxi (so'm)</label>
@@ -478,7 +520,7 @@ input[type=number]{-moz-appearance:textfield}
           <div class="total-box">
             <div class="trow"><span>Jami summa:</span><span id="total_sum" style="font-weight:600">0 so'm</span></div>
 
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px">
+            <div class="yb-ikki-ustun" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px">
               <div class="form-group" style="margin:0">
                 <label style="font-size:12px;color:var(--m-6b7280);text-transform:uppercase;font-weight:700;letter-spacing:.3px;margin-bottom:6px;display:block">Kelishilgan summa</label>
                 <input type="text" id="final_price" placeholder="Kelishilgan summa kiriting"
@@ -496,7 +538,7 @@ input[type=number]{-moz-appearance:textfield}
             <div id="discount-auto-hint" style="display:none;margin-top:6px;padding:7px 10px;background:var(--f-f8f2eb);border-radius:7px;font-size:13px;color:var(--gold-dark);line-height:1.5"></div>
             <div id="discount_info" style="display:none;margin-top:8px;padding:8px;background:var(--f-fef3c7);border-radius:7px;font-size:14px"></div>
 
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;padding-top:14px;border-top:1px dashed var(--ch-dddddd)">
+            <div class="yb-ikki-ustun" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;padding-top:14px;border-top:1px dashed var(--ch-dddddd)">
               <div class="form-group" style="margin:0">
                 <label style="font-size:12px;color:var(--m-6b7280);text-transform:uppercase;font-weight:700;letter-spacing:.3px;margin-bottom:6px;display:block">To'lov usuli</label>
                 <select id="zaklat_method" style="width:100%;padding:11px 13px;border:1.5px solid var(--ch-dddddd);border-radius:9px;font-size:14.5px;outline:none">
@@ -511,7 +553,7 @@ input[type=number]{-moz-appearance:textfield}
           </div>
         </div>
 
-        <div style="padding:0 12px 16px;display:flex;gap:10px">
+        <div class="yb-saqlash-qator" style="padding:0 12px 16px;display:flex;gap:10px">
           <button id="draftSaveBtn" class="btn btn-outline" style="flex:1;height:48px;font-size:14px;border-color:#8E8E93;color:var(--m-666666);border-radius:10px" onclick="saveOrder(true)" title="Ombordan xomashyo yechilmaydi">📝 Vaqtincha saqlash</button>
           <button class="btn btn-dark" style="flex:2;height:48px;font-size:14.5px;font-weight:700;border-radius:10px" onclick="saveOrder(false)">💾 Buyurtmani saqlash</button>
         </div>
@@ -536,7 +578,7 @@ input[type=number]{-moz-appearance:textfield}
       <div class="card" style="margin-top:12px">
         <div class="card-head" style="cursor:pointer" onclick="toggleSection('dlvBody', 'dlv-toggle-ic')">
           <h3><span class="ico-badge blue"><i class="ti ti-truck-delivery"></i></span> Yetkazish</h3>
-          <div style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">
+          <div class="yb-sarlavha-tugmalar" style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">
             <span id="dlv-pct-badge" style="font-size:13px;font-weight:600"></span>
             <button class="btn btn-outline btn-sm" id="btn-summary" onclick="openSummaryModal()"
                     style="display:none;border-color:#B9783F;color:var(--gold-dark)">🧾 Hisob-kitob</button>
@@ -618,7 +660,7 @@ input[type=number]{-moz-appearance:textfield}
           <!-- To'lov qo'shish formasi -->
           <div id="paymentForm" style="display:none;background:var(--f-f0f9f4);border:1.5px solid #22C55E;border-radius:8px;padding:12px;margin-bottom:12px">
             <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--m-1e7e34)">Yangi to'lov</div>
-            <div style="display:flex;gap:8px;margin-bottom:8px">
+            <div class="pf-qator" style="display:flex;gap:8px;margin-bottom:8px">
               <div style="flex:1">
                 <div style="font-size:13px;color:var(--text3);margin-bottom:3px;display:flex;justify-content:space-between;align-items:center">
                   <span>Summa</span>
@@ -744,8 +786,8 @@ input[type=number]{-moz-appearance:textfield}
         </div>
         {% endif %}
 
-        <div class="sum-title">Amallar</div>
-        <div style="display:flex;flex-direction:column;gap:7px">
+        <div class="sum-title yb-amallar-sarlavha">Amallar</div>
+        <div class="yb-amallar" style="display:flex;flex-direction:column;gap:7px">
           <button class="btn btn-outline w-full btn-sm" id="btn-pin" onclick="toggleOrderPin(selectedOrderId)" style="display:none;border-color:var(--gold);color:var(--gold-dark)">📌 Pin qilish</button>
           <button class="btn btn-green w-full btn-sm" id="btn-ready" onclick="markReadySelected()" style="display:none">✓ Tayyor deb belgilash</button>
           <button class="btn btn-outline w-full btn-sm" id="btn-edit" onclick="editSelected()" style="display:none;border-color:#B9783F;color:var(--gold-dark)">✏️ Tahrirlash</button>
@@ -1170,6 +1212,8 @@ function buyurtmaniParamdanOch(params) {
     openProject(el.dataset.projectId);
     selectOrder(Number(id), el);
     try { el.scrollIntoView({ block: 'center' }); } catch (e) { /* ko'rinish — muhim emas */ }
+    // kech119 (C — telefon): bitta ustunda qator ko'rinishga surilgach — xulosa va amallarga (ro'yxat qutisi o'z joyida qoladi)
+    if (typeof tanlanganXulosagaSur === 'function') tanlanganXulosagaSur();
     return true;
   }
   if (!barchasi) { window.location.replace('/orders?show_all=true&order=' + id); return true; }
@@ -1867,6 +1911,9 @@ function selectOrder(id, el) {
 
   // Yetkazishlar
   loadDeliveries(id);
+
+  // kech119 (C — telefon, G2-21): bitta ustunda — xulosa va amallarga suriladi
+  if (typeof tanlanganXulosagaSur === 'function') tanlanganXulosagaSur();   // yordamchisiz ajratib olinsa ham ishlasin
 
   // Ombor ogohlantirishlari
   fetch('/api/warnings/low-stock').then(r=>r.json()).then(d=>{
@@ -3111,6 +3158,7 @@ function showNewForm() {
   const projSearch = document.getElementById('project_id_search');
   if (projSearch) { projSearch.value = ''; filterProjectSelect(''); }
   document.getElementById('newOrderForm').style.display = 'block';
+  if (typeof ordLayoutYangiForma === 'function') ordLayoutYangiForma(true);   // kech119 (C — telefon): hisob-kitob paneli formadan keyin
   const dlInp = document.getElementById('deadline_input');
   if (dlInp) dlInp.value = '';
   // Tahrirlash rejimidan qaytish
@@ -3142,8 +3190,26 @@ function showNewForm() {
   selectedOrderId = null;
   if (document.getElementById('items').children.length === 0) addItem();
 }
+// kech119 (C BOSQICH — telefon, G2-21): bitta ustunli (≤ 900 px) ko'rinishda yangi forma ochiqligi — `.ord-layout.yangi-forma`
+// (o'ng panel — hisob-kitob — formadan KEYIN; tanlangan buyurtmada esa xulosa va amallar tafsilotdan OLDIN).
+function ordLayoutYangiForma(ochiq) {
+  const l = document.querySelector('.ord-layout');
+  if (l) l.classList.toggle('yangi-forma', !!ochiq);
+}
+function telefonKorinishimi() {
+  try { return !!(window.matchMedia && window.matchMedia('(max-width: 900px)').matches); } catch (e) { return false; }
+}
+// Telefonda buyurtma tanlanganda ro'yxat ostidagi xulosaga (amallar bilan) o'zi suriladi — ilgari tafsilot ~800 px pastda
+// ochilar, sahifa joyida qolardi («hech narsa o'zgarmadi» deb o'ylanardi).
+function tanlanganXulosagaSur() {
+  if (!telefonKorinishimi()) return;
+  const k = document.getElementById('sumCard');
+  if (!k || k.style.display === 'none') return;
+  try { k.scrollIntoView({ block: 'start' }); } catch (e) { try { k.scrollIntoView(true); } catch (e2) { /* eski brauzer */ } }
+}
 function hideNewForm() {
   document.getElementById('newOrderForm').style.display = 'none';
+  if (typeof ordLayoutYangiForma === 'function') ordLayoutYangiForma(false);
   const livePanel = document.getElementById('liveTotal');
   if (livePanel) livePanel.style.display = 'none';
   statPanellari(false);
@@ -3262,7 +3328,7 @@ function addItem() {
       </div>
       <div class="dgrp" style="grid-column:1/-1">
         <div class="dgrp-title">🎨 Qoplama, plotnost va narx</div>
-        <div class="dgrp-row" style="grid-template-columns:1fr 2fr 1fr">
+        <div class="dgrp-row yb-qoplama-qator" style="grid-template-columns:1fr 2fr 1fr">
           <div class="dif"><label>Qoplama</label>
             <div class="coat-toggle">
               <div class="coat-opt coat-no active" onclick="setCoating(this, false)">Yo'q</div>

@@ -22,6 +22,9 @@ html[data-theme="dark"] .dbt-tab.active{background:var(--f-eceae6);color:var(--m
 @media(max-width:600px){.dbt-tab{padding:8px 12px;font-size:12px;flex:1 1 auto;text-align:center}}
 .dbt-grid{display:grid;grid-template-columns:1fr 340px;gap:16px}
 @media(max-width:950px){.dbt-grid{grid-template-columns:1fr}}
+/* kech119 (C — telefon, G3-08): «Boshqa majburiyatlarimiz» telefonda bitta ustunda (ilgari ikki ustun, har biri ~170 px) */
+.dbt-grid > *, .dbt-ikki-ustun > *{min-width:0}
+@media(max-width:700px){.dbt-ikki-ustun{grid-template-columns:1fr !important}}
 .dbt-card{background:var(--white);border:1px solid var(--d-border);border-radius:16px;box-shadow:0 1px 2px rgba(16,24,40,.04),0 4px 16px rgba(16,24,40,.06);overflow:hidden}
 .dbt-list{max-height:calc(100vh - 320px);overflow-y:auto}
 .dbt-item{padding:14px 18px;border-bottom:1px solid var(--ch-f3f4f6);cursor:pointer;transition:background .12s;display:flex;gap:12px}
@@ -266,7 +269,7 @@ html[data-theme="dark"] .dbt-tab.active{background:var(--f-eceae6);color:var(--m
 
   <!-- KOMPANIYA O'ZI QARZDOR -->
   <div id="tab-company" style="display:none">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+    <div class="dbt-ikki-ustun" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
 
       <!-- Hodimlarga qarz -->
       <div class="dbt-card">
@@ -646,9 +649,22 @@ async function closeEmployeeDebt(empId, name, amount, year, month){
 
 let selectedOrderId = null;
 
+// kech119 (C BOSQICH — telefon, audit G3-08, O'LCHANGAN work/k125/telefon.py: 390 px da qarzdor tanlanganda «To'lov qabul
+// qilish» 1 390 px da — ekranda yo'q, sahifa joyida qolardi): bitta ustunda (≤ 950 px) tanlangan qarzdor kartasiga
+// (tafsilot, uning ostida to'lov) o'zi suriladi — kimga yozilayotgani ko'rinib turadi.
+function qarzTafsilotigaSur(nomId) {
+  try {
+    if (!(window.matchMedia && window.matchMedia('(max-width: 950px)').matches)) return;
+    const el = document.getElementById(nomId);
+    const k = el && el.closest('.dbt-card');
+    if (k) k.scrollIntoView({ block: 'start' });
+  } catch (e) { /* ko'rinish — muhim emas */ }
+}
+
 function selectOrderDebt(el){
   document.querySelectorAll('#tab-customers .dbt-item').forEach(i => i.classList.remove('active'));
   el.classList.add('active');
+  if (typeof qarzTafsilotigaSur === 'function') qarzTafsilotigaSur('cd-name');   // kech119 (C — telefon, G3-08)
   selectedOrderId = el.dataset.id;
   const d = el.dataset;
   const agreed = parseFloat(d.agreed), paid = parseFloat(d.paid), debt = parseFloat(d.debt);
@@ -787,6 +803,7 @@ let selectedRefundId = null;
 function selectRefund(el){
   document.querySelectorAll('#tab-refunds .dbt-item').forEach(i => i.classList.remove('active'));
   el.classList.add('active');
+  if (typeof qarzTafsilotigaSur === 'function') qarzTafsilotigaSur('rd-name');   // kech119 (C — telefon, G3-08)
   selectedRefundId = el.dataset.id;
   const d = el.dataset;
   const agreed = parseFloat(d.agreed), paid = parseFloat(d.paid), ort = parseFloat(d.ortiqcha);
@@ -851,6 +868,7 @@ async function saveRefund(){
 function selectSupplierDebt(el){
   document.querySelectorAll('#tab-suppliers .dbt-item').forEach(i => i.classList.remove('active'));
   el.classList.add('active');
+  if (typeof qarzTafsilotigaSur === 'function') qarzTafsilotigaSur('sd-name');   // kech119 (C — telefon, G3-08)
   const d = el.dataset;
   const credit = parseFloat(d.credit), paid = parseFloat(d.paid), debt = parseFloat(d.debt);
   const pct = credit > 0 ? Math.min(100, (paid/credit*100)).toFixed(0) : 0;
