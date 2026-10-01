@@ -18,7 +18,9 @@ const vm = require('vm');
 
 const ROOT = path.dirname(__dirname);
 function oqi(p) { try { return fs.readFileSync(p, 'utf8'); } catch (e) { return ''; } }
-const FINISHED = oqi(process.argv[2] || path.join(ROOT, 'templates', 'finished.html'));
+// kech118 (zip 123 — G5-04, MOSLANDI): «−» oynasi — BITTA «Brak yozish» oynasi (templates/_brak_oyna.html, finished.html ulaydi)
+const FINISHED = oqi(process.argv[2] || path.join(ROOT, 'templates', 'finished.html'))
+  + '\n' + oqi(path.join(ROOT, 'templates', '_brak_oyna.html'));
 
 let OK = 0, FAIL = 0;
 const FAILED = [];
@@ -55,18 +57,19 @@ tekshir("U2 eski turkumlar AYNAN qoldi (profil, panel, dona, blok)",
 tekshir("U3 qaytgan MRP mahsuloti ('mrp_product') — ro'yxatda YO'Q (surati yo'q)",
         Array.isArray(royxat) && !royxat.includes('mrp_product'), JSON.stringify(royxat));
 
-const kod = olib(FINISHED, 'openLossModal');
+// kech118 (zip 123, MOSLANDI): oyna skripti butunligicha (showBrakModal, brakManbaTanla …); «Ishlab chiqarishda» yo'li —
+// `brak-manba-ishlab` elementi (ko'rinsa '' , yashirin — 'none')
+const _sk = /<script>([\s\S]*?)<\/script>/.exec(oqi(path.join(ROOT, 'templates', '_brak_oyna.html')));
+const kod = (_sk && olib(FINISHED, 'openLossModal')) ? _sk[1].replace(/\{%\s*if[^%]*%\}([\s\S]*?)(?:\{%\s*else\s*%\}[\s\S]*?)?\{%\s*endif\s*%\}/g, '$1').replace(/\{%[\s\S]*?%\}/g, '') : null;
 function och(kat) {
-  const el = { 'loss-modal-sub': element(''), 'loss-stock-info': element(''), 'loss-qty': element(''),
-               'loss-reason': element(''), 'loss-mode-toggle': element(''), lossModal: element(''),
-               'loss-stage': element('') };
-  const ctx = { document: { getElementById: (id) => el[id] || null }, setLossMode: () => {},
-                PROD_BRAK_CATEGORIES: royxat || [], _lossData: null };
+  const el = {};
+  const ctx = { document: { getElementById: (id) => (el[id] = el[id] || element('')), querySelectorAll: () => [],
+                            querySelector: () => null }, console, Math, Number, String, Array, Object };
   vm.createContext(ctx);
   try {
     vm.runInContext(kod, ctx);
     vm.runInContext(`openLossModal(7, 'X', 10, 'm²', ${JSON.stringify(kat)})`, ctx);
-    return el['loss-mode-toggle'].style.display;
+    return el['brak-manba-ishlab'].style.display === 'none' ? 'none' : 'flex';
   } catch (e) { return 'XATO ' + e.message; }
 }
 tekshir("U4 openLossModal('dynamic_bom') — \"Ishlab chiqarishda chiqdi\" tugmasi ko'rinadi", kod && och('dynamic_bom') === 'flex', kod ? och('dynamic_bom') : 'topilmadi');

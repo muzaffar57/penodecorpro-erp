@@ -314,6 +314,12 @@ for _f in SHABLONLAR:
     _s = open(_f, encoding="utf-8").read()
     if not TOKEN.search(_s) or re.search(r'{%\s*extends\s+"base\.html"\s*%}', _s):
         continue
+    # kech118 (zip 123, MOSLANDI): «_» bilan boshlanuvchi qism (`_brak_oyna.html`) — o'zi sahifa emas, base.html ni kengaytiruvchi
+    # sahifalarga `{% include %}` qilinadi (ro'yxat o'sha sahifada ulangan)
+    if os.path.basename(_f).startswith("_"):
+        _ulovchi = [g for g in SHABLONLAR if f'{{% include "{os.path.basename(_f)}" %}}' in open(g, encoding="utf-8").read()]
+        if _ulovchi and all(re.search(r'{%\s*extends\s+"base\.html"\s*%}', open(g, encoding="utf-8").read()) for g in _ulovchi):
+            continue
     _a = _s.find('href="/static/style.css?v={{ static_version }}"')
     _b = _s.find('href="/static/ranglar.css?v={{ static_version }}"')
     if _a < 0 or _b < 0 or _b < _a:

@@ -565,14 +565,16 @@ section("P. «Ishlab chiqarish» — 5B: mahsulot turlari jadvali, ?po= havola")
 # ══════════════════════════════════════════════════════════════
 _p = n("prod_yuklash")
 _ptr = next((t for t in _p.get("qatorlar") or [] if t.startswith("DZ Travertin")), "")
-check("P1 jadval sarlavhalari: «Mahsulot turi», «Retseptlar va 1 birlik taxminiy tannarxi», «Omborda», «Jarayonda», «Band»",
-      lambda: _p["sarlavha"][:5] == ["Mahsulot turi", "Retseptlar va 1 birlik taxminiy tannarxi", "Omborda", "Jarayonda", "Band"],
+# kech118 (zip 123 — G4-22 / G5-01, MOSLANDI): Ishlab chiqarishdagi «Retsept» — «Mahsulot tarkibi»; Tayyor mahsulotlarda
+# «Penoplast detal» + «Retsept bo'yicha →»
+check("P1 jadval sarlavhalari: «Mahsulot turi», «Mahsulot tarkibi va 1 birlik taxminiy tannarxi», «Omborda», «Jarayonda», «Band»",
+      lambda: _p["sarlavha"][:5] == ["Mahsulot turi", "Mahsulot tarkibi va 1 birlik taxminiy tannarxi", "Omborda", "Jarayonda", "Band"],
       _p.get("sarlavha"))
 check("P2 Travertin qatori: «m² · Faqat miqdor · narx: birlik narxi», «Qoplama mumkin · ×2», «Standart (1 m² uchun · 4 ta material)», "
       "«1 m² ≈ 10 295 so'm · qoplamali ≈ 14 695 so'm», omborda «80 m²»",
       lambda: all(x in _ptr for x in ("m² · Faqat miqdor · narx: birlik narxi", "Qoplama mumkin · ×2",
                                       "Standart (1 m² uchun · 4 ta material)", "1 m² ≈ 10 295 so'm · qoplamali ≈ 14 695 so'm",
-                                      "80 m²", "Tahrirlash", "+ Retsept")), _ptr)
+                                      "80 m²", "Tahrirlash", "+ Tarkib")), _ptr)
 _pkf = next((t for t in _p.get("qatorlar") or [] if t.startswith("DZ Kafel kley")), "")
 check("P3 Kafel qatori: omborda «20 qop», jarayonda «12 qop», «1 qop ≈ 15 925 so'm» (qum 17,5 × 820 + kley 0,5 × 3 150)",
       lambda: "20 qop" in _pkf and "12 qop" in _pkf and "1 qop ≈ 15 925 so'm" in _pkf, _pkf)
@@ -581,8 +583,8 @@ check("P4 jadval tannarxi = server (`/product-types/xulosa`) — sahifada formul
 check("P5 kartalar yo'q, BITTA so'rov (/product-types/xulosa), har tur uchun /boms so'rovi YO'Q",
       lambda: _p["kartalar"] == 0 and _p["sorovlar"].count("/api/production/product-types/xulosa") == 1
       and not any(s.startswith("/api/production/product-types/") and s.endswith("/boms") for s in _p["sorovlar"]), _p.get("sorovlar"))
-check("P6 «+ Retsept» → retsept oynasi shu tur uchun ochiladi", lambda: n("prod_retsept")["ochiq"] is True
-      and n("prod_retsept")["sarlavha"] == "Yangi retsept — DZ Travertin", n("prod_retsept"))
+check("P6 «+ Tarkib» → mahsulot tarkibi oynasi shu tur uchun ochiladi", lambda: n("prod_retsept")["ochiq"] is True
+      and n("prod_retsept")["sarlavha"] == "Yangi mahsulot tarkibi — DZ Travertin", n("prod_retsept"))
 check("P7 yuqori paneldagi sahifa tugmalari `.tb-amallar` ichida (2 ta)", lambda: len(_p["amallar"]) == 2
       and "Yangi mahsulot turi" in _p["amallar"][0] and "Yangi ishlab chiqarish" in _p["amallar"][1], _p.get("amallar"))
 _pl = n("po_link")
@@ -596,7 +598,8 @@ check("P9 /production?po=<yo'q> — xabar «Ishlab chiqarish topilmadi», oyna o
 section("B. Yuqori panel — 6A: «···» menyusi va sahifa tugmalari")
 # ══════════════════════════════════════════════════════════════
 _b = n("panel")
-check("B1 «Tayyor mahsulotlar» tugmasi `.tb-amallar` ichida; «···» menyusi yopiq", lambda: _b["amallar"] == ["Ishlab chiqarish"]
+check("B1 «Tayyor mahsulotlar» tugmalari `.tb-amallar` ichida («Penoplast detal», «Retsept bo'yicha →»); «···» menyusi yopiq",
+      lambda: _b["amallar"] == ["Penoplast detal", "Retsept bo'yicha →"]
       and _b["menyu_yashirin"] is True and _b["aria"] == "false", _b)
 check("B2 «···» bosildi → menyu ochiq: «Tungi rejim», «Кирилл»", lambda: n("panel_och")["yashirin"] is False
       and n("panel_och")["aria"] == "true" and n("panel_och")["bandlar"] == ["Tungi rejim", "Кирилл"], n("panel_och"))

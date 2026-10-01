@@ -690,8 +690,9 @@ check("H5 Qarzdorlar sahifasi (server chizadi): hodim izohi — Admin da foyda s
       and _ft and all(re.fullmatch(r"Foyda — × 5(\.0)?%", x) for x in _ft), (_da.status_code, _dt2.status_code, _fa, _ft))
 BELGILAR = {
     "templates/base.html": ["function somYoq(n, f)", "const TANNARX_KORADI ="],
-    "templates/finished.html": ["tannarxKoradi ? `<div", "cpu === null ?", "s.total_value === null ? '—'",
-                                "r.cost_amount === null ?"],
+    "templates/finished.html": ["tannarxKoradi ? `<div", "cpu === null ?", "s.total_value === null ? '—'"],
+    # kech118 (zip 123 — G5-04, MOSLANDI): «−» oynasi — BITTA «Brak yozish» oynasi (finished.html ulaydi)
+    "templates/_brak_oyna.html": ["r.cost_amount === null ?", "{% if current_user.ruxsat('tannarx', 'korish') %}"],
     "templates/production.html": ["po.total_cost === null ? null", "natija.qoplamali.jami === null"],
     "templates/dashboard.html": ["somYoq(t.today_profit, fmt)", "d.sof_foyda === null ? null"],
     "templates/finance.html": ["if (v === null) return '—';", "d.sof_foyda === null ? '—'", "u.s.natija === null"],

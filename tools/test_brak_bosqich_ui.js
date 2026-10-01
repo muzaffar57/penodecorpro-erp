@@ -34,8 +34,10 @@ const ROOT = path.dirname(__dirname);
 function oqi(p) {
   try { return fs.readFileSync(p, 'utf8'); } catch (e) { return ''; }
 }
-const RETURNS = oqi(process.argv[2] || path.join(ROOT, 'templates', 'returns.html'));
-const FINISHED = oqi(process.argv[3] || path.join(ROOT, 'templates', 'finished.html'));
+// kech118 (zip 123 — G5-04, MOSLANDI): brak oynasi (saveBrakBatch, openLossModal, submitLoss …) — BITTA «Brak yozish» oynasida
+// (templates/_brak_oyna.html; returns.html va finished.html ulaydi) — sahifa matniga qo'shib o'qiladi
+const RETURNS = oqi(process.argv[2] || path.join(ROOT, 'templates', 'returns.html')) + '\n' + oqi(path.join(ROOT, 'templates', '_brak_oyna.html'));
+const FINISHED = oqi(process.argv[3] || path.join(ROOT, 'templates', 'finished.html')) + '\n' + oqi(path.join(ROOT, 'templates', '_brak_oyna.html'));
 
 let OK = 0, FAIL = 0;
 const FAILED = [];
@@ -216,9 +218,9 @@ async function brakBolimi() {
 // finished.html — "Kamaytirish" oynasi
 // ══════════════════════════════════════════════════════════════
 async function lossSina(rejim, bosqich) {
-  // kech118 (D-1, G5-20): sabab majburiy — #loss-cause 'boshqa' tanlangan
-  const el = { 'loss-qty': element('4'), 'loss-reason': element('  tashishda sindi  '), 'loss-cause': element('boshqa') };
-  if (bosqich !== undefined) el['loss-stage'] = element(bosqich);
+  // kech118 (D-1, G5-20): sabab majburiy — #brak-cause 'boshqa' tanlangan
+  const el = { 'loss-qty': element('4'), 'brak-notes': element('  tashishda sindi  '), 'brak-cause': element('boshqa') };
+  if (bosqich !== undefined) el['brak-stage'] = element(bosqich);
   const m = muhit(el, {}, {}, { _lossData: { id: 55, name: 'X', quantity: 10, unit: 'metr', category: 'profil' },
                                 _lossMode: rejim });
   const kod = [olib(FINISHED, 'lossBosqichTana'), jinjasiz(olib(FINISHED, 'submitLoss'))];
@@ -228,13 +230,13 @@ async function lossSina(rejim, bosqich) {
 }
 
 async function lossBolimi() {
-  bolim('finished.html — "Kamaytirish" oynasi (#loss-stage, lossBosqichTana, submitLoss)');
+  bolim('finished.html — "Kamaytirish" oynasi (#brak-stage, lossBosqichTana, submitLoss)');
   const fn = olib(FINISHED, 'lossBosqichTana');
   tekshir('F0 lossBosqichTana topildi', !!fn);
   for (const [nomi, qiy, kut] of [['qiymat', 'kesish', { brak_bosqich: 'kesish' }], ["bo'sh", '', {}],
                                    ["element YO'Q", undefined, {}]]) {
     const el = {};
-    if (qiy !== undefined) el['loss-stage'] = element(qiy);
+    if (qiy !== undefined) el['brak-stage'] = element(qiy);
     const m = muhit(el, {}, {}, {});
     const r = fn ? await ishga(m, fn, 'lossBosqichTana()') : { xato: 'topilmadi' };
     tekshir(`F1 lossBosqichTana (${nomi}) → ${JSON.stringify(kut)}`,
@@ -260,24 +262,26 @@ async function lossBolimi() {
           && m.sorovlar[0].xom === JSON.stringify(Object.assign({}, aslProd, { brak_bosqich: 'qoplash' }, SAB)),
           m.xato || qisqa(m.sorovlar));
   m = await lossSina('production', undefined);
-  tekshir("F5 ishlab chiqarish braki, #loss-stage YO'Q → yiqilmaydi, tana AYNAN avvalgidek + brak_sabab",
+  tekshir("F5 ishlab chiqarish braki, #brak-stage YO'Q → yiqilmaydi, tana AYNAN avvalgidek + brak_sabab",
           !m.xato && m.sorovlar.length === 1 && m.sorovlar[0].xom === JSON.stringify(Object.assign({}, aslProd, SAB)),
           m.xato || qisqa(m.sorovlar));
 
   // openLossModal — oldingi tanlov tozalanadi
   const el = { 'loss-modal-sub': element(''), 'loss-stock-info': element(''), 'loss-qty': element('3'),
-               'loss-reason': element('eski'), 'loss-mode-toggle': element(''), lossModal: element(''),
-               'loss-stage': element('quritish') };
+               'brak-notes': element('eski'), 'loss-mode-toggle': element(''), brakModal: element(''), 'brak-manba-ombor': element(''),
+               'brak-stage': element('quritish') };
   const mm = muhit(el, {}, {}, { PROD_BRAK_CATEGORIES: ['profil'], _lossData: null });
-  const ok = olib(FINISHED, 'openLossModal');
+  // kech118 (zip 123, MOSLANDI): openLossModal BITTA oynani ochadi — oynaning butun skripti bilan ishga tushiriladi
+  const _sk = /<script>([\s\S]*?)<\/script>/.exec(FINISHED.slice(FINISHED.indexOf('id="brakModal"')));
+  const ok = (_sk && olib(FINISHED, 'openLossModal')) ? jinjasiz(_sk[1]) : null;
   const r = ok ? await ishga(mm, ok, "openLossModal(55, 'X', 10, 'metr', 'profil')") : { xato: 'topilmadi' };
   tekshir("F6 openLossModal: oldingi bosqich tozalanadi (''), oyna ochiladi",
-          !r.xato && el['loss-stage'].value === '' && el.lossModal.style.display === 'flex',
-          r.xato || qisqa({ bosqich: el['loss-stage'].value }));
+          !r.xato && el['brak-stage'].value === '' && el.brakModal.style.display === 'flex',
+          r.xato || qisqa({ bosqich: el['brak-stage'].value }));
 
-  const oyna = FINISHED.slice(FINISHED.indexOf('id="lossModal"'), FINISHED.indexOf('id="loss-submit-btn"'));
-  const sel = /<select id="loss-stage"[^>]*>([\s\S]*?)<\/select>/.exec(oyna);
-  tekshir("F7 #loss-stage \"Kamaytirish\" oynasi ichida: bo'sh variant birinchi, qolgani brak_bosqichlari dan",
+  const oyna = FINISHED.slice(FINISHED.indexOf('id="brakModal"'), FINISHED.indexOf('id="brak-save-btn"'));
+  const sel = /<select id="brak-stage"[^>]*>([\s\S]*?)<\/select>/.exec(oyna);
+  tekshir("F7 #brak-stage \"Kamaytirish\" oynasi ichida: bo'sh variant birinchi, qolgani brak_bosqichlari dan",
           !!sel && /^\s*<option value="">— Tanlanmagan —<\/option>/.test(sel[1])
           && sel[1].includes('{% for k, v in (brak_bosqichlari or {}).items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}')
           && (sel[1].match(/<option/g) || []).length === 2,

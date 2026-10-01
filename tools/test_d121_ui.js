@@ -351,47 +351,29 @@ async function qaytarishBolimi() {
     const r = await ishga(m, k.kod, 'saveReturn()');
     return Object.assign(m, { xato: r.xato, el });
   }
-  let m = await sina('Brak', '', 'kesish', '4');
-  tekshir("R1 «Brak», sabab tanlanmagan — so'rov YO'Q, «❌ Brak sababini tanlang (ro'yxatdan)», maydonga fokus",
-          !m.xato && !m.sorovlar.length && m.el['add-error'].textContent === "❌ Brak sababini tanlang (ro'yxatdan)"
-          && m.el['f-brak-cause']._fokus === 1, m.xato || qisqa([m.sorovlar, m.el['add-error'].textContent]));
-  m = await sina('Brak', undefined, undefined, undefined);
-  tekshir("R2 «Brak», sabab maydoni sahifada yo'q — so'rov YUBORILMAYDI (sababsiz brak yo'q)",
-          !m.xato && !m.sorovlar.length, m.xato || qisqa(m.sorovlar));
-  m = await sina('Brak', 'uskuna', 'kesish', '4');
-  const t = (m.sorovlar[0] || {}).tana || {};
-  tekshir("R3 «Brak» + sabab 'uskuna', bosqich 'kesish', javobgar '4' → tanada brak_sabab, brak_bosqich, brak_javobgar_id 4 (son)",
-          !m.xato && m.sorovlar.length === 1 && t.reason === 'Brak' && t.brak_sabab === 'uskuna' && t.brak_bosqich === 'kesish'
-          && t.brak_javobgar_id === 4, m.xato || qisqa(t));
-  m = await sina('Brak', 'olcham', '', '');
-  const t2 = (m.sorovlar[0] || {}).tana || {};
-  tekshir("R4 bosqich / javobgar tanlanmagan — kalitlari YO'Q (ixtiyoriy), sabab bor",
-          !m.xato && t2.brak_sabab === 'olcham' && !('brak_bosqich' in t2) && !('brak_javobgar_id' in t2), m.xato || qisqa(t2));
-  m = await sina('Ortiqcha', 'uskuna', 'kesish', '4');
+  // kech118 (zip 123 — egasi QARORI G5-04, MOSLANDI): «Yangi qaytarish» — FAQAT butun mahsulot; brak — BITTA «Brak yozish»
+  // oynasida (tools/test_d123_ui.js). Ilgari bu yerda R1–R4 «Brak» tanasini sinardi.
+  let m = await sina('Ortiqcha', 'uskuna', 'kesish', '4');
   const t3 = (m.sorovlar[0] || {}).tana || {};
-  tekshir("R5 «Butun» (Ortiqcha) — brak maydonlari (yashirin qolgan tanlov bo'lsa ham) YUBORILMAYDI",
-          !m.xato && m.sorovlar.length === 1 && t3.reason === 'Ortiqcha' && !Object.keys(t3).some((x) => x.startsWith('brak_')),
-          m.xato || qisqa(t3));
-  // updateReasonHint — brak maydonlari faqat «Brak» da ko'rinadi
+  tekshir("R5 «Butun» (Ortiqcha) — brak maydonlari (sahifada eski element qolgan bo'lsa ham) YUBORILMAYDI, qoplama false",
+          !m.xato && m.sorovlar.length === 1 && t3.reason === 'Ortiqcha' && !Object.keys(t3).some((x) => x.startsWith('brak_'))
+          && t3.coating_applied === false, m.xato || qisqa(t3));
+  // updateReasonHint — maslahat: butun mahsulot; brak — «Brak yozish»
   const ku = funks(RETURNS, ['updateReasonHint']);
-  for (const [sabab, kut] of [['Brak', 'block'], ['Ortiqcha', 'none']]) {
-    const wrap = element(''); wrap.style = { display: 'x' };
-    const mm = muhit({ 'reason-hint': element(''), 'f-item': element(''), 'coating-applied-wrap': element(''), 'f-brak-wrap': wrap },
-      { currentOrderItems: [] }, { 'input[name="f-reason"]:checked': { value: sabab } });
-    const r = await ishga(mm, ku.kod, 'updateReasonHint()');
-    tekshir(`R6 «${sabab}» → brak maydonlari ${kut}`, !r.xato && wrap.style.display === kut, r.xato || wrap.style.display);
-  }
-  // showAddModal — brak maydonlari tozalanadi
+  const hint = element('');
+  const mh = muhit({ 'reason-hint': hint }, {}, {});
+  let rh = await ishga(mh, ku.kod, 'updateReasonHint()');
+  tekshir("R6 maslahat: «Butun mahsulot — … omboriga qaytadi», brak — «Brak yozish» tugmasi",
+          !rh.xato && hint.textContent.includes('Butun mahsulot') && hint.textContent.includes('«Brak yozish»'), rh.xato || hint.textContent);
+  // showAddModal — maydonlar tozalanadi, «Ortiqcha» tanlanadi
   const ks = funks(RETURNS, ['showAddModal']);
   const e = {};
   for (const id of ['addModal', 'f-order', 'f-item', 'f-qty', 'f-unit-price', 'f-value', 'f-notes', 'f-unit-label', 'add-error']) e[id] = element('eski');
-  for (const id of ['f-brak-cause', 'f-brak-stage', 'f-brak-worker']) { e[id] = element('eski'); e[id].style = { borderColor: '#DC2626' }; }
   const radio = { checked: false };
   const mm = muhit(e, { updateReasonHint() {} }, { 'input[name="f-reason"][value="Ortiqcha"]': radio });
   const r = await ishga(mm, ks.kod, 'showAddModal()');
-  tekshir("R7 «Yangi qaytarish» qayta ochilganda sabab / bosqich / javobgar bo'sh, qizil chegara olib tashlanadi",
-          !r.xato && ['f-brak-cause', 'f-brak-stage', 'f-brak-worker'].every((x) => e[x].value === '' && e[x].style.borderColor === '')
-          && radio.checked === true, r.xato || qisqa(['f-brak-cause', 'f-brak-stage', 'f-brak-worker'].map((x) => e[x].value)));
+  tekshir("R7 «Yangi qaytarish» qayta ochilganda maydonlar bo'sh, «Butun» (Ortiqcha) tanlangan",
+          !r.xato && e['f-qty'].value === '' && e['f-notes'].value === '' && radio.checked === true, r.xato || qisqa(e['f-qty'].value));
 }
 
 // ══════════════════════════════════════════════════════════════

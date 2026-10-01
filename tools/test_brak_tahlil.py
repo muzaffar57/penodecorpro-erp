@@ -607,11 +607,12 @@ for _nomi, _tana, _kut in (("noma'lum sabab", {"brak_sabab": "Uskuna"}, "brak_sa
     check(f"C4 ishlab chiqarish braki {_nomi} → 400 ({_kut}), xomashyo YECHILMADI, yozuv yo'q",
           _x.status_code == 400 and _kut in xabar(_x) and holat() == h0, (_x.status_code, _x.text[:200]))
 _st, _hf = html(C, "/finished")
-_wf = tanlov(_hf, "loss-worker") or []
-check("C5 /finished 'Kamaytirish' oynasida #loss-cause (5 sabab) va #loss-worker (faol hodimlar)",
-      _st == 200 and tanlov(_hf, "loss-cause") == [("", "— Tanlang —")] + list(zip(SABAB_KODLARI, SABAB_YORLIQLARI))
+# kech118 (zip 123 — G5-04, MOSLANDI): «−» — BITTA «Brak yozish» oynasi (brak-cause / brak-worker)
+_wf = tanlov(_hf, "brak-worker") or []
+check("C5 /finished brak oynasida #brak-cause (5 sabab) va #brak-worker (faol hodimlar)",
+      _st == 200 and tanlov(_hf, "brak-cause") == [("", "— Tanlang —")] + list(zip(SABAB_KODLARI, SABAB_YORLIQLARI))
       and sorted(_wf[1:], key=lambda t: t[1]) == _kut_w and "<i class=xq>" not in _hf,
-      (_st, tanlov(_hf, "loss-cause"), _wf))
+      (_st, tanlov(_hf, "brak-cause"), _wf))
 
 # ══════════════════════════════════════════════════════════════
 # D — tahlil: ulush, me'yor, ogohlantirish (get_monthly_report almashtirilgan)

@@ -63,7 +63,9 @@ function oqi(p) {
   try { return fs.readFileSync(p, 'utf8'); } catch (e) { return ''; }
 }
 const ORDERS = oqi(process.argv[2] || path.join(ROOT, 'templates', 'orders.html'));
-const RETURNS = oqi(process.argv[3] || path.join(ROOT, 'templates', 'returns.html'));
+// kech118 (zip 123 — G5-04, MOSLANDI): brak oynasi (saveBrakBatch, openLossModal, submitLoss …) — BITTA «Brak yozish» oynasida
+// (templates/_brak_oyna.html; returns.html va finished.html ulaydi) — sahifa matniga qo'shib o'qiladi
+const RETURNS = oqi(process.argv[3] || path.join(ROOT, 'templates', 'returns.html')) + '\n' + oqi(path.join(ROOT, 'templates', '_brak_oyna.html'));
 const BASE = oqi(process.argv[4] || path.join(ROOT, 'templates', 'base.html'));
 
 let OK = 0, FAIL = 0;

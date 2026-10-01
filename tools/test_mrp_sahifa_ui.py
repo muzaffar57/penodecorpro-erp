@@ -553,7 +553,7 @@ _mj = qator_matn(_q, ID["p_mijoz"])
 check("R4 mijoz buyurtmasi qatori: buyurtma raqami, mijoz (HTML emas — matn), «qoplamali», «Qoralama», «✓ xomashyo yetadi», "
       "≈ 58 780 so'm (4 × 14 695), 14 695 so'm / m²",
       all(x in _mj for x in (ORD or "?", XSS_MIJOZ, "qoplamali", "Qoralama", "✓ xomashyo yetadi", "≈ 58 780 so'm",
-                              "14 695 so'm / m²", "4 m²", "«Standart» retsepti")), _mj)
+                              "14 695 so'm / m²", "4 m²", "«Standart» tarkibi")), _mj)   # kech118 (zip 123 — G4-22, MOSLANDI): «Mahsulot tarkibi»
 check("R5 kley yetmaydigan qoralama: «✗ MRU Kley yetmaydi», «Omborga», «Tayyor mahsulotlarga»",
       all(x in qator_matn(_q, ID["p_yet"]) for x in ("✗ MRU Kley yetmaydi", "Omborga", "Tayyor mahsulotlarga", "40 m²")),
       qator_matn(_q, ID["p_yet"]))
@@ -656,7 +656,7 @@ _r = n("batafsil")
 check("O6 «Batafsil» (yakunlangan): vaqt chizig'i, ustunlar, qoplama «ishlatilmadi — qoplamasiz», xomashyo / qo'shimcha / tannarx / 1 m²",
       lambda: all(x in _r["matn"] for x in ("Yaratildi", "Boshlandi (narx qotdi)", "Yakunlandi", "xomashyo ombordan yechildi",
                                             "ishlatilmadi — qoplamasiz", "30 885 so'm", "1 m² tannarxi", "10 295 so'm"))
-      and _r["jadval_bosh"] == ["Material", "Retsept bo'yicha", "Isrof", "Sarflandi", "Narx (o'sha kuni)", "Summa"]
+      and _r["jadval_bosh"] == ["Material", "Tarkib bo'yicha", "Isrof", "Sarflandi", "Narx (o'sha kuni)", "Summa"]
       and any("MRU Kley" in x and "3,3 kg" in x and "3 150 so'm / kg" in x and "10 395 so'm" in x for x in _r["jadval"])
       and _r["havolalar"] == [{"matn": "Tayyor mahsulotlarda ko'rish", "href": "/finished"}], _r)
 check("O7 «Batafsil» sarlavhasi — «№… — MRU Travertin, 3 m²»", lambda: n("batafsil")["sarlavha"] == f"№{ID['p_yakun']} — MRU Travertin, 3 m²",
@@ -676,8 +676,9 @@ section("T. Retsept oynasi")
 # ══════════════════════════════════════════════════════════════
 _r = n("retsept")
 _rq = _r.get("qatorlar") or [{}, {}, {}, {}]
-check("T1 sarlavha «Retsept — MRU Travertin «Standart»», «Tarkibi — 1 m² uchun», partiya birligi m²",
-      lambda: _r["sarlavha"] == "Retsept — MRU Travertin «Standart»" and _r["tarkib"] == "Tarkibi — 1 m² uchun"
+# kech118 (zip 123 — G4-22, MOSLANDI): Ishlab chiqarishdagi «Retsept» — «Mahsulot tarkibi»
+check("T1 sarlavha «Mahsulot tarkibi — MRU Travertin «Standart»», «Tarkibi — 1 m² uchun», partiya birligi m²",
+      lambda: _r["sarlavha"] == "Mahsulot tarkibi — MRU Travertin «Standart»" and _r["tarkib"] == "Tarkibi — 1 m² uchun"
       and _r["partiya_birlik"] == "m²", _r)
 check("T2 qatorlar: material + ombordagi qoldiq, miqdor yonida birlik, isrof; narx serverdan (4 100 / 3 465 «1,1 kg × 3 150» / 2 730 / 3 600)",
       lambda: _rq[0]["material"].startswith("MRU Qum — omborda") and _rq[0]["birlik"] == "kg" and _rq[0]["narx"].startswith("4 100 so'm")
@@ -712,7 +713,7 @@ check("T8 saqlandi (PUT): kley ixtiyoriy (qoplama emas), isrof 12,5; bo'yoq qopl
 check("T9 noto'g'ri miqdor — saqlanmaydi, qaysi qator ekani aytiladi", lambda: n("retsept_xato")["msg"][0] == "1-qator: miqdorni to'g'ri kiriting"
       and n("retsept_xato")["ochiq"] is True, n("retsept_xato"))
 check("T10 HTML nomli mahsulot / retsept / material — sarlavha va tanlovda MATN", lambda: n("retsept_xss")["sarlavha"] ==
-      f"Retsept — {XSS_TUR} «Standart <u>v</u>»" and n("retsept_xss")["tanlangan"].startswith(XSS_MAT), n("retsept_xss"))
+      f"Mahsulot tarkibi — {XSS_TUR} «Standart <u>v</u>»" and n("retsept_xss")["tanlangan"].startswith(XSS_MAT), n("retsept_xss"))
 
 # ══════════════════════════════════════════════════════════════
 section("M. Mahsulot turi oynasi — son maydonlari")
@@ -741,7 +742,7 @@ check("K4 retsept oynasi — «Tarkibi — 0,125 m² uchun», qator «0,00625 kg
       n("retsept_kichik"))
 check("K5 yangi ishlab chiqarish — retsept tanlovi «Kichik — 0,125 m² uchun, 1 ta material»",
       lambda: n("yangi_kichik")["bom"] == ["Kichik — 0,125 m² uchun, 1 ta material"], n("yangi_kichik"))
-check("K6 batafsil (boshlanib bekor qilingan): «Retsept bo'yicha 0,00625 kg», «Rejada edi 0,05 kg», «xomashyo ombordan yechilmagan»",
+check("K6 batafsil (boshlanib bekor qilingan): «Tarkib bo'yicha 0,00625 kg», «Rejada edi 0,05 kg», «xomashyo ombordan yechilmagan»",
       lambda: any("0,00625 kg" in x and "0,05 kg" in x for x in n("kichik_batafsil")["jadval"])
       and "Rejada edi" in n("kichik_batafsil")["jadval_bosh"] and "xomashyo ombordan yechilmagan" in n("kichik_batafsil")["matn"],
       n("kichik_batafsil"))

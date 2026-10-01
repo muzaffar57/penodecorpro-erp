@@ -539,14 +539,15 @@ check("C4b crud ildizi ham noto'g'ri bosqichni rad etadi (xomashyo yechilmasdan)
       isinstance(_c4, dict) and _c4.get("success") is False and "brak_bosqich" in str(_c4.get("message"))
       and holat() == h0, (_c4, h0, holat()))
 _st, _h = html(C, "/finished")
-_sel = re.search(r'<select id="loss-stage"[^>]*>(.*?)</select>', _h, re.S)
+# kech118 (zip 123 — G5-04, MOSLANDI): «−» — BITTA «Brak yozish» oynasi (#brakModal: brak-cause / brak-stage / brak-notes)
+_sel = re.search(r'<select id="brak-stage"[^>]*>(.*?)</select>', _h, re.S)
 _opt = re.findall(r'<option value="([^"]*)">([^<]*)</option>', _sel.group(1)) if _sel else []
-check("C5 /finished \"Kamaytirish\" oynasida #loss-stage: '— Tanlanmagan —' + 4 bosqich",
+check("C5 /finished brak oynasida #brak-stage: '— Tanlanmagan —' + 4 bosqich",
       _st == 200 and _opt == [("", "— Tanlanmagan —")] + list(zip(KODLAR, YORLIQLAR)), (_st, _opt))
 # kech118 (D-1, G5-20): tartib — sabab (ro'yxat, majburiy) → bosqich → javobgar → «Izoh» (yozma, oxirida)
-_i_lm, _i_sab, _i_bos = _h.find('id="lossModal"'), _h.find('id="loss-cause"'), _h.find('id="loss-stage"')
-_i_izoh = _h.find('id="loss-reason"')
-check("C5b tanlov \"Kamaytirish\" oynasi ichida, sababdan KEYIN, «Izoh» dan OLDIN",
+_i_lm, _i_sab, _i_bos = _h.find('id="brakModal"'), _h.find('id="brak-cause"'), _h.find('id="brak-stage"')
+_i_izoh = _h.find('id="brak-notes"')
+check("C5b tanlov brak oynasi ichida, sababdan KEYIN, «Izoh» dan OLDIN",
       -1 < _i_lm < _i_sab < _i_bos < _i_izoh, (_i_lm, _i_sab, _i_bos, _i_izoh))
 
 # ══════════════════════════════════════════════════════════════

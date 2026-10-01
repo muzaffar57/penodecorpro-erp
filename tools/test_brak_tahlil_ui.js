@@ -37,8 +37,10 @@ const ROOT = path.dirname(__dirname);
 function oqi(p) {
   try { return fs.readFileSync(p, 'utf8'); } catch (e) { return ''; }
 }
-const RETURNS = oqi(process.argv[2] || path.join(ROOT, 'templates', 'returns.html'));
-const FINISHED = oqi(process.argv[3] || path.join(ROOT, 'templates', 'finished.html'));
+// kech118 (zip 123 — G5-04, MOSLANDI): brak oynasi (saveBrakBatch, openLossModal, submitLoss …) — BITTA «Brak yozish» oynasida
+// (templates/_brak_oyna.html; returns.html va finished.html ulaydi) — sahifa matniga qo'shib o'qiladi
+const RETURNS = oqi(process.argv[2] || path.join(ROOT, 'templates', 'returns.html')) + '\n' + oqi(path.join(ROOT, 'templates', '_brak_oyna.html'));
+const FINISHED = oqi(process.argv[3] || path.join(ROOT, 'templates', 'finished.html')) + '\n' + oqi(path.join(ROOT, 'templates', '_brak_oyna.html'));
 const DASHBOARD = oqi(process.argv[4] || path.join(ROOT, 'templates', 'dashboard.html'));
 const BASE = oqi(process.argv[5] || path.join(ROOT, 'templates', 'base.html'));
 
@@ -247,10 +249,10 @@ async function brakBolimi() {
 // F — finished.html: "Kamaytirish" oynasi
 // ══════════════════════════════════════════════════════════════
 async function lossSina(rejim, bosqich, sabab, javobgar) {
-  const el = { 'loss-qty': element('4'), 'loss-reason': element('  tashishda sindi  ') };
-  if (bosqich !== undefined) el['loss-stage'] = element(bosqich);
-  if (sabab !== undefined) el['loss-cause'] = element(sabab);
-  if (javobgar !== undefined) el['loss-worker'] = element(javobgar);
+  const el = { 'loss-qty': element('4'), 'brak-notes': element('  tashishda sindi  ') };
+  if (bosqich !== undefined) el['brak-stage'] = element(bosqich);
+  if (sabab !== undefined) el['brak-cause'] = element(sabab);
+  if (javobgar !== undefined) el['brak-worker'] = element(javobgar);
   const m = muhit(el, {}, {}, { _lossData: { id: 55, name: 'X', quantity: 10, unit: 'metr', category: 'profil' },
                                 _lossMode: rejim });
   const kod = [olib(FINISHED, 'lossBosqichTana'), jinjasiz(olib(FINISHED, 'submitLoss'))];
@@ -260,7 +262,7 @@ async function lossSina(rejim, bosqich, sabab, javobgar) {
 }
 
 async function lossBolimi() {
-  bolim('finished.html — "Kamaytirish" oynasi (#loss-cause, #loss-worker, lossBosqichTana, submitLoss)');
+  bolim('finished.html — "Kamaytirish" oynasi (#brak-cause, #brak-worker, lossBosqichTana, submitLoss)');
   const fn = olib(FINISHED, 'lossBosqichTana');
   for (const [nomi, b, s, j, kut] of [
     ['hammasi', 'kesish', 'xomashyo', '5', { brak_bosqich: 'kesish', brak_sabab: 'xomashyo', brak_javobgar_id: 5 }],
@@ -271,9 +273,9 @@ async function lossBolimi() {
     ["elementlar YO'Q", undefined, undefined, undefined, {}],
   ]) {
     const el = {};
-    if (b !== undefined) el['loss-stage'] = element(b);
-    if (s !== undefined) el['loss-cause'] = element(s);
-    if (j !== undefined) el['loss-worker'] = element(j);
+    if (b !== undefined) el['brak-stage'] = element(b);
+    if (s !== undefined) el['brak-cause'] = element(s);
+    if (j !== undefined) el['brak-worker'] = element(j);
     const m = muhit(el, {}, {}, {});
     const r = fn ? await ishga(m, fn, 'lossBosqichTana()') : { xato: 'topilmadi' };
     tekshir(`F1 lossBosqichTana (${nomi}) → ${JSON.stringify(kut)}`,
@@ -297,23 +299,25 @@ async function lossBolimi() {
           !m.xato && m.sorovlar.length === 0 && m.xabarlar.some((x) => x.tur === 'error' && x.t.includes('Brak sababini tanlang')),
           m.xato || qisqa({ sorov: m.sorovlar, xabar: m.xabarlar }));
   m = await lossSina('production', '', undefined, '');
-  tekshir("F3c #loss-cause sahifada YO'Q → yiqilmaydi, sababsiz so'rov YUBORILMAYDI",
+  tekshir("F3c #brak-cause sahifada YO'Q → yiqilmaydi, sababsiz so'rov YUBORILMAYDI",
           !m.xato && m.sorovlar.length === 0 && m.xabarlar.some((x) => x.tur === 'error'),
           m.xato || qisqa({ sorov: m.sorovlar, xabar: m.xabarlar }));
 
   const el = { 'loss-modal-sub': element(''), 'loss-stock-info': element(''), 'loss-qty': element('3'),
-               'loss-reason': element('eski'), 'loss-mode-toggle': element(''), lossModal: element(''),
-               'loss-stage': element('quritish'), 'loss-cause': element('ishchi'), 'loss-worker': element('8') };
+               'brak-notes': element('eski'), 'loss-mode-toggle': element(''), brakModal: element(''), 'brak-manba-ombor': element(''),
+               'brak-stage': element('quritish'), 'brak-cause': element('ishchi'), 'brak-worker': element('8') };
   const mm = muhit(el, {}, {}, { PROD_BRAK_CATEGORIES: ['profil'], _lossData: null });
-  const ok = olib(FINISHED, 'openLossModal');
+  // kech118 (zip 123, MOSLANDI): openLossModal BITTA oynani ochadi — oynaning butun skripti bilan ishga tushiriladi
+  const _sk = /<script>([\s\S]*?)<\/script>/.exec(FINISHED.slice(FINISHED.indexOf('id="brakModal"')));
+  const ok = (_sk && olib(FINISHED, 'openLossModal')) ? jinjasiz(_sk[1]) : null;
   const r = ok ? await ishga(mm, ok, "openLossModal(55, 'X', 10, 'metr', 'profil')") : { xato: 'topilmadi' };
   tekshir("F4 openLossModal: oldingi sabab va javobgar tozalanadi (''), oyna ochiladi",
-          !r.xato && el['loss-cause'].value === '' && el['loss-worker'].value === '' && el.lossModal.style.display === 'flex',
-          r.xato || qisqa({ sabab: el['loss-cause'].value, javobgar: el['loss-worker'].value }));
-  const oyna = FINISHED.slice(FINISHED.indexOf('id="lossModal"'), FINISHED.indexOf('id="loss-submit-btn"'));
-  const sc = /<select id="loss-cause"[^>]*>([\s\S]*?)<\/select>/.exec(oyna);
-  const sw = /<select id="loss-worker"[^>]*>([\s\S]*?)<\/select>/.exec(oyna);
-  tekshir("F5 #loss-cause va #loss-worker \"Kamaytirish\" oynasi ichida, variantlar lug'at / hodimlardan",
+          !r.xato && el['brak-cause'].value === '' && el['brak-worker'].value === '' && el.brakModal.style.display === 'flex',
+          r.xato || qisqa({ sabab: el['brak-cause'].value, javobgar: el['brak-worker'].value }));
+  const oyna = FINISHED.slice(FINISHED.indexOf('id="brakModal"'), FINISHED.indexOf('id="brak-save-btn"'));
+  const sc = /<select id="brak-cause"[^>]*>([\s\S]*?)<\/select>/.exec(oyna);
+  const sw = /<select id="brak-worker"[^>]*>([\s\S]*?)<\/select>/.exec(oyna);
+  tekshir("F5 #brak-cause va #brak-worker \"Kamaytirish\" oynasi ichida, variantlar lug'at / hodimlardan",
           !!sc && !!sw && /^\s*<option value="">— Tanlang —<\/option>/.test(sc[1])
           && sc[1].includes('{% for k, v in (brak_sabablari or {}).items() %}')
           && sw[1].includes('{% for h in (brak_hodimlari or []) %}<option value="{{ h.id }}">{{ h.name }}'),

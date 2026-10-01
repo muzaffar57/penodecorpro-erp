@@ -1241,7 +1241,8 @@ def g_bolimi():
           and "fetch('/api/deliveries'" not in sd and "fetch('/api/deliveries'" not in sf, "")
     check("G orders.html: `/api/deliveries` ga to'g'ridan fetch faqat yetkazishYubor ichida (1 ta)",
           orders.count("fetch('/api/deliveries'") == 1 and "fetch('/api/deliveries'" in yy, "")
-    ret = fayl("templates/returns.html")
+    # kech118 (zip 123 — G5-04, MOSLANDI): brak oynasi — BITTA «Brak yozish» oynasi (templates/_brak_oyna.html, returns.html ulaydi)
+    ret = fayl("templates/returns.html") + "\n" + fayl("templates/_brak_oyna.html")
     sb = js_funksiya(ret, "saveBrakBatch")
     check("G returns.html saveBrakBatch: rad etilgan qator server SABABI bilan, jim tashlanmaydi",
           "brakServerSababi(res)" in sb and "if (res.ok) okCount++;" not in sb

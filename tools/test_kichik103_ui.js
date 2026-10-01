@@ -403,7 +403,8 @@ const ESC = (olib(BASE, 'escapeHtml') || 'function escapeHtml(s){return String(s
     ['I1 qoplamali, retsept tanlanmagan (ro\'yxatda bor) — "tanlang"', selEl('', ['', '1', '2']), true, 10,
       "Qoplama retsepti tanlanmagan — loy qaysi retseptdan tayyorlanishini «Retsept» maydonidan tanlang"],
     ['I2 qoplamali, korxonada retsept yo\'q — "yarating"', selEl('', ['']), true, 10,
-      "Qoplama retsepti tanlanmagan — korxonada retsept yo'q: avval «Retseptlar» bo'limida retsept yarating"],
+      // kech118 (zip 123 — G4-22, MOSLANDI): menyu bo'limi — «Loy retseptlari»
+      "Qoplama retsepti tanlanmagan — korxonada loy retsepti yo'q: avval «Loy retseptlari» bo'limida retsept yarating"],
     ['I1b qoplamali, loy hali kiritilmagan (0) — retsept baribir SHART (loy xatosi alohida)', selEl('', ['', '1']), true, 0,
       "Qoplama retsepti tanlanmagan — loy qaysi retseptdan tayyorlanishini «Retsept» maydonidan tanlang"],
     ['I3 retsept tanlangan — xato yo\'q', selEl('2', ['', '1', '2']), true, 10, null],

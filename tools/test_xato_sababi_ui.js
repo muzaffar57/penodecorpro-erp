@@ -34,7 +34,9 @@ function oqi(nom) {
 // Jinja teglari (`{% if … %}` / `{{ … }}`) JS emas — funksiyalar soxta muhitda yurishi uchun olib tashlanadi (ikkala shox
 // qoladi — rad shoxiga ta'siri yo'q); statik tekshiruvlar XOM matnda.
 function jinjasiz(s) { return s.replace(/\{%[\s\S]*?%\}/g, '').replace(/\{\{[\s\S]*?\}\}/g, 'null'); }
-const BASE = oqi('base.html'), KPI = oqi('kpi.html'), INV = oqi('inventory.html'), FIN = oqi('finished.html');
+// kech118 (zip 123 — G5-04, MOSLANDI): brak oynasi (saveBrakBatch, openLossModal, submitLoss …) — BITTA «Brak yozish» oynasida
+// (templates/_brak_oyna.html; returns.html va finished.html ulaydi) — sahifa matniga qo'shib o'qiladi
+const BASE = oqi('base.html'), KPI = oqi('kpi.html'), INV = oqi('inventory.html'), FIN = oqi('finished.html') + '\n' + oqi('_brak_oyna.html');
 const KPI_J = jinjasiz(KPI), INV_J = jinjasiz(INV), FIN_J = jinjasiz(FIN);
 
 let OK = 0, FAIL = 0;
@@ -227,9 +229,9 @@ function korindimi(n, matn) {
     ['F1 finished uploadFpImage (rasm)', FIN, 'uploadFpImage', 'uploadFpImage(3, {files: [{}]})', {}],
     ["F2 finished addProduction (qo'shish)", FIN, 'addProduction', "addProduction(3, 2, {name: 'TM', unit: 'dona', quantity: 5, unit_volume_m3: 0.01, unit_loy_kg: 0})", {}],
     // kech118 (D-1, G5-20): brak sababi majburiy — oynada sabab tanlangan (aks holda so'rov yuborilmaydi)
-    ['F3 finished submitLoss (kamaytirish)', FIN, 'submitLoss', 'submitLoss()', {elementlar: {'loss-qty': el({value: '1'}), 'loss-cause': el({value: 'boshqa'})},
+    ['F3 finished submitLoss (kamaytirish)', FIN, 'submitLoss', 'submitLoss()', {elementlar: {'loss-qty': el({value: '1'}), 'brak-cause': el({value: 'boshqa'})},
       oldin: "var _lossData = {id: 3, quantity: 10, unit: 'dona'}; var _lossMode = 'stock';"}],
-    ['F4 finished submitLoss (ishlab chiqarish braki)', FIN, 'submitLoss', 'submitLoss()', {elementlar: {'loss-qty': el({value: '1'}), 'loss-cause': el({value: 'boshqa'})},
+    ['F4 finished submitLoss (ishlab chiqarish braki)', FIN, 'submitLoss', 'submitLoss()', {elementlar: {'loss-qty': el({value: '1'}), 'brak-cause': el({value: 'boshqa'})},
       oldin: "var _lossData = {id: 3, quantity: 10, unit: 'dona'}; var _lossMode = 'brak';"}],
     ['F5 finished submitSell (sotish)', FIN, 'submitSell', 'submitSell(false)', {elementlar: {'sell-qty': el({value: '1'}),
       'sell-price': el({value: '1000'}), 'sell-master': el({value: 'none'})},

@@ -450,19 +450,20 @@ check("B5 sabab bilan → 200 (brak_sabab 'ishchi')", _r.status_code == 200 and 
       (_r.status_code, _r.text[:200]))
 _r = CA.post("/api/returns", json={"order_id": O3, "order_item_id": OI3, "item_name": "D detal", "quantity": 1, "reason": "Ortiqcha", "to_stock": False})
 check("B6 brak EMAS qaytarish («Ortiqcha») — sababsiz ham 200 (qoida faqat brak uchun)", _r.status_code == 200, _r.text[:200])
+# kech118 (zip 123 — egasi QARORI G5-04, MOSLANDI): brak — BITTA «Brak yozish» oynasi (templates/_brak_oyna.html; Qaytarishlar va
+# Tayyor mahsulotlar ulaydi). Ilgari B7 «Kamaytirish» oynasini (loss-*), B8 «Yangi qaytarish» → «Brak» maydonlarini tekshirardi.
 _ret = fayl("templates/returns.html")
-_i_lm = _fin.find('id="lossModal"')
-check("B7 «Kamaytirish» oynasi: sabab ro'yxati BIRINCHI (majburiy «*», «— Tanlang —»), keyin bosqich, javobgar, oxirida «Izoh "
-      "(ixtiyoriy)»; eski «Sabab (ixtiyoriy)» / «Nima sababdan? (ixtiyoriy)» YO'Q",
-      -1 < _i_lm < _fin.find('id="loss-cause"') < _fin.find('id="loss-stage"') < _fin.find('id="loss-worker"')
-      < _fin.find('id="loss-reason"') and "Sabab (ixtiyoriy)" not in _fin and "Nima sababdan? (ixtiyoriy)" not in _fin
-      and ">Izoh (ixtiyoriy)</label>" in _fin
-      and re.search(r'<select id="loss-cause"[^>]*>\s*<option value="">— Tanlang —</option>', _fin))
-check("B8 Qaytarishlar: «Brak yozish» — sabab majburiy va birinchi, «Izoh (ixtiyoriy)»; «Yangi qaytarish» → «Brak» — sabab / "
-      "bosqich / javobgar maydonlari (sabab majburiy); yo'riqnomada «−» (Kamaytirish)",
-      _ret.find('id="brak-cause"') < _ret.find('id="brak-stage"') < _ret.find('id="brak-worker"') < _ret.find('id="brak-notes"')
-      and 'id="f-brak-cause"' in _ret and 'id="f-brak-stage"' in _ret and 'id="f-brak-worker"' in _ret
-      and "«−» (Kamaytirish)" in _ret and "⚠️ (Kamaytirish)" not in _ret and "Sabab / izoh" not in _ret)
+_oy = fayl("templates/_brak_oyna.html")
+check("B7 «Brak yozish» oynasi (bitta, hamma yo'l uchun): sabab ro'yxati BIRINCHI (majburiy «*», «— Tanlang —»), keyin bosqich, "
+      "javobgar, oxirida «Izoh (ixtiyoriy)»; eski «Sabab (ixtiyoriy)» / «Nima sababdan? (ixtiyoriy)» YO'Q",
+      -1 < _oy.find('id="brakModal"') < _oy.find('id="brak-cause"') < _oy.find('id="brak-stage"') < _oy.find('id="brak-worker"')
+      < _oy.find('id="brak-notes"') and "Sabab (ixtiyoriy)" not in _oy + _fin and "Nima sababdan? (ixtiyoriy)" not in _oy + _fin
+      and "Izoh <span" in _oy and re.search(r'<select id="brak-cause"[^>]*>\s*<option value="">— Tanlang —</option>', _oy)
+      and '{% include "_brak_oyna.html" %}' in _fin)
+check("B8 Qaytarishlar: oyna ulangan; «Yangi qaytarish» da «Brak» varianti va f-brak-* maydonlari YO'Q (faqat butun); eski "
+      "«⚠️ (Kamaytirish)» / «Sabab / izoh» yo'q",
+      '{% include "_brak_oyna.html" %}' in _ret and 'id="f-brak-cause"' not in _ret and 'value="Brak" onchange' not in _ret
+      and "⚠️ (Kamaytirish)" not in _ret + _oy and "Sabab / izoh" not in _ret + _oy)
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 section("A. G6-21 — avans so'rovini rad etish: sabab majburiy, hodim ko'radi")

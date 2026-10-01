@@ -28,7 +28,8 @@ function oqi(nom) {
 const RETURNS = oqi('returns.html');
 const FINANCE = oqi('finance.html');
 const DASHBOARD = oqi('dashboard.html');
-const FINISHED = oqi('finished.html');
+// kech118 (zip 123 — G5-04, MOSLANDI): «−» oynasi matnlari — BITTA «Brak yozish» oynasida (_brak_oyna.html, finished.html ulaydi)
+const FINISHED = oqi('finished.html') + '\n' + oqi('_brak_oyna.html');
 const BASE = oqi('base.html');
 
 let OK = 0, FAIL = 0;
