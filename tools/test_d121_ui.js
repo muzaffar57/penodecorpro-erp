@@ -285,7 +285,8 @@ async function sotishBolimi() {
   const ku = funks(FINISHED, ['fpMiqdor', 'updateBatchRemain']);
   r = await ishga(m, ku.kod, 'updateBatchRemain(INP); const a = QOL.textContent; INP.value = "20"; updateBatchRemain(INP); [a, QOL.textContent, QOL.style.color]'.replace(/QOL/g, 'INP.closest().querySelector()'));
   tekshir("S6 «Qoladi»: 12,5 − 5 = 7,5 m; ortiqcha yozilsa — «faqat 12,5 m bor» (qizil)",
-          !r.xato && r.natija && r.natija[0] === '7,5 m' && r.natija[1] === 'faqat 12,5 m bor' && r.natija[2] === '#DC2626',
+          !r.xato && r.natija && r.natija[0] === '7,5 m' && r.natija[1] === 'faqat 12,5 m bor'
+          && ['#DC2626', 'var(--m-dc2626)'].includes(r.natija[2]),   // kech118 (zip 122 — tungi rejim, MOSLANDI): rang umumiy ro'yxatdan (var(--m-dc2626) = #DC2626 yorug' rejimda)
           r.xato || qisqa(r.natija));
 
   // submitBatchSell

@@ -676,14 +676,15 @@ r1 = req(CB, "get", "/orders")
 r2 = req(CBM, "get", "/orders")
 check("N1 5 kun qolganda — B ADMINI sariq ogohlantirish (5 kundan keyin, sana, telefon)", r1.status_code == 200
       and 'id="obunaBanner"' in r1.text and "5 kundan keyin tugaydi" in r1.text and "15.10.2026" in r1.text
-      and "+998 97 111 22 33" in r1.text and "#FEF3C7" in r1.text, r1.status_code)
+      # kech118 (zip 122 — tungi rejim, MOSLANDI): fon umumiy ranglar ro'yxatidan (var(--f-fef3c7) = #FEF3C7 yorug' rejimda)
+      and "+998 97 111 22 33" in r1.text and ("#FEF3C7" in r1.text or "var(--f-fef3c7)" in r1.text), r1.status_code)
 check("N2 5 kun qolganda — B MENEJERI ko'rmaydi", r2.status_code == 200 and 'id="obunaBanner"' not in r2.text, r2.status_code)
 ustun_yoz(_b, obuna_tugash=date(2026, 10, 8))
 r1 = req(CB, "get", "/orders")
 r2 = req(CBM, "get", "/orders")
 check("N3 muddat o'tgan (imtiyoz) — admin qizil: 'tugadi — kirish 2 kundan keyin (12.10.2026) yopiladi'", r1.status_code == 200
       and 'id="obunaBanner"' in r1.text and "08.10.2026 da tugadi" in r1.text and "2 kundan keyin (12.10.2026)" in r1.text
-      and "#FEE2E2" in r1.text, r1.text[r1.text.find('obunaBanner'):][:400])
+      and ("#FEE2E2" in r1.text or "var(--f-fee2e2)" in r1.text), r1.text[r1.text.find('obunaBanner'):][:400])
 check("N4 muddat o'tgan — MENEJER ham ko'radi", 'id="obunaBanner"' in r2.text and "08.10.2026 da tugadi" in r2.text,
       r2.status_code)
 ustun_yoz(_b, obuna_tugash=date(2026, 10, 10), obuna_turi="sinov")

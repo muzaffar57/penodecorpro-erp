@@ -157,9 +157,10 @@ const ESC = (olib(BASE, 'escapeHtml') || 'function escapeHtml(s){return String(s
       matn(h).includes("✅ Yakunlangan: topshirilgan 7 metr · 📦 omborga ortiqcha 3 metr"), matn(h));
     tekshir("A4 ortiqchasiz to'liq topshirilgan detal — '✅ To'liq topshirilgan' AYNAN",
       (h.match(/✅ To'liq topshirilgan/g) || []).length === 1, matn(h));
-    tekshir("A5 MRP 4 / 10: '🏭 tayyor: 4 m²' qizil (kam)", /🏭 tayyor: <b style="color:#DC2626">4 m²<\/b>/.test(h), matn(h));
+    tekshir("A5 MRP 4 / 10: '🏭 tayyor: 4 m²' qizil (kam)", /🏭 tayyor: <b style="color:(?:#DC2626|var\(--m-dc2626\))">4 m²<\/b>/.test(h), matn(h));
     // kech118 (B — U-03, MOSLANDI): yashil YOZUV — to'q tusi #15803D (oq fonda ≥ 4.5:1; avval #16A34A — 3.3:1)
-    tekshir("A6 MRP 6 / 6: tayyor yashil", /🏭 tayyor: <b style="color:#15803D">6 m²<\/b>/.test(h), matn(h));
+    // kech118 (zip 122 — tungi rejim, MOSLANDI): rang umumiy ro'yxatdan ham bo'lishi mumkin (var(--m-15803d) = #15803D)
+    tekshir("A6 MRP 6 / 6: tayyor yashil", /🏭 tayyor: <b style="color:(?:#15803D|var\(--m-15803d\))">6 m²<\/b>/.test(h), matn(h));
     tekshir("A7 MRP emas detalda 'tayyor' yo'q", !/Karniz[\s\S]*?tayyor:[\s\S]*?Travertin/.test(h), matn(h));
     tekshir("A8 kiritish maydonida data-tayyor (MRP 4, boshqasi bo'sh)", h.includes('id="dlv-12" data-max="10" data-tayyor="4"')
       && h.includes('id="dlv-11" data-max="3" data-tayyor=""'), h.slice(0, 300));

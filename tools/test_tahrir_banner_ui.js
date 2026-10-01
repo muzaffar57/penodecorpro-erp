@@ -163,7 +163,7 @@ if (JSDOM && BANNER && SHOWNEW) {
   tekshir('D2 banner raqami saqlanadi: editOrderNum = ORD-051-1, sarlavha «Buyurtmani tahrirlash»',
           h1.raqam_bor && h1.raqam === 'ORD-051-1' && h1.sarlavha === 'Buyurtmani tahrirlash', h1);
   tekshir('D3 topshirish ogohlantirishi ko\'rinadi (85.7 %) va banner sariq', /topshirila boshlagan \(85\.7%\)/.test(h1.banner_matn || '')
-          && /rgb\(254, 243, 199\)|#FEF3C7/i.test(h1.fon || ''), h1);
+          && /rgb\(254, 243, 199\)|#FEF3C7|var\(--f-fef3c7\)/i.test(h1.fon || ''), h1);   // kech118 (zip 122, MOSLANDI): fon ro'yxatdan ham
   const x2 = tahrir(m, null, 'ORD-037-1', {});
   const h2 = holat(m.w);
   tekshir('D4 sahifa yangilanmasdan KEYINGI (topshirilmagan) buyurtma tahriri — istisno YO\'Q, raqam ORD-037-1', x2 === null

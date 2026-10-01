@@ -188,8 +188,11 @@ check("S6b sahifalarning o'z ranglar to'plami (Moliya --f-*, Hisobotlar --b-*, Q
 
 
 def klass_rang(sel, xos):
-    m = re.search(re.escape(sel) + r"\s*\{[^}]*?" + xos + r":\s*(#[0-9A-Fa-f]{6})", CSS)
-    return m.group(1) if m else None
+    # kech118 (zip 122 — tungi rejim, MOSLANDI): rang umumiy ro'yxatdan ham (var(--m-15803d) — yorug' rejimda #15803D)
+    m = re.search(re.escape(sel) + r"\s*\{[^}]*?" + xos + r":\s*(#[0-9A-Fa-f]{6}|var\(--(?:f|m|ch|doim)-[0-9a-f]{6}\))", CSS)
+    if not m:
+        return None
+    return m.group(1) if m.group(1).startswith("#") else "#" + m.group(1)[-7:-1].upper()
 
 
 _kl = {"text-green": klass_rang(".text-green", "color"), "text-red": klass_rang(".text-red", "color"),

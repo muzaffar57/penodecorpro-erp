@@ -522,9 +522,11 @@ _qal = [a.get("text") for a in _al if "qarzdor" in str(a.get("text"))]
 check("D6 /api/reports/alerts: muddati o'tgan qarzdor FAQAT haqiqiy (E1) — '1 ta'",
       _qal == ["1 ta qarzdorning muddati 30 kundan oshgan"], _qal)
 _pg = req(C, "get", "/orders")
+_tokensiz = lambda s: re.sub(r"var\(--(?:f|m|ch|doim)-([0-9a-f]{6})\)", lambda m: "#" + m.group(1).upper(), s)   # noqa: E731
 _m = re.search(r'<div class="ord-item" style="([^"]*)"\s+id="oi-' + str(O_C12) + r'"', _pg.text or "")
 check("D7 /orders: to'liq topshirilgan + to'langan (C12, qoldiq 0.40) qatori YASHIL, qizil EMAS",
-      _pg.status_code == 200 and _m is not None and "#F0FDF4" in _m.group(1) and "#FEF2F2" not in _m.group(1),
+      # kech118 (zip 122 — tungi rejim, MOSLANDI): fon umumiy ranglar ro'yxatidan (var(--f-f0fdf4) = #F0FDF4 yorug' rejimda)
+      _pg.status_code == 200 and _m is not None and "#F0FDF4" in _tokensiz(_m.group(1)) and "#FEF2F2" not in _tokensiz(_m.group(1)),
       (_pg.status_code, _m.group(1) if _m else None))
 _dp = req(C, "get", "/debts")
 check("D8 /debts sahifasi 200 (qarzdorlar)", _dp.status_code == 200, _dp.status_code)
