@@ -702,6 +702,7 @@ function jsAttrEscape(str) {
       {% set m_buyurtma = u.ruxsat('buyurtma', 'korish') or u.ruxsat('buyurtma_fayl', 'yaratish') %}
       {% set m_ombor = u.ruxsat('material', 'korish') %}
       {% set m_kirim = u.ruxsat('kirim', 'yaratish') %}
+      {% set m_taminotchi = u.ruxsat('taminotchi', 'korish') %}
       {% set m_retsept = u.ruxsat('retsept', 'korish') %}
       {% set m_ishlab = u.ruxsat('mahsulot_turi', 'korish') %}
       {% set m_tayyor = u.ruxsat('tayyor', 'korish') or u.ruxsat('sotuv', 'korish') %}
@@ -746,7 +747,7 @@ function jsAttrEscape(str) {
       </a>
       {% endif %}
 
-      {% if m_ombor or m_kirim or m_retsept or m_ishlab or m_tayyor %}
+      {% if m_ombor or m_kirim or m_taminotchi or m_retsept or m_ishlab or m_tayyor %}
       <div class="nav-label">Ishlab chiqarish</div>
       {% endif %}
 
@@ -757,10 +758,18 @@ function jsAttrEscape(str) {
       </a>
       {% endif %}
 
+      {# kech118 (D-1, G4-19 / U-12 — egasi QARORI «Taklif qilingan lug'at»): ikki band — «Kirim qilish» (forma) va
+         «Ta'minotchilar» (ro'yxat, qarzlar, tarix); ilgari bitta «Xomashyo ta'minoti» formani ochardi, ro'yxatga yo'l yashirin edi #}
       {% if m_kirim %}
-      <a href="/suppliers/receive" class="nav-item {% if active_page in ['suppliers', 'supplier_receive'] %}active{% endif %}">
+      <a href="/suppliers/receive" class="nav-item {% if active_page == 'supplier_receive' %}active{% endif %}">
+        <i class="ti ti-truck-delivery n-ico"></i>
+        <span class="n-txt">Kirim qilish</span>
+      </a>
+      {% endif %}
+      {% if m_taminotchi %}
+      <a href="/suppliers" class="nav-item {% if active_page == 'suppliers' %}active{% endif %}">
         <i class="ti ti-truck n-ico"></i>
-        <span class="n-txt">Xomashyo ta'minoti</span>
+        <span class="n-txt">Ta'minotchilar</span>
       </a>
       {% endif %}
       {% if m_retsept %}

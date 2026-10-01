@@ -208,32 +208,33 @@ input[type=number]{-moz-appearance:textfield}
         <div style="font-size:12px;color:var(--text3);margin-bottom:6px" id="loss-stock-info"></div>
         <input type="number" id="loss-qty" placeholder="0" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
       </div>
+      <!-- kech118 (D-1, G5-20 — egasi QARORI «Ha, majburiy»): brak SABABI — ro'yxatdan, MAJBURIY (birinchi turadi);
+           bosqich va javobgar hodim — ixtiyoriy; yozma maydon — «Izoh» (ilgari «Sabab» — bitta narsa ikki marta so'ralardi). -->
       <div>
-        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Sabab (ixtiyoriy)</label>
-        <input type="text" id="loss-reason" placeholder="Masalan: tashishda sindi" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
+        <label for="loss-cause" style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Nima sababdan? <span style="color:#DC2626">*</span></label>
+        <select id="loss-cause" required aria-required="true" onchange="this.style.borderColor=''" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box;background:#fff">
+          <option value="">— Tanlang —</option>
+          {% for k, v in (brak_sabablari or {}).items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
+        </select>
       </div>
       <!-- kech53 (13-band, 1-qadam): brak BOSQICHI — ixtiyoriy (ikkala rejimda). -->
       <div>
-        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Qaysi bosqichda? (ixtiyoriy)</label>
+        <label for="loss-stage" style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Qaysi bosqichda? (ixtiyoriy)</label>
         <select id="loss-stage" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box;background:#fff">
           <option value="">— Tanlanmagan —</option>
           {% for k, v in (brak_bosqichlari or {}).items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
         </select>
       </div>
-      <!-- kech56 (13-band, 7-qadam): brak SABABI va JAVOBGAR hodim — ixtiyoriy (ikkala rejimda). -->
       <div>
-        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Nima sababdan? (ixtiyoriy)</label>
-        <select id="loss-cause" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box;background:#fff">
-          <option value="">— Tanlanmagan —</option>
-          {% for k, v in (brak_sabablari or {}).items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
-        </select>
-      </div>
-      <div>
-        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Kim sabab bo'ldi? (ixtiyoriy)</label>
+        <label for="loss-worker" style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Kim sabab bo'ldi? (ixtiyoriy)</label>
         <select id="loss-worker" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box;background:#fff">
           <option value="">— Tanlanmagan —</option>
           {% for h in (brak_hodimlari or []) %}<option value="{{ h.id }}">{{ h.name }}{% if h.position %} — {{ h.position }}{% endif %}</option>{% endfor %}
         </select>
+      </div>
+      <div>
+        <label for="loss-reason" style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Izoh (ixtiyoriy)</label>
+        <input type="text" id="loss-reason" placeholder="Masalan: tashishda sindi" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
       </div>
     </div>
     <div style="padding:16px 22px 20px;display:flex;gap:10px;border-top:1px solid #f0f0f0">
@@ -293,7 +294,7 @@ input[type=number]{-moz-appearance:textfield}
     </div>
     <div style="padding:16px 22px 20px;display:flex;gap:10px;border-top:1px solid #f0f0f0">
       <button data-yopish onclick="closeBatchSellModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
-      <button onclick="submitBatchSell()" style="flex:1;padding:12px;border-radius:10px;border:none;background:#16A34A;color:#fff;font-weight:600;font-size:14px;cursor:pointer">✓ Hammasini sotish</button>
+      <button onclick="submitBatchSell()" style="flex:1;padding:12px;border-radius:10px;border:none;background:#16A34A;color:#fff;font-weight:600;font-size:14px;cursor:pointer">✓ Sotish</button>
     </div>
   </div>
 </div>
@@ -603,6 +604,8 @@ function onPPenoChange() {
 
 let fpItems = [];
 let loyCostPerKg = 0;
+// kech118 (D-1): «Kam» chegarasini yozish — «Tayyor mahsulotlar: Tahrirlash» ruxsati bilan (server ham tekshiradi)
+const TM_TAHRIR = {{ 'true' if current_user.ruxsat('tayyor', 'tahrirlash') else 'false' }};
 // kech118 (ROLLAR 2-qism — egasi qarori): «Tannarx va foyda» ruxsati yo'q (`TANNARX_KORADI` — base.html) — server tannarx /
 // foydani null qaytaradi, sahifa «—» ko'rsatadi; mahsulot kalkulyatoridagi (mijoz tomonida hisoblanadigan) tannarx / foyda
 // qatorlari ham yashiriladi.
@@ -870,7 +873,7 @@ async function loadStats() {
   const kp = document.getElementById('k-partiya');
   if (kp) kp.textContent = fpItems.filter(i => i.source === 'produced').length + ' partiya';
   document.getElementById('k-low').textContent = lowCount + ' ta';
-  document.getElementById('k-today-produced').textContent = todayProduced + ' tur';
+  document.getElementById('k-today-produced').textContent = todayProduced + ' partiya';   // kech118 (D-1, G5-11): partiyalar sanaladi
 }
 
 // kech114 (dizayn 7-band): miqdor ko'rinishi (2 xonagacha, ming ajratgich — bo'shliq) va birliklar bo'yicha yig'indi
@@ -935,8 +938,9 @@ function fpGuruhla(items) {
   return [...xarita.entries()].map(([k, p]) => fpGuruhXulosa(k, p));
 }
 function fpGuruhKammi(g) {
-  const res = suggestedReserve({source: 'produced', quantity: g.miqdor});
-  return res > 0 && g.miqdor > 0 && g.miqdor < res;
+  // kech118 (D-1, G5-11 — egasi QARORI): «Kam» — faqat egasi yozgan chegara bilan (yozilmagan bo'lsa — hech qachon)
+  const ch = fpKamChegara(g.bosh);
+  return ch !== null && g.miqdor > 0 && g.miqdor < ch;
 }
 function fpGuruhAlmashtir(btn) {
   const guruh = btn.closest('.fp-guruh');
@@ -968,10 +972,11 @@ function guruhHtml(g) {
   meta.push(`${g.partiyalar.length} partiya`);
   const low = g.miqdor <= 0;
   const isKam = fpGuruhKammi(g);
-  const reserve = suggestedReserve({source: 'produced', quantity: g.miqdor});
-  const pct = reserve > 0 ? Math.min(100, Math.round((g.miqdor / reserve) * 100)) : 100;
+  const chegara = fpKamChegara(i0);
+  const pct = chegara ? Math.min(100, Math.round((g.miqdor / chegara) * 100)) : 100;
   const stColor = low ? '#DC2626' : (isKam ? '#F59E0B' : '#22C55E');
   const stLabel = low ? 'Tugagan' : (isKam ? 'Kam' : 'Yetarli');
+  const holatKorinadi = low || chegara !== null;   // chegara yozilmagan — «Kam / Yetarli» ham, chiziq ham yo'q
   const narxMatn = g.narxlar.length === 0 ? 'sotishda yoziladi'
     : (g.narxlar.length === 1 ? `${fmt(g.narxlar[0])}/${u}` : `${fmt(g.narxlar[0])}–${fmt(g.narxlar[g.narxlar.length - 1])}/${u}`);
   const qiymatIzoh = g.narxsizBor ? (g.narxliBor ? 'narx + tannarx' : "tannarx bo'yicha") : 'jami';
@@ -990,9 +995,10 @@ function guruhHtml(g) {
         <div class="fp-meta">${meta.map(escapeHtml).join(' · ')}</div>
       </div>
       <div class="fp-stock-col">
-        <div class="fp-qty" style="color:${matnRangi(stColor)}">${escapeHtml(fpMiqdor(g.miqdor))} ${escapeHtml(u)}</div>
-        <div class="fp-mini-bar"><div class="fp-mini-fill" style="width:${pct}%;background:${stColor}"></div></div>
-        <span class="fp-badge" style="background:${stColor}22;color:${matnRangi(stColor, 1)};margin-top:3px;display:inline-block">${stLabel}</span>
+        <div class="fp-qty" style="color:${holatKorinadi ? matnRangi(stColor) : 'var(--text)'}">${escapeHtml(fpMiqdor(g.miqdor))} ${escapeHtml(u)}</div>
+        ${holatKorinadi ? `<div class="fp-mini-bar"><div class="fp-mini-fill" style="width:${pct}%;background:${stColor}"></div></div>
+        <span class="fp-badge" style="background:${stColor}22;color:${matnRangi(stColor, 1)};margin-top:3px;display:inline-block">${stLabel}</span>` : ''}
+        ${chegara !== null ? `<div class="fp-kul fp-kam-izoh">chegara: ${escapeHtml(fpMiqdor(chegara))} ${escapeHtml(u)}</div>` : ''}
         ${g.jarayonMiqdor > 0 ? `<div class="fp-jarayon-izoh">+${escapeHtml(fpMiqdor(g.jarayonMiqdor))} ${escapeHtml(u)} jarayonda</div>` : ''}
       </div>
       <div class="fp-price-col">
@@ -1004,6 +1010,8 @@ function guruhHtml(g) {
         <div class="fp-kul">${escapeHtml(qiymatIzoh)}</div>
       </div>
       <div class="fp-actions-wrap" style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+        ${g.miqdor > 0 ? `<button class="mini-btn" type="button" onclick="fpGuruhSotish(this)" title="Sotish — partiyalar savatchada, miqdorni o'zingiz yozasiz" aria-label="Sotish" style="color:#15803D;border-color:#BBF7D0"><i class="ti ti-cash"></i></button>` : ''}
+        ${TM_TAHRIR ? `<button class="mini-btn" type="button" onclick="fpKamChegaraYoz(${Number(i0.id)})" title="«Kam» chegarasi — eng kam qoldiq" aria-label="«Kam» chegarasini yozish"><i class="ti ti-bell"></i></button>` : ''}
         <button class="mini-btn fp-guruh-tugma" type="button" aria-expanded="${ochiq ? 'true' : 'false'}"
                 aria-label="Partiyalarni ochish yoki yig'ish" title="Partiyalar" onclick="fpGuruhAlmashtir(this)"><i class="ti ti-chevron-down"></i></button>
       </div>
@@ -1012,12 +1020,32 @@ function guruhHtml(g) {
   </div>`;
 }
 
-// Bazada "min_stock" tayyor mahsulot uchun saqlanmaydi — shuning uchun taxminiy
-// tavsiya etilgan zaxira hisoblanadi (joriy qoldiqning ~40%i, minimal 5 birlik).
-// Bu FAQAT ko'rsatish uchun — hech qanday saqlashga yozilmaydi.
-function suggestedReserve(i) {
-  if (i.source !== 'produced') return 0;
-  return Math.max(5, Math.round(i.quantity * 0.4));
+// kech118 (D-1, G5-11 — egasi QARORI «Har mahsulotga o'zim yozaman», yozilmasa «Kam» yo'q): «Kam» chegarasi — egasi
+// yozgan eng kam qoldiq (server `kam_chegara` — shu mahsulotning hamma partiyalari uchun bitta). Ilgari dastur o'zi o'ylab
+// topardi (qoldiqning 40 %, kamida 5 — qop, m², dona uchun bir xil). Faqat ishlab chiqarilgan mahsulot uchun.
+function fpKamChegara(i) {
+  if (!i || i.source !== 'produced') return null;
+  const ch = Number(i.kam_chegara);
+  return i.kam_chegara !== null && i.kam_chegara !== undefined && ch > 0 ? ch : null;
+}
+async function fpKamChegaraYoz(id) {
+  const item = fpItems.find(i => i.id === id);
+  if (!item) return;
+  const u = unitLabel(item.unit);
+  const joriy = fpKamChegara(item);
+  const v = await kiritishOyna(`Eng kam qoldiq (${u})`, {
+    izoh: `${item.name} — qoldiq shundan kam bo'lsa «Kam» deb belgilanadi (hamma partiyalari birga). Bo'sh qoldirsangiz — belgi ko'rsatilmaydi.`,
+    qiymat: joriy === null ? '' : String(joriy).replace('.', ','), inputmode: 'decimal', okText: 'Saqlash'});
+  if (v === null) return;
+  const matn = String(v).trim();
+  const val = matn === '' ? null : parseNum(matn);
+  if (val !== null && !(val > 0)) { showMsg("❌ Chegara noto'g'ri: " + matn, 'error'); return; }
+  try {
+    const res = await fetch(`/api/finished/${id}/kam-chegara`, {
+      method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({chegara: val})});
+    if (res.ok) { loadFp(); showMsg(val === null ? "✓ «Kam» chegarasi olib tashlandi" : `✓ «Kam» chegarasi: ${fpMiqdor(val)} ${u}`, 'success'); }
+    else showMsg('❌ ' + await serverXatoSababi(res, 'Chegara saqlanmadi'), 'error');
+  } catch (e) { showMsg('Xato', 'error'); }
 }
 
 function toggleChip(name) {
@@ -1059,7 +1087,7 @@ function renderFp() {
   let groups = fpGuruhla(topilgan.filter(i => i.source === 'produced' && korinadi(i)));
   if (activeChips.has('low')) groups = groups.filter(fpGuruhKammi);
   let returned = topilgan.filter(i => i.source === 'returned');
-  if (activeChips.has('low')) returned = returned.filter(i => { const r = suggestedReserve(i); return r > 0 && i.quantity > 0 && i.quantity < r; });
+  if (activeChips.has('low')) returned = returned.filter(i => { const r = fpKamChegara(i); return r !== null && i.quantity > 0 && i.quantity < r; });
 
   const gSort = {
     value_desc: (a, b) => b.qiymat - a.qiymat,
@@ -1129,6 +1157,14 @@ function fpWidth2(i) {
 }
 
 function fpSku(i) { return 'FP-' + String(i.id).padStart(4, '0'); }
+// kech118 (D-1, G5-12): partiya nomi — guruh ichidagi qatorda va savatchada bir xil («Partiya №12» / «Partiya FP-0031»)
+function fpPartiyaNomi(i) {
+  return fpMrpmi(i) && i.ishlab_chiqarish_id ? 'Partiya №' + Number(i.ishlab_chiqarish_id) : 'Partiya ' + fpSku(i);
+}
+function fpSavatNomi(i) {
+  const sana = i.created_at ? tkSana(i.created_at) : '';
+  return `${i.name} — ${fpPartiyaNomi(i)}${sana ? ' (' + sana + ')' : ''}`;
+}
 // 2026-09-18 (birlik auditi topilmasi — HAQIQIY xato tuzatildi): bu
 // funksiya Production/MRP modulidan OLDIN yozilgan, o'shanda faqat 3 xil
 // birlik bor edi (metr/kvadrat/dona — crud.py'dagi _fp_unit() ga qarang).
@@ -1186,11 +1222,13 @@ function rowHtml(i, partiyami) {
   if (cleanNote) meta.push(cleanNote);
 
   const low = i.quantity <= 0;
-  const reserve = suggestedReserve(i);
-  const isKam = reserve > 0 && i.quantity > 0 && i.quantity < reserve;
-  const pct = reserve > 0 ? Math.min(100, Math.round((i.quantity / reserve) * 100)) : 100;
+  // kech118 (D-1, G5-11): «Kam» — egasi yozgan chegara bilan; partiya guruh ichida (partiyami) — holat guruh qatorida
+  const chegara = fpKamChegara(i);
+  const isKam = chegara !== null && i.quantity > 0 && i.quantity < chegara;
+  const pct = chegara ? Math.min(100, Math.round((i.quantity / chegara) * 100)) : 100;
   const stColor = low ? '#DC2626' : (isKam ? '#F59E0B' : '#22C55E');
   const stLabel = low ? 'Tugagan' : (isKam ? 'Kam' : 'Yetarli');
+  const holatKorinadi = low || (chegara !== null && !partiyami);
 
   const cpu = i.cost_price === null ? null : (i.source === 'produced' && i.quantity > 0 ? (i.cost_price / i.quantity) : 0);
   {% if current_user.ruxsat('tannarx', 'korish') %}
@@ -1226,6 +1264,7 @@ function rowHtml(i, partiyami) {
       <button class="mini-btn" onclick="editPrice(${i.id})" title="Narxni o'zgartirish"><i class="ti ti-edit"></i></button>
       ${i.source !== 'produced' ? `<button class="mini-btn" onclick="openLossModal(${i.id}, '${jsAttrEscape(i.name)}', ${i.quantity}, '${jsAttrEscape(i.unit)}', '${jsAttrEscape(i.category || '')}')" title="Kamaytirish (brak/yo'qotish)" style="color:#B45309;border-color:#FED7AA"><i class="ti ti-alert-triangle"></i></button>` : ''}
       <button class="mini-btn" onclick="openHistoryModal(${i.id})" title="Tarixni ko'rish"><i class="ti ti-history"></i></button>
+      ${(TM_TAHRIR && i.source === 'produced' && !partiyami) ? `<button class="mini-btn" onclick="fpKamChegaraYoz(${i.id})" title="«Kam» chegarasi — eng kam qoldiq" aria-label="«Kam» chegarasini yozish"><i class="ti ti-bell"></i></button>` : ''}
       ${i.reserved_quantity > 0 ? `<button class="mini-btn" onclick="releaseFpReservation(${i.id}, '${jsAttrEscape(i.name)}')" title="Band qilishni bekor qilib, umumiy sotuvga qaytarish" style="color:#B91C1C;border-color:#FECACA"><i class="ti ti-lock-open"></i></button>` : ''}
       {% if current_user.ruxsat('tannarx', 'korish') %}
       <button class="mini-btn" onclick="openProfitModal(${i.id})" title="Foyda hisobi"
@@ -1238,7 +1277,7 @@ function rowHtml(i, partiyami) {
 
   return `
   <div class="fp-row ${isRet ? 'returned' : ''} ${inProgress ? 'progress' : ''}" data-name="${escapeHtml(i.name.toLowerCase())}">
-    ${(!inProgress && !isRet) ? `<input type="checkbox" class="fp-batch-check" data-id="${i.id}" data-name="${escapeHtml(i.name)}" data-qty="${i.quantity}" data-unit="${escapeHtml(i.unit)}" data-price="${i.unit_price || 0}" onchange="onBatchCheckChange()" style="width:20px;height:20px;margin-right:10px;cursor:pointer;flex-shrink:0;accent-color:#16A34A;border:2px solid #94A3B8;border-radius:4px" onclick="event.stopPropagation()">` : `<div style="width:20px;margin-right:10px;flex-shrink:0"></div>`}
+    ${(!inProgress && !isRet) ? `<input type="checkbox" class="fp-batch-check" data-id="${i.id}" data-name="${escapeHtml(partiyami ? fpSavatNomi(i) : i.name)}" data-qty="${i.quantity}" data-unit="${escapeHtml(i.unit)}" data-price="${i.unit_price || 0}" onchange="onBatchCheckChange()" style="width:20px;height:20px;margin-right:10px;cursor:pointer;flex-shrink:0;accent-color:#16A34A;border:2px solid #94A3B8;border-radius:4px" onclick="event.stopPropagation()">` : `<div style="width:20px;margin-right:10px;flex-shrink:0"></div>`}
     <div class="fp-thumb" onclick="event.stopPropagation()">
       ${i.image_url
         ? `<img src="${escapeHtml(i.image_url)}" alt="" onclick="event.preventDefault();event.stopPropagation();openLightbox('${jsAttrEscape(i.image_url)}')">`
@@ -1255,7 +1294,7 @@ function rowHtml(i, partiyami) {
     <div class="fp-main">
       <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
         ${partiyami
-          ? `<span class="fp-name">${fpMrpmi(i) && i.ishlab_chiqarish_id ? 'Partiya №' + Number(i.ishlab_chiqarish_id) : 'Partiya ' + fpSku(i)}</span> ${i.created_at ? `<span class="fp-sku">${escapeHtml(tkSana(i.created_at, 'ru-RU'))}</span>` : ''}`
+          ? `<span class="fp-name">${escapeHtml(fpPartiyaNomi(i))}</span> ${i.created_at ? `<span class="fp-sku">${escapeHtml(tkSana(i.created_at, 'ru-RU'))}</span>` : ''}`
           : `<span class="fp-name">${escapeHtml(i.name)}</span>
         <span class="fp-sku">${fpSku(i)}</span>`}
         ${inProgress ? '<span class="fp-badge" style="background:#FEF3C7;color:#92400E">⏳ ISHLAB CHIQARILMOQDA</span>' : ''}
@@ -1266,9 +1305,10 @@ function rowHtml(i, partiyami) {
     </div>
 
     <div class="fp-stock-col">
-      <div class="fp-qty" style="color:${matnRangi(stColor)}">${escapeHtml(fpMiqdor(i.quantity))} ${escapeHtml(unitLabel(i.unit))}</div>
-      ${!inProgress ? `<div class="fp-mini-bar"><div class="fp-mini-fill" style="width:${pct}%;background:${stColor}"></div></div>
+      <div class="fp-qty" style="color:${(!inProgress && holatKorinadi) ? matnRangi(stColor) : 'var(--text)'}">${escapeHtml(fpMiqdor(i.quantity))} ${escapeHtml(unitLabel(i.unit))}</div>
+      ${(!inProgress && holatKorinadi) ? `<div class="fp-mini-bar"><div class="fp-mini-fill" style="width:${pct}%;background:${stColor}"></div></div>
       <span class="fp-badge" style="background:${stColor}22;color:${matnRangi(stColor, 1)};margin-top:3px;display:inline-block">${stLabel}</span>` : ''}
+      ${(!inProgress && !partiyami && chegara !== null) ? `<div class="fp-kul fp-kam-izoh">chegara: ${escapeHtml(fpMiqdor(chegara))} ${escapeHtml(unitLabel(i.unit))}</div>` : ''}
     </div>
 
     <div class="fp-price-col">
@@ -1399,6 +1439,7 @@ let _lossMode = 'stock';
 
 // kech53 (13-band, 1-qadam): "Kamaytirish" oynasidagi ixtiyoriy brak bosqichi —
 // tanlansagina tanaga qo'shiladi (tanlanmasa tana AYNAN avvalgidek).
+// kech118 (D-1, G5-20): sabab — MAJBURIY (`submitLoss` tanlanmasa yubormaydi; server ham rad etadi).
 function lossBosqichTana() {
   const el = document.getElementById('loss-stage');
   const v = (el && el.value) || '';
@@ -1422,7 +1463,7 @@ function openLossModal(id, name, quantity, unit, category) {
   const _lossStage = document.getElementById('loss-stage');   // kech53
   if (_lossStage) _lossStage.value = '';
   const _lossCause = document.getElementById('loss-cause');   // kech56
-  if (_lossCause) _lossCause.value = '';
+  if (_lossCause) { _lossCause.value = ''; _lossCause.style.borderColor = ''; }
   const _lossWorker = document.getElementById('loss-worker'); // kech56
   if (_lossWorker) _lossWorker.value = '';
 
@@ -1454,6 +1495,13 @@ async function submitLoss() {
   if (!_lossData) return;
   const qty = parseFloat(document.getElementById('loss-qty').value) || 0;
   if (qty <= 0) { showMsg('Miqdorni kiriting', 'error'); return; }
+  // kech118 (D-1, G5-20 — egasi QARORI): brak sababi majburiy — tanlanmasa saqlashdan OLDIN eslatiladi
+  const _sababEl = document.getElementById('loss-cause');
+  if (!_sababEl || !_sababEl.value) {
+    if (_sababEl) { _sababEl.style.borderColor = '#DC2626'; _sababEl.focus(); }
+    showMsg("Brak sababini tanlang (ro'yxatdan)", 'error');
+    return;
+  }
 
   if (_lossMode === 'stock') {
     if (qty > _lossData.quantity + 0.001) { showMsg(`Omborda faqat ${_lossData.quantity} ${_lossData.unit} bor`, 'error'); return; }
@@ -1508,6 +1556,23 @@ async function submitLoss() {
 
 let _batchItems = {};  // id -> {name, qty, unit, price, maxQty}
 
+// kech118 (D-1, G5-12 — egasi QARORI «Qo'lda tanlash qolsin»): guruh qatoridagi «Sotish» — shu mahsulotning sotsa bo'ladigan
+// hamma partiyalarini savatchaga qo'yadi (miqdor BO'SH — qaysi partiyadan qancha, o'zingiz yozasiz; bo'sh qolgani sotilmaydi).
+// Bitta partiya qolgan bo'lsa — oddiy «Sotish» oynasi. Belgilanganlar (checkbox) ham savatchada qoladi — holat bitta.
+function fpGuruhSotish(btn) {
+  const guruh = btn.closest('.fp-guruh');
+  if (!guruh) return;
+  const checks = [...guruh.querySelectorAll('.fp-guruh-ichi .fp-batch-check')].filter(c => (parseFloat(c.dataset.qty) || 0) > 0);
+  if (!checks.length) { showMsg("Sotish uchun qoldiq yo'q", 'error'); return; }
+  if (checks.length === 1) {
+    const it = fpItems.find(x => String(x.id) === checks[0].dataset.id);
+    if (it) { openSellModal(it.id, it.name, it.quantity, it.unit, it.unit_price || 0); return; }
+  }
+  checks.forEach(c => { c.checked = true; });
+  onBatchCheckChange();
+  openBatchSellModal();
+}
+
 function onBatchCheckChange() {
   const checks = document.querySelectorAll('.fp-batch-check');
   _batchItems = {};
@@ -1525,6 +1590,9 @@ function onBatchCheckChange() {
     }
   });
   const bar = document.getElementById('batchSellBar');
+  // telefonda suzuvchi panel oxirgi qatorning tugmalarini yopmasin — ro'yxat ostiga joy
+  const royxat = document.getElementById('fpList');
+  if (royxat) royxat.style.paddingBottom = count > 0 ? '96px' : '';
   if (count > 0) {
     bar.style.display = 'flex';
     document.getElementById('batchSellCount').textContent = `${count} ta tanlandi`;
@@ -1537,12 +1605,14 @@ function clearBatchSelection() {
   document.querySelectorAll('.fp-batch-check').forEach(c => c.checked = false);
   _batchItems = {};
   document.getElementById('batchSellBar').style.display = 'none';
+  const royxat = document.getElementById('fpList');
+  if (royxat) royxat.style.paddingBottom = '';
 }
 
 function openBatchSellModal() {
   const ids = Object.keys(_batchItems);
   if (!ids.length) return;
-  document.getElementById('batch-modal-sub').textContent = `${ids.length} ta mahsulot`;
+  document.getElementById('batch-modal-sub').textContent = `${ids.length} ta tanlangan — miqdorni yozing (bo'sh qolgani sotilmaydi)`;
   document.getElementById('batch-buyer').value = '';
   document.getElementById('batch-master').value = '';
   document.getElementById('batch-paymethod').value = 'naqd';
@@ -1558,12 +1628,13 @@ function openBatchSellModal() {
         <div style="display:flex;gap:8px;align-items:flex-end">
           <div style="flex:1">
             <div style="font-size:12px;color:var(--text3);margin-bottom:3px">Kerakli miqdor</div>
-            <input type="number" class="batch-qty" value="${it.maxQty}" max="${it.maxQty}" min="0" step="0.1" data-max="${it.maxQty}" data-unit="${escapeHtml(it.unit)}"
+            <input type="number" class="batch-qty" value="" placeholder="0" max="${it.maxQty}" min="0" step="any" data-max="${it.maxQty}" data-unit="${escapeHtml(unitLabel(it.unit))}"
+                   aria-label="Kerakli miqdor — ${escapeHtml(it.name)}"
                    oninput="updateBatchTotal();updateBatchRemain(this)" style="width:100%;padding:8px 10px;border:1.5px solid var(--gold);border-radius:8px;font-size:14px;font-weight:600;box-sizing:border-box">
           </div>
           <div style="flex:1">
-            <div style="font-size:12px;color:#15803D;margin-bottom:3px;font-weight:600">Mavjud miqdor</div>
-            <div class="batch-remain" style="width:100%;padding:8px 10px;border:1.5px solid #BBF7D0;border-radius:8px;font-size:14px;font-weight:700;color:#15803D;background:#F0FDF4;box-sizing:border-box;text-align:center">${it.maxQty} ${escapeHtml(it.unit)}</div>
+            <div style="font-size:12px;color:#15803D;margin-bottom:3px;font-weight:600">Qoladi</div>
+            <div class="batch-remain" style="width:100%;padding:8px 10px;border:1.5px solid #BBF7D0;border-radius:8px;font-size:14px;font-weight:700;color:#15803D;background:#F0FDF4;box-sizing:border-box;text-align:center">${escapeHtml(fpMiqdor(it.maxQty))} ${escapeHtml(unitLabel(it.unit))}</div>
           </div>
           <div style="flex:1">
             <div style="font-size:12px;color:var(--text3);margin-bottom:3px">1 birlik narxi</div>
@@ -1602,7 +1673,7 @@ function updateBatchRemain(input) {
   const remain = Math.max(0, max - entered);
   const remainEl = input.closest('.batch-item-row')?.querySelector('.batch-remain');
   if (remainEl) {
-    remainEl.textContent = `${sonKor(remain, 1)} ${unit}`;
+    remainEl.textContent = entered > max ? `faqat ${fpMiqdor(max)} ${unit} bor` : `${fpMiqdor(remain)} ${unit}`;
     remainEl.style.color = entered > max ? '#DC2626' : '#15803D';
   }
 }
@@ -1636,16 +1707,23 @@ function updateBatchDiscount() {
 }
 
 async function submitBatchSell(confirmBelowCost) {
+  // kech118 (D-1, G5-12): miqdori bo'sh (0) qator — sotilmaydi; yozilgan qatorda narx majburiy, miqdor qoldiqdan oshmaydi
   const items = [];
-  let hasError = false;
+  let xato = '';
   document.querySelectorAll('.batch-item-row').forEach(row => {
     const id = parseInt(row.dataset.id);
-    const qty = parseFloat(row.querySelector('.batch-qty')?.value) || 0;
+    const inp = row.querySelector('.batch-qty');
+    const qty = parseFloat(inp?.value) || 0;
     const price = parseNum(row.querySelector('.batch-price')?.value) || 0;
-    if (qty <= 0 || price <= 0) { hasError = true; return; }
+    if (qty <= 0) return;
+    const max = parseFloat(inp?.dataset.max) || 0;
+    const nom = _batchItems[row.dataset.id]?.name || '';
+    if (qty > max + 1e-9) { xato = xato || `${nom}: omborda faqat ${fpMiqdor(max)} ${inp?.dataset.unit || ''} bor`; return; }
+    if (price <= 0) { xato = xato || `${nom}: 1 birlik narxini yozing`; return; }
     items.push({ finished_product_id: id, quantity: qty, unit_price: price });
   });
-  if (hasError || !items.length) { showMsg('Barcha mahsulotlar uchun miqdor va narxni to\'g\'ri kiriting', 'error'); return; }
+  if (xato) { showMsg(xato, 'error'); return; }
+  if (!items.length) { showMsg('Kamida bitta qatorga sotiladigan miqdorni yozing', 'error'); return; }
 
   const batchMasterVal = document.getElementById('batch-master').value;
   if (!batchMasterVal) { showMsg('Kim sotib olayotganini tanlang (usta yoki oddiy sotuv)', 'error'); return; }

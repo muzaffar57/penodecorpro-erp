@@ -750,7 +750,7 @@ input[type=number]{-moz-appearance:textfield}
           <button class="btn btn-green w-full btn-sm" id="btn-ready" onclick="markReadySelected()" style="display:none">✓ Tayyor deb belgilash</button>
           <button class="btn btn-outline w-full btn-sm" id="btn-edit" onclick="editSelected()" style="display:none;border-color:#B9783F;color:var(--gold-dark)">✏️ Tahrirlash</button>
           <button class="btn btn-outline w-full btn-sm" id="btn-duplicate" onclick="duplicateSelected()" title="Shu buyurtma asosida, loyiha/usta/detallar oldindan to'ldirilgan YANGI buyurtma ochadi (eskisiga tegmaydi)" style="display:none;border-color:#6366F1;color:#6366F1">📋 Nusxa olish (yangi buyurtma)</button>
-          <a id="btn-pdf" href="#" target="_blank" class="btn btn-outline w-full btn-sm" style="text-align:center;display:none">📄 PDF chiqarish</a>
+          <a id="btn-pdf" href="#" target="_blank" class="btn btn-outline w-full btn-sm" style="text-align:center;display:none" title="Buyurtma hisobi (PDF)">📄 Buyurtma hisobi (PDF)</a>
           {% if current_user.ruxsat('tannarx', 'korish') %}
           <button class="btn btn-outline w-full btn-sm" id="btn-profit" onclick="loadProfit()" style="display:none;border-color:#B9783F;color:var(--gold-dark)">💰 Foyda hisoblash</button>
           {% endif %}
@@ -987,7 +987,7 @@ input[type=number]{-moz-appearance:textfield}
 
     <div style="padding:14px 22px 18px;border-top:1px solid #f0f0f0;display:flex;gap:8px">
       <button data-yopish class="btn btn-outline" style="flex:1" onclick="closeDeliveryModal()">Bekor</button>
-      <button class="btn btn-dark" style="flex:2" onclick="saveDelivery()">💾 Saqlash va nakladnoy olish</button>
+      <button class="btn btn-dark" style="flex:2" onclick="saveDelivery()">💾 Saqlash va yuk xatini olish</button>
 
     </div>
   </div>
@@ -1426,7 +1426,7 @@ function openPdfSafe(url) {
     box.style.cssText = `position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:3000;
       padding:13px 22px;border-radius:10px;font-size:14px;font-weight:500;box-shadow:0 6px 24px rgba(0,0,0,.18);
       background:#FFFBEB;color:#92400E;border:1.5px solid #FDE68A;display:flex;gap:10px;align-items:center`;
-    box.innerHTML = `⚠️ Brauzer nakladnoyni ochishga to'sqinlik qildi.
+    box.innerHTML = `⚠️ Brauzer yuk xatini ochishga to'sqinlik qildi.
       <a href="${url}" target="_blank" style="color:var(--gold-dark);font-weight:700;text-decoration:underline">Shu yerga bosing</a>`;
     document.body.appendChild(box);
     setTimeout(() => box.remove(), 12000);
@@ -2129,7 +2129,7 @@ function renderDeliveryHistory(showAll) {
           <div style="display:flex;gap:4px;flex-shrink:0">
             <a href="/api/deliveries/${dl.id}/pdf" target="_blank"
                style="width:26px;height:26px;border-radius:6px;background:#F8F2EB;border:none;color:var(--gold-dark);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;text-decoration:none"
-               title="Nakladnoy PDF">📄</a>
+               title="Yuk xati (PDF)">📄</a>
             ${d.status === 'ready'
               ? `<span class="dlv-qulf" style="width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--text3)"
                  title="Buyurtma «Tayyor» — yuk xatini o'chirib bo'lmaydi">🔒</span>`
@@ -2466,7 +2466,7 @@ async function submitFullDlvModal() {
     if (res.ok) {
       openPdfSafe(`/api/deliveries/${r.delivery_id}/pdf`);
       loadDeliveries(selectedOrderId);
-      showMsg('✅ Buyurtma to\'liq topshirildi! Nakladnoy tayyor.', 'success');
+      showMsg('✅ Buyurtma to\'liq topshirildi! Yuk xati tayyor.', 'success');
       setTimeout(()=>location.reload(), 2500);
     } else {
       const q = yetkazishXatoQismlari(r);
@@ -2536,13 +2536,13 @@ async function saveDelivery() {
 
     if (res.ok) {
       closeDeliveryModal();
-      // Nakladnoy PDF ni ochamiz
+      // Yuk xati PDF ni ochamiz
       openPdfSafe(`/api/deliveries/${r.delivery_id}/pdf`);
       loadDeliveries(selectedOrderId);
 
       // kech103 (11-band): `r.payment_warning` tarmog'i olib tashlandi — server bu kalitni 17g dan beri bermaydi (o'lik).
       if (r.is_fully_delivered) {
-        showMsg('✅ Buyurtma to\'liq topshirildi! Nakladnoy tayyor.', 'success');
+        showMsg('✅ Buyurtma to\'liq topshirildi! Yuk xati tayyor.', 'success');
         setTimeout(()=>location.reload(), 2500);
       } else {
         showMsg(`✓ ${r.delivery_number} saqlandi · Bajarilish: ${r.delivery_percent}%`, 'success');

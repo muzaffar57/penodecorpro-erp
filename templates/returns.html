@@ -281,6 +281,31 @@
       <div id="reason-hint" style="font-size:13px;color:var(--text3);margin-top:6px">Butun — tayyor mahsulotlar omboriga qaytadi</div>
     </div>
 
+    <!-- kech118 (D-1, G5-20): «Brak» tanlansa — sabab (MAJBURIY), bosqich va javobgar (ixtiyoriy); «Brak yozish» bilan bir xil -->
+    <div id="f-brak-wrap" style="display:none">
+      <div class="form-group">
+        <label for="f-brak-cause">Nima sababdan brak bo'ldi? <span style="color:#DC2626">*</span></label>
+        <select id="f-brak-cause" aria-required="true" onchange="this.style.borderColor=''">
+          <option value="">— Tanlang —</option>
+          {% for k, v in (brak_sabablari or {}).items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="f-brak-stage">Qaysi bosqichda? <span style="color:var(--text3);font-weight:400">(ixtiyoriy)</span></label>
+        <select id="f-brak-stage">
+          <option value="">— Tanlanmagan —</option>
+          {% for k, v in (brak_bosqichlari or {}).items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="f-brak-worker">Brakka kim sabab bo'ldi? <span style="color:var(--text3);font-weight:400">(ixtiyoriy)</span></label>
+        <select id="f-brak-worker">
+          <option value="">— Tanlanmagan —</option>
+          {% for h in (brak_hodimlari or []) %}<option value="{{ h.id }}">{{ h.name }}{% if h.position %} — {{ h.position }}{% endif %}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+
     <div class="form-group" id="coating-applied-wrap" style="display:none">
       <label>Brak bo'lganda loy (qoplama) allaqachon tortilgan edimi?</label>
       <div style="display:flex;gap:8px">
@@ -328,7 +353,7 @@
 
       <div style="padding:10px 12px;background:#F8F2EB;border:1px solid #E5D5C0;border-radius:8px;font-size:12px;color:var(--gold-dark);margin-bottom:14px">
         ℹ️ Buyurtmaga bog'liq bo'lmagan, to'g'ridan-to'g'ri ishlab chiqarishda (masalan kesish/qoplama paytida) chiqqan brak uchun —
-        <b>"Tayyor mahsulotlar"</b> bo'limidagi ⚠️ (Kamaytirish) tugmasidan foydalaning.
+        <b>"Tayyor mahsulotlar"</b> bo'limidagi «−» (Kamaytirish) tugmasidan foydalaning.
       </div>
 
       <div id="brak-panel-project">
@@ -359,27 +384,27 @@
         </div>
       </div>
 
+      <!-- kech118 (D-1, G5-20 — egasi QARORI «Ha, majburiy»): brak SABABI — ro'yxatdan, MAJBURIY (birinchi turadi),
+           butun ro'yxat uchun bitta; bosqich va javobgar hodim — ixtiyoriy; yozma maydon — «Izoh». -->
+      <div class="form-group" style="margin-top:12px">
+        <label for="brak-cause">Nima sababdan brak bo'ldi? <span style="color:#DC2626">*</span></label>
+        <select id="brak-cause" aria-required="true" onchange="this.style.borderColor=''">
+          <option value="">— Tanlang —</option>
+          {% for k, v in (brak_sabablari or {}).items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
+        </select>
+      </div>
+
       <!-- kech53 (13-band, 1-qadam): brak BOSQICHI — ixtiyoriy, butun ro'yxat uchun
            bitta ("loy tortilganmi" savoli kabi). Tanlanmasa tana O'ZGARMAYDI. -->
       <div class="form-group" style="margin-top:12px">
-        <label>Qaysi bosqichda brak bo'ldi? <span style="color:var(--text3);font-weight:400">(ixtiyoriy)</span></label>
+        <label for="brak-stage">Qaysi bosqichda brak bo'ldi? <span style="color:var(--text3);font-weight:400">(ixtiyoriy)</span></label>
         <select id="brak-stage">
           <option value="">— Tanlanmagan —</option>
           {% for k, v in (brak_bosqichlari or {}).items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
         </select>
       </div>
-
-      <!-- kech56 (13-band, 7-qadam; foydalanuvchi qarori): brak SABABI va JAVOBGAR hodim —
-           ixtiyoriy, butun ro'yxat uchun bitta. Tanlanmasa tana O'ZGARMAYDI. -->
       <div class="form-group" style="margin-top:12px">
-        <label>Nima sababdan brak bo'ldi? <span style="color:var(--text3);font-weight:400">(ixtiyoriy)</span></label>
-        <select id="brak-cause">
-          <option value="">— Tanlanmagan —</option>
-          {% for k, v in (brak_sabablari or {}).items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
-        </select>
-      </div>
-      <div class="form-group" style="margin-top:12px">
-        <label>Brakka kim sabab bo'ldi? <span style="color:var(--text3);font-weight:400">(ixtiyoriy)</span></label>
+        <label for="brak-worker">Brakka kim sabab bo'ldi? <span style="color:var(--text3);font-weight:400">(ixtiyoriy)</span></label>
         <select id="brak-worker">
           <option value="">— Tanlanmagan —</option>
           {% for h in (brak_hodimlari or []) %}<option value="{{ h.id }}">{{ h.name }}{% if h.position %} — {{ h.position }}{% endif %}</option>{% endfor %}
@@ -387,7 +412,7 @@
       </div>
 
       <div class="form-group" style="margin-top:12px">
-        <label>Sabab / izoh</label>
+        <label for="brak-notes">Izoh <span style="color:var(--text3);font-weight:400">(ixtiyoriy)</span></label>
         <input type="text" id="brak-notes" placeholder="Masalan: kesish jarayonida sinib ketdi">
       </div>
 
@@ -733,6 +758,11 @@ function showAddModal(){
   document.getElementById('f-unit-label').textContent = '—';
   document.getElementById('add-error').style.display = 'none';
   document.querySelector('input[name="f-reason"][value="Ortiqcha"]').checked = true;
+  // kech118 (D-1, G5-20): brak maydonlari — har ochilishda bo'sh
+  ['f-brak-cause', 'f-brak-stage', 'f-brak-worker'].forEach(k => {
+    const el = document.getElementById(k);
+    if (el) { el.value = ''; el.style.borderColor = ''; }
+  });
   updateReasonHint();
 }
 function closeModal(){document.getElementById('addModal').style.display='none'}
@@ -867,6 +897,8 @@ function updateReasonHint(){
   if (coatWrap) {
     coatWrap.style.display = (reason === 'Brak' && item && item.is_coated) ? 'block' : 'none';
   }
+  const brakWrap = document.getElementById('f-brak-wrap');   // kech118 (D-1, G5-20)
+  if (brakWrap) brakWrap.style.display = reason === 'Brak' ? 'block' : 'none';
 }
 
 function calcValue(){
@@ -985,6 +1017,21 @@ async function saveReturn(){
     err.textContent = `❌ Buyurtmada ${item.order_qty_normalized} ${item.delivery_unit} bor, ${quantity} qaytarib bo'lmaydi`;
     return;
   }
+  // kech118 (D-1, G5-20 — egasi QARORI): «Brak» — sabab majburiy; bosqich / javobgar — tanlansagina
+  const brakTana = {};
+  if (reason === 'Brak') {
+    const sEl = document.getElementById('f-brak-cause');
+    if (!sEl || !sEl.value) {
+      if (sEl) { sEl.style.borderColor = '#DC2626'; sEl.focus(); }
+      err.style.display = 'block'; err.textContent = "❌ Brak sababini tanlang (ro'yxatdan)";
+      return;
+    }
+    brakTana.brak_sabab = sEl.value;
+    const bEl = document.getElementById('f-brak-stage');
+    if (bEl && bEl.value) brakTana.brak_bosqich = bEl.value;
+    const jId = parseInt(document.getElementById('f-brak-worker')?.value || '', 10);
+    if (jId > 0) brakTana.brak_javobgar_id = jId;
+  }
   err.style.display = 'none';
 
   if (isSavingReturn) return; // Ikki marta bosishdan himoya
@@ -1005,7 +1052,8 @@ async function saveReturn(){
         refund_amount: parseFloat(document.getElementById('f-value').value) || 0,
         to_stock: true,
         notes: document.getElementById('f-notes').value || null,
-        coating_applied: document.querySelector('input[name="f-coating-applied"]:checked')?.value === 'yes'
+        coating_applied: document.querySelector('input[name="f-coating-applied"]:checked')?.value === 'yes',
+        ...brakTana
       })
     });
 
@@ -1044,7 +1092,7 @@ function showBrakModal(){
   const _bosqichSel = document.getElementById('brak-stage');   // kech53
   if (_bosqichSel) _bosqichSel.value = '';
   const _sababSel = document.getElementById('brak-cause');     // kech56
-  if (_sababSel) _sababSel.value = '';
+  if (_sababSel) { _sababSel.value = ''; _sababSel.style.borderColor = ''; }
   const _javobgarSel = document.getElementById('brak-worker'); // kech56
   if (_javobgarSel) _javobgarSel.value = '';
   document.getElementById('brak-error').style.display = 'none';
@@ -1112,7 +1160,7 @@ async function saveBrakBatch(){
   // (tanlanmasa tana AYNAN avvalgidek).
   const _bosqichEl = document.getElementById('brak-stage');
   const bosqich = (_bosqichEl && _bosqichEl.value) || '';
-  // kech56 (13-band, 7-qadam): ixtiyoriy sabab va javobgar hodim — tanlansagina.
+  // kech56 (13-band, 7-qadam): sabab va javobgar hodim; kech118 (D-1, G5-20): sabab — MAJBURIY, javobgar — ixtiyoriy.
   const _sababEl = document.getElementById('brak-cause');
   const sabab = (_sababEl && _sababEl.value) || '';
   const _javobgarEl = document.getElementById('brak-worker');
@@ -1139,6 +1187,12 @@ async function saveBrakBatch(){
 
   if (hasOver) { err.style.display='block'; err.textContent='❌ Buyurtmadagi miqdordan ko\'p kiritilgan — qizil maydonlarni tekshiring'; return; }
   if (!toSave.length) { err.style.display='block'; err.textContent='❌ Kamida bitta detal uchun miqdor kiriting'; return; }
+  // kech118 (D-1, G5-20 — egasi QARORI): brak sababi majburiy — saqlashdan OLDIN eslatiladi
+  if (!sabab) {
+    if (_sababEl) { _sababEl.style.borderColor = '#DC2626'; _sababEl.focus(); }
+    err.style.display = 'block'; err.textContent = "❌ Brak sababini tanlang (ro'yxatdan)";
+    return;
+  }
   err.style.display = 'none';
 
   if (isSavingBrak) return; // Ikki marta bosishdan himoya

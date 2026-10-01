@@ -816,9 +816,11 @@ function closeModal(){
 }
 
 async function deleteProj(){
-  if(!(await customConfirm('Loyihani o\'chirasizmi? Barcha buyurtmalar ham o\'chadi!', {danger:true})))return;
+  // kech118 (D-1, G2-20 — egasi QARORI «Taqiqlansin»): buyurtmasi bor loyiha o'chirilmaydi (server sababi ko'rsatiladi);
+  // o'chirilgan loyiha «O'chirilganlar» bo'limida turadi — tiklash mumkin (ilgari «Barcha buyurtmalar ham o'chadi!» derdi — noto'g'ri)
+  if(!(await customConfirm('Loyihani o\'chirasizmi? U «O\'chirilganlar» bo\'limiga o\'tadi — kerak bo\'lsa o\'sha yerdan tiklash mumkin. Buyurtmasi bor loyihani o\'chirib bo\'lmaydi — avval buyurtmalarni o\'chiring.', {danger:true})))return;
   const res=await fetch(`/api/projects/${selectedProjId}`,{method:'DELETE'});
-  if(res.ok)location.reload();else projToast('Xato');
+  if(res.ok)location.reload();else projToast(await serverXatoSababi(res, 'Loyihani o\'chirib bo\'lmadi'));
 }
 
 function searchProj(){

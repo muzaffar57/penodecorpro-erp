@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Qarzdorlar — PenoDecorPro ERP{% endblock %}
 {% block page_title %}Qarzdorlar{% endblock %}
-{% block page_sub %}Mijozlarning bizga qarzi va bizning yetkazib beruvchilarga qarzimiz{% endblock %}
+{% block page_sub %}Mijozlarning bizga qarzi va bizning ta'minotchilarga qarzimiz{% endblock %}
 
 {% block head %}
 <style>
@@ -58,7 +58,7 @@
     <div class="dbt-summary-card">
       <div class="dbt-summary-icon" style="background:#FFFBEB;color:#B45309"><i class="ti ti-arrow-up-right"></i></div>
       <div>
-        <div class="dbt-summary-label">Biz qarzdormiz (yetkazib beruvchilar)</div>
+        <div class="dbt-summary-label">Biz qarzdormiz (ta'minotchilar)</div>
         <div class="dbt-summary-value">{{ "{:,.0f}".format(total_supplier_debt).replace(",", " ") }} so'm</div>
       </div>
     </div>
@@ -75,7 +75,7 @@
   <div class="dbt-tabs">
     <button class="dbt-tab active" data-t="customers" onclick="switchTab('customers')"><i class="ti ti-user" style="vertical-align:-2px"></i> Bizga qarzdorlar ({{ order_debts|length }})</button>
     <button class="dbt-tab" data-t="refunds" onclick="switchTab('refunds')"><i class="ti ti-arrow-back-up" style="vertical-align:-2px"></i> Mijozga qaytarish ({{ ortiqcha_royxat|length }})</button>
-    <button class="dbt-tab" data-t="suppliers" onclick="switchTab('suppliers')"><i class="ti ti-truck" style="vertical-align:-2px"></i> Hamkorlarga qarzimiz ({{ supplier_debts|length }})</button>
+    <button class="dbt-tab" data-t="suppliers" onclick="switchTab('suppliers')"><i class="ti ti-truck" style="vertical-align:-2px"></i> Ta'minotchilarga qarzimiz ({{ supplier_debts|length }})</button>
     <button class="dbt-tab" data-t="company" onclick="switchTab('company')"><i class="ti ti-building" style="vertical-align:-2px"></i> Boshqa majburiyatlarimiz ({{ (company_obligations.employees|length) + (company_obligations.recurring|length) }})</button>
   </div>
 
@@ -244,7 +244,7 @@
             </div>
             {% endfor %}
           {% else %}
-            <div class="dbt-empty"><i class="ti ti-circle-check"></i><div style="font-size:15px;font-weight:600;color:var(--d-text2)">Barcha yetkazib beruvchilarga to'liq to'langan!</div></div>
+            <div class="dbt-empty"><i class="ti ti-circle-check"></i><div style="font-size:15px;font-weight:600;color:var(--d-text2)">Barcha ta'minotchilarga to'liq to'langan!</div></div>
           {% endif %}
         </div>
       </div>
@@ -252,7 +252,7 @@
       <div class="dbt-card">
         <div style="padding:16px 18px;border-bottom:1px solid #F3F4F6;font-weight:700;font-size:15px;display:flex;align-items:center;gap:10px">
           <div class="dbt-avatar" id="sd-avatar" style="width:30px;height:30px;font-size:12px;background:#FFFBEB;color:#B45309">?</div>
-          <span id="sd-name">Yetkazib beruvchi tanlang</span>
+          <span id="sd-name">Ta'minotchi tanlang</span>
         </div>
         <div style="padding:16px 18px" id="sd-body">
           <div style="text-align:center;padding:20px;color:var(--d-text3);font-size:13px">Ro'yxatdan tanlang</div>

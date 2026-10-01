@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Xomashyo ta'minoti — PenoDecorPro ERP{% endblock %}
-{% block page_title %}Xomashyo ta'minoti{% endblock %}
+{% block title %}Ta'minotchilar — PenoDecorPro ERP{% endblock %}
+{% block page_title %}Ta'minotchilar{% endblock %}
 {% block page_sub %}Nasiya (kredit) bilan olingan xomashyo qarzdorligi{% endblock %}
 
 {% block topbar_actions %}
-<button class="btn btn-dark" onclick="openSupplierModal()">+ Yetkazib beruvchi</button>
+<button class="btn btn-dark" onclick="openSupplierModal()">+ Ta'minotchi</button>
 {% endblock %}
 
 {% block head %}
@@ -28,17 +28,17 @@
     </div>
     <div class="kpi-card">
       <div class="kpi-val" style="color:#B45309" id="k-supplier-count">—</div>
-      <div class="kpi-label">Qarzdor yetkazib beruvchi</div>
+      <div class="kpi-label">Qarzdor ta'minotchi</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-val" style="color:var(--blue)" id="k-total-count">—</div>
-      <div class="kpi-label">Jami yetkazib beruvchi</div>
+      <div class="kpi-label">Jami ta'minotchi</div>
     </div>
   </div>
 
   <div class="card">
     <div class="card-head">
-      <h3>Yetkazib beruvchilar ro'yxati</h3>
+      <h3>Ta'minotchilar ro'yxati</h3>
       <input id="sup-search" placeholder="Qidirish..." oninput="filterSuppliers(this.value)"
              style="padding:6px 10px;border:1px solid #e8e8e8;border-radius:7px;font-size:12px;width:180px;outline:none">
     </div>
@@ -51,7 +51,7 @@
 <!-- ══ YETKAZIB BERUVCHI QO'SHISH/TAHRIRLASH ══ -->
 <div id="supplierModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
   <div style="background:#fff;border-radius:14px;padding:24px;width:420px;max-width:100%">
-    <div style="font-size:16px;font-weight:600;margin-bottom:18px" id="sup-modal-title">+ Yangi yetkazib beruvchi</div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:18px" id="sup-modal-title">+ Yangi ta'minotchi</div>
     <div class="form-group"><label>Nomi</label><input type="text" id="s-name" placeholder="Masalan: Qurilish bozori, 12-do'kon"></div>
     <div class="form-group"><label>Telefon</label><input type="text" id="s-phone" placeholder="+998901234567"></div>
     <div class="form-group"><label>Izoh</label><input type="text" id="s-notes" placeholder="..."></div>
@@ -178,7 +178,7 @@
           <div style="display:flex;gap:8px">
             <select id="ap-transport-payer" style="flex:1.2;height:34px;padding:0 8px;border:1.5px solid #ddd;border-radius:7px;font-size:12px;outline:none" onchange="apToggleTransport()">
               <option value="none">Transport yo'q</option>
-              <option value="supplier">Yetkazib beruvchidan (bepul)</option>
+              <option value="supplier">Ta'minotchidan (bepul)</option>
               <option value="self">O'z hisobimdan</option>
             </select>
             <input type="text" id="ap-transport-cost" placeholder="Summasi" disabled oninput="formatPriceInput(this)"
@@ -435,7 +435,7 @@ function filterSuppliers(q){
 
 function openSupplierModal(){
   editingSupplierId = null;
-  document.getElementById('sup-modal-title').textContent = "+ Yangi yetkazib beruvchi";
+  document.getElementById('sup-modal-title').textContent = "+ Yangi ta'minotchi";
   ['s-name','s-phone','s-notes'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('sup-error').style.display = 'none';
   document.getElementById('supplierModal').style.display = 'flex';
@@ -492,7 +492,7 @@ async function serverSababi(res, standart) {
 
 async function deleteSupplier(id, debt){
   const s = suppliers.find(x => x.id === id);
-  const name = s ? s.name : 'Bu yetkazib beruvchi';
+  const name = s ? s.name : "Bu ta'minotchi";
 
   if (debt > 0) {
     const ok = await customConfirm(
@@ -511,7 +511,7 @@ async function deleteSupplier(id, debt){
     return;
   }
 
-  if (!(await customConfirm(`${name} o'chirilsinmi?\n\nXaridlar tarixi Omborxonada saqlanib qoladi, faqat bu hamkorga bog'lanmaydi.`))) return;
+  if (!(await customConfirm(`${name} o'chirilsinmi?\n\nXaridlar tarixi Omborxonada saqlanib qoladi, faqat bu ta'minotchiga bog'lanmaydi.`))) return;
 
   try {
     const res = await fetch(`/api/suppliers/${id}`, { method: 'DELETE' });
@@ -697,7 +697,7 @@ function apToggleTransport() {
   costInp.style.background = (payer === 'none') ? '#f5f5f5' : '#fff';
   if (payer === 'supplier') {
     costInp.value = '';
-    hint.innerHTML = "✅ Bepul — yetkazib beruvchi o'z hisobidan olib keladi, bizga xarajat yozilmaydi";
+    hint.innerHTML = "✅ Bepul — ta'minotchi o'z hisobidan olib keladi, bizga xarajat yozilmaydi";
   } else if (payer === 'self') {
     hint.innerHTML = '⚠️ Bu summa Moliya bo\'limidagi transport xarajatiga avtomatik qo\'shiladi';
   } else {
@@ -878,7 +878,7 @@ async function saveAddPurchase() {
           price_per_unit: line.price,
           paid_now: linePaid,
           supplier_id: currentSupplierId,
-          notes: lines.length > 1 ? "Bir vaqtda ko'p material xaridi" : 'Yetkazib beruvchi sahifasidan qo\'shildi',
+          notes: lines.length > 1 ? "Bir vaqtda ko'p material xaridi" : "Ta'minotchilar sahifasidan qo'shildi",
           transport_payer: line === lines[0] ? transportPayer : 'none',
           transport_cost: line === lines[0] ? transportCost : 0,
           volume_per_unit: volumePerUnit

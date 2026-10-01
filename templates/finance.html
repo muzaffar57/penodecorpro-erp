@@ -277,12 +277,17 @@
 {% block content %}
 <div class="fin-wrap">
 
-  <!-- ═══ 0-QATOR: KASSA BALANSI (hozir qancha naqd pul bor) ═══ -->
+  <!-- ═══ 0-QATOR: KASSA + BANK (hozir qancha pul bor — naqd, karta, bank; kech118 D-1, G3-14 — egasi QARORI) ═══ -->
   <div class="fin-section">
     <div style="background:linear-gradient(135deg,#111827,#1F2937);border-radius:16px;padding:22px 26px;color:#fff;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px">
       <div>
-        <div style="font-size:12.5px;color:#CBD5E1;font-weight:600;text-transform:uppercase;letter-spacing:.04em">💰 Kassa balansi — hozir qancha naqd pul bor</div>
+        <div style="font-size:12.5px;color:#CBD5E1;font-weight:600;text-transform:uppercase;letter-spacing:.04em">💰 Kassa + bank — hozir qancha pul bor</div>
         <div id="cash-balance-val" style="font-size:32px;font-weight:800;margin-top:6px">—</div>
+        <div style="font-size:12.5px;color:#CBD5E1;margin-top:4px">naqd, karta va bank o'tkazmasi — hammasi birga</div>
+        <div id="cash-boshlangich-yoq" hidden style="margin-top:10px;background:rgba(251,191,36,.14);border:1px solid rgba(251,191,36,.5);border-radius:10px;padding:10px 12px;font-size:13px;color:#FDE68A;line-height:1.5;max-width:560px">
+          ⚠️ Boshlang'ich balans kiritilmagan — dasturni ishlata boshlagan kundagi pulingiz hisobda yo'q, shuning uchun summa noto'g'ri (masalan manfiy) chiqishi mumkin.
+          {% if current_user.ruxsat('kassa', 'yaratish') %}<button type="button" class="btn btn-gold" style="margin-top:8px;display:block" onclick="openCashTxModal('boshlangich')">Boshlang'ich balansni kiritish</button>{% endif %}
+        </div>
       </div>
       {% if current_user.ruxsat('kassa', 'yaratish') %}
       <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -402,7 +407,7 @@
             <div style="font-size:12px;margin-top:4px;color:#166534" id="dg-customer-n">—</div>
           </div>
           <div class="dg-box" style="background:#FEF2F2;border-radius:12px;padding:14px">
-            <div style="font-size:12px;font-weight:600;color:#B91C1C;margin-bottom:6px">📦 Yetkazuvchiga qarzimiz</div>
+            <div style="font-size:12px;font-weight:600;color:#B91C1C;margin-bottom:6px">📦 Ta'minotchiga qarzimiz</div>
             <div style="font-size:18px;font-weight:800;color:#B91C1C" id="dg-supplier">—</div>
             <div style="font-size:12px;margin-top:4px;color:#B91C1C" id="dg-supplier-n">—</div>
           </div>
@@ -669,6 +674,9 @@ async function loadCashBalance(){
       el.textContent = (isNegative ? '⚠️ ' : '') + fmtCash(d.balance) + " so'm";
       el.style.color = isNegative ? '#F87171' : '#fff';   // kech118 (U-03): qorong'i kartada o'qiladigan qizil
     }
+    // kech118 (D-1, G3-14): boshlang'ich balans kiritilmagan — ogohlantirish va tugma
+    const bosh = document.getElementById('cash-boshlangich-yoq');
+    if (bosh) bosh.hidden = d.boshlangich_kiritilgan !== false;
   } catch(e) { console.error(e); }
 }
 
@@ -957,7 +965,7 @@ async function loadReport(opts){
     document.getElementById('dg-customer').textContent = fmt(dg.customer_debt)+" so'm";
     document.getElementById('dg-customer-n').textContent = dg.customer_debt_count+" ta loyiha";
     document.getElementById('dg-supplier').textContent = fmt(dg.supplier_debt)+" so'm";
-    document.getElementById('dg-supplier-n').textContent = dg.supplier_debt_count+" ta yetkazuvchi";
+    document.getElementById('dg-supplier-n').textContent = dg.supplier_debt_count+" ta ta'minotchi";
     document.getElementById('dg-employee').textContent = fmt(dg.employee_debt)+" so'm";
     document.getElementById('dg-employee-n').textContent = dg.employee_debt_count+" ta hodim, oxirgi 3 oy";
     document.getElementById('dg-recurring').textContent = fmt(dg.recurring_debt)+" so'm";

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}Yetkazib beruvchidan kirim — PenoDecorPro ERP{% endblock %}
-{% block page_title %}Yetkazib beruvchidan kirim qilish{% endblock %}
-{% block page_sub %}Bosh sahifa · Xomashyo ta'minoti · Kirim{% endblock %}
+{% block title %}Ta'minotchidan kirim — PenoDecorPro ERP{% endblock %}
+{% block page_title %}Ta'minotchidan kirim qilish{% endblock %}
+{% block page_sub %}Bosh sahifa · Ta'minotchilar · Kirim{% endblock %}
 
 {% block head %}
 <style>
@@ -84,7 +84,7 @@
 
 {% block topbar_actions %}
 <a href="/suppliers" class="btn btn-outline btn-sm" style="text-decoration:none">
-  <i class="ti ti-list" style="vertical-align:-2px"></i> Barcha yetkazib beruvchilar va qarzlar
+  <i class="ti ti-list" style="vertical-align:-2px"></i> Barcha ta'minotchilar va qarzlar
 </a>
 {% endblock %}
 
@@ -95,15 +95,15 @@
     <!-- ═══ CHAP USTUN ═══ -->
     <div>
 
-      <!-- 1. Yetkazib beruvchi ma'lumotlari -->
+      <!-- 1. Ta'minotchi ma'lumotlari -->
       <div class="rcv-card">
         <div class="rcv-card-body">
-          <div class="rcv-card-title">Yetkazib beruvchi ma'lumotlari</div>
+          <div class="rcv-card-title">Ta'minotchi ma'lumotlari</div>
 
           <div class="rcv-row rcv-row-3" style="margin-bottom:16px">
             <div class="rcv-supplier-row" style="grid-column:span 1">
               <div class="rcv-field" style="flex:1">
-                <label>Yetkazib beruvchi *</label>
+                <label>Ta'minotchi *</label>
                 <select id="r-supplier" onchange="onSupplierChange()">
                   <option value="">— Tanlang —</option>
                   {% for s in suppliers %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
@@ -129,7 +129,7 @@
 {% endfor %}            </select>
           </div>
 
-          <div style="font-size:12px;color:var(--r-text3);margin-bottom:8px">👤 Quyidagi ma'lumotlar — faqat <b>tanlangan yetkazib beruvchi</b>ga tegishli:</div>
+          <div style="font-size:12px;color:var(--r-text3);margin-bottom:8px">👤 Quyidagi ma'lumotlar — faqat <b>tanlangan ta'minotchi</b>ga tegishli:</div>
           <div class="rcv-stat-grid">
             <div class="rcv-stat-box"><div class="rcv-stat-label">Jami nasiya</div><div class="rcv-stat-value" id="sup-credit">—</div></div>
             <div class="rcv-stat-box"><div class="rcv-stat-label">To'langan</div><div class="rcv-stat-value" style="color:var(--r-success)" id="sup-paid">—</div></div>
@@ -145,15 +145,15 @@
         </div>
       </div>
 
-      <!-- 2. Mahsulot qo'shish -->
+      <!-- 2. Material qo'shish -->
       <div class="rcv-card">
         <div class="rcv-card-body">
-          <div class="rcv-card-title">Mahsulot qo'shish</div>
+          <div class="rcv-card-title">Material qo'shish</div>
 
           <div class="rcv-row rcv-row-3" style="margin-bottom:6px">
             <div style="display:flex;gap:8px;align-items:flex-end">
               <div class="rcv-field" style="flex:1">
-                <label>Mahsulot *</label>
+                <label>Material *</label>
                 <select id="ap-item" onchange="apOnItemChange()"><option value="">Yuklanmoqda...</option></select>
               </div>
             </div>
@@ -213,18 +213,18 @@
             <div class="rcv-field"><label>Jami</label><input type="text" id="ap-total" value="—" disabled style="background:var(--r-bg);font-weight:700;color:var(--r-primary)"></div>
           </div>
 
-          <button class="rcv-btn rcv-btn-primary" style="width:100%;margin-top:4px" onclick="apAddToBasket()">+ Mahsulot ro'yxatga qo'shish</button>
+          <button class="rcv-btn rcv-btn-primary" style="width:100%;margin-top:4px" onclick="apAddToBasket()">+ Material ro'yxatga qo'shish</button>
         </div>
       </div>
 
-      <!-- 3. Mahsulotlar ro'yxati -->
+      <!-- 3. Materiallar ro'yxati -->
       <div class="rcv-card">
         <div class="rcv-card-body">
-          <div class="rcv-card-title" style="margin-bottom:6px">Mahsulotlar ro'yxati</div>
+          <div class="rcv-card-title" style="margin-bottom:6px">Materiallar ro'yxati</div>
           <div class="rcv-table-wrap">
           <table class="rcv-table">
-            <thead><tr><th>№</th><th>Mahsulot nomi</th><th>Miqdor</th><th>1 birlik narxi</th><th style="text-align:right">Summa</th><th></th></tr></thead>
-            <tbody id="rcv-basket-body"><tr><td colspan="6" style="text-align:center;padding:24px;color:var(--r-text3)">Hali mahsulot qo'shilmagan</td></tr></tbody>
+            <thead><tr><th>№</th><th>Material nomi</th><th>Miqdor</th><th>1 birlik narxi</th><th style="text-align:right">Summa</th><th></th></tr></thead>
+            <tbody id="rcv-basket-body"><tr><td colspan="6" style="text-align:center;padding:24px;color:var(--r-text3)">Hali material qo'shilmagan</td></tr></tbody>
           </table>
           </div>
           <div class="rcv-totals-bar">
@@ -243,7 +243,7 @@
               <label>To'lov muddati <span style="font-weight:400;color:var(--r-text3)">(qarz qolsa)</span></label>
               <input type="date" id="ap-due-date">
             </div>
-            <div class="rcv-field"><label>Hozir to'langan summa <span style="font-weight:400;color:var(--r-text3)">(ta'minotchiga — mahsulotlar uchun)</span></label>
+            <div class="rcv-field"><label>Hozir to'langan summa <span style="font-weight:400;color:var(--r-text3)">(ta'minotchiga — materiallar uchun)</span></label>
               <div style="display:flex;gap:6px">
                 <input type="text" id="ap-paid-now" placeholder="0" oninput="formatPriceInput(this)" style="flex:1">
                 <button type="button" onclick="apPayFull()" style="flex-shrink:0;background:#F8F2EB;color:var(--gold-dark);border:1px solid #E8D5C0;border-radius:8px;padding:0 12px;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap">To'liq to'lash</button>
@@ -261,7 +261,7 @@
           </div>
           <label style="display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px 12px;background:var(--r-primary-tint);border:1px solid #E8D5C0;border-radius:9px;font-size:12.5px;color:var(--gold-dark);cursor:pointer">
             <input type="checkbox" id="ap-add-to-cost" style="width:16px;height:16px;cursor:pointer" onchange="updateSummary()">
-            <b>Qo'shimcha xarajatlarni tannarxga qo'shish</b> — yoqilsa, yuqoridagi xarajatlar mahsulotlar qiymatiga proporsional taqsimlanib, ombordagi birlik tannarxiga qo'shiladi. O'chiq bo'lsa — faqat Moliyada alohida ko'rinadi.
+            <b>Qo'shimcha xarajatlarni tannarxga qo'shish</b> — yoqilsa, yuqoridagi xarajatlar materiallar qiymatiga proporsional taqsimlanib, ombordagi birlik tannarxiga qo'shiladi. O'chiq bo'lsa — faqat Moliyada alohida ko'rinadi.
           </label>
 
           <label style="display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px 12px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:9px;font-size:12.5px;color:#92400E;cursor:pointer">
@@ -286,7 +286,7 @@
           <div class="rcv-table-wrap">
           <table class="rcv-table">
             <thead><tr><th>Sana</th><th>Material</th><th>Miqdor</th><th style="text-align:right">1 birlik narxi</th><th style="text-align:right">Summa</th><th style="text-align:right">Holati</th></tr></thead>
-            <tbody id="rcv-history-body"><tr><td colspan="6" style="text-align:center;padding:24px;color:var(--r-text3)">Yetkazib beruvchi tanlang</td></tr></tbody>
+            <tbody id="rcv-history-body"><tr><td colspan="6" style="text-align:center;padding:24px;color:var(--r-text3)">Ta'minotchi tanlang</td></tr></tbody>
           </table>
           </div>
           <div id="rcv-history-pagination" style="display:flex;justify-content:center;gap:6px;margin-top:12px"></div>
@@ -300,7 +300,7 @@
       <div class="rcv-card" style="position:sticky;top:14px">
         <div class="rcv-card-body">
           <div class="rcv-card-title">Kirim xulosasi</div>
-          <div class="rcv-summary-row"><span class="rcv-sum-label">Mahsulotlar summasi</span><span class="rcv-sum-val" id="sum-products">0 so'm</span></div>
+          <div class="rcv-summary-row"><span class="rcv-sum-label">Materiallar summasi</span><span class="rcv-sum-val" id="sum-products">0 so'm</span></div>
           <div class="rcv-summary-row"><span class="rcv-sum-label">Qo'shimcha xarajatlar</span><span class="rcv-sum-val" id="sum-transport">0 so'm</span></div>
           <div class="rcv-summary-row total"><span class="rcv-sum-label">Umumiy summa</span><span class="rcv-sum-val" id="sum-grand">0 so'm</span></div>
         </div>
@@ -337,10 +337,10 @@
   </div>
 </div>
 
-<!-- Yangi yetkazib beruvchi modali -->
+<!-- Yangi ta'minotchi modali -->
 <div id="newSupplierModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:1000;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:16px;padding:24px;width:380px;max-width:100%">
-    <div style="font-size:16px;font-weight:700;margin-bottom:16px">+ Yangi yetkazib beruvchi</div>
+    <div style="font-size:16px;font-weight:700;margin-bottom:16px">+ Yangi ta'minotchi</div>
     <div class="rcv-field" style="margin-bottom:12px"><label>Nomi</label><input type="text" id="ns-name" placeholder="Masalan: Qurilish kimyosi do'koni"></div>
     <div class="rcv-field" style="margin-bottom:16px"><label>Telefon</label><input type="text" id="ns-phone" placeholder="+998..."></div>
     <div style="display:flex;gap:8px">
@@ -587,10 +587,10 @@ function restoreDraft(){
 
   apBasket = draft.basket;
   renderBasket();
-  showMsg('↩️ Avvalgi tugallanmagan kirim tiklandi (' + apBasket.length + ' ta mahsulot)', 'info');
+  showMsg('↩️ Avvalgi tugallanmagan kirim tiklandi (' + apBasket.length + ' ta material)', 'info');
 }
 
-// ── YETKAZIB BERUVCHI ──
+// ── TA'MINOTCHI ──
 async function onSupplierChange(){
   currentSupplierId = parseInt(document.getElementById('r-supplier').value) || null;
   if (!currentSupplierId) {
@@ -605,7 +605,7 @@ async function onSupplierChange(){
 }
 
 async function loadHistoryForSupplier(page){
-  if (!currentSupplierId) { showMsg('Avval yetkazib beruvchini tanlang'); return; }
+  if (!currentSupplierId) { showMsg("Avval ta'minotchini tanlang"); return; }
   const from = document.getElementById('hist-from').value;
   const to = document.getElementById('hist-to').value;
   let url = `/api/suppliers/${currentSupplierId}/history?page=${page||1}&page_size=8`;
@@ -648,7 +648,7 @@ async function loadHistoryForSupplier(page){
 
 let isSavingSupplierQuickPay = false;
 async function quickPaySupplier(confirmOverpay = false){
-  if (!currentSupplierId) { showMsg('Avval yetkazib beruvchini tanlang'); return; }
+  if (!currentSupplierId) { showMsg("Avval ta'minotchini tanlang"); return; }
   const amount = parseNum(document.getElementById('sup-quickpay-amount').value);
   if (!amount || amount <= 0) { showMsg('Summani kiriting'); return; }
 
@@ -713,7 +713,7 @@ async function saveNewSupplier(){
 }
 
 // ── MATERIAL TANLASH (mavjud, sinalgan mantiq) ──
-let supplierFilterIds = null;  // Joriy yetkazib beruvchidan ilgari xarid qilingan material ID'lari (null = filtr yo'q, hammasi)
+let supplierFilterIds = null;  // Joriy ta'minotchidan ilgari xarid qilingan material ID'lari (null = filtr yo'q, hammasi)
 let supplierFilterActive = false;
 
 async function loadInvItemsForAp() {
@@ -751,7 +751,7 @@ function renderInvDropdown(){
   if (hint) {
     if (supplierFilterActive && supplierFilterIds && supplierFilterIds.size > 0) {
       hint.style.display = 'block';
-      hint.innerHTML = `📌 Faqat shu yetkazib beruvchidan oldin olingan materiallar ko'rsatilmoqda. <span style="color:var(--r-primary);cursor:pointer;text-decoration:underline" onclick="showAllMaterials()">Barchasini ko'rsatish</span>`;
+      hint.innerHTML = `📌 Faqat shu ta'minotchidan oldin olingan materiallar ko'rsatilmoqda. <span style="color:var(--r-primary);cursor:pointer;text-decoration:underline" onclick="showAllMaterials()">Barchasini ko'rsatish</span>`;
     } else {
       hint.style.display = 'none';
     }
@@ -915,7 +915,7 @@ function apRemoveFromBasket(idx){ apBasket.splice(idx,1); renderBasket(); }
 function renderBasket(){
   const tbody = document.getElementById('rcv-basket-body');
   if (!apBasket.length){
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--r-text3)">Hali mahsulot qo\'shilmagan</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--r-text3)">Hali material qo\'shilmagan</td></tr>';
   } else {
     tbody.innerHTML = apBasket.map((b,i)=>`
       <tr>
@@ -994,7 +994,7 @@ function sanaKorinishi(iso){
 function apPayFull(){
   // (yig'indi float — `narxKorinishi` tiyingacha yaxlitlaydi; kech96 mutatsiya U26 — ekvivalent, asl shakl)
   const productsTotal = apBasket.reduce((s,b)=>s+b.total,0);
-  if (productsTotal <= 0) { showMsg('❌ Avval mahsulot qo\'shing', 'error'); return; }
+  if (productsTotal <= 0) { showMsg('❌ Avval material qo\'shing', 'error'); return; }
   document.getElementById('ap-paid-now').value = narxKorinishi(productsTotal);
   updateSummary();
 }
@@ -1015,7 +1015,7 @@ let isSubmittingReceive = false;
 // chala qator (miqdor yoki narx yozilgan, ikkinchisi yo'q / material tanlanmagan) — to'xtaydi, JIM tashlab
 // yuborilmaydi. Server xatosida savat saqlanadi, maydonlar bo'sh — qayta bosish qatorni ikkilamaydi.
 async function submitReceive(){
-  if (!currentSupplierId) { showMsg('❌ Yetkazib beruvchini tanlang', 'error'); return; }
+  if (!currentSupplierId) { showMsg("❌ Ta'minotchini tanlang", 'error'); return; }
   if (isSubmittingReceive) return; // Ikki marta bosishdan himoya
 
   // Yo'nalish («Umumiy» yoki korxona yo'nalishi — kech117) ONGLI ravishda tanlanmagan bo'lsa —
@@ -1052,7 +1052,7 @@ async function submitReceive(){
     if (!apQatorniSavatga(pendingId, itemP, qtyP, priceP)) return;
   }
 
-  if (!apBasket.length) { showMsg('❌ Kamida bitta mahsulot qo\'shing', 'error'); return; }
+  if (!apBasket.length) { showMsg('❌ Kamida bitta material qo\'shing', 'error'); return; }
 
   if (receiptDate !== bugunISO) {
     const ok = await customConfirm("Kirim sanasi — " + sanaKorinishi(receiptDate) + " (bugun emas). Xarid, qo'shimcha xarajatlar va to'lov shu kunga yoziladi. Davom etilsinmi?");

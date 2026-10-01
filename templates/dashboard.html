@@ -225,7 +225,7 @@
   <!-- YETKAZIB BERUVCHI QARZI -->
   <div class="card mb-16" style="border-left:3px solid #F59E0B;border-radius:0 12px 12px 0">
     <div class="card-head">
-      <h3 style="color:#B45309"><i class="ti ti-truck"></i> Yetkazib beruvchilarga nasiya qarzi</h3>
+      <h3 style="color:#B45309"><i class="ti ti-truck"></i> Ta'minotchilarga nasiya qarzi</h3>
       <span id="sup-debt-total" style="font-size:16px;font-weight:800;color:#DC2626">—</span>
     </div>
     <div class="card-body" style="padding:10px 16px">
@@ -620,7 +620,7 @@ async function loadSupplierDebt(){
   try{
     const d = await fetch('/api/suppliers/debt-total').then(r=>r.json());
     document.getElementById('sup-debt-total').textContent = fmt(d.total_debt) + " so'm";
-    document.getElementById('sup-debt-count').textContent = d.supplier_count + " ta yetkazib beruvchiga qarzdormiz";
+    document.getElementById('sup-debt-count').textContent = d.supplier_count + " ta ta'minotchiga qarzdormiz";
   }catch(e){console.error('Supplier debt:',e);}
 }
 
@@ -917,7 +917,7 @@ async function loadObligationsWidget(){
     const STATUS_COLOR = {overdue:'#EF4444', due_soon:'#F59E0B', partial:'#F59E0B', full:'#22C55E'};
     const STATUS_LABEL = {overdue:'Kechikkan', due_soon:'Yaqinlashmoqda', partial:'Qisman', full:"To'langan"};
     const STATUS_BG = {overdue:'#FEF2F2', due_soon:'#FFFBEB', partial:'#FFFBEB', full:'#F0FDF4'};
-    const GROUP_LABELS = {recurring: '🏛️ Doimiy majburiyatlar', employee: '👷 Hodimlar', supplier: '🚚 Yetkazib beruvchilar'};
+    const GROUP_LABELS = {recurring: '🏛️ Doimiy majburiyatlar', employee: '👷 Hodimlar', supplier: "🚚 Ta'minotchilar"};
     const fmtN = n => Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' ');
     const avatarColor = ['#F8F2EB', '#FFFBEB', '#F0FDF4', '#EFF6FF', '#FDF2F8'];
     const avatarText = ['#A86B36', '#B45309', '#16A34A', '#1D4ED8', '#DB2777'];
@@ -994,12 +994,21 @@ async function confirmAdvReq(id){
   }
 }
 
+// kech118 (D-1, G6-21 — egasi QARORI «Ha, majburiy»): rad etishda SABAB so'raladi — hodim o'z panelida ko'radi.
 async function rejectAdvReq(id){
-  if (!(await customConfirm("Bu so'rovni rad etasizmi? Hech qanday moliyaviy yozuv yaratilmaydi."))) return;
+  let izoh = "Sabab hodimning panelida ko'rinadi. Hech qanday moliyaviy yozuv yaratilmaydi.";
+  let sabab = '';
+  while (!sabab) {
+    const v = await kiritishOyna("Nega rad etasiz?", {izoh, okText: 'Rad etish'});
+    if (v === null) return;
+    sabab = String(v).trim();
+    izoh = "⚠ Sabab yozilmadi — rad etish uchun sababini yozing (hodim ko'radi).";
+  }
   try {
-    const res = await fetch(`/api/admin/advance-requests/${id}/reject`, { method: 'POST' });
+    const res = await fetch(`/api/admin/advance-requests/${id}/reject`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({sabab})});
     if (res.ok) removeAdvRow(id);
-    else alert("❌ Rad etishda xato yuz berdi. Iltimos, qayta urinib ko'ring.");
+    else alert('❌ ' + await serverXatoSababi(res, "Rad etishda xato yuz berdi. Iltimos, qayta urinib ko'ring."));
   } catch(e) {
     alert("❌ Server bilan aloqa yo'q. Internetni tekshirib, qayta urinib ko'ring.");
   }
