@@ -68,7 +68,7 @@ BOLIMLAR = (
     )),
     ("moliya", "Moliya", "ti-trending-up", (
         ("moliya", "Moliyaviy hisobot", "Moliya sahifasi, yo'nalishlar natijasi, PDF, oylik xarajatlarni saqlash", (_K, _T)),
-        ("kassa", "Kassa", "Kassa qoldig'i, pul oqimi, kassa yozuvlari", (_K, _Y, _O)),
+        ("kassa", "Kassa + bank", "Kassa + bank qoldig'i (naqd, karta, bank), pul oqimi, kassa yozuvlari", (_K, _Y, _O)),
         ("kunlik", "Kunlik xarajatlar", "Xarajat qo'shish, tahrirlash, o'chirish", _HAMMA),
         ("qarz", "Qarzlar va majburiyatlar", "Qarzdorlar sahifasi, doimiy majburiyatlar", _HAMMA),
         ("tannarx", "Tannarx va foyda", "Buyurtma va tayyor mahsulot foydasi (tannarx, foyda)", (_K,)),

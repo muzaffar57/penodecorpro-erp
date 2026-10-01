@@ -397,7 +397,7 @@ def _send_delivery_pdf_to_customer(db, delivery_id: int):
             except Exception:
                 pass
 
-        filename = f"nakladnoy_{d.delivery_number.replace('/', '_')}.pdf"
+        filename = f"yuk_xati_{d.delivery_number.replace('/', '_')}.pdf"      # kech118 (D-1, G6-11)
         caption = (
             f"📄 Yuk xati — {d.delivery_number}\n"
             f"👤 Mijoz: {client}\n"
@@ -4509,8 +4509,8 @@ def api_purchase_stock(item_id: int, data: dict = Body(...), db: Session = Depen
                 f"📦 {item.item_name}: {data.quantity:g} {item.unit} × {fmt_money(data.price_per_unit)}\n"
                 f"💰 Jami summasi: {fmt_money(total_amount)} so'm\n"
                 f"{paid_line}"
-                f"\n🏪 Yetkazib beruvchi: *{supplier.name}*\n"
-                f"🔴 Shu hamkorga qarz: {fmt_money(debt_info['debt'])} so'm\n"
+                f"\n🏪 Ta'minotchi: *{supplier.name}*\n"
+                f"🔴 Shu ta'minotchiga qarz: {fmt_money(debt_info['debt'])} so'm\n"
                 f"📊 Jami barcha qarz: {fmt_money(all_debt)} so'm\n\n"
                 + _tg_footer(db, auth.company_id_of(current_user), tail=who)
             )
@@ -4934,6 +4934,13 @@ def api_hodim_my_requests(db: Session = Depends(get_db), emp=Depends(auth.requir
     return crud.get_employee_own_requests(db, emp.id)
 
 
+@app.get("/api/hodim/oylik")
+def api_hodim_oylik(db: Session = Depends(get_db), emp=Depends(auth.require_employee_login)):
+    """kech118 (D-1, G6-21 — egasi QARORI «Oylik ko'rinsin»): hodim O'Z oyligini ko'radi — joriy va o'tgan oy
+    (`services.hodim_oylik_xulosa`; manba — admin Hisobot / Moliya bilan bitta)."""
+    return services.hodim_oylik_xulosa(db, emp.id, emp.company_id)
+
+
 @app.post("/api/hodim/advance-request")
 def api_hodim_advance_request(amount: Optional[str] = Form(None), requested_date: Optional[str] = Form(None),
                                notes: str = Form(None), db: Session = Depends(get_db),
@@ -4978,9 +4985,18 @@ def api_confirm_advance_request(request_id: int, db: Session = Depends(get_db), 
 
 
 @app.post("/api/admin/advance-requests/{request_id}/reject")
-def api_reject_advance_request(request_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("avans_sorov", "tahrirlash"))):
-    if not crud.reject_advance_request(db, request_id, current_user.full_name or current_user.username,
-                                      company_id=auth.company_id_of(current_user)):
+def api_reject_advance_request(request_id: int, data: dict = Body(default=None), db: Session = Depends(get_db),
+                               current_user=Depends(auth.ruxsat("avans_sorov", "tahrirlash"))):
+    """kech118 (D-1, G6-21 — egasi QARORI «Ha, majburiy»): tana {"sabab": "..."} — rad etish sababi MAJBURIY (hodim o'z
+    panelida ko'radi). Boshqa kalit yoki sababsiz — 400, hech narsa o'zgarmaydi."""
+    if not isinstance(data, dict) or set(data) != {"sabab"}:
+        raise HTTPException(status_code=400, detail="Rad etish sababini yozing")
+    try:
+        ok = crud.reject_advance_request(db, request_id, current_user.full_name or current_user.username,
+                                         company_id=auth.company_id_of(current_user), rad_sababi=data.get("sabab"))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if not ok:
         raise HTTPException(status_code=404, detail="So'rov topilmadi yoki allaqachon ko'rib chiqilgan")
     return {"status": "ok"}
 
@@ -5738,7 +5754,12 @@ def api_delete_project(project_id: int, db: Session = Depends(get_db), current_u
     if not auth.project_of_company(db, project_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
     who = current_user.full_name or current_user.username
-    if not crud.delete_project(db, project_id, performed_by=who):
+    # kech118 (D-1, G2-20 — egasi QARORI): o'chirilmagan buyurtmasi bor loyiha — 400 (sabab bilan), hech narsa yozilmaydi
+    try:
+        ok = crud.delete_project(db, project_id, performed_by=who)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if not ok:
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
     return {"status": "ok"}
 
@@ -6852,7 +6873,8 @@ def api_close_employee_debt(employee_id: int, year: Optional[str] = None, month:
 
 @app.get("/api/finance/cash-balance")
 def api_get_cash_balance(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kassa", "korish"))):
-    """Kassa balansi — kompaniyada hozir haqiqatda qancha naqd pul bor."""
+    """Kassa + bank balansi — kompaniyada hozir haqiqatda qancha pul bor (naqd, karta, bank — bitta; kech118 G3-14).
+    `boshlangich_kiritilgan` — boshlang'ich balans yozilganmi (yo'q bo'lsa Moliya kartasi ogohlantiradi)."""
     return services.get_cash_balance(db, company_id=auth.company_id_of(current_user))
 
 
@@ -7148,7 +7170,7 @@ def api_order_pdf(order_id: int, db: Session = Depends(get_db), current_user=Dep
         err = traceback.format_exc()
         print("PDF XATO:\n", err)
         raise HTTPException(status_code=500, detail=f"PDF xato: {str(e)}")
-    filename = f"nakladnoy_{order.order_number}.pdf"
+    filename = f"buyurtma_hisobi_{order.order_number}.pdf"   # kech118 (D-1, G6-11): ilgari nakladnoy_...
     return Response(content=pdf_bytes, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
 
@@ -7222,6 +7244,9 @@ def api_create_return(data: dict = Body(...), db: Session = Depends(get_db), cur
         data = schemas.ReturnItemCreate(**{k: v for k, v in toza.items() if v is not None})
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    # kech118 (D-1, G5-20): «Brak» — sababi majburiy (boshqa sababda sabab berilsa — crud rad etadi, avvalgidek)
+    if data.reason == "Brak" and not data.brak_sabab:
+        raise HTTPException(status_code=400, detail=BRAK_SABABI_XATO)
     # 2026-09-21 (12-sizish): buyurtma FAQAT joriy korxonadan, detal esa
     # FAQAT shu buyurtmadan — hech narsa yozilishidan OLDIN. Ilgari begona
     # yoki mavjud bo'lmagan buyurtma 500 berardi, begona detal esa A
@@ -8611,9 +8636,13 @@ def api_get_finished(source: Optional[str] = None, only_available: bool = False,
     # kech114 (dizayn 7-band + K114-1): MRP mahsulotining ishlab chiqarish raqami («Partiya №12», jarayondagi uchun
     # «Ishlab chiqarishda ochish» havolasi) — BITTA so'rov (qator soniga bog'liq emas).
     _po_raqam = crud.fp_ishlab_chiqarish_raqamlari(db, [fp.id for fp in items], company_id=_cid)
+    # kech118 (D-1, G5-11 — egasi QARORI): «Kam» chegarasi — egasi yozgani (mahsulot kaliti bo'yicha, BITTA so'rov); yo'q — null
+    from models import TmKamChegara as _TKC, tm_kam_kaliti as _tkk
+    _chegaralar = {k: c for k, c in db.query(_TKC.mahsulot_kaliti, _TKC.chegara).filter(_TKC.company_id == _cid).all()}
     return [{
         "id": fp.id,
         "name": fp.name,
+        "kam_chegara": _chegaralar.get(_tkk(fp)),
         "category": fp.category,
         # Bosqich 3, 10-band — tayyor mahsulotning mahsulot TURI.
         # Eski turkumlarda NULL (hali `ProductType` yozuvi yo'q).
@@ -8649,6 +8678,49 @@ def api_get_finished(source: Optional[str] = None, only_available: bool = False,
         "ombor_qiymati": round(crud._fp_ombor_qiymati(fp), 2),
         "ishlab_chiqarish_id": _po_raqam.get(fp.id),
     } for fp in items]
+
+
+@app.put("/api/finished/{fp_id}/kam-chegara")
+def api_tm_kam_chegara(fp_id: int, data: dict = Body(...), db: Session = Depends(get_db),
+                       current_user=Depends(auth.ruxsat("tayyor", "tahrirlash"))):
+    """kech118 (D-1, G5-11 — egasi QARORI «Har mahsulotga o'zim yozaman», yozilmasa «Kam» yo'q): shu mahsulotning (hamma
+    partiyalari — `models.tm_kam_kaliti`) eng kam qoldig'i. Tana: {"chegara": son > 0} — yozish / o'zgartirish; {"chegara": null}
+    yoki 0 — olib tashlash (endi «Kam» ko'rsatilmaydi). Jurnalga yoziladi."""
+    from models import TmKamChegara as _TKC, tm_kam_kaliti as _tkk
+    import math as _m
+    _cid = auth.company_id_of(current_user)
+    fp = auth.finished_product_of_company(db, fp_id, _cid)
+    if not fp:
+        raise HTTPException(status_code=404, detail="Mahsulot topilmadi")
+    if getattr(fp.source, "value", fp.source) != "produced":
+        raise HTTPException(status_code=400, detail="«Kam» chegarasi faqat ishlab chiqarilgan mahsulotga yoziladi")
+    if not isinstance(data, dict) or set(data) != {"chegara"}:
+        raise HTTPException(status_code=400, detail="Faqat «chegara» yuboriladi")
+    ch = data.get("chegara")
+    if ch is not None and (isinstance(ch, bool) or not isinstance(ch, (int, float)) or not _m.isfinite(ch)
+                           or ch < 0 or ch > 1_000_000_000):
+        raise HTTPException(status_code=400, detail="Chegara — 0 dan katta son bo'lishi kerak")
+    kalit = _tkk(fp)
+    yozuv = db.query(_TKC).filter(_TKC.company_id == _cid, _TKC.mahsulot_kaliti == kalit).first()
+    who = current_user.full_name or current_user.username
+    eski = yozuv.chegara if yozuv else None
+    if not ch:
+        if yozuv:
+            db.delete(yozuv)
+        yangi = None
+    else:
+        yangi = round(float(ch), 3)
+        if yozuv:
+            yozuv.chegara, yozuv.updated_by, yozuv.updated_at = yangi, who, datetime.utcnow()
+        else:
+            db.add(_TKC(company_id=_cid, mahsulot_kaliti=kalit, chegara=yangi, updated_by=who))
+    db.commit()
+    if eski != yangi:
+        crud.log_activity(db, "updated", "finished_product", fp.id, f"{fp.name} — «Kam» chegarasi", who,
+                          old_value="—" if eski is None else f"{eski:g} {fp.unit or ''}".strip(),
+                          new_value="—" if yangi is None else f"{yangi:g} {fp.unit or ''}".strip(),
+                          company_id=_cid)
+    return {"id": fp.id, "kam_chegara": yangi}
 
 
 @app.post("/api/finished/{fp_id}/image")
@@ -8731,6 +8803,12 @@ def _tana_400(model: str, data, sxema):
         raise HTTPException(status_code=400, detail=str(e))
 
 
+# kech118 (D-1, G5-20 — egasi QARORI «Ha, majburiy»): YANGI brak — sababi ro'yxatdan (`crud.BRAK_SABABLARI`) TANLANGAN
+# bo'lishi shart (bosqich va javobgar hodim — ixtiyoriy). Hamma brak yo'lida (Tayyor mahsulotlar «−» ikkala rejimi, Qaytarishlar
+# «Brak yozish» va «Yangi qaytarish» → «Brak»). Eski yozuvlarga tegilmaydi (tahlilda «Belgilanmagan» bo'lib qoladi).
+BRAK_SABABI_XATO = "Brak sababini tanlang (ro'yxatdan)"
+
+
 def _fp_tana(model: str, data, sxema):
     """17-band: tayyor mahsulot marshrutlari tanasi — xom JSON QAT'IY
     tekshiriladi (`crud._clean_val`), keyin sxemaga o'giriladi. Qoida
@@ -8748,6 +8826,8 @@ def api_record_finished_loss(data: dict = Body(...), db: Session = Depends(get_d
                                current_user=Depends(auth.ruxsat("brak", "yaratish"))):
     """Tayyor mahsulotdan brak/yo'qotish sababli miqdorni kamaytirish (o'chirish emas)."""
     data = _fp_tana("Loss", data, schemas.FinishedProductLossCreate)
+    if not data.brak_sabab:     # kech118 (D-1, G5-20)
+        raise HTTPException(status_code=400, detail={"success": False, "message": BRAK_SABABI_XATO})
     who = current_user.full_name or current_user.username
     result = crud.record_finished_product_loss(db, data, created_by=who,
                                               company_id=auth.company_id_of(current_user))
@@ -8799,6 +8879,8 @@ def api_finished_production_brak(data: dict = Body(...), db: Session = Depends(g
     Profil/Panel/Donali/Blok — `brak_qty` (mahsulot birligida) orqali,
     BARQAROR nisbatdan hisoblab."""
     data = _fp_tana("ProductionBrak", data, schemas.FinishedProductProductionBrakCreate)
+    if not data.brak_sabab:     # kech118 (D-1, G5-20)
+        raise HTTPException(status_code=400, detail={"success": False, "message": BRAK_SABABI_XATO})
     who = current_user.full_name or current_user.username
     # kech84 (103-band, O'LCHANGAN): brak xomashyosi va yo'qotish yozuvi BITTA tranzaksiyada (xomashyo yechilgach
     # xato bo'lsa yozuv yo'q, qayta urinish xomashyoni IKKI MARTA yechardi).
@@ -9136,7 +9218,7 @@ def api_finished_sale_batch_pdf(group_id: str, db: Session = Depends(get_db), cu
         print("Sotuv guruhi PDF XATO:\n", traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"PDF xato: {str(e)}")
 
-    filename = f"yuk_xati_sotuv_{group_id}.pdf"
+    filename = f"sotuv_cheki_{group_id}.pdf"   # kech118 (D-1, G6-11): ilgari yuk_xati_sotuv_...
     return Response(content=pdf_bytes, media_type="application/pdf",
                     headers={"Content-Disposition": f'inline; filename="{filename}"'})
 
@@ -9162,7 +9244,7 @@ def api_finished_sale_pdf(sale_id: int, db: Session = Depends(get_db), current_u
         print("Sotuv PDF XATO:\n", traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"PDF xato: {str(e)}")
 
-    filename = f"yuk_xati_sotuv_{sale.id}.pdf"
+    filename = f"sotuv_cheki_{sale.id}.pdf"   # kech118 (D-1, G6-11): ilgari yuk_xati_sotuv_...
     return Response(content=pdf_bytes, media_type="application/pdf",
                     headers={"Content-Disposition": f'inline; filename="{filename}"'})
 
@@ -9183,7 +9265,7 @@ def api_delivery_pdf(delivery_id: int, db: Session = Depends(get_db), current_us
         print("Yetkazish PDF XATO:\n", traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"PDF xato: {str(e)}")
 
-    filename = f"nakladnoy_{d.delivery_number.replace('/', '_')}.pdf"
+    filename = f"yuk_xati_{d.delivery_number.replace('/', '_')}.pdf"      # kech118 (D-1, G6-11)
     return Response(content=pdf_bytes, media_type="application/pdf",
                     headers={"Content-Disposition": f'inline; filename="{filename}"'})
 

@@ -4604,7 +4604,8 @@ def _kassa_qismlari(db: Session, company_id: int = None, boshi=None, oxiri=None)
 
 
 def get_cash_balance(db: Session, company_id: int = None) -> dict:
-    """Kassa balansi — kompaniyada HOZIR haqiqatda qancha naqd pul bor.
+    """Kassa + bank balansi — kompaniyada HOZIR haqiqatda qancha pul bor (naqd, karta va bank o'tkazmasi — hammasi bitta;
+    kech118 D-1, G3-14 — egasi QARORI «Bitta: Kassa + bank»).
 
     ➕ Kirim: mijozlardan kelgan barcha to'lovlar
     ➖ Chiqim: naqd to'langan xomashyo xaridi, yetkazib beruvchiga to'lovlar,
@@ -4616,6 +4617,14 @@ def get_cash_balance(db: Session, company_id: int = None) -> dict:
     kech116 (G1-03): qismlar — `_kassa_qismlari` (butun davr); «Pul oqimi» (`get_pul_oqimi`) ham AYNAN shu qismlardan
     (davr bilan) — natija o'zgarmadi."""
     q = _kassa_qismlari(db, company_id=company_id)
+    # kech118 (D-1, G3-14 — egasi QARORI «Bitta: Kassa + bank»): boshlang'ich balans kiritilganmi — kiritilmagan bo'lsa
+    # Moliya kartasi ogohlantiradi (tizimdan oldingi pul hisobda yo'q — summa manfiy chiqishi shundan) va tugma ko'rsatadi
+    from models import CashTransaction as _CT_bosh
+    from sqlalchemy import func as _f_bosh
+    _bq = db.query(_f_bosh.count(_CT_bosh.id)).filter(_CT_bosh.category == "boshlangich")
+    if company_id is not None:
+        _bq = _bq.filter(_CT_bosh.company_id == company_id)
+    boshlangich_kiritilgan = (_bq.scalar() or 0) > 0
     kirim_tolov = q["kirim_tolov"]
     kirim_tayyor_sotuv = q["kirim_tayyor_sotuv"]
     chiqim_xomashyo_naqd = q["chiqim_xomashyo_naqd"]
@@ -4646,6 +4655,7 @@ def get_cash_balance(db: Session, company_id: int = None) -> dict:
         "chiqim_yetkazish_transport": round(chiqim_yetkazish_transport),
         "chiqim_avans": round(chiqim_avans),
         "qolda_jami": round(qolda_jami),
+        "boshlangich_kiritilgan": boshlangich_kiritilgan,
     }
 
 
@@ -7010,6 +7020,40 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
             })
 
     return {"total": round(total), "breakdown": breakdown}
+
+
+def hodim_oylik_xulosa(db: Session, employee_id: int, company_id: int) -> dict:
+    """kech118 (D-1, G6-21 — egasi QARORI «Oylik ko'rinsin»): hodim panelidagi «Oyligim» — joriy (Toshkent) va o'tgan oy:
+    hisoblangan (bonus va kamaytirish bilan), olingan (shu oyga yozilgan avans va to'lovlar), qolgan. Raqamlar — admin
+    Hisobot / Moliya / «Kimga qarzmiz» bilan AYNAN bitta manbadan (`get_monthly_report` → `hodimlar_moslashuvchan_breakdown`,
+    `calculate_monthly_employee_pay`). Hisob TAFSILOTI (korxona sotuvi / foydasi summasi) BERILMAYDI — faqat hodimning
+    o'z raqamlari. Oyga hali ishga kirmagan (hisob ham, to'lov ham yo'q) o'tgan oy ko'rsatilmaydi."""
+    OY = ["", "Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun", "Iyul", "Avgust", "Sentabr", "Oktabr", "Noyabr", "Dekabr"]
+    bugun = _tashkent_date()
+    y, m = bugun.year, bugun.month
+    oylar = []
+    for i in range(2):
+        rep = get_monthly_report(db, y, m, company_id=company_id)
+        e = next((r for r in rep.get("hodimlar_moslashuvchan_breakdown", []) if r.get("employee_id") == employee_id), None)
+        tolovlar = get_employee_advances_list(db, employee_id, y, m)
+        if i == 0 or e is not None or tolovlar:
+            hisob = float(e["amount"]) if e else 0.0
+            olingan = float(e["avans"]) if e else float(round(sum(t["amount"] for t in tolovlar)))
+            oylar.append({
+                "yil": y, "oy": m, "nomi": f"{OY[m]} {y}", "joriy": i == 0,
+                "hisoblangan": round(hisob),
+                "olingan": round(olingan),
+                "qolgan": round(float(e["qolgan"]) if e else hisob - olingan),
+                "bonus": round(float(e.get("bonus") or 0)) if e else 0,
+                "bonus_sababi": (e.get("bonus_reason") or None) if e else None,
+                "kamaytirish": round(float(e.get("adjustment") or 0)) if e else 0,
+                "kamaytirish_sababi": (e.get("adjustment_reason") or None) if e else None,
+                "tolovlar": [{"sana": t["date"], "summa": round(float(t["amount"] or 0))} for t in tolovlar],
+            })
+        m -= 1
+        if m == 0:
+            m, y = 12, y - 1
+    return {"oylar": oylar}
 
 
 def get_employee_advances_total(db: Session, employee_id: int, year: int, month: int) -> float:

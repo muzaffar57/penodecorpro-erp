@@ -1674,6 +1674,9 @@ class AdvanceRequest(Base):
     submitted_at = Column(DateTime, default=datetime.utcnow)
     confirmed_at = Column(DateTime, nullable=True)
     confirmed_by = Column(String(100), nullable=True)
+    # kech118 (D-1, G6-21 — egasi QARORI «Ha, majburiy»): rad etish sababi — admin yozadi, hodim o'z panelida ko'radi.
+    # Eski rad etilgan so'rovlarda NULL (sababsiz). Ustun — `database.sync_missing_columns()` qo'shadi.
+    rad_sababi = Column(Text, nullable=True)
 
     employee = relationship("Employee", back_populates="advance_requests")
 
@@ -1820,6 +1823,46 @@ class TransportExpense(Base):
 # ============================================================
 # 10. FINISHED PRODUCT — Tayyor mahsulotlar ombori
 # ============================================================
+
+def tm_kam_kaliti(fp) -> str:
+    """kech118 (D-1, G5-11 — egasi QARORI «Har mahsulotga o'zim yozaman»): tayyor mahsulotning «Kam» chegarasi kaliti —
+    bir xil mahsulot (turkum, MRP turi, nom — kichik harf, bo'shliqlar bittaga, birlik, qoplama, o'lcham) partiyalari BITTA
+    kalitda: chegara bir marta yoziladi, keyingi partiyalar ham oladi. Sahifadagi guruhlash (`finished.html`
+    `fpGuruhKaliti`) bilan bir xil belgilar (manbasiz — «Kam» faqat ishlab chiqarilganda)."""
+    def _s(v):
+        if v is None or v == "":
+            return ""
+        try:
+            return f"{float(v):g}"
+        except (TypeError, ValueError):
+            return str(v)
+    _w2 = ""
+    import re as _re_k
+    _m = _re_k.search(r"width2=([\d.]+)", getattr(fp, "notes", None) or "")
+    if _m:
+        _w2 = _s(_m.group(1))
+    _nom = " ".join(str(getattr(fp, "name", "") or "").split()).lower()
+    return "|".join([str(getattr(fp, "category", None) or ""), str(getattr(fp, "product_type_id", None) or ""), _nom,
+                     str(getattr(fp, "unit", None) or ""), "1" if getattr(fp, "is_coated", False) else "0",
+                     _s(getattr(fp, "width", None)), _s(getattr(fp, "thickness", None)), _w2])
+
+
+class TmKamChegara(Base):
+    """kech118 (D-1, G5-11 — egasi QARORI «Har mahsulotga o'zim yozaman», yozilmasa «Kam» yo'q): tayyor mahsulotning eng
+    kam qoldig'i (shu mahsulotning hamma partiyalari yig'indisi shu chegaradan kam bo'lsa — «Kam»). `mahsulot_kaliti` —
+    `tm_kam_kaliti`."""
+    __tablename__ = "tm_kam_chegaralar"
+    __table_args__ = (UniqueConstraint("company_id", "mahsulot_kaliti", name="uq_tm_kam_chegara_company_kalit"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    # nomi `kalit` EMAS: `tools/test_html_escape.py` har String ustun NOMINI foydalanuvchi matni deb biladi — sahifalardagi
+    # kod kalitlari (`y.kalit`, `kalit`) bilan to'qnashmasin
+    mahsulot_kaliti = Column(String(400), nullable=False)
+    chegara = Column(Float, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+    updated_by = Column(String(100), nullable=True)
+
 
 class FinishedProduct(Base):
     """Tayyor mahsulot: ishlab chiqarilgan yoki buyurtmadan qaytgan."""

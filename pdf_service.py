@@ -159,7 +159,9 @@ def generate_nakladnoy(order, db=None) -> bytes:
     header_data = [[
         header_left,
         [
-            Paragraph("NAKLADNOY", st["doc_title"]),
+            # kech118 (D-1, G6-11 — egasi QARORI «Taklif qilingan lug'at»): «Buyurtma hisobi» (ilgari «NAKLADNOY» — yuk xati va
+            # sotuv hujjati bilan bir xil nomda edi, mijoz qog'ozni sarlavhasidan ajrata olmasdi)
+            Paragraph("BUYURTMA HISOBI", st["doc_title"]),
             Paragraph(f"# {_x(order.order_number)}", st["doc_num"]),
             Paragraph(f"Sana: {_tashkent_vaqt().strftime('%d.%m.%Y')}", st["doc_num"]),
         ],

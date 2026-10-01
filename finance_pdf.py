@@ -461,7 +461,7 @@ def generate_finance_report_pdf(report: dict, expense_transactions: list,
 
         debt_tbl = Table([[
             _debt_cell("BIZGA QARZDORLAR", debt_summary["customer_debt"], f"{debt_summary['customer_debt_count']} ta loyiha", GREEN),
-            _debt_cell("YETKAZUVCHIGA QARZ", debt_summary["supplier_debt"], f"{debt_summary['supplier_debt_count']} ta yetkazuvchi", RED),
+            _debt_cell("TA'MINOTCHIGA QARZ", debt_summary["supplier_debt"], f"{debt_summary['supplier_debt_count']} ta ta'minotchi", RED),
             _debt_cell("HODIMLARGA QARZ", debt_summary["employee_debt"], "oxirgi 3 oy", AMBER),
             _debt_cell("ARENDA/SOLIQ/KOMMUNAL", debt_summary["recurring_debt"], f"{debt_summary['recurring_debt_count']} ta muddati o'tgan", RED),
         ]], colWidths=[W/4]*4)

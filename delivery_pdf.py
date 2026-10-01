@@ -98,7 +98,7 @@ def generate_finished_sale_batch_pdf(sales: list, group_id: str, db=None) -> byt
         buf, pagesize=A4,
         leftMargin=1.2*cm, rightMargin=1.2*cm,
         topMargin=1*cm, bottomMargin=1*cm,
-        title=f"Yuk xati — sotuv guruhi {group_id}"
+        title=f"Sotuv cheki — sotuv guruhi {group_id}"
     )
 
     st_title = ParagraphStyle('t', fontName='Helvetica-Bold', fontSize=16,
@@ -125,7 +125,7 @@ def generate_finished_sale_batch_pdf(sales: list, group_id: str, db=None) -> byt
 
     title2 = Table([[
         Paragraph(
-            f"<font size=13><b>YUK XATI (NAKLADNOY)</b></font>  "
+            f"<font size=13><b>SOTUV CHEKI</b></font>  "      # kech118 (D-1, G6-11): ilgari «YUK XATI (NAKLADNOY)»
             f"<font size=11 color='#8E8E93'>№ S-{group_id}</font>",
             ParagraphStyle('x', fontName='Helvetica', fontSize=12,
                            textColor=DARK, alignment=TA_CENTER)
@@ -271,7 +271,7 @@ def generate_finished_sale_pdf(sale, db=None) -> bytes:
         buf, pagesize=A4,
         leftMargin=1.2*cm, rightMargin=1.2*cm,
         topMargin=1*cm, bottomMargin=1*cm,
-        title=f"Yuk xati — sotuv #{sale.id}"
+        title=f"Sotuv cheki — sotuv #{sale.id}"
     )
 
     st_title = ParagraphStyle('t', fontName='Helvetica-Bold', fontSize=16,
@@ -300,7 +300,7 @@ def generate_finished_sale_pdf(sale, db=None) -> bytes:
 
     title2 = Table([[
         Paragraph(
-            f"<font size=13><b>YUK XATI (NAKLADNOY)</b></font>  "
+            f"<font size=13><b>SOTUV CHEKI</b></font>  "      # kech118 (D-1, G6-11): ilgari «YUK XATI (NAKLADNOY)»
             f"<font size=11 color='#8E8E93'>№ S-{sale.id}</font>",
             ParagraphStyle('x', fontName='Helvetica', fontSize=12,
                            textColor=DARK, alignment=TA_CENTER)
@@ -446,7 +446,7 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
         buf, pagesize=A4,
         leftMargin=1.2*cm, rightMargin=1.2*cm,
         topMargin=margin_v, bottomMargin=margin_v,
-        title=f"Nakladnoy {delivery.delivery_number}"
+        title=f"Yuk xati {delivery.delivery_number}"
     )
 
     order = delivery.order
@@ -483,7 +483,7 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
     is_full_order = order and order.is_fully_delivered if order else False
     title2 = Table([[
         Paragraph(
-            f"<font size=13><b>YUK XATI (NAKLADNOY)</b></font>  "
+            f"<font size=13><b>YUK XATI</b></font>  "         # kech118 (D-1, G6-11): ilgari «YUK XATI (NAKLADNOY)»
             f"<font size=11 color='#8E8E93'>№ {delivery.delivery_number}</font>",
             ParagraphStyle('x', fontName='Helvetica', fontSize=12,
                            textColor=DARK, alignment=TA_CENTER)

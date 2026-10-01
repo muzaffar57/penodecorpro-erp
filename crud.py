@@ -1104,7 +1104,7 @@ def _purchase_stock_no_commit(db: Session, item_id: int, quantity: float, price_
     log_movement(
         db, db_item.id, db_item.item_name, movement_type="in",
         quantity=quantity, unit=db_item.unit,
-        reason=f"Yetkazib beruvchi: {supplier_name}" if supplier_name else "Xarid",
+        reason=f"Ta'minotchi: {supplier_name}" if supplier_name else "Xarid",   # kech118 (D-1, U-12): nomlar lug'ati
         supplier_id=supplier_id, performed_by=purchased_by, notes=notes
     )
     db.flush()
@@ -5585,9 +5585,23 @@ def restore_order(db: Session, order_id: int, performed_by: str = None) -> bool:
             services.loy_manba_ochirish_tozala(db_order)
 
         db_order.is_deleted = False
+        # kech118 (D-1, G2-20 — egasi QARORI: buyurtmasi bor loyihani o'chirib bo'lmaydi): loyihasi o'chirilgan buyurtma
+        # tiklansa — loyihasi ham tiklanadi (faol buyurtmali o'chirilgan loyiha qolmaydi; ikkalasi jurnalda)
+        _loyiha_tiklandi = None
+        _pr = (db.query(Project).filter(Project.id == db_order.project_id,
+                                        Project.company_id == db_order.company_id).first()
+               if db_order.project_id else None)
+        if _pr is not None and _pr.is_deleted:
+            _pr.is_deleted = False
+            _loyiha_tiklandi = _pr
         db.commit()
         log_activity(db, "restored", "order", order_id, db_order.order_number, performed_by,
                      company_id=getattr(db_order, 'company_id', None))
+        if _loyiha_tiklandi is not None:
+            log_activity(db, "restored", "project", _loyiha_tiklandi.id,
+                         f"{_loyiha_tiklandi.project_number} — {_loyiha_tiklandi.project_name} "
+                         f"(buyurtma {db_order.order_number} tiklangani uchun)", performed_by,
+                         company_id=getattr(_loyiha_tiklandi, 'company_id', None))
     return True
 
 
@@ -5775,12 +5789,31 @@ def update_project(db: Session, project_id: int, project_data) -> Optional[Proje
     return db_project
 
 
+def loyiha_ochirish_tosigi(db: Session, project_id: int, company_id: int = None):
+    """kech118 (D-1, G2-20 — egasi QARORI «Taqiqlansin»): loyihada o'chirilmagan buyurtma bo'lsa — o'chirishga TO'SIQ matni
+    («… — avval buyurtmalarni o'chiring»), bo'lmasa None. O'chirilgan (savatdagi) buyurtmalar to'sqinlik qilmaydi — ular
+    loyiha bilan birga «O'chirilganlar»da turadi (butunlay o'chirishda `permanent_delete_project` alohida so'raydi)."""
+    _q = db.query(Order).filter(Order.project_id == project_id, Order.is_deleted.isnot(True))
+    if company_id is not None:
+        _q = _q.filter(Order.company_id == company_id)
+    n = _q.count()
+    if n:
+        return f"Loyihada {n} ta buyurtma bor — avval buyurtmalarni o'chiring"
+    return None
+
+
 def delete_project(db: Session, project_id: int, performed_by: str = None) -> bool:
     """Loyihani o'chirish — YUMSHOQ (is_deleted=True). Ma'lumot yo'qolmaydi,
-    'O'chirilganlar' bo'limidan tiklash mumkin (inson xatosidan himoya)."""
+    'O'chirilganlar' bo'limidan tiklash mumkin (inson xatosidan himoya).
+    kech118 (D-1, G2-20): o'chirilmagan buyurtmasi bor loyiha — `ValueError` (sabab bilan; marshrut → 400), hech narsa
+    yozilmaydi (ilgari faqat loyiha belgilanardi, buyurtmalar, qarz va to'lovlar ro'yxatlarda qolib ketardi — sahifa esa
+    «Barcha buyurtmalar ham o'chadi!» derdi)."""
     db_project = db.query(Project).filter(Project.id == project_id).first()
     if not db_project:
         return False
+    _tosiq = loyiha_ochirish_tosigi(db, project_id, company_id=getattr(db_project, 'company_id', None))
+    if _tosiq:
+        raise ValueError(_tosiq)
     label = f"{db_project.project_number} — {db_project.project_name}"
     db_project.is_deleted = True
     db.commit()
@@ -12675,22 +12708,30 @@ def confirm_advance_request(db: Session, request_id: int, confirmed_by: str,
 
 
 def reject_advance_request(db: Session, request_id: int, confirmed_by: str,
-                           company_id: int = None) -> bool:
-    """Admin rad etadi — hech qanday moliyaviy yozuv yaratilmaydi."""
+                           company_id: int = None, rad_sababi: str = None) -> bool:
+    """Admin rad etadi — hech qanday moliyaviy yozuv yaratilmaydi.
+    kech118 (D-1, G6-21 — egasi QARORI «Ha, majburiy»): rad etish SABABI yoziladi (hodim panelida ko'rinadi); sababsiz —
+    rad etilmaydi (`ValueError`, marshrut → 400). Matn — 1..300 belgi (bo'sh joylar olib tashlanadi)."""
     from models import AdvanceRequest, AdvanceRequestStatus
+    sabab = rad_sababi.strip() if isinstance(rad_sababi, str) else ''
+    if not sabab:
+        raise ValueError("Rad etish sababini yozing")
+    if len(sabab) > 300:
+        raise ValueError("Rad etish sababi 300 belgidan oshmasin")
     req = _advance_request_of_company(db, request_id, company_id)   # M5
     if not req or req.status != AdvanceRequestStatus.PENDING:
         return False
     req.status = AdvanceRequestStatus.REJECTED
     req.confirmed_at = datetime.utcnow()
     req.confirmed_by = confirmed_by
+    req.rad_sababi = sabab
     db.commit()
     return True
 
 
 def get_employee_own_requests(db: Session, employee_id: int, limit: int = 20) -> List[dict]:
     """Xodimning o'zi yuborgan so'rovlari tarixi (o'z paneli uchun)."""
-    from models import AdvanceRequest
+    from models import AdvanceRequest, AdvanceRequestStatus
     rows = db.query(AdvanceRequest).filter(
         AdvanceRequest.employee_id == employee_id
     ).order_by(AdvanceRequest.submitted_at.desc()).limit(limit).all()
@@ -12698,7 +12739,9 @@ def get_employee_own_requests(db: Session, employee_id: int, limit: int = 20) ->
         "id": r.id, "amount": float(r.amount),
         "requested_date": r.requested_date.isoformat(),
         "status": r.status.value, "notes": r.notes,
-        "submitted_at": r.submitted_at.isoformat() if r.submitted_at else None
+        "submitted_at": r.submitted_at.isoformat() if r.submitted_at else None,
+        # kech118 (D-1, G6-21): rad etilgan so'rov sababi (eski yozuvlarda — null)
+        "rad_sababi": r.rad_sababi if r.status == AdvanceRequestStatus.REJECTED else None,
     } for r in rows]
 
 
@@ -13544,7 +13587,7 @@ def delete_supplier(db: Session, supplier_id: int, force: bool = False) -> dict:
     if debt_info["debt"] > 0 and not force:
         return {
             "success": False,
-            "message": f"Bu yetkazib beruvchida {debt_info['debt']:,.0f} so'm qarz bor".replace(",", " "),
+            "message": f"Bu ta'minotchida {debt_info['debt']:,.0f} so'm qarz bor".replace(",", " "),
             "has_debt": True,
             "debt": debt_info["debt"]
         }
@@ -14224,7 +14267,7 @@ def create_supplier_payment(db: Session, data: SupplierPaymentCreate, paid_by: s
         if not db.query(Supplier).filter(
                 Supplier.id == data.supplier_id, Supplier.company_id == company_id).first():
             from fastapi import HTTPException as _HE_sp
-            raise _HE_sp(status_code=404, detail="Yetkazib beruvchi topilmadi")
+            raise _HE_sp(status_code=404, detail="Ta'minotchi topilmadi")
     # ── TAKROR YUBORISH HIMOYASI (buyurtma to'lovi bilan bir xil) ──────
     _pul_qulfi(db, 102, data.supplier_id)
 
