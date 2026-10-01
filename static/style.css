@@ -25,6 +25,7 @@
   --gold-dark: #8F5B2A;      /* kech118 (U-03): matn uchun — oq / och fonda ≥ 4.8:1 (ilgari #A86B36 — 3.9–4.4) */
   --gold-btn: #9A6231;       /* kech118 (U-03): OQ yozuvli oltin tugma / belgi foni — 5.0:1 (--gold #B9783F bilan 3.6:1) */
   --gold-tint: #F8F2EB;
+  --gold-hover: #8F5B2A;     /* kech118 (zip 122): oltin tugma ustiga kelinganda (oq yozuvli FON) — ikkala rejimda bir xil */
   --dark: #181B22;
   --dark2: #23262E;
   --dark3: #2D3038;
@@ -49,6 +50,7 @@
    o'zgarmaydi, shuning uchun BARCHA sahifalarga avtomatik ta'sir qiladi.
    ============================================================ */
 html[data-theme="dark"] {
+  --gold-dark: #D09A63;      /* kech118 (zip 122): oltin MATN — qorong'i kartada 6.6:1 (#8F5B2A — 2.8) */
   --gold-tint: #2E2418;
   --bg: #16181F;
   --white: #1E212A;
@@ -56,7 +58,7 @@ html[data-theme="dark"] {
   --border2: #282C38;
   --text: #ECEAE6;
   --text2: #A3A6B0;
-  --text3: #6E7280;
+  --text3: #9096A2;          /* kech118 (zip 122): kartada 5.4:1 (ilgari #6E7280 — 3.4) */
   --shadow-card: 0 1px 3px rgba(0,0,0,.35), 0 1px 2px rgba(0,0,0,.25);
 }
 html[data-theme="dark"] body { background: var(--bg); color: var(--text); }
@@ -67,6 +69,18 @@ html[data-theme="dark"] input,
 html[data-theme="dark"] select,
 html[data-theme="dark"] textarea { background: var(--white); color: var(--text); border-color: var(--border); }
 html[data-theme="dark"] .erp-topbar { background: var(--white); border-color: var(--border); }
+/* kech118 (zip 122 — tungi rejim to'liq): asosiy qora tugma qorong'i fonda ko'rinmasdi (#181B22 tugma #16181F sahifada) —
+   tungi rejimda yorug' tugma, to'q yozuv (`--doim-` — rejimga qarab almashmaydigan rang). O'z fon rangi yozilgan tugma
+   (style="background:#DC2626", oltin …) — oq yozuv qoladi (to'q yozuv rangli fonda o'qilmasdi) */
+html[data-theme="dark"] .btn-dark { background: var(--doim-eceae6); color: var(--doim-16181f); }
+html[data-theme="dark"] .btn-dark:hover { background: var(--doim-d6d3cd); }
+html[data-theme="dark"] .btn-dark[style*="background"] { color: #fff; }
+html[data-theme="dark"] .stat-card.emph { background: #2A2E3A; }
+.stat-card.emph .emph-havola { color: var(--gold); }
+html[data-theme="dark"] .stat-card.emph .emph-havola { color: var(--m-d09a63); }
+/* tugmaning brauzer standart rangi (qora) qorong'i fonda ko'rinmasdi — o'z rangi yozilmagan tugmalar matn rangini oladi
+   (`:where` — o'ziga xoslik 0: sinf / ichki uslubdagi rang ustun) */
+:where(html[data-theme="dark"]) button { color: var(--text); background-color: #2A2E3A; border-color: var(--border); }
 
 
 body {
@@ -110,13 +124,13 @@ body {
 .s-logo .logo-name {
   font-size: 17px;
   font-weight: 600;
-  color: var(--white);
+  color: #fff;   /* kech118 (zip 122): qorong'i menyuda — har ikkala rejimda oq (var(--white) tungi rejimda qorong'i edi) */
   letter-spacing: -.3px;
 }
 .s-logo .logo-name span { color: var(--gold); }
 .s-logo .logo-ver {
   font-size: 12px;
-  color: #8A8F9C;
+  color: var(--m-8a8f9c);
   margin-top: 3px;
 }
 
@@ -136,14 +150,14 @@ body {
   font-size: 14px; font-weight: 600; color: var(--dark);
   flex-shrink: 0;
 }
-.s-user .u-name { font-size: 13px; font-weight: 700; color: var(--white); }
-.s-user .u-role { font-size: 12px; color: #9198A3; margin-top: 2px; font-weight: 600; }
+.s-user .u-name { font-size: 13px; font-weight: 700; color: #fff; }
+.s-user .u-role { font-size: 12px; color: var(--m-9198a3); margin-top: 2px; font-weight: 600; }
 
 .s-nav { padding: 12px 0; flex: 1; }
 
 .nav-label {
   font-size: 12px;
-  color: #8A8D96;
+  color: var(--m-8a8d96);
   text-transform: uppercase;
   letter-spacing: .5px;
   padding: 10px 20px 4px;
@@ -167,9 +181,9 @@ body {
   background: rgba(185,120,63,0.16);
   border-color: rgba(185,120,63,0.30);
 }
-.nav-item .n-ico { font-size: 15px; width: 20px; text-align: center; color: #9198A3; }
+.nav-item .n-ico { font-size: 15px; width: 20px; text-align: center; color: var(--m-9198a3); }
 .nav-item .n-txt { font-size: 12.5px; color: #E5E5E0; flex: 1; font-weight: 800; letter-spacing: .1px; }
-.nav-item.active .n-txt { color: #D09A63; font-weight: 800; }   /* kech118 (U-03): qorong'i menyuda 5.7:1 (ilgari 3.9) */
+.nav-item.active .n-txt { color: var(--m-d09a63); font-weight: 800; }   /* kech118 (U-03): qorong'i menyuda 5.7:1 (ilgari 3.9) */
 .nav-item.active .n-ico { color: var(--gold); }
 .nav-item .n-badge {
   font-size: 12px;
@@ -191,7 +205,7 @@ body {
   gap: 8px;
   font-size: 12px;
   font-weight: 600;
-  color: #9198A3;
+  color: var(--m-9198a3);
   cursor: pointer;
   padding: 8px 10px;
   border-radius: 8px;
@@ -230,13 +244,13 @@ body {
    ============================================================ */
 .btn { padding: 8px 16px; border-radius: 8px; font-size: 13px; cursor: pointer; font-weight: 500; border: none; transition: all .15s; }
 .btn:active { transform: scale(.98); }
-.btn-dark { background: var(--dark); color: var(--white); }
+.btn-dark { background: var(--dark); color: #fff; }
 .btn-dark:hover { background: #222; }
-.btn-gold { background: var(--gold-btn); color: var(--white); }
-.btn-gold:hover { background: var(--gold-dark); }
-.btn-green { background: #15803D; color: var(--white); }   /* kech118 (U-03): oq yozuv 5.0:1 (ilgari #22C55E — 2.3) */
+.btn-gold { background: var(--gold-btn); color: #fff; }
+.btn-gold:hover { background: var(--gold-hover); }
+.btn-green { background: #15803D; color: #fff; }   /* kech118 (U-03): oq yozuv 5.0:1 (ilgari #22C55E — 2.3) */
 .btn-green:hover { opacity: .88; }
-.btn-red { background: #DC2626; color: var(--white); }
+.btn-red { background: #DC2626; color: #fff; }
 .btn-red:hover { opacity: .88; }
 .btn-outline { background: var(--white); color: var(--text); border: 1px solid var(--border); }
 .btn-outline:hover { background: var(--bg); }
@@ -283,9 +297,9 @@ body {
   margin-top: 6px;
   font-weight: 500;
 }
-.kpi-badge.up { background: #DCFCE7; color: #1e7e34; }
-.kpi-badge.warn { background: #FEF3C7; color: #92400E; }
-.kpi-badge.info { background: #EFF6FF; color: #1a6fa8; }
+.kpi-badge.up { background: var(--f-dcfce7); color: var(--m-1e7e34); }
+.kpi-badge.warn { background: var(--f-fef3c7); color: var(--m-92400e); }
+.kpi-badge.info { background: var(--f-eff6ff); color: var(--m-1a6fa8); }
 
 /* ============================================================
    JADVAL
@@ -306,9 +320,9 @@ body {
   padding: 11px 14px;
   font-size: 13px;
   color: var(--text2);
-  border-bottom: 1px solid #f8f8f8;
+  border-bottom: 1px solid var(--ch-f8f8f8);
 }
-.erp-table tr:hover td { background: #fafaf8; }
+.erp-table tr:hover td { background: var(--f-fafaf8); }
 .erp-table tr:last-child td { border-bottom: none; }
 
 /* ============================================================
@@ -324,19 +338,19 @@ body {
   font-weight: 500;
 }
 .badge::before { content: ''; width: 5px; height: 5px; border-radius: 50%; display: inline-block; }
-.badge-new { background: #EFF6FF; color: #1a6fa8; }
+.badge-new { background: var(--f-eff6ff); color: var(--m-1a6fa8); }
 .badge-new::before { background: #1a6fa8; }
-.badge-progress { background: #FEF3C7; color: #92400E; }
-.badge-progress::before { background: #F59E0B; }
-.badge-ready { background: #DCFCE7; color: #1e7e34; }
-.badge-ready::before { background: #22C55E; }
-.badge-delivered { background: #F3E8FF; color: #6c3483; }
+.badge-progress { background: var(--f-fef3c7); color: var(--m-92400e); }
+.badge-progress::before { background: var(--f-f59e0b); }
+.badge-ready { background: var(--f-dcfce7); color: var(--m-1e7e34); }
+.badge-ready::before { background: var(--f-22c55e); }
+.badge-delivered { background: var(--f-f3e8ff); color: var(--m-6c3483); }
 .badge-delivered::before { background: #8E44AD; }
-.badge-cancelled { background: #f5f5f5; color: #888; }
+.badge-cancelled { background: var(--f-f5f5f5); color: var(--m-888888); }
 .badge-cancelled::before { background: #aaa; }
-.badge-warning { background: #FEF3C7; color: #92400E; }
-.badge-danger { background: #FEE2E2; color: #DC2626; }
-.badge-info { background: #EFF6FF; color: #1a6fa8; }
+.badge-warning { background: var(--f-fef3c7); color: var(--m-92400e); }
+.badge-danger { background: var(--f-fee2e2); color: var(--m-dc2626); }
+.badge-info { background: var(--f-eff6ff); color: var(--m-1a6fa8); }
 
 /* ============================================================
    FORMA ELEMENTLARI
@@ -361,7 +375,7 @@ body {
   font-size: 15px;
   color: var(--text);
   outline: none;
-  background: #fafafa;
+  background: var(--f-fafafa);
   transition: border .15s, background .15s;
 }
 .form-group input:focus,
@@ -372,20 +386,20 @@ body {
 }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
-.unit-input-wrap{display:flex;align-items:stretch;border:1.5px solid var(--border);border-radius:10px;overflow:hidden;background:#fff;transition:border .15s,background .15s}
+.unit-input-wrap{display:flex;align-items:stretch;border:1.5px solid var(--border);border-radius:10px;overflow:hidden;background:var(--white);transition:border .15s,background .15s}
 .unit-input-wrap:focus-within{border-color:var(--gold);background:var(--white)}
 .unit-input-wrap input,.unit-input-wrap select{border:none!important;outline:none;padding:12px 14px;font-size:15px;color:var(--text);width:100%;background:transparent!important}
 .unit-input-wrap .unit-suffix{display:flex;align-items:center;padding:0 13px;background:var(--gold-tint);color:var(--gold-dark);font-size:12.5px;font-weight:700;white-space:nowrap;flex-shrink:0}
-.detal-result{margin-top:16px;padding:16px;background:#F5F3EF;border-radius:12px;display:flex;gap:22px;flex-wrap:wrap;align-items:center}
+.detal-result{margin-top:16px;padding:16px;background:var(--f-f5f3ef);border-radius:12px;display:flex;gap:22px;flex-wrap:wrap;align-items:center}
 .result-cards{display:flex;gap:14px;flex-wrap:wrap;width:100%}
-.result-card{background:#fff;border-radius:10px;border:1px solid #E5E1D8;padding:12px 14px;flex:1;min-width:150px}
+.result-card{background:var(--white);border-radius:10px;border:1px solid var(--ch-e5e1d8);padding:12px 14px;flex:1;min-width:150px}
 .result-card label{font-size:12px;font-weight:700;color:var(--gold-dark);display:flex;align-items:center;gap:4px;margin-bottom:8px;text-transform:none}
-.dval-box{display:flex;align-items:stretch;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#fff}
-.dval-box input{border:none;outline:none;padding:9px 12px;font-size:15px;color:#222;width:100%;background:transparent;font-weight:600}
+.dval-box{display:flex;align-items:stretch;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--white)}
+.dval-box input{border:none;outline:none;padding:9px 12px;font-size:15px;color:var(--m-222222);width:100%;background:transparent;font-weight:600}
 .dval-box .unit-suffix{display:flex;align-items:center;padding:0 12px;background:var(--gold-tint);color:var(--gold-dark);font-size:12px;font-weight:700;white-space:nowrap}
-.result-card.main label{color:#166534}
-.dval-box.main input{color:#16A34A;font-size:17px;font-weight:800}
-.dval-box.main .unit-suffix{background:#DCFCE7;color:#166534}
+.result-card.main label{color:var(--m-166534)}
+.dval-box.main input{color:var(--m-16a34a);font-size:17px;font-weight:800}
+.dval-box.main .unit-suffix{background:var(--f-dcfce7);color:var(--m-166534)}
 
 /* ============================================================
    CONTENT WRAPPER
@@ -398,7 +412,7 @@ body {
 }
 .erp-content::-webkit-scrollbar { width: 9px; }
 .erp-content::-webkit-scrollbar-track { background: transparent; }
-.erp-content::-webkit-scrollbar-thumb { background: #b8bcc4; border-radius: 5px; border: 2px solid transparent; background-clip: padding-box; }
+.erp-content::-webkit-scrollbar-thumb { background: var(--f-b8bcc4); border-radius: 5px; border: 2px solid transparent; background-clip: padding-box; }
 .erp-content::-webkit-scrollbar-thumb:hover { background: #9a9fab; background-clip: padding-box; }
 .erp-content { scrollbar-width: auto; scrollbar-color: #b8bcc4 transparent; }
 
@@ -411,10 +425,10 @@ body {
   margin-bottom: 14px;
   font-size: 13px;
 }
-.alert-warning { background: #FEF3C7; border: 1px solid #FDE68A; color: #92400E; }
-.alert-danger { background: #FEE2E2; border: 1px solid #F1948A; color: #DC2626; }
-.alert-success { background: #DCFCE7; border: 1px solid #A9DFBF; color: #1e7e34; }
-.alert-info { background: #EFF6FF; border: 1px solid #AED6F1; color: #1a6fa8; }
+.alert-warning { background: var(--f-fef3c7); border: 1px solid var(--ch-fde68a); color: var(--m-92400e); }
+.alert-danger { background: var(--f-fee2e2); border: 1px solid #F1948A; color: var(--m-dc2626); }
+.alert-success { background: var(--f-dcfce7); border: 1px solid var(--ch-a9dfbf); color: var(--m-1e7e34); }
+.alert-info { background: var(--f-eff6ff); border: 1px solid var(--ch-aed6f1); color: var(--m-1a6fa8); }
 
 /* ============================================================
    MODAL
@@ -440,8 +454,8 @@ body {
    YORDAMCHI KLASSLAR
    ============================================================ */
 .text-gold { color: var(--gold-dark); }
-.text-green { color: #15803D; }   /* kech118 (U-03): matn — 5.0:1 */
-.text-red { color: #DC2626; }   /* kech118 (U-03): matn — 4.8:1 */
+.text-green { color: var(--m-15803d); }   /* kech118 (U-03): matn — 5.0:1 */
+.text-red { color: var(--m-dc2626); }   /* kech118 (U-03): matn — 4.8:1 */
 .text-gray { color: var(--text3); }
 .text-sm { font-size: 12px; }
 .text-xs { font-size: 12px; }
@@ -465,8 +479,8 @@ body {
    ============================================================ */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #ccc; }
+::-webkit-scrollbar-thumb { background: var(--f-dddddd); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--f-cccccc); }
 
 /* ============================================================
    BOSH SAHIFA — STAT KARTOCHKA (ikonka bilan)
@@ -497,14 +511,14 @@ body {
 .stat-label { font-size: 13.5px; color: var(--text3); font-weight: 600; margin-bottom: 4px; }
 .stat-val { font-size: 25px; font-weight: 700; color: var(--text); }
 .stat-trend { font-size: 12.5px; margin-top: 6px; font-weight: 500; }
-.stat-trend.up { color: #1e7e34; }
-.stat-trend.warn { color: #92400E; }
+.stat-trend.up { color: var(--m-1e7e34); }
+.stat-trend.warn { color: var(--m-92400e); }
 .stat-card.emph {
   background: var(--dark);
   border: none;
 }
-.stat-card.emph .stat-label { color: #999; }
-.stat-card.emph .stat-val { color: var(--white); }
+.stat-card.emph .stat-label { color: var(--m-999999); }
+.stat-card.emph .stat-val { color: #fff; }
 .stat-card.emph .stat-icon { background: rgba(185,120,63,.18); color: var(--gold); }
 
 /* ============================================================
@@ -550,7 +564,7 @@ body {
   margin: 0 auto 8px;
   background: var(--border2); color: var(--text2);
 }
-.lb-item.rank1 .lb-avatar { background: var(--gold-btn); color: var(--white); }
+.lb-item.rank1 .lb-avatar { background: var(--gold-btn); color: #fff; }
 .lb-name { font-size: 12px; font-weight: 500; color: var(--text); }
 .lb-meta { font-size: 12px; color: var(--text3); margin-top: 1px; }
 
