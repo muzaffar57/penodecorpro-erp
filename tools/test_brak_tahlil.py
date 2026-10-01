@@ -426,17 +426,24 @@ check("A5 _TENANT_REFS: ikkala modelda (brak_javobgar_id, Employee) — begona h
 section("B — buyurtma braki: sabab va javobgar hodim")
 oa, ob = yarat([profil(100, qoplama=True)], recipe_id=R1_ID, loy_kg=10), \
     yarat([profil(100, qoplama=True)], recipe_id=R1_ID, loy_kg=10)
+h00 = holat()
+ra0 = req(C, "post", "/api/returns", json=brak_tana(oa, miqdor=5, qoplama=True, brak_bosqich="kesish"))
+check("B0 kech118 (D-1, G5-20 — egasi QARORI «Ha, majburiy»): sababsiz brak → 400 «Brak sababini tanlang», "
+      "hech narsa yozilmadi, xomashyo yechilmadi",
+      ra0.status_code == 400 and "Brak sababini tanlang" in xabar(ra0) and holat() == h00,
+      (ra0.status_code, ra0.text[:200]))
 s0 = stoklar()
-ra = req(C, "post", "/api/returns", json=brak_tana(oa, miqdor=5, qoplama=True, brak_bosqich="kesish"))
+ra = req(C, "post", "/api/returns", json=brak_tana(oa, miqdor=5, qoplama=True, brak_bosqich="kesish",
+                                                   brak_sabab="boshqa"))
 s1 = stoklar()
 rb = req(C, "post", "/api/returns", json=brak_tana(ob, miqdor=5, qoplama=True, brak_bosqich="kesish",
                                                    brak_sabab="ishchi", brak_javobgar_id=H1_ID))
 s2 = stoklar()
 ida, idb = (js(ra) or {}).get("id"), (js(rb) or {}).get("id")
-check("B1 brak: sababsiz va sabab 'ishchi' + javobgar H1 — ikkalasi 200",
+check("B1 brak: sabab 'boshqa' (javobgarsiz) va sabab 'ishchi' + javobgar H1 — ikkalasi 200",
       ra.status_code == 200 and rb.status_code == 200, (ra.status_code, ra.text[:200], rb.status_code, rb.text[:200]))
-check("B1b yozuvda sabab 'ishchi' va javobgar H1; sababsizda NULL",
-      sj(qaytarish(idb)) == ("ishchi", H1_ID) and sj(qaytarish(ida)) == (None, None),
+check("B1b yozuvda sabab 'ishchi' va javobgar H1; javobgarsizda sabab 'boshqa', javobgar NULL",
+      sj(qaytarish(idb)) == ("ishchi", H1_ID) and sj(qaytarish(ida)) == ("boshqa", None),
       (sj(qaytarish(ida)), sj(qaytarish(idb))))
 check("B1c QAT'IY SHART: xomashyo yechimi AYNAN (penoplast + loy)",
       delta(s0, s1) == delta(s1, s2) and delta(s0, s1)[0] < 0, (delta(s0, s1), delta(s1, s2)))
@@ -452,13 +459,19 @@ for _kod in SABAB_KODLARI:
 check("B2 har 5 sabab kodi qabul qilinadi va AYNAN saqlanadi",
       all(sj(qaytarish(v))[0] == k for k, v in _idlar.items()), {k: sj(qaytarish(v)) for k, v in _idlar.items()})
 _o = yarat([profil(40)])
+h0 = holat()
 _x1 = req(C, "post", "/api/returns", json=brak_tana(_o, miqdor=1, brak_sabab=None, brak_javobgar_id=None))
+h01 = holat()
 _o2 = yarat([profil(40)])
+h02 = holat()
 _x2 = req(C, "post", "/api/returns", json=brak_tana(_o2, miqdor=1, brak_sabab="  ", brak_javobgar_id=H3_ID))
-check("B3 null / bo'sh sabab → NULL (200); nofaol (o'chirilmagan) hodim — qabul qilinadi",
-      _x1.status_code == 200 and sj(qaytarish((js(_x1) or {}).get("id"))) == (None, None)
-      and _x2.status_code == 200 and sj(qaytarish((js(_x2) or {}).get("id"))) == (None, H3_ID),
-      (_x1.status_code, _x1.text[:150], _x2.status_code, _x2.text[:150]))
+h03 = holat()
+_x3 = req(C, "post", "/api/returns", json=brak_tana(_o2, miqdor=1, brak_sabab="olcham", brak_javobgar_id=H3_ID))
+check("B3 kech118 (D-1): null / bo'sh sabab → 400 (sabab majburiy), hech narsa yozilmadi; nofaol (o'chirilmagan) hodim "
+      "sabab bilan — qabul qilinadi",
+      _x1.status_code == 400 and h01 == h0 and _x2.status_code == 400 and h03 == h02
+      and _x3.status_code == 200 and sj(qaytarish((js(_x3) or {}).get("id"))) == ("olcham", H3_ID),
+      (_x1.status_code, _x1.text[:150], _x2.status_code, _x2.text[:150], _x3.status_code, _x3.text[:150]))
 _ob = yarat([profil(40)])
 for _nomi, _qiy in (("katta harf", "XOMASHYO"), ("yorliq matni", "Xomashyo sifati"), ("noma'lum", "sinish"),
                     ("son", 5), ("bool", True), ("ro'yxat", ["ishchi"])):
@@ -473,7 +486,7 @@ for _nomi, _qiy, _kut in (("0", 0, "brak_javobgar_id"), ("manfiy", -1, "brak_jav
                           ("begona korxona hodimi", HB_ID, "Javobgar hodim topilmadi"),
                           ("o'chirilgan hodim", H4_ID, "Javobgar hodim topilmadi")):
     h0 = holat()
-    _x = req(C, "post", "/api/returns", json=brak_tana(_ob, miqdor=1, brak_javobgar_id=_qiy))
+    _x = req(C, "post", "/api/returns", json=brak_tana(_ob, miqdor=1, brak_sabab="boshqa", brak_javobgar_id=_qiy))
     check(f"B5 javobgar {_nomi} → 400 ({_kut}), hech narsa yozilmadi",
           _x.status_code == 400 and _kut in xabar(_x) and holat() == h0, (_x.status_code, _x.text[:200]))
 for _nomi, _qosh in (("sabab", {"brak_sabab": "xomashyo"}), ("javobgar", {"brak_javobgar_id": H1_ID})):
@@ -487,7 +500,7 @@ for _nomi, _qosh in (("sabab", {"brak_sabab": "xomashyo"}), ("javobgar", {"brak_
 _ro = js(req(C, "get", "/api/returns")) or []
 _api = {x.get("id"): (x.get("brak_sabab", "YO'Q"), x.get("brak_javobgar_id", "YO'Q")) for x in _ro if isinstance(x, dict)}
 check("B7 GET /api/returns — har yozuvda brak_sabab va brak_javobgar_id",
-      _api.get(idb) == ("ishchi", H1_ID) and _api.get(ida) == (None, None), (_api.get(ida), _api.get(idb)))
+      _api.get(idb) == ("ishchi", H1_ID) and _api.get(ida) == ("boshqa", None), (_api.get(ida), _api.get(idb)))
 _st, _h = html(C, "/returns")
 _sab = [_html.unescape(x) for x in re.findall(r'<div class="brak-sabab"[^>]*>([^<]*)</div>', _h)]
 _jav = [_html.unescape(x) for x in re.findall(r'<div class="brak-javobgar"[^>]*>([^<]*)</div>', _h)]
@@ -498,8 +511,8 @@ check("B8 /returns ro'yxati: sababli HAR brak qatorida yorliq (kod emas), javobg
       and len(_jav) == _javobgarli and ("👤 " + H1_ISM) in _jav, (_st, _sab[:8], _jav[:4]))
 check("B8b hodim ismi HTML sifatida chizilmaydi (escape) — xom teg sahifada YO'Q",
       _st == 200 and "<i class=xq>" not in _h and "&lt;i class=xq&gt;" in _h, _st)
-check("B8c brak oynasida #brak-cause: '— Tanlanmagan —' + 5 sabab (lug'atdan, tartib bilan)",
-      tanlov(_h, "brak-cause") == [("", "— Tanlanmagan —")] + list(zip(SABAB_KODLARI, SABAB_YORLIQLARI)),
+check("B8c brak oynasida #brak-cause: '— Tanlang —' (kech118: sabab majburiy) + 5 sabab (lug'atdan, tartib bilan)",
+      tanlov(_h, "brak-cause") == [("", "— Tanlang —")] + list(zip(SABAB_KODLARI, SABAB_YORLIQLARI)),
       tanlov(_h, "brak-cause"))
 _w = tanlov(_h, "brak-worker") or []
 _kut_w = sorted([(str(H1_ID), H1_ISM + " — Kesuvchi"), (str(H2_ID), "BT Qoplovchi — Qoplovchi"),
@@ -537,53 +550,66 @@ check("B9 crud.create_return_item (marshrutsiz): 'Ortiqcha' + javobgar → Value
 # ══════════════════════════════════════════════════════════════
 section("C — tayyor mahsulot: kamaytirish va ishlab chiqarish braki")
 F1, F2 = fp_yarat("BT tayyor 1"), fp_yarat("BT tayyor 2")
-r1 = req(C, "post", "/api/finished/loss", json={"finished_product_id": F1, "quantity": 5, "reason": "tashishda sindi",
+h0, f0 = holat(), fp_holat(F1)
+r0 = req(C, "post", "/api/finished/loss", json={"finished_product_id": F1, "quantity": 5, "reason": "tashishda sindi",
                                                  "brak_bosqich": "saqlash_tashish"})
+check("C0 kech118 (D-1, G5-20): sababsiz kamaytirish → 400 «Brak sababini tanlang», qoldiq va yozuvlar o'zgarmadi",
+      r0.status_code == 400 and "Brak sababini tanlang" in xabar(r0) and holat() == h0 and fp_holat(F1) == f0,
+      (r0.status_code, r0.text[:200]))
+r1 = req(C, "post", "/api/finished/loss", json={"finished_product_id": F1, "quantity": 5, "reason": "tashishda sindi",
+                                                 "brak_bosqich": "saqlash_tashish", "brak_sabab": "boshqa"})
 r2 = req(C, "post", "/api/finished/loss", json={"finished_product_id": F2, "quantity": 5, "reason": "tashishda sindi",
                                                  "brak_bosqich": "saqlash_tashish", "brak_sabab": "boshqa",
                                                  "brak_javobgar_id": H2_ID})
 y1, y2 = yoqotishlar(F1), yoqotishlar(F2)
-check("C1 kamaytirish: sababsiz va sabab 'boshqa' + javobgar H2 — ikkalasi 200",
+check("C1 kamaytirish: sabab 'boshqa' (javobgarsiz) va sabab 'boshqa' + javobgar H2 — ikkalasi 200",
       r1.status_code == 200 and r2.status_code == 200, (r1.status_code, r1.text[:200], r2.status_code, r2.text[:200]))
-check("C1b yozuv: sabab / javobgar yozildi (sababsizda NULL); qolgan mazmun AYNAN; qoldiq va tan narx AYNAN",
-      len(y1) == 1 and len(y2) == 1 and y2[0][5:] == ("boshqa", H2_ID) and y1[0][5:] == (None, None)
+check("C1b yozuv: sabab / javobgar yozildi (javobgarsizda NULL); qolgan mazmun AYNAN; qoldiq va tan narx AYNAN",
+      len(y1) == 1 and len(y2) == 1 and y2[0][5:] == ("boshqa", H2_ID) and y1[0][5:] == ("boshqa", None)
       and y1[0][:5] == y2[0][:5] and fp_holat(F1) == fp_holat(F2) == (95.0, 950000.0), (y1, y2))
 for _nomi, _tana, _kut in (("noma'lum sabab", {"brak_sabab": "sinish"}, "brak_sabab"),
                            ("begona hodim", {"brak_javobgar_id": HB_ID}, "Javobgar hodim topilmadi"),
                            ("o'chirilgan hodim", {"brak_javobgar_id": H4_ID}, "Javobgar hodim topilmadi"),
                            ("javobgar matn", {"brak_javobgar_id": "2"}, "brak_javobgar_id")):
     h0, f0 = holat(), fp_holat(F1)
-    _x = req(C, "post", "/api/finished/loss", json={"finished_product_id": F1, "quantity": 5, **_tana})
+    _x = req(C, "post", "/api/finished/loss", json={"finished_product_id": F1, "quantity": 5, "brak_sabab": "boshqa",
+                                                     **_tana})
     check(f"C2 kamaytirish {_nomi} → 400 ({_kut}), qoldiq va yozuvlar o'zgarmadi",
           _x.status_code == 400 and _kut in xabar(_x) and holat() == h0 and fp_holat(F1) == f0,
           (_x.status_code, _x.text[:200]))
 F3, F4 = fp_yarat("BT jarayon 1", tayyor=False), fp_yarat("BT jarayon 2", tayyor=False)
+h0 = holat()
+p30 = req(C, "post", "/api/finished/production-brak", json={"finished_product_id": F3, "brak_qty": 4,
+                                                              "brak_bosqich": "qoplash"})
+check("C2b kech118 (D-1, G5-20): sababsiz ishlab chiqarish braki → 400, xomashyo YECHILMADI, yozuv yo'q",
+      p30.status_code == 400 and "Brak sababini tanlang" in xabar(p30) and holat() == h0, (p30.status_code, p30.text[:200]))
 s0 = stoklar()
 p3 = req(C, "post", "/api/finished/production-brak", json={"finished_product_id": F3, "brak_qty": 4,
-                                                             "brak_bosqich": "qoplash"})
+                                                             "brak_bosqich": "qoplash", "brak_sabab": "uskuna"})
 s1 = stoklar()
 p4 = req(C, "post", "/api/finished/production-brak", json={"finished_product_id": F4, "brak_qty": 4,
                                                              "brak_bosqich": "qoplash", "brak_sabab": "uskuna",
                                                              "brak_javobgar_id": H1_ID})
 s2 = stoklar()
 y3, y4 = yoqotishlar(F3), yoqotishlar(F4)
-check("C3 ishlab chiqarish braki: sababsiz va 'uskuna' + H1 — ikkalasi 200",
+check("C3 ishlab chiqarish braki: 'uskuna' (javobgarsiz) va 'uskuna' + H1 — ikkalasi 200",
       p3.status_code == 200 and p4.status_code == 200, (p3.status_code, p3.text[:200], p4.status_code, p4.text[:200]))
 check("C3b QAT'IY SHART: xomashyo yechimi, tan narx, sabab matni AYNAN; sabab / javobgar yozildi",
       delta(s0, s1) == delta(s1, s2) and delta(s0, s1)[0] < 0 and len(y3) == 1 and len(y4) == 1
-      and y3[0][:5] == y4[0][:5] and y4[0][5:] == ("uskuna", H1_ID) and y3[0][5:] == (None, None),
+      and y3[0][:5] == y4[0][:5] and y4[0][5:] == ("uskuna", H1_ID) and y3[0][5:] == ("uskuna", None),
       (delta(s0, s1), delta(s1, s2), y3, y4))
 for _nomi, _tana, _kut in (("noma'lum sabab", {"brak_sabab": "Uskuna"}, "brak_sabab"),
                            ("begona hodim", {"brak_javobgar_id": HB_ID}, "Javobgar hodim topilmadi"),
                            ("yo'q hodim", {"brak_javobgar_id": 987_654}, "Javobgar hodim topilmadi")):
     h0 = holat()
-    _x = req(C, "post", "/api/finished/production-brak", json={"finished_product_id": F3, "brak_qty": 4, **_tana})
+    _x = req(C, "post", "/api/finished/production-brak", json={"finished_product_id": F3, "brak_qty": 4,
+                                                                "brak_sabab": "uskuna", **_tana})
     check(f"C4 ishlab chiqarish braki {_nomi} → 400 ({_kut}), xomashyo YECHILMADI, yozuv yo'q",
           _x.status_code == 400 and _kut in xabar(_x) and holat() == h0, (_x.status_code, _x.text[:200]))
 _st, _hf = html(C, "/finished")
 _wf = tanlov(_hf, "loss-worker") or []
 check("C5 /finished 'Kamaytirish' oynasida #loss-cause (5 sabab) va #loss-worker (faol hodimlar)",
-      _st == 200 and tanlov(_hf, "loss-cause") == [("", "— Tanlanmagan —")] + list(zip(SABAB_KODLARI, SABAB_YORLIQLARI))
+      _st == 200 and tanlov(_hf, "loss-cause") == [("", "— Tanlang —")] + list(zip(SABAB_KODLARI, SABAB_YORLIQLARI))
       and sorted(_wf[1:], key=lambda t: t[1]) == _kut_w and "<i class=xq>" not in _hf,
       (_st, tanlov(_hf, "loss-cause"), _wf))
 
@@ -670,6 +696,19 @@ _ort = req(C, "post", "/api/returns", json=dict(brak_tana(_oo, miqdor=1), reason
 _oe = yarat([profil(40)])
 _eski = req(C, "post", "/api/returns", json=brak_tana(_oe, miqdor=3, brak_sabab="xomashyo"))
 _eski_id = (js(_eski) or {}).get("id")
+# kech118 (D-1, G5-20): ESKI (sababsiz — zip 121 dan oldin yozilgan) brak — endi faqat to'g'ridan crud orqali (API rad
+# etadi); tahlilda «Belgilanmagan» qatori shu yozuvdan (eski yozuvlarga tegilmaydi — egasi qarori faqat YANGI brak uchun).
+_ob_eski = yarat([profil(40)])
+_d = SessionLocal()
+try:
+    with contextlib.redirect_stdout(_quiet):
+        _sababsiz_id = crud.create_return_item(_d, schemas.ReturnItemCreate(**brak_tana(_ob_eski, miqdor=2)),
+                                               company_id=1).id
+except Exception as e:                     # noqa: BLE001
+    _d.rollback()
+    _sababsiz_id = f"{type(e).__name__}: {e}"
+finally:
+    _d.close()
 _OY_OLDIN = (YIL - 1, 12) if OY == 1 else (YIL, OY - 1)
 _d = SessionLocal()
 try:
@@ -769,6 +808,10 @@ check("E3 sabab bo'yicha: soni va qiymat AYNAN, yorliqlar lug'atdan", _ok, _det)
 _ismlar = {H1_ID: H1_ISM, H2_ID: "BT Qoplovchi", H3_ID: "BT Nofaol", H5_ID: "BT Ketadigan"}
 _ok, _det = jadval_tekshir(_e.get("javobgarlar"), guruh(_yoz, 6), lambda k: _ismlar.get(k, "?"))
 check("E4 javobgar bo'yicha: soni va qiymat AYNAN, ismlar (xom — UI escape qiladi)", _ok, _det)
+check("E3b kech118: eski sababsiz yozuv (crud) — sabablar jadvalida 'Belgilanmagan' qatori (oxirida)",
+      isinstance(_sababsiz_id, int) and sj(qaytarish(_sababsiz_id)) == (None, None)
+      and [x.get("nomi") for x in (_e.get("sabablar") or [])][-1:] == ["Belgilanmagan"],
+      (_sababsiz_id, [x.get("nomi") for x in (_e.get("sabablar") or [])]))
 _ul = sum(float(x.get("ulush") or 0) for x in (_e.get("sabablar") or []))
 check("E5 ulushlar yig'indisi ~100 %", abs(_ul - 100.0) <= 0.5, _ul)
 _top = _e.get("top_detallar") or []
@@ -796,9 +839,9 @@ _turlar = sorted(((x.get("nomi"), x.get("turi"), x.get("sabab"), x.get("javobgar
                   for x in _yq if isinstance(x, dict)), key=_nkal)
 check("E7 yo'qotishlar ro'yxati: 4 ta (2 kamaytirish + 2 ishlab chiqarish braki), turi / sabab / javobgar / bosqich yorliqlari",
       len(_yq) == 4 and _turlar == sorted([
-          ("BT tayyor 1", "Yo'qotish (tayyor turgan)", None, None, "Saqlash / tashish"),
+          ("BT tayyor 1", "Yo'qotish (tayyor turgan)", "Boshqa", None, "Saqlash / tashish"),
           ("BT tayyor 2", "Yo'qotish (tayyor turgan)", "Boshqa", "BT Qoplovchi", "Saqlash / tashish"),
-          ("BT jarayon 1", "Ishlab chiqarish braki", None, None, "Qoplash (loy tortish)"),
+          ("BT jarayon 1", "Ishlab chiqarish braki", "Uskuna / stanok nosozligi", None, "Qoplash (loy tortish)"),
           ("BT jarayon 2", "Ishlab chiqarish braki", "Uskuna / stanok nosozligi", H1_ISM, "Qoplash (loy tortish)")],
           key=_nkal),
       _turlar)

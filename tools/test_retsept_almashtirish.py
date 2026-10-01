@@ -555,7 +555,7 @@ _r = tahrir(oJ, itJ, ID["R2"])
 iJ = (detallar(oJ) + [None])[0]
 s0 = stok()
 _r = req(C, "post", "/api/returns", json={"order_id": oJ, "order_item_id": iJ, "item_name": itJ[0]["name"], "quantity": 1,
-                                          "unit": "metr", "reason": "Brak", "refund_amount": 0, "to_stock": False,
+                                          "unit": "metr", "brak_sabab": "boshqa", "reason": "Brak", "refund_amount": 0, "to_stock": False,
                                           "coating_applied": True})
 s1 = stok()
 _f = farq(s0, s1)

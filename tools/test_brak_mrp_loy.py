@@ -276,7 +276,7 @@ def ishlab(oid, iid, miqdor, bom=None, qop=False, tugat=True):
 
 def brak(oid, iid, nomi, miqdor, qop, klient=None, **k):
     t = {"order_id": oid, "order_item_id": iid, "item_name": nomi, "quantity": miqdor, "unit": "metr",
-         "reason": "Brak", "refund_amount": 0, "to_stock": False, "coating_applied": bool(qop)}
+         "brak_sabab": "boshqa", "reason": "Brak", "refund_amount": 0, "to_stock": False, "coating_applied": bool(qop)}
     t.update(k)
     r = req(klient or C, "post", "/api/returns", json=t)
     d = js(r)
@@ -642,7 +642,7 @@ _d.close()
 _st = stoklar()
 sf0 = sof_foyda()
 x0 = brak_xulosa()
-r = req(C, "post", "/api/finished/production-brak", json={"finished_product_id": FPD, "brak_qty": 2})
+r = req(C, "post", "/api/finished/production-brak", json={"brak_sabab": "boshqa", "finished_product_id": FPD, "brak_qty": 2})
 d = js(r) or {}
 check("D1 MRP mahsuloti braki — 200 (asl: 400 \"xomashyo nisbati topilmadi\")", r.status_code == 200, r.text[:200])
 check("D1 xarajat 26 000 (2 × (Tosh 3 + Boyoq 0.5)), qadoqsiz", taxminan(d.get("cost_amount"), 26_000),
@@ -672,7 +672,7 @@ _d = SessionLocal()
 FPK = _d.get(ProductionOrder, _poK).finished_product_id
 _d.close()
 h0 = holat()
-r = req(C, "post", "/api/finished/production-brak", json={"finished_product_id": FPK, "brak_qty": 50})
+r = req(C, "post", "/api/finished/production-brak", json={"brak_sabab": "boshqa", "finished_product_id": FPK, "brak_qty": 50})
 check("D3 xomashyo yetishmaydi (kerak 5, bor 4) — 400, hech narsa yozilmadi",
       r.status_code == 400 and "yetishmayapti" in r.text and holat() == h0, f"{r.status_code} {r.text[:200]}")
 # D4: suratsiz \"dynamic_bom\" mahsuloti — 400 (taxmin qilinmaydi)
@@ -684,10 +684,10 @@ _d.commit()
 _fxid = _fx.id
 _d.close()
 h0 = holat()
-r = req(C, "post", "/api/finished/production-brak", json={"finished_product_id": _fxid, "brak_qty": 1})
+r = req(C, "post", "/api/finished/production-brak", json={"brak_sabab": "boshqa", "finished_product_id": _fxid, "brak_qty": 1})
 check("D4 suratsiz MRP mahsuloti — 400, hech narsa yozilmadi", r.status_code == 400 and holat() == h0, r.text[:200])
 # D5: begona korxona
-r = req(CB, "post", "/api/finished/production-brak", json={"finished_product_id": FPD, "brak_qty": 1})
+r = req(CB, "post", "/api/finished/production-brak", json={"brak_sabab": "boshqa", "finished_product_id": FPD, "brak_qty": 1})
 check("D5 B sessiyasi A mahsulotiga — 4xx", 400 <= r.status_code < 500, r.status_code)
 
 # ══════════════════════════════════════════════════════════════

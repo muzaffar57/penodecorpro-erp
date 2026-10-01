@@ -602,7 +602,7 @@ def r_bolimi():
           f"{r.status_code} {matn(r)[:160]} {ri and ri.refund_amount}")
     # saveReturn — "Brak" (to_stock true, lekin brak omborga qaytmaydi)
     fp0 = fp_jami()
-    r = xom(C, "post", "/api/returns", json.dumps({**tana, "quantity": 1, "reason": "Brak",
+    r = xom(C, "post", "/api/returns", json.dumps({**tana, "quantity": 1, "brak_sabab": "boshqa", "reason": "Brak",
                                                      "refund_amount": 0,
                                                      "coating_applied": True}))
     ri = oxirgi(ReturnItem)
@@ -623,7 +623,7 @@ def r_bolimi():
     fp0, n0 = fp_jami(), soni(ReturnItem)
     tana_b = {"order_id": b.get("order_id"), "order_item_id": b.get("item_id"),
               "item_name": b.get("name"), "quantity": 1.5, "unit": b.get("delivery_unit"),
-              "reason": "Brak", "refund_amount": 0, "to_stock": False, "notes": None,
+              "brak_sabab": "boshqa", "reason": "Brak", "refund_amount": 0, "to_stock": False, "notes": None,
               "coating_applied": False}
     r = xom(C, "post", "/api/returns", json.dumps(tana_b))
     ri = oxirgi(ReturnItem)

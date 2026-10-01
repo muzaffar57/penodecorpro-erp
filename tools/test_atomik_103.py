@@ -376,7 +376,7 @@ def summa():
 def _j_tayyor():
     c = yangi_qoplamali()
     c["tana"] = {"order_id": c["oid"], "order_item_id": c["iid"], "item_name": nom("brak"), "quantity": 1,
-                 "unit": "metr", "reason": "Brak", "refund_amount": 0, "to_stock": False, "coating_applied": True}
+                 "unit": "metr", "brak_sabab": "boshqa", "reason": "Brak", "refund_amount": 0, "to_stock": False, "coating_applied": True}
     return c
 
 
@@ -471,7 +471,7 @@ sinov("L POST /api/finished/{id}/add", _tm_bor,
       NUQTALAR["L"])
 # M — ishlab chiqarish braki
 sinov("M POST /api/finished/production-brak", _tm_bor,
-      lambda c: req(C, "post", "/api/finished/production-brak", json={"finished_product_id": c["fp"], "brak_qty": 1}),
+      lambda c: req(C, "post", "/api/finished/production-brak", json={"brak_sabab": "boshqa", "finished_product_id": c["fp"], "brak_qty": 1}),
       NUQTALAR["M"])
 # N — tayyor mahsulotni o'chirish (jarayonda — loy / penoplast qaytadi)
 sinov("N DELETE /api/finished/{id}", _tm_bor, lambda c: req(C, "delete", f"/api/finished/{c['fp']}"),

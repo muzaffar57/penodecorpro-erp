@@ -308,7 +308,7 @@ def brak_yoz(oid, qoplama=False, miqdor=10):
     finally:
         d.close()
     return req(C, "post", "/api/returns", json={"order_id": oid, "order_item_id": detal_id(oid), "item_name": nom,
-                                              "quantity": miqdor, "unit": "metr", "reason": "Brak",
+                                              "quantity": miqdor, "unit": "metr", "brak_sabab": "boshqa", "reason": "Brak",
                                               "refund_amount": 0, "to_stock": False,
                                               "coating_applied": bool(qoplama)})
 

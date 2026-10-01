@@ -581,7 +581,7 @@ pid, mid = muhit(10.0)
 s0, oidb, idsb, _ = buyurtma(pid, mid, [profil(10.0, 500_000)], 10.0)
 hb0 = brak_holati()
 r = req(C, "post", "/api/returns", json={"order_id": oidb, "order_item_id": idsb[0] if idsb else None, "item_name": "K59 brak",
-                                         "quantity": 2, "unit": "metr", "reason": "Brak", "refund_amount": 0, "to_stock": False})
+                                         "quantity": 2, "unit": "metr", "brak_sabab": "boshqa", "reason": "Brak", "refund_amount": 0, "to_stock": False})
 ridb = (js(r) or {}).get("id") if r.status_code == 200 else None
 hb1 = brak_holati()
 r = req(C, "delete", f"/api/orders/{oidb}")

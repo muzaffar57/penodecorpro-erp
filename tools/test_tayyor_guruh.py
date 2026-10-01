@@ -271,7 +271,7 @@ r = req(C, "post", "/api/finished/sell", json={"finished_product_id": ID["fp_k"]
 check("K3 jarayonda sotuv → 400, xabar «Ishlab chiqarish» bo'limiga (ilgari «avval Tayyor deb belgilang»)",
       r.status_code == 400 and "«Ishlab chiqarish» bo'limida" in xabar(r) and "Tayyor\" deb belgilang" not in xabar(r),
       (r.status_code, xabar(r)))
-r = req(C, "post", "/api/finished/loss", json={"finished_product_id": ID["fp_k"], "quantity": 1, "reason": "sinov"})
+r = req(C, "post", "/api/finished/loss", json={"brak_sabab": "boshqa", "finished_product_id": ID["fp_k"], "quantity": 1, "reason": "sinov"})
 check("K4 jarayonda kamaytirish → 400, xabar «Ishlab chiqarish» bo'limiga", r.status_code == 400
       and "«Ishlab chiqarish» bo'limida" in xabar(r), (r.status_code, xabar(r)))
 r = req(C, "post", "/api/finished/sell-batch", json={"items": [{"finished_product_id": ID["fp_k"], "quantity": 1,

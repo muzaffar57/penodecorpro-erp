@@ -301,7 +301,7 @@ if FP:
     oldin = qoldiq(S_ID)
     # Ishlab chiqarish braki (jarayondagi mahsulotda ruxsat — 17a chegarasi)
     r = req("post", "/api/finished/production-brak",
-            json={"finished_product_id": FP_ID, "brak_qty": 1})
+            json={"brak_sabab": "boshqa", "finished_product_id": FP_ID, "brak_qty": 1})
     check("B7 production-brak 1 birlik (qoplamali) → 200", r.status_code == 200,
           f"{r.status_code} {r.text[:200]}")
     kutil2 = oldin - float(fp2.unit_loy_kg or 0) * 1 * 0.5

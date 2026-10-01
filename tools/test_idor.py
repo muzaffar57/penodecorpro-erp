@@ -745,17 +745,17 @@ check("  \u21b3 ildiz: A ombori O'ZGARMADI", c0 == _a7(), f"{c0} -> {_a7()}")
 c0 = _a7()
 for _rs in ("Brak", "Ortiqcha"):
     r = _req7("post", "/api/returns", json={"order_id": B_ORD7, "order_item_id": A_OI7,
-                    "item_name": "x", "quantity": 1, "reason": _rs})
+                    "item_name": "x", "quantity": 1, "reason": _rs, **({"brak_sabab": "boshqa"} if _rs == "Brak" else {})})
     check(f"POST /api/returns (B buyurtmasi + A detali, {_rs}) \u2192 {r.status_code} (404 shart)",
           r.status_code == 404 and "777777" not in r.text, r.text[:140])
     check(f"  \u21b3 A penoplasti O'ZGARMADI, qaytarish yozuvi YO'Q ({_rs})",
           c0 == _a7(), f"{c0} -> {_a7()}")
 r = _req7("post", "/api/returns", json={"order_id": _ao7.id, "item_name": "x",
-                "quantity": 1, "reason": "Brak"})
+                "quantity": 1, "brak_sabab": "boshqa", "reason": "Brak"})
 check(f"POST /api/returns (A buyurtmasi) \u2192 {r.status_code} (404 shart, 500 emas)",
       r.status_code == 404, r.text[:140])
 r = _req7("post", "/api/returns", json={"order_id": 99999999, "item_name": "x",
-                "quantity": 1, "reason": "Brak"})
+                "quantity": 1, "brak_sabab": "boshqa", "reason": "Brak"})
 check(f"POST /api/returns (mavjud bo'lmagan buyurtma) \u2192 {r.status_code} (404 shart, 500 emas)",
       r.status_code == 404, r.text[:140])
 check("  \u21b3 hech narsa yozilmadi", c0 == _a7(), f"{c0} -> {_a7()}")

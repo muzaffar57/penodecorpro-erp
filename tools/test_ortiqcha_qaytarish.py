@@ -222,7 +222,7 @@ def yarat(detallar, loy_kg=0):
 
 def qaytar(oid, iid, n, miqdor, sabab="Ortiqcha"):
     return req(C, "post", "/api/returns", json={"order_id": oid, "order_item_id": iid, "item_name": n,
-                                                 "quantity": miqdor, "unit": "metr", "reason": sabab,
+                                                 "quantity": miqdor, "unit": "metr", "reason": sabab, **({"brak_sabab": "boshqa"} if sabab == "Brak" else {}),
                                                  "refund_amount": 0, "to_stock": True})
 
 

@@ -354,10 +354,11 @@ async function ichki() {
                       qoshimcha: fnlar(FIN2, PUL.concat(['loadStats', 'openHistoryModal',
                       // kech114 (7A): statistika guruhlar va birliklar bo'yicha — loadStats yordamchilari
                       'miqdorlarMatni', 'fpMiqdor', 'fpGuruhla', 'fpGuruhXulosa', 'fpGuruhKaliti', 'fpJarayondami',
-                      'fpGuruhKammi', 'suggestedReserve', 'fpWidth2', 'unitLabel'])) + `\nvar fpItems = ${JSON.stringify(items)};` });
+                      // kech118 (D-1, G5-11): «Kam» — egasi yozgan chegara (`fpKamChegara`; ilgari `suggestedReserve`)
+                      'fpGuruhKammi', 'fpKamChegara', 'fpWidth2', 'unitLabel'])) + `\nvar fpItems = ${JSON.stringify(items)};` });
     await yurgiz(m, `await loadStats(); openHistoryModal(1);`);
-    tekshir('T17 TM — "bugun ishlab chiqarilgan": 1 tur (Toshkent 01.10 01:30 — bugun; 30.09 23:59 — kecha; asl: 0)',
-            m.el('k-today-produced').textContent === '1 tur', m.el('k-today-produced').textContent);
+    tekshir('T17 TM — "bugun ishlab chiqarilgan": 1 partiya (Toshkent 01.10 01:30 — bugun; 30.09 23:59 — kecha; asl: 0; kech118 D-1: '
+            + '«tur» emas — partiya)', m.el('k-today-produced').textContent === '1 partiya', m.el('k-today-produced').textContent);
     tekshir(`T18 TM — tarix "Yaratilgan sana": "${T_UZ}"`, m.el('hist-body').innerHTML.includes(T_UZ), m.el('hist-body').innerHTML.slice(0, 400));
   });
   await sinov('T19', async () => {

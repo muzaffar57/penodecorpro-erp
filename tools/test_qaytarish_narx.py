@@ -188,7 +188,7 @@ def buyurtma(kelishilgan=None, tolangan=None, narx=50_000, dona=10):
 def qaytar(oid, iid, nom, miqdor, sabab="Ortiqcha", summa=0, to_stock=False):
     r = req(C, "post", "/api/returns", json={
         "order_id": oid, "order_item_id": iid, "item_name": nom, "quantity": miqdor, "unit": "metr",
-        "reason": sabab, "refund_amount": summa, "to_stock": to_stock, "notes": None,
+        "reason": sabab, **({"brak_sabab": "boshqa"} if sabab == "Brak" else {}), "refund_amount": summa, "to_stock": to_stock, "notes": None,
         "coating_applied": False})
     rid = (js(r) or {}).get("id") if (r.status_code == 200 and isinstance(js(r), dict)) else None
     return r, rid

@@ -665,7 +665,8 @@ def main_ish():
         ("to'lov", "post", "/api/payments", {"order_id": ids["o1"], "amount": 5000, "notes": "tolov izohi"}),
         ("qaytarish", "post", "/api/returns",
          {"order_id": ids["o1"], "order_item_id": o1_items[0], "item_name": "DOM Detal 1",
-          "quantity": 1, "reason": sabab, "notes": "qaytarish izohi"}),
+          "quantity": 1, "reason": sabab, **({"brak_sabab": "boshqa"} if sabab == "Brak" else {}),
+          "notes": "qaytarish izohi"}),
         ("xarajat", "post", "/api/finance/transactions",
          {"date": "2026-09-22", "category": "Boshqa", "amount": 1234, "notes": "xarajat izohi",
           "production_type": "umumiy"}),
@@ -785,7 +786,7 @@ def main_ish():
     # (d) Tayyor mahsulot YO'QOTISHI (`finished_product_losses`) — `/finished`
     #     sahifasidagi yo'qotish tarixi.
     if fp_id is not None:
-        rl = c.post("/api/finished/loss", json={
+        rl = c.post("/api/finished/loss", json={"brak_sabab": "boshqa",
             "finished_product_id": fp_id, "quantity": 1, "reason": "yo'qotish sababi"})
         check(f"fikstura: tayyor mahsulot yo'qotishi → {rl.status_code}",
               200 <= rl.status_code < 300, rl.text[:300])

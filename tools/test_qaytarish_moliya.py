@@ -595,7 +595,7 @@ def yozuv(rid):
 
 def qaytar(oid, iid, miqdor, sabab, to_stock=True, birlik="m"):
     r = req(C, "post", "/api/returns", json={"order_id": oid, "order_item_id": iid, "item_name": "x", "quantity": miqdor,
-                                             "unit": birlik, "reason": sabab, "refund_amount": 0, "to_stock": to_stock})
+                                             "unit": birlik, "reason": sabab, **({"brak_sabab": "boshqa"} if sabab == "Brak" else {}), "refund_amount": 0, "to_stock": to_stock})
     d = js(r) or {}
     return r.status_code, (d.get("id") if isinstance(d, dict) else None)
 

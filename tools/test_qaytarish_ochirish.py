@@ -214,7 +214,7 @@ def detal_nomi(iid):
 
 def qaytar(oid, iid, miqdor, sabab="Ortiqcha", b=False, **kw):
     t = {"order_id": oid, "order_item_id": iid, "item_name": detal_nomi(iid),
-         "quantity": miqdor, "unit": "metr", "reason": sabab}
+         "quantity": miqdor, "unit": "metr", "reason": sabab, **({"brak_sabab": "boshqa"} if sabab == "Brak" else {})}
     t.update(kw)
     r = req(CB if b else C, "post", "/api/returns", json=t)
     rid = (js(r) or {}).get("id") if (r.status_code == 200 and isinstance(js(r), dict)) else None

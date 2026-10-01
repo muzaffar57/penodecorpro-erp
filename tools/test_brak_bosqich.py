@@ -217,7 +217,7 @@ def detal(oid):
 def brak_tana(oid, miqdor=10, qoplama=False, **qoshimcha):
     iid, nom = detal(oid)
     t = {"order_id": oid, "order_item_id": iid, "item_name": nom, "quantity": miqdor, "unit": "metr",
-         "reason": "Brak", "refund_amount": 0, "to_stock": False, "coating_applied": bool(qoplama)}
+         "brak_sabab": "boshqa", "reason": "Brak", "refund_amount": 0, "to_stock": False, "coating_applied": bool(qoplama)}
     t.update(qoshimcha)
     return t
 
@@ -425,7 +425,7 @@ for _sabab in ("Ortiqcha", "Notog'ri o'lcham", "Mijoz iltimosi"):
           _x.status_code == 400 and "Brak" in str((js(_x) or {}).get("detail")) and holat() == h0,
           (_x.status_code, _x.text[:200]))
 _t = brak_tana(Oe, miqdor=1)
-_t.update({"reason": "Ortiqcha", "to_stock": False})
+_t.update({"reason": "Ortiqcha", "to_stock": False, "brak_sabab": None})
 _x = req(C, "post", "/api/returns", json=_t)
 check("B7b boshqa sabab BOSQICHSIZ — avvalgidek 200, bosqich NULL",
       _x.status_code == 200 and bosqich_q((js(_x) or {}).get("id")) is None, (_x.status_code, _x.text[:200]))
@@ -482,8 +482,8 @@ check("B10 B korxonasi A ning bosqichli yozuvlarini ko'rmaydi",
 # ══════════════════════════════════════════════════════════════
 section("C — tayyor mahsulot: kamaytirish va ishlab chiqarish braki")
 F1, F2 = fp_yarat("BQ tayyor 1"), fp_yarat("BQ tayyor 2")
-r1 = req(C, "post", "/api/finished/loss", json={"finished_product_id": F1, "quantity": 5, "reason": "tashishda sindi"})
-r2 = req(C, "post", "/api/finished/loss", json={"finished_product_id": F2, "quantity": 5, "reason": "tashishda sindi",
+r1 = req(C, "post", "/api/finished/loss", json={"brak_sabab": "boshqa", "finished_product_id": F1, "quantity": 5, "reason": "tashishda sindi"})
+r2 = req(C, "post", "/api/finished/loss", json={"brak_sabab": "boshqa", "finished_product_id": F2, "quantity": 5, "reason": "tashishda sindi",
                                                  "brak_bosqich": "saqlash_tashish"})
 y1, y2 = yoqotishlar(F1), yoqotishlar(F2)
 check("C1 kamaytirish: bosqichsiz va 'saqlash_tashish' — ikkalasi 200",
@@ -495,7 +495,7 @@ check("C1c mahsulot qoldig'i va tan narxi AYNAN kamaydi", fp_holat(F1) == fp_hol
       (fp_holat(F1), fp_holat(F2)))
 for _nomi, _qiy in (("noma'lum", "sinish"), ("son", 1)):
     h0, f0 = holat(), fp_holat(F1)
-    _x = req(C, "post", "/api/finished/loss", json={"finished_product_id": F1, "quantity": 5, "brak_bosqich": _qiy})
+    _x = req(C, "post", "/api/finished/loss", json={"brak_sabab": "boshqa", "finished_product_id": F1, "quantity": 5, "brak_bosqich": _qiy})
     _m = ((js(_x) or {}).get("detail") or {})
     check(f"C2 kamaytirish {_nomi} bosqich → 400 (xabar), qoldiq va yozuvlar o'zgarmadi",
           _x.status_code == 400 and "brak_bosqich" in str(_m.get("message") if isinstance(_m, dict) else _m)
@@ -503,9 +503,9 @@ for _nomi, _qiy in (("noma'lum", "sinish"), ("son", 1)):
 
 F3, F4 = fp_yarat("BQ jarayon 1", tayyor=False), fp_yarat("BQ jarayon 2", tayyor=False)
 s0 = stoklar()
-p3 = req(C, "post", "/api/finished/production-brak", json={"finished_product_id": F3, "brak_qty": 4})
+p3 = req(C, "post", "/api/finished/production-brak", json={"brak_sabab": "boshqa", "finished_product_id": F3, "brak_qty": 4})
 s1 = stoklar()
-p4 = req(C, "post", "/api/finished/production-brak", json={"finished_product_id": F4, "brak_qty": 4,
+p4 = req(C, "post", "/api/finished/production-brak", json={"brak_sabab": "boshqa", "finished_product_id": F4, "brak_qty": 4,
                                                              "brak_bosqich": "qoplash"})
 s2 = stoklar()
 y3, y4 = yoqotishlar(F3), yoqotishlar(F4)
@@ -520,7 +520,7 @@ check("C3d javob mazmuni (tan narx) AYNAN", (js(p3) or {}).get("cost_amount") ==
       ((js(p3) or {}).get("cost_amount"), (js(p4) or {}).get("cost_amount")))
 for _nomi, _qiy in (("noma'lum", "kesib"), ("bool", False), ("ro'yxat", ["qoplash"])):
     h0 = holat()
-    _x = req(C, "post", "/api/finished/production-brak", json={"finished_product_id": F3, "brak_qty": 4,
+    _x = req(C, "post", "/api/finished/production-brak", json={"brak_sabab": "boshqa", "finished_product_id": F3, "brak_qty": 4,
                                                                  "brak_bosqich": _qiy})
     check(f"C4 ishlab chiqarish braki {_nomi} bosqich → 400, xomashyo YECHILMADI, yozuv yo'q",
           _x.status_code == 400 and holat() == h0, (_x.status_code, _x.text[:200], h0, holat()))
@@ -543,8 +543,11 @@ _sel = re.search(r'<select id="loss-stage"[^>]*>(.*?)</select>', _h, re.S)
 _opt = re.findall(r'<option value="([^"]*)">([^<]*)</option>', _sel.group(1)) if _sel else []
 check("C5 /finished \"Kamaytirish\" oynasida #loss-stage: '— Tanlanmagan —' + 4 bosqich",
       _st == 200 and _opt == [("", "— Tanlanmagan —")] + list(zip(KODLAR, YORLIQLAR)), (_st, _opt))
-_i_lm, _i_sab, _i_bos = _h.find('id="lossModal"'), _h.find('id="loss-reason"'), _h.find('id="loss-stage"')
-check("C5b tanlov \"Kamaytirish\" oynasi ichida, sababdan KEYIN", -1 < _i_lm < _i_sab < _i_bos, (_i_lm, _i_sab, _i_bos))
+# kech118 (D-1, G5-20): tartib — sabab (ro'yxat, majburiy) → bosqich → javobgar → «Izoh» (yozma, oxirida)
+_i_lm, _i_sab, _i_bos = _h.find('id="lossModal"'), _h.find('id="loss-cause"'), _h.find('id="loss-stage"')
+_i_izoh = _h.find('id="loss-reason"')
+check("C5b tanlov \"Kamaytirish\" oynasi ichida, sababdan KEYIN, «Izoh» dan OLDIN",
+      -1 < _i_lm < _i_sab < _i_bos < _i_izoh, (_i_lm, _i_sab, _i_bos, _i_izoh))
 
 # ══════════════════════════════════════════════════════════════
 # D — eski baza (ustunlarsiz) → sync_missing_columns

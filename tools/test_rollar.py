@@ -393,6 +393,10 @@ ESKI = {
 YANGI_MARSHRUTLAR = {
     "GET /rollar": "A", "GET /api/rollar": "A", "POST /api/rollar": "A", "PUT /api/rollar/{rol_id}": "A",
     "DELETE /api/rollar/{rol_id}": "A", "POST /api/rollar/{rol_id}/andoza": "A", "PUT /api/users/{user_id}/rol": "A",
+    # kech118 (D-1, G5-11): TM «Kam» chegarasi — «Tayyor mahsulotlar: Tahrirlash» (PUT /api/finished/{fp_id} bilan bir xil)
+    "PUT /api/finished/{fp_id}/kam-chegara": "AWM",
+    # kech118 (D-1, G6-21): hodim panelidagi «Oyligim» — faqat hodim (PIN) sessiyasi
+    "GET /api/hodim/oylik": "EMP",
 }
 # ATAYLAB o'zgarishlar (rol, marshrut) → yangi holat (True — ochiq). Sababi: tayyor rollar sahifa bo'yicha izchil.
 FARQLAR = {
@@ -583,12 +587,15 @@ check(f"H3 HTTP: hamma qorovulli marshrut × 5 eski rol ({_soni} so'rov) — rad
 _bosh = {h: (lambda x: (x.status_code, x.headers.get("location")))(KL[h].get("/", follow_redirects=False)) for h in "AMFWU"}
 check("H4 bosh sahifa: Admin, Moliyachi — 200; Menejer, Usta → /orders; Omborchi → /inventory (eskisidek)",
       _bosh == {"A": (200, None), "F": (200, None), "M": (302, "/orders"), "U": (302, "/orders"), "W": (302, "/inventory")}, _bosh)
+# kech118 (D-1, G4-19 — egasi QARORI «Taklif qilingan lug'at»): «Kirim qilish» (/suppliers/receive) yonida «Ta'minotchilar»
+# (/suppliers, «Ta'minotchilar: Ko'rish» ruxsati bilan) — ATAYLAB yangi band (ro'yxat sahifasi ilgari faqat Kirim sahifasidagi
+# kichik tugmadan ochilardi; ruxsat o'zgarmagan)
 MENYU_KUT = {
-    "A": ["/", "/dashboard", "/projects", "/orders", "/inventory", "/suppliers/receive", "/recipes", "/production", "/finished",
-          "/returns", "/debts", "/finance", "/kpi", "/reports", "/users", "/rollar", "/trash", "/logs"],
+    "A": ["/", "/dashboard", "/projects", "/orders", "/inventory", "/suppliers/receive", "/suppliers", "/recipes", "/production",
+          "/finished", "/returns", "/debts", "/finance", "/kpi", "/reports", "/users", "/rollar", "/trash", "/logs"],
     "M": ["/projects", "/orders", "/inventory", "/finished", "/kunlik-xarajat", "/returns", "/ustalar"],
     "F": ["/", "/dashboard", "/projects", "/debts", "/finance", "/kpi", "/reports"],
-    "W": ["/inventory", "/suppliers/receive", "/recipes", "/production", "/finished", "/returns"],
+    "W": ["/inventory", "/suppliers/receive", "/suppliers", "/recipes", "/production", "/finished", "/returns"],
     "U": ["/orders"],
 }
 _sah = {"A": "/finance", "M": "/orders", "F": "/finance", "W": "/inventory", "U": "/orders"}
@@ -597,7 +604,7 @@ for h in "AMFWU":
     _t = KL[h].get(_sah[h]).text
     _nav = _t[_t.find('<nav class="s-nav">'):_t.find("</nav>", _t.find('<nav class="s-nav">'))]
     _menyu[h] = re.findall(r'<a href="([^"]+)" class="nav-item', _nav)
-check("H5 menyu havolalari — eski ro'yxat bilan AYNAN (Admin — yangi «Rollar va ruxsatlar»)", _menyu == MENYU_KUT,
+check("H5 menyu havolalari — eski ro'yxat bilan AYNAN (Admin — yangi «Rollar va ruxsatlar»; D-1 — «Ta'minotchilar»)", _menyu == MENYU_KUT,
       {h: (sorted(set(_menyu[h]) ^ set(MENYU_KUT[h]))) for h in "AMFWU"})
 _rolnom = {h: re.search(r'<div class="u-role">([^<]*)</div>', KL[h].get(_sah[h]).text) for h in "AMFWU"}
 _rolnom = {h: (m.group(1).strip() if m else None) for h, m in _rolnom.items()}
@@ -715,8 +722,8 @@ check("R9 rol tahriri: nom va ruxsatlar — darhol (Hisobotlar ochildi, Kassa yo
 _s = SessionLocal()
 _log = _s.query(ActivityLog).filter(ActivityLog.entity_type == "rol", ActivityLog.action == "updated").order_by(ActivityLog.id.desc()).first()
 _s.close()
-check("R10 jurnal: «+ Hisobotlar: Ko'rish», «− Kassa: Ko'rish», nomi o'zgargani",
-      _log is not None and "+ Hisobotlar: Ko'rish" in _log.new_value and "− Kassa: Ko'rish" in _log.new_value
+check("R10 jurnal: «+ Hisobotlar: Ko'rish», «− Kassa + bank: Ko'rish» (kech118 G3-14 nomi), nomi o'zgargani",
+      _log is not None and "+ Hisobotlar: Ko'rish" in _log.new_value and "− Kassa + bank: Ko'rish" in _log.new_value
       and "«Sotuvchi yordamchi» → «Sotuvchi»" in _log.new_value, _log and _log.new_value)
 check("R11 foydalanuvchisi bor rol o'chirilmaydi (400, sababi bilan); tayyor rol o'chirilmaydi",
       A.delete(f"/api/rollar/{_sot.get('id')}").status_code == 400 and A.delete(f"/api/rollar/{_men['id']}").status_code == 400

@@ -326,7 +326,8 @@ try:
 finally:
     _d.close()
 rb = req(C, "post", "/api/returns", json={"order_id": Fq, "order_item_id": _iid, "item_name": _nom, "quantity": 5, "unit": "metr",
-                                          "reason": "Brak", "refund_amount": 0, "to_stock": False, "coating_applied": True})
+                                          "brak_sabab": "boshqa", "reason": "Brak", "refund_amount": 0, "to_stock": False,
+                                          "coating_applied": True})
 RID = (js(rb) or {}).get("id")
 _d = SessionLocal()
 try:

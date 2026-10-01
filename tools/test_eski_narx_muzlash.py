@@ -311,7 +311,7 @@ _d = SessionLocal()
 _o2nom = _d.query(OrderItem).filter(OrderItem.order_id == O2).first().name
 _d.close()
 r = req(C, "post", "/api/returns", json={"order_id": O2, "order_item_id": detal_id(O2), "item_name": _o2nom,
-                                          "quantity": 10, "unit": "metr", "reason": "Brak", "refund_amount": 0,
+                                          "quantity": 10, "unit": "metr", "brak_sabab": "boshqa", "reason": "Brak", "refund_amount": 0,
                                           "to_stock": False, "coating_applied": False})
 check("01 O2 brak 10 m (bog'langan brak harakati)", r.status_code == 200, f"{r.status_code} {r.text[:200]}")
 O3 = yarat([profil(100)])
@@ -319,7 +319,7 @@ _d = SessionLocal()
 _o3nom = _d.query(OrderItem).filter(OrderItem.order_id == O3).first().name
 _d.close()
 r = req(C, "post", "/api/returns", json={"order_id": O3, "order_item_id": detal_id(O3), "item_name": _o3nom,
-                                          "quantity": 10, "unit": "metr", "reason": "Brak", "refund_amount": 0,
+                                          "quantity": 10, "unit": "metr", "brak_sabab": "boshqa", "reason": "Brak", "refund_amount": 0,
                                           "to_stock": False, "coating_applied": False})
 check("02 O3 brak 10 m (keyin bog'lami olinadi — eski brak)", r.status_code == 200, f"{r.status_code} {r.text[:200]}")
 _d = SessionLocal()

@@ -315,14 +315,14 @@ section("C. POST /api/finished/loss")
 # ══════════════════════════════════════════════════════════════
 F = fp_yarat()
 L = "/api/finished/loss"
-bad("loss true", "post", L, json={"finished_product_id": F, "quantity": True})
-bad("loss Infinity", "post", L, **raw('{"finished_product_id": %d, "quantity": Infinity}' % F))
-bad("loss -1", "post", L, json={"finished_product_id": F, "quantity": -1})
-bad("loss 50 (qoldiq 10)", "post", L, json={"finished_product_id": F, "quantity": 50})
-bad("loss finished_product_id \"id\"", "post", L, json={"finished_product_id": str(F), "quantity": 1})
-bad("loss finished_product_id yo'q", "post", L, json={"quantity": 1})
-bad("loss JARAYONDAGI mahsulot", "post", L, json={"finished_product_id": F_IP, "quantity": 1})
-bad("loss B korxonaniki", "post", L, json={"finished_product_id": FB, "quantity": 1})
+bad("loss true", "post", L, json={"brak_sabab": "boshqa", "finished_product_id": F, "quantity": True})
+bad("loss Infinity", "post", L, **raw('{"brak_sabab": "boshqa", "finished_product_id": %d, "quantity": Infinity}' % F))
+bad("loss -1", "post", L, json={"brak_sabab": "boshqa", "finished_product_id": F, "quantity": -1})
+bad("loss 50 (qoldiq 10)", "post", L, json={"brak_sabab": "boshqa", "finished_product_id": F, "quantity": 50})
+bad("loss finished_product_id \"id\"", "post", L, json={"brak_sabab": "boshqa", "finished_product_id": str(F), "quantity": 1})
+bad("loss finished_product_id yo'q", "post", L, json={"brak_sabab": "boshqa", "quantity": 1})
+bad("loss JARAYONDAGI mahsulot", "post", L, json={"brak_sabab": "boshqa", "finished_product_id": F_IP, "quantity": 1})
+bad("loss B korxonaniki", "post", L, json={"brak_sabab": "boshqa", "finished_product_id": FB, "quantity": 1})
 
 # ══════════════════════════════════════════════════════════════
 section("D. POST /api/finished/sell")
@@ -398,12 +398,12 @@ bad("batch qator miqdor × narx > Numeric(12,2)", "post", B,
 section("F. POST /api/finished/production-brak")
 # ══════════════════════════════════════════════════════════════
 PB = "/api/finished/production-brak"
-bad("brak brak_qty 1e20", "post", PB, json={"finished_product_id": F, "brak_qty": 1e20})
-bad("brak brak_qty Infinity", "post", PB, **raw('{"finished_product_id": %d, "brak_qty": Infinity}' % F))
-bad("brak brak_qty true", "post", PB, json={"finished_product_id": F, "brak_qty": True})
-bad("brak brak_qty yo'q", "post", PB, json={"finished_product_id": F})
-bad("brak gips_kg_brak (endi noma'lum)", "post", PB, json={"finished_product_id": F, "brak_qty": 1, "gips_kg_brak": 5})
-bad("brak notes son", "post", PB, json={"finished_product_id": F, "brak_qty": 1, "notes": 7})
+bad("brak brak_qty 1e20", "post", PB, json={"brak_sabab": "boshqa", "finished_product_id": F, "brak_qty": 1e20})
+bad("brak brak_qty Infinity", "post", PB, **raw('{"brak_sabab": "boshqa", "finished_product_id": %d, "brak_qty": Infinity}' % F))
+bad("brak brak_qty true", "post", PB, json={"brak_sabab": "boshqa", "finished_product_id": F, "brak_qty": True})
+bad("brak brak_qty yo'q", "post", PB, json={"brak_sabab": "boshqa", "finished_product_id": F})
+bad("brak gips_kg_brak (endi noma'lum)", "post", PB, json={"brak_sabab": "boshqa", "finished_product_id": F, "brak_qty": 1, "gips_kg_brak": 5})
+bad("brak notes son", "post", PB, json={"brak_sabab": "boshqa", "finished_product_id": F, "brak_qty": 1, "notes": 7})
 
 # ══════════════════════════════════════════════════════════════
 section("G. Ildiz: crud to'g'ridan (marshrut va pydantic chetlab)")
@@ -542,13 +542,13 @@ F_IP2 = fp_yarat(ready=False)
 r = req("post", f"/api/finished/{F_IP2}/add", json={"quantity": 2})
 check(f"JARAYONDAGIga qo'shish (ishlab chiqarish amali) RUXSAT \u2192 {r.status_code}",
       r.status_code == 200 and fp_q(F_IP2) == 12, f"{r.status_code} {fp_q(F_IP2)}")
-r = req("post", L, json={"finished_product_id": F, "quantity": 1, "reason": None})
+r = req("post", L, json={"brak_sabab": "boshqa", "finished_product_id": F, "quantity": 1, "reason": None})
 check(f"UI loss 1 \u2192 {r.status_code}", r.status_code == 200 and fp_q(F) == 11, f"{r.status_code} {fp_q(F)}")
 p2 = inv_q(PENO_ID)
-r = req("post", PB, json={"finished_product_id": F, "brak_qty": 2, "notes": None})
+r = req("post", PB, json={"brak_sabab": "boshqa", "finished_product_id": F, "brak_qty": 2, "notes": None})
 check(f"UI production-brak 2 \u2192 {r.status_code}", r.status_code == 200 and inv_q(PENO_ID) < p2,
       r.text[:140])
-r = req("post", PB, json={"finished_product_id": F_IP2, "brak_qty": 1, "notes": "kesishda"})
+r = req("post", PB, json={"brak_sabab": "boshqa", "finished_product_id": F_IP2, "brak_qty": 1, "notes": "kesishda"})
 check(f"JARAYONDAGI production-brak RUXSAT \u2192 {r.status_code}", r.status_code == 200, r.text[:140])
 r = req("post", f"/api/finished/{F}/reduce", json={"quantity": 1, "reason": "singan"})
 check(f"reduce 1 \u2192 {r.status_code}", r.status_code == 200 and fp_q(F) == 10, f"{r.status_code} {fp_q(F)}")
@@ -567,7 +567,7 @@ with engine.connect() as cn:
 check(f"qaytarilgan mahsulot bazada holati: {_st} (standart)", _st == "IN_PROGRESS")
 r = req("post", S, json=sb(finished_product_id=F_RET, quantity=1))
 check(f"QAYTARILGAN mahsulot sotiladi \u2192 {r.status_code}", r.status_code == 200, r.text[:140])
-r = req("post", L, json={"finished_product_id": F_RET, "quantity": 1, "reason": "yoriq"})
+r = req("post", L, json={"brak_sabab": "boshqa", "finished_product_id": F_RET, "quantity": 1, "reason": "yoriq"})
 check(f"QAYTARILGAN mahsulot brak \u2192 {r.status_code}", r.status_code == 200, r.text[:140])
 F3, F4 = fp_yarat(), fp_yarat()
 r = req("post", B, json={"items": [it(F3, q=3), it(F4, q=2)], "buyer_name": None,

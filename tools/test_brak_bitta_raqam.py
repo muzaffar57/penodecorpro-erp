@@ -218,7 +218,7 @@ def brak_tana(oid, miqdor=10, qoplama=False, **qoshimcha):
     finally:
         d.close()
     t = {"order_id": oid, "order_item_id": iid, "item_name": nom, "quantity": miqdor, "unit": "metr",
-         "reason": "Brak", "refund_amount": 0, "to_stock": False, "coating_applied": bool(qoplama)}
+         "brak_sabab": "boshqa", "reason": "Brak", "refund_amount": 0, "to_stock": False, "coating_applied": bool(qoplama)}
     t.update(qoshimcha)
     return t
 
@@ -281,14 +281,14 @@ o2 = yarat([profil(100, qoplama=True)], recipe_id=R1_ID, loy_kg=10)
 o3 = yarat([profil(40)])
 r1 = req(C, "post", "/api/returns", json=brak_tana(o1, miqdor=5, qoplama=True, brak_bosqich="kesish"))
 r2 = req(C, "post", "/api/returns", json=brak_tana(o2, miqdor=3, qoplama=True, brak_sabab="ishchi", brak_javobgar_id=H1_ID))
-rx = req(C, "post", "/api/returns", json=dict(brak_tana(o3, miqdor=1), reason="Ortiqcha", to_stock=False,
+rx = req(C, "post", "/api/returns", json=dict(brak_tana(o3, miqdor=1), reason="Ortiqcha", brak_sabab=None, to_stock=False,
                                               coating_applied=False))
 ID1, ID2 = (js(r1) or {}).get("id"), (js(r2) or {}).get("id")
 F1 = fp_yarat("BR tayyor 1")
 F3 = fp_yarat("BR jarayon 1", tayyor=False)
-l2 = req(C, "post", "/api/finished/loss", json={"finished_product_id": F1, "quantity": 5, "reason": "tashishda sindi",
+l2 = req(C, "post", "/api/finished/loss", json={"brak_sabab": "boshqa", "finished_product_id": F1, "quantity": 5, "reason": "tashishda sindi",
                                                  "brak_bosqich": "saqlash_tashish"})
-l1 = req(C, "post", "/api/finished/production-brak", json={"finished_product_id": F3, "brak_qty": 4, "brak_bosqich": "qoplash"})
+l1 = req(C, "post", "/api/finished/production-brak", json={"brak_sabab": "boshqa", "finished_product_id": F3, "brak_qty": 4, "brak_bosqich": "qoplash"})
 check("A0 fikstura: 2 brak, 1 boshqa qaytarish, tayyor turgan yo'qotish, ishlab chiqarish braki — hammasi 200",
       [x.status_code for x in (r1, r2, rx, l2, l1)] == [200] * 5 and ID1 and ID2,
       [(x.status_code, x.text[:120]) for x in (r1, r2, rx, l2, l1)])

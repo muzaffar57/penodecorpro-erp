@@ -229,7 +229,7 @@ def detal_nomi(iid):
 
 def brak(oid, iid, miqdor, qoplama_tortilgan=False, b=False):
     t = {"order_id": oid, "order_item_id": iid, "item_name": detal_nomi(iid),
-         "quantity": miqdor, "unit": "metr", "reason": "Brak", "refund_amount": 0,
+         "quantity": miqdor, "unit": "metr", "brak_sabab": "boshqa", "reason": "Brak", "refund_amount": 0,
          "to_stock": False, "coating_applied": bool(qoplama_tortilgan)}
     r = req(CB if b else C, "post", "/api/returns", json=t)
     rid = (js(r) or {}).get("id") if (r.status_code == 200 and isinstance(js(r), dict)) else None

@@ -432,7 +432,7 @@ _di = _d.query(OrderItem).filter(OrderItem.order_id == D).first()
 _dnom = _di.name
 _d.close()
 r = req(C, "post", "/api/returns", json={"order_id": D, "order_item_id": detal_id(D), "item_name": _dnom,
-                                          "quantity": 10, "unit": "metr", "reason": "Brak", "refund_amount": 0,
+                                          "quantity": 10, "unit": "metr", "brak_sabab": "boshqa", "reason": "Brak", "refund_amount": 0,
                                           "to_stock": False, "coating_applied": False})
 _brak_id = (js(r) or {}).get("id") if r.status_code == 200 else None
 check("D1a brak 10 m yozildi (x2 narxda 0.1 blok)", _brak_id, f"{r.status_code} {r.text[:200]}")

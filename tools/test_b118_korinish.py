@@ -497,9 +497,10 @@ check("J8b2 matnRangi(c, fon) — och rangli fon ustida yanada to'q (#166534, #B
 _fin_t, _dash_t = TPL.get("finished.html", ""), TPL.get("dashboard.html", "")
 check("J8c yozuvga holat rangi `matnRangi` orqali: Tayyor mahsulotlar qoldig'i (4 joy, belgida — fon ustidagi tus), Dashboard "
       "ombor qoldig'i, qarzlar holati va majburiyatlar belgisi",
-      _fin_t.count("color:${matnRangi(stColor)}") == 2 and _fin_t.count("color:${matnRangi(stColor, 1)}") == 2
+      # kech118 (D-1, G5-11): qoldiq rangi — faqat holat ko'rinsa (chegara yozilgan / tugagan), aks holda oddiy matn rangi
+      _fin_t.count("? matnRangi(stColor) : 'var(--text)'}") == 2 and _fin_t.count("color:${matnRangi(stColor, 1)}") == 2
       and "matnRangi(st.color)" in _dash_t and "color:${matnRangi(s[2])}" in _dash_t and "color:${matnRangi(badgeColor, 1)}" in _dash_t,
-      (_fin_t.count("color:${matnRangi(stColor)}"), _fin_t.count("color:${matnRangi(stColor, 1)}"), "matnRangi(st.color)" in _dash_t))
+      (_fin_t.count("? matnRangi(stColor) : 'var(--text)'}"), _fin_t.count("color:${matnRangi(stColor, 1)}"), "matnRangi(st.color)" in _dash_t))
 
 section("J3. Sahifalar")
 _fr = g("fin", "rows") or []

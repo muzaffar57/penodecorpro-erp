@@ -88,7 +88,7 @@ function javob(status, data) {
 
 function element(qiymat) {
   return { value: qiymat, checked: false, textContent: '', innerHTML: '', style: { display: 'none' },
-           dataset: {}, disabled: false, max: '', classList: { toggle: () => {} } };
+           dataset: {}, disabled: false, max: '', classList: { toggle: () => {} }, focus: () => {} };
 }
 
 function muhit(elementlar, qs, qsa, globallar) {
@@ -144,12 +144,14 @@ function asosTana(it, qty) {
            coating_applied: true };
 }
 
-async function brakSina(bosqich) {
-  // bosqich: undefined — element YO'Q; aks holda select qiymati
+async function brakSina(bosqich, sabab) {
+  // bosqich: undefined — element YO'Q; aks holda select qiymati. kech118 (D-1, G5-20): sabab — MAJBURIY (standart
+  // 'boshqa'; null — #brak-cause YO'Q)
   const inp = ['2', '1.5'].map((v, i) => { const e = element(v); e.dataset = { idx: String(i) }; e.style = {}; return e; });
   const el = { 'brak-error': element(''), 'brak-notes': element('  izoh  '), 'brak-save-btn': element(''),
                'brakModal': element('') };
   if (bosqich !== undefined) el['brak-stage'] = element(bosqich);
+  if (sabab !== null) el['brak-cause'] = element(sabab === undefined ? 'boshqa' : sabab);
   const m = muhit(el, { 'input[name="brak-coating-applied"]:checked': { value: 'yes' } }, { '.brak-qty-inp': inp },
                   { brakItems: JSON.parse(JSON.stringify(BRAK_ITEMS)), isSavingBrak: false, brakSaqlanganBor: false });
   const kod = olib(RETURNS, 'saveBrakBatch');
@@ -161,11 +163,13 @@ async function brakBolimi() {
   bolim('returns.html — brak oynasi (#brak-stage, saveBrakBatch, showBrakModal)');
   const asos = [asosTana(BRAK_ITEMS[0], 2), asosTana(BRAK_ITEMS[1], 1.5)];
 
+  // kech118 (D-1, G5-20): sabab majburiy — tanada har doim brak_sabab (bosqichdan keyin)
+  const SAB = { brak_sabab: 'boshqa' };
   let m = await brakSina('qoplash');
-  tekshir("R1 bosqich 'qoplash' → har qatorga POST, tana = asl tana + brak_bosqich (oxirida), qolgani AYNAN",
+  tekshir("R1 bosqich 'qoplash' → har qatorga POST, tana = asl tana + brak_bosqich + brak_sabab (oxirida), qolgani AYNAN",
           !m.xato && m.sorovlar.length === 2
           && m.sorovlar.every((s, i) => s.url === '/api/returns'
-            && s.xom === JSON.stringify(Object.assign({}, asos[i], { brak_bosqich: 'qoplash' }))),
+            && s.xom === JSON.stringify(Object.assign({}, asos[i], { brak_bosqich: 'qoplash' }, SAB))),
           m.xato || qisqa(m.sorovlar.map((s) => s.xom)));
   for (const k of ['kesish', 'quritish', 'saqlash_tashish']) {
     m = await brakSina(k);
@@ -174,12 +178,14 @@ async function brakBolimi() {
             m.xato || qisqa(m.sorovlar.map((s) => s.tana)));
   }
   m = await brakSina('');
-  tekshir("R2 tanlanmagan ('') → tana AYNAN avvalgidek (brak_bosqich kaliti YO'Q)",
-          !m.xato && m.sorovlar.length === 2 && m.sorovlar.every((s, i) => s.xom === JSON.stringify(asos[i])),
+  tekshir("R2 tanlanmagan ('') → tana AYNAN avvalgidek + brak_sabab (brak_bosqich kaliti YO'Q)",
+          !m.xato && m.sorovlar.length === 2
+          && m.sorovlar.every((s, i) => s.xom === JSON.stringify(Object.assign({}, asos[i], SAB))),
           m.xato || qisqa(m.sorovlar.map((s) => s.xom)));
   m = await brakSina(undefined);
-  tekshir("R3 #brak-stage sahifada YO'Q → yiqilmaydi, tana AYNAN avvalgidek",
-          !m.xato && m.sorovlar.length === 2 && m.sorovlar.every((s, i) => s.xom === JSON.stringify(asos[i])),
+  tekshir("R3 #brak-stage sahifada YO'Q → yiqilmaydi, tana AYNAN avvalgidek + brak_sabab",
+          !m.xato && m.sorovlar.length === 2
+          && m.sorovlar.every((s, i) => s.xom === JSON.stringify(Object.assign({}, asos[i], SAB))),
           m.xato || qisqa(m.sorovlar.map((s) => s.xom)));
 
   // showBrakModal — oldingi tanlov tozalanadi
@@ -210,7 +216,8 @@ async function brakBolimi() {
 // finished.html — "Kamaytirish" oynasi
 // ══════════════════════════════════════════════════════════════
 async function lossSina(rejim, bosqich) {
-  const el = { 'loss-qty': element('4'), 'loss-reason': element('  tashishda sindi  ') };
+  // kech118 (D-1, G5-20): sabab majburiy — #loss-cause 'boshqa' tanlangan
+  const el = { 'loss-qty': element('4'), 'loss-reason': element('  tashishda sindi  '), 'loss-cause': element('boshqa') };
   if (bosqich !== undefined) el['loss-stage'] = element(bosqich);
   const m = muhit(el, {}, {}, { _lossData: { id: 55, name: 'X', quantity: 10, unit: 'metr', category: 'profil' },
                                 _lossMode: rejim });
@@ -234,24 +241,28 @@ async function lossBolimi() {
             !r.xato && JSON.stringify(r.natija) === JSON.stringify(kut), r.xato || qisqa(r.natija));
   }
 
+  // kech118 (D-1, G5-20): tanada har doim brak_sabab (bosqichdan keyin) — sabab majburiy
   const aslStock = { finished_product_id: 55, quantity: 4, reason: 'tashishda sindi' };
   const aslProd = { finished_product_id: 55, brak_qty: 4, notes: 'tashishda sindi' };
+  const SAB = { brak_sabab: 'boshqa' };
   let m = await lossSina('stock', 'saqlash_tashish');
-  tekshir("F2 kamaytirish + 'saqlash_tashish' → /api/finished/loss, tana = asl + brak_bosqich",
+  tekshir("F2 kamaytirish + 'saqlash_tashish' → /api/finished/loss, tana = asl + brak_bosqich + brak_sabab",
           !m.xato && m.sorovlar.length === 1 && m.sorovlar[0].url === '/api/finished/loss'
-          && m.sorovlar[0].xom === JSON.stringify(Object.assign({}, aslStock, { brak_bosqich: 'saqlash_tashish' })),
+          && m.sorovlar[0].xom === JSON.stringify(Object.assign({}, aslStock, { brak_bosqich: 'saqlash_tashish' }, SAB)),
           m.xato || qisqa(m.sorovlar));
   m = await lossSina('stock', '');
-  tekshir("F3 kamaytirish, tanlanmagan → tana AYNAN avvalgidek",
-          !m.xato && m.sorovlar.length === 1 && m.sorovlar[0].xom === JSON.stringify(aslStock), m.xato || qisqa(m.sorovlar));
+  tekshir("F3 kamaytirish, bosqich tanlanmagan → tana AYNAN avvalgidek + brak_sabab",
+          !m.xato && m.sorovlar.length === 1 && m.sorovlar[0].xom === JSON.stringify(Object.assign({}, aslStock, SAB)),
+          m.xato || qisqa(m.sorovlar));
   m = await lossSina('production', 'qoplash');
-  tekshir("F4 ishlab chiqarish braki + 'qoplash' → /api/finished/production-brak, tana = asl + brak_bosqich",
+  tekshir("F4 ishlab chiqarish braki + 'qoplash' → /api/finished/production-brak, tana = asl + brak_bosqich + brak_sabab",
           !m.xato && m.sorovlar.length === 1 && m.sorovlar[0].url === '/api/finished/production-brak'
-          && m.sorovlar[0].xom === JSON.stringify(Object.assign({}, aslProd, { brak_bosqich: 'qoplash' })),
+          && m.sorovlar[0].xom === JSON.stringify(Object.assign({}, aslProd, { brak_bosqich: 'qoplash' }, SAB)),
           m.xato || qisqa(m.sorovlar));
   m = await lossSina('production', undefined);
-  tekshir("F5 ishlab chiqarish braki, #loss-stage YO'Q → yiqilmaydi, tana AYNAN avvalgidek",
-          !m.xato && m.sorovlar.length === 1 && m.sorovlar[0].xom === JSON.stringify(aslProd), m.xato || qisqa(m.sorovlar));
+  tekshir("F5 ishlab chiqarish braki, #loss-stage YO'Q → yiqilmaydi, tana AYNAN avvalgidek + brak_sabab",
+          !m.xato && m.sorovlar.length === 1 && m.sorovlar[0].xom === JSON.stringify(Object.assign({}, aslProd, SAB)),
+          m.xato || qisqa(m.sorovlar));
 
   // openLossModal — oldingi tanlov tozalanadi
   const el = { 'loss-modal-sub': element(''), 'loss-stock-info': element(''), 'loss-qty': element('3'),

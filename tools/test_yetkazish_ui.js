@@ -127,7 +127,7 @@ function korinadi(html) {
 
 function element(qiymat) {
   return { value: qiymat, checked: false, textContent: '', innerHTML: '', style: { display: 'none' },
-           dataset: {}, disabled: false };
+           dataset: {}, disabled: false, focus() {} };
 }
 
 /**
@@ -379,7 +379,7 @@ async function saveDeliveryBolimi() {
   if (reloadTaymer) { try { reloadTaymer.fn(); } catch (e) { /* tekshiruvda ko'rinadi */ } }
   tekshir("S 200 (to'liq) → \"to'liq topshirildi\" xabari, 2.5 s dan keyin sahifa yangilanadi",
           !m.xato && m.soni('closeDeliveryModal') === 1 && m.xabarlar.length === 1
-          && m.xabarlar[0].t === "✅ Buyurtma to'liq topshirildi! Nakladnoy tayyor."
+          && m.xabarlar[0].t === "✅ Buyurtma to'liq topshirildi! Yuk xati tayyor."
           && !!reloadTaymer && m.reloadSoni() === 1,
           m.xato || qisqa([m.xabarlar, m.taymerlar.map((t) => t.ms)]));
 
@@ -533,7 +533,7 @@ async function submitFullBolimi() {
   tekshir("F 200 → nakladnoy, ro'yxat, yashil xabar, 2.5 s dan keyin sahifa yangilanadi",
           m.soni('openPdfSafe:/api/deliveries/92/pdf') === 1 && m.soni('loadDeliveries:55') === 1
           && m.xabarlar.length === 1 && m.xabarlar[0].tur === 'success'
-          && m.xabarlar[0].t === "✅ Buyurtma to'liq topshirildi! Nakladnoy tayyor."
+          && m.xabarlar[0].t === "✅ Buyurtma to'liq topshirildi! Yuk xati tayyor."
           && !!rt && m.reloadSoni() === 1,
           qisqa([m.hodisalar, m.xabarlar, m.taymerlar.map((t) => t.ms)]));
 
@@ -627,8 +627,9 @@ function bMuhit(o, javoblar) {
   btn.textContent = 'Saqlash';
   const modal = element('');
   modal.style = { display: 'flex' };
+  // kech118 (D-1, G5-20): brak sababi majburiy — standart 'boshqa' tanlangan (o.sabab: '' — tanlanmagan)
   const el = { 'brak-error': element(''), 'brak-notes': element(o.izoh === undefined ? '  brak izoh  ' : o.izoh),
-               'brak-save-btn': btn, 'brakModal': modal };
+               'brak-save-btn': btn, 'brakModal': modal, 'brak-cause': element(o.sabab === undefined ? 'boshqa' : o.sabab) };
   const qs = {};
   if (o.qoplama !== null) qs['input[name="brak-coating-applied"]:checked'] = { value: o.qoplama || 'yes' };
   const m = muhit({ elementlar: el, javoblar, qsa: { '.brak-qty-inp': inp }, qs,
@@ -646,7 +647,7 @@ async function bSina(o, javoblar) {
 function brakTana(it, qty, izoh, qoplama) {
   return { order_id: it.order_id, order_item_id: it.item_id, item_name: it.name, quantity: qty,
            unit: it.delivery_unit, reason: 'Brak', refund_amount: 0, to_stock: false, notes: izoh,
-           coating_applied: qoplama };
+           coating_applied: qoplama, brak_sabab: 'boshqa' };
 }
 
 async function brakBolimi() {
@@ -737,6 +738,11 @@ async function brakBolimi() {
           !m.xato && m.sorovlar.length === 0
           && m.err.textContent === "❌ Buyurtmadagi miqdordan ko'p kiritilgan — qizil maydonlarni tekshiring"
           && m.inp[0].style.borderColor === '#DC2626', m.xato || qisqa([m.sorovlar.length, m.err.textContent]));
+
+  m = await bSina({ sabab: '' }, [javob(200, { id: 1 })]);
+  tekshir("B brak sababi tanlanmagan (kech118 D-1) → so'rov yo'q, «❌ Brak sababini tanlang (ro'yxatdan)»",
+          !m.xato && m.sorovlar.length === 0 && m.err.textContent === "❌ Brak sababini tanlang (ro'yxatdan)",
+          m.xato || qisqa([m.sorovlar.length, m.err.textContent]));
 
   m = await bSina({ qiymatlar: ['', '0', ''] }, [javob(200, { id: 1 })]);
   tekshir("B miqdor kiritilmagan → so'rov yo'q, xabar",

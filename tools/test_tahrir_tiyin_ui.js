@@ -353,7 +353,8 @@ async function tolovSina(summa, qarz) {
                   document: hujjat(e), updateBatchTotal() {},
                   escapeHtml: (x) => String(x), fmt: (n) => Math.round(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ') };
     vm.createContext(ctx);
-    const yoq = yukla(ctx, SRC.finished, YORDAMCHI.concat(['openBatchSellModal']), 'finished');
+    // kech118 (D-1, G5-12): savatcha birlik yorlig'i va «Qoladi» miqdori — `unitLabel` / `fpMiqdor`
+    const yoq = yukla(ctx, SRC.finished, YORDAMCHI.concat(['unitLabel', 'fpMiqdor', 'openBatchSellModal']), 'finished');
     vm.runInContext("var _batchItems = {5: {name: 'TM', maxQty: 5, unit: 'dona', price: 1234.56}};", ctx);
     ctx.openBatchSellModal();
     tekshir('F savatcha "1 birlik narxi" maydoni "1 234.56" (asl: "1 235")',

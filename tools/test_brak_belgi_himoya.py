@@ -284,7 +284,7 @@ for _nom, _izoh in _b_holatlar:
     fid = yangi_fp()
     _m0, _l0, _s0 = moliya_brak(), liniya_peno_brak(), stats()
     r = client.post("/api/finished/loss",
-                    json={"finished_product_id": fid, "quantity": 2, "reason": _izoh})
+                    json={"brak_sabab": "boshqa", "finished_product_id": fid, "quantity": 2, "reason": _izoh})
     check(f"B[{_nom}] POST 200", r.status_code == 200, f"{r.status_code} {r.text[:150]}")
     j = r.json() if r.status_code == 200 else {}
     lid, xarajat = j.get("loss_id"), son(j.get("cost_amount"))
@@ -330,7 +330,7 @@ _c_holatlar = [
 for _nom, _izoh in _c_holatlar:
     fid = yangi_fp()
     _m0, _s0 = moliya_brak(), stats()
-    tana = {"finished_product_id": fid, "quantity": 1}
+    tana = {"brak_sabab": "boshqa", "finished_product_id": fid, "quantity": 1}
     if _izoh is not None:
         tana["reason"] = _izoh
     r = client.post("/api/finished/loss", json=tana)

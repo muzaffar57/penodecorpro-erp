@@ -334,7 +334,7 @@ def yuk(oid, iid, miqdor):
 
 def qaytar(oid, iid, nomi, miqdor, sabab="Ortiqcha", ombor=True):
     r = req(C, "post", "/api/returns", json={"order_id": oid, "order_item_id": iid, "item_name": nomi,
-                                             "quantity": miqdor, "unit": "metr", "reason": sabab,
+                                             "quantity": miqdor, "unit": "metr", "reason": sabab, **({"brak_sabab": "boshqa"} if sabab == "Brak" else {}),
                                              "refund_amount": 0, "to_stock": ombor})
     d = js(r) or {}
     rid = d.get("id") if (r.status_code == 200 and isinstance(d, dict)) else None

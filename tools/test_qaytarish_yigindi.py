@@ -211,7 +211,7 @@ def yozuvlar(oid):
 
 def qaytar(oid, iid, miqdor, sabab="Ortiqcha", nom=None, **kw):
     t = {"order_id": oid, "item_name": nom if nom is not None else detal_nomi(iid),
-         "quantity": miqdor, "unit": "metr", "reason": sabab}
+         "quantity": miqdor, "unit": "metr", "reason": sabab, **({"brak_sabab": "boshqa"} if sabab == "Brak" else {})}
     if iid is not None:
         t["order_item_id"] = iid
     t.update(kw)

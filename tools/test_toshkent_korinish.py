@@ -435,7 +435,7 @@ _r2 = req(C, "post", "/api/finished/sell-batch", json={"items": [{"finished_prod
 ID["SALE"] = (js(_r1) or {}).get("sale_id") if isinstance(js(_r1), dict) else None
 ID["GROUP"] = (js(_r2) or {}).get("sale_group_id") if isinstance(js(_r2), dict) else None
 _rr = req(C, "post", "/api/returns", json={"order_id": ID["O1"], "order_item_id": ID["IT1"], "item_name": "TK detal A",
-                                           "quantity": 1, "unit": "metr", "reason": "Brak", "to_stock": False})
+                                           "quantity": 1, "unit": "metr", "brak_sabab": "boshqa", "reason": "Brak", "to_stock": False})
 ID["RET"] = (js(_rr) or {}).get("id") if isinstance(js(_rr), dict) else None
 _re = req(C, "post", "/api/employees", json={"name": "TK Hodim", "pay_type": "fixed", "fixed_amount": 3_000_000})
 ID["EMP"] = (js(_re) or {}).get("id") if isinstance(js(_re), dict) else None

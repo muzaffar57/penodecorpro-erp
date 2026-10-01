@@ -278,7 +278,7 @@ def ishlab(oid, iid, miqdor, bom=None, qop=False, tugat=True):
 
 def brak(oid, iid, nomi, miqdor, qop, klient=None, **k):
     t = {"order_id": oid, "order_item_id": iid, "item_name": nomi, "quantity": miqdor, "unit": "metr",
-         "reason": "Brak", "refund_amount": 0, "to_stock": False, "coating_applied": bool(qop)}
+         "brak_sabab": "boshqa", "reason": "Brak", "refund_amount": 0, "to_stock": False, "coating_applied": bool(qop)}
     t.update(k)
     r = req(klient or C, "post", "/api/returns", json=t)
     d = js(r)

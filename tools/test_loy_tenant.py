@@ -213,7 +213,7 @@ probe("POST /api/finished/{id}/add (+10 metr)",
 
 probe("POST /api/finished/production-brak (5 birlik)",
       lambda: B.post("/api/finished/production-brak",
-                     json={"finished_product_id": B_FPS[1].id,
+                     json={"brak_sabab": "boshqa", "finished_product_id": B_FPS[1].id,
                            "brak_qty": 5}))
 
 probe("POST /api/finished/produce (loy 20 kg, retseptsiz)",

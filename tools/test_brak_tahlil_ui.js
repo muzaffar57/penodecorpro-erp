@@ -99,7 +99,7 @@ function javob(status, data) {
 
 function element(qiymat) {
   return { value: qiymat, checked: false, textContent: '', innerHTML: '', style: { display: 'none' },
-           dataset: {}, disabled: false, max: '', classList: { toggle: () => {} } };
+           dataset: {}, disabled: false, max: '', classList: { toggle: () => {} }, focus: () => {} };
 }
 
 function muhit(elementlar, qs, qsa, globallar) {
@@ -184,16 +184,24 @@ async function brakBolimi() {
     m = await brakSina('', k, '');
     tekshir(`R2 faqat sabab '${k}' → asl + brak_sabab`, teng(m, { brak_sabab: k }), m.xato || qisqa(m.sorovlar.map((s) => s.xom)));
   }
-  m = await brakSina('', '', '12');
-  tekshir("R3 faqat javobgar '12' → asl + brak_javobgar_id 12 (butun son)", teng(m, { brak_javobgar_id: 12 }),
-          m.xato || qisqa(m.sorovlar.map((s) => s.xom)));
+  // kech118 (D-1, G5-20 — egasi QARORI «Ha, majburiy»): sabab tanlanmasa — so'rov YUBORILMAYDI
+  m = await brakSina('', 'boshqa', '12');
+  tekshir("R3 sabab + javobgar '12' → asl + brak_sabab + brak_javobgar_id 12 (butun son)",
+          teng(m, { brak_sabab: 'boshqa', brak_javobgar_id: 12 }), m.xato || qisqa(m.sorovlar.map((s) => s.xom)));
   for (const [nomi, j] of [["bo'sh", ''], ['son emas', 'abc'], ['0', '0'], ['manfiy', '-3']]) {
-    m = await brakSina('', '', j);
-    tekshir(`R4 javobgar ${nomi} → kalit YO'Q, tana AYNAN avvalgidek`, teng(m, {}), m.xato || qisqa(m.sorovlar.map((s) => s.xom)));
+    m = await brakSina('', 'boshqa', j);
+    tekshir(`R4 javobgar ${nomi} → kalit YO'Q, tana = asl + brak_sabab`, teng(m, { brak_sabab: 'boshqa' }),
+            m.xato || qisqa(m.sorovlar.map((s) => s.xom)));
   }
+  const _xatoMatni = (mx) => String(((mx.ctx.document.getElementById('brak-error') || {}).textContent) || '');
+  m = await brakSina('', '', '12');
+  tekshir("R4a sabab tanlanmagan (javobgar bor) → POST YO'Q, xato «Brak sababini tanlang» ko'rinadi",
+          !m.xato && m.sorovlar.length === 0 && _xatoMatni(m).includes('Brak sababini tanlang'),
+          m.xato || qisqa({ sorov: m.sorovlar.length, xato: _xatoMatni(m) }));
   m = await brakSina(undefined, undefined, undefined);
-  tekshir("R4b #brak-stage / #brak-cause / #brak-worker sahifada YO'Q → yiqilmaydi, tana AYNAN avvalgidek",
-          teng(m, {}), m.xato || qisqa(m.sorovlar.map((s) => s.xom)));
+  tekshir("R4b #brak-stage / #brak-cause / #brak-worker sahifada YO'Q → yiqilmaydi, sababsiz so'rov YUBORILMAYDI",
+          !m.xato && m.sorovlar.length === 0 && _xatoMatni(m).includes('Brak sababini tanlang'),
+          m.xato || qisqa({ sorov: m.sorovlar.length, xato: _xatoMatni(m) }));
 
   const el = { brakModal: element(''), 'brak-project': element('7'), 'brak-notes': element('eski'),
                'brak-error': element(''), brakList: element(''), 'brak-stage': element('quritish'),
@@ -211,9 +219,9 @@ async function brakBolimi() {
   tekshir("R5b showBrakModal: yangi tanlovlar YO'Q bo'lsa ham yiqilmaydi", !r.xato, r.xato);
 
   const oyna = RETURNS.slice(RETURNS.indexOf('id="brakModal"'), RETURNS.indexOf('brak-save-btn'));
-  const sel = /<select id="brak-cause">([\s\S]*?)<\/select>/.exec(oyna);
-  tekshir("R6 #brak-cause brak oynasi ichida: bo'sh variant birinchi, qolgani brak_sabablari dan (qattiq yozilmagan)",
-          !!sel && /^\s*<option value="">— Tanlanmagan —<\/option>/.test(sel[1])
+  const sel = /<select id="brak-cause"[^>]*>([\s\S]*?)<\/select>/.exec(oyna);
+  tekshir("R6 #brak-cause brak oynasi ichida: bo'sh «— Tanlang —» birinchi (kech118: majburiy), qolgani brak_sabablari dan",
+          !!sel && /^\s*<option value="">— Tanlang —<\/option>/.test(sel[1])
           && sel[1].includes('{% for k, v in (brak_sabablari or {}).items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}')
           && (sel[1].match(/<option/g) || []).length === 2,
           sel ? qisqa(sel[1]) : 'topilmadi');
@@ -281,8 +289,13 @@ async function lossBolimi() {
           && m.sorovlar[0].xom === JSON.stringify(Object.assign({}, aslProd, { brak_sabab: 'uskuna' })),
           m.xato || qisqa(m.sorovlar));
   m = await lossSina('stock', '', '', '');
-  tekshir("F3b hech narsa tanlanmagan → tana AYNAN avvalgidek",
-          !m.xato && m.sorovlar.length === 1 && m.sorovlar[0].xom === JSON.stringify(aslStock), m.xato || qisqa(m.sorovlar));
+  tekshir("F3b kech118 (D-1, G5-20): sabab tanlanmagan → so'rov YUBORILMAYDI, «Brak sababini tanlang» xabari",
+          !m.xato && m.sorovlar.length === 0 && m.xabarlar.some((x) => x.tur === 'error' && x.t.includes('Brak sababini tanlang')),
+          m.xato || qisqa({ sorov: m.sorovlar, xabar: m.xabarlar }));
+  m = await lossSina('production', '', undefined, '');
+  tekshir("F3c #loss-cause sahifada YO'Q → yiqilmaydi, sababsiz so'rov YUBORILMAYDI",
+          !m.xato && m.sorovlar.length === 0 && m.xabarlar.some((x) => x.tur === 'error'),
+          m.xato || qisqa({ sorov: m.sorovlar, xabar: m.xabarlar }));
 
   const el = { 'loss-modal-sub': element(''), 'loss-stock-info': element(''), 'loss-qty': element('3'),
                'loss-reason': element('eski'), 'loss-mode-toggle': element(''), lossModal: element(''),
@@ -297,7 +310,7 @@ async function lossBolimi() {
   const sc = /<select id="loss-cause"[^>]*>([\s\S]*?)<\/select>/.exec(oyna);
   const sw = /<select id="loss-worker"[^>]*>([\s\S]*?)<\/select>/.exec(oyna);
   tekshir("F5 #loss-cause va #loss-worker \"Kamaytirish\" oynasi ichida, variantlar lug'at / hodimlardan",
-          !!sc && !!sw && /^\s*<option value="">— Tanlanmagan —<\/option>/.test(sc[1])
+          !!sc && !!sw && /^\s*<option value="">— Tanlang —<\/option>/.test(sc[1])
           && sc[1].includes('{% for k, v in (brak_sabablari or {}).items() %}')
           && sw[1].includes('{% for h in (brak_hodimlari or []) %}<option value="{{ h.id }}">{{ h.name }}'),
           qisqa([sc && sc[1], sw && sw[1]]));
