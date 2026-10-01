@@ -17,6 +17,11 @@
   --b-shadow-hover:0 4px 8px rgba(24,27,34,.06),0 12px 28px rgba(24,27,34,.10);
   background:var(--b-bg); padding:16px; height:calc(100vh - 58px); overflow-y:auto; font-variant-numeric:tabular-nums;
 }
+/* kech118 (zip 122 — tungi rejim to'liq): sahifa o'zgaruvchilari tungi rejimda umumiy ranglarga (ish maydoni qorayadi, matn o'qiladi) */
+html[data-theme="dark"] .bi-wrap{
+  --b-bg:var(--bg); --b-card:var(--white); --b-border:var(--border); --b-primary:#D09A63; --b-primary-tint:var(--gold-tint); --b-success:#4ADE80; --b-success-tint:var(--f-f0fdf4); --b-warning:#FBBF24; --b-warning-tint:var(--f-fffbeb); --b-danger:#F87171; --b-danger-tint:var(--f-fef2f2); --b-text:var(--text); --b-text2:var(--text2); --b-text3:var(--text3);
+  --b-shadow:var(--shadow-card); --b-shadow-hover:0 4px 8px rgba(0,0,0,.4),0 12px 28px rgba(0,0,0,.35);
+}
 .bi-wrap *{box-sizing:border-box}
 .bi-section{margin-bottom:28px}
 .bi-section-title{font-size:18px;font-weight:700;color:var(--b-text);letter-spacing:-.01em;display:flex;align-items:center;gap:8px;margin-bottom:14px}
@@ -26,10 +31,10 @@
 .bi-fade{opacity:0;animation:biFade .45s ease forwards}
 
 /* ── AI Summary ── */
-.bi-summary{background:linear-gradient(135deg,#F8F2EB,#FBF7F2);border:1px solid #E8D5C0;border-radius:var(--b-radius);padding:18px 22px;margin-bottom:24px;display:flex;gap:14px;align-items:flex-start}
-.bi-summary-icon{width:38px;height:38px;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;box-shadow:var(--b-shadow)}
+.bi-summary{background:linear-gradient(135deg,var(--f-f8f2eb),var(--f-fbf7f2));border:1px solid var(--ch-e8d5c0);border-radius:var(--b-radius);padding:18px 22px;margin-bottom:24px;display:flex;gap:14px;align-items:flex-start}
+.bi-summary-icon{width:38px;height:38px;border-radius:10px;background:var(--white);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;box-shadow:var(--b-shadow)}
 .bi-summary-title{font-size:13px;font-weight:700;color:var(--gold-dark);margin-bottom:6px}
-.bi-summary-list{font-size:13px;color:#374151;line-height:1.9}
+.bi-summary-list{font-size:13px;color:var(--m-374151);line-height:1.9}
 
 /* ── Business Health (1-qator) ── */
 .bi-health-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
@@ -58,12 +63,12 @@
 
 /* ── Filtr paneli (3-qator) ── */
 .bi-filterbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--b-card);border:1px solid var(--b-border);border-radius:12px;padding:10px 14px;box-shadow:var(--b-shadow)}
-.bi-filterbar select,.bi-filterbar input{height:36px;padding:0 12px;border:1px solid var(--b-border);border-radius:8px;font-size:13.5px;color:var(--b-text);outline:none;background:#fff}
+.bi-filterbar select,.bi-filterbar input{height:36px;padding:0 12px;border:1px solid var(--b-border);border-radius:8px;font-size:13.5px;color:var(--b-text);outline:none;background:var(--white)}
 .bi-filterbar select:focus,.bi-filterbar input:focus{border-color:var(--b-primary)}
 .bi-btn{height:36px;padding:0 16px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:600;transition:.12s}
-.bi-btn-ghost{background:#fff;color:var(--b-text2);border:1px solid var(--b-border)}
+.bi-btn-ghost{background:var(--white);color:var(--b-text2);border:1px solid var(--b-border)}
 .bi-btn-ghost:hover{background:var(--b-bg)}
-.bi-btn-ghost.active{background:var(--b-primary);color:#fff;border-color:var(--b-primary)}
+.bi-btn-ghost.active{background:var(--gold-btn);color:#fff;border-color:var(--gold-btn)}
 
 /* ── Grafiklar (4,5-qator) ── */
 .bi-charts-grid{display:grid;grid-template-columns:1.6fr 1fr;gap:16px}
@@ -109,7 +114,8 @@
 /* ── Jadval (11-qator) ── */
 .bi-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
 .bi-tab{padding:8px 14px;font-size:12.5px;font-weight:600;border-radius:8px;border:1px solid var(--b-border);background:var(--b-card);color:var(--b-text2);cursor:pointer;transition:.12s}
-.bi-tab.active{background:var(--b-text);color:#fff;border-color:var(--b-text)}
+.bi-tab.active{background:#222222;color:#fff;border-color:#222222}
+html[data-theme="dark"] .bi-tab.active{background:var(--f-eceae6);color:var(--m-16181f);border-color:var(--ch-eceae6)}
 .bi-tab:hover:not(.active){background:var(--b-bg)}
 .bi-table-wrap{overflow-x:auto}
 .bi-table{width:100%;border-collapse:collapse;font-size:13px}
@@ -123,7 +129,7 @@
 
 @media print{
   .sidebar,.erp-topbar,.bi-filterbar,.no-print{display:none!important}
-  body{background:#fff!important}
+  body{background:var(--white)!important}
   .erp-layout{display:block!important;height:auto!important}
   .erp-main{width:100%!important;height:auto!important;overflow:visible!important}
   .bi-wrap{margin:0;padding:0}
@@ -135,8 +141,8 @@
   .bi-tabs,
   .bi-section:not(.bi-section-table){display:none!important}
   .bi-section-table{margin:0}
-  .bi-card{box-shadow:none!important;border:1px solid #ddd!important}
-  .bi-table th,.bi-table td{border:1px solid #ddd!important}
+  .bi-card{box-shadow:none!important;border:1px solid var(--ch-dddddd)!important}
+  .bi-table th,.bi-table td{border:1px solid var(--ch-dddddd)!important}
 }
 </style>
 {% endblock %}
@@ -185,13 +191,13 @@
          pul (Pul oqimi — shu oy olingan va to'langan pul, Kassa — hozirgi qoldiq), buyurtmalar, rentabellik. -->
     <div class="bi-kpi-grid" id="kpiGrid">
       <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:var(--b-success-tint);color:var(--b-success)"><i class="ti ti-trending-up"></i></div><div class="bi-kpi-label">Daromad</div><div class="bi-kpi-value" id="kpi-daromad">—</div><div class="bi-kpi-change" id="kpi-daromad-ch"></div></div>
-      <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:#FEF3C7;color:#B45309"><i class="ti ti-package"></i></div><div class="bi-kpi-label">Tannarx</div><div class="bi-kpi-value" id="kpi-tannarx">—</div><div class="bi-kpi-change" style="color:var(--b-text3)">sotilgan mahsulot xomashyosi</div></div>
+      <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:var(--f-fef3c7);color:var(--m-b45309)"><i class="ti ti-package"></i></div><div class="bi-kpi-label">Tannarx</div><div class="bi-kpi-value" id="kpi-tannarx">—</div><div class="bi-kpi-change" style="color:var(--b-text3)">sotilgan mahsulot xomashyosi</div></div>
       <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:var(--b-danger-tint);color:var(--b-danger)"><i class="ti ti-trending-down"></i></div><div class="bi-kpi-label">Xarajat</div><div class="bi-kpi-value" id="kpi-xarajat">—</div><div class="bi-kpi-change" id="kpi-xarajat-ch"></div></div>
       <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:var(--b-primary-tint);color:var(--b-primary)"><i class="ti ti-report-money"></i></div><div class="bi-kpi-label">Sof foyda</div><div class="bi-kpi-value" id="kpi-foyda">—</div><div class="bi-kpi-change" id="kpi-foyda-ch"></div></div>
       <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:var(--b-warning-tint);color:var(--b-warning)"><i class="ti ti-arrows-exchange"></i></div><div class="bi-kpi-label">Pul oqimi</div><div class="bi-kpi-value" id="kpi-oqim">—</div><div class="bi-kpi-change" style="color:var(--b-text3)" id="kpi-oqim-sub">olingan − to'langan pul</div></div>
-      <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:#E0F2FE;color:#0369A1"><i class="ti ti-cash"></i></div><div class="bi-kpi-label">Kassa + bank</div><div class="bi-kpi-value" id="kpi-kassa">—</div><div class="bi-kpi-change" style="color:var(--b-text3)">hozirgi qoldiq (naqd, karta, bank)</div></div>
-      <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:#F3E8FF;color:#8E44AD"><i class="ti ti-clipboard-list"></i></div><div class="bi-kpi-label">Buyurtmalar</div><div class="bi-kpi-value" id="kpi-buyurtma">—</div><div class="bi-kpi-change" style="color:var(--b-text3)">shu davrda</div></div>
-      <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:#F8F2EB;color:var(--gold-dark)"><i class="ti ti-percentage"></i></div><div class="bi-kpi-label">Rentabellik</div><div class="bi-kpi-value" id="kpi-foiz">—</div><div class="bi-kpi-change" id="kpi-foiz-ch"></div></div>
+      <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:var(--f-e0f2fe);color:var(--m-0369a1)"><i class="ti ti-cash"></i></div><div class="bi-kpi-label">Kassa + bank</div><div class="bi-kpi-value" id="kpi-kassa">—</div><div class="bi-kpi-change" style="color:var(--b-text3)">hozirgi qoldiq (naqd, karta, bank)</div></div>
+      <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:var(--f-f3e8ff);color:var(--m-8e44ad)"><i class="ti ti-clipboard-list"></i></div><div class="bi-kpi-label">Buyurtmalar</div><div class="bi-kpi-value" id="kpi-buyurtma">—</div><div class="bi-kpi-change" style="color:var(--b-text3)">shu davrda</div></div>
+      <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:var(--f-f8f2eb);color:var(--gold-dark)"><i class="ti ti-percentage"></i></div><div class="bi-kpi-label">Rentabellik</div><div class="bi-kpi-value" id="kpi-foiz">—</div><div class="bi-kpi-change" id="kpi-foiz-ch"></div></div>
     </div>
     <div class="bi-kpi-tenglama" id="kpi-tenglama"></div>
   </div>
@@ -327,7 +333,7 @@
           <button class="bi-btn bi-btn-ghost" onclick="window.print()"><i class="ti ti-printer" style="vertical-align:-2px"></i> Chop etish</button>
         </div>
       </div>
-      <div id="ehsonSummaryBanner" style="display:none;padding:14px 20px;background:#F0FDF4;border-bottom:1px solid var(--b-border);font-size:13.5px;color:#166534">
+      <div id="ehsonSummaryBanner" style="display:none;padding:14px 20px;background:var(--f-f0fdf4);border-bottom:1px solid var(--b-border);font-size:13.5px;color:var(--m-166534)">
         🤲 <b>Ehson (xayriya)</b> — shu oy: <span id="ehsonSummaryVal">—</span>
       </div>
       <div class="bi-card-body">
@@ -612,7 +618,7 @@ async function loadCashFlowBars(){
   el.innerHTML = `
     <div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13px;color:var(--b-text2);font-weight:600">Kirim (olingan pul)</span><span style="font-weight:700;color:var(--b-success)" id="fb-kirim-summa">${fmt(kirim)} so'm</span></div><div class="bi-flow-track"><div class="bi-flow-fill" id="fb-kirim" style="background:var(--b-success)"></div></div><div id="fb-kirim-tarkib" style="margin-top:6px">${tarkib(po.kirim_qatorlar)}</div></div>
     <div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13px;color:var(--b-text2);font-weight:600">Chiqim (to'langan pul)</span><span style="font-weight:700;color:var(--b-danger)" id="fb-chiqim-summa">${fmt(chiqim)} so'm</span></div><div class="bi-flow-track"><div class="bi-flow-fill" id="fb-chiqim" style="background:var(--b-danger)"></div></div><div id="fb-chiqim-tarkib" style="margin-top:6px">${tarkib(po.chiqim_qatorlar)}</div></div>
-    <div style="text-align:center;padding:12px;border-radius:10px;background:${balans>=0?'var(--b-primary-tint)':'var(--b-warning-tint)'}"><span style="font-size:13px;font-weight:600;color:${balans>=0?'#8F5B2A':'#92400E'}">Balans: </span><span style="font-size:16px;font-weight:800;color:${balans>=0?'#8F5B2A':'#92400E'}" id="fb-balans">${fmt(balans)} so'm</span></div>`;
+    <div style="text-align:center;padding:12px;border-radius:10px;background:${balans>=0?'var(--b-primary-tint)':'var(--b-warning-tint)'}"><span style="font-size:13px;font-weight:600;color:${balans>=0?'var(--m-8f5b2a)':'var(--m-92400e)'}">Balans: </span><span style="font-size:16px;font-weight:800;color:${balans>=0?'var(--m-8f5b2a)':'var(--m-92400e)'}" id="fb-balans">${fmt(balans)} so'm</span></div>`;
   requestAnimationFrame(()=>setTimeout(()=>{
     const k = document.getElementById('fb-kirim'), c = document.getElementById('fb-chiqim');
     if (k) k.style.width = (kirim/maxV*100)+'%';
@@ -697,7 +703,7 @@ async function loadForecast(){
         </div>
         <div class="bi-forecast-item">
           <div style="font-size:12px;color:var(--b-text3);font-weight:600;text-transform:uppercase">Taxminiy sof foyda</div>
-          <div style="font-size:22px;font-weight:800;color:${fc.forecast_foyda === null ? 'var(--b-text)' : (fc.forecast_foyda>=0?'#8E44AD':'#DC2626')};margin-top:6px">${toliqSom(fc.forecast_foyda)}</div>
+          <div style="font-size:22px;font-weight:800;color:${fc.forecast_foyda === null ? 'var(--b-text)' : (fc.forecast_foyda>=0?'var(--m-8e44ad)':'var(--m-dc2626)')};margin-top:6px">${toliqSom(fc.forecast_foyda)}</div>
           <div class="bi-forecast-bar-track"><div class="bi-forecast-bar-fill" style="width:${pct}%;background:#8E44AD"></div></div>
         </div>
         <div class="bi-forecast-item">
@@ -743,7 +749,7 @@ async function buildAiSummary(alerts){
     if (comp.daromad) lines.push(qator('Daromad', 'daromad', comp.daromad));
     if (comp.sof_foyda && comp.sof_foyda.current !== null) {   // kech118: yashirin (tannarx ruxsati yo'q) — qator yo'q
       if (Number(comp.sof_foyda.current) < 0) {
-        lines.push(`Bu oy <b style="color:#B91C1C">zarar: ${escapeHtml(fmtShort(comp.sof_foyda.current))} so'm</b>`);
+        lines.push(`Bu oy <b style="color:var(--m-b91c1c)">zarar: ${escapeHtml(fmtShort(comp.sof_foyda.current))} so'm</b>`);
       } else {
         lines.push(qator('Sof foyda', 'sof_foyda', comp.sof_foyda));
       }
@@ -893,7 +899,7 @@ async function loadReport() {
     else if (currentReport === 'top-products') await loadTopProducts();
     else if (currentReport === 'top-materials') await loadTopMaterials();
   } catch(e) {
-    document.getElementById('repBody').innerHTML = `<tr><td style="text-align:center;padding:30px;color:#DC2626">Yuklashda xato</td></tr>`;
+    document.getElementById('repBody').innerHTML = `<tr><td style="text-align:center;padding:30px;color:var(--m-dc2626)">Yuklashda xato</td></tr>`;
     console.error(e);
   }
 }
@@ -905,10 +911,11 @@ async function loadInventoryReport() {
   ]);
   // Kategoriya nomiga qarab rang tanlaymiz — faqat vizual belgi, ma'lumotning o'zi o'zgarmaydi
   const CAT_COLORS = {
-    'kimyoviy qo\'shimchalar': ['#EFF6FF','#1D4ED8'],
-    'gips': ['#F0FDF4','#16A34A'],
-    'qattiq qo\'shimchalar': ['#FFFBEB','#B45309'],
-    'penoplast': ['#FDF2F8','#DB2777'],
+    // kech118 (zip 122): fon — umumiy ranglar ro'yxatidan (tungi rejimda qorong'i tus); yozuv — matnRangi (rejimga qarab)
+    'kimyoviy qo\'shimchalar': ['var(--f-eff6ff)','#1D4ED8'],
+    'gips': ['var(--f-f0fdf4)','#16A34A'],
+    'qattiq qo\'shimchalar': ['var(--f-fffbeb)','#B45309'],
+    'penoplast': ['var(--f-fdf2f8)','#DB2777'],
   };
   function catBadge(cat) {
     if (!cat || cat === '—') return '—';
@@ -935,7 +942,7 @@ async function loadInventoryReport() {
     ["Qoldiq", i => `${stockDot(i)}${fmtQty(i.stock_quantity)} ${escapeHtml(i.unit)}`],
     ["Min. qoldiq", i => `${fmtQty(i.min_stock)} ${escapeHtml(i.unit)}`],
     ["1 birlik narxi", i => fmt(i.price_per_unit) + " so'm"],
-    ["Jami qiymat", i => `<span style="color:${(i.stock_quantity * (i.price_per_unit||0)) < 0 ? '#DC2626' : '#15803D'};font-weight:600">${fmt(i.stock_quantity * (i.price_per_unit||0))} so'm</span>`],
+    ["Jami qiymat", i => `<span style="color:${(i.stock_quantity * (i.price_per_unit||0)) < 0 ? 'var(--m-dc2626)' : 'var(--m-15803d)'};font-weight:600">${fmt(i.stock_quantity * (i.price_per_unit||0))} so'm</span>`],
   ], items);
 
   // Jami ombor qiymati — kartochka ko'rinishida, jadval ostida

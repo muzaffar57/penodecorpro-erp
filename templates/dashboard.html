@@ -13,8 +13,8 @@
 .chart-wrap{position:relative;height:220px}
 
 /* Dashboard xulosa qatorlari — Xomashyo, Tayyor mahsulot, Brak, Moliyaviy holat kartochkalari */
-.dash-info-row{display:flex;justify-content:space-between;align-items:center;padding:10px 10px;margin:0 -10px;border-bottom:1px solid #F3F1EC;font-size:13.5px}
-.dash-info-row:nth-of-type(even){background:#FAFAF8;border-radius:6px}
+.dash-info-row{display:flex;justify-content:space-between;align-items:center;padding:10px 10px;margin:0 -10px;border-bottom:1px solid var(--ch-f3f1ec);font-size:13.5px}
+.dash-info-row:nth-of-type(even){background:var(--f-fafaf8);border-radius:6px}
 .dash-info-row:last-of-type{border-bottom:none}
 .dash-info-label{color:var(--text2);font-weight:600;display:flex;align-items:center;gap:6px}
 .dash-info-val{font-weight:800;color:var(--text)}
@@ -22,9 +22,9 @@
 .dash-info-row.grand{padding:13px 10px 2px;margin-top:6px;border-top:2px solid var(--dark);border-bottom:none;background:transparent!important}
 .dash-info-row.grand .dash-info-label{font-size:14.5px;font-weight:700;color:var(--text)}
 .dash-info-row.grand .dash-info-val{font-size:19px;font-weight:800}
-.master-item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #f5f5f5}
+.master-item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--ch-f5f5f5)}
 .master-item:last-child{border-bottom:none}
-.master-rank{width:24px;height:24px;border-radius:6px;background:#f5f5f5;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:var(--text3);flex-shrink:0}
+.master-rank{width:24px;height:24px;border-radius:6px;background:var(--f-f5f5f5);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:var(--text3);flex-shrink:0}
 .master-rank.top{background:var(--gold-btn);color:#fff}
 
 /* Mobile carousel — faqat telefon kengligida ishlaydi, desktop o'zgarmaydi */
@@ -51,7 +51,7 @@
   }
 }
 #topGridDots{display:none}
-.carousel-dot{width:6px;height:6px;border-radius:50%;background:#D1D5DB;transition:all .2s}
+.carousel-dot{width:6px;height:6px;border-radius:50%;background:var(--f-d1d5db);transition:all .2s}
 .carousel-dot.active{background:var(--gold);width:16px;border-radius:3px}
 </style>
 {% endblock %}
@@ -141,7 +141,7 @@
   {% if current_user.ruxsat('moliya', 'korish') %}
   <div class="kpi-grid mb-16" style="grid-template-columns:repeat(4,1fr)" id="finGrid">
     <div class="kpi-card"><div class="kpi-val text-green" id="f-revenue">—</div><div class="kpi-label">Jami daromad</div></div>
-    <div class="kpi-card"><div class="kpi-val" style="color:#0369A1" id="f-paid">—</div><div class="kpi-label">To'langan</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:var(--m-0369a1)" id="f-paid">—</div><div class="kpi-label">To'langan</div></div>
     <div class="kpi-card"><div class="kpi-val text-gold" id="f-budget">—</div><div class="kpi-label">Jami byudjet</div></div>
     <div class="kpi-card"><div class="kpi-val text-red" id="f-debt">—</div><div class="kpi-label">Qarz</div></div>
   </div>
@@ -165,11 +165,11 @@
       <div class="kpi-label">Jami qarzdorlik</div>
     </div>
     <div class="kpi-card" style="border-left:3px solid #F59E0B">
-      <div class="kpi-val" style="color:#B45309" id="d-count">—</div>
+      <div class="kpi-val" style="color:var(--m-b45309)" id="d-count">—</div>
       <div class="kpi-label">Qarzdor buyurtmalar</div>
     </div>
     <div class="kpi-card" style="border-left:3px solid #8E44AD">
-      <div class="kpi-val" style="color:#8E44AD" id="d-overdue">—</div>
+      <div class="kpi-val" style="color:var(--m-8e44ad)" id="d-overdue">—</div>
       <div class="kpi-label">Muddati o'tgan (30+ kun)</div>
     </div>
     <div class="kpi-card" style="border-left:3px solid #22C55E">
@@ -205,7 +205,7 @@
       <h3 style="color:var(--gold-dark)"><i class="ti ti-shopping-cart"></i> Xomashyo xaridlari (bu oy)</h3>
       <span id="purch-total" style="font-size:15px;font-weight:800;color:var(--gold-dark)">—</span>
     </div>
-    <div style="padding:6px 16px;border-bottom:1px solid var(--border2);background:#FAFAF8">
+    <div style="padding:6px 16px;border-bottom:1px solid var(--border2);background:var(--f-fafaf8)">
       <div class="dash-info-row" style="padding:9px 2px;border-bottom:1px solid var(--border2)">
         <span class="dash-info-label"><i class="ti ti-truck" style="font-size:13px"></i> Transport (kirish)</span>
         <span id="tr-inbound" class="dash-info-val" style="color:var(--gold-dark)">—</span>
@@ -225,8 +225,8 @@
   <!-- YETKAZIB BERUVCHI QARZI -->
   <div class="card mb-16" style="border-left:3px solid #F59E0B;border-radius:0 12px 12px 0">
     <div class="card-head">
-      <h3 style="color:#B45309"><i class="ti ti-truck"></i> Ta'minotchilarga nasiya qarzi</h3>
-      <span id="sup-debt-total" style="font-size:16px;font-weight:800;color:#DC2626">—</span>
+      <h3 style="color:var(--m-b45309)"><i class="ti ti-truck"></i> Ta'minotchilarga nasiya qarzi</h3>
+      <span id="sup-debt-total" style="font-size:16px;font-weight:800;color:var(--m-dc2626)">—</span>
     </div>
     <div class="card-body" style="padding:10px 16px">
       <span id="sup-debt-count" style="font-size:12px;color:var(--text3)"></span>
@@ -246,11 +246,11 @@
         </div>
         <div class="dash-info-row">
           <span class="dash-info-label"><i class="ti ti-hourglass" style="font-size:13px"></i> Jarayonda (loy kutmoqda)</span>
-          <span id="fp-progress-count" class="dash-info-val" style="color:#B45309">—</span>
+          <span id="fp-progress-count" class="dash-info-val" style="color:var(--m-b45309)">—</span>
         </div>
         <div class="dash-info-row">
           <span class="dash-info-label"><i class="ti ti-recycle" style="font-size:13px"></i> Qaytgan mahsulot qiymati</span>
-          <span id="fp-returned-value" class="dash-info-val" style="color:#15803D">—</span>
+          <span id="fp-returned-value" class="dash-info-val" style="color:var(--m-15803d)">—</span>
         </div>
         <div class="dash-info-row total">
           <span>Jami ombor qiymati</span>
@@ -261,30 +261,30 @@
 
     <div class="card" style="border-left:3px solid #DC2626;border-radius:0 12px 12px 0">
       <div class="card-head">
-        <h3 style="color:#DC2626"><i class="ti ti-alert-circle"></i> Brak (bu oy)</h3>
+        <h3 style="color:var(--m-dc2626)"><i class="ti ti-alert-circle"></i> Brak (bu oy)</h3>
       </div>
       <div class="card-body">
         <div class="dash-info-row">
           <span class="dash-info-label">Brak soni (bu oy)</span>
-          <span id="brk-month-count" class="dash-info-val" style="color:#DC2626">—</span>
+          <span id="brk-month-count" class="dash-info-val" style="color:var(--m-dc2626)">—</span>
         </div>
         <div class="dash-info-row">
           <span class="dash-info-label">Brak qiymati (bu oy, xomashyo)</span>
-          <span id="brk-month-value" class="dash-info-val" style="color:#DC2626">—</span>
+          <span id="brk-month-value" class="dash-info-val" style="color:var(--m-dc2626)">—</span>
         </div>
         <div class="dash-info-row">
-          <span class="dash-info-label"><i class="ti ti-circle-check" style="color:#15803D"></i> Butun qaytgan (bu oy)</span>
-          <span id="brk-whole-count" class="dash-info-val" style="color:#15803D">—</span>
+          <span class="dash-info-label"><i class="ti ti-circle-check" style="color:var(--m-15803d)"></i> Butun qaytgan (bu oy)</span>
+          <span id="brk-whole-count" class="dash-info-val" style="color:var(--m-15803d)">—</span>
         </div>
         <!-- kech56 (13-band, 7-qadam): brak ulushi (Moliya bilan bir manba) va me'yor -->
         <div class="dash-info-row">
           <span class="dash-info-label">Brak ulushi (bu oy, me'yor <span id="brk-meyor">—</span>)</span>
           <span id="brk-foiz" class="dash-info-val">—</span>
         </div>
-        <div id="brk-ogohlantirish" style="display:none;background:#FEE2E2;color:#991B1B;border-radius:8px;padding:8px 10px;margin:6px 0;font-size:12.5px;font-weight:700"></div>
+        <div id="brk-ogohlantirish" style="display:none;background:var(--f-fee2e2);color:var(--m-991b1b);border-radius:8px;padding:8px 10px;margin:6px 0;font-size:12.5px;font-weight:700"></div>
         <div class="dash-info-row total">
           <span>Jami brak (barcha vaqt)</span>
-          <span id="brk-total-value" style="color:#DC2626">—</span>
+          <span id="brk-total-value" style="color:var(--m-dc2626)">—</span>
         </div>
       </div>
     </div>
@@ -293,13 +293,13 @@
   <!-- BU OY MOLIYAVIY HOLAT -->
   <div class="card mb-16" style="border-left:3px solid #8E44AD;border-radius:0 12px 12px 0">
     <div class="card-head">
-      <h3 style="color:#8E44AD"><i class="ti ti-report-money"></i> Bu oy moliyaviy holat</h3>
+      <h3 style="color:var(--m-8e44ad)"><i class="ti ti-report-money"></i> Bu oy moliyaviy holat</h3>
       <span id="mf-period" style="font-size:13px;color:var(--text3)"></span>
     </div>
     <div class="card-body">
       <div class="dash-info-row">
         <span class="dash-info-label">Daromad</span>
-        <span id="mf-daromad" class="dash-info-val" style="color:#15803D">—</span>
+        <span id="mf-daromad" class="dash-info-val" style="color:var(--m-15803d)">—</span>
       </div>
       <div style="border-top:1px dashed var(--border);margin:2px 0"></div>
 
@@ -307,7 +307,7 @@
 
       <div class="dash-info-row total">
         <span>Jami xarajat</span>
-        <span id="mf-jami-xarajat" style="color:#DC2626">—</span>
+        <span id="mf-jami-xarajat" style="color:var(--m-dc2626)">—</span>
       </div>
       <div class="dash-info-row grand">
         <span>SOF FOYDA</span>
@@ -324,11 +324,11 @@
       <div class="kpi-label">To'liq topshirilgan</div>
     </div>
     <div class="kpi-card" style="border-left:3px solid #F59E0B">
-      <div class="kpi-val" style="color:#B45309" id="dl-partial">—</div>
+      <div class="kpi-val" style="color:var(--m-b45309)" id="dl-partial">—</div>
       <div class="kpi-label">Qisman topshirilgan</div>
     </div>
-    <div class="kpi-card" style="border-left:3px solid #BDC3C7">
-      <div class="kpi-val" style="color:#7F8C8D" id="dl-none">—</div>
+    <div class="kpi-card" style="border-left:3px solid var(--ch-bdc3c7)">
+      <div class="kpi-val" style="color:var(--m-7f8c8d)" id="dl-none">—</div>
       <div class="kpi-label">Topshirilmagan</div>
     </div>
   </div>
@@ -336,7 +336,7 @@
   <!-- QISMAN TOPSHIRILGANLAR -->
   <div class="card mb-16" style="border-left:3px solid #F59E0B;border-radius:0 12px 12px 0" id="partialCard">
     <div class="card-head">
-      <h3 style="color:#d35400"><i class="ti ti-package"></i> Qisman topshirilgan buyurtmalar</h3>
+      <h3 style="color:var(--m-d35400)"><i class="ti ti-package"></i> Qisman topshirilgan buyurtmalar</h3>
       <span style="font-size:13px;color:var(--text3)" id="partial-label">—</span>
     </div>
     <div class="card-body" style="padding:0">
@@ -349,7 +349,7 @@
   <!-- QARZDOR BUYURTMALAR -->
   <div class="card mb-16" style="border-left:3px solid #DC2626;border-radius:0 12px 12px 0">
     <div class="card-head">
-      <h3 style="color:#DC2626"><i class="ti ti-credit-card"></i> Qarzdor buyurtmalar</h3>
+      <h3 style="color:var(--m-dc2626)"><i class="ti ti-credit-card"></i> Qarzdor buyurtmalar</h3>
       <span style="font-size:13px;color:var(--text3)" id="debt-count-label">—</span>
     </div>
     <div class="card-body" style="padding:0">
@@ -393,13 +393,13 @@
 
 <!-- ══ XODIM AVANS SO'ROVLARINI TASDIQLASH ══ -->
 <div id="advReqModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.55);z-index:2000;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px)">
-  <div style="background:#fff;border-radius:16px;width:460px;max-width:100%;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.25)">
-    <div style="padding:20px 22px 14px;border-bottom:1px solid #f0f0f0">
-      <div style="font-size:16px;font-weight:700;color:#111">💰 Xodimlar yozgan avans so'rovlari</div>
+  <div style="background:var(--white);border-radius:16px;width:460px;max-width:100%;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.25)">
+    <div style="padding:20px 22px 14px;border-bottom:1px solid var(--ch-f0f0f0)">
+      <div style="font-size:16px;font-weight:700;color:var(--m-111111)">💰 Xodimlar yozgan avans so'rovlari</div>
       <div style="font-size:13px;color:var(--text3);margin-top:4px">Rostdan ham shu summani berganingizni tasdiqlang</div>
     </div>
     <div id="advReqList" style="padding:14px 22px;overflow-y:auto;flex:1"></div>
-    <div style="padding:14px 22px;border-top:1px solid #f0f0f0">
+    <div style="padding:14px 22px;border-top:1px solid var(--ch-f0f0f0)">
       <button data-yopish class="btn btn-outline w-full" onclick="document.getElementById('advReqModal').style.display='none'">Keyinroq ko'raman</button>
     </div>
   </div>
@@ -530,9 +530,9 @@ async function loadCashFlow(){
     const chiqimJami = Number(d.chiqim) || 0;
     const balans = Number(d.balans) || 0;
     document.getElementById('cashFlow').innerHTML = `
-      <div style="display:flex;justify-content:space-between;padding:6px 0"><span style="font-size:12px;color:#166534">Kirim (olingan pul)</span><span style="font-weight:600;color:#166534" id="cf-kirim">${fmt(kirim)}</span></div>
-      <div style="display:flex;justify-content:space-between;padding:6px 0"><span style="font-size:12px;color:#991B1B">Chiqim (to'langan pul)</span><span style="font-weight:600;color:#991B1B" id="cf-chiqim">${fmt(chiqimJami)}</span></div>
-      <div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--border2);margin-top:4px"><span style="font-size:12px;font-weight:600">Balans</span><span style="font-weight:700;color:${balans>=0?'#8F5B2A':'#DC2626'}" id="cf-balans">${fmt(balans)}</span></div>`;
+      <div style="display:flex;justify-content:space-between;padding:6px 0"><span style="font-size:12px;color:var(--m-166534)">Kirim (olingan pul)</span><span style="font-weight:600;color:var(--m-166534)" id="cf-kirim">${fmt(kirim)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0"><span style="font-size:12px;color:var(--m-991b1b)">Chiqim (to'langan pul)</span><span style="font-weight:600;color:var(--m-991b1b)" id="cf-chiqim">${fmt(chiqimJami)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--border2);margin-top:4px"><span style="font-size:12px;font-weight:600">Balans</span><span style="font-weight:700;color:${balans>=0?'var(--m-8f5b2a)':'var(--m-dc2626)'}" id="cf-balans">${fmt(balans)}</span></div>`;
   }catch(e){
     document.getElementById('cashFlow').innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3);font-size:12px">Ma\'lumot yo\'q</div>';
   }
@@ -560,7 +560,7 @@ function buildWarnList(lowStockItems){
   const el=document.getElementById('warnList');
   const items=(lowStockItems||[]).slice(0,4);
   if(!items.length){
-    el.innerHTML='<div style="text-align:center;padding:12px;color:#15803D;font-size:12px;font-weight:500">✓ Ombor holati yaxshi</div>';
+    el.innerHTML='<div style="text-align:center;padding:12px;color:var(--m-15803d);font-size:12px;font-weight:500">✓ Ombor holati yaxshi</div>';
     return;
   }
   el.innerHTML=items.map(item=>`
@@ -606,7 +606,7 @@ async function loadBrakFoiz(){
     const el = document.getElementById('brk-foiz');
     if (el) {
       el.textContent = foizMatn(d.brak_foizi);
-      el.style.color = d.meyordan_oshdi ? '#DC2626' : '#15803D';
+      el.style.color = d.meyordan_oshdi ? 'var(--m-dc2626)' : 'var(--m-15803d)';
     }
     const og = document.getElementById('brk-ogohlantirish');
     if (og) {
@@ -670,7 +670,7 @@ async function loadMonthlyFinance(){
     const sofFoyda = d.sof_foyda === null ? null : (d.sof_foyda||0);
     const sf = document.getElementById('mf-sof-foyda');
     sf.textContent = somYoq(sofFoyda, fmt);
-    sf.style.color = sofFoyda === null ? 'var(--text2)' : (sofFoyda >= 0 ? '#8E44AD' : '#DC2626');
+    sf.style.color = sofFoyda === null ? 'var(--text2)' : (sofFoyda >= 0 ? 'var(--m-8e44ad)' : 'var(--m-dc2626)');
     document.getElementById('mf-foiz').textContent = d.foyda_foiz === null ? '—' : foizKor(d.foyda_foiz||0) + " foyda";   // kech118 (U-05)
   }catch(e){console.error('Oylik moliya:',e);}
 }
@@ -713,13 +713,13 @@ async function loadPurchaseStats(){
       const rows = g.items.map(m=>{
         const pct = maxTotal>0 ? (m.total/maxTotal*100) : 0;
         return `
-        <div style="padding:8px 16px;border-bottom:1px solid #f5f5f5">
+        <div style="padding:8px 16px;border-bottom:1px solid var(--ch-f5f5f5)">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
-            <span style="font-size:13px;font-weight:600;color:#1a1a1a">${escapeHtml(m.name)}</span>
+            <span style="font-size:13px;font-weight:600;color:var(--m-1a1a1a)">${escapeHtml(m.name)}</span>
             <span style="font-size:13px;font-weight:700;color:var(--gold-dark)">${fmt(m.total)} so'm</span>
           </div>
           <div style="display:flex;align-items:center;gap:8px">
-            <div style="flex:1;height:5px;background:#f0f0f0;border-radius:3px;overflow:hidden">
+            <div style="flex:1;height:5px;background:var(--f-f0f0f0);border-radius:3px;overflow:hidden">
               <div style="height:100%;width:${pct}%;background:#B9783F;border-radius:3px"></div>
             </div>
             <span style="font-size:12.5px;color:var(--text3);white-space:nowrap">${m.quantity}${m.unit ? ' ' + escapeHtml(m.unit) : ''} · ~${fmt(m.avg_price)}/${escapeHtml(m.unit || 'dona')}</span>
@@ -727,7 +727,7 @@ async function loadPurchaseStats(){
         </div>`;
       }).join('');
       return `
-        <div style="padding:6px 16px;background:#FAFAF8;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between">
+        <div style="padding:6px 16px;background:var(--f-fafaf8);border-bottom:1px solid var(--ch-f0f0f0);display:flex;justify-content:space-between">
           <span style="font-size:13.5px;font-weight:700;color:var(--gold-dark)">${catIcons[cat]||'📦'} ${escapeHtml(cat)}</span>
           <span style="font-size:13.5px;font-weight:700;color:var(--gold-dark)">${fmt(g.total)} so'm</span>
         </div>
@@ -752,20 +752,20 @@ async function loadDeliveryStats(){
     }
     card.style.display = '';
     el.innerHTML = d.partial_orders.map(o=>`
-      <div style="display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid #f5f5f5">
+      <div style="display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid var(--ch-f5f5f5)">
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:6px">
-            <span style="font-size:13px;font-weight:600;color:#1a1a1a">${o.order_number}</span>
-            <span style="font-size:12px;background:#FEF3C7;color:#92400E;padding:2px 6px;border-radius:8px;font-weight:600">${o.items_pending} ta detal qoldi</span>
+            <span style="font-size:13px;font-weight:600;color:var(--m-1a1a1a)">${o.order_number}</span>
+            <span style="font-size:12px;background:var(--f-fef3c7);color:var(--m-92400e);padding:2px 6px;border-radius:8px;font-weight:600">${o.items_pending} ta detal qoldi</span>
           </div>
           <div style="font-size:13px;color:var(--text3);margin-top:2px">${escapeHtml(o.client_name)}</div>
-          <div style="margin-top:5px;height:4px;background:#f0f0f0;border-radius:2px;overflow:hidden">
-            <div style="height:100%;width:${o.percent}%;background:#F59E0B;border-radius:2px"></div>
+          <div style="margin-top:5px;height:4px;background:var(--f-f0f0f0);border-radius:2px;overflow:hidden">
+            <div style="height:100%;width:${o.percent}%;background:var(--f-f59e0b);border-radius:2px"></div>
           </div>
         </div>
         <div style="text-align:right;flex-shrink:0">
-          <div style="font-size:14px;font-weight:700;color:#B45309">${o.percent}%</div>
-          ${o.debt_amount>0?`<div style="font-size:12px;color:#DC2626;margin-top:1px">qarz ${fmt(o.debt_amount)}</div>`:''}
+          <div style="font-size:14px;font-weight:700;color:var(--m-b45309)">${o.percent}%</div>
+          ${o.debt_amount>0?`<div style="font-size:12px;color:var(--m-dc2626);margin-top:1px">qarz ${fmt(o.debt_amount)}</div>`:''}
         </div>
       </div>`).join('');
   }catch(e){console.error('Yetkazish statistikasi:',e);}
@@ -786,7 +786,7 @@ async function loadDebts(){
 function buildDebtList(debts){
   const el=document.getElementById('debtList');
   if(!debts||!debts.length){
-    el.innerHTML='<div style="text-align:center;padding:24px;color:#15803D;font-weight:500">✓ Qarzdorlik yo\'q</div>';
+    el.innerHTML='<div style="text-align:center;padding:24px;color:var(--m-15803d);font-weight:500">✓ Qarzdorlik yo\'q</div>';
     return;
   }
   const ST={'unpaid':['🔴','To\'lanmagan','#DC2626'],'partial':['🟡','Qisman','#F59E0B'],'paid':['✅','To\'langan','#22C55E']};
@@ -794,21 +794,21 @@ function buildDebtList(debts){
     const s=ST[d.payment_status]||ST['unpaid'];
     const pct=d.agreed_amount>0?(d.paid_amount/d.agreed_amount*100).toFixed(0):0;
     return `
-    <div style="display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid #f5f5f5">
+    <div style="display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid var(--ch-f5f5f5)">
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;gap:6px">
-          <span style="font-size:13px;font-weight:600;color:#1a1a1a">${d.order_number}</span>
+          <span style="font-size:13px;font-weight:600;color:var(--m-1a1a1a)">${d.order_number}</span>
           <span style="font-size:12px;color:${matnRangi(s[2])};font-weight:600">${s[0]} ${s[1]}</span>
-          ${d.is_overdue?'<span style="font-size:12px;background:#FEE2E2;color:#DC2626;padding:2px 6px;border-radius:8px;font-weight:600">'+d.days_passed+' kun</span>':''}
-          ${d.is_deleted?'<span class="qarz-ochirilgan" style="font-size:12px;color:#DC2626;font-weight:600">o\'chirilgan</span>':''}
+          ${d.is_overdue?'<span style="font-size:12px;background:var(--f-fee2e2);color:var(--m-dc2626);padding:2px 6px;border-radius:8px;font-weight:600">'+d.days_passed+' kun</span>':''}
+          ${d.is_deleted?'<span class="qarz-ochirilgan" style="font-size:12px;color:var(--m-dc2626);font-weight:600">o\'chirilgan</span>':''}
         </div>
         <div style="font-size:13px;color:var(--text3);margin-top:2px">${escapeHtml(d.client_name)} · ${escapeHtml(d.project_name)}</div>
-        <div style="margin-top:5px;height:4px;background:#f0f0f0;border-radius:2px;overflow:hidden">
+        <div style="margin-top:5px;height:4px;background:var(--f-f0f0f0);border-radius:2px;overflow:hidden">
           <div style="height:100%;width:${pct}%;background:${s[2]};border-radius:2px"></div>
         </div>
       </div>
       <div style="text-align:right;flex-shrink:0">
-        <div style="font-size:13px;font-weight:700;color:#DC2626">${fmt(d.debt_amount)} so'm</div>
+        <div style="font-size:13px;font-weight:700;color:var(--m-dc2626)">${fmt(d.debt_amount)} so'm</div>
         <div style="font-size:12px;color:var(--text3);margin-top:1px">${fmt(d.paid_amount)} / ${fmt(d.agreed_amount)}</div>
       </div>
     </div>`;
@@ -875,7 +875,7 @@ function buildMasterList(masters){
     <div class="master-item">
       <div class="master-rank ${i===0?'top':''}">${i+1}</div>
       <div style="flex:1"><div style="font-size:13px;font-weight:500">${escapeHtml(m.name)}</div><div style="font-size:13px;color:var(--text3)">${m.orders} ta buyurtma</div></div>
-      <div style="font-size:13px;font-weight:600;color:#15803D">${fmt(m.total)} so'm</div>
+      <div style="font-size:13px;font-weight:600;color:var(--m-15803d)">${fmt(m.total)} so'm</div>
     </div>`).join('');
 }
 async function loadObligationsWidget(){
@@ -916,10 +916,11 @@ async function loadObligationsWidget(){
 
     const STATUS_COLOR = {overdue:'#EF4444', due_soon:'#F59E0B', partial:'#F59E0B', full:'#22C55E'};
     const STATUS_LABEL = {overdue:'Kechikkan', due_soon:'Yaqinlashmoqda', partial:'Qisman', full:"To'langan"};
-    const STATUS_BG = {overdue:'#FEF2F2', due_soon:'#FFFBEB', partial:'#FFFBEB', full:'#F0FDF4'};
+    // kech118 (zip 122): fonlar — umumiy ranglar ro'yxatidan (tungi rejimda qorong'i tus)
+    const STATUS_BG = {overdue:'var(--f-fef2f2)', due_soon:'var(--f-fffbeb)', partial:'var(--f-fffbeb)', full:'var(--f-f0fdf4)'};
     const GROUP_LABELS = {recurring: '🏛️ Doimiy majburiyatlar', employee: '👷 Hodimlar', supplier: "🚚 Ta'minotchilar"};
     const fmtN = n => Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' ');
-    const avatarColor = ['#F8F2EB', '#FFFBEB', '#F0FDF4', '#EFF6FF', '#FDF2F8'];
+    const avatarColor = ['var(--f-f8f2eb)', 'var(--f-fffbeb)', 'var(--f-f0fdf4)', 'var(--f-eff6ff)', 'var(--f-fdf2f8)'];
     const avatarText = ['#A86B36', '#B45309', '#16A34A', '#1D4ED8', '#DB2777'];
 
     let html = '';
@@ -932,7 +933,7 @@ async function loadObligationsWidget(){
         const zebra = rowIdx % 2 === 0 ? 'transparent' : 'var(--bg)';
         const badgeColor = STATUS_COLOR[it.status] || '#EF4444';
         const badgeLabel = STATUS_LABEL[it.status] || '';
-        const badgeBg = STATUS_BG[it.status] || '#FEF2F2';
+        const badgeBg = STATUS_BG[it.status] || 'var(--f-fef2f2)';
         const avatarHtml = it.group === 'employee'
           ? `<div style="width:26px;height:26px;border-radius:50%;background:${avatarColor[it.name.length % 5]};color:${matnRangi(avatarText[it.name.length % 5], 1)};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0">${(it.name||'?')[0].toUpperCase()}</div>`
           : `<div style="width:26px;height:26px;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">${escapeHtml(it.icon)}</div>`;
@@ -953,7 +954,7 @@ async function loadObligationsWidget(){
 
     const total = items.reduce((s,it)=>s+it.amount, 0);
     html += `<div style="display:flex;justify-content:space-between;padding:12px 0 0;margin-top:8px;border-top:2px solid var(--border);font-weight:700">
-      <span>Jami majburiyat</span><span style="color:#DC2626">${fmtN(total)} so'm</span></div>`;
+      <span>Jami majburiyat</span><span style="color:var(--m-dc2626)">${fmtN(total)} so'm</span></div>`;
 
     document.getElementById('obligList').innerHTML = html;
   } catch(e) { console.error(e); }
@@ -966,18 +967,18 @@ async function checkPendingAdvanceRequests(){
     const list = document.getElementById('advReqList');
     const fmt = n => Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' ');
     list.innerHTML = rows.map(r => `
-      <div id="adv-row-${r.id}" style="border:1px solid #eee;border-radius:10px;padding:14px;margin-bottom:10px">
+      <div id="adv-row-${r.id}" style="border:1px solid var(--ch-eeeeee);border-radius:10px;padding:14px;margin-bottom:10px">
         <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px">
           <div>
             <div style="font-weight:700;font-size:14.5px">${escapeHtml(r.employee_name)}</div>
             <div style="font-size:12.5px;color:var(--text3);margin-top:2px">${tkSana(r.requested_date)} kuni oldim deb yozgan</div>
           </div>
-          <div style="font-weight:800;font-size:16px;color:#B45309">${fmt(r.amount)} so'm</div>
+          <div style="font-weight:800;font-size:16px;color:var(--m-b45309)">${fmt(r.amount)} so'm</div>
         </div>
         ${r.notes ? `<div style="font-size:12.5px;color:var(--text3);margin-bottom:10px">💬 ${escapeHtml(r.notes)}</div>` : ''}
         <div style="display:flex;gap:8px">
           <button class="btn btn-dark" style="flex:1;height:38px;font-size:13px" onclick="confirmAdvReq(${r.id})">✅ Ha, berganman</button>
-          <button class="btn btn-outline" style="flex:1;height:38px;font-size:13px;color:#DC2626;border-color:#FADBD8" onclick="rejectAdvReq(${r.id})">❌ Yo'q</button>
+          <button class="btn btn-outline" style="flex:1;height:38px;font-size:13px;color:var(--m-dc2626);border-color:var(--ch-fadbd8)" onclick="rejectAdvReq(${r.id})">❌ Yo'q</button>
         </div>
       </div>`).join('');
     document.getElementById('advReqModal').style.display = 'flex';

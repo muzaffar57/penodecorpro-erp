@@ -16,7 +16,7 @@
 .prod-tabs{display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid var(--border2)}
 .prod-tab{padding:10px 16px;font-size:13px;font-weight:700;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;display:flex;align-items:center;gap:8px}
 .prod-tab.active{color:var(--gold-dark);border-bottom-color:var(--gold)}
-.prod-tab-son{font-size:12px;background:var(--gold-tint);color:#8A5526;padding:1px 7px;border-radius:999px}
+.prod-tab-son{font-size:12px;background:var(--gold-tint);color:var(--m-8a5526);padding:1px 7px;border-radius:999px}
 .prod-tab-son:empty{display:none}
 .prod-panel{display:none}
 .prod-panel.active{display:block}
@@ -28,10 +28,10 @@
 .pt-name{font-size:15px;font-weight:700;color:var(--text)}
 .pt-badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .pt-head .btn,.bom-row .btn{white-space:nowrap;flex-shrink:0}
-.pt-chip{font-size:12px;font-weight:600;padding:3px 9px;border-radius:6px;background:#F3F4F6;color:#374151}
-.pt-chip-oltin{background:var(--gold-tint);color:#8A5526}
-.pt-chip-yon{background:#EFF6FF;color:#1E40AF}
-.pt-chip-ogoh{background:#FEF2F2;color:#B91C1C}
+.pt-chip{font-size:12px;font-weight:600;padding:3px 9px;border-radius:6px;background:var(--f-f3f4f6);color:var(--m-374151)}
+.pt-chip-oltin{background:var(--gold-tint);color:var(--m-8a5526)}
+.pt-chip-yon{background:var(--f-eff6ff);color:var(--m-1e40af)}
+.pt-chip-ogoh{background:var(--f-fef2f2);color:var(--m-b91c1c)}
 .bom-row{display:flex;justify-content:space-between;align-items:center;gap:6px;padding:9px 0;border-top:1px solid var(--border2);font-size:13px}
 .bom-row:first-of-type{margin-top:10px}
 .bom-row>div:first-child{flex:1;min-width:0}
@@ -42,7 +42,7 @@
 #panel-types{container-type:inline-size;container-name:turlar}
 .pt-jadval-qobiq{background:var(--white);border:1px solid var(--border);border-radius:13px;overflow:hidden}
 .pt-jadval{width:100%;border-collapse:collapse}
-.pt-jadval th{text-align:left;font-size:12px;font-weight:700;color:var(--text2);padding:10px 14px;background:#FAF8F5;border-bottom:1px solid var(--border2);text-transform:uppercase;letter-spacing:.3px}
+.pt-jadval th{text-align:left;font-size:12px;font-weight:700;color:var(--text2);padding:10px 14px;background:var(--f-faf8f5);border-bottom:1px solid var(--border2);text-transform:uppercase;letter-spacing:.3px}
 .pt-jadval td{padding:12px 14px;border-bottom:1px solid var(--border2);font-size:13px;vertical-align:top}
 .pt-jadval tr:last-child td{border-bottom:none}
 .pt-jadval .o{text-align:right;white-space:nowrap}
@@ -51,14 +51,14 @@
 .pt-retsept{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-top:1px dashed var(--border2)}
 .pt-retsept:first-child{border-top:0;padding-top:0}
 .pt-retsept-nom{font-weight:600}
-.pt-retsept-tannarx{font-size:12.5px;color:#374151;margin-top:2px}
+.pt-retsept-tannarx{font-size:12.5px;color:var(--m-374151);margin-top:2px}
 .pt-retsept-tannarx b{color:var(--text)}
-.pt-retsept-ogoh{font-size:12px;color:#92400E;margin-top:2px}
+.pt-retsept-ogoh{font-size:12px;color:var(--m-92400e);margin-top:2px}
 .pt-retsept-amal{display:flex;gap:6px;flex-shrink:0}
 .pt-son{font-size:14px;font-weight:700}
 .pt-son.bosh{color:var(--text3);font-weight:600}
-.pt-son.band{color:#1D4ED8}
-.pt-son.jarayon{color:#92400E}
+.pt-son.band{color:var(--m-1d4ed8)}
+.pt-son.jarayon{color:var(--m-92400e)}
 .pt-amallar{display:flex;gap:6px;justify-content:flex-end}
 .pt-amallar .btn,.pt-retsept-amal .btn{white-space:nowrap}
 @container turlar (max-width:860px){
@@ -78,7 +78,7 @@
 /* ── Ro'yxat ── */
 .po-filtr{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
 .po-chiplar{display:flex;gap:6px;flex-wrap:wrap}
-.po-chip{height:34px;padding:0 12px;border:1px solid var(--border);border-radius:999px;background:var(--white);color:#374151;font-size:12.5px;font-weight:600;cursor:pointer}
+.po-chip{height:34px;padding:0 12px;border:1px solid var(--border);border-radius:999px;background:var(--white);color:var(--m-374151);font-size:12.5px;font-weight:600;cursor:pointer}
 .po-chip.faol{background:#181B22;border-color:#181B22;color:#fff}
 .po-saralash{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .po-saralash label{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text2)}
@@ -86,28 +86,28 @@
 .po-saralash input[type=search]{width:220px;max-width:100%}
 .po-jadval-qobiq{background:var(--white);border:1px solid var(--border);border-radius:13px;overflow:hidden}
 .po-table{width:100%;border-collapse:collapse}
-.po-table th{text-align:left;font-size:12px;font-weight:700;color:var(--text2);padding:10px 12px;background:#FAF8F5;border-bottom:1px solid var(--border2)}
+.po-table th{text-align:left;font-size:12px;font-weight:700;color:var(--text2);padding:10px 12px;background:var(--f-faf8f5);border-bottom:1px solid var(--border2)}
 .po-table td{padding:9px 12px;border-bottom:1px solid var(--border2);font-size:13px;vertical-align:middle}
 .po-table tr:last-child td{border-bottom:none}
 .po-table .o{text-align:right}
-.po-table tr.po-jarayon{background:#FFFBF3}
+.po-table tr.po-jarayon{background:var(--f-fffbf3)}
 .po-kul{color:var(--text2)}
 .po-kichik{font-size:12px;color:var(--text2);margin-top:2px}
 .po-no{font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--text2)}
-.po-raqam{font-weight:600;color:#8A5526}
+.po-raqam{font-weight:600;color:var(--m-8a5526)}
 .po-status{display:inline-block;font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;white-space:nowrap}
-.po-status-draft{background:#F3F4F6;color:#4B5563}
-.po-status-in_progress{background:#FEF3C7;color:#92400E}
-.po-status-completed{background:#DCFCE7;color:#166534}
-.po-status-cancelled{background:#FEE2E2;color:#991B1B}
+.po-status-draft{background:var(--f-f3f4f6);color:var(--m-4b5563)}
+.po-status-in_progress{background:var(--f-fef3c7);color:var(--m-92400e)}
+.po-status-completed{background:var(--f-dcfce7);color:var(--m-166534)}
+.po-status-cancelled{background:var(--f-fee2e2);color:var(--m-991b1b)}
 .po-tayyorlik{font-size:12px;font-weight:600;margin-top:4px}
-.po-tayyorlik.yetadi{color:#166534}
-.po-tayyorlik.yetmaydi{color:#991B1B}
-.po-tayyorlik.band_bilan_yetmaydi{color:#92400E}
+.po-tayyorlik.yetadi{color:var(--m-166534)}
+.po-tayyorlik.yetmaydi{color:var(--m-991b1b)}
+.po-tayyorlik.band_bilan_yetmaydi{color:var(--m-92400e)}
 .po-amallar{display:flex;gap:6px;justify-content:flex-end}
 .po-amallar .btn{white-space:nowrap}
 .po-uch{width:32px;padding:0;justify-content:center;font-weight:700;letter-spacing:1px}
-.po-xulosa{display:flex;gap:10px 22px;flex-wrap:wrap;font-size:12.5px;color:#4B5563;padding:10px 4px 0}
+.po-xulosa{display:flex;gap:10px 22px;flex-wrap:wrap;font-size:12.5px;color:var(--m-4b5563);padding:10px 4px 0}
 .po-mob-no,.po-mob-miq{display:none}
 .po-c-sana,.po-c-miqdor,.po-c-tannarx>div:first-child{white-space:nowrap}
 /* Ro'yxat ko'rinishi SAHIFA MAYDONI kengligiga qarab (ekranga emas): yon menyu ochiq planshetda ham jadval siqilmasin. */
@@ -126,7 +126,7 @@
   .po-table thead{display:none}
   .po-table,.po-table tbody{display:block}
   .po-table tr.po-qator{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 10px;background:var(--white);border:1px solid var(--border);border-radius:13px;padding:12px 14px;margin-bottom:10px}
-  .po-table tr.po-jarayon{background:#FFFBF3;border-color:#F1DDBA}
+  .po-table tr.po-jarayon{background:var(--f-fffbf3);border-color:var(--ch-f1ddba)}
   .po-table td{padding:0;border:0!important;min-width:0}
   .po-c-no,.po-c-miqdor{display:none}
   .po-mob-miq{display:inline}
@@ -158,9 +158,9 @@
 .mf-row>.mf-group{flex:1;min-width:0}
 .birlik-guruh{display:flex;align-items:stretch;height:40px;border:1.5px solid var(--border2);border-radius:9px;overflow:hidden;background:var(--white)}
 .birlik-guruh input{flex:1;min-width:0;height:100%!important;border:0!important;border-radius:0!important;padding:0 12px}
-.birlik-guruh span{padding:0 12px;display:flex;align-items:center;background:#FAF8F5;border-left:1px solid var(--border2);font-size:13px;font-weight:600;color:var(--text2);white-space:nowrap}
+.birlik-guruh span{padding:0 12px;display:flex;align-items:center;background:var(--f-faf8f5);border-left:1px solid var(--border2);font-size:13px;font-weight:600;color:var(--text2);white-space:nowrap}
 .segment{display:flex;height:40px;border:1.5px solid var(--border2);border-radius:9px;overflow:hidden}
-.segment button{flex:1;border:0;background:var(--white);color:#374151;font-size:13px;font-weight:600;cursor:pointer;padding:0 8px}
+.segment button{flex:1;border:0;background:var(--white);color:var(--m-374151);font-size:13px;font-weight:600;cursor:pointer;padding:0 8px}
 .segment button.faol{background:#181B22;color:#fff}
 .modal-tugmalar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:16px}
 .modal-tugmalar .izoh{font-size:12px;color:var(--text2);line-height:1.45;flex:1 1 240px}
@@ -170,53 +170,53 @@
 .mf-group label.po-opt-yorliq{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500;color:var(--text);text-transform:none;letter-spacing:0;margin:4px 0 0}
 
 .xm-quti{border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-top:4px}
-.xm-bosh{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 14px;background:#FAF8F5;border-bottom:1px solid var(--border2);font-size:12.5px;font-weight:700}
+.xm-bosh{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 14px;background:var(--f-faf8f5);border-bottom:1px solid var(--border2);font-size:12.5px;font-weight:700}
 .xm-bosh span{font-weight:500;color:var(--text2)}
 .xm-jadval{width:100%;border-collapse:collapse;font-size:13px}
 .xm-jadval th{text-align:left;font-size:12px;font-weight:700;color:var(--text2);padding:8px 14px}
 .xm-jadval td{padding:8px 14px;border-top:1px solid var(--border2);vertical-align:top}
 .xm-jadval .o{text-align:right;white-space:nowrap}
-.xm-jadval tr.qizil{background:#FEF2F2}
-.xm-jadval tr.sariq{background:#FFFBEB}
+.xm-jadval tr.qizil{background:var(--f-fef2f2)}
+.xm-jadval tr.sariq{background:var(--f-fffbeb)}
 .xm-holat{display:inline-flex;align-items:center;gap:5px;font-weight:600;white-space:nowrap}
-.xm-holat.yetadi{color:#166534}
-.xm-holat.yetmaydi,.xm-holat.topilmadi{color:#991B1B}
-.xm-holat.band_bilan_yetmaydi{color:#92400E}
+.xm-holat.yetadi{color:var(--m-166534)}
+.xm-holat.yetmaydi,.xm-holat.topilmadi{color:var(--m-991b1b)}
+.xm-holat.band_bilan_yetmaydi{color:var(--m-92400e)}
 .xm-holat.kiritilmagan{color:var(--text2);font-weight:500}
 .ogoh{display:flex;gap:12px;align-items:flex-start;border-radius:12px;padding:12px 14px;margin-top:12px;font-size:13px;line-height:1.5}
-.ogoh.qizil{background:#FEF2F2;border:1px solid #F3C7C7;color:#7F1D1D}
-.ogoh.sariq{background:#FFFBEB;border:1px solid #F5D98B;color:#78350F}
+.ogoh.qizil{background:var(--f-fef2f2);border:1px solid var(--ch-f3c7c7);color:var(--m-7f1d1d)}
+.ogoh.sariq{background:var(--f-fffbeb);border:1px solid var(--ch-f5d98b);color:var(--m-78350f)}
 .ogoh .btn{margin-top:8px}
-.tannarx-quti{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:var(--gold-tint);border-radius:12px;padding:12px 14px;margin-top:12px;color:#6B4019;font-size:13px}
+.tannarx-quti{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:var(--gold-tint);border-radius:12px;padding:12px 14px;margin-top:12px;color:var(--m-6b4019);font-size:13px}
 .tannarx-quti b{display:block;font-size:17px;color:var(--text)}
 .tannarx-quti .o{text-align:right}
 .xm-bosh-joy{padding:16px;text-align:center;color:var(--text2);font-size:13px}
 
 /* Retsept qatorlari */
 .bom-ustunlar,.bi-asosiy{display:grid;grid-template-columns:minmax(0,1.9fr) minmax(0,1fr) minmax(0,.8fr) minmax(0,.95fr) auto;gap:8px;align-items:center}
-.bom-ustunlar{padding:8px 14px;background:#FAF8F5;font-size:12px;font-weight:700;color:var(--text2)}
+.bom-ustunlar{padding:8px 14px;background:var(--f-faf8f5);font-size:12px;font-weight:700;color:var(--text2)}
 .bom-ustunlar .o{text-align:right}
 #bom-items-wrap{border:1px solid var(--border);border-radius:12px;overflow:hidden}
 .bomitem-row{padding:8px 14px;border-top:1px solid var(--border2)}
 .bomitem-row:first-child{border-top:0}
-.bomitem-row.sozlama-ochiq{background:#FFFCF7}
+.bomitem-row.sozlama-ochiq{background:var(--f-fffcf7)}
 .bomitem-row select,.bomitem-row input{height:36px;padding:0 8px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--white);color:var(--text);min-width:0;box-sizing:border-box}
 .bi-inventory{width:100%}
 .bi-guruh{display:flex;height:36px;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--white)}
 .bi-guruh input{flex:1;height:100%!important;border:0!important;border-radius:0!important}
-.bi-guruh span{padding:0 9px;display:flex;align-items:center;background:#FAF8F5;font-size:12.5px;color:var(--text2);white-space:nowrap}
+.bi-guruh span{padding:0 9px;display:flex;align-items:center;background:var(--f-faf8f5);font-size:12.5px;color:var(--text2);white-space:nowrap}
 .bi-narx{text-align:right;font-size:13px;font-weight:600;line-height:1.3}
 .bi-narx small{display:block;font-size:12px;font-weight:400;color:var(--text2)}
 .bi-amallar{display:flex;gap:6px;justify-content:flex-end}
-.bi-sozlama-tugma{height:34px;padding:0 10px;border:1px solid var(--border);border-radius:8px;background:var(--white);font-size:12px;font-weight:600;color:#374151;cursor:pointer}
-.bi-sozlama-tugma[aria-expanded="true"]{border-color:var(--gold);background:var(--gold-tint);color:#8A5526}
-.bomitem-del{width:34px;height:34px;border:1px solid #F3C7C7;border-radius:8px;background:var(--white);color:#B91C1C;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.bi-sozlama-tugma{height:34px;padding:0 10px;border:1px solid var(--border);border-radius:8px;background:var(--white);font-size:12px;font-weight:600;color:var(--m-374151);cursor:pointer}
+.bi-sozlama-tugma[aria-expanded="true"]{border-color:var(--gold);background:var(--gold-tint);color:var(--m-8a5526)}
+.bomitem-del{width:34px;height:34px;border:1px solid var(--ch-f3c7c7);border-radius:8px;background:var(--white);color:var(--m-b91c1c);cursor:pointer;display:flex;align-items:center;justify-content:center}
 .bi-chiplar{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
 .bi-chiplar:empty{display:none}
-.bi-chip{font-size:12px;font-weight:700;padding:2px 8px;border-radius:6px;background:#F3F4F6;color:#374151}
-.bi-chip.oltin{background:var(--gold-tint);color:#8A5526}
+.bi-chip{font-size:12px;font-weight:700;padding:2px 8px;border-radius:6px;background:var(--f-f3f4f6);color:var(--m-374151)}
+.bi-chip.oltin{background:var(--gold-tint);color:var(--m-8a5526)}
 .bi-unit-hint{font-size:12px;color:var(--text2);margin-top:6px}
-.bi-sozlama{margin-top:10px;padding:12px 14px;border:1px dashed #E3C9A8;border-radius:10px;background:var(--white);display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;font-size:12.5px}
+.bi-sozlama{margin-top:10px;padding:12px 14px;border:1px dashed var(--ch-e3c9a8);border-radius:10px;background:var(--white);display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;font-size:12.5px}
 .bi-sozlama[hidden]{display:none}
 .bi-sozlama fieldset{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;min-width:0}
 .bi-sozlama legend,.bi-sozlama .mf-yorliq{font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;margin-bottom:6px;padding:0}
@@ -225,12 +225,12 @@
 .bi-sozlama .qator{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .bi-sozlama .qator input{width:86px;height:32px}
 .bi-sozlama small{color:var(--text2)}
-.bom-jami{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;background:var(--gold-tint);border-radius:12px;padding:12px 16px;margin-top:12px;color:#6B4019;font-size:13px}
+.bom-jami{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;background:var(--gold-tint);border-radius:12px;padding:12px 16px;margin-top:12px;color:var(--m-6b4019);font-size:13px}
 .bom-jami .qism{display:flex;gap:24px;flex-wrap:wrap}
 .bom-jami b{display:block;font-size:15px;color:var(--text)}
 .bom-jami .o{text-align:right}
 .bom-jami .o b{font-size:18px}
-.bom-ogoh{font-size:12px;color:#92400E;margin-top:6px}
+.bom-ogoh{font-size:12px;color:var(--m-92400e);margin-top:6px}
 .bom-ogoh:empty{display:none}
 @media (max-width:760px){
   .modal-overlay{padding:0;align-items:flex-end}
@@ -260,10 +260,10 @@
 
 /* Batafsil / Boshlash / Yakunlash oynasi */
 .vaqt-chizig{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:4px 0 14px}
-.vaqt-karta{background:#FAF8F5;border:1px solid var(--border2);border-radius:12px;padding:10px 12px;font-size:12px;color:var(--text2)}
+.vaqt-karta{background:var(--f-faf8f5);border:1px solid var(--border2);border-radius:12px;padding:10px 12px;font-size:12px;color:var(--text2)}
 .vaqt-karta b{display:block;font-size:13.5px;color:var(--text);margin:2px 0}
-.vaqt-karta.yashil{background:#EEF5EF;border-color:#DCE9DE;color:#166534}
-.vaqt-karta.qizil{background:#FEF2F2;border-color:#F3C7C7;color:#991B1B}
+.vaqt-karta.yashil{background:var(--f-eef5ef);border-color:var(--ch-dce9de);color:var(--m-166534)}
+.vaqt-karta.qizil{background:var(--f-fef2f2);border-color:var(--ch-f3c7c7);color:var(--m-991b1b)}
 .vaqt-karta.bosh{opacity:.6}
 .bt-jami{display:flex;justify-content:flex-end;margin-top:12px}
 .bt-jami>div{width:360px;max-width:100%;display:flex;flex-direction:column;gap:6px;font-size:13px}
@@ -323,7 +323,7 @@
     <div class="mf-group"><label for="pt-f-name">Nomi</label><input type="text" id="pt-f-name" placeholder="Masalan: Travertin"></div>
     {# kech117 (A2 — egasi QARORI kech114 00:08): tur yo'nalishi MAJBURIY (moliyada har yo'nalishning o'z sof foydasi) #}
     <div class="mf-group">
-      <label for="pt-f-yonalish">Yo'nalish <span style="color:#DC2626">*</span></label>
+      <label for="pt-f-yonalish">Yo'nalish <span style="color:var(--m-dc2626)">*</span></label>
       <select id="pt-f-yonalish">
         <option value="">— tanlang —</option>
 {% for y in yonalishlar_royxati(current_user.company_id) %}          <option value="{{ y.id }}">{{ y.nom }}</option>
@@ -427,7 +427,7 @@
     </div>
 
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin:6px 0 8px">
-      <div style="font-size:12px;font-weight:700;color:#374151;text-transform:uppercase" id="bom-tarkib-sarlavha">Tarkibi</div>
+      <div style="font-size:12px;font-weight:700;color:var(--m-374151);text-transform:uppercase" id="bom-tarkib-sarlavha">Tarkibi</div>
       <button type="button" class="btn btn-outline btn-sm" onclick="addBomItemRow()"><i class="ti ti-plus" style="vertical-align:-2px"></i> Material qo'shish</button>
     </div>
     <div class="bom-ustunlar" aria-hidden="true"><div>Material</div><div>Miqdor</div><div>Isrof</div><div class="o">Narxi</div><div style="width:112px"></div></div>
@@ -709,7 +709,7 @@ async function loadProductTypes(){
         </div>
         <div class="pt-retsept-amal">
           <button class="btn btn-outline btn-sm" onclick="openBomModal(${pt.id}, ${b.id})">Tahrirlash</button>
-          <button class="btn btn-outline btn-sm" style="color:#DC2626;border-color:#FCA5A5" onclick="deactivateBom(${b.id})" title="Retseptni yashirish (eski ishlab chiqarishlarga ta'sir qilmaydi)" aria-label="Retseptni yashirish"><i class="ti ti-trash"></i></button>
+          <button class="btn btn-outline btn-sm" style="color:var(--m-dc2626);border-color:var(--ch-fca5a5)" onclick="deactivateBom(${b.id})" title="Retseptni yashirish (eski ishlab chiqarishlarga ta'sir qilmaydi)" aria-label="Retseptni yashirish"><i class="ti ti-trash"></i></button>
         </div>
       </div>`).join('') || '<div class="bom-item-mini">Hali retsept yo\'q</div>';
     return `<tr>
@@ -1284,7 +1284,7 @@ function rejaOgohHtml(reja, birlik, miqdorTugmasi) {
     } else {
       const maks = maksTavsiya(reja.maks_bosh);
       const tugma = (miqdorTugmasi && maks > 0 && maks < Number(reja.miqdor))
-        ? `<div><button type="button" class="btn btn-outline btn-sm" style="color:#991B1B;border-color:#F3C7C7" onclick="poMiqdorQoy(${maks})">Miqdorni ${escapeHtml(birlikMatni(maks, birlik))} qilish</button></div>` : '';
+        ? `<div><button type="button" class="btn btn-outline btn-sm" style="color:var(--m-991b1b);border-color:var(--ch-f3c7c7)" onclick="poMiqdorQoy(${maks})">Miqdorni ${escapeHtml(birlikMatni(maks, birlik))} qilish</button></div>` : '';
       const maksMatn = maks > 0
         ? ` Ombordagi xomashyodan eng ko'pi <b>${escapeHtml(birlikMatni(maks, birlik))}</b> chiqadi (jarayondagi ishlab chiqarishlar hisobga olingan).`
         : ' Hozircha bo\'sh xomashyo yo\'q.';
@@ -1324,7 +1324,7 @@ function poRejaChiz(reja, xato) {
     </div>
     ${rejaOgohHtml(reja, birlik, true)}
     <div class="tannarx-quti">
-      <div>Taxminiy tannarx <span style="color:#8A5526">(ombordagi hozirgi narx bilan)</span></div>
+      <div>Taxminiy tannarx <span style="color:var(--m-8a5526)">(ombordagi hozirgi narx bilan)</span></div>
       <div class="o"><b>${escapeHtml(pulKorinish(reja.tannarx))}</b> ${reja.bir_birlik !== null && reja.bir_birlik !== undefined ? `1 ${escapeHtml(birlik)} — ${escapeHtml(pulKorinish(reja.bir_birlik))}` : ''}</div>
     </div>`;
   btn.disabled = !reja.mumkin;
@@ -1584,7 +1584,7 @@ async function poOyna(poId, rejim) {
   }
   const birlik = po.birlik || '';
   const yechish = po.status === 'in_progress';
-  let tana = `<div style="font-size:13px;color:#4B5563;margin-bottom:10px">${escapeHtml(poManbaMatni(po))}${po.retsept_nomi ? ' · «' + escapeHtml(po.retsept_nomi) + '» retsepti' : ''}</div>` + vaqtKartalariHtml(po);
+  let tana = `<div style="font-size:13px;color:var(--m-4b5563);margin-bottom:10px">${escapeHtml(poManbaMatni(po))}${po.retsept_nomi ? ' · «' + escapeHtml(po.retsept_nomi) + '» retsepti' : ''}</div>` + vaqtKartalariHtml(po);
   if (reja) {
     tana += `<div class="xm-quti"><div class="xm-bosh">${yechish ? 'Yakunlashda ombordan yechiladi' : 'Xomashyo — omborda yetadimi?'} <span>${escapeHtml(birlikMatni(reja.miqdor, birlik))} uchun</span></div>${rejaJadvaliHtml(reja, yechish)}</div>`;
     tana += rejaOgohHtml(reja, birlik, false);
@@ -1593,7 +1593,7 @@ async function poOyna(poId, rejim) {
     tana += `<div class="ogoh qizil"><i class="ti ti-alert-triangle"></i><div>${escapeHtml(xato)}</div></div>`;
   }
   document.getElementById('snapshot-list').innerHTML = tana;
-  const bekorTugma = `<button class="btn btn-outline" style="color:#B91C1C;border-color:#F3C7C7" onclick="doCancel(${poId})">Bekor qilish</button>`;
+  const bekorTugma = `<button class="btn btn-outline" style="color:var(--m-b91c1c);border-color:var(--ch-f3c7c7)" onclick="doCancel(${poId})">Bekor qilish</button>`;
   let asosiy = '';
   if (po.status === 'draft') asosiy = `<button class="btn btn-dark" id="po-oyna-amal" onclick="poBoshlashTasdiq(${poId})"${reja && reja.mumkin ? '' : ' disabled'}>Boshlash</button>`;
   if (po.status === 'in_progress') asosiy = `<button class="btn btn-dark" id="po-oyna-amal" onclick="poYakunlashTasdiq(${poId})"${reja && reja.mumkin ? '' : ' disabled'}>Yakunlash</button>`;
@@ -1674,7 +1674,7 @@ function showSnapshot(snapshot, status, poId){
       <td class="o" data-yorliq="Summa">${line.included ? escapeHtml(pulKorinish(line.line_cost)) : '—'}</td>
     </tr>`;
   }).join('');
-  let tana = po ? `<div style="font-size:13px;color:#4B5563;margin-bottom:10px">${escapeHtml(poManbaMatni(po))}${po.retsept_nomi ? ' · «' + escapeHtml(po.retsept_nomi) + '» retsepti' : ''}</div>` + vaqtKartalariHtml(po) : '';
+  let tana = po ? `<div style="font-size:13px;color:var(--m-4b5563);margin-bottom:10px">${escapeHtml(poManbaMatni(po))}${po.retsept_nomi ? ' · «' + escapeHtml(po.retsept_nomi) + '» retsepti' : ''}</div>` + vaqtKartalariHtml(po) : '';
   tana += qatorlar
     ? `${status === 'cancelled' ? '<div class="ogoh sariq" style="margin:0 0 12px"><i class="ti ti-info-circle"></i><div>Bekor qilingan — xomashyo ombordan yechilmagan. Quyida — boshlangandagi reja.</div></div>' : ''}<div class="xm-quti" style="overflow-x:auto"><table class="xm-jadval mob-karta"><thead><tr><th>Material</th><th class="o">Retsept bo'yicha</th><th class="o">Isrof</th><th class="o">${escapeHtml(sarlavhaSarf)}</th><th class="o">Narx (o'sha kuni)</th><th class="o">Summa</th></tr></thead><tbody>${qatorlar}</tbody></table></div>`
     : `<div class="xm-quti"><div class="xm-bosh-joy">${status === 'cancelled' ? 'Boshlanmasdan bekor qilingan — xomashyo ishlatilmagan' : "Ma'lumot yo'q"}</div></div>`;

@@ -7,8 +7,8 @@
 <style>
 /* kech117 (A2): Sozlamalar — yo'nalishlar ro'yxati belgilari */
 .yon-chip{display:inline-block;font-size:12px;font-weight:600;color:var(--text3);background:var(--bg);padding:2px 8px;border-radius:10px;white-space:nowrap}
-.yon-chip.yon-asosiy{color:#1E40AF;background:#EFF6FF}
-.yon-chip.yon-yashirin{color:#92400E;background:#FEF3C7}
+.yon-chip.yon-asosiy{color:var(--m-1e40af);background:var(--f-eff6ff)}
+.yon-chip.yon-yashirin{color:var(--m-92400e);background:var(--f-fef3c7)}
 </style>
 {% endblock %}
 
@@ -63,7 +63,7 @@
       {% for e in error_logs %}
       <div class="err-row" onclick="toggleErrDetail(this)" style="padding:12px 18px;border-bottom:1px solid var(--border2);cursor:pointer">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
-          <div style="font-size:13px;color:#DC2626;font-weight:600">{{ e.error_message[:200] }}</div>
+          <div style="font-size:13px;color:var(--m-dc2626);font-weight:600">{{ e.error_message[:200] }}</div>
           {# kech106: ErrorLog.created_at — ALLAQACHON Toshkent vaqti (models._uzb_now) — |toshkent filtri QO'LLANMAYDI #}
           <div style="font-size:12px;color:var(--text3);white-space:nowrap;flex-shrink:0">{{ e.created_at.strftime('%d.%m.%Y %H:%M') if e.created_at else '' }}</div>
         </div>
@@ -321,7 +321,7 @@ async function loadCompany() {
 async function uploadLogo() {
   const inp = document.getElementById('co-logo-file');
   const el = document.getElementById('co-logo-status');
-  if (!inp.files || !inp.files[0]) { el.innerHTML = '<span style="color:#B91C1C">Rasm tanlang</span>'; return; }
+  if (!inp.files || !inp.files[0]) { el.innerHTML = '<span style="color:var(--m-b91c1c)">Rasm tanlang</span>'; return; }
   const fd = new FormData();
   fd.append('file', inp.files[0]);
   const r = await fetch('/api/settings/company/logo', { method: 'POST', body: fd });
@@ -331,14 +331,14 @@ async function uploadLogo() {
     inp.value = '';
     loadCompany();
   } else {
-    el.innerHTML = '<span style="color:#B91C1C">' + escapeHtml(d.detail || 'Xato') + '</span>';
+    el.innerHTML = '<span style="color:var(--m-b91c1c)">' + escapeHtml(d.detail || 'Xato') + '</span>';
   }
 }
 
 async function saveCompany() {
   const nom = document.getElementById('co-name').value.trim();
   const el = document.getElementById('co-status');
-  if (nom.length < 2) { el.innerHTML = '<span style="color:#B91C1C">Nom juda qisqa</span>'; return; }
+  if (nom.length < 2) { el.innerHTML = '<span style="color:var(--m-b91c1c)">Nom juda qisqa</span>'; return; }
   const fd = new FormData();
   fd.append('name', nom);
   fd.append('slogan', document.getElementById('co-slogan').value.trim());
@@ -351,7 +351,7 @@ async function saveCompany() {
     setTimeout(() => location.reload(), 900);
   } else {
     const d = await r.json().catch(() => ({}));
-    el.innerHTML = '<span style="color:#B91C1C">' + escapeHtml(d.detail || 'Xato') + '</span>';
+    el.innerHTML = '<span style="color:var(--m-b91c1c)">' + escapeHtml(d.detail || 'Xato') + '</span>';
   }
 }
 
@@ -379,7 +379,7 @@ async function saveCategories() {
     el.innerHTML = '<span style="color:var(--green,#0a0)">✓ Saqlandi</span>';
     setTimeout(() => location.reload(), 900);
   } else {
-    el.innerHTML = '<span style="color:#B91C1C">Xato</span>';
+    el.innerHTML = '<span style="color:var(--m-b91c1c)">Xato</span>';
   }
 }
 
@@ -394,7 +394,7 @@ async function loadTgBot() {
     } else {
       el.innerHTML = d.uses_system_bot
         ? '<span style="color:var(--text3)">Sozlanmagan — tizimning umumiy boti ishlatiladi</span>'
-        : '<span style="color:#B91C1C">Sozlanmagan — Telegram xabarlari YUBORILMAYDI. Botni sozlang.</span>';
+        : '<span style="color:var(--m-b91c1c)">Sozlanmagan — Telegram xabarlari YUBORILMAYDI. Botni sozlang.</span>';
     }
   } catch (e) { /* jim */ }
 }
@@ -407,7 +407,7 @@ async function saveTgBot() {
   document.getElementById('tg-token').value = '';
   document.getElementById('tg-status').innerHTML = r.ok
     ? '<span style="color:var(--green,#0a0)">✓ Saqlandi</span>'
-    : '<span style="color:#B91C1C">Saqlashda xato</span>';
+    : '<span style="color:var(--m-b91c1c)">Saqlashda xato</span>';
   if (r.ok) setTimeout(loadTgBot, 600);
 }
 
@@ -442,7 +442,7 @@ function yonQatori(y) {
                 '" data-yashirin="' + (y.yashirin ? '0' : '1') + '" onclick="yonYashir(this)">' +
                 (y.yashirin ? "Ko'rsatish" : 'Yashirish') + '</button>';
     if (!ishlatilgan) {
-      tugmalar += '<button class="btn btn-sm yon-ochir" style="background:var(--bg);color:#B91C1C" data-id="' + y.id +
+      tugmalar += '<button class="btn btn-sm yon-ochir" style="background:var(--bg);color:var(--m-b91c1c)" data-id="' + y.id +
                   '" data-bosqich="0" onclick="yonOchir(this)">O\'chirish</button>';
     }
   }
@@ -529,19 +529,19 @@ async function runHealthCheck() {
     if (d.technical_hidden) {
       // texnik qism o'tkazib yuboriladi
     } else if (d.issues_found === 0) {
-      html += `<div style="text-align:center;padding:30px;background:#F0FDF4;border-radius:12px">
+      html += `<div style="text-align:center;padding:30px;background:var(--f-f0fdf4);border-radius:12px">
         <div style="font-size:32px;margin-bottom:8px">✅</div>
-        <div style="font-weight:700;color:#15803D;font-size:15px">Hammasi joyida!</div>
+        <div style="font-weight:700;color:var(--m-15803d);font-size:15px">Hammasi joyida!</div>
         <div style="font-size:12.5px;color:var(--text3);margin-top:4px">Hech qanday noto'g'ri qiymat topilmadi.</div>
       </div>`;
     } else {
-      html += `<div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:12px 16px;margin-bottom:14px;font-weight:700;color:#DC2626">
+      html += `<div style="background:var(--f-fef2f2);border:1px solid var(--ch-fecaca);border-radius:10px;padding:12px 16px;margin-bottom:14px;font-weight:700;color:var(--m-dc2626)">
         ⚠️ ${d.issues_found} ta muammo topildi:
       </div>`;
       d.issues.forEach(issue => {
         html += `<div style="border:1px solid var(--border2);border-radius:10px;padding:14px 16px;margin-bottom:10px">
           <div style="font-size:13px;font-weight:600;color:var(--text)">${issue.label ? escapeHtml(issue.label) : ('#' + issue.id)} <span style="color:var(--text3);font-weight:400">(${issue.table}.${issue.column})</span></div>
-          <div style="font-size:12.5px;color:#DC2626;margin-top:4px">Noto'g'ri qiymat: <code style="background:#FEF2F2;padding:2px 6px;border-radius:4px">${escapeHtml(issue.bad_value)}</code></div>
+          <div style="font-size:12.5px;color:var(--m-dc2626);margin-top:4px">Noto'g'ri qiymat: <code style="background:var(--f-fef2f2);padding:2px 6px;border-radius:4px">${escapeHtml(issue.bad_value)}</code></div>
           <div style="font-size:12px;color:var(--text3);margin-top:4px">To'g'ri qiymatlar: ${issue.valid_names.join(', ')}</div>
         </div>`;
       });
@@ -559,9 +559,9 @@ async function runHealthCheck() {
       html += `<div style="${d.technical_hidden ? '' : 'margin-top:24px;padding-top:18px;border-top:2px dashed var(--border2)'}">
         <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:12px">💰 Moliyaviy izchillik</div>`;
       if (fin.issues_found === 0) {
-        html += `<div style="text-align:center;padding:24px;background:#F0FDF4;border-radius:12px">
+        html += `<div style="text-align:center;padding:24px;background:var(--f-f0fdf4);border-radius:12px">
           <div style="font-size:28px;margin-bottom:6px">✅</div>
-          <div style="font-weight:700;color:#15803D;font-size:14px">Hisob-kitoblar to'g'ri!</div>
+          <div style="font-weight:700;color:var(--m-15803d);font-size:14px">Hisob-kitoblar to'g'ri!</div>
         </div>`;
       } else {
         const TYPE_LABEL = {
@@ -575,13 +575,13 @@ async function runHealthCheck() {
           orphaned_payment: "Egasiz to'lov",
           orphaned_delivery: "Egasiz yetkazish"
         };
-        html += `<div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:12px 16px;margin-bottom:14px;font-weight:700;color:#DC2626">
+        html += `<div style="background:var(--f-fef2f2);border:1px solid var(--ch-fecaca);border-radius:10px;padding:12px 16px;margin-bottom:14px;font-weight:700;color:var(--m-dc2626)">
           ⚠️ ${fin.issues_found} ta moliyaviy nomuvofiqlik topildi:
         </div>`;
         fin.issues.forEach(iss => {
           html += `<div style="border:1px solid var(--border2);border-radius:10px;padding:14px 16px;margin-bottom:10px">
             <div style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(iss.label)} <span style="color:var(--text3);font-weight:400">(${TYPE_LABEL[iss.type] || iss.type})</span></div>
-            <div style="font-size:12.5px;color:#DC2626;margin-top:4px">${escapeHtml(iss.detail)}</div>
+            <div style="font-size:12.5px;color:var(--m-dc2626);margin-top:4px">${escapeHtml(iss.detail)}</div>
           </div>`;
         });
       }
@@ -592,7 +592,7 @@ async function runHealthCheck() {
   } catch (e) {
     btn.disabled = false;
     btn.textContent = 'Tekshirish';
-    resultsEl.innerHTML = '<div style="text-align:center;color:#DC2626;padding:20px">Xato yuz berdi, qaytadan urinib ko\'ring.</div>';
+    resultsEl.innerHTML = '<div style="text-align:center;color:var(--m-dc2626);padding:20px">Xato yuz berdi, qaytadan urinib ko\'ring.</div>';
   }
 }
 </script>

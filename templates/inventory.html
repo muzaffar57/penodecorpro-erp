@@ -5,7 +5,7 @@
 
 {% block topbar_actions %}
 <button class="btn btn-outline btn-sm" onclick="sendFullStockReport()" style="border-color:#B9783F;color:var(--gold-dark)"><i class="ti ti-clipboard-list" style="vertical-align:-2px"></i> Ombor hisoboti SMS</button>
-<button class="btn btn-outline btn-sm" onclick="sendLowStockAlert()" style="border-color:#EF4444;color:#DC2626"><i class="ti ti-bell" style="vertical-align:-2px"></i> Kam qoldiqlar SMS</button>
+<button class="btn btn-outline btn-sm" onclick="sendLowStockAlert()" style="border-color:#EF4444;color:var(--m-dc2626)"><i class="ti ti-bell" style="vertical-align:-2px"></i> Kam qoldiqlar SMS</button>
 
 {% endblock %}
 
@@ -29,51 +29,51 @@
 .mat-thumb img{width:100%;height:100%;object-fit:cover;cursor:zoom-in}
 .mat-thumb input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 .mat-thumb-cam{position:absolute;right:3px;bottom:3px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;cursor:pointer;z-index:2}
-.stock-bar{height:6px;background:#F0F0F0;border-radius:6px;overflow:hidden;width:160px;max-width:100%}
-.stock-fill{height:100%;border-radius:6px;background:linear-gradient(90deg,#22C55E,#16A34A);transition:width .4s ease}
-.stock-fill.warn{background:linear-gradient(90deg,#F59E0B,#D97706)}
+.stock-bar{height:6px;background:var(--f-f0f0f0);border-radius:6px;overflow:hidden;width:160px;max-width:100%}
+.stock-fill{height:100%;border-radius:6px;background:linear-gradient(90deg,var(--f-22c55e),#16A34A);transition:width .4s ease}
+.stock-fill.warn{background:linear-gradient(90deg,var(--f-f59e0b),#D97706)}
 .stock-fill.danger{background:linear-gradient(90deg,#EF4444,#DC2626)}
-.stock-fill.neutral{background:#CBD5E1}
+.stock-fill.neutral{background:var(--f-cbd5e1)}
 .mat-sub{font-size:13px;color:var(--text3);margin-top:3px}
 .cat-badge{display:inline-block;font-size:12px;font-weight:600;padding:4px 12px;border-radius:20px;margin-top:6px}
-.cat-Penoplast{background:#E6F1FB;color:#0C447C}
-.cat-Kimyoviy{background:#F3E8FF;color:#6B21A8}
-.cat-Qattiq{background:#FEF3C7;color:#854F0B}
+.cat-Penoplast{background:var(--f-e6f1fb);color:var(--m-0c447c)}
+.cat-Kimyoviy{background:var(--f-f3e8ff);color:var(--m-6b21a8)}
+.cat-Qattiq{background:var(--f-fef3c7);color:var(--m-854f0b)}
 .cat-Boshqa{background:var(--border2);color:var(--text2)}
-.cat-Tayyor{background:#DCFCE7;color:#166534}
-.cat-Gips{background:#FCE7F3;color:#9D174D}
+.cat-Tayyor{background:var(--f-dcfce7);color:var(--m-166534)}
+.cat-Gips{background:var(--f-fce7f3);color:var(--m-9d174d)}
 .mat-qty-val{font-size:17px;font-weight:700}
 .stat-badge{display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:600;padding:5px 13px;border-radius:20px}
-.stat-badge.ok{background:#DCFCE7;color:#166534}
-.stat-badge.warn{background:#FEF3C7;color:#92400E}
-.stat-badge.danger{background:#FEE2E2;color:#991B1B}
-.stat-badge.neutral{background:#F1F5F9;color:#475569}
+.stat-badge.ok{background:var(--f-dcfce7);color:var(--m-166534)}
+.stat-badge.warn{background:var(--f-fef3c7);color:var(--m-92400e)}
+.stat-badge.danger{background:var(--f-fee2e2);color:var(--m-991b1b)}
+.stat-badge.neutral{background:var(--f-f1f5f9);color:var(--m-475569)}
 .mat-actions{display:flex;gap:8px;justify-content:flex-end}
 .act-btn{width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--white);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .15s,border-color .15s;color:var(--text2);font-size:17px}
 .act-btn:hover{background:var(--bg)}
-.act-btn.out{color:#991B1B;border-color:#FECACA}
-.act-btn.out:hover{background:#FEF2F2}
-.act-btn.danger{color:#DC2626}
-.act-btn.danger:hover{background:#FEF2F2}
+.act-btn.out{color:var(--m-991b1b);border-color:var(--ch-fecaca)}
+.act-btn.out:hover{background:var(--f-fef2f2)}
+.act-btn.danger{color:var(--m-dc2626)}
+.act-btn.danger:hover{background:var(--f-fef2f2)}
 .mv-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border2);font-size:14.5px}
 .mv-row:last-child{border-bottom:none}
 .mv-badge{font-size:12px;font-weight:600;padding:4px 10px;border-radius:8px}
-.mv-badge.in{background:#DCFCE7;color:#166534}
-.mv-badge.out{background:#FEE2E2;color:#991B1B}
+.mv-badge.in{background:var(--f-dcfce7);color:var(--m-166534)}
+.mv-badge.out{background:var(--f-fee2e2);color:var(--m-991b1b)}
 .mv-order-row{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border:1px solid var(--border2);border-radius:12px;margin-bottom:8px;cursor:pointer;transition:background .15s;background:var(--white)}
 .mv-order-row:hover{background:var(--gold-tint)}
 .mv-order-num{font-weight:700;color:var(--gold-dark);font-size:14.5px}
 .mv-order-meta{font-size:12.5px;color:var(--text3);margin-top:3px}
 .mv-order-count{font-size:12.5px;background:var(--bg);padding:4px 10px;border-radius:20px;color:var(--text2);font-weight:600;white-space:nowrap;flex-shrink:0;margin-left:10px}
 .mv-drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;justify-content:flex-end;z-index:2100}
-.mv-drawer{background:#fff;width:440px;max-width:92vw;height:100%;box-shadow:-4px 0 24px rgba(0,0,0,.15);display:flex;flex-direction:column;animation:mvSlideIn .22s ease}
+.mv-drawer{background:var(--white);width:440px;max-width:92vw;height:100%;box-shadow:-4px 0 24px rgba(0,0,0,.15);display:flex;flex-direction:column;animation:mvSlideIn .22s ease}
 @keyframes mvSlideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}
 .mv-drawer-head{padding:18px 20px;border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
 .mv-drawer-body{padding:6px 20px 20px;overflow-y:auto;flex:1}
 
 /* Markazlashgan xabar oynasi — brauzerning standart alert() o'rniga */
 .inv-toast-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:3000;display:none;align-items:center;justify-content:center;padding:20px}
-.inv-toast{background:#fff;border-radius:16px;padding:26px 30px;max-width:420px;max-height:80vh;overflow-y:auto;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.28);white-space:pre-line;font-size:14px;font-weight:600;color:var(--text);line-height:1.6}
+.inv-toast{background:var(--white);border-radius:16px;padding:26px 30px;max-width:420px;max-height:80vh;overflow-y:auto;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.28);white-space:pre-line;font-size:14px;font-weight:600;color:var(--text);line-height:1.6}
 </style>
 {% endblock %}
 
@@ -81,12 +81,12 @@
 <div style="padding:14px;height:calc(100vh - 58px);overflow-y:auto">
 
   <div class="inv-kpi-grid">
-    <div class="stat-card"><div class="stat-icon" style="background:#DBEAFE;color:#1D4ED8"><i class="ti ti-packages"></i></div><div class="stat-label">Jami xomashyo</div><div class="stat-val">{{ kpi.total_items }} tur</div></div>
-    <div class="stat-card" id="kamQolganKarta" role="button" tabindex="0" title="Ro'yxatda ko'rsatish" style="cursor:pointer" onclick="kamQolganlarniKorsat()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();kamQolganlarniKorsat();}"><div class="stat-icon" style="background:#FEE2E2;color:#DC2626"><i class="ti ti-alert-triangle"></i></div><div class="stat-label">Kam qolganlar</div><div class="stat-val">{{ kpi.low_count }} ta</div></div>
-    <div class="stat-card"><div class="stat-icon" style="background:#DCFCE7;color:#166534"><i class="ti ti-arrow-down-left"></i></div><div class="stat-label">Bugungi kirim</div><div class="stat-val">{{ kpi.today_in_count }} marta</div></div>
-    <div class="stat-card"><div class="stat-icon" style="background:#FEE2E2;color:#991B1B"><i class="ti ti-arrow-up-right"></i></div><div class="stat-label">Bugungi chiqim</div><div class="stat-val">{{ kpi.today_out_count }} marta</div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:var(--f-dbeafe);color:var(--m-1d4ed8)"><i class="ti ti-packages"></i></div><div class="stat-label">Jami xomashyo</div><div class="stat-val">{{ kpi.total_items }} tur</div></div>
+    <div class="stat-card" id="kamQolganKarta" role="button" tabindex="0" title="Ro'yxatda ko'rsatish" style="cursor:pointer" onclick="kamQolganlarniKorsat()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();kamQolganlarniKorsat();}"><div class="stat-icon" style="background:var(--f-fee2e2);color:var(--m-dc2626)"><i class="ti ti-alert-triangle"></i></div><div class="stat-label">Kam qolganlar</div><div class="stat-val">{{ kpi.low_count }} ta</div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:var(--f-dcfce7);color:var(--m-166534)"><i class="ti ti-arrow-down-left"></i></div><div class="stat-label">Bugungi kirim</div><div class="stat-val">{{ kpi.today_in_count }} marta</div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:var(--f-fee2e2);color:var(--m-991b1b)"><i class="ti ti-arrow-up-right"></i></div><div class="stat-label">Bugungi chiqim</div><div class="stat-val">{{ kpi.today_out_count }} marta</div></div>
     {% if current_user.ruxsat('material', 'tahrirlash') %}
-    <div class="stat-card"><div class="stat-icon" style="background:#EDE9FE;color:#6D28D9"><i class="ti ti-currency-dollar"></i></div><div class="stat-label">Ombor qiymati</div><div class="stat-val">{{ (kpi.total_value/1000000)|son(1) }} mln</div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:var(--f-ede9fe);color:var(--m-6d28d9)"><i class="ti ti-currency-dollar"></i></div><div class="stat-label">Ombor qiymati</div><div class="stat-val">{{ (kpi.total_value/1000000)|son(1) }} mln</div></div>
     {% endif %}
   </div>
 
@@ -217,8 +217,8 @@
 
 <!-- Chiqim modali -->
 <div id="chiqimModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:14px;padding:24px;width:400px;max-width:100%">
-    <div style="font-size:16px;font-weight:600;margin-bottom:4px"><i class="ti ti-arrow-up-right" style="color:#991B1B"></i> Chiqim — <span id="chiqim-name"></span></div>
+  <div style="background:var(--white);border-radius:14px;padding:24px;width:400px;max-width:100%">
+    <div style="font-size:16px;font-weight:600;margin-bottom:4px"><i class="ti ti-arrow-up-right" style="color:var(--m-991b1b)"></i> Chiqim — <span id="chiqim-name"></span></div>
     <div style="font-size:14px;color:var(--text3);margin-bottom:16px">Narxsiz tuzatish (masalan inventarizatsiya, kamomad). Hozirgi qoldiq: <b id="chiqim-current"></b></div>
     <div class="form-group"><label>Miqdor</label><input type="number" id="chiqim-qty" placeholder="0" min="0" step="0.1"></div>
     <div class="form-group"><label>Sabab / izoh</label><input type="text" id="chiqim-notes" placeholder="Masalan: inventarizatsiyada aniqlandi"></div>
@@ -231,7 +231,7 @@
 
 <!-- Universal chiroyli "prompt" modali — native prompt() o'rniga -->
 <div id="cpModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:2000;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px)">
-  <div style="background:#fff;border-radius:14px;padding:24px;width:380px;max-width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25)">
+  <div style="background:var(--white);border-radius:14px;padding:24px;width:380px;max-width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25)">
     <div id="cp-title" style="font-size:15.5px;font-weight:700;color:var(--text);margin-bottom:6px">—</div>
     <div id="cp-hint" style="font-size:12.5px;color:var(--text3);margin-bottom:14px"></div>
     <input type="text" id="cp-input" class="i-m3price" style="width:100%;font-size:15px;font-weight:600;text-align:center" inputmode="decimal">
@@ -244,7 +244,7 @@
 
 <!-- Xaridlar tarixi modali -->
 <div id="historyModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:14px;width:640px;max-width:100%;max-height:86vh;display:flex;flex-direction:column">
+  <div style="background:var(--white);border-radius:14px;width:640px;max-width:100%;max-height:86vh;display:flex;flex-direction:column">
     <div style="padding:18px 22px 14px;border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center">
       <div style="font-size:16px;font-weight:600"><i class="ti ti-receipt"></i> Xaridlar tarixi</div>
       <button data-yopish onclick="closePurchaseHistory()" style="width:30px;height:30px;border-radius:50%;background:var(--border2);border:none;font-size:15px;cursor:pointer">✕</button>
@@ -275,7 +275,7 @@
     <div class="mv-drawer-body" id="phDrawerBody"></div>
     <!-- kech107 (10f): butun kirim hujjatini bekor qilish (ombor, narx, qo'shimcha xarajatlar, to'lov — so'rab) -->
     <div style="padding:12px 18px;border-top:1px solid var(--border2)">
-      <button id="phDrawerBekor" class="btn btn-outline" style="width:100%;color:#DC2626;border-color:#FCA5A5"
+      <button id="phDrawerBekor" class="btn btn-outline" style="width:100%;color:var(--m-dc2626);border-color:var(--ch-fca5a5)"
               onclick="kirimHujjatiniBekorQil(this.dataset.receiptId)">🗑 Kirim hujjatini bekor qilish</button>
     </div>
   </div>
@@ -283,15 +283,15 @@
 
 <!-- Ombor harakatlari (Timeline) modali -->
 <div id="movementsModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:14px;width:640px;max-width:100%;max-height:86vh;display:flex;flex-direction:column">
+  <div style="background:var(--white);border-radius:14px;width:640px;max-width:100%;max-height:86vh;display:flex;flex-direction:column">
     <div style="padding:18px 22px 14px;border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center">
       <div style="font-size:16px;font-weight:600"><i class="ti ti-history"></i> Ombor harakatlari</div>
       <button data-yopish onclick="closeMovements()" style="width:30px;height:30px;border-radius:50%;background:var(--border2);border:none;font-size:15px;cursor:pointer">✕</button>
     </div>
     <div style="padding:12px 22px;border-bottom:1px solid var(--border2);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <button class="btn btn-outline btn-sm" onclick="loadMovements('')">Barchasi</button>
-      <button class="btn btn-outline btn-sm" style="border-color:#BBF7D0;color:#166534" onclick="loadMovements('in')">Faqat kirim</button>
-      <button class="btn btn-outline btn-sm" style="border-color:#FECACA;color:#991B1B" onclick="loadMovements('out')">Faqat chiqim</button>
+      <button class="btn btn-outline btn-sm" style="border-color:var(--ch-bbf7d0);color:var(--m-166534)" onclick="loadMovements('in')">Faqat kirim</button>
+      <button class="btn btn-outline btn-sm" style="border-color:var(--ch-fecaca);color:var(--m-991b1b)" onclick="loadMovements('out')">Faqat chiqim</button>
     </div>
     <div style="padding:10px 22px;border-bottom:1px solid var(--border2);display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <span style="font-size:12.5px;color:var(--text3)">Sana oralig'i:</span>
@@ -767,10 +767,10 @@ async function openPurchaseHistory() {
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:10px">
-            <div style="font-size:13px;font-weight:700;color:#15803D;white-space:nowrap">${fmt(p.total_amount)} so'm</div>
+            <div style="font-size:13px;font-weight:700;color:var(--m-15803d);white-space:nowrap">${fmt(p.total_amount)} so'm</div>
             <button onclick="deletePurchase(${p.id}, '${jsAttrEscape(p.item_name||'')}', ${p.quantity})"
                     title="Bu xaridni bekor qilish (ombordan ham, puldan ham)"
-                    style="width:30px;height:30px;border:1px solid #FCA5A5;background:#FEF2F2;color:#DC2626;border-radius:7px;cursor:pointer;flex-shrink:0">
+                    style="width:30px;height:30px;border:1px solid var(--ch-fca5a5);background:var(--f-fef2f2);color:var(--m-dc2626);border-radius:7px;cursor:pointer;flex-shrink:0">
               <i class="ti ti-trash"></i>
             </button>
           </div>
@@ -788,12 +788,12 @@ async function openPurchaseHistory() {
         </div>
         <div style="text-align:right;flex-shrink:0;margin-left:10px">
           <div class="mv-order-count">${e.items.length} ta material →</div>
-          <div style="font-size:12.5px;font-weight:700;color:#15803D;margin-top:4px">${fmt(total)} so'm</div>
+          <div style="font-size:12.5px;font-weight:700;color:var(--m-15803d);margin-top:4px">${fmt(total)} so'm</div>
         </div>
       </div>`;
     }).join('');
   } catch(e) {
-    document.getElementById('hist-list').innerHTML = '<div style="text-align:center;padding:20px;color:#DC2626">Yuklashda xato</div>';
+    document.getElementById('hist-list').innerHTML = '<div style="text-align:center;padding:20px;color:var(--m-dc2626)">Yuklashda xato</div>';
   }
 }
 
@@ -814,9 +814,9 @@ function openPhDrawer(receiptId) {
         <div style="font-size:13px;color:var(--text3);margin-top:2px">${p.quantity} ${escapeHtml(p.unit||'')} × ${fmt(p.price_per_unit)} · ${ds}${p.purchased_by ? ' · '+escapeHtml(p.purchased_by) : ''}</div>
       </div>
       <div style="text-align:right;flex-shrink:0;margin-left:10px">
-        <div style="font-weight:700;color:#15803D">${fmt(p.total_amount)} so'm</div>
+        <div style="font-weight:700;color:var(--m-15803d)">${fmt(p.total_amount)} so'm</div>
         <button onclick="deletePurchase(${p.id}, '${jsAttrEscape(p.item_name||'')}', ${p.quantity})"
-                title="Bu xaridni bekor qilish" style="margin-top:4px;width:26px;height:26px;border:1px solid #FCA5A5;background:#FEF2F2;color:#DC2626;border-radius:6px;cursor:pointer">
+                title="Bu xaridni bekor qilish" style="margin-top:4px;width:26px;height:26px;border:1px solid var(--ch-fca5a5);background:var(--f-fef2f2);color:var(--m-dc2626);border-radius:6px;cursor:pointer">
           <i class="ti ti-trash" style="font-size:12px"></i>
         </button>
       </div>
@@ -951,7 +951,7 @@ async function loadMovements(type) {
     const summaryHtml = Object.values(totals).map(t => `
       <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:12.5px">
         <span style="color:var(--text2)">${escapeHtml(t.name)}</span>
-        <span>${t.out > 0 ? `<span style="color:#991B1B">−${sonKor(t.out, 2)}</span>` : ''}${t.out > 0 && t.in > 0 ? ' · ' : ''}${t.in > 0 ? `<span style="color:#166534">+${sonKor(t.in, 2)}</span>` : ''} ${escapeHtml(t.unit)}</span>
+        <span>${t.out > 0 ? `<span style="color:var(--m-991b1b)">−${sonKor(t.out, 2)}</span>` : ''}${t.out > 0 && t.in > 0 ? ' · ' : ''}${t.in > 0 ? `<span style="color:var(--m-166534)">+${sonKor(t.in, 2)}</span>` : ''} ${escapeHtml(t.unit)}</span>
       </div>`).join('');
     const summaryBlock = (document.getElementById('mv-date-from').value || document.getElementById('mv-date-to').value)
       ? `<div style="background:var(--bg);border-radius:10px;padding:10px 14px;margin-bottom:12px">
@@ -1022,7 +1022,7 @@ async function loadMovements(type) {
     window._mvGroups = groupsArr;
     list.innerHTML = summaryBlock + groupsHtml;
   } catch(e) {
-    list.innerHTML = '<div style="text-align:center;padding:20px;color:#DC2626">Yuklashda xato</div>';
+    list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--m-dc2626)">Yuklashda xato</div>';
   }
 }
 

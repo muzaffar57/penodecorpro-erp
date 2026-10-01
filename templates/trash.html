@@ -6,7 +6,7 @@
 {% block content %}
 <div style="padding:14px">
 
-  <div style="background:#EFF6FF;border-radius:12px;padding:14px 16px;margin-bottom:18px;font-size:13px;color:#1a6fa8;display:flex;gap:10px;align-items:flex-start">
+  <div style="background:var(--f-eff6ff);border-radius:12px;padding:14px 16px;margin-bottom:18px;font-size:13px;color:var(--m-1a6fa8);display:flex;gap:10px;align-items:flex-start">
     <i class="ti ti-info-circle" style="font-size:18px;flex-shrink:0;margin-top:1px"></i>
     <div>Bu yerda — <b>o'chirilgan, lekin hali bazada saqlanayotgan</b> buyurtma va loyihalar. Agar kimdir <b>bilmasdan</b> o'chirib qo'ygan bo'lsa — <b>"Tiklash"</b> tugmasi orqali qaytaring. <b>"Butunlay o'chirish"</b> — qaytarib bo'lmaydigan, oxirgi qadam.</div>
   </div>
@@ -27,7 +27,7 @@
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
           <button class="btn btn-dark" onclick="restoreItem('project', {{ p.id }}, this)">↩️ Tiklash</button>
-          <button class="btn btn-outline" style="color:#DC2626;border-color:#FADBD8" data-label="{{ p.project_number ~ ' — ' ~ p.project_name }}" onclick="permanentDelete('project', {{ p.id }}, this.dataset.label, this)">❌ Butunlay o'chirish</button>
+          <button class="btn btn-outline" style="color:var(--m-dc2626);border-color:var(--ch-fadbd8)" data-label="{{ p.project_number ~ ' — ' ~ p.project_name }}" onclick="permanentDelete('project', {{ p.id }}, this.dataset.label, this)">❌ Butunlay o'chirish</button>
         </div>
       </div>
       {% endfor %}
@@ -50,7 +50,7 @@
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
           <button class="btn btn-dark" onclick="restoreItem('order', {{ o.id }}, this)">↩️ Tiklash</button>
-          <button class="btn btn-outline" style="color:#DC2626;border-color:#FADBD8" data-label="{{ o.order_number }}" onclick="permanentDelete('order', {{ o.id }}, this.dataset.label, this)">❌ Butunlay o'chirish</button>
+          <button class="btn btn-outline" style="color:var(--m-dc2626);border-color:var(--ch-fadbd8)" data-label="{{ o.order_number }}" onclick="permanentDelete('order', {{ o.id }}, this.dataset.label, this)">❌ Butunlay o'chirish</button>
         </div>
       </div>
       {% endfor %}
@@ -74,7 +74,7 @@
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
           <button class="btn btn-dark" onclick="restoreItem('employee', {{ emp.id }}, this)">↩️ Tiklash</button>
-          <button class="btn btn-outline" style="color:#DC2626;border-color:#FADBD8" data-label="{{ emp.name }}" onclick="permanentDelete('employee', {{ emp.id }}, this.dataset.label, this)">❌ Butunlay o'chirish</button>
+          <button class="btn btn-outline" style="color:var(--m-dc2626);border-color:var(--ch-fadbd8)" data-label="{{ emp.name }}" onclick="permanentDelete('employee', {{ emp.id }}, this.dataset.label, this)">❌ Butunlay o'chirish</button>
         </div>
       </div>
       {% endfor %}

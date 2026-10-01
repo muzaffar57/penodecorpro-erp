@@ -55,8 +55,27 @@
       if (config.options && config.options.scales) _wrapTicksCallbacks(config.options.scales);
     }
 
+    // kech118 (zip 122 — tungi rejim): grafik sozlamasidagi yorug' rejim ranglari (to'r chiziqlari, o'q yozuvlari, afsona,
+    // och ustun, doira bo'laklari orasidagi oq chegara) tungi rejimda qorong'i karta uchun mos tusga almashtiriladi.
+    const _TUNGI_GRAFIK = {'#f0ece6': '#2E3240', '#f0f1f3': '#2E3240', '#f0f0f0': '#2E3240', '#9ca3af': '#A3A6B0',
+                           '#4b5563': '#C9CBD2', '#6b7280': '#A3A6B0', '#f8f2eb': '#5A4630', '#fff': '#1E212A', '#ffffff': '#1E212A'};
+    function _tungimi() { return document.documentElement.getAttribute('data-theme') === 'dark'; }
+    function _tungiMoslash(o, chuqur) {
+      if (!o || typeof o !== 'object' || chuqur > 8) return;
+      for (const k of Object.keys(o)) {
+        const v = o[k];
+        if (typeof v === 'string' && /^#[0-9a-f]{3,6}$/i.test(v) && _TUNGI_GRAFIK[v.toLowerCase()]) o[k] = _TUNGI_GRAFIK[v.toLowerCase()];
+        else if (Array.isArray(v)) v.forEach((x, i) => {
+          if (typeof x === 'string' && _TUNGI_GRAFIK[x.toLowerCase()]) v[i] = _TUNGI_GRAFIK[x.toLowerCase()];
+          else _tungiMoslash(x, chuqur + 1);
+        });
+        else if (v && typeof v === 'object') _tungiMoslash(v, chuqur + 1);
+      }
+    }
+
     function WrappedChart(ctx, config) {
       const origRef = {};
+      if (_tungimi()) { _tungiMoslash(config.options, 0); _tungiMoslash(config.data, 0); }
       _applyLabels(config, origRef);
       const instance = new _Original(ctx, config);
       instance._i18nRefresh = function() {
@@ -75,7 +94,16 @@
   Object.defineProperty(window, 'Chart', {
     configurable: true,
     get() { return _realChart; },
-    set(NewChart) { _realChart = wrapChartConstructor(NewChart); }
+    set(NewChart) {
+      // kech118 (zip 122): tungi rejimda grafikning standart yozuv / chiziq ranglari — qorong'i kartaga mos
+      try {
+        if (document.documentElement.getAttribute('data-theme') === 'dark' && NewChart && NewChart.defaults) {
+          NewChart.defaults.color = '#A3A6B0';
+          NewChart.defaults.borderColor = 'rgba(255,255,255,0.10)';
+        }
+      } catch (e) { /* grafik — faqat ko'rinish */ }
+      _realChart = wrapChartConstructor(NewChart);
+    }
   });
 })();
 </script>
@@ -243,12 +271,25 @@ function matnRangi(c, fon) {
              '#b7770d': '#92400E', '#ca8a04': '#854D0E', '#eab308': '#854D0E', '#0891b2': '#0E7490', '#06b6d4': '#0E7490',
              '#db2777': '#BE185D', '#ec4899': '#BE185D', '#f97316': '#C2410C', '#ea580c': '#C2410C', '#3b82f6': '#1D4ED8',
              '#64748b': '#475569', '#bdc3c7': '#696D78', '#95a5a6': '#696D78', '#7f8c8d': '#5B6170', '#10b981': '#047857',
-             '#0d9488': '#0F766E', '#8b5cf6': '#6D28D9', '#6b7280': '#5B6170'};
+             '#0d9488': '#0F766E', '#8b5cf6': '#6D28D9', '#6b7280': '#5B6170',
+             '#2563eb': '#1D4ED8'};   // kech118 (zip 122): #2563EB och-ko'k fonda (#DBEAFE) 4.2:1 edi
   const F = {'#15803d': '#166534', '#dc2626': '#B91C1C', '#b45309': '#92400E', '#0369a1': '#075985', '#696d78': '#5B6170',
              '#8f5b2a': '#7A4D23', '#be185d': '#9D174D', '#0e7490': '#155E75', '#c2410c': '#9A3412'};
   const k = String(c || '').toLowerCase();
   const t = T[k] || c;
-  return (fon && F[String(t || '').toLowerCase()]) || t;
+  const natija = (fon && F[String(t || '').toLowerCase()]) || t;
+  // kech118 (zip 122 — tungi rejim): qorong'i kartada to'q tus o'qilmaydi — yorug' tusi (kartada va och-tusli fonda ≥ 4.5:1)
+  if (typeof document !== 'undefined' && document.documentElement && document.documentElement.getAttribute('data-theme') === 'dark') {
+    const D = {'#15803d': '#4ADE80', '#166534': '#4ADE80', '#b45309': '#FBBF24', '#92400e': '#FBBF24', '#dc2626': '#F87171',
+               '#b91c1c': '#F87171', '#0369a1': '#38BDF8', '#075985': '#38BDF8', '#696d78': '#9096A2', '#5b6170': '#A3A6B0',
+               '#8f5b2a': '#D09A63', '#7a4d23': '#D09A63', '#854d0e': '#FACC15', '#0e7490': '#22D3EE', '#155e75': '#22D3EE',
+               '#be185d': '#F472B6', '#9d174d': '#F472B6', '#c2410c': '#FB923C', '#9a3412': '#FB923C', '#1d4ed8': '#60A5FA',
+               '#475569': '#9096A2', '#047857': '#34D399', '#0f766e': '#2DD4BF', '#6d28d9': '#A78BFA', '#7c3aed': '#A78BFA',
+               '#1e40af': '#93C5FD', '#9333ea': '#C084FC', '#16a34a': '#4ADE80', '#b9783f': '#D09A63', '#db2777': '#F472B6',
+               '#0891b2': '#22D3EE', '#ca8a04': '#FACC15', '#64748b': '#A3A6B0', '#2563eb': '#93C5FD', '#8e44ad': '#C084FC'};
+    return D[String(natija || '').toLowerCase()] || natija;
+  }
+  return natija;
 }
 function birlikKor(b) {
   const s = (b === null || b === undefined) ? '' : String(b);
@@ -276,8 +317,8 @@ function showMsg(text, type) {
   box.style.cssText = `position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:3000;
     padding:13px 22px;border-radius:10px;font-size:14.5px;font-weight:500;box-shadow:0 6px 24px rgba(0,0,0,.18);
     white-space:pre-line;max-width:520px;text-align:center;
-    background:${type==='error'?'#FEE2E2':'#DCFCE7'};color:${type==='error'?'#DC2626':'#1e7e34'};
-    border:1.5px solid ${type==='error'?'#F1948A':'#A9DFBF'}`;
+    background:${type==='error'?'var(--f-fee2e2)':'var(--f-dcfce7)'};color:${type==='error'?'var(--m-dc2626)':'var(--m-1e7e34)'};
+    border:1.5px solid ${type==='error'?'#F1948A':'var(--ch-a9dfbf)'}`;
   box.textContent = text;
   document.body.appendChild(box);
   setTimeout(() => box.remove(), 4000);
@@ -306,7 +347,8 @@ function showMsg(text, type) {
 var _xoNavbat = [];
 var _xoJoriy = null;
 var _XO_SARLAVHA = {xato: 'Xatolik', ok: 'Bajarildi', ogoh: 'Diqqat', info: 'Xabar'};
-var _XO_RANG = {xato: '#B91C1C', ok: '#15803D', ogoh: '#B45309', info: ''};
+// kech118 (zip 122): sarlavha rangi — umumiy ranglar ro'yxatidan (tungi rejimda yorug' tus; #B91C1C qorong'i oynada 2.5:1 edi)
+var _XO_RANG = {xato: 'var(--m-b91c1c)', ok: 'var(--m-15803d)', ogoh: 'var(--m-b45309)', info: ''};
 function _xoTuri(matn) {
   var t = String(matn || '').trim();
   if (/^(❌|⛔|🚫)/.test(t) || /^xato/i.test(t) || /^server (xatosi|bilan)/i.test(t)) return 'xato';
@@ -612,6 +654,7 @@ function jsAttrEscape(str) {
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/css/tabler-icons.min.css">
   <link rel="stylesheet" href="/static/style.css?v={{ static_version }}">
+  <link rel="stylesheet" href="/static/ranglar.css?v={{ static_version }}">
   <style>
   /* kech114 (egasi QARORI «6A — Bir qator + tugmalar»): telefonda yuqori panel 103–191 px edi (sarlavha, tungi rejim /
      qo'ng'iroqcha / Кирилл va sahifa tugmalari alohida qatorlarda — `work/k114/olchov114.py`). Endi: 1-qator — menyu,
@@ -620,7 +663,7 @@ function jsAttrEscape(str) {
   .tb-amallar:empty{display:none}
   .tb-kop-wrap{display:none;position:relative}
   #tbKop{width:38px;height:38px;border-radius:8px;border:1px solid var(--border);background:var(--white);color:var(--text2);font-weight:800;letter-spacing:1px;cursor:pointer}
-  #tbKop[aria-expanded="true"]{border-color:#D9B48C;background:var(--gold-tint);color:var(--gold-dark)}
+  #tbKop[aria-expanded="true"]{border-color:var(--ch-d9b48c);background:var(--gold-tint);color:var(--gold-dark)}
   #tbKopMenyu{position:absolute;top:44px;right:0;min-width:210px;background:var(--white);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-card);padding:6px;z-index:1000;display:flex;flex-direction:column}
   #tbKopMenyu[hidden]{display:none}
   #tbKopMenyu button{height:44px;text-align:left;padding:0 12px;border:0;border-radius:8px;background:transparent;color:var(--text);font-size:14px;font-weight:600;cursor:pointer}
@@ -934,13 +977,13 @@ function jsAttrEscape(str) {
           <button type="button" id="obunaBanner" aria-expanded="false" aria-controls="obunaPanel"
                   onclick="obunaPaneliniAlmashtir()"
                   style="height:36px;display:flex;align-items:center;gap:7px;padding:0 12px;border-radius:8px;cursor:pointer;font-size:12.5px;font-weight:600;white-space:nowrap;
-                         {% if _obuna_b.daraja == 'qizil' %}background:#FEE2E2;border:1px solid #F3C7C7;color:#7F1D1D{% else %}background:#FEF3C7;border:1px solid #F5D98B;color:#78350F{% endif %}">
+                         {% if _obuna_b.daraja == 'qizil' %}background:var(--f-fee2e2);border:1px solid var(--ch-f3c7c7);color:var(--m-7f1d1d){% else %}background:var(--f-fef3c7);border:1px solid var(--ch-f5d98b);color:var(--m-78350f){% endif %}">
             <i class="ti {% if _obuna_b.daraja == 'qizil' %}ti-lock{% else %}ti-calendar-plus{% endif %}" style="font-size:16px" aria-hidden="true"></i>
             <span class="obuna-qisqa">{{ _obuna_b.qisqa }}</span>
           </button>
           <div id="obunaPanel" role="status" style="display:none;position:absolute;top:44px;right:0;width:340px;max-width:calc(100vw - 24px);padding:14px 16px;border-radius:12px;
                font-size:13px;line-height:1.55;box-shadow:var(--shadow-card);z-index:1000;
-               {% if _obuna_b.daraja == 'qizil' %}background:#FEE2E2;border:1px solid #F3C7C7;color:#7F1D1D{% else %}background:#FEF3C7;border:1px solid #F5D98B;color:#78350F{% endif %}">{{ _obuna_b.matn }}</div>
+               {% if _obuna_b.daraja == 'qizil' %}background:var(--f-fee2e2);border:1px solid var(--ch-f3c7c7);color:var(--m-7f1d1d){% else %}background:var(--f-fef3c7);border:1px solid var(--ch-f5d98b);color:var(--m-78350f){% endif %}">{{ _obuna_b.matn }}</div>
         </div>
         <style>@media (max-width: 640px){ #obunaBanner .obuna-qisqa{display:none} }</style>
         {% endif %}
@@ -974,7 +1017,7 @@ function jsAttrEscape(str) {
 
     <script>
     (function() {
-      const NOTIF_BG = { red: '#FEE2E2', orange: '#FEF3C7', green: '#DCFCE7' };
+      const NOTIF_BG = { red: 'var(--f-fee2e2)', orange: 'var(--f-fef3c7)', green: 'var(--f-dcfce7)' };   // kech118 (zip 122): ikkala rejim
 
       function applyThemeIcon() {
         const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
@@ -991,6 +1034,9 @@ function jsAttrEscape(str) {
           localStorage.setItem('theme', 'dark');
         }
         applyThemeIcon();
+        // kech118 (zip 122): sahifa JS i chizgan ranglar (holat yozuvlari — `matnRangi`, grafiklar) rejimga qarab tanlanadi —
+        // almashtirilgach sahifa qayta yuklanadi (aks holda eski rejim ranglari qolardi)
+        location.reload();
       };
       applyThemeIcon();
 

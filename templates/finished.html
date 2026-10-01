@@ -12,11 +12,11 @@
 /* MUHIM: bu qoida FAQAT #prodModal ichidagi maydonlarga tegishli —
    umumiy .form-group'ga tegilmadi, chunki u boshqa 11 sahifada ham
    ishlatiladi va u yerlarga bu ta'sir qilishi kerak emas. */
-#prodModal .form-group{background:#F3F4F6;border-radius:12px;padding:12px 14px;margin-bottom:14px!important}
-#prodModal .form-group input,#prodModal .form-group select,#prodModal .form-group textarea{background:#fff}
-#prodModal .dgrp{background:#F5F3EF;border-radius:14px;padding:14px 16px;margin-bottom:14px}
+#prodModal .form-group{background:var(--f-f3f4f6);border-radius:12px;padding:12px 14px;margin-bottom:14px!important}
+#prodModal .form-group input,#prodModal .form-group select,#prodModal .form-group textarea{background:var(--white)}
+#prodModal .dgrp{background:var(--f-f5f3ef);border-radius:14px;padding:14px 16px;margin-bottom:14px}
 #prodModal .dgrp-title{font-size:12px;font-weight:800;color:var(--gold-dark);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
-#prodModal .dgrp .form-group{background:#fff;margin-bottom:0!important}
+#prodModal .dgrp .form-group{background:var(--white);margin-bottom:0!important}
 #prodModal .dgrp-row{display:grid;gap:12px}
 .fp-filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 .fp-page{
@@ -42,8 +42,8 @@
 .fp-row{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--white);margin-bottom:8px;transition:box-shadow .15s,border-color .15s;opacity:0;animation:fpIn .3s ease forwards}
 @keyframes fpIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 .fp-row:hover{box-shadow:var(--shadow-card);border-color:var(--border-strong)}
-.fp-row.returned{background:#FAFDFB}
-.fp-row.progress{background:#FFFBF0}
+.fp-row.returned{background:var(--f-fafdfb)}
+.fp-row.progress{background:var(--f-fffbf0)}
 .fp-thumb{width:70px;align-self:stretch;border-radius:12px;background:var(--gold-tint);color:var(--gold-dark);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;position:relative;overflow:hidden;cursor:pointer}
 .fp-thumb img{width:100%;height:100%;object-fit:cover}
 .fp-thumb input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
@@ -76,12 +76,12 @@
   .fp-total-col{order:3;text-align:left;min-width:0;flex:1}
   .fp-actions-wrap{order:4;flex-basis:100%;flex-wrap:wrap;padding-left:58px}
 }
-.mini-btn{width:36px;height:36px;border-radius:8px;border:1.5px solid #e5e5e5;background:#fff;font-size:18px;font-weight:700;color:#555;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1}
+.mini-btn{width:36px;height:36px;border-radius:8px;border:1.5px solid var(--ch-e5e5e5);background:var(--white);font-size:18px;font-weight:700;color:var(--m-555555);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1}
 .mini-btn:hover{background:var(--dark);color:#fff;border-color:var(--dark)}
 .fp-actions-wrap{position:relative}
-.fp-more{display:none;position:absolute;top:44px;right:0;background:#fff;border:1px solid #e5e5e5;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.16);padding:8px;z-index:60;flex-wrap:wrap;align-items:center;gap:6px;width:max-content;max-width:260px}
+.fp-more{display:none;position:absolute;top:44px;right:0;background:var(--white);border:1px solid var(--ch-e5e5e5);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.16);padding:8px;z-index:60;flex-wrap:wrap;align-items:center;gap:6px;width:max-content;max-width:260px}
 .fp-more.open{display:flex}
-.fp-inp{width:76px;height:36px;text-align:center;border:1.5px solid #e5e5e5;border-radius:8px;font-size:14px;font-weight:600;outline:none}
+.fp-inp{width:76px;height:36px;text-align:center;border:1.5px solid var(--ch-e5e5e5);border-radius:8px;font-size:14px;font-weight:600;outline:none}
 .fp-inp:focus{border-color:#B9783F}
 .fp-mini-bar{width:70px;height:5px;background:var(--border2);border-radius:3px;overflow:hidden;margin-top:4px}
 .fp-mini-fill{height:100%;border-radius:3px}
@@ -91,16 +91,16 @@
    bosilsa partiyalari (har biri o'z amallari bilan) ochiladi. Bitta partiyali mahsulot — oddiy qator (avvalgidek). */
 .fp-guruh{margin-bottom:8px}
 .fp-guruh>.fp-guruh-bosh{margin-bottom:0}
-.fp-guruh.ochiq>.fp-guruh-bosh{border-color:#D9B48C;border-radius:12px 12px 0 0}
-.fp-guruh-ichi{border:1px solid #D9B48C;border-top:0;border-radius:0 0 12px 12px;background:#FCFBF9;padding:8px 8px 2px}
+.fp-guruh.ochiq>.fp-guruh-bosh{border-color:var(--ch-d9b48c);border-radius:12px 12px 0 0}
+.fp-guruh-ichi{border:1px solid var(--ch-d9b48c);border-top:0;border-radius:0 0 12px 12px;background:var(--f-fcfbf9);padding:8px 8px 2px}
 .fp-guruh-ichi[hidden]{display:none}
 .fp-guruh-ichi .fp-row{margin-bottom:6px}
 .fp-guruh-tugma{font-size:16px}
 .fp-guruh-tugma i{transition:transform .2s}
 .fp-guruh.ochiq .fp-guruh-tugma i{transform:rotate(180deg)}
 .fp-kul{font-size:12px;color:var(--text3)}
-.fp-jarayon-izoh{font-size:12px;font-weight:600;color:#92400E;margin-top:3px;white-space:nowrap}
-.fp-mrp-havola{display:inline-flex;align-items:center;gap:4px;height:36px;padding:0 12px;border:1.5px solid #e5e5e5;border-radius:8px;background:#fff;font-size:12px;font-weight:600;color:var(--text);text-decoration:none;white-space:nowrap}
+.fp-jarayon-izoh{font-size:12px;font-weight:600;color:var(--m-92400e);margin-top:3px;white-space:nowrap}
+.fp-mrp-havola{display:inline-flex;align-items:center;gap:4px;height:36px;padding:0 12px;border:1.5px solid var(--ch-e5e5e5);border-radius:8px;background:var(--white);font-size:12px;font-weight:600;color:var(--text);text-decoration:none;white-space:nowrap}
 .fp-mrp-havola:hover{border-color:var(--gold);color:var(--gold-dark)}
 .fp-yashirin{font-size:12.5px;color:var(--text3);padding:6px 2px 10px}
 .fp-yashirin button{border:0;background:none;padding:0;color:var(--gold-dark);font-weight:600;cursor:pointer;font-size:12.5px}
@@ -112,9 +112,9 @@
 .fp-sec-line{flex:1;height:1px}
 /* Qoplama — Yo'q/Bor tugmasi */
 .coat-toggle{display:flex;border:1px solid var(--border2);border-radius:9px;overflow:hidden;height:44px}
-.coat-opt{flex:1;display:flex;align-items:center;justify-content:center;font-size:13.5px;font-weight:700;cursor:pointer;color:var(--text3);background:#FAFAF8;transition:all .15s}
-.coat-opt.coat-no.active{background:#FCA5A5;color:#7F1D1D}
-.coat-opt.coat-yes.active{background:#86EFAC;color:#14532D}
+.coat-opt{flex:1;display:flex;align-items:center;justify-content:center;font-size:13.5px;font-weight:700;cursor:pointer;color:var(--text3);background:var(--f-fafaf8);transition:all .15s}
+.coat-opt.coat-no.active{background:var(--f-fca5a5);color:var(--m-7f1d1d)}
+.coat-opt.coat-yes.active{background:var(--f-86efac);color:var(--m-14532d)}
 /* Tur — tugma-chip guruhi (dropdown o'rniga) */
 .type-toggle{display:flex;flex-wrap:wrap;gap:6px}
 .type-opt{
@@ -140,8 +140,8 @@ input[type=number]{-moz-appearance:textfield}
     <div class="stat-card"><div class="stat-icon"><i class="ti ti-category"></i></div><div class="stat-label">Mahsulotlar</div><div class="stat-val" id="k-types">—</div><div class="stat-izoh" id="k-partiya"></div></div>
     <div class="stat-card"><div class="stat-icon"><i class="ti ti-stack-2"></i></div><div class="stat-label">Omborda</div><div class="stat-val kichik" id="k-total-qty">—</div></div>
     <div class="stat-card"><div class="stat-icon"><i class="ti ti-currency-dollar"></i></div><div class="stat-label">Ombor qiymati</div><div class="stat-val" id="v-total">—</div><div class="stat-izoh" id="v-total-izoh"></div></div>
-    <div class="stat-card"><div class="stat-icon" style="background:#FEE2E2;color:#DC2626"><i class="ti ti-alert-triangle"></i></div><div class="stat-label">Kam qolganlar</div><div class="stat-val" id="k-low">—</div></div>
-    <div class="stat-card"><div class="stat-icon" style="background:#FEF3C7;color:#92400E"><i class="ti ti-hourglass"></i></div><div class="stat-label">Ishlab chiqarilmoqda</div><div class="stat-val kichik" id="k-progress">—</div><div class="stat-izoh">Bugun ishlab chiqarilgan: <span id="k-today-produced">—</span></div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:var(--f-fee2e2);color:var(--m-dc2626)"><i class="ti ti-alert-triangle"></i></div><div class="stat-label">Kam qolganlar</div><div class="stat-val" id="k-low">—</div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:var(--f-fef3c7);color:var(--m-92400e)"><i class="ti ti-hourglass"></i></div><div class="stat-label">Ishlab chiqarilmoqda</div><div class="stat-val kichik" id="k-progress">—</div><div class="stat-izoh">Bugun ishlab chiqarilgan: <span id="k-today-produced">—</span></div></div>
   </div>
 
   <div class="fp-filters">
@@ -184,61 +184,61 @@ input[type=number]{-moz-appearance:textfield}
 
 <!-- ══ KAMAYTIRISH (BRAK) MODALI ══ -->
 <div id="lossModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:14px;width:400px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
-    <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
+  <div style="background:var(--white);border-radius:14px;width:400px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
+    <div style="padding:18px 22px 14px;border-bottom:1px solid var(--ch-f0f0f0);display:flex;justify-content:space-between;align-items:center">
       <div>
         <div style="font-size:16px;font-weight:600;color:var(--text)">⚠️ Kamaytirish (brak/yo'qotish)</div>
         <div style="font-size:13px;color:var(--text3);margin-top:2px" id="loss-modal-sub">—</div>
       </div>
-      <button data-yopish onclick="closeLossModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
+      <button data-yopish onclick="closeLossModal()" style="width:30px;height:30px;border-radius:50%;background:var(--f-f5f5f5);border:none;font-size:15px;cursor:pointer">✕</button>
     </div>
     <div style="padding:18px 22px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:14px">
       <div id="loss-mode-toggle" style="display:none;gap:6px">
         <div id="loss-mode-stock" class="type-opt active" style="flex:1;min-width:0;text-align:center;white-space:normal;line-height:1.35;padding:8px 6px" onclick="setLossMode('stock')">📦 Tayyor turgan, keyin yo'qoldi</div>
         <div id="loss-mode-prod" class="type-opt" style="flex:1;min-width:0;text-align:center;white-space:normal;line-height:1.35;padding:8px 6px" onclick="setLossMode('production')">🏭 Ishlab chiqarishda chiqdi</div>
       </div>
-      <div id="loss-info-stock" style="background:#FEF3C7;border-radius:9px;padding:11px 14px;font-size:12.5px;color:#92400E;line-height:1.6">
+      <div id="loss-info-stock" style="background:var(--f-fef3c7);border-radius:9px;padding:11px 14px;font-size:12.5px;color:var(--m-92400e);line-height:1.6">
         Bu — mahsulotni <b>o'chirmaydi</b>, faqat miqdorini kamaytiradi (masalan sinib/buzilib, endi sotib bo'lmaydigan qismi uchun). Tan narxi avtomatik <b>Moliyada «Tayyor mahsulot yo'qotishi» qatoriga</b> qo'shiladi.
       </div>
-      <div id="loss-info-production" style="display:none;background:#F8F2EB;border-radius:9px;padding:11px 14px;font-size:12.5px;color:var(--gold-dark);line-height:1.6">
+      <div id="loss-info-production" style="display:none;background:var(--f-f8f2eb);border-radius:9px;padding:11px 14px;font-size:12.5px;color:var(--gold-dark);line-height:1.6">
         Bu — kesish/qoplama jarayonida chiqqan brak uchun. <b>Mahsulot soni o'zgarmaydi</b> (siz baribir to'liq miqdorni topshirasiz) — faqat qayta ishlab chiqarish uchun sarflangan <b>qo'shimcha xomashyo</b> ombordan ayiriladi va Moliyada xarajat sifatida qayd etiladi.
       </div>
       <div id="loss-qty-wrap">
-        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px" id="loss-qty-label">Necha birlik brak bo'ldi?</label>
+        <label style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px" id="loss-qty-label">Necha birlik brak bo'ldi?</label>
         <div style="font-size:12px;color:var(--text3);margin-bottom:6px" id="loss-stock-info"></div>
-        <input type="number" id="loss-qty" placeholder="0" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
+        <input type="number" id="loss-qty" placeholder="0" style="width:100%;padding:11px 12px;border:1.5px solid var(--ch-e2e8f0);border-radius:9px;font-size:15px;box-sizing:border-box">
       </div>
       <!-- kech118 (D-1, G5-20 — egasi QARORI «Ha, majburiy»): brak SABABI — ro'yxatdan, MAJBURIY (birinchi turadi);
            bosqich va javobgar hodim — ixtiyoriy; yozma maydon — «Izoh» (ilgari «Sabab» — bitta narsa ikki marta so'ralardi). -->
       <div>
-        <label for="loss-cause" style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Nima sababdan? <span style="color:#DC2626">*</span></label>
-        <select id="loss-cause" required aria-required="true" onchange="this.style.borderColor=''" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box;background:#fff">
+        <label for="loss-cause" style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px">Nima sababdan? <span style="color:var(--m-dc2626)">*</span></label>
+        <select id="loss-cause" required aria-required="true" onchange="this.style.borderColor=''" style="width:100%;padding:11px 12px;border:1.5px solid var(--ch-e2e8f0);border-radius:9px;font-size:15px;box-sizing:border-box;background:var(--white)">
           <option value="">— Tanlang —</option>
           {% for k, v in (brak_sabablari or {}).items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
         </select>
       </div>
       <!-- kech53 (13-band, 1-qadam): brak BOSQICHI — ixtiyoriy (ikkala rejimda). -->
       <div>
-        <label for="loss-stage" style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Qaysi bosqichda? (ixtiyoriy)</label>
-        <select id="loss-stage" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box;background:#fff">
+        <label for="loss-stage" style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px">Qaysi bosqichda? (ixtiyoriy)</label>
+        <select id="loss-stage" style="width:100%;padding:11px 12px;border:1.5px solid var(--ch-e2e8f0);border-radius:9px;font-size:15px;box-sizing:border-box;background:var(--white)">
           <option value="">— Tanlanmagan —</option>
           {% for k, v in (brak_bosqichlari or {}).items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
         </select>
       </div>
       <div>
-        <label for="loss-worker" style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Kim sabab bo'ldi? (ixtiyoriy)</label>
-        <select id="loss-worker" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box;background:#fff">
+        <label for="loss-worker" style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px">Kim sabab bo'ldi? (ixtiyoriy)</label>
+        <select id="loss-worker" style="width:100%;padding:11px 12px;border:1.5px solid var(--ch-e2e8f0);border-radius:9px;font-size:15px;box-sizing:border-box;background:var(--white)">
           <option value="">— Tanlanmagan —</option>
           {% for h in (brak_hodimlari or []) %}<option value="{{ h.id }}">{{ h.name }}{% if h.position %} — {{ h.position }}{% endif %}</option>{% endfor %}
         </select>
       </div>
       <div>
-        <label for="loss-reason" style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Izoh (ixtiyoriy)</label>
-        <input type="text" id="loss-reason" placeholder="Masalan: tashishda sindi" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
+        <label for="loss-reason" style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px">Izoh (ixtiyoriy)</label>
+        <input type="text" id="loss-reason" placeholder="Masalan: tashishda sindi" style="width:100%;padding:11px 12px;border:1.5px solid var(--ch-e2e8f0);border-radius:9px;font-size:15px;box-sizing:border-box">
       </div>
     </div>
-    <div style="padding:16px 22px 20px;display:flex;gap:10px;border-top:1px solid #f0f0f0">
-      <button data-yopish onclick="closeLossModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
+    <div style="padding:16px 22px 20px;display:flex;gap:10px;border-top:1px solid var(--ch-f0f0f0)">
+      <button data-yopish onclick="closeLossModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--ch-e2e8f0);background:var(--white);color:var(--m-475569);font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
       <button onclick="submitLoss()" id="loss-submit-btn" style="flex:1;padding:12px;border-radius:10px;border:none;background:#D97706;color:#fff;font-weight:600;font-size:14px;cursor:pointer">⚠️ Kamaytirish</button>
     </div>
   </div>
@@ -247,36 +247,36 @@ input[type=number]{-moz-appearance:textfield}
 <!-- ══ TANLANGANLARNI SOTISH — suzuvchi panel ══ -->
 <div id="batchSellBar" style="display:none;position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:900;background:#0F172A;color:#fff;border-radius:14px;padding:14px 20px;box-shadow:0 12px 32px rgba(0,0,0,.25);align-items:center;gap:16px">
   <span id="batchSellCount" style="font-weight:600;font-size:14px">0 ta tanlandi</span>
-  <button onclick="openBatchSellModal()" style="background:#16A34A;color:#fff;border:none;padding:9px 18px;border-radius:9px;font-weight:600;font-size:13.5px;cursor:pointer">💰 Sotish</button>
-  <button onclick="clearBatchSelection()" style="background:transparent;color:var(--text3);border:1px solid #334155;padding:9px 14px;border-radius:9px;font-size:13.5px;cursor:pointer">Bekor qilish</button>
+  <button onclick="openBatchSellModal()" style="background:#15803D;color:#fff;border:none;padding:9px 18px;border-radius:9px;font-weight:600;font-size:13.5px;cursor:pointer">💰 Sotish</button>
+  <button onclick="clearBatchSelection()" style="background:transparent;color:#CBD5E1;border:1px solid #334155;padding:9px 14px;border-radius:9px;font-size:13.5px;cursor:pointer">Bekor qilish</button>
 </div>
 
 <!-- ══ SAVATCHA — bir nechta mahsulotni sotish oynasi ══ -->
 <div id="batchSellModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:14px;width:560px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
-    <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
+  <div style="background:var(--white);border-radius:14px;width:560px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
+    <div style="padding:18px 22px 14px;border-bottom:1px solid var(--ch-f0f0f0);display:flex;justify-content:space-between;align-items:center">
       <div>
         <div style="font-size:16px;font-weight:600;color:var(--text)">💰 Bir nechta mahsulotni sotish</div>
         <div style="font-size:13px;color:var(--text3);margin-top:2px" id="batch-modal-sub">—</div>
       </div>
-      <button data-yopish onclick="closeBatchSellModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
+      <button data-yopish onclick="closeBatchSellModal()" style="width:30px;height:30px;border-radius:50%;background:var(--f-f5f5f5);border:none;font-size:15px;cursor:pointer">✕</button>
     </div>
     <div style="padding:18px 22px;overflow-y:auto;flex:1">
       <div id="batch-items-list" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px"></div>
-      <div style="background:#F0FDF4;border-radius:10px;padding:12px 14px;font-size:15px;font-weight:700;color:#166534;text-align:center;margin-bottom:12px" id="batch-total-box">Jami: 0 so'm</div>
+      <div style="background:var(--f-f0fdf4);border-radius:10px;padding:12px 14px;font-size:15px;font-weight:700;color:var(--m-166534);text-align:center;margin-bottom:12px" id="batch-total-box">Jami: 0 so'm</div>
       <div style="margin-bottom:12px">
-        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Kelishilgan summa (ixtiyoriy)</label>
+        <label style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px">Kelishilgan summa (ixtiyoriy)</label>
         <input type="text" id="batch-agreed" placeholder="Masalan: 1 980 000" oninput="formatPriceInput(this);updateBatchDiscount()"
-               style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
-        <div id="batch-discount-info" style="display:none;margin-top:8px;background:#FEF3C7;border-radius:8px;padding:9px 12px;font-size:13.5px;color:#92400E;text-align:center"></div>
+               style="width:100%;padding:11px 12px;border:1.5px solid var(--ch-e2e8f0);border-radius:9px;font-size:15px;box-sizing:border-box">
+        <div id="batch-discount-info" style="display:none;margin-top:8px;background:var(--f-fef3c7);border-radius:8px;padding:9px 12px;font-size:13.5px;color:var(--m-92400e);text-align:center"></div>
       </div>
       <div style="margin-bottom:12px">
-        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Xaridor (ixtiyoriy)</label>
-        <input type="text" id="batch-buyer" placeholder="Ism yoki kompaniya" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
+        <label style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px">Xaridor (ixtiyoriy)</label>
+        <input type="text" id="batch-buyer" placeholder="Ism yoki kompaniya" style="width:100%;padding:11px 12px;border:1.5px solid var(--ch-e2e8f0);border-radius:9px;font-size:15px;box-sizing:border-box">
       </div>
       <div style="margin-bottom:12px">
-        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Kim sotib olyapti? <span style="color:#DC2626">*</span></label>
-        <select id="batch-master" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
+        <label style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px">Kim sotib olyapti? <span style="color:var(--m-dc2626)">*</span></label>
+        <select id="batch-master" style="width:100%;padding:11px 12px;border:1.5px solid var(--ch-e2e8f0);border-radius:9px;font-size:15px;box-sizing:border-box">
           <option value="" disabled selected>— Tanlang —</option>
           <option value="none">🚫 Oddiy sotuv (usta emas)</option>
           {% for m in masters %}<option value="{{ m.id }}">👷 {{ m.name }}</option>{% endfor %}
@@ -284,49 +284,49 @@ input[type=number]{-moz-appearance:textfield}
         <div style="font-size:12px;color:var(--text3);margin-top:6px">Agar usta o'zi kelib xarid qilsa — uni tanlang, shu oy KPIga qo'shiladi. Aks holda "Oddiy sotuv"ni tanlang.</div>
       </div>
       <div>
-        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">To'lov usuli</label>
-        <select id="batch-paymethod" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
+        <label style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px">To'lov usuli</label>
+        <select id="batch-paymethod" style="width:100%;padding:11px 12px;border:1.5px solid var(--ch-e2e8f0);border-radius:9px;font-size:15px;box-sizing:border-box">
           <option value="naqd">💵 Naqd</option>
           <option value="karta">💳 Karta</option>
           <option value="bank">🏦 Bank o'tkazmasi</option>
         </select>
       </div>
     </div>
-    <div style="padding:16px 22px 20px;display:flex;gap:10px;border-top:1px solid #f0f0f0">
-      <button data-yopish onclick="closeBatchSellModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
-      <button onclick="submitBatchSell()" style="flex:1;padding:12px;border-radius:10px;border:none;background:#16A34A;color:#fff;font-weight:600;font-size:14px;cursor:pointer">✓ Sotish</button>
+    <div style="padding:16px 22px 20px;display:flex;gap:10px;border-top:1px solid var(--ch-f0f0f0)">
+      <button data-yopish onclick="closeBatchSellModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--ch-e2e8f0);background:var(--white);color:var(--m-475569);font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
+      <button onclick="submitBatchSell()" style="flex:1;padding:12px;border-radius:10px;border:none;background:#15803D;color:#fff;font-weight:600;font-size:14px;cursor:pointer">✓ Sotish</button>
     </div>
   </div>
 </div>
 
 <!-- ══ SOTISH MODALI ══ -->
 <div id="sellModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:14px;width:420px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
-    <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
+  <div style="background:var(--white);border-radius:14px;width:420px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
+    <div style="padding:18px 22px 14px;border-bottom:1px solid var(--ch-f0f0f0);display:flex;justify-content:space-between;align-items:center">
       <div>
         <div style="font-size:16px;font-weight:600;color:var(--text)">💰 Sotish</div>
         <div style="font-size:13px;color:var(--text3);margin-top:2px" id="sell-modal-sub">—</div>
       </div>
-      <button data-yopish onclick="closeSellModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
+      <button data-yopish onclick="closeSellModal()" style="width:30px;height:30px;border-radius:50%;background:var(--f-f5f5f5);border:none;font-size:15px;cursor:pointer">✕</button>
     </div>
     <div style="padding:18px 22px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:14px">
       <div>
-        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Miqdor</label>
+        <label style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px">Miqdor</label>
         <div style="font-size:12px;color:var(--text3);margin-bottom:6px" id="sell-stock-info"></div>
-        <input type="number" id="sell-qty" placeholder="0" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
+        <input type="number" id="sell-qty" placeholder="0" style="width:100%;padding:11px 12px;border:1.5px solid var(--ch-e2e8f0);border-radius:9px;font-size:15px;box-sizing:border-box">
       </div>
       <div>
-        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">1 birlik narxi (so'm)</label>
-        <input type="text" id="sell-price" placeholder="0" oninput="formatPriceInput(this);updateSellTotal()" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
+        <label style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px">1 birlik narxi (so'm)</label>
+        <input type="text" id="sell-price" placeholder="0" oninput="formatPriceInput(this);updateSellTotal()" style="width:100%;padding:11px 12px;border:1.5px solid var(--ch-e2e8f0);border-radius:9px;font-size:15px;box-sizing:border-box">
       </div>
-      <div id="sell-total-box" style="background:#F0FDF4;border-radius:10px;padding:12px 14px;font-size:15px;font-weight:700;color:#166534;text-align:center">Jami: 0 so'm</div>
+      <div id="sell-total-box" style="background:var(--f-f0fdf4);border-radius:10px;padding:12px 14px;font-size:15px;font-weight:700;color:var(--m-166534);text-align:center">Jami: 0 so'm</div>
       <div>
-        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Xaridor (ixtiyoriy)</label>
-        <input type="text" id="sell-buyer" placeholder="Ism yoki kompaniya" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
+        <label style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px">Xaridor (ixtiyoriy)</label>
+        <input type="text" id="sell-buyer" placeholder="Ism yoki kompaniya" style="width:100%;padding:11px 12px;border:1.5px solid var(--ch-e2e8f0);border-radius:9px;font-size:15px;box-sizing:border-box">
       </div>
       <div>
-        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Kim sotib olyapti? <span style="color:#DC2626">*</span></label>
-        <select id="sell-master" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
+        <label style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px">Kim sotib olyapti? <span style="color:var(--m-dc2626)">*</span></label>
+        <select id="sell-master" style="width:100%;padding:11px 12px;border:1.5px solid var(--ch-e2e8f0);border-radius:9px;font-size:15px;box-sizing:border-box">
           <option value="" disabled selected>— Tanlang —</option>
           <option value="none">🚫 Oddiy sotuv (usta emas)</option>
           {% for m in masters %}<option value="{{ m.id }}">👷 {{ m.name }}</option>{% endfor %}
@@ -334,27 +334,27 @@ input[type=number]{-moz-appearance:textfield}
         <div style="font-size:12px;color:var(--text3);margin-top:6px">Agar usta o'zi kelib xarid qilsa — uni tanlang, shu oy KPIga qo'shiladi. Aks holda "Oddiy sotuv"ni tanlang.</div>
       </div>
       <div>
-        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">To'lov usuli</label>
-        <select id="sell-paymethod" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
+        <label style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px">To'lov usuli</label>
+        <select id="sell-paymethod" style="width:100%;padding:11px 12px;border:1.5px solid var(--ch-e2e8f0);border-radius:9px;font-size:15px;box-sizing:border-box">
           <option value="naqd">💵 Naqd</option>
           <option value="karta">💳 Karta</option>
           <option value="bank">🏦 Bank o'tkazmasi</option>
         </select>
       </div>
     </div>
-    <div style="padding:16px 22px 20px;display:flex;gap:10px;border-top:1px solid #f0f0f0">
-      <button data-yopish onclick="closeSellModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
-      <button onclick="submitSell()" style="flex:1;padding:12px;border-radius:10px;border:none;background:#16A34A;color:#fff;font-weight:600;font-size:14px;cursor:pointer">✓ Sotish</button>
+    <div style="padding:16px 22px 20px;display:flex;gap:10px;border-top:1px solid var(--ch-f0f0f0)">
+      <button data-yopish onclick="closeSellModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--ch-e2e8f0);background:var(--white);color:var(--m-475569);font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
+      <button onclick="submitSell()" style="flex:1;padding:12px;border-radius:10px;border:none;background:#15803D;color:#fff;font-weight:600;font-size:14px;cursor:pointer">✓ Sotish</button>
     </div>
   </div>
 </div>
 
 <!-- ══ TARIX MODALI ══ -->
 <div id="historyModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:14px;width:480px;max-width:100%;max-height:80vh;display:flex;flex-direction:column">
-    <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
+  <div style="background:var(--white);border-radius:14px;width:480px;max-width:100%;max-height:80vh;display:flex;flex-direction:column">
+    <div style="padding:18px 22px 14px;border-bottom:1px solid var(--ch-f0f0f0);display:flex;justify-content:space-between;align-items:center">
       <div style="font-size:16px;font-weight:600;color:var(--text)" id="hist-title">Tarix</div>
-      <button data-yopish onclick="closeHistoryModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
+      <button data-yopish onclick="closeHistoryModal()" style="width:30px;height:30px;border-radius:50%;background:var(--f-f5f5f5);border:none;font-size:15px;cursor:pointer">✕</button>
     </div>
     <div style="padding:18px 22px;overflow-y:auto;flex:1" id="hist-body"></div>
   </div>
@@ -362,7 +362,7 @@ input[type=number]{-moz-appearance:textfield}
 
 <!-- Mahsulotni o'chirish — 3 variantli maxsus modal (native ikki bosqichli confirm o'rniga) -->
 <div id="delFpModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:2000;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px)">
-  <div style="background:#fff;border-radius:14px;padding:24px;width:420px;max-width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25)">
+  <div style="background:var(--white);border-radius:14px;padding:24px;width:420px;max-width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25)">
     <div id="delfp-title" style="font-size:15.5px;font-weight:700;color:var(--text);margin-bottom:6px">—</div>
     <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:18px">Xomashyo bilan bog'liq bu amalni tanlang:</div>
     <div style="display:flex;flex-direction:column;gap:8px">
@@ -371,7 +371,7 @@ input[type=number]{-moz-appearance:textfield}
         <div style="font-size:12px;color:var(--text3);margin-top:2px">Ishlatilgan Penoplast/loy ombor hisobiga qaytariladi</div>
       </button>
       <button class="btn btn-outline" style="width:100%;text-align:left;padding:12px 14px" onclick="_delFpResolveWith('no-return')">
-        <div style="font-weight:600;color:#DC2626">🗑️ O'chirish, xomashyo qaytarilmasin</div>
+        <div style="font-weight:600;color:var(--m-dc2626)">🗑️ O'chirish, xomashyo qaytarilmasin</div>
         <div style="font-size:12px;color:var(--text3);margin-top:2px">Masalan brak/singan bo'lsa</div>
       </button>
       <button data-yopish class="btn btn-outline" style="width:100%;margin-top:4px" onclick="_delFpResolveWith(null)">Bekor qilish</button>
@@ -380,17 +380,17 @@ input[type=number]{-moz-appearance:textfield}
 </div>
 <!-- ══ ISHLAB CHIQARISH MODALI ══ -->
 <div id="prodModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:14px;width:560px;max-width:100%;max-height:90vh;display:flex;flex-direction:column">
-    <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
+  <div style="background:var(--white);border-radius:14px;width:560px;max-width:100%;max-height:90vh;display:flex;flex-direction:column">
+    <div style="padding:18px 22px 14px;border-bottom:1px solid var(--ch-f0f0f0);display:flex;justify-content:space-between;align-items:center">
       <div>
         <div style="font-size:16px;font-weight:600;color:var(--text)">🏭 Tayyor mahsulot ishlab chiqarish</div>
         <div style="font-size:12px;color:var(--text3);margin-top:2px">Ombordan xomashyo yechiladi</div>
       </div>
-      <button data-yopish onclick="closeProduceModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
+      <button data-yopish onclick="closeProduceModal()" style="width:30px;height:30px;border-radius:50%;background:var(--f-f5f5f5);border:none;font-size:15px;cursor:pointer">✕</button>
     </div>
 
     <div style="padding:16px 22px;overflow-y:auto;flex:1">
-      <div class="form-group" style="background:#F3E4CC;border:2px solid #A86B36">
+      <div class="form-group" style="background:var(--f-f3e4cc);border:2px solid #A86B36">
         <label style="color:var(--gold-dark)">Mahsulot nomi</label>
         <input type="text" id="p-name" placeholder="Masalan: Karniz 20 sm M-06">
       </div>
@@ -508,7 +508,7 @@ input[type=number]{-moz-appearance:textfield}
         </div>
       </div>
 
-      <div style="background:#F8F5EF;border-radius:9px;padding:11px 14px;margin:6px 0 12px;font-size:12px;line-height:1.8" id="p-calc">
+      <div style="background:var(--f-f8f5ef);border-radius:9px;padding:11px 14px;margin:6px 0 12px;font-size:12px;line-height:1.8" id="p-calc">
         O'lchamlarni kiriting
       </div>
 
@@ -524,10 +524,10 @@ input[type=number]{-moz-appearance:textfield}
         <input type="text" id="p-notes" placeholder="Ixtiyoriy">
       </div>
 
-      <div id="p-error" style="display:none;margin-top:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:12px;color:#DC2626"></div>
+      <div id="p-error" style="display:none;margin-top:10px;padding:9px 12px;background:var(--f-fee2e2);border-radius:7px;font-size:12px;color:var(--m-dc2626)"></div>
     </div>
 
-    <div style="padding:14px 22px 18px;border-top:1px solid #f0f0f0;display:flex;gap:8px">
+    <div style="padding:14px 22px 18px;border-top:1px solid var(--ch-f0f0f0);display:flex;gap:8px">
       <button data-yopish class="btn btn-outline" style="flex:1" onclick="closeProduceModal()">Bekor</button>
       <button class="btn btn-dark" style="flex:2;background:var(--gold-btn);border-color:var(--gold-btn)" onclick="saveProduce()">🏭 Ishlab chiqarish</button>
     </div>
@@ -537,18 +537,18 @@ input[type=number]{-moz-appearance:textfield}
 
 <!-- ══ FOYDA MODALI ══ -->
 <div id="profitModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:14px;width:520px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
-    <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
+  <div style="background:var(--white);border-radius:14px;width:520px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
+    <div style="padding:18px 22px 14px;border-bottom:1px solid var(--ch-f0f0f0);display:flex;justify-content:space-between;align-items:center">
       <div>
         <div style="font-size:16px;font-weight:600;color:var(--text)">💰 Foyda hisobi</div>
         <div style="font-size:12px;color:var(--text3);margin-top:2px" id="pm-sub">—</div>
       </div>
-      <button data-yopish onclick="closeProfitModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
+      <button data-yopish onclick="closeProfitModal()" style="width:30px;height:30px;border-radius:50%;background:var(--f-f5f5f5);border:none;font-size:15px;cursor:pointer">✕</button>
     </div>
     <div style="padding:18px 22px;overflow-y:auto;flex:1" id="pm-body">
       <div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>
     </div>
-    <div style="padding:14px 22px 18px;border-top:1px solid #f0f0f0">
+    <div style="padding:14px 22px 18px;border-top:1px solid var(--ch-f0f0f0)">
       <button data-yopish class="btn btn-dark w-full" onclick="closeProfitModal()">Yopish</button>
     </div>
   </div>
@@ -794,7 +794,7 @@ function showMsg(t, type) {
   const box = document.createElement('div');
   box.style.cssText = `position:fixed;bottom:22px;right:22px;z-index:2000;padding:12px 18px;border-radius:10px;
     font-size:13px;font-weight:500;box-shadow:0 4px 20px rgba(0,0,0,.18);white-space:pre-line;max-width:380px;
-    background:${type==='error'?'#FEE2E2':'#DCFCE7'};color:${type==='error'?'#DC2626':'#1e7e34'}`;
+    background:${type==='error'?'var(--f-fee2e2)':'var(--f-dcfce7)'};color:${type==='error'?'var(--m-dc2626)':'var(--m-1e7e34)'}`;
   box.textContent = t;
   document.body.appendChild(box);
   setTimeout(() => box.remove(), 4000);
@@ -840,10 +840,10 @@ function updateFpRangeBanner() {
   const el = document.getElementById('fp-range-banner');
   if (!el) return;
   if (showAllFp) {
-    el.style.background = '#FFFBEB'; el.style.color = '#92400E';
-    el.innerHTML = `<span>⚠️ Barcha yozuvlar ko'rsatilmoqda</span><span style="color:#B45309;font-weight:600;cursor:pointer" onclick="toggleFpShowAll()">← Qisqartirish</span>`;
+    el.style.background = 'var(--f-fffbeb)'; el.style.color = 'var(--m-92400e)';
+    el.innerHTML = `<span>⚠️ Barcha yozuvlar ko'rsatilmoqda</span><span style="color:var(--m-b45309);font-weight:600;cursor:pointer" onclick="toggleFpShowAll()">← Qisqartirish</span>`;
   } else {
-    el.style.background = '#F8F2EB'; el.style.color = '#8F5B2A';
+    el.style.background = 'var(--f-f8f2eb)'; el.style.color = 'var(--m-8f5b2a)';
     el.innerHTML = `<span>📅 So'nggi 90 kunlik (+ ombordagi va jarayondagilar)</span><span style="color:var(--gold-dark);font-weight:600;cursor:pointer" onclick="toggleFpShowAll()">Barchasini ko'rish →</span>`;
   }
 }
@@ -990,7 +990,7 @@ function guruhHtml(g) {
       <div class="fp-main">
         <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
           <span class="fp-name">${escapeHtml(i0.name)}</span>
-          ${g.band > 0 ? `<span class="fp-badge" style="background:#FEE2E2;color:#B91C1C">🔒 Band: ${escapeHtml(fpMiqdor(g.band))} ${escapeHtml(u)}</span>` : ''}
+          ${g.band > 0 ? `<span class="fp-badge" style="background:var(--f-fee2e2);color:var(--m-b91c1c)">🔒 Band: ${escapeHtml(fpMiqdor(g.band))} ${escapeHtml(u)}</span>` : ''}
         </div>
         <div class="fp-meta">${meta.map(escapeHtml).join(' · ')}</div>
       </div>
@@ -1006,11 +1006,11 @@ function guruhHtml(g) {
         <div style="font-size:12px;color:var(--text3)">tan: ${g.birlikTannarx === null ? '—' : fmt(g.birlikTannarx)}</div>
       </div>
       <div class="fp-total-col">
-        <div style="font-size:13px;font-weight:700;color:#15803D">${g.qiymat === null ? '—' : fmt(g.qiymat)}</div>
+        <div style="font-size:13px;font-weight:700;color:var(--m-15803d)">${g.qiymat === null ? '—' : fmt(g.qiymat)}</div>
         <div class="fp-kul">${escapeHtml(qiymatIzoh)}</div>
       </div>
       <div class="fp-actions-wrap" style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-        ${g.miqdor > 0 ? `<button class="mini-btn" type="button" onclick="fpGuruhSotish(this)" title="Sotish — partiyalar savatchada, miqdorni o'zingiz yozasiz" aria-label="Sotish" style="color:#15803D;border-color:#BBF7D0"><i class="ti ti-cash"></i></button>` : ''}
+        ${g.miqdor > 0 ? `<button class="mini-btn" type="button" onclick="fpGuruhSotish(this)" title="Sotish — partiyalar savatchada, miqdorni o'zingiz yozasiz" aria-label="Sotish" style="color:var(--m-15803d);border-color:var(--ch-bbf7d0)"><i class="ti ti-cash"></i></button>` : ''}
         ${TM_TAHRIR ? `<button class="mini-btn" type="button" onclick="fpKamChegaraYoz(${Number(i0.id)})" title="«Kam» chegarasi — eng kam qoldiq" aria-label="«Kam» chegarasini yozish"><i class="ti ti-bell"></i></button>` : ''}
         <button class="mini-btn fp-guruh-tugma" type="button" aria-expanded="${ochiq ? 'true' : 'false'}"
                 aria-label="Partiyalarni ochish yoki yig'ish" title="Partiyalar" onclick="fpGuruhAlmashtir(this)"><i class="ti ti-chevron-down"></i></button>
@@ -1107,7 +1107,7 @@ function renderFp() {
   if (groups.length) {
     html += `<div class="fp-sec">
       <span class="fp-sec-label" style="color:var(--gold-dark)">🏭 PENOPLAST VA BOSHQA</span>
-      <div class="fp-sec-line" style="background:linear-gradient(90deg,#E5DFD3,transparent)"></div>
+      <div class="fp-sec-line" style="background:linear-gradient(90deg,var(--f-e5dfd3),transparent)"></div>
     </div>` + groups.map(guruhHtml).join('');
   }
   if (yashirin > 0) {
@@ -1117,9 +1117,9 @@ function renderFp() {
   if (returned.length) {
     const isOpen = fpReturnedOpen;
     html += `<div class="fp-sec" style="cursor:pointer;user-select:none" onclick="toggleReturnedSection()">
-      <span class="fp-sec-label" style="color:#1e7e34">♻️ QAYTGAN MAHSULOTLAR (${returned.length})</span>
-      <div class="fp-sec-line" style="background:linear-gradient(90deg,#D5EDDD,transparent)"></div>
-      <i class="ti ti-chevron-down" style="font-size:15px;color:#1e7e34;transition:transform .2s;transform:rotate(${isOpen?180:0}deg)"></i>
+      <span class="fp-sec-label" style="color:var(--m-1e7e34)">♻️ QAYTGAN MAHSULOTLAR (${returned.length})</span>
+      <div class="fp-sec-line" style="background:linear-gradient(90deg,var(--f-d5eddd),transparent)"></div>
+      <i class="ti ti-chevron-down" style="font-size:15px;color:var(--m-1e7e34);transition:transform .2s;transform:rotate(${isOpen?180:0}deg)"></i>
     </div>
     <div id="fpReturnedBody" style="display:${isOpen?'block':'none'}">` + returned.map(i => rowHtml(i, false)).join('') + `</div>`;
   }
@@ -1244,33 +1244,33 @@ function rowHtml(i, partiyami) {
     <button class="btn btn-dark btn-sm" style="padding:5px 12px;font-size:12px;white-space:nowrap"
             onclick="markReady(${i.id})">✓ Sotuvga tayyor</button>
     <button class="mini-btn" onclick="editPrice(${i.id})" title="Narxni o'zgartirish">✏️</button>
-    <button class="mini-btn" style="color:#DC2626;border-color:#FADBD8"
+    <button class="mini-btn" style="color:var(--m-dc2626);border-color:var(--ch-fadbd8)"
             onclick="delFp(${i.id}, '${jsAttrEscape(i.source)}')" title="Bekor qilish">✕</button>
   ` : `
-    <button class="mini-btn" onclick="openSellModal(${i.id}, '${jsAttrEscape(i.name)}', ${i.quantity}, '${jsAttrEscape(i.unit)}', ${i.unit_price || 0})" title="Sotish" style="color:#15803D;border-color:#BBF7D0"><i class="ti ti-cash"></i></button>
+    <button class="mini-btn" onclick="openSellModal(${i.id}, '${jsAttrEscape(i.name)}', ${i.quantity}, '${jsAttrEscape(i.unit)}', ${i.unit_price || 0})" title="Sotish" style="color:var(--m-15803d);border-color:var(--ch-bbf7d0)"><i class="ti ti-cash"></i></button>
     ${i.source === 'produced' ? `
     <button class="mini-btn" onclick="openLossModal(${i.id}, '${jsAttrEscape(i.name)}', ${i.quantity}, '${jsAttrEscape(i.unit)}', '${jsAttrEscape(i.category || '')}')"
             title="Kamaytirish (brak/yo'qotish)"
-            style="color:#DC2626">−</button>
+            style="color:var(--m-dc2626)">−</button>
     ${(i.category !== 'dynamic_bom' && !i.product_type_id) ? `
     <input class="fp-inp" id="fq-${i.id}" type="number" step="any" value="1" placeholder="0">
     <button class="mini-btn" onclick="stepFp(${i.id})"
             title="Qo'shish — xomashyo proporsional yechiladi"
-            style="color:#15803D">+</button>
+            style="color:var(--m-15803d)">+</button>
     ` : ''}
     ` : ''}
     <button class="mini-btn" onclick="toggleFpMore(event, ${i.id})" title="Yana"><i class="ti ti-dots"></i></button>
     <div class="fp-more" id="fp-more-${i.id}">
       <button class="mini-btn" onclick="editPrice(${i.id})" title="Narxni o'zgartirish"><i class="ti ti-edit"></i></button>
-      ${i.source !== 'produced' ? `<button class="mini-btn" onclick="openLossModal(${i.id}, '${jsAttrEscape(i.name)}', ${i.quantity}, '${jsAttrEscape(i.unit)}', '${jsAttrEscape(i.category || '')}')" title="Kamaytirish (brak/yo'qotish)" style="color:#B45309;border-color:#FED7AA"><i class="ti ti-alert-triangle"></i></button>` : ''}
+      ${i.source !== 'produced' ? `<button class="mini-btn" onclick="openLossModal(${i.id}, '${jsAttrEscape(i.name)}', ${i.quantity}, '${jsAttrEscape(i.unit)}', '${jsAttrEscape(i.category || '')}')" title="Kamaytirish (brak/yo'qotish)" style="color:var(--m-b45309);border-color:var(--ch-fed7aa)"><i class="ti ti-alert-triangle"></i></button>` : ''}
       <button class="mini-btn" onclick="openHistoryModal(${i.id})" title="Tarixni ko'rish"><i class="ti ti-history"></i></button>
       ${(TM_TAHRIR && i.source === 'produced' && !partiyami) ? `<button class="mini-btn" onclick="fpKamChegaraYoz(${i.id})" title="«Kam» chegarasi — eng kam qoldiq" aria-label="«Kam» chegarasini yozish"><i class="ti ti-bell"></i></button>` : ''}
-      ${i.reserved_quantity > 0 ? `<button class="mini-btn" onclick="releaseFpReservation(${i.id}, '${jsAttrEscape(i.name)}')" title="Band qilishni bekor qilib, umumiy sotuvga qaytarish" style="color:#B91C1C;border-color:#FECACA"><i class="ti ti-lock-open"></i></button>` : ''}
+      ${i.reserved_quantity > 0 ? `<button class="mini-btn" onclick="releaseFpReservation(${i.id}, '${jsAttrEscape(i.name)}')" title="Band qilishni bekor qilib, umumiy sotuvga qaytarish" style="color:var(--m-b91c1c);border-color:var(--ch-fecaca)"><i class="ti ti-lock-open"></i></button>` : ''}
       {% if current_user.ruxsat('tannarx', 'korish') %}
       <button class="mini-btn" onclick="openProfitModal(${i.id})" title="Foyda hisobi"
-              style="color:var(--gold-dark);border-color:#E5DFD3"><i class="ti ti-report-money"></i></button>
+              style="color:var(--gold-dark);border-color:var(--ch-e5dfd3)"><i class="ti ti-report-money"></i></button>
       {% endif %}
-      <button class="mini-btn" style="color:#DC2626;border-color:#FADBD8"
+      <button class="mini-btn" style="color:var(--m-dc2626);border-color:var(--ch-fadbd8)"
               onclick="delFp(${i.id}, '${jsAttrEscape(i.source)}')" title="O'chirish"><i class="ti ti-trash"></i></button>
     </div>
   `;
@@ -1297,11 +1297,11 @@ function rowHtml(i, partiyami) {
           ? `<span class="fp-name">${escapeHtml(fpPartiyaNomi(i))}</span> ${i.created_at ? `<span class="fp-sku">${escapeHtml(tkSana(i.created_at, 'ru-RU'))}</span>` : ''}`
           : `<span class="fp-name">${escapeHtml(i.name)}</span>
         <span class="fp-sku">${fpSku(i)}</span>`}
-        ${inProgress ? '<span class="fp-badge" style="background:#FEF3C7;color:#92400E">⏳ ISHLAB CHIQARILMOQDA</span>' : ''}
-        ${isRet ? '<span class="fp-badge" style="background:#DCFCE7;color:#1e7e34">♻️ QAYTGAN</span>' : ''}
-        ${i.reserved_quantity > 0 ? `<span class="fp-badge" style="background:#FEE2E2;color:#B91C1C" title="Bu miqdor umumiy sotuvdan ajratilgan — faqat shu buyurtma uchun">🔒 Band: ${i.reserved_quantity} ${escapeHtml(unitLabel(i.unit))}</span>` : ''}
+        ${inProgress ? '<span class="fp-badge" style="background:var(--f-fef3c7);color:var(--m-92400e)">⏳ ISHLAB CHIQARILMOQDA</span>' : ''}
+        ${isRet ? '<span class="fp-badge" style="background:var(--f-dcfce7);color:var(--m-1e7e34)">♻️ QAYTGAN</span>' : ''}
+        ${i.reserved_quantity > 0 ? `<span class="fp-badge" style="background:var(--f-fee2e2);color:var(--m-b91c1c)" title="Bu miqdor umumiy sotuvdan ajratilgan — faqat shu buyurtma uchun">🔒 Band: ${i.reserved_quantity} ${escapeHtml(unitLabel(i.unit))}</span>` : ''}
       </div>
-      <div class="fp-meta">${meta.map(escapeHtml).join(' · ')}${profitPct !== null ? (cpu < 0 ? ` · <b style="color:#DC2626">⚠️ tannarx xato</b>` : ` · Foyda: <b style="color:${profitPct>=0?'#15803D':'#DC2626'}">${profitPct}%</b>`) : ''}</div>
+      <div class="fp-meta">${meta.map(escapeHtml).join(' · ')}${profitPct !== null ? (cpu < 0 ? ` · <b style="color:var(--m-dc2626)">⚠️ tannarx xato</b>` : ` · Foyda: <b style="color:${profitPct>=0?'var(--m-15803d)':'var(--m-dc2626)'}">${profitPct}%</b>`) : ''}</div>
     </div>
 
     <div class="fp-stock-col">
@@ -1314,12 +1314,12 @@ function rowHtml(i, partiyami) {
     <div class="fp-price-col">
       <div class="fp-price">${narxBor ? `${fmt(i.unit_price)}/${escapeHtml(unitLabel(i.unit))}` : 'sotishda yoziladi'}</div>
       ${i.source === 'produced' ? (cpu === null ? `<div style="font-size:12px;color:var(--text3)">tan: —</div>` : (cpu < 0
-        ? `<div style="font-size:12px;color:#DC2626;font-weight:700" title="Tannarx hisobida xatolik bor — ombor harakatlarini tekshiring">⚠️ tan: ${fmt(cpu)}</div>`
+        ? `<div style="font-size:12px;color:var(--m-dc2626);font-weight:700" title="Tannarx hisobida xatolik bor — ombor harakatlarini tekshiring">⚠️ tan: ${fmt(cpu)}</div>`
         : `<div style="font-size:12px;color:var(--text3)">tan: ${fmt(cpu)}</div>`)) : ''}
     </div>
 
     <div class="fp-total-col">
-      <div style="font-size:13px;font-weight:700;color:#15803D">${(narxBor ? i.total_value : i.ombor_qiymati) === null ? '—' : fmt(narxBor ? i.total_value : i.ombor_qiymati)}</div>
+      <div style="font-size:13px;font-weight:700;color:var(--m-15803d)">${(narxBor ? i.total_value : i.ombor_qiymati) === null ? '—' : fmt(narxBor ? i.total_value : i.ombor_qiymati)}</div>
       <div style="font-size:12px;color:var(--text3)">${narxBor ? 'jami' : "tannarx bo'yicha"}</div>
     </div>
 
@@ -1623,7 +1623,7 @@ function openBatchSellModal() {
   list.innerHTML = ids.map(id => {
     const it = _batchItems[id];
     return `
-      <div class="batch-item-row" data-id="${id}" style="border:1px solid #E2E8F0;border-radius:10px;padding:10px 12px">
+      <div class="batch-item-row" data-id="${id}" style="border:1px solid var(--ch-e2e8f0);border-radius:10px;padding:10px 12px">
         <div style="font-weight:600;font-size:14px;color:var(--text);margin-bottom:8px">${escapeHtml(it.name)}</div>
         <div style="display:flex;gap:8px;align-items:flex-end">
           <div style="flex:1">
@@ -1633,13 +1633,13 @@ function openBatchSellModal() {
                    oninput="updateBatchTotal();updateBatchRemain(this)" style="width:100%;padding:8px 10px;border:1.5px solid var(--gold);border-radius:8px;font-size:14px;font-weight:600;box-sizing:border-box">
           </div>
           <div style="flex:1">
-            <div style="font-size:12px;color:#15803D;margin-bottom:3px;font-weight:600">Qoladi</div>
-            <div class="batch-remain" style="width:100%;padding:8px 10px;border:1.5px solid #BBF7D0;border-radius:8px;font-size:14px;font-weight:700;color:#15803D;background:#F0FDF4;box-sizing:border-box;text-align:center">${escapeHtml(fpMiqdor(it.maxQty))} ${escapeHtml(unitLabel(it.unit))}</div>
+            <div style="font-size:12px;color:var(--m-15803d);margin-bottom:3px;font-weight:600">Qoladi</div>
+            <div class="batch-remain" style="width:100%;padding:8px 10px;border:1.5px solid var(--ch-bbf7d0);border-radius:8px;font-size:14px;font-weight:700;color:var(--m-15803d);background:var(--f-f0fdf4);box-sizing:border-box;text-align:center">${escapeHtml(fpMiqdor(it.maxQty))} ${escapeHtml(unitLabel(it.unit))}</div>
           </div>
           <div style="flex:1">
             <div style="font-size:12px;color:var(--text3);margin-bottom:3px">1 birlik narxi</div>
             <input type="text" class="batch-price" value="${narxKorinishi(it.price)}" oninput="formatPriceInput(this);updateBatchTotal()"
-                   style="width:100%;padding:8px 10px;border:1.5px solid #E2E8F0;border-radius:8px;font-size:14px;box-sizing:border-box">
+                   style="width:100%;padding:8px 10px;border:1.5px solid var(--ch-e2e8f0);border-radius:8px;font-size:14px;box-sizing:border-box">
           </div>
         </div>
       </div>`;
@@ -1674,7 +1674,7 @@ function updateBatchRemain(input) {
   const remainEl = input.closest('.batch-item-row')?.querySelector('.batch-remain');
   if (remainEl) {
     remainEl.textContent = entered > max ? `faqat ${fpMiqdor(max)} ${unit} bor` : `${fpMiqdor(remain)} ${unit}`;
-    remainEl.style.color = entered > max ? '#DC2626' : '#15803D';
+    remainEl.style.color = entered > max ? 'var(--m-dc2626)' : 'var(--m-15803d)';
   }
 }
 
@@ -1695,15 +1695,15 @@ function updateBatchDiscount() {
     box.textContent = `Chegirma: ${fmt(disc)} so'm (${sonKor(pct, 1)}%)`;
   } else if (agreed > original && original > 0) {
     box.style.display = 'block';
-    box.style.background = '#FEE2E2';
-    box.style.color = '#991B1B';
+    box.style.background = 'var(--f-fee2e2)';
+    box.style.color = 'var(--m-991b1b)';
     box.textContent = `⚠ Kelishilgan summa jamidan katta bo'lishi mumkin emas`;
     return;
   } else {
     box.style.display = 'none';
   }
-  box.style.background = '#FEF3C7';
-  box.style.color = '#92400E';
+  box.style.background = 'var(--f-fef3c7)';
+  box.style.color = 'var(--m-92400e)';
 }
 
 async function submitBatchSell(confirmBelowCost) {
@@ -2183,7 +2183,7 @@ function pCalc() {
   const loyLine = loyKg > 0 && !tannarxKoradi ? `<br>🧱 Loy: <b>${loyKg} kg</b>` : loyKg > 0
     ? (loyCostPerKg > 0
         ? `<br>🧱 Loy: <b>${loyKg} kg × ${fmt(loyCostPerKg)} = ${fmt(loyCost)} so'm</b>${loyRecipeName ? ` <span style="color:var(--text3)">(${escapeHtml(loyRecipeName)})</span>` : ''}`
-        : `<br>🧱 Loy: <b>${loyKg} kg</b> <span style="color:#B45309">— retsept tanlanmagan</span>`)
+        : `<br>🧱 Loy: <b>${loyKg} kg</b> <span style="color:var(--m-b45309)">— retsept tanlanmagan</span>`)
     : '';
 
   const costPerUnit = count > 0 ? cost / count : 0;
@@ -2196,13 +2196,13 @@ function pCalc() {
   box.innerHTML = `
     📦 Hajm: <b>${sonKor(volume_total, 4)} m³</b>${p ? ` · ${escapeHtml(p.name)}: <b>${sonKor(blocks, 2)} blok</b>${tannarxKoradi ? ` = ${fmt(penoCost)} so'm` : ''}` : ''}${volLockLine}${loyLine}<br>
     💵 1 ${unit} narxi: <b style="color:var(--gold-dark)">${narxKorinishi(perUnitPrice)} so'm</b>${inputPrice ? ` <span style="color:var(--text3)">(kiritilgan: ${narxKorinishi(inputPrice)})</span>` : ''}<br>
-    ${tannarxKoradi ? `<div style="margin:6px 0;padding:6px 0;border-top:1px dashed #ddd;border-bottom:1px dashed #ddd">
-      💰 Tan narxi: <b style="color:#DC2626">${fmt(cost)} so'm</b>
+    ${tannarxKoradi ? `<div style="margin:6px 0;padding:6px 0;border-top:1px dashed var(--ch-dddddd);border-bottom:1px dashed var(--ch-dddddd)">
+      💰 Tan narxi: <b style="color:var(--m-dc2626)">${fmt(cost)} so'm</b>
       <span style="color:var(--text3)">(1 ${unit} = ${fmt(costPerUnit)})</span><br>
-      💵 Sotuv: <b style="color:#15803D">${fmt(revenue)} so'm</b><br>
-      📈 Foyda: <b style="color:${profit>0?'#15803D':'#DC2626'};font-size:13px">${fmt(profit)} so'm</b>
+      💵 Sotuv: <b style="color:var(--m-15803d)">${fmt(revenue)} so'm</b><br>
+      📈 Foyda: <b style="color:${profit>0?'var(--m-15803d)':'var(--m-dc2626)'};font-size:13px">${fmt(profit)} so'm</b>
       <span style="color:var(--text3)">(${sonKor(margin, 1)}%)</span>
-    </div>` : `<div style="margin:6px 0;padding:6px 0;border-top:1px dashed #ddd;border-bottom:1px dashed #ddd">💵 Sotuv: <b style="color:#15803D">${fmt(revenue)} so'm</b></div>`}
+    </div>` : `<div style="margin:6px 0;padding:6px 0;border-top:1px dashed var(--ch-dddddd);border-bottom:1px dashed var(--ch-dddddd)">💵 Sotuv: <b style="color:var(--m-15803d)">${fmt(revenue)} so'm</b></div>`}
     🏭 Natija: <b style="color:var(--gold-dark)">${count} ${unit}</b>`;
 }
 
@@ -2407,7 +2407,7 @@ async function openProfitModal(id) {
 
   const row = (label, val, color, bold) => `
     <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px${bold?';font-weight:700':''}">
-      <span style="color:${bold?'var(--text)':'#777'}">${escapeHtml(label)}</span>
+      <span style="color:${bold?'var(--text)':'var(--m-777777)'}">${escapeHtml(label)}</span>
       <span style="color:${matnRangi(color||'var(--text)')};font-weight:${bold?'700':'600'}">${escapeHtml(val)}</span>
     </div>`;
 
@@ -2448,7 +2448,7 @@ async function openProfitModal(id) {
     ${Math.abs(narxFarqi62) >= 1 ? row('↕ Narx farqi (qatorlar joriy narxda, tan narxi ishlab chiqarilgan paytda)', fmt(narxFarqi62) + " so'm", '#777') : ''}`;
 
   document.getElementById('pm-body').innerHTML = `
-    <div style="background:#FAFAF8;border-radius:9px;padding:11px 14px;margin-bottom:14px;font-size:12px;color:#666;line-height:1.8">
+    <div style="background:var(--f-fafaf8);border-radius:9px;padding:11px 14px;margin-bottom:14px;font-size:12px;color:var(--m-666666);line-height:1.8">
       📐 ${dims} · ${i.is_coated ? 'qoplamali' : 'qoplamasiz'}
       ${mrp66 ? '' : `<br>📦 Hajm (qoldiq): <b>${sonKor(qVol, 4)} m³</b>`}
       ${qLoy > 0 ? `· 🧱 Loy: <b>${qLoyTxt} kg</b>${recipeName ? ` (${escapeHtml(recipeName)})` : ''}` : ''}
@@ -2457,7 +2457,7 @@ async function openProfitModal(id) {
 
     <div style="font-size:12px;font-weight:600;color:var(--text3);margin-bottom:4px">XARAJATLAR</div>
     ${xarajatQatorlari}
-    <div style="border-top:1px solid #eee;margin:4px 0"></div>
+    <div style="border-top:1px solid var(--ch-eeeeee);margin:4px 0"></div>
     ${row('Tan narxi', fmt(totalCost) + " so'm", '#DC2626', true)}
 
     <div style="font-size:12px;font-weight:600;color:var(--text3);margin:14px 0 4px">SOTUV</div>
@@ -2467,13 +2467,13 @@ async function openProfitModal(id) {
     <div style="border-top:2px solid var(--text);margin:12px 0 6px"></div>
     ${row('📈 FOYDA', `${fmt(profit)} so'm`, profit > 0 ? '#22C55E' : '#DC2626', true)}
     <div style="text-align:right;font-size:12px;color:var(--text3);margin-top:-2px">
-      Rentabellik: <b style="color:${margin>0?'#15803D':'#DC2626'}">${sonKor(margin, 1)}%</b>
+      Rentabellik: <b style="color:${margin>0?'var(--m-15803d)':'var(--m-dc2626)'}">${sonKor(margin, 1)}%</b>
     </div>
 
     ${i.quantity > 0 ? `
-    <div style="margin-top:14px;padding:10px 12px;background:#F8F5EF;border-radius:8px;font-size:12px;color:#666">
+    <div style="margin-top:14px;padding:10px 12px;background:var(--f-f8f5ef);border-radius:8px;font-size:12px;color:var(--m-666666)">
       💡 1 ${escapeHtml(i.unit)} tan narxi: <b>${fmt(totalCost / i.quantity)} so'm</b> ·
-      Foyda: <b style="color:#15803D">${fmt(profit / i.quantity)} so'm</b>
+      Foyda: <b style="color:var(--m-15803d)">${fmt(profit / i.quantity)} so'm</b>
     </div>` : ''}`;
 }
 

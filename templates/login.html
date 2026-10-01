@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css?v={{ static_version }}">
+  <link rel="stylesheet" href="/static/ranglar.css?v={{ static_version }}">
   <style>
     :root{
       --ink:#14171F;
@@ -70,7 +71,7 @@
     .brand-name span{color:var(--amber)}
     .brand-sub{
       font-family:'JetBrains Mono',monospace;
-      font-size:12px;color:#6B7280;margin-top:8px;
+      font-size:12px;color:var(--m-6b7280);margin-top:8px;
       letter-spacing:.5px;text-transform:uppercase;
     }
     .side-quote{
@@ -80,10 +81,10 @@
       margin-top:40px;
     }
     .side-quote .q-text{font-size:15px;line-height:1.6;color:#D1D5DB;font-weight:400}
-    .side-quote .q-meta{font-family:'JetBrains Mono',monospace;font-size:12px;color:#6B7280;margin-top:10px;letter-spacing:.4px;text-transform:uppercase}
+    .side-quote .q-meta{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--m-6b7280);margin-top:10px;letter-spacing:.4px;text-transform:uppercase}
     .side-stats{position:relative;z-index:1;display:flex;gap:28px;margin-top:auto;padding-top:32px}
     .side-stat .n{font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:600;color:var(--amber)}
-    .side-stat .l{font-size:12px;color:#6B7280;margin-top:3px;text-transform:uppercase;letter-spacing:.4px}
+    .side-stat .l{font-size:12px;color:var(--m-6b7280);margin-top:3px;text-transform:uppercase;letter-spacing:.4px}
 
     /* O'ng panel — forma */
     .main{
@@ -105,15 +106,15 @@
     .form-sub{font-size:13.5px;color:var(--text3);margin-bottom:28px}
 
     .error-box{
-      background:#FEE2E2;border:1px solid #F1948A;border-radius:6px;
-      padding:11px 14px;color:#DC2626;font-size:13px;
+      background:var(--f-fee2e2);border:1px solid #F1948A;border-radius:6px;
+      padding:11px 14px;color:var(--m-dc2626);font-size:13px;
       margin-bottom:18px;display:flex;align-items:center;gap:8px;
     }
 
     /* kech111 — korxona hisobi to'xtatilgan (platforma bloki) */
     .blok-box{
-      background:#FEE2E2;border:1px solid #F3C7C7;border-radius:10px;
-      padding:14px 16px;color:#7F1D1D;font-size:13.5px;line-height:1.6;
+      background:var(--f-fee2e2);border:1px solid var(--ch-f3c7c7);border-radius:10px;
+      padding:14px 16px;color:var(--m-7f1d1d);font-size:13.5px;line-height:1.6;
       margin-bottom:18px;display:flex;gap:12px;align-items:flex-start;
     }
     .blok-box svg{flex-shrink:0;margin-top:2px}
@@ -128,7 +129,7 @@
       border:1.5px solid var(--line);
       border-radius:4px;
       font-size:14.5px;color:var(--text);
-      background:#fff;outline:none;
+      background:var(--white);outline:none;
       transition:border-color .15s, box-shadow .15s;
       font-family:'Inter',sans-serif;
     }

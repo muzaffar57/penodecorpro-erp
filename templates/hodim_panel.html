@@ -5,43 +5,44 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Hodim paneli — PenoDecorPro</title>
   <link rel="stylesheet" href="/static/style.css?v={{ static_version }}">
+  <link rel="stylesheet" href="/static/ranglar.css?v={{ static_version }}">
   <style>
-    body{background:#f8f8f6;margin:0;min-height:100vh}
-    .h-topbar{background:#fff;border-bottom:1px solid #eee;padding:16px 20px;display:flex;justify-content:space-between;align-items:center}
-    .h-topbar .name{font-size:15px;font-weight:700;color:#111}
+    body{background:var(--f-f8f8f6);margin:0;min-height:100vh}
+    .h-topbar{background:var(--white);border-bottom:1px solid var(--ch-eeeeee);padding:16px 20px;display:flex;justify-content:space-between;align-items:center}
+    .h-topbar .name{font-size:15px;font-weight:700;color:var(--m-111111)}
     .h-topbar .role{font-size:12px;color:var(--text3)}
-    .h-logout{font-size:13px;color:#DC2626;text-decoration:none;padding:8px 12px;border-radius:7px;border:1px solid #FADBD8}
+    .h-logout{font-size:13px;color:var(--m-dc2626);text-decoration:none;padding:8px 12px;border-radius:7px;border:1px solid var(--ch-fadbd8)}
     .h-body{max-width:480px;margin:0 auto;padding:18px}
-    .h-card{background:#fff;border-radius:16px;border:1px solid #ebebeb;padding:22px;margin-bottom:16px}
-    .h-card-title{font-size:16px;font-weight:700;color:#111;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+    .h-card{background:var(--white);border-radius:16px;border:1px solid var(--ch-ebebeb);padding:22px;margin-bottom:16px}
+    .h-card-title{font-size:16px;font-weight:700;color:var(--m-111111);margin-bottom:16px;display:flex;align-items:center;gap:8px}
     .field-label{font-size:12px;color:var(--text3);font-weight:500;text-transform:uppercase;letter-spacing:.3px;margin-bottom:5px;display:block}
-    .field-input{width:100%;padding:13px 14px;border:1.5px solid #e8e8e8;border-radius:9px;font-size:16px;color:#111;outline:none;background:#fafafa;margin-bottom:14px;box-sizing:border-box}
-    .field-input:focus{border-color:#2563EB;background:#fff}
+    .field-input{width:100%;padding:13px 14px;border:1.5px solid var(--ch-e8e8e8);border-radius:9px;font-size:16px;color:var(--m-111111);outline:none;background:var(--f-fafafa);margin-bottom:14px;box-sizing:border-box}
+    .field-input:focus{border-color:#2563EB;background:var(--white)}
     .h-btn{width:100%;padding:14px;background:#2563EB;color:#fff;border:none;border-radius:9px;font-size:15px;font-weight:600;cursor:pointer}
-    .h-btn:disabled{background:#ccc;cursor:not-allowed}
+    .h-btn:disabled{background:var(--f-cccccc);cursor:not-allowed}
     .h-msg{padding:11px 14px;border-radius:8px;font-size:13.5px;margin-bottom:14px;display:none}
-    .h-msg.ok{background:#DCFCE7;color:#166534;display:block}
-    .h-msg.err{background:#FEE2E2;color:#DC2626;display:block}
-    .req-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #f5f5f5}
+    .h-msg.ok{background:var(--f-dcfce7);color:var(--m-166534);display:block}
+    .h-msg.err{background:var(--f-fee2e2);color:var(--m-dc2626);display:block}
+    .req-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--ch-f5f5f5)}
     .req-row:last-child{border-bottom:none}
-    .req-amount{font-weight:700;font-size:14.5px;color:#111}
+    .req-amount{font-weight:700;font-size:14.5px;color:var(--m-111111)}
     .req-date{font-size:12px;color:var(--text3);margin-top:2px}
     .req-status{font-size:12px;font-weight:700;padding:4px 10px;border-radius:20px}
-    .st-pending{background:#FFFBEB;color:#B45309}
-    .st-confirmed{background:#DCFCE7;color:#166534}
-    .st-rejected{background:#FEE2E2;color:#DC2626}
+    .st-pending{background:var(--f-fffbeb);color:var(--m-b45309)}
+    .st-confirmed{background:var(--f-dcfce7);color:var(--m-166534)}
+    .st-rejected{background:var(--f-fee2e2);color:var(--m-dc2626)}
     .empty{text-align:center;padding:24px;color:var(--text3);font-size:13px}
     /* kech118 (D-1, G6-21): «Oyligim» va rad etish sababi */
-    .req-sabab{font-size:12.5px;color:#B91C1C;margin-top:4px}
-    .oy-blok{padding:12px 0;border-bottom:1px solid #f0f0f0}
+    .req-sabab{font-size:12.5px;color:var(--m-b91c1c);margin-top:4px}
+    .oy-blok{padding:12px 0;border-bottom:1px solid var(--ch-f0f0f0)}
     .oy-blok:last-child{border-bottom:none;padding-bottom:0}
     .oy-blok:first-child{padding-top:0}
-    .oy-nomi{font-size:14px;font-weight:700;color:#111;margin-bottom:8px}
+    .oy-nomi{font-size:14px;font-weight:700;color:var(--m-111111);margin-bottom:8px}
     .oy-nomi small{font-weight:500;color:var(--text3);font-size:12px}
-    .oy-qator{display:flex;justify-content:space-between;gap:10px;font-size:14px;padding:4px 0;color:#333}
+    .oy-qator{display:flex;justify-content:space-between;gap:10px;font-size:14px;padding:4px 0;color:var(--m-333333)}
     .oy-qator b{white-space:nowrap}
     .oy-izoh{font-size:12px;color:var(--text3);margin:-2px 0 4px}
-    .oy-qolgan{border-top:1px dashed #e5e5e5;margin-top:4px;padding-top:8px;font-weight:700}
+    .oy-qolgan{border-top:1px dashed var(--ch-e5e5e5);margin-top:4px;padding-top:8px;font-weight:700}
     .oy-tolovlar{font-size:12.5px;color:var(--text3);margin-top:6px;line-height:1.6}
   </style>
 </head>
@@ -327,16 +328,16 @@ function oylikHtml(o) {
   q.push(`<div class="oy-nomi">${escapeHtml(o.nomi)}${o.joriy ? ' <small>(joriy oy — hozirgacha)</small>' : ''}</div>`);
   q.push(`<div class="oy-qator"><span>Hisoblangan</span><b>${fmt(o.hisoblangan)} so'm</b></div>`);
   if (o.bonus > 0) {
-    q.push(`<div class="oy-qator"><span>shundan bonus</span><b style="color:#15803D">+${fmt(o.bonus)} so'm</b></div>`);
+    q.push(`<div class="oy-qator"><span>shundan bonus</span><b style="color:var(--m-15803d)">+${fmt(o.bonus)} so'm</b></div>`);
     if (o.bonus_sababi) q.push(`<div class="oy-izoh">${escapeHtml(o.bonus_sababi)}</div>`);
   }
   if (o.kamaytirish > 0) {
-    q.push(`<div class="oy-qator"><span>kamaytirildi</span><b style="color:#B91C1C">−${fmt(o.kamaytirish)} so'm</b></div>`);
+    q.push(`<div class="oy-qator"><span>kamaytirildi</span><b style="color:var(--m-b91c1c)">−${fmt(o.kamaytirish)} so'm</b></div>`);
     if (o.kamaytirish_sababi) q.push(`<div class="oy-izoh">${escapeHtml(o.kamaytirish_sababi)}</div>`);
   }
   q.push(`<div class="oy-qator"><span>Olingan (avans va to'lovlar)</span><b>${fmt(o.olingan)} so'm</b></div>`);
   q.push(o.qolgan < 0
-    ? `<div class="oy-qator oy-qolgan"><span>Ortiqcha olingan</span><b style="color:#B91C1C">${fmt(o.qolgan)} so'm</b></div>`
+    ? `<div class="oy-qator oy-qolgan"><span>Ortiqcha olingan</span><b style="color:var(--m-b91c1c)">${fmt(o.qolgan)} so'm</b></div>`
     : `<div class="oy-qator oy-qolgan"><span>Qolgan</span><b>${fmt(o.qolgan)} so'm</b></div>`);
   if (o.tolovlar && o.tolovlar.length) {
     q.push(`<div class="oy-tolovlar">${o.tolovlar.map(t => `${tkSana(t.sana)} — ${fmt(t.summa)} so'm`).join('<br>')}</div>`);

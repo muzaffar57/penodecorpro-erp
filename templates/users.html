@@ -106,7 +106,7 @@
 
 <!-- Modal -->
 <div id="addModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:14px;padding:24px;width:420px;max-width:100%">
+  <div style="background:var(--white);border-radius:14px;padding:24px;width:420px;max-width:100%">
     <div style="font-size:16px;font-weight:600;margin-bottom:18px">+ Yangi foydalanuvchi</div>
     <div class="form-row">
       <div class="form-group" style="margin:0"><label>Login</label><input type="text" id="f-username" placeholder="menejer1" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
@@ -120,7 +120,7 @@
         </select>
       </div>
     </div>
-    <div id="user-error" style="display:none;color:#DC2626;font-size:13px;font-weight:600;margin-top:2px;padding:8px 10px;background:#FEF2F2;border-radius:8px"></div>
+    <div id="user-error" style="display:none;color:var(--m-dc2626);font-size:13px;font-weight:600;margin-top:2px;padding:8px 10px;background:var(--f-fef2f2);border-radius:8px"></div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-dark w-full" id="user-save-btn" onclick="saveUser()">Saqlash</button>
       <button data-yopish class="btn btn-outline w-full" onclick="closeModal()">Bekor</button>
@@ -132,7 +132,7 @@
      o'z parolida uch ketma-ket oyna): parol — dasturning o'z oynasida, yashirin maydonlar (ko'zcha bilan ko'rsatish),
      yangi va takror BITTA oynada. Saqlangach o'sha odamning boshqa qurilmalardagi kirishlari yopiladi (server). -->
 <div id="parolModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:16px" onkeydown="if(event.key==='Escape')parolYopish()">
-  <div style="background:#fff;border-radius:14px;padding:24px;width:420px;max-width:100%">
+  <div style="background:var(--white);border-radius:14px;padding:24px;width:420px;max-width:100%">
     <div style="font-size:16px;font-weight:600;margin-bottom:6px" id="parol-sarlavha">🔑 Parolni o'zgartirish</div>
     <div style="font-size:12.5px;color:var(--text3);margin-bottom:16px" id="parol-izoh"></div>
     <div class="form-group" id="parol-eski-qator" style="display:none">
@@ -156,7 +156,7 @@
         <button type="button" class="btn btn-outline btn-xs" onclick="parolKozcha('parol-takror', this)" title="Ko'rsatish / yashirish" aria-label="Parolni ko'rsatish">👁</button>
       </div>
     </div>
-    <div id="parol-xato" style="display:none;color:#DC2626;font-size:13px;font-weight:600;margin-bottom:8px;padding:8px 10px;background:#FEF2F2;border-radius:8px"></div>
+    <div id="parol-xato" style="display:none;color:var(--m-dc2626);font-size:13px;font-weight:600;margin-bottom:8px;padding:8px 10px;background:var(--f-fef2f2);border-radius:8px"></div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-dark w-full" id="parol-saqlash-btn" onclick="parolSaqlash()">Saqlash</button>
       <button data-yopish class="btn btn-outline w-full" onclick="parolYopish()">Bekor</button>
@@ -199,7 +199,7 @@
          "polling" rejimida ishlasa, o'sha botni buzib qo'yishi mumkin
          (2 marta shunday bo'lgan). Shuning uchun, bosishdan OLDIN aniq
          ogohlantirish ko'rsatiladi. -->
-    <div style="background:#FEF3C7;border:1.5px solid #FDE68A;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12.5px;color:#92400E;line-height:1.6">
+    <div style="background:var(--f-fef3c7);border:1.5px solid var(--ch-fde68a);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12.5px;color:var(--m-92400e);line-height:1.6">
       ⚠️ <b>Diqqat:</b> Agar sizning asosiy (katalog) botingiz BOSHQA, alohida serverda ishlasa — bu tugmani bosish o'sha botni vaqtincha to'xtatib qo'yishi mumkin (bu, avval 2 marta bo'lgan). Agar shunday bo'lsa — pastdagi qizil tugma orqali darhol tuzatib olishingiz mumkin.
     </div>
     <button class="btn btn-dark" onclick="setupTelegramSecurity()" id="tg-security-btn">
@@ -213,9 +213,9 @@
          majburlab qo'yishi mumkin. Shu holatda, quyidagi tugma bilan
          webhookni butunlay o'chirib, botni asl holatiga qaytarish
          mumkin. -->
-    <div style="margin-top:16px;padding-top:14px;border-top:1px solid #FADBD8">
-      <div style="font-size:12.5px;color:#DC2626;margin-bottom:8px">⚠️ Agar shu tugmani bosgandan keyin, botingiz (boshqa, alohida serverdagi) ishlamay qolgan bo'lsa — quyidagi tugma orqali qaytaring:</div>
-      <button class="btn btn-outline" style="border-color:#DC2626;color:#DC2626" onclick="deleteTelegramWebhook()" id="tg-delete-webhook-btn">
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--ch-fadbd8)">
+      <div style="font-size:12.5px;color:var(--m-dc2626);margin-bottom:8px">⚠️ Agar shu tugmani bosgandan keyin, botingiz (boshqa, alohida serverdagi) ishlamay qolgan bo'lsa — quyidagi tugma orqali qaytaring:</div>
+      <button class="btn btn-outline" style="border-color:#DC2626;color:var(--m-dc2626)" onclick="deleteTelegramWebhook()" id="tg-delete-webhook-btn">
         🔄 Webhookni o'chirib, botni asl holatiga qaytarish
       </button>
       <div id="tg-delete-webhook-result" style="display:none;margin-top:14px;padding:14px;background:var(--bg);border-radius:10px;font-size:13px;line-height:1.7"></div>
@@ -226,10 +226,10 @@
 
 <!-- ══ XODIM QR KOD MODALI ══ -->
 <div id="hodimQrModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:16px;padding:28px;width:360px;max-width:100%;text-align:center">
+  <div style="background:var(--white);border-radius:16px;padding:28px;width:360px;max-width:100%;text-align:center">
     <div style="font-size:16px;font-weight:700;margin-bottom:6px">📱 Xodim paneliga kirish</div>
     <div style="font-size:12.5px;color:var(--text3);margin-bottom:18px">Telefon kamerasi bilan skanerlang</div>
-    <img id="hodimQrImg" src="" alt="QR kod" style="width:220px;height:220px;border:1px solid #eee;border-radius:12px;margin-bottom:14px">
+    <img id="hodimQrImg" src="" alt="QR kod" style="width:220px;height:220px;border:1px solid var(--ch-eeeeee);border-radius:12px;margin-bottom:14px">
     <div id="hodimQrUrl" style="font-size:12px;color:var(--text3);word-break:break-all;margin-bottom:16px;font-family:monospace"></div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-outline w-full" onclick="window.print()">🖨️ Chop etish</button>
@@ -244,9 +244,9 @@
    bosish — biznes uchun falokat va ayb baribir xizmat ko'rsatuvchiga
    tushadi. Mijozga kerak bo'lsa — u murojaat qiladi, siz bajarasiz. #}
 {% if current_user.is_platform_admin %}
-<div class="card" style="margin-top:20px;border:2px solid #FCA5A5">
-  <div class="card-head" style="background:#FEF2F2">
-    <h3 style="color:#DC2626">⚠️ Xavfli hudud</h3>
+<div class="card" style="margin-top:20px;border:2px solid var(--ch-fca5a5)">
+  <div class="card-head" style="background:var(--f-fef2f2)">
+    <h3 style="color:var(--m-dc2626)">⚠️ Xavfli hudud</h3>
   </div>
   <div style="padding:16px">
     <div style="font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.6">
@@ -410,21 +410,21 @@ async function setupTelegramSecurity(){
     const data = await res.json();
     if (res.ok) {
       resultBox.style.display = 'block';
-      resultBox.style.background = '#DCFCE7'; resultBox.style.color = '#166534';
+      resultBox.style.background = 'var(--f-dcfce7)'; resultBox.style.color = 'var(--m-166534)';
       resultBox.innerHTML = `
         <div style="font-weight:700;margin-bottom:8px">✅ Muvaffaqiyatli sozlandi!</div>
         <div style="margin-bottom:10px">Endi quyidagi qiymatni nusxalab, <b>Railway → Variables</b> bo'limiga
-        <code style="background:#fff;padding:2px 6px;border-radius:4px">TELEGRAM_WEBHOOK_SECRET</code> nomi bilan qo'shing:</div>
-        <div style="background:#fff;padding:10px 12px;border-radius:8px;font-family:monospace;word-break:break-all;user-select:all;border:1px solid #86EFAC">${escapeHtml(data.new_secret)}</div>
-        <div style="margin-top:10px;color:#166534">Saqlagach, Railway serverni avtomatik qayta ishga tushiradi — shundan keyin xavfsizlik to'liq yoqiladi.</div>`;
+        <code style="background:var(--white);padding:2px 6px;border-radius:4px">TELEGRAM_WEBHOOK_SECRET</code> nomi bilan qo'shing:</div>
+        <div style="background:var(--white);padding:10px 12px;border-radius:8px;font-family:monospace;word-break:break-all;user-select:all;border:1px solid var(--ch-86efac)">${escapeHtml(data.new_secret)}</div>
+        <div style="margin-top:10px;color:var(--m-166534)">Saqlagach, Railway serverni avtomatik qayta ishga tushiradi — shundan keyin xavfsizlik to'liq yoqiladi.</div>`;
     } else {
       resultBox.style.display = 'block';
-      resultBox.style.background = '#FEE2E2'; resultBox.style.color = '#DC2626';
+      resultBox.style.background = 'var(--f-fee2e2)'; resultBox.style.color = 'var(--m-dc2626)';
       resultBox.textContent = '❌ ' + (data.detail || 'Xato yuz berdi');
     }
   } catch(e) {
     resultBox.style.display = 'block';
-    resultBox.style.background = '#FEE2E2'; resultBox.style.color = '#DC2626';
+    resultBox.style.background = 'var(--f-fee2e2)'; resultBox.style.color = 'var(--m-dc2626)';
     resultBox.textContent = '❌ Server bilan aloqa yo\'q';
   }
   btn.disabled = false; btn.textContent = '🔐 Telegram xavfsizligini yoqish';
@@ -440,16 +440,16 @@ async function deleteTelegramWebhook(){
     const data = await res.json();
     if (res.ok) {
       resultBox.style.display = 'block';
-      resultBox.style.background = '#DCFCE7'; resultBox.style.color = '#166534';
+      resultBox.style.background = 'var(--f-dcfce7)'; resultBox.style.color = 'var(--m-166534)';
       resultBox.textContent = data.message;
     } else {
       resultBox.style.display = 'block';
-      resultBox.style.background = '#FEE2E2'; resultBox.style.color = '#DC2626';
+      resultBox.style.background = 'var(--f-fee2e2)'; resultBox.style.color = 'var(--m-dc2626)';
       resultBox.textContent = '❌ ' + (data.detail || 'Xato yuz berdi');
     }
   } catch(e) {
     resultBox.style.display = 'block';
-    resultBox.style.background = '#FEE2E2'; resultBox.style.color = '#DC2626';
+    resultBox.style.background = 'var(--f-fee2e2)'; resultBox.style.color = 'var(--m-dc2626)';
     resultBox.textContent = '❌ Server bilan aloqa yo\'q';
   }
   btn.disabled = false; btn.textContent = "🔄 Webhookni o'chirib, botni asl holatiga qaytarish";
@@ -510,9 +510,9 @@ function showAddedToast(){
   const box = document.createElement('div');
   box.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:9999;display:flex;align-items:center;justify-content:center;animation:fadeIn .15s ease';
   box.innerHTML = `
-    <div style="background:#fff;border-radius:16px;padding:32px 40px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.2);animation:popIn .2s ease">
-      <div style="width:56px;height:56px;border-radius:50%;background:#DCFCE7;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:28px">✓</div>
-      <div style="font-size:16px;font-weight:700;color:#222">Qo'shildi!</div>
+    <div style="background:var(--white);border-radius:16px;padding:32px 40px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.2);animation:popIn .2s ease">
+      <div style="width:56px;height:56px;border-radius:50%;background:var(--f-dcfce7);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:28px">✓</div>
+      <div style="font-size:16px;font-weight:700;color:var(--m-222222)">Qo'shildi!</div>
     </div>
     <style>
       @keyframes fadeIn{from{opacity:0}to{opacity:1}}

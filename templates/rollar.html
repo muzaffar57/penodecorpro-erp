@@ -34,7 +34,7 @@
 .rl-item .rl-izoh{font-size:12px;color:var(--text2);margin-top:2px}
 .rl-belgi{display:inline-block;font-size:12px;font-weight:600;padding:1px 8px;border-radius:20px;background:var(--bg);color:var(--text2);
   white-space:nowrap}
-.rl-belgi.yashil{background:#DCFCE7;color:#166534}
+.rl-belgi.yashil{background:var(--f-dcfce7);color:var(--m-166534)}
 .rl-belgi.oltin{background:var(--gold-tint);color:var(--gold-dark)}
 .rl-bosh{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .rl-bosh h3{margin:0}
@@ -43,7 +43,7 @@
 .rl-saqlash{display:flex;gap:8px}
 .rl-saqlash button:disabled{opacity:.45;cursor:not-allowed}
 .rl-saqlash .btn-gold{color:#fff}
-.rl-ogoh{display:none;margin:12px 16px 0;padding:10px 12px;border-radius:9px;background:#FEF3C7;color:#92400E;font-size:13px}
+.rl-ogoh{display:none;margin:12px 16px 0;padding:10px 12px;border-radius:9px;background:var(--f-fef3c7);color:var(--m-92400e);font-size:13px}
 .rl-ogoh.ko{display:block}
 .rl-matritsa{width:100%;border-collapse:collapse}
 .rl-matritsa th{font-size:12px;font-weight:600;color:var(--text2);padding:10px 6px;border-bottom:1px solid var(--border);
@@ -61,7 +61,7 @@
 .rl-yig .rl-m-son{margin-left:auto;font-size:12px;font-weight:600;color:var(--text2)}
 .rl-band-nom{font-size:13.5px;font-weight:500;color:var(--text);padding-left:22px}
 .rl-band-izoh{font-size:12px;color:var(--text2);padding-left:22px;margin-top:1px}
-.rl-band-ogoh{font-size:12px;color:#92400E;background:#FEF3C7;border-radius:6px;padding:3px 7px;margin:4px 0 0 22px;display:inline-block}
+.rl-band-ogoh{font-size:12px;color:var(--m-92400e);background:var(--f-fef3c7);border-radius:6px;padding:3px 7px;margin:4px 0 0 22px;display:inline-block}
 .rl-cb{width:19px;height:19px;accent-color:var(--gold-btn);cursor:pointer}
 .rl-cb:disabled{cursor:not-allowed}
 .rl-yoq{color:var(--text2);font-size:13px}
@@ -77,16 +77,16 @@
 .rl-tez .rl-tez-son{font-size:12px;color:var(--text2)}
 .rl-switch{position:relative;width:38px;height:22px;flex-shrink:0}
 .rl-switch input{opacity:0;width:0;height:0;position:absolute}
-.rl-switch span{position:absolute;inset:0;background:#C9C3BA;border-radius:22px;transition:background .15s;cursor:pointer}
-.rl-switch span::before{content:"";position:absolute;width:16px;height:16px;left:3px;top:3px;border-radius:50%;background:#fff;
+.rl-switch span{position:absolute;inset:0;background:var(--f-c9c3ba);border-radius:22px;transition:background .15s;cursor:pointer}
+.rl-switch span::before{content:"";position:absolute;width:16px;height:16px;left:3px;top:3px;border-radius:50%;background:var(--white);
   transition:transform .15s}
 .rl-switch input:checked + span{background:var(--gold-btn)}
 .rl-switch input:checked + span::before{transform:translateX(16px)}
-.rl-switch.qisman span{background:#D9B48C}
+.rl-switch.qisman span{background:var(--f-d9b48c)}
 .rl-switch input:disabled + span{cursor:not-allowed;opacity:.6}
 .rl-switch input:focus-visible + span{outline:2px solid var(--gold-dark);outline-offset:2px}
-.rl-userlar-kart{background:#F0FDF4;border:1px solid #BBF7D0}
-.rl-userlar-kart .card-head h3{color:#166534}
+.rl-userlar-kart{background:var(--f-f0fdf4);border:1px solid var(--ch-bbf7d0)}
+.rl-userlar-kart .card-head h3{color:var(--m-166534)}
 .rl-user{display:flex;align-items:center;gap:10px;padding:8px 10px;margin-bottom:6px;border-radius:10px;background:var(--white);
   border:1px solid var(--border2)}
 .rl-user .rl-av{width:30px;height:30px;border-radius:50%;background:var(--dark);color:var(--gold);display:flex;align-items:center;
@@ -174,7 +174,7 @@
           <div style="display:flex;gap:6px;flex-wrap:wrap">
             <button class="btn btn-outline btn-sm" id="rlNusxaBtn" onclick="rolNusxa()"><i class="ti ti-copy"></i> Nusxa olish</button>
             <button class="btn btn-outline btn-sm" id="rlAndozaBtn" onclick="rolAndoza()" style="display:none"><i class="ti ti-restore"></i> Boshlang'ich holat</button>
-            <button class="btn btn-outline btn-sm" id="rlOchirBtn" onclick="rolOchir()" style="display:none;border-color:#FCA5A5;color:#B91C1C"><i class="ti ti-trash"></i> O'chirish</button>
+            <button class="btn btn-outline btn-sm" id="rlOchirBtn" onclick="rolOchir()" style="display:none;border-color:var(--ch-fca5a5);color:var(--m-b91c1c)"><i class="ti ti-trash"></i> O'chirish</button>
           </div>
         </div>
       </div>
@@ -209,7 +209,7 @@
       <input type="text" id="rlYNom" maxlength="60" placeholder="Masalan: Sotuv menejeri" onkeydown="if(event.key==='Enter')yangiRolSaqla()"></div>
     <div class="form-group"><label for="rlYAsos">Ruxsatlar qaysi roldan olinsin</label>
       <select id="rlYAsos"></select></div>
-    <div id="rlYXato" style="display:none;color:#B91C1C;font-size:13px;font-weight:600;margin-bottom:8px;padding:8px 10px;background:#FEF2F2;border-radius:8px"></div>
+    <div id="rlYXato" style="display:none;color:var(--m-b91c1c);font-size:13px;font-weight:600;margin-bottom:8px;padding:8px 10px;background:var(--f-fef2f2);border-radius:8px"></div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-dark w-full" id="rlYSaqla" onclick="yangiRolSaqla()">Yaratish</button>
       <button data-yopish class="btn btn-outline w-full" onclick="yangiRolYop()">Bekor</button>

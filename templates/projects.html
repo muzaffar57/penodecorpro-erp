@@ -36,7 +36,7 @@
 @keyframes pIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 .proj-card:hover{box-shadow:0 4px 16px rgba(16,24,40,.09);border-color:var(--border-strong);transform:translateY(-1px)}
 .proj-card.active{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold-tint),0 4px 16px rgba(16,24,40,.08);background:var(--gold-tint)}
-.proj-thumb{width:52px;height:52px;align-self:flex-start;border-radius:12px;background:linear-gradient(135deg,var(--gold-tint),#F3EEE0);display:flex;align-items:center;justify-content:center;color:var(--gold-dark);font-size:22px;flex-shrink:0;position:relative;overflow:hidden;cursor:pointer}
+.proj-thumb{width:52px;height:52px;align-self:flex-start;border-radius:12px;background:linear-gradient(135deg,var(--gold-tint),var(--f-f3eee0));display:flex;align-items:center;justify-content:center;color:var(--gold-dark);font-size:22px;flex-shrink:0;position:relative;overflow:hidden;cursor:pointer}
 .proj-thumb img{width:100%;height:100%;object-fit:cover}
 .proj-thumb input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 .proj-thumb-cam{position:absolute;right:1px;bottom:1px;width:17px;height:17px;border-radius:50%;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;color:#fff;font-size:12px;cursor:pointer;z-index:2}
@@ -49,11 +49,11 @@
 .progress-bar{height:6px;background:var(--border2);border-radius:4px;margin-top:9px;overflow:hidden}
 .progress-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--gold),var(--gold-dark));transition:width .5s ease}
 .status-badge{font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px;white-space:nowrap}
-.st-active{background:#E6F1FB;color:#0C447C}
-.st-draft{background:#F1F5F9;color:#475569}
-.st-completed{background:#DCFCE7;color:#166534}
-.st-on_hold{background:#FEF3C7;color:#92400E}
-.st-cancelled{background:#FEE2E2;color:#991B1B}
+.st-active{background:var(--f-e6f1fb);color:var(--m-0c447c)}
+.st-draft{background:var(--f-f1f5f9);color:var(--m-475569)}
+.st-completed{background:var(--f-dcfce7);color:var(--m-166534)}
+.st-on_hold{background:var(--f-fef3c7);color:var(--m-92400e)}
+.st-cancelled{background:var(--f-fee2e2);color:var(--m-991b1b)}
 
 .proj-detail{display:flex;flex-direction:column;overflow:hidden}
 .status-panel{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px}
@@ -81,20 +81,20 @@
 .fin-budget{background:var(--bg)}
 .fin-budget .fin-stat-head{color:var(--text3)}
 .fin-budget .fin-stat-val{color:var(--text)}
-.fin-paid{background:#EAF7EE}
-.fin-paid .fin-stat-head,.fin-paid .fin-stat-val{color:#1D7A3C}
-.fin-debt{background:#FDECEC}
-.fin-debt .fin-stat-head,.fin-debt .fin-stat-val{color:#C0392B}
-.fin-profit{background:#F2ECFB}
-.fin-profit .fin-stat-head,.fin-profit .fin-stat-val{color:#6B3FA0}
+.fin-paid{background:var(--f-eaf7ee)}
+.fin-paid .fin-stat-head,.fin-paid .fin-stat-val{color:var(--m-1d7a3c)}
+.fin-debt{background:var(--f-fdecec)}
+.fin-debt .fin-stat-head,.fin-debt .fin-stat-val{color:var(--m-c0392b)}
+.fin-profit{background:var(--f-f2ecfb)}
+.fin-profit .fin-stat-head,.fin-profit .fin-stat-val{color:var(--m-6b3fa0)}
 
 .zebra-list{border-radius:12px;overflow:hidden;border:1px solid var(--border2)}
 .zebra-row{display:flex;align-items:center;gap:12px;padding:10px 12px}
 .zebra-row:nth-child(even){background:var(--bg)}
 .zebra-row:not(:last-child){border-bottom:1px solid var(--border2)}
 .zebra-icon{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:15px}
-.zebra-icon.zi-in{background:#DCFCE7;color:#15803D}
-.zebra-icon.zi-out{background:#FEE2E2;color:#DC2626}
+.zebra-icon.zi-in{background:var(--f-dcfce7);color:var(--m-15803d)}
+.zebra-icon.zi-out{background:var(--f-fee2e2);color:var(--m-dc2626)}
 .zebra-icon.zi-neutral{background:var(--gold-tint);color:var(--gold-dark)}
 .zebra-title{font-size:13.5px;font-weight:600;color:var(--text)}
 .zebra-sub{font-size:12px;color:var(--text3);margin-top:2px}
@@ -114,7 +114,7 @@
 .zebra-list-flat .zebra-row:not(:last-child){border-bottom:1px solid var(--border2)}
 .zebra-list.zebra-list-flat{border:none;border-radius:0}
 .proj-toast-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:3000;display:none;align-items:center;justify-content:center;padding:20px}
-.proj-toast{background:#fff;border-radius:16px;padding:26px 30px;max-width:420px;max-height:80vh;overflow-y:auto;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.28);white-space:pre-line;font-size:14px;font-weight:600;color:var(--text);line-height:1.6}
+.proj-toast{background:var(--white);border-radius:16px;padding:26px 30px;max-width:420px;max-height:80vh;overflow-y:auto;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.28);white-space:pre-line;font-size:14px;font-weight:600;color:var(--text);line-height:1.6}
 </style>
 {% endblock %}
 
@@ -123,10 +123,10 @@
 
   <div class="stat-grid mb-16" id="kpiRow">
     <div class="stat-card"><div class="stat-icon"><i class="ti ti-briefcase"></i></div><div class="stat-label">Faol loyihalar</div><div class="stat-val">{{ kpi.active }} ta</div></div>
-    <div class="stat-card"><div class="stat-icon" style="background:#DCFCE7;color:#166534"><i class="ti ti-circle-check"></i></div><div class="stat-label">Yakunlangan</div><div class="stat-val">{{ kpi.completed }} ta</div></div>
-    <div class="stat-card"><div class="stat-icon" style="background:#FEF3C7;color:#92400E"><i class="ti ti-hourglass"></i></div><div class="stat-label">Kutayotgan</div><div class="stat-val">{{ kpi.on_hold }} ta</div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:var(--f-dcfce7);color:var(--m-166534)"><i class="ti ti-circle-check"></i></div><div class="stat-label">Yakunlangan</div><div class="stat-val">{{ kpi.completed }} ta</div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:var(--f-fef3c7);color:var(--m-92400e)"><i class="ti ti-hourglass"></i></div><div class="stat-label">Kutayotgan</div><div class="stat-val">{{ kpi.on_hold }} ta</div></div>
     <div class="stat-card"><div class="stat-icon"><i class="ti ti-calendar-plus"></i></div><div class="stat-label">Shu oy boshlangan</div><div class="stat-val">{{ kpi.started_this_month }} ta</div></div>
-    <div class="stat-card"><div class="stat-icon" style="background:#DCFCE7;color:#166534"><i class="ti ti-calendar-check"></i></div><div class="stat-label">Shu oy yakunlangan</div><div class="stat-val">{{ kpi.completed_this_month }} ta</div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:var(--f-dcfce7);color:var(--m-166534)"><i class="ti ti-calendar-check"></i></div><div class="stat-label">Shu oy yakunlangan</div><div class="stat-val">{{ kpi.completed_this_month }} ta</div></div>
     {% if current_user.ruxsat('tannarx', 'korish') %}
     <div class="stat-card"><div class="stat-icon" style="background:var(--gold-btn);color:#fff"><i class="ti ti-report-money"></i></div><div class="stat-label">Umumiy sof foyda</div><div class="stat-val">{{ (kpi.total_profit/1000000)|son(1) }} mln</div></div>
     {% endif %}
@@ -239,7 +239,7 @@
 
 <!-- Yangi loyiha modal -->
 <div id="addModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:14px;padding:24px;width:480px;max-width:100%;max-height:90vh;overflow-y:auto">
+  <div style="background:var(--white);border-radius:14px;padding:24px;width:480px;max-width:100%;max-height:90vh;overflow-y:auto">
     <div style="font-size:16px;font-weight:600;margin-bottom:18px">+ Yangi loyiha</div>
     <div class="form-row">
       <div class="form-group" style="margin-bottom:12px"><label>Mijoz ismi</label><input type="text" id="f-client" placeholder="Karimov Botir"></div>
@@ -263,7 +263,7 @@
 
 <!-- Tahrirlash modal -->
 <div id="editModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:14px;padding:24px;width:480px;max-width:100%;max-height:90vh;overflow-y:auto">
+  <div style="background:var(--white);border-radius:14px;padding:24px;width:480px;max-width:100%;max-height:90vh;overflow-y:auto">
     <div style="font-size:16px;font-weight:600;margin-bottom:18px">✏️ Loyihani tahrirlash</div>
     <div class="form-row">
       <div class="form-group" style="margin-bottom:12px"><label>Mijoz ismi</label><input type="text" id="e-client"></div>
@@ -421,17 +421,17 @@ function selectProj(el) {
   const moneyRow = document.getElementById('moneyRow');
   moneyRow.style.display = 'grid';
   moneyRow.innerHTML = `
-    <div style="background:#F8F2EB;border-radius:12px;padding:14px 16px">
+    <div style="background:var(--f-f8f2eb);border-radius:12px;padding:14px 16px">
       <div style="font-size:12px;color:var(--gold-dark);font-weight:700;text-transform:uppercase;letter-spacing:.03em">Loyiha qiymati</div>
       <div style="font-size:18px;font-weight:800;color:var(--gold-dark);margin-top:4px">${fmt(budget)} so'm</div>
     </div>
-    <div style="background:#F0FDF4;border-radius:12px;padding:14px 16px">
-      <div style="font-size:12px;color:#166534;font-weight:700;text-transform:uppercase;letter-spacing:.03em">To'langan</div>
-      <div style="font-size:18px;font-weight:800;color:#166534;margin-top:4px">${fmt(paid)} so'm</div>
+    <div style="background:var(--f-f0fdf4);border-radius:12px;padding:14px 16px">
+      <div style="font-size:12px;color:var(--m-166534);font-weight:700;text-transform:uppercase;letter-spacing:.03em">To'langan</div>
+      <div style="font-size:18px;font-weight:800;color:var(--m-166534);margin-top:4px">${fmt(paid)} so'm</div>
     </div>
-    <div style="background:${qolgan>0?'#FEF2F2':'#F0FDF4'};border-radius:12px;padding:14px 16px">
-      <div style="font-size:12px;color:${qolgan>0?'#B91C1C':'#166534'};font-weight:700;text-transform:uppercase;letter-spacing:.03em">Qolgan to'lov</div>
-      <div style="font-size:18px;font-weight:800;color:${qolgan>0?'#B91C1C':'#166534'};margin-top:4px">${fmt(qolgan)} so'm</div>
+    <div style="background:${qolgan>0?'var(--f-fef2f2)':'var(--f-f0fdf4)'};border-radius:12px;padding:14px 16px">
+      <div style="font-size:12px;color:${qolgan>0?'var(--m-b91c1c)':'var(--m-166534)'};font-weight:700;text-transform:uppercase;letter-spacing:.03em">Qolgan to'lov</div>
+      <div style="font-size:18px;font-weight:800;color:${qolgan>0?'var(--m-b91c1c)':'var(--m-166534)'};margin-top:4px">${fmt(qolgan)} so'm</div>
     </div>`;
 
   loadStatusPanel(d);
@@ -498,7 +498,7 @@ function renderAsosiy(d) {
       <button class="btn btn-outline btn-sm" onclick="switchTab('payments')"><i class="ti ti-cash" style="font-size:12px"></i> To'lovlarni ko'rish</button>
       <button class="btn btn-outline btn-sm" onclick="switchTab('products')"><i class="ti ti-file-text" style="font-size:12px"></i> Hujjatlarni ko'rish</button>
       <button class="btn btn-green btn-sm" id="proj-complete-btn" onclick="markProjectComplete()"><i class="ti ti-check" style="font-size:12px"></i> Yakunlash</button>
-      <button class="btn btn-outline btn-sm" style="color:#DC2626;border-color:#EF4444" onclick="deleteProj()">O'chirish</button>
+      <button class="btn btn-outline btn-sm" style="color:var(--m-dc2626);border-color:#EF4444" onclick="deleteProj()">O'chirish</button>
     </div>`;
 }
 
@@ -527,7 +527,7 @@ async function renderOrders(d) {
           <div style="font-size:12.5px;font-weight:600;margin-top:3px">${fmt(o.total_amount)} so'm</div>
         </div>
       </div>`).join('');
-  } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:#DC2626;text-align:center;padding:20px">Yuklashda xato</div>'; }
+  } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:var(--m-dc2626);text-align:center;padding:20px">Yuklashda xato</div>'; }
 }
 
 async function renderFinance(d) {
@@ -555,7 +555,7 @@ async function renderFinance(d) {
         </div>
       </div>
       <div class="progress-bar"><div class="progress-fill" style="width:${budget>0?Math.min(100,Math.round(paid/budget*100)):0}%"></div></div>`;
-  } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:#DC2626;text-align:center;padding:20px">Yuklashda xato</div>'; }
+  } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:var(--m-dc2626);text-align:center;padding:20px">Yuklashda xato</div>'; }
 }
 
 async function renderPayments(d) {
@@ -572,7 +572,7 @@ async function renderPayments(d) {
           <div class="zebra-sub">${p.paid_at ? tkSana(p.paid_at) : ''} · ${escapeHtml(p.payment_method || '')}${p.received_by ? ' · '+escapeHtml(p.received_by) : ''}</div>
         </div>
       </div>`).join('')}</div>`;
-  } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:#DC2626;text-align:center;padding:20px">Yuklashda xato</div>'; }
+  } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:var(--m-dc2626);text-align:center;padding:20px">Yuklashda xato</div>'; }
 }
 
 async function renderProducts(d) {
@@ -615,7 +615,7 @@ async function renderProducts(d) {
             </div>`).join('')}</div>
         </div>
       </div>`).join('')}</div>`;
-  } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:#DC2626;text-align:center;padding:20px">Yuklashda xato</div>'; }
+  } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:var(--m-dc2626);text-align:center;padding:20px">Yuklashda xato</div>'; }
 }
 
 async function renderMaterials(d) {
@@ -652,11 +652,11 @@ async function renderMaterials(d) {
                 <div class="zebra-title">${escapeHtml(m.item_name)}</div>
                 <div class="zebra-sub">${tkSana(m.created_at)} · ${escapeHtml(m.reason||'')}</div>
               </div>
-              <span class="zebra-val" style="color:#DC2626">−${m.quantity} ${escapeHtml(m.unit||'')}</span>
+              <span class="zebra-val" style="color:var(--m-dc2626)">−${m.quantity} ${escapeHtml(m.unit||'')}</span>
             </div>`).join('')}</div>
         </div>
       </div>`).join('')}</div>`;
-  } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:#DC2626;text-align:center;padding:20px">Yuklashda xato</div>'; }
+  } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:var(--m-dc2626);text-align:center;padding:20px">Yuklashda xato</div>'; }
 }
 
 async function renderTimeline(d) {
@@ -692,7 +692,7 @@ async function renderTimeline(d) {
           <div style="font-size:13px;color:var(--text3);margin-top:2px">${tkToliq(e.date)}</div>
         </div>
       </div>`).join('');
-  } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:#DC2626;text-align:center;padding:20px">Yuklashda xato</div>'; }
+  } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:var(--m-dc2626);text-align:center;padding:20px">Yuklashda xato</div>'; }
 }
 
 function renderNotes(d) {

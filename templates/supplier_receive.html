@@ -6,6 +6,8 @@
 {% block head %}
 <style>
 .rcv-wrap{--r-bg:#F8F8F6;--r-card:#FFFFFF;--r-border:#E8E3DD;--r-primary:#9A6231;--r-primary-tint:#F8F2EB;--r-success:#15803D;--r-success-tint:#F0FDF4;--r-danger:#DC2626;--r-danger-tint:#FEF2F2;--r-warning:#B45309;--r-text:#222222;--r-text2:#5B6170;--r-text3:#696D78;background:var(--r-bg);padding:16px;height:calc(100vh - 58px);overflow-y:auto}
+/* kech118 (zip 122 — tungi rejim to'liq): sahifa o'zgaruvchilari tungi rejimda umumiy ranglarga (ish maydoni qorayadi, matn o'qiladi) */
+html[data-theme="dark"] .rcv-wrap{--r-bg:var(--bg); --r-card:var(--white); --r-border:var(--border); --r-primary:#D09A63; --r-primary-tint:var(--gold-tint); --r-success:#4ADE80; --r-success-tint:var(--f-f0fdf4); --r-warning:#FBBF24; --r-warning-tint:var(--f-fffbeb); --r-danger:#F87171; --r-danger-tint:var(--f-fef2f2); --r-text:var(--text); --r-text2:var(--text2); --r-text3:var(--text3);}
 .rcv-wrap *{box-sizing:border-box}
 .rcv-grid{display:grid;grid-template-columns:1fr 360px;gap:18px;align-items:start}
 @media(max-width:1150px){.rcv-grid{grid-template-columns:1fr}}
@@ -13,7 +15,7 @@
 .rcv-card-body{padding:22px}
 .rcv-card-title{font-size:15px;font-weight:700;color:var(--r-text);margin-bottom:18px}
 .rcv-field label{display:block;font-size:12px;font-weight:600;color:var(--r-text2);margin-bottom:6px}
-.rcv-field input,.rcv-field select{width:100%;height:42px;padding:0 14px;border:1px solid var(--r-border);border-radius:9px;font-size:13.5px;color:var(--r-text);outline:none;background:#fff;transition:border-color .15s}
+.rcv-field input,.rcv-field select{width:100%;height:42px;padding:0 14px;border:1px solid var(--r-border);border-radius:9px;font-size:13.5px;color:var(--r-text);outline:none;background:var(--white);transition:border-color .15s}
 .rcv-field input:focus,.rcv-field select:focus{border-color:var(--r-primary)}
 .rcv-field textarea{width:100%;padding:10px 14px;border:1px solid var(--r-border);border-radius:9px;font-size:13.5px;outline:none;resize:vertical;min-height:42px}
 .rcv-row{display:grid;gap:14px;margin-bottom:14px}
@@ -27,9 +29,10 @@
 .rcv-supplier-row{display:flex;gap:10px;align-items:flex-end}
 .rcv-supplier-row .rcv-field{flex:1}
 .rcv-btn{height:42px;padding:0 18px;border-radius:9px;border:none;cursor:pointer;font-size:13.5px;font-weight:600;white-space:nowrap;transition:transform .1s,box-shadow .15s}
-.rcv-btn-primary{background:var(--r-primary);color:#fff}
+.rcv-btn-primary{background:var(--gold-btn);color:#fff}
 .rcv-btn-primary:hover{background:#8F5B2A;box-shadow:0 4px 12px rgba(185,120,63,.3)}
-.rcv-btn-dark{background:var(--r-text);color:#fff}
+.rcv-btn-dark{background:#222222;color:#fff}
+html[data-theme="dark"] .rcv-btn-dark{background:var(--f-eceae6);color:var(--m-16181f)}
 .rcv-btn:active{transform:scale(.97)}
 .rcv-stat-grid{display:grid;grid-template-columns:repeat(3,1fr) 1.3fr;gap:12px;margin-top:16px}
 @media(max-width:900px){.rcv-stat-grid{grid-template-columns:1fr 1fr}}
@@ -38,21 +41,22 @@
 .rcv-stat-value{font-size:19px;font-weight:800;color:var(--r-text);margin-top:4px}
 .rcv-quickpay{background:var(--r-bg);border-radius:11px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
 .rcv-quickpay input{height:34px;border:1px solid var(--r-border);border-radius:7px;padding:0 10px;font-size:13px;outline:none}
-.rcv-quickpay button{height:34px;border-radius:7px;border:none;background:var(--r-text);color:#fff;font-size:12.5px;font-weight:600;cursor:pointer}
+.rcv-quickpay button{height:34px;border-radius:7px;border:none;background:#222222;color:#fff;font-size:12.5px;font-weight:600;cursor:pointer}
+html[data-theme="dark"] .rcv-quickpay button{background:var(--f-eceae6);color:var(--m-16181f)}
 
 .rcv-newitem-link{display:inline-flex;align-items:center;gap:6px;height:42px;padding:0 14px;border:1.5px dashed var(--r-primary);border-radius:9px;color:var(--r-primary);font-size:12.5px;font-weight:600;cursor:pointer;background:var(--r-primary-tint);white-space:nowrap}
-.rcv-newitem-box{display:none;background:var(--r-primary-tint);border:1px solid #E8D5C0;border-radius:11px;padding:16px;margin-bottom:14px}
+.rcv-newitem-box{display:none;background:var(--r-primary-tint);border:1px solid var(--ch-e8d5c0);border-radius:11px;padding:16px;margin-bottom:14px}
 
 .rcv-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
 .rcv-table thead th{text-align:left;padding:10px 12px;color:var(--r-text3);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.03em;border-bottom:2px solid var(--r-border)}
 .rcv-table tbody td{padding:12px;border-bottom:1px solid var(--r-border);color:var(--r-text2)}
 .rcv-table tbody tr:hover{background:var(--r-bg)}
 .rcv-table tbody tr:last-child td{border-bottom:none}
-.rcv-icon-btn{width:30px;height:30px;border-radius:8px;border:1px solid var(--r-border);background:#fff;color:var(--r-text3);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;margin-left:4px;transition:.12s}
+.rcv-icon-btn{width:30px;height:30px;border-radius:8px;border:1px solid var(--r-border);background:var(--white);color:var(--r-text3);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;margin-left:4px;transition:.12s}
 .rcv-icon-btn:hover{background:var(--r-danger-tint);border-color:var(--r-danger);color:var(--r-danger)}
 .rcv-totals-bar{display:flex;justify-content:flex-end;gap:24px;padding:14px 4px 4px;font-size:13px;color:var(--r-text2)}
 
-.rcv-summary-row{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid #F3F4F6;font-size:13.5px}
+.rcv-summary-row{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--ch-f3f4f6);font-size:13.5px}
 .rcv-summary-row:last-child{border-bottom:none}
 .rcv-summary-row.total{background:var(--r-primary-tint);margin:8px -22px -22px;padding:16px 22px;border-radius:0 0 16px 16px;border-bottom:none}
 .rcv-summary-row.total .rcv-sum-label{font-weight:700;color:var(--r-text)}
@@ -70,14 +74,14 @@
 /* Yo'nalish — tugma-chip guruhi (dropdown o'rniga) */
 .rcv-cat-toggle{display:flex;flex-wrap:wrap;gap:6px}
 .rcv-cat-opt{
-  padding:9px 13px;border:1.5px solid #E5E7EB;border-radius:9px;
-  font-size:12.5px;font-weight:600;color:var(--text3);background:#fff;
+  padding:9px 13px;border:1.5px solid var(--ch-e5e7eb);border-radius:9px;
+  font-size:12.5px;font-weight:600;color:var(--text3);background:var(--white);
   cursor:pointer;transition:all .15s;white-space:nowrap;
 }
 .rcv-cat-opt:hover{border-color:var(--r-primary);color:var(--r-primary)}
 /* 2026-09-13: avval tanlangan/tanlanmagan farqi juda kuchsiz edi (faqat
    och rang tint) — endi tanlangani to'liq bo'yalgan, aniq ko'rinadi. */
-.rcv-cat-opt.active{background:var(--r-primary);border-color:var(--r-primary);color:#fff;font-weight:700}
+.rcv-cat-opt.active{background:var(--gold-btn);border-color:var(--gold-btn);color:#fff;font-weight:700}
 .rcv-cat-toggle.rcv-cat-error .rcv-cat-opt{border-color:#DC2626}
 </style>
 {% endblock %}
@@ -246,7 +250,7 @@
             <div class="rcv-field"><label>Hozir to'langan summa <span style="font-weight:400;color:var(--r-text3)">(ta'minotchiga — materiallar uchun)</span></label>
               <div style="display:flex;gap:6px">
                 <input type="text" id="ap-paid-now" placeholder="0" oninput="formatPriceInput(this)" style="flex:1">
-                <button type="button" onclick="apPayFull()" style="flex-shrink:0;background:#F8F2EB;color:var(--gold-dark);border:1px solid #E8D5C0;border-radius:8px;padding:0 12px;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap">To'liq to'lash</button>
+                <button type="button" onclick="apPayFull()" style="flex-shrink:0;background:var(--f-f8f2eb);color:var(--gold-dark);border:1px solid var(--ch-e8d5c0);border-radius:8px;padding:0 12px;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap">To'liq to'lash</button>
               </div>
             </div>
             <div class="rcv-field"><label>Izoh</label><input type="text" id="ap-notes" placeholder="Masalan: Naqd pul bilan to'landi"></div>
@@ -259,12 +263,12 @@
             <div class="rcv-field"><label>⬆️ Yuklash</label><input type="text" id="ap-cost-yuklash" placeholder="0" oninput="formatPriceInput(this);updateSummary()"></div>
             <div class="rcv-field"><label>➕ Boshqa xarajat</label><input type="text" id="ap-cost-boshqa" placeholder="0" oninput="formatPriceInput(this);updateSummary()"></div>
           </div>
-          <label style="display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px 12px;background:var(--r-primary-tint);border:1px solid #E8D5C0;border-radius:9px;font-size:12.5px;color:var(--gold-dark);cursor:pointer">
+          <label style="display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px 12px;background:var(--r-primary-tint);border:1px solid var(--ch-e8d5c0);border-radius:9px;font-size:12.5px;color:var(--gold-dark);cursor:pointer">
             <input type="checkbox" id="ap-add-to-cost" style="width:16px;height:16px;cursor:pointer" onchange="updateSummary()">
             <b>Qo'shimcha xarajatlarni tannarxga qo'shish</b> — yoqilsa, yuqoridagi xarajatlar materiallar qiymatiga proporsional taqsimlanib, ombordagi birlik tannarxiga qo'shiladi. O'chiq bo'lsa — faqat Moliyada alohida ko'rinadi.
           </label>
 
-          <label style="display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px 12px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:9px;font-size:12.5px;color:#92400E;cursor:pointer">
+          <label style="display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px 12px;background:var(--f-fffbeb);border:1px solid var(--ch-fde68a);border-radius:9px;font-size:12.5px;color:var(--m-92400e);cursor:pointer">
             <input type="checkbox" id="ap-opening-stock" style="width:16px;height:16px;cursor:pointer">
             Bu — <b>boshlang'ich (allaqachon bor) ombor</b>, yangi xarid emas (Kassa balansiga ta'sir qilmaydi)
           </label>
@@ -307,8 +311,8 @@
         <div class="rcv-card-body" style="padding-top:6px">
           <div class="rcv-summary-row"><span class="rcv-sum-label">To'langan summa</span><span class="rcv-sum-val" style="color:var(--r-success)" id="sum-paid">0 so'm</span></div>
           <div class="rcv-summary-row debt"><span class="rcv-sum-label" style="font-weight:700;color:var(--r-text)">Qarzga qoladi</span><span class="rcv-sum-val" id="sum-debt">0 so'm</span></div>
-          <div id="sum-opening-warn" style="display:none;margin-top:10px;padding:9px 11px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;font-size:12.5px;color:#92400E;line-height:1.45">⚠️ <b>Boshlang'ich ombor</b> belgilangan: ta'minotchiga qarz yozilmaydi, «Hozir to'langan summa» yuborilmaydi, Kassaga ta'sir qilmaydi. Yangi xarid bo'lsa — belgini olib tashlang.</div>
-          <div id="sum-date-warn" style="display:none;margin-top:10px;padding:9px 11px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;font-size:12.5px;color:#1E40AF;line-height:1.45"></div>
+          <div id="sum-opening-warn" style="display:none;margin-top:10px;padding:9px 11px;background:var(--f-fffbeb);border:1px solid var(--ch-fde68a);border-radius:8px;font-size:12.5px;color:var(--m-92400e);line-height:1.45">⚠️ <b>Boshlang'ich ombor</b> belgilangan: ta'minotchiga qarz yozilmaydi, «Hozir to'langan summa» yuborilmaydi, Kassaga ta'sir qilmaydi. Yangi xarid bo'lsa — belgini olib tashlang.</div>
+          <div id="sum-date-warn" style="display:none;margin-top:10px;padding:9px 11px;background:var(--f-eff6ff);border:1px solid var(--ch-bfdbfe);border-radius:8px;font-size:12.5px;color:var(--m-1e40af);line-height:1.45"></div>
         </div>
       </div>
 
@@ -339,13 +343,13 @@
 
 <!-- Yangi ta'minotchi modali -->
 <div id="newSupplierModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:1000;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:16px;padding:24px;width:380px;max-width:100%">
+  <div style="background:var(--white);border-radius:16px;padding:24px;width:380px;max-width:100%">
     <div style="font-size:16px;font-weight:700;margin-bottom:16px">+ Yangi ta'minotchi</div>
     <div class="rcv-field" style="margin-bottom:12px"><label>Nomi</label><input type="text" id="ns-name" placeholder="Masalan: Qurilish kimyosi do'koni"></div>
     <div class="rcv-field" style="margin-bottom:16px"><label>Telefon</label><input type="text" id="ns-phone" placeholder="+998..."></div>
     <div style="display:flex;gap:8px">
       <button id="new-supplier-save-btn" style="flex:1;background:var(--gold-btn);color:#fff;border:none;border-radius:9px;padding:11px;font-size:14px;font-weight:600;cursor:pointer" onclick="saveNewSupplier()">Saqlash</button>
-      <button data-yopish style="flex:1;background:#F3F4F6;color:#374151;border:none;border-radius:9px;padding:11px;font-size:14px;font-weight:600;cursor:pointer" onclick="document.getElementById('newSupplierModal').style.display='none'">Bekor</button>
+      <button data-yopish style="flex:1;background:var(--f-f3f4f6);color:var(--m-374151);border:none;border-radius:9px;padding:11px;font-size:14px;font-weight:600;cursor:pointer" onclick="document.getElementById('newSupplierModal').style.display='none'">Bekor</button>
     </div>
   </div>
 </div>
@@ -627,11 +631,11 @@ async function loadHistoryForSupplier(page){
       const zebraBg = idx % 2 === 0 ? 'transparent' : 'var(--r-bg)';
       return `<tr style="background:${zebraBg}">
         <td style="font-weight:600;color:var(--r-text)">${tkSana(p.purchased_at)}</td>
-        <td style="font-weight:600;color:var(--r-text)">${escapeHtml(p.item_name)}${p.is_credit?' <span style="color:#B45309;font-size:12px;font-weight:600">(nasiya)</span>':''}</td>
+        <td style="font-weight:600;color:var(--r-text)">${escapeHtml(p.item_name)}${p.is_credit?' <span style="color:var(--m-b45309);font-size:12px;font-weight:600">(nasiya)</span>':''}</td>
         <td style="font-weight:600">${p.quantity} ${escapeHtml(p.unit)}</td>
         <td style="text-align:right;font-weight:600;color:var(--r-text2)">${fmt(unitPrice)} so'm</td>
         <td style="text-align:right;font-weight:800;color:var(--r-text)">${fmt(p.total_amount)} so'm</td>
-        <td style="text-align:right;font-size:12px;font-weight:700;color:${p.is_credit?'#B45309':'#15803D'}">${p.is_credit?'Nasiya':'To\'liq'}</td>
+        <td style="text-align:right;font-size:12px;font-weight:700;color:${p.is_credit?'var(--m-b45309)':'var(--m-15803d)'}">${p.is_credit?'Nasiya':'To\'liq'}</td>
       </tr>`;
     }).join('');
   }
@@ -1162,8 +1166,8 @@ function showMsg(text, type){
     document.body.appendChild(box);
   }
   box.textContent = text;
-  box.style.background = type==='error' ? '#FEE2E2' : (type==='success' ? '#DCFCE7' : '#F8F2EB');
-  box.style.color = type==='error' ? '#DC2626' : (type==='success' ? '#166534' : '#8F5B2A');
+  box.style.background = type==='error' ? 'var(--f-fee2e2)' : (type==='success' ? 'var(--f-dcfce7)' : 'var(--f-f8f2eb)');
+  box.style.color = type==='error' ? 'var(--m-dc2626)' : (type==='success' ? 'var(--m-166534)' : 'var(--m-8f5b2a)');
   box.style.display = 'block';
   setTimeout(()=>{ box.style.display='none'; }, 3500);
 }

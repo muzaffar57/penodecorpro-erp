@@ -35,49 +35,49 @@
 .attach-name{font-size:12px;line-height:1.3;padding:3px 5px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-top:1px solid var(--border);background:var(--card,var(--bg))}
 .attach-thumb .rm{position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;border:none;font-size:12px;cursor:pointer;line-height:1;z-index:2}
 .attach-thumb .dl{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;border:none;font-size:12px;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center;text-decoration:none;z-index:2}
-.attach-thumb .dl:hover{background:var(--gold-dark)}
+.attach-thumb .dl:hover{background:var(--gold-hover)}
 .dropzone{border:1.5px dashed var(--border-strong);border-radius:14px;padding:22px;text-align:center;cursor:pointer;transition:border-color .15s;background:var(--bg)}
 .dropzone:hover{border-color:var(--gold)}
 .dropzone input[type=file]{display:none}
 .ord-list{max-height:calc(100vh - 260px);overflow-y:auto}
 /* Tayyor mahsulot taklifi */
-.fp-suggest{position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #B9783F;border-radius:9px;box-shadow:0 6px 20px rgba(0,0,0,.12);z-index:60;max-height:210px;overflow-y:auto;margin-top:3px}
-.fp-sg-item{padding:8px 11px;cursor:pointer;border-bottom:1px solid #f5f5f5;transition:background .12s}
+.fp-suggest{position:absolute;top:100%;left:0;right:0;background:var(--white);border:1.5px solid #B9783F;border-radius:9px;box-shadow:0 6px 20px rgba(0,0,0,.12);z-index:60;max-height:210px;overflow-y:auto;margin-top:3px}
+.fp-sg-item{padding:8px 11px;cursor:pointer;border-bottom:1px solid var(--ch-f5f5f5);transition:background .12s}
 .fp-sg-item:last-child{border-bottom:none}
-.fp-sg-item:hover{background:#FDF8F0}
-.fp-tag{display:inline-flex;align-items:center;gap:5px;background:#FDF8F0;border:1.5px solid #B9783F;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:600;color:var(--gold-dark);margin-left:8px}
-.fp-tag button{background:none;border:none;color:#DC2626;cursor:pointer;font-size:12px;padding:0;line-height:1}
+.fp-sg-item:hover{background:var(--f-fdf8f0)}
+.fp-tag{display:inline-flex;align-items:center;gap:5px;background:var(--f-fdf8f0);border:1.5px solid #B9783F;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:600;color:var(--gold-dark);margin-left:8px}
+.fp-tag button{background:none;border:none;color:var(--m-dc2626);cursor:pointer;font-size:12px;padding:0;line-height:1}
 
 /* Loyiha guruhlari */
-.proj-group{border-bottom:1px solid #f0f0f0}
+.proj-group{border-bottom:1px solid var(--ch-f0f0f0)}
 .proj-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 16px;cursor:pointer;transition:background .15s;user-select:none}
-.proj-head:hover{background:#fafaf8}
-.proj-group.open .proj-head{background:#FDF8F0}
+.proj-head:hover{background:var(--f-fafaf8)}
+.proj-group.open .proj-head{background:var(--f-fdf8f0)}
 .proj-arrow{font-size:12px;color:var(--text3);transition:transform .2s;flex-shrink:0;width:10px}
 .proj-group.open .proj-arrow{transform:rotate(90deg);color:var(--gold-dark)}
 .proj-name{font-size:14.5px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .proj-client{font-size:12.5px;color:var(--text3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .proj-count{font-size:12px;color:var(--text3);font-weight:600;white-space:nowrap}
-.proj-debt{font-size:12px;color:#DC2626;font-weight:700;margin-top:3px;white-space:nowrap}
-.proj-paid{font-size:12px;color:#15803D;font-weight:700;margin-top:3px;white-space:nowrap}
-.proj-body{background:#FCFCFB;border-top:1px solid #f5f5f5}
+.proj-debt{font-size:12px;color:var(--m-dc2626);font-weight:700;margin-top:3px;white-space:nowrap}
+.proj-paid{font-size:12px;color:var(--m-15803d);font-weight:700;margin-top:3px;white-space:nowrap}
+.proj-body{background:var(--f-fcfcfb);border-top:1px solid var(--ch-f5f5f5)}
 .proj-body .ord-item{padding-left:24px}
 .proj-body .ord-item:last-child{border-bottom:none}
-.step-btn2{width:36px;height:36px;border-radius:10px;border:1.5px solid #e5e5e5;background:#fff;font-size:18px;font-weight:700;color:#555;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;flex-shrink:0;transition:all .15s}
+.step-btn2{width:36px;height:36px;border-radius:10px;border:1.5px solid var(--ch-e5e5e5);background:var(--white);font-size:18px;font-weight:700;color:var(--m-555555);cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;flex-shrink:0;transition:all .15s}
 .step-btn2:hover{background:var(--dark);color:#fff;border-color:var(--dark)}
 .dlv-inp:focus{border-color:#B9783F !important}
-.ord-item{padding:15px 16px;border-bottom:1.5px solid #E8E3DD;cursor:pointer;transition:background .15s}
-.ord-item:hover{background:#fafaf8}
-.ord-item.active{background:#fdf8f0;border-left:3px solid #B9783F}
+.ord-item{padding:15px 16px;border-bottom:1.5px solid var(--ch-e8e3dd);cursor:pointer;transition:background .15s}
+.ord-item:hover{background:var(--f-fafaf8)}
+.ord-item.active{background:var(--f-fdf8f0);border-left:3px solid #B9783F}
 .ord-num{font-size:13px;font-weight:700;color:var(--gold-dark)}
 .ord-date{font-size:12.5px;color:var(--text3)}
 .mid-panel{display:flex;flex-direction:column;gap:10px}
 .right-panel{display:flex;flex-direction:column;gap:10px}
 .right-panel::-webkit-scrollbar{width:6px}
 .right-panel::-webkit-scrollbar-track{background:transparent}
-.right-panel::-webkit-scrollbar-thumb{background:#d4d4d4;border-radius:6px}
-.right-panel::-webkit-scrollbar-thumb:hover{background:#b8b8b8}
-.detal{background:#fff;border-radius:14px;padding:22px;border:1px solid var(--border2);box-shadow:0 1px 2px rgba(16,24,40,.04),0 2px 8px rgba(16,24,40,.05);margin-bottom:14px}
+.right-panel::-webkit-scrollbar-thumb{background:var(--f-d4d4d4);border-radius:6px}
+.right-panel::-webkit-scrollbar-thumb:hover{background:var(--f-b8b8b8)}
+.detal{background:var(--white);border-radius:14px;padding:22px;border:1px solid var(--border2);box-shadow:0 1px 2px rgba(16,24,40,.04),0 2px 8px rgba(16,24,40,.05);margin-bottom:14px}
 .detal.collapsed{padding:14px 22px}
 .detal-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--border2);cursor:pointer}
 .detal.collapsed .detal-top{margin-bottom:0;padding-bottom:0;border-bottom:none}
@@ -88,82 +88,82 @@
 .detal-summary{display:none;align-items:center;gap:8px;font-size:13px;color:var(--text2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .detal.collapsed .detal-summary{display:flex}
 .detal-summary b{color:var(--text);font-weight:600}
-.detal-summary .val{color:#15803D;font-weight:700;white-space:nowrap}
-.detal-badge{font-size:13px;font-weight:700;color:var(--gold-dark);background:#F8F2EB;padding:6px 14px;border-radius:8px;border:1px solid #DBEAFE;flex-shrink:0}
+.detal-summary .val{color:var(--m-15803d);font-weight:700;white-space:nowrap}
+.detal-badge{font-size:13px;font-weight:700;color:var(--gold-dark);background:var(--f-f8f2eb);padding:6px 14px;border-radius:8px;border:1px solid var(--ch-dbeafe);flex-shrink:0}
 .detal-rm{background:none;border:none;color:#ddd;cursor:pointer;font-size:22px;line-height:1;transition:color .15s;flex-shrink:0}
-.detal-rm:hover{color:#DC2626}
+.detal-rm:hover{color:var(--m-dc2626)}
 .detal-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
 @media (max-width:900px){.detal-grid{grid-template-columns:1fr 1fr}}
-.dif{background:#F3F4F6;border-radius:12px;padding:12px 14px}
-.dif-tur{background:#F5F3EF}
-.dgrp{background:#F5F3EF;border-radius:14px;padding:14px 16px;margin-bottom:12px}
+.dif{background:var(--f-f3f4f6);border-radius:12px;padding:12px 14px}
+.dif-tur{background:var(--f-f5f3ef)}
+.dgrp{background:var(--f-f5f3ef);border-radius:14px;padding:14px 16px;margin-bottom:12px}
 .dgrp-title{font-size:12px;font-weight:800;color:var(--gold-dark);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
-.dgrp .dif{background:#fff}
+.dgrp .dif{background:var(--white)}
 .dgrp-row{display:grid;gap:12px;align-items:end}
 .dgrp-xsign{text-align:center;font-size:19px;color:var(--gold-dark);font-weight:700;padding-bottom:12px;user-select:none}
-.dgrp-chip{margin-top:10px;background:#fff;border-radius:8px;padding:8px 12px;font-size:12.5px;color:#666;display:flex;align-items:center;gap:8px}
-.dif label{font-size:12px;color:#6B7280;display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px;font-weight:700}
-.dif input,.dif select{width:100%;padding:11px 13px;border:1.5px solid #e5e5e5;border-radius:9px;font-size:14.5px;color:#111;background:#fff;outline:none;transition:border .15s}
-.unit-input-wrap{display:flex;align-items:stretch;border:1.5px solid #e5e5e5;border-radius:9px;overflow:hidden;transition:border .15s;background:#fff}
+.dgrp-chip{margin-top:10px;background:var(--white);border-radius:8px;padding:8px 12px;font-size:12.5px;color:var(--m-666666);display:flex;align-items:center;gap:8px}
+.dif label{font-size:12px;color:var(--m-6b7280);display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px;font-weight:700}
+.dif input,.dif select{width:100%;padding:11px 13px;border:1.5px solid var(--ch-e5e5e5);border-radius:9px;font-size:14.5px;color:var(--m-111111);background:var(--white);outline:none;transition:border .15s}
+.unit-input-wrap{display:flex;align-items:stretch;border:1.5px solid var(--ch-e5e5e5);border-radius:9px;overflow:hidden;transition:border .15s;background:var(--white)}
 .unit-input-wrap:focus-within{border-color:#B9783F}
-.unit-input-wrap input{border:none!important;outline:none;padding:11px 13px;font-size:14.5px;color:#111;width:100%;background:transparent!important}
-.unit-input-wrap select{border:none!important;outline:none;padding:11px 13px;font-size:14.5px;color:#111;width:100%;background:transparent!important}
+.unit-input-wrap input{border:none!important;outline:none;padding:11px 13px;font-size:14.5px;color:var(--m-111111);width:100%;background:transparent!important}
+.unit-input-wrap select{border:none!important;outline:none;padding:11px 13px;font-size:14.5px;color:var(--m-111111);width:100%;background:transparent!important}
 .unit-input-wrap .unit-suffix{display:flex;align-items:center;padding:0 12px;background:var(--gold-tint);color:var(--gold-dark);font-size:12.5px;font-weight:700;white-space:nowrap;flex-shrink:0}
 .dif input:focus,.dif select:focus{border-color:#B9783F}
-.dif input[readonly]{background:#F9FAFB;color:var(--text3);cursor:not-allowed}
-.detal-result{margin-top:16px;padding:16px;background:#F5F3EF;border-radius:12px;display:flex;gap:22px;font-size:14px;color:var(--text3);flex-wrap:wrap;align-items:center}
+.dif input[readonly]{background:var(--f-f9fafb);color:var(--text3);cursor:not-allowed}
+.detal-result{margin-top:16px;padding:16px;background:var(--f-f5f3ef);border-radius:12px;display:flex;gap:22px;font-size:14px;color:var(--text3);flex-wrap:wrap;align-items:center}
 .result-cards{display:flex;gap:14px;flex-wrap:wrap;width:100%}
-.result-card{background:#fff;border-radius:10px;border:1px solid #E5E1D8;padding:12px 14px;flex:1;min-width:150px}
+.result-card{background:var(--white);border-radius:10px;border:1px solid var(--ch-e5e1d8);padding:12px 14px;flex:1;min-width:150px}
 .result-card label{font-size:12px;font-weight:700;color:var(--gold-dark);display:flex;align-items:center;gap:4px;margin-bottom:8px}
-.dval-box{display:flex;align-items:stretch;border:1px solid #E5E1D8;border-radius:8px;overflow:hidden;background:#fff}
-.dval-box input{border:none;outline:none;padding:9px 12px;font-size:15px;color:#222;width:100%;background:transparent;font-weight:600}
+.dval-box{display:flex;align-items:stretch;border:1px solid var(--ch-e5e1d8);border-radius:8px;overflow:hidden;background:var(--white)}
+.dval-box input{border:none;outline:none;padding:9px 12px;font-size:15px;color:var(--m-222222);width:100%;background:transparent;font-weight:600}
 .dval-box .unit-suffix{display:flex;align-items:center;padding:0 12px;background:var(--gold-tint);color:var(--gold-dark);font-size:12px;font-weight:700;white-space:nowrap}
-.result-card.main label{color:#166534}
-.dval-box.main input{color:#15803D;font-size:17px;font-weight:800}
-.dval-box.main .unit-suffix{background:#DCFCE7;color:#166534}
+.result-card.main label{color:var(--m-166534)}
+.dval-box.main input{color:var(--m-15803d);font-size:17px;font-weight:800}
+.dval-box.main .unit-suffix{background:var(--f-dcfce7);color:var(--m-166534)}
 .vol-relock{background:none;border:none;cursor:pointer;color:var(--gold-dark);font-size:14px;padding:0}
-.detal-result .val{color:#15803D;font-weight:800;font-size:16px}
-.total-box{background:#f8f8f6;border-radius:14px;padding:18px;border:1px solid #ebebeb}
-.trow{display:flex;justify-content:space-between;font-size:14.5px;padding:5px 0;color:#555}
+.detal-result .val{color:var(--m-15803d);font-weight:800;font-size:16px}
+.total-box{background:var(--f-f8f8f6);border-radius:14px;padding:18px;border:1px solid var(--ch-ebebeb)}
+.trow{display:flex;justify-content:space-between;font-size:14.5px;padding:5px 0;color:var(--m-555555)}
 .sum-title{font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin:16px 0 8px;font-weight:600}
-.sum-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f5f5f5;font-size:14.5px}
+.sum-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--ch-f5f5f5);font-size:14.5px}
 .sum-item:last-child{border-bottom:none}
 .si-l{color:var(--text3)}
-.si-v{font-weight:500;color:#111}
-.si-v.green{color:#15803D}.si-v.red{color:#DC2626}.si-v.gold{color:var(--gold-dark)}
+.si-v{font-weight:500;color:var(--m-111111)}
+.si-v.green{color:var(--m-15803d)}.si-v.red{color:var(--m-dc2626)}.si-v.gold{color:var(--gold-dark)}
 .result-box{
   position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:2999;
   width:90%;max-width:560px;max-height:80vh;overflow-y:auto;
   border-radius:10px;padding:15px;font-size:14.5px;box-shadow:0 8px 28px rgba(0,0,0,.2);
   display:none
 }
-.result-box.success{background:#DCFCE7;border:1px solid #A9DFBF;color:#1e7e34}
-.result-box.error{background:#FEE2E2;border:1px solid #F1948A;color:#DC2626}
+.result-box.success{background:var(--f-dcfce7);border:1px solid var(--ch-a9dfbf);color:var(--m-1e7e34)}
+.result-box.error{background:var(--f-fee2e2);border:1px solid #F1948A;color:var(--m-dc2626)}
 .msg-bar{border-radius:10px;padding:13px 16px;font-size:14.5px;margin-bottom:10px;display:none}
-.msg-bar.success{background:#DCFCE7;color:#1e7e34;display:block}
-.msg-bar.error{background:#FEE2E2;color:#DC2626;display:block}
+.msg-bar.success{background:var(--f-dcfce7);color:var(--m-1e7e34);display:block}
+.msg-bar.error{background:var(--f-fee2e2);color:var(--m-dc2626);display:block}
 /* Ikonka-belgili sarlavha (rasmga mos) */
 .card-head h3{display:flex;align-items:center;gap:10px;font-size:15.5px}
 .ico-badge{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
-.ico-badge.blue{background:#F8F2EB;color:var(--gold-dark)}
-.ico-badge.green{background:#DCFCE7;color:#15803D}
-.ico-badge.purple{background:#F3EEFF;color:#7C3AED}
+.ico-badge.blue{background:var(--f-f8f2eb);color:var(--gold-dark)}
+.ico-badge.green{background:var(--f-dcfce7);color:var(--m-15803d)}
+.ico-badge.purple{background:var(--f-f3eeff);color:var(--m-7c3aed)}
 /* Qoplama — Yo'q/Bor tugmasi (rasmdagi uslub) */
-.coat-toggle{display:flex;border:1px solid #E5E1D8;border-radius:9px;overflow:hidden;height:42px}
-.coat-opt{flex:1;display:flex;align-items:center;justify-content:center;font-size:13.5px;font-weight:700;cursor:pointer;color:var(--text3);background:#FAFAF8;transition:all .15s}
-.coat-opt.coat-no.active{background:#FCA5A5;color:#7F1D1D}
-.coat-opt.coat-yes.active{background:#86EFAC;color:#14532D}
+.coat-toggle{display:flex;border:1px solid var(--ch-e5e1d8);border-radius:9px;overflow:hidden;height:42px}
+.coat-opt{flex:1;display:flex;align-items:center;justify-content:center;font-size:13.5px;font-weight:700;cursor:pointer;color:var(--text3);background:var(--f-fafaf8);transition:all .15s}
+.coat-opt.coat-no.active{background:var(--f-fca5a5);color:var(--m-7f1d1d)}
+.coat-opt.coat-yes.active{background:var(--f-86efac);color:var(--m-14532d)}
 /* Ichki qo'shimcha detal qatoridagi Qoplama — asosiy detalning
    coat-toggle/coat-opt bilan bir xil rang mantig'i, faqat qator ichiga
    sig'adigan kichikroq o'lchamda (ko'rinish, formulaga tegilmagan). */
-.sd-coat-toggle{display:flex;border:1px solid #ddd;border-radius:6px;overflow:hidden;height:30px}
-.sd-coat-opt{flex:1;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;cursor:pointer;color:var(--text3);background:#FAFAF8;transition:all .15s}
-.sd-coat-opt.sd-coat-no.active{background:#FCA5A5;color:#7F1D1D}
-.sd-coat-opt.sd-coat-yes.active{background:#86EFAC;color:#14532D}
+.sd-coat-toggle{display:flex;border:1px solid var(--ch-dddddd);border-radius:6px;overflow:hidden;height:30px}
+.sd-coat-opt{flex:1;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;cursor:pointer;color:var(--text3);background:var(--f-fafaf8);transition:all .15s}
+.sd-coat-opt.sd-coat-no.active{background:var(--f-fca5a5);color:var(--m-7f1d1d)}
+.sd-coat-opt.sd-coat-yes.active{background:var(--f-86efac);color:var(--m-14532d)}
 /* Tur — tugma-chip guruhi (dropdown o'rniga, hammasi ochiq ko'rinadi) */
 .type-toggle{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .type-opt{
-  padding:8px 12px;border:1.5px solid #E5E7EB;border-radius:8px;
+  padding:8px 12px;border:1.5px solid var(--ch-e5e7eb);border-radius:8px;
   font-size:12.5px;font-weight:600;color:var(--text3);background:var(--white);
   cursor:pointer;transition:all .15s;text-align:center;white-space:nowrap;
 }
@@ -206,21 +206,21 @@ input[type=number]{-moz-appearance:textfield}
     <div class="card-head" style="padding:10px 14px">
       <h3>Buyurtmalar</h3>
       <input placeholder="Qidirish..." oninput="searchOrders(this.value)"
-             style="padding:5px 8px;border:1px solid #e8e8e8;border-radius:6px;font-size:13px;width:100px;outline:none">
+             style="padding:5px 8px;border:1px solid var(--ch-e8e8e8);border-radius:6px;font-size:13px;width:100px;outline:none">
     </div>
     <div id="pinnedOrdersSection" style="display:none;flex-shrink:0;border-bottom:1px solid var(--border2)">
       <div style="padding:7px 14px;background:var(--gold-tint);font-size:12px;font-weight:700;color:var(--gold-dark)">⭐ Ustuvor buyurtmalar (<span id="pinnedCount">0</span> ta)</div>
       <div id="pinnedOrdersList"></div>
     </div>
     {% if not show_all %}
-    <div style="padding:7px 14px;background:#F8F2EB;font-size:12px;color:var(--gold-dark);display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+    <div style="padding:7px 14px;background:var(--f-f8f2eb);font-size:12px;color:var(--gold-dark);display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
       <span>📅 So'nggi 90 kunlik (+ tugallanmaganlar)</span>
       <a href="/orders?show_all=true" style="color:var(--gold-dark);font-weight:600;text-decoration:none">Barchasini ko'rish →</a>
     </div>
     {% else %}
-    <div style="padding:7px 14px;background:#FFFBEB;font-size:12px;color:#92400E;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+    <div style="padding:7px 14px;background:var(--f-fffbeb);font-size:12px;color:var(--m-92400e);display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
       <span>⚠️ Barcha buyurtmalar ko'rsatilmoqda (sekinroq bo'lishi mumkin)</span>
-      <a href="/orders" style="color:#B45309;font-weight:600;text-decoration:none">← Qisqartirish</a>
+      <a href="/orders" style="color:var(--m-b45309);font-weight:600;text-decoration:none">← Qisqartirish</a>
     </div>
     {% endif %}
     <div class="ord-list">
@@ -241,17 +241,17 @@ input[type=number]{-moz-appearance:textfield}
                 <div class="proj-name">{{ g.project_name }}</div>
                 <div class="proj-client">{{ g.client_name }}</div>
                 {% if g_urgency == 'overdue' %}
-                <div style="font-size:12px;color:#DC2626;font-weight:700;margin-top:2px">🔴 Muddati o'tgan!{% if g_urgent_count > 1 %} ({{ g_urgent_count }} ta buyurtma){% endif %}</div>
+                <div style="font-size:12px;color:var(--m-dc2626);font-weight:700;margin-top:2px">🔴 Muddati o'tgan!{% if g_urgent_count > 1 %} ({{ g_urgent_count }} ta buyurtma){% endif %}</div>
                 {% elif g_urgency == 'today' %}
-                <div style="font-size:12px;color:#B45309;font-weight:700;margin-top:2px">⏰ Bugun muddati!{% if g_urgent_count > 1 %} ({{ g_urgent_count }} ta buyurtma){% endif %}</div>
+                <div style="font-size:12px;color:var(--m-b45309);font-weight:700;margin-top:2px">⏰ Bugun muddati!{% if g_urgent_count > 1 %} ({{ g_urgent_count }} ta buyurtma){% endif %}</div>
                 {% elif g_urgency == 'tomorrow' %}
-                <div style="font-size:12px;color:#B45309;font-weight:700;margin-top:2px">⏰ Ertaga muddati{% if g_urgent_count > 1 %} ({{ g_urgent_count }} ta buyurtma){% endif %}</div>
+                <div style="font-size:12px;color:var(--m-b45309);font-weight:700;margin-top:2px">⏰ Ertaga muddati{% if g_urgent_count > 1 %} ({{ g_urgent_count }} ta buyurtma){% endif %}</div>
                 {% endif %}
               </div>
             </div>
             <div style="text-align:right;flex-shrink:0">
               <div class="proj-count">
-                {{ g.orders|length }} ta{% if g.active %} · <span style="color:#B45309">{{ g.active }} faol</span>{% endif %}
+                {{ g.orders|length }} ta{% if g.active %} · <span style="color:var(--m-b45309)">{{ g.active }} faol</span>{% endif %}
               </div>
               {% if g.orders|length > 1 %}
                 {% if g.debt > 0 %}
@@ -268,7 +268,7 @@ input[type=number]{-moz-appearance:textfield}
           {% for o in g.orders %}
             {% set debt = o.debt_amount %}
             {% set is_finished = o.status.value in ('ready', 'delivered') %}
-            {% set row_bg = 'background:#F0FDF4' if (is_finished and debt <= 0) else ('background:#FEF2F2' if (is_finished and debt > 0) else '') %}
+            {% set row_bg = 'background:var(--f-f0fdf4)' if (is_finished and debt <= 0) else ('background:var(--f-fef2f2)' if (is_finished and debt > 0) else '') %}
             {% set urgency = o.deadline_urgency %}
             {% set urgency_border = 'border-left:3px solid #DC2626' if urgency == 'overdue' else ('border-left:3px solid #F59E0B' if urgency in ('today', 'tomorrow') else '') %}
             <div class="ord-item" style="{{ row_bg }};{{ urgency_border }}"
@@ -290,7 +290,7 @@ input[type=number]{-moz-appearance:textfield}
                           style="border:none;background:transparent;cursor:pointer;padding:2px;font-size:13px;opacity:{{ '1' if o.is_pinned else '0.28' }};flex-shrink:0">📌</button>
                   <div class="ord-num">{{ o.order_number }}</div>
                 </div>
-                {% if o.status.value == 'draft' %}<span class="badge" style="font-size:12px;background:#F0F0F0;color:#666">📝 Qoralama</span>
+                {% if o.status.value == 'draft' %}<span class="badge" style="font-size:12px;background:var(--f-f0f0f0);color:var(--m-666666)">📝 Qoralama</span>
                 {% elif o.status.value == 'ready' %}<span class="badge badge-ready" style="font-size:12px">✓ Tayyor</span>
                 {% elif o.status.value == 'delivered' %}<span class="badge badge-delivered" style="font-size:12px" title="«Tayyor» deb belgilanmagan — oylik hisobotga kirmaydi">📦 Yetkazildi</span>
                 {% else %}<span class="badge badge-progress" style="font-size:12px">Jarayonda</span>{% endif %}
@@ -299,32 +299,32 @@ input[type=number]{-moz-appearance:textfield}
               {# kech100 (131-band): mijozga qaytarilishi kerak bo'lgan ortiqcha to'lov — DOIMIY belgi #}
               {% set ort131 = o.ortiqcha_tolov %}
               {% if ort131 > 0 %}
-              <div class="ort-qaytarish" style="margin-top:3px;font-size:12px;color:#C2410C;font-weight:700">↩ Qaytarish kerak: {{ ("{:,.2f}" if (ort131 % 1) else "{:,.0f}").format(ort131).replace(",", " ") }} so'm</div>
+              <div class="ort-qaytarish" style="margin-top:3px;font-size:12px;color:var(--m-c2410c);font-weight:700">↩ Qaytarish kerak: {{ ("{:,.2f}" if (ort131 % 1) else "{:,.0f}").format(ort131).replace(",", " ") }} so'm</div>
               {% endif %}
               {% if urgency == 'overdue' %}
-              <div class="deadline-pulse" style="margin-top:3px;font-size:12px;color:#DC2626;font-weight:700">🔴 Muddati o'tgan!</div>
+              <div class="deadline-pulse" style="margin-top:3px;font-size:12px;color:var(--m-dc2626);font-weight:700">🔴 Muddati o'tgan!</div>
               {% elif urgency == 'today' %}
-              <div class="deadline-pulse" style="margin-top:3px;font-size:12px;color:#B45309;font-weight:700">⏰ Bugun muddati!</div>
+              <div class="deadline-pulse" style="margin-top:3px;font-size:12px;color:var(--m-b45309);font-weight:700">⏰ Bugun muddati!</div>
               {% elif urgency == 'tomorrow' %}
-              <div style="margin-top:3px;font-size:12px;color:#B45309;font-weight:700">⏰ Ertaga muddati</div>
+              <div style="margin-top:3px;font-size:12px;color:var(--m-b45309);font-weight:700">⏰ Ertaga muddati</div>
               {% endif %}
               {% set dpct = o.delivery_percent %}
               {% if dpct > 0 and dpct < 100 %}
               <div style="margin-top:5px;display:flex;align-items:center;gap:5px">
-                <div style="flex:1;height:3px;background:#f0f0f0;border-radius:2px;overflow:hidden">
+                <div style="flex:1;height:3px;background:var(--f-f0f0f0);border-radius:2px;overflow:hidden">
                   <div style="height:100%;width:{{ dpct }}%;background:#1D4ED8;border-radius:2px"></div>
                 </div>
-                <span style="font-size:12px;color:#1D4ED8;font-weight:600">📦 {{ dpct }}%</span>
+                <span style="font-size:12px;color:var(--m-1d4ed8);font-weight:600">📦 {{ dpct }}%</span>
               </div>
               {% elif dpct >= 100 %}
-              <div style="margin-top:5px;font-size:12px;color:#1D4ED8;font-weight:600">📦 To'liq topshirildi</div>
+              <div style="margin-top:5px;font-size:12px;color:var(--m-1d4ed8);font-weight:600">📦 To'liq topshirildi</div>
               {% endif %}
               {% if debt > 0 %}
-              <div style="margin-top:3px;font-size:12px;color:#DC2626;font-weight:600">
+              <div style="margin-top:3px;font-size:12px;color:var(--m-dc2626);font-weight:600">
                 🔴 Qarz: {{ "{:,.0f}".format(debt).replace(",", " ") }} so'm
               </div>
               {% elif o.payment_status and o.payment_status.value == 'paid' %}
-              <div style="margin-top:3px;font-size:12px;color:#15803D;font-weight:600">
+              <div style="margin-top:3px;font-size:12px;color:var(--m-15803d);font-weight:600">
                 ✅ To'liq to'langan
               </div>
               {% endif %}
@@ -338,7 +338,7 @@ input[type=number]{-moz-appearance:textfield}
       {% endif %}
     </div>
     <!-- Yangi buyurtma tugmasi -->
-    <div style="padding:10px;border-top:1px solid #f0f0f0;flex-shrink:0">
+    <div style="padding:10px;border-top:1px solid var(--ch-f0f0f0);flex-shrink:0">
       <button class="btn btn-dark w-full btn-sm" onclick="showNewForm()">+ Yangi buyurtma</button>
     </div>
   </div>
@@ -350,15 +350,15 @@ input[type=number]{-moz-appearance:textfield}
     <div id="msgBar" class="msg-bar"></div>
     <!-- Umumiy tasdiqlash kartochkasi (barcha oddiy Ha/Yo'q savollar uchun) -->
     <div id="genericConfirmOverlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:10000;align-items:center;justify-content:center;padding:20px">
-      <div style="background:#fff;border-radius:16px;max-width:420px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+      <div style="background:var(--white);border-radius:16px;max-width:420px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3)">
         <div style="padding:24px 24px 8px;text-align:center">
           <div id="genericConfirmIcon" style="font-size:36px;margin-bottom:10px">❓</div>
-          <div id="genericConfirmTitle" style="font-size:16px;font-weight:700;color:#0F172A;margin-bottom:8px">Tasdiqlang</div>
-          <div id="genericConfirmMsg" style="font-size:14px;color:#475569;line-height:1.6"></div>
+          <div id="genericConfirmTitle" style="font-size:16px;font-weight:700;color:var(--m-0f172a);margin-bottom:8px">Tasdiqlang</div>
+          <div id="genericConfirmMsg" style="font-size:14px;color:var(--m-475569);line-height:1.6"></div>
         </div>
         <div style="padding:20px 24px 24px;display:flex;gap:10px">
-          <button id="genericConfirmCancel" data-yopish style="flex:1;padding:12px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
-          <button id="genericConfirmAlt" style="display:none;flex:1;padding:12px;border-radius:10px;border:1.5px solid #16A34A;background:#fff;color:#15803D;font-weight:600;font-size:14px;cursor:pointer"></button>
+          <button id="genericConfirmCancel" data-yopish style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--ch-e2e8f0);background:var(--white);color:var(--m-475569);font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
+          <button id="genericConfirmAlt" style="display:none;flex:1;padding:12px;border-radius:10px;border:1.5px solid #16A34A;background:var(--white);color:var(--m-15803d);font-weight:600;font-size:14px;cursor:pointer"></button>
           <button id="genericConfirmOk" style="flex:1;padding:12px;border-radius:10px;border:none;color:#fff;font-weight:600;font-size:14px;cursor:pointer">✓ Ha</button>
         </div>
       </div>
@@ -366,31 +366,31 @@ input[type=number]{-moz-appearance:textfield}
 
     <!-- "Bir yo'la to'liq topshirish" — chiroyli kartochka -->
     <div id="fullDlvModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;align-items:center;justify-content:center;padding:20px">
-      <div style="background:#fff;border-radius:16px;max-width:460px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)">
-        <div style="padding:22px 24px 18px;border-bottom:1px solid #F1F5F9">
-          <div style="font-size:17px;font-weight:700;color:#0F172A">🚚 Bir yo'la to'liq topshirish</div>
-          <div style="font-size:13px;color:#64748B;margin-top:3px">Qolgan hamma mahsulot bir yo'la topshiriladi</div>
+      <div style="background:var(--white);border-radius:16px;max-width:460px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+        <div style="padding:22px 24px 18px;border-bottom:1px solid var(--ch-f1f5f9)">
+          <div style="font-size:17px;font-weight:700;color:var(--m-0f172a)">🚚 Bir yo'la to'liq topshirish</div>
+          <div style="font-size:13px;color:var(--m-64748b);margin-top:3px">Qolgan hamma mahsulot bir yo'la topshiriladi</div>
         </div>
         <div id="fullDlvModalBody" style="padding:20px 24px;display:flex;flex-direction:column;gap:16px"></div>
-        <div style="padding:16px 24px 22px;display:flex;gap:10px;border-top:1px solid #F1F5F9">
-          <button data-yopish onclick="closeFullDlvModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
-          <button onclick="submitFullDlvModal()" style="flex:1;padding:12px;border-radius:10px;border:none;background:#16A34A;color:#fff;font-weight:600;font-size:14px;cursor:pointer">✓ Tasdiqlash</button>
+        <div style="padding:16px 24px 22px;display:flex;gap:10px;border-top:1px solid var(--ch-f1f5f9)">
+          <button data-yopish onclick="closeFullDlvModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--ch-e2e8f0);background:var(--white);color:var(--m-475569);font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
+          <button onclick="submitFullDlvModal()" style="flex:1;padding:12px;border-radius:10px;border:none;background:#15803D;color:#fff;font-weight:600;font-size:14px;cursor:pointer">✓ Tasdiqlash</button>
         </div>
       </div>
     </div>
 
     <!-- "Tayyor deb belgilash" — chiroyli, markazdagi kartochka -->
     <div id="readyModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;align-items:center;justify-content:center;padding:20px">
-      <div style="background:#fff;border-radius:16px;max-width:460px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)">
-        <div style="padding:22px 24px 18px;border-bottom:1px solid #F1F5F9">
-          <div style="font-size:17px;font-weight:700;color:#0F172A">✅ Buyurtmani Tayyor deb belgilash</div>
-          <div style="font-size:13px;color:#64748B;margin-top:3px" id="readyModalSubtitle">Quyidagi ma'lumotlarni tekshiring</div>
+      <div style="background:var(--white);border-radius:16px;max-width:460px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+        <div style="padding:22px 24px 18px;border-bottom:1px solid var(--ch-f1f5f9)">
+          <div style="font-size:17px;font-weight:700;color:var(--m-0f172a)">✅ Buyurtmani Tayyor deb belgilash</div>
+          <div style="font-size:13px;color:var(--m-64748b);margin-top:3px" id="readyModalSubtitle">Quyidagi ma'lumotlarni tekshiring</div>
         </div>
         <div id="readyModalBody" style="padding:20px 24px;display:flex;flex-direction:column;gap:16px"></div>
-        <div id="readyModalXato" role="alert" style="display:none;margin:0 24px 14px;padding:11px 13px;border-radius:10px;background:#FEF2F2;border:1px solid #FECACA;color:#B91C1C;font-size:13.5px;line-height:1.5"></div>
-        <div style="padding:16px 24px 22px;display:flex;gap:10px;border-top:1px solid #F1F5F9">
-          <button data-yopish onclick="closeReadyModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
-          <button id="readyModalOk" onclick="submitReadyModal()" style="flex:1;padding:12px;border-radius:10px;border:none;background:#16A34A;color:#fff;font-weight:600;font-size:14px;cursor:pointer">✓ Tasdiqlash</button>
+        <div id="readyModalXato" role="alert" style="display:none;margin:0 24px 14px;padding:11px 13px;border-radius:10px;background:var(--f-fef2f2);border:1px solid var(--ch-fecaca);color:var(--m-b91c1c);font-size:13.5px;line-height:1.5"></div>
+        <div style="padding:16px 24px 22px;display:flex;gap:10px;border-top:1px solid var(--ch-f1f5f9)">
+          <button data-yopish onclick="closeReadyModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--ch-e2e8f0);background:var(--white);color:var(--m-475569);font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
+          <button id="readyModalOk" onclick="submitReadyModal()" style="flex:1;padding:12px;border-radius:10px;border:none;background:#15803D;color:#fff;font-weight:600;font-size:14px;cursor:pointer">✓ Tasdiqlash</button>
         </div>
       </div>
     </div>
@@ -399,12 +399,12 @@ input[type=number]{-moz-appearance:textfield}
 
     <!-- YANGI BUYURTMA FORMASI (boshlangʻichda yashirin) -->
     <div id="newOrderForm" style="display:none">
-      <div id="editBanner" style="display:none;background:#F8F2EB;border:1.5px solid #E8D5C0;border-radius:10px;padding:11px 14px;margin-bottom:12px">
+      <div id="editBanner" style="display:none;background:var(--f-f8f2eb);border:1.5px solid var(--ch-e8d5c0);border-radius:10px;padding:11px 14px;margin-bottom:12px">
         <div style="font-size:13px;font-weight:600;color:var(--gold-dark)">✏️ Tahrirlash rejimi — <span id="editOrderNum"></span></div>
-        <div style="font-size:13px;color:#A88A64;margin-top:3px">Saqlaganda ombor faqat farq miqdorida to'g'rilanadi. Buyurtma raqami va to'lovlar saqlanadi.</div>
+        <div style="font-size:13px;color:var(--m-a88a64);margin-top:3px">Saqlaganda ombor faqat farq miqdorida to'g'rilanadi. Buyurtma raqami va to'lovlar saqlanadi.</div>
         <!-- kech108 (K108-3): topshirish ogohlantirishi — ALOHIDA bola (`_tahrirBanneriTopshirish`); banner mazmuni
              (ayniqsa `editOrderNum`) hech qachon ustidan yozilmaydi -->
-        <div id="editBannerTopshirish" style="display:none;margin-top:8px;padding-top:8px;border-top:1px dashed #FDE68A"></div>
+        <div id="editBannerTopshirish" style="display:none;margin-top:8px;padding-top:8px;border-top:1px dashed var(--ch-fde68a)"></div>
       </div>
       <div class="card">
         <div class="card-head">
@@ -480,26 +480,26 @@ input[type=number]{-moz-appearance:textfield}
 
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px">
               <div class="form-group" style="margin:0">
-                <label style="font-size:12px;color:#6B7280;text-transform:uppercase;font-weight:700;letter-spacing:.3px;margin-bottom:6px;display:block">Kelishilgan summa</label>
+                <label style="font-size:12px;color:var(--m-6b7280);text-transform:uppercase;font-weight:700;letter-spacing:.3px;margin-bottom:6px;display:block">Kelishilgan summa</label>
                 <input type="text" id="final_price" placeholder="Kelishilgan summa kiriting"
                        oninput="formatPriceInput(this);calcDiscount()"
                        style="width:100%;padding:11px 13px;border:1.5px solid #B9783F;border-radius:9px;font-size:14.5px;font-weight:600;outline:none">
               </div>
               <div class="form-group" style="margin:0" id="zaklat-field-wrap">
-                <label style="font-size:12px;color:#6B7280;text-transform:uppercase;font-weight:700;letter-spacing:.3px;margin-bottom:6px;display:block">Zaklat (oldindan)</label>
+                <label style="font-size:12px;color:var(--m-6b7280);text-transform:uppercase;font-weight:700;letter-spacing:.3px;margin-bottom:6px;display:block">Zaklat (oldindan)</label>
                 <input type="text" id="zaklat_amount" placeholder="0"
                        oninput="formatPriceInput(this);calcDebt()"
                        style="width:100%;padding:11px 13px;border:1.5px solid #22C55E;border-radius:9px;font-size:14.5px;font-weight:600;outline:none">
               </div>
             </div>
             <div style="font-size:12px;color:var(--text3);margin-top:6px">Kelishilgan summa bo'sh qolsa — chegirmasiz hisoblanadi</div>
-            <div id="discount-auto-hint" style="display:none;margin-top:6px;padding:7px 10px;background:#F8F2EB;border-radius:7px;font-size:13px;color:var(--gold-dark);line-height:1.5"></div>
-            <div id="discount_info" style="display:none;margin-top:8px;padding:8px;background:#FEF3C7;border-radius:7px;font-size:14px"></div>
+            <div id="discount-auto-hint" style="display:none;margin-top:6px;padding:7px 10px;background:var(--f-f8f2eb);border-radius:7px;font-size:13px;color:var(--gold-dark);line-height:1.5"></div>
+            <div id="discount_info" style="display:none;margin-top:8px;padding:8px;background:var(--f-fef3c7);border-radius:7px;font-size:14px"></div>
 
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;padding-top:14px;border-top:1px dashed #ddd">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;padding-top:14px;border-top:1px dashed var(--ch-dddddd)">
               <div class="form-group" style="margin:0">
-                <label style="font-size:12px;color:#6B7280;text-transform:uppercase;font-weight:700;letter-spacing:.3px;margin-bottom:6px;display:block">To'lov usuli</label>
-                <select id="zaklat_method" style="width:100%;padding:11px 13px;border:1.5px solid #ddd;border-radius:9px;font-size:14.5px;outline:none">
+                <label style="font-size:12px;color:var(--m-6b7280);text-transform:uppercase;font-weight:700;letter-spacing:.3px;margin-bottom:6px;display:block">To'lov usuli</label>
+                <select id="zaklat_method" style="width:100%;padding:11px 13px;border:1.5px solid var(--ch-dddddd);border-radius:9px;font-size:14.5px;outline:none">
                   <option value="naqd">💵 Naqd</option>
                   <option value="plastik">💳 Plastik</option>
                   <option value="o'tkazma">🏦 O'tkazma</option>
@@ -507,12 +507,12 @@ input[type=number]{-moz-appearance:textfield}
               </div>
               <div></div>
             </div>
-            <div id="debt_info" style="display:none;margin-top:8px;padding:8px;background:#FEE2E2;border-radius:7px;font-size:14px"></div>
+            <div id="debt_info" style="display:none;margin-top:8px;padding:8px;background:var(--f-fee2e2);border-radius:7px;font-size:14px"></div>
           </div>
         </div>
 
         <div style="padding:0 12px 16px;display:flex;gap:10px">
-          <button id="draftSaveBtn" class="btn btn-outline" style="flex:1;height:48px;font-size:14px;border-color:#8E8E93;color:#666;border-radius:10px" onclick="saveOrder(true)" title="Ombordan xomashyo yechilmaydi">📝 Vaqtincha saqlash</button>
+          <button id="draftSaveBtn" class="btn btn-outline" style="flex:1;height:48px;font-size:14px;border-color:#8E8E93;color:var(--m-666666);border-radius:10px" onclick="saveOrder(true)" title="Ombordan xomashyo yechilmaydi">📝 Vaqtincha saqlash</button>
           <button class="btn btn-dark" style="flex:2;height:48px;font-size:14.5px;font-weight:700;border-radius:10px" onclick="saveOrder(false)">💾 Buyurtmani saqlash</button>
         </div>
       </div>
@@ -522,11 +522,11 @@ input[type=number]{-moz-appearance:textfield}
     <div id="orderDetail" style="display:none">
 
       <!-- DRAFT BANNER -->
-      <div id="draftBanner" style="display:none;background:#FEF3C7;border:1.5px solid #FDE68A;border-radius:10px;padding:14px;margin-bottom:12px">
+      <div id="draftBanner" style="display:none;background:var(--f-fef3c7);border:1.5px solid var(--ch-fde68a);border-radius:10px;padding:14px;margin-bottom:12px">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
           <div>
-            <div style="font-size:14px;font-weight:600;color:#92400E">📝 Bu buyurtma qoralama holatida</div>
-            <div style="font-size:14px;color:#997;margin-top:3px">Ombordan xomashyo hali yechilmagan. Mijoz tasdiqlaganda "Jarayonga olish" tugmasini bosing.</div>
+            <div style="font-size:14px;font-weight:600;color:var(--m-92400e)">📝 Bu buyurtma qoralama holatida</div>
+            <div style="font-size:14px;color:var(--m-999977);margin-top:3px">Ombordan xomashyo hali yechilmagan. Mijoz tasdiqlaganda "Jarayonga olish" tugmasini bosing.</div>
           </div>
           <button class="btn btn-dark btn-sm" style="flex-shrink:0" onclick="activateDraft()">▶️ Jarayonga olish</button>
         </div>
@@ -555,7 +555,7 @@ input[type=number]{-moz-appearance:textfield}
               <span style="color:var(--text3)">Umumiy bajarilish</span>
               <span id="dlv-pct-text" style="font-weight:700;color:var(--text)">—</span>
             </div>
-            <div style="height:8px;background:#f0f0f0;border-radius:4px;overflow:hidden">
+            <div style="height:8px;background:var(--f-f0f0f0);border-radius:4px;overflow:hidden">
               <div id="dlv-pct-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#B9783F,#2E7D52);border-radius:4px;transition:width .4s"></div>
             </div>
           </div>
@@ -616,8 +616,8 @@ input[type=number]{-moz-appearance:textfield}
         </div>
         <div style="padding:12px" id="payBody">
           <!-- To'lov qo'shish formasi -->
-          <div id="paymentForm" style="display:none;background:#F0F9F4;border:1.5px solid #22C55E;border-radius:8px;padding:12px;margin-bottom:12px">
-            <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:#1e7e34">Yangi to'lov</div>
+          <div id="paymentForm" style="display:none;background:var(--f-f0f9f4);border:1.5px solid #22C55E;border-radius:8px;padding:12px;margin-bottom:12px">
+            <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--m-1e7e34)">Yangi to'lov</div>
             <div style="display:flex;gap:8px;margin-bottom:8px">
               <div style="flex:1">
                 <div style="font-size:13px;color:var(--text3);margin-bottom:3px;display:flex;justify-content:space-between;align-items:center">
@@ -625,11 +625,11 @@ input[type=number]{-moz-appearance:textfield}
                   <span onclick="fillFullDebt()" style="color:var(--gold-dark);font-weight:600;cursor:pointer;font-size:12px">To'liq qarz</span>
                 </div>
                 <input type="text" id="pf-amount" placeholder="0" oninput="formatPriceInput(this)"
-                       style="width:100%;padding:11px 13px;border:1.5px solid #ddd;border-radius:9px;font-size:15px;font-weight:600;outline:none">
+                       style="width:100%;padding:11px 13px;border:1.5px solid var(--ch-dddddd);border-radius:9px;font-size:15px;font-weight:600;outline:none">
               </div>
               <div style="flex:1">
                 <div style="font-size:13px;color:var(--text3);margin-bottom:3px">Turi</div>
-                <select id="pf-type" style="width:100%;padding:11px 13px;border:1.5px solid #ddd;border-radius:9px;font-size:15px;outline:none">
+                <select id="pf-type" style="width:100%;padding:11px 13px;border:1.5px solid var(--ch-dddddd);border-radius:9px;font-size:15px;outline:none">
                   <option value="partial">Qisman to'lov</option>
                   <option value="zaklat">Zaklat</option>
                   <option value="final">Yakuniy to'lov</option>
@@ -637,7 +637,7 @@ input[type=number]{-moz-appearance:textfield}
               </div>
               <div style="flex:1">
                 <div style="font-size:13px;color:var(--text3);margin-bottom:3px">Usuli</div>
-                <select id="pf-method" style="width:100%;padding:11px 13px;border:1.5px solid #ddd;border-radius:9px;font-size:15px;outline:none">
+                <select id="pf-method" style="width:100%;padding:11px 13px;border:1.5px solid var(--ch-dddddd);border-radius:9px;font-size:15px;outline:none">
                   <option value="naqd">💵 Naqd</option>
                   <option value="plastik">💳 Plastik</option>
                   <option value="o'tkazma">🏦 O'tkazma</option>
@@ -647,11 +647,11 @@ input[type=number]{-moz-appearance:textfield}
             <div style="margin-bottom:8px">
               <div style="font-size:13px;color:var(--text3);margin-bottom:3px">Izoh (ixtiyoriy)</div>
               <input type="text" id="pf-notes" placeholder="Masalan: yuk borganda berildi"
-                     style="width:100%;padding:11px 13px;border:1.5px solid #ddd;border-radius:9px;font-size:15px;outline:none">
+                     style="width:100%;padding:11px 13px;border:1.5px solid var(--ch-dddddd);border-radius:9px;font-size:15px;outline:none">
             </div>
-            <label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px;padding:9px 11px;background:#fff;border:1.5px solid #FDE68A;border-radius:8px;cursor:pointer">
+            <label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px;padding:9px 11px;background:var(--white);border:1.5px solid var(--ch-fde68a);border-radius:8px;cursor:pointer">
               <input type="checkbox" id="pf-writeoff" style="margin-top:2px;width:16px;height:16px;cursor:pointer">
-              <span style="font-size:12.5px;color:#92400E;line-height:1.4">Agar to'lovdan keyin ozgina qarz qolsa (masalan mijoz "qolganini kechiring" desa) — <b>qolgan summa chegirma sifatida yozilsin</b> (foyda hisobotidan ham to'g'ri ayiriladi)</span>
+              <span style="font-size:12.5px;color:var(--m-92400e);line-height:1.4">Agar to'lovdan keyin ozgina qarz qolsa (masalan mijoz "qolganini kechiring" desa) — <b>qolgan summa chegirma sifatida yozilsin</b> (foyda hisobotidan ham to'g'ri ayiriladi)</span>
             </label>
             <div style="display:flex;gap:6px">
               <button class="btn btn-green btn-sm" style="flex:1" onclick="savePayment()">💾 Saqlash</button>
@@ -703,17 +703,17 @@ input[type=number]{-moz-appearance:textfield}
           </div>
           <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:14.5px" id="pay-discount-row">
             <span style="color:var(--text2)" id="pay-discount-label">Chegirma:</span>
-            <span id="pay-discount" style="font-weight:600;color:#B45309">—</span>
+            <span id="pay-discount" style="font-weight:600;color:var(--m-b45309)">—</span>
           </div>
           <div style="display:none;justify-content:space-between;padding:6px 0;font-size:14.5px" id="pay-refund-row"
                title="Qaytarilgan mahsulot uchun pul qaytarilganda kelishilgan summa shu miqdorga kamaygan (chegirma emas)">
             <span style="color:var(--text2)">↩️ Qaytarish:</span>
-            <span id="pay-refund" style="font-weight:600;color:#7C3AED">—</span>
+            <span id="pay-refund" style="font-weight:600;color:var(--m-7c3aed)">—</span>
           </div>
           <div style="display:none;justify-content:space-between;padding:6px 0;font-size:14.5px" id="pay-writeoff-row"
                title="To'lov paytida kechirilgan (yopilgan) qarz — kelishilgan summa shu miqdorga kamaygan">
             <span style="color:var(--text2)">🤝 Kechirilgan qarz:</span>
-            <span id="pay-writeoff" style="font-weight:600;color:#6B7280">—</span>
+            <span id="pay-writeoff" style="font-weight:600;color:var(--m-6b7280)">—</span>
           </div>
           <div style="padding:10px 0 8px;border-top:1px solid var(--border2);margin-top:6px;padding-top:12px">
             <div style="color:var(--text2);font-weight:600;font-size:14.5px;margin-bottom:6px">Kelishilgan:</div>
@@ -724,11 +724,11 @@ input[type=number]{-moz-appearance:textfield}
           </div>
           <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:14.5px">
             <span style="color:var(--text2)">To'langan:</span>
-            <span id="pay-paid" style="font-weight:600;color:#15803D">—</span>
+            <span id="pay-paid" style="font-weight:600;color:var(--m-15803d)">—</span>
           </div>
           <div style="display:flex;justify-content:space-between;padding:8px 0 4px;font-size:14px;border-top:2px solid var(--text);margin-top:6px">
             <span style="font-weight:700">Qarz qoldi:</span>
-            <span id="pay-debt" style="font-weight:800;color:#DC2626">—</span>
+            <span id="pay-debt" style="font-weight:800;color:var(--m-dc2626)">—</span>
           </div>
           <div id="pay-status-badge" style="margin-top:8px;text-align:center"></div>
         </div>
@@ -749,12 +749,12 @@ input[type=number]{-moz-appearance:textfield}
           <button class="btn btn-outline w-full btn-sm" id="btn-pin" onclick="toggleOrderPin(selectedOrderId)" style="display:none;border-color:var(--gold);color:var(--gold-dark)">📌 Pin qilish</button>
           <button class="btn btn-green w-full btn-sm" id="btn-ready" onclick="markReadySelected()" style="display:none">✓ Tayyor deb belgilash</button>
           <button class="btn btn-outline w-full btn-sm" id="btn-edit" onclick="editSelected()" style="display:none;border-color:#B9783F;color:var(--gold-dark)">✏️ Tahrirlash</button>
-          <button class="btn btn-outline w-full btn-sm" id="btn-duplicate" onclick="duplicateSelected()" title="Shu buyurtma asosida, loyiha/usta/detallar oldindan to'ldirilgan YANGI buyurtma ochadi (eskisiga tegmaydi)" style="display:none;border-color:#6366F1;color:#6366F1">📋 Nusxa olish (yangi buyurtma)</button>
+          <button class="btn btn-outline w-full btn-sm" id="btn-duplicate" onclick="duplicateSelected()" title="Shu buyurtma asosida, loyiha/usta/detallar oldindan to'ldirilgan YANGI buyurtma ochadi (eskisiga tegmaydi)" style="display:none;border-color:#6366F1;color:var(--m-6366f1)">📋 Nusxa olish (yangi buyurtma)</button>
           <a id="btn-pdf" href="#" target="_blank" class="btn btn-outline w-full btn-sm" style="text-align:center;display:none" title="Buyurtma hisobi (PDF)">📄 Buyurtma hisobi (PDF)</a>
           {% if current_user.ruxsat('tannarx', 'korish') %}
           <button class="btn btn-outline w-full btn-sm" id="btn-profit" onclick="loadProfit()" style="display:none;border-color:#B9783F;color:var(--gold-dark)">💰 Foyda hisoblash</button>
           {% endif %}
-          <button class="btn btn-outline w-full btn-sm" id="btn-delete" onclick="deleteSelected()" style="display:none;border-color:#EF4444;color:#DC2626">🗑 O'chirish</button>
+          <button class="btn btn-outline w-full btn-sm" id="btn-delete" onclick="deleteSelected()" style="display:none;border-color:#EF4444;color:var(--m-dc2626)">🗑 O'chirish</button>
         </div>
       </div>
     </div>
@@ -762,7 +762,7 @@ input[type=number]{-moz-appearance:textfield}
     <!-- Ombor ogohlantirishlari -->
     <div class="card" id="alertCard" style="display:none;border-left:3px solid #EF4444;border-radius:0 12px 12px 0">
       <div class="card-head" style="cursor:pointer" onclick="toggleSection('alertBody','alert-toggle-ic')">
-        <h3 style="color:#DC2626;font-size:13px">⚠ Ombor</h3>
+        <h3 style="color:var(--m-dc2626);font-size:13px">⚠ Ombor</h3>
         <button class="step-btn2" style="width:26px;height:26px" onclick="toggleSection('alertBody','alert-toggle-ic')" title="Yig'ish/yoyish">
           <i class="ti ti-chevron-down" id="alert-toggle-ic" style="font-size:14px;transition:transform .2s"></i>
         </button>
@@ -813,13 +813,13 @@ input[type=number]{-moz-appearance:textfield}
 
 <!-- ══ TO'LDIRILMAGAN MAYDONLAR MODALI ══ -->
 <div id="validationModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.55);z-index:2000;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px)">
-  <div style="background:#fff;border-radius:18px;width:440px;max-width:100%;box-shadow:0 24px 60px rgba(0,0,0,.25);overflow:hidden;animation:valPop .2s ease">
+  <div style="background:var(--white);border-radius:18px;width:440px;max-width:100%;box-shadow:0 24px 60px rgba(0,0,0,.25);overflow:hidden;animation:valPop .2s ease">
     <div style="padding:28px 26px 20px;text-align:center">
-      <div style="width:56px;height:56px;border-radius:50%;background:#FEF3C7;display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
-        <i class="ti ti-alert-triangle" style="font-size:28px;color:#B45309"></i>
+      <div style="width:56px;height:56px;border-radius:50%;background:var(--f-fef3c7);display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
+        <i class="ti ti-alert-triangle" style="font-size:28px;color:var(--m-b45309)"></i>
       </div>
-      <div style="font-size:17px;font-weight:700;color:#111827;margin-bottom:6px">Buyurtmani saqlashdan oldin</div>
-      <div style="font-size:13.5px;color:#6B7280">Quyidagi maydonlarni to'ldiring:</div>
+      <div style="font-size:17px;font-weight:700;color:var(--m-111827);margin-bottom:6px">Buyurtmani saqlashdan oldin</div>
+      <div style="font-size:13.5px;color:var(--m-6b7280)">Quyidagi maydonlarni to'ldiring:</div>
     </div>
     <div id="validationList" style="padding:0 26px 8px"></div>
     <div style="padding:18px 26px 26px">
@@ -829,21 +829,21 @@ input[type=number]{-moz-appearance:textfield}
 </div>
 <style>
 @keyframes valPop{from{opacity:0;transform:scale(.94) translateY(6px)}to{opacity:1;transform:scale(1) translateY(0)}}
-.val-item{display:flex;align-items:center;gap:10px;padding:11px 12px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;margin-bottom:8px;cursor:pointer;transition:background .12s}
-.val-item:hover{background:#FEF3C7}
-.val-item i{font-size:16px;color:#B45309;flex-shrink:0}
-.val-item span{font-size:13.5px;color:#78350F;font-weight:500}
+.val-item{display:flex;align-items:center;gap:10px;padding:11px 12px;background:var(--f-fffbeb);border:1px solid var(--ch-fde68a);border-radius:10px;margin-bottom:8px;cursor:pointer;transition:background .12s}
+.val-item:hover{background:var(--f-fef3c7)}
+.val-item i{font-size:16px;color:var(--m-b45309);flex-shrink:0}
+.val-item span{font-size:13.5px;color:var(--m-78350f);font-weight:500}
 </style>
 
 <!-- ══ HISOB-KITOB MODALI ══ -->
 <div id="sumModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:14px;width:720px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
-    <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
+  <div style="background:var(--white);border-radius:14px;width:720px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
+    <div style="padding:18px 22px 14px;border-bottom:1px solid var(--ch-f0f0f0);display:flex;justify-content:space-between;align-items:center">
       <div>
         <div style="font-size:16px;font-weight:600;color:var(--text)">🧾 Hisob-kitob varaqasi</div>
         <div style="font-size:14px;color:var(--text3);margin-top:2px" id="sum-modal-sub">—</div>
       </div>
-      <button data-yopish onclick="closeSummaryModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
+      <button data-yopish onclick="closeSummaryModal()" style="width:30px;height:30px;border-radius:50%;background:var(--f-f5f5f5);border:none;font-size:15px;cursor:pointer">✕</button>
     </div>
 
     <div style="padding:12px 22px;overflow-y:auto;flex:1">
@@ -859,9 +859,9 @@ input[type=number]{-moz-appearance:textfield}
       <div id="sumList"></div>
     </div>
 
-    <div style="padding:12px 22px 18px;border-top:1px solid #f0f0f0">
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#FAFAF8;border-radius:8px;margin-bottom:10px">
-        <span style="font-size:13px;color:#555;font-weight:600">Tanlangan jami:</span>
+    <div style="padding:12px 22px 18px;border-top:1px solid var(--ch-f0f0f0)">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--f-fafaf8);border-radius:8px;margin-bottom:10px">
+        <span style="font-size:13px;color:var(--m-555555);font-weight:600">Tanlangan jami:</span>
         <span id="sum-total" style="font-size:16px;font-weight:800;color:var(--gold-dark)">0 so'm</span>
       </div>
       <div style="display:flex;gap:8px">
@@ -874,13 +874,13 @@ input[type=number]{-moz-appearance:textfield}
 
 <!-- ══ NUSXA OLISH — DETALLARNI TANLASH MODALI ══ -->
 <div id="dupPickModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:14px;width:640px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
-    <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
+  <div style="background:var(--white);border-radius:14px;width:640px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
+    <div style="padding:18px 22px 14px;border-bottom:1px solid var(--ch-f0f0f0);display:flex;justify-content:space-between;align-items:center">
       <div>
         <div style="font-size:16px;font-weight:600;color:var(--text)">📋 Nusxa olish — detallarni tanlang</div>
         <div style="font-size:14px;color:var(--text3);margin-top:2px" id="dup-modal-sub">—</div>
       </div>
-      <button data-yopish onclick="closeDuplicatePickModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
+      <button data-yopish onclick="closeDuplicatePickModal()" style="width:30px;height:30px;border-radius:50%;background:var(--f-f5f5f5);border:none;font-size:15px;cursor:pointer">✕</button>
     </div>
 
     <div style="padding:12px 22px;overflow-y:auto;flex:1">
@@ -895,7 +895,7 @@ input[type=number]{-moz-appearance:textfield}
       <div id="dupPickList"></div>
     </div>
 
-    <div style="padding:12px 22px 18px;border-top:1px solid #f0f0f0">
+    <div style="padding:12px 22px 18px;border-top:1px solid var(--ch-f0f0f0)">
       <div style="display:flex;gap:8px">
         <button data-yopish class="btn btn-outline" style="flex:1" onclick="closeDuplicatePickModal()">Bekor qilish</button>
         <button class="btn btn-dark" style="flex:2" onclick="confirmDuplicatePick()">Davom etish</button>
@@ -906,13 +906,13 @@ input[type=number]{-moz-appearance:textfield}
 
 <!-- ══ YETKAZISH MODALI ══ -->
 <div id="dlvModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:14px;width:640px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
-    <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
+  <div style="background:var(--white);border-radius:14px;width:640px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
+    <div style="padding:18px 22px 14px;border-bottom:1px solid var(--ch-f0f0f0);display:flex;justify-content:space-between;align-items:center">
       <div>
         <div style="font-size:16px;font-weight:600;color:var(--text)">📦 Qisman topshirish</div>
         <div style="font-size:14px;color:var(--text3);margin-top:2px" id="dlv-modal-sub">—</div>
       </div>
-      <button data-yopish onclick="closeDeliveryModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
+      <button data-yopish onclick="closeDeliveryModal()" style="width:30px;height:30px;border-radius:50%;background:var(--f-f5f5f5);border:none;font-size:15px;cursor:pointer">✕</button>
     </div>
 
     <div style="padding:14px 22px;overflow-y:auto;flex:1">
@@ -927,53 +927,53 @@ input[type=number]{-moz-appearance:textfield}
         <div style="flex:1">
           <div style="font-size:13px;color:var(--text3);margin-bottom:4px">Kim qabul qildi</div>
           <input type="text" id="dlv-received-by" placeholder="Mijoz ismi yoki haydovchi"
-                 style="width:100%;height:36px;padding:0 11px;border:1.5px solid #ddd;border-radius:7px;font-size:13px;outline:none">
+                 style="width:100%;height:36px;padding:0 11px;border:1.5px solid var(--ch-dddddd);border-radius:7px;font-size:13px;outline:none">
         </div>
         <div style="flex:1">
           <div style="font-size:13px;color:var(--text3);margin-bottom:4px">Izoh</div>
           <input type="text" id="dlv-notes" placeholder="Masalan: birinchi mashina"
-                 style="width:100%;height:36px;padding:0 11px;border:1.5px solid #ddd;border-radius:7px;font-size:13px;outline:none">
+                 style="width:100%;height:36px;padding:0 11px;border:1.5px solid var(--ch-dddddd);border-radius:7px;font-size:13px;outline:none">
         </div>
       </div>
 
-      <div style="margin-top:12px;padding:11px 12px;background:#F0F9F4;border:1.5px solid #BBF7D0;border-radius:9px">
-        <div style="font-size:14px;font-weight:600;color:#166534;margin-bottom:8px">💰 Shu yuk uchun to'lov (ixtiyoriy)</div>
+      <div style="margin-top:12px;padding:11px 12px;background:var(--f-f0f9f4);border:1.5px solid var(--ch-bbf7d0);border-radius:9px">
+        <div style="font-size:14px;font-weight:600;color:var(--m-166534);margin-bottom:8px">💰 Shu yuk uchun to'lov (ixtiyoriy)</div>
         <div id="dlv-debt-info" style="font-size:12.5px;font-weight:600;margin-bottom:8px"></div>
         <div style="display:flex;gap:8px">
           <div style="flex:1">
             <div style="font-size:13px;color:var(--text3);margin-bottom:4px">Summa (so'm)</div>
             <input type="text" id="dlv-payment-amount" placeholder="0" oninput="formatPriceInput(this)"
-                   style="width:100%;height:36px;padding:0 11px;border:1.5px solid #ddd;border-radius:7px;font-size:13px;outline:none;font-weight:600">
+                   style="width:100%;height:36px;padding:0 11px;border:1.5px solid var(--ch-dddddd);border-radius:7px;font-size:13px;outline:none;font-weight:600">
           </div>
           <div style="flex:1">
             <div style="font-size:13px;color:var(--text3);margin-bottom:4px">To'lov usuli</div>
-            <select id="dlv-payment-method" style="width:100%;height:36px;padding:0 8px;border:1.5px solid #ddd;border-radius:7px;font-size:13px;outline:none">
+            <select id="dlv-payment-method" style="width:100%;height:36px;padding:0 8px;border:1.5px solid var(--ch-dddddd);border-radius:7px;font-size:13px;outline:none">
               <option value="naqd">Naqd</option>
               <option value="plastik">Plastik</option>
               <option value="o'tkazma">O'tkazma</option>
             </select>
           </div>
         </div>
-        <div style="font-size:12.5px;color:#4B7A5A;margin-top:6px">Mijoz aynan shu yetkazish uchun to'lov qilgan bo'lsa, shu yerga yozing — buyurtma to'lovlariga avtomatik qo'shiladi.</div>
+        <div style="font-size:12.5px;color:var(--m-4b7a5a);margin-top:6px">Mijoz aynan shu yetkazish uchun to'lov qilgan bo'lsa, shu yerga yozing — buyurtma to'lovlariga avtomatik qo'shiladi.</div>
       </div>
 
-      <div style="margin-top:12px;padding:11px 12px;background:#F0F6FA;border-radius:9px">
+      <div style="margin-top:12px;padding:11px 12px;background:var(--f-f0f6fa);border-radius:9px">
         <div style="font-size:14px;font-weight:600;color:var(--gold-dark);margin-bottom:8px">🚚 Transport (ixtiyoriy)</div>
         <div style="display:flex;gap:8px;margin-bottom:8px">
           <div style="flex:1.3">
             <div style="font-size:13px;color:var(--text3);margin-bottom:4px">Tashuvchi</div>
             <input type="text" id="dlv-transport-carrier" placeholder="Masalan: ABC Transport, Mijoz o'zi"
-                   style="width:100%;height:34px;padding:0 10px;border:1.5px solid #ddd;border-radius:7px;font-size:14.5px;outline:none">
+                   style="width:100%;height:34px;padding:0 10px;border:1.5px solid var(--ch-dddddd);border-radius:7px;font-size:14.5px;outline:none">
           </div>
           <div style="flex:1">
             <div style="font-size:13px;color:var(--text3);margin-bottom:4px">Summasi</div>
             <input type="text" inputmode="numeric" id="dlv-transport-cost" placeholder="0" oninput="formatPriceInput(this); dlvUpdatePayerHint()"
-                   style="width:100%;height:34px;padding:0 10px;border:1.5px solid #ddd;border-radius:7px;font-size:14.5px;outline:none">
+                   style="width:100%;height:34px;padding:0 10px;border:1.5px solid var(--ch-dddddd);border-radius:7px;font-size:14.5px;outline:none">
           </div>
         </div>
         <div style="font-size:13px;color:var(--text3);margin-bottom:4px">Kim to'laydi</div>
         <select id="dlv-transport-payer" onchange="dlvUpdatePayerHint()"
-                style="width:100%;height:34px;padding:0 10px;border:1.5px solid #ddd;border-radius:7px;font-size:14.5px;outline:none">
+                style="width:100%;height:34px;padding:0 10px;border:1.5px solid var(--ch-dddddd);border-radius:7px;font-size:14.5px;outline:none">
           <option value="none">—</option>
           <option value="client">Mijoz</option>
           <option value="company">Kompaniya</option>
@@ -982,10 +982,10 @@ input[type=number]{-moz-appearance:textfield}
         <div id="dlv-payer-hint" style="font-size:13px;color:var(--text3);margin-top:6px"></div>
       </div>
 
-      <div id="dlv-error" style="display:none;margin-top:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:14px;color:#DC2626"></div>
+      <div id="dlv-error" style="display:none;margin-top:10px;padding:9px 12px;background:var(--f-fee2e2);border-radius:7px;font-size:14px;color:var(--m-dc2626)"></div>
     </div>
 
-    <div style="padding:14px 22px 18px;border-top:1px solid #f0f0f0;display:flex;gap:8px">
+    <div style="padding:14px 22px 18px;border-top:1px solid var(--ch-f0f0f0);display:flex;gap:8px">
       <button data-yopish class="btn btn-outline" style="flex:1" onclick="closeDeliveryModal()">Bekor</button>
       <button class="btn btn-dark" style="flex:2" onclick="saveDelivery()">💾 Saqlash va yuk xatini olish</button>
 
@@ -1270,7 +1270,7 @@ function checkDeliveredLimit(row) {
     if (inp) inp.style.borderColor = '#DC2626';
     if (warn) {
       warn.style.display = 'inline';
-      warn.style.color = '#DC2626';
+      warn.style.color = 'var(--m-dc2626)';
       warn.textContent = ortiqcha > 0
         ? `❌ ${delivered} ${unit} topshirilgan va ${ortiqcha} ${unit} omborga ortiqcha qaytarilgan — kamida ${kamida}`
         : `❌ ${delivered} ${unit} topshirilgan — kamida shuncha bo'lishi kerak`;
@@ -1281,7 +1281,7 @@ function checkDeliveredLimit(row) {
     row.dataset.dlvError = '';
     if (warn && warn.textContent.includes('topshirilgan')) {
       warn.style.display = 'none';
-      warn.style.color = '#B45309';
+      warn.style.color = 'var(--m-b45309)';
     }
   }
 }
@@ -1425,7 +1425,7 @@ function openPdfSafe(url) {
     const box = document.createElement('div');
     box.style.cssText = `position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:3000;
       padding:13px 22px;border-radius:10px;font-size:14px;font-weight:500;box-shadow:0 6px 24px rgba(0,0,0,.18);
-      background:#FFFBEB;color:#92400E;border:1.5px solid #FDE68A;display:flex;gap:10px;align-items:center`;
+      background:var(--f-fffbeb);color:var(--m-92400e);border:1.5px solid var(--ch-fde68a);display:flex;gap:10px;align-items:center`;
     box.innerHTML = `⚠️ Brauzer yuk xatini ochishga to'sqinlik qildi.
       <a href="${url}" target="_blank" style="color:var(--gold-dark);font-weight:700;text-decoration:underline">Shu yerga bosing</a>`;
     document.body.appendChild(box);
@@ -1440,8 +1440,8 @@ function showMsg(text, type) {
   box.style.cssText = `position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:3000;
     padding:13px 22px;border-radius:10px;font-size:14.5px;font-weight:500;box-shadow:0 6px 24px rgba(0,0,0,.18);
     white-space:pre-line;max-width:520px;text-align:center;
-    background:${type==='error'?'#FEE2E2':'#DCFCE7'};color:${type==='error'?'#DC2626':'#1e7e34'};
-    border:1.5px solid ${type==='error'?'#F1948A':'#A9DFBF'}`;
+    background:${type==='error'?'var(--f-fee2e2)':'var(--f-dcfce7)'};color:${type==='error'?'var(--m-dc2626)':'var(--m-1e7e34)'};
+    border:1.5px solid ${type==='error'?'#F1948A':'var(--ch-a9dfbf)'}`;
   box.textContent = text;
   document.body.appendChild(box);
   setTimeout(() => box.remove(), 4000);
@@ -1487,7 +1487,7 @@ function searchFinished(input) {
               </div>
             </div>
             <div style="text-align:right;flex-shrink:0">
-              <div style="font-size:14px;font-weight:700;color:#15803D">${sonKor(i.quantity)} ${escapeHtml(birlikKor(i.unit))}</div>
+              <div style="font-size:14px;font-weight:700;color:var(--m-15803d)">${sonKor(i.quantity)} ${escapeHtml(birlikKor(i.unit))}</div>
               <div style="font-size:12px;color:var(--gold-dark)">${formatNum(i.unit_price)}/${i.unit==='metr'?'m':'ta'}</div>
             </div>
           </div>
@@ -1726,11 +1726,11 @@ function checkFpLimit(row) {
 
   if (cur > max + 0.001) {
     if (inp) inp.style.borderColor = '#DC2626';
-    if (tag) { tag.style.background = '#FEE2E2'; tag.style.borderColor = '#DC2626'; tag.style.color = '#DC2626'; }
+    if (tag) { tag.style.background = 'var(--f-fee2e2)'; tag.style.borderColor = '#DC2626'; tag.style.color = 'var(--m-dc2626)'; }
     row.dataset.fpError = '1';
   } else {
     if (inp) inp.style.borderColor = '';
-    if (tag) { tag.style.background = '#FDF8F0'; tag.style.borderColor = '#B9783F'; tag.style.color = '#8F5B2A'; }
+    if (tag) { tag.style.background = 'var(--f-fdf8f0)'; tag.style.borderColor = '#B9783F'; tag.style.color = 'var(--m-8f5b2a)'; }
     row.dataset.fpError = '';
   }
 }
@@ -1792,10 +1792,10 @@ function selectOrder(id, el) {
   const isDelivered = d.status === 'delivered';
   const statusEl = document.getElementById('od-status');
   statusEl.innerHTML = isDraft
-    ? '<span class="badge" style="background:#F0F0F0;color:#666">📝 Qoralama</span>'
+    ? '<span class="badge" style="background:var(--f-f0f0f0);color:var(--m-666666)">📝 Qoralama</span>'
     : isReady ? '<span class="badge badge-ready">✓ Tayyor</span>'
     : isDelivered ? '<span class="badge badge-delivered">📦 Yetkazildi</span>'
-        + ' <span id="od-tayyor-kutilmoqda" style="font-size:12px;color:#B45309">«Tayyor» deb belgilanmagan — oylik hisobot va usta KPI ga kirmaydi</span>'
+        + ' <span id="od-tayyor-kutilmoqda" style="font-size:12px;color:var(--m-b45309)">«Tayyor» deb belgilanmagan — oylik hisobot va usta KPI ga kirmaydi</span>'
     : '<span class="badge badge-progress">Jarayonda</span>';
 
   // Draft banner
@@ -1844,9 +1844,9 @@ function selectOrder(id, el) {
     if (d.warnings && d.warnings.length) {
       ac.style.display = 'block';
       ab.innerHTML = d.warnings.slice(0,3).map(w=>`
-        <div style="display:flex;justify-content:space-between;font-size:14px;padding:5px 0;border-bottom:1px solid #f5f5f5">
-          <span style="color:#555">${escapeHtml(w.item_name)}</span>
-          <span style="color:#DC2626;font-weight:500">${sonKor(parseFloat(w.stock_quantity)||0, 2)} ${escapeHtml(w.unit)}</span>
+        <div style="display:flex;justify-content:space-between;font-size:14px;padding:5px 0;border-bottom:1px solid var(--ch-f5f5f5)">
+          <span style="color:var(--m-555555)">${escapeHtml(w.item_name)}</span>
+          <span style="color:var(--m-dc2626);font-weight:500">${sonKor(parseFloat(w.stock_quantity)||0, 2)} ${escapeHtml(w.unit)}</span>
         </div>`).join('');
     } else {
       ac.style.display = 'none';
@@ -1873,7 +1873,7 @@ function mrpSon(x) {
 function mrpTayyorlikBelgisi(mr) {
   if (!mr || !mr.applicable) return '';
   if (mr.fully_ready) {
-    return '<span class="badge" style="background:#DCFCE7;color:#15803D" title="Buyurtmadagi barcha MRP mahsulotlari ishlab chiqarilgan — topshirishga tayyor">✅ MRP: tayyor</span>';
+    return '<span class="badge" style="background:var(--f-dcfce7);color:var(--m-15803d)" title="Buyurtmadagi barcha MRP mahsulotlari ishlab chiqarilgan — topshirishga tayyor">✅ MRP: tayyor</span>';
   }
   const qism = (mr.items || []).filter(i => !i.is_ready).map(i => {
     const q = [];
@@ -1884,9 +1884,9 @@ function mrpTayyorlikBelgisi(mr) {
   }).join('; ');
   if (mr.holat === 'ishlab_chiqarilmoqda') {
     const izoh = 'Hamma MRP mahsuloti band qilingan, lekin ishlab chiqarish hali yakunlanmagan — «Tayyor» va yuk xati uchun avval ishlab chiqarishni yakunlang. ' + qism;
-    return `<span class="badge" style="background:#DBEAFE;color:#1D4ED8" title="${escapeHtml(izoh)}">🏭 MRP: ishlab chiqarilmoqda</span>`;
+    return `<span class="badge" style="background:var(--f-dbeafe);color:var(--m-1d4ed8)" title="${escapeHtml(izoh)}">🏭 MRP: ishlab chiqarilmoqda</span>`;
   }
-  return `<span class="badge" style="background:#FEF3C7;color:#B45309" title="${escapeHtml(qism)}">⏳ MRP: kutilmoqda</span>`;
+  return `<span class="badge" style="background:var(--f-fef3c7);color:var(--m-b45309)" title="${escapeHtml(qism)}">⏳ MRP: kutilmoqda</span>`;
 }
 
 async function loadOrderItems(id) {
@@ -2031,11 +2031,11 @@ async function loadDeliveries(orderId) {
 
     const badge = document.getElementById('dlv-pct-badge');
     if (d.is_fully_delivered) {
-      badge.innerHTML = '<span style="background:#DCFCE7;color:#1e7e34;padding:3px 10px;border-radius:12px">✅ To\'liq topshirildi</span>';
+      badge.innerHTML = '<span style="background:var(--f-dcfce7);color:var(--m-1e7e34);padding:3px 10px;border-radius:12px">✅ To\'liq topshirildi</span>';
     } else if (pct > 0) {
-      badge.innerHTML = `<span style="background:#FEF3C7;color:#92400E;padding:3px 10px;border-radius:12px">🟡 ${pct}%</span>`;
+      badge.innerHTML = `<span style="background:var(--f-fef3c7);color:var(--m-92400e);padding:3px 10px;border-radius:12px">🟡 ${pct}%</span>`;
     } else {
-      badge.innerHTML = '<span style="background:#F5F5F5;color:var(--text3);padding:3px 10px;border-radius:12px">Topshirilmagan</span>';
+      badge.innerHTML = '<span style="background:var(--f-f5f5f5);color:var(--text3);padding:3px 10px;border-radius:12px">Topshirilmagan</span>';
     }
 
     // Yangi topshirish tugmasi
@@ -2060,19 +2060,19 @@ async function loadDeliveries(orderId) {
       list.innerHTML = '<div style="text-align:center;padding:14px;color:var(--text3);font-size:14px">Detal yo\'q</div>';
     } else {
       list.innerHTML = d.items.map(it => {
-        const color = it.is_done ? '#22C55E' : (it.percent > 0 ? '#F59E0B' : '#ddd');
+        const color = it.is_done ? '#22C55E' : (it.percent > 0 ? '#F59E0B' : 'var(--f-dddddd)');
         return `
-        <div style="padding:9px 0;border-bottom:1px solid #f5f5f5">
+        <div style="padding:9px 0;border-bottom:1px solid var(--ch-f5f5f5)">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
             <div style="font-size:13px;font-weight:500;color:var(--text)">
               ${it.is_done ? '✅' : '📦'} ${escapeHtml(it.name)}
             </div>
-            <div style="font-size:14px;font-weight:600;color:${it.is_done?'#15803D':'#DC2626'}">
+            <div style="font-size:14px;font-weight:600;color:${it.is_done?'var(--m-15803d)':'var(--m-dc2626)'}">
               ${it.is_done ? 'tugadi' : `qoldi ${it.remaining} ${escapeHtml(it.unit)}`}
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:8px">
-            <div style="flex:1;height:5px;background:#f0f0f0;border-radius:3px;overflow:hidden">
+            <div style="flex:1;height:5px;background:var(--f-f0f0f0);border-radius:3px;overflow:hidden">
               <div style="height:100%;width:${it.percent}%;background:${color};border-radius:3px"></div>
             </div>
             <div style="font-size:13px;color:var(--text3);white-space:nowrap;min-width:95px;text-align:right">
@@ -2111,13 +2111,13 @@ function renderDeliveryHistory(showAll) {
         const ds = tkSanaVaqt(dl.delivered_at);
         const items = dl.items.map(i => `${escapeHtml(i.item_name)}: <b>${sonKor(i.quantity)}${i.unit==='metr'?'m':' ta'}</b>`).join(' · ');
         return `
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:9px 0;border-bottom:1px solid #f0f0f0;gap:8px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--ch-f0f0f0);gap:8px">
           <div style="flex:1;min-width:0">
             <div style="display:flex;align-items:center;gap:8px">
               <span style="font-size:14px;font-weight:600;color:var(--text)">${dl.delivery_number}</span>
               ${dl.total_sum ? `<span style="font-size:13px;font-weight:700;color:var(--gold-dark)">${formatNum(dl.total_sum)} so'm</span>` : ''}
             </div>
-            <div style="font-size:13px;color:#666;margin-top:3px;line-height:1.5">${items}</div>
+            <div style="font-size:13px;color:var(--m-666666);margin-top:3px;line-height:1.5">${items}</div>
             ${dl.transport_carrier || dl.transport_cost > 0 ? `
             <div style="font-size:12.5px;color:var(--gold-dark);margin-top:3px">
               🚚 ${escapeHtml(dl.transport_carrier) || ''}${dl.transport_cost > 0 ? ` · ${formatNum(dl.transport_cost)} so'm` : ''}${dl.transport_payer && dl.transport_payer !== 'none' ? ` (${dl.transport_payer==='client'?'mijoz':dl.transport_payer==='company'?'kompaniya':'50/50'})` : ''}
@@ -2128,13 +2128,13 @@ function renderDeliveryHistory(showAll) {
           </div>
           <div style="display:flex;gap:4px;flex-shrink:0">
             <a href="/api/deliveries/${dl.id}/pdf" target="_blank"
-               style="width:26px;height:26px;border-radius:6px;background:#F8F2EB;border:none;color:var(--gold-dark);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;text-decoration:none"
+               style="width:26px;height:26px;border-radius:6px;background:var(--f-f8f2eb);border:none;color:var(--gold-dark);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;text-decoration:none"
                title="Yuk xati (PDF)">📄</a>
             ${d.status === 'ready'
               ? `<span class="dlv-qulf" style="width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--text3)"
                  title="Buyurtma «Tayyor» — yuk xatini o'chirib bo'lmaydi">🔒</span>`
               : `<button onclick="deleteDelivery(${dl.id})"
-               style="width:26px;height:26px;border-radius:6px;background:#FEE;border:none;color:#DC2626;font-size:14px;cursor:pointer"
+               style="width:26px;height:26px;border-radius:6px;background:var(--f-ffeeee);border:none;color:var(--m-dc2626);font-size:14px;cursor:pointer"
                title="O'chirish">✕</button>`}
           </div>
         </div>`;
@@ -2145,7 +2145,7 @@ function renderDeliveryHistory(showAll) {
         hist.innerHTML += `
           <div style="text-align:center;padding:10px 0 2px">
             <button onclick="renderDeliveryHistory(true)"
-                    style="background:#F5F5F5;border:none;border-radius:16px;padding:6px 16px;font-size:13.5px;color:#666;cursor:pointer;font-weight:500">
+                    style="background:var(--f-f5f5f5);border:none;border-radius:16px;padding:6px 16px;font-size:13.5px;color:var(--m-666666);cursor:pointer;font-weight:500">
               ▼ Yana ${hidden} ta yuk xatini ko'rsatish
             </button>
           </div>`;
@@ -2153,7 +2153,7 @@ function renderDeliveryHistory(showAll) {
         hist.innerHTML += `
           <div style="text-align:center;padding:10px 0 2px">
             <button onclick="renderDeliveryHistory(false)"
-                    style="background:#F5F5F5;border:none;border-radius:16px;padding:6px 16px;font-size:13.5px;color:#666;cursor:pointer;font-weight:500">
+                    style="background:var(--f-f5f5f5);border:none;border-radius:16px;padding:6px 16px;font-size:13.5px;color:var(--m-666666);cursor:pointer;font-weight:500">
               ▲ Yig'ish
             </button>
           </div>`;
@@ -2180,7 +2180,7 @@ function openSummaryModal() {
     const items = d.items.map(i =>
       `${escapeHtml(i.item_name)} — ${sonKor(i.quantity)}${i.unit==='metr'?'m':' ta'}`).join(' · ');
     return `
-    <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid #f5f5f5;cursor:pointer">
+    <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--ch-f5f5f5);cursor:pointer">
       <input type="checkbox" class="sum-chk" value="${d.id}" data-sum="${d.total_sum || 0}"
              data-ts="${tkMs(d.delivered_at)}" checked onchange="updateSumTotal()"
              style="width:17px;height:17px;cursor:pointer;margin-top:2px;flex-shrink:0">
@@ -2190,7 +2190,7 @@ function openSummaryModal() {
           <span style="font-size:13px;color:var(--text3)">${ds}</span>
           ${d.received_by ? `<span style="font-size:12px;color:var(--text3)">· ${escapeHtml(d.received_by)}</span>` : ''}
         </div>
-        <div style="font-size:13px;color:#666;margin-top:3px;line-height:1.5">${items}</div>
+        <div style="font-size:13px;color:var(--m-666666);margin-top:3px;line-height:1.5">${items}</div>
       </div>
       <div style="font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;flex-shrink:0">
         ${formatNum(d.total_sum || 0)}
@@ -2253,16 +2253,16 @@ function openDeliveryModal() {
   const debtEl = document.getElementById('dlv-debt-info');
   if (debtEl) {
     debtEl.textContent = 'Yuklanmoqda...';
-    debtEl.style.color = '#696D78';
+    debtEl.style.color = 'var(--m-696d78)';
     fetch(`/api/orders/${selectedOrderId}`).then(r => r.ok ? r.json() : null).then(o => {
       if (!o) { debtEl.textContent = ''; return; }
       const debt = o.debt_amount || 0;
       if (debt > 0) {
         debtEl.textContent = `⚠️ Mijozning joriy qarzi: ${formatNum(debt)} so'm`;
-        debtEl.style.color = '#DC2626';
+        debtEl.style.color = 'var(--m-dc2626)';
       } else {
         debtEl.textContent = '✓ Qarzi yo\'q (to\'liq to\'langan)';
-        debtEl.style.color = '#15803D';
+        debtEl.style.color = 'var(--m-15803d)';
       }
     }).catch(() => { debtEl.textContent = ''; });
   }
@@ -2274,20 +2274,20 @@ function openDeliveryModal() {
     const ortiqchaMatn = it.ortiqcha > 0 ? ` · 📦 omborga ortiqcha ${it.ortiqcha} ${escapeHtml(it.unit)}` : '';
     const mrpKam = (it.mrp_tayyor !== null && it.mrp_tayyor !== undefined && !it.is_done && it.mrp_tayyor + 0.001 < it.remaining);
     const mrpMatn = (it.mrp_tayyor !== null && it.mrp_tayyor !== undefined && !it.is_done)
-      ? ` · 🏭 tayyor: <b style="color:${mrpKam ? '#DC2626' : '#15803D'}">${it.mrp_tayyor} ${escapeHtml(it.unit)}</b>` : '';
+      ? ` · 🏭 tayyor: <b style="color:${mrpKam ? 'var(--m-dc2626)' : 'var(--m-15803d)'}">${it.mrp_tayyor} ${escapeHtml(it.unit)}</b>` : '';
     return `
-    <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #f5f5f5;${dis}">
+    <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--ch-f5f5f5);${dis}">
       <div style="flex:1;min-width:0">
         <div style="font-size:13px;font-weight:500;color:var(--text)">${escapeHtml(it.name)}</div>
         <div style="font-size:13px;color:var(--text3);margin-top:1px">
-          ${it.is_done ? (it.ortiqcha > 0 ? `✅ Yakunlangan: topshirilgan ${it.delivered} ${escapeHtml(it.unit)}${ortiqchaMatn}` : '✅ To\'liq topshirilgan') : `Qoldi: <b style="color:#DC2626">${it.remaining} ${escapeHtml(it.unit)}</b> · Jami ${it.ordered} ${escapeHtml(it.unit)}${ortiqchaMatn}${mrpMatn}`}
+          ${it.is_done ? (it.ortiqcha > 0 ? `✅ Yakunlangan: topshirilgan ${it.delivered} ${escapeHtml(it.unit)}${ortiqchaMatn}` : '✅ To\'liq topshirilgan') : `Qoldi: <b style="color:var(--m-dc2626)">${it.remaining} ${escapeHtml(it.unit)}</b> · Jami ${it.ordered} ${escapeHtml(it.unit)}${ortiqchaMatn}${mrpMatn}`}
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
         <button class="step-btn2" onclick="dlvStep(${it.id},-1)">−</button>
         <input type="number" class="dlv-inp" id="dlv-${it.id}" data-max="${it.remaining}" data-tayyor="${(it.mrp_tayyor !== null && it.mrp_tayyor !== undefined) ? it.mrp_tayyor : ''}"
                min="0" max="${it.remaining}" step="any" placeholder="0" ${it.is_done?'disabled':''}
-               style="width:78px;height:34px;text-align:center;border:1.5px solid #ddd;border-radius:7px;font-size:13px;font-weight:600;outline:none">
+               style="width:78px;height:34px;text-align:center;border:1.5px solid var(--ch-dddddd);border-radius:7px;font-size:13px;font-weight:600;outline:none">
         <button class="step-btn2" onclick="dlvStep(${it.id},1)">+</button>
         <span style="font-size:13px;color:var(--text3);width:32px">${escapeHtml(it.unit === 'metr' ? 'm' : (it.unit === 'dona' ? 'ta' : (it.unit || '')))}</span>
       </div>
@@ -2315,10 +2315,10 @@ function dlvUpdatePayerHint() {
   if (payer === 'client') {
     hint.textContent = `Mijoz to'laydi: ${formatNum(cost)} so'm · Kompaniyaga xarajat yo'q`;
   } else if (payer === 'company') {
-    hint.innerHTML = `<span style="color:#DC2626">Kompaniya xarajati: ${formatNum(cost)} so'm</span>`;
+    hint.innerHTML = `<span style="color:var(--m-dc2626)">Kompaniya xarajati: ${formatNum(cost)} so'm</span>`;
   } else if (payer === 'split') {
     const half = Math.round(cost / 2);
-    hint.innerHTML = `Mijoz: ${formatNum(half)} so'm · <span style="color:#DC2626">Kompaniya: ${formatNum(cost - half)} so'm</span>`;
+    hint.innerHTML = `Mijoz: ${formatNum(half)} so'm · <span style="color:var(--m-dc2626)">Kompaniya: ${formatNum(cost - half)} so'm</span>`;
   }
 }
 
@@ -2379,20 +2379,20 @@ async function quickFullDelivery() {
   _fullDlvPending = pending;
   const summary = pending.map(i => `${escapeHtml(i.name)}: ${i.remaining} ${i.unit === 'metr' ? 'm' : 'ta'}`).join('<br>');
   const debtHtml = currentDebt > 0
-    ? `<div style="font-size:12px;color:#DC2626;margin-bottom:6px;font-weight:600">⚠️ Mijozning joriy qarzi: ${formatNum(currentDebt)} so'm</div>`
-    : `<div style="font-size:12px;color:#15803D;margin-bottom:6px;font-weight:600">✓ Qarzi yo'q (to'liq to'langan)</div>`;
+    ? `<div style="font-size:12px;color:var(--m-dc2626);margin-bottom:6px;font-weight:600">⚠️ Mijozning joriy qarzi: ${formatNum(currentDebt)} so'm</div>`
+    : `<div style="font-size:12px;color:var(--m-15803d);margin-bottom:6px;font-weight:600">✓ Qarzi yo'q (to'liq to'langan)</div>`;
 
   document.getElementById('fullDlvModalBody').innerHTML = `
-    <div style="background:#F0FDF4;border-radius:10px;padding:14px;font-size:14px;color:#166534;line-height:1.7">${summary}</div>
+    <div style="background:var(--f-f0fdf4);border-radius:10px;padding:14px;font-size:14px;color:var(--m-166534);line-height:1.7">${summary}</div>
     <div>
-      <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">💰 Mijoz shu yuk uchun to'lov qildimi?</label>
+      <label style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px">💰 Mijoz shu yuk uchun to'lov qildimi?</label>
       ${debtHtml}
-      <input type="text" id="fd-payment" placeholder="0" oninput="formatPriceInput(this)" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
+      <input type="text" id="fd-payment" placeholder="0" oninput="formatPriceInput(this)" style="width:100%;padding:11px 12px;border:1.5px solid var(--ch-e2e8f0);border-radius:9px;font-size:15px;box-sizing:border-box">
     </div>
     <div>
-      <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">🚚 Yetkazib berish (transport) xarajati bormi?</label>
+      <label style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px">🚚 Yetkazib berish (transport) xarajati bormi?</label>
       <div style="font-size:12px;color:var(--text3);margin-bottom:6px">Bo'lmasa bo'sh qoldiring</div>
-      <input type="text" id="fd-transport" placeholder="0" oninput="formatPriceInput(this)" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
+      <input type="text" id="fd-transport" placeholder="0" oninput="formatPriceInput(this)" style="width:100%;padding:11px 12px;border:1.5px solid var(--ch-e2e8f0);border-radius:9px;font-size:15px;box-sizing:border-box">
     </div>
   `;
   document.getElementById('fullDlvModalOverlay').style.display = 'flex';
@@ -2630,13 +2630,13 @@ async function checkLoyStock() {
 
     el.style.display = 'block';
     if (stock <= 0) {
-      el.style.background = '#F5F5F5'; el.style.color = '#888';
+      el.style.background = 'var(--f-f5f5f5)'; el.style.color = 'var(--m-888888)';
       el.innerHTML = `Omborda tayyor loy yo'q — ${kg} kg uchun xomashyo ayiriladi`;
     } else if (stock >= kg) {
-      el.style.background = '#DCFCE7'; el.style.color = '#1e7e34';
+      el.style.background = 'var(--f-dcfce7)'; el.style.color = 'var(--m-1e7e34)';
       el.innerHTML = `🟢 Omborda <b>${sonKor(stock, 1)} kg</b> tayyor loy bor — hammasi zaxiradan olinadi, xomashyo ayirilmaydi`;
     } else {
-      el.style.background = '#FEF3C7'; el.style.color = '#92400E';
+      el.style.background = 'var(--f-fef3c7)'; el.style.color = 'var(--m-92400e)';
       el.innerHTML = `🟡 Omborda <b>${sonKor(stock, 1)} kg</b> tayyor loy bor — qolgan <b>${sonKor(kg - stock, 1)} kg</b> uchun xomashyo ayiriladi`;
     }
   } catch(e) { el.style.display = 'none'; }
@@ -2781,14 +2781,14 @@ async function loadPayments(orderId) {
     // ortiqcha to'lov / kamaytirilgan kelishilgan summada YO'Q, qaytarilgandan keyin ham qolardi (O'LCHANDI, probe131).
     const ortiqcha131 = Number(order.ortiqcha_tolov) || 0;
     if (ortiqcha131 > 0) {
-      badgeHtml += `<div style="background:#FFF7ED;border:1.5px solid #F97316;color:#C2410C;padding:8px 12px;border-radius:9px;font-size:13px;font-weight:700;margin-bottom:8px">↩ Mijozga ${escapeHtml(narxKorinishi(ortiqcha131))} so'm QAYTARILISHI kerak (ortiqcha to'langan) · <a href="/debts?qaytarish=${encodeURIComponent(String(order.id))}" style="color:#C2410C">Qaytarildi deb yozish →</a></div>`;
+      badgeHtml += `<div style="background:var(--f-fff7ed);border:1.5px solid #F97316;color:var(--m-c2410c);padding:8px 12px;border-radius:9px;font-size:13px;font-weight:700;margin-bottom:8px">↩ Mijozga ${escapeHtml(narxKorinishi(ortiqcha131))} so'm QAYTARILISHI kerak (ortiqcha to'langan) · <a href="/debts?qaytarish=${encodeURIComponent(String(order.id))}" style="color:var(--m-c2410c)">Qaytarildi deb yozish →</a></div>`;
     }
     if (st === 'paid') {
-      badgeHtml += '<span style="background:#DCFCE7;color:#1e7e34;padding:5px 14px;border-radius:20px;font-size:14px;font-weight:600">✅ To\'liq to\'langan — Arxivda</span>';
+      badgeHtml += '<span style="background:var(--f-dcfce7);color:var(--m-1e7e34);padding:5px 14px;border-radius:20px;font-size:14px;font-weight:600">✅ To\'liq to\'langan — Arxivda</span>';
     } else if (st === 'partial') {
-      badgeHtml += '<span style="background:#FEF3C7;color:#92400E;padding:5px 14px;border-radius:20px;font-size:14px;font-weight:600">🟡 Qisman to\'langan</span>';
+      badgeHtml += '<span style="background:var(--f-fef3c7);color:var(--m-92400e);padding:5px 14px;border-radius:20px;font-size:14px;font-weight:600">🟡 Qisman to\'langan</span>';
     } else {
-      badgeHtml += '<span style="background:#FEE2E2;color:#DC2626;padding:5px 14px;border-radius:20px;font-size:14px;font-weight:600">🔴 To\'lanmagan</span>';
+      badgeHtml += '<span style="background:var(--f-fee2e2);color:var(--m-dc2626);padding:5px 14px;border-radius:20px;font-size:14px;font-weight:600">🔴 To\'lanmagan</span>';
     }
     badge.innerHTML = badgeHtml;
 
@@ -2808,17 +2808,17 @@ async function loadPayments(orderId) {
     list.innerHTML = payments.map(p => {
       const dStr = tkSanaVaqt(p.paid_at);
       return `
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f0f0f0">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--ch-f0f0f0)">
           <div style="flex:1">
             <div style="font-size:13px;font-weight:600;color:var(--text)">
               ${PAY_METHOD_ICON[p.payment_method]||''} ${formatNum(p.amount)} so'm
-              <span style="font-size:12px;background:#f0f0f0;color:var(--text3);padding:2px 7px;border-radius:10px;margin-left:5px">${PAY_TYPE_LABEL[p.payment_type]||p.payment_type}</span>
+              <span style="font-size:12px;background:var(--f-f0f0f0);color:var(--text3);padding:2px 7px;border-radius:10px;margin-left:5px">${PAY_TYPE_LABEL[p.payment_type]||p.payment_type}</span>
             </div>
             <div style="font-size:13px;color:var(--text3);margin-top:2px">
               ${dStr}${p.received_by ? ' · ' + escapeHtml(p.received_by) : ''}${p.notes ? ' · ' + escapeHtml(p.notes) : ''}
             </div>
           </div>
-          <button onclick="deletePayment(${p.id})" style="width:24px;height:24px;border-radius:50%;background:#FEE;border:none;color:#DC2626;font-size:13px;cursor:pointer;flex-shrink:0">✕</button>
+          <button onclick="deletePayment(${p.id})" style="width:24px;height:24px;border-radius:50%;background:var(--f-ffeeee);border:none;color:var(--m-dc2626);font-size:13px;cursor:pointer;flex-shrink:0">✕</button>
         </div>`;
     }).join('');
   } catch(e) {
@@ -3048,12 +3048,12 @@ function _tahrirBanneriTopshirish(dd) {
   const eb = document.getElementById('editBanner');
   const t = document.getElementById('editBannerTopshirish');
   if (!eb || !t) return;
-  eb.style.background = '#FEF3C7';
-  eb.style.borderColor = '#FDE68A';
+  eb.style.background = 'var(--f-fef3c7)';
+  eb.style.borderColor = 'var(--ch-fde68a)';
   const foiz = Number((dd && dd.delivery_percent) || 0);
   t.innerHTML = `
-    <div style="font-size:13px;font-weight:600;color:#92400E">📦 Bu buyurtmada mahsulot topshirila boshlagan (${Number.isFinite(foiz) ? foiz : 0}%)</div>
-    <div style="font-size:13px;color:#997;margin-top:3px">Topshirilgan (va omborga ortiqcha qaytarilgan) miqdordan kam qilib bo'lmaydi. Yangi detal qo'shish yoki miqdorni oshirish mumkin.</div>`;
+    <div style="font-size:13px;font-weight:600;color:var(--m-92400e)">📦 Bu buyurtmada mahsulot topshirila boshlagan (${Number.isFinite(foiz) ? foiz : 0}%)</div>
+    <div style="font-size:13px;color:var(--m-999977);margin-top:3px">Topshirilgan (va omborga ortiqcha qaytarilgan) miqdordan kam qilib bo'lmaydi. Yangi detal qo'shish yoki miqdorni oshirish mumkin.</div>`;
   t.style.display = 'block';
 }
 
@@ -3061,8 +3061,8 @@ function _tahrirBanneriTikla() {
   const eb = document.getElementById('editBanner');
   const t = document.getElementById('editBannerTopshirish');
   if (eb) {
-    eb.style.background = '#F8F2EB';
-    eb.style.borderColor = '#E8D5C0';
+    eb.style.background = 'var(--f-f8f2eb)';
+    eb.style.borderColor = 'var(--ch-e8d5c0)';
   }
   if (t) {
     t.innerHTML = '';
@@ -3165,7 +3165,7 @@ function addItem() {
     </div>
     <div class="detal-body">
     <div class="detal-grid">
-      <div class="dif" style="grid-column:1/-1;position:relative;background:#F3E4CC;border:2px solid #A86B36">
+      <div class="dif" style="grid-column:1/-1;position:relative;background:var(--f-f3e4cc);border:2px solid #A86B36">
         <label style="color:var(--gold-dark)">Nomi</label>
         <input placeholder="Karniz M-06" class="i-name" autocomplete="off"
                oninput="searchFinished(this);updateTotal();updateLiveStats();updateDetalSummary(this.closest('.detal'))" onblur="hideFpSuggest(this)">
@@ -3218,10 +3218,10 @@ function addItem() {
           </div>
         </div>
       </div>
-      <div class="dgrp i-subdetails-wrap" style="grid-column:1/-1;display:none;background:#FBF7F0;border:1px dashed #B9783F">
+      <div class="dgrp i-subdetails-wrap" style="grid-column:1/-1;display:none;background:var(--f-fbf7f0);border:1px dashed #B9783F">
         <div class="dgrp-title">➕ Ichki qo'shimcha detal (masalan karniz ichidagi rebristo qism)</div>
         <div class="subdetail-list"></div>
-        <button type="button" onclick="addSubDetailRow(this.closest('.detal'))" style="margin-top:4px;padding:7px 12px;font-size:13px;border:1px solid #B9783F;background:#fff;color:var(--gold-dark);border-radius:8px;cursor:pointer">+ Ichki qo'shimcha detal qo'shish</button>
+        <button type="button" onclick="addSubDetailRow(this.closest('.detal'))" style="margin-top:4px;padding:7px 12px;font-size:13px;border:1px solid #B9783F;background:var(--white);color:var(--gold-dark);border-radius:8px;cursor:pointer">+ Ichki qo'shimcha detal qo'shish</button>
       </div>
       <div class="dif i-loysale-recipe-wrap" style="display:none">
         <label>Loy turi (retsept)</label>
@@ -3273,7 +3273,7 @@ function addItem() {
           <div class="dval-box main"><input type="text" class="i-price" readonly><span class="unit-suffix">so'm</span></div>
         </div>
       </div>
-      <span class="i-peno-warn" style="display:none;font-size:14.5px;color:#B45309;font-weight:600"></span>
+      <span class="i-peno-warn" style="display:none;font-size:14.5px;color:var(--m-b45309);font-weight:600"></span>
     </div>
     </div>`;
   const container = document.getElementById('items');
@@ -3470,7 +3470,7 @@ async function openMrpProductPicker(btn) {
   const overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:9999;display:flex;align-items:center;justify-content:center';
   overlay.innerHTML = `
-    <div style="background:var(--card-bg,#fff);border-radius:14px;padding:20px;width:90vw;max-width:360px;max-height:70vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.25);box-sizing:border-box">
+    <div style="background:var(--white);border-radius:14px;padding:20px;width:90vw;max-width:360px;max-height:70vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.25);box-sizing:border-box">
       <div style="font-weight:600;margin-bottom:10px;font-size:14px">🏭 MRP mahsulotini tanlang</div>
       <input id="mrpPickerSearch" type="text" placeholder="Qidirish..." autocomplete="off"
              style="padding:8px 10px;border-radius:8px;border:1px solid var(--border2);margin-bottom:10px;font-size:13px;width:100%;box-sizing:border-box">
@@ -3489,7 +3489,7 @@ async function openMrpProductPicker(btn) {
       </div>`
     ).join('') || '<div style="padding:10px;color:var(--text3);font-size:13px">Topilmadi</div>';
     listEl.querySelectorAll('.mrp-pick-item').forEach(it => {
-      it.onmouseenter = () => it.style.background = 'var(--hover-bg,#f0f0f0)';
+      it.onmouseenter = () => it.style.background = 'var(--f-f0f0f0)';
       it.onmouseleave = () => it.style.background = '';
       it.onclick = () => {
         const pt = _mrpProductTypesCache.find(p => p.id === parseInt(it.dataset.id));
@@ -3881,30 +3881,30 @@ function addSubDetailRow(detalRow, prefill) {
   const sub = document.createElement('div');
   sub.className = 'subdetail-row';
   sub.dataset.subId = subDetailSeq;
-  sub.style.cssText = 'display:flex;gap:6px;align-items:flex-end;flex-wrap:wrap;padding:8px 0;border-top:1px solid #EADFC9';
+  sub.style.cssText = 'display:flex;gap:6px;align-items:flex-end;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--ch-eadfc9)';
   sub.innerHTML = `
-    <div style="flex:2;min-width:110px"><label style="font-size:12px;color:#8a6a45">Nomi (ixtiyoriy)</label>
-      <input type="text" class="sd-name" placeholder="Rebristo detal" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid #ddd;border-radius:6px">
+    <div style="flex:2;min-width:110px"><label style="font-size:12px;color:var(--m-8a6a45)">Nomi (ixtiyoriy)</label>
+      <input type="text" class="sd-name" placeholder="Rebristo detal" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--ch-dddddd);border-radius:6px">
     </div>
-    <div style="flex:1;min-width:90px"><label style="font-size:12px;color:#8a6a45">Turi</label>
-      <select class="sd-type" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid #ddd;border-radius:6px" onchange="onSubDetailTypeChange(this)">
+    <div style="flex:1;min-width:90px"><label style="font-size:12px;color:var(--m-8a6a45)">Turi</label>
+      <select class="sd-type" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--ch-dddddd);border-radius:6px" onchange="onSubDetailTypeChange(this)">
         <option value="profil">📏 Profil</option>
         <option value="panel">🔲 Panel</option>
       </select>
     </div>
-    <div style="flex:1;min-width:70px"><label style="font-size:12px;color:#8a6a45">Eni (sm)</label>
-      <input type="number" class="sd-w" step="0.1" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid #ddd;border-radius:6px" oninput="calculateItem(this.closest('.detal'))">
+    <div style="flex:1;min-width:70px"><label style="font-size:12px;color:var(--m-8a6a45)">Eni (sm)</label>
+      <input type="number" class="sd-w" step="0.1" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--ch-dddddd);border-radius:6px" oninput="calculateItem(this.closest('.detal'))">
     </div>
-    <div style="flex:1;min-width:70px"><label style="font-size:12px;color:#8a6a45">Qalinligi (sm)</label>
-      <input type="number" class="sd-t" step="0.1" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid #ddd;border-radius:6px" oninput="calculateItem(this.closest('.detal'))">
+    <div style="flex:1;min-width:70px"><label style="font-size:12px;color:var(--m-8a6a45)">Qalinligi (sm)</label>
+      <input type="number" class="sd-t" step="0.1" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--ch-dddddd);border-radius:6px" oninput="calculateItem(this.closest('.detal'))">
     </div>
-    <div class="sd-l-wrap" style="flex:1;min-width:70px"><label style="font-size:12px;color:#8a6a45">Uzunlik (m)</label>
-      <input type="number" class="sd-l" step="0.1" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid #ddd;border-radius:6px" oninput="calculateItem(this.closest('.detal'))">
+    <div class="sd-l-wrap" style="flex:1;min-width:70px"><label style="font-size:12px;color:var(--m-8a6a45)">Uzunlik (m)</label>
+      <input type="number" class="sd-l" step="0.1" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--ch-dddddd);border-radius:6px" oninput="calculateItem(this.closest('.detal'))">
     </div>
-    <div class="sd-q-wrap" style="flex:1;min-width:70px;display:none"><label style="font-size:12px;color:#8a6a45">Miqdor</label>
-      <input type="number" class="sd-q" step="0.5" value="1" min="0" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid #ddd;border-radius:6px" oninput="calculateItem(this.closest('.detal'))">
+    <div class="sd-q-wrap" style="flex:1;min-width:70px;display:none"><label style="font-size:12px;color:var(--m-8a6a45)">Miqdor</label>
+      <input type="number" class="sd-q" step="0.5" value="1" min="0" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--ch-dddddd);border-radius:6px" oninput="calculateItem(this.closest('.detal'))">
     </div>
-    <div style="flex:1;min-width:100px"><label style="font-size:12px;color:#8a6a45">Qoplama</label>
+    <div style="flex:1;min-width:100px"><label style="font-size:12px;color:var(--m-8a6a45)">Qoplama</label>
       <div class="sd-coat-toggle">
         <div class="sd-coat-opt sd-coat-no active" onclick="setSubDetailCoating(this, false)">Yo'q</div>
         <div class="sd-coat-opt sd-coat-yes" onclick="setSubDetailCoating(this, true)">Bor (×2)</div>
@@ -3914,8 +3914,8 @@ function addSubDetailRow(detalRow, prefill) {
         <option value="true">Bor (×2)</option>
       </select>
     </div>
-    <div style="flex:2;min-width:120px;font-size:12px;color:#666" class="sd-info">≈ 0 so'm, 0 m³</div>
-    <button type="button" onclick="this.closest('.subdetail-row').remove();calculateItem(this.closest('.detal'))" style="border:none;background:#FEF2F2;color:#DC2626;width:26px;height:26px;border-radius:6px;cursor:pointer;flex-shrink:0">✕</button>
+    <div style="flex:2;min-width:120px;font-size:12px;color:var(--m-666666)" class="sd-info">≈ 0 so'm, 0 m³</div>
+    <button type="button" onclick="this.closest('.subdetail-row').remove();calculateItem(this.closest('.detal'))" style="border:none;background:var(--f-fef2f2);color:var(--m-dc2626);width:26px;height:26px;border-radius:6px;cursor:pointer;flex-shrink:0">✕</button>
   `;
   list.appendChild(sub);
 
@@ -4383,7 +4383,7 @@ function updateTotal() {
     // haqiqatda saqlanadigan summa mos kelmay qoladi.
     if (!name) {
       html += `
-        <div style="padding:8px 0;border-bottom:1px solid #f5f5f5;font-size:13px;color:#B45309;cursor:pointer" onclick="scrollToDetail('${row.id}')" title="Bosib, shu detalga o'ting">
+        <div style="padding:8px 0;border-bottom:1px solid var(--ch-f5f5f5);font-size:13px;color:var(--m-b45309);cursor:pointer" onclick="scrollToDetail('${row.id}')" title="Bosib, shu detalga o'ting">
           ⚠️ Detal #${i+1} — nomi kiritilmagan, hisobga olinmaydi
         </div>`;
       return;
@@ -4416,9 +4416,9 @@ function updateTotal() {
     if (price > 0) {
       html += `
         <div onclick="scrollToDetail('${row.id}')" style="display:flex;justify-content:space-between;align-items:center;
-                    padding:8px 0;border-bottom:1px solid #f5f5f5;font-size:13px;cursor:pointer" title="Bosib, shu detalga o'ting">
+                    padding:8px 0;border-bottom:1px solid var(--ch-f5f5f5);font-size:13px;cursor:pointer" title="Bosib, shu detalga o'ting">
           <div>
-            <div style="font-weight:500;color:#111">${escapeHtml(name) || ('Detal #'+(i+1))}</div>
+            <div style="font-weight:500;color:var(--m-111111)">${escapeHtml(name) || ('Detal #'+(i+1))}</div>
             <div style="font-size:13px;color:var(--text3)">${escapeHtml(qtyText)}</div>
           </div>
           <div style="font-weight:600;color:var(--gold-dark)">${Number(price).toLocaleString('ru-RU')} so'm</div>
@@ -4466,13 +4466,13 @@ function calcDiscount() {
   if (discount > 0) {
     const pct = sonKor(discount / total * 100, 1);
     di.innerHTML = `📉 <b>Chegirma:</b> ${formatNum(discount)} so'm (${pct}%) — Jami: ${formatNum(total)} → <b>${formatNum(finalPrice)} so'm</b>`;
-    di.style.background = '#FEF3C7'; di.style.color = '#92400E';
+    di.style.background = 'var(--f-fef3c7)'; di.style.color = 'var(--m-92400e)';
   } else if (discount < 0) {
     di.innerHTML = `📈 Standartdan ortiq: +${formatNum(Math.abs(discount))} so'm`;
-    di.style.background = '#F8F2EB'; di.style.color = '#8F5B2A';
+    di.style.background = 'var(--f-f8f2eb)'; di.style.color = 'var(--m-8f5b2a)';
   } else {
     di.innerHTML = '✓ Chegirmasiz — standart narxda';
-    di.style.background = '#DCFCE7'; di.style.color = '#1e7e34';
+    di.style.background = 'var(--f-dcfce7)'; di.style.color = 'var(--m-1e7e34)';
   }
   calcDebt();
 }
@@ -4495,13 +4495,13 @@ function calcDebt() {
 
   if (debt > 0) {
     dbi.innerHTML = `💰 Kelishilgan: <b>${formatNum(agreed)}</b> — Zaklat: <b>${formatNum(zaklat)}</b><br>🔴 <b>Qarz qoladi: ${formatNum(debt)} so'm</b>`;
-    dbi.style.background = '#FEE2E2'; dbi.style.color = '#DC2626';
+    dbi.style.background = 'var(--f-fee2e2)'; dbi.style.color = 'var(--m-dc2626)';
   } else if (debt === 0) {
     dbi.innerHTML = `✅ <b>To'liq to'landi!</b> Buyurtma avtomatik yopiladi.`;
-    dbi.style.background = '#DCFCE7'; dbi.style.color = '#1e7e34';
+    dbi.style.background = 'var(--f-dcfce7)'; dbi.style.color = 'var(--m-1e7e34)';
   } else {
     dbi.innerHTML = `⚠️ Ortiqcha to'lov: +${formatNum(Math.abs(debt))} so'm`;
-    dbi.style.background = '#F8F2EB'; dbi.style.color = '#8F5B2A';
+    dbi.style.background = 'var(--f-f8f2eb)'; dbi.style.color = 'var(--m-8f5b2a)';
   }
   updateLiveStats();
 }
@@ -4839,7 +4839,7 @@ function openDuplicatePickModal(order) {
   document.getElementById('dupPickList').innerHTML = order.items.map((item, idx) => {
     const icon = ITEM_TYPE_ICON[(item.category || '').toLowerCase()] || 'ti-box';
     return `
-    <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid #f5f5f5;cursor:pointer">
+    <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--ch-f5f5f5);cursor:pointer">
       <input type="checkbox" class="dup-chk" value="${idx}" checked onchange="updateDupPickState()"
              style="width:17px;height:17px;cursor:pointer;margin-top:2px;flex-shrink:0">
       <i class="ti ${icon}" style="font-size:16px;color:var(--text3);margin-top:2px;flex-shrink:0"></i>
@@ -5185,7 +5185,7 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
           row.dataset.dlvUnit = dlvInfo.unit;
           const badge = row.querySelector('.detal-badge');
           if (badge) {
-            badge.innerHTML += ` <span style="background:#FEF3C7;color:#92400E;padding:1px 6px;border-radius:8px;font-size:12px;margin-left:4px">📦 ${dlvInfo.delivered} ${escapeHtml(dlvInfo.unit)} topshirilgan${dlvInfo.ortiqcha > 0 ? ` · ${dlvInfo.ortiqcha} omborga ortiqcha` : ''}</span>`;
+            badge.innerHTML += ` <span style="background:var(--f-fef3c7);color:var(--m-92400e);padding:1px 6px;border-radius:8px;font-size:12px;margin-left:4px">📦 ${dlvInfo.delivered} ${escapeHtml(dlvInfo.unit)} topshirilgan${dlvInfo.ortiqcha > 0 ? ` · ${dlvInfo.ortiqcha} omborga ortiqcha` : ''}</span>`;
           }
           // O'chirish tugmasini bloklaymiz
           const rm = row.querySelector('.detal-rm');
@@ -5753,11 +5753,11 @@ function showPromptModal(message, defaultValue = '', options = {}) {
     document.getElementById('genericConfirmMsg').innerHTML =
       escapeHtml(message).replace(/\n/g, '<br>') +
       `<input type="${options.type || 'text'}" id="genericPromptInput" value="${escapeHtml(defaultValue)}" placeholder="${options.placeholder || ''}"
-        style="width:100%;margin-top:12px;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">`;
+        style="width:100%;margin-top:12px;padding:11px 12px;border:1.5px solid var(--ch-e2e8f0);border-radius:9px;font-size:15px;box-sizing:border-box">`;
     const okBtn = document.getElementById('genericConfirmOk');
     const cancelBtn = document.getElementById('genericConfirmCancel');
     okBtn.textContent = options.okText || "✓ Tasdiqlash";
-    okBtn.style.background = '#16A34A';
+    okBtn.style.background = '#15803D';   // kech118 (zip 122): oq yozuvli yashil tugma — #15803D (5.0:1; #16A34A — 3.3:1)
 
     const cleanup = (result) => {
       overlay.style.display = 'none';
@@ -5790,7 +5790,7 @@ function showConfirmModal(message, options = {}) {
     const altBtn = document.getElementById('genericConfirmAlt');
     const tugmalarQatori = okBtn.parentElement;
     okBtn.textContent = options.okText || "✓ Ha";
-    okBtn.style.background = options.danger ? '#DC2626' : '#16A34A';
+    okBtn.style.background = options.danger ? '#DC2626' : '#15803D';
     if (altBtn) {
       altBtn.textContent = options.altText || '';
       altBtn.style.display = options.altText ? 'block' : 'none';
@@ -5845,9 +5845,9 @@ async function markReadySelected() {
   // LOY — faqat qoplamali (Penoplast/Bazalt) detal bo'lsa ko'rinadi
   if (hasCoatable) {
     html += `<div>
-      <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">🪣 Haqiqatda necha kg loy ishlatildi?</label>
+      <label style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px">🪣 Haqiqatda necha kg loy ishlatildi?</label>
       ${planned > 0 ? `<div style="font-size:12px;color:var(--text3);margin-bottom:6px">📋 Rejada: ${planned} kg (xomashyo allaqachon ayirilgan)</div>` : `<div style="font-size:12px;color:var(--text3);margin-bottom:6px">Bo'sh qoldirsangiz faqat kesish hisoblanadi</div>`}
-      <input type="number" id="rm-loy" value="${planned > 0 ? planned : ''}" placeholder="0" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
+      <input type="number" id="rm-loy" value="${planned > 0 ? planned : ''}" placeholder="0" style="width:100%;padding:11px 12px;border:1.5px solid var(--ch-e2e8f0);border-radius:9px;font-size:15px;box-sizing:border-box">
     </div>`;
   }
 
@@ -5958,7 +5958,7 @@ async function loadProfit() {
   const sP = document.getElementById('s-profit');
   if (pR && sC) { pR.style.display='flex'; sC.textContent=Number(d.tan_narxi).toLocaleString('ru-RU')+' so\'m'; }
   if (pR2 && sP) { pR2.style.display='flex'; sP.textContent=Number(d.foyda).toLocaleString('ru-RU')+' so\'m ('+d.foyda_foiz+'%)'; }
-  if (sP) sP.style.color = d.foyda >= 0 ? '#8F5B2A' : '#DC2626';
+  if (sP) sP.style.color = d.foyda >= 0 ? 'var(--m-8f5b2a)' : 'var(--m-dc2626)';
 
   // Tafsilot modali
   let modal = document.getElementById('profitModal');
@@ -5982,14 +5982,14 @@ async function loadProfit() {
       const m = b.nomi.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
       const mainName = m ? m[1] : b.nomi;
       const subDetail = m ? m[2] : '';
-      return `<div style="display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid #F3F3F1">
+      return `<div style="display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid var(--ch-f3f3f1)">
         <div style="font-size:13px;color:var(--text3);font-weight:700;width:20px;flex-shrink:0;margin-top:1px">${num}</div>
         <div style="font-size:17px;flex-shrink:0">${ico}</div>
         <div style="flex:1;min-width:0">
-          <div style="font-size:14px;font-weight:600;color:#222">${escapeHtml(mainName)}</div>
-          ${subDetail ? `<div style="font-size:12px;color:#B0AAA0;margin-top:2px">${escapeHtml(subDetail)}</div>` : ''}
+          <div style="font-size:14px;font-weight:600;color:var(--m-222222)">${escapeHtml(mainName)}</div>
+          ${subDetail ? `<div style="font-size:12px;color:var(--text3);margin-top:2px">${escapeHtml(subDetail)}</div>` : ''}
         </div>
-        <div style="font-weight:700;color:#DC2626;white-space:nowrap;font-size:14.5px">−${Number(b.summa).toLocaleString('ru-RU')} so'm</div>
+        <div style="font-weight:700;color:var(--m-dc2626);white-space:nowrap;font-size:14.5px">−${Number(b.summa).toLocaleString('ru-RU')} so'm</div>
       </div>`;
     }).join('');
   } else {
@@ -5997,55 +5997,55 @@ async function loadProfit() {
   }
 
   modal.innerHTML = `
-    <div style="background:#fff;border-radius:16px;padding:26px;max-width:540px;width:100%;position:relative;max-height:90vh;overflow-y:auto">
+    <div style="background:var(--white);border-radius:16px;padding:26px;max-width:540px;width:100%;position:relative;max-height:90vh;overflow-y:auto">
       <button data-yopish onclick="document.getElementById('profitModal').remove()"
               style="position:absolute;top:18px;right:20px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3)">✕</button>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
-        <div style="width:36px;height:36px;border-radius:10px;background:#F8F2EB;display:flex;align-items:center;justify-content:center;font-size:18px">💰</div>
-        <div style="font-size:18px;font-weight:700;color:#222">Foyda tahlili</div>
+        <div style="width:36px;height:36px;border-radius:10px;background:var(--f-f8f2eb);display:flex;align-items:center;justify-content:center;font-size:18px">💰</div>
+        <div style="font-size:18px;font-weight:700;color:var(--m-222222)">Foyda tahlili</div>
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:20px">
-        <div style="background:#F8F2EB;border-radius:12px;padding:14px 10px;text-align:center">
+        <div style="background:var(--f-f8f2eb);border-radius:12px;padding:14px 10px;text-align:center">
           <div style="font-size:12px;color:var(--gold-dark);margin-bottom:8px;font-weight:600">🏷️ Sotuv narxi</div>
           <div style="font-size:15px;font-weight:800;color:var(--gold-dark);line-height:1.3">${Number(d.sotuv_narxi).toLocaleString('ru-RU')}<br><span style="font-size:12px;font-weight:600">so'm</span></div>
         </div>
-        <div style="background:#FEF2F2;border-radius:12px;padding:14px 10px;text-align:center">
-          <div style="font-size:12px;color:#DC2626;margin-bottom:8px;font-weight:600">⊖ Tan narxi</div>
-          <div style="font-size:15px;font-weight:800;color:#DC2626;line-height:1.3">${Number(d.tan_narxi).toLocaleString('ru-RU')}<br><span style="font-size:12px;font-weight:600">so'm</span></div>
+        <div style="background:var(--f-fef2f2);border-radius:12px;padding:14px 10px;text-align:center">
+          <div style="font-size:12px;color:var(--m-b91c1c);margin-bottom:8px;font-weight:600">⊖ Tan narxi</div>
+          <div style="font-size:15px;font-weight:800;color:var(--m-b91c1c);line-height:1.3">${Number(d.tan_narxi).toLocaleString('ru-RU')}<br><span style="font-size:12px;font-weight:600">so'm</span></div>
         </div>
-        <div style="background:${d.foyda>=0?'#F0FDF4':'#FEF2F2'};border-radius:12px;padding:14px 10px;text-align:center">
-          <div style="font-size:12px;color:${d.foyda>=0?'#15803D':'#DC2626'};margin-bottom:8px;font-weight:600">📈 Foyda</div>
-          <div style="font-size:15px;font-weight:800;color:${d.foyda>=0?'#15803D':'#DC2626'};line-height:1.3">${Number(d.foyda).toLocaleString('ru-RU')}<br><span style="font-size:12px;font-weight:600">so'm</span></div>
-          <div style="font-size:12px;color:${d.foyda>=0?'#15803D':'#DC2626'};font-weight:700;margin-top:4px">${d.foyda_foiz}%</div>
+        <div style="background:${d.foyda>=0?'var(--f-f0fdf4)':'var(--f-fef2f2)'};border-radius:12px;padding:14px 10px;text-align:center">
+          <div style="font-size:12px;color:${d.foyda>=0?'var(--m-15803d)':'var(--m-b91c1c)'};margin-bottom:8px;font-weight:600">📈 Foyda</div>
+          <div style="font-size:15px;font-weight:800;color:${d.foyda>=0?'var(--m-15803d)':'var(--m-b91c1c)'};line-height:1.3">${Number(d.foyda).toLocaleString('ru-RU')}<br><span style="font-size:12px;font-weight:600">so'm</span></div>
+          <div style="font-size:12px;color:${d.foyda>=0?'var(--m-15803d)':'var(--m-b91c1c)'};font-weight:700;margin-top:4px">${d.foyda_foiz}%</div>
         </div>
       </div>
 
-      <div style="background:#FAFAF8;border-radius:14px;padding:18px;border:1px solid #F0F0EC">
-        <div style="display:flex;align-items:center;gap:8px;font-size:14.5px;font-weight:700;color:#222;margin-bottom:12px">📋 Xarajatlar tafsiloti</div>
-        <div style="display:flex;gap:12px;padding:0 0 10px;border-bottom:2px solid #EDEDE8;font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.3px">
+      <div style="background:var(--f-fafaf8);border-radius:14px;padding:18px;border:1px solid var(--ch-f0f0ec)">
+        <div style="display:flex;align-items:center;gap:8px;font-size:14.5px;font-weight:700;color:var(--m-222222);margin-bottom:12px">📋 Xarajatlar tafsiloti</div>
+        <div style="display:flex;gap:12px;padding:0 0 10px;border-bottom:2px solid var(--ch-edede8);font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.3px">
           <div style="width:20px;flex-shrink:0">#</div>
           <div style="width:17px;flex-shrink:0"></div>
           <div style="flex:1">Xarajat nomi</div>
           <div>Summa</div>
         </div>
         ${breakdownHTML}
-        <div style="display:flex;justify-content:space-between;align-items:center;padding-top:14px;margin-top:2px;border-top:1.5px dashed #D8D2C5">
-          <span style="font-weight:700;color:#222;font-size:14.5px">Jami tan narxi:</span>
-          <span style="font-weight:800;color:#DC2626;font-size:16px">${Number(d.tan_narxi).toLocaleString('ru-RU')} so'm</span>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding-top:14px;margin-top:2px;border-top:1.5px dashed var(--ch-d8d2c5)">
+          <span style="font-weight:700;color:var(--m-222222);font-size:14.5px">Jami tan narxi:</span>
+          <span style="font-weight:800;color:var(--m-dc2626);font-size:16px">${Number(d.tan_narxi).toLocaleString('ru-RU')} so'm</span>
         </div>
       </div>
 
-      <div style="background:${d.foyda>=0?'#F0FDF4':'#FEF2F2'};border:1.5px solid ${d.foyda>=0?'#BBF7D0':'#FECACA'};border-radius:14px;padding:16px 18px;margin-top:14px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <div style="background:${d.foyda>=0?'var(--f-f0fdf4)':'var(--f-fef2f2)'};border:1.5px solid ${d.foyda>=0?'var(--ch-bbf7d0)':'var(--ch-fecaca)'};border-radius:14px;padding:16px 18px;margin-top:14px;display:flex;align-items:center;justify-content:space-between;gap:12px">
         <div style="display:flex;align-items:center;gap:12px;min-width:0">
-          <div style="width:38px;height:38px;border-radius:10px;background:${d.foyda>=0?'#DCFCE7':'#FEE2E2'};display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">📈</div>
+          <div style="width:38px;height:38px;border-radius:10px;background:${d.foyda>=0?'var(--f-dcfce7)':'var(--f-fee2e2)'};display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">📈</div>
           <div style="min-width:0">
-            <div style="font-size:12px;font-weight:700;color:${d.foyda>=0?'#15803D':'#DC2626'};text-transform:uppercase;letter-spacing:.3px">Foyda (Sotuv − Tan narxi)</div>
-            <div style="font-size:19px;font-weight:800;color:${d.foyda>=0?'#15803D':'#DC2626'}">${Number(d.foyda).toLocaleString('ru-RU')} so'm</div>
+            <div style="font-size:12px;font-weight:700;color:${d.foyda>=0?'var(--m-15803d)':'var(--m-b91c1c)'};text-transform:uppercase;letter-spacing:.3px">Foyda (Sotuv − Tan narxi)</div>
+            <div style="font-size:19px;font-weight:800;color:${d.foyda>=0?'var(--m-15803d)':'var(--m-b91c1c)'}">${Number(d.foyda).toLocaleString('ru-RU')} so'm</div>
           </div>
         </div>
         <div style="text-align:center;flex-shrink:0">
-          <div style="background:${d.foyda>=0?'#DCFCE7':'#FEE2E2'};color:${d.foyda>=0?'#15803D':'#DC2626'};font-weight:800;font-size:14px;padding:6px 12px;border-radius:20px">${d.foyda_foiz}%</div>
+          <div style="background:${d.foyda>=0?'var(--f-dcfce7)':'var(--f-fee2e2)'};color:${d.foyda>=0?'var(--m-15803d)':'var(--m-b91c1c)'};font-weight:800;font-size:14px;padding:6px 12px;border-radius:20px">${d.foyda_foiz}%</div>
           <div style="font-size:12px;color:var(--text3);margin-top:4px;white-space:nowrap">Sotuvdan ulushi</div>
         </div>
       </div>
@@ -6208,16 +6208,16 @@ function renderPinnedOrders(rows) {
   section.style.display = 'block';
   countEl.textContent = rows.length;
   list.innerHTML = rows.map(o => {
-    const badge = o.status === 'draft' ? '<span class="badge" style="font-size:12px;background:#F0F0F0;color:#666">📝 Qoralama</span>'
+    const badge = o.status === 'draft' ? '<span class="badge" style="font-size:12px;background:var(--f-f0f0f0);color:var(--m-666666)">📝 Qoralama</span>'
       : o.status === 'ready' ? '<span class="badge badge-ready" style="font-size:12px">✓ Tayyor</span>'
       : o.status === 'delivered' ? '<span class="badge badge-delivered" style="font-size:12px" title="«Tayyor» deb belgilanmagan — oylik hisobotga kirmaydi">📦 Yetkazildi</span>'
       : '<span class="badge badge-progress" style="font-size:12px">Jarayonda</span>';
     const amount = (o.agreed_amount ?? o.total_amount) || 0;  // kech42 K42-1
     const urgencyBorder = o.deadline_urgency === 'overdue' ? 'border-left:3px solid #DC2626'
       : (o.deadline_urgency === 'today' || o.deadline_urgency === 'tomorrow') ? 'border-left:3px solid #F59E0B' : '';
-    const urgencyText = o.deadline_urgency === 'overdue' ? '<div class="deadline-pulse" style="margin-top:3px;font-size:12px;color:#DC2626;font-weight:700">🔴 Muddati o\'tgan!</div>'
-      : o.deadline_urgency === 'today' ? '<div class="deadline-pulse" style="margin-top:3px;font-size:12px;color:#B45309;font-weight:700">⏰ Bugun muddati!</div>'
-      : o.deadline_urgency === 'tomorrow' ? '<div style="margin-top:3px;font-size:12px;color:#B45309;font-weight:700">⏰ Ertaga muddati</div>' : '';
+    const urgencyText = o.deadline_urgency === 'overdue' ? '<div class="deadline-pulse" style="margin-top:3px;font-size:12px;color:var(--m-dc2626);font-weight:700">🔴 Muddati o\'tgan!</div>'
+      : o.deadline_urgency === 'today' ? '<div class="deadline-pulse" style="margin-top:3px;font-size:12px;color:var(--m-b45309);font-weight:700">⏰ Bugun muddati!</div>'
+      : o.deadline_urgency === 'tomorrow' ? '<div style="margin-top:3px;font-size:12px;color:var(--m-b45309);font-weight:700">⏰ Ertaga muddati</div>' : '';
     return `
       <div class="ord-item" id="oi-${o.id}" onclick="selectOrder(${o.id}, this)" style="${urgencyBorder}"
            data-num="${o.order_number}" data-client="${escapeHtml(o.client_name)}" data-project="${escapeHtml(o.project_name)}"

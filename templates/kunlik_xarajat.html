@@ -5,7 +5,7 @@
 
 {% block content %}
 <div style="max-width:480px;margin:0 auto;padding:20px 16px">
-  <div style="background:#fff;border-radius:16px;padding:26px;box-shadow:0 1px 2px rgba(24,27,34,.04),0 4px 16px rgba(24,27,34,.06);border:1px solid #E8E3DD">
+  <div style="background:var(--white);border-radius:16px;padding:26px;box-shadow:0 1px 2px rgba(24,27,34,.04),0 4px 16px rgba(24,27,34,.06);border:1px solid var(--ch-e8e3dd)">
 
     <div class="form-group">
       <label>Sana</label>
@@ -32,8 +32,8 @@
       <input type="text" id="kx-notes" placeholder="masalan: 5 kishiga tushlik">
     </div>
 
-    <div id="kx-error" style="display:none;margin-bottom:12px;padding:10px 12px;background:#FEE2E2;border-radius:8px;font-size:13px;color:#DC2626"></div>
-    <div id="kx-success" style="display:none;margin-bottom:12px;padding:10px 12px;background:#F0FDF4;border-radius:8px;font-size:13px;color:#166534"></div>
+    <div id="kx-error" style="display:none;margin-bottom:12px;padding:10px 12px;background:var(--f-fee2e2);border-radius:8px;font-size:13px;color:var(--m-dc2626)"></div>
+    <div id="kx-success" style="display:none;margin-bottom:12px;padding:10px 12px;background:var(--f-f0fdf4);border-radius:8px;font-size:13px;color:var(--m-166534)"></div>
 
     <button id="kx-save-btn" onclick="kxSave()" style="width:100%;background:var(--gold-btn);color:#fff;border:none;border-radius:10px;padding:13px;font-size:14.5px;font-weight:600;cursor:pointer">
       Saqlash
