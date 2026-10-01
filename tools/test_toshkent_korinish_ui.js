@@ -284,7 +284,7 @@ async function ichki() {
     m.el('tx-whole-month').checked = true;
     await yurgiz(m, `await loadDailyTransactions();`);
     const h = m.el('tx-body').innerHTML;
-    tekshir(`T8 moliya — xarajatlar jadvali (oktyabr): tungi xarajat "${S_UZ}" (asl: "${UTC_UZ}")`, h.includes(`<td>${S_UZ}</td>`), h.slice(0, 200));
+    tekshir(`T8 moliya — xarajatlar jadvali (oktyabr): tungi xarajat "${S_UZ}" (asl: "${UTC_UZ}")`, (h.includes(`<td>${S_UZ}</td>`) || h.includes(`<td data-label="Sana">${S_UZ}</td>`)), h.slice(0, 200));   // kech119 (C — telefon): katak nomi `data-label`
   });
   await sinov('T9', async () => {
     const m = muhit({ javob: { '/api/finance/cash-transactions': [{ id: 1, created_at: LAHZA, category: 'boshlangich', amount: 5 }] },
