@@ -454,6 +454,24 @@ loy; sarlavha «Penoplast detal ishlab chiqarish») va «Retsept bo'yicha →» 
 Nomlar: menyu va sahifa — «Loy retseptlari» («Yangi loy retsepti»); Ishlab chiqarishdagi BOM — «Mahsulot tarkibi» («+ Tarkib»,
 «Yangi mahsulot tarkibi», «Tarkib nomi», «Tarkib bo'yicha», server: «Mahsulot tarkibi topilmadi», «nomli tarkib allaqachon bor»).
 Testlar: `tools/test_d123.py`, `tools/test_d123_ui.js`.
+**Sahifalar vazifasi (kech118, D bosqichi 4-qism — egasi QARORLARI G1-09, G2-17, G1-24 «Vazifalar ajratilsin» va 01.10 «Tezkor
+kirish — 3–4 asosiy amal»; zip 124).** Har blok BITTA joyda. BOSH SAHIFA (`home.html`) — bugungi holat va ogohlantirishlar: KPI
+(`/api/dashboard/stats`, qarz — `/charts`), «Bugungi vazifalar» (`/api/dashboard/today-tasks`, `loadTasks` — Dashboard dan ko'chdi),
+«So'nggi buyurtmalar» (qator — `/orders?order=ID`), «Kam qolgan xomashyo», «Tezkor amallar» (`.tezkor-amal`, ruxsatga qarab): «Yangi
+buyurtma» (`buyurtma.yaratish` → `/orders?yangi=1`), «To'lov qabul qilish» (`tolov.yaratish` + `qarz.korish` → `/debts`), «Kirim
+qilish» (`kirim.yaratish` → `/suppliers/receive`), «Brak yozish» (`qaytarish.korish` + qaytarish / brak yaratish → `/returns?brak=1`
+— bitta brak oynasi ochiladi); doira, «Oylik daromad», «Eng faol ustalar», 9 kartali «Tezkor kirish», Chart.js — YO'Q. DASHBOARD —
+ish jarayoni: bugungi KPI, «Buyurtmalar holati» (doira + afsona `#statusLegend`), «Ishlab chiqarish» davrlari, «Buyurtmalar soni»,
+pul qatori, majburiyatlar, qarz, xaridlar, ta'minotchi qarzi, tayyor mahsulot, brak, yetkazish, qarzdor buyurtmalar, usta reytingi,
+avans so'rovlari; olib tashlandi: «Bugungi vazifalar», «Ishlab chiqarish holati» (doira bilan bir xil son), «Ombor
+ogohlantirishlari», «Tezkor amallar», «💰 Daromad», yo'nalishlar kartasi, «Bu oy moliyaviy holat», «Eng ko'p sotilgan», «Pul oqimi»
+(oylik tahlil — Hisobotlar). HISOBOTLAR — oylik tahlil: jadval tablari Ombor / Mahsulotlar / Ustalar / Moliya («Moliya» da
+«Buyurtmalar soni»); «Sotuv», «Ishlab chiqarish», «Eng ko'p sotilgan / xomashyo» tablari yo'q (Moliya, Mahsulotlar va «Reytinglar»
+kartalari bilan bir xil edi); «Oy xulosasi» (ilgari «Bugungi xulosa»). LOYIHALAR — mijoz kartasi: buyurtma qatori AYNAN shu
+buyurtmani ochadi (`/orders?order=ID`), summa — kelishilgan (`loyihaBuyurtmaSummasi`), «+ Yangi buyurtma» — har loyihada
+(`BUYURTMA_YARATADI`), «Buyurtmalari» / «Mahsulotlar ro'yxati» tugmalari. BUYURTMALAR: `buyurtmaniParamdanOch` («?order=ID» —
+guruh ochiladi, qator tanlanadi; ro'yxatda yo'q — `?show_all=true&order=ID`, u yerda ham yo'q — xabar), «?yangi=1» — yangi
+forma (qoralama tiklashdan OLDIN). Testlar: `tools/test_d124.py`, `tools/test_d124_ui.js`.
 **Ranglar va tungi rejim (kech118, D bosqichi 2-qism — egasi QARORI «To'liq tuzatilsin — har sahifa ranglari umumiy ranglar
 ro'yxatiga», U-02; zip 122).** Shablon / `style.css` dagi rang XOSSASIGA qarab UMUMIY RO'YXATDAN olinadi — `static/ranglar.css`
 (`base.html` va mustaqil sahifalar — kirish, hodim kirishi / paneli, xato sahifasi — `style.css` dan KEYIN ulaydi):
@@ -835,6 +853,19 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   «Ta'minotchilar»), `test_yetkazish_ui` («Yuk xati tayyor»; «Brak yozish» tanasida sabab, sababsiz so'rov yo'q),
   `test_xato_sababi_ui` / `test_tahrir_tiyin_ui` / `test_toshkent_korinish_ui` (savatcha va «Kam» yordamchilari, «1 partiya»),
   `test_b118_korinish` (qoldiq rangi faqat holat ko'rinsa), `test_zaxira_loy_narx` (brak tanasi).
+- (kech118, zip 124) D bosqichi 4-qism — sahifalar vazifasi: `tools/test_d124.py` — H (Bosh sahifa: takror bloklar yo'q, «Bugungi
+  vazifalar», «So'nggi buyurtmalar» → /orders?order=ID, «Tezkor amallar» 4 ta — maxsus rollar bilan ruxsatga qarab: faqat
+  «Buyurtmalar: Yaratish» → bitta, hech biri → blok yo'q), D (Dashboard: olib tashlangan bloklar va funksiyalari yo'q, qolganlari
+  bor, doira afsonasi), R (Hisobotlar: 4 tab, «Moliya» da «Buyurtmalar soni», «Oy xulosasi»), P (Loyihalar: izoh, tugmalar,
+  renderOrders — /orders?order=ID, kelishilgan summa, «+ Yangi buyurtma» ruxsatga qarab), O / Q («?order=ID», «?show_all=true&order=»,
+  «?yangi=1», «/returns?brak=1»), T (sahifa skriptlari); SQLite, PG, TF1 — asl kodda 14 / 21 yiqiladi. `tools/test_d124_ui.js` —
+  buyurtmaniParamdanOch (topildi / «Barchasi» bilan qayta / topilmadi — cheksiz aylanish yo'q / noto'g'ri ID), «?yangi=1» (forma,
+  qoralama tiklanmaydi), renderOrders (havola, kelishilgan summa, «+ Yangi buyurtma», 403), doira afsonasi, «Bugungi vazifalar»
+  (bo'sh / tarmoq xatosi), «?brak=1» (oyna BIR marta — tekshiruv ikki marta ochilishni topdi). Mutatsiyalar
+  (work/k123/mutatsiya125.py, 20 ta) — hammasi ushlanadi. Haqiqiy brauzer (work/k123/s124): 4 sahifa × 1440 / 390 px, yorug' /
+  tungi — kontrast 0. Moslangan eski testlar (olib tashlangan bloklar — endi YO'Qligi tekshiriladi): `test_a115_korinish` (D1),
+  `test_a116_ui` (D), `test_a117_ui` (D1, B2 — null-xavfsiz), `test_b118_korinish` (J8c, J11), `test_kam_qoldiq_ui` (D),
+  `test_naqd_kassa` (pul oqimi — API javobidan; H5, H6), `test_transport_foyda` (U3), `test_tannarx` (H4).
 - (kech118, zip 123) D bosqichi 3-qism — bitta «Brak yozish» oynasi, «Penoplast detal» / «Retsept bo'yicha», «Loy retseptlari» /
   «Mahsulot tarkibi»: `tools/test_d123.py` — B (Qaytarishlar va Tayyor mahsulotlarda AYNAN bitta oyna, yo'llar sahifaga va
   ruxsatga qarab — maxsus rollar: faqat «Qaytarishlar: Yaratish» → faqat buyurtma detali, faqat «Brak: Yaratish» → ombor /
@@ -1065,7 +1096,8 @@ bajarilganlari belgilanadi)**
   panelda ko'rinadi (G6-21). BAJARILDI (zip 121; o'tgan oy ham — hisob yoki to'lov bo'lsa).
 - Sahifalar vazifasi — «Vazifalar ajratilsin»: Bosh sahifa — bugungi holat va ogohlantirishlar; Dashboard — ish jarayoni;
   Hisobotlar — oylik tahlil; Loyiha — mijoz kartasi (pul xulosasi, buyurtmalar), Buyurtmalar — ish joyi; takror bloklar
-  bittadan (G1-09, G2-17, G1-24).
+  bittadan (G1-09, G2-17, G1-24). (01.10, tugmali) Bosh sahifadagi «Tezkor kirish» — «3–4 asosiy amal» (Yangi buyurtma, To'lov
+  qabul qilish, Kirim qilish, Brak yozish — har kimga ruxsati borlari). BAJARILDI (zip 124).
 - Rollar: «Usta» LOGIN roli olib tashlanadi (Ustalar ro'yxati, KPI, bonus, sovg'alar QOLADI); «Moliyachi» (hisobchi) roli
   ham olib tashlanadi (kerak bo'lsa keyin qayta); Omborchi qaytarish va brak YOZA OLADI (G2-05, G1-05, G5-03). O'lchov:
   `main` zaxirasida (28.09) foydalanuvchilar — admin + 2 Hodim; usta / moliyachi / omborchi login yo'q.
@@ -1479,12 +1511,12 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 ### `GET /` → `main.py:home` → `templates/home.html`
 - Qorovul: — (tanada tekshiriladi yoki ochiq)
 - Server chaqiruvlari: auth.get_current_user
-- `home.html` API: `/api/dashboard/charts`, `/api/dashboard/stats`, `/api/orders`
+- `home.html` API: `/api/dashboard/charts`, `/api/dashboard/stats`, `/api/dashboard/today-tasks`, `/api/orders`
 
 ### `GET /dashboard` → `main.py:dashboard_page` → `templates/dashboard.html`
 - Qorovul: auth.ruxsat('dashboard', 'korish')
 - Server chaqiruvlari: auth.company_id_of, auth.ruxsat, services.get_dashboard_stats
-- `dashboard.html` API: `/api/admin/advance-requests/{}/confirm`, `/api/admin/advance-requests/{}/reject`, `/api/admin/pending-advance-requests`, `/api/dashboard/charts`, `/api/dashboard/debts`, `/api/dashboard/deliveries`, `/api/dashboard/production-periods`, `/api/dashboard/stats`, `/api/dashboard/today`, `/api/dashboard/today-tasks`, `/api/dashboard/top-finished-products`, `/api/finance/pul-oqimi`, `/api/finance/report`, `/api/finished/stats`, `/api/inventory/purchase-stats`, `/api/obligations/status`, `/api/reports/brak-tahlil`, `/api/returns/stats`, `/api/suppliers`, `/api/suppliers/debt-total`, `/api/suppliers/due-dates`, `/api/transport-stats`
+- `dashboard.html` API: `/api/admin/advance-requests/{}/confirm`, `/api/admin/advance-requests/{}/reject`, `/api/admin/pending-advance-requests`, `/api/dashboard/charts`, `/api/dashboard/debts`, `/api/dashboard/deliveries`, `/api/dashboard/production-periods`, `/api/dashboard/stats`, `/api/dashboard/today`, `/api/finished/stats`, `/api/inventory/purchase-stats`, `/api/obligations/status`, `/api/reports/brak-tahlil`, `/api/returns/stats`, `/api/suppliers`, `/api/suppliers/debt-total`, `/api/suppliers/due-dates`, `/api/transport-stats`
 
 ### `GET /debts` → `main.py:debts_page` → `templates/debts.html`
 - Qorovul: auth.ruxsat('qarz', 'korish')
@@ -2151,6 +2183,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_d121.py` · PG — kech118 D BOSQICHI 1-qism (zip 121): MAYDA QOIDALAR VA NOMLAR (egasi QARORLARI kech118 11:40, tugmali, QAYTA SO'RALMAYDI).
 - `test_d122.py` · PG — kech118 D BOSQICHI 2-qism (zip 122): TUNGI REJIM TO'LIQ (audit U-02; egasi QARORI «To'liq tuzatilsin — har sahifa ranglari umumiy ranglar ro'yxatiga», tugmali, QAYTA SO'RALMAYDI).
 - `test_d123.py` · PG — kech118 D BOSQICHI 3-qism (zip 123): BRAK — BITTA OYNA, «PENOPLAST DETAL» / «RETSEPT BO'YICHA», «LOY RETSEPTLARI» / «MAHSULOT TARKIBI» (egasi QARORLARI kech118 11:40 — G5-04, G5-01, G4…
+- `test_d124.py` · PG — kech118 D BOSQICHI 4-qism (zip 124): SAHIFALAR VAZIFASI (egasi QARORI kech118 11:40 «Vazifalar ajratilsin» — G1-09, G2-17, G1-24; 01.10 «Tezkor kirish — 3–4 asosiy amal»; tugmali, QAYT…
 - `test_detal_poyga.py` · PG — 5-bo'lim 14-band darvozasi (kech41, 2026-09-23): detal tahriri / o'chirish / "Tayyor" va yetkazish orasidagi poygalar.
 - `test_dizayn114_ui.py` · PG — kech114: dizayn 5–10 (egasi QARORLARI «7A — Guruh, bosilsa ochiladi», «5B — Jadval», «6A — Bir qator + tugmalar»; 9 / 10 — texnik) va K114-1 ning sahifadagi qismi — HAQIQIY sah…
 - `test_donalik_hajm_snapshot.py` · PG — kech96 (2026-09-27), 126-band.
@@ -2278,6 +2311,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_d121_ui.js` · JS — kech118 D BOSQICHI 1-qism (zip 121): sahifalardagi XATTI-HARAKAT (egasi QARORLARI kech118 11:40).
 - `test_d122_ui.js` · JS — kech118 D BOSQICHI 2-qism (zip 122): TUNGI REJIM — sahifa JS i chizadigan ranglar (audit U-02; egasi QARORI «To'liq tuzatilsin — har sahifa ranglari umumiy ranglar ro'yxatiga», QAYT…
 - `test_d123_ui.js` · JS — kech118 D BOSQICHI 3-qism (zip 123): BITTA «Brak yozish» oynasi (egasi QARORI G5-04, QAYTA SO'RALMAYDI).
+- `test_d124_ui.js` · JS — kech118 D BOSQICHI 4-qism (zip 124): SAHIFALAR VAZIFASI — sahifa JS xatti-harakati (egasi QARORI «Vazifalar ajratilsin» G1-09, G2-17; 01.10 «Tezkor kirish — 3–4 asosiy amal»; QAYTA…
 - `test_kam_qoldiq_ui.js` · JS — kech108, K108-2 (19-band, EGASI QARORI "Ha, ko'rinsin"): «kam qolgan xomashyo» brauzer qismi.
 - `test_kelishilgan_tahrir_ui.js` · JS — kech110, K110-1: buyurtma TAHRIRIDA kelishilgan summa (templates/orders.html).
 - `test_kichik103_ui.js` · JS — kech103 kichik bandlari (UI) darvozasi.
@@ -2305,5 +2339,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 181 (Python 148, JS 33).
+Jami test fayllari: 183 (Python 149, JS 34).
 <!-- AVTO:TESTLAR OXIRI -->
