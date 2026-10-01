@@ -912,6 +912,19 @@ async function saveReturn(){
 
 // kech118 (D-3, G5-04): brak yozish funksiyalari — templates/_brak_oyna.html (bitta oyna)
 
+// kech118 (D-3, egasi QARORI 01.10 «Tezkor amallar»): Bosh sahifadagi «Brak yozish» — «/returns?brak=1» → bitta brak oynasi ochiladi
+(function () {
+  try {
+    const p = new URLSearchParams(window.location.search);
+    if (p.get('brak') !== '1') return;
+    history.replaceState(null, '', window.location.pathname);
+    if (typeof showBrakModal === 'function' && document.getElementById('brakModal')) {
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => showBrakModal());
+      else showBrakModal();
+    }
+  } catch (e) { /* URL — muhim emas */ }
+})();
+
 fetch('/api/returns/stats').then(r=>r.json()).then(s=>{
   document.getElementById('k-brak-month').textContent = s.brak_month_count + ' ta';
   document.getElementById('k-whole-month').textContent = s.whole_month_count + ' ta';

@@ -1158,6 +1158,25 @@ async function restoreDraftLS(draft) {
   showMsg('📝 Tugallanmagan buyurtma qayta tiklandi', 'success');
 }
 
+// «?order=ID» — buyurtmani ochish (true — parametr bor edi va ishlandi; qoralama tiklanmaydi)
+function buyurtmaniParamdanOch(params) {
+  const id = params.get('order');
+  if (!id) return false;
+  const barchasi = params.get('show_all') === 'true';
+  history.replaceState(null, '', window.location.pathname + (barchasi ? '?show_all=true' : ''));
+  if (!/^\d+$/.test(id)) return true;
+  const el = document.querySelector('.ord-list #oi-' + id);
+  if (el) {
+    openProject(el.dataset.projectId);
+    selectOrder(Number(id), el);
+    try { el.scrollIntoView({ block: 'center' }); } catch (e) { /* ko'rinish — muhim emas */ }
+    return true;
+  }
+  if (!barchasi) { window.location.replace('/orders?show_all=true&order=' + id); return true; }
+  showMsg("Buyurtma topilmadi — o'chirilgan bo'lishi mumkin", 'error');
+  return true;
+}
+
 function checkForDraftOnLoad() {
   // 2026-09-15: audit paytida topilgan kamchilik — loyiha ichida hali
   // birorta ham buyurtma yo'q bo'lsa, o'sha yerda "+ Yangi buyurtma"
@@ -1168,6 +1187,15 @@ function checkForDraftOnLoad() {
   // buyurtma formasini o'sha loyiha tanlangan holda ochamiz.
   try {
     const params = new URLSearchParams(window.location.search);
+    // kech118 (D-3, egasi QARORI G2-17): Loyihalar / Bosh sahifadan «/orders?order=ID» — AYNAN shu buyurtma ochiladi (guruhi
+    // ochiladi, qator tanlanadi). Ro'yxatda yo'q bo'lsa (90 kundan eski yopilgan) — «Barchasi» bilan qayta ochiladi.
+    if (buyurtmaniParamdanOch(params)) return;
+    // «/orders?yangi=1» — Bosh sahifadagi «+ Yangi buyurtma» amali: yangi buyurtma formasi
+    if (params.get('yangi') === '1') {
+      showNewForm();
+      history.replaceState(null, '', window.location.pathname);
+      return;
+    }
     const forProject = params.get('new_for_project');
     if (forProject) {
       showNewForm();

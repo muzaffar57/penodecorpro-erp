@@ -2,16 +2,22 @@
 
 {% block title %}Bosh sahifa — PenoDecorPro ERP{% endblock %}
 {% block page_title %}Assalomu alaykum, {{ current_user.full_name or current_user.username }}{% endblock %}
-{% block page_sub %}Bugungi holat va tezkor kirish{% endblock %}
+{% block page_sub %}Bugungi holat, ogohlantirishlar va tezkor amallar{% endblock %}
 
 {% block head %}
 <style>
-.chart-wrap { position: relative; height: 200px; }
 .section-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 14px; }
-.section-row2 { display: grid; grid-template-columns: 1.4fr 1fr; gap: 14px; margin-bottom: 14px; }
 @media (max-width: 1100px) {
-  .section-row, .section-row2 { grid-template-columns: 1fr; }
+  .section-row { grid-template-columns: 1fr; }
 }
+/* kech118 (D-3): «Tezkor amallar» — 3–4 eng kerakli amal (ruxsatga qarab) */
+.tezkor-amallar { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+.tezkor-amal { display: flex; align-items: center; gap: 12px; padding: 16px 18px; background: var(--white); border: 1px solid var(--border);
+  border-radius: 14px; text-decoration: none; color: var(--text); min-height: 44px; transition: border-color .15s, box-shadow .15s; }
+.tezkor-amal:hover, .tezkor-amal:focus-visible { border-color: var(--gold); box-shadow: var(--shadow-card); }
+.tezkor-amal i { font-size: 22px; color: var(--gold-dark); flex-shrink: 0; }
+.tezkor-amal b { display: block; font-size: 14px; font-weight: 700; }
+.tezkor-amal small { display: block; font-size: 12.5px; color: var(--text3); margin-top: 2px; }
 </style>
 {% endblock %}
 
@@ -53,12 +59,14 @@
     </div>
   </div>
 
+  {# kech118 (D-3, egasi QARORI G1-09 «Vazifalar ajratilsin»): Bosh sahifa — BUGUNGI holat va ogohlantirishlar. «Buyurtmalar
+     holati» doirasi va «Eng faol ustalar» — Dashboard da (ish jarayoni), «Oylik daromad» — Hisobotlar da (oylik tahlil); bu yerdan
+     olib tashlandi (takror edi). «Bugungi vazifalar» Dashboard dan shu yerga ko'chdi. #}
   <div class="section-row">
-    <div class="card">
-      <div class="card-head"><h3>Buyurtmalar holati</h3></div>
-      <div class="card-body">
-        <div class="chart-wrap" style="height:170px"><canvas id="statusChart"></canvas></div>
-        <div class="gauge-legend" id="statusLegend"></div>
+    <div class="card" id="tasksCard">
+      <div class="card-head"><h3>Bugungi vazifalar</h3></div>
+      <div class="card-body" id="tasksList">
+        <div class="list-sub">Yuklanmoqda…</div>
       </div>
     </div>
 
@@ -76,134 +84,35 @@
       </div>
     </div>
   </div>
-
-  <div class="section-row2">
-    <div class="card">
-      <div class="card-head"><h3>Oylik daromad</h3></div>
-      <div class="card-body">
-        <div class="chart-wrap"><canvas id="revenueChart"></canvas></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-head"><h3>Eng faol ustalar</h3><a href="/kpi" class="ch-action">Barchasi →</a></div>
-      <div class="card-body">
-        <div class="leaderboard" id="leaderboard"></div>
-      </div>
-    </div>
-  </div>
   {% endif %}
 
-  {# ============ TEZKOR KIRISH — HAMMA ROLLAR ============ #}
-  <div class="card-head" style="border:none;padding:0 0 12px"><h3>Tezkor kirish</h3></div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px">
-
-    {% if u.ruxsat('loyiha', 'korish') or u.ruxsat('loyiha_korsatkich', 'korish') %}
-    <a href="/projects" style="text-decoration:none">
-      <div class="card" style="padding:20px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor='#B9783F'" onmouseout="this.style.borderColor='var(--ch-ebebeb)'">
-        <div class="stat-icon" style="margin-bottom:12px"><i class="ti ti-briefcase"></i></div>
-        <div style="font-size:14px;font-weight:600;color:var(--m-111111);margin-bottom:4px">Loyihalar</div>
-        <div style="font-size:12px;color:var(--text3)">Mijoz loyihalarini boshqarish</div>
-      </div>
-    </a>
-    {% endif %}
-
-    {% if u.ruxsat('buyurtma', 'korish') or u.ruxsat('buyurtma_fayl', 'yaratish') %}
-    <a href="/orders" style="text-decoration:none">
-      <div class="card" style="padding:20px;cursor:pointer;transition:all .2s;border-color:#B9783F" onmouseover="this.style.borderColor='#A86B36'" onmouseout="this.style.borderColor='#B9783F'">
-        <div class="stat-icon" style="margin-bottom:12px"><i class="ti ti-receipt"></i></div>
-        <div style="font-size:14px;font-weight:600;color:var(--m-111111);margin-bottom:4px">Buyurtmalar</div>
-        <div style="font-size:12px;color:var(--text3)">Yangi va faol buyurtmalar</div>
-      </div>
-    </a>
-
-    {% endif %}
-
-    {% if u.ruxsat('usta', 'korish') %}
-    <a href="{{ '/masters' if u.ruxsat('kpi', 'korish') else '/ustalar' }}" style="text-decoration:none">
-      <div class="card" style="padding:20px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor='#B9783F'" onmouseout="this.style.borderColor='var(--ch-ebebeb)'">
-        <div class="stat-icon" style="margin-bottom:12px"><i class="ti ti-hammer"></i></div>
-        <div style="font-size:14px;font-weight:600;color:var(--m-111111);margin-bottom:4px">Ustalar</div>
-        <div style="font-size:12px;color:var(--text3)">KPI va reyting</div>
-      </div>
-    </a>
-    {% endif %}
-
-    {% if u.ruxsat('material', 'korish') %}
-    <a href="/inventory" style="text-decoration:none">
-      <div class="card" style="padding:20px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor='#B9783F'" onmouseout="this.style.borderColor='var(--ch-ebebeb)'">
-        <div class="stat-icon" style="margin-bottom:12px"><i class="ti ti-package"></i></div>
-        <div style="font-size:14px;font-weight:600;color:var(--m-111111);margin-bottom:4px">Omborxona</div>
-        <div style="font-size:12px;color:var(--text3)">Xomashyo va materiallar</div>
-      </div>
-    </a>
-
-    {% endif %}
-    {% if u.ruxsat('retsept', 'korish') %}
-    <a href="/recipes" style="text-decoration:none">
-      <div class="card" style="padding:20px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor='#B9783F'" onmouseout="this.style.borderColor='var(--ch-ebebeb)'">
-        <div class="stat-icon" style="margin-bottom:12px"><i class="ti ti-flask"></i></div>
-        <div style="font-size:14px;font-weight:600;color:var(--m-111111);margin-bottom:4px">Retseptlar</div>
-        <div style="font-size:12px;color:var(--text3)">Kvars va marmar qoplama</div>
-      </div>
-    </a>
-    {% endif %}
-
-    {% if u.ruxsat('qaytarish', 'korish') %}
-    <a href="/returns" style="text-decoration:none">
-      <div class="card" style="padding:20px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor='#B9783F'" onmouseout="this.style.borderColor='var(--ch-ebebeb)'">
-        <div class="stat-icon" style="margin-bottom:12px"><i class="ti ti-arrow-back-up"></i></div>
-        <div style="font-size:14px;font-weight:600;color:var(--m-111111);margin-bottom:4px">Qaytarishlar</div>
-        <div style="font-size:12px;color:var(--text3)">Brak va ortiqcha mahsulotlar</div>
-      </div>
-    </a>
-
-    {% endif %}
-    {% if u.ruxsat('qarz', 'korish') %}
-    <a href="/debts" style="text-decoration:none">
-      <div class="card" style="padding:20px;cursor:pointer;transition:all .2s;border-color:var(--ch-fee2e2)" onmouseover="this.style.borderColor='#EF4444'" onmouseout="this.style.borderColor='var(--ch-fee2e2)'">
-        <div class="stat-icon" style="margin-bottom:12px;background:var(--f-fee2e2);color:var(--m-dc2626)"><i class="ti ti-credit-card"></i></div>
-        <div style="font-size:14px;font-weight:600;color:var(--m-111111);margin-bottom:4px">Qarzdorlar</div>
-        <div style="font-size:12px;color:var(--text3)">To'liq to'lanmagan loyihalar</div>
-      </div>
-    </a>
-    {% endif %}
-
-    {% if u.ruxsat('dashboard', 'korish') %}
-    <a href="/dashboard" style="text-decoration:none">
-      <div class="card" style="padding:20px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor='#B9783F'" onmouseout="this.style.borderColor='var(--ch-ebebeb)'">
-        <div class="stat-icon" style="margin-bottom:12px"><i class="ti ti-chart-bar"></i></div>
-        <div style="font-size:14px;font-weight:600;color:var(--m-111111);margin-bottom:4px">Dashboard</div>
-        <div style="font-size:12px;color:var(--text3)">Statistika va KPI</div>
-      </div>
-    </a>
-
-    {% endif %}
-    {% if u.ruxsat('moliya', 'korish') %}
-    <a href="/finance" style="text-decoration:none">
-      <div class="card" style="padding:20px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor='#B9783F'" onmouseout="this.style.borderColor='var(--ch-ebebeb)'">
-        <div class="stat-icon" style="margin-bottom:12px"><i class="ti ti-trending-up"></i></div>
-        <div style="font-size:14px;font-weight:600;color:var(--m-111111);margin-bottom:4px">Moliya</div>
-        <div style="font-size:12px;color:var(--text3)">Oylik hisobot va xarajatlar</div>
-      </div>
-    </a>
-    {% endif %}
-
+  {# kech118 (D-3, egasi QARORI 01.10 «3–4 asosiy amal», G1-24): ilgari «Tezkor kirish» — chap menyuni takrorlovchi 9 karta (qat'iy
+     «Kvars va marmar qoplama» matni, doim belgilangan karta). Endi — eng kerakli amallar, har kimga faqat ruxsati borlari. #}
+  {% set _amal_buyurtma = u.ruxsat('buyurtma', 'yaratish') %}
+  {% set _amal_tolov = u.ruxsat('tolov', 'yaratish') and u.ruxsat('qarz', 'korish') %}
+  {% set _amal_kirim = u.ruxsat('kirim', 'yaratish') %}
+  {% set _amal_brak = u.ruxsat('qaytarish', 'korish') and (u.ruxsat('qaytarish', 'yaratish') or u.ruxsat('brak', 'yaratish')) %}
+  {% if _amal_buyurtma or _amal_tolov or _amal_kirim or _amal_brak %}
+  <div class="card-head" style="border:none;padding:0 0 12px"><h3>Tezkor amallar</h3></div>
+  <div class="tezkor-amallar" id="tezkorAmallar">
+    {% if _amal_buyurtma %}<a class="tezkor-amal" href="/orders?yangi=1"><i class="ti ti-plus"></i><span><b>Yangi buyurtma</b><small>Mijoz buyurtmasini yozish</small></span></a>{% endif %}
+    {% if _amal_tolov %}<a class="tezkor-amal" href="/debts"><i class="ti ti-cash"></i><span><b>To'lov qabul qilish</b><small>Qarzdor mijozdan to'lov</small></span></a>{% endif %}
+    {% if _amal_kirim %}<a class="tezkor-amal" href="/suppliers/receive"><i class="ti ti-truck-delivery"></i><span><b>Kirim qilish</b><small>Ta'minotchidan xomashyo</small></span></a>{% endif %}
+    {% if _amal_brak %}<a class="tezkor-amal" href="/returns?brak=1"><i class="ti ti-alert-triangle"></i><span><b>Brak yozish</b><small>Buyurtma, ombor yoki ishlab chiqarishda</small></span></a>{% endif %}
   </div>
+  {% endif %}
 </div>
 {% endblock %}
 
 {% block scripts %}
 {% if current_user.ruxsat('dashboard', 'korish') %}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
 const fmt = n => new Intl.NumberFormat('uz-UZ').format(Math.round(n));
 const fmtM = n => (n / 1000000).toFixed(1).replace('.', ',') + ' mln';   // kech118 (U-05): kasr — vergul
 
-// kech118 (U-06, O'LCHANGAN — audit: qoralama / qoplamadagi buyurtma doirada va ro'yxatda «draft» deb chiqardi)
+// kech118 (U-06, O'LCHANGAN — audit: qoralama / qoplamadagi buyurtma ro'yxatda «draft» deb chiqardi)
 const STATUS_LABELS = {draft: "Qoralama", new: "Yangi", in_progress: "Jarayonda", coating: "Qoplamada", ready: "Tayyor", delivered: "Yetkazilgan", cancelled: "Bekor qilingan"};
 const TUR_NOMI = {product: "Mahsulot", service: "Xizmat"};
-const STATUS_COLORS = {new: "#1a6fa8", in_progress: "#F59E0B", ready: "#22C55E", delivered: "#8E44AD", cancelled: "#aaaaaa"};
 
 fetch('/api/dashboard/stats').then(r => r.json()).then(s => {
   document.getElementById('k-orders').textContent = fmt(s.total_orders);
@@ -239,65 +148,21 @@ function kamQoldiqHtml(items) {
 
 fetch('/api/dashboard/charts').then(r => r.json()).then(c => {
   document.getElementById('k-debt').textContent = fmtM(c.finance.total_debt) + " so'm";
-
-  new Chart(document.getElementById('revenueChart'), {
-    data: {
-      labels: c.months.map(m => m.label),
-      datasets: [
-        {
-          type: 'bar', label: 'Daromad',
-          data: c.months.map(m => m.revenue),
-          backgroundColor: '#F8F2EB', borderRadius: 6, maxBarThickness: 28
-        },
-        {
-          type: 'line', label: 'Daromad',
-          data: c.months.map(m => m.revenue),
-          borderColor: '#B9783F', backgroundColor: '#B9783F',
-          fill: false, tension: 0.4, borderWidth: 2.5,
-          pointRadius: 3, pointBackgroundColor: '#B9783F'
-        }
-      ]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: { y: { beginAtZero: true, grid: { color: '#F0ECE6' }, ticks: { callback: v => fmtM(v) } }, x: { grid: { display: false } } }
-    }
-  });
-
-  const statusEntries = Object.entries(c.statuses).filter(([k, v]) => v > 0);
-  new Chart(document.getElementById('statusChart'), {
-    type: 'doughnut',
-    data: {
-      labels: statusEntries.map(([k]) => STATUS_LABELS[k] || k),
-      datasets: [{
-        data: statusEntries.map(([, v]) => v),
-        backgroundColor: statusEntries.map(([k]) => STATUS_COLORS[k] || '#ccc'),
-        borderWidth: 0
-      }]
-    },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, cutout: '65%' }
-  });
-  document.getElementById('statusLegend').innerHTML = statusEntries.map(([k, v]) => `
-    <div class="gauge-legend-row">
-      <span><span class="gauge-dot" style="background:${STATUS_COLORS[k] || 'var(--f-cccccc)'}"></span>${STATUS_LABELS[k] || k}</span>
-      <span style="font-weight:500">${v} ta</span>
-    </div>`).join('');
-
-  const board = document.getElementById('leaderboard');
-  if (!c.master_kpi || c.master_kpi.length === 0) {
-    board.innerHTML = '<div class="list-sub">Ma\'lumot yo\'q</div>';
-  } else {
-    board.innerHTML = c.master_kpi.map((m, i) => {
-      const initials = m.name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase();
-      return `<div class="lb-item ${i === 0 ? 'rank1' : ''}">
-        <div class="lb-avatar">${initials}</div>
-        <div class="lb-name">${escapeHtml(m.name)}</div>
-        <div class="lb-meta">${m.orders} ta buyurtma</div>
-      </div>`;
-    }).join('');
-  }
 }).catch(() => {});
+
+// kech118 (D-3, G1-09): «Bugungi vazifalar» — Dashboard dan ko'chdi (bugun topshiriladigan, muddati o'tgan, kam qolgan)
+async function loadTasks() {
+  const el = document.getElementById('tasksList');
+  try {
+    const tasks = await fetch('/api/dashboard/today-tasks').then(r => r.json());
+    el.innerHTML = (Array.isArray(tasks) && tasks.length)
+      ? tasks.map(t => `<div class="list-row" style="justify-content:flex-start;gap:10px"><span>${escapeHtml(t.icon)}</span><span class="list-title" style="font-weight:500">${escapeHtml(t.text)}</span></div>`).join('')
+      : '<div class="list-sub">Bugun uchun alohida vazifa yo\'q</div>';
+  } catch (e) {
+    el.innerHTML = '<div class="list-sub">Yuklab bo\'lmadi</div>';
+  }
+}
+loadTasks();
 
 fetch('/api/orders').then(r => r.json()).then(orders => {
   const recentEl = document.getElementById('recentOrders');
@@ -307,14 +172,15 @@ fetch('/api/orders').then(r => r.json()).then(orders => {
     return;
   }
   const badgeClass = {new: 'badge-new', in_progress: 'badge-progress', ready: 'badge-ready', delivered: 'badge-delivered', cancelled: 'badge-cancelled'};
+  // kech118 (D-3, G2-17): qator AYNAN shu buyurtmani ochadi (/orders?order=ID)
   recentEl.innerHTML = recent.map(o => `
-    <div class="list-row">
+    <a class="list-row" href="/orders?order=${Number(o.id)}" style="text-decoration:none;color:inherit" title="Buyurtmani ochish">
       <div>
-        <div class="list-title">${o.order_number ? escapeHtml(o.order_number) : ('#' + o.id)}</div>
+        <div class="list-title">${o.order_number ? escapeHtml(o.order_number) : ('#' + Number(o.id))}</div>
         <div class="list-sub">${escapeHtml(TUR_NOMI[o.order_type] || o.order_type || '')}</div>
       </div>
       <span class="badge ${badgeClass[o.status] || 'badge-info'}">${STATUS_LABELS[o.status] || escapeHtml(o.status)}</span>
-    </div>`).join('');
+    </a>`).join('');
 }).catch(() => {
   document.getElementById('recentOrders').innerHTML = '<div class="list-sub">Yuklab bo\'lmadi</div>';
 });

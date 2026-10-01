@@ -166,7 +166,7 @@ html[data-theme="dark"] .bi-tab.active{background:var(--f-eceae6);color:var(--m-
   <div class="bi-summary bi-fade" id="aiSummary" style="display:none">
     <div class="bi-summary-icon">💡</div>
     <div>
-      <div class="bi-summary-title">Bugungi xulosa</div>
+      <div class="bi-summary-title">Oy xulosasi</div>
       <div class="bi-summary-list" id="aiSummaryList">Yuklanmoqda...</div>
     </div>
   </div>
@@ -313,15 +313,13 @@ html[data-theme="dark"] .bi-tab.active{background:var(--f-eceae6);color:var(--m-
 
   <!-- 11-QATOR: JADVAL -->
   <div class="bi-section bi-section-table">
+    <!-- kech118 (D-3, egasi QARORI G1-09): takror jadvallar olib tashlandi — «Sotuv» (= «Moliya»; buyurtmalar soni Moliya da),
+         «Ishlab chiqarish» (= «Mahsulotlar» ning bir qismi), «Eng ko'p sotilgan» va «Eng ko'p xomashyo» (= «Reytinglar» kartalari) -->
     <div class="bi-tabs" id="repTabs">
       <button class="bi-tab active" data-r="inventory" onclick="switchReport('inventory')">📦 Ombor</button>
-      <button class="bi-tab" data-r="sales" onclick="switchReport('sales')">💰 Sotuv</button>
       <button class="bi-tab" data-r="products" onclick="switchReport('products')">🏭 Mahsulotlar</button>
       <button class="bi-tab" data-r="masters" onclick="switchReport('masters')">👷 Ustalar / KPI</button>
       <button class="bi-tab" data-r="finance" onclick="switchReport('finance')">📊 Moliya</button>
-      <button class="bi-tab" data-r="production" onclick="switchReport('production')">⚙️ Ishlab chiqarish</button>
-      <button class="bi-tab" data-r="top-products" onclick="switchReport('top-products')">🏆 Eng ko'p sotilgan (Tayyor)</button>
-      <button class="bi-tab" data-r="top-materials" onclick="switchReport('top-materials')">🧱 Eng ko'p xomashyo</button>
     </div>
 
     <div class="bi-card bi-fade">
@@ -377,9 +375,8 @@ const toliqSom = n => (n === null ? '—' : fmt(n) + " so'm");
 const MONTH_NAMES=['','Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust','Sentabr','Oktabr','Noyabr','Dekabr'];
 
 const TITLES = {
-  'inventory': 'Ombor hisoboti', 'sales': 'Sotuv hisoboti', 'products': 'Mahsulotlar hisoboti',
-  'masters': 'Hamkor ustalar / KPI hisoboti', 'finance': 'Moliyaviy hisobot', 'production': 'Ishlab chiqarish hisoboti',
-  'top-products': 'Eng ko\'p sotilgan (Tayyor mahsulotlar)', 'top-materials': 'Eng ko\'p ishlatilgan xomashyo'
+  'inventory': 'Ombor hisoboti', 'products': 'Mahsulotlar hisoboti',
+  'masters': 'Hamkor ustalar / KPI hisoboti', 'finance': 'Moliyaviy hisobot'
 };
 
 const HEALTH_COLORS = {green:'#22C55E', orange:'#F59E0B', red:'#EF4444'};
@@ -891,13 +888,9 @@ async function loadReport() {
   if (totalBox) totalBox.style.display = 'none';
   try {
     if (currentReport === 'inventory') await loadInventoryReport();
-    else if (currentReport === 'sales') await loadSalesReport();
     else if (currentReport === 'products') await loadProductsReport();
     else if (currentReport === 'masters') await loadMastersReport();
     else if (currentReport === 'finance') await loadFinanceReport();
-    else if (currentReport === 'production') await loadProductionReport();
-    else if (currentReport === 'top-products') await loadTopProducts();
-    else if (currentReport === 'top-materials') await loadTopMaterials();
   } catch(e) {
     document.getElementById('repBody').innerHTML = `<tr><td style="text-align:center;padding:30px;color:var(--m-dc2626)">Yuklashda xato</td></tr>`;
     console.error(e);
@@ -959,18 +952,6 @@ async function loadInventoryReport() {
   }
 }
 
-async function loadSalesReport() {
-  const months = Math.max(1, Math.round(currentDays/30));
-  const hist = await fetch(`/api/finance/history?months=${months}`).then(r=>r.json());
-  setTable([
-    ["Oy", h => MONTH_NAMES[h.month]+' '+h.year],
-    ["Daromad", h => fmt(h.daromad) + " so'm"],
-    ["Buyurtmalar soni", h => h.buyurtmalar_soni + ' ta'],
-    ["Sof foyda", h => toliqSom(h.sof_foyda)],
-    ["Rentabellik", h => foizKor(h.foyda_foiz)],
-  ], hist);
-}
-
 async function loadProductsReport() {
   const items = await fetch('/api/finished').then(r=>r.json());
   setTable([
@@ -1015,40 +996,11 @@ async function loadFinanceReport() {
   setTable([
     ["Oy", h => MONTH_NAMES[h.month]+' '+h.year],
     ["Daromad", h => fmt(h.daromad) + " so'm"],
+    ["Buyurtmalar soni", h => h.buyurtmalar_soni + ' ta'],   // kech118 (D-3): ilgari alohida «Sotuv» jadvalida
     ["Xarajat", h => fmt(h.jami_xarajat) + " so'm"],
     ["Sof foyda", h => toliqSom(h.sof_foyda)],
     ["Rentabellik", h => foizKor(h.foyda_foiz)],
   ], hist);
-}
-
-async function loadProductionReport() {
-  const items = await fetch('/api/finished?source=produced').then(r=>r.json());
-  setTable([
-    ["Nomi", i => escapeHtml(i.name)],
-    ["Holati", i => i.production_status === 'in_progress' ? "Jarayonda" : "Tayyor"],
-    ["Miqdor", i => `${i.quantity} ${escapeHtml(i.unit)}`],
-    ["Sarflangan penoplast", i => sonKor(i.volume_m3||0, 3) + ' m³'],
-    ["Tan narxi", i => toliqSom(i.cost_price)],
-  ], items);
-}
-
-async function loadTopProducts() {
-  const rows = await fetch(`/api/dashboard/top-finished-products?days=${currentDays}&limit=20`).then(r=>r.json());
-  setTable([
-    ["Mahsulot nomi", r => escapeHtml(r.name)],
-    ["Buyurtmalar soni", r => r.times_ordered + ' marta'],
-    ["Jami miqdor", r => r.quantity],
-    ["Jami daromad", r => fmt(r.revenue) + " so'm"],
-  ], rows);
-}
-
-async function loadTopMaterials() {
-  const rows = await fetch(`/api/reports/top-materials?days=${currentDays}`).then(r=>r.json());
-  setTable([
-    ["Xomashyo nomi", r => escapeHtml(r.item_name)],
-    ["Jami sarflangan", r => `${r.total_qty} ${escapeHtml(r.unit)}`],
-    ["Harakatlar soni", r => r.movement_count + ' marta'],
-  ], rows);
 }
 
 function exportCSV(){

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Loyihalar — PenoDecorPro ERP{% endblock %}
 {% block page_title %}Loyihalar{% endblock %}
-{% block page_sub %}Korxonaning barcha buyurtmalarini boshqaruvchi markaziy modul{% endblock %}
+{% block page_sub %}Mijoz va loyiha kartasi — pul xulosasi va buyurtmalari (buyurtma ustida ish — «Buyurtmalar» sahifasida){% endblock %}
 
 {% block topbar_actions %}
 <button class="btn btn-dark" onclick="showAddModal()"><i class="ti ti-plus" style="vertical-align:-2px"></i> Yangi loyiha</button>
@@ -494,37 +494,53 @@ function renderAsosiy(d) {
     <div class="info-row"><span style="color:var(--text3)">Muddat</span><span>${escapeHtml(d.deadline)}</span></div>
     <div class="qa-row">
       <button class="btn btn-outline btn-sm" onclick="openEditModal()"><i class="ti ti-edit" style="font-size:12px"></i> Tahrirlash</button>
-      <button class="btn btn-outline btn-sm" onclick="switchTab('orders')"><i class="ti ti-arrow-right" style="font-size:12px"></i> Buyurtmaga o'tish</button>
+      <button class="btn btn-outline btn-sm" onclick="switchTab('orders')"><i class="ti ti-arrow-right" style="font-size:12px"></i> Buyurtmalari</button>
       <button class="btn btn-outline btn-sm" onclick="switchTab('payments')"><i class="ti ti-cash" style="font-size:12px"></i> To'lovlarni ko'rish</button>
-      <button class="btn btn-outline btn-sm" onclick="switchTab('products')"><i class="ti ti-file-text" style="font-size:12px"></i> Hujjatlarni ko'rish</button>
+      <button class="btn btn-outline btn-sm" onclick="switchTab('products')"><i class="ti ti-list" style="font-size:12px"></i> Mahsulotlar ro'yxati</button>
       <button class="btn btn-green btn-sm" id="proj-complete-btn" onclick="markProjectComplete()"><i class="ti ti-check" style="font-size:12px"></i> Yakunlash</button>
       <button class="btn btn-outline btn-sm" style="color:var(--m-dc2626);border-color:#EF4444" onclick="deleteProj()">O'chirish</button>
     </div>`;
 }
 
+// kech118 (D-3, egasi QARORI G2-17 «Vazifalar ajratilsin»): loyiha — mijoz kartasi. Buyurtma qatori AYNAN shu buyurtmani ochadi
+// (`/orders?order=ID`), summa — KELISHILGAN (Buyurtmalar ro'yxati va loyiha pul xulosasi bilan bir xil; ilgari jami — chegirmasiz),
+// «+ Yangi buyurtma» — har loyihada (ilgari faqat buyurtmasiz loyihada).
+const BUYURTMA_YARATADI = {{ 'true' if current_user.ruxsat('buyurtma', 'yaratish') else 'false' }};
+function loyihaBuyurtmaSummasi(o) {
+  return (o.agreed_amount !== null && o.agreed_amount !== undefined) ? Number(o.agreed_amount) : Number(o.total_amount || 0);
+}
 async function renderOrders(d) {
   try {
-    const orders = await fetch(`/api/orders?project_id=${selectedProjId}`).then(r=>r.json());
+    const res = await fetch(`/api/orders?project_id=${selectedProjId}`);
+    if (!res.ok) {
+      document.getElementById('tabContent').innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">' +
+        escapeHtml(res.status === 403 ? "Buyurtmalarni ko'rishga ruxsat yo'q" : 'Yuklashda xato') + '</div>';
+      return;
+    }
+    const orders = await res.json();
+    const yangiTugma = BUYURTMA_YARATADI
+      ? `<button class="btn btn-dark btn-sm" onclick="window.location.href='/orders?new_for_project=${Number(selectedProjId)}'">+ Yangi buyurtma</button>`
+      : '';
     if (!orders.length) {
       document.getElementById('tabContent').innerHTML =
         '<div class="fp-empty" style="text-align:center;padding:30px;color:var(--text3)">' +
           'Buyurtma yo\'q' +
-          '<div style="margin-top:14px">' +
-            `<button class="btn btn-dark btn-sm" onclick="window.location.href='/orders?new_for_project=${selectedProjId}'">+ Yangi buyurtma</button>` +
-          '</div>' +
+          (yangiTugma ? '<div style="margin-top:14px">' + yangiTugma + '</div>' : '') +
         '</div>';
       return;
     }
     const STATUS_LABELS = {draft:'Qoralama',new:'Yangi',in_progress:'Jarayonda',coating:'Qoplashda',ready:'Tayyor',delivered:'Yetkazilgan',cancelled:'Bekor'};
-    document.getElementById('tabContent').innerHTML = orders.map(o => `
-      <div class="info-row" style="cursor:pointer" onclick="window.location.href='/orders'">
+    document.getElementById('tabContent').innerHTML =
+      (yangiTugma ? `<div style="display:flex;justify-content:flex-end;margin-bottom:8px">${yangiTugma}</div>` : '') +
+      orders.map(o => `
+      <div class="info-row" style="cursor:pointer" onclick="window.location.href='/orders?order=${Number(o.id)}'" title="Buyurtmani ochish">
         <div>
           <div style="font-weight:600;font-size:13px">${escapeHtml(o.order_number)}</div>
           <div style="font-size:13px;color:var(--text3)">${o.created_at ? tkSana(o.created_at) : ''}</div>
         </div>
         <div style="text-align:right">
           <span class="badge">${escapeHtml(STATUS_LABELS[o.status]||o.status)}</span>
-          <div style="font-size:12.5px;font-weight:600;margin-top:3px">${fmt(o.total_amount)} so'm</div>
+          <div style="font-size:12.5px;font-weight:600;margin-top:3px">${fmt(loyihaBuyurtmaSummasi(o))} so'm</div>
         </div>
       </div>`).join('');
   } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:var(--m-dc2626);text-align:center;padding:20px">Yuklashda xato</div>'; }

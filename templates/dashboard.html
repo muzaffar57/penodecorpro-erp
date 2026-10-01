@@ -93,49 +93,30 @@
     </div>
   </div>
 
-  <!-- BUGUNGI VAZIFALAR -->
-  <div class="card mb-16" id="tasksCard">
-    <div class="card-head"><h3><i class="ti ti-checklist" style="vertical-align:-2px;color:var(--gold-dark)"></i> Bugungi vazifalar</h3></div>
-    <div class="card-body" id="tasksList" style="padding:10px 20px">
-      <div style="text-align:center;padding:10px;color:var(--text3)">Yuklanmoqda...</div>
-    </div>
-  </div>
+  <!-- kech118 (D-3, egasi QARORI G1-09 «Vazifalar ajratilsin»): Dashboard — ISH JARAYONI. Olib tashlandi (takror edi): «Bugungi
+       vazifalar» (Bosh sahifaga ko'chdi), «Ishlab chiqarish holati» (doira bilan bir xil son), «Ombor ogohlantirishlari» va
+       «Tezkor amallar» (Bosh sahifada), «💰 Daromad», «Yo'nalishlar», «Bu oy moliyaviy holat», «Pul oqimi», «Eng ko'p sotilgan»
+       (oylik tahlil — Hisobotlar). -->
 
-  <!-- ISHLAB CHIQARISH HOLATI / BUYURTMALAR HOLATI / OGOHLANTIRISHLAR / TEZKOR AMALLAR -->
-  <div style="display:grid;grid-template-columns:1.2fr 1.2fr 1fr 1fr;gap:14px;margin-bottom:14px" id="topGrid">
+  <!-- BUYURTMALAR HOLATI / ISHLAB CHIQARISH -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px" id="topGrid">
     <div class="card">
-      <div class="card-head"><h3>Ishlab chiqarish holati</h3></div>
-      <div class="card-body" id="stageList">
-        <div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda…</div>
+      <div class="card-head"><h3>Buyurtmalar holati</h3><a href="/orders" class="ch-action">Barchasi →</a></div>
+      <div class="card-body" style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+        <div class="chart-wrap" style="height:150px;width:150px;flex-shrink:0"><canvas id="statusChart"></canvas></div>
+        <div id="statusLegend" style="flex:1;min-width:150px;font-size:13px"></div>
       </div>
     </div>
 
     <div class="card">
-      <div class="card-head"><h3>Buyurtmalar holati</h3></div>
-      <div class="card-body">
-        <div class="chart-wrap" style="height:150px"><canvas id="statusChart"></canvas></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-head"><h3>🏗 Ombor ogohlantirishlari</h3></div>
-      <div class="card-body" id="warnList" style="padding:8px 16px">
-        <div style="text-align:center;padding:12px;color:var(--text3);font-size:12px">Yuklanmoqda…</div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-head"><h3>Tezkor amallar</h3></div>
-      <div class="card-body" style="display:flex;flex-direction:column;gap:8px;padding:12px">
-        <a href="/orders" style="text-decoration:none;display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text);padding:6px 0"><i class="ti ti-plus" style="color:var(--gold-dark)"></i>Yangi buyurtma</a>
-        <a href="/inventory" style="text-decoration:none;display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text);padding:6px 0"><i class="ti ti-package" style="color:var(--gold-dark)"></i>Xarajat qo'shish</a>
-        <a href="/finance" style="text-decoration:none;display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text);padding:6px 0"><i class="ti ti-file-report" style="color:var(--gold-dark)"></i>Hisobot yaratish</a>
-        <a href="/debts" style="text-decoration:none;display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text);padding:6px 0"><i class="ti ti-credit-card" style="color:var(--gold-dark)"></i>Qarzdorlarni ko'rish</a>
+      <div class="card-head"><h3>Ishlab chiqarish</h3><a href="/production" class="ch-action">Barchasi →</a></div>
+      <div class="card-body" id="prodPeriods" style="display:flex;justify-content:space-around;text-align:center;padding:18px 12px">
+        <div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>
       </div>
     </div>
   </div>
   <div id="topGridDots"></div>
-  <style>@media(max-width:1200px){ #topGrid{grid-template-columns:1fr 1fr} }</style>
+  <style>@media(max-width:900px){ #topGrid{grid-template-columns:1fr} }</style>
 
   <!-- Moliya — kech118 (ROLLAR): «Moliyaviy hisobot» ruxsati borlarga (ilgari faqat Admin) -->
   {% if current_user.ruxsat('moliya', 'korish') %}
@@ -178,25 +159,10 @@
     </div>
   </div>
 
-  <!-- Grafiklar: Buyurtmalar soni + Daromad — alohida -->
-  <div class="dash-grid2">
-    <div class="card">
-      <div class="card-head"><h3>📦 Buyurtmalar soni</h3></div>
-      <div class="card-body"><div class="chart-wrap" style="height:180px"><canvas id="ordersCountChart"></canvas></div></div>
-    </div>
-    <div class="card">
-      <div class="card-head"><h3>💰 Daromad</h3></div>
-      <div class="card-body"><div class="chart-wrap" style="height:180px"><canvas id="revenueOnlyChart"></canvas></div></div>
-    </div>
-  </div>
-
-  <!-- kech117 (A2): YO'NALISHLAR — oylik taqqoslash (ilgari «Penoplast va Gips»); bitta yo'nalish bo'lsa karta yashirin -->
-  <div class="card mb-16" id="yonKarta" style="display:none">
-    <div class="card-head">
-      <h3>🧭 Yo'nalishlar — oylik daromad taqqoslash</h3>
-      <div style="display:flex;gap:16px;font-size:13px;flex-wrap:wrap" id="pg-today-split"></div>
-    </div>
-    <div class="card-body"><div class="chart-wrap"><canvas id="prodTypeChart"></canvas></div></div>
+  <!-- Grafik: Buyurtmalar soni (oylik daromad — Hisobotlar da) -->
+  <div class="card mb-16">
+    <div class="card-head"><h3>📦 Buyurtmalar soni</h3></div>
+    <div class="card-body"><div class="chart-wrap" style="height:180px"><canvas id="ordersCountChart"></canvas></div></div>
   </div>
 
   <!-- XOMASHYO XARIDLARI -->
@@ -290,33 +256,6 @@
     </div>
   </div>
 
-  <!-- BU OY MOLIYAVIY HOLAT -->
-  <div class="card mb-16" style="border-left:3px solid #8E44AD;border-radius:0 12px 12px 0">
-    <div class="card-head">
-      <h3 style="color:var(--m-8e44ad)"><i class="ti ti-report-money"></i> Bu oy moliyaviy holat</h3>
-      <span id="mf-period" style="font-size:13px;color:var(--text3)"></span>
-    </div>
-    <div class="card-body">
-      <div class="dash-info-row">
-        <span class="dash-info-label">Daromad</span>
-        <span id="mf-daromad" class="dash-info-val" style="color:var(--m-15803d)">—</span>
-      </div>
-      <div style="border-top:1px dashed var(--border);margin:2px 0"></div>
-
-      <div id="mf-expense-lines" style="font-size:13px"></div>
-
-      <div class="dash-info-row total">
-        <span>Jami xarajat</span>
-        <span id="mf-jami-xarajat" style="color:var(--m-dc2626)">—</span>
-      </div>
-      <div class="dash-info-row grand">
-        <span>SOF FOYDA</span>
-        <span id="mf-sof-foyda">—</span>
-      </div>
-      <div style="text-align:right;font-size:13px;color:var(--text3)" id="mf-foiz"></div>
-    </div>
-  </div>
-
   <!-- YETKAZISH -->
   <div class="kpi-grid mb-16" style="grid-template-columns:repeat(3,1fr)">
     <div class="kpi-card" style="border-left:3px solid #22C55E">
@@ -366,28 +305,6 @@
     </div>
   </div>
 
-  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px" id="bottomGrid">
-    <div class="card">
-      <div class="card-head"><h3>Ishlab chiqarish</h3></div>
-      <div class="card-body" id="prodPeriods" style="display:flex;justify-content:space-around;text-align:center;padding:18px 12px">
-        <div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-head"><h3>Eng ko'p sotilgan</h3></div>
-      <div class="card-body" id="topProducts" style="padding:8px 16px">
-        <div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-head"><h3>Pul oqimi (bu oy)</h3></div>
-      <div class="card-body" id="cashFlow" style="padding:12px 16px">
-        <div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>
-      </div>
-    </div>
-  </div>
-  <style>@media(max-width:1100px){ #bottomGrid{grid-template-columns:1fr 1fr} }
-  @media(max-width:700px){ #bottomGrid{grid-template-columns:1fr} }</style>
 
 </div>
 
@@ -461,40 +378,20 @@ async function loadAll(){
   document.getElementById('t-masters').textContent=t.active_masters+' ta';
   document.getElementById('t-profit').textContent=somYoq(t.today_profit, fmt);   // kech118 (ROLLAR 2-qism): yashirin — «—»
 
-  buildStageList(c.statuses);
-  buildWarnList(s.low_stock_items);
-  buildOrdersCountChart(c.months);buildRevenueOnlyChart(c.months);buildProdTypeChart(c);buildStatusChart(c.statuses);buildMasterList(c.master_kpi);
+  // kech118 (D-3, G1-09): ish jarayoni — holat doirasi (afsona bilan), buyurtmalar soni, usta reytingi
+  buildOrdersCountChart(c.months);buildStatusChart(c.statuses);buildMasterList(c.master_kpi);
 
-  // kech117 (A2): bugungi daromad yo'nalishlar bo'yicha (faqat karta ko'rinsa — bir nechta yo'nalish)
-  const pgSplit = document.getElementById('pg-today-split');
-  if (pgSplit) {
-    pgSplit.innerHTML = (t.today_yonalishlar || []).map((y, i) =>
-      `<span style="color:${matnRangi(YON_RANGI(i, y.kalit))};font-weight:600">${escapeHtml(y.nom)}: ${fmt(y.daromad||0)} so'm</span>`).join('');
-  }
   loadDebts();
   loadDeliveryStats();
   loadPurchaseStats();
   loadTransportStats();
-  loadMonthlyFinance();
   loadSupplierDebt();
   loadFinishedStats();
   loadReturnStats();
   loadBrakFoiz();   // kech56 (13-band, 7-qadam)
-  loadTasks();
   loadProdPeriods();
-  loadTopProducts();
-  loadCashFlow();
 }
 
-async function loadTasks(){
-  try{
-    const tasks = await fetch('/api/dashboard/today-tasks').then(r=>r.json());
-    document.getElementById('tasksList').innerHTML = tasks.map(t=>`
-      <div style="display:flex;align-items:center;gap:10px;padding:7px 0;font-size:12.5px">
-        <span>${escapeHtml(t.icon)}</span><span style="color:var(--text)">${escapeHtml(t.text)}</span>
-      </div>`).join('');
-  }catch(e){}
-}
 
 async function loadProdPeriods(){
   try{
@@ -506,72 +403,9 @@ async function loadProdPeriods(){
   }catch(e){}
 }
 
-async function loadTopProducts(){
-  try{
-    const rows = await fetch('/api/dashboard/top-finished-products?days=30&limit=5').then(r=>r.json());
-    if(!rows.length){document.getElementById('topProducts').innerHTML='<div style="text-align:center;padding:16px;color:var(--text3);font-size:12px">Ma\'lumot yo\'q</div>';return;}
-    document.getElementById('topProducts').innerHTML = rows.map(r=>`
-      <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border2);font-size:12.5px">
-        <span style="color:var(--text)">${escapeHtml(r.name)}</span><span style="font-weight:600;color:var(--gold-dark)">${fmt(r.revenue)}</span>
-      </div>`).join('');
-  }catch(e){}
-}
 
-async function loadCashFlow(){
-  // kech116 (G1-03 — egasi QARORI «Pul oqimi — haqiqiy pul», O'LCHANGAN audit: bu blok «Kirim» = yakunlangan buyurtmalar
-  // summasi, «Chiqim» = jami xarajat + naqd xarid − transport edi — Hisobotlardagi «Pul oqimi» dan 25 mln farq). Endi shu oy
-  // mijozlardan OLINGAN pul va haqiqatda TO'LANGAN pul — `/api/finance/pul-oqimi` (Hisobotlar, Moliya, kassa bilan BITTA).
-  try{
-    const tk = tkHozir();     // kech106: joriy oy — Toshkent (brauzer mintaqasidan qat'i nazar)
-    const r = await fetch(`/api/finance/pul-oqimi?year=${tk.yil}&month=${tk.oy}`);
-    if (!r.ok) throw new Error('pul-oqimi ' + r.status);
-    const d = await r.json();
-    const kirim = Number(d.kirim) || 0;
-    const chiqimJami = Number(d.chiqim) || 0;
-    const balans = Number(d.balans) || 0;
-    document.getElementById('cashFlow').innerHTML = `
-      <div style="display:flex;justify-content:space-between;padding:6px 0"><span style="font-size:12px;color:var(--m-166534)">Kirim (olingan pul)</span><span style="font-weight:600;color:var(--m-166534)" id="cf-kirim">${fmt(kirim)}</span></div>
-      <div style="display:flex;justify-content:space-between;padding:6px 0"><span style="font-size:12px;color:var(--m-991b1b)">Chiqim (to'langan pul)</span><span style="font-weight:600;color:var(--m-991b1b)" id="cf-chiqim">${fmt(chiqimJami)}</span></div>
-      <div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--border2);margin-top:4px"><span style="font-size:12px;font-weight:600">Balans</span><span style="font-weight:700;color:${balans>=0?'var(--m-8f5b2a)':'var(--m-dc2626)'}" id="cf-balans">${fmt(balans)}</span></div>`;
-  }catch(e){
-    document.getElementById('cashFlow').innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3);font-size:12px">Ma\'lumot yo\'q</div>';
-  }
-}
 
-function buildStageList(statuses){
-  const el=document.getElementById('stageList');
-  const stages=[
-    {key:'new',label:'Yangi',color:COLORS.blue},
-    {key:'in_progress',label:'Jarayonda',color:COLORS.orange},
-    {key:'ready',label:'Tayyor',color:COLORS.green}
-  ];
-  const total=stages.reduce((sum,st)=>sum+(statuses[st.key]||0),0)||1;
-  el.innerHTML=stages.map(st=>{
-    const count=statuses[st.key]||0;
-    const pct=Math.round(count/total*100);
-    return `<div class="stock-row">
-      <div class="stock-head"><span class="stock-name">${escapeHtml(st.label)}</span><span class="stock-qty" style="color:${matnRangi(st.color)}">${count} ta</span></div>
-      <div class="stock-bar"><div class="stock-bar-fill" style="width:${pct}%;background:${st.color}"></div></div>
-    </div>`;
-  }).join('');
-}
 
-function buildWarnList(lowStockItems){
-  const el=document.getElementById('warnList');
-  const items=(lowStockItems||[]).slice(0,4);
-  if(!items.length){
-    el.innerHTML='<div style="text-align:center;padding:12px;color:var(--m-15803d);font-size:12px;font-weight:500">✓ Ombor holati yaxshi</div>';
-    return;
-  }
-  el.innerHTML=items.map(item=>`
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border2)">
-      <div>
-        <div style="font-size:12.5px;font-weight:500;color:var(--text)">${escapeHtml(item.item_name)}</div>
-        <div style="font-size:12.5px;color:var(--text3)">${(Number(item.stock_quantity) || 0) <= 0 ? 'Tugagan' : 'Kam qoldi'}</div>
-      </div>
-      <span class="badge badge-danger">${escapeHtml(String(Math.round((Number(item.stock_quantity) || 0) * 100) / 100))} ${escapeHtml(item.unit)}</span>
-    </div>`).join('');
-}
 
 async function loadFinishedStats(){
   try{
@@ -624,56 +458,6 @@ async function loadSupplierDebt(){
   }catch(e){console.error('Supplier debt:',e);}
 }
 
-async function loadMonthlyFinance(){
-  try{
-    const tk = tkHozir();     // kech106: joriy oy — Toshkent
-    const year = tk.yil, month = tk.oy;
-    const d = await fetch(`/api/finance/report?year=${year}&month=${month}`).then(r=>r.json());
-
-    const monthNames = ['','Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust','Sentabr','Oktabr','Noyabr','Dekabr'];
-    document.getElementById('mf-period').textContent = `${monthNames[month]} ${year}`;
-    document.getElementById('mf-daromad').textContent = fmt(d.daromad) + " so'm";
-
-    // kech116 (G1-02, O'LCHANGAN — audit: «Jami xarajat» 4.3 mln = xarajat + tannarx, qatorlar esa (tannarx, doimiy, KPI,
-    // ehson, hodimlar) unga teng emas edi — transport, brak, «Boshqa» ko'rsatilmasdi). Endi: «Tannarx» — alohida qator
-    // (daromaddan keyin), xarajat qatorlari — `xarajat_tarkibi` (TO'LIQ), «Jami xarajat» — `jami_xarajat` (Hisobotlar va
-    // Moliya bilan BITTA ta'rif): Daromad − Tannarx − Jami xarajat = Sof foyda.
-    // kech118 (ROLLAR 2-qism): «Tannarx va foyda» ruxsati yo'q — tannarx, brak / yo'qotish qatori, sof foyda null → «—»
-    const tannarx = d.tannarx_jami === null ? null : ((d.tannarx_jami !== undefined)
-      ? Number(d.tannarx_jami) : Number(d.ishlab_chiqarish_xarajat || 0));
-    const BELGI = {doimiy:'🏢', qoshimcha:'🧾', transport:'🚚', brak:'⚠️', tm_yoqotish:'📦', usta_kpi:'🏆', ehson:'🤲', hodimlar:'👷'};
-    let lines;
-    if (Array.isArray(d.xarajat_tarkibi)) {
-      lines = d.xarajat_tarkibi.map(t => [`${BELGI[t.kalit] || '•'} ${t.nom}`, t.summa === null ? null : (Number(t.summa) || 0)])
-        .filter(l => l[1] === null || l[1] > 0);
-    } else {
-      const x = d.xarajatlar || {};
-      const fixedTotal = (x.arenda||0)+(x.elektr||0)+(x.tushlik||0)+(x.soliqlar||0);
-      lines = [
-        ['🏢 Arenda/Elektr/Tushlik/Soliq', fixedTotal],
-        ['🏆 Usta yillik KPI', d.usta_kpi_xarajat||0],
-        ['🤲 Ehson', d.ehson_xarajat||0],
-        ['👷 Hodimlar (moslashuvchan)', d.hodimlar_moslashuvchan_xarajat||0],
-      ].filter(l => l[1] > 0);
-    }
-
-    const tannarxQator = `<div class="dash-info-row" id="mf-tannarx-row">
-        <span class="dash-info-label">🏭 Tannarx (sotilgan mahsulot)</span><span class="dash-info-val" style="color:var(--text2)" id="mf-tannarx">${tannarx === null ? '—' : '−' + fmt(tannarx) + " so'm"}</span>
-      </div><div style="border-top:1px dashed var(--border);margin:2px 0"></div>`;
-    document.getElementById('mf-expense-lines').innerHTML = tannarxQator + (lines.map(l =>
-      `<div class="dash-info-row">
-        <span class="dash-info-label">${escapeHtml(l[0])}</span><span class="dash-info-val" style="color:var(--text2)">${somYoq(l[1], fmt)}</span>
-      </div>`).join('') || '<div style="text-align:center;color:var(--text3);padding:10px 0">Xarajat kiritilmagan</div>');
-
-    document.getElementById('mf-jami-xarajat').textContent = fmt(d.jami_xarajat||0) + " so'm";
-
-    const sofFoyda = d.sof_foyda === null ? null : (d.sof_foyda||0);
-    const sf = document.getElementById('mf-sof-foyda');
-    sf.textContent = somYoq(sofFoyda, fmt);
-    sf.style.color = sofFoyda === null ? 'var(--text2)' : (sofFoyda >= 0 ? 'var(--m-8e44ad)' : 'var(--m-dc2626)');
-    document.getElementById('mf-foiz').textContent = d.foyda_foiz === null ? '—' : foizKor(d.foyda_foiz||0) + " foyda";   // kech118 (U-05)
-  }catch(e){console.error('Oylik moliya:',e);}
-}
 
 async function loadTransportStats(){
   try{
@@ -827,46 +611,22 @@ function buildOrdersCountChart(months){
   });
 }
 
-function buildRevenueOnlyChart(months){
-  if(window._rvC) window._rvC.destroy();
-  window._rvC = new Chart(document.getElementById('revenueOnlyChart').getContext('2d'), {
-    data:{labels:months.map(m=>m.label), datasets:[
-      {type:'bar', label:'Daromad', data:months.map(m=>m.revenue), backgroundColor:'#F8F2EB', borderRadius:6, maxBarThickness:28},
-      {type:'line', label:'Daromad', data:months.map(m=>m.revenue), borderColor:COLORS.gold, backgroundColor:COLORS.gold, fill:false, tension:.4, borderWidth:2.5, pointRadius:3, pointBackgroundColor:COLORS.gold}
-    ]},
-    options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
-      scales:{y:{beginAtZero:true, grid:{color:'#F0ECE6'}, ticks:{callback:v=>fmt(v)}}, x:{grid:{display:false}}}}
-  });
-}
 // kech117 (A2 — egasi QARORI kech114): oylik daromad YO'NALISHLAR bo'yicha (`get_chart_data` → `yonalishlar`,
 // `months[].yonalishlar`); bitta yo'nalish bo'lsa (va boshqasida daromad bo'lmasa) karta yashirin.
-const _YON_RANGLAR = ['#1E40AF', '#B9783F', '#16A34A', '#9333EA', '#DB2777', '#0891B2', '#CA8A04', '#64748B'];
-function YON_RANGI(i, kalit) { return kalit === 'belgilanmagan' ? '#DC2626' : _YON_RANGLAR[i % _YON_RANGLAR.length]; }
-function buildProdTypeChart(c){
-  const karta = document.getElementById('yonKarta');
-  const months = c.months || [];
-  const yon = c.yonalishlar || [];
-  if(window._ptC){ window._ptC.destroy(); window._ptC = null; }
-  if (!karta) return;
-  if (!(Number(c.yonalishlar_soni || 0) > 1 || yon.length > 1)) { karta.style.display = 'none'; return; }
-  karta.style.display = '';
-  window._ptC=new Chart(document.getElementById('prodTypeChart').getContext('2d'),{
-    type:'bar',
-    data:{labels:months.map(m=>m.label),datasets:yon.map((y, i) => ({
-      label: y.nom, data: months.map(m => (m.yonalishlar || {})[y.kalit] || 0),
-      backgroundColor: YON_RANGI(i, y.kalit), borderRadius: 5}))},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:11}}}},scales:{x:{stacked:false},y:{beginAtZero:true,ticks:{callback:v=>fmt(v)}}}}
-  });
-}
 function buildStatusChart(statuses){
   if(sC)sC.destroy();
   const keys=Object.keys(statuses).filter(k=>statuses[k]>0);
-  if(!keys.length)return;
+  if(!keys.length){ const l=document.getElementById('statusLegend'); if(l) l.innerHTML='<div style="color:var(--text3)">Buyurtma yo\'q</div>'; return; }
   sC=new Chart(document.getElementById('statusChart').getContext('2d'),{
     type:'doughnut',
     data:{labels:keys.map(k=>ST_LABELS[k]||k),datasets:[{data:keys.map(k=>statuses[k]),backgroundColor:keys.map(k=>ST_COLORS[k]||COLORS.gray),borderWidth:2,borderColor:'#fff'}]},
-    options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{position:'bottom',labels:{font:{size:11},padding:10}}}}
+    options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{display:false}}}
   });
+  // kech118 (D-3, G1-09): afsona — holat va soni (ilgari yonidagi «Ishlab chiqarish holati» bloki shu sonlarni takrorlardi)
+  const leg=document.getElementById('statusLegend');
+  if(leg) leg.innerHTML=keys.map(k=>`<div style="display:flex;justify-content:space-between;gap:10px;padding:4px 0">
+      <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${ST_COLORS[k]||COLORS.gray};margin-right:7px"></span>${escapeHtml(ST_LABELS[k]||k)}</span>
+      <b>${Number(statuses[k])} ta</b></div>`).join('');
 }
 function buildMasterList(masters){
   const el=document.getElementById('masterList');
