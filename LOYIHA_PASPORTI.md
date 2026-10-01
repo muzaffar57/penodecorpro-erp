@@ -437,6 +437,27 @@ server xabarlari, Telegram, moliya PDF; «Hamkor ustalar» — usta, o'zgarmagan
 (forma, «Xomashyo kirimi») va «Ta'minotchilar» (ro'yxat, «Ta'minotchilar: Ko'rish»); hujjatlar — «BUYURTMA HISOBI»
 (`buyurtma_hisobi_….pdf`), «YUK XATI № …» (`yuk_xati_….pdf`), «SOTUV CHEKI № S-…» (`sotuv_cheki_….pdf`); «NAKLADNOY» yo'q.
 Yangi ombor harakati sababi «Ta'minotchi: …» (eski yozuvlar — o'zgarmagan). Testlar: `tools/test_d121.py`, `tools/test_d121_ui.js`.
+**Ranglar va tungi rejim (kech118, D bosqichi 2-qism — egasi QARORI «To'liq tuzatilsin — har sahifa ranglari umumiy ranglar
+ro'yxatiga», U-02; zip 122).** Shablon / `style.css` dagi rang XOSSASIGA qarab UMUMIY RO'YXATDAN olinadi — `static/ranglar.css`
+(`base.html` va mustaqil sahifalar — kirish, hodim kirishi / paneli, xato sahifasi — `style.css` dan KEYIN ulaydi):
+`--f-<hex>` — och FON, `--m-<hex>` — to'q MATN, `--ch-<hex>` — och CHEGARA; `<hex>` — yorug' rejimdagi AYNAN rang (yorug' ko'rinish
+o'zgarmaydi — piksel solishtirildi), tungi qiymat — shu rang turining qorong'i (fon, chiziq) / yorug' (matn) tusi: matn kartada,
+sahifada va och-tusli belgi fonida ≥ 4.5:1, standart yozuv har fonda ≥ 4.5:1. `--doim-<hex>` — IKKALA rejimda bir xil (o'zgarmas
+to'yingan fon ustidagi yozuv: KPI medal raqami). O'zgarmaydi (ro'yxatsiz): `#fff` fon → `var(--white)`, oq yozuv, to'q / to'yingan
+tugma va belgi foni, to'q chegara, holat ranglari (chiziq / nuqta / ustun). Ro'yxat AVTOMATIK yasalgan (work/k122/palitra.py —
+fayllardagi haqiqiy ishlatilishdan); YANGI rang — ro'yxatdagisidan oling yoki ikkala rejim qiymati bilan qo'shing, shablonga xom
+`#hex` (och fon / to'q yozuv / och chegara — ichki uslub, `<style>`, JS shablon satri, `el.style`, JS rang jadvali `bg:`, Jinja
+`{{ '#…' if … }}`) YOZILMAYDI (`tools/test_d122.py` G darvozasi). Sahifa JS i chizadigan ranglar rejimni o'zi tanlaydi: holat yozuvi —
+`matnRangi` (tungi rejimda yorug' tus: #15803D → #4ADE80, #DC2626 → #F87171, #8F5B2A → #D09A63 …), grafiklar — `base.html` o'rami
+(tungi rejimda standart yozuv #A3A6B0, chiziq rgba(255,255,255,0.10); sozlamadagi #F0ECE6 / #F0F1F3 to'r, #9CA3AF / #6B7280 /
+#4B5563 yozuv, #fff chegara, #F8F2EB ustun — `_TUNGI_GRAFIK`); rejim tugmasi (`toggleTheme`) sahifani QAYTA YUKLAYDI (chizilgan
+ranglar yangi rejimda). Sahifa to'plamlari (`--f-card`, `--b-*`, `--d-*`, `--r-*`) tungi rejimda sahifaning o'zida qayta
+belgilangan; tungi tugma (`.btn-dark`) — yorug' fon, to'q yozuv; o'z rangi yozilmagan `<button>` — matn rangi (`:where`, o'ziga
+xoslik 0). Kontrast HAQIQIY brauzerda o'lchandi (work/k122/audit_tungi.py — 20 sahifa × 1440 / 390 px va 253 oyna, ikki rejimda):
+tungi rejimda 562 / 516 xato → 0, oynalar — 0. Oynalar auditida ikkala rejimda topilgan (yorug' rejimda ham o'zgardi): oq yozuvli yashil tugma («Sotish»,
+«Tasdiqlash», «Saqlash») — #15803D (#16A34A — 3.3:1); Buyurtma foyda oynasida och-qizil fondagi qizil yozuv va Qaytarishlar
+«🔴 Brak» belgisi — #B91C1C; foyda tafsiloti izohi, KPI to'lov tarixi yozuvi, retsept tarkibidagi surish belgisi — `--text3`;
+savatcha panelidagi «Bekor qilish» — #CBD5E1 (panel ikkala rejimda qorong'i). Testlar: `tools/test_d122.py`, `tools/test_d122_ui.js`.
 **Son, sana, birlik ko'rinishi va o'qiladigan yozuv (kech118, B bosqichi 2-qism — audit U-03 / U-04 / U-05 / U-06).** Ekranga
 chiqadigan son — bitta qoida: ming ajratgich bo'sh joy (NBSP), kasr — VERGUL, ortiqcha nolsiz («354», «8,3», «1 234,5»), «-0» →
 «0», qiymat yo'q — «—». Brauzerda `base.html` `sonKor(x, kasr = 2)`, foiz — `foizKor(x, kasr = 1)` («33,3%»); shablonda Jinja
@@ -454,7 +475,7 @@ tugma foni ham). Holat ranglari (#22C55E, #16A34A, #F59E0B, #EF4444, #0EA5E9, #9
 `matnRangi(...)` orqali; qorong'i kartada (Moliya «Kassa balansi» — gradient) och yozuv. Eng kichik yozuv — 12 px (style.css va
 shablonlar; `tools/test_b118_korinish.py` S statik darvozasi). Xom kalit ekranga chiqmaydi (moliya: `transport_kirim` →
 «Transport (kirim)» va h.k. — `CAT_LABELS`). YANGI sahifa kodida: son — `sonKor` / `|son`, rangli yozuv — to'q tus. `style.css`
-o'zgarsa — `main.py` `static_version` ham yangilanadi (aks holda brauzer eski uslubni keshdan oladi; kech118 — «20260930-2»).
+o'zgarsa — `main.py` `static_version` ham yangilanadi (aks holda brauzer eski uslubni keshdan oladi; zip 122 — «20261001-1»).
 **Yo'nalishlar bo'yicha moliya (kech117, A2 — egasi QARORLARI kech114 00:08; G3-11, G6-09).** Jadval `yonalishlar`
 (`models.Yonalish`: `company_id`, `nom` ≤ 60, `kod` — asosiysida 'penoplast', `yashirin`, `tartib`; `uq_yonalishlar_company_kod`).
 Har korxonada ASOSIY yo'nalish («Penoplast», `crud.standart_yonalish` — yo'q bo'lsa yaratadi; yangi korxonada — platformadan
@@ -626,7 +647,7 @@ retsept soniga bog'liq emas). Tannarx — retsept oynasi bilan BITTA hisob: `_re
 Yuqori panel (kech114, QAROR «6A»): sahifa tugmalari `base.html` `.tb-amallar` ichida (`{% filter trim %}` — tugmasiz
 sahifada bo'sh); telefonda (≤ 768 px) 1-qator — menyu, sarlavha, obuna belgisi, qo'ng'iroqcha, «···» (tungi rejim, Кирилл /
 Lotin — `tbKopAlmashtir`), 2-qator — sahifa tugmalari yonma-yon, teng (uzun yorliq tugma ichida 2 qatorga o'tadi); 191 → 107 px
-(tugmasiz sahifa — 58 px). CSS `base.html` ichida (`style.css` versiyasiz — brauzer keshlaydi). Yangi buyurtma oynasida
+(tugmasiz sahifa — 58 px). CSS `base.html` ichida. Yangi buyurtma oynasida
 faqat «Shu buyurtma» paneli (`orders.html` `statPanellari` — umumiy «Statistika» yashirinadi); loy yorlig'i qisqa, izoh
 maydon ostida. Namuna matnlarida haqiqiy odam / korxona nomi yo'q (kech114 — «Akmal aka», «Rustam aka», «Jo'rabek» olib
 tashlandi), «Chapdan …» yo'q (telefonda chap tomon yo'q).
@@ -797,6 +818,24 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   «Ta'minotchilar»), `test_yetkazish_ui` («Yuk xati tayyor»; «Brak yozish» tanasida sabab, sababsiz so'rov yo'q),
   `test_xato_sababi_ui` / `test_tahrir_tiyin_ui` / `test_toshkent_korinish_ui` (savatcha va «Kam» yordamchilari, «1 partiya»),
   `test_b118_korinish` (qoldiq rangi faqat holat ko'rinsa), `test_zaxira_loy_narx` (brak tanasi).
+- (kech118, zip 122) D bosqichi 2-qism — tungi rejim (U-02): `tools/test_d122.py` — P (umumiy ranglar ro'yxati: ikki blokda bir
+  xil nomlar, `--doim-` faqat yorug' blokda, yorug' qiymat = nomdagi rang, ishlatilgan har rang bor, eskirgani yo'q; tungi
+  qiymatlar: matn qorong'i kartada / sahifada va och-tusli belgi fonida ≥ 4.5:1, standart yozuv har fonda ≥ 4.5:1, fon / chiziq
+  qorong'i, matn yorug'), G (darvoza: och fon / to'q yozuv / och chegara uchun xom `#hex` — ichki uslub, `<style>`, JS shablon
+  satri, `el.style`, JS rang jadvali `bg:`, Jinja ifodasi — yo'q; darvoza namunada ishlaydi; rang zaxirali o'zgaruvchi
+  belgilangan), S (base.html va mustaqil sahifalar ro'yxatni `style.css` dan KEYIN ulaydi, kesh belgisi yangi, fayl 200, 11
+  sahifa chizilganda har rang ro'yxatda), T (KPI medal raqami, Dashboard belgisi, Retsept kategoriyalari, tungi asosiy tugma, oq
+  yozuvli yashil tugma, xabar oynasi sarlavhasi); SQLite, PG, TF1 — asl kodda 30 / 34 yiqiladi, qulamaydi. `tools/test_d122_ui.js`
+  — `matnRangi` (yorug' rejim o'zgarmagan, tungi rejimda har holat yozuvi kartada va och-tusli fonda ≥ 4.5:1), grafik o'rami
+  (tungi standart ranglar, sozlamadagi yorug' ranglar almashadi, to'yingan ranglar va yorug' rejim — aynan), `toggleTheme`
+  (rejim eslab qolinadi, sahifa bir marta qayta yuklanadi), Retsept tarkibi qatori — asl shablonlarda 9 / 19 yiqiladi.
+  Mutatsiyalar (work/k122/mutatsiya123.py, 33 ta) — hammasi ushlanadi. Isbot (bir martalik): work/k122/audit_tungi.py — HAQIQIY
+  brauzer, 20 sahifa × 1440 / 390 px ikki rejimda — tungi 562 / 516 kontrast xatosi → 0, yorug' 0; oynalar (1440, 253 ta) ikki
+  rejimda — 0;
+  yorug' sahifalar skrinshoti asl bilan solishtirildi (work/k122/piksel.py — farq faqat vaqt yozuvlari va logotip chetidagi
+  1–2 piksel). Moslangan eski testlar (rang endi ro'yxatdan: `var(--m-dc2626)` = #DC2626 — ikkala ko'rinish qabul qilinadi):
+  `test_b118_korinish` (S6c `klass_rang`), `test_brak_tahlil_ui` (`tokensiz`), `test_d121_ui` (S6), `test_kichik103_ui` (A5 / A6),
+  `test_qarz_tiyin` (D7), `test_tahrir_banner_ui` (D3), `test_platforma_obuna` (N1 / N3 — obuna ogohlantirishi foni).
 - (kech118, zip 118) Yo'nalishlar bo'yicha moliyaviy natija (egasi QARORI 15:23 — taqsim yo'q): server — `test_a117_yonalish.py`
   D bo'limi MOSLANDI (ustun D − T − O − X = N; ΣN − umumiy oylik − umumiy xarajat = Jami natija = Moliya sof foydasi — so'm va
   tiyinda; «ulush» yo'q; daromadsiz oy — taqsimsiz; D19 — yo'nalish xarajatlaridagi kasr qoldiq bilan yaxlitlash; PDF «NATIJA
@@ -987,7 +1026,7 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
 
 **Qolgan egasi qarorlari (kech118, 2026-09-30 — audit «Sizning qaroringiz kerak»; QAYTA SO'RALMAYDI; D bosqichida kodlanadi,
 bajarilganlari belgilanadi)**
-- Tungi rejim — «To'liq tuzatilsin» (hamma sahifa ranglari umumiy ranglar ro'yxatiga; U-02).
+- Tungi rejim — «To'liq tuzatilsin» (hamma sahifa ranglari umumiy ranglar ro'yxatiga; U-02). BAJARILDI (zip 122 — `static/ranglar.css`).
 - Kassa — «Bitta: Kassa + bank»: karta nomi to'g'rilanadi (mijozning plastik / o'tkazma to'lovlari ham kiradi), boshlang'ich
   balans kiritilmagan bo'lsa ogohlantirish (G3-14). Naqd va bank alohida EMAS. BAJARILDI (zip 121).
 - Hodim paneli — «Oylik ko'rinsin»: shu oy hisoblangan / olingan / qoladi; avans so'rovini rad etishda SABAB MAJBURIY va
@@ -1312,6 +1351,14 @@ bajarilganlari belgilanadi)**
   «xavfli» qildi (TM «Kam» chegarasi ustuni `mahsulot_kaliti` deb nomlandi).
 - (kech118, zip 121) JS testida Jinja `{% if %}A{% else %}B{% endif %}` ni shunchaki olib tashlash IKKALA tarmoqni qoldiradi
   (`const x` ikki marta — sintaksis xatosi): birinchi tarmoqni qoldiring (`test_d121_ui.js` `jinja()`).
+- (kech118, zip 122) Kontrast auditi (haqiqiy brauzer) faqat SINOV MA'LUMOTIDA ko'ringan elementni o'lchaydi: KPI medal raqami,
+  Retsept tarkibi kategoriyalari, Qarzdorlar hodim belgisi, Qaytarishlar belgisi auditda chiqmadi — kod bo'yicha ham qidiring (JS
+  rang jadvali `bg: '#…'`, Jinja `background:{{ '#…' if … }}`, `|| '#…'` zaxira qiymat). Rang almashtiruvchi dastur XOSSA bo'yicha
+  ishlaydi — jadval / ifodadagi rangni ko'rmaydi.
+- (kech118, zip 122) O'zgarmas to'yingan fon (oltin / kumush medal, rangli tugma) ustidagi to'q yozuvni tungi rejimda
+  yorug'lashadigan `--m-` rangga o'tkazmang (oltin ustida 1.6:1 bo'ldi) — `--doim-<hex>` (ikkala rejimda bir xil).
+- (kech118, zip 122) Rejimga qarab rang tanlaydigan JS (`matnRangi`, grafik) chizilgan PAYTDAGI rejimni oladi — rejim
+  almashtirilganda sahifa qayta yuklanadi (`toggleTheme` — `location.reload()`), aks holda eski rejim ranglari qoladi.
 
 ## 9. Xarita (AVTOMATIK)
 
@@ -2065,6 +2112,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_buyurtma_oqimi.py` — buyurtmaning to'liq hayot sikli va OMBOR.
 - `test_buyurtma_raqam.py` · PG — kech86 darvozasi (100-band, FOYDALANUVCHI QARORI "A": buyurtma raqami HECH QACHON qayta berilmaydi — raqam faqat o'sadi, o'chirilgan buyurtma raqami bo'shliq bo'lib qoladi) +…
 - `test_d121.py` · PG — kech118 D BOSQICHI 1-qism (zip 121): MAYDA QOIDALAR VA NOMLAR (egasi QARORLARI kech118 11:40, tugmali, QAYTA SO'RALMAYDI).
+- `test_d122.py` · PG — kech118 D BOSQICHI 2-qism (zip 122): TUNGI REJIM TO'LIQ (audit U-02; egasi QARORI «To'liq tuzatilsin — har sahifa ranglari umumiy ranglar ro'yxatiga», tugmali, QAYTA SO'RALMAYDI).
 - `test_detal_poyga.py` · PG — 5-bo'lim 14-band darvozasi (kech41, 2026-09-23): detal tahriri / o'chirish / "Tayyor" va yetkazish orasidagi poygalar.
 - `test_dizayn114_ui.py` · PG — kech114: dizayn 5–10 (egasi QARORLARI «7A — Guruh, bosilsa ochiladi», «5B — Jadval», «6A — Bir qator + tugmalar»; 9 / 10 — texnik) va K114-1 ning sahifadagi qismi — HAQIQIY sah…
 - `test_donalik_hajm_snapshot.py` · PG — kech96 (2026-09-27), 126-band.
@@ -2190,6 +2238,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_brak_mrp_ui.js` · JS — 13-band 5-qadam (kech54, 2026-09-24): "Ishlab chiqarishda chiqdi" MRP tayyor mahsuloti (`category = 'dynamic_bom'`) uchun ham ochiladi.
 - `test_brak_tahlil_ui.js` · JS — 13-band 7-qadam (kech56, 2026-09-24): brak SABABI, JAVOBGAR hodim va BRAK TAHLILI UI si.
 - `test_d121_ui.js` · JS — kech118 D BOSQICHI 1-qism (zip 121): sahifalardagi XATTI-HARAKAT (egasi QARORLARI kech118 11:40).
+- `test_d122_ui.js` · JS — kech118 D BOSQICHI 2-qism (zip 122): TUNGI REJIM — sahifa JS i chizadigan ranglar (audit U-02; egasi QARORI «To'liq tuzatilsin — har sahifa ranglari umumiy ranglar ro'yxatiga», QAYT…
 - `test_kam_qoldiq_ui.js` · JS — kech108, K108-2 (19-band, EGASI QARORI "Ha, ko'rinsin"): «kam qolgan xomashyo» brauzer qismi.
 - `test_kelishilgan_tahrir_ui.js` · JS — kech110, K110-1: buyurtma TAHRIRIDA kelishilgan summa (templates/orders.html).
 - `test_kichik103_ui.js` · JS — kech103 kichik bandlari (UI) darvozasi.
@@ -2217,5 +2266,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 177 (Python 146, JS 31).
+Jami test fayllari: 179 (Python 147, JS 32).
 <!-- AVTO:TESTLAR OXIRI -->

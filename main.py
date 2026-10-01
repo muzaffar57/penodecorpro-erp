@@ -3242,7 +3242,7 @@ def _son_filtri(qiymat, kasr=2):
 
 
 templates.env.filters["son"] = _son_filtri
-templates.env.globals["static_version"] = "20260930-3"   # kech118: style.css (fokus belgisi; 2-qism — ranglar, 12 px; zip 118 da style.css kechikib yuklandi — eski nusxa «-2» bilan keshda qolmasin) — kesh yangilansin
+templates.env.globals["static_version"] = "20261001-1"   # kech118 (zip 122): ranglar.css (umumiy ranglar ro'yxati) va style.css (tungi rejim) — kesh yangilansin
 
 
 def _toshkent_filtr(qiymat, fmt="%d.%m.%Y %H:%M"):
