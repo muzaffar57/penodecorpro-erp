@@ -558,7 +558,9 @@ check("F4 qisqaSumma: -2,6 mln / -500 / 0 / 2 ming / -26,8 mln / 1 000 dan kichi
       g("f", "q") == ["-2,6 mln", "-500", "0", "2 ming", "-26,8 mln", "1 ming", "1,0 mln", "0"], g("f", "q"))
 
 section("D. Dashboard — G3-10")
-check(f"D1 «Bu oy moliyaviy holat» sof foyda — «{_SOF_Q}» (asl: ajratgichsiz)", bosh(g("d", "sof")) == _SOF_Q, (g("d", "sof"), _SOF))
+# kech118 (zip 124 — G1-09, MOSLANDI): «Bu oy moliyaviy holat» Dashboard dan olib tashlandi (takror — oylik tahlil Hisobotlar
+# «Asosiy ko'rsatkichlar» da; sof foyda ko'rinishi — yuqoridagi F2)
+check("D1 Dashboard da «Bu oy moliyaviy holat» bloki YO'Q (sof foyda — Moliya / Hisobotlar, F2)", g("d", "sof") is None, g("d", "sof"))
 check("D2 fmt: manfiy ham qisqa (-2,6 mln / -26,8 mln / -700; kech118: kasr — vergul)", g("d", "fmt") == ["-2,6 mln", "-26,8 mln", "-700"],
       g("d", "fmt"))
 

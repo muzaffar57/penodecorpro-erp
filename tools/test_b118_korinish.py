@@ -502,7 +502,9 @@ check("J8c yozuvga holat rangi `matnRangi` orqali: Tayyor mahsulotlar qoldig'i (
       "ombor qoldig'i, qarzlar holati va majburiyatlar belgisi",
       # kech118 (D-1, G5-11): qoldiq rangi — faqat holat ko'rinsa (chegara yozilgan / tugagan), aks holda oddiy matn rangi
       _fin_t.count("? matnRangi(stColor) : 'var(--text)'}") == 2 and _fin_t.count("color:${matnRangi(stColor, 1)}") == 2
-      and "matnRangi(st.color)" in _dash_t and "color:${matnRangi(s[2])}" in _dash_t and "color:${matnRangi(badgeColor, 1)}" in _dash_t,
+      # kech118 (zip 124 — G1-09, MOSLANDI): Dashboard «Ombor ogohlantirishlari» (matnRangi(st.color)) olib tashlandi — kam
+      # qoldiq Bosh sahifada (`kamQoldiqHtml` — matnRangi(color), test_kam_qoldiq_ui)
+      and "matnRangi(st.color)" not in _dash_t and "color:${matnRangi(s[2])}" in _dash_t and "color:${matnRangi(badgeColor, 1)}" in _dash_t,
       (_fin_t.count("? matnRangi(stColor) : 'var(--text)'}"), _fin_t.count("color:${matnRangi(stColor, 1)}"), "matnRangi(st.color)" in _dash_t))
 
 section("J3. Sahifalar")
@@ -512,8 +514,10 @@ check("J9 Moliya kunlik ro'yxat: kirim xarajati «Transport (kirim)» (xom «tra
 _lb = g("home", "labels") or {}
 check("J10 Bosh sahifa holat nomlari: qoralama «Qoralama», qoplamada «Qoplamada» (asl: «draft»)",
       _lb.get("draft") == "Qoralama" and _lb.get("coating") == "Qoplamada", _lb)
-check("J11 Bosh sahifa: buyurtma turi «Mahsulot» / «Xizmat» (asl: «product»), «Eng faol ustalar» (asl: «Top ustalar»), "
-      "«2,6 mln»", (g("home", "tur") or {}).get("product") == "Mahsulot" and "Eng faol ustalar" in (g("home", "top") or [])
+# kech118 (zip 124 — G1-09, MOSLANDI): «Eng faol ustalar» Bosh sahifadan olib tashlandi (Dashboard «Usta reytingi» bilan takror)
+check("J11 Bosh sahifa: buyurtma turi «Mahsulot» / «Xizmat» (asl: «product»), «Eng faol ustalar» YO'Q (Dashboard «Usta reytingi» da), "
+      "«2,6 mln»", (g("home", "tur") or {}).get("product") == "Mahsulot" and "Eng faol ustalar" not in (g("home", "top") or [])
+      and "Bugungi vazifalar" in (g("home", "top") or [])
       and g("home", "fmtM") == "2,6 mln", (g("home", "tur"), g("home", "top"), g("home", "fmtM")))
 check("J12 Hisobotlar: «2,6 mln», «-1,6 mln», «5 ming»; «Reytinglar», kartalarda «Top» so'zi YO'Q",
       [b(x) for x in (g("rep", "fmtShort") or [])] == ["2,6 mln", "-1,6 mln", "5 ming"] and g("rep", "sarlavha")

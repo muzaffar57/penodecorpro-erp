@@ -540,9 +540,12 @@ check("U2 Moliya: manba nomlari — kirim_tannarx va inventory_receipt",
 # (ilgari `jami_xarajat + naqd_xarajat_jami − transport_xarajat` — transport ikki joyda bo'lgani uchun ayirilardi) —
 # YAGONA `services.get_pul_oqimi` (`/api/finance/pul-oqimi`, kassa qismlari bilan bir manba: transport BIR marta —
 # `test_a116_pul` P1 tiyin aniqligida). Tekshiruv yangi ma'noga: sahifa yagona manbadan oladi, eski yig'indi yo'q.
-check("U3 Bosh sahifa \"Chiqim\": yagona pul oqimi manbasidan (/api/finance/pul-oqimi) — sahifada transport qo'shib / "
-      "ayirib yig'ilmaydi",
-      "/api/finance/pul-oqimi" in _dash and "(d.jami_xarajat||0)+(d.naqd_xarajat_jami||0)" not in _dash)
+# kech118 (zip 124 — G1-09, MOSLANDI): Dashboard «Pul oqimi» bloki olib tashlandi (Hisobotlar bilan takror) — pul oqimi
+# Hisobotlarda, yagona manbadan
+_rep_t = open(os.path.join(ROOT, "templates", "reports.html"), encoding="utf-8").read()
+check("U3 «Chiqim» (pul oqimi): yagona manbadan (/api/finance/pul-oqimi) — Hisobotlarda; Dashboard da qo'lda yig'indi ham, blok ham "
+      "YO'Q", "/api/finance/pul-oqimi" in _rep_t and "(d.jami_xarajat||0)+(d.naqd_xarajat_jami||0)" not in _dash + _rep_t
+      and 'id="cashFlow"' not in _dash)
 
 # ═══════════════════════════════════════════════════════════════════════════
 section("H — kod tartibi (statik)")

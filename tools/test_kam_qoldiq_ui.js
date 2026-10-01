@@ -96,19 +96,11 @@ tekshir('H7 nom ekranlanadi (<img> teg YO\'Q)', r.xato === null && !/<img/.test(
 tekshir('H8 home.html render qismi kamQoldiqHtml(s.low_stock_items) ni ishlatadi; `/ item.min_stock)` bo\'lish QOLMAGAN',
         /kamQoldiqHtml\(s\.low_stock_items\)/.test(HOME) && !/item\.stock_quantity \/ item\.min_stock/.test(HOME));
 
-bolim('D — dashboard.html buildWarnList');
-const BW = olib(DASH, 'buildWarnList');
-function dash(items) {
-  const el = { innerHTML: '' };
-  const res = ishga([ESC, BW], `buildWarnList(${JSON.stringify(items)}); document.getElementById('warnList').innerHTML`,
-                    { document: { getElementById: () => el } });
-  return res;
-}
-r = dash([A, D]);
-const dq = (r.v || '').split('border-bottom').slice(1);
-tekshir('D1 buildWarnList ishlaydi', !!BW && r.xato === null && dq.length === 2, r.xato || r.v);
-tekshir('D2 tugagan (min 0) — "Tugagan", son "-0.06 dona"', dq[0] && /Tugagan/.test(dq[0]) && />-0\.06 dona</.test(dq[0]), dq[0]);
-tekshir('D3 oddiy kam — "Kam qoldi", "5 kg"', dq[1] && /Kam qoldi/.test(dq[1]) && />5 kg</.test(dq[1]), dq[1]);
+bolim('D — dashboard.html: kam qoldiq bloki YO\'Q (zip 124)');
+// kech118 (zip 124 — egasi QARORI G1-09 «Vazifalar ajratilsin», MOSLANDI): Dashboard «Ombor ogohlantirishlari» (`buildWarnList`)
+// olib tashlandi — kam qolgan xomashyo BITTA joyda: Bosh sahifa «Kam qolgan xomashyo» (`kamQoldiqHtml`, yuqoridagi H bo'limi).
+tekshir("D1 Dashboard da `buildWarnList` / #warnList YO'Q (takror edi — kam qoldiq Bosh sahifada)",
+        !olib(DASH, 'buildWarnList') && !DASH.includes('id="warnList"') && /kamQoldiqHtml\(s\.low_stock_items\)/.test(HOME));
 
 bolim('R — reports.html stockDot');
 const SD = olib(REP, 'stockDot');

@@ -485,7 +485,10 @@ RCV = [
 ]
 DSH = [
     q("d1", natija=M + r"""const g = (window.__grafiklar || []).find(c => c && c.data && (c.data.datasets || []).some(d => d.label === 'Metall konstruksiya'));
-      return {karta: document.getElementById('yonKarta').style.display, labels: g ? g.data.datasets.map(d => d.label) : null,
+      // kech118 (zip 124 — G1-09, MOSLANDI): Dashboard dagi yo'nalishlar kartasi olib tashlandi (Hisobotlar «Yo'nalishlar» bilan
+      // takror edi) — element yo'q bo'lsa null
+      const _yk = document.getElementById('yonKarta');
+      return {karta: _yk ? _yk.style.display : null, labels: g ? g.data.datasets.map(d => d.label) : null,
         bugun: [...document.querySelectorAll('#pg-today-split span')].map(__m), img: document.querySelectorAll('#pg-today-split img').length,
         xss: window.__xss || 0, eski: document.body.textContent.includes('Penoplast va 🧱 Gips')};"""),
 ]
@@ -499,7 +502,7 @@ B_FIN = [
       return {bolim: __vis('yonBolim'), donut: document.getElementById('revDonutCard').style.display,
         opts: [...document.querySelectorAll('#tx-f-prodtype option')].map(o => o.textContent)};"""),
 ]
-B_DSH = [q("bd", natija=r"""return {karta: document.getElementById('yonKarta').style.display};""")]
+B_DSH = [q("bd", natija=r"""const _yk = document.getElementById('yonKarta'); return {karta: _yk ? _yk.style.display : null};""")]
 B_REP = [q("bh", natija=r"""return {bolim: document.getElementById('yonDinamika').style.display};""")]
 SAHIFALAR_A = [{"yol": "/logs", "qadamlar": SOZ}, {"yol": "/production", "qadamlar": PROD}, {"yol": "/kpi", "qadamlar": KPI},
                {"yol": "/finance", "qadamlar": FIN}, {"yol": "/suppliers/receive", "qadamlar": RCV},
@@ -795,8 +798,9 @@ check("R3 kirimni saqlash: POST tanasida yonalish_id (son); hujjat shu yo'nalish
       [_r3, _kr_yon])
 
 section("D. Dashboard va Hisobotlar — grafiklar")
-check("D1 Dashboard: yo'nalishlar kartasi ko'rinadi, grafik ustunlari — yo'nalish nomlari; bugungi summa qatorlari; eski sarlavha yo'q",
-      g("d1", "karta") == "" and "Metall konstruksiya" in (g("d1", "labels") or []) and g("d1", "img") == 0
+check("D1 Dashboard: yo'nalishlar kartasi YO'Q (zip 124 — Hisobotlar «Yo'nalishlar» bilan takror edi), grafik ham, bugungi "
+      "yo'nalish qatori ham yo'q; XSS yo'q, eski sarlavha yo'q",
+      g("d1", "karta") is None and g("d1", "labels") is None and g("d1", "bugun") == [] and g("d1", "img") == 0
       and g("d1", "xss") == 0 and g("d1", "eski") is False, g("d1"))
 check("D2 Hisobotlar: «Yo'nalishlar — daromad dinamikasi» ko'rinadi, ustunlar — yo'nalish nomlari",
       g("h1", "bolim") == "" and "Metall konstruksiya" in (g("h1", "labels") or []) and g("h1", "eski") is False, g("h1"))
@@ -804,7 +808,7 @@ check("D2 Hisobotlar: «Yo'nalishlar — daromad dinamikasi» ko'rinadi, ustunla
 section("B. Bitta yo'nalishli korxona — bo'limlar yashirin")
 check("B1 Moliya: yo'nalishlar bo'limi va daromad doirasi YASHIRIN; xarajat oynasida «Umumiy» + «Penoplast»",
       g("bf", "bolim") is False and g("bf", "donut") == "none" and g("bf", "opts") == ["Umumiy", "Penoplast"], g("bf"))
-check("B2 Dashboard va Hisobotlar: yo'nalishlar grafiklari YASHIRIN", g("bd", "karta") == "none" and g("bh", "bolim") == "none",
+check("B2 Dashboard da kartasi yo'q, Hisobotlarda yo'nalishlar grafigi YASHIRIN", g("bd", "karta") is None and g("bh", "bolim") == "none",
       [g("bd"), g("bh")])
 
 section("X. Xatolar")

@@ -694,9 +694,11 @@ BELGILAR = {
     # kech118 (zip 123 — G5-04, MOSLANDI): «−» oynasi — BITTA «Brak yozish» oynasi (finished.html ulaydi)
     "templates/_brak_oyna.html": ["r.cost_amount === null ?", "{% if current_user.ruxsat('tannarx', 'korish') %}"],
     "templates/production.html": ["po.total_cost === null ? null", "natija.qoplamali.jami === null"],
-    "templates/dashboard.html": ["somYoq(t.today_profit, fmt)", "d.sof_foyda === null ? null"],
+    # kech118 (zip 124 — G1-09, MOSLANDI): Dashboard «Bu oy moliyaviy holat» va Hisobotlar «Ishlab chiqarish» jadvali olib
+    # tashlandi (takror) — ularning belgilari endi yo'q
+    "templates/dashboard.html": ["somYoq(t.today_profit, fmt)"],
     "templates/finance.html": ["if (v === null) return '—';", "d.sof_foyda === null ? '—'", "u.s.natija === null"],
-    "templates/reports.html": ["const qisqaSom =", "toliqSom(h.sof_foyda)", "toliqSom(i.cost_price)"],
+    "templates/reports.html": ["const qisqaSom =", "toliqSom(h.sof_foyda)"],
     "templates/returns.html": ["somYoq(d.brak_xarajat, fmt)", "somYoq(x.qiymat, fmt)", "somYoq(it.value, fmt)"],
     "templates/kpi.html": ["m.yearly_profit === null ? '—'", "r.profit === null ? '—'"],
     "templates/projects.html": ["stats.total_profit === null ? '—'"],

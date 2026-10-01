@@ -545,15 +545,11 @@ check("M2 izoh «Olingan … − to'langan … so'm (bugun)»; manfiy — qizil"
       and ((g("m", "rang") == "var(--f-danger)") == (float(g("m", "kirim") or 0) < float(g("m", "chiqim") or 0))), N.get("m"))
 
 section("D. Dashboard — pul oqimi va «Bu oy moliyaviy holat»")
-check("D1 «Pul oqimi (bu oy)»: kirim / chiqim / balans = API (asl: daromad / xarajat + xarid − transport)",
-      [g("d", "kirim"), g("d", "chiqim"), g("d", "balans")] == g("d", "k"), (g("d", "kirim"), g("d", "chiqim"), g("d", "balans"), g("d", "k")))
-check("D2 «Tannarx (sotilgan mahsulot)» — alohida qator = `tannarx_jami`", g("d", "tannarx") == g("d", "tannarx_k"),
-      (g("d", "tannarx"), g("d", "tannarx_k")))
-check("D3 «Jami xarajat» = `jami_xarajat` (tannarxsiz; asl: xarajat + tannarx)", g("d", "jami") == g("d", "jami_k"),
-      (g("d", "jami"), g("d", "jami_k")))
-check("D4 xarajat qatorlari — to'liq tarkib (tannarx qatori + har guruh), transport ko'rinadi",
-      len(g("d", "qatorlar") or []) == (g("d", "tarkib_soni") or 0) + 1 and any("Transport" in x for x in (g("d", "qatorlar") or [])),
-      g("d", "qatorlar"))
+# kech118 (zip 124 — egasi QARORI G1-09 «Vazifalar ajratilsin», MOSLANDI): «Pul oqimi (bu oy)» va «Bu oy moliyaviy holat»
+# Dashboard dan OLIB TASHLANDI (oylik tahlil — Hisobotlar: kpi-oqim / cashFlowBars / «Asosiy ko'rsatkichlar», yuqoridagi bo'limlar).
+check("D1 Dashboard da «Pul oqimi (bu oy)» va «Bu oy moliyaviy holat» bloklari YO'Q (Hisobotlar da — takror emas)",
+      [g("d", "kirim"), g("d", "chiqim"), g("d", "balans"), g("d", "tannarx"), g("d", "jami")] == [None] * 5
+      and not (g("d", "qatorlar") or []), (g("d", "kirim"), g("d", "tannarx"), g("d", "jami"), g("d", "qatorlar")))
 
 section("L. Loyihalar — qiymat buyurtmalardan")
 _kart = {c.get("id"): c for c in (g("l", "kartalar") or [])}

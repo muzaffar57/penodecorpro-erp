@@ -21,7 +21,6 @@ Ishga tushirish (repo ildizidan):
     PG_URL=postgresql://postgres@127.0.0.1:5432 python3 tools/test_naqd_kassa.py
 """
 import os
-import re
 import sys
 import json
 import shutil
@@ -321,18 +320,15 @@ def js_yurgiz(fn_src, data):
     return {"xato": out[:300]}
 
 
-_CASHFLOW = shablon_funksiya("dashboard.html", "async function loadCashFlow(")
-
-
 def bosh_sahifa(rep):
-    """Bosh sahifa "Kirim / Chiqim / Balans" — sahifaning O'Z `loadCashFlow` funksiyasi bilan. kech116 (G1-03): funksiya
-    `/api/finance/pul-oqimi` ni o'qiydi — soxta `fetch` shu paytdagi pul oqimi javobini qaytaradi (`hisobot()` oladi)."""
-    o = js_yurgiz(_CASHFLOW, rep.get("__pul_oqimi") or {})
-    h = ((o.get("cashFlow") or {}).get("h")) if isinstance(o, dict) else None
-    if not h:
+    """«Pul oqimi (bu oy)» "Kirim / Chiqim / Balans" — `/api/finance/pul-oqimi` javobi (`hisobot()` oladi).
+    kech118 (zip 124 — egasi QARORI G1-09, MOSLANDI): Dashboard dagi «Pul oqimi» bloki (`loadCashFlow` — shu javobni AYNAN
+    ko'rsatardi) olib tashlandi; pul oqimi — Hisobotlar (kpi-oqim / cashFlowBars, test_a116_ui) va Moliya. Shu yerda — o'sha javob."""
+    d = rep.get("__pul_oqimi") or {}
+    try:
+        return [float(d["kirim"]), float(d["chiqim"]), float(d["balans"])]
+    except (KeyError, TypeError, ValueError):
         return None
-    sonlar = re.findall(r">(-?\d+(?:\.\d+)?)</span>", h)
-    return [float(x) for x in sonlar] if len(sonlar) == 3 else None
 
 
 def bosh_chiqim(rep):
@@ -643,11 +639,12 @@ check("H3 kassa: yetkazish transporti korxona filtri bilan va jami chiqimda",
 check("H4 kassa: eski MonthlyExpense faqat tranzaksiyasi yo'q oy / kategoriya uchun (korxona filtri bilan)",
       tartibda(_srck, "_mtq = db.query(", "_mtq = _mtq.filter(ExpenseTransaction.company_id == company_id)",
                "_tranzaksiyali = ", "if (int(m.year), int(m.month), cat) not in _tranzaksiyali"))
-check("H5 bosh sahifa (kech116 — haqiqiy pul): Kirim / Chiqim / Balans — `/api/finance/pul-oqimi` javobidan, ko'rinish shundan",
-      tartibda(_dash, "fetch(`/api/finance/pul-oqimi?year=${tk.yil}&month=${tk.oy}`)", "const kirim = Number(d.kirim) || 0;",
-               "const chiqimJami = Number(d.chiqim) || 0;", "const balans = Number(d.balans) || 0;",
-               "${fmt(chiqimJami)}"))
-check("H6 node mavjud (B / U bo'limlari sahifa funksiyasini yurgizadi)", bool(_NODE) and bool(_CASHFLOW))
+# kech118 (zip 124 — G1-09, MOSLANDI): Dashboard «Pul oqimi» bloki olib tashlandi (Hisobotlar bilan takror) — pul oqimi
+# ko'rinishi Hisobotlarda (`/api/finance/pul-oqimi` → kpi-oqim / cashFlowBars; test_a116_ui)
+check("H5 Dashboard da «Pul oqimi (bu oy)» YO'Q (takror); Hisobotlar `/api/finance/pul-oqimi` ni o'qiydi",
+      "async function loadCashFlow(" not in _dash and 'id="cashFlow"' not in _dash
+      and "/api/finance/pul-oqimi" in open(os.path.join(ROOT, "templates", "reports.html"), encoding="utf-8").read())
+check("H6 node mavjud (B / U bo'limlari sahifa funksiyasini yurgizadi)", bool(_NODE))
 
 print(f"\nNATIJA: o'tdi = {OK} yiqildi = {FAIL} jami = {OK + FAIL}")
 if FAILED:
