@@ -496,6 +496,31 @@ KELISHILGAN summa (`loadPayments` / «Foyda hisoblash»; ilgari qaytarish / cheg
 server tafsilot matni — `services.son_korinish` (= Jinja `|son` = `sonKor`: «0,01 m³ × 572 947 so'm/m³», «7,5% foydadan»).
 Yangi buyurtma oynasidagi hisob ko'rinishi ham `sonKor` (orders.html da `toLocaleString` yo'q). Testlar: `tools/test_oy_boshi.py`,
 `tools/test_oy_boshi_ui.js`.
+**Telefon (kech119, zip 126 — C bosqichi; audit kech114 ning 13 telefon topilmasi, HAQIQIY brauzerda 390 / 360 px O'LCHANGAN —
+`work/k125/telefon.py`, natija `work/k125/t0` (asl) → `t3`).** QOIDA: telefonda hech bir sahifa ekrandan kengaymaydi; yon tomonga
+faqat ATAYLAB suriladigan tasmalar (Dashboard karuseli `#topGrid`, Tayyor mahsulotlar raqam kartalari `.fp-stat-tasma`) va o'z
+qutisidagi keng jadvallar suriladi. UMUMIY (`style.css`, ≤ 600 px): raqam kartalari (`.stat-grid` / `.kpi-grid` — shablondagi
+qat'iy ustun soni `!important` bilan bekor) — ikki ustun, belgi chapda, raqam sig'masa o'raladi; keng jadval — KARTALAR
+(`table.telefon-karta` + har katakda `data-label`: sarlavha yashirin, katak «nomi — qiymati», tugmalar pastda; Moliya
+tranzaksiyalari, Foydalanuvchilar); rasm qo'shish belgisi (kamera) sichqonchasiz qurilmada / tor ekranda doim ko'rinadi
+(`hover: none`); yopiq menyuning soyasi yo'q (faqat `.sidebar-open` da — ilgari har sahifada chap chetda qora chiziq);
+sarlavha (`base.html` `.page-title`) 2 qatorgacha. Grid / flex ustunlariga `min-width:0` (mazmun ustunni kengaytirmasin).
+SAHIFALAR: Buyurtmalar (≤ 900 px bitta ustun — ro'yxat → xulosa va AMALLAR (2 ustunli tugmalar, 44 px) → tafsilot;
+`tanlanganXulosagaSur` — tanlanganda xulosaga suriladi; yangi forma ochiq — `.ord-layout.yangi-forma`, hisob paneli formadan
+keyin; ≤ 600 px detal maydonlari ikki ustunda, ichma-ich chekkalar kichik — «Bo'yi» 46 → ~76 px); Qarzdorlar (`qarzTafsilotigaSur`
+— tanlangan qarzdor kartasiga, ostida to'lov formasi; «Boshqa majburiyatlar» bitta ustun); Loyihalar (tablar ustunni
+kengaytirmaydi, «Loyiha qiymati / To'langan / Qolgan to'lov» — bitta ustun, nom chapda summa o'ngda; holat paneli 16 px; mijoz
+nomi va telefoni o'raladi); Moliya (qarz qutilari 2 × 2, «Daromad taqsimoti» — doira tepada, izoh ostida; xarajat guruhi nomi
+torayadi); Ombor («Chegara:» / «Narx:» ustunlari ko'rinadi — ilgari 1 100 px dan tor ekranda yashirin; qator ikki ustunli);
+Retseptlar (tarkib nomlari to'liq); Ishlab chiqarish (tarkib qatorida «Miqdor» / «Isrof» nomlari maydon ustida, G5-25); Tayyor
+mahsulotlar (raqam kartalari bitta tasma — birinchi mahsulot birinchi ekranda); Qaytarishlar («Yangi qaytarish» oynasida «Rasm
+(ixtiyoriy)» — saqlangach yangi yozuvga yuklanadi, yuklanmasa sabab aytiladi; ilgari rasm faqat ro'yxatdagi, telefonda ko'rinmaydigan
+belgi orqali); KPI (karta / qator ikki qatorga, «Ehson foizi»
+qatori o'raladi); Kirim (ustunlar torayadi, «Yangi material yozaman» o'raladi); Dashboard (majburiyat nomi 2 qatorgacha, holat va
+summa sig'masa keyingi qatorga); Hisobotlar (jadval amallari o'raladi; reyting katagi mazmun bilan kengaymaydi — kompyuterda nom «…»
+va `title`, telefonda 2 qatorgacha). Kesh versiyasi — `static_version` «20261001-3».
+Test: `tools/test_c_telefon.py` (HAQIQIY Chromium, sensorli ekran). Rasmni serverda kichraytirish (G5-16 ikkinchi qismi) — E
+bosqichida.
 **Ranglar va tungi rejim (kech118, D bosqichi 2-qism — egasi QARORI «To'liq tuzatilsin — har sahifa ranglari umumiy ranglar
 ro'yxatiga», U-02; zip 122).** Shablon / `style.css` dagi rang XOSSASIGA qarab UMUMIY RO'YXATDAN olinadi — `static/ranglar.css`
 (`base.html` va mustaqil sahifalar — kirish, hodim kirishi / paneli, xato sahifasi — `style.css` dan KEYIN ulaydi):
@@ -891,6 +916,28 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   matni «50 kg loy × 15 600 so'm/kg»), `test_tayyor_reja_loy` (R7, R12, R16 — «20 kg loy»), `test_yonalish_natija`
   (S1 / S2 — «bugun» muzlatiladi: oy tugagan → o'tgan oy butun; yangi S5–S7 — 1–5 / 1–4 kesim qo'lda hisoblangan
   summalar bilan va haqiqiy bugun qoidasi; asl kodda S5–S7 yiqiladi).
+- (kech119, zip 126) C bosqichi — telefon: `tools/test_c_telefon.py` — HAQIQIY brauzer (Playwright Chromium, `is_mobile`,
+  `has_touch` — `hover: none`; shrift — tizimniki (Inter dan KENGROQ — qat'iyroq), Chart.js — o'rinbosar: canvas qutisi
+  kengligida). M (brauzerda dasturning o'z API si orqali to'liq ish zanjiri — ombor, kirim, retsept, usta, hodim, loyiha, 2 buyurtma,
+  to'lov, yetkazish, qaytarish, brak, MRP, tayyor mahsulot, moliya, majburiyat; hamma qadam 2xx), S (statik: menyu soyasi, kesh
+  versiyasi, `telefon-karta` + `data-label`, kamera, tasma, buyurtma tartibi), G (18 sahifa × 390 / 360 px: ekrandan chiqqan element
+  yo'q — ataylab suriladigan tasma va o'z qutisidagi tor jadval hisobga olinmaydi; hujjat kengligi ≤ ekran; JS xatosi yo'q),
+  T1–T19 (13 topilma bo'yicha ssenariy: yangi buyurtma maydonlari ≥ 60 px, tanlangan buyurtma amallari va qarzdor to'lov maydoni
+  EKRANDA, loyiha pul qatori, retsept / MRP tarkibi oynalari, birinchi tayyor mahsulot birinchi ekranda, kamera, ombor «Chegara:» /
+  «Narx:», Moliya izohi va kartali jadval, KPI «Saqlash», Bosh sahifa sarlavhasi, menyu soyasi, majburiyat nomlari; «Yangi
+  qaytarish» oynasidagi rasm — tanlansa saqlangan qaytarishga yuklanadi, oyna qayta ochilsa tozalanadi; Qarzdorlar «Kompaniya o'zi
+  qarzdor» va Dashboard «Tayyor mahsulotlar / Brak» — ustma-ust; Hisobotlar reyting nomlari to'liq, jadval paneli — qidiruv butun
+  kenglikda), T20 (1280 px kompyuter: reyting 4 ustuni uzun nomda ham teng). Ma'lumotda ATAYLAB uzun material nomi («Namuna Kley
+  akril (oq, ichki va tashqi ishlar uchun)») — Hisobotlar reytingi ustunni kengaytirib sahifani 444 px qilgani SHU nom bilan
+  topildi va tuzatildi (`.bi-top-grid > *{min-width:0}`, telefonda nom 2 qatorgacha). SQLite, PG (53) — asl kodda (zip 125) 47
+  yiqiladi, qulamaydi. Mutatsiyalar (`work/k126/mutatsiya127.py`, 32 ta; natija `work/natija/k126/mut/`) — 31 ushlanadi; C28
+  (`.stat-grid` 2 ustun qoidasi olib tashlansa) — 390 / 360 px da `auto-fit` ham 2 ustun beradi (ekvivalent; qoida 430–600 px
+  oralig'ida 3 tor ustun bo'lmasligi uchun). Birinchi o'tishda ushlanmagan C10 (Qarzdorlar yashirin «Kompaniya» tab), C16 (qisqa
+  nomlar), C26 (Dashboard ikki blok), C27 (Hisobotlar jadval paneli), C31 (kompyuterda reyting ustuni) — test kuchaytirilgach
+  (T16, uzun nom, T19, T18, T20) ushlanadi. Moslangan eski test: `test_toshkent_korinish_ui`
+  (T8 — tranzaksiya katagi endi `<td data-label="Sana">`). Yangi yordamchilar (`ordLayoutYangiForma`, `tanlanganXulosagaSur`,
+  `qarzTafsilotigaSur`) eski funksiyalardan `typeof … === 'function'` bilan chaqiriladi — JS testlari funksiyani ALOHIDA ajratib
+  oladi (birinchi etalonda 4 test «… is not defined» bilan yiqilgan edi).
 - (kech118, zip 124) D bosqichi 4-qism — sahifalar vazifasi: `tools/test_d124.py` — H (Bosh sahifa: takror bloklar yo'q, «Bugungi
   vazifalar», «So'nggi buyurtmalar» → /orders?order=ID, «Tezkor amallar» 4 ta — maxsus rollar bilan ruxsatga qarab: faqat
   «Buyurtmalar: Yaratish» → bitta, hech biri → blok yo'q), D (Dashboard: olib tashlangan bloklar va funksiyalari yo'q, qolganlari
@@ -1474,6 +1521,12 @@ bajarilganlari belgilanadi)**
 - (kech119, zip 125) Fayl yozish asbobi (Claude Write / Edit) matndagi `\u00a0` kabi qochish ketma-ketligini HAQIQIY belgiga
   aylantirishi mumkin — Python / JS manbasida ko'rinmas NBSP qoladi (ishlaydi, lekin o'qilmaydi). Yozgandan keyin tekshiring
   (`'\xa0' in qator`) va qochish ketma-ketligiga qaytaring (`chr(92) + 'u00a0'`).
+- (kech119, zip 126) Shablon `<style>` ichida telefon `@media` bloki ASOSIY qoidalardan OLDIN yozilsa, keyingi asosiy qoida
+  (bir xil selektor) uni bekor qiladi — `padding`, `font-size`, `gap` ishlamay qoladi (C bosqichida 8 ta shunday joy topildi:
+  `work/k126/css_ziddiyat.py` — dev126 → dev127 farqidagi qoidalar keyingi qoidalar bilan solishtiriladi). Telefon qoidasi
+  ASOSIY qoidalardan KEYIN yoki kuchliroq selektor / `!important` bilan; inline `style` dagi qiymatni (`padding-top`) `!important`
+  ham bosib ketadi — kerak bo'lsa kuchliroq selektor. O'lchovni Inter shrifti bilan ham, tizim shrifti (kengroq) bilan ham qiling:
+  `nowrap` yorliqlar faqat kengroq shriftda chiqib ketadi (Kirim «Yangi material yozaman», Moliya xarajat guruhi summasi).
 - (kech119, zip 125) Oylik hisobotning «1–N kun» varianti uchun hisobot funksiyalariga parametr o'tkazilmadi — barcha oy
   chegaralari `database.tashkent_oy_oraligi` dan o'tadi, kesim o'sha yerda (`tashkent_oy_kesimi`, contextvar — BITTA sinxron
   chaqiruv zanjiri ichida o'rnatiladi va o'qiladi, blokdan chiqishda tiklanadi). `tenant_context.py` dagi contextvar muammosi
@@ -2230,6 +2283,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_buyurtma_narx_jami.py` · PG — kech95 darvozasi (2026-09-27, 117-band + K95-1): buyurtma detali NARXI bazadagidek 2 xonaga (HALF_UP), JAMI shu narxdan; buyurtma jami — detallar jamisining o'nlik yig'in…
 - `test_buyurtma_oqimi.py` — buyurtmaning to'liq hayot sikli va OMBOR.
 - `test_buyurtma_raqam.py` · PG — kech86 darvozasi (100-band, FOYDALANUVCHI QARORI "A": buyurtma raqami HECH QACHON qayta berilmaydi — raqam faqat o'sadi, o'chirilgan buyurtma raqami bo'shliq bo'lib qoladi) +…
+- `test_c_telefon.py` · PG — kech119, C BOSQICH (telefon): dastur 390 va 360 px kenglikdagi telefonda — HAQIQIY brauzerda (Chromium, Playwright; sensorli ekran — `hover: none`) O'LCHANADI.
 - `test_d121.py` · PG — kech118 D BOSQICHI 1-qism (zip 121): MAYDA QOIDALAR VA NOMLAR (egasi QARORLARI kech118 11:40, tugmali, QAYTA SO'RALMAYDI).
 - `test_d122.py` · PG — kech118 D BOSQICHI 2-qism (zip 122): TUNGI REJIM TO'LIQ (audit U-02; egasi QARORI «To'liq tuzatilsin — har sahifa ranglari umumiy ranglar ro'yxatiga», tugmali, QAYTA SO'RALMAYDI).
 - `test_d123.py` · PG — kech118 D BOSQICHI 3-qism (zip 123): BRAK — BITTA OYNA, «PENOPLAST DETAL» / «RETSEPT BO'YICHA», «LOY RETSEPTLARI» / «MAHSULOT TARKIBI» (egasi QARORLARI kech118 11:40 — G5-04, G5-01, G4…
@@ -2391,5 +2445,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 185 (Python 150, JS 35).
+Jami test fayllari: 186 (Python 151, JS 35).
 <!-- AVTO:TESTLAR OXIRI -->
