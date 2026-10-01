@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Retseptlar — PenoDecorPro ERP{% endblock %}
-{% block page_title %}Retseptlar{% endblock %}
-{% block page_sub %}Loy (qoplama) retsepturalari — tarkibi Omborxonadagi istalgan materialdan tuziladi{% endblock %}
+{% block title %}Loy retseptlari — PenoDecorPro ERP{% endblock %}
+{% block page_title %}Loy retseptlari{% endblock %}
+{% block page_sub %}Loy (qoplama aralashmasi) retseptlari — tarkibi Omborxonadagi istalgan materialdan tuziladi. Mahsulot (karniz, panel …) tarkibi — «Ishlab chiqarish» bo'limida{% endblock %}
 
 {% block topbar_actions %}
-<button class="btn btn-dark" onclick="openAddModal()"><i class="ti ti-plus" style="vertical-align:-2px"></i> Yangi retsept</button>
+<button class="btn btn-dark" onclick="openAddModal()"><i class="ti ti-plus" style="vertical-align:-2px"></i> Yangi loy retsepti</button>
 {% endblock %}
 
 {% block head %}
@@ -467,7 +467,7 @@ async function saveEditRecipe() {
   <div class="recp-modal">
     <div class="recp-modal-head">
       <div class="recp-modal-icon"><i class="ti ti-flask"></i></div>
-      <div class="recp-modal-title">+ Yangi retsept</div>
+      <div class="recp-modal-title">+ Yangi loy retsepti</div>
       <button data-yopish type="button" class="recp-modal-close" onclick="closeAddModal()"><i class="ti ti-x"></i></button>
     </div>
 
@@ -529,7 +529,7 @@ async function saveEditRecipe() {
   <div class="recp-modal">
     <div class="recp-modal-head">
       <div class="recp-modal-icon"><i class="ti ti-edit"></i></div>
-      <div class="recp-modal-title">Retseptni tahrirlash</div>
+      <div class="recp-modal-title">Loy retseptini tahrirlash</div>
       <button data-yopish type="button" class="recp-modal-close" onclick="closeEditModal()"><i class="ti ti-x"></i></button>
     </div>
     <input type="hidden" id="edit-id">

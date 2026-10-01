@@ -4,7 +4,10 @@
 {% block page_sub %}Sotuvga tayyor va qaytgan mahsulotlar{% endblock %}
 
 {% block topbar_actions %}
-<button class="btn btn-dark" onclick="openProduceModal()"><i class="ti ti-plus" style="vertical-align:-2px"></i> Ishlab chiqarish</button>
+{# kech118 (D-3, egasi QARORI G5-01 «Ikkalasi qoladi, nomi ajratiladi»): eski oyna — penoplast detal (plotnost, 1 m³ narxi, loy);
+   boshqa mahsulot — «Ishlab chiqarish» bo'limida mahsulot tarkibi bo'yicha (havola) #}
+<button class="btn btn-dark" onclick="openProduceModal()" title="Penoplast detal (profil, panel, donali) — plotnost, 1 m³ narxi va loy bilan"><i class="ti ti-plus" style="vertical-align:-2px"></i> Penoplast detal</button>
+{% if current_user.ruxsat('mahsulot_turi', 'korish') %}<a class="btn btn-outline" id="retseptBoyichaHavola" href="/production" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px" title="«Ishlab chiqarish» bo'limi — mahsulot tarkibi bo'yicha (karniz, travertin …)"><i class="ti ti-building-factory-2" style="vertical-align:-2px"></i> Retsept bo'yicha →</a>{% endif %}
 {% endblock %}
 
 {% block head %}
@@ -182,67 +185,8 @@ input[type=number]{-moz-appearance:textfield}
   <img id="lightbox-img" src="" alt="">
 </div>
 
-<!-- ══ KAMAYTIRISH (BRAK) MODALI ══ -->
-<div id="lossModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:var(--white);border-radius:14px;width:400px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
-    <div style="padding:18px 22px 14px;border-bottom:1px solid var(--ch-f0f0f0);display:flex;justify-content:space-between;align-items:center">
-      <div>
-        <div style="font-size:16px;font-weight:600;color:var(--text)">⚠️ Kamaytirish (brak/yo'qotish)</div>
-        <div style="font-size:13px;color:var(--text3);margin-top:2px" id="loss-modal-sub">—</div>
-      </div>
-      <button data-yopish onclick="closeLossModal()" style="width:30px;height:30px;border-radius:50%;background:var(--f-f5f5f5);border:none;font-size:15px;cursor:pointer">✕</button>
-    </div>
-    <div style="padding:18px 22px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:14px">
-      <div id="loss-mode-toggle" style="display:none;gap:6px">
-        <div id="loss-mode-stock" class="type-opt active" style="flex:1;min-width:0;text-align:center;white-space:normal;line-height:1.35;padding:8px 6px" onclick="setLossMode('stock')">📦 Tayyor turgan, keyin yo'qoldi</div>
-        <div id="loss-mode-prod" class="type-opt" style="flex:1;min-width:0;text-align:center;white-space:normal;line-height:1.35;padding:8px 6px" onclick="setLossMode('production')">🏭 Ishlab chiqarishda chiqdi</div>
-      </div>
-      <div id="loss-info-stock" style="background:var(--f-fef3c7);border-radius:9px;padding:11px 14px;font-size:12.5px;color:var(--m-92400e);line-height:1.6">
-        Bu — mahsulotni <b>o'chirmaydi</b>, faqat miqdorini kamaytiradi (masalan sinib/buzilib, endi sotib bo'lmaydigan qismi uchun). Tan narxi avtomatik <b>Moliyada «Tayyor mahsulot yo'qotishi» qatoriga</b> qo'shiladi.
-      </div>
-      <div id="loss-info-production" style="display:none;background:var(--f-f8f2eb);border-radius:9px;padding:11px 14px;font-size:12.5px;color:var(--gold-dark);line-height:1.6">
-        Bu — kesish/qoplama jarayonida chiqqan brak uchun. <b>Mahsulot soni o'zgarmaydi</b> (siz baribir to'liq miqdorni topshirasiz) — faqat qayta ishlab chiqarish uchun sarflangan <b>qo'shimcha xomashyo</b> ombordan ayiriladi va Moliyada xarajat sifatida qayd etiladi.
-      </div>
-      <div id="loss-qty-wrap">
-        <label style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px" id="loss-qty-label">Necha birlik brak bo'ldi?</label>
-        <div style="font-size:12px;color:var(--text3);margin-bottom:6px" id="loss-stock-info"></div>
-        <input type="number" id="loss-qty" placeholder="0" style="width:100%;padding:11px 12px;border:1.5px solid var(--ch-e2e8f0);border-radius:9px;font-size:15px;box-sizing:border-box">
-      </div>
-      <!-- kech118 (D-1, G5-20 — egasi QARORI «Ha, majburiy»): brak SABABI — ro'yxatdan, MAJBURIY (birinchi turadi);
-           bosqich va javobgar hodim — ixtiyoriy; yozma maydon — «Izoh» (ilgari «Sabab» — bitta narsa ikki marta so'ralardi). -->
-      <div>
-        <label for="loss-cause" style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px">Nima sababdan? <span style="color:var(--m-dc2626)">*</span></label>
-        <select id="loss-cause" required aria-required="true" onchange="this.style.borderColor=''" style="width:100%;padding:11px 12px;border:1.5px solid var(--ch-e2e8f0);border-radius:9px;font-size:15px;box-sizing:border-box;background:var(--white)">
-          <option value="">— Tanlang —</option>
-          {% for k, v in (brak_sabablari or {}).items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
-        </select>
-      </div>
-      <!-- kech53 (13-band, 1-qadam): brak BOSQICHI — ixtiyoriy (ikkala rejimda). -->
-      <div>
-        <label for="loss-stage" style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px">Qaysi bosqichda? (ixtiyoriy)</label>
-        <select id="loss-stage" style="width:100%;padding:11px 12px;border:1.5px solid var(--ch-e2e8f0);border-radius:9px;font-size:15px;box-sizing:border-box;background:var(--white)">
-          <option value="">— Tanlanmagan —</option>
-          {% for k, v in (brak_bosqichlari or {}).items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
-        </select>
-      </div>
-      <div>
-        <label for="loss-worker" style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px">Kim sabab bo'ldi? (ixtiyoriy)</label>
-        <select id="loss-worker" style="width:100%;padding:11px 12px;border:1.5px solid var(--ch-e2e8f0);border-radius:9px;font-size:15px;box-sizing:border-box;background:var(--white)">
-          <option value="">— Tanlanmagan —</option>
-          {% for h in (brak_hodimlari or []) %}<option value="{{ h.id }}">{{ h.name }}{% if h.position %} — {{ h.position }}{% endif %}</option>{% endfor %}
-        </select>
-      </div>
-      <div>
-        <label for="loss-reason" style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px">Izoh (ixtiyoriy)</label>
-        <input type="text" id="loss-reason" placeholder="Masalan: tashishda sindi" style="width:100%;padding:11px 12px;border:1.5px solid var(--ch-e2e8f0);border-radius:9px;font-size:15px;box-sizing:border-box">
-      </div>
-    </div>
-    <div style="padding:16px 22px 20px;display:flex;gap:10px;border-top:1px solid var(--ch-f0f0f0)">
-      <button data-yopish onclick="closeLossModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--ch-e2e8f0);background:var(--white);color:var(--m-475569);font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
-      <button onclick="submitLoss()" id="loss-submit-btn" style="flex:1;padding:12px;border-radius:10px;border:none;background:#D97706;color:#fff;font-weight:600;font-size:14px;cursor:pointer">⚠️ Kamaytirish</button>
-    </div>
-  </div>
-</div>
+{# kech118 (D-3, G5-04): «−» (brak / yo'qotish) — BITTA «Brak yozish» oynasi (Qaytarishlardagi bilan bir xil) #}
+{% include "_brak_oyna.html" %}
 
 <!-- ══ TANLANGANLARNI SOTISH — suzuvchi panel ══ -->
 <div id="batchSellBar" style="display:none;position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:900;background:#0F172A;color:#fff;border-radius:14px;padding:14px 20px;box-shadow:0 12px 32px rgba(0,0,0,.25);align-items:center;gap:16px">
@@ -383,7 +327,7 @@ input[type=number]{-moz-appearance:textfield}
   <div style="background:var(--white);border-radius:14px;width:560px;max-width:100%;max-height:90vh;display:flex;flex-direction:column">
     <div style="padding:18px 22px 14px;border-bottom:1px solid var(--ch-f0f0f0);display:flex;justify-content:space-between;align-items:center">
       <div>
-        <div style="font-size:16px;font-weight:600;color:var(--text)">🏭 Tayyor mahsulot ishlab chiqarish</div>
+        <div style="font-size:16px;font-weight:600;color:var(--text)">🏭 Penoplast detal ishlab chiqarish</div>
         <div style="font-size:12px;color:var(--text3);margin-top:2px">Ombordan xomashyo yechiladi</div>
       </div>
       <button data-yopish onclick="closeProduceModal()" style="width:30px;height:30px;border-radius:50%;background:var(--f-f5f5f5);border:none;font-size:15px;cursor:pointer">✕</button>
@@ -1126,7 +1070,7 @@ function renderFp() {
 
   if (!groups.length && !returned.length) {
     html = `<div class="fp-empty">
-      ${q || category || activeChips.size ? 'Topilmadi' : (yashirin > 0 ? 'Omborda qoldiq yo\'q' : 'Ombor bo\'sh<br><br><span style="font-size:12px">Yuqoridagi <b>+ Ishlab chiqarish</b> tugmasini bosing</span>')}
+      ${q || category || activeChips.size ? 'Topilmadi' : (yashirin > 0 ? 'Omborda qoldiq yo\'q' : 'Ombor bo\'sh<br><br><span style="font-size:12px">Penoplast detal — yuqoridagi <b>+ Penoplast detal</b> tugmasi; boshqa mahsulot — <b>Retsept bo\'yicha</b> («Ishlab chiqarish» bo\'limi)</span>')}
     </div>` + (yashirin > 0 ? `<div class="fp-yashirin" id="fpYashirinIzoh">Tugagan partiyalar yashirilgan: ${yashirin} ta — <button type="button" onclick="fpTugaganniKorsat()">ko'rsatish</button></div>` : '');
   }
 
@@ -1430,129 +1374,7 @@ async function addProduction(id, qty, item) {
   } catch(e) { showMsg('❌ Server xatosi', 'error'); }
 }
 
-let _lossData = null;
-
-// kech54 (13-band, 5-qadam): MRP tayyor mahsuloti (`dynamic_bom`) — ishlab chiqarish braki
-// retsept SURATIDAN yoziladi (server). Qaytgan MRP (`mrp_product`) — surati yo'q, qo'shilmaydi.
-const PROD_BRAK_CATEGORIES = ['profil', 'panel', 'dona', 'blok', 'dynamic_bom'];
-let _lossMode = 'stock';
-
-// kech53 (13-band, 1-qadam): "Kamaytirish" oynasidagi ixtiyoriy brak bosqichi —
-// tanlansagina tanaga qo'shiladi (tanlanmasa tana AYNAN avvalgidek).
-// kech118 (D-1, G5-20): sabab — MAJBURIY (`submitLoss` tanlanmasa yubormaydi; server ham rad etadi).
-function lossBosqichTana() {
-  const el = document.getElementById('loss-stage');
-  const v = (el && el.value) || '';
-  // kech56 (13-band, 7-qadam): ixtiyoriy sabab va javobgar hodim — tanlansagina
-  // (hech biri tanlanmasa tana AYNAN avvalgidek).
-  const sEl = document.getElementById('loss-cause');
-  const s = (sEl && sEl.value) || '';
-  const jEl = document.getElementById('loss-worker');
-  const j = parseInt((jEl && jEl.value) || '', 10);
-  return Object.assign({}, v ? { brak_bosqich: v } : {}, s ? { brak_sabab: s } : {},
-                       j > 0 ? { brak_javobgar_id: j } : {});
-}
-
-function openLossModal(id, name, quantity, unit, category) {
-  _lossData = { id, name, quantity, unit, category: (category || '').toLowerCase() };
-  document.getElementById('loss-modal-sub').textContent = name;
-  document.getElementById('loss-stock-info').textContent = `Omborda: ${quantity} ${unit}`;
-  document.getElementById('loss-qty').value = '';
-  document.getElementById('loss-qty').max = quantity;
-  document.getElementById('loss-reason').value = '';
-  const _lossStage = document.getElementById('loss-stage');   // kech53
-  if (_lossStage) _lossStage.value = '';
-  const _lossCause = document.getElementById('loss-cause');   // kech56
-  if (_lossCause) { _lossCause.value = ''; _lossCause.style.borderColor = ''; }
-  const _lossWorker = document.getElementById('loss-worker'); // kech56
-  if (_lossWorker) _lossWorker.value = '';
-
-  const canProdBrak = PROD_BRAK_CATEGORIES.includes(_lossData.category);
-  document.getElementById('loss-mode-toggle').style.display = canProdBrak ? 'flex' : 'none';
-  setLossMode('stock');
-  document.getElementById('lossModal').style.display = 'flex';
-}
-
-function setLossMode(mode) {
-  _lossMode = mode;
-  document.getElementById('loss-mode-stock').classList.toggle('active', mode === 'stock');
-  document.getElementById('loss-mode-prod').classList.toggle('active', mode === 'production');
-  document.getElementById('loss-info-stock').style.display = mode === 'stock' ? 'block' : 'none';
-  document.getElementById('loss-info-production').style.display = mode === 'production' ? 'block' : 'none';
-  document.getElementById('loss-stock-info').style.display = mode === 'stock' ? 'block' : 'none';
-  document.getElementById('loss-qty-label').textContent = mode === 'stock' ? 'Necha birlik brak bo\'ldi?' : 'Ishlab chiqarishda necha birlik brak bo\'ldi?';
-  document.getElementById('loss-qty').max = mode === 'stock' ? _lossData.quantity : '';
-  const btn = document.getElementById('loss-submit-btn');
-  btn.style.background = mode === 'stock' ? '#B45309' : '#9A6231';   // kech118 (U-03): oq yozuv ≥ 4.5:1
-  btn.textContent = mode === 'stock' ? "⚠️ Kamaytirish" : "🏭 Xomashyoni ayirish";
-}
-
-function closeLossModal() {
-  document.getElementById('lossModal').style.display = 'none';
-}
-
-async function submitLoss() {
-  if (!_lossData) return;
-  const qty = parseFloat(document.getElementById('loss-qty').value) || 0;
-  if (qty <= 0) { showMsg('Miqdorni kiriting', 'error'); return; }
-  // kech118 (D-1, G5-20 — egasi QARORI): brak sababi majburiy — tanlanmasa saqlashdan OLDIN eslatiladi
-  const _sababEl = document.getElementById('loss-cause');
-  if (!_sababEl || !_sababEl.value) {
-    if (_sababEl) { _sababEl.style.borderColor = '#DC2626'; _sababEl.focus(); }
-    showMsg("Brak sababini tanlang (ro'yxatdan)", 'error');
-    return;
-  }
-
-  if (_lossMode === 'stock') {
-    if (qty > _lossData.quantity + 0.001) { showMsg(`Omborda faqat ${_lossData.quantity} ${_lossData.unit} bor`, 'error'); return; }
-    try {
-      const res = await fetch('/api/finished/loss', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({
-          finished_product_id: _lossData.id,
-          quantity: qty,
-          reason: document.getElementById('loss-reason').value.trim() || null,
-          ...lossBosqichTana()   // kech53 (13-band, 1-qadam)
-        })
-      });
-      const r = await res.json();
-      if (res.ok) {
-        closeLossModal();
-        {% if current_user.ruxsat('tannarx', 'korish') %}
-        showMsg(`✓ Kamaytirildi! Tan narxi (${fmt(r.cost_amount)} so'm) Moliyada «Tayyor mahsulot yo'qotishi» qatoriga qo'shildi`, 'success');
-        {% else %}
-        showMsg(`✓ Kamaytirildi!`, 'success');
-        {% endif %}
-        setTimeout(() => location.reload(), 1500);
-      } else {
-        showMsg(xatoSababi(r), 'error');
-      }
-    } catch(e) { showMsg('Server xatosi', 'error'); }
-  } else {
-    try {
-      const res = await fetch('/api/finished/production-brak', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({
-          finished_product_id: _lossData.id,
-          brak_qty: qty,
-          notes: document.getElementById('loss-reason').value.trim() || null,
-          ...lossBosqichTana()   // kech53 (13-band, 1-qadam)
-        })
-      });
-      const r = await res.json();
-      if (res.ok) {
-        closeLossModal();
-        showMsg(r.cost_amount === null ? `✓ Xomashyo ayirildi! (mahsulot soni o'zgarmadi)`
-                                       : `✓ Xomashyo ayirildi! Qo'shimcha xarajat: ${fmt(r.cost_amount)} so'm (mahsulot soni o'zgarmadi)`, 'success');
-        setTimeout(() => location.reload(), 1500);
-      } else {
-        showMsg(xatoSababi(r), 'error');
-      }
-    } catch(e) { showMsg('Server xatosi', 'error'); }
-  }
-}
+// kech118 (D-3, G5-04): «−» oynasi funksiyalari (openLossModal, setLossMode, submitLoss …) — templates/_brak_oyna.html
 
 let _batchItems = {};  // id -> {name, qty, unit, price, maxQty}
 

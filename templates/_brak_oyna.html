@@ -1,0 +1,552 @@
+{# kech118 (D-3, egasi QARORI G5-04 «Bitta «Brak yozish» oynasi»): brak HAMMA yo'ldan BITTA oynada yoziladi — avval «Brak qayerda
+   chiqdi?»: (A) buyurtma detalida (loyiha → detallar, `POST /api/returns` reason «Brak»), (B) omborda turgan tayyor mahsulotda
+   (`POST /api/finished/loss` — miqdor kamayadi, Moliya «Tayyor mahsulot yo'qotishi»), (C) ishlab chiqarishda (`POST
+   /api/finished/production-brak` — mahsulot soni o'zgarmaydi, qo'shimcha xomashyo yechiladi). Sabab (MAJBURIY), bosqich, javobgar,
+   izoh — hamma yo'lda bir xil. Ilgari: Qaytarishlarda «Brak yozish» (faqat A), «Yangi qaytarish» → «Brak» (A, boshqa oyna) va
+   Tayyor mahsulotlarda «−» (B / C, boshqa oyna) — uch xil oyna edi.
+   Ulanadi: templates/returns.html («Brak yozish» — showBrakModal()) va templates/finished.html («−» — openLossModal(...)).
+   A — faqat `projects` bor sahifada va «Qaytarishlar: Yaratish» ruxsati bilan; B / C — «Brak: Yaratish» ruxsati bilan. #}
+{% set _brak_a = (projects is defined) and current_user.ruxsat('qaytarish', 'yaratish') %}
+{% set _brak_bc = current_user.ruxsat('brak', 'yaratish') %}
+<style>
+.brk-manbalar{display:flex;flex-direction:column;gap:8px}
+.brk-manba{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;cursor:pointer;background:var(--white)}
+/* `.form-group label` (style.css — katta harf, kulrang) yo'l kartalariga tegmasin */
+#brakModal label.brk-manba{display:flex;text-transform:none;letter-spacing:0;font-size:inherit;font-weight:400;color:inherit;margin-bottom:0}
+.brk-manba input{width:16px;height:16px;margin-top:2px;flex-shrink:0}
+.brk-manba.tanlangan{border-color:#DC2626;background:var(--f-fef2f2)}
+.brk-manba-nom{font-size:13.5px;font-weight:700;color:var(--text)}
+.brk-manba-izoh{font-size:12.5px;color:var(--text3);margin-top:2px;line-height:1.45}
+.brk-bolim{margin-top:14px}
+.brk-info{border-radius:9px;padding:10px 12px;font-size:12.5px;line-height:1.55;margin-bottom:10px}
+</style>
+
+<!-- ══ BRAK YOZISH — BITTA OYNA (G5-04) ══ -->
+<div id="brakModal" role="dialog" aria-modal="true" aria-labelledby="brak-sarlavha" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--white);border-radius:14px;width:560px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
+    <div style="padding:18px 22px 14px;border-bottom:1px solid var(--ch-f0f0f0);display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+      <div style="min-width:0">
+        <div id="brak-sarlavha" style="font-size:16px;font-weight:600;color:var(--m-dc2626)">🔴 Brak yozish</div>
+        <div id="brak-sarlavha-sub" style="font-size:12.5px;color:var(--text3);margin-top:2px">Avval brak qayerda chiqqanini tanlang</div>
+      </div>
+      <button type="button" data-yopish onclick="closeBrakModal()" aria-label="Yopish" style="width:30px;height:30px;border-radius:50%;background:var(--f-f5f5f5);border:none;font-size:15px;cursor:pointer;flex-shrink:0">✕</button>
+    </div>
+
+    <div style="padding:14px 22px;overflow-y:auto;flex:1">
+
+      <div class="form-group" style="margin-bottom:0">
+        <label>Brak qayerda chiqdi? <span style="color:var(--m-dc2626)">*</span></label>
+        <div class="brk-manbalar" id="brak-manbalar">
+          {% if _brak_a %}
+          <label class="brk-manba" id="brak-manba-buyurtma"><input type="radio" name="brak-manba" value="buyurtma" onchange="brakManbaTanla(this.value)">
+            <span><span class="brk-manba-nom">🧾 Buyurtma detalida</span>
+            <span class="brk-manba-izoh" style="display:block">Mijoz buyurtmasining detali (yetkazishda, o'rnatishda yoki tayyorlashda) — loyiha bo'yicha tanlanadi, xomashyo ombordan yechiladi</span></span></label>
+          {% endif %}
+          {% if _brak_bc %}
+          <label class="brk-manba" id="brak-manba-ombor"><input type="radio" name="brak-manba" value="ombor" onchange="brakManbaTanla(this.value)">
+            <span><span class="brk-manba-nom">📦 Omborda turgan tayyor mahsulotda</span>
+            <span class="brk-manba-izoh" style="display:block">Tayyor turgan edi, keyin sindi / buzildi — miqdori kamayadi, tan narxi Moliyada «Tayyor mahsulot yo'qotishi»</span></span></label>
+          <label class="brk-manba" id="brak-manba-ishlab"><input type="radio" name="brak-manba" value="ishlab" onchange="brakManbaTanla(this.value)">
+            <span><span class="brk-manba-nom">🏭 Ishlab chiqarishda</span>
+            <span class="brk-manba-izoh" style="display:block">Kesish / qoplash paytida chiqdi — mahsulot soni o'zgarmaydi, qayta tayyorlashga ketgan qo'shimcha xomashyo yechiladi</span></span></label>
+          {% endif %}
+          {% if not _brak_a and not _brak_bc %}
+          <div style="font-size:13px;color:var(--text3)">Brak yozishga ruxsatingiz yo'q</div>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if _brak_a %}
+      <!-- (A) buyurtma detali — loyiha bo'yicha, bir nechta detal birdan -->
+      <div id="brak-panel-project" class="brk-bolim" style="display:none">
+        <div class="form-group">
+          <label for="brak-project">Loyiha</label>
+          <select id="brak-project" onchange="onBrakProjectChange()">
+            <option value="">— Loyiha tanlang —</option>
+            {% for p in (projects or []) %}<option value="{{ p.id }}">{{ p.project_name }} — {{ p.client_name }}</option>{% endfor %}
+          </select>
+        </div>
+
+        <div id="brakList" style="margin-top:10px">
+          <div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">Avval loyiha tanlang</div>
+        </div>
+
+        <div class="form-group">
+          <label>Bu ro'yxatdagi (qoplamali) detallar loy tortilgandan keyin brak bo'lganmi?</label>
+          <div style="display:flex;gap:8px">
+            <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid var(--ch-dddddd);border-radius:8px;cursor:pointer">
+              <input type="radio" name="brak-coating-applied" value="no" checked style="width:16px;height:16px">
+              <span style="font-size:13px">✂️ Yo'q — loygacha</span>
+            </label>
+            <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid var(--ch-dddddd);border-radius:8px;cursor:pointer">
+              <input type="radio" name="brak-coating-applied" value="yes" style="width:16px;height:16px">
+              <span style="font-size:13px">🎨 Ha — loydan keyin</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      {% if _brak_bc %}
+      <!-- (B) / (C) tayyor mahsulot — Tayyor mahsulotlardagi «−» dan mahsulot TANLANGAN holda ochiladi -->
+      <div id="brak-tm-panel" class="brk-bolim" style="display:none">
+        <div id="loss-info-stock" class="brk-info" style="background:var(--f-fef3c7);color:var(--m-92400e)">
+          Mahsulot <b>o'chirilmaydi</b> — faqat miqdori kamayadi (sinib / buzilib, endi sotib bo'lmaydigan qismi). Tan narxi Moliyada
+          <b>«Tayyor mahsulot yo'qotishi» qatoriga</b> qo'shiladi.
+        </div>
+        <div id="loss-info-production" class="brk-info" style="display:none;background:var(--f-f8f2eb);color:var(--gold-dark)">
+          <b>Mahsulot soni o'zgarmaydi</b> (baribir to'liq miqdorni topshirasiz) — qayta tayyorlashga sarflangan <b>qo'shimcha
+          xomashyo</b> ombordan yechiladi va Moliyada xarajat bo'ladi.
+        </div>
+        <div class="form-group" id="brak-fp-tanlash">
+          <label for="brak-fp">Tayyor mahsulot</label>
+          <select id="brak-fp" onchange="brakFpTanla()">
+            <option value="">— Mahsulot tanlang —</option>
+          </select>
+        </div>
+        <div id="brak-fp-nomi" style="display:none;font-size:14px;font-weight:700;color:var(--text);margin-bottom:10px"></div>
+        <div class="form-group">
+          <label for="loss-qty" id="loss-qty-label">Necha birlik brak bo'ldi?</label>
+          <div style="font-size:12px;color:var(--text3);margin-bottom:6px" id="loss-stock-info"></div>
+          <input type="number" id="loss-qty" placeholder="0" min="0" step="any">
+        </div>
+      </div>
+      {% endif %}
+
+      <div id="brak-umumiy" class="brk-bolim" style="display:none">
+        <!-- kech118 (D-1, G5-20 — egasi QARORI «Ha, majburiy»): SABAB — ro'yxatdan, MAJBURIY (birinchi turadi); bosqich va javobgar
+             hodim — ixtiyoriy; yozma maydon — «Izoh». Hamma yo'lda bir xil. -->
+        <div class="form-group">
+          <label for="brak-cause">Nima sababdan brak bo'ldi? <span style="color:var(--m-dc2626)">*</span></label>
+          <select id="brak-cause" aria-required="true" onchange="this.style.borderColor=''">
+            <option value="">— Tanlang —</option>
+            {% for k, v in (brak_sabablari or {}).items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="brak-stage">Qaysi bosqichda brak bo'ldi? <span style="color:var(--text3);font-weight:400">(ixtiyoriy)</span></label>
+          <select id="brak-stage">
+            <option value="">— Tanlanmagan —</option>
+            {% for k, v in (brak_bosqichlari or {}).items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="brak-worker">Brakka kim sabab bo'ldi? <span style="color:var(--text3);font-weight:400">(ixtiyoriy)</span></label>
+          <select id="brak-worker">
+            <option value="">— Tanlanmagan —</option>
+            {% for h in (brak_hodimlari or []) %}<option value="{{ h.id }}">{{ h.name }}{% if h.position %} — {{ h.position }}{% endif %}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label for="brak-notes">Izoh <span style="color:var(--text3);font-weight:400">(ixtiyoriy)</span></label>
+          <input type="text" id="brak-notes" placeholder="Masalan: kesish jarayonida sinib ketdi">
+        </div>
+      </div>
+
+      <div id="brak-error" style="display:none;margin-top:10px;padding:9px 12px;background:var(--f-fee2e2);border-radius:7px;font-size:12.5px;color:var(--m-b91c1c)"></div>
+    </div>
+
+    <div style="padding:14px 22px 18px;border-top:1px solid var(--ch-f0f0f0);display:flex;gap:8px">
+      <button type="button" data-yopish class="btn btn-outline" style="flex:1" onclick="closeBrakModal()">Bekor</button>
+      <button type="button" class="btn btn-dark" id="brak-save-btn" style="flex:2;background:#DC2626" onclick="brakSaqlash()">🔴 Brak sifatida saqlash</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── BRAK YOZISH — BITTA OYNA (kech118, D-3, G5-04) ─────────────────────────────────────────────────────────────────
+// (A) buyurtma detali — loyiha detallari ro'yxati (saveBrakBatch); (B) / (C) tayyor mahsulot (submitLoss). Nomlar avvalgi
+// oynalardagidek (showBrakModal, saveBrakBatch, openLossModal, setLossMode, submitLoss, lossBosqichTana …) — sahifalar
+// va testlar shularni chaqiradi.
+let brakItems = [];
+// 17g (2026-09-22): oyna ochiq turganda qisman saqlangan brak bo'lsa — oyna yopilganda ro'yxat yangilanadi.
+let brakSaqlanganBor = false;
+let isSavingBrak = false;
+let _lossData = null;          // (B) / (C): tanlangan tayyor mahsulot {id, name, quantity, unit, category}
+let _lossMode = 'stock';       // 'stock' — (B), 'production' — (C)
+let _brakManba = '';           // '' | 'buyurtma' | 'ombor' | 'ishlab'
+let _brakTmQotirilgan = false; // «−» dan ochilgan — mahsulot tanlangan, o'zgarmaydi
+let _brakTmRoyxat = null;      // Qaytarishlar sahifasida: /api/finished (bir marta yuklanadi)
+// kech54 (13-band, 5-qadam): MRP tayyor mahsuloti (`dynamic_bom`) — ishlab chiqarish braki retsept SURATIDAN yoziladi (server).
+// Qaytgan MRP (`mrp_product`) — surati yo'q, qo'shilmaydi.
+const PROD_BRAK_CATEGORIES = ['profil', 'panel', 'dona', 'blok', 'dynamic_bom'];
+
+function _brakEl(id) { return document.getElementById(id); }
+function _brakKor(id, kor) { const el = _brakEl(id); if (el) el.style.display = kor ? '' : 'none'; }
+function brakXato(matn) {
+  const err = _brakEl('brak-error');
+  if (!err) return;
+  err.style.display = matn ? 'block' : 'none';
+  err.textContent = matn || '';
+}
+
+// Oynani ochadi. `manba` berilsa — shu yo'l tanlangan holda ('buyurtma' | 'ombor' | 'ishlab'). O'zi yetarli (yordamchisiz):
+// element sahifada bo'lmasa — o'tkazib yuboriladi.
+function showBrakModal(manba) {
+  const el = (id) => document.getElementById(id);
+  const kor = (id, k) => { const e = el(id); if (e) e.style.display = k ? '' : 'none'; };
+  const hammasi = (sel) => (document.querySelectorAll ? Array.from(document.querySelectorAll(sel)) : []);
+  brakSaqlanganBor = false;
+  _lossData = null;
+  _brakTmQotirilgan = false;
+  _brakManba = '';
+  brakItems = [];
+  const pr = el('brak-project');
+  if (pr) pr.value = '';
+  const ro = el('brakList');
+  if (ro) ro.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">Avval loyiha tanlang</div>';
+  ['brak-notes', 'brak-stage', 'brak-worker', 'loss-qty', 'brak-fp'].forEach(k => { const e = el(k); if (e) e.value = ''; });
+  const sab = el('brak-cause');
+  if (sab) { sab.value = ''; sab.style.borderColor = ''; }
+  kor('brak-fp-tanlash', true);
+  kor('brak-fp-nomi', false);
+  ['buyurtma', 'ombor', 'ishlab'].forEach(m => kor('brak-manba-' + m, true));
+  hammasi('input[name="brak-manba"]').forEach(x => { x.checked = false; });
+  hammasi('.brk-manba').forEach(x => x.classList.remove('tanlangan'));
+  kor('brak-panel-project', false);
+  kor('brak-tm-panel', false);
+  kor('brak-umumiy', false);
+  const sub = el('brak-sarlavha-sub');
+  if (sub) sub.textContent = 'Avval brak qayerda chiqqanini tanlang';
+  const err = el('brak-error');
+  if (err) { err.style.display = 'none'; err.textContent = ''; }
+  const btn = el('brak-save-btn');
+  if (btn) { btn.textContent = '🔴 Brak sifatida saqlash'; btn.style.background = '#DC2626'; }
+  el('brakModal').style.display = 'flex';
+  return manba ? brakManbaTanla(manba) : null;
+}
+
+function closeBrakModal() {
+  const m = document.getElementById('brakModal');
+  if (m) m.style.display = 'none';
+  if (brakSaqlanganBor) { brakSaqlanganBor = false; location.reload(); }
+}
+// Tayyor mahsulotlar sahifasidagi eski nom («−» oynasi) — o'sha bitta oyna
+function closeLossModal() { closeBrakModal(); }
+
+function _brakTugma() {
+  const btn = _brakEl('brak-save-btn');
+  if (!btn) return;
+  if (_brakManba === 'ombor') { btn.textContent = '⚠️ Kamaytirish (brak)'; btn.style.background = '#B45309'; }
+  else if (_brakManba === 'ishlab') { btn.textContent = '🏭 Xomashyoni ayirish (brak)'; btn.style.background = '#9A6231'; }
+  else { btn.textContent = '🔴 Brak sifatida saqlash'; btn.style.background = '#DC2626'; }   // oq yozuv ≥ 4.5:1
+}
+
+// «Brak qayerda chiqdi?» — tanlov
+function brakManbaTanla(manba) {
+  if (!['buyurtma', 'ombor', 'ishlab'].includes(manba) || !_brakEl('brak-manba-' + manba)) return null;
+  _brakManba = manba;
+  const hammasi = (sel) => (document.querySelectorAll ? Array.from(document.querySelectorAll(sel)) : []);
+  hammasi('input[name="brak-manba"]').forEach(r => { r.checked = (r.value === manba); });
+  hammasi('.brk-manba').forEach(l => l.classList.toggle('tanlangan', l.id === 'brak-manba-' + manba));
+  _brakKor('brak-panel-project', manba === 'buyurtma');
+  _brakKor('brak-tm-panel', manba !== 'buyurtma');
+  _brakKor('brak-umumiy', true);
+  brakXato('');
+  let yuklash = null;   // ro'yxat yuklanishi (Promise) — chaqiruvchi kutishi mumkin
+  if (manba !== 'buyurtma') {
+    _lossMode = manba === 'ishlab' ? 'production' : 'stock';
+    _brakKor('loss-info-stock', _lossMode === 'stock');
+    _brakKor('loss-info-production', _lossMode === 'production');
+    const lab = _brakEl('loss-qty-label');
+    if (lab) lab.textContent = _lossMode === 'stock' ? "Necha birlik brak bo'ldi?" : "Ishlab chiqarishda necha birlik brak bo'ldi?";
+    if (!_brakTmQotirilgan) yuklash = brakTmYukla();
+    else _brakTmMiqdor();
+  }
+  _brakTugma();
+  return yuklash;
+}
+// Tayyor mahsulotlar sahifasidagi eski nom: 'stock' → (B), 'production' → (C)
+function setLossMode(mode) { return brakManbaTanla(mode === 'production' ? 'ishlab' : 'ombor'); }
+
+function _brakTmMiqdor() {
+  const qty = _brakEl('loss-qty');
+  const info = _brakEl('loss-stock-info');
+  if (!_lossData) { if (info) info.textContent = ''; if (qty) qty.max = ''; return; }
+  const birlik = (typeof birlikKor === 'function') ? birlikKor(_lossData.unit) : (_lossData.unit || '');
+  if (info) {
+    info.style.display = _lossMode === 'stock' ? 'block' : 'none';
+    info.textContent = `Omborda: ${(typeof sonKor === 'function') ? sonKor(_lossData.quantity) : _lossData.quantity} ${birlik}`;
+  }
+  if (qty) qty.max = _lossMode === 'stock' ? _lossData.quantity : '';
+}
+
+// Qaytarishlar sahifasida (B) / (C) — tayyor mahsulotlar ro'yxati (bir marta yuklanadi; (C) — faqat ishlab chiqariladigan turlar)
+async function brakTmYukla() {
+  const sel = _brakEl('brak-fp');
+  if (!sel) return;
+  _lossData = null;
+  _brakTmMiqdor();
+  if (_brakTmRoyxat === null) {
+    sel.innerHTML = '<option value="">Yuklanmoqda...</option>';
+    try {
+      const res = await fetch('/api/finished');
+      if (!res.ok) {
+        sel.innerHTML = '<option value="">' + escapeHtml(res.status === 403 ? "Tayyor mahsulotlarni ko'rishga ruxsat yo'q" : 'Yuklab bo\'lmadi') + '</option>';
+        return;
+      }
+      const d = await res.json();
+      _brakTmRoyxat = Array.isArray(d) ? d : [];
+    } catch (e) {
+      sel.innerHTML = '<option value="">Yuklab bo\'lmadi</option>';
+      return;
+    }
+  }
+  const royxat = _brakTmRoyxat.filter(i => (i.production_status || 'ready') === 'ready' && Number(i.quantity) > 0
+    && (_lossMode !== 'production' || PROD_BRAK_CATEGORIES.includes(String(i.category || '').toLowerCase())));
+  sel.innerHTML = '<option value="">' + (royxat.length ? '— Mahsulot tanlang —' : "Mos tayyor mahsulot yo'q") + '</option>' +
+    royxat.map(i => `<option value="${Number(i.id)}">${escapeHtml(i.name)} — ${escapeHtml((typeof sonKor === 'function') ? sonKor(i.quantity) : String(i.quantity))} ${escapeHtml((typeof birlikKor === 'function') ? birlikKor(i.unit) : (i.unit || ''))}</option>`).join('');
+}
+
+function brakFpTanla() {
+  const sel = _brakEl('brak-fp');
+  const id = parseInt((sel && sel.value) || '', 10);
+  const i = (_brakTmRoyxat || []).find(x => Number(x.id) === id);
+  _lossData = i ? { id: Number(i.id), name: i.name, quantity: Number(i.quantity), unit: i.unit,
+                    category: String(i.category || '').toLowerCase() } : null;
+  _brakTmMiqdor();
+}
+
+// Tayyor mahsulotlardagi «−» — shu oyna, mahsulot TANLANGAN, (B) tanlangan; (C) — faqat ishlab chiqariladigan turda
+function openLossModal(id, name, quantity, unit, category) {
+  showBrakModal();
+  _lossData = { id, name, quantity, unit, category: (category || '').toLowerCase() };
+  _brakTmQotirilgan = true;
+  _brakKor('brak-manba-buyurtma', false);
+  _brakKor('brak-manba-ishlab', PROD_BRAK_CATEGORIES.includes(_lossData.category));
+  _brakKor('brak-fp-tanlash', false);
+  const nom = _brakEl('brak-fp-nomi');
+  if (nom) { nom.textContent = name; nom.style.display = 'block'; }
+  const sub = _brakEl('brak-sarlavha-sub');
+  if (sub) sub.textContent = name;
+  setLossMode('stock');
+}
+
+// kech53 / kech56: bosqich, sabab, javobgar — tanlansagina tanaga qo'shiladi
+function lossBosqichTana() {
+  const el = document.getElementById('brak-stage');
+  const v = (el && el.value) || '';
+  const sEl = document.getElementById('brak-cause');
+  const s = (sEl && sEl.value) || '';
+  const jEl = document.getElementById('brak-worker');
+  const j = parseInt((jEl && jEl.value) || '', 10);
+  return Object.assign({}, v ? { brak_bosqich: v } : {}, s ? { brak_sabab: s } : {},
+                       j > 0 ? { brak_javobgar_id: j } : {});
+}
+
+// Saqlash — tanlangan yo'l bo'yicha
+function brakSaqlash() {
+  if (!_brakManba) { brakXato('❌ Brak qayerda chiqqanini tanlang'); return; }
+  if (_brakManba === 'buyurtma') return saveBrakBatch();
+  return submitLoss();
+}
+
+// 17g (2026-09-22): server javobidagi SABAB — `detail` matn bo'lsa o'zi, obyekt bo'lsa `detail.message`; aks holda holat kodi.
+async function brakServerSababi(res) {
+  let sabab = 'Xato (' + res.status + ')';
+  try {
+    const d = await res.json();
+    if (d && typeof d.detail === 'string' && d.detail) sabab = d.detail;
+    else if (d && d.detail && typeof d.detail.message === 'string' && d.detail.message) sabab = d.detail.message;
+  } catch(e) {}
+  return sabab;
+}
+
+async function onBrakProjectChange(){
+  const projectId = document.getElementById('brak-project').value;
+  const list = document.getElementById('brakList');
+  if (!projectId) {
+    list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">Avval loyiha tanlang</div>';
+    brakItems = [];
+    return;
+  }
+  list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">Yuklanmoqda...</div>';
+  const _birlik = (u) => (typeof unitShortLabel === 'function') ? unitShortLabel(u) : ((typeof birlikKor === 'function') ? birlikKor(u) : (u || ''));
+  try {
+    const d = await fetch(`/api/projects/${projectId}/items`).then(r => r.json());
+    brakItems = d.items || [];
+    if (!brakItems.length) {
+      list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">Bu loyihada detal topilmadi</div>';
+      return;
+    }
+    list.innerHTML = brakItems.map((it, idx) => `
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--ch-f5f5f5)">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:500;color:var(--m-1a1a1a)">${escapeHtml(it.name)}</div>
+          <div style="font-size:13px;color:var(--text3);margin-top:1px">
+            ${escapeHtml(it.order_number)} · jami ${escapeHtml(String(it.order_qty_normalized))} ${escapeHtml(_birlik(it.delivery_unit))}${it.is_coated ? ' · qoplamali' : ''}
+          </div>
+        </div>
+        <input type="number" class="brak-qty-inp" data-idx="${idx}" placeholder="0"
+               min="0" max="${Number(it.order_qty_normalized) || 0}" step="0.1"
+               style="width:74px;height:32px;text-align:center;border:1.5px solid var(--ch-e5e5e5);border-radius:7px;font-size:13px;font-weight:600;outline:none">
+        <span style="font-size:13px;color:var(--text3);width:32px">${escapeHtml(_birlik(it.delivery_unit))}</span>
+      </div>`).join('');
+  } catch(e) {
+    list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--m-dc2626);font-size:13px">Yuklashda xato</div>';
+  }
+}
+
+// (A) buyurtma detallari — har detalga bitta POST /api/returns (reason «Brak»)
+async function saveBrakBatch(){
+  const err = document.getElementById('brak-error');
+  const notes = document.getElementById('brak-notes').value.trim() || null;
+  // kech53 (13-band, 1-qadam): ixtiyoriy bosqich — tanlansagina tanaga qo'shiladi
+  const _bosqichEl = document.getElementById('brak-stage');
+  const bosqich = (_bosqichEl && _bosqichEl.value) || '';
+  // kech56 (13-band, 7-qadam): sabab va javobgar hodim; kech118 (D-1, G5-20): sabab — MAJBURIY, javobgar — ixtiyoriy.
+  const _sababEl = document.getElementById('brak-cause');
+  const sabab = (_sababEl && _sababEl.value) || '';
+  const _javobgarEl = document.getElementById('brak-worker');
+  const javobgarId = parseInt((_javobgarEl && _javobgarEl.value) || '', 10);
+
+  const inputs = document.querySelectorAll('.brak-qty-inp');
+  const toSave = [];
+  let hasOver = false;
+
+  inputs.forEach(el => {
+    const qty = parseFloat(el.value) || 0;
+    if (qty <= 0) return;
+    const idx = parseInt(el.dataset.idx);
+    const it = brakItems[idx];
+    if (!it) return;
+    if (qty > it.order_qty_normalized + 0.001) {
+      hasOver = true;
+      el.style.borderColor = '#DC2626';
+    } else {
+      el.style.borderColor = '';
+      toSave.push({ item: it, qty, el });
+    }
+  });
+
+  if (hasOver) { err.style.display='block'; err.textContent='❌ Buyurtmadagi miqdordan ko\'p kiritilgan — qizil maydonlarni tekshiring'; return; }
+  if (!toSave.length) { err.style.display='block'; err.textContent='❌ Kamida bitta detal uchun miqdor kiriting'; return; }
+  // kech118 (D-1, G5-20 — egasi QARORI): brak sababi majburiy — saqlashdan OLDIN eslatiladi
+  if (!sabab) {
+    if (_sababEl) { _sababEl.style.borderColor = '#DC2626'; _sababEl.focus(); }
+    err.style.display = 'block'; err.textContent = "❌ Brak sababini tanlang (ro'yxatdan)";
+    return;
+  }
+  err.style.display = 'none';
+
+  if (isSavingBrak) return; // Ikki marta bosishdan himoya
+  isSavingBrak = true;
+  const btn = document.getElementById('brak-save-btn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
+
+  // 17g (2026-09-22): rad etilgan qatorning server SABABI ko'rsatiladi, oyna ochiq qoladi; saqlanganlar miqdori tozalanadi
+  // (qayta bosilsa ikki marta yozilmasin). Hisoblagich `try` dan TASHQARIDA (tarmoq uzilsa ham saqlanganlar soni ko'rinadi).
+  let okCount = 0;
+  const xatolar = [];
+  try {
+    for (const { item, qty, el } of toSave) {
+      const res = await fetch('/api/returns', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          order_id: item.order_id,
+          order_item_id: item.item_id,
+          item_name: item.name,
+          quantity: qty,
+          unit: item.delivery_unit,
+          reason: 'Brak',
+          refund_amount: 0,
+          to_stock: false,
+          notes,
+          coating_applied: document.querySelector('input[name="brak-coating-applied"]:checked')?.value === 'yes',
+          ...(bosqich ? { brak_bosqich: bosqich } : {}),
+          ...(sabab ? { brak_sabab: sabab } : {}),
+          ...(javobgarId > 0 ? { brak_javobgar_id: javobgarId } : {})
+        })
+      });
+      if (res.ok) {
+        okCount++;
+        if (el) el.value = '';
+      } else {
+        xatolar.push(`${item.name}: ${await brakServerSababi(res)}`);
+      }
+    }
+    if (xatolar.length) {
+      if (okCount) brakSaqlanganBor = true;
+      err.style.display = 'block';
+      err.textContent = '❌ ' + (okCount ? `${okCount} ta saqlandi, ` : '') +
+        `${xatolar.length} ta saqlanmadi — ` + xatolar.join('; ');
+      return;
+    }
+    closeBrakModal();
+    location.reload();
+    return;
+  } catch(e) {
+    if (okCount) brakSaqlanganBor = true;
+    err.style.display='block';
+    err.textContent='❌ Server xatosi' + (okCount ? ` — ${okCount} ta saqlandi, qolganlari saqlanmadi` : '');
+  } finally {
+    isSavingBrak = false;
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
+  }
+}
+
+// (B) / (C) tayyor mahsulot
+async function submitLoss() {
+  if (!_lossData) { showMsg('Tayyor mahsulotni tanlang', 'error'); return; }
+  const qty = parseFloat(document.getElementById('loss-qty').value) || 0;
+  if (qty <= 0) { showMsg('Miqdorni kiriting', 'error'); return; }
+  // kech118 (D-1, G5-20 — egasi QARORI): brak sababi majburiy — tanlanmasa saqlashdan OLDIN eslatiladi
+  const _sababEl = document.getElementById('brak-cause');
+  if (!_sababEl || !_sababEl.value) {
+    if (_sababEl) { _sababEl.style.borderColor = '#DC2626'; _sababEl.focus(); }
+    showMsg("Brak sababini tanlang (ro'yxatdan)", 'error');
+    return;
+  }
+  const izoh = ((document.getElementById('brak-notes') || {}).value || '').trim() || null;
+  const _fmt = (x) => (typeof fmt === 'function') ? fmt(x) : sonKor(x, 0);
+  try {
+    if (_lossMode === 'stock') {
+      if (qty > _lossData.quantity + 0.001) { showMsg(`Omborda faqat ${_lossData.quantity} ${_lossData.unit} bor`, 'error'); return; }
+      const res = await fetch('/api/finished/loss', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          finished_product_id: _lossData.id,
+          quantity: qty,
+          reason: izoh,
+          ...lossBosqichTana()   // kech53 (13-band, 1-qadam)
+        })
+      });
+      const r = await res.json();
+      if (res.ok) {
+        closeBrakModal();
+        {% if current_user.ruxsat('tannarx', 'korish') %}
+        showMsg(`✓ Kamaytirildi! Tan narxi (${_fmt(r.cost_amount)} so'm) Moliyada «Tayyor mahsulot yo'qotishi» qatoriga qo'shildi`, 'success');
+        {% else %}
+        showMsg(`✓ Kamaytirildi!`, 'success');
+        {% endif %}
+        setTimeout(() => location.reload(), 1500);
+      } else {
+        showMsg(xatoSababi(r), 'error');
+      }
+    } else {
+      const res = await fetch('/api/finished/production-brak', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          finished_product_id: _lossData.id,
+          brak_qty: qty,
+          notes: izoh,
+          ...lossBosqichTana()   // kech53 (13-band, 1-qadam)
+        })
+      });
+      const r = await res.json();
+      if (res.ok) {
+        closeBrakModal();
+        showMsg(r.cost_amount === null ? `✓ Xomashyo ayirildi! (mahsulot soni o'zgarmadi)`
+                                       : `✓ Xomashyo ayirildi! Qo'shimcha xarajat: ${_fmt(r.cost_amount)} so'm (mahsulot soni o'zgarmadi)`, 'success');
+        setTimeout(() => location.reload(), 1500);
+      } else {
+        showMsg(xatoSababi(r), 'error');
+      }
+    }
+  } catch(e) {
+    showMsg('Server xatosi', 'error');
+  }
+}
+</script>
