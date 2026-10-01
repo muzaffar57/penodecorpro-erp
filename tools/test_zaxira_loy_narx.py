@@ -255,7 +255,7 @@ narxlar(3)
 t3 = foyda(A)[0]
 n3, s3 = qoplama(A)
 check("A3 x3: 760 000 O'ZGARMADI (asl: qoplama JORIY narxda — 1 280 000)", taxminan(t3, 760_000), (t1, t3))
-check("A4 qoplama qatori: zaxiradan olingan qism ko'rsatiladi", n3 is not None and "50.0 kg tayyor loy zaxirasidan" in n3
+check("A4 qoplama qatori: zaxiradan olingan qism ko'rsatiladi", n3 is not None and "50 kg tayyor loy zaxirasidan" in n3   # kech119 (G2-15): son_korinish — «50», «5 200»
       and taxminan(s3, 260_000), (n3, s3))
 narxlar(1)
 
@@ -269,7 +269,7 @@ check("B0 'Tayyor' 200; zaxira harakati 20 kg × 5 200", r.status_code == 200 an
 narxlar(3)
 nb, sb = qoplama(B)
 check("B1 x3: 760 000 (zaxira 20 × 5 200 + yangi 30 × 5 200 — ikkalasi muzlatilgan)", taxminan(foyda(B)[0], 760_000)
-      and taxminan(sb, 260_000) and "20.0 kg tayyor loy zaxirasidan" in (nb or "") and "30.0 kg" in (nb or ""), (foyda(B)[0], nb, sb))
+      and taxminan(sb, 260_000) and "20 kg tayyor loy zaxirasidan" in (nb or "") and "30 kg" in (nb or ""), (foyda(B)[0], nb, sb))
 narxlar(1)
 
 # ══════════════════════════════════════════════════════════════
@@ -294,7 +294,7 @@ r = tayyor(D, 40)                                 # 40 kg ishlatildi (10 kg ortd
 narxlar(3)
 nd, sd = qoplama(D)
 check("D1 x3: qoplama 40 × 5 200 = 208 000 (zaxira qismi ishlatilgan 40 kg bilan cheklangan)",
-      r.status_code == 200 and taxminan(sd, 208_000) and "40.0 kg tayyor loy zaxirasidan" in (nd or ""), (r.status_code, nd, sd))
+      r.status_code == 200 and taxminan(sd, 208_000) and "40 kg tayyor loy zaxirasidan" in (nd or ""), (r.status_code, nd, sd))
 narxlar(1)
 
 # ══════════════════════════════════════════════════════════════
@@ -312,7 +312,7 @@ finally:
 narxlar(3)
 ne, se = qoplama(E)
 check("E1 narxi 0 — noma'lum: butun loy avvalgidek (x3 da JORIY 50 × 15 600 = 780 000), matn avvalgi shaklda",
-      taxminan(se, 780_000) and ne == "Qoplama (50.0 kg loy × 15,600 so'm/kg)", (ne, se))
+      taxminan(se, 780_000) and ne == "Qoplama (50 kg loy × 15\u00a0600 so'm/kg)", (ne, se))
 narxlar(1)
 
 # ══════════════════════════════════════════════════════════════

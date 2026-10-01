@@ -31,7 +31,8 @@ import sys
 import zlib
 import base64
 import tempfile
-from datetime import timedelta
+import calendar
+from datetime import timedelta, date
 from decimal import Decimal, ROUND_HALF_UP
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -490,16 +491,46 @@ check("K4 API davr bilan — xizmat natijasi bilan AYNAN (Jami va ustunlar)",
 # ════════════════════════════════════════════════════════════════════════════════════════════════════════════
 section("S. Oldingi davr bilan solishtirish")
 # ════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# kech119 (egasi QARORI «Shu kunlar bilan»): joriy (tugamagan) oy — o'tgan oyning SHU KUNLARI (1–N) bilan solishtiriladi.
+# Natija sanaga bog'liq bo'lmasin: `services` uchun «bugun» muzlatiladi (faqat argumentsiz chaqiruv; sanani aylantirish —
+# asl funksiya). «Oy tugagan» holati — keyingi oyning 1-kuni (joriy oy endi o'tgan → o'tgan oy BUTUN).
+_ORIG_TD = getattr(services, "_tashkent_date", None)
+_OY_K = ["yanvar", "fevral", "mart", "aprel", "may", "iyun", "iyul", "avgust", "sentabr", "oktabr", "noyabr", "dekabr"]
+
+
+def split_bugun(bugun, y, o, **k):
+    if _ORIG_TD is None:
+        return split(y, o, **k)
+
+    def _soxta(dt=None):
+        return _ORIG_TD(dt) if dt is not None else bugun
+    services._tashkent_date = _soxta
+    try:
+        return split(y, o, **k)
+    finally:
+        services._tashkent_date = _ORIG_TD
+
+
+def oldingi_of(r):
+    return r.get("oldingi") or {} if isinstance(r, dict) else {}
+
+
+_KEYINGI = oy_siljit(YIL, OY, 1)
+SPT = split_bugun(date(_KEYINGI[0], _KEYINGI[1], 1), YIL, OY, solishtirish=True)
+_old = oldingi_of(SPT)
+_oz = SPT.get("ozgarish") or {} if isinstance(SPT, dict) else {}
+JT = SPT.get("jami", {}) if isinstance(SPT, dict) else {}
 _Rp = rep(*OYLAR3[1])
-_old = SP.get("oldingi") or {} if isinstance(SP, dict) else {}
-_oz = SP.get("ozgarish") or {} if isinstance(SP, dict) else {}
-_dp, _dc = yaxlit(daromad_of(_Rp)), J.get("daromad", 0)
+_dp, _dc = yaxlit(daromad_of(_Rp)), JT.get("daromad", 0)
 _xp = yaxlit(daromad_of(_Rp) - float(_Rp.get("sof_foyda", 0)))
-_xc = J.get("tannarx", 0) + J.get("oylik", 0) + J.get("xarajat", 0)
-check("S1 bir oy → o'tgan oy: davr nomi, daromad / xarajat (tannarx bilan) / natija — o'tgan oy hisobotidan",
+_xc = JT.get("tannarx", 0) + JT.get("oylik", 0) + JT.get("xarajat", 0)
+check("S1 oy TUGAGAN (bugun — keyingi oy) → o'tgan oy BUTUN: davr nomi, daromad / xarajat (tannarx bilan) / natija — o'tgan "
+      "oy hisobotidan; kesim yo'q",
       (_old.get("davr") or {}).get("nom") == f"{_OYN[OYLAR3[1][1] - 1]} {OYLAR3[1][0]}" and _old.get("daromad") == _dp
-      and _old.get("natija") == yaxlit(float(_Rp.get("sof_foyda", 0))) and _old.get("xarajat") == _xp,
-      [_old, _dp, _xp])
+      and _old.get("natija") == yaxlit(float(_Rp.get("sof_foyda", 0))) and _old.get("xarajat") == _xp
+      and (_old.get("davr") or {}).get("kun_gacha") is None and (_dp, _xp) == (350_000, 115_000)
+      and JT == J,
+      [_old, _dp, _xp, JT == J])
 _of = getattr(services, "_ozgarish_foiz", None)
 check("S2b o'zgarish foizi manfiy oldingida — |oldingi| ga bo'linadi: −100 → −50 = +50%, −100 → +100 = +200%, 100 → 50 = −50%, "
       "0 → 5 = None", _of and [_of(-50, -100), _of(100, -100), _of(50, 100), _of(5, 0)] == [50.0, 200.0, -50.0, None],
@@ -507,9 +538,37 @@ check("S2b o'zgarish foizi manfiy oldingida — |oldingi| ga bo'linadi: −100 �
 check("S2 o'zgarish foizi: (joriy − oldingi) / |oldingi| × 100, 1 xona; oldingi 0 — None",
       _oz.get("daromad") == (round((_dc - _dp) / abs(_dp) * 100, 1) if _dp else None)
       and _oz.get("xarajat") == (round((_xc - _xp) / abs(_xp) * 100, 1) if _xp else None)
-      and _oz.get("natija") == (round((J.get("natija", 0) - _old.get("natija", 0)) / abs(_old.get("natija", 0)) * 100, 1)
+      and _oz.get("natija") == (round((JT.get("natija", 0) - _old.get("natija", 0)) / abs(_old.get("natija", 0)) * 100, 1)
                                 if _old.get("natija") else None),
       [_oz, _dc, _dp, _xc, _xp])
+# O'tgan oy ma'lumoti (qo'lda hisoblangan): 5-kun buyurtma 350 000 (daromad), 4-kun reklama 70 000, 6-kun «Boshqa» 45 000.
+# Bugun 5-kun → o'tgan oy 1–5: daromad 350 000, xarajat 70 000 (6-kun kirmaydi); bugun 4-kun → 1–4: daromad 0, xarajat 70 000.
+_py, _pm = OYLAR3[1]
+SP5 = split_bugun(date(YIL, OY, 5), YIL, OY, solishtirish=True)
+SP4 = split_bugun(date(YIL, OY, 4), YIL, OY, solishtirish=True)
+_o5, _o4 = oldingi_of(SP5), oldingi_of(SP4)
+check("S5 joriy oy TUGAMAGAN (bugun 5-kun) → o'tgan oyning 1–5 kunlari: nom «1–5-<oy> <yil>», kun_gacha 5; daromad 350 000, "
+      "xarajat 70 000 (6-kungi 45 000 kirmaydi), natija 280 000; davr dan / gacha — o'tgan oy",
+      (_o5.get("davr") or {}).get("nom") == f"1–5-{_OY_K[_pm - 1]} {_py}" and (_o5.get("davr") or {}).get("kun_gacha") == 5
+      and (_o5.get("davr") or {}).get("dan") == (_o5.get("davr") or {}).get("gacha") == f"{_py}-{_pm:02d}"
+      and [_o5.get("daromad"), _o5.get("xarajat"), _o5.get("natija")] == [350_000, 70_000, 280_000],
+      _o5)
+check("S6 bugun 4-kun → 1–4: 5-kungi buyurtma kirmaydi — daromad 0, xarajat 70 000, natija −70 000; o'zgarish foizi shu "
+      "kesimga nisbatan (daromad — None, oldingi 0)",
+      (_o4.get("davr") or {}).get("nom") == f"1–4-{_OY_K[_pm - 1]} {_py}" and (_o4.get("davr") or {}).get("kun_gacha") == 4
+      and [_o4.get("daromad"), _o4.get("xarajat"), _o4.get("natija")] == [0, 70_000, -70_000]
+      and ((SP4.get("ozgarish") or {}) if isinstance(SP4, dict) else {}).get("daromad") is None
+      and ((SP4.get("ozgarish") or {}) if isinstance(SP4, dict) else {}).get("natija")
+      == (round((JT.get("natija", 0) + 70_000) / 70_000 * 100, 1)),
+      [_o4, SP4.get("ozgarish") if isinstance(SP4, dict) else SP4])
+_kun_haqiqiy = BUGUN.day if BUGUN.day < calendar.monthrange(_py, _pm)[1] else None
+check("S7 haqiqiy bugun bilan ham qoida bir xil: kun_gacha = bugungi kun (o'tgan oy uzunroq bo'lsa), aks holda None; "
+      "API = xizmat",
+      ((_old_h := oldingi_of(SP)).get("davr") or {}).get("kun_gacha") == _kun_haqiqiy
+      and (_old_h.get("davr") or {}).get("nom") == (f"{_OYN[_pm - 1]} {_py}" if _kun_haqiqiy is None else
+                                                    f"{'1' if _kun_haqiqiy == 1 else f'1–{_kun_haqiqiy}'}-{_OY_K[_pm - 1]} {_py}")
+      and js(_api).get("oldingi") == _old_h,
+      [_old_h, _kun_haqiqiy])
 _oldk = SK.get("oldingi") or {} if isinstance(SK, dict) else {}
 _k_old = services.yonalish_oldingi_davr(OYLAR3) if hasattr(services, "yonalish_oldingi_davr") else []
 _sof_old = sum(float(rep(y, o).get("sof_foyda", 0)) for y, o in _k_old)

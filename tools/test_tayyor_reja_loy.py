@@ -251,7 +251,7 @@ check("R6 ombor o'zgarmadi (reja allaqachon yechilgan — qo'shimcha yechish / q
       (_k0, qoldiq(ID["kley"]), _q0, qoldiq(ID["qum"])))
 f1 = foyda(O1)
 q1 = qoplama_qatori(f1)
-check("R7 foyda breakdownida «Qoplama (20.0 kg loy …)» qatori BOR", q1 is not None and "20.0 kg loy" in str(q1.get("nomi")),
+check("R7 foyda breakdownida «Qoplama (20 kg loy …)» qatori BOR", q1 is not None and "20 kg loy" in str(q1.get("nomi")),   # kech119 (G2-15): son_korinish
       f1.get("breakdown"))
 check("R8 qoplama summasi = 20 kg × (0.3 × Kley + 0.7 × Qum) narxi (tiyingacha)",
       q1 is not None and abs(float(q1.get("summa", 0)) - 20 * KG_NARX) < 0.02, (q1, 20 * KG_NARX))
@@ -280,7 +280,7 @@ check("R11 5 kg loy ingredientlari yechildi (Kley −1.5, Qum −3.5)",
       abs((_k0 - qoldiq(ID["kley"])) - 1.5) < 1e-6 and abs((_q0 - qoldiq(ID["qum"])) - 3.5) < 1e-6,
       (_k0 - qoldiq(ID["kley"]), _q0 - qoldiq(ID["qum"])))
 q3 = qoplama_qatori(foyda(O3))
-check("R12 foyda: «Qoplama (25.0 kg loy …)»", q3 is not None and "25.0 kg loy" in str(q3.get("nomi")), q3)
+check("R12 foyda: «Qoplama (25 kg loy …)»", q3 is not None and "25 kg loy" in str(q3.get("nomi")), q3)
 
 section("R. Qisman topshirilgan buyurtma, loy BO'SH")
 O4, I4 = buyurtma("TRL4")
@@ -293,7 +293,7 @@ check("R14 qisman: `actual_loy_kg` = reja 20 (loy ingredientlari qaytmadi — re
 check("R15 qisman: topshirilmagan profil penoplasti qaytdi (+0.45 blok)", abs((qoldiq(ID["peno"]) - _p0) - 0.45) < 1e-6,
       qoldiq(ID["peno"]) - _p0)
 q4 = qoplama_qatori(foyda(O4))
-check("R16 qisman: foydada «Qoplama (20.0 kg loy …)»", q4 is not None and "20.0 kg loy" in str(q4.get("nomi")), q4)
+check("R16 qisman: foydada «Qoplama (20 kg loy …)»", q4 is not None and "20 kg loy" in str(q4.get("nomi")), q4)
 
 section("R. Qoplamasiz buyurtma (reja loyi yo'q) — o'zgarmagan")
 O5, I5 = buyurtma("TRL5", qoplamali=False)
