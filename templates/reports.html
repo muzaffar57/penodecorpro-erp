@@ -284,7 +284,7 @@ html[data-theme="dark"] .bi-tab.active{background:var(--f-eceae6);color:var(--m-
 
   <!-- 7-QATOR: TAQQOSLASH -->
   <div class="bi-section">
-    <div class="bi-section-title"><i class="ti ti-arrows-diff"></i> O'tgan oy bilan taqqoslash</div>
+    <div class="bi-section-title"><i class="ti ti-arrows-diff"></i> O'tgan oy bilan taqqoslash <span id="compDavr" style="font-weight:400;color:var(--b-text3);font-size:13px"></span></div>
     <div class="bi-card bi-fade"><div class="bi-card-body">
       <div class="bi-comp-grid" id="compGrid">
         <div class="bi-comp-card"><div class="bi-comp-label">Daromad</div><div class="bi-comp-arrow" id="comp-daromad">—</div></div>
@@ -462,7 +462,7 @@ async function loadKpi(){
       const el = document.getElementById(id);
       if (!el) return;
       const o = ozgarishKorinishi(key, v);
-      el.innerHTML = o.html + (o.foizli ? " o'tgan oyga nisbatan" : '');
+      el.innerHTML = o.html + (o.foizli ? ' ' + escapeHtml(nisbatanMatni(comp.davr)) : '');
       el.style.color = o.rang;
     };
     if (comp.daromad) setCh('kpi-daromad-ch', 'daromad', comp.daromad);
@@ -624,9 +624,10 @@ async function loadCashFlowBars(){
 }
 
 // ═══ 6. TOP REYTINGLAR ═══
-function topListHtml(rows, nameKey, valKey, valSuffix){
+// `tayyorMatn` — qiymat allaqachon ko'rinish matni (miqdor + birlik): qisqartirilmaydi, faqat escape qilinadi
+function topListHtml(rows, nameKey, valKey, valSuffix, tayyorMatn){
   if (!rows.length) return '<div class="bi-empty" style="padding:16px 0;font-size:12.5px">Ma\'lumot yo\'q</div>';
-  return rows.slice(0,8).map((r,i)=>`<div class="bi-top-row"><span class="bi-top-rank">${i+1}</span><span class="bi-top-name">${escapeHtml(r[nameKey])}</span><span class="bi-top-val">${fmtShort(r[valKey])}${valSuffix||''}</span></div>`).join('');
+  return rows.slice(0,8).map((r,i)=>`<div class="bi-top-row"><span class="bi-top-rank">${i+1}</span><span class="bi-top-name">${escapeHtml(r[nameKey])}</span><span class="bi-top-val">${tayyorMatn ? escapeHtml(r[valKey]) : fmtShort(r[valKey])}${valSuffix||''}</span></div>`).join('');
 }
 
 async function loadTopRankings(){
@@ -639,7 +640,12 @@ async function loadTopRankings(){
     ]);
     document.getElementById('topCustomers').innerHTML = topListHtml(customers, 'client_name', 'revenue', " so'm");
     document.getElementById('topProducts').innerHTML = topListHtml(products, 'name', 'revenue', " so'm");
-    document.getElementById('topMaterials').innerHTML = topListHtml(materials, 'item_name', 'total_qty', '');
+    // kech119 (O'LCHANGAN — sinov sayti 01.10: «Podveska 2 ming», «SINOV_Kley 580» — birliksiz, pul kabi «ming» bilan):
+    // miqdor — to'liq son va birligi («2 000 dona», «996 kg»; server `unit`)
+    document.getElementById('topMaterials').innerHTML = topListHtml(
+      (Array.isArray(materials) ? materials : []).map(m => Object.assign({}, m, {
+        miqdor_matn: `${fmtQty(m.total_qty)}${m.unit ? ' ' + birlikKor(m.unit) : ''}`})),
+      'item_name', 'miqdor_matn', '', true);
     document.getElementById('topSuppliers').innerHTML = topListHtml(suppliers, 'supplier_name', 'total', " so'm");
   } catch(e) { console.error(e); }
 }
@@ -648,6 +654,18 @@ async function loadTopRankings(){
 // xarajat o'sishi yashil, pastda qizil): YAGONA ko'rinish qoidasi — server `holat` / `change_pct` dan. Foiz yo'q (o'tgan oy
 // 0) — «o'tgan oyda ma'lumot yo'q» (kulrang); o'zgarmadi — kulrang; rang — ko'rsatkich ma'nosi bo'yicha (xarajat o'sishi
 // — qizil, qolganlari — yashil).
+// kech119 (egasi QARORI 2026-10-01 «Shu kunlar bilan»): joriy oy tugamagan — o'tgan oyning SHU KUNLARI bilan
+// solishtiriladi (server `comp.davr`: `kun_gacha` — N, `oldingi_nom` — «1–10-sentabr»). Matn: «1–10-sentabrga nisbatan»;
+// to'liq oy (yoki eski javob — `davr` yo'q) — «o'tgan oyga nisbatan».
+function nisbatanMatni(davr) {
+  if (davr && davr.kun_gacha && davr.oldingi_nom) return `${davr.oldingi_nom}ga nisbatan`;
+  return "o'tgan oyga nisbatan";
+}
+// «— 1–10-oktabr ↔ 1–10-sentabr (oyning shu kunlari)» / «— oktabr ↔ sentabr»
+function davrSarlavhaMatni(davr) {
+  if (!davr || !davr.joriy_nom || !davr.oldingi_nom) return '';
+  return `— ${davr.joriy_nom} ↔ ${davr.oldingi_nom}` + (davr.kun_gacha ? ' (oyning shu kunlari)' : '');
+}
 function ozgarishKorinishi(key, v) {
   const kul = 'var(--b-text3)';
   if (v && (v.holat === 'ozgarmadi' || (v.change_pct !== null && v.change_pct !== undefined && Number(v.change_pct) === 0))) {
@@ -670,6 +688,8 @@ async function loadComparison(){
   const tk = tkHozir();     // kech106: joriy oy — Toshkent
   try {
     const comp = await fetch(`/api/reports/comparison?year=${tk.yil}&month=${tk.oy}`).then(r=>r.json());
+    const dEl = document.getElementById('compDavr');
+    if (dEl) dEl.textContent = davrSarlavhaMatni(comp.davr);
     Object.entries(comp).forEach(([key, v]) => {
       const el = document.getElementById(`comp-${key}`);
       if (!el) return;
@@ -690,8 +710,13 @@ async function loadForecast(){
     const el = document.getElementById('forecastBody');
     if (!fc.available) { el.innerHTML = `<div class="bi-empty">${escapeHtml(fc.message||"Ma'lumot yo'q")}</div>`; return; }
     const pct = Math.round(fc.days_passed/fc.days_in_month*100);
+    // kech119 (K119-1): oylik (bir marta yoziladigan) xarajat oy kunlariga ko'paytirilmaydi — izohda ko'rsatiladi
+    const doimiyIzoh = Number(fc.doimiy_xarajat) > 0
+      ? `<div style="font-size:12.5px;color:var(--b-text3);margin:-10px 0 16px">Hodimlar oyligi, arenda, elektr va soliq (${fmt(fc.doimiy_xarajat)} so'm) — bir marta hisoblangan; qolgan daromad va xarajatlar — kunlik o'rtacha bo'yicha</div>`
+      : '';
     el.innerHTML = `
       <div style="font-size:12.5px;color:var(--b-text3);margin-bottom:16px">Oyning ${fc.days_passed}/${fc.days_in_month} kuni o'tdi (${pct}%) — joriy tendentsiya asosida hisoblangan</div>
+      ${doimiyIzoh}
       <div class="bi-forecast-grid">
         <div class="bi-forecast-item">
           <div style="font-size:12px;color:var(--b-text3);font-weight:600;text-transform:uppercase">Taxminiy daromad</div>
@@ -741,7 +766,7 @@ async function buildAiSummary(alerts){
     const qator = (nom, key, v) => {
       const o = ozgarishKorinishi(key, v);
       const rang = o.foizli ? (o.yaxshi ? '#22C55E' : '#EF4444') : '#6B7280';
-      return `${escapeHtml(nom)} o'tgan oyga nisbatan <b style="color:${matnRangi(rang, 1)}">${escapeHtml(o.matn)}</b>`;
+      return `${escapeHtml(nom)} ${escapeHtml(nisbatanMatni(comp.davr))} <b style="color:${matnRangi(rang, 1)}">${escapeHtml(o.matn)}</b>`;
     };
     if (comp.daromad) lines.push(qator('Daromad', 'daromad', comp.daromad));
     if (comp.sof_foyda && comp.sof_foyda.current !== null) {   // kech118: yashirin (tannarx ruxsati yo'q) — qator yo'q
