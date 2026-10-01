@@ -1,6 +1,6 @@
 # PenoDecorPro ERP — LOYIHA PASPORTI
 
-*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2); kech112: zip 108 — «Tayyor» da bo'sh loy = reja (K112-3), material nomi (K112-4), MRP qoplama belgisi (K112-5); ko'p korxonali yakuniy jonli sinov; kech115: zip 112 — butun dastur auditi A bosqichi (pul va ma'lumot xatolari) 1-qismi: kirim, qarzdorlar, «Tayyor», narxsiz buyurtma, o'chirilganlar jurnali, manfiy raqamlar, taqqoslash, korxona sog'ligi, ombor filtri; kech116: zip 113 — A bosqich 2-qismi: sog'liq sabablari (K115-2), «Bugungi xulosa» (K115-3), hujjatlardagi hisob qatorlari (G2-04), «Pul oqimi» — haqiqiy pul (G1-03), «Xarajat» — bitta ta'rif va «Tannarx» (G1-02), loyiha qiymati buyurtmalardan (G2-01), haqiqiy IP va kirish cheklovi (U-01), parol oynasi va kirishlarni yopish (G6-06); zip 114 — mijoz hujjatlarida kechirilgan qarz «Chegirma» ichida (egasi qarori); kech117: zip 115 — A2: yo'nalishlar bo'yicha moliya (G3-11, G6-09); zip 116 — jonli sinovdan keyin: «Belgilanmagan» manbalari, Moliya xarajatdan keyin yangilanadi; kech118: qolgan egasi qarorlari (6-bo'lim); zip 117 — B bosqichi 1-qism: dastur oynalari (xabar, kiritish, Esc / tashqariga bosish), o'zbekcha 404 / 403 sahifa, klaviatura fokusi; zip 118 — B bosqichi 2-qism: son / sana / birlik ko'rinishi, o'qiladigan rang, 12 px + yo'nalishlar bo'yicha moliyaviy natija (egasi qarori: taqsim yo'q, oyliklar alohida, davr, solishtirish); yangi qarorlar — rollar va ruxsatlar (6-bo'lim); zip 119 — rollar va ruxsatlar 1-qism (admin rollarni o'zi boshqaradi)). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
+*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2); kech112: zip 108 — «Tayyor» da bo'sh loy = reja (K112-3), material nomi (K112-4), MRP qoplama belgisi (K112-5); ko'p korxonali yakuniy jonli sinov; kech115: zip 112 — butun dastur auditi A bosqichi (pul va ma'lumot xatolari) 1-qismi: kirim, qarzdorlar, «Tayyor», narxsiz buyurtma, o'chirilganlar jurnali, manfiy raqamlar, taqqoslash, korxona sog'ligi, ombor filtri; kech116: zip 113 — A bosqich 2-qismi: sog'liq sabablari (K115-2), «Bugungi xulosa» (K115-3), hujjatlardagi hisob qatorlari (G2-04), «Pul oqimi» — haqiqiy pul (G1-03), «Xarajat» — bitta ta'rif va «Tannarx» (G1-02), loyiha qiymati buyurtmalardan (G2-01), haqiqiy IP va kirish cheklovi (U-01), parol oynasi va kirishlarni yopish (G6-06); zip 114 — mijoz hujjatlarida kechirilgan qarz «Chegirma» ichida (egasi qarori); kech117: zip 115 — A2: yo'nalishlar bo'yicha moliya (G3-11, G6-09); zip 116 — jonli sinovdan keyin: «Belgilanmagan» manbalari, Moliya xarajatdan keyin yangilanadi; kech118: qolgan egasi qarorlari (6-bo'lim); zip 117 — B bosqichi 1-qism: dastur oynalari (xabar, kiritish, Esc / tashqariga bosish), o'zbekcha 404 / 403 sahifa, klaviatura fokusi; zip 118 — B bosqichi 2-qism: son / sana / birlik ko'rinishi, o'qiladigan rang, 12 px + yo'nalishlar bo'yicha moliyaviy natija (egasi qarori: taqsim yo'q, oyliklar alohida, davr, solishtirish); yangi qarorlar — rollar va ruxsatlar (6-bo'lim); zip 119 — rollar va ruxsatlar 1-qism (admin rollarni o'zi boshqaradi); kech119: zip 125 — Hisobotlar «oy boshi»: o'tgan oyning SHU KUNLARI bilan solishtirish (egasi qarori), taxminda oylik xarajat bir marta, xomashyo birligi; «Foyda tahlili» summalari (G2-15)). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
 *Bu faylni `main` ga ko'chirish bilan birga, keyin har katta o'zgarishda yangilab boring. 9-bo'lim AVTOMATIK
 (`python3 tools/pasport_xarita.py --yoz`), qolgani qo'lda; `tools/test_pasport.py` ikkalasini ham tekshiradi.*
 
@@ -472,6 +472,30 @@ buyurtmani ochadi (`/orders?order=ID`), summa — kelishilgan (`loyihaBuyurtmaSu
 (`BUYURTMA_YARATADI`), «Buyurtmalari» / «Mahsulotlar ro'yxati» tugmalari. BUYURTMALAR: `buyurtmaniParamdanOch` («?order=ID» —
 guruh ochiladi, qator tanlanadi; ro'yxatda yo'q — `?show_all=true&order=ID`, u yerda ham yo'q — xabar), «?yangi=1» — yangi
 forma (qoralama tiklashdan OLDIN). Testlar: `tools/test_d124.py`, `tools/test_d124_ui.js`.
+**Oy boshi — solishtirish va taxmin (kech119, zip 125 — egasi QARORI 01.10 «Shu kunlar bilan»; K119-1; G2-15).** SOLISHTIRISH:
+joriy (Toshkent) oy hali tugamagan — o'tgan oyning SHU KUNLARI bilan (1–N oktabr ↔ 1–N sentabr; ilgari 1 kunlik oktabr butun
+sentabr bilan — oy boshida doim «Daromad 100% kamaydi»). Mexanizm — `database.tashkent_oy_kesimi(yil, oy, kun)` (contextvar,
+`with` bloki ichida va FAQAT o'sha yil / oy uchun): `tashkent_oy_oraligi` (va undan `tashkent_oyida`) davr oxirini N-kun
+oxiriga qisqartiradi — oylik hisobotning HAMMA oy chegaralari shu ikki yordamchidan, shuning uchun o'tgan oyning 1–N kunlik
+hisoboti — AYNAN `get_monthly_report` (buyurtmalar, sotuv, qaytarish, xarajat, transport, brak, KPI, hodim — N-kundan keyin
+ishga kirgan hodim ham yo'q); oy darajasidagi yozuvlar (oylik shakl, doimiy oylik, tuzatma) — butun oy, ikkala oyda bir qoida.
+`get_monthly_comparison`: joriy oy — hisobotning o'zi (kartalar bilan AYNAN), o'tgan oy — kesim bilan; o'tgan oy N kundan qisqa
+yoki so'ralgan oy tugagan — to'liq oy; javobda `davr` (`kun_gacha`, `toliq_oy`, `joriy_nom` / `oldingi_nom` — «1–10-oktabr» /
+«1–10-sentabr», `services.kesim_davr_nomi`). Sahifa (`reports.html`): `nisbatanMatni` — «1–10-sentabrga nisbatan» (to'liq oy —
+«o'tgan oyga nisbatan») KPI kartalari va «Oy xulosasi» da; «O'tgan oy bilan taqqoslash» sarlavhasi yonida `davrSarlavhaMatni`
+(«— 1–10-oktabr ↔ 1–10-sentabr (oyning shu kunlari)»). Moliya «Yo'nalishlar» solishtirishi (`calculate_split_profit_report`) — BIR
+qoida: davr joriy oy bilan tugasa, solishtirish davrining oxirgi oyi ham 1–N kun (nomi «1–10-sentabr 2026» / «May – Iyul 2026
+(iyul — 1–10-kun)»). TAXMIN (`get_simple_forecast`, K119-1 — sinov saytida 1-oktabr «−573 500 000 so'm»): oyiga bir marta
+yoziladigan xarajat — arenda, elektr, soliq (`FORECAST_OYLIK_TOIFALAR`; tushlik — kunlik) + hodimlarning faoliyatsiz to'lovi
+(`calculate_monthly_employee_pay` sotuv / foyda / metr / dona / blok / qoplama = 0: doimiy oylik, qo'shimcha, bonus,
+kamaytirish) — BIR MARTA: taxminiy sof foyda = (sof foyda + oylik) ÷ o'tgan kunlar × oy kunlari − oylik; tugagan oy — AYNAN sof
+foyda; javobda `doimiy_xarajat` (sahifada izoh). «Eng ko'p sarflangan xomashyo» — miqdor va BIRLIGI («2 000 dona», `fmtQty` +
+`birlikKor`; ilgari «2 ming» — pul kabi). «FOYDA TAHLILI» (`orders.html` `loadProfit`, G2-15): pul — butun so'm (`formatNum`),
+foiz — vergul (`foizKor`), qaytgan mahsulot qatori (manfiy summa) «+… so'm» yashil (ilgari «−-37 010»); paneldagi «Sotuv narxi» —
+KELISHILGAN summa (`loadPayments` / «Foyda hisoblash»; ilgari qaytarish / chegirmadan oldingi jami — Sotuv − Tan ≠ Foyda);
+server tafsilot matni — `services.son_korinish` (= Jinja `|son` = `sonKor`: «0,01 m³ × 572 947 so'm/m³», «7,5% foydadan»).
+Yangi buyurtma oynasidagi hisob ko'rinishi ham `sonKor` (orders.html da `toLocaleString` yo'q). Testlar: `tools/test_oy_boshi.py`,
+`tools/test_oy_boshi_ui.js`.
 **Ranglar va tungi rejim (kech118, D bosqichi 2-qism — egasi QARORI «To'liq tuzatilsin — har sahifa ranglari umumiy ranglar
 ro'yxatiga», U-02; zip 122).** Shablon / `style.css` dagi rang XOSSASIGA qarab UMUMIY RO'YXATDAN olinadi — `static/ranglar.css`
 (`base.html` va mustaqil sahifalar — kirish, hodim kirishi / paneli, xato sahifasi — `style.css` dan KEYIN ulaydi):
@@ -853,6 +877,20 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   «Ta'minotchilar»), `test_yetkazish_ui` («Yuk xati tayyor»; «Brak yozish» tanasida sabab, sababsiz so'rov yo'q),
   `test_xato_sababi_ui` / `test_tahrir_tiyin_ui` / `test_toshkent_korinish_ui` (savatcha va «Kam» yordamchilari, «1 partiya»),
   `test_b118_korinish` (qoldiq rangi faqat holat ko'rinsa), `test_zaxira_loy_narx` (brak tanasi).
+- (kech119, zip 125) Oy boshi — solishtirish «Shu kunlar bilan», taxmin, «Foyda tahlili»: `tools/test_oy_boshi.py` — K (oy kesimi:
+  faqat o'sha yil / oy, kun ≥ oy uzunligi — butun oy, 0 — bo'sh, xato / ichma-ich blokdan keyin tiklanadi, `tashkent_oyida` —
+  23:30 / 00:30 chegarasi), S (10-oktabr ↔ 1–10-sentabr: daromad, xarajat — keyin ishga kirgan hodim yo'q; 1-, 29-, 30-, 31-oktabr;
+  tugagan oy — to'liq; 30-sentabr ↔ 1–30-avgust; korxonasiz imzo), B (oylik xarajat bir marta: 3 900 000, (sof + oylik) ÷ d × D −
+  oylik, 1-kun, tugagan oy = sof foyda, kelajak oy), Y (yo'nalishlar: bir oy, ko'p oy, 30- / 31-oktabr, tugagan oy), H (HTTP),
+  F (`son_korinish` = `_son_filtri` 16 qiymatda; haqiqiy buyurtma tafsiloti — «0,01 m³ × 572 947», «7,5%»), T (statik); SQLite,
+  PG (54) — asl kodda 39 yiqiladi, qulamaydi. `tools/test_oy_boshi_ui.js` — `nisbatanMatni`, `davrSarlavhaMatni`, «Oy xulosasi» (1- / 10-kun,
+  to'liq oy), taqqoslash sarlavhasi, taxmin izohi, xomashyo birligi (escape bilan), KPI kartasi (statik); «Foyda tahlili» (qaytgan
+  «+… so'm» yashil, butun so'm, «-14,6%», panel — kelishilgan), `selectOrder` / `loadPayments` (statik), `toLocaleString` yo'q (26;
+  asl kodda 10 yiqiladi).
+  Mutatsiyalar (work/k125/mutatsiya126.py, 35 ta) — hammasi ushlanadi. Moslangan: `test_zaxira_loy_narx` (A4, B1, D1, E1 — qoplama
+  matni «50 kg loy × 15 600 so'm/kg»), `test_tayyor_reja_loy` (R7, R12, R16 — «20 kg loy»), `test_yonalish_natija`
+  (S1 / S2 — «bugun» muzlatiladi: oy tugagan → o'tgan oy butun; yangi S5–S7 — 1–5 / 1–4 kesim qo'lda hisoblangan
+  summalar bilan va haqiqiy bugun qoidasi; asl kodda S5–S7 yiqiladi).
 - (kech118, zip 124) D bosqichi 4-qism — sahifalar vazifasi: `tools/test_d124.py` — H (Bosh sahifa: takror bloklar yo'q, «Bugungi
   vazifalar», «So'nggi buyurtmalar» → /orders?order=ID, «Tezkor amallar» 4 ta — maxsus rollar bilan ruxsatga qarab: faqat
   «Buyurtmalar: Yaratish» → bitta, hech biri → blok yo'q), D (Dashboard: olib tashlangan bloklar va funksiyalari yo'q, qolganlari
@@ -1132,6 +1170,11 @@ bajarilganlari belgilanadi)**
   «tan: …», tayyor mahsulot «Ombor qiymati» (narxsiz partiya), MRP «Taxminiy tannarx» ham. Xomashyo XARID narxi (material
   narxi, kirim summasi, ta'minotchi qarzi) — tannarxga KIRMAYDI: «Xomashyo kirimi» ruxsati borlar ko'radi.
 - Ish tartibi: zip 118 (B-2 + yo'nalishlar) → rollar (zip 119).
+
+**Yangi qaror (kech119, 2026-10-01 — tugmali savol; QAYTA SO'RALMAYDI)**
+- «O'tgan oyga nisbatan» solishtirish oy hali tugamaganda — «Shu kunlar bilan»: 1–N oktabr ↔ 1–N sentabr (masalan 10-oktabrda
+  1–10 oktabr daromadi 1–10 sentabr daromadi bilan; oylik ikkala oyda ham to'liq). Rad etilgan: «oy tugagach, to'liq oy bilan»,
+  «hozirgidek». BAJARILDI (zip 125; Moliya «Yo'nalishlar» solishtirishi ham shu qoida bilan — 4-bo'lim «Oy boshi»).
 
 ## 7. Ochiq masalalar
 
@@ -1428,6 +1471,13 @@ bajarilganlari belgilanadi)**
   yetarli bo'lsin (yangi yordamchiga tayanmasin), aks holda ReferenceError «sabab» ko'rinmay qoladi.
 - (kech118, zip 122) Rejimga qarab rang tanlaydigan JS (`matnRangi`, grafik) chizilgan PAYTDAGI rejimni oladi — rejim
   almashtirilganda sahifa qayta yuklanadi (`toggleTheme` — `location.reload()`), aks holda eski rejim ranglari qoladi.
+- (kech119, zip 125) Fayl yozish asbobi (Claude Write / Edit) matndagi `\u00a0` kabi qochish ketma-ketligini HAQIQIY belgiga
+  aylantirishi mumkin — Python / JS manbasida ko'rinmas NBSP qoladi (ishlaydi, lekin o'qilmaydi). Yozgandan keyin tekshiring
+  (`'\xa0' in qator`) va qochish ketma-ketligiga qaytaring (`chr(92) + 'u00a0'`).
+- (kech119, zip 125) Oylik hisobotning «1–N kun» varianti uchun hisobot funksiyalariga parametr o'tkazilmadi — barcha oy
+  chegaralari `database.tashkent_oy_oraligi` dan o'tadi, kesim o'sha yerda (`tashkent_oy_kesimi`, contextvar — BITTA sinxron
+  chaqiruv zanjiri ichida o'rnatiladi va o'qiladi, blokdan chiqishda tiklanadi). `tenant_context.py` dagi contextvar muammosi
+  (qiymat FastAPI qatlamlari ORASIDA o'tmaydi) bu yerga tegishli emas. Yangi oy filtri yozilsa — FAQAT shu yordamchilar orqali.
 
 ## 9. Xarita (AVTOMATIK)
 
@@ -2247,6 +2297,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_ombor_kpi_loy.py` · PG — K35-1 darvozasi (kech36, 2026-09-23).
 - `test_ombor_turkum.py` · PG — kech105 darvozasi: K105-2 (ombor turkumi "Boshqa" har deployda "Bazalt" ga aylanardi) va K105-3 (penoplast belgisi material NOMIDAN har deployda qo'yilardi; Ta'minotchilar sahi…
 - `test_ortiqcha_qaytarish.py` · PG — 5-bo'lim 57-band darvozasi (kech60, 2026-09-24): ORTIQCHA mahsulot omborga.
+- `test_oy_boshi.py` · PG — kech119 darvozasi (2026-10-01): Hisobotlar «oy boshi» xatolari va «Foyda tahlili» matnlari.
 - `test_pasport.py` · PG — `LOYIHA_PASPORTI.md` (16-band) izchilligi va shablon → marshrut havolalari darvozasi (kech104, 2026-09-28).
 - `test_pdf_matn.py` · PG — kech106, K106-3 va K106-4 darvozasi: PDF hujjatlardagi foydalanuvchi matni va korxona nomi.
 - `test_pdf_shrift.py` · PG — kech106, K106-1 darvozasi: PDF hujjatlarda shriftda YO'Q belgi (QORA KVADRAT ■) chiqmasin.
@@ -2323,6 +2374,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_narx_nol_himoya_ui.js` · JS — kech108, 71-band qoldig'i: buyurtma tahririda detal narxi JIM 0 ga tushmasin (templates/orders.html — `editSelected` / `collectItems` / `_narxiNolgaTushgan` / `updateOrde…
 - `test_ombor_chiqim.js` · JS — Ombor sahifasidagi "Chiqim" oynasi (`saveChiqim`).
 - `test_ombor_turkum_ui.js` · JS — kech105 (K105-2 / K105-3) UI darvozasi.
+- `test_oy_boshi_ui.js` · JS — kech119 (zip 125): Hisobotlar «oy boshi» va buyurtma «Foyda tahlili» — sahifa JS xatti-harakati.
 - `test_platforma_ui.js` · JS — kech111: PLATFORMA PANELI sahifasi (templates/platforma.html) — HAQIQIY markup va HAQIQIY sahifa JavaScript'i jsdom da, `fetch` soxta (server javoblari fiksturadan).
 - `test_qaytarish_ochirish_ui.js` · JS — kech40 (2026-09-23), 5-bo'lim 22-band + K40-1: qaytarishni o'chirish va qaytgan tayyor mahsulotni o'chirish UI si.
 - `test_qoralama_tugma_ui.js` · JS — kech109, K109-1: buyurtma TAHRIRIDA «📝 Vaqtincha saqlash» tugmasi yashirilishi (templates/orders.html).
@@ -2339,5 +2391,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 183 (Python 149, JS 34).
+Jami test fayllari: 185 (Python 150, JS 35).
 <!-- AVTO:TESTLAR OXIRI -->

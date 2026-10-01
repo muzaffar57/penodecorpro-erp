@@ -42,6 +42,24 @@ def _son_uz(x) -> str:
     return f"{x:g}".replace(".", ",")
 
 
+def son_korinish(qiymat, kasr=2) -> str:
+    """kech119 (G2-15 — B bosqichi U-05 qoidasi serverdagi MATNLARDA): son KO'RINISHI — `main._son_filtri` (Jinja `|son`)
+    va brauzerdagi `sonKor` bilan BIR qoida: ming ajratgich — bo'sh joy (NBSP), kasr — vergul, ortiqcha nolsiz, ko'pi
+    bilan `kasr` xona («572 947», «0,02», «200», «1 234,5»). Ilgari foyda tafsilotida «572,947 so'm/m³» (vergul — ming
+    ajratgich, aslida 572 947) va «0.02 m³» / «200.0 kg» (nuqtali kasr) edi. Qiymat yo'q / son emas — «—»."""
+    try:
+        x = float(qiymat)
+    except (TypeError, ValueError):
+        return "—"
+    if x != x or x in (float("inf"), float("-inf")):
+        return "—"
+    s = f"{x:,.{max(int(kasr), 0)}f}"
+    if "." in s:
+        s = s.rstrip("0").rstrip(".")
+    s = s.replace(",", "\u00a0").replace(".", ",")
+    return "0" if s in ("-0", "") else s
+
+
 def get_top_products_report(db: Session, days: int = 90, limit: int = 15,
                             company_id: int = None) -> list:
     """Eng ko'p daromad keltirgan mahsulotlar — nomi bo'yicha guruhlangan,
@@ -243,8 +261,24 @@ def get_monthly_comparison(db: Session, year: int, month: int, company_id: int =
         prev_month = 12
         prev_year -= 1
 
+    # kech119 (egasi QARORI 2026-10-01 «Shu kunlar bilan», O'LCHANGAN — sinov sayti 01.10: oktabrning 1 kuni butun
+    # sentabr bilan solishtirilib «Daromad 100% kamaydi» chiqardi): JORIY (Toshkent) oy hali tugamagan — o'tgan oyning
+    # SHU KUNLARI (1–N) bilan solishtiriladi (`database.tashkent_oy_kesimi` — oylik hisobotning o'zi, faqat davr oxiri
+    # N-kun oxirida). Joriy oy — oylik hisobotning o'zi (kartalardagi raqam bilan AYNAN). O'tgan oy N kundan qisqa
+    # (31-mart ↔ fevral) yoki so'ralgan oy tugagan — to'liq oy bilan (avvalgidek).
+    import calendar as _calendar_kesim
+    from database import tashkent_oy_kesimi as _tashkent_oy_kesimi
+    _bugun = _tashkent_date()
+    _kesim_kun = None
+    if (year, month) == (_bugun.year, _bugun.month) and _bugun.day < _calendar_kesim.monthrange(prev_year, prev_month)[1]:
+        _kesim_kun = _bugun.day
+
     current = get_monthly_report(db, year, month, company_id=company_id)
-    previous = get_monthly_report(db, prev_year, prev_month, company_id=company_id)
+    if _kesim_kun is None:
+        previous = get_monthly_report(db, prev_year, prev_month, company_id=company_id)
+    else:
+        with _tashkent_oy_kesimi(prev_year, prev_month, _kesim_kun):
+            previous = get_monthly_report(db, prev_year, prev_month, company_id=company_id)
 
     # kech115 (G1-01, O'LCHANGAN — audit bazasi: o'tgan oy 0 → change_pct DOIM 100.0 — zarar oyida ham «Sof foyda 100 %
     # oshdi»; ikkalasi 0 — «0 % oshdi»): o'tgan oy 0 bo'lsa foiz YO'Q (None), `holat` — «malumot_yoq» / «ozgarmadi» /
@@ -272,7 +306,37 @@ def get_monthly_comparison(db: Session, year: int, month: int, company_id: int =
             "change_pct": pct_change(cur_val, prev_val),
             "holat": holat(cur_val, prev_val),
         }
+    # kech119: solishtirish DAVRI — sahifa matni shundan («1–10-sentabrga nisbatan» / «o'tgan oyga nisbatan»).
+    comparison["davr"] = taqqoslash_davri(year, month, prev_year, prev_month, _kesim_kun)
     return comparison
+
+
+_OY_KICHIK = ("yanvar", "fevral", "mart", "aprel", "may", "iyun", "iyul", "avgust", "sentabr", "oktabr", "noyabr",
+              "dekabr")
+
+
+def kesim_davr_nomi(yil: int, oy: int, kun) -> str:
+    """kech119: davr nomi — «1-sentabr» (bir kun), «1–10-sentabr» (oyning shu kunlari); `kun` None — oy nomi
+    («sentabr»). Yilsiz — solishtirish doim joriy va o'tgan oy («1–10-yanvar ↔ 1–10-dekabr»)."""
+    if kun is None:
+        return _OY_KICHIK[int(oy) - 1]
+    return f"1-{_OY_KICHIK[int(oy) - 1]}" if int(kun) == 1 else f"1–{int(kun)}-{_OY_KICHIK[int(oy) - 1]}"
+
+
+def taqqoslash_davri(yil: int, oy: int, oldingi_yil: int, oldingi_oy: int, kesim_kun) -> dict:
+    """kech119 (egasi QARORI «Shu kunlar bilan»): solishtirish davri — `kesim_kun` (1–N, joriy oy tugamagan) yoki None
+    (to'liq oy). `joriy_nom` / `oldingi_nom` — sahifa matni uchun («1–10-oktabr» ↔ «1–10-sentabr»)."""
+    return {
+        "yil": int(yil), "oy": int(oy), "oldingi_yil": int(oldingi_yil), "oldingi_oy": int(oldingi_oy),
+        "kun_gacha": kesim_kun, "toliq_oy": kesim_kun is None,
+        "joriy_nom": kesim_davr_nomi(yil, oy, kesim_kun),
+        "oldingi_nom": kesim_davr_nomi(oldingi_yil, oldingi_oy, kesim_kun),
+    }
+
+
+# kech119 (K119-1): bashoratda BIR MARTA hisoblanadigan (oyiga bir to'lanadigan) «doimiy» xarajat turkumlari; «tushlik» —
+# kunlik (kunlik o'rtacha bilan, boshqa xarajatlar kabi).
+FORECAST_OYLIK_TOIFALAR = ("arenda", "elektr", "soliqlar")
 
 
 def get_simple_forecast(db: Session, year: int, month: int, company_id: int = None) -> dict:
@@ -297,17 +361,35 @@ def get_simple_forecast(db: Session, year: int, month: int, company_id: int = No
     if days_passed <= 0:
         return {"available": False, "message": "Bu oy uchun hali ma'lumot yo'q"}
 
+    # kech119 (K119-1, O'LCHANGAN — sinov sayti 01.10.2026: «Taxminiy sof foyda −573 500 000 so'm»): OYLIK (butun oy
+    # uchun bir marta yoziladigan) xarajatlar — hodimlarning doimiy oyligi (18,5 mln, oyning 1-kunidan to'liq) — kunlik
+    # o'rtachaga qo'shilib oy kunlariga KO'PAYTIRILARDI (1-kuni × 31). Endi: oylik xarajat BIR MARTA, qolgani (daromad,
+    # tannarx, kunlik xarajatlar, foizli / birlikli to'lovlar) — kunlik o'rtacha × oy kunlari.
+    # Oylik xarajat = oyiga bir marta to'lanadigan arenda, elektr, soliq (`xarajatlar` — shu oy yozilgani; tushlik —
+    # KUNLIK, sinov saytida sentabr: 1 424 000 kunlik yozuvlardan — o'rtacha bilan) + hodimlarning ish hajmiga
+    # bog'liq bo'lmagan to'lovi: `calculate_monthly_employee_pay` faoliyatsiz (sotuv / foyda / metr / dona / blok /
+    # qoplama — 0) — doimiy oylik, qo'shimcha oylik, bonus va kamaytirish (`get_company_obligations_status` izohi —
+    # o'sha chaqiruv faqat doimiy qismni beradi). O'tgan oy (to'liq) — natija AYNAN sof foyda.
+    _sof = float(report.get("sof_foyda", 0) or 0)
+    _x = report.get("xarajatlar") or {}
+    _hodim_doimiy = calculate_monthly_employee_pay(db, year, month, 0.0, 0.0, 0.0, 0.0, 0.0,
+                                                   jami_qoplama_birlik=0.0, company_id=company_id)
+    doimiy_xarajat = (sum(float(_x.get(_k, 0) or 0) for _k in FORECAST_OYLIK_TOIFALAR)
+                      + float(_hodim_doimiy.get("total", 0) or 0))
+
     daromad_kunlik = float(report.get("daromad", 0) or 0) / days_passed
-    foyda_kunlik = float(report.get("sof_foyda", 0) or 0) / days_passed
+    foyda_kunlik = (_sof + doimiy_xarajat) / days_passed
 
     return {
         "available": True,
         "days_passed": days_passed,
         "days_in_month": days_in_month,
         "forecast_daromad": round(daromad_kunlik * days_in_month),
-        "forecast_foyda": round(foyda_kunlik * days_in_month),
+        "forecast_foyda": round(foyda_kunlik * days_in_month - doimiy_xarajat),
         "current_daromad": round(float(report.get("daromad", 0) or 0)),
-        "current_foyda": round(float(report.get("sof_foyda", 0) or 0)),
+        "current_foyda": round(_sof),
+        # kech119: bir marta hisoblangan oylik xarajat (sahifa izohi uchun)
+        "doimiy_xarajat": round(doimiy_xarajat),
     }
 
 
@@ -2545,7 +2627,7 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None, h
         if summa <= 0:
             continue
         breakdown.append({
-            "nomi": f"{data['nomi']} ({data['vol']:.2f} m³ × {data['narx_per_m3']:,.0f} so'm/m³)",
+            "nomi": f"{data['nomi']} ({son_korinish(data['vol'], 2)} m³ × {son_korinish(data['narx_per_m3'], 0)} so'm/m³)",   # kech119 (G2-15): «572 947», «0,02»
             "summa": summa
         })
         _tannarx_qismlari.append({"tur": "penoplast", "summa": summa, "detal_id": None})
@@ -2693,7 +2775,7 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None, h
         loy_sotish_xarajat = qty_kg * narx_per_kg
         if loy_sotish_xarajat > 0:
             breakdown.append({
-                "nomi": f"{item.name} — Loy sotish ({qty_kg:.1f} kg × {narx_per_kg:,.0f} so'm/kg)",
+                "nomi": f"{item.name} — Loy sotish ({son_korinish(qty_kg, 1)} kg × {son_korinish(narx_per_kg, 0)} so'm/kg)",   # kech119 (G2-15)
                 "summa": loy_sotish_xarajat
             })
             tan_narxi_jami += loy_sotish_xarajat
@@ -2761,11 +2843,11 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None, h
             qoplama_xarajat = _zx * (_zx_narx or 0.0) + (loy_kg - _zx) * narx_per_kg
             if qoplama_xarajat > 0:
                 if _zx > 1e-9:
-                    _qn = (f"Qoplama ({loy_kg:.1f} kg loy: {_zx:.1f} kg tayyor loy zaxirasidan × {_zx_narx:,.0f}"
-                           + (f" + {loy_kg - _zx:.1f} kg × {narx_per_kg:,.0f}" if loy_kg - _zx > 1e-9 else "")
+                    _qn = (f"Qoplama ({son_korinish(loy_kg, 1)} kg loy: {son_korinish(_zx, 1)} kg tayyor loy zaxirasidan × {son_korinish(_zx_narx, 0)}"
+                           + (f" + {son_korinish(loy_kg - _zx, 1)} kg × {son_korinish(narx_per_kg, 0)}" if loy_kg - _zx > 1e-9 else "")
                            + " so'm/kg)")
                 else:
-                    _qn = f"Qoplama ({loy_kg:.1f} kg loy × {narx_per_kg:,.0f} so'm/kg)"
+                    _qn = f"Qoplama ({son_korinish(loy_kg, 1)} kg loy × {son_korinish(narx_per_kg, 0)} so'm/kg)"   # kech119 (G2-15)
                 breakdown.append({
                     "nomi": _qn,
                     "summa": qoplama_xarajat
@@ -2802,7 +2884,7 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None, h
         foyda_before_usta = sotuv_narxi - tan_narxi_jami
         usta_haqi = max(0, foyda_before_usta * order.master.cashback_percent / 100)
         breakdown.append({
-            "nomi": f"Usta haqi ({order.master.name}, {order.master.cashback_percent}% foydadan)",
+            "nomi": f"Usta haqi ({order.master.name}, {son_korinish(order.master.cashback_percent, 1)}% foydadan)",   # kech119 (G2-15): «10%», «7,5%»
             "summa": usta_haqi
         })
         tan_narxi_jami += usta_haqi
@@ -4444,10 +4526,30 @@ def calculate_split_profit_report(db: Session, year: int, month: int, company_id
     }
     if solishtirish:
         _old = yonalish_oldingi_davr(oylar)
-        _oj = _yon_davr_jami(db, _old, company_id=company_id)
+        # kech119 (egasi QARORI «Shu kunlar bilan» — Hisobotlar solishtirishi bilan BIR qoida): davr JORIY (tugamagan)
+        # oy bilan tugasa — solishtirish davrining oxirgi oyi ham o'sha kunlargacha (1–N), aks holda butun oylar.
+        import calendar as _calendar_yk
+        from database import tashkent_oy_kesimi as _tashkent_oy_kesimi_yk
+        _bugun_yk = _tashkent_date()
+        _kesim_yk = None
+        if (tuple(oylar[-1]) == (_bugun_yk.year, _bugun_yk.month)
+                and _bugun_yk.day < _calendar_yk.monthrange(_old[-1][0], _old[-1][1])[1]):
+            _kesim_yk = _bugun_yk.day
+        if _kesim_yk is None:
+            _oj = _yon_davr_jami(db, _old, company_id=company_id)
+            _old_nom = yonalish_davr_nomi(_old)
+        else:
+            with _tashkent_oy_kesimi_yk(_old[-1][0], _old[-1][1], _kesim_yk):
+                _oj = _yon_davr_jami(db, _old, company_id=company_id)
+            _oy_k = _OY_KICHIK[_old[-1][1] - 1]
+            _kunlar = "1" if _kesim_yk == 1 else f"1–{_kesim_yk}"
+            # «1–10-sentabr 2026» (bir oy) / «Iyul – Sentabr 2026 (sentabr — 1–10-kun)» (bir necha oy)
+            _old_nom = (f"{_kunlar}-{_oy_k} {_old[-1][0]}" if len(_old) == 1
+                        else f"{yonalish_davr_nomi(_old)} ({_oy_k} — {_kunlar}-kun)")
         _jx = jami_som["tannarx"] + jami_som["oylik"] + jami_som["xarajat"]
         natija["oldingi"] = dict(_oj, davr={"dan": f"{_old[0][0]}-{_old[0][1]:02d}",
-                                            "gacha": f"{_old[-1][0]}-{_old[-1][1]:02d}", "nom": yonalish_davr_nomi(_old)})
+                                            "gacha": f"{_old[-1][0]}-{_old[-1][1]:02d}", "nom": _old_nom,
+                                            "kun_gacha": _kesim_yk})
         natija["ozgarish"] = {"daromad": _ozgarish_foiz(jami_som["daromad"], _oj["daromad"]),
                               "xarajat": _ozgarish_foiz(_jx, _oj["xarajat"]),
                               "natija": _ozgarish_foiz(jami_som["natija"], _oj["natija"])}

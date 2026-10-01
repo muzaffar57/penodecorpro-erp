@@ -76,11 +76,44 @@ def tashkent_kun_oraligi(sana):
     return boshi, boshi + timedelta(days=1)
 
 
+# kech119 (egasi QARORI 2026-10-01 «Shu kunlar bilan»): joriy (tugamagan) oy o'tgan oyning SHU KUNLARI bilan
+# solishtiriladi — 1–N oktabr ↔ 1–N sentabr (ilgari 1 kunlik oktabr butun sentabr bilan: oy boshida doim «Daromad
+# 100% kamaydi»). O'tgan oyning 1–N kunlik hisoboti — AYNAN oylik hisobot (`services.get_monthly_report`, uning
+# hamma qismlari: buyurtmalar, sotuv, qaytarish, xarajat, transport, brak, KPI, hodim …) faqat davr oxiri N-kun
+# oxirida: oylik hisobotning HAMMA oy chegaralari shu ikki yordamchidan (`tashkent_oy_oraligi` / `tashkent_oyida`)
+# o'tadi, shuning uchun kesim bitta joyda. Oy darajasidagi yozuvlar (oylik shakl — arenda / elektr …, hodimning
+# doimiy oyligi, oylik tuzatma) — butun oy uchun, ikkala oyda bir xil qoida.
+# Kesim faqat `with tashkent_oy_kesimi(...)` bloki ichida va FAQAT o'sha yil / oy uchun (boshqa oylar — to'liq).
+# `contextvars` — shu sinxron chaqiruv zanjiri ichida (o'rnatish va o'qish BITTA oqimda, blok tugashi bilan
+# tiklanadi; `tenant_context.py` dagi muammo — qiymat so'rov qatlamlari ORASIDA o'tishi — bu yerda yo'q).
+import contextlib as _contextlib_kesim
+import contextvars as _contextvars_kesim
+
+_OY_KESIMI = _contextvars_kesim.ContextVar("tashkent_oy_kesimi", default=None)
+
+
+@_contextlib_kesim.contextmanager
+def tashkent_oy_kesimi(yil, oy, kun):
+    """Blok ichida Toshkent `yil` / `oy` oyi faqat 1..`kun` kunlari (davr oxiri — `kun`-kunning oxiri, Toshkent
+    24:00). `kun` oy uzunligidan katta / teng — butun oy (kesim ta'sirsiz); `kun` < 1 — bo'sh davr."""
+    _token = _OY_KESIMI.set((int(yil), int(oy), int(kun)))
+    try:
+        yield
+    finally:
+        _OY_KESIMI.reset(_token)
+
+
 def tashkent_oy_oraligi(yil, oy):
-    """Toshkent kalendar oyi → `(boshi, oxiri)` UTC (naive), oxiri KIRMAYDI."""
+    """Toshkent kalendar oyi → `(boshi, oxiri)` UTC (naive), oxiri KIRMAYDI. `tashkent_oy_kesimi` bloki ichida (shu oy
+    uchun) oxiri — kesim kunining oxiri (oy oxiridan keyin emas)."""
     yil, oy = int(yil), int(oy)
     oxiri = datetime(yil + 1, 1, 1) if oy == 12 else datetime(yil, oy + 1, 1)
-    return datetime(yil, oy, 1) - TASHKENT_OFFSET, oxiri - TASHKENT_OFFSET
+    boshi = datetime(yil, oy, 1) - TASHKENT_OFFSET
+    oxiri = oxiri - TASHKENT_OFFSET
+    _k = _OY_KESIMI.get()
+    if _k is not None and _k[0] == yil and _k[1] == oy:
+        oxiri = min(oxiri, boshi + timedelta(days=max(_k[2], 0)))
+    return boshi, oxiri
 
 
 def tashkent_yil_oraligi(yil):
