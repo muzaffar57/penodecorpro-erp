@@ -6,7 +6,7 @@ PenoDecorPro ERP — Asosiy server
 import os
 from datetime import datetime, timedelta
 from typing import List, Optional
-from fastapi import FastAPI, Request, Depends, HTTPException, Form, UploadFile, File, Body
+from fastapi import FastAPI, Request, Depends, HTTPException, Form, UploadFile, File, Body, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -5864,9 +5864,11 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[str] = None,
 
 
 @app.get("/api/orders", response_model=List[schemas.OrderRead])
-def api_get_orders(project_id: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "korish"))):
+def api_get_orders(project_id: Optional[int] = None, limit: Optional[int] = Query(None, ge=1, le=500),
+                   db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "korish"))):
+    # kech120 (E, U-09): `limit` — eng yangi N ta (Bosh sahifa «So'nggi buyurtmalar» — 5 ta; ilgari hammasi, 300 da 373 KB)
     return crud.get_orders(db, project_id=project_id,
-                           company_id=auth.company_id_of(current_user))
+                           company_id=auth.company_id_of(current_user), limit=limit)
 
 
 @app.get("/api/orders/pinned")

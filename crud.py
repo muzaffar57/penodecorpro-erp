@@ -2824,10 +2824,14 @@ def check_finished_for_order(db: Session, items, company_id: int = None) -> dict
 
 
 def get_orders(db: Session, project_id: Optional[int] = None,
-               company_id: int = None) -> List[Order]:
+               company_id: int = None, limit: Optional[int] = None) -> List[Order]:
     """`/api/orders` (`schemas.OrderRead`: detallar + ichki detallar, to'lovlar, gips qo'shimchalari, to'langan /
     qarz). kech97 (116-band, O'LCHANGAN `work/probe116.py`): javob ro'yxatlari buyurtma boshiga 4 ta so'rov edi
-    (+10 buyurtma — +40); endi munosabatlar bir necha IN so'rovi bilan (tartib — munosabat order_by=id)."""
+    (+10 buyurtma — +40); endi munosabatlar bir necha IN so'rovi bilan (tartib — munosabat order_by=id).
+
+    kech120 (E, U-09 — O'LCHANGAN `work/k127/tez.py`): Bosh sahifa «So'nggi buyurtmalar» (5 ta) uchun HAMMA buyurtmani
+    olardi — 300 buyurtmada 373 KB. `limit` berilsa — eng yangi `limit` ta (yaratilgan vaqt, teng bo'lsa id kamayishi);
+    berilmasa — avvalgidek hammasi."""
     from sqlalchemy.orm import selectinload as _sil_go
     query = db.query(Order).filter(Order.is_deleted.isnot(True)).options(
         _sil_go(Order.items).selectinload(OrderItem.sub_details),
@@ -2836,6 +2840,8 @@ def get_orders(db: Session, project_id: Optional[int] = None,
         query = query.filter(Order.company_id == company_id)
     if project_id:
         query = query.filter(Order.project_id == project_id)
+    if limit is not None:
+        return query.order_by(Order.created_at.desc(), Order.id.desc()).limit(int(limit)).all()
     return query.order_by(Order.created_at.desc()).all()
 
 

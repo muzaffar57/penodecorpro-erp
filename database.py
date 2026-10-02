@@ -180,6 +180,101 @@ else:
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+# ============================================================
+# kech120 (E bosqichi, U-09) — YOZUV VERSIYASI: shu jarayondagi HAR QANDAY bazaga yozish hisoblagichi
+# ============================================================
+# O'LCHANGAN (`work/k127/tez.py`, 300 buyurtma, HAQIQIY PG 16): «Hisobotlar» sahifasi bir ochilishda oylik hisobotni
+# 12 marta (bir xil oylar uchun) qayta hisoblaydi — serverda ~8 s; «Dashboard» — 4 marta, ~5,7 s. Sinov saytida (kam
+# ma'lumot) har hisobot so'rovi 0,5–1,2 s. `services` dagi HISOBOT XOTIRASI natijani so'rovlar ORASIDA eslab qoladi va
+# shu versiya o'zgarishi bilan (istalgan jadvalga istalgan yozuv) darhol eskiradi.
+#
+# Qoida (texnik — Claude): `SELECT` bilan boshlanmaydigan har bayonot (INSERT / UPDATE / DELETE / DDL …, CTE ham) — YOZUV
+# deb olinadi (shubhada — yozuv: xotira faqat kamroq ishlaydi, hech qachon eski natija bermaydi). Yozuv bajarilganda
+# versiya oshadi va ulanishga «shu tranzaksiyada yozdi» belgisi qo'yiladi; tranzaksiya yakunlanganda (commit YOKI
+# rollback) — versiya YANA oshadi. Ikkinchi oshish poyga uchun: boshqa ulanish tranzaksiya OCHIQ paytida (yozuv hali
+# ko'rinmas) hisoblagan natija commit dan keyin versiyasi eskirgan bo'lib qoladi. Hodisalar `Engine` SINFIGA ulanadi —
+# jarayondagi HAMMA dvigatellar (asosiy, test, migratsiya) hisobga olinadi.
+import threading as _threading_yv
+from sqlalchemy import event as _event_yv
+from sqlalchemy.engine import Engine as _Engine_yv
+
+_YV_QULF = _threading_yv.Lock()
+_YV = {"v": 0}
+_YV_BELGI = "_kech120_yozdi"
+_YV_OQISH = ("SELECT", "PRAGMA", "SHOW", "EXPLAIN")
+
+
+def yozuv_versiyasi():
+    """Shu jarayondagi yozuvlar hisoblagichi (har yozuv va har yozuvli tranzaksiya yakunida oshadi)."""
+    return _YV["v"]
+
+
+def _yv_osh():
+    with _YV_QULF:
+        _YV["v"] += 1
+
+
+def yozuv_bayonotimi(statement):
+    """Bayonot yozuvmi: `SELECT` / `PRAGMA` / `SHOW` / `EXPLAIN` (izoh va bo'shliqdan keyin) bilan boshlanmasa — HA."""
+    s = (statement or "").lstrip()
+    while s.startswith("--") or s.startswith("/*"):
+        if s.startswith("--"):
+            _n = s.find("\n")
+            s = "" if _n < 0 else s[_n + 1:].lstrip()
+        else:
+            _n = s.find("*/")
+            s = "" if _n < 0 else s[_n + 2:].lstrip()
+    _b = s[:8].upper()
+    return not any(_b.startswith(k) for k in _YV_OQISH)
+
+
+def ulanish_yozganmi(conn):
+    """Ulanish joriy tranzaksiyada yozganmi (`Connection.info` belgisi)."""
+    try:
+        return bool(conn.info.get(_YV_BELGI))
+    except Exception:
+        return True
+
+
+@_event_yv.listens_for(_Engine_yv, "before_cursor_execute")
+def _yv_bayonot(conn, cursor, statement, parameters, context, executemany):
+    if yozuv_bayonotimi(statement):
+        try:
+            conn.info[_YV_BELGI] = True
+        except Exception:
+            pass
+        _yv_osh()
+
+
+def _yv_yakun(conn):
+    try:
+        _yozdi = conn.info.pop(_YV_BELGI, None)
+    except Exception:
+        _yozdi = True
+    if _yozdi:
+        _yv_osh()
+
+
+_event_yv.listen(_Engine_yv, "commit", _yv_yakun)
+_event_yv.listen(_Engine_yv, "rollback", _yv_yakun)
+
+
+def _yv_qaytdi(dbapi_connection, connection_record):
+    """Ulanish hovuzga qaytdi — belgi tozalanadi (yozuvli, lekin yakunlanmagan tranzaksiya hovuzda rollback qilinadi:
+    ma'lumot o'zgarmagan; versiya baribir oshiriladi — ehtiyot)."""
+    try:
+        if connection_record.info.pop(_YV_BELGI, None):
+            _yv_osh()
+    except Exception:
+        pass
+
+
+try:
+    from sqlalchemy.pool import Pool as _Pool_yv
+    _event_yv.listen(_Pool_yv, "checkin", _yv_qaytdi)
+except Exception:
+    pass
+
 # 2026-09-19 — Faza 1: avtomatik tenant filtri (TENANT_FILTER=1 bo'lsa).
 # Modul o'zi standart holatda O'CHIQ — yoqilmaguncha hech narsa o'zgarmaydi.
 try:

@@ -1,6 +1,6 @@
 # PenoDecorPro ERP — LOYIHA PASPORTI
 
-*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2); kech112: zip 108 — «Tayyor» da bo'sh loy = reja (K112-3), material nomi (K112-4), MRP qoplama belgisi (K112-5); ko'p korxonali yakuniy jonli sinov; kech115: zip 112 — butun dastur auditi A bosqichi (pul va ma'lumot xatolari) 1-qismi: kirim, qarzdorlar, «Tayyor», narxsiz buyurtma, o'chirilganlar jurnali, manfiy raqamlar, taqqoslash, korxona sog'ligi, ombor filtri; kech116: zip 113 — A bosqich 2-qismi: sog'liq sabablari (K115-2), «Bugungi xulosa» (K115-3), hujjatlardagi hisob qatorlari (G2-04), «Pul oqimi» — haqiqiy pul (G1-03), «Xarajat» — bitta ta'rif va «Tannarx» (G1-02), loyiha qiymati buyurtmalardan (G2-01), haqiqiy IP va kirish cheklovi (U-01), parol oynasi va kirishlarni yopish (G6-06); zip 114 — mijoz hujjatlarida kechirilgan qarz «Chegirma» ichida (egasi qarori); kech117: zip 115 — A2: yo'nalishlar bo'yicha moliya (G3-11, G6-09); zip 116 — jonli sinovdan keyin: «Belgilanmagan» manbalari, Moliya xarajatdan keyin yangilanadi; kech118: qolgan egasi qarorlari (6-bo'lim); zip 117 — B bosqichi 1-qism: dastur oynalari (xabar, kiritish, Esc / tashqariga bosish), o'zbekcha 404 / 403 sahifa, klaviatura fokusi; zip 118 — B bosqichi 2-qism: son / sana / birlik ko'rinishi, o'qiladigan rang, 12 px + yo'nalishlar bo'yicha moliyaviy natija (egasi qarori: taqsim yo'q, oyliklar alohida, davr, solishtirish); yangi qarorlar — rollar va ruxsatlar (6-bo'lim); zip 119 — rollar va ruxsatlar 1-qism (admin rollarni o'zi boshqaradi); kech119: zip 125 — Hisobotlar «oy boshi»: o'tgan oyning SHU KUNLARI bilan solishtirish (egasi qarori), taxminda oylik xarajat bir marta, xomashyo birligi; «Foyda tahlili» summalari (G2-15)). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
+*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2); kech112: zip 108 — «Tayyor» da bo'sh loy = reja (K112-3), material nomi (K112-4), MRP qoplama belgisi (K112-5); ko'p korxonali yakuniy jonli sinov; kech115: zip 112 — butun dastur auditi A bosqichi (pul va ma'lumot xatolari) 1-qismi: kirim, qarzdorlar, «Tayyor», narxsiz buyurtma, o'chirilganlar jurnali, manfiy raqamlar, taqqoslash, korxona sog'ligi, ombor filtri; kech116: zip 113 — A bosqich 2-qismi: sog'liq sabablari (K115-2), «Bugungi xulosa» (K115-3), hujjatlardagi hisob qatorlari (G2-04), «Pul oqimi» — haqiqiy pul (G1-03), «Xarajat» — bitta ta'rif va «Tannarx» (G1-02), loyiha qiymati buyurtmalardan (G2-01), haqiqiy IP va kirish cheklovi (U-01), parol oynasi va kirishlarni yopish (G6-06); zip 114 — mijoz hujjatlarida kechirilgan qarz «Chegirma» ichida (egasi qarori); kech117: zip 115 — A2: yo'nalishlar bo'yicha moliya (G3-11, G6-09); zip 116 — jonli sinovdan keyin: «Belgilanmagan» manbalari, Moliya xarajatdan keyin yangilanadi; kech118: qolgan egasi qarorlari (6-bo'lim); zip 117 — B bosqichi 1-qism: dastur oynalari (xabar, kiritish, Esc / tashqariga bosish), o'zbekcha 404 / 403 sahifa, klaviatura fokusi; zip 118 — B bosqichi 2-qism: son / sana / birlik ko'rinishi, o'qiladigan rang, 12 px + yo'nalishlar bo'yicha moliyaviy natija (egasi qarori: taqsim yo'q, oyliklar alohida, davr, solishtirish); yangi qarorlar — rollar va ruxsatlar (6-bo'lim); zip 119 — rollar va ruxsatlar 1-qism (admin rollarni o'zi boshqaradi); kech119: zip 125 — Hisobotlar «oy boshi»: o'tgan oyning SHU KUNLARI bilan solishtirish (egasi qarori), taxminda oylik xarajat bir marta, xomashyo birligi; «Foyda tahlili» summalari (G2-15); zip 126 — telefon (C bosqichi); kech120: zip 127 — E bosqichi 1-qism: tezlik — hisobot xotirasi (so'rovlar orasida, yozuv bo'lsa darhol eskiradi), sahifa bir ochilishida bir xil so'rov bir marta, Bosh sahifa 5 ta buyurtma, kirish sahifasi rasmi, Hisobotlar taqqoslash kartalari telefonda (K120-1)). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
 *Bu faylni `main` ga ko'chirish bilan birga, keyin har katta o'zgarishda yangilab boring. 9-bo'lim AVTOMATIK
 (`python3 tools/pasport_xarita.py --yoz`), qolgani qo'lda; `tools/test_pasport.py` ikkalasini ham tekshiradi.*
 
@@ -521,6 +521,29 @@ summa sig'masa keyingi qatorga); Hisobotlar (jadval amallari o'raladi; reyting k
 va `title`, telefonda 2 qatorgacha). Kesh versiyasi — `static_version` «20261001-3».
 Test: `tools/test_c_telefon.py` (HAQIQIY Chromium, sensorli ekran). Rasmni serverda kichraytirish (G5-16 ikkinchi qismi) — E
 bosqichida.
+**Tezlik — hisobot xotirasi va bitta yuklash (kech120, zip 127 — E bosqichi 1-qism; audit U-09, U-10; JONLI topilma K120-1).**
+O'LCHANGAN (`work/k127/tez.py` — HAQIQIY Chromium + server ichidagi hisoblagichlar, 300 buyurtmali korxona, SQLite va PG 16): «Hisobotlar»
+bir ochilishda `get_monthly_report` ni 12 marta (4 xil oy kaliti) hisoblardi — serverda ~8 s, 623 SQL; «Dashboard» 4, «Moliya» 6,
+«Qarzdorlar» 3; sinov saytida (kam ma'lumot) har hisobot so'rovi 0,5–1,2 s. YOZUV VERSIYASI (`database.py`): `Engine` SINFIGA ulangan
+hodisalar — `SELECT` / `PRAGMA` / `SHOW` / `EXPLAIN` bilan boshlanmaydigan har bayonot (`yozuv_bayonotimi`; shubhada — yozuv) versiyani
+oshiradi va ulanishga «yozdi» belgisi qo'yadi; yozuvli tranzaksiya yakuni (commit / rollback, hovuzga qaytish) — yana oshiradi (poyga:
+boshqa ulanish ochiq tranzaksiya paytida hisoblagan natija commit dan keyin eskiradi). HISOBOT XOTIRASI (`services._hisobot_xotirasi_bilan`,
+`get_monthly_report` ning TASHQI dekoratori): natija (`deepcopy`) faqat — versiya saqlangandagi bilan AYNAN, hisob paytida ham o'zgarmagan,
+sessiya toza (`new` / `dirty` / `deleted` yo'q va ulanish shu tranzaksiyada yozmagan — yozuvchi yo'l ASL hisobni oladi), natija oddiy
+ma'lumot, yoshi `HISOBOT_XOTIRASI_MUDDAT` (60 s) dan kichik bo'lsa qaytariladi; `WEB_CONCURRENCY` > 1 — xotira o'chiq (boshqa jarayon
+yozuvini ko'rmaydi). Kalit — dvigatel, argumentlar (korxona, yil, oy), oy kesimi (`tashkent_oy_kesimi`), Toshkent sanasi; bir kalit bir
+vaqtda bir marta hisoblanadi (kalit qulfi, 30 s). `HISOBOT_XOTIRASI_YOQIQ = False` — butunlay o'chadi; `hisobot_xotirasi_holati()` /
+`hisobot_xotirasini_tozala()` — o'lchov va testlar uchun. Natija: «Hisobotlar» 12 → 4 hisob, 623 → 273 SQL; «KPI» 1 206 → 529 ms.
+BRAUZER: `base.html` `bittaYuklash(fn)` — sahifa skriptlaridan OLDIN o'rnatiladi; `fn` davomida bir xil manzilli GET BIR marta, har
+o'quvchiga `clone()`; istalgan yozuv so'rovi eslab qolinganlarni tozalaydi; blokdan tashqarida — oddiy `fetch`. Hisobotlar `loadAll`
+(taqqoslash 3 → 1, pul oqimi 2 → 1) va KPI boshlanishi (`/api/finance/report` 2 → 1) shu orqali. Bosh sahifa «So'nggi buyurtmalar» —
+`/api/orders?limit=5` (`limit` 1–500; tartib — yaratilgan vaqt, teng bo'lsa id kamayishi; ilgari HAMMA buyurtma — 300 da 373 KB).
+RASM: kirish sahifasi foni — `login-bg.jpg` (JPEG 85 %, ~103 KB) + `image-set` `login-bg.webp` (WebP 92 %, ~76 KB), PSNR 44,7 / 45,7 dB
+(ilgari `login-bg.png` 1 475 KB — fayl repoda qoladi, ishlatilmaydi); chap panel logotipi — `logo_round_128.jpg` (128 × 128, ~5 KB;
+ilgari 1024 × 1024). K120-1 (sinov saytida 360 px da topilgan, skrinshot): Hisobotlar «O'tgan oy bilan taqqoslash» kartasidagi
+«o'zgarmadi» (22 px, qalin) ustunni 155 px gacha kengaytirib, o'ng kartalarni ekrandan chiqarardi — `.bi-comp-grid > *{min-width:0}`,
+≤ 1280 px raqam 19 px, ≤ 600 px karta ichki chegarasi 12 / 8 px va raqam 17 px; juda tor joyda so'z o'raladi. Buyurtmalar sahifasi
+HTML i (300 buyurtmada 987 KB, gzip bilan ~133 KB) — keyingi qismda (ro'yxat filtrlari bilan). Test: `tools/test_e_tezlik.py`.
 **Ranglar va tungi rejim (kech118, D bosqichi 2-qism — egasi QARORI «To'liq tuzatilsin — har sahifa ranglari umumiy ranglar
 ro'yxatiga», U-02; zip 122).** Shablon / `style.css` dagi rang XOSSASIGA qarab UMUMIY RO'YXATDAN olinadi — `static/ranglar.css`
 (`base.html` va mustaqil sahifalar — kirish, hodim kirishi / paneli, xato sahifasi — `style.css` dan KEYIN ulaydi):
@@ -916,6 +939,24 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   matni «50 kg loy × 15 600 so'm/kg»), `test_tayyor_reja_loy` (R7, R12, R16 — «20 kg loy»), `test_yonalish_natija`
   (S1 / S2 — «bugun» muzlatiladi: oy tugagan → o'tgan oy butun; yangi S5–S7 — 1–5 / 1–4 kesim qo'lda hisoblangan
   summalar bilan va haqiqiy bugun qoidasi; asl kodda S5–S7 yiqiladi).
+- (kech120, zip 127) E bosqichi 1-qism — tezlik: `tools/test_e_tezlik.py` — S (statik: `Engine` hodisalari, `yozuv_bayonotimi` 13 holat,
+  dekoratorlar tartibi, xotira qoidalari, `bittaYuklash` sahifa skriptlaridan oldin, Hisobotlar / KPI, `limit`, rasm fayllari — o'lcham,
+  hajm, PSNR), M (brauzerda: joriy oy — to'liq ish zanjiri; o'tgan oy 27-kun — vaqt sayohati (`time_machine`) bilan loyiha, 4 buyurtma,
+  to'lov, 2 ta «Tayyor», xarajat, transport), A (19 hisobot so'rovi: xotira bilan = ASL — xotira ham, hisobot keshi ham o'chiq; ikkinchi
+  o'tish xotiradan), B (yozuvdan keyin DARHOL: xarajat, «Tayyor», boshqa sessiya + commit, AUTOCOMMIT dvigatel — commit hodisasisiz),
+  C (poyga: boshqa sessiya ochiq tranzaksiyada yozgan paytda saqlangan natija commit dan keyin ishlatilmaydi), D (iflos sessiya va shu
+  tranzaksiyada yozgan sessiya — rad, ASL; rollback), E (hisob paytidagi yozuv — saqlanmaydi), F (qaytarilgan natijani buzish xotirani
+  buzmaydi), G (muddat 0), H (`WEB_CONCURRENCY` 2 — o'chiq, 1 — yoqiq), I (oy kesimi va korxona — alohida kalitlar), K (brauzer:
+  Hisobotlar to'liq to'ladi va konsol xatosiz, takror so'rov yo'q, KPI 1 marta, Bosh sahifa `limit=5` va 5 eng yangi, API 422,
+  `bittaYuklash` — blok ichida 3 → 1, yozuvdan keyin yangi, blokdan tashqarida oddiy; kirish foni WebP, logotip 128; taqqoslash
+  kartalari 360 / 375 / 390 / 768 / 1024 / 1280 / 1440 px — panel ichida, so'z bo'linmaydi, ≥ 16 px), L (Hisobotlar sovuq
+  ochilishi ≤ 4 oylik hisob). SQLite, PG (69) — asl kodda (zip 126) 41 yiqiladi, qulamaydi. Mutatsiyalar
+  (`work/k127/mutatsiya_e1.py`, 28 ta; natija `work/natija/k127/mut/`) — 27 ushlanadi; E25 (`.bi-comp-grid > *{min-width:0}`) —
+  ekvivalent (`overflow-wrap:anywhere` kartaning eng kichik kengligini o'zi kichraytiradi; qoida yorliq uchun qo'shimcha himoya).
+  Birinchi o'tishda E3 (bayonotda versiya oshmaydi) ushlanmagan — B4 (AUTOCOMMIT yozuvi) qo'shildi; E17 (`clone()` yo'q) testni
+  QULATGAN — sahifa xatosi `jsq` bilan ushlanadi, K0 (sahifa to'liq to'ldi) qo'shildi. Moslangan eski testlar (so'rovlar orasidagi
+  xotira o'chiq — hisobning O'ZI / SQL soni / kod konstantasi o'lchanadi): `test_hisobot_kesh` (`chaqir`), `test_hisobot_n1`,
+  `test_qoldiq_n1`, `test_royxat_n1` (modul boshida), `test_brak_belgi_himoya` (E bo'limi).
 - (kech119, zip 126) C bosqichi — telefon: `tools/test_c_telefon.py` — HAQIQIY brauzer (Playwright Chromium, `is_mobile`,
   `has_touch` — `hover: none`; shrift — tizimniki (Inter dan KENGROQ — qat'iyroq), Chart.js — o'rinbosar: canvas qutisi
   kengligida). M (brauzerda dasturning o'z API si orqali to'liq ish zanjiri — ombor, kirim, retsept, usta, hodim, loyiha, 2 buyurtma,
@@ -1527,6 +1568,14 @@ bajarilganlari belgilanadi)**
   ASOSIY qoidalardan KEYIN yoki kuchliroq selektor / `!important` bilan; inline `style` dagi qiymatni (`padding-top`) `!important`
   ham bosib ketadi — kerak bo'lsa kuchliroq selektor. O'lchovni Inter shrifti bilan ham, tizim shrifti (kengroq) bilan ham qiling:
   `nowrap` yorliqlar faqat kengroq shriftda chiqib ketadi (Kirim «Yangi material yozaman», Moliya xarajat guruhi summasi).
+- (kech120, zip 127) Hisobot XOTIRASI ma'lumot yozuviga bog'liq: hisobot natijasini o'zgartiradigan, lekin bazaga yozilmaydigan narsa
+  (testda KOD konstantasini ish vaqtida almashtirish — `test_brak_belgi_himoya` E bo'limi; hisobning O'ZI yuboradigan SQL sonini
+  o'lchash — `test_hisobot_kesh`, `test_hisobot_n1`) bo'lsa — o'sha test (yoki bo'lim) `services.HISOBOT_XOTIRASI_YOQIQ = False` bilan
+  ishlaydi. Ishda konstantalar o'zgarmaydi; bazaga dastur chetlab (xom `sqlite3` / boshqa jarayon) yozish YO'Q — bor bo'lsa, xotira
+  muddati (60 s) gacha eski natija berardi. Yangi hisobot funksiyasiga xotira qo'shilsa — natija ish vaqtidagi narsaga (soat, muhit,
+  fayl) bog'liq emasligini va qaytarilgan obyekt chaqiruvchida o'zgartirilishini (nusxa) tekshiring. Bitta hisobot ichida buyurtma
+  foydasini eslab qolish SINALDI va OLIB TASHLANDI: har buyurtma ikki marta — `korxona=1` va `korxona=None` (usta KPI) bilan
+  so'raladi, kalitlar har xil — foyda yo'q edi (`work/k127/foyda_probe.py`).
 - (kech119, zip 125) Oylik hisobotning «1–N kun» varianti uchun hisobot funksiyalariga parametr o'tkazilmadi — barcha oy
   chegaralari `database.tashkent_oy_oraligi` dan o'tadi, kesim o'sha yerda (`tashkent_oy_kesimi`, contextvar — BITTA sinxron
   chaqiruv zanjiri ichida o'rnatiladi va o'qiladi, blokdan chiqishda tiklanadi). `tenant_context.py` dagi contextvar muammosi
@@ -2291,6 +2340,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_detal_poyga.py` · PG — 5-bo'lim 14-band darvozasi (kech41, 2026-09-23): detal tahriri / o'chirish / "Tayyor" va yetkazish orasidagi poygalar.
 - `test_dizayn114_ui.py` · PG — kech114: dizayn 5–10 (egasi QARORLARI «7A — Guruh, bosilsa ochiladi», «5B — Jadval», «6A — Bir qator + tugmalar»; 9 / 10 — texnik) va K114-1 ning sahifadagi qismi — HAQIQIY sah…
 - `test_donalik_hajm_snapshot.py` · PG — kech96 (2026-09-27), 126-band.
+- `test_e_tezlik.py` · PG — kech120, E BOSQICH 1-qism (TEZLIK): hisobotlar so'rovlar ORASIDA eslab qolinadi (yozuv bo'lsa darhol eskiradi), sahifa bir ochilishida bir xil so'rov bir marta, Bosh sahifa faqat 5…
 - `test_eski_brak_muzlash.py` · PG — 37-band darvozasi (kech51, 2026-09-24).
 - `test_eski_narx_muzlash.py` · PG — 33-band darvozasi (kech49, 2026-09-24).
 - `test_finished_tartib.py` · PG — 15-band darvozasi (kech35, 2026-09-23).
@@ -2445,5 +2495,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 186 (Python 151, JS 35).
+Jami test fayllari: 187 (Python 152, JS 35).
 <!-- AVTO:TESTLAR OXIRI -->

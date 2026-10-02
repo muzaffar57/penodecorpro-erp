@@ -1967,6 +1967,184 @@ def _hisobot_keshi_bilan(fn):
     return _o
 
 
+# ============================================================
+# kech120 (E bosqichi, U-09) — HISOBOT XOTIRASI: oylik hisobot natijasi so'rovlar ORASIDA
+# ============================================================
+# O'LCHANGAN (`work/k127/tez.py`, 300 buyurtma, SQLite va HAQIQIY PG 16): «Hisobotlar» sahifasi bir ochilishda
+# `get_monthly_report` ni 12 marta (oktabr, sentabr (1–N kun), sentabr, avgust — 4 xil kalit) hisoblaydi, har biri yuzlab
+# buyurtma foydasi; «Dashboard» — 4, «Moliya» — 6, «Qarzdorlar» — 3. Sinov saytida (kam ma'lumot) har hisobot so'rovi 0,5–1,2 s.
+#
+# YECHIM (texnik — Claude): natija (`copy.deepcopy`) jarayon xotirasida eslab qolinadi va FAQAT quyidagilar bajarilsa
+# qaytariladi — aks holda ASL hisob (o'zgarishsiz):
+#   1) `database.yozuv_versiyasi()` saqlangandagi bilan AYNAN: shu jarayondagi har qanday yozuv (istalgan jadval, istalgan
+#      korxona) va har yozuvli tranzaksiya yakuni versiyani oshiradi — natija darhol eskiradi;
+#   2) hisob boshidan oxirigacha versiya o'zgarmagan (hisob paytidagi yozuv — saqlanmaydi);
+#   3) sessiya toza: kutilayotgan o'zgarish (`new` / `dirty` / `deleted`) yo'q va ulanish shu tranzaksiyada yozmagan —
+#      yozuvchi yo'l (o'z tranzaksiyasi ichida hisobot o'qisa) ASL hisobni oladi;
+#   4) natija faqat oddiy ma'lumot (dict / list / matn / son / sana / Decimal) — ORM obyekti bo'lsa saqlanmaydi;
+#   5) yoshi `HISOBOT_XOTIRASI_MUDDAT` dan kichik (boshqa jarayon / nusxa yozuvlarini bu jarayon ko'rmaydi — eskirish
+#      chegarasi); bir nechta ishchi (`WEB_CONCURRENCY` > 1) bo'lsa xotira umuman ishlamaydi.
+# Kalit: funksiya nomi, dvigatel, argumentlar (korxona, yil, oy …), oy kesimi (`tashkent_oy_kesimi` — «shu kunlar» bilan
+# solishtirish), Toshkent sanasi. Bir kalit bir vaqtda bir marta hisoblanadi (parallel so'rovlar kutadi — kalit qulfi).
+# `HISOBOT_XOTIRASI_YOQIQ = False` — xotira butunlay o'chadi (test: xotira bilan va xotirasiz natija AYNAN).
+import copy as _copy_hx
+import inspect as _inspect_hx
+import os as _os_hx
+import threading as _threading_hx
+import time as _time_hx
+import datetime as _dt_hx
+from decimal import Decimal as _Decimal_hx
+
+HISOBOT_XOTIRASI_YOQIQ = True
+HISOBOT_XOTIRASI_MUDDAT = 60.0        # soniya
+HISOBOT_XOTIRASI_HAJM = 256           # yozuvlar soni (eng eskisi chiqariladi)
+_HX = {}                              # kalit -> (versiya, vaqt, nusxa)
+_HX_QULF = _threading_hx.Lock()
+_HX_KALIT_QULFI = {}
+_HX_STAT = {"topildi": 0, "hisoblandi": 0, "saqlandi": 0, "rad": 0}
+
+
+def hisobot_xotirasi_holati():
+    """Xotira hisoblagichlari (testlar va o'lchov uchun): topildi / hisoblandi / saqlandi / rad / yozuvlar."""
+    with _HX_QULF:
+        _s = dict(_HX_STAT)
+        _s["yozuvlar"] = len(_HX)
+    return _s
+
+
+def hisobot_xotirasini_tozala():
+    """Xotirani va hisoblagichlarni tozalaydi."""
+    with _HX_QULF:
+        _HX.clear()
+        _HX_KALIT_QULFI.clear()
+        for _k in _HX_STAT:
+            _HX_STAT[_k] = 0
+
+
+def _hx_bitta_ishchi():
+    _w = (_os_hx.environ.get("WEB_CONCURRENCY") or "").strip()
+    if not _w:
+        return True
+    try:
+        return int(_w) <= 1
+    except ValueError:
+        return False
+
+
+_HX_ODDIY = (str, int, float, bool, _Decimal_hx, _dt_hx.date, _dt_hx.time, _dt_hx.timedelta)
+
+
+def _hx_oddiymi(x, _ch=0):
+    """Qiymat faqat oddiy ma'lumotdanmi (ORM obyekti, funksiya va h.k. — YO'Q)."""
+    if _ch > 60:
+        return False
+    if x is None or isinstance(x, _HX_ODDIY):
+        return True
+    if isinstance(x, dict):
+        return all((_k is None or isinstance(_k, _HX_ODDIY) or isinstance(_k, tuple)) and _hx_oddiymi(_v, _ch + 1)
+                   for _k, _v in x.items())
+    if isinstance(x, (list, tuple)):
+        return all(_hx_oddiymi(_v, _ch + 1) for _v in x)
+    return False
+
+
+def _hx_sessiya_tozami(db):
+    """Sessiyada kutilayotgan o'zgarish yo'q va ulanish joriy tranzaksiyada yozmagan."""
+    try:
+        if db.new or db.dirty or db.deleted:
+            return False
+        if db.in_transaction():
+            from database import ulanish_yozganmi as _uy_hx
+            return not _uy_hx(db.connection())
+        return True
+    except Exception:
+        return False
+
+
+def _hx_kalit_qulfi(kalit):
+    with _HX_QULF:
+        _q = _HX_KALIT_QULFI.get(kalit)
+        if _q is None:
+            if len(_HX_KALIT_QULFI) > 4 * HISOBOT_XOTIRASI_HAJM:
+                # band bo'lmagan eski qulflar chiqariladi (kalitlarda sana bor — ro'yxat cheksiz o'smasin)
+                for _k in [_k for _k, _l in _HX_KALIT_QULFI.items() if not _l.locked()]:
+                    _HX_KALIT_QULFI.pop(_k, None)
+            _q = _threading_hx.Lock()
+            _HX_KALIT_QULFI[kalit] = _q
+        return _q
+
+
+def _hx_ol(kalit, versiya):
+    """Yaroqli nusxa (yangi `deepcopy`) yoki `_HK_YOQ`."""
+    with _HX_QULF:
+        _y = _HX.get(kalit)
+        if _y is None:
+            return _HK_YOQ
+        _v, _t, _n = _y
+        if _v != versiya or (_time_hx.monotonic() - _t) >= HISOBOT_XOTIRASI_MUDDAT:
+            _HX.pop(kalit, None)
+            return _HK_YOQ
+        _HX_STAT["topildi"] += 1
+    return _copy_hx.deepcopy(_n)
+
+
+def _hx_qoy(kalit, versiya, natija):
+    _n = _copy_hx.deepcopy(natija)
+    with _HX_QULF:
+        _HX[kalit] = (versiya, _time_hx.monotonic(), _n)
+        _HX_STAT["saqlandi"] += 1
+        while len(_HX) > HISOBOT_XOTIRASI_HAJM:
+            _HX.pop(next(iter(_HX)), None)
+
+
+def _hisobot_xotirasi_bilan(fn):
+    """Dekorator (kech120): `fn(db, …)` natijasi HISOBOT XOTIRASI qoidalari bilan so'rovlar orasida eslab qolinadi."""
+    _sig = _inspect_hx.signature(fn)
+    _nom = getattr(fn, "__name__", "hisobot")
+
+    @_functools_hk.wraps(fn)
+    def _o(*args, **kwargs):
+        if not (HISOBOT_XOTIRASI_YOQIQ and _hx_bitta_ishchi()):
+            return fn(*args, **kwargs)
+        try:
+            from database import yozuv_versiyasi as _yv_hx, _OY_KESIMI as _kesim_hx
+            _ba = _sig.bind(*args, **kwargs)
+            _ba.apply_defaults()
+            _db = _ba.arguments.get("db")
+            _arg = tuple((_k, _v) for _k, _v in _ba.arguments.items() if _k != "db")
+            hash(_arg)
+            _kalit = (_nom, id(_db.get_bind()), _arg, _kesim_hx.get(), _tashkent_date().isoformat())
+        except Exception:
+            return fn(*args, **kwargs)
+        if not _hx_sessiya_tozami(_db):
+            with _HX_QULF:
+                _HX_STAT["rad"] += 1
+            return fn(*args, **kwargs)
+        _n = _hx_ol(_kalit, _yv_hx())
+        if _n is not _HK_YOQ:
+            return _n
+        _q = _hx_kalit_qulfi(_kalit)
+        _olindi = _q.acquire(timeout=30)
+        try:
+            if _olindi:
+                _n = _hx_ol(_kalit, _yv_hx())
+                if _n is not _HK_YOQ:
+                    return _n
+            _v0 = _yv_hx()
+            with _HX_QULF:
+                _HX_STAT["hisoblandi"] += 1
+            natija = fn(*args, **kwargs)
+            if _yv_hx() == _v0 and _hx_sessiya_tozami(_db) and _hx_oddiymi(natija):
+                _hx_qoy(_kalit, _v0, natija)
+            return natija
+        finally:
+            if _olindi:
+                _q.release()
+    _o.asl_funksiya = fn
+    return _o
+
+
+
 def _hk_ol(db, bolim, kalit):
     """Keshdagi qiymat yoki `_HK_YOQ` (kesh yo'q yoki kalit yo'q)."""
     _k = _hk(db)
@@ -3314,6 +3492,7 @@ def _monthly_category_amount(db: Session, year: int, month: int, category: str, 
         return float(fallback or 0)
 
 
+@_hisobot_xotirasi_bilan      # kech120 (E, U-09): so'rovlar orasida — yozuv bo'lsa darhol eskiradi
 @_hisobot_keshi_bilan
 def get_monthly_report(db: Session, year: int, month: int, company_id: int = None) -> Dict:
     """
