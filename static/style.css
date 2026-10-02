@@ -753,3 +753,9 @@ select.qt-asl { position: absolute !important; width: 1px !important; height: 1p
 .qt-yoq { padding: 18px; text-align: center; color: var(--text3); font-size: 13px; }
 .qt-soni { padding: 6px 12px 8px; font-size: 12px; color: var(--text3); border-top: 1px solid var(--border2); }
 .qt-soni[hidden] { display: none; }
+
+/* kech120 (zip 137 — F bosqichi 5-qism, audit G6-22): `.input-field` — umumiy uslub (ilgari faqat kpi.html da; Sozlamalardagi maydonlar
+   oddiy to'rtburchak edi). Fayl OXIRIDA va teg bilan — umumiy `input` qoidalaridan ustun. */
+input.input-field, select.input-field, textarea.input-field { padding: 8px 10px; border: 1.5px solid var(--border); border-radius: 8px;
+  font-size: 14px; background: var(--white); color: var(--text); }
+input.input-field:focus, select.input-field:focus, textarea.input-field:focus { outline: none; border-color: var(--gold); }
