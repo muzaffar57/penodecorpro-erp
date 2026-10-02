@@ -27,6 +27,9 @@ html[data-theme="dark"] .dbt-tab.active{background:var(--f-eceae6);color:var(--m
 @media(max-width:700px){.dbt-ikki-ustun{grid-template-columns:1fr !important}}
 .dbt-card{background:var(--white);border:1px solid var(--d-border);border-radius:16px;box-shadow:0 1px 2px rgba(16,24,40,.04),0 4px 16px rgba(16,24,40,.06);overflow:hidden}
 .dbt-list{max-height:calc(100vh - 320px);overflow-y:auto}
+/* kech120 (zip 131 — F bosqichi, audit G3-08): bitta ustunda (≤ 950 px) ro'yxat ICHIDA alohida aylantirish yo'q — butun sahifa
+   (`.dbt-wrap`) aylanadi; ilgari telefonda ichma-ich ikki aylantirish (ro'yxat qutisi va sahifa). */
+@media(max-width:950px){.dbt-list{max-height:none;overflow-y:visible}}
 .dbt-item{padding:14px 18px;border-bottom:1px solid var(--ch-f3f4f6);cursor:pointer;transition:background .12s;display:flex;gap:12px}
 .dbt-item:hover{background:var(--d-bg)}
 .dbt-item.active{background:var(--f-fef2f2);border-left:3px solid var(--d-danger)}
@@ -197,6 +200,14 @@ html[data-theme="dark"] .dbt-tab.active{background:var(--f-eceae6);color:var(--m
                 <button type="button" id="pay-full-btn" class="btn btn-outline btn-sm" style="flex-shrink:0;white-space:nowrap" onclick="payButunQarz()">Butun qarz</button>
               </div>
             </div>
+            {# kech120 (zip 131 — F bosqichi, audit G3-03): to'lov usuli tanlanmasdi — har to'lov «naqd» bo'lib yozilardi #}
+            <div class="form-group"><label for="pay-method">To'lov usuli</label>
+              <select id="pay-method" style="width:100%;padding:9px 10px;border:1px solid var(--ch-e5e7eb);border-radius:8px">
+                <option value="naqd">Naqd</option>
+                <option value="plastik">Plastik</option>
+                <option value="o'tkazma">O'tkazma</option>
+              </select>
+            </div>
             <div class="form-group"><label>Izoh (ixtiyoriy)</label><input type="text" id="pay-note" placeholder="..."></div>
             <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--d-text2);margin-bottom:6px;cursor:pointer;min-height:32px">
               <input type="checkbox" id="pay-writeoff" style="width:20px;height:20px;flex-shrink:0" onchange="payYozuv()">
@@ -331,7 +342,7 @@ html[data-theme="dark"] .dbt-tab.active{background:var(--f-eceae6);color:var(--m
         <div style="padding:8px 18px 18px">
           {% if company_obligations.employees %}
             {% for e in company_obligations.employees %}
-            <div class="oblig-item" style="padding:12px 0;border-bottom:1px solid var(--ch-f3f4f6);cursor:pointer;display:flex;gap:12px" data-emp-id="{{ e.employee_id }}" data-emp-name="{{ e.name }}" data-year="{{ e.year }}" data-month="{{ e.month }}" onclick="openEmpTimeline(this.dataset.empId, this.dataset.empName)">
+            <div class="oblig-item" style="padding:12px 0;border-bottom:1px solid var(--ch-f3f4f6);cursor:pointer;display:flex;gap:12px" data-emp-id="{{ e.employee_id }}" data-emp-name="{{ e.name }}" data-year="{{ e.year }}" data-month="{{ e.month }}" data-month-label="{{ e.month_label }}" onclick="openEmpTimeline(this.dataset.empId, this.dataset.empName, this.dataset.year, this.dataset.month, this.dataset.monthLabel)">
               <div class="dbt-avatar" style="background:{{ 'var(--f-fef2f2)' if e.status=='overdue' else 'var(--f-fffbeb)' }};color:{{ 'var(--m-ef4444)' if e.status=='overdue' else '#F59E0B' }};width:34px;height:34px;font-size:13px">{{ (e.name or '?')[0]|upper }}</div>
               <div style="flex:1">
                 <div style="display:flex;justify-content:space-between;align-items:flex-start">
@@ -363,7 +374,7 @@ html[data-theme="dark"] .dbt-tab.active{background:var(--f-eceae6);color:var(--m
             {% for r in company_obligations.recurring %}
             {% set status_color = {'overdue':'#EF4444','due_soon':'#F59E0B','partial':'#F59E0B','full':'#22C55E'} %}
             {% set status_label = {'overdue':'Muddati o\'tgan','due_soon':'Muddat yaqin','partial':'Qisman to\'langan','full':'To\'liq yopilgan'} %}
-            <div class="oblig-item" style="padding:12px 0;border-bottom:1px solid var(--ch-f3f4f6);cursor:pointer" data-category="{{ r.category }}" data-label="{{ r.label }}" data-year="{{ r.year }}" data-month="{{ r.month }}" onclick="openObligTimeline(this.dataset.category, this.dataset.label)">
+            <div class="oblig-item" style="padding:12px 0;border-bottom:1px solid var(--ch-f3f4f6);cursor:pointer" data-category="{{ r.category }}" data-label="{{ r.label }}" data-year="{{ r.year }}" data-month="{{ r.month }}" data-month-label="{{ r.month_label }}" onclick="openObligTimeline(this.dataset.category, this.dataset.label, this.dataset.year, this.dataset.month, this.dataset.monthLabel)">
               <div style="display:flex;justify-content:space-between;align-items:flex-start">
                 <div>
                   <div style="display:flex;align-items:center;gap:6px">
@@ -379,7 +390,7 @@ html[data-theme="dark"] .dbt-tab.active{background:var(--f-eceae6);color:var(--m
                 </div>
               </div>
               <div class="dbt-progress-track"><div class="dbt-progress-fill" style="width:{{ (r.paid/r.target*100)|round if r.target>0 else 0 }}%;background:{{ status_color[r.status] }}"></div></div>
-              <button class="btn btn-outline btn-xs" style="margin-top:8px" data-debt="{{ r.debt }}" onclick="event.stopPropagation();const it=this.closest('.oblig-item');quickPayObligation(it.dataset.category, it.dataset.label, parseFloat(this.dataset.debt), it.dataset.year, it.dataset.month)">💰 To'lov qo'shish</button>
+              <button class="btn btn-outline btn-xs" style="margin-top:8px" data-debt="{{ r.debt }}" onclick="event.stopPropagation();const it=this.closest('.oblig-item');quickPayObligation(it.dataset.category, it.dataset.label, parseFloat(this.dataset.debt), it.dataset.year, it.dataset.month, it.dataset.monthLabel)">💰 To'lov qo'shish</button>
             </div>
             {% endfor %}
           {% else %}
@@ -618,14 +629,7 @@ async function deleteCategory(id, label){
   } catch(e) { alert('Server xatosi'); }
 }
 
-async function quickPayObligation(category, label, debt, year, month){
-  // kech118 (B — U-07): brauzerning xom prompt() oynasi o'rniga dastur oynasi (base.html `kiritishOyna`)
-  const amountStr = await kiritishOyna(`${label} uchun qancha to'landi?`, {qiymat: narxKorinishi(debt), inputmode: 'decimal', okText: "To'lovni yozish"});
-  if (!amountStr) return;
-  // 118-band: pul matni yagona qoida bilan o'qiladi ("1.500.000", "1 500,5");
-  // noto'g'ri / manfiy / 0 summa — ANIQ rad (ilgari jimgina qaytardi yoki 10x / 100x).
-  const amount = narxniOqi(amountStr);
-  if (!(amount > 0)) { alert("Summa noto'g'ri: " + amountStr); return; }
+async function quickPayObligation(category, label, debt, year, month, monthLabel){
   // MUHIM: agar bu, o'tgan oydan qolgan qarz bo'lsa — to'lovni, "bugungi
   // sana"ga emas, balki qarzning O'ZI tegishli bo'lgan oyga yozamiz
   // (aks holda, kechikkan to'lov, boshqa oy hisobotini buzib qo'yardi).
@@ -639,6 +643,23 @@ async function quickPayObligation(category, label, debt, year, month){
   const payDate = isCurrentMonth
     ? tkISO()
     : `${y}-${String(m).padStart(2, '0')}-28`;
+  // kech120 (zip 131 — F bosqichi, audit G3-04): oynada QAYSI oy qarzi va qaysi SANAGA yozilishi ko'rinadi (o'tgan oy — 28-sana
+  // qoidasi ilgari aytilmasdi); qarzdan ko'p summa — alohida tasdiq (ilgari jim qabul qilinardi).
+  const oyMatn = String(monthLabel || '').replace(' (joriy)', '') || (y + '-' + String(m).padStart(2, '0'));
+  const izoh = `${oyMatn} ${y} · qarz ${narxKorinishi(debt)} so'm\n${tkSana(payDate)} sanasiga yoziladi` +
+    (isCurrentMonth ? '' : ' (o\'tgan oy qarzi — o\'sha oy hisobotiga)');
+  // kech118 (B — U-07): brauzerning xom prompt() oynasi o'rniga dastur oynasi (base.html `kiritishOyna`)
+  const amountStr = await kiritishOyna(`${label} uchun qancha to'landi?`, {qiymat: narxKorinishi(debt), izoh, inputmode: 'decimal', okText: "To'lovni yozish"});
+  if (!amountStr) return;
+  // 118-band: pul matni yagona qoida bilan o'qiladi ("1.500.000", "1 500,5");
+  // noto'g'ri / manfiy / 0 summa — ANIQ rad (ilgari jimgina qaytardi yoki 10x / 100x).
+  const amount = narxniOqi(amountStr);
+  if (!(amount > 0)) { alert("Summa noto'g'ri: " + amountStr); return; }
+  if (Number(debt) > 0 && amount - Number(debt) > 0.004) {      // tiyindan katta farq (yaxlitlashsiz — 118-band)
+    const ha = await customConfirm(`${narxKorinishi(amount)} so'm — ${oyMatn} qarzidan (${narxKorinishi(debt)} so'm) ko'p. Baribir shu summa yozilsinmi?`,
+                                   {danger: true, okText: 'Ha, yozilsin'});
+    if (!ha) return;
+  }
   try {
     const res = await fetch('/api/finance/transactions', {
       method: 'POST', headers: {'Content-Type':'application/json'},
@@ -650,33 +671,45 @@ async function quickPayObligation(category, label, debt, year, month){
   } catch(e) { alert('Server xatosi'); }
 }
 
-async function openObligTimeline(category, label){
+// kech120 (zip 131 — F bosqichi, audit G3-05): tarix — qator qaysi oy qarzini ko'rsatsa, O'SHA oy (ilgari doim joriy oy so'ralardi:
+// avgust qarzini bossa — oktabr to'lovlari). Oy berilmasa — joriy oy (Toshkent).
+function tarixOyi(year, month, monthLabel) {
+  const tk = tkHozir();
+  const y = parseInt(year) || tk.yil, m = parseInt(month) || tk.oy;
+  const joriy = (y === tk.yil && m === tk.oy);
+  const nom = String(monthLabel || '').replace(' (joriy)', '');
+  return {y, m, sarlavha: joriy ? 'Shu oy' : ((nom || (y + '-' + String(m).padStart(2, '0'))) + ' ' + y)};
+}
+
+async function openObligTimeline(category, label, year, month, monthLabel){
+  const tk0 = tkHozir();
+  const oy = (typeof tarixOyi === 'function') ? tarixOyi(year, month, monthLabel) : {y: tk0.yil, m: tk0.oy, sarlavha: 'Shu oy'};
   document.getElementById('tl-title').textContent = `📋 ${label} — to'lovlar tarixi`;
-  document.getElementById('tl-sub').textContent = 'Shu oy';
+  document.getElementById('tl-sub').textContent = oy.sarlavha;
   document.getElementById('tl-list').innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>';
   document.getElementById('timelineModal').style.display = 'flex';
-  const tk = tkHozir();     // kech106: "Shu oy" — Toshkent
   try {
-    const rows = await fetch(`/api/obligations/timeline?category=${category}&year=${tk.yil}&month=${tk.oy}`).then(r=>r.json());
+    const rows = await fetch(`/api/obligations/timeline?category=${encodeURIComponent(category)}&year=${oy.y}&month=${oy.m}`).then(r=>r.json());
     renderTimeline(rows);
   } catch(e) { document.getElementById('tl-list').innerHTML = '<div style="text-align:center;padding:20px;color:var(--m-dc2626)">Xato yuz berdi</div>'; }
 }
 
-async function openEmpTimeline(empId, name){
+async function openEmpTimeline(empId, name, year, month, monthLabel){
+  const tk0 = tkHozir();
+  const oy = (typeof tarixOyi === 'function') ? tarixOyi(year, month, monthLabel) : {y: tk0.yil, m: tk0.oy, sarlavha: 'Shu oy'};   // kech120 (G3-05)
   document.getElementById('tl-title').textContent = `👷 ${name} — to'lovlar tarixi`;
-  document.getElementById('tl-sub').textContent = 'Shu oy (avans + yakuniy to\'lovlar)';
+  document.getElementById('tl-sub').textContent = oy.sarlavha + ' (avans + yakuniy to\'lovlar)';
   document.getElementById('tl-list').innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>';
   document.getElementById('timelineModal').style.display = 'flex';
-  const tk = tkHozir();     // kech106: "Shu oy" — Toshkent
   try {
-    const rows = await fetch(`/api/obligations/employee/${empId}/timeline?year=${tk.yil}&month=${tk.oy}`).then(r=>r.json());
+    const rows = await fetch(`/api/obligations/employee/${empId}/timeline?year=${oy.y}&month=${oy.m}`).then(r=>r.json());
     renderTimeline(rows);
   } catch(e) { document.getElementById('tl-list').innerHTML = '<div style="text-align:center;padding:20px;color:var(--m-dc2626)">Xato yuz berdi</div>'; }
 }
 
 function renderTimeline(rows){
   const el = document.getElementById('tl-list');
-  if (!rows.length) { el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">Bu oy hali to\'lov bo\'lmagan</div>'; return; }
+  if (!rows.length) { el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">Bu oyda to\'lov yo\'q</div>'; return; }
   el.innerHTML = rows.map(r => {
     return `<div class="tl-row">
       <div><div style="font-weight:500">${tkSana(r.date)}</div><div style="font-size:12px;color:var(--text3)">${escapeHtml(r.notes||'')} ${r.created_by?'· '+escapeHtml(r.created_by):''}</div></div>
@@ -715,14 +748,16 @@ function qarzTafsilotigaSur(nomId) {
   } catch (e) { /* ko'rinish — muhim emas */ }
 }
 
-function selectOrderDebt(el){
+function selectOrderDebt(el, surish){
   document.querySelectorAll('#tab-customers .dbt-item').forEach(i => i.classList.remove('active'));
   el.classList.add('active');
   // kech120 (G3-07): qator mijoz guruhida — guruh ochiq bo'lsin; tanlov qayta yuklanganda (to'lovdan keyin) tiklanadi
   const _mg = (typeof el.closest === 'function') ? el.closest('.dbt-mijoz') : null;   // sinov soxta elementida `closest` yo'q
   if (_mg && typeof mijozGuruhiniOch === 'function') mijozGuruhiniOch(_mg, true);
   try { sessionStorage.setItem('qarz_tanlangan', String(el.dataset.id || '')); } catch (e) { /* tiklanmaydi — ish buzilmaydi */ }
-  if (typeof qarzTafsilotigaSur === 'function') qarzTafsilotigaSur('cd-name');   // kech119 (C — telefon, G3-08)
+  // kech119 (C — telefon, G3-08); kech120 (zip 131): sahifa YANGI ochilganda (`surish === false`) surilmaydi — ilgari telefonda
+  // sahifa qidiruv va ro'yxatdan o'tib, birinchi qarzdor kartasida ochilardi
+  if (surish !== false && typeof qarzTafsilotigaSur === 'function') qarzTafsilotigaSur('cd-name');
   selectedOrderId = el.dataset.id;
   const d = el.dataset;
   const agreed = parseFloat(d.agreed), paid = parseFloat(d.paid), debt = parseFloat(d.debt);
@@ -753,6 +788,7 @@ function selectOrderDebt(el){
   selectedDebt = { debt, client: d.client || '', orderNumber: d.orderNumber || '' };
   document.getElementById('pay-amount').value = '';
   document.getElementById('pay-note').value = '';
+  if (document.getElementById('pay-method')) document.getElementById('pay-method').value = 'naqd';   // kech120 (G3-03)
   document.getElementById('pay-writeoff').checked = false;
   document.getElementById('pay-msg').style.display = 'none';
   payYozuv();
@@ -809,8 +845,12 @@ async function savePayment(){
   // va (belgi bo'lsa) kechiriladigan summa alohida qatorda.
   const kechir = writeOff ? payKechiriladi() : 0;
   const sd = selectedDebt || { client: '', orderNumber: '' };
+  // kech120 (G3-03): tanlangan usul tasdiqda ham ko'rinadi
+  const usulEl = document.getElementById('pay-method');
+  const usul = usulEl ? (usulEl.value || 'naqd') : 'naqd';
+  const usulNomi = (usulEl && usulEl.selectedIndex >= 0) ? usulEl.options[usulEl.selectedIndex].textContent.toLowerCase() : 'naqd';
   let savol = (sd.client ? sd.client + " · " : "") + (sd.orderNumber || "") + ": " + narxKorinishi(amount)
-    + " so'm to'lov qabul qilinsinmi?";
+    + " so'm (" + usulNomi + ") to'lov qabul qilinsinmi?";
   if (kechir > 0) savol += "\n\n⚠️ Qolgan " + narxKorinishi(kechir) + " so'm KECHIRILADI (chegirma) — mijozdan olinmaydi.";
   const tasdiq = await customConfirm(savol, {danger: kechir > 0, okText: kechir > 0 ? "Ha, qabul qilib kechirish" : "Ha, qabul qilish"});
   if (!tasdiq) { msg.style.display = 'none'; return; }
@@ -821,7 +861,7 @@ async function savePayment(){
   // qasddan ko'p (avans) to'lasa, uni bu yerdan umuman kiritib bo'lmasdi.
   // Endi `orders.html` dagi kabi tasdiq so'raladi va `confirm_overpay: true`
   // bilan qayta yuboriladi. Boshqa xatolarda server SABABI ko'rsatiladi.
-  const tana = { order_id: parseInt(selectedOrderId), amount, notes: notes || null };
+  const tana = { order_id: parseInt(selectedOrderId), amount, payment_method: usul, notes: notes || null };
   const yubor = () => fetch(`/api/payments?write_off_remainder=${writeOff}`, {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify(tana)
@@ -1010,9 +1050,9 @@ function qarzTanlovQaytaYuklanganda() {
 }
 
 window.addEventListener('load', () => {
-  const first = (typeof qarzTanlovQaytaYuklanganda === 'function' && qarzTanlovQaytaYuklanganda())
-    || document.querySelector('#tab-customers .dbt-item');
-  if (first) selectOrderDebt(first);
+  const qayta = (typeof qarzTanlovQaytaYuklanganda === 'function' && qarzTanlovQaytaYuklanganda()) || null;
+  const first = qayta || document.querySelector('#tab-customers .dbt-item');
+  if (first) selectOrderDebt(first, !!qayta);     // kech120 (G3-08): yangi ochilishda surilmaydi, to'lovdan keyin — tanlanganga
   // kech100 (131-band): /debts?qaytarish=<buyurtma id> (Buyurtmalar sahifasidagi belgidan) — shu buyurtma ochiladi
   const firstR = document.querySelector('#tab-refunds .dbt-item');
   let qid = null;

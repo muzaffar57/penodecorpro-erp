@@ -351,7 +351,9 @@ html[data-theme="dark"]{
       </div>
       <div class="fin-hero-card">
         <div class="fin-hero-icon" style="background:var(--f-primary-tint);color:var(--f-primary)"><i class="ti ti-chart-bar"></i></div>
-        <div class="fin-hero-label">Sof foyda</div>
+        {# kech120 (zip 131 — F bosqichi, audit G3-13): bugungi karta = savdo − tannarx (xarajatlar AYIRILMAGAN) — «Sof foyda» emas,
+           «Yalpi foyda» (sof foyda — oylik hisobotda: Daromad − Tannarx − Xarajat) #}
+        <div class="fin-hero-label">Yalpi foyda</div>
         <div class="fin-hero-value" id="hero-foyda">—</div>
         <div class="fin-hero-sub" id="hero-tannarx-sub">—</div>
       </div>
@@ -386,13 +388,15 @@ html[data-theme="dark"]{
   <div class="fin-section">
     <div class="fin-filterbar">
       <i class="ti ti-filter" style="color:var(--f-text3);font-size:16px;margin-right:2px"></i>
-      <select id="sel-month">
+      {# kech120 (zip 131 — F bosqichi, audit G3-20): oy / yil o'zgarsa hisobot O'ZI yangilanadi (ilgari «Ko'rish» bosilmasa ekranda
+         eski oy, «PDF» esa yangi oy — farq qilardi); yil chegarasi qattiq 2030 emas (joriy yil + 1, JS) #}
+      <select id="sel-month" onchange="loadReport()">
         <option value="1">Yanvar</option><option value="2">Fevral</option><option value="3">Mart</option>
         <option value="4">Aprel</option><option value="5">May</option><option value="6">Iyun</option>
         <option value="7">Iyul</option><option value="8">Avgust</option><option value="9">Sentabr</option>
         <option value="10">Oktabr</option><option value="11">Noyabr</option><option value="12">Dekabr</option>
       </select>
-      <input type="number" id="sel-year" value="2026" min="2024" max="2030" style="width:84px">
+      <input type="number" id="sel-year" value="2026" min="2024" style="width:84px" onchange="loadReport()">
       <button class="fin-btn fin-btn-primary" onclick="loadReport()">Ko'rish</button>
       <button class="fin-btn" onclick="downloadFinancePdf()" title="Shu oy uchun to'liq hisobotni PDF qilib yuklab olish"><i class="ti ti-file-type-pdf" style="vertical-align:-2px"></i> PDF yuklab olish</button>
       <span style="font-size:12.5px;color:var(--f-text3);margin-left:auto">Tanlangan oy bo'yicha to'liq hisobot</span>
@@ -566,7 +570,8 @@ html[data-theme="dark"]{
     <div class="fin-section">
       <div class="fin-card">
         <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:1px solid var(--f-border);flex-wrap:wrap;gap:10px">
-          <div class="fin-section-title" style="margin:0"><i class="ti ti-list"></i> Kunlik xarajat tranzaksiyalari</div>
+          {# kech120 (zip 131 — G3-25): bir ish — bir nom («Xarajat qo'shish» sahifasi ham shu ro'yxatga yozadi) #}
+          <div class="fin-section-title" style="margin:0"><i class="ti ti-list"></i> Xarajatlar ro'yxati</div>
           <button class="fin-btn fin-btn-primary" onclick="openTxModal()"><i class="ti ti-plus" style="vertical-align:-2px"></i> Xarajat qo'shish</button>
         </div>
         <div style="padding:16px 20px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap" class="no-print">
@@ -584,6 +589,11 @@ html[data-theme="dark"]{
             <option value="reklama">Reklama</option>
             <option value="kutilmagan">Kutilmagan xarajat</option>
             <option value="boshqa">Boshqa</option>
+            {# kech120 (zip 131 — G3-18): kirim hujjati xarajatlari ham filtrda #}
+            <option value="transport_kirim">Transport (kirim)</option>
+            <option value="tushirish_kirim">Tushirish (kirim)</option>
+            <option value="yuklash_kirim">Yuklash (kirim)</option>
+            <option value="kirim_boshqa">Boshqa xarajat (kirim)</option>
           </select>
         </div>
         <div class="fin-table-wrap" style="padding:16px 20px 20px">
@@ -700,10 +710,15 @@ async function loadCashBalance(){
     // kech118 (D-1, G3-14): boshlang'ich balans kiritilmagan — ogohlantirish va tugma
     const bosh = document.getElementById('cash-boshlangich-yoq');
     if (bosh) bosh.hidden = d.boshlangich_kiritilgan !== false;
+    if (typeof boshlangichKiritilgan !== 'undefined') boshlangichKiritilgan = d.boshlangich_kiritilgan;   // kech120 (G3-15)
   } catch(e) { console.error(e); }
 }
 
 let cashTxHistoryLoaded = false;
+// kech120 (zip 131 — F bosqichi, audit G3-15): kassaga qo'lda kiritilgan XATO yozuvni o'chirib bo'lmasdi (API bor edi — sahifada
+// tugma yo'q); saqlash tasdiqsiz edi; boshlang'ich balans ikki marta kiritilsa — jim qo'shilardi.
+var boshlangichKiritilgan = null;
+var KASSA_OCHIRISH = {{ 'true' if current_user.ruxsat('kassa', 'ochirish') else 'false' }};
 async function toggleCashTxHistory(){
   const list = document.getElementById('cashTxHistoryList');
   const icon = document.getElementById('cashTxHistoryToggleIcon');
@@ -731,7 +746,12 @@ async function loadCashTxHistory(){
           <div style="font-weight:600">${escapeHtml(labels[r.category] || r.category)}</div>
           <div style="color:var(--f-text3);font-size:12px;margin-top:2px">${dt}${r.performed_by ? ' · ' + escapeHtml(r.performed_by) : ''}${r.notes ? ' · ' + escapeHtml(r.notes) : ''}</div>
         </div>
-        <div style="font-weight:700;color:${matnRangi(color)};white-space:nowrap">${sign}${fmtFull(r.amount)} so'm</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="font-weight:700;color:${matnRangi(color)};white-space:nowrap">${sign}${fmtFull(r.amount)} so'm</div>
+          ${(typeof KASSA_OCHIRISH !== 'undefined' && KASSA_OCHIRISH) ? `<button type="button" class="fin-row-action kassa-ochir" title="O'chirish" aria-label="O'chirish"
+              data-id="${r.id}" data-nom="${escapeHtml(labels[r.category] || r.category)}" data-summa="${r.amount}"
+              onclick="deleteCashTx(this)"><i class="ti ti-trash" style="font-size:13px"></i></button>` : ''}
+        </div>
       </div>`;
     }).join('');
   } catch(e) {
@@ -784,6 +804,20 @@ async function fillEhsonAmount(){
   }
 }
 
+async function deleteCashTx(btn){
+  const d = btn.dataset;
+  const summa = Number(d.summa) || 0;
+  const ha = await customConfirm(`«${d.nom}» ${summa >= 0 ? '+' : ''}${fmtFull(summa)} so'm yozuvi o'chirilsinmi?\nKassa balansi qayta hisoblanadi.`,
+                                 {danger: true, okText: "Ha, o'chirilsin"});
+  if (!ha) return;
+  try {
+    const res = await fetch(`/api/finance/cash-transactions/${encodeURIComponent(d.id)}`, {method: 'DELETE'});
+    if (!res.ok) { alert('❌ ' + await serverXatoSababi(res, "O'chirilmadi")); return; }
+    loadCashBalance();
+    await loadCashTxHistory();
+  } catch (e) { alert("Server bilan aloqa yo'q"); }
+}
+
 async function saveCashTx(){
   const raw = parseNum(document.getElementById('cashtx-amount').value) || 0;
   const err = document.getElementById('cashtx-error');
@@ -792,6 +826,12 @@ async function saveCashTx(){
   const cfg = CASH_TX_LABELS[currentCashTxCategory];
   const amount = raw * cfg.sign;  // usta_kpi/ehson -> manfiy, boshlangich -> musbat
   const notes = document.getElementById('cashtx-notes').value || null;
+  // kech120 (G3-15): saqlashdan oldin tasdiq; boshlang'ich balans avval kiritilgan bo'lsa — ogohlantirish
+  let savol = `Kassaga ${cfg.sign > 0 ? '+' : '−'}${narxKorinishi(raw)} so'm yozilsinmi?\n(${cfg.title.replace(/^[+−]\s*/, '')})`;
+  if (currentCashTxCategory === 'boshlangich' && boshlangichKiritilgan === true) {
+    savol += "\n\n⚠️ Boshlang'ich balans AVVAL kiritilgan — yana kiritsangiz, ikkalasi qo'shiladi. Xato bo'lsa, eskisini «Kassa qo'lda kiritilgan tarix» ro'yxatidan o'chiring.";
+  }
+  if (!(await customConfirm(savol, {danger: currentCashTxCategory === 'boshlangich' && boshlangichKiritilgan === true, okText: 'Ha, yozilsin'}))) return;
 
   const fd = new FormData();
   fd.append('category', currentCashTxCategory);
@@ -823,6 +863,7 @@ loadCashBalance();
 const now=tkHozir();
 document.getElementById('sel-month').value=now.oy;
 document.getElementById('sel-year').value=now.yil;
+document.getElementById('sel-year').max = now.yil + 1;          // kech120 (G3-20)
 
 const MONTH_NAMES=['','Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust','Sentabr','Oktabr','Noyabr','Dekabr'];
 function fmt(n){return qisqaSumma(n);}   // kech115 (G3-10): manfiy ham (base.html)
@@ -935,9 +976,11 @@ function animateCounter(el, target, suffix, isNegativeOk) {
 
 let currentData=null;
 
+// kech120 (zip 131 — G3-20): PDF — EKRANDA ko'rsatilgan oy (hisobot yuklangan oy); hali yuklanmagan bo'lsa — tanlov
+var korsatilganOy = null;
 function downloadFinancePdf(){
-  const month=document.getElementById('sel-month').value;
-  const year=document.getElementById('sel-year').value;
+  const month = (typeof korsatilganOy !== 'undefined' && korsatilganOy) ? korsatilganOy.month : document.getElementById('sel-month').value;
+  const year = (typeof korsatilganOy !== 'undefined' && korsatilganOy) ? korsatilganOy.year : document.getElementById('sel-year').value;
   window.open(`/api/finance/report-pdf?year=${year}&month=${month}`, '_blank');
 }
 
@@ -959,9 +1002,10 @@ async function loadReport(opts){
     fetch('/api/inventory/kpi').catch(()=>null),
     fetch(`/api/finance/debt-summary?year=${year}&month=${month}`).catch(()=>null)
   ]);
-  if(!res.ok){alert('Xato');return;}
+  if(!res.ok){alert('❌ ' + ((typeof serverXatoSababi === 'function') ? await serverXatoSababi(res, 'Hisobot yuklanmadi') : 'Hisobot yuklanmadi'));return;}
   const d=await res.json();
   currentData=d;
+  if (typeof korsatilganOy !== 'undefined') korsatilganOy = {year, month};      // kech120 (G3-20): PDF shu oyni oladi
   document.getElementById('finReport').style.display='grid';
   document.getElementById('monthlyReportWrap').style.display='block';
   document.getElementById('emptyState').style.display='none';
@@ -1482,35 +1526,62 @@ async function loadDailyTransactions(){
       tbody.innerHTML = `<tr><td colspan="7"><div class="fin-empty" style="padding:32px"><i class="ti ti-receipt-off"></i><div class="fin-empty-title">Tranzaksiya topilmadi</div><div style="font-size:12.5px">Tanlangan davrda hech qanday xarajat yozilmagan</div></div></td></tr>`;
       return;
     }
+    // kech120 (zip 131 — F bosqichi, audit G3-18): ro'yxat ostida JAMI — hisobotdagi xarajat va material tannarxidagi (kirim) alohida
+    let jamiOddiy = 0, jamiTannarx = 0;
+    rows.forEach(t => { if (t.source === 'kirim_tannarx') jamiTannarx += Number(t.amount) || 0; else jamiOddiy += Number(t.amount) || 0; });
     tbody.innerHTML = rows.map(t => {
       const icon = CAT_ICONS[t.category] || '📄';
+      // kech120 (G3-17): kirim hujjatining xarajati — bu yerda o'zgarmaydi (server ham 409); o'rniga belgi
+      const kirimdan = (t.source === 'kirim_tannarx' || t.source === 'inventory_receipt');
       // kech119 (C — telefon, G3-19): `data-label` — telefonda jadval kartalarga aylanadi (style.css `telefon-karta`)
-      return `<tr>
+      return `<tr class="${t.source === 'kirim_tannarx' ? 'tx-tannarxda' : ''}">
         <td data-label="Sana">${tkSana(t.date)}</td>
-        <td data-label="Kategoriya"><span class="fin-cat-badge">${icon} ${escapeHtml(CAT_LABELS[t.category] || t.category)}</span></td>
-        <td data-label="Summa" style="font-weight:700;color:var(--f-danger)">${fmtFull(t.amount)} so'm</td>
+        <td data-label="Kategoriya"><span class="fin-cat-badge">${icon} ${escapeHtml(t.category_label || CAT_LABELS[t.category] || t.category)}</span></td>
+        <td data-label="Summa" style="font-weight:700;color:${t.source === 'kirim_tannarx' ? 'var(--f-text3)' : 'var(--f-danger)'}">${fmtFull(t.amount)} so'm</td>
         <td data-label="Izoh" style="color:var(--f-text3)">${t.notes ? escapeHtml(t.notes) : '—'}</td>
         <td data-label="Kim" style="color:var(--f-text3)">${t.created_by ? escapeHtml(t.created_by) : '—'}</td>
         <td data-label="Manba" style="color:var(--f-text3);font-size:12.5px">${escapeHtml(SOURCE_LABELS[t.source] || t.source)}</td>
         <td data-label="" class="no-print" style="text-align:right;white-space:nowrap">
-          <button class="fin-row-action" title="Tahrirlash"
+          ${kirimdan
+            ? `<span class="tx-kirim-qulf" title="Kirim hujjatiga tegishli — o'zgartirish uchun Omborxonada hujjatni bekor qiling" style="font-size:12px;color:var(--f-text3)">🔒 Kirim hujjati</span>`
+            : `<button class="fin-row-action" title="Tahrirlash"
                   data-tx-id="${t.id}" data-tx-date="${t.date}" data-tx-category="${escapeHtml(t.category)}"
                   data-tx-amount="${t.amount}" data-tx-notes="${escapeHtml(t.notes||'')}" data-tx-yonalish="${t.yonalish_id || ''}"
+                  data-tx-nom="${escapeHtml(t.category_label || CAT_LABELS[t.category] || t.category)}"
                   onclick="editTxFromRow(this)"><i class="ti ti-edit" style="font-size:13px"></i></button>
-          <button class="fin-row-action" onclick="deleteTx(${t.id})" title="O'chirish"><i class="ti ti-trash" style="font-size:13px"></i></button>
+          <button class="fin-row-action" onclick="deleteTx(${t.id})" title="O'chirish"><i class="ti ti-trash" style="font-size:13px"></i></button>`}
         </td>
       </tr>`;
-    }).join('');
+    }).join('') + `<tr class="tx-jami"><td colspan="2" data-label="" style="font-weight:700">Jami (${rows.length} ta)</td>
+        <td data-label="Jami" colspan="5" style="font-weight:700">
+          <span style="color:var(--f-danger)">${fmtFull(jamiOddiy)} so'm</span>
+          ${jamiTannarx ? `<span style="font-weight:500;color:var(--f-text3);font-size:12.5px"> · yana ${fmtFull(jamiTannarx)} so'm — kirim, material tannarxida (oylik xarajatga alohida kirmaydi)</span>` : ''}
+        </td></tr>`;
   } catch(e) {
     tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--f-danger)">Yuklashda xato</td></tr>';
   }
 }
 
+// kech120 (zip 131 — F bosqichi, audit G3-16): yangi xarajat sanasi — «Butun oy» yoqilgan bo'lsa filtrning «oyning 1-kuni» edi
+// (har yangi xarajat 1-sanaga yozilardi). Endi: aniq kun tanlangan — o'sha kun; joriy oy — bugun (Toshkent); boshqa oy — bo'sh
+// (sanani o'zi tanlaydi).
+function txStandartSana(){
+  const v = document.getElementById('tx-date').value;
+  const butunOy = document.getElementById('tx-whole-month').checked;
+  if (v && !butunOy) return v;
+  if (!v) return tkISO();
+  const [y, m] = v.split('-').map(Number);
+  const tk = tkHozir();
+  return (y === tk.yil && m === tk.oy) ? tkISO() : '';
+}
+
 function openTxModal(){
-  const dateVal = document.getElementById('tx-date').value || tkISO();     // kech106: bugun — Toshkent
+  // yordamchilar — `typeof` bilan (sahifa funksiyasini alohida ajratib oladigan sinovlar uchun)
+  const dateVal = (typeof txStandartSana === 'function') ? txStandartSana() : (document.getElementById('tx-date').value || tkISO());
   document.getElementById('tx-f-editing-id').value = '';
   document.getElementById('tx-modal-title').textContent = "+ Yangi xarajat tranzaksiyasi";
   document.getElementById('tx-f-date').value = dateVal;
+  if (typeof txToifaVarianti === 'function') txToifaVarianti('');      // kech120 (G3-17): vaqtincha toifa olib tashlanadi
   document.getElementById('tx-f-category').value = 'boshqa';
   document.getElementById('tx-f-amount').value = '';
   document.getElementById('tx-f-notes').value = '';
@@ -1538,14 +1609,25 @@ function closeTxModal(){ document.getElementById('txModal').style.display = 'non
 // holda, va saqlashda POST o'rniga PUT so'rovi yuboriladi.
 function editTxFromRow(btn){
   const d = btn.dataset;
-  editTx(d.txId, d.txDate, d.txCategory, parseFloat(d.txAmount) || 0, d.txNotes, d.txYonalish);
+  editTx(d.txId, d.txDate, d.txCategory, parseFloat(d.txAmount) || 0, d.txNotes, d.txYonalish, d.txNom);
+}
+// kech120 (zip 131 — G3-17): tahrirlanayotgan xarajat toifasi ro'yxatda bo'lmasa (masalan majburiyat toifasi) — tanlovga vaqtincha
+// qo'shiladi; ilgari tanlov bo'sh qolib, saqlash «'category' bo'sh bo'lishi mumkin emas» deb rad etilardi.
+function txToifaVarianti(kod, nom){
+  const sel = document.getElementById('tx-f-category');
+  sel.querySelectorAll('option[data-vaqtincha]').forEach(o => o.remove());
+  if (!kod || [...sel.options].some(o => o.value === String(kod))) return;
+  const o = document.createElement('option');
+  o.value = String(kod); o.dataset.vaqtincha = '1'; o.textContent = nom || String(kod);
+  sel.appendChild(o);
 }
 
-function editTx(id, dateIso, category, amount, notes, yonalishId){
+function editTx(id, dateIso, category, amount, notes, yonalishId, toifaNomi){
   document.getElementById('tx-f-editing-id').value = id;
   document.getElementById('tx-modal-title').textContent = "✏️ Xarajatni tahrirlash";
   // kech106: tungi (Toshkent 00:00–05:00) xarajat — Toshkent kuni; ilgari UTC sanasi — saqlansa O'TGAN kunga ko'chardi
   document.getElementById('tx-f-date').value = tkISO(dateIso);
+  if (typeof txToifaVarianti === 'function') txToifaVarianti(category, toifaNomi);      // kech120 (G3-17)
   document.getElementById('tx-f-category').value = category || 'boshqa';
   // 124-band (kech95, O'LCHANGAN `work/probe124.py` X1: 12 345.67 tahrirlanganda 12 346 bo'lib saqlanardi)
   document.getElementById('tx-f-amount').value = narxKorinishi(amount);
@@ -1559,7 +1641,8 @@ async function saveTx(){
   const date = document.getElementById('tx-f-date').value;
   const category = document.getElementById('tx-f-category').value;
   const amount = parseNum(document.getElementById('tx-f-amount').value);
-  if (!date || !amount || amount <= 0) { alert('Sana va summani to\'g\'ri kiriting'); return; }
+  if (!date) { alert('Sanani tanlang'); return; }          // kech120 (G3-16): boshqa oyda sana bo'sh — o'zi tanlaydi
+  if (!amount || amount <= 0) { alert('Summani to\'g\'ri kiriting'); return; }
   const editingId = document.getElementById('tx-f-editing-id').value;
   const url = editingId ? `/api/finance/transactions/${editingId}` : '/api/finance/transactions';
   const method = editingId ? 'PUT' : 'POST';
@@ -1572,14 +1655,16 @@ async function saveTx(){
       closeTxModal();
       loadDailyTransactions();
       if (currentData) loadReport({txSaqla: true});
-    } else { const e = await res.json(); alert('Xato: ' + (e.detail || '')); }
+    } else { alert('❌ ' + await serverXatoSababi(res, 'Saqlanmadi')); }     // kech120 (G3-17): server sababi (xom JSON emas)
   } catch(e) { alert('Server xatosi'); }
 }
 
 async function deleteTx(id){
   if (!(await customConfirm('Bu tranzaksiyani o\'chirasizmi?', {danger:true}))) return;
   try {
-    await fetch(`/api/finance/transactions/${id}`, {method:'DELETE'});
+    const res = await fetch(`/api/finance/transactions/${id}`, {method:'DELETE'});
+    // kech120 (G3-17): ilgari javob tekshirilmasdi — rad etilsa ham ro'yxat yangilanib, «o'chdi» deb o'ylanardi
+    if (!res.ok) { alert('❌ ' + await serverXatoSababi(res, "O'chirilmadi")); return; }
     loadDailyTransactions();
     if (currentData) loadReport({txSaqla: true});
   } catch(e) { alert('Server xatosi'); }
@@ -1601,7 +1686,9 @@ async function loadDailyFinance() {
     // kech118 (ROLLAR 2-qism): «Tannarx va foyda» ruxsati yo'q — foyda va tannarx null → «—»
     if (d.sales.profit === null) document.getElementById('hero-foyda').textContent = '—';
     else animateCounter(document.getElementById('hero-foyda'), d.sales.profit);
-    document.getElementById('hero-tannarx-sub').textContent = d.sales.cost === null ? "Tan narx: —" : "Tan narx: " + fmtFull(d.sales.cost) + " so'm";
+    // kech120 (G3-13): yalpi — xarajatlar ayirilmagan (izohda aytiladi)
+    document.getElementById('hero-tannarx-sub').textContent = (d.sales.cost === null ? "Tan narx: —" : "Tan narx: " + fmtFull(d.sales.cost) + " so'm")
+      + " · xarajatlar ayirilmagan";
 
     // kech116 (G1-03 — egasi QARORI «Pul oqimi — haqiqiy pul»): bugun mijozlardan OLINGAN pul − haqiqatda TO'LANGAN pul
     // (`/api/finance/pul-oqimi?sana=` — Hisobotlar, Dashboard va kassa bilan BITTA qoida). Ilgari «Savdo − Xarajat»
