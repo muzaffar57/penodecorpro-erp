@@ -407,6 +407,8 @@ YANGI_MARSHRUTLAR = {
     "PUT /api/production/product-types/{pt_id}": "AW",
     # kech120 (zip 134 — G2-19, MOSLANDI): loyiha holat paneli «Yetkazish» — loyiha ko'rsatkichlari bilan bir ruxsat
     "GET /api/projects/{project_id}/topshirish": "AMF",
+    # kech120 (zip 137 — G6-22, MOSLANDI): korxona sozlamalari sahifasi — «Tizim jurnallari» bilan bir ruxsat
+    "GET /sozlamalar": "A",
 }
 # ATAYLAB o'zgarishlar (rol, marshrut) → yangi holat (True — ochiq). Sababi: tayyor rollar sahifa bo'yicha izchil.
 FARQLAR = {
@@ -602,7 +604,7 @@ check("H4 bosh sahifa: Admin, Moliyachi — 200; Menejer, Usta → /orders; Ombo
 # kichik tugmadan ochilardi; ruxsat o'zgarmagan)
 MENYU_KUT = {
     "A": ["/", "/dashboard", "/projects", "/orders", "/inventory", "/suppliers/receive", "/suppliers", "/recipes", "/production",
-          "/finished", "/returns", "/debts", "/finance", "/kpi", "/reports", "/users", "/rollar", "/trash", "/logs"],
+          "/finished", "/returns", "/debts", "/finance", "/kpi", "/reports", "/users", "/rollar", "/trash", "/sozlamalar", "/logs"],
     "M": ["/projects", "/orders", "/inventory", "/finished", "/kunlik-xarajat", "/returns", "/ustalar"],
     "F": ["/", "/dashboard", "/projects", "/debts", "/finance", "/kpi", "/reports"],
     "W": ["/inventory", "/suppliers/receive", "/suppliers", "/recipes", "/production", "/finished", "/returns"],
@@ -614,7 +616,8 @@ for h in "AMFWU":
     _t = KL[h].get(_sah[h]).text
     _nav = _t[_t.find('<nav class="s-nav">'):_t.find("</nav>", _t.find('<nav class="s-nav">'))]
     _menyu[h] = re.findall(r'<a href="([^"]+)" class="nav-item', _nav)
-check("H5 menyu havolalari — eski ro'yxat bilan AYNAN (Admin — yangi «Rollar va ruxsatlar»; D-1 — «Ta'minotchilar»)", _menyu == MENYU_KUT,
+# kech120 (zip 137 — G6-22, MOSLANDI): Admin menyusida «Sozlamalar» (/sozlamalar)
+check("H5 menyu havolalari — eski ro'yxat bilan AYNAN (Admin — yangi «Rollar va ruxsatlar», «Sozlamalar»; D-1 — «Ta'minotchilar»)", _menyu == MENYU_KUT,
       {h: (sorted(set(_menyu[h]) ^ set(MENYU_KUT[h]))) for h in "AMFWU"})
 _rolnom = {h: re.search(r'<div class="u-role">([^<]*)</div>', KL[h].get(_sah[h]).text) for h in "AMFWU"}
 _rolnom = {h: (m.group(1).strip() if m else None) for h, m in _rolnom.items()}

@@ -183,8 +183,9 @@ check("H2 QR manzili `/hodim?k=KOD` (kirmagan) → `/hodim/login?k=KOD`; kirish 
       and "PIN noto" in _r6.text and f'name="korxona" value="{KOD.get(1)}"' in _r6.text,
       (_r3.status_code, _r3.headers.get("location"), re.findall(r'name="korxona" value="[^"]*"', _r4.text + _r6.text)))
 _r7 = H3.get("/hodim/login")
-check("H3 kodsiz ochilganda maydon bo'sh, ko'rsatma «Administratordan so'rang (QR kodda bor)»", 'name="korxona" value=""' in _r7.text
-      and "Administratordan so'rang" in _r7.text, re.findall(r'name="korxona"[^>]*>', _r7.text))
+# kech120 (zip 137 — G6-20, MOSLANDI): namuna qisqa — «Admindan so'rang» (telefonda «Administratordan so'rang (QR kodda bor)» kesilardi)
+check("H3 kodsiz ochilganda maydon bo'sh, ko'rsatma «Admindan so'rang»", 'name="korxona" value=""' in _r7.text
+      and "Admindan so'rang" in _r7.text, re.findall(r'name="korxona"[^>]*>', _r7.text))
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 section("Q. QR kod (server)")
