@@ -127,7 +127,7 @@
         </div>
       </div>
       <button class="btn btn-outline btn-xs" onclick='openEditModal({{ recipe.id }}, {{ recipe.name|tojson }}, {{ recipe.batch_size_kg }}, {{ recipe.notes|tojson }}, {{ recipe.ingredients|map(attribute="inventory_id")|list|tojson }}, {{ recipe.ingredients|map(attribute="quantity_kg")|list|tojson }}, {{ recipe.ingredients|map(attribute="item_name")|list|tojson }}, {{ recipe.ingredients|map(attribute="unit")|list|tojson }})' title="Tahrirlash"><i class="ti ti-edit"></i></button>
-      <button class="btn btn-outline btn-xs" style="color:var(--m-dc2626);border-color:#EF4444" onclick="deleteRecipe({{ recipe.id }})" title="O'chirish"><i class="ti ti-trash"></i></button>
+      <button class="btn btn-outline btn-xs" style="color:var(--m-dc2626);border-color:#EF4444" data-nom="{{ recipe.name }}" data-ishlatilgan="{{ ins.used_in|length }}" onclick="deleteRecipe({{ recipe.id }}, this.dataset.nom, Number(this.dataset.ishlatilgan) || 0)" title="O'chirish"><i class="ti ti-trash"></i></button>
     </div>
     <div class="card-body">
 
@@ -231,11 +231,14 @@ async function uploadRecipeImage(id, input) {
   }
 }
 
-async function deleteRecipe(id) {
-  if (!(await customConfirm('Retseptni o\'chirasizmi?', {danger:true}))) return;
+// kech120 (zip 132 — G4-23): tasdiqda retsept nomi va ishlatilganligi; server rad etsa — SABABI (ilgari «Xato yuz berdi»)
+async function deleteRecipe(id, nom, ishlatilgan) {
+  const savol = `«${nom || 'Retsept'}» retseptini o'chirasizmi?` +
+    (ishlatilgan ? `\n\nU ${ishlatilgan} xil detalda ishlatilgan — o'chirib bo'lmasligi mumkin.` : '');
+  if (!(await customConfirm(savol, {danger:true}))) return;
   const res = await fetch(`/api/recipes/${id}`, {method:'DELETE'});
   if (res.ok) location.reload();
-  else recpToast('Xato yuz berdi', 'error');
+  else recpToast('❌ ' + ((typeof serverXatoSababi === 'function') ? await serverXatoSababi(res, 'Xato yuz berdi') : 'Xato yuz berdi'), 'error');
 }
 
 // ── OMBORXONA MATERIALLARINI YUKLASH (ingredient tanlash uchun) ──
@@ -272,7 +275,7 @@ function ingredientRowHtml(prefix, idx, item, qty) {
       </div>
       <div class="recp-ing-qty">
         <input type="number" id="${prefix}-ing-qty-${idx}" min="0" step="0.01" value="${qty||''}" placeholder="0">
-        <span>kg</span>
+        <span>${escapeHtml(item && item.unit ? ((typeof birlikKor === 'function') ? birlikKor(item.unit) : item.unit) : 'kg')}</span>
       </div>
       <button type="button" class="recp-ing-del" onclick="document.getElementById('${prefix}-ing-${idx}').remove()"><i class="ti ti-trash"></i></button>
     </div>`;
@@ -525,7 +528,7 @@ async function saveEditRecipe() {
       <div class="recp-picker" id="f-picker-anchor"></div>
 
       <div class="recp-ing-table">
-        <div class="recp-ing-table-head"><span>Material</span><span>Miqdor (kg)</span></div>
+        <div class="recp-ing-table-head"><span>Material</span><span>Miqdor</span></div>
         <div id="f-ingredients"></div>
       </div>
     </div>
@@ -583,7 +586,7 @@ async function saveEditRecipe() {
       <div class="recp-picker" id="edit-picker-anchor"></div>
 
       <div class="recp-ing-table">
-        <div class="recp-ing-table-head"><span>Material</span><span>Miqdor (kg)</span></div>
+        <div class="recp-ing-table-head"><span>Material</span><span>Miqdor</span></div>
         <div id="edit-ingredients"></div>
       </div>
     </div>
