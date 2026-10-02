@@ -65,6 +65,13 @@
 .act-btn.out:hover{background:var(--f-fef2f2)}
 .act-btn.danger{color:var(--m-dc2626)}
 .act-btn.danger:hover{background:var(--f-fef2f2)}
+/* kech120 (zip 129 — G4-14): material «Tarix», tanlangan filtr tugmasi, «Yana yuklash» */
+.act-btn.hist{color:var(--text2)}
+.mv-f[aria-pressed="true"]{background:var(--text);color:var(--white) !important;border-color:var(--text) !important}
+.mv-material{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 22px;border-bottom:1px solid var(--border2);font-size:13px;background:var(--gold-tint)}
+.mv-material button{min-width:34px;min-height:34px;border:1px solid var(--border);border-radius:8px;background:var(--white);color:var(--text2);cursor:pointer}
+.mv-yana{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:12px 0 6px;font-size:12.5px;color:var(--text3)}
+.mv-yana button{min-height:36px}
 .mv-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border2);font-size:14.5px}
 .mv-row:last-child{border-bottom:none}
 .mv-badge{font-size:12px;font-weight:600;padding:4px 10px;border-radius:8px}
@@ -212,6 +219,8 @@
         {% endif %}
       </div>
       <div class="mat-actions">
+        {# kech120 (zip 129 — G4-14): shu materialning harakatlari (kirim, chiqim, ishlab chiqarish, buyurtmalar) #}
+        <button class="act-btn hist" data-name="{{ item.item_name }}" onclick="openMovements({{ item.id }}, this.dataset.name)" title="Tarix — shu material harakatlari" aria-label="Tarix"><i class="ti ti-history"></i></button>
         {% if current_user.ruxsat('qoldiq', 'tahrirlash') %}
         <button class="act-btn out" data-name="{{ item.item_name }}" data-unit="{{ item.unit }}" onclick="openChiqimModal({{ item.id }}, this.dataset.name, this.dataset.unit, {{ qty }})" title="Chiqim (tuzatish)"><i class="ti ti-minus"></i></button>
         {% endif %}
@@ -295,13 +304,17 @@
 <div id="movementsModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
   <div style="background:var(--white);border-radius:14px;width:640px;max-width:100%;max-height:86vh;display:flex;flex-direction:column">
     <div style="padding:18px 22px 14px;border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center">
-      <div style="font-size:16px;font-weight:600"><i class="ti ti-history"></i> Ombor harakatlari</div>
+      <div style="font-size:16px;font-weight:600;min-width:0;overflow-wrap:anywhere"><i class="ti ti-history"></i> <span id="mvSarlavha">Ombor harakatlari</span></div>
       <button data-yopish onclick="closeMovements()" style="width:30px;height:30px;border-radius:50%;background:var(--border2);border:none;font-size:15px;cursor:pointer">✕</button>
     </div>
-    <div style="padding:12px 22px;border-bottom:1px solid var(--border2);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-      <button class="btn btn-outline btn-sm" onclick="loadMovements('')">Barchasi</button>
-      <button class="btn btn-outline btn-sm" style="border-color:var(--ch-bbf7d0);color:var(--m-166534)" onclick="loadMovements('in')">Faqat kirim</button>
-      <button class="btn btn-outline btn-sm" style="border-color:var(--ch-fecaca);color:var(--m-991b1b)" onclick="loadMovements('out')">Faqat chiqim</button>
+    <div id="mvMaterial" class="mv-material" style="display:none">
+      <span>Faqat shu material: <b id="mvMaterialNomi"></b></span>
+      <button type="button" onclick="mvMaterialniTozala()" title="Hamma materiallar" aria-label="Material filtrini olib tashlash">✕</button>
+    </div>
+    <div style="padding:12px 22px;border-bottom:1px solid var(--border2);display:flex;gap:8px;flex-wrap:wrap;align-items:center" id="mvFiltr">
+      <button class="btn btn-outline btn-sm mv-f" data-tur="" aria-pressed="true" onclick="loadMovements('')">Barchasi</button>
+      <button class="btn btn-outline btn-sm mv-f" data-tur="in" aria-pressed="false" style="border-color:var(--ch-bbf7d0);color:var(--m-166534)" onclick="loadMovements('in')">Faqat kirim</button>
+      <button class="btn btn-outline btn-sm mv-f" data-tur="out" aria-pressed="false" style="border-color:var(--ch-fecaca);color:var(--m-991b1b)" onclick="loadMovements('out')">Faqat chiqim</button>
     </div>
     <div style="padding:10px 22px;border-bottom:1px solid var(--border2);display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <span style="font-size:12.5px;color:var(--text3)">Sana oralig'i:</span>
@@ -710,15 +723,27 @@ async function saveChiqim() {
 }
 
 // ── XARIDLAR TARIXI ────────────────────────────────────────
+// kech120 (zip 129 — G4-14, O'LCHANGAN — audit kech114): ilgari faqat oxirgi 60 ta xarid, «yana» yo'q va kesilgani
+// aytilmasdi. Endi: 100 tadan, «Ko'rsatilgan: N / JAMI» va «Yana yuklash» (server sarlavhasi `X-Jami`; sahifa oxiridagi
+// «Kirim» hujjati bo'linmaydi — server uning qolgan qatorlarini ham beradi; keyingi `offset` — `X-Keyingi`).
+const PH_HAJM = 100;
+let phJami = 0, phKeyingi = 0, _phSorov = 0;
 async function openPurchaseHistory() {
   document.getElementById('historyModal').style.display = 'flex';
   document.getElementById('hist-list').innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>';
+  phAllPurchases = []; phJami = 0; phKeyingi = 0;
+  const raqam = ++_phSorov;
 
   try {
-    const [stats, purchases] = await Promise.all([
+    const [stats, javob] = await Promise.all([
       fetch('/api/inventory/purchase-stats').then(r => r.json()),
-      fetch('/api/inventory/purchases?limit=60').then(r => r.json())
+      fetch('/api/inventory/purchases?limit=' + PH_HAJM + '&offset=0')
     ]);
+    if (raqam !== _phSorov) return;
+    if (!javob.ok) throw new Error('xaridlar');
+    const purchases = await javob.json();
+    phJami = parseInt(javob.headers.get('X-Jami') || '0', 10) || purchases.length;
+    phKeyingi = parseInt(javob.headers.get('X-Keyingi') || '0', 10) || purchases.length;
 
     document.getElementById('hist-total').textContent = fmt(stats.total_amount) + " so'm";
 
@@ -733,13 +758,39 @@ async function openPurchaseHistory() {
       byMat.innerHTML = '<div style="color:var(--text3)">Bu oy kirim bo\'lmagan</div>';
     }
 
+    phAllPurchases = purchases;
+    phChiz();
+  } catch(e) {
+    if (raqam === _phSorov) document.getElementById('hist-list').innerHTML = '<div style="text-align:center;padding:20px;color:var(--m-dc2626)">Yuklashda xato</div>';
+  }
+}
+
+async function phYanaYukla(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Yuklanmoqda…'; }
+  const raqam = _phSorov;
+  try {
+    const javob = await fetch('/api/inventory/purchases?limit=' + PH_HAJM + '&offset=' + phKeyingi);
+    if (!javob.ok) throw new Error('xaridlar');
+    const qator = await javob.json();
+    if (raqam !== _phSorov) return;
+    phJami = parseInt(javob.headers.get('X-Jami') || '0', 10) || phJami;
+    phKeyingi = parseInt(javob.headers.get('X-Keyingi') || '0', 10) || (phKeyingi + qator.length);
+    const bor = new Set(phAllPurchases.map(p => p.id));
+    qator.forEach(p => { if (!bor.has(p.id)) phAllPurchases.push(p); });
+    phChiz();
+  } catch (e) {
+    invToast('Yuklashda xato');
+    if (btn) { btn.disabled = false; btn.textContent = 'Yana yuklash'; }
+  }
+}
+
+function phChiz() {
+    const purchases = phAllPurchases;
     const list = document.getElementById('hist-list');
     if (!purchases.length) {
       list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)">Xaridlar tarixi bo\'sh</div>';
       return;
     }
-
-    phAllPurchases = purchases;
 
     // "receipt_id" bo'yicha guruhlaymiz — bitta "Kirim" jarayonida birga
     // kiritilgan materiallar, bitta guruh sifatida ko'rinadi. receipt_id
@@ -801,10 +852,14 @@ async function openPurchaseHistory() {
           <div style="font-size:12.5px;font-weight:700;color:var(--m-15803d);margin-top:4px">${fmt(total)} so'm</div>
         </div>
       </div>`;
-    }).join('');
-  } catch(e) {
-    document.getElementById('hist-list').innerHTML = '<div style="text-align:center;padding:20px;color:var(--m-dc2626)">Yuklashda xato</div>';
-  }
+    }).join('') + phYanaHtml();
+}
+
+function phYanaHtml() {
+  const qolgan = Math.max(phJami - phAllPurchases.length, 0);
+  return `<div class="mv-yana" id="phYana"><span>Ko'rsatilgan: ${sonKor(phAllPurchases.length, 0)} / ${sonKor(phJami, 0)} ta xarid</span>` +
+    (qolgan > 0 ? `<button type="button" class="btn btn-outline btn-sm" onclick="phYanaYukla(this)">Yana ${sonKor(Math.min(qolgan, PH_HAJM), 0)} ta yuklash</button>` : '') +
+    '</div>';
 }
 
 let phAllPurchases = [];
@@ -916,11 +971,25 @@ async function deletePurchase(id, name, qty) {
 function closePurchaseHistory() { document.getElementById('historyModal').style.display = 'none'; }
 
 // ── OMBOR HARAKATLARI (TIMELINE) ───────────────────────────
-function openMovements() {
+// kech120 (zip 129 — G4-14, O'LCHANGAN — audit kech114): ilgari oxirgi 100 (sana bilan — 500) harakat, «yana» yo'q,
+// kesilgani aytilmasdi, bitta materialning tarixi yo'q edi (server qo'llardi, sahifa ishlatmasdi), tanlangan filtr
+// tugmasi ko'rinmasdi, «Tanlangan davr — jami» faqat yuklangan qatorlardan edi. Endi: 100 tadan + «Yana yuklash»
+// («Ko'rsatilgan: N / JAMI», `X-Jami`), material qatoridagi «Tarix» (`item_id`), tanlangan tugma `aria-pressed`,
+// davr jami — serverda HAMMA mos harakatlardan (`/api/inventory/movements/jami`).
+const MV_HAJM = 100;
+let mvItemId = null, mvItemNomi = '', mvRows = [], mvJami = 0, mvJamiHtml = '', _mvSorov = 0;
+
+function openMovements(itemId, nomi) {
+  mvItemId = itemId ? Number(itemId) : null;
+  mvItemNomi = mvItemId ? (nomi || '') : '';
+  document.getElementById('mvSarlavha').textContent = mvItemId ? ('Tarix — ' + mvItemNomi) : 'Ombor harakatlari';
+  document.getElementById('mvMaterialNomi').textContent = mvItemNomi;
+  document.getElementById('mvMaterial').style.display = mvItemId ? 'flex' : 'none';
   document.getElementById('movementsModal').style.display = 'flex';
   loadMovements('');
 }
 function closeMovements() { document.getElementById('movementsModal').style.display = 'none'; }
+function mvMaterialniTozala() { openMovements(null, ''); }
 
 let mvCurType = '';
 
@@ -931,43 +1000,83 @@ function mvFmtQty(q) {
   return sonKor(n, 2);
 }
 
-async function loadMovements(type) {
-  mvCurType = type;
-  const list = document.getElementById('mv-list');
-  list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>';
-  try {
-    const params = new URLSearchParams();
-    if (type) params.set('movement_type', type);
-    const df = document.getElementById('mv-date-from')?.value;
-    const dt_ = document.getElementById('mv-date-to')?.value;
-    if (df) params.set('date_from', df);
-    if (dt_) params.set('date_to', dt_);
-    if (df || dt_) params.set('limit', '500');
-    const url = '/api/inventory/movements' + (params.toString() ? `?${params.toString()}` : '');
-    const res = await fetch(url);
-    const rows = await res.json();
-    if (!rows.length) {
-      list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)">Harakatlar yo\'q</div>';
-      return;
-    }
+function mvParametrlar() {
+  const params = new URLSearchParams();
+  if (mvCurType) params.set('movement_type', mvCurType);
+  if (mvItemId) params.set('item_id', String(mvItemId));
+  const df = document.getElementById('mv-date-from')?.value;
+  const dt_ = document.getElementById('mv-date-to')?.value;
+  if (df) params.set('date_from', df);
+  if (dt_) params.set('date_to', dt_);
+  return params;
+}
 
-    // Har bir modda bo'yicha jami (chiqim/kirim) — tez ko'rish uchun
-    const totals = {};
-    rows.forEach(m => {
-      const key = m.item_name + '|' + (m.unit || '');
-      if (!totals[key]) totals[key] = {name: m.item_name, unit: m.unit || '', in: 0, out: 0};
-      totals[key][m.movement_type] += parseFloat(m.quantity) || 0;
-    });
-    const summaryHtml = Object.values(totals).map(t => `
+function mvFiltrTugmalari() {
+  document.querySelectorAll('#mvFiltr .mv-f').forEach(b => b.setAttribute('aria-pressed', b.dataset.tur === mvCurType ? 'true' : 'false'));
+}
+
+async function loadMovements(type, qoshish) {
+  mvCurType = type || '';
+  mvFiltrTugmalari();
+  const list = document.getElementById('mv-list');
+  const raqam = qoshish ? _mvSorov : ++_mvSorov;     // eski javob yangi filtr natijasini bosib ketmasin
+  if (!qoshish) {
+    mvRows = []; mvJami = 0; mvJamiHtml = '';
+    list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>';
+  }
+  try {
+    const params = mvParametrlar();
+    const sana = params.has('date_from') || params.has('date_to');
+    params.set('limit', String(MV_HAJM));
+    params.set('offset', String(qoshish ? mvRows.length : 0));
+    const res = await fetch('/api/inventory/movements?' + params.toString());
+    if (!res.ok) throw new Error('harakatlar');
+    const rows = await res.json();
+    if (raqam !== _mvSorov) return;
+    mvJami = parseInt(res.headers.get('X-Jami') || '0', 10) || 0;
+    const bor = new Set(mvRows.map(r => r.id));
+    rows.forEach(r => { if (!bor.has(r.id)) mvRows.push(r); });
+    if (!qoshish && sana) {
+      const jp = mvParametrlar();
+      const j = await fetch('/api/inventory/movements/jami?' + jp.toString()).then(r => r.ok ? r.json() : null);
+      if (raqam !== _mvSorov) return;
+      mvJamiHtml = j ? mvJamiBlok(j) : '';
+    }
+    mvChiz();
+  } catch(e) {
+    if (raqam === _mvSorov) {
+      if (qoshish) invToast('Yuklashda xato');
+      else list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--m-dc2626)">Yuklashda xato</div>';
+    }
+  }
+}
+
+function mvJamiBlok(j) {
+  const summaryHtml = (j.materiallar || []).map(t => `
       <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:12.5px">
         <span style="color:var(--text2)">${escapeHtml(t.name)}</span>
         <span>${t.out > 0 ? `<span style="color:var(--m-991b1b)">−${sonKor(t.out, 2)}</span>` : ''}${t.out > 0 && t.in > 0 ? ' · ' : ''}${t.in > 0 ? `<span style="color:var(--m-166534)">+${sonKor(t.in, 2)}</span>` : ''} ${escapeHtml(t.unit)}</span>
       </div>`).join('');
-    const summaryBlock = (document.getElementById('mv-date-from').value || document.getElementById('mv-date-to').value)
-      ? `<div style="background:var(--bg);border-radius:10px;padding:10px 14px;margin-bottom:12px">
-           <div style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Tanlangan davr — jami</div>
+  return `<div style="background:var(--bg);border-radius:10px;padding:10px 14px;margin-bottom:12px" id="mvDavrJami">
+           <div style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Tanlangan davr — jami (${sonKor(j.jami || 0, 0)} ta harakat)</div>
            ${summaryHtml}
-         </div>` : '';
+         </div>`;
+}
+
+function mvYanaHtml() {
+  const qolgan = Math.max(mvJami - mvRows.length, 0);
+  return `<div class="mv-yana" id="mvYana"><span>Ko'rsatilgan: ${sonKor(mvRows.length, 0)} / ${sonKor(mvJami, 0)} ta harakat</span>` +
+    (qolgan > 0 ? `<button type="button" class="btn btn-outline btn-sm" onclick="this.disabled=true;this.textContent='Yuklanmoqda…';loadMovements(mvCurType, true)">Yana ${sonKor(Math.min(qolgan, MV_HAJM), 0)} ta yuklash</button>` : '') +
+    '</div>';
+}
+
+function mvChiz() {
+    const list = document.getElementById('mv-list');
+    const rows = mvRows;
+    if (!rows.length) {
+      list.innerHTML = mvJamiHtml + '<div style="text-align:center;padding:30px;color:var(--text3)">Harakatlar yo\'q</div>';
+      return;
+    }
 
     // Buyurtma bo'yicha guruhlaymiz — order_id borlar bitta guruh bo'ladi.
     // order_id yo'qlar (Ishlab chiqarish, yetkazib beruvchidan kirim va h.k.)
@@ -1030,10 +1139,7 @@ async function loadMovements(type) {
     }).join('');
 
     window._mvGroups = groupsArr;
-    list.innerHTML = summaryBlock + groupsHtml;
-  } catch(e) {
-    list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--m-dc2626)">Yuklashda xato</div>';
-  }
+    list.innerHTML = mvJamiHtml + groupsHtml + mvYanaHtml();
 }
 
 function mvRowHtml(m) {

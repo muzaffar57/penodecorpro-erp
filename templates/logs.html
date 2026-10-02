@@ -9,6 +9,30 @@
 .yon-chip{display:inline-block;font-size:12px;font-weight:600;color:var(--text3);background:var(--bg);padding:2px 8px;border-radius:10px;white-space:nowrap}
 .yon-chip.yon-asosiy{color:var(--m-1e40af);background:var(--f-eff6ff)}
 .yon-chip.yon-yashirin{color:var(--m-92400e);background:var(--f-fef3c7)}
+/* kech120 (zip 129 — G6-23): jurnallar — filtr va sahifalash */
+.jr-filtr{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:flex-end;padding:12px 18px;border-bottom:1px solid var(--border2);background:var(--bg)}
+.jr-filtr label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--text3);min-width:0}
+.jr-filtr input,.jr-filtr select{height:34px;padding:0 8px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--white);color:var(--text);max-width:100%}
+.jr-filtr input[type=date]{width:150px}
+.jr-filtr select{min-width:150px;max-width:240px}
+.jr-filtr .jr-matn{width:200px}
+.jr-filtr .jr-tugmalar{display:flex;gap:8px;align-items:center}
+.jr-filtr .jr-tugmalar .btn{min-height:34px;display:inline-flex;align-items:center}
+.jr-son{color:var(--text3);font-weight:400}
+.jr-sahifa{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 18px;font-size:12.5px;color:var(--text3);border-top:1px solid var(--border2)}
+.jr-sahifa .jr-havolalar{display:flex;gap:8px}
+.jr-sahifa a{display:inline-flex;align-items:center;min-height:34px;padding:0 12px;border:1px solid var(--border);border-radius:8px;color:var(--text);text-decoration:none;background:var(--white)}
+.jr-sahifa span.jr-yoq{display:inline-flex;align-items:center;min-height:34px;padding:0 12px;border:1px solid var(--border2);border-radius:8px;color:var(--text3);opacity:.6}
+.jr-farq{font-size:12px;color:var(--text2);margin-top:3px;padding-left:22px;overflow-wrap:anywhere}
+.jr-qiymat{font-size:12px;color:var(--text3);margin-top:3px;padding-left:22px;overflow-wrap:anywhere}
+@media (max-width:600px){
+  .jr-filtr label{flex:1 1 140px}
+  .jr-filtr input[type=date],.jr-filtr select,.jr-filtr .jr-matn{width:100%;max-width:none;min-width:0}
+  .jr-filtr .jr-tugmalar{flex:1 1 100%}
+  /* telefonda: yozuv nomi to'liq kenglikda, kim va vaqt — uning ostida (yonma-yon siqilmaydi) */
+  .jr-bosh{flex-wrap:wrap;align-items:flex-start !important;row-gap:2px !important}
+  .jr-bosh > .jr-vaqt{flex:1 1 100%;white-space:normal !important}
+}
 </style>
 {% endblock %}
 
@@ -31,25 +55,57 @@
     {% endif %}
   </div>
 
-  <!-- KIRISH TARIXI -->
+  <!-- KIRISH TARIXI — kech120 (zip 129 — G6-23): filtr (sana, foydalanuvchi, natija) va sahifalash serverda -->
   <div id="tab-login" class="card">
-    <div class="card-head"><h3>🔑 Kirish urinishlari <span style="color:var(--text3);font-weight:400">(so'nggi {{ login_history|length }})</span></h3></div>
-    <div style="max-height:600px;overflow-y:auto">
+    <div class="card-head"><h3>🔑 Kirish urinishlari <span class="jr-son" id="kirishSoni">({{ kirish.jami|son }} ta{% if kirish.filtrlangan %} — filtr bo'yicha{% endif %})</span></h3></div>
+    <form class="jr-filtr" method="get" action="/logs" id="kirishFiltr">
+      {% for k, v in request.query_params.multi_items() %}{% if k.startswith('a_') and v %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{% endfor %}
+      <input type="hidden" name="tab" value="login">
+      <label>Sanadan <input type="date" name="k_dan" value="{{ kirish.filtr.dan }}"></label>
+      <label>Sanagacha <input type="date" name="k_gacha" value="{{ kirish.filtr.gacha }}"></label>
+      <label>Foydalanuvchi
+        <select name="k_kim">
+          <option value="">Hammasi</option>
+          {% for n in kirish.kimlar %}<option value="{{ n }}"{% if n == kirish.filtr.kim %} selected{% endif %}>{{ n }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Natija
+        <select name="k_natija">
+          <option value="">Hammasi</option>
+          <option value="ok"{% if kirish.filtr.natija == 'ok' %} selected{% endif %}>Muvaffaqiyatli</option>
+          <option value="xato"{% if kirish.filtr.natija == 'xato' %} selected{% endif %}>Noto'g'ri urinish</option>
+        </select>
+      </label>
+      <div class="jr-tugmalar">
+        <button type="submit" class="btn btn-dark btn-sm">Ko'rsatish</button>
+        {% if kirish.filtrlangan %}<a class="btn btn-outline btn-sm" href="{{ kirish.tozalash }}">Tozalash</a>{% endif %}
+      </div>
+    </form>
+    <div style="max-height:600px;overflow-y:auto" id="kirishRoyxati">
       {% if not login_history %}
-      <div style="text-align:center;padding:30px;color:var(--text3);font-size:13px">Hali hech qanday urinish yo'q</div>
+      <div style="text-align:center;padding:30px;color:var(--text3);font-size:13px">{% if kirish.filtrlangan %}Bu filtr bo'yicha yozuv yo'q{% else %}Hali hech qanday urinish yo'q{% endif %}</div>
       {% endif %}
       {% for l in login_history %}
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 18px;border-bottom:1px solid var(--border2)">
-        <div style="font-size:13px">
+      <div class="jr-qator jr-bosh" data-id="{{ l.id }}" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 18px;border-bottom:1px solid var(--border2)">
+        <div style="font-size:13px;min-width:0;overflow-wrap:anywhere">
           {% if l.success %}✅{% else %}❌{% endif %}
           <b>{{ l.username }}</b>
           {% if l.success %}muvaffaqiyatli kirdi{% else %}noto'g'ri urinish{% endif %}
           <span style="color:var(--text3)">· {{ l.ip_address or '—' }}</span>
         </div>
-        <div style="font-size:12px;color:var(--text3);white-space:nowrap">{{ l.created_at|toshkent }}</div>
+        <div class="jr-vaqt" style="font-size:12px;color:var(--text3);white-space:nowrap">{{ l.created_at|toshkent }}</div>
       </div>
       {% endfor %}
     </div>
+    {% if kirish.jami %}
+    <div class="jr-sahifa" id="kirishSahifa">
+      <span>{{ kirish.boshi|son }}–{{ kirish.oxiri|son }} / {{ kirish.jami|son }} ta · {{ kirish.sahifa }}-sahifa ({{ kirish.sahifalar }} dan)</span>
+      <span class="jr-havolalar">
+        {% if kirish.oldingi %}<a href="{{ kirish.oldingi }}" rel="prev">← Yangiroqlar</a>{% else %}<span class="jr-yoq">← Yangiroqlar</span>{% endif %}
+        {% if kirish.keyingi %}<a href="{{ kirish.keyingi }}" rel="next">Eskiroqlar →</a>{% else %}<span class="jr-yoq">Eskiroqlar →</span>{% endif %}
+      </span>
+    </div>
+    {% endif %}
   </div>
 
   <!-- XATOLIKLAR -->
@@ -86,30 +142,75 @@
   <!-- AUDIT JURNALI -->
   {% endif %}
 
+  {# kech120 (zip 129 — G6-23): filtr (sana, foydalanuvchi, amal turi, matn), sahifalash; hamma amal — o'zbekcha
+     (`crud.AUDIT_AMALLARI`); tahrir yozuvida «O'zgardi: …» — faqat o'zgargan maydonlar. #}
   <div id="tab-activity" class="card" style="display:none">
-    <div class="card-head"><h3>🕓 Audit jurnali <span style="color:var(--text3);font-weight:400">(so'nggi {{ activity_log|length }})</span></h3></div>
-    <div style="max-height:600px;overflow-y:auto">
+    <div class="card-head"><h3>🕓 Audit jurnali <span class="jr-son" id="auditSoni">({{ audit.jami|son }} ta{% if audit.filtrlangan %} — filtr bo'yicha{% endif %})</span></h3></div>
+    <form class="jr-filtr" method="get" action="/logs" id="auditFiltr">
+      {% for k, v in request.query_params.multi_items() %}{% if k.startswith('k_') and v %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{% endfor %}
+      <input type="hidden" name="tab" value="activity">
+      <label>Sanadan <input type="date" name="a_dan" value="{{ audit.filtr.dan }}"></label>
+      <label>Sanagacha <input type="date" name="a_gacha" value="{{ audit.filtr.gacha }}"></label>
+      <label>Kim
+        <select name="a_kim">
+          <option value="">Hammasi</option>
+          {% for n in audit.kimlar %}<option value="{{ n }}"{% if n == audit.filtr.kim %} selected{% endif %}>{{ n }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Amal
+        <select name="a_amal">
+          <option value="">Hammasi</option>
+          {% for kalit, nom, _amallar in amal_guruhlari %}<option value="{{ kalit }}"{% if kalit == audit.filtr.amal %} selected{% endif %}>{{ nom }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Qidiruv <input type="search" class="jr-matn" name="a_q" value="{{ audit.filtr.matn }}" maxlength="100" placeholder="Buyurtma raqami, nom, summa…"></label>
+      <div class="jr-tugmalar">
+        <button type="submit" class="btn btn-dark btn-sm">Ko'rsatish</button>
+        {% if audit.filtrlangan %}<a class="btn btn-outline btn-sm" href="{{ audit.tozalash }}">Tozalash</a>{% endif %}
+      </div>
+    </form>
+    <div style="max-height:600px;overflow-y:auto" id="auditRoyxati">
       {% if not activity_log %}
-      <div style="text-align:center;padding:30px;color:var(--text3);font-size:13px">Hali hech qanday amal yo'q</div>
+      <div style="text-align:center;padding:30px;color:var(--text3);font-size:13px">{% if audit.filtrlangan %}Bu filtr bo'yicha yozuv yo'q{% else %}Hali hech qanday amal yo'q{% endif %}</div>
       {% endif %}
       {% for a in activity_log %}
-      <div style="padding:10px 18px;border-bottom:1px solid var(--border2)">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <div style="font-size:13px">
-            {% if a.action == 'deleted' %}🗑️{% elif a.action == 'restored' %}↩️{% elif a.action == 'permanently_deleted' %}❌{% elif a.action == 'created' %}➕{% elif a.action == 'updated' %}✏️{% elif a.action == 'activated' %}🚀{% elif a.action == 'produced' %}🏭{% elif a.action == 'cancelled' %}⛔{% elif a.action == 'blocked' %}🔒{% elif a.action == 'unblocked' %}🔓{% elif a.action == 'extended' %}📅{% else %}📝{% endif %}
+      {% set _am = amal_nomi(a.action) %}
+      {% set _qism = (a.new_value or '').split(farq_belgi, 1) %}
+      {% set _yangi = _qism[0] %}
+      {% set _farq = _qism[1] if _qism|length > 1 else '' %}
+      <div class="jr-qator" data-id="{{ a.id }}" data-amal="{{ a.action }}" style="padding:10px 18px;border-bottom:1px solid var(--border2)">
+        <div class="jr-bosh" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+          <div style="font-size:13px;min-width:0;overflow-wrap:anywhere">
+            {{ _am[0] }}
             <b>{{ a.entity_label or (a.entity_type ~ '#' ~ a.entity_id) }}</b>
-            {% if a.action == 'deleted' %}o'chirildi{% elif a.action == 'restored' %}tiklandi{% elif a.action == 'permanently_deleted' %}butunlay o'chirildi{% elif a.action == 'created' %}yaratildi{% elif a.action == 'updated' %}tahrirlandi{% elif a.action == 'activated' %}jarayonga olindi{% elif a.action == 'produced' %}ishlab chiqarildi{% elif a.action == 'cancelled' %}bekor qilindi{% elif a.action == 'blocked' %}bloklandi{% elif a.action == 'unblocked' %}ochildi{% elif a.action == 'extended' %}— obuna uzaytirildi{% else %}{{ a.action }}{% endif %}
+            {{ _am[1] }}
           </div>
-          <div style="font-size:12px;color:var(--text3);white-space:nowrap">{{ a.performed_by or '—' }} · {{ a.created_at|toshkent }}</div>
+          <div class="jr-vaqt" style="font-size:12px;color:var(--text3);white-space:nowrap">{{ a.performed_by or '—' }} · {{ a.created_at|toshkent }}</div>
         </div>
-        {% if a.action == 'updated' and a.old_value and a.new_value %}
-        <div style="font-size:12px;color:var(--text3);margin-top:3px;padding-left:22px">{{ a.old_value }} <span style="color:var(--gold-dark)">→</span> {{ a.new_value }}</div>
-        {% elif a.new_value %}
-        <div style="font-size:12px;color:var(--text3);margin-top:3px;padding-left:22px">{{ a.new_value }}</div>
+        {% if a.old_value and _yangi and a.old_value != _yangi %}
+        <div class="jr-qiymat">{{ a.old_value }} <span style="color:var(--gold-dark)">→</span> {{ _yangi }}</div>
+        {% elif _yangi and not a.old_value %}
+        <div class="jr-qiymat">{{ _yangi }}</div>
+        {% elif a.old_value and not _yangi %}
+        <div class="jr-qiymat">{{ a.old_value }}</div>
+        {% endif %}
+        {% if _farq %}
+        <div class="jr-farq"><b>O'zgardi:</b> {{ _farq }}</div>
+        {% elif a.action == 'updated' and a.old_value and a.old_value == _yangi %}
+        <div class="jr-farq" style="color:var(--text3)">{{ _yangi }} — qisqa tavsif o'zgarmagan (bu eski yozuvda tafsilot saqlanmagan)</div>
         {% endif %}
       </div>
       {% endfor %}
     </div>
+    {% if audit.jami %}
+    <div class="jr-sahifa" id="auditSahifa">
+      <span>{{ audit.boshi|son }}–{{ audit.oxiri|son }} / {{ audit.jami|son }} ta · {{ audit.sahifa }}-sahifa ({{ audit.sahifalar }} dan)</span>
+      <span class="jr-havolalar">
+        {% if audit.oldingi %}<a href="{{ audit.oldingi }}" rel="prev">← Yangiroqlar</a>{% else %}<span class="jr-yoq">← Yangiroqlar</span>{% endif %}
+        {% if audit.keyingi %}<a href="{{ audit.keyingi }}" rel="next">Eskiroqlar →</a>{% else %}<span class="jr-yoq">Eskiroqlar →</span>{% endif %}
+      </span>
+    </div>
+    {% endif %}
   </div>
 
   <!-- TIZIM SALOMATLIGI -->
@@ -287,6 +388,11 @@
 {% block scripts %}
 <script>
 function switchLogTab(tab) {
+  // kech120 (zip 129): ochiq yorliq manzilda (`?tab=`) — sahifa qayta yuklansa / filtr yuborilsa shu yorliq qoladi
+  try {
+    const _u = new URL(location.href);
+    if (_u.searchParams.get('tab') !== tab) { _u.searchParams.set('tab', tab); history.replaceState(null, '', _u); }
+  } catch (e) { /* jim */ }
   document.querySelectorAll('.log-tab').forEach(b => {
     const active = b.dataset.tab === tab;
     b.style.background = active ? 'var(--white)' : 'none';
@@ -501,6 +607,8 @@ async function yonOchir(btn) {
 }
 
 document.addEventListener('DOMContentLoaded', () => { loadTgBot(); loadCompany(); loadCategories(); yonYukla(); });
+// kech120 (zip 129): server tanlagan yorliq (`?tab=` — filtr / sahifa havolasidan keyin shu yorliq ochiq qoladi)
+{% if yorliq != 'login' %}document.addEventListener('DOMContentLoaded', () => { if (document.getElementById('tab-{{ yorliq }}')) switchLogTab('{{ yorliq }}'); });{% endif %}
 
 async function runHealthCheck() {
   const btn = document.getElementById('health-check-btn');
