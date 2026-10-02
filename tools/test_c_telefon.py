@@ -392,7 +392,8 @@ CHART_ORINBOSAR = r"""(function () {
 # (≥ 85 %) gorizontal toshsa — `sahifa_yon`.
 OLCH_JS = r"""() => {
   const vw = innerWidth; const CS = e => getComputedStyle(e);
-  const RUXSAT = '#topGrid, .fp-stat-tasma';
+  // kech120 (zip 133 — G5-15, MOSLANDI): Qaytarishlar kartalari ham ATAYLAB suriladigan tasma (`.ret-stat-tasma` — `.fp-stat-tasma` bilan bir qoida)
+  const RUXSAT = '#topGrid, .fp-stat-tasma, .ret-stat-tasma';
   const vis = e => { const r = e.getBoundingClientRect(); const s = CS(e); return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none' && s.opacity !== '0'; };
   const sel = e => e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + (typeof e.className === 'string' && e.className.trim() ? '.' + e.className.trim().split(/\s+/)[0] : '');
   const tor_surish = e => { for (let p = e.parentElement; p && p !== document.body; p = p.parentElement) { const o = CS(p).overflowX;

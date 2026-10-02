@@ -197,7 +197,8 @@ function korindimi(n, matn) {
   // Har sahifa funksiyasi: MATN sabab (eng ko'p uchraydigan — `HTTPException(400, detail="…")`) ekranga chiqishi SHART.
   const KPI_YORD = ['parseNum', 'narxMatni', 'narxniOqi', 'narxKorinishi', 'fmt'];
   const INV_YORD = ['parseNum', 'narxMatni', 'narxniOqi', 'narxKorinishi', 'fmt'];
-  const FIN_YORD = ['parseNum', 'narxMatni', 'narxniOqi', 'narxKorinishi', 'fmt'];
+  // kech120 (zip 133 — G5-07, MOSLANDI): finished oynalari miqdor / birlikni sahifa yordamchilari bilan yozadi (`fpMiqdor`, `unitLabel`)
+  const FIN_YORD = ['parseNum', 'narxMatni', 'narxniOqi', 'narxKorinishi', 'fmt', 'fpMiqdor', 'unitLabel'];
   const HOLATLAR = [
     ['K1 kpi saveMasterKpi (usta KPI %)', KPI, 'saveMasterKpi', 'saveMasterKpi(5)', {elementlar: {'mk-5': el({value: '150'})},
       oldin: 'var inFlightMasterKpi = new Set();'}],

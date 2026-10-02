@@ -376,7 +376,8 @@ QADAMLAR = [
     q("batafsil", amal=f"__qator({P['p_yakun']}).querySelector('.po-amallar button').click();", natija="return __oyna();"),
     q("bekor_oyna", amal=f"closeModal('snapshot-modal'); __qator({P['p_mijoz']}).querySelector('.po-uch').click();",
       natija="return __oyna();"),
-    q("bekor", amal="__tugma('#snapshot-tugmalar', 'Bekor qilish').click();",
+    # kech120 (zip 133 — G5-21, MOSLANDI): tugma nomi to'liq — «Ishlab chiqarishni bekor qilish»
+    q("bekor", amal="__tugma('#snapshot-tugmalar', 'Ishlab chiqarishni bekor qilish').click();",
       natija=f"return {{ochiq: __ochiq('snapshot-modal'), qator: __m(__qator({P['p_mijoz']})), msg: window.__msg.slice(-1)[0]}};"),
     q("bekor_batafsil", amal=f"__qator({P['p_bekor']}).querySelector('.po-amallar button').click();", natija="return __oyna();"),
     q("kichik_batafsil", amal=f"closeModal('snapshot-modal'); __qator({P['p_kichik']}).querySelector('.po-amallar button').click();",
@@ -632,10 +633,10 @@ check("Y10 detal tanlandi: miqdor = kerak (10), qoplama katakchasi O'ZI belgilan
 section("O. Boshlash / yakunlash / batafsil / bekor qilish oynalari")
 # ══════════════════════════════════════════════════════════════
 _r = n("oyna_yetmaydi")
-check("O1 kley yetmaydigan qoralama — «Boshlash — №…» oynasi: kley «yetmaydi», ogohlantirish, «Boshlash» YOPIQ, «Bekor qilish» bor",
+check("O1 kley yetmaydigan qoralama — «Boshlash — №…» oynasi: kley «yetmaydi», ogohlantirish, «Boshlash» YOPIQ, «Ishlab chiqarishni bekor qilish» bor",
       lambda: _r["sarlavha"].startswith(f"Boshlash — №{ID['p_yet']}") and "yetmaydi — hozir boshlab bo'lmaydi" in _r["matn"]
       and any(t["matn"] == "Boshlash" and t["yopiq"] for t in _r["tugmalar"])
-      and any(t["matn"] == "Bekor qilish" for t in _r["tugmalar"]), _r)
+      and any(t["matn"] == "Ishlab chiqarishni bekor qilish" for t in _r["tugmalar"]), _r)
 _r = n("oyna_ok")
 check("O2 yetadigan qoralama — «Boshlash» OCHIQ, vaqt chizig'i (Yaratildi / Boshlanmagan)",
       lambda: any(t["matn"] == "Boshlash" and not t["yopiq"] for t in _r["tugmalar"]) and "Yaratildi" in _r["matn"]
@@ -662,8 +663,8 @@ check("O6 «Batafsil» (yakunlangan): vaqt chizig'i, ustunlar, qoplama «ishlati
 check("O7 «Batafsil» sarlavhasi — «№… — MRU Travertin, 3 m²»", lambda: n("batafsil")["sarlavha"] == f"№{ID['p_yakun']} — MRU Travertin, 3 m²",
       n("batafsil").get("sarlavha"))
 _r = n("bekor_oyna")
-check("O8 «···» — batafsil va bekor qilish oynasi (qoralama): «Bekor qilish», «Yopish», «Boshlash»",
-      lambda: [t["matn"] for t in _r["tugmalar"]] == ["Bekor qilish", "Yopish", "Boshlash"], _r)
+check("O8 «···» — batafsil va bekor qilish oynasi (qoralama): «Ishlab chiqarishni bekor qilish» (chetda), «Yopish», «Boshlash»",
+      lambda: [t["matn"] for t in _r["tugmalar"]] == ["Ishlab chiqarishni bekor qilish", "Yopish", "Boshlash"], _r)
 _r = n("bekor")
 check("O9 «Bekor qilish» — qator «Bekor qilindi», xabar", lambda: "Bekor qilindi" in _r["qator"] and _r["ochiq"] is False
       and _r["msg"][0] == f"№{ID['p_mijoz']} bekor qilindi", _r)

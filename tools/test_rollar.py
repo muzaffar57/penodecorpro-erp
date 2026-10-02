@@ -403,6 +403,8 @@ YANGI_MARSHRUTLAR = {
     "GET /api/tanlov/buyurtmalar": "AMW", "GET /api/tanlov/loyihalar": "AMW",
     # kech120 (zip 130 — G6-07): hodim kirishi QR kodi va chop etish sahifasi — har kirgan foydalanuvchi (korxona kodi sir emas)
     "GET /api/hodim-qr.svg": "LOGIN", "GET /users/hodim-qr": "LOGIN",
+    # kech120 (zip 133 — G5-14, MOSLANDI): mahsulot turini tahrirlash — «Mahsulot turi: Tahrirlash» (yaratish / o'chirish bilan bir rollar)
+    "PUT /api/production/product-types/{pt_id}": "AW",
 }
 # ATAYLAB o'zgarishlar (rol, marshrut) → yangi holat (True — ochiq). Sababi: tayyor rollar sahifa bo'yicha izchil.
 FARQLAR = {

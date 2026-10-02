@@ -709,8 +709,8 @@ RUXSAT = {
     ("orders.html", "label"):
         "`STATUS_BADGE[order.status] || ['badge', order.status]` — kod xaritasi / enum",
     ("orders.html", "i.source_label"): "kech32: `crud` da qat'iy konstanta",
-    ("orders.html", "fpUnitLabel(fp.unit)"):
-        "kech32: faqat 'm' / 'm²' / 'ta' qaytaradi",
+    # kech120 (zip 133 — G5-07): `fpUnitLabel` endi mahsulot turining O'Z birligini (foydalanuvchi matni) qaytaradi — istisno olib
+    # tashlandi, chaqiruv `escapeHtml(fpUnitLabel(fp.unit))`.
     ("projects.html", "e.icon"):
         "661–672: voqealar JS da tuziladi, `icon` — `ti-*` kod konstantasi",
     ("recipes.html", "st.icon"): "kech31: `recpCatStyle()` → `RECP_CAT_STYLE` qat'iy xaritasi",

@@ -210,8 +210,9 @@ function qator(elementlar, dataset) {
     const ctx = kontekst(Object.assign({ document: hujjat(e), syncPCoatingUI: () => {}, PENOS: [], loyCostPerKg: 0,
                                          loyRecipeName: '', customConfirm: async () => true, closeProduceModal: () => {},
                                          loadFp: () => {}, showMsg: () => {} }, qo || {}));
+    // kech120 (zip 133 — G5, MOSLANDI): pCalc birlik nomini `unitLabel` bilan yozadi — u ham yuklanadi
     const yoq = yukla(ctx, SRC.finished, NARX118.concat(YORDAM, ['fmt', 'recalcBlokPrice', 'onBlokPriceInput', 'setPCoating',
-      'pCalc', 'saveProduce']), 'finished');
+      'unitLabel', 'pCalc', 'saveProduce']), 'finished');
     return { ctx, yoq };
   }
   try {

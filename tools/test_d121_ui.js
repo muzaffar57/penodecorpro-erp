@@ -336,7 +336,8 @@ async function sotishBolimi() {
 // ══════════════════════════════════════════════════════════════
 async function qaytarishBolimi() {
   bolim('returns.html — G5-20 «Yangi qaytarish» → «Brak»: sabab majburiy');
-  const k = funks(RETURNS, ['saveReturn']);
+  // kech120 (zip 133 — G5-05, MOSLANDI): «Qiymati» endi umumiy pul qoidasi bilan o'qiladi (`parseNum`) — funksiya ham olinadi
+  const k = funks(RETURNS, ['saveReturn', 'parseNum']);
   tekshir('R0 saveReturn topildi', !k.yoq.length);
   async function sina(sabab, cause, stage, worker) {
     const el = { 'f-order': element('7'), 'f-item': element('11'), 'f-qty': element('2'), 'add-error': element(''),

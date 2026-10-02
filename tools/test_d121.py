@@ -380,7 +380,8 @@ check("K10 null — olib tashlandi (ikkala partiyada null); 0 ham — olib tashl
 _fin = fayl("templates/finished.html")
 check("K11 sahifa: dastur o'ylab topgan chegara (`suggestedReserve`, 40 %, kamida 5) YO'Q; «Kam» — `fpKamChegara` (server "
       "`kam_chegara`), yozish tugmasi «Tahrirlash» ruxsati bilan; «Bugun ishlab chiqarilgan» — partiya",
-      "suggestedReserve" not in _fin and "Math.max(5" not in _fin and "function fpKamChegara(i)" in _fin
+      # kech120 (zip 133 — MOSLANDI): «Math.max(5000, …)» — xabar ko'rinish vaqti (G5-13), chegara emas; eski qoida — «Math.max(5, …)»
+      "suggestedReserve" not in _fin and "Math.max(5," not in _fin and "Math.max(5 ," not in _fin and "function fpKamChegara(i)" in _fin
       and "i.kam_chegara" in _fin and "const TM_TAHRIR = {{ 'true' if current_user.ruxsat('tayyor', 'tahrirlash')" in _fin
       and "todayProduced + ' partiya'" in _fin and "todayProduced + ' tur'" not in _fin)
 _st_w = CW.get("/finished")

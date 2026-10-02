@@ -200,7 +200,9 @@ tekshir("M6 faqat ishlab chiqarish va daromad bo'lgan oy — ro'yxat (ishlab chi
 bolim('S — statik');
 tekshir("S1 bosh sahifa yorlig'i «Brak qiymati (bu oy, xomashyo)» (asl: «Yo'qotish qiymati» — tayyor yo'qotishni ham anglatardi)",
         DASHBOARD.includes('Brak qiymati (bu oy, xomashyo)') && !DASHBOARD.includes("Yo'qotish qiymati (bu oy)"), '');
-tekshir("S2 qaytarishlar sahifasi kartasi «Brak qiymati (bu oy)»", RETURNS.includes('<div class="stat-label">Brak qiymati (bu oy)</div>'), '');
+// kech120 (zip 133 — G5, MOSLANDI): kartalar juftligi «Brak qiymati — bu oy» / «— hamma vaqt» (mazmuni o'sha — «Yo'qotish» emas)
+tekshir("S2 qaytarishlar sahifasi kartasi «Brak qiymati — bu oy»", RETURNS.includes('<div class="stat-label">Brak qiymati — bu oy</div>')
+        && !RETURNS.includes("Yo'qotish qiymati"), '');
 tekshir("S3 «Kamaytirish» matnlari: «Tayyor mahsulot yo'qotishi» qatoriga (asl: «Moliyada Brak xarajatiga»)",
         !FINISHED.includes('Moliyada Brak xarajatiga') && (FINISHED.match(/«Tayyor mahsulot yo'qotishi» qatoriga/g) || []).length === 2, '');
 

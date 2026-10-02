@@ -51,8 +51,9 @@ const vm = require('vm');
 const ROOT = path.dirname(__dirname);
 const TDIR = process.argv[2] || path.join(ROOT, 'templates');
 // kech120 (zip 131 — G3-25): + kunlik_xarajat («Xarajat qo'shish» sahifasi — ilgari faqat butun raqam, umumiy qoidadan tashqarida)
+// kech120 (zip 133 — G5-05): + returns («Yangi qaytarish» oynasidagi «Qiymati» — ilgari type=number, ajratgichsiz)
 const SAHIFALAR = ['debts', 'finance', 'finished', 'hodim_panel', 'inventory', 'kpi',
-                   'orders', 'supplier_receive', 'suppliers', 'kunlik_xarajat'];
+                   'orders', 'supplier_receive', 'suppliers', 'kunlik_xarajat', 'returns'];
 const FUNKS = ['parseNum', 'narxMatni', 'narxniOqi', 'narxKorinishi', 'formatPriceInput'];
 const NBSP = String.fromCharCode(160);
 const NNBSP = String.fromCharCode(0x202f);
@@ -464,7 +465,7 @@ function sorovMuhit(promptlar) {
   for (const [kir, kut] of E2) {
     const q = sorovMuhit([kir]);
     q.ctx.fpItems = [{ id: 5, name: 'TM', unit: 'm', unit_price: 12500.5 }];
-    const r = await yurgiz('finished', ['editPrice'], q.ctx, 'editPrice(5)');
+    const r = await yurgiz('finished', ['unitLabel', 'editPrice'], q.ctx, 'editPrice(5)');   // kech120 (zip 133 — MOSLANDI): sarlavhada birlik — `unitLabel`
     const t = q.sorovlar[0];
     const shart = kut === null
       ? (!r.xato && q.sorovlar.length === 0 && q.xabarlar.some((x) => x[1] === 'error'))
@@ -475,7 +476,7 @@ function sorovMuhit(promptlar) {
   {
     const q = sorovMuhit([null]);
     q.ctx.fpItems = [{ id: 5, name: 'TM', unit: 'm', unit_price: 12500.5 }];
-    const r = await yurgiz('finished', ['editPrice'], q.ctx, 'editPrice(5)');
+    const r = await yurgiz('finished', ['unitLabel', 'editPrice'], q.ctx, 'editPrice(5)');   // kech120 (zip 133 — MOSLANDI): sarlavhada birlik — `unitLabel`
     tekshir('E2 finished: prompt standarti "12 500.5" (Math.round EMAS)', !r.xato && q.promptArg[0] === '12 500.5',
             r.xato || jsn(q.promptArg));
   }

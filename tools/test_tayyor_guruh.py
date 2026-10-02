@@ -513,7 +513,8 @@ for k in range(3):
     retsept(C, _t, "B", [{"inventory_id": ID["kley"], "quantity": 1}, {"inventory_id": ID["boyoq"], "quantity": 1}])
 _x_n2 = _xulosa_sorovlari()
 check(f"X8 so'rovlar soni tur / retsept soniga bog'liq emas ({_x_n1} = {_x_n2}; 2 → 5 tur, 3 → 9 retsept)",
-      0 < _x_n1 == _x_n2 and _x_n1 <= 8, (_x_n1, _x_n2))
+      # kech120 (zip 133 — G5-06, MOSLANDI): xulosaga tur ishlatilishi qo'shildi (`tur_ishlatilishi` — doim 4 so'rov) — chegara 12
+      0 < _x_n1 == _x_n2 and _x_n1 <= 12, (_x_n1, _x_n2))
 r = req(C, "get", "/api/production/product-types/xulosa")
 check("X9 hech narsa yozilmaydi (GET) — ikkinchi chaqiruv natijasi birinchisi bilan bir xil",
       lambda: json.dumps(js(r), sort_keys=True) == json.dumps(js(req(C, "get", "/api/production/product-types/xulosa")),

@@ -489,7 +489,8 @@ def guruh(royxat, bosh):
 
 def birlik_matn(royxat):
     """Sahifadagi `miqdorlarMatni` bilan bir qoida: birlik nomi (`unitLabel`), katta miqdordan kichikka."""
-    xarita = {"metr": "m", "kvadrat": "m²", "dona": "ta", "m2": "m²"}
+    # kech120 (zip 133 — G5-07, MOSLANDI): birlik — umumiy qoida (`birlikQisqa`): dona — «dona» (ilgari bu sahifada «ta»)
+    xarita = {"metr": "m", "kvadrat": "m²", "dona": "dona", "ta": "dona", "m2": "m²"}
     jami = {}
     for r in royxat or []:
         b = xarita.get(r["birlik"], r["birlik"])
@@ -590,7 +591,7 @@ check("P7 yuqori paneldagi sahifa tugmalari `.tb-amallar` ichida (2 ta)", lambda
 _pl = n("po_link")
 check("P8 /production?po=ID — «Ishlab chiqarish» ro'yxati va shu ishlab chiqarish oynasi (Yakunlash / Bekor qilish)",
       lambda: _pl["tab"] == "orders" and _pl["ochiq"] is True and "DZ Kafel kley" in _pl["sarlavha"]
-      and "Yakunlash" in _pl["tugmalar"] and "Bekor qilish" in _pl["tugmalar"], _pl)
+      and "Yakunlash" in _pl["tugmalar"] and "Ishlab chiqarishni bekor qilish" in _pl["tugmalar"], _pl)   # kech120 (zip 133 — G5-21, MOSLANDI)
 check("P9 /production?po=<yo'q> — xabar «Ishlab chiqarish topilmadi», oyna ochilmaydi",
       lambda: n("po_yoq")["ochiq"] is False and n("po_yoq")["xabar"] is True, n("po_yoq"))
 

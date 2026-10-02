@@ -436,9 +436,10 @@ _l = _l if isinstance(_l, list) else (_l.get("items") or [])
 _e = [x for x in _l if x.get("id") == EFP]
 check("F1 /api/finished produced_quantity beradi (100)", _e and taxminan(_e[0].get("produced_quantity"), 100), _e[:1])
 _h = open(os.path.join(ROOT, "templates", "finished.html"), encoding="utf-8").read()
-check("F2 '+' tugmasi MRP da chizilmaydi (shart stepFp dan OLDIN)",
-      tartibda(_h, "${(i.category !== 'dynamic_bom' && !i.product_type_id) ? `", 'id="fq-${i.id}"',
-               'onclick="stepFp(${i.id})"'))
+# kech120 (zip 133 — G5-02, MOSLANDI): «1» maydoni va «+» o'rniga «Yana ishlab chiqarish» tugmasi (miqdor — alohida oynada)
+check("F2 «Yana ishlab chiqarish» tugmasi MRP da chizilmaydi (shart tugmadan OLDIN)",
+      tartibda(_h, "${(i.category !== 'dynamic_bom' && !i.product_type_id) ? `",
+               'onclick="yanaIshlabChiqarish(${i.id})"'))
 check("F3 '+' oldindan ko'rish: jami / produced_quantity",
       "const bol = (item.produced_quantity > 0) ? item.produced_quantity : item.quantity;" in _h
       and "unitVol = (item.volume_m3 || 0) / bol;" in _h and "unitLoy = (item.actual_loy_kg || 0) / bol;" in _h)

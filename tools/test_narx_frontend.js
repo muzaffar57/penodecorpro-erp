@@ -277,7 +277,9 @@ const ctxC = {
 vm.createContext(ctxC);
 // kech96 (125-band): pCalc Donalik "1 dona narxi" 2 xonaga (`tiyinga`), jami — shu narx × miqdor (`buyurtmaJami`,
 // orders.html bilan AYNAN qoida), xulosa oynasi `narxKorinishi` — ular ham finished.html dan yuklanadi.
-for (const nom of ['parseNum', 'narxMatni', 'narxKorinishi', '_onlikQism', '_tiyinHalfUp', 'buyurtmaJami', 'tiyinga', 'pCalc'])
+// kech120 (zip 133 — G5, MOSLANDI): pCalc birlik nomini umumiy qoida bilan yozadi (`unitLabel` — finished.html; base.html siz
+// o'z zaxira qoidasi) — u ham yuklanadi
+for (const nom of ['parseNum', 'narxMatni', 'narxKorinishi', '_onlikQism', '_tiyinHalfUp', 'buyurtmaJami', 'tiyinga', 'unitLabel', 'pCalc'])
   vm.runInContext(olib(FINISHED, nom), ctxC, { filename: `finished.html:${nom}` });
 vm.runInContext(olib(T('base.html'), 'sonKor'), ctxC, { filename: 'base.html:sonKor' });   // kech118 (U-05, MOSLANDI)
 

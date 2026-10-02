@@ -795,7 +795,8 @@ check("J31 Ta'minotchi xaridi tahriri: 1-qadam «Miqdor» (4), 2-qadam narx (12 
       and g("s_tahrir", "post") == [] and g("s_tahrir", "xom") == 0, N.get("s_tahrir"))
 _fq = g("f_narx", "q") or []
 check("J32 Tayyor mahsulot narxi: dastur oynasi (sarlavha — birlik bilan, izoh — mahsulot nomi, qiymat 45 000); Bekor — so'rov yo'q",
-      len(_fq) == 4 and _fq[0] == "flex" and "metr" in _fq[1] and _fq[2] == "B118 Karniz"
+      # kech120 (zip 133 — MOSLANDI, G5-07): birlik — umumiy qisqa qoida (`birlikQisqa`: «metr» → «m»)
+      len(_fq) == 4 and _fq[0] == "flex" and "(1 m uchun" in _fq[1] and _fq[2] == "B118 Karniz"
       and _fq[3].replace(" ", "").replace(" ", "") == "45000" and g("f_narx", "post") == [] and g("f_narx", "xom") == 0, N.get("f_narx"))
 
 section("X. Xatolar")

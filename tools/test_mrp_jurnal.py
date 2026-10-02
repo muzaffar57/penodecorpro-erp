@@ -294,6 +294,13 @@ r = so("A", "delete", f"/api/production/boms/{BOM}")
 j = oxirgi(1, "bom", BOM)
 check("J13 retsept nofaol qilindi — «deleted», «nofaol qilindi …»", r.status_code == 200 and j.get("action") == "deleted"
       and "nofaol qilindi" in (j.get("new") or ""), (r.status_code, j))
+# kech120 (zip 133 — G5-06, MOSLANDI): ochiq (qoralama) ishlab chiqarishi bor tur nofaol qilinmaydi — 409, jurnalga YOZILMAYDI;
+# qoralama (PO4) bekor qilingach — nofaol qilinadi
+_n14 = len(jurnal(1, "product_type"))
+r = so("A", "delete", f"/api/production/product-types/{PT}")
+check("J14a ochiq ishlab chiqarishli tur — 409 (sababi bilan), jurnalda yangi yozuv YO'Q", r.status_code == 409
+      and "ochiq" in str(js(r)) and len(jurnal(1, "product_type")) == _n14, (r.status_code, js(r)))
+so("A", "post", f"/api/production/orders/{PO4}/cancel")
 r = so("A", "delete", f"/api/production/product-types/{PT}")
 j = oxirgi(1, "product_type", PT)
 check("J14 mahsulot turi nofaol qilindi — «deleted»", r.status_code == 200 and j.get("action") == "deleted"
