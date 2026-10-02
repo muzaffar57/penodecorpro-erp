@@ -12866,6 +12866,22 @@ def set_employee_login(db: Session, emp_id: int, phone: str, pin: str) -> Option
     return emp
 
 
+def korxona_kodi_yarat(db: Session, nom: str) -> str:
+    """Korxona KODI — nomdan (lotin katta harf / raqam, qolgani «-», 24 belgigacha); band bo'lsa «-2», «-3» … (butun tizim
+    bo'yicha — `system_context`). kech120 (zip 130): platformadagi «+ Yangi korxona» va kodsiz korxonalarni to'ldirish
+    (`main._korxona_kodlarini_toldir`) — BITTA qoida."""
+    import re as _re_kod
+    import tenant_context as _tc
+    from production_models import Company
+    asos = _re_kod.sub(r"[^A-Z0-9]+", "-", (nom or "").upper()).strip("-")[:24] or "KORXONA"
+    kod, i = asos, 1
+    with _tc.system_context(db):
+        while db.query(Company).filter(Company.code == kod).first():
+            i += 1
+            kod = f"{asos[:20]}-{i}"
+    return kod
+
+
 def resolve_company_by_code(db: Session, code: str):
     """Korxona KODI bo'yicha korxonani topadi. Mijoz yuborgan kodga
     ISHONILMAYDI — u faqat qidiruv kaliti, natija bazadan olinadi.
@@ -13848,6 +13864,14 @@ def create_supplier(db: Session, data: SupplierCreate, company_id: int = None) -
     return s
 
 
+def tabiiy_tartib_kaliti(matn) -> tuple:
+    """kech120 (zip 130 — G4-20): nomlar «tabiiy» tartibda — raqamlar SON sifatida («Ta'minotchi 2» «Ta'minotchi 10» dan
+    OLDIN; ilgari matn tartibi: 1, 10, 11 … 19, 2, 20), katta-kichik harf farqsiz."""
+    import re as _re_tt
+    _q = _re_tt.split(r"(\d+)", str(matn or "").casefold())
+    return tuple((0, int(x), "") if x.isdigit() else (1, 0, x) for x in _q if x != "")
+
+
 def get_suppliers(db: Session, only_active: bool = True,
                   company_id: int = None) -> List[Supplier]:
     q = db.query(Supplier)
@@ -13855,7 +13879,9 @@ def get_suppliers(db: Session, only_active: bool = True,
         q = q.filter(Supplier.company_id == company_id)
     if only_active:
         q = q.filter(Supplier.is_active == True)
-    return q.order_by(Supplier.name).all()
+    # kech120 (zip 130 — G4-20): tabiiy tartib (Kirim formasidagi tanlov, Ta'minotchilar ro'yxati — qarz bo'yicha
+    # saralashda teng qarzlilar ichida ham)
+    return sorted(q.order_by(Supplier.name, Supplier.id).all(), key=lambda s: tabiiy_tartib_kaliti(s.name))
 
 
 def get_supplier(db: Session, supplier_id: int, company_id: int = None) -> Optional[Supplier]:

@@ -1,6 +1,6 @@
 # PenoDecorPro ERP — LOYIHA PASPORTI
 
-*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2); kech112: zip 108 — «Tayyor» da bo'sh loy = reja (K112-3), material nomi (K112-4), MRP qoplama belgisi (K112-5); ko'p korxonali yakuniy jonli sinov; kech115: zip 112 — butun dastur auditi A bosqichi (pul va ma'lumot xatolari) 1-qismi: kirim, qarzdorlar, «Tayyor», narxsiz buyurtma, o'chirilganlar jurnali, manfiy raqamlar, taqqoslash, korxona sog'ligi, ombor filtri; kech116: zip 113 — A bosqich 2-qismi: sog'liq sabablari (K115-2), «Bugungi xulosa» (K115-3), hujjatlardagi hisob qatorlari (G2-04), «Pul oqimi» — haqiqiy pul (G1-03), «Xarajat» — bitta ta'rif va «Tannarx» (G1-02), loyiha qiymati buyurtmalardan (G2-01), haqiqiy IP va kirish cheklovi (U-01), parol oynasi va kirishlarni yopish (G6-06); zip 114 — mijoz hujjatlarida kechirilgan qarz «Chegirma» ichida (egasi qarori); kech117: zip 115 — A2: yo'nalishlar bo'yicha moliya (G3-11, G6-09); zip 116 — jonli sinovdan keyin: «Belgilanmagan» manbalari, Moliya xarajatdan keyin yangilanadi; kech118: qolgan egasi qarorlari (6-bo'lim); zip 117 — B bosqichi 1-qism: dastur oynalari (xabar, kiritish, Esc / tashqariga bosish), o'zbekcha 404 / 403 sahifa, klaviatura fokusi; zip 118 — B bosqichi 2-qism: son / sana / birlik ko'rinishi, o'qiladigan rang, 12 px + yo'nalishlar bo'yicha moliyaviy natija (egasi qarori: taqsim yo'q, oyliklar alohida, davr, solishtirish); yangi qarorlar — rollar va ruxsatlar (6-bo'lim); zip 119 — rollar va ruxsatlar 1-qism (admin rollarni o'zi boshqaradi); kech119: zip 125 — Hisobotlar «oy boshi»: o'tgan oyning SHU KUNLARI bilan solishtirish (egasi qarori), taxminda oylik xarajat bir marta, xomashyo birligi; «Foyda tahlili» summalari (G2-15); zip 126 — telefon (C bosqichi); kech120: zip 127 — E bosqichi 1-qism: tezlik — hisobot xotirasi (so'rovlar orasida, yozuv bo'lsa darhol eskiradi), sahifa bir ochilishida bir xil so'rov bir marta, Bosh sahifa 5 ta buyurtma, kirish sahifasi rasmi, Hisobotlar taqqoslash kartalari telefonda (K120-1); zip 128 — E bosqichi 2-qism: katta ro'yxatlarda topish — Bosh sahifa «Bugungi vazifalar» havolalari, Buyurtmalar filtri / keng qidiruv / tanlovni tiklash, Qarzdorlar mijoz bo'yicha; zip 129 — E bosqichi 3-qism: tarix va jurnallar — «Tizim jurnallari» filtri va sahifalash, hamma amal o'zbekcha, tahrir yozuvida nima o'zgargani; Ombor «Tarix», «Yana yuklash», davr jami). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
+*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2); kech112: zip 108 — «Tayyor» da bo'sh loy = reja (K112-3), material nomi (K112-4), MRP qoplama belgisi (K112-5); ko'p korxonali yakuniy jonli sinov; kech115: zip 112 — butun dastur auditi A bosqichi (pul va ma'lumot xatolari) 1-qismi: kirim, qarzdorlar, «Tayyor», narxsiz buyurtma, o'chirilganlar jurnali, manfiy raqamlar, taqqoslash, korxona sog'ligi, ombor filtri; kech116: zip 113 — A bosqich 2-qismi: sog'liq sabablari (K115-2), «Bugungi xulosa» (K115-3), hujjatlardagi hisob qatorlari (G2-04), «Pul oqimi» — haqiqiy pul (G1-03), «Xarajat» — bitta ta'rif va «Tannarx» (G1-02), loyiha qiymati buyurtmalardan (G2-01), haqiqiy IP va kirish cheklovi (U-01), parol oynasi va kirishlarni yopish (G6-06); zip 114 — mijoz hujjatlarida kechirilgan qarz «Chegirma» ichida (egasi qarori); kech117: zip 115 — A2: yo'nalishlar bo'yicha moliya (G3-11, G6-09); zip 116 — jonli sinovdan keyin: «Belgilanmagan» manbalari, Moliya xarajatdan keyin yangilanadi; kech118: qolgan egasi qarorlari (6-bo'lim); zip 117 — B bosqichi 1-qism: dastur oynalari (xabar, kiritish, Esc / tashqariga bosish), o'zbekcha 404 / 403 sahifa, klaviatura fokusi; zip 118 — B bosqichi 2-qism: son / sana / birlik ko'rinishi, o'qiladigan rang, 12 px + yo'nalishlar bo'yicha moliyaviy natija (egasi qarori: taqsim yo'q, oyliklar alohida, davr, solishtirish); yangi qarorlar — rollar va ruxsatlar (6-bo'lim); zip 119 — rollar va ruxsatlar 1-qism (admin rollarni o'zi boshqaradi); kech119: zip 125 — Hisobotlar «oy boshi»: o'tgan oyning SHU KUNLARI bilan solishtirish (egasi qarori), taxminda oylik xarajat bir marta, xomashyo birligi; «Foyda tahlili» summalari (G2-15); zip 126 — telefon (C bosqichi); kech120: zip 127 — E bosqichi 1-qism: tezlik — hisobot xotirasi (so'rovlar orasida, yozuv bo'lsa darhol eskiradi), sahifa bir ochilishida bir xil so'rov bir marta, Bosh sahifa 5 ta buyurtma, kirish sahifasi rasmi, Hisobotlar taqqoslash kartalari telefonda (K120-1); zip 128 — E bosqichi 2-qism: katta ro'yxatlarda topish — Bosh sahifa «Bugungi vazifalar» havolalari, Buyurtmalar filtri / keng qidiruv / tanlovni tiklash, Qarzdorlar mijoz bo'yicha; zip 129 — E bosqichi 3-qism: tarix va jurnallar — «Tizim jurnallari» filtri va sahifalash, hamma amal o'zbekcha, tahrir yozuvida nima o'zgargani; Ombor «Tarix», «Yana yuklash», davr jami; zip 130 — E bosqichi 4-qism: qidiruvli tanlagich (Kirim — ta'minotchi, material; «Yangi qaytarish», «Brak yozish»), ta'minotchilar tabiiy tartibda, Tayyor mahsulotlar kategoriyalari korxonaning o'z mahsulot turlaridan; shu zipda — E bosqichi 5-qism: hodim kirishi — har korxonada kod (kodsizlarga ishga tushishda), QR serverda (ichida kod), kirish sahifasi kodni o'zi yozadi, chop etish sahifasi; shu zipda — E bosqichi 6-qism: rasmlar yuklashda 1920 px gacha kichraytiriladi (burilish qo'llanadi, joylashuv saqlanmaydi), ro'yxatlarda kichik nusxa (360 px); uzun ro'yxatlarda faqat birinchi 20 qator animatsiyali). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
 *Bu faylni `main` ga ko'chirish bilan birga, keyin har katta o'zgarishda yangilab boring. 9-bo'lim AVTOMATIK
 (`python3 tools/pasport_xarita.py --yoz`), qolgani qo'lda; `tools/test_pasport.py` ikkalasini ham tekshiradi.*
 
@@ -581,6 +581,51 @@ Eski, tafsilotsiz «eski = yangi» yozuv — izoh bilan. «Zaxiradan tiklash» y
 (`crud.kirim_qolgan_qatorlari`); `/api/inventory/movements/jami` — «Tanlangan davr — jami» HAMMA mos harakatdan (ilgari yuklangan
 qatorlardan). Sahifa: material qatorida «Tarix» (`openMovements(id, nom)` — `item_id`), «Ko'rsatilgan: N / JAMI» + «Yana yuklash»
 (100 tadan, takror id tashlanadi, eski javob yangi filtrni bosmaydi), tanlangan filtr tugmasi (`aria-pressed`). Test: `tools/test_e_tarix.py`.
+**Qidiruvli tanlagich va kategoriyalar (kech120, zip 130 — E bosqichi 4-qism; audit G4-20, G5-19, G5-10).** `static/tanlov.js`
+(`base.html` — `defer`): `<select data-qidiruvli>` (yoki `qidiruvliTanlov(el, opts)`) — ASL ro'yxat joyida qoladi (ko'rinmas,
+`select.qt-asl`): qiymat, `onchange`, forma va sahifa kodi uni o'qiydi / yozadi; yonida tugma (tanlangan qator matni) va panel (qidiruv
++ ro'yxat). Tanlanganda — `select.value` + `change` (qiymat o'zgarsa, BIR marta); kod qiymatni yozsa (`value`, `selectedIndex` —
+`HTMLSelectElement` PROTOTIPIDAGI ilgak, faqat tanlagichli ro'yxatda tugmani yangilaydi), ro'yxatni almashtirsa (`innerHTML`),
+`disabled` / `style.display` o'zgarsa (MutationObserver) — tugma darhol yangilanadi. Qidiruv: qator matni + `data-qidiruv` (telefon va h.k.) + guruh nomi, katta-kichik harf va tutuq belgisi
+farqsiz; 3+ raqam — raqamlar bo'yicha ham. Yashirin qator ko'rsatilmaydi, o'chirilgani tanlanmaydi (klaviatura ham o'tkazib yuboradi);
+bir vaqtda 300 qator (qolgani — «Yana N ta — qidiruvni aniqlashtiring»). Klaviatura: ↓ / ↑ / Enter / Esc / Tab; Esc oyna ichida —
+avval panel (`data-yopish-ichki`, base.html); qidiruv maydoni `data-kiritish-emas` — oynaga «ma'lumot yozildi» belgisini qo'ymaydi.
+Panel maydon ostida suzadi; telefonda va eng yaqin chegaralovchi ajdod pastni KESSA (`overflow-y: hidden`) — oqim ichida.
+`data-qidiruv-yukla="funksiya"` — ro'yxat panel BIRINCHI ochilganda yuklanadi. ULANGAN: Kirim — ta'minotchi (butun qator, ilgari ~145 px)
+va material (2 ustun; boshida «— Material tanlang —» — ilgari birinchi material oldindan tanlangan turardi; ro'yxat qayta chizilsa tanlov
+saqlanadi); «Yangi qaytarish» — buyurtma (`/api/tanlov/buyurtmalar`: shu korxona, o'chirilmagan, qoralama / bekor qilinganlarsiz,
+yangisi tepada; ilgari HAMMA buyurtma sahifa bilan chizilardi); «Brak yozish» — loyiha (`/api/tanlov/loyihalar`: ishdagi buyurtmasi
+bor, o'chirilmagan) va tayyor mahsulot. Ruxsat — «Qaytarishlar: Yaratish». Ta'minotchilar — `crud.tabiiy_tartib_kaliti` (2 < 10).
+TAYYOR MAHSULOTLAR: har mahsulot BITTA kategoriyada (`fpKalit`): mahsulot turi bo'lsa — o'sha tur (nomi `/api/finished`
+`product_type_name`), aks holda penoplast turkumi (Profil / Panel / Donali / Blok), qolgani — «Boshqa»; tugmalar — omborda BOR
+kategoriyalardan (`fpKategoriyaTugmalari`; qayta yuklanganda tanlov saqlanadi); bo'lim sarlavhasi «OMBORDA». Test: `tools/test_e_tanlov.py`.
+**Hodim kirishi — korxona kodi va QR (kech120, zip 130 — E bosqichi 5-qism; audit G6-07).** `/hodim/login` bir nechta korxona
+bo'lsa KODNI talab qiladi (`crud.resolve_company_by_code`; bitta korxonada — kodsiz). TOPILGAN: 1-korxona (`_seed_default_company`) KODSIZ
+yaratilardi — ikkinchi korxona paydo bo'lgach uning hodimlari umuman kira olmasdi. Endi `main._korxona_kodlarini_toldir()` (ishga
+tushishda) kodsiz HAR korxonaga kod beradi; qoida — `crud.korxona_kodi_yarat` (nomdan: lotin katta harf / raqam, qolgani «-», 24
+belgigacha, band bo'lsa «-2», «-3»; platformadagi «+ Yangi korxona» ham shu); kodi borga tegilmaydi. QR — SERVERDA (`_qr_svg`, reportlab
+`qrencoder` — yangi kutubxona yo'q; ixcham SVG): `/api/hodim-qr.svg?manzil=<sayt>` (kirgan har foydalanuvchi; manzil faqat
+sxema+xost+port, aks holda so'rovniki) — ichida `<sayt>/hodim?k=KOD`; `/hodim` (kirmagan) → `/hodim/login?k=KOD` → maydonga o'zi
+yoziladi (xatoda kiritilgan kod saqlanadi). Foydalanuvchilar sahifasi QR oynasi — server rasmi, korxona kodi, manzil; «Chop etish» —
+alohida sahifa `/users/hodim-qr` (FAQAT QR, korxona nomi, kod, 3 bandli yo'riqnoma; menyusiz). KPI «Panel kirishi» oynasida — kirish
+manzili va korxona kodi, «QR kod (chop etish)» havolasi. Test: `tools/test_e_hodim_kod.py` (QR brauzerda chiziladi va OpenCV bilan
+O'QILADI).
+**Rasmlar — kichraytirish va kichik nusxa (kech120, zip 130 — E bosqichi 6-qism; audit G5-16 ikkinchi qismi).** O'LCHANGAN (audit
+kech114): telefon kamerasi rasmi (4000 × 3000, 3–6 MB) o'zgarmasdan saqlanar va ro'yxatning 40–70 px katagida ham TO'LIQ yuklanardi.
+Faqat-rasm yuklamalari (`_save_upload(…, ALLOWED_IMAGE_EXT)`: detal, material, retsept, tayyor mahsulot, loyiha, qaytarish) —
+`main.rasmni_kichraytir`: katta tomoni `RASM_KATTA_TOMON` (1920) dan oshsa kichraytiriladi (JPEG — `draft` bilan kichik masshtabda
+o'qiladi), telefonning burilish belgisi (EXIF Orientation) qo'llanadi; qayta yozilganda EXIF (joylashuv — GPS ham) saqlanmaydi;
+kichik va burilishsiz rasm — ASLICHA (bayt-ba-bayt); animatsiya, o'qilmaydigan fayl, `RASM_PIKSEL_CHEGARA` (60 Mpx) dan katta —
+ASLICHA. Buyurtma ILOVALARI (chizma, PDF, rasm-hujjat — `ALLOWED_FILE_EXT`) — ASLICHA. Ro'yxat uchun KICHIK NUSXA —
+`GET /static/uploads/<papka>/<fayl>?o=k` (himoyalangan marshrut: kirish va korxona tekshiruvi asl fayl bilan BIR XIL): `kichik_nusxa_yarat`
+— `static/uploads/_kichik/<papka>/<nom>_360.jpg` (shaffof — `.png`), yuklashda yasaladi, eski rasmlar uchun birinchi so'rovda
+(vaqtinchalik fayl + `os.replace`); `_kichik` papkasi to'g'ridan-to'g'ri ochilmaydi (404); logotip (nomi doimiy) va rasm bo'lmagan fayl —
+asl. Shablonlarda katak `src` — `|kichik_rasm` (Jinja, `main.kichik_rasm_manzili`) / `kichikRasm()` (JS, base.html) — BIR qoida;
+ko'ruvchi oyna (`data-src`, `openLightbox`) — ASL manzil. Pillow — `reportlab` bog'liqligi (requirements da alohida qator yo'q); bo'lmasa —
+avvalgidek (asl saqlanadi / beriladi). UZUN RO'YXAT ANIMATSIYASI (O'LCHANGAN `work/k132/trace2.py`, telefon, CPU 4× sekin: 120 qatorli
+Omborxona har qator «paydo bo'lish» animatsiyasi bilan asosiy oqimni 1,6–2,3 s band qilardi, animatsiyasiz 0,8–1,2 s): Omborxona
+(`.mat-row`), Loyihalar (`.proj-card`), Qaytarishlar (`.ret-row`) — faqat birinchi 20 qator animatsiyali, qolganlari `anim-yoq` (darhol);
+tizimda «harakatni kamaytirish» yoqilgan bo'lsa — hech biri. Test: `tools/test_e_rasm.py`.
 **Ranglar va tungi rejim (kech118, D bosqichi 2-qism — egasi QARORI «To'liq tuzatilsin — har sahifa ranglari umumiy ranglar
 ro'yxatiga», U-02; zip 122).** Shablon / `style.css` dagi rang XOSSASIGA qarab UMUMIY RO'YXATDAN olinadi — `static/ranglar.css`
 (`base.html` va mustaqil sahifalar — kirish, hodim kirishi / paneli, xato sahifasi — `style.css` dan KEYIN ulaydi):
@@ -976,6 +1021,50 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   matni «50 kg loy × 15 600 so'm/kg»), `test_tayyor_reja_loy` (R7, R12, R16 — «20 kg loy»), `test_yonalish_natija`
   (S1 / S2 — «bugun» muzlatiladi: oy tugagan → o'tgan oy butun; yangi S5–S7 — 1–5 / 1–4 kesim qo'lda hisoblangan
   summalar bilan va haqiqiy bugun qoidasi; asl kodda S5–S7 yiqiladi).
+- (kech120, zip 130) E bosqichi 6-qism — rasmlar va uzun ro'yxat: `tools/test_e_rasm.py` — S (statik: o'lchamlar 1920 / 360;
+  server shablonlari katak — `|kichik_rasm`, ko'ruvchi oyna — asl; JS shablonlari — `kichikRasm`; yuklashda faqat-rasm kichraytiriladi),
+  F (`rasmni_kichraytir`: 4000 × 3000 → 1920 × 1440; EXIF 6 — tik 500 × 1000, to'g'ri tomonga, belgi va GPS yo'q; katta rasmda GPS
+  yo'qoladi; kichigi — bayt-ba-bayt asl; shaffof PNG — RGBA saqlanadi; WebP; animatsiya, buzuq fayl, Pillowsiz, piksel chegarasi,
+  .pdf — asl), Y (6 ta faqat-rasm yuklamasi — diskda 1920; yuklashda kichik nusxa 360 × 270; ilova — asl, nusxasiz; kichik / buzuq — asl),
+  K (`?o=k` — 360 × 270 JPEG, private kesh, asldan 5× yengil; kirmagan — 401, boshqa korxona — 404; `_kichik` to'g'ridan — 404; ESKI
+  rasmga birinchi so'rovda yasaladi, bor bo'lsa qayta yasalmaydi; shaffof — PNG; ilova rasmi — nusxa, PDF / logotip — asl), R (Omborxona,
+  Loyihalar, Retseptlar, Qaytarishlar: `src` — `?o=k`, `data-src` — asl), A (uzun ro'yxat: 25+ qatorda birinchi 20 — kechikish bilan,
+  qolganlari `anim-yoq`), J (`kichik_rasm` = `kichikRasm` — 13 namuna, node), B (HAQIQIY Chromium, telefon 3×: katakda 360 px, asl
+  so'ralmaydi, bosilganda — 1920 px; Tayyor mahsulotlar — kichik nusxa; 21-qatordan animatsiya `none`; «harakatni kamaytirish» — hech biri;
+  JS xatosiz). SQLite, PG (45) — asl kodda (zip 129) 36 yiqiladi, qulamaydi. Mutatsiyalar (`work/k132/mutatsiya_e6.py`, 31 ta; natija
+  `work/natija/k132/mut/`) — 31/31 ushlanadi (R13 / R15 — birinchi o'tishda ushlanmadi: `?` tekshiruvi kengaytma tekshiruvi bilan
+  takrorlanardi → namuna «…y.jpg?v=2.png» qo'shildi).
+- (kech120, zip 130) E bosqichi 5-qism — hodim kirishi: `tools/test_e_hodim_kod.py` — S (statik: begona QR sayti yo'q, QR serverda
+  — reportlab, chop etish — alohida sahifa; kodsizlarga kod — ishga tushishda, platforma bilan bitta qoida; `?k=` maydon qiymati,
+  `/hodim` → `/hodim/login?k=`, KPI oynasida kod), K (1-korxona — ilova yuklanganda kod oldi; kodsiz holatdan to'ldirish — nomdan;
+  bir xil nomlilar — yagona -2 / -3; kodi bor — o'zgarmaydi; takror — o'zgarmaydi; platforma qoidasi bilan keyingi kod), H (ikki
+  korxona, bir xil telefonli hodimlar: kodsiz — rad, kod (kichik harf bilan ham) — o'z korxonasiga; QR manzili → kirish sahifasi kod
+  bilan; xavfli matn escape; noto'g'ri PIN dan keyin kod saqlanadi; kodsiz ochilganda ko'rsatma), Q (SVG — bitta `path`, kirmagan —
+  rad; brauzerda chizilib OpenCV bilan O'QILADI: `…/hodim?k=KOD`; `javascript:` manzil qabul qilinmaydi; B korxona — o'z kodi),
+  P (chop etish sahifasi: QR o'qiladi, kod, manzil, 3 bandli yo'riqnoma, menyusiz; print rejimida tugmalar yashirin), U (QR oynasi
+  — o'z server rasmi, begona so'rov yo'q, kod va manzil; «Chop etish» — yangi oynada alohida sahifa; KPI «Panel kirishi» — kod, manzil,
+  QR havolasi), T (390 px: chop etish sahifasi ekranda, tugma ≥ 44 px; QR orqali ochilgan kirish sahifasida kod), X. SQLite, PG (22)
+  — asl kodda (zip 129) 19 yiqiladi, qulamaydi. Mutatsiyalar (`work/k131/mutatsiya_e5.py`, 22 ta; natija `work/natija/k131/mut/`) —
+  22/22 ushlanadi. Moslangan: `test_rollar` (`/api/hodim-qr.svg`, `/users/hodim-qr` — LOGIN).
+- (kech120, zip 130) E bosqichi 4-qism — tanlagichlar: `tools/test_e_tanlov.py` — S (statik: `static/tanlov.js` — asl `<select>`
+  qiymati / `change`, kuzatuvchi, prototip ilgagi, Esc ichki paneli; base.html ulaydi, qidiruv maydoni «ma'lumot» emas; 5 ta ro'yxat
+  qidiruvli; Kirim «— Material tanlang —»; Qaytarishlar sahifasida ro'yxat yo'q, `/api/tanlov/*`; Tayyor mahsulotlar `fpKalit`,
+  «OMBORDA»), A (API va HTML: buyurtmalar — korxona, o'chirilmagan, qoralama / bekor yo'q, yangisi tepada, holat o'zbekcha; loyihalar —
+  ishdagi buyurtmasi bor; B korxona; ruxsat — «Yaratish» siz 403 (Moliyachi, faqat «Ko'rish» li rol — sahifa ochiladi); ta'minotchilar
+  tabiiy tartibda (2 < 10); `product_type_name`; Qaytarishlar sahifasida buyurtma / loyiha qatori yo'q), J (tanlagichning o'zi,
+  brauzerda: tugma matni, asl ro'yxat ko'rinmaydi, guruhlar, yashirin yo'q, o'chirilgani tanlanmaydi, katta-kichik harf, `data-qidiruv`
+  raqamlari bo'shliqsiz, tutuq belgisi, guruh nomi, «Topilmadi», ↓ / ↑ / Enter, `change` BIR marta, o'sha qiymat — hodisasiz, kod
+  yozgan `value` / `selectedIndex` / `innerHTML`, `disabled`, `display`, 350 qator → 300 + «Yana 50», tashqariga bosish, Esc, `<label>`),
+  K (Kirim: oldindan tanlanmagan, ta'minotchi tabiiy tartibda va `onSupplierChange`, kengliklar, material qidiruvi, savatga AYNAN
+  tanlangani va maydon tozalanadi, «yangi material» rejimida yashirinadi), Q («Yangi qaytarish» — ro'yxat tanlagich ochilganda BIR marta,
+  telefon bo'shliqsiz, tanlandi → detallar; Esc — avval panel, keyin oyna; faqat qidiruv yozilgan oyna so'roqsiz yopiladi; «Brak
+  yozish» — loyihalar tanlagich ochilganda, telefon bo'yicha, detallar yuklanadi; DOM < 700), M (kategoriya tugmalari — omborda BOR
+  turlar, «Boshqa» oxirida; «Kafel kley» / «Panel» / «Boshqa» filtri, turi bor penoplast mahsuloti — o'z turida; qayta yuklanganda
+  tanlov saqlanadi), T (390 px: Kirim paneli oqim ichida, ekranda; «Yangi qaytarish» paneli oyna ichida, tugma ≥ 40 px), X (JS xatosi,
+  5xx, bajarilmagan amal yo'q). SQLite, PG (49) — asl kodda (zip 129) 42 yiqiladi, qulamaydi. Mutatsiyalar (`work/k130/mutatsiya_e4.py`,
+  32 ta; natija `work/natija/k130/mut/`) — 32/32 ushlanadi (T2 — raqam qidiruvi — va T25 — ruxsat — birinchi o'tishda ushlanmagan:
+  test kuchaytirildi — bo'shliqsiz raqam, faqat «Ko'rish» li rol). Moslangan eski testlar: `test_c_telefon` T15 (buyurtmalar ro'yxati
+  `qaytarishBuyurtmalariniYukla` bilan), `test_rollar` (`/api/tanlov/*`).
 - (kech120, zip 129) E bosqichi 3-qism — tarix va jurnallar: `tools/test_e_tarix.py` — S (statik: koddagi HAR amal turi
   — `log_activity`, `ActivityLog` konstruktori (taxallus bilan ham), `_po_jurnal`, obuna `_jurnal` — `crud.AUDIT_AMALLARI` da; /logs
   filtr / sahifalash funksiyalari bilan; shablon `amal_nomi`; retsept va buyurtma tahririda holat o'zgarishdan OLDIN, farq xatosi
@@ -1657,6 +1746,22 @@ bajarilganlari belgilanadi)**
   talqin qilinishi mumkin.
 - (kech120, zip 129) Yangi API marshrut qo'shilsa — `tools/test_rollar.py` `YANGI_MARSHRUTLAR` ga ruxsati bilan yozing (S4 HAR
   marshrutni jadvalda kutadi).
+- (kech120, zip 130) Eski brauzer-sinovlari (`tools/test_*_ui.js`) `fetch` ni javoblar NAVBATI bilan soxtalashtiradi — oyna ochilishida
+  qo'shimcha so'rov (masalan ro'yxat yuklash) keyingi so'rovning javobini «yeb qo'yadi» va testlar yiqiladi (test_d123_ui 15 ta).
+  Yordamchi ro'yxatni oyna ochilganda emas, kerak bo'lganda (tanlagich ochilganda — `data-qidiruv-yukla`) yuklang; sahifa funksiyasi
+  yangi yordamchiga tayansa — `typeof f === 'function'` bilan. Soxta element (`closest` yo'q) — `typeof el.closest === 'function'`.
+- (kech120, zip 130) jsdom (eski sahifa sinovlari, masalan `test_kirim_a115`) da elementning O'Z xossasi sifatida yozilgan `value`
+  (Object.defineProperty(el, 'value', …)) qiymatni yo'qotadi (`el.value = '7'` → '' — O'LCHANGAN, 22 tekshiruv yiqildi). Ilgak kerak
+  bo'lsa — PROTOTIPGA (`HTMLSelectElement.prototype`) qo'ying va faqat kerakli elementlar uchun ishlating.
+- (kech120, zip 130) Rasm yuklaydigan YANGI joy — `_save_upload(…, ALLOWED_IMAGE_EXT)` (kichraytirish va kichik nusxa avtomatik);
+  ro'yxat katagida — `|kichik_rasm` / `kichikRasm()`, ko'ruvchi oynada — ASL manzil. Yangi yuklama papkasi — `_yuklama_manbalari` ga
+  (aks holda fayl ham, kichik nusxasi ham 404). Hujjat sifatida yuklab olinadigan fayl (ilova) — kichraytirilmaydi.
+- (kech120, zip 130) O'LCHANGAN, QILINMAGAN (asossiz murakkablik): (1) Railway chekkasi javoblarni gzip bilan SIQADI (jonli: /reports
+  137 KB → 42 KB) — HTML hajmi tarmoqda kichik; Buyurtmalar sahifasi (300 buyurtma, 1 053 KB, gzip 134 KB) dan bo'sh joylarni olib
+  tashlash telefonda (CPU 4×) tahlilni ~7 % (≤ 60 ms) tezlashtiradi — qilinmadi; asosiy vaqt — ichki skript va uslub / joylashuv.
+  (2) Ikonka shrifti (`tabler-icons.woff2`, 457 KB) — brauzer keshida; qisqartirilgan to'plam xavfli: nomlar dinamik ham yasaladi
+  (`reports.html` `ti-arrow-${…}`) — qilinmadi. (3) Uzun ro'yxatda HAR qator animatsiyasi — telefonda asosiy oqimni 2 baravar band qiladi
+  (yuqorida) — yangi ro'yxatda animatsiyani faqat birinchi qatorlarga bering.
 
 ## 9. Xarita (AVTOMATIK)
 
@@ -1693,41 +1798,42 @@ bajariladigan chaqiruvlar — AYNAN shu tartibda. `_migrate_*` — idempotent sx
 1. `_saas_otish.startup_otish`
 2. `init_database`
 3. `_seed_default_company` — 2026-09-16: yangi Production moduli uchun — SaaS'gacha ishlatiladigan YAGONA korxona yozuvini (id=1) bir marta yaratib qo'yadi. Xatoni boshqa init funksiyalari kabi yuti…
-4. `_seed_tg_tagline` — 2026-09-21: ustaga salomdagi shior endi sozlama (`tg_welcome_tagline`).
-5. `_migrate_recipe_name_column` — ESKI QOLDIQ TUZATISH: bazada "recipes.name" ustuni, hozir kodda umuman mavjud bo'lmagan "recipetype" maxsus (enum) turi sifatida qolib ketgan edi (eski, allaqachon o'zga…
-6. `_migrate_payment_columns` — Mavjud bazaga to'lov ustunlarini qo'shadi (agar yo'q bo'lsa).
-7. `_migrate_drop_company_id_defaults` — M8/F1 (2026-09-18) — VAQTINCHALIK `DEFAULT 1` ni olib tashlaydi.
-8. `_migrate_faza3_columns` — Faza 3 (2026-09-19) — uchta yangi ustun. Xavfsiz va idempotent.
-9. `_migrate_float_to_numeric` — Bosqich 1 (2026-09-20) — to'rtta pul maydoni `Float` dan `Numeric(12,2)` ga o'tkaziladi.
-10. `_migrate_fp_product_type` — Bosqich 3, 10-band (2026-09-20) — `finished_products.product_type_id`.
-11. `_migrate_return_order_item` — kech39 (5-bo'lim 3-band) — `return_items.order_item_id`.
-12. `_migrate_qaytarish_orqaga` — kech40 (5-bo'lim 22-band + K40-1) — IDEMPOTENT, PostgreSQL va SQLite.
-13. `_migrate_brak_harakat` — kech45 (13-band, 6-qadam) — IDEMPOTENT, PostgreSQL va SQLite.
-14. `_migrate_harakat_narx` — kech46 (13-band, 2-qadam) — IDEMPOTENT, PostgreSQL va SQLite.
-15. `_migrate_eski_buyurtma_narxi` — kech49 (5-bo'lim 33-band) — IDEMPOTENT, PostgreSQL va SQLite.
-16. `_migrate_eski_brak_narxi` — kech51 (5-bo'lim 37-band) — IDEMPOTENT, PostgreSQL va SQLite.
-17. `_migrate_brak_belgisi` — kech52 (13-band, 3-qadam) — IDEMPOTENT, PostgreSQL va SQLite.
-18. `_migrate_brak_sabab_javobgar` — kech56 (13-band, 7-qadam) — IDEMPOTENT, PostgreSQL va SQLite.
-19. `_migrate_qoplama_retsept` — kech58 (K58-1 / K58-2 / K58-3, 43-band) — IDEMPOTENT, PostgreSQL va SQLite.
-20. `_migrate_tm_birlik_tannarx` — kech59 (47-band, K59-1 / K59-2 / K59-4) — IDEMPOTENT, PostgreSQL va SQLite.
-21. `_migrate_tm_detal_tannarx` — kech103 (5-bo'lim 56-band) — IDEMPOTENT, PostgreSQL va SQLite.
-22. `_migrate_ortiqcha_qaytarish` — kech60 (57-band, K59-3) — IDEMPOTENT, PostgreSQL va SQLite.
-23. `_migrate_buyurtma_raqam_hisoblagich` — kech86 (100-band, QAROR "A" — buyurtma raqami hech qachon qayta berilmaydi) — IDEMPOTENT, PG va SQLite.
-24. `_migrate_kirim_tannarx_manba` — kech87 (104-band) — IDEMPOTENT, PG va SQLite.
-25. `_migrate_kechirilgan_qarz` — kech110 (K110-1, egasi QARORI "Kechirilgan so'mda qolsin") — IDEMPOTENT, PG va SQLite.
-26. `_migrate_platforma_obuna` — kech111 (admin paneli — egasi QARORLARI kech109 / kech110 / kech111) — IDEMPOTENT, PG va SQLite.
-27. `_migrate_yonalishlar` — kech117 (A2 — YO'NALISHLAR BO'YICHA MOLIYA; egasi QARORLARI kech114 00:08) — IDEMPOTENT, PG va SQLite.
-28. `auth.create_default_admin`
-29. `_migrate_rollar` — kech118 (ROLLAR VA RUXSATLAR — egasi QARORI 15:23, tugmali javoblar 15:30) — IDEMPOTENT, PG va SQLite.
-30. `crud.backfill_employee_compensation_history`
-31. `_migrate_loyiha_tolangan_sinxron` — 17c (2026-09-21): `projects.total_paid` ni HAQIQIY to'lovlar bilan bir marta tenglashtiradi.
-32. `app.include_router(production_router)`
-33. `app.include_router(saas_migration_router)`
-34. `app.add_middleware`
-35. `_yuklama_marshrutini_oldinga`
-36. `_scheduler.add_job`
+4. `_korxona_kodlarini_toldir` — kech120 (zip 130 — audit G6-07, O'LCHANGAN): hodim kirishi (`/hodim/login`) ikkinchi korxona paydo bo'lgandan keyin KODNI talab qiladi (`crud.resolve_company_by_code`),…
+5. `_seed_tg_tagline` — 2026-09-21: ustaga salomdagi shior endi sozlama (`tg_welcome_tagline`).
+6. `_migrate_recipe_name_column` — ESKI QOLDIQ TUZATISH: bazada "recipes.name" ustuni, hozir kodda umuman mavjud bo'lmagan "recipetype" maxsus (enum) turi sifatida qolib ketgan edi (eski, allaqachon o'zga…
+7. `_migrate_payment_columns` — Mavjud bazaga to'lov ustunlarini qo'shadi (agar yo'q bo'lsa).
+8. `_migrate_drop_company_id_defaults` — M8/F1 (2026-09-18) — VAQTINCHALIK `DEFAULT 1` ni olib tashlaydi.
+9. `_migrate_faza3_columns` — Faza 3 (2026-09-19) — uchta yangi ustun. Xavfsiz va idempotent.
+10. `_migrate_float_to_numeric` — Bosqich 1 (2026-09-20) — to'rtta pul maydoni `Float` dan `Numeric(12,2)` ga o'tkaziladi.
+11. `_migrate_fp_product_type` — Bosqich 3, 10-band (2026-09-20) — `finished_products.product_type_id`.
+12. `_migrate_return_order_item` — kech39 (5-bo'lim 3-band) — `return_items.order_item_id`.
+13. `_migrate_qaytarish_orqaga` — kech40 (5-bo'lim 22-band + K40-1) — IDEMPOTENT, PostgreSQL va SQLite.
+14. `_migrate_brak_harakat` — kech45 (13-band, 6-qadam) — IDEMPOTENT, PostgreSQL va SQLite.
+15. `_migrate_harakat_narx` — kech46 (13-band, 2-qadam) — IDEMPOTENT, PostgreSQL va SQLite.
+16. `_migrate_eski_buyurtma_narxi` — kech49 (5-bo'lim 33-band) — IDEMPOTENT, PostgreSQL va SQLite.
+17. `_migrate_eski_brak_narxi` — kech51 (5-bo'lim 37-band) — IDEMPOTENT, PostgreSQL va SQLite.
+18. `_migrate_brak_belgisi` — kech52 (13-band, 3-qadam) — IDEMPOTENT, PostgreSQL va SQLite.
+19. `_migrate_brak_sabab_javobgar` — kech56 (13-band, 7-qadam) — IDEMPOTENT, PostgreSQL va SQLite.
+20. `_migrate_qoplama_retsept` — kech58 (K58-1 / K58-2 / K58-3, 43-band) — IDEMPOTENT, PostgreSQL va SQLite.
+21. `_migrate_tm_birlik_tannarx` — kech59 (47-band, K59-1 / K59-2 / K59-4) — IDEMPOTENT, PostgreSQL va SQLite.
+22. `_migrate_tm_detal_tannarx` — kech103 (5-bo'lim 56-band) — IDEMPOTENT, PostgreSQL va SQLite.
+23. `_migrate_ortiqcha_qaytarish` — kech60 (57-band, K59-3) — IDEMPOTENT, PostgreSQL va SQLite.
+24. `_migrate_buyurtma_raqam_hisoblagich` — kech86 (100-band, QAROR "A" — buyurtma raqami hech qachon qayta berilmaydi) — IDEMPOTENT, PG va SQLite.
+25. `_migrate_kirim_tannarx_manba` — kech87 (104-band) — IDEMPOTENT, PG va SQLite.
+26. `_migrate_kechirilgan_qarz` — kech110 (K110-1, egasi QARORI "Kechirilgan so'mda qolsin") — IDEMPOTENT, PG va SQLite.
+27. `_migrate_platforma_obuna` — kech111 (admin paneli — egasi QARORLARI kech109 / kech110 / kech111) — IDEMPOTENT, PG va SQLite.
+28. `_migrate_yonalishlar` — kech117 (A2 — YO'NALISHLAR BO'YICHA MOLIYA; egasi QARORLARI kech114 00:08) — IDEMPOTENT, PG va SQLite.
+29. `auth.create_default_admin`
+30. `_migrate_rollar` — kech118 (ROLLAR VA RUXSATLAR — egasi QARORI 15:23, tugmali javoblar 15:30) — IDEMPOTENT, PG va SQLite.
+31. `crud.backfill_employee_compensation_history`
+32. `_migrate_loyiha_tolangan_sinxron` — 17c (2026-09-21): `projects.total_paid` ni HAQIQIY to'lovlar bilan bir marta tenglashtiradi.
+33. `app.include_router(production_router)`
+34. `app.include_router(saas_migration_router)`
+35. `app.add_middleware`
+36. `_yuklama_marshrutini_oldinga`
 37. `_scheduler.add_job`
-38. `_scheduler.start`
+38. `_scheduler.add_job`
+39. `_scheduler.start`
 <!-- AVTO:ISHGA_TUSHISH OXIRI -->
 
 ### 9.3 Sahifalar: URL → handler → shablon → API
@@ -1783,7 +1889,7 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 ### `GET /kpi` → `main.py:kpi_page` → `templates/kpi.html`
 - Qorovul: auth.ruxsat('kpi', 'korish')
 - Server chaqiruvlari: auth.ruxsat
-- `kpi.html` API: `/api/employees`, `/api/employees/advance/{}`, `/api/employees/{}`, `/api/employees/{}/advance`, `/api/employees/{}/advances`, `/api/employees/{}/compensation-history`, `/api/employees/{}/monthly-adjustment`, `/api/employees/{}/set-login`, `/api/finance/report`, `/api/gift-period`, `/api/gift-period/add-master`, `/api/gift-period/close`, `/api/gift-period/open`, `/api/gift-period/redeem/{}/{}`, `/api/gift-period/tier/{}`, `/api/masters`, `/api/masters/kpi-report`, `/api/masters/{}`, `/api/masters/{}/kpi`, `/api/masters/{}/kpi-detail`, `/api/settings/ehson-percent`
+- `kpi.html` API: `/api/employees`, `/api/employees/advance/{}`, `/api/employees/{}`, `/api/employees/{}/advance`, `/api/employees/{}/advances`, `/api/employees/{}/compensation-history`, `/api/employees/{}/monthly-adjustment`, `/api/employees/{}/set-login`, `/api/finance/report`, `/api/gift-period`, `/api/gift-period/add-master`, `/api/gift-period/close`, `/api/gift-period/open`, `/api/gift-period/redeem/{}/{}`, `/api/gift-period/tier/{}`, `/api/masters`, `/api/masters/kpi-report`, `/api/masters/{}`, `/api/masters/{}/kpi`, `/api/masters/{}/kpi-detail`, `/api/settings/company`, `/api/settings/ehson-percent`
 
 ### `GET /kunlik-xarajat` → `main.py:kunlik_xarajat_page` → `templates/kunlik_xarajat.html`
 - Qorovul: auth.ruxsat_biri(('kunlik', 'korish'), ('kunlik', 'yaratish'))
@@ -1835,8 +1941,8 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 
 ### `GET /returns` → `main.py:returns_page` → `templates/returns.html`
 - Qorovul: auth.ruxsat('qaytarish', 'korish')
-- Server chaqiruvlari: auth.company_id_of, auth.ruxsat, crud.get_employees, crud.get_orders_for_main_page, crud.get_projects, crud.get_return_items_for_main_page, crud.hodim_nomlari
-- `returns.html` API: `/api/orders/{}`, `/api/reports/brak-materials`, `/api/reports/brak-tahlil`, `/api/returns`, `/api/returns/stats`, `/api/returns/{}`, `/api/returns/{}/image`, `/api/returns/{}/refund`
+- Server chaqiruvlari: auth.company_id_of, auth.ruxsat, crud.get_employees, crud.get_return_items_for_main_page, crud.hodim_nomlari
+- `returns.html` API: `/api/orders/{}`, `/api/reports/brak-materials`, `/api/reports/brak-tahlil`, `/api/returns`, `/api/returns/stats`, `/api/returns/{}`, `/api/returns/{}/image`, `/api/returns/{}/refund`, `/api/tanlov/buyurtmalar`
 
 ### `GET /rollar` → `main.py:rollar_page` → `templates/rollar.html`
 - Qorovul: auth.admin_only
@@ -1860,7 +1966,10 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 ### `GET /users` → `main.py:users_page` → `templates/users.html`
 - Qorovul: auth.admin_only
 - Server chaqiruvlari: auth.company_id_of, auth.get_all_users, auth.tayyor_rollar
-- `users.html` API: `/api/system/factory-reset`, `/api/system/telegram-delete-webhook`, `/api/system/telegram-setup-webhook-security`, `/api/users`, `/api/users/{}/password`, `/api/users/{}/rol`, `/api/users/{}/toggle`
+- `users.html` API: `/api/hodim-qr.svg`, `/api/settings/company`, `/api/system/factory-reset`, `/api/system/telegram-delete-webhook`, `/api/system/telegram-setup-webhook-security`, `/api/users`, `/api/users/{}/password`, `/api/users/{}/rol`, `/api/users/{}/toggle`
+
+### `GET /users/hodim-qr` → `main.py:hodim_qr_page` → `templates/hodim_qr.html`
+- Qorovul: auth.require_login
 
 ### `GET /ustalar` → `main.py:masters_manage_page` → `templates/masters_manage.html`
 - Qorovul: auth.ruxsat('usta', 'korish')
@@ -1979,6 +2088,9 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `GET /api/hodim/my-requests` → `main.py:api_hodim_my_requests` · 🔒 auth.require_employee_login · crud.get_employee_own_requests
 - `GET /api/hodim/oylik` → `main.py:api_hodim_oylik` · 🔒 auth.require_employee_login · services.hodim_oylik_xulosa
 
+#### `/api/hodim-qr.svg` (1)
+- `GET /api/hodim-qr.svg` → `main.py:api_hodim_qr_svg` · 🔒 auth.require_login
+
 #### `/api/inventory` (23)
 - `GET /api/inventory` → `main.py:api_get_inventory` · 🔒 auth.ruxsat('material', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_inventory
 - `POST /api/inventory` → `main.py:api_create_item` · 🔒 auth.ruxsat('material', 'yaratish') · auth.company_id_of, auth.ruxsat, crud._clean_create, crud.add_item
@@ -2078,7 +2190,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 
 #### `/api/platform` (9)
 - `GET /api/platform/companies` → `main.py:api_platform_companies` · 🔒 auth.platform_admin_only
-- `POST /api/platform/companies` → `main.py:api_platform_create_company` · 🔒 auth.platform_admin_only · auth.create_user, crud.set_setting, crud.standart_yonalish
+- `POST /api/platform/companies` → `main.py:api_platform_create_company` · 🔒 auth.platform_admin_only · auth.create_user, crud.korxona_kodi_yarat, crud.set_setting, crud.standart_yonalish
 - `POST /api/platform/companies/{company_id}/block` → `main.py:api_platform_block_company` · 🔒 auth.platform_admin_only
 - `POST /api/platform/companies/{company_id}/extend` → `main.py:api_platform_extend_company` · 🔒 auth.platform_admin_only
 - `POST /api/platform/companies/{company_id}/reset-admin-password` → `main.py:api_platform_reset_admin_password` · 🔒 auth.platform_admin_only · auth.hash_password, crud.log_activity
@@ -2194,6 +2306,10 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `POST /api/system/telegram-delete-webhook` → `main.py:api_telegram_delete_webhook` · 🔒 auth.platform_admin_only
 - `POST /api/system/telegram-setup-webhook-security` → `main.py:api_telegram_setup_webhook_security` · 🔒 auth.platform_admin_only
 
+#### `/api/tanlov` (2)
+- `GET /api/tanlov/buyurtmalar` → `main.py:api_tanlov_buyurtmalar` · 🔒 auth.ruxsat('qaytarish', 'yaratish') · auth.company_id_of, auth.ruxsat
+- `GET /api/tanlov/loyihalar` → `main.py:api_tanlov_loyihalar` · 🔒 auth.ruxsat('qaytarish', 'yaratish') · auth.company_id_of, auth.ruxsat
+
 #### `/api/transport-expenses` (3)
 - `GET /api/transport-expenses` → `main.py:api_get_transport` · 🔒 auth.ruxsat('yetkazish', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_transport_expenses
 - `POST /api/transport-expenses` → `main.py:api_create_transport` · 🔒 auth.ruxsat('yetkazish', 'yaratish') · auth.company_id_of, auth.ruxsat, crud._clean_val, crud.create_transport_expense
@@ -2276,7 +2392,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `GET /reports` → `main.py:reports_page` · 🔒 auth.ruxsat('hisobot', 'korish') · auth.ruxsat
 
 #### `/returns` (1)
-- `GET /returns` → `main.py:returns_page` · 🔒 auth.ruxsat('qaytarish', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_employees, crud.get_orders_for_main_page, crud.get_projects, crud.get_return_items_for_main_page, crud.hodim_nomlari
+- `GET /returns` → `main.py:returns_page` · 🔒 auth.ruxsat('qaytarish', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_employees, crud.get_return_items_for_main_page, crud.hodim_nomlari
 
 #### `/rollar` (1)
 - `GET /rollar` → `main.py:rollar_page` · 🔒 auth.admin_only
@@ -2306,13 +2422,14 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 #### `/trash` (1)
 - `GET /trash` → `main.py:trash_page` · 🔒 auth.ruxsat('savat', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_activity_log, crud.get_deleted_employees, crud.get_deleted_orders, crud.get_deleted_projects
 
-#### `/users` (1)
+#### `/users` (2)
 - `GET /users` → `main.py:users_page` · 🔒 auth.admin_only · auth.company_id_of, auth.get_all_users, auth.tayyor_rollar
+- `GET /users/hodim-qr` → `main.py:hodim_qr_page` · 🔒 auth.require_login
 
 #### `/ustalar` (1)
 - `GET /ustalar` → `main.py:masters_manage_page` · 🔒 auth.ruxsat('usta', 'korish') · auth.ruxsat
 
-Jami marshrutlar: 303 (main.py: 275, production_routes.py: 20, saas_migration.py: 8).
+Jami marshrutlar: 307 (main.py: 279, production_routes.py: 20, saas_migration.py: 8).
 <!-- AVTO:API OXIRI -->
 
 ### 9.5 Jadvallar
@@ -2418,7 +2535,10 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_detal_poyga.py` · PG — 5-bo'lim 14-band darvozasi (kech41, 2026-09-23): detal tahriri / o'chirish / "Tayyor" va yetkazish orasidagi poygalar.
 - `test_dizayn114_ui.py` · PG — kech114: dizayn 5–10 (egasi QARORLARI «7A — Guruh, bosilsa ochiladi», «5B — Jadval», «6A — Bir qator + tugmalar»; 9 / 10 — texnik) va K114-1 ning sahifadagi qismi — HAQIQIY sah…
 - `test_donalik_hajm_snapshot.py` · PG — kech96 (2026-09-27), 126-band.
+- `test_e_hodim_kod.py` · PG — kech120, E BOSQICH 5-qism (HODIM KIRISHI: korxona kodi va QR, audit G6-07).
+- `test_e_rasm.py` · PG — kech120, E BOSQICH 6-qism (RASMLAR: kichraytirish va kichik nusxa, audit G5-16 ikkinchi qismi; uzun ro'yxat animatsiyasi).
 - `test_e_royxat.py` · PG — kech120, E BOSQICH 2-qism (KATTA RO'YXATLAR — topish): Bosh sahifa «Bugungi vazifalar», Buyurtmalar ro'yxati (holat filtri, keng qidiruv, shoshilinchlar tepada, qayta yuklanganda t…
+- `test_e_tanlov.py` · PG — kech120, E BOSQICH 4-qism (TANLAGICHLAR): qidiruvli tanlagich (`static/tanlov.js`) — Kirim formasi (ta'minotchi, material), «Yangi qaytarish» (buyurtma), «Brak yozish» (loyiha, tay…
 - `test_e_tarix.py` · PG — kech120, E BOSQICH 3-qism (TARIX VA JURNALLAR): «Tizim jurnallari» (Kirish tarixi, Audit jurnali) — filtr, sahifalash, hamma amal o'zbekcha, tahrir yozuvida nima o'zgargani; Ombor —…
 - `test_e_tezlik.py` · PG — kech120, E BOSQICH 1-qism (TEZLIK): hisobotlar so'rovlar ORASIDA eslab qolinadi (yozuv bo'lsa darhol eskiradi), sahifa bir ochilishida bir xil so'rov bir marta, Bosh sahifa faqat 5…
 - `test_eski_brak_muzlash.py` · PG — 37-band darvozasi (kech51, 2026-09-24).
@@ -2575,5 +2695,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 189 (Python 154, JS 35).
+Jami test fayllari: 192 (Python 157, JS 35).
 <!-- AVTO:TESTLAR OXIRI -->

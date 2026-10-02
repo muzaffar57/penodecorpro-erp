@@ -471,6 +471,33 @@ def _seed_default_company():
 _seed_default_company()
 
 
+def _korxona_kodlarini_toldir():
+    """kech120 (zip 130 — audit G6-07, O'LCHANGAN): hodim kirishi (`/hodim/login`) ikkinchi korxona paydo bo'lgandan keyin KODNI
+    talab qiladi (`crud.resolve_company_by_code`), lekin birinchi korxona (id=1 — `_seed_default_company`) kodsiz yaratilgan —
+    uning hodimlari umuman kira olmasdi (kod yo'q, kiritadigan narsa yo'q). Ishga tushishda kodsiz HAR korxonaga kod beriladi
+    (nomdan — platformadagi bilan bitta qoida). Kodi bor korxonaga TEGILMAYDI. Xatoni yutadi (ilovaning qolgani ishlaydi)."""
+    try:
+        from database import SessionLocal as _SL
+        from production_models import Company as _Co
+        import tenant_context as _tc
+        _d = _SL()
+        try:
+            with _tc.system_context(_d):
+                _kodsiz = _d.query(_Co).filter((_Co.code.is_(None)) | (_Co.code == "")).order_by(_Co.id).all()
+            for _c in _kodsiz:
+                _c.code = crud.korxona_kodi_yarat(_d, _c.name)
+                _d.flush()
+                print(f"✓ Korxona #{_c.id} ga kod berildi: {_c.code}")
+            _d.commit()
+        finally:
+            _d.close()
+    except Exception as e:
+        print(f"⚠️ Korxona kodlarini to'ldirishda xato (o'tkazib yuborildi): {e}")
+
+
+_korxona_kodlarini_toldir()
+
+
 def _seed_tg_tagline():
     """2026-09-21: ustaga salomdagi shior endi sozlama (`tg_welcome_tagline`).
 
@@ -3242,7 +3269,7 @@ def _son_filtri(qiymat, kasr=2):
 
 
 templates.env.filters["son"] = _son_filtri
-templates.env.globals["static_version"] = "20261001-3"   # kech119 (zip 126 — C, telefon): style.css (telefon qoidalari); zip 123 — ranglar.css (eskirgan rang olib tashlandi); zip 122 — ranglar.css va style.css (tungi rejim) — kesh yangilansin
+templates.env.globals["static_version"] = "20261001-4"   # kech120 (zip 130): style.css (qidiruvli tanlagich), static/tanlov.js; kech119 (zip 126 — C, telefon): style.css (telefon qoidalari); zip 123 — ranglar.css (eskirgan rang olib tashlandi); zip 122 — ranglar.css va style.css (tungi rejim) — kesh yangilansin
 
 
 def _toshkent_filtr(qiymat, fmt="%d.%m.%Y %H:%M"):
@@ -3259,6 +3286,19 @@ templates.env.filters["toshkent"] = _toshkent_filtr
 # kech118 (ROLLAR 2-qism): hodim oyligi izohidagi foyda summasi — «Tannarx va foyda» ruxsati yo'qqa «—» (`ruxsatlar`)
 import ruxsatlar as _rx118f                             # noqa: E402
 templates.env.filters["foyda_yashir"] = _rx118f.foyda_matni_yashir
+
+
+def kichik_rasm_manzili(url):
+    """kech120 (zip 130 — G5-16): ro'yxat katagidagi rasm uchun KICHIK NUSXA manzili (`?o=k`) — faqat yuklangan rasm
+    (`/static/uploads/…` + rasm kengaytmasi). Boshqa manzil — o'zgarmaydi. JS tomonida xuddi shu qoida — `kichikRasm` (base.html)."""
+    if not url or not isinstance(url, str):
+        return url or ""
+    if url.startswith("/static/uploads/") and "?" not in url and os.path.splitext(url)[1].lower() in (".jpg", ".jpeg", ".png", ".webp"):
+        return url + "?o=k"
+    return url
+
+
+templates.env.filters["kichik_rasm"] = kichik_rasm_manzili
 
 import os
 static_dir = os.path.join(os.path.dirname(__file__), "static")
@@ -3374,7 +3414,7 @@ def yuklama_korxonanikimi(db, papka, fayl, company_id):
 
 
 @app.get("/static/uploads/{papka}/{fayl}")
-def yuklangan_fayl(papka: str, fayl: str, request: Request, db: Session = Depends(get_db)):
+def yuklangan_fayl(papka: str, fayl: str, request: Request, o: Optional[str] = None, db: Session = Depends(get_db)):
     from fastapi.responses import FileResponse as _FileResp
     import mimetypes as _mt
     user = auth.get_current_user(request, db)          # bloklangan korxona — 403 belgi bilan (kirish sahifasiga)
@@ -3388,6 +3428,13 @@ def yuklangan_fayl(papka: str, fayl: str, request: Request, db: Session = Depend
         raise HTTPException(status_code=404, detail="Fayl topilmadi")
     if not yuklama_korxonanikimi(db, papka, fayl, auth.company_id_of(user)):
         raise HTTPException(status_code=404, detail="Fayl topilmadi")
+    # kech120 (zip 130 — G5-16): `?o=k` — ro'yxat uchun KICHIK NUSXA (ruxsat tekshiruvi yuqorida — asl fayl bilan bir xil).
+    # Logotip (nomi doimiy) va rasm bo'lmagan fayl — asl fayl; nusxani yasab bo'lmasa ham — asl fayl.
+    if o == "k" and papka != "logos" and papka != RASM_KICHIK_PAPKA:
+        kichik = kichik_nusxa_yarat(yol, papka)
+        if kichik:
+            yol = kichik
+            fayl = os.path.basename(kichik)
     turi = _mt.guess_type(fayl)[0] or "application/octet-stream"
     # Tasodifiy (uuid) nomli fayl o'zgarmaydi — brauzer bir kun saqlaydi; logotip nomi doimiy — har safar tekshiradi.
     kesh = "private, no-cache" if papka == "logos" else "private, max-age=86400"
@@ -4898,8 +4945,68 @@ def api_set_employee_login(emp_id: int, phone: str = Form(...), pin: str = Form(
 # XODIM PANELI — telefon+PIN bilan kirish, avans yozish
 # ============================================================
 
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# kech120 (zip 130 — audit G6-07): HODIM KIRISHI — korxona kodi va QR. O'LCHANGAN (audit kech114): admin o'z korxona kodini
+# dasturda hech qayerda ko'rmasdi (faqat platforma yaratishda bir marta); QR — begona QR xizmati saytidan rasm (sinovda
+# chiqmadi) va faqat «/hodim» (kodsiz); «Chop etish» butun sahifani (menyu, loginlar) chop etardi.
+# Endi QR SERVERDA (reportlab — mavjud kutubxona, yangi o'rnatish yo'q), ichida `…/hodim?k=KOD`; kirish sahifasi kodni o'zi
+# to'ldiradi; chop etish — alohida sahifa (`/users/hodim-qr`): faqat QR, kod va qisqa yo'riqnoma.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+import re as _re_hodim                     # noqa: E402
+_HODIM_MANZIL_RE = _re_hodim.compile(r"^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?$")
+
+
+def _qr_svg(matn: str, olcham: int = 220) -> str:
+    """QR kod — ixcham SVG (bitta `path`, atrofida 4 modul bo'sh joy), xato tuzatish darajasi M."""
+    from reportlab.graphics.barcode import qrencoder as _qe
+    _q = _qe.QRCode(None, _qe.QRErrorCorrectLevel.M)
+    _q.addData(matn)
+    _q.make()
+    _n = _q.getModuleCount()
+    _yol = "".join(f"M{c + 4},{r + 4}h1v1h-1z" for r in range(_n) for c in range(_n) if _q.isDark(r, c))
+    _m = _n + 8
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{olcham}" height="{olcham}" viewBox="0 0 {_m} {_m}" '
+            f'shape-rendering="crispEdges" role="img" aria-label="QR kod"><rect width="{_m}" height="{_m}" fill="#fff"/>'
+            f'<path fill="#000" d="{_yol}"/></svg>')
+
+
+def _hodim_kirish_manzili(request: Request, manzil: str, kod: str) -> str:
+    """`…/hodim?k=KOD` — sayt manzili brauzerdan (`location.origin`; faqat sxema + xost + port qabul qilinadi), bo'lmasa —
+    so'rovning o'zidan."""
+    from urllib.parse import quote as _q
+    _m = (manzil or "").strip().rstrip("/")
+    if not _HODIM_MANZIL_RE.fullmatch(_m):
+        _m = str(request.base_url).rstrip("/")
+    return f"{_m}/hodim" + (f"?k={_q(kod)}" if kod else "")
+
+
+def _joriy_korxona_kodi(db: Session, current_user) -> tuple:
+    from production_models import Company as _Co
+    _c = db.query(_Co).filter(_Co.id == auth.company_id_of(current_user)).first()
+    return (_c.code if _c else None) or "", (_c.name if _c else "") or ""
+
+
+@app.get("/api/hodim-qr.svg")
+def api_hodim_qr_svg(request: Request, manzil: str = "", db: Session = Depends(get_db),
+                     current_user=Depends(auth.require_login)):
+    """Hodim paneliga kirish QR kodi (SVG) — ichida shu korxona kodi bilan manzil."""
+    _kod, _ = _joriy_korxona_kodi(db, current_user)
+    return Response(content=_qr_svg(_hodim_kirish_manzili(request, manzil, _kod)), media_type="image/svg+xml",
+                    headers={"Cache-Control": "no-store"})
+
+
+@app.get("/users/hodim-qr", response_class=HTMLResponse)
+def hodim_qr_page(request: Request, manzil: str = "", db: Session = Depends(get_db),
+                  current_user=Depends(auth.require_login)):
+    """Chop etish uchun sahifa — FAQAT QR, korxona nomi va kodi, qisqa yo'riqnoma (menyu, ro'yxatlarsiz)."""
+    _kod, _nom = _joriy_korxona_kodi(db, current_user)
+    _url = _hodim_kirish_manzili(request, manzil, _kod)
+    return templates.TemplateResponse(request, "hodim_qr.html", {
+        "qr_svg": _qr_svg(_url, 260), "manzil": _url, "kod": _kod, "korxona": _nom})
+
+
 @app.get("/hodim/login", response_class=HTMLResponse)
-async def hodim_login_page(request: Request, b: str = "", db: Session = Depends(get_db)):
+async def hodim_login_page(request: Request, b: str = "", k: str = "", db: Session = Depends(get_db)):
     try:
         emp = auth.get_current_employee(request, db)
     except HTTPException as _e:
@@ -4911,8 +5018,9 @@ async def hodim_login_page(request: Request, b: str = "", db: Session = Depends(
         return _r
     if emp:
         return RedirectResponse("/hodim", status_code=302)
+    # kech120 (zip 130 — G6-07): QR / havoladagi korxona kodi (`?k=KOD`) — maydonga o'zi yoziladi (faqat matn, 30 belgigacha)
     return templates.TemplateResponse(request, "hodim_login.html", {
-        "error": None, "bloklangan": _blok_sahifa_xabari(db, b)})
+        "error": None, "bloklangan": _blok_sahifa_xabari(db, b), "kod": (k or "").strip()[:30]})
 
 
 @app.post("/hodim/login")
@@ -4924,7 +5032,8 @@ async def hodim_login_submit(request: Request, phone: str = Form(...), pin: str 
     rl = crud.check_login_rate_limit(db, phone, ip)
     if rl["blocked"]:
         return templates.TemplateResponse(request, "hodim_login.html", {
-            "error": f"Juda ko'p noto'g'ri urinish. {rl['retry_after_minutes']} daqiqadan so'ng qayta urining."
+            "error": f"Juda ko'p noto'g'ri urinish. {rl['retry_after_minutes']} daqiqadan so'ng qayta urining.",
+            "kod": (korxona or "").strip()[:30]
         })
 
     # M1 (CRITICAL): korxona kontekstisiz kirishga yo'l yo'q.
@@ -4934,13 +5043,14 @@ async def hodim_login_submit(request: Request, phone: str = Form(...), pin: str 
     if not _korxona:
         crud.log_login_attempt(db, phone, success=False, ip_address=ip, user_agent=ua)
         return templates.TemplateResponse(request, "hodim_login.html", {
-            "error": "Korxona kodi topilmadi. Kodni administratordan so'rang."
+            "error": "Korxona kodi topilmadi. Kodni administratordan so'rang.", "kod": (korxona or "").strip()[:30]
         })
 
     emp = crud.authenticate_employee(db, phone, pin, company_id=_korxona.id)
     if not emp:
         crud.log_login_attempt(db, phone, success=False, ip_address=ip, user_agent=ua)
-        return templates.TemplateResponse(request, "hodim_login.html", {"error": "Telefon yoki PIN noto'g'ri!"})
+        return templates.TemplateResponse(request, "hodim_login.html", {"error": "Telefon yoki PIN noto'g'ri!",
+                                                                         "kod": (korxona or "").strip()[:30]})
 
     # kech111 — korxonasi bloklangan: to'g'ri PIN bilan ham kirilmaydi (login_submit bilan bir xil qoida)
     try:
@@ -4972,7 +5082,10 @@ async def hodim_logout(request: Request, db: Session = Depends(get_db)):
 async def hodim_panel(request: Request, db: Session = Depends(get_db)):
     emp = auth.get_current_employee(request, db)
     if not emp:
-        return RedirectResponse("/hodim/login", status_code=302)
+        # kech120 (zip 130 — G6-07): QR dagi `?k=KOD` kirish sahifasiga o'tadi
+        _k = (request.query_params.get("k") or "").strip()[:30]
+        from urllib.parse import quote as _q131
+        return RedirectResponse("/hodim/login" + (f"?k={_q131(_k)}" if _k else ""), status_code=302)
     return templates.TemplateResponse(request, "hodim_panel.html", {"employee": emp})
 
 
@@ -7293,11 +7406,12 @@ async def health():
 @app.get("/returns", response_class=HTMLResponse)
 async def returns_page(request: Request, show_all: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("qaytarish", "korish"))):
     returns = crud.get_return_items_for_main_page(db, days=90, show_all=show_all, company_id=auth.company_id_of(current_user))
-    orders  = crud.get_orders_for_main_page(db, days=90, show_all=True,
-                                            company_id=auth.company_id_of(current_user))
-    projects = crud.get_projects(db, company_id=auth.company_id_of(current_user))
+    # kech120 (zip 130 — G5-19, O'LCHANGAN — audit kech114: 300 buyurtmali korxonada «Yangi qaytarish» oynasiga HAMMA
+    # buyurtma, «Brak yozish» ga hamma loyiha sahifa bilan birga chizilardi — qaytarish 0 ta bo'lsa ham DOM 708 element,
+    # qidiruvsiz): buyurtma va loyiha ro'yxati sahifaga YOZILMAYDI — oyna ochilganda `/api/tanlov/buyurtmalar` /
+    # `/api/tanlov/loyihalar` dan qidiruvli tanlagichga yuklanadi. `projects` — faqat «Brak yozish» (A) bo'limi belgisi.
     return templates.TemplateResponse(request, "returns.html", {
-        "returns": returns, "orders": orders, "projects": projects,
+        "returns": returns, "projects": [],
         "brak_bosqichlari": crud.BRAK_BOSQICHLARI,   # kech53 (13-band, 1-qadam)
         # kech56 (13-band, 7-qadam): sabab ro'yxati, javobgar tanlovi (faol hodimlar),
         # ro'yxatdagi javobgar yorlig'i (o'chirilganlar ham)
@@ -7307,6 +7421,38 @@ async def returns_page(request: Request, show_all: bool = False, db: Session = D
         "hodim_nomlari": crud.hodim_nomlari(db, company_id=auth.company_id_of(current_user)),
         "current_user": current_user, "show_all": show_all
     })
+
+
+# kech120 (zip 130 — G5-19): qidiruvli tanlagich ro'yxatlari — oyna ochilganda yuklanadi (sahifaga yozilmaydi).
+TANLOV_BUYURTMA_HOLAT = {"new": "yangi", "in_progress": "jarayonda", "coating": "qoplamada", "ready": "tayyor",
+                         "delivered": "yetkazilgan"}
+
+
+@app.get("/api/tanlov/buyurtmalar")
+def api_tanlov_buyurtmalar(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("qaytarish", "yaratish"))):
+    """«Yangi qaytarish» oynasi uchun buyurtmalar: FAQAT shu korxona, o'chirilmagan, qoralama / bekor qilingan emas
+    (qaytarish — ishlangan / yetkazilgan buyurtmaga); yangisi tepada. Har qator: raqam, mijoz, loyiha, telefon, holat."""
+    from models import Order as _O, Project as _P, OrderStatus as _OS
+    _cid = auth.company_id_of(current_user)
+    rows = db.query(_O.id, _O.order_number, _O.status, _P.client_name, _P.project_name, _P.client_phone) \
+        .outerjoin(_P, (_P.id == _O.project_id) & (_P.company_id == _O.company_id)) \
+        .filter(_O.company_id == _cid, _O.is_deleted.isnot(True), _O.status.notin_([_OS.DRAFT, _OS.CANCELLED])) \
+        .order_by(_O.created_at.desc(), _O.id.desc()).all()
+    return [{"id": r[0], "raqam": r[1], "holat": TANLOV_BUYURTMA_HOLAT.get(getattr(r[2], "value", r[2]), ""),
+             "mijoz": r[3] or "", "loyiha": r[4] or "", "telefon": r[5] or ""} for r in rows]
+
+
+@app.get("/api/tanlov/loyihalar")
+def api_tanlov_loyihalar(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("qaytarish", "yaratish"))):
+    """«Brak yozish» (buyurtma detali) uchun loyihalar: FAQAT shu korxona, o'chirilmagan, ichida qoralama / bekor qilingan EMAS
+    (o'chirilmagan) buyurtmasi bor loyihalar; yangisi (id) tepada."""
+    from models import Order as _O, Project as _P, OrderStatus as _OS
+    _cid = auth.company_id_of(current_user)
+    _bor = db.query(_O.project_id).filter(_O.company_id == _cid, _O.is_deleted.isnot(True),
+                                          _O.status.notin_([_OS.DRAFT, _OS.CANCELLED])).distinct()
+    rows = db.query(_P.id, _P.project_name, _P.client_name, _P.client_phone) \
+        .filter(_P.company_id == _cid, _P.is_deleted.isnot(True), _P.id.in_(_bor)).order_by(_P.id.desc()).all()
+    return [{"id": r[0], "loyiha": r[1] or "", "mijoz": r[2] or "", "telefon": r[3] or ""} for r in rows]
 
 
 @app.get("/api/projects/{project_id}/items")
@@ -8133,13 +8279,9 @@ def api_platform_create_company(name: str = Form(...), admin_username: str = For
     if band:
         raise HTTPException(status_code=400, detail="Bu login band")
 
-    # Korxona kodi — nomdan, band bo'lsa raqam qo'shiladi
-    asos = _re_co.sub(r"[^A-Z0-9]+", "-", nom.upper()).strip("-")[:24] or "KORXONA"
-    kod, i = asos, 1
-    with _tc.system_context(db):
-        while db.query(_Co).filter(_Co.code == kod).first():
-            i += 1
-            kod = f"{asos[:20]}-{i}"
+    # Korxona kodi — nomdan, band bo'lsa raqam qo'shiladi (kech120, zip 130: qoida `crud.korxona_kodi_yarat` da — kodsiz
+    # korxonalarni to'ldirish ham shu)
+    kod = crud.korxona_kodi_yarat(db, nom)
 
     # Tasodifiy parol — o'qish oson bo'lishi uchun chalkash belgilarsiz
     alifbo = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789"
@@ -8753,6 +8895,11 @@ def api_get_finished(source: Optional[str] = None, only_available: bool = False,
     # kech118 (D-1, G5-11 — egasi QARORI): «Kam» chegarasi — egasi yozgani (mahsulot kaliti bo'yicha, BITTA so'rov); yo'q — null
     from models import TmKamChegara as _TKC, tm_kam_kaliti as _tkk
     _chegaralar = {k: c for k, c in db.query(_TKC.mahsulot_kaliti, _TKC.chegara).filter(_TKC.company_id == _cid).all()}
+    # kech120 (zip 130 — G5-10): mahsulot turi NOMI — sahifadagi kategoriya tugmalari korxonaning o'z turlaridan (BITTA so'rov)
+    from production_models import ProductType as _PT130
+    _pt_ids = {fp.product_type_id for fp in items if fp.product_type_id}
+    _tur_nomlari = {r[0]: r[1] for r in db.query(_PT130.id, _PT130.name).filter(
+        _PT130.company_id == _cid, _PT130.id.in_(_pt_ids)).all()} if _pt_ids else {}
     return [{
         "id": fp.id,
         "name": fp.name,
@@ -8761,6 +8908,7 @@ def api_get_finished(source: Optional[str] = None, only_available: bool = False,
         # Bosqich 3, 10-band — tayyor mahsulotning mahsulot TURI.
         # Eski turkumlarda NULL (hali `ProductType` yozuvi yo'q).
         "product_type_id": fp.product_type_id,
+        "product_type_name": _tur_nomlari.get(fp.product_type_id) if fp.product_type_id else None,
         "width": fp.width,
         "thickness": fp.thickness,
         "is_coated": fp.is_coated,
@@ -9477,6 +9625,147 @@ ALLOWED_FILE_EXT = ALLOWED_IMAGE_EXT | {".pdf"} | ALLOWED_DESIGN_EXT
 MAX_UPLOAD_SIZE = 25 * 1024 * 1024  # 25 MB (chizma fayllar rasm/PDF'dan ancha katta bo'lishi mumkin)
 
 
+# ============================================================
+# kech120 (zip 130 — E bosqichi 6-qism, audit G5-16 ikkinchi qismi): RASMLARNI KICHRAYTIRISH VA KICHIK NUSXA.
+# ============================================================
+# O'LCHANGAN (audit kech114): telefon kamerasi rasmi (4000 × 3000, 3–6 MB) o'zgartirilmasdan 25 MB gacha saqlanardi va ro'yxatdagi
+# 40–70 px katakda ham TO'LIQ yuklanardi — mahsulot / material ko'paysa sahifa telefonda sekinlashadi. Endi:
+#  (1) faqat-rasm yuklamalarida (detal, material, retsept, tayyor mahsulot, loyiha, qaytarish — `ALLOWED_IMAGE_EXT`) katta tomoni
+#      `RASM_KATTA_TOMON` dan oshsa — kichraytiriladi; telefonning burilish belgisi (EXIF) qo'llanadi; qayta yozilganda EXIF
+#      (joylashuv — GPS ham) saqlanmaydi. Kichraytirish kerak bo'lmasa va burilish yo'q bo'lsa — fayl ASLICHA qoladi.
+#      Buyurtma ilovalari (chizma, PDF, rasm-hujjat) — ASLICHA (hujjat sifatida yuklab olinadi).
+#  (2) ro'yxatlar uchun KICHIK NUSXA (`?o=k`, katta tomoni `RASM_KICHIK_TOMON`) — yuklashda yasaladi, eski rasmlar uchun birinchi
+#      so'rovda; `uploads/_kichik/<papka>/` da (himoyalangan marshrut orqali, asl fayl bilan bir xil ruxsat tekshiruvi).
+#  Pillow (`reportlab` bog'liqligi — requirements orqali o'rnatiladi) bo'lmasa yoki rasm o'qilmasa — xatti-harakat avvalgidek
+#  (asl fayl saqlanadi / beriladi). Animatsiyali rasm kichraytirilmaydi (harakat yo'qolmasin).
+RASM_KATTA_TOMON = 1920          # piksel — ko'ruvchi oyna (90vw × 90vh) Full HD ekranda ham to'liq
+RASM_KICHIK_TOMON = 360          # piksel — ro'yxat katagi 40–70 px, telefon zichligi 3× → 210 px (+ «cover» zaxirasi)
+RASM_SIFAT = 85
+RASM_KICHIK_SIFAT = 80
+RASM_PIKSEL_CHEGARA = 60_000_000  # bundan katta rasm (piksel) — ishlov berilmaydi (xotira himoyasi)
+RASM_KICHIK_PAPKA = "_kichik"
+_RASM_FORMATI = {".jpg": "JPEG", ".jpeg": "JPEG", ".png": "PNG", ".webp": "WEBP"}
+
+
+def _pillow():
+    try:
+        from PIL import Image as _Im, ImageOps as _ImOps
+        return _Im, _ImOps
+    except Exception:
+        return None, None
+
+
+def _rasm_shaffofmi(im) -> bool:
+    if im.mode in ("RGBA", "LA", "PA"):
+        return True
+    return im.mode == "P" and "transparency" in im.info
+
+
+def _rasm_bayt(im, format_nomi: str, sifat: int) -> bytes:
+    import io as _io
+    buf = _io.BytesIO()
+    if format_nomi == "JPEG":
+        if im.mode not in ("RGB", "L"):
+            im = im.convert("RGB")
+        im.save(buf, "JPEG", quality=sifat, optimize=True, progressive=True)
+    elif format_nomi == "WEBP":
+        im.save(buf, "WEBP", quality=sifat, method=4)
+    else:
+        im.save(buf, "PNG", optimize=True)
+    return buf.getvalue()
+
+
+def _rasm_ochish(contents: bytes, tomon: int):
+    """(rasm, burildimi) yoki None — o'qib bo'lmasa / juda katta / animatsiya. JPEG «draft» bilan kichik masshtabda o'qiladi."""
+    import io as _io
+    _Im, _ImOps = _pillow()
+    if _Im is None:
+        return None
+    try:
+        im = _Im.open(_io.BytesIO(contents))
+        if getattr(im, "is_animated", False):
+            return None
+        w, h = im.size
+        if not w or not h or w * h > RASM_PIKSEL_CHEGARA:
+            return None
+        if im.format == "JPEG" and max(w, h) > tomon:
+            k = tomon / float(max(w, h))
+            im.draft("RGB", (max(1, int(w * k)), max(1, int(h * k))))
+        im.load()
+        yonalish = 1
+        try:
+            yonalish = int(im.getexif().get(0x0112, 1) or 1)
+        except Exception:
+            yonalish = 1
+        if yonalish != 1:
+            im = _ImOps.exif_transpose(im)
+        return im, yonalish != 1
+    except Exception:
+        return None
+
+
+def rasmni_kichraytir(contents: bytes, ext: str) -> bytes:
+    """Yuklangan rasm baytlari → saqlanadigan baytlar (kichraytirilgan yoki ASLICHA). Xato bo'lsa — ASLICHA."""
+    format_nomi = _RASM_FORMATI.get((ext or "").lower())
+    if not format_nomi or not contents:
+        return contents
+    natija = _rasm_ochish(contents, RASM_KATTA_TOMON)
+    if natija is None:
+        return contents
+    im, burildi = natija
+    try:
+        katta = max(im.size) > RASM_KATTA_TOMON
+        if not katta and not burildi:
+            return contents
+        if katta:
+            im.thumbnail((RASM_KATTA_TOMON, RASM_KATTA_TOMON), resample=3)       # 3 = BICUBIC
+        return _rasm_bayt(im, format_nomi, RASM_SIFAT)
+    except Exception:
+        return contents
+
+
+def _kichik_nusxa_yollari(asl_yol: str, papka: str) -> tuple:
+    """Asl fayl → (JPEG nusxa yo'li, PNG nusxa yo'li) — `uploads/_kichik/<papka>/<nom>_<tomon>.jpg|png`.
+    Nomda o'lcham bor: `RASM_KICHIK_TOMON` o'zgarsa — yangi nusxa yasaladi (eskisi ishlatilmaydi)."""
+    ildiz = os.path.join(static_dir, "uploads", RASM_KICHIK_PAPKA, papka)
+    nom = os.path.splitext(os.path.basename(asl_yol))[0] + f"_{RASM_KICHIK_TOMON}"
+    return os.path.join(ildiz, nom + ".jpg"), os.path.join(ildiz, nom + ".png")
+
+
+def kichik_nusxa_yarat(asl_yol: str, papka: str):
+    """Kichik nusxa yo'li (bor bo'lsa — o'sha; yo'q bo'lsa yasaladi) yoki None (yasab bo'lmadi — asl fayl beriladi).
+    Yozish — vaqtinchalik fayl + `os.replace` (bir vaqtdagi ikki so'rov yarim faylni ko'rmaydi)."""
+    jpg_yol, png_yol = _kichik_nusxa_yollari(asl_yol, papka)
+    for y in (jpg_yol, png_yol):
+        if os.path.isfile(y):
+            return y
+    if os.path.splitext(asl_yol)[1].lower() not in _RASM_FORMATI:
+        return None
+    try:
+        with open(asl_yol, "rb") as f:
+            contents = f.read()
+    except OSError:
+        return None
+    natija = _rasm_ochish(contents, RASM_KICHIK_TOMON)
+    if natija is None:
+        return None
+    im, _ = natija
+    try:
+        im.thumbnail((RASM_KICHIK_TOMON, RASM_KICHIK_TOMON), resample=3)
+        shaffof = _rasm_shaffofmi(im)
+        yol = png_yol if shaffof else jpg_yol
+        baytlar = _rasm_bayt(im, "PNG" if shaffof else "JPEG", RASM_KICHIK_SIFAT)
+        os.makedirs(os.path.dirname(yol), exist_ok=True)
+        import uuid as _uuid
+        vaqtinchalik = f"{yol}.{_uuid.uuid4().hex}.tmp"
+        with open(vaqtinchalik, "wb") as f:
+            f.write(baytlar)
+        os.replace(vaqtinchalik, yol)
+        return yol
+    except Exception:
+        return None
+
+
 def _save_upload(file: UploadFile, subfolder: str, allowed_ext: set) -> str:
     import uuid
     ext = os.path.splitext(file.filename or "")[1].lower()
@@ -9485,11 +9774,17 @@ def _save_upload(file: UploadFile, subfolder: str, allowed_ext: set) -> str:
     contents = file.file.read()
     if len(contents) > MAX_UPLOAD_SIZE:
         raise HTTPException(status_code=400, detail="Fayl hajmi 25 MB dan katta bo'lmasin")
+    # kech120 (G5-16): faqat-rasm yuklamasi — kichraytiriladi (ilovalar — ASLICHA, yuqoridagi izoh)
+    faqat_rasm = allowed_ext == ALLOWED_IMAGE_EXT
+    if faqat_rasm:
+        contents = rasmni_kichraytir(contents, ext)
     folder = os.path.join(static_dir, "uploads", subfolder)
     os.makedirs(folder, exist_ok=True)
     fname = f"{uuid.uuid4().hex}{ext}"
     with open(os.path.join(folder, fname), "wb") as f:
         f.write(contents)
+    if faqat_rasm:
+        kichik_nusxa_yarat(os.path.join(folder, fname), subfolder)      # ro'yxat birinchi ochilganda kutmasin
     return f"/static/uploads/{subfolder}/{fname}"
 
 
