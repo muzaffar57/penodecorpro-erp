@@ -69,6 +69,9 @@ html[data-theme="dark"] body { background: var(--bg); color: var(--text); }
 /* kech120 (zip 134 — F bosqichi 4-qism, audit G2-08, O'LCHANGAN: brauzer standarti #757575 — yorliqlardan ham to'q, kiritilgan qiymatga
    yaqin; «Karniz M-06», «Karimov Botir» yozib qo'yilgan ma'lumotdek ko'rinardi) — namuna matni hamma joyda och kulrang */
 ::placeholder { color: var(--placeholder); opacity: 1; }
+/* kech120 (zip 135 — G1-13): ma'lumotsiz grafik o'rnidagi yozuv (`grafikBosh`, base.html) */
+.grafik-bosh { display: flex; align-items: center; justify-content: center; height: 100%; min-height: 120px; padding: 12px;
+  text-align: center; color: var(--text3); font-size: 13px; }
 html[data-theme="dark"] .kpi-card,
 html[data-theme="dark"] .card,
 html[data-theme="dark"] .stat-card { background: var(--white); border-color: var(--border); }
