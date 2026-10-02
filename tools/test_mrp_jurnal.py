@@ -406,8 +406,12 @@ try:
     _lg = open(os.path.join(ROOT, "templates", "logs.html"), encoding="utf-8").read()
 except Exception:                          # noqa: BLE001
     _lg = ""
+# kech120 (zip 129 — G6-23): amal nomlari shablondagi `if` zanjiridan bitta ro'yxatga (`crud.AUDIT_AMALLARI`) ko'chdi —
+# shablon `amal_nomi(a.action)` ni chizadi. Tekshiruv mazmuni o'sha: «cancelled» → ⛔ va «bekor qilindi».
 check("S13 logs.html — «cancelled» → ⛔ va «bekor qilindi»",
-      "a.action == 'cancelled' %}⛔" in _lg and "a.action == 'cancelled' %}bekor qilindi" in _lg)
+      ("a.action == 'cancelled' %}⛔" in _lg and "a.action == 'cancelled' %}bekor qilindi" in _lg)
+      or ("{% set _am = amal_nomi(a.action) %}" in _lg and "{{ _am[0] }}" in _lg and "{{ _am[1] }}" in _lg
+          and getattr(crud, "AUDIT_AMALLARI", {}).get("cancelled", ("", ""))[:2] == ("⛔", "bekor qilindi")))
 
 print(f"\nNATIJA:  o'tdi = {OK}   yiqildi = {FAIL}   jami = {OK + FAIL}")
 if FAILED:

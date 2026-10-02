@@ -397,6 +397,8 @@ YANGI_MARSHRUTLAR = {
     "PUT /api/finished/{fp_id}/kam-chegara": "AWM",
     # kech118 (D-1, G6-21): hodim panelidagi «Oyligim» — faqat hodim (PIN) sessiyasi
     "GET /api/hodim/oylik": "EMP",
+    # kech120 (zip 129 — G4-14): ombor harakatlari «Tanlangan davr — jami» — «Ombor harakatlari» ro'yxati bilan bir xil ruxsat
+    "GET /api/inventory/movements/jami": "AWM",
 }
 # ATAYLAB o'zgarishlar (rol, marshrut) → yangi holat (True — ochiq). Sababi: tayyor rollar sahifa bo'yicha izchil.
 FARQLAR = {
