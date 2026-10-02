@@ -647,7 +647,10 @@ if PW_BOR:
                         pg.wait_for_timeout(200)
                         R["qaytarish_tozalandi"] = js(pg, "() => document.getElementById('f-rasm').files.length")
                         pg.set_input_files("#f-rasm", _png)
-                        _oid = js(pg, """() => { const s = document.getElementById('f-order'); const o = [...s.options].find(x => x.value); return o ? o.value : null; }""")
+                        # kech120 (zip 130 — G5-19): buyurtmalar ro'yxati sahifaga yozilmaydi — tanlagich ochilganda yuklanadi
+                        # (`qaytarishBuyurtmalariniYukla`); sinov uni o'zi chaqiradi, so'ng birinchi buyurtmani tanlaydi
+                        _oid = js(pg, """async () => { if (typeof qaytarishBuyurtmalariniYukla === 'function') await qaytarishBuyurtmalariniYukla();
+                            const s = document.getElementById('f-order'); const o = [...s.options].find(x => x.value); return o ? o.value : null; }""")
                         pg.select_option("#f-order", _oid)
                         pg.wait_for_function("() => !document.getElementById('f-item').disabled && document.getElementById('f-item').options.length > 1", timeout=10000)
                         _iid = js(pg, """() => { const s = document.getElementById('f-item'); const o = [...s.options].find(x => x.value); return o ? o.value : null; }""")

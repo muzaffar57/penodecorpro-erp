@@ -399,6 +399,10 @@ YANGI_MARSHRUTLAR = {
     "GET /api/hodim/oylik": "EMP",
     # kech120 (zip 129 — G4-14): ombor harakatlari «Tanlangan davr — jami» — «Ombor harakatlari» ro'yxati bilan bir xil ruxsat
     "GET /api/inventory/movements/jami": "AWM",
+    # kech120 (zip 130 — G5-19): qidiruvli tanlagich ro'yxatlari — «Yangi qaytarish» / «Brak yozish» oynalari (POST /api/returns bilan bir xil)
+    "GET /api/tanlov/buyurtmalar": "AMW", "GET /api/tanlov/loyihalar": "AMW",
+    # kech120 (zip 130 — G6-07): hodim kirishi QR kodi va chop etish sahifasi — har kirgan foydalanuvchi (korxona kodi sir emas)
+    "GET /api/hodim-qr.svg": "LOGIN", "GET /users/hodim-qr": "LOGIN",
 }
 # ATAYLAB o'zgarishlar (rol, marshrut) → yangi holat (True — ochiq). Sababi: tayyor rollar sahifa bo'yicha izchil.
 FARQLAR = {

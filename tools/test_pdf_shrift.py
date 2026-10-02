@@ -485,7 +485,9 @@ _d2 = {m: _yoq_belgilar(m) for m in PDF_MODULLAR} if len(_cmaplar) == 2 else "fo
 check("D2 PDF modullari matnlarida shriftda (Regular / Bold) YO'Q belgi yo'q (emoji olib tashlangan)",
       isinstance(_d2, dict) and not any(_d2.values()),
       {m: {k: v[:3] for k, v in d.items()} for m, d in _d2.items() if d} if isinstance(_d2, dict) else _d2)
-_rl = sorted(f for f in os.listdir(ROOT) if f.endswith(".py") and re.search(r"^\s*(from|import)\s+reportlab", fayl(f), re.M))
+# kech120 (zip 130 — hodim QR, G6-07): `main._qr_svg` — reportlab `graphics.barcode` (QR kod → SVG; PDF yasamaydi) — hisobga olinmaydi
+_rl = sorted(f for f in os.listdir(ROOT) if f.endswith(".py")
+             and re.search(r"^\s*(from|import)\s+reportlab(?!\.graphics\.barcode\b)", fayl(f), re.M))
 check("D3 ReportLab faqat PDF modullari va `pdf_shrift.py` da (boshqa PDF yo'li shriftsiz qolmasin)",
       _rl == sorted(PDF_MODULLAR + ["pdf_shrift.py"]), _rl)
 check("D4 `requirements.txt` — reportlab 4.2.x (ro'yxatga olish shu versiya xulqiga moslangan; yangilansa — shu test)",
