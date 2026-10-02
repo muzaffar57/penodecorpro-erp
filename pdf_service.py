@@ -242,6 +242,15 @@ def generate_nakladnoy(order, db=None) -> bytes:
         elif cat == 'gips':
             gu = (getattr(item, 'gips_unit', None) or 'metr').lower()
             return 'M²' if gu == 'm2' else ('M' if gu == 'metr' else 'TA')
+        # kech120 (zip 133 — F bosqichi 3-qism, audit G5-08): yangi (MRP) mahsulot — o'z turining birligi (qop, litr, kg …); ilgari
+        # hammasi «TA» edi. Ko'rinish — umumiy qoida (`services.birlik_korinish`), PDF uslubida katta harf; dona — «TA» (avvalgidek).
+        elif cat == 'mrp_product':
+            try:
+                from services import birlik_korinish as _bk133
+                b = _bk133(getattr(item, 'delivery_unit', None))
+            except Exception:
+                b = 'dona'
+            return 'TA' if b == 'dona' else b.upper()
         else: return 'TA'
 
     col_widths = [W*0.05, W*0.35, W*0.10, W*0.12, W*0.19, W*0.19]

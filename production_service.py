@@ -1510,6 +1510,52 @@ def retsept_tannarxi(db: Session, company_id: int, product_type, data) -> dict:
     }
 
 
+def tur_ishlatilishi(db: Session, company_id: int, idlar) -> dict:
+    """kech120 (zip 133 — F bosqichi 3-qism, audit G5-06): mahsulot turi QAYERDA ishlatilgan — {tur_id: {"retsept", "buyurtma",
+    "ishlab", "ochiq_ishlab", "ombor"}} (sonlar; retsept — faol ham, nofaol ham; buyurtma — o'chirilmagan buyurtmalardagi
+    detallar; ishlab — hamma holat, ochiq_ishlab — qoralama / jarayonda; ombor — tayyor mahsulot yozuvlari). Turning birligi /
+    kiritish shakli ishlatilgan turda O'ZGARTIRILMAYDI (retsept partiyasi, buyurtma miqdori va ishlab chiqarish tarixi shu
+    birlikda), ochiq ishlab chiqarishi bor tur nofaol qilinmaydi. So'rovlar soni tur soniga BOG'LIQ EMAS (4 ta)."""
+    from models import OrderItem as _OI133, Order as _O133, FinishedProduct as _FP133
+    idlar = sorted({int(x) for x in (idlar or []) if x is not None})
+    natija = {i: {"retsept": 0, "buyurtma": 0, "ishlab": 0, "ochiq_ishlab": 0, "ombor": 0} for i in idlar}
+    if not idlar:
+        return natija
+    for pt_id, n in db.query(BOM.product_type_id, func.count(BOM.id)).filter(
+            BOM.company_id == company_id, BOM.product_type_id.in_(idlar)).group_by(BOM.product_type_id).all():
+        natija[pt_id]["retsept"] = int(n or 0)
+    for pt_id, n in db.query(_OI133.product_type_id, func.count(_OI133.id)).join(
+            _O133, _O133.id == _OI133.order_id).filter(
+            _OI133.company_id == company_id, _OI133.product_type_id.in_(idlar),
+            _O133.is_deleted.isnot(True)).group_by(_OI133.product_type_id).all():
+        natija[pt_id]["buyurtma"] = int(n or 0)
+    _ochiq = (ProductionOrderStatus.DRAFT.value, ProductionOrderStatus.IN_PROGRESS.value)
+    for pt_id, holat, n in db.query(ProductionOrder.product_type_id, ProductionOrder.status, func.count(ProductionOrder.id)).filter(
+            ProductionOrder.company_id == company_id, ProductionOrder.product_type_id.in_(idlar)).group_by(
+            ProductionOrder.product_type_id, ProductionOrder.status).all():
+        natija[pt_id]["ishlab"] += int(n or 0)
+        if holat in _ochiq:
+            natija[pt_id]["ochiq_ishlab"] += int(n or 0)
+    for pt_id, n in db.query(_FP133.product_type_id, func.count(_FP133.id)).filter(
+            _FP133.company_id == company_id, _FP133.product_type_id.in_(idlar)).group_by(_FP133.product_type_id).all():
+        natija[pt_id]["ombor"] = int(n or 0)
+    return natija
+
+
+def tur_ishlatilishi_matni(ish: dict) -> str:
+    """`tur_ishlatilishi` qatori — odam o'qiydigan matn («2 ta retseptda, 5 ta buyurtma detalida …»); ishlatilmagan — bo'sh."""
+    q = []
+    if ish.get("retsept"):
+        q.append(f"{ish['retsept']} ta retseptda")
+    if ish.get("buyurtma"):
+        q.append(f"{ish['buyurtma']} ta buyurtma detalida")
+    if ish.get("ishlab"):
+        q.append(f"{ish['ishlab']} ta ishlab chiqarishda")
+    if ish.get("ombor"):
+        q.append(f"{ish['ombor']} ta tayyor mahsulot yozuvida")
+    return ", ".join(q)
+
+
 def turlar_xulosasi(db: Session, company_id: int) -> list:
     """Mahsulot turlari JADVALI (kech114 — egasi QARORI «5B — Jadval»): har FAOL tur uchun — turning o'z maydonlari
     (`ProductTypeRead` bilan bir xil: sahifa ularni retsept / ishlab chiqarish oynalarida ham ishlatadi), omborda
@@ -1567,6 +1613,7 @@ def turlar_xulosasi(db: Session, company_id: int) -> list:
     # kech117 (A2): tur yo'nalishi (NULL — «Belgilanmagan»); nomlar — korxonaning HAMMA yo'nalishi (yashirini ham)
     import crud as _crud117
     _ynom = _crud117.yonalish_nomlari(db, company_id)
+    _ish133 = tur_ishlatilishi(db, company_id, idlar)     # kech120 (zip 133 — G5-06): tahrirlash / o'chirish oynasi uchun
     natija = []
     for t in turlar:
         miqdor, band = ombor.get(t.id, (0.0, 0.0))
@@ -1590,6 +1637,8 @@ def turlar_xulosasi(db: Session, company_id: int) -> list:
             "band": round(band, 4),
             "jarayonda": round(jarayonda.get(t.id, 0.0), 4),
             "retseptlar": tur_retseptlari.get(t.id, []),
+            "ishlatilishi": _ish133.get(t.id),
+            "ishlatilishi_matni": tur_ishlatilishi_matni(_ish133.get(t.id) or {}),
         })
     return natija
 

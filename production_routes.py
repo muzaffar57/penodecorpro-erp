@@ -229,14 +229,105 @@ def set_product_type_yonalish(pt_id: int, data: dict = Body(...), db: Session = 
     return pt
 
 
+# kech120 (zip 133 — F bosqichi 3-qism, audit G5-06): turni TAHRIRLASH. Ilgari saqlangach nomi, birligi, kiritish shakli, narx usulini
+# o'zgartiradigan yo'l yo'q edi — xato yozilgan birlik yoki takror tur abadiy qolardi. Qoida: nom (takrorsiz), narx usuli, qat'iy narx,
+# qoplama, izoh, yo'nalish — har doim; BIRLIK va KIRITISH SHAKLI — faqat tur hali hech qayerda ishlatilmagan bo'lsa (retsept partiyasi,
+# buyurtma miqdori, ishlab chiqarish va tayyor mahsulot shu birlikda; `service.tur_ishlatilishi`) — aks holda 409 sababi bilan.
+# Ko'rinishi bir xil birlik («m2» → «m²», «ta» → «dona» — `services.birlik_korinish`) — ishlatilgan turda ham ruxsat.
+_TUR_KIRITISH133 = {"quantity_only": "faqat miqdor", "dimensional_3d": "o'lcham 3D", "area_2d": "maydon",
+                    "weight_volume": "og'irlik / hajm", "flexible_unit": "moslashuvchan"}
+
+
+@router.put("/product-types/{pt_id}", response_model=schemas.ProductTypeRead)
+def update_product_type(pt_id: int, data: dict = Body(...), db: Session = Depends(get_db),
+                        current_user=Depends(auth.ruxsat("mahsulot_turi", "tahrirlash"))):
+    import services as _sv133
+    data = _tana("ProductType", data, schemas.ProductTypeCreate)
+    _cid = auth.company_id_of(current_user)
+    pt = db.query(ProductType).filter(ProductType.id == pt_id, ProductType.company_id == _cid,
+                                      ProductType.is_active == True).first()  # noqa: E712
+    if not pt:
+        raise HTTPException(status_code=404, detail="Mahsulot turi topilmadi")
+    _nom = (data.name or "").strip()
+    _unit = (data.unit or "").strip()
+    _bor = db.query(ProductType.id).filter(
+        ProductType.company_id == _cid, ProductType.is_active == True, ProductType.id != pt.id,  # noqa: E712
+        func.lower(func.trim(ProductType.name)) == _nom.lower()).first()
+    if _bor:
+        raise HTTPException(status_code=400, detail=f"'{_nom}' nomli mahsulot turi allaqachon bor. Boshqa nom tanlang.")
+    _birlik_ozgardi = _sv133.birlik_korinish(_unit) != _sv133.birlik_korinish(pt.unit)
+    _shakl_ozgardi = data.input_template != pt.input_template
+    if _birlik_ozgardi or _shakl_ozgardi:
+        _ish = service.tur_ishlatilishi(db, _cid, [pt.id]).get(pt.id) or {}
+        _matn = service.tur_ishlatilishi_matni(_ish)
+        if _matn:
+            _nima = " va ".join([x for x in ("o'lchov birligi" if _birlik_ozgardi else "",
+                                              "kiritish shakli" if _shakl_ozgardi else "") if x])
+            raise HTTPException(status_code=409, detail={
+                "type": "product_type_used",
+                "message": (f"«{pt.name}» ishlatilgan ({_matn}) — {_nima} o'zgartirilmaydi: eski retsept, buyurtma va ishlab "
+                            "chiqarish tarixi shu birlikda. Nom, narx, qoplama va izohni o'zgartirish mumkin; boshqa birlik "
+                            "kerak bo'lsa — yangi mahsulot turi qo'shing.")})
+    _yid = pt.yonalish_id
+    if data.yonalish_id is not None:
+        try:
+            _yid, _ = crud.yonalish_tanlovi(db, _cid, data.yonalish_id, joriy_id=pt.yonalish_id)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+    _eski = {"nomi": pt.name, "birlik": pt.unit, "kiritish": _TUR_KIRITISH133.get(pt.input_template, pt.input_template),
+             "narx usuli": pt.pricing_formula,
+             "qat'iy narx": crud.audit_son(pt.fixed_unit_price) if pt.fixed_unit_price is not None else "—",
+             "qoplama": ("×" + crud.audit_son(pt.coating_price_multiplier)) if pt.supports_coating else "yo'q",
+             "izoh": (pt.notes or "").strip(), "yo'nalish": pt.yonalish_id}
+    pt.name = _nom
+    pt.unit = _unit
+    pt.input_template = data.input_template
+    pt.pricing_formula = data.pricing_formula
+    pt.fixed_unit_price = data.fixed_unit_price
+    pt.supports_coating = bool(data.supports_coating)
+    pt.coating_price_multiplier = data.coating_price_multiplier
+    pt.notes = data.notes
+    pt.yonalish_id = _yid
+    _yangi = {"nomi": pt.name, "birlik": pt.unit, "kiritish": _TUR_KIRITISH133.get(pt.input_template, pt.input_template),
+              "narx usuli": pt.pricing_formula,
+              "qat'iy narx": crud.audit_son(pt.fixed_unit_price) if pt.fixed_unit_price is not None else "—",
+              "qoplama": ("×" + crud.audit_son(pt.coating_price_multiplier)) if pt.supports_coating else "yo'q",
+              "izoh": (pt.notes or "").strip(), "yo'nalish": pt.yonalish_id}
+    _farq = [k for k in _eski if _eski[k] != _yangi[k]]
+    if _farq:
+        _ynom = crud.yonalish_nomlari(db, _cid)
+
+        def _q(d, k):
+            v = d[k]
+            if k == "yo'nalish":
+                return _ynom.get(v, "Belgilanmagan") if v else "Belgilanmagan"
+            if k == "izoh":
+                return "bor" if v else "yo'q"
+            return str(v)
+        crud.log_activity(db, "updated", "product_type", pt.id, f"Mahsulot turi «{pt.name}»", _kim(current_user),
+                          old_value="; ".join(f"{k}: {_q(_eski, k)}" for k in _farq),
+                          new_value="; ".join(f"{k}: {_q(_yangi, k)}" for k in _farq), company_id=_cid, commit=False)
+    db.commit()
+    db.refresh(pt)
+    return pt
+
+
 @router.delete("/product-types/{pt_id}")
 def deactivate_product_type(pt_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("mahsulot_turi", "ochirish"))):
     """O'chirilmaydi (eski BOM/ProductionOrder tarixi buzilmasligi
     uchun) — faqat 'nofaol' qilib belgilanadi, xuddi mavjud
-    Inventory.is_deleted naqshiga o'xshab."""
+    Inventory.is_deleted naqshiga o'xshab.
+    kech120 (zip 133 — G5-06): qoralama / jarayondagi ishlab chiqarishi bor tur nofaol qilinmaydi (409 — avval yakunlang yoki bekor
+    qiling); sahifada endi «O'chirish» tugmasi bor (ilgari faqat API)."""
     pt = db.query(ProductType).filter(ProductType.id == pt_id, ProductType.company_id == auth.company_id_of(current_user)).first()
     if not pt:
         raise HTTPException(status_code=404, detail="Mahsulot turi topilmadi")
+    _ochiq133 = (service.tur_ishlatilishi(db, pt.company_id, [pt.id]).get(pt.id) or {}).get("ochiq_ishlab", 0)
+    if _ochiq133:
+        raise HTTPException(status_code=409, detail={
+            "type": "product_type_in_production",
+            "message": (f"«{pt.name}»: {_ochiq133} ta ishlab chiqarish hali ochiq (qoralama yoki jarayonda) — avval ularni "
+                        "yakunlang yoki bekor qiling, so'ng turni o'chiring.")})
     pt.is_active = False
     crud.log_activity(db, "deleted", "product_type", pt.id, f"Mahsulot turi «{pt.name}»", _kim(current_user),
                       new_value="nofaol qilindi (eski retsept va ishlab chiqarish tarixi saqlanadi)",

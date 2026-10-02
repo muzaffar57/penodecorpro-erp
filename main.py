@@ -3310,6 +3310,8 @@ def kichik_rasm_manzili(url):
 
 
 templates.env.filters["kichik_rasm"] = kichik_rasm_manzili
+# kech120 (zip 133 — G5-07 / G5-08): mahsulot birligi ko'rinishi — `services.birlik_korinish` (brauzerda `birlikQisqa`, base.html)
+templates.env.filters["birlik"] = services.birlik_korinish
 
 import os
 static_dir = os.path.join(os.path.dirname(__file__), "static")
@@ -8987,6 +8989,18 @@ def api_get_finished(source: Optional[str] = None, only_available: bool = False,
     _pt_ids = {fp.product_type_id for fp in items if fp.product_type_id}
     _tur_nomlari = {r[0]: r[1] for r in db.query(_PT130.id, _PT130.name).filter(
         _PT130.company_id == _cid, _PT130.id.in_(_pt_ids)).all()} if _pt_ids else {}
+    # kech120 (zip 133 — F bosqichi 3-qism, audit G5-14): JARAYONDAGI ishlab chiqarish partiyasining tannarxi hali 0 (yakunlanganda
+    # yoziladi) — ro'yxatda «tan: 0», «0 tannarx bo'yicha» chiqardi, Ishlab chiqarishda esa «≈ 306 300». Endi o'sha taxminiy tannarx
+    # (`production_service.royxat_qoshimchalari` — Ishlab chiqarish ro'yxati bilan BIR hisob) — `taxminiy_tannarx`; «Tannarx va foyda»
+    # ruxsati yo'qqa `ruxsatlar` olib tashlaydi.
+    _jarayon_po = [_po_raqam[fp.id] for fp in items if fp.id in _po_raqam
+                   and fp.production_status is not None and fp.production_status.value == "in_progress"]
+    _taxminiy = {}
+    if _jarayon_po:
+        from production_models import ProductionOrder as _PO133
+        _po_qatorlar = db.query(_PO133).filter(_PO133.company_id == _cid, _PO133.id.in_(_jarayon_po)).all()
+        _qosh = production_service.royxat_qoshimchalari(db, _cid, _po_qatorlar)
+        _taxminiy = {po.finished_product_id: (_qosh.get(po.id) or {}).get("taxminiy_tannarx") for po in _po_qatorlar}
     return [{
         "id": fp.id,
         "name": fp.name,
@@ -9026,6 +9040,7 @@ def api_get_finished(source: Optional[str] = None, only_available: bool = False,
         # kech114: ombordagi qiymat — narx bo'lmasa tannarx bo'yicha (egasi QARORI; `crud._fp_ombor_qiymati`)
         "ombor_qiymati": round(crud._fp_ombor_qiymati(fp), 2),
         "ishlab_chiqarish_id": _po_raqam.get(fp.id),
+        "taxminiy_tannarx": (round(float(_taxminiy[fp.id]), 2) if _taxminiy.get(fp.id) is not None else None),
     } for fp in items]
 
 

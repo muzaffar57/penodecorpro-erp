@@ -7094,6 +7094,13 @@ def get_return_stats(db: Session, company_id: int = None) -> dict:
         "brak_month_value": round(brak_month_value),
         "brak_month_count": brak_month_count,
         "whole_month_count": len(month_whole),
+        # kech120 (zip 133 — F bosqichi 3-qism, audit G5-18): kartalar sonlari bir-biriga mos kelmasdi («Brak (bu oy) 2», «Butun
+        # 1», «Jami 2») — brak soniga ishlab chiqarish braki (ro'yxatda yo'q) qo'shilardi, «Jami» esa hamma vaqt. Endi tarkibi
+        # alohida: ro'yxatdagi brak yozuvlari va ishlab chiqarish braki (bu oy); hamma vaqt — butun va brak yozuvlari.
+        "brak_month_yozuv_count": len(month_brak),
+        "brak_month_prod_count": len(month_prod_brak),
+        "total_whole_count": len(whole_items),
+        "total_brak_yozuv_count": len(brak_items),
     }
 
 

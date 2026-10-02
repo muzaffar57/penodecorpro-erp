@@ -60,6 +60,33 @@ def son_korinish(qiymat, kasr=2) -> str:
     return "0" if s in ("-0", "") else s
 
 
+# kech120 (zip 133 — F bosqichi 3-qism, audit G5-07 / G5-08): mahsulot BIRLIGI ko'rinishi — BITTA qoida. Bir mahsulot Ishlab
+# chiqarishda «4 m2» / «8 dona», Tayyor mahsulotlarda «4 m²» / «8 ta», sotish oynasida «8 metr», qaytarishda qop / litr — «dona»
+# edi. Qoida: bo'sh → «dona»; «ta» / «dona» → «dona»; «metr» → «m»; «kvadrat», «m2» → «m²»; «m3» → «m³» (sm / mm ham); boshqasi
+# (kg, qop, litr …) — O'Z NOMI, kichik harfda (O'LCHANGAN: umumiy «birinchi harf katta» qoidasi (base.html, blur) qo'lda yozilgan
+# birlikni «Kg» / «Dona» qilib saqlardi). Bazadagi yozuv O'ZGARMAYDI (faqat ko'rinish). Jinja `|birlik` — shu funksiya; brauzerda — `birlikQisqa`
+# (base.html) — AYNAN bir natija (`tools/test_f_ishlab.py` J bo'limi).
+import re as _re133                                 # noqa: E402
+_BIRLIK_DARAJA = {"2": "\u00b2", "3": "\u00b3"}
+
+
+def birlik_korinish(birlik) -> str:
+    s = "" if birlik is None else str(birlik).strip()
+    if not s:
+        return "dona"
+    k = s.lower()
+    if k in ("ta", "dona"):
+        return "dona"
+    if k == "metr":
+        return "m"
+    if k == "kvadrat":
+        return "m\u00b2"
+    m = _re133.match(r"^(m|sm|mm)([23])$", k)
+    if m:
+        return m.group(1) + _BIRLIK_DARAJA[m.group(2)]
+    return k
+
+
 def get_top_products_report(db: Session, days: int = 90, limit: int = 15,
                             company_id: int = None) -> list:
     """Eng ko'p daromad keltirgan mahsulotlar — nomi bo'yicha guruhlangan,
