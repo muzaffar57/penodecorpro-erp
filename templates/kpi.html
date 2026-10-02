@@ -47,6 +47,13 @@
 .mk-card:hover{box-shadow:0 4px 12px rgba(16,24,40,.08)}
 .mk-avatar{width:44px;height:44px;border-radius:50%;background:var(--gold-tint);color:var(--gold-dark);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex-shrink:0}
 .emp-row{display:flex;align-items:center;gap:12px;padding:16px;border:1px solid var(--border);border-radius:14px;margin-bottom:10px;background:var(--white);box-shadow:0 1px 2px rgba(16,24,40,.04);transition:box-shadow .15s}
+/* kech120 (zip 136 — F bosqichi 5-qism, audit G6-08, O'LCHANGAN: 1440 px da ham karta ikki ustunli joyda — ism ustuniga ~70 px qolib,
+   «3 000 000 so'm/oy» «TO'LANGAN» ustiga chiqardi, «Bu oy avans» har so'zi alohida qatorda, ✕ kartadan chiqardi). Endi kompyuterda
+   ham IKKI qator: yuqorida ism, lavozim, to'lov turi, avans; pastda To'langan / Qolgan, holat va tugmalar. */
+.emp-row{flex-wrap:wrap;row-gap:10px}
+.emp-row .emp-asosiy{flex:1 1 calc(100% - 60px) !important}
+.emp-row .emp-fin{margin-left:56px}
+.emp-row .emp-tugmalar{margin-left:auto}
 .emp-row:hover{box-shadow:0 4px 12px rgba(16,24,40,.08)}
 .emp-avatar{width:44px;height:44px;border-radius:50%;background:var(--gold-tint);color:var(--gold-dark);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex-shrink:0}
 .status-badge{display:inline-block;font-size:12px;font-weight:700;padding:5px 12px;border-radius:20px;white-space:nowrap}
@@ -112,7 +119,8 @@
       <div>
         <div class="kpi-val" style="color:var(--m-8e44ad)" id="k-emp-calculated">—</div>
         <div class="kpi-label">Hisoblangan oylik</div>
-        <div style="font-size:12px;color:var(--text3)">Joriy oy</div>
+        {# kech120 (zip 136 — G6-14): jadvaldagi «Asosiy hisob» dan farqi — bonus va kamaytirish bilan (ilgari ikkalasi «Hisoblangan») #}
+        <div style="font-size:12px;color:var(--text3)">Joriy oy, bonus va kamaytirish bilan</div>
       </div>
     </div>
     <div class="kpi-card" style="display:flex;align-items:center;gap:14px;text-align:left;border-left:3px solid #EF4444">
@@ -462,7 +470,8 @@
     <div id="arModal-help" style="font-size:12.5px;color:var(--text3);line-height:1.5;margin-bottom:16px"></div>
 
     <label style="font-size:12px;font-weight:600;color:var(--text2)">Summa (so'm)</label>
-    <input type="number" id="arModal-amount" placeholder="0" style="width:100%;height:42px;padding:0 12px;border:1.5px solid var(--border);border-radius:9px;font-size:15px;margin:6px 0 14px">
+    {# kech120 (zip 136 — G6-14): summa — umumiy qoida («20 000»; ilgari type=number, ajratgichsiz «20000») #}
+    <input type="text" inputmode="decimal" id="arModal-amount" placeholder="0" oninput="formatPriceInput(this)" style="width:100%;height:42px;padding:0 12px;border:1.5px solid var(--border);border-radius:9px;font-size:15px;margin:6px 0 14px">
 
     <label style="font-size:12px;font-weight:600;color:var(--text2)">Sabab (ixtiyoriy)</label>
     <input type="text" id="arModal-reason" placeholder="Masalan: 3 kun kelmadi" style="width:100%;height:42px;padding:0 12px;border:1.5px solid var(--border);border-radius:9px;font-size:14px;margin:6px 0 18px">
@@ -516,6 +525,12 @@ const PAY_COLORS = {
   fixed_plus_coating: '#B9783F'
 };
 
+// kech120 (zip 136 — F bosqichi 5-qism, audit G6-14): ishora — qiymatga qarab (ilgari doim «+», manfiyda «+-1 026»)
+function kpiIshora(n) {
+  const x = Math.round(Number(n) || 0);
+  return (x > 0 ? '+' : (x < 0 ? '−' : '')) + fmt(Math.abs(x));
+}
+
 // ── USTA YILLIK KPI ────────────────────────────────────────
 async function loadMasterKpi() {
   const year = parseInt(document.getElementById('kpi-year').value) || tkHozir().yil;
@@ -526,7 +541,8 @@ async function loadMasterKpi() {
     document.getElementById('k-total-gift').textContent = fmt(d.total_gift) + " so'm";
     document.getElementById('k-master-count').textContent = d.masters.length + ' ta';
     const top = [...d.masters].sort((a,b)=>b.gift_amount-a.gift_amount)[0];
-    document.getElementById('k-top-master').textContent = top ? top.name : '—';
+    // kech120 (zip 136 — G6-14): hamma ustaning sovg'asi 0 bo'lsa ham «TOP: Usta 1» chiqardi
+    document.getElementById('k-top-master').textContent = (top && Number(top.gift_amount) > 0) ? top.name : 'hali yo\'q';
 
     allMasterKpiData = d.masters;
     renderMasterKpiList();
@@ -655,11 +671,11 @@ async function openMasterDetail(id, name) {
             <div style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(r.order_number || ('#' + r.order_id))}</div>
             <div style="font-size:13px;color:var(--text3);margin-top:2px">${dt} · Savdo: ${fmt(r.total_amount)} · Foyda: ${r.profit === null ? '—' : fmt(r.profit)}</div>
           </div>
-          <div style="font-size:14px;font-weight:700;color:var(--m-15803d);white-space:nowrap">+${fmt(r.kpi_amount)}</div>
+          <div style="font-size:14px;font-weight:700;color:${Number(r.kpi_amount) < 0 ? 'var(--m-dc2626)' : 'var(--m-15803d)'};white-space:nowrap">${kpiIshora(r.kpi_amount)}</div>
         </div>`;
       }).join('') + `
         <div style="display:flex;justify-content:space-between;padding:12px 0;font-weight:700;font-size:14px">
-          <span>Jami:</span><span style="color:var(--m-15803d)">${fmt(totalKpi)} so'm</span>
+          <span>Jami:</span><span style="color:${totalKpi < 0 ? 'var(--m-dc2626)' : 'var(--m-15803d)'}">${kpiIshora(totalKpi)} so'm</span>
         </div>`;
     }
   } catch(e) {
@@ -1357,7 +1373,7 @@ async function loadEmpMonthlyReport() {
             <tr style="border-bottom:2px solid var(--border2);text-align:left;color:var(--text3)">
               <th style="padding:10px 6px"><i class="ti ti-user" style="vertical-align:-2px;margin-right:4px"></i>Hodim</th>
               <th style="padding:10px 6px"><i class="ti ti-file-text" style="vertical-align:-2px;margin-right:4px"></i>Tafsilot</th>
-              <th style="padding:10px 6px;text-align:right"><i class="ti ti-calculator" style="vertical-align:-2px;margin-right:4px"></i>Hisoblangan</th>
+              <th style="padding:10px 6px;text-align:right"><i class="ti ti-calculator" style="vertical-align:-2px;margin-right:4px"></i>Asosiy hisob</th>
               <th style="padding:10px 6px;text-align:center"><i class="ti ti-circle-plus" style="vertical-align:-2px;margin-right:4px"></i>Bonus</th>
               <th style="padding:10px 6px;text-align:center"><i class="ti ti-circle-minus" style="vertical-align:-2px;margin-right:4px"></i>Kamaytirish</th>
               <th style="padding:10px 6px;text-align:right"><i class="ti ti-wallet" style="vertical-align:-2px;margin-right:4px"></i>Avans olingan</th>
@@ -1408,7 +1424,7 @@ async function loadEmpMonthlyReport() {
         </div>
         <div style="text-align:center">
           <div style="font-size:12px;color:var(--text3);margin-bottom:2px">Avans jami</div>
-          <div style="font-weight:700;color:var(--m-b45309)">${fmt(list.reduce((s,e)=>s+e.avans,0))} so'm</div>
+          <div style="font-weight:700;color:var(--m-b45309)">${(() => { const a = list.reduce((s,e)=>s+(e.avans||0),0); return (a > 0 ? '-' : '') + fmt(a); })()} so'm</div>
         </div>
         <div style="text-align:right">
           <div style="font-size:12px;color:var(--text3);margin-bottom:2px">Qolgan jami</div>
@@ -1432,11 +1448,12 @@ function promptAmountReason(opts) {
     document.getElementById('arModal-icon').textContent = opts.danger ? '➖' : '➕';
     document.getElementById('arModal-title').textContent = opts.title;
     document.getElementById('arModal-help').textContent = opts.help;
-    document.getElementById('arModal-amount').value = opts.currentAmount || '';
+    document.getElementById('arModal-amount').value = opts.currentAmount ? narxKorinishi(opts.currentAmount) : '';
     document.getElementById('arModal-reason').value = opts.currentReason || '';
     document.getElementById('arModal-ok').style.background = opts.danger ? '#DC2626' : '#15803D';   // kech118 (zip 122): oq yozuv 5.0:1
     document.getElementById('arModal-ok').onclick = () => {
-      const amount = parseFloat(document.getElementById('arModal-amount').value) || 0;
+      // kech120 (zip 136 — G6-14): maydon `formatPriceInput` bilan «20 000» ko'rinishida — o'qish umumiy qoida (`parseNum`); bo'sh — 0
+      const amount = parseNum(document.getElementById('arModal-amount').value) || 0;
       const reason = document.getElementById('arModal-reason').value || '';
       _arResolve({amount, reason});
     };
@@ -1916,7 +1933,7 @@ async function loadCurrentMonthEmpStatus() {
       if (statusEl) {
         if (e.qolgan <= 0.5) statusEl.innerHTML = `<span class="status-badge status-paid">🟢 To'liq to'langan</span>`;
         else if (e.avans > 0) statusEl.innerHTML = `<span class="status-badge status-partial">🟡 Qisman to'langan</span>`;
-        else statusEl.innerHTML = `<span class="status-badge status-debt">🔴 Qarzdor</span>`;
+        else statusEl.innerHTML = `<span class="status-badge status-debt">🔴 To'lanmagan</span>`;   // kech120 (zip 136 — G6-14): ilgari «Qarzdor» (aslida korxona hodimga qarzdor)
       }
     });
   } catch(e) { console.error(e); }
