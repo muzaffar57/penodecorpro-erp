@@ -220,8 +220,19 @@ check("A1 xarid o'chirildi — qoldiq 100, narx 1 000 ga QAYTDI (asl: 2 000 da q
 st, rj = kirim(C, SUP, [(M1, 100, 3000)], add_to_cost=True, transport=20000, hujjat="KB-A2")
 _pid = (rj.get("purchase_ids") or [None])[0]
 check("A2 tannarxga qo'shilgan transport bilan: narx 2 100 (100×1000 + 100×3200) / 200", mat(M1) == [200.0, 2100.0], mat(M1))
-req(C, "delete", f"/api/inventory/purchases/{_pid}")
-check("A3 o'chirildi — narx 1 000 (transport ulushi ham chiqdi)", mat(M1) == [100.0, 1000.0], mat(M1))
+# kech120 (zip 132 — F bosqichi 2-qism, audit G4-15): hujjatda qo'shimcha xarajat (transport) bor — qator alohida o'chmaydi (409
+# `receipt_line_locked`; ilgari o'chardi, transport xarajati esa Moliyada YETIM qolardi), butun hujjat bekor qilinadi.
+r = req(C, "delete", f"/api/inventory/purchases/{_pid}")
+_d = (js(r) or {}).get("detail")
+check("A3 xarajatli hujjat qatori — 409 `receipt_line_locked`, hech narsa o'zgarmadi (narx 2 100)",
+      r.status_code == 409 and isinstance(_d, dict) and _d.get("type") == "receipt_line_locked" and mat(M1) == [200.0, 2100.0],
+      (r.status_code, r.text[:200], mat(M1)))
+r = req(C, "post", f"/api/inventory/receipts/{rj.get('receipt_id')}/cancel")
+s = SessionLocal()
+_tr = s.query(ExpenseTransaction).filter(ExpenseTransaction.notes.like(f"%Kirim #{rj.get('receipt_id')}%")).count()
+s.close()
+check("A3b hujjat bekor qilindi — narx 1 000 (transport ulushi ham chiqdi), transport xarajati ham yo'q",
+      r.status_code == 200 and mat(M1) == [100.0, 1000.0] and _tr == 0, (r.status_code, mat(M1), _tr))
 st, rj = kirim(C, SUP, [(M1, 100, 3000)], hujjat="KB-A4")
 _pid = (rj.get("purchase_ids") or [None])[0]
 req(C, "post", f"/api/inventory/{M1}/purchase", json={"quantity": 10, "price_per_unit": 5000, "notes": "KB keyingi"})
