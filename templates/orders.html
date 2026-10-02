@@ -36,8 +36,11 @@
 .attach-thumb .rm{position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;border:none;font-size:12px;cursor:pointer;line-height:1;z-index:2}
 .attach-thumb .dl{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;border:none;font-size:12px;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center;text-decoration:none;z-index:2}
 .attach-thumb .dl:hover{background:var(--gold-hover)}
-.dropzone{border:1.5px dashed var(--border-strong);border-radius:14px;padding:22px;text-align:center;cursor:pointer;transition:border-color .15s;background:var(--bg)}
+/* kech120 (zip 134 — G2-23): `label` — qator ichidagi element edi (ramka bo'lak-bo'lak, telefonda «J» kesilardi), `--border-strong` aniqlanmagan
+   edi (endi style.css da) */
+.dropzone{display:block;border:1.5px dashed var(--border-strong);border-radius:14px;padding:22px;text-align:center;cursor:pointer;transition:border-color .15s;background:var(--bg)}
 .dropzone:hover{border-color:var(--gold)}
+.majburiy{color:var(--m-dc2626);font-weight:700}
 .dropzone input[type=file]{display:none}
 .ord-list{max-height:calc(100vh - 260px);overflow-y:auto}
 /* Tayyor mahsulot taklifi */
@@ -203,6 +206,16 @@ input[type=number]{-moz-appearance:textfield}
 /* kech119 (C BOSQICH — telefon; audit G2-02, G2-21, O'LCHANGAN work/k125/telefon.py, 390 / 360 px): ustun elementi ichidagi
    keng mazmun (tugmali sarlavha) grid ustunini kengaytirmasin (tanlangandan keyin sahifa 530 px — yon tomonga surilardi) */
 .ord-layout > *{min-width:0}
+/* kech120 (zip 134 — F bosqichi 4-qism, audit G2-12, O'LCHANGAN: 1440 × 900 da «Amallar» ostida faqat «Pindan olish» ko'rinardi — qolganlari
+   xulosa ostida, pastda): kompyuterda ham AMALLAR xulosaning TEPASIDA (telefondagi kabi), asosiylari birinchi (Tayyor, Tahrirlash, PDF),
+   «Pin» oxirida, «O'chirish» alohida chiziq bilan */
+#sumBody{display:flex;flex-direction:column}
+#sumBody > .yb-amallar-sarlavha{order:-2}
+#sumBody > .yb-amallar{order:-1;margin-bottom:6px;display:grid !important;grid-template-columns:1fr 1fr;gap:7px}
+#sumBody > .yb-amallar .btn{min-height:36px;display:flex;align-items:center;justify-content:center;text-align:center;line-height:1.25;white-space:normal}
+#sumBody > .yb-amallar #btn-ready, #sumBody > .yb-amallar #btn-duplicate, #sumBody > .yb-amallar #btn-edit-izoh{grid-column:1 / -1}
+#sumBody > .yb-amallar #btn-delete{grid-column:1 / -1;margin-top:6px}
+#sumBody > .yb-amallar .yb-ochir-chiziq{grid-column:1 / -1;border-top:1px dashed var(--border);margin-top:4px}
 @media (max-width:900px){
   /* bitta ustun: ro'yxat → tanlangan buyurtma xulosasi va AMALLAR → tafsilot (ilgari amallar butun tafsilotdan keyin,
      ~2 000 px pastda); yangi buyurtma ochiq bo'lsa — hisob-kitob paneli formadan KEYIN */
@@ -314,12 +327,12 @@ input[type=number]{-moz-appearance:textfield}
               <div class="proj-count">
                 {{ g.orders|length }} ta{% if g.active %} · <span style="color:var(--m-b45309)">{{ g.active }} faol</span>{% endif %}
               </div>
-              {% if g.orders|length > 1 %}
-                {% if g.debt > 0 %}
-                <div class="proj-debt">🔴 {{ "{:,.0f}".format(g.debt/1000000).replace(",", " ") }} mln</div>
-                {% elif g.total > 0 %}
-                <div class="proj-paid">✅ To'langan</div>
-                {% endif %}
+              {# kech120 (zip 134 — F bosqichi 4-qism, audit G2-14): ilgari qarz butun MILLIONGA yaxlitlanib, nomsiz («🔴 0 mln» — 384 000 qarz)
+                 va faqat 2+ buyurtmali loyihada edi. Endi «Qarz: 384 ming» (`|qisqa_summa` — brauzerdagi `qisqaSumma` bilan bir qoida), har loyihada. #}
+              {% if g.debt > 0 %}
+              <div class="proj-debt" title="Loyiha qarzi: {{ g.debt|son(2) }} so'm">🔴 Qarz: {{ g.debt|qisqa_summa }}</div>
+              {% elif g.total > 0 %}
+              <div class="proj-paid">✅ To'langan</div>
               {% endif %}
             </div>
           </div>
@@ -398,6 +411,13 @@ input[type=number]{-moz-appearance:textfield}
           </div>
         </div>
         {% endfor %}
+      {% elif not projects %}
+        {# kech120 (zip 134 — F bosqichi 4-qism, audit G2-22): bo'sh korxonada avval loyiha kerakligi aytilmasdi #}
+        <div class="ord-bosh" style="text-align:center;padding:30px 16px;color:var(--text2);font-size:13.5px;line-height:1.55">
+          <div style="font-weight:700;color:var(--text);margin-bottom:6px">Hali loyiha yo'q</div>
+          Buyurtma loyiha (mijoz va uning obyekti) ichida yaratiladi — avval loyiha qo'shing.
+          {% if current_user.ruxsat('loyiha', 'yaratish') %}<div style="margin-top:12px"><a class="btn btn-dark btn-sm" href="/projects?yangi=1">+ Loyiha yaratish</a></div>{% endif %}
+        </div>
       {% else %}
         <div style="text-align:center;padding:40px;color:var(--text3)">Buyurtma yo'q</div>
       {% endif %}
@@ -482,13 +502,16 @@ input[type=number]{-moz-appearance:textfield}
           <div>
             <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:12px">Buyurtma ma'lumotlari</div>
             <div class="form-group" style="margin-bottom:12px">
-              <label>Loyiha</label>
+              <label>Loyiha <span class="majburiy" title="Majburiy">*</span></label>
               <input type="text" id="project_id_search" placeholder="Loyiha yoki mijoz nomini qidirish..."
                      autocomplete="off" style="margin-bottom:6px"
                      oninput="filterProjectSelect(this.value)">
-              <select id="project_id">
+              {# kech120 (zip 134 — G2-22): ro'yxat oxirida «+ Yangi loyiha yaratish…» (ilgari formadan loyiha yaratish yo'li yo'q edi — oxirida
+                 «Loyiha tanlang!» olinardi); tanlansa — kiritilganlar qoralamaga saqlanib, Loyihalar sahifasida yangi loyiha oynasi ochiladi #}
+              <select id="project_id" onchange="loyihaTanlovi(this)">
                 <option value="">— Tanlang —</option>
                 {% for p in projects %}<option value="{{ p.id }}">{{ p.project_number }} — {{ p.project_name }}</option>{% endfor %}
+                {% if current_user.ruxsat('loyiha', 'yaratish') %}<option value="__yangi">+ Yangi loyiha yaratish…</option>{% endif %}
               </select>
             </div>
             <div class="form-group" style="margin-bottom:12px">
@@ -499,7 +522,7 @@ input[type=number]{-moz-appearance:textfield}
               </select>
             </div>
             <div class="form-group" style="margin-bottom:12px">
-              <label>Topshirish sanasi</label>
+              <label>Topshirish sanasi <span class="majburiy" title="Majburiy">*</span></label>
               <input type="date" id="deadline_input">
             </div>
             <div class="form-group" style="margin:0">
@@ -521,7 +544,7 @@ input[type=number]{-moz-appearance:textfield}
             <div class="form-group" style="margin:0">
               <label for="loy_kg">Loy miqdori (kg)</label>
               <input type="number" id="loy_kg" placeholder="0" min="0" step="0.5"
-                     oninput="checkLoyStock();updateLiveStats()" style="border-color:var(--gold)" aria-describedby="loy_kg_izoh">
+                     oninput="checkLoyStock();updateLiveStats()" aria-describedby="loy_kg_izoh">
               {# kech114 (dizayn 9-band): yorliq qisqa, izoh — maydon ostida (ilgari yorliq 3 qatorga cho'zilardi) #}
               <div id="loy_kg_izoh" style="font-size:12px;color:var(--text3);margin-top:5px">Faqat qoplamali penoplast detallari uchun (MRP mahsuloti qoplamasi o'z retseptidan)</div>
             </div>
@@ -644,11 +667,12 @@ input[type=number]{-moz-appearance:textfield}
             <span id="od-status"></span>
             <span id="od-mrp-readiness"></span>
             <button class="step-btn2" style="width:26px;height:26px" onclick="toggleSection('odBody','od-toggle-ic')" title="Yig'ish/yoyish">
-              <i class="ti ti-chevron-down" id="od-toggle-ic" style="font-size:14px;transition:transform .2s;transform:rotate(-90deg)"></i>
+              <i class="ti ti-chevron-down" id="od-toggle-ic" style="font-size:14px;transition:transform .2s"></i>
             </button>
           </div>
         </div>
-        <div style="padding:12px;display:none" id="odBody">
+        {# kech120 (zip 134 — G2-12): buyurtma tarkibi (detallar) OCHIQ holda ochiladi — nima buyurtma qilingani darhol ko'rinadi #}
+        <div style="padding:12px" id="odBody">
           <div id="od-items-container">
             <!-- Detallar bu yerda -->
           </div>
@@ -660,6 +684,7 @@ input[type=number]{-moz-appearance:textfield}
         <div class="card-head"><h3><span class="ico-badge purple"><i class="ti ti-photo"></i></span> Fayllar va rasmlar</h3></div>
         <div style="padding:12px">
           <label class="dropzone">
+            <i class="ti ti-upload" style="font-size:22px;color:var(--gold-dark)" aria-hidden="true"></i>
             <div style="font-size:14.5px;color:var(--gold-dark);font-weight:500;margin-top:6px">Fayl yoki rasm yuklang</div>
             <div style="font-size:13px;color:var(--text3);margin-top:2px">JPG, PNG, PDF, CDR, DWG yoki DXF, 25 MB gacha</div>
             <input type="file" accept="image/*,.pdf,.cdr,.dwg,.dxf" onchange="uploadOrderAttachment(this)">
@@ -811,14 +836,17 @@ input[type=number]{-moz-appearance:textfield}
 
         <div class="sum-title yb-amallar-sarlavha">Amallar</div>
         <div class="yb-amallar" style="display:flex;flex-direction:column;gap:7px">
-          <button class="btn btn-outline w-full btn-sm" id="btn-pin" onclick="toggleOrderPin(selectedOrderId)" style="display:none;border-color:var(--gold);color:var(--gold-dark)">📌 Pin qilish</button>
           <button class="btn btn-green w-full btn-sm" id="btn-ready" onclick="markReadySelected()" style="display:none">✓ Tayyor deb belgilash</button>
           <button class="btn btn-outline w-full btn-sm" id="btn-edit" onclick="editSelected()" style="display:none;border-color:#B9783F;color:var(--gold-dark)">✏️ Tahrirlash</button>
-          <button class="btn btn-outline w-full btn-sm" id="btn-duplicate" onclick="duplicateSelected()" title="Shu buyurtma asosida, loyiha/usta/detallar oldindan to'ldirilgan YANGI buyurtma ochadi (eskisiga tegmaydi)" style="display:none;border-color:#6366F1;color:var(--m-6366f1)">📋 Nusxa olish (yangi buyurtma)</button>
           <a id="btn-pdf" href="#" target="_blank" class="btn btn-outline w-full btn-sm" style="text-align:center;display:none" title="Buyurtma hisobi (PDF)">📄 Buyurtma hisobi (PDF)</a>
+          {# kech120 (zip 134 — G2-12): «Tahrirlash» yo'q bo'lsa — nega (ilgari izohsiz yo'qolardi) #}
+          <div id="btn-edit-izoh" style="display:none;font-size:12px;color:var(--text3);line-height:1.4;padding:2px 2px 0">Tayyor / yetkazilgan buyurtmani tahrirlab bo'lmaydi — qo'shimcha kerak bo'lsa «Nusxa olish».</div>
+          <button class="btn btn-outline w-full btn-sm" id="btn-duplicate" onclick="duplicateSelected()" title="Shu buyurtma asosida, loyiha/usta/detallar oldindan to'ldirilgan YANGI buyurtma ochadi (eskisiga tegmaydi)" style="display:none;border-color:#6366F1;color:var(--m-6366f1)">📋 Nusxa olish (yangi buyurtma)</button>
           {% if current_user.ruxsat('tannarx', 'korish') %}
           <button class="btn btn-outline w-full btn-sm" id="btn-profit" onclick="loadProfit()" style="display:none;border-color:#B9783F;color:var(--gold-dark)">💰 Foyda hisoblash</button>
           {% endif %}
+          <button class="btn btn-outline w-full btn-sm" id="btn-pin" onclick="toggleOrderPin(selectedOrderId)" style="display:none;border-color:var(--gold);color:var(--gold-dark)">📌 Pin qilish</button>
+          <div class="yb-ochir-chiziq"></div>
           <button class="btn btn-outline w-full btn-sm" id="btn-delete" onclick="deleteSelected()" style="display:none;border-color:#EF4444;color:var(--m-dc2626)">🗑 O'chirish</button>
         </div>
       </div>
@@ -851,24 +879,26 @@ input[type=number]{-moz-appearance:textfield}
       </div>
     </div>
 
-    <!-- Yangi buyurtma — Statistika (mavjud, hisoblangan qiymatlardan) -->
-    <div class="card" id="liveStats" style="display:none">
-      <div class="card-head"><h3><span class="ico-badge blue"><i class="ti ti-chart-bar"></i></span> Shu buyurtma</h3></div>
-      <div style="padding:12px">
+    <!-- kech120 (zip 134 — F bosqichi 4-qism, audit G2-16): ilgari IKKI panel — «Shu buyurtma» (Buyurtma summasi = kelishilgan, Qolgan qarz)
+         va «Buyurtma hisob-kitobi» (JAMI = chegirmasiz) — bitta summa uch joyda, izohsiz ikki xil son; bo'sh formada qizil «0 so'm» qarz.
+         Endi BITTA panel: detallar → Jami (chegirmasiz) → Kelishilgan → Zaklat → Qolgan qarz (0 — kulrang) → hajm / uzunlik / loy.
+         `#liveTotal` / `#liveTotalBody` / `ls-*` — o'sha identifikatorlar (yangilovchi funksiyalar o'zgarmaydi). -->
+    <div class="card" id="liveStats" style="display:none;border-left:3px solid #B9783F;border-radius:0 12px 12px 0">
+      <div class="card-head"><h3><span class="ico-badge green"><i class="ti ti-calculator"></i></span> Buyurtma hisob-kitobi</h3></div>
+      <div id="liveTotal" style="display:none">
+        <div style="padding:12px 12px 0;max-height:400px;overflow-y:auto" id="liveTotalBody">
+          <div style="text-align:center;color:var(--text3);padding:20px">Detal qo'shing...</div>
+        </div>
+      </div>
+      <div style="padding:4px 12px 12px">
+        <div class="sum-item"><span class="si-l">Kelishilgan summa</span><span class="si-v gold" id="ls-total">0 so'm</span></div>
+        <div class="sum-item"><span class="si-l">Zaklat (oldindan)</span><span class="si-v" id="ls-zaklat">0 so'm</span></div>
+        <div class="sum-item"><span class="si-l">Qolgan qarz</span><span class="si-v" id="ls-debt">0 so'm</span></div>
+        <div style="border-top:1px dashed var(--border);margin:8px 0 4px"></div>
         <div class="sum-item"><span class="si-l">Detallar soni</span><span class="si-v" id="ls-count">0 ta</span></div>
         <div class="sum-item"><span class="si-l">Umumiy uzunlik</span><span class="si-v" id="ls-length">0 m</span></div>
         <div class="sum-item"><span class="si-l">Umumiy hajm</span><span class="si-v" id="ls-volume">0 m³</span></div>
         <div class="sum-item"><span class="si-l">Loy miqdori</span><span class="si-v" id="ls-loy">0 kg</span></div>
-        <div class="sum-item"><span class="si-l">Buyurtma summasi</span><span class="si-v gold" id="ls-total">0 so'm</span></div>
-        <div class="sum-item"><span class="si-l">Qolgan qarz</span><span class="si-v red" id="ls-debt">0 so'm</span></div>
-      </div>
-    </div>
-
-    <!-- Yangi buyurtma yig'indisi -->
-    <div class="card" id="liveTotal" style="display:none;border-left:3px solid #B9783F;border-radius:0 12px 12px 0">
-      <div class="card-head"><h3><span class="ico-badge green"><i class="ti ti-calculator"></i></span> Buyurtma hisob-kitobi</h3></div>
-      <div style="padding:12px;max-height:400px;overflow-y:auto" id="liveTotalBody">
-        <div style="text-align:center;color:var(--text3);padding:20px">Detal qo'shing...</div>
       </div>
     </div>
 
@@ -1913,6 +1943,8 @@ function selectOrder(id, el) {
   // Amallar tugmalari
   document.getElementById('btn-ready').style.display  = (isReady || isDraft) ? 'none' : 'block';
   document.getElementById('btn-edit').style.display   = (isReady || isDelivered) ? 'none' : 'block';
+  const _editIzoh = document.getElementById('btn-edit-izoh');      // kech120 (zip 134 — G2-12)
+  if (_editIzoh) _editIzoh.style.display = (isReady || isDelivered) ? 'block' : 'none';
   // "Nusxa olish" — TAYYOR buyurtmalar uchun ham ko'rinadi (aslida shu holat
   // uchun mo'ljallangan: mijoz keyinroq qo'shimcha metr so'rasa, tahrirlab
   // bo'lmaydigan tayyor buyurtma o'rniga, shundan NUSXA olib yangi buyurtma
@@ -3143,12 +3175,21 @@ async function deletePayment(paymentId) {
 // mijoz nomi bo'yicha qidirish uchun. Ro'yxatning o'zi (uning value'lari,
 // onchange va h.k.) o'zgarmaydi — faqat mos kelmagan <option>lar
 // vaqtincha yashiriladi.
+async function loyihaTanlovi(sel) {
+  if (!sel || sel.value !== '__yangi') return;
+  sel.value = '';
+  if (!(await customConfirm("Yangi loyiha (mijoz) Loyihalar sahifasida yaratiladi. Shu formaga kiritilganlar qoralamada saqlanadi — " +
+      "qaytganingizda «+ Yangi buyurtma» ularni tiklashni taklif qiladi.\n\nLoyihalar sahifasiga o'tilsinmi?",
+      {okText: "Ha, loyiha yaratish", cancelText: 'Qolish'}))) return;
+  try { if (typeof saveDraftLS === 'function') saveDraftLS(); } catch (e) {}
+  window.location.href = '/projects?yangi=1';
+}
 function filterProjectSelect(query) {
   const sel = document.getElementById('project_id');
   if (!sel) return;
   const q = (query || '').trim().toLowerCase();
   Array.from(sel.options).forEach(opt => {
-    if (!opt.value) { opt.hidden = false; return; } // "— Tanlang —" har doim ko'rinadi
+    if (!opt.value || opt.value === '__yangi') { opt.hidden = false; return; } // "— Tanlang —" va «+ Yangi loyiha» har doim ko'rinadi
     opt.hidden = q.length > 0 && !opt.textContent.toLowerCase().includes(q);
   });
 }
@@ -3281,6 +3322,12 @@ function addItem() {
   const div = document.createElement('div');
   div.className = 'detal';
   div.id = 'item_' + itemCount;
+  // kech120 (zip 134 — G2-11): nomdan boshqa maydon to'ldirilganmi — «nomi kiritilmagan» ogohlantirishi faqat shunda (ilgari forma ochilishi
+  // bilanoq chiqardi)
+  // (capture — maydonning o'z `oninput` i (`updateTotal`) dan OLDIN belgilansin)
+  const _tegdi = (e) => { if (e.target && !(e.target.classList && e.target.classList.contains('i-name'))) div.dataset.tegildi = '1'; };
+  div.addEventListener('input', _tegdi, true);
+  div.addEventListener('change', _tegdi, true);
   div.innerHTML = `
     <div class="detal-top" onclick="toggleDetalCollapse(event, this.closest('.detal'))">
       <div style="display:flex;align-items:center;gap:8px;min-width:0;flex:1">
@@ -3297,8 +3344,8 @@ function addItem() {
     <div class="detal-body">
     <div class="detal-grid">
       <div class="dif" style="grid-column:1/-1;position:relative;background:var(--f-f3e4cc);border:2px solid #A86B36">
-        <label style="color:var(--gold-dark)">Nomi</label>
-        <input placeholder="Karniz M-06" class="i-name" autocomplete="off"
+        <label style="color:var(--gold-dark)">Nomi <span class="majburiy" title="Majburiy">*</span></label>
+        <input placeholder="Masalan: Karniz M-06" class="i-name" autocomplete="off"
                oninput="searchFinished(this);updateTotal();updateLiveStats();updateDetalSummary(this.closest('.detal'))" onblur="hideFpSuggest(this)">
         <div class="fp-suggest" style="display:none"></div>
       </div>
@@ -3340,12 +3387,12 @@ function addItem() {
         <div class="dgrp i-qty-box" style="flex:3;margin-bottom:0">
           <div class="dgrp-title">🧮 Miqdor va narx</div>
           <div class="dgrp-row" style="grid-template-columns:repeat(3,1fr)">
-            <div class="dif i-donayield-wrap" style="display:none"><label>1 metrdan nechta</label><div class="unit-input-wrap"><input type="number" placeholder="masalan 5" class="i-donayield" step="0.1" min="0.01" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">dona</span></div></div>
+            <div class="dif i-donayield-wrap" style="display:none"><label>1 metrdan nechta</label><div class="unit-input-wrap"><input type="number" placeholder="Masalan: 5" class="i-donayield" step="0.1" min="0.01" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">dona</span></div></div>
             <div class="dif i-l-wrap"><label class="i-l-label">Uzunlik</label><div class="unit-input-wrap"><input type="number" placeholder="" value="0" class="i-l" step="0.1" oninput="clampNonNegative(this);calculateItem(this.closest('.detal'))"><span class="unit-suffix">m</span></div></div>
             <div class="dif i-q-wrap"><label class="i-q-label">Miqdor</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-q" value="1" min="0" step="0.5" oninput="clampNonNegative(this);calculateItem(this.closest('.detal'))"><span class="unit-suffix i-q-suffix">dona</span></div></div>
             <div class="dif i-unitprice-wrap" style="display:none"><label class="i-unitprice-label">1 dona narxi</label><div class="unit-input-wrap"><input type="text" placeholder="" class="i-unitprice" oninput="formatPriceInput(this);onUnitPriceInput(this.closest('.detal'))"><span class="unit-suffix">so'm</span></div></div>
-            <div class="dif i-blokprice-wrap" style="display:none"><label>1 blok narxi (tayyor)</label><div class="unit-input-wrap"><input type="text" placeholder="1 500 000" class="i-blokprice" oninput="formatPriceInput(this);onBlokPriceInput(this.closest('.detal'))"><span class="unit-suffix">so'm</span></div></div>
-            <div class="dif i-blokmult-wrap" style="display:none"><label>Qoplama koeffitsienti</label><div class="unit-input-wrap"><input type="number" value="2" placeholder="masalan 2" class="i-blokmult" step="0.1" min="1" oninput="recalcBlokPrice(this.closest('.detal'))"></div></div>
+            <div class="dif i-blokprice-wrap" style="display:none"><label>1 blok narxi (tayyor)</label><div class="unit-input-wrap"><input type="text" placeholder="Masalan: 1 500 000" class="i-blokprice" oninput="formatPriceInput(this);onBlokPriceInput(this.closest('.detal'))"><span class="unit-suffix">so'm</span></div></div>
+            <div class="dif i-blokmult-wrap" style="display:none"><label>Qoplama koeffitsienti</label><div class="unit-input-wrap"><input type="number" value="2" placeholder="Masalan: 2" class="i-blokmult" step="0.1" min="1" oninput="recalcBlokPrice(this.closest('.detal'))"></div></div>
           </div>
         </div>
       </div>
@@ -3517,6 +3564,9 @@ function updateTypeConfirmText(row, type) {
   const qLabel = row.querySelector('.i-q-label')?.textContent || 'Miqdor';
   const qSuffix = row.querySelector('.i-q-suffix')?.textContent || '';
   const name = TYPE_DISPLAY_NAME[type] || type;
+  // kech120 (zip 134 — F bosqichi 4-qism, audit G2-10): profil narxi — UZUNLIK (m) bo'yicha (1 metr narxi × uzunlik), «Miqdor» maydoni
+  // profilda yashirin; ilgari yozuv yashirin maydon yorlig'idan olinib «"Miqdor" (dona) bo'yicha» derdi
+  if (type === 'profil') { el.textContent = `✓ ${name} tanlandi — «Uzunlik» (m) bo'yicha hisoblanadi`; return; }
   el.textContent = `✓ ${name} tanlandi — "${qLabel}" (${qSuffix}) bo'yicha hisoblanadi`;
 }
 
@@ -4015,7 +4065,7 @@ function addSubDetailRow(detalRow, prefill) {
   sub.style.cssText = 'display:flex;gap:6px;align-items:flex-end;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--ch-eadfc9)';
   sub.innerHTML = `
     <div style="flex:2;min-width:110px"><label style="font-size:12px;color:var(--m-8a6a45)">Nomi (ixtiyoriy)</label>
-      <input type="text" class="sd-name" placeholder="Rebristo detal" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--ch-dddddd);border-radius:6px">
+      <input type="text" class="sd-name" placeholder="Masalan: Rebristo detal" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--ch-dddddd);border-radius:6px">
     </div>
     <div style="flex:1;min-width:90px"><label style="font-size:12px;color:var(--m-8a6a45)">Turi</label>
       <select class="sd-type" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--ch-dddddd);border-radius:6px" onchange="onSubDetailTypeChange(this)">
@@ -4468,9 +4518,14 @@ function updateLiveStats() {
   document.getElementById('ls-count').textContent = namedCount + ' ta';
   document.getElementById('ls-length').textContent = sonKor(totalLength, 2) + ' m';
   document.getElementById('ls-volume').textContent = sonKor(totalVolume, 3) + ' m³';
-  document.getElementById('ls-loy').textContent = loyKg + ' kg';
+  document.getElementById('ls-loy').textContent = sonKor(loyKg, 2) + ' kg';
   document.getElementById('ls-total').textContent = formatNum(finalPrice) + " so'm";
-  document.getElementById('ls-debt').textContent = formatNum(debt) + " so'm";
+  const lsDebt = document.getElementById('ls-debt');
+  lsDebt.textContent = formatNum(debt) + " so'm";
+  // kech120 (zip 134 — G2-16): qarz 0 — kulrang (ilgari bo'sh formada ham qizil «0 so'm»)
+  lsDebt.classList.toggle('red', debt > 0.004);
+  const lsZ = document.getElementById('ls-zaklat');
+  if (lsZ) lsZ.textContent = formatNum(zaklat || 0) + " so'm";
 }
 
 // Yordamchi: faqat NOMI kiritilgan detallarning narxini yig'adi — chunki
@@ -4513,9 +4568,11 @@ function updateTotal() {
     // ham qo'shilmasligi kerak — aks holda ko'rsatilgan summa bilan
     // haqiqatda saqlanadigan summa mos kelmay qoladi.
     if (!name) {
-      html += `
+      // kech120 (zip 134 — F bosqichi 4-qism, audit G2-11): raqam — detal YORLIG'IDAGI («Detal #2»; ilgari ekrandagi o'rin — tepadagi #2
+      // «#1» deyilardi), ogohlantirish — faqat boshqa maydon to'ldirilgan bo'lsa
+      if (row.dataset.tegildi === '1') html += `
         <div style="padding:8px 0;border-bottom:1px solid var(--ch-f5f5f5);font-size:13px;color:var(--m-b45309);cursor:pointer" onclick="scrollToDetail('${row.id}')" title="Bosib, shu detalga o'ting">
-          ⚠️ Detal #${i+1} — nomi kiritilmagan, hisobga olinmaydi
+          ⚠️ ${escapeHtml(detalYorligi(row, i))} — nomi kiritilmagan, hisobga olinmaydi
         </div>`;
       return;
     }
@@ -4562,7 +4619,7 @@ function updateTotal() {
     <div style="display:flex;justify-content:space-between;align-items:center;
                 padding:10px 0 0;font-size:15px;font-weight:700;
                 border-top:2px solid #B9783F;margin-top:6px">
-      <span>JAMI:</span>
+      <span>Jami (chegirmasiz):</span>
       <span style="color:var(--gold-dark)">${sonKor(total)} so'm</span>
     </div>`;
 
@@ -4716,6 +4773,26 @@ function reapplyDiscount() {
 }
 
 // ── Buyurtmani saqlash ────────────────────────────────────
+// kech120 (zip 134 — F bosqichi 4-qism, audit G2-09 / G2-11): detal nomi — yorlig'idagi raqam bilan («Detal #2»), ekrandagi o'rin emas
+function detalYorligi(row, idx) {
+  const t = row && row.querySelector ? (row.querySelector('.detal-badge') || {}).textContent : '';
+  return (t && String(t).trim()) || ('Detal #' + ((idx || 0) + 1));
+}
+// Saqlashdan oldingi UMUMIY kamchiliklar — hammasi BITTA ro'yxatda (ilgari «Loyiha tanlang!» / «Kamida 1 ta detal» — alohida, ekran
+// tepasida 4 soniya, maydonga olib bormasdi; nomsiz, lekin to'ldirilgan detal JIM tashlanardi)
+function buyurtmaUmumiyKamchiliklar(items) {
+  const issues = [];
+  const projId = parseInt((document.getElementById('project_id') || {}).value);
+  if (!projId) issues.push({ text: "Loyiha tanlanmagan", targetId: 'project_id_search' });
+  const nomsiz = [];
+  document.querySelectorAll('.detal').forEach((row, idx) => {
+    const nom = (row.querySelector('.i-name')?.value || '').trim();
+    if (!nom && row.dataset.tegildi === '1') nomsiz.push({ yorliq: detalYorligi(row, idx), id: row.id });
+  });
+  nomsiz.forEach(x => issues.push({ text: `${x.yorliq} — nomi kiritilmagan (nomsiz detal saqlanmaydi)`, targetId: x.id }));
+  if (!(items || []).length && !nomsiz.length) issues.push({ text: "Kamida bitta detal qo'shing (nomi bilan)", targetId: 'items' });
+  return issues;
+}
 function showValidationModal(issues) {
   const list = document.getElementById('validationList');
   list.innerHTML = issues.map(it => `
@@ -4755,7 +4832,6 @@ async function saveOrder(isDraft = false) {
   }
 
   const projId = parseInt(document.getElementById('project_id').value);
-  if (!projId) { showMsg('Loyiha tanlang!', 'error'); return; }
 
   // Tayyor mahsulot chegarasi
   const fpErr = document.querySelectorAll('.detal[data-fp-error="1"]');
@@ -4766,15 +4842,15 @@ async function saveOrder(isDraft = false) {
   }
 
   const items = collectItems();
-  if (!items.length) { showMsg('Kamida 1 ta detal qo\'shing!', 'error'); return; }
 
   // TO'LIQ TEKSHIRUV -- to'ldirilmagan bo'lsa, SAQLANMAYDI
   // (Vaqtincha saqlashda ham, yakuniy saqlashda ham qo'llanadi)
-  const issues = [];
+  // kech120 (zip 134 — G2-09): loyiha, detallar va nomsiz detallar ham shu ro'yxatda
+  const issues = buyurtmaUmumiyKamchiliklar(items);
 
   const deadlineVal = document.getElementById('deadline_input')?.value || '';
   if (!deadlineVal) {
-    issues.push({ text: "Yetkazib berish muddati kiritilmagan", targetId: 'deadline_input' });
+    issues.push({ text: "Topshirish sanasi kiritilmagan", targetId: 'deadline_input' });   // kech120 (zip 134 — G2-09): maydon nomi bilan bir xil
   }
 
   // Loy miqdori -- FAQAT agar kamida bitta YANGI (Tayyor mahsulotdan
@@ -4812,12 +4888,12 @@ async function saveOrder(isDraft = false) {
     const pid = parseInt(penoSel.value);
     const ownPrice = parseNum(m3El.value);
     if (pid && DEFAULT_PENO_ID && pid !== DEFAULT_PENO_ID && !ownPrice) {
-      rowsMissingPrice.push({ idx, rowId: row.id });
+      rowsMissingPrice.push({ idx, rowId: row.id, yorliq: detalYorligi(row, idx) });
     }
   });
   if (rowsMissingPrice.length) {
     issues.push({
-      text: `${rowsMissingPrice.length}-detal(lar)da (№${rowsMissingPrice.map(r=>r.idx+1).join(', ')}) boshqa plotnost tanlangan, lekin 1 m³ narxi yozilmagan`,
+      text: `${rowsMissingPrice.map(r => r.yorliq).join(', ')}: boshqa plotnost tanlangan, lekin 1 m³ narxi yozilmagan`,
       targetId: rowsMissingPrice[0].rowId
     });
   }
@@ -4831,12 +4907,12 @@ async function saveOrder(isDraft = false) {
     if (rowType !== 'loy_sotish') return;
     const recipeEl = row.querySelector('.i-loysale-recipe');
     if (recipeEl && !parseInt(recipeEl.value)) {
-      rowsMissingRecipe.push({ idx, rowId: row.id });
+      rowsMissingRecipe.push({ idx, rowId: row.id, yorliq: detalYorligi(row, idx) });
     }
   });
   if (rowsMissingRecipe.length) {
     issues.push({
-      text: `⚠️ ${rowsMissingRecipe.length}-detal(lar)da (№${rowsMissingRecipe.map(r=>r.idx+1).join(', ')}) "Loy sotish" uchun RETSEPT TANLANMAGAN — xomashyo ombordan ayirilmaydi!`,
+      text: `⚠️ ${rowsMissingRecipe.map(r => r.yorliq).join(', ')}: "Loy sotish" uchun RETSEPT TANLANMAGAN — xomashyo ombordan ayirilmaydi!`,
       targetId: rowsMissingRecipe[0].rowId
     });
   }
@@ -4917,8 +4993,10 @@ async function submitOrderRequest(data, isDraft, zaklat, zaklatMethod, confirmSh
         showMsg('\u274c ' + ((e.detail && e.detail.message) || 'Xato'), 'error');
       }
     } else {
-      const e = await res.json();
-      showMsg('Xato: ' + JSON.stringify(e.detail), 'error');
+      // kech120 (zip 134 — G2-09): ilgari «Xato: {…}» (xom JSON) — endi server SABABI oddiy gap bilan (`xatoSababi`)
+      let e = null;
+      try { e = await res.json(); } catch (_) { e = null; }
+      showMsg('❌ ' + ((typeof xatoSababi === 'function') ? xatoSababi(e, 'Buyurtma saqlanmadi') : 'Buyurtma saqlanmadi'), 'error');
     }
   } catch(e) { showMsg('Server xatosi', 'error'); }
 }
@@ -4948,7 +5026,7 @@ async function duplicateSelected() {
     const res = await fetch(`/api/orders/${selectedOrderId}`);
     if (!res.ok) {
       const err = await res.json();
-      showMsg('Xato: ' + (err.detail || 'Server xatosi'), 'error');
+      showMsg('❌ ' + ((typeof xatoSababi === 'function') ? xatoSababi(err, 'Server xatosi') : 'Server xatosi'), 'error');   // kech120 (zip 134 — G2-09)
       return;
     }
     const order = await res.json();
@@ -5064,7 +5142,7 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
       const ordRes = await fetch(`/api/orders/${editId}`);
       if (!ordRes.ok) {
         const err = await ordRes.json();
-        showMsg('Xato: ' + (err.detail || 'Server xatosi'), 'error');
+        showMsg('❌ ' + ((typeof xatoSababi === 'function') ? xatoSababi(err, 'Server xatosi') : 'Server xatosi'), 'error');   // kech120 (zip 134 — G2-09)
         return;
       }
       order = await ordRes.json();
@@ -5731,7 +5809,6 @@ function _narxiNolgaTushgan(items) {
 
 async function updateOrder(orderId) {
   const projId = parseInt(document.getElementById('project_id').value);
-  if (!projId) { showMsg('Loyiha tanlang!', 'error'); return; }
 
   // Topshirish cheklovini tekshiramiz
   const errRows = document.querySelectorAll('.detal[data-dlv-error="1"]');
@@ -5749,7 +5826,9 @@ async function updateOrder(orderId) {
   }
 
   const items = collectItems();
-  if (!items.length) { showMsg('Kamida 1 ta detal qo\'shing!', 'error'); return; }
+  // kech120 (zip 134 — G2-09): loyiha, detallar, nomsiz detallar — bitta ro'yxatda (yaratishdagi bilan bir yordamchi)
+  const umumiy134 = buyurtmaUmumiyKamchiliklar(items);
+  if (umumiy134.length) { showValidationModal(umumiy134); return; }
 
   // kech103 (54-band): qoplama retsepti — yaratishdagi (`saveOrder`) bilan AYNAN shart
   const anyCoated54 = Array.from(document.querySelectorAll('.detal')).some(row => {

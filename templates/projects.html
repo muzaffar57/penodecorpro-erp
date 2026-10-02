@@ -223,17 +223,25 @@
           <span style="font-size:13px;color:var(--text3)"><i class="ti ti-clipboard-list" style="font-size:13px"></i> {{ p.orders_count }} ta buyurtma</span>
           <span style="font-size:13px;color:var(--text3)">{{ paid_pct }}% to'langan</span>
         </div>
-        <div class="progress-bar" id="progress-{{ p.id }}"><div class="progress-fill" style="width:0%"></div></div>
+        {# kech120 (zip 134 — G2-19): chiziq — BAJARILISH foizi (tayyor / yetkazilgan buyurtmalar), «… to'langan» yozuvi ostida to'lov chizig'i
+           deb o'qilardi — endi nomi bilan #}
+        <div class="progress-bar" id="progress-{{ p.id }}" title="Bajarilgan (tayyor / yetkazilgan buyurtmalar ulushi)"><div class="progress-fill" style="width:0%"></div></div>
+        <div class="proj-bajarildi" id="pbaj-{{ p.id }}" style="font-size:12px;color:var(--text3);margin-top:3px"></div>
         </div>
       </div>
       {% endfor %}
       {% else %}
-      <div style="text-align:center;padding:40px;color:var(--text3)">Loyiha yo'q</div>
+      {# kech120 (zip 134 — F bosqichi 4-qism, audit G2-22): ilgari kulrang «Loyiha yo'q» va hech narsa qilmaydigan 8 ta tab #}
+      <div class="proj-bosh" style="text-align:center;padding:30px 18px;color:var(--text2);font-size:13.5px;line-height:1.55">
+        <div style="font-weight:700;color:var(--text);margin-bottom:6px">Hali loyiha yo'q</div>
+        Loyiha — mijoz va uning obyekti (masalan: «Karimov Botir — Hovli fasadi»). Buyurtmalar loyiha ichida yaratiladi.
+        {% if current_user.ruxsat('loyiha', 'yaratish') %}<div style="margin-top:12px"><button class="btn btn-dark btn-sm" onclick="showAddModal()">+ Birinchi loyihani yaratish</button></div>{% endif %}
+      </div>
       {% endif %}
     </div>
 
     <!-- O'ng: detal -->
-    <div class="card proj-detail" id="projDetail">
+    <div class="card proj-detail" id="projDetail"{% if not projects %} style="display:none"{% endif %}>
       <div class="card-head">
         <h3 id="d-name">Loyiha tanlang</h3>
         <span class="status-badge" id="d-status"></span>
@@ -252,7 +260,7 @@
           <button class="tab-btn" data-tab="payments" onclick="switchTab('payments')">To'lovlar</button>
           <button class="tab-btn" data-tab="products" onclick="switchTab('products')">Mahsulotlar</button>
           <button class="tab-btn" data-tab="materials" onclick="switchTab('materials')">Xomashyo</button>
-          <button class="tab-btn" data-tab="timeline" onclick="switchTab('timeline')">Timeline</button>
+          <button class="tab-btn" data-tab="timeline" onclick="switchTab('timeline')">Tarix</button>
           <button class="tab-btn" data-tab="notes" onclick="switchTab('notes')">Izohlar</button>
         </div>
 
@@ -269,13 +277,13 @@
   <div style="background:var(--white);border-radius:14px;padding:24px;width:480px;max-width:100%;max-height:90vh;overflow-y:auto">
     <div style="font-size:16px;font-weight:600;margin-bottom:18px">+ Yangi loyiha</div>
     <div class="form-row">
-      <div class="form-group" style="margin-bottom:12px"><label>Mijoz ismi</label><input type="text" id="f-client" placeholder="Karimov Botir"></div>
-      <div class="form-group" style="margin-bottom:12px"><label>Telefon</label><input type="text" id="f-phone" placeholder="+998901234567"></div>
+      <div class="form-group" style="margin-bottom:12px"><label>Mijoz ismi</label><input type="text" id="f-client" placeholder="Masalan: Karimov Botir"></div>
+      <div class="form-group" style="margin-bottom:12px"><label>Telefon</label><input type="text" id="f-phone" placeholder="Masalan: +998 90 123 45 67"></div>
     </div>
-    <div class="form-group"><label>Loyiha nomi</label><input type="text" id="f-pname" placeholder="Hovli fasadi"></div>
+    <div class="form-group"><label>Loyiha nomi</label><input type="text" id="f-pname" placeholder="Masalan: Hovli fasadi"></div>
     <div class="form-group"><label>Manzil</label><input type="text" id="f-address" placeholder="Andijon, ..."></div>
     <div class="form-group">
-      <label>Mijoz Telegram ID <span style="color:var(--text3);font-weight:400">(buyurtma tayyor bo'lganda SMS uchun)</span></label>
+      <label>Mijoz Telegram ID <span style="color:var(--text3);font-weight:400">(buyurtma tayyor bo'lganda Telegram xabari uchun)</span></label>
       <input type="text" id="f-tg-id" placeholder="Masalan: 123456789">
     </div>
     <!-- kech116 (G2-01): «Byudjet» maydoni olib tashlandi — loyiha qiymati buyurtmalardan hisoblanadi -->
@@ -299,7 +307,7 @@
     <div class="form-group"><label>Loyiha nomi</label><input type="text" id="e-pname"></div>
     <div class="form-group"><label>Manzil</label><input type="text" id="e-address"></div>
     <div class="form-group">
-      <label>Mijoz Telegram ID <span style="color:var(--text3);font-weight:400">(buyurtma tayyor bo'lganda SMS uchun)</span></label>
+      <label>Mijoz Telegram ID <span style="color:var(--text3);font-weight:400">(buyurtma tayyor bo'lganda Telegram xabari uchun)</span></label>
       <input type="text" id="e-tg-id" placeholder="Masalan: 123456789">
     </div>
     <!-- kech116 (G2-01): «Byudjet» maydoni olib tashlandi — loyiha qiymati buyurtmalardan hisoblanadi (bazadagi ustunga
@@ -427,6 +435,8 @@ async function loadProgressMap(){
     Object.keys(progressMap).forEach(pid => {
       const el = document.querySelector(`#progress-${pid} .progress-fill`);
       if (el) el.style.width = progressMap[pid] + '%';
+      const yoz = document.getElementById('pbaj-' + pid);
+      if (yoz) yoz.textContent = '🏭 Bajarilgan ' + (Number(progressMap[pid]) || 0) + '%';
     });
   } catch(e) {}
 }
@@ -482,8 +492,16 @@ async function loadStatusPanel(d){
     <div class="status-panel-item" style="border-color:#B9783F"><div class="status-panel-val">${paidPct}%</div><div class="status-panel-lbl">💰 To'langan</div></div>
     <div class="status-panel-item" style="border-color:#8E44AD"><div class="status-panel-val">${d.orders} ta</div><div class="status-panel-lbl">📦 Buyurtmalar</div></div>
     <div class="status-panel-item" style="border-color:#22C55E"><div class="status-panel-val">${progress}%</div><div class="status-panel-lbl">🏭 Bajarilgan</div></div>
-    <div class="status-panel-item" style="border-color:#F59E0B"><div class="status-panel-val">${d.status === 'COMPLETED' ? 'Yetkazildi' : 'Kutilmoqda'}</div><div class="status-panel-lbl">🚚 Yetkazish</div></div>
+    <div class="status-panel-item" style="border-color:#F59E0B"><div class="status-panel-val" id="sp-yetkazish">${d.status === 'COMPLETED' ? 'Yetkazildi' : '…'}</div><div class="status-panel-lbl">🚚 Yetkazish</div></div>
     <div class="status-panel-item" style="border-color:${deadlineColor==='var(--text)'?'#94A3B8':deadlineColor}"><div class="status-panel-val" style="color:${matnRangi(deadlineColor)}">${deadlineTxt}</div><div class="status-panel-lbl">📅 Muddat</div></div>`;
+  // kech120 (zip 134 — G2-19): «Yetkazish» — buyurtmalarning to'liq topshirilgani («2/3 topshirildi»); ilgari faqat loyiha «Yakunlangan» bo'lsa
+  try {
+    const t = await fetch(`/api/projects/${encodeURIComponent(d.id)}/topshirish`).then(r => r.ok ? r.json() : null);
+    const el = document.getElementById('sp-yetkazish');
+    if (el && t && String(selectedProjId) === String(d.id)) {
+      el.textContent = !t.jami ? '—' : (t.topshirilgan >= t.jami ? 'Hammasi topshirildi' : `${t.topshirilgan}/${t.jami} topshirildi`);
+    }
+  } catch (e) { const el = document.getElementById('sp-yetkazish'); if (el && el.textContent === '…') el.textContent = '—'; }
 }
 
 function switchTab(tab, force) {
@@ -854,6 +872,15 @@ async function markProjectComplete() {
 }
 
 function showAddModal(){document.getElementById('addModal').style.display='flex';}
+// kech120 (zip 134 — G2-22): «/projects?yangi=1» (Buyurtma formasidan / bo'sh Buyurtmalar sahifasidan) — yangi loyiha oynasi ochiladi
+(function () {
+  try {
+    const p = new URLSearchParams(window.location.search);
+    if (p.get('yangi') !== '1') return;
+    history.replaceState(null, '', window.location.pathname);
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => showAddModal()); else showAddModal();
+  } catch (e) { /* URL — muhim emas */ }
+})();
 function closeModal(){
   document.getElementById('addModal').style.display='none';
 }
