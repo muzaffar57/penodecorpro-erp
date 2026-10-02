@@ -33,6 +33,8 @@
   --white: #ffffff;
   --border: #E8E3DD;
   --border2: #F0ECE6;
+  --border-strong: #CFC5B8;  /* kech120 (zip 134 — G2-23): 5 shablon ishlatardi, hech qayerda aniqlanmagan edi (ramka chizilmasdi) */
+  --placeholder: #A1A4AD;    /* kech120 (zip 134 — G2-08): namuna matni — yorliqdan (--text3) och, qiymatdan aniq farqli */
   --text: #222222;
   --text2: #5B6170;          /* kech118 (U-03): ≥ 5.8:1 hamma och fonda (ilgari #6B7280 — oltin fonda 4.35) */
   --text3: #696D78;          /* kech118 (U-03): ≥ 4.4:1 (ilgari #9A9DA6 — 2.4–2.7; audit: 208 joy) */
@@ -56,12 +58,17 @@ html[data-theme="dark"] {
   --white: #1E212A;
   --border: #34384A;
   --border2: #282C38;
+  --border-strong: #4A5064;
+  --placeholder: #6B7080;
   --text: #ECEAE6;
   --text2: #A3A6B0;
   --text3: #9096A2;          /* kech118 (zip 122): kartada 5.4:1 (ilgari #6E7280 — 3.4) */
   --shadow-card: 0 1px 3px rgba(0,0,0,.35), 0 1px 2px rgba(0,0,0,.25);
 }
 html[data-theme="dark"] body { background: var(--bg); color: var(--text); }
+/* kech120 (zip 134 — F bosqichi 4-qism, audit G2-08, O'LCHANGAN: brauzer standarti #757575 — yorliqlardan ham to'q, kiritilgan qiymatga
+   yaqin; «Karniz M-06», «Karimov Botir» yozib qo'yilgan ma'lumotdek ko'rinardi) — namuna matni hamma joyda och kulrang */
+::placeholder { color: var(--placeholder); opacity: 1; }
 html[data-theme="dark"] .kpi-card,
 html[data-theme="dark"] .card,
 html[data-theme="dark"] .stat-card { background: var(--white); border-color: var(--border); }
