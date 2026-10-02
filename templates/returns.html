@@ -5,7 +5,8 @@
 
 {% block topbar_actions %}
 {% if current_user.ruxsat('qaytarish', 'yaratish') or current_user.ruxsat('brak', 'yaratish') %}<button class="btn btn-outline" style="border-color:#DC2626;color:var(--m-dc2626)" onclick="showBrakModal()"><i class="ti ti-alert-triangle" style="vertical-align:-2px"></i> Brak yozish</button>{% endif %}
-<button class="btn btn-dark" onclick="showAddModal()"><i class="ti ti-plus" style="vertical-align:-2px"></i> Yangi qaytarish</button>
+{# kech120 (zip 133 — G5-18): ruxsatsizga (server rad etadi) tugma ko'rsatilmaydi #}
+{% if current_user.ruxsat('qaytarish', 'yaratish') %}<button class="btn btn-dark" onclick="showAddModal()"><i class="ti ti-plus" style="vertical-align:-2px"></i> Yangi qaytarish</button>{% endif %}
 {% endblock %}
 
 {% block head %}
@@ -22,6 +23,15 @@
 .ret-row.anim-yoq{animation:none;opacity:1}
 @media (prefers-reduced-motion:reduce){.ret-row{animation:none;opacity:1}}
 .ret-row:hover{box-shadow:var(--shadow-card)}
+.stat-izoh{font-size:12px;color:var(--text3);margin-top:4px;line-height:1.35}
+/* kech120 (zip 133 — G5-15, O'LCHANGAN work/f3/probe_qayt.py: 390 × 844 da admin uchun 5 karta (~240 px) va ikki yig'iq bo'lim birinchi
+   ro'yxat qatorini 710 px ga surardi): telefonda kartalar BITTA qatorda, yon tomonga suriladi (Tayyor mahsulotlar `.fp-stat-tasma` bilan
+   bir qoida) */
+@media(max-width:600px){
+  .ret-stat-tasma{display:flex !important;overflow-x:auto;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;gap:8px;padding:2px 2px 6px;margin-left:-2px;margin-right:-2px;scrollbar-width:none}
+  .ret-stat-tasma::-webkit-scrollbar{display:none}
+  .ret-stat-tasma > .stat-card{flex:0 0 46%;scroll-snap-align:start}
+}
 .ret-group-header{
   display:flex;align-items:center;gap:10px;padding:12px 14px;margin-bottom:8px;
   background:var(--bg);border:1px solid var(--border);border-radius:12px;
@@ -32,6 +42,17 @@
 .ret-group-header.open .chev{transform:rotate(90deg)}
 .ret-group-header .g-title{font-weight:600;font-size:14px;color:var(--text)}
 .ret-group-header .g-count{font-size:12px;color:var(--text3);background:var(--white);padding:2px 9px;border-radius:20px;border:1px solid var(--border)}
+/* kech120 (zip 133 — G5-17): sarlavhada mijoz, butun / brak soni, summa va oxirgi sana (ilgari faqat raqam va son) */
+.ret-group-header .g-mijoz{font-size:13px;color:var(--text2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ret-group-header .g-xulosa{font-size:12.5px;color:var(--text3);white-space:nowrap;margin-right:auto}
+.ret-group-header .g-summa{font-size:12.5px;font-weight:600;color:var(--text);white-space:nowrap}
+.ret-group-header .g-sana{font-size:12.5px;color:var(--text3);white-space:nowrap}
+.ret-group-header:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+@media (max-width:600px){
+  .ret-group-header{flex-wrap:wrap;row-gap:4px}
+  .ret-group-header .g-mijoz{flex:1 1 40%}
+  .ret-group-header .g-xulosa{margin-right:0}
+}
 .ret-group-body{display:none;padding-left:6px;border-left:2px solid var(--border2);margin-left:8px;margin-bottom:10px}
 .ret-group-body.open{display:block}
 .ret-icon{width:70px;align-self:stretch;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;position:relative;overflow:hidden;cursor:pointer}
@@ -47,6 +68,8 @@
 .refund-badge{font-size:12px;font-weight:600;padding:2px 8px;border-radius:20px}
 .refund-yes{background:var(--f-dcfce7);color:var(--m-166534)}
 .refund-no{background:var(--f-fef3c7);color:var(--m-92400e)}
+.refund-btn{font-size:12px;font-weight:600;padding:5px 10px;min-height:32px;border-radius:8px;border:1.5px solid var(--m-92400e);background:var(--f-fef3c7);color:var(--m-92400e);cursor:pointer;white-space:nowrap;margin-top:4px}
+.refund-btn:hover{background:var(--m-92400e);color:#fff}
 .ret-page{
   height: 100%;
   overflow-y: auto;
@@ -86,15 +109,19 @@
 {% block content %}
 <div class="ret-page" style="padding:14px">
 
-  <div class="stat-grid mb-16" id="kpiRow">
-    <div class="stat-card"><div class="stat-icon" style="background:var(--f-fee2e2);color:var(--m-dc2626)"><i class="ti ti-alert-triangle"></i></div><div class="stat-label">Brak (bu oy)</div><div class="stat-val" id="k-brak-month">—</div></div>
+  {# kech120 (zip 133 — F bosqichi 3-qism, audit G5-18 / G5-15, O'LCHANGAN work/f3/probe_qayt.py): kartalar nomi aniq — qaysi davr
+     («bu oy» / «hamma vaqt») va tarkibi (izoh: ro'yxatdagi brak va ishlab chiqarish braki; butun va brak yozuvlari). Telefonda
+     kartalar BITTA tasmada yon tomonga suriladi (Tayyor mahsulotlardagi kabi) — ro'yxat birinchi ekranda boshlanadi
+     (ilgari admin telefonda birinchi guruh 710 px da edi). #}
+  <div class="stat-grid ret-stat-tasma mb-16" id="kpiRow">
+    <div class="stat-card"><div class="stat-icon" style="background:var(--f-fee2e2);color:var(--m-dc2626)"><i class="ti ti-alert-triangle"></i></div><div class="stat-label">Brak — bu oy</div><div class="stat-val" id="k-brak-month">—</div><div class="stat-izoh" id="k-brak-month-izoh"></div></div>
     {% if current_user.ruxsat('tannarx', 'korish') %}
-    <div class="stat-card"><div class="stat-icon" style="background:var(--f-fee2e2);color:var(--m-dc2626)"><i class="ti ti-report-money"></i></div><div class="stat-label">Brak qiymati (bu oy)</div><div class="stat-val" id="k-brak-value">—</div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:var(--f-fee2e2);color:var(--m-dc2626)"><i class="ti ti-report-money"></i></div><div class="stat-label">Brak qiymati — bu oy</div><div class="stat-val" id="k-brak-value">—</div></div>
     {% endif %}
-    <div class="stat-card"><div class="stat-icon" style="background:var(--f-dcfce7);color:var(--m-166534)"><i class="ti ti-recycle"></i></div><div class="stat-label">Butun qaytgan (bu oy)</div><div class="stat-val" id="k-whole-month">—</div></div>
-    <div class="stat-card"><div class="stat-icon"><i class="ti ti-history"></i></div><div class="stat-label">Jami qaytarishlar</div><div class="stat-val" id="k-total">—</div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:var(--f-dcfce7);color:var(--m-166534)"><i class="ti ti-recycle"></i></div><div class="stat-label">Butun qaytgan — bu oy</div><div class="stat-val" id="k-whole-month">—</div></div>
+    <div class="stat-card"><div class="stat-icon"><i class="ti ti-history"></i></div><div class="stat-label">Qaytarish va brak yozuvlari — hamma vaqt</div><div class="stat-val" id="k-total">—</div><div class="stat-izoh" id="k-total-izoh"></div></div>
     {% if current_user.ruxsat('tannarx', 'korish') %}
-    <div class="stat-card"><div class="stat-icon" style="background:var(--f-fee2e2);color:var(--m-dc2626)"><i class="ti ti-trash"></i></div><div class="stat-label">Jami brak qiymati</div><div class="stat-val" id="k-brak-total-value">—</div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:var(--f-fee2e2);color:var(--m-dc2626)"><i class="ti ti-trash"></i></div><div class="stat-label">Brak qiymati — hamma vaqt</div><div class="stat-val" id="k-brak-total-value">—</div></div>
     {% endif %}
   </div>
 
@@ -167,9 +194,9 @@
       <option value="Brak">🔴 Brak (yo'qotish)</option>
     </select>
     <select id="filter-refund" onchange="filterTable()">
-      <option value="">To'lov — barchasi</option>
-      <option value="yes">Qaytarilgan</option>
-      <option value="no">Qaytarilmagan</option>
+      <option value="">Hisob-kitob — barchasi</option>
+      <option value="yes">Hisob-kitob qilingan</option>
+      <option value="no">Hisob-kitob kutilmoqda</option>
     </select>
   </div>
 
@@ -177,8 +204,9 @@
     {% if returns %}
     {% for r in returns %}
     {% set is_defect = r.reason.value == 'Brak' %}
-    <div class="ret-row{% if loop.index0 >= 20 %} anim-yoq{% endif %}" id="row-{{ r.id }}" data-reason="{{ r.reason.value }}" data-refund="{{ 'yes' if r.is_refunded else 'no' }}" data-stock="{{ ('%g'|format(r.stock_qty) ~ ' ' ~ (r.unit or '')) if r.stock_qty else '' }}" data-mrp="{{ ('%g'|format(r.mrp_ozod_miqdor) ~ ' ' ~ (r.unit or '')) if r.mrp_ozod_miqdor else '' }}"
+    <div class="ret-row{% if loop.index0 >= 20 %} anim-yoq{% endif %}" id="row-{{ r.id }}" data-reason="{{ r.reason.value }}" data-refund="{{ 'yes' if r.is_refunded else 'no' }}" data-stock="{{ (r.stock_qty|son(3) ~ ' ' ~ (r.unit|birlik)) if r.stock_qty else '' }}" data-mrp="{{ (r.mrp_ozod_miqdor|son(3) ~ ' ' ~ (r.unit|birlik)) if r.mrp_ozod_miqdor else '' }}"
          data-order="{{ r.order.order_number if r.order else '' }}"
+         data-mijoz="{{ r.order.project.client_name if r.order and r.order.project else '' }}" data-sana="{{ r.returned_at|toshkent('%d.%m.%Y') }}"{% if current_user.ruxsat('tannarx', 'korish') %} data-summa="{{ (r.refund_amount or 0)|float }}"{% endif %}
          data-search="{{ (r.order.order_number if r.order else '') ~ ' ' ~ (r.order.project.client_name if r.order and r.order.project else '') ~ ' ' ~ r.item_name }}"
          {% if loop.index0 < 20 %}style="animation-delay:{{ loop.index0 * 0.02 }}s"{% endif %}>
       <label class="ret-icon {{ 'defect' if is_defect else 'whole' }}" style="background:{{ 'var(--f-fee2e2)' if is_defect else 'var(--f-dcfce7)' }};color:{{ 'var(--m-991b1b)' if is_defect else 'var(--m-166534)' }}">
@@ -199,7 +227,8 @@
         </div>
       </div>
       <div class="ret-qty" style="text-align:center;min-width:70px">
-        <div style="font-size:13px;font-weight:600">{{ r.quantity }} {{ r.unit }}</div>
+        {# kech120 (zip 133 — G5-08): ilgari «2.0 metr» (xom son, birlik to'liq) — endi «2 m» (son va birlik qoidasi) #}
+        <div style="font-size:13px;font-weight:600">{{ r.quantity|son(3) }} {{ r.unit|birlik }}</div>
       </div>
       <div class="ret-status" style="min-width:100px;text-align:center">
         {% if is_defect %}<span class="badge badge-danger">🔴 Brak</span>{% if r.brak_bosqich %}<div class="brak-bosqich" style="font-size:12px;color:var(--m-991b1b);margin-top:4px">{{ (brak_bosqichlari or {}).get(r.brak_bosqich, r.brak_bosqich) }}</div>{% endif %}{% if r.brak_sabab %}<div class="brak-sabab" style="font-size:12px;color:var(--m-991b1b);margin-top:2px">{{ (brak_sabablari or {}).get(r.brak_sabab, r.brak_sabab) }}</div>{% endif %}{% if r.brak_javobgar_id %}<div class="brak-javobgar" style="font-size:12px;color:var(--m-64748b);margin-top:2px">👤 {{ (hodim_nomlari or {}).get(r.brak_javobgar_id, "O'chirilgan hodim") }}</div>{% endif %}{% else %}<span class="badge badge-ready">🟢 Butun</span>{% endif %}
@@ -213,10 +242,14 @@
         <div style="font-size:12.5px;font-weight:600;color:{{ 'var(--m-dc2626)' if is_defect else '#22C55E' }}">
           {% if r.refund_amount > 0 %}{{ "{:,.0f}".format(r.refund_amount).replace(",", " ") }} so'm{% else %}—{% endif %}
         </div>
+        {# kech120 (zip 133 — F bosqichi 3-qism, audit G5-05 texnik qismi): ilgari «Pul kutilmoqda» — bosiladigan YOZUV (kim kimdan kutadi
+           noaniq, tugma ekani bilinmasdi). Endi aniq TUGMA «Hisob-kitob qilish» (faqat «qaytarish: tahrirlash» ruxsatida), qilingach —
+           «✓ Hisob-kitob qilingan» (bosilmaydi — orqaga qaytarilmaydi). #}
         {% if not is_defect and r.refund_amount > 0 %}
-        <span class="refund-badge {{ 'refund-yes' if r.is_refunded else 'refund-no' }}" style="cursor:pointer" onclick="toggleRefund({{ r.id }}, {{ 'true' if r.is_refunded else 'false' }})">
-          {{ "✓ Pul qaytdi" if r.is_refunded else "Pul kutilmoqda" }}
-        </span>
+        {% if r.is_refunded %}<span class="refund-badge refund-yes">✓ Hisob-kitob qilingan</span>
+        {% elif current_user.ruxsat('qaytarish', 'tahrirlash') %}<button type="button" class="refund-btn" onclick="toggleRefund({{ r.id }}, false)"
+          title="Qaytgan summa buyurtmaning kelishilgan summasidan chegiriladi; mijoz ortiqcha to'lagan bo'lsa — o'sha qismi naqd qaytarilgan deb yoziladi">💰 Hisob-kitob qilish</button>
+        {% else %}<span class="refund-badge refund-no">Hisob-kitob kutilmoqda</span>{% endif %}
         {% endif %}
       </div>
       {% endif %}
@@ -225,9 +258,14 @@
     </div>
     {% endfor %}
     {% else %}
-    <div style="text-align:center;padding:48px 20px;color:var(--text3)">
-      <i class="ti ti-recycle" style="font-size:34px;color:var(--border-strong);display:block;margin-bottom:10px"></i>
-      Qaytarish yo'q<br><span style="font-size:12.5px">(Brak yozuvlari yuqoridagi bo'limda ko'rinadi)</span>
+    {# kech120 (zip 133 — G5-18): ilgari «(Brak yozuvlari yuqoridagi bo'limda ko'rinadi)» — brak yozuvlari AYNAN shu ro'yxatda, «yuqoridagi
+       bo'lim» (Brak tahlili) esa faqat «Hisobotlar» ruxsatida bor. Endi davr va (ruxsatga qarab) nima qilish aytiladi. #}
+    <div class="ret-bosh" style="text-align:center;padding:48px 20px;color:var(--text3)">
+      <i class="ti ti-recycle" style="font-size:34px;color:var(--border2);display:block;margin-bottom:10px"></i>
+      {% if show_all %}Hali qaytarish yoki brak yozilmagan{% else %}So'nggi 90 kunda qaytarish yoki brak yozilmagan{% endif %}
+      {% if current_user.ruxsat('qaytarish', 'yaratish') or current_user.ruxsat('brak', 'yaratish') %}
+      <br><span style="font-size:12.5px">{% if current_user.ruxsat('qaytarish', 'yaratish') %}Mijozdan butun mahsulot qaytsa — «Yangi qaytarish», buzilgan mahsulot — «Brak yozish» tugmasini bosing.{% else %}Buzilgan mahsulot — «Brak yozish» tugmasini bosing.{% endif %}</span>
+      {% endif %}
     </div>
     {% endif %}
   </div>
@@ -281,8 +319,8 @@
 
     {% if current_user.ruxsat('tannarx', 'korish') %}
     <div class="form-group">
-      <label>Qiymati (avtomatik, o'zgartirish mumkin)</label>
-      <input type="number" id="f-value" placeholder="0" min="0">
+      <label for="f-value">Qiymati, so'm (avtomatik — kelishilgan narx × miqdor; o'zgartirish mumkin)</label>
+      <input type="text" inputmode="decimal" id="f-value" placeholder="0" oninput="formatPriceInput(this)">
     </div>
     {% else %}
     <input type="hidden" id="f-value" value="0">
@@ -332,11 +370,9 @@
 })();
 
 function unitShortLabel(unit) {
-  // 'metr'/'m²'/'kg' — o'zining qisqa ko'rinishida, qolgani (dona va h.k.) 'dona'
-  if (unit === 'metr') return 'm';
-  if (unit === 'm²' || unit === 'm2') return 'm²';
-  if (unit === 'kg') return 'kg';
-  return 'dona';
+  // kech120 (zip 133 — F bosqichi 3-qism, audit G5-08): ilgari metr / m² / kg dan boshqa HAMMA birlik «dona» edi (qopda sotilgan
+  // Kafel kley — «Miqdor (dona)»). Endi — umumiy qoida (`birlikQisqa`, base.html; serverda `|birlik`): qop — qop, litr — litr.
+  return birlikQisqa(unit);
 }
 </script>
 
@@ -598,6 +634,98 @@ async function loadBrakSummary(){
   }
 }
 
+// kech120 (zip 133 — F bosqichi 3-qism, audit G5-05): «Qiymati» maydoni — umumiy pul kiritish qoidasi (ilgari type=number, ming
+// ajratgichsiz, «so'm» siz); blok boshqa sahifalardagi bilan AYNAN (`tools/test_narx_kiritish_ui.js`, SAHIFALAR ga «returns»).
+// ── 118-band (kech94): YAGONA son / narx kiritish qoidasi ──────────────────
+// parseNum / narxMatni / narxniOqi / narxKorinishi / formatPriceInput matni debts, finance,
+// finished, hodim_panel, inventory, kpi, orders, supplier_receive, suppliers
+// sahifalarida AYNAN bir xil (tools/test_narx_kiritish_ui.js tekshiradi).
+// Ilgari har sahifada o'z ta'rifi bor edi va kasr kiritgan foydalanuvchi
+// JIMGINA 10x / 100x yoki yaxlitlangan summa yuborardi: harflab "10.5" → 105,
+// "1234.56" → 123 456, yopishtirilgan "1.000.000" → 1, "1 228 752,75" → 100x.
+//  • Kasr belgisi — nuqta YOKI vergul (kiritilgan belgi saqlanadi); pulda
+//    ko'pi bilan 2 xona (tiyin — bazada Numeric(12,2)), ortig'i kiritilmaydi.
+//  • Ming ajratgich — bo'shliq. Bir xil belgi bir necha marta ("1.000.000")
+//    yoki ikki xil belgi ("1,234.56", "1.234,56") — oxirgisidan boshqasi ming
+//    ajratgich. Pulda yolg'iz belgi + AYNAN 3 raqam ("12.500") — ming ajratgich
+//    (3 xonali tiyin bo'lmaydi; harflab "1.000.000" ham shunday to'g'ri chiqadi);
+//    butun qismi 0 bilan boshlansa yoki noto'g'ri guruhlangan bo'lsa — kasr.
+//  • Pul maydoni manfiy bo'lmaydi: "-" yozilsa maydon 0 bo'ladi (orders.html
+//    2026-09-17 qoidasi — endi hamma sahifada; ilgari ba'zi sahifalar "-500"
+//    ni jimgina 500 qilardi). Harf va boshqa belgilar maydonga tushmaydi.
+//  • parseNum — umumiy son (o'lcham, miqdor ham): yolg'iz nuqta / vergul — kasr
+//    ("0.125" → 0.125), manfiy ishora saqlanadi, hech narsa bo'lmasa 0.
+//  • narxniOqi — prompt oynasidagi pul matni: narxMatni qoidasi bilan o'qiladi;
+//    raqamsiz yoki manfiy matn — NaN (chaqiruvchi rad etadi, 0 YUBORILMAYDI).
+//  • narxKorinishi — prompt oynasiga beriladigan joriy summa (2 xonagacha,
+//    yaxlitlanMAYDI — "OK" bosilsa narx o'zgarmaydi).
+function parseNum(v) {
+  if (typeof v === 'number') return isFinite(v) ? v : 0;
+  let s = String(v == null ? '' : v).replace(/[\s\u00a0\u202f]/g, '');
+  if (/^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(s)) {
+    const n = Number(s);
+    return isFinite(n) ? n : 0;
+  }
+  const manfiy = s.charAt(0) === '-';
+  s = s.replace(/[^\d.,]/g, '');
+  let butun = s, kasr = '';
+  const oxirgi = Math.max(s.lastIndexOf('.'), s.lastIndexOf(','));
+  if (oxirgi >= 0 && s.split(s.charAt(oxirgi)).length === 2) {
+    butun = s.slice(0, oxirgi);
+    kasr = s.slice(oxirgi + 1);
+  }
+  butun = butun.replace(/[.,]/g, '');
+  const n = parseFloat((butun || '0') + '.' + (kasr || '0'));
+  if (!isFinite(n)) return 0;
+  return manfiy ? -n : n;
+}
+function narxMatni(v) {
+  const asl = String(v == null ? '' : v);
+  if (asl.indexOf('-') >= 0) return '0';
+  const t = asl.replace(/[\s\u00a0\u202f]+/g, ' ').replace(/[^\d., ]/g, '').trim();
+  const s = t.replace(/ /g, '');
+  if (!s) return '';
+  let butun = s, kasr = null, belgi = '';
+  const oxirgi = Math.max(t.lastIndexOf('.'), t.lastIndexOf(','));
+  if (oxirgi >= 0) {
+    const b = t.charAt(oxirgi);
+    const oldin = t.slice(0, oxirgi).trim();
+    const keyin = t.slice(oxirgi + 1).replace(/ /g, '');
+    const ming = keyin.length === 3 && /^[1-9]\d{0,2}( \d{3})*$/.test(oldin);
+    if (t.split(b).length === 2 && !ming) {
+      butun = oldin.replace(/ /g, '');
+      kasr = keyin.slice(0, 2);
+      belgi = b;
+    }
+  }
+  butun = butun.replace(/[.,]/g, '').replace(/^0+(?=\d)/, '') || '0';
+  butun = butun.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return kasr === null ? butun : butun + belgi + kasr;
+}
+function narxniOqi(v) {
+  const s = String(v == null ? '' : v);
+  if (!/\d/.test(s) || s.indexOf('-') >= 0) return NaN;
+  return parseNum(narxMatni(s));
+}
+function narxKorinishi(n) {
+  const x = Number(n);
+  return narxMatni((isFinite(x) ? x : 0).toFixed(2).replace(/\.?0+$/, ''));
+}
+function formatPriceInput(input) {
+  if (!input) return;
+  const eski = String(input.value == null ? '' : input.value);
+  const yangi = narxMatni(eski);
+  if (yangi === eski) return;
+  let joy = null;
+  try { joy = typeof input.selectionStart === 'number' ? input.selectionStart : null; } catch (e) { joy = null; }
+  input.value = yangi;
+  if (joy === null || typeof input.setSelectionRange !== 'function') return;
+  try {
+    if (typeof document !== 'undefined' && document.activeElement !== input) return;
+    const k = Math.max(0, Math.min(yangi.length, joy + yangi.length - eski.length));
+    input.setSelectionRange(k, k);
+  } catch (e) { /* kursor — faqat qulaylik */ }
+}
 function fmt(n){ return Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' '); }
 
 function openReturnLightbox(url) {
@@ -680,10 +808,16 @@ function filterTable(){
   document.getElementById('retEmpty').style.display = visible === 0 ? 'block' : 'none';
   // Har bir guruhda kamida bitta ko'rinadigan qator bormi — bo'lmasa,
   // guruh sarlavhasining o'zini ham yashiramiz (filtrlash to'liq ishlashi uchun).
+  // kech120 (zip 133 — G5-17): qidiruv / filtr bor bo'lsa — natijasi bor guruh O'ZI ochiladi (ilgari yopiq qolardi, topilgan qator
+  // ko'rinmasdi); qidiruv tozalansa — o'zi ochilgan guruhlar yana yopiladi (qo'lda ochilgani tegilmaydi).
+  const faol = !!(r || refund || q);
   document.querySelectorAll('.ret-group-header').forEach(h=>{
     const body = document.getElementById(h.dataset.target);
     const anyVisible = body && Array.from(body.querySelectorAll('.ret-row')).some(r=>r.style.display!=='none');
     h.style.display = anyVisible ? '' : 'none';
+    if (typeof h._ochYop !== 'function') return;
+    if (faol && anyVisible && !h.classList.contains('open')) { h.dataset.avto = '1'; h._ochYop(true); }
+    else if (!faol && h.dataset.avto) { delete h.dataset.avto; h._ochYop(false); }
   });
 }
 
@@ -691,6 +825,11 @@ function filterTable(){
 // ro'yxat cho'zilib ketmasligi uchun. Mavjud qatorlarni O'ZGARTIRMASDAN,
 // ularni faqat "buklama" ichiga joylashtiradi — qidiruv/filtr ishlashda
 // davom etaveradi (chunki .ret-row elementlarining o'zi o'zgarmaydi).
+// kech120 (zip 133 — F bosqichi 3-qism, audit G5-17, O'LCHANGAN work/f3/probe_qayt.py): ilgari HAR buyurtma yopiq guruh edi (odatda
+// 1 ta yozuv bilan), sarlavhada faqat «ORD-001-2 · 1 ta», qidiruvdan keyin ham guruh yopiq qolardi; buyurtma raqami sarlavhaga
+// escape siz yozilardi. Endi: bitta yozuvli buyurtma GURUHLANMAYDI (qator darhol ko'rinadi); guruh sarlavhasida — mijoz, butun /
+// brak soni, summa («Tannarx va foyda» ruxsati bilan) va oxirgi sana; qidiruv / filtr natijasi bor guruh O'ZI ochiladi
+// (`filterTable`); hamma matn — `escapeHtml`; sarlavha klaviatura bilan ham ochiladi (Enter / probel).
 function groupReturnsByOrder(){
   const list = document.getElementById('retList');
   const rows = Array.from(list.querySelectorAll(':scope > .ret-row'));
@@ -706,15 +845,37 @@ function groupReturnsByOrder(){
   let gi = 0;
   groups.forEach((groupRows, orderKey)=>{
     gi++;
+    if (groupRows.length < 2) return;      // bitta yozuv — guruhsiz, qator o'z joyida
     const bodyId = `retgroup-body-${gi}`;
     const header = document.createElement('div');
     header.className = 'ret-group-header';
     header.dataset.target = bodyId;
-    header.innerHTML = `<i class="ti ti-chevron-right chev"></i><span class="g-title">${orderKey}</span><span class="g-count">${groupRows.length} ta</span>`;
-    header.onclick = () => {
-      header.classList.toggle('open');
-      document.getElementById(bodyId).classList.toggle('open');
+    header.setAttribute('role', 'button');
+    header.setAttribute('tabindex', '0');
+    header.setAttribute('aria-expanded', 'false');
+    const brak = groupRows.filter(r => r.dataset.reason === 'Brak').length;
+    const butun = groupRows.length - brak;
+    const mijoz = groupRows.map(r => r.dataset.mijoz || '').find(Boolean) || '';
+    const sana = groupRows[0].dataset.sana || '';          // ro'yxat — yangisi tepada: birinchi qator — oxirgi sana
+    const summaBor = groupRows.some(r => r.dataset.summa !== undefined);
+    const summa = groupRows.reduce((a, r) => a + (Number(r.dataset.summa) || 0), 0);
+    const xulosa = [butun ? `🟢 ${butun} butun` : '', brak ? `🔴 ${brak} brak` : ''].filter(Boolean).join(' · ');
+    header.innerHTML = `<i class="ti ti-chevron-right chev"></i><span class="g-title">${escapeHtml(orderKey)}</span>` +
+      (mijoz ? `<span class="g-mijoz">${escapeHtml(mijoz)}</span>` : '') +
+      `<span class="g-xulosa">${escapeHtml(xulosa)}</span>` +
+      ((summaBor && summa > 0) ? `<span class="g-summa">${escapeHtml(fmt(summa))} so'm</span>` : '') +
+      (sana ? `<span class="g-sana">${escapeHtml(sana)}</span>` : '') +
+      `<span class="g-count">${groupRows.length} ta</span>`;
+    const ochYop = (ochiq) => {
+      const b = document.getElementById(bodyId);
+      const yangi = (ochiq === undefined) ? !header.classList.contains('open') : !!ochiq;
+      header.classList.toggle('open', yangi);
+      if (b) b.classList.toggle('open', yangi);
+      header.setAttribute('aria-expanded', yangi ? 'true' : 'false');
     };
+    header._ochYop = ochYop;
+    header.onclick = () => { delete header.dataset.avto; ochYop(); };
+    header.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); header.onclick(); } };
 
     const body = document.createElement('div');
     body.className = 'ret-group-body';
@@ -748,7 +909,7 @@ async function onOrderChange(){
       return;
     }
     itemSel.innerHTML = '<option value="">— Detal tanlang —</option>' +
-      currentOrderItems.map(i => `<option value="${i.id}">${escapeHtml(i.name)} (${i.order_qty_normalized} ${i.delivery_unit})</option>`).join('');
+      currentOrderItems.map(i => `<option value="${Number(i.id)}">${escapeHtml(i.name)} (${escapeHtml(sonKor(i.order_qty_normalized, 3))} ${escapeHtml(unitShortLabel(i.delivery_unit))})</option>`).join('');
     itemSel.disabled = false;
   } catch(e) {
     itemSel.innerHTML = '<option value="">Xato yuz berdi</option>';
@@ -804,7 +965,7 @@ function calcValue(){
   const valEl = document.getElementById('f-value');
   // MUHIM: f-value HAQIQIY summani saqlashi shart (backendga to'g'ri yuborilishi uchun) —
   // faqat KO'RSATISH uchun (agar kerak bo'lsa) maxsus css bilan xiralashtiriladi, son o'zgarmaydi.
-  if (valEl && qty) valEl.value = Math.round(qty * unitPrice);
+  if (valEl && qty) valEl.value = narxKorinishi(Math.round(qty * unitPrice));
   if (valEl) valEl.style.color = hideForManager ? 'transparent' : '';
   if (valEl) valEl.style.textShadow = hideForManager ? '0 0 8px rgba(0,0,0,.4)' : 'none';
 }
@@ -860,8 +1021,14 @@ async function toggleRefund(id, current){
   if (current) return; // Faqat "kutilmoqda" -> "qaytdi" tomon, orqaga qaytarilmaydi
   // kech42 (24-band): to'lanmagan pul qaytarilmaydi — summa qarzdan chegiriladi,
   // naqd faqat mijoz ortiqcha to'lagan qism uchun (server hisoblaydi va aytadi).
-  if (!(await customConfirm("Qaytgan mahsulot summasi buyurtmaning kelishilgan summasidan chegiriladi.\n" +
-      "Mijoz ortiqcha to'lagan bo'lsa — faqat o'sha qismi naqd qaytarilgan deb yoziladi.\n\nDavom etasizmi?"))) return;
+  // kech120 (zip 133 — G5-05): tasdiqda QAYSI buyurtma va QANCHA summa
+  const row = document.getElementById('row-' + id);
+  const buyurtma = (row && row.dataset.order) || '';
+  const summa = row && row.dataset.summa !== undefined ? Number(row.dataset.summa) || 0 : 0;
+  if (!(await customConfirm((buyurtma ? buyurtma + ': ' : '') + (summa > 0 ? fmt(summa) + " so'm — q" : 'Q') +
+      "aytgan mahsulot summasi buyurtmaning kelishilgan summasidan chegiriladi.\n" +
+      "Mijoz ortiqcha to'lagan bo'lsa — faqat o'sha qismi naqd qaytarilgan deb yoziladi.\n\nDavom etasizmi?",
+      {okText: 'Ha, hisob-kitob qilinsin', cancelText: 'Yopish'}))) return;
   if (inFlightRefundToggle.has(id)) return; // Ikki marta bosishdan himoya
   inFlightRefundToggle.add(id);
   try {
@@ -898,7 +1065,7 @@ async function saveReturn(){
   if (!quantity || quantity <= 0) { err.style.display='block'; err.textContent='❌ Miqdorni kiriting'; return; }
   if (quantity > item.order_qty_normalized + 0.001) {
     err.style.display='block';
-    err.textContent = `❌ Buyurtmada ${item.order_qty_normalized} ${item.delivery_unit} bor, ${quantity} qaytarib bo'lmaydi`;
+    err.textContent = `❌ Buyurtmada ${sonKor(item.order_qty_normalized, 3)} ${unitShortLabel(item.delivery_unit)} bor, ${sonKor(quantity, 3)} qaytarib bo'lmaydi`;
     return;
   }
   err.style.display = 'none';
@@ -918,7 +1085,7 @@ async function saveReturn(){
         quantity,
         unit: item.delivery_unit,
         reason,
-        refund_amount: parseFloat(document.getElementById('f-value').value) || 0,
+        refund_amount: parseNum(document.getElementById('f-value').value) || 0,
         to_stock: true,
         notes: document.getElementById('f-notes').value || null,
         coating_applied: false
@@ -976,6 +1143,13 @@ fetch('/api/returns/stats').then(r=>r.json()).then(s=>{
   document.getElementById('k-brak-month').textContent = s.brak_month_count + ' ta';
   document.getElementById('k-whole-month').textContent = s.whole_month_count + ' ta';
   document.getElementById('k-total').textContent = s.total_count + ' ta';
+  // kech120 (zip 133 — G5-18): tarkibi — ro'yxatdagi brak yozuvlari va ishlab chiqarish braki (Tayyor mahsulotlar sahifasida yoziladi,
+  // bu ro'yxatda yo'q); hamma vaqt — butun va brak yozuvlari (yig'indisi — kartadagi son)
+  const bmi = document.getElementById('k-brak-month-izoh');
+  if (bmi) bmi.textContent = (Number(s.brak_month_prod_count) > 0)
+    ? `ro'yxatda ${Number(s.brak_month_yozuv_count) || 0} · ishlab chiqarishda ${Number(s.brak_month_prod_count) || 0}` : '';
+  const ti = document.getElementById('k-total-izoh');
+  if (ti && s.total_whole_count !== undefined) ti.textContent = `butun ${Number(s.total_whole_count) || 0} · brak ${Number(s.total_brak_yozuv_count) || 0}`;
   if (KORADI_TANNARX) {
     const bv = document.getElementById('k-brak-value'); if (bv) bv.textContent = fmt(s.brak_month_value) + " so'm";
     const btv = document.getElementById('k-brak-total-value'); if (btv) btv.textContent = fmt(s.brak_total_value) + " so'm";

@@ -322,6 +322,18 @@ function birlikKor(b) {
   const s = (b === null || b === undefined) ? '' : String(b);
   return s.replace(/^(m|sm|mm)2$/i, (a, u) => u.toLowerCase() + '²').replace(/^(m|sm|mm)3$/i, (a, u) => u.toLowerCase() + '³');
 }
+// kech120 (zip 133 — F bosqichi 3-qism, audit G5-07 / G5-08): MAHSULOT birligi ko'rinishi — BITTA qoida (server: `services.birlik_korinish`,
+// Jinja `|birlik` — AYNAN bir natija): bo'sh → «dona»; «ta» / «dona» → «dona»; «metr» → «m»; «kvadrat», «m2» → «m²»; «m3» → «m³»;
+// boshqasi (kg, qop, litr …) — o'z nomi, kichik harfda («Kg» → «kg»). Ilgari Tayyor mahsulotlar «ta», Qaytarishlar qop / litr ni «dona» derdi.
+function birlikQisqa(u) {
+  const s = (u === null || u === undefined) ? '' : String(u).trim();
+  if (!s) return 'dona';
+  const k = s.toLowerCase();
+  if (k === 'ta' || k === 'dona') return 'dona';
+  if (k === 'metr') return 'm';
+  if (k === 'kvadrat') return 'm²';
+  return birlikKor(k);
+}
 function qisqaSumma(n) {
   const x = Number(n) || 0;
   const a = Math.abs(x);

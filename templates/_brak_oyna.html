@@ -263,7 +263,8 @@ function _brakTmMiqdor() {
   const qty = _brakEl('loss-qty');
   const info = _brakEl('loss-stock-info');
   if (!_lossData) { if (info) info.textContent = ''; if (qty) qty.max = ''; return; }
-  const birlik = (typeof birlikKor === 'function') ? birlikKor(_lossData.unit) : (_lossData.unit || '');
+  // kech120 (zip 133 — G5-07): mahsulot birligi — umumiy qoida (`birlikQisqa`, base.html)
+  const birlik = (typeof birlikQisqa === 'function') ? birlikQisqa(_lossData.unit) : ((typeof birlikKor === 'function') ? birlikKor(_lossData.unit) : (_lossData.unit || ''));
   if (info) {
     info.style.display = _lossMode === 'stock' ? 'block' : 'none';
     info.textContent = `Omborda: ${(typeof sonKor === 'function') ? sonKor(_lossData.quantity) : _lossData.quantity} ${birlik}`;
@@ -295,7 +296,7 @@ async function brakTmYukla() {
   const royxat = _brakTmRoyxat.filter(i => (i.production_status || 'ready') === 'ready' && Number(i.quantity) > 0
     && (_lossMode !== 'production' || PROD_BRAK_CATEGORIES.includes(String(i.category || '').toLowerCase())));
   sel.innerHTML = '<option value="">' + (royxat.length ? '— Mahsulot tanlang —' : "Mos tayyor mahsulot yo'q") + '</option>' +
-    royxat.map(i => `<option value="${Number(i.id)}">${escapeHtml(i.name)} — ${escapeHtml((typeof sonKor === 'function') ? sonKor(i.quantity) : String(i.quantity))} ${escapeHtml((typeof birlikKor === 'function') ? birlikKor(i.unit) : (i.unit || ''))}</option>`).join('');
+    royxat.map(i => `<option value="${Number(i.id)}">${escapeHtml(i.name)} — ${escapeHtml((typeof sonKor === 'function') ? sonKor(i.quantity) : String(i.quantity))} ${escapeHtml((typeof birlikQisqa === 'function') ? birlikQisqa(i.unit) : ((typeof birlikKor === 'function') ? birlikKor(i.unit) : (i.unit || '')))}</option>`).join('');
 }
 
 function brakFpTanla() {
@@ -380,7 +381,9 @@ async function onBrakProjectChange(){
     return;
   }
   list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">Yuklanmoqda...</div>';
-  const _birlik = (u) => (typeof unitShortLabel === 'function') ? unitShortLabel(u) : ((typeof birlikKor === 'function') ? birlikKor(u) : (u || ''));
+  // kech120 (zip 133 — G5-08): qop / litr endi «dona» emas — umumiy qoida (`birlikQisqa`); miqdor — son qoidasi (`sonKor`)
+  const _birlik = (u) => (typeof birlikQisqa === 'function') ? birlikQisqa(u) : ((typeof birlikKor === 'function') ? birlikKor(u) : (u || ''));
+  const _miqdor = (x) => (typeof sonKor === 'function') ? sonKor(x, 3) : String(x);
   try {
     const d = await fetch(`/api/projects/${projectId}/items`).then(r => r.json());
     brakItems = d.items || [];
@@ -393,7 +396,7 @@ async function onBrakProjectChange(){
         <div style="flex:1;min-width:0">
           <div style="font-size:13px;font-weight:500;color:var(--m-1a1a1a)">${escapeHtml(it.name)}</div>
           <div style="font-size:13px;color:var(--text3);margin-top:1px">
-            ${escapeHtml(it.order_number)} · jami ${escapeHtml(String(it.order_qty_normalized))} ${escapeHtml(_birlik(it.delivery_unit))}${it.is_coated ? ' · qoplamali' : ''}
+            ${escapeHtml(it.order_number)} · jami ${escapeHtml(_miqdor(it.order_qty_normalized))} ${escapeHtml(_birlik(it.delivery_unit))}${it.is_coated ? ' · qoplamali' : ''}
           </div>
         </div>
         <input type="number" class="brak-qty-inp" data-idx="${idx}" placeholder="0"
@@ -520,7 +523,7 @@ async function submitLoss() {
   const _fmt = (x) => (typeof fmt === 'function') ? fmt(x) : sonKor(x, 0);
   try {
     if (_lossMode === 'stock') {
-      if (qty > _lossData.quantity + 0.001) { showMsg(`Omborda faqat ${_lossData.quantity} ${_lossData.unit} bor`, 'error'); return; }
+      if (qty > _lossData.quantity + 0.001) { showMsg(`Omborda faqat ${(typeof sonKor === 'function') ? sonKor(_lossData.quantity, 3) : _lossData.quantity} ${(typeof birlikQisqa === 'function') ? birlikQisqa(_lossData.unit) : _lossData.unit} bor`, 'error'); return; }
       const res = await fetch('/api/finished/loss', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
@@ -539,7 +542,8 @@ async function submitLoss() {
         {% else %}
         showMsg(`✓ Kamaytirildi!`, 'success');
         {% endif %}
-        setTimeout(() => location.reload(), 1500);
+        // kech120 (zip 133 — G5-13): Tayyor mahsulotlar sahifasida — faqat ro'yxat yangilanadi (xabar o'qiladi); boshqa sahifada — avvalgidek
+        if (typeof loadFp === 'function') loadFp(); else setTimeout(() => location.reload(), 1500);
       } else {
         showMsg(xatoSababi(r), 'error');
       }
@@ -559,7 +563,7 @@ async function submitLoss() {
         closeBrakModal();
         showMsg(r.cost_amount === null ? `✓ Xomashyo ayirildi! (mahsulot soni o'zgarmadi)`
                                        : `✓ Xomashyo ayirildi! Qo'shimcha xarajat: ${_fmt(r.cost_amount)} so'm (mahsulot soni o'zgarmadi)`, 'success');
-        setTimeout(() => location.reload(), 1500);
+        if (typeof loadFp === 'function') loadFp(); else setTimeout(() => location.reload(), 1500);
       } else {
         showMsg(xatoSababi(r), 'error');
       }

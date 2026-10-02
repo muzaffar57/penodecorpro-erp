@@ -1403,7 +1403,8 @@ function updatePenoWarn(row) {
 }
 
 // ── Yordamchi funksiyalar ─────────────────────────────────
-function fpUnitLabel(u) { return u === 'metr' ? 'm' : (u === 'kvadrat' ? 'm²' : 'ta'); }
+// kech120 (zip 133 — G5-07): umumiy qoida (`birlikQisqa`, base.html) — ilgari qop / kg / litr ham «ta» edi
+function fpUnitLabel(u) { return (typeof birlikQisqa === 'function') ? birlikQisqa(u) : (u === 'metr' ? 'm' : (u === 'kvadrat' ? 'm²' : (u || 'dona'))); }
 
 function formatNum(num) {
   if (!num || isNaN(num)) return '0';
@@ -1681,7 +1682,7 @@ function pickFinished(el, fpId) {
   if (badge && !badge.querySelector('.fp-tag')) {
     badge.insertAdjacentHTML('afterend', `
       <span class="fp-tag" id="fptag-${row.id}">
-        🏭 Tayyor mahsulotdan · ${fp.quantity} ${fpUnitLabel(fp.unit)} bor
+        🏭 Tayyor mahsulotdan · ${fp.quantity} ${escapeHtml(fpUnitLabel(fp.unit))} bor
         <button onclick="clearFinished('${row.id}')" title="Bekor qilish">✕</button>
       </span>`);
   }
