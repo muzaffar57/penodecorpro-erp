@@ -1,6 +1,6 @@
 # PenoDecorPro ERP — LOYIHA PASPORTI
 
-*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2); kech112: zip 108 — «Tayyor» da bo'sh loy = reja (K112-3), material nomi (K112-4), MRP qoplama belgisi (K112-5); ko'p korxonali yakuniy jonli sinov; kech115: zip 112 — butun dastur auditi A bosqichi (pul va ma'lumot xatolari) 1-qismi: kirim, qarzdorlar, «Tayyor», narxsiz buyurtma, o'chirilganlar jurnali, manfiy raqamlar, taqqoslash, korxona sog'ligi, ombor filtri; kech116: zip 113 — A bosqich 2-qismi: sog'liq sabablari (K115-2), «Bugungi xulosa» (K115-3), hujjatlardagi hisob qatorlari (G2-04), «Pul oqimi» — haqiqiy pul (G1-03), «Xarajat» — bitta ta'rif va «Tannarx» (G1-02), loyiha qiymati buyurtmalardan (G2-01), haqiqiy IP va kirish cheklovi (U-01), parol oynasi va kirishlarni yopish (G6-06); zip 114 — mijoz hujjatlarida kechirilgan qarz «Chegirma» ichida (egasi qarori); kech117: zip 115 — A2: yo'nalishlar bo'yicha moliya (G3-11, G6-09); zip 116 — jonli sinovdan keyin: «Belgilanmagan» manbalari, Moliya xarajatdan keyin yangilanadi; kech118: qolgan egasi qarorlari (6-bo'lim); zip 117 — B bosqichi 1-qism: dastur oynalari (xabar, kiritish, Esc / tashqariga bosish), o'zbekcha 404 / 403 sahifa, klaviatura fokusi; zip 118 — B bosqichi 2-qism: son / sana / birlik ko'rinishi, o'qiladigan rang, 12 px + yo'nalishlar bo'yicha moliyaviy natija (egasi qarori: taqsim yo'q, oyliklar alohida, davr, solishtirish); yangi qarorlar — rollar va ruxsatlar (6-bo'lim); zip 119 — rollar va ruxsatlar 1-qism (admin rollarni o'zi boshqaradi); kech119: zip 125 — Hisobotlar «oy boshi»: o'tgan oyning SHU KUNLARI bilan solishtirish (egasi qarori), taxminda oylik xarajat bir marta, xomashyo birligi; «Foyda tahlili» summalari (G2-15); zip 126 — telefon (C bosqichi); kech120: zip 127 — E bosqichi 1-qism: tezlik — hisobot xotirasi (so'rovlar orasida, yozuv bo'lsa darhol eskiradi), sahifa bir ochilishida bir xil so'rov bir marta, Bosh sahifa 5 ta buyurtma, kirish sahifasi rasmi, Hisobotlar taqqoslash kartalari telefonda (K120-1); zip 128 — E bosqichi 2-qism: katta ro'yxatlarda topish — Bosh sahifa «Bugungi vazifalar» havolalari, Buyurtmalar filtri / keng qidiruv / tanlovni tiklash, Qarzdorlar mijoz bo'yicha; zip 129 — E bosqichi 3-qism: tarix va jurnallar — «Tizim jurnallari» filtri va sahifalash, hamma amal o'zbekcha, tahrir yozuvida nima o'zgargani; Ombor «Tarix», «Yana yuklash», davr jami; zip 130 — E bosqichi 4-qism: qidiruvli tanlagich (Kirim — ta'minotchi, material; «Yangi qaytarish», «Brak yozish»), ta'minotchilar tabiiy tartibda, Tayyor mahsulotlar kategoriyalari korxonaning o'z mahsulot turlaridan; shu zipda — E bosqichi 5-qism: hodim kirishi — har korxonada kod (kodsizlarga ishga tushishda), QR serverda (ichida kod), kirish sahifasi kodni o'zi yozadi, chop etish sahifasi; shu zipda — E bosqichi 6-qism: rasmlar yuklashda 1920 px gacha kichraytiriladi (burilish qo'llanadi, joylashuv saqlanmaydi), ro'yxatlarda kichik nusxa (360 px); uzun ro'yxatlarda faqat birinchi 20 qator animatsiyali); zip 131 — F bosqichi 1-qism: Moliya, Qarzdorlar, «Xarajat qo'shish» (kirim xarajati faqat hujjat orqali, ro'yxat jami, kassa yozuvini o'chirish, «Yalpi foyda», qarz to'lovi usuli, majburiyat oyi); zip 132 — F bosqichi 2-qism: Ombor, Kirim, Ta'minotchilar, Retseptlar (kirim hujjatidan qator — to'lov / xarajat bo'lsa butun hujjat orqali, ishlatilgan retsept o'chmaydi, Telegram natijasi, Omborxona — ruxsat bo'yicha tugmalar, ustun nomlari, toifa filtri; ta'minotchi tarixida to'lov holati, penoplast blok hajmi); zip 133 — F bosqichi 3-qism: Tayyor mahsulotlar, Qaytarishlar, Ishlab chiqarish (birlik ko'rinishi — bitta qoida, qaytarishlar guruhi va kartalari, «Hisob-kitob qilish», tugmalar so'z bilan, sotishdan keyin sahifa qayta yuklanmaydi, narxsiz mahsulot qiymati, mahsulot turini tahrirlash / o'chirish, bo'sh korxona yo'riqnomasi); zip 134 — F bosqichi 4-qism: Buyurtmalar va Loyihalar (namuna matni rangi, saqlash kamchiliklari bitta ro'yxatda, detal raqami, profil — uzunlik bo'yicha, loyiha qarzi «384 ming», bitta hisob-kitob paneli, amallar tepada, «Bajarilgan» va «Yetkazish — 1/2 topshirildi», «Tarix», bo'sh korxonada «avval loyiha»); zip 135 — F bosqichi 5-qism: Bosh sahifa, Dashboard, Hisobotlar («Faol buyurtmalar» — bitta qoida, usta reytingi, yangi korxonaga «Boshlash», bo'sh grafiklar, davr filtri, jadval qidiruvi va Excel, «Yangilash»); zip 136 — F bosqichi 5-qism 2-bo'lagi: hujjatlar va KPI (buyurtma hisobi — birlik, ajratgich, bitta «TO'LOV SUMMASI»; yuk xati — shu yuk paytidagi holat; KPI sahifasi yozuvlari va hodim kartasi). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
+*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2); kech112: zip 108 — «Tayyor» da bo'sh loy = reja (K112-3), material nomi (K112-4), MRP qoplama belgisi (K112-5); ko'p korxonali yakuniy jonli sinov; kech115: zip 112 — butun dastur auditi A bosqichi (pul va ma'lumot xatolari) 1-qismi: kirim, qarzdorlar, «Tayyor», narxsiz buyurtma, o'chirilganlar jurnali, manfiy raqamlar, taqqoslash, korxona sog'ligi, ombor filtri; kech116: zip 113 — A bosqich 2-qismi: sog'liq sabablari (K115-2), «Bugungi xulosa» (K115-3), hujjatlardagi hisob qatorlari (G2-04), «Pul oqimi» — haqiqiy pul (G1-03), «Xarajat» — bitta ta'rif va «Tannarx» (G1-02), loyiha qiymati buyurtmalardan (G2-01), haqiqiy IP va kirish cheklovi (U-01), parol oynasi va kirishlarni yopish (G6-06); zip 114 — mijoz hujjatlarida kechirilgan qarz «Chegirma» ichida (egasi qarori); kech117: zip 115 — A2: yo'nalishlar bo'yicha moliya (G3-11, G6-09); zip 116 — jonli sinovdan keyin: «Belgilanmagan» manbalari, Moliya xarajatdan keyin yangilanadi; kech118: qolgan egasi qarorlari (6-bo'lim); zip 117 — B bosqichi 1-qism: dastur oynalari (xabar, kiritish, Esc / tashqariga bosish), o'zbekcha 404 / 403 sahifa, klaviatura fokusi; zip 118 — B bosqichi 2-qism: son / sana / birlik ko'rinishi, o'qiladigan rang, 12 px + yo'nalishlar bo'yicha moliyaviy natija (egasi qarori: taqsim yo'q, oyliklar alohida, davr, solishtirish); yangi qarorlar — rollar va ruxsatlar (6-bo'lim); zip 119 — rollar va ruxsatlar 1-qism (admin rollarni o'zi boshqaradi); kech119: zip 125 — Hisobotlar «oy boshi»: o'tgan oyning SHU KUNLARI bilan solishtirish (egasi qarori), taxminda oylik xarajat bir marta, xomashyo birligi; «Foyda tahlili» summalari (G2-15); zip 126 — telefon (C bosqichi); kech120: zip 127 — E bosqichi 1-qism: tezlik — hisobot xotirasi (so'rovlar orasida, yozuv bo'lsa darhol eskiradi), sahifa bir ochilishida bir xil so'rov bir marta, Bosh sahifa 5 ta buyurtma, kirish sahifasi rasmi, Hisobotlar taqqoslash kartalari telefonda (K120-1); zip 128 — E bosqichi 2-qism: katta ro'yxatlarda topish — Bosh sahifa «Bugungi vazifalar» havolalari, Buyurtmalar filtri / keng qidiruv / tanlovni tiklash, Qarzdorlar mijoz bo'yicha; zip 129 — E bosqichi 3-qism: tarix va jurnallar — «Tizim jurnallari» filtri va sahifalash, hamma amal o'zbekcha, tahrir yozuvida nima o'zgargani; Ombor «Tarix», «Yana yuklash», davr jami; zip 130 — E bosqichi 4-qism: qidiruvli tanlagich (Kirim — ta'minotchi, material; «Yangi qaytarish», «Brak yozish»), ta'minotchilar tabiiy tartibda, Tayyor mahsulotlar kategoriyalari korxonaning o'z mahsulot turlaridan; shu zipda — E bosqichi 5-qism: hodim kirishi — har korxonada kod (kodsizlarga ishga tushishda), QR serverda (ichida kod), kirish sahifasi kodni o'zi yozadi, chop etish sahifasi; shu zipda — E bosqichi 6-qism: rasmlar yuklashda 1920 px gacha kichraytiriladi (burilish qo'llanadi, joylashuv saqlanmaydi), ro'yxatlarda kichik nusxa (360 px); uzun ro'yxatlarda faqat birinchi 20 qator animatsiyali); zip 131 — F bosqichi 1-qism: Moliya, Qarzdorlar, «Xarajat qo'shish» (kirim xarajati faqat hujjat orqali, ro'yxat jami, kassa yozuvini o'chirish, «Yalpi foyda», qarz to'lovi usuli, majburiyat oyi); zip 132 — F bosqichi 2-qism: Ombor, Kirim, Ta'minotchilar, Retseptlar (kirim hujjatidan qator — to'lov / xarajat bo'lsa butun hujjat orqali, ishlatilgan retsept o'chmaydi, Telegram natijasi, Omborxona — ruxsat bo'yicha tugmalar, ustun nomlari, toifa filtri; ta'minotchi tarixida to'lov holati, penoplast blok hajmi); zip 133 — F bosqichi 3-qism: Tayyor mahsulotlar, Qaytarishlar, Ishlab chiqarish (birlik ko'rinishi — bitta qoida, qaytarishlar guruhi va kartalari, «Hisob-kitob qilish», tugmalar so'z bilan, sotishdan keyin sahifa qayta yuklanmaydi, narxsiz mahsulot qiymati, mahsulot turini tahrirlash / o'chirish, bo'sh korxona yo'riqnomasi); zip 134 — F bosqichi 4-qism: Buyurtmalar va Loyihalar (namuna matni rangi, saqlash kamchiliklari bitta ro'yxatda, detal raqami, profil — uzunlik bo'yicha, loyiha qarzi «384 ming», bitta hisob-kitob paneli, amallar tepada, «Bajarilgan» va «Yetkazish — 1/2 topshirildi», «Tarix», bo'sh korxonada «avval loyiha»); zip 135 — F bosqichi 5-qism: Bosh sahifa, Dashboard, Hisobotlar («Faol buyurtmalar» — bitta qoida, usta reytingi, yangi korxonaga «Boshlash», bo'sh grafiklar, davr filtri, jadval qidiruvi va Excel, «Yangilash»); zip 136 — F bosqichi 5-qism 2-bo'lagi: hujjatlar va KPI (buyurtma hisobi — birlik, ajratgich, bitta «TO'LOV SUMMASI»; yuk xati — shu yuk paytidagi holat; KPI sahifasi yozuvlari va hodim kartasi); zip 137 — F bosqichi 5-qism 3-bo'lagi: ustalar telefoni, menyu guruhlari, hodim va foydalanuvchi kirishi, alohida «Sozlamalar» sahifasi. Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
 *Bu faylni `main` ga ko'chirish bilan birga, keyin har katta o'zgarishda yangilab boring. 9-bo'lim AVTOMATIK
 (`python3 tools/pasport_xarita.py --yoz`), qolgani qo'lda; `tools/test_pasport.py` ikkalasini ham tekshiradi.*
 
@@ -755,6 +755,24 @@ aslida korxona qarzdor); sovg'a 0 bo'lsa «TOP: hali yo'q»; usta KPI tafsilotid
 «+-1 026»); Jami qatorida avans minus bilan; bonus / kamaytirish oynasida summa — umumiy qoida (`formatPriceInput`, `narxKorinishi`,
 `parseNum(narxMatni)`; ilgari type=number). HODIM KARTASI (G6-08): kompyuterda ham IKKI qator (`.emp-row` flex-wrap: yuqorida ism,
 lavozim, to'lov turi, avans; pastda To'langan / Qolgan, holat, tugmalar). Test: `tools/test_f_hujjat.py`.
+**Ustalar, menyu, kirish, sozlamalar — F bosqichi 5-qism 3-bo'lagi (kech120, zip 137; audit G6-16, G6-18, G6-20, G6-22, G6-24 —
+texnik qismlari).** USTA TELEFONI (G6-16, O'LCHANGAN: «Ustalar» sahifasi orqali «abcdefg» saqlanardi — server faqat uzunlikni
+tekshirardi): `crud.usta_telefoni_xatosi` — faqat raqam, «+», bo'shliq, «-», qavs; 7–15 ta raqam (KPI oynasidagi qoida bilan bir;
+yaratishda `_clean_create`, tahrirda `_clean_update`); xatolarda maydon nomi o'zbekcha (`_MAYDON_NOMLARI`: «Telefon», «Ism» …; ilgari
+«'phone' kamida 7 …»); «Ustalar» sahifasi — o'sha qoida, server sababi (`xatoSababi`), nofaol qilish rad etilsa — server SABABI
+(`serverXatoSababi` + `xabarOyna`). MENYU (G6-18): guruh sarlavhasi faqat ostida band bo'lsa («Asosiy» Omborchida bo'sh edi); «Xarajat
+qo'shish», «Qaytarishlar», «Ustalar» — «Kundalik ish» guruhida («Hisobot» — Qarzdorlar, Moliya, KPI, Hisobotlar); admin «/ustalar» da —
+«Ustalar KPI / Hodimlar» belgilanadi, Moliyachi «/kunlik-xarajat» da — «Moliya»; rol nomi — o'zbekcha (avvalgidek `rol_nomi`).
+HODIM KIRISHI (G6-20): xatoda telefon va korxona kodi SAQLANADI (faqat PIN qayta yoziladi), xabar «PIN ni unutgan bo'lsangiz — korxona
+administratoridan so'rang», namuna qisqa («Admindan so'rang», «+998 90 123 45 67», umumiy och rang — zip 134), brend — oltin (ko'k
+emas). SOZLAMALAR (G6-22): alohida sahifa `/sozlamalar` (menyu «Boshqaruv» → «Sozlamalar»; `logs_page` ning ikkinchi marshruti,
+`sozlamalar_sahifasi` — jurnallar yorliqlari yashirin; eski `/logs?tab=settings` → 302 `/sozlamalar`; jurnallardagi yorliq — havola);
+maydonlar — umumiy `input.input-field` (style.css oxirida; ilgari faqat kpi.html da); logotip — «Fayl tanlash» / «Fayl tanlanmagan»
+(brauzerning inglizcha «Choose File» o'rniga); «Asosiy turlar (Profil, Panel, Donali) har doim yoqiq; Blok — eskirgan, ixtiyoriy»;
+Telegram — «umumiy bot (agar sozlangan bo'lsa — holati pastda)»; «MRP» o'rniga «Ishlab chiqarish» bo'limi. KIRISH SAHIFASI (G6-24):
+«Parolni unutdingizmi? Korxona administratoriga murojaat qiling … Administrator parolini dastur xizmati tiklaydi» (xizmat telefoni —
+EGASI qarori), telefonda dastur nomi tepada (`.mobil-brend`), pastki yozuvlar qoramtir fonda. static_version `20261001-7`.
+Test: `tools/test_f_sozlama.py`.
 **Ranglar va tungi rejim (kech118, D bosqichi 2-qism — egasi QARORI «To'liq tuzatilsin — har sahifa ranglari umumiy ranglar
 ro'yxatiga», U-02; zip 122).** Shablon / `style.css` dagi rang XOSSASIGA qarab UMUMIY RO'YXATDAN olinadi — `static/ranglar.css`
 (`base.html` va mustaqil sahifalar — kirish, hodim kirishi / paneli, xato sahifasi — `style.css` dan KEYIN ulaydi):
@@ -1150,6 +1168,13 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   matni «50 kg loy × 15 600 so'm/kg»), `test_tayyor_reja_loy` (R7, R12, R16 — «20 kg loy»), `test_yonalish_natija`
   (S1 / S2 — «bugun» muzlatiladi: oy tugagan → o'tgan oy butun; yangi S5–S7 — 1–5 / 1–4 kesim qo'lda hisoblangan
   summalar bilan va haqiqiy bugun qoidasi; asl kodda S5–S7 yiqiladi).
+- (kech120, zip 137) F bosqichi 5-qism 3-bo'lagi — ustalar, menyu, kirish, sozlamalar: `tools/test_f_sozlama.py` — S (statik, 3), A (usta
+  telefoni: «abcdefg», «12345» — «Telefon», to'g'ri — 200, tahrir — 400, qisqa ism — «Ism»), R (menyu — admin, Menejer, Omborchi,
+  Moliyachi: bo'sh sarlavha yo'q, «Kundalik ish», belgilangan band; `/sozlamalar`, `/logs?tab=settings` → 302; hodim kirishi xatosida
+  telefon va xabar), B (HAQIQIY Chromium: Sozlamalar — maydon uslubi, «Fayl tanlash»; Ustalar — noto'g'ri telefon so'rovsiz rad, nofaol
+  qilish sababi; kirish — «Parolni unutdingizmi?», 390 da nom, pastki yozuvlar foni; hodim kirishi 390 — namuna sig'adi, oltin brend; JS
+  xatosiz). SQLite, PG (16) — asl kodda (zip 136) 11 yiqiladi, qulamaydi. Mutatsiyalar (`work/f5/mutatsiya_f5c.py`, 26 ta; natija
+  `work/natija/f5c/mut/`) — hammasi ushlanadi.
 - (kech120, zip 136) F bosqichi 5-qism 2-bo'lagi — hujjatlar va KPI: `tools/test_f_hujjat.py` — S (statik, 3), D (chegirmasiz buyurtma —
   kasrli profil, dona, termopanel, loy; chegirmali; ikki yukli — Y-1 karniz, Y-2 panel; loy bitta yukda; 2 hodim — bonus / kamaytirish,
   avans; usta), P (pypdf matni: birliklar, «2,5», bo'shliqli summalar, bitta «TO'LOV SUMMASI», «TURI» yo'q, sarlavha; chegirmali —
@@ -1995,6 +2020,9 @@ bajarilganlari belgilanadi)**
 - (kech120, zip 136) Qayta chop etiladigan hujjat (yuk xati) — o'z PAYTIDAGI holatni ko'rsatadi (keyingi yozuvlar qo'shilmaydi); pul
   kabi keyin o'zgaradigan qism — «chop etilgan kun» deb aniq yoziladi. Hujjatlardagi birlik va summa — sahifalardagi umumiy qoida.
 - (kech120, zip 136) PDF dagi rang — sahifa oqimidagi `r g b rg` operatori bilan o'lchanadi (pypdf `get_contents().get_data()`).
+- (kech120, zip 137) Bir xil ma'lumot ikki sahifada kiritilsa (usta — KPI va «Ustalar») — tekshiruv SERVERDA (bitta funksiya) va
+  ikkala oynada bir xil matn; maydon nomi xabarda foydalanuvchi tilida.
+- (kech120, zip 137) Brauzer CSS chegarani qurilma pikseliga yaxlitlaydi (1,5 px → 1 px) — sinovda chegara uslubi, burchak va ichki joy.
 
 ## 9. Xarita (AVTOMATIK)
 
@@ -2180,6 +2208,11 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 ### `GET /rollar` → `main.py:rollar_page` → `templates/rollar.html`
 - Qorovul: auth.admin_only
 - `rollar.html` API: `/api/rollar`, `/api/rollar/{}`, `/api/rollar/{}/andoza`, `/api/users/{}/rol`
+
+### `GET /sozlamalar` → `main.py:logs_page` → `templates/logs.html`
+- Qorovul: auth.ruxsat('jurnal', 'korish')
+- Server chaqiruvlari: auth.company_id_of, auth.ruxsat, crud.audit_amal_guruhlari, crud.audit_jurnali_sahifasi, crud.get_error_logs, crud.kirish_tarixi_sahifasi
+- `logs.html` API: `/api/settings/categories`, `/api/settings/company`, `/api/settings/company/logo`, `/api/settings/telegram-bot`, `/api/system/backup`, `/api/system/health-check`, `/api/yonalishlar`, `/api/yonalishlar/{}`
 
 ### `GET /suppliers` → `main.py:suppliers_page` → `templates/suppliers.html`
 - Qorovul: auth.ruxsat('taminotchi', 'korish')
@@ -2640,6 +2673,9 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `POST /saas-migratsiya/sinov-tenant` → `saas_migration.py:panel_test_tenant` · 🔒 auth.admin_only
 - `POST /saas-migratsiya/sinov/{kalit}` → `saas_migration.py:panel_dry_run` · 🔒 auth.admin_only
 
+#### `/sozlamalar` (1)
+- `GET /sozlamalar` → `main.py:logs_page` · 🔒 auth.ruxsat('jurnal', 'korish') · auth.company_id_of, auth.ruxsat, crud.audit_amal_guruhlari, crud.audit_jurnali_sahifasi, crud.get_error_logs, crud.kirish_tarixi_sahifasi
+
 #### `/static` (1)
 - `GET /static/uploads/{papka}/{fayl}` → `main.py:yuklangan_fayl` · 🔓 · auth.company_id_of, auth.get_current_user
 
@@ -2664,7 +2700,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 #### `/ustalar` (1)
 - `GET /ustalar` → `main.py:masters_manage_page` · 🔒 auth.ruxsat('usta', 'korish') · auth.ruxsat
 
-Jami marshrutlar: 309 (main.py: 280, production_routes.py: 21, saas_migration.py: 8).
+Jami marshrutlar: 310 (main.py: 281, production_routes.py: 21, saas_migration.py: 8).
 <!-- AVTO:API OXIRI -->
 
 ### 9.5 Jadvallar
@@ -2784,6 +2820,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_f_ishlab.py` · PG — kech120, F BOSQICH 3-qism (TAYYOR MAHSULOTLAR, QAYTARISHLAR, ISHLAB CHIQARISH — audit G5 qolgan bandlari).
 - `test_f_moliya.py` · PG — kech120, F BOSQICH 1-qism (MOLIYA, QARZDORLAR, XARAJAT QO'SHISH — audit G3 qolgan bandlari).
 - `test_f_ombor.py` · PG — kech120, F BOSQICH 2-qism (OMBOR, KIRIM, TA'MINOTCHILAR, RETSEPTLAR — audit G4 qolgan bandlari).
+- `test_f_sozlama.py` · PG — kech120, F BOSQICH 5-qism 3-bo'lagi (USTALAR, MENYU, KIRISH, SOZLAMALAR — audit G6-16, G6-18, G6-20, G6-22, G6-24).
 - `test_finished_tartib.py` · PG — 15-band darvozasi (kech35, 2026-09-23).
 - `test_fp_product_type.py` — Bosqich 3, 10-band tekshiruvi.
 - `test_hisobot_kesh.py` · PG — kech89 darvozasi (2026-09-26, 52-band: Moliya hisobotidagi N+1 so'rovlar).
@@ -2936,5 +2973,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 198 (Python 163, JS 35).
+Jami test fayllari: 199 (Python 164, JS 35).
 <!-- AVTO:TESTLAR OXIRI -->

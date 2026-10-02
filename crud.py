@@ -3548,8 +3548,12 @@ def _clean_update(model: str, data) -> dict:
     son — `ValueError`. Matnlar O'ZGARTIRILMAYDI (faqat tekshiriladi);
     tanlov maydonlari kanonik qiymatga keltiriladi (`status` → enum NOMI,
     `pay_type` → enum QIYMATI) — pastdagi crud o'giruvchilari shuni kutadi."""
-    return _clean_by_rules(_upd_rules()[model], _UPD_TAQIQ.get(model, {}), data,
+    toza = _clean_by_rules(_upd_rules()[model], _UPD_TAQIQ.get(model, {}), data,
                            "Bu maydonni o'zgartirib bo'lmaydi: ")
+    # kech120 (zip 137 — G6-16): usta telefoni tahrirda ham shu qoida bilan
+    if model == "Master" and "phone" in toza and usta_telefoni_xatosi(toza.get("phone")):
+        raise ValueError(usta_telefoni_xatosi(toza.get("phone")))
+    return toza
 
 
 def _clean_by_rules(rules: dict, taqiq: dict, data, notogri_xabar: str) -> dict:
@@ -3765,6 +3769,37 @@ def _create_rules():
     return {"Inventory": inv, "Master": ms, "Employee": em, "Project": pr, "Supplier": sp}
 
 
+# kech120 (zip 137 — F bosqichi 5-qism, audit G6-16): xato xabarida maydon NOMI o'zbekcha (ilgari «'phone' kamida 7 belgidan …»)
+_MAYDON_NOMLARI = {
+    ("Master", "name"): "Ism", ("Master", "phone"): "Telefon", ("Employee", "name"): "Ism", ("Employee", "pay_type"): "To'lov turi",
+    ("Inventory", "item_name"): "Material nomi", ("Inventory", "unit"): "Birlik", ("Project", "project_name"): "Loyiha nomi",
+    ("Project", "client_name"): "Mijoz ismi", ("Supplier", "name"): "Ta'minotchi nomi",
+}
+
+
+def _maydon_nomi(model: str, key: str) -> str:
+    return _MAYDON_NOMLARI.get((model, key), key)
+
+
+# kech120 (zip 137 — G6-16, O'LCHANGAN: «Ustalar» sahifasi orqali «abcdefg» telefon saqlanardi — server faqat uzunlikni tekshirardi;
+# KPI sahifasidagi oyna 2026-09-15 dan beri tekshirardi): usta telefoni — faqat raqam, «+», bo'shliq, «-», qavs; 7–15 ta raqam
+# (KPI oynasidagi qoida bilan bir; mavjud 7 raqamli yozuvlar tahrirda rad etilmasin). Xato bo'lsa — matn, aks holda None.
+USTA_TELEFON_XATO = "Telefon raqami noto'g'ri — faqat raqam, «+», bo'shliq va «-» (7–15 ta raqam), masalan +998 90 123 45 67"
+
+
+def usta_telefoni_xatosi(telefon):
+    t = str(telefon or "").strip()
+    if not t:
+        return None
+    raqam = sum(ch.isdigit() for ch in t)
+    if not _re_tel137.fullmatch(r"[\d+\s\-()]+", t) or not (7 <= raqam <= 15):
+        return USTA_TELEFON_XATO
+    return None
+
+
+import re as _re_tel137                             # noqa: E402
+
+
 def _clean_create(model: str, data) -> dict:
     """Yaratish tanasini QAT'IY tekshiradi va tozalangan nusxasini qaytaradi
     (15-band). `data` — xom JSON (marshrut) yoki `model_dump(exclude_unset=
@@ -3774,9 +3809,11 @@ def _clean_create(model: str, data) -> dict:
                            data, "Noma'lum maydon: ")
     for key, eng_kam in _CREATE_MAJBURIY[model].items():
         if toza.get(key) is None:
-            raise ValueError(f"'{key}' kiritilishi shart")
+            raise ValueError(f"«{_maydon_nomi(model, key)}» kiritilishi shart")
         if eng_kam and len(toza[key].strip()) < eng_kam:
-            raise ValueError(f"'{key}' kamida {eng_kam} belgidan iborat bo'lishi kerak")
+            raise ValueError(f"«{_maydon_nomi(model, key)}» kamida {eng_kam} belgidan iborat bo'lishi kerak")
+    if model == "Master" and usta_telefoni_xatosi(toza.get("phone")):
+        raise ValueError(usta_telefoni_xatosi(toza.get("phone")))      # kech120 (zip 137 — G6-16)
     if model == "Inventory":
         # Boshlang'ich qoldiq xarid yozuviga (`total_amount` Numeric(12,2))
         # sig'ishi shart — aks holda PostgreSQL da material yaratilib, xarid

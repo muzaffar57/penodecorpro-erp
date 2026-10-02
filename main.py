@@ -3280,7 +3280,7 @@ def _son_filtri(qiymat, kasr=2):
 
 
 templates.env.filters["son"] = _son_filtri
-templates.env.globals["static_version"] = "20261001-6"   # kech120 (zip 135): style.css (.grafik-bosh); kech120 (zip 134): style.css (--border-strong, namuna rangi); kech120 (zip 130): style.css (qidiruvli tanlagich), static/tanlov.js; kech119 (zip 126 — C, telefon): style.css (telefon qoidalari); zip 123 — ranglar.css (eskirgan rang olib tashlandi); zip 122 — ranglar.css va style.css (tungi rejim) — kesh yangilansin
+templates.env.globals["static_version"] = "20261001-7"   # kech120 (zip 137): style.css (.input-field); kech120 (zip 135): style.css (.grafik-bosh); kech120 (zip 134): style.css (--border-strong, namuna rangi); kech120 (zip 130): style.css (qidiruvli tanlagich), static/tanlov.js; kech119 (zip 126 — C, telefon): style.css (telefon qoidalari); zip 123 — ranglar.css (eskirgan rang olib tashlandi); zip 122 — ranglar.css va style.css (tungi rejim) — kesh yangilansin
 
 
 def _toshkent_filtr(qiymat, fmt="%d.%m.%Y %H:%M"):
@@ -3622,9 +3622,17 @@ async def platforma_page(request: Request, db: Session = Depends(get_db)):
         "current_user": user, "active_page": "platforma"})
 
 
+@app.get("/sozlamalar", response_class=HTMLResponse)
 @app.get("/logs", response_class=HTMLResponse)
 async def logs_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("jurnal", "korish"))):
-    """Tizim jurnallari — kirish tarixi va backend xatoliklari (faqat admin)."""
+    """Tizim jurnallari — kirish tarixi va backend xatoliklari (faqat admin).
+
+    kech120 (zip 137 — F bosqichi 5-qism, audit G6-22): `/sozlamalar` — shu sahifaning «Korxona sozlamalari» qismi ALOHIDA sahifa
+    sifatida (menyuda «Sozlamalar»; boshqa yorliqlar ko'rinmaydi). Ilgari sozlamalar «Tizim jurnallari» ning 4-yorlig'ida edi;
+    eski havola `/logs?tab=settings` — yangi manzilga yo'naltiriladi."""
+    _soz137 = request.url.path.rstrip("/") == "/sozlamalar"
+    if not _soz137 and request.query_params.get("tab") == "settings":
+        return RedirectResponse("/sozlamalar", status_code=302)
     # M7: audit izi va kirish tarixi FAQAT joriy korxonaniki.
     # Faza 3 (2026-09-19): `error_logs.company_id` ustuni qo'shildi —
     # endi xatolar ham to'g'ri ajratiladi: korxonaniki o'ziga, platforma
@@ -3660,6 +3668,8 @@ async def logs_page(request: Request, db: Session = Depends(get_db), current_use
         _bolim["filtrlangan"] = any(v for v in _bolim["filtr"].values())
         _bolim["tozalash"] = _jurnal_havola(_pr, tozala=True)
     _yorliq = _p.get("tab") if _p.get("tab") in ("login", "errors", "activity", "health", "settings", "platform") else "login"
+    if _soz137:
+        _yorliq = "settings"
     # 2026-09-20 — Texnik xatolar (Python traceback) FAQAT platforma
     # administratori uchun. Sabab: bunday xabar korxona egasiga hech narsa
     # bermaydi, lekin ikki xil zarar keltiradi — (1) "dastur buzuqmi?"
@@ -3676,7 +3686,7 @@ async def logs_page(request: Request, db: Session = Depends(get_db), current_use
         "kirish": kirish, "audit": audit, "yorliq": _yorliq,
         "amal_nomi": crud.audit_amal_nomi, "amal_guruhlari": crud.audit_amal_guruhlari(),
         "farq_belgi": crud.AUDIT_FARQ_BELGI,
-        "current_user": current_user, "active_page": "logs"
+        "current_user": current_user, "active_page": "sozlamalar" if _soz137 else "logs", "sozlamalar_sahifasi": _soz137
     })
 
 
@@ -5082,7 +5092,7 @@ async def hodim_login_submit(request: Request, phone: str = Form(...), pin: str 
     if rl["blocked"]:
         return templates.TemplateResponse(request, "hodim_login.html", {
             "error": f"Juda ko'p noto'g'ri urinish. {rl['retry_after_minutes']} daqiqadan so'ng qayta urining.",
-            "kod": (korxona or "").strip()[:30]
+            "kod": (korxona or "").strip()[:30], "telefon": (phone or "").strip()[:20]
         })
 
     # M1 (CRITICAL): korxona kontekstisiz kirishga yo'l yo'q.
@@ -5092,14 +5102,17 @@ async def hodim_login_submit(request: Request, phone: str = Form(...), pin: str 
     if not _korxona:
         crud.log_login_attempt(db, phone, success=False, ip_address=ip, user_agent=ua)
         return templates.TemplateResponse(request, "hodim_login.html", {
-            "error": "Korxona kodi topilmadi. Kodni administratordan so'rang.", "kod": (korxona or "").strip()[:30]
+            "error": "Korxona kodi topilmadi. Kodni administratordan so'rang.", "kod": (korxona or "").strip()[:30],
+            "telefon": (phone or "").strip()[:20]
         })
 
     emp = crud.authenticate_employee(db, phone, pin, company_id=_korxona.id)
     if not emp:
         crud.log_login_attempt(db, phone, success=False, ip_address=ip, user_agent=ua)
-        return templates.TemplateResponse(request, "hodim_login.html", {"error": "Telefon yoki PIN noto'g'ri!",
-                                                                         "kod": (korxona or "").strip()[:30]})
+        # kech120 (zip 137 — F bosqichi 5-qism, audit G6-20): telefon saqlanadi (faqat PIN qayta yoziladi), keyin nima qilish
+        return templates.TemplateResponse(request, "hodim_login.html", {
+            "error": "Telefon yoki PIN noto'g'ri! PIN ni unutgan bo'lsangiz — korxona administratoridan so'rang.",
+            "kod": (korxona or "").strip()[:30], "telefon": (phone or "").strip()[:20]})
 
     # kech111 — korxonasi bloklangan: to'g'ri PIN bilan ham kirilmaydi (login_submit bilan bir xil qoida)
     try:
