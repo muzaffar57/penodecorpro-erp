@@ -33,11 +33,19 @@
     .side{
       width:42%;
       background:var(--ink);
+      /* kech120 (E, U-10 — O'LCHANGAN jonli saytda: `login-bg.png` 1 475 KB, siqilmaydi): JPEG 85 % (~103 KB) — hamma
+         brauzerda; WebP 92 % (~75 KB) — `image-set` ni tushunadigan brauzerda (tushunmasa ikkinchi qator e'tiborsiz,
+         birinchisi qoladi). Sifat: PSNR 44,7 / 45,7 dB (ko'zga farqsiz; chizma chiziqlari saqlanadi). */
       background-image:
         radial-gradient(circle at 15% 20%, rgba(201,121,58,0.10) 0%, transparent 45%),
         radial-gradient(circle at 85% 80%, rgba(201,121,58,0.08) 0%, transparent 45%),
         linear-gradient(rgba(12,16,24,0.30), rgba(12,16,24,0.30)),
-        url('/static/login-bg.png');
+        url('/static/login-bg.jpg');
+      background-image:
+        radial-gradient(circle at 15% 20%, rgba(201,121,58,0.10) 0%, transparent 45%),
+        radial-gradient(circle at 85% 80%, rgba(201,121,58,0.08) 0%, transparent 45%),
+        linear-gradient(rgba(12,16,24,0.30), rgba(12,16,24,0.30)),
+        image-set(url('/static/login-bg.webp') type('image/webp'), url('/static/login-bg.jpg') type('image/jpeg'));
       background-size: auto, auto, cover, cover;
       background-position: center, center, center, center;
       background-repeat: no-repeat, no-repeat, no-repeat, no-repeat;

@@ -1849,13 +1849,19 @@ async function submitCloseGiftPeriod(force) {
 }
 
 document.getElementById('kpi-year').value = tkHozir().yil;     // kech106: joriy yil — Toshkent
-loadEhsonPercent();
-loadMasterKpi();
-loadGiftPeriod();
-loadAllMastersFull();
-loadEmployees().then(() => loadCurrentMonthEmpStatus());
-initEmpReportSelectors();
-loadEmpMonthlyReport();
+// kech120 (E, U-09 — O'LCHANGAN): sahifa ochilishida `/api/finance/report` (joriy oy) 2 marta so'ralardi — «Hodimlar oylik
+// hisoboti» va yuqoridagi kartalar; `bittaYuklash` (base.html) — bir marta. Chaqiruvlar tartibi o'zgarmagan.
+(function () {
+  const _boshla = () => Promise.all([
+    loadEhsonPercent(),
+    loadMasterKpi(),
+    loadGiftPeriod(),
+    loadAllMastersFull(),
+    loadEmployees().then(() => loadCurrentMonthEmpStatus()),
+    (initEmpReportSelectors(), loadEmpMonthlyReport()),
+  ]);
+  (typeof bittaYuklash === 'function' ? bittaYuklash(_boshla) : _boshla()).catch(e => console.error(e));
+})();
 
 // Joriy oy hodimlar holati — yuqoridagi "Hisoblangan oylik" va "To'lanmagan
 // summa" KPI kartalari uchun. Mavjud, sinalgan /api/finance/report dan

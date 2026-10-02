@@ -117,6 +117,32 @@
 })();
 </script>
 <script>
+// kech120 (E bosqichi, U-09 — O'LCHANGAN `work/k127/tez.py`): sahifa bir ochilishida bir xil GET so'rovni bir necha joy
+// alohida yuborardi — «Hisobotlar»: taqqoslash 3 marta, pul oqimi 2 marta (har biri serverda oylik hisobot); «KPI»: moliya
+// hisoboti 2 marta. `bittaYuklash(fn)` — `fn` (sahifaning birinchi yuklanishi) davomida
+// bir xil manzilli GET so'rov BIR marta yuboriladi, har o'quvchi javobning o'z nusxasini (`clone()`) oladi. Blok davomida
+// istalgan yozuv (GET emas) so'rovi eslab qolinganlarni darhol tozalaydi. Blokdan tashqarida — oddiy `fetch` (o'zgarishsiz).
+// Sahifa skriptlaridan OLDIN o'rnatiladi (pastdagi kirill → lotin o'rami shu funksiyani o'raydi).
+(function () {
+  const _asl = window.fetch;
+  if (typeof _asl !== 'function') return;
+  let _kesh = null;
+  window.bittaYuklash = async function (fn) {
+    const k = new Map();
+    const eski = _kesh;
+    _kesh = k;
+    try { return await fn(); } finally { if (_kesh === k) _kesh = eski; }
+  };
+  window.fetch = function (input, init) {
+    const usul = String((init && init.method) || (input && typeof input === 'object' && input.method) || 'GET').toUpperCase();
+    if (_kesh && usul !== 'GET') _kesh.clear();
+    if (!_kesh || usul !== 'GET' || typeof input !== 'string' || (init && init.body)) return _asl.apply(this, arguments);
+    if (!_kesh.has(input)) _kesh.set(input, _asl.call(this, input, init));
+    return _kesh.get(input).then(r => r.clone());
+  };
+})();
+</script>
+<script>
 // ══ UMUMIY: foydalanuvchi kiritgan matnni (mahsulot nomi, mijoz nomi,
 // izoh va h.k.) HTML ichiga xavfsiz qo'yish uchun — aks holda kimdir
 // nom o'rniga <script> kabi kod kiritsa, buni keyin ko'rgan boshqa
@@ -704,7 +730,8 @@ function jsAttrEscape(str) {
            istalgan shaklda bo'lishi mumkin — u `contain` bilan, to'liq
            ko'rinadigan qilib, yumaloq burchakli ramkada chiziladi. #}
         {% if _logo == 'static/logo_transparent.png' %}
-        <img src="/static/logo_round.jpg" alt=""
+        {# kech120 (E, U-10): 42 px joy uchun 1024 × 1024 (91 KB) o'rniga 128 × 128 (retina 3× gacha aniq) #}
+        <img src="/static/logo_round_128.jpg" alt=""
              style="width:42px;height:42px;border-radius:50%;object-fit:cover;flex-shrink:0">
         {% elif _logo %}
         <img src="/{{ _logo }}" alt=""

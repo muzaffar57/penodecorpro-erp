@@ -105,6 +105,18 @@ html[data-theme="dark"] .bi-wrap{
 .bi-comp-card{text-align:center;padding:16px}
 .bi-comp-label{font-size:12px;color:var(--b-text3);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
 .bi-comp-arrow{font-size:22px;font-weight:800;margin-top:8px}
+/* kech120 (K120-1 — JONLI topilgan, sinov sayti 360 px, skrinshot bilan): «o'zgarmadi» (22 px, qalin) bo'linmaydigan so'z
+   `1fr` ustunni mazmuni bilan 155 px gacha kengaytirardi — 2 × 155 + 14 = 324 > konteyner 281 px: o'ng kartalar ekrandan
+   chiqib, panel yon tomonga surilardi (375–390 px da — panel ichki chetidan 28 px). Endi karta ustunni kengaytirmaydi
+   (`min-width:0`), raqam / so'z kichikroq ekranda kichrayadi; juda tor joyda so'z o'raladi (ekrandan chiqmaydi). */
+.bi-comp-grid > *{min-width:0}
+.bi-comp-arrow{overflow-wrap:anywhere}
+@media(max-width:1280px){.bi-comp-arrow{font-size:19px}}
+@media(max-width:600px){
+  .bi-comp-grid{gap:10px}
+  .bi-comp-card{padding:12px 8px}
+  .bi-comp-arrow{font-size:17px}
+}
 
 /* ── Forecast (8-qator) ── */
 .bi-forecast-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
@@ -802,11 +814,13 @@ async function buildAiSummary(alerts){
 async function loadAll(){
   const bar = document.getElementById('reportsLoadingBar');
   if (bar) bar.style.display = 'flex';
+  // kech120 (E, U-09): bir yuklashda bir xil so'rov bir marta (taqqoslash 3 → 1, pul oqimi 2 → 1) — `bittaYuklash` (base.html)
+  const _hammasi = () => Promise.all([
+    loadHealth(), loadKpi(), loadCharts(), loadCashFlowBars(), loadTopRankings(),
+    loadComparison(), loadForecast(), loadAlerts(), loadReport()
+  ]);
   try {
-    await Promise.all([
-      loadHealth(), loadKpi(), loadCharts(), loadCashFlowBars(), loadTopRankings(),
-      loadComparison(), loadForecast(), loadAlerts(), loadReport()
-    ]);
+    await (typeof bittaYuklash === 'function' ? bittaYuklash(_hammasi) : _hammasi());
   } finally {
     if (bar) bar.style.display = 'none';
   }
