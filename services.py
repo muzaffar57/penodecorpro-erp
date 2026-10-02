@@ -1071,11 +1071,17 @@ def check_low_stock(db: Session, company_id: int = None) -> List[Dict]:
     return result
 
 
+# kech120 (E bosqichi 2-qism, G1-11 — audit: «Katta Korxona» da bugungi buyurtmalar 14 qator bo'lib Bosh sahifa tepasini to'ldirardi,
+# qatorlarni bosib bo'lmasdi, «119 ta buyurtma muddati o'tgan» — faqat son): har guruhdan ko'pi bilan shuncha qator, qolgani —
+# «yana N ta →» havolasi (filtrlangan ro'yxatga).
+BUGUNGI_VAZIFA_CHEGARA = 5
+
+
 def get_today_tasks(db: Session, company_id: int = None) -> List[Dict]:
-    """Dashboard 'Bugungi vazifalar' vidjeti uchun — bugun e'tibor talab
-    qiladigan narsalar ro'yxati: bugun topshirilishi kerak bo'lgan
-    buyurtmalar, muddati o'tgan buyurtmalar, va kam qolgan xomashyo.
-    Har biri {icon, text} shaklida qaytariladi."""
+    """Bosh sahifa «Bugungi vazifalar» — bugun e'tibor talab qiladigan narsalar: bugun topshirilishi kerak bo'lgan buyurtmalar,
+    muddati o'tgan buyurtmalar, kam qolgan xomashyo. Har biri {icon, text, href} — `href` qator bosilganda ochiladigan joy
+    (buyurtma — `/orders?order=ID`; filtrlangan ro'yxat — `/orders?royxat=bugun|otgan`; kam qolganlar — `/inventory?kam=1`).
+    kech120 (G1-11): har guruh `BUGUNGI_VAZIFA_CHEGARA` qatorgacha, qolgani bitta «yana N ta» qatori."""
     from models import Order, OrderStatus
     from datetime import datetime, timedelta
     from database import tashkent_today_start_utc
@@ -1083,18 +1089,24 @@ def get_today_tasks(db: Session, company_id: int = None) -> List[Dict]:
     tasks = []
     today_start = tashkent_today_start_utc()
     today_end = today_start + timedelta(days=1)
+    _n = BUGUNGI_VAZIFA_CHEGARA
 
     # 1) Bugun topshirilishi kerak bo'lgan buyurtmalar
     # 2026-09-21: QAT'IY korxona filtri (ilgari yo'q edi — B "bugungi
     # vazifalar"da A ning buyurtma raqamlarini ko'rardi).
+    # kech120 (G1-11): «Tayyor» (READY — yakunlangan, avto yuk xati bilan topshirilgan) ham chiqariladi — muddati o'tganlar
+    # (pastda) va Buyurtmalar sahifasidagi «Bugun» filtri (`crud.get_deadline_urgency`) bilan BIR qoida.
     due_today = db.query(Order).filter(
         Order.company_id == company_id,
         Order.deadline >= today_start, Order.deadline < today_end,
-        Order.status.notin_([OrderStatus.DELIVERED, OrderStatus.CANCELLED]),
+        Order.status.notin_([OrderStatus.DELIVERED, OrderStatus.CANCELLED, OrderStatus.READY]),
         Order.is_deleted.isnot(True)
-    ).all()
-    for o in due_today:
-        tasks.append({"icon": "🚚", "text": f"{o.order_number} — bugun topshirilishi kerak"})
+    ).order_by(Order.deadline, Order.id).all()
+    for o in due_today[:_n]:
+        tasks.append({"icon": "🚚", "text": f"{o.order_number} — bugun topshirilishi kerak", "href": f"/orders?order={o.id}"})
+    if len(due_today) > _n:
+        tasks.append({"icon": "🚚", "text": f"yana {len(due_today) - _n} ta buyurtma bugun topshirilishi kerak",
+                      "href": "/orders?royxat=bugun"})
 
     # 2) Muddati o'tgan (kechikkan) buyurtmalar
     overdue = db.query(Order).filter(
@@ -1104,14 +1116,17 @@ def get_today_tasks(db: Session, company_id: int = None) -> List[Dict]:
         Order.is_deleted.isnot(True)
     ).count()
     if overdue > 0:
-        tasks.append({"icon": "⏰", "text": f"{overdue} ta buyurtma muddati o'tgan"})
+        tasks.append({"icon": "⏰", "text": f"{overdue} ta buyurtma muddati o'tgan", "href": "/orders?royxat=otgan"})
 
     # 3) Kam qolgan xomashyo
     low_stock = check_low_stock(db, company_id)
-    for item in low_stock[:5]:
+    for item in low_stock[:_n]:
         # kech108 (K108-2): qoldiq ≤ 0 — "tugagan"
         _hol = "tugagan" if item.get("tugagan") else "kam qolgan"
-        tasks.append({"icon": "⚠️", "text": f"{item['item_name']} {_hol} ({item['stock_quantity']:g} {item['unit']})"})
+        tasks.append({"icon": "⚠️", "text": f"{item['item_name']} {_hol} ({item['stock_quantity']:g} {item['unit']})",
+                      "href": "/inventory?kam=1"})
+    if len(low_stock) > _n:
+        tasks.append({"icon": "⚠️", "text": f"yana {len(low_stock) - _n} ta material kam qolgan", "href": "/inventory?kam=1"})
 
     if not tasks:
         tasks.append({"icon": "✅", "text": "Bugun uchun alohida vazifa yo'q"})

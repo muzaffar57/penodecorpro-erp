@@ -4155,6 +4155,11 @@ async def orders_page(request: Request, show_all: bool = False, db: Session = De
         key=lambda g: max((x.created_at for x in g["orders"] if x.created_at), default=datetime.min),
         reverse=True
     )
+    # kech120 (E bosqichi 2-qism, G2-13 — audit: 60 loyihada «muddati o'tgan» / «bugun» / «ertaga» guruhlar aralash turardi):
+    # shoshilinchlar TEPADA — muddati o'tgan buyurtmasi bor guruh, so'ng bugungi, ertangi; har darajada avvalgidek eng yangisi
+    # birinchi (barqaror saralash).
+    _shoshilinch = {"overdue": 0, "today": 1, "tomorrow": 2}
+    grouped.sort(key=lambda g: min((_shoshilinch.get(x.deadline_urgency, 3) for x in g["orders"]), default=3))
 
     return templates.TemplateResponse(request, "orders.html", {
         "orders": orders, "grouped": grouped,
@@ -6690,6 +6695,30 @@ async def debts_page(request: Request, db: Session = Depends(get_db), current_us
     order_debts = [o for o in orders if float(o.debt_amount or 0) > 0.5]
     order_debts.sort(key=lambda o: float(o.debt_amount or 0), reverse=True)
     total_customer_debt = sum(float(o.debt_amount or 0) for o in order_debts)
+    # kech120 (E bosqichi 2-qism, G3-07 — audit: «Katta Korxona» da «Bizga qarzdorlar (288)» — har buyurtma alohida qator, bir mijoz
+    # ro'yxatning turli joylarida, qidiruv va «muddati o'tgan» belgisi yo'q): MIJOZ bo'yicha guruh (kalit — nom (kichik harf,
+    # bo'shliqlar bitta) + telefon raqamlari), guruh jami qarzi (tiyin aniqligida), guruhlar — jami qarz kamayishi bo'yicha, ichida —
+    # buyurtma qarzi kamayishi bo'yicha (avvalgi tartib). «Muddati o'tgan» — topshirish muddati (Toshkent kuni) o'tgan, qarzi bor.
+    from models import pul_tiyin_yigindi as _pty_g
+    from database import tashkent_date as _tk_sana_g
+    _bugun_g = _tk_sana_g()
+    _guruh_q = {}
+    for o in order_debts:
+        o.qarz_muddati_otgan = bool(o.deadline is not None and o.deadline.date() < _bugun_g)
+        _nom_g = ((o.project.client_name if o.project else "") or "").strip() or "—"
+        _tel_g = ((o.project.client_phone if o.project else "") or "").strip()
+        _kalit_g = (" ".join(_nom_g.lower().split()), "".join(ch for ch in _tel_g if ch.isdigit()))
+        _g = _guruh_q.setdefault(_kalit_g, {"nom": _nom_g, "telefon": _tel_g, "buyurtmalar": [], "muddati_otgan": 0})
+        _g["buyurtmalar"].append(o)
+        if o.qarz_muddati_otgan:
+            _g["muddati_otgan"] += 1
+    for _g in _guruh_q.values():
+        _g["jami"] = _pty_g(float(x.debt_amount or 0) for x in _g["buyurtmalar"])
+    mijoz_guruhlari = sorted(_guruh_q.values(), key=lambda g: g["jami"], reverse=True)
+    qarz_muddati_otgan_soni = sum(1 for o in order_debts if o.qarz_muddati_otgan)
+    # «Barcha mijozlar to'liq to'lagan!» faqat buyurtma BOR bo'lsa (audit: bo'sh korxonada ham chiqardi)
+    buyurtma_bor = bool(orders) or db.query(Order.id).filter(Order.company_id == auth.company_id_of(current_user),
+                                                             Order.is_deleted.isnot(True)).first() is not None
     # kech100 (131-band, QAROR "B"): "Mijozga qaytarish kerak" — ortiqcha to'langan buyurtmalar (o'chirilganlar HAM)
     ortiqcha_royxat = crud.get_ortiqcha_tolovlar(db, company_id=auth.company_id_of(current_user))
     from models import pul_tiyin_yigindi as _pty131
@@ -6707,6 +6736,9 @@ async def debts_page(request: Request, db: Session = Depends(get_db), current_us
 
     return templates.TemplateResponse(request, "debts.html", {
         "order_debts": order_debts,
+        "mijoz_guruhlari": mijoz_guruhlari,
+        "qarz_muddati_otgan_soni": qarz_muddati_otgan_soni,
+        "buyurtma_bor": buyurtma_bor,
         "supplier_debts": supplier_debts,
         "total_customer_debt": total_customer_debt,
         "ortiqcha_royxat": ortiqcha_royxat,
