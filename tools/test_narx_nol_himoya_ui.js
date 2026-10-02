@@ -66,6 +66,9 @@ const UPDATE = [olib(SRC, '_narxsizDetallar'), olib(SRC, '_narxsizTasdiq'), olib
   ? [olib(SRC, '_narxsizDetallar'), olib(SRC, '_narxsizTasdiq'), olib(SRC, 'updateOrder')].join('\n') : olib(SRC, 'updateOrder');
 const EDIT = olib(SRC, 'editSelected') || '';
 const FORMATNUM = olib(SRC, 'formatNum');
+// kech120 (zip 134 — G2-09, MOSLANDI): `updateOrder` avval umumiy kamchiliklarni (loyiha, nomsiz detal) bitta ro'yxatda tekshiradi —
+// `buyurtmaUmumiyKamchiliklar` / `detalYorligi` ham yuklanadi (eski kodda yo'q — bo'sh)
+const UMUMIY = [olib(SRC, 'detalYorligi'), olib(SRC, 'buyurtmaUmumiyKamchiliklar')].filter(Boolean).join('\n');
 
 function kontekst(qosh) {
   const ctx = Object.assign({ console, JSON, String, Number, Math, Array, Object, isNaN, parseFloat, parseInt, Error }, qosh || {});
@@ -150,7 +153,7 @@ async function yangila(itemsFn, javob) {
     // qo'lda yozilganda yuboradi; bu test summa yuborilishiga emas, 0-narx ogohlantirishiga qaraydi
     editUserTouched: false,
   });
-  const qism = [NOL, UPDATE, FORMATNUM].filter(Boolean).map(jinjasiz);
+  const qism = [NOL, UPDATE, FORMATNUM, UMUMIY].filter(Boolean).map(jinjasiz);
   if (!UPDATE) return { xato: 'updateOrder topilmadi', tasdiq, fetchlar };
   try {
     vm.runInContext(qism.join('\n'), ctx);

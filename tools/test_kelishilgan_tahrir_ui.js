@@ -82,7 +82,9 @@ const QISM_OXIR = kes(EDIT, '    calcDiscount();\n', '\n  } catch');
 const FUNK = ['formatNum', 'parseNum', 'narxMatni', 'narxKorinishi', 'getNamedTotal', 'calcDiscount', 'calcDebt',
   'reapplyDiscount', '_tiyin110', '_tiyinda110', 'kelishilganQayta', 'updateOrder',
   // kech115 (G2-07): `updateOrder` yangi narxsiz qatorni tasdiqlatadi — yordamchilar ham yuklanadi
-  '_narxsizDetallar', '_narxsizTasdiq'];
+  '_narxsizDetallar', '_narxsizTasdiq',
+  // kech120 (zip 134 — G2-09, MOSLANDI): `updateOrder` avval umumiy kamchiliklarni (loyiha, nomsiz detal) bitta ro'yxatda tekshiradi
+  'detalYorligi', 'buyurtmaUmumiyKamchiliklar'];
 const KOD = {};
 for (const f of FUNK) KOD[f] = olib(SRC, f);
 

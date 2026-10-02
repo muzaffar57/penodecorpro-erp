@@ -618,8 +618,9 @@ check("B6 qaytadan lotin — band «Кирилл»", lambda: n("panel_yozuv_qayt
 section("O. «Buyurtmalar» — 9: bitta «Shu buyurtma» paneli, qisqa loy yorlig'i")
 # ══════════════════════════════════════════════════════════════
 _ob = n("ord_bosh")
-check("O1 boshida: umumiy «Statistika» ko'rinadi, «Shu buyurtma» yashirin (sarlavhasi «Shu buyurtma»)",
-      lambda: _ob["umumiy"] != "none" and _ob["live"] == "none" and _ob["live_sarlavha"] == "Shu buyurtma", _ob)
+# kech120 (zip 134 — G2-16, MOSLANDI): «Shu buyurtma» va «Buyurtma hisob-kitobi» — BITTA panel («Buyurtma hisob-kitobi»)
+check("O1 boshida: umumiy «Statistika» ko'rinadi, buyurtma paneli yashirin (sarlavhasi «Buyurtma hisob-kitobi»)",
+      lambda: _ob["umumiy"] != "none" and _ob["live"] == "none" and _ob["live_sarlavha"] == "Buyurtma hisob-kitobi", _ob)
 check("O2 loy yorlig'i qisqa «Loy miqdori (kg)», izoh maydon ostida", lambda: _ob["loy_yorliq"] == "Loy miqdori (kg)"
       and _ob["loy_izoh"].startswith("Faqat qoplamali penoplast detallari uchun"), _ob)
 check("O3 «Chapdan …» yo'q; tugmasiz sahifada `.tb-amallar` bo'sh", lambda: _ob["chapdan"] is False and _ob["amallar"] == "", _ob)

@@ -437,7 +437,9 @@ const ESC = (olib(BASE, 'escapeHtml') || 'function escapeHtml(s){return String(s
     return { m, holat };
   }
   // kech115 (G2-07): saveOrder / updateOrder narxsiz detal yordamchilarini chaqiradi — ular ham yuklanadi
-  const NARXSIZ = [olib(ORDERS, '_narxsizDetallar') || '', olib(ORDERS, '_narxsizTasdiq') || ''].join('\n');
+  // kech120 (zip 134 — MOSLANDI): umumiy kamchiliklar (loyiha, nomsiz detal) — `buyurtmaUmumiyKamchiliklar` / `detalYorligi` ham yuklanadi
+  const NARXSIZ = [olib(ORDERS, '_narxsizDetallar') || '', olib(ORDERS, '_narxsizTasdiq') || '',
+                   olib(ORDERS, 'detalYorligi') || '', olib(ORDERS, 'buyurtmaUmumiyKamchiliklar') || ''].join('\n');
   const SO0 = olib(ORDERS, 'saveOrder');
   const UO0 = olib(ORDERS, 'updateOrder');
   const SO = SO0 ? NARXSIZ + '\n' + SO0 : SO0;
