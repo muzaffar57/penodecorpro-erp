@@ -3280,7 +3280,7 @@ def _son_filtri(qiymat, kasr=2):
 
 
 templates.env.filters["son"] = _son_filtri
-templates.env.globals["static_version"] = "20261001-4"   # kech120 (zip 130): style.css (qidiruvli tanlagich), static/tanlov.js; kech119 (zip 126 — C, telefon): style.css (telefon qoidalari); zip 123 — ranglar.css (eskirgan rang olib tashlandi); zip 122 — ranglar.css va style.css (tungi rejim) — kesh yangilansin
+templates.env.globals["static_version"] = "20261001-5"   # kech120 (zip 134): style.css (--border-strong, namuna rangi); kech120 (zip 130): style.css (qidiruvli tanlagich), static/tanlov.js; kech119 (zip 126 — C, telefon): style.css (telefon qoidalari); zip 123 — ranglar.css (eskirgan rang olib tashlandi); zip 122 — ranglar.css va style.css (tungi rejim) — kesh yangilansin
 
 
 def _toshkent_filtr(qiymat, fmt="%d.%m.%Y %H:%M"):
@@ -3312,6 +3312,28 @@ def kichik_rasm_manzili(url):
 templates.env.filters["kichik_rasm"] = kichik_rasm_manzili
 # kech120 (zip 133 — G5-07 / G5-08): mahsulot birligi ko'rinishi — `services.birlik_korinish` (brauzerda `birlikQisqa`, base.html)
 templates.env.filters["birlik"] = services.birlik_korinish
+
+
+def _qisqa_summa_filtri(qiymat):
+    """kech120 (zip 134 — G2-14): qisqa summa — brauzerdagi `qisqaSumma` (base.html) bilan BIR qoida: ≥ 999 500 — «1,2 mln»,
+    ≥ 999,5 — «384 ming», aks holda butun son; yaxlitlanib 0 bo'lgan manfiy — «0»."""
+    try:
+        x = float(qiymat or 0)
+    except (TypeError, ValueError):
+        return "0"
+    # yaxlitlash — JS `toFixed` / `Math.round` kabi: suzuvchi sonning ANIQ qiymati bo'yicha, teng bo'lsa yuqoriga (Python `round` /
+    # `format` — «juftga», 2 500 → «2 ming» bo'lardi, JS da «3 ming»)
+    from decimal import Decimal as _D134, ROUND_HALF_UP as _RHU134
+    a = abs(x)
+    b = "-" if (x < 0 and int(_D134(a).quantize(_D134("1"), _RHU134)) != 0) else ""
+    if a >= 999500:
+        return b + str(_D134(a / 1e6).quantize(_D134("0.1"), _RHU134)).replace(".", ",") + " mln"
+    if a >= 999.5:
+        return b + str(_D134(a / 1e3).quantize(_D134("1"), _RHU134)) + " ming"
+    return b + str(_D134(a).quantize(_D134("1"), _RHU134))
+
+
+templates.env.filters["qisqa_summa"] = _qisqa_summa_filtri
 
 import os
 static_dir = os.path.join(os.path.dirname(__file__), "static")
@@ -4169,6 +4191,20 @@ def api_projects_progress_map(db: Session = Depends(get_db), current_user=Depend
     for project_id, total, ready in rows:
         result[project_id] = round((ready / total) * 100) if total else 0
     return result
+
+
+@app.get("/api/projects/{project_id}/topshirish")
+def api_project_topshirish(project_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("loyiha_korsatkich", "korish"))):
+    """kech120 (zip 134 — F bosqichi 4-qism, audit G2-19): loyiha holat panelidagi «🚚 Yetkazish» — buyurtmalarning TO'LIQ topshirilgani
+    (`Order.delivery_percent` ≥ 100; o'chirilmagan, qoralama / bekor qilinmagan). Ilgari faqat loyiha holati «Yakunlangan» bo'lsa
+    «Yetkazildi» edi — 3 tadan 2 tasi to'liq topshirilgan bo'lsa ham «Kutilmoqda». Faqat o'qish."""
+    _cid = auth.company_id_of(current_user)
+    if not auth.project_of_company(db, project_id, _cid):
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+    from models import Order, OrderStatus
+    orders = db.query(Order).filter(Order.project_id == project_id, Order.company_id == _cid, Order.is_deleted.isnot(True),
+                                    Order.status.notin_([OrderStatus.DRAFT, OrderStatus.CANCELLED])).all()
+    return {"jami": len(orders), "topshirilgan": sum(1 for o in orders if float(o.delivery_percent or 0) >= 100)}
 
 
 @app.get("/api/projects/dashboard-stats")
