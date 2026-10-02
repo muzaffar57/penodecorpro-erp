@@ -829,7 +829,10 @@ function kichikRasm(url) {
       {% set m_savat = u.ruxsat('savat', 'korish') %}
       {% set m_jurnal = u.ruxsat('jurnal', 'korish') %}
 
+      {# kech120 (zip 137 — F bosqichi 5-qism, audit G6-18): guruh sarlavhasi — faqat ostida band bo'lsa (Omborchida bo'sh «Asosiy» edi) #}
+      {% if m_bosh or m_loyiha or m_buyurtma %}
       <div class="nav-label">Asosiy</div>
+      {% endif %}
 
       {% if m_bosh %}
       <a href="/" class="nav-item {% if active_page == 'home' %}active{% endif %}">
@@ -906,8 +909,10 @@ function kichikRasm(url) {
       </a>
       {% endif %}
 
-      {% if m_kunlik or m_qaytarish or m_usta or m_qarz or m_moliya or m_kpi or m_hisobot %}
-      <div class="nav-label">Hisobot</div>
+      {# kech120 (zip 137 — G6-18): «Xarajat qo'shish», «Qaytarishlar», «Ustalar» — hisobot emas, kundalik ish (ilgari hammasi
+         «Hisobot» ostida edi) #}
+      {% if m_kunlik or m_qaytarish or m_usta %}
+      <div class="nav-label">Kundalik ish</div>
       {% endif %}
 
       {% if m_kunlik %}
@@ -931,6 +936,10 @@ function kichikRasm(url) {
       </a>
       {% endif %}
 
+      {% if m_qarz or m_moliya or m_kpi or m_hisobot %}
+      <div class="nav-label">Hisobot</div>
+      {% endif %}
+
       {% if m_qarz %}
       <a href="/debts" class="nav-item {% if active_page == 'debts' %}active{% endif %}">
         <i class="ti ti-credit-card n-ico"></i>
@@ -939,14 +948,16 @@ function kichikRasm(url) {
       {% endif %}
       {% if m_moliya %}
 
-      <a href="/finance" class="nav-item {% if active_page == 'finance' %}active{% endif %}">
+      {# kech120 (zip 137 — G6-18): Moliyachi «Xarajat qo'shish» sahifasini ocha oladi, menyuda u — Moliya ichida (o'sha amal) #}
+      <a href="/finance" class="nav-item {% if active_page == 'finance' or (active_page == 'kunlik_xarajat' and not m_kunlik) %}active{% endif %}">
         <i class="ti ti-trending-up n-ico"></i>
         <span class="n-txt">Moliya</span>
       </a>
       {% endif %}
       {% if m_kpi %}
 
-      <a href="/kpi" class="nav-item {% if active_page == 'kpi' %}active{% endif %}">
+      {# kech120 (zip 137 — G6-18): admin «/ustalar» ni ochsa ham menyuda o'z bandi belgilanadi (ilgari hech biri) #}
+      <a href="/kpi" class="nav-item {% if active_page == 'kpi' or (active_page == 'ustalar' and not m_usta) %}active{% endif %}">
         <i class="ti ti-trophy n-ico"></i>
         <span class="n-txt">Ustalar KPI / Hodimlar</span>
       </a>
@@ -980,6 +991,12 @@ function kichikRasm(url) {
       </a>
       {% endif %}
       {% if m_jurnal %}
+      {# kech120 (zip 137 — F bosqichi 5-qism, audit G6-22): korxona sozlamalari — alohida band (ilgari «Tizim jurnallari» ning
+         4-yorlig'ida — egasi sozlamani jurnal ichida qidirmaydi) #}
+      <a href="/sozlamalar" class="nav-item {% if active_page == 'sozlamalar' %}active{% endif %}">
+        <i class="ti ti-settings n-ico"></i>
+        <span class="n-txt">Sozlamalar</span>
+      </a>
       <a href="/logs" class="nav-item {% if active_page == 'logs' %}active{% endif %}">
         <i class="ti ti-file-text n-ico"></i>
         <span class="n-txt">Tizim jurnallari</span>

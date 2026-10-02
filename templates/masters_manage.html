@@ -61,7 +61,7 @@
     <div class="modal-section-label">Asosiy ma'lumot</div>
     <div class="form-row">
       <div class="form-group" style="margin:0"><label>Ismi</label><input type="text" id="m-name" placeholder="Usta ismi"></div>
-      <div class="form-group" style="margin:0"><label>Telefon</label><input type="text" id="m-phone" placeholder="+998901234567"></div>
+      <div class="form-group" style="margin:0"><label>Telefon</label><input type="tel" id="m-phone" placeholder="+998 90 123 45 67" inputmode="tel"></div>
     </div>
 
     <div class="form-group">
@@ -198,6 +198,16 @@ async function saveMaster() {
 
   if (!name) { err.style.display='block'; err.textContent='❌ Ismni kiriting'; return; }
   if (!editingMasterId && !phone) { err.style.display='block'; err.textContent='❌ Telefon raqamini kiriting'; return; }
+  // kech120 (zip 137 — F bosqichi 5-qism, audit G6-16): telefon formati — KPI sahifasidagi oyna va server bilan BIR qoida
+  // (ilgari bu sahifada tekshirilmasdi: «abcdefg» saqlanardi)
+  if (phone) {
+    const raqam = phone.replace(/\D/g, '');
+    if (!/^[\d+\s\-()]+$/.test(phone) || raqam.length < 7 || raqam.length > 15) {
+      err.style.display = 'block';
+      err.textContent = "❌ Telefon raqami noto'g'ri — faqat raqam, «+», bo'shliq va «-» (7–15 ta raqam), masalan +998 90 123 45 67";
+      return;
+    }
+  }
   err.style.display = 'none';
 
   if (isSavingMaster) return;
@@ -223,9 +233,9 @@ async function saveMaster() {
       closeMasterModal();
       loadMasters();
     } else {
-      const e = await res.json();
+      const e = await res.json().catch(() => ({}));
       err.style.display = 'block';
-      err.textContent = '❌ ' + (e.detail || 'Xato yuz berdi');
+      err.textContent = '❌ ' + ((typeof xatoSababi === 'function') ? xatoSababi(e, 'Xato yuz berdi') : (e.detail || 'Xato yuz berdi'));
     }
   } catch(e) {
     err.style.display = 'block';
@@ -241,7 +251,8 @@ async function deactivateMaster(id, name) {
   try {
     const res = await fetch(`/api/masters/${id}`, { method: 'DELETE' });
     if (res.ok) { loadMasters(); }
-    else alert("❌ Nofaol qilishda xato yuz berdi. Iltimos, qayta urinib ko'ring.");
+    // kech120 (zip 137 — G6-16): rad etilsa — server SABABI (ilgari umumiy «Nofaol qilishda xato yuz berdi»)
+    else await xabarOyna('❌ ' + await serverXatoSababi(res, "Nofaol qilishda xato yuz berdi. Iltimos, qayta urinib ko'ring."));
   } catch(e) {
     alert("❌ Server bilan aloqa yo'q. Internetni tekshirib, qayta urinib ko'ring.");
   }

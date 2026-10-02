@@ -1,7 +1,8 @@
 {% extends "base.html" %}
-{% block title %}Tizim jurnallari — PenoDecorPro ERP{% endblock %}
-{% block page_title %}Tizim jurnallari{% endblock %}
-{% block page_sub %}Kirish tarixi, xatoliklar va amallar tarixi — faqat administrator uchun{% endblock %}
+{# kech120 (zip 137 — F bosqichi 5-qism, audit G6-22): `/sozlamalar` — korxona sozlamalari alohida sahifa (shu shablon, faqat sozlamalar) #}
+{% block title %}{% if sozlamalar_sahifasi %}Sozlamalar{% else %}Tizim jurnallari{% endif %} — PenoDecorPro ERP{% endblock %}
+{% block page_title %}{% if sozlamalar_sahifasi %}Korxona sozlamalari{% else %}Tizim jurnallari{% endif %}{% endblock %}
+{% block page_sub %}{% if sozlamalar_sahifasi %}Korxona nomi, logotip, mahsulot turlari, yo'nalishlar va Telegram bot{% else %}Kirish tarixi, xatoliklar va amallar tarixi — faqat administrator uchun{% endif %}{% endblock %}
 
 {% block head %}
 <style>
@@ -39,7 +40,7 @@
 {% block content %}
 <div style="padding:14px">
 
-  <div class="tab-bar" style="display:flex;gap:4px;background:var(--bg);border-radius:12px;padding:4px;margin-bottom:16px;max-width:660px">
+  <div class="tab-bar" style="display:{% if sozlamalar_sahifasi %}none{% else %}flex{% endif %};gap:4px;background:var(--bg);border-radius:12px;padding:4px;margin-bottom:16px;max-width:660px">
     <button class="log-tab active" data-tab="login" onclick="switchLogTab('login')" style="flex:1;padding:9px 14px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:var(--white);box-shadow:0 1px 3px rgba(16,24,40,.1)">🔑 Kirish tarixi</button>
     {# Texnik xatolar FAQAT platforma administratori uchun — korxona
        egasiga Python traceback hech narsa bermaydi, faqat keraksiz
@@ -49,7 +50,8 @@
     {% endif %}
     <button class="log-tab" data-tab="activity" onclick="switchLogTab('activity')" style="flex:1;padding:9px 14px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:none;color:var(--text3)">🕓 Audit jurnali</button>
     <button class="log-tab" data-tab="health" onclick="switchLogTab('health')" style="flex:1;padding:9px 14px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:none;color:var(--text3)">{% if current_user.is_platform_admin %}🩺 Salomatlik{% else %}💰 Tekshiruv{% endif %}</button>
-    <button class="log-tab" data-tab="settings" onclick="switchLogTab('settings')" style="flex:1;padding:9px 14px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:none;color:var(--text3)">⚙️ Sozlamalar</button>
+    {# kech120 (zip 137 — G6-22): sozlamalar — alohida sahifa (menyuda «Sozlamalar») #}
+    <a class="log-tab" href="/sozlamalar" style="flex:1;padding:9px 14px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:none;color:var(--text3);text-decoration:none;text-align:center">⚙️ Sozlamalar →</a>
     {% if current_user.is_platform_admin %}
     <button class="log-tab" data-tab="platform" onclick="switchLogTab('platform')" style="flex:1;padding:9px 14px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:none;color:var(--text3)">🏛 Korxonalar</button>
     {% endif %}
@@ -274,7 +276,11 @@
         </div>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <img id="co-logo-preview" src="" alt="" style="display:none;height:40px;border-radius:6px;border:1px solid var(--border2)">
-          <input type="file" id="co-logo-file" accept="image/png,image/jpeg,image/webp" style="font-size:12px">
+          {# kech120 (zip 137 — G6-22): brauzerning inglizcha «Choose File / No file chosen» o'rniga o'zbekcha tugma va fayl nomi #}
+          <input type="file" id="co-logo-file" accept="image/png,image/jpeg,image/webp" style="display:none"
+                 onchange="document.getElementById('co-logo-nomi').textContent = this.files && this.files[0] ? this.files[0].name : 'Fayl tanlanmagan'">
+          <label for="co-logo-file" class="btn btn-outline btn-sm" style="cursor:pointer">Fayl tanlash</label>
+          <span id="co-logo-nomi" style="font-size:12.5px;color:var(--text3)">Fayl tanlanmagan</span>
           <button class="btn btn-sm" style="background:var(--bg);color:var(--text3)" onclick="uploadLogo()">Logotipni yuklash</button>
           <span id="co-logo-status" style="font-size:12.5px"></span>
         </div>
@@ -285,8 +291,8 @@
       <div style="font-size:13.5px;font-weight:700;margin-bottom:6px">📦 Mahsulot turlari</div>
       <div style="font-size:12.5px;color:var(--text3);line-height:1.6;margin-bottom:12px">
         Korxonangiz ishlab chiqarmaydigan turlarni o'chirib qo'ying — ular buyurtma va
-        ombor sahifalarida ko'rinmaydi. Asosiy turlar (Profil, Panel, Donali, Blok)
-        har doim yoqiq.
+        ombor sahifalarida ko'rinmaydi. Asosiy turlar (Profil, Panel, Donali) har doim yoqiq; Blok — eskirgan, ixtiyoriy
+        (yangi mahsulotlar — «Ishlab chiqarish» bo'limida).
       </div>
       <div id="cat-list" style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:12px;font-size:13px">
         Yuklanmoqda…
@@ -302,7 +308,7 @@
       <div style="font-size:12.5px;color:var(--text3);line-height:1.6;margin-bottom:12px">
         Har yo'nalishning o'z sof foydasi Moliya sahifasida alohida ko'rinadi (yig'indisi — umumiy sof foyda).
         <b>Asosiy</b> yo'nalishga profil, panel, donali, blok va loy sotish buyurtmalari yoziladi — nomini
-        o'zgartirish mumkin. MRP mahsulot turi, hodim, xarajat va kirimda yo'nalish tanlanadi. Ishlatilgan
+        o'zgartirish mumkin. «Ishlab chiqarish» bo'limidagi mahsulot turi, hodim, xarajat va kirimda yo'nalish tanlanadi. Ishlatilgan
         yo'nalish o'chirilmaydi — faqat yashiriladi (eski yozuvlar va hisobot o'zgarmaydi).
       </div>
       <div id="yon-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">Yuklanmoqda…</div>
@@ -321,7 +327,8 @@
       <div style="font-size:13.5px;font-weight:700;margin-bottom:6px">📱 Telegram bot</div>
       <div style="font-size:12.5px;color:var(--text3);line-height:1.6;margin-bottom:14px">
         Bildirishnomalar (yuk xati, buyurtma tayyor, ombor ogohlantirishi) shu bot orqali yuboriladi.
-        Bot <b>@BotFather</b> da yaratiladi. Bo'sh qoldirilsa — tizimning umumiy boti ishlatiladi.
+        Bot <b>@BotFather</b> da yaratiladi. Bo'sh qoldirilsa — tizimning umumiy boti ishlatiladi (agar u sozlangan bo'lsa —
+        holati pastda yozilgan).
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">
         <div>

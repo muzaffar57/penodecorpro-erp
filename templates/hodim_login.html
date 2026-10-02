@@ -11,14 +11,14 @@
     .h-wrap{width:100%;max-width:380px;padding:20px}
     .h-logo{text-align:center;margin-bottom:28px}
     .h-logo .name{font-size:24px;font-weight:600;color:var(--m-111111);letter-spacing:-.5px}
-    .h-logo .name span{color:var(--m-2563eb)}
+    .h-logo .name span{color:var(--gold-dark)}   /* kech120 (zip 137 — G6-20): brend rangi — asosiy dasturdagi (ilgari ko'k) */
     .h-logo .sub{font-size:13px;color:var(--text3);margin-top:6px}
     .h-card{background:var(--white);border-radius:16px;border:1px solid var(--ch-ebebeb);padding:30px}
     .h-title{font-size:18px;font-weight:600;color:var(--m-111111);margin-bottom:6px;text-align:center}
     .h-sub{font-size:13px;color:var(--text3);margin-bottom:24px;text-align:center}
     .field-label{font-size:12px;color:var(--text3);font-weight:500;text-transform:uppercase;letter-spacing:.3px;margin-bottom:5px;display:block}
     .field-input{width:100%;padding:13px 14px;border:1.5px solid var(--ch-e8e8e8);border-radius:9px;font-size:16px;color:var(--m-111111);outline:none;background:var(--f-fafafa);transition:border .15s,background .15s;margin-bottom:16px;box-sizing:border-box}
-    .field-input:focus{border-color:#2563EB;background:var(--white)}
+    .field-input:focus{border-color:var(--gold);background:var(--white)}
     .pin-input{letter-spacing:8px;font-weight:700;text-align:center}
     .h-btn{width:100%;padding:14px;background:#111;color:#fff;border:none;border-radius:9px;font-size:15px;font-weight:600;cursor:pointer;transition:background .15s;margin-top:4px}
     .h-btn:hover{background:#222}
@@ -45,13 +45,15 @@
       <form method="post" action="/hodim/login">
         <label class="field-label">Korxona kodi</label>
         {# kech120 (zip 130 — G6-07): QR / havoladan kelgan kod (`?k=`) o'zi yoziladi #}
-        <input class="field-input" type="text" name="korxona" value="{{ kod or '' }}" placeholder="Administratordan so'rang (QR kodda bor)" autocomplete="organization" autocapitalize="characters">
+        {# kech120 (zip 137 — G6-20): namuna qisqa (telefonda «… bo'sh qo…» kesilardi) #}
+        <input class="field-input" type="text" name="korxona" value="{{ kod or '' }}" placeholder="Admindan so'rang" autocomplete="organization" autocapitalize="characters">
 
         <label class="field-label">Telefon raqami</label>
-        <input class="field-input" type="tel" name="phone" placeholder="+998901234567" required autofocus>
+        {# kech120 (zip 137 — G6-20): xatoda telefon saqlanadi (ilgari qayta yozish kerak edi) — faqat PIN tozalanadi #}
+        <input class="field-input" type="tel" name="phone" value="{{ telefon or '' }}" placeholder="+998 90 123 45 67" required {% if not telefon %}autofocus{% endif %}>
 
         <label class="field-label">PIN kod (4 xonali)</label>
-        <input class="field-input pin-input" type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="••••" required>
+        <input class="field-input pin-input" type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="••••" required {% if telefon %}autofocus{% endif %}>
 
         <button type="submit" class="h-btn">Kirish</button>
       </form>

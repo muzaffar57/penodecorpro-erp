@@ -93,6 +93,15 @@
     .side-stats{position:relative;z-index:1;display:flex;gap:28px;margin-top:auto;padding-top:32px}
     .side-stat .n{font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:600;color:var(--amber)}
     .side-stat .l{font-size:12px;color:var(--m-6b7280);margin-top:3px;text-transform:uppercase;letter-spacing:.4px}
+    /* kech120 (zip 137 — F bosqichi 5-qism, audit G6-24): pastki yozuvlar («03 MOLIYA») rasm ustida o'qilmasdi — qoramtir fon */
+    .side-stats{background:rgba(17,17,17,.62);padding:12px 16px;border-radius:8px}
+    .side-stat .l{color:#E5E7EB}
+    .mobil-brend{display:none;align-items:center;gap:10px;margin-bottom:22px}
+    .mobil-brend .brand-mark{width:34px;height:34px;font-size:13px}
+    .mobil-brend b{font-size:18px;color:var(--ink)}
+    .mobil-brend b span{color:var(--amber-dark)}
+    .parol-unutdim{margin-top:16px;font-size:13px;line-height:1.55;color:var(--m-6b7280)}
+    .parol-unutdim b{color:var(--ink)}
 
     /* O'ng panel — forma */
     .main{
@@ -160,6 +169,7 @@
     @media(max-width:860px){
       .side{display:none}
       .main{padding:24px}
+      .mobil-brend{display:flex}   /* kech120 (zip 137 — G6-24): telefonda chap panel yo'q — dastur nomi tepada */
     }
   </style>
 </head>
@@ -185,6 +195,7 @@
 
   <div class="main">
     <div class="form-wrap">
+      <div class="mobil-brend" aria-hidden="true"><div class="brand-mark">PD</div><b>Penodecor<span>Pro</span></b></div>
       <div class="form-eyebrow">Tizimga kirish</div>
       <div class="form-title">Xush kelibsiz</div>
       <div class="form-sub">Davom etish uchun login va parolingizni kiriting</div>
@@ -213,6 +224,9 @@
         </div>
         <button class="btn-submit" type="submit">Kirish <span>→</span></button>
       </form>
+      {# kech120 (zip 137 — F bosqichi 5-qism, audit G6-24): parolni unutgan foydalanuvchi nima qilishni bilmasdi #}
+      <div class="parol-unutdim" id="parolUnutdim"><b>Parolni unutdingizmi?</b> Korxona administratoriga murojaat qiling — u
+        «Foydalanuvchilar» bo'limida yangi parol beradi. Administrator parolini dastur xizmati tiklaydi.</div>
     </div>
   </div>
 
