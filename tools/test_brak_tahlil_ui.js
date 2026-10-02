@@ -485,8 +485,11 @@ async function dashBolimi() {
   s = await sina(403, { detail: 'Ruxsat yo\'q' });
   tekshir("D4 rad (403) → hech narsa o'zgarmaydi, yiqilmaydi",
           !s.xato && s.el['brk-foiz'].textContent === '' && s.el['brk-ogohlantirish'].style.display === 'none', s.xato);
+  // kech120 (zip 135 — G1, MOSLANDI): sahifa yuklanishi bitta `Promise.all` ga yig'ildi («Yangilash» tugmasi ham shuni chaqiradi) —
+  // chaqiruv endi `loadBrakFoiz()` (nuqta-vergulsiz, ro'yxat ichida); funksiya ta'rifidan TASHQARIDAGI chaqiruv izlanadi
+  const _dashChaqiruv = DASHBOARD.replace(/async function loadBrakFoiz\(\)\s*\{/, '');
   tekshir("D5 sahifa yuklanganda chaqiriladi, kartada qatorlar bor",
-          DASHBOARD.includes('loadBrakFoiz();') && DASHBOARD.includes('id="brk-foiz"') && DASHBOARD.includes('id="brk-ogohlantirish"'));
+          /\bloadBrakFoiz\(\)/.test(_dashChaqiruv) && DASHBOARD.includes('id="brk-foiz"') && DASHBOARD.includes('id="brk-ogohlantirish"'));
 }
 
 (async () => {

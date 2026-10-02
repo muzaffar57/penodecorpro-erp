@@ -537,9 +537,13 @@ def eski_usta_kpi(s, cid):
     for m in q.all():
         total = _oc(s.query(func.sum(func.coalesce(Order.agreed_amount, Order.total_amount, 0))).filter(
             Order.master_id == m.id, Order.status == OrderStatus.READY)).scalar() or 0
-        cnt = _oc(s.query(Order).filter(Order.master_id == m.id, Order.is_deleted.isnot(True))).count()
+        # kech120 (zip 135 — G1-12, MOSLANDI): soni — summa bilan bir to'plam («Tayyor»); tayyor buyurtmasiz usta reytingda yo'q;
+        # teng summada — soni, so'ng ism
+        cnt = _oc(s.query(Order).filter(Order.master_id == m.id, Order.status == OrderStatus.READY)).count()
+        if not cnt and not float(total):
+            continue
         out.append({"name": m.name, "total": float(total), "orders": cnt})
-    out.sort(key=lambda x: x["total"], reverse=True)
+    out.sort(key=lambda x: (-x["total"], -x["orders"], str(x["name"] or "").lower()))
     return out[:5]
 
 

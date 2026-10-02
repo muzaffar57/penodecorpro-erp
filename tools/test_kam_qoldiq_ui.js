@@ -93,14 +93,15 @@ r = ishga([ESC, KQ], 'kamQoldiqHtml([]) + "|" + kamQoldiqHtml(null)');
 tekshir('H6 bo\'sh ro\'yxat / null — "Barcha xomashyo yetarli"', r.xato === null && (r.v || '').split('|').every((x) => /Barcha xomashyo yetarli/.test(x)), r.v || r.xato);
 r = ishga([ESC, KQ], `kamQoldiqHtml(${JSON.stringify([X])})`);
 tekshir('H7 nom ekranlanadi (<img> teg YO\'Q)', r.xato === null && !/<img/.test(r.v || '') && /&lt;img/.test(r.v || ''), r.v || r.xato);
+// kech120 (zip 135 — G1-13, MOSLANDI): ikkinchi argument — materiallar soni (bo'sh omborga «Omborda hali material yo'q»)
 tekshir('H8 home.html render qismi kamQoldiqHtml(s.low_stock_items) ni ishlatadi; `/ item.min_stock)` bo\'lish QOLMAGAN',
-        /kamQoldiqHtml\(s\.low_stock_items\)/.test(HOME) && !/item\.stock_quantity \/ item\.min_stock/.test(HOME));
+        /kamQoldiqHtml\(s\.low_stock_items[,)]/.test(HOME) && !/item\.stock_quantity \/ item\.min_stock/.test(HOME));
 
 bolim('D — dashboard.html: kam qoldiq bloki YO\'Q (zip 124)');
 // kech118 (zip 124 — egasi QARORI G1-09 «Vazifalar ajratilsin», MOSLANDI): Dashboard «Ombor ogohlantirishlari» (`buildWarnList`)
 // olib tashlandi — kam qolgan xomashyo BITTA joyda: Bosh sahifa «Kam qolgan xomashyo» (`kamQoldiqHtml`, yuqoridagi H bo'limi).
 tekshir("D1 Dashboard da `buildWarnList` / #warnList YO'Q (takror edi — kam qoldiq Bosh sahifada)",
-        !olib(DASH, 'buildWarnList') && !DASH.includes('id="warnList"') && /kamQoldiqHtml\(s\.low_stock_items\)/.test(HOME));
+        !olib(DASH, 'buildWarnList') && !DASH.includes('id="warnList"') && /kamQoldiqHtml\(s\.low_stock_items[,)]/.test(HOME));
 
 bolim('R — reports.html stockDot');
 const SD = olib(REP, 'stockDot');
