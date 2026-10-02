@@ -303,8 +303,11 @@ check("C1 Qarzdorlar: o'chirilganlarda \"o'chirilgan\" belgisi (3 ta), o'chirilm
       (mb.count('class="qarz-ochirilgan"'), _q2[:300]))
 check("C2 Qarzdorlar: data-deleted — o'chirilganlar true", mb.count('data-deleted="true"') == 3, mb.count('data-deleted="true"'))
 _d = open(os.path.join(ROOT, "templates", "debts.html"), encoding="utf-8").read()
+# kech120 (zip 128 — G3-07): o'chirilmagan buyurtma havolasi endi AYNAN shu buyurtmani ochadi (`/orders?order=ID`)
 check("C3 debts.html tafsilot: o'chirilgan — /trash havolasi, aks holda /orders",
-      tartibda(_d, "function selectOrderDebt(el)", "d.deleted === 'true'", 'href="/trash"', 'href="/orders"'), "")
+      tartibda(_d, "function selectOrderDebt(el)", "d.deleted === 'true'", 'href="/trash"', 'href="/orders"')
+      or tartibda(_d, "function selectOrderDebt(el)", "d.deleted === 'true'", 'href="/trash"',
+                  'href="/orders?order=${encodeURIComponent(d.id)}"'), "")
 _db_html = open(os.path.join(ROOT, "templates", "dashboard.html"), encoding="utf-8").read()
 check("C4 dashboard.html qarzlar ro'yxati: d.is_deleted belgisi", tartibda(_db_html, "function buildDebtList", "d.is_deleted?"), "")
 
