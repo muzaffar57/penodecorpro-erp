@@ -326,6 +326,25 @@
     <input type="hidden" id="f-value" value="0">
     {% endif %}
 
+    {# kech121 (zip 138 — EGASI QARORI 02.10, audit G5-05): pul masalasi SAQLASHDA so'raladi (ilgari saqlangach ro'yxatdagi tugma bilan,
+       ko'pincha esdan chiqardi). «Hozir» — qaytgan summa buyurtmaning kelishilgan summasidan chegiriladi, mijoz ortiqcha to'lagan bo'lsa
+       o'sha qismi naqd qaytarilgan deb yoziladi (ro'yxatdagi tugma chaqiradigan o'sha `…/refund` marshruti — AYNAN). Faqat «Qaytarishlar:
+       Tahrirlash» VA «Tannarx va foyda: Ko'rish» ruxsati borga — ro'yxatdagi «💰 Hisob-kitob qilish» tugmasi bilan BIR qoida (summa
+       ko'rinmaydigan foydalanuvchidan pul savoli so'ralmaydi; yo'q bo'lsa — avvalgidek, keyin). #}
+    {% if current_user.ruxsat('tannarx', 'korish') and current_user.ruxsat('qaytarish', 'tahrirlash') %}
+    <div class="form-group" id="f-pul-bolim">
+      <label>Pul — mijoz bilan hisob-kitob <span style="color:var(--m-dc2626)">*</span></label>
+      <label class="f-pul-variant" style="display:flex;gap:8px;align-items:flex-start;font-weight:400;font-size:13px;margin:6px 0;cursor:pointer">
+        <input type="radio" name="f-pul" value="hozir" style="margin-top:3px">
+        <span><b>Hozir hisob-kitob qilinsin</b><br><span style="color:var(--text3)">Qaytgan summa buyurtma qarzidan chegiriladi; mijoz ortiqcha to'lagan bo'lsa — o'sha qismi naqd qaytarilgan deb yoziladi.</span></span>
+      </label>
+      <label class="f-pul-variant" style="display:flex;gap:8px;align-items:flex-start;font-weight:400;font-size:13px;margin:6px 0;cursor:pointer">
+        <input type="radio" name="f-pul" value="keyin" style="margin-top:3px">
+        <span><b>Keyinroq</b><br><span style="color:var(--text3)">Ro'yxatdagi «💰 Hisob-kitob qilish» tugmasi bilan.</span></span>
+      </label>
+    </div>
+    {% endif %}
+
     <div class="form-group"><label>Izoh</label><input type="text" id="f-notes" placeholder="Masalan: kesish jarayonida sinib ketdi"></div>
     {# kech119 (C BOSQICH — telefon, audit G5-16): ilgari oynada rasm maydoni yo'q edi — faqat saqlangandan keyin ro'yxatdagi kichik
        belgini bosib (telefonda ko'rinmasdi). Rasm ixtiyoriy: qaytarish saqlangach shu yozuvga yuklanadi. #}
@@ -465,10 +484,12 @@ function brakTahlilHtml(d){
       </div>
       <div style="flex:1;min-width:180px;background:var(--f-f8fafc);border-radius:10px;padding:14px 16px;font-size:13px;color:var(--m-334155)">
         <div>Brak xarajati (Moliya): <b>${somYoq(d.brak_xarajat, fmt)}</b></div>
-        <div style="margin-top:4px">Ishlab chiqarish tan narxi: <b>${somYoq(d.ishlab_chiqarish_xarajat, fmt)}</b></div>
-        ${foizBor ? '' : '<div style="margin-top:4px;color:var(--text3)">Bu oyda tayyor bo\'lgan buyurtma yo\'q — ulushni hisoblab bo\'lmaydi</div>'}
+        <div style="margin-top:4px">Ishlab chiqarish tannarxi: <b>${somYoq(d.ishlab_chiqarish_xarajat, fmt)}</b></div>
+        ${(d.buyurtmalar_tannarxi === null || d.buyurtmalar_tannarxi === undefined) ? '' : `<div class="brak-asos" style="margin-top:2px;font-size:12px;color:var(--text3)">buyurtmalar ${escapeHtml(fmt(d.buyurtmalar_tannarxi))} + omborga ${escapeHtml(fmt(d.omborga_ishlab_tannarxi || 0))}</div>`}
+        ${foizBor ? '' : '<div style="margin-top:4px;color:var(--text3)">Bu oyda ishlab chiqarish (tayyor buyurtma yoki omborga) yo\'q — ulushni hisoblab bo\'lmaydi</div>'}
       </div>
     </div>`;
+  // kech121 (zip 138 — EGASI QARORI 02.10, G5-23): ulush asosi — HAMMA ishlab chiqarish (tayyor buyurtmalar + omborga ishlab chiqarilgan)
   // kech107 (49-band, egasi qarori "Bitta raqam"): taqsimot — shu oyning BRAK yozuvlari, qiymati haqiqiy xomashyo
   // narxi (Moliyadagi «Brak» qatori bilan bir hisob). Omborda tayyor turgan mahsulot yo'qotishi — alohida (ulushga kirmaydi).
   const bogl = Number(d.boglanmagan_qiymat) || 0;
@@ -788,6 +809,7 @@ function showAddModal(){
   const rsmEl = document.getElementById('f-rasm'); if (rsmEl) rsmEl.value = '';
   document.getElementById('add-error').style.display = 'none';
   document.querySelector('input[name="f-reason"][value="Ortiqcha"]').checked = true;
+  document.querySelectorAll('input[name="f-pul"]').forEach(x => { x.checked = false; });   // kech121 (zip 138 — G5-05): har safar so'raladi
   updateReasonHint();
 }
 function closeModal(){document.getElementById('addModal').style.display='none'}
@@ -1068,6 +1090,15 @@ async function saveReturn(){
     err.textContent = `❌ Buyurtmada ${sonKor(item.order_qty_normalized, 3)} ${unitShortLabel(item.delivery_unit)} bor, ${sonKor(quantity, 3)} qaytarib bo'lmaydi`;
     return;
   }
+  // kech121 (zip 138 — G5-05): pul masalasi — tanlov majburiy (ruxsati borga)
+  const pulBolim = document.getElementById('f-pul-bolim');
+  const pulTanlov = pulBolim ? (document.querySelector('input[name="f-pul"]:checked') || {}).value : 'keyin';
+  if (pulBolim && !pulTanlov) {
+    err.style.display = 'block';
+    err.textContent = "❌ Pul masalasini tanlang: «Hozir hisob-kitob qilinsin» yoki «Keyinroq»";
+    pulBolim.scrollIntoView({block: 'center'});
+    return;
+  }
   err.style.display = 'none';
 
   if (isSavingReturn) return; // Ikki marta bosishdan himoya
@@ -1093,13 +1124,25 @@ async function saveReturn(){
     });
 
     if (res.ok) {
+      let yangi = null;
+      try { yangi = await res.json(); } catch (e2) { yangi = null; }
+      // kech121 (zip 138 — G5-05): «Hozir hisob-kitob» — darhol (ro'yxatdagi tugma bilan bir marshrut); bo'lmasa sababi, qaytarish saqlangan
+      if (pulTanlov === 'hozir' && yangi && yangi.id && Number(yangi.refund_amount) > 0) {
+        try {
+          const rr = await fetch(`/api/returns/${Number(yangi.id)}/refund`, {method: 'POST'});
+          let jj = {};
+          try { jj = await rr.json(); } catch (e4) { jj = {}; }
+          if (rr.ok) { if (jj && typeof jj.xabar === 'string' && jj.xabar) await xabarOyna('✓ Qaytarish saqlandi. ' + jj.xabar); }
+          else await xabarOyna("Qaytarish saqlandi, lekin hisob-kitob qilinmadi: " + qaytarishXatoMatni(jj) + ". Ro'yxatdagi «💰 Hisob-kitob qilish» tugmasidan qayta urinib ko'ring.", { tur: 'ogoh' });
+        } catch (e5) {
+          await xabarOyna("Qaytarish saqlandi, lekin hisob-kitob qilinmadi (aloqa yo'q). Ro'yxatdagi «💰 Hisob-kitob qilish» tugmasidan qayta urinib ko'ring.", { tur: 'ogoh' });
+        }
+      }
       // kech119 (C — telefon, G5-16): tanlangan rasm — yangi qaytarishga (ro'yxatdagi kamera belgisi bilan bir marshrut); yuklanmasa — qaytarish
       // saqlangan, sabab aytiladi (keyin ro'yxatdagi kamera belgisidan qayta yuklash mumkin)
       const rasm = document.getElementById('f-rasm');
       const fayl = rasm && rasm.files ? rasm.files[0] : null;
       if (fayl) {
-        let yangi = null;
-        try { yangi = await res.json(); } catch (e2) { yangi = null; }
         let rasmOk = false;
         if (yangi && yangi.id) {
           const fd = new FormData();

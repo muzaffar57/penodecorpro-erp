@@ -86,6 +86,8 @@
       <div class="stat-icon"><i class="ti ti-cash"></i></div>
       <div class="stat-label">Bugungi tushum</div>
       <div class="stat-val" id="t-revenue">—</div>
+      {# kech121 (zip 138 — audit G1-08): tarkibi shu yerda (ilgari pastdagi «Bugungi to'lovlar» — deyarli o'sha raqam, alohida karta) #}
+      <div class="stat-trend" id="t-revenue-sub" style="color:var(--text3)"></div>
     </div>
     <div class="stat-card">
       <div class="stat-icon"><i class="ti ti-clipboard-list"></i></div>
@@ -143,11 +145,16 @@
 
   <!-- Moliya — kech118 (ROLLAR): «Moliyaviy hisobot» ruxsati borlarga (ilgari faqat Admin) -->
   {% if current_user.ruxsat('moliya', 'korish') %}
-  <div class="kpi-grid mb-16" style="grid-template-columns:repeat(4,1fr)" id="finGrid">
-    <div class="kpi-card"><div class="kpi-val text-green" id="f-revenue">—</div><div class="kpi-label">Jami daromad</div></div>
-    <div class="kpi-card"><div class="kpi-val" style="color:var(--m-0369a1)" id="f-paid">—</div><div class="kpi-label">To'langan</div></div>
-    <div class="kpi-card"><div class="kpi-val text-gold" id="f-budget">—</div><div class="kpi-label">Jami byudjet</div></div>
-    <div class="kpi-card"><div class="kpi-val text-red" id="f-debt">—</div><div class="kpi-label">Qarz</div></div>
+  {# kech121 (zip 138 — EGASI QARORI 02.10, audit G1-08): «Jami daromad» (butun vaqt, faqat tayyor buyurtmalar — Hisobotlardagi oylik
+     daromaddan ham kam chiqardi) → «Shu oy daromadi» — Hisobotlar «Daromad» kartasi bilan BITTA raqam (`/api/finance/history?months=1`,
+     tayyor mahsulot sotuvi ichida). «Qarz» kartasi olib tashlandi — pastdagi «Jami qarzdorlik» bilan AYNAN takror edi. #}
+  <div class="kpi-grid mb-16" style="grid-template-columns:repeat(3,1fr)" id="finGrid">
+    <div class="kpi-card"><div class="kpi-val text-green" id="f-revenue">—</div><div class="kpi-label">Shu oy daromadi</div>
+      <div style="font-size:12px;color:var(--text3)" id="f-revenue-sub">Hisobotlar bilan bir xil</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:var(--m-0369a1)" id="f-paid">—</div><div class="kpi-label">To'langan</div>
+      <div style="font-size:12px;color:var(--text3)">butun vaqt</div></div>
+    <div class="kpi-card"><div class="kpi-val text-gold" id="f-budget">—</div><div class="kpi-label">Jami byudjet</div>
+      <div style="font-size:12px;color:var(--text3)">butun vaqt</div></div>
   </div>
   {% endif %}
 
@@ -163,7 +170,8 @@
   {% endif %}
 
   <!-- QARZDORLIK -->
-  <div class="kpi-grid mb-16" style="grid-template-columns:repeat(4,1fr)">
+  {# kech121 (zip 138 — G1-08): «Bugungi to'lovlar» kartasi olib tashlandi — yuqoridagi «Bugungi tushum» ostida tarkibi bilan #}
+  <div class="kpi-grid mb-16" style="grid-template-columns:repeat(3,1fr)">
     <div class="kpi-card" style="border-left:3px solid #DC2626">
       <div class="kpi-val text-red" id="d-total">—</div>
       <div class="kpi-label">Jami qarzdorlik</div>
@@ -175,10 +183,6 @@
     <div class="kpi-card" style="border-left:3px solid #8E44AD">
       <div class="kpi-val" style="color:var(--m-8e44ad)" id="d-overdue">—</div>
       <div class="kpi-label">Muddati o'tgan (30+ kun)</div>
-    </div>
-    <div class="kpi-card" style="border-left:3px solid #22C55E">
-      <div class="kpi-val text-green" id="d-today">—</div>
-      <div class="kpi-label">Bugungi to'lovlar</div>
     </div>
   </div>
 
@@ -381,6 +385,7 @@ const ST_LABELS={'draft':'Qoralama','new':'Yangi','in_progress':'Jarayonda','coa
 let mC,sC;
 function fmt(n){return qisqaSumma(n);}   // kech115 (G3-10): manfiy ham ajratgichli (base.html)
 
+const OY_NOMI_DASH=['','Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust','Sentabr','Oktabr','Noyabr','Dekabr'];
 async function loadAll(){
   const [s,c,t]=await Promise.all([
     fetch('/api/dashboard/stats').then(r=>r.json()),
@@ -389,13 +394,21 @@ async function loadAll(){
   ]);
   const fg=document.getElementById('finGrid');
   if(fg){
-    document.getElementById('f-revenue').textContent=fmt(c.finance.total_revenue)+' so\'m';
     document.getElementById('f-paid').textContent=fmt(c.finance.total_paid)+' so\'m';
     document.getElementById('f-budget').textContent=fmt(c.finance.total_budget)+' so\'m';
-    document.getElementById('f-debt').textContent=fmt(c.finance.total_debt)+' so\'m';
+    // kech121 (zip 138 — G1-08): shu oy daromadi — Hisobotlar «Daromad» bilan bir manba
+    try {
+      const h = await fetch('/api/finance/history?months=1').then(r => r.ok ? r.json() : []);
+      const cur = Array.isArray(h) && h.length ? h[h.length - 1] : null;
+      document.getElementById('f-revenue').textContent = cur ? fmt(cur.daromad) + ' so\'m' : '—';
+      const tk = tkHozir();
+      document.getElementById('f-revenue-sub').textContent = `${OY_NOMI_DASH[tk.oy]} ${tk.yil} · Hisobotlar bilan bir xil`;
+    } catch (e) { document.getElementById('f-revenue').textContent = '—'; }
   }
 
   document.getElementById('t-revenue').textContent=fmt(t.today_revenue)+' so\'m';
+  const _trs = document.getElementById('t-revenue-sub');   // kech121 (zip 138 — G1-08): tarkibi
+  if (_trs) _trs.textContent = `to'lovlar ${fmt(t.today_payments || 0)} · sotuv ${fmt(t.today_sales || 0)}`;
   document.getElementById('t-active').textContent=t.active_orders+' ta';
   document.getElementById('t-production').textContent=t.in_production+' ta';
   document.getElementById('t-due').textContent=t.due_today+' ta';
@@ -596,7 +609,6 @@ async function loadDebts(){
     document.getElementById('d-total').textContent   = fmt(d.total_debt)+' so\'m';
     document.getElementById('d-count').textContent   = d.debt_orders_count+' ta';
     document.getElementById('d-overdue').textContent = d.overdue_count+' ta';
-    document.getElementById('d-today').textContent   = fmt(d.today_payments)+' so\'m';
     document.getElementById('debt-count-label').textContent = d.debt_orders_count+' ta buyurtma';
     buildDebtList(d.debt_orders);
   }catch(e){console.error('Qarzdorlik yuklashda xato:',e);}
