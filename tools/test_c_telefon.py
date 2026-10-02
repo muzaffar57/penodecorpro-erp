@@ -657,6 +657,9 @@ if PW_BOR:
                         _iid = js(pg, """() => { const s = document.getElementById('f-item'); const o = [...s.options].find(x => x.value); return o ? o.value : null; }""")
                         pg.select_option("#f-item", _iid)
                         pg.fill("#f-qty", "0.5")
+                        # kech121 (zip 138 — egasi qarori G5-05): pul masalasi oynada MAJBURIY (ko'rinsa) — «Keyinroq»
+                        js(pg, """() => { const b = document.querySelector('input[name="f-pul"][value="keyin"]');
+                            if (b && b.offsetParent !== null) b.checked = true; }""")
                         _oldin = js(pg, "async () => { const r = await fetch('/api/returns'); const j = await r.json(); return (Array.isArray(j) ? j : (j.items || [])).map(x => x.id); }")
                         with pg.expect_navigation(timeout=15000):
                             pg.click("#return-save-btn")

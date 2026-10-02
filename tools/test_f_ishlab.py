@@ -436,7 +436,9 @@ check("R2 qatorda mijoz, sana (guruh sarlavhasi uchun); summa — faqat «Tannar
       'data-mijoz="Aziz Karimov"' in _h and re.search(r'data-sana="\d\d\.\d\d\.\d{4}"', _h) and 'data-summa="150000.0"' in _h, None)
 _hm = CM.get("/returns").text
 check("R3 Menejer: summa yo'q (`data-summa`); «Hisob-kitob qilish» — summa ustuni («Tannarx va foyda») va «qaytarish: tahrirlash» ruxsatida",
-      ("data-summa=" in _hm) == MEN_TANNARX and (("💰 Hisob-kitob qilish" in _hm) == (MEN_TANNARX and MEN_QAYT_TAHRIR)),
+      # kech121 (zip 138 — G5-05, MOSLANDI): «💰 Hisob-kitob qilish» matni endi sahifa SKRIPTIDAGI xabarlarda ham bor (oynada «Hozir»
+      # tanlanib hisob-kitob o'xshamasa) — tugmaning O'ZI (`class="refund-btn"`) izlanadi
+      ("data-summa=" in _hm) == MEN_TANNARX and (('class="refund-btn"' in _hm) == (MEN_TANNARX and MEN_QAYT_TAHRIR)),
       (MEN_TANNARX, MEN_QAYT_TAHRIR))
 _hb = CB.get("/returns").text
 check("R4 bo'sh korxona: «So'nggi 90 kunda qaytarish yoki brak yozilmagan» va nima qilish («Yangi qaytarish», «Brak yozish»)",
@@ -575,6 +577,9 @@ if br:
         pg.fill("#f-value", "")
         pg.type("#f-value", "55000.5")
         _yoz = pg.evaluate("() => document.getElementById('f-value').value")
+        # kech121 (zip 138 — egasi qarori G5-05): oynada pul masalasi MAJBURIY — bu ssenariyda «Keyinroq» (hisob-kitob ro'yxatdagi tugma bilan)
+        if pg.evaluate("() => !!document.querySelector('input[name=\"f-pul\"][value=\"keyin\"]')"):
+            pg.check('input[name="f-pul"][value="keyin"]')
         del SOROV[:]
         pg.evaluate("() => saveReturn()")
         pg.wait_for_load_state("load")
