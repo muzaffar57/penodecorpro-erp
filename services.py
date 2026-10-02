@@ -1198,6 +1198,7 @@ def get_today_stats(db: Session, company_id: int = None) -> Dict:
         *( [_Ord_td.company_id == company_id] if company_id is not None else [] ),
         Payment.paid_at >= today_start, Payment.paid_at < today_end
     ).scalar() or 0)
+    today_payments = today_revenue          # kech121 (zip 138 — G1-08): tushum tarkibi — mijozlar to'lovlari
 
     # kech120 (zip 135 — G1-07): yagona qoida (ilgari qoralama ham sanalardi)
     active_orders = db.query(Order).filter(
@@ -1260,10 +1261,12 @@ def get_today_stats(db: Session, company_id: int = None) -> Dict:
         FinishedProductSale.sold_at >= today_start,
         FinishedProductSale.sold_at < today_end
     ).options(_sil_td(FinishedProductSale.finished_product)).all()
+    today_sales = 0.0                       # kech121 (zip 138 — G1-08): tushum tarkibi — tayyor mahsulot sotuvi
     for s in fp_sales_today:
         s_total = float(s.total_amount or 0)
         s_cost = float(s.cost_amount or 0)
         today_revenue += s_total
+        today_sales += s_total
         today_profit += (s_total - s_cost)
 
     # kech117 (A2): bugungi daromad YO'NALISHLAR bo'yicha (ilgari «Gips / Penoplast») — YAGONA qoida
@@ -1275,6 +1278,8 @@ def get_today_stats(db: Session, company_id: int = None) -> Dict:
 
     return {
         "today_revenue": float(today_revenue),
+        "today_payments": float(today_payments),
+        "today_sales": float(today_sales),
         "active_orders": active_orders,
         "in_production": in_production,
         "due_today": due_today,
@@ -3356,6 +3361,21 @@ def _brak_foizi(brak: float, ishlab: float):
     return round(float(brak or 0) / float(ishlab) * 100.0, 2)
 
 
+def omborga_ishlab_chiqarish_tannarxi(db: Session, year: int, month: int, company_id: int = None) -> float:
+    """kech121 (zip 138 — EGASI QARORI 02.10, audit G5-23 «Hamma ishlab chiqarishga»): shu oy (Toshkent) YAKUNLANGAN, OMBORGA
+    (`warehouse_stock`) ishlab chiqarilgan partiyalar tannarxi (`ProductionOrder.total_cost`). Buyurtma uchun ishlab
+    chiqarilgani (`customer_order`) bu yerga KIRMAYDI — u buyurtma tayyor bo'lganda buyurtma tannarxida (ikki marta sanalmaydi)."""
+    from production_models import ProductionOrder as _PO138, ProductionOrderStatus as _POS138, ProductionSourceType as _PST138
+    from sqlalchemy import func as _f138
+    _q = db.query(_f138.coalesce(_f138.sum(_PO138.total_cost), 0)).filter(
+        _PO138.status == _POS138.COMPLETED.value,
+        _PO138.source_type == _PST138.WAREHOUSE_STOCK.value,
+        _tashkent_oyida(_PO138.completed_at, year, month))
+    if company_id is not None:
+        _q = _q.filter(_PO138.company_id == company_id)
+    return float(_q.scalar() or 0)
+
+
 @_hisobot_keshi_bilan
 def get_brak_tahlil(db: Session, year: int, month: int, company_id: int = None,
                     oylar: int = 6) -> dict:
@@ -3372,12 +3392,19 @@ def get_brak_tahlil(db: Session, year: int, month: int, company_id: int = None,
     for (yy, mm) in _brak_oylari(year, month, oylar):
         rep = get_monthly_report(db, yy, mm, company_id=company_id)
         brak = float(rep.get("brak_xarajat") or 0)
-        ishlab = float(rep.get("ishlab_chiqarish_xarajat") or 0)
+        # kech121 (zip 138 — EGASI QARORI 02.10, audit G5-23): asos — HAMMA ishlab chiqarish: shu oy tayyor bo'lgan buyurtmalar
+        # tannarxi (Moliya bilan bir manba) + shu oy omborga ishlab chiqarilgan partiyalar tannarxi. Ilgari faqat buyurtmalar
+        # (Ishlab chiqarish sahifasidagi «jami tannarx» dan kam — brak foizi oshib ko'rinardi).
+        buyurtma_tn = float(rep.get("ishlab_chiqarish_xarajat") or 0)
+        ombor_tn = omborga_ishlab_chiqarish_tannarxi(db, yy, mm, company_id=company_id)
+        ishlab = buyurtma_tn + ombor_tn
         foiz = _brak_foizi(brak, ishlab)
         trend.append({
             "yil": yy, "oy": mm,
             "brak_xarajat": round(brak),
             "ishlab_chiqarish_xarajat": round(ishlab),
+            "buyurtmalar_tannarxi": round(buyurtma_tn),
+            "omborga_ishlab_tannarxi": round(ombor_tn),
             "brak_foizi": foiz,
             "meyordan_oshdi": bool(foiz is not None and foiz > meyor),
         })
@@ -3502,6 +3529,8 @@ def get_brak_tahlil(db: Session, year: int, month: int, company_id: int = None,
         "meyor_foiz": meyor,
         "brak_xarajat": joriy["brak_xarajat"],
         "ishlab_chiqarish_xarajat": joriy["ishlab_chiqarish_xarajat"],
+        "buyurtmalar_tannarxi": joriy["buyurtmalar_tannarxi"],          # kech121 (zip 138 — G5-23): asos tarkibi
+        "omborga_ishlab_tannarxi": joriy["omborga_ishlab_tannarxi"],
         "brak_foizi": foiz,
         "meyordan_oshdi": oshdi,
         # kech118 (U-05): kasr — vergul («5,01 %»); ekranga shu matn chiqadi

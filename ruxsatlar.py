@@ -288,6 +288,8 @@ TANNARX_KALITLAR = frozenset({
     "xomashyo_cost", "unit_cost", "stock_cost", "cost_price_per_unit", "cost_price_per_unit_no_coating",
     "narxsiz_tannarx_qiymati", "tannarx_jami", "tannarx_buyurtmalar", "tannarx_tm", "qaytarish_tannarx", "fp_sales_tannarx",
     "ishlab_chiqarish_xarajat", "brak_xarajat", "fp_loss_xarajat", "brak_total_value", "brak_month_value",
+    # kech121 (zip 138 — G5-23): brak ulushi asosining tarkibi
+    "buyurtmalar_tannarxi", "omborga_ishlab_tannarxi",
     # foyda
     "profit", "profit_per_unit", "margin", "today_profit", "total_profit", "yearly_profit", "monthly_profit", "foyda",
     "sof_foyda", "sof_daromad", "foyda_foiz", "buyurtmalar_foydasi", "fp_sales_foyda", "forecast_foyda", "current_foyda",

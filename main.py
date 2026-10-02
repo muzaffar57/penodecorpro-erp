@@ -3347,6 +3347,8 @@ mimetypes.add_type("font/woff2", ".woff2")
 mimetypes.add_type("font/woff", ".woff")
 mimetypes.add_type("font/ttf", ".ttf")
 mimetypes.add_type("text/css", ".css")
+# kech121 (zip 138, O'LCHANGAN jonli: /static/login-bg.webp — `application/octet-stream` + nosniff — Railway tasvirida .webp turi yo'q)
+mimetypes.add_type("image/webp", ".webp")
 
 class ReliableStaticFiles(StaticFiles):
     """Ba'zi hosting muhitlarida (masalan Railway) tizimning o'z MIME
@@ -7440,6 +7442,51 @@ def api_list_expense_transactions(year: Optional[int] = None, month: Optional[in
         _d.category_label = _nomlar.get(r.category)
         natija.append(_d)
     return natija
+
+
+# kech121 (zip 138 — EGASI QARORI 02.10, audit G3-24): «Xarajat qo'shish» — foydalanuvchi BUGUN (Toshkent) o'zi kiritgan qo'lda
+# xarajatlarni ko'radi va SHU KUNI o'zi o'chira oladi (Menejerda Moliya ro'yxati va umumiy o'chirish ruxsati yo'q — xato summani
+# tuzata olmasdi). «O'ziniki» — `created_by` (yozishdagi nom: to'liq ism yoki login), `source = manual`, yaratilgan vaqti bugun.
+def _ozim_bugungi_sharti(db, current_user):
+    from models import ExpenseTransaction as _ET138
+    from database import tashkent_today_start_utc as _tts138
+    from datetime import timedelta as _td138
+    _b = _tts138()
+    return db.query(_ET138).filter(
+        _ET138.company_id == auth.company_id_of(current_user), _ET138.source == "manual",
+        _ET138.created_by == (current_user.full_name or current_user.username),
+        _ET138.created_at >= _b, _ET138.created_at < _b + _td138(days=1))
+
+
+@app.get("/api/finance/transactions/bugungi-ozim")
+def api_bugungi_ozim_xarajatlar(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kunlik", "yaratish"))):
+    from models import ExpenseTransaction as _ET138
+    rows = _ozim_bugungi_sharti(db, current_user).order_by(_ET138.created_at.desc(), _ET138.id.desc()).all()
+    return [{"id": r.id, "date": r.date.isoformat() if r.date else None, "category": r.category, "amount": float(r.amount or 0),
+             "notes": r.notes, "created_at": r.created_at.isoformat() if r.created_at else None} for r in rows]
+
+
+@app.delete("/api/finance/transactions/{tx_id}/ozim")
+def api_ozim_xarajatni_ochirish(tx_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kunlik", "yaratish"))):
+    from models import ExpenseTransaction as _ET138
+    tx = _ozim_bugungi_sharti(db, current_user).filter(_ET138.id == tx_id).first()
+    if not tx:
+        # begona korxonaniki ham, boshqa kishiniki / kechagisi ham — bir xil javob (mavjudligi oshkor qilinmaydi)
+        raise HTTPException(status_code=404, detail="Bu xarajatni o'chira olmaysiz — faqat o'zingiz BUGUN kiritgan xarajat o'chiriladi. "
+                                                    "Boshqasini administrator yoki moliyachi Moliya sahifasida o'zgartiradi.")
+    _label = f"Xarajat: {tx.category} {son_korinish_safe(tx.amount)} so'm"
+    db.delete(tx)
+    crud.log_activity(db, "deleted", "xarajat", tx_id, _label, performed_by=current_user.full_name or current_user.username,
+                      company_id=auth.company_id_of(current_user), commit=False)
+    db.commit()
+    return {"status": "ok"}
+
+
+def son_korinish_safe(v):
+    try:
+        return services.son_korinish(v, 2)
+    except Exception:                      # noqa: BLE001
+        return str(v)
 
 
 # kech120 (zip 131 — F bosqichi, audit G3-17, O'LCHANGAN work/f/f1_probe.py — SQLite va PG): kirim hujjatining qo'shimcha xarajati

@@ -810,17 +810,19 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
     t_cost = float(getattr(delivery, 'transport_cost', 0) or 0)
     t_payer = getattr(delivery, 'transport_payer', 'none') or 'none'
 
-    if carrier or t_cost > 0:
+    # kech121 (zip 138 — EGASI QARORI 02.10, audit G6-13): korxona o'zi to'lagan transport NARXI mijozga beriladigan yuk xatida
+    # ko'rsatilmaydi (ichki xarajat — Moliyada); faqat tashuvchi nomi. Mijoz to'laydigan / teng bo'lingan — avvalgidek (summa va kim).
+    _korxona_tolaydi = t_payer == "company"
+    if carrier or (t_cost > 0 and not _korxona_tolaydi):
         payer_label = {
             "client": "Mijoz to'laydi",
-            "company": "Kompaniya to'laydi",
             "split": "Teng bo'lingan (50/50)",
         }.get(t_payer, "")
 
         parts = []
         if carrier:
             parts.append(f"<b>{_x(carrier)}</b>")
-        if t_cost > 0:
+        if t_cost > 0 and not _korxona_tolaydi:
             parts.append(f"{_fmt(t_cost)} so'm")
         if payer_label:
             parts.append(payer_label)
