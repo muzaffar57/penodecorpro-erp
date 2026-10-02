@@ -81,6 +81,49 @@ def _hisob_qatorlari(order, db):
     return h, rows, zargaldoq
 
 
+def _birlik(u):
+    """kech120 (zip 136 — F bosqichi 5-qism, audit G6-12): birlik — umumiy qoida (`services.birlik_korinish` = Jinja `|birlik` =
+    `birlikQisqa`): «m», «m²», «dona», «kg», «qop». Ilgari yuk xatida «30 metr», hisob-kitob varaqasida metrdan boshqasi — «ta»
+    (kg, qop, m² ham), buyurtma hisobida «M» / «TA»."""
+    try:
+        from services import birlik_korinish as _bk
+        return _bk(u)
+    except Exception:                      # noqa: BLE001
+        return str(u or "")
+
+
+def _yuk_holati(delivery):
+    """kech120 (zip 136 — F bosqichi 5-qism, audit G6-13 — texnik qismi): yuk xati — SHU yuk topshirilgan paytdagi holat. Ilgari
+    eski yuk xati (Y-1, faqat karniz) qayta chop etilsa, keyingi yuklar ham qo'shilib «BUYURTMA TO'LIQ TOPSHIRILDI», «Jami bo'yicha
+    30 / 30», «tugadi» chiqardi — mijoz imzolagan nusxa bilan mos kelmasdi. Endi «Jami bo'yicha», «Qoldi», bajarilish foizi,
+    «QISMAN YETKAZISH» va «Keyingi yetkazishda kutilayotgan» — shu yukgacha (shu yuk bilan) topshirilganidan; tartib — topshirilgan
+    vaqt, so'ng raqam. Oxirgi yuk xati — hozirgi holat bilan AYNAN (ortiqcha — omborga qo'yilgan qism ham hisobda, avvalgidek).
+    Qaytaradi: {"oxirgi", "detal": {order_item_id: (topshirilgan, qoldi)}, "foiz", "tolik"}."""
+    from datetime import datetime as _dt136
+    order = delivery.order
+    if not order:
+        return {"oxirgi": True, "detal": {}, "foiz": 0, "tolik": False}
+
+    def _kalit(d):
+        return (d.delivered_at or _dt136.min, d.id or 0)
+    k0 = _kalit(delivery)
+    oxirgi = all(_kalit(d) <= k0 for d in (order.deliveries or []))
+    if oxirgi:
+        return {"oxirgi": True, "detal": {it.id: (it.delivered_qty, it.remaining_qty) for it in (order.items or [])},
+                "foiz": order.delivery_percent, "tolik": order.is_fully_delivered}
+    detal, jami_b, jami_t = {}, 0.0, 0.0
+    for it in (order.items or []):
+        buyurtma = it.order_qty_normalized
+        top = sum(float(di.quantity or 0) for di in (it.deliveries or []) if di.delivery is not None and _kalit(di.delivery) <= k0)
+        detal[it.id] = (top, max(buyurtma - top, 0))
+        if buyurtma > 0:
+            jami_b += buyurtma
+            jami_t += min(top, buyurtma)
+    foiz = round(jami_t / jami_b * 100, 1) if jami_b > 0 else 0.0
+    tolik = bool(order.items) and all(q <= 0.001 for _, q in detal.values())
+    return {"oxirgi": False, "detal": detal, "foiz": foiz, "tolik": tolik}
+
+
 def _hisob_oxirgi_rang(h):
     """Oxirgi qator rangi: qarz — qizil, ortiqcha to'langan (mijozga qaytariladi) — to'q zarg'aldoq, qarz yo'q — yashil."""
     if (h.get("korinish") or {}).get("ortiqcha", 0) > 0:
@@ -180,7 +223,7 @@ def generate_finished_sale_batch_pdf(sales: list, group_id: str, db=None) -> byt
         row_orig = float(s.original_total if s.original_total is not None else (s.total_amount or 0))
         data.append([
             str(i), s.product_name or "—",
-            f"{_num(s.quantity)} {s.unit}",
+            f"{_num(s.quantity)} {_birlik(s.unit)}",
             _fmt(s.unit_price),
             _fmt(row_orig),
         ])
@@ -346,7 +389,7 @@ def generate_finished_sale_pdf(sale, db=None) -> bytes:
     data = [["№", "Mahsulot nomi", "Miqdor", "Birlik narxi", "Summa"]]
     data.append([
         "1", sale.product_name or "—",
-        f"{_num(sale.quantity)} {sale.unit}",
+        f"{_num(sale.quantity)} {_birlik(sale.unit)}",
         _fmt(sale.unit_price),
         _fmt(sale.total_amount),
     ])
@@ -411,9 +454,10 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
     # Buni HISOBGA OLMASAK, kichik yuk + katta "kutilayotgan" ro'yxati
     # bo'lgan holatlarda ham hujjat 2 sahifaga chiqib ketishi mumkin edi.
     _order_for_calc = delivery.order
+    _holat136 = _yuk_holati(delivery)      # kech120 (zip 136 — G6-13): shu yuk paytidagi holat
     _pending_count = 0
-    if _order_for_calc and not _order_for_calc.is_fully_delivered:
-        _pending_count = sum(1 for it in (_order_for_calc.items or []) if it.remaining_qty > 0.001)
+    if _order_for_calc and not _holat136["tolik"]:
+        _pending_count = sum(1 for q in _holat136["detal"].values() if q[1] > 0.001)
 
     # "Kutilayotgan" jadval — sinovlar shuni ko'rsatdiki, taxmin
     # qilingandan REAL jойroq (matn ko'proq qator egallaydi) — shuning
@@ -480,7 +524,7 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
     el.append(Spacer(1, sp(6)))
 
     # ---- Hujjat nomi ----
-    is_full_order = order and order.is_fully_delivered if order else False
+    is_full_order = bool(order) and _holat136["tolik"]      # kech120 (zip 136 — G6-13)
     title2 = Table([[
         Paragraph(
             f"<font size=13><b>YUK XATI</b></font>  "         # kech118 (D-1, G6-11): ilgari «YUK XATI (NAKLADNOY)»
@@ -502,11 +546,12 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
     # ko'rsatadi. Chalkashmaslik uchun, agar buyurtma hali TO'LIQ
     # topshirilmagan bo'lsa — buni ANIQ, ko'rinarli qilib yozamiz.
     if order and not is_full_order:
-        pct = order.delivery_percent
+        pct = _holat136["foiz"]
+        # kech120 (zip 136 — G6-12 / G6-13): summa — ming ajratgich bo'shliq («1 800 000»; ilgari «1,800,000»)
         notice = Table([[
             Paragraph(
                 f"QISMAN YETKAZISH — bu hujjat buyurtmaning FAQAT shu qismini ko'rsatadi "
-                f"(umumiy bajarilish: {pct}%). Buyurtmaning JAMI summasi — {order.kelishilgan_summa:,.0f} so'm.",
+                f"(shu yukgacha bajarilish: {_num(pct, 1)}%). Buyurtmaning JAMI summasi — {_fmt(order.kelishilgan_summa)} so'm.",
                 ParagraphStyle('warn', fontName='Helvetica-Bold', fontSize=8.5,
                                textColor=colors.HexColor("#92400E"), alignment=TA_CENTER, leading=12)
             )
@@ -568,8 +613,8 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
             continue
 
         ordered = oi.order_qty_normalized
-        delivered_total = oi.delivered_qty
-        remaining = max(ordered - delivered_total, 0)
+        # kech120 (zip 136 — G6-13): shu yukgacha topshirilgani (keyingi yuklar qo'shilmaydi)
+        delivered_total, remaining = _holat136["detal"].get(oi.id, (oi.delivered_qty, max(ordered - oi.delivered_qty, 0)))
         qty = float(di.quantity or 0)
 
         # Birlik narxi: buyurtma summasini miqdorga bo'lamiz.
@@ -595,11 +640,11 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
         data.append([
             str(i),
             item_label,
-            f"{_num(qty)} {di.unit}",
+            f"{_num(qty)} {_birlik(di.unit)}",
             _fmt(unit_p),
             _fmt(line_sum),
             f"{_num(delivered_total)} / {_num(ordered)}",
-            f"{_num(remaining)}" if remaining > 0.001 else "tugadi",
+            f"{_num(remaining)}" if remaining > 0.001 else "0",     # kech120 (zip 136 — G6-13): ilgari «tugadi»
         ])
 
     # Shu yuk uchun jami
@@ -670,6 +715,10 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
 
     # ---- Umumiy moliyaviy holat ----
     if order:
+        # kech120 (zip 136 — G6-13): pul holati — CHOP ETILGAN kundagi (to'lovlar keyin ham qo'shiladi); buni aniq yozamiz
+        el.append(Paragraph(f"Hisob-kitob holati — {_tashkent_vaqt().strftime('%d.%m.%Y')} (chop etilgan kun)",
+                            ParagraphStyle('hh', fontName='Helvetica', fontSize=8, textColor=GRAY, alignment=TA_RIGHT)))
+        el.append(Spacer(1, sp(2)))
         # kech116 (G2-04): qatorlar — YAGONA qoida (`_hisob_qatorlari`): jami − chegirma (to'lovda kechirilgan qarz ham
         # shu qatorda — egasi QARORI kech116) − qaytarish = kelishilgan; kelishilgan − to'langan = qarz (yoki ortiqcha)
         _hisob, fin_rows, _zarg = _hisob_qatorlari(order, db)
@@ -700,11 +749,13 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
         el.append(Spacer(1, sp(7)))
 
     # ---- Umumiy holat ----
-    pct = order.delivery_percent if order else 0
-    done = order.is_fully_delivered if order else False
+    # kech120 (zip 136 — G6-13): shu yuk paytidagi holat (ilgari — chop etilgan kundagi: Y-1 da ham «TO'LIQ TOPSHIRILDI»)
+    pct = _holat136["foiz"] if order else 0
+    done = bool(order) and _holat136["tolik"]
 
     status_color = GREEN if done else GOLD
-    status_txt = "BUYURTMA TO'LIQ TOPSHIRILDI" if done else f"Buyurtma bajarilishi: {pct}%"
+    status_txt = ("BUYURTMA TO'LIQ TOPSHIRILDI" if done else f"Buyurtma bajarilishi: {_num(pct, 1)}%") + (
+        "" if _holat136["oxirgi"] else " (shu yuk xati bo'yicha)")
 
     stat = Table([[Paragraph(
         f"<b>{status_txt}</b>",
@@ -721,21 +772,21 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
 
     # ---- Qolgan mahsulotlar (faqat qisman yetkazishda) ----
     if order and not done:
-        pending_items = [it for it in (order.items or []) if it.remaining_qty > 0.001]
+        pending_items = [it for it in (order.items or []) if _holat136["detal"].get(it.id, (0, it.remaining_qty))[1] > 0.001]
         if pending_items:
             el.append(Spacer(1, sp(7)))
             el.append(Paragraph("<b>Keyingi yetkazishda kutilayotgan mahsulotlar</b>", st_norm))
             el.append(Spacer(1, sp(4)))
             pend_data = [["Mahsulot nomi", "Qoldi", "1 birlik narxi"]]
-            unit_labels = {"metr": "m", "kg": "kg", "dona": "ta", "m2": "m²", "m²": "m²"}
+            # kech120 (zip 136 — G6-12): birlik — umumiy qoida (`_birlik`; ilgari dona — «ta», qop / litr — «ta»)
             for it in pending_items:
-                unit_label = unit_labels.get(it.delivery_unit, "ta")
+                unit_label = _birlik(it.delivery_unit)
                 it_ordered = it.order_qty_normalized
                 it_unit_p = (float(it.total_price or 0) / it_ordered) if it_ordered > 0 else float(it.unit_price or 0)
                 it_label = f"{it.name or '—'} (qoplamali)" if it.is_coated else (it.name or "—")
                 pend_data.append([
                     it_label,
-                    f"{_num(it.remaining_qty)} {unit_label}",
+                    f"{_num(_holat136['detal'].get(it.id, (0, it.remaining_qty))[1])} {unit_label}",
                     f"{_fmt(it_unit_p)} so'm",
                 ])
             pend_tbl = Table(pend_data, colWidths=[10.5*cm, 3.5*cm, 4*cm])
@@ -962,7 +1013,7 @@ def generate_summary_pdf(order, deliveries, db=None) -> bytes:
             qty = float(di.quantity or 0)
             line_sum = unit_p * qty
             dsum += line_sum
-            u = 'm' if di.unit == 'metr' else 'ta'
+            u = _birlik(di.unit)
             data.append([
                 Paragraph(_x(oi.name), st_item),
                 f"{_num(qty)} {u}",

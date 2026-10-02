@@ -49,6 +49,18 @@ RED    = colors.HexColor("#E74C3C")
 GREEN  = colors.HexColor("#27AE60")
 GRAY   = colors.HexColor("#7F8C8D")
 LGRAY  = colors.HexColor("#BDC3C7")
+# kech120 (zip 136 — F bosqichi 5-qism, audit G6-12): shior, kontakt va «Imzo / Sana» — LGRAY (#BDC3C7, oq qog'ozda ~1,8:1) chop
+# etilganda deyarli ko'rinmasdi; endi to'qroq kulrang (~7,5:1)
+IZOH_RANG = colors.HexColor("#4B5563")
+
+
+def _pul_matni(n) -> str:
+    """kech120 (zip 136 — G6-12): buyurtma hisobidagi summa — boshqa hujjatlardagidek ming ajratgich BO'SHLIQ («900 000»;
+    ilgari «900,000» — vergul, yuk xati / hisob-kitob / moliya PDF larida bo'shliq). Butun so'mgacha yaxlitlanadi (avvalgidek)."""
+    try:
+        return f"{float(n or 0):,.0f}".replace(",", " ")
+    except (TypeError, ValueError):
+        return "0"
 
 
 def get_styles(cx: float = 0.0):
@@ -59,7 +71,8 @@ def get_styles(cx: float = 0.0):
 
     return {
         "company": ParagraphStyle("company", fontName="Helvetica-Bold", fontSize=L(20,14), textColor=GOLD, leading=L(24,16)),
-        "company_sub": ParagraphStyle("company_sub", fontName="Helvetica", fontSize=L(9,6.5), textColor=LGRAY, leading=L(12,8)),
+        "company_sub": ParagraphStyle("company_sub", fontName="Helvetica", fontSize=L(9,6.5), textColor=IZOH_RANG, leading=L(12,8)),
+        "imzo": ParagraphStyle("imzo", fontName="Helvetica", fontSize=L(8,6), textColor=IZOH_RANG, leading=L(10,7), spaceAfter=L(2,0.5)),
         "doc_title": ParagraphStyle("doc_title", fontName="Helvetica-Bold", fontSize=L(14,10), textColor=DARK, leading=L(18,12), alignment=TA_RIGHT),
         "doc_num": ParagraphStyle("doc_num", fontName="Helvetica", fontSize=L(10,7), textColor=GRAY, leading=L(14,9), alignment=TA_RIGHT),
         "section_label": ParagraphStyle("section_label", fontName="Helvetica", fontSize=L(8,6), textColor=GRAY, leading=L(10,7), spaceAfter=L(2,0.5)),
@@ -106,10 +119,14 @@ def generate_nakladnoy(order, db=None) -> bytes:
     st  = get_styles(cx)
 
     margin_v = (15 - cx * 8) * mm
+    # 2026-09-20: logotip va nomlar korxonanikidan olinadi (bo'lmasa — umumiy)
+    _brand = get_brand(db, company_id_of(order, db))
+    # kech120 (zip 136 — G6-12): fayl xususiyatlarida sarlavha (ilgari «(anonymous)») va muallif — korxona
     doc = SimpleDocTemplate(
         buf, pagesize=A4,
         leftMargin=18*mm, rightMargin=18*mm,
         topMargin=margin_v, bottomMargin=margin_v,
+        title=f"Buyurtma hisobi {order.order_number or order.id}", author=_brand["name"] or "", subject="Buyurtma hisobi",
     )
 
     W = A4[0] - 36*mm
@@ -118,9 +135,6 @@ def generate_nakladnoy(order, db=None) -> bytes:
     # ── SARLAVHA ──────────────────────────────────────────────
     import os
     from reportlab.platypus import Image as RLImage
-
-    # 2026-09-20: logotip va nomlar korxonanikidan olinadi (bo'lmasa — umumiy)
-    _brand = get_brand(db, company_id_of(order, db))
     # 2026-09-20: zaxira yo'l ATAYLAB olib tashlandi. Ilgari bu yerda
     # `or os.path.join(..., "logo_transparent.png")` bor edi — ya'ni
     # korxonaning logotipi bo'lmasa, PLATFORMA EGASINING logotipi
@@ -180,9 +194,6 @@ def generate_nakladnoy(order, db=None) -> bytes:
     project = order.project
     status_val = order.status.value if hasattr(order.status, 'value') else str(order.status)
     status_txt = STATUS_UZ.get(status_val, status_val)
-    order_type = ORDER_TYPE_UZ.get(
-        order.order_type.value if hasattr(order.order_type, 'value') else str(order.order_type), "—"
-    )
 
     info_data = [[
         [
@@ -209,9 +220,7 @@ def generate_nakladnoy(order, db=None) -> bytes:
             Paragraph("HOLATI", st["section_label"]),
             Paragraph(status_txt, st["section_value"]),
             Spacer(1, 4*(1-cx*0.7)),
-            Paragraph("TURI", st["section_label"]),
-            Paragraph(order_type, st["section_value_sm"]),
-            Spacer(1, 4*(1-cx*0.7)),
+            # kech120 (zip 136 — G6-12): «TURI: Mahsulot / Xizmat» — mijozga ma'nosiz, olib tashlandi
             Paragraph("USTA", st["section_label"]),
             Paragraph(_x(order.master.name if order.master else "Belgilanmagan"), st["section_value_sm"]),
         ],
@@ -231,27 +240,26 @@ def generate_nakladnoy(order, db=None) -> bytes:
     story.append(Spacer(1, 12*(1-cx*0.7)))
 
     # ── MAHSULOTLAR JADVALI ───────────────────────────────────
+    # kech120 (zip 136 — F bosqichi 5-qism, audit G6-12): birlik — boshqa hujjatlar va sahifalardagidek umumiy qoida
+    # (`services.birlik_korinish`: «m», «m²», «dona», «kg», «qop» …); ilgari katta harf va «TA» («M», «TA», «KG» — yuk xatida «30 metr»,
+    # hisob-kitobda «30 m»). Yangi (MRP) mahsulot — o'z turining birligi (zip 133).
+    from services import birlik_korinish as _bk136, son_korinish as _sk136
+
     def get_unit(item):
         cat = (item.category or '').lower()
-        if cat == 'profil': return 'M'
-        elif cat == 'panel': return 'M'
-        elif cat == 'blok': return 'M'
-        elif cat == 'termopanel': return 'M²'
-        elif cat == 'dona': return 'TA'
-        elif cat == 'loy_sotish': return 'KG'
+        if cat in ('profil', 'panel', 'blok'): return 'm'
+        elif cat == 'termopanel': return 'm²'
+        elif cat == 'dona': return 'dona'
+        elif cat == 'loy_sotish': return 'kg'
         elif cat == 'gips':
             gu = (getattr(item, 'gips_unit', None) or 'metr').lower()
-            return 'M²' if gu == 'm2' else ('M' if gu == 'metr' else 'TA')
-        # kech120 (zip 133 — F bosqichi 3-qism, audit G5-08): yangi (MRP) mahsulot — o'z turining birligi (qop, litr, kg …); ilgari
-        # hammasi «TA» edi. Ko'rinish — umumiy qoida (`services.birlik_korinish`), PDF uslubida katta harf; dona — «TA» (avvalgidek).
+            return 'm²' if gu == 'm2' else ('m' if gu == 'metr' else 'dona')
         elif cat == 'mrp_product':
             try:
-                from services import birlik_korinish as _bk133
-                b = _bk133(getattr(item, 'delivery_unit', None))
+                return _bk136(getattr(item, 'delivery_unit', None))
             except Exception:
-                b = 'dona'
-            return 'TA' if b == 'dona' else b.upper()
-        else: return 'TA'
+                return 'dona'
+        else: return 'dona'
 
     col_widths = [W*0.05, W*0.35, W*0.10, W*0.12, W*0.19, W*0.19]
 
@@ -282,7 +290,9 @@ def generate_nakladnoy(order, db=None) -> bytes:
             miqdor = float(item.quantity or 0)
         else:
             miqdor = float(item.quantity or 0)
-        miqdor_txt = f"{miqdor:.0f}"
+        # kech120 (zip 136 — G6-12): kasrli miqdor yaxlitlanmaydi (ilgari «2.5 m» → «2», narx × miqdor ≠ jami ko'rinardi);
+        # son — umumiy qoida (`son_korinish`: «2,5», «1 234»)
+        miqdor_txt = _sk136(miqdor, 3)
 
         # MUHIM: item.unit_price ba'zi turlarda (masalan Profil) DETALNING
         # UMUMIY narxini saqlaydi (miqdor=1 bo'lgani uchun), 1 birlik narxini
@@ -303,8 +313,8 @@ def generate_nakladnoy(order, db=None) -> bytes:
             Paragraph(_x(item_label), st["table_cell"]),
             Paragraph(_x(unit), st["table_cell_c"]),
             Paragraph(_x(miqdor_txt), st["table_cell_c"]),
-            Paragraph(f"{true_unit_price:,.0f}", st["table_cell_r"]),
-            Paragraph(f"{total_price:,.0f}", st["table_cell_r"]),
+            Paragraph(_x(_pul_matni(true_unit_price)), st["table_cell_r"]),
+            Paragraph(_x(_pul_matni(total_price)), st["table_cell_r"]),
         ])
 
     if not items:
@@ -365,7 +375,7 @@ def generate_nakladnoy(order, db=None) -> bytes:
         if q["kalit"] == "tolangan":
             totals_data.append([
                 Paragraph("To'langan:", st["doc_num"]),
-                Paragraph(f"{q['summa']:,.0f} so'm", st["doc_num"]),
+                Paragraph(f"{_pul_matni(q['summa'])} so'm", st["doc_num"]),
             ])
             continue
         belgi = {"-": "- ", "+": "+ "}.get(q["ishora"], "")
@@ -373,17 +383,18 @@ def generate_nakladnoy(order, db=None) -> bytes:
         katta = q["kalit"] in ("kelishilgan", "qarz", "ortiqcha")
         totals_data.append([
             Paragraph(_x(nom), st["total_label"]),
-            Paragraph(f"{_x(belgi)}{q['summa']:,.0f} so'm", st["total_value"] if katta else st["total_label"]),
+            Paragraph(f"{_x(belgi)}{_pul_matni(q['summa'])} so'm", st["total_value"] if katta else st["total_label"]),
         ])
         if q["kalit"] == "kelishilgan":
             grand_total_row = len(totals_data) - 1
     if grand_total_row is None:
-        # chegirma / qaytarish / kechirilgan yo'q — kelishilgan = jami: «TO'LOV SUMMASI» qatori jami qatoridan keyin
-        totals_data.insert(1, [
+        # kech120 (zip 136 — F bosqichi 5-qism, audit G6-12): chegirma / qaytarish / kechirilgan yo'q — kelishilgan = jami. Ilgari
+        # «Umumiy jami» va «TO'LOV SUMMASI» — bir xil raqam, ketma-ket ikki qator edi; endi BITTA qator «TO'LOV SUMMASI».
+        totals_data[0] = [
             Paragraph("TO'LOV SUMMASI:", st["total_label"]),
-            Paragraph(f"{_hisob['korinish']['kelishilgan']:,.0f} so'm", st["total_value"]),
-        ])
-        grand_total_row = 1
+            Paragraph(f"{_pul_matni(_hisob['korinish']['kelishilgan'])} so'm", st["total_value"]),
+        ]
+        grand_total_row = 0
 
     totals_tbl = Table(totals_data, colWidths=[W*0.7, W*0.3])
     totals_tbl.setStyle(TableStyle([
@@ -425,16 +436,16 @@ def generate_nakladnoy(order, db=None) -> bytes:
     story.append(Spacer(1, 20*(1-cx*0.7)))
     sign_data = [[
         [
-            Paragraph("Berdi:", st["section_label"]),
+            Paragraph("Berdi:", st["imzo"]),
             Spacer(1, 20*(1-cx*0.7)),
-            HRFlowable(width="80%", thickness=0.5, color=LGRAY),
-            Paragraph("Imzo / Sana", st["section_label"]),
+            HRFlowable(width="80%", thickness=0.5, color=IZOH_RANG),
+            Paragraph("Imzo / Sana", st["imzo"]),
         ],
         [
-            Paragraph("Qabul qildi:", st["section_label"]),
+            Paragraph("Qabul qildi:", st["imzo"]),
             Spacer(1, 20*(1-cx*0.7)),
-            HRFlowable(width="80%", thickness=0.5, color=LGRAY),
-            Paragraph("Imzo / Sana", st["section_label"]),
+            HRFlowable(width="80%", thickness=0.5, color=IZOH_RANG),
+            Paragraph("Imzo / Sana", st["imzo"]),
         ],
     ]]
     sign_tbl = Table(sign_data, colWidths=[W/2, W/2])
