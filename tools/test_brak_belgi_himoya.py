@@ -362,12 +362,23 @@ _e_loss = FinishedProductLoss(company_id=1, finished_product_id=_e_fid, product_
 db.add(_e_loss)
 db.commit()
 _e_id = _e_loss.id
+# kech120 (E, U-09): bu bo'lim KOD konstantasini ish vaqtida almashtiradi — so'rovlar orasidagi hisobot xotirasi (ma'lumot
+# yozuviga bog'liq) buni ko'rmaydi; ishda konstanta o'zgarmaydi. Bo'lim davomida xotira o'chiq.
+_eski_xotira = getattr(services, "HISOBOT_XOTIRASI_YOQIQ", None)
+services.HISOBOT_XOTIRASI_YOQIQ = False
 try:
     _me0, _le0 = moliya_brak(), liniya_peno_brak()
     crud._ISH_BRAK_BELGI = _E_BELGI
     _me1, _le1 = moliya_brak(), liniya_peno_brak()
 finally:
     crud._ISH_BRAK_BELGI = _asl_belgi
+    if _eski_xotira is None:
+        try:
+            delattr(services, "HISOBOT_XOTIRASI_YOQIQ")
+        except Exception:                  # noqa: BLE001
+            pass
+    else:
+        services.HISOBOT_XOTIRASI_YOQIQ = _eski_xotira
 check("E asl belgi bilan yozuv Moliyada hisoblanadi (fikstura)",
       son(_me0) is not None and son(_me1) is not None and _me0 >= 12_345 - 0.5, f"{_me0}")
 check("E belgi almashtirilsa Moliya yozuvni ishlab chiqarish braki deb chiqaradi (−12 345)",

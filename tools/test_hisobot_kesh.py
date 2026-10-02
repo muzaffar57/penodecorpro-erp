@@ -499,6 +499,10 @@ def chaqir(fn, kesh=True):
     """(natija JSON, so'rovlar soni) — alohida sessiyada; xato ham natija (turi va matni)."""
     _eski = getattr(services, "HISOBOT_KESHI_YOQIQ", None)
     services.HISOBOT_KESHI_YOQIQ = kesh
+    # kech120 (E, U-09): so'rovlar ORASIDAGI hisobot xotirasi (`HISOBOT_XOTIRASI_YOQIQ`) bu yerda o'chiq — test hisobning
+    # O'ZINI (natija va so'rovlar soni) o'lchaydi; xotira bilan / xotirasiz natija — `tools/test_e_tezlik.py`
+    _eski_x = getattr(services, "HISOBOT_XOTIRASI_YOQIQ", None)
+    services.HISOBOT_XOTIRASI_YOQIQ = False
     s = SessionLocal()
     SANOQ["n"] = 0
     SANOQ["on"] = True
@@ -522,6 +526,13 @@ def chaqir(fn, kesh=True):
                 pass
         else:
             services.HISOBOT_KESHI_YOQIQ = _eski
+        if _eski_x is None:
+            try:
+                delattr(services, "HISOBOT_XOTIRASI_YOQIQ")
+            except Exception:              # noqa: BLE001
+                pass
+        else:
+            services.HISOBOT_XOTIRASI_YOQIQ = _eski_x
     return v, n
 
 

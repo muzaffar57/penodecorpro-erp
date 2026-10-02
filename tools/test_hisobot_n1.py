@@ -66,6 +66,9 @@ with contextlib.redirect_stdout(io.StringIO()):
     import auth                                    # noqa: E402
 import crud                                        # noqa: E402
 import services                                    # noqa: E402
+# kech120 (E, U-09): so'rovlar ORASIDAGI hisobot xotirasi o'chiq — bu test har chaqiruvda hisobning O'ZI yuboradigan so'rovlar
+# sonini o'lchaydi (xotira ikkinchi chaqiruvni 0 so'rov bilan qaytarardi); xotira — `tools/test_e_tezlik.py`
+services.HISOBOT_XOTIRASI_YOQIQ = False
 from sqlalchemy import event                       # noqa: E402
 from database import SessionLocal, engine          # noqa: E402
 from production_models import Company              # noqa: E402
