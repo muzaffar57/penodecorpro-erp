@@ -6,7 +6,7 @@ PenoDecorPro ERP — Asosiy server
 import os
 from datetime import datetime, timedelta
 from typing import List, Optional
-from fastapi import FastAPI, Request, Depends, HTTPException, Form, UploadFile, File, Body, Query
+from fastapi import FastAPI, Request, Depends, HTTPException, Form, UploadFile, File, Body, Query, Response
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -3548,7 +3548,36 @@ async def logs_page(request: Request, db: Session = Depends(get_db), current_use
     # endi xatolar ham to'g'ri ajratiladi: korxonaniki o'ziga, platforma
     # xatolari (NULL) hammaga.
     _cid = auth.company_id_of(current_user)
-    login_history = crud.get_login_history(db, limit=100, company_id=_cid)
+    # kech120 (zip 129 — G6-23): «Kirish tarixi» va «Audit jurnali» — filtr (sana, foydalanuvchi, natija / amal, matn) va
+    # sahifalash SERVERDA (oddiy GET forma va havolalar — sahifa JS siz ham ishlaydi). Har bo'lim parametrlari o'z
+    # prefiksi bilan (`k_` — kirish, `a_` — audit): bir bo'limni filtrlash ikkinchisini tashlab yubormaydi.
+    _p = request.query_params
+    kirish = crud.kirish_tarixi_sahifasi(db, _cid, sana_dan=_p.get("k_dan"), sana_gacha=_p.get("k_gacha"),
+                                         kim=_p.get("k_kim"), natija_turi=_p.get("k_natija"), sahifa=_p.get("k_sahifa"))
+    audit = crud.audit_jurnali_sahifasi(db, _cid, sana_dan=_p.get("a_dan"), sana_gacha=_p.get("a_gacha"),
+                                        kim=_p.get("a_kim"), amal=_p.get("a_amal"), matn=_p.get("a_q"),
+                                        sahifa=_p.get("a_sahifa"))
+    login_history = kirish["yozuvlar"]
+    activity_log = audit["yozuvlar"]
+
+    from urllib.parse import urlencode as _ue_jurnal
+
+    def _jurnal_havola(prefiks, sahifa=None, tozala=False):
+        """Joriy manzil (ikkinchi bo'lim filtrlari saqlanadi) — shu bo'lim sahifasi (yoki `tozala` — shu bo'lim
+        filtrlari olib tashlanadi) va ochiq yorliq."""
+        _q = [(k, v) for k, v in _p.multi_items()
+              if k != "tab" and v != "" and not (k.startswith(prefiks) if tozala else k == prefiks + "sahifa")]
+        _q.append(("tab", "login" if prefiks == "k_" else "activity"))
+        if sahifa and sahifa > 1:
+            _q.append((prefiks + "sahifa", str(sahifa)))
+        return "/logs?" + _ue_jurnal(_q)
+
+    for _bolim, _pr in ((kirish, "k_"), (audit, "a_")):
+        _bolim["oldingi"] = _jurnal_havola(_pr, _bolim["sahifa"] - 1) if _bolim["sahifa"] > 1 else ""
+        _bolim["keyingi"] = _jurnal_havola(_pr, _bolim["sahifa"] + 1) if _bolim["sahifa"] < _bolim["sahifalar"] else ""
+        _bolim["filtrlangan"] = any(v for v in _bolim["filtr"].values())
+        _bolim["tozalash"] = _jurnal_havola(_pr, tozala=True)
+    _yorliq = _p.get("tab") if _p.get("tab") in ("login", "errors", "activity", "health", "settings", "platform") else "login"
     # 2026-09-20 — Texnik xatolar (Python traceback) FAQAT platforma
     # administratori uchun. Sabab: bunday xabar korxona egasiga hech narsa
     # bermaydi, lekin ikki xil zarar keltiradi — (1) "dastur buzuqmi?"
@@ -3559,10 +3588,12 @@ async def logs_page(request: Request, db: Session = Depends(get_db), current_use
     _platforma = bool(getattr(current_user, "is_platform_admin", False))
     error_logs = crud.get_error_logs(
         db, limit=100, company_id=_cid, include_platform=True) if _platforma else []
-    activity_log = crud.get_activity_log(db, limit=100, company_id=_cid)
     return templates.TemplateResponse(request, "logs.html", {
         "login_history": login_history, "error_logs": error_logs,
          "is_platform_admin": _platforma, "activity_log": activity_log,
+        "kirish": kirish, "audit": audit, "yorliq": _yorliq,
+        "amal_nomi": crud.audit_amal_nomi, "amal_guruhlari": crud.audit_amal_guruhlari(),
+        "farq_belgi": crud.AUDIT_FARQ_BELGI,
         "current_user": current_user, "active_page": "logs"
     })
 
@@ -4538,10 +4569,21 @@ def api_purchase_stock(item_id: int, data: dict = Body(...), db: Session = Depen
 
 
 @app.get("/api/inventory/purchases")
-def api_get_purchases(item_id: Optional[int] = None, limit: int = 100,
+def api_get_purchases(response: Response, item_id: Optional[int] = None, limit: int = Query(100, ge=1, le=500),
+                      offset: int = Query(0, ge=0),
                       db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kirim", "korish"))):
-    """Xaridlar tarixi."""
-    items = crud.get_purchases(db, limit=limit, item_id=item_id, company_id=auth.company_id_of(current_user))
+    """Xaridlar tarixi.
+
+    kech120 (zip 129 — G4-14, O'LCHANGAN — audit kech114): ombor sahifasi oxirgi 60 ta xaridni ko'rsatardi, «yana»
+    yo'q va kesilgani aytilmasdi. Endi: `offset` («Yana yuklash»), sarlavhalarda `X-Jami` (jami xaridlar) va
+    `X-Keyingi` (keyingi sahifa `offset`i); sahifadagi oxirgi «Kirim» hujjati bo'linmaydi — uning qolgan qatorlari ham
+    qo'shiladi (`crud.kirim_qolgan_qatorlari`)."""
+    _cid = auth.company_id_of(current_user)
+    items = crud.get_purchases(db, limit=limit, item_id=item_id, company_id=_cid, offset=offset)
+    if items and items[-1].receipt_id and not item_id:
+        items = list(items) + crud.kirim_qolgan_qatorlari(db, items[-1].receipt_id, [p.id for p in items], company_id=_cid)
+    response.headers["X-Jami"] = str(crud.xaridlar_soni(db, item_id=item_id, company_id=_cid))
+    response.headers["X-Keyingi"] = str(offset + len(items))
     return [{
         "id": p.id,
         "inventory_id": p.inventory_id,
@@ -6579,22 +6621,14 @@ def api_production_periods(db: Session = Depends(get_db), current_user=Depends(a
     return services.get_production_period_stats(db, company_id=auth.company_id_of(current_user))
 
 
-@app.get("/api/inventory/movements")
-def api_inventory_movements(item_id: Optional[int] = None, movement_type: Optional[str] = None,
-                             order_id: Optional[int] = None, date_from: Optional[str] = None,
-                             date_to: Optional[str] = None, limit: int = 100, db: Session = Depends(get_db),
-                             current_user=Depends(auth.ruxsat("material", "korish"))):
-    """Ombor harakatlari jurnali — kirim va chiqimlar tarixi (faqat o'qish).
-
-    M3: faqat joriy korxonaning harakatlari.
-    date_from/date_to — 'YYYY-MM-DD' ko'rinishida, ma'lum kunlar oralig'ini
-    ko'rish uchun (masalan, hodim ishga kelmagan kunlarda qancha xomashyo
-    ishlatilganini tekshirish uchun)."""
+def _harakatlar_sorovi(db, company_id, item_id=None, movement_type=None, order_id=None, date_from=None, date_to=None):
+    """kech120 (zip 129 — G4-14): ombor harakatlari filtri — ro'yxat (`/api/inventory/movements`) va davr jami
+    (`/api/inventory/movements/jami`) uchun BITTA qoida (M3: faqat joriy korxona)."""
     from models import InventoryMovement
     from datetime import datetime, timedelta
     from database import TASHKENT_OFFSET
     q = db.query(InventoryMovement).filter(
-        InventoryMovement.company_id == auth.company_id_of(current_user))
+        InventoryMovement.company_id == company_id)
     if item_id:
         q = q.filter(InventoryMovement.inventory_id == item_id)
     if movement_type in ("in", "out"):
@@ -6615,8 +6649,51 @@ def api_inventory_movements(item_id: Optional[int] = None, movement_type: Option
             q = q.filter(InventoryMovement.created_at < dt)
         except ValueError:
             pass
-    rows = q.order_by(InventoryMovement.created_at.desc()).limit(limit).all()
+    return q
+
+
+@app.get("/api/inventory/movements")
+def api_inventory_movements(response: Response, item_id: Optional[int] = None, movement_type: Optional[str] = None,
+                             order_id: Optional[int] = None, date_from: Optional[str] = None,
+                             date_to: Optional[str] = None, limit: int = Query(100, ge=1, le=500),
+                             offset: int = Query(0, ge=0), db: Session = Depends(get_db),
+                             current_user=Depends(auth.ruxsat("material", "korish"))):
+    """Ombor harakatlari jurnali — kirim va chiqimlar tarixi (faqat o'qish).
+
+    M3: faqat joriy korxonaning harakatlari.
+    date_from/date_to — 'YYYY-MM-DD' ko'rinishida, ma'lum kunlar oralig'ini
+    ko'rish uchun (masalan, hodim ishga kelmagan kunlarda qancha xomashyo
+    ishlatilganini tekshirish uchun).
+
+    kech120 (zip 129 — G4-14, O'LCHANGAN — audit kech114): oyna oxirgi 100 (sana bilan — 500) harakatni ko'rsatardi,
+    «yana» yo'q va kesilgani aytilmasdi (bir kunda 288 chiqim — bugungilari ham to'liq ko'rinmasdi). Endi `offset`
+    («Yana yuklash»), sarlavhada `X-Jami` (filtr bo'yicha jami harakatlar); tartib barqaror (bir xil vaqtda — id)."""
+    from models import InventoryMovement
+    q = _harakatlar_sorovi(db, auth.company_id_of(current_user), item_id, movement_type, order_id, date_from, date_to)
+    response.headers["X-Jami"] = str(q.order_by(None).count())
+    rows = q.order_by(InventoryMovement.created_at.desc(), InventoryMovement.id.desc()).offset(offset).limit(limit).all()
     return [schemas.InventoryMovementRead.model_validate(r) for r in rows]
+
+
+@app.get("/api/inventory/movements/jami")
+def api_inventory_movements_jami(item_id: Optional[int] = None, movement_type: Optional[str] = None,
+                                 order_id: Optional[int] = None, date_from: Optional[str] = None,
+                                 date_to: Optional[str] = None, db: Session = Depends(get_db),
+                                 current_user=Depends(auth.ruxsat("material", "korish"))):
+    """kech120 (zip 129 — G4-14): «Tanlangan davr — jami» — HAMMA mos harakatlar bo'yicha (ilgari sahifadagi 500 ta
+    yuklangan qatordan hisoblanardi — ko'p bo'lsa kam chiqardi). Material (nom + birlik) bo'yicha kirim / chiqim."""
+    from models import InventoryMovement
+    from sqlalchemy import func as _f, case as _case
+    q = _harakatlar_sorovi(db, auth.company_id_of(current_user), item_id, movement_type, order_id, date_from, date_to)
+    rows = q.with_entities(
+        InventoryMovement.item_name, InventoryMovement.unit,
+        _f.sum(_case((InventoryMovement.movement_type == "in", InventoryMovement.quantity), else_=0.0)),
+        _f.sum(_case((InventoryMovement.movement_type == "out", InventoryMovement.quantity), else_=0.0)),
+        _f.count(InventoryMovement.id),
+    ).group_by(InventoryMovement.item_name, InventoryMovement.unit).order_by(InventoryMovement.item_name).all()
+    return {"materiallar": [{"name": r[0], "unit": r[1] or "", "in": round(float(r[2] or 0), 6),
+                             "out": round(float(r[3] or 0), 6), "soni": int(r[4] or 0)} for r in rows],
+            "jami": sum(int(r[4] or 0) for r in rows)}
 
 
 @app.get("/api/projects/{project_id}/detail-stats")
@@ -8596,13 +8673,16 @@ async def tiklash_bajarish(file: UploadFile = File(...),
                      for k, v in sorted(per.items()) if v)
     tashlab = natija.get("skipped_tables") or []
 
+    # kech120 (zip 129 — G6-23): yozuv KORXONA bilan (ilgari korxonasiz edi — `activity_logs.company_id` NOT NULL,
+    # yozuv jimgina yo'qolardi) va o'zbekcha nomli amal (`crud.AUDIT_AMALLARI`); xato bo'lsa sessiya tozalanadi.
     try:
-        crud.log_activity(db, action="Zaxiradan tiklash", entity_type="system",
-                          entity_id=0, entity_label=file.filename,
+        crud.log_activity(db, action="backup_restored", entity_type="system",
+                          entity_id=0, entity_label=f"Zaxira fayli «{file.filename or ''}»",
                           performed_by=getattr(current_user, "username", None),
-                          new_value=f"ustiga_yozish={ustiga}")
+                          new_value=("ustiga yozildi" if ustiga else "qo'shib tiklandi"),
+                          company_id=auth.company_id_of(current_user))
     except Exception:
-        pass
+        db.rollback()
 
     tana = (f'<h1>Tiklash yakunlandi</h1>'
             f'<div class="ok">'

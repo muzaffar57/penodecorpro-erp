@@ -4992,6 +4992,263 @@ def get_login_history(db: Session, limit: int = 100, company_id: int = None) -> 
     return q.order_by(LoginHistory.created_at.desc()).limit(limit).all()
 
 
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# kech120 (zip 129 — E bosqichi 3-qism, audit G6-23): JURNALLAR — filtr va sahifalash.
+# O'LCHANGAN (audit kech114, «Katta Korxona»): «Kirish tarixi» va «Audit jurnali» faqat oxirgi 100 yozuvni ko'rsatardi —
+# sana / foydalanuvchi bo'yicha filtr yoki qidiruv yo'q edi (300 buyurtma yaratilishi ham yoziladi — «o'tgan hafta kim
+# buyurtmani o'chirdi?» savoliga javob topib bo'lmasdi); nomi berilmagan amallar xom inglizcha chiqardi («refunded»,
+# «release_reservation», «delete», «gift_period_add_master»); «Zaxiradan tiklash» yozuvi korxonasiz yozilib (NOT NULL)
+# jimgina yo'qolardi.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+# Amal → (belgi, yozuv nomidan keyingi matn, filtrdagi nomi). Kodda yozilgan HAR amal shu ro'yxatda bo'lishi SHART —
+# `tools/test_e_tarix.py` kodning o'zidan (`log_activity` chaqiruvlari, `ActivityLog` konstruktori, `_po_jurnal`, obuna
+# `_jurnal`) amallarni yig'ib tekshiradi. Ro'yxatda yo'q (eski) amal sahifada «amal: <nom>» bo'lib chiqadi.
+AUDIT_AMALLARI = {
+    "created": ("➕", "yaratildi", "Yaratildi"),
+    "updated": ("✏️", "tahrirlandi", "Tahrirlandi"),
+    "deleted": ("🗑️", "o'chirildi", "O'chirildi"),
+    # «delete» — faqat brak yozuvini bekor qilish: yozuv nomining o'zi to'liq gap («Brak bekor qilindi: … · ombor tiklandi»)
+    "delete": ("🗑️", "", "O'chirildi"),
+    "restored": ("↩️", "tiklandi", "Tiklandi"),
+    "permanently_deleted": ("❌", "butunlay o'chirildi", "Butunlay o'chirildi"),
+    "activated": ("🚀", "jarayonga olindi", "Jarayonga olindi"),
+    "produced": ("🏭", "ishlab chiqarildi", "Ishlab chiqarildi"),
+    "cancelled": ("⛔", "bekor qilindi", "Bekor qilindi"),
+    "refunded": ("💸", "— ortiqcha to'lov mijozga qaytarildi", "Pul qaytarildi"),
+    "release_reservation": ("📦", "— band qilish bekor qilindi, umumiy sotuvga ochildi", "Band bekor qilindi"),
+    "auto_release_reservation": ("📦", "— band avtomatik bekor qilindi", "Band bekor qilindi"),
+    "gift_period_add_master": ("🎁", "— sovg'a davriga qo'shildi", "Sovg'a davriga qo'shildi"),
+    "password_reset": ("🔑", "— paroli tiklandi", "Parol tiklandi"),
+    "blocked": ("🔒", "bloklandi", "Bloklandi / ochildi"),
+    "unblocked": ("🔓", "ochildi", "Bloklandi / ochildi"),
+    "extended": ("📅", "— obuna uzaytirildi", "Obuna uzaytirildi"),
+    "backup_restored": ("💾", "— zaxiradan tiklandi", "Zaxiradan tiklandi"),
+    # eski yozuvlar (zip 129 dan oldin shu nom bilan yozilishi mo'ljallangan, lekin NOT NULL sabab yozilmagan)
+    "Zaxiradan tiklash": ("💾", "— zaxiradan tiklandi", "Zaxiradan tiklandi"),
+}
+
+JURNAL_SAHIFA_HAJMI = 50          # bir sahifadagi yozuvlar (Kirish tarixi, Audit jurnali)
+JURNAL_TANLOV_CHEGARA = 300       # «Foydalanuvchi» ro'yxatidagi ismlar soni (eng ko'p uchraganlari emas — alifbo tartibida)
+
+
+def audit_amal_nomi(action: str):
+    """(belgi, matn) — sahifa uchun; noma'lum amal — («📝», «amal: <nom>»)."""
+    _a = AUDIT_AMALLARI.get(action)
+    if _a is None:
+        return "📝", f"amal: {action}"
+    return _a[0], _a[1]
+
+
+def audit_amal_guruhlari():
+    """Filtr ro'yxati: [(kalit, nom, (amallar, …))] — bir xil nomli amallar bitta bandda (kalit — birinchi amal)."""
+    _g = {}
+    for _amal, (_b, _m, _nom) in AUDIT_AMALLARI.items():
+        _g.setdefault(_nom, []).append(_amal)
+    return [(v[0], k, tuple(v)) for k, v in _g.items()]
+
+
+def _jurnal_sanasi(matn):
+    """'YYYY-MM-DD' → datetime (Toshkent kuni boshi) yoki None (bo'sh / noto'g'ri — filtr qo'llanmaydi)."""
+    try:
+        return datetime.strptime((matn or "").strip(), "%Y-%m-%d")
+    except ValueError:
+        return None
+
+
+def _jurnal_sana_oraligi(q, ustun, sana_dan, sana_gacha):
+    """Toshkent kunlari [dan; gacha] — bazadagi UTC vaqt bilan (−5 soat). Teskari berilsa — almashtiriladi.
+    Qaytaradi: (so'rov, dan_matn, gacha_matn) — sahifa maydonlariga qaytadigan TOZA qiymatlar."""
+    from datetime import timedelta as _td
+    from database import TASHKENT_OFFSET as _OF
+    _d, _g = _jurnal_sanasi(sana_dan), _jurnal_sanasi(sana_gacha)
+    if _d and _g and _d > _g:
+        _d, _g = _g, _d
+    if _d:
+        q = q.filter(ustun >= _d - _OF)
+    if _g:
+        q = q.filter(ustun < _g - _OF + _td(days=1))
+    return q, (_d.strftime("%Y-%m-%d") if _d else ""), (_g.strftime("%Y-%m-%d") if _g else "")
+
+
+def _jurnal_sahifalash(q, vaqt_ustun, id_ustun, sahifa, hajm):
+    """Umumiy son + bitta sahifa (yangisi tepada; bir xil vaqtda — id bo'yicha, sahifalar orasida takror / tushib
+    qolish yo'q). Sahifa raqami 1 dan kichik / oxiridan katta bo'lsa — chegaraga keltiriladi."""
+    _jami = q.order_by(None).count()
+    _sahifalar = max(1, (_jami + hajm - 1) // hajm)
+    try:
+        _s = int(sahifa or 1)
+    except (TypeError, ValueError):
+        _s = 1
+    _s = min(max(_s, 1), _sahifalar)
+    _y = q.order_by(vaqt_ustun.desc(), id_ustun.desc()).offset((_s - 1) * hajm).limit(hajm).all()
+    return {"yozuvlar": _y, "jami": _jami, "sahifa": _s, "sahifalar": _sahifalar, "hajm": hajm,
+            "boshi": ((_s - 1) * hajm + 1) if _y else 0, "oxiri": (_s - 1) * hajm + len(_y)}
+
+
+JURNAL_LIKE_ESCAPE = "!"           # LIKE ichidagi `%` / `_` ni oddiy belgi qiladigan belgi (teskari chiziq emas — PG / SQLite bir xil)
+
+
+def _jurnal_matn_qolipi(matn):
+    """Qidiruv matni → LIKE qolipi (`%` va `_` — oddiy belgi sifatida)."""
+    _t = (matn or "").strip()[:100]
+    if not _t:
+        return None, ""
+    _e = JURNAL_LIKE_ESCAPE
+    return "%" + _t.replace(_e, _e + _e).replace("%", _e + "%").replace("_", _e + "_") + "%", _t
+
+
+def audit_jurnali_sahifasi(db: Session, company_id: int, sana_dan: str = None, sana_gacha: str = None,
+                           kim: str = None, amal: str = None, matn: str = None, sahifa=1,
+                           hajm: int = JURNAL_SAHIFA_HAJMI) -> dict:
+    """«Audit jurnali» — FAQAT shu korxona; filtrlar: Toshkent sanasi oralig'i, kim (aynan), amal guruhi
+    (`audit_amal_guruhlari` kaliti), matn (yozuv nomi, eski / yangi qiymat, kim ichida — katta-kichik harf farqsiz).
+    Qaytaradi: `_jurnal_sahifalash` + toza filtr qiymatlari («filtr») va «Foydalanuvchi» ro'yxati («kimlar»)."""
+    from models import ActivityLog
+    from sqlalchemy import or_ as _or
+    q = db.query(ActivityLog).filter(ActivityLog.company_id == company_id)
+    q, _d, _g = _jurnal_sana_oraligi(q, ActivityLog.created_at, sana_dan, sana_gacha)
+    _kim = (kim or "").strip()
+    if _kim:
+        q = q.filter(ActivityLog.performed_by == _kim)
+    _amal = ""
+    for _k, _n, _amallar in audit_amal_guruhlari():
+        if amal == _k:
+            q = q.filter(ActivityLog.action.in_(list(_amallar)))
+            _amal = _k
+            break
+    _qolip, _matn = _jurnal_matn_qolipi(matn)
+    if _qolip:
+        _e = JURNAL_LIKE_ESCAPE
+        q = q.filter(_or(ActivityLog.entity_label.ilike(_qolip, escape=_e),
+                         ActivityLog.old_value.ilike(_qolip, escape=_e),
+                         ActivityLog.new_value.ilike(_qolip, escape=_e),
+                         ActivityLog.performed_by.ilike(_qolip, escape=_e)))
+    natija = _jurnal_sahifalash(q, ActivityLog.created_at, ActivityLog.id, sahifa, hajm)
+    natija["filtr"] = {"dan": _d, "gacha": _g, "kim": _kim, "amal": _amal, "matn": _matn}
+    natija["kimlar"] = [r[0] for r in db.query(ActivityLog.performed_by).filter(
+        ActivityLog.company_id == company_id, ActivityLog.performed_by.isnot(None), ActivityLog.performed_by != ""
+    ).distinct().order_by(ActivityLog.performed_by).limit(JURNAL_TANLOV_CHEGARA).all()]
+    return natija
+
+
+def kirish_tarixi_sahifasi(db: Session, company_id: int, sana_dan: str = None, sana_gacha: str = None,
+                           kim: str = None, natija_turi: str = None, sahifa=1,
+                           hajm: int = JURNAL_SAHIFA_HAJMI) -> dict:
+    """«Kirish tarixi» — FAQAT shu korxona; filtrlar: sana oralig'i, foydalanuvchi nomi (aynan), natija
+    («ok» — muvaffaqiyatli, «xato» — noto'g'ri urinish)."""
+    from models import LoginHistory
+    q = db.query(LoginHistory).filter(LoginHistory.company_id == company_id)
+    q, _d, _g = _jurnal_sana_oraligi(q, LoginHistory.created_at, sana_dan, sana_gacha)
+    _kim = (kim or "").strip()
+    if _kim:
+        q = q.filter(LoginHistory.username == _kim)
+    _nt = natija_turi if natija_turi in ("ok", "xato") else ""
+    if _nt:
+        q = q.filter(LoginHistory.success == (_nt == "ok"))
+    natija = _jurnal_sahifalash(q, LoginHistory.created_at, LoginHistory.id, sahifa, hajm)
+    natija["filtr"] = {"dan": _d, "gacha": _g, "kim": _kim, "natija": _nt}
+    natija["kimlar"] = [r[0] for r in db.query(LoginHistory.username).filter(
+        LoginHistory.company_id == company_id).distinct().order_by(LoginHistory.username).limit(JURNAL_TANLOV_CHEGARA).all()]
+    return natija
+
+
+# kech120 (zip 129 — G6-23): TAHRIR YOZUVIDA — NIMA O'ZGARGANI. O'LCHANGAN (audit kech114): «Retsept «Standart» — Dekor
+# panel tahrirlandi» yozuvida eski va yangi qiymat bir xil edi («partiya 1 m², 4 ta material → partiya 1 m², 4 ta
+# material») — material miqdori o'zgarsa ham qisqa tavsif o'zgarmaydi; buyurtma tahriri ham faqat «Jami, N ta detal».
+# Endi yangi qiymat 2-qatorida «O'zgardi: …» — faqat o'zgargan maydonlar (eski → yangi). 1-qator (qisqa tavsif) va
+# eski qiymat avvalgidek qoladi (eski yozuvlar va ularni o'qiydigan joylar o'zgarmaydi).
+AUDIT_FARQ_BELGI = "\nO'zgardi: "
+AUDIT_FARQ_CHEGARA = 12           # bitta yozuvdagi o'zgarishlar ro'yxati (qolgani — «yana N ta o'zgarish»)
+
+
+def audit_son(x) -> str:
+    """Jurnal matni uchun son: 1200000 → «1 200 000», 12.5 → «12,5» (kasr — vergul, U-05)."""
+    try:
+        x = float(x or 0)
+    except (TypeError, ValueError):
+        return str(x)
+    if abs(x - round(x)) < 1e-9:
+        return f"{int(round(x)):,}".replace(",", " ")
+    return f"{x:,.3f}".rstrip("0").rstrip(".").replace(",", " ").replace(".", ",")
+
+
+def audit_farq_matni(farqlar) -> str:
+    """O'zgarishlar ro'yxati → yangi qiymatga qo'shiladigan «\\nO'zgardi: a; b; …» (bo'sh — «hech narsa»)."""
+    _f = [str(x) for x in (farqlar or []) if x]
+    if not _f:
+        return AUDIT_FARQ_BELGI + "hech narsa (o'sha holat qayta saqlandi)"
+    _k = _f[:AUDIT_FARQ_CHEGARA]
+    if len(_f) > AUDIT_FARQ_CHEGARA:
+        _k.append(f"yana {len(_f) - AUDIT_FARQ_CHEGARA} ta o'zgarish")
+    return AUDIT_FARQ_BELGI + "; ".join(_k)
+
+
+def _buyurtma_audit_holati(order) -> dict:
+    """Buyurtmaning jurnal uchun holati (oddiy qiymatlar — sessiyadan mustaqil): jami, kelishilgan, muddat, usta va
+    detallar (nom + o'lcham + qoplama bo'yicha jamlangan miqdor / summa, penoplast / tayyor mahsulot)."""
+    _detal = {}
+    for _i in list(order.items or []):
+        _olcham = "×".join(audit_son(v) for v in (_i.width, _i.thickness, _i.length) if v)
+        _kalit = ((_i.name or "").strip(), (_i.category or "").strip(), _olcham, _i.is_coated is not False)
+        _d = _detal.setdefault(_kalit, {"miqdor": 0.0, "summa": 0.0, "birlik": None, "manba": set()})
+        _d["miqdor"] += float(_i.quantity or 0)
+        _d["summa"] += float(_i.total_price or 0)
+        _d["birlik"] = _d["birlik"] or (_i.gips_unit or None)
+        _d["manba"].add((_i.penoplast_id, _i.finished_product_id))
+    return {"jami": float(order.total_amount or 0),
+            "kelishilgan": float(order.agreed_amount) if order.agreed_amount is not None else None,
+            "muddat": order.deadline, "usta_id": order.master_id, "detallar": _detal}
+
+
+def _buyurtma_audit_farqi(db: Session, company_id: int, eski: dict, yangi: dict) -> list:
+    """Ikki `_buyurtma_audit_holati` orasidagi o'zgarishlar (matnlar ro'yxati)."""
+    _f = []
+
+    def _nom(k):
+        _s = k[0] or k[1] or "detal"
+        if k[2]:
+            _s += f" {k[2]}"
+        if not k[3]:
+            _s += " (qoplamasiz)"
+        return _s
+
+    def _bir(d):
+        return d.get("birlik") or "ta"
+
+    _e, _y = eski["detallar"], yangi["detallar"]
+    for _k in _e:
+        if _k not in _y:
+            _f.append(f"− {_nom(_k)} ({audit_son(_e[_k]['miqdor'])} {_bir(_e[_k])})")
+    for _k in _y:
+        if _k not in _e:
+            _f.append(f"+ {_nom(_k)} ({audit_son(_y[_k]['miqdor'])} {_bir(_y[_k])}, {audit_son(_y[_k]['summa'])} so'm)")
+            continue
+        _a, _b = _e[_k], _y[_k]
+        if abs(_a["miqdor"] - _b["miqdor"]) > 1e-9:
+            _f.append(f"{_nom(_k)}: {audit_son(_a['miqdor'])} → {audit_son(_b['miqdor'])} {_bir(_b)}")
+        elif abs(_a["summa"] - _b["summa"]) > 0.004:
+            _f.append(f"{_nom(_k)}: {audit_son(_a['summa'])} → {audit_son(_b['summa'])} so'm")
+        if _a["manba"] != _b["manba"]:
+            _f.append(f"{_nom(_k)}: xomashyo / mahsulot almashtirildi")
+    if abs(eski["jami"] - yangi["jami"]) > 0.004:
+        _f.append(f"jami: {audit_son(eski['jami'])} → {audit_son(yangi['jami'])} so'm")
+    if (eski["kelishilgan"] is None) != (yangi["kelishilgan"] is None) or (
+            eski["kelishilgan"] is not None and abs(eski["kelishilgan"] - yangi["kelishilgan"]) > 0.004):
+        _f.append(f"kelishilgan summa: {audit_son(eski['kelishilgan']) if eski['kelishilgan'] is not None else '—'} → "
+                  f"{audit_son(yangi['kelishilgan']) if yangi['kelishilgan'] is not None else '—'} so'm")
+    if eski["muddat"] != yangi["muddat"]:
+        def _sana(d):
+            return d.strftime("%d.%m.%Y") if d else "—"
+        _f.append(f"topshirish muddati: {_sana(eski['muddat'])} → {_sana(yangi['muddat'])}")
+    if eski["usta_id"] != yangi["usta_id"]:
+        _ids = [i for i in (eski["usta_id"], yangi["usta_id"]) if i]
+        _ismlar = {m.id: m.name for m in db.query(Master).filter(Master.id.in_(_ids), Master.company_id == company_id).all()} \
+            if _ids else {}
+        _f.append(f"usta: {_ismlar.get(eski['usta_id'], '—')} → {_ismlar.get(yangi['usta_id'], '—')}")
+    return _f
+
+
 def log_error(db: Session, error_message: str, stack_trace: str = None,
               endpoint: str = None, method: str = None, performed_by: str = None,
               company_id: int = None):
@@ -8490,6 +8747,11 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
 
     # AUDIT uchun — tahrirlashdan OLDINGI qisqa holatni saqlab qo'yamiz
     _audit_before = f"Jami: {float(order.total_amount or 0):,.0f} so'm, {len(order.items)} ta detal".replace(',', ' ')
+    # kech120 (zip 129 — G6-23): nima o'zgarganini yozish uchun — tahrirdan OLDINGI holat (oddiy qiymatlar)
+    try:
+        _audit_eski = _buyurtma_audit_holati(order)
+    except Exception:
+        _audit_eski = None
 
     # 1) Eski detallarni snapshot qilamiz (ombor hisobi uchun)
     old_snapshot = [{
@@ -8985,6 +9247,12 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         _audit_after = f"Jami: {float(order.total_amount or 0):,.0f} so'm, {len(order.items)} ta detal".replace(',', ' ')
         if _qr53_matn:
             _audit_after += f"; {_qr53_matn}"
+        if _audit_eski is not None:
+            try:        # farq hisobidagi xato yozuvning O'ZINI yo'qotmasin
+                _audit_after += audit_farq_matni(_buyurtma_audit_farqi(db, order.company_id, _audit_eski,
+                                                                       _buyurtma_audit_holati(order)))
+            except Exception:
+                pass
         log_activity(db, "updated", "order", order.id, order.order_number, performed_by,
                       old_value=_audit_before, new_value=_audit_after,
                       company_id=getattr(order, 'company_id', None))
@@ -11957,11 +12225,22 @@ def get_finished_profit(db: Session, fp_id: int, company_id: int = None) -> dict
 # ============================================================
 
 def get_purchases(db: Session, limit: int = 100, item_id: int = None,
-                  company_id: int = None) -> List:
+                  company_id: int = None, offset: int = 0) -> List:
     """Xaridlar tarixi.
 
     M3: InventoryPurchase'da company_id ustuni YO'Q — filtrlash ota
-    (material) orqali, JOIN bilan."""
+    (material) orqali, JOIN bilan.
+
+    kech120 (zip 129 — G4-14): `offset` («Yana yuklash») va barqaror tartib (bir xil vaqtda — id bo'yicha: sahifalar
+    orasida takror / tushib qolish yo'q)."""
+    from models import InventoryPurchase
+    q = _xaridlar_sorovi(db, item_id, company_id)
+    return q.order_by(InventoryPurchase.purchased_at.desc(), InventoryPurchase.id.desc()) \
+        .offset(max(int(offset or 0), 0)).limit(limit).all()
+
+
+def _xaridlar_sorovi(db: Session, item_id: int = None, company_id: int = None):
+    """`get_purchases` / `xaridlar_soni` uchun umumiy so'rov (korxona — material orqali)."""
     from models import InventoryPurchase
     q = db.query(InventoryPurchase)
     if company_id is not None:
@@ -11969,7 +12248,25 @@ def get_purchases(db: Session, limit: int = 100, item_id: int = None,
             Inventory.company_id == company_id)
     if item_id:
         q = q.filter(InventoryPurchase.inventory_id == item_id)
-    return q.order_by(InventoryPurchase.purchased_at.desc()).limit(limit).all()
+    return q
+
+
+def xaridlar_soni(db: Session, item_id: int = None, company_id: int = None) -> int:
+    """kech120 (zip 129 — G4-14): xaridlar tarixining JAMI soni («Ko'rsatilgan: N / JAMI»)."""
+    return _xaridlar_sorovi(db, item_id, company_id).count()
+
+
+def kirim_qolgan_qatorlari(db: Session, receipt_id, olingan_idlar, company_id: int = None) -> List:
+    """kech120 (zip 129 — G4-14): sahifa chegarasi bitta «Kirim» hujjatini bo'lib yubormasin — sahifadagi oxirgi
+    xarid hujjatga tegishli bo'lsa, shu hujjatning sahifaga tushmagan qatorlari (tartib — xaridlar tarixidagidek)."""
+    from models import InventoryPurchase
+    if not receipt_id:
+        return []
+    q = _xaridlar_sorovi(db, None, company_id).filter(InventoryPurchase.receipt_id == receipt_id)
+    _ids = [i for i in (olingan_idlar or []) if i is not None]
+    if _ids:
+        q = q.filter(~InventoryPurchase.id.in_(_ids))
+    return q.order_by(InventoryPurchase.purchased_at.desc(), InventoryPurchase.id.desc()).all()
 
 
 def get_purchase_stats(db: Session, year: int = None, month: int = None,

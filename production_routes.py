@@ -81,6 +81,66 @@ def _retsept_xulosa(bom, unit: str) -> str:
             f"{_n} ta material").replace(" ,", ",")
 
 
+def _retsept_holati(bom) -> dict:
+    """kech120 (zip 129 — G6-23): retseptning jurnal uchun holati (oddiy qiymatlar — o'zgarishdan OLDIN olinadi):
+    nom, partiya, izoh va materiallar (material + turi bo'yicha: miqdor, chiqindi %, ixtiyoriy / qoplama, narx
+    sozlamalari, izoh)."""
+    _m = {}
+    for _i in list(bom.items or []):
+        _k = (_i.inventory_id, _i.component_type or "")
+        _d = _m.setdefault(_k, {"miqdor": 0.0, "boshqa": []})
+        _d["miqdor"] += float(_i.quantity or 0)
+        _d["boshqa"].append((float(_i.scrap_factor_percent or 0), bool(_i.is_optional), bool(_i.is_coating),
+                             _i.fixed_cost_per_unit, _i.percentage_cost, (_i.notes or "").strip()))
+    return {"nom": bom.variant_name or "", "partiya": float(bom.batch_quantity or 0),
+            "izoh": (bom.notes or "").strip(), "materiallar": _m}
+
+
+def _retsept_farqi(db: Session, company_id: int, eski: dict, yangi: dict, unit: str) -> list:
+    """kech120 (zip 129 — G6-23): ikki `_retsept_holati` orasidagi o'zgarishlar. O'LCHANGAN (audit kech114): ilgari
+    yozuvda faqat «partiya 1 m², 4 ta material → partiya 1 m², 4 ta material» — material miqdori o'zgargani
+    ko'rinmasdi."""
+    _ids = {k[0] for k in list(eski["materiallar"]) + list(yangi["materiallar"])}
+    _inv = {r.id: r for r in db.query(Inventory).filter(Inventory.id.in_(_ids), Inventory.company_id == company_id).all()} \
+        if _ids else {}
+
+    def _nom(k):
+        _r = _inv.get(k[0])
+        _s = _r.item_name if _r else f"material #{k[0]}"
+        return _s + (" (qadoq)" if k[1] == "packaging" else "")
+
+    def _bir(k):
+        _r = _inv.get(k[0])
+        return (" " + _r.unit) if _r and _r.unit else ""
+
+    _f = []
+    if eski["nom"] != yangi["nom"]:
+        _f.append(f"nomi: «{eski['nom']}» → «{yangi['nom']}»")
+    if abs(eski["partiya"] - yangi["partiya"]) > 1e-9:
+        _f.append(f"partiya: {crud.audit_son(eski['partiya'])} → {crud.audit_son(yangi['partiya'])} {unit or ''}".rstrip())
+    if eski["izoh"] != yangi["izoh"]:
+        _f.append("izoh o'zgardi")
+    _e, _y = eski["materiallar"], yangi["materiallar"]
+    for _k in _e:
+        if _k not in _y:
+            _f.append(f"− {_nom(_k)}")
+    for _k in _y:
+        if _k not in _e:
+            _f.append(f"+ {_nom(_k)} {crud.audit_son(_y[_k]['miqdor'])}{_bir(_k)}")
+            continue
+        if abs(_e[_k]["miqdor"] - _y[_k]["miqdor"]) > 1e-9:
+            _f.append(f"{_nom(_k)}: {crud.audit_son(_e[_k]['miqdor'])} → {crud.audit_son(_y[_k]['miqdor'])}{_bir(_k)}")
+        if _e[_k]["boshqa"] != _y[_k]["boshqa"]:
+            _a, _b = _e[_k]["boshqa"], _y[_k]["boshqa"]
+            if len(_a) == len(_b) == 1 and _a[0][0] != _b[0][0] and _a[0][1:] == _b[0][1:]:
+                _f.append(f"{_nom(_k)}: chiqindi {crud.audit_son(_a[0][0])} → {crud.audit_son(_b[0][0])} %")
+            elif len(_a) == len(_b) == 1 and _a[0][1] != _b[0][1] and _a[0][2:] == _b[0][2:] and _a[0][0] == _b[0][0]:
+                _f.append(f"{_nom(_k)}: {'ixtiyoriy' if _a[0][1] else 'majburiy'} → {'ixtiyoriy' if _b[0][1] else 'majburiy'}")
+            else:
+                _f.append(f"{_nom(_k)}: sozlamasi o'zgardi (chiqindi / ixtiyoriy / qoplama / narx / izoh)")
+    return _f
+
+
 @router.get("/product-types", response_model=list[schemas.ProductTypeRead])
 def list_product_types(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("mahsulot_turi", "korish"))):
     return db.query(ProductType).filter(
@@ -283,6 +343,7 @@ def update_bom(bom_id: int, data: dict = Body(...), db: Session = Depends(get_db
                                           ProductType.company_id == bom.company_id).first()
     _unit110 = _pt110.unit if _pt110 else ""
     _eski110 = _retsept_xulosa(bom, _unit110)      # kech110 (2c): o'zgarishdan OLDINGI holat
+    _holat120 = _retsept_holati(bom)               # kech120 (zip 129 — G6-23): nima o'zgarganini yozish uchun
     bom.variant_name = _vnom
     bom.batch_quantity = data.batch_quantity
     bom.notes = data.notes
@@ -292,9 +353,13 @@ def update_bom(bom_id: int, data: dict = Body(...), db: Session = Depends(get_db
     db.flush()
     db.expire(bom, ["items"])
     # kech110 (2c): Faoliyat jurnali — eski → yangi (amal bilan BITTA tranzaksiyada)
+    try:        # farq matnidagi kutilmagan xato retseptni saqlashga xalaqit bermasin — yozuv qisqa tavsif bilan qoladi
+        _farq120 = crud.audit_farq_matni(_retsept_farqi(db, bom.company_id, _holat120, _retsept_holati(bom), _unit110))
+    except Exception:
+        _farq120 = ""
     crud.log_activity(db, "updated", "bom", bom.id,
                       f"Retsept «{bom.variant_name}» — {_pt110.name if _pt110 else 'mahsulot'}", _kim(current_user),
-                      old_value=_eski110, new_value=_retsept_xulosa(bom, _unit110),
+                      old_value=_eski110, new_value=_retsept_xulosa(bom, _unit110) + _farq120,
                       company_id=bom.company_id, commit=False)
     db.commit()
     db.refresh(bom)
