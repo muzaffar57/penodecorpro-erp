@@ -35,6 +35,22 @@ html[data-theme="dark"] .dbt-tab.active{background:var(--f-eceae6);color:var(--m
 .dbt-item-name{font-size:13.5px;font-weight:700;color:var(--d-text)}
 .dbt-item-sub{font-size:12px;color:var(--d-text3);margin-top:2px}
 .dbt-item-amount{font-size:15.5px;font-weight:800;color:var(--d-danger);white-space:nowrap}
+/* kech120 (G3-07): mijoz guruhi (sarlavha — jami qarz; bosilsa buyurtmalari ochiladi), qidiruv / filtr paneli */
+.dbt-asbob{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--ch-f3f4f6)}
+.dbt-asbob input[type=search]{flex:1 1 200px;min-width:0;padding:7px 10px;border:1px solid var(--d-border);border-radius:8px;font-size:13px;font-family:inherit}
+.dbt-filtr{display:flex;flex-wrap:wrap;gap:6px}
+.dbt-f{border:1px solid var(--d-border);background:var(--white);border-radius:999px;padding:5px 11px;font-size:12.5px;cursor:pointer;color:var(--d-text2);min-height:32px;font-family:inherit}
+.dbt-f.active{background:var(--f-fef2f2);border-color:var(--d-danger);color:var(--m-b91c1c);font-weight:700}
+.dbt-mijoz{border-bottom:1px solid var(--ch-f3f4f6)}
+.dbt-mijoz-bosh{display:flex;gap:10px;align-items:flex-start;padding:13px 16px;cursor:pointer;user-select:none}
+.dbt-mijoz-bosh:hover{background:var(--d-bg)}
+.dbt-mijoz-strelka{font-size:12px;color:var(--d-text3);margin-top:3px;transition:transform .15s;flex-shrink:0}
+.dbt-mijoz.ochiq .dbt-mijoz-strelka{transform:rotate(90deg)}
+.dbt-mijoz-buyurtmalar{display:none}
+.dbt-mijoz.ochiq .dbt-mijoz-buyurtmalar{display:block}
+.dbt-mijoz-buyurtmalar .dbt-item{padding-left:30px}
+.dbt-tel{color:inherit;text-decoration:none;white-space:nowrap}
+.qarz-muddat{color:var(--m-b91c1c);font-weight:600}
 .dbt-progress-track{height:5px;background:var(--f-f3f4f6);border-radius:3px;margin-top:8px}
 .dbt-progress-fill{height:100%;background:var(--d-success);border-radius:3px}
 .dbt-sum-row{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--ch-f3f4f6);font-size:13px}
@@ -79,7 +95,8 @@ html[data-theme="dark"] .dbt-tab.active{background:var(--f-eceae6);color:var(--m
   {% endif %}
 
   <div class="dbt-tabs">
-    <button class="dbt-tab active" data-t="customers" onclick="switchTab('customers')"><i class="ti ti-user" style="vertical-align:-2px"></i> Bizga qarzdorlar ({{ order_debts|length }})</button>
+    {# kech120 (G3-07): sarlavhada mijozlar VA buyurtmalar soni (ilgari faqat buyurtmalar — «288» mijoz emas edi) #}
+    <button class="dbt-tab active" data-t="customers" onclick="switchTab('customers')"><i class="ti ti-user" style="vertical-align:-2px"></i> Bizga qarzdorlar ({{ mijoz_guruhlari|length }} mijoz · {{ order_debts|length }} buyurtma)</button>
     <button class="dbt-tab" data-t="refunds" onclick="switchTab('refunds')"><i class="ti ti-arrow-back-up" style="vertical-align:-2px"></i> Mijozga qaytarish ({{ ortiqcha_royxat|length }})</button>
     <button class="dbt-tab" data-t="suppliers" onclick="switchTab('suppliers')"><i class="ti ti-truck" style="vertical-align:-2px"></i> Ta'minotchilarga qarzimiz ({{ supplier_debts|length }})</button>
     <button class="dbt-tab" data-t="company" onclick="switchTab('company')"><i class="ti ti-building" style="vertical-align:-2px"></i> Boshqa majburiyatlarimiz ({{ (company_obligations.employees|length) + (company_obligations.recurring|length) }})</button>
@@ -89,11 +106,42 @@ html[data-theme="dark"] .dbt-tab.active{background:var(--f-eceae6);color:var(--m
   <div id="tab-customers">
     <div class="dbt-grid">
       <div class="dbt-card">
+        {# kech120 (E bosqichi 2-qism, G3-07): qidiruv (mijoz, telefon, buyurtma raqami, loyiha) va «Muddati o'tgan» filtri; ro'yxat
+           MIJOZ bo'yicha guruhlangan (jami qarz, ichida buyurtmalar) #}
+        {% if order_debts %}
+        <div class="dbt-asbob">
+          <input type="search" id="qarzQidiruv" placeholder="Qidirish: mijoz, telefon, buyurtma raqami" oninput="qarzQidir(this.value)"
+                 aria-label="Qarzdorlarni qidirish">
+          <div class="dbt-filtr" role="group" aria-label="Qarzdorlar filtri">
+            <button type="button" class="dbt-f active" data-f="hammasi" aria-pressed="true" onclick="qarzFiltrla('hammasi')">Hammasi</button>
+            <button type="button" class="dbt-f" data-f="otgan" aria-pressed="false" onclick="qarzFiltrla('otgan')">🔴 Muddati o'tgan ({{ qarz_muddati_otgan_soni }})</button>
+          </div>
+        </div>
+        {% endif %}
         <div class="dbt-list">
+          <div id="qarzBosh" style="display:none;padding:22px 14px;text-align:center;color:var(--d-text3);font-size:13px">Bu qidiruv / filtr bo'yicha qarzdor yo'q</div>
           {% if order_debts %}
-            {% for o in order_debts %}
+            {% for g in mijoz_guruhlari %}
+            {% set g_birinchi = loop.first %}
+            <div class="dbt-mijoz{% if g_birinchi %} ochiq{% endif %}" data-mijoz="{{ g.nom }}" data-telefon="{{ g.telefon }}">
+              <div class="dbt-mijoz-bosh" role="button" tabindex="0" aria-expanded="{{ 'true' if g_birinchi else 'false' }}"
+                   onclick="mijozGuruhiniOch(this.parentElement)"
+                   onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();mijozGuruhiniOch(this.parentElement);}">
+                <span class="dbt-mijoz-strelka" aria-hidden="true">▶</span>
+                <div class="dbt-item-body">
+                  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+                    <div style="min-width:0">
+                      <div class="dbt-item-name">{{ g.nom }}</div>
+                      <div class="dbt-item-sub">{{ g.buyurtmalar|length }} ta buyurtma{% if g.telefon %} · <a class="dbt-tel" href="tel:{{ g.telefon }}" onclick="event.stopPropagation()">📞 {{ g.telefon }}</a>{% endif %}{% if g.muddati_otgan %} · <span class="qarz-muddat">{{ g.muddati_otgan }} tasi muddati o'tgan</span>{% endif %}</div>
+                    </div>
+                    <div class="dbt-item-amount">{{ ("{:,.2f}" if (g.jami % 1) else "{:,.0f}").format(g.jami).replace(",", " ") }} so'm</div>
+                  </div>
+                </div>
+              </div>
+              <div class="dbt-mijoz-buyurtmalar">
+            {% for o in g.buyurtmalar %}
             {% set paid_pct = ((o.paid_amount|float / o.agreed_amount|float * 100) if o.agreed_amount|float > 0 else 0) %}
-            <div class="dbt-item {% if loop.first %}active{% endif %}" onclick="selectOrderDebt(this)"
+            <div class="dbt-item {% if g_birinchi and loop.first %}active{% endif %}" onclick="selectOrderDebt(this)"
                  data-id="{{ o.id }}"
                  data-order-number="{{ o.order_number }}"
                  data-client="{{ o.project.client_name }}"
@@ -103,13 +151,14 @@ html[data-theme="dark"] .dbt-tab.active{background:var(--f-eceae6);color:var(--m
                  data-paid="{{ o.paid_amount }}"
                  data-debt="{{ o.debt_amount }}"
                  data-deleted="{{ 'true' if o.is_deleted else 'false' }}"
+                 data-muddat-otgan="{{ '1' if o.qarz_muddati_otgan else '0' }}"
                  data-deadline="{{ o.deadline|toshkent('%d.%m.%Y') if o.deadline else '—' }}">
               <div class="dbt-avatar">{{ (o.project.client_name or '?')[0]|upper }}</div>
               <div class="dbt-item-body">
                 <div style="display:flex;justify-content:space-between;align-items:flex-start">
                   <div>
-                    <div class="dbt-item-name">{{ o.project.client_name }}</div>
-                    <div class="dbt-item-sub">{{ o.order_number }} · {{ o.project.project_name }}{% if o.is_deleted %} · <span class="qarz-ochirilgan" style="color:var(--m-dc2626)">o'chirilgan</span>{% endif %}</div>
+                    <div class="dbt-item-name">{{ o.order_number }}</div>
+                    <div class="dbt-item-sub">{{ o.project.project_name }}{% if o.qarz_muddati_otgan %} · <span class="qarz-muddat">muddati o'tgan ({{ o.deadline|toshkent('%d.%m.%Y') }})</span>{% endif %}{% if o.is_deleted %} · <span class="qarz-ochirilgan" style="color:var(--m-dc2626)">o'chirilgan</span>{% endif %}</div>
                   </div>
                   <div class="dbt-item-amount">{{ "{:,.0f}".format(o.debt_amount).replace(",", " ") }} so'm</div>
                 </div>
@@ -117,8 +166,13 @@ html[data-theme="dark"] .dbt-tab.active{background:var(--f-eceae6);color:var(--m
               </div>
             </div>
             {% endfor %}
-          {% else %}
+              </div>
+            </div>
+            {% endfor %}
+          {% elif buyurtma_bor %}
             <div class="dbt-empty"><i class="ti ti-circle-check"></i><div style="font-size:15px;font-weight:600;color:var(--d-text2)">Barcha mijozlar to'liq to'lagan!</div></div>
+          {% else %}
+            <div class="dbt-empty"><i class="ti ti-receipt"></i><div style="font-size:15px;font-weight:600;color:var(--d-text2)">Hali buyurtma yo'q</div><div style="font-size:13px;color:var(--d-text3);margin-top:4px">Mijozlarning qarzlari buyurtmalardan keyin shu yerda ko'rinadi</div></div>
           {% endif %}
         </div>
       </div>
@@ -664,6 +718,10 @@ function qarzTafsilotigaSur(nomId) {
 function selectOrderDebt(el){
   document.querySelectorAll('#tab-customers .dbt-item').forEach(i => i.classList.remove('active'));
   el.classList.add('active');
+  // kech120 (G3-07): qator mijoz guruhida — guruh ochiq bo'lsin; tanlov qayta yuklanganda (to'lovdan keyin) tiklanadi
+  const _mg = (typeof el.closest === 'function') ? el.closest('.dbt-mijoz') : null;   // sinov soxta elementida `closest` yo'q
+  if (_mg && typeof mijozGuruhiniOch === 'function') mijozGuruhiniOch(_mg, true);
+  try { sessionStorage.setItem('qarz_tanlangan', String(el.dataset.id || '')); } catch (e) { /* tiklanmaydi — ish buzilmaydi */ }
   if (typeof qarzTafsilotigaSur === 'function') qarzTafsilotigaSur('cd-name');   // kech119 (C — telefon, G3-08)
   selectedOrderId = el.dataset.id;
   const d = el.dataset;
@@ -686,7 +744,7 @@ function selectOrderDebt(el){
       <div style="font-size:12px;color:var(--text3);margin-top:4px;text-align:right">${pct}% to'langan</div></div>
     ${d.deleted === 'true'
       ? '<div style="margin-top:12px;font-size:12px;color:var(--m-dc2626);text-align:center">Buyurtma o\'chirilgan (topshirilgan qismi hisobotda) — qarz undirilishi kerak</div><a href="/trash" style="display:block;margin-top:6px;text-align:center;font-size:12.5px;color:var(--gold-dark);text-decoration:none">O\'chirilganlar sahifasida ochish →</a>'
-      : '<a href="/orders" style="display:block;margin-top:12px;text-align:center;font-size:12.5px;color:var(--gold-dark);text-decoration:none">Buyurtmalar sahifasida ochish →</a>'}`;
+      : `<a href="/orders?order=${encodeURIComponent(d.id)}" style="display:block;margin-top:12px;text-align:center;font-size:12.5px;color:var(--gold-dark);text-decoration:none">Buyurtmalar sahifasida ochish →</a>`}`;
 
   document.getElementById('payCard').style.display = 'block';
   // kech115 (G3-01, O'LCHANGAN — audit: robot tugmani BIR marta bosganda to'lov haqiqatan yozildi, kassa +380 000):
@@ -887,8 +945,73 @@ function selectSupplierDebt(el){
     <a href="/suppliers/receive?supplier_id=${d.id}" style="display:block;margin-top:12px;text-align:center;font-size:12.5px;color:var(--gold-dark);text-decoration:none">To'lov qilish →</a>`;
 }
 
+// ── kech120 (E bosqichi 2-qism, G3-07): mijoz guruhlari, qidiruv, «Muddati o'tgan» filtri ──
+let qarzFiltri = 'hammasi';
+let qarzQidiruvMatni = '';
+
+function mijozGuruhiniOch(g, majburiy) {
+  if (!g) return;
+  const och = (majburiy === undefined) ? !g.classList.contains('ochiq') : !!majburiy;
+  g.classList.toggle('ochiq', och);
+  const b = g.querySelector('.dbt-mijoz-bosh');
+  if (b) b.setAttribute('aria-expanded', och ? 'true' : 'false');
+}
+
+function qarzRoyxatiniQoll() {
+  const q = String(qarzQidiruvMatni || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const qr = q.replace(/\D+/g, '');
+  const faol = qarzFiltri !== 'hammasi' || !!q;
+  let jami = 0;
+  document.querySelectorAll('#tab-customers .dbt-mijoz').forEach(g => {
+    const gMatn = String((g.dataset.mijoz || '') + ' ' + (g.dataset.telefon || '')).toLowerCase();
+    const gTel = String(g.dataset.telefon || '').replace(/\D+/g, '');
+    const gMos = !q || gMatn.includes(q) || (qr.length >= 3 && gTel.includes(qr));
+    let kor = 0;
+    g.querySelectorAll('.dbt-item').forEach(el => {
+      const d = el.dataset;
+      const matn = String([d.orderNumber, d.project, d.client].join(' ')).toLowerCase();
+      const fMos = qarzFiltri !== 'otgan' || d.muddatOtgan === '1';
+      const show = fMos && (gMos || matn.includes(q));
+      el.style.display = show ? '' : 'none';
+      if (show) kor++;
+    });
+    g.style.display = kor ? '' : 'none';
+    if (faol && kor) mijozGuruhiniOch(g, true);
+    jami += kor;
+  });
+  const bosh = document.getElementById('qarzBosh');
+  if (bosh) bosh.style.display = (faol && jami === 0) ? 'block' : 'none';
+}
+
+function qarzQidir(v) {
+  qarzQidiruvMatni = v || '';
+  qarzRoyxatiniQoll();
+}
+
+function qarzFiltrla(f) {
+  qarzFiltri = (f === 'otgan') ? 'otgan' : 'hammasi';
+  document.querySelectorAll('#tab-customers .dbt-f').forEach(b => {
+    const on = b.dataset.f === qarzFiltri;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+  qarzRoyxatiniQoll();
+}
+
+// to'lovdan keyingi qayta yuklanishda — o'sha buyurtma (hali qarzi bo'lsa) qayta tanlanadi; yangi ochilishda — birinchisi
+function qarzTanlovQaytaYuklanganda() {
+  try {
+    const n = performance.getEntriesByType('navigation')[0];
+    if (!n || n.type !== 'reload') return null;
+    const id = sessionStorage.getItem('qarz_tanlangan');
+    if (!id || !/^\d+$/.test(id)) return null;
+    return Array.from(document.querySelectorAll('#tab-customers .dbt-item')).find(x => x.dataset.id === id) || null;
+  } catch (e) { return null; }
+}
+
 window.addEventListener('load', () => {
-  const first = document.querySelector('#tab-customers .dbt-item');
+  const first = (typeof qarzTanlovQaytaYuklanganda === 'function' && qarzTanlovQaytaYuklanganda())
+    || document.querySelector('#tab-customers .dbt-item');
   if (first) selectOrderDebt(first);
   // kech100 (131-band): /debts?qaytarish=<buyurtma id> (Buyurtmalar sahifasidagi belgidan) — shu buyurtma ochiladi
   const firstR = document.querySelector('#tab-refunds .dbt-item');

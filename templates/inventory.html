@@ -1089,6 +1089,16 @@ function kamQolganlarniKorsat() {
   if (l && l.scrollIntoView) l.scrollIntoView({behavior: 'smooth', block: 'start'});
 }
 
+// kech120 (G1-11): Bosh sahifa «Bugungi vazifalar» dagi kam qolgan xomashyo qatori — «/inventory?kam=1»: shu ro'yxat ochiladi
+window.addEventListener('load', () => {
+  try {
+    if (new URLSearchParams(location.search).get('kam') === '1') {
+      kamQolganlarniKorsat();
+      history.replaceState(null, '', location.pathname);
+    }
+  } catch (e) { /* manzil parametri — muhim emas */ }
+});
+
 // ── FILTRLASH / SARALASH ───────────────────────────────────
 function filterMaterials() {
   const q = document.getElementById('matSearch').value.trim().toLowerCase();

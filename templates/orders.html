@@ -67,6 +67,12 @@
 .step-btn2:hover{background:var(--dark);color:#fff;border-color:var(--dark)}
 .dlv-inp:focus{border-color:#B9783F !important}
 .ord-item{padding:15px 16px;border-bottom:1.5px solid var(--ch-e8e3dd);cursor:pointer;transition:background .15s}
+/* kech120 (G2-13): holat filtri tugmalari — tor ekranda keyingi qatorga o'raladi (yon tomonga surilmaydi) */
+.ord-filtr{display:flex;flex-wrap:wrap;gap:5px;padding:7px 12px;border-bottom:1px solid var(--border2);flex-shrink:0}
+.ord-f{border:1px solid var(--ch-e8e8e8);background:var(--white);border-radius:999px;padding:3px 9px;font-size:12px;cursor:pointer;color:var(--text2);min-height:28px;font-family:inherit;white-space:nowrap}
+.ord-f.active{background:var(--gold-tint);border-color:var(--gold);color:var(--gold-dark);font-weight:700}
+.ord-f[data-f="otgan"] .f-son{color:var(--m-dc2626)}
+.ord-f .f-son{font-weight:700;margin-left:1px}
 .ord-item:hover{background:var(--f-fafaf8)}
 .ord-item.active{background:var(--f-fdf8f0);border-left:3px solid #B9783F}
 .ord-num{font-size:13px;font-weight:700;color:var(--gold-dark)}
@@ -245,10 +251,21 @@ input[type=number]{-moz-appearance:textfield}
 
   <!-- CHAP: Buyurtmalar ro'yxati -->
   <div class="card ord-chap" style="overflow:hidden;display:flex;flex-direction:column">
-    <div class="card-head" style="padding:10px 14px">
+    <div class="card-head" style="padding:10px 14px;gap:10px">
       <h3>Buyurtmalar</h3>
-      <input placeholder="Qidirish..." oninput="searchOrders(this.value)"
-             style="padding:5px 8px;border:1px solid var(--ch-e8e8e8);border-radius:6px;font-size:13px;width:100px;outline:none">
+      {# kech120 (G2-13): qidiruv — raqam, mijoz, loyiha, telefon, detal nomi, usta (ilgari 100 px, faqat raqam / mijoz / loyiha) #}
+      <input type="search" id="ordQidiruv" placeholder="Qidirish: raqam, mijoz, telefon, detal, usta" oninput="searchOrders(this.value)"
+             aria-label="Buyurtmalarni qidirish"
+             style="flex:1;min-width:0;max-width:260px;padding:6px 9px;border:1px solid var(--ch-e8e8e8);border-radius:6px;font-size:13px;outline:none">
+    </div>
+    {# kech120 (G2-13): holat filtri — sonlar sahifa ochilganda ro'yxatdan sanaladi; Bosh sahifadan «/orders?royxat=…» #}
+    <div id="ordFiltr" class="ord-filtr" role="group" aria-label="Buyurtmalar filtri">
+      <button type="button" class="ord-f active" data-f="hammasi" aria-pressed="true" onclick="royxatFiltrla('hammasi')">Hammasi <span class="f-son"></span></button>
+      <button type="button" class="ord-f" data-f="otgan" aria-pressed="false" onclick="royxatFiltrla('otgan')">Muddati o'tgan <span class="f-son"></span></button>
+      <button type="button" class="ord-f" data-f="bugun" aria-pressed="false" onclick="royxatFiltrla('bugun')">Bugun <span class="f-son"></span></button>
+      <button type="button" class="ord-f" data-f="jarayonda" aria-pressed="false" onclick="royxatFiltrla('jarayonda')">Jarayonda <span class="f-son"></span></button>
+      <button type="button" class="ord-f" data-f="qarz" aria-pressed="false" onclick="royxatFiltrla('qarz')">Qarzi bor <span class="f-son"></span></button>
+      <button type="button" class="ord-f" data-f="tugagan" aria-pressed="false" onclick="royxatFiltrla('tugagan')">Tugagan <span class="f-son"></span></button>
     </div>
     <div id="pinnedOrdersSection" style="display:none;flex-shrink:0;border-bottom:1px solid var(--border2)">
       <div style="padding:7px 14px;background:var(--gold-tint);font-size:12px;font-weight:700;color:var(--gold-dark)">⭐ Ustuvor buyurtmalar (<span id="pinnedCount">0</span> ta)</div>
@@ -266,6 +283,7 @@ input[type=number]{-moz-appearance:textfield}
     </div>
     {% endif %}
     <div class="ord-list">
+      <div id="ordFiltrBosh" style="display:none;padding:22px 14px;text-align:center;color:var(--text3);font-size:13px">Bu filtr / qidiruv bo'yicha buyurtma yo'q</div>
       {% if grouped %}
         {% for g in grouped %}
         {% set overdue_n = g.orders|selectattr('deadline_urgency', 'equalto', 'overdue')|list|length %}
@@ -280,8 +298,9 @@ input[type=number]{-moz-appearance:textfield}
             <div style="display:flex;align-items:center;gap:7px;min-width:0">
               <span class="proj-arrow" id="pa-{{ g.project_id }}">▶</span>
               <div style="min-width:0;flex:1">
-                <div class="proj-name">{{ g.project_name }}</div>
-                <div class="proj-client">{{ g.client_name }}</div>
+                {# kech120 (G2-13): uzun nom «…» bilan qisqarsa — to'liq nomi sichqoncha ustida #}
+                <div class="proj-name" title="{{ g.project_name }}">{{ g.project_name }}</div>
+                <div class="proj-client" title="{{ g.client_name }}">{{ g.client_name }}</div>
                 {% if g_urgency == 'overdue' %}
                 <div style="font-size:12px;color:var(--m-dc2626);font-weight:700;margin-top:2px">🔴 Muddati o'tgan!{% if g_urgent_count > 1 %} ({{ g_urgent_count }} ta buyurtma){% endif %}</div>
                 {% elif g_urgency == 'today' %}
@@ -324,7 +343,11 @@ input[type=number]{-moz-appearance:textfield}
                  data-date="{{ o.created_at|toshkent('%d.%m.%Y') }}"
                  data-project-id="{{ g.project_id }}"
                  data-order-id="{{ o.id }}"
-                 data-pinned="{{ 'true' if o.is_pinned else 'false' }}">
+                 data-pinned="{{ 'true' if o.is_pinned else 'false' }}"
+                 data-urgency="{{ urgency }}"
+                 data-qarz="{{ '1' if debt > 0 else '0' }}"
+                 data-phone="{{ (o.project.client_phone or '') if o.project else '' }}"
+                 data-items="{{ o.items|map(attribute='name')|select|join(' · ') }}">
               <div style="display:flex;justify-content:space-between;align-items:center">
                 <div style="display:flex;align-items:center;gap:6px;min-width:0">
                   <button class="pin-toggle-btn" onclick="event.stopPropagation(); toggleOrderPin({{ o.id }}, this)"
@@ -1234,6 +1257,8 @@ function checkForDraftOnLoad() {
     // kech118 (D-3, egasi QARORI G2-17): Loyihalar / Bosh sahifadan «/orders?order=ID» — AYNAN shu buyurtma ochiladi (guruhi
     // ochiladi, qator tanlanadi). Ro'yxatda yo'q bo'lsa (90 kundan eski yopilgan) — «Barchasi» bilan qayta ochiladi.
     if (buyurtmaniParamdanOch(params)) return;
+    // kech120 (G2-13): «/orders?royxat=…» — filtrlangan ro'yxat (Bosh sahifa «Bugungi vazifalar»)
+    if (typeof royxatParamdanOch === 'function' && royxatParamdanOch(params)) return;
     // «/orders?yangi=1» — Bosh sahifadagi «+ Yangi buyurtma» amali: yangi buyurtma formasi
     if (params.get('yangi') === '1') {
       showNewForm();
@@ -1251,10 +1276,15 @@ function checkForDraftOnLoad() {
   } catch (e) { /* URL bilan ishlashda xato bo'lsa — odatdagidek davom etamiz */ }
   try {
     const raw = localStorage.getItem(ORDER_DRAFT_LS_KEY);
-    if (!raw) return;
+    // kech120 (G2-13): qoralama yo'q — sahifa qayta yuklangan bo'lsa tanlangan buyurtma, ochiq guruhlar, filtr tiklanadi
+    if (!raw) { if (typeof tanlovniTikla === 'function') tanlovniTikla(); return; }
     const draft = JSON.parse(raw);
     // 24 soatdan eski bo'lsa — endi kerak emas, o'chirib tashlaymiz
-    if (!draft.ts || (Date.now() - draft.ts) > 24 * 3600 * 1000) { clearDraftLS(); return; }
+    if (!draft.ts || (Date.now() - draft.ts) > 24 * 3600 * 1000) {
+      clearDraftLS();
+      if (typeof tanlovniTikla === 'function') tanlovniTikla();
+      return;
+    }
     // Jim, so'roqsiz tiklaymiz — kelgan joyidan davom etadi
     restoreDraftLS(draft);
   } catch (e) { clearDraftLS(); }
@@ -1814,7 +1844,8 @@ function toggleProject(pid) {
   if (!g || !body) return;
   const open = g.classList.toggle('open');
   body.style.display = open ? 'block' : 'none';
-  try { localStorage.setItem('proj_' + pid, open ? '1' : '0'); } catch(e) {}
+  // kech120 (G2-13): ilgari `localStorage` ga yozilib, hech qayerda o'qilmasdi — endi qayta yuklanganda tiklanadi
+  if (typeof ordHolatSaqla === 'function') ordHolatSaqla();
 }
 
 function openProject(pid) {
@@ -1835,8 +1866,8 @@ function selectOrder(id, el) {
 
   document.querySelectorAll('.ord-item').forEach(i => i.classList.remove('active'));
   el.classList.add('active');
-  try { localStorage.setItem('last_order', id); } catch(e) {}
   selectedOrderId = id;
+  if (typeof ordHolatSaqla === 'function') ordHolatSaqla();     // kech120 (G2-13): qayta yuklanganda tiklanadi
   const d = el.dataset;
 
   hideNewForm();
@@ -4870,12 +4901,13 @@ async function submitOrderRequest(data, isDraft, zaklat, zaklatMethod, confirmSh
         if (!zRes.ok) {
           const zErr = await zRes.json().catch(() => ({}));
           showMsg('⚠️ Buyurtma yaratildi, lekin ZAKLAT saqlanmadi: ' + (zErr.detail?.message || zErr.detail || 'Server xatosi') + ' — "To\'lovlar" bo\'limidan qo\'lda kiriting!', 'error');
-          setTimeout(()=>location.reload(), 3500);
+          // kech120 (G2-13): sahifa YANGI buyurtma ochilgan holda yuklanadi (ilgari ro'yxatdan qaytadan qidirilardi)
+          setTimeout(() => { window.location.href = '/orders?order=' + Number(saved.id); }, 3500);
           return;
         }
       }
       showMsg(isDraft ? '\ud83d\udcdd Qoralama saqlandi! Ombordan xomashyo yechilmadi.' : '\u2713 Buyurtma yaratildi!', 'success');
-      setTimeout(()=>location.reload(), 1000);
+      setTimeout(() => { window.location.href = '/orders?order=' + Number(saved.id); }, 1000);     // kech120 (G2-13)
     } else if (res.status === 409) {
       const e = await res.json();
       if (e.detail && e.detail.type === 'stock_shortage_warning') {
@@ -6364,27 +6396,48 @@ function updatePinButtonUI(isPinned) {
   btn.dataset.pinned = isPinned ? 'true' : 'false';
 }
 
-function searchOrders(q) {
-  const query = (q || '').trim().toLowerCase();
+// ── kech120 (E bosqichi 2-qism, G2-13): RO'YXAT FILTRI, KENG QIDIRUV, TANLOVNI TIKLASH ──
+// O'LCHANGAN (audit, 300 buyurtma / 60 loyiha): ro'yxat faqat yopiq loyiha guruhlaridan iborat edi, holat bo'yicha filtr yo'q,
+// qidiruv faqat raqam / mijoz / loyiha nomi (100 px); saqlash / to'lov / topshirishdan keyin sahifa qayta yuklanib tanlangan
+// buyurtma va ochiq guruhlar yo'qolardi, yangi buyurtma ham qaytadan qidirilardi. Filtr qoidasi — qatordagi `data-*` (server
+// `crud.get_deadline_urgency` va qarz); qidiruv bilan BIRGA (ikkalasi ham mos kelgan qator ko'rinadi).
+const ROYXAT_FILTRLARI = {
+  hammasi: () => true,
+  otgan: d => d.urgency === 'overdue',
+  bugun: d => d.urgency === 'today',
+  jarayonda: d => ['new', 'in_progress', 'coating'].includes(d.status),
+  qarz: d => d.qarz === '1',
+  tugagan: d => ['ready', 'delivered'].includes(d.status),
+};
+let royxatFiltri = 'hammasi';
+let royxatQidiruv = '';
 
-  document.querySelectorAll('.proj-group').forEach(g => {
-    const pid = g.dataset.projectId;
-    const body = document.getElementById('pb-' + pid);
-    const head = g.querySelector('.proj-head');
-    const pname = (g.querySelector('.proj-name')?.textContent || '').toLowerCase();
-    const pclient = (g.querySelector('.proj-client')?.textContent || '').toLowerCase();
-    const projMatch = !query || pname.includes(query) || pclient.includes(query);
+function qidiruvMatni(s) { return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
+function faqatRaqam(s) { return String(s || '').replace(/\D+/g, ''); }
 
+// filtr + qidiruv: mos qatorlar ko'rinadi; faol bo'lsa mos guruhlar ochiladi, mos qatori yo'q guruh yashiriladi
+function royxatniQoll() {
+  const f = ROYXAT_FILTRLARI[royxatFiltri] || ROYXAT_FILTRLARI.hammasi;
+  const q = qidiruvMatni(royxatQidiruv);
+  const qr = faqatRaqam(q);
+  const faol = royxatFiltri !== 'hammasi' || !!q;
+  let jami = 0;
+  document.querySelectorAll('.ord-list .proj-group').forEach(g => {
+    const body = document.getElementById('pb-' + g.dataset.projectId);
+    const pname = qidiruvMatni(g.querySelector('.proj-name')?.textContent);
+    const pclient = qidiruvMatni(g.querySelector('.proj-client')?.textContent);
+    const projMatch = !q || pname.includes(q) || pclient.includes(q);
     let visible = 0;
     g.querySelectorAll('.ord-item').forEach(el => {
-      const txt = ((el.dataset.num||'') + (el.dataset.client||'') + (el.dataset.project||'')).toLowerCase();
-      const show = !query || projMatch || txt.includes(query);
+      const d = el.dataset;
+      const matn = qidiruvMatni([d.num, d.client, d.project, d.master, d.items, d.phone].join(' '));
+      const qMos = !q || projMatch || matn.includes(q) || (qr.length >= 3 && faqatRaqam(d.phone).includes(qr));
+      const show = f(d) && qMos;
       el.style.display = show ? '' : 'none';
       if (show) visible++;
     });
-
-    if (!query) {
-      // Qidiruv bo'sh — hammasi ko'rinadi, ochiq holat saqlanadi
+    jami += visible;
+    if (!faol) {
       g.style.display = '';
       if (body && !g.classList.contains('open')) body.style.display = 'none';
     } else if (visible > 0) {
@@ -6395,7 +6448,91 @@ function searchOrders(q) {
       g.style.display = 'none';
     }
   });
+  const bosh = document.getElementById('ordFiltrBosh');
+  if (bosh) bosh.style.display = (faol && jami === 0) ? 'block' : 'none';
 }
+
+// filtr tugmalaridagi sonlar — sahifadagi hamma qatordan (qidiruvdan qat'i nazar)
+function royxatSanoqlari() {
+  const sanoq = {};
+  Object.keys(ROYXAT_FILTRLARI).forEach(k => { sanoq[k] = 0; });
+  document.querySelectorAll('.ord-list .ord-item').forEach(el => {
+    Object.keys(ROYXAT_FILTRLARI).forEach(k => { if (ROYXAT_FILTRLARI[k](el.dataset)) sanoq[k]++; });
+  });
+  document.querySelectorAll('#ordFiltr [data-f]').forEach(b => {
+    const sp = b.querySelector('.f-son');
+    if (sp) sp.textContent = sanoq[b.dataset.f] || 0;
+  });
+  return sanoq;
+}
+
+function royxatFiltrla(f) {
+  if (!ROYXAT_FILTRLARI[f]) f = 'hammasi';
+  royxatFiltri = f;
+  document.querySelectorAll('#ordFiltr [data-f]').forEach(b => {
+    const on = b.dataset.f === f;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+  royxatniQoll();
+  if (typeof ordHolatSaqla === 'function') ordHolatSaqla();
+}
+
+function searchOrders(q) {
+  royxatQidiruv = q || '';
+  if (typeof royxatniQoll === 'function') royxatniQoll();
+  if (typeof ordHolatSaqla === 'function') ordHolatSaqla();
+}
+
+// «/orders?royxat=otgan|bugun|jarayonda|qarz|tugagan» — Bosh sahifa «Bugungi vazifalar» dan (true — parametr bor edi)
+function royxatParamdanOch(params) {
+  const f = params.get('royxat');
+  if (!f) return false;
+  history.replaceState(null, '', window.location.pathname + (params.get('show_all') === 'true' ? '?show_all=true' : ''));
+  royxatFiltrla(ROYXAT_FILTRLARI[f] ? f : 'hammasi');
+  return true;
+}
+
+// Tanlangan buyurtma, ochiq guruhlar, filtr va qidiruv — shu oyna (tab) uchun (`sessionStorage`); sahifa QAYTA YUKLANGANDA
+// (saqlash / to'lov / topshirishdan keyingi `location.reload()` yoki F5) tiklanadi. Yangi ochilishda — tiklanmaydi (sahifa
+// ochilganda buyurtma avtomatik tanlanmaydi — avvalgi qoida).
+const ORD_HOLAT_KALIT = 'ord_holat';
+function ordHolatSaqla() {
+  try {
+    const ochiq = Array.from(document.querySelectorAll('.ord-list .proj-group.open')).map(g => g.dataset.projectId);
+    const tanlangan = (typeof selectedOrderId !== 'undefined' && selectedOrderId) ? selectedOrderId : null;
+    sessionStorage.setItem(ORD_HOLAT_KALIT, JSON.stringify({tanlangan, ochiq, filtr: royxatFiltri, qidiruv: royxatQidiruv, ts: Date.now()}));
+  } catch (e) { /* saqlash bo'lmasa — tiklanmaydi, ish buzilmaydi */ }
+}
+
+function qaytaYuklanganmi() {
+  try {
+    const n = performance.getEntriesByType('navigation')[0];
+    return !!n && n.type === 'reload';
+  } catch (e) { return false; }
+}
+
+function tanlovniTikla() {
+  if (!qaytaYuklanganmi()) return false;
+  let h = null;
+  try { h = JSON.parse(sessionStorage.getItem(ORD_HOLAT_KALIT) || 'null'); } catch (e) { h = null; }
+  if (!h || !h.ts || (Date.now() - h.ts) > 6 * 3600 * 1000) return false;
+  (h.ochiq || []).forEach(pid => { if (/^\d+$/.test(String(pid))) openProject(pid); });
+  const qi = document.getElementById('ordQidiruv');
+  if (typeof h.qidiruv === 'string' && h.qidiruv) { royxatQidiruv = h.qidiruv; if (qi) qi.value = h.qidiruv; }
+  royxatFiltrla(h.filtr || 'hammasi');
+  if (h.tanlangan && /^\d+$/.test(String(h.tanlangan))) {
+    const el = document.querySelector('.ord-list #oi-' + h.tanlangan);
+    if (el && el.style.display !== 'none') {
+      openProject(el.dataset.projectId);
+      selectOrder(Number(h.tanlangan), el);
+      try { el.scrollIntoView({ block: 'center' }); } catch (e) { /* ko'rinish — muhim emas */ }
+    }
+  }
+  return true;
+}
+
+document.addEventListener('DOMContentLoaded', () => { if (typeof royxatSanoqlari === 'function') royxatSanoqlari(); });
 
 // ── Sahifa yuklanganda ────────────────────────────────────
 window.addEventListener('load', () => {

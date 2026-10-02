@@ -155,8 +155,15 @@ async function loadTasks() {
   const el = document.getElementById('tasksList');
   try {
     const tasks = await fetch('/api/dashboard/today-tasks').then(r => r.json());
+    // kech120 (G1-11): qator bosilsa — o'sha buyurtma / filtrlangan ro'yxat / kam qolganlar (server `href` beradi; har guruh 5 qatorgacha)
     el.innerHTML = (Array.isArray(tasks) && tasks.length)
-      ? tasks.map(t => `<div class="list-row" style="justify-content:flex-start;gap:10px"><span>${escapeHtml(t.icon)}</span><span class="list-title" style="font-weight:500">${escapeHtml(t.text)}</span></div>`).join('')
+      ? tasks.map(t => {
+          const ichi = `<span>${escapeHtml(t.icon)}</span><span class="list-title" style="font-weight:500">${escapeHtml(t.text)}</span>`;
+          const yol = (typeof t.href === 'string' && /^\/(orders|inventory)(\?[\w=&]*)?$/.test(t.href)) ? t.href : null;
+          return yol
+            ? `<a class="list-row vazifa-havola" href="${escapeHtml(yol)}" style="justify-content:flex-start;gap:10px;text-decoration:none;color:inherit">${ichi}<span style="margin-left:auto;color:var(--text3)">→</span></a>`
+            : `<div class="list-row" style="justify-content:flex-start;gap:10px">${ichi}</div>`;
+        }).join('')
       : '<div class="list-sub">Bugun uchun alohida vazifa yo\'q</div>';
   } catch (e) {
     el.innerHTML = '<div class="list-sub">Yuklab bo\'lmadi</div>';
