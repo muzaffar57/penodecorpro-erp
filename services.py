@@ -60,6 +60,14 @@ def son_korinish(qiymat, kasr=2) -> str:
     return "0" if s in ("-0", "") else s
 
 
+# kech120 (zip 135 — F bosqichi 5-qism, audit G1-07, O'LCHANGAN `work/f5/probe_g1.py`): «FAOL buyurtma» — BITTA qoida: ishi
+# davom etayotgan (yangi, jarayonda, qoplamada), o'chirilmagan. Ilgari Bosh sahifa «Faol» = «Tayyor» dan boshqa HAMMASI (qoralama,
+# yetkazilgan, bekor ham — 8 tadan 7), Dashboard sahifasi avval shu sonni, so'ng qoralamali boshqasini (5) ko'rsatardi; «Korxona
+# sog'ligi» to'liq oldindan to'langan (arxivdagi) yangi buyurtmani sanamasdi. Qoralama, tayyor, yetkazilgan, bekor — faol emas;
+# arxiv (to'lov yopilgan) — ishi tugaganini bildirmaydi.
+FAOL_HOLATLAR = (OrderStatus.NEW, OrderStatus.IN_PROGRESS, OrderStatus.COATING)
+
+
 # kech120 (zip 133 — F bosqichi 3-qism, audit G5-07 / G5-08): mahsulot BIRLIGI ko'rinishi — BITTA qoida. Bir mahsulot Ishlab
 # chiqarishda «4 m2» / «8 dona», Tayyor mahsulotlarda «4 m²» / «8 ta», sotish oynasida «8 metr», qaytarishda qop / litr — «dona»
 # edi. Qoida: bo'sh → «dona»; «ta» / «dona» → «dona»; «metr» → «m»; «kvadrat», «m2» → «m²»; «m3» → «m³» (sm / mm ham); boshqasi
@@ -524,9 +532,10 @@ def get_business_health(db: Session, company_id: int = None) -> dict:
     else:
         ombor_status, ombor_sabab = "green", f"Hammasi yetarli ({_mat_soni} ta material)"
 
+    # kech120 (zip 135 — G1-07): «faol» — yagona qoida (`FAOL_HOLATLAR`); arxivdagi (oldindan to'langan) buyurtma ham ishda
     _faol = db.query(Order).filter(
-        Order.is_deleted.isnot(True), Order.is_archived.isnot(True),
-        Order.status.in_([_OS_bh.NEW, _OS_bh.IN_PROGRESS, _OS_bh.COATING]))
+        Order.is_deleted.isnot(True),
+        Order.status.in_(FAOL_HOLATLAR))
     if company_id is not None:
         _faol = _faol.filter(Order.company_id == company_id)
     _faol_soni = _faol.count()
@@ -1190,9 +1199,10 @@ def get_today_stats(db: Session, company_id: int = None) -> Dict:
         Payment.paid_at >= today_start, Payment.paid_at < today_end
     ).scalar() or 0)
 
+    # kech120 (zip 135 — G1-07): yagona qoida (ilgari qoralama ham sanalardi)
     active_orders = db.query(Order).filter(
         *( [Order.company_id == company_id] if company_id is not None else [] ),
-        Order.status.notin_([OrderStatus.READY, OrderStatus.DELIVERED, OrderStatus.CANCELLED]),
+        Order.status.in_(FAOL_HOLATLAR),
         Order.is_deleted.isnot(True)
     ).count()
 
@@ -1212,7 +1222,7 @@ def get_today_stats(db: Session, company_id: int = None) -> Dict:
     active_masters = db.query(Order.master_id).filter(
         *( [Order.company_id == company_id] if company_id is not None else [] ),
         Order.master_id.isnot(None),
-        Order.status.in_([OrderStatus.NEW, OrderStatus.IN_PROGRESS, OrderStatus.COATING]),
+        Order.status.in_(FAOL_HOLATLAR),
         Order.is_deleted.isnot(True)
     ).distinct().count()
 
@@ -1284,12 +1294,19 @@ def get_dashboard_stats(db: Session, company_id: int = None) -> Dict:
     # 2026-09-21: sanoqlar QAT'IY korxona bo'yicha (ilgari butun baza).
     total_projects = db.query(Project).filter(Project.company_id == company_id, Project.is_deleted.isnot(True)).count()
     total_orders = db.query(Order).filter(Order.company_id == company_id, Order.is_deleted.isnot(True)).count()
-    active_orders = db.query(Order).filter(Order.company_id == company_id, Order.status != OrderStatus.READY, Order.is_deleted.isnot(True)).count()
+    # kech120 (zip 135 — G1-07): yagona qoida (ilgari «Tayyor» dan boshqa HAMMASI — qoralama, yetkazilgan, bekor ham)
+    active_orders = db.query(Order).filter(Order.company_id == company_id, Order.status.in_(FAOL_HOLATLAR), Order.is_deleted.isnot(True)).count()
     ready_orders = db.query(Order).filter(Order.company_id == company_id, Order.status == OrderStatus.READY, Order.is_deleted.isnot(True)).count()
     _tmq = db.query(Master).filter(Master.is_active == True)
     if company_id is not None:      # M5
         _tmq = _tmq.filter(Master.company_id == company_id)
     total_masters = _tmq.count()
+    # kech120 (zip 135 — G1-07): Bosh sahifadagi karta «Faol ustalar» deb HAMMA ustani sanardi — endi «Ustalar» (jami) va ulardan
+    # faol buyurtmasi borlari (Dashboard «Ishlayotgan ustalar» bilan bir qoida)
+    active_masters = db.query(Order.master_id).filter(
+        Order.company_id == company_id, Order.master_id.isnot(None),
+        Order.status.in_(FAOL_HOLATLAR), Order.is_deleted.isnot(True)
+    ).distinct().count()
     # kech34 (K34-1): yashirilgan (o'chirilgan) materiallar sanalmaydi.
     total_inventory_items = db.query(Inventory).filter(
         Inventory.company_id == company_id,
@@ -1302,6 +1319,7 @@ def get_dashboard_stats(db: Session, company_id: int = None) -> Dict:
         "active_orders": active_orders,
         "ready_orders": ready_orders,
         "total_masters": total_masters,
+        "active_masters": active_masters,
         "total_inventory_items": total_inventory_items,
         "low_stock_count": len(low_stock),
         "low_stock_items": low_stock
@@ -1836,7 +1854,7 @@ def get_chart_data(db: Session, company_id: int = None) -> Dict:
         _cmq = _cmq.filter(Master.company_id == company_id)
     masters = _cmq.all()
     # kech98 (129-band, O'LCHANGAN `work/probe116.py`): usta boshiga 2 so'rov (kelishilgan summa SUM, buyurtmalar soni)
-    # edi — endi ikkita GROUP BY so'rovi, shartlar AYNAN (summa — "Tayyor", o'chirilganlar ham; soni — o'chirilmaganlar).
+    # edi — endi ikkita GROUP BY so'rovi (summa va soni — "Tayyor" buyurtmalar, o'chirilganlar ham — kech120, zip 135).
     _mids_cd = [m.id for m in masters]
     _jami_cd, _soni_cd = {}, {}
     for _b in _hk_bolaklar(_mids_cd):
@@ -1845,9 +1863,12 @@ def get_chart_data(db: Session, company_id: int = None) -> Dict:
             Order.status == OrderStatus.READY
         )).group_by(Order.master_id).all():
             _jami_cd[_mid] = _sm
+        # kech120 (zip 135 — F bosqichi 5-qism, audit G1-12, O'LCHANGAN `work/f5/probe_g1.py`): soni — summa bilan BIR to'plam
+        # («Tayyor» buyurtmalar). Ilgari soni HAMMA buyurtmadan edi (qoralama, jarayondagi): summasi 0 usta «6 ta buyurtma» bilan
+        # chiqardi, summasi bor usta esa tayyor bo'lmaganlari bilan «2 ta» edi.
         for _mid, _n in _oc(db.query(Order.master_id, func.count(Order.id)).filter(
             Order.master_id.in_(_b),
-            Order.is_deleted.isnot(True)
+            Order.status == OrderStatus.READY
         )).group_by(Order.master_id).all():
             _soni_cd[_mid] = _n
     master_kpi = []
@@ -1856,13 +1877,16 @@ def get_chart_data(db: Session, company_id: int = None) -> Dict:
         # buyurtmalar ham hisobga olinadi.
         total = _jami_cd.get(m.id) or 0
         order_count = _soni_cd.get(m.id, 0)
+        # kech120 (zip 135 — G1-12): tayyor buyurtmasi yo'q usta reytingga kirmaydi (ilgari «0 ta buyurtma» bilan «Top» da)
+        if not order_count and not float(total or 0):
+            continue
         master_kpi.append({
             "name": m.name,
             "total": float(total),
             "orders": order_count
         })
-    # Eng ko'p ishlagani birinchi
-    master_kpi.sort(key=lambda x: x["total"], reverse=True)
+    # Eng ko'p ishlagani birinchi; teng bo'lsa — tayyor buyurtmasi ko'pi, so'ng ism (barqaror tartib)
+    master_kpi.sort(key=lambda x: (-x["total"], -x["orders"], str(x["name"] or "").lower()))
     master_kpi = master_kpi[:5]
 
     # --- 4. Umumiy moliyaviy ko'rsatkichlar ────────────────
