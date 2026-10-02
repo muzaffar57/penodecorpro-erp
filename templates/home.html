@@ -18,6 +18,17 @@
 .tezkor-amal i { font-size: 22px; color: var(--gold-dark); flex-shrink: 0; }
 .tezkor-amal b { display: block; font-size: 14px; font-weight: 700; }
 .tezkor-amal small { display: block; font-size: 12.5px; color: var(--text3); margin-top: 2px; }
+/* kech120 (zip 135 — F bosqichi 5-qism, audit G1-13): yangi korxona — «Boshlash» qadamlari (bajarilgani belgilanadi) */
+.boshlash-qadamlar { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.boshlash-qadam { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px;
+  background: var(--white); color: var(--text); text-decoration: none; min-height: 44px; }
+a.boshlash-qadam:hover, a.boshlash-qadam:focus-visible { border-color: var(--gold); }
+.boshlash-qadam .bq-raqam { width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; background: var(--f-f8f2eb); color: var(--gold-dark); }
+.boshlash-qadam.bajarildi .bq-raqam { background: var(--f-dcfce7); color: var(--m-15803d); }
+.boshlash-qadam.bajarildi b { text-decoration: line-through; color: var(--text3); }
+.boshlash-qadam b { display: block; font-size: 13.5px; }
+.boshlash-qadam small { display: block; font-size: 12.5px; color: var(--text3); margin-top: 2px; }
 </style>
 {% endblock %}
 
@@ -27,6 +38,14 @@
 
   {% if u.ruxsat('dashboard', 'korish') %}
   {# ============ BOY ANALITIKA — «Bosh sahifa va Dashboard» ruxsati (kech118 — ROLLAR) ============ #}
+
+  {# kech120 (zip 135 — F bosqichi 5-qism, audit G1-13): yangi korxona (hali buyurtma yo'q) egasiga yo'l-yo'riq yo'q edi —
+     Bosh sahifa nollardan iborat edi. Endi 4 qadam (xomashyo, usta, loyiha, buyurtma); bajarilgani belgilanadi, havolalar — ruxsatga
+     qarab; birinchi buyurtma yozilgach karta chiqmaydi (`/api/dashboard/stats` sonlaridan). #}
+  <div class="card mb-16" id="boshlashCard" style="display:none">
+    <div class="card-head"><h3>Boshlash — 4 qadam</h3><span class="list-sub">Birinchi buyurtmagacha</span></div>
+    <div class="card-body"><div class="boshlash-qadamlar" id="boshlashQadamlar"></div></div>
+  </div>
 
   <div class="stat-grid mb-16" id="statGrid">
     <div class="stat-card">
@@ -38,7 +57,8 @@
       <div class="stat-icon"><i class="ti ti-progress"></i></div>
       <div class="stat-label">Faol buyurtmalar</div>
       <div class="stat-val" id="k-active">—</div>
-      <div class="stat-trend warn">Jarayonda</div>
+      {# kech120 (zip 135 — G1-07): faol — yangi, jarayonda, qoplamada (qoralama, tayyor, yetkazilgan, bekor — yo'q); Dashboard bilan bir qoida #}
+      <div class="stat-trend warn">Yangi, jarayonda, qoplamada</div>
     </div>
     <div class="stat-card">
       <div class="stat-icon"><i class="ti ti-circle-check"></i></div>
@@ -48,8 +68,10 @@
     </div>
     <div class="stat-card">
       <div class="stat-icon"><i class="ti ti-hammer"></i></div>
-      <div class="stat-label">Faol ustalar</div>
+      {# kech120 (zip 135 — G1-07): ilgari «Faol ustalar» deb HAMMA ustani sanardi #}
+      <div class="stat-label">Ustalar</div>
       <div class="stat-val" id="k-masters">—</div>
+      <div class="stat-trend" id="k-masters-sub" style="color:var(--text3)"></div>
     </div>
     <div class="stat-card emph">
       <div class="stat-icon"><i class="ti ti-credit-card"></i></div>
@@ -119,15 +141,47 @@ fetch('/api/dashboard/stats').then(r => r.json()).then(s => {
   document.getElementById('k-active').textContent = fmt(s.active_orders);
   document.getElementById('k-ready').textContent = fmt(s.ready_orders);
   document.getElementById('k-masters').textContent = fmt(s.total_masters);
+  const _ustaSub = document.getElementById('k-masters-sub');
+  if (_ustaSub) _ustaSub.textContent = Number(s.total_masters) > 0 ? `${fmt(s.active_masters || 0)} tasida faol buyurtma` : '';
 
   const lowStockEl = document.getElementById('lowStock');
-  lowStockEl.innerHTML = kamQoldiqHtml(s.low_stock_items);
+  lowStockEl.innerHTML = kamQoldiqHtml(s.low_stock_items, s.total_inventory_items);
+  boshlashKorsat(s);
 }).catch(() => {});
+
+// kech120 (zip 135 — G1-13): yangi korxona — «Boshlash» qadamlari; havola faqat ruxsati borga (bo'lmasa — oddiy yozuv)
+const BOSHLASH_RUXSAT = {
+  kirim: {{ 'true' if current_user.ruxsat('kirim', 'yaratish') else 'false' }},
+  usta: {{ 'true' if current_user.ruxsat('usta', 'yaratish') else 'false' }},
+  loyiha: {{ 'true' if current_user.ruxsat('loyiha', 'yaratish') else 'false' }},
+  buyurtma: {{ 'true' if current_user.ruxsat('buyurtma', 'yaratish') else 'false' }},
+};
+function boshlashKorsat(s) {
+  const karta = document.getElementById('boshlashCard');
+  const joy = document.getElementById('boshlashQadamlar');
+  if (!karta || !joy || !s) return;
+  if (Number(s.total_orders) > 0) { karta.style.display = 'none'; return; }
+  const qadamlar = [
+    ['kirim', Number(s.total_inventory_items) > 0, '/suppliers/receive', "Omborga xomashyo kiriting", "«Kirim qilish» — ta'minotchidan kelgan material"],
+    ['usta', Number(s.total_masters) > 0, '/ustalar', "Usta qo'shing", "Buyurtmani bajaradigan hamkor usta"],
+    ['loyiha', Number(s.total_projects) > 0, '/projects?yangi=1', "Loyiha (mijoz) yarating", "Buyurtmalar loyiha ichida yoziladi"],
+    ['buyurtma', false, '/orders?yangi=1', "Birinchi buyurtmani yozing", "Detallar, narx va topshirish sanasi"],
+  ];
+  joy.innerHTML = qadamlar.map(([k, bajarildi, yol, nom, izoh], i) => {
+    const ichi = `<span class="bq-raqam">${bajarildi ? '✓' : (i + 1)}</span><span><b>${escapeHtml(nom)}</b><small>${escapeHtml(bajarildi ? 'Bajarildi' : izoh)}</small></span>`;
+    return (!bajarildi && BOSHLASH_RUXSAT[k])
+      ? `<a class="boshlash-qadam" href="${yol}">${ichi}</a>`
+      : `<div class="boshlash-qadam${bajarildi ? ' bajarildi' : ''}">${ichi}</div>`;
+  }).join('');
+  karta.style.display = '';
+}
 
 // kech108 (K108-2, egasi qarori "Ha, ko'rinsin"): «Kam qolgan xomashyo» bloki. Minimal qoldig'i belgilanmagan
 // (0) TUGAGAN material ham keladi — ilgari chiziq `qoldiq / min` (0 ga bo'lish → NaN / −Infinity %) edi. Endi: min > 0 —
 // qoldiq / min (0–100 %), aks holda 0 %; qoldiq ≤ 0 — "tugagan" (qizil); son — ko'pi bilan 2 kasr.
-function kamQoldiqHtml(items) {
+function kamQoldiqHtml(items, jami) {
+  // kech120 (zip 135 — G1-13): materiali umuman yo'q korxonaga «Barcha xomashyo yetarli» deyilardi
+  if (jami !== undefined && jami !== null && Number(jami) === 0) return '<div class="list-sub">Omborda hali material yo\'q</div>';
   if (!items || items.length === 0) return '<div class="list-sub">Barcha xomashyo yetarli</div>';
   return items.slice(0, 5).map(item => {
     const q = Number(item.stock_quantity) || 0;

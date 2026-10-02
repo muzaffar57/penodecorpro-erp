@@ -4,12 +4,20 @@
 {% block page_sub %}Umumiy statistika va ko'rsatkichlar{% endblock %}
 
 {% block topbar_actions %}
-<button class="btn btn-outline btn-sm" onclick="loadAll()"><i class="ti ti-refresh" style="font-size:13px"></i> Yangilash</button>
+{# kech120 (zip 135 — F bosqichi 5-qism, audit G1-25): bosilganda hech narsa bildirmasdi, majburiyatlar va avans so'rovlarini yangilamasdi #}
+<span id="dashYangilandi" class="dash-yangilandi" aria-live="polite"></span>
+<button class="btn btn-outline btn-sm" id="dashYangilaBtn" onclick="dashYangila()"><i class="ti ti-refresh" style="font-size:13px"></i> Yangilash</button>
 {% endblock %}
 
 {% block head %}
 <style>
 .dash-grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+/* kech120 (zip 135 — G1-25): «Yangilash» — aylanuvchi belgi va «Yangilandi: 14:05» */
+.dash-yangilandi{font-size:12.5px;color:var(--text3);margin-right:8px;white-space:nowrap}
+#dashYangilaBtn.yuklanmoqda .ti-refresh{animation:dash-aylan .8s linear infinite;display:inline-block}
+@keyframes dash-aylan{to{transform:rotate(360deg)}}
+/* kech120 (zip 135 — G1-12): uzun ism bir qatorda (ilgari 4 qatorga bo'linib kartani cho'zardi), to'liq ismi — ko'rsatkichda */
+.master-ism{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* kech119 (C BOSQICH — telefon, audit G1-20, O'LCHANGAN work/k125/telefon.py: majburiyat nomi «Namuna Ijara (har oy
    5-kunigacha)» 390 px da 99 px dan ko'rinardi — muhim «kechikdi» qismi yo'qolardi; ikki ustunli bloklar ~170 px):
    telefonda nom 2 qatorgacha o'raladi, ikki ustunli bloklar ustma-ust; pul kartalari — style.css `.kpi-grid` (2 ustun) */
@@ -81,8 +89,10 @@
     </div>
     <div class="stat-card">
       <div class="stat-icon"><i class="ti ti-clipboard-list"></i></div>
-      <div class="stat-label">Faol buyurtmalar</div>
-      <div class="stat-val" id="t-active">{{ stats.active_orders }}</div>
+      {# kech120 (zip 135 — G1-07): Bosh sahifa bilan BITTA qoida (yangi, jarayonda, qoplamada); ilgari sahifa avval bir sonni
+         («Tayyor» dan boshqa hammasi), so'ng boshqasini (qoralama bilan) ko'rsatardi #}
+      <div class="stat-label" title="Yangi, jarayonda va qoplamadagi buyurtmalar">Faol buyurtmalar</div>
+      <div class="stat-val" id="t-active">{{ stats.active_orders }} ta</div>
     </div>
     <div class="stat-card">
       <div class="stat-icon"><i class="ti ti-tools"></i></div>
@@ -312,7 +322,8 @@
   </div>
 
   <div class="card mb-16">
-    <div class="card-head"><h3>Usta reytingi (top 5)</h3></div>
+    {# kech120 (zip 135 — G1-12): mezon ko'rsatiladi (ilgari ko'rinmaydigan summa bo'yicha saralanib, ostida HAMMA buyurtma soni) #}
+    <div class="card-head"><h3>Usta reytingi (top 5)</h3><span style="font-size:12.5px;color:var(--text3)">tayyor buyurtmalar summasi bo'yicha</span></div>
     <div class="card-body" style="padding:0 16px">
       <div id="masterList"><div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div></div>
     </div>
@@ -394,15 +405,26 @@ async function loadAll(){
   // kech118 (D-3, G1-09): ish jarayoni — holat doirasi (afsona bilan), buyurtmalar soni, usta reytingi
   buildOrdersCountChart(c.months);buildStatusChart(c.statuses);buildMasterList(c.master_kpi);
 
-  loadDebts();
-  loadDeliveryStats();
-  loadPurchaseStats();
-  loadTransportStats();
-  loadSupplierDebt();
-  loadFinishedStats();
-  loadReturnStats();
-  loadBrakFoiz();   // kech56 (13-band, 7-qadam)
-  loadProdPeriods();
+  // kech120 (zip 135 — G1-25): «Yangilash» tugashini bilish uchun — hamma bo'lim yuklanib bo'lishi kutiladi
+  await Promise.allSettled([loadDebts(), loadDeliveryStats(), loadPurchaseStats(), loadTransportStats(), loadSupplierDebt(),
+    loadFinishedStats(), loadReturnStats(), loadBrakFoiz() /* kech56 (13-band, 7-qadam) */, loadProdPeriods()]);
+}
+
+// kech120 (zip 135 — F bosqichi 5-qism, audit G1-25): «Yangilash» — aylanuvchi belgi, tugagach «Yangilandi: 14:05» (Toshkent vaqti);
+// majburiyatlar bloki va xodimlarning avans so'rovlari ham (ilgari faqat sahifa qayta ochilganda). 5 daqiqalik avtomatik
+// yangilash — avvalgidek `loadAll` (avans oynasi o'zi ochilib qolmasin).
+async function dashYangila(){
+  const btn = document.getElementById('dashYangilaBtn');
+  const yoz = document.getElementById('dashYangilandi');
+  if (btn) { if (btn.disabled) return; btn.disabled = true; btn.classList.add('yuklanmoqda'); }
+  if (yoz) yoz.textContent = 'Yangilanmoqda…';
+  let xato = false;
+  try {
+    const n = await Promise.allSettled([loadAll(), loadObligationsWidget(), checkPendingAdvanceRequests()]);
+    xato = n[0].status === 'rejected';
+  } catch (e) { xato = true; }
+  if (yoz) yoz.textContent = xato ? "Yangilab bo'lmadi — qayta urinib ko'ring" : ('Yangilandi: ' + tkVaqt(Date.now()));   // Toshkent vaqti (base.html)
+  if (btn) { btn.disabled = false; btn.classList.remove('yuklanmoqda'); }
 }
 
 
@@ -613,7 +635,11 @@ function buildDebtList(debts){
 }
 
 function buildOrdersCountChart(months){
-  if(window._ocC) window._ocC.destroy();
+  if(window._ocC) { window._ocC.destroy(); window._ocC = null; }
+  // kech120 (zip 135 — G1-13): buyurtmasiz davrda o'q «0 1» o'rniga yozuv (`grafikBosh` — base.html)
+  const _bosh = !(months || []).some(m => Number(m.orders) > 0);
+  if (typeof grafikBosh === 'function') grafikBosh('ordersCountChart', _bosh ? "Hali buyurtma yo'q" : '');
+  if (_bosh) return;
   window._ocC = new Chart(document.getElementById('ordersCountChart').getContext('2d'), {
     type:'bar',
     data:{labels:months.map(m=>m.label), datasets:[
@@ -643,12 +669,13 @@ function buildStatusChart(statuses){
 }
 function buildMasterList(masters){
   const el=document.getElementById('masterList');
-  if(!masters||!masters.length){el.innerHTML='<div style="text-align:center;padding:20px;color:var(--text3)">Ma\'lumot yo\'q</div>';return;}
+  if(!masters||!masters.length){el.innerHTML='<div style="text-align:center;padding:20px;color:var(--text3)">Hali tayyor buyurtma yo\'q</div>';return;}
+  // kech120 (zip 135 — G1-12): soni — summa bilan bir to'plam (tayyor buyurtmalar); ism — bir qatorda, to'liq ismi `title` da
   el.innerHTML=masters.map((m,i)=>`
     <div class="master-item">
       <div class="master-rank ${i===0?'top':''}">${i+1}</div>
-      <div style="flex:1"><div style="font-size:13px;font-weight:500">${escapeHtml(m.name)}</div><div style="font-size:13px;color:var(--text3)">${m.orders} ta buyurtma</div></div>
-      <div style="font-size:13px;font-weight:600;color:var(--m-15803d)">${fmt(m.total)} so'm</div>
+      <div style="flex:1;min-width:0"><div class="master-ism" title="${escapeHtml(m.name)}">${escapeHtml(m.name)}</div><div style="font-size:13px;color:var(--text3)">${Number(m.orders)} ta tayyor buyurtma</div></div>
+      <div style="font-size:13px;font-weight:600;color:var(--m-15803d);flex-shrink:0">${fmt(m.total)} so'm</div>
     </div>`).join('');
 }
 async function loadObligationsWidget(){

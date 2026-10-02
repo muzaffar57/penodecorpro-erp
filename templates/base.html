@@ -334,6 +334,23 @@ function birlikQisqa(u) {
   if (k === 'kvadrat') return 'm²';
   return birlikKor(k);
 }
+// kech120 (zip 135 — F bosqichi 5-qism, audit G1-13): ma'lumotsiz grafik — o'q yozuvlari («0 0 1 1», «0,0 mln» × 6) o'rniga oddiy
+// gap; `matn` bo'sh — grafik qaytadi (davr almashganda ma'lumot kelsa). Yozuv grafik qutisining o'zida (`.grafik-bosh`).
+function grafikBosh(canvas, matn) {
+  const c = typeof canvas === 'string' ? document.getElementById(canvas) : canvas;
+  if (!c || !c.parentElement) return;
+  const quti = c.parentElement;
+  let y = Array.from(quti.children).find(x => x.classList && x.classList.contains('grafik-bosh'));
+  if (matn) {
+    c.style.display = 'none';
+    if (!y) { y = document.createElement('div'); y.className = 'grafik-bosh'; quti.appendChild(y); }
+    y.textContent = matn;
+    y.style.display = '';
+  } else {
+    c.style.display = '';
+    if (y) y.style.display = 'none';
+  }
+}
 function qisqaSumma(n) {
   const x = Number(n) || 0;
   const a = Math.abs(x);

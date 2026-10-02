@@ -232,11 +232,14 @@ html[data-theme="dark"] .bi-tab.active{background:var(--f-eceae6);color:var(--m-
   <div class="bi-section">
     <div class="bi-filterbar">
       <i class="ti ti-filter" style="color:var(--b-text3);font-size:16px"></i>
-      <button class="bi-btn bi-btn-ghost" data-days="30" onclick="setPeriod(30)">Shu oy</button>
+      {# kech120 (zip 135 — F bosqichi 5-qism, audit G1-15, O'LCHANGAN: «Shu oy» aslida oxirgi 30 kun edi (1-oktabrda 1-sentabrdan),
+         «Yil» — 365 kun; izoh filtr jadvallarga ham qo'llanadi der edi, «Ombor», «Mahsulotlar», «Ustalar» jadvallari va «Xarajat tarkibi»,
+         «Pul oqimi» filtrga bog'liq emas). Endi tugma — haqiqiy davr; har bog'liq bo'lmagan blokda o'z davri yozilgan. #}
+      <button class="bi-btn bi-btn-ghost" data-days="30" onclick="setPeriod(30)">Oxirgi 30 kun</button>
       <button class="bi-btn bi-btn-ghost active" data-days="90" onclick="setPeriod(90)">Oxirgi 90 kun</button>
       <button class="bi-btn bi-btn-ghost" data-days="180" onclick="setPeriod(180)">Oxirgi 6 oy</button>
-      <button class="bi-btn bi-btn-ghost" data-days="365" onclick="setPeriod(365)">Yil</button>
-      <span style="font-size:12px;color:var(--b-text3);margin-left:auto">Filtr — grafik, reyting va jadvalga birga qo'llanadi</span>
+      <button class="bi-btn bi-btn-ghost" data-days="365" onclick="setPeriod(365)">Oxirgi 12 oy</button>
+      <span id="filtrIzoh" style="font-size:12px;color:var(--b-text3);margin-left:auto">Filtr — dinamika grafigi (oylar bo'yicha), reytinglar va «Moliya» jadvali; kartalar, «Xarajat tarkibi», «Pul oqimi» — joriy oy</span>
     </div>
   </div>
 
@@ -245,13 +248,13 @@ html[data-theme="dark"] .bi-tab.active{background:var(--f-eceae6);color:var(--m-
     <div class="bi-charts-grid">
       <div class="bi-card bi-fade">
         <div class="bi-card-body">
-          <div class="bi-section-title" style="margin-bottom:12px">Daromad, Xarajat, Sof foyda dinamikasi</div>
+          <div class="bi-section-title" style="margin-bottom:12px">Daromad, Xarajat, Sof foyda dinamikasi <span id="trendDavr" style="font-weight:400;color:var(--b-text3);font-size:13px"></span></div>
           <div class="bi-chart-tall"><canvas id="mainTrendChart"></canvas></div>
         </div>
       </div>
       <div class="bi-card bi-fade">
         <div class="bi-card-body">
-          <div class="bi-section-title" style="margin-bottom:12px">Xarajat tarkibi</div>
+          <div class="bi-section-title" style="margin-bottom:12px">Xarajat tarkibi <span id="donutDavr" style="font-weight:400;color:var(--b-text3);font-size:13px"></span></div>
           <div class="bi-chart-sm" style="position:relative">
             <canvas id="expenseDonut"></canvas>
             <div id="donutCenterLabel" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;display:none">
@@ -287,7 +290,7 @@ html[data-theme="dark"] .bi-tab.active{background:var(--f-eceae6);color:var(--m-
 
   <!-- 6-QATOR: TOP REYTINGLAR -->
   <div class="bi-section">
-    <div class="bi-section-title"><i class="ti ti-trophy"></i> Reytinglar</div>
+    <div class="bi-section-title"><i class="ti ti-trophy"></i> Reytinglar <span id="reytingDavr" style="font-weight:400;color:var(--b-text3);font-size:13px"></span></div>
     <div class="bi-top-grid">
       <div class="bi-card bi-fade"><div class="bi-card-body">
         <div style="font-size:12.5px;font-weight:700;color:var(--b-text3);text-transform:uppercase;letter-spacing:.03em;margin-bottom:10px">👤 Eng yirik mijozlar</div>
@@ -350,7 +353,7 @@ html[data-theme="dark"] .bi-tab.active{background:var(--f-eceae6);color:var(--m-
 
     <div class="bi-card bi-fade">
       <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:1px solid var(--b-border);flex-wrap:wrap;gap:10px">
-        <div class="bi-section-title" style="margin:0" id="repTitle">Ombor hisoboti</div>
+        <div class="bi-section-title" style="margin:0"><span id="repTitle">Ombor hisoboti</span> <span id="repDavr" style="font-weight:400;color:var(--b-text3);font-size:13px"></span></div>
         <div style="display:flex;gap:8px;align-items:center" class="no-print bi-jadval-amallar">
           <input type="text" class="bi-search" id="tableSearch" placeholder="Qidirish..." oninput="filterTable()">
           <button class="bi-btn bi-btn-ghost" onclick="exportCSV()"><i class="ti ti-file-spreadsheet" style="vertical-align:-2px"></i> Excel</button>
@@ -379,6 +382,20 @@ html[data-theme="dark"] .bi-tab.active{background:var(--f-eceae6);color:var(--m-
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
+// kech120 (zip 135 — G1-15): har jadval qaysi davr bo'yicha (filtrga bog'liqmi) — sarlavha yonida
+const JADVAL_DAVRI = {
+  inventory: () => '— hozirgi qoldiq', products: () => '— hozirgi qoldiq',
+  masters: () => `— ${tkHozir().yil} yil (filtrga bog'liq emas)`,
+  finance: () => `— ${davrOylarMatni(Math.max(1, Math.round(currentDays/30)))}`,
+};
+// N oy (joriy oy bilan): «Avgust – Oktabr 2026», bitta oy — «Oktabr 2026»
+function davrOylarMatni(n) {
+  const tk = tkHozir();
+  let bo = tk.oy - (n - 1), by = tk.yil;            // boshlanish oyi (sana obyektisiz — Toshkent oyi bo'yicha)
+  while (bo < 1) { bo += 12; by -= 1; }
+  if (n <= 1) return `${MONTH_NAMES[tk.oy]} ${tk.yil}`;
+  return by === tk.yil ? `${MONTH_NAMES[bo]} – ${MONTH_NAMES[tk.oy]} ${tk.yil}` : `${MONTH_NAMES[bo]} ${by} – ${MONTH_NAMES[tk.oy]} ${tk.yil}`;
+}
 let currentReport = 'inventory';
 let currentRows = [];
 let currentHeaders = [];
@@ -502,9 +519,14 @@ async function loadKpi(){
 async function loadCharts(){
   const months = Math.max(1, Math.round(currentDays/30));
   const hist = await fetch(`/api/finance/history?months=${months}`).then(r=>r.json());
+  const _td = document.getElementById('trendDavr');
+  if (_td) _td.textContent = '— ' + davrOylarMatni(months);   // kech120 (zip 135 — G1-15): oylar bo'yicha — qaysi oylar
 
-  if (mainChartInst) mainChartInst.destroy();
-  mainChartInst = new Chart(document.getElementById('mainTrendChart'), {
+  if (mainChartInst) { mainChartInst.destroy(); mainChartInst = null; }
+  // kech120 (zip 135 — F bosqichi 5-qism, audit G1-13): daromad ham, xarajat ham yo'q davrda o'q «0 0 1 1» edi — endi yozuv
+  const _trendBosh = !hist.length || hist.every(h => !Number(h.daromad) && !Number(h.jami_xarajat) && !Number(h.sof_foyda));
+  if (typeof grafikBosh === 'function') grafikBosh('mainTrendChart', _trendBosh ? "Bu davrda hali daromad yoki xarajat yo'q" : '');
+  if (!_trendBosh) mainChartInst = new Chart(document.getElementById('mainTrendChart'), {
     data: {
       labels: hist.map(h => MONTH_NAMES[h.month]+" '"+String(h.year).slice(2)),
       datasets: [
@@ -572,6 +594,8 @@ async function loadCharts(){
   // Donut — oxirgi oyning HAQIQIY xarajat tarkibi (taxminiy emas —
   // get_monthly_report() dan kelgan aniq kategoriyalar)
   const cur = hist.length ? hist[hist.length-1] : null;
+  const _dd = document.getElementById('donutDavr');
+  if (_dd) _dd.textContent = '— ' + davrOylarMatni(1) + " (joriy oy)";   // kech120 (zip 135 — G1-15): filtrga bog'liq emas
   const donutEl = document.getElementById('donutLegend');
   const centerLabelEl = document.getElementById('donutCenterLabel');
   const centerValueEl = document.getElementById('donutCenterValue');
@@ -657,6 +681,8 @@ function topListHtml(rows, nameKey, valKey, valSuffix, tayyorMatn){
 }
 
 async function loadTopRankings(){
+  const _rd = document.getElementById('reytingDavr');
+  if (_rd) _rd.textContent = `— oxirgi ${currentDays} kun`;   // kech120 (zip 135 — G1-15)
   try {
     const [customers, products, materials, suppliers] = await Promise.all([
       fetch(`/api/reports/top-customers?days=${currentDays}`).then(r=>r.json()),
@@ -831,6 +857,7 @@ function switchReport(r) {
   currentReport = r;
   document.querySelectorAll('.bi-tab').forEach(b => b.classList.toggle('active', b.dataset.r === r));
   document.getElementById('repTitle').textContent = TITLES[r];
+  jadvalDavriniYoz();
   document.getElementById('tableSearch').value = '';
   loadReport();
 }
@@ -914,6 +941,9 @@ function renderTableRows() {
   document.getElementById('repBody').innerHTML = currentRows.map(row =>
     '<tr>' + currentHeadersFull.map(h => `<td>${h[1](row)}</td>`).join('') + '</tr>'
   ).join('');
+  // kech120 (zip 135 — F bosqichi 5-qism, audit G1-17): saralash / davr almashganda qatorlar qayta chiziladi — qidiruv qayta
+  // qo'llanadi (ilgari so'z maydonda qolib, HAMMA qator qaytib chiqardi va «Excel» ham hammasini yuklardi)
+  filterTable();
 }
 
 function setTable(headers, rows) {
@@ -927,13 +957,20 @@ function setTable(headers, rows) {
 }
 
 function filterTable(){
-  const q = document.getElementById('tableSearch').value.trim().toLowerCase();
+  const inp = document.getElementById('tableSearch');
+  const q = ((inp && inp.value) || '').trim().toLowerCase();
   document.querySelectorAll('#repBody tr').forEach(tr => {
     tr.style.display = !q || tr.textContent.toLowerCase().includes(q) ? '' : 'none';
   });
 }
 
+function jadvalDavriniYoz() {
+  const el = document.getElementById('repDavr');
+  if (el) el.textContent = JADVAL_DAVRI[currentReport] ? JADVAL_DAVRI[currentReport]() : '';
+}
+
 async function loadReport() {
+  jadvalDavriniYoz();
   document.getElementById('repBody').innerHTML = '<tr><td style="text-align:center;padding:30px;color:var(--b-text3)">Yuklanmoqda...</td></tr>';
   const ehsonBanner = document.getElementById('ehsonSummaryBanner');
   if (ehsonBanner) ehsonBanner.style.display = 'none';
@@ -1056,37 +1093,53 @@ async function loadFinanceReport() {
   ], hist);
 }
 
-function exportCSV(){
-  if (!currentRows.length) { alert('Avval ma\'lumot yuklanishini kuting'); return; }
-  const bodyRows = document.querySelectorAll('#repBody tr');
-  const aoa = [currentHeaders];  // "array of arrays" — SheetJS shu ko'rinishni kutadi
-
-  // Matndan (masalan "785 000 so'm" yoki "12.5 kg") — agar u, asosan,
-  // SONdan iborat bo'lsa — sof, HAQIQIY songa ajratib olamiz. Shunda
-  // Excel'da bu, matn emas, to'g'ri son sifatida (o'ngga tekislangan,
-  // saralanadigan, hisoblanadigan) ko'rinadi.
-  function toNumberIfPossible(txt) {
-    const noSpaces = txt.replace(/\s/g, '');
-    const m = noSpaces.match(/^-?\d+([.,]\d+)?/);
-    if (!m) return txt;
-    const numPart = m[0];
-    const rest = noSpaces.slice(numPart.length);
-    // Sondan keyin qolgan qism — bo'sh, yoki qisqa birlik (masalan
-    // "so'm", "kg", "%", "dona", "m³") bo'lsagina, sof songa aylantiramiz.
-    if (rest.length > 6) return txt;
-    const n = parseFloat(numPart.replace(',', '.'));
-    return isNaN(n) ? txt : n;
-  }
-
-  bodyRows.forEach(tr => {
+// kech120 (zip 135 — F bosqichi 5-qism, audit G1-17): Excel — FAQAT son ustunlari songa aylanadi (ilgari har katakdagi boshidagi
+// son olinardi: «20x15» → 20, «3D panel» → 3); miqdor ustunida turli birlik (kg, m², blok) — birlik ALOHIDA ustunda
+// («Qoldiq» 630,52 + «Qoldiq birligi» kg; ilgari sof son, birliksiz). «—» (ruxsatsiz / yo'q) — matn bo'lib qoladi.
+const EXCEL_SON_USTUN = new Set(['1 birlik narxi', 'Jami qiymat', 'Sotuv narxi', 'Buyurtmalar', 'Yillik savdo', 'Yillik foyda',
+  'KPI %', 'Bonus', 'Daromad', 'Buyurtmalar soni', 'Xarajat', 'Sof foyda', 'Rentabellik']);
+const EXCEL_BIRLIKLI_USTUN = new Set(['Qoldiq', 'Min. qoldiq']);
+function excelSon(txt) {
+  const t = String(txt).replace(/[\s\u00a0\u202f]/g, '');
+  const m = t.match(/^-?\d+(?:[.,]\d+)?/);
+  if (!m) return { son: null, qoldi: String(txt).trim() };
+  const n = parseFloat(m[0].replace(',', '.'));
+  return isNaN(n) ? { son: null, qoldi: String(txt).trim() } : { son: n, qoldi: String(txt).trim().replace(/^-?[\d\s\u00a0\u202f]+(?:[.,]\d+)?\s*/, '') };
+}
+function excelQatorlari() {
+  const bosh = [];
+  currentHeaders.forEach(h => { bosh.push(h); if (EXCEL_BIRLIKLI_USTUN.has(h)) bosh.push(h + ' birligi'); });
+  const aoa = [bosh];
+  document.querySelectorAll('#repBody tr').forEach(tr => {
     if (tr.style.display === 'none') return;
-    const cells = Array.from(tr.querySelectorAll('td')).map(td => toNumberIfPossible(td.textContent.trim()));
-    aoa.push(cells);
+    const td = Array.from(tr.querySelectorAll('td'));
+    if (td.length !== currentHeaders.length) return;           // «Ma'lumot yo'q» qatori
+    const q = [];
+    td.forEach((c, i) => {
+      const h = currentHeaders[i], txt = c.textContent.trim();
+      if (EXCEL_BIRLIKLI_USTUN.has(h)) {
+        const x = excelSon(txt);
+        q.push(x.son === null ? txt : x.son, x.son === null ? '' : x.qoldi);
+      } else if (EXCEL_SON_USTUN.has(h)) {
+        const x = excelSon(txt);
+        q.push(x.son === null ? txt : x.son);
+      } else {
+        q.push(txt);
+      }
+    });
+    aoa.push(q);
   });
+  return aoa;
+}
 
+function exportCSV(){
+  // kech120 (zip 135 — G1-17): bo'sh jadvalda «Avval ma'lumot yuklanishini kuting» (xom oyna, noto'g'ri) edi
+  if (!currentRows.length) { showMsg("Yuklash uchun ma'lumot yo'q — jadval bo'sh", 'error'); return; }
+  const aoa = excelQatorlari();
+  if (aoa.length < 2) { showMsg("Qidiruvga mos qator yo'q — yuklash uchun ma'lumot yo'q", 'error'); return; }
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   // Ustun kengligini, mazmunga qarab, avtomatik moslashtiramiz
-  const colWidths = currentHeaders.map((h, i) => {
+  const colWidths = aoa[0].map((h, i) => {
     let maxLen = h.length;
     aoa.slice(1).forEach(row => {
       const cell = row[i];
