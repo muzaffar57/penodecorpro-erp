@@ -350,7 +350,9 @@ def qoshiladimi(b, jami_y, kel_y):
     kelishilgan − to'langan = qarz − ortiqcha. `kel_y` — kelishilgan yorlig'i (yo'q bo'lsa jami olinadi)."""
     def v(y):
         return (b.get(y) or (None, 0))[1] or 0
-    jami = v(jami_y)
+    # kech120 (zip 136 — G6-12, MOSLANDI): chegirma / qaytarish yo'q nakladnoyda «Umumiy jami» va «TO'LOV SUMMASI» — bir xil raqam
+    # ikki qator edi; endi bitta «TO'LOV SUMMASI» (jami = kelishilgan)
+    jami = v(jami_y) if jami_y in b else v(kel_y)
     kel = v(kel_y) if kel_y in b else jami
     ch, us, qy, ke = abs(v("Chegirma:")), abs(v("Ustama:")), abs(v("Qaytarish (qaytgan mahsulot):")), abs(v("Kechirilgan qarz:"))
     tol, qarz, ort = v("To'langan:"), v("QARZ QOLDI:"), v("ORTIQCHA TO'LANGAN:")

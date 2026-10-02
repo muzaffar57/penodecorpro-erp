@@ -420,7 +420,9 @@ try:
     _pdf_m = " ".join((p.extract_text() or "") for p in _PR(io.BytesIO(_pdf.content)).pages)
 except Exception as _e:                    # noqa: BLE001
     _pdf_m = f"XATO {type(_e).__name__}: {_e}"
-check("A10 buyurtma PDF: yangi (MRP) mahsulot birligi — o'z turiniki («QOP»), «TA» emas", _pdf.status_code == 200 and "QOP" in _pdf_m,
+# kech120 (zip 136 — G6-12, MOSLANDI): buyurtma PDF birligi — umumiy qoida, kichik harfda («qop»; zip 133 da «QOP»)
+check("A10 buyurtma PDF: yangi (MRP) mahsulot birligi — o'z turiniki («qop»), «TA» emas", _pdf.status_code == 200
+      and re.search(r"\bqop\b", _pdf_m) and not re.search(r"\bTA\b", _pdf_m),
       (_pdf.status_code, _pdf_m[:400]))
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
