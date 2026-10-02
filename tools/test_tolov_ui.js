@@ -303,7 +303,8 @@ async function debtsBolimi() {
   let m = await dSina({}, [javob(200, { status: 'ok' })]);
   tekshir('D muvaffaqiyat: bitta so\'rov, AYNAN tana, order_id butun son',
           !m.xato && m.sorovlar.length === 1 && m.sorovlar[0].url === '/api/payments?write_off_remainder=false'
-          && JSON.stringify(m.sorovlar[0].tana) === JSON.stringify({ order_id: 55, amount: 250000, notes: null }),
+          // kech120 (zip 131 — G3-…, MOSLANDI): qarz to'lovi USULI ham yuboriladi (standart — «naqd»)
+          && JSON.stringify(m.sorovlar[0].tana) === JSON.stringify({ order_id: 55, amount: 250000, payment_method: 'naqd', notes: null }),
           m.xato || JSON.stringify(m.sorovlar));
   tekshir('D muvaffaqiyat: yashil xabar, sahifa yangilanadi',
           m.msg.style.display === 'block' && m.msg.textContent.startsWith('✓')
@@ -327,7 +328,7 @@ async function debtsBolimi() {
           m.xato || JSON.stringify(m.tasdiqlar));
   tekshir('D 409 tasdiqlandi → ikkinchi so\'rov: o\'sha tana + confirm_overpay true, o\'sha URL',
           m.sorovlar.length === 2 && m.sorovlar[1].url === '/api/payments?write_off_remainder=false'
-          && JSON.stringify(m.sorovlar[1].tana) === JSON.stringify({ order_id: 55, amount: 250000, notes: null,
+          && JSON.stringify(m.sorovlar[1].tana) === JSON.stringify({ order_id: 55, amount: 250000, payment_method: 'naqd', notes: null,
                                                                    confirm_overpay: true }),
           JSON.stringify(m.sorovlar));
   tekshir('D 409 → tasdiq → 200: yashil xabar',

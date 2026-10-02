@@ -50,8 +50,9 @@ const vm = require('vm');
 
 const ROOT = path.dirname(__dirname);
 const TDIR = process.argv[2] || path.join(ROOT, 'templates');
+// kech120 (zip 131 — G3-25): + kunlik_xarajat («Xarajat qo'shish» sahifasi — ilgari faqat butun raqam, umumiy qoidadan tashqarida)
 const SAHIFALAR = ['debts', 'finance', 'finished', 'hodim_panel', 'inventory', 'kpi',
-                   'orders', 'supplier_receive', 'suppliers'];
+                   'orders', 'supplier_receive', 'suppliers', 'kunlik_xarajat'];
 const FUNKS = ['parseNum', 'narxMatni', 'narxniOqi', 'narxKorinishi', 'formatPriceInput'];
 const NBSP = String.fromCharCode(160);
 const NNBSP = String.fromCharCode(0x202f);

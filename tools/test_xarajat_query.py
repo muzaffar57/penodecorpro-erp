@@ -840,10 +840,11 @@ check("H orders.html — UI ham 0 va manfiyni rad etadi (server bilan mos)",
       "if (!val || val <= 0)" in _ea)
 _fin = _fayl("templates/finance.html")
 _kx = _fayl("templates/kunlik_xarajat.html")
+# kech120 (zip 131 — G3-17, MOSLANDI): server sababi — umumiy `serverXatoSababi` (xom JSON / «Xato:» emas)
 check("H finance.html saveTx — server matnli sababini ko'rsatadi",
-      "alert('Xato: ' + (e.detail || ''))" in _fin)
+      "alert('❌ ' + await serverXatoSababi(res, 'Saqlanmadi'))" in _fin)
 check("H kunlik_xarajat.html — server matnli sababini ko'rsatadi",
-      "err.textContent = '❌ ' + (e.detail || 'Xato yuz berdi')" in _kx)
+      "err.textContent = '❌ ' + await serverXatoSababi(res, 'Xato yuz berdi')" in _kx)
 for nom, src in [("finance.html", _funksiya(_fin, "async function saveTx")),
                  ("kunlik_xarajat.html", _kx), ("debts.html", _qp)]:
     check(f"H {nom} — faqat ruxsat etilgan kalitlarni yuboradi",
