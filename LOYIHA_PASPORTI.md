@@ -1,6 +1,6 @@
 # PenoDecorPro ERP — LOYIHA PASPORTI
 
-*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2); kech112: zip 108 — «Tayyor» da bo'sh loy = reja (K112-3), material nomi (K112-4), MRP qoplama belgisi (K112-5); ko'p korxonali yakuniy jonli sinov; kech115: zip 112 — butun dastur auditi A bosqichi (pul va ma'lumot xatolari) 1-qismi: kirim, qarzdorlar, «Tayyor», narxsiz buyurtma, o'chirilganlar jurnali, manfiy raqamlar, taqqoslash, korxona sog'ligi, ombor filtri; kech116: zip 113 — A bosqich 2-qismi: sog'liq sabablari (K115-2), «Bugungi xulosa» (K115-3), hujjatlardagi hisob qatorlari (G2-04), «Pul oqimi» — haqiqiy pul (G1-03), «Xarajat» — bitta ta'rif va «Tannarx» (G1-02), loyiha qiymati buyurtmalardan (G2-01), haqiqiy IP va kirish cheklovi (U-01), parol oynasi va kirishlarni yopish (G6-06); zip 114 — mijoz hujjatlarida kechirilgan qarz «Chegirma» ichida (egasi qarori); kech117: zip 115 — A2: yo'nalishlar bo'yicha moliya (G3-11, G6-09); zip 116 — jonli sinovdan keyin: «Belgilanmagan» manbalari, Moliya xarajatdan keyin yangilanadi; kech118: qolgan egasi qarorlari (6-bo'lim); zip 117 — B bosqichi 1-qism: dastur oynalari (xabar, kiritish, Esc / tashqariga bosish), o'zbekcha 404 / 403 sahifa, klaviatura fokusi; zip 118 — B bosqichi 2-qism: son / sana / birlik ko'rinishi, o'qiladigan rang, 12 px + yo'nalishlar bo'yicha moliyaviy natija (egasi qarori: taqsim yo'q, oyliklar alohida, davr, solishtirish); yangi qarorlar — rollar va ruxsatlar (6-bo'lim); zip 119 — rollar va ruxsatlar 1-qism (admin rollarni o'zi boshqaradi); kech119: zip 125 — Hisobotlar «oy boshi»: o'tgan oyning SHU KUNLARI bilan solishtirish (egasi qarori), taxminda oylik xarajat bir marta, xomashyo birligi; «Foyda tahlili» summalari (G2-15); zip 126 — telefon (C bosqichi); kech120: zip 127 — E bosqichi 1-qism: tezlik — hisobot xotirasi (so'rovlar orasida, yozuv bo'lsa darhol eskiradi), sahifa bir ochilishida bir xil so'rov bir marta, Bosh sahifa 5 ta buyurtma, kirish sahifasi rasmi, Hisobotlar taqqoslash kartalari telefonda (K120-1); zip 128 — E bosqichi 2-qism: katta ro'yxatlarda topish — Bosh sahifa «Bugungi vazifalar» havolalari, Buyurtmalar filtri / keng qidiruv / tanlovni tiklash, Qarzdorlar mijoz bo'yicha; zip 129 — E bosqichi 3-qism: tarix va jurnallar — «Tizim jurnallari» filtri va sahifalash, hamma amal o'zbekcha, tahrir yozuvida nima o'zgargani; Ombor «Tarix», «Yana yuklash», davr jami; zip 130 — E bosqichi 4-qism: qidiruvli tanlagich (Kirim — ta'minotchi, material; «Yangi qaytarish», «Brak yozish»), ta'minotchilar tabiiy tartibda, Tayyor mahsulotlar kategoriyalari korxonaning o'z mahsulot turlaridan; shu zipda — E bosqichi 5-qism: hodim kirishi — har korxonada kod (kodsizlarga ishga tushishda), QR serverda (ichida kod), kirish sahifasi kodni o'zi yozadi, chop etish sahifasi; shu zipda — E bosqichi 6-qism: rasmlar yuklashda 1920 px gacha kichraytiriladi (burilish qo'llanadi, joylashuv saqlanmaydi), ro'yxatlarda kichik nusxa (360 px); uzun ro'yxatlarda faqat birinchi 20 qator animatsiyali); zip 131 — F bosqichi 1-qism: Moliya, Qarzdorlar, «Xarajat qo'shish» (kirim xarajati faqat hujjat orqali, ro'yxat jami, kassa yozuvini o'chirish, «Yalpi foyda», qarz to'lovi usuli, majburiyat oyi). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
+*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2); kech112: zip 108 — «Tayyor» da bo'sh loy = reja (K112-3), material nomi (K112-4), MRP qoplama belgisi (K112-5); ko'p korxonali yakuniy jonli sinov; kech115: zip 112 — butun dastur auditi A bosqichi (pul va ma'lumot xatolari) 1-qismi: kirim, qarzdorlar, «Tayyor», narxsiz buyurtma, o'chirilganlar jurnali, manfiy raqamlar, taqqoslash, korxona sog'ligi, ombor filtri; kech116: zip 113 — A bosqich 2-qismi: sog'liq sabablari (K115-2), «Bugungi xulosa» (K115-3), hujjatlardagi hisob qatorlari (G2-04), «Pul oqimi» — haqiqiy pul (G1-03), «Xarajat» — bitta ta'rif va «Tannarx» (G1-02), loyiha qiymati buyurtmalardan (G2-01), haqiqiy IP va kirish cheklovi (U-01), parol oynasi va kirishlarni yopish (G6-06); zip 114 — mijoz hujjatlarida kechirilgan qarz «Chegirma» ichida (egasi qarori); kech117: zip 115 — A2: yo'nalishlar bo'yicha moliya (G3-11, G6-09); zip 116 — jonli sinovdan keyin: «Belgilanmagan» manbalari, Moliya xarajatdan keyin yangilanadi; kech118: qolgan egasi qarorlari (6-bo'lim); zip 117 — B bosqichi 1-qism: dastur oynalari (xabar, kiritish, Esc / tashqariga bosish), o'zbekcha 404 / 403 sahifa, klaviatura fokusi; zip 118 — B bosqichi 2-qism: son / sana / birlik ko'rinishi, o'qiladigan rang, 12 px + yo'nalishlar bo'yicha moliyaviy natija (egasi qarori: taqsim yo'q, oyliklar alohida, davr, solishtirish); yangi qarorlar — rollar va ruxsatlar (6-bo'lim); zip 119 — rollar va ruxsatlar 1-qism (admin rollarni o'zi boshqaradi); kech119: zip 125 — Hisobotlar «oy boshi»: o'tgan oyning SHU KUNLARI bilan solishtirish (egasi qarori), taxminda oylik xarajat bir marta, xomashyo birligi; «Foyda tahlili» summalari (G2-15); zip 126 — telefon (C bosqichi); kech120: zip 127 — E bosqichi 1-qism: tezlik — hisobot xotirasi (so'rovlar orasida, yozuv bo'lsa darhol eskiradi), sahifa bir ochilishida bir xil so'rov bir marta, Bosh sahifa 5 ta buyurtma, kirish sahifasi rasmi, Hisobotlar taqqoslash kartalari telefonda (K120-1); zip 128 — E bosqichi 2-qism: katta ro'yxatlarda topish — Bosh sahifa «Bugungi vazifalar» havolalari, Buyurtmalar filtri / keng qidiruv / tanlovni tiklash, Qarzdorlar mijoz bo'yicha; zip 129 — E bosqichi 3-qism: tarix va jurnallar — «Tizim jurnallari» filtri va sahifalash, hamma amal o'zbekcha, tahrir yozuvida nima o'zgargani; Ombor «Tarix», «Yana yuklash», davr jami; zip 130 — E bosqichi 4-qism: qidiruvli tanlagich (Kirim — ta'minotchi, material; «Yangi qaytarish», «Brak yozish»), ta'minotchilar tabiiy tartibda, Tayyor mahsulotlar kategoriyalari korxonaning o'z mahsulot turlaridan; shu zipda — E bosqichi 5-qism: hodim kirishi — har korxonada kod (kodsizlarga ishga tushishda), QR serverda (ichida kod), kirish sahifasi kodni o'zi yozadi, chop etish sahifasi; shu zipda — E bosqichi 6-qism: rasmlar yuklashda 1920 px gacha kichraytiriladi (burilish qo'llanadi, joylashuv saqlanmaydi), ro'yxatlarda kichik nusxa (360 px); uzun ro'yxatlarda faqat birinchi 20 qator animatsiyali); zip 131 — F bosqichi 1-qism: Moliya, Qarzdorlar, «Xarajat qo'shish» (kirim xarajati faqat hujjat orqali, ro'yxat jami, kassa yozuvini o'chirish, «Yalpi foyda», qarz to'lovi usuli, majburiyat oyi); zip 132 — F bosqichi 2-qism: Ombor, Kirim, Ta'minotchilar, Retseptlar (kirim hujjatidan qator — to'lov / xarajat bo'lsa butun hujjat orqali, ishlatilgan retsept o'chmaydi, Telegram natijasi, Omborxona — ruxsat bo'yicha tugmalar, ustun nomlari, toifa filtri; ta'minotchi tarixida to'lov holati, penoplast blok hajmi). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
 *Bu faylni `main` ga ko'chirish bilan birga, keyin har katta o'zgarishda yangilab boring. 9-bo'lim AVTOMATIK
 (`python3 tools/pasport_xarita.py --yoz`), qolgani qo'lda; `tools/test_pasport.py` ikkalasini ham tekshiradi.*
 
@@ -644,6 +644,26 @@ qarzdan ko'p summa — alohida tasdiq; majburiyat / hodim to'lov tarixi — qato
 (≤ 950 px) ro'yxat ichida alohida aylantirish yo'q, sahifa yangi ochilganda qarzdor kartasiga surilmaydi (`selectOrderDebt(el, surish)` —
 faqat to'lovdan keyingi qayta yuklanishda). «XARAJAT QO'SHISH»: summa — umumiy qoida (`formatPriceInput` / `parseNum`, tiyin; sahifa
 `test_narx_kiritish_ui` ro'yxatida), saqlangach — summa, toifa, sana; boshqa oyga yozish — tasdiq. Test: `tools/test_f_moliya.py`.
+**Ombor, kirim, ta'minotchilar, retseptlar — F bosqichi 2-qism (kech120, zip 132; audit G4-04, G4-07, G4-08, G4-09, G4-10, G4-12,
+G4-13, G4-15, G4-16, G4-18, G4-21, G4-23, G4-25 — 2026-10-01 da JORIY kodda qayta tekshirildi: `work/f/tekshiruv_kech120.md`).** KIRIM
+HUJJATIDAN QATOR (O'LCHANGAN `work/f/f1_probe.py`, SQLite va PG): hujjatdan bitta xarid qatori o'chirilsa, hujjat bilan qilingan
+ta'minotchi to'lovi va qo'shimcha xarajatlar (tannarxga taqsimlangan) joyida qolardi. Endi `DELETE /api/inventory/purchases/{id}`:
+hujjatda to'lov yoki qo'shimcha xarajat bo'lsa — 409 `receipt_line_locked` (sababi, summasi, `receipt_id`; sahifa «Kirim hujjatini
+bekor qilish» taklif qiladi — to'lov bo'yicha savol bilan); to'lovsiz, xarajatsiz hujjatning YAGONA qatori — butun hujjat bekor
+qilinadi (`crud.kirim_hujjatini_bekor_qilish`: ombor, o'rtacha narx, jurnal — yakka xarid o'chirish bilan AYNAN; bo'sh hujjat qatori
+qolmaydi, audit yoziladi; javobda `receipt_cancelled`); to'lovsiz, xarajatsiz ko'p qatorli — avvalgidek. ISHLATILGAN RETSEPT
+(`DELETE /api/recipes/{id}`): buyurtma detali yoki tayyor mahsulotda bo'lsa — 409 sababi bilan (ilgari PG da 500, SQLite da detal yetim).
+TELEGRAM («Kam qoldiq», «Ombor hisoboti»): `main._send_telegram` natija qaytaradi — sozlanmagan / yuborilmagan bo'lsa `sent: false` va
+qayerda sozlanadi (`TELEGRAM_YUBORILMADI_XABARI`); ilgari doim «yuborildi». OMBORXONA: tugmalar ruxsat bo'yicha (Telegram — `material:
+yaratish`; rasm, «Asosiy qilish», toifa, chegara — `material: tahrirlash`); material o'chirish tasdig'ida nomi va qoldig'i; kompyuterda ustun
+nomlari (`.mat-bosh`), tugmalar ≥ 32 px; «Kirim qilish» havolasi, bo'sh korxonada yo'riqnoma; toifa filtri — omborda BOR toifalardan
+(`_toifa_nomi`, toifasiz, loy), bir toifaning taxalluslari bitta kodga (`TOIFA_TAXALLUS` / `toifaKodi`: «minerallar» → «Qattiq
+qotishmalar», belgi «Mineral qo'shimchalar»); chiqim oynasida qoldiq son qoidasi bilan («8,253 metr»), saralash «Turi bo'yicha» /
+«Nomi bo'yicha (A–Z)» / qoldiq. KIRIM VA TA'MINOTCHILAR: tarixda har xarid qatori uchun hujjat bilan to'langani (`kirimda_tolangan`:
+to'langan / qisman / nasiya, «Kirim #N»), «Jami xarid»; «Hujjat fayli (hozircha saqlanmaydi)» olib tashlandi, «Eski qarzni to'lash» —
+tasdiq (ta'minotchi nomi, summa); penoplast tanlansa «1 blok necha m³?» o'zi yoziladi (shu materialniki), yangi penoplastda majburiy;
+Ta'minotchilar qatorida «Tarix», to'lovni bekor qilishda server sababi. RETSEPTLAR: o'chirish tasdig'ida nomi, rad etilsa sababi; tarkib
+birligi — materialniki (ilgari hammasi «kg»). Test: `tools/test_f_ombor.py`.
 **Ranglar va tungi rejim (kech118, D bosqichi 2-qism — egasi QARORI «To'liq tuzatilsin — har sahifa ranglari umumiy ranglar
 ro'yxatiga», U-02; zip 122).** Shablon / `style.css` dagi rang XOSSASIGA qarab UMUMIY RO'YXATDAN olinadi — `static/ranglar.css`
 (`base.html` va mustaqil sahifalar — kirish, hodim kirishi / paneli, xato sahifasi — `style.css` dan KEYIN ulaydi):
@@ -1039,6 +1059,16 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   matni «50 kg loy × 15 600 so'm/kg»), `test_tayyor_reja_loy` (R7, R12, R16 — «20 kg loy»), `test_yonalish_natija`
   (S1 / S2 — «bugun» muzlatiladi: oy tugagan → o'tgan oy butun; yangi S5–S7 — 1–5 / 1–4 kesim qo'lda hisoblangan
   summalar bilan va haqiqiy bugun qoidasi; asl kodda S5–S7 yiqiladi).
+- (kech120, zip 132) F bosqichi 2-qism — Ombor, Kirim, Ta'minotchilar, Retseptlar: `tools/test_f_ombor.py` — S (statik), D (beshta kirim
+  hujjati — to'langan, qisman, xarajatli, yagona qatorli to'lovsiz, oddiy; ishlatilgan / bo'sh retsept, B korxona, Menejer), A (to'langan
+  va xarajatli hujjat qatori — 409 sababi bilan, hech narsa o'zgarmaydi; yagona qatorli to'lovsiz — 200, butun hujjat bekor, audit;
+  ko'p qatorli — avvalgidek; ishlatilgan retsept — 409, bo'sh — 200; ta'minotchi tarixida to'lov holati; Telegram — sozlanmagan /
+  sozlangan / xato), B (HAQIQIY Chromium: Omborxona 1440 — ustun nomlari, toifa filtri va saralash, chiqim qoldig'i, o'chirish tasdig'i,
+  toifa taxallusi, hujjat qatorini o'chirish — sabab va «Kirim hujjatini bekor qilish»; Menejer — tugmalar yo'q; bo'sh korxona —
+  yo'riqnoma; Kirim sahifasi — holat, blok hajmi, eski qarz tasdig'i; Ta'minotchilar — «Tarix»; Retseptlar — sabab; telefon 390 px;
+  JS xatosiz). SQLite, PG (32) — asl kodda (zip 131) 22 yiqiladi, qulamaydi. Mutatsiyalar (`work/f/mutatsiya_f2.py`, 29 ta; natija
+  `work/natija/f2/mut/`) — hammasi ushlanadi. Moslangan: `test_kirim_bekor` A3 (xarajatli hujjat qatori — 409, so'ng hujjat bekor
+  qilinadi — A3b).
 - (kech120, zip 131) F bosqichi 1-qism — Moliya, Qarzdorlar, «Xarajat qo'shish»: `tools/test_f_moliya.py` — S (statik), D (ikki kirim —
   tannarxga va alohida xarajat, qo'lda xarajatlar, majburiyat — 75 kun oldin, qarzli buyurtma, B korxona), A (kirim xarajatini tahrirlash /
   o'chirish — 409, sababi bilan, yozuv o'zgarmaydi; qo'lda — 200; boshqa korxona — 404; `category_label`), B (HAQIQIY Chromium: «Yalpi
@@ -1796,6 +1826,12 @@ bajarilganlari belgilanadi)**
 - (kech120, zip 131) Sahifa funksiyasining IMZOSI o'zgarsa (yangi ixtiyoriy argument) — statik testlar funksiya boshini AYNAN qidiradi
   (`function selectOrderDebt(el)`): ularni boshlanishi bo'yicha moslang. Sana / oy qoidasi testlari OYNING 1-KUNIDA o'zini ko'rsatmasligi
   mumkin (bugun = 1-kun): sinovga o'tgan oyni ham qo'shing.
+- (kech120, zip 132) Natija qaytarishi mumkin bo'lgan amal (Telegram, tashqi xizmat) — funksiya natijani QAYTARSIN, sahifa «yuborildi»
+  deb faqat muvaffaqiyatda yozsin. Hujjatning yagona qatorini o'chirish = hujjatni bekor qilish (bo'sh hujjat qoldirmang) — o'sha funksiya
+  orqali.
+- (kech120, zip 132) Mutatsiya skripti nusxa daraxtni BIR MARTA yasaydi: o'zgarayotgan fayl har safar asldan olinadi, lekin SINOV fayli
+  ham har safar yangilanishi SHART (aks holda kod o'zgargach eski sinov nusxasi «ushlandi» deb yolg'on natija beradi) — `mutatsiya_f3.py`
+  shunday.
 
 ## 9. Xarita (AVTOMATIK)
 
@@ -2137,7 +2173,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `GET /api/inventory/purchase-trend` → `main.py:api_purchase_trend` · 🔒 auth.ruxsat('kirim', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_purchase_stats_range
 - `GET /api/inventory/purchases` → `main.py:api_get_purchases` · 🔒 auth.ruxsat('kirim', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_purchases, crud.kirim_qolgan_qatorlari, crud.xaridlar_soni
 - `PUT /api/inventory/purchases/{purchase_id}` → `main.py:api_update_purchase` · 🔒 auth.ruxsat('kirim', 'tahrirlash') · auth.company_id_of, auth.purchase_of_company, auth.ruxsat, crud.update_purchase
-- `DELETE /api/inventory/purchases/{purchase_id}` → `main.py:api_delete_purchase` · 🔒 auth.ruxsat('kirim', 'ochirish') · auth.company_id_of, auth.purchase_of_company, auth.ruxsat, crud.delete_purchase
+- `DELETE /api/inventory/purchases/{purchase_id}` → `main.py:api_delete_purchase` · 🔒 auth.ruxsat('kirim', 'ochirish') · auth.company_id_of, auth.purchase_of_company, auth.ruxsat, crud._kirim_hujjati_qismlari, crud.bitta_tranzaksiya, crud.delete_purchase, crud.kirim_hujjatini_bekor_qilish, services.son_korinish
 - `POST /api/inventory/receipt` → `main.py:api_create_inventory_receipt` · 🔒 auth.ruxsat('kirim', 'yaratish') · auth.company_id_of, auth.ruxsat, crud._pul_yigindi, crud._require_inventory_of_company, crud._xarid_narx_jami, crud.bitta_tranzaksiya, crud.create_inventory_receipt, crud.get_supplier
 - `POST /api/inventory/receipts/{receipt_id}/cancel` → `main.py:api_receipt_cancel` · 🔒 auth.ruxsat('kirim', 'ochirish') · auth.company_id_of, auth.ruxsat, crud.bitta_tranzaksiya, crud.kirim_hujjatini_bekor_qilish
 - `GET /api/inventory/receipts/{receipt_id}/cancel-plan` → `main.py:api_receipt_cancel_plan` · 🔒 auth.ruxsat('kirim', 'ochirish') · auth.company_id_of, auth.ruxsat, crud.kirim_hujjatini_bekor_qilish
@@ -2578,6 +2614,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_eski_brak_muzlash.py` · PG — 37-band darvozasi (kech51, 2026-09-24).
 - `test_eski_narx_muzlash.py` · PG — 33-band darvozasi (kech49, 2026-09-24).
 - `test_f_moliya.py` · PG — kech120, F BOSQICH 1-qism (MOLIYA, QARZDORLAR, XARAJAT QO'SHISH — audit G3 qolgan bandlari).
+- `test_f_ombor.py` · PG — kech120, F BOSQICH 2-qism (OMBOR, KIRIM, TA'MINOTCHILAR, RETSEPTLAR — audit G4 qolgan bandlari).
 - `test_finished_tartib.py` · PG — 15-band darvozasi (kech35, 2026-09-23).
 - `test_fp_product_type.py` — Bosqich 3, 10-band tekshiruvi.
 - `test_hisobot_kesh.py` · PG — kech89 darvozasi (2026-09-26, 52-band: Moliya hisobotidagi N+1 so'rovlar).
@@ -2730,5 +2767,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 193 (Python 158, JS 35).
+Jami test fayllari: 194 (Python 159, JS 35).
 <!-- AVTO:TESTLAR OXIRI -->

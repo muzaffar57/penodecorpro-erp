@@ -223,10 +223,13 @@ def _tg_post_message(token, chat_id, text, reply_markup=None):
 
 
 def _send_telegram(text: str, company_id=None):
+    """kech120 (zip 132 — audit G4-07): natija — True (kamida bitta chatga ketdi) yoki False (token / chat yo'q yoki hammasi xato).
+    Ilgari hech narsa qaytarmasdi va «SMS» tugmalari Telegram sozlanmagan korxonada ham «yuborildi» derdi. Chaqiruvchi faqat
+    `is False` ni tekshiradi (sinovlardagi yozib oluvchi almashtirish `None` qaytaradi — «yuborildi» deb olinadi)."""
     token, _tenant_chats = _tenant_telegram(company_id)
     if not token:
         print("⚠ Telegram tokeni yo'q (korxona sozlamasi ham, muhit o'zgaruvchisi ham)")
-        return
+        return False
     # MUHIM (2026-08-18): avval, bu funksiya, ESKIRGAN/NOTO'G'RI bo'lib
     # qolgan, qattiq yozilgan TELEGRAM_COATING_ID'ga yuborardi (Telegram
     # "403 Forbidden" xatosi bilan qaytarardi — bot bloklangan yoki chat
@@ -243,13 +246,21 @@ def _send_telegram(text: str, company_id=None):
         chat_ids = [TELEGRAM_COATING_ID]
     else:
         print("⚠ Korxonaning Telegram chat manzili sozlanmagan — xabar yuborilmadi")
-        return
+        return False
+    _ketdi = False
     for chat_id in chat_ids:
         try:
             _tg_post_message(token, chat_id, text)
             print(f"✓ Telegram xabar yuborildi ({chat_id})")
+            _ketdi = True
         except Exception as e:
             print(f"⚠ Telegram xabar yuborilmadi ({chat_id}): {e}")
+    return _ketdi
+
+
+# kech120 (zip 132 — G4-07): «Telegramga yuborish» tugmalarining javobi — yuborilmagan bo'lsa, sababi va qayerda sozlanadi
+TELEGRAM_YUBORILMADI_XABARI = ("Telegram xabari YUBORILMADI — korxonaning Telegram boti yoki chat manzili sozlanmagan (yoki Telegram "
+                               "javob bermadi). Sozlash: «Tizim jurnallari» → «⚙️ Sozlamalar» → «📱 Telegram bot».")
 
 
 def _send_telegram_to(chat_id: str, text: str, company_id=None):
@@ -5438,6 +5449,39 @@ def api_delete_purchase(purchase_id: int, db: Session = Depends(get_db), current
     # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.purchase_of_company(db, purchase_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Xarid topilmadi")
+    # kech120 (zip 132 — F bosqichi 2-qism, audit G4-15, O'LCHANGAN work/f/f1_probe.py): kirim HUJJATIDAN bitta qator o'chirilsa,
+    # hujjat bilan qilingan ta'minotchi to'lovi va qo'shimcha xarajatlar (tannarxga taqsimlangan) joyida qolardi — to'lov ortiqcha,
+    # qolgan materiallar narxi noto'g'ri. Endi hujjatda to'lov yoki qo'shimcha xarajat bo'lsa, qator alohida o'chirilmaydi
+    # (409 `receipt_line_locked`) — butun hujjat bekor qilinadi (`kirim_hujjatini_bekor_qilish`: to'lov bo'yicha savol bilan).
+    # To'lovsiz, xarajatsiz hujjatning YAGONA qatori — butun hujjat bekor qilinadi (o'sha funksiya: ombor, o'rtacha narx, jurnal —
+    # yakka xarid o'chirish bilan AYNAN; bo'sh hujjat qatori qolmaydi, audit yoziladi). To'lovsiz, xarajatsiz ko'p qatorli — avvalgidek.
+    from models import InventoryPurchase as _IP132, InventoryReceipt as _IR132
+    _cid132 = auth.company_id_of(current_user)
+    _p132 = db.query(_IP132).join(Inventory, Inventory.id == _IP132.inventory_id).filter(
+        _IP132.id == purchase_id, Inventory.company_id == _cid132).first()
+    if _p132 is not None and _p132.receipt_id:
+        _r132 = db.query(_IR132).filter(_IR132.id == _p132.receipt_id, _IR132.company_id == _cid132).first()
+        if _r132 is not None:
+            _q132 = crud._kirim_hujjati_qismlari(db, _r132)
+            _sabab = []
+            if _q132["tolovlar"]:
+                _sabab.append("hujjat bilan ta'minotchiga " + services.son_korinish(sum(float(t.amount or 0) for t in _q132["tolovlar"]), 2)
+                              + " so'm to'langan")
+            if _q132["xarajatlar"]:
+                _sabab.append("hujjatda qo'shimcha xarajatlar bor (" + services.son_korinish(sum(float(t.amount or 0) for t in _q132["xarajatlar"]), 2)
+                              + " so'm)")
+            if _sabab:
+                raise HTTPException(status_code=409, detail={
+                    "type": "receipt_line_locked", "receipt_id": _r132.id,
+                    "message": (f"Kirim #{_r132.id}: " + "; ".join(_sabab) + ". Bitta qatorni alohida o'chirib bo'lmaydi — "
+                                "butun hujjatni bekor qiling («Kirim hujjatini bekor qilish»), so'ng to'g'risini qayta kiriting.")})
+            if [x.id for x in _q132["xaridlar"]] == [purchase_id]:
+                with crud.bitta_tranzaksiya(db):
+                    _n132 = crud.kirim_hujjatini_bekor_qilish(db, _r132.id, company_id=_cid132,
+                                                              performed_by=current_user.full_name or current_user.username)
+                    if _n132 is None:
+                        raise HTTPException(status_code=404, detail="Topilmadi")
+                return {"status": "ok", "receipt_cancelled": _r132.id}
     if not crud.delete_purchase(db, purchase_id, company_id=auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok"}
@@ -5644,15 +5688,16 @@ def api_full_stock_report(db: Session = Depends(get_db), current_user=Depends(au
         msg += f"━━━ KAM QOLGANLAR ({len(kam)} ta) ━━━\n" + "\n".join(kam) + "\n\n"
     msg += f"━━━ YETARLI ({len(yetarli)} ta) ━━━\n" + "\n".join(yetarli)
     msg += f"\n\n" + _tg_footer(db, auth.company_id_of(current_user))
-    _send_telegram(msg, company_id=auth.company_id_of(current_user))
-    return {"message": f"Ombor hisoboti yuborildi! ({len(items)} ta xomashyo)"}
+    if _send_telegram(msg, company_id=auth.company_id_of(current_user)) is False:       # kech120 (G4-07)
+        return {"sent": False, "message": TELEGRAM_YUBORILMADI_XABARI}
+    return {"sent": True, "message": f"Ombor hisoboti Telegramga yuborildi ({len(items)} ta xomashyo)"}
 
 
 @app.post("/api/inventory/low-stock-alert")
 def api_low_stock_alert(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("material", "yaratish"))):
     low_items = crud.get_low_stock_items(db, company_id=auth.company_id_of(current_user))
     if not low_items:
-        return {"sent": False, "message": "Barcha xomashyolar yetarli — SMS yuborilmadi!"}
+        return {"sent": False, "message": "Barcha xomashyolar yetarli — xabar yuborilmadi."}
     lines = []
     for item in low_items:
         qty = float(item.stock_quantity)
@@ -5661,8 +5706,9 @@ def api_low_stock_alert(db: Session = Depends(get_db), current_user=Depends(auth
         emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
         lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f}, yetishmaydi: {deficit:.1f})")
     msg = f"⚠️ *Ombor ogohlantirishlari!*\n\n━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines) + f"\n━━━━━━━━━━━━━━━━━━━\n\nZudlik bilan buyurtma bering! 🚨\n\n" + _tg_footer(db, auth.company_id_of(current_user))
-    _send_telegram(msg, company_id=auth.company_id_of(current_user))
-    return {"sent": True, "message": f"{len(low_items)} ta kam qolgan xomashyo haqida SMS yuborildi!"}
+    if _send_telegram(msg, company_id=auth.company_id_of(current_user)) is False:       # kech120 (G4-07)
+        return {"sent": False, "message": TELEGRAM_YUBORILMADI_XABARI}
+    return {"sent": True, "message": f"{len(low_items)} ta kam qolgan xomashyo haqida Telegramga yuborildi"}
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -5861,6 +5907,17 @@ def api_delete_recipe(recipe_id: int, db: Session = Depends(get_db), current_use
         Recipe.company_id == auth.company_id_of(current_user)).first()
     if not recipe:
         raise HTTPException(status_code=404, detail="Retsept topilmadi")
+    # kech120 (zip 132 — F bosqichi 2-qism, audit G4-23, O'LCHANGAN work/f/f1_probe.py): buyurtma detali / tayyor mahsulot ishlatgan
+    # retsept o'chirilsa — PG da 500 (tashqi kalit), SQLite da detal YETIM qolardi (retsept_id bor, retsept yo'q). Endi — 409, sababi bilan.
+    from models import OrderItem as _OI132, FinishedProduct as _FP132
+    _cid132 = auth.company_id_of(current_user)
+    _det = db.query(_OI132.id).filter(_OI132.recipe_id == recipe_id, _OI132.company_id == _cid132).count()
+    _tm = db.query(_FP132.id).filter(_FP132.recipe_id == recipe_id, _FP132.company_id == _cid132).count()
+    if _det or _tm:
+        _qism = ([f"{_det} ta buyurtma detalida"] if _det else []) + ([f"{_tm} ta tayyor mahsulotda"] if _tm else [])
+        raise HTTPException(status_code=409, detail=(
+            f"Bu retsept ishlatilgan ({', '.join(_qism)}) — o'chirib bo'lmaydi: eski buyurtmalar hisobi unga bog'liq. "
+            "Kerak bo'lmasa, nomini o'zgartirib qo'ying (masalan «… (eski)»)."))
     db.delete(recipe)
     db.commit()
     return {"status": "ok"}

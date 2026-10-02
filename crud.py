@@ -14909,6 +14909,37 @@ def get_supplier_history(db: Session, supplier_id: int, start_date=None, end_dat
 
     debt_info = get_supplier_debt(db, supplier_id, company_id=company_id)
 
+    # kech120 (zip 132 — F bosqichi 2-qism, audit G4-16): har kirim qatori «Nasiya» deb ko'rinardi (`is_credit` — ta'minotchili HAR
+    # qatorga True), hujjat bilan to'langan bo'lsa ham. Endi kirim HUJJATI (`receipt_id`) bo'yicha: hujjat jami va hujjat bilan
+    # qilingan to'lov («Kirim to'lovi — #N») — `kirimda_tolangan` (to'liq / qisman / yo'q). Keyinroq umumiy «qarzni to'lash» bilan
+    # yopilgan qarz bu yerda ko'rinmaydi (u ta'minotchi qarzida — `debt`); hujjatsiz eski xarid — avvalgidek `is_credit`.
+    import re as _re132
+    from sqlalchemy import func as _f132
+    _rids = sorted({p.receipt_id for p in purchases if p.receipt_id})
+    _hujjat = {}
+    if _rids:
+        # TENANT: hujjat jami — FAQAT shu korxona materiallari (ota orqali; `tenant_lint`)
+        _jq132 = db.query(InventoryPurchase.receipt_id, _f132.sum(InventoryPurchase.total_amount)).join(
+            Inventory, Inventory.id == InventoryPurchase.inventory_id).filter(
+            InventoryPurchase.receipt_id.in_(_rids), InventoryPurchase.supplier_id == supplier_id)
+        if company_id is not None:
+            _jq132 = _jq132.filter(Inventory.company_id == company_id)
+        for _rid, _jami in _jq132.group_by(InventoryPurchase.receipt_id).all():
+            _hujjat[_rid] = {"jami": float(_jami or 0), "tolangan": 0.0}
+        _tn132 = _re132.compile(r"^Kirim to'lovi — #(\d+)(?!\d)")
+        for pay in payments:
+            _m = _tn132.match(pay.notes or "")
+            if _m and int(_m.group(1)) in _hujjat:
+                _hujjat[int(_m.group(1))]["tolangan"] += float(pay.amount or 0)
+
+    def _kirim_holati(p):
+        h = _hujjat.get(p.receipt_id) if p.receipt_id else None
+        if not h:
+            return None
+        if h["tolangan"] >= h["jami"] - 0.5:
+            return "tolangan"
+        return "qisman" if h["tolangan"] > 0.5 else "nasiya"
+
     return {
         **debt_info,
         "purchases": [{
@@ -14919,6 +14950,8 @@ def get_supplier_history(db: Session, supplier_id: int, start_date=None, end_dat
             "price_per_unit": float(p.price_per_unit),
             "total_amount": float(p.total_amount),
             "is_credit": p.is_credit,
+            "receipt_id": p.receipt_id,
+            "kirimda_tolangan": _kirim_holati(p),
             "category": p.category or "Boshqa",
             "purchased_at": p.purchased_at.isoformat() if p.purchased_at else None,
             "purchased_by": p.purchased_by,
