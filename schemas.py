@@ -430,6 +430,8 @@ class ExpenseTransactionRead(BaseModel):
     source: str = "manual"
     production_type: Optional[str] = None
     yonalish_id: Optional[int] = None
+    # kech120 (zip 131 — G3-18): doimiy majburiyat toifasi (`ijara_4821` kabi kod) — o'qiladigan nomi (ro'yxat uchun; yo'q — None)
+    category_label: Optional[str] = None
     model_config = {"from_attributes": True}
 
 

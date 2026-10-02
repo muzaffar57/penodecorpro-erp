@@ -7321,11 +7321,40 @@ def api_list_expense_transactions(year: Optional[int] = None, month: Optional[in
                                              company_id=auth.company_id_of(current_user))
     except ValueError as e:      # kech105: oy / kun filtri yilsiz — 400 (ilgari UTC `extract` bilan har yilni olardi)
         raise HTTPException(status_code=400, detail=str(e))
-    return [schemas.ExpenseTransactionRead.model_validate(r) for r in rows]
+    # kech120 (zip 131 — F bosqichi, audit G3-18): doimiy majburiyat to'lovlari ro'yxatda xom kod bilan («ijara_4821») chiqardi —
+    # korxonaning majburiyat nomi `category_label` da
+    from models import RecurringObligation as _RO131
+    _nomlar = dict(db.query(_RO131.category, _RO131.label)
+                   .filter(_RO131.company_id == auth.company_id_of(current_user)).all())
+    natija = []
+    for r in rows:
+        _d = schemas.ExpenseTransactionRead.model_validate(r)
+        _d.category_label = _nomlar.get(r.category)
+        natija.append(_d)
+    return natija
+
+
+# kech120 (zip 131 — F bosqichi, audit G3-17, O'LCHANGAN work/f/f1_probe.py — SQLite va PG): kirim hujjatining qo'shimcha xarajati
+# (transport / tushirish / yuklash / boshqa — `models.KIRIM_TANNARX_MANBA` va `KIRIM_XARAJAT_MANBA`) Moliya ro'yxatidan TAHRIRLANAR va
+# O'CHIRILARDI (200) — hujjat bilan aloqasi uzilardi (tannarxga qo'shilgani material narxida qolar, hujjat bekor qilinganda esa
+# yo'qolgan qator topilmasdi). Endi bunday yozuv bu yerda o'zgarmaydi (409, sababi bilan) — Omborxonada kirim hujjati bekor qilinadi
+# (`kirim_hujjatini_bekor_qilish` — qatorlar, xarajatlar va to'lov bitta tranzaksiyada).
+KIRIM_XARAJATI_QULF_XABARI = ("Bu xarajat kirim hujjatiga tegishli — Moliyada o'zgartirilmaydi va o'chirilmaydi. Xato bo'lsa: "
+                              "Omborxona → «Xaridlar tarixi» → shu kirimni ochib, «Kirim hujjatini bekor qilish», so'ng to'g'risini "
+                              "qayta kiriting.")
+
+
+def _kirim_xarajati_qulfi(db: Session, tx_id: int, company_id: int):
+    from models import ExpenseTransaction as _ET131, KIRIM_TANNARX_MANBA as _KTM131, KIRIM_XARAJAT_MANBA as _KXM131
+    _src = (db.query(_ET131.source)
+            .filter(_ET131.id == tx_id, _ET131.company_id == company_id).scalar())
+    if _src in (_KTM131, _KXM131):
+        raise HTTPException(status_code=409, detail=KIRIM_XARAJATI_QULF_XABARI)
 
 
 @app.delete("/api/finance/transactions/{tx_id}")
 def api_delete_expense_transaction(tx_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kunlik", "ochirish"))):
+    _kirim_xarajati_qulfi(db, tx_id, auth.company_id_of(current_user))      # kech120 (G3-17)
     ok = crud.delete_expense_transaction(db, tx_id, company_id=auth.company_id_of(current_user))
     if not ok:
         raise HTTPException(status_code=404, detail="Tranzaksiya topilmadi")
@@ -7344,6 +7373,7 @@ def api_update_expense_transaction(tx_id: int, data: dict = Body(...), db: Sessi
     # yaratish bilan BIR XIL qat'iy qoida bilan tekshiriladi (xato → 400).
     if not auth.expense_of_company(db, tx_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Tranzaksiya topilmadi")
+    _kirim_xarajati_qulfi(db, tx_id, auth.company_id_of(current_user))      # kech120 (G3-17)
     try:
         toza = crud._clean_val("ExpenseTransaction", data)
         tx = crud.update_expense_transaction(db, tx_id, toza, company_id=auth.company_id_of(current_user))
