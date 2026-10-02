@@ -157,19 +157,14 @@ input[type=number]{-moz-appearance:textfield}
 
   <div class="fp-filters">
     <input type="text" id="fpSearch" placeholder="Mahsulot nomi bo'yicha qidirish..." style="flex:1;min-width:200px" oninput="renderFp()">
+    {# kech120 (zip 130 — G5-10, O'LCHANGAN — audit kech114): ilgari faqat «Profil / Panel / Donali» (eski penoplast oynasi)
+       — retsept bo'yicha ishlab chiqarilgan HAMMA mahsulot (kafel kley, travertin, ustun…) har tugmada yo'qolardi. Endi
+       tugmalar omborda BOR mahsulotlardan: penoplast turkumlari + korxonaning o'z mahsulot turlari (`fpKategoriyaTugmalari`). #}
     <div class="fp-cat-toggle" id="fpCategoryToggle">
-      <div class="fp-cat-opt active" data-value="" onclick="selectFpCategory(this,'')">Barcha kategoriya</div>
-      <div class="fp-cat-opt" data-value="profil" onclick="selectFpCategory(this,'profil')">Profil</div>
-      <div class="fp-cat-opt" data-value="panel" onclick="selectFpCategory(this,'panel')">Panel</div>
-      <div class="fp-cat-opt" data-value="dona" onclick="selectFpCategory(this,'dona')">Donali</div>
-{% if cat_on('blok', current_user.company_id) %}      <div class="fp-cat-opt" data-value="blok" onclick="selectFpCategory(this,'blok')">Blok</div>{% endif %}
+      <div class="fp-cat-opt active" data-value="" role="button" tabindex="0" onclick="selectFpCategory(this,'')">Barcha kategoriya</div>
     </div>
     <select id="fpCategory" style="display:none" onchange="renderFp()">
       <option value="">Barcha kategoriya</option>
-      <option value="profil">Profil</option>
-      <option value="panel">Panel</option>
-      <option value="dona">Donali</option>
-{% if cat_on('blok', current_user.company_id) %}      <option value="blok">Blok</option>{% endif %}
     </select>
     <select id="fpSort" onchange="renderFp()">
       <option value="default">Standart tartib</option>
@@ -754,10 +749,43 @@ function showMsg(t, type) {
 
 // ── Ro'yxat ──────────────────────────────────────────────
 let showAllFp = false;
+// kech120 (zip 130 — G5-10): har mahsulot BITTA kategoriyada — mahsulot turi bo'lsa — o'sha tur (nomi serverdan), aks holda
+// penoplast turkumi (Profil / Panel / Donali / Blok), qolgani — «Boshqa». Tugmalar ham, filtr ham SHU kalitdan.
+const FP_PENO_KAT = {profil: 'Profil', panel: 'Panel', dona: 'Donali', blok: 'Blok'};
+function fpKalit(i) {
+  if (i.product_type_id) return 'pt:' + i.product_type_id;
+  if (FP_PENO_KAT[i.category]) return i.category;
+  return 'boshqa';
+}
+function fpKalitNomi(i) {
+  if (i.product_type_id) return i.product_type_name || ('Mahsulot turi #' + i.product_type_id);
+  return FP_PENO_KAT[i.category] || 'Boshqa';
+}
+function fpKategoriyaTugmalari() {
+  const bor = new Map();
+  fpItems.forEach(i => { const k = fpKalit(i); if (!bor.has(k)) bor.set(k, fpKalitNomi(i)); });
+  const tartib = Object.keys(FP_PENO_KAT);
+  const kalitlar = [...bor.keys()].sort((a, b) => {
+    const ia = tartib.indexOf(a), ib = tartib.indexOf(b);
+    if (ia >= 0 || ib >= 0) return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    if (a === 'boshqa' || b === 'boshqa') return a === 'boshqa' ? 1 : -1;
+    return bor.get(a).localeCompare(bor.get(b), 'uz', {numeric: true, sensitivity: 'base'});
+  });
+  const sel = document.getElementById('fpCategory');
+  const joriy = kalitlar.includes(sel.value) ? sel.value : '';
+  sel.innerHTML = '<option value="">Barcha kategoriya</option>' +
+    kalitlar.map(k => `<option value="${escapeHtml(k)}">${escapeHtml(bor.get(k))}</option>`).join('');
+  sel.value = joriy;
+  document.getElementById('fpCategoryToggle').innerHTML = [['', 'Barcha kategoriya'], ...kalitlar.map(k => [k, bor.get(k)])]
+    .map(([k, n]) => `<div class="fp-cat-opt${k === joriy ? ' active' : ''}" data-value="${escapeHtml(k)}" role="button" tabindex="0" ` +
+      `onclick="selectFpCategory(this, this.dataset.value)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">${escapeHtml(n)}</div>`).join('');
+}
+
 async function loadFp() {
   try {
     const res = await fetch('/api/finished' + (showAllFp ? '?show_all=true' : ''));
     fpItems = await res.json();
+    fpKategoriyaTugmalari();
     renderFp();
     loadStats();
     updateFpRangeBanner();
@@ -938,7 +966,7 @@ function guruhHtml(g) {
   <div class="fp-guruh${ochiq ? ' ochiq' : ''}" data-kalit="${escapeHtml(g.kalit)}">
     <div class="fp-row fp-guruh-bosh" data-name="${escapeHtml(String(i0.name || '').toLowerCase())}">
       <div style="width:20px;margin-right:10px;flex-shrink:0"></div>
-      <div class="fp-thumb">${i0.image_url ? `<img src="${escapeHtml(i0.image_url)}" alt="">` : `<i class="ti ${ikon}"></i>`}</div>
+      <div class="fp-thumb">${i0.image_url ? `<img src="${escapeHtml(kichikRasm(i0.image_url))}" alt="">` : `<i class="ti ${ikon}"></i>`}</div>
       <div class="fp-main">
         <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
           <span class="fp-name">${escapeHtml(i0.name)}</span>
@@ -1026,7 +1054,7 @@ function renderFp() {
 
   const match = i => {
     if (q && !String(i.name || '').toLowerCase().includes(q)) return false;
-    if (category && i.category !== category) return false;
+    if (category && fpKalit(i) !== category) return false;     // kech120 (zip 130 — G5-10)
     return true;
   };
   // kech114 (7A): tugagan partiya (qoldiq 0, jarayonda emas) standartda yashirin — «Tugaganlar ham» bilan ko'rinadi.
@@ -1058,7 +1086,7 @@ function renderFp() {
 
   if (groups.length) {
     html += `<div class="fp-sec">
-      <span class="fp-sec-label" style="color:var(--gold-dark)">🏭 PENOPLAST VA BOSHQA</span>
+      <span class="fp-sec-label" style="color:var(--gold-dark)">🏭 OMBORDA</span>
       <div class="fp-sec-line" style="background:linear-gradient(90deg,var(--f-e5dfd3),transparent)"></div>
     </div>` + groups.map(guruhHtml).join('');
   }
@@ -1232,7 +1260,7 @@ function rowHtml(i, partiyami) {
     ${(!inProgress && !isRet) ? `<input type="checkbox" class="fp-batch-check" data-id="${i.id}" data-name="${escapeHtml(partiyami ? fpSavatNomi(i) : i.name)}" data-qty="${i.quantity}" data-unit="${escapeHtml(i.unit)}" data-price="${i.unit_price || 0}" onchange="onBatchCheckChange()" style="width:20px;height:20px;margin-right:10px;cursor:pointer;flex-shrink:0;accent-color:#16A34A;border:2px solid #94A3B8;border-radius:4px" onclick="event.stopPropagation()">` : `<div style="width:20px;margin-right:10px;flex-shrink:0"></div>`}
     <div class="fp-thumb" onclick="event.stopPropagation()">
       ${i.image_url
-        ? `<img src="${escapeHtml(i.image_url)}" alt="" onclick="event.preventDefault();event.stopPropagation();openLightbox('${jsAttrEscape(i.image_url)}')">`
+        ? `<img src="${escapeHtml(kichikRasm(i.image_url))}" alt="" onclick="event.preventDefault();event.stopPropagation();openLightbox('${jsAttrEscape(i.image_url)}')">`
         : `<i class="ti ${
             i.category==='profil' ? 'ti-ruler-2' :
             i.category==='panel' ? 'ti-square' :

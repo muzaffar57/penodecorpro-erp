@@ -2026,7 +2026,7 @@ async function loadOrderItems(id) {
     container.innerHTML = items.map(item => {
       const icon = ITEM_TYPE_ICON[(item.category || '').toLowerCase()] || 'ti-box';
       const thumb = item.image_url
-        ? `<img src="${escapeHtml(item.image_url)}" alt="" onclick="event.stopPropagation();openItemImgLightbox('${jsAttrEscape(item.image_url)}')">
+        ? `<img src="${escapeHtml(kichikRasm(item.image_url))}" alt="" onclick="event.stopPropagation();openItemImgLightbox('${jsAttrEscape(item.image_url)}')">
            <div class="prod-thumb-cam" onclick="event.stopPropagation();document.getElementById('itemimg-${item.id}').click()"><i class="ti ti-camera"></i></div>`
         : `<i class="ti ${icon}" aria-hidden="true"></i>`;
       return `
@@ -2080,7 +2080,7 @@ async function loadOrderAttachments(orderId) {
       const nameAttr = safeName ? ` download="${safeName}"` : '';
       const icon = needsDownload ? 'ti-download' : 'ti-file-text';
       const inner = isImg
-        ? `<img src="${a.file_url}" alt="">`
+        ? `<img src="${escapeHtml(kichikRasm(a.file_url))}" alt="">`
         : `<a href="${a.file_url}" target="_blank"${nameAttr} style="display:flex;align-items:center;justify-content:center;height:100%;width:100%;color:var(--text3);text-decoration:none">
              <i class="ti ${icon}" style="font-size:20px" aria-hidden="true"></i>
            </a>`;

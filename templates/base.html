@@ -5,6 +5,7 @@
 <html lang="uz">
 <head>
 <script src="/static/translit.js?v={{ static_version }}"></script>
+<script src="/static/tanlov.js?v={{ static_version }}" defer></script>
 <script>
 // ════════════════════════════════════════════════════════════
 // GRAFIKLAR (Chart.js) — Kirill/Lotin qo'llab-quvvatlash (2026-09).
@@ -618,6 +619,7 @@ function kiritishOyna(sarlavha, opts) {
     if (!el || el.nodeType !== 1) return;
     var ov = oynasiTez(el);
     if (!ov || ov.id === 'xoModal' || ov.id === 'kiModal') return;
+    if (el.hasAttribute('data-kiritish-emas')) return;    // kech120 (zip 130): qidiruv maydoni (tanlagich) — ma'lumot emas
     if (!ov.querySelector('[data-yopish]') && !ov.hasAttribute('data-yopish')) return;
     ov.__kiritildi = true;
     kiritilgan.add(ov);
@@ -670,6 +672,15 @@ function jsAttrEscape(str) {
     .replace(/"/g, '&quot;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+}
+
+// kech120 (zip 130 — audit G5-16): ro'yxat katagidagi rasm — KICHIK NUSXA (`?o=k`, server yasaydi; katta tomoni 360 px).
+// Ko'ruvchi oyna (bosilganda) — ASL manzil. Faqat yuklangan rasm (`/static/uploads/…` + .jpg/.jpeg/.png/.webp); boshqa
+// manzil o'zgarmaydi. Server tomonida xuddi shu qoida — `kichik_rasm` filtri (main.kichik_rasm_manzili).
+function kichikRasm(url) {
+  if (typeof url !== 'string' || !url) return url || '';
+  if (url.indexOf('/static/uploads/') === 0 && url.indexOf('?') < 0 && /\.(jpe?g|png|webp)$/i.test(url)) return url + '?o=k';
+  return url;
 }
 </script>
   <meta charset="UTF-8">

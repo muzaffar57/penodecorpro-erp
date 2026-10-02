@@ -15,6 +15,12 @@
 .ret-filters input:focus,.ret-filters select:focus{border-color:var(--gold)}
 .ret-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--white);margin-bottom:8px;transition:box-shadow .15s;opacity:0;animation:rIn .3s ease forwards}
 @keyframes rIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+/* kech120 (zip 130 — E bosqichi 6-qism, O'LCHANGAN work/k132/trace2.py — telefon, CPU 4× sekin): ro'yxatning HAR qatori ochilishda
+   «paydo bo'lish» animatsiyasi bilan chizilardi — ko'p qaytarishda sahifa ~0,7 s davomida qayta-qayta bo'yaladi (asosiy oqim 1,6–2,3 s →
+   animatsiyasiz 0,8–1,2 s). Endi faqat birinchi 20 qator (ekranda ko'rinadiganlar) animatsiyali, qolganlari darhol; tizimda
+   «harakatni kamaytirish» yoqilgan bo'lsa — hech biri. */
+.ret-row.anim-yoq{animation:none;opacity:1}
+@media (prefers-reduced-motion:reduce){.ret-row{animation:none;opacity:1}}
 .ret-row:hover{box-shadow:var(--shadow-card)}
 .ret-group-header{
   display:flex;align-items:center;gap:10px;padding:12px 14px;margin-bottom:8px;
@@ -171,13 +177,13 @@
     {% if returns %}
     {% for r in returns %}
     {% set is_defect = r.reason.value == 'Brak' %}
-    <div class="ret-row" id="row-{{ r.id }}" data-reason="{{ r.reason.value }}" data-refund="{{ 'yes' if r.is_refunded else 'no' }}" data-stock="{{ ('%g'|format(r.stock_qty) ~ ' ' ~ (r.unit or '')) if r.stock_qty else '' }}" data-mrp="{{ ('%g'|format(r.mrp_ozod_miqdor) ~ ' ' ~ (r.unit or '')) if r.mrp_ozod_miqdor else '' }}"
+    <div class="ret-row{% if loop.index0 >= 20 %} anim-yoq{% endif %}" id="row-{{ r.id }}" data-reason="{{ r.reason.value }}" data-refund="{{ 'yes' if r.is_refunded else 'no' }}" data-stock="{{ ('%g'|format(r.stock_qty) ~ ' ' ~ (r.unit or '')) if r.stock_qty else '' }}" data-mrp="{{ ('%g'|format(r.mrp_ozod_miqdor) ~ ' ' ~ (r.unit or '')) if r.mrp_ozod_miqdor else '' }}"
          data-order="{{ r.order.order_number if r.order else '' }}"
          data-search="{{ (r.order.order_number if r.order else '') ~ ' ' ~ (r.order.project.client_name if r.order and r.order.project else '') ~ ' ' ~ r.item_name }}"
-         style="animation-delay:{{ (loop.index0 % 20)*0.02 }}s">
+         {% if loop.index0 < 20 %}style="animation-delay:{{ loop.index0 * 0.02 }}s"{% endif %}>
       <label class="ret-icon {{ 'defect' if is_defect else 'whole' }}" style="background:{{ 'var(--f-fee2e2)' if is_defect else 'var(--f-dcfce7)' }};color:{{ 'var(--m-991b1b)' if is_defect else 'var(--m-166534)' }}">
         {% if r.image_url %}
-        <img src="{{ r.image_url }}" alt="" data-src="{{ r.image_url }}" onclick="event.preventDefault();event.stopPropagation();openReturnLightbox(this.dataset.src)">
+        <img src="{{ r.image_url|kichik_rasm }}" alt="" data-src="{{ r.image_url }}" onclick="event.preventDefault();event.stopPropagation();openReturnLightbox(this.dataset.src)">
         <div class="cam-overlay" onclick="event.preventDefault();event.stopPropagation();document.getElementById('retimg-{{ r.id }}').click()"><i class="ti ti-camera"></i></div>
         {% else %}
         <i class="ti {{ 'ti-x' if is_defect else 'ti-recycle' }}" onclick="event.preventDefault();event.stopPropagation();document.getElementById('retimg-{{ r.id }}').click()"></i>
@@ -240,9 +246,9 @@
 
     <div class="form-group">
       <label>Buyurtma</label>
-      <select id="f-order" onchange="onOrderChange()">
+      {# kech120 (zip 130 — G5-19): ro'yxat sahifaga yozilmaydi — tanlagich BIRINCHI ochilganda `/api/tanlov/buyurtmalar` dan #}
+      <select id="f-order" onchange="onOrderChange()" data-qidiruvli data-qidiruv-yukla="qaytarishBuyurtmalariniYukla" data-qidiruv-joy="Buyurtma raqami, mijoz yoki telefon…">
         <option value="">— Buyurtma tanlang —</option>
-        {% for o in orders %}<option value="{{ o.id }}">{{ o.order_number }} — {{ o.project.client_name if o.project else '?' }}</option>{% endfor %}
       </select>
     </div>
 
@@ -618,6 +624,27 @@ async function uploadReturnImage(id, input) {
 }
 
 let currentOrderItems = [];
+
+// kech120 (zip 130 — G5-19, O'LCHANGAN — audit kech114): ilgari korxonaning HAMMA buyurtmasi sahifa bilan birga, qidiruvsiz
+// ro'yxatda edi. Endi tanlagich BIRINCHI ochilganda yuklanadi (`data-qidiruv-yukla`; qoralama / bekor qilinganlarsiz, yangisi
+// tepada), qidiruv — raqam, mijoz, loyiha, telefon. Xato bo'lsa — keyingi ochilishda qayta so'raladi.
+let _qaytBuyurtmalar = null;
+async function qaytarishBuyurtmalariniYukla() {
+  const sel = document.getElementById('f-order');
+  if (!sel || _qaytBuyurtmalar) return;
+  sel.innerHTML = '<option value="">Yuklanmoqda…</option>';
+  try {
+    const r = await fetch('/api/tanlov/buyurtmalar');
+    if (!r.ok) throw new Error(await serverXatoSababi(r, "Ro'yxatni yuklab bo'lmadi"));
+    const royxat = await r.json();
+    sel.innerHTML = '<option value="">— Buyurtma tanlang —</option>' + royxat.map(o =>
+      `<option value="${Number(o.id)}" data-qidiruv="${escapeHtml((o.telefon || '') + ' ' + (o.loyiha || ''))}">` +
+      `${escapeHtml(o.raqam)} — ${escapeHtml(o.mijoz || '?')}${o.holat ? ' · ' + escapeHtml(o.holat) : ''}</option>`).join('');
+    _qaytBuyurtmalar = royxat;
+  } catch (e) {
+    sel.innerHTML = '<option value="">' + escapeHtml(e.message || "Ro'yxatni yuklab bo'lmadi") + '</option>';
+  }
+}
 
 function showAddModal(){
   document.getElementById('addModal').style.display='flex';

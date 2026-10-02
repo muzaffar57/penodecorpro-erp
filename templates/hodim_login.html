@@ -44,7 +44,8 @@
 
       <form method="post" action="/hodim/login">
         <label class="field-label">Korxona kodi</label>
-        <input class="field-input" type="text" name="korxona" placeholder="Bitta korxona bo'lsa — bo'sh qoldiring" autocomplete="organization">
+        {# kech120 (zip 130 — G6-07): QR / havoladan kelgan kod (`?k=`) o'zi yoziladi #}
+        <input class="field-input" type="text" name="korxona" value="{{ kod or '' }}" placeholder="Administratordan so'rang (QR kodda bor)" autocomplete="organization" autocapitalize="characters">
 
         <label class="field-label">Telefon raqami</label>
         <input class="field-input" type="tel" name="phone" placeholder="+998901234567" required autofocus>

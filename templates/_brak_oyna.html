@@ -61,9 +61,9 @@
       <div id="brak-panel-project" class="brk-bolim" style="display:none">
         <div class="form-group">
           <label for="brak-project">Loyiha</label>
-          <select id="brak-project" onchange="onBrakProjectChange()">
+          {# kech120 (zip 130 — G5-19): ro'yxat sahifaga yozilmaydi — tanlagich BIRINCHI ochilganda `/api/tanlov/loyihalar` dan #}
+          <select id="brak-project" onchange="onBrakProjectChange()" data-qidiruvli data-qidiruv-yukla="brakLoyihalariniYukla" data-qidiruv-joy="Loyiha, mijoz yoki telefon…">
             <option value="">— Loyiha tanlang —</option>
-            {% for p in (projects or []) %}<option value="{{ p.id }}">{{ p.project_name }} — {{ p.client_name }}</option>{% endfor %}
           </select>
         </div>
 
@@ -100,7 +100,7 @@
         </div>
         <div class="form-group" id="brak-fp-tanlash">
           <label for="brak-fp">Tayyor mahsulot</label>
-          <select id="brak-fp" onchange="brakFpTanla()">
+          <select id="brak-fp" onchange="brakFpTanla()" data-qidiruvli data-qidiruv-joy="Mahsulot nomi…">
             <option value="">— Mahsulot tanlang —</option>
           </select>
         </div>
@@ -350,6 +350,25 @@ async function brakServerSababi(res) {
     else if (d && d.detail && typeof d.detail.message === 'string' && d.detail.message) sabab = d.detail.message;
   } catch(e) {}
   return sabab;
+}
+
+// kech120 (zip 130 — G5-19, O'LCHANGAN — audit kech114): ilgari HAMMA loyiha sahifa bilan birga, qidiruvsiz ro'yxatda edi.
+// Endi tanlagich BIRINCHI ochilganda yuklanadi (`data-qidiruv-yukla`; faqat ishdagi buyurtmasi bor loyihalar, yangisi tepada).
+let _brakLoyihalar = null;
+async function brakLoyihalariniYukla() {
+  const sel = document.getElementById('brak-project');
+  if (!sel || _brakLoyihalar) return;
+  sel.innerHTML = '<option value="">Yuklanmoqda…</option>';
+  try {
+    const r = await fetch('/api/tanlov/loyihalar');
+    if (!r.ok) throw new Error(await serverXatoSababi(r, "Ro'yxatni yuklab bo'lmadi"));
+    const royxat = await r.json();
+    sel.innerHTML = '<option value="">— Loyiha tanlang —</option>' + royxat.map(p =>
+      `<option value="${Number(p.id)}" data-qidiruv="${escapeHtml(p.telefon || '')}">${escapeHtml(p.loyiha)} — ${escapeHtml(p.mijoz)}</option>`).join('');
+    _brakLoyihalar = royxat;
+  } catch (e) {
+    sel.innerHTML = '<option value="">' + escapeHtml(e.message || "Ro'yxatni yuklab bo'lmadi") + '</option>';
+  }
 }
 
 async function onBrakProjectChange(){

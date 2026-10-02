@@ -20,6 +20,12 @@
 .inv-search{flex:1;min-width:180px}
 .mat-row{display:grid;grid-template-columns:2.2fr 1.3fr 1fr .9fr 1fr 1.1fr;gap:16px;align-items:center;padding:18px 20px;border:1px solid var(--border);border-radius:14px;background:var(--white);margin-bottom:12px;transition:box-shadow .15s,border-color .15s;opacity:0;animation:matFadeIn .3s ease forwards}
 @keyframes matFadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+/* kech120 (zip 130 — E bosqichi 6-qism, O'LCHANGAN work/k132/trace2.py — telefon, CPU 4× sekin): ro'yxatning HAR qatori ochilishda
+   «paydo bo'lish» animatsiyasi bilan chizilardi — 120 qatorda sahifa ~0,7 s davomida qayta-qayta bo'yaladi (asosiy oqim 1,6–2,3 s →
+   animatsiyasiz 0,8–1,2 s). Endi faqat birinchi 20 qator (ekranda ko'rinadiganlar) animatsiyali, qolganlari darhol; tizimda
+   «harakatni kamaytirish» yoqilgan bo'lsa — hech biri. */
+.mat-row.anim-yoq{animation:none;opacity:1}
+@media (prefers-reduced-motion:reduce){.mat-row{animation:none;opacity:1}}
 .mat-row:hover{box-shadow:var(--shadow-card);border-color:var(--border-strong)}
 /* kech119 (C BOSQICH — telefon, audit G4-11, O'LCHANGAN work/k125/telefon.py): ilgari 1100 px dan tor ekranda (telefon,
    planshet, kichik noutbuk) «Min. qoldiq» va «1 birlik narxi» ustunlari YASHIRILARDI — ko'rib ham, tuzatib ham bo'lmasdi.
@@ -170,12 +176,12 @@
     {% elif qty <= minq %}{% set st = 'danger' %}{% set st_label = 'Tugagan' if qty <= 0 else 'Kam!' %}{% set holat = 'tugagan' if qty <= 0 else 'kam' %}
     {% elif qty <= minq * 1.5 %}{% set st = 'warn' %}{% set st_label = 'Oz' %}{% set holat = 'oz' %}
     {% else %}{% set st = 'ok' %}{% set st_label = 'Yetarli' %}{% set holat = 'yetarli' %}{% endif %}
-    <div class="mat-row" style="animation-delay:{{ (loop.index0 % 20) * 0.02 }}s"
+    <div class="mat-row{% if loop.index0 >= 20 %} anim-yoq{% endif %}"{% if loop.index0 < 20 %} style="animation-delay:{{ loop.index0 * 0.02 }}s"{% endif %}
          data-name="{{ item.item_name|lower }}" data-category="{{ item.category or '' }}" data-status="{{ st }}" data-holat="{{ holat }}" data-qty="{{ qty }}">
       <div style="display:flex;gap:10px;align-items:stretch">
         <label class="mat-thumb" title="{{ '' if item.image_url else 'Rasm yuklash' }}">
           {% if item.image_url %}
-          <img src="{{ item.image_url }}" alt="" data-src="{{ item.image_url }}" onclick="event.preventDefault();event.stopPropagation();openInvLightbox(this.dataset.src)">
+          <img src="{{ item.image_url|kichik_rasm }}" alt="" data-src="{{ item.image_url }}" onclick="event.preventDefault();event.stopPropagation();openInvLightbox(this.dataset.src)">
           <div class="mat-thumb-cam" onclick="event.preventDefault();event.stopPropagation();this.closest('.mat-thumb').querySelector('input[type=file]').click()"><i class="ti ti-camera"></i></div>
           {% else %}<i class="ti ti-flask-2"></i>{% endif %}
           <input type="file" accept="image/*" onchange="uploadInventoryImage({{ item.id }}, this)">

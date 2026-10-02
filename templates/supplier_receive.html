@@ -41,11 +41,16 @@ html[data-theme="dark"] .rcv-wrap{--r-bg:var(--bg); --r-card:var(--white); --r-b
 .rcv-row-2{grid-template-columns:1fr 1fr}
 .rcv-row-4{grid-template-columns:repeat(4,1fr)}
 @media(max-width:700px){.rcv-row-3,.rcv-row-2{grid-template-columns:1fr}}
+/* kech120 (zip 130 — G4-20, O'LCHANGAN — audit kech114: ta'minotchi maydoni ~145 px, uzun nomlar kesilardi): ta'minotchi —
+   butun qator (qidiruvli tanlagich ochilganda hujjat raqami / sana maydonlarini siqmaydi), ular — keyingi qatorda */
+@media(min-width:701px){.rcv-row-3.rcv-row-ta{grid-template-columns:1fr 1fr}.rcv-row-ta > .rcv-supplier-row{grid-column:1 / -1 !important}}
+/* material nomi ham uzun («Penoplast 15 (asosiy blok) (blok)» kesilardi) — material maydoni 2 ustun */
+@media(min-width:701px){.rcv-row-mat > :first-child{grid-column:span 2}}
 @media(max-width:600px){.rcv-row-4{grid-template-columns:1fr 1fr}}
 @media(max-width:420px){.rcv-row-4{grid-template-columns:1fr}}
 .rcv-table-wrap{overflow-x:auto}
 .rcv-supplier-row{display:flex;gap:10px;align-items:flex-end}
-.rcv-supplier-row .rcv-field{flex:1}
+.rcv-supplier-row .rcv-field{flex:1;min-width:0}
 .rcv-btn{height:42px;padding:0 18px;border-radius:9px;border:none;cursor:pointer;font-size:13.5px;font-weight:600;white-space:nowrap;transition:transform .1s,box-shadow .15s}
 .rcv-btn-primary{background:var(--gold-btn);color:#fff}
 .rcv-btn-primary:hover{background:#8F5B2A;box-shadow:0 4px 12px rgba(185,120,63,.3)}
@@ -122,11 +127,11 @@ html[data-theme="dark"] .rcv-quickpay button{background:var(--f-eceae6);color:va
         <div class="rcv-card-body">
           <div class="rcv-card-title">Ta'minotchi ma'lumotlari</div>
 
-          <div class="rcv-row rcv-row-3" style="margin-bottom:16px">
+          <div class="rcv-row rcv-row-3 rcv-row-ta" style="margin-bottom:16px">
             <div class="rcv-supplier-row" style="grid-column:span 1">
               <div class="rcv-field" style="flex:1">
                 <label>Ta'minotchi *</label>
-                <select id="r-supplier" onchange="onSupplierChange()">
+                <select id="r-supplier" onchange="onSupplierChange()" data-qidiruvli data-qidiruv-joy="Ta'minotchi nomi…">
                   <option value="">— Tanlang —</option>
                   {% for s in suppliers %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
                 </select>
@@ -172,11 +177,11 @@ html[data-theme="dark"] .rcv-quickpay button{background:var(--f-eceae6);color:va
         <div class="rcv-card-body">
           <div class="rcv-card-title">Material qo'shish</div>
 
-          <div class="rcv-row rcv-row-3" style="margin-bottom:6px">
+          <div class="rcv-row rcv-row-3 rcv-row-mat" style="margin-bottom:6px">
             <div style="display:flex;gap:8px;align-items:flex-end">
               <div class="rcv-field" style="flex:1">
                 <label>Material *</label>
-                <select id="ap-item" onchange="apOnItemChange()"><option value="">Yuklanmoqda...</option></select>
+                <select id="ap-item" onchange="apOnItemChange()" data-qidiruvli data-qidiruv-joy="Material nomi…"><option value="">Yuklanmoqda...</option></select>
               </div>
             </div>
             <div class="rcv-field" id="ap-volume-wrap" style="display:none">
@@ -767,10 +772,15 @@ function renderInvDropdown(){
     const ia=catOrder.indexOf(a), ib=catOrder.indexOf(b);
     return (ia===-1?99:ia)-(ib===-1?99:ib);
   });
-  sel.innerHTML = sortedCats.map(cat => {
+  // kech120 (zip 130 — G4-20, O'LCHANGAN — audit kech114): ilgari birinchi material OLDINDAN tanlangan turardi — e'tiborsiz
+  // omborchi noto'g'ri materialga kirim qilishi mumkin edi. Endi boshida «— Material tanlang —»; ro'yxat qayta chizilsa
+  // (ta'minotchi filtri) — oldin tanlangan material ro'yxatda bo'lsa, o'sha qoladi.
+  const _oldingi = sel.value;
+  sel.innerHTML = '<option value="">— Material tanlang —</option>' + sortedCats.map(cat => {
     const opts = groups[cat].map(i => `<option value="${i.id}" data-unit="${escapeHtml(i.unit)}">${escapeHtml(i.item_name)} (${escapeHtml(i.unit)})</option>`).join('');
     return `<optgroup label="${escapeHtml(cat)}">${opts}</optgroup>`;
   }).join('');
+  sel.value = (_oldingi && list.some(i => String(i.id) === String(_oldingi))) ? _oldingi : '';
 
   const hint = document.getElementById('ap-filter-hint');
   if (hint) {

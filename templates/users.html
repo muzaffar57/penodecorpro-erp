@@ -231,10 +231,13 @@
   <div style="background:var(--white);border-radius:16px;padding:28px;width:360px;max-width:100%;text-align:center">
     <div style="font-size:16px;font-weight:700;margin-bottom:6px">📱 Xodim paneliga kirish</div>
     <div style="font-size:12.5px;color:var(--text3);margin-bottom:18px">Telefon kamerasi bilan skanerlang</div>
-    <img id="hodimQrImg" src="" alt="QR kod" style="width:220px;height:220px;border:1px solid var(--ch-eeeeee);border-radius:12px;margin-bottom:14px">
+    {# kech120 (zip 130 — G6-07): QR SERVERDA (ichida korxona kodi — kirish sahifasi uni o'zi to'ldiradi); ilgari begona sayt rasmi #}
+    <img id="hodimQrImg" src="" alt="QR kod" style="width:220px;height:220px;border:1px solid var(--ch-eeeeee);border-radius:12px;margin-bottom:14px;background:#fff">
+    <div style="font-size:12.5px;color:var(--text3)">Korxona kodi</div>
+    <div id="hodimQrKod" style="font-size:22px;font-weight:800;letter-spacing:.5px;color:var(--text);margin:2px 0 8px;overflow-wrap:anywhere">—</div>
     <div id="hodimQrUrl" style="font-size:12px;color:var(--text3);word-break:break-all;margin-bottom:16px;font-family:monospace"></div>
     <div style="display:flex;gap:8px">
-      <button class="btn btn-outline w-full" onclick="window.print()">🖨️ Chop etish</button>
+      <button class="btn btn-outline w-full" onclick="hodimQrChop()">🖨️ Chop etish</button>
       <button data-yopish class="btn btn-dark w-full" onclick="document.getElementById('hodimQrModal').style.display='none'">Yopish</button>
     </div>
   </div>
@@ -395,12 +398,20 @@ async function changeMyPassword() {
 async function changePass(id, username, btn){
   parolOynasi(id, username, false, btn);
 }
-function showHodimQR(){
-  const url = window.location.origin + '/hodim';
-  const qrImgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}`;
-  document.getElementById('hodimQrImg').src = qrImgUrl;
-  document.getElementById('hodimQrUrl').textContent = url;
+// kech120 (zip 130 — G6-07, O'LCHANGAN — audit kech114): ilgari QR begona QR xizmati saytidan (sinovda rasm chiqmadi)
+// va faqat «/hodim» (korxona KODISIZ) edi; admin o'z kodini hech qayerda ko'rmasdi; «Chop etish» butun sahifani chop etardi.
+// Endi QR serverda (`/api/hodim-qr.svg` — ichida `…/hodim?k=KOD`), kod oynada, chop etish — alohida sahifa.
+async function showHodimQR(){
+  const manzil = encodeURIComponent(window.location.origin);
+  document.getElementById('hodimQrImg').src = '/api/hodim-qr.svg?manzil=' + manzil + '&t=' + Date.now();
   document.getElementById('hodimQrModal').style.display = 'flex';
+  let kod = '';
+  try { const r = await fetch('/api/settings/company'); if (r.ok) kod = (await r.json()).code || ''; } catch (e) { /* kod ko'rinmaydi */ }
+  document.getElementById('hodimQrKod').textContent = kod || '—';
+  document.getElementById('hodimQrUrl').textContent = window.location.origin + '/hodim' + (kod ? '?k=' + encodeURIComponent(kod) : '');
+}
+function hodimQrChop(){
+  window.open('/users/hodim-qr?manzil=' + encodeURIComponent(window.location.origin), '_blank', 'noopener');
 }
 
 async function setupTelegramSecurity(){
