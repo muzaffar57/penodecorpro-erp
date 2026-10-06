@@ -11,18 +11,18 @@
   .pl-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
   .pl-stat{background:var(--white);border:1px solid var(--border);border-radius:var(--radius-card);padding:12px 14px}
   .pl-stat .l{font-size:12px;color:var(--text2)}
-  .pl-stat .n{font-size:20px;font-weight:700;color:var(--text);margin-top:2px}
+  .pl-stat .n{font-size:18px;font-weight:700;color:var(--text);margin-top:2px}
   .pl-head{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:space-between}
   .pl-chips{display:flex;gap:8px;flex-wrap:wrap}
-  .pl-chip{height:36px;padding:0 14px;border:1px solid var(--border);border-radius:999px;background:var(--white);
-           color:var(--text);font-size:13px;font-weight:600;cursor:pointer}
+  .pl-chip{box-sizing:border-box;min-height:var(--h-sm);padding:0 12px;border:1px solid var(--border);border-radius:999px;background:var(--white);
+           color:var(--text);font-size:13px;line-height:18px;font-weight:600;cursor:pointer}
   .pl-chip.aktiv{background:var(--dark);color:#fff;border-color:var(--dark)}
   .pl-chip[data-filtr="yaqin"]:not(.aktiv){background:var(--f-fef3c7);border-color:var(--ch-f5d98b);color:var(--m-78350f)}
   .pl-chip[data-filtr="bloklangan"]:not(.aktiv){border-color:var(--ch-f3c7c7);color:var(--m-991b1b)}
   .pl-tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-  .pl-search{display:flex;align-items:center;gap:8px;height:40px;padding:0 12px;border:1px solid var(--border);
-             border-radius:10px;background:var(--white);width:240px;max-width:100%}
-  .pl-search input{border:0;outline:none;font-size:13.5px;width:100%;background:transparent;color:var(--text)}
+  .pl-search{display:flex;align-items:center;gap:8px;box-sizing:border-box;min-height:var(--h-btn);padding:0 12px;border:1px solid var(--border);
+             border-radius:var(--r-btn);background:var(--white);width:240px;max-width:100%}
+  .pl-search input{border:0;outline:none;font-size:var(--fs-maydon);line-height:20px;width:100%;background:transparent;color:var(--text)}
   .pl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:14px}
   @media (max-width:560px){.pl-grid{grid-template-columns:1fr}}
   .pl-card{background:var(--white);border:1px solid var(--border);border-radius:13px;padding:18px;display:flex;
@@ -47,23 +47,23 @@
   .pl-bar > div{height:8px;border-radius:999px}
   .pl-raqam{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
   .pl-raqam .l{font-size:12px;color:var(--text2)}
-  .pl-raqam .n{font-size:17px;font-weight:700;color:var(--text)}
+  .pl-raqam .n{font-size:16px;font-weight:700;color:var(--text)}
   .pl-raqam .n.kichik{font-size:14px;font-weight:600}
   .pl-blok{font-size:13px;color:var(--m-7f1d1d);line-height:1.5;background:var(--white);border:1px solid var(--ch-f3c7c7);border-radius:10px;padding:10px 12px}
   html[data-theme="dark"] .pl-blok{color:#FCA5A5}
   .pl-btns{display:flex;gap:8px;flex-wrap:wrap}
-  .pl-btn{height:40px;padding:0 14px;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--border);
-          background:var(--white);color:var(--text)}
+  .pl-btn{box-sizing:border-box;min-height:var(--h-btn);padding:0 14px;border-radius:var(--r-btn);font-size:14px;line-height:20px;font-weight:600;
+          cursor:pointer;border:1px solid var(--border);background:var(--white);color:var(--text)}
   .pl-btn.qora{background:var(--dark);color:#fff;border-color:var(--dark)}
   .pl-btn.qizil{border-color:var(--ch-f3c7c7);color:var(--m-991b1b)}
   .pl-btn.yashil{background:#166534;color:#fff;border-color:#166534}
   .pl-btn.shaffof{border-color:transparent;background:transparent;color:var(--text2)}
-  .pl-izoh{font-size:12.5px;color:var(--text2);line-height:1.6}
+  .pl-izoh{font-size:13px;color:var(--text2);line-height:1.6}
   .pl-bottom{display:grid;grid-template-columns:minmax(260px,1fr) minmax(320px,2fr);gap:14px;align-items:start}
   @media (max-width:900px){.pl-bottom{grid-template-columns:1fr}}
   .pl-field label{display:block;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:5px}
-  .pl-field input,.pl-field select{height:40px;border:1px solid var(--border);border-radius:9px;padding:0 10px;font-size:13.5px;
-          width:100%;background:var(--white);color:var(--text)}
+  .pl-field input,.pl-field select{box-sizing:border-box;min-height:var(--h-btn);border:1px solid var(--border);border-radius:var(--r-btn);
+          padding:0 10px;font-size:var(--fs-maydon);line-height:20px;width:100%;background:var(--white);color:var(--text)}
   .pl-xato{padding:10px 14px;border-bottom:1px solid var(--border2);cursor:pointer}
   .pl-xato .m{font-size:13px;color:var(--m-dc2626);font-weight:600;word-break:break-word}
   .pl-xato .s{font-size:12px;color:var(--text3);margin-top:3px}
@@ -75,12 +75,13 @@
   .pl-oyna{width:500px;max-width:100%;background:var(--white);border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:14px;
            max-height:calc(100vh - 32px);overflow-y:auto}
   .pl-oyna h2{margin:0;font-size:18px;font-weight:700;color:var(--text)}
-  .pl-oyna ul{margin:0;padding-left:20px;font-size:13.5px;line-height:1.7;color:var(--text2)}
+  .pl-oyna ul{margin:0;padding-left:20px;font-size:13px;line-height:1.7;color:var(--text2)}
   .pl-oylar{display:flex;gap:8px;flex-wrap:wrap}
-  .pl-oylar label{display:flex;align-items:center;gap:6px;height:40px;padding:0 12px;border:1px solid var(--border);border-radius:9px;
-          font-size:13.5px;cursor:pointer;color:var(--text)}
-  .pl-korish{font-size:13.5px;font-weight:600;color:var(--text);background:var(--bg);border-radius:10px;padding:10px 12px}
-  .pl-xabar{background:var(--bg);border:1px solid var(--border2);border-radius:10px;padding:14px;font-size:12.5px;line-height:1.9}
+  .pl-oylar label{display:flex;align-items:center;gap:6px;box-sizing:border-box;min-height:var(--h-btn);padding:0 12px;border:1px solid var(--border);
+          border-radius:var(--r-btn);font-size:14px;cursor:pointer;color:var(--text)}
+  .pl-oylar input[type=radio]{margin:0}
+  .pl-korish{font-size:13px;font-weight:600;color:var(--text);background:var(--bg);border-radius:10px;padding:10px 12px}
+  .pl-xabar{background:var(--bg);border:1px solid var(--border2);border-radius:10px;padding:14px;font-size:13px;line-height:1.9}
 </style>
 {% endblock %}
 
@@ -93,11 +94,11 @@
 
   <div class="pl-head">
     <div class="pl-chips" role="group" aria-label="Saralash" id="plChiplar">
-      <button type="button" class="pl-chip aktiv" data-filtr="hammasi">Hammasi</button>
-      <button type="button" class="pl-chip" data-filtr="faol">Faol</button>
-      <button type="button" class="pl-chip" data-filtr="yaqin">Muddati yaqin</button>
-      <button type="button" class="pl-chip" data-filtr="bloklangan">Bloklangan</button>
-      <button type="button" class="pl-chip" data-filtr="sinov">Sinov davri</button>
+      <button type="button" class="pl-chip chip aktiv" data-filtr="hammasi">Hammasi</button>
+      <button type="button" class="pl-chip chip" data-filtr="faol">Faol</button>
+      <button type="button" class="pl-chip chip" data-filtr="yaqin">Muddati yaqin</button>
+      <button type="button" class="pl-chip chip" data-filtr="bloklangan">Bloklangan</button>
+      <button type="button" class="pl-chip chip" data-filtr="sinov">Sinov davri</button>
     </div>
     <div class="pl-tools">
       <label class="pl-search">

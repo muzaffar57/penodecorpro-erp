@@ -1793,14 +1793,16 @@ async function renderGiftPeriodActive(box, data) {
         <td style="padding:9px 6px;text-align:right">${redeemBtn}</td>
       </tr>`;
   }).join('');
+  // kech123 (zip 142 — zip 141 jonli sinovi, staging 390 px): tanlov `flex:1` bo'lsa ham eng uzun varianti kengligidan torayolmasdi va
+  // «+ Qo'shish» siqilib 2 qatorga tushardi (54 px; yagona balandlik — 36). Tanlov torayadi (`min-width:0`), tugma siqilmaydi.
   const addMasterControl = data.all_masters ? '' : `
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-      <select id="giftPeriodAddMasterSelect" class="maydon maydon-sm" style="flex:1" aria-label="Yangi usta">
+      <select id="giftPeriodAddMasterSelect" class="maydon maydon-sm" style="flex:1;min-width:0" aria-label="Yangi usta">
         <option value="">— Yangi usta qo'shish —</option>
         ${(allMasterKpiData || []).filter(m => !data.masters.some(dm => dm.master_id === m.id)).map(m =>
           `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('')}
       </select>
-      <button class="btn btn-outline btn-sm" onclick="submitAddMasterToGiftPeriod()">+ Qo'shish</button>
+      <button class="btn btn-outline btn-sm" onclick="submitAddMasterToGiftPeriod()" style="flex-shrink:0;white-space:nowrap">+ Qo'shish</button>
     </div>`;
   box.innerHTML = `
     <div style="font-size:13px;color:var(--text3);margin-bottom:10px">${data.all_masters ? 'Barcha faol ustalar ishtirok etadi' : `Faqat ${data.masters.length} ta tanlangan usta ishtirok etadi`}</div>

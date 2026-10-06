@@ -217,8 +217,11 @@
          mumkin. -->
     <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--ch-fadbd8)">
       <div style="font-size:13px;color:var(--m-dc2626);margin-bottom:8px">⚠️ Agar shu tugmani bosgandan keyin, botingiz (boshqa, alohida serverdagi) ishlamay qolgan bo'lsa — quyidagi tugma orqali qaytaring:</div>
-      <button class="btn btn-danger" onclick="deleteTelegramWebhook()" id="tg-delete-webhook-btn">
-        🔄 Webhookni o'chirib, botni asl holatiga qaytarish
+      <!-- kech123 (zip 142 — U-13 jonli sinovi, zip 139 staging, 390 px): uzun yozuv («Webhookni o'chirib, botni asl holatiga
+           qaytarish») telefonda ikki qatorga tushib tugma 64 px bo'lardi (yagona balandlik — 44). Yozuv qisqardi; to'liq ma'nosi — ustidagi
+           ogohlantirishda, tasdiq oynasida va `title` da. -->
+      <button class="btn btn-danger" onclick="deleteTelegramWebhook()" id="tg-delete-webhook-btn" title="Webhookni o'chirib, botni asl (polling) holatiga qaytarish">
+        🔄 Botni asl holatiga qaytarish
       </button>
       <div id="tg-delete-webhook-result" style="display:none;margin-top:14px;padding:14px;background:var(--bg);border-radius:10px;font-size:13px;line-height:1.7"></div>
     </div>
@@ -465,7 +468,7 @@ async function deleteTelegramWebhook(){
     resultBox.style.background = 'var(--f-fee2e2)'; resultBox.style.color = 'var(--m-dc2626)';
     resultBox.textContent = '❌ Server bilan aloqa yo\'q';
   }
-  btn.disabled = false; btn.textContent = "🔄 Webhookni o'chirib, botni asl holatiga qaytarish";
+  btn.disabled = false; btn.textContent = "🔄 Botni asl holatiga qaytarish";        // kech123 (zip 142): tugma yozuvi bilan bir xil
 }
 
 let isRunningFactoryReset = false;
