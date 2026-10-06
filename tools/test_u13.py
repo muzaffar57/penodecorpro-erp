@@ -33,7 +33,7 @@ BO'LIMLAR: S — statik (style.css tokenlari va klasslari; o'tkazilgan shablonla
   ichki joyi / burchagi / yozuvini yozmaydi; kesh versiyasi); M — ma'lumot (brauzerda dasturning o'z API si orqali to'liq ish zanjiri —
   `tools/test_c_telefon.py` ZANJIR_JS); D — o'tkazilgan sahifalar 1440 / 390 px, yorug' / tungi: har tugma, maydon, belgilash katagi, matn o'lchami;
   O — oynalar (umumiy xabar / kiritish / tasdiqlash; Foydalanuvchilar — yangi foydalanuvchi, parol, QR; Dashboard — avans so'rovlari;
-  har o'tkazilgan sahifaning oynalari — Buyurtmalar, Loyihalar, Ombor, Kirim, Ta'minotchilar, Retseptlar, Ishlab chiqarish, Tayyor
+  har o'tkazilgan sahifaning oynalari — Buyurtmalar, Loyihalar (kech124, zip 144: «Yuk xatlari» bo'limi ham), Ombor, Kirim, Ta'minotchilar, Retseptlar, Ishlab chiqarish, Tayyor
   mahsulotlar, Qaytarishlar, Brak yozish, Qarzdorlar, Moliya, Ustalar KPI / Hodimlar, Ustalar, Rollar, Tizim jurnallari, Platforma;
   Foydalanuvchilar — PLATFORMA ADMINI ko'rinishi: Telegram bo'limi faqat unga chiqadi — zip 139 jonli sinovida (staging, 390 px)
   «Webhookni o'chirib, …» tugmasi 2 qatorga tushib 64 px edi, korxona admini bilan o'lchangani uchun sinov ko'rmagan);
@@ -571,6 +571,9 @@ if PW_BOR:
                         oy["loyiha_yangi"] = oyna("showAddModal();", "#addModal", 400)
                         js(pg, "() => { document.getElementById('addModal').style.display = 'none'; }")
                         oy["loyiha_tahrir"] = oyna("openEditModal();", "#editModal", 600)
+                        # kech124 (zip 144): «Yuk xatlari» bo'limi — belgilash kataklari, «Hammasi» / «Hech biri» / «Jamlab olish», 📄
+                        oy["loyiha_yuk_xatlari"] = oyna("document.getElementById('editModal').style.display = 'none'; switchTab('yuklar');",
+                                                        "#tabContent", 1200)
                         # ── Ombor, Kirim, Ta'minotchilar, Retseptlar (zip 140) ──
                         och(pg, "/inventory")
                         oy["ombor_chiqim"] = oyna("document.querySelector('.act-btn.out').click();", "#chiqimModal", 500)
@@ -880,6 +883,7 @@ if PW_BOR and NAT:
                            ("hisob_kitob_oynasi", "Buyurtmalar — «Hisob-kitob» oynasi"), ("buyurtma_tasdiq", "Buyurtmalar — tasdiqlash oynasi"),
                            ("loyiha_tanlangan", "Loyihalar — tanlangan loyiha (tablar, amallar)"), ("loyiha_yangi", "Loyihalar — «Yangi loyiha» oynasi"),
                            ("loyiha_tahrir", "Loyihalar — tahrirlash oynasi"),
+                           ("loyiha_yuk_xatlari", "Loyihalar — «Yuk xatlari» (belgilash, «Jamlab olish», 📄 — kech124, zip 144)"),
                            ("ombor_chiqim", "Omborxona — «Chiqim (tuzatish)»"), ("ombor_tuz_kirim", "Omborxona — «Kirim (tuzatish)»"),
                            ("ombor_chegara", "Omborxona — chegarani tuzatish oynasi"), ("ombor_xaridlar", "Omborxona — «Xaridlar tarixi»"),
                            ("ombor_kirim_hujjati", "Omborxona — kirim hujjati (yon panel)"), ("ombor_harakatlar", "Omborxona — «Ombor harakatlari»"),

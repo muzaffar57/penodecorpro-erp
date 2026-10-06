@@ -428,8 +428,13 @@ hb, pb, repb = holat(ob), qoldiq(ID["PENO"]), hisobot()
 r = yuk_ochir(did_b)
 m = xabar(r)
 check("B1 READY yuk xatini o'chirish -> 400", r.status_code == 400, (r.status_code, m))
+# kech124 (zip 144 — egasi QARORI 06.10): yuk xati Y-raqami LOYIHA bo'yicha davom etadi — shu loyihaning 3-buyurtmasining birinchi
+# yuk xati «/Y-1» EMAS (oldingi buyurtmalar yuklaridan keyingi raqam). Xabarda SHU yuk xatining o'z raqami bo'lishi tekshiriladi.
+_sb = SessionLocal()
+_rb = _sb.query(Delivery.delivery_number).filter(Delivery.id == did_b).scalar() if did_b else None
+_sb.close()
 check("B2 xabar aniq: \"Tayyor\", yuk raqami, o'chirib bo'lmaydi",
-      "Tayyor" in m and "o'chirib bo'lmaydi" in m and "/Y-1" in m, m)
+      "Tayyor" in m and "o'chirib bo'lmaydi" in m and bool(_rb) and f"({_rb})" in m, (m, _rb))
 check("B3 hech narsa o'zgarmadi (yuk, holat, penoplast, hisobot)",
       holat(ob) == hb and taxminan(qoldiq(ID["PENO"]), pb) and hisobot() == repb, (hb, holat(ob), repb, hisobot()))
 

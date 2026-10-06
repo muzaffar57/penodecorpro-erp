@@ -412,6 +412,9 @@ YANGI_MARSHRUTLAR = {
     # kech121 (zip 138 — egasi qarori G3-24, MOSLANDI): «Xarajat qo'shish» — o'zi BUGUN kiritganlari va ularni o'chirish
     # (xarajat qo'shish bilan bir ruxsat: «Kunlik xarajat: Yaratish»; o'zgalarnikini o'chirish — avvalgidek faqat «O'chirish» ruxsati)
     "GET /api/finance/transactions/bugungi-ozim": "AMF", "DELETE /api/finance/transactions/{tx_id}/ozim": "AMF",
+    # kech124 (zip 144 — egasi qarorlari 06.10): loyiha «Yuk xatlari» ro'yxati va «Jamlab olish» varag'i — yuk xati PDF i bilan bir
+    # ruxsat («Yetkazib berish va transport: Ko'rish»)
+    "GET /api/projects/{project_id}/yuk-xatlari": "AM", "GET /api/projects/{project_id}/yuk-xatlari/jamlama-pdf": "AM",
 }
 # ATAYLAB o'zgarishlar (rol, marshrut) → yangi holat (True — ochiq). Sababi: tayyor rollar sahifa bo'yicha izchil.
 FARQLAR = {
