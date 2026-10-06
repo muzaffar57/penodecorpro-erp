@@ -17,11 +17,19 @@ QOIDA (static/style.css «U-13 — YAGONA KO'RINISH»; o'lchamlar — token, sah
   .btn-icon — kvadrat, o'lchami yonidagi klassdan; `.chip` (filtr) — `.btn-sm` balandligida, to'liq yumaloq.
   Burchak — 8 px. Yozuv shkalasi: 12 / 13 / 14 / 16 / 18 / 24 / 32 px.
   Sahifalar zip-ma-zip o'tkaziladi — `U13_SAHIFALAR` / `U13_SHABLONLAR` shu ro'yxat bilan o'sadi (zip 139: umumiy qobiq — yon menyu,
-  yuqori panel, umumiy oynalar; Bosh sahifa, Dashboard, Hisobotlar, Foydalanuvchilar).
+  yuqori panel, umumiy oynalar; Bosh sahifa, Dashboard, Hisobotlar, Foydalanuvchilar; zip 140: Buyurtmalar, Loyihalar,
+  Omborxona, Kirim qilish, Ta'minotchilar, Loy retseptlari, Ishlab chiqarish, Tayyor mahsulotlar, Qaytarishlar va brak oynasi).
+  ISTISNO (tugma qoidasidan tashqari, sababi bilan): rasm ustidagi mayda belgilar (`.attach-thumb .rm` / `.dl`, `*-thumb-cam`,
+  `.cam-overlay` — rasmni yopmasligi uchun; detal / tayyor mahsulot rasmi `.prod-thumb`, `.fp-thumb`), teg ichidagi «×» (`.fp-tag button`), bosiladigan
+  yorliq (`.cat-badge` — toifa yorlig'i, bosilsa tahrirlanadi), matn ichidagi havola-tugma (`.btn-link` — «To'liq to'lash»). Bo'lakli tanlov (`.segment` — «Qoplama: Yo'q / Bor»)
+  bitta boshqaruv sifatida o'lchanadi (ichidagi bo'laklar emas). Izohli tanlov tugmasi (`.btn-tanlov` — sarlavha va izoh, masalan
+  «O'chirish va xomashyoni qaytarish») — kamida `.btn` balandligida, burchak 8 px (balandligi matniga qarab).
 BO'LIMLAR: S — statik (style.css tokenlari va klasslari; o'tkazilgan shablonlarda yozuv o'lchamlari shkalada, tugma o'z balandligi /
   ichki joyi / burchagi / yozuvini yozmaydi; kesh versiyasi); M — ma'lumot (brauzerda dasturning o'z API si orqali to'liq ish zanjiri —
   `tools/test_c_telefon.py` ZANJIR_JS); D — o'tkazilgan sahifalar 1440 / 390 px, yorug' / tungi: har tugma, maydon, belgilash katagi, matn o'lchami;
-  O — oynalar (umumiy xabar / kiritish / tasdiqlash; Foydalanuvchilar — yangi foydalanuvchi, parol, QR; Dashboard — avans so'rovlari);
+  O — oynalar (umumiy xabar / kiritish / tasdiqlash; Foydalanuvchilar — yangi foydalanuvchi, parol, QR; Dashboard — avans so'rovlari;
+  har o'tkazilgan sahifaning oynalari — Buyurtmalar, Loyihalar, Ombor, Kirim, Ta'minotchilar, Retseptlar, Ishlab chiqarish, Tayyor
+  mahsulotlar, Qaytarishlar, Brak yozish);
   Y — yuqori panel HAMMA sahifada (qobiq bir xil).
 REJIMLAR: SQLite (odatiy); `PG_URL` bilan HAQIQIY PostgreSQL 16. Asl kodga (zip 138) qarshi QULAMAYDI — yiqiladi.
 TALAB: Python `playwright` va Chromium (`PLAYWRIGHT_BROWSERS_PATH` / `/opt/pw-browsers`). Shriftlar va Chart.js tashqi manbadan
@@ -46,7 +54,7 @@ sys.path.insert(0, ROOT)
 os.chdir(ROOT)
 
 PG_URL = (os.environ.get("PG_URL") or "").rstrip("/")
-PG_BAZA = "u13_test"
+PG_BAZA = os.environ.get("U13_PG_BAZA", "u13_test")   # parallel PG yugurishlar bir-biriga tegmasin (etalon bilan bir vaqtda)
 _T = tempfile.mkdtemp(prefix="u13_")
 if PG_URL:
     from sqlalchemy import create_engine as _ce, text as _tx
@@ -101,8 +109,13 @@ def oqi(yol):
 
 
 # ── O'tkazilgan qism (har U-13 zipida kengayadi) ──
-U13_SHABLONLAR = ["base.html", "home.html", "dashboard.html", "reports.html", "users.html"]
-U13_SAHIFALAR = ["/", "/dashboard", "/reports", "/users"]
+U13_SHABLONLAR = ["base.html", "home.html", "dashboard.html", "reports.html", "users.html", "orders.html", "projects.html",
+                  "inventory.html", "supplier_receive.html", "suppliers.html", "recipes.html", "production.html", "finished.html",
+                  "returns.html", "_brak_oyna.html"]
+U13_SAHIFALAR = ["/", "/dashboard", "/reports", "/users", "/orders", "/projects", "/inventory", "/suppliers/receive", "/suppliers", "/recipes",
+                 "/production", "/finished", "/returns"]
+ISTISNO_SEL = (".attach-thumb .rm, .attach-thumb .dl, .prod-thumb, .prod-thumb-cam, .proj-thumb-cam, .mat-thumb-cam, .cam-overlay, "
+               ".fp-tag button, .cat-badge, .btn-link, .fp-thumb")
 SHKALA = {12.0, 13.0, 14.0, 16.0, 18.0, 24.0, 32.0}
 TUGMA_H = {1440: {32.0, 36.0, 40.0}, 390: {36.0, 40.0, 44.0}}
 MAYDON_H = {1440: {32.0, 40.0}, 390: {36.0, 44.0}}
@@ -201,8 +214,8 @@ _s8 = {k: v for k, v in _s8.items() if v}
 check("S8 o'tkazilgan shablonlarda tugma (button, `.btn` / `.chip` / `.tab` havolasi) o'z balandligi / ichki joyi / burchagi / "
       "yozuv o'lchamini `style=\"…\"` da yozmaydi — o'lcham faqat klassdan (bitta joyda o'zgaradi)", not _s8, _s8)
 _sv = re.search(r'templates\.env\.globals\["static_version"\]\s*=\s*"([^"]+)"', MAIN)
-check("S9 kesh versiyasi yangilangan (style.css o'zgardi — eski uslub keshdan olinmasin): «20261001-7» dan keyingi",
-      _sv and _sv.group(1) > "20261001-7", _sv.group(1) if _sv else None)
+check("S9 kesh versiyasi yangilangan (style.css o'zgardi — eski uslub keshdan olinmasin): «20261005-1» dan keyingi",
+      _sv and _sv.group(1) > "20261005-1", _sv.group(1) if _sv else None)
 _bs = TPL.get("base.html", "")
 check("S10 yuqori panel tugmalari umumiy klassda: tungi rejim va qo'ng'iroqcha — `.btn-icon` (`title` / `aria-label` bilan), «Кирилл» — "
       "`.btn-md`; obuna belgisi — `.btn-md`",
@@ -260,7 +273,11 @@ U13_JS = r"""(arg) => {
   const tugmaTuri = e => {
     const t = e.tagName;
     const c = klass(e).join(' ');
+    if (arg && arg.istisno && e.matches(arg.istisno)) return null;
+    if (e.parentElement && e.parentElement.classList.contains('segment')) return null;   // bo'lakli tanlov — butunligicha o'lchanadi
+    if (klass(e).includes('segment')) return 'segment';
     if (/(^|\s)qt-(maydon|yop|band)(\s|$)/.test(c)) return null;
+    if (klass(e).includes('btn-tanlov')) return 'tanlov';   // izohli tanlov — balandligi matniga qarab (kamida `.btn`)
     if (t === 'BUTTON') return 'button';
     if (t === 'INPUT' && /^(button|submit|reset)$/i.test(e.type)) return 'input';
     if (e.getAttribute('role') === 'button') { const r = e.getBoundingClientRect(); return r.height > 56 || e.querySelector('.stat-val, .kpi-val, table') ? 'karta' : 'role'; }
@@ -294,14 +311,20 @@ U13_JS = r"""(arg) => {
     const r = e.getBoundingClientRect();
     if (tur) {
       const fon = rgb(s.backgroundColor), rang = rgb(s.color);
-      tugmalar.push({tur, sel: sel(e).slice(0, 110), chip: klass(e).includes('chip'), ikon: klass(e).includes('btn-icon'), matn: kes(e.innerText || e.value || e.title || e.getAttribute('aria-label') || '', 30),
+      tugmalar.push({tur, sel: sel(e).slice(0, 110), chip: klass(e).includes('chip'), ikon: klass(e).includes('btn-icon'),
+        yozuv: kes(e.innerText || e.value || '', 30), matn: kes(e.innerText || e.value || e.title || e.getAttribute('aria-label') || '', 30),
         h: r1(r.height), w: r1(r.width), rad: radius(e), fs: r1(parseFloat(s.fontSize)),
+        toshdi: tur !== 'karta' && e.scrollWidth > e.clientWidth + 1 && s.textOverflow !== 'ellipsis',
         k: fon && rang && fon.a > 0.9 && kes(e.innerText || e.value || '', 30) ? Math.round(kontrast(fon, rang) * 10) / 10 : null});
     } else if (e.tagName === 'INPUT' && /^(checkbox|radio)$/i.test(e.type)) {
       belgilar.push({sel: sel(e).slice(0, 100), tur: e.type, h: r1(r.height), w: r1(r.width)});
     } else if ((e.tagName === 'INPUT' && !/^(hidden|checkbox|radio|file|range|color|button|submit|reset|image)$/i.test(e.type)) || e.tagName === 'SELECT' || e.tagName === 'TEXTAREA'
                || klass(e).includes('qt-maydon')) {
-      maydonlar.push({sel: sel(e).slice(0, 100), tur: e.tagName.toLowerCase(), h: r1(r.height), rad: radius(e), fs: r1(parseFloat(s.fontSize))});
+      // birlik qo'shimchali o'ram ichidagi maydon — ko'rinadigan maydon o'ramning o'zi (chegara, burchak, balandlik)
+      const ora = e.parentElement && e.parentElement.matches('.unit-input-wrap, .dval-box, .recp-ing-qty, .birlik-guruh, .bi-guruh') ? e.parentElement : null;
+      const rr = ora ? ora.getBoundingClientRect() : r;
+      maydonlar.push({sel: sel(e).slice(0, 100), tur: e.tagName.toLowerCase(), h: r1(rr.height), rad: radius(ora || e), fs: r1(parseFloat(s.fontSize)),
+        ro: !!e.readOnly, ch: parseFloat(getComputedStyle(ora || e).borderTopWidth) || 0});
     }
   }
   return {tugmalar, maydonlar, belgilar, shrift};
@@ -400,7 +423,36 @@ if PW_BOR:
                 Z = pg.evaluate(ZANJIR_JS, K)
             except Exception as _e:        # noqa: BLE001
                 Z = {"yiqilgan": [["istisno", 0, str(_e)[:300]]], "L": []}
+            # zip 140: Buyurtmalar oynalari uchun — topshirilmagan qismi bor buyurtma (1 / 3 topshirilgan)
+            UB = js(pg, """async (I) => {
+              const so = async (u, usul, tana) => { const o = {method: usul || 'GET', credentials: 'same-origin'};
+                if (tana) { o.headers = {'Content-Type': 'application/json'}; o.body = JSON.stringify(tana); }
+                const r = await fetch(u, o); let j = null; try { j = await r.json(); } catch (e) {} return {st: r.status, j}; };
+              const tana = {project_id: I.loyiha, order_type: 'product', recipe_id: I.retsept, master_id: I.usta || null, deadline: null,
+                is_draft: false, base_price: 600000, loy_kg: 5,
+                items: [{name: 'U13 Karniz', category: 'profil', width: 20, thickness: 15, length: 10, quantity: 3, unit_price: 100000,
+                         is_coated: false, penoplast_id: I.peno, price_per_m3: null, finished_product_id: null, sub_details: []}]};
+              let r = await so('/api/orders', 'POST', tana);
+              if (r.st === 409) r = await so('/api/orders?confirm_shortage=true', 'POST', tana);
+              const oid = r.j && r.j.id;
+              if (!oid) return {st: r.st, j: r.j};
+              const h = await so('/api/orders/' + oid + '/delivery-status');
+              const it = h.j && h.j.items && h.j.items[0];
+              const d = it ? await so('/api/deliveries', 'POST', {order_id: oid, items: [{order_item_id: it.id, quantity: 1}], received_by: 'U13 Qabul', notes: 'U13 yuk'}) : {st: 0};
+              return {oid, st: r.st, yetkazish: d.st};
+            }""", Z.get("I") or {})
+            # zip 140: Ishlab chiqarish oynasi uchun — qoralama (boshlanmagan) ishlab chiqarish
+            UP = js(pg, """async (I) => {
+              if (!I.tur || !I.bom) return {st: 0, sabab: 'tur yoki tarkib topilmadi'};
+              const r = await fetch('/api/production/orders', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({product_type_id: I.tur, bom_id: I.bom, quantity: 2, source_type: 'warehouse_stock', notes: 'U13 qoralama'})});
+              return {st: r.status};
+            }""", Z.get("I") or {})
             ctx.close()
+            check("M5 Ishlab chiqarish oynasi uchun qoralama (boshlanmagan) ishlab chiqarish yaratildi",
+                  isinstance(UP, dict) and UP.get("st") in (200, 201), UP)
+            check("M4 Buyurtmalar oynalari uchun topshirilmagan qismi bor buyurtma yaratildi (3 dan 1 topshirildi)",
+                  isinstance(UB, dict) and UB.get("oid") and UB.get("yetkazish") in (200, 201), UB)
             check("M3 ish zanjiri: hamma qadam 2xx (ombor, kirim, retsept, usta, hodim, loyiha, buyurtmalar, to'lov, yetkazish, "
                   "qaytarish, MRP, tayyor mahsulot, moliya, majburiyat)",
                   not Z.get("yiqilgan") and len(Z.get("L") or []) >= 50, [Z.get("yiqilgan"), len(Z.get("L") or [])])
@@ -416,7 +468,7 @@ if PW_BOR:
                     for url in U13_SAHIFALAR:
                         del xs[:]
                         och(pg, url)
-                        R[url] = {"o": js(pg, U13_JS, {"root": None, "yon": True}), "xato": list(xs),
+                        R[url] = {"o": js(pg, U13_JS, {"istisno": ISTISNO_SEL, "root": None, "yon": True}), "xato": list(xs),
                                   "tema": js(pg, "() => document.documentElement.getAttribute('data-theme')")}
                     # ── D6: har klass `display: block` / `inline-block` / `flex` bilan ham aynan token balandligida, yozuv o'rtada ──
                     och(pg, "/users")
@@ -446,41 +498,136 @@ if PW_BOR:
                         oy = R.setdefault("oynalar", {})
                         js(pg, "() => { xabarOyna('Sinov xabari — matn shu yerda', {sarlavha: 'Sinov sarlavhasi'}); }")   # va'da (Promise) kutilmaydi
                         pg.wait_for_timeout(300)
-                        oy["xabar"] = js(pg, U13_JS, {"root": "#xoModal"})
+                        oy["xabar"] = js(pg, U13_JS, {"istisno": ISTISNO_SEL, "root": "#xoModal"})
                         js(pg, "() => { const m = document.getElementById('xoModal'); m && (m.style.display = 'none'); }")
                         js(pg, "() => { window.__ki = kiritishOyna('Sinov kiritish', {izoh: 'Izoh matni', qiymat: '12'}); }")
                         pg.wait_for_timeout(300)
-                        oy["kiritish"] = js(pg, U13_JS, {"root": "#kiModal"})
+                        oy["kiritish"] = js(pg, U13_JS, {"istisno": ISTISNO_SEL, "root": "#kiModal"})
                         js(pg, "() => { const m = document.getElementById('kiModal'); m && (m.style.display = 'none'); }")
                         js(pg, "() => { window.__cc = customConfirm('Sinov tasdiqlash matni'); }")
                         pg.wait_for_timeout(300)
-                        oy["tasdiq"] = js(pg, U13_JS, {"root": "#ccModal"})
+                        oy["tasdiq"] = js(pg, U13_JS, {"istisno": ISTISNO_SEL, "root": "#ccModal"})
                         js(pg, "() => { const m = document.getElementById('ccModal'); m && (m.style.display = 'none'); }")
                         js(pg, "() => { showAddModal(); }")
                         pg.wait_for_timeout(300)
-                        oy["yangi_foydalanuvchi"] = js(pg, U13_JS, {"root": "#addModal"})
+                        oy["yangi_foydalanuvchi"] = js(pg, U13_JS, {"istisno": ISTISNO_SEL, "root": "#addModal"})
                         js(pg, "() => { document.getElementById('addModal').style.display = 'none'; }")
                         js(pg, "() => { changeMyPassword(); }")
                         pg.wait_for_timeout(500)
-                        oy["parol"] = js(pg, U13_JS, {"root": "#parolModal"})
+                        oy["parol"] = js(pg, U13_JS, {"istisno": ISTISNO_SEL, "root": "#parolModal"})
                         js(pg, "() => { document.getElementById('parolModal').style.display = 'none'; }")
                         js(pg, "() => { showHodimQR(); }")
                         pg.wait_for_timeout(900)
-                        oy["qr"] = js(pg, U13_JS, {"root": "#hodimQrModal"})
+                        oy["qr"] = js(pg, U13_JS, {"istisno": ISTISNO_SEL, "root": "#hodimQrModal"})
                         pg.route("**/api/admin/pending-advance-requests", lambda r: r.fulfill(status=200, content_type="application/json",
                                                                                               body=json.dumps(SOXTA_AVANS)))
                         och(pg, "/dashboard")
                         js(pg, "() => { checkPendingAdvanceRequests(); }")
                         pg.wait_for_timeout(600)
-                        oy["avans"] = js(pg, U13_JS, {"root": "#advReqModal"})
+                        oy["avans"] = js(pg, U13_JS, {"istisno": ISTISNO_SEL, "root": "#advReqModal"})
                         pg.unroute("**/api/admin/pending-advance-requests")
+                        # ── Buyurtmalar: yangi buyurtma formasi, tanlangan buyurtma, to'lov formasi, oynalar (zip 140) ──
+                        def oyna(kod, root=None, kut=700):
+                            js(pg, "() => { try { " + kod + " } catch (e) { window.__u13x = String(e); } }")
+                            pg.wait_for_timeout(kut)
+                            return js(pg, U13_JS, {"istisno": ISTISNO_SEL, "root": root})
+                        och(pg, "/orders")
+                        oy["yangi_buyurtma"] = oyna("showNewForm(); addItem(); addItem();", None, 900)
+                        js(pg, "() => { const d = document.querySelectorAll('.detal')[1]; const s = d && d.querySelector('.type-opt[data-value=\"dona\"]'); s && s.click(); }")
+                        pg.wait_for_timeout(300)
+                        js(pg, "() => { const d = document.querySelector('.detal'); const b = d && d.querySelector('.i-subdetails-wrap button'); "
+                               "const w = d && d.querySelector('.i-subdetails-wrap'); if (w) w.style.display = ''; b && b.click(); }")
+                        pg.wait_for_timeout(300)
+                        oy["yangi_buyurtma_detal"] = js(pg, U13_JS, {"istisno": ISTISNO_SEL, "root": "#newOrderForm"})
+                        och(pg, "/orders")
+                        oy["tanlangan_id"] = js(pg, """async () => { for (const e of document.querySelectorAll('.ord-item[data-order-id]')) {
+                            const r = await fetch('/api/orders/' + e.dataset.orderId + '/delivery-status'); const j = r.ok ? await r.json() : {};
+                            if ((j.items || []).some(x => x.remaining > 0.0001)) { e.click(); return e.dataset.orderId; } } return null; }""")
+                        pg.wait_for_timeout(1500)
+                        oy["tanlangan_buyurtma"] = js(pg, U13_JS, {"istisno": ISTISNO_SEL, "root": None})
+                        oy["tolov_formasi"] = oyna("openPaymentForm();", "#payBody", 500)
+                        oy["yetkazish_oynasi"] = oyna("openDeliveryModal();", "#dlvModal", 900)
+                        js(pg, "() => { const m = document.getElementById('dlvModal'); m && (m.style.display = 'none'); }")
+                        oy["hisob_kitob_oynasi"] = oyna("openSummaryModal();", "#sumModal", 900)
+                        js(pg, "() => { const m = document.getElementById('sumModal'); m && (m.style.display = 'none'); }")
+                        oy["buyurtma_tasdiq"] = oyna("showConfirmModal('Sinov savoli', {title: 'Sinov'});", "#genericConfirmOverlay", 400)
+                        # ── Loyihalar: tanlangan loyiha (tablar, amallar), yangi / tahrir oynasi ──
+                        och(pg, "/projects")
+                        oy["loyiha_tanlangan"] = oyna("const c = document.querySelector('.proj-card'); c && c.click();", None, 1200)
+                        oy["loyiha_yangi"] = oyna("showAddModal();", "#addModal", 400)
+                        js(pg, "() => { document.getElementById('addModal').style.display = 'none'; }")
+                        oy["loyiha_tahrir"] = oyna("openEditModal();", "#editModal", 600)
+                        # ── Ombor, Kirim, Ta'minotchilar, Retseptlar (zip 140) ──
+                        och(pg, "/inventory")
+                        oy["ombor_chiqim"] = oyna("document.querySelector('.act-btn.out').click();", "#chiqimModal", 500)
+                        js(pg, "() => { document.getElementById('chiqimModal').style.display = 'none'; }")
+                        oy["ombor_tuz_kirim"] = oyna("document.querySelector('.act-btn.in').click();", "#tuzKirimModal", 500)
+                        js(pg, "() => { document.getElementById('tuzKirimModal').style.display = 'none'; }")
+                        oy["ombor_chegara"] = oyna("document.querySelector('[aria-label=\"Chegarani tuzatish\"]').click();", "#cpModal", 500)
+                        js(pg, "() => { document.getElementById('cpModal').style.display = 'none'; }")
+                        oy["ombor_xaridlar"] = oyna("openPurchaseHistory();", "#historyModal", 1200)
+                        oy["ombor_kirim_hujjati"] = oyna("const p = (phAllPurchases || []).find(x => x.receipt_id); p && openPhDrawer(p.receipt_id);",
+                                                       "#phDrawerOverlay", 600)
+                        och(pg, "/inventory")
+                        oy["ombor_harakatlar"] = oyna("openMovements();", "#movementsModal", 1200)
+                        och(pg, "/suppliers/receive")
+                        oy["kirim_tanlangan"] = oyna("const s = document.getElementById('r-supplier'); const o = [...s.options].find(x => x.value); "
+                                                     "if (o) { s.value = o.value; s.dispatchEvent(new Event('change')); }", None, 1500)
+                        oy["kirim_yangi_material"] = oyna("apToggleNewItem(); const c = document.getElementById('ap-newitem-category'); "
+                                                          "c.value = 'Penoplast'; onNewItemCategoryChange();", None, 600)
+                        oy["kirim_yangi_taminotchi"] = oyna("openNewSupplier();", "#newSupplierModal", 400)
+                        och(pg, "/suppliers")
+                        oy["taminotchi_yangi"] = oyna("openSupplierModal();", "#supplierModal", 400)
+                        js(pg, "() => { document.getElementById('supplierModal').style.display = 'none'; }")
+                        oy["taminotchi_tarix"] = oyna("document.querySelector('.sup-tarix').click();", "#historyModal", 1500)
+                        oy["taminotchi_xarid"] = oyna("openAddPurchase(); apToggleNewItem();", "#historyModal", 800)
+                        och(pg, "/recipes")
+                        oy["retsept_yangi"] = oyna("openAddModal(); openIngredientPicker('f');", "#addModal", 900)
+                        js(pg, "() => { closeIngredientPicker('f'); document.getElementById('addModal').style.display = 'none'; }")
+                        oy["retsept_tahrir"] = oyna("document.querySelector('[aria-label=\"Tahrirlash\"][onclick^=\"openEditModal\"]').click();", "#editModal", 900)
+                        # ── Ishlab chiqarish, Tayyor mahsulotlar, Qaytarishlar va brak oynasi (zip 140) ──
+                        och(pg, "/production")
+                        oy["ich_tur_yangi"] = oyna("openProductTypeModal();", "#pt-modal", 500)
+                        js(pg, "() => { closeModal('pt-modal'); }")
+                        oy["ich_tur_yonalish"] = oyna("document.querySelector('[onclick^=\"openTurYonalish\"]').click();", "#pty-modal", 500)
+                        js(pg, "() => { closeModal('pty-modal'); }")
+                        oy["ich_tarkib"] = oyna("const p = productTypesCache.find(x => (x.retseptlar || []).length); "
+                                                "p && openBomModal(p.id, p.retseptlar[0].id);", "#bom-modal", 1500)
+                        js(pg, "() => { closeModal('bom-modal'); }")
+                        oy["ich_royxat"] = oyna("switchProdTab('orders');", None, 1500)
+                        oy["ich_yangi"] = oyna("openProductionOrderModal();", "#po-modal", 1500)
+                        js(pg, "() => { closeModal('po-modal'); }")
+                        oy["ich_qoralama"] = oyna("const p = poRoyxat.find(x => x.status === 'draft'); p && poOyna(p.id, 'boshlash');", "#snapshot-modal", 1500)
+                        js(pg, "() => { closeModal('snapshot-modal'); }")
+                        oy["ich_surat"] = oyna("const b = document.querySelector('[data-snap]'); b && b.click();", "#snapshot-modal", 800)
+                        och(pg, "/finished")
+                        oy["tm_yangi"] = oyna("openProduceModal();", "#prodModal", 800)
+                        js(pg, "() => { document.getElementById('prodModal').style.display = 'none'; }")
+                        oy["tm_sotish"] = oyna("const i = fpItems.find(x => x.quantity > 0); i && openSellModal(i.id, i.name, i.quantity, i.unit, i.unit_price || 0);",
+                                               "#sellModal", 600)
+                        js(pg, "() => { document.getElementById('sellModal').style.display = 'none'; }")
+                        oy["tm_savat"] = oyna("const c = [...document.querySelectorAll('.fp-batch-check')].find(x => parseFloat(x.dataset.qty) > 0); "
+                                              "if (c) { c.checked = true; onBatchCheckChange(); openBatchSellModal(); }", "#batchSellModal", 600)
+                        js(pg, "() => { document.getElementById('batchSellModal').style.display = 'none'; }")
+                        oy["tm_malumot"] = oyna("const i = fpItems[0]; i && openHistoryModal(i.id);", "#historyModal", 600)
+                        js(pg, "() => { document.getElementById('historyModal').style.display = 'none'; }")
+                        oy["tm_foyda"] = oyna("const i = fpItems[0]; i && openProfitModal(i.id);", "#profitModal", 1200)
+                        js(pg, "() => { document.getElementById('profitModal').style.display = 'none'; }")
+                        oy["tm_ochirish"] = oyna("confirmDeleteFp('Sinov mahsulot');", "#delFpModal", 400)
+                        js(pg, "() => { _delFpResolveWith(null); }")
+                        och(pg, "/returns")
+                        oy["qaytarish_yangi"] = oyna("showAddModal();", "#addModal", 900)
+                        js(pg, "() => { document.getElementById('addModal').style.display = 'none'; }")
+                        oy["brak_buyurtma"] = oyna("showBrakModal('buyurtma');", "#brakModal", 1200)
+                        oy["brak_ombor"] = oyna("brakManbaTanla('ombor');", "#brakModal", 900)
+                        oy["brak_ishlab"] = oyna("brakManbaTanla('ishlab');", "#brakModal", 900)
                         # ── Y: yuqori panel HAMMA sahifada ──
                         yp = R.setdefault("yuqori", {})
                         for url in ["/projects", "/orders", "/inventory", "/suppliers", "/suppliers/receive", "/recipes", "/production",
                                     "/finished", "/returns", "/debts", "/finance", "/kunlik-xarajat", "/kpi", "/ustalar", "/rollar",
                                     "/sozlamalar", "/logs", "/trash"]:
                             och(pg, url, 500)
-                            yp[url] = js(pg, U13_JS, {"root": ".erp-topbar"})
+                            yp[url] = js(pg, U13_JS, {"istisno": ISTISNO_SEL, "root": ".erp-topbar"})
                     ctx.close()
 
 
@@ -491,17 +638,23 @@ def tugma_yomon(o, w):
         if t["tur"] == "karta":
             continue
         xato = []
-        if not bormi(t["h"], TUGMA_H[w]):
+        if t["tur"] == "tanlov":
+            if t["h"] < max(TUGMA_H[w]) - 0.6:
+                xato.append(f"h={t['h']} (tanlov — kamida {int(max(TUGMA_H[w]))})")
+        elif not bormi(t["h"], TUGMA_H[w]):
             xato.append(f"h={t['h']}")
         if t["chip"]:
             if t["rad"] < t["h"] / 2 - 1:
                 xato.append(f"rad={t['rad']} (chip)")
         elif abs(t["rad"] - 8) > 0.5:
             xato.append(f"rad={t['rad']}")
-        if t["fs"] not in TUGMA_FS:
+        belgi = not re.search(r"[A-Za-z0-9\u0400-\u04FF\u2019\u02BB]", t.get("yozuv", t["matn"]) or "")
+        if t["fs"] not in TUGMA_FS and not (belgi and t["fs"] == 18.0):
             xato.append(f"fs={t['fs']}")
         if t.get("ikon") and abs(t["w"] - t["h"]) > 1:
             xato.append(f"belgi-tugma kvadrat emas {t['w']}×{t['h']}")
+        if t.get("toshdi"):
+            xato.append("yozuv tugmaga sig'madi (chetidan chiqadi)")
         if xato:
             yomon.append(f"{t['sel'][:70]} «{t['matn'][:20]}» " + " ".join(xato))
     return yomon
@@ -518,9 +671,10 @@ def maydon_yomon(o, w):
         xato = []
         if m["tur"] != "textarea" and not bormi(m["h"], MAYDON_H[w]):
             xato.append(f"h={m['h']}")
-        if abs(m["rad"] - 8) > 0.5:
+        if abs(m["rad"] - 8) > 0.5 and m.get("ch", 1) > 0:      # chegarasiz (qidiruv qatoriga joylangan) maydonda burchak yo'q
             xato.append(f"rad={m['rad']}")
-        if m["fs"] not in MAYDON_FS[w] and not (w == 1440 and m["fs"] in (13.0, 14.0)):
+        # faqat o'qiladigan natija qutisi (hajm, narx — `.dval-box`) — ajratilgan raqam, 16 px ham ruxsat
+        if m["fs"] not in MAYDON_FS[w] and not (w == 1440 and m["fs"] in (13.0, 14.0)) and not (m.get("ro") and m["fs"] == 16.0):
             xato.append(f"fs={m['fs']}")
         if xato:
             yomon.append(f"{m['sel'][:60]} " + " ".join(xato))
@@ -542,7 +696,7 @@ if PW_BOR and NAT:
                 o = rec.get("o") or {}
                 tb = [t for t in o.get("tugmalar") or [] if t["tur"] != "karta"]
                 check(f"D1 {url} {w} px {nom}: HAR tugma ruxsat etilgan balandlikda ({'/'.join(str(int(x)) for x in sorted(TUGMA_H[w]))} px), "
-                      f"burchak 8 px (filtr chipi — yumaloq), yozuvi 13 / 14 / 16 px",
+                      f"burchak 8 px (filtr chipi — yumaloq), yozuvi 13 / 14 / 16 px va tugmaga sig'adi",
                       tb and not tugma_yomon(o, w) and (tema == "light" or rec.get("tema") == "dark"),
                       [tugma_yomon(o, w)[:12], len(tb), rec.get("tema"), o.get("js_xato")])
                 if tema == "light":
@@ -571,15 +725,41 @@ if PW_BOR and NAT:
                   f"`+ .btn-md`, `+ .btn-sm`) `display` block / inline-block / flex / standart bo'lsa ham aynan token balandligida, yozuv o'rtada (±1,5 px)",
                   len(kr.get("out") or []) == 40 and len(tok) == 4 and not yomon, [yomon[:8], tok, kr.get("js_xato") if isinstance(kr, dict) else kr])
 
-section("O. Oynalar — tugma, maydon, matn (umumiy xabar / kiritish / tasdiqlash; Foydalanuvchilar; Dashboard)")
+section("O. Oynalar — tugma, maydon, matn (umumiy xabar / kiritish / tasdiqlash; o'tkazilgan sahifalarning oynalari)")
 if PW_BOR and NAT:
     for w in (1440, 390):
         oy = (NAT.get(("light", w)) or {}).get("oynalar") or {}
         for kalit, nom in (("xabar", "xabar oynasi (`xabarOyna`)"), ("kiritish", "kiritish oynasi (`kiritishOyna`)"),
                            ("tasdiq", "tasdiqlash oynasi (`customConfirm`)"), ("yangi_foydalanuvchi", "«Yangi foydalanuvchi»"),
-                           ("parol", "«Parolni o'zgartirish»"), ("qr", "«Hodim kirishi — QR»"), ("avans", "Dashboard — avans so'rovlari")):
+                           ("parol", "«Parolni o'zgartirish»"), ("qr", "«Hodim kirishi — QR»"), ("avans", "Dashboard — avans so'rovlari"),
+                           ("yangi_buyurtma", "Buyurtmalar — yangi buyurtma formasi (2 detal)"),
+                           ("yangi_buyurtma_detal", "Buyurtmalar — detal turlari, qoplama, ichki qo'shimcha detal"),
+                           ("tanlangan_buyurtma", "Buyurtmalar — tanlangan buyurtma (amallar, yetkazish, to'lovlar)"),
+                           ("tolov_formasi", "Buyurtmalar — to'lov qo'shish formasi"), ("yetkazish_oynasi", "Buyurtmalar — «Qisman topshirish» oynasi"),
+                           ("hisob_kitob_oynasi", "Buyurtmalar — «Hisob-kitob» oynasi"), ("buyurtma_tasdiq", "Buyurtmalar — tasdiqlash oynasi"),
+                           ("loyiha_tanlangan", "Loyihalar — tanlangan loyiha (tablar, amallar)"), ("loyiha_yangi", "Loyihalar — «Yangi loyiha» oynasi"),
+                           ("loyiha_tahrir", "Loyihalar — tahrirlash oynasi"),
+                           ("ombor_chiqim", "Omborxona — «Chiqim (tuzatish)»"), ("ombor_tuz_kirim", "Omborxona — «Kirim (tuzatish)»"),
+                           ("ombor_chegara", "Omborxona — chegarani tuzatish oynasi"), ("ombor_xaridlar", "Omborxona — «Xaridlar tarixi»"),
+                           ("ombor_kirim_hujjati", "Omborxona — kirim hujjati (yon panel)"), ("ombor_harakatlar", "Omborxona — «Ombor harakatlari»"),
+                           ("kirim_tanlangan", "Kirim qilish — ta'minotchi tanlangan (qarz, to'lov, tarix)"),
+                           ("kirim_yangi_material", "Kirim qilish — yangi material (penoplast: hajm, asosiy plotnost katagi)"),
+                           ("kirim_yangi_taminotchi", "Kirim qilish — «Yangi ta'minotchi»"), ("taminotchi_yangi", "Ta'minotchilar — yangi ta'minotchi"),
+                           ("taminotchi_tarix", "Ta'minotchilar — tarix oynasi"), ("taminotchi_xarid", "Ta'minotchilar — «Xarid qo'shish» (yangi material)"),
+                           ("retsept_yangi", "Loy retseptlari — yangi retsept va material tanlash"), ("retsept_tahrir", "Loy retseptlari — tahrirlash"),
+                           ("ich_tur_yangi", "Ishlab chiqarish — «Yangi mahsulot turi»"), ("ich_tur_yonalish", "Ishlab chiqarish — tur yo'nalishi"),
+                           ("ich_tarkib", "Ishlab chiqarish — tarkib (retsept) tahriri"), ("ich_royxat", "Ishlab chiqarish — ro'yxat (filtrlar, amallar)"),
+                           ("ich_yangi", "Ishlab chiqarish — «Yangi ishlab chiqarish»"), ("ich_qoralama", "Ishlab chiqarish — boshlash oynasi (reja)"),
+                           ("ich_surat", "Ishlab chiqarish — yakunlangan (surat)"),
+                           ("tm_yangi", "Tayyor mahsulotlar — «Yangi mahsulot»"), ("tm_sotish", "Tayyor mahsulotlar — sotish"),
+                           ("tm_savat", "Tayyor mahsulotlar — savatcha (bir nechtasini sotish)"), ("tm_malumot", "Tayyor mahsulotlar — «Ma'lumot»"),
+                           ("tm_foyda", "Tayyor mahsulotlar — «Foyda hisobi»"), ("tm_ochirish", "Tayyor mahsulotlar — o'chirish tanlovi"),
+                           ("qaytarish_yangi", "Qaytarishlar — yangi qaytarish"), ("brak_buyurtma", "Brak yozish — buyurtmadan"),
+                           ("brak_ombor", "Brak yozish — ombordan"), ("brak_ishlab", "Brak yozish — ishlab chiqarishdan")):
             o = oy.get(kalit) or {}
             tb = [t for t in o.get("tugmalar") or [] if t["tur"] != "karta"]
+            if kalit == "tanlangan_buyurtma" and not oy.get("tanlangan_id"):
+                tb = []
             check(f"O1 {w} px {nom}: tugmalar / maydonlar / belgilash kataklari / matn — yagona qoidada",
                   tb and not tugma_yomon(o, w) and not maydon_yomon(o, w) and not belgi_yomon(o) and not shrift_yomon(o),
                   [tugma_yomon(o, w)[:8], maydon_yomon(o, w)[:6], belgi_yomon(o)[:4], shrift_yomon(o), len(tb),

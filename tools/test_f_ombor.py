@@ -372,7 +372,7 @@ if br:
             kirim: !!document.querySelector('a[href="/suppliers/receive"]'),
             tg: [...document.querySelectorAll('button')].filter(b => /Telegram/.test(b.textContent)).length,
             sms: [...document.querySelectorAll('button')].filter(b => /SMS/.test(b.textContent)).length,
-            tugma: Math.round(document.querySelector('.mat-col-min .btn-xs').getBoundingClientRect().height)})""")
+            tugma: Math.round(document.querySelector('.mat-col-min .btn-xs, .mat-col-min .btn-sm').getBoundingClientRect().height)})""")
         check("B1 Omborxona (1440): ustun nomlari (Material, Qoldiq, Minimal chegara, Holat, 1 birlik narxi), «Kirim qilish», Telegram tugmalari "
               "(SMS yo'q), chegara tugmasi ≥ 32 px", _b1["boshKor"] == "grid" and all(x in _b1["bosh"].upper() for x in
               ("MATERIAL", "QOLDIQ", "MINIMAL CHEGARA", "HOLAT", "1 BIRLIK NARXI")) and _b1["kirim"] and _b1["tg"] == 2 and _b1["sms"] == 0

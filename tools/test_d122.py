@@ -392,7 +392,11 @@ for _f in SHABLONLAR:
     for _m in re.finditer(r"(okBtn|arModal-ok'\))\.style\.background\s*=[^;\n]*#16A34A", _s, re.I):
         _yashil.append(f"{os.path.basename(_f)}:{_s.count(chr(10), 0, _m.start()) + 1} {_m.group(0)[:60]}")
 check("T5 oq yozuvli yashil tugma (Sotish, Tasdiqlash, Saqlash) — #15803D (oq yozuv 5.0:1; #16A34A — 3.3:1, ikkala rejimda)",
-      not _yashil and kontrast("#FFFFFF", "#15803D") >= 4.5 and "background:#15803D;color:#fff" in fayl("templates/finished.html"),
+      not _yashil and kontrast("#FFFFFF", "#15803D") >= 4.5
+      # kech123 (U-13): «Sotish» — inline uslub YOKI umumiy `.btn-green` (style.css: #15803D, oq yozuv)
+      and ("background:#15803D;color:#fff" in fayl("templates/finished.html")
+           or ('class="btn btn-green"' in fayl("templates/finished.html")
+               and ".btn-green { background: #15803D; color: #fff; }" in fayl("static/style.css"))),
       _yashil)
 check("T6 xabar oynasi sarlavhasi rangi (Xatolik / Bajarildi / Diqqat) — ro'yxatdan (tungi rejimda yorug' tus)",
       "var _XO_RANG = {xato: 'var(--m-b91c1c)', ok: 'var(--m-15803d)', ogoh: 'var(--m-b45309)', info: ''};" in _bs)
