@@ -300,7 +300,7 @@ if br:
             const lb = document.querySelector('label[for="co-logo-file"]'); const cs = getComputedStyle(i);
             return {chegara: cs.borderTopWidth + ' ' + cs.borderTopStyle, radius: cs.borderTopLeftRadius, padding: cs.paddingLeft, fayl: getComputedStyle(f).display,
                     tugma: lb ? lb.textContent.trim() : null, nomi: document.getElementById('co-logo-nomi').textContent,
-                    tabbar: getComputedStyle(document.querySelector('.tab-bar')).display,
+                    tabbar: getComputedStyle(document.querySelector('.log-tablar') || document.querySelector('.tab-bar')).display,
                     korin: getComputedStyle(document.getElementById('tab-settings')).display}; }""")
         # kech123 (zip 139 — U-13, MOSLANDI): `.input-field` — yagona maydon qoidasi (`.maydon` bilan bir: 12 px ichki joy, 8 px burchak)
         check("B1 Sozlamalar sahifasi: maydonlar umumiy uslubda (tekis chegara, 8 px burchak, 12 px ichki joy — ilgari brauzer standarti), fayl — «Fayl tanlash» / "

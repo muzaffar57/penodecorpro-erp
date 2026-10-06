@@ -20,6 +20,9 @@ NIMA UCHUN KERAK (audit kech114; 2026-10-01 da JORIY kodda qayta tekshirildi —
 BO'LIMLAR: S — statik; A — API (kirim xarajati qulfi 409, egalik 404 dan oldin, majburiyat nomi, to'lov usuli); B — HAQIQIY Chromium
   (Moliya, Qarzdorlar, Xarajat qo'shish — kompyuter va telefon 390 px; Moliyachi roli — o'chirish tugmasi yo'q).
 REJIMLAR: SQLite (odatiy); `PG_URL` bilan HAQIQIY PostgreSQL 16. Asl kodga (zip 130) qarshi QULAMAYDI — yiqiladi.
+BARQARORLIK (kech123, zip 142): B9 / B10 / B13 / B14 da qat'iy kutish o'rniga SHART (`shart_kut`, `qayta_yuklanib`) — etalon yuklamasida
+  server javobi kechiksa ham natija o'zgarmaydi (O'LCHANGAN: eski sinov d150 da 5 urinishdan 3 tasida, d149 da 3 tadan 1 tasida
+  yiqilgan — kod emas, vaqt poygasi).
 TALAB: Python `playwright` + Chromium (B bo'limi).
 ISHLATISH: python3 tools/test_f_moliya.py
 """
@@ -273,6 +276,32 @@ def tasdiqla(pg, ha=True):
     pg.wait_for_timeout(150)
 
 
+# kech123 (zip 142 — test barqarorligi, O'LCHANGAN: etalon d150 yuklamasida 3 marta ketma-ket, d149 da ham — U-13 dan oldingi sahifalarda):
+# qat'iy kutish (700 / 900 / 800 ms) server javobidan oldin tugab qolardi — hisobot hali eski oyda (B9), yoki to'lovdan keyingi
+# `location.reload` keyingi `goto` ni uzardi (net::ERR_ABORTED — qolgan hamma tekshiruv o'tkazib yuborilardi). Endi kutish SHARTGA
+# bog'langan; shart bajarilmasa — jim davom etiladi va tekshiruvning o'zi yiqiladi (asl / buzilgan kodda — qulamaydi, yiqiladi).
+def shart_kut(pg, ifoda, ms=15000):
+    try:
+        pg.wait_for_function(ifoda, timeout=ms)
+        return True
+    except Exception:                      # noqa: BLE001
+        return False
+
+
+def qayta_yuklanib(pg, amal, ms=15000):
+    """`amal` (tasdiq bosilishi) sahifani qayta yuklaydi — yuklanish TUGAGUNCHA kutiladi; `amal` ning o'z xatosi yashirilmaydi."""
+    bajarildi = [False]
+    try:
+        with pg.expect_navigation(timeout=ms):
+            amal()
+            bajarildi[0] = True
+    except Exception:                      # noqa: BLE001
+        if not bajarildi[0]:
+            raise
+        return False
+    return True
+
+
 if br:
     ctx, pg = kontekst()
     try:
@@ -349,7 +378,7 @@ if br:
         del SOROV[:]
         _oy = O_OY
         pg.select_option("#sel-month", str(_oy))
-        pg.wait_for_timeout(700)
+        shart_kut(pg, f"() => typeof korsatilganOy !== 'undefined' && !!korsatilganOy && String(korsatilganOy.month) === '{_oy}'")
         _rep = [x for x in SOROV if x[1].startswith("/api/finance/report?")]
         pg.evaluate("() => { window.__ochildi = []; window.open = (u) => { window.__ochildi.push(u); return null; }; downloadFinancePdf(); }")
         _pdf = pg.evaluate("() => window.__ochildi")
@@ -367,8 +396,7 @@ if br:
         pg.fill("#pay-amount", "1000")
         pg.evaluate("() => { window.__p = savePayment(); }")
         _m3 = tasdiq_matni(pg)
-        tasdiqla(pg, True)
-        pg.wait_for_timeout(900)
+        qayta_yuklanib(pg, lambda: tasdiqla(pg, True))
         _db = SessionLocal()
         _pay = [(float(p.amount), (p.payment_method.value if hasattr(p.payment_method, "value") else str(p.payment_method)))
                 for p in _db.query(Payment).filter(Payment.order_id == ID["ord"]).all()]
@@ -396,8 +424,7 @@ if br:
         pg.fill("#kiMaydon", "600 000")
         pg.click("#kiOk")
         _m4 = tasdiq_matni(pg)
-        tasdiqla(pg, True)
-        pg.wait_for_timeout(900)
+        qayta_yuklanib(pg, lambda: tasdiqla(pg, True))
         _post = [json.loads(x[2] or "{}") for x in SOROV if x[0] == "POST" and x[1] == "/api/finance/transactions"]
         _kut_sana = f"{O_YIL}-{O_OY:02d}-28"
         check("B13 majburiyatni tez to'lash: oynada oy va «28.MM.YYYY sanasiga yoziladi»; qarzdan ko'p (600 000 > 500 000) — alohida tasdiq; "
@@ -411,7 +438,8 @@ if br:
         _v = pg.input_value("#kx-amount")
         del SOROV[:]
         pg.click("#kx-save-btn")
-        pg.wait_for_timeout(800)
+        shart_kut(pg, """() => { const o = document.getElementById('kx-success'), e = document.getElementById('kx-error');
+                                return (!!o && o.style.display !== 'none' && o.textContent.trim() !== '') || (!!e && e.style.display !== 'none'); }""")
         _post = [json.loads(x[2] or "{}") for x in SOROV if x[0] == "POST" and x[1] == "/api/finance/transactions"]
         _ok = pg.evaluate("() => document.getElementById('kx-success').textContent")
         check("B14 «Xarajat qo'shish»: summa umumiy qoida bilan («150 000,50» → 150 000.5), saqlangach — summa, toifa, sana",

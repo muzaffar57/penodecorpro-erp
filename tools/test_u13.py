@@ -19,10 +19,13 @@ QOIDA (static/style.css «U-13 — YAGONA KO'RINISH»; o'lchamlar — token, sah
   Sahifalar zip-ma-zip o'tkaziladi — `U13_SAHIFALAR` / `U13_SHABLONLAR` shu ro'yxat bilan o'sadi (zip 139: umumiy qobiq — yon menyu,
   yuqori panel, umumiy oynalar; Bosh sahifa, Dashboard, Hisobotlar, Foydalanuvchilar; zip 140: Buyurtmalar, Loyihalar,
   Omborxona, Kirim qilish, Ta'minotchilar, Loy retseptlari, Ishlab chiqarish, Tayyor mahsulotlar, Qaytarishlar va brak oynasi; zip 141: Qarzdorlar, Moliya, Xarajat qo'shish,
-  Ustalar KPI / Hodimlar, Ustalar, Rollar).
+  Ustalar KPI / Hodimlar, Ustalar, Rollar; zip 142: Tizim jurnallari, Sozlamalar, Savat, Platforma — korxonalar (platforma
+  administratori bilan), alohida sahifalar — kirish, xato (404), hodim QR varag'i, hodim paneli — K bo'limi).
   ISTISNO (tugma qoidasidan tashqari, sababi bilan): rasm ustidagi mayda belgilar (`.attach-thumb .rm` / `.dl`, `*-thumb-cam`,
   `.cam-overlay` — rasmni yopmasligi uchun; detal / tayyor mahsulot rasmi `.prod-thumb`, `.fp-thumb`), teg ichidagi «×» (`.fp-tag button`), bosiladigan
-  yorliq (`.cat-badge` — toifa yorlig'i, bosilsa tahrirlanadi), matn ichidagi havola-tugma (`.btn-link` — «To'liq to'lash»). Bo'lakli tanlov (`.segment` — «Qoplama: Yo'q / Bor»)
+  yorliq (`.cat-badge` — toifa yorlig'i, bosilsa tahrirlanadi), matn ichidagi havola-tugma (`.btn-link` — «To'liq to'lash»), Qaytarishlar
+  guruh sarlavhasi (`.ret-group-header` — `role="button"`, ochiluvchi ro'yxat QATORI: buyurtma, mijoz, xulosa, summa, sana, soni; kompyuterda
+  bir qatorda 47 px — 56 px dan past bo'lgani uchun tugma deb sanalardi; zip 140 jonli sinovida (staging, haqiqiy guruhlar) topilgan). Bo'lakli tanlov (`.segment` — «Qoplama: Yo'q / Bor»)
   bitta boshqaruv sifatida o'lchanadi (ichidagi bo'laklar emas). Izohli tanlov tugmasi (`.btn-tanlov` — sarlavha va izoh, masalan
   «O'chirish va xomashyoni qaytarish») va izohli tanlov kartasi (`.tanlov-karta` — rol kartasi: belgi, nom, izoh) — kamida `.btn`
   balandligida, burchak 8 px (balandligi matniga qarab).
@@ -31,7 +34,10 @@ BO'LIMLAR: S — statik (style.css tokenlari va klasslari; o'tkazilgan shablonla
   `tools/test_c_telefon.py` ZANJIR_JS); D — o'tkazilgan sahifalar 1440 / 390 px, yorug' / tungi: har tugma, maydon, belgilash katagi, matn o'lchami;
   O — oynalar (umumiy xabar / kiritish / tasdiqlash; Foydalanuvchilar — yangi foydalanuvchi, parol, QR; Dashboard — avans so'rovlari;
   har o'tkazilgan sahifaning oynalari — Buyurtmalar, Loyihalar, Ombor, Kirim, Ta'minotchilar, Retseptlar, Ishlab chiqarish, Tayyor
-  mahsulotlar, Qaytarishlar, Brak yozish, Qarzdorlar, Moliya, Ustalar KPI / Hodimlar, Ustalar, Rollar);
+  mahsulotlar, Qaytarishlar, Brak yozish, Qarzdorlar, Moliya, Ustalar KPI / Hodimlar, Ustalar, Rollar, Tizim jurnallari, Platforma;
+  Foydalanuvchilar — PLATFORMA ADMINI ko'rinishi: Telegram bo'limi faqat unga chiqadi — zip 139 jonli sinovida (staging, 390 px)
+  «Webhookni o'chirib, …» tugmasi 2 qatorga tushib 64 px edi, korxona admini bilan o'lchangani uchun sinov ko'rmagan);
+  K — alohida sahifalar (kirish, 404, QR varag'i — 44 / 48 px; hodim paneli — umumiy qoida);
   Y — yuqori panel HAMMA sahifada (qobiq bir xil).
 REJIMLAR: SQLite (odatiy); `PG_URL` bilan HAQIQIY PostgreSQL 16. Asl kodga (zip 138) qarshi QULAMAYDI — yiqiladi.
 TALAB: Python `playwright` va Chromium (`PLAYWRIGHT_BROWSERS_PATH` / `/opt/pw-browsers`). Shriftlar va Chart.js tashqi manbadan
@@ -114,11 +120,12 @@ def oqi(yol):
 U13_SHABLONLAR = ["base.html", "home.html", "dashboard.html", "reports.html", "users.html", "orders.html", "projects.html",
                   "inventory.html", "supplier_receive.html", "suppliers.html", "recipes.html", "production.html", "finished.html",
                   "returns.html", "_brak_oyna.html", "debts.html", "finance.html", "kunlik_xarajat.html", "kpi.html", "masters_manage.html",
-                  "rollar.html"]
+                  "rollar.html", "logs.html", "trash.html", "platforma.html"]
 U13_SAHIFALAR = ["/", "/dashboard", "/reports", "/users", "/orders", "/projects", "/inventory", "/suppliers/receive", "/suppliers", "/recipes",
-                 "/production", "/finished", "/returns", "/debts", "/finance", "/kunlik-xarajat", "/kpi", "/ustalar", "/rollar"]
+                 "/production", "/finished", "/returns", "/debts", "/finance", "/kunlik-xarajat", "/kpi", "/ustalar", "/rollar", "/logs",
+                 "/sozlamalar", "/trash"]
 ISTISNO_SEL = (".attach-thumb .rm, .attach-thumb .dl, .prod-thumb, .prod-thumb-cam, .proj-thumb-cam, .mat-thumb-cam, .cam-overlay, "
-               ".fp-tag button, .cat-badge, .btn-link, .fp-thumb")
+               ".fp-tag button, .cat-badge, .btn-link, .fp-thumb, .ret-group-header")
 SHKALA = {12.0, 13.0, 14.0, 16.0, 18.0, 24.0, 32.0}
 TUGMA_H = {1440: {32.0, 36.0, 40.0}, 390: {36.0, 40.0, 44.0}}
 MAYDON_H = {1440: {32.0, 40.0}, 390: {36.0, 44.0}}
@@ -238,9 +245,13 @@ check("S12 forma maydoni qoidasi (`.form-group input` — 100 % kenglik, 40 px) 
       and "text-transform: none" in blok(CSS, ".form-group label:has(> input[type=checkbox]),\n.form-group label:has(> input[type=radio])"), _bk)
 
 ADMIN, PAROL = "u13_admin", "Parol123!"
+PADMIN = "u13_platforma"                           # zip 142: Platforma sahifasi — faqat platforma administratori
 s = SessionLocal()
 with contextlib.redirect_stdout(io.StringIO()):
     auth.create_user(s, ADMIN, PAROL, UserRole.ADMIN, "Namuna Dekor", company_id=1)
+    _pa = auth.create_user(s, PADMIN, PAROL, UserRole.ADMIN, "Platforma Admin", company_id=1)
+    _pa.is_platform_admin = True
+    s.commit()
 s.close()
 
 _src_tel = oqi("tools/test_c_telefon.py")
@@ -324,7 +335,7 @@ U13_JS = r"""(arg) => {
     } else if ((e.tagName === 'INPUT' && !/^(hidden|checkbox|radio|file|range|color|button|submit|reset|image)$/i.test(e.type)) || e.tagName === 'SELECT' || e.tagName === 'TEXTAREA'
                || klass(e).includes('qt-maydon')) {
       // birlik qo'shimchali o'ram ichidagi maydon — ko'rinadigan maydon o'ramning o'zi (chegara, burchak, balandlik)
-      const ora = e.parentElement && e.parentElement.matches('.unit-input-wrap, .dval-box, .recp-ing-qty, .birlik-guruh, .bi-guruh') ? e.parentElement : null;
+      const ora = e.parentElement && e.parentElement.matches('.unit-input-wrap, .dval-box, .recp-ing-qty, .birlik-guruh, .bi-guruh, .pl-search') ? e.parentElement : null;
       const rr = ora ? ora.getBoundingClientRect() : r;
       maydonlar.push({sel: sel(e).slice(0, 100), tur: e.tagName.toLowerCase(), h: r1(rr.height), rad: radius(ora || e), fs: r1(parseFloat(s.fontSize)),
         ro: !!e.readOnly, ch: parseFloat(getComputedStyle(ora || e).borderTopWidth) || 0});
@@ -390,7 +401,7 @@ if PW_BOR:
             br = None
             check("M2 Chromium ishga tushdi", False, f"{type(_e).__name__}: {_e}")
 
-        def kontekst(w, tema=None):
+        def kontekst(w, tema=None, kim=None):
             tel = w < 1000
             ctx = br.new_context(viewport={"width": w, "height": balandlik(w)}, device_scale_factor=1, is_mobile=tel, has_touch=tel,
                                  timezone_id="Asia/Tashkent", locale="uz-UZ")
@@ -400,7 +411,7 @@ if PW_BOR:
                 ctx.add_init_script(f"try {{ localStorage.setItem('theme', '{tema}'); }} catch (e) {{}}")
             pg = ctx.new_page()
             pg.goto(B + "/login")
-            pg.fill("input[name=username]", ADMIN)
+            pg.fill("input[name=username]", kim or ADMIN)
             pg.fill("input[name=password]", PAROL)
             pg.press("input[name=password]", "Enter")
             pg.wait_for_load_state("networkidle")
@@ -653,6 +664,23 @@ if PW_BOR:
                         js(pg, "() => { document.getElementById('panelAccessModal').style.display = 'none'; }")
                         oy["kpi_sovga"] = oyna("openGiftPeriodModal();", "#giftPeriodModal", 1200)
                         js(pg, "() => { closeGiftPeriodModal(); }")
+                        # zip 142 (zip 141 jonli sinovi, staging 390 px): sovg'a davri TANLANGAN ustalar bilan ochiq bo'lsa — «Yangi usta qo'shish»
+                        # qatori chiqadi; «+ Qo'shish» telefonda 2 qatorga tushib 54 px edi (lokal ma'lumotda davr yo'q edi — ko'rinmagan)
+                        oy["sovga_davr_tayyor"] = js(pg, """async (I) => {
+                          const so = async (u, tana) => { const r = await fetch(u, {method: 'POST', credentials: 'same-origin',
+                            headers: {'Content-Type': 'application/json'}, body: JSON.stringify(tana)}); return r.status; };
+                          const m2 = await so('/api/masters', {name: 'U13 Ikkinchi Usta', phone: '+998900001131', cashback_percent: 5, kpi_percent: 0,
+                                                               region: 'Andijon', notes: 'U13 sovga davri uchun'});
+                          const ochish = await so('/api/gift-period/open', {tiers: [{gift_name: 'U13 sovga', threshold_amount: 1000000}],
+                                                                            master_ids: [I.usta]});
+                          return {m2, ochish}; }""", Z.get("I") or {})
+                        och(pg, "/kpi")
+                        oy["kpi_sovga_davr"] = oyna("openGiftPeriodModal();", "#giftPeriodModal", 1500)
+                        oy["sovga_qator"] = js(pg, "() => !!document.getElementById('giftPeriodAddMasterSelect')")
+                        js(pg, "() => { closeGiftPeriodModal(); }")
+                        oy["sovga_davr_yopildi"] = js(pg, """async () => { const r = await fetch('/api/gift-period/close', {method: 'POST',
+                            credentials: 'same-origin', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({force: true})});
+                            return r.status; }""")
                         oy["kpi_oylik"] = oyna("loadEmpMonthlyReport();", "#empMonthlyReport", 1500)
                         och(pg, "/ustalar")
                         oy["ustalar_yangi"] = oyna("openMasterModal();", "#masterModal", 500)
@@ -662,6 +690,10 @@ if PW_BOR:
                         oy["rol_user"] = oyna("userQoshOch();", "#rlUserModal", 600)
                         js(pg, "() => { userQoshYop(); }")
                         oy["rol_yordam"] = oyna("yordamOch();", "#rlYordamModal", 400)
+                        # ── Tizim jurnallari (zip 142) ──
+                        och(pg, "/logs")
+                        oy["jurnal_audit"] = oyna("switchLogTab('activity');", None, 600)
+                        oy["jurnal_tekshiruv"] = oyna("switchLogTab('health');", None, 600)
                         # ── Y: yuqori panel HAMMA sahifada ──
                         yp = R.setdefault("yuqori", {})
                         for url in ["/projects", "/orders", "/inventory", "/suppliers", "/suppliers/receive", "/recipes", "/production",
@@ -669,7 +701,70 @@ if PW_BOR:
                                     "/sozlamalar", "/logs", "/trash"]:
                             och(pg, url, 500)
                             yp[url] = js(pg, U13_JS, {"istisno": ISTISNO_SEL, "root": ".erp-topbar"})
+                        # ── Platforma — korxonalar (zip 142; faqat platforma administratori kiradi) ──
+                        pctx, ppg = kontekst(w, None, PADMIN)
+                        if w == 1440:
+                            # platforma egasining korxonasi kartasida amal yo'q — mijoz korxona yaratiladi (uzaytirish / bloklash)
+                            NAT["yangi_korxona"] = js(ppg, """async () => { const fd = new FormData(); fd.append('name', 'U13 Mijoz korxona');
+                                fd.append('admin_username', 'u13_mijoz_admin'); fd.append('admin_full_name', 'Mijoz Admin');
+                                const r = await fetch('/api/platform/companies', {method: 'POST', body: fd}); return {st: r.status}; }""")
+                        och(ppg, "/platforma", 1200)
+                        oy["platforma"] = js(ppg, U13_JS, {"istisno": ISTISNO_SEL, "root": None})
+                        js(ppg, "() => { const b = document.querySelector('[data-amal=\"uzaytir\"]'); b && b.click(); }")
+                        ppg.wait_for_timeout(700)
+                        oy["platforma_uzaytir"] = js(ppg, U13_JS, {"istisno": ISTISNO_SEL, "root": "#plModal"})
+                        js(ppg, "() => { plModalYop(); const b = document.querySelector('[data-amal=\"blokla\"]'); b && b.click(); }")
+                        ppg.wait_for_timeout(700)
+                        oy["platforma_blokla"] = js(ppg, U13_JS, {"istisno": ISTISNO_SEL, "root": "#plModal"})
+                        # Foydalanuvchilar — PLATFORMA ADMINI ko'rinishi (zip 142 — jonli sinov, zip 139 staging, 390 px): Telegram bo'limi faqat
+                        # unga chiqadi; korxona admini bilan o'lchanmagan — «Webhookni o'chirib, …» tugmasi telefonda 2 qator (64 px) edi
+                        och(ppg, "/users", 800)
+                        oy["foydalanuvchilar_platforma"] = js(ppg, U13_JS, {"istisno": ISTISNO_SEL, "root": None})
+                        pctx.close()
                     ctx.close()
+
+            # ── K: alohida sahifalar (zip 142) — kirish (kirmagan holda), xato sahifasi, hodim paneli, QR varag'i ──
+            KN = NAT.setdefault("kirish", {})
+            ctx, pg = kontekst(1440)
+            KN["hodim_pin"] = js(pg, """async (I) => { if (!I.hodim) return {st: 0};
+                const fd = new FormData(); fd.append('phone', '+998901112233'); fd.append('pin', '4321');
+                const r = await fetch('/api/employees/' + I.hodim + '/set-login', {method: 'POST', body: fd}); return {st: r.status}; }""",
+                                 Z.get("I") or {})
+            ctx.close()
+            for w in (1440, 390):
+                ctx, pg = kontekst(w)
+                och(pg, "/users/hodim-qr", 800)
+                KN[f"{w}_qr"] = js(pg, U13_JS, {"istisno": ISTISNO_SEL, "root": None})
+                ctx.close()
+                tel = w < 1000
+                ctx = br.new_context(viewport={"width": w, "height": balandlik(w)}, device_scale_factor=1, is_mobile=tel, has_touch=tel,
+                                     timezone_id="Asia/Tashkent", locale="uz-UZ")
+                ctx.route(re.compile(r"^https://(fonts\.googleapis\.com|fonts\.gstatic\.com|cdnjs\.cloudflare\.com|api\.qrserver\.com|"
+                                     r"cdn\.jsdelivr\.net|unpkg\.com)/.*"), yonalish)
+                pg = ctx.new_page()
+                for nom, url in (("login", "/login"), ("hodim_login", "/hodim/login"), ("xato", "/u13-bunday-sahifa-yoq")):
+                    och(pg, url, 600)
+                    KN[f"{w}_{nom}"] = js(pg, U13_JS, {"istisno": ISTISNO_SEL, "root": None})
+                och(pg, "/hodim/login", 400)
+                try:
+                    # ikkinchi (mijoz) korxona bor — korxona kodi shart (1-korxona kodi bazadan)
+                    _sk = SessionLocal()
+                    try:
+                        from production_models import Company as _Co
+                        _kod1 = (_sk.query(_Co).filter(_Co.id == 1).first().code or "")
+                    finally:
+                        _sk.close()
+                    pg.fill("input[name=korxona]", _kod1)
+                    pg.fill("input[name=phone]", "+998901112233")
+                    pg.fill("input[name=pin]", "4321")
+                    pg.press("input[name=pin]", "Enter")
+                    pg.wait_for_load_state("networkidle")
+                    pg.wait_for_timeout(900)
+                except Exception as _e:    # noqa: BLE001
+                    KN[f"{w}_hodim_xato"] = str(_e)[:200]
+                KN[f"{w}_hodim_url"] = pg.url
+                KN[f"{w}_hodim_panel"] = js(pg, U13_JS, {"istisno": ISTISNO_SEL, "root": None})
+                ctx.close()
 
 
 def tugma_yomon(o, w):
@@ -768,8 +863,13 @@ if PW_BOR and NAT:
 
 section("O. Oynalar — tugma, maydon, matn (umumiy xabar / kiritish / tasdiqlash; o'tkazilgan sahifalarning oynalari)")
 if PW_BOR and NAT:
+    check("M6 Platforma: mijoz korxona yaratildi (kartada «Muddatni uzaytirish» / «Bloklash» — oynalari o'lchanadi)",
+          (NAT.get("yangi_korxona") or {}).get("st") in (200, 201), NAT.get("yangi_korxona"))
     for w in (1440, 390):
         oy = (NAT.get(("light", w)) or {}).get("oynalar") or {}
+        check(f"M7 {w} px Ustalar KPI: sovg'a davri TANLANGAN usta bilan ochildi — «Yangi usta qo'shish» qatori ko'rinadi (o'lchanadi), "
+              f"so'ng yopildi", (oy.get("sovga_davr_tayyor") or {}).get("ochish") == 200 and oy.get("sovga_qator") is True
+              and oy.get("sovga_davr_yopildi") == 200, [oy.get("sovga_davr_tayyor"), oy.get("sovga_qator"), oy.get("sovga_davr_yopildi")])
         for kalit, nom in (("xabar", "xabar oynasi (`xabarOyna`)"), ("kiritish", "kiritish oynasi (`kiritishOyna`)"),
                            ("tasdiq", "tasdiqlash oynasi (`customConfirm`)"), ("yangi_foydalanuvchi", "«Yangi foydalanuvchi»"),
                            ("parol", "«Parolni o'zgartirish»"), ("qr", "«Hodim kirishi — QR»"), ("avans", "Dashboard — avans so'rovlari"),
@@ -804,8 +904,13 @@ if PW_BOR and NAT:
                            ("kpi_usta_detal", "Ustalar KPI — har buyurtma bo'yicha KPI"), ("kpi_usta_yangi", "Ustalar KPI — «Yangi usta»"),
                            ("kpi_hodim_yangi", "Hodimlar — «Yangi hodim» (yo'nalish tanlovi)"), ("kpi_avans", "Hodimlar — avans berish"),
                            ("kpi_kirish", "Hodimlar — telefondan kirish (PIN)"), ("kpi_sovga", "Ustalar KPI — sovg'a davrini boshqarish"),
+                           ("kpi_sovga_davr", "Ustalar KPI — sovg'a davri, tanlangan ustalar («Yangi usta qo'shish» qatori)"),
                            ("kpi_oylik", "Hodimlar — oylik hisobot (bonus / kamaytirish)"), ("ustalar_yangi", "Ustalar — «Yangi usta»"),
-                           ("rol_yangi", "Rollar — yangi rol"), ("rol_user", "Rollar — foydalanuvchi qo'shish"), ("rol_yordam", "Rollar — yordam")):
+                           ("rol_yangi", "Rollar — yangi rol"), ("rol_user", "Rollar — foydalanuvchi qo'shish"), ("rol_yordam", "Rollar — yordam"),
+                           ("jurnal_audit", "Tizim jurnallari — audit jurnali (filtr, sahifalash)"), ("jurnal_tekshiruv", "Tizim jurnallari — tekshiruv"),
+                           ("platforma", "Platforma — korxonalar (filtr, qidiruv, kartalar)"), ("platforma_uzaytir", "Platforma — muddatni uzaytirish"),
+                           ("platforma_blokla", "Platforma — bloklash"),
+                           ("foydalanuvchilar_platforma", "Foydalanuvchilar — platforma administratori ko'rinishi (Telegram bo'limi tugmalari)")):
             o = oy.get(kalit) or {}
             tb = [t for t in o.get("tugmalar") or [] if t["tur"] != "karta"]
             if kalit == "tanlangan_buyurtma" and not oy.get("tanlangan_id"):
@@ -814,6 +919,57 @@ if PW_BOR and NAT:
                   tb and not tugma_yomon(o, w) and not maydon_yomon(o, w) and not belgi_yomon(o) and not shrift_yomon(o),
                   [tugma_yomon(o, w)[:8], maydon_yomon(o, w)[:6], belgi_yomon(o)[:4], shrift_yomon(o), len(tb),
                    o.get("js_xato") if isinstance(o, dict) else o])
+
+section("K. Alohida sahifalar — kirish, xato (404), hodim QR varag'i, hodim paneli (zip 142)")
+# kirish / xato sahifalari — `--h-lg` (44; telefonda 48), QR varag'i style.css siz — 44; hodim paneli — umumiy qoida
+K_H = {"login": {1440: 44.0, 390: 48.0}, "hodim_login": {1440: 44.0, 390: 48.0}, "xato": {1440: 44.0, 390: 48.0}, "qr": {1440: 44.0, 390: 44.0}}
+
+
+def kirish_yomon(o, kut):
+    yomon = []
+    for t in (o or {}).get("tugmalar") or []:
+        if t["tur"] == "karta":
+            continue
+        xato = []
+        if abs(t["h"] - kut) > 0.6:
+            xato.append(f"h={t['h']}")
+        if abs(t["rad"] - 8) > 0.5:
+            xato.append(f"rad={t['rad']}")
+        if t["fs"] != 16.0:
+            xato.append(f"fs={t['fs']}")
+        if xato:
+            yomon.append(f"{t['sel'][:60]} «{t['matn'][:20]}» " + " ".join(xato))
+    for m in (o or {}).get("maydonlar") or []:
+        xato = []
+        if m["tur"] != "textarea" and abs(m["h"] - kut) > 0.6:
+            xato.append(f"h={m['h']}")
+        if abs(m["rad"] - 8) > 0.5 and m.get("ch", 1) > 0:
+            xato.append(f"rad={m['rad']}")
+        if m["fs"] != 16.0:
+            xato.append(f"fs={m['fs']}")
+        if xato:
+            yomon.append(f"{m['sel'][:60]} " + " ".join(xato))
+    return yomon
+
+
+if PW_BOR and NAT:
+    KN = NAT.get("kirish") or {}
+    check("K0 hodimga telefondan kirish (PIN) berildi — hodim paneli o'lchanadi", (KN.get("hodim_pin") or {}).get("st") in (200, 201),
+          KN.get("hodim_pin"))
+    for w in (1440, 390):
+        for nom, sarlavha in (("login", "«Kirish» sahifasi"), ("hodim_login", "«Hodim kirishi» sahifasi"), ("xato", "404 sahifa"),
+                              ("qr", "hodim QR chop etish varag'i")):
+            o = KN.get(f"{w}_{nom}") or {}
+            tb = [t for t in o.get("tugmalar") or [] if t["tur"] != "karta"]
+            check(f"K1 {w} px {sarlavha}: tugma va maydon {int(K_H[nom][w])} px, burchak 8 px, yozuv 16 px; matn yozuvi shkalada",
+                  tb and not kirish_yomon(o, K_H[nom][w]) and not shrift_yomon(o) and not belgi_yomon(o),
+                  [kirish_yomon(o, K_H[nom][w])[:8], shrift_yomon(o), len(tb), o.get("js_xato") if isinstance(o, dict) else o])
+        o = KN.get(f"{w}_hodim_panel") or {}
+        tb = [t for t in o.get("tugmalar") or [] if t["tur"] != "karta"]
+        check(f"K2 {w} px hodim paneli (`/hodim` — hodim o'zi kirgan): tugma / maydon / matn — umumiy qoidada",
+              "/hodim" in str(KN.get(f"{w}_hodim_url")) and "/login" not in str(KN.get(f"{w}_hodim_url")) and tb
+              and not tugma_yomon(o, w) and not maydon_yomon(o, w) and not shrift_yomon(o),
+              [KN.get(f"{w}_hodim_url"), KN.get(f"{w}_hodim_xato"), tugma_yomon(o, w)[:6], maydon_yomon(o, w)[:6], shrift_yomon(o), len(tb)])
 
 section("Y. Yuqori panel HAMMA sahifada bir xil (umumiy qobiq — base.html)")
 if PW_BOR and NAT:
