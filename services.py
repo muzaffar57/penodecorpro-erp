@@ -3587,6 +3587,119 @@ def _monthly_category_amount(db: Session, year: int, month: int, category: str, 
         return float(fallback or 0)
 
 
+# kech123 (zip 143 — EGASI QARORLARI 06.10, ishxonadagi muammo: 90 % topshirilgan, «Tayyor» qilinmagan buyurtma qoplamachi oyligiga
+# umuman tushmagan — egasi qo'lda hisoblagan). SHU OYDAN boshlab qoplamachi bonusi va ishlab chiqarish miqdoriga bog'liq hodim to'lovi
+# («har birlik uchun» — blok / metr / dona) buyurtma detallari bo'yicha YUK XATLARIDAN hisoblanadi:
+#   (1) har yuk xatida topshirilgan ulush — yuk xati OYIGA;
+#   (2) buyurtma «Tayyor» (READY) qilinganda yuk xatisiz qolgan ulush — YOPILGAN oyga (jami har doim 100 %);
+#   (3) qaytarish haqni kamaytirmaydi (kerak bo'lsa — oylikdagi qo'lda «Kamaytirish»);
+#   (4) undan OLDINGI oylar — eski qoida (faqat READY, `completed_at` oyi), hisobotlari O'ZGARMAYDI; oldin topshirilgan qismlar
+#       (egasi qo'lda to'lagan) yangi oylarda ham qayta hisoblanmaydi.
+# «Tayyor mahsulotlar» da ishlab chiqarilgan mahsulot — avvalgidek (tayyor bo'lganda).
+YUK_XATI_HISOBI_BOSHI = (2026, 10)
+
+
+def _qoplama_birliklari(item) -> dict:
+    """kech123 (zip 143): detalning qoplamachi bonusi birliklari — `get_monthly_report` dagi eski tsikl qoidasi AYNAN (gips va tayyor
+    mahsulotdan olingan detal — hech narsa; ichki qo'shimcha detallar — o'z `is_coated` i bilan, asosiy detaldan mustaqil; profil /
+    karniz — uzunlik × miqdor, blok — miqdor (metr), panel — miqdor (metr), dona — miqdor). `ichki_*` — ichki detallar alohida
+    (ularning ulushi yuk paytidagi ulushdan olinadi)."""
+    r = {"metr": 0.0, "panel": 0.0, "dona": 0.0, "ichki_metr": 0.0, "ichki_panel": 0.0}
+    if (item.category or "").lower() == "gips" or item.finished_product_id:
+        return r
+    for sub in (item.sub_details or []):
+        if not getattr(sub, 'is_coated', False):
+            continue
+        sub_cat = (getattr(sub, 'category', None) or '').lower()
+        if sub_cat == 'panel':
+            r["ichki_panel"] += float(getattr(sub, 'quantity', 0) or 0)
+        else:  # 'profil' (standart)
+            r["ichki_metr"] += float(getattr(sub, 'length', 0) or 0) * float(getattr(sub, 'quantity', 1) or 1)
+    if not item.is_coated:
+        return r
+    category = (item.category or "").lower()
+    if category in ["profil", "karniz"]:
+        r["metr"] += float(item.length or 0) * float(item.quantity or 1)
+    elif category == "blok":
+        r["metr"] += float(item.quantity or 0)
+    elif category == "panel":
+        r["panel"] += float(item.quantity or 0)
+    elif category == "dona":
+        r["dona"] += float(item.quantity or 1)
+    return r
+
+
+def _yuk_xati_ulushlari(db, year: int, month: int, yopilganlar, company_id: int = None) -> list:
+    """kech123 (zip 143): shu oyda hisoblanadigan detallar — `[(detal, asosiy_ulush, ichki_ulush), …]`.
+
+    Buyurtmalar: shu oyda yuk xati yozilganlar + shu oyda «Tayyor» qilinganlar (`yopilganlar` — `get_monthly_report` ning READY
+    ro'yxati). Detal bo'yicha (tayyor mahsulotdan olingani — yo'q):
+      * yopilishdan OLDINGI yuk xatlari vaqt tartibida yig'iladi (avvalgi oylarnikilari ham — chegara uchun); shu oydagisi qo'shiladi;
+        asosiy detal — berilgan ÷ detalning JORIY miqdori (yig'indi miqdordan oshmaydi): «Tayyor» qisman yopilganda miqdor
+        topshirilganga qisqaradi, hajm / metr ham shunga mutanosib — o'tgan oylar o'zgarmaydi; ichki detal — yuk PAYTIDAGI ulush
+        (`DeliveryItem.ulush`; eski yozuvda NULL — joriy miqdordan), yig'indi 1 dan oshmaydi;
+      * buyurtma shu oyda yopilgan bo'lsa — qolgan ulush (1 − yopilishgacha topshirilgan, sanasidan qat'i nazar);
+      * yopilgandan KEYINGI yuk xati — hisoblanmaydi (yopilganda 100 % yozilgan).
+    So'rovlar buyurtma / detal soniga bog'liq emas (IN bo'laklari); detallar va ichki detallar — `_hk_tayyorla` bilan oldindan."""
+    from models import Order, OrderStatus, Delivery, DeliveryItem
+    from datetime import datetime as _dt143
+    _boshi, _oxiri = _tashkent_oy_oraligi(year, month)
+    _oq = db.query(Delivery.order_id).join(Order, Order.id == Delivery.order_id).filter(
+        _tashkent_oyida(Delivery.delivered_at, year, month))
+    if company_id is not None:
+        _oq = _oq.filter(Order.company_id == company_id)
+    buyurtmalar = {o.id: o for o in (yopilganlar or [])}
+    _qolgan = sorted({oid for (oid,) in _oq.distinct().all()} - set(buyurtmalar))
+    for _b in _hk_bolaklar(_qolgan):
+        _bq = db.query(Order).filter(Order.id.in_(_b))
+        if company_id is not None:
+            _bq = _bq.filter(Order.company_id == company_id)
+        for o in _bq.all():
+            buyurtmalar[o.id] = o
+    if not buyurtmalar:
+        return []
+    _hk_tayyorla(db, list(buyurtmalar.values()))
+    yuklar = {}
+    for _b in _hk_bolaklar(sorted(buyurtmalar)):
+        _yq = db.query(DeliveryItem.order_item_id, DeliveryItem.id, DeliveryItem.quantity, DeliveryItem.ulush,
+                       Delivery.delivered_at).join(Delivery, Delivery.id == DeliveryItem.delivery_id).join(
+            Order, Order.id == Delivery.order_id).filter(Delivery.order_id.in_(_b))
+        if company_id is not None:
+            _yq = _yq.filter(Order.company_id == company_id)
+        for _iid, _did, _q, _u, _t in _yq.all():
+            yuklar.setdefault(_iid, []).append((_t, _did, float(_q or 0), _u))
+    natija = []
+    for oid in sorted(buyurtmalar):
+        o = buyurtmalar[oid]
+        yopilgan = o.completed_at if (o.status == OrderStatus.READY and o.completed_at is not None) else None
+        shu_oyda_yopilgan = yopilgan is not None and _boshi <= yopilgan < _oxiri
+        for item in (o.items or []):
+            if item.finished_product_id:
+                continue
+            norm = float(item.order_qty_normalized or 0)
+            jami, jami_ichki, asosiy, ichki = 0.0, 0.0, 0.0, 0.0
+            for _t, _did, _q, _u in sorted(yuklar.get(item.id, []), key=lambda r: (r[0] or _dt143.min, r[1])):
+                if yopilgan is not None and (_t is None or _t >= yopilgan):
+                    continue
+                if norm > 0:
+                    _da = (min(jami + _q, norm) - min(jami, norm)) / norm
+                    _u = float(_u) if _u is not None else _q / norm
+                else:
+                    _da, _u = 0.0, 0.0
+                _di = min(jami_ichki + max(_u, 0.0), 1.0) - min(jami_ichki, 1.0)
+                if _t is not None and _boshi <= _t < _oxiri:
+                    asosiy += _da
+                    ichki += _di
+                jami += _q
+                jami_ichki += max(_u, 0.0)
+            if shu_oyda_yopilgan:
+                asosiy += max(0.0, 1.0 - min(jami, norm) / norm) if norm > 0 else 1.0
+                ichki += max(0.0, 1.0 - min(jami_ichki, 1.0))
+            if asosiy > 0 or ichki > 0:
+                natija.append((item, asosiy, ichki))
+    return natija
+
+
 @_hisobot_xotirasi_bilan      # kech120 (E, U-09): so'rovlar orasida — yozuv bo'lsa darhol eskiradi
 @_hisobot_keshi_bilan
 def get_monthly_report(db: Session, year: int, month: int, company_id: int = None) -> Dict:
@@ -3692,7 +3805,17 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     jami_panel_metr = 0.0  # Panel uchun (metr)
     jami_dona = 0.0   # Donali uchun (dona)
 
-    for order in orders_this_month:
+    # kech123 (zip 143): `YUK_XATI_HISOBI_BOSHI` dan — yuk xatlari bo'yicha (`_yuk_xati_ulushlari`); undan oldingi oylar — quyidagi
+    # eski tsikl (o'zgarmagan).
+    _yuk_xati_hisobi = (int(year), int(month)) >= YUK_XATI_HISOBI_BOSHI
+    _yx_ulushlar = _yuk_xati_ulushlari(db, year, month, orders_this_month, company_id=company_id) if _yuk_xati_hisobi else []
+    for _yx_item, _yx_a, _yx_i in _yx_ulushlar:
+        _yx_b = _qoplama_birliklari(_yx_item)
+        jami_metr += _yx_b["metr"] * _yx_a + _yx_b["ichki_metr"] * _yx_i
+        jami_panel_metr += _yx_b["panel"] * _yx_a + _yx_b["ichki_panel"] * _yx_i
+        jami_dona += _yx_b["dona"] * _yx_a
+
+    for order in ([] if _yuk_xati_hisobi else orders_this_month):
         for item in order.items:
             if (item.category or "").lower() == "gips":
                 # MUHIM: Gips — bu yerga MUTLAQO kira olmaydi (is_coated
@@ -3847,7 +3970,7 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     # Jami ishlatilgan blok (hodim to'lovi "per_unit: blok" uchun)
     jami_blok = 0.0
     default_p = _hk_std_peno(db, company_id)   # kech89: hisobotda bir marta
-    for order in orders_this_month:
+    for order in ([] if _yuk_xati_hisobi else orders_this_month):
         for item in order.items:
             if getattr(item, 'finished_product_id', None):
                 continue
@@ -3856,6 +3979,15 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
             p = _inv_rep(pid)
             if p and p.volume_per_unit:
                 jami_blok += vol / float(p.volume_per_unit)
+    # kech123 (zip 143): yuk xatlari bo'yicha — asosiy hajm ulushi + ichki detallar hajmi (profilda `_item_volume_m3` ga qo'shilgan)
+    # o'z ulushi bilan.
+    for _yx_item, _yx_a, _yx_i in _yx_ulushlar:
+        vol = _item_volume_m3(db, _yx_item, default_p)
+        _yx_ichki_vol = _sub_details_volume_m3(_yx_item) if (_yx_item.category or '').lower() == 'profil' else 0.0
+        pid = _yx_item.penoplast_id or (default_p.id if default_p else None)
+        p = _inv_rep(pid)
+        if p and p.volume_per_unit:
+            jami_blok += ((vol - _yx_ichki_vol) * _yx_a + _yx_ichki_vol * _yx_i) / float(p.volume_per_unit)
 
     from models import FinishedProduct, StockSource
     fp_start, fp_end = _tashkent_oy_oraligi(year, month)

@@ -2143,6 +2143,12 @@ class DeliveryItem(Base):
     # qaytadi. Eski yozuvlarda NULL — standart qiymat ataylab BERILMAYDI (kech52 saboqi:
     # `sync_missing_columns` `default=` ni eski qatorlarga ham yozadi).
     mrp_olingan = Column(Text, nullable=True)
+    # kech123 (zip 143 — EGASI QARORI 06.10: qoplamachi / «har birlik uchun» hodim haqi YUK XATLARI bo'yicha): shu yukda detalning
+    # QANCHA ULUSHI topshirilgani (berilgan miqdor ÷ detalning yuk paytidagi miqdori). Detal «Tayyor» qilinganda qisman
+    # topshirilgan bo'lsa miqdori topshirilganga qisqaradi (`finalize_partial_order_quantities`), ichki qo'shimcha detallar esa
+    # qisqarmaydi — ularning haqi o'tgan oylar o'zgarmasligi uchun yuk PAYTIDAGI ulushdan olinadi. Eski yozuvlarda NULL —
+    # standart qiymat ataylab BERILMAYDI (kech52 saboqi); NULL bo'lsa hisob detalning joriy miqdoridan.
+    ulush = Column(Float, nullable=True)
 
     delivery = relationship("Delivery", back_populates="items")
     order_item = relationship("OrderItem", back_populates="deliveries")

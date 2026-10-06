@@ -2811,6 +2811,58 @@ try:
 except Exception as e:
     print(f"⚠ Loyiha to'langan summasi sinxronlanmadi: {e}")
 
+
+def _migrate_yuk_xati_ulush():
+    """kech123 (zip 143 — qoplamachi bonusi va «har birlik uchun» hodim haqi YUK XATLARI bo'yicha) — IDEMPOTENT, PostgreSQL va SQLite.
+
+    `delivery_items.ulush` — shu yukda detalning qancha ulushi topshirilgani (berilgan ÷ yuk paytidagi `order_qty_normalized`);
+    `crud.create_delivery` yozadi, oylik hisobot ichki qo'shimcha detallar ulushini shundan oladi (`services._yuk_xati_ulushlari`).
+    Ustun odatda `database.sync_missing_columns()` bilan qo'shiladi; yo'q bo'lsa shu yerda. Shu kodgacha yozilgan yuk xatlarida
+    NULL: hali «Tayyor» qilinmagan buyurtmalarniki HOZIRGI miqdordan to'ldiriladi — keyin «Tayyor» qisman yopilib miqdor
+    topshirilganga qisqarsa ham o'tgan oy hisoboti o'zgarmasin. «Tayyor» (READY) buyurtmalarniki NULL qoladi (miqdori allaqachon
+    yakuniy — hisobot joriy miqdordan oladi, natija bir xil). Miqdori 0 detal — NULL. Ikkinchi ishga tushishda — 0 qator."""
+    from sqlalchemy import text, inspect as _insp
+    from database import engine, SessionLocal as _SL143
+    from models import DeliveryItem as _DI143, Delivery as _DV143, Order as _O143, OrderItem as _OI143, OrderStatus as _OS143
+    try:
+        _i = _insp(engine)
+        if "delivery_items" not in set(_i.get_table_names()):
+            return 0
+        if "ulush" not in {c["name"] for c in _i.get_columns("delivery_items")}:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE delivery_items ADD COLUMN ulush FLOAT"))
+                conn.commit()
+                print("✓ delivery_items.ulush qo'shildi")
+    except Exception as e:
+        print(f"⚠ delivery_items.ulush ustuni tekshiruvi o'tkazib yuborildi: {e}")
+        return 0
+    _d = _SL143()
+    _n = 0
+    try:
+        _qatorlar = (_d.query(_DI143, _OI143)
+                     .join(_OI143, _OI143.id == _DI143.order_item_id)
+                     .join(_DV143, _DV143.id == _DI143.delivery_id)
+                     .join(_O143, _O143.id == _DV143.order_id)
+                     .filter(_DI143.ulush.is_(None), _O143.status != _OS143.READY)
+                     .all())
+        for _di, _oi in _qatorlar:
+            _norm = float(_oi.order_qty_normalized or 0)
+            if _norm > 0:
+                _di.ulush = float(_di.quantity or 0) / _norm
+                _n += 1
+        if _n:
+            _d.commit()
+            print(f"✓ Eski yuk xatlarida detal ulushi to'ldirildi (ochiq buyurtmalar): {_n} ta")
+    except Exception as e:
+        _d.rollback()
+        print(f"⚠ Yuk xati ulushi migratsiyasi o'tkazib yuborildi: {e}")
+    finally:
+        _d.close()
+    return _n
+
+
+_migrate_yuk_xati_ulush()
+
 # kech104 (K104-2): FastAPI ning o'rnatilgan API hujjatlari (/openapi.json, /docs, /redoc) login-siz
 # ochiq edi — butun API sxemasi (barcha marshrutlar, /api/system/* va /api/platform/* ham) har kimga ko'rinardi.
 # Ilova ularni ishlatmaydi (shablon / test havolasi yo'q) — o'chirildi. Marshrutlar xaritasi:

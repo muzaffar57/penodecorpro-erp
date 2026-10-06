@@ -9954,11 +9954,15 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
 
     mrp_log = []
     for oi, qty in valid_items:
+        # kech123 (zip 143): yuk paytidagi ulush — qoplamachi / «har birlik uchun» haqi ichki detallar bo'yicha shundan
+        # (`services._yuk_xati_ulushlari`); detal miqdori 0 bo'lsa — NULL.
+        _norm143 = float(oi.order_qty_normalized or 0)
         _di = DeliveryItem(
             delivery_id=db_delivery.id,
             order_item_id=oi.id,
             quantity=qty,
-            unit=oi.delivery_unit
+            unit=oi.delivery_unit,
+            ulush=(float(qty) / _norm143) if _norm143 > 0 else None
         )
         db.add(_di)
         # 2026-09-20: MRP orqali shu detalga band qilingan tayyor mahsulot
