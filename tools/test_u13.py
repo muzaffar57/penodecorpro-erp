@@ -18,18 +18,20 @@ QOIDA (static/style.css «U-13 — YAGONA KO'RINISH»; o'lchamlar — token, sah
   Burchak — 8 px. Yozuv shkalasi: 12 / 13 / 14 / 16 / 18 / 24 / 32 px.
   Sahifalar zip-ma-zip o'tkaziladi — `U13_SAHIFALAR` / `U13_SHABLONLAR` shu ro'yxat bilan o'sadi (zip 139: umumiy qobiq — yon menyu,
   yuqori panel, umumiy oynalar; Bosh sahifa, Dashboard, Hisobotlar, Foydalanuvchilar; zip 140: Buyurtmalar, Loyihalar,
-  Omborxona, Kirim qilish, Ta'minotchilar, Loy retseptlari, Ishlab chiqarish, Tayyor mahsulotlar, Qaytarishlar va brak oynasi).
+  Omborxona, Kirim qilish, Ta'minotchilar, Loy retseptlari, Ishlab chiqarish, Tayyor mahsulotlar, Qaytarishlar va brak oynasi; zip 141: Qarzdorlar, Moliya, Xarajat qo'shish,
+  Ustalar KPI / Hodimlar, Ustalar, Rollar).
   ISTISNO (tugma qoidasidan tashqari, sababi bilan): rasm ustidagi mayda belgilar (`.attach-thumb .rm` / `.dl`, `*-thumb-cam`,
   `.cam-overlay` — rasmni yopmasligi uchun; detal / tayyor mahsulot rasmi `.prod-thumb`, `.fp-thumb`), teg ichidagi «×» (`.fp-tag button`), bosiladigan
   yorliq (`.cat-badge` — toifa yorlig'i, bosilsa tahrirlanadi), matn ichidagi havola-tugma (`.btn-link` — «To'liq to'lash»). Bo'lakli tanlov (`.segment` — «Qoplama: Yo'q / Bor»)
   bitta boshqaruv sifatida o'lchanadi (ichidagi bo'laklar emas). Izohli tanlov tugmasi (`.btn-tanlov` — sarlavha va izoh, masalan
-  «O'chirish va xomashyoni qaytarish») — kamida `.btn` balandligida, burchak 8 px (balandligi matniga qarab).
+  «O'chirish va xomashyoni qaytarish») va izohli tanlov kartasi (`.tanlov-karta` — rol kartasi: belgi, nom, izoh) — kamida `.btn`
+  balandligida, burchak 8 px (balandligi matniga qarab).
 BO'LIMLAR: S — statik (style.css tokenlari va klasslari; o'tkazilgan shablonlarda yozuv o'lchamlari shkalada, tugma o'z balandligi /
   ichki joyi / burchagi / yozuvini yozmaydi; kesh versiyasi); M — ma'lumot (brauzerda dasturning o'z API si orqali to'liq ish zanjiri —
   `tools/test_c_telefon.py` ZANJIR_JS); D — o'tkazilgan sahifalar 1440 / 390 px, yorug' / tungi: har tugma, maydon, belgilash katagi, matn o'lchami;
   O — oynalar (umumiy xabar / kiritish / tasdiqlash; Foydalanuvchilar — yangi foydalanuvchi, parol, QR; Dashboard — avans so'rovlari;
   har o'tkazilgan sahifaning oynalari — Buyurtmalar, Loyihalar, Ombor, Kirim, Ta'minotchilar, Retseptlar, Ishlab chiqarish, Tayyor
-  mahsulotlar, Qaytarishlar, Brak yozish);
+  mahsulotlar, Qaytarishlar, Brak yozish, Qarzdorlar, Moliya, Ustalar KPI / Hodimlar, Ustalar, Rollar);
   Y — yuqori panel HAMMA sahifada (qobiq bir xil).
 REJIMLAR: SQLite (odatiy); `PG_URL` bilan HAQIQIY PostgreSQL 16. Asl kodga (zip 138) qarshi QULAMAYDI — yiqiladi.
 TALAB: Python `playwright` va Chromium (`PLAYWRIGHT_BROWSERS_PATH` / `/opt/pw-browsers`). Shriftlar va Chart.js tashqi manbadan
@@ -111,9 +113,10 @@ def oqi(yol):
 # ── O'tkazilgan qism (har U-13 zipida kengayadi) ──
 U13_SHABLONLAR = ["base.html", "home.html", "dashboard.html", "reports.html", "users.html", "orders.html", "projects.html",
                   "inventory.html", "supplier_receive.html", "suppliers.html", "recipes.html", "production.html", "finished.html",
-                  "returns.html", "_brak_oyna.html"]
+                  "returns.html", "_brak_oyna.html", "debts.html", "finance.html", "kunlik_xarajat.html", "kpi.html", "masters_manage.html",
+                  "rollar.html"]
 U13_SAHIFALAR = ["/", "/dashboard", "/reports", "/users", "/orders", "/projects", "/inventory", "/suppliers/receive", "/suppliers", "/recipes",
-                 "/production", "/finished", "/returns"]
+                 "/production", "/finished", "/returns", "/debts", "/finance", "/kunlik-xarajat", "/kpi", "/ustalar", "/rollar"]
 ISTISNO_SEL = (".attach-thumb .rm, .attach-thumb .dl, .prod-thumb, .prod-thumb-cam, .proj-thumb-cam, .mat-thumb-cam, .cam-overlay, "
                ".fp-tag button, .cat-badge, .btn-link, .fp-thumb")
 SHKALA = {12.0, 13.0, 14.0, 16.0, 18.0, 24.0, 32.0}
@@ -277,7 +280,7 @@ U13_JS = r"""(arg) => {
     if (e.parentElement && e.parentElement.classList.contains('segment')) return null;   // bo'lakli tanlov — butunligicha o'lchanadi
     if (klass(e).includes('segment')) return 'segment';
     if (/(^|\s)qt-(maydon|yop|band)(\s|$)/.test(c)) return null;
-    if (klass(e).includes('btn-tanlov')) return 'tanlov';   // izohli tanlov — balandligi matniga qarab (kamida `.btn`)
+    if (klass(e).includes('btn-tanlov') || klass(e).includes('tanlov-karta')) return 'tanlov';   // izohli tanlov — balandligi matniga qarab (kamida `.btn`)
     if (t === 'BUTTON') return 'button';
     if (t === 'INPUT' && /^(button|submit|reset)$/i.test(e.type)) return 'input';
     if (e.getAttribute('role') === 'button') { const r = e.getBoundingClientRect(); return r.height > 56 || e.querySelector('.stat-val, .kpi-val, table') ? 'karta' : 'role'; }
@@ -621,6 +624,44 @@ if PW_BOR:
                         oy["brak_buyurtma"] = oyna("showBrakModal('buyurtma');", "#brakModal", 1200)
                         oy["brak_ombor"] = oyna("brakManbaTanla('ombor');", "#brakModal", 900)
                         oy["brak_ishlab"] = oyna("brakManbaTanla('ishlab');", "#brakModal", 900)
+                        # ── Qarzdorlar, Moliya (zip 141) ──
+                        och(pg, "/debts")
+                        oy["qarz_tolov"] = oyna("const e = document.querySelector('#tab-customers .dbt-item'); e && selectOrderDebt(e);", None, 900)
+                        oy["qarz_qaytarish"] = oyna("switchTab('refunds'); const e = document.querySelector('#tab-refunds .dbt-item'); e && selectRefund(e);", None, 700)
+                        oy["qarz_majburiyat"] = oyna("switchTab('company');", None, 600)
+                        oy["qarz_kategoriya"] = oyna("openAddCategoryModal();", "#addCategoryModal", 400)
+                        js(pg, "() => { closeAddCategoryModal(); }")
+                        oy["qarz_tarix"] = oyna("const o = document.querySelector('#tab-company .oblig-item'); o && o.click();", "#timelineModal", 1200)
+                        och(pg, "/finance")
+                        oy["moliya_xarajat"] = oyna("openTxModal();", "#txModal", 600)
+                        js(pg, "() => { closeTxModal(); }")
+                        oy["moliya_kassa"] = oyna("openCashTxModal(Object.keys(CASH_TX_LABELS)[0]);", "#cashTxModal", 500)
+                        js(pg, "() => { document.getElementById('cashTxModal').style.display = 'none'; }")
+                        oy["moliya_yonalish"] = oyna("document.getElementById('yonBolim').style.display = 'block'; "
+                                                     "document.getElementById('yonDavr').value = 'oraliq'; yonDavrOzgardi();", "#yonBolim", 900)
+                        # ── Ustalar KPI / Hodimlar, Ustalar, Rollar (zip 141) ──
+                        och(pg, "/kpi")
+                        oy["kpi_usta_detal"] = oyna("const b = document.querySelector('.mk-tugmalar .mini-btn'); b && b.click();", "#masterDetailModal", 1200)
+                        js(pg, "() => { document.getElementById('masterDetailModal').style.display = 'none'; }")
+                        oy["kpi_usta_yangi"] = oyna("openMasterModal();", "#masterModal", 500)
+                        js(pg, "() => { closeMasterModal(); }")
+                        oy["kpi_hodim_yangi"] = oyna("openEmpModal();", "#empModal", 600)
+                        js(pg, "() => { closeEmpModal(); }")
+                        oy["kpi_avans"] = oyna("const b = document.querySelector('.emp-tugmalar .mini-btn'); b && b.click();", "#advanceModal", 900)
+                        js(pg, "() => { closeAdvanceModal(); }")
+                        oy["kpi_kirish"] = oyna("const b = document.querySelector('.emp-tugmalar .btn-gold-outline'); b && b.click();", "#panelAccessModal", 600)
+                        js(pg, "() => { document.getElementById('panelAccessModal').style.display = 'none'; }")
+                        oy["kpi_sovga"] = oyna("openGiftPeriodModal();", "#giftPeriodModal", 1200)
+                        js(pg, "() => { closeGiftPeriodModal(); }")
+                        oy["kpi_oylik"] = oyna("loadEmpMonthlyReport();", "#empMonthlyReport", 1500)
+                        och(pg, "/ustalar")
+                        oy["ustalar_yangi"] = oyna("openMasterModal();", "#masterModal", 500)
+                        och(pg, "/rollar")
+                        oy["rol_yangi"] = oyna("yangiRol();", "#rlYangiModal", 500)
+                        js(pg, "() => { yangiRolYop(); }")
+                        oy["rol_user"] = oyna("userQoshOch();", "#rlUserModal", 600)
+                        js(pg, "() => { userQoshYop(); }")
+                        oy["rol_yordam"] = oyna("yordamOch();", "#rlYordamModal", 400)
                         # ── Y: yuqori panel HAMMA sahifada ──
                         yp = R.setdefault("yuqori", {})
                         for url in ["/projects", "/orders", "/inventory", "/suppliers", "/suppliers/receive", "/recipes", "/production",
@@ -755,7 +796,16 @@ if PW_BOR and NAT:
                            ("tm_savat", "Tayyor mahsulotlar — savatcha (bir nechtasini sotish)"), ("tm_malumot", "Tayyor mahsulotlar — «Ma'lumot»"),
                            ("tm_foyda", "Tayyor mahsulotlar — «Foyda hisobi»"), ("tm_ochirish", "Tayyor mahsulotlar — o'chirish tanlovi"),
                            ("qaytarish_yangi", "Qaytarishlar — yangi qaytarish"), ("brak_buyurtma", "Brak yozish — buyurtmadan"),
-                           ("brak_ombor", "Brak yozish — ombordan"), ("brak_ishlab", "Brak yozish — ishlab chiqarishdan")):
+                           ("brak_ombor", "Brak yozish — ombordan"), ("brak_ishlab", "Brak yozish — ishlab chiqarishdan"),
+                           ("qarz_tolov", "Qarzdorlar — tanlangan qarz va to'lov formasi"), ("qarz_qaytarish", "Qarzdorlar — mijozga qaytarish"),
+                           ("qarz_majburiyat", "Qarzdorlar — boshqa majburiyatlar"), ("qarz_kategoriya", "Qarzdorlar — yangi doimiy majburiyat"),
+                           ("qarz_tarix", "Qarzdorlar — to'lovlar tarixi"), ("moliya_xarajat", "Moliya — xarajat qo'shish / tahrirlash"),
+                           ("moliya_kassa", "Moliya — kassa yozuvi oynasi"), ("moliya_yonalish", "Moliya — yo'nalishlar bo'yicha natija (oraliq davr)"),
+                           ("kpi_usta_detal", "Ustalar KPI — har buyurtma bo'yicha KPI"), ("kpi_usta_yangi", "Ustalar KPI — «Yangi usta»"),
+                           ("kpi_hodim_yangi", "Hodimlar — «Yangi hodim» (yo'nalish tanlovi)"), ("kpi_avans", "Hodimlar — avans berish"),
+                           ("kpi_kirish", "Hodimlar — telefondan kirish (PIN)"), ("kpi_sovga", "Ustalar KPI — sovg'a davrini boshqarish"),
+                           ("kpi_oylik", "Hodimlar — oylik hisobot (bonus / kamaytirish)"), ("ustalar_yangi", "Ustalar — «Yangi usta»"),
+                           ("rol_yangi", "Rollar — yangi rol"), ("rol_user", "Rollar — foydalanuvchi qo'shish"), ("rol_yordam", "Rollar — yordam")):
             o = oy.get(kalit) or {}
             tb = [t for t in o.get("tugmalar") or [] if t["tur"] != "karta"]
             if kalit == "tanlangan_buyurtma" and not oy.get("tanlangan_id"):
