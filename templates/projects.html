@@ -4,7 +4,7 @@
 {% block page_sub %}Mijoz va loyiha kartasi — pul xulosasi va buyurtmalari (buyurtma ustida ish — «Buyurtmalar» sahifasida){% endblock %}
 
 {% block topbar_actions %}
-<button class="btn btn-dark" onclick="showAddModal()"><i class="ti ti-plus" style="vertical-align:-2px"></i> Yangi loyiha</button>
+<button class="btn btn-dark" onclick="showAddModal()"><i class="ti ti-plus"></i> Yangi loyiha</button>
 {% endblock %}
 
 {% block head %}
@@ -20,7 +20,7 @@
   }
 }
 .proj-filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
-.proj-filters input,.proj-filters select{height:38px;padding:0 12px;border:1.5px solid var(--border);border-radius:10px;font-size:13px;outline:none;transition:border .15s}
+.proj-filters input,.proj-filters select{min-height:var(--h-btn);padding:0 12px;border:1.5px solid var(--border);border-radius:var(--r-btn);font-size:var(--fs-maydon);line-height:20px;outline:none;transition:border .15s}
 .proj-filters input:focus,.proj-filters select:focus{border-color:var(--gold)}
 .proj-layout{display:grid;grid-template-columns:400px 1fr;gap:16px;height:calc(100vh - 230px);min-height:520px}
 /* kech119 (C — telefon, G2-18, O'LCHANGAN: 390 px da sahifa 776 px kenglikda — 8 ta tab tugmasi ustunni kengaytirardi,
@@ -40,7 +40,7 @@
      15 px, 360 px da 45 px chiqib qirqilardi (O'LCHANGAN): bitta ustun, har biri — nom chapda, summa o'ngda */
   #moneyRow{grid-template-columns:1fr !important;gap:8px !important}
   #moneyRow > div{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:10px 14px !important}
-  #moneyRow > div > div:last-child{margin-top:0 !important;font-size:17px !important;text-align:right;white-space:nowrap}
+  #moneyRow > div > div:last-child{margin-top:0 !important;font-size:16px !important;text-align:right;white-space:nowrap}
   /* ro'yxatda mijoz nomi va telefoni («… · +998…») qisqartirilmaydi — ikki qatorga o'tadi */
   .proj-name, .proj-client{white-space:normal !important;overflow-wrap:anywhere}
 }
@@ -63,15 +63,15 @@
 @media (prefers-reduced-motion:reduce){.proj-card{animation:none;opacity:1}}
 .proj-card:hover{box-shadow:0 4px 16px rgba(16,24,40,.09);border-color:var(--border-strong);transform:translateY(-1px)}
 .proj-card.active{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold-tint),0 4px 16px rgba(16,24,40,.08);background:var(--gold-tint)}
-.proj-thumb{width:52px;height:52px;align-self:flex-start;border-radius:12px;background:linear-gradient(135deg,var(--gold-tint),var(--f-f3eee0));display:flex;align-items:center;justify-content:center;color:var(--gold-dark);font-size:22px;flex-shrink:0;position:relative;overflow:hidden;cursor:pointer}
+.proj-thumb{width:52px;height:52px;align-self:flex-start;border-radius:12px;background:linear-gradient(135deg,var(--gold-tint),var(--f-f3eee0));display:flex;align-items:center;justify-content:center;color:var(--gold-dark);font-size:24px;flex-shrink:0;position:relative;overflow:hidden;cursor:pointer}
 .proj-thumb img{width:100%;height:100%;object-fit:cover}
 .proj-thumb input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 .proj-thumb-cam{position:absolute;right:1px;bottom:1px;width:17px;height:17px;border-radius:50%;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;color:#fff;font-size:12px;cursor:pointer;z-index:2}
 .proj-thumb:hover .proj-thumb-cam{opacity:1}
 .proj-card-body{flex:1;min-width:0}
 .proj-num{font-size:12px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
-.proj-name{font-size:14.5px;font-weight:700;color:var(--text);margin:2px 0 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.proj-client{font-size:12.5px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.proj-name{font-size:14px;font-weight:700;color:var(--text);margin:2px 0 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.proj-client{font-size:13px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .proj-footer{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
 .progress-bar{height:6px;background:var(--border2);border-radius:4px;margin-top:9px;overflow:hidden}
 .progress-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--gold),var(--gold-dark));transition:width .5s ease}
@@ -86,12 +86,11 @@
 .status-panel{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px}
 @media (max-width:900px){.status-panel{grid-template-columns:repeat(2,1fr)}}
 .status-panel-item{text-align:left;background:var(--bg);border-radius:12px;padding:14px 16px;border-left:3px solid var(--gold)}
-.status-panel-val{font-size:19px;font-weight:800;color:var(--text)}
+.status-panel-val{font-size:18px;font-weight:800;color:var(--text)}
 .status-panel-lbl{font-size:12px;color:var(--text3);margin-top:3px;font-weight:600}
-.tab-bar{display:flex;gap:4px;background:var(--bg);border-radius:12px;padding:4px;margin-bottom:16px;overflow-x:auto;flex-shrink:0}
-.tab-btn{padding:9px 16px;font-size:12.5px;font-weight:600;color:var(--text3);background:none;border:none;border-radius:9px;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s}
-.tab-btn:hover{color:var(--text)}
-.tab-btn.active{color:var(--text);background:var(--white);box-shadow:0 1px 3px rgba(16,24,40,.1)}
+/* U-13 (kech123): bo'lim tablari — umumiy `.tab` (style.css; Hisobotlar, Qarzdorlar bilan bir ko'rinish); telefonda tasma yon tomonga suriladi */
+.tab-bar{display:flex;gap:6px;margin-bottom:16px;overflow-x:auto;flex-shrink:0;padding-bottom:2px}
+.tab-bar .tab{flex-shrink:0}
 .tab-content{flex:1;overflow-y:auto}
 .info-row{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border2);font-size:13px}
 .info-row:last-child{border-bottom:none}
@@ -104,7 +103,7 @@
 .fin-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px}
 .fin-stat{border-radius:12px;padding:14px}
 .fin-stat-head{display:flex;align-items:center;gap:7px;margin-bottom:6px;font-size:12px;font-weight:600}
-.fin-stat-val{font-size:19px;font-weight:800}
+.fin-stat-val{font-size:18px;font-weight:800}
 .fin-budget{background:var(--bg)}
 .fin-budget .fin-stat-head{color:var(--text3)}
 .fin-budget .fin-stat-val{color:var(--text)}
@@ -119,11 +118,11 @@
 .zebra-row{display:flex;align-items:center;gap:12px;padding:10px 12px}
 .zebra-row:nth-child(even){background:var(--bg)}
 .zebra-row:not(:last-child){border-bottom:1px solid var(--border2)}
-.zebra-icon{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:15px}
+.zebra-icon{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px}
 .zebra-icon.zi-in{background:var(--f-dcfce7);color:var(--m-15803d)}
 .zebra-icon.zi-out{background:var(--f-fee2e2);color:var(--m-dc2626)}
 .zebra-icon.zi-neutral{background:var(--gold-tint);color:var(--gold-dark)}
-.zebra-title{font-size:13.5px;font-weight:600;color:var(--text)}
+.zebra-title{font-size:13px;font-weight:600;color:var(--text)}
 .zebra-sub{font-size:12px;color:var(--text3);margin-top:2px}
 .zebra-val{font-size:13px;font-weight:700;white-space:nowrap}
 
@@ -232,10 +231,10 @@
       {% endfor %}
       {% else %}
       {# kech120 (zip 134 — F bosqichi 4-qism, audit G2-22): ilgari kulrang «Loyiha yo'q» va hech narsa qilmaydigan 8 ta tab #}
-      <div class="proj-bosh" style="text-align:center;padding:30px 18px;color:var(--text2);font-size:13.5px;line-height:1.55">
+      <div class="proj-bosh" style="text-align:center;padding:30px 18px;color:var(--text2);font-size:13px;line-height:1.55">
         <div style="font-weight:700;color:var(--text);margin-bottom:6px">Hali loyiha yo'q</div>
         Loyiha — mijoz va uning obyekti (masalan: «Karimov Botir — Hovli fasadi»). Buyurtmalar loyiha ichida yaratiladi.
-        {% if current_user.ruxsat('loyiha', 'yaratish') %}<div style="margin-top:12px"><button class="btn btn-dark btn-sm" onclick="showAddModal()">+ Birinchi loyihani yaratish</button></div>{% endif %}
+        {% if current_user.ruxsat('loyiha', 'yaratish') %}<div style="margin-top:12px"><button class="btn btn-dark" onclick="showAddModal()">+ Birinchi loyihani yaratish</button></div>{% endif %}
       </div>
       {% endif %}
     </div>
@@ -252,16 +251,16 @@
         <div class="status-panel" id="statusPanel"></div>
 
         <div class="tab-bar" id="tabBar">
-          <button class="tab-btn active" data-tab="asosiy" onclick="switchTab('asosiy')">Asosiy</button>
-          <button class="tab-btn" data-tab="orders" onclick="switchTab('orders')">Buyurtmalar</button>
+          <button class="tab-btn tab active" data-tab="asosiy" onclick="switchTab('asosiy')">Asosiy</button>
+          <button class="tab-btn tab" data-tab="orders" onclick="switchTab('orders')">Buyurtmalar</button>
           {% if current_user.ruxsat('tannarx', 'korish') %}
-          <button class="tab-btn" data-tab="finance" onclick="switchTab('finance')">Moliya</button>
+          <button class="tab-btn tab" data-tab="finance" onclick="switchTab('finance')">Moliya</button>
           {% endif %}
-          <button class="tab-btn" data-tab="payments" onclick="switchTab('payments')">To'lovlar</button>
-          <button class="tab-btn" data-tab="products" onclick="switchTab('products')">Mahsulotlar</button>
-          <button class="tab-btn" data-tab="materials" onclick="switchTab('materials')">Xomashyo</button>
-          <button class="tab-btn" data-tab="timeline" onclick="switchTab('timeline')">Tarix</button>
-          <button class="tab-btn" data-tab="notes" onclick="switchTab('notes')">Izohlar</button>
+          <button class="tab-btn tab" data-tab="payments" onclick="switchTab('payments')">To'lovlar</button>
+          <button class="tab-btn tab" data-tab="products" onclick="switchTab('products')">Mahsulotlar</button>
+          <button class="tab-btn tab" data-tab="materials" onclick="switchTab('materials')">Xomashyo</button>
+          <button class="tab-btn tab" data-tab="timeline" onclick="switchTab('timeline')">Tarix</button>
+          <button class="tab-btn tab" data-tab="notes" onclick="switchTab('notes')">Izohlar</button>
         </div>
 
         <div class="tab-content" id="tabContent">
@@ -538,12 +537,12 @@ function renderAsosiy(d) {
     <div class="info-row"><span style="color:var(--text3)">Boshlangan</span><span>${escapeHtml(d.start)}</span></div>
     <div class="info-row"><span style="color:var(--text3)">Muddat</span><span>${escapeHtml(d.deadline)}</span></div>
     <div class="qa-row">
-      <button class="btn btn-outline btn-sm" onclick="openEditModal()"><i class="ti ti-edit" style="font-size:12px"></i> Tahrirlash</button>
-      <button class="btn btn-outline btn-sm" onclick="switchTab('orders')"><i class="ti ti-arrow-right" style="font-size:12px"></i> Buyurtmalari</button>
-      <button class="btn btn-outline btn-sm" onclick="switchTab('payments')"><i class="ti ti-cash" style="font-size:12px"></i> To'lovlarni ko'rish</button>
-      <button class="btn btn-outline btn-sm" onclick="switchTab('products')"><i class="ti ti-list" style="font-size:12px"></i> Mahsulotlar ro'yxati</button>
-      <button class="btn btn-green btn-sm" id="proj-complete-btn" onclick="markProjectComplete()"><i class="ti ti-check" style="font-size:12px"></i> Yakunlash</button>
-      <button class="btn btn-outline btn-sm" style="color:var(--m-dc2626);border-color:#EF4444" onclick="deleteProj()">O'chirish</button>
+      <button class="btn btn-outline btn-sm" onclick="openEditModal()"><i class="ti ti-edit"></i> Tahrirlash</button>
+      <button class="btn btn-outline btn-sm" onclick="switchTab('orders')"><i class="ti ti-arrow-right"></i> Buyurtmalari</button>
+      <button class="btn btn-outline btn-sm" onclick="switchTab('payments')"><i class="ti ti-cash"></i> To'lovlarni ko'rish</button>
+      <button class="btn btn-outline btn-sm" onclick="switchTab('products')"><i class="ti ti-list"></i> Mahsulotlar ro'yxati</button>
+      <button class="btn btn-green btn-sm" id="proj-complete-btn" onclick="markProjectComplete()"><i class="ti ti-check"></i> Yakunlash</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteProj()">O'chirish</button>
     </div>`;
 }
 
@@ -585,7 +584,7 @@ async function renderOrders(d) {
         </div>
         <div style="text-align:right">
           <span class="badge">${escapeHtml(STATUS_LABELS[o.status]||o.status)}</span>
-          <div style="font-size:12.5px;font-weight:600;margin-top:3px">${fmt(loyihaBuyurtmaSummasi(o))} so'm</div>
+          <div style="font-size:13px;font-weight:600;margin-top:3px">${fmt(loyihaBuyurtmaSummasi(o))} so'm</div>
         </div>
       </div>`).join('');
   } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:var(--m-dc2626);text-align:center;padding:20px">Yuklashda xato</div>'; }
@@ -599,19 +598,19 @@ async function renderFinance(d) {
     document.getElementById('tabContent').innerHTML = `
       <div class="fin-grid">
         <div class="fin-stat fin-budget">
-          <div class="fin-stat-head"><i class="ti ti-wallet" style="font-size:15px"></i> Loyiha qiymati</div>
+          <div class="fin-stat-head"><i class="ti ti-wallet" style="font-size:16px"></i> Loyiha qiymati</div>
           <div class="fin-stat-val">${fmt(budget)} so'm</div>
         </div>
         <div class="fin-stat fin-paid">
-          <div class="fin-stat-head"><i class="ti ti-circle-check" style="font-size:15px"></i> To'langan</div>
+          <div class="fin-stat-head"><i class="ti ti-circle-check" style="font-size:16px"></i> To'langan</div>
           <div class="fin-stat-val">${fmt(paid)} so'm</div>
         </div>
         <div class="fin-stat fin-debt">
-          <div class="fin-stat-head"><i class="ti ti-clock-exclamation" style="font-size:15px"></i> Qarz</div>
+          <div class="fin-stat-head"><i class="ti ti-clock-exclamation" style="font-size:16px"></i> Qarz</div>
           <div class="fin-stat-val">${fmt(debt)} so'm</div>
         </div>
         <div class="fin-stat fin-profit">
-          <div class="fin-stat-head"><i class="ti ti-chart-line" style="font-size:15px"></i> Sof foyda</div>
+          <div class="fin-stat-head"><i class="ti ti-chart-line" style="font-size:16px"></i> Sof foyda</div>
           <div class="fin-stat-val">${stats.total_profit === null ? '—' : fmt(stats.total_profit) + " so'm"}</div>
         </div>
       </div>
@@ -660,7 +659,7 @@ async function renderProducts(d) {
         <div class="prod-acc-head${gi===0?' expanded':''}" onclick="this.classList.toggle('expanded'); this.nextElementSibling.classList.toggle('open')">
           <div class="prod-acc-head-left">
             <i class="ti ti-chevron-right prod-acc-chevron"></i>
-            <span style="font-weight:700;font-size:13.5px">${escapeHtml(g.order_number)}</span>
+            <span style="font-weight:700;font-size:13px">${escapeHtml(g.order_number)}</span>
           </div>
           <span style="font-size:12px;color:var(--text3)">${g.items.length} ta detal</span>
         </div>
@@ -701,7 +700,7 @@ async function renderMaterials(d) {
         <div class="prod-acc-head${gi===0?' expanded':''}" onclick="this.classList.toggle('expanded'); this.nextElementSibling.classList.toggle('open')">
           <div class="prod-acc-head-left">
             <i class="ti ti-chevron-right prod-acc-chevron"></i>
-            <span style="font-weight:700;font-size:13.5px">${escapeHtml(g.order_number)}</span>
+            <span style="font-weight:700;font-size:13px">${escapeHtml(g.order_number)}</span>
           </div>
           <span style="font-size:12px;color:var(--text3)">${g.items.length} ta xomashyo</span>
         </div>

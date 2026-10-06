@@ -15,10 +15,10 @@
 #brakModal label.brk-manba{display:flex;text-transform:none;letter-spacing:0;font-size:inherit;font-weight:400;color:inherit;margin-bottom:0}
 .brk-manba input{width:16px;height:16px;margin-top:2px;flex-shrink:0}
 .brk-manba.tanlangan{border-color:#DC2626;background:var(--f-fef2f2)}
-.brk-manba-nom{font-size:13.5px;font-weight:700;color:var(--text)}
-.brk-manba-izoh{font-size:12.5px;color:var(--text3);margin-top:2px;line-height:1.45}
+.brk-manba-nom{font-size:13px;font-weight:700;color:var(--text)}
+.brk-manba-izoh{font-size:13px;color:var(--text3);margin-top:2px;line-height:1.45}
 .brk-bolim{margin-top:14px}
-.brk-info{border-radius:9px;padding:10px 12px;font-size:12.5px;line-height:1.55;margin-bottom:10px}
+.brk-info{border-radius:9px;padding:10px 12px;font-size:13px;line-height:1.55;margin-bottom:10px}
 </style>
 
 <!-- ══ BRAK YOZISH — BITTA OYNA (G5-04) ══ -->
@@ -27,9 +27,9 @@
     <div style="padding:18px 22px 14px;border-bottom:1px solid var(--ch-f0f0f0);display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
       <div style="min-width:0">
         <div id="brak-sarlavha" style="font-size:16px;font-weight:600;color:var(--m-dc2626)">🔴 Brak yozish</div>
-        <div id="brak-sarlavha-sub" style="font-size:12.5px;color:var(--text3);margin-top:2px">Avval brak qayerda chiqqanini tanlang</div>
+        <div id="brak-sarlavha-sub" style="font-size:13px;color:var(--text3);margin-top:2px">Avval brak qayerda chiqqanini tanlang</div>
       </div>
-      <button type="button" data-yopish onclick="closeBrakModal()" aria-label="Yopish" style="width:30px;height:30px;border-radius:50%;background:var(--f-f5f5f5);border:none;font-size:15px;cursor:pointer;flex-shrink:0">✕</button>
+      <button type="button" data-yopish class="btn btn-soft btn-icon btn-sm" onclick="closeBrakModal()" title="Yopish" aria-label="Yopish">✕</button>
     </div>
 
     <div style="padding:14px 22px;overflow-y:auto;flex:1">
@@ -143,12 +143,12 @@
         </div>
       </div>
 
-      <div id="brak-error" style="display:none;margin-top:10px;padding:9px 12px;background:var(--f-fee2e2);border-radius:7px;font-size:12.5px;color:var(--m-b91c1c)"></div>
+      <div id="brak-error" style="display:none;margin-top:10px;padding:9px 12px;background:var(--f-fee2e2);border-radius:7px;font-size:13px;color:var(--m-b91c1c)"></div>
     </div>
 
-    <div style="padding:14px 22px 18px;border-top:1px solid var(--ch-f0f0f0);display:flex;gap:8px">
-      <button type="button" data-yopish class="btn btn-outline" style="flex:1" onclick="closeBrakModal()">Bekor</button>
-      <button type="button" class="btn btn-dark" id="brak-save-btn" style="flex:2;background:#DC2626" onclick="brakSaqlash()">🔴 Brak sifatida saqlash</button>
+    <div style="padding:14px 22px 18px;border-top:1px solid var(--ch-f0f0f0);display:flex;flex-wrap:wrap;gap:8px">
+      <button type="button" data-yopish class="btn btn-outline" style="flex:1 1 100px" onclick="closeBrakModal()">Bekor</button>
+      <button type="button" class="btn btn-dark" id="brak-save-btn" style="flex:2 1 220px;background:#DC2626" onclick="brakSaqlash()">🔴 Brak sifatida saqlash</button>
     </div>
   </div>
 </div>
@@ -399,9 +399,9 @@ async function onBrakProjectChange(){
             ${escapeHtml(it.order_number)} · jami ${escapeHtml(_miqdor(it.order_qty_normalized))} ${escapeHtml(_birlik(it.delivery_unit))}${it.is_coated ? ' · qoplamali' : ''}
           </div>
         </div>
-        <input type="number" class="brak-qty-inp" data-idx="${idx}" placeholder="0"
+        <input type="number" class="brak-qty-inp maydon" data-idx="${idx}" placeholder="0"
                min="0" max="${Number(it.order_qty_normalized) || 0}" step="0.1"
-               style="width:74px;height:32px;text-align:center;border:1.5px solid var(--ch-e5e5e5);border-radius:7px;font-size:13px;font-weight:600;outline:none">
+               style="width:74px;text-align:center;border:1.5px solid var(--ch-e5e5e5);font-weight:600;outline:none">
         <span style="font-size:13px;color:var(--text3);width:32px">${escapeHtml(_birlik(it.delivery_unit))}</span>
       </div>`).join('');
   } catch(e) {

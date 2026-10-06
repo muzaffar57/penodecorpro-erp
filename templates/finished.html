@@ -6,8 +6,8 @@
 {% block topbar_actions %}
 {# kech118 (D-3, egasi QARORI G5-01 «Ikkalasi qoladi, nomi ajratiladi»): eski oyna — penoplast detal (plotnost, 1 m³ narxi, loy);
    boshqa mahsulot — «Ishlab chiqarish» bo'limida mahsulot tarkibi bo'yicha (havola) #}
-<button class="btn btn-dark" onclick="openProduceModal()" title="Penoplast detal (profil, panel, donali) — plotnost, 1 m³ narxi va loy bilan"><i class="ti ti-plus" style="vertical-align:-2px"></i> Penoplast detal</button>
-{% if current_user.ruxsat('mahsulot_turi', 'korish') %}<a class="btn btn-outline" id="retseptBoyichaHavola" href="/production" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px" title="«Ishlab chiqarish» bo'limi — mahsulot tarkibi bo'yicha (karniz, travertin …)"><i class="ti ti-building-factory-2" style="vertical-align:-2px"></i> Retsept bo'yicha →</a>{% endif %}
+<button class="btn btn-dark" onclick="openProduceModal()" title="Penoplast detal (profil, panel, donali) — plotnost, 1 m³ narxi va loy bilan"><i class="ti ti-plus"></i> Penoplast detal</button>
+{% if current_user.ruxsat('mahsulot_turi', 'korish') %}<a class="btn btn-outline" id="retseptBoyichaHavola" href="/production" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px" title="«Ishlab chiqarish» bo'limi — mahsulot tarkibi bo'yicha (karniz, travertin …)"><i class="ti ti-building-factory-2"></i> Retsept bo'yicha →</a>{% endif %}
 {% endblock %}
 
 {% block head %}
@@ -29,25 +29,27 @@
   -webkit-overflow-scrolling:touch;
   padding-bottom:90px;
 }
-.fp-filters input,.fp-filters select{height:34px;padding:0 10px;border:1px solid var(--border);border-radius:8px;font-size:12.5px;outline:none}
-.fp-filters input:focus,.fp-filters select:focus{border-color:var(--gold)}
-.fp-chip{height:34px;padding:0 12px;border-radius:8px;border:1px solid var(--border);background:var(--white);font-size:12px;cursor:pointer;color:var(--text2)}
-.fp-chip.on{background:var(--gold-btn);color:#fff;border-color:var(--gold-btn)}
+.fp-filters input:not([type=checkbox]),.fp-filters select{min-height:var(--h-sm);padding:0 10px;border:1px solid var(--border);border-radius:var(--r-btn);font-size:var(--fs-maydon-sm);outline:none}
+/* U-13 (kech123): savatcha qatori — miqdor / narx maydoni («Qoladi» qutisi ham) `.btn` balandligida */
+.batch-qty,.batch-price{box-sizing:border-box;min-height:var(--h-btn);padding:0 10px;border-radius:var(--r-btn);font-size:var(--fs-maydon);line-height:20px}
+.fp-filters input:not([type=checkbox]):focus,.fp-filters select:focus{border-color:var(--gold)}
+/* U-13 (kech123): filtr — umumiy `.chip` (yoqilgani — oltin, boshqa filtrlar bilan bir ko'rinish) */
+.fp-chip.on{background:var(--gold-tint);border-color:var(--ch-d9b48c);color:var(--gold-dark)}
 /* Kategoriya filtri — tugma-chip guruhi (dropdown o'rniga) */
 .fp-cat-toggle{display:flex;flex-wrap:wrap;gap:6px}
 .fp-cat-opt{
-  height:34px;padding:0 12px;border:1.5px solid var(--border);border-radius:8px;
-  font-size:12px;font-weight:600;color:var(--text2);background:var(--white);
+  box-sizing:border-box;min-height:var(--h-sm);padding:0 12px;line-height:18px;border:1px solid var(--border);border-radius:999px;
+  font-size:13px;font-weight:600;color:var(--text2);background:var(--white);
   cursor:pointer;transition:all .15s;display:flex;align-items:center;white-space:nowrap;
 }
 .fp-cat-opt:hover{border-color:var(--gold);color:var(--gold-dark)}
-.fp-cat-opt.active{background:var(--gold-tint);border-color:var(--gold);color:var(--gold-dark)}
+.fp-cat-opt.active{background:var(--gold-tint);border-color:var(--ch-d9b48c);color:var(--gold-dark)}
 .fp-row{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--white);margin-bottom:8px;transition:box-shadow .15s,border-color .15s;opacity:0;animation:fpIn .3s ease forwards}
 @keyframes fpIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 .fp-row:hover{box-shadow:var(--shadow-card);border-color:var(--border-strong)}
 .fp-row.returned{background:var(--f-fafdfb)}
 .fp-row.progress{background:var(--f-fffbf0)}
-.fp-thumb{width:70px;align-self:stretch;border-radius:12px;background:var(--gold-tint);color:var(--gold-dark);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;position:relative;overflow:hidden;cursor:pointer}
+.fp-thumb{width:70px;align-self:stretch;border-radius:12px;background:var(--gold-tint);color:var(--gold-dark);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;position:relative;overflow:hidden;cursor:pointer}
 .fp-thumb img{width:100%;height:100%;object-fit:cover}
 .fp-thumb input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 .fp-thumb .cam-overlay{position:absolute;right:2px;bottom:2px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;color:#fff;font-size:12px;cursor:pointer;z-index:2}
@@ -87,7 +89,7 @@
   .fp-stat-tasma::-webkit-scrollbar{display:none}
   .fp-stat-tasma > .stat-card{flex:0 0 46%;scroll-snap-align:start}
 }
-.mini-btn{width:36px;height:36px;border-radius:8px;border:1.5px solid var(--ch-e5e5e5);background:var(--white);font-size:18px;font-weight:700;color:var(--m-555555);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1}
+.mini-btn{width:var(--h-md);height:var(--h-md);border-radius:var(--r-btn);border:1.5px solid var(--ch-e5e5e5);background:var(--white);font-size:18px;font-weight:700;color:var(--m-555555);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1}
 .mini-btn:hover{background:var(--dark);color:#fff;border-color:var(--dark)}
 .fp-actions-wrap{position:relative}
 .fp-more{display:none;position:absolute;top:44px;right:0;background:var(--white);border:1px solid var(--ch-e5e5e5);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.16);padding:8px;z-index:60;flex-wrap:wrap;align-items:center;gap:6px;width:max-content;max-width:260px}
@@ -95,21 +97,19 @@
 /* kech120 (zip 133 — F bosqichi 3-qism, audit G5-02): qator tugmalari SO'Z bilan («Sotish», «Brak», «Yana ishlab chiqarish»; ilgari
    «[pul] − [1] +» — miqdor sanagichga o'xshardi, «−» brak oynasini, «+» ishlab chiqarishni ochardi); «…» ichida ham har amal nomi bilan
    (ustma-ust ro'yxat); telefonda tugmalar kamida 40 px. «Yana ishlab chiqarish» miqdori — alohida oynada (`yanaIshlabChiqarish`). */
-.fp-amal{display:inline-flex;align-items:center;gap:5px;height:36px;padding:0 11px;border-radius:8px;border:1.5px solid var(--ch-e5e5e5);background:var(--white);font-size:12.5px;font-weight:600;color:var(--text);cursor:pointer;white-space:nowrap;flex-shrink:0}
-.fp-amal i{font-size:15px}
+.fp-amal{display:inline-flex;align-items:center;gap:5px;box-sizing:border-box;min-height:var(--h-md);padding:0 12px;line-height:18px;border-radius:var(--r-btn);border:1.5px solid var(--ch-e5e5e5);background:var(--white);font-size:13px;font-weight:600;color:var(--text);cursor:pointer;white-space:nowrap;flex-shrink:0}
+.fp-amal i{font-size:16px}
 .fp-amal:hover{border-color:var(--dark);background:var(--dark);color:#fff}
 .fp-amal-sotish{color:var(--m-15803d);border-color:var(--ch-bbf7d0)}
 .fp-amal-brak{color:var(--m-dc2626);border-color:var(--ch-fadbd8)}
 .fp-more{flex-direction:column;align-items:stretch;gap:2px;min-width:220px}
-.fp-more-band{display:flex;align-items:center;gap:9px;width:100%;min-height:38px;padding:6px 10px;border:0;border-radius:8px;background:none;font-size:13px;font-weight:500;color:var(--text);cursor:pointer;text-align:left}
+.fp-more-band{display:flex;align-items:center;gap:9px;width:100%;min-height:var(--h-md);padding:6px 10px;border:0;border-radius:var(--r-btn);background:none;font-size:13px;font-weight:500;color:var(--text);cursor:pointer;text-align:left}
 .fp-more-band i{font-size:16px;flex-shrink:0}
 .fp-more-band:hover{background:var(--bg)}
 .fp-more-xavfli{color:var(--m-dc2626);border-top:1px solid var(--border2);border-radius:0 0 8px 8px;margin-top:2px}
 @media(max-width:768px){
-  .fp-amal,.fp-row .mini-btn{min-height:40px;min-width:40px}
-  .fp-more-band{min-height:44px}
 }
-.fp-inp{width:76px;height:36px;text-align:center;border:1.5px solid var(--ch-e5e5e5);border-radius:8px;font-size:14px;font-weight:600;outline:none}
+.fp-inp{width:76px;min-height:var(--h-sm);text-align:center;border:1.5px solid var(--ch-e5e5e5);border-radius:var(--r-btn);font-size:var(--fs-maydon-sm);font-weight:600;outline:none}
 .fp-inp:focus{border-color:#B9783F}
 .fp-mini-bar{width:70px;height:5px;background:var(--border2);border-radius:3px;overflow:hidden;margin-top:4px}
 .fp-mini-fill{height:100%;border-radius:3px}
@@ -128,26 +128,26 @@
 .fp-guruh.ochiq .fp-guruh-tugma i{transform:rotate(180deg)}
 .fp-kul{font-size:12px;color:var(--text3)}
 .fp-jarayon-izoh{font-size:12px;font-weight:600;color:var(--m-92400e);margin-top:3px;white-space:nowrap}
-.fp-mrp-havola{display:inline-flex;align-items:center;gap:4px;height:36px;padding:0 12px;border:1.5px solid var(--ch-e5e5e5);border-radius:8px;background:var(--white);font-size:12px;font-weight:600;color:var(--text);text-decoration:none;white-space:nowrap}
+.fp-mrp-havola{display:inline-flex;align-items:center;gap:4px;box-sizing:border-box;min-height:var(--h-md);padding:0 12px;line-height:18px;border:1.5px solid var(--ch-e5e5e5);border-radius:var(--r-btn);background:var(--white);font-size:13px;font-weight:600;color:var(--text);text-decoration:none;white-space:nowrap}
 .fp-mrp-havola:hover{border-color:var(--gold);color:var(--gold-dark)}
-.fp-yashirin{font-size:12.5px;color:var(--text3);padding:6px 2px 10px}
-.fp-yashirin button{border:0;background:none;padding:0;color:var(--gold-dark);font-weight:600;cursor:pointer;font-size:12.5px}
+.fp-yashirin{font-size:13px;color:var(--text3);padding:6px 2px 10px}
 .fp-tugagan{display:inline-flex;align-items:center;gap:7px}
 .fp-tugagan input{width:16px;height:16px;accent-color:#B9783F;margin:0}
 .stat-izoh{font-size:12px;color:var(--text3);margin-top:4px;line-height:1.35}
-.stat-val.kichik{font-size:17px;line-height:1.35}
+.stat-val.kichik{font-size:16px;line-height:1.35}
 .fp-sec-label{font-size:12px;font-weight:600;letter-spacing:.5px;white-space:nowrap}
 .fp-sec-line{flex:1;height:1px}
 /* Qoplama — Yo'q/Bor tugmasi */
-.coat-toggle{display:flex;border:1px solid var(--border2);border-radius:9px;overflow:hidden;height:44px}
-.coat-opt{flex:1;display:flex;align-items:center;justify-content:center;font-size:13.5px;font-weight:700;cursor:pointer;color:var(--text3);background:var(--f-fafaf8);transition:all .15s}
+.coat-toggle{display:flex;border:1px solid var(--border2);border-radius:var(--r-btn);overflow:hidden;height:var(--h-btn);box-sizing:border-box}
+.coat-opt{flex:1;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;cursor:pointer;color:var(--text3);background:var(--f-fafaf8);transition:all .15s}
 .coat-opt.coat-no.active{background:var(--f-fca5a5);color:var(--m-7f1d1d)}
 .coat-opt.coat-yes.active{background:var(--f-86efac);color:var(--m-14532d)}
 /* Tur — tugma-chip guruhi (dropdown o'rniga) */
 .type-toggle{display:flex;flex-wrap:wrap;gap:6px}
 .type-opt{
-  padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;
-  font-size:12.5px;font-weight:600;color:var(--text2);background:var(--white);
+  display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:var(--h-md);padding:0 12px;line-height:18px;
+  border:1.5px solid var(--border);border-radius:var(--r-btn);
+  font-size:13px;font-weight:600;color:var(--text2);background:var(--white);
   cursor:pointer;transition:all .15s;text-align:center;white-space:nowrap;
 }
 .type-opt:hover{border-color:var(--gold);color:var(--gold-dark)}
@@ -178,7 +178,7 @@ input[type=number]{-moz-appearance:textfield}
        — retsept bo'yicha ishlab chiqarilgan HAMMA mahsulot (kafel kley, travertin, ustun…) har tugmada yo'qolardi. Endi
        tugmalar omborda BOR mahsulotlardan: penoplast turkumlari + korxonaning o'z mahsulot turlari (`fpKategoriyaTugmalari`). #}
     <div class="fp-cat-toggle" id="fpCategoryToggle">
-      <div class="fp-cat-opt active" data-value="" role="button" tabindex="0" onclick="selectFpCategory(this,'')">Barcha kategoriya</div>
+      <div class="fp-cat-opt chip active" data-value="" role="button" tabindex="0" onclick="selectFpCategory(this,'')">Barcha kategoriya</div>
     </div>
     <select id="fpCategory" style="display:none" onchange="renderFp()">
       <option value="">Barcha kategoriya</option>
@@ -189,11 +189,11 @@ input[type=number]{-moz-appearance:textfield}
       <option value="qty_desc">Qoldiq (ko'pdan-kamga)</option>
       <option value="recent">Oxirgi ishlab chiqarilgan</option>
     </select>
-    <button class="fp-chip" id="chipLow" onclick="toggleChip('low')">🟡 Kam qolganlar</button>
-    <label class="fp-chip fp-tugagan" id="chipOut"><input type="checkbox" id="fpTugaganlar" onchange="renderFp()"> Tugaganlar ham</label>
+    <button class="fp-chip chip" id="chipLow" onclick="toggleChip('low')">🟡 Kam qolganlar</button>
+    <label class="fp-chip chip fp-tugagan" id="chipOut"><input type="checkbox" id="fpTugaganlar" onchange="renderFp()"> Tugaganlar ham</label>
   </div>
 
-  <div id="fp-range-banner" style="padding:8px 14px;font-size:12.5px;display:flex;justify-content:space-between;align-items:center;border-radius:8px;margin-bottom:12px"></div>
+  <div id="fp-range-banner" style="padding:8px 14px;font-size:13px;display:flex;justify-content:space-between;align-items:center;border-radius:8px;margin-bottom:12px"></div>
 
   <div id="fpList">
     <div class="fp-empty">Yuklanmoqda...</div>
@@ -211,8 +211,8 @@ input[type=number]{-moz-appearance:textfield}
 <!-- ══ TANLANGANLARNI SOTISH — suzuvchi panel ══ -->
 <div id="batchSellBar" style="display:none;position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:900;background:#0F172A;color:#fff;border-radius:14px;padding:14px 20px;box-shadow:0 12px 32px rgba(0,0,0,.25);align-items:center;gap:16px">
   <span id="batchSellCount" style="font-weight:600;font-size:14px">0 ta tanlandi</span>
-  <button onclick="openBatchSellModal()" style="background:#15803D;color:#fff;border:none;padding:9px 18px;border-radius:9px;font-weight:600;font-size:13.5px;cursor:pointer">💰 Sotish</button>
-  <button onclick="clearBatchSelection()" style="background:transparent;color:#CBD5E1;border:1px solid #334155;padding:9px 14px;border-radius:9px;font-size:13.5px;cursor:pointer">Bekor qilish</button>
+  <button class="btn btn-green" onclick="openBatchSellModal()">💰 Sotish</button>
+  <button class="btn" onclick="clearBatchSelection()" style="background:transparent;color:#CBD5E1;border-color:#334155">Bekor qilish</button>
 </div>
 
 <!-- ══ SAVATCHA — bir nechta mahsulotni sotish oynasi ══ -->
@@ -223,24 +223,24 @@ input[type=number]{-moz-appearance:textfield}
         <div style="font-size:16px;font-weight:600;color:var(--text)">💰 Bir nechta mahsulotni sotish</div>
         <div style="font-size:13px;color:var(--text3);margin-top:2px" id="batch-modal-sub">—</div>
       </div>
-      <button data-yopish onclick="closeBatchSellModal()" style="width:30px;height:30px;border-radius:50%;background:var(--f-f5f5f5);border:none;font-size:15px;cursor:pointer">✕</button>
+      <button data-yopish class="btn btn-soft btn-icon btn-sm" onclick="closeBatchSellModal()" title="Yopish" aria-label="Yopish">✕</button>
     </div>
     <div style="padding:18px 22px;overflow-y:auto;flex:1">
       <div id="batch-items-list" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px"></div>
-      <div style="background:var(--f-f0fdf4);border-radius:10px;padding:12px 14px;font-size:15px;font-weight:700;color:var(--m-166534);text-align:center;margin-bottom:12px" id="batch-total-box">Jami: 0 so'm</div>
+      <div style="background:var(--f-f0fdf4);border-radius:10px;padding:12px 14px;font-size:16px;font-weight:700;color:var(--m-166534);text-align:center;margin-bottom:12px" id="batch-total-box">Jami: 0 so'm</div>
       <div style="margin-bottom:12px">
         <label style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px">Kelishilgan summa (ixtiyoriy)</label>
         <input type="text" id="batch-agreed" placeholder="Masalan: 1 980 000" oninput="formatPriceInput(this);updateBatchDiscount()"
-               style="width:100%;padding:11px 12px;border:1.5px solid var(--ch-e2e8f0);border-radius:9px;font-size:15px;box-sizing:border-box">
-        <div id="batch-discount-info" style="display:none;margin-top:8px;background:var(--f-fef3c7);border-radius:8px;padding:9px 12px;font-size:13.5px;color:var(--m-92400e);text-align:center"></div>
+               style="width:100%;border:1.5px solid var(--ch-e2e8f0)" class="maydon">
+        <div id="batch-discount-info" style="display:none;margin-top:8px;background:var(--f-fef3c7);border-radius:8px;padding:9px 12px;font-size:13px;color:var(--m-92400e);text-align:center"></div>
       </div>
       <div style="margin-bottom:12px">
         <label style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px">Xaridor (ixtiyoriy)</label>
-        <input type="text" id="batch-buyer" placeholder="Ism yoki kompaniya" style="width:100%;padding:11px 12px;border:1.5px solid var(--ch-e2e8f0);border-radius:9px;font-size:15px;box-sizing:border-box">
+        <input type="text" id="batch-buyer" placeholder="Ism yoki kompaniya" style="width:100%;border:1.5px solid var(--ch-e2e8f0)" class="maydon">
       </div>
       <div style="margin-bottom:12px">
         <label style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px">Kim sotib olyapti? <span style="color:var(--m-dc2626)">*</span></label>
-        <select id="batch-master" style="width:100%;padding:11px 12px;border:1.5px solid var(--ch-e2e8f0);border-radius:9px;font-size:15px;box-sizing:border-box">
+        <select id="batch-master" style="width:100%;border:1.5px solid var(--ch-e2e8f0)" class="maydon">
           <option value="" disabled selected>— Tanlang —</option>
           <option value="none">🚫 Oddiy sotuv (usta emas)</option>
           {% for m in masters %}<option value="{{ m.id }}">👷 {{ m.name }}</option>{% endfor %}
@@ -249,7 +249,7 @@ input[type=number]{-moz-appearance:textfield}
       </div>
       <div>
         <label style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px">To'lov usuli</label>
-        <select id="batch-paymethod" style="width:100%;padding:11px 12px;border:1.5px solid var(--ch-e2e8f0);border-radius:9px;font-size:15px;box-sizing:border-box">
+        <select id="batch-paymethod" style="width:100%;border:1.5px solid var(--ch-e2e8f0)" class="maydon">
           <option value="naqd">💵 Naqd</option>
           <option value="karta">💳 Karta</option>
           <option value="bank">🏦 Bank o'tkazmasi</option>
@@ -257,8 +257,8 @@ input[type=number]{-moz-appearance:textfield}
       </div>
     </div>
     <div style="padding:16px 22px 20px;display:flex;gap:10px;border-top:1px solid var(--ch-f0f0f0)">
-      <button data-yopish onclick="closeBatchSellModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--ch-e2e8f0);background:var(--white);color:var(--m-475569);font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
-      <button onclick="submitBatchSell()" style="flex:1;padding:12px;border-radius:10px;border:none;background:#15803D;color:#fff;font-weight:600;font-size:14px;cursor:pointer">✓ Sotish</button>
+      <button data-yopish class="btn btn-outline" onclick="closeBatchSellModal()" style="flex:1">Bekor qilish</button>
+      <button class="btn btn-green" onclick="submitBatchSell()" style="flex:1">✓ Sotish</button>
     </div>
   </div>
 </div>
@@ -271,26 +271,26 @@ input[type=number]{-moz-appearance:textfield}
         <div style="font-size:16px;font-weight:600;color:var(--text)">💰 Sotish</div>
         <div style="font-size:13px;color:var(--text3);margin-top:2px" id="sell-modal-sub">—</div>
       </div>
-      <button data-yopish onclick="closeSellModal()" style="width:30px;height:30px;border-radius:50%;background:var(--f-f5f5f5);border:none;font-size:15px;cursor:pointer">✕</button>
+      <button data-yopish class="btn btn-soft btn-icon btn-sm" onclick="closeSellModal()" title="Yopish" aria-label="Yopish">✕</button>
     </div>
     <div style="padding:18px 22px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:14px">
       <div>
         <label style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px">Miqdor</label>
         <div style="font-size:12px;color:var(--text3);margin-bottom:6px" id="sell-stock-info"></div>
-        <input type="number" id="sell-qty" placeholder="0" style="width:100%;padding:11px 12px;border:1.5px solid var(--ch-e2e8f0);border-radius:9px;font-size:15px;box-sizing:border-box">
+        <input type="number" id="sell-qty" placeholder="0" style="width:100%;border:1.5px solid var(--ch-e2e8f0)" class="maydon">
       </div>
       <div>
         <label style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px">1 birlik narxi (so'm)</label>
-        <input type="text" id="sell-price" placeholder="0" oninput="formatPriceInput(this);updateSellTotal()" style="width:100%;padding:11px 12px;border:1.5px solid var(--ch-e2e8f0);border-radius:9px;font-size:15px;box-sizing:border-box">
+        <input type="text" id="sell-price" placeholder="0" oninput="formatPriceInput(this);updateSellTotal()" style="width:100%;border:1.5px solid var(--ch-e2e8f0)" class="maydon">
       </div>
-      <div id="sell-total-box" style="background:var(--f-f0fdf4);border-radius:10px;padding:12px 14px;font-size:15px;font-weight:700;color:var(--m-166534);text-align:center">Jami: 0 so'm</div>
+      <div id="sell-total-box" style="background:var(--f-f0fdf4);border-radius:10px;padding:12px 14px;font-size:16px;font-weight:700;color:var(--m-166534);text-align:center">Jami: 0 so'm</div>
       <div>
         <label style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px">Xaridor (ixtiyoriy)</label>
-        <input type="text" id="sell-buyer" placeholder="Ism yoki kompaniya" style="width:100%;padding:11px 12px;border:1.5px solid var(--ch-e2e8f0);border-radius:9px;font-size:15px;box-sizing:border-box">
+        <input type="text" id="sell-buyer" placeholder="Ism yoki kompaniya" style="width:100%;border:1.5px solid var(--ch-e2e8f0)" class="maydon">
       </div>
       <div>
         <label style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px">Kim sotib olyapti? <span style="color:var(--m-dc2626)">*</span></label>
-        <select id="sell-master" style="width:100%;padding:11px 12px;border:1.5px solid var(--ch-e2e8f0);border-radius:9px;font-size:15px;box-sizing:border-box">
+        <select id="sell-master" style="width:100%;border:1.5px solid var(--ch-e2e8f0)" class="maydon">
           <option value="" disabled selected>— Tanlang —</option>
           <option value="none">🚫 Oddiy sotuv (usta emas)</option>
           {% for m in masters %}<option value="{{ m.id }}">👷 {{ m.name }}</option>{% endfor %}
@@ -299,7 +299,7 @@ input[type=number]{-moz-appearance:textfield}
       </div>
       <div>
         <label style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px">To'lov usuli</label>
-        <select id="sell-paymethod" style="width:100%;padding:11px 12px;border:1.5px solid var(--ch-e2e8f0);border-radius:9px;font-size:15px;box-sizing:border-box">
+        <select id="sell-paymethod" style="width:100%;border:1.5px solid var(--ch-e2e8f0)" class="maydon">
           <option value="naqd">💵 Naqd</option>
           <option value="karta">💳 Karta</option>
           <option value="bank">🏦 Bank o'tkazmasi</option>
@@ -307,8 +307,8 @@ input[type=number]{-moz-appearance:textfield}
       </div>
     </div>
     <div style="padding:16px 22px 20px;display:flex;gap:10px;border-top:1px solid var(--ch-f0f0f0)">
-      <button data-yopish onclick="closeSellModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--ch-e2e8f0);background:var(--white);color:var(--m-475569);font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
-      <button onclick="submitSell()" style="flex:1;padding:12px;border-radius:10px;border:none;background:#15803D;color:#fff;font-weight:600;font-size:14px;cursor:pointer">✓ Sotish</button>
+      <button data-yopish class="btn btn-outline" onclick="closeSellModal()" style="flex:1">Bekor qilish</button>
+      <button class="btn btn-green" onclick="submitSell()" style="flex:1">✓ Sotish</button>
     </div>
   </div>
 </div>
@@ -318,7 +318,7 @@ input[type=number]{-moz-appearance:textfield}
   <div style="background:var(--white);border-radius:14px;width:480px;max-width:100%;max-height:80vh;display:flex;flex-direction:column">
     <div style="padding:18px 22px 14px;border-bottom:1px solid var(--ch-f0f0f0);display:flex;justify-content:space-between;align-items:center">
       <div style="font-size:16px;font-weight:600;color:var(--text)" id="hist-title">Ma'lumot</div>
-      <button data-yopish onclick="closeHistoryModal()" style="width:30px;height:30px;border-radius:50%;background:var(--f-f5f5f5);border:none;font-size:15px;cursor:pointer">✕</button>
+      <button data-yopish class="btn btn-soft btn-icon btn-sm" onclick="closeHistoryModal()" title="Yopish" aria-label="Yopish">✕</button>
     </div>
     <div style="padding:18px 22px;overflow-y:auto;flex:1" id="hist-body"></div>
   </div>
@@ -327,14 +327,14 @@ input[type=number]{-moz-appearance:textfield}
 <!-- Mahsulotni o'chirish — 3 variantli maxsus modal (native ikki bosqichli confirm o'rniga) -->
 <div id="delFpModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:2000;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px)">
   <div style="background:var(--white);border-radius:14px;padding:24px;width:420px;max-width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25)">
-    <div id="delfp-title" style="font-size:15.5px;font-weight:700;color:var(--text);margin-bottom:6px">—</div>
+    <div id="delfp-title" style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px">—</div>
     <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:18px">Xomashyo bilan bog'liq bu amalni tanlang:</div>
     <div style="display:flex;flex-direction:column;gap:8px">
-      <button class="btn btn-outline" style="width:100%;text-align:left;padding:12px 14px" onclick="_delFpResolveWith('return')">
+      <button class="btn btn-outline btn-tanlov" onclick="_delFpResolveWith('return')">
         <div style="font-weight:600;color:var(--text)">↩️ O'chirish va xomashyoni omborga qaytarish</div>
         <div style="font-size:12px;color:var(--text3);margin-top:2px">Ishlatilgan Penoplast/loy ombor hisobiga qaytariladi</div>
       </button>
-      <button class="btn btn-outline" style="width:100%;text-align:left;padding:12px 14px" onclick="_delFpResolveWith('no-return')">
+      <button class="btn btn-outline btn-tanlov" onclick="_delFpResolveWith('no-return')">
         <div style="font-weight:600;color:var(--m-dc2626)">🗑️ O'chirish, xomashyo qaytarilmasin</div>
         <div style="font-size:12px;color:var(--text3);margin-top:2px">Masalan brak/singan bo'lsa</div>
       </button>
@@ -350,7 +350,7 @@ input[type=number]{-moz-appearance:textfield}
         <div style="font-size:16px;font-weight:600;color:var(--text)">🏭 Penoplast detal ishlab chiqarish</div>
         <div style="font-size:12px;color:var(--text3);margin-top:2px">Ombordan xomashyo yechiladi</div>
       </div>
-      <button data-yopish onclick="closeProduceModal()" style="width:30px;height:30px;border-radius:50%;background:var(--f-f5f5f5);border:none;font-size:15px;cursor:pointer">✕</button>
+      <button data-yopish class="btn btn-soft btn-icon btn-sm" onclick="closeProduceModal()" title="Yopish" aria-label="Yopish">✕</button>
     </div>
 
     <div style="padding:16px 22px;overflow-y:auto;flex:1">
@@ -424,7 +424,7 @@ input[type=number]{-moz-appearance:textfield}
         <div class="dgrp-row" style="grid-template-columns:1fr;margin-bottom:12px">
           <div class="form-group" style="margin:0">
             <label>Qoplama</label>
-            <div class="coat-toggle" id="p-coat-toggle">
+            <div class="coat-toggle segment" id="p-coat-toggle" role="group" aria-label="Qoplama">
               <div class="coat-opt coat-no" onclick="setPCoating(this, false)">Yo'q</div>
               <div class="coat-opt coat-yes active" onclick="setPCoating(this, true)">Bor (×2)</div>
             </div>
@@ -493,7 +493,7 @@ input[type=number]{-moz-appearance:textfield}
 
     <div style="padding:14px 22px 18px;border-top:1px solid var(--ch-f0f0f0);display:flex;gap:8px">
       <button data-yopish class="btn btn-outline" style="flex:1" onclick="closeProduceModal()">Bekor</button>
-      <button class="btn btn-dark" style="flex:2;background:var(--gold-btn);border-color:var(--gold-btn)" onclick="saveProduce()">🏭 Ishlab chiqarish</button>
+      <button class="btn btn-gold" style="flex:2" onclick="saveProduce()">🏭 Ishlab chiqarish</button>
     </div>
   </div>
 
@@ -507,7 +507,7 @@ input[type=number]{-moz-appearance:textfield}
         <div style="font-size:16px;font-weight:600;color:var(--text)">💰 Foyda hisobi</div>
         <div style="font-size:12px;color:var(--text3);margin-top:2px" id="pm-sub">—</div>
       </div>
-      <button data-yopish onclick="closeProfitModal()" style="width:30px;height:30px;border-radius:50%;background:var(--f-f5f5f5);border:none;font-size:15px;cursor:pointer">✕</button>
+      <button data-yopish class="btn btn-soft btn-icon btn-sm" onclick="closeProfitModal()" title="Yopish" aria-label="Yopish">✕</button>
     </div>
     <div style="padding:18px 22px;overflow-y:auto;flex:1" id="pm-body">
       <div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>
@@ -800,7 +800,7 @@ function fpKategoriyaTugmalari() {
     kalitlar.map(k => `<option value="${escapeHtml(k)}">${escapeHtml(bor.get(k))}</option>`).join('');
   sel.value = joriy;
   document.getElementById('fpCategoryToggle').innerHTML = [['', 'Barcha kategoriya'], ...kalitlar.map(k => [k, bor.get(k)])]
-    .map(([k, n]) => `<div class="fp-cat-opt${k === joriy ? ' active' : ''}" data-value="${escapeHtml(k)}" role="button" tabindex="0" ` +
+    .map(([k, n]) => `<div class="fp-cat-opt chip${k === joriy ? ' active' : ''}" data-value="${escapeHtml(k)}" role="button" tabindex="0" ` +
       `onclick="selectFpCategory(this, this.dataset.value)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">${escapeHtml(n)}</div>`).join('');
 }
 
@@ -1114,7 +1114,7 @@ function renderFp() {
     </div>` + groups.map(guruhHtml).join('');
   }
   if (yashirin > 0) {
-    html += `<div class="fp-yashirin" id="fpYashirinIzoh">Tugagan partiyalar yashirilgan: ${yashirin} ta — <button type="button" onclick="fpTugaganniKorsat()">ko'rsatish</button></div>`;
+    html += `<div class="fp-yashirin" id="fpYashirinIzoh">Tugagan partiyalar yashirilgan: ${yashirin} ta — <button type="button" class="btn-link" onclick="fpTugaganniKorsat()">ko'rsatish</button></div>`;
   }
 
   if (returned.length) {
@@ -1122,7 +1122,7 @@ function renderFp() {
     html += `<div class="fp-sec" style="cursor:pointer;user-select:none" onclick="toggleReturnedSection()">
       <span class="fp-sec-label" style="color:var(--m-1e7e34)">♻️ QAYTGAN MAHSULOTLAR (${returned.length})</span>
       <div class="fp-sec-line" style="background:linear-gradient(90deg,var(--f-d5eddd),transparent)"></div>
-      <i class="ti ti-chevron-down" style="font-size:15px;color:var(--m-1e7e34);transition:transform .2s;transform:rotate(${isOpen?180:0}deg)"></i>
+      <i class="ti ti-chevron-down" style="font-size:16px;color:var(--m-1e7e34);transition:transform .2s;transform:rotate(${isOpen?180:0}deg)"></i>
     </div>
     <div id="fpReturnedBody" style="display:${isOpen?'block':'none'}">` + returned.map(i => rowHtml(i, false)).join('') + `</div>`;
   }
@@ -1130,7 +1130,7 @@ function renderFp() {
   if (!groups.length && !returned.length) {
     html = `<div class="fp-empty">
       ${q || category || activeChips.size ? 'Topilmadi' : (yashirin > 0 ? 'Omborda qoldiq yo\'q' : 'Ombor bo\'sh<br><br><span style="font-size:12px">Penoplast detal — yuqoridagi <b>+ Penoplast detal</b> tugmasi; boshqa mahsulot — <b>Retsept bo\'yicha</b> («Ishlab chiqarish» bo\'limi)</span>')}
-    </div>` + (yashirin > 0 ? `<div class="fp-yashirin" id="fpYashirinIzoh">Tugagan partiyalar yashirilgan: ${yashirin} ta — <button type="button" onclick="fpTugaganniKorsat()">ko'rsatish</button></div>` : '');
+    </div>` + (yashirin > 0 ? `<div class="fp-yashirin" id="fpYashirinIzoh">Tugagan partiyalar yashirilgan: ${yashirin} ta — <button type="button" class="btn-link" onclick="fpTugaganniKorsat()">ko'rsatish</button></div>` : '');
   }
 
   list.innerHTML = html;
@@ -1256,7 +1256,7 @@ function rowHtml(i, partiyami) {
   ` : mrpJarayon ? `
     <span class="fp-mrp-yozuv" style="font-size:12px;color:var(--text3);white-space:normal;max-width:180px;line-height:1.35">Ishlab chiqarilmoqda — «Ishlab chiqarish» bo'limida yakunlanadi</span>
   ` : inProgress ? `
-    <button class="btn btn-dark btn-sm" style="padding:5px 12px;font-size:12px;white-space:nowrap"
+    <button class="btn btn-dark btn-sm" style="white-space:nowrap"
             onclick="markReady(${i.id})">✓ Sotuvga tayyor</button>
     <button class="mini-btn" onclick="editPrice(${i.id})" title="Narxni o'zgartirish">✏️</button>
     <button class="mini-btn" style="color:var(--m-dc2626);border-color:var(--ch-fadbd8)"
@@ -1381,7 +1381,7 @@ function openHistoryModal(id) {
     <div style="background:var(--bg);border-radius:8px;padding:6px 12px;margin-bottom:10px;font-size:12px;color:var(--text3);line-height:1.6">
       Mahsulot haqidagi asosiy ma'lumot. Sotuvlar — «Moliya», brak va qaytarishlar — «Qaytarishlar» bo'limida.
     </div>
-    ${rows.map(r => `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border2);font-size:12.5px">
+    ${rows.map(r => `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border2);font-size:13px">
       <span style="color:var(--text3)">${escapeHtml(r[0])}</span><span style="font-weight:500;color:var(--text)">${escapeHtml(r[1])}</span>
     </div>`).join('')}`;
   document.getElementById('historyModal').style.display = 'flex';
@@ -1540,16 +1540,16 @@ function openBatchSellModal() {
             <div style="font-size:12px;color:var(--text3);margin-bottom:3px">Kerakli miqdor</div>
             <input type="number" class="batch-qty" value="" placeholder="0" max="${it.maxQty}" min="0" step="any" data-max="${it.maxQty}" data-unit="${escapeHtml(unitLabel(it.unit))}"
                    aria-label="Kerakli miqdor — ${escapeHtml(it.name)}"
-                   oninput="updateBatchTotal();updateBatchRemain(this)" style="width:100%;padding:8px 10px;border:1.5px solid var(--gold);border-radius:8px;font-size:14px;font-weight:600;box-sizing:border-box">
+                   oninput="updateBatchTotal();updateBatchRemain(this)" style="width:100%;border:1.5px solid var(--gold);font-weight:600">
           </div>
           <div style="flex:1">
             <div style="font-size:12px;color:var(--m-15803d);margin-bottom:3px;font-weight:600">Qoladi</div>
-            <div class="batch-remain" style="width:100%;padding:8px 10px;border:1.5px solid var(--ch-bbf7d0);border-radius:8px;font-size:14px;font-weight:700;color:var(--m-15803d);background:var(--f-f0fdf4);box-sizing:border-box;text-align:center">${escapeHtml(fpMiqdor(it.maxQty))} ${escapeHtml(unitLabel(it.unit))}</div>
+            <div class="batch-remain" style="width:100%;min-height:var(--h-btn);display:flex;align-items:center;justify-content:center;padding:0 10px;border:1.5px solid var(--ch-bbf7d0);border-radius:8px;font-size:14px;font-weight:700;color:var(--m-15803d);background:var(--f-f0fdf4);box-sizing:border-box;text-align:center">${escapeHtml(fpMiqdor(it.maxQty))} ${escapeHtml(unitLabel(it.unit))}</div>
           </div>
           <div style="flex:1">
             <div style="font-size:12px;color:var(--text3);margin-bottom:3px">1 birlik narxi</div>
             <input type="text" class="batch-price" value="${narxKorinishi(it.price)}" oninput="formatPriceInput(this);updateBatchTotal()"
-                   style="width:100%;padding:8px 10px;border:1.5px solid var(--ch-e2e8f0);border-radius:8px;font-size:14px;box-sizing:border-box">
+                   style="width:100%;border:1.5px solid var(--ch-e2e8f0)">
           </div>
         </div>
       </div>`;
@@ -2101,8 +2101,8 @@ function pCalc() {
   const costPerUnit = count > 0 ? cost / count : 0;
   const volLockLine = (type === 'dona' && volume_total > 0)
     ? (window._pDonaVolLocked
-        ? ` <button type="button" onclick="pToggleVolLock()" style="border:none;background:none;cursor:pointer;font-size:12px;color:var(--gold-dark)" title="Qulfdan chiqarish (hajm qayta jonli hisoblanadi)">🔒 qulflangan</button>`
-        : ` <button type="button" onclick="pToggleVolLock()" style="border:none;background:none;cursor:pointer;font-size:12px;color:var(--gold-dark)" title="Hajmni qulflash (keyin narx o'zgarsa ham hajm o'zgarmaydi)">🔓 qulflash</button>`)
+        ? ` <button type="button" class="btn-link" onclick="pToggleVolLock()" title="Qulfdan chiqarish (hajm qayta jonli hisoblanadi)">🔒 qulflangan</button>`
+        : ` <button type="button" class="btn-link" onclick="pToggleVolLock()" title="Hajmni qulflash (keyin narx o'zgarsa ham hajm o'zgarmaydi)">🔓 qulflash</button>`)
     : '';
 
   box.innerHTML = `

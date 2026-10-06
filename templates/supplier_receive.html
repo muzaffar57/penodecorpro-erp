@@ -27,15 +27,17 @@ html[data-theme="dark"] .rcv-wrap{--r-bg:var(--bg); --r-card:var(--white); --r-b
   .rcv-history-filter{flex-wrap:wrap}
   /* «🆕 Ro'yxatda yo'q — yangi material yozaman» bir qatorda (nowrap) — kengroq shriftda 360 px da ekrandan chiqardi
      (O'LCHANGAN, test_c_telefon): telefonda ikki qatorga o'tadi */
-  .rcv-wrap .rcv-newitem-link{white-space:normal;height:auto;min-height:42px;padding:8px 14px;line-height:1.3;max-width:100%}
+  .rcv-wrap .rcv-newitem-link{white-space:normal;height:auto;min-height:var(--h-btn);padding:8px 14px;line-height:20px;max-width:100%}
 }
 .rcv-card{background:var(--r-card);border:1px solid var(--r-border);border-radius:16px;box-shadow:0 1px 2px rgba(16,24,40,.04),0 4px 16px rgba(16,24,40,.06);margin-bottom:18px}
 .rcv-card-body{padding:22px}
-.rcv-card-title{font-size:15px;font-weight:700;color:var(--r-text);margin-bottom:18px}
+.rcv-card-title{font-size:16px;font-weight:700;color:var(--r-text);margin-bottom:18px}
 .rcv-field label{display:block;font-size:12px;font-weight:600;color:var(--r-text2);margin-bottom:6px}
-.rcv-field input,.rcv-field select{width:100%;height:42px;padding:0 14px;border:1px solid var(--r-border);border-radius:9px;font-size:13.5px;color:var(--r-text);outline:none;background:var(--white);transition:border-color .15s}
+.rcv-field input,.rcv-field select{width:100%;min-height:var(--h-btn);padding:0 12px;line-height:20px;border:1px solid var(--r-border);border-radius:var(--r-btn);font-size:var(--fs-maydon);color:var(--r-text);outline:none;background:var(--white);transition:border-color .15s}
 .rcv-field input:focus,.rcv-field select:focus{border-color:var(--r-primary)}
-.rcv-field textarea{width:100%;padding:10px 14px;border:1px solid var(--r-border);border-radius:9px;font-size:13.5px;outline:none;resize:vertical;min-height:42px}
+/* U-13 (kech123): maydon qoidasi (`min-height`) belgilash katagiga tushmaydi — «asosiy plotnost» katagi 40 px bo'lardi */
+.rcv-field input[type=checkbox],.rcv-field input[type=radio]{width:auto;min-height:0;padding:0}
+.rcv-field textarea{width:100%;padding:10px 12px;border:1px solid var(--r-border);border-radius:var(--r-btn);font-size:var(--fs-maydon);line-height:20px;outline:none;resize:vertical;min-height:80px}
 .rcv-row{display:grid;gap:14px;margin-bottom:14px}
 .rcv-row-3{grid-template-columns:1fr 1fr 1fr}
 .rcv-row-2{grid-template-columns:1fr 1fr}
@@ -51,7 +53,7 @@ html[data-theme="dark"] .rcv-wrap{--r-bg:var(--bg); --r-card:var(--white); --r-b
 .rcv-table-wrap{overflow-x:auto}
 .rcv-supplier-row{display:flex;gap:10px;align-items:flex-end}
 .rcv-supplier-row .rcv-field{flex:1;min-width:0}
-.rcv-btn{height:42px;padding:0 18px;border-radius:9px;border:none;cursor:pointer;font-size:13.5px;font-weight:600;white-space:nowrap;transition:transform .1s,box-shadow .15s}
+.rcv-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;box-sizing:border-box;min-height:var(--h-btn);padding:0 16px;border-radius:var(--r-btn);border:none;cursor:pointer;font-size:14px;line-height:20px;font-weight:600;white-space:nowrap;transition:transform .1s,box-shadow .15s}
 .rcv-btn-primary{background:var(--gold-btn);color:#fff}
 .rcv-btn-primary:hover{background:#8F5B2A;box-shadow:0 4px 12px rgba(185,120,63,.3)}
 .rcv-btn-dark{background:#222222;color:#fff}
@@ -61,13 +63,13 @@ html[data-theme="dark"] .rcv-btn-dark{background:var(--f-eceae6);color:var(--m-1
 @media(max-width:900px){.rcv-stat-grid{grid-template-columns:1fr 1fr}}
 .rcv-stat-box{background:var(--r-bg);border-radius:11px;padding:14px 16px}
 .rcv-stat-label{font-size:12px;color:var(--r-text3);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
-.rcv-stat-value{font-size:19px;font-weight:800;color:var(--r-text);margin-top:4px}
+.rcv-stat-value{font-size:18px;font-weight:800;color:var(--r-text);margin-top:4px}
 .rcv-quickpay{background:var(--r-bg);border-radius:11px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
-.rcv-quickpay input{height:34px;border:1px solid var(--r-border);border-radius:7px;padding:0 10px;font-size:13px;outline:none}
-.rcv-quickpay button{height:34px;border-radius:7px;border:none;background:#222222;color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;padding:0 12px}
+.rcv-quickpay input{min-width:0;min-height:var(--h-sm);border:1px solid var(--r-border);border-radius:var(--r-btn);padding:0 10px;font-size:var(--fs-maydon-sm);outline:none}
+.rcv-quickpay button{display:inline-flex;align-items:center;justify-content:center;min-height:var(--h-sm);border-radius:var(--r-btn);border:none;background:#222222;color:#fff;font-size:13px;line-height:18px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;padding:0 12px}
 html[data-theme="dark"] .rcv-quickpay button{background:var(--f-eceae6);color:var(--m-16181f)}
 
-.rcv-newitem-link{display:inline-flex;align-items:center;gap:6px;height:42px;padding:0 14px;border:1.5px dashed var(--r-primary);border-radius:9px;color:var(--r-primary);font-size:12.5px;font-weight:600;cursor:pointer;background:var(--r-primary-tint);white-space:nowrap}
+.rcv-newitem-link{display:inline-flex;align-items:center;gap:6px;box-sizing:border-box;min-height:var(--h-btn);padding:0 14px;border:1.5px dashed var(--r-primary);border-radius:var(--r-btn);color:var(--r-primary);font-size:13px;font-weight:600;cursor:pointer;background:var(--r-primary-tint);white-space:nowrap}
 .rcv-newitem-box{display:none;background:var(--r-primary-tint);border:1px solid var(--ch-e8d5c0);border-radius:11px;padding:16px;margin-bottom:14px}
 
 .rcv-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
@@ -75,30 +77,31 @@ html[data-theme="dark"] .rcv-quickpay button{background:var(--f-eceae6);color:va
 .rcv-table tbody td{padding:12px;border-bottom:1px solid var(--r-border);color:var(--r-text2)}
 .rcv-table tbody tr:hover{background:var(--r-bg)}
 .rcv-table tbody tr:last-child td{border-bottom:none}
-.rcv-icon-btn{width:30px;height:30px;border-radius:8px;border:1px solid var(--r-border);background:var(--white);color:var(--r-text3);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;margin-left:4px;transition:.12s}
+.rcv-icon-btn{width:var(--h-sm);height:var(--h-sm);border-radius:var(--r-btn);border:1px solid var(--r-border);background:var(--white);color:var(--r-text3);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;margin-left:4px;transition:.12s}
 .rcv-icon-btn:hover{background:var(--r-danger-tint);border-color:var(--r-danger);color:var(--r-danger)}
 .rcv-totals-bar{display:flex;justify-content:flex-end;gap:24px;padding:14px 4px 4px;font-size:13px;color:var(--r-text2)}
 
-.rcv-summary-row{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--ch-f3f4f6);font-size:13.5px}
+.rcv-summary-row{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--ch-f3f4f6);font-size:13px}
 .rcv-summary-row:last-child{border-bottom:none}
 .rcv-summary-row.total{background:var(--r-primary-tint);margin:8px -22px -22px;padding:16px 22px;border-radius:0 0 16px 16px;border-bottom:none}
 .rcv-summary-row.total .rcv-sum-label{font-weight:700;color:var(--r-text)}
-.rcv-summary-row.total .rcv-sum-val{font-weight:800;font-size:17px;color:var(--r-primary)}
-.rcv-summary-row.debt .rcv-sum-val{color:var(--r-danger);font-weight:800;font-size:15px}
+.rcv-summary-row.total .rcv-sum-val{font-weight:800;font-size:16px;color:var(--r-primary)}
+.rcv-summary-row.debt .rcv-sum-val{color:var(--r-danger);font-weight:800;font-size:16px}
 .rcv-sum-label{color:var(--r-text3)}
 .rcv-sum-val{font-weight:600;color:var(--r-text)}
 
 .rcv-upload{border:2px dashed var(--r-border);border-radius:11px;padding:24px;text-align:center;color:var(--r-text3);cursor:pointer;transition:.15s}
 .rcv-upload:hover{border-color:var(--r-primary);background:var(--r-primary-tint)}
-.rcv-upload .ti{font-size:26px;display:block;margin-bottom:8px;color:var(--r-primary)}
+.rcv-upload .ti{font-size:24px;display:block;margin-bottom:8px;color:var(--r-primary)}
 
 .rcv-history-filter{display:flex;gap:8px;align-items:center}
 
 /* Yo'nalish — tugma-chip guruhi (dropdown o'rniga) */
 .rcv-cat-toggle{display:flex;flex-wrap:wrap;gap:6px}
 .rcv-cat-opt{
-  padding:9px 13px;border:1.5px solid var(--ch-e5e7eb);border-radius:9px;
-  font-size:12.5px;font-weight:600;color:var(--text3);background:var(--white);
+  display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:var(--h-md);padding:0 12px;line-height:18px;
+  border:1.5px solid var(--ch-e5e7eb);border-radius:var(--r-btn);
+  font-size:13px;font-weight:600;color:var(--text3);background:var(--white);
   cursor:pointer;transition:all .15s;white-space:nowrap;
 }
 .rcv-cat-opt:hover{border-color:var(--r-primary);color:var(--r-primary)}
@@ -110,8 +113,8 @@ html[data-theme="dark"] .rcv-quickpay button{background:var(--f-eceae6);color:va
 {% endblock %}
 
 {% block topbar_actions %}
-<a href="/suppliers" class="btn btn-outline btn-sm" style="text-decoration:none">
-  <i class="ti ti-list" style="vertical-align:-2px"></i> Barcha ta'minotchilar va qarzlar
+<a href="/suppliers" class="btn btn-outline btn-md">
+  <i class="ti ti-list"></i> Barcha ta'minotchilar va qarzlar
 </a>
 {% endblock %}
 
@@ -276,7 +279,7 @@ html[data-theme="dark"] .rcv-quickpay button{background:var(--f-eceae6);color:va
             <div class="rcv-field"><label>Hozir to'langan summa <span style="font-weight:400;color:var(--r-text3)">(ta'minotchiga — materiallar uchun)</span></label>
               <div style="display:flex;gap:6px">
                 <input type="text" id="ap-paid-now" placeholder="0" oninput="formatPriceInput(this)" style="flex:1">
-                <button type="button" onclick="apPayFull()" style="flex-shrink:0;background:var(--f-f8f2eb);color:var(--gold-dark);border:1px solid var(--ch-e8d5c0);border-radius:8px;padding:0 12px;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap">To'liq to'lash</button>
+                <button type="button" class="btn btn-gold-outline" onclick="apPayFull()" style="flex-shrink:0;white-space:nowrap">To'liq to'lash</button>
               </div>
             </div>
             <div class="rcv-field"><label>Izoh</label><input type="text" id="ap-notes" placeholder="Masalan: Naqd pul bilan to'landi"></div>
@@ -289,12 +292,12 @@ html[data-theme="dark"] .rcv-quickpay button{background:var(--f-eceae6);color:va
             <div class="rcv-field"><label>⬆️ Yuklash</label><input type="text" id="ap-cost-yuklash" placeholder="0" oninput="formatPriceInput(this);updateSummary()"></div>
             <div class="rcv-field"><label>➕ Boshqa xarajat</label><input type="text" id="ap-cost-boshqa" placeholder="0" oninput="formatPriceInput(this);updateSummary()"></div>
           </div>
-          <label style="display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px 12px;background:var(--r-primary-tint);border:1px solid var(--ch-e8d5c0);border-radius:9px;font-size:12.5px;color:var(--gold-dark);cursor:pointer">
+          <label style="display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px 12px;background:var(--r-primary-tint);border:1px solid var(--ch-e8d5c0);border-radius:9px;font-size:13px;color:var(--gold-dark);cursor:pointer">
             <input type="checkbox" id="ap-add-to-cost" style="width:16px;height:16px;cursor:pointer;flex-shrink:0" onchange="updateSummary()">
             <span><b>Qo'shimcha xarajatlarni tannarxga qo'shish</b> — yoqilsa, yuqoridagi xarajatlar materiallar qiymatiga proporsional taqsimlanib, ombordagi birlik tannarxiga qo'shiladi. O'chiq bo'lsa — faqat Moliyada alohida ko'rinadi.</span>
           </label>
 
-          <label style="display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px 12px;background:var(--f-fffbeb);border:1px solid var(--ch-fde68a);border-radius:9px;font-size:12.5px;color:var(--m-92400e);cursor:pointer">
+          <label style="display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px 12px;background:var(--f-fffbeb);border:1px solid var(--ch-fde68a);border-radius:9px;font-size:13px;color:var(--m-92400e);cursor:pointer">
             <input type="checkbox" id="ap-opening-stock" style="width:16px;height:16px;cursor:pointer;flex-shrink:0">
             <span>Bu — <b>boshlang'ich (allaqachon bor) ombor</b>, yangi xarid emas (Kassa balansiga ta'sir qilmaydi)</span>
           </label>
@@ -317,8 +320,8 @@ html[data-theme="dark"] .rcv-quickpay button{background:var(--f-eceae6);color:va
           <div class="rcv-summary-row debt"><span class="rcv-sum-label" style="font-weight:700;color:var(--r-text)">Qarzga qoladi</span><span class="rcv-sum-val" id="sum-debt">0 so'm</span></div>
           {# kech120 (G4-21): qarz — faqat materiallar summasidan; qo'shimcha xarajatlar (transport …) ta'minotchi qarziga kirmaydi #}
           <div style="font-size:12px;color:var(--r-text3);margin-top:-4px;margin-bottom:6px">Faqat materiallar uchun; qo'shimcha xarajatlar — korxona xarajati (ta'minotchi qarziga kirmaydi).</div>
-          <div id="sum-opening-warn" style="display:none;margin-top:10px;padding:9px 11px;background:var(--f-fffbeb);border:1px solid var(--ch-fde68a);border-radius:8px;font-size:12.5px;color:var(--m-92400e);line-height:1.45">⚠️ <b>Boshlang'ich ombor</b> belgilangan: ta'minotchiga qarz yozilmaydi, «Hozir to'langan summa» yuborilmaydi, Kassaga ta'sir qilmaydi. Yangi xarid bo'lsa — belgini olib tashlang.</div>
-          <div id="sum-date-warn" style="display:none;margin-top:10px;padding:9px 11px;background:var(--f-eff6ff);border:1px solid var(--ch-bfdbfe);border-radius:8px;font-size:12.5px;color:var(--m-1e40af);line-height:1.45"></div>
+          <div id="sum-opening-warn" style="display:none;margin-top:10px;padding:9px 11px;background:var(--f-fffbeb);border:1px solid var(--ch-fde68a);border-radius:8px;font-size:13px;color:var(--m-92400e);line-height:1.45">⚠️ <b>Boshlang'ich ombor</b> belgilangan: ta'minotchiga qarz yozilmaydi, «Hozir to'langan summa» yuborilmaydi, Kassaga ta'sir qilmaydi. Yangi xarid bo'lsa — belgini olib tashlang.</div>
+          <div id="sum-date-warn" style="display:none;margin-top:10px;padding:9px 11px;background:var(--f-eff6ff);border:1px solid var(--ch-bfdbfe);border-radius:8px;font-size:13px;color:var(--m-1e40af);line-height:1.45"></div>
         </div>
       </div>
 
@@ -334,7 +337,7 @@ html[data-theme="dark"] .rcv-quickpay button{background:var(--f-eceae6);color:va
         </div>
       </div>
 
-      <button class="rcv-btn rcv-btn-dark" id="receive-submit-btn" style="width:100%;height:48px;font-size:14px" onclick="submitReceive()">✓ Kirimni tasdiqlash</button>
+      <button class="rcv-btn rcv-btn-dark" id="receive-submit-btn" style="width:100%" onclick="submitReceive()">✓ Kirimni tasdiqlash</button>
     </div>
 
     <div class="rcv-tarix">
@@ -345,10 +348,10 @@ html[data-theme="dark"] .rcv-quickpay button{background:var(--f-eceae6);color:va
           <div class="rcv-tarix-sarlavha" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
             <div class="rcv-card-title" style="margin:0">Kirimlar tarixi</div>
             <div class="rcv-history-filter">
-              <input type="date" id="hist-from" style="height:36px;padding:0 10px;border:1px solid var(--r-border);border-radius:8px;font-size:12.5px">
+              <input type="date" id="hist-from" style="border:1px solid var(--r-border)" class="maydon maydon-sm">
               <span style="color:var(--r-text3)">—</span>
-              <input type="date" id="hist-to" style="height:36px;padding:0 10px;border:1px solid var(--r-border);border-radius:8px;font-size:12.5px">
-              <button class="rcv-icon-btn" style="color:var(--r-primary)" onclick="loadHistoryForSupplier()"><i class="ti ti-filter" style="font-size:14px"></i></button>
+              <input type="date" id="hist-to" style="border:1px solid var(--r-border)" class="maydon maydon-sm">
+              <button class="rcv-icon-btn" style="color:var(--r-primary)" onclick="loadHistoryForSupplier()" title="Filtrlash" aria-label="Filtrlash"><i class="ti ti-filter"></i></button>
             </div>
           </div>
           <div class="rcv-table-wrap">
@@ -372,8 +375,8 @@ html[data-theme="dark"] .rcv-quickpay button{background:var(--f-eceae6);color:va
     <div class="rcv-field" style="margin-bottom:12px"><label>Nomi</label><input type="text" id="ns-name" placeholder="Masalan: Qurilish kimyosi do'koni"></div>
     <div class="rcv-field" style="margin-bottom:16px"><label>Telefon</label><input type="text" id="ns-phone" placeholder="+998..."></div>
     <div style="display:flex;gap:8px">
-      <button id="new-supplier-save-btn" style="flex:1;background:var(--gold-btn);color:#fff;border:none;border-radius:9px;padding:11px;font-size:14px;font-weight:600;cursor:pointer" onclick="saveNewSupplier()">Saqlash</button>
-      <button data-yopish style="flex:1;background:var(--f-f3f4f6);color:var(--m-374151);border:none;border-radius:9px;padding:11px;font-size:14px;font-weight:600;cursor:pointer" onclick="document.getElementById('newSupplierModal').style.display='none'">Bekor</button>
+      <button id="new-supplier-save-btn" class="btn btn-gold" style="flex:1" onclick="saveNewSupplier()">Saqlash</button>
+      <button data-yopish class="btn btn-soft" style="flex:1" onclick="document.getElementById('newSupplierModal').style.display='none'">Bekor</button>
     </div>
   </div>
 </div>
@@ -975,7 +978,7 @@ function renderBasket(){
         <td>${b.qty} ${escapeHtml(b.unit)}</td>
         <td>${narxKorinishi(b.price)} so'm</td>
         <td style="text-align:right;font-weight:700">${narxKorinishi(b.total)} so'm</td>
-        <td style="text-align:right"><button class="rcv-icon-btn" onclick="apRemoveFromBasket(${i})"><i class="ti ti-trash" style="font-size:14px"></i></button></td>
+        <td style="text-align:right"><button class="rcv-icon-btn" onclick="apRemoveFromBasket(${i})"><i class="ti ti-trash"></i></button></td>
       </tr>`).join('');
   }
   const total = pulYigindi(apBasket.map(b => b.total));
@@ -1209,7 +1212,7 @@ function showMsg(text, type){
   if (!box) {
     box = document.createElement('div');
     box.id = 'rcvMsgBox';
-    box.style.cssText = 'position:fixed;top:20px;right:20px;z-index:2000;padding:14px 20px;border-radius:10px;font-size:13.5px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.15);white-space:pre-line';
+    box.style.cssText = 'position:fixed;top:20px;right:20px;z-index:2000;padding:14px 20px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.15);white-space:pre-line';
     document.body.appendChild(box);
   }
   box.textContent = text;

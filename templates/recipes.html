@@ -4,7 +4,7 @@
 {% block page_sub %}Loy (qoplama aralashmasi) retseptlari — tarkibi Omborxonadagi istalgan materialdan tuziladi. Mahsulot (karniz, panel …) tarkibi — «Ishlab chiqarish» bo'limida{% endblock %}
 
 {% block topbar_actions %}
-<button class="btn btn-dark" onclick="openAddModal()"><i class="ti ti-plus" style="vertical-align:-2px"></i> Yangi loy retsepti</button>
+<button class="btn btn-dark" onclick="openAddModal()"><i class="ti ti-plus"></i> Yangi loy retsepti</button>
 {% endblock %}
 
 {% block head %}
@@ -13,37 +13,37 @@
 @media (max-width:900px){.rec-grid{grid-template-columns:1fr}}
 .rec-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius-card);box-shadow:var(--shadow-card);overflow:hidden}
 .rec-head{display:flex;align-items:center;gap:12px;padding:16px;border-bottom:1px solid var(--border2)}
-.rec-thumb{width:48px;height:48px;border-radius:10px;background:var(--gold-tint);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;color:var(--gold-dark);font-size:20px;position:relative;cursor:pointer}
+.rec-thumb{width:48px;height:48px;border-radius:10px;background:var(--gold-tint);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;color:var(--gold-dark);font-size:18px;position:relative;cursor:pointer}
 .rec-thumb img{width:100%;height:100%;object-fit:cover;cursor:zoom-in}
 .rec-thumb input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 .rec-thumb-cam{position:absolute;right:1px;bottom:1px;width:16px;height:16px;border-radius:50%;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;cursor:pointer;z-index:2}
 .rec-meta{font-size:13px;color:var(--text3);margin-top:2px}
 .ing-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border2)}
 .ing-row:last-child{border-bottom:none}
-.ing-name{font-size:12.5px;color:var(--text2)}
+.ing-name{font-size:13px;color:var(--text2)}
 .ing-val{font-size:13px;font-weight:600;color:var(--text)}
 .ing-bar{height:4px;background:var(--border2);border-radius:2px;margin-top:5px;width:140px}
 .ing-fill{height:100%;background:var(--gold);border-radius:2px}
 .rec-stat{background:var(--bg);border-radius:10px;padding:12px;text-align:center}
 .rec-stat-val{font-size:16px;font-weight:600;color:var(--gold-dark)}
-.rec-stat-label{font-size:12.5px;color:var(--text3);margin-top:2px}
+.rec-stat-label{font-size:13px;color:var(--text3);margin-top:2px}
 .ing-form-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
-.ing-form-row select{flex:2;height:36px;padding:0 8px;border:1px solid var(--border);border-radius:7px;font-size:12.5px}
-.ing-form-row input{flex:1;height:36px;padding:0 8px;border:1px solid var(--border);border-radius:7px;font-size:12.5px}
+.ing-form-row select{flex:2;height:36px;padding:0 8px;border:1px solid var(--border);border-radius:7px;font-size:13px}
+.ing-form-row input{flex:1;height:36px;padding:0 8px;border:1px solid var(--border);border-radius:7px;font-size:13px}
 .ing-form-row button{flex-shrink:0;width:32px;height:32px;border:none;background:none;color:var(--m-dc2626);cursor:pointer;font-size:16px}
 
 /* ── Retsept yozish/tahrirlash oynasi — qayta dizayn ── */
 .recp-modal{background:var(--white);border-radius:16px;padding:26px;width:560px;max-width:100%;max-height:90vh;overflow-y:auto}
 .recp-modal-head{display:flex;align-items:center;gap:13px;margin-bottom:22px}
-.recp-modal-icon{width:44px;height:44px;border-radius:12px;background:var(--gold-tint);color:var(--gold-dark);display:flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0}
-.recp-modal-title{font-size:17px;font-weight:700;color:var(--text);flex:1}
-.recp-modal-close{width:30px;height:30px;border-radius:8px;border:none;background:none;color:var(--text3);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.recp-modal-icon{width:44px;height:44px;border-radius:12px;background:var(--gold-tint);color:var(--gold-dark);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.recp-modal-title{font-size:16px;font-weight:700;color:var(--text);flex:1}
+.recp-modal-close{width:var(--h-sm);height:var(--h-sm);border-radius:var(--r-btn);border:none;background:none;color:var(--text3);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .recp-modal-close:hover{background:var(--bg);color:var(--text)}
 .recp-field label{display:block;font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:7px}
 .recp-field-input{position:relative}
-.recp-field-input i{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--gold-dark);font-size:15px;pointer-events:none}
-.recp-field-input input,.recp-field-input textarea{width:100%;height:44px;padding:0 14px 0 40px;border:1.5px solid var(--border2);border-radius:10px;font-size:13.5px;color:var(--text);outline:none;transition:border-color .15s;box-sizing:border-box}
-.recp-field-input textarea{height:auto;min-height:76px;padding:12px 14px 12px 40px;resize:vertical;font-family:inherit}
+.recp-field-input i{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--gold-dark);font-size:16px;pointer-events:none}
+.recp-field-input input,.recp-field-input textarea{width:100%;min-height:var(--h-btn);padding:0 12px 0 40px;line-height:20px;border:1.5px solid var(--border2);border-radius:var(--r-btn);font-size:var(--fs-maydon);color:var(--text);outline:none;transition:border-color .15s;box-sizing:border-box}
+.recp-field-input textarea{height:auto;min-height:80px;padding:10px 12px 10px 40px;resize:vertical;font-family:inherit}
 .recp-field-input textarea+i{top:19px;transform:none}
 .recp-field-input input:focus,.recp-field-input textarea:focus{border-color:var(--gold)}
 .recp-charcount{text-align:right;font-size:12px;color:var(--text3);margin-top:4px}
@@ -51,22 +51,22 @@
 .recp-section-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px}
 .recp-section-title{font-size:12px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.4px}
 .recp-section-sub{font-size:12px;color:var(--text3);margin-bottom:12px}
-.recp-add-btn{display:flex;align-items:center;gap:5px;background:none;border:1.5px solid var(--gold);color:var(--gold-dark);font-size:12.5px;font-weight:700;padding:7px 13px;border-radius:9px;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.recp-add-btn{display:flex;align-items:center;justify-content:center;gap:6px;box-sizing:border-box;min-height:var(--h-md);background:none;border:1.5px solid var(--gold);color:var(--gold-dark);font-size:13px;line-height:18px;font-weight:700;padding:0 14px;border-radius:var(--r-btn);cursor:pointer;white-space:nowrap;flex-shrink:0}
 .recp-add-btn:hover{background:var(--gold-tint)}
 .recp-ing-table{border:1px solid var(--border2);border-radius:12px;overflow:hidden}
 .recp-ing-table-head{display:flex;background:var(--bg);padding:10px 14px;font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.3px}
 .recp-ing-table-head span:first-child{flex:1}
 .recp-ing-table-head span:last-child{width:110px;text-align:left}
-.recp-ing-empty{padding:22px;text-align:center;color:var(--text3);font-size:12.5px}
+.recp-ing-empty{padding:22px;text-align:center;color:var(--text3);font-size:13px}
 .recp-ing-row{display:flex;align-items:center;gap:11px;padding:11px 14px;border-top:1px solid var(--border2)}
-.recp-ing-icon{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.recp-ing-icon{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
 .recp-ing-info{flex:1;min-width:0}
-.recp-ing-name{font-size:13.5px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.recp-ing-name{font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .recp-cat-pill{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:20px;margin-top:3px}
-.recp-ing-qty{display:flex;align-items:center;width:92px;height:36px;border:1.5px solid var(--border2);border-radius:8px;overflow:hidden;flex-shrink:0}
-.recp-ing-qty input{width:100%;height:100%;border:none;outline:none;padding:0 0 0 10px;font-size:13px;color:var(--text)}
+.recp-ing-qty{display:flex;align-items:center;width:92px;height:var(--h-sm);box-sizing:border-box;border:1.5px solid var(--border2);border-radius:var(--r-btn);overflow:hidden;flex-shrink:0}
+.recp-ing-qty input{width:100%;height:100%;border:none;outline:none;padding:0 0 0 10px;font-size:var(--fs-maydon-sm);color:var(--text)}
 .recp-ing-qty span{padding:0 9px;color:var(--text3);font-size:12px;background:var(--bg);height:100%;display:flex;align-items:center}
-.recp-ing-del{width:30px;height:30px;border:none;background:none;color:var(--m-dc2626);cursor:pointer;font-size:15px;flex-shrink:0;border-radius:7px;display:flex;align-items:center;justify-content:center}
+.recp-ing-del{width:var(--h-sm);height:var(--h-sm);border:none;background:none;color:var(--m-dc2626);cursor:pointer;font-size:16px;flex-shrink:0;border-radius:var(--r-btn);display:flex;align-items:center;justify-content:center}
 .recp-ing-del:hover{background:var(--f-fee2e2)}
 .recp-picker{position:relative}
 /* kech119 (C BOSQICH — telefon, audit G4-24, O'LCHANGAN work/k125/telefon.py: 390 px da tarkibdagi nomlar 46 px («Nam...»),
@@ -83,15 +83,15 @@
   .recp-picker-panel{position:static;margin-bottom:12px;max-height:60vh}
 }
 .recp-picker-panel{position:absolute;top:0;left:0;right:0;background:var(--white);border:1px solid var(--border2);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.14);z-index:50;max-height:340px;display:flex;flex-direction:column}
-.recp-picker-search{display:flex;align-items:center;gap:8px;padding:11px 13px;border-bottom:1px solid var(--border2);flex-shrink:0}
-.recp-picker-search i{color:var(--text3);font-size:15px}
-.recp-picker-search input{flex:1;border:none;outline:none;font-size:13px;color:var(--text)}
+.recp-picker-search{display:flex;align-items:center;gap:8px;padding:6px 12px;border-bottom:1px solid var(--border2);flex-shrink:0}
+.recp-picker-search i{color:var(--text3);font-size:16px}
+.recp-picker-search input{flex:1;min-height:var(--h-sm);border:none;outline:none;font-size:var(--fs-maydon-sm);color:var(--text)}
 .recp-picker-list{overflow-y:auto;padding:8px}
 .recp-picker-cat{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:9px 8px 5px}
 .recp-picker-item{display:flex;align-items:center;gap:10px;padding:8px;border-radius:8px;cursor:pointer;font-size:13px;color:var(--text)}
 .recp-picker-item:hover{background:var(--bg)}
 .recp-picker-item-icon{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
-.recp-picker-empty{padding:20px;text-align:center;color:var(--text3);font-size:12.5px}
+.recp-picker-empty{padding:20px;text-align:center;color:var(--text3);font-size:13px}
 
 /* Markazlashgan xabar oynasi — brauzerning standart alert() o'rniga */
 .recp-toast-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:3000;display:none;align-items:center;justify-content:center;padding:20px}
@@ -99,7 +99,7 @@
 .recp-toast-icon{width:54px;height:54px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:24px}
 .recp-toast-icon.success{background:var(--f-dcfce7);color:var(--m-15803d)}
 .recp-toast-icon.error{background:var(--f-fee2e2);color:var(--m-dc2626)}
-.recp-toast-text{font-size:14.5px;font-weight:600;color:var(--text);line-height:1.5}
+.recp-toast-text{font-size:14px;font-weight:600;color:var(--text);line-height:1.5}
 </style>
 {% endblock %}
 
@@ -119,15 +119,15 @@
         <input type="file" accept="image/*" onchange="uploadRecipeImage({{ recipe.id }}, this)">
       </label>
       <div style="flex:1">
-        <div style="font-size:15px;font-weight:500;color:var(--text)">{{ recipe.name }} retsepti</div>
+        <div style="font-size:16px;font-weight:500;color:var(--text)">{{ recipe.name }} retsepti</div>
         <div class="rec-meta">
           {{ recipe.batch_size_kg|son(2) }} kg partiya
           {% if recipe.updated_at %} · Yangilangan: {{ recipe.updated_at|toshkent('%d.%m.%Y') }}
           {% else %} · Yaratilgan: {{ recipe.created_at|toshkent('%d.%m.%Y') }}{% endif %}
         </div>
       </div>
-      <button class="btn btn-outline btn-xs" onclick='openEditModal({{ recipe.id }}, {{ recipe.name|tojson }}, {{ recipe.batch_size_kg }}, {{ recipe.notes|tojson }}, {{ recipe.ingredients|map(attribute="inventory_id")|list|tojson }}, {{ recipe.ingredients|map(attribute="quantity_kg")|list|tojson }}, {{ recipe.ingredients|map(attribute="item_name")|list|tojson }}, {{ recipe.ingredients|map(attribute="unit")|list|tojson }})' title="Tahrirlash"><i class="ti ti-edit"></i></button>
-      <button class="btn btn-outline btn-xs" style="color:var(--m-dc2626);border-color:#EF4444" data-nom="{{ recipe.name }}" data-ishlatilgan="{{ ins.used_in|length }}" onclick="deleteRecipe({{ recipe.id }}, this.dataset.nom, Number(this.dataset.ishlatilgan) || 0)" title="O'chirish"><i class="ti ti-trash"></i></button>
+      <button class="btn btn-outline btn-icon btn-sm" aria-label="Tahrirlash" onclick='openEditModal({{ recipe.id }}, {{ recipe.name|tojson }}, {{ recipe.batch_size_kg }}, {{ recipe.notes|tojson }}, {{ recipe.ingredients|map(attribute="inventory_id")|list|tojson }}, {{ recipe.ingredients|map(attribute="quantity_kg")|list|tojson }}, {{ recipe.ingredients|map(attribute="item_name")|list|tojson }}, {{ recipe.ingredients|map(attribute="unit")|list|tojson }})' title="Tahrirlash"><i class="ti ti-edit"></i></button>
+      <button class="btn btn-danger btn-icon btn-sm" aria-label="O'chirish" data-nom="{{ recipe.name }}" data-ishlatilgan="{{ ins.used_in|length }}" onclick="deleteRecipe({{ recipe.id }}, this.dataset.nom, Number(this.dataset.ishlatilgan) || 0)" title="O'chirish"><i class="ti ti-trash"></i></button>
     </div>
     <div class="card-body">
 
@@ -141,7 +141,7 @@
 
       <div style="font-size:13px;color:var(--text3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px">Tarkibi</div>
       {% if not recipe.ingredients %}
-      <div style="color:var(--text3);font-size:12.5px;padding:8px 0">Tarkib hali kiritilmagan</div>
+      <div style="color:var(--text3);font-size:13px;padding:8px 0">Tarkib hali kiritilmagan</div>
       {% endif %}
       {% for ing in recipe.ingredients %}
       <div class="ing-row">
@@ -277,7 +277,7 @@ function ingredientRowHtml(prefix, idx, item, qty) {
         <input type="number" id="${prefix}-ing-qty-${idx}" min="0" step="0.01" value="${qty||''}" placeholder="0">
         <span>${escapeHtml(item && item.unit ? ((typeof birlikKor === 'function') ? birlikKor(item.unit) : item.unit) : 'kg')}</span>
       </div>
-      <button type="button" class="recp-ing-del" onclick="document.getElementById('${prefix}-ing-${idx}').remove()"><i class="ti ti-trash"></i></button>
+      <button type="button" class="recp-ing-del" title="Olib tashlash" aria-label="Olib tashlash" onclick="document.getElementById('${prefix}-ing-${idx}').remove()"><i class="ti ti-trash"></i></button>
     </div>`;
 }
 
@@ -339,7 +339,7 @@ async function openIngredientPicker(prefix) {
       <div class="recp-picker-search">
         <i class="ti ti-search"></i>
         <input type="text" id="${prefix}-picker-search" placeholder="Qidirish..." oninput="renderIngredientPickerList('${prefix}')">
-        <button type="button" class="recp-modal-close" data-yopish-ichki onclick="closeIngredientPicker('${prefix}')" style="width:24px;height:24px"><i class="ti ti-x" style="font-size:14px"></i></button>
+        <button type="button" class="recp-modal-close" data-yopish-ichki onclick="closeIngredientPicker('${prefix}')" title="Yopish" aria-label="Yopish"><i class="ti ti-x"></i></button>
       </div>
       <div class="recp-picker-list" id="${prefix}-picker-list"></div>
     </div>`;
@@ -534,8 +534,8 @@ async function saveEditRecipe() {
     </div>
 
     <div style="display:flex;gap:8px;margin-top:20px">
-      <button class="btn btn-dark w-full" id="recipe-save-btn" onclick="saveRecipe()"><i class="ti ti-device-floppy" style="vertical-align:-2px"></i> Saqlash</button>
-      <button data-yopish class="btn btn-outline w-full" onclick="closeAddModal()"><i class="ti ti-x" style="vertical-align:-2px"></i> Bekor</button>
+      <button class="btn btn-dark w-full" id="recipe-save-btn" onclick="saveRecipe()"><i class="ti ti-device-floppy"></i> Saqlash</button>
+      <button data-yopish class="btn btn-outline w-full" onclick="closeAddModal()"><i class="ti ti-x"></i> Bekor</button>
     </div>
   </div>
 </div>

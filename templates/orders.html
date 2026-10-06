@@ -25,9 +25,9 @@
 .prod-thumb input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
 .prod-thumb-cam{position:absolute;right:0;bottom:0;width:16px;height:16px;border-radius:50%;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;cursor:pointer;z-index:2}
 .prod-info{flex:1;min-width:0}
-.prod-name{font-size:14.5px;font-weight:600;color:var(--text)}
-.prod-meta{font-size:12.5px;color:var(--text3);margin-top:2px}
-.prod-total{font-size:15px;font-weight:700;color:var(--gold-dark);white-space:nowrap}
+.prod-name{font-size:14px;font-weight:600;color:var(--text)}
+.prod-meta{font-size:13px;color:var(--text3);margin-top:2px}
+.prod-total{font-size:16px;font-weight:700;color:var(--gold-dark);white-space:nowrap}
 .attach-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:8px;margin-top:10px}
 .attach-thumb{width:100%;border-radius:8px;overflow:hidden;background:var(--bg);border:1px solid var(--border);position:relative;display:flex;flex-direction:column}
 .attach-prev{width:100%;aspect-ratio:1;overflow:hidden;position:relative;background:var(--bg)}
@@ -58,28 +58,27 @@
 .proj-group.open .proj-head{background:var(--f-fdf8f0)}
 .proj-arrow{font-size:12px;color:var(--text3);transition:transform .2s;flex-shrink:0;width:10px}
 .proj-group.open .proj-arrow{transform:rotate(90deg);color:var(--gold-dark)}
-.proj-name{font-size:14.5px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.proj-client{font-size:12.5px;color:var(--text3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.proj-name{font-size:14px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.proj-client{font-size:13px;color:var(--text3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .proj-count{font-size:12px;color:var(--text3);font-weight:600;white-space:nowrap}
 .proj-debt{font-size:12px;color:var(--m-dc2626);font-weight:700;margin-top:3px;white-space:nowrap}
 .proj-paid{font-size:12px;color:var(--m-15803d);font-weight:700;margin-top:3px;white-space:nowrap}
 .proj-body{background:var(--f-fcfcfb);border-top:1px solid var(--ch-f5f5f5)}
 .proj-body .ord-item{padding-left:24px}
 .proj-body .ord-item:last-child{border-bottom:none}
-.step-btn2{width:36px;height:36px;border-radius:10px;border:1.5px solid var(--ch-e5e5e5);background:var(--white);font-size:18px;font-weight:700;color:var(--m-555555);cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;flex-shrink:0;transition:all .15s}
+.step-btn2{width:var(--h-btn);height:var(--h-btn);border-radius:var(--r-btn);border:1.5px solid var(--ch-e5e5e5);background:var(--white);font-size:18px;font-weight:700;color:var(--m-555555);cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;flex-shrink:0;transition:all .15s}
 .step-btn2:hover{background:var(--dark);color:#fff;border-color:var(--dark)}
 .dlv-inp:focus{border-color:#B9783F !important}
 .ord-item{padding:15px 16px;border-bottom:1.5px solid var(--ch-e8e3dd);cursor:pointer;transition:background .15s}
 /* kech120 (G2-13): holat filtri tugmalari — tor ekranda keyingi qatorga o'raladi (yon tomonga surilmaydi) */
 .ord-filtr{display:flex;flex-wrap:wrap;gap:5px;padding:7px 12px;border-bottom:1px solid var(--border2);flex-shrink:0}
-.ord-f{border:1px solid var(--ch-e8e8e8);background:var(--white);border-radius:999px;padding:3px 9px;font-size:12px;cursor:pointer;color:var(--text2);min-height:28px;font-family:inherit;white-space:nowrap}
-.ord-f.active{background:var(--gold-tint);border-color:var(--gold);color:var(--gold-dark);font-weight:700}
+/* U-13 (kech123): holat filtri — umumiy `.chip` (style.css); bu yerda faqat son rangi */
 .ord-f[data-f="otgan"] .f-son{color:var(--m-dc2626)}
 .ord-f .f-son{font-weight:700;margin-left:1px}
 .ord-item:hover{background:var(--f-fafaf8)}
 .ord-item.active{background:var(--f-fdf8f0);border-left:3px solid #B9783F}
 .ord-num{font-size:13px;font-weight:700;color:var(--gold-dark)}
-.ord-date{font-size:12.5px;color:var(--text3)}
+.ord-date{font-size:13px;color:var(--text3)}
 .mid-panel{display:flex;flex-direction:column;gap:10px}
 .right-panel{display:flex;flex-direction:column;gap:10px}
 .right-panel::-webkit-scrollbar{width:6px}
@@ -99,7 +98,8 @@
 .detal-summary b{color:var(--text);font-weight:600}
 .detal-summary .val{color:var(--m-15803d);font-weight:700;white-space:nowrap}
 .detal-badge{font-size:13px;font-weight:700;color:var(--gold-dark);background:var(--f-f8f2eb);padding:6px 14px;border-radius:8px;border:1px solid var(--ch-dbeafe);flex-shrink:0}
-.detal-rm{background:none;border:none;color:#ddd;cursor:pointer;font-size:22px;line-height:1;transition:color .15s;flex-shrink:0}
+.detal-rm{background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px;line-height:1;transition:color .15s, background .15s;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;width:var(--h-sm);height:var(--h-sm);border-radius:var(--r-btn)}
+.detal-rm:hover{background:var(--f-fee2e2)}
 .detal-rm:hover{color:var(--m-dc2626)}
 .detal-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
 @media (max-width:900px){.detal-grid{grid-template-columns:1fr 1fr}}
@@ -109,33 +109,33 @@
 .dgrp-title{font-size:12px;font-weight:800;color:var(--gold-dark);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
 .dgrp .dif{background:var(--white)}
 .dgrp-row{display:grid;gap:12px;align-items:end}
-.dgrp-xsign{text-align:center;font-size:19px;color:var(--gold-dark);font-weight:700;padding-bottom:12px;user-select:none}
-.dgrp-chip{margin-top:10px;background:var(--white);border-radius:8px;padding:8px 12px;font-size:12.5px;color:var(--m-666666);display:flex;align-items:center;gap:8px}
+.dgrp-xsign{text-align:center;font-size:18px;color:var(--gold-dark);font-weight:700;padding-bottom:12px;user-select:none}
+.dgrp-chip{margin-top:10px;background:var(--white);border-radius:8px;padding:8px 12px;font-size:13px;color:var(--m-666666);display:flex;align-items:center;gap:8px}
 .dif label{font-size:12px;color:var(--m-6b7280);display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px;font-weight:700}
-.dif input,.dif select{width:100%;padding:11px 13px;border:1.5px solid var(--ch-e5e5e5);border-radius:9px;font-size:14.5px;color:var(--m-111111);background:var(--white);outline:none;transition:border .15s}
-.unit-input-wrap{display:flex;align-items:stretch;border:1.5px solid var(--ch-e5e5e5);border-radius:9px;overflow:hidden;transition:border .15s;background:var(--white)}
+.dif input,.dif select{width:100%;min-height:var(--h-btn);padding:0 12px;line-height:20px;border:1.5px solid var(--ch-e5e5e5);border-radius:var(--r-btn);font-size:var(--fs-maydon);color:var(--m-111111);background:var(--white);outline:none;transition:border .15s}
+.unit-input-wrap{display:flex;align-items:stretch;min-height:var(--h-btn);box-sizing:border-box;border:1.5px solid var(--ch-e5e5e5);border-radius:var(--r-btn);overflow:hidden;transition:border .15s;background:var(--white)}
 .unit-input-wrap:focus-within{border-color:#B9783F}
-.unit-input-wrap input{border:none!important;outline:none;padding:11px 13px;font-size:14.5px;color:var(--m-111111);width:100%;background:transparent!important}
-.unit-input-wrap select{border:none!important;outline:none;padding:11px 13px;font-size:14.5px;color:var(--m-111111);width:100%;background:transparent!important}
-.unit-input-wrap .unit-suffix{display:flex;align-items:center;padding:0 12px;background:var(--gold-tint);color:var(--gold-dark);font-size:12.5px;font-weight:700;white-space:nowrap;flex-shrink:0}
+.unit-input-wrap input{border:none!important;outline:none;min-height:0;padding:0 12px;line-height:20px;font-size:var(--fs-maydon);color:var(--m-111111);width:100%;background:transparent!important}
+.unit-input-wrap select{border:none!important;outline:none;min-height:0;padding:0 12px;line-height:20px;font-size:var(--fs-maydon);color:var(--m-111111);width:100%;background:transparent!important}
+.unit-input-wrap .unit-suffix{display:flex;align-items:center;padding:0 12px;background:var(--gold-tint);color:var(--gold-dark);font-size:13px;font-weight:700;white-space:nowrap;flex-shrink:0}
 .dif input:focus,.dif select:focus{border-color:#B9783F}
 .dif input[readonly]{background:var(--f-f9fafb);color:var(--text3);cursor:not-allowed}
 .detal-result{margin-top:16px;padding:16px;background:var(--f-f5f3ef);border-radius:12px;display:flex;gap:22px;font-size:14px;color:var(--text3);flex-wrap:wrap;align-items:center}
 .result-cards{display:flex;gap:14px;flex-wrap:wrap;width:100%}
 .result-card{background:var(--white);border-radius:10px;border:1px solid var(--ch-e5e1d8);padding:12px 14px;flex:1;min-width:150px}
 .result-card label{font-size:12px;font-weight:700;color:var(--gold-dark);display:flex;align-items:center;gap:4px;margin-bottom:8px}
-.dval-box{display:flex;align-items:stretch;border:1px solid var(--ch-e5e1d8);border-radius:8px;overflow:hidden;background:var(--white)}
-.dval-box input{border:none;outline:none;padding:9px 12px;font-size:15px;color:var(--m-222222);width:100%;background:transparent;font-weight:600}
+.dval-box{display:flex;align-items:stretch;min-height:var(--h-btn);box-sizing:border-box;border:1px solid var(--ch-e5e1d8);border-radius:var(--r-btn);overflow:hidden;background:var(--white)}
+.dval-box input{border:none;outline:none;min-height:0;padding:0 12px;line-height:20px;font-size:16px;color:var(--m-222222);width:100%;background:transparent;font-weight:600}
 .dval-box .unit-suffix{display:flex;align-items:center;padding:0 12px;background:var(--gold-tint);color:var(--gold-dark);font-size:12px;font-weight:700;white-space:nowrap}
 .result-card.main label{color:var(--m-166534)}
-.dval-box.main input{color:var(--m-15803d);font-size:17px;font-weight:800}
+.dval-box.main input{color:var(--m-15803d);font-size:16px;font-weight:800}
 .dval-box.main .unit-suffix{background:var(--f-dcfce7);color:var(--m-166534)}
-.vol-relock{background:none;border:none;cursor:pointer;color:var(--gold-dark);font-size:14px;padding:0}
+.vol-relock{background:none;border:none;cursor:pointer;color:var(--gold-dark);font-size:14px;padding:0;display:inline-flex;align-items:center;justify-content:center;width:var(--h-sm);height:var(--h-sm);border-radius:var(--r-btn)}
 .detal-result .val{color:var(--m-15803d);font-weight:800;font-size:16px}
 .total-box{background:var(--f-f8f8f6);border-radius:14px;padding:18px;border:1px solid var(--ch-ebebeb)}
-.trow{display:flex;justify-content:space-between;font-size:14.5px;padding:5px 0;color:var(--m-555555)}
+.trow{display:flex;justify-content:space-between;font-size:14px;padding:5px 0;color:var(--m-555555)}
 .sum-title{font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin:16px 0 8px;font-weight:600}
-.sum-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--ch-f5f5f5);font-size:14.5px}
+.sum-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--ch-f5f5f5);font-size:14px}
 .sum-item:last-child{border-bottom:none}
 .si-l{color:var(--text3)}
 .si-v{font-weight:500;color:var(--m-111111)}
@@ -143,37 +143,38 @@
 .result-box{
   position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:2999;
   width:90%;max-width:560px;max-height:80vh;overflow-y:auto;
-  border-radius:10px;padding:15px;font-size:14.5px;box-shadow:0 8px 28px rgba(0,0,0,.2);
+  border-radius:10px;padding:15px;font-size:14px;box-shadow:0 8px 28px rgba(0,0,0,.2);
   display:none
 }
 .result-box.success{background:var(--f-dcfce7);border:1px solid var(--ch-a9dfbf);color:var(--m-1e7e34)}
 .result-box.error{background:var(--f-fee2e2);border:1px solid #F1948A;color:var(--m-dc2626)}
-.msg-bar{border-radius:10px;padding:13px 16px;font-size:14.5px;margin-bottom:10px;display:none}
+.msg-bar{border-radius:10px;padding:13px 16px;font-size:14px;margin-bottom:10px;display:none}
 .msg-bar.success{background:var(--f-dcfce7);color:var(--m-1e7e34);display:block}
 .msg-bar.error{background:var(--f-fee2e2);color:var(--m-dc2626);display:block}
 /* Ikonka-belgili sarlavha (rasmga mos) */
-.card-head h3{display:flex;align-items:center;gap:10px;font-size:15.5px}
+.card-head h3{display:flex;align-items:center;gap:10px;font-size:16px}
 .ico-badge{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
 .ico-badge.blue{background:var(--f-f8f2eb);color:var(--gold-dark)}
 .ico-badge.green{background:var(--f-dcfce7);color:var(--m-15803d)}
 .ico-badge.purple{background:var(--f-f3eeff);color:var(--m-7c3aed)}
 /* Qoplama — Yo'q/Bor tugmasi (rasmdagi uslub) */
-.coat-toggle{display:flex;border:1px solid var(--ch-e5e1d8);border-radius:9px;overflow:hidden;height:42px}
-.coat-opt{flex:1;display:flex;align-items:center;justify-content:center;font-size:13.5px;font-weight:700;cursor:pointer;color:var(--text3);background:var(--f-fafaf8);transition:all .15s}
+.coat-toggle{display:flex;border:1px solid var(--ch-e5e1d8);border-radius:var(--r-btn);overflow:hidden;height:var(--h-btn)}
+.coat-opt{flex:1;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;cursor:pointer;color:var(--text3);background:var(--f-fafaf8);transition:all .15s}
 .coat-opt.coat-no.active{background:var(--f-fca5a5);color:var(--m-7f1d1d)}
 .coat-opt.coat-yes.active{background:var(--f-86efac);color:var(--m-14532d)}
 /* Ichki qo'shimcha detal qatoridagi Qoplama — asosiy detalning
    coat-toggle/coat-opt bilan bir xil rang mantig'i, faqat qator ichiga
    sig'adigan kichikroq o'lchamda (ko'rinish, formulaga tegilmagan). */
-.sd-coat-toggle{display:flex;border:1px solid var(--ch-dddddd);border-radius:6px;overflow:hidden;height:30px}
+.sd-coat-toggle{display:flex;border:1px solid var(--ch-dddddd);border-radius:var(--r-btn);overflow:hidden;height:var(--h-sm)}
 .sd-coat-opt{flex:1;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;cursor:pointer;color:var(--text3);background:var(--f-fafaf8);transition:all .15s}
 .sd-coat-opt.sd-coat-no.active{background:var(--f-fca5a5);color:var(--m-7f1d1d)}
 .sd-coat-opt.sd-coat-yes.active{background:var(--f-86efac);color:var(--m-14532d)}
 /* Tur — tugma-chip guruhi (dropdown o'rniga, hammasi ochiq ko'rinadi) */
 .type-toggle{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .type-opt{
-  padding:8px 12px;border:1.5px solid var(--ch-e5e7eb);border-radius:8px;
-  font-size:12.5px;font-weight:600;color:var(--text3);background:var(--white);
+  display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:var(--h-md);padding:0 12px;line-height:18px;
+  border:1.5px solid var(--ch-e5e7eb);border-radius:var(--r-btn);
+  font-size:13px;font-weight:600;color:var(--text3);background:var(--white);
   cursor:pointer;transition:all .15s;text-align:center;white-space:nowrap;
 }
 .type-opt:hover{border-color:var(--gold);color:var(--gold-dark)}
@@ -211,9 +212,16 @@ input[type=number]{-moz-appearance:textfield}
    «Pin» oxirida, «O'chirish» alohida chiziq bilan */
 #sumBody{display:flex;flex-direction:column}
 #sumBody > .yb-amallar-sarlavha{order:-2}
-#sumBody > .yb-amallar{order:-1;margin-bottom:6px;display:grid !important;grid-template-columns:1fr 1fr;gap:7px}
-#sumBody > .yb-amallar .btn{min-height:36px;display:flex;align-items:center;justify-content:center;text-align:center;line-height:1.25;white-space:normal}
-#sumBody > .yb-amallar #btn-ready, #sumBody > .yb-amallar #btn-duplicate, #sumBody > .yb-amallar #btn-edit-izoh{grid-column:1 / -1}
+/* U-13 (kech123, O'LCHANGAN: o'ng panel 280 px — ikki ustunda «✏️ Tahrirlash», «📄 Buyurtma hisobi (PDF)» ikki qatorga o'tib 54 px
+   bo'lardi): ustun soni joyga qarab (har tugma ≥ 160 px — yozuv bir qatorda), uzun yozuvlilar butun qatorda */
+#sumBody > .yb-amallar{order:-1;margin-bottom:6px;display:grid !important;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:7px}
+#sumBody > .yb-amallar .btn{display:flex;text-align:center;white-space:nowrap}
+#sumBody > .yb-amallar #btn-ready, #sumBody > .yb-amallar #btn-duplicate, #sumBody > .yb-amallar #btn-edit-izoh, #sumBody > .yb-amallar #btn-pdf{grid-column:1 / -1}
+/* tanlangan buyurtma kartalari sarlavhasi (Yetkazish: «Hisob-kitob», «Bir yo'la to'liq topshirish», «+ Qisman topshirish») — tor ustunda
+   tugmalar keyingi qatorga o'tadi, yozuv o'z tugmasida bir qatorda */
+#orderDetail .card-head{flex-wrap:wrap;row-gap:8px}
+.yb-sarlavha-tugmalar{flex-wrap:wrap;justify-content:flex-end;row-gap:6px}
+.yb-sarlavha-tugmalar .btn{white-space:nowrap}
 #sumBody > .yb-amallar #btn-delete{grid-column:1 / -1;margin-top:6px}
 #sumBody > .yb-amallar .yb-ochir-chiziq{grid-column:1 / -1;border-top:1px dashed var(--border);margin-top:4px}
 @media (max-width:900px){
@@ -226,11 +234,8 @@ input[type=number]{-moz-appearance:textfield}
   .ord-list{max-height:280px}
   #sumBody{display:flex;flex-direction:column}
   #sumBody > .yb-amallar-sarlavha{order:-2}
-  #sumBody > .yb-amallar{order:-1;margin-bottom:6px;display:grid !important;grid-template-columns:1fr 1fr}
-  #sumBody > .yb-amallar .btn{min-height:44px;font-size:13.5px;display:flex;align-items:center;justify-content:center;text-align:center;line-height:1.25;white-space:normal}
-  #sumBody > .yb-amallar #btn-ready, #sumBody > .yb-amallar #btn-duplicate{grid-column:1 / -1}
-  .yb-sarlavha-tugmalar{flex-wrap:wrap;justify-content:flex-end;row-gap:6px}
-  #orderDetail .card-head{flex-wrap:wrap;row-gap:8px}
+  #sumBody > .yb-amallar{order:-1;margin-bottom:6px;display:grid !important;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+  #sumBody > .yb-amallar #btn-ready, #sumBody > .yb-amallar #btn-duplicate, #sumBody > .yb-amallar #btn-pdf{grid-column:1 / -1}
   .pf-qator{flex-wrap:wrap}
   .pf-qator > div{flex:1 1 140px !important;min-width:0}
 }
@@ -250,7 +255,7 @@ input[type=number]{-moz-appearance:textfield}
   .detal{padding:14px 12px}
   .dgrp-row{gap:8px}
   .dgrp-row > .dif{padding:8px}
-  .dgrp-row .unit-input-wrap input, .dgrp-row .unit-input-wrap select{padding:10px}
+  .dgrp-row .unit-input-wrap input, .dgrp-row .unit-input-wrap select{padding:0 10px}
   .dgrp-row .unit-input-wrap .unit-suffix{padding:0 8px}
   .yb-saqlash-qator{flex-direction:column}
   .yb-saqlash-qator .btn{flex:none !important;width:100%}
@@ -269,16 +274,16 @@ input[type=number]{-moz-appearance:textfield}
       {# kech120 (G2-13): qidiruv — raqam, mijoz, loyiha, telefon, detal nomi, usta (ilgari 100 px, faqat raqam / mijoz / loyiha) #}
       <input type="search" id="ordQidiruv" placeholder="Qidirish: raqam, mijoz, telefon, detal, usta" oninput="searchOrders(this.value)"
              aria-label="Buyurtmalarni qidirish"
-             style="flex:1;min-width:0;max-width:260px;padding:6px 9px;border:1px solid var(--ch-e8e8e8);border-radius:6px;font-size:13px;outline:none">
+             style="flex:1;min-width:0;max-width:260px;border:1px solid var(--ch-e8e8e8);outline:none" class="maydon maydon-sm">
     </div>
     {# kech120 (G2-13): holat filtri — sonlar sahifa ochilganda ro'yxatdan sanaladi; Bosh sahifadan «/orders?royxat=…» #}
     <div id="ordFiltr" class="ord-filtr" role="group" aria-label="Buyurtmalar filtri">
-      <button type="button" class="ord-f active" data-f="hammasi" aria-pressed="true" onclick="royxatFiltrla('hammasi')">Hammasi <span class="f-son"></span></button>
-      <button type="button" class="ord-f" data-f="otgan" aria-pressed="false" onclick="royxatFiltrla('otgan')">Muddati o'tgan <span class="f-son"></span></button>
-      <button type="button" class="ord-f" data-f="bugun" aria-pressed="false" onclick="royxatFiltrla('bugun')">Bugun <span class="f-son"></span></button>
-      <button type="button" class="ord-f" data-f="jarayonda" aria-pressed="false" onclick="royxatFiltrla('jarayonda')">Jarayonda <span class="f-son"></span></button>
-      <button type="button" class="ord-f" data-f="qarz" aria-pressed="false" onclick="royxatFiltrla('qarz')">Qarzi bor <span class="f-son"></span></button>
-      <button type="button" class="ord-f" data-f="tugagan" aria-pressed="false" onclick="royxatFiltrla('tugagan')">Tugagan <span class="f-son"></span></button>
+      <button type="button" class="ord-f chip active" data-f="hammasi" aria-pressed="true" onclick="royxatFiltrla('hammasi')">Hammasi <span class="f-son"></span></button>
+      <button type="button" class="ord-f chip" data-f="otgan" aria-pressed="false" onclick="royxatFiltrla('otgan')">Muddati o'tgan <span class="f-son"></span></button>
+      <button type="button" class="ord-f chip" data-f="bugun" aria-pressed="false" onclick="royxatFiltrla('bugun')">Bugun <span class="f-son"></span></button>
+      <button type="button" class="ord-f chip" data-f="jarayonda" aria-pressed="false" onclick="royxatFiltrla('jarayonda')">Jarayonda <span class="f-son"></span></button>
+      <button type="button" class="ord-f chip" data-f="qarz" aria-pressed="false" onclick="royxatFiltrla('qarz')">Qarzi bor <span class="f-son"></span></button>
+      <button type="button" class="ord-f chip" data-f="tugagan" aria-pressed="false" onclick="royxatFiltrla('tugagan')">Tugagan <span class="f-son"></span></button>
     </div>
     <div id="pinnedOrdersSection" style="display:none;flex-shrink:0;border-bottom:1px solid var(--border2)">
       <div style="padding:7px 14px;background:var(--gold-tint);font-size:12px;font-weight:700;color:var(--gold-dark)">⭐ Ustuvor buyurtmalar (<span id="pinnedCount">0</span> ta)</div>
@@ -363,9 +368,9 @@ input[type=number]{-moz-appearance:textfield}
                  data-items="{{ o.items|map(attribute='name')|select|join(' · ') }}">
               <div style="display:flex;justify-content:space-between;align-items:center">
                 <div style="display:flex;align-items:center;gap:6px;min-width:0">
-                  <button class="pin-toggle-btn" onclick="event.stopPropagation(); toggleOrderPin({{ o.id }}, this)"
-                          title="{{ 'Pindan olish' if o.is_pinned else 'Pin qilish' }}"
-                          style="border:none;background:transparent;cursor:pointer;padding:2px;font-size:13px;opacity:{{ '1' if o.is_pinned else '0.28' }};flex-shrink:0">📌</button>
+                  <button class="pin-toggle-btn btn btn-ghost btn-icon btn-sm" onclick="event.stopPropagation(); toggleOrderPin({{ o.id }}, this)"
+                          title="{{ 'Pindan olish' if o.is_pinned else 'Pin qilish' }}" aria-label="{{ 'Pindan olish' if o.is_pinned else 'Pin qilish' }}"
+                          style="opacity:{{ '1' if o.is_pinned else '0.28' }}">📌</button>
                   <div class="ord-num">{{ o.order_number }}</div>
                 </div>
                 {% if o.status.value == 'draft' %}<span class="badge" style="font-size:12px;background:var(--f-f0f0f0);color:var(--m-666666)">📝 Qoralama</span>
@@ -413,7 +418,7 @@ input[type=number]{-moz-appearance:textfield}
         {% endfor %}
       {% elif not projects %}
         {# kech120 (zip 134 — F bosqichi 4-qism, audit G2-22): bo'sh korxonada avval loyiha kerakligi aytilmasdi #}
-        <div class="ord-bosh" style="text-align:center;padding:30px 16px;color:var(--text2);font-size:13.5px;line-height:1.55">
+        <div class="ord-bosh" style="text-align:center;padding:30px 16px;color:var(--text2);font-size:13px;line-height:1.55">
           <div style="font-weight:700;color:var(--text);margin-bottom:6px">Hali loyiha yo'q</div>
           Buyurtma loyiha (mijoz va uning obyekti) ichida yaratiladi — avval loyiha qo'shing.
           {% if current_user.ruxsat('loyiha', 'yaratish') %}<div style="margin-top:12px"><a class="btn btn-dark btn-sm" href="/projects?yangi=1">+ Loyiha yaratish</a></div>{% endif %}
@@ -424,7 +429,7 @@ input[type=number]{-moz-appearance:textfield}
     </div>
     <!-- Yangi buyurtma tugmasi -->
     <div style="padding:10px;border-top:1px solid var(--ch-f0f0f0);flex-shrink:0">
-      <button class="btn btn-dark w-full btn-sm" onclick="showNewForm()">+ Yangi buyurtma</button>
+      <button class="btn btn-dark btn-block" onclick="showNewForm()">+ Yangi buyurtma</button>
     </div>
   </div>
 
@@ -437,14 +442,14 @@ input[type=number]{-moz-appearance:textfield}
     <div id="genericConfirmOverlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:10000;align-items:center;justify-content:center;padding:20px">
       <div style="background:var(--white);border-radius:16px;max-width:420px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3)">
         <div style="padding:24px 24px 8px;text-align:center">
-          <div id="genericConfirmIcon" style="font-size:36px;margin-bottom:10px">❓</div>
+          <div id="genericConfirmIcon" style="font-size:32px;margin-bottom:10px">❓</div>
           <div id="genericConfirmTitle" style="font-size:16px;font-weight:700;color:var(--m-0f172a);margin-bottom:8px">Tasdiqlang</div>
           <div id="genericConfirmMsg" style="font-size:14px;color:var(--m-475569);line-height:1.6"></div>
         </div>
         <div style="padding:20px 24px 24px;display:flex;gap:10px">
-          <button id="genericConfirmCancel" data-yopish style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--ch-e2e8f0);background:var(--white);color:var(--m-475569);font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
-          <button id="genericConfirmAlt" style="display:none;flex:1;padding:12px;border-radius:10px;border:1.5px solid #16A34A;background:var(--white);color:var(--m-15803d);font-weight:600;font-size:14px;cursor:pointer"></button>
-          <button id="genericConfirmOk" style="flex:1;padding:12px;border-radius:10px;border:none;color:#fff;font-weight:600;font-size:14px;cursor:pointer">✓ Ha</button>
+          <button id="genericConfirmCancel" class="btn btn-outline" data-yopish style="flex:1">Bekor qilish</button>
+          <button id="genericConfirmAlt" style="display:none;flex:1" class="btn btn-green-outline"></button>
+          <button id="genericConfirmOk" class="btn btn-green" style="flex:1">✓ Ha</button>
         </div>
       </div>
     </div>
@@ -453,13 +458,13 @@ input[type=number]{-moz-appearance:textfield}
     <div id="fullDlvModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;align-items:center;justify-content:center;padding:20px">
       <div style="background:var(--white);border-radius:16px;max-width:460px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)">
         <div style="padding:22px 24px 18px;border-bottom:1px solid var(--ch-f1f5f9)">
-          <div style="font-size:17px;font-weight:700;color:var(--m-0f172a)">🚚 Bir yo'la to'liq topshirish</div>
+          <div style="font-size:16px;font-weight:700;color:var(--m-0f172a)">🚚 Bir yo'la to'liq topshirish</div>
           <div style="font-size:13px;color:var(--m-64748b);margin-top:3px">Qolgan hamma mahsulot bir yo'la topshiriladi</div>
         </div>
         <div id="fullDlvModalBody" style="padding:20px 24px;display:flex;flex-direction:column;gap:16px"></div>
         <div style="padding:16px 24px 22px;display:flex;gap:10px;border-top:1px solid var(--ch-f1f5f9)">
-          <button data-yopish onclick="closeFullDlvModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--ch-e2e8f0);background:var(--white);color:var(--m-475569);font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
-          <button onclick="submitFullDlvModal()" style="flex:1;padding:12px;border-radius:10px;border:none;background:#15803D;color:#fff;font-weight:600;font-size:14px;cursor:pointer">✓ Tasdiqlash</button>
+          <button data-yopish class="btn btn-outline" onclick="closeFullDlvModal()" style="flex:1">Bekor qilish</button>
+          <button class="btn btn-green" onclick="submitFullDlvModal()" style="flex:1">✓ Tasdiqlash</button>
         </div>
       </div>
     </div>
@@ -468,14 +473,14 @@ input[type=number]{-moz-appearance:textfield}
     <div id="readyModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;align-items:center;justify-content:center;padding:20px">
       <div style="background:var(--white);border-radius:16px;max-width:460px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)">
         <div style="padding:22px 24px 18px;border-bottom:1px solid var(--ch-f1f5f9)">
-          <div style="font-size:17px;font-weight:700;color:var(--m-0f172a)">✅ Buyurtmani Tayyor deb belgilash</div>
+          <div style="font-size:16px;font-weight:700;color:var(--m-0f172a)">✅ Buyurtmani Tayyor deb belgilash</div>
           <div style="font-size:13px;color:var(--m-64748b);margin-top:3px" id="readyModalSubtitle">Quyidagi ma'lumotlarni tekshiring</div>
         </div>
         <div id="readyModalBody" style="padding:20px 24px;display:flex;flex-direction:column;gap:16px"></div>
-        <div id="readyModalXato" role="alert" style="display:none;margin:0 24px 14px;padding:11px 13px;border-radius:10px;background:var(--f-fef2f2);border:1px solid var(--ch-fecaca);color:var(--m-b91c1c);font-size:13.5px;line-height:1.5"></div>
+        <div id="readyModalXato" role="alert" style="display:none;margin:0 24px 14px;padding:11px 13px;border-radius:10px;background:var(--f-fef2f2);border:1px solid var(--ch-fecaca);color:var(--m-b91c1c);font-size:13px;line-height:1.5"></div>
         <div style="padding:16px 24px 22px;display:flex;gap:10px;border-top:1px solid var(--ch-f1f5f9)">
-          <button data-yopish onclick="closeReadyModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--ch-e2e8f0);background:var(--white);color:var(--m-475569);font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
-          <button id="readyModalOk" onclick="submitReadyModal()" style="flex:1;padding:12px;border-radius:10px;border:none;background:#15803D;color:#fff;font-weight:600;font-size:14px;cursor:pointer">✓ Tasdiqlash</button>
+          <button data-yopish class="btn btn-outline" onclick="closeReadyModal()" style="flex:1">Bekor qilish</button>
+          <button id="readyModalOk" class="btn btn-green" onclick="submitReadyModal()" style="flex:1">✓ Tasdiqlash</button>
         </div>
       </div>
     </div>
@@ -558,7 +563,7 @@ input[type=number]{-moz-appearance:textfield}
       <div class="card">
         <div class="card-head">
           <h3>Detallar</h3>
-          <button class="btn" style="padding:11px 22px;font-size:14.5px;font-weight:700;background:var(--gold-btn);border-color:var(--gold-btn);color:#fff;border-radius:10px" onclick="addItem()">+ Detal qo'shish</button>
+          <button class="btn btn-gold" onclick="addItem()">+ Detal qo'shish</button>
         </div>
         <div style="padding:12px" id="items"></div>
 
@@ -571,13 +576,13 @@ input[type=number]{-moz-appearance:textfield}
                 <label style="font-size:12px;color:var(--m-6b7280);text-transform:uppercase;font-weight:700;letter-spacing:.3px;margin-bottom:6px;display:block">Kelishilgan summa</label>
                 <input type="text" id="final_price" placeholder="Kelishilgan summa kiriting"
                        oninput="formatPriceInput(this);calcDiscount()"
-                       style="width:100%;padding:11px 13px;border:1.5px solid #B9783F;border-radius:9px;font-size:14.5px;font-weight:600;outline:none">
+                       style="width:100%;border:1.5px solid #B9783F;font-weight:600;outline:none" class="maydon">
               </div>
               <div class="form-group" style="margin:0" id="zaklat-field-wrap">
                 <label style="font-size:12px;color:var(--m-6b7280);text-transform:uppercase;font-weight:700;letter-spacing:.3px;margin-bottom:6px;display:block">Zaklat (oldindan)</label>
                 <input type="text" id="zaklat_amount" placeholder="0"
                        oninput="formatPriceInput(this);calcDebt()"
-                       style="width:100%;padding:11px 13px;border:1.5px solid #22C55E;border-radius:9px;font-size:14.5px;font-weight:600;outline:none">
+                       style="width:100%;border:1.5px solid #22C55E;font-weight:600;outline:none" class="maydon">
               </div>
             </div>
             <div style="font-size:12px;color:var(--text3);margin-top:6px">Kelishilgan summa bo'sh qolsa — chegirmasiz hisoblanadi</div>
@@ -587,7 +592,7 @@ input[type=number]{-moz-appearance:textfield}
             <div class="yb-ikki-ustun" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;padding-top:14px;border-top:1px dashed var(--ch-dddddd)">
               <div class="form-group" style="margin:0">
                 <label style="font-size:12px;color:var(--m-6b7280);text-transform:uppercase;font-weight:700;letter-spacing:.3px;margin-bottom:6px;display:block">To'lov usuli</label>
-                <select id="zaklat_method" style="width:100%;padding:11px 13px;border:1.5px solid var(--ch-dddddd);border-radius:9px;font-size:14.5px;outline:none">
+                <select id="zaklat_method" style="width:100%;border:1.5px solid var(--ch-dddddd);outline:none" class="maydon">
                   <option value="naqd">💵 Naqd</option>
                   <option value="plastik">💳 Plastik</option>
                   <option value="o'tkazma">🏦 O'tkazma</option>
@@ -600,8 +605,8 @@ input[type=number]{-moz-appearance:textfield}
         </div>
 
         <div class="yb-saqlash-qator" style="padding:0 12px 16px;display:flex;gap:10px">
-          <button id="draftSaveBtn" class="btn btn-outline" style="flex:1;height:48px;font-size:14px;border-color:#8E8E93;color:var(--m-666666);border-radius:10px" onclick="saveOrder(true)" title="Ombordan xomashyo yechilmaydi">📝 Vaqtincha saqlash</button>
-          <button class="btn btn-dark" style="flex:2;height:48px;font-size:14.5px;font-weight:700;border-radius:10px" onclick="saveOrder(false)">💾 Buyurtmani saqlash</button>
+          <button id="draftSaveBtn" class="btn btn-outline" style="flex:1;color:var(--m-666666)" onclick="saveOrder(true)" title="Ombordan xomashyo yechilmaydi">📝 Vaqtincha saqlash</button>
+          <button class="btn btn-dark" style="flex:2" onclick="saveOrder(false)">💾 Buyurtmani saqlash</button>
         </div>
       </div>
     </div>
@@ -616,7 +621,7 @@ input[type=number]{-moz-appearance:textfield}
             <div style="font-size:14px;font-weight:600;color:var(--m-92400e)">📝 Bu buyurtma qoralama holatida</div>
             <div style="font-size:14px;color:var(--m-999977);margin-top:3px">Ombordan xomashyo hali yechilmagan. Mijoz tasdiqlaganda "Jarayonga olish" tugmasini bosing.</div>
           </div>
-          <button class="btn btn-dark btn-sm" style="flex-shrink:0" onclick="activateDraft()">▶️ Jarayonga olish</button>
+          <button class="btn btn-dark btn-md" style="flex-shrink:0" onclick="activateDraft()">▶️ Jarayonga olish</button>
         </div>
       </div>
 
@@ -626,13 +631,13 @@ input[type=number]{-moz-appearance:textfield}
           <h3><span class="ico-badge blue"><i class="ti ti-truck-delivery"></i></span> Yetkazish</h3>
           <div class="yb-sarlavha-tugmalar" style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">
             <span id="dlv-pct-badge" style="font-size:13px;font-weight:600"></span>
-            <button class="btn btn-outline btn-sm" id="btn-summary" onclick="openSummaryModal()"
-                    style="display:none;border-color:#B9783F;color:var(--gold-dark)">🧾 Hisob-kitob</button>
-            <button class="btn btn-green" id="btn-quick-deliver" onclick="quickFullDelivery()"
-                    style="display:none;padding:10px 18px;font-size:13.5px;font-weight:600;border-radius:9px">✅ Bir yo'la to'liq topshirish</button>
-            <button class="btn btn-dark" id="btn-new-delivery" onclick="openDeliveryModal()" style="padding:10px 18px;font-size:13.5px;font-weight:600;border-radius:9px">+ Qisman topshirish</button>
-            <button class="step-btn2" style="width:26px;height:26px" onclick="toggleSection('dlvBody','dlv-toggle-ic')" title="Yig'ish/yoyish">
-              <i class="ti ti-chevron-down" id="dlv-toggle-ic" style="font-size:14px;transition:transform .2s;transform:rotate(-90deg)"></i>
+            <button class="btn btn-gold-outline btn-md" id="btn-summary" onclick="openSummaryModal()"
+                    style="display:none">🧾 Hisob-kitob</button>
+            <button class="btn btn-green btn-md" id="btn-quick-deliver" onclick="quickFullDelivery()"
+                    style="display:none">✅ Bir yo'la to'liq topshirish</button>
+            <button class="btn btn-dark btn-md" id="btn-new-delivery" onclick="openDeliveryModal()">+ Qisman topshirish</button>
+            <button class="btn btn-outline btn-icon btn-sm" onclick="toggleSection('dlvBody','dlv-toggle-ic')" title="Yig'ish/yoyish" aria-label="Yig'ish/yoyish">
+              <i class="ti ti-chevron-down" id="dlv-toggle-ic" style="transition:transform .2s;transform:rotate(-90deg)"></i>
             </button>
           </div>
         </div>
@@ -666,8 +671,8 @@ input[type=number]{-moz-appearance:textfield}
           <div style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">
             <span id="od-status"></span>
             <span id="od-mrp-readiness"></span>
-            <button class="step-btn2" style="width:26px;height:26px" onclick="toggleSection('odBody','od-toggle-ic')" title="Yig'ish/yoyish">
-              <i class="ti ti-chevron-down" id="od-toggle-ic" style="font-size:14px;transition:transform .2s"></i>
+            <button class="btn btn-outline btn-icon btn-sm" onclick="toggleSection('odBody','od-toggle-ic')" title="Yig'ish/yoyish" aria-label="Yig'ish/yoyish">
+              <i class="ti ti-chevron-down" id="od-toggle-ic" style="transition:transform .2s"></i>
             </button>
           </div>
         </div>
@@ -684,8 +689,8 @@ input[type=number]{-moz-appearance:textfield}
         <div class="card-head"><h3><span class="ico-badge purple"><i class="ti ti-photo"></i></span> Fayllar va rasmlar</h3></div>
         <div style="padding:12px">
           <label class="dropzone">
-            <i class="ti ti-upload" style="font-size:22px;color:var(--gold-dark)" aria-hidden="true"></i>
-            <div style="font-size:14.5px;color:var(--gold-dark);font-weight:500;margin-top:6px">Fayl yoki rasm yuklang</div>
+            <i class="ti ti-upload" style="font-size:24px;color:var(--gold-dark)" aria-hidden="true"></i>
+            <div style="font-size:14px;color:var(--gold-dark);font-weight:500;margin-top:6px">Fayl yoki rasm yuklang</div>
             <div style="font-size:13px;color:var(--text3);margin-top:2px">JPG, PNG, PDF, CDR, DWG yoki DXF, 25 MB gacha</div>
             <input type="file" accept="image/*,.pdf,.cdr,.dwg,.dxf" onchange="uploadOrderAttachment(this)">
           </label>
@@ -698,9 +703,9 @@ input[type=number]{-moz-appearance:textfield}
         <div class="card-head" style="cursor:pointer" onclick="toggleSection('payBody', 'pay-toggle-ic')">
           <h3><span class="ico-badge green"><i class="ti ti-cash"></i></span> To'lovlar</h3>
           <div style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">
-            <button class="btn btn-green btn-sm" id="btn-add-payment" onclick="openPaymentForm()">+ To'lov qo'shish</button>
-            <button class="step-btn2" style="width:26px;height:26px" onclick="toggleSection('payBody','pay-toggle-ic')" title="Yig'ish/yoyish">
-              <i class="ti ti-chevron-down" id="pay-toggle-ic" style="font-size:14px;transition:transform .2s"></i>
+            <button class="btn btn-green btn-md" id="btn-add-payment" onclick="openPaymentForm()">+ To'lov qo'shish</button>
+            <button class="btn btn-outline btn-icon btn-sm" onclick="toggleSection('payBody','pay-toggle-ic')" title="Yig'ish/yoyish" aria-label="Yig'ish/yoyish">
+              <i class="ti ti-chevron-down" id="pay-toggle-ic" style="transition:transform .2s"></i>
             </button>
           </div>
         </div>
@@ -715,11 +720,11 @@ input[type=number]{-moz-appearance:textfield}
                   <span onclick="fillFullDebt()" style="color:var(--gold-dark);font-weight:600;cursor:pointer;font-size:12px">To'liq qarz</span>
                 </div>
                 <input type="text" id="pf-amount" placeholder="0" oninput="formatPriceInput(this)"
-                       style="width:100%;padding:11px 13px;border:1.5px solid var(--ch-dddddd);border-radius:9px;font-size:15px;font-weight:600;outline:none">
+                       style="width:100%;border:1.5px solid var(--ch-dddddd);font-weight:600;outline:none" class="maydon">
               </div>
               <div style="flex:1">
                 <div style="font-size:13px;color:var(--text3);margin-bottom:3px">Turi</div>
-                <select id="pf-type" style="width:100%;padding:11px 13px;border:1.5px solid var(--ch-dddddd);border-radius:9px;font-size:15px;outline:none">
+                <select id="pf-type" style="width:100%;border:1.5px solid var(--ch-dddddd);outline:none" class="maydon">
                   <option value="partial">Qisman to'lov</option>
                   <option value="zaklat">Zaklat</option>
                   <option value="final">Yakuniy to'lov</option>
@@ -727,7 +732,7 @@ input[type=number]{-moz-appearance:textfield}
               </div>
               <div style="flex:1">
                 <div style="font-size:13px;color:var(--text3);margin-bottom:3px">Usuli</div>
-                <select id="pf-method" style="width:100%;padding:11px 13px;border:1.5px solid var(--ch-dddddd);border-radius:9px;font-size:15px;outline:none">
+                <select id="pf-method" style="width:100%;border:1.5px solid var(--ch-dddddd);outline:none" class="maydon">
                   <option value="naqd">💵 Naqd</option>
                   <option value="plastik">💳 Plastik</option>
                   <option value="o'tkazma">🏦 O'tkazma</option>
@@ -737,15 +742,15 @@ input[type=number]{-moz-appearance:textfield}
             <div style="margin-bottom:8px">
               <div style="font-size:13px;color:var(--text3);margin-bottom:3px">Izoh (ixtiyoriy)</div>
               <input type="text" id="pf-notes" placeholder="Masalan: yuk borganda berildi"
-                     style="width:100%;padding:11px 13px;border:1.5px solid var(--ch-dddddd);border-radius:9px;font-size:15px;outline:none">
+                     style="width:100%;border:1.5px solid var(--ch-dddddd);outline:none" class="maydon">
             </div>
             <label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px;padding:9px 11px;background:var(--white);border:1.5px solid var(--ch-fde68a);border-radius:8px;cursor:pointer">
               <input type="checkbox" id="pf-writeoff" style="margin-top:2px;width:16px;height:16px;cursor:pointer">
-              <span style="font-size:12.5px;color:var(--m-92400e);line-height:1.4">Agar to'lovdan keyin ozgina qarz qolsa (masalan mijoz "qolganini kechiring" desa) — <b>qolgan summa chegirma sifatida yozilsin</b> (foyda hisobotidan ham to'g'ri ayiriladi)</span>
+              <span style="font-size:13px;color:var(--m-92400e);line-height:1.4">Agar to'lovdan keyin ozgina qarz qolsa (masalan mijoz "qolganini kechiring" desa) — <b>qolgan summa chegirma sifatida yozilsin</b> (foyda hisobotidan ham to'g'ri ayiriladi)</span>
             </label>
             <div style="display:flex;gap:6px">
-              <button class="btn btn-green btn-sm" style="flex:1" onclick="savePayment()">💾 Saqlash</button>
-              <button class="btn btn-outline btn-sm" onclick="closePaymentForm()">Bekor</button>
+              <button class="btn btn-green" style="flex:1" onclick="savePayment()">💾 Saqlash</button>
+              <button class="btn btn-outline" onclick="closePaymentForm()">Bekor</button>
             </div>
           </div>
 
@@ -771,7 +776,7 @@ input[type=number]{-moz-appearance:textfield}
     <div class="card" id="sumCard" style="display:none">
       <div class="card-head" style="cursor:pointer" onclick="toggleSection('sumBody','sum-toggle-ic')">
         <h3><span class="ico-badge blue"><i class="ti ti-clipboard-list"></i></span> Buyurtma xulosasi</h3>
-        <button class="step-btn2" style="width:26px;height:26px" onclick="toggleSection('sumBody','sum-toggle-ic')" title="Yig'ish/yoyish">
+        <button class="btn btn-outline btn-icon btn-sm" onclick="toggleSection('sumBody','sum-toggle-ic')" title="Yig'ish/yoyish" aria-label="Yig'ish/yoyish">
           <i class="ti ti-chevron-down" id="sum-toggle-ic" style="font-size:14px;transition:transform .2s"></i>
         </button>
       </div>
@@ -787,32 +792,32 @@ input[type=number]{-moz-appearance:textfield}
 
         <div class="sum-title">Hisob-kitob</div>
         <div style="background:var(--bg);border-radius:12px;padding:16px;margin-bottom:4px">
-          <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:14.5px">
+          <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:14px">
             <span style="color:var(--text2)">Jami summa:</span>
             <span id="pay-total" style="font-weight:600">—</span>
           </div>
-          <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:14.5px" id="pay-discount-row">
+          <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:14px" id="pay-discount-row">
             <span style="color:var(--text2)" id="pay-discount-label">Chegirma:</span>
             <span id="pay-discount" style="font-weight:600;color:var(--m-b45309)">—</span>
           </div>
-          <div style="display:none;justify-content:space-between;padding:6px 0;font-size:14.5px" id="pay-refund-row"
+          <div style="display:none;justify-content:space-between;padding:6px 0;font-size:14px" id="pay-refund-row"
                title="Qaytarilgan mahsulot uchun pul qaytarilganda kelishilgan summa shu miqdorga kamaygan (chegirma emas)">
             <span style="color:var(--text2)">↩️ Qaytarish:</span>
             <span id="pay-refund" style="font-weight:600;color:var(--m-7c3aed)">—</span>
           </div>
-          <div style="display:none;justify-content:space-between;padding:6px 0;font-size:14.5px" id="pay-writeoff-row"
+          <div style="display:none;justify-content:space-between;padding:6px 0;font-size:14px" id="pay-writeoff-row"
                title="To'lov paytida kechirilgan (yopilgan) qarz — kelishilgan summa shu miqdorga kamaygan">
             <span style="color:var(--text2)">🤝 Kechirilgan qarz:</span>
             <span id="pay-writeoff" style="font-weight:600;color:var(--m-6b7280)">—</span>
           </div>
           <div style="padding:10px 0 8px;border-top:1px solid var(--border2);margin-top:6px;padding-top:12px">
-            <div style="color:var(--text2);font-weight:600;font-size:14.5px;margin-bottom:6px">Kelishilgan:</div>
+            <div style="color:var(--text2);font-weight:600;font-size:14px;margin-bottom:6px">Kelishilgan:</div>
             <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-              <span id="pay-agreed" style="font-weight:800;color:var(--gold);font-size:22px;line-height:1.2">—</span>
-              <button onclick="editAgreedAmount()" style="width:28px;height:28px;flex-shrink:0;border-radius:8px;background:var(--border2);border:none;font-size:14px;cursor:pointer" title="Kelishilgan summani o'zgartirish">✏️</button>
+              <span id="pay-agreed" style="font-weight:800;color:var(--gold);font-size:24px;line-height:1.2">—</span>
+              <button class="btn btn-soft btn-icon btn-sm" onclick="editAgreedAmount()" title="Kelishilgan summani o'zgartirish" aria-label="Kelishilgan summani o'zgartirish">✏️</button>
             </div>
           </div>
-          <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:14.5px">
+          <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:14px">
             <span style="color:var(--text2)">To'langan:</span>
             <span id="pay-paid" style="font-weight:600;color:var(--m-15803d)">—</span>
           </div>
@@ -836,18 +841,18 @@ input[type=number]{-moz-appearance:textfield}
 
         <div class="sum-title yb-amallar-sarlavha">Amallar</div>
         <div class="yb-amallar" style="display:flex;flex-direction:column;gap:7px">
-          <button class="btn btn-green w-full btn-sm" id="btn-ready" onclick="markReadySelected()" style="display:none">✓ Tayyor deb belgilash</button>
-          <button class="btn btn-outline w-full btn-sm" id="btn-edit" onclick="editSelected()" style="display:none;border-color:#B9783F;color:var(--gold-dark)">✏️ Tahrirlash</button>
-          <a id="btn-pdf" href="#" target="_blank" class="btn btn-outline w-full btn-sm" style="text-align:center;display:none" title="Buyurtma hisobi (PDF)">📄 Buyurtma hisobi (PDF)</a>
+          <button class="btn btn-green w-full btn-md" id="btn-ready" onclick="markReadySelected()" style="display:none">✓ Tayyor deb belgilash</button>
+          <button class="btn btn-gold-outline w-full btn-md" id="btn-edit" onclick="editSelected()" style="display:none">✏️ Tahrirlash</button>
+          <a id="btn-pdf" href="#" target="_blank" class="btn btn-outline w-full btn-md" style="display:none" title="Buyurtma hisobi (PDF)">📄 Buyurtma hisobi (PDF)</a>
           {# kech120 (zip 134 — G2-12): «Tahrirlash» yo'q bo'lsa — nega (ilgari izohsiz yo'qolardi) #}
           <div id="btn-edit-izoh" style="display:none;font-size:12px;color:var(--text3);line-height:1.4;padding:2px 2px 0">Tayyor / yetkazilgan buyurtmani tahrirlab bo'lmaydi — qo'shimcha kerak bo'lsa «Nusxa olish».</div>
-          <button class="btn btn-outline w-full btn-sm" id="btn-duplicate" onclick="duplicateSelected()" title="Shu buyurtma asosida, loyiha/usta/detallar oldindan to'ldirilgan YANGI buyurtma ochadi (eskisiga tegmaydi)" style="display:none;border-color:#6366F1;color:var(--m-6366f1)">📋 Nusxa olish (yangi buyurtma)</button>
+          <button class="btn btn-outline w-full btn-md" id="btn-duplicate" onclick="duplicateSelected()" title="Shu buyurtma asosida, loyiha/usta/detallar oldindan to'ldirilgan YANGI buyurtma ochadi (eskisiga tegmaydi)" style="display:none;border-color:#6366F1;color:var(--m-6366f1)">📋 Nusxa olish (yangi buyurtma)</button>
           {% if current_user.ruxsat('tannarx', 'korish') %}
-          <button class="btn btn-outline w-full btn-sm" id="btn-profit" onclick="loadProfit()" style="display:none;border-color:#B9783F;color:var(--gold-dark)">💰 Foyda hisoblash</button>
+          <button class="btn btn-gold-outline w-full btn-md" id="btn-profit" onclick="loadProfit()" style="display:none">💰 Foyda hisoblash</button>
           {% endif %}
-          <button class="btn btn-outline w-full btn-sm" id="btn-pin" onclick="toggleOrderPin(selectedOrderId)" style="display:none;border-color:var(--gold);color:var(--gold-dark)">📌 Pin qilish</button>
+          <button class="btn btn-gold-outline w-full btn-md" id="btn-pin" onclick="toggleOrderPin(selectedOrderId)" style="display:none">📌 Pin qilish</button>
           <div class="yb-ochir-chiziq"></div>
-          <button class="btn btn-outline w-full btn-sm" id="btn-delete" onclick="deleteSelected()" style="display:none;border-color:#EF4444;color:var(--m-dc2626)">🗑 O'chirish</button>
+          <button class="btn btn-danger w-full btn-md" id="btn-delete" onclick="deleteSelected()" style="display:none">🗑 O'chirish</button>
         </div>
       </div>
     </div>
@@ -856,8 +861,8 @@ input[type=number]{-moz-appearance:textfield}
     <div class="card" id="alertCard" style="display:none;border-left:3px solid #EF4444;border-radius:0 12px 12px 0">
       <div class="card-head" style="cursor:pointer" onclick="toggleSection('alertBody','alert-toggle-ic')">
         <h3 style="color:var(--m-dc2626);font-size:13px">⚠ Ombor</h3>
-        <button class="step-btn2" style="width:26px;height:26px" onclick="toggleSection('alertBody','alert-toggle-ic')" title="Yig'ish/yoyish">
-          <i class="ti ti-chevron-down" id="alert-toggle-ic" style="font-size:14px;transition:transform .2s"></i>
+        <button class="btn btn-outline btn-icon btn-sm" onclick="toggleSection('alertBody','alert-toggle-ic')" title="Yig'ish/yoyish" aria-label="Yig'ish/yoyish">
+          <i class="ti ti-chevron-down" id="alert-toggle-ic" style="transition:transform .2s"></i>
         </button>
       </div>
       <div style="padding:12px" id="alertBody"></div>
@@ -868,8 +873,8 @@ input[type=number]{-moz-appearance:textfield}
     <div class="card" id="umumiyStat">
       <div class="card-head" style="cursor:pointer" onclick="toggleSection('statBody','stat-toggle-ic')">
         <h3><span class="ico-badge purple"><i class="ti ti-chart-bar"></i></span> Statistika</h3>
-        <button class="step-btn2" style="width:26px;height:26px" onclick="toggleSection('statBody','stat-toggle-ic')" title="Yig'ish/yoyish">
-          <i class="ti ti-chevron-down" id="stat-toggle-ic" style="font-size:14px;transition:transform .2s;transform:rotate(-90deg)"></i>
+        <button class="btn btn-outline btn-icon btn-sm" onclick="toggleSection('statBody','stat-toggle-ic')" title="Yig'ish/yoyish" aria-label="Yig'ish/yoyish">
+          <i class="ti ti-chevron-down" id="stat-toggle-ic" style="transition:transform .2s;transform:rotate(-90deg)"></i>
         </button>
       </div>
       <div style="padding:12px;display:none" id="statBody">
@@ -911,14 +916,14 @@ input[type=number]{-moz-appearance:textfield}
   <div style="background:var(--white);border-radius:18px;width:440px;max-width:100%;box-shadow:0 24px 60px rgba(0,0,0,.25);overflow:hidden;animation:valPop .2s ease">
     <div style="padding:28px 26px 20px;text-align:center">
       <div style="width:56px;height:56px;border-radius:50%;background:var(--f-fef3c7);display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
-        <i class="ti ti-alert-triangle" style="font-size:28px;color:var(--m-b45309)"></i>
+        <i class="ti ti-alert-triangle" style="font-size:24px;color:var(--m-b45309)"></i>
       </div>
-      <div style="font-size:17px;font-weight:700;color:var(--m-111827);margin-bottom:6px">Buyurtmani saqlashdan oldin</div>
-      <div style="font-size:13.5px;color:var(--m-6b7280)">Quyidagi maydonlarni to'ldiring:</div>
+      <div style="font-size:16px;font-weight:700;color:var(--m-111827);margin-bottom:6px">Buyurtmani saqlashdan oldin</div>
+      <div style="font-size:13px;color:var(--m-6b7280)">Quyidagi maydonlarni to'ldiring:</div>
     </div>
     <div id="validationList" style="padding:0 26px 8px"></div>
     <div style="padding:18px 26px 26px">
-      <button data-yopish class="btn btn-dark w-full" style="height:46px;font-size:14px" onclick="closeValidationModal()">Tushunarli, to'ldiraman</button>
+      <button data-yopish class="btn btn-dark w-full" onclick="closeValidationModal()">Tushunarli, to'ldiraman</button>
     </div>
   </div>
 </div>
@@ -927,7 +932,7 @@ input[type=number]{-moz-appearance:textfield}
 .val-item{display:flex;align-items:center;gap:10px;padding:11px 12px;background:var(--f-fffbeb);border:1px solid var(--ch-fde68a);border-radius:10px;margin-bottom:8px;cursor:pointer;transition:background .12s}
 .val-item:hover{background:var(--f-fef3c7)}
 .val-item i{font-size:16px;color:var(--m-b45309);flex-shrink:0}
-.val-item span{font-size:13.5px;color:var(--m-78350f);font-weight:500}
+.val-item span{font-size:13px;color:var(--m-78350f);font-weight:500}
 </style>
 
 <!-- ══ HISOB-KITOB MODALI ══ -->
@@ -938,16 +943,16 @@ input[type=number]{-moz-appearance:textfield}
         <div style="font-size:16px;font-weight:600;color:var(--text)">🧾 Hisob-kitob varaqasi</div>
         <div style="font-size:14px;color:var(--text3);margin-top:2px" id="sum-modal-sub">—</div>
       </div>
-      <button data-yopish onclick="closeSummaryModal()" style="width:30px;height:30px;border-radius:50%;background:var(--f-f5f5f5);border:none;font-size:15px;cursor:pointer">✕</button>
+      <button data-yopish class="btn btn-soft btn-icon btn-sm" onclick="closeSummaryModal()" title="Yopish" aria-label="Yopish">✕</button>
     </div>
 
     <div style="padding:12px 22px;overflow-y:auto;flex:1">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;margin-bottom:8px">
         <div style="font-size:14px;color:var(--text3)">Qaysi yuk xatlari kirsin?</div>
-        <div style="display:flex;gap:6px">
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
           <button class="btn btn-outline btn-sm" onclick="sumCheckAll(true)">Hammasi</button>
           <button class="btn btn-outline btn-sm" onclick="sumCheckAll(false)">Hech biri</button>
-          <button class="btn btn-outline btn-sm" onclick="sumCheckDays(30)" style="border-color:#B9783F;color:var(--gold-dark)">Oxirgi 30 kun</button>
+          <button class="btn btn-gold-outline btn-sm" onclick="sumCheckDays(30)">Oxirgi 30 kun</button>
         </div>
       </div>
 
@@ -959,9 +964,9 @@ input[type=number]{-moz-appearance:textfield}
         <span style="font-size:13px;color:var(--m-555555);font-weight:600">Tanlangan jami:</span>
         <span id="sum-total" style="font-size:16px;font-weight:800;color:var(--gold-dark)">0 so'm</span>
       </div>
-      <div style="display:flex;gap:8px">
-        <button data-yopish class="btn btn-outline" style="flex:1" onclick="closeSummaryModal()">Bekor</button>
-        <button class="btn btn-dark" style="flex:2" onclick="openSummaryPdf()">📄 Hisob-kitob PDF olish</button>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        <button data-yopish class="btn btn-outline" style="flex:1 1 100px" onclick="closeSummaryModal()">Bekor</button>
+        <button class="btn btn-dark" style="flex:2 1 200px" onclick="openSummaryPdf()">📄 Hisob-kitob PDF olish</button>
       </div>
     </div>
   </div>
@@ -975,13 +980,13 @@ input[type=number]{-moz-appearance:textfield}
         <div style="font-size:16px;font-weight:600;color:var(--text)">📋 Nusxa olish — detallarni tanlang</div>
         <div style="font-size:14px;color:var(--text3);margin-top:2px" id="dup-modal-sub">—</div>
       </div>
-      <button data-yopish onclick="closeDuplicatePickModal()" style="width:30px;height:30px;border-radius:50%;background:var(--f-f5f5f5);border:none;font-size:15px;cursor:pointer">✕</button>
+      <button data-yopish class="btn btn-soft btn-icon btn-sm" onclick="closeDuplicatePickModal()" title="Yopish" aria-label="Yopish">✕</button>
     </div>
 
     <div style="padding:12px 22px;overflow-y:auto;flex:1">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;margin-bottom:8px">
         <div style="font-size:14px;color:var(--text3)">Yangi buyurtmaga qaysi detallar qo'shilsin?</div>
-        <div style="display:flex;gap:6px">
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
           <button class="btn btn-outline btn-sm" onclick="dupCheckAll(true)">Hammasi</button>
           <button class="btn btn-outline btn-sm" onclick="dupCheckAll(false)">Hech biri</button>
         </div>
@@ -991,9 +996,9 @@ input[type=number]{-moz-appearance:textfield}
     </div>
 
     <div style="padding:12px 22px 18px;border-top:1px solid var(--ch-f0f0f0)">
-      <div style="display:flex;gap:8px">
-        <button data-yopish class="btn btn-outline" style="flex:1" onclick="closeDuplicatePickModal()">Bekor qilish</button>
-        <button class="btn btn-dark" style="flex:2" onclick="confirmDuplicatePick()">Davom etish</button>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        <button data-yopish class="btn btn-outline" style="flex:1 1 100px" onclick="closeDuplicatePickModal()">Bekor qilish</button>
+        <button class="btn btn-dark" style="flex:2 1 200px" onclick="confirmDuplicatePick()">Davom etish</button>
       </div>
     </div>
   </div>
@@ -1007,13 +1012,13 @@ input[type=number]{-moz-appearance:textfield}
         <div style="font-size:16px;font-weight:600;color:var(--text)">📦 Qisman topshirish</div>
         <div style="font-size:14px;color:var(--text3);margin-top:2px" id="dlv-modal-sub">—</div>
       </div>
-      <button data-yopish onclick="closeDeliveryModal()" style="width:30px;height:30px;border-radius:50%;background:var(--f-f5f5f5);border:none;font-size:15px;cursor:pointer">✕</button>
+      <button data-yopish class="btn btn-soft btn-icon btn-sm" onclick="closeDeliveryModal()" title="Yopish" aria-label="Yopish">✕</button>
     </div>
 
     <div style="padding:14px 22px;overflow-y:auto;flex:1">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;margin-bottom:10px">
         <div style="font-size:14px;color:var(--text3)">Qancha berilayotganini kiriting</div>
-        <button class="btn btn-outline btn-sm" onclick="fillAllRemaining()" style="border-color:#B9783F;color:var(--gold-dark)">⚡ Qoldiqni to'ldirish</button>
+        <button class="btn btn-gold-outline btn-sm" onclick="fillAllRemaining()">⚡ Qoldiqni to'ldirish</button>
       </div>
 
       <div id="dlvForm"></div>
@@ -1022,34 +1027,34 @@ input[type=number]{-moz-appearance:textfield}
         <div style="flex:1">
           <div style="font-size:13px;color:var(--text3);margin-bottom:4px">Kim qabul qildi</div>
           <input type="text" id="dlv-received-by" placeholder="Mijoz ismi yoki haydovchi"
-                 style="width:100%;height:36px;padding:0 11px;border:1.5px solid var(--ch-dddddd);border-radius:7px;font-size:13px;outline:none">
+                 style="width:100%;border:1.5px solid var(--ch-dddddd);outline:none" class="maydon">
         </div>
         <div style="flex:1">
           <div style="font-size:13px;color:var(--text3);margin-bottom:4px">Izoh</div>
           <input type="text" id="dlv-notes" placeholder="Masalan: birinchi mashina"
-                 style="width:100%;height:36px;padding:0 11px;border:1.5px solid var(--ch-dddddd);border-radius:7px;font-size:13px;outline:none">
+                 style="width:100%;border:1.5px solid var(--ch-dddddd);outline:none" class="maydon">
         </div>
       </div>
 
       <div style="margin-top:12px;padding:11px 12px;background:var(--f-f0f9f4);border:1.5px solid var(--ch-bbf7d0);border-radius:9px">
         <div style="font-size:14px;font-weight:600;color:var(--m-166534);margin-bottom:8px">💰 Shu yuk uchun to'lov (ixtiyoriy)</div>
-        <div id="dlv-debt-info" style="font-size:12.5px;font-weight:600;margin-bottom:8px"></div>
+        <div id="dlv-debt-info" style="font-size:13px;font-weight:600;margin-bottom:8px"></div>
         <div style="display:flex;gap:8px">
           <div style="flex:1">
             <div style="font-size:13px;color:var(--text3);margin-bottom:4px">Summa (so'm)</div>
             <input type="text" id="dlv-payment-amount" placeholder="0" oninput="formatPriceInput(this)"
-                   style="width:100%;height:36px;padding:0 11px;border:1.5px solid var(--ch-dddddd);border-radius:7px;font-size:13px;outline:none;font-weight:600">
+                   style="width:100%;border:1.5px solid var(--ch-dddddd);outline:none;font-weight:600" class="maydon">
           </div>
           <div style="flex:1">
             <div style="font-size:13px;color:var(--text3);margin-bottom:4px">To'lov usuli</div>
-            <select id="dlv-payment-method" style="width:100%;height:36px;padding:0 8px;border:1.5px solid var(--ch-dddddd);border-radius:7px;font-size:13px;outline:none">
+            <select id="dlv-payment-method" style="width:100%;border:1.5px solid var(--ch-dddddd);outline:none" class="maydon">
               <option value="naqd">Naqd</option>
               <option value="plastik">Plastik</option>
               <option value="o'tkazma">O'tkazma</option>
             </select>
           </div>
         </div>
-        <div style="font-size:12.5px;color:var(--m-4b7a5a);margin-top:6px">Mijoz aynan shu yetkazish uchun to'lov qilgan bo'lsa, shu yerga yozing — buyurtma to'lovlariga avtomatik qo'shiladi.</div>
+        <div style="font-size:13px;color:var(--m-4b7a5a);margin-top:6px">Mijoz aynan shu yetkazish uchun to'lov qilgan bo'lsa, shu yerga yozing — buyurtma to'lovlariga avtomatik qo'shiladi.</div>
       </div>
 
       <div style="margin-top:12px;padding:11px 12px;background:var(--f-f0f6fa);border-radius:9px">
@@ -1058,17 +1063,17 @@ input[type=number]{-moz-appearance:textfield}
           <div style="flex:1.3">
             <div style="font-size:13px;color:var(--text3);margin-bottom:4px">Tashuvchi</div>
             <input type="text" id="dlv-transport-carrier" placeholder="Masalan: ABC Transport, Mijoz o'zi"
-                   style="width:100%;height:34px;padding:0 10px;border:1.5px solid var(--ch-dddddd);border-radius:7px;font-size:14.5px;outline:none">
+                   style="width:100%;border:1.5px solid var(--ch-dddddd);outline:none" class="maydon">
           </div>
           <div style="flex:1">
             <div style="font-size:13px;color:var(--text3);margin-bottom:4px">Summasi</div>
             <input type="text" inputmode="numeric" id="dlv-transport-cost" placeholder="0" oninput="formatPriceInput(this); dlvUpdatePayerHint()"
-                   style="width:100%;height:34px;padding:0 10px;border:1.5px solid var(--ch-dddddd);border-radius:7px;font-size:14.5px;outline:none">
+                   style="width:100%;border:1.5px solid var(--ch-dddddd);outline:none" class="maydon">
           </div>
         </div>
         <div style="font-size:13px;color:var(--text3);margin-bottom:4px">Kim to'laydi</div>
         <select id="dlv-transport-payer" onchange="dlvUpdatePayerHint()"
-                style="width:100%;height:34px;padding:0 10px;border:1.5px solid var(--ch-dddddd);border-radius:7px;font-size:14.5px;outline:none">
+                style="width:100%;border:1.5px solid var(--ch-dddddd);outline:none" class="maydon">
           <option value="none">—</option>
           <option value="client">Mijoz</option>
           <option value="company">Kompaniya</option>
@@ -1080,9 +1085,9 @@ input[type=number]{-moz-appearance:textfield}
       <div id="dlv-error" style="display:none;margin-top:10px;padding:9px 12px;background:var(--f-fee2e2);border-radius:7px;font-size:14px;color:var(--m-dc2626)"></div>
     </div>
 
-    <div style="padding:14px 22px 18px;border-top:1px solid var(--ch-f0f0f0);display:flex;gap:8px">
-      <button data-yopish class="btn btn-outline" style="flex:1" onclick="closeDeliveryModal()">Bekor</button>
-      <button class="btn btn-dark" style="flex:2" onclick="saveDelivery()">💾 Saqlash va yuk xatini olish</button>
+    <div style="padding:14px 22px 18px;border-top:1px solid var(--ch-f0f0f0);display:flex;flex-wrap:wrap;gap:8px">
+      <button data-yopish class="btn btn-outline" style="flex:1 1 100px" onclick="closeDeliveryModal()">Bekor</button>
+      <button class="btn btn-dark" style="flex:2 1 220px" onclick="saveDelivery()">💾 Saqlash va yuk xatini olish</button>
 
     </div>
   </div>
@@ -1571,7 +1576,7 @@ function showMsg(text, type) {
   // turishi uchun — sahifa bilan birga surilmaydigan, suzib turuvchi xabar.
   const box = document.createElement('div');
   box.style.cssText = `position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:3000;
-    padding:13px 22px;border-radius:10px;font-size:14.5px;font-weight:500;box-shadow:0 6px 24px rgba(0,0,0,.18);
+    padding:13px 22px;border-radius:10px;font-size:14px;font-weight:500;box-shadow:0 6px 24px rgba(0,0,0,.18);
     white-space:pre-line;max-width:520px;text-align:center;
     background:${type==='error'?'var(--f-fee2e2)':'var(--f-dcfce7)'};color:${type==='error'?'var(--m-dc2626)':'var(--m-1e7e34)'};
     border:1.5px solid ${type==='error'?'#F1948A':'var(--ch-a9dfbf)'}`;
@@ -1612,10 +1617,10 @@ function searchFinished(input) {
              data-fp='${escapeHtml(JSON.stringify(i))}'>
           <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
             <div style="min-width:0">
-              <div style="font-size:14.5px;font-weight:600;color:var(--text)">
+              <div style="font-size:14px;font-weight:600;color:var(--text)">
                 ${i.source_label} ${escapeHtml(i.name)}
               </div>
-              <div style="font-size:12.5px;color:var(--text3);margin-top:1px">
+              <div style="font-size:13px;color:var(--text3);margin-top:1px">
                 ${i.width && i.thickness ? i.width+'×'+i.thickness+' sm · ' : ''}${i.is_coated ? 'qoplamali' : 'qoplamasiz'}
               </div>
             </div>
@@ -2115,7 +2120,7 @@ async function loadOrderAttachments(orderId) {
       const inner = isImg
         ? `<img src="${escapeHtml(kichikRasm(a.file_url))}" alt="">`
         : `<a href="${a.file_url}" target="_blank"${nameAttr} style="display:flex;align-items:center;justify-content:center;height:100%;width:100%;color:var(--text3);text-decoration:none">
-             <i class="ti ${icon}" style="font-size:20px" aria-hidden="true"></i>
+             <i class="ti ${icon}" style="font-size:18px" aria-hidden="true"></i>
            </a>`;
       // Fayl nomi va formati endi doim ko'rinib turadi (faqat sichqoncha
       // ustiga borilganda emas) — foydalanuvchi qaysi fayl ekanligini
@@ -2261,7 +2266,7 @@ function renderDeliveryHistory(showAll) {
             </div>
             <div style="font-size:13px;color:var(--m-666666);margin-top:3px;line-height:1.5">${items}</div>
             ${dl.transport_carrier || dl.transport_cost > 0 ? `
-            <div style="font-size:12.5px;color:var(--gold-dark);margin-top:3px">
+            <div style="font-size:13px;color:var(--gold-dark);margin-top:3px">
               🚚 ${escapeHtml(dl.transport_carrier) || ''}${dl.transport_cost > 0 ? ` · ${formatNum(dl.transport_cost)} so'm` : ''}${dl.transport_payer && dl.transport_payer !== 'none' ? ` (${dl.transport_payer==='client'?'mijoz':dl.transport_payer==='company'?'kompaniya':'50/50'})` : ''}
             </div>` : ''}
             <div style="font-size:12px;color:var(--text3);margin-top:2px">
@@ -2269,15 +2274,13 @@ function renderDeliveryHistory(showAll) {
             </div>
           </div>
           <div style="display:flex;gap:4px;flex-shrink:0">
-            <a href="/api/deliveries/${dl.id}/pdf" target="_blank"
-               style="width:26px;height:26px;border-radius:6px;background:var(--f-f8f2eb);border:none;color:var(--gold-dark);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;text-decoration:none"
-               title="Yuk xati (PDF)">📄</a>
+            <a href="/api/deliveries/${dl.id}/pdf" target="_blank" class="btn btn-soft btn-icon btn-sm"
+               title="Yuk xati (PDF)" aria-label="Yuk xati (PDF)">📄</a>
             ${d.status === 'ready'
-              ? `<span class="dlv-qulf" style="width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--text3)"
+              ? `<span class="dlv-qulf" style="width:var(--h-sm);height:var(--h-sm);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--text3)"
                  title="Buyurtma «Tayyor» — yuk xatini o'chirib bo'lmaydi">🔒</span>`
-              : `<button onclick="deleteDelivery(${dl.id})"
-               style="width:26px;height:26px;border-radius:6px;background:var(--f-ffeeee);border:none;color:var(--m-dc2626);font-size:14px;cursor:pointer"
-               title="O'chirish">✕</button>`}
+              : `<button class="btn btn-danger btn-icon btn-sm" onclick="deleteDelivery(${dl.id})"
+               title="O'chirish" aria-label="Yuk xatini o'chirish">✕</button>`}
           </div>
         </div>`;
       }).join('');
@@ -2286,16 +2289,14 @@ function renderDeliveryHistory(showAll) {
       if (hidden > 0) {
         hist.innerHTML += `
           <div style="text-align:center;padding:10px 0 2px">
-            <button onclick="renderDeliveryHistory(true)"
-                    style="background:var(--f-f5f5f5);border:none;border-radius:16px;padding:6px 16px;font-size:13.5px;color:var(--m-666666);cursor:pointer;font-weight:500">
+            <button class="btn btn-soft btn-sm" onclick="renderDeliveryHistory(true)">
               ▼ Yana ${hidden} ta yuk xatini ko'rsatish
             </button>
           </div>`;
       } else if (showAll && all.length > DLV_HISTORY_LIMIT) {
         hist.innerHTML += `
           <div style="text-align:center;padding:10px 0 2px">
-            <button onclick="renderDeliveryHistory(false)"
-                    style="background:var(--f-f5f5f5);border:none;border-radius:16px;padding:6px 16px;font-size:13.5px;color:var(--m-666666);cursor:pointer;font-weight:500">
+            <button class="btn btn-soft btn-sm" onclick="renderDeliveryHistory(false)">
               ▲ Yig'ish
             </button>
           </div>`;
@@ -2426,11 +2427,11 @@ function openDeliveryModal() {
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
-        <button class="step-btn2" onclick="dlvStep(${it.id},-1)">−</button>
-        <input type="number" class="dlv-inp" id="dlv-${it.id}" data-max="${it.remaining}" data-tayyor="${(it.mrp_tayyor !== null && it.mrp_tayyor !== undefined) ? it.mrp_tayyor : ''}"
+        <button class="step-btn2" title="Kamaytirish" aria-label="Kamaytirish" onclick="dlvStep(${it.id},-1)">−</button>
+        <input type="number" class="dlv-inp maydon" id="dlv-${it.id}" data-max="${it.remaining}" data-tayyor="${(it.mrp_tayyor !== null && it.mrp_tayyor !== undefined) ? it.mrp_tayyor : ''}"
                min="0" max="${it.remaining}" step="any" placeholder="0" ${it.is_done?'disabled':''}
-               style="width:78px;height:34px;text-align:center;border:1.5px solid var(--ch-dddddd);border-radius:7px;font-size:13px;font-weight:600;outline:none">
-        <button class="step-btn2" onclick="dlvStep(${it.id},1)">+</button>
+               style="width:78px;text-align:center;border:1.5px solid var(--ch-dddddd);font-weight:600;outline:none;padding:0 6px">
+        <button class="step-btn2" title="Ko'paytirish" aria-label="Ko'paytirish" onclick="dlvStep(${it.id},1)">+</button>
         <span style="font-size:13px;color:var(--text3);width:32px">${escapeHtml(it.unit === 'metr' ? 'm' : (it.unit === 'dona' ? 'ta' : (it.unit || '')))}</span>
       </div>
     </div>`;
@@ -2529,12 +2530,12 @@ async function quickFullDelivery() {
     <div>
       <label style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px">💰 Mijoz shu yuk uchun to'lov qildimi?</label>
       ${debtHtml}
-      <input type="text" id="fd-payment" placeholder="0" oninput="formatPriceInput(this)" style="width:100%;padding:11px 12px;border:1.5px solid var(--ch-e2e8f0);border-radius:9px;font-size:15px;box-sizing:border-box">
+      <input type="text" id="fd-payment" placeholder="0" oninput="formatPriceInput(this)" style="width:100%;border:1.5px solid var(--ch-e2e8f0)" class="maydon">
     </div>
     <div>
       <label style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px">🚚 Yetkazib berish (transport) xarajati bormi?</label>
       <div style="font-size:12px;color:var(--text3);margin-bottom:6px">Bo'lmasa bo'sh qoldiring</div>
-      <input type="text" id="fd-transport" placeholder="0" oninput="formatPriceInput(this)" style="width:100%;padding:11px 12px;border:1.5px solid var(--ch-e2e8f0);border-radius:9px;font-size:15px;box-sizing:border-box">
+      <input type="text" id="fd-transport" placeholder="0" oninput="formatPriceInput(this)" style="width:100%;border:1.5px solid var(--ch-e2e8f0)" class="maydon">
     </div>
   `;
   document.getElementById('fullDlvModalOverlay').style.display = 'flex';
@@ -2962,7 +2963,7 @@ async function loadPayments(orderId) {
               ${dStr}${p.received_by ? ' · ' + escapeHtml(p.received_by) : ''}${p.notes ? ' · ' + escapeHtml(p.notes) : ''}
             </div>
           </div>
-          <button onclick="deletePayment(${p.id})" style="width:24px;height:24px;border-radius:50%;background:var(--f-ffeeee);border:none;color:var(--m-dc2626);font-size:13px;cursor:pointer;flex-shrink:0">✕</button>
+          <button class="btn btn-danger btn-icon btn-sm" onclick="deletePayment(${p.id})" title="To'lovni o'chirish" aria-label="To'lovni o'chirish">✕</button>
         </div>`;
     }).join('');
   } catch(e) {
@@ -3339,7 +3340,7 @@ function addItem() {
         <span class="detal-badge">Detal #${itemCount}</span>
         <span class="detal-summary"></span>
       </div>
-      <button class="detal-rm" onclick="event.stopPropagation();this.closest('.detal').remove();updateTotal()">✕</button>
+      <button class="detal-rm" title="Detalni olib tashlash" aria-label="Detalni olib tashlash" onclick="event.stopPropagation();this.closest('.detal').remove();updateTotal()">✕</button>
     </div>
     <div class="detal-body">
     <div class="detal-grid">
@@ -3399,7 +3400,7 @@ function addItem() {
       <div class="dgrp i-subdetails-wrap" style="grid-column:1/-1;display:none;background:var(--f-fbf7f0);border:1px dashed #B9783F">
         <div class="dgrp-title">➕ Ichki qo'shimcha detal (masalan karniz ichidagi rebristo qism)</div>
         <div class="subdetail-list"></div>
-        <button type="button" onclick="addSubDetailRow(this.closest('.detal'))" style="margin-top:4px;padding:7px 12px;font-size:13px;border:1px solid #B9783F;background:var(--white);color:var(--gold-dark);border-radius:8px;cursor:pointer">+ Ichki qo'shimcha detal qo'shish</button>
+        <button type="button" class="btn btn-gold-outline btn-sm" onclick="addSubDetailRow(this.closest('.detal'))" style="margin-top:4px">+ Ichki qo'shimcha detal qo'shish</button>
       </div>
       <div class="dif i-loysale-recipe-wrap" style="display:none">
         <label>Loy turi (retsept)</label>
@@ -3409,7 +3410,7 @@ function addItem() {
         <div class="dgrp-title">🎨 Qoplama, plotnost va narx</div>
         <div class="dgrp-row yb-qoplama-qator" style="grid-template-columns:1fr 2fr 1fr">
           <div class="dif"><label>Qoplama</label>
-            <div class="coat-toggle">
+            <div class="coat-toggle segment" role="group" aria-label="Qoplama">
               <div class="coat-opt coat-no active" onclick="setCoating(this, false)">Yo'q</div>
               <div class="coat-opt coat-yes" onclick="setCoating(this, true)">Bor (×2)</div>
             </div>
@@ -3451,7 +3452,7 @@ function addItem() {
           <div class="dval-box main"><input type="text" class="i-price" readonly><span class="unit-suffix">so'm</span></div>
         </div>
       </div>
-      <span class="i-peno-warn" style="display:none;font-size:14.5px;color:var(--m-b45309);font-weight:600"></span>
+      <span class="i-peno-warn" style="display:none;font-size:14px;color:var(--m-b45309);font-weight:600"></span>
     </div>
     </div>`;
   const container = document.getElementById('items');
@@ -3654,9 +3655,9 @@ async function openMrpProductPicker(btn) {
     <div style="background:var(--white);border-radius:14px;padding:20px;width:90vw;max-width:360px;max-height:70vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.25);box-sizing:border-box">
       <div style="font-weight:600;margin-bottom:10px;font-size:14px">🏭 MRP mahsulotini tanlang</div>
       <input id="mrpPickerSearch" type="text" placeholder="Qidirish..." autocomplete="off"
-             style="padding:8px 10px;border-radius:8px;border:1px solid var(--border2);margin-bottom:10px;font-size:13px;width:100%;box-sizing:border-box">
+             style="border:1px solid var(--border2);margin-bottom:10px;width:100%" class="maydon">
       <div id="mrpPickerList" style="overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:2px;min-height:60px"></div>
-      <button type="button" id="mrpPickerCancel" data-yopish style="margin-top:12px;padding:8px;border-radius:8px;border:1px solid var(--border2);background:transparent;cursor:pointer;font-size:13px">Bekor</button>
+      <button type="button" id="mrpPickerCancel" class="btn btn-outline" data-yopish style="margin-top:12px">Bekor</button>
     </div>`;
   document.body.appendChild(overlay);
 
@@ -4065,28 +4066,28 @@ function addSubDetailRow(detalRow, prefill) {
   sub.style.cssText = 'display:flex;gap:6px;align-items:flex-end;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--ch-eadfc9)';
   sub.innerHTML = `
     <div style="flex:2;min-width:110px"><label style="font-size:12px;color:var(--m-8a6a45)">Nomi (ixtiyoriy)</label>
-      <input type="text" class="sd-name" placeholder="Masalan: Rebristo detal" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--ch-dddddd);border-radius:6px">
+      <input type="text" class="sd-name maydon maydon-sm" placeholder="Masalan: Rebristo detal" style="width:100%;border:1px solid var(--ch-dddddd)">
     </div>
     <div style="flex:1;min-width:90px"><label style="font-size:12px;color:var(--m-8a6a45)">Turi</label>
-      <select class="sd-type" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--ch-dddddd);border-radius:6px" onchange="onSubDetailTypeChange(this)">
+      <select class="sd-type maydon maydon-sm" style="width:100%;border:1px solid var(--ch-dddddd)" onchange="onSubDetailTypeChange(this)">
         <option value="profil">📏 Profil</option>
         <option value="panel">🔲 Panel</option>
       </select>
     </div>
     <div style="flex:1;min-width:70px"><label style="font-size:12px;color:var(--m-8a6a45)">Eni (sm)</label>
-      <input type="number" class="sd-w" step="0.1" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--ch-dddddd);border-radius:6px" oninput="calculateItem(this.closest('.detal'))">
+      <input type="number" class="sd-w maydon maydon-sm" step="0.1" style="width:100%;border:1px solid var(--ch-dddddd)" oninput="calculateItem(this.closest('.detal'))">
     </div>
     <div style="flex:1;min-width:70px"><label style="font-size:12px;color:var(--m-8a6a45)">Qalinligi (sm)</label>
-      <input type="number" class="sd-t" step="0.1" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--ch-dddddd);border-radius:6px" oninput="calculateItem(this.closest('.detal'))">
+      <input type="number" class="sd-t maydon maydon-sm" step="0.1" style="width:100%;border:1px solid var(--ch-dddddd)" oninput="calculateItem(this.closest('.detal'))">
     </div>
     <div class="sd-l-wrap" style="flex:1;min-width:70px"><label style="font-size:12px;color:var(--m-8a6a45)">Uzunlik (m)</label>
-      <input type="number" class="sd-l" step="0.1" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--ch-dddddd);border-radius:6px" oninput="calculateItem(this.closest('.detal'))">
+      <input type="number" class="sd-l maydon maydon-sm" step="0.1" style="width:100%;border:1px solid var(--ch-dddddd)" oninput="calculateItem(this.closest('.detal'))">
     </div>
     <div class="sd-q-wrap" style="flex:1;min-width:70px;display:none"><label style="font-size:12px;color:var(--m-8a6a45)">Miqdor</label>
-      <input type="number" class="sd-q" step="0.5" value="1" min="0" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--ch-dddddd);border-radius:6px" oninput="calculateItem(this.closest('.detal'))">
+      <input type="number" class="sd-q maydon maydon-sm" step="0.5" value="1" min="0" style="width:100%;border:1px solid var(--ch-dddddd)" oninput="calculateItem(this.closest('.detal'))">
     </div>
     <div style="flex:1;min-width:100px"><label style="font-size:12px;color:var(--m-8a6a45)">Qoplama</label>
-      <div class="sd-coat-toggle">
+      <div class="sd-coat-toggle segment" role="group" aria-label="Qoplama">
         <div class="sd-coat-opt sd-coat-no active" onclick="setSubDetailCoating(this, false)">Yo'q</div>
         <div class="sd-coat-opt sd-coat-yes" onclick="setSubDetailCoating(this, true)">Bor (×2)</div>
       </div>
@@ -4096,7 +4097,7 @@ function addSubDetailRow(detalRow, prefill) {
       </select>
     </div>
     <div style="flex:2;min-width:120px;font-size:12px;color:var(--m-666666)" class="sd-info">≈ 0 so'm, 0 m³</div>
-    <button type="button" onclick="this.closest('.subdetail-row').remove();calculateItem(this.closest('.detal'))" style="border:none;background:var(--f-fef2f2);color:var(--m-dc2626);width:26px;height:26px;border-radius:6px;cursor:pointer;flex-shrink:0">✕</button>
+    <button type="button" class="btn btn-danger btn-icon btn-sm" title="Ichki detalni olib tashlash" aria-label="Ichki detalni olib tashlash" onclick="this.closest('.subdetail-row').remove();calculateItem(this.closest('.detal'))">✕</button>
   `;
   list.appendChild(sub);
 
@@ -4617,7 +4618,7 @@ function updateTotal() {
   // Jami
   html += `
     <div style="display:flex;justify-content:space-between;align-items:center;
-                padding:10px 0 0;font-size:15px;font-weight:700;
+                padding:10px 0 0;font-size:16px;font-weight:700;
                 border-top:2px solid #B9783F;margin-top:6px">
       <span>Jami (chegirmasiz):</span>
       <span style="color:var(--gold-dark)">${sonKor(total)} so'm</span>
@@ -5009,8 +5010,8 @@ function showStockShortageModal(shortages, data, isDraft, zaklat, zaklatMethod) 
       <span>${escapeHtml(s)}</span>
     </div>`).join('') + `
     <div style="display:flex;gap:8px;margin-top:14px">
-      <button class="btn btn-outline" style="flex:1" onclick="closeValidationModal()">Bekor qilish</button>
-      <button class="btn btn-dark" style="flex:1" id="shortageConfirmBtn">Ha, davom etaman</button>
+      <button class="btn btn-outline" style="flex:1 1 140px" onclick="closeValidationModal()">Bekor qilish</button>
+      <button class="btn btn-dark" style="flex:1 1 140px" id="shortageConfirmBtn">Ha, davom etaman</button>
     </div>`;
   document.getElementById('shortageConfirmBtn').onclick = function(){
     closeValidationModal();
@@ -5054,8 +5055,8 @@ function openDuplicatePickModal(order) {
              style="width:17px;height:17px;cursor:pointer;margin-top:2px;flex-shrink:0">
       <i class="ti ${icon}" style="font-size:16px;color:var(--text3);margin-top:2px;flex-shrink:0"></i>
       <div style="flex:1;min-width:0">
-        <div style="font-size:13.5px;font-weight:600;color:var(--text)">${escapeHtml(item.name) || '—'}</div>
-        <div style="font-size:12.5px;color:var(--text3);margin-top:2px">${itemParamsText(item)}</div>
+        <div style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(item.name) || '—'}</div>
+        <div style="font-size:13px;color:var(--text3);margin-top:2px">${itemParamsText(item)}</div>
       </div>
     </label>`;
   }).join('');
@@ -5964,7 +5965,7 @@ function showPromptModal(message, defaultValue = '', options = {}) {
     document.getElementById('genericConfirmMsg').innerHTML =
       escapeHtml(message).replace(/\n/g, '<br>') +
       `<input type="${options.type || 'text'}" id="genericPromptInput" value="${escapeHtml(defaultValue)}" placeholder="${options.placeholder || ''}"
-        style="width:100%;margin-top:12px;padding:11px 12px;border:1.5px solid var(--ch-e2e8f0);border-radius:9px;font-size:15px;box-sizing:border-box">`;
+        style="width:100%;margin-top:12px;border:1.5px solid var(--ch-e2e8f0)" class="maydon">`;
     const okBtn = document.getElementById('genericConfirmOk');
     const cancelBtn = document.getElementById('genericConfirmCancel');
     okBtn.textContent = options.okText || "✓ Tasdiqlash";
@@ -6058,7 +6059,7 @@ async function markReadySelected() {
     html += `<div>
       <label style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px">🪣 Haqiqatda necha kg loy ishlatildi?</label>
       ${planned > 0 ? `<div style="font-size:12px;color:var(--text3);margin-bottom:6px">📋 Rejada: ${planned} kg (xomashyo allaqachon ayirilgan)</div>` : `<div style="font-size:12px;color:var(--text3);margin-bottom:6px">Bo'sh qoldirsangiz faqat kesish hisoblanadi</div>`}
-      <input type="number" id="rm-loy" value="${planned > 0 ? planned : ''}" placeholder="0" style="width:100%;padding:11px 12px;border:1.5px solid var(--ch-e2e8f0);border-radius:9px;font-size:15px;box-sizing:border-box">
+      <input type="number" id="rm-loy" value="${planned > 0 ? planned : ''}" placeholder="0" style="width:100%;border:1.5px solid var(--ch-e2e8f0)" class="maydon">
     </div>`;
   }
 
@@ -6199,14 +6200,14 @@ async function loadProfit() {
       const subDetail = m ? m[2] : '';
       return `<div style="display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid var(--ch-f3f3f1)">
         <div style="font-size:13px;color:var(--text3);font-weight:700;width:20px;flex-shrink:0;margin-top:1px">${num}</div>
-        <div style="font-size:17px;flex-shrink:0">${ico}</div>
+        <div style="font-size:16px;flex-shrink:0">${ico}</div>
         <div style="flex:1;min-width:0">
           <div style="font-size:14px;font-weight:600;color:var(--m-222222)">${escapeHtml(mainName)}</div>
           ${subDetail ? `<div style="font-size:12px;color:var(--text3);margin-top:2px">${escapeHtml(subDetail)}</div>` : ''}
         </div>
         ${Number(b.summa) < 0
-          ? `<div style="font-weight:700;color:var(--m-15803d);white-space:nowrap;font-size:14.5px">+${formatNum(-Number(b.summa))} so'm</div>`
-          : `<div style="font-weight:700;color:var(--m-dc2626);white-space:nowrap;font-size:14.5px">−${formatNum(b.summa)} so'm</div>`}
+          ? `<div style="font-weight:700;color:var(--m-15803d);white-space:nowrap;font-size:14px">+${formatNum(-Number(b.summa))} so'm</div>`
+          : `<div style="font-weight:700;color:var(--m-dc2626);white-space:nowrap;font-size:14px">−${formatNum(b.summa)} so'm</div>`}
       </div>`;
     }).join('');
   } else {
@@ -6215,8 +6216,8 @@ async function loadProfit() {
 
   modal.innerHTML = `
     <div style="background:var(--white);border-radius:16px;padding:26px;max-width:540px;width:100%;position:relative;max-height:90vh;overflow-y:auto">
-      <button data-yopish onclick="document.getElementById('profitModal').remove()"
-              style="position:absolute;top:18px;right:20px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3)">✕</button>
+      <button data-yopish class="btn btn-soft btn-icon btn-sm" onclick="document.getElementById('profitModal').remove()" title="Yopish" aria-label="Yopish"
+              style="position:absolute;top:18px;right:20px">✕</button>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
         <div style="width:36px;height:36px;border-radius:10px;background:var(--f-f8f2eb);display:flex;align-items:center;justify-content:center;font-size:18px">💰</div>
         <div style="font-size:18px;font-weight:700;color:var(--m-222222)">Foyda tahlili</div>
@@ -6225,21 +6226,21 @@ async function loadProfit() {
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:20px">
         <div style="background:var(--f-f8f2eb);border-radius:12px;padding:14px 10px;text-align:center">
           <div style="font-size:12px;color:var(--gold-dark);margin-bottom:8px;font-weight:600">🏷️ Sotuv narxi</div>
-          <div style="font-size:15px;font-weight:800;color:var(--gold-dark);line-height:1.3">${formatNum(d.sotuv_narxi)}<br><span style="font-size:12px;font-weight:600">so'm</span></div>
+          <div style="font-size:16px;font-weight:800;color:var(--gold-dark);line-height:1.3">${formatNum(d.sotuv_narxi)}<br><span style="font-size:12px;font-weight:600">so'm</span></div>
         </div>
         <div style="background:var(--f-fef2f2);border-radius:12px;padding:14px 10px;text-align:center">
           <div style="font-size:12px;color:var(--m-b91c1c);margin-bottom:8px;font-weight:600">⊖ Tan narxi</div>
-          <div style="font-size:15px;font-weight:800;color:var(--m-b91c1c);line-height:1.3">${formatNum(d.tan_narxi)}<br><span style="font-size:12px;font-weight:600">so'm</span></div>
+          <div style="font-size:16px;font-weight:800;color:var(--m-b91c1c);line-height:1.3">${formatNum(d.tan_narxi)}<br><span style="font-size:12px;font-weight:600">so'm</span></div>
         </div>
         <div style="background:${d.foyda>=0?'var(--f-f0fdf4)':'var(--f-fef2f2)'};border-radius:12px;padding:14px 10px;text-align:center">
           <div style="font-size:12px;color:${d.foyda>=0?'var(--m-15803d)':'var(--m-b91c1c)'};margin-bottom:8px;font-weight:600">📈 Foyda</div>
-          <div style="font-size:15px;font-weight:800;color:${d.foyda>=0?'var(--m-15803d)':'var(--m-b91c1c)'};line-height:1.3">${formatNum(d.foyda)}<br><span style="font-size:12px;font-weight:600">so'm</span></div>
+          <div style="font-size:16px;font-weight:800;color:${d.foyda>=0?'var(--m-15803d)':'var(--m-b91c1c)'};line-height:1.3">${formatNum(d.foyda)}<br><span style="font-size:12px;font-weight:600">so'm</span></div>
           <div style="font-size:12px;color:${d.foyda>=0?'var(--m-15803d)':'var(--m-b91c1c)'};font-weight:700;margin-top:4px">${foizKor(d.foyda_foiz)}</div>
         </div>
       </div>
 
       <div style="background:var(--f-fafaf8);border-radius:14px;padding:18px;border:1px solid var(--ch-f0f0ec)">
-        <div style="display:flex;align-items:center;gap:8px;font-size:14.5px;font-weight:700;color:var(--m-222222);margin-bottom:12px">📋 Xarajatlar tafsiloti</div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:var(--m-222222);margin-bottom:12px">📋 Xarajatlar tafsiloti</div>
         <div style="display:flex;gap:12px;padding:0 0 10px;border-bottom:2px solid var(--ch-edede8);font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.3px">
           <div style="width:20px;flex-shrink:0">#</div>
           <div style="width:17px;flex-shrink:0"></div>
@@ -6248,7 +6249,7 @@ async function loadProfit() {
         </div>
         ${breakdownHTML}
         <div style="display:flex;justify-content:space-between;align-items:center;padding-top:14px;margin-top:2px;border-top:1.5px dashed var(--ch-d8d2c5)">
-          <span style="font-weight:700;color:var(--m-222222);font-size:14.5px">Jami tan narxi:</span>
+          <span style="font-weight:700;color:var(--m-222222);font-size:14px">Jami tan narxi:</span>
           <span style="font-weight:800;color:var(--m-dc2626);font-size:16px">${formatNum(d.tan_narxi)} so'm</span>
         </div>
       </div>
@@ -6258,7 +6259,7 @@ async function loadProfit() {
           <div style="width:38px;height:38px;border-radius:10px;background:${d.foyda>=0?'var(--f-dcfce7)':'var(--f-fee2e2)'};display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">📈</div>
           <div style="min-width:0">
             <div style="font-size:12px;font-weight:700;color:${d.foyda>=0?'var(--m-15803d)':'var(--m-b91c1c)'};text-transform:uppercase;letter-spacing:.3px">Foyda (Sotuv − Tan narxi)</div>
-            <div style="font-size:19px;font-weight:800;color:${d.foyda>=0?'var(--m-15803d)':'var(--m-b91c1c)'}">${formatNum(d.foyda)} so'm</div>
+            <div style="font-size:18px;font-weight:800;color:${d.foyda>=0?'var(--m-15803d)':'var(--m-b91c1c)'}">${formatNum(d.foyda)} so'm</div>
           </div>
         </div>
         <div style="text-align:center;flex-shrink:0">
@@ -6442,8 +6443,8 @@ function renderPinnedOrders(rows) {
            data-date="${o.created_at}" data-project-id="${o.project_id}" data-order-id="${o.id}" data-pinned="true">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <div style="display:flex;align-items:center;gap:6px;min-width:0">
-            <button class="pin-toggle-btn" onclick="event.stopPropagation(); toggleOrderPin(${o.id}, this)" title="Pindan olish"
-                    style="border:none;background:transparent;cursor:pointer;padding:2px;font-size:13px;opacity:1;flex-shrink:0">📌</button>
+            <button class="pin-toggle-btn btn btn-ghost btn-icon btn-sm" onclick="event.stopPropagation(); toggleOrderPin(${o.id}, this)" title="Pindan olish" aria-label="Pindan olish"
+                    style="opacity:1">📌</button>
             <div class="ord-num">${o.order_number}</div>
           </div>
           ${badge}

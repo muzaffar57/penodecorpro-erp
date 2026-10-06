@@ -4,15 +4,15 @@
 {% block page_sub %}Mijozdan qaytgan butun mahsulot va brak (yo'qotish hisobi){% endblock %}
 
 {% block topbar_actions %}
-{% if current_user.ruxsat('qaytarish', 'yaratish') or current_user.ruxsat('brak', 'yaratish') %}<button class="btn btn-outline" style="border-color:#DC2626;color:var(--m-dc2626)" onclick="showBrakModal()"><i class="ti ti-alert-triangle" style="vertical-align:-2px"></i> Brak yozish</button>{% endif %}
+{% if current_user.ruxsat('qaytarish', 'yaratish') or current_user.ruxsat('brak', 'yaratish') %}<button class="btn btn-danger" onclick="showBrakModal()"><i class="ti ti-alert-triangle"></i> Brak yozish</button>{% endif %}
 {# kech120 (zip 133 — G5-18): ruxsatsizga (server rad etadi) tugma ko'rsatilmaydi #}
-{% if current_user.ruxsat('qaytarish', 'yaratish') %}<button class="btn btn-dark" onclick="showAddModal()"><i class="ti ti-plus" style="vertical-align:-2px"></i> Yangi qaytarish</button>{% endif %}
+{% if current_user.ruxsat('qaytarish', 'yaratish') %}<button class="btn btn-dark" onclick="showAddModal()"><i class="ti ti-plus"></i> Yangi qaytarish</button>{% endif %}
 {% endblock %}
 
 {% block head %}
 <style>
 .ret-filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
-.ret-filters input,.ret-filters select{height:36px;padding:0 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;outline:none}
+.ret-filters input,.ret-filters select{min-height:var(--h-sm);padding:0 10px;border:1px solid var(--border);border-radius:var(--r-btn);font-size:var(--fs-maydon-sm);outline:none}
 .ret-filters input:focus,.ret-filters select:focus{border-color:var(--gold)}
 .ret-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--white);margin-bottom:8px;transition:box-shadow .15s;opacity:0;animation:rIn .3s ease forwards}
 @keyframes rIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
@@ -44,9 +44,9 @@
 .ret-group-header .g-count{font-size:12px;color:var(--text3);background:var(--white);padding:2px 9px;border-radius:20px;border:1px solid var(--border)}
 /* kech120 (zip 133 — G5-17): sarlavhada mijoz, butun / brak soni, summa va oxirgi sana (ilgari faqat raqam va son) */
 .ret-group-header .g-mijoz{font-size:13px;color:var(--text2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ret-group-header .g-xulosa{font-size:12.5px;color:var(--text3);white-space:nowrap;margin-right:auto}
-.ret-group-header .g-summa{font-size:12.5px;font-weight:600;color:var(--text);white-space:nowrap}
-.ret-group-header .g-sana{font-size:12.5px;color:var(--text3);white-space:nowrap}
+.ret-group-header .g-xulosa{font-size:13px;color:var(--text3);white-space:nowrap;margin-right:auto}
+.ret-group-header .g-summa{font-size:13px;font-weight:600;color:var(--text);white-space:nowrap}
+.ret-group-header .g-sana{font-size:13px;color:var(--text3);white-space:nowrap}
 .ret-group-header:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 @media (max-width:600px){
   .ret-group-header{flex-wrap:wrap;row-gap:4px}
@@ -55,7 +55,7 @@
 }
 .ret-group-body{display:none;padding-left:6px;border-left:2px solid var(--border2);margin-left:8px;margin-bottom:10px}
 .ret-group-body.open{display:block}
-.ret-icon{width:70px;align-self:stretch;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;position:relative;overflow:hidden;cursor:pointer}
+.ret-icon{width:70px;align-self:stretch;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;position:relative;overflow:hidden;cursor:pointer}
 .ret-icon img{width:100%;height:100%;object-fit:cover}
 .ret-icon input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 .ret-icon .cam-overlay{position:absolute;right:2px;bottom:2px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;color:#fff;font-size:12px;cursor:pointer;z-index:2}
@@ -68,8 +68,12 @@
 .refund-badge{font-size:12px;font-weight:600;padding:2px 8px;border-radius:20px}
 .refund-yes{background:var(--f-dcfce7);color:var(--m-166534)}
 .refund-no{background:var(--f-fef3c7);color:var(--m-92400e)}
-.refund-btn{font-size:12px;font-weight:600;padding:5px 10px;min-height:32px;border-radius:8px;border:1.5px solid var(--m-92400e);background:var(--f-fef3c7);color:var(--m-92400e);cursor:pointer;white-space:nowrap;margin-top:4px}
+.refund-btn{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;font-size:13px;line-height:18px;font-weight:600;padding:0 10px;min-height:var(--h-sm);border-radius:var(--r-btn);border:1.5px solid var(--m-92400e);background:var(--f-fef3c7);color:var(--m-92400e);cursor:pointer;white-space:nowrap;margin-top:4px}
 .refund-btn:hover{background:var(--m-92400e);color:#fff}
+/* U-13 (kech123): qatordagi belgi-tugma («O'chirish») — kichik kvadrat (ilgari o'lchami yozilmagan, 20 px) */
+.mini-btn{width:var(--h-sm);height:var(--h-sm);border-radius:var(--r-btn);border:1.5px solid var(--ch-e5e5e5);background:var(--white);color:var(--m-555555);
+  font-size:16px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.mini-btn:hover{background:var(--bg)}
 .ret-page{
   height: 100%;
   overflow-y: auto;
@@ -137,7 +141,7 @@
       <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:14px;flex-wrap:wrap">
         <div class="form-group" style="margin:0">
           <label style="font-size:12px">Oy</label>
-          <input type="month" id="brak-tahlil-oy" style="padding:7px 10px;font-size:13px">
+          <input type="month" id="brak-tahlil-oy" class="maydon">
         </div>
         <button class="btn btn-dark btn-sm" onclick="loadBrakTahlil()">🔍 Ko'rsatish</button>
       </div>
@@ -158,11 +162,11 @@
       <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:14px;flex-wrap:wrap">
         <div class="form-group" style="margin:0">
           <label style="font-size:12px">Boshlanish sanasi</label>
-          <input type="date" id="brak-sum-start" style="padding:7px 10px;font-size:13px">
+          <input type="date" id="brak-sum-start" class="maydon">
         </div>
         <div class="form-group" style="margin:0">
           <label style="font-size:12px">Tugash sanasi</label>
-          <input type="date" id="brak-sum-end" style="padding:7px 10px;font-size:13px">
+          <input type="date" id="brak-sum-end" class="maydon">
         </div>
         <button class="btn btn-dark btn-sm" onclick="loadBrakSummary()">🔍 Ko'rsatish</button>
         <button class="btn btn-outline btn-sm" onclick="brakSummaryThisMonth()">Shu oy</button>
@@ -175,12 +179,12 @@
   {% endif %}
 
   {% if not show_all %}
-  <div style="padding:8px 14px;background:var(--f-eff6ff);font-size:12.5px;color:var(--m-1a6fa8);display:flex;justify-content:space-between;align-items:center;border-radius:8px;margin-bottom:12px">
+  <div style="padding:8px 14px;background:var(--f-eff6ff);font-size:13px;color:var(--m-1a6fa8);display:flex;justify-content:space-between;align-items:center;border-radius:8px;margin-bottom:12px">
     <span>📅 So'nggi 90 kunlik qaytarishlar ko'rsatilmoqda</span>
     <a href="/returns?show_all=true" style="color:var(--m-2563eb);font-weight:600;text-decoration:none">Barchasini ko'rish →</a>
   </div>
   {% else %}
-  <div style="padding:8px 14px;background:var(--f-fffbeb);font-size:12.5px;color:var(--m-92400e);display:flex;justify-content:space-between;align-items:center;border-radius:8px;margin-bottom:12px">
+  <div style="padding:8px 14px;background:var(--f-fffbeb);font-size:13px;color:var(--m-92400e);display:flex;justify-content:space-between;align-items:center;border-radius:8px;margin-bottom:12px">
     <span>⚠️ Barcha qaytarishlar ko'rsatilmoqda</span>
     <a href="/returns" style="color:var(--m-b45309);font-weight:600;text-decoration:none">← Qisqartirish</a>
   </div>
@@ -234,12 +238,12 @@
         {% if is_defect %}<span class="badge badge-danger">🔴 Brak</span>{% if r.brak_bosqich %}<div class="brak-bosqich" style="font-size:12px;color:var(--m-991b1b);margin-top:4px">{{ (brak_bosqichlari or {}).get(r.brak_bosqich, r.brak_bosqich) }}</div>{% endif %}{% if r.brak_sabab %}<div class="brak-sabab" style="font-size:12px;color:var(--m-991b1b);margin-top:2px">{{ (brak_sabablari or {}).get(r.brak_sabab, r.brak_sabab) }}</div>{% endif %}{% if r.brak_javobgar_id %}<div class="brak-javobgar" style="font-size:12px;color:var(--m-64748b);margin-top:2px">👤 {{ (hodim_nomlari or {}).get(r.brak_javobgar_id, "O'chirilgan hodim") }}</div>{% endif %}{% else %}<span class="badge badge-ready">🟢 Butun</span>{% endif %}
       </div>
       <div class="ret-dest" style="min-width:130px;text-align:center">
-        {% if is_defect %}<span class="dest-badge dest-scrap"><i class="ti ti-trash" style="font-size:12px"></i> Chiqindiga ketdi</span>
-        {% else %}<span class="dest-badge dest-stock"><i class="ti ti-building-warehouse" style="font-size:12px"></i> Omborga qaytdi</span>{% endif %}
+        {% if is_defect %}<span class="dest-badge dest-scrap"><i class="ti ti-trash"></i> Chiqindiga ketdi</span>
+        {% else %}<span class="dest-badge dest-stock"><i class="ti ti-building-warehouse"></i> Omborga qaytdi</span>{% endif %}
       </div>
       {% if current_user.ruxsat('tannarx', 'korish') %}
       <div class="ret-money" style="text-align:right;min-width:110px">
-        <div style="font-size:12.5px;font-weight:600;color:{{ 'var(--m-dc2626)' if is_defect else '#22C55E' }}">
+        <div style="font-size:13px;font-weight:600;color:{{ 'var(--m-dc2626)' if is_defect else '#22C55E' }}">
           {% if r.refund_amount > 0 %}{{ "{:,.0f}".format(r.refund_amount).replace(",", " ") }} so'm{% else %}—{% endif %}
         </div>
         {# kech120 (zip 133 — F bosqichi 3-qism, audit G5-05 texnik qismi): ilgari «Pul kutilmoqda» — bosiladigan YOZUV (kim kimdan kutadi
@@ -254,17 +258,17 @@
       </div>
       {% endif %}
       <div class="ret-date" style="min-width:80px;text-align:right;font-size:13px;color:var(--text3)">{{ r.returned_at|toshkent('%d.%m.%Y') }}</div>
-      <button class="mini-btn" style="color:var(--m-dc2626);border-color:var(--ch-fadbd8)" onclick="deleteReturn({{ r.id }})" title="O'chirish"><i class="ti ti-trash" style="font-size:12px"></i></button>
+      <button class="mini-btn" style="color:var(--m-dc2626);border-color:var(--ch-fadbd8)" onclick="deleteReturn({{ r.id }})" title="O'chirish" aria-label="O'chirish"><i class="ti ti-trash"></i></button>
     </div>
     {% endfor %}
     {% else %}
     {# kech120 (zip 133 — G5-18): ilgari «(Brak yozuvlari yuqoridagi bo'limda ko'rinadi)» — brak yozuvlari AYNAN shu ro'yxatda, «yuqoridagi
        bo'lim» (Brak tahlili) esa faqat «Hisobotlar» ruxsatida bor. Endi davr va (ruxsatga qarab) nima qilish aytiladi. #}
     <div class="ret-bosh" style="text-align:center;padding:48px 20px;color:var(--text3)">
-      <i class="ti ti-recycle" style="font-size:34px;color:var(--border2);display:block;margin-bottom:10px"></i>
+      <i class="ti ti-recycle" style="font-size:32px;color:var(--border2);display:block;margin-bottom:10px"></i>
       {% if show_all %}Hali qaytarish yoki brak yozilmagan{% else %}So'nggi 90 kunda qaytarish yoki brak yozilmagan{% endif %}
       {% if current_user.ruxsat('qaytarish', 'yaratish') or current_user.ruxsat('brak', 'yaratish') %}
-      <br><span style="font-size:12.5px">{% if current_user.ruxsat('qaytarish', 'yaratish') %}Mijozdan butun mahsulot qaytsa — «Yangi qaytarish», buzilgan mahsulot — «Brak yozish» tugmasini bosing.{% else %}Buzilgan mahsulot — «Brak yozish» tugmasini bosing.{% endif %}</span>
+      <br><span style="font-size:13px">{% if current_user.ruxsat('qaytarish', 'yaratish') %}Mijozdan butun mahsulot qaytsa — «Yangi qaytarish», buzilgan mahsulot — «Brak yozish» tugmasini bosing.{% else %}Buzilgan mahsulot — «Brak yozish» tugmasini bosing.{% endif %}</span>
       {% endif %}
     </div>
     {% endif %}
@@ -501,7 +505,7 @@ function brakTahlilHtml(d){
 
   const guruh = (nom, arr) => {
     if (!arr || !arr.length) return sarlavha(nom) + bosh;
-    return sarlavha(nom) + `<table style="width:100%;border-collapse:collapse;font-size:13.5px;margin-bottom:18px">
+    return sarlavha(nom) + `<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:18px">
       <thead><tr style="border-bottom:2px solid var(--ch-eeeeee);text-align:left;color:var(--text3);font-size:12px;text-transform:uppercase">
         <th style="${th}">Nomi</th><th style="${th};text-align:right">Soni</th>
         <th style="${th};text-align:right">Qiymati</th><th style="${th};text-align:right">Ulushi</th></tr></thead>
@@ -517,7 +521,7 @@ function brakTahlilHtml(d){
 
   const top = d.top_detallar || [];
   html += sarlavha('🔝 Eng ko\'p brak — 5 ta mahsulot / detal');
-  html += !top.length ? bosh : `<table style="width:100%;border-collapse:collapse;font-size:13.5px;margin-bottom:18px">
+  html += !top.length ? bosh : `<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:18px">
       <thead><tr style="border-bottom:2px solid var(--ch-eeeeee);text-align:left;color:var(--text3);font-size:12px;text-transform:uppercase">
         <th style="${th}">Nomi</th><th style="${th};text-align:right">Miqdor</th><th style="${th};text-align:right">Soni</th>
         <th style="${th};text-align:right">Qiymati</th></tr></thead>
@@ -529,7 +533,7 @@ function brakTahlilHtml(d){
 
   const tr = d.trend || [];
   html += sarlavha('📈 Oylar bo\'yicha brak ulushi');
-  html += !tr.length ? bosh : `<table style="width:100%;border-collapse:collapse;font-size:13.5px;margin-bottom:18px">
+  html += !tr.length ? bosh : `<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:18px">
       <thead><tr style="border-bottom:2px solid var(--ch-eeeeee);text-align:left;color:var(--text3);font-size:12px;text-transform:uppercase">
         <th style="${th}">Oy</th><th style="${th};text-align:right">Brak</th><th style="${th};text-align:right">Ishlab chiqarish</th>
         <th style="${th};text-align:right">Ulushi</th></tr></thead>
@@ -603,17 +607,17 @@ async function loadBrakSummary(){
       <div style="display:flex;gap:14px;margin-bottom:18px;flex-wrap:wrap">
         <div style="flex:1;min-width:160px;background:var(--f-fee2e2);border-radius:10px;padding:14px 16px">
           <div style="font-size:12px;color:var(--m-991b1b);font-weight:700;text-transform:uppercase">Jami yo'qotish</div>
-          <div style="font-size:20px;font-weight:800;color:var(--m-dc2626);margin-top:4px">${somYoq(data.total_value, fmt)}</div>
+          <div style="font-size:18px;font-weight:800;color:var(--m-dc2626);margin-top:4px">${somYoq(data.total_value, fmt)}</div>
         </div>
         ${data.total_penoplast_m3 > 0 ? `
         <div style="flex:1;min-width:160px;background:var(--f-fff7ed);border-radius:10px;padding:14px 16px">
           <div style="font-size:12px;color:var(--m-9a3412);font-weight:700;text-transform:uppercase">Jami Penoplast brak</div>
-          <div style="font-size:20px;font-weight:800;color:var(--m-c2410c);margin-top:4px">${data.total_penoplast_m3} m³</div>
+          <div style="font-size:18px;font-weight:800;color:var(--m-c2410c);margin-top:4px">${data.total_penoplast_m3} m³</div>
         </div>` : ''}
       </div>
 
       <div style="font-size:13px;font-weight:700;color:var(--m-555555);margin-bottom:8px">📊 Material bo'yicha jami</div>
-      <table style="width:100%;border-collapse:collapse;font-size:13.5px;margin-bottom:20px">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:20px">
         <thead><tr style="border-bottom:2px solid var(--ch-eeeeee);text-align:left;color:var(--text3);font-size:12px;text-transform:uppercase">
           <th style="padding:8px 6px">Xomashyo</th>
           <th style="padding:8px 6px;text-align:right">Miqdor</th>
@@ -636,14 +640,14 @@ async function loadBrakSummary(){
       html += data.by_order.map(o => `
         <div style="border:1px solid var(--ch-eeeeee);border-radius:10px;padding:12px 14px;margin-bottom:8px">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-            <div style="font-weight:700;font-size:13.5px">${o.order_number} <span style="font-weight:400;color:var(--text3)">— ${o.client_name ? escapeHtml(o.client_name) : '—'}</span></div>
+            <div style="font-weight:700;font-size:13px">${o.order_number} <span style="font-weight:400;color:var(--text3)">— ${o.client_name ? escapeHtml(o.client_name) : '—'}</span></div>
             <div style="text-align:right">
               ${o.total_m3 ? `<span style="color:var(--m-c2410c);font-weight:700;font-size:13px">${o.total_m3} m³</span> · ` : ''}
-              <span style="color:var(--m-dc2626);font-weight:700;font-size:13.5px">${somYoq(o.total_value, fmt)}</span>
+              <span style="color:var(--m-dc2626);font-weight:700;font-size:13px">${somYoq(o.total_value, fmt)}</span>
             </div>
           </div>
           ${o.items.map(it => `
-            <div style="font-size:12.5px;color:var(--text3);padding:3px 0">
+            <div style="font-size:13px;color:var(--text3);padding:3px 0">
               • ${escapeHtml(it.item_name)}: ${it.quantity} ${escapeHtml(it.unit || '')} ${it.m3 ? `(${it.m3} m³)` : ''} — ${somYoq(it.value, fmt)}
             </div>`).join('')}
         </div>`).join('');
