@@ -361,11 +361,13 @@
           <input type="text" id="e-unitrate" placeholder="0" oninput="formatPriceInput(this)">
         </div>
       </div>
+      <!-- kech123 (zip 143 — egasi qarori 06.10): buyurtma detallari yuk xatlari bo'yicha hisoblanadi -->
+      <div id="e-unit-izoh" style="display:none;font-size:12px;color:var(--text3);margin-top:5px;line-height:1.4">Buyurtma detallari — har yuk xatida topshirilgan qismi o'sha oyga, buyurtma «Tayyor» qilinganda yuk xatisiz qolgani yopilgan oyga; «Tayyor mahsulotlar» — tayyor bo'lgan oyga.</div>
 
       <div class="form-group" id="e-coating-wrap" style="display:none;margin-top:14px;margin-bottom:0">
         <label>1 metr/dona uchun qo'shimcha (qoplangan detallardan)</label>
         <input type="number" id="e-coatingrate" placeholder="1000" min="0" value="1000">
-        <div style="font-size:12px;color:var(--text3);margin-top:5px;line-height:1.4">Qoplamali profil/panel metri va donali detallar soni avtomatik hisoblanib, shu narxga ko'paytiriladi.</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:5px;line-height:1.4">Qoplamali profil/panel metri va donali detallar soni avtomatik hisoblanib, shu narxga ko'paytiriladi. Har yuk xatida topshirilgan qismi — o'sha oyga, buyurtma «Tayyor» qilinganda yuk xatisiz qolgani — yopilgan oyga.</div>
       </div>
     </div>
 
@@ -1203,6 +1205,7 @@ function empToggle() {
   document.getElementById('e-fixed-wrap').style.display = (t === 'fixed' || t === 'fixed_plus_coating') ? 'block' : 'none';
   document.getElementById('e-percent-wrap').style.display = (t === 'percent_sales' || t === 'percent_profit') ? 'block' : 'none';
   document.getElementById('e-unit-wrap').style.display = (t === 'per_unit') ? 'flex' : 'none';
+  document.getElementById('e-unit-izoh').style.display = (t === 'per_unit') ? 'block' : 'none';   // kech123 (zip 143)
   document.getElementById('e-coating-wrap').style.display = (t === 'fixed_plus_coating') ? 'block' : 'none';
 
   const fixedLabel = document.querySelector('#e-fixed-wrap label');
