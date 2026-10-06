@@ -3280,7 +3280,7 @@ def _son_filtri(qiymat, kasr=2):
 
 
 templates.env.filters["son"] = _son_filtri
-templates.env.globals["static_version"] = "20261001-7"   # kech120 (zip 137): style.css (.input-field); kech120 (zip 135): style.css (.grafik-bosh); kech120 (zip 134): style.css (--border-strong, namuna rangi); kech120 (zip 130): style.css (qidiruvli tanlagich), static/tanlov.js; kech119 (zip 126 — C, telefon): style.css (telefon qoidalari); zip 123 — ranglar.css (eskirgan rang olib tashlandi); zip 122 — ranglar.css va style.css (tungi rejim) — kesh yangilansin
+templates.env.globals["static_version"] = "20261005-1"   # kech123 (zip 139 — U-13 yagona ko'rinish): style.css (tugma / maydon / tab / chip tizimi, yozuv shkalasi); kech120 (zip 137): style.css (.input-field); kech120 (zip 135): style.css (.grafik-bosh); kech120 (zip 134): style.css (--border-strong, namuna rangi); kech120 (zip 130): style.css (qidiruvli tanlagich), static/tanlov.js; kech119 (zip 126 — C, telefon): style.css (telefon qoidalari); zip 123 — ranglar.css (eskirgan rang olib tashlandi); zip 122 — ranglar.css va style.css (tungi rejim) — kesh yangilansin
 
 
 def _toshkent_filtr(qiymat, fmt="%d.%m.%Y %H:%M"):
