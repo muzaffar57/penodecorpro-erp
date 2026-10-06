@@ -50,25 +50,21 @@ html[data-theme="dark"] .bi-wrap{
 /* ── KPI kartalar (2-qator) ── */
 .bi-kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
 @media(max-width:900px){.bi-kpi-grid{grid-template-columns:repeat(2,1fr)}}
-.bi-kpi-tenglama{margin-top:10px;font-size:12.5px;color:var(--b-text3);text-align:right}
+.bi-kpi-tenglama{margin-top:10px;font-size:13px;color:var(--b-text3);text-align:right}
 .bi-kpi-tenglama b{color:var(--b-text2);font-weight:700}
-.bi-flow-qator{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--b-text3);padding:3px 0}
+.bi-flow-qator{display:flex;justify-content:space-between;gap:10px;font-size:13px;color:var(--b-text3);padding:3px 0}
 .bi-flow-qator span:last-child{font-weight:600;color:var(--b-text2);white-space:nowrap}
 .bi-kpi-card{background:var(--b-card);border:1px solid var(--b-border);border-radius:var(--b-radius);padding:18px;box-shadow:var(--b-shadow);transition:transform .18s,box-shadow .18s}
 .bi-kpi-card:hover{transform:translateY(-3px);box-shadow:var(--b-shadow-hover)}
 .bi-kpi-icon{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;margin-bottom:10px}
 .bi-kpi-label{font-size:12px;font-weight:600;color:var(--b-text3);text-transform:uppercase;letter-spacing:.03em}
-.bi-kpi-value{font-size:22px;font-weight:800;color:var(--b-text);margin-top:4px;letter-spacing:-.01em}
+.bi-kpi-value{font-size:24px;font-weight:800;color:var(--b-text);margin-top:4px;letter-spacing:-.01em}
 .bi-kpi-change{font-size:12px;margin-top:6px;display:flex;align-items:center;gap:3px;font-weight:600}
 
 /* ── Filtr paneli (3-qator) ── */
 .bi-filterbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--b-card);border:1px solid var(--b-border);border-radius:12px;padding:10px 14px;box-shadow:var(--b-shadow)}
-.bi-filterbar select,.bi-filterbar input{height:36px;padding:0 12px;border:1px solid var(--b-border);border-radius:8px;font-size:13.5px;color:var(--b-text);outline:none;background:var(--white)}
-.bi-filterbar select:focus,.bi-filterbar input:focus{border-color:var(--b-primary)}
-.bi-btn{height:36px;padding:0 16px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:600;transition:.12s}
-.bi-btn-ghost{background:var(--white);color:var(--b-text2);border:1px solid var(--b-border)}
-.bi-btn-ghost:hover{background:var(--b-bg)}
-.bi-btn-ghost.active{background:var(--gold-btn);color:#fff;border-color:var(--gold-btn)}
+/* U-13 (kech123): davr tugmalari — umumiy `.chip`, jadval amallari — `.btn`, qidiruv — `.maydon`, tablar — `.tab` (style.css);
+   bu yerda o'lcham / burchak yozilmaydi */
 
 /* ── Grafiklar (4,5-qator) ── */
 .bi-charts-grid{display:grid;grid-template-columns:1.6fr 1fr;gap:16px}
@@ -77,8 +73,8 @@ html[data-theme="dark"] .bi-wrap{
 .bi-chart-sm{position:relative;height:220px}
 .bi-legend-row{display:flex;align-items:center;gap:10px;padding:7px 4px}
 .bi-legend-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
-.bi-legend-name{font-size:12.5px;color:var(--b-text2);flex:1}
-.bi-legend-pct{font-size:12.5px;font-weight:700;color:var(--b-text);width:40px;text-align:right}
+.bi-legend-name{font-size:13px;color:var(--b-text2);flex:1}
+.bi-legend-pct{font-size:13px;font-weight:700;color:var(--b-text);width:40px;text-align:right}
 .bi-flow-track{height:9px;background:var(--b-bg);border-radius:5px;overflow:hidden;margin-top:5px}
 .bi-flow-fill{height:100%;border-radius:5px;width:0;transition:width 1s cubic-bezier(.16,1,.3,1)}
 
@@ -86,7 +82,7 @@ html[data-theme="dark"] .bi-wrap{
 .bi-top-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
 @media(max-width:1100px){.bi-top-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:640px){.bi-top-grid{grid-template-columns:1fr}}
-.bi-top-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--b-border);font-size:12.5px}
+.bi-top-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--b-border);font-size:13px}
 .bi-top-row:last-child{border-bottom:none}
 .bi-top-rank{width:18px;height:18px;border-radius:5px;background:var(--b-bg);color:var(--b-text3);font-size:12px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;margin-right:8px}
 .bi-top-name{color:var(--b-text2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -104,18 +100,18 @@ html[data-theme="dark"] .bi-wrap{
 @media(max-width:900px){.bi-comp-grid{grid-template-columns:repeat(2,1fr)}}
 .bi-comp-card{text-align:center;padding:16px}
 .bi-comp-label{font-size:12px;color:var(--b-text3);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
-.bi-comp-arrow{font-size:22px;font-weight:800;margin-top:8px}
+.bi-comp-arrow{font-size:24px;font-weight:800;margin-top:8px}
 /* kech120 (K120-1 — JONLI topilgan, sinov sayti 360 px, skrinshot bilan): «o'zgarmadi» (22 px, qalin) bo'linmaydigan so'z
    `1fr` ustunni mazmuni bilan 155 px gacha kengaytirardi — 2 × 155 + 14 = 324 > konteyner 281 px: o'ng kartalar ekrandan
    chiqib, panel yon tomonga surilardi (375–390 px da — panel ichki chetidan 28 px). Endi karta ustunni kengaytirmaydi
    (`min-width:0`), raqam / so'z kichikroq ekranda kichrayadi; juda tor joyda so'z o'raladi (ekrandan chiqmaydi). */
 .bi-comp-grid > *{min-width:0}
 .bi-comp-arrow{overflow-wrap:anywhere}
-@media(max-width:1280px){.bi-comp-arrow{font-size:19px}}
+@media(max-width:1280px){.bi-comp-arrow{font-size:18px}}
 @media(max-width:600px){
   .bi-comp-grid{gap:10px}
   .bi-comp-card{padding:12px 8px}
-  .bi-comp-arrow{font-size:17px}
+  .bi-comp-arrow{font-size:16px}
 }
 
 /* ── Forecast (8-qator) ── */
@@ -139,10 +135,6 @@ html[data-theme="dark"] .bi-wrap{
   .bi-jadval-amallar .bi-search{flex:1 1 100%;min-width:0}
   .bi-jadval-amallar .bi-btn{flex:1 1 auto}
 }
-.bi-tab{padding:8px 14px;font-size:12.5px;font-weight:600;border-radius:8px;border:1px solid var(--b-border);background:var(--b-card);color:var(--b-text2);cursor:pointer;transition:.12s}
-.bi-tab.active{background:#222222;color:#fff;border-color:#222222}
-html[data-theme="dark"] .bi-tab.active{background:var(--f-eceae6);color:var(--m-16181f);border-color:var(--ch-eceae6)}
-.bi-tab:hover:not(.active){background:var(--b-bg)}
 .bi-table-wrap{overflow-x:auto}
 .bi-table{width:100%;border-collapse:collapse;font-size:13px}
 .bi-table thead th{position:sticky;top:0;background:var(--b-card);text-align:left;padding:11px 14px;color:var(--b-text3);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid var(--b-border)}
@@ -151,7 +143,7 @@ html[data-theme="dark"] .bi-tab.active{background:var(--f-eceae6);color:var(--m-
 .bi-table tbody tr:hover{background:var(--b-primary-tint)}
 .bi-table tbody tr:last-child td{border-bottom:none}
 .bi-empty{text-align:center;padding:40px 20px;color:var(--b-text3)}
-.bi-search{height:36px;padding:0 12px 0 34px;border:1px solid var(--b-border);border-radius:8px;font-size:13px;outline:none;background:#fff url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="%239CA3AF" stroke-width="2"><circle cx="6" cy="6" r="5"/><path d="M10 10l3 3"/></svg>') no-repeat 10px center}
+.bi-search{padding-left:34px !important;background:var(--white) url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="%239CA3AF" stroke-width="2"><circle cx="6" cy="6" r="5"/><path d="M10 10l3 3"/></svg>') no-repeat 10px center}
 
 @media print{
   .sidebar,.erp-topbar,.bi-filterbar,.no-print{display:none!important}
@@ -183,8 +175,8 @@ html[data-theme="dark"] .bi-tab.active{background:var(--f-eceae6);color:var(--m-
        sahifa shunchaki BO'SH ko'rinardi ("—" larni to'la turib) — bu
        "buzilgandek" taassurot qoldirar edi. Endi shu oraliqda aniq
        ko'rinadigan yuklanish belgisi chiqadi. -->
-  <div id="reportsLoadingBar" style="display:flex;align-items:center;gap:9px;padding:11px 16px;background:var(--b-primary-tint);border-radius:10px;margin-bottom:14px;font-size:13.5px;color:var(--b-primary);font-weight:600">
-    <i class="ti ti-loader-2" style="font-size:17px;animation:bi-spin 0.9s linear infinite"></i>
+  <div id="reportsLoadingBar" style="display:flex;align-items:center;gap:9px;padding:11px 16px;background:var(--b-primary-tint);border-radius:10px;margin-bottom:14px;font-size:13px;color:var(--b-primary);font-weight:600">
+    <i class="ti ti-loader-2" style="font-size:16px;animation:bi-spin 0.9s linear infinite"></i>
     Ma'lumotlar yuklanmoqda...
   </div>
 
@@ -235,10 +227,10 @@ html[data-theme="dark"] .bi-tab.active{background:var(--f-eceae6);color:var(--m-
       {# kech120 (zip 135 — F bosqichi 5-qism, audit G1-15, O'LCHANGAN: «Shu oy» aslida oxirgi 30 kun edi (1-oktabrda 1-sentabrdan),
          «Yil» — 365 kun; izoh filtr jadvallarga ham qo'llanadi der edi, «Ombor», «Mahsulotlar», «Ustalar» jadvallari va «Xarajat tarkibi»,
          «Pul oqimi» filtrga bog'liq emas). Endi tugma — haqiqiy davr; har bog'liq bo'lmagan blokda o'z davri yozilgan. #}
-      <button class="bi-btn bi-btn-ghost" data-days="30" onclick="setPeriod(30)">Oxirgi 30 kun</button>
-      <button class="bi-btn bi-btn-ghost active" data-days="90" onclick="setPeriod(90)">Oxirgi 90 kun</button>
-      <button class="bi-btn bi-btn-ghost" data-days="180" onclick="setPeriod(180)">Oxirgi 6 oy</button>
-      <button class="bi-btn bi-btn-ghost" data-days="365" onclick="setPeriod(365)">Oxirgi 12 oy</button>
+      <button class="chip" data-days="30" onclick="setPeriod(30)">Oxirgi 30 kun</button>
+      <button class="chip active" data-days="90" onclick="setPeriod(90)">Oxirgi 90 kun</button>
+      <button class="chip" data-days="180" onclick="setPeriod(180)">Oxirgi 6 oy</button>
+      <button class="chip" data-days="365" onclick="setPeriod(365)">Oxirgi 12 oy</button>
       <span id="filtrIzoh" style="font-size:12px;color:var(--b-text3);margin-left:auto">Filtr — dinamika grafigi (oylar bo'yicha), reytinglar va «Moliya» jadvali; kartalar, «Xarajat tarkibi», «Pul oqimi» — joriy oy</span>
     </div>
   </div>
@@ -293,19 +285,19 @@ html[data-theme="dark"] .bi-tab.active{background:var(--f-eceae6);color:var(--m-
     <div class="bi-section-title"><i class="ti ti-trophy"></i> Reytinglar <span id="reytingDavr" style="font-weight:400;color:var(--b-text3);font-size:13px"></span></div>
     <div class="bi-top-grid">
       <div class="bi-card bi-fade"><div class="bi-card-body">
-        <div style="font-size:12.5px;font-weight:700;color:var(--b-text3);text-transform:uppercase;letter-spacing:.03em;margin-bottom:10px">👤 Eng yirik mijozlar</div>
+        <div style="font-size:13px;font-weight:700;color:var(--b-text3);text-transform:uppercase;letter-spacing:.03em;margin-bottom:10px">👤 Eng yirik mijozlar</div>
         <div id="topCustomers"><div class="bi-empty" style="padding:16px 0">Yuklanmoqda...</div></div>
       </div></div>
       <div class="bi-card bi-fade"><div class="bi-card-body">
-        <div style="font-size:12.5px;font-weight:700;color:var(--b-text3);text-transform:uppercase;letter-spacing:.03em;margin-bottom:10px">📦 Ko'p sotilgan mahsulotlar (Tayyor)</div>
+        <div style="font-size:13px;font-weight:700;color:var(--b-text3);text-transform:uppercase;letter-spacing:.03em;margin-bottom:10px">📦 Ko'p sotilgan mahsulotlar (Tayyor)</div>
         <div id="topProducts"><div class="bi-empty" style="padding:16px 0">Yuklanmoqda...</div></div>
       </div></div>
       <div class="bi-card bi-fade"><div class="bi-card-body">
-        <div style="font-size:12.5px;font-weight:700;color:var(--b-text3);text-transform:uppercase;letter-spacing:.03em;margin-bottom:10px">🧱 Eng ko'p sarflangan xomashyo</div>
+        <div style="font-size:13px;font-weight:700;color:var(--b-text3);text-transform:uppercase;letter-spacing:.03em;margin-bottom:10px">🧱 Eng ko'p sarflangan xomashyo</div>
         <div id="topMaterials"><div class="bi-empty" style="padding:16px 0">Yuklanmoqda...</div></div>
       </div></div>
       <div class="bi-card bi-fade"><div class="bi-card-body">
-        <div style="font-size:12.5px;font-weight:700;color:var(--b-text3);text-transform:uppercase;letter-spacing:.03em;margin-bottom:10px">🚚 Eng yirik ta'minotchilar</div>
+        <div style="font-size:13px;font-weight:700;color:var(--b-text3);text-transform:uppercase;letter-spacing:.03em;margin-bottom:10px">🚚 Eng yirik ta'minotchilar</div>
         <div id="topSuppliers"><div class="bi-empty" style="padding:16px 0">Yuklanmoqda...</div></div>
       </div></div>
     </div>
@@ -345,22 +337,22 @@ html[data-theme="dark"] .bi-tab.active{background:var(--f-eceae6);color:var(--m-
     <!-- kech118 (D-3, egasi QARORI G1-09): takror jadvallar olib tashlandi — «Sotuv» (= «Moliya»; buyurtmalar soni Moliya da),
          «Ishlab chiqarish» (= «Mahsulotlar» ning bir qismi), «Eng ko'p sotilgan» va «Eng ko'p xomashyo» (= «Reytinglar» kartalari) -->
     <div class="bi-tabs" id="repTabs">
-      <button class="bi-tab active" data-r="inventory" onclick="switchReport('inventory')">📦 Ombor</button>
-      <button class="bi-tab" data-r="products" onclick="switchReport('products')">🏭 Mahsulotlar</button>
-      <button class="bi-tab" data-r="masters" onclick="switchReport('masters')">👷 Ustalar / KPI</button>
-      <button class="bi-tab" data-r="finance" onclick="switchReport('finance')">📊 Moliya</button>
+      <button class="bi-tab tab active" data-r="inventory" onclick="switchReport('inventory')">📦 Ombor</button>
+      <button class="bi-tab tab" data-r="products" onclick="switchReport('products')">🏭 Mahsulotlar</button>
+      <button class="bi-tab tab" data-r="masters" onclick="switchReport('masters')">👷 Ustalar / KPI</button>
+      <button class="bi-tab tab" data-r="finance" onclick="switchReport('finance')">📊 Moliya</button>
     </div>
 
     <div class="bi-card bi-fade">
       <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:1px solid var(--b-border);flex-wrap:wrap;gap:10px">
         <div class="bi-section-title" style="margin:0"><span id="repTitle">Ombor hisoboti</span> <span id="repDavr" style="font-weight:400;color:var(--b-text3);font-size:13px"></span></div>
         <div style="display:flex;gap:8px;align-items:center" class="no-print bi-jadval-amallar">
-          <input type="text" class="bi-search" id="tableSearch" placeholder="Qidirish..." oninput="filterTable()">
-          <button class="bi-btn bi-btn-ghost" onclick="exportCSV()"><i class="ti ti-file-spreadsheet" style="vertical-align:-2px"></i> Excel</button>
-          <button class="bi-btn bi-btn-ghost" onclick="window.print()"><i class="ti ti-printer" style="vertical-align:-2px"></i> Chop etish</button>
+          <input type="text" class="bi-search maydon" id="tableSearch" placeholder="Qidirish..." oninput="filterTable()">
+          <button class="bi-btn btn btn-outline" onclick="exportCSV()"><i class="ti ti-file-spreadsheet"></i> Excel</button>
+          <button class="bi-btn btn btn-outline" onclick="window.print()"><i class="ti ti-printer"></i> Chop etish</button>
         </div>
       </div>
-      <div id="ehsonSummaryBanner" style="display:none;padding:14px 20px;background:var(--f-f0fdf4);border-bottom:1px solid var(--b-border);font-size:13.5px;color:var(--m-166534)">
+      <div id="ehsonSummaryBanner" style="display:none;padding:14px 20px;background:var(--f-f0fdf4);border-bottom:1px solid var(--b-border);font-size:13px;color:var(--m-166534)">
         🤲 <b>Ehson (xayriya)</b> — shu oy: <span id="ehsonSummaryVal">—</span>
       </div>
       <div class="bi-card-body">
@@ -545,8 +537,8 @@ async function loadCharts(){
           callbacks:{label:ctx=>`${ctx.dataset.label}: ${fmt(ctx.parsed.y)} so'm`}}
       },
       scales:{
-        x:{grid:{display:false},ticks:{font:{size:11},color:'#9CA3AF'}},
-        y:{grid:{color:'#F0F1F3'},border:{display:false},ticks:{font:{size:10.5},color:'#9CA3AF',callback:v=>fmtShort(v)}}
+        x:{grid:{display:false},ticks:{font:{size:12},color:'#9CA3AF'}},
+        y:{grid:{color:'#F0F1F3'},border:{display:false},ticks:{font:{size:12},color:'#9CA3AF',callback:v=>fmtShort(v)}}
       }
     }
   });
@@ -585,8 +577,8 @@ async function loadCharts(){
           callbacks:{label:ctx=>`${ctx.dataset.label}: ${fmt(ctx.parsed.y)} so'm`}}
       },
       scales:{
-        x:{grid:{display:false},ticks:{font:{size:11},color:'#9CA3AF'}},
-        y:{grid:{color:'#F0F1F3'},border:{display:false},ticks:{font:{size:10.5},color:'#9CA3AF',callback:v=>fmtShort(v)}}
+        x:{grid:{display:false},ticks:{font:{size:12},color:'#9CA3AF'}},
+        y:{grid:{color:'#F0F1F3'},border:{display:false},ticks:{font:{size:12},color:'#9CA3AF',callback:v=>fmtShort(v)}}
       }
     }
   });
@@ -622,7 +614,7 @@ async function loadCharts(){
       ].filter(e => e[1] > 0);
     }
     if (!entries.length) {
-      donutEl.innerHTML = '<div style="text-align:center;padding:16px;color:var(--b-text3);font-size:12.5px">Bu oyda xarajat qayd etilmagan</div>';
+      donutEl.innerHTML = '<div style="text-align:center;padding:16px;color:var(--b-text3);font-size:13px">Bu oyda xarajat qayd etilmagan</div>';
       centerLabelEl.style.display = 'none';
       return;
     }
@@ -676,7 +668,7 @@ async function loadCashFlowBars(){
 // ═══ 6. TOP REYTINGLAR ═══
 // `tayyorMatn` — qiymat allaqachon ko'rinish matni (miqdor + birlik): qisqartirilmaydi, faqat escape qilinadi
 function topListHtml(rows, nameKey, valKey, valSuffix, tayyorMatn){
-  if (!rows.length) return '<div class="bi-empty" style="padding:16px 0;font-size:12.5px">Ma\'lumot yo\'q</div>';
+  if (!rows.length) return '<div class="bi-empty" style="padding:16px 0;font-size:13px">Ma\'lumot yo\'q</div>';
   return rows.slice(0,8).map((r,i)=>`<div class="bi-top-row"><span class="bi-top-rank">${i+1}</span><span class="bi-top-name" title="${escapeHtml(r[nameKey])}">${escapeHtml(r[nameKey])}</span><span class="bi-top-val">${tayyorMatn ? escapeHtml(r[valKey]) : fmtShort(r[valKey])}${valSuffix||''}</span></div>`).join('');
 }
 
@@ -764,25 +756,25 @@ async function loadForecast(){
     const pct = Math.round(fc.days_passed/fc.days_in_month*100);
     // kech119 (K119-1): oylik (bir marta yoziladigan) xarajat oy kunlariga ko'paytirilmaydi — izohda ko'rsatiladi
     const doimiyIzoh = Number(fc.doimiy_xarajat) > 0
-      ? `<div style="font-size:12.5px;color:var(--b-text3);margin:-10px 0 16px">Hodimlar oyligi, arenda, elektr va soliq (${fmt(fc.doimiy_xarajat)} so'm) — bir marta hisoblangan; qolgan daromad va xarajatlar — kunlik o'rtacha bo'yicha</div>`
+      ? `<div style="font-size:13px;color:var(--b-text3);margin:-10px 0 16px">Hodimlar oyligi, arenda, elektr va soliq (${fmt(fc.doimiy_xarajat)} so'm) — bir marta hisoblangan; qolgan daromad va xarajatlar — kunlik o'rtacha bo'yicha</div>`
       : '';
     el.innerHTML = `
-      <div style="font-size:12.5px;color:var(--b-text3);margin-bottom:16px">Oyning ${fc.days_passed}/${fc.days_in_month} kuni o'tdi (${pct}%) — joriy tendentsiya asosida hisoblangan</div>
+      <div style="font-size:13px;color:var(--b-text3);margin-bottom:16px">Oyning ${fc.days_passed}/${fc.days_in_month} kuni o'tdi (${pct}%) — joriy tendentsiya asosida hisoblangan</div>
       ${doimiyIzoh}
       <div class="bi-forecast-grid">
         <div class="bi-forecast-item">
           <div style="font-size:12px;color:var(--b-text3);font-weight:600;text-transform:uppercase">Taxminiy daromad</div>
-          <div style="font-size:22px;font-weight:800;color:var(--b-text);margin-top:6px">${fmt(fc.forecast_daromad)} so'm</div>
+          <div style="font-size:24px;font-weight:800;color:var(--b-text);margin-top:6px">${fmt(fc.forecast_daromad)} so'm</div>
           <div class="bi-forecast-bar-track"><div class="bi-forecast-bar-fill" style="width:${pct}%"></div></div>
         </div>
         <div class="bi-forecast-item">
           <div style="font-size:12px;color:var(--b-text3);font-weight:600;text-transform:uppercase">Taxminiy sof foyda</div>
-          <div style="font-size:22px;font-weight:800;color:${fc.forecast_foyda === null ? 'var(--b-text)' : (fc.forecast_foyda>=0?'var(--m-8e44ad)':'var(--m-dc2626)')};margin-top:6px">${toliqSom(fc.forecast_foyda)}</div>
+          <div style="font-size:24px;font-weight:800;color:${fc.forecast_foyda === null ? 'var(--b-text)' : (fc.forecast_foyda>=0?'var(--m-8e44ad)':'var(--m-dc2626)')};margin-top:6px">${toliqSom(fc.forecast_foyda)}</div>
           <div class="bi-forecast-bar-track"><div class="bi-forecast-bar-fill" style="width:${pct}%;background:#8E44AD"></div></div>
         </div>
         <div class="bi-forecast-item">
           <div style="font-size:12px;color:var(--b-text3);font-weight:600;text-transform:uppercase">Hozirgacha</div>
-          <div style="font-size:22px;font-weight:800;color:var(--b-text);margin-top:6px">${fmt(fc.current_daromad)} so'm</div>
+          <div style="font-size:24px;font-weight:800;color:var(--b-text);margin-top:6px">${fmt(fc.current_daromad)} so'm</div>
           <div class="bi-forecast-bar-track"><div class="bi-forecast-bar-fill" style="width:${pct}%;background:#B9783F"></div></div>
         </div>
       </div>`;
@@ -1034,10 +1026,10 @@ async function loadInventoryReport() {
   if (totalBox) {
     totalBox.style.display = 'flex';
     totalBox.innerHTML = `
-      <div style="width:46px;height:46px;border-radius:12px;background:var(--b-primary-tint);color:var(--b-primary);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0"><i class="ti ti-building-warehouse"></i></div>
+      <div style="width:46px;height:46px;border-radius:12px;background:var(--b-primary-tint);color:var(--b-primary);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0"><i class="ti ti-building-warehouse"></i></div>
       <div>
         <div style="font-size:12px;color:var(--b-text3);font-weight:600;text-transform:uppercase;letter-spacing:.03em">Jami ombor qiymati</div>
-        <div style="font-size:22px;font-weight:800;color:var(--b-primary)">${fmt(totalVal)} so'm</div>
+        <div style="font-size:24px;font-weight:800;color:var(--b-primary)">${fmt(totalVal)} so'm</div>
       </div>`;
   }
 }

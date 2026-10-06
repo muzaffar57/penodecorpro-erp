@@ -371,7 +371,7 @@ function somYoq(n, f) { return n === null ? '—' : (f || qisqaSumma)(n) + " so'
 function showMsg(text, type) {
   const box = document.createElement('div');
   box.style.cssText = `position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:3000;
-    padding:13px 22px;border-radius:10px;font-size:14.5px;font-weight:500;box-shadow:0 6px 24px rgba(0,0,0,.18);
+    padding:13px 22px;border-radius:10px;font-size:14px;font-weight:500;box-shadow:0 6px 24px rgba(0,0,0,.18);
     white-space:pre-line;max-width:520px;text-align:center;
     background:${type==='error'?'var(--f-fee2e2)':'var(--f-dcfce7)'};color:${type==='error'?'var(--m-dc2626)':'var(--m-1e7e34)'};
     border:1.5px solid ${type==='error'?'#F1948A':'var(--ch-a9dfbf)'}`;
@@ -425,10 +425,10 @@ function _xoElement() {
     'z-index:3100;align-items:center;justify-content:center;padding:20px';
   m.innerHTML = '<div style="background:var(--white,#fff);border-radius:14px;width:440px;max-width:100%;padding:22px 24px;' +
     'box-shadow:0 20px 60px rgba(0,0,0,.25)">' +
-    '<div id="xoSarlavha" style="font-size:15.5px;font-weight:700;margin-bottom:8px;color:var(--text,#222)"></div>' +
+    '<div id="xoSarlavha" style="font-size:16px;font-weight:700;margin-bottom:8px;color:var(--text,#222)"></div>' +
     '<div id="xoMatn" style="font-size:14px;color:var(--text,#222);line-height:1.6;white-space:pre-wrap;word-break:break-word;' +
     'max-height:60vh;overflow:auto;margin-bottom:18px"></div>' +
-    '<button type="button" id="xoOk" class="btn btn-gold" data-yopish style="width:100%">Tushunarli</button></div>';
+    '<button type="button" id="xoOk" class="btn btn-gold btn-block" data-yopish>Tushunarli</button></div>';
   (document.body || document.documentElement).appendChild(m);
   m.querySelector('#xoOk').onclick = function () { _xoYop(); };
   return m;
@@ -496,10 +496,9 @@ function kiritishOyna(sarlavha, opts) {
         'z-index:3050;align-items:center;justify-content:center;padding:20px';
       m.innerHTML = '<div style="background:var(--white,#fff);border-radius:14px;padding:22px 24px;width:400px;max-width:100%;' +
         'box-shadow:0 20px 60px rgba(0,0,0,.25)">' +
-        '<div id="kiSarlavha" style="font-size:15.5px;font-weight:700;color:var(--text,#222);margin-bottom:6px;white-space:pre-wrap"></div>' +
+        '<div id="kiSarlavha" style="font-size:16px;font-weight:700;color:var(--text,#222);margin-bottom:6px;white-space:pre-wrap"></div>' +
         '<div id="kiIzoh" style="font-size:13px;color:var(--text2,#6B7280);margin-bottom:12px;white-space:pre-wrap"></div>' +
-        '<input id="kiMaydon" type="text" autocomplete="off" style="width:100%;font-size:15px;font-weight:600;padding:10px 12px;' +
-        'border:1.5px solid var(--border,#E5E1DA);border-radius:10px;box-sizing:border-box">' +
+        '<input id="kiMaydon" class="maydon" type="text" autocomplete="off" style="width:100%;font-weight:600">' +
         '<div style="display:flex;gap:8px;margin-top:16px">' +
         '<button type="button" id="kiBekor" class="btn btn-outline" data-yopish style="flex:1">Bekor</button>' +
         '<button type="button" id="kiOk" class="btn btn-gold" style="flex:1">Tasdiqlash</button></div></div>';
@@ -728,11 +727,11 @@ function kichikRasm(url) {
   .tb-amallar{display:flex;gap:8px;align-items:center}
   .tb-amallar:empty{display:none}
   .tb-kop-wrap{display:none;position:relative}
-  #tbKop{width:38px;height:38px;border-radius:8px;border:1px solid var(--border);background:var(--white);color:var(--text2);font-weight:800;letter-spacing:1px;cursor:pointer}
+  #tbKop{width:var(--h-md);height:var(--h-md);border-radius:var(--r-btn);border:1px solid var(--border);background:var(--white);color:var(--text2);font-size:14px;font-weight:800;letter-spacing:1px;cursor:pointer}
   #tbKop[aria-expanded="true"]{border-color:var(--ch-d9b48c);background:var(--gold-tint);color:var(--gold-dark)}
   #tbKopMenyu{position:absolute;top:44px;right:0;min-width:210px;background:var(--white);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-card);padding:6px;z-index:1000;display:flex;flex-direction:column}
   #tbKopMenyu[hidden]{display:none}
-  #tbKopMenyu button{height:44px;text-align:left;padding:0 12px;border:0;border-radius:8px;background:transparent;color:var(--text);font-size:14px;font-weight:600;cursor:pointer}
+  #tbKopMenyu button{height:var(--h-btn);text-align:left;padding:0 12px;border:0;border-radius:8px;background:transparent;color:var(--text);font-size:14px;font-weight:600;cursor:pointer}
   #tbKopMenyu button:hover{background:var(--gold-tint)}
   @media (max-width: 768px) {
     .erp-topbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 10px}
@@ -747,7 +746,7 @@ function kichikRasm(url) {
     .erp-topbar .tb-amallar{order:10;flex:1 1 100%;display:flex;gap:8px}
     .erp-topbar .tb-amallar:empty{display:none}
     /* uzun yorliq («+ Yangi ishlab chiqarish», 360 px) kesilmaydi — tugma ichida ikki qatorga o'tadi (44 px ga sig'adi) */
-    .erp-topbar .tb-amallar>*{flex:1 1 0;min-width:0;min-height:44px;margin:0!important;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:normal;line-height:1.2;text-align:center;padding:4px 10px;overflow:hidden;box-sizing:border-box}
+    .erp-topbar .tb-amallar>*{flex:1 1 0;min-width:0;min-height:var(--h-btn);margin:0!important;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:normal;line-height:1.2;text-align:center;padding:4px 10px;overflow:hidden;box-sizing:border-box}
   }
   </style>
   {% block head %}{% endblock %}
@@ -780,7 +779,7 @@ function kichikRasm(url) {
         {% else %}
         <div style="width:42px;height:42px;border-radius:50%;flex-shrink:0;background:var(--bg);
                     display:flex;align-items:center;justify-content:center;font-weight:700;
-                    color:var(--text3);font-size:17px">
+                    color:var(--text3);font-size:18px">
           {{ (company_name_of(current_user.company_id) or 'P')[0]|upper if current_user else 'P' }}
         </div>
         {% endif %}
@@ -1047,11 +1046,11 @@ function kichikRasm(url) {
           <i class="ti ti-menu-2" style="font-size:18px"></i>
         </button>
         <div class="page-title">{% block page_title %}{% endblock %}</div>
-        <div class="page-sub">{% block page_sub %}{% endblock %}</div>
+        <div class="page-sub" title="{{ self.page_sub()|striptags|trim }}">{% block page_sub %}{% endblock %}</div>
       </div>
       <div class="tb-right">
-        <button id="themeToggle" class="tb-keng" onclick="toggleTheme()" style="width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2);margin-right:10px">
-          <i class="ti ti-moon" id="themeIcon" style="font-size:16px"></i>
+        <button id="themeToggle" class="btn btn-outline btn-icon tb-keng" onclick="toggleTheme()" title="Tungi / kunduzgi rejim" aria-label="Tungi / kunduzgi rejim" style="color:var(--text2);margin-right:10px">
+          <i class="ti ti-moon" id="themeIcon"></i>
         </button>
         {# kech111 — obuna ogohlantirishi (egasi QARORI "Admin, keyin hamma": muddatga ≤ 7 kun — korxona adminiga sariq;
            muddat tugagan, 3 kunlik imtiyoz — hammaga qizil). YUQORI PANELDA — sahifa joyini egallamaydi (ko'p sahifa
@@ -1062,9 +1061,9 @@ function kichikRasm(url) {
         <div id="obunaWrap" style="position:relative;margin-right:10px">
           <button type="button" id="obunaBanner" aria-expanded="false" aria-controls="obunaPanel"
                   onclick="obunaPaneliniAlmashtir()"
-                  style="height:36px;display:flex;align-items:center;gap:7px;padding:0 12px;border-radius:8px;cursor:pointer;font-size:12.5px;font-weight:600;white-space:nowrap;
+                  class="btn btn-md" style="white-space:nowrap;
                          {% if _obuna_b.daraja == 'qizil' %}background:var(--f-fee2e2);border:1px solid var(--ch-f3c7c7);color:var(--m-7f1d1d){% else %}background:var(--f-fef3c7);border:1px solid var(--ch-f5d98b);color:var(--m-78350f){% endif %}">
-            <i class="ti {% if _obuna_b.daraja == 'qizil' %}ti-lock{% else %}ti-calendar-plus{% endif %}" style="font-size:16px" aria-hidden="true"></i>
+            <i class="ti {% if _obuna_b.daraja == 'qizil' %}ti-lock{% else %}ti-calendar-plus{% endif %}" aria-hidden="true"></i>
             <span class="obuna-qisqa">{{ _obuna_b.qisqa }}</span>
           </button>
           <div id="obunaPanel" role="status" style="display:none;position:absolute;top:44px;right:0;width:340px;max-width:calc(100vw - 24px);padding:14px 16px;border-radius:12px;
@@ -1074,18 +1073,18 @@ function kichikRasm(url) {
         <style>@media (max-width: 640px){ #obunaBanner .obuna-qisqa{display:none} }</style>
         {% endif %}
         <div id="notifWrap" style="position:relative;margin-right:10px">
-          <button id="notifBell" onclick="toggleNotifPanel()" style="position:relative;width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2)">
-            <i class="ti ti-bell" style="font-size:17px"></i>
+          <button id="notifBell" class="btn btn-outline btn-icon" onclick="toggleNotifPanel()" title="Bildirishnomalar" aria-label="Bildirishnomalar" style="position:relative;color:var(--text2)">
+            <i class="ti ti-bell"></i>
             <span id="notifBadge" style="display:none;position:absolute;top:-4px;right:-4px;background:#EF4444;color:#fff;font-size:12px;font-weight:700;min-width:16px;height:16px;border-radius:8px;align-items:center;justify-content:center;padding:0 3px">0</span>
           </button>
           <div id="notifPanel" style="display:none;position:absolute;top:44px;right:0;width:340px;max-width:calc(100vw - 24px);max-height:420px;overflow-y:auto;background:var(--white);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-card);z-index:1000">
             <div style="padding:12px 16px;border-bottom:1px solid var(--border2);font-size:13px;font-weight:600;color:var(--text)">Bildirishnomalar</div>
             <div id="notifList" style="padding:6px 0">
-              <div style="text-align:center;padding:20px;color:var(--text3);font-size:12.5px">Yuklanmoqda...</div>
+              <div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">Yuklanmoqda...</div>
             </div>
           </div>
         </div>
-        <button class="btn btn-outline btn-sm tb-keng" id="script-toggle-btn" onclick="toggleScript()" title="Kirill/Lotin" style="margin-right:8px">🔤 Кирилл</button>
+        <button class="btn btn-outline btn-md tb-keng" id="script-toggle-btn" onclick="toggleScript()" title="Kirill/Lotin" style="margin-right:8px">🔤 Кирилл</button>
         {# kech114 (egasi QARORI «6A — Bir qator + tugmalar», telefon): tor ekranda tungi rejim va Кирилл shu «···»
            menyusida (keng ekranda menyu yashirin, tugmalar avvalgidek); sahifa tugmalari — `.tb-amallar` (keng ekranda
            avvalgi joyida, telefonda panelning ikkinchi qatorida yonma-yon, teng kenglikda). #}
@@ -1219,7 +1218,7 @@ function kichikRasm(url) {
         const badge = document.getElementById('notifBadge');
         const list = document.getElementById('notifList');
         if (!items.length) {
-          list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:12.5px">Bildirishnoma yo\'q</div>';
+          list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">Bildirishnoma yo\'q</div>';
           return;
         }
         const urgent = items.filter(i => i.level !== 'green').length;
@@ -1234,10 +1233,10 @@ function kichikRasm(url) {
         list.innerHTML = items.map(n => `
           <div style="display:flex;gap:10px;padding:9px 16px;align-items:flex-start">
             <span style="font-size:14px">${escapeHtml(n.icon)}</span>
-            <span style="font-size:12.5px;color:var(--text);line-height:1.4">${escapeHtml(n.text)}</span>
+            <span style="font-size:13px;color:var(--text);line-height:1.4">${escapeHtml(n.text)}</span>
           </div>`).join('');
       }).catch(() => {
-        document.getElementById('notifList').innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:12.5px">Yuklab bo\'lmadi</div>';
+        document.getElementById('notifList').innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">Yuklab bo\'lmadi</div>';
       });
     })();
     </script>
@@ -1256,7 +1255,7 @@ function kichikRasm(url) {
      tugma, o'chirish kabi qaytarib bo'lmaydigan amallar uchun). ══ -->
 <div id="ccModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;align-items:center;justify-content:center;padding:20px">
   <div style="background:var(--white);border-radius:14px;width:420px;max-width:100%;padding:24px;box-shadow:var(--shadow-card)">
-    <div id="ccModalTitle" style="font-size:15.5px;font-weight:700;color:var(--text);margin-bottom:8px;display:none"></div>
+    <div id="ccModalTitle" style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px;display:none"></div>
     <div id="ccModalMessage" style="font-size:14px;color:var(--text2);line-height:1.6;white-space:pre-wrap;margin-bottom:18px"></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button id="ccModalCancel" data-yopish class="btn btn-outline" style="flex:1">Bekor</button>

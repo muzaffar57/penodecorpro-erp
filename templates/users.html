@@ -40,8 +40,8 @@
             <td data-label="Rol">
               {# kech118 (ROLLAR): rol — korxona roli (nomi admin o'zi bergan). O'zidan boshqasiga — rolni shu yerda almashtirish. #}
               {% if u.username != current_user.username %}
-              <select class="u-rol-tanlov" aria-label="{{ u.username }} roli" data-eski="{{ u.rol_id or '' }}"
-                      onchange="userRoli({{ u.id }}, this)" style="font-size:13px;padding:4px 6px;max-width:150px">
+              <select class="u-rol-tanlov maydon maydon-sm" aria-label="{{ u.username }} roli" data-eski="{{ u.rol_id or '' }}"
+                      onchange="userRoli({{ u.id }}, this)" style="max-width:150px">
                 {% if not u.rol_id %}<option value="" selected>{{ u.rol_nomi }}</option>{% endif %}
                 {% for r in rollar %}<option value="{{ r.id }}" {% if r.id == u.rol_id %}selected{% endif %}>{{ r.nom }}</option>{% endfor %}
               </select>
@@ -136,26 +136,26 @@
 <div id="parolModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:16px" onkeydown="if(event.key==='Escape')parolYopish()">
   <div style="background:var(--white);border-radius:14px;padding:24px;width:420px;max-width:100%">
     <div style="font-size:16px;font-weight:600;margin-bottom:6px" id="parol-sarlavha">🔑 Parolni o'zgartirish</div>
-    <div style="font-size:12.5px;color:var(--text3);margin-bottom:16px" id="parol-izoh"></div>
+    <div style="font-size:13px;color:var(--text3);margin-bottom:16px" id="parol-izoh"></div>
     <div class="form-group" id="parol-eski-qator" style="display:none">
       <label>Joriy parol</label>
       <div style="display:flex;gap:6px">
         <input type="password" id="parol-eski" autocomplete="current-password" style="flex:1">
-        <button type="button" class="btn btn-outline btn-xs" onclick="parolKozcha('parol-eski', this)" title="Ko'rsatish / yashirish" aria-label="Parolni ko'rsatish">👁</button>
+        <button type="button" class="btn btn-outline btn-icon" onclick="parolKozcha('parol-eski', this)" title="Ko'rsatish / yashirish" aria-label="Parolni ko'rsatish">👁</button>
       </div>
     </div>
     <div class="form-group">
       <label>Yangi parol (kamida 6 belgi)</label>
       <div style="display:flex;gap:6px">
         <input type="password" id="parol-yangi" autocomplete="new-password" style="flex:1">
-        <button type="button" class="btn btn-outline btn-xs" onclick="parolKozcha('parol-yangi', this)" title="Ko'rsatish / yashirish" aria-label="Parolni ko'rsatish">👁</button>
+        <button type="button" class="btn btn-outline btn-icon" onclick="parolKozcha('parol-yangi', this)" title="Ko'rsatish / yashirish" aria-label="Parolni ko'rsatish">👁</button>
       </div>
     </div>
     <div class="form-group">
       <label>Yangi parolni takrorlang</label>
       <div style="display:flex;gap:6px">
         <input type="password" id="parol-takror" autocomplete="new-password" style="flex:1" onkeydown="if(event.key==='Enter')parolSaqlash()">
-        <button type="button" class="btn btn-outline btn-xs" onclick="parolKozcha('parol-takror', this)" title="Ko'rsatish / yashirish" aria-label="Parolni ko'rsatish">👁</button>
+        <button type="button" class="btn btn-outline btn-icon" onclick="parolKozcha('parol-takror', this)" title="Ko'rsatish / yashirish" aria-label="Parolni ko'rsatish">👁</button>
       </div>
     </div>
     <div id="parol-xato" style="display:none;color:var(--m-dc2626);font-size:13px;font-weight:600;margin-bottom:8px;padding:8px 10px;background:var(--f-fef2f2);border-radius:8px"></div>
@@ -201,7 +201,7 @@
          "polling" rejimida ishlasa, o'sha botni buzib qo'yishi mumkin
          (2 marta shunday bo'lgan). Shuning uchun, bosishdan OLDIN aniq
          ogohlantirish ko'rsatiladi. -->
-    <div style="background:var(--f-fef3c7);border:1.5px solid var(--ch-fde68a);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12.5px;color:var(--m-92400e);line-height:1.6">
+    <div style="background:var(--f-fef3c7);border:1.5px solid var(--ch-fde68a);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:13px;color:var(--m-92400e);line-height:1.6">
       ⚠️ <b>Diqqat:</b> Agar sizning asosiy (katalog) botingiz BOSHQA, alohida serverda ishlasa — bu tugmani bosish o'sha botni vaqtincha to'xtatib qo'yishi mumkin (bu, avval 2 marta bo'lgan). Agar shunday bo'lsa — pastdagi qizil tugma orqali darhol tuzatib olishingiz mumkin.
     </div>
     <button class="btn btn-dark" onclick="setupTelegramSecurity()" id="tg-security-btn">
@@ -216,8 +216,8 @@
          webhookni butunlay o'chirib, botni asl holatiga qaytarish
          mumkin. -->
     <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--ch-fadbd8)">
-      <div style="font-size:12.5px;color:var(--m-dc2626);margin-bottom:8px">⚠️ Agar shu tugmani bosgandan keyin, botingiz (boshqa, alohida serverdagi) ishlamay qolgan bo'lsa — quyidagi tugma orqali qaytaring:</div>
-      <button class="btn btn-outline" style="border-color:#DC2626;color:var(--m-dc2626)" onclick="deleteTelegramWebhook()" id="tg-delete-webhook-btn">
+      <div style="font-size:13px;color:var(--m-dc2626);margin-bottom:8px">⚠️ Agar shu tugmani bosgandan keyin, botingiz (boshqa, alohida serverdagi) ishlamay qolgan bo'lsa — quyidagi tugma orqali qaytaring:</div>
+      <button class="btn btn-danger" onclick="deleteTelegramWebhook()" id="tg-delete-webhook-btn">
         🔄 Webhookni o'chirib, botni asl holatiga qaytarish
       </button>
       <div id="tg-delete-webhook-result" style="display:none;margin-top:14px;padding:14px;background:var(--bg);border-radius:10px;font-size:13px;line-height:1.7"></div>
@@ -230,11 +230,11 @@
 <div id="hodimQrModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2000;align-items:center;justify-content:center;padding:20px">
   <div style="background:var(--white);border-radius:16px;padding:28px;width:360px;max-width:100%;text-align:center">
     <div style="font-size:16px;font-weight:700;margin-bottom:6px">📱 Xodim paneliga kirish</div>
-    <div style="font-size:12.5px;color:var(--text3);margin-bottom:18px">Telefon kamerasi bilan skanerlang</div>
+    <div style="font-size:13px;color:var(--text3);margin-bottom:18px">Telefon kamerasi bilan skanerlang</div>
     {# kech120 (zip 130 — G6-07): QR SERVERDA (ichida korxona kodi — kirish sahifasi uni o'zi to'ldiradi); ilgari begona sayt rasmi #}
     <img id="hodimQrImg" src="" alt="QR kod" style="width:220px;height:220px;border:1px solid var(--ch-eeeeee);border-radius:12px;margin-bottom:14px;background:#fff">
-    <div style="font-size:12.5px;color:var(--text3)">Korxona kodi</div>
-    <div id="hodimQrKod" style="font-size:22px;font-weight:800;letter-spacing:.5px;color:var(--text);margin:2px 0 8px;overflow-wrap:anywhere">—</div>
+    <div style="font-size:13px;color:var(--text3)">Korxona kodi</div>
+    <div id="hodimQrKod" style="font-size:24px;font-weight:800;letter-spacing:.5px;color:var(--text);margin:2px 0 8px;overflow-wrap:anywhere">—</div>
     <div id="hodimQrUrl" style="font-size:12px;color:var(--text3);word-break:break-all;margin-bottom:16px;font-family:monospace"></div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-outline w-full" onclick="hodimQrChop()">🖨️ Chop etish</button>
@@ -263,7 +263,7 @@
       <input type="checkbox" id="fr-keep-only-self" style="width:16px;height:16px;cursor:pointer">
       Boshqa foydalanuvchi (login) hisoblarini ham o'chirish — <b>faqat men (hozirgi admin) qolaman</b>
     </label>
-    <button class="btn" style="background:#DC2626;color:#fff;border:none" onclick="startFactoryReset()">
+    <button class="btn btn-red" onclick="startFactoryReset()">
       🗑️ Tizimni to'liq tozalash
     </button>
   </div>
@@ -524,7 +524,7 @@ function showAddedToast(){
   box.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:9999;display:flex;align-items:center;justify-content:center;animation:fadeIn .15s ease';
   box.innerHTML = `
     <div style="background:var(--white);border-radius:16px;padding:32px 40px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.2);animation:popIn .2s ease">
-      <div style="width:56px;height:56px;border-radius:50%;background:var(--f-dcfce7);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:28px">✓</div>
+      <div style="width:56px;height:56px;border-radius:50%;background:var(--f-dcfce7);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:24px">✓</div>
       <div style="font-size:16px;font-weight:700;color:var(--m-222222)">Qo'shildi!</div>
     </div>
     <style>

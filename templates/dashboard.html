@@ -6,14 +6,14 @@
 {% block topbar_actions %}
 {# kech120 (zip 135 — F bosqichi 5-qism, audit G1-25): bosilganda hech narsa bildirmasdi, majburiyatlar va avans so'rovlarini yangilamasdi #}
 <span id="dashYangilandi" class="dash-yangilandi" aria-live="polite"></span>
-<button class="btn btn-outline btn-sm" id="dashYangilaBtn" onclick="dashYangila()"><i class="ti ti-refresh" style="font-size:13px"></i> Yangilash</button>
+<button class="btn btn-outline btn-md" id="dashYangilaBtn" onclick="dashYangila()"><i class="ti ti-refresh"></i> Yangilash</button>
 {% endblock %}
 
 {% block head %}
 <style>
 .dash-grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
 /* kech120 (zip 135 — G1-25): «Yangilash» — aylanuvchi belgi va «Yangilandi: 14:05» */
-.dash-yangilandi{font-size:12.5px;color:var(--text3);margin-right:8px;white-space:nowrap}
+.dash-yangilandi{font-size:13px;color:var(--text3);margin-right:8px;white-space:nowrap}
 #dashYangilaBtn.yuklanmoqda .ti-refresh{animation:dash-aylan .8s linear infinite;display:inline-block}
 @keyframes dash-aylan{to{transform:rotate(360deg)}}
 /* kech120 (zip 135 — G1-12): uzun ism bir qatorda (ilgari 4 qatorga bo'linib kartani cho'zardi), to'liq ismi — ko'rsatkichda */
@@ -34,15 +34,15 @@
 .chart-wrap{position:relative;height:220px}
 
 /* Dashboard xulosa qatorlari — Xomashyo, Tayyor mahsulot, Brak, Moliyaviy holat kartochkalari */
-.dash-info-row{display:flex;justify-content:space-between;align-items:center;padding:10px 10px;margin:0 -10px;border-bottom:1px solid var(--ch-f3f1ec);font-size:13.5px}
+.dash-info-row{display:flex;justify-content:space-between;align-items:center;padding:10px 10px;margin:0 -10px;border-bottom:1px solid var(--ch-f3f1ec);font-size:13px}
 .dash-info-row:nth-of-type(even){background:var(--f-fafaf8);border-radius:6px}
 .dash-info-row:last-of-type{border-bottom:none}
 .dash-info-label{color:var(--text2);font-weight:600;display:flex;align-items:center;gap:6px}
 .dash-info-val{font-weight:800;color:var(--text)}
 .dash-info-row.total{padding:12px 10px 4px;margin-top:4px;border-top:1.5px solid var(--border);border-bottom:none;font-weight:700;background:transparent!important}
 .dash-info-row.grand{padding:13px 10px 2px;margin-top:6px;border-top:2px solid var(--dark);border-bottom:none;background:transparent!important}
-.dash-info-row.grand .dash-info-label{font-size:14.5px;font-weight:700;color:var(--text)}
-.dash-info-row.grand .dash-info-val{font-size:19px;font-weight:800}
+.dash-info-row.grand .dash-info-label{font-size:14px;font-weight:700;color:var(--text)}
+.dash-info-row.grand .dash-info-val{font-size:18px;font-weight:800}
 .master-item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--ch-f5f5f5)}
 .master-item:last-child{border-bottom:none}
 .master-rank{width:24px;height:24px;border-radius:6px;background:var(--f-f5f5f5);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:var(--text3);flex-shrink:0}
@@ -161,7 +161,7 @@
   <!-- TO'LANISHI KERAK BO'LGAN MAJBURIYATLAR — kech118 (ROLLAR): «Qarzlar» ruxsati borlarga (ilgari faqat Admin) -->
   {% if current_user.ruxsat('qarz', 'korish') %}
   <div class="card mb-16" id="obligWidget" style="display:none;border-left:3px solid #EF4444">
-    <div class="card-head">
+    <div class="card-head" style="flex-wrap:wrap;gap:8px">
       <h3>⚠️ To'lanishi kerak bo'lgan majburiyatlar</h3>
       <a href="/debts" class="btn btn-outline btn-sm">Qarzdorlar sahifasi →</a>
     </div>
@@ -196,7 +196,7 @@
   <div class="card mb-16" style="border-left:3px solid var(--gold-dark);border-radius:0 12px 12px 0">
     <div class="card-head">
       <h3 style="color:var(--gold-dark)"><i class="ti ti-shopping-cart"></i> Xomashyo xaridlari (bu oy)</h3>
-      <span id="purch-total" style="font-size:15px;font-weight:800;color:var(--gold-dark)">—</span>
+      <span id="purch-total" style="font-size:16px;font-weight:800;color:var(--gold-dark)">—</span>
     </div>
     <div style="padding:6px 16px;border-bottom:1px solid var(--border2);background:var(--f-fafaf8)">
       <div class="dash-info-row" style="padding:9px 2px;border-bottom:1px solid var(--border2)">
@@ -274,7 +274,7 @@
           <span class="dash-info-label">Brak ulushi (bu oy, me'yor <span id="brk-meyor">—</span>)</span>
           <span id="brk-foiz" class="dash-info-val">—</span>
         </div>
-        <div id="brk-ogohlantirish" style="display:none;background:var(--f-fee2e2);color:var(--m-991b1b);border-radius:8px;padding:8px 10px;margin:6px 0;font-size:12.5px;font-weight:700"></div>
+        <div id="brk-ogohlantirish" style="display:none;background:var(--f-fee2e2);color:var(--m-991b1b);border-radius:8px;padding:8px 10px;margin:6px 0;font-size:13px;font-weight:700"></div>
         <div class="dash-info-row total">
           <span>Jami brak (barcha vaqt)</span>
           <span id="brk-total-value" style="color:var(--m-dc2626)">—</span>
@@ -327,7 +327,7 @@
 
   <div class="card mb-16">
     {# kech120 (zip 135 — G1-12): mezon ko'rsatiladi (ilgari ko'rinmaydigan summa bo'yicha saralanib, ostida HAMMA buyurtma soni) #}
-    <div class="card-head"><h3>Usta reytingi (top 5)</h3><span style="font-size:12.5px;color:var(--text3)">tayyor buyurtmalar summasi bo'yicha</span></div>
+    <div class="card-head"><h3>Usta reytingi (top 5)</h3><span style="font-size:13px;color:var(--text3)">tayyor buyurtmalar summasi bo'yicha</span></div>
     <div class="card-body" style="padding:0 16px">
       <div id="masterList"><div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div></div>
     </div>
@@ -445,9 +445,9 @@ async function loadProdPeriods(){
   try{
     const p = await fetch('/api/dashboard/production-periods').then(r=>r.json());
     document.getElementById('prodPeriods').innerHTML = `
-      <div><div style="font-size:20px;font-weight:700;color:var(--gold-dark)">${p.today}</div><div style="font-size:13px;color:var(--text3)">Bugun</div></div>
-      <div><div style="font-size:20px;font-weight:700;color:var(--gold-dark)">${p.week}</div><div style="font-size:13px;color:var(--text3)">Hafta</div></div>
-      <div><div style="font-size:20px;font-weight:700;color:var(--gold-dark)">${p.month}</div><div style="font-size:13px;color:var(--text3)">Oy</div></div>`;
+      <div><div style="font-size:18px;font-weight:700;color:var(--gold-dark)">${p.today}</div><div style="font-size:13px;color:var(--text3)">Bugun</div></div>
+      <div><div style="font-size:18px;font-weight:700;color:var(--gold-dark)">${p.week}</div><div style="font-size:13px;color:var(--text3)">Hafta</div></div>
+      <div><div style="font-size:18px;font-weight:700;color:var(--gold-dark)">${p.month}</div><div style="font-size:13px;color:var(--text3)">Oy</div></div>`;
   }catch(e){}
 }
 
@@ -554,14 +554,14 @@ async function loadPurchaseStats(){
             <div style="flex:1;height:5px;background:var(--f-f0f0f0);border-radius:3px;overflow:hidden">
               <div style="height:100%;width:${pct}%;background:#B9783F;border-radius:3px"></div>
             </div>
-            <span style="font-size:12.5px;color:var(--text3);white-space:nowrap">${m.quantity}${m.unit ? ' ' + escapeHtml(m.unit) : ''} · ~${fmt(m.avg_price)}/${escapeHtml(m.unit || 'dona')}</span>
+            <span style="font-size:13px;color:var(--text3);white-space:nowrap">${m.quantity}${m.unit ? ' ' + escapeHtml(m.unit) : ''} · ~${fmt(m.avg_price)}/${escapeHtml(m.unit || 'dona')}</span>
           </div>
         </div>`;
       }).join('');
       return `
         <div style="padding:6px 16px;background:var(--f-fafaf8);border-bottom:1px solid var(--ch-f0f0f0);display:flex;justify-content:space-between">
-          <span style="font-size:13.5px;font-weight:700;color:var(--gold-dark)">${catIcons[cat]||'📦'} ${escapeHtml(cat)}</span>
-          <span style="font-size:13.5px;font-weight:700;color:var(--gold-dark)">${fmt(g.total)} so'm</span>
+          <span style="font-size:13px;font-weight:700;color:var(--gold-dark)">${catIcons[cat]||'📦'} ${escapeHtml(cat)}</span>
+          <span style="font-size:13px;font-weight:700;color:var(--gold-dark)">${fmt(g.total)} so'm</span>
         </div>
         ${rows}`;
     }).join('');
@@ -782,15 +782,15 @@ async function checkPendingAdvanceRequests(){
       <div id="adv-row-${r.id}" style="border:1px solid var(--ch-eeeeee);border-radius:10px;padding:14px;margin-bottom:10px">
         <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px">
           <div>
-            <div style="font-weight:700;font-size:14.5px">${escapeHtml(r.employee_name)}</div>
-            <div style="font-size:12.5px;color:var(--text3);margin-top:2px">${tkSana(r.requested_date)} kuni oldim deb yozgan</div>
+            <div style="font-weight:700;font-size:14px">${escapeHtml(r.employee_name)}</div>
+            <div style="font-size:13px;color:var(--text3);margin-top:2px">${tkSana(r.requested_date)} kuni oldim deb yozgan</div>
           </div>
           <div style="font-weight:800;font-size:16px;color:var(--m-b45309)">${fmt(r.amount)} so'm</div>
         </div>
-        ${r.notes ? `<div style="font-size:12.5px;color:var(--text3);margin-bottom:10px">💬 ${escapeHtml(r.notes)}</div>` : ''}
-        <div style="display:flex;gap:8px">
-          <button class="btn btn-dark" style="flex:1;height:38px;font-size:13px" onclick="confirmAdvReq(${r.id})">✅ Ha, berganman</button>
-          <button class="btn btn-outline" style="flex:1;height:38px;font-size:13px;color:var(--m-dc2626);border-color:var(--ch-fadbd8)" onclick="rejectAdvReq(${r.id})">❌ Yo'q</button>
+        ${r.notes ? `<div style="font-size:13px;color:var(--text3);margin-bottom:10px">💬 ${escapeHtml(r.notes)}</div>` : ''}
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <button class="btn btn-dark" style="flex:1 1 160px" onclick="confirmAdvReq(${r.id})">✅ Ha, berganman</button>
+          <button class="btn btn-danger" style="flex:1 1 120px" onclick="rejectAdvReq(${r.id})">❌ Yo'q</button>
         </div>
       </div>`).join('');
     document.getElementById('advReqModal').style.display = 'flex';
