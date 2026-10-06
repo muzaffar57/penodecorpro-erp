@@ -508,7 +508,12 @@ check("S2 tayyor rollar faqat katalogdagi band / amal; Admin andozasi — HAMMA 
 check("S3 «Tannarx va foyda» — alohida band (faqat Ko'rish); Menejer / Omborchi da YO'Q, Moliyachi da BOR (eskisidek)",
       RX.BANDLAR["tannarx"]["amallar"] == ("korish",) and "tannarx" not in RX.TAYYOR_ROLLAR["menejer"]["ruxsatlar"]
       and "tannarx" not in RX.TAYYOR_ROLLAR["omborchi"]["ruxsatlar"] and "tannarx" in RX.TAYYOR_ROLLAR["moliyachi"]["ruxsatlar"])
-_jadvalsiz = sorted(k for k in MARSHRUT if k not in ESKI and k not in YANGI_MARSHRUTLAR)
+# kech123 (MOSLANDI — konteynerda Python 3.13): `saas_migration.py` Python ≥ 3.12 da yuklanadi (Railway — 3.12), 3.11 da — yo'q; uning
+# VAQTINCHALIK marshrutlari (qorovuli — o'z modulida: admin + tasdiq iborasi) bor bo'lishi ham, bo'lmasligi ham mumkin — jadvalda tekshirilmaydi
+SAAS_IXTIYORIY = {"GET /api/saas-migration/status", "GET /saas-migratsiya", "POST /api/saas-migration/step/{kalit}",
+                  "POST /saas-migratsiya/haqiqiy/{kalit}", "POST /saas-migratsiya/kod/haqiqiy", "POST /saas-migratsiya/kod/sinov",
+                  "POST /saas-migratsiya/sinov-tenant", "POST /saas-migratsiya/sinov/{kalit}"}
+_jadvalsiz = sorted(k for k in MARSHRUT if k not in ESKI and k not in YANGI_MARSHRUTLAR and k not in SAAS_IXTIYORIY)
 _yoq = sorted(k for k in list(ESKI) + list(YANGI_MARSHRUTLAR) if k not in MARSHRUT)
 check("S4 HAR marshrut jadvalda (yangi marshrut ruxsati belgilanmay qolmagan), jadvaldagi hamma marshrut ilovada bor",
       not _jadvalsiz and not _yoq, (_jadvalsiz, _yoq))
@@ -876,8 +881,8 @@ check("R27 tannarx + buyurtma ko'rish: Buyurtmalar sahifasida «Moliya» bloki v
       'id="btn-profit"' in _t and 'id="s-cost"' in _t)
 _up = A.get("/users").text
 check("R28 Foydalanuvchilar sahifasi: rol tanlovi — korxona rollari (o'zidan boshqasiga), «Rollar va huquqlar» — «Sozlash →»",
-      'class="u-rol-tanlov"' in _up and "Sotuvchi" not in _up and "Bo&#39;sh rol" in _up and 'href="/rollar"' in _up
-      and "rt_B" not in _up, re.findall(r'<select class="u-rol-tanlov".{0,200}', _up)[:1])
+      re.search(r'class="u-rol-tanlov[ "]', _up) and "Sotuvchi" not in _up and "Bo&#39;sh rol" in _up and 'href="/rollar"' in _up
+      and "rt_B" not in _up, re.findall(r'<select class="u-rol-tanlov[ "].{0,200}', _up)[:1])
 
 _s = SessionLocal()
 _adm_rol = _s.query(Rol).filter(Rol.company_id == 1, Rol.kod == "admin").first()

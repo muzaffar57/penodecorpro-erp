@@ -302,9 +302,10 @@ if br:
                     tugma: lb ? lb.textContent.trim() : null, nomi: document.getElementById('co-logo-nomi').textContent,
                     tabbar: getComputedStyle(document.querySelector('.tab-bar')).display,
                     korin: getComputedStyle(document.getElementById('tab-settings')).display}; }""")
-        check("B1 Sozlamalar sahifasi: maydonlar umumiy uslubda (tekis chegara, 8 px burchak, 10 px ichki joy — ilgari brauzer standarti), fayl — «Fayl tanlash» / "
+        # kech123 (zip 139 — U-13, MOSLANDI): `.input-field` — yagona maydon qoidasi (`.maydon` bilan bir: 12 px ichki joy, 8 px burchak)
+        check("B1 Sozlamalar sahifasi: maydonlar umumiy uslubda (tekis chegara, 8 px burchak, 12 px ichki joy — ilgari brauzer standarti), fayl — «Fayl tanlash» / "
               "«Fayl tanlanmagan» (inglizcha «Choose File» yo'q), jurnallar yorliqlari ko'rinmaydi", _sz["chegara"] in ("1px solid", "1.5px solid")
-              and _sz["radius"] == "8px" and _sz["padding"] == "10px" and _sz["fayl"] == "none" and _sz["tugma"] == "Fayl tanlash"
+              and _sz["radius"] == "8px" and _sz["padding"] == "12px" and _sz["fayl"] == "none" and _sz["tugma"] == "Fayl tanlash"
               and _sz["nomi"] == "Fayl tanlanmagan" and _sz["tabbar"] == "none" and _sz["korin"] == "block", _sz)
         pg.goto(B + "/ustalar", wait_until="networkidle")
         pg.wait_for_timeout(500)
