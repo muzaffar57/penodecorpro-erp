@@ -642,6 +642,12 @@ class Project(Base):
     # hisoblanmagan (`main._migrate_buyurtma_raqam_hisoblagich` yoki birinchi buyurtma to'ldiradi).
     # `default=` ATAYLAB YO'Q (sync_missing_columns eski qatorlarga 0 yozib, jurnal hisobini o'tkazib yuborardi).
     oxirgi_buyurtma_seq = Column(Integer, nullable=True)
+    # kech124 (zip 144 — egasi QARORI 06.10: yuk xati raqami LOYIHA bo'yicha davom etadi, ko'rinishi «ORD-001-2/Y-6» — buyurtma
+    # raqami qoladi, Y — loyiha bo'yicha): shu loyihada BERILGAN eng katta yuk xati tartib raqami (…/Y-<N>), loyihaning HAMMA
+    # buyurtmalari bo'yicha. Yuk xati (yoki butun buyurtma) o'chirilsa ham raqami qayta berilmaydi (QAROR «A»). NULL — hali yuk xati
+    # yo'q yoki zip 144 dan oldingi loyiha (`main._migrate_loyiha_yuk_seq` to'ldiradi; `crud.create_delivery` mavjud yuklardan ham
+    # hisoblaydi). `default=` ATAYLAB YO'Q (`sync_missing_columns` eski qatorlarga 0 yozmasin).
+    oxirgi_yuk_seq = Column(Integer, nullable=True)
 
     start_date = Column(DateTime, default=datetime.utcnow)
     deadline = Column(DateTime, nullable=True)
@@ -726,7 +732,8 @@ class Order(Base):
     ochirish_yopish_json = Column(Text, nullable=True)
     # kech86 (QAROR "A" yuk xatiga ham): shu buyurtmada BERILGAN eng katta yuk xati tartib raqami (…/Y-<N>).
     # Yuk xati o'chirilsa ham raqami qayta berilmaydi. NULL — hali yuk yo'q yoki eski buyurtma (mavjud yuklardan
-    # hisoblanadi). `default=` ATAYLAB YO'Q.
+    # hisoblanadi). `default=` ATAYLAB YO'Q. (kech124, zip 144: Y-raqam endi LOYIHA bo'yicha davom etadi — loyiha
+    # hisoblagichi `Project.oxirgi_yuk_seq`; bu ustun ham yangilanadi va loyiha raqami hisobida qatnashadi.)
     oxirgi_yuk_seq = Column(Integer, nullable=True)
     stock_returned = Column(Boolean, default=False)         # O'chirilganda ombor QAYTARILGANMI — takroriy (tiklab-qayta o'chirilganda ikki marta) qaytarib yubormaslik uchun
 

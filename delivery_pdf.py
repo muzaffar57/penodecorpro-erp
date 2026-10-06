@@ -1127,3 +1127,228 @@ def generate_summary_pdf(order, deliveries, db=None) -> bytes:
     pdf = buf.getvalue()
     buf.close()
     return pdf
+
+
+def _som_yaxlit(n):
+    """kech124 (zip 144): summa — butun so'mga HALF_UP (brauzerdagi `Math.round` bilan bir: «Yuk xatlari» bo'limidagi «Tanlangan»
+    jami va shu varaqdagi JAMI — bitta tiyin yig'indisidan, AYNAN bir xil yaxlitlanadi), ming ajratgich — bo'shliq («1 234 567»).
+    `_fmt` — Python `round` (yarimda juftga) — 12 344,5 ni 12 344 qilardi, brauzer 12 345 ko'rsatadi."""
+    from decimal import Decimal, ROUND_HALF_UP
+    try:
+        v = int(Decimal(repr(float(n or 0))).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    except (TypeError, ValueError, ArithmeticError):
+        return "0"
+    return f"{v:,}".replace(",", " ")
+
+
+def _jamlanma_nomi(q):
+    """Jamlangan qator nomi — yuk xatidagi kabi («(qoplamali)», «(GIPS)») + o'lcham («20×15 sm» — profil, panel, donali, blok:
+    eni × qalinligi santimetrda; bir xil nomli, o'lchami boshqa detallar alohida qatorda — farqi ko'rinsin)."""
+    nom = q.get("nom") or "—"
+    kat = q.get("kategoriya") or ""
+    if kat == "gips":
+        nom = f"{nom} (GIPS)"
+    elif q.get("qoplama"):
+        nom = f"{nom} (qoplamali)"
+    if kat in ("profil", "panel", "dona", "blok") and q.get("eni") and q.get("qalinligi"):
+        nom = f"{nom} · {_num(q['eni'])}×{_num(q['qalinligi'])} sm"
+    return nom
+
+
+def generate_yuk_jamlanma_pdf(project, jamlanma, db=None) -> bytes:
+    """kech124 (zip 144 — egasi QARORLARI 06.10): loyiha «Yuk xatlari» bo'limidagi «Jamlab olish» varag'i — belgilangan yuk
+    xatlaridagi (loyihaning bir nechta buyurtmasi ham) BIR XIL detallar bitta qatorda, jami miqdor bilan (Y-1 100 m karniz + Y-2 50 m
+    = 150 m); ustunlar — miqdor, birlik narxi, summa (egasi tanlovi; «Faqat miqdor» RAD), oxirida JAMI summa; pastida kirgan yuk
+    xatlari (raqam, sana, summa). Jamlash qoidasi — `crud.yuk_xatlari_jamlanmasi` (bir xil = nom, tur, o'lcham, qoplama, birlik,
+    birlik narxi). Foydalanuvchi matni — `_x(…)` (K106-3), sarlavha — korxona nomi (K106-4), sana — Toshkent (kech106)."""
+    _brand = get_brand(db, company_id_of(project, db))
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=1.4*cm, rightMargin=1.4*cm,
+        topMargin=1.2*cm, bottomMargin=1.2*cm,
+        title=f"Yuk xatlari jamlanmasi {project.project_number or ''}"
+    )
+
+    st_title = ParagraphStyle('t', fontName='Helvetica-Bold', fontSize=16,
+                              textColor=colors.white, alignment=TA_CENTER, leading=20)
+    st_sub = ParagraphStyle('s', fontName='Helvetica', fontSize=9,
+                            textColor=GOLD, alignment=TA_CENTER, leading=12)
+    st_norm = ParagraphStyle('n', fontName='Helvetica', fontSize=9,
+                             textColor=DARK, leading=13)
+    st_small = ParagraphStyle('sm', fontName='Helvetica', fontSize=7.5,
+                              textColor=GRAY, leading=10)
+    st_item = ParagraphStyle('it', fontName='Helvetica', fontSize=8,
+                             textColor=DARK, leading=10.5)
+    st_qiymat = ParagraphStyle('iq', fontName='Helvetica-Bold', fontSize=9,
+                               textColor=DARK, leading=11.5)
+
+    qatorlar = list(jamlanma.get("qatorlar") or [])
+    yuklar = list(jamlanma.get("yuk_xatlari") or [])
+    el = []
+
+    # ---- Sarlavha (korxona) ----
+    header = Table([
+        [Paragraph(_x(_brand["name"].upper()), st_title)],
+        [Paragraph(_x(_brand["subtitle"]), st_sub)],
+    ], colWidths=[18.2*cm])
+    header.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), DARK),
+        ('TOPPADDING', (0, 0), (-1, 0), 10),
+        ('BOTTOMPADDING', (0, -1), (-1, -1), 8),
+    ]))
+    el.append(header)
+    el.append(Spacer(1, 6))
+
+    # ---- Hujjat nomi ----
+    title2 = Table([[Paragraph(
+        f"<font size=13><b>YUK XATLARI JAMLANMASI</b></font>  "
+        f"<font size=11 color='#8E8E93'>{_x(project.project_number or '')}</font>",
+        ParagraphStyle('x', fontName='Helvetica', fontSize=12,
+                       textColor=DARK, alignment=TA_CENTER)
+    )]], colWidths=[18.2*cm])
+    title2.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), LIGHT),
+        ('TOPPADDING', (0, 0), (-1, -1), 7),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 7),
+        ('LINEBELOW', (0, 0), (-1, -1), 2, GOLD),
+    ]))
+    el.append(title2)
+    el.append(Spacer(1, 10))
+
+    # ---- Ma'lumotlar ----
+    d1, d2 = (jamlanma.get("davr") or (None, None))
+    if d1 is not None and d2 is not None:
+        t1, t2 = _tashkent_vaqt(d1), _tashkent_vaqt(d2)
+        davr = (f"{t1.strftime('%d.%m.%Y')} — {t2.strftime('%d.%m.%Y')}"
+                if t1.date() != t2.date() else t1.strftime('%d.%m.%Y'))
+    else:
+        davr = "—"
+    info = Table([
+        ["Mijoz:", Paragraph(_x(project.client_name or "—"), st_qiymat), "Davr:", davr],
+        ["Loyiha:", Paragraph(_x(project.project_name or "—"), st_qiymat), "Yuk xatlari:", f"{len(yuklar)} ta"],
+        ["Telefon:", Paragraph(_x(project.client_phone or "—"), st_qiymat), "Sana:", _tashkent_vaqt().strftime("%d.%m.%Y %H:%M")],
+        ["Buyurtmalar:", Paragraph(_x(", ".join(jamlanma.get("buyurtmalar") or []) or "—"), st_qiymat), "", ""],
+    ], colWidths=[2.4*cm, 7*cm, 2.4*cm, 6.4*cm])
+    info.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica'),
+        ('FONTNAME', (2, 0), (2, -1), 'Helvetica'),
+        ('FONTNAME', (3, 0), (3, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('TEXTCOLOR', (0, 0), (0, -1), GRAY),
+        ('TEXTCOLOR', (2, 0), (2, -1), GRAY),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('TOPPADDING', (0, 0), (-1, -1), 3),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ('SPAN', (1, 3), (3, 3)),
+    ]))
+    el.append(info)
+    el.append(Spacer(1, 11))
+
+    # ---- Jamlangan mahsulotlar ----
+    el.append(Paragraph("<b>Berilgan mahsulotlar — jamlangan (bir xil detal bitta qatorda)</b>", st_norm))
+    el.append(Spacer(1, 5))
+    data = [["№", "Mahsulot", "Miqdor", "Birlik narxi", "Summa"]]
+    for i, q in enumerate(qatorlar, 1):
+        data.append([
+            str(i),
+            Paragraph(_x(_jamlanma_nomi(q)), st_item),
+            f"{_num(q.get('miqdor'))} {_birlik(q.get('birlik'))}",
+            _som_yaxlit(q.get("birlik_narxi")) + " so'm",
+            _som_yaxlit(q.get("summa")),
+        ])
+    data.append(["JAMI:", "", "", "", _som_yaxlit(jamlanma.get("jami"))])
+    total_row = len(data) - 1
+    tbl = Table(data, colWidths=[0.8*cm, 8.4*cm, 2.8*cm, 3*cm, 3.2*cm], repeatRows=1)
+    tbl.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), DARK),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 8),
+        ('FONTNAME', (0, 1), (-1, -2), 'Helvetica'),
+        ('FONTSIZE', (0, 1), (-1, -2), 8),
+        ('FONTNAME', (2, 1), (2, -2), 'Helvetica-Bold'),
+        ('TEXTCOLOR', (2, 1), (2, -2), GREEN),
+        ('ALIGN', (0, 0), (0, -2), 'CENTER'),
+        ('ALIGN', (2, 0), (-1, -2), 'RIGHT'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('GRID', (0, 0), (-1, -2), 0.4, colors.HexColor("#E5E1D8")),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, colors.HexColor("#FAFAF8")]),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        # Jami qatori
+        ('BACKGROUND', (0, total_row), (-1, total_row), colors.HexColor("#F0EBE0")),
+        ('SPAN', (0, total_row), (3, total_row)),
+        ('FONTNAME', (0, total_row), (-1, total_row), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, total_row), (-1, total_row), 9.5),
+        ('ALIGN', (0, total_row), (3, total_row), 'RIGHT'),
+        ('ALIGN', (4, total_row), (4, total_row), 'RIGHT'),
+        ('TEXTCOLOR', (4, total_row), (4, total_row), GOLD),
+        ('LINEABOVE', (0, total_row), (-1, total_row), 1.2, DARK),
+    ]))
+    el.append(tbl)
+    el.append(Spacer(1, 12))
+
+    # ---- Kirgan yuk xatlari ----
+    el.append(Paragraph("<b>Kirgan yuk xatlari</b>", st_norm))
+    el.append(Spacer(1, 5))
+    ydata = [["№", "Yuk xati", "Sana", "Summa"]]
+    for i, y in enumerate(yuklar, 1):
+        ydata.append([
+            str(i),
+            Paragraph(_x(y.get("raqam") or "—"), st_item),
+            _tashkent_vaqt(y["sana"]).strftime("%d.%m.%Y") if y.get("sana") else "—",
+            _som_yaxlit(y.get("summa")),
+        ])
+    ytbl = Table(ydata, colWidths=[0.8*cm, 9.2*cm, 4*cm, 4.2*cm], repeatRows=1)
+    ytbl.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), LIGHT),
+        ('TEXTCOLOR', (0, 0), (-1, 0), DARK),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 8),
+        ('ALIGN', (0, 0), (0, -1), 'CENTER'),
+        ('ALIGN', (2, 0), (2, -1), 'CENTER'),
+        ('ALIGN', (3, 0), (3, -1), 'RIGHT'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor("#E5E1D8")),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+    ]))
+    el.append(ytbl)
+
+    # ---- Imzo ----
+    el.append(Spacer(1, 26))
+    sign = Table([
+        ["Topshirdi:", "_" * 30, "", "Qabul qildi:", "_" * 30],
+        ["", Paragraph("imzo / F.I.Sh.", st_small), "", "", Paragraph("imzo / F.I.Sh.", st_small)],
+    ], colWidths=[2.2*cm, 6.2*cm, 1.4*cm, 2.4*cm, 6*cm])
+    sign.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('TEXTCOLOR', (0, 0), (0, 0), GRAY),
+        ('TEXTCOLOR', (3, 0), (3, 0), GRAY),
+        ('VALIGN', (0, 0), (-1, -1), 'BOTTOM'),
+        ('ALIGN', (1, 1), (1, 1), 'CENTER'),
+        ('ALIGN', (4, 1), (4, 1), 'CENTER'),
+    ]))
+    el.append(sign)
+
+    # ---- Footer ----
+    el.append(Spacer(1, 14))
+    footer = Table([[Paragraph(
+        f"{_x(_brand['name'])}  ·  {_tashkent_vaqt().strftime('%d.%m.%Y %H:%M')}  ·  "
+        f"Ushbu hujjat {len(yuklar)} ta yuk xati bo'yicha jamlanma",
+        ParagraphStyle('f', fontName='Helvetica', fontSize=7,
+                       textColor=GRAY, alignment=TA_CENTER)
+    )]], colWidths=[18.2*cm])
+    footer.setStyle(TableStyle([
+        ('LINEABOVE', (0, 0), (-1, -1), 0.5, colors.HexColor("#E5E1D8")),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+    ]))
+    el.append(footer)
+
+    doc.build(el)
+    pdf = buf.getvalue()
+    buf.close()
+    return pdf

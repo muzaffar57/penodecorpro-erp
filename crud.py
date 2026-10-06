@@ -9765,10 +9765,65 @@ def _yetkazish_imzo_bazadan(db: Session, d, korxona_id) -> tuple:
 OCHIRILGAN_BUYURTMA_XABARI = "Bu buyurtma o'chirilgan — avval uni tiklang"
 
 
+import re as _re144                                 # noqa: E402
+_YUK_Y_RE = _re144.compile(r"/Y-(\d+)$")
+
+
+def _loyiha_yuk_eng_katta(db: Session, order, istisno_delivery_id=None):
+    """kech124 (zip 144 — egasi QARORI 06.10, «ORD-001-2/Y-6»): yuk xati Y-raqami LOYIHA bo'yicha davom etadi (buyurtma raqami
+    qoladi). Shu buyurtma loyihasida shu paytgacha BERILGAN eng katta Y-raqam — loyiha qatorini QULFLAB o'qiladi.
+
+    Manbalar (eng kattasi; raqam faqat o'sadi, o'chirilgan raqam qayta berilmaydi — QAROR «A»):
+      - loyiha hisoblagichi `projects.oxirgi_yuk_seq` (zip 144 dan; eski loyihaga — `main._migrate_loyiha_yuk_seq`);
+      - loyihaning HAMMA buyurtmalari (yumshoq o'chirilganlari ham) yuk xatlaridagi `/Y-<N>` (eski raqamlar — har buyurtma o'zicha
+        boshlangan: ORD-001-1/Y-1…Y-5, ORD-001-2/Y-1…Y-3 → keyingisi Y-6);
+      - shu buyurtmalarning hisoblagichi `orders.oxirgi_yuk_seq` (kech86 — buyurtma ichida o'chirilgan oxirgi raqam).
+    `istisno_delivery_id` — hozir yozilayotgan (vaqtinchalik buyurtma raqamli) yuk xati hisobga olinmaydi.
+
+    QULF (PostgreSQL; `FOR NO KEY UPDATE` — buyurtma qo'shishdagi tashqi kalit tekshiruvi `FOR KEY SHARE` bilan to'qnashmaydi):
+    bir loyihaning ikki buyurtmasiga BIR VAQTDA yuk xati yozilsa ham raqam takrorlanmaydi (qulf tranzaksiya oxirigacha). Tartib —
+    buyurtma qulfi (101) → tayyor mahsulot / ombor qatorlari → LOYIHA qatori (oxirida): `create_order` dagi loyiha hisoblagichi va
+    `_loyiha_tolangan_yangila` bilan BIR tartib (kech86 izohi: teskari tartib deadlock berardi) — chaqiruvchi (`create_delivery`)
+    buni yuk qatorlari va tayyor mahsulot chiqimidan KEYIN chaqiradi. SQLite da `FOR …` yo'q (yozuvlar baribir ketma-ket).
+
+    Qaytaradi: (loyiha obyekti yoki None, eng katta Y-raqam)."""
+    _cid = getattr(order, "company_id", None)
+    _pid = getattr(order, "project_id", None)
+    if _pid is None:
+        return None, 0
+    _pq = db.query(Project).filter(Project.id == _pid)
+    if _cid is not None:
+        _pq = _pq.filter(Project.company_id == _cid)
+    _prj = _pq.populate_existing().with_for_update(key_share=True).first()
+    if _prj is None:
+        return None, 0
+    _eng = int(_prj.oxirgi_yuk_seq or 0)
+    _yq = db.query(Delivery.delivery_number).join(Order, Order.id == Delivery.order_id).filter(Order.project_id == _prj.id)
+    if _cid is not None:
+        _yq = _yq.filter(Order.company_id == _cid)
+    if istisno_delivery_id is not None:
+        _yq = _yq.filter(Delivery.id != istisno_delivery_id)
+    for (_dn,) in _yq.all():
+        _m = _YUK_Y_RE.search(_dn or "")
+        if _m and int(_m.group(1)) > _eng:
+            _eng = int(_m.group(1))
+    from sqlalchemy import func as _fn144
+    _hq = db.query(_fn144.max(Order.oxirgi_yuk_seq)).filter(Order.project_id == _prj.id)
+    if _cid is not None:
+        _hq = _hq.filter(Order.company_id == _cid)
+    _hb = _hq.scalar()
+    if _hb is not None and int(_hb) > _eng:
+        _eng = int(_hb)
+    return _prj, _eng
+
+
 def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
                     company_id: int = None) -> dict:
     """Yangi yetkazish qo'shadi.
-    Ombor tegilmaydi — bu faqat mijozga topshirish hisobi."""
+    Ombor tegilmaydi — bu faqat mijozga topshirish hisobi.
+
+    kech124 (zip 144): yuk xati raqami — `ORD-<loyiha>-<buyurtma>/Y-<N>`, N LOYIHA bo'yicha davom etadi
+    (`_loyiha_yuk_eng_katta`; buyurtma ichidagi raqam — faqat vaqtinchalik, loyiha qulfidan oldin)."""
     # 17g (2026-09-22): ILDIZ — tana QAT'IY, bazaga tegishdan OLDIN (xato →
     # `ValueError`, hech narsa yozilmaydi). HAQIQIY PostgreSQL da O'LCHANGAN
     # (asl kod = 17f): to'lov / transport `Infinity` / `1e20` — 500; to'lov
@@ -9916,6 +9971,8 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
                          bool(getattr(data, 'confirm_overpay', False)))
 
     # Yetkazish raqami: ORD-010-1/Y-2
+    # kech124 (zip 144): bu yerdagi raqam — buyurtma ichidagi (VAQTINCHALIK) raqam; yakuniysi LOYIHA bo'yicha pastda, loyiha
+    # qulfi ostida (yuk qatorlari va tayyor mahsulot chiqimidan KEYIN — qulf tartibi `_loyiha_yuk_eng_katta` izohida).
     seq = db.query(Delivery).filter(Delivery.order_id == order.id).count() + 1
     # kech86 (K86-1, O'LCHANDI probe86c — SQLite va PG): `yuklar SONI + 1` o'rtadagi yuk xati
     # o'chirilgach MAVJUD raqamni berardi (Y-1, Y-3, Y-3 — ikki hujjat bir raqamda). Endi raqam mavjud
@@ -9995,6 +10052,17 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
         # emas, ro'yxat vaqt o'tishi bilan eski ishlar bilan to'lib ketmasin.
         order.is_pinned = False
 
+    # kech124 (zip 144 — egasi QARORI 06.10): YAKUNIY raqam — LOYIHA bo'yicha. Masalan PRJ-001 da ORD-001-1/Y-1 … Y-5 bo'lsa,
+    # ORD-001-2 ning birinchi yuk xati — ORD-001-2/Y-6 (buyurtma raqami qoladi). Eski raqamlar O'ZGARMAYDI (mijozga qog'oz
+    # berilgan); o'chirilgan raqam qayta berilmaydi (QAROR «A»). Loyiha qatori QULFLANADI — bir loyihaning ikki buyurtmasiga
+    # parallel yuk xati ham takror raqam olmaydi. Qulf shu yerda (tayyor mahsulot / ombor qatorlaridan KEYIN, to'lov va loyiha
+    # «To'langan» summasidan OLDIN) — `create_order` va `_loyiha_tolangan_yangila` bilan bir tartib.
+    _prj144, _eng144 = _loyiha_yuk_eng_katta(db, order, istisno_delivery_id=db_delivery.id)
+    if _eng144 >= seq:
+        seq = _eng144 + 1
+    delivery_number = f"{order.order_number}/Y-{seq}"
+    db_delivery.delivery_number = delivery_number
+
     # Shu yukka bog'liq to'lov (ixtiyoriy) — chegaralari yuqorida, yetkazish
     # yozilishidan OLDIN tekshirilgan (`_tolov_chegarasi`).
     # 17g (2026-09-22): to'lov yetkazish bilan BITTA tranzaksiyada (atomar)
@@ -10038,6 +10106,10 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
     # kech86 (QAROR "A" yuk xatiga ham): berilgan yuk raqami buyurtma hisoblagichiga.
     if int(order.oxirgi_yuk_seq or 0) < seq:
         order.oxirgi_yuk_seq = seq
+    # kech124 (zip 144): va LOYIHA hisoblagichiga — keyingi yuk xati (shu loyihaning istalgan buyurtmasida) undan KATTA raqam oladi,
+    # bu yuk xati yoki butun buyurtma o'chirilsa ham.
+    if _prj144 is not None and int(_prj144.oxirgi_yuk_seq or 0) < seq:
+        _prj144.oxirgi_yuk_seq = seq
 
     db.commit()
     db.refresh(db_delivery)
@@ -10379,6 +10451,149 @@ def _delivery_dict(d) -> dict:
         "total_sum": round(dsum),
         "items": items
     }
+
+
+# ============================================================
+# LOYIHA — YUK XATLARI va «JAMLAB OLISH» (kech124, zip 144)
+# ============================================================
+# Egasi (2026-10-06 16:24–16:37, QARORLAR — QAYTA SO'RALMAYDI): (1) loyiha ichidan har yuk xatini olish — ilgari faqat buyurtma
+# ichida edi (O'LCHANGAN: `projects.html` da yuk xati UMUMAN yo'q); (2) yuk xatlaridagi detallarni JAMLAB olish — Y-1 da 100 m
+# karniz + Y-2 da 50 m = 150 m (loyihaning bir nechta buyurtmasi ham); varaqda «miqdor, birlik narxi, summa va jami summa»
+# («Faqat miqdor» RAD). Buyurtmadagi «Hisob-kitob varaqasi» (`delivery_pdf.generate_summary_pdf`) har yuk xatini ALOHIDA bo'lim
+# qiladi, jamlamaydi va faqat bitta buyurtma — u o'zgarmadi.
+
+def _yuk_qator_narxi(di) -> tuple:
+    """Yuk xati qatorining (birlik narxi, summa tiyinda). Birlik narxi — `_delivery_dict` / hisob-kitob varaqasi bilan BIR qoida:
+    detal jami narxi ÷ buyurtmadagi miqdori (`order_qty_normalized`; 0 bo'lsa — 0). Summa — narx × berilgan miqdor, tiyinga
+    (HALF_UP, `pul_tiyin`)."""
+    oi = di.order_item
+    if oi is None:
+        return 0.0, 0.0
+    ordered = float(oi.order_qty_normalized or 0)
+    unit_p = (float(oi.total_price or 0) / ordered) if ordered > 0 else 0.0
+    return unit_p, pul_tiyin(unit_p * float(di.quantity or 0))
+
+
+def _yuk_jami_tiyin(d) -> float:
+    """Bitta yuk xatining summasi (so'm, tiyin aniqligida) — qatorlar summalari `Decimal` da qo'shiladi."""
+    return pul_tiyin_yigindi(_yuk_qator_narxi(di)[1] for di in (d.items or []) if di.order_item is not None)
+
+
+def loyiha_yuk_xatlari(db: Session, project_id: int, company_id: int = None) -> list:
+    """kech124 (zip 144): loyihaning HAMMA buyurtmalari yuk xatlari — bitta ro'yxat (yangidan eskiga: topshirilgan vaqt, so'ng id;
+    buyurtmadagi «Yetkazish tarixi» bilan bir tartib).
+
+    Qaysi buyurtmalar — loyiha pul hisobi («Loyiha qiymati», `loyiha_pul_hisobi`) bilan BIR qoida: o'chirilmagan YOKI o'chirilgan,
+    lekin «Tayyor» / «Yetkazilgan» (`qarz_hisobidagi_buyurtma_sharti` — topshirilgan qismi bilan yakunlangan, hisobotda qolgan);
+    qoralama va bekor qilingan — yo'q. Shunda jamlangan summa loyiha qiymatiga KIRMAYDIGAN buyurtma mahsulotini qo'shmaydi.
+    Yuk xati RAQAMI esa barcha buyurtmalardan hisoblanadi (`_loyiha_yuk_eng_katta`) — raqam qayta berilmasin.
+
+    So'rovlar soni buyurtma / yuk xati soniga bog'liq EMAS: yuk xatlari buyurtma bilan bitta so'rovda (`contains_eager`), qatorlari va
+    ularning detallari — `selectinload` (IN). Korxona — buyurtma orqali (yuk xatida korxona ustuni yo'q)."""
+    from sqlalchemy.orm import selectinload as _sil144, contains_eager as _ce144
+    _q = db.query(Delivery).join(Order, Order.id == Delivery.order_id).filter(
+        Order.project_id == project_id, qarz_hisobidagi_buyurtma_sharti(),
+        Order.status.notin_([OrderStatus.DRAFT, OrderStatus.CANCELLED]))
+    if company_id is not None:
+        _q = _q.filter(Order.company_id == company_id)
+    return (_q.options(_ce144(Delivery.order), _sil144(Delivery.items).selectinload(DeliveryItem.order_item))
+            .order_by(Delivery.delivered_at.desc(), Delivery.id.desc()).all())
+
+
+def loyiha_yuk_xati_dict(d) -> dict:
+    """«Yuk xatlari» ro'yxati qatori — buyurtmadagi yuk xati tarixi (`_delivery_dict`: raqam, sana, berilgan detallar — miqdor va
+    birlik, summa) + buyurtma (raqami, id) va `jami_tiyin` (butun tiyin: tanlanganlar jami brauzerda shundan qo'shiladi — «Jamlab
+    olish» varag'idagi JAMI bilan AYNAN)."""
+    r = _delivery_dict(d)
+    r["order_id"] = d.order_id
+    r["order_number"] = d.order.order_number if d.order is not None else None
+    r["jami_tiyin"] = int(round(_yuk_jami_tiyin(d) * 100))
+    return r
+
+
+def _detal_nom_kaliti(nom) -> str:
+    """Bir xil nom: bo'shliqlar bitta, katta-kichik harf farqsiz («Karniz  A» = «karniz a»)."""
+    return " ".join(str(nom or "").split()).casefold()
+
+
+def _detal_olcham_kaliti(oi) -> tuple:
+    """Detalning O'LCHAMI (bir xil detalni aniqlash uchun): eni, qalinligi va bir birlik uzunligi — buyurtma MIQDORIGA bog'liq maydon
+    olinmaydi. O'LCHANGAN (`templates/orders.html` `collectItems`, `services._calc_dim_volume_price`): profilda `length` — buyurtma
+    metri (miqdorning o'zi, `order_qty_normalized`), donalida — kerakli metr ekvivalenti (dona ÷ «1 metrdan nechta»), blokda — blok
+    soni (metr ÷ «1 blokdan chiqadigan metr») — ikkalasi miqdorga mutanosib, shuning uchun 1 birlikka bo'linadi (dona / metr
+    xossasi); panel, MRP mahsuloti va qolganlarida `length` — o'lcham (miqdor alohida). 0 / bo'sh — None."""
+    cat = (oi.category or "").lower()
+
+    def _r(x, n=4):
+        try:
+            return None if x in (None, "") or float(x) == 0 else round(float(x), n)
+        except (TypeError, ValueError):
+            return None
+    if cat == "profil":
+        uzunlik = None
+    elif cat in ("dona", "blok"):
+        _l, _q = _r(oi.length, 9), _r(oi.quantity, 9)
+        uzunlik = round(_l / _q, 6) if (_l and _q) else None
+    else:
+        uzunlik = _r(oi.length)
+    return (_r(oi.width), _r(oi.thickness), uzunlik)
+
+
+def yuk_xatlari_jamlanmasi(deliveries) -> dict:
+    """kech124 (zip 144 — egasi QARORI 06.10): tanlangan yuk xatlaridagi detallar JAMLANADI — har BIR XIL detal BITTA qatorda, jami
+    miqdor bilan (Y-1 da 100 m karniz + Y-2 da 50 m = 150 m), loyihaning bir nechta buyurtmasi bo'yicha ham.
+
+    BIR XIL = nom (bo'shliq / katta-kichik harf farqsiz), detal turi, o'lcham (`_detal_olcham_kaliti` — eni, qalinligi, bir birlik
+    uzunligi), qoplama, birlik (`services.birlik_korinish`) va BIRLIK NARXI (tiyingacha) bir xil; biri farq qilsa — alohida qator
+    (masalan bir karniz ikki buyurtmada ikki narxda — ikki qator). Birlik narxi va summa — `_yuk_qator_narxi` (yuk xati / hisob-kitob
+    varaqasi bilan bir qoida); qator summasi — uning yuk xati qatorlari summalari, JAMI — hamma qatorlar (= tanlangan yuk xatlari
+    summalari yig'indisi; `Decimal`, tiyin aniqligida).
+
+    Tartib: yuk xatlari eskidan yangiga (topshirilgan vaqt, so'ng id), qatorlar — detal birinchi uchragan joyda.
+    Qaytaradi: {"qatorlar": [...], "jami", "yuk_xatlari": [{id, raqam, buyurtma, sana, summa}], "buyurtmalar": [...], "davr": (eng
+    eski, eng yangi topshirilgan vaqt)}."""
+    from datetime import datetime as _dt144
+    try:
+        from services import birlik_korinish as _bk144
+    except Exception:                      # noqa: BLE001
+        def _bk144(u):
+            return str(u or "")
+    tartib = sorted(list(deliveries or []), key=lambda d: (d.delivered_at or _dt144.min, d.id or 0))
+    qatorlar, indeks, yuklar, buyurtmalar = [], {}, [], []
+    for d in tartib:
+        _yuk_qatorlari = []
+        for di in sorted(list(d.items or []), key=lambda x: x.id or 0):
+            oi = di.order_item
+            if oi is None:
+                continue
+            unit_p, summa = _yuk_qator_narxi(di)
+            birlik = _bk144(di.unit)
+            kalit = (_detal_nom_kaliti(oi.name), (oi.category or "").lower(), _detal_olcham_kaliti(oi),
+                     bool(oi.is_coated), birlik, pul_tiyin(unit_p))
+            q = indeks.get(kalit)
+            if q is None:
+                q = {"nom": str(oi.name or "—"), "kategoriya": (oi.category or "").lower(),
+                     "eni": kalit[2][0], "qalinligi": kalit[2][1], "qoplama": bool(oi.is_coated), "birlik": birlik,
+                     "birlik_narxi": pul_tiyin(unit_p), "miqdor": 0.0, "_summalar": [], "yuk_xatlari": []}
+                indeks[kalit] = q
+                qatorlar.append(q)
+            q["miqdor"] += float(di.quantity or 0)
+            q["_summalar"].append(summa)
+            if d.id not in q["yuk_xatlari"]:
+                q["yuk_xatlari"].append(d.id)
+            _yuk_qatorlari.append(summa)
+        _raqam = d.delivery_number or ""
+        _buyurtma = d.order.order_number if getattr(d, "order", None) is not None else None
+        yuklar.append({"id": d.id, "raqam": _raqam, "buyurtma": _buyurtma, "sana": d.delivered_at,
+                       "summa": pul_tiyin_yigindi(_yuk_qatorlari)})
+        if _buyurtma and _buyurtma not in buyurtmalar:
+            buyurtmalar.append(_buyurtma)
+    for q in qatorlar:
+        q["miqdor"] = round(q["miqdor"], 6)
+        q["summa"] = pul_tiyin_yigindi(q.pop("_summalar"))
+    _sanalar = [y["sana"] for y in yuklar if y["sana"] is not None]
+    return {"qatorlar": qatorlar, "jami": pul_tiyin_yigindi(q["summa"] for q in qatorlar), "yuk_xatlari": yuklar,
+            "buyurtmalar": buyurtmalar, "davr": (min(_sanalar), max(_sanalar)) if _sanalar else (None, None)}
 
 
 # ============================================================

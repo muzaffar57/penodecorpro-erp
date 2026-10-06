@@ -2863,6 +2863,66 @@ def _migrate_yuk_xati_ulush():
 
 _migrate_yuk_xati_ulush()
 
+
+def _migrate_loyiha_yuk_seq():
+    """kech124 (zip 144 — egasi QARORI 06.10: yuk xati raqami LOYIHA bo'yicha davom etadi, «ORD-001-2/Y-6») — IDEMPOTENT, PostgreSQL
+    va SQLite.
+
+    `projects.oxirgi_yuk_seq` — loyihada BERILGAN eng katta Y-raqam (`crud.create_delivery` yozadi). Ustun odatda
+    `database.sync_missing_columns()` bilan qo'shiladi; yo'q bo'lsa shu yerda. Shu kodgacha yozilgan yuk xatlari bor loyihalarga
+    (hisoblagich NULL) — loyihaning HAMMA buyurtmalari (yumshoq o'chirilganlari ham) yuk xatlaridagi eng katta `/Y-<N>` va ularning
+    `orders.oxirgi_yuk_seq` hisoblagichidan eng kattasi yoziladi. NIMA UCHUN: eski buyurtmalarda (kech86 dan oldingi) hisoblagich NULL —
+    ishga tushgandan KEYIN oxirgi yuk xati o'chirilsa, uning Y-raqami loyihada qayta berilardi (QAROR «A» — berilmaydi). Yuk xatisiz
+    loyiha — NULL qoladi (birinchi yuk xati o'zi yozadi). So'rovlar soni loyihalar soniga bog'liq emas (2 ta yig'ma so'rov).
+    Ikkinchi ishga tushishda — 0 qator."""
+    from sqlalchemy import text, inspect as _insp, func as _fn144
+    from database import engine, SessionLocal as _SL144
+    from models import Project as _PR144, Order as _O144, Delivery as _DV144
+    import re as _re144m
+    try:
+        _i = _insp(engine)
+        if "projects" not in set(_i.get_table_names()):
+            return 0
+        if "oxirgi_yuk_seq" not in {c["name"] for c in _i.get_columns("projects")}:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE projects ADD COLUMN oxirgi_yuk_seq INTEGER"))
+                conn.commit()
+                print("✓ projects.oxirgi_yuk_seq qo'shildi")
+    except Exception as e:
+        print(f"⚠ projects.oxirgi_yuk_seq ustuni tekshiruvi o'tkazib yuborildi: {e}")
+        return 0
+    _d = _SL144()
+    _n = 0
+    try:
+        _eng = {}
+        for _pid, _dn in (_d.query(_O144.project_id, _DV144.delivery_number)
+                          .join(_O144, _O144.id == _DV144.order_id).all()):
+            _m = _re144m.search(r"/Y-(\d+)$", _dn or "")
+            if _m and int(_m.group(1)) > _eng.get(_pid, 0):
+                _eng[_pid] = int(_m.group(1))
+        for _pid, _hb in (_d.query(_O144.project_id, _fn144.max(_O144.oxirgi_yuk_seq))
+                          .filter(_O144.oxirgi_yuk_seq.isnot(None)).group_by(_O144.project_id).all()):
+            if _hb is not None and int(_hb) > _eng.get(_pid, 0):
+                _eng[_pid] = int(_hb)
+        if _eng:
+            # IN ro'yxatisiz (parametrlar soni loyihalar soniga bog'liq bo'lmasin) — hisoblagichi bo'sh loyihalar bitta so'rovda
+            for _p in _d.query(_PR144).filter(_PR144.oxirgi_yuk_seq.is_(None)).all():
+                if _eng.get(_p.id, 0) > 0:
+                    _p.oxirgi_yuk_seq = _eng[_p.id]
+                    _n += 1
+        if _n:
+            _d.commit()
+            print(f"✓ projects.oxirgi_yuk_seq to'ldirildi (mavjud yuk xatlaridan): {_n} loyiha")
+    except Exception as e:
+        _d.rollback()
+        print(f"⚠ Loyiha yuk xati hisoblagichi migratsiyasi o'tkazib yuborildi: {e}")
+    finally:
+        _d.close()
+    return _n
+
+
+_migrate_loyiha_yuk_seq()
+
 # kech104 (K104-2): FastAPI ning o'rnatilgan API hujjatlari (/openapi.json, /docs, /redoc) login-siz
 # ochiq edi — butun API sxemasi (barcha marshrutlar, /api/system/* va /api/platform/* ham) har kimga ko'rinardi.
 # Ilova ularni ishlatmaydi (shablon / test havolasi yo'q) — o'chirildi. Marshrutlar xaritasi:
@@ -9818,6 +9878,88 @@ def api_summary_pdf(order_id: int, ids: str = "", db: Session = Depends(get_db),
         raise HTTPException(status_code=500, detail=f"PDF xato: {str(e)}")
 
     filename = f"hisob-kitob_{order.order_number.replace('/', '_')}.pdf"
+    return Response(content=pdf_bytes, media_type="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="{filename}"'})
+
+
+# kech124 (zip 144 — egasi QARORLARI 06.10): loyiha sahifasidagi «Yuk xatlari» (loyihaning HAMMA buyurtmalari yuk xatlari bitta
+# ro'yxatda, har qatorda 📄 — buyurtmadagi kabi yuk xati PDF) va «Jamlab olish» (belgilangan yuk xatlaridagi bir xil detallar —
+# bitta qatorda: miqdor, birlik narxi, summa, jami summa). Ruxsat — yuk xati PDF i bilan BIR XIL («Yetkazib berish va transport:
+# Ko'rish»): ro'yxatdagi har qatorning 📄 tugmasi o'sha marshrutni ochadi.
+YUK_JAMLAMA_ENG_KOP = 1000      # bitta varaqqa ko'pi bilan shuncha yuk xati (URL / hujjat hajmi chegarasi)
+
+
+@app.get("/api/projects/{project_id}/yuk-xatlari")
+def api_project_yuk_xatlari(project_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("yetkazish", "korish"))):
+    """Loyihaning yuk xatlari (`crud.loyiha_yuk_xatlari`): raqam, sana, berilgan detallar (miqdor + birlik), summa, buyurtma;
+    `jami_tiyin` — hammasi (butun tiyin). Begona korxona loyihasi — 404 (mavjudligi bildirilmaydi). Faqat o'qish."""
+    _cid = auth.company_id_of(current_user)
+    prj = auth.project_of_company(db, project_id, _cid)
+    if not prj:
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+    yuklar = [crud.loyiha_yuk_xati_dict(d) for d in crud.loyiha_yuk_xatlari(db, project_id, company_id=_cid)]
+    return {
+        "project_id": prj.id,
+        "project_number": prj.project_number,
+        "client_name": prj.client_name,
+        "soni": len(yuklar),
+        "jami_tiyin": sum(y["jami_tiyin"] for y in yuklar),
+        "deliveries": yuklar,
+    }
+
+
+@app.get("/api/projects/{project_id}/yuk-xatlari/jamlama-pdf")
+def api_project_yuk_jamlama_pdf(project_id: int, ids: str = "", db: Session = Depends(get_db),
+                                current_user=Depends(auth.ruxsat("yetkazish", "korish"))):
+    """«Jamlab olish» — belgilangan yuk xatlari bo'yicha JAMLANGAN varaq (PDF): har bir xil detal bitta qatorda (jami miqdor,
+    birlik narxi, summa), JAMI summa, pastida kirgan yuk xatlari (raqam, sana, summa). `ids` — vergul bilan yuk xati id lari
+    ('3,5,7'); bo'sh — loyihaning hamma yuk xatlari. Tanlanganlardan biri shu loyiha ro'yxatida bo'lmasa (o'chirilgan yoki boshqa
+    loyiha / korxonaniki) — 404 va hujjat CHIQMAYDI: varaqda belgilanganidan boshqa (kam) yuk xati bo'lmasin. Faqat o'qish."""
+    _cid = auth.company_id_of(current_user)
+    prj = auth.project_of_company(db, project_id, _cid)
+    if not prj:
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+    from fastapi.responses import Response
+    import delivery_pdf as _delivery_pdf
+    import traceback as _tb
+
+    hammasi = crud.loyiha_yuk_xatlari(db, project_id, company_id=_cid)
+    if (ids or "").strip():
+        try:
+            tanlangan = []
+            for x in ids.split(","):
+                if x.strip():
+                    n = int(x.strip())
+                    if n <= 0:
+                        raise ValueError(x)
+                    if n not in tanlangan:
+                        tanlangan.append(n)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="ids parametri noto'g'ri — yuk xati raqamlari (id) vergul bilan")
+        if len(tanlangan) > YUK_JAMLAMA_ENG_KOP:
+            raise HTTPException(status_code=400, detail=f"Bitta varaqqa ko'pi bilan {YUK_JAMLAMA_ENG_KOP} ta yuk xati — kamroq belgilang")
+        boyicha = {d.id: d for d in hammasi}
+        topilmadi = [n for n in tanlangan if n not in boyicha]
+        if topilmadi:
+            raise HTTPException(status_code=404, detail=(
+                f"Belgilangan yuk xatlaridan {len(topilmadi)} tasi shu loyihada topilmadi (o'chirilgan bo'lishi mumkin) — "
+                f"sahifani yangilab, qayta belgilang"))
+        yuklar = [boyicha[n] for n in tanlangan]
+    else:
+        yuklar = list(hammasi)
+    if not yuklar:
+        raise HTTPException(status_code=404, detail="Bu loyihada hali yuk xati yo'q")
+
+    jamlanma = crud.yuk_xatlari_jamlanmasi(yuklar)
+    try:
+        pdf_bytes = _delivery_pdf.generate_yuk_jamlanma_pdf(prj, jamlanma, db)
+    except Exception as e:
+        print("Yuk xatlari jamlanmasi PDF XATO:\n", _tb.format_exc())
+        raise HTTPException(status_code=500, detail=f"PDF xato: {str(e)}")
+
+    import re as _re_fn144
+    # fayl nomi sarlavhada — faqat lotin harf / raqam / «-» / «_» (loyiha raqami tizimniki, lekin sarlavha latin-1 bo'lishi shart)
+    filename = "yuk_xatlari_jamlanma_" + (_re_fn144.sub(r"[^A-Za-z0-9_-]", "_", prj.project_number or "") or str(prj.id)) + ".pdf"
     return Response(content=pdf_bytes, media_type="application/pdf",
                     headers={"Content-Disposition": f'inline; filename="{filename}"'})
 
