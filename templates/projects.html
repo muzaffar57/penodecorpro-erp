@@ -139,6 +139,32 @@
 .prod-acc-body.open{display:block}
 .zebra-list-flat .zebra-row:not(:last-child){border-bottom:1px solid var(--border2)}
 .zebra-list.zebra-list-flat{border:none;border-radius:0}
+/* kech124 (zip 144 — egasi QARORLARI 06.10): «Yuk xatlari» bo'limi — loyihaning hamma buyurtmalari yuk xatlari, belgilash va
+   «Jamlab olish». Tugmalar yozuvi bitta qatorda (sig'masa — tugma keyingi qatorga o'tadi, o'zi ikki qavat bo'lmaydi). */
+.yx-bosh{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;margin-bottom:10px}
+.yx-xulosa{font-size:13px;color:var(--text3);min-width:0}
+.yx-xulosa b{color:var(--text)}
+.yx-amallar{display:flex;flex-wrap:wrap;gap:6px}
+.yx-amallar .btn{white-space:nowrap}
+.btn.yx-ochiq-emas{opacity:.45;pointer-events:none;cursor:default}
+/* qator: belgi | raqam, sana, detallar | summa | 📄 — telefonda summa matn ostiga (matn ustuni torayib ketmasin) */
+.zebra-row.yx-qator{display:grid;grid-template-columns:18px minmax(0,1fr) auto auto;grid-template-areas:"belgi matn summa pdf";
+  align-items:start;column-gap:12px;cursor:pointer}
+.yx-qator input[type=checkbox]{grid-area:belgi;width:18px;height:18px;margin:2px 0 0;cursor:pointer;accent-color:var(--gold)}
+.yx-matn{grid-area:matn;min-width:0}
+.yx-pdf{grid-area:pdf}
+.yx-raqam{font-size:13px;font-weight:700;color:var(--text);overflow-wrap:anywhere}
+.yx-sana{font-weight:400;color:var(--text3)}
+.yx-detallar{font-size:13px;color:var(--text2);margin-top:3px;line-height:1.5;overflow-wrap:anywhere}
+.yx-detallar b{white-space:nowrap}
+.yx-summa{grid-area:summa;font-size:13px;font-weight:700;color:var(--gold-dark);white-space:nowrap;margin-top:1px}
+.yx-izoh{font-size:12px;color:var(--text3);margin-top:10px;line-height:1.5}
+@media (max-width:600px){
+  .yx-amallar{width:100%}
+  .yx-amallar > .btn{flex:1 1 auto}
+  .zebra-row.yx-qator{grid-template-columns:18px minmax(0,1fr) auto;grid-template-areas:"belgi matn pdf" "belgi summa pdf";row-gap:4px}
+  .yx-summa{margin-top:0}
+}
 .proj-toast-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:3000;display:none;align-items:center;justify-content:center;padding:20px}
 .proj-toast{background:var(--white);border-radius:16px;padding:26px 30px;max-width:420px;max-height:80vh;overflow-y:auto;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.28);white-space:pre-line;font-size:14px;font-weight:600;color:var(--text);line-height:1.6}
 </style>
@@ -253,6 +279,10 @@
         <div class="tab-bar" id="tabBar">
           <button class="tab-btn tab active" data-tab="asosiy" onclick="switchTab('asosiy')">Asosiy</button>
           <button class="tab-btn tab" data-tab="orders" onclick="switchTab('orders')">Buyurtmalar</button>
+          {# kech124 (zip 144): yuk xatlari va «Jamlab olish» — yuk xati PDF i bilan bir ruxsat («Yetkazib berish va transport: Ko'rish») #}
+          {% if current_user.ruxsat('yetkazish', 'korish') %}
+          <button class="tab-btn tab" data-tab="yuklar" onclick="switchTab('yuklar')">Yuk xatlari</button>
+          {% endif %}
           {% if current_user.ruxsat('tannarx', 'korish') %}
           <button class="tab-btn tab" data-tab="finance" onclick="switchTab('finance')">Moliya</button>
           {% endif %}
@@ -516,6 +546,7 @@ function switchTab(tab, force) {
 
   if (tab === 'asosiy') return renderAsosiy(d);
   if (tab === 'orders') return renderOrders(d);
+  if (tab === 'yuklar') return renderYukXatlari(d);
   if (tab === 'finance') return renderFinance(d);
   if (tab === 'payments') return renderPayments(d);
   if (tab === 'products') return renderProducts(d);
@@ -588,6 +619,105 @@ async function renderOrders(d) {
         </div>
       </div>`).join('');
   } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:var(--m-dc2626);text-align:center;padding:20px">Yuklashda xato</div>'; }
+}
+
+// kech124 (zip 144 — egasi QARORLARI 06.10): «Yuk xatlari» — loyihaning HAMMA buyurtmalari yuk xatlari bitta ro'yxatda (raqam, sana,
+// berilgan detallar — miqdor va birlik, summa; 📄 — o'sha yuk xati, buyurtmadagi kabi). Yuk xati raqami loyiha bo'yicha davom etadi
+// («ORD-001-2/Y-6» — buyurtma raqami qoladi, Y — loyiha bo'yicha). «Jamlab olish» — belgilangan yuk xatlaridagi (standart — hammasi)
+// BIR XIL detallar bitta qatorda: miqdor, birlik narxi, summa va jami summa (PDF). «Tanlangan» jami — serverdagi butun tiyinlardan
+// (`jami_tiyin`) qo'shiladi: varaqdagi JAMI bilan aynan. Ro'yxat yuklanguncha boshqa loyiha / bo'lim tanlansa — chizilmaydi.
+let yxRoyxat = [];
+
+function yxQatori(dl) {
+  const detallar = (dl.items || []).map(i =>
+    `${escapeHtml(i.item_name)}: <b>${sonKor(i.quantity)} ${escapeHtml(birlikQisqa(i.unit))}</b>`).join(' · ');
+  const raqam = escapeHtml(dl.delivery_number || '');
+  const qabul = dl.received_by ? ' · qabul: ' + escapeHtml(dl.received_by) : '';
+  return `
+    <label class="zebra-row yx-qator">
+      <input type="checkbox" class="yx-chk" value="${Number(dl.id)}" data-tiyin="${Number(dl.jami_tiyin) || 0}" checked
+             onchange="yxYangila()" aria-label="${raqam} — jamlashga kirsin">
+      <div class="yx-matn">
+        <div class="yx-raqam">${raqam} <span class="yx-sana">· ${escapeHtml(tkSana(dl.delivered_at))}${qabul}</span></div>
+        <div class="yx-detallar">${detallar || '—'}</div>
+      </div>
+      <div class="yx-summa">${fmt(dl.total_sum)} so'm</div>
+      <a class="btn btn-soft btn-icon btn-sm yx-pdf" href="/api/deliveries/${Number(dl.id)}/pdf" target="_blank" rel="noopener"
+         title="Yuk xati (PDF)" aria-label="${raqam} — yuk xati (PDF)" onclick="event.stopPropagation()">📄</a>
+    </label>`;
+}
+
+async function renderYukXatlari(d) {
+  const quti = document.getElementById('tabContent');
+  const pid = selectedProjId;
+  try {
+    const res = await fetch(`/api/projects/${encodeURIComponent(pid)}/yuk-xatlari`);
+    if (String(selectedProjId) !== String(pid) || currentTab !== 'yuklar') return;
+    if (!res.ok) {
+      quti.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">' +
+        escapeHtml(res.status === 403 ? "Yuk xatlarini ko'rishga ruxsat yo'q" : await serverXatoSababi(res, 'Yuklashda xato')) + '</div>';
+      return;
+    }
+    const j = await res.json();
+    if (String(selectedProjId) !== String(pid) || currentTab !== 'yuklar') return;
+    yxRoyxat = j.deliveries || [];
+    if (!yxRoyxat.length) {
+      quti.innerHTML = '<div class="fp-empty" style="text-align:center;padding:30px 18px;color:var(--text3);line-height:1.55">' +
+        '<div style="font-weight:700;color:var(--text);margin-bottom:6px">Hali yuk xati yo\'q</div>' +
+        'Yuk xati buyurtmada yoziladi — «Qisman topshirish», «Bir yo\'la to\'liq topshirish» yoki «Tayyor» bilan. ' +
+        'Shu loyihaning hamma buyurtmalari yuk xatlari shu yerda ko\'rinadi.</div>';
+      return;
+    }
+    quti.innerHTML = `
+      <div class="yx-bosh">
+        <div class="yx-xulosa"><b>${yxRoyxat.length} ta yuk xati</b> · Tanlangan: <b id="yx-tanlangan-soni">0</b> ·
+          <b id="yx-tanlangan-jami">0 so'm</b></div>
+        <div class="yx-amallar">
+          <button class="btn btn-outline btn-sm" onclick="yxBelgila(true)">Hammasi</button>
+          <button class="btn btn-outline btn-sm" onclick="yxBelgila(false)">Hech biri</button>
+          <a class="btn btn-dark btn-sm" id="yx-jamlab" target="_blank" rel="noopener">📄 Jamlab olish</a>
+        </div>
+      </div>
+      <div class="zebra-list">${yxRoyxat.map(yxQatori).join('')}</div>
+      <div class="yx-izoh">«Jamlab olish» — belgilangan yuk xatlaridagi bir xil detallar (nomi, o'lchami, qoplamasi, birligi va narxi bir xil)
+        bitta qatorda: jami miqdor, birlik narxi, summa va jami summa.</div>`;
+    yxYangila();
+  } catch (e) {
+    if (String(selectedProjId) === String(pid) && currentTab === 'yuklar') {
+      quti.innerHTML = '<div style="color:var(--m-dc2626);text-align:center;padding:20px">Yuklashda xato</div>';
+    }
+  }
+}
+
+function yxBelgila(holat) {
+  document.querySelectorAll('.yx-chk').forEach(c => { c.checked = holat; });
+  yxYangila();
+}
+
+function yxYangila() {
+  const tanlangan = [...document.querySelectorAll('.yx-chk:checked')];
+  let tiyin = 0;
+  tanlangan.forEach(c => { tiyin += parseInt(c.dataset.tiyin, 10) || 0; });
+  const n = tanlangan.length;
+  const soni = document.getElementById('yx-tanlangan-soni');
+  if (soni) soni.textContent = `${n} / ${document.querySelectorAll('.yx-chk').length}`;
+  const jami = document.getElementById('yx-tanlangan-jami');
+  if (jami) jami.textContent = fmt(tiyin / 100) + " so'm";
+  const a = document.getElementById('yx-jamlab');
+  if (!a) return;
+  if (n) {
+    a.href = `/api/projects/${encodeURIComponent(selectedProjId)}/yuk-xatlari/jamlama-pdf?ids=` + tanlangan.map(c => Number(c.value)).join(',');
+    a.classList.remove('yx-ochiq-emas');
+    a.removeAttribute('aria-disabled');
+    a.removeAttribute('tabindex');
+    a.textContent = `📄 Jamlab olish (${n} ta)`;
+  } else {
+    a.removeAttribute('href');
+    a.classList.add('yx-ochiq-emas');
+    a.setAttribute('aria-disabled', 'true');
+    a.setAttribute('tabindex', '-1');
+    a.textContent = '📄 Yuk xati belgilang';
+  }
 }
 
 async function renderFinance(d) {
