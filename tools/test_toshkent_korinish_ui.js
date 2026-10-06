@@ -371,8 +371,9 @@ async function ichki() {
   await sinov('T20', async () => {
     const jv = { '/api/orders?project_id=': [{ id: 9, order_number: 'ORD-9', status: 'ready', created_at: LAHZA, completed_at: LAHZA }],
                  '/api/payments?order_id=': [{ id: 1, amount: 1000, paid_at: LAHZA, payment_method: 'naqd' }] };
-    const m = muhit({ javob: jv, qoshimcha: fnlar(PRJ, PUL.concat(['renderPayments', 'renderTimeline', 'loadStatusPanel']))
-                                            + '\nvar selectedProjId = 1; var progressMap = {};' });
+    // kech124 (zip 145, MOSLANDI): `loadStatusPanel` «🏭 Bajarilgan» ni `bajarilganMatni` dan oladi (xarita holati bilan) — u ham olinadi
+    const m = muhit({ javob: jv, qoshimcha: fnlar(PRJ, PUL.concat(['renderPayments', 'renderTimeline', 'bajarilganMatni', 'loadStatusPanel']))
+                                            + "\nvar selectedProjId = 1; var progressMap = {}; var progressMapHolat = 'tayyor';" });
     await yurgiz(m, `await renderPayments({});`);
     const p = m.el('tabContent').innerHTML;
     await yurgiz(m, `await renderTimeline({startRaw: '2026-09-15', name: 'L'});`);
