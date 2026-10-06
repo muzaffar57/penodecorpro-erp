@@ -4,7 +4,7 @@
 {% block page_sub %}Foydalanuvchi rollarini boshqaring va ularning tizimdagi ruxsatlarini sozlang{% endblock %}
 
 {% block topbar_actions %}
-<button class="btn btn-outline" onclick="yordamOch()"><i class="ti ti-help-circle" style="vertical-align:-2px"></i> Yordam</button>
+<button class="btn btn-outline" onclick="yordamOch()"><i class="ti ti-help-circle"></i> Yordam</button>
 <button class="btn btn-dark" onclick="yangiRol()">+ Yangi rol yaratish</button>
 {% endblock %}
 
@@ -19,16 +19,17 @@
 .rl-grid{display:grid;grid-template-columns:260px minmax(0,1fr) 310px;gap:14px;align-items:start}
 .rl-grid > div{min-width:0}
 .rl-qidiruv{position:relative;padding:10px 12px 0}
-.rl-qidiruv i{position:absolute;left:23px;top:50%;margin-top:5px;transform:translateY(-50%);color:var(--text2);font-size:15px;pointer-events:none}
-.rl-qidiruv input{width:100%;box-sizing:border-box;padding:8px 10px 8px 32px;font-size:13px;border:1px solid var(--border);border-radius:9px;
-  background:var(--white);color:var(--text)}
+.rl-qidiruv i{position:absolute;left:23px;top:50%;margin-top:5px;transform:translateY(-50%);color:var(--text2);font-size:16px;pointer-events:none}
+.rl-qidiruv input{width:100%;box-sizing:border-box;min-height:var(--h-sm);padding:0 10px 0 32px;font-size:var(--fs-maydon-sm);line-height:18px;
+  border:1px solid var(--border);border-radius:var(--r-btn);background:var(--white);color:var(--text)}
 .rl-royxat{display:flex;flex-direction:column;gap:6px;padding:10px}
-.rl-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border2);border-radius:10px;
-  background:var(--white);cursor:pointer;text-align:left;width:100%;font:inherit;color:var(--text)}
+/* U-13 (kech123): rol kartasi — izohli tanlov (`.tanlov-karta`): kamida `.btn` balandligida, burchak umumiy */
+.rl-item{display:flex;align-items:center;gap:10px;min-height:var(--h-btn);box-sizing:border-box;padding:10px 12px;border:1px solid var(--border2);
+  border-radius:var(--r-btn);background:var(--white);cursor:pointer;text-align:left;width:100%;font:inherit;font-size:14px;color:var(--text)}
 .rl-item:hover{border-color:var(--gold)}
 .rl-item.tanlangan{border-color:var(--gold);background:var(--gold-tint)}
 .rl-ikon{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;
-  background:var(--bg);color:var(--gold-dark);font-size:17px;flex-shrink:0}
+  background:var(--bg);color:var(--gold-dark);font-size:16px;flex-shrink:0}
 .rl-item.tanlangan .rl-ikon{background:var(--gold-btn);color:#fff}
 .rl-item .rl-nom{font-size:14px;font-weight:600;line-height:1.3}
 .rl-item .rl-izoh{font-size:12px;color:var(--text2);margin-top:2px}
@@ -38,7 +39,7 @@
 .rl-belgi.oltin{background:var(--gold-tint);color:var(--gold-dark)}
 .rl-bosh{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .rl-bosh h3{margin:0}
-.rl-sub{font-size:12.5px;color:var(--text2);margin-top:2px}
+.rl-sub{font-size:13px;color:var(--text2);margin-top:2px}
 .rl-bosh-ong{display:flex;gap:8px;margin-left:auto;align-items:center;flex-wrap:wrap}
 .rl-saqlash{display:flex;gap:8px}
 .rl-saqlash button:disabled{opacity:.45;cursor:not-allowed}
@@ -49,17 +50,19 @@
 .rl-matritsa th{font-size:12px;font-weight:600;color:var(--text2);padding:10px 6px;border-bottom:1px solid var(--border);
   text-align:center;white-space:nowrap}
 .rl-matritsa th:first-child{text-align:left;padding-left:16px}
-.rl-matritsa th i{display:block;font-size:17px;margin-bottom:2px;color:var(--gold-dark)}
+.rl-matritsa th i{display:block;font-size:16px;margin-bottom:2px;color:var(--gold-dark)}
 .rl-matritsa td{padding:9px 6px;border-bottom:1px solid var(--border2);text-align:center;vertical-align:middle}
 .rl-matritsa td:first-child{text-align:left;padding-left:16px}
 .rl-modul td{background:var(--bg)}
-.rl-yig{display:flex;align-items:center;gap:6px;width:100%;background:none;border:none;padding:0;font:inherit;cursor:pointer;
-  font-weight:700;font-size:13.5px;color:var(--text);text-align:left}
-.rl-yig .rl-chev{font-size:15px;color:var(--text2);transition:transform .15s}
+/* U-13 (kech123): bo'lim (modul) sarlavhasi — qator kengligidagi yig'ish / yoyish tugmasi, `--h-sm` balandlikda */
+.rl-modul td{padding-top:2px;padding-bottom:2px}
+.rl-yig{display:flex;align-items:center;gap:6px;width:100%;min-height:var(--h-sm);background:none;border:none;border-radius:var(--r-btn);
+  padding:0;font:inherit;cursor:pointer;font-weight:700;font-size:14px;color:var(--text);text-align:left}
+.rl-yig .rl-chev{font-size:16px;color:var(--text2);transition:transform .15s}
 .rl-yig[aria-expanded="false"] .rl-chev{transform:rotate(-90deg)}
 .rl-yig .rl-m-ikon{color:var(--gold-dark);font-size:16px}
 .rl-yig .rl-m-son{margin-left:auto;font-size:12px;font-weight:600;color:var(--text2)}
-.rl-band-nom{font-size:13.5px;font-weight:500;color:var(--text);padding-left:22px}
+.rl-band-nom{font-size:13px;font-weight:500;color:var(--text);padding-left:22px}
 .rl-band-izoh{font-size:12px;color:var(--text2);padding-left:22px;margin-top:1px}
 .rl-band-ogoh{font-size:12px;color:var(--m-92400e);background:var(--f-fef3c7);border-radius:6px;padding:3px 7px;margin:4px 0 0 22px;display:inline-block}
 .rl-cb{width:19px;height:19px;accent-color:var(--gold-btn);cursor:pointer}
@@ -67,10 +70,10 @@
 .rl-yoq{color:var(--text2);font-size:13px}
 .rl-topilmadi{padding:24px 16px;text-align:center;color:var(--text2);font-size:13px}
 .rl-rol-bosh{display:flex;align-items:center;gap:12px;margin-bottom:14px}
-.rl-rol-bosh .rl-ikon{width:44px;height:44px;font-size:22px;border-radius:12px}
+.rl-rol-bosh .rl-ikon{width:44px;height:44px;font-size:24px;border-radius:12px}
 .rl-rol-bosh .rl-rnom{font-size:16px;font-weight:700;color:var(--text);flex:1;min-width:0;overflow-wrap:anywhere}
 .rl-tezkor{display:flex;flex-direction:column;gap:4px}
-.rl-tez{display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid var(--border2);font-size:13.5px;color:var(--text)}
+.rl-tez{display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid var(--border2);font-size:13px;color:var(--text)}
 .rl-tez:last-child{border-bottom:none}
 .rl-tez i.ti{color:var(--gold-dark);font-size:16px}
 .rl-tez .rl-tez-nom{flex:1;min-width:0}
@@ -91,14 +94,15 @@
   border:1px solid var(--border2)}
 .rl-user .rl-av{width:30px;height:30px;border-radius:50%;background:var(--dark);color:var(--gold);display:flex;align-items:center;
   justify-content:center;font-weight:700;font-size:13px;flex-shrink:0}
-.rl-user .rl-un{flex:1;min-width:0;font-size:13.5px;color:var(--text)}
+.rl-user .rl-un{flex:1;min-width:0;font-size:13px;color:var(--text)}
 .rl-user .rl-un small{display:block;font-size:12px;color:var(--text2)}
-.rl-user select{max-width:130px;font-size:13px;padding:5px 6px}
+.rl-user select{max-width:130px;box-sizing:border-box;min-height:var(--h-sm);padding:0 8px;border:1px solid var(--border);
+  border-radius:var(--r-btn);font-size:var(--fs-maydon-sm);background:var(--white);color:var(--text)}
 .rl-bosh-yoq{padding:30px 16px;text-align:center;color:var(--text2);font-size:13px}
 .rl-pastki{display:flex;gap:8px}
 .rl-pastki button{flex:1}
-.rl-yordam p{font-size:13.5px;color:var(--text);margin:0 0 10px;line-height:1.55}
-.rl-yordam ul{margin:0 0 10px 18px;padding:0;font-size:13.5px;color:var(--text);line-height:1.6}
+.rl-yordam p{font-size:13px;color:var(--text);margin:0 0 10px;line-height:1.55}
+.rl-yordam ul{margin:0 0 10px 18px;padding:0;font-size:13px;color:var(--text);line-height:1.6}
 .rl-yordam i.ti{color:var(--gold-dark)}
 @media (max-width:1180px){ .rl-grid{grid-template-columns:230px minmax(0,1fr)} .rl-ong{grid-column:1 / -1} }
 @media (max-width:768px){
@@ -133,10 +137,10 @@
         <div><h3>Ruxsatlar</h3><div class="rl-sub" id="rlSub"></div></div>
         <div class="rl-bosh-ong">
           <span class="rl-belgi" id="rlSanoq"></span>
-          <button class="btn btn-outline btn-sm" id="rlOchYopBtn" onclick="hammasiniOchYop()">Barchasini yig'ish</button>
+          <button class="btn btn-outline btn-md" id="rlOchYopBtn" onclick="hammasiniOchYop()">Barchasini yig'ish</button>
           <div class="rl-saqlash rl-saqlash-qator">
-            <button class="btn btn-outline btn-sm rl-bekor-btn" id="rlBekorBtn" onclick="ozgarishniBekor()" disabled>Bekor qilish</button>
-            <button class="btn btn-gold btn-sm rl-saqla-btn" id="rlSaqlaBtn" onclick="rolniSaqla()" disabled>Saqlash</button>
+            <button class="btn btn-outline btn-md rl-bekor-btn" id="rlBekorBtn" onclick="ozgarishniBekor()" disabled>Bekor qilish</button>
+            <button class="btn btn-gold btn-md rl-saqla-btn" id="rlSaqlaBtn" onclick="rolniSaqla()" disabled>Saqlash</button>
           </div>
         </div>
       </div>
@@ -174,7 +178,7 @@
           <div style="display:flex;gap:6px;flex-wrap:wrap">
             <button class="btn btn-outline btn-sm" id="rlNusxaBtn" onclick="rolNusxa()"><i class="ti ti-copy"></i> Nusxa olish</button>
             <button class="btn btn-outline btn-sm" id="rlAndozaBtn" onclick="rolAndoza()" style="display:none"><i class="ti ti-restore"></i> Boshlang'ich holat</button>
-            <button class="btn btn-outline btn-sm" id="rlOchirBtn" onclick="rolOchir()" style="display:none;border-color:var(--ch-fca5a5);color:var(--m-b91c1c)"><i class="ti ti-trash"></i> O'chirish</button>
+            <button class="btn btn-danger btn-sm" id="rlOchirBtn" onclick="rolOchir()" style="display:none"><i class="ti ti-trash"></i> O'chirish</button>
           </div>
         </div>
       </div>
@@ -189,7 +193,7 @@
         <div class="card-body" style="padding-top:4px">
           <div id="rlUserlar"></div>
           <button class="btn btn-outline w-full" id="rlUserQoshBtn" onclick="userQoshOch()" style="margin-top:6px;background:var(--white)">
-            <i class="ti ti-plus" style="vertical-align:-2px"></i> Foydalanuvchi qo'shish</button>
+            <i class="ti ti-plus"></i> Foydalanuvchi qo'shish</button>
         </div>
       </div>
 
@@ -286,7 +290,7 @@ function royxatniChiz() {
   const el = document.getElementById('rlRoyxat');
   el.innerHTML = rollar.length ? rollar.map(r => {
     const n = r.foydalanuvchilar.length;
-    return `<button type="button" class="rl-item${r.id === rlTanlangan ? ' tanlangan' : ''}" onclick="rolniTanla(${r.id})">
+    return `<button type="button" class="rl-item tanlov-karta${r.id === rlTanlangan ? ' tanlangan' : ''}" onclick="rolniTanla(${r.id})">
       <span class="rl-ikon"><i class="ti ${rlIkon(r)}"></i></span>
       <span style="min-width:0"><span class="rl-nom">${escapeHtml(r.nom)}</span>
         <span class="rl-izoh" style="display:block">${rlTuri(r)} · ${n} ta foydalanuvchi</span></span>

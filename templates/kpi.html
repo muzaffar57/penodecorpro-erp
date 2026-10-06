@@ -14,7 +14,7 @@
 .mk-row:last-child{border-bottom:none}
 .mk-name{font-size:13px;font-weight:600;color:var(--text)}
 .mk-meta{font-size:13px;color:var(--text3);margin-top:2px}
-.mk-inp{width:64px;height:30px;text-align:center;border:1.5px solid var(--ch-e5e5e5);border-radius:6px;font-size:12px;font-weight:600;outline:none}
+.mk-inp{width:64px;min-height:var(--h-sm);padding:0 6px;text-align:center;border:1.5px solid var(--ch-e5e5e5);border-radius:var(--r-btn);font-size:var(--fs-maydon-sm);font-weight:600;outline:none}
 .mk-inp:focus{border-color:#B9783F}
 @media (max-width: 640px) {
   .kpi-two{grid-template-columns:1fr}
@@ -45,7 +45,7 @@
 }
 .mk-card{display:flex;align-items:center;gap:12px;padding:16px;border:1px solid var(--border);border-radius:14px;margin-bottom:10px;background:var(--white);position:relative;transition:box-shadow .15s;box-shadow:0 1px 2px rgba(16,24,40,.04)}
 .mk-card:hover{box-shadow:0 4px 12px rgba(16,24,40,.08)}
-.mk-avatar{width:44px;height:44px;border-radius:50%;background:var(--gold-tint);color:var(--gold-dark);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex-shrink:0}
+.mk-avatar{width:44px;height:44px;border-radius:50%;background:var(--gold-tint);color:var(--gold-dark);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;flex-shrink:0}
 .emp-row{display:flex;align-items:center;gap:12px;padding:16px;border:1px solid var(--border);border-radius:14px;margin-bottom:10px;background:var(--white);box-shadow:0 1px 2px rgba(16,24,40,.04);transition:box-shadow .15s}
 /* kech120 (zip 136 — F bosqichi 5-qism, audit G6-08, O'LCHANGAN: 1440 px da ham karta ikki ustunli joyda — ism ustuniga ~70 px qolib,
    «3 000 000 so'm/oy» «TO'LANGAN» ustiga chiqardi, «Bu oy avans» har so'zi alohida qatorda, ✕ kartadan chiqardi). Endi kompyuterda
@@ -55,21 +55,21 @@
 .emp-row .emp-fin{margin-left:56px}
 .emp-row .emp-tugmalar{margin-left:auto}
 .emp-row:hover{box-shadow:0 4px 12px rgba(16,24,40,.08)}
-.emp-avatar{width:44px;height:44px;border-radius:50%;background:var(--gold-tint);color:var(--gold-dark);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex-shrink:0}
+.emp-avatar{width:44px;height:44px;border-radius:50%;background:var(--gold-tint);color:var(--gold-dark);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;flex-shrink:0}
 .status-badge{display:inline-block;font-size:12px;font-weight:700;padding:5px 12px;border-radius:20px;white-space:nowrap}
 .status-paid{background:var(--f-dcfce7);color:var(--m-15803d)}
 .status-partial{background:var(--f-fef3c7);color:var(--m-b45309)}
 .status-debt{background:var(--f-fee2e2);color:var(--m-dc2626)}
 .mk-region{display:inline-flex;align-items:center;gap:3px;font-size:12px;color:var(--text3)}
 .mk-filters{display:flex;gap:6px;margin-bottom:10px}
-.mk-filters input,.mk-filters select{height:30px;padding:0 8px;border:1px solid var(--border);border-radius:6px;font-size:13.5px;outline:none;flex:1}
+.mk-filters input,.mk-filters select{min-height:var(--h-sm);padding:0 10px;border:1px solid var(--border);border-radius:var(--r-btn);font-size:var(--fs-maydon-sm);outline:none;flex:1}
 .emp-tag{font-size:12px;padding:2px 8px;border-radius:9px;font-weight:600;white-space:nowrap}
-.mini-btn{width:26px;height:26px;border-radius:6px;border:1.5px solid var(--ch-e5e5e5);background:var(--white);font-size:13px;color:var(--m-555555);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.mini-btn{width:var(--h-sm);height:var(--h-sm);padding:0;border-radius:var(--r-btn);border:1.5px solid var(--ch-e5e5e5);background:var(--white);font-size:16px;color:var(--m-555555);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .mini-btn:hover{background:var(--dark);color:#fff;border-color:var(--dark)}
 /* Yo'nalish — tugma tanlovi (dropdown o'rniga, majburiy). kech117 (A2): variantlar — «Umumiy» + korxona yo'nalishlari
    (Sozlamalar), ko'p bo'lsa keyingi qatorga o'tadi. */
-.dir-toggle{display:flex;flex-wrap:wrap;border:1.5px solid var(--border);border-radius:9px;overflow:hidden;min-height:42px}
-.dir-opt{flex:1 1 auto;display:flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:0 12px;font-size:13px;font-weight:700;cursor:pointer;color:var(--text3);background:var(--f-fafaf8);transition:all .15s}
+.dir-toggle{display:flex;flex-wrap:wrap;box-sizing:border-box;border:1.5px solid var(--border);border-radius:var(--r-btn);overflow:hidden;min-height:var(--h-btn)}
+.dir-opt{flex:1 1 auto;display:flex;align-items:center;justify-content:center;gap:6px;min-height:calc(var(--h-btn) - 3px);padding:0 12px;font-size:13px;font-weight:700;cursor:pointer;color:var(--text3);background:var(--f-fafaf8);transition:all .15s}
 .dir-opt:not(:last-child){border-right:1px solid var(--border)}
 .dir-opt:hover{color:var(--text2)}
 .dir-opt.active{background:var(--f-dbeafe);color:var(--m-1e40af)}
@@ -85,12 +85,12 @@
 .modal-field-box .form-row:last-child{margin-bottom:0}
 
 /* "Sovg'a davri" bo'limi — 2026-09 dizayn tozalash */
-.input-field{padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;background:var(--white);color:var(--text)}
+.input-field{border:1.5px solid var(--border);border-radius:var(--r-btn);font-size:var(--fs-maydon);background:var(--white);color:var(--text)}
 .input-field:focus{outline:none;border-color:var(--gold)}
 .status-pill{font-size:12px;font-weight:700;padding:4px 11px;border-radius:20px;white-space:nowrap}
 .status-pill--off{background:var(--border2);color:var(--text2)}
 .status-pill--on{background:var(--f-dcfce7);color:var(--m-15803d)}
-.gift-tier-chip{display:inline-block;background:var(--gold-tint);color:var(--gold-dark);border-radius:7px;padding:4px 11px;margin:2px 6px 2px 0;font-size:12.5px;font-weight:600}
+.gift-tier-chip{display:inline-block;background:var(--gold-tint);color:var(--gold-dark);border-radius:7px;padding:4px 11px;margin:2px 6px 2px 0;font-size:13px;font-weight:600}
 </style>
 {% endblock %}
 
@@ -99,7 +99,7 @@
 
   <div class="kpi-grid mb-16" style="grid-template-columns:repeat(5,1fr)">
     <div class="kpi-card" style="display:flex;align-items:center;gap:14px;text-align:left">
-      <div class="kpi-ikon" style="width:46px;height:46px;border-radius:12px;background:var(--gold-tint);color:var(--gold-dark);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0"><i class="ti ti-users"></i></div>
+      <div class="kpi-ikon" style="width:46px;height:46px;border-radius:12px;background:var(--gold-tint);color:var(--gold-dark);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0"><i class="ti ti-users"></i></div>
       <div>
         <div class="kpi-val" id="k-master-count">—</div>
         <div class="kpi-label">Faol ustalar</div>
@@ -107,7 +107,7 @@
       </div>
     </div>
     <div class="kpi-card" style="display:flex;align-items:center;gap:14px;text-align:left">
-      <div class="kpi-ikon" style="width:46px;height:46px;border-radius:12px;background:var(--f-f0fdf4);color:var(--m-15803d);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0"><i class="ti ti-user"></i></div>
+      <div class="kpi-ikon" style="width:46px;height:46px;border-radius:12px;background:var(--f-f0fdf4);color:var(--m-15803d);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0"><i class="ti ti-user"></i></div>
       <div>
         <div class="kpi-val" style="color:var(--m-15803d)" id="k-emp-count">—</div>
         <div class="kpi-label">Faol hodimlar</div>
@@ -115,7 +115,7 @@
       </div>
     </div>
     <div class="kpi-card" style="display:flex;align-items:center;gap:14px;text-align:left">
-      <div class="kpi-ikon" style="width:46px;height:46px;border-radius:12px;background:var(--f-f3e8ff);color:var(--m-8e44ad);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0"><i class="ti ti-coins"></i></div>
+      <div class="kpi-ikon" style="width:46px;height:46px;border-radius:12px;background:var(--f-f3e8ff);color:var(--m-8e44ad);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0"><i class="ti ti-coins"></i></div>
       <div>
         <div class="kpi-val" style="color:var(--m-8e44ad)" id="k-emp-calculated">—</div>
         <div class="kpi-label">Hisoblangan oylik</div>
@@ -124,7 +124,7 @@
       </div>
     </div>
     <div class="kpi-card" style="display:flex;align-items:center;gap:14px;text-align:left;border-left:3px solid #EF4444">
-      <div class="kpi-ikon" style="width:46px;height:46px;border-radius:12px;background:var(--f-fef2f2);color:var(--m-dc2626);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0"><i class="ti ti-wallet"></i></div>
+      <div class="kpi-ikon" style="width:46px;height:46px;border-radius:12px;background:var(--f-fef2f2);color:var(--m-dc2626);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0"><i class="ti ti-wallet"></i></div>
       <div>
         <div class="kpi-val" style="color:var(--m-dc2626)" id="k-emp-unpaid">—</div>
         <div class="kpi-label">To'lanmagan summa</div>
@@ -132,7 +132,7 @@
       </div>
     </div>
     <div class="kpi-card" style="display:flex;align-items:center;gap:14px;text-align:left">
-      <div class="kpi-ikon" style="width:46px;height:46px;border-radius:12px;background:var(--f-fffbeb);color:var(--m-b45309);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0"><i class="ti ti-gift"></i></div>
+      <div class="kpi-ikon" style="width:46px;height:46px;border-radius:12px;background:var(--f-fffbeb);color:var(--m-b45309);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0"><i class="ti ti-gift"></i></div>
       <div>
         <div class="kpi-val text-green" id="k-total-gift">—</div>
         <div class="kpi-label">Yillik KPI fondi</div>
@@ -145,10 +145,10 @@
 
     <!-- USTA YILLIK KPI -->
     <div class="card">
-      <div class="card-head">
-        <h3>👷‍♂️ Hamkor ustalar <span style="font-weight:400;color:var(--text3);font-size:12.5px">— <span id="k-year">—</span>-yil TOP: <span id="k-top-master" style="color:var(--gold-dark);font-weight:600">—</span></span></h3>
-        <div style="display:flex;align-items:center;gap:8px">
-          <input type="number" id="kpi-year" style="width:76px;padding:5px 8px;border:1px solid var(--ch-e8e8e8);border-radius:6px;font-size:12px" onchange="loadMasterKpi()">
+      <div class="card-head" style="flex-wrap:wrap;gap:8px">
+        <h3>👷‍♂️ Hamkor ustalar <span style="font-weight:400;color:var(--text3);font-size:13px">— <span id="k-year">—</span>-yil TOP: <span id="k-top-master" style="color:var(--gold-dark);font-weight:600">—</span></span></h3>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+          <input type="number" id="kpi-year" class="maydon maydon-sm" style="width:84px" aria-label="Yil" onchange="loadMasterKpi()">
           <button class="btn btn-dark btn-sm" onclick="openMasterModal()">+ Usta</button>
         </div>
       </div>
@@ -168,8 +168,7 @@
           <div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>
         </div>
         <div id="mkInactiveWrap" style="display:none;margin-top:6px">
-          <button onclick="toggleInactiveMasters()" id="mkInactiveBtn"
-                  style="background:none;border:none;color:var(--text3);font-size:13.5px;cursor:pointer;padding:6px 0">
+          <button onclick="toggleInactiveMasters()" id="mkInactiveBtn" class="btn btn-ghost btn-sm">
             ▼ Nofaol ustalarni ko'rsatish
           </button>
           <div id="mkInactiveList" style="display:none"></div>
@@ -195,12 +194,12 @@
     <div class="card" style="grid-column:1/-1">
       <div class="card-body kpi-ehson-qator" style="display:flex;align-items:center;gap:12px">
         <span style="font-size:18px">🤲</span>
-        <h3 style="white-space:nowrap">Ehson foizi</h3>
+        <h3 style="white-space:nowrap;font-size:14px">Ehson foizi</h3>
         <span class="kpi-ehson-oraliq" style="flex:1"></span>
         <input type="number" id="ehson-percent-input" min="0" max="100" step="0.5" class="input-field" style="width:80px;text-align:center;font-weight:600" placeholder="0">
         <span style="font-size:14px;color:var(--text3)">%</span>
         <button class="btn btn-dark btn-sm" onclick="saveEhsonPercent()">Saqlash</button>
-        <span id="ehson-save-msg" style="font-size:12.5px;color:var(--m-15803d);font-weight:600;display:none">✓ Saqlandi</span>
+        <span id="ehson-save-msg" style="font-size:13px;color:var(--m-15803d);font-weight:600;display:none">✓ Saqlandi</span>
       </div>
     </div>
     {% endif %}
@@ -213,7 +212,7 @@
           <h3>🎁 Sovg'a davri</h3>
           <span id="giftPeriodStatusPill" class="status-pill status-pill--off">Yopiq</span>
         </div>
-        <button class="btn btn-outline btn-sm" onclick="openGiftPeriodModal()"><i class="ti ti-settings" style="font-size:14px;vertical-align:-2px;margin-right:4px"></i>Boshqarish</button>
+        <button class="btn btn-outline btn-sm" onclick="openGiftPeriodModal()"><i class="ti ti-settings"></i>Boshqarish</button>
       </div>
       <div class="card-body" style="padding-top:0">
         <div id="giftPeriodSummary"></div>
@@ -224,7 +223,7 @@
       <div style="background:var(--white);border-radius:14px;width:640px;max-width:100%;max-height:86vh;overflow-y:auto">
         <div style="padding:18px 22px 14px;border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center">
           <div style="font-size:16px;font-weight:600">🎁 Sovg'a davrini boshqarish</div>
-          <button data-yopish onclick="closeGiftPeriodModal()" style="width:30px;height:30px;border-radius:50%;background:var(--border2);border:none;font-size:15px;cursor:pointer">✕</button>
+          <button data-yopish class="btn btn-soft btn-icon btn-sm" onclick="closeGiftPeriodModal()" title="Yopish" aria-label="Yopish">✕</button>
         </div>
         <div style="padding:18px 22px" id="giftPeriodBox">
           <div style="text-align:center;padding:16px;color:var(--text3)">Yuklanmoqda...</div>
@@ -240,9 +239,9 @@
           <div style="font-size:12px;color:var(--text3);margin-top:3px">Ushbu oyda har bir hodim uchun hisoblangan summa va qolgan to'lovlar.</div>
         </div>
         <div style="display:flex;gap:6px;align-items:center">
-          <select id="emp-report-month" style="padding:8px 12px;border:1.5px solid var(--border);border-radius:9px;font-size:13px"></select>
-          <select id="emp-report-year" style="padding:8px 12px;border:1.5px solid var(--border);border-radius:9px;font-size:13px"></select>
-          <button class="btn btn-dark btn-sm" onclick="loadEmpMonthlyReport()"><i class="ti ti-chart-bar" style="vertical-align:-2px"></i> Ko'rish</button>
+          <select id="emp-report-month" style="border:1.5px solid var(--border)" class="maydon maydon-sm"></select>
+          <select id="emp-report-year" style="border:1.5px solid var(--border)" class="maydon maydon-sm"></select>
+          <button class="btn btn-dark btn-sm" onclick="loadEmpMonthlyReport()"><i class="ti ti-chart-bar"></i> Ko'rish</button>
         </div>
       </div>
       <div class="card-body" style="padding-top:0">
@@ -299,7 +298,7 @@
   <div style="background:var(--white);border-radius:14px;width:520px;max-width:100%;max-height:86vh;display:flex;flex-direction:column">
     <div style="padding:18px 22px 14px;border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center">
       <div style="font-size:16px;font-weight:600" id="md-title">Buyurtmalar bo'yicha KPI</div>
-      <button data-yopish onclick="closeMasterDetail()" style="width:30px;height:30px;border-radius:50%;background:var(--border2);border:none;font-size:15px;cursor:pointer">✕</button>
+      <button data-yopish class="btn btn-soft btn-icon btn-sm" onclick="closeMasterDetail()" title="Yopish" aria-label="Yopish">✕</button>
     </div>
     <div style="padding:0 22px 20px;overflow-y:auto;flex:1" id="md-list">
       <div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>
@@ -319,7 +318,7 @@
     </div>
 
     <div class="modal-section-label">Yo'nalish <span class="modal-hint">— har yo'nalishning o'z sof foydasi uchun, majburiy («Umumiy» — daromad ulushida bo'linadi)</span></div>
-    <div class="dir-toggle" id="e-prodtype-toggle">
+    <div class="dir-toggle segment" id="e-prodtype-toggle">
       <div class="dir-opt dir-umumiy" data-val="umumiy" onclick="setProdType(this.dataset.val)">Umumiy</div>
 {% for y in yonalishlar_royxati(current_user.company_id) %}      <div class="dir-opt" data-val="{{ y.id }}" onclick="setProdType(this.dataset.val)">{{ y.nom }}</div>
 {% endfor %}    </div>
@@ -394,7 +393,7 @@
       <div style="font-size:12px;color:var(--text3);margin-top:6px;line-height:1.4">
         Agar to'lov summasini/turini o'zgartirsangiz — shu oydan boshlab kuchga kiradi. O'tgan oylarning hisobotlari o'zgarmaydi.
       </div>
-      <button type="button" style="background:none;border:none;color:var(--gold-dark);font-size:12.5px;cursor:pointer;padding:8px 0 0" onclick="openCompHistoryModal()">📜 To'lov tarixini ko'rish</button>
+      <button type="button" class="btn-link" style="margin-top:8px" onclick="openCompHistoryModal()">📜 To'lov tarixini ko'rish</button>
     </div>
 
     <div id="emp-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:var(--f-fee2e2);border-radius:7px;font-size:12px;color:var(--m-dc2626)"></div>
@@ -409,7 +408,7 @@
 <!-- ══ TO'LOV TARIXI MODALI ══ -->
 <div id="compHistoryModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1100;align-items:center;justify-content:center;padding:20px">
   <div style="background:var(--white);border-radius:14px;padding:22px;width:420px;max-width:100%;max-height:80vh;overflow-y:auto">
-    <div style="font-size:15px;font-weight:600;margin-bottom:14px">📜 To'lov tarixi — <span id="ch-emp-name" style="color:var(--gold-dark)"></span></div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:14px">📜 To'lov tarixi — <span id="ch-emp-name" style="color:var(--gold-dark)"></span></div>
     <div id="ch-list"><div style="text-align:center;padding:16px;color:var(--text3);font-size:13px">Yuklanmoqda...</div></div>
     <button data-yopish class="btn btn-outline w-full" style="margin-top:14px" onclick="closeCompHistoryModal()">Yopish</button>
   </div>
@@ -419,7 +418,7 @@
 <div id="advanceModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
   <div style="background:var(--white);border-radius:14px;padding:24px;width:420px;max-width:100%">
     <div style="font-size:16px;font-weight:600;margin-bottom:4px">💰 Avans berish — <span id="adv-emp-name" style="color:var(--m-b45309)"></span></div>
-    <div style="font-size:12.5px;color:var(--text3);margin-bottom:16px">Bu summa oy oxirida hisoblangan oylikdan avtomatik ayriladi</div>
+    <div style="font-size:13px;color:var(--text3);margin-bottom:16px">Bu summa oy oxirida hisoblangan oylikdan avtomatik ayriladi</div>
 
     <div class="form-group"><label>Sana</label><input type="date" id="adv-date"></div>
     <div class="form-group"><label>Summa (so'm)</label><input type="text" id="adv-amount" placeholder="0" oninput="formatPriceInput(this)"></div>
@@ -442,12 +441,12 @@
 <div id="panelAccessModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
   <div style="background:var(--white);border-radius:14px;padding:24px;width:400px;max-width:100%">
     <div style="font-size:16px;font-weight:600;margin-bottom:4px">🔑 Panel kirishi — <span id="pa-emp-name" style="color:var(--gold-dark)"></span></div>
-    <div style="font-size:12.5px;color:var(--text3);margin-bottom:10px">Xodim shu telefon+PIN bilan <b>/hodim</b> sahifasiga kirib, o'zi avans yozib qo'ya oladi</div>
+    <div style="font-size:13px;color:var(--text3);margin-bottom:10px">Xodim shu telefon+PIN bilan <b>/hodim</b> sahifasiga kirib, o'zi avans yozib qo'ya oladi</div>
     {# kech120 (zip 130 — G6-07): korxona KODI — ikkinchi korxona ulangandan keyin hodim kirishida SHART (ilgari hech qayerda ko'rinmasdi) #}
     <div id="pa-kod-blok" style="margin-bottom:16px;padding:10px 12px;background:var(--bg);border-radius:9px;font-size:13px;line-height:1.6">
       Kirish: <span id="pa-kirish-manzil" style="font-family:monospace;overflow-wrap:anywhere"></span><br>
-      Korxona kodi: <b id="pa-korxona-kod" style="font-size:15px;letter-spacing:.3px">—</b>
-      <a href="/users/hodim-qr" id="pa-qr-havola" target="_blank" rel="noopener" style="margin-left:6px;font-size:12.5px;color:var(--gold-dark)">QR kod (chop etish) →</a>
+      Korxona kodi: <b id="pa-korxona-kod" style="font-size:16px;letter-spacing:.3px">—</b>
+      <a href="/users/hodim-qr" id="pa-qr-havola" target="_blank" rel="noopener" style="margin-left:6px;font-size:13px;color:var(--gold-dark)">QR kod (chop etish) →</a>
     </div>
 
     <div class="form-group"><label>Telefon raqami</label><input type="tel" id="pa-phone" placeholder="+998901234567"></div>
@@ -465,19 +464,19 @@
 <!-- ══ KAMAYTIRISH / BONUS — yagona, moslashuvchan oyna (native prompt() o'rniga) ══ -->
 <div id="arModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1100;align-items:center;justify-content:center;padding:20px">
   <div style="background:var(--white);border-radius:14px;width:400px;max-width:100%;padding:22px">
-    <div id="arModal-icon" style="width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:10px">💰</div>
+    <div id="arModal-icon" style="width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:10px">💰</div>
     <div id="arModal-title" style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:2px"></div>
-    <div id="arModal-help" style="font-size:12.5px;color:var(--text3);line-height:1.5;margin-bottom:16px"></div>
+    <div id="arModal-help" style="font-size:13px;color:var(--text3);line-height:1.5;margin-bottom:16px"></div>
 
     <label style="font-size:12px;font-weight:600;color:var(--text2)">Summa (so'm)</label>
     {# kech120 (zip 136 — G6-14): summa — umumiy qoida («20 000»; ilgari type=number, ajratgichsiz «20000») #}
-    <input type="text" inputmode="decimal" id="arModal-amount" placeholder="0" oninput="formatPriceInput(this)" style="width:100%;height:42px;padding:0 12px;border:1.5px solid var(--border);border-radius:9px;font-size:15px;margin:6px 0 14px">
+    <input type="text" inputmode="decimal" id="arModal-amount" placeholder="0" oninput="formatPriceInput(this)" style="width:100%;border:1.5px solid var(--border);margin:6px 0 14px" class="maydon">
 
     <label style="font-size:12px;font-weight:600;color:var(--text2)">Sabab (ixtiyoriy)</label>
-    <input type="text" id="arModal-reason" placeholder="Masalan: 3 kun kelmadi" style="width:100%;height:42px;padding:0 12px;border:1.5px solid var(--border);border-radius:9px;font-size:14px;margin:6px 0 18px">
+    <input type="text" id="arModal-reason" placeholder="Masalan: 3 kun kelmadi" style="width:100%;border:1.5px solid var(--border);margin:6px 0 18px" class="maydon">
 
     <div style="display:flex;gap:8px">
-      <button id="arModal-ok" class="btn w-full" style="background:#111;color:#fff">Saqlash</button>
+      <button id="arModal-ok" class="btn btn-dark w-full">Saqlash</button>
       <button data-yopish class="btn btn-outline w-full" onclick="_arResolve(null)">Bekor</button>
     </div>
   </div>
@@ -593,7 +592,7 @@ function renderMasterKpiList() {
         <div class="mk-name" style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">${escapeHtml(m.name)} ${topBadge}</div>
         <div class="mk-meta">
           Sotuv: ${fmt(m.yearly_sales)} · Foyda: <b style="color:var(--m-8e44ad)">${m.yearly_profit === null ? '—' : fmt(m.yearly_profit)}</b> · ${m.orders_count} ta
-          ${m.region ? `<span class="mk-region"> · <i class="ti ti-map-pin" style="font-size:12px"></i> ${escapeHtml(m.region)}</span>` : ''}
+          ${m.region ? `<span class="mk-region"> · <i class="ti ti-map-pin"></i> ${escapeHtml(m.region)}</span>` : ''}
         </div>
       </div>
       <div class="mk-foiz" style="display:flex;align-items:center;gap:5px">
@@ -607,9 +606,9 @@ function renderMasterKpiList() {
         <div style="font-size:12px;color:var(--text3)">sovg'a</div>
       </div>
       <div class="mk-tugmalar" style="display:flex;gap:4px;flex-shrink:0" data-id="${m.id}" data-name="${escapeHtml(m.name||'')}">
-        <button class="mini-btn" onclick="openMasterDetail(this.closest('div').dataset.id, this.closest('div').dataset.name)" title="Har buyurtma bo'yicha KPI"><i class="ti ti-list-details" style="font-size:13px"></i></button>
-        <button class="mini-btn" onclick="editMaster(${m.id})">✏️</button>
-        <button class="mini-btn" style="color:var(--m-dc2626);border-color:var(--ch-fadbd8)" onclick="deactivateMaster(this.closest('div').dataset.id, this.closest('div').dataset.name)" title="Nofaollashtirish">🚫</button>
+        <button class="mini-btn" onclick="openMasterDetail(this.closest('div').dataset.id, this.closest('div').dataset.name)" title="Har buyurtma bo'yicha KPI" aria-label="Har buyurtma bo'yicha KPI"><i class="ti ti-list-details"></i></button>
+        <button class="mini-btn" onclick="editMaster(${m.id})" title="Tahrirlash" aria-label="Tahrirlash">✏️</button>
+        <button class="mini-btn" style="color:var(--m-dc2626);border-color:var(--ch-fadbd8)" onclick="deactivateMaster(this.closest('div').dataset.id, this.closest('div').dataset.name)" title="Nofaollashtirish" aria-label="Nofaollashtirish">🚫</button>
       </div>
     </div>`;
   }).join('');
@@ -853,8 +852,8 @@ async function loadEmployees() {
         <div class="emp-avatar">${initials(e.name)}</div>
         <div class="emp-asosiy" style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <span style="font-size:14.5px;font-weight:700;color:var(--text)">${escapeHtml(e.name)}</span>
-            ${e.position ? `<span style="font-size:12.5px;color:var(--text3)">${escapeHtml(e.position)}</span>` : ''}
+            <span style="font-size:14px;font-weight:700;color:var(--text)">${escapeHtml(e.name)}</span>
+            ${e.position ? `<span style="font-size:13px;color:var(--text3)">${escapeHtml(e.position)}</span>` : ''}
           </div>
           <div style="margin-top:4px">
             <span class="emp-tag" style="background:${PAY_COLORS[e.pay_type]}15;color:${matnRangi(PAY_COLORS[e.pay_type], 1)}">${PAY_LABELS[e.pay_type]}</span>
@@ -865,10 +864,10 @@ async function loadEmployees() {
         <div class="emp-fin" id="emp-fin-${e.id}" style="flex-shrink:0"></div>
         <div class="emp-holat" id="emp-status-${e.id}" style="flex-shrink:0"></div>
         <div class="emp-tugmalar" style="display:flex;gap:4px;flex-shrink:0">
-          <button class="mini-btn" style="color:var(--m-b45309);border-color:var(--ch-fde68a)" data-id="${e.id}" data-name="${escapeHtml(e.name||'')}" onclick="openAdvanceModal(this.dataset.id, this.dataset.name)" title="Avans berish">💰</button>
-          <button class="mini-btn" style="width:auto;padding:0 8px;gap:4px;color:var(--gold-dark);border-color:#B9783F;background:var(--f-f8f2eb);font-weight:600;font-size:12px" data-id="${e.id}" data-name="${escapeHtml(e.name||'')}" data-phone="${escapeHtml(e.phone||'')}" onclick="openPanelAccessModal(this.dataset.id, this.dataset.name, this.dataset.phone)" title="Xodim o'z telefonidan kirishi uchun">🔑 Kirish</button>
-          <button class="mini-btn" onclick="editEmployee(${e.id})">✏️</button>
-          <button class="mini-btn" style="color:var(--m-dc2626);border-color:var(--ch-fadbd8)" onclick="deleteEmployee(${e.id})">✕</button>
+          <button class="mini-btn" style="color:var(--m-b45309);border-color:var(--ch-fde68a)" data-id="${e.id}" data-name="${escapeHtml(e.name||'')}" onclick="openAdvanceModal(this.dataset.id, this.dataset.name)" title="Avans berish" aria-label="Avans berish">💰</button>
+          <button class="btn btn-gold-outline btn-sm" style="background:var(--f-f8f2eb)" data-id="${e.id}" data-name="${escapeHtml(e.name||'')}" data-phone="${escapeHtml(e.phone||'')}" onclick="openPanelAccessModal(this.dataset.id, this.dataset.name, this.dataset.phone)" title="Xodim o'z telefonidan kirishi uchun">🔑 Kirish</button>
+          <button class="mini-btn" onclick="editEmployee(${e.id})" title="Tahrirlash" aria-label="Tahrirlash">✏️</button>
+          <button class="mini-btn" style="color:var(--m-dc2626);border-color:var(--ch-fadbd8)" onclick="deleteEmployee(${e.id})" title="O'chirish" aria-label="O'chirish">✕</button>
         </div>
       </div>`;
     }).join('');
@@ -973,15 +972,15 @@ async function loadAdvanceHistory(empId) {
   const list = document.getElementById('adv-history');
   document.getElementById('adv-total').textContent = fmt(d.total) + " so'm";
   if (!d.advances.length) {
-    list.innerHTML = '<div style="color:var(--text3);font-size:12.5px;text-align:center;padding:8px">Bu oy hali avans berilmagan</div>';
+    list.innerHTML = '<div style="color:var(--text3);font-size:13px;text-align:center;padding:8px">Bu oy hali avans berilmagan</div>';
     return;
   }
   list.innerHTML = d.advances.map(a => `
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--ch-f0f0f0);font-size:12.5px">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--ch-f0f0f0);font-size:13px">
       <span>${tkSana(a.date)} ${a.notes ? '— '+escapeHtml(a.notes) : ''}</span>
       <span style="display:flex;align-items:center;gap:6px">
         <b>${fmt(a.amount)} so'm</b>
-        <button onclick="deleteAdvance(${a.id})" style="border:none;background:none;color:var(--m-dc2626);cursor:pointer;font-size:13px">✕</button>
+        <button class="btn btn-danger btn-icon btn-sm" onclick="deleteAdvance(${a.id})" title="Avansni o'chirish" aria-label="Avansni o'chirish">✕</button>
       </span>
     </div>`).join('');
 }
@@ -1386,7 +1385,7 @@ async function loadEmpMonthlyReport() {
                   ${e.avans > 0 ? `onclick="toggleEmpAdvanceDetail(${e.employee_id}, ${i}, ${year}, ${month})"` : ''}>
                 <td style="padding:12px 6px">
                   <div style="display:flex;align-items:center;gap:9px">
-                    <div style="width:30px;height:30px;border-radius:50%;background:var(--gold-tint);color:var(--gold-dark);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12.5px;flex-shrink:0">${(e.name||'?')[0].toUpperCase()}</div>
+                    <div style="width:30px;height:30px;border-radius:50%;background:var(--gold-tint);color:var(--gold-dark);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0">${(e.name||'?')[0].toUpperCase()}</div>
                     <span style="font-weight:700;color:var(--text)">${escapeHtml(e.name)}</span>
                   </div>
                 </td>
@@ -1394,13 +1393,13 @@ async function loadEmpMonthlyReport() {
                 <td style="padding:12px 6px;text-align:right;font-weight:600;color:var(--gold-dark)">${fmt(e.amount + (e.adjustment||0) - (e.bonus||0))} so'm</td>
                 <td style="padding:12px 6px;text-align:center">
                   <button type="button" onclick="event.stopPropagation();editEmpBonus(${e.employee_id}, '${jsAttrEscape(e.name)}', ${year}, ${month}, ${e.bonus||0}, '${jsAttrEscape(e.bonus_reason||'')}')"
-                        style="cursor:pointer;padding:6px 12px;border-radius:8px;border:1.5px solid ${e.bonus ? 'var(--ch-dcfce7)' : 'var(--border)'};background:${e.bonus ? 'var(--f-f0fdf4)' : 'var(--white)'};color:${e.bonus ? 'var(--m-15803d)' : 'var(--text2)'};font-size:12px;font-weight:600;white-space:nowrap">
+                        class="btn btn-outline btn-sm" style="white-space:nowrap;border-color:${e.bonus ? 'var(--ch-dcfce7)' : 'var(--border)'};background:${e.bonus ? 'var(--f-f0fdf4)' : 'var(--white)'};color:${e.bonus ? 'var(--m-15803d)' : 'var(--text2)'}">
                     ${e.bonus ? '+'+fmt(e.bonus)+" so'm" : '+ Bonus'}
                   </button>
                 </td>
                 <td style="padding:12px 6px;text-align:center">
                   <button type="button" onclick="event.stopPropagation();editEmpAdjustment(${e.employee_id}, '${jsAttrEscape(e.name)}', ${year}, ${month}, ${e.adjustment||0}, '${jsAttrEscape(e.adjustment_reason||'')}')"
-                        style="cursor:pointer;padding:6px 12px;border-radius:8px;border:1.5px solid ${e.adjustment ? 'var(--ch-fee2e2)' : 'var(--border)'};background:${e.adjustment ? 'var(--f-fef2f2)' : 'var(--white)'};color:${e.adjustment ? 'var(--m-b91c1c)' : 'var(--text2)'};font-size:12px;font-weight:600;white-space:nowrap">
+                        class="btn btn-outline btn-sm" style="white-space:nowrap;border-color:${e.adjustment ? 'var(--ch-fee2e2)' : 'var(--border)'};background:${e.adjustment ? 'var(--f-fef2f2)' : 'var(--white)'};color:${e.adjustment ? 'var(--m-b91c1c)' : 'var(--text2)'}">
                     ${e.adjustment ? '-'+fmt(e.adjustment)+" so'm" : '− Kamaytirish'}
                   </button>
                 </td>
@@ -1428,7 +1427,7 @@ async function loadEmpMonthlyReport() {
         </div>
         <div style="text-align:right">
           <div style="font-size:12px;color:var(--text3);margin-bottom:2px">Qolgan jami</div>
-          <div style="font-weight:800;color:var(--gold-dark);font-size:19px">${fmt(list.reduce((s,e)=>s+e.qolgan,0))} so'm</div>
+          <div style="font-weight:800;color:var(--gold-dark);font-size:18px">${fmt(list.reduce((s,e)=>s+e.qolgan,0))} so'm</div>
         </div>
       </div>`;
   } catch(e) {
@@ -1540,7 +1539,7 @@ async function toggleEmpAdvanceDetail(empId, idx, year, month) {
     const res = await fetch(`/api/employees/${empId}/advances?year=${year}&month=${month}`);
     const d = await res.json();
     const html = d.advances.map(a => `
-      <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12.5px;color:var(--m-92400e)">
+      <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:var(--m-92400e)">
         <span>${tkSana(a.date)} ${a.notes ? '— '+escapeHtml(a.notes) : ''}</span>
         <span style="font-weight:600">${fmt(a.amount)} so'm</span>
       </div>`).join('');
@@ -1623,7 +1622,7 @@ function renderGiftPeriodClosed(box) {
     <div style="display:flex;gap:8px;margin-bottom:16px">
       <button class="btn btn-outline btn-sm" onclick="addNewPeriodTierRow()">+ Bosqich qo'shish</button>
     </div>
-    <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;cursor:pointer;margin-bottom:8px">
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:8px">
       <input type="checkbox" id="giftPeriodSelectMode" onchange="toggleGiftPeriodMasterPicker()">
       Faqat tanlangan ustalar uchun (belgilanmasa — barchasi)
     </label>
@@ -1671,7 +1670,7 @@ function renderNewPeriodTiersList() {
         oninput="_newPeriodTiers[${i}].name=this.value" class="input-field" style="flex:1;background:var(--white)">
       <input type="text" inputmode="numeric" placeholder="Savdo summasi (so'm)" value="${t.amount ? fmt(t.amount) : ''}"
         oninput="formatPriceInput(this); _newPeriodTiers[${i}].amount=parseNum(this.value)" class="input-field sovga-summa" style="width:180px;background:var(--white)">
-      ${_newPeriodTiers.length > 1 ? `<button class="btn btn-outline btn-sm" onclick="removeNewPeriodTierRow(${i})">✕</button>` : ''}
+      ${_newPeriodTiers.length > 1 ? `<button class="btn btn-outline btn-icon" onclick="removeNewPeriodTierRow(${i})" title="Bosqichni olib tashlash" aria-label="Bosqichni olib tashlash">✕</button>` : ''}
     </div>
   `).join('');
 }
@@ -1724,14 +1723,14 @@ function renderTierChipsHtml() {
   return _currentPeriodTiers.map(t => {
     if (t.id === _editingTierId) {
       return `<span style="display:inline-flex;gap:6px;align-items:center;background:var(--border2);border-radius:8px;padding:4px 8px;margin:2px 6px 2px 0">
-        <input type="text" id="tierEditName" value="${escapeHtml(t.gift_name)}" class="input-field" style="width:110px;padding:5px 8px;font-size:12.5px">
-        <input type="text" inputmode="numeric" id="tierEditAmount" value="${narxKorinishi(t.threshold_amount)}" class="input-field" style="width:120px;padding:5px 8px;font-size:12.5px" oninput="formatPriceInput(this)">
-        <button class="btn btn-gold btn-sm" style="padding:4px 9px;font-size:12px" onclick="saveTierEdit(${t.id})">✓</button>
-        <button class="btn btn-outline btn-sm" style="padding:4px 9px;font-size:12px" onclick="cancelEditTier()">✕</button>
+        <input type="text" id="tierEditName" value="${escapeHtml(t.gift_name)}" class="maydon maydon-sm" style="width:110px" aria-label="Sovg'a nomi">
+        <input type="text" inputmode="numeric" id="tierEditAmount" value="${narxKorinishi(t.threshold_amount)}" class="maydon maydon-sm" style="width:120px" aria-label="Savdo summasi" oninput="formatPriceInput(this)">
+        <button class="btn btn-gold btn-icon btn-sm" onclick="saveTierEdit(${t.id})" title="Saqlash" aria-label="Saqlash">✓</button>
+        <button class="btn btn-outline btn-icon btn-sm" onclick="cancelEditTier()" title="Bekor qilish" aria-label="Bekor qilish">✕</button>
       </span>`;
     }
     return `<span class="gift-tier-chip">${escapeHtml(t.gift_name)} — ${fmt(t.threshold_amount)} so'm
-      <button onclick="startEditTier(${t.id})" style="border:none;background:transparent;cursor:pointer;color:var(--gold-dark);margin-left:2px;padding:0;vertical-align:-2px" title="Tahrirlash" aria-label="Tahrirlash"><i class="ti ti-pencil" style="font-size:13px"></i></button>
+      <button class="btn-link" onclick="startEditTier(${t.id})" style="margin-left:2px" title="Tahrirlash" aria-label="Tahrirlash"><i class="ti ti-pencil"></i></button>
     </span>`;
   }).join('');
 }
@@ -1784,7 +1783,7 @@ async function renderGiftPeriodActive(box, data) {
       : `<span style="color:var(--text3)">⬜ ${escapeHtml(t.gift_name)}</span>`
     ).join(' &nbsp; ');
     const redeemBtn = m.ready_tier_id
-      ? `<button class="btn btn-gold btn-sm" style="padding:4px 10px;font-size:12px" data-gift-name="${escapeHtml(m.ready_tier_name||'')}" onclick="redeemGiftPeriodTier(${m.master_id}, ${m.ready_tier_id}, this.dataset.giftName)">Berildi ✓</button>`
+      ? `<button class="btn btn-gold btn-sm" data-gift-name="${escapeHtml(m.ready_tier_name||'')}" onclick="redeemGiftPeriodTier(${m.master_id}, ${m.ready_tier_id}, this.dataset.giftName)">Berildi ✓</button>`
       : '';
     return `
       <tr style="border-top:1px solid var(--border2)">
@@ -1796,7 +1795,7 @@ async function renderGiftPeriodActive(box, data) {
   }).join('');
   const addMasterControl = data.all_masters ? '' : `
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-      <select id="giftPeriodAddMasterSelect" style="flex:1;padding:7px 10px;border-radius:8px;border:1px solid var(--border2);font-size:13px">
+      <select id="giftPeriodAddMasterSelect" class="maydon maydon-sm" style="flex:1" aria-label="Yangi usta">
         <option value="">— Yangi usta qo'shish —</option>
         ${(allMasterKpiData || []).filter(m => !data.masters.some(dm => dm.master_id === m.id)).map(m =>
           `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('')}
@@ -1804,7 +1803,7 @@ async function renderGiftPeriodActive(box, data) {
       <button class="btn btn-outline btn-sm" onclick="submitAddMasterToGiftPeriod()">+ Qo'shish</button>
     </div>`;
   box.innerHTML = `
-    <div style="font-size:12.5px;color:var(--text3);margin-bottom:10px">${data.all_masters ? 'Barcha faol ustalar ishtirok etadi' : `Faqat ${data.masters.length} ta tanlangan usta ishtirok etadi`}</div>
+    <div style="font-size:13px;color:var(--text3);margin-bottom:10px">${data.all_masters ? 'Barcha faol ustalar ishtirok etadi' : `Faqat ${data.masters.length} ta tanlangan usta ishtirok etadi`}</div>
     ${addMasterControl}
     <div id="tierChipsRow" style="margin-bottom:14px">${renderTierChipsHtml()}</div>
     <div style="overflow-x:auto">
@@ -1923,11 +1922,11 @@ async function loadCurrentMonthEmpStatus() {
         <div style="display:flex;gap:14px;align-items:center">
           <div style="text-align:right;padding-right:14px;border-right:1px solid var(--ch-f0f0f0)">
             <div style="font-size:12px;color:var(--text3);text-transform:uppercase;font-weight:600">To'langan</div>
-            <div style="font-size:15px;font-weight:800;color:var(--m-15803d)">${fmt(toLangan)}</div>
+            <div style="font-size:16px;font-weight:800;color:var(--m-15803d)">${fmt(toLangan)}</div>
           </div>
           <div style="text-align:right">
             <div style="font-size:12px;color:var(--text3);text-transform:uppercase;font-weight:600">Qolgan</div>
-            <div style="font-size:15px;font-weight:800;color:${e.qolgan > 0 ? 'var(--m-dc2626)' : 'var(--m-15803d)'}">${fmt(Math.max(0,e.qolgan))}</div>
+            <div style="font-size:16px;font-weight:800;color:${e.qolgan > 0 ? 'var(--m-dc2626)' : 'var(--m-15803d)'}">${fmt(Math.max(0,e.qolgan))}</div>
           </div>
         </div>`;
       if (statusEl) {
