@@ -397,6 +397,10 @@
 <script>
 let selectedProjId = null;
 let progressMap = {};
+// kech124 (zip 145): bajarilish foizlari xaritasi holati — 'kutilmoqda' (so'rov hali qaytmagan), 'tayyor', 'xato'. Ilgari holat
+// paneli «🏭 Bajarilgan» ni `progressMap[id] || 0` dan BIR MARTA yozardi: sahifa ochilganda birinchi loyiha `load` da tanlanadi,
+// xarita undan keyin kelsa panel 0 % bo'lib QOLARDI (staging, PRJ-051: panel 0 %, xaritada 40 % — jonli O'LCHANGAN).
+let progressMapHolat = 'kutilmoqda';
 let currentTab = 'asosiy';
 
 // MUHIM: brauzerning standart alert()'i o'rniga — u sayt manzilini
@@ -460,14 +464,31 @@ async function uploadProjImage(id, input) {
 
 async function loadProgressMap(){
   try {
-    progressMap = await fetch('/api/projects/progress-map').then(r=>r.json());
+    const r = await fetch('/api/projects/progress-map');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const xarita = await r.json();
+    if (!xarita || typeof xarita !== 'object' || Array.isArray(xarita)) throw new Error('xarita emas');
+    progressMap = xarita;
+    progressMapHolat = 'tayyor';
     Object.keys(progressMap).forEach(pid => {
       const el = document.querySelector(`#progress-${pid} .progress-fill`);
       if (el) el.style.width = progressMap[pid] + '%';
       const yoz = document.getElementById('pbaj-' + pid);
       if (yoz) yoz.textContent = '🏭 Bajarilgan ' + (Number(progressMap[pid]) || 0) + '%';
     });
-  } catch(e) {}
+  } catch(e) { progressMapHolat = 'xato'; }
+  bajarilganYangila();
+}
+
+// kech124 (zip 145): holat panelidagi «🏭 Bajarilgan» — xarita kelguncha «…», kelganda foiz, kelmasa (ruxsat yo'q / xato) «—»
+// (yolg'on 0 % emas). Xarita qaysi paytda kelsa ham HOZIR tanlangan loyiha uchun yangilanadi.
+function bajarilganMatni(pid) {
+  if (progressMapHolat === 'tayyor') return (Number(progressMap[pid]) || 0) + '%';
+  return progressMapHolat === 'xato' ? '—' : '…';
+}
+function bajarilganYangila() {
+  const el = document.getElementById('sp-bajarilgan');
+  if (el && selectedProjId != null) el.textContent = bajarilganMatni(selectedProjId);
 }
 
 function selectProj(el) {
@@ -508,7 +529,7 @@ async function loadStatusPanel(d){
   const budget = parseFloat(d.qiymat)||0;     // kech116 (G2-01): loyiha qiymati — buyurtmalardan
   const paid = parseFloat(d.paid)||0;
   const paidPct = budget > 0 ? Math.min(100, Math.round(paid/budget*100)) : 0;
-  const progress = progressMap[d.id] || 0;
+  const progress = bajarilganMatni(d.id);     // kech124 (zip 145): xarita hali kelmagan bo'lsa «…» — kelganda bajarilganYangila()
 
   let deadlineTxt = '—', deadlineColor = 'var(--text)';
   if (d.deadlineRaw) {
@@ -520,7 +541,7 @@ async function loadStatusPanel(d){
   document.getElementById('statusPanel').innerHTML = `
     <div class="status-panel-item" style="border-color:#B9783F"><div class="status-panel-val">${paidPct}%</div><div class="status-panel-lbl">💰 To'langan</div></div>
     <div class="status-panel-item" style="border-color:#8E44AD"><div class="status-panel-val">${d.orders} ta</div><div class="status-panel-lbl">📦 Buyurtmalar</div></div>
-    <div class="status-panel-item" style="border-color:#22C55E"><div class="status-panel-val">${progress}%</div><div class="status-panel-lbl">🏭 Bajarilgan</div></div>
+    <div class="status-panel-item" style="border-color:#22C55E"><div class="status-panel-val" id="sp-bajarilgan">${progress}</div><div class="status-panel-lbl">🏭 Bajarilgan</div></div>
     <div class="status-panel-item" style="border-color:#F59E0B"><div class="status-panel-val" id="sp-yetkazish">${d.status === 'COMPLETED' ? 'Yetkazildi' : '…'}</div><div class="status-panel-lbl">🚚 Yetkazish</div></div>
     <div class="status-panel-item" style="border-color:${deadlineColor==='var(--text)'?'#94A3B8':deadlineColor}"><div class="status-panel-val" style="color:${matnRangi(deadlineColor)}">${deadlineTxt}</div><div class="status-panel-lbl">📅 Muddat</div></div>`;
   // kech120 (zip 134 — G2-19): «Yetkazish» — buyurtmalarning to'liq topshirilgani («2/3 topshirildi»); ilgari faqat loyiha «Yakunlangan» bo'lsa
