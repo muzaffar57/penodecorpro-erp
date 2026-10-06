@@ -27,7 +27,9 @@ TUZATMA: so'rovga `production_status == READY` qo'shildi va oy
 (eski yozuvlarda ustun bo'sh — o'shalar uchun `created_at`, tarix
 buzilmasin). Bu buyurtmalar bilan SIMMETRIK: buyurtma detallari ham
 faqat buyurtma READY bo'lgan va `completed_at` shu oyga tushgan holatda
-hisoblanadi.
+hisoblanadi. (kech123, zip 143 — egasi qarori 06.10: 2026-10 dan buyurtma
+detallari YUK XATLARI bo'yicha — `tools/test_yuk_xati_oylik.py`; shu sinov
+qamragan «Tayyor mahsulotlar» qoidasi o'zgarmagan.)
 
 QAMROV
 ------
