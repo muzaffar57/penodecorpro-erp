@@ -1308,7 +1308,10 @@ function rowHtml(i, partiyami) {
           : `<span class="fp-name">${escapeHtml(i.name)}</span>
         <span class="fp-sku">${fpSku(i)}</span>`}
         ${inProgress ? '<span class="fp-badge" style="background:var(--f-fef3c7);color:var(--m-92400e)">⏳ ISHLAB CHIQARILMOQDA</span>' : ''}
-        ${isRet ? '<span class="fp-badge" style="background:var(--f-dcfce7);color:var(--m-1e7e34)">♻️ QAYTGAN</span>' : ''}
+        ${isRet && !i.brak_taqdir ? '<span class="fp-badge" style="background:var(--f-dcfce7);color:var(--m-1e7e34)">♻️ QAYTGAN</span>' : ''}
+        ${i.brak_taqdir === 'ikkinchi_nav' ? '<span class="fp-badge fp-2nav" style="background:var(--f-fef3c7);color:var(--m-92400e)" title="Brakdan — arzon sotiladi (tannarxdan past sotilsa farq sotilgan oyda zarar)">🏷️ 2-NAV</span>' : ''}
+        ${i.brak_taqdir === 'kesildi' ? '<span class="fp-badge" style="background:var(--f-f8f2eb);color:var(--gold-dark)" title="Brak detaldan kesib olingan — ulush tannarx bilan">✂️ BRAKDAN KESILGAN</span>' : ''}
+        ${i.brak_taqdir === 'tuzatildi' ? '<span class="fp-badge" style="background:var(--f-dcfce7);color:var(--m-1e7e34)" title="Brak detal tuzatilgan — asl narxi bilan">🔧 TUZATILGAN</span>' : ''}
         ${i.reserved_quantity > 0 ? `<span class="fp-badge" style="background:var(--f-fee2e2);color:var(--m-b91c1c)" title="Bu miqdor umumiy sotuvdan ajratilgan — faqat shu buyurtma uchun">🔒 Band: ${i.reserved_quantity} ${escapeHtml(unitLabel(i.unit))}</span>` : ''}
       </div>
       <div class="fp-meta">${meta.map(escapeHtml).join(' · ')}${profitPct !== null ? (cpu < 0 ? ` · <b style="color:var(--m-dc2626)">⚠️ tannarx xato</b>` : ` · Foyda: <b style="color:${profitPct>=0?'var(--m-15803d)':'var(--m-dc2626)'}">${profitPct}%</b>`) : ''}</div>

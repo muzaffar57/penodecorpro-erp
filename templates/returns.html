@@ -65,6 +65,9 @@
 .dest-badge{font-size:12px;font-weight:600;padding:2px 8px;border-radius:20px;white-space:nowrap}
 .dest-stock{background:var(--f-e6f1fb);color:var(--m-0c447c)}
 .dest-scrap{background:var(--f-f1f5f9);color:var(--m-475569)}
+/* kech125 (zip 146 — brak taqdiri): taqdir belgisi va «zarar» izohi */
+.dest-taqdir{background:var(--f-f8f2eb);color:var(--gold-dark);white-space:normal;display:inline-block;max-width:180px;line-height:1.35}
+.brak-zarar{font-size:12px;color:var(--text3);margin-top:2px}
 .refund-badge{font-size:12px;font-weight:600;padding:2px 8px;border-radius:20px}
 .refund-yes{background:var(--f-dcfce7);color:var(--m-166534)}
 .refund-no{background:var(--f-fef3c7);color:var(--m-92400e)}
@@ -238,7 +241,10 @@
         {% if is_defect %}<span class="badge badge-danger">🔴 Brak</span>{% if r.brak_bosqich %}<div class="brak-bosqich" style="font-size:12px;color:var(--m-991b1b);margin-top:4px">{{ (brak_bosqichlari or {}).get(r.brak_bosqich, r.brak_bosqich) }}</div>{% endif %}{% if r.brak_sabab %}<div class="brak-sabab" style="font-size:12px;color:var(--m-991b1b);margin-top:2px">{{ (brak_sabablari or {}).get(r.brak_sabab, r.brak_sabab) }}</div>{% endif %}{% if r.brak_javobgar_id %}<div class="brak-javobgar" style="font-size:12px;color:var(--m-64748b);margin-top:2px">👤 {{ (hodim_nomlari or {}).get(r.brak_javobgar_id, "O'chirilgan hodim") }}</div>{% endif %}{% else %}<span class="badge badge-ready">🟢 Butun</span>{% endif %}
       </div>
       <div class="ret-dest" style="min-width:130px;text-align:center">
-        {% if is_defect %}<span class="dest-badge dest-scrap"><i class="ti ti-trash"></i> Chiqindiga ketdi</span>
+        {# kech125 (zip 146 — EGASI QARORLARI 07.10): brak taqdiri — yo'q bo'lsa «Chiqindiga ketdi» (Tashlandi, avvalgidek) #}
+        {% set _tq = (taqdirlar or {}).get(r.id) if is_defect else none %}
+        {% if is_defect and _tq %}<span class="dest-badge dest-taqdir" data-taqdir="{{ _tq.taqdir }}">{% if _tq.taqdir == 'tuzatildi' %}🔧 Tuzatildi — {{ "o'sha joyiga" if _tq.joy == 'joyiga' else 'omborga' }}{% elif _tq.taqdir == 'kesildi' %}✂️ Kesildi → {{ _tq.nomi }}{% elif _tq.taqdir == 'ikkinchi_nav' %}🏷️ 2-nav — omborda{% else %}{{ _tq.yorliq }}{% endif %}</span>
+        {% elif is_defect %}<span class="dest-badge dest-scrap"><i class="ti ti-trash"></i> Chiqindiga ketdi</span>
         {% else %}<span class="dest-badge dest-stock"><i class="ti ti-building-warehouse"></i> Omborga qaytdi</span>{% endif %}
       </div>
       {% if current_user.ruxsat('tannarx', 'korish') %}
@@ -246,6 +252,7 @@
         <div style="font-size:13px;font-weight:600;color:{{ 'var(--m-dc2626)' if is_defect else '#22C55E' }}">
           {% if r.refund_amount > 0 %}{{ "{:,.0f}".format(r.refund_amount).replace(",", " ") }} so'm{% else %}—{% endif %}
         </div>
+        {% if is_defect and (brak_zarar or {}).get(r.id) is not none %}<div class="brak-zarar" title="Taqdirdan keyingi haqiqiy zarar (xomashyo − tayyor mahsulotga o'tgan qism + tuzatish)">zarar: {{ "{:,.0f}".format((brak_zarar or {}).get(r.id)).replace(",", " ") }} so'm</div>{% endif %}
         {# kech120 (zip 133 — F bosqichi 3-qism, audit G5-05 texnik qismi): ilgari «Pul kutilmoqda» — bosiladigan YOZUV (kim kimdan kutadi
            noaniq, tugma ekani bilinmasdi). Endi aniq TUGMA «Hisob-kitob qilish» (faqat «qaytarish: tahrirlash» ruxsatida), qilingach —
            «✓ Hisob-kitob qilingan» (bosilmaydi — orqaga qaytarilmaydi). #}
@@ -258,6 +265,9 @@
       </div>
       {% endif %}
       <div class="ret-date" style="min-width:80px;text-align:right;font-size:13px;color:var(--text3)">{{ r.returned_at|toshkent('%d.%m.%Y') }}</div>
+      {% if is_defect and current_user.ruxsat('qaytarish', 'yaratish') %}<button class="mini-btn brak-taqdir-btn" type="button" onclick="taqdirOynaOch(this)" title="Brak taqdiri — Tashlandi / Tuzatildi / Kesildi / 2-nav" aria-label="Brak taqdirini o'zgartirish"
+        data-turi="qaytarish" data-id="{{ r.id }}" data-manba="buyurtma" data-nomi="{{ r.item_name }}" data-miqdor="{{ r.quantity }}" data-birlik="{{ r.unit }}"
+        data-joriy='{{ ((taqdirlar or {}).get(r.id) or {})|tojson }}'>🧩</button>{% endif %}
       <button class="mini-btn" style="color:var(--m-dc2626);border-color:var(--ch-fadbd8)" onclick="deleteReturn({{ r.id }})" title="O'chirish" aria-label="O'chirish"><i class="ti ti-trash"></i></button>
     </div>
     {% endfor %}
@@ -404,6 +414,8 @@ function unitShortLabel(unit) {
 // «Hisobotlar»; tannarx yashirish — «Tannarx va foyda» ruxsati yo'q bo'lsa.
 const KORADI_TANNARX = {{ 'true' if current_user.ruxsat('tannarx', 'korish') else 'false' }};
 const KORADI_HISOBOT = {{ 'true' if current_user.ruxsat('hisobot', 'korish') else 'false' }};
+// kech125 (zip 146): tayyor mahsulot brakining taqdirini o'zgartirish — «Brak: Yaratish» ruxsati bilan (server ham tekshiradi)
+const KORADI_BRAK_YARATISH = {{ 'true' if current_user.ruxsat('brak', 'yaratish') else 'false' }};
 const YASHIR_TANNARX = !KORADI_TANNARX;
 
 // kech56 (13-band, 7-qadam): BRAK TAHLILI. Ulush va me'yor — server (`/api/reports/brak-tahlil`,
@@ -518,6 +530,7 @@ function brakTahlilHtml(d){
   html += guruh('🧭 Bosqich bo\'yicha', d.bosqichlar);
   html += guruh('❓ Sabab bo\'yicha', d.sabablar);
   html += guruh('👤 Javobgar hodim bo\'yicha', d.javobgarlar);
+  html += guruh('🧩 Taqdir bo\'yicha', d.taqdirlar);     // kech125 (zip 146)
 
   const top = d.top_detallar || [];
   html += sarlavha('🔝 Eng ko\'p brak — 5 ta mahsulot / detal');
@@ -549,7 +562,7 @@ function brakTahlilHtml(d){
       <thead><tr style="border-bottom:2px solid var(--ch-eeeeee);text-align:left;color:var(--text3);font-size:12px;text-transform:uppercase">
         <th style="${th}">Sana</th><th style="${th}">Mahsulot</th><th style="${th};text-align:right">Miqdor</th>
         <th style="${th}">Turi</th><th style="${th}">Bosqich</th><th style="${th}">Sabab</th><th style="${th}">Javobgar</th>
-        <th style="${th};text-align:right">Qiymati</th><th style="${th}">Yozgan</th></tr></thead>
+        <th style="${th};text-align:right">Qiymati</th><th style="${th}">Yozgan</th><th style="${th}">Taqdiri</th></tr></thead>
       <tbody>${yq.map(x => `<tr class="brak-yoqotish-qator" style="border-bottom:1px solid var(--ch-f5f5f5)">
         <td style="${td};white-space:nowrap">${escapeHtml(tkISO(x.sana))}</td>
         <td style="${td};font-weight:600">${escapeHtml(x.nomi)}</td>
@@ -559,7 +572,9 @@ function brakTahlilHtml(d){
         <td style="${td}">${escapeHtml(x.sabab || '—')}</td>
         <td style="${td}">${escapeHtml(x.javobgar || '—')}</td>
         <td style="${td};text-align:right;font-weight:700;color:var(--m-dc2626)">${somYoq(x.qiymat, fmt)}</td>
-        <td style="${td}">${escapeHtml(x.yozgan || '')}</td></tr>`).join('')}</tbody></table></div>`;
+        <td style="${td}">${escapeHtml(x.yozgan || '')}</td>
+        <td style="${td};white-space:nowrap">${escapeHtml(x.taqdir_yorliq || 'Tashlandi')}${KORADI_BRAK_YARATISH ? ` <button type="button" class="mini-btn brak-taqdir-btn" onclick="taqdirOynaOch(this)" title="Brak taqdirini o'zgartirish" aria-label="Brak taqdirini o'zgartirish"
+          data-turi="yoqotish" data-id="${Number(x.id)}" data-manba="${escapeHtml(x.manba || 'ombor')}" data-nomi="${escapeHtml(x.nomi || '')}" data-miqdor="${Number(x.miqdor) || 0}" data-birlik="${escapeHtml(x.birlik || '')}" data-joriy="${escapeHtml(JSON.stringify(x.taqdir_tafsilot || {}))}">🧩</button>` : ''}</td></tr>`).join('')}</tbody></table></div>`;
   return html;
 }
 
@@ -628,7 +643,7 @@ async function loadBrakSummary(){
           ${data.by_material.map(it => `
             <tr style="border-bottom:1px solid var(--ch-f5f5f5)">
               <td style="padding:9px 6px;font-weight:600">${escapeHtml(it.item_name)}</td>
-              <td style="padding:9px 6px;text-align:right">${it.quantity} ${escapeHtml(it.unit || '')}</td>
+              <td style="padding:9px 6px;text-align:right">${it.taqdir ? '—' : `${it.quantity} ${escapeHtml(it.unit || '')}`}</td>
               <td style="padding:9px 6px;text-align:right;color:var(--m-c2410c);font-weight:600">${it.m3 ? it.m3 + ' m³' : '—'}</td>
               <td style="padding:9px 6px;text-align:right;font-weight:700;color:var(--m-dc2626)">${somYoq(it.value, fmt)}</td>
             </tr>`).join('')}
@@ -648,7 +663,7 @@ async function loadBrakSummary(){
           </div>
           ${o.items.map(it => `
             <div style="font-size:13px;color:var(--text3);padding:3px 0">
-              • ${escapeHtml(it.item_name)}: ${it.quantity} ${escapeHtml(it.unit || '')} ${it.m3 ? `(${it.m3} m³)` : ''} — ${somYoq(it.value, fmt)}
+              • ${escapeHtml(it.item_name)}${it.taqdir ? '' : `: ${it.quantity} ${escapeHtml(it.unit || '')} ${it.m3 ? `(${it.m3} m³)` : ''}`} — ${somYoq(it.value, fmt)}
             </div>`).join('')}
         </div>`).join('');
     }
