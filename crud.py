@@ -5105,6 +5105,8 @@ AUDIT_AMALLARI = {
     "backup_restored": ("💾", "— zaxiradan tiklandi", "Zaxiradan tiklandi"),
     # kech125 (zip 146): brak taqdiri (Tashlandi / Tuzatildi / Kesildi / 2-nav) yozildi yoki o'zgardi — `new_value` da tafsilot
     "brak_taqdir": ("🧩", "— brak taqdiri", "Brak taqdiri"),
+    # kech126 (zip 148): taklif («Tez hisob») bo'yicha buyurtma ochildi — `new_value` da buyurtma raqami va loyiha
+    "rasmiylashtirildi": ("✅", "rasmiylashtirildi", "Rasmiylashtirildi"),
     # eski yozuvlar (zip 129 dan oldin shu nom bilan yozilishi mo'ljallangan, lekin NOT NULL sabab yozilmagan)
     "Zaxiradan tiklash": ("💾", "— zaxiradan tiklandi", "Zaxiradan tiklandi"),
 }
@@ -5792,6 +5794,8 @@ def delete_order(db: Session, order_id: int, soft: bool = False, performed_by: s
         # shuning uchun unga bog'liq to'lovlar ham — haqiqiy xizmat ko'rsatilmagani
         # sabab — buyurtma bilan BIRGA, avtomatik o'chiriladi.
         db.query(Payment).filter(Payment.order_id == order_id).delete()
+        # kech126 (zip 148): shu buyurtma rasmiylashtirilgan taklif — bog'lam uziladi (raqami ro'yxatda «o'chirilgan» bo'lib qoladi)
+        taklif_buyurtmasini_uz(db, order_id, getattr(db_order, 'company_id', None))
         _prj_do = db_order.project
         db.delete(db_order)
         # 17c: o'chgan to'lovlar loyiha "To'langan" summasidan ham chiqadi.
@@ -5817,6 +5821,8 @@ def permanent_delete_order(db: Session, order_id: int, performed_by: str = None)
     )
     db.query(InventoryMovement).filter(InventoryMovement.order_id == order_id).update({"order_id": None})
     db.query(FinishedProduct).filter(FinishedProduct.from_order_id == order_id).update({"from_order_id": None})
+    # kech126 (zip 148): rasmiylashtirilgan taklif bog'lami uziladi (PG FK ham SET NULL; SQLite FK ni tekshirmaydi)
+    taklif_buyurtmasini_uz(db, order_id, getattr(db_order, 'company_id', None))
     _prj_pd = db_order.project
     db.delete(db_order)
     # 17c: buyurtma bilan birga uning to'lovlari ham o'chadi (cascade) —
@@ -8314,7 +8320,7 @@ def _reset_table_order():
         MasterGiftPeriodRedemption, GiftPeriodParticipant, GiftPeriodTier,
         GiftPeriod, Master, Project, Supplier, CashTransaction, ActivityLog,
         ErrorLog, LoginHistory, CompanySetting, RecurringObligation, Inventory,
-        Yonalish, BrakTaqdir,
+        Yonalish, BrakTaqdir, Taklif,
     )
     return [
         ProductionOrder,
@@ -8325,7 +8331,9 @@ def _reset_table_order():
         DeliveryItem, Payment, OrderAttachment, InventoryMovement, BrakTaqdir, ReturnItem,
         Delivery, OrderGipsAdditive,
         OrderItemSubDetail, OrderItem,
-        FinishedProductSale, FinishedProductLoss, FinishedProduct, Order,
+        # kech126 (zip 148): taklif rasmiylashtirilgan buyurtmaga (`order_id`) ishora qiladi — o'chirishda buyurtmadan OLDIN,
+        # tiklashda KEYIN
+        FinishedProductSale, FinishedProductLoss, FinishedProduct, Taklif, Order,
         InventoryPurchase, InventoryReceipt, SupplierPayment,
         TransportExpense, ExpenseTransaction, MonthlyExpense,
         EmployeeSession, EmployeeAdvance, AdvanceRequest,
@@ -16306,3 +16314,405 @@ def delete_supplier_payment(db: Session, payment_id: int, company_id: int = None
     db.delete(p)
     db.commit()
     return True
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# TEZ HISOB / TAKLIF (kech126, zip 148 — EGASI QARORLARI 07.10 10:5x, QAYTA SO'RALMAYDI). Dizayn — `models.Taklif` izohida.
+#
+# Egasining muammosi: mijoz keladi, tezda hisoblab hujjat berish kerak — hozir avval loyiha, keyin buyurtma ochish shart.
+# Qarorlar: (1) taklif SAQLANADI («Takliflar» ro'yxati — mijoz ismi / telefoni bilan), mijoz «olaman» desa bitta tugma bilan
+# loyiha va buyurtma ochiladi, qayta yozilmaydi; (2) hujjat — «Buyurtma hisobi» ko'rinishida, sarlavha «TAKLIF (HISOB-KITOB)»,
+# pastida «Narxlar 3 kun amal qiladi»; (3) ombor TEGILMAYDI — faqat «omborda yetmaydi» ogohlantirishi; (4) taklifni «Buyurtmalar:
+# Yaratish» ruxsati borlar yozadi (alohida ruxsat yo'q). Egasi savoliga javob (11:12): taklif HECH QACHON avtomatik
+# o'chirilmaydi — muddat o'tgach faqat «muddati o'tgan» belgisi; bekor qilish — faqat qo'lda.
+#
+# Texnik qarorlar (Claude, O'LCHANGAN dev156):
+#   * Hisob — buyurtma bilan BIR qoida: detal narxi / jami `_buyurtma_narx_jami`, buyurtma jami `_pul_yigindi`, kelishilgan
+#     `_pul2(agreed_amount or jami)` (`create_order` dagi qatorlar AYNAN; `create_order` ning o'zi o'zgartirilmadi —
+#     `tools/test_buyurtma_narx_jami.py` uning matnini tekshiradi). Narxning o'zi (m³ narxi × hajm, qoplama) — brauzerda,
+#     buyurtma formasining O'ZI (taklif — o'sha forma «taklif» rejimida).
+#   * Tekshiruvlar — `POST /api/orders` dagi kabi (loy, bo'sh detal turi, sig'im, qoplama retsepti) + havolalar (usta,
+#     retsept, material, tayyor mahsulot, mahsulot turi) SHU korxonadan: taklifda ORM yozuv (detal) yaratilmaydi, demak
+#     `models._tenant_guard` ishlamaydi — tekshiruv shu yerda.
+#   * PDF — saqlanmaydi, har safar tanadan qayta yasaladi (`pdf_service.generate_taklif`; «Sana» — taklif sanasi): PDF baytlari
+#     bazada bo'lsa JSON zaxira (`export_full_backup`) baytni yoza olmasdi, base64 esa har kunlik Telegram zaxirasini
+#     o'nlab KB ga kattalashtirardi.
+#   * Muddat — oxirgi saqlash (yaratish / tahrir) kunidan + 3 kun (Toshkent sanasi); tahrirlangan taklif PDF i yangi sana bilan.
+#   * Rasmiylashtirish — `main.api_taklif_rasmiylashtir`: `main.api_create_order` ning O'ZI (bir tranzaksiyada, yangi loyiha
+#     bilan) — buyurtma yaratish qoidalari ikki joyda yozilmaydi.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+TAKLIF_MUDDAT_KUN = 3
+TAKLIF_HOLATLARI = {"yangi": "Yangi", "rasmiylashtirildi": "Rasmiylashtirildi", "bekor": "Bekor qilingan"}
+# Ro'yxat filtri: «faol» — yangi va muddati o'tmagan; «muddati_otgan» — yangi, muddati o'tgan (rasmiylashtirish mumkin)
+TAKLIF_FILTRLARI = ("hammasi", "faol", "muddati_otgan", "rasmiylashtirildi", "bekor")
+TAKLIF_SAHIFA_HAJMI = 50
+TAKLIF_QULF_NS = 148          # `_pul_qulfi` nomlar fazosi — korxona bo'yicha taklif raqami (boshqa fazolar: 101, 102, 107, 186)
+
+
+class TaklifHolatXatosi(ValueError):
+    """Taklif holati amalga to'g'ri kelmaydi (rasmiylashtirilgan / bekor qilingan taklifni tahrirlash, qayta bekor qilish,
+    ikki marta rasmiylashtirish) — marshrut 409 beradi, HECH NARSA o'zgarmaydi."""
+
+
+def taklif_raqami(seq) -> str:
+    """Korxona bo'yicha tartib raqamidan ko'rinadigan raqam: 1 → «T-0001»."""
+    return f"T-{int(seq):04d}"
+
+
+def taklif_hisobi(buyurtma) -> dict:
+    """Taklif summasi — `create_order` bilan AYNAN bir qoida (detal: narx 2 xonaga HALF_UP, jami SHU narxdan —
+    `_buyurtma_narx_jami`; buyurtma jami — `_pul_yigindi`; kelishilgan — `_pul2(agreed_amount or jami)`; chegirma foizi —
+    kelishilgan jamidan kam bo'lsa). Brauzer (`orders.html` `buyurtmaJami`) ham shu qoida bilan ko'rsatadi.
+    `buyurtma` — `schemas.TaklifBuyurtma` (yoki shunday atributli obyekt). Faqat hisoblaydi."""
+    detallar, _jamilar = [], []
+    for it in (getattr(buyurtma, "items", None) or []):
+        _narx, _jami = _buyurtma_narx_jami(it.quantity, it.unit_price)
+        detallar.append({"unit_price": _narx, "total_price": _jami})
+        _jamilar.append(_jami)
+    jami = _pul_yigindi(_jamilar)
+    kelishilgan = _pul2(getattr(buyurtma, "agreed_amount", None) or jami)
+    chegirma_foiz = round((jami - kelishilgan) / jami * 100, 2) if (jami > 0 and kelishilgan < jami) else 0.0
+    return {"detallar": detallar, "jami": jami, "kelishilgan": kelishilgan, "chegirma_foiz": chegirma_foiz}
+
+
+def _taklif_mijoz_toza(mijoz, telefon) -> tuple:
+    """Mijoz ismi / telefoni — loyiha yaratish (`_clean_create("Project")`) bilan BIR qoida (rasmiylashtirishda yangi loyiha
+    shulardan ochiladi — u yerda rad etilmasin). Bo'sh joylar olib tashlanadi; bo'sh telefon — None."""
+    _m = (mijoz or "").strip() if isinstance(mijoz, str) else mijoz
+    _t = (telefon or "").strip() if isinstance(telefon, str) else telefon
+    _t = _t or None
+    _toza = _clean_create("Project", {"project_name": _m, "client_name": _m, "client_phone": _t})
+    return _toza["client_name"].strip(), (_toza.get("client_phone") or None)
+
+
+def _taklif_havolalar_tekshir(db: Session, company_id: int, buyurtma) -> None:
+    """Taklif tanasidagi havolalar SHU korxonaniki ekanini tekshiradi (ValueError — 400). Buyurtmada bu ishni ORM qo'riqchisi
+    (`models._tenant_guard`, `_TENANT_REFS`) qiladi — taklifda detal yozuvi yaratilmaydi."""
+    from models import Recipe as _Rc, Inventory as _Inv, FinishedProduct as _Fp, Master as _Ms
+    from production_models import ProductType as _Pt
+
+    def _bor(model, qiymat):
+        try:
+            _id = int(qiymat)
+        except (TypeError, ValueError):
+            return False
+        return db.query(model.id).filter(model.id == _id, model.company_id == company_id).first() is not None
+
+    if buyurtma.master_id and not _bor(_Ms, buyurtma.master_id):
+        raise ValueError("Tanlangan usta topilmadi (o'chirilgan bo'lishi mumkin) — «Usta» maydonini qayta tanlang")
+    if buyurtma.recipe_id and not _bor(_Rc, buyurtma.recipe_id):
+        raise ValueError("Tanlangan retsept topilmadi (o'chirilgan bo'lishi mumkin) — «Retsept» maydonini qayta tanlang")
+    if getattr(buyurtma, "gips_inventory_id", None) and not _bor(_Inv, buyurtma.gips_inventory_id):
+        raise ValueError("Tanlangan gips xomashyosi topilmadi")
+    for _q in (getattr(buyurtma, "gips_additives", None) or []):
+        if not _bor(_Inv, _q.inventory_id):
+            raise ValueError("Gips qo'shimchasi xomashyosi topilmadi")
+    for n, it in enumerate(buyurtma.items or [], start=1):
+        _nom = str(getattr(it, "name", "") or "")[:60]
+        if it.penoplast_id and not _bor(_Inv, it.penoplast_id):
+            raise ValueError(f"{n}-detal («{_nom}»): tanlangan penoplast (plotnost) topilmadi — qayta tanlang")
+        if it.recipe_id and not _bor(_Rc, it.recipe_id):
+            raise ValueError(f"{n}-detal («{_nom}»): tanlangan retsept topilmadi — qayta tanlang")
+        if it.finished_product_id and not _bor(_Fp, it.finished_product_id):
+            raise ValueError(f"{n}-detal («{_nom}»): tanlangan tayyor mahsulot topilmadi — qayta tanlang")
+        if it.product_type_id and not _bor(_Pt, it.product_type_id):
+            raise ValueError(f"{n}-detal («{_nom}»): tanlangan mahsulot turi topilmadi — qayta tanlang")
+
+
+def taklif_tana_tekshir(db: Session, company_id: int, buyurtma) -> None:
+    """Taklif tanasi — `POST /api/orders` dagi tekshiruvlar (shu tartibda: loy miqdori, bo'sh detal turi, sig'im, qoplama
+    retsepti) va havolalar. Qoida buzilsa — ValueError (marshrut → 400), HECH NARSA yozilmaydi. Kamida bitta detal SHART
+    (bo'sh taklif ma'nosiz; buyurtma formasi ham bo'sh saqlamaydi)."""
+    _json_loy("loy_kg", getattr(buyurtma, "loy_kg", None))
+    _detal_turi_tekshir(buyurtma.items)
+    _buyurtma_sigim_tekshir(buyurtma.items)
+    if not (buyurtma.items or []):
+        raise ValueError("Kamida bitta detal kiriting (nomi bilan). Hech narsa saqlanmadi")
+    qoplama_retsepti_tekshir(db, company_id, buyurtma.loy_kg, buyurtma.items, buyurtma_retsept_id=buyurtma.recipe_id)
+    _taklif_havolalar_tekshir(db, company_id, buyurtma)
+
+
+def taklif_ogohlantirishlari(db: Session, company_id: int, buyurtma) -> list:
+    """Egasi qarori (3): taklif omborga TEGMAYDI — faqat «omborda yetmaydi» ogohlantirishi. Ro'yxat `POST /api/orders` dagi
+    yetishmovchilik tekshiruvi bilan AYNAN (penoplast, tayyor mahsulot, qoplama loyi). Loy tekshiruvi yo'q «Tayyor loy»
+    pozitsiyasini yaratishi mumkin (`get_or_create_loy_stock`) — shuning uchun `commit=False` va tekshiruvdan keyin
+    `rollback`: taklif yozilishidan OLDIN chaqiriladi, bazada hech narsa qolmaydi."""
+    import services as _sv126
+    try:
+        _p = _sv126.check_inventory_for_order(db, buyurtma, company_id=company_id)
+        _f = check_finished_for_order(db, buyurtma.items, company_id=company_id)
+        _l = _sv126.check_loy_ingredients_for_order(db, buyurtma.recipe_id, float(buyurtma.loy_kg or 0),
+                                                    company_id=company_id, commit=False)
+        return list(_p.get("shortages", [])) + list(_f.get("shortages", [])) + list(_l.get("shortages", []))
+    finally:
+        db.rollback()
+
+
+def _taklif_tana_json(buyurtma) -> str:
+    """Saqlanadigan buyurtma tanasi (JSON): `project_id` va `is_draft` siz — ular rasmiylashtirishda tanlanadi."""
+    import json as _js126
+    _d = buyurtma.model_dump(mode="json", exclude={"project_id", "is_draft"})
+    return _js126.dumps(_d, ensure_ascii=False)
+
+
+def taklif_tanasi(t) -> dict:
+    """Saqlangan buyurtma tanasi (dict); buzilgan JSON — bo'sh tana (sahifa yiqilmaydi)."""
+    import json as _js126t
+    try:
+        _d = _js126t.loads(t.tana or "{}")
+        return _d if isinstance(_d, dict) else {}
+    except (TypeError, ValueError):
+        return {}
+
+
+def _taklif_muddati(vaqt=None):
+    """Amal qilish muddati — Toshkent sanasi + `TAKLIF_MUDDAT_KUN` (oxirgi kun ichida — amalda)."""
+    from datetime import timedelta as _td126
+    return _tashkent_date(vaqt) + _td126(days=TAKLIF_MUDDAT_KUN)
+
+
+def taklif_ol(db: Session, company_id: int, taklif_id: int, lock: bool = False):
+    """Taklif FAQAT shu korxonadan (yo'q / begona — None). `lock` — PG da qator qulfi (holat o'zgartiradigan amallar)."""
+    from models import Taklif as _Tk
+    try:
+        _id = int(taklif_id)
+    except (TypeError, ValueError):
+        return None
+    q = db.query(_Tk).filter(_Tk.id == _id, _Tk.company_id == company_id)
+    if lock:
+        # `populate_existing` — SHART: shu so'rovda taklif avval (qulfsiz) o'qilgan bo'lsa, sessiya xaritasidagi ESKI holat
+        # qaytardi (O'LCHANGAN, PG parallel — tools/test_taklif.py P2: bitta taklif bir vaqtda IKKI marta rasmiylashtirilib, ikki
+        # buyurtma va ikki loyiha ochilgan); endi qulf kutilgach bazadagi YANGI holat o'qiladi
+        q = q.with_for_update().populate_existing()
+    return q.first()
+
+
+def _taklif_yorligi(t) -> str:
+    return f"Taklif {t.raqam} · {t.mijoz}"[:200]
+
+
+def _taklif_jami_matni(jami, kelishilgan) -> str:
+    _j = f"{float(jami or 0):,.0f}".replace(",", " ")
+    _k = f"{float(kelishilgan or 0):,.0f}".replace(",", " ")
+    return f"Jami: {_j} so'm" + (f", kelishilgan: {_k} so'm" if abs(float(jami or 0) - float(kelishilgan or 0)) > 0.005 else "")
+
+
+def taklif_yarat(db: Session, company_id: int, data, performed_by: str = None) -> tuple:
+    """Yangi taklif (egasi qarorlari 1–4). Qaytaradi: (taklif, ogohlantirishlar). ValueError — 400 (hech narsa yozilmaydi).
+    Ombor, loyiha, buyurtma, buyurtma / loyiha raqamlari, Moliya — TEGILMAYDI; Telegram yuborilmaydi. Raqam — korxona qulfi
+    (PG `_pul_qulfi(148, korxona)`) ostida eng katta + 1 (taklif o'chirilmaydi — raqam qayta berilmaydi)."""
+    from models import Taklif as _Tk
+    from sqlalchemy import func as _f126
+    mijoz, telefon = _taklif_mijoz_toza(data.mijoz, data.telefon)
+    buyurtma = data.buyurtma
+    taklif_tana_tekshir(db, company_id, buyurtma)
+    ogohlantirishlar = taklif_ogohlantirishlari(db, company_id, buyurtma)
+    hisob = taklif_hisobi(buyurtma)
+    _pul_qulfi(db, TAKLIF_QULF_NS, company_id)
+    _eng = db.query(_f126.max(_Tk.seq)).filter(_Tk.company_id == company_id).scalar()
+    seq = int(_eng or 0) + 1
+    _hozir = datetime.utcnow()
+    t = _Tk(company_id=company_id, seq=seq, raqam=taklif_raqami(seq), mijoz=mijoz, telefon=telefon,
+            tana=_taklif_tana_json(buyurtma), jami=hisob["jami"], kelishilgan=hisob["kelishilgan"], holat="yangi",
+            amal_muddati=_taklif_muddati(_hozir), yaratilgan=_hozir, yaratgan=performed_by)
+    db.add(t)
+    db.flush()
+    log_activity(db, "created", "taklif", t.id, _taklif_yorligi(t), performed_by,
+                 new_value=f"{_taklif_jami_matni(t.jami, t.kelishilgan)}, {len(buyurtma.items or [])} ta detal",
+                 company_id=company_id, commit=False)
+    db.commit()
+    db.refresh(t)
+    return t, ogohlantirishlar
+
+
+def taklif_tahrirla(db: Session, company_id: int, taklif_id: int, data, performed_by: str = None):
+    """Taklifni tahrirlash — FAQAT «yangi» (muddati o'tgan ham) holatda; rasmiylashtirilgan / bekor — `TaklifHolatXatosi`.
+    Tana, mijoz, summa qayta yoziladi; muddat — shu kundan yana 3 kun (yangi PDF yangi sana bilan). Qaytaradi:
+    (taklif, ogohlantirishlar) yoki None (topilmadi)."""
+    if taklif_ol(db, company_id, taklif_id) is None:
+        return None
+    mijoz, telefon = _taklif_mijoz_toza(data.mijoz, data.telefon)
+    buyurtma = data.buyurtma
+    taklif_tana_tekshir(db, company_id, buyurtma)
+    ogohlantirishlar = taklif_ogohlantirishlari(db, company_id, buyurtma)
+    hisob = taklif_hisobi(buyurtma)
+    t = taklif_ol(db, company_id, taklif_id, lock=True)
+    if t is None:
+        db.rollback()
+        return None
+    if t.holat != "yangi":
+        db.rollback()
+        raise TaklifHolatXatosi(f"Taklif {t.raqam} {TAKLIF_HOLATLARI.get(t.holat, t.holat).lower()} — uni tahrirlab bo'lmaydi")
+    _eski = _taklif_jami_matni(t.jami, t.kelishilgan)
+    _hozir = datetime.utcnow()
+    t.mijoz, t.telefon = mijoz, telefon
+    t.tana = _taklif_tana_json(buyurtma)
+    t.jami, t.kelishilgan = hisob["jami"], hisob["kelishilgan"]
+    t.amal_muddati = _taklif_muddati(_hozir)
+    t.tahrirlangan, t.tahrirlagan = _hozir, performed_by
+    log_activity(db, "updated", "taklif", t.id, _taklif_yorligi(t), performed_by, old_value=_eski,
+                 new_value=f"{_taklif_jami_matni(t.jami, t.kelishilgan)}, {len(buyurtma.items or [])} ta detal",
+                 company_id=company_id, commit=False)
+    db.commit()
+    db.refresh(t)
+    return t, ogohlantirishlar
+
+
+def taklif_bekor(db: Session, company_id: int, taklif_id: int, performed_by: str = None):
+    """Taklifni bekor qilish (faqat qo'lda, faqat «yangi»). Taklif o'chirilmaydi — ro'yxatda «Bekor qilingan» bo'lib qoladi.
+    Qaytaradi: taklif yoki None (topilmadi); holat mos emas — `TaklifHolatXatosi`."""
+    t = taklif_ol(db, company_id, taklif_id, lock=True)
+    if t is None:
+        db.rollback()
+        return None
+    if t.holat != "yangi":
+        db.rollback()
+        raise TaklifHolatXatosi(f"Taklif {t.raqam} allaqachon {TAKLIF_HOLATLARI.get(t.holat, t.holat).lower()}")
+    t.holat = "bekor"
+    t.bekor_vaqti, t.bekor_qilgan = datetime.utcnow(), performed_by
+    log_activity(db, "cancelled", "taklif", t.id, _taklif_yorligi(t), performed_by,
+                 old_value=_taklif_jami_matni(t.jami, t.kelishilgan), company_id=company_id, commit=False)
+    db.commit()
+    db.refresh(t)
+    return t
+
+
+def taklif_rasmiylashtirildi(db: Session, t, order, performed_by: str = None, loyiha=None) -> None:
+    """Rasmiylashtirish natijasini taklifga yozadi (chaqiruvchining tranzaksiyasida — `commit` YO'Q): holat, buyurtma,
+    kim / qachon; Faoliyat jurnali — «rasmiylashtirildi» (qaysi buyurtma va loyiha)."""
+    t.holat = "rasmiylashtirildi"
+    t.order_id = order.id
+    t.order_raqam = order.order_number
+    t.rasmiylashtirilgan, t.rasmiylashtirgan = datetime.utcnow(), performed_by
+    _lo = f" ({loyiha.project_number} — {loyiha.project_name})" if loyiha is not None else ""
+    log_activity(db, "rasmiylashtirildi", "taklif", t.id, _taklif_yorligi(t), performed_by,
+                 new_value=f"Buyurtma {order.order_number} ochildi{_lo}", company_id=t.company_id, commit=False)
+
+
+def taklif_buyurtmasini_uz(db: Session, order_id: int, company_id) -> None:
+    """Buyurtma BUTUNLAY o'chirilganda — undan rasmiylashtirilgan taklif bog'lami uziladi (PG da FK ham SET NULL; SQLite FK ni
+    tekshirmaydi — shu yerda aniq). `order_raqam` qoladi: ro'yxatda «ORD-… (o'chirilgan)». Commit YO'Q."""
+    from models import Taklif as _Tk
+    q = db.query(_Tk).filter(_Tk.order_id == order_id)
+    if company_id is not None:
+        q = q.filter(_Tk.company_id == company_id)
+    q.update({"order_id": None}, synchronize_session=False)
+
+
+def taklif_korinish(t, bugun=None, buyurtma_bor: bool = None) -> dict:
+    """Ro'yxat / API ko'rinishi. Vaqtlar — bazadagi UTC (brauzer `tkSana` / `tkSanaVaqt` bilan Toshkentda ko'rsatadi);
+    `amal_muddati` — Toshkent kalendar sanasi. `muddati_otgan` — «yangi» va bugun (Toshkent) muddatdan keyin."""
+    _b = bugun or _tashkent_date()
+    _tana = taklif_tanasi(t)
+    _det = _tana.get("items") or []
+    return {
+        "id": t.id, "raqam": t.raqam, "seq": t.seq, "mijoz": t.mijoz, "telefon": t.telefon,
+        "jami": float(t.jami or 0), "kelishilgan": float(t.kelishilgan or 0),
+        "holat": t.holat, "holat_nomi": TAKLIF_HOLATLARI.get(t.holat, t.holat),
+        "amal_muddati": t.amal_muddati.isoformat() if t.amal_muddati else None,
+        "muddati_otgan": bool(t.holat == "yangi" and t.amal_muddati is not None and t.amal_muddati < _b),
+        "yaratilgan": t.yaratilgan.isoformat() if t.yaratilgan else None, "yaratgan": t.yaratgan,
+        "tahrirlangan": t.tahrirlangan.isoformat() if t.tahrirlangan else None, "tahrirlagan": t.tahrirlagan,
+        "rasmiylashtirilgan": t.rasmiylashtirilgan.isoformat() if t.rasmiylashtirilgan else None,
+        "rasmiylashtirgan": t.rasmiylashtirgan,
+        "bekor_vaqti": t.bekor_vaqti.isoformat() if t.bekor_vaqti else None, "bekor_qilgan": t.bekor_qilgan,
+        "order_id": t.order_id, "order_raqam": t.order_raqam,
+        "buyurtma_bor": (bool(t.order_id) if buyurtma_bor is None else bool(buyurtma_bor)),
+        "detallar_soni": len(_det),
+        "detallar": [str(d.get("name") or "")[:80] for d in _det[:4] if isinstance(d, dict)],
+        "izoh": _tana.get("notes"),
+    }
+
+
+def takliflar_royxati(db: Session, company_id: int, qidiruv: str = None, filtr: str = None, sahifa: int = 1,
+                      hajm: int = TAKLIF_SAHIFA_HAJMI) -> dict:
+    """«📝 Takliflar» ro'yxati: eng yangisi tepada; qidiruv — mijoz ismi, telefon (bo'shliqlarsiz ham), raqam («T-0007», «7»);
+    filtr — `TAKLIF_FILTRLARI`. Har filtr soni (tugmalar uchun) — shu qidiruv bilan. Rasmiylashtirilgan taklif buyurtmasi
+    hali bormi (o'chirilmagan) — BITTA so'rov bilan."""
+    from models import Taklif as _Tk, Order as _Ord
+    from sqlalchemy import or_ as _or126, func as _f126r, case as _case126
+    _bugun = _tashkent_date()
+    q = db.query(_Tk).filter(_Tk.company_id == company_id)
+    _s = (qidiruv or "").strip()[:100]
+    if _s:
+        _naq = f"%{_s.lower()}%"
+        _raqam = "".join(ch for ch in _s if ch.isdigit())
+        _shartlar = [_f126r.lower(_Tk.mijoz).like(_naq), _f126r.lower(_Tk.raqam).like(_naq),
+                     _f126r.lower(_Tk.telefon).like(_naq)]
+        if _raqam:
+            _shartlar.append(_f126r.replace(_f126r.replace(_Tk.telefon, " ", ""), "-", "").like(f"%{_raqam}%"))
+            if len(_raqam) <= 9:
+                _shartlar.append(_Tk.seq == int(_raqam))
+        q = q.filter(_or126(*_shartlar))
+    _sonlar_q = q.with_entities(
+        _f126r.count(_Tk.id),
+        _f126r.sum(_case126(((_Tk.holat == "yangi") & (_Tk.amal_muddati >= _bugun), 1), else_=0)),
+        _f126r.sum(_case126(((_Tk.holat == "yangi") & (_Tk.amal_muddati < _bugun), 1), else_=0)),
+        _f126r.sum(_case126((_Tk.holat == "rasmiylashtirildi", 1), else_=0)),
+        _f126r.sum(_case126((_Tk.holat == "bekor", 1), else_=0)),
+    ).order_by(None)
+    _r = _sonlar_q.one()
+    sonlar = {"hammasi": int(_r[0] or 0), "faol": int(_r[1] or 0), "muddati_otgan": int(_r[2] or 0),
+              "rasmiylashtirildi": int(_r[3] or 0), "bekor": int(_r[4] or 0)}
+    _fl = filtr if filtr in TAKLIF_FILTRLARI else "hammasi"
+    if _fl == "faol":
+        q = q.filter(_Tk.holat == "yangi", _Tk.amal_muddati >= _bugun)
+    elif _fl == "muddati_otgan":
+        q = q.filter(_Tk.holat == "yangi", _Tk.amal_muddati < _bugun)
+    elif _fl in ("rasmiylashtirildi", "bekor"):
+        q = q.filter(_Tk.holat == _fl)
+    try:
+        _hajm = max(1, min(int(hajm), 200))
+    except (TypeError, ValueError):
+        _hajm = TAKLIF_SAHIFA_HAJMI
+    _jami = sonlar[_fl]
+    _sahifalar = max(1, (_jami + _hajm - 1) // _hajm)
+    try:
+        _sahifa = max(1, min(int(sahifa or 1), _sahifalar))
+    except (TypeError, ValueError):
+        _sahifa = 1
+    royxat = q.order_by(_Tk.yaratilgan.desc(), _Tk.id.desc()).offset((_sahifa - 1) * _hajm).limit(_hajm).all()
+    _oid = [t.order_id for t in royxat if t.order_id]
+    _bor = set()
+    if _oid:
+        _bor = {i for (i,) in db.query(_Ord.id).filter(_Ord.id.in_(_oid), _Ord.company_id == company_id,
+                                                         _Ord.is_deleted.isnot(True)).all()}
+    return {"takliflar": [taklif_korinish(t, _bugun, buyurtma_bor=(t.order_id in _bor)) for t in royxat],
+            "sonlar": sonlar, "filtr": _fl, "qidiruv": _s, "sahifa": _sahifa, "sahifalar": _sahifalar, "jami": _jami}
+
+
+def taklif_faol_soni(db: Session, company_id: int) -> int:
+    """«📝 Takliflar» tugmasidagi son — rasmiylashtirilmagan (yangi) takliflar, muddati o'tganlar ham."""
+    from models import Taklif as _Tk
+    from sqlalchemy import func as _f126s
+    return int(db.query(_f126s.count(_Tk.id)).filter(_Tk.company_id == company_id, _Tk.holat == "yangi").scalar() or 0)
+
+
+def taklif_buyurtma_shakli(t) -> dict:
+    """Buyurtma formasini to'ldirish uchun — `GET /api/orders/{id}` javobi shaklida (sahifadagi `editSelected` shu shaklni
+    o'qiydi): detal narxi — buyurtma saqlaydigan qiymat (`taklif_hisobi`), tana maydonlari o'zgarishsiz. `_taklif` — taklif
+    ma'lumoti (raqam, mijoz, telefon, izoh, holat)."""
+    from types import SimpleNamespace as _NS126
+    _tana = taklif_tanasi(t)
+    _items = [d for d in (_tana.get("items") or []) if isinstance(d, dict)]
+    _h = taklif_hisobi(_NS126(items=[_NS126(quantity=d.get("quantity") or 1.0, unit_price=d.get("unit_price") or 0)
+                                     for d in _items],
+                              agreed_amount=_tana.get("agreed_amount")))
+    items = []
+    for d, hd in zip(_items, _h["detallar"]):
+        _i = dict(d)
+        _i["unit_price"] = hd["unit_price"]
+        _i["total_price"] = hd["total_price"]
+        _i["sub_details"] = list(d.get("sub_details") or [])
+        items.append(_i)
+    return {
+        "id": t.id, "order_number": t.raqam, "project_id": None,
+        "master_id": _tana.get("master_id"), "deadline": _tana.get("deadline"),
+        "base_price": _tana.get("base_price"), "agreed_amount": _tana.get("agreed_amount"),
+        "total_amount": _h["jami"], "kelishilgan": _h["kelishilgan"],
+        "qoplama_retsept_id": _tana.get("recipe_id"), "recipe_id": _tana.get("recipe_id"),
+        "loy_kg": _tana.get("loy_kg"), "notes": _tana.get("notes"), "order_type": _tana.get("order_type") or "product",
+        "items": items,
+        "_taklif": taklif_korinish(t),
+    }

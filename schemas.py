@@ -367,6 +367,37 @@ class OrderCreate(BaseModel):
                                     allow_inf_nan=False, strict=True)
 
 
+class TaklifBuyurtma(OrderCreate):
+    """kech126 (zip 148 — «Tez hisob / Taklif»): taklifdagi buyurtma tanasi — `OrderCreate` ning AYNAN o'zi (bir xil chegaralar,
+    bir xil detal sxemasi), faqat loyiha yo'q: `project_id` berilsa ham e'tiborga olinmaydi (taklifda loyiha ochilmaydi;
+    rasmiylashtirishda loyiha alohida tanlanadi yoki yaratiladi)."""
+    project_id: Optional[int] = None
+
+
+class TaklifCreate(BaseModel):
+    """kech126 (zip 148): `POST /api/takliflar` va `PUT /api/takliflar/{id}` tanasi. Mijoz ismi / telefoni sig'imi — loyihaning
+    `client_name` (2–100) / `client_phone` (20) bilan BIR XIL: rasmiylashtirishda yangi loyiha shulardan ochiladi."""
+    mijoz: str = Field(..., min_length=2, max_length=100)
+    telefon: Optional[str] = Field(default=None, max_length=20)
+    buyurtma: TaklifBuyurtma
+
+
+class TaklifYangiLoyiha(BaseModel):
+    """kech126 (zip 148): rasmiylashtirishda ochiladigan YANGI loyiha (ism / telefon — taklifdan; nomini xodim o'zgartirishi
+    mumkin). Chegaralar — `ProjectCreate` bilan bir xil; qat'iy tekshiruv `crud._clean_create("Project", …)` orqali."""
+    project_name: str = Field(..., min_length=2, max_length=200)
+    client_name: str = Field(..., min_length=2, max_length=100)
+    client_phone: Optional[str] = Field(default=None, max_length=20)
+
+
+class TaklifRasmiylashtir(BaseModel):
+    """kech126 (zip 148): `POST /api/takliflar/{id}/rasmiylashtir` — mavjud loyiha (`loyiha_id`) YOKI yangi loyiha
+    (`yangi_loyiha`) — aynan bittasi; `buyurtma` — buyurtma formasidan (taklif bilan to'ldirilgan, xodim ko'rib chiqqan)."""
+    loyiha_id: Optional[int] = None
+    yangi_loyiha: Optional[TaklifYangiLoyiha] = None
+    buyurtma: TaklifBuyurtma
+
+
 class OrderItemSubDetailRead(BaseModel):
     id: int
     name: Optional[str] = None

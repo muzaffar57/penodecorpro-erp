@@ -106,12 +106,18 @@ ORDER_TYPE_UZ = {
 }
 
 
-def generate_nakladnoy(order, db=None) -> bytes:
+def generate_nakladnoy(order, db=None, taklif=None) -> bytes:
     """Buyurtma uchun PDF nakladnoy yaratadi.
 
     MUHIM: hujjat 1 sahifaga sig'ishi uchun, detallar soniga qarab
     shrift/bo'sh joy AVTOMATIK siqiladi (Yuk xatidagi bilan bir xil
-    tamoyil)."""
+    tamoyil).
+
+    kech126 (zip 148 — EGASI QARORI 07.10 «Tez hisob / Taklif»: hujjat «Buyurtma hisobi» ko'rinishida, sarlavha «TAKLIF
+    (HISOB-KITOB)», pastida «Narxlar 3 kun amal qiladi»): `taklif` berilsa — o'sha shablon TAKLIF hujjati sifatida
+    (`generate_taklif`): sarlavha, raqam («T-0001»), sana — taklif sanasi; mijoz bloki — mijoz, telefon, taklif raqami va
+    sanasi (loyiha / holat / usta yo'q); jadval AYNAN; summa qatorlari — o'sha `crud.buyurtma_hisob_qatorlari` qoidasi (taklifda
+    to'lov / qarz qatori yo'q); imzo o'rniga «Narxlar 3 kun amal qiladi». `taklif` = {"sana": UTC vaqt, "hisob": qatorlar}."""
     n_items = len(order.items or [])
     cx = max(0.0, min(1.0, (n_items - 6) / 14.0))
 
@@ -128,6 +134,11 @@ def generate_nakladnoy(order, db=None) -> bytes:
         topMargin=margin_v, bottomMargin=margin_v,
         title=f"Buyurtma hisobi {order.order_number or order.id}", author=_brand["name"] or "", subject="Buyurtma hisobi",
     )
+    # kech126 (zip 148): taklif hujjati — fayl xususiyatlarida ham «Taklif»
+    _hujjat_vaqti = None
+    if taklif:
+        doc.title, doc.subject = f"Taklif {order.order_number}", "Taklif (hisob-kitob)"
+        _hujjat_vaqti = taklif.get("sana")
 
     W = A4[0] - 36*mm
     story = []
@@ -175,9 +186,10 @@ def generate_nakladnoy(order, db=None) -> bytes:
         [
             # kech118 (D-1, G6-11 — egasi QARORI «Taklif qilingan lug'at»): «Buyurtma hisobi» (ilgari «NAKLADNOY» — yuk xati va
             # sotuv hujjati bilan bir xil nomda edi, mijoz qog'ozni sarlavhasidan ajrata olmasdi)
-            Paragraph("BUYURTMA HISOBI", st["doc_title"]),
+            # kech126 (zip 148): taklif — «TAKLIF (HISOB-KITOB)» (egasi qarori), sana — taklif sanasi (narxlar shu kundan 3 kun)
+            Paragraph("TAKLIF (HISOB-KITOB)", st["doc_title"]) if taklif else Paragraph("BUYURTMA HISOBI", st["doc_title"]),
             Paragraph(f"# {_x(order.order_number)}", st["doc_num"]),
-            Paragraph(f"Sana: {_tashkent_vaqt().strftime('%d.%m.%Y')}", st["doc_num"]),
+            Paragraph(f"Sana: {_tashkent_vaqt(_hujjat_vaqti).strftime('%d.%m.%Y')}", st["doc_num"]),
         ],
     ]]
 
@@ -226,7 +238,25 @@ def generate_nakladnoy(order, db=None) -> bytes:
         ],
     ]]
 
-    info_tbl = Table(info_data, colWidths=[W/3, W/3, W/3])
+    if taklif:
+        # kech126 (zip 148): taklifda loyiha, buyurtma holati va usta yo'q — mijoz va taklif ma'lumoti (ikki ustun)
+        info_data = [[
+            [
+                Paragraph("MIJOZ", st["section_label"]),
+                Paragraph(_x(project.client_name if project else "—"), st["section_value"]),
+                Spacer(1, 4*(1-cx*0.7)),
+                Paragraph("TELEFON", st["section_label"]),
+                Paragraph(_x(project.client_phone or "—"), st["section_value_sm"]),
+            ],
+            [
+                Paragraph("TAKLIF RAQAMI", st["section_label"]),
+                Paragraph(_x(order.order_number), st["section_value"]),
+                Spacer(1, 4*(1-cx*0.7)),
+                Paragraph("SANA", st["section_label"]),
+                Paragraph(f"{_tashkent_vaqt(_hujjat_vaqti).strftime('%d.%m.%Y')}", st["section_value_sm"]),
+            ],
+        ]]
+    info_tbl = Table(info_data, colWidths=([W/2, W/2] if taklif else [W/3, W/3, W/3]))
     info_tbl.setStyle(TableStyle([
         ("VALIGN", (0,0), (-1,-1), "TOP"),
         ("BACKGROUND", (0,0), (-1,-1), LIGHT),
@@ -234,7 +264,7 @@ def generate_nakladnoy(order, db=None) -> bytes:
         ("BOTTOMPADDING", (0,0), (-1,-1), 10*(1-cx*0.75)),
         ("LEFTPADDING", (0,0), (-1,-1), 12),
         ("RIGHTPADDING", (0,0), (-1,-1), 12),
-        ("LINEAFTER", (0,0), (1,-1), 0.5, LGRAY),
+        ("LINEAFTER", (0,0), ((0 if taklif else 1),-1), 0.5, LGRAY),
     ]))
     story.append(info_tbl)
     story.append(Spacer(1, 12*(1-cx*0.7)))
@@ -363,11 +393,14 @@ def generate_nakladnoy(order, db=None) -> bytes:
     # Umumiy jami − Chegirma − Qaytarish = TO'LOV SUMMASI (kelishilgan); − To'langan = QARZ QOLDI. To'lovda kechirilgan qarz —
     # «Chegirma» ichida (foizsiz; egasi QARORI kech116 — mijoz hujjatida «Kechirilgan qarz» so'zi chiqmaydi).
     import crud as _crud_nak
-    _hisob = _crud_nak.buyurtma_hisob_qatorlari(db, order, mijoz_hujjati=True)
+    # kech126 (zip 148): taklif — qatorlar `generate_taklif` da o'sha qoida bilan hisoblangan (to'lov yo'q)
+    _hisob = taklif["hisob"] if taklif else _crud_nak.buyurtma_hisob_qatorlari(db, order, mijoz_hujjati=True)
     _NOMI = {"jami": "Umumiy jami:", "kelishilgan": "TO'LOV SUMMASI:"}
     totals_data = []
     grand_total_row = None
     for q in _hisob["qatorlar"]:
+        if taklif and q["kalit"] in ("tolangan", "qarz", "ortiqcha"):
+            continue                                  # taklif — hali to'lov / qarz yo'q
         if q["kalit"] == "tolangan" and q["summa"] == 0:
             continue                                  # to'lov yo'q — qator ko'rsatilmaydi (avvalgidek)
         if q["kalit"] == "qarz" and q["summa"] == 0:
@@ -432,6 +465,22 @@ def generate_nakladnoy(order, db=None) -> bytes:
             story.append(Paragraph(_x(notes_clean), st["note"]))
             story.append(Spacer(1, 10*(1-cx*0.7)))
 
+    if taklif:
+        # kech126 (zip 148 — egasi qarori): taklif hujjati pastida — «Narxlar 3 kun amal qiladi» (imzo qatori yo'q: hali
+        # topshirish yo'q). Muddat `crud.TAKLIF_MUDDAT_KUN` bilan bir xil (tools/test_taklif.py tekshiradi).
+        story.append(Spacer(1, 10*(1-cx*0.7)))
+        story.append(HRFlowable(width="100%", thickness=1, color=GOLD, spaceAfter=6))
+        story.append(Paragraph("Narxlar 3 kun amal qiladi", st["total_label"]))
+        story.append(Spacer(1, 16*(1-cx*0.7)))
+        story.append(HRFlowable(width="100%", thickness=0.5, color=LGRAY, spaceAfter=6))
+        story.append(Paragraph(
+            f"{_x(_brand['name'])} · Chiqarilgan: {_tashkent_vaqt().strftime('%d.%m.%Y %H:%M')} · "
+            f"Taklif: {_x(order.order_number)}",
+            st["footer"]
+        ))
+        doc.build(story)
+        return buf.getvalue()
+
     # ── IMZO QATORI ───────────────────────────────────────────
     story.append(Spacer(1, 20*(1-cx*0.7)))
     sign_data = [[
@@ -467,3 +516,32 @@ def generate_nakladnoy(order, db=None) -> bytes:
 
     doc.build(story)
     return buf.getvalue()
+
+
+def generate_taklif(t, db=None) -> bytes:
+    """kech126 (zip 148 — EGASI QARORLARI 07.10 «Tez hisob / Taklif»): taklif PDF i — `generate_nakladnoy` shablonining O'ZI
+    («Buyurtma hisobi» ko'rinishida). Taklif bazada PDF bo'lib saqlanmaydi — har safar saqlangan tanadan yasaladi (sana —
+    oxirgi saqlash vaqti: narxlar shu kundan 3 kun). Detal qatorlari — buyurtma saqlaydigan qiymatlar (`crud.taklif_hisobi` —
+    `create_order` bilan bir qoida), summa qatorlari — `crud.buyurtma_hisob_qatorlari` (mijoz hujjati) qoidasi."""
+    from types import SimpleNamespace as _NS
+    import crud as _crud_tk
+    _sh = _crud_tk.taklif_buyurtma_shakli(t)
+    _items = []
+    for _d in _sh["items"]:
+        _items.append(_NS(
+            name=str(_d.get("name") or ""), category=_d.get("category"), is_coated=bool(_d.get("is_coated")),
+            length=_d.get("length"), quantity=_d.get("quantity"), width=_d.get("width"), thickness=_d.get("thickness"),
+            unit_price=_d.get("unit_price"), total_price=_d.get("total_price"), delivery_unit=None,
+            gips_unit=_d.get("gips_unit"),
+        ))
+    _jami, _kel = float(_sh["total_amount"] or 0), float(_sh["kelishilgan"] or 0)
+    # summa qatorlari — buyurtma hujjati qoidasi: to'lov 0, qarz = kelishilgan (qatorlari hujjatda ko'rsatilmaydi)
+    _ord = _NS(total_amount=_jami, kechirilgan=0.0, kelishilgan_summa=_kel, paid_amount=0.0, debt_amount=_kel,
+               ortiqcha_tolov=0.0)
+    _hisob = _crud_tk.buyurtma_hisob_qatorlari(None, _ord, qaytarish=0.0, mijoz_hujjati=True)
+    _hujjat = _NS(
+        id=t.id, company_id=t.company_id, order_number=t.raqam, items=_items, notes=_sh.get("notes"),
+        created_at=t.yaratilgan, status=None, master=None,
+        project=_NS(client_name=t.mijoz, client_phone=t.telefon, client_address=None, project_name=None),
+    )
+    return generate_nakladnoy(_hujjat, db, taklif={"sana": t.tahrirlangan or t.yaratilgan, "hisob": _hisob})

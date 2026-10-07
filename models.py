@@ -21,7 +21,7 @@ def _uzb_now():
 from enum import Enum as PyEnum
 
 from sqlalchemy import (
-    Column, Integer, String, Float, Boolean, DateTime,
+    Column, Integer, String, Float, Boolean, DateTime, Date,
     ForeignKey, Enum, Text, Numeric, text as sa_text, UniqueConstraint
 )
 from sqlalchemy import event
@@ -2144,6 +2144,50 @@ class BrakTaqdir(Base):
         return f"<BrakTaqdir {self.taqdir} ri={self.return_item_id} fpl={self.fp_loss_id}>"
 
 
+class Taklif(Base):
+    """kech126 (zip 148 — EGASI QARORLARI 07.10 «Tez hisob / Taklif», QAYTA SO'RALMAYDI) — mijozga loyiha / buyurtma OCHMASDAN
+    berilgan narx taklifi (hujjat «TAKLIF (HISOB-KITOB)», pastida «Narxlar 3 kun amal qiladi»).
+
+    Qarorlar: (1) taklif SAQLANADI — «Takliflar» ro'yxati (mijoz ismi / telefoni bilan), mijoz «olaman» desa bitta tugma bilan
+    loyiha va buyurtma ochiladi (qayta yozilmaydi); (2) hujjat «Buyurtma hisobi» ko'rinishida; (3) ombor TEGILMAYDI — xomashyo
+    faqat buyurtma rasmiylashtirilganda ayiriladi, taklifda faqat «omborda yetmaydi» ogohlantirishi; (4) taklifni «Buyurtmalar:
+    Yaratish» ruxsati borlar yozadi. Egasi savoliga javob (07.10 11:12): taklif HECH QACHON avtomatik o'chirilmaydi — 3 kun faqat
+    PDF dagi yozuv; muddat o'tgach ro'yxatda «muddati o'tgan» belgisi, rasmiylashtirish mumkin; bekor qilish — faqat qo'lda.
+
+    `tana` — buyurtma tanasi (JSON, `schemas.OrderCreate` shakli, `project_id` siz): rasmiylashtirishda AYNAN shu tana buyurtma
+    formasiga to'ldiriladi. `jami` / `kelishilgan` — saqlash paytida buyurtma bilan BIR qoida bilan hisoblangan (`crud.taklif_hisobi`).
+    Taklif Moliya / hisobot / omborga KIRMAYDI, Telegram yuborilmaydi. Raqam — korxona bo'yicha ketma-ket (`seq`, «T-0001»), qayta
+    berilmaydi (taklif o'chirilmaydi — faqat «bekor»). `order_id` — rasmiylashtirilgan buyurtma (u butunlay o'chirilsa NULL bo'ladi,
+    `order_raqam` ro'yxatda qoladi)."""
+    __tablename__ = "takliflar"
+    __table_args__ = (UniqueConstraint("company_id", "seq", name="uq_takliflar_company_seq"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    seq = Column(Integer, nullable=False)                    # korxona bo'yicha tartib raqami (1, 2, …)
+    raqam = Column(String(20), nullable=False)               # «T-0001»
+    mijoz = Column(String(100), nullable=False)              # mijoz ismi (loyihaning `client_name` sig'imi bilan bir xil)
+    telefon = Column(String(20), nullable=True)              # loyihaning `client_phone` sig'imi bilan bir xil
+    tana = Column(Text, nullable=False)                      # buyurtma tanasi — JSON (project_id siz)
+    jami = Column(Numeric(12, 2), nullable=False, default=0)
+    kelishilgan = Column(Numeric(12, 2), nullable=False, default=0)
+    holat = Column(String(20), nullable=False, default="yangi")   # 'yangi' | 'rasmiylashtirildi' | 'bekor'
+    amal_muddati = Column(Date, nullable=False)              # Toshkent sanasi + 3 kun (oxirgi saqlash kunidan)
+    order_id = Column(Integer, ForeignKey("orders.id", ondelete="SET NULL"), nullable=True, index=True)
+    order_raqam = Column(String(30), nullable=True)          # rasmiylashtirilgan buyurtma raqami (buyurtma o'chsa ham qoladi)
+    yaratilgan = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    yaratgan = Column(String(100), nullable=True)
+    tahrirlangan = Column(DateTime, nullable=True)
+    tahrirlagan = Column(String(100), nullable=True)
+    rasmiylashtirilgan = Column(DateTime, nullable=True)
+    rasmiylashtirgan = Column(String(100), nullable=True)
+    bekor_vaqti = Column(DateTime, nullable=True)
+    bekor_qilgan = Column(String(100), nullable=True)
+
+    def __repr__(self):
+        return f"<Taklif {self.raqam} {self.holat} c={self.company_id}>"
+
+
 # ============================================================
 # 11. DELIVERY — Yetkazishlar (bosqichma-bosqich topshirish)
 # ============================================================
@@ -2604,6 +2648,8 @@ _TENANT_REFS = {
     # kech125 (zip 146 — brak taqdiri): taqdir qatori — o'z brak yozuvi va yaratilgan / qaytarilgan tayyor mahsuloti BIR korxonada
     "BrakTaqdir": [("return_item_id", "ReturnItem"), ("fp_loss_id", "FinishedProductLoss"),
                    ("tm_id", "FinishedProduct")],
+    # kech126 (zip 148 — «Tez hisob / Taklif»): rasmiylashtirilgan buyurtma — o'z korxonasiniki
+    "Taklif": [("order_id", "Order")],
     # Buyurtma — qaysi loyiha va ustaga
     "Order": [("project_id", "Project"), ("master_id", "Master"),
               # kech58 (K58-1): qoplama retsepti — faqat o'z korxonasiniki

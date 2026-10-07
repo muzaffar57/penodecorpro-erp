@@ -4483,7 +4483,10 @@ async def orders_page(request: Request, show_all: bool = False, db: Session = De
         "recipes": recipes, "penoplasts": penoplasts,
         "default_penoplast_id": default_p.id if default_p else None,
         "current_user": current_user, "active_page": "orders",
-        "show_all": show_all
+        "show_all": show_all,
+        # kech126 (zip 148): «📝 Takliflar» tugmasidagi son — rasmiylashtirilmagan takliflar (ko'rish ruxsati bilan)
+        "takliflar_soni": (crud.taklif_faol_soni(db, auth.company_id_of(current_user))
+                           if current_user.ruxsat("buyurtma", "korish") else 0),
     })
 
 
@@ -6307,6 +6310,151 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[str] = None,
             lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f}, yetishmaydi: {deficit:.1f})")
         msg = f"⚠️ *Ombor ogohlantirishlari!*\n\n*{new_order.order_number}* buyurtmadan keyin:\n\n━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines) + f"\n━━━━━━━━━━━━━━━━━━━\n\nZudlik bilan buyurtma bering! 🚨\n\n" + _tg_footer(db, auth.company_id_of(current_user))
         _send_telegram(msg, company_id=auth.company_id_of(current_user))
+    return new_order
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# kech126 (zip 148 — EGASI QARORLARI 07.10 «TEZ HISOB / TAKLIF», QAYTA SO'RALMAYDI): mijozga loyiha / buyurtma OCHMASDAN
+# tez hisob va «TAKLIF (HISOB-KITOB)» PDF; saqlanadi («📝 Takliflar»), «olaman» desa bitta tugma bilan loyiha + buyurtma.
+# Ruxsat — «Buyurtmalar»: ko'rish (ro'yxat, PDF), yaratish (yozish, tahrirlash, bekor qilish, rasmiylashtirish); yangi loyiha
+# bilan rasmiylashtirishda — «Loyihalar: Yaratish» ham. Dizayn va texnik qarorlar — `crud` «TEZ HISOB / TAKLIF» bo'limi.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+def _taklif_xato(e):
+    """crud xatosi → HTTP: holat mos emas — 409 (`detail.message`, buyurtma formasi shu shaklni o'qiydi), qolgani — 400."""
+    if isinstance(e, crud.TaklifHolatXatosi):
+        return HTTPException(status_code=409, detail={"type": "taklif_holati", "message": str(e)})
+    return HTTPException(status_code=400, detail=str(e))
+
+
+def _taklif_kim(current_user):
+    return current_user.full_name or current_user.username
+
+
+@app.get("/api/takliflar")
+def api_takliflar(q: Optional[str] = None, filtr: Optional[str] = None, sahifa: int = Query(1, ge=1, le=100_000),
+                  db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "korish"))):
+    return crud.takliflar_royxati(db, auth.company_id_of(current_user), qidiruv=q, filtr=filtr, sahifa=sahifa)
+
+
+@app.post("/api/takliflar")
+def api_taklif_yarat(data: schemas.TaklifCreate, db: Session = Depends(get_db),
+                     current_user=Depends(auth.ruxsat("buyurtma", "yaratish"))):
+    """Yangi taklif — ombor, loyiha, buyurtma, Moliya TEGILMAYDI; Telegram yo'q. Javobda «omborda yetmaydi» ogohlantirishlari
+    (egasi qarori 3 — faqat ogohlantirish, saqlashni to'xtatmaydi)."""
+    try:
+        t, ogoh = crud.taklif_yarat(db, auth.company_id_of(current_user), data, performed_by=_taklif_kim(current_user))
+    except ValueError as e:
+        db.rollback()
+        raise _taklif_xato(e)
+    return {"taklif": crud.taklif_korinish(t), "ogohlantirishlar": ogoh}
+
+
+@app.get("/api/takliflar/{taklif_id}")
+def api_taklif(taklif_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "korish"))):
+    """Taklif — buyurtma formasini to'ldirish shaklida (`GET /api/orders/{id}` kabi) + `_taklif` (raqam, mijoz, holat)."""
+    t = crud.taklif_ol(db, auth.company_id_of(current_user), taklif_id)
+    if t is None:
+        raise HTTPException(status_code=404, detail="Taklif topilmadi")
+    return crud.taklif_buyurtma_shakli(t)
+
+
+@app.get("/api/takliflar/{taklif_id}/pdf")
+def api_taklif_pdf(taklif_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "korish"))):
+    from fastapi.responses import Response
+    import pdf_service
+    t = crud.taklif_ol(db, auth.company_id_of(current_user), taklif_id)
+    if t is None:
+        raise HTTPException(status_code=404, detail="Taklif topilmadi")
+    try:
+        pdf_bytes = pdf_service.generate_taklif(t, db)
+    except Exception as e:  # noqa: BLE001 — sabab foydalanuvchiga (buyurtma PDF i kabi)
+        crud.log_error(db, f"Taklif PDF xato: {e}", endpoint="api_taklif_pdf")
+        raise HTTPException(status_code=500, detail=f"PDF xato: {str(e)}")
+    filename = f"taklif_{t.raqam}.pdf"
+    return Response(content=pdf_bytes, media_type="application/pdf", headers={"Content-Disposition": f'inline; filename="{filename}"'})
+
+
+@app.put("/api/takliflar/{taklif_id}")
+def api_taklif_tahrir(taklif_id: int, data: schemas.TaklifCreate, db: Session = Depends(get_db),
+                      current_user=Depends(auth.ruxsat("buyurtma", "yaratish"))):
+    """Taklifni tahrirlash — faqat «yangi» (muddati o'tgan ham); muddat shu kundan yana 3 kun."""
+    try:
+        r = crud.taklif_tahrirla(db, auth.company_id_of(current_user), taklif_id, data, performed_by=_taklif_kim(current_user))
+    except ValueError as e:
+        db.rollback()
+        raise _taklif_xato(e)
+    if r is None:
+        raise HTTPException(status_code=404, detail="Taklif topilmadi")
+    t, ogoh = r
+    return {"taklif": crud.taklif_korinish(t), "ogohlantirishlar": ogoh}
+
+
+@app.post("/api/takliflar/{taklif_id}/bekor")
+def api_taklif_bekor(taklif_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "yaratish"))):
+    """Taklifni bekor qilish — faqat qo'lda (egasi savoliga javob 07.10 11:12: avtomatik o'chirilmaydi); taklif ro'yxatda qoladi."""
+    try:
+        t = crud.taklif_bekor(db, auth.company_id_of(current_user), taklif_id, performed_by=_taklif_kim(current_user))
+    except ValueError as e:
+        db.rollback()
+        raise _taklif_xato(e)
+    if t is None:
+        raise HTTPException(status_code=404, detail="Taklif topilmadi")
+    return {"taklif": crud.taklif_korinish(t)}
+
+
+@app.post("/api/takliflar/{taklif_id}/rasmiylashtir", response_model=schemas.OrderRead)
+def api_taklif_rasmiylashtir(taklif_id: int, data: schemas.TaklifRasmiylashtir, confirm_shortage: bool = False,
+                             db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "yaratish"))):
+    """Mijoz «olaman» dedi — taklif BITTA tranzaksiyada buyurtmaga aylanadi (egasi qarori 1): mavjud loyiha (`loyiha_id`) yoki
+    taklifdagi ism / telefon bilan YANGI loyiha (`yangi_loyiha`, «Loyihalar: Yaratish» ruxsati bilan) + buyurtma.
+
+    Buyurtma — `api_create_order` ning O'ZI (shu funksiya chaqiriladi): loyiha egaligi, loy / detal turi / sig'im / qoplama
+    retsepti tekshiruvlari, yetishmovchilik 409 (`confirm_shortage`), qoralama (`is_draft` — ombor tegilmaydi), takroriy
+    yuborish himoyasi, ombordan yechish, kam qoldiq xabari — buyurtma yaratish qoidalari ikki joyda yozilmaydi. Istalgan
+    rad (400 / 403 / 404 / 409) — HECH NARSA yozilmaydi (yangi loyiha ham). Taklif qulflanadi (PG — qator qulfi): ikki marta
+    rasmiylashtirilmaydi (ikkinchisi 409). Muddati o'tgan taklif ham rasmiylashtiriladi (narxlarni xodim formada ko'radi)."""
+    cid = auth.company_id_of(current_user)
+    who = _taklif_kim(current_user)
+    t0 = crud.taklif_ol(db, cid, taklif_id)
+    if t0 is None:
+        raise HTTPException(status_code=404, detail="Taklif topilmadi")
+    if t0.holat != "yangi":
+        raise _taklif_xato(crud.TaklifHolatXatosi(
+            f"Taklif {t0.raqam} allaqachon {crud.TAKLIF_HOLATLARI.get(t0.holat, t0.holat).lower()}"
+            + (f" ({t0.order_raqam})" if t0.order_raqam else "") + " — qayta rasmiylashtirib bo'lmaydi"))
+    if (data.loyiha_id is None) == (data.yangi_loyiha is None):
+        raise HTTPException(status_code=400, detail="Loyihani tanlang: mavjud loyiha yoki taklifdagi mijoz uchun yangi loyiha")
+    _loyiha_tana = None
+    if data.yangi_loyiha is not None:
+        if not current_user.ruxsat("loyiha", "yaratish"):
+            raise HTTPException(status_code=403, detail="Yangi loyiha ochish uchun «Loyihalar: Yaratish» ruxsati kerak — "
+                                                        "mavjud loyihani tanlang yoki administratorga murojaat qiling")
+        try:
+            _loyiha_tana = schemas.ProjectCreate(**crud._clean_create("Project", data.yangi_loyiha.model_dump()))
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+    _loyiha = None
+    try:
+        with crud.bitta_tranzaksiya(db):
+            t = crud.taklif_ol(db, cid, taklif_id, lock=True)
+            if t is None or t.holat != "yangi":
+                raise _taklif_xato(crud.TaklifHolatXatosi(
+                    "Taklif hozirgina boshqa foydalanuvchi tomonidan rasmiylashtirildi yoki bekor qilindi — ro'yxatni yangilang"))
+            if _loyiha_tana is not None:
+                _loyiha = crud.create_project(db, _loyiha_tana, company_id=cid)
+                _pid = _loyiha.id
+            else:
+                _pid = data.loyiha_id
+            order = schemas.OrderCreate(**{**data.buyurtma.model_dump(), "project_id": _pid})
+            new_order = api_create_order(order, None, confirm_shortage, db, current_user)
+            if _loyiha is None:
+                _loyiha = new_order.project
+            crud.taklif_rasmiylashtirildi(db, t, new_order, performed_by=who, loyiha=_loyiha)
+    except ValueError as e:
+        # `bitta_tranzaksiya` hammasini (yangi loyiha ham) allaqachon qaytargan
+        raise HTTPException(status_code=400, detail=str(e))
+    db.refresh(new_order)
     return new_order
 
 
