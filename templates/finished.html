@@ -548,9 +548,10 @@ input[type=number]{-moz-appearance:textfield}
 </script>
 
 <script>
+// kech127 (zip 150): penoplast narxi — faqat «Xomashyo narxlari» / «Tannarx» ko'radiganga (kalkulyator tannarxi shundan)
 const PENOS = [
   {% for p in penoplasts %}
-  {id: {{ p.id }}, name: {{ p.item_name|tojson }}, vol: {{ p.volume_per_unit|float }}, price: {{ (p.price_per_unit or 0)|float }}},
+  {id: {{ p.id }}, name: {{ p.item_name|tojson }}, vol: {{ p.volume_per_unit|float }}, price: {{ (p.price_per_unit or 0)|float if current_user.narx_koradi() else 0 }}},
   {% endfor %}
 ];
 
