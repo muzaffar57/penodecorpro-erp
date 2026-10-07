@@ -260,6 +260,42 @@ input[type=number]{-moz-appearance:textfield}
   .yb-saqlash-qator{flex-direction:column}
   .yb-saqlash-qator .btn{flex:none !important;width:100%}
 }
+/* kech126 (zip 148 — EGASI QARORLARI 07.10 «Tez hisob / Taklif»): chap panel tugmalari, taklif rejimi banneri, «📝 Takliflar» ro'yxati.
+   Tugmalar sig'masa (tor ustun) — keyingi qatorga o'tadi; ro'yxat qatori — chapda ma'lumot, o'ngda summa, ostida amallar */
+.tk-tugmalar{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.tk-tugmalar .btn{flex:1 1 auto;white-space:nowrap}
+.tk-soni{display:inline-block;min-width:20px;padding:0 6px;border-radius:999px;background:var(--gold-tint);color:var(--gold-dark);font-size:12px;font-weight:700;line-height:18px;text-align:center}
+.tk-banner{display:none;background:var(--f-fdf8f0);border:1.5px solid var(--ch-e8d5c0);border-radius:10px;padding:11px 14px;margin-bottom:12px;font-size:13px;color:var(--gold-dark);line-height:1.5}
+.tk-banner b{color:var(--text)}
+.tk-banner.otgan{background:var(--f-fef2f2);border-color:var(--ch-fecaca);color:var(--m-b91c1c)}
+.tk-izoh{font-size:12px;color:var(--text3);margin-top:5px;line-height:1.45}
+.tk-filtrlar{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.tk-f .f-son{font-weight:700;margin-left:1px}
+.tk-f[data-f="muddati_otgan"] .f-son{color:var(--m-dc2626)}
+.tk-qator{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 14px;padding:12px 14px;border-bottom:1px solid var(--border2);align-items:start}
+.tk-qator:last-child{border-bottom:none}
+.tk-qator.yangi-saqlangan{background:var(--f-fdf8f0)}
+.tk-bosh{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.tk-raqam{font-size:14px;font-weight:700;color:var(--text)}
+.tk-mijoz{font-size:14px;font-weight:600;color:var(--text);margin-top:3px;overflow-wrap:anywhere}
+.tk-mijoz a{color:var(--gold-dark);text-decoration:none}
+.tk-mijoz a:hover{text-decoration:underline}
+.tk-meta{font-size:13px;color:var(--text3);margin-top:2px;overflow-wrap:anywhere}
+.tk-summa{font-size:16px;font-weight:700;color:var(--gold-dark);white-space:nowrap;text-align:right}
+.tk-summa .tk-meta{font-weight:400;text-align:right}
+.tk-belgi{display:inline-block;padding:0 8px;border-radius:999px;font-size:12px;font-weight:700;line-height:20px;white-space:nowrap}
+.tk-belgi.faol{background:var(--f-dcfce7);color:var(--m-15803d)}
+.tk-belgi.otgan{background:var(--f-fee2e2);color:var(--m-dc2626)}
+.tk-belgi.rasmiy{background:var(--f-dbeafe);color:var(--m-1d4ed8)}
+.tk-belgi.bekor{background:var(--f-f1f5f9);color:var(--m-64748b)}
+.tk-amallar{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:6px}
+.tk-bosh-holat{text-align:center;padding:30px 16px;color:var(--text3);font-size:13px}
+.tk-sahifa{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;border-top:1px solid var(--border2);font-size:13px;color:var(--text3)}
+@media (max-width:600px){
+  .tk-qator{grid-template-columns:1fr}
+  .tk-summa, .tk-summa .tk-meta{text-align:left}
+  .tk-amallar .btn{flex:1 1 140px}
+}
 </style>
 {% endblock %}
 
@@ -430,6 +466,14 @@ input[type=number]{-moz-appearance:textfield}
     <!-- Yangi buyurtma tugmasi -->
     <div style="padding:10px;border-top:1px solid var(--ch-f0f0f0);flex-shrink:0">
       <button class="btn btn-dark btn-block" onclick="showNewForm()">+ Yangi buyurtma</button>
+      {# kech126 (zip 148 — egasi qarorlari 07.10): «⚡ Tez hisob» — loyiha / buyurtma ochmasdan mijozga taklif («Buyurtmalar: Yaratish»);
+         «📝 Takliflar» — saqlangan takliflar (ko'rish ruxsati), son — rasmiylashtirilmaganlari #}
+      {% if current_user.ruxsat('buyurtma', 'yaratish') or current_user.ruxsat('buyurtma', 'korish') %}
+      <div class="tk-tugmalar">
+        {% if current_user.ruxsat('buyurtma', 'yaratish') %}<button type="button" id="tezHisobBtn" class="btn btn-outline btn-md" onclick="tezHisobOch()" title="Loyiha va buyurtma ochmasdan mijozga narx hisoblab, TAKLIF hujjatini berish">⚡ Tez hisob</button>{% endif %}
+        {% if current_user.ruxsat('buyurtma', 'korish') %}<button type="button" id="takliflarBtn" class="btn btn-outline btn-md" onclick="takliflarOch()" title="Saqlangan takliflar: PDF, tahrirlash, rasmiylashtirish">📝 Takliflar<span class="tk-soni" id="tkSoni"{% if not takliflar_soni %} style="display:none"{% endif %}>{{ takliflar_soni }}</span></button>{% endif %}
+      </div>
+      {% endif %}
     </div>
   </div>
 
@@ -487,8 +531,34 @@ input[type=number]{-moz-appearance:textfield}
 
     <div id="resultBox" class="result-box"></div>
 
+    <!-- kech126 (zip 148 — «Tez hisob / Taklif»): saqlangan takliflar — qidiruv (mijoz, telefon, raqam), holat filtri, amallar -->
+    <div id="takliflarPanel" class="card" style="display:none" data-yaratish="{{ 1 if current_user.ruxsat('buyurtma', 'yaratish') else 0 }}">
+      <div class="card-head" style="flex-wrap:wrap;row-gap:8px">
+        <h3>📝 Takliflar</h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          {% if current_user.ruxsat('buyurtma', 'yaratish') %}<button type="button" class="btn btn-gold btn-md" onclick="tezHisobOch()">⚡ Yangi tez hisob</button>{% endif %}
+          <button type="button" class="btn btn-outline btn-md" onclick="takliflarYop()">✕ Yopish</button>
+        </div>
+      </div>
+      <div style="padding:12px 14px 4px">
+        <input type="search" id="tkQidiruv" class="maydon" placeholder="Qidirish: mijoz ismi, telefon yoki taklif raqami" aria-label="Takliflarni qidirish"
+               oninput="takliflarQidir()" style="width:100%">
+        <div class="tk-filtrlar" role="group" aria-label="Takliflar filtri">
+          <button type="button" class="chip tk-f active" data-f="hammasi" aria-pressed="true" onclick="takliflarFiltr('hammasi')">Hammasi <span class="f-son"></span></button>
+          <button type="button" class="chip tk-f" data-f="faol" aria-pressed="false" onclick="takliflarFiltr('faol')">Amalda <span class="f-son"></span></button>
+          <button type="button" class="chip tk-f" data-f="muddati_otgan" aria-pressed="false" onclick="takliflarFiltr('muddati_otgan')">Muddati o'tgan <span class="f-son"></span></button>
+          <button type="button" class="chip tk-f" data-f="rasmiylashtirildi" aria-pressed="false" onclick="takliflarFiltr('rasmiylashtirildi')">Rasmiylashtirilgan <span class="f-son"></span></button>
+          <button type="button" class="chip tk-f" data-f="bekor" aria-pressed="false" onclick="takliflarFiltr('bekor')">Bekor qilingan <span class="f-son"></span></button>
+        </div>
+      </div>
+      <div id="tkRoyxat"><div class="tk-bosh-holat">Yuklanmoqda…</div></div>
+      <div id="tkSahifa" class="tk-sahifa" style="display:none"></div>
+    </div>
+
     <!-- YANGI BUYURTMA FORMASI (boshlangʻichda yashirin) -->
     <div id="newOrderForm" style="display:none">
+      {# kech126 (zip 148): taklif rejimi banneri («⚡ Tez hisob» / taklifni tahrirlash / rasmiylashtirish) — `taklifRejiminiOrnat` #}
+      <div id="tkBanner" class="tk-banner" role="status"></div>
       <div id="editBanner" style="display:none;background:var(--f-f8f2eb);border:1.5px solid var(--ch-e8d5c0);border-radius:10px;padding:11px 14px;margin-bottom:12px">
         <div style="font-size:13px;font-weight:600;color:var(--gold-dark)">✏️ Tahrirlash rejimi — <span id="editOrderNum"></span></div>
         <div style="font-size:13px;color:var(--m-a88a64);margin-top:3px">Saqlaganda ombor faqat farq miqdorida to'g'rilanadi. Buyurtma raqami va to'lovlar saqlanadi.</div>
@@ -518,6 +588,27 @@ input[type=number]{-moz-appearance:textfield}
                 {% for p in projects %}<option value="{{ p.id }}">{{ p.project_number }} — {{ p.project_name }}</option>{% endfor %}
                 {% if current_user.ruxsat('loyiha', 'yaratish') %}<option value="__yangi">+ Yangi loyiha yaratish…</option>{% endif %}
               </select>
+            </div>
+            {# kech126 (zip 148): rasmiylashtirishda «➕ Yangi loyiha — <mijoz>» tanlansa — loyiha nomi (ism / telefon taklifdan) #}
+            <div id="tkYangiLoyihaBlok" class="form-group" style="display:none;margin-bottom:12px" data-loyiha-yaratish="{{ 1 if current_user.ruxsat('loyiha', 'yaratish') else 0 }}">
+              <label for="tk_loyiha_nomi">Yangi loyiha nomi <span class="majburiy" title="Majburiy">*</span></label>
+              <input type="text" id="tk_loyiha_nomi" maxlength="200" autocomplete="off" placeholder="Masalan: Ali Valiyev — uy fasadi">
+              <div class="tk-izoh" id="tkYangiLoyihaIzoh"></div>
+            </div>
+            {# kech126 (zip 148): «⚡ Tez hisob» — loyiha o'rniga mijoz ismi va telefoni (loyiha / buyurtma ochilmaydi) #}
+            <div id="tkMijozBlok" style="display:none">
+              <div class="form-group" style="margin-bottom:12px">
+                <label for="tk_mijoz">Mijoz ismi <span class="majburiy" title="Majburiy">*</span></label>
+                <input type="text" id="tk_mijoz" maxlength="100" autocomplete="off" placeholder="Masalan: Ali Valiyev">
+              </div>
+              <div class="form-group" style="margin-bottom:12px">
+                <label for="tk_telefon">Telefon</label>
+                <input type="tel" id="tk_telefon" maxlength="20" autocomplete="off" placeholder="+998 90 123 45 67">
+              </div>
+              <div class="form-group" style="margin-bottom:12px">
+                <label for="tk_izoh">Izoh <span style="font-weight:400;color:var(--text3);font-size:12px">— taklif hujjatida ko'rinadi</span></label>
+                <textarea id="tk_izoh" rows="2" maxlength="1000" placeholder="Masalan: yetkazib berish narxi alohida"></textarea>
+              </div>
             </div>
             <div class="form-group" style="margin-bottom:12px">
               <label>Usta</label>
@@ -911,6 +1002,22 @@ input[type=number]{-moz-appearance:textfield}
 </div>
 </div>
 
+<!-- ══ kech126 (zip 148): TAKLIF SAQLANDI — PDF (foydalanuvchi bosadi — brauzer to'smaydi), «omborda yetmaydi» ogohlantirishlari ══ -->
+<div id="tkNatijaOyna" role="dialog" aria-modal="true" aria-labelledby="tkNatijaSarlavha" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.55);z-index:2000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--white);border-radius:16px;width:460px;max-width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 24px 60px rgba(0,0,0,.25)">
+    <div style="padding:24px 24px 8px;text-align:center">
+      <div style="font-size:32px;margin-bottom:8px">✅</div>
+      <div id="tkNatijaSarlavha" style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px">Taklif saqlandi</div>
+      <div id="tkNatijaMatn" style="font-size:14px;color:var(--text2);line-height:1.55"></div>
+    </div>
+    <div id="tkNatijaOgoh" style="padding:6px 24px 0;display:none"></div>
+    <div style="padding:18px 24px 24px;display:flex;gap:10px;flex-wrap:wrap">
+      <button type="button" class="btn btn-outline" data-yopish style="flex:1 1 140px" onclick="tkNatijaYop()">Yopish</button>
+      <a id="tkNatijaPdf" class="btn btn-gold" style="flex:1 1 180px" href="#" target="_blank" rel="noopener" onclick="tkNatijaYop()">📄 Taklif PDF ini ochish</a>
+    </div>
+  </div>
+</div>
+
 <!-- ══ TO'LDIRILMAGAN MAYDONLAR MODALI ══ -->
 <div id="validationModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.55);z-index:2000;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px)">
   <div style="background:var(--white);border-radius:18px;width:440px;max-width:100%;box-shadow:0 24px 60px rgba(0,0,0,.25);overflow:hidden;animation:valPop .2s ease">
@@ -918,7 +1025,7 @@ input[type=number]{-moz-appearance:textfield}
       <div style="width:56px;height:56px;border-radius:50%;background:var(--f-fef3c7);display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
         <i class="ti ti-alert-triangle" style="font-size:24px;color:var(--m-b45309)"></i>
       </div>
-      <div style="font-size:16px;font-weight:700;color:var(--m-111827);margin-bottom:6px">Buyurtmani saqlashdan oldin</div>
+      <div id="validationTitle" style="font-size:16px;font-weight:700;color:var(--m-111827);margin-bottom:6px">Buyurtmani saqlashdan oldin</div>
       <div style="font-size:13px;color:var(--m-6b7280)">Quyidagi maydonlarni to'ldiring:</div>
     </div>
     <div id="validationList" style="padding:0 26px 8px"></div>
@@ -1149,6 +1256,8 @@ function saveDraftLS() {
   try {
     // Endigina muvaffaqiyatli saqlangan bo'lsa — qayta yozib qo'yilmasin
     if (orderJustSubmitted) return;
+    // kech126 (zip 148): taklif rejimidagi forma — buyurtma qoralamasi EMAS (saqlansa keyingi «+ Yangi buyurtma» unga to'lib qolardi)
+    if (typeof taklifRejim !== 'undefined' && taklifRejim) return;
 
     // Faqat "Yangi buyurtma" formasi ochiq va TAHRIRLASH rejimida
     // BO'LMASA saqlaymiz (mavjud buyurtmani tahrirlashda bu kerak emas).
@@ -1294,6 +1403,8 @@ function checkForDraftOnLoad() {
     if (buyurtmaniParamdanOch(params)) return;
     // kech120 (G2-13): «/orders?royxat=…» — filtrlangan ro'yxat (Bosh sahifa «Bugungi vazifalar»)
     if (typeof royxatParamdanOch === 'function' && royxatParamdanOch(params)) return;
+    // kech126 (zip 148): «/orders?takliflar=1» / «/orders?tez_hisob=1»
+    if (typeof takliflarParamdanOch === 'function' && takliflarParamdanOch(params)) return;
     // «/orders?yangi=1» — Bosh sahifadagi «+ Yangi buyurtma» amali: yangi buyurtma formasi
     if (params.get('yangi') === '1') {
       showNewForm();
@@ -3177,6 +3288,8 @@ async function deletePayment(paymentId) {
 // onchange va h.k.) o'zgarmaydi — faqat mos kelmagan <option>lar
 // vaqtincha yashiriladi.
 async function loyihaTanlovi(sel) {
+  // kech126 (zip 148): rasmiylashtirishda yangi loyiha nomi maydoni; «+ Yangi loyiha yaratish…» o'rniga taklifdagi mijoz uchun loyiha
+  if (typeof tkLoyihaTanlovi === 'function' && tkLoyihaTanlovi(sel)) return;
   if (!sel || sel.value !== '__yangi') return;
   sel.value = '';
   if (!(await customConfirm("Yangi loyiha (mijoz) Loyihalar sahifasida yaratiladi. Shu formaga kiritilganlar qoralamada saqlanadi — " +
@@ -3190,7 +3303,7 @@ function filterProjectSelect(query) {
   if (!sel) return;
   const q = (query || '').trim().toLowerCase();
   Array.from(sel.options).forEach(opt => {
-    if (!opt.value || opt.value === '__yangi') { opt.hidden = false; return; } // "— Tanlang —" va «+ Yangi loyiha» har doim ko'rinadi
+    if (!opt.value || opt.value === '__yangi' || opt.value === '__taklif') { opt.hidden = false; return; } // "— Tanlang —", «+ Yangi loyiha», taklif mijozi — har doim
     opt.hidden = q.length > 0 && !opt.textContent.toLowerCase().includes(q);
   });
 }
@@ -3225,6 +3338,9 @@ function _tahrirBanneriTikla() {
 }
 
 function showNewForm() {
+  // kech126 (zip 148): taklif rejimi (Tez hisob / tahrir / rasmiylashtirish) ochiq bo'lsa — oddiy buyurtma formasiga qaytadi
+  // (taklif maydonlari va detallari tozalanadi); «📝 Takliflar» ro'yxati yashiriladi
+  if (typeof taklifRejiminiTozala === 'function') taklifRejiminiTozala(true);
   // 2026-09-15: audit paytida topilgan kamchilik — loyihalar soni ko'payib
   // ketsa (SaaS'da bir necha o'nlab/yuzlab bo'lishi mumkin), oddiy
   // ochiladigan ro'yxatdan kerakli loyihani topish qiyinlashadi. Endi
@@ -3283,10 +3399,451 @@ function tanlanganXulosagaSur() {
 }
 function hideNewForm() {
   document.getElementById('newOrderForm').style.display = 'none';
+  // kech126 (zip 148): buyurtma tanlansa / forma yopilsa — «📝 Takliflar» ro'yxati ham yashiriladi (kerak bo'lsa qayta ochiladi)
+  const _tkp126 = document.getElementById('takliflarPanel');
+  if (_tkp126) _tkp126.style.display = 'none';
   if (typeof ordLayoutYangiForma === 'function') ordLayoutYangiForma(false);
   const livePanel = document.getElementById('liveTotal');
   if (livePanel) livePanel.style.display = 'none';
   statPanellari(false);
+}
+
+// ══ kech126 (zip 148 — EGASI QARORLARI 07.10 «TEZ HISOB / TAKLIF», QAYTA SO'RALMAYDI) ══════════════════════════════════════
+// Mijozga loyiha / buyurtma OCHMASDAN tez hisob: buyurtma formasining O'ZI «taklif» rejimida (loyiha o'rniga mijoz ismi / telefoni,
+// muddat va loy — ixtiyoriy). Saqlanadi («📝 Takliflar»), hujjat — «TAKLIF (HISOB-KITOB)», pastida «Narxlar 3 kun amal qiladi».
+// Ombor tegilmaydi — faqat «omborda yetmaydi» ogohlantirishi. Mijoz «olaman» desa — «✅ Rasmiylashtirish»: forma taklif bilan
+// to'ladi, loyiha tanlanadi yoki taklifdagi mijoz uchun yangisi ochiladi, «Buyurtmani rasmiylashtirish» — BITTA so'rov (server
+// bitta tranzaksiyada: loyiha + buyurtma + taklif holati). Taklif avtomatik o'chirilmaydi (muddat o'tsa — belgi); bekor — qo'lda.
+// `taklifRejim`: null | {tur: 'yangi' | 'tahrir' | 'rasmiy', id, raqam, mijoz, telefon, izoh, muddatiOtgan, amalMuddati}
+let taklifRejim = null;
+let _tkFiltr = 'hammasi', _tkSahifa = 1, _tkQidTaymer = null, _tkYuborilmoqda = false, _tkYangiId = null;
+
+function _tkEl(id) { return document.getElementById(id); }
+
+function _tkKorsat(el, kor) { if (el) el.style.display = kor ? '' : 'none'; }
+
+// Forma maydonlari va detallari tozalanadi (taklif saqlangach yoki taklif rejimidan oddiy buyurtmaga qaytganda)
+function _tkFormaniTozala() {
+  const items = _tkEl('items');
+  if (items) items.innerHTML = '';
+  itemCount = 0;
+  ['base_price', 'loy_kg', 'final_price', 'zaklat_amount', 'deadline_input', 'tk_mijoz', 'tk_telefon', 'tk_izoh', 'tk_loyiha_nomi']
+    .forEach(id => { const e = _tkEl(id); if (e) e.value = ''; });
+  ['recipe_id', 'master_id', 'project_id'].forEach(id => { const e = _tkEl(id); if (e) e.value = ''; });
+  ['discount-auto-hint', 'discount_info', 'debt_info', 'loy-stock-info'].forEach(id => _tkKorsat(_tkEl(id), false));
+}
+
+// Taklif rejimidan chiqish: loyiha maydoni, muddat belgisi, zaklat, sarlavha — oddiy buyurtma holatiga. `formani` — taklif rejimi
+// OCHIQ bo'lgan bo'lsa forma ham tozalanadi (oddiy buyurtmaga taklif detallari o'tib qolmasin)
+function taklifRejiminiTozala(formani) {
+  const edi = !!taklifRejim;
+  taklifRejim = null;
+  const sel = _tkEl('project_id');
+  const loyGr = sel ? sel.closest('.form-group') : null;
+  _tkKorsat(loyGr, true);
+  if (sel) {
+    const o = sel.querySelector('option[value="__taklif"]');
+    if (o) o.remove();
+    const y = sel.querySelector('option[value="__yangi"]');
+    if (y) y.hidden = false;
+  }
+  ['tkMijozBlok', 'tkYangiLoyihaBlok'].forEach(id => _tkKorsat(_tkEl(id), false));
+  const bn = _tkEl('tkBanner');
+  if (bn) { bn.style.display = 'none'; bn.innerHTML = ''; bn.classList.remove('otgan'); }
+  const dl = _tkEl('deadline_input');
+  const dm = dl ? dl.closest('.form-group').querySelector('.majburiy') : null;
+  _tkKorsat(dm, true);
+  const zu = _tkEl('zaklat_method');
+  _tkKorsat(zu ? zu.closest('.yb-ikki-ustun') : null, true);
+  _tkKorsat(_tkEl('takliflarPanel'), false);
+  if (edi && formani) _tkFormaniTozala();
+}
+
+// Taklif rejimi: 'yangi' / 'tahrir' — mijoz bloki (loyiha, zaklat yashiriladi; muddat ixtiyoriy); 'rasmiy' — loyiha tanlovi
+// (birinchi variant «➕ Yangi loyiha — <mijoz>»), zaklat va «Vaqtincha saqlash» (qoralama buyurtma) bor
+function taklifRejiminiOrnat(r) {
+  taklifRejim = r;
+  const rasmiy = r.tur === 'rasmiy';
+  const mij = escapeHtml(r.mijoz || '') + (r.telefon ? ' · ' + escapeHtml(r.telefon) : '');
+  const sel = _tkEl('project_id');
+  const loyGr = sel ? sel.closest('.form-group') : null;
+  _tkKorsat(loyGr, rasmiy);
+  _tkKorsat(_tkEl('tkMijozBlok'), !rasmiy);
+  const dl = _tkEl('deadline_input');
+  const dm = dl ? dl.closest('.form-group').querySelector('.majburiy') : null;
+  _tkKorsat(dm, rasmiy);
+  _tkKorsat(_tkEl('zaklat-field-wrap'), rasmiy);
+  const zu = _tkEl('zaklat_method');
+  _tkKorsat(zu ? zu.closest('.yb-ikki-ustun') : null, rasmiy);
+  _tkKorsat(_tkEl('draftSaveBtn'), rasmiy);
+  _tkKorsat(_tkEl('editBanner'), false);
+  _tkKorsat(_tkEl('takliflarPanel'), false);
+  const saveBtn = document.querySelector('#newOrderForm .btn-dark');
+  if (saveBtn) {
+    saveBtn.textContent = rasmiy ? '✅ Buyurtmani rasmiylashtirish' : '💾 Taklifni saqlash va PDF';
+    saveBtn.onclick = () => saveOrder(false);
+  }
+  const ft = _tkEl('formTitle');
+  if (ft) ft.textContent = rasmiy ? `Taklifni rasmiylashtirish — ${r.raqam}`
+    : (r.tur === 'tahrir' ? `Taklifni tahrirlash — ${r.raqam}` : '⚡ Tez hisob (taklif)');
+  const bn = _tkEl('tkBanner');
+  if (bn) {
+    const otgan = !!r.muddatiOtgan;
+    bn.classList.toggle('otgan', rasmiy && otgan);
+    if (rasmiy) {
+      bn.innerHTML = `✅ <b>${escapeHtml(r.raqam || '')}</b> taklifi asosida buyurtma — mijoz: <b>${mij}</b>. Detallar va narxlar taklifdan olindi; `
+        + `loyihani tanlang (yoki shu mijoz uchun yangi loyiha), topshirish sanasini kiriting. Ombordan xomashyo shu saqlashda yechiladi.`
+        + (otgan ? `<br>⚠️ Taklif muddati o'tgan (${escapeHtml(tkSana(r.amalMuddati) || '')} gacha edi) — narxlarni tekshiring.` : '');
+    } else if (r.tur === 'tahrir') {
+      bn.innerHTML = `✏️ <b>${escapeHtml(r.raqam || '')}</b> taklifini tahrirlash. Saqlansa — narxlar yana 3 kun amal qiladi (yangi sana bilan PDF). `
+        + `Loyiha va buyurtma ochilmaydi, ombordan hech narsa yechilmaydi.`;
+    } else {
+      bn.innerHTML = `⚡ <b>Tez hisob</b> — loyiha va buyurtma OCHILMAYDI, ombordan hech narsa yechilmaydi. Saqlansa «📝 Takliflar» `
+        + `ro'yxatiga tushadi va mijozga «TAKLIF (HISOB-KITOB)» hujjati beriladi (narxlar 3 kun amal qiladi).`;
+    }
+    bn.style.display = 'block';
+  }
+  if (rasmiy) {
+    if (sel && !sel.querySelector('option[value="__taklif"]')) {
+      const o = document.createElement('option');
+      o.value = '__taklif';
+      o.textContent = `➕ Yangi loyiha — ${r.mijoz || ''}${r.telefon ? ' (' + r.telefon + ')' : ''}`;
+      sel.insertBefore(o, sel.options.length > 1 ? sel.options[1] : null);
+    }
+    const y = sel ? sel.querySelector('option[value="__yangi"]') : null;
+    if (y) y.hidden = true;
+    const ruxsat = (_tkEl('tkYangiLoyihaBlok') || {dataset: {}}).dataset.loyihaYaratish === '1';
+    const tOpt = sel ? sel.querySelector('option[value="__taklif"]') : null;
+    if (tOpt) tOpt.disabled = !ruxsat;
+    if (sel) sel.value = ruxsat ? '__taklif' : '';
+    const nomi = _tkEl('tk_loyiha_nomi');
+    if (nomi) nomi.value = r.mijoz || '';
+    const iz = _tkEl('tkYangiLoyihaIzoh');
+    if (iz) iz.innerHTML = `Loyiha mijozi: <b>${mij}</b> (taklifdan). Nomini o'zgartirish mumkin — masalan obyekt nomi.`;
+    tkLoyihaTanlovi(sel);
+  } else {
+    const m = _tkEl('tk_mijoz'), t = _tkEl('tk_telefon'), iz = _tkEl('tk_izoh');
+    if (m) m.value = r.mijoz || '';
+    if (t) t.value = r.telefon || '';
+    if (iz) iz.value = r.izoh || '';
+  }
+}
+
+// Loyiha tanlovi (rasmiylashtirish): «➕ Yangi loyiha — <mijoz>» — nom maydoni ko'rinadi. «+ Yangi loyiha yaratish…» (boshqa
+// sahifaga o'tish) — taklif rejimida taklif mijozi uchun loyihaga almashtiriladi. true — tanlov shu yerda hal qilindi
+function tkLoyihaTanlovi(sel) {
+  if (!taklifRejim || taklifRejim.tur !== 'rasmiy') return false;
+  const s = sel || _tkEl('project_id');
+  if (s && s.value === '__yangi') {
+    const tOpt = s.querySelector('option[value="__taklif"]');
+    s.value = (tOpt && !tOpt.disabled) ? '__taklif' : '';
+  }
+  _tkKorsat(_tkEl('tkYangiLoyihaBlok'), !!(s && s.value === '__taklif'));
+  return true;
+}
+
+// «⚡ Tez hisob» — bo'sh forma taklif rejimida (oddiy buyurtma formasida kiritilgan detallar bo'lsa — avval so'raladi)
+async function tezHisobOch() {
+  const forma = _tkEl('newOrderForm');
+  const ochiq = forma && forma.style.display !== 'none';
+  const nomli = Array.from(document.querySelectorAll('#items .detal'))
+    .some(r => ((r.querySelector('.i-name') || {}).value || '').trim());
+  if (ochiq && nomli && !taklifRejim && !editMode) {
+    if (!(await customConfirm("Ochiq «Yangi buyurtma» formasidagi kiritilgan detallar tozalanadi (saqlanmagan). Tez hisob boshlansinmi?",
+                              {okText: 'Ha, tez hisob', cancelText: 'Qolish'}))) return;
+  }
+  showNewForm();
+  _tkFormaniTozala();
+  addItem();
+  taklifRejiminiOrnat({ tur: 'yangi', id: null, raqam: '', mijoz: '', telefon: '', izoh: '' });
+  const m = _tkEl('tk_mijoz');
+  if (m) {
+    try { m.scrollIntoView({ block: 'center' }); } catch (e) {}
+    // kursor — mijoz ismiga; lekin shu orada formadagi boshqa maydonga yozish boshlangan bo'lsa, fokus TORTIB OLINMAYDI (aks holda
+    // yozilayotgan matn mijoz ismiga tushib qolardi — sinovda o'lchangan: detal o'lchami «20» mijoz maydoniga yozilgan)
+    setTimeout(() => {
+      const a = document.activeElement;
+      if (a && a !== m && a !== document.body && forma && forma.contains(a)) return;
+      m.focus();
+    }, 50);
+  }
+}
+
+// Taklif yuborish (yaratish — POST, tahrir — PUT). Muvaffaqiyatda: forma tozalanadi, natija oynasi (PDF havolasi + ogohlantirishlar),
+// ro'yxat yangilanadi
+async function taklifniYubor(data) {
+  if (_tkYuborilmoqda) return;
+  const buyurtma = Object.assign({}, data);
+  delete buyurtma.project_id;
+  delete buyurtma.is_draft;
+  const tana = {
+    mijoz: sanitizeToLatin(((_tkEl('tk_mijoz') || {}).value || '').trim()),
+    telefon: ((_tkEl('tk_telefon') || {}).value || '').trim() || null,
+    buyurtma
+  };
+  const tahrir = !!(taklifRejim && taklifRejim.tur === 'tahrir' && taklifRejim.id);
+  const url = tahrir ? `/api/takliflar/${Number(taklifRejim.id)}` : '/api/takliflar';
+  _tkYuborilmoqda = true;
+  try {
+    const res = await fetch(url, { method: tahrir ? 'PUT' : 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(tana) });
+    let d = null;
+    try { d = await res.json(); } catch (e) { d = null; }
+    if (!res.ok || !d || !d.taklif) {
+      showMsg('❌ ' + ((typeof xatoSababi === 'function') ? xatoSababi(d, 'Taklif saqlanmadi') : 'Taklif saqlanmadi'), 'error');
+      return;
+    }
+    const t = d.taklif;
+    taklifRejiminiTozala(true);
+    hideNewForm();
+    _tkYangiId = t.id;
+    tkNatijaKorsat(t, d.ogohlantirishlar || [], tahrir);
+    await takliflarOch();
+  } catch (e) {
+    showMsg("❌ Server bilan aloqa yo'q — taklif saqlanmadi", 'error');
+  } finally {
+    _tkYuborilmoqda = false;
+  }
+}
+
+function tkNatijaKorsat(t, ogoh, tahrir) {
+  const o = _tkEl('tkNatijaOyna');
+  if (!o) return;
+  _tkEl('tkNatijaSarlavha').textContent = `Taklif ${t.raqam} ${tahrir ? 'yangilandi' : 'saqlandi'}`;
+  _tkEl('tkNatijaMatn').innerHTML = `Mijoz: <b>${escapeHtml(t.mijoz)}</b>${t.telefon ? ' · ' + escapeHtml(t.telefon) : ''}<br>`
+    + `To'lov summasi: <b>${narxKorinishi(t.kelishilgan)} so'm</b> · narxlar <b>${escapeHtml(tkSana(t.amal_muddati))}</b> gacha amal qiladi`;
+  const og = _tkEl('tkNatijaOgoh');
+  if (ogoh && ogoh.length) {
+    og.innerHTML = `<div style="font-size:13px;font-weight:700;color:var(--m-b45309);margin-bottom:6px">⚠️ Omborda yetmaydi (buyurtma rasmiylashtirilganda kerak bo'ladi):</div>`
+      + ogoh.map(x => `<div class="val-item"><i class="ti ti-alert-triangle"></i><span>${escapeHtml(x)}</span></div>`).join('');
+    og.style.display = 'block';
+  } else {
+    og.innerHTML = '';
+    og.style.display = 'none';
+  }
+  _tkEl('tkNatijaPdf').href = `/api/takliflar/${Number(t.id)}/pdf`;
+  o.style.display = 'flex';
+}
+
+function tkNatijaYop() {
+  const o = _tkEl('tkNatijaOyna');
+  if (o) setTimeout(() => { o.style.display = 'none'; }, 0);
+}
+
+// Rasmiylashtirish so'rovi (submitOrderRequest shu yerdan oladi): mavjud loyiha YOKI yangi loyiha (ism / telefon — taklifdan),
+// buyurtma tanasi — formadan (taklif izohi bilan). Taklif rejimi bo'lmasa — null (oddiy buyurtma)
+function taklifRasmiySorovi(data, confirmShortage) {
+  if (!taklifRejim || taklifRejim.tur !== 'rasmiy' || !taklifRejim.id) return null;
+  const sel = _tkEl('project_id');
+  const buyurtma = Object.assign({}, data);
+  delete buyurtma.project_id;
+  buyurtma.notes = taklifRejim.izoh || null;
+  const tana = { buyurtma };
+  if (sel && sel.value === '__taklif') {
+    tana.yangi_loyiha = { project_name: sanitizeToLatin(((_tkEl('tk_loyiha_nomi') || {}).value || '').trim()),
+                          client_name: taklifRejim.mijoz, client_phone: taklifRejim.telefon || null };
+  } else {
+    tana.loyiha_id = parseInt(sel ? sel.value : '') || null;
+  }
+  return { url: `/api/takliflar/${Number(taklifRejim.id)}/rasmiylashtir` + (confirmShortage ? '?confirm_shortage=true' : ''), tana };
+}
+
+// ── «📝 Takliflar» ro'yxati ──────────────────────────────────────────────────────────────────────────────────────────
+async function takliflarOch() {
+  const forma = _tkEl('newOrderForm');
+  if (taklifRejim && taklifRejim.tur !== 'rasmiy' && forma && forma.style.display !== 'none' && !_tkYuborilmoqda
+      && Array.from(document.querySelectorAll('#items .detal')).some(r => ((r.querySelector('.i-name') || {}).value || '').trim())) {
+    if (!(await customConfirm("Kiritilgan taklif saqlanmagan — u tozalanadi. «📝 Takliflar» ochilsinmi?",
+                              {okText: 'Ha, ochish', cancelText: 'Qolish'}))) return;
+  }
+  if (taklifRejim) taklifRejiminiTozala(true);
+  hideNewForm();
+  _tkKorsat(_tkEl('orderDetail'), false);
+  _tkKorsat(_tkEl('emptyMid'), false);
+  _tkKorsat(_tkEl('sumCard'), false);
+  document.querySelectorAll('.ord-item').forEach(i => i.classList.remove('active'));
+  selectedOrderId = null;
+  const p = _tkEl('takliflarPanel');
+  if (p) p.style.display = 'block';
+  try { if (p && telefonKorinishimi()) p.scrollIntoView({ block: 'start' }); } catch (e) {}
+  await takliflarYukla();
+}
+
+function takliflarYop() {
+  _tkKorsat(_tkEl('takliflarPanel'), false);
+  if (!selectedOrderId) _tkKorsat(_tkEl('emptyMid'), true);
+}
+
+function takliflarQidir() {
+  clearTimeout(_tkQidTaymer);
+  _tkQidTaymer = setTimeout(() => { _tkSahifa = 1; takliflarYukla(); }, 300);
+}
+
+function takliflarFiltr(f) {
+  _tkFiltr = f;
+  _tkSahifa = 1;
+  document.querySelectorAll('#takliflarPanel .tk-f').forEach(b => {
+    const a = b.dataset.f === f;
+    b.classList.toggle('active', a);
+    b.setAttribute('aria-pressed', a ? 'true' : 'false');
+  });
+  takliflarYukla();
+}
+
+function takliflarSahifa(n) { _tkSahifa = n; takliflarYukla(); }
+
+async function takliflarYukla() {
+  const q = ((_tkEl('tkQidiruv') || {}).value || '').trim();
+  const p = new URLSearchParams({ filtr: _tkFiltr, sahifa: String(_tkSahifa) });
+  if (q) p.set('q', q);
+  const box = _tkEl('tkRoyxat');
+  try {
+    const res = await fetch('/api/takliflar?' + p.toString());
+    let d = null;
+    try { d = await res.json(); } catch (e) { d = null; }
+    if (!res.ok || !d) {
+      if (box) box.innerHTML = `<div class="tk-bosh-holat">❌ ${escapeHtml((typeof xatoSababi === 'function') ? xatoSababi(d, "Takliflar yuklanmadi") : "Takliflar yuklanmadi")}</div>`;
+      return;
+    }
+    takliflarChiz(d);
+  } catch (e) {
+    if (box) box.innerHTML = `<div class="tk-bosh-holat">❌ Server bilan aloqa yo'q — takliflar yuklanmadi</div>`;
+  }
+}
+
+function _tkHolatBelgisi(t) {
+  if (t.holat === 'rasmiylashtirildi') return `<span class="tk-belgi rasmiy">✅ Rasmiylashtirilgan</span>`;
+  if (t.holat === 'bekor') return `<span class="tk-belgi bekor">⛔ Bekor qilingan</span>`;
+  if (t.muddati_otgan) return `<span class="tk-belgi otgan">⏰ Muddati o'tgan</span>`;
+  return `<span class="tk-belgi faol">Amalda</span>`;
+}
+
+function takliflarChiz(d) {
+  const box = _tkEl('tkRoyxat');
+  if (!box) return;
+  const son = d.sonlar || {};
+  document.querySelectorAll('#takliflarPanel .tk-f').forEach(b => {
+    const sp = b.querySelector('.f-son');
+    if (sp) sp.textContent = son[b.dataset.f] ? String(son[b.dataset.f]) : '';
+  });
+  const tks = _tkEl('tkSoni');
+  if (tks) {
+    const n = (son.faol || 0) + (son.muddati_otgan || 0);
+    if (!d.qidiruv) { tks.textContent = String(n); tks.style.display = n ? '' : 'none'; }
+  }
+  const yarat = (_tkEl('takliflarPanel') || {dataset: {}}).dataset.yaratish === '1';
+  const ts = d.takliflar || [];
+  if (!ts.length) {
+    box.innerHTML = `<div class="tk-bosh-holat">${d.qidiruv || (d.filtr && d.filtr !== 'hammasi') ? "Bu qidiruv / filtr bo'yicha taklif yo'q"
+      : "Hali taklif yo'q. «⚡ Tez hisob» — loyiha va buyurtma ochmasdan mijozga narx hisoblab, TAKLIF hujjatini berish."}</div>`;
+  } else {
+    box.innerHTML = ts.map(t => {
+      const id = Number(t.id);
+      const mij = escapeHtml(t.mijoz) + (t.telefon ? ` · <a href="tel:${escapeHtml(String(t.telefon).replace(/[^0-9+]/g, ''))}">${escapeHtml(t.telefon)}</a>` : '');
+      const det = (t.detallar || []).map(x => escapeHtml(x)).join(', ') + (t.detallar_soni > (t.detallar || []).length ? ', …' : '');
+      let muddat = '';
+      if (t.holat === 'yangi') {
+        muddat = t.muddati_otgan ? `<span style="color:var(--m-dc2626);font-weight:600">Muddati o'tgan: ${escapeHtml(tkSana(t.amal_muddati))} gacha edi</span>`
+                                 : `Narxlar ${escapeHtml(tkSana(t.amal_muddati))} gacha amal qiladi`;
+      } else if (t.holat === 'rasmiylashtirildi') {
+        muddat = `Rasmiylashtirildi: ${escapeHtml(tkSanaVaqt(t.rasmiylashtirilgan))}${t.rasmiylashtirgan ? ' · ' + escapeHtml(t.rasmiylashtirgan) : ''} — `
+          + (t.buyurtma_bor ? `<a href="/orders?order=${Number(t.order_id)}" style="color:var(--gold-dark);font-weight:600">${escapeHtml(t.order_raqam || '')}</a>`
+                            : `${escapeHtml(t.order_raqam || '')} (o'chirilgan)`);
+      } else if (t.holat === 'bekor') {
+        muddat = `Bekor qilindi: ${escapeHtml(tkSanaVaqt(t.bekor_vaqti))}${t.bekor_qilgan ? ' · ' + escapeHtml(t.bekor_qilgan) : ''}`;
+      }
+      const chegirma = Math.abs(Number(t.jami) - Number(t.kelishilgan)) > 0.005 ? `<div class="tk-meta">jami ${narxKorinishi(t.jami)}</div>` : '';
+      let amallar = `<a class="btn btn-outline btn-sm" href="/api/takliflar/${id}/pdf" target="_blank" rel="noopener">📄 PDF</a>`;
+      if (t.holat === 'yangi' && yarat) {
+        amallar += `<button type="button" class="btn btn-green btn-sm" onclick="taklifRasmiy(${id})">✅ Rasmiylashtirish</button>`
+          + `<button type="button" class="btn btn-outline btn-sm" onclick="taklifTahrir(${id})">✏️ Tahrirlash</button>`
+          + `<button type="button" class="btn btn-outline btn-sm" onclick="taklifBekor(${id})">⛔ Bekor qilish</button>`;
+      }
+      if (t.holat === 'rasmiylashtirildi' && t.buyurtma_bor) {
+        amallar += `<a class="btn btn-outline btn-sm" href="/orders?order=${Number(t.order_id)}">📦 Buyurtmani ochish</a>`;
+      }
+      return `<div class="tk-qator${id === _tkYangiId ? ' yangi-saqlangan' : ''}" data-id="${id}">
+        <div style="min-width:0">
+          <div class="tk-bosh"><span class="tk-raqam">${escapeHtml(t.raqam)}</span>${_tkHolatBelgisi(t)}</div>
+          <div class="tk-mijoz">${mij}</div>
+          <div class="tk-meta">${escapeHtml(tkSanaVaqt(t.tahrirlangan || t.yaratilgan))}${t.yaratgan ? ' · ' + escapeHtml(t.yaratgan) : ''} · ${Number(t.detallar_soni) || 0} ta detal${det ? ': ' + det : ''}</div>
+          ${t.izoh ? `<div class="tk-meta">📝 ${escapeHtml(t.izoh)}</div>` : ''}
+          <div class="tk-meta">${muddat}</div>
+        </div>
+        <div class="tk-summa">${narxKorinishi(t.kelishilgan)} so'm${chegirma}</div>
+        <div class="tk-amallar">${amallar}</div>
+      </div>`;
+    }).join('');
+  }
+  const pg = _tkEl('tkSahifa');
+  if (pg) {
+    if ((d.sahifalar || 1) > 1) {
+      pg.innerHTML = `<span>${Number(d.jami) || 0} ta · ${Number(d.sahifa)}-sahifa (${Number(d.sahifalar)} dan)</span><span style="display:flex;gap:6px">`
+        + (d.sahifa > 1 ? `<button type="button" class="btn btn-outline btn-sm" onclick="takliflarSahifa(${Number(d.sahifa) - 1})">← Yangiroqlar</button>` : '')
+        + (d.sahifa < d.sahifalar ? `<button type="button" class="btn btn-outline btn-sm" onclick="takliflarSahifa(${Number(d.sahifa) + 1})">Eskiroqlar →</button>` : '')
+        + `</span>`;
+      pg.style.display = 'flex';
+    } else {
+      pg.innerHTML = '';
+      pg.style.display = 'none';
+    }
+  }
+}
+
+async function _taklifniOl(id) {
+  try {
+    const res = await fetch(`/api/takliflar/${Number(id)}`);
+    let d = null;
+    try { d = await res.json(); } catch (e) { d = null; }
+    if (!res.ok || !d || !d._taklif) {
+      showMsg('❌ ' + ((typeof xatoSababi === 'function') ? xatoSababi(d, 'Taklif topilmadi') : 'Taklif topilmadi'), 'error');
+      return null;
+    }
+    return d;
+  } catch (e) {
+    showMsg("❌ Server bilan aloqa yo'q", 'error');
+    return null;
+  }
+}
+
+async function taklifTahrir(id) {
+  const o = await _taklifniOl(id);
+  if (!o) return;
+  if (o._taklif.holat !== 'yangi') { showMsg(`❌ Taklif ${o._taklif.raqam} ${String(o._taklif.holat_nomi || '').toLowerCase()} — tahrirlab bo'lmaydi`, 'error'); takliflarYukla(); return; }
+  await editSelected('taklif', o);
+}
+
+async function taklifRasmiy(id) {
+  const o = await _taklifniOl(id);
+  if (!o) return;
+  if (o._taklif.holat !== 'yangi') { showMsg(`❌ Taklif ${o._taklif.raqam} ${String(o._taklif.holat_nomi || '').toLowerCase()} — qayta rasmiylashtirib bo'lmaydi`, 'error'); takliflarYukla(); return; }
+  await editSelected('rasmiy', o);
+}
+
+async function taklifBekor(id) {
+  const qator = document.querySelector(`#tkRoyxat .tk-qator[data-id="${Number(id)}"] .tk-raqam`);
+  const raqam = qator ? qator.textContent : '';
+  if (!(await showConfirmModal(`${raqam} taklifi bekor qilinsinmi?\n\nTaklif o'chirilmaydi — ro'yxatda «Bekor qilingan» bo'lib qoladi, uni endi rasmiylashtirib bo'lmaydi.`,
+                               {danger: true, okText: 'Ha, bekor qilish', title: 'Taklifni bekor qilish'}))) return;
+  try {
+    const res = await fetch(`/api/takliflar/${Number(id)}/bekor`, { method: 'POST' });
+    let d = null;
+    try { d = await res.json(); } catch (e) { d = null; }
+    if (!res.ok) {
+      showMsg('❌ ' + ((typeof xatoSababi === 'function') ? xatoSababi(d, 'Taklif bekor qilinmadi') : 'Taklif bekor qilinmadi'), 'error');
+    } else {
+      showMsg(`✓ ${raqam} taklifi bekor qilindi`, 'success');
+    }
+  } catch (e) {
+    showMsg("❌ Server bilan aloqa yo'q", 'error');
+  }
+  takliflarYukla();
+}
+
+// «/orders?takliflar=1» — «📝 Takliflar» ro'yxati ochiq holda; «/orders?tez_hisob=1» — yangi tez hisob
+function takliflarParamdanOch(params) {
+  if (params.get('takliflar') === '1') { takliflarOch(); history.replaceState(null, '', window.location.pathname); return true; }
+  if (params.get('tez_hisob') === '1' && _tkEl('tezHisobBtn')) { tezHisobOch(); history.replaceState(null, '', window.location.pathname); return true; }
+  return false;
 }
 
 // ── Detal qo'shish ────────────────────────────────────────
@@ -4784,6 +5341,16 @@ function detalYorligi(row, idx) {
 function buyurtmaUmumiyKamchiliklar(items) {
   const issues = [];
   const projId = parseInt((document.getElementById('project_id') || {}).value);
+  // kech126 (zip 148): taklif — loyiha yo'q, mijoz ismi SHART; rasmiylashtirish — loyiha yoki «➕ Yangi loyiha» (nomi bilan)
+  const _tk126 = (typeof taklifRejim !== 'undefined') ? taklifRejim : null;
+  const _tkYangiLoy126 = !!(_tk126 && _tk126.tur === 'rasmiy' && (document.getElementById('project_id') || {}).value === '__taklif');
+  if (_tk126 && _tk126.tur !== 'rasmiy') {
+    if (((document.getElementById('tk_mijoz') || {}).value || '').trim().length < 2)
+      issues.push({ text: "Mijoz ismi kiritilmagan (kamida 2 harf)", targetId: 'tk_mijoz' });
+  } else if (_tkYangiLoy126) {
+    if (((document.getElementById('tk_loyiha_nomi') || {}).value || '').trim().length < 2)
+      issues.push({ text: "Yangi loyiha nomi kiritilmagan (kamida 2 harf)", targetId: 'tk_loyiha_nomi' });
+  } else
   if (!projId) issues.push({ text: "Loyiha tanlanmagan", targetId: 'project_id_search' });
   const nomsiz = [];
   document.querySelectorAll('.detal').forEach((row, idx) => {
@@ -4795,6 +5362,10 @@ function buyurtmaUmumiyKamchiliklar(items) {
   return issues;
 }
 function showValidationModal(issues) {
+  // kech126 (zip 148): taklif yozilayotgan bo'lsa — sarlavha «Taklifni saqlashdan oldin»
+  const _vt126 = document.getElementById('validationTitle');
+  if (_vt126) _vt126.textContent = (typeof taklifRejim !== 'undefined' && taklifRejim && taklifRejim.tur !== 'rasmiy')
+    ? 'Taklifni saqlashdan oldin' : 'Buyurtmani saqlashdan oldin';
   const list = document.getElementById('validationList');
   list.innerHTML = issues.map(it => `
     <div class="val-item" onclick="scrollToValidationField('${it.targetId}')">
@@ -4833,10 +5404,14 @@ async function saveOrder(isDraft = false) {
   }
 
   const projId = parseInt(document.getElementById('project_id').value);
+  // kech126 (zip 148 — egasi qarori 3): taklif yozilmoqda — loyiha, topshirish sanasi, loy miqdori SHART EMAS; ombor tegilmaydi —
+  // tayyor mahsulot yetmasa ham saqlanadi (server «omborda yetmaydi» ogohlantirishini qaytaradi)
+  const _tk126 = (typeof taklifRejim !== 'undefined') ? taklifRejim : null;
+  const _tkTaklif126 = !!(_tk126 && _tk126.tur !== 'rasmiy');
 
   // Tayyor mahsulot chegarasi
   const fpErr = document.querySelectorAll('.detal[data-fp-error="1"]');
-  if (fpErr.length) {
+  if (fpErr.length && !_tkTaklif126) {
     showMsg('❌ Tayyor mahsulot omborda yetarli emas — qizil maydonlarni to\'g\'rilang', 'error');
     fpErr[0].scrollIntoView({behavior:'smooth', block:'center'});
     return;
@@ -4850,7 +5425,7 @@ async function saveOrder(isDraft = false) {
   const issues = buyurtmaUmumiyKamchiliklar(items);
 
   const deadlineVal = document.getElementById('deadline_input')?.value || '';
-  if (!deadlineVal) {
+  if (!deadlineVal && !_tkTaklif126) {
     issues.push({ text: "Topshirish sanasi kiritilmagan", targetId: 'deadline_input' });   // kech120 (zip 134 — G2-09): maydon nomi bilan bir xil
   }
 
@@ -4868,11 +5443,12 @@ async function saveOrder(isDraft = false) {
     return cEl && cEl.value === 'true';
   });
   const loyVal = parseFloat(document.getElementById('loy_kg')?.value) || 0;
-  if (anyCoated && !loyVal) {
+  if (anyCoated && !loyVal && !_tkTaklif126) {
     issues.push({ text: "Loy miqdori (kg) kiritilmagan", targetId: 'loy_kg' });
   }
   // kech103 (54-band, QAROR "Majburiy tanlov"): qoplama retsepti (yaratish ham, qoralama ham)
-  const retseptXato54 = retseptMajburiyXatosi54(anyCoated, loyVal);
+  // kech126 (zip 148): taklifda — faqat loy kiritilgan bo'lsa (server ham shu qoida: `crud.qoplama_retsepti_tekshir`)
+  const retseptXato54 = retseptMajburiyXatosi54(anyCoated && !_tkTaklif126, loyVal);
   if (retseptXato54) issues.push(retseptXato54);
 
   // Asosiy bo'lmagan plotnost tanlangan, lekin shu detalning o'z 1 m3 narxi yo'q
@@ -4943,14 +5519,24 @@ async function saveOrder(isDraft = false) {
     loy_kg: parseFloat(document.getElementById('loy_kg')?.value || '0') || null
   };
 
+  // kech126 (zip 148): taklif — `POST /api/takliflar` (tahrirda `PUT`), izoh bilan; rasmiylashtirish — quyidagi umumiy oqim
+  if (_tkTaklif126 && typeof taklifniYubor === 'function') {
+    data.notes = ((document.getElementById('tk_izoh') || {}).value || '').trim() || null;
+    await taklifniYubor(data);
+    return;
+  }
+
   await submitOrderRequest(data, isDraft, zaklat, zaklatMethod, false);
 }
 
 async function submitOrderRequest(data, isDraft, zaklat, zaklatMethod, confirmShortage) {
   try {
     const url = '/api/orders' + (confirmShortage ? '?confirm_shortage=true' : '');
-    const res = await fetch(url, { method:'POST',
-      headers:{'Content-Type':'application/json'}, body: JSON.stringify(data) });
+    // kech126 (zip 148): taklifni rasmiylashtirish — o'sha oqim (409 yetishmovchilik oynasi, zaklat, rasmlar), manzil va tana —
+    // `POST /api/takliflar/{id}/rasmiylashtir` (server bitta tranzaksiyada: loyiha + buyurtma + taklif holati)
+    const _tkR126 = (typeof taklifRasmiySorovi === 'function') ? taklifRasmiySorovi(data, confirmShortage) : null;
+    const res = await fetch(_tkR126 ? _tkR126.url : url, { method:'POST',
+      headers:{'Content-Type':'application/json'}, body: JSON.stringify(_tkR126 ? _tkR126.tana : data) });
     if (res.ok) {
       const saved = await res.json();
       orderJustSubmitted = true;
@@ -5124,7 +5710,11 @@ function tmSaqlanganBirlikNarxi(item, cat) {
 }
 
 async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx = null) {
-  if (!selectedOrderId) return;
+  // kech126 (zip 148): 'taklif' (taklifni tahrirlash) / 'rasmiy' (taklifni rasmiylashtirish) — forma `GET /api/takliflar/{id}`
+  // javobi (buyurtma shaklida) bilan to'ldiriladi: narx — taklifdagi (saqlangan) narx, ombor hali tegilmagan (tayyor mahsulot
+  // chegarasi — joriy qoldiq), topshirish holati yo'q
+  const isTaklif = (mode === 'taklif' || mode === 'rasmiy') && !!preloadedOrder;
+  if (!selectedOrderId && !isTaklif) return;
   const editId = selectedOrderId; // showNewForm null qilishidan oldin saqlab qo'yamiz
   const isDup = mode === 'duplicate';
 
@@ -5160,7 +5750,9 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
     // detaliga BEGONA cheklov qo'yilib, o'zgarishsiz saqlash ham to'sib qo'yilardi.
     let _dlvHolat103 = null;
     window._dlvMap = {};
-    if (!isDup) {
+    if (isTaklif) {
+      // kech126 (zip 148): taklifda buyurtma yo'q — topshirish holati o'qilmaydi
+    } else if (!isDup) {
       try {
         const dr0 = await fetch(`/api/orders/${editId}/delivery-status`);
         if (dr0.ok) {
@@ -5448,7 +6040,7 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
               // miqdor QAYTA hisobga olinib, ombor "minus"ga tushib qolishi
               // mumkin edi.
               const used = (item.category === 'profil') ? (item.length||0) : (item.quantity||0);
-              row.dataset.fpMax = isDup ? fp.quantity : (fp.quantity + used);
+              row.dataset.fpMax = (isDup || isTaklif) ? fp.quantity : (fp.quantity + used);   // kech126: taklifda ham ombor tegilmagan
               // 75-band: 'edit' rejimida narx SAQLANGAN narxda qoladi (yuqorida
               // o'rnatildi) — bu fetch faqat qoldiq (fpMax) uchun. 'duplicate'
               // (nusxa — YANGI sotuv) rejimida esa tayyor mahsulotning JORIY narxi,
@@ -5512,6 +6104,26 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
       window._dlvMap = {};
       document.getElementById('formTitle').textContent = `Yangi buyurtma (nusxa: ${order.order_number})`;
       showMsg(`📋 ${order.order_number} asosida nusxa olindi — miqdor/narxlarni tekshirib, saqlang`, 'success');
+    } else if (isTaklif) {
+      // kech126 (zip 148 — «Tez hisob / Taklif»): taklifdagi kelishilgan summa va loy rejasi; mijoz, sarlavha, tugmalar, loyiha /
+      // muddat / zaklat ko'rinishi — `taklifRejiminiOrnat` (rejimga qarab)
+      window._dlvMap = {};
+      const _tk126 = order._taklif || {};
+      const _fp126 = document.getElementById('final_price');
+      if (_fp126) _fp126.value = order.agreed_amount ? narxKorinishi(order.agreed_amount) : '';
+      const _loy126 = document.getElementById('loy_kg');
+      if (_loy126) {
+        _loy126.value = order.loy_kg ? order.loy_kg : '';
+        if (typeof checkLoyStock === 'function') checkLoyStock();
+      }
+      if (typeof taklifRejiminiOrnat === 'function') {
+        taklifRejiminiOrnat({ tur: mode === 'rasmiy' ? 'rasmiy' : 'tahrir', id: _tk126.id, raqam: _tk126.raqam || order.order_number,
+                              mijoz: _tk126.mijoz || '', telefon: _tk126.telefon || '', izoh: order.notes || '',
+                              muddatiOtgan: !!_tk126.muddati_otgan, amalMuddati: _tk126.amal_muddati || '' });
+      }
+      showMsg(mode === 'rasmiy'
+        ? `✅ ${_tk126.raqam || ''} — loyihani tanlang, ma'lumotlarni tekshiring va «Buyurtmani rasmiylashtirish» ni bosing`
+        : `✏️ ${_tk126.raqam || ''} taklifi tahrirlash rejimida`, 'success');
     } else {
       // Tahrirlash rejimi + saqlangan chegirma foizi
       editMode = true;
