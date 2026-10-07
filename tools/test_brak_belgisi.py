@@ -776,8 +776,14 @@ _crud_src = inspect.getsource(crud)
 _srv_src = inspect.getsource(services)
 _main_src = inspect.getsource(main)
 _xul = inspect.getsource(crud.get_brak_material_summary)
+# kech125 (zip 146 — brak taqdiri, MOSLANDI): xulosa `crud.brak_harakatlari_sharti` ni oladi — CHIQIM qismi o'sha yagona
+# `brak_harakati_sharti`, qo'shimcha faqat taqdir qatoriga bog'langan kirim (taqdirsiz eski kirim kirmaydi — D2d).
+_xs1 = inspect.getsource(getattr(crud, "brak_harakatlari_sharti", lambda: None))
 check("S1 xulosa yagona shartni ishlatadi, matn qidiruvi yo'q",
-      "brak_harakati_sharti(InventoryMovement)" in _xul and 'reason.like("Brak%")' not in _xul)
+      ("brak_harakati_sharti(InventoryMovement)" in _xul
+       or ("brak_harakatlari_sharti(InventoryMovement)" in _xul and "brak_harakati_sharti(IM)" in _xs1
+           and "IM.brak_taqdir_id.isnot(None)" in _xs1 and 'reason.like("Brak%")' not in _xs1))
+      and 'reason.like("Brak%")' not in _xul)
 check("S2 kodda 'reason.like(\"Brak%\")' qolmadi (crud, services)",
       'reason.like("Brak%")' not in _crud_src and 'reason.like("Brak%")' not in _srv_src)
 _sarf = inspect.getsource(services._buyurtma_sarf_narxlari) + \

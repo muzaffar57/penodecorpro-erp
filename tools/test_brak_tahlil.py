@@ -985,9 +985,12 @@ check("S2 create_return_item: sabab va javobgar faqat DEFECT da yoziladi",
       "brak_sabab=(_sabab if reason_enum == ReturnReason.DEFECT else None)" in _cr
       and "brak_javobgar_id=(_javobgar if reason_enum == ReturnReason.DEFECT else None)" in _cr)
 _pb = inspect.getsource(crud.record_finished_product_production_brak)
+# kech125 (zip 146 — brak taqdiri, MOSLANDI): yozuv (`FinishedProductLoss`) endi xomashyo yechimidan OLDIN yaratiladi (flush) —
+# yechilgan xomashyo harakatlari yozuvga `fp_loss_id` bilan bog'lanadi (bitta tranzaksiya); tekshiruv tartibi o'zgarmadi:
+# sabab va javobgar tekshiruvi ikkalasidan OLDIN.
 check("S3 ishlab chiqarish braki: sabab _clean_val da, javobgar tekshiruvi xomashyo yechimidan va yozuvdan OLDIN",
-      tartibda(_pb, '"brak_sabab": brak_sabab,', "_brak_javobgar_tekshir(db, brak_javobgar_id",
-               "_ishlab_chiqarish_braki_xomashyo(", "loss = FinishedProductLoss(")
+      tartibda(_pb, '"brak_sabab": brak_sabab,', "_brak_javobgar_tekshir(db, brak_javobgar_id", "loss = FinishedProductLoss(")
+      and tartibda(_pb, "_brak_javobgar_tekshir(db, brak_javobgar_id", "_ishlab_chiqarish_braki_xomashyo(")
       and tartibda(_pb, "_brak_javobgar_tekshir(db, brak_javobgar_id", "_mrp_ishlab_chiqarish_braki_xomashyo(")
       and "brak_javobgar_id=brak_javobgar_id" in _pb)
 _lo = inspect.getsource(crud.record_finished_product_loss)
@@ -1009,9 +1012,14 @@ check("S7 tahlil marshruti Hisobotlar ruxsati bilan (auth.ruxsat(\"hisobot\", \"
 check("S8 migratsiya: 37 / 38-band migratsiyalaridan KEYIN chaqiriladi, e'londan keyin",
       tartibda(_ms, "\n_migrate_brak_belgisi()\n", "def _migrate_brak_sabab_javobgar():", "\n_migrate_brak_sabab_javobgar()\n"))
 _sv = inspect.getsource(getattr(services, "get_brak_tahlil", lambda: None))
+# kech125 (zip 146 — brak taqdiri, MOSLANDI): davr yozuvlari endi `crud.brak_davr_yozuvlari` da (Moliya qatorlari bilan bitta
+# hisob, taqdir hodisalari o'z vaqtida) — korxona filtri o'sha funksiyada tekshiriladi.
+_dy9 = inspect.getsource(getattr(crud, "brak_davr_yozuvlari", lambda: None))
 check("S9 tahlil: ulush get_monthly_report dan (Moliya bilan BIR manba), me'yor crud.BRAK_MEYORI_FOIZ dan",
       "get_monthly_report(db, yy, mm, company_id=company_id)" in _sv and "_cr.BRAK_MEYORI_FOIZ" in _sv
-      and "ReturnItem.company_id == company_id" in _sv and "FinishedProductLoss.company_id == company_id" in _sv)
+      and (("ReturnItem.company_id == company_id" in _sv and "FinishedProductLoss.company_id == company_id" in _sv)
+           or ("_cr.brak_davr_yozuvlari(db, start_date=_b_boshi, end_date=_b_oxiri, company_id=company_id)" in _sv
+               and "ReturnItem.company_id == company_id" in _dy9 and "_FPL.company_id == company_id" in _dy9)))
 
 print(f"\nNATIJA:  o'tdi = {OK}   yiqildi = {FAIL}   jami = {OK + FAIL}")
 if FAILED:

@@ -61,12 +61,18 @@ tekshir("U3 qaytgan MRP mahsuloti ('mrp_product') — ro'yxatda YO'Q (surati yo'
 // `brak-manba-ishlab` elementi (ko'rinsa '' , yashirin — 'none')
 const _sk = /<script>([\s\S]*?)<\/script>/.exec(oqi(path.join(ROOT, 'templates', '_brak_oyna.html')));
 const kod = (_sk && olib(FINISHED, 'openLossModal')) ? _sk[1].replace(/\{%\s*if[^%]*%\}([\s\S]*?)(?:\{%\s*else\s*%\}[\s\S]*?)?\{%\s*endif\s*%\}/g, '$1').replace(/\{%[\s\S]*?%\}/g, '') : null;
+// kech125 (zip 146 — brak taqdiri, MOSLANDI): oyna ochilganda «Taqdiri» bo'limi chiziladi — base.html yordamchilari
+// (`escapeHtml`, birlik ro'yxati uchun `birlikQisqa` / `birlikKor`, son ko'rinishi `sonKor`; sahifada global) ham kerak;
+// AYNAN base.html dagilari olinadi.
+const _BASE = oqi(path.join(ROOT, 'templates', 'base.html'));
+const _escapeHtml = ['escapeHtml', 'birlikKor', 'birlikQisqa', 'sonKor'].map((n) => olib(_BASE, n)).filter(Boolean).join('\n');
 function och(kat) {
   const el = {};
   const ctx = { document: { getElementById: (id) => (el[id] = el[id] || element('')), querySelectorAll: () => [],
                             querySelector: () => null }, console, Math, Number, String, Array, Object };
   vm.createContext(ctx);
   try {
+    if (_escapeHtml) vm.runInContext(_escapeHtml, ctx);
     vm.runInContext(kod, ctx);
     vm.runInContext(`openLossModal(7, 'X', 10, 'm²', ${JSON.stringify(kat)})`, ctx);
     return el['brak-manba-ishlab'].style.display === 'none' ? 'none' : 'flex';

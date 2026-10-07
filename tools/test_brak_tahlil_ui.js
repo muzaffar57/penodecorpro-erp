@@ -345,8 +345,11 @@ function tahlilNamuna(qosh) {
   }, qosh || {});
 }
 
-function tahlilKodi() {
-  const qismlar = [olib(BASE, 'escapeHtml'), konst(RETURNS, 'BRAK_OY_NOMLARI'), olib(RETURNS, 'brakTahlilOyMatn'),
+function tahlilKodi(koradi) {
+  // kech125 (zip 146 — brak taqdiri, MOSLANDI): «Taqdiri» ustunidagi 🧩 tugma — sahifa konstantasi `KORADI_BRAK_YARATISH`
+  // (Jinja ruxsatdan yozadi — skriptdan olib bo'lmaydi); T1–T7 — tugmasiz (avvalgidek), T7b — tugma bilan.
+  const qismlar = ['var KORADI_BRAK_YARATISH = ' + (koradi ? 'true' : 'false') + ';',
+                   olib(BASE, 'escapeHtml'), konst(RETURNS, 'BRAK_OY_NOMLARI'), olib(RETURNS, 'brakTahlilOyMatn'),
                    olib(RETURNS, 'brakFoizMatn'), olib(RETURNS, 'brakTahlilHtml')];
   // kech106: yo'qotish sanasi `tkISO` (base.html — Toshkent vaqti yordamchilari) orqali
   // kech118 (B — U-05, MOSLANDI): sahifa funksiyalari endi base.html `sonKor` / `foizKor` ni chaqiradi — ro'yxatga qo'shildi
@@ -357,9 +360,9 @@ function tahlilKodi() {
   return qismlar.every(Boolean) ? tk.concat(qismlar).join('\n') : null;
 }
 
-async function tahlilChiz(d) {
+async function tahlilChiz(d, koradi) {
   const m = muhit({}, {}, {}, {});
-  const kod = tahlilKodi();
+  const kod = tahlilKodi(koradi);
   if (!kod) return { xato: 'funksiyalar topilmadi', natija: '' };
   vm.runInContext('var __d = ' + JSON.stringify(d) + ';', m.ctx);
   const r = await ishga(m, kod, 'brakTahlilHtml(__d)');
@@ -394,9 +397,22 @@ async function tahlilBolimi() {
           r.xato || qisqa(r.natija));
   r = await tahlilChiz(tahlilNamuna({ brak_foizi: null, ishlab_chiqarish_xarajat: 0, bosqichlar: [], sabablar: [],
                                       javobgarlar: [], top_detallar: [], yoqotishlar: [], trend: [] }));
+  // kech125 (zip 146 — brak taqdiri, MOSLANDI): yangi «🧩 Taqdir bo'yicha» taqsimoti — bo'sh bo'lsa u ham «Ma'lumot yo'q» (7-jadval)
+  const _bosh7 = 6 + (/Taqdir bo(&#39;|')yicha/.test(r.natija) ? 1 : 0);
   tekshir("T7 ulush yo'q (ishlab chiqarish 0) → '—' va tushuntirish; bo'sh jadvallar — 6 ta \"Ma'lumot yo'q\"",
           !r.xato && r.natija.includes('>—<') && r.natija.includes("hisoblab bo'lmaydi")
-          && (r.natija.match(/Ma'lumot yo'q/g) || []).length === 6, r.xato || qisqa(r.natija));
+          && (r.natija.match(/Ma'lumot yo'q/g) || []).length === _bosh7, r.xato || qisqa(r.natija));
+  // kech125 (zip 146 — brak taqdiri): «Taqdiri» ustuni; ruxsat bor — 🧩 tugma, data-* maydonlari escape (XSS yo'q)
+  r = await tahlilChiz(tahlilNamuna({ yoqotishlar: [Object.assign({}, tahlilNamuna().yoqotishlar[0],
+                                      { manba: 'ombor', taqdir_yorliq: '2-nav', taqdir_tafsilot: { taqdir: 'ikkinchi_nav', narx: 12000 } })] }), true);
+  tekshir("T7b «Taqdiri» ustuni: yorliq, 🧩 tugma (data-turi / data-id / data-manba), nomi va tafsilot escape, __xss yo'q",
+          !r.xato && r.natija.includes('>Taqdiri<') && r.natija.includes('2-nav') && r.natija.includes('class="mini-btn brak-taqdir-btn"')
+          && r.natija.includes('data-turi="yoqotish" data-id="1" data-manba="ombor"') && !r.natija.includes('<img')
+          && r.natija.includes('data-joriy="{&quot;taqdir&quot;:&quot;ikkinchi_nav&quot;,&quot;narx&quot;:12000}"')
+          && r.ctx && r.ctx.__xss === undefined, r.xato || qisqa(r.natija));
+  r = await tahlilChiz(tahlilNamuna(), false);
+  tekshir("T7c ruxsat yo'q (KORADI_BRAK_YARATISH = false) — yorliq «Tashlandi», 🧩 tugma YO'Q",
+          !r.xato && r.natija.includes('Tashlandi') && !r.natija.includes('brak-taqdir-btn'), r.xato || qisqa(r.natija));
 
   // loadBrakTahlil — URL, rad va tarmoq xatolari
   const lt = olib(RETURNS, 'loadBrakTahlil');

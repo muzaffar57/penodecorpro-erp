@@ -646,8 +646,17 @@ try:
 except Exception:                          # noqa: BLE001
     _bs = ""
 # kech52 (13-band, 3-qadam): ikkalasi ham YAGONA `crud.brak_harakati_sharti` ni ishlatadi (matn emas).
+# kech125 (zip 146 — brak taqdiri, MOSLANDI): xulosa `crud.brak_harakatlari_sharti` ni oladi — uning CHIQIM qismi o'sha yagona
+# `brak_harakati_sharti`; taqdir kirimlari `is_brak IS TRUE` — yordamchi ularni ham o'sha shart bilan chiqaradi.
+try:
+    _bs6 = inspect.getsource(crud.brak_harakatlari_sharti)
+except Exception:                          # noqa: BLE001
+    _bs6 = ""
 check("S6 yordamchi brakni brak xulosasi bilan AYNAN bir shartda chiqaradi (crud.brak_harakati_sharti)",
-      "_not_sn(_crud_sn.brak_harakati_sharti(_IMv))" in _ys and "brak_harakati_sharti(InventoryMovement)" in _bs)
+      "_not_sn(_crud_sn.brak_harakati_sharti(_IMv))" in _ys
+      and ("brak_harakati_sharti(InventoryMovement)" in _bs
+           or ("brak_harakatlari_sharti(InventoryMovement)" in _bs and "brak_harakati_sharti(IM)" in _bs6
+               and "IM.is_brak.is_(True)" in _bs6)))
 check("S7 yordamchi korxona filtri bilan", "_IMv.company_id == _cid_sn" in _ys and "Inventory.company_id == _cid_sn" in _ys)
 
 print()

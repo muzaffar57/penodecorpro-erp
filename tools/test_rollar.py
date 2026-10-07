@@ -415,6 +415,11 @@ YANGI_MARSHRUTLAR = {
     # kech124 (zip 144 — egasi qarorlari 06.10): loyiha «Yuk xatlari» ro'yxati va «Jamlab olish» varag'i — yuk xati PDF i bilan bir
     # ruxsat («Yetkazib berish va transport: Ko'rish»)
     "GET /api/projects/{project_id}/yuk-xatlari": "AM", "GET /api/projects/{project_id}/yuk-xatlari/jamlama-pdf": "AM",
+    # kech125 (zip 146 — egasi qarorlari 07.10 «Brak taqdiri»): taqdirni keyin o'zgartirish — o'sha yo'lning brak YOZISH ruxsati
+    # (buyurtma detali braki — «Qaytarishlar: Yaratish», tayyor mahsulot braki — «Brak: Yaratish»); tuzatish xomashyosi ro'yxati —
+    # ikkalasidan biri (brak oynasi ikkala yo'lda ochiladi)
+    "POST /api/returns/{return_id}/taqdir": "AMW", "POST /api/finished/loss/{loss_id}/taqdir": "AWM",
+    "GET /api/brak/tuzatish-materiallari": "AMW",
 }
 # ATAYLAB o'zgarishlar (rol, marshrut) → yangi holat (True — ochiq). Sababi: tayyor rollar sahifa bo'yicha izchil.
 FARQLAR = {

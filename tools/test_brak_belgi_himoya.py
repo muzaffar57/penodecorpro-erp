@@ -460,8 +460,17 @@ check("S3 ishlab chiqarish braki yozuvchisi yordamchini CHAQIRMAYDI",
 check("S4 services.py da belgi literal nusxasi YO'Q",
       _src_services.count('"' + BELGI + '"') == 0,
       str(_src_services.count('"' + BELGI + '"')))
+# kech125 (zip 146 — brak taqdiri, MOSLANDI): Moliya «Tayyor mahsulot yo'qotishi» qatori va yo'nalishlar hisobi endi crud da
+# (`crud.tm_yoqotish_qiymati`, `crud.brak_davr_yozuvlari`) — ular belgini `crud._ish_brakimi` orqali oladi.
+try:
+    _src_s5 = inspect.getsource(crud.tm_yoqotish_qiymati) + inspect.getsource(crud.brak_davr_yozuvlari)
+except Exception:
+    _src_s5 = ""
 check("S5 services.py Moliya / liniya / tahlil crud._ISH_BRAK_BELGI ni oladi (>= 3)",
-      _src_services.count("._ISH_BRAK_BELGI") >= 3, str(_src_services.count("._ISH_BRAK_BELGI")))
+      _src_services.count("._ISH_BRAK_BELGI") >= 3
+      or (_src_services.count("._ISH_BRAK_BELGI") >= 1 and ".tm_yoqotish_qiymati(" in _src_services
+          and ".brak_davr_yozuvlari(" in _src_services and _src_s5.count("_ish_brakimi(") >= 2),
+      str(_src_services.count("._ISH_BRAK_BELGI")))
 check("S6 crud.py da belgi matni FAQAT bir marta (konstanta)",
       _src_crud.count('"' + BELGI + '"') == 1, str(_src_crud.count('"' + BELGI + '"')))
 

@@ -347,9 +347,20 @@ check("crud._ish_brakimi mavjud", callable(getattr(crud, "_ish_brakimi", None)))
 _src_services = open(os.path.join(ROOT, "services.py"), encoding="utf-8").read()
 # kech57 (40-band): services literal NUSXA saqlamaydi — crud konstantasini oladi
 # (ilgari bu tekshiruv 2 ta nusxa AYNAN shu matn ekanini qulflardi).
+# kech125 (zip 146 — brak taqdiri, MOSLANDI): Moliya «Tayyor mahsulot yo'qotishi» qatori va yo'nalishlar hisobi endi crud da
+# (`crud.tm_yoqotish_qiymati`, `crud.brak_davr_yozuvlari` — taqdir hodisalari bilan bitta hisob); ular belgini `crud._ish_brakimi`
+# orqali oladi — services da qolgan to'g'ridan-to'g'ri foydalanish (tahlil) + shu ikki crud chaqiruvi.
+import inspect as _insp_g
+_g_tm = ""
+try:
+    _g_tm = _insp_g.getsource(crud.tm_yoqotish_qiymati) + _insp_g.getsource(crud.brak_davr_yozuvlari)
+except Exception:
+    _g_tm = ""
 check("services.py da belgi literal nusxasi YO'Q, crud._ISH_BRAK_BELGI ishlatiladi",
       BELGI is not None and _src_services.count(f'"{BELGI}"') == 0
-      and _src_services.count("._ISH_BRAK_BELGI") >= 3,
+      and (_src_services.count("._ISH_BRAK_BELGI") >= 3
+           or (_src_services.count("._ISH_BRAK_BELGI") >= 1 and ".tm_yoqotish_qiymati(" in _src_services
+               and ".brak_davr_yozuvlari(" in _src_services and _g_tm.count("_ish_brakimi(") >= 2)),
       str((_src_services.count('"Ishlab chiqarish jarayonida brak"'),
            _src_services.count("._ISH_BRAK_BELGI"))))
 _src_crud = open(os.path.join(ROOT, "crud.py"), encoding="utf-8").read()
