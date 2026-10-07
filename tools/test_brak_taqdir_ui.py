@@ -137,8 +137,11 @@ check("S4 saqlash: ikkala yo'lda taqdir — `typeof taqdirTanaOl === 'function'`
 check("S5 Qaytarishlar: brak qatorida taqdir belgisi va «🧩» (ruxsat bilan, `data-*`); tahlilda «Taqdiri» ustuni va «🧩»",
       "taqdirOynaOch(this)" in RT and 'data-turi="qaytarish"' in RT and "data-joriy='" in RT and "KORADI_BRAK_YARATISH" in RT
       and "Taqdir bo\\'yicha" in RT, None)
-check("S6 Tayyor mahsulotlar: «2-NAV» / «BRAKDAN KESILGAN» / «TUZATILGAN» belgilari (`brak_taqdir`)",
-      "i.brak_taqdir === 'ikkinchi_nav'" in FN and "2-NAV" in FN and "i.brak_taqdir === 'kesildi'" in FN, None)
+# kech125 (zip 147): kesilgan partiya belgisi qisqa — «✂️ KESILGAN» (tor ustunda sig'adi); uzun belgilar qatorga bo'linadi
+check("S6 Tayyor mahsulotlar: «2-NAV» / «KESILGAN» / «TUZATILGAN» belgilari (`brak_taqdir`); `.fp-badge` qatorga bo'linadi",
+      "i.brak_taqdir === 'ikkinchi_nav'" in FN and "2-NAV" in FN and "i.brak_taqdir === 'kesildi'" in FN
+      and "✂️ KESILGAN</span>" in FN and "TUZATILGAN</span>" in FN
+      and re.search(r"\.fp-badge\{[^}]*white-space:normal", FN) is not None, None)
 
 # ══════════════════════════════════════════════════════════════
 section("P. Tayyorgarlik")
@@ -332,6 +335,15 @@ if PW_BOR:
             check("B4 Kesildi saqlandi: tana {taqdir: kesildi, ishlatildi 1, nomi, miqdor 2, birlik dona}; sahifa yangilandi — «✂️ Kesildi → …»",
                   t4 == {"taqdir": "kesildi", "ishlatildi": 1, "nomi": "UI kesilgan bo'lak", "miqdor": 2, "birlik": "dona"}
                   and "Kesildi → UI kesilgan bo'lak" in str(q5), (t4, q5))
+            # B4b — kech125 (zip 147, staging jonli sinovida topilgan): Kesildi qayta ochilganda partiyaning birligi (dona) tanlangan
+            ev(pg, "(id) => document.querySelector('#row-' + id + ' .brak-taqdir-btn').click()", R1)
+            kut(pg, "() => getComputedStyle(document.getElementById('taqdirModal')).display === 'flex'")
+            q5b = ev(pg, """() => ({tanlangan: (document.querySelector('input[name="tm-taqdir"]:checked') || {}).value,
+                birlik: (document.getElementById('tm-tq-birlik') || {}).value, miqdor: (document.getElementById('tm-tq-miqdor') || {}).value,
+                nomi: (document.getElementById('tm-tq-nomi') || {}).value, ishlatildi: (document.getElementById('tm-tq-ishlatildi') || {}).value})""")
+            ev(pg, "() => taqdirOynaYop()")
+            check("B4b «🧩» Kesildi qayta ochildi: birlik «dona» (saqlangani — brak birligi «m» emas), miqdor 2, nom, ishlatilgan 1",
+                  q5b == {"tanlangan": "kesildi", "birlik": "dona", "miqdor": "2", "nomi": "UI kesilgan bo'lak", "ishlatildi": "1"}, q5b)
             # B5 — «Brak yozish»: omborda turgan, 2-nav 9 000
             ev(pg, "() => showBrakModal('ombor')")
             kut(pg, "() => document.querySelector('#brak-fp option[value]:not([value=\"\"])') !== null")
@@ -350,6 +362,24 @@ if PW_BOR:
             kut(pg, "() => document.querySelector('.fp-2nav') !== null", 8000)
             q6 = ev(pg, "() => [...document.querySelectorAll('.fp-2nav')].length")
             check("B5b Tayyor mahsulotlar: «🏷️ 2-NAV» belgili qatorlar (shu sinovdagi 2 ta 2-nav: avvalgisi kesildi bo'ldi → 1)", q6 == 1, q6)
+            # B5c — kech125 (zip 147, staging jonli sinovida 756 px da O'LCHANGAN): brak taqdiri belgisi miqdor yozuvi ustiga chiqmaydi
+            _vp = pg.viewport_size
+            pg.set_viewport_size({"width": 756, "height": 900})
+            pg.reload()
+            pg.wait_for_load_state("networkidle")
+            ev(pg, "() => { if (typeof fpReturnedOpen !== 'undefined' && !fpReturnedOpen) toggleReturnedSection(); }")
+            time.sleep(0.6)
+            q6c = ev(pg, """() => [...document.querySelectorAll('.fp-row .fp-badge')].filter(b => b.offsetParent
+                && /NAV|KESILGAN|TUZATILGAN/.test(b.textContent)).map(b => {
+                  const row = b.closest('.fp-row'); const q = row && row.querySelector('.fp-qty');
+                  const br = b.getBoundingClientRect(); const qr = q ? q.getBoundingClientRect() : null;
+                  return {matn: b.textContent.trim(), ustma: !!(qr && qr.width > 0 && br.right > qr.left + 1 && br.left < qr.right
+                    && br.top < qr.bottom && br.bottom > qr.top), ichida: !!(row && br.right <= row.getBoundingClientRect().right + 1)};
+                })""")
+            pg.set_viewport_size(_vp)
+            check("B5c 756 px: «✂️ KESILGAN» / «🏷️ 2-NAV» belgilari miqdor yozuvi ustiga chiqmaydi, qator ichida",
+                  isinstance(q6c, list) and any(x.get("matn") == "✂️ KESILGAN" for x in q6c)
+                  and all(not x.get("ustma") and x.get("ichida") for x in q6c), q6c)
             # B6 — Tashlandi (standart): tanada `taqdir` YO'Q
             pg.goto(BU + "/returns")
             pg.wait_for_load_state("networkidle")

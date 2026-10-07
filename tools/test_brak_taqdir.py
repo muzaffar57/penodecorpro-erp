@@ -612,8 +612,10 @@ check("E1 2-nav partiyasi SOTILGAN — taqdirni o'zgartirish 400 (sabab: sotilga
       r.status_code == 400 and "sotil" in (r.text or "") and sanoq() == n0 and faol(ri=A3) == f0 and zaxira("peno", "akr", "kley") == z0,
       (r.status_code, r.text[:300]))
 r = req(C, "delete", f"/api/returns/{A3}")
-check("E2 shu brak yozuvini o'chirish ham 400 (TM sotilgan), hech narsa o'zgarmadi",
-      r.status_code == 400 and sanoq() == n0 and zaxira("peno", "akr", "kley") == z0, (r.status_code, r.text[:300]))
+# kech125 (zip 147): o'chirishda xabar — «brak yozuvini o'chirib bo'lmaydi» (ilgari «taqdirni o'zgartirib bo'lmaydi» derdi)
+check("E2 shu brak yozuvini o'chirish ham 400 (TM sotilgan; xabar — «brak yozuvini o'chirib bo'lmaydi»), hech narsa o'zgarmadi",
+      r.status_code == 400 and "brak yozuvini o'chirib bo'lmaydi" in (r.text or "") and "o'zgartirib" not in (r.text or "")
+      and sanoq() == n0 and zaxira("peno", "akr", "kley") == z0, (r.status_code, r.text[:300]))
 bE = buyurtma()
 _rad = [
     ("E3a taqdir «Ortiqcha» qaytarishga", dict(brak_tana(bE, 1, {"taqdir": "ikkinchi_nav", "narx": 1000}), reason="Ortiqcha",
@@ -732,8 +734,51 @@ req(C, "post", "/api/finished/sell", json={"finished_product_id": tm_idi(fpl=BF2
                                            "payment_method": "naqd"})
 n0 = sanoq()
 r2 = req(C, "delete", f"/api/finished/loss/{BF2}")
-check("F3 2-nav partiyasidan sotilgan — omborda turgan yo'qotishni o'chirish 400, hech narsa o'zgarmadi",
-      r2.status_code == 400 and sanoq() == n0 and (tm(F4) or {}).get("miqdor") == 90, (r2.status_code, r2.text[:300], tm(F4)))
+check("F3 2-nav partiyasidan sotilgan — omborda turgan yo'qotishni o'chirish 400 (xabar — «brak yozuvini o'chirib bo'lmaydi»), "
+      "hech narsa o'zgarmadi",
+      r2.status_code == 400 and "brak yozuvini o'chirib bo'lmaydi" in (r2.text or "") and sanoq() == n0
+      and (tm(F4) or {}).get("miqdor") == 90, (r2.status_code, r2.text[:300], tm(F4)))
+# F4 — kech125 (zip 147, staging jonli sinovida topilgan): omborda turgan mahsulot «Tuzatildi» (o'sha partiyaga), partiya TO'LIQ BAND —
+# yozuvni o'chirish o'sha miqdorni o'sha partiyaga qaytaradi (jami o'zgarish 0), «band» rad sababi EMAS
+FB = tm_yarat("BT F4 band partiya", miqdor=10, tannarx=100_000)
+_s = SessionLocal()
+try:
+    _s.get(FinishedProduct, FB).reserved_quantity = 10.0
+    _s.commit()
+finally:
+    _s.close()
+z0, m0 = zaxira("peno", "akr", "kley"), mb()
+r = req(C, "post", "/api/finished/loss", json={"finished_product_id": FB, "quantity": 2, "brak_sabab": "boshqa",
+                                                "taqdir": {"taqdir": "tuzatildi", "materiallar": [{"inventory_id": ID["akr"], "miqdor": 0.1}]}})
+BFB = (js(r) or {}).get("loss_id")
+_tb0 = tm(FB)
+n0 = sanoq()
+r2 = req(C, "delete", f"/api/finished/loss/{BFB}")
+_s = SessionLocal()
+try:
+    _band = float(_s.get(FinishedProduct, FB).reserved_quantity or 0)
+finally:
+    _s.close()
+check("F4 omborda turgan «Tuzatildi» (o'sha partiyaga), partiya to'liq band — o'chirish 200: partiya 10 m / 100 000 (band 10), "
+      "tuzatish akrili omborga qaytdi, jurnal qatorlari yo'q, Moliya — avvalgidek",
+      r.status_code == 200 and r2.status_code == 200 and (_tb0 or {}).get("miqdor") == 10
+      and (tm(FB) or {}).get("miqdor") == 10 and (tm(FB) or {}).get("tannarx") == 100_000 and _band == 10
+      and zaxira("peno", "akr", "kley") == z0 and qatorlar(fpl=BFB) == [] and mb() == m0,
+      (r.status_code, r.text[:200], r2.status_code, r2.text[:300], _tb0, tm(FB), _band, z0, zaxira("peno", "akr", "kley"), m0, mb()))
+# F5 — o'sha holat, partiyaning ko'p qismi SOTILGAN (10 → yo'qotish 4 → tuzatildi 10 → sotuv 8 → 2): o'chirish «bo'lmagandek» — 2 m
+# qoladi (oraliq qiymat 0 ga qisqartirilsa 4 bo'lib qolardi)
+FS = tm_yarat("BT F5 sotilgan partiya", miqdor=10, tannarx=100_000, narx=20_000)
+r = req(C, "post", "/api/finished/loss", json={"finished_product_id": FS, "quantity": 4, "brak_sabab": "boshqa",
+                                                "taqdir": {"taqdir": "tuzatildi"}})
+BFS = (js(r) or {}).get("loss_id")
+rs = req(C, "post", "/api/finished/sell", json={"finished_product_id": FS, "quantity": 8, "unit_price": 20_000, "payment_method": "naqd"})
+_ts0 = tm(FS)
+r2 = req(C, "delete", f"/api/finished/loss/{BFS}")
+check("F5 o'sha partiyadan 8 m sotilgan (2 m qolgan) — o'chirish 200, partiyada AYNAN 2 m, tannarx o'chirishdan oldingidek, qatorlar yo'q",
+      r.status_code == 200 and rs.status_code == 200 and r2.status_code == 200 and (_ts0 or {}).get("miqdor") == 2
+      and (tm(FS) or {}).get("miqdor") == 2 and teng((tm(FS) or {}).get("tannarx"), (_ts0 or {}).get("tannarx"))
+      and qatorlar(fpl=BFS) == [],
+      (r.status_code, rs.status_code, rs.text[:200], r2.status_code, r2.text[:300], _ts0, tm(FS)))
 
 # ══════════════════════════════════════════════════════════════
 section("G — korxona izolyatsiyasi; H — ruxsatlar")
@@ -845,6 +890,25 @@ check("K7 brak xomashyo xulosasi: «Tayyor mahsulotga o'tdi» qatori (taqdir: tr
 _hm = req(CM, "get", "/returns")
 check("K8 «Tannarx»siz rolga (Moliyachi emas — tannarx ko'radi) sahifa ochiladi; ruxsatsizga «🧩» tugmasi yo'q",
       _hm.status_code in (200, 403) and ('data-turi="qaytarish"' not in (_hm.text or "")), (_hm.status_code,))
+# K9 — kech125 (zip 147, staging jonli sinovida topilgan): taqdir xaritasida partiyaning birligi va o'lchami («🧩» oynasi Kesildi ni qayta
+# ochganda shular tanlangan turadi)
+bK = buyurtma()
+r, AK = brak(bK, 2, {"taqdir": "kesildi", "ishlatildi": 1, "nomi": "BT K9 bo'lak", "miqdor": 3, "birlik": "dona",
+                     "eni": 12.5, "qalinligi": 3})
+_s = SessionLocal()
+try:
+    _xk = (getattr(crud, "brak_taqdir_xaritasi", lambda *a, **k: {})(_s, "qaytarish", [AK], company_id=1) or {}).get(AK) or {}
+    _xb = (getattr(crud, "brak_taqdir_xaritasi", lambda *a, **k: {})(_s, "yoqotish", [B2], company_id=1) or {}).get(B2) or {}
+except Exception as _e:                     # noqa: BLE001
+    _xk, _xb = {"xato": str(_e)[:200]}, {}
+finally:
+    _s.close()
+_h9 = req(C, "get", "/returns").text or ""
+check("K9 taqdir xaritasi: Kesildi partiyasining birligi (dona), eni 12,5, qalinligi 3; omborda turgan Kesildi — birlik dona, o'lcham yo'q; "
+      "sahifadagi data-joriy da ham",
+      r.status_code == 200 and _xk.get("birlik") == "dona" and _xk.get("eni") == 12.5 and _xk.get("qalinligi") == 3.0
+      and _xb.get("birlik") == "dona" and _xb.get("eni") is None and '"eni": 12.5' in _h9 and "tm_tannarx" not in str(_xk),
+      (r.status_code, _xk, _xb))
 
 # ══════════════════════════════════════════════════════════════
 section("L — zaxira: eksport → tiklash (taqdir jadvali va bog'langan harakatlar)")
