@@ -5,7 +5,7 @@
 
 {% block content %}
 <div style="max-width:480px;margin:0 auto;padding:20px 16px">
-  <div style="background:#fff;border-radius:16px;padding:26px;box-shadow:0 1px 2px rgba(24,27,34,.04),0 4px 16px rgba(24,27,34,.06);border:1px solid #E8E3DD">
+  <div style="background:var(--white);border-radius:16px;padding:26px;box-shadow:0 1px 2px rgba(24,27,34,.04),0 4px 16px rgba(24,27,34,.06);border:1px solid var(--ch-e8e3dd)">
 
     <div class="form-group">
       <label>Sana</label>
@@ -24,38 +24,167 @@
 
     <div class="form-group">
       <label>Summa (so'm)</label>
-      <input type="text" id="kx-amount" placeholder="0" inputmode="numeric">
+      {# kech120 (zip 131 — F bosqichi, audit G3-25): pul maydoni — umumiy qoida (`formatPriceInput` / `parseNum`: tiyin, nuqta / vergul);
+         ilgari faqat raqamlar (`parseInt`) — «150 000,50» → 15 000 050 #}
+      <input type="text" id="kx-amount" placeholder="0" inputmode="decimal" oninput="formatPriceInput(this)">
     </div>
 
     <div class="form-group">
-      <label>Izoh <span style="font-weight:400;color:#9CA3AF;font-size:11.5px">— ixtiyoriy</span></label>
+      <label>Izoh <span style="font-weight:400;color:var(--text3);font-size:12px">— ixtiyoriy</span></label>
       <input type="text" id="kx-notes" placeholder="masalan: 5 kishiga tushlik">
     </div>
 
-    <div id="kx-error" style="display:none;margin-bottom:12px;padding:10px 12px;background:#FEE2E2;border-radius:8px;font-size:13px;color:#DC2626"></div>
-    <div id="kx-success" style="display:none;margin-bottom:12px;padding:10px 12px;background:#F0FDF4;border-radius:8px;font-size:13px;color:#166534"></div>
+    <div id="kx-error" style="display:none;margin-bottom:12px;padding:10px 12px;background:var(--f-fee2e2);border-radius:8px;font-size:13px;color:var(--m-dc2626)"></div>
+    <div id="kx-success" style="display:none;margin-bottom:12px;padding:10px 12px;background:var(--f-f0fdf4);border-radius:8px;font-size:13px;color:var(--m-166534)"></div>
 
-    <button id="kx-save-btn" onclick="kxSave()" style="width:100%;background:#B9783F;color:#fff;border:none;border-radius:10px;padding:13px;font-size:14.5px;font-weight:600;cursor:pointer">
+    <button id="kx-save-btn" class="btn btn-gold btn-block" onclick="kxSave()">
       Saqlash
     </button>
+  </div>
+
+  {# kech121 (zip 138 — EGASI QARORI 02.10, audit G3-24): bugun o'zingiz kiritgan xarajatlar — xato bo'lsa SHU KUNI o'chirish mumkin
+     (ilgari Menejer xato summani tuzata olmasdi: Moliya ro'yxati va o'chirish faqat admin / moliyachida) #}
+  <div id="kx-bugun" style="margin-top:16px;background:var(--white);border-radius:16px;padding:18px 20px;border:1px solid var(--ch-e8e3dd)">
+    <div style="font-size:14px;font-weight:700;margin-bottom:4px">Bugun siz kiritganlar</div>
+    <div style="font-size:13px;color:var(--text3);margin-bottom:10px">Xato kiritilgan bo'lsa — shu kuni o'chirib, to'g'risini qayta kiriting.</div>
+    <div id="kx-bugun-list"><div style="font-size:13px;color:var(--text3)">Yuklanmoqda…</div></div>
   </div>
 </div>
 
 <script>
-document.getElementById('kx-date').value = new Date().toISOString().slice(0, 10);
+document.getElementById('kx-date').value = tkISO();     // kech106: bugun — Toshkent (ilgari UTC sanasi)
 
-function kxFormatAmount(el) {
-  let v = el.value.replace(/\D/g, '');
-  el.value = v ? Number(v).toLocaleString('ru-RU').replace(/,/g, ' ') : '';
+// ── 118-band (kech94): YAGONA son / narx kiritish qoidasi ──────────────────
+// parseNum / narxMatni / narxniOqi / narxKorinishi / formatPriceInput matni debts, finance,
+// finished, hodim_panel, inventory, kpi, orders, supplier_receive, suppliers, kunlik_xarajat (kech120, zip 131 — G3-25)
+// sahifalarida AYNAN bir xil (tools/test_narx_kiritish_ui.js tekshiradi).
+// Ilgari har sahifada o'z ta'rifi bor edi va kasr kiritgan foydalanuvchi
+// JIMGINA 10x / 100x yoki yaxlitlangan summa yuborardi: harflab "10.5" → 105,
+// "1234.56" → 123 456, yopishtirilgan "1.000.000" → 1, "1 228 752,75" → 100x.
+//  • Kasr belgisi — nuqta YOKI vergul (kiritilgan belgi saqlanadi); pulda
+//    ko'pi bilan 2 xona (tiyin — bazada Numeric(12,2)), ortig'i kiritilmaydi.
+//  • Ming ajratgich — bo'shliq. Bir xil belgi bir necha marta ("1.000.000")
+//    yoki ikki xil belgi ("1,234.56", "1.234,56") — oxirgisidan boshqasi ming
+//    ajratgich. Pulda yolg'iz belgi + AYNAN 3 raqam ("12.500") — ming ajratgich
+//    (3 xonali tiyin bo'lmaydi; harflab "1.000.000" ham shunday to'g'ri chiqadi);
+//    butun qismi 0 bilan boshlansa yoki noto'g'ri guruhlangan bo'lsa — kasr.
+//  • Pul maydoni manfiy bo'lmaydi: "-" yozilsa maydon 0 bo'ladi (orders.html
+//    2026-09-17 qoidasi — endi hamma sahifada; ilgari ba'zi sahifalar "-500"
+//    ni jimgina 500 qilardi). Harf va boshqa belgilar maydonga tushmaydi.
+//  • parseNum — umumiy son (o'lcham, miqdor ham): yolg'iz nuqta / vergul — kasr
+//    ("0.125" → 0.125), manfiy ishora saqlanadi, hech narsa bo'lmasa 0.
+//  • narxniOqi — prompt oynasidagi pul matni: narxMatni qoidasi bilan o'qiladi;
+//    raqamsiz yoki manfiy matn — NaN (chaqiruvchi rad etadi, 0 YUBORILMAYDI).
+//  • narxKorinishi — prompt oynasiga beriladigan joriy summa (2 xonagacha,
+//    yaxlitlanMAYDI — "OK" bosilsa narx o'zgarmaydi).
+function parseNum(v) {
+  if (typeof v === 'number') return isFinite(v) ? v : 0;
+  let s = String(v == null ? '' : v).replace(/[\s\u00a0\u202f]/g, '');
+  if (/^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(s)) {
+    const n = Number(s);
+    return isFinite(n) ? n : 0;
+  }
+  const manfiy = s.charAt(0) === '-';
+  s = s.replace(/[^\d.,]/g, '');
+  let butun = s, kasr = '';
+  const oxirgi = Math.max(s.lastIndexOf('.'), s.lastIndexOf(','));
+  if (oxirgi >= 0 && s.split(s.charAt(oxirgi)).length === 2) {
+    butun = s.slice(0, oxirgi);
+    kasr = s.slice(oxirgi + 1);
+  }
+  butun = butun.replace(/[.,]/g, '');
+  const n = parseFloat((butun || '0') + '.' + (kasr || '0'));
+  if (!isFinite(n)) return 0;
+  return manfiy ? -n : n;
 }
-document.getElementById('kx-amount').addEventListener('input', function(){ kxFormatAmount(this); });
+function narxMatni(v) {
+  const asl = String(v == null ? '' : v);
+  if (asl.indexOf('-') >= 0) return '0';
+  const t = asl.replace(/[\s\u00a0\u202f]+/g, ' ').replace(/[^\d., ]/g, '').trim();
+  const s = t.replace(/ /g, '');
+  if (!s) return '';
+  let butun = s, kasr = null, belgi = '';
+  const oxirgi = Math.max(t.lastIndexOf('.'), t.lastIndexOf(','));
+  if (oxirgi >= 0) {
+    const b = t.charAt(oxirgi);
+    const oldin = t.slice(0, oxirgi).trim();
+    const keyin = t.slice(oxirgi + 1).replace(/ /g, '');
+    const ming = keyin.length === 3 && /^[1-9]\d{0,2}( \d{3})*$/.test(oldin);
+    if (t.split(b).length === 2 && !ming) {
+      butun = oldin.replace(/ /g, '');
+      kasr = keyin.slice(0, 2);
+      belgi = b;
+    }
+  }
+  butun = butun.replace(/[.,]/g, '').replace(/^0+(?=\d)/, '') || '0';
+  butun = butun.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return kasr === null ? butun : butun + belgi + kasr;
+}
+function narxniOqi(v) {
+  const s = String(v == null ? '' : v);
+  if (!/\d/.test(s) || s.indexOf('-') >= 0) return NaN;
+  return parseNum(narxMatni(s));
+}
+function narxKorinishi(n) {
+  const x = Number(n);
+  return narxMatni((isFinite(x) ? x : 0).toFixed(2).replace(/\.?0+$/, ''));
+}
+function formatPriceInput(input) {
+  if (!input) return;
+  const eski = String(input.value == null ? '' : input.value);
+  const yangi = narxMatni(eski);
+  if (yangi === eski) return;
+  let joy = null;
+  try { joy = typeof input.selectionStart === 'number' ? input.selectionStart : null; } catch (e) { joy = null; }
+  input.value = yangi;
+  if (joy === null || typeof input.setSelectionRange !== 'function') return;
+  try {
+    if (typeof document !== 'undefined' && document.activeElement !== input) return;
+    const k = Math.max(0, Math.min(yangi.length, joy + yangi.length - eski.length));
+    input.setSelectionRange(k, k);
+  } catch (e) { /* kursor — faqat qulaylik */ }
+}
 
 let kxSaving = false;
+// kech121 (zip 138 — EGASI QARORI 02.10, audit G3-24): «Bugun siz kiritganlar» — ro'yxat va o'z xarajatini shu kuni o'chirish
+const KX_TOIFA = {tushlik: 'Tushlik', kutilmagan: 'Kutilmagan xarajat', reklama: 'Reklama', boshqa: 'Boshqa'};
+async function kxBugunYukla() {
+  const el = document.getElementById('kx-bugun-list');
+  if (!el) return;
+  try {
+    const r = await fetch('/api/finance/transactions/bugungi-ozim');
+    const rows = r.ok ? await r.json() : null;
+    if (!Array.isArray(rows)) { el.innerHTML = '<div style="font-size:13px;color:var(--text3)">Yuklab bo\'lmadi</div>'; return; }
+    if (!rows.length) { el.innerHTML = '<div style="font-size:13px;color:var(--text3)">Bugun hali xarajat kiritmagansiz</div>'; return; }
+    el.innerHTML = rows.map(x => `
+      <div class="kx-qator" data-id="${Number(x.id)}" style="display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--border2)">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600">${escapeHtml(narxKorinishi(x.amount))} so'm · ${escapeHtml(KX_TOIFA[x.category] || x.category)}</div>
+          <div style="font-size:12px;color:var(--text3)">${escapeHtml(tkSana(x.date))} · kiritildi ${escapeHtml(tkVaqt(x.created_at))}${x.notes ? ' · ' + escapeHtml(x.notes) : ''}</div>
+        </div>
+        <button type="button" class="btn btn-danger btn-sm"
+                onclick="kxOchir(${Number(x.id)})">O'chirish</button>
+      </div>`).join('');
+  } catch (e) {
+    el.innerHTML = '<div style="font-size:13px;color:var(--text3)">Yuklab bo\'lmadi</div>';
+  }
+}
+async function kxOchir(id) {
+  const q = document.querySelector(`.kx-qator[data-id="${Number(id)}"]`);
+  const matn = q ? q.querySelector('div > div').textContent : '';
+  if (!(await customConfirm(`Xarajat o'chirilsinmi? ${matn}`, {okText: "Ha, o'chirilsin"}))) return;
+  try {
+    const res = await fetch(`/api/finance/transactions/${Number(id)}/ozim`, {method: 'DELETE'});
+    if (res.ok) { showMsg("✓ Xarajat o'chirildi", 'success'); kxBugunYukla(); }
+    else showMsg('❌ ' + await serverXatoSababi(res, "O'chirilmadi"), 'error');
+  } catch (e) { showMsg("❌ Server bilan aloqa yo'q", 'error'); }
+}
+kxBugunYukla();
 async function kxSave(){
   if (kxSaving) return;
   const date = document.getElementById('kx-date').value;
   const category = document.getElementById('kx-category').value;
-  const amount = parseInt(document.getElementById('kx-amount').value.replace(/\s/g, '')) || 0;
+  const amount = parseNum(document.getElementById('kx-amount').value) || 0;
   const notes = document.getElementById('kx-notes').value.trim() || null;
   const err = document.getElementById('kx-error');
   const ok = document.getElementById('kx-success');
@@ -66,6 +195,15 @@ async function kxSave(){
     err.style.display = 'block';
     err.textContent = "❌ Sana va summani to'g'ri kiriting";
     return;
+  }
+  // kech120 (zip 131 — F bosqichi, audit G3-24): boshqa oyga yozish (sana xato tanlansa — o'tgan / kelgusi oy hisobotiga tushardi) —
+  // alohida tasdiq
+  const tk = tkHozir();
+  const [sy, sm] = date.split('-').map(Number);
+  if (sy !== tk.yil || sm !== tk.oy) {
+    const ha = await customConfirm(`Sana ${tkSana(date)} — joriy oy emas. Xarajat o'sha oy hisobotiga yoziladi. Davom etilsinmi?`,
+                                   {okText: 'Ha, yozilsin'});
+    if (!ha) return;
   }
 
   kxSaving = true;
@@ -79,13 +217,16 @@ async function kxSave(){
     });
     if (res.ok) {
       ok.style.display = 'block';
-      ok.textContent = '✓ Xarajat saqlandi!';
+      // kech120 (G3-24): NIMA saqlangani ko'rinadi (ilgari faqat «Xarajat saqlandi!» — ikki marta bosilganmi, bilinmasdi)
+      const sel = document.getElementById('kx-category');
+      const toifa = sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex].textContent.replace(/\s*\(.*\)$/, '') : category;
+      ok.textContent = `✓ Saqlandi: ${narxKorinishi(amount)} so'm · ${toifa} · ${tkSana(date)}`;
       document.getElementById('kx-amount').value = '';
       document.getElementById('kx-notes').value = '';
+      kxBugunYukla();      // kech121 (zip 138 — G3-24)
     } else {
-      const e = await res.json();
       err.style.display = 'block';
-      err.textContent = '❌ ' + (e.detail || 'Xato yuz berdi');
+      err.textContent = '❌ ' + await serverXatoSababi(res, 'Xato yuz berdi');
     }
   } catch(e) {
     err.style.display = 'block';

@@ -4,7 +4,8 @@
 <!DOCTYPE html>
 <html lang="uz">
 <head>
-<script src="/static/translit.js"></script>
+<script src="/static/translit.js?v={{ static_version }}"></script>
+<script src="/static/tanlov.js?v={{ static_version }}" defer></script>
 <script>
 // ════════════════════════════════════════════════════════════
 // GRAFIKLAR (Chart.js) — Kirill/Lotin qo'llab-quvvatlash (2026-09).
@@ -55,8 +56,27 @@
       if (config.options && config.options.scales) _wrapTicksCallbacks(config.options.scales);
     }
 
+    // kech118 (zip 122 — tungi rejim): grafik sozlamasidagi yorug' rejim ranglari (to'r chiziqlari, o'q yozuvlari, afsona,
+    // och ustun, doira bo'laklari orasidagi oq chegara) tungi rejimda qorong'i karta uchun mos tusga almashtiriladi.
+    const _TUNGI_GRAFIK = {'#f0ece6': '#2E3240', '#f0f1f3': '#2E3240', '#f0f0f0': '#2E3240', '#9ca3af': '#A3A6B0',
+                           '#4b5563': '#C9CBD2', '#6b7280': '#A3A6B0', '#f8f2eb': '#5A4630', '#fff': '#1E212A', '#ffffff': '#1E212A'};
+    function _tungimi() { return document.documentElement.getAttribute('data-theme') === 'dark'; }
+    function _tungiMoslash(o, chuqur) {
+      if (!o || typeof o !== 'object' || chuqur > 8) return;
+      for (const k of Object.keys(o)) {
+        const v = o[k];
+        if (typeof v === 'string' && /^#[0-9a-f]{3,6}$/i.test(v) && _TUNGI_GRAFIK[v.toLowerCase()]) o[k] = _TUNGI_GRAFIK[v.toLowerCase()];
+        else if (Array.isArray(v)) v.forEach((x, i) => {
+          if (typeof x === 'string' && _TUNGI_GRAFIK[x.toLowerCase()]) v[i] = _TUNGI_GRAFIK[x.toLowerCase()];
+          else _tungiMoslash(x, chuqur + 1);
+        });
+        else if (v && typeof v === 'object') _tungiMoslash(v, chuqur + 1);
+      }
+    }
+
     function WrappedChart(ctx, config) {
       const origRef = {};
+      if (_tungimi()) { _tungiMoslash(config.options, 0); _tungiMoslash(config.data, 0); }
       _applyLabels(config, origRef);
       const instance = new _Original(ctx, config);
       instance._i18nRefresh = function() {
@@ -75,7 +95,16 @@
   Object.defineProperty(window, 'Chart', {
     configurable: true,
     get() { return _realChart; },
-    set(NewChart) { _realChart = wrapChartConstructor(NewChart); }
+    set(NewChart) {
+      // kech118 (zip 122): tungi rejimda grafikning standart yozuv / chiziq ranglari — qorong'i kartaga mos
+      try {
+        if (document.documentElement.getAttribute('data-theme') === 'dark' && NewChart && NewChart.defaults) {
+          NewChart.defaults.color = '#A3A6B0';
+          NewChart.defaults.borderColor = 'rgba(255,255,255,0.10)';
+        }
+      } catch (e) { /* grafik — faqat ko'rinish */ }
+      _realChart = wrapChartConstructor(NewChart);
+    }
   });
 })();
 </script>
@@ -86,6 +115,32 @@
       document.documentElement.setAttribute('data-theme', 'dark');
     }
   } catch(e) {}
+})();
+</script>
+<script>
+// kech120 (E bosqichi, U-09 — O'LCHANGAN `work/k127/tez.py`): sahifa bir ochilishida bir xil GET so'rovni bir necha joy
+// alohida yuborardi — «Hisobotlar»: taqqoslash 3 marta, pul oqimi 2 marta (har biri serverda oylik hisobot); «KPI»: moliya
+// hisoboti 2 marta. `bittaYuklash(fn)` — `fn` (sahifaning birinchi yuklanishi) davomida
+// bir xil manzilli GET so'rov BIR marta yuboriladi, har o'quvchi javobning o'z nusxasini (`clone()`) oladi. Blok davomida
+// istalgan yozuv (GET emas) so'rovi eslab qolinganlarni darhol tozalaydi. Blokdan tashqarida — oddiy `fetch` (o'zgarishsiz).
+// Sahifa skriptlaridan OLDIN o'rnatiladi (pastdagi kirill → lotin o'rami shu funksiyani o'raydi).
+(function () {
+  const _asl = window.fetch;
+  if (typeof _asl !== 'function') return;
+  let _kesh = null;
+  window.bittaYuklash = async function (fn) {
+    const k = new Map();
+    const eski = _kesh;
+    _kesh = k;
+    try { return await fn(); } finally { if (_kesh === k) _kesh = eski; }
+  };
+  window.fetch = function (input, init) {
+    const usul = String((init && init.method) || (input && typeof input === 'object' && input.method) || 'GET').toUpperCase();
+    if (_kesh && usul !== 'GET') _kesh.clear();
+    if (!_kesh || usul !== 'GET' || typeof input !== 'string' || (init && init.body)) return _asl.apply(this, arguments);
+    if (!_kesh.has(input)) _kesh.set(input, _asl.call(this, input, init));
+    return _kesh.get(input).then(r => r.clone());
+  };
 })();
 </script>
 <script>
@@ -113,6 +168,506 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
+// ══ UMUMIY (kech106, 9 + 50-band C qismi — egasi qarori kech105: "Toshkent vaqti bo'yicha"): TOSHKENT VAQTI.
+// Server vaqtni bazadagi UTC da, ZONA BELGISIZ beradi ("2026-09-30T20:30:00"). `new Date(s)` bunday satrni
+// brauzerning MAHALLIY vaqti deb o'qiydi — Toshkentdagi kompyuterda 5 soat orqada (Toshkent 01.10 01:30 dagi to'lov
+// "30.09 20:30"), `new Date().toISOString().slice(0, 10)` esa UTC sanasi — Toshkent 00:00–05:00 da KECHAGI kun
+// (avans / kirim / xarajat standart sanasi o'tgan oyga tushardi). O'LCHANGAN: work/probe106ui.py (haqiqiy Chromium).
+// QOIDA: serverdan kelgan vaqtni ko'rsatish, "bugun" sanasi va joriy oy / yil — FAQAT shu yordamchilar orqali.
+// Brauzer qaysi mintaqada bo'lmasin, natija Toshkent: UTC+5, yozgi vaqt yo'q (server `database.TASHKENT_OFFSET`).
+// Bu blok base.html va hodim_panel.html da AYNAN bir xil (tools/test_toshkent_korinish_ui.js tekshiradi).
+function tkMs(v) {
+  // Server vaqti → haqiqiy UTC millisekund (NaN — qiymat yo'q / noto'g'ri). Zona belgisiz satr — UTC; faqat sana
+  // ("2026-10-01") — o'sha kun 00:00 UTC; Date va son — o'zi.
+  if (v === null || v === undefined || v === '') return NaN;
+  if (v instanceof Date) return v.getTime();
+  if (typeof v === 'number') return v;
+  let s = String(v).trim().replace(' ', 'T');
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) s += 'T00:00:00';
+  s = s.replace(/(\.\d{3})\d+/, '$1');
+  if (!/(Z|[+-]\d{2}:?\d{2})$/i.test(s)) s += 'Z';
+  return Date.parse(s);
+}
+function tkDate(v) {
+  // Toshkent devor soati — qaytgan Date ning UTC maydonlarida (getUTCFullYear / getUTCHours …). Argumentsiz — HOZIR.
+  const SILJISH_MS = 5 * 60 * 60 * 1000;
+  return new Date((arguments.length ? tkMs(v) : Date.now()) + SILJISH_MS);
+}
+// kech118 (B — U-05, O'LCHANGAN: audit Chromium da 'uz' tili «2026-09-29» va «2026 M09 29» berdi — brauzerning o'zbek
+// tili ma'lumotiga bog'liq): standart ('uz' / til berilmagan) ko'rinish — QO'LDA, har brauzerda bir xil: sana «01.10.2026»,
+// oy nomi bilan «1-oktabr, 2026», vaqt «01:30». Boshqa til ('ru-RU') — brauzerning o'zi (avvalgidek). Yangi global nom YO'Q
+// (oy nomlari va nol qo'shish — funksiya ichida): sahifadan funksiya olib ishlatadigan testlar o'zgarmaydi.
+function tkSana(v, til, opt) {   // "01.10.2026" ('uz'); {month: 'long'} — "1-oktabr, 2026"; 'ru-RU' — brauzer; yo'q — ''
+  const d = tkDate(v);
+  if (isNaN(d.getTime())) return '';
+  if (til && til !== 'uz') return d.toLocaleDateString(til, Object.assign({}, opt || {}, {timeZone: 'UTC'}));
+  const k = d.getUTCDate(), o = d.getUTCMonth(), y = d.getUTCFullYear();
+  if (opt && opt.month === 'long') {
+    const OY = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avgust', 'sentabr', 'oktabr', 'noyabr', 'dekabr'];
+    return k + '-' + OY[o] + (opt.year ? ', ' + y : '');
+  }
+  return String(k).padStart(2, '0') + '.' + String(o + 1).padStart(2, '0') + '.' + y;
+}
+function tkVaqt(v, til) {        // "01:30"
+  const d = tkDate(v);
+  if (isNaN(d.getTime())) return '';
+  if (til && til !== 'uz') return d.toLocaleTimeString(til, {hour: '2-digit', minute: '2-digit', timeZone: 'UTC'});
+  return String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0');
+}
+function tkSanaVaqt(v) {         // "01.10.2026 01:30"
+  const s = tkSana(v);
+  return s ? s + ' ' + tkVaqt(v) : '';
+}
+function tkToliq(v, til) {       // "01.10.2026, 01:30:00"
+  const d = tkDate(v);
+  if (isNaN(d.getTime())) return '';
+  if (til && til !== 'uz') return d.toLocaleString(til, {timeZone: 'UTC'});
+  return tkSana(v) + ', ' + tkVaqt(v) + ':' + String(d.getUTCSeconds()).padStart(2, '0');
+}
+function tkISO(v) {              // "2026-10-01" — Toshkent sanasi (<input type="date">); argumentsiz — BUGUN
+  const d = arguments.length ? tkDate(v) : tkDate();
+  return isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
+}
+function tkHozir() {             // joriy Toshkent {yil, oy (1–12), kun}
+  const d = tkDate();
+  return {yil: d.getUTCFullYear(), oy: d.getUTCMonth() + 1, kun: d.getUTCDate()};
+}
+function tkKunFarqi(v) {         // v ning Toshkent sanasi − bugungi Toshkent sanasi (kunlarda); noto'g'ri — NaN
+  const a = tkISO(v), b = tkISO();
+  return a ? Math.round((Date.parse(a + 'T00:00:00Z') - Date.parse(b + 'T00:00:00Z')) / 86400000) : NaN;
+}
+
+// ══ UMUMIY (kech107, 10d — O'LCHANGAN): SERVER RAD ETGANDA SABAB. Server 400 / 404 / 409 / 422 da sababni `detail`
+// ichida beradi: matn ("Omborda yetarli emas …"), obyekt (`{type, message}` — ogohlantirishlar, `{error}`) yoki
+// pydantic ro'yxati (`[{loc, msg}]`). Ilgari kpi / inventory / finished sahifalarining ko'p joyida sabab tashlanib
+// "Xato yuz berdi" chiqardi, `r.detail?.message` MATN sababni yo'qotardi, obyekt esa "[object Object]" bo'lib chiqardi.
+// QOIDA: rad javobidagi sabab FAQAT shu ikki yordamchi bilan o'qiladi (tools/test_xato_sababi_ui.js tekshiradi).
+function xatoSababi(javob, standart) {
+  const d = (javob && typeof javob === 'object') ? javob.detail : undefined;
+  if (typeof d === 'string' && d.trim()) return d;
+  if (d && typeof d === 'object' && !Array.isArray(d)) {
+    if (typeof d.message === 'string' && d.message.trim()) return d.message;
+    if (typeof d.error === 'string' && d.error.trim()) return d.error;
+  }
+  if (Array.isArray(d) && d.length) {
+    const qism = d.map(x => {
+      if (!x || typeof x !== 'object') return (x === null || x === undefined) ? '' : String(x);
+      const joy = Array.isArray(x.loc) ? x.loc.filter(k => k !== 'body' && k !== 'query').join('.') : '';
+      const xabar = typeof x.msg === 'string' ? x.msg : '';
+      return xabar ? (joy ? joy + ': ' : '') + xabar : '';
+    }).filter(Boolean);
+    if (qism.length) return qism.join('; ');
+  }
+  return standart || 'Xato yuz berdi';
+}
+async function serverXatoSababi(res, standart) {
+  // `fetch` javobidan (hali o'qilmagan tana) — JSON bo'lmasa standart matn.
+  try { return xatoSababi(await res.json(), standart); } catch (e) { return standart || 'Xato yuz berdi'; }
+}
+
+// 2026-09-17 (UX audit topilmasi): ba'zi sahifalarda (masalan Ishlab
+// chiqarish) xato xabarlari hali ham brauzerning eski, sahifani
+// bloklaydigan alert() orqali chiqar edi — bu ilovaning boshqa
+// joylaridagi silliq bildirishnomalardan chiqib qolardi. Endi HAMMA
+// sahifa shu (Buyurtmalar sahifasidagi bilan bir xil ko'rinishdagi)
+// umumiy, bloklamaydigan bildirishnomadan foydalanishi mumkin — agar
+// sahifaning o'zida shu nomdagi funksiya bo'lsa, o'sha ustunlik qiladi.
+// kech115 (G3-10 / G1-04, O'LCHANGAN — audit: zarar oyida «−2618028 so'm» ajratgichsiz, «Pul oqimi» minussiz): qisqa
+// summa — YAGONA qoida (Moliya, Dashboard): chegara MODUL bo'yicha (manfiy son ham «mln» / «ming»), ishora saqlanadi,
+// 1 000 dan kichigi ajratgich bilan. Ishora — `toLocaleString('ru-RU')` dagi kabi «-».
+// kech118 (B — U-05, O'LCHANGAN: audit — nuqtali kasr 96 joyda («1.0 mln», «354.0 kg», «-156.4%»), vergulli boshqa
+// joyda): son KO'RINISHI — YAGONA qoida: ming ajratgich — bo'sh joy, kasr — VERGUL, ortiqcha nolsiz («1 234,5», «354»).
+// FAQAT ko'rsatish uchun (maydon qiymati — nuqtali son, o'zgarmaydi). `sonKor(x, kasr)` — eng ko'pi `kasr` xona (standart 2);
+// `foizKor(x, kasr)` — «-156,4%» (standart 1); `birlikKor(b)` — foydalanuvchi yozgan «m2» / «m3» → «m²» / «m³».
+function sonKor(x, kasr) {
+  const n = Number(x);
+  if (x === null || x === undefined || x === '' || !isFinite(n)) return '—';
+  const k = (kasr === undefined || kasr === null) ? 2 : kasr;
+  const s = n.toLocaleString('ru-RU', {maximumFractionDigits: k, minimumFractionDigits: 0});
+  return (s === '-0' || s === '−0') ? '0' : s;
+}
+function foizKor(x, kasr) {
+  const s = sonKor(x, (kasr === undefined || kasr === null) ? 1 : kasr);
+  return s === '—' ? s : s + '%';
+}
+// kech118 (U-03): holat rangi chiziq / nuqta (fon) uchun yorqin, YOZUV uchun — to'q tusi (oq fonda ≥ 4.5:1)
+// `fon` — yozuv och RANGLI fon (holat rangining och tusi: #FEF2F2, #F0FDF4 …) ustida: undan ham to'qroq tus (≥ 5:1)
+function matnRangi(c, fon) {
+  const T = {'#22c55e': '#15803D', '#16a34a': '#15803D', '#f59e0b': '#B45309', '#d97706': '#B45309', '#ef4444': '#DC2626',
+             '#0ea5e9': '#0369A1', '#94a3b8': '#696D78', '#9ca3af': '#696D78', '#b9783f': '#8F5B2A', '#a86b36': '#8F5B2A',
+             '#b7770d': '#92400E', '#ca8a04': '#854D0E', '#eab308': '#854D0E', '#0891b2': '#0E7490', '#06b6d4': '#0E7490',
+             '#db2777': '#BE185D', '#ec4899': '#BE185D', '#f97316': '#C2410C', '#ea580c': '#C2410C', '#3b82f6': '#1D4ED8',
+             '#64748b': '#475569', '#bdc3c7': '#696D78', '#95a5a6': '#696D78', '#7f8c8d': '#5B6170', '#10b981': '#047857',
+             '#0d9488': '#0F766E', '#8b5cf6': '#6D28D9', '#6b7280': '#5B6170',
+             '#2563eb': '#1D4ED8'};   // kech118 (zip 122): #2563EB och-ko'k fonda (#DBEAFE) 4.2:1 edi
+  const F = {'#15803d': '#166534', '#dc2626': '#B91C1C', '#b45309': '#92400E', '#0369a1': '#075985', '#696d78': '#5B6170',
+             '#8f5b2a': '#7A4D23', '#be185d': '#9D174D', '#0e7490': '#155E75', '#c2410c': '#9A3412'};
+  const k = String(c || '').toLowerCase();
+  const t = T[k] || c;
+  const natija = (fon && F[String(t || '').toLowerCase()]) || t;
+  // kech118 (zip 122 — tungi rejim): qorong'i kartada to'q tus o'qilmaydi — yorug' tusi (kartada va och-tusli fonda ≥ 4.5:1)
+  if (typeof document !== 'undefined' && document.documentElement && document.documentElement.getAttribute('data-theme') === 'dark') {
+    const D = {'#15803d': '#4ADE80', '#166534': '#4ADE80', '#b45309': '#FBBF24', '#92400e': '#FBBF24', '#dc2626': '#F87171',
+               '#b91c1c': '#F87171', '#0369a1': '#38BDF8', '#075985': '#38BDF8', '#696d78': '#9096A2', '#5b6170': '#A3A6B0',
+               '#8f5b2a': '#D09A63', '#7a4d23': '#D09A63', '#854d0e': '#FACC15', '#0e7490': '#22D3EE', '#155e75': '#22D3EE',
+               '#be185d': '#F472B6', '#9d174d': '#F472B6', '#c2410c': '#FB923C', '#9a3412': '#FB923C', '#1d4ed8': '#60A5FA',
+               '#475569': '#9096A2', '#047857': '#34D399', '#0f766e': '#2DD4BF', '#6d28d9': '#A78BFA', '#7c3aed': '#A78BFA',
+               '#1e40af': '#93C5FD', '#9333ea': '#C084FC', '#16a34a': '#4ADE80', '#b9783f': '#D09A63', '#db2777': '#F472B6',
+               '#0891b2': '#22D3EE', '#ca8a04': '#FACC15', '#64748b': '#A3A6B0', '#2563eb': '#93C5FD', '#8e44ad': '#C084FC'};
+    return D[String(natija || '').toLowerCase()] || natija;
+  }
+  return natija;
+}
+function birlikKor(b) {
+  const s = (b === null || b === undefined) ? '' : String(b);
+  return s.replace(/^(m|sm|mm)2$/i, (a, u) => u.toLowerCase() + '²').replace(/^(m|sm|mm)3$/i, (a, u) => u.toLowerCase() + '³');
+}
+// kech120 (zip 133 — F bosqichi 3-qism, audit G5-07 / G5-08): MAHSULOT birligi ko'rinishi — BITTA qoida (server: `services.birlik_korinish`,
+// Jinja `|birlik` — AYNAN bir natija): bo'sh → «dona»; «ta» / «dona» → «dona»; «metr» → «m»; «kvadrat», «m2» → «m²»; «m3» → «m³»;
+// boshqasi (kg, qop, litr …) — o'z nomi, kichik harfda («Kg» → «kg»). Ilgari Tayyor mahsulotlar «ta», Qaytarishlar qop / litr ni «dona» derdi.
+function birlikQisqa(u) {
+  const s = (u === null || u === undefined) ? '' : String(u).trim();
+  if (!s) return 'dona';
+  const k = s.toLowerCase();
+  if (k === 'ta' || k === 'dona') return 'dona';
+  if (k === 'metr') return 'm';
+  if (k === 'kvadrat') return 'm²';
+  return birlikKor(k);
+}
+// kech120 (zip 135 — F bosqichi 5-qism, audit G1-13): ma'lumotsiz grafik — o'q yozuvlari («0 0 1 1», «0,0 mln» × 6) o'rniga oddiy
+// gap; `matn` bo'sh — grafik qaytadi (davr almashganda ma'lumot kelsa). Yozuv grafik qutisining o'zida (`.grafik-bosh`).
+function grafikBosh(canvas, matn) {
+  const c = typeof canvas === 'string' ? document.getElementById(canvas) : canvas;
+  if (!c || !c.parentElement) return;
+  const quti = c.parentElement;
+  let y = Array.from(quti.children).find(x => x.classList && x.classList.contains('grafik-bosh'));
+  if (matn) {
+    c.style.display = 'none';
+    if (!y) { y = document.createElement('div'); y.className = 'grafik-bosh'; quti.appendChild(y); }
+    y.textContent = matn;
+    y.style.display = '';
+  } else {
+    c.style.display = '';
+    if (y) y.style.display = 'none';
+  }
+}
+function qisqaSumma(n) {
+  const x = Number(n) || 0;
+  const a = Math.abs(x);
+  // chegara — ko'rinishdagi yaxlitlashdan keyin (999 999.6 → «1,0 mln», 999.6 → «1 ming», «1000 ming» / «1000» emas);
+  // yaxlitlanib 0 bo'lgan manfiy — «0» («-0» emas)
+  const b = (x < 0 && Math.round(a) !== 0) ? '-' : '';
+  if (a >= 999500) return b + (a / 1e6).toFixed(1).replace('.', ',') + ' mln';   // kech118 (U-05): kasr — vergul
+  if (a >= 999.5) return b + (a / 1e3).toFixed(0) + ' ming';
+  return b + Math.round(a).toString();
+}
+
+// kech118 (ROLLAR 2-qism — egasi QARORI): «Tannarx va foyda» ruxsati yo'q foydalanuvchiga server tannarx / foyda / brak
+// qiymatini null beradi (`ruxsatlar.tannarx_tozala`) — sahifa son o'rnida «—» ko'rsatadi va tannarxni o'zi hisoblamaydi.
+// `somYoq(n, f)` — «1 234 so'm» (`f` — sahifaning son ko'rinishi, standart `qisqaSumma`), null — «—».
+const TANNARX_KORADI = {{ 'true' if current_user and current_user.ruxsat('tannarx', 'korish') else 'false' }};
+function somYoq(n, f) { return n === null ? '—' : (f || qisqaSumma)(n) + " so'm"; }
+
+function showMsg(text, type) {
+  const box = document.createElement('div');
+  box.style.cssText = `position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:3000;
+    padding:13px 22px;border-radius:10px;font-size:14px;font-weight:500;box-shadow:0 6px 24px rgba(0,0,0,.18);
+    white-space:pre-line;max-width:520px;text-align:center;
+    background:${type==='error'?'var(--f-fee2e2)':'var(--f-dcfce7)'};color:${type==='error'?'var(--m-dc2626)':'var(--m-1e7e34)'};
+    border:1.5px solid ${type==='error'?'#F1948A':'var(--ch-a9dfbf)'}`;
+  box.textContent = text;
+  document.body.appendChild(box);
+  setTimeout(() => box.remove(), 4000);
+}
+
+// ══ UMUMIY (kech118, B bosqichi — audit U-07 / U-08, O'LCHANGAN): DASTURNING O'Z OYNALARI.
+// (1) `xabarOyna(matn, {sarlavha, tur, okText})` — brauzerning xom `alert()` oynasi o'rniga (u tepasida sayt manzilini
+//     ko'rsatib, sahifani to'xtatib qo'yardi; audit — 70 joy, 12 ta xom oyna chiqdi). Promise — oyna yopilganda (tugma,
+//     Enter, Esc, tashqariga bosish). Ketma-ket chaqiriqlar NAVBAT bilan birin-ketin ko'rsatiladi. `tur`: 'xato' / 'ok' /
+//     'ogoh' / 'info' (berilmasa — matn boshidagi ❌ / ✅ / ⚠ belgisidan). Brauzerning O'Z `alert` i shu oynaga
+//     yo'naltiriladi (`_xoAlertniUlash`) — eski `alert(...)` chaqiriqlari o'zgarmasdan dastur oynasini ko'rsatadi.
+//     MUHIM: xom `alert` sahifani to'xtatardi, bu oyna to'xtatmaydi — xabardan KEYIN sahifa yangilanadigan yoki boshqa
+//     joyga o'tiladigan joyda `await xabarOyna(...)` yozilsin (aks holda xabar ko'rinmay qoladi).
+// (2) `kiritishOyna(sarlavha, {izoh, qiymat, tur, okText, inputmode})` — xom `prompt()` o'rniga. Promise: kiritilgan
+//     matn yoki `null` (Bekor / Esc / tashqariga bosish). `tur: 'password'` — yashirin maydon. Qiymatni tekshirish —
+//     chaqiruvchida (avvalgidek), xato — `xabarOyna` / sahifa xabari bilan.
+// (3) OYNALARNI YOPISH (U-08 — audit: 61 oynadan 55 tasi Esc ga javob bermasdi): Esc — eng ustki ochiq oynaning yopish
+//     tugmasi bosiladi; oynaning tashqarisiga (qora fonga) bosish — xuddi shunday, lekin oynaga ma'lumot YOZILGAN bo'lsa
+//     avval so'raladi. Yopish tugmasi FAQAT `data-yopish` belgisi bilan topiladi (matn bo'yicha taxmin YO'Q: «Bekor
+//     qilish» / «✕» ba'zi joyda AMAL — ishlab chiqarishni bekor qilish, tayyor mahsulotni o'chirish). Oyna = `data-yopish`
+//     (yoki `data-esc-ozi`) elementining eng yaqin `position: fixed` ajdodi (yoki o'zi); eng ustkisi — z-index, teng
+//     bo'lsa hujjatda keyingisi. `data-esc-ozi` — o'z Esc ishlovchisi bor, yopish belgisiz oyna (platforma oynasi): «ochiq
+//     oynalar» ro'yxatida qatnashadi, shuning uchun u ustida turganda global Esc uning ostidagi oynaga tegmaydi (customConfirm
+//     «Bekor» belgili — o'zi qatnashadi). Belgisiz oyna Esc ga javob bermaydi (xavfsiz tomon).
+//     Tekshiruv: tools/test_b118_oyna.py (statik — har oyna belgili; HAQIQIY server + jsdom — sahifalarning o'z oynalari).
+var _xoNavbat = [];
+var _xoJoriy = null;
+var _XO_SARLAVHA = {xato: 'Xatolik', ok: 'Bajarildi', ogoh: 'Diqqat', info: 'Xabar'};
+// kech118 (zip 122): sarlavha rangi — umumiy ranglar ro'yxatidan (tungi rejimda yorug' tus; #B91C1C qorong'i oynada 2.5:1 edi)
+var _XO_RANG = {xato: 'var(--m-b91c1c)', ok: 'var(--m-15803d)', ogoh: 'var(--m-b45309)', info: ''};
+function _xoTuri(matn) {
+  var t = String(matn || '').trim();
+  if (/^(❌|⛔|🚫)/.test(t) || /^xato/i.test(t) || /^server (xatosi|bilan)/i.test(t)) return 'xato';
+  if (/^(✅|✓|✔)/.test(t)) return 'ok';
+  if (/^(⚠|❗)/.test(t)) return 'ogoh';
+  return 'info';
+}
+function _xoElement() {
+  var m = document.getElementById('xoModal');
+  if (m) return m;
+  m = document.createElement('div');
+  m.id = 'xoModal';
+  m.setAttribute('role', 'alertdialog');
+  m.setAttribute('aria-modal', 'true');
+  m.setAttribute('aria-labelledby', 'xoSarlavha');
+  m.setAttribute('aria-describedby', 'xoMatn');
+  m.style.cssText = 'display:none;position:fixed;inset:0;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);' +
+    'z-index:3100;align-items:center;justify-content:center;padding:20px';
+  m.innerHTML = '<div style="background:var(--white,#fff);border-radius:14px;width:440px;max-width:100%;padding:22px 24px;' +
+    'box-shadow:0 20px 60px rgba(0,0,0,.25)">' +
+    '<div id="xoSarlavha" style="font-size:16px;font-weight:700;margin-bottom:8px;color:var(--text,#222)"></div>' +
+    '<div id="xoMatn" style="font-size:14px;color:var(--text,#222);line-height:1.6;white-space:pre-wrap;word-break:break-word;' +
+    'max-height:60vh;overflow:auto;margin-bottom:18px"></div>' +
+    '<button type="button" id="xoOk" class="btn btn-gold btn-block" data-yopish>Tushunarli</button></div>';
+  (document.body || document.documentElement).appendChild(m);
+  m.querySelector('#xoOk').onclick = function () { _xoYop(); };
+  return m;
+}
+function _xoKorsat(q) {
+  _xoJoriy = q;
+  var m = _xoElement();
+  var tur = q.opts.tur || _xoTuri(q.matn);
+  var s = m.querySelector('#xoSarlavha');
+  s.textContent = q.opts.sarlavha || _XO_SARLAVHA[tur] || 'Xabar';
+  s.style.color = _XO_RANG[tur] || '';
+  m.querySelector('#xoMatn').textContent = q.matn;
+  var ok = m.querySelector('#xoOk');
+  ok.textContent = q.opts.okText || 'Tushunarli';
+  m.setAttribute('data-tur', tur);
+  m.style.display = 'flex';
+  q.oldingiFokus = document.activeElement;
+  setTimeout(function () { try { ok.focus(); } catch (e) {} }, 0);
+}
+function _xoYop() {
+  var m = document.getElementById('xoModal');
+  if (m) m.style.display = 'none';
+  var q = _xoJoriy;
+  _xoJoriy = null;
+  if (q) {
+    try { if (q.oldingiFokus && q.oldingiFokus.focus && q.oldingiFokus !== document.body) q.oldingiFokus.focus(); } catch (e) {}
+    q.resolve();
+  }
+  if (_xoNavbat.length) _xoKorsat(_xoNavbat.shift());
+}
+function xabarOyna(matn, opts) {
+  return new Promise(function (resolve) {
+    var q = {matn: (matn === undefined || matn === null) ? '' : String(matn), opts: opts || {}, resolve: resolve};
+    function boshla() { if (_xoJoriy) _xoNavbat.push(q); else _xoKorsat(q); }
+    if (document.body) boshla();
+    else document.addEventListener('DOMContentLoaded', boshla);
+  });
+}
+function _xoAlertniUlash(w) {
+  // Faqat brauzerning HAQIQIY (native) alert i almashtiriladi: test / boshqa kod oldindan o'rnatgan almashtirish tegilmaydi.
+  try {
+    var n = w.alert;
+    if (typeof n === 'function' && /\[native code\]/.test(Function.prototype.toString.call(n))) {
+      w.alert = function (matn) { xabarOyna(matn); };
+      return true;
+    }
+  } catch (e) {}
+  return false;
+}
+_xoAlertniUlash(window);
+
+var _kiJoriy = null;
+function kiritishOyna(sarlavha, opts) {
+  opts = opts || {};
+  return new Promise(function (resolve) {
+    if (_kiJoriy) { var eski = _kiJoriy; _kiJoriy = null; eski(null); }
+    var m = document.getElementById('kiModal');
+    if (!m) {
+      m = document.createElement('div');
+      m.id = 'kiModal';
+      m.setAttribute('role', 'dialog');
+      m.setAttribute('aria-modal', 'true');
+      m.setAttribute('aria-labelledby', 'kiSarlavha');
+      m.style.cssText = 'display:none;position:fixed;inset:0;top:0;left:0;right:0;bottom:0;background:rgba(17,24,39,.5);' +
+        'z-index:3050;align-items:center;justify-content:center;padding:20px';
+      m.innerHTML = '<div style="background:var(--white,#fff);border-radius:14px;padding:22px 24px;width:400px;max-width:100%;' +
+        'box-shadow:0 20px 60px rgba(0,0,0,.25)">' +
+        '<div id="kiSarlavha" style="font-size:16px;font-weight:700;color:var(--text,#222);margin-bottom:6px;white-space:pre-wrap"></div>' +
+        '<div id="kiIzoh" style="font-size:13px;color:var(--text2,#6B7280);margin-bottom:12px;white-space:pre-wrap"></div>' +
+        '<input id="kiMaydon" class="maydon" type="text" autocomplete="off" style="width:100%;font-weight:600">' +
+        '<div style="display:flex;gap:8px;margin-top:16px">' +
+        '<button type="button" id="kiBekor" class="btn btn-outline" data-yopish style="flex:1">Bekor</button>' +
+        '<button type="button" id="kiOk" class="btn btn-gold" style="flex:1">Tasdiqlash</button></div></div>';
+      (document.body || document.documentElement).appendChild(m);
+    }
+    var maydon = m.querySelector('#kiMaydon'), ok = m.querySelector('#kiOk'), bekor = m.querySelector('#kiBekor');
+    var izoh = m.querySelector('#kiIzoh');
+    m.querySelector('#kiSarlavha').textContent = sarlavha || '';
+    izoh.textContent = opts.izoh || '';
+    izoh.style.display = opts.izoh ? 'block' : 'none';
+    maydon.type = opts.tur === 'password' ? 'password' : 'text';
+    maydon.setAttribute('inputmode', opts.inputmode || 'text');
+    maydon.setAttribute('aria-label', sarlavha || '');
+    maydon.value = (opts.qiymat === undefined || opts.qiymat === null) ? '' : String(opts.qiymat);
+    ok.textContent = opts.okText || 'Tasdiqlash';
+    var oldingi = document.activeElement;
+    function tugat(v) {
+      if (_kiJoriy !== tugat) return;
+      _kiJoriy = null;
+      m.style.display = 'none';
+      try { if (oldingi && oldingi.focus && oldingi !== document.body) oldingi.focus(); } catch (e) {}
+      resolve(v);
+    }
+    _kiJoriy = tugat;
+    ok.onclick = function () { tugat(maydon.value); };
+    bekor.onclick = function () { tugat(null); };
+    maydon.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); ok.click(); } };
+    m.style.display = 'flex';
+    setTimeout(function () { try { maydon.focus(); maydon.select(); } catch (e) {} }, 0);
+  });
+}
+
+(function () {
+  function korinadi(el) {
+    // jsdom da o'lcham yo'q — shuning uchun geometriya emas, ajdodlar zanjiri (display / hidden / visibility)
+    if (!el || !el.isConnected) return false;
+    var cs = window.getComputedStyle(el);
+    // kech118 (audit O390, O'LCHANGAN): telefonda yopiq menyu foni `display:block; opacity:0; pointer-events:none` —
+    // ko'rinmaydi va bosilmaydi; «ochiq» deb hisoblansa Esc oynani emas, (yopiq) menyuni «yopardi» (37 oyna).
+    if (cs.visibility === 'hidden' || cs.pointerEvents === 'none' || parseFloat(cs.opacity) === 0) return false;
+    for (var e = el; e && e.nodeType === 1; e = e.parentElement) {
+      if (e.hidden) return false;
+      if (window.getComputedStyle(e).display === 'none') return false;
+    }
+    return true;
+  }
+  function fixedmi(el) {
+    return el && el.nodeType === 1 && window.getComputedStyle(el).position === 'fixed';
+  }
+  function oynasi(el) {
+    for (var e = el; e && e.nodeType === 1 && e !== document.body; e = e.parentElement) {
+      if (fixedmi(e)) return e;
+    }
+    return null;
+  }
+  function zIndex(el) { var z = parseInt(window.getComputedStyle(el).zIndex, 10); return isNaN(z) ? 0 : z; }
+  function ochiqOynalar() {
+    var tp = {}, royxat = [];
+    document.querySelectorAll('[data-yopish], [data-esc-ozi]').forEach(function (b) {
+      var ov = oynasi(b);
+      if (!ov || royxat.indexOf(ov) >= 0 || !korinadi(ov)) return;
+      royxat.push(ov);
+    });
+    royxat.sort(function (a, b) {
+      var d = zIndex(a) - zIndex(b);
+      if (d) return d;
+      return (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) ? -1 : 1;
+    });
+    return royxat;
+  }
+  function yopishTugmasi(ov) {
+    if (ov.hasAttribute('data-yopish')) return ov;
+    var b = ov.querySelectorAll('[data-yopish]');
+    for (var i = 0; i < b.length; i++) {
+      if (oynasi(b[i]) === ov && korinadi(b[i]) && !b[i].disabled) return b[i];
+    }
+    return null;
+  }
+  function ichkiPanel(ov) {
+    // oyna ichidagi ochiluvchi panel (masalan tarkib tanlash ro'yxati) — Esc avval shuni yopadi
+    var b = ov.querySelectorAll('[data-yopish-ichki]');
+    for (var i = 0; i < b.length; i++) {
+      if (oynasi(b[i]) === ov && korinadi(b[i]) && !b[i].disabled) return b[i];
+    }
+    return null;
+  }
+  var kiritilgan = new Set();
+  function belgiTozala(ov) { if (ov) { ov.__kiritildi = false; kiritilgan.delete(ov); } }
+  function yop(ov, t) { belgiTozala(ov); t.click(); }
+  function yopSorab(ov, t) {
+    // oynaga ma'lumot YOZILGAN bo'lsa — tasodifan yo'qolmasin: avval so'raladi (Esc ham, tashqariga bosish ham)
+    if (ov.__kiritildi && typeof customConfirm === 'function') {
+      customConfirm("Oynaga yozilgan ma'lumot saqlanmaydi. Oyna yopilsinmi?",
+                    {okText: 'Yopish', cancelText: 'Davom etish'}).then(function (ha) { if (ha) yop(ov, t); });
+      return;
+    }
+    yop(ov, t);
+  }
+  window._oynaYopishIchki = {ochiqOynalar: ochiqOynalar, yopishTugmasi: yopishTugmasi, oynasi: oynasi, korinadi: korinadi,
+                             ichkiPanel: ichkiPanel};
+
+  window.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape' && e.key !== 'Esc') return;
+    if (e.defaultPrevented || e.isComposing) return;
+    var o = ochiqOynalar();
+    if (!o.length) return;
+    var ust = o[o.length - 1];
+    // eng ustki oyna yopish belgisiz (`data-esc-ozi` — o'z Esc i bor) bo'lsa — global Esc hech narsa qilmaydi (ostidagi oynaga
+    // TEGMAYDI — J22d); customConfirm «Bekor» belgili — bosish o'z Esc bilan AYNAN natija (kech118 mutatsiyalari M11 / M51:
+    // alohida `return` va ccModal dagi `data-esc-ozi` ekvivalent edi — olib tashlandi).
+    var ichki = ichkiPanel(ust);
+    var t = ichki || yopishTugmasi(ust);
+    if (!t) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if (ichki) { ichki.click(); return; }
+    yopSorab(ust, t);
+  }, true);
+
+  var bosilganJoy = null;
+  document.addEventListener('mousedown', function (e) { bosilganJoy = e.target; }, true);
+  document.addEventListener('click', function (e) {
+    var ov = e.target;
+    var boshi = bosilganJoy;
+    bosilganJoy = null;
+    if (!ov || ov.nodeType !== 1 || boshi !== ov) return;      // matnni belgilab tashqarida qo'yib yuborish — yopmaydi
+    if (!fixedmi(ov) || !korinadi(ov)) return;                  // oyna o'z tashqi bosishida o'zi yopilgan bo'lsa ham
+    var o = ochiqOynalar();
+    if (!o.length || o[o.length - 1] !== ov) return;
+    var t = yopishTugmasi(ov);
+    if (!t || t === ov) return;                                  // o'zi yopiladigan (rasm) — o'z onclick i bor
+    yopSorab(ov, t);
+  });
+  // Yozishni belgilash HAR bosilgan tugmada ishlaydi — shuning uchun hisoblangan uslubsiz (getComputedStyle — jsdom da va
+  // katta sahifada sekin): oyna = inline `position: fixed` li, ma'lum oyna klassli yoki belgili eng yaqin ajdod.
+  var OYNA_KLASS = ['modal-overlay', 'pl-modal', 'mv-drawer-overlay', 'inv-toast-overlay', 'proj-toast-overlay', 'recp-toast-overlay'];
+  function oynasiTez(el) {
+    for (var e = el; e && e.nodeType === 1 && e !== document.body; e = e.parentElement) {
+      if ((e.style && e.style.position === 'fixed') || e.hasAttribute('data-esc-ozi')) return e;
+      for (var i = 0; i < OYNA_KLASS.length; i++) if (e.classList && e.classList.contains(OYNA_KLASS[i])) return e;
+    }
+    return null;
+  }
+  function kiritishBelgisi(e) {
+    var el = e.target;
+    if (!el || el.nodeType !== 1) return;
+    var ov = oynasiTez(el);
+    if (!ov || ov.id === 'xoModal' || ov.id === 'kiModal') return;
+    if (el.hasAttribute('data-kiritish-emas')) return;    // kech120 (zip 130): qidiruv maydoni (tanlagich) — ma'lumot emas
+    if (!ov.querySelector('[data-yopish]') && !ov.hasAttribute('data-yopish')) return;
+    ov.__kiritildi = true;
+    kiritilgan.add(ov);
+  }
+  document.addEventListener('input', kiritishBelgisi, true);
+  document.addEventListener('change', function (e) {
+    var el = e.target;
+    if (el && (el.tagName === 'SELECT' || el.type === 'checkbox' || el.type === 'radio' || el.type === 'file')) kiritishBelgisi(e);
+  }, true);
+  // Oyna yopilganda (qaysi yo'l bilan bo'lmasin — saqlash, o'z tugmasi) belgi tozalanadi: keyingi ochilishda so'ramaydi
+  function kuzat() {
+    if (typeof MutationObserver !== 'function' || !document.documentElement) return;
+    new MutationObserver(function () {
+      if (!kiritilgan.size) return;
+      kiritilgan.forEach(function (ov) { if (!korinadi(ov)) belgiTozala(ov); });
+    }).observe(document.documentElement, {attributes: true, subtree: true, attributeFilter: ['style', 'class', 'hidden']});
+  }
+  if (document.documentElement) kuzat(); else document.addEventListener('DOMContentLoaded', kuzat);
+})();
+
 // ══ UMUMIY: onclick="funksiya('${nom}')" ko'rinishidagi joylar uchun.
 // MUHIM (2026-09-13, xavfsizlik tekshiruvi): oddiy escapeHtml() BU YERDA
 // YETARLI EMAS — brauzer avval HTML atributini o'qiydi (shu chog'da
@@ -121,14 +676,39 @@ function escapeHtml(str) {
 // tirnoq JavaScript qatoridan "chiqib ketishning" oldini OLMAYDI. Bu
 // funksiya, tirnoqni avval JavaScript qatori ichida xavfsiz qiladi
 // (backslash bilan), keyin natijani HTML atributi uchun ham escape qiladi.
+//
+// 2026-09-22 (kech30, jsdom da O'LCHANGAN nuqson tuzatildi): avval `&`
+// escape qilinmas edi. Brauzer atributni o'qiyotganda `&#39;` / `&apos;` /
+// `&#x27;` ni ASL `'` ga aylantiradi — ya'ni nomga `&#39;);...//` yozilsa,
+// tirnoq JavaScript qatoridan chiqib, yozilgan kod BAJARILARDI (oddiy `'`
+// ni funksiya ushlardi, entity ko'rinishidagisini — yo'q). Endi `&` ham
+// `&amp;` bo'ladi, shuning uchun atribut o'qilgach aynan kiritilgan matn
+// qoladi (`&#39;` — oddiy 5 ta belgi bo'lib). TARTIB MUHIM: `&` —
+// qolgan HTML almashtirishlaridan OLDIN (aks holda `&quot;` ning o'zi
+// `&amp;quot;` bo'lib, matn buziladi), lekin JS almashtirishlaridan KEYIN.
+// Qator uzilishi (`\n`, `\r`) ham JS ko'rinishiga o'tkaziladi: avval xom
+// qator uzilishi JavaScript qatorini sindirib (SyntaxError), tugma hech
+// narsa qilmay qolardi. Tekshiruv: tools/test_html_escape_dom.py 3a-bo'lim.
 function jsAttrEscape(str) {
   if (str === null || str === undefined) return '';
   return String(str)
     .replace(/\\/g, '\\\\')
     .replace(/'/g, "\\'")
+    .replace(/\r/g, '\\r')
+    .replace(/\n/g, '\\n')
+    .replace(/&/g, '&amp;')
     .replace(/"/g, '&quot;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+}
+
+// kech120 (zip 130 — audit G5-16): ro'yxat katagidagi rasm — KICHIK NUSXA (`?o=k`, server yasaydi; katta tomoni 360 px).
+// Ko'ruvchi oyna (bosilganda) — ASL manzil. Faqat yuklangan rasm (`/static/uploads/…` + .jpg/.jpeg/.png/.webp); boshqa
+// manzil o'zgarmaydi. Server tomonida xuddi shu qoida — `kichik_rasm` filtri (main.kichik_rasm_manzili).
+function kichikRasm(url) {
+  if (typeof url !== 'string' || !url) return url || '';
+  if (url.indexOf('/static/uploads/') === 0 && url.indexOf('?') < 0 && /\.(jpe?g|png|webp)$/i.test(url)) return url + '?o=k';
+  return url;
 }
 </script>
   <meta charset="UTF-8">
@@ -138,7 +718,37 @@ function jsAttrEscape(str) {
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/css/tabler-icons.min.css">
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/style.css?v={{ static_version }}">
+  <link rel="stylesheet" href="/static/ranglar.css?v={{ static_version }}">
+  <style>
+  /* kech114 (egasi QARORI «6A — Bir qator + tugmalar»): telefonda yuqori panel 103–191 px edi (sarlavha, tungi rejim /
+     qo'ng'iroqcha / Кирилл va sahifa tugmalari alohida qatorlarda — `work/k114/olchov114.py`). Endi: 1-qator — menyu,
+     sarlavha, obuna belgisi, qo'ng'iroqcha, «···» (tungi rejim, Кирилл); 2-qator — sahifa tugmalari yonma-yon, teng. */
+  .tb-amallar{display:flex;gap:8px;align-items:center}
+  .tb-amallar:empty{display:none}
+  .tb-kop-wrap{display:none;position:relative}
+  #tbKop{width:var(--h-md);height:var(--h-md);border-radius:var(--r-btn);border:1px solid var(--border);background:var(--white);color:var(--text2);font-size:14px;font-weight:800;letter-spacing:1px;cursor:pointer}
+  #tbKop[aria-expanded="true"]{border-color:var(--ch-d9b48c);background:var(--gold-tint);color:var(--gold-dark)}
+  #tbKopMenyu{position:absolute;top:44px;right:0;min-width:210px;background:var(--white);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-card);padding:6px;z-index:1000;display:flex;flex-direction:column}
+  #tbKopMenyu[hidden]{display:none}
+  #tbKopMenyu button{height:var(--h-btn);text-align:left;padding:0 12px;border:0;border-radius:8px;background:transparent;color:var(--text);font-size:14px;font-weight:600;cursor:pointer}
+  #tbKopMenyu button:hover{background:var(--gold-tint)}
+  @media (max-width: 768px) {
+    .erp-topbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 10px}
+    .erp-topbar .tb-left{flex:1 1 0;min-width:0}
+    /* kech119 (C — telefon, O'LCHANGAN: Bosh sahifa «Assalomu alaykum, Namuna Dekor» 390 px da «…Namuna De…» deb kesilardi):
+       sarlavha 2 qatorgacha o'raladi (undan uzuni — «…» bilan) */
+    .erp-topbar .tb-left .page-title{white-space:normal;overflow:hidden;min-width:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.25;overflow-wrap:anywhere}
+    .erp-topbar .tb-right{display:contents}
+    .erp-topbar .tb-right>*{margin-right:0!important}
+    .erp-topbar .tb-keng{display:none!important}
+    .erp-topbar .tb-kop-wrap{display:block}
+    .erp-topbar .tb-amallar{order:10;flex:1 1 100%;display:flex;gap:8px}
+    .erp-topbar .tb-amallar:empty{display:none}
+    /* uzun yorliq («+ Yangi ishlab chiqarish», 360 px) kesilmaydi — tugma ichida ikki qatorga o'tadi (44 px ga sig'adi) */
+    .erp-topbar .tb-amallar>*{flex:1 1 0;min-width:0;min-height:var(--h-btn);margin:0!important;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:normal;line-height:1.2;text-align:center;padding:4px 10px;overflow:hidden;box-sizing:border-box}
+  }
+  </style>
   {% block head %}{% endblock %}
 </head>
 <body>
@@ -148,11 +758,38 @@ function jsAttrEscape(str) {
   <aside class="sidebar">
     <div class="s-logo">
       <div style="display:flex;align-items:center;gap:10px">
-        <img src="/static/logo_round.jpg" alt="PenoDecorPro"
+        {# 2026-09-20: chap paneldagi logotip ham korxonanikidan olinadi.
+           Korxona o'z logotipini yuklamagan bo'lsa — umumiy belgi. #}
+        {% set _logo = company_logo_of(current_user.company_id) if current_user else None %}
+        {# 2026-09-20 — MUHIM: chap paneldagi joy KVADRAT (42×42).
+           `logo_transparent.png` esa KENG (nisbat 1.78) — uni doira ichiga
+           `cover` bilan tiqqanda kesilib, xiralashib ko'rinadi. Shuning
+           uchun platformaning o'z logotipi uchun kvadrat variant
+           (`logo_round.jpg`) ishlatiladi; mijoz yuklagan logotip esa
+           istalgan shaklda bo'lishi mumkin — u `contain` bilan, to'liq
+           ko'rinadigan qilib, yumaloq burchakli ramkada chiziladi. #}
+        {% if _logo == 'static/logo_transparent.png' %}
+        {# kech120 (E, U-10): 42 px joy uchun 1024 × 1024 (91 KB) o'rniga 128 × 128 (retina 3× gacha aniq) #}
+        <img src="/static/logo_round_128.jpg" alt=""
              style="width:42px;height:42px;border-radius:50%;object-fit:cover;flex-shrink:0">
+        {% elif _logo %}
+        <img src="/{{ _logo }}" alt=""
+             style="width:42px;height:42px;border-radius:9px;object-fit:contain;
+                    background:var(--white,#fff);flex-shrink:0">
+        {% else %}
+        <div style="width:42px;height:42px;border-radius:50%;flex-shrink:0;background:var(--bg);
+                    display:flex;align-items:center;justify-content:center;font-weight:700;
+                    color:var(--text3);font-size:18px">
+          {{ (company_name_of(current_user.company_id) or 'P')[0]|upper if current_user else 'P' }}
+        </div>
+        {% endif %}
         <div>
-          <div class="logo-name">Penodecor<span>Pro</span></div>
-          <div class="logo-ver">ERP · Andijon</div>
+          {# Faza 5: korxona nomi bazadan olinadi. Ilgari "PenoDecorPro ·
+             Andijon" qattiq yozilgan edi — ikkinchi mijoz o'z ERP sida
+             boshqa korxonaning nomini ko'rib turardi. #}
+          {% set _kn = company_name_of(current_user.company_id) if current_user else None %}
+          <div class="logo-name">{{ _kn or 'PenodecorPro' }}</div>
+          <div class="logo-ver">ERP</div>
         </div>
       </div>
     </div>
@@ -161,113 +798,170 @@ function jsAttrEscape(str) {
       <div class="u-avatar">{{ (current_user.full_name or current_user.username)[0].upper() }}</div>
       <div>
         <div class="u-name">{{ current_user.full_name or current_user.username }}</div>
-        <div class="u-role">{{ current_user.role.value | capitalize }}</div>
+        <div class="u-role">{{ current_user.rol_nomi }}</div>
       </div>
     </div>
 
     <nav class="s-nav">
-      {% set role = current_user.role.value %}
+      {# kech118 (ROLLAR — egasi qarori: rollarni admin boshqaradi): menyu — ROL RUXSATI bo'yicha (ilgari rol turi ro'yxati).
+         Har havola — o'sha sahifaning qorovuli bilan AYNAN bir shart (sahifa ochiladigan bo'lsa — havola ko'rinadi).
+         Istisnolar (eskisi bilan AYNAN): «Xarajat qo'shish» va «Ustalar» — faqat Moliya / KPI sahifasi YO'Q rolga (ular
+         xarajatni Moliyada, ustani KPI sahifasida qo'shadi). Guruh sarlavhasi — guruhda kamida bitta havola bo'lsa. #}
+      {% set u = current_user %}
+      {% set m_bosh = u.ruxsat('dashboard', 'korish') %}
+      {% set m_loyiha = u.ruxsat('loyiha', 'korish') or u.ruxsat('loyiha_korsatkich', 'korish') %}
+      {% set m_buyurtma = u.ruxsat('buyurtma', 'korish') or u.ruxsat('buyurtma_fayl', 'yaratish') %}
+      {% set m_ombor = u.ruxsat('material', 'korish') %}
+      {% set m_kirim = u.ruxsat('kirim', 'yaratish') %}
+      {% set m_taminotchi = u.ruxsat('taminotchi', 'korish') %}
+      {% set m_retsept = u.ruxsat('retsept', 'korish') %}
+      {% set m_ishlab = u.ruxsat('mahsulot_turi', 'korish') %}
+      {% set m_tayyor = u.ruxsat('tayyor', 'korish') or u.ruxsat('sotuv', 'korish') %}
+      {% set m_moliya = u.ruxsat('moliya', 'korish') %}
+      {% set m_kunlik = (u.ruxsat('kunlik', 'korish') or u.ruxsat('kunlik', 'yaratish')) and not m_moliya %}
+      {% set m_qaytarish = u.ruxsat('qaytarish', 'korish') %}
+      {% set m_kpi = u.ruxsat('kpi', 'korish') %}
+      {% set m_usta = u.ruxsat('usta', 'korish') and not m_kpi %}
+      {% set m_qarz = u.ruxsat('qarz', 'korish') %}
+      {% set m_hisobot = u.ruxsat('hisobot', 'korish') %}
+      {% set m_admin = u.role.value == 'admin' %}
+      {% set m_savat = u.ruxsat('savat', 'korish') %}
+      {% set m_jurnal = u.ruxsat('jurnal', 'korish') %}
 
+      {# kech120 (zip 137 — F bosqichi 5-qism, audit G6-18): guruh sarlavhasi — faqat ostida band bo'lsa (Omborchida bo'sh «Asosiy» edi) #}
+      {% if m_bosh or m_loyiha or m_buyurtma %}
       <div class="nav-label">Asosiy</div>
+      {% endif %}
 
-      {% if role in ['admin', 'accountant'] %}
+      {% if m_bosh %}
       <a href="/" class="nav-item {% if active_page == 'home' %}active{% endif %}">
         <i class="ti ti-home n-ico"></i>
         <span class="n-txt">Bosh sahifa</span>
       </a>
       {% endif %}
 
-      {% if role in ['admin', 'accountant'] %}
+      {% if m_bosh %}
       <a href="/dashboard" class="nav-item {% if active_page == 'dashboard' %}active{% endif %}">
         <i class="ti ti-chart-bar n-ico"></i>
         <span class="n-txt">Dashboard</span>
       </a>
       {% endif %}
 
-      {% if role in ['admin', 'manager', 'accountant'] %}
+      {% if m_loyiha %}
       <a href="/projects" class="nav-item {% if active_page == 'projects' %}active{% endif %}">
         <i class="ti ti-clipboard-list n-ico"></i>
         <span class="n-txt">Loyihalar</span>
       </a>
       {% endif %}
 
-      {% if role in ['admin', 'manager', 'master'] %}
+      {% if m_buyurtma %}
       <a href="/orders" class="nav-item {% if active_page == 'orders' %}active{% endif %}">
         <i class="ti ti-receipt n-ico"></i>
         <span class="n-txt">Buyurtmalar</span>
       </a>
       {% endif %}
 
-      {% if role in ['admin', 'warehouse', 'manager'] %}
+      {% if m_ombor or m_kirim or m_taminotchi or m_retsept or m_ishlab or m_tayyor %}
       <div class="nav-label">Ishlab chiqarish</div>
       {% endif %}
 
-      {% if role in ['admin', 'warehouse', 'manager'] %}
+      {% if m_ombor %}
       <a href="/inventory" class="nav-item {% if active_page == 'inventory' %}active{% endif %}">
         <i class="ti ti-package n-ico"></i>
         <span class="n-txt">Omborxona</span>
       </a>
       {% endif %}
 
-      {% if role in ['admin', 'warehouse'] %}
-      <a href="/suppliers/receive" class="nav-item {% if active_page in ['suppliers', 'supplier_receive'] %}active{% endif %}">
-        <i class="ti ti-truck n-ico"></i>
-        <span class="n-txt">Xomashyo ta'minoti</span>
+      {# kech118 (D-1, G4-19 / U-12 — egasi QARORI «Taklif qilingan lug'at»): ikki band — «Kirim qilish» (forma) va
+         «Ta'minotchilar» (ro'yxat, qarzlar, tarix); ilgari bitta «Xomashyo ta'minoti» formani ochardi, ro'yxatga yo'l yashirin edi #}
+      {% if m_kirim %}
+      <a href="/suppliers/receive" class="nav-item {% if active_page == 'supplier_receive' %}active{% endif %}">
+        <i class="ti ti-truck-delivery n-ico"></i>
+        <span class="n-txt">Kirim qilish</span>
       </a>
+      {% endif %}
+      {% if m_taminotchi %}
+      <a href="/suppliers" class="nav-item {% if active_page == 'suppliers' %}active{% endif %}">
+        <i class="ti ti-truck n-ico"></i>
+        <span class="n-txt">Ta'minotchilar</span>
+      </a>
+      {% endif %}
+      {% if m_retsept %}
 
       <a href="/recipes" class="nav-item {% if active_page == 'recipes' %}active{% endif %}">
         <i class="ti ti-flask n-ico"></i>
-        <span class="n-txt">Retseptlar</span>
+        <span class="n-txt">Loy retseptlari</span>
+      </a>
+      {% endif %}
+      {% if m_ishlab %}
+
+      <a href="/production" class="nav-item {% if active_page == 'production' %}active{% endif %}">
+        <i class="ti ti-settings-automation n-ico"></i>
+        <span class="n-txt">Ishlab chiqarish</span>
       </a>
       {% endif %}
 
-      {% if role in ['admin', 'warehouse', 'manager'] %}
+      {% if m_tayyor %}
       <a href="/finished" class="nav-item {% if active_page == 'finished' %}active{% endif %}">
         <i class="ti ti-building-factory-2 n-ico"></i>
         <span class="n-txt">Tayyor mahsulotlar</span>
       </a>
       {% endif %}
 
-      {% if role in ['admin', 'manager', 'warehouse', 'accountant'] %}
-      <div class="nav-label">Hisobot</div>
+      {# kech120 (zip 137 — G6-18): «Xarajat qo'shish», «Qaytarishlar», «Ustalar» — hisobot emas, kundalik ish (ilgari hammasi
+         «Hisobot» ostida edi) #}
+      {% if m_kunlik or m_qaytarish or m_usta %}
+      <div class="nav-label">Kundalik ish</div>
       {% endif %}
 
-      {% if role == 'manager' %}
+      {% if m_kunlik %}
       <a href="/kunlik-xarajat" class="nav-item {% if active_page == 'kunlik_xarajat' %}active{% endif %}">
         <i class="ti ti-receipt-2 n-ico"></i>
         <span class="n-txt">Xarajat qo'shish</span>
       </a>
       {% endif %}
 
-      {% if role in ['admin', 'manager', 'warehouse'] %}
+      {% if m_qaytarish %}
       <a href="/returns" class="nav-item {% if active_page == 'returns' %}active{% endif %}">
         <i class="ti ti-arrow-back-up n-ico"></i>
         <span class="n-txt">Qaytarishlar</span>
       </a>
       {% endif %}
 
-      {% if role == 'manager' %}
+      {% if m_usta %}
       <a href="/ustalar" class="nav-item {% if active_page == 'ustalar' %}active{% endif %}">
         <i class="ti ti-users n-ico"></i>
         <span class="n-txt">Ustalar</span>
       </a>
       {% endif %}
 
-      {% if role in ['admin', 'accountant'] %}
+      {% if m_qarz or m_moliya or m_kpi or m_hisobot %}
+      <div class="nav-label">Hisobot</div>
+      {% endif %}
+
+      {% if m_qarz %}
       <a href="/debts" class="nav-item {% if active_page == 'debts' %}active{% endif %}">
         <i class="ti ti-credit-card n-ico"></i>
         <span class="n-txt">Qarzdorlar</span>
       </a>
+      {% endif %}
+      {% if m_moliya %}
 
-      <a href="/finance" class="nav-item {% if active_page == 'finance' %}active{% endif %}">
+      {# kech120 (zip 137 — G6-18): Moliyachi «Xarajat qo'shish» sahifasini ocha oladi, menyuda u — Moliya ichida (o'sha amal) #}
+      <a href="/finance" class="nav-item {% if active_page == 'finance' or (active_page == 'kunlik_xarajat' and not m_kunlik) %}active{% endif %}">
         <i class="ti ti-trending-up n-ico"></i>
         <span class="n-txt">Moliya</span>
       </a>
+      {% endif %}
+      {% if m_kpi %}
 
-      <a href="/kpi" class="nav-item {% if active_page == 'kpi' %}active{% endif %}">
+      {# kech120 (zip 137 — G6-18): admin «/ustalar» ni ochsa ham menyuda o'z bandi belgilanadi (ilgari hech biri) #}
+      <a href="/kpi" class="nav-item {% if active_page == 'kpi' or (active_page == 'ustalar' and not m_usta) %}active{% endif %}">
         <i class="ti ti-trophy n-ico"></i>
         <span class="n-txt">Ustalar KPI / Hodimlar</span>
       </a>
+      {% endif %}
+      {% if m_hisobot %}
 
       <a href="/reports" class="nav-item {% if active_page == 'reports' %}active{% endif %}">
         <i class="ti ti-report n-ico"></i>
@@ -275,20 +969,43 @@ function jsAttrEscape(str) {
       </a>
       {% endif %}
 
-      {% if role == 'admin' %}
+      {% if m_admin or m_savat or m_jurnal %}
       <div class="nav-label">Boshqaruv</div>
+      {% endif %}
+      {% if m_admin %}
 
       <a href="/users" class="nav-item {% if active_page == 'users' %}active{% endif %}">
         <i class="ti ti-users n-ico"></i>
         <span class="n-txt">Foydalanuvchilar</span>
       </a>
+      <a href="/rollar" class="nav-item {% if active_page == 'rollar' %}active{% endif %}">
+        <i class="ti ti-shield-lock n-ico"></i>
+        <span class="n-txt">Rollar va ruxsatlar</span>
+      </a>
+      {% endif %}
+      {% if m_savat %}
       <a href="/trash" class="nav-item {% if active_page == 'trash' %}active{% endif %}">
         <i class="ti ti-trash n-ico"></i>
         <span class="n-txt">O'chirilganlar</span>
       </a>
+      {% endif %}
+      {% if m_jurnal %}
+      {# kech120 (zip 137 — F bosqichi 5-qism, audit G6-22): korxona sozlamalari — alohida band (ilgari «Tizim jurnallari» ning
+         4-yorlig'ida — egasi sozlamani jurnal ichida qidirmaydi) #}
+      <a href="/sozlamalar" class="nav-item {% if active_page == 'sozlamalar' %}active{% endif %}">
+        <i class="ti ti-settings n-ico"></i>
+        <span class="n-txt">Sozlamalar</span>
+      </a>
       <a href="/logs" class="nav-item {% if active_page == 'logs' %}active{% endif %}">
         <i class="ti ti-file-text n-ico"></i>
         <span class="n-txt">Tizim jurnallari</span>
+      </a>
+      {% endif %}
+      {# kech111 — platforma paneli (mijoz korxonalar, obuna, bloklash) — FAQAT platforma admini #}
+      {% if current_user.is_platform_admin %}
+      <a href="/platforma" class="nav-item {% if active_page == 'platforma' %}active{% endif %}">
+        <i class="ti ti-building-skyscraper n-ico"></i>
+        <span class="n-txt">Platforma</span>
       </a>
       {% endif %}
     </nav>
@@ -301,7 +1018,7 @@ function jsAttrEscape(str) {
     </div>
   </aside>
 
-  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+  <div class="sidebar-overlay" id="sidebarOverlay" data-yopish onclick="closeSidebar()"></div>
 
   <script>
     window.toggleSidebar = function() {
@@ -329,32 +1046,63 @@ function jsAttrEscape(str) {
           <i class="ti ti-menu-2" style="font-size:18px"></i>
         </button>
         <div class="page-title">{% block page_title %}{% endblock %}</div>
-        <div class="page-sub">{% block page_sub %}{% endblock %}</div>
+        <div class="page-sub" title="{{ self.page_sub()|striptags|trim }}">{% block page_sub %}{% endblock %}</div>
       </div>
       <div class="tb-right">
-        <button id="themeToggle" onclick="toggleTheme()" style="width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2);margin-right:10px">
-          <i class="ti ti-moon" id="themeIcon" style="font-size:16px"></i>
+        <button id="themeToggle" class="btn btn-outline btn-icon tb-keng" onclick="toggleTheme()" title="Tungi / kunduzgi rejim" aria-label="Tungi / kunduzgi rejim" style="color:var(--text2);margin-right:10px">
+          <i class="ti ti-moon" id="themeIcon"></i>
         </button>
+        {# kech111 — obuna ogohlantirishi (egasi QARORI "Admin, keyin hamma": muddatga ≤ 7 kun — korxona adminiga sariq;
+           muddat tugagan, 3 kunlik imtiyoz — hammaga qizil). YUQORI PANELDA — sahifa joyini egallamaydi (ko'p sahifa
+           `height: calc(100vh - 58px)` bilan qurilgan: kontent ustidagi qator ularning pastini kesib qo'yardi — kech111
+           da brauzerda o'lchandi). Bosilsa — to'liq matn (telefon bilan). Matn serverdan (`obuna.banner`), escape. #}
+        {% set _obuna_b = obuna_banneri(current_user) if current_user else None %}
+        {% if _obuna_b %}
+        <div id="obunaWrap" style="position:relative;margin-right:10px">
+          <button type="button" id="obunaBanner" aria-expanded="false" aria-controls="obunaPanel"
+                  onclick="obunaPaneliniAlmashtir()"
+                  class="btn btn-md" style="white-space:nowrap;
+                         {% if _obuna_b.daraja == 'qizil' %}background:var(--f-fee2e2);border:1px solid var(--ch-f3c7c7);color:var(--m-7f1d1d){% else %}background:var(--f-fef3c7);border:1px solid var(--ch-f5d98b);color:var(--m-78350f){% endif %}">
+            <i class="ti {% if _obuna_b.daraja == 'qizil' %}ti-lock{% else %}ti-calendar-plus{% endif %}" aria-hidden="true"></i>
+            <span class="obuna-qisqa">{{ _obuna_b.qisqa }}</span>
+          </button>
+          <div id="obunaPanel" role="status" style="display:none;position:absolute;top:44px;right:0;width:340px;max-width:calc(100vw - 24px);padding:14px 16px;border-radius:12px;
+               font-size:13px;line-height:1.55;box-shadow:var(--shadow-card);z-index:1000;
+               {% if _obuna_b.daraja == 'qizil' %}background:var(--f-fee2e2);border:1px solid var(--ch-f3c7c7);color:var(--m-7f1d1d){% else %}background:var(--f-fef3c7);border:1px solid var(--ch-f5d98b);color:var(--m-78350f){% endif %}">{{ _obuna_b.matn }}</div>
+        </div>
+        <style>@media (max-width: 640px){ #obunaBanner .obuna-qisqa{display:none} }</style>
+        {% endif %}
         <div id="notifWrap" style="position:relative;margin-right:10px">
-          <button id="notifBell" onclick="toggleNotifPanel()" style="position:relative;width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2)">
-            <i class="ti ti-bell" style="font-size:17px"></i>
-            <span id="notifBadge" style="display:none;position:absolute;top:-4px;right:-4px;background:#EF4444;color:#fff;font-size:9px;font-weight:700;min-width:16px;height:16px;border-radius:8px;align-items:center;justify-content:center;padding:0 3px">0</span>
+          <button id="notifBell" class="btn btn-outline btn-icon" onclick="toggleNotifPanel()" title="Bildirishnomalar" aria-label="Bildirishnomalar" style="position:relative;color:var(--text2)">
+            <i class="ti ti-bell"></i>
+            <span id="notifBadge" style="display:none;position:absolute;top:-4px;right:-4px;background:#EF4444;color:#fff;font-size:12px;font-weight:700;min-width:16px;height:16px;border-radius:8px;align-items:center;justify-content:center;padding:0 3px">0</span>
           </button>
           <div id="notifPanel" style="display:none;position:absolute;top:44px;right:0;width:340px;max-width:calc(100vw - 24px);max-height:420px;overflow-y:auto;background:var(--white);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-card);z-index:1000">
             <div style="padding:12px 16px;border-bottom:1px solid var(--border2);font-size:13px;font-weight:600;color:var(--text)">Bildirishnomalar</div>
             <div id="notifList" style="padding:6px 0">
-              <div style="text-align:center;padding:20px;color:var(--text3);font-size:12.5px">Yuklanmoqda...</div>
+              <div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">Yuklanmoqda...</div>
             </div>
           </div>
         </div>
-        <button class="btn btn-outline btn-sm" id="script-toggle-btn" onclick="toggleScript()" title="Kirill/Lotin" style="margin-right:8px">🔤 Кирилл</button>
-        {% block topbar_actions %}{% endblock %}
+        <button class="btn btn-outline btn-md tb-keng" id="script-toggle-btn" onclick="toggleScript()" title="Kirill/Lotin" style="margin-right:8px">🔤 Кирилл</button>
+        {# kech114 (egasi QARORI «6A — Bir qator + tugmalar», telefon): tor ekranda tungi rejim va Кирилл shu «···»
+           menyusida (keng ekranda menyu yashirin, tugmalar avvalgidek); sahifa tugmalari — `.tb-amallar` (keng ekranda
+           avvalgi joyida, telefonda panelning ikkinchi qatorida yonma-yon, teng kenglikda). #}
+        <div id="tbKopWrap" class="tb-kop-wrap">
+          <button type="button" id="tbKop" aria-label="Boshqa: tungi rejim, Кирилл / Lotin" aria-haspopup="true"
+                  aria-expanded="false" aria-controls="tbKopMenyu" onclick="tbKopAlmashtir()">···</button>
+          <div id="tbKopMenyu" role="menu" hidden>
+            <button type="button" role="menuitem" id="tbKopTema" onclick="tbKopYop();toggleTheme()">Tungi rejim</button>
+            <button type="button" role="menuitem" id="tbKopYozuv" onclick="tbKopYop();toggleScript()">Кирилл</button>
+          </div>
+        </div>
+        <div class="tb-amallar">{% filter trim %}{% block topbar_actions %}{% endblock %}{% endfilter %}</div>
       </div>
     </header>
 
     <script>
     (function() {
-      const NOTIF_BG = { red: '#FEE2E2', orange: '#FEF3C7', green: '#DCFCE7' };
+      const NOTIF_BG = { red: 'var(--f-fee2e2)', orange: 'var(--f-fef3c7)', green: 'var(--f-dcfce7)' };   // kech118 (zip 122): ikkala rejim
 
       function applyThemeIcon() {
         const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
@@ -371,16 +1119,97 @@ function jsAttrEscape(str) {
           localStorage.setItem('theme', 'dark');
         }
         applyThemeIcon();
+        // kech118 (zip 122): sahifa JS i chizgan ranglar (holat yozuvlari — `matnRangi`, grafiklar) rejimga qarab tanlanadi —
+        // almashtirilgach sahifa qayta yuklanadi (aks holda eski rejim ranglari qolardi)
+        location.reload();
       };
       applyThemeIcon();
 
+      // kech111 (K112-1 — jonli sinovda topildi, HAQIQIY brauzerda o'lchandi): yuqori paneldagi ochiluvchi panellar
+      // (bildirishnomalar, obuna ogohlantirishi) tugmaning O'NG chetiga bog'langan edi (`right: 0`). Tor ekranda (telefon,
+      // 360–600 px; 756 px da ham uzun sarlavhali sahifada) tugmalar qatori keyingi qatorga, CHAPGA o'tadi va 340 px lik panel
+      // ekrandan chapga chiqib ketardi (390 px da chap cheti −232 px — matnning yarmi ko'rinmasdi). Endi panel OCHILGANDA
+      // ekran ichiga joylanadi: kengligi ≤ ekran − 24 px, chap cheti ≥ 12 px, o'ng cheti ekrandan chiqmaydi; joy bo'lsa —
+      // avvalgidek tugmaning o'ng chetiga tekislanadi (keng ekranda ko'rinish o'zgarmaydi). Oyna o'lchami o'zgarsa — qayta joylanadi.
+      // kech114 (6A): telefondagi «···» menyusi — tungi rejim va Кирилл / Lotin (yozuvlari joriy holatdan).
+      function tbKopYozuvlari() {
+        var tema = document.getElementById('tbKopTema');
+        if (tema) tema.textContent = document.documentElement.getAttribute('data-theme') === 'dark' ? 'Kunduzgi rejim' : 'Tungi rejim';
+        var yozuv = document.getElementById('tbKopYozuv');
+        var asl = document.getElementById('script-toggle-btn');
+        if (yozuv) yozuv.textContent = asl ? String(asl.textContent || '').replace('🔤', '').trim() : 'Кирилл';
+      }
+      window.tbKopYop = function () {
+        var m = document.getElementById('tbKopMenyu');
+        var t = document.getElementById('tbKop');
+        if (m) m.hidden = true;
+        if (t) t.setAttribute('aria-expanded', 'false');
+      };
+      window.tbKopAlmashtir = function () {
+        var m = document.getElementById('tbKopMenyu');
+        var t = document.getElementById('tbKop');
+        if (!m || !t) return;
+        var ochiq = m.hidden;
+        if (ochiq) tbKopYozuvlari();
+        m.hidden = !ochiq;
+        t.setAttribute('aria-expanded', ochiq ? 'true' : 'false');
+      };
+      document.addEventListener('click', function (e) {
+        var w = document.getElementById('tbKopWrap');
+        if (w && !w.contains(e.target)) window.tbKopYop();
+      });
+
+      function panelniJoyla(tugma, panel) {
+        if (!tugma || !panel) return;
+        var r = tugma.getBoundingClientRect();
+        var ekran = window.innerWidth || document.documentElement.clientWidth || 0;
+        var k = Math.max(0, Math.min(340, ekran - 24));
+        var chap = Math.round(r.right - k);
+        if (chap > ekran - k - 12) chap = ekran - k - 12;
+        if (chap < 12) chap = 12;
+        panel.style.position = 'fixed';
+        panel.style.right = 'auto';
+        panel.style.maxWidth = 'none';
+        panel.style.width = k + 'px';
+        panel.style.left = chap + 'px';
+        panel.style.top = Math.round(r.bottom + 8) + 'px';
+      }
+      window.panelniJoyla = panelniJoyla;
+
       function toggleNotifPanel() {
         const p = document.getElementById('notifPanel');
-        p.style.display = p.style.display === 'none' ? 'block' : 'none';
+        const och = p.style.display === 'none';
+        if (och) panelniJoyla(document.getElementById('notifBell'), p);
+        p.style.display = och ? 'block' : 'none';
       }
       window.toggleNotifPanel = toggleNotifPanel;
 
+      // kech111 — obuna ogohlantirishi: bosilsa to'liq matn (telefon bilan), yana bosilsa yoki tashqariga bosilsa — yopiladi.
+      function obunaPaneliniAlmashtir() {
+        const p = document.getElementById('obunaPanel'), t = document.getElementById('obunaBanner');
+        if (!p || !t) return;
+        const och = p.style.display === 'none';
+        if (och) panelniJoyla(t, p);
+        p.style.display = och ? 'block' : 'none';
+        t.setAttribute('aria-expanded', och ? 'true' : 'false');
+      }
+      window.obunaPaneliniAlmashtir = obunaPaneliniAlmashtir;
+
+      window.addEventListener('resize', function() {
+        [['notifBell', 'notifPanel'], ['obunaBanner', 'obunaPanel']].forEach(function(j) {
+          const p = document.getElementById(j[1]);
+          if (p && p.style.display !== 'none') panelniJoyla(document.getElementById(j[0]), p);
+        });
+      });
+
       document.addEventListener('click', function(e) {
+        const ow = document.getElementById('obunaWrap');
+        const op = document.getElementById('obunaPanel');
+        if (ow && op && !ow.contains(e.target) && op.style.display !== 'none') {
+          op.style.display = 'none';
+          const ob = document.getElementById('obunaBanner');
+          if (ob) ob.setAttribute('aria-expanded', 'false');
+        }
         const wrap = document.getElementById('notifWrap');
         if (wrap && !wrap.contains(e.target)) document.getElementById('notifPanel').style.display = 'none';
       });
@@ -389,7 +1218,7 @@ function jsAttrEscape(str) {
         const badge = document.getElementById('notifBadge');
         const list = document.getElementById('notifList');
         if (!items.length) {
-          list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:12.5px">Bildirishnoma yo\'q</div>';
+          list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">Bildirishnoma yo\'q</div>';
           return;
         }
         const urgent = items.filter(i => i.level !== 'green').length;
@@ -397,13 +1226,17 @@ function jsAttrEscape(str) {
           badge.style.display = 'flex';
           badge.textContent = urgent;
         }
+        // 2026-09-22 (kech30, 5.2 innerHTML auditi): bildirishnoma matnida
+        // FOYDALANUVCHI kiritgan material nomi bor ("<nom> qolmadi",
+        // services.get_notifications) — nomda `<`, `>` bo'lsa HTML bo'lib
+        // chizilardi (HAMMA sahifada). Ikon — server emoji, baribir escape.
         list.innerHTML = items.map(n => `
           <div style="display:flex;gap:10px;padding:9px 16px;align-items:flex-start">
-            <span style="font-size:14px">${n.icon}</span>
-            <span style="font-size:12.5px;color:var(--text);line-height:1.4">${n.text}</span>
+            <span style="font-size:14px">${escapeHtml(n.icon)}</span>
+            <span style="font-size:13px;color:var(--text);line-height:1.4">${escapeHtml(n.text)}</span>
           </div>`).join('');
       }).catch(() => {
-        document.getElementById('notifList').innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:12.5px">Yuklab bo\'lmadi</div>';
+        document.getElementById('notifList').innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">Yuklab bo\'lmadi</div>';
       });
     })();
     </script>
@@ -422,10 +1255,11 @@ function jsAttrEscape(str) {
      tugma, o'chirish kabi qaytarib bo'lmaydigan amallar uchun). ══ -->
 <div id="ccModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;align-items:center;justify-content:center;padding:20px">
   <div style="background:var(--white);border-radius:14px;width:420px;max-width:100%;padding:24px;box-shadow:var(--shadow-card)">
-    <div id="ccModalTitle" style="font-size:15.5px;font-weight:700;color:var(--text);margin-bottom:8px;display:none"></div>
+    <div id="ccModalTitle" style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px;display:none"></div>
     <div id="ccModalMessage" style="font-size:14px;color:var(--text2);line-height:1.6;white-space:pre-wrap;margin-bottom:18px"></div>
-    <div style="display:flex;gap:8px">
-      <button id="ccModalCancel" class="btn btn-outline" style="flex:1">Bekor</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button id="ccModalCancel" data-yopish class="btn btn-outline" style="flex:1">Bekor</button>
+      <button id="ccModalAlt" class="btn btn-outline" style="flex:1;display:none"></button>
       <button id="ccModalOk" class="btn btn-gold" style="flex:1">Tasdiqlash</button>
     </div>
   </div>
@@ -448,6 +1282,14 @@ function customConfirm(a, b, c) {
     okBtn.className = 'btn ' + (opts.danger ? 'btn-red' : 'btn-gold');
     okBtn.style.flex = '1';
     cancelBtn.textContent = opts.cancelText || 'Bekor';
+    // kech107 (10f): ixtiyoriy UCHINCHI tugma — `opts.altText` berilsa ko'rinadi va 'alt' qaytaradi
+    // (masalan kirim hujjatini bekor qilishda: "To'lovni ham o'chirish" / "Avans qolsin" / "Bekor").
+    var altBtn = document.getElementById('ccModalAlt');
+    if (altBtn) {
+      altBtn.textContent = opts.altText || '';
+      altBtn.style.display = opts.altText ? '' : 'none';
+      altBtn.onclick = opts.altText ? function() { cleanup('alt'); } : null;
+    }
     modal.style.display = 'flex';
     function cleanup(result) {
       modal.style.display = 'none';

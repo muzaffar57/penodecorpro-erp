@@ -9,6 +9,8 @@
 
 {% block head %}
 <style>
+/* kech119 (C — telefon, G6-15): telefonda (≤ 600 px) jadval — kartalar (`telefon-karta`, style.css), tugmalar ko'rinib turadi */
+.users-grid > *{ min-width:0; }
 @media (max-width:768px){
   .users-grid{ grid-template-columns:1fr !important; }
   .users-table-wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
@@ -25,38 +27,42 @@
     <div class="card">
       <div class="card-head"><h3>Foydalanuvchilar ({{ users|length }} ta)</h3></div>
       <div class="users-table-wrap">
-      <table class="erp-table">
+      <table class="erp-table telefon-karta">
         <thead>
           <tr><th>#</th><th>Login</th><th>Ismi</th><th>Rol</th><th>Holat</th><th>Yaratilgan</th><th></th></tr>
         </thead>
         <tbody>
           {% for u in users %}
           <tr id="urow-{{ u.id }}">
-            <td style="color:var(--text3)">{{ loop.index }}</td>
-            <td><span style="font-weight:500;color:var(--text)">{{ u.username }}</span></td>
-            <td>{{ u.full_name or '—' }}</td>
-            <td>
-              {% if u.role.value == 'admin' %}<span class="badge" style="background:var(--dark);color:var(--gold)">Admin</span>
-              {% elif u.role.value == 'manager' %}<span class="badge badge-info">Hodim</span>
-              {% elif u.role.value == 'accountant' %}<span class="badge badge-ready">Moliyachi</span>
-              {% elif u.role.value == 'warehouse' %}<span class="badge" style="background:#F3E8FF;color:#8E44AD">Omborchi</span>
-              {% else %}<span class="badge badge-warning">Usta</span>{% endif %}
+            <td data-label="#" style="color:var(--text3)">{{ loop.index }}</td>
+            <td data-label="Login"><span style="font-weight:500;color:var(--text)">{{ u.username }}</span></td>
+            <td data-label="Ismi">{{ u.full_name or '—' }}</td>
+            <td data-label="Rol">
+              {# kech118 (ROLLAR): rol — korxona roli (nomi admin o'zi bergan). O'zidan boshqasiga — rolni shu yerda almashtirish. #}
+              {% if u.username != current_user.username %}
+              <select class="u-rol-tanlov maydon maydon-sm" aria-label="{{ u.username }} roli" data-eski="{{ u.rol_id or '' }}"
+                      onchange="userRoli({{ u.id }}, this)" style="max-width:150px">
+                {% if not u.rol_id %}<option value="" selected>{{ u.rol_nomi }}</option>{% endif %}
+                {% for r in rollar %}<option value="{{ r.id }}" {% if r.id == u.rol_id %}selected{% endif %}>{{ r.nom }}</option>{% endfor %}
+              </select>
+              {% elif u.role.value == 'admin' %}<span class="badge" style="background:var(--dark);color:var(--gold)">{{ u.rol_nomi }}</span>
+              {% else %}<span class="badge badge-info">{{ u.rol_nomi }}</span>{% endif %}
             </td>
-            <td>
+            <td data-label="Holat">
               {% if u.is_active %}<span class="badge badge-ready">Faol</span>
               {% else %}<span class="badge badge-cancelled">O'chirilgan</span>{% endif %}
             </td>
-            <td style="color:var(--text3);font-size:12px">{{ u.created_at.strftime('%d.%m.%Y') if u.created_at else '—' }}</td>
-            <td>
+            <td data-label="Yaratilgan" style="color:var(--text3);font-size:12px">{{ u.created_at|toshkent('%d.%m.%Y') if u.created_at else '—' }}</td>
+            <td data-label="">
               {% if u.username != current_user.username %}
               <div style="display:flex;gap:4px">
                 <button class="btn btn-outline btn-xs" onclick="toggleUser({{ u.id }}, {{ 'true' if u.is_active else 'false' }}, this)">
                   {{ 'O\'chir' if u.is_active else 'Faollashtir' }}
                 </button>
-                <button class="btn btn-outline btn-xs" onclick="changePass({{ u.id }}, '{{ u.username }}', this)">Parol</button>
+                <button class="btn btn-outline btn-xs" data-username="{{ u.username }}" onclick="changePass({{ u.id }}, this.dataset.username, this)">Parol</button>
               </div>
               {% else %}
-              <span style="font-size:11px;color:var(--text3)">Joriy</span>
+              <span style="font-size:12px;color:var(--text3)">Joriy</span>
               {% endif %}
             </td>
           </tr>
@@ -69,20 +75,16 @@
     <!-- O'ng: rollar haqida -->
     <div style="display:flex;flex-direction:column;gap:12px">
       <div class="card">
-        <div class="card-head"><h3>Rollar va huquqlar</h3></div>
+        <div class="card-head"><h3>Rollar va huquqlar</h3><a href="/rollar" class="ch-action">Sozlash →</a></div>
         <div class="card-body">
-          {% for role, label, color, perms in [
-            ('admin', 'Admin', 'var(--dark)', 'Hamma narsa - moliya, ombor, foydalanuvchilar, sozlamalar'),
-            ('manager', 'Hodim', '#1a6fa8', "Loyiha va buyurtma yaratish, ombor (ko'rish), Tayyor mahsulot. Moliya, foyda, Ustalar KPI ko'RINMAYDI"),
-            ('accountant', 'Moliyachi', '#1e7e34', 'Moliya, Hisobotlar, Qarzdorlik, Ustalar KPI, xodim avansini tasdiqlash'),
-            ('warehouse', 'Omborchi', '#8E44AD', "Omborxona, Xomashyo ta'minoti, Tayyor mahsulot, Retseptlar"),
-            ('master', 'Usta', '#b7770d', 'Faqat buyurtmalar')
-          ] %}
+          {# kech118 (ROLLAR — egasi qarori): rollar ro'yxati korxonaning o'z rollaridan; ruxsatlar — «Rollar va ruxsatlar» sahifasida. #}
+          {% for r in rollar %}
           <div style="padding:12px 0;border-bottom:1px solid var(--border2)">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-              <span class="badge" style="background:{% if role == 'admin' %}var(--dark){% elif role == 'manager' %}#EFF6FF{% elif role == 'accountant' %}#DCFCE7{% elif role == 'warehouse' %}#F3E8FF{% else %}#FEF3C7{% endif %};color:{% if role == 'admin' %}var(--gold){% else %}{{ color }}{% endif %}">{{ label }}</span>
+              <span class="badge" style="{% if r.kod == 'admin' %}background:var(--dark);color:var(--gold){% else %}background:var(--gold-tint);color:var(--gold-dark){% endif %}">{{ r.nom }}</span>
+              <span style="font-size:12px;color:var(--text3)">{{ rol_soni.get(r.id, 0) }} ta foydalanuvchi</span>
             </div>
-            <div style="font-size:12px;color:var(--text3)">{{ perms }}</div>
+            <div style="font-size:12px;color:var(--text3)">{{ r.tavsif or '—' }}</div>
           </div>
           {% endfor %}
         </div>
@@ -92,7 +94,13 @@
         <div class="card-body">
           <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">👤 Joriy siz</div>
           <div style="font-size:13px;color:var(--text2)">{{ current_user.full_name or current_user.username }}</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:4px">{{ now }}</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:4px">{{ now }}</div>
+          {# 2026-09-20: admin O'Z parolini almashtira olishi SHART —
+             yangi korxonaga tizim tasodifiy parol beradi va egasi uni
+             birinchi kirishda o'zinikiga almashtirishi kerak. Ilgari
+             joriy foydalanuvchi qatorida tugma umuman yo'q edi. #}
+          <button class="btn btn-outline btn-xs" style="margin-top:10px"
+                  onclick="changeMyPassword()">🔑 Parolimni o'zgartirish</button>
         </div>
       </div>
     </div>
@@ -100,7 +108,7 @@
 
 <!-- Modal -->
 <div id="addModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:14px;padding:24px;width:420px;max-width:100%">
+  <div style="background:var(--white);border-radius:14px;padding:24px;width:420px;max-width:100%">
     <div style="font-size:16px;font-weight:600;margin-bottom:18px">+ Yangi foydalanuvchi</div>
     <div class="form-row">
       <div class="form-group" style="margin:0"><label>Login</label><input type="text" id="f-username" placeholder="menejer1" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
@@ -110,18 +118,50 @@
       <div class="form-group" style="margin:0"><label>Parol</label><input type="password" id="f-password" placeholder="Kamida 6 belgi"></div>
       <div class="form-group" style="margin:0"><label>Rol</label>
         <select id="f-role">
-          <option value="manager">Hodim</option>
-          <option value="accountant">Moliyachi</option>
-          <option value="warehouse">Omborchi</option>
-          <option value="master">Usta</option>
-          <option value="admin">Admin</option>
+          {% for r in rollar %}<option value="{{ r.id }}" {% if r.kod == 'menejer' %}selected{% endif %}>{{ r.nom }}</option>{% endfor %}
         </select>
       </div>
     </div>
-    <div id="user-error" style="display:none;color:#DC2626;font-size:13px;font-weight:600;margin-top:2px;padding:8px 10px;background:#FEF2F2;border-radius:8px"></div>
+    <div id="user-error" style="display:none;color:var(--m-dc2626);font-size:13px;font-weight:600;margin-top:2px;padding:8px 10px;background:var(--f-fef2f2);border-radius:8px"></div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-dark w-full" id="user-save-btn" onclick="saveUser()">Saqlash</button>
-      <button class="btn btn-outline w-full" onclick="closeModal()">Bekor</button>
+      <button data-yopish class="btn btn-outline w-full" onclick="closeModal()">Bekor</button>
+    </div>
+  </div>
+</div>
+
+<!-- kech116 (G6-06, O'LCHANGAN — audit: parol brauzerning xom `prompt()` oynasida OCHIQ yozilardi — yondagi odam ko'radi;
+     o'z parolida uch ketma-ket oyna): parol — dasturning o'z oynasida, yashirin maydonlar (ko'zcha bilan ko'rsatish),
+     yangi va takror BITTA oynada. Saqlangach o'sha odamning boshqa qurilmalardagi kirishlari yopiladi (server). -->
+<div id="parolModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:16px" onkeydown="if(event.key==='Escape')parolYopish()">
+  <div style="background:var(--white);border-radius:14px;padding:24px;width:420px;max-width:100%">
+    <div style="font-size:16px;font-weight:600;margin-bottom:6px" id="parol-sarlavha">🔑 Parolni o'zgartirish</div>
+    <div style="font-size:13px;color:var(--text3);margin-bottom:16px" id="parol-izoh"></div>
+    <div class="form-group" id="parol-eski-qator" style="display:none">
+      <label>Joriy parol</label>
+      <div style="display:flex;gap:6px">
+        <input type="password" id="parol-eski" autocomplete="current-password" style="flex:1">
+        <button type="button" class="btn btn-outline btn-icon" onclick="parolKozcha('parol-eski', this)" title="Ko'rsatish / yashirish" aria-label="Parolni ko'rsatish">👁</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Yangi parol (kamida 6 belgi)</label>
+      <div style="display:flex;gap:6px">
+        <input type="password" id="parol-yangi" autocomplete="new-password" style="flex:1">
+        <button type="button" class="btn btn-outline btn-icon" onclick="parolKozcha('parol-yangi', this)" title="Ko'rsatish / yashirish" aria-label="Parolni ko'rsatish">👁</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Yangi parolni takrorlang</label>
+      <div style="display:flex;gap:6px">
+        <input type="password" id="parol-takror" autocomplete="new-password" style="flex:1" onkeydown="if(event.key==='Enter')parolSaqlash()">
+        <button type="button" class="btn btn-outline btn-icon" onclick="parolKozcha('parol-takror', this)" title="Ko'rsatish / yashirish" aria-label="Parolni ko'rsatish">👁</button>
+      </div>
+    </div>
+    <div id="parol-xato" style="display:none;color:var(--m-dc2626);font-size:13px;font-weight:600;margin-bottom:8px;padding:8px 10px;background:var(--f-fef2f2);border-radius:8px"></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-dark w-full" id="parol-saqlash-btn" onclick="parolSaqlash()">Saqlash</button>
+      <button data-yopish class="btn btn-outline w-full" onclick="parolYopish()">Bekor</button>
     </div>
   </div>
 </div>
@@ -140,7 +180,13 @@
   </div>
 </div>
 
-<!-- ══ XAVFLI HUDUD — bir martalik tizimni tozalash ══ -->
+{# 2026-09-20 — PLATFORMA amali. Telegram bot webhook'i va uning maxfiy
+   imzosi butun platformaga tegishli (bitta bot tokeni bilan ishlaydi).
+   Korxona admini bu tugmani bosishi mantiqsiz — endpoint uni 403 bilan
+   rad etadi, ya'ni faqat chalkashlik tug'diradi. Shuning uchun
+   ko'rsatilmaydi ham. #}
+{% if current_user.is_platform_admin %}
+<!-- ══ TELEGRAM XAVFSIZLIGI (faqat platforma admini) ══ -->
 <div class="card" style="margin-top:20px">
   <div class="card-head">
     <h3>🔒 Telegram xavfsizligi</h3>
@@ -155,7 +201,7 @@
          "polling" rejimida ishlasa, o'sha botni buzib qo'yishi mumkin
          (2 marta shunday bo'lgan). Shuning uchun, bosishdan OLDIN aniq
          ogohlantirish ko'rsatiladi. -->
-    <div style="background:#FEF3C7;border:1.5px solid #FDE68A;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12.5px;color:#92400E;line-height:1.6">
+    <div style="background:var(--f-fef3c7);border:1.5px solid var(--ch-fde68a);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:13px;color:var(--m-92400e);line-height:1.6">
       ⚠️ <b>Diqqat:</b> Agar sizning asosiy (katalog) botingiz BOSHQA, alohida serverda ishlasa — bu tugmani bosish o'sha botni vaqtincha to'xtatib qo'yishi mumkin (bu, avval 2 marta bo'lgan). Agar shunday bo'lsa — pastdagi qizil tugma orqali darhol tuzatib olishingiz mumkin.
     </div>
     <button class="btn btn-dark" onclick="setupTelegramSecurity()" id="tg-security-btn">
@@ -169,49 +215,63 @@
          majburlab qo'yishi mumkin. Shu holatda, quyidagi tugma bilan
          webhookni butunlay o'chirib, botni asl holatiga qaytarish
          mumkin. -->
-    <div style="margin-top:16px;padding-top:14px;border-top:1px solid #FADBD8">
-      <div style="font-size:12.5px;color:#DC2626;margin-bottom:8px">⚠️ Agar shu tugmani bosgandan keyin, botingiz (boshqa, alohida serverdagi) ishlamay qolgan bo'lsa — quyidagi tugma orqali qaytaring:</div>
-      <button class="btn btn-outline" style="border-color:#DC2626;color:#DC2626" onclick="deleteTelegramWebhook()" id="tg-delete-webhook-btn">
-        🔄 Webhookni o'chirib, botni asl holatiga qaytarish
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--ch-fadbd8)">
+      <div style="font-size:13px;color:var(--m-dc2626);margin-bottom:8px">⚠️ Agar shu tugmani bosgandan keyin, botingiz (boshqa, alohida serverdagi) ishlamay qolgan bo'lsa — quyidagi tugma orqali qaytaring:</div>
+      <!-- kech123 (zip 142 — U-13 jonli sinovi, zip 139 staging, 390 px): uzun yozuv («Webhookni o'chirib, botni asl holatiga
+           qaytarish») telefonda ikki qatorga tushib tugma 64 px bo'lardi (yagona balandlik — 44). Yozuv qisqardi; to'liq ma'nosi — ustidagi
+           ogohlantirishda, tasdiq oynasida va `title` da. -->
+      <button class="btn btn-danger" onclick="deleteTelegramWebhook()" id="tg-delete-webhook-btn" title="Webhookni o'chirib, botni asl (polling) holatiga qaytarish">
+        🔄 Botni asl holatiga qaytarish
       </button>
       <div id="tg-delete-webhook-result" style="display:none;margin-top:14px;padding:14px;background:var(--bg);border-radius:10px;font-size:13px;line-height:1.7"></div>
     </div>
   </div>
 </div>
+{% endif %}
 
 <!-- ══ XODIM QR KOD MODALI ══ -->
 <div id="hodimQrModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:16px;padding:28px;width:360px;max-width:100%;text-align:center">
+  <div style="background:var(--white);border-radius:16px;padding:28px;width:360px;max-width:100%;text-align:center">
     <div style="font-size:16px;font-weight:700;margin-bottom:6px">📱 Xodim paneliga kirish</div>
-    <div style="font-size:12.5px;color:var(--text3);margin-bottom:18px">Telefon kamerasi bilan skanerlang</div>
-    <img id="hodimQrImg" src="" alt="QR kod" style="width:220px;height:220px;border:1px solid #eee;border-radius:12px;margin-bottom:14px">
+    <div style="font-size:13px;color:var(--text3);margin-bottom:18px">Telefon kamerasi bilan skanerlang</div>
+    {# kech120 (zip 130 — G6-07): QR SERVERDA (ichida korxona kodi — kirish sahifasi uni o'zi to'ldiradi); ilgari begona sayt rasmi #}
+    <img id="hodimQrImg" src="" alt="QR kod" style="width:220px;height:220px;border:1px solid var(--ch-eeeeee);border-radius:12px;margin-bottom:14px;background:#fff">
+    <div style="font-size:13px;color:var(--text3)">Korxona kodi</div>
+    <div id="hodimQrKod" style="font-size:24px;font-weight:800;letter-spacing:.5px;color:var(--text);margin:2px 0 8px;overflow-wrap:anywhere">—</div>
     <div id="hodimQrUrl" style="font-size:12px;color:var(--text3);word-break:break-all;margin-bottom:16px;font-family:monospace"></div>
     <div style="display:flex;gap:8px">
-      <button class="btn btn-outline w-full" onclick="window.print()">🖨️ Chop etish</button>
-      <button class="btn btn-dark w-full" onclick="document.getElementById('hodimQrModal').style.display='none'">Yopish</button>
+      <button class="btn btn-outline w-full" onclick="hodimQrChop()">🖨️ Chop etish</button>
+      <button data-yopish class="btn btn-dark w-full" onclick="document.getElementById('hodimQrModal').style.display='none'">Yopish</button>
     </div>
   </div>
 </div>
 
-<div class="card" style="margin-top:20px;border:2px solid #FCA5A5">
-  <div class="card-head" style="background:#FEF2F2">
-    <h3 style="color:#DC2626">⚠️ Xavfli hudud</h3>
+{# 2026-09-20 — Bu tugma korxonaning BARCHA ma'lumotini qaytarib
+   bo'lmaydigan tarzda o'chiradi. Mijozning o'zida tiklash vositasi yo'q
+   (zaxiradan tiklash hozircha faqat API orqali), shuning uchun tasodifiy
+   bosish — biznes uchun falokat va ayb baribir xizmat ko'rsatuvchiga
+   tushadi. Mijozga kerak bo'lsa — u murojaat qiladi, siz bajarasiz. #}
+{% if current_user.is_platform_admin %}
+<div class="card" style="margin-top:20px;border:2px solid var(--ch-fca5a5)">
+  <div class="card-head" style="background:var(--f-fef2f2)">
+    <h3 style="color:var(--m-dc2626)">⚠️ Xavfli hudud</h3>
   </div>
   <div style="padding:16px">
     <div style="font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.6">
       Bu tugma <b>Foydalanuvchilardan (login/parollar) TASHQARI</b> — barcha Buyurtma, Omborxona,
-      Retsept, Loyiha, To'lov, Usta, Yetkazib beruvchi ma'lumotini <b>butunlay, qaytarib bo'lmaydigan</b>
+      Retsept, Loyiha, To'lov, Usta, Ta'minotchi ma'lumotini <b>butunlay, qaytarib bo'lmaydigan</b>
       tarzda o'chiradi. Faqat tizimni <b>toza sinovdan boshlash</b> uchun ishlating.
     </div>
     <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px;font-size:13px;color:var(--text2);cursor:pointer">
       <input type="checkbox" id="fr-keep-only-self" style="width:16px;height:16px;cursor:pointer">
       Boshqa foydalanuvchi (login) hisoblarini ham o'chirish — <b>faqat men (hozirgi admin) qolaman</b>
     </label>
-    <button class="btn" style="background:#DC2626;color:#fff;border:none" onclick="startFactoryReset()">
+    <button class="btn btn-red" onclick="startFactoryReset()">
       🗑️ Tizimni to'liq tozalash
     </button>
   </div>
 </div>
+{% endif %}
 </div>
 {% endblock %}
 
@@ -254,24 +314,107 @@ async function toggleUser(id, isActive, btn){
     if (btn) { btn.disabled = false; btn.style.opacity = ''; }
   }
 }
-async function changePass(id, username, btn){
-  const p=prompt(`"${username}" uchun yangi parol:`);
-  if(!p)return;
-  if(p.length<6){alert('Kamida 6 belgi!');return;}
-  if (btn) { if (btn.disabled) return; btn.disabled = true; btn.style.opacity = '0.6'; }
+// kech116 (G6-06): parol — dasturning o'z oynasida (`#parolModal`); ilgari `prompt()` — parol ochiq ko'rinardi.
+// Tugmalar avvalgi nomlarni chaqiradi: «🔑 Parolimni o'zgartirish» — changeMyPassword(), qatordagi «Parol» — changePass().
+let parolHolat = null;   // {userId, username, ozim, btn}
+function parolOynasi(userId, username, ozim, btn) {
+  parolHolat = { userId: userId, username: String(username || ''), ozim: !!ozim, btn: btn || null };
+  document.getElementById('parol-sarlavha').textContent = ozim ? "🔑 Parolimni o'zgartirish" : `🔑 «${parolHolat.username}» uchun yangi parol`;
+  document.getElementById('parol-izoh').textContent = ozim
+    ? "Saqlangach boshqa kompyuter / telefondagi kirishlaringiz yopiladi (shu oyna ochiq qoladi)."
+    : "Saqlangach bu foydalanuvchining hamma ochiq kirishlari yopiladi — yangi parol bilan qayta kiradi.";
+  document.getElementById('parol-eski-qator').style.display = ozim ? '' : 'none';
+  for (const id of ['parol-eski', 'parol-yangi', 'parol-takror']) {
+    const el = document.getElementById(id);
+    el.value = '';
+    el.type = 'password';
+  }
+  const x = document.getElementById('parol-xato');
+  x.style.display = 'none';
+  x.textContent = '';
+  const b = document.getElementById('parol-saqlash-btn');
+  b.disabled = false;
+  b.textContent = 'Saqlash';
+  document.getElementById('parolModal').style.display = 'flex';
+  const birinchi = document.getElementById(ozim ? 'parol-eski' : 'parol-yangi');
+  try { birinchi.focus(); } catch (e) { /* fokus — faqat qulaylik */ }
+}
+function parolYopish() {
+  document.getElementById('parolModal').style.display = 'none';
+  for (const id of ['parol-eski', 'parol-yangi', 'parol-takror']) document.getElementById(id).value = '';
+  parolHolat = null;
+}
+function parolKozcha(id, btn) {
+  const el = document.getElementById(id);
+  const korinadi = el.type === 'password';
+  el.type = korinadi ? 'text' : 'password';
+  if (btn) btn.textContent = korinadi ? '🙈' : '👁';
+}
+function parolXato(matn) {
+  const x = document.getElementById('parol-xato');
+  x.textContent = matn;
+  x.style.display = 'block';
+}
+async function parolSaqlash() {
+  if (!parolHolat) return;
+  const b = document.getElementById('parol-saqlash-btn');
+  if (b.disabled) return;
+  const eski = document.getElementById('parol-eski').value;
+  const yangi = document.getElementById('parol-yangi').value;
+  const takror = document.getElementById('parol-takror').value;
+  if (parolHolat.ozim && !eski) { parolXato("Joriy parolni kiriting."); return; }
+  if (yangi.length < 6) { parolXato("Yangi parol kamida 6 belgi bo'lishi kerak."); return; }
+  if (yangi !== takror) { parolXato("Yangi parol va takrori mos kelmadi."); return; }
+  const tana = parolHolat.ozim ? { new_password: yangi, current_password: eski } : { new_password: yangi };
+  const holat = parolHolat;
+  b.disabled = true;
+  b.textContent = 'Saqlanmoqda...';
+  if (holat.btn) { holat.btn.disabled = true; holat.btn.style.opacity = '0.6'; }
   try {
-    const res=await fetch(`/api/users/${id}/password`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({new_password:p})});
-    if(res.ok)alert('✓ Parol o\'zgartirildi!');else alert('Xato');
+    let res;
+    try {
+      res = await fetch(`/api/users/${holat.userId}/password`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(tana)
+      });
+    } catch (e) {
+      parolXato("Server bilan aloqa yo'q — parol o'zgartirilmadi. Qayta urinib ko'ring.");
+      return;
+    }
+    if (res.ok) {
+      parolYopish();
+      showMsg(holat.ozim
+        ? "✓ Parolingiz o'zgartirildi. Boshqa qurilmalardagi kirishlaringiz yopildi."
+        : `✓ «${holat.username}» paroli o'zgartirildi. Uning ochiq kirishlari yopildi.`, 'success');
+      return;
+    }
+    parolXato(await serverXatoSababi(res, "Parol o'zgartirilmadi"));
   } finally {
-    if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+    b.disabled = false;
+    b.textContent = 'Saqlash';
+    if (holat.btn) { holat.btn.disabled = false; holat.btn.style.opacity = ''; }
   }
 }
-function showHodimQR(){
-  const url = window.location.origin + '/hodim';
-  const qrImgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}`;
-  document.getElementById('hodimQrImg').src = qrImgUrl;
-  document.getElementById('hodimQrUrl').textContent = url;
+async function changeMyPassword() {
+  parolOynasi({{ current_user.id|int }}, '', true, null);
+}
+
+async function changePass(id, username, btn){
+  parolOynasi(id, username, false, btn);
+}
+// kech120 (zip 130 — G6-07, O'LCHANGAN — audit kech114): ilgari QR begona QR xizmati saytidan (sinovda rasm chiqmadi)
+// va faqat «/hodim» (korxona KODISIZ) edi; admin o'z kodini hech qayerda ko'rmasdi; «Chop etish» butun sahifani chop etardi.
+// Endi QR serverda (`/api/hodim-qr.svg` — ichida `…/hodim?k=KOD`), kod oynada, chop etish — alohida sahifa.
+async function showHodimQR(){
+  const manzil = encodeURIComponent(window.location.origin);
+  document.getElementById('hodimQrImg').src = '/api/hodim-qr.svg?manzil=' + manzil + '&t=' + Date.now();
   document.getElementById('hodimQrModal').style.display = 'flex';
+  let kod = '';
+  try { const r = await fetch('/api/settings/company'); if (r.ok) kod = (await r.json()).code || ''; } catch (e) { /* kod ko'rinmaydi */ }
+  document.getElementById('hodimQrKod').textContent = kod || '—';
+  document.getElementById('hodimQrUrl').textContent = window.location.origin + '/hodim' + (kod ? '?k=' + encodeURIComponent(kod) : '');
+}
+function hodimQrChop(){
+  window.open('/users/hodim-qr?manzil=' + encodeURIComponent(window.location.origin), '_blank', 'noopener');
 }
 
 async function setupTelegramSecurity(){
@@ -283,21 +426,21 @@ async function setupTelegramSecurity(){
     const data = await res.json();
     if (res.ok) {
       resultBox.style.display = 'block';
-      resultBox.style.background = '#DCFCE7'; resultBox.style.color = '#166534';
+      resultBox.style.background = 'var(--f-dcfce7)'; resultBox.style.color = 'var(--m-166534)';
       resultBox.innerHTML = `
         <div style="font-weight:700;margin-bottom:8px">✅ Muvaffaqiyatli sozlandi!</div>
         <div style="margin-bottom:10px">Endi quyidagi qiymatni nusxalab, <b>Railway → Variables</b> bo'limiga
-        <code style="background:#fff;padding:2px 6px;border-radius:4px">TELEGRAM_WEBHOOK_SECRET</code> nomi bilan qo'shing:</div>
-        <div style="background:#fff;padding:10px 12px;border-radius:8px;font-family:monospace;word-break:break-all;user-select:all;border:1px solid #86EFAC">${data.new_secret}</div>
-        <div style="margin-top:10px;color:#166534">Saqlagach, Railway serverni avtomatik qayta ishga tushiradi — shundan keyin xavfsizlik to'liq yoqiladi.</div>`;
+        <code style="background:var(--white);padding:2px 6px;border-radius:4px">TELEGRAM_WEBHOOK_SECRET</code> nomi bilan qo'shing:</div>
+        <div style="background:var(--white);padding:10px 12px;border-radius:8px;font-family:monospace;word-break:break-all;user-select:all;border:1px solid var(--ch-86efac)">${escapeHtml(data.new_secret)}</div>
+        <div style="margin-top:10px;color:var(--m-166534)">Saqlagach, Railway serverni avtomatik qayta ishga tushiradi — shundan keyin xavfsizlik to'liq yoqiladi.</div>`;
     } else {
       resultBox.style.display = 'block';
-      resultBox.style.background = '#FEE2E2'; resultBox.style.color = '#DC2626';
+      resultBox.style.background = 'var(--f-fee2e2)'; resultBox.style.color = 'var(--m-dc2626)';
       resultBox.textContent = '❌ ' + (data.detail || 'Xato yuz berdi');
     }
   } catch(e) {
     resultBox.style.display = 'block';
-    resultBox.style.background = '#FEE2E2'; resultBox.style.color = '#DC2626';
+    resultBox.style.background = 'var(--f-fee2e2)'; resultBox.style.color = 'var(--m-dc2626)';
     resultBox.textContent = '❌ Server bilan aloqa yo\'q';
   }
   btn.disabled = false; btn.textContent = '🔐 Telegram xavfsizligini yoqish';
@@ -313,19 +456,19 @@ async function deleteTelegramWebhook(){
     const data = await res.json();
     if (res.ok) {
       resultBox.style.display = 'block';
-      resultBox.style.background = '#DCFCE7'; resultBox.style.color = '#166534';
+      resultBox.style.background = 'var(--f-dcfce7)'; resultBox.style.color = 'var(--m-166534)';
       resultBox.textContent = data.message;
     } else {
       resultBox.style.display = 'block';
-      resultBox.style.background = '#FEE2E2'; resultBox.style.color = '#DC2626';
+      resultBox.style.background = 'var(--f-fee2e2)'; resultBox.style.color = 'var(--m-dc2626)';
       resultBox.textContent = '❌ ' + (data.detail || 'Xato yuz berdi');
     }
   } catch(e) {
     resultBox.style.display = 'block';
-    resultBox.style.background = '#FEE2E2'; resultBox.style.color = '#DC2626';
+    resultBox.style.background = 'var(--f-fee2e2)'; resultBox.style.color = 'var(--m-dc2626)';
     resultBox.textContent = '❌ Server bilan aloqa yo\'q';
   }
-  btn.disabled = false; btn.textContent = "🔄 Webhookni o'chirib, botni asl holatiga qaytarish";
+  btn.disabled = false; btn.textContent = "🔄 Botni asl holatiga qaytarish";        // kech123 (zip 142): tugma yozuvi bilan bir xil
 }
 
 let isRunningFactoryReset = false;
@@ -340,15 +483,16 @@ async function startFactoryReset(){
   if (!(await customConfirm(
     "⚠️ Diqqat",
     "Bu amal FOYDALANUVCHILARDAN (login/parol) TASHQARI barcha ma'lumotni " +
-    "(buyurtma, ombor, retsept, loyiha, to'lov, usta, yetkazib beruvchi) BUTUNLAY o'chiradi." +
+    "(buyurtma, ombor, retsept, loyiha, to'lov, usta, ta'minotchi) BUTUNLAY o'chiradi." +
     extraWarning +
     "\n\nBu QAYTARIB BO'LMAYDI.\n\nDavom etasizmi?",
     {danger:true, okText:"Davom etish"}
   ))) return;
 
-  const phrase = prompt(
-    "Tasdiqlash uchun quyidagi so'zni AYNAN shunday yozing:\n\nHAMMASINI-OCHIR"
-  );
+  // kech118 (B — U-07): xom prompt() o'rniga dastur oynasi (base.html `kiritishOyna`)
+  const phrase = await kiritishOyna("Tasdiqlash uchun quyidagi so'zni AYNAN shunday yozing:", {
+    izoh: "HAMMASINI-OCHIR", okText: "O'chirish"
+  });
   if (phrase === null) return;
 
   if (phrase !== "HAMMASINI-OCHIR") {
@@ -365,7 +509,8 @@ async function startFactoryReset(){
     const r = await res.json();
     if (res.ok) {
       const lines = Object.entries(r.deleted || {}).map(([table, n]) => `${table}: ${n} ta`).join("\n");
-      alert("✅ " + r.message + "\n\n" + lines);
+      // kech118 (B): dastur oynasi sahifani to'xtatmaydi — xabar yopilgach yangilanadi
+      await xabarOyna("✅ " + r.message + "\n\n" + lines);
       location.reload();
     } else {
       alert("❌ Xato: " + (r.detail || "Noma'lum xato"));
@@ -381,9 +526,9 @@ function showAddedToast(){
   const box = document.createElement('div');
   box.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:9999;display:flex;align-items:center;justify-content:center;animation:fadeIn .15s ease';
   box.innerHTML = `
-    <div style="background:#fff;border-radius:16px;padding:32px 40px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.2);animation:popIn .2s ease">
-      <div style="width:56px;height:56px;border-radius:50%;background:#DCFCE7;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:28px">✓</div>
-      <div style="font-size:16px;font-weight:700;color:#222">Qo'shildi!</div>
+    <div style="background:var(--white);border-radius:16px;padding:32px 40px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.2);animation:popIn .2s ease">
+      <div style="width:56px;height:56px;border-radius:50%;background:var(--f-dcfce7);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:24px">✓</div>
+      <div style="font-size:16px;font-weight:700;color:var(--m-222222)">Qo'shildi!</div>
     </div>
     <style>
       @keyframes fadeIn{from{opacity:0}to{opacity:1}}
@@ -394,6 +539,21 @@ function showAddedToast(){
 }
 
 let isSavingUser = false;
+// kech118 (ROLLAR): foydalanuvchi rolini almashtirish — PUT /api/users/{id}/rol (tasdiq bilan; xato — eski qiymatga qaytadi)
+async function userRoli(userId, sel) {
+  const eski = sel.dataset.eski || '';
+  const nom = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
+  const ha = await customConfirm("Rolni o'zgartirish", `Bu foydalanuvchi endi «${nom}» rolida ishlaydi. Tasdiqlaysizmi?`, {okText: "O'zgartirish"});
+  if (!ha) { sel.value = eski; return; }
+  try {
+    const res = await fetch(`/api/users/${userId}/rol`, {method: 'PUT', headers: {'Content-Type': 'application/json'},
+                                                         body: JSON.stringify({rol_id: parseInt(sel.value)})});
+    if (!res.ok) { showMsg(await serverXatoSababi(res, "O'zgartirilmadi"), 'error'); sel.value = eski; return; }
+    sel.dataset.eski = sel.value;
+    showMsg(`✓ Rol o'zgartirildi: ${nom}`, 'success');
+  } catch (e) { showMsg('Internet aloqasini tekshiring', 'error'); sel.value = eski; }
+}
+
 async function saveUser(){
   const username=document.getElementById('f-username').value.trim();
   const password=document.getElementById('f-password').value;
@@ -411,7 +571,7 @@ async function saveUser(){
   if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
   try {
     const res=await fetch('/api/users',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({username,password,role:document.getElementById('f-role').value,full_name:document.getElementById('f-fullname').value})});
+      body:JSON.stringify({username,password,rol_id:parseInt(document.getElementById('f-role').value),full_name:document.getElementById('f-fullname').value})});
     if(res.ok){ showAddedToast(); return; }else{const e=await res.json(); err.textContent='Xato: '+(e.detail||''); err.style.display='block';}
   } finally {
     isSavingUser = false;

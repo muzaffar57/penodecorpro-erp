@@ -1,43 +1,66 @@
 {% extends "base.html" %}
 {% block title %}Qarzdorlar — PenoDecorPro ERP{% endblock %}
 {% block page_title %}Qarzdorlar{% endblock %}
-{% block page_sub %}Mijozlarning bizga qarzi va bizning yetkazib beruvchilarga qarzimiz{% endblock %}
+{% block page_sub %}Mijozlarning bizga qarzi va bizning ta'minotchilarga qarzimiz{% endblock %}
 
 {% block head %}
 <style>
-.dbt-wrap{--d-bg:#F8F8F6;--d-card:#FFFFFF;--d-border:#E8E3DD;--d-danger:#EF4444;--d-warning:#F59E0B;--d-success:#22C55E;--d-primary:#B9783F;--d-primary-dark:#A86B36;--d-primary-tint:#F8F2EB;--d-text:#222222;--d-text2:#6B7280;--d-text3:#9CA3AF;background:var(--d-bg);padding:16px;height:calc(100vh - 58px);overflow-y:auto}
+.dbt-wrap{--d-bg:#F8F8F6;--d-card:#FFFFFF;--d-border:#E8E3DD;--d-danger:#B91C1C;--d-warning:#B45309;--d-success:#15803D;--d-primary:#9A6231;--d-primary-dark:#8F5B2A;--d-primary-tint:#F8F2EB;--d-text:#222222;--d-text2:#5B6170;--d-text3:#696D78;background:var(--d-bg);padding:16px;height:calc(100vh - 58px);overflow-y:auto}
+/* kech118 (zip 122 — tungi rejim to'liq): sahifa o'zgaruvchilari tungi rejimda umumiy ranglarga (ish maydoni qorayadi, matn o'qiladi) */
+html[data-theme="dark"] .dbt-wrap{--d-bg:var(--bg); --d-card:var(--white); --d-border:var(--border); --d-primary:#D09A63; --d-primary-tint:var(--gold-tint); --d-success:#4ADE80; --d-success-tint:var(--f-f0fdf4); --d-warning:#FBBF24; --d-warning-tint:var(--f-fffbeb); --d-danger:#F87171; --d-danger-tint:var(--f-fef2f2); --d-text:var(--text); --d-text2:var(--text2); --d-text3:var(--text3);--d-primary-dark:#D09A63}
 .dbt-wrap *{box-sizing:border-box}
 .dbt-summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
 @media(max-width:800px){.dbt-summary-grid{grid-template-columns:1fr}}
-.dbt-summary-card{background:#fff;border-radius:16px;padding:22px;box-shadow:0 1px 2px rgba(16,24,40,.04),0 4px 16px rgba(16,24,40,.06);display:flex;align-items:center;gap:16px}
-.dbt-summary-icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
-.dbt-summary-label{font-size:12.5px;color:var(--d-text3);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.dbt-summary-card{background:var(--white);border-radius:16px;padding:22px;box-shadow:0 1px 2px rgba(16,24,40,.04),0 4px 16px rgba(16,24,40,.06);display:flex;align-items:center;gap:16px}
+.dbt-summary-icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0}
+.dbt-summary-label{font-size:13px;color:var(--d-text3);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
 .dbt-summary-value{font-size:24px;font-weight:800;color:var(--d-text);margin-top:2px}
 .dbt-tabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
-.dbt-tab{padding:9px 16px;font-size:13px;font-weight:600;border-radius:9px;border:1px solid var(--d-border);background:#fff;color:var(--d-text2);cursor:pointer}
-.dbt-tab.active{background:var(--d-text);color:#fff;border-color:var(--d-text)}
-@media(max-width:600px){.dbt-tab{padding:8px 12px;font-size:12px;flex:1 1 auto;text-align:center}}
+/* U-13 (kech123): bo'lim tablari — umumiy `.tab` (style.css: o'lcham, tanlangani qora, tungi rejim); telefonda qatorni to'ldiradi */
+@media(max-width:600px){.dbt-tab{flex:1 1 auto}}
 .dbt-grid{display:grid;grid-template-columns:1fr 340px;gap:16px}
 @media(max-width:950px){.dbt-grid{grid-template-columns:1fr}}
-.dbt-card{background:#fff;border:1px solid var(--d-border);border-radius:16px;box-shadow:0 1px 2px rgba(16,24,40,.04),0 4px 16px rgba(16,24,40,.06);overflow:hidden}
+/* kech119 (C — telefon, G3-08): «Boshqa majburiyatlarimiz» telefonda bitta ustunda (ilgari ikki ustun, har biri ~170 px) */
+.dbt-grid > *, .dbt-ikki-ustun > *{min-width:0}
+@media(max-width:700px){.dbt-ikki-ustun{grid-template-columns:1fr !important}}
+.dbt-card{background:var(--white);border:1px solid var(--d-border);border-radius:16px;box-shadow:0 1px 2px rgba(16,24,40,.04),0 4px 16px rgba(16,24,40,.06);overflow:hidden}
 .dbt-list{max-height:calc(100vh - 320px);overflow-y:auto}
-.dbt-item{padding:14px 18px;border-bottom:1px solid #F3F4F6;cursor:pointer;transition:background .12s;display:flex;gap:12px}
+/* kech120 (zip 131 — F bosqichi, audit G3-08): bitta ustunda (≤ 950 px) ro'yxat ICHIDA alohida aylantirish yo'q — butun sahifa
+   (`.dbt-wrap`) aylanadi; ilgari telefonda ichma-ich ikki aylantirish (ro'yxat qutisi va sahifa). */
+@media(max-width:950px){.dbt-list{max-height:none;overflow-y:visible}}
+.dbt-item{padding:14px 18px;border-bottom:1px solid var(--ch-f3f4f6);cursor:pointer;transition:background .12s;display:flex;gap:12px}
 .dbt-item:hover{background:var(--d-bg)}
-.dbt-item.active{background:#FEF2F2;border-left:3px solid var(--d-danger)}
+.dbt-item.active{background:var(--f-fef2f2);border-left:3px solid var(--d-danger)}
 .dbt-avatar{width:36px;height:36px;border-radius:50%;background:var(--d-primary-tint);color:var(--d-primary-dark);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0}
 .dbt-item-body{flex:1;min-width:0}
-.dbt-item-name{font-size:13.5px;font-weight:700;color:var(--d-text)}
-.dbt-item-sub{font-size:11.5px;color:var(--d-text3);margin-top:2px}
-.dbt-item-amount{font-size:15.5px;font-weight:800;color:var(--d-danger);white-space:nowrap}
-.dbt-progress-track{height:5px;background:#F3F4F6;border-radius:3px;margin-top:8px}
+.dbt-item-name{font-size:13px;font-weight:700;color:var(--d-text)}
+.dbt-item-sub{font-size:12px;color:var(--d-text3);margin-top:2px}
+.dbt-item-amount{font-size:16px;font-weight:800;color:var(--d-danger);white-space:nowrap}
+/* kech120 (G3-07): mijoz guruhi (sarlavha — jami qarz; bosilsa buyurtmalari ochiladi), qidiruv / filtr paneli */
+.dbt-asbob{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--ch-f3f4f6)}
+.dbt-asbob input[type=search]{flex:1 1 200px;min-width:0;min-height:var(--h-sm);padding:0 10px;border:1px solid var(--d-border);border-radius:var(--r-btn);font-size:var(--fs-maydon-sm);line-height:18px;font-family:inherit;background:var(--white);color:var(--text)}
+.dbt-filtr{display:flex;flex-wrap:wrap;gap:6px}
+/* U-13 (kech123): filtr — umumiy `.chip` (o'lcham); tanlangani bu sahifada qizil (muddati o'tgan qarz) */
+.dbt-f.active{background:var(--f-fef2f2);border-color:var(--d-danger);color:var(--m-b91c1c);font-weight:700}
+.dbt-mijoz{border-bottom:1px solid var(--ch-f3f4f6)}
+.dbt-mijoz-bosh{display:flex;gap:10px;align-items:flex-start;padding:13px 16px;cursor:pointer;user-select:none}
+.dbt-mijoz-bosh:hover{background:var(--d-bg)}
+.dbt-mijoz-strelka{font-size:12px;color:var(--d-text3);margin-top:3px;transition:transform .15s;flex-shrink:0}
+.dbt-mijoz.ochiq .dbt-mijoz-strelka{transform:rotate(90deg)}
+.dbt-mijoz-buyurtmalar{display:none}
+.dbt-mijoz.ochiq .dbt-mijoz-buyurtmalar{display:block}
+.dbt-mijoz-buyurtmalar .dbt-item{padding-left:30px}
+.dbt-tel{color:inherit;text-decoration:none;white-space:nowrap}
+.qarz-muddat{color:var(--m-b91c1c);font-weight:600}
+.dbt-progress-track{height:5px;background:var(--f-f3f4f6);border-radius:3px;margin-top:8px}
 .dbt-progress-fill{height:100%;background:var(--d-success);border-radius:3px}
-.dbt-sum-row{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #F3F4F6;font-size:13px}
+.dbt-sum-row{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--ch-f3f4f6);font-size:13px}
 .dbt-sum-row:last-child{border-bottom:none}
 .dbt-empty{text-align:center;padding:56px 20px;color:var(--d-text3)}
-.dbt-empty .ti{font-size:38px;margin-bottom:12px;display:block;color:var(--d-success)}
+.dbt-empty .ti{font-size:32px;margin-bottom:12px;display:block;color:var(--d-success)}
 .oblig-status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0}
 .oblig-item:hover{background:var(--d-bg);border-radius:8px;margin:0 -8px;padding-left:8px!important;padding-right:8px!important}
-.tl-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #F3F4F6;font-size:13px}
+.tl-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--ch-f3f4f6);font-size:13px}
 .tl-row:last-child{border-bottom:none}
 </style>
 {% endblock %}
@@ -49,36 +72,77 @@
 
   <div class="dbt-summary-grid">
     <div class="dbt-summary-card">
-      <div class="dbt-summary-icon" style="background:#FEF2F2;color:#EF4444"><i class="ti ti-arrow-down-left"></i></div>
+      <div class="dbt-summary-icon" style="background:var(--f-fef2f2);color:var(--m-dc2626)"><i class="ti ti-arrow-down-left"></i></div>
       <div>
         <div class="dbt-summary-label">Bizga qarzdorlar (mijozlar)</div>
         <div class="dbt-summary-value">{{ "{:,.0f}".format(total_customer_debt).replace(",", " ") }} so'm</div>
       </div>
     </div>
     <div class="dbt-summary-card">
-      <div class="dbt-summary-icon" style="background:#FFFBEB;color:#F59E0B"><i class="ti ti-arrow-up-right"></i></div>
+      <div class="dbt-summary-icon" style="background:var(--f-fffbeb);color:var(--m-b45309)"><i class="ti ti-arrow-up-right"></i></div>
       <div>
-        <div class="dbt-summary-label">Biz qarzdormiz (yetkazib beruvchilar)</div>
+        <div class="dbt-summary-label">Biz qarzdormiz (ta'minotchilar)</div>
         <div class="dbt-summary-value">{{ "{:,.0f}".format(total_supplier_debt).replace(",", " ") }} so'm</div>
       </div>
     </div>
   </div>
 
+  {# kech100 (131-band, QAROR "B"): mijozga qaytarilishi kerak bo'lgan ortiqcha to'lovlar — DOIMIY eslatma #}
+  {% if ortiqcha_royxat %}
+  <div id="qaytarish-banner" style="background:var(--f-fff7ed);border:1.5px solid #F97316;color:var(--m-9a3412);border-radius:12px;padding:12px 16px;margin:-8px 0 18px;font-size:13px;font-weight:600;cursor:pointer" onclick="switchTab('refunds')">
+    ↩ {{ ortiqcha_royxat|length }} ta buyurtma bo'yicha mijozlarga
+    {{ ("{:,.2f}" if (total_ortiqcha % 1) else "{:,.0f}").format(total_ortiqcha).replace(",", " ") }} so'm QAYTARILISHI kerak (ortiqcha to'langan) — «Mijozga qaytarish» bo'limi
+  </div>
+  {% endif %}
+
   <div class="dbt-tabs">
-    <button class="dbt-tab active" data-t="customers" onclick="switchTab('customers')"><i class="ti ti-user" style="vertical-align:-2px"></i> Bizga qarzdorlar ({{ order_debts|length }})</button>
-    <button class="dbt-tab" data-t="suppliers" onclick="switchTab('suppliers')"><i class="ti ti-truck" style="vertical-align:-2px"></i> Hamkorlarga qarzimiz ({{ supplier_debts|length }})</button>
-    <button class="dbt-tab" data-t="company" onclick="switchTab('company')"><i class="ti ti-building" style="vertical-align:-2px"></i> Boshqa majburiyatlarimiz ({{ (company_obligations.employees|length) + (company_obligations.recurring|length) }})</button>
+    {# kech120 (G3-07): sarlavhada mijozlar VA buyurtmalar soni (ilgari faqat buyurtmalar — «288» mijoz emas edi) #}
+    <button class="dbt-tab tab active" data-t="customers" onclick="switchTab('customers')"><i class="ti ti-user"></i> Bizga qarzdorlar ({{ mijoz_guruhlari|length }} mijoz · {{ order_debts|length }} buyurtma)</button>
+    <button class="dbt-tab tab" data-t="refunds" onclick="switchTab('refunds')"><i class="ti ti-arrow-back-up"></i> Mijozga qaytarish ({{ ortiqcha_royxat|length }})</button>
+    <button class="dbt-tab tab" data-t="suppliers" onclick="switchTab('suppliers')"><i class="ti ti-truck"></i> Ta'minotchilarga qarzimiz ({{ supplier_debts|length }})</button>
+    <button class="dbt-tab tab" data-t="company" onclick="switchTab('company')"><i class="ti ti-building"></i> Boshqa majburiyatlarimiz ({{ (company_obligations.employees|length) + (company_obligations.recurring|length) }})</button>
   </div>
 
   <!-- MIJOZ QARZLARI -->
   <div id="tab-customers">
     <div class="dbt-grid">
       <div class="dbt-card">
+        {# kech120 (E bosqichi 2-qism, G3-07): qidiruv (mijoz, telefon, buyurtma raqami, loyiha) va «Muddati o'tgan» filtri; ro'yxat
+           MIJOZ bo'yicha guruhlangan (jami qarz, ichida buyurtmalar) #}
+        {% if order_debts %}
+        <div class="dbt-asbob">
+          <input type="search" id="qarzQidiruv" placeholder="Qidirish: mijoz, telefon, buyurtma raqami" oninput="qarzQidir(this.value)"
+                 aria-label="Qarzdorlarni qidirish">
+          <div class="dbt-filtr" role="group" aria-label="Qarzdorlar filtri">
+            <button type="button" class="dbt-f chip active" data-f="hammasi" aria-pressed="true" onclick="qarzFiltrla('hammasi')">Hammasi</button>
+            <button type="button" class="dbt-f chip" data-f="otgan" aria-pressed="false" onclick="qarzFiltrla('otgan')">🔴 Muddati o'tgan ({{ qarz_muddati_otgan_soni }})</button>
+          </div>
+        </div>
+        {% endif %}
         <div class="dbt-list">
+          <div id="qarzBosh" style="display:none;padding:22px 14px;text-align:center;color:var(--d-text3);font-size:13px">Bu qidiruv / filtr bo'yicha qarzdor yo'q</div>
           {% if order_debts %}
-            {% for o in order_debts %}
+            {% for g in mijoz_guruhlari %}
+            {% set g_birinchi = loop.first %}
+            <div class="dbt-mijoz{% if g_birinchi %} ochiq{% endif %}" data-mijoz="{{ g.nom }}" data-telefon="{{ g.telefon }}">
+              <div class="dbt-mijoz-bosh" role="button" tabindex="0" aria-expanded="{{ 'true' if g_birinchi else 'false' }}"
+                   onclick="mijozGuruhiniOch(this.parentElement)"
+                   onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();mijozGuruhiniOch(this.parentElement);}">
+                <span class="dbt-mijoz-strelka" aria-hidden="true">▶</span>
+                <div class="dbt-item-body">
+                  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+                    <div style="min-width:0">
+                      <div class="dbt-item-name">{{ g.nom }}</div>
+                      <div class="dbt-item-sub">{{ g.buyurtmalar|length }} ta buyurtma{% if g.telefon %} · <a class="dbt-tel" href="tel:{{ g.telefon }}" onclick="event.stopPropagation()">📞 {{ g.telefon }}</a>{% endif %}{% if g.muddati_otgan %} · <span class="qarz-muddat">{{ g.muddati_otgan }} tasi muddati o'tgan</span>{% endif %}</div>
+                    </div>
+                    <div class="dbt-item-amount">{{ ("{:,.2f}" if (g.jami % 1) else "{:,.0f}").format(g.jami).replace(",", " ") }} so'm</div>
+                  </div>
+                </div>
+              </div>
+              <div class="dbt-mijoz-buyurtmalar">
+            {% for o in g.buyurtmalar %}
             {% set paid_pct = ((o.paid_amount|float / o.agreed_amount|float * 100) if o.agreed_amount|float > 0 else 0) %}
-            <div class="dbt-item {% if loop.first %}active{% endif %}" onclick="selectOrderDebt(this)"
+            <div class="dbt-item {% if g_birinchi and loop.first %}active{% endif %}" onclick="selectOrderDebt(this)"
                  data-id="{{ o.id }}"
                  data-order-number="{{ o.order_number }}"
                  data-client="{{ o.project.client_name }}"
@@ -87,13 +151,15 @@
                  data-agreed="{{ o.agreed_amount }}"
                  data-paid="{{ o.paid_amount }}"
                  data-debt="{{ o.debt_amount }}"
-                 data-deadline="{{ o.deadline.strftime('%d.%m.%Y') if o.deadline else '—' }}">
+                 data-deleted="{{ 'true' if o.is_deleted else 'false' }}"
+                 data-muddat-otgan="{{ '1' if o.qarz_muddati_otgan else '0' }}"
+                 data-deadline="{{ o.deadline|toshkent('%d.%m.%Y') if o.deadline else '—' }}">
               <div class="dbt-avatar">{{ (o.project.client_name or '?')[0]|upper }}</div>
               <div class="dbt-item-body">
                 <div style="display:flex;justify-content:space-between;align-items:flex-start">
                   <div>
-                    <div class="dbt-item-name">{{ o.project.client_name }}</div>
-                    <div class="dbt-item-sub">{{ o.order_number }} · {{ o.project.project_name }}</div>
+                    <div class="dbt-item-name">{{ o.order_number }}</div>
+                    <div class="dbt-item-sub">{{ o.project.project_name }}{% if o.qarz_muddati_otgan %} · <span class="qarz-muddat">muddati o'tgan ({{ o.deadline|toshkent('%d.%m.%Y') }})</span>{% endif %}{% if o.is_deleted %} · <span class="qarz-ochirilgan" style="color:var(--m-dc2626)">o'chirilgan</span>{% endif %}</div>
                   </div>
                   <div class="dbt-item-amount">{{ "{:,.0f}".format(o.debt_amount).replace(",", " ") }} so'm</div>
                 </div>
@@ -101,34 +167,120 @@
               </div>
             </div>
             {% endfor %}
+              </div>
+            </div>
+            {% endfor %}
+          {% elif buyurtma_bor %}
+            <div class="dbt-empty"><i class="ti ti-circle-check"></i><div style="font-size:16px;font-weight:600;color:var(--d-text2)">Barcha mijozlar to'liq to'lagan!</div></div>
           {% else %}
-            <div class="dbt-empty"><i class="ti ti-circle-check"></i><div style="font-size:15px;font-weight:600;color:var(--d-text2)">Barcha mijozlar to'liq to'lagan!</div></div>
+            <div class="dbt-empty"><i class="ti ti-receipt"></i><div style="font-size:16px;font-weight:600;color:var(--d-text2)">Hali buyurtma yo'q</div><div style="font-size:13px;color:var(--d-text3);margin-top:4px">Mijozlarning qarzlari buyurtmalardan keyin shu yerda ko'rinadi</div></div>
           {% endif %}
         </div>
       </div>
 
       <div style="display:flex;flex-direction:column;gap:14px">
         <div class="dbt-card" id="custDetailCard">
-          <div style="padding:16px 18px;border-bottom:1px solid #F3F4F6;font-weight:700;font-size:15px;display:flex;align-items:center;gap:10px">
+          <div style="padding:16px 18px;border-bottom:1px solid var(--ch-f3f4f6);font-weight:700;font-size:16px;display:flex;align-items:center;gap:10px">
             <div class="dbt-avatar" id="cd-avatar" style="width:30px;height:30px;font-size:12px">?</div>
             <span id="cd-name">Mijoz tanlang</span>
           </div>
           <div style="padding:16px 18px" id="cd-body">
-            <div style="text-align:center;padding:20px;color:var(--d-text3);font-size:13px">Chapdan mijozni tanlang</div>
+            <div style="text-align:center;padding:20px;color:var(--d-text3);font-size:13px">Mijozni tanlang</div>
           </div>
         </div>
 
         <div class="dbt-card" id="payCard" style="display:none;border-left:3px solid #22C55E">
-          <div style="padding:14px 18px;border-bottom:1px solid #F3F4F6;font-weight:700;font-size:14px">💰 To'lov qabul qilish</div>
+          <div style="padding:14px 18px;border-bottom:1px solid var(--ch-f3f4f6);font-weight:700;font-size:14px">💰 To'lov qabul qilish</div>
           <div style="padding:16px 18px">
-            <div class="form-group"><label>Summa (so'm)</label><input type="text" id="pay-amount" placeholder="0" oninput="formatPriceInput(this)"></div>
+            <div class="form-group"><label>Summa (so'm)</label>
+              <div style="display:flex;gap:6px">
+                <input type="text" id="pay-amount" placeholder="Mijoz bergan summa" oninput="formatPriceInput(this);payYozuv()" style="flex:1">
+                <button type="button" id="pay-full-btn" class="btn btn-outline" style="flex-shrink:0" onclick="payButunQarz()">Butun qarz</button>
+              </div>
+            </div>
+            {# kech120 (zip 131 — F bosqichi, audit G3-03): to'lov usuli tanlanmasdi — har to'lov «naqd» bo'lib yozilardi #}
+            <div class="form-group"><label for="pay-method">To'lov usuli</label>
+              <select id="pay-method">
+                <option value="naqd">Naqd</option>
+                <option value="plastik">Plastik</option>
+                <option value="o'tkazma">O'tkazma</option>
+              </select>
+            </div>
             <div class="form-group"><label>Izoh (ixtiyoriy)</label><input type="text" id="pay-note" placeholder="..."></div>
-            <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--d-text2);margin-bottom:12px;cursor:pointer">
-              <input type="checkbox" id="pay-writeoff" style="width:15px;height:15px">
-              Qolgan qarzni chegirma qilib yopish
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--d-text2);margin-bottom:6px;cursor:pointer;min-height:32px">
+              <input type="checkbox" id="pay-writeoff" style="width:20px;height:20px;flex-shrink:0" onchange="payYozuv()">
+              Qolgan qarzni chegirma qilib yopish (kechirish)
             </label>
+            <div id="pay-writeoff-izoh" style="display:none;margin-bottom:12px;padding:8px 10px;border-radius:8px;font-size:13px;line-height:1.45;background:var(--f-fef2f2);color:var(--m-b91c1c);border:1px solid var(--ch-fecaca)"></div>
             <button class="btn btn-dark w-full" onclick="savePayment()">✓ To'lovni qabul qilish</button>
             <div id="pay-msg" style="display:none;margin-top:10px;padding:9px;border-radius:8px;font-size:13px"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- kech100 (131-band): MIJOZGA QAYTARISH KERAK — ortiqcha to'langan buyurtmalar -->
+  <div id="tab-refunds" style="display:none">
+    <div class="dbt-grid">
+      <div class="dbt-card">
+        <div class="dbt-list">
+          {% if ortiqcha_royxat %}
+            {% for o in ortiqcha_royxat %}
+            {% set ort = o.ortiqcha_tolov %}
+            <div class="dbt-item" onclick="selectRefund(this)"
+                 data-id="{{ o.id }}"
+                 data-order-number="{{ o.order_number }}"
+                 data-client="{{ o.project.client_name if o.project else '—' }}"
+                 data-phone="{{ (o.project.client_phone if o.project else None) or '—' }}"
+                 data-project="{{ o.project.project_name if o.project else '—' }}"
+                 data-agreed="{{ o.kelishilgan_summa }}"
+                 data-paid="{{ o.paid_amount }}"
+                 data-ortiqcha="{{ ort }}"
+                 data-deleted="{{ 'true' if o.is_deleted else 'false' }}">
+              <div class="dbt-avatar" style="background:var(--f-fff7ed);color:var(--m-c2410c)">{{ ((o.project.client_name if o.project else '') or '?')[0]|upper }}</div>
+              <div class="dbt-item-body">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                  <div>
+                    <div class="dbt-item-name">{{ o.project.client_name if o.project else '—' }}</div>
+                    <div class="dbt-item-sub">{{ o.order_number }} · {{ o.project.project_name if o.project else '—' }}{% if o.is_deleted %} · <span style="color:var(--m-dc2626)">o'chirilgan</span>{% endif %}</div>
+                  </div>
+                  <div class="dbt-item-amount" style="color:var(--m-c2410c)">↩ {{ ("{:,.2f}" if (ort % 1) else "{:,.0f}").format(ort).replace(",", " ") }} so'm</div>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          {% else %}
+            <div class="dbt-empty"><i class="ti ti-circle-check"></i><div style="font-size:16px;font-weight:600;color:var(--d-text2)">Mijozlarga qaytariladigan ortiqcha to'lov yo'q</div></div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div class="dbt-card" id="refDetailCard">
+          <div style="padding:16px 18px;border-bottom:1px solid var(--ch-f3f4f6);font-weight:700;font-size:16px;display:flex;align-items:center;gap:10px">
+            <div class="dbt-avatar" id="rd-avatar" style="width:30px;height:30px;font-size:12px;background:var(--f-fff7ed);color:var(--m-c2410c)">?</div>
+            <span id="rd-name">Buyurtma tanlang</span>
+          </div>
+          <div style="padding:16px 18px" id="rd-body">
+            <div style="text-align:center;padding:20px;color:var(--d-text3);font-size:13px">Buyurtmani tanlang</div>
+          </div>
+        </div>
+
+        <div class="dbt-card" id="refundCard" style="display:none;border-left:3px solid #F97316">
+          <div style="padding:14px 18px;border-bottom:1px solid var(--ch-f3f4f6);font-weight:700;font-size:14px">↩ Mijozga qaytarildi deb yozish</div>
+          <div style="padding:16px 18px">
+            <div class="form-group"><label>Qaytarilgan summa (so'm)</label><input type="text" id="ref-amount" placeholder="0" oninput="formatPriceInput(this)"></div>
+            <div class="form-group"><label>Qaysi usulda qaytarildi</label>
+              <select id="ref-method">
+                <option value="naqd">Naqd</option>
+                <option value="plastik">Plastik</option>
+                <option value="o'tkazma">O'tkazma</option>
+              </select>
+            </div>
+            <div class="form-group"><label>Izoh (ixtiyoriy)</label><input type="text" id="ref-note" placeholder="..." maxlength="300"></div>
+            <button class="btn btn-dark w-full" onclick="saveRefund()">✓ Qaytarildi</button>
+            <div id="ref-msg" style="display:none;margin-top:10px;padding:9px;border-radius:8px;font-size:13px"></div>
           </div>
         </div>
       </div>
@@ -147,32 +299,32 @@
                  data-id="{{ s.id }}" data-name="{{ s.name }}" data-phone="{{ s.phone or '—' }}"
                  data-credit="{{ s.total_credit }}" data-paid="{{ s.total_paid }}" data-debt="{{ s.debt }}"
                  data-count="{{ s.purchase_count }}">
-              <div class="dbt-avatar" style="background:#FFFBEB;color:#B45309">{{ (s.name or '?')[0]|upper }}</div>
+              <div class="dbt-avatar" style="background:var(--f-fffbeb);color:var(--m-b45309)">{{ (s.name or '?')[0]|upper }}</div>
               <div class="dbt-item-body">
                 <div style="display:flex;justify-content:space-between;align-items:flex-start">
                   <div>
                     <div class="dbt-item-name">{{ s.name }}</div>
                     <div class="dbt-item-sub">{{ s.phone or '—' }} · {{ s.purchase_count }} ta xarid</div>
                   </div>
-                  <div class="dbt-item-amount" style="color:#F59E0B">{{ "{:,.0f}".format(s.debt).replace(",", " ") }} so'm</div>
+                  <div class="dbt-item-amount" style="color:var(--m-b45309)">{{ "{:,.0f}".format(s.debt).replace(",", " ") }} so'm</div>
                 </div>
-                <div class="dbt-progress-track"><div class="dbt-progress-fill" style="width:{{ spaid_pct|round }}%;background:#F59E0B"></div></div>
+                <div class="dbt-progress-track"><div class="dbt-progress-fill" style="width:{{ spaid_pct|round }}%;background:var(--f-f59e0b)"></div></div>
               </div>
             </div>
             {% endfor %}
           {% else %}
-            <div class="dbt-empty"><i class="ti ti-circle-check"></i><div style="font-size:15px;font-weight:600;color:var(--d-text2)">Barcha yetkazib beruvchilarga to'liq to'langan!</div></div>
+            <div class="dbt-empty"><i class="ti ti-circle-check"></i><div style="font-size:16px;font-weight:600;color:var(--d-text2)">Barcha ta'minotchilarga to'liq to'langan!</div></div>
           {% endif %}
         </div>
       </div>
 
       <div class="dbt-card">
-        <div style="padding:16px 18px;border-bottom:1px solid #F3F4F6;font-weight:700;font-size:15px;display:flex;align-items:center;gap:10px">
-          <div class="dbt-avatar" id="sd-avatar" style="width:30px;height:30px;font-size:12px;background:#FFFBEB;color:#B45309">?</div>
-          <span id="sd-name">Yetkazib beruvchi tanlang</span>
+        <div style="padding:16px 18px;border-bottom:1px solid var(--ch-f3f4f6);font-weight:700;font-size:16px;display:flex;align-items:center;gap:10px">
+          <div class="dbt-avatar" id="sd-avatar" style="width:30px;height:30px;font-size:12px;background:var(--f-fffbeb);color:var(--m-b45309)">?</div>
+          <span id="sd-name">Ta'minotchi tanlang</span>
         </div>
         <div style="padding:16px 18px" id="sd-body">
-          <div style="text-align:center;padding:20px;color:var(--d-text3);font-size:13px">Chapdan tanlang</div>
+          <div style="text-align:center;padding:20px;color:var(--d-text3);font-size:13px">Ro'yxatdan tanlang</div>
         </div>
       </div>
     </div>
@@ -180,76 +332,76 @@
 
   <!-- KOMPANIYA O'ZI QARZDOR -->
   <div id="tab-company" style="display:none">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+    <div class="dbt-ikki-ustun" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
 
       <!-- Hodimlarga qarz -->
       <div class="dbt-card">
-        <div style="padding:16px 18px;border-bottom:1px solid #F3F4F6;font-weight:700;font-size:15px">👷 Hodimlarga qarzimiz <span style="font-weight:500;color:var(--d-text3);font-size:12.5px">(oxirgi 3 oy)</span></div>
+        <div style="padding:16px 18px;border-bottom:1px solid var(--ch-f3f4f6);font-weight:700;font-size:16px">👷 Hodimlarga qarzimiz <span style="font-weight:500;color:var(--d-text3);font-size:13px">(oxirgi 3 oy)</span></div>
         <div style="padding:8px 18px 18px">
           {% if company_obligations.employees %}
             {% for e in company_obligations.employees %}
-            <div class="oblig-item" style="padding:12px 0;border-bottom:1px solid #F3F4F6;cursor:pointer;display:flex;gap:12px" data-emp-id="{{ e.employee_id }}" data-emp-name="{{ e.name|replace('"', '&quot;') }}" data-year="{{ e.year }}" data-month="{{ e.month }}" onclick="openEmpTimeline(this.dataset.empId, this.dataset.empName)">
-              <div class="dbt-avatar" style="background:{{ '#FEF2F2' if e.status=='overdue' else '#FFFBEB' }};color:{{ '#EF4444' if e.status=='overdue' else '#F59E0B' }};width:34px;height:34px;font-size:13px">{{ (e.name or '?')[0]|upper }}</div>
+            <div class="oblig-item" style="padding:12px 0;border-bottom:1px solid var(--ch-f3f4f6);cursor:pointer;display:flex;gap:12px" data-emp-id="{{ e.employee_id }}" data-emp-name="{{ e.name }}" data-year="{{ e.year }}" data-month="{{ e.month }}" data-month-label="{{ e.month_label }}" onclick="openEmpTimeline(this.dataset.empId, this.dataset.empName, this.dataset.year, this.dataset.month, this.dataset.monthLabel)">
+              <div class="dbt-avatar" style="background:{{ 'var(--f-fef2f2)' if e.status=='overdue' else 'var(--f-fffbeb)' }};color:{{ 'var(--m-ef4444)' if e.status=='overdue' else '#F59E0B' }};width:34px;height:34px;font-size:13px">{{ (e.name or '?')[0]|upper }}</div>
               <div style="flex:1">
                 <div style="display:flex;justify-content:space-between;align-items:flex-start">
                   <div>
-                    <span style="font-weight:700;font-size:13.5px">{{ e.name }}</span>
-                    <span style="font-size:11px;font-weight:700;color:{{ '#EF4444' if e.status=='overdue' else '#F59E0B' }};background:{{ '#FEF2F2' if e.status=='overdue' else '#FFFBEB' }};padding:2px 8px;border-radius:6px;margin-left:6px">{{ e.month_label }}</span>
-                    <div style="font-size:11.5px;color:var(--d-text3);margin-top:2px">{{ e.detail }} — jami {{ "{:,.0f}".format(e.amount).replace(",", " ") }}, avans {{ "{:,.0f}".format(e.avans).replace(",", " ") }}</div>
+                    <span style="font-weight:700;font-size:13px">{{ e.name }}</span>
+                    <span style="font-size:12px;font-weight:700;color:{{ 'var(--m-ef4444)' if e.status=='overdue' else '#F59E0B' }};background:{{ 'var(--f-fef2f2)' if e.status=='overdue' else 'var(--f-fffbeb)' }};padding:2px 8px;border-radius:6px;margin-left:6px">{{ e.month_label }}</span>
+                    <div style="font-size:12px;color:var(--d-text3);margin-top:2px">{{ e.detail if current_user.ruxsat('tannarx', 'korish') else e.detail|foyda_yashir }} — jami {{ "{:,.0f}".format(e.amount).replace(",", " ") }}, avans {{ "{:,.0f}".format(e.avans).replace(",", " ") }}</div>
                   </div>
-                  <div style="font-weight:800;color:#EF4444;font-size:15px">{{ "{:,.0f}".format(e.qolgan).replace(",", " ") }}</div>
+                  <div style="font-weight:800;color:var(--m-dc2626);font-size:16px">{{ "{:,.0f}".format(e.qolgan).replace(",", " ") }}</div>
                 </div>
                 <button class="btn btn-outline btn-xs" style="margin-top:8px" data-qolgan="{{ e.qolgan }}" onclick="event.stopPropagation();closeEmployeeDebt(this.closest('.oblig-item').dataset.empId, this.closest('.oblig-item').dataset.empName, parseFloat(this.dataset.qolgan), this.closest('.oblig-item').dataset.year, this.closest('.oblig-item').dataset.month)">✓ To'liq to'landi deb belgilash</button>
               </div>
             </div>
             {% endfor %}
           {% else %}
-            <div class="dbt-empty" style="padding:30px 0"><i class="ti ti-circle-check"></i><div style="font-size:13.5px;font-weight:600;color:var(--d-text2)">Barcha hodimlarga to'liq to'langan</div></div>
+            <div class="dbt-empty" style="padding:30px 0"><i class="ti ti-circle-check"></i><div style="font-size:13px;font-weight:600;color:var(--d-text2)">Barcha hodimlarga to'liq to'langan</div></div>
           {% endif %}
         </div>
       </div>
 
       <!-- Doimiy majburiyatlar -->
       <div class="dbt-card">
-        <div style="padding:16px 18px;border-bottom:1px solid #F3F4F6;display:flex;justify-content:space-between;align-items:center">
-          <span style="font-weight:700;font-size:15px">🏛️ Doimiy majburiyatlar</span>
-          <button class="btn btn-dark btn-xs" onclick="openAddCategoryModal()">+ Yangi kategoriya</button>
+        <div style="padding:16px 18px;border-bottom:1px solid var(--ch-f3f4f6);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <span style="font-weight:700;font-size:16px">🏛️ Doimiy majburiyatlar</span>
+          <button class="btn btn-dark btn-md" onclick="openAddCategoryModal()">+ Yangi kategoriya</button>
         </div>
         <div style="padding:8px 18px 18px">
           {% if company_obligations.recurring %}
             {% for r in company_obligations.recurring %}
             {% set status_color = {'overdue':'#EF4444','due_soon':'#F59E0B','partial':'#F59E0B','full':'#22C55E'} %}
             {% set status_label = {'overdue':'Muddati o\'tgan','due_soon':'Muddat yaqin','partial':'Qisman to\'langan','full':'To\'liq yopilgan'} %}
-            <div class="oblig-item" style="padding:12px 0;border-bottom:1px solid #F3F4F6;cursor:pointer" data-category="{{ r.category }}" data-label="{{ r.label|replace('"', '&quot;') }}" data-year="{{ r.year }}" data-month="{{ r.month }}" onclick="openObligTimeline(this.dataset.category, this.dataset.label)">
+            <div class="oblig-item" style="padding:12px 0;border-bottom:1px solid var(--ch-f3f4f6);cursor:pointer" data-category="{{ r.category }}" data-label="{{ r.label }}" data-year="{{ r.year }}" data-month="{{ r.month }}" data-month-label="{{ r.month_label }}" onclick="openObligTimeline(this.dataset.category, this.dataset.label, this.dataset.year, this.dataset.month, this.dataset.monthLabel)">
               <div style="display:flex;justify-content:space-between;align-items:flex-start">
                 <div>
                   <div style="display:flex;align-items:center;gap:6px">
                     <span class="oblig-status-dot" style="background:{{ status_color[r.status] }}"></span>
-                    <span style="font-weight:600;font-size:13.5px">{{ r.icon }} {{ r.label }}</span>
-                    <span style="font-size:11px;font-weight:700;color:{{ status_color[r.status] }};background:{{ status_color[r.status] }}1A;padding:2px 8px;border-radius:6px">{{ r.month_label }}</span>
+                    <span style="font-weight:600;font-size:13px">{{ r.icon }} {{ r.label }}</span>
+                    <span style="font-size:12px;font-weight:700;color:{{ status_color[r.status] }};background:{{ status_color[r.status] }}1A;padding:2px 8px;border-radius:6px">{{ r.month_label }}</span>
                   </div>
-                  <div style="font-size:11.5px;color:var(--d-text3);margin-top:2px">Maqsad: {{ "{:,.0f}".format(r.target).replace(",", " ") }} · To'langan: {{ "{:,.0f}".format(r.paid).replace(",", " ") }} · Har oy {{ r.due_day }}-sanagacha</div>
+                  <div style="font-size:12px;color:var(--d-text3);margin-top:2px">Maqsad: {{ "{:,.0f}".format(r.target).replace(",", " ") }} · To'langan: {{ "{:,.0f}".format(r.paid).replace(",", " ") }} · Har oy {{ r.due_day }}-sanagacha</div>
                 </div>
                 <div style="text-align:right">
-                  <div style="font-weight:800;color:{{ status_color[r.status] }};font-size:15px">{{ "{:,.0f}".format(r.debt).replace(",", " ") }}</div>
-                  <div style="font-size:10.5px;color:{{ status_color[r.status] }};font-weight:600">{{ status_label[r.status] }}</div>
+                  <div style="font-weight:800;color:{{ status_color[r.status] }};font-size:16px">{{ "{:,.0f}".format(r.debt).replace(",", " ") }}</div>
+                  <div style="font-size:12px;color:{{ status_color[r.status] }};font-weight:600">{{ status_label[r.status] }}</div>
                 </div>
               </div>
               <div class="dbt-progress-track"><div class="dbt-progress-fill" style="width:{{ (r.paid/r.target*100)|round if r.target>0 else 0 }}%;background:{{ status_color[r.status] }}"></div></div>
-              <button class="btn btn-outline btn-xs" style="margin-top:8px" data-debt="{{ r.debt }}" onclick="event.stopPropagation();const it=this.closest('.oblig-item');quickPayObligation(it.dataset.category, it.dataset.label, parseFloat(this.dataset.debt), it.dataset.year, it.dataset.month)">💰 To'lov qo'shish</button>
+              <button class="btn btn-outline btn-xs" style="margin-top:8px" data-debt="{{ r.debt }}" onclick="event.stopPropagation();const it=this.closest('.oblig-item');quickPayObligation(it.dataset.category, it.dataset.label, parseFloat(this.dataset.debt), it.dataset.year, it.dataset.month, it.dataset.monthLabel)">💰 To'lov qo'shish</button>
             </div>
             {% endfor %}
           {% else %}
-            <div class="dbt-empty" style="padding:30px 0"><i class="ti ti-circle-check"></i><div style="font-size:13.5px;font-weight:600;color:var(--d-text2)">Doimiy majburiyatlar to'liq to'langan (yoki hali sozlanmagan)</div></div>
+            <div class="dbt-empty" style="padding:30px 0"><i class="ti ti-circle-check"></i><div style="font-size:13px;font-weight:600;color:var(--d-text2)">Doimiy majburiyatlar to'liq to'langan (yoki hali sozlanmagan)</div></div>
           {% endif %}
 
           {% if recurring_targets %}
           <div style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--d-border)">
-            <div style="font-size:11px;color:var(--d-text3);margin-bottom:6px">Barcha sozlangan kategoriyalar:</div>
+            <div style="font-size:12px;color:var(--d-text3);margin-bottom:6px">Barcha sozlangan kategoriyalar:</div>
             {% for t in recurring_targets %}
-            <span style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;background:var(--d-bg);padding:4px 9px;border-radius:12px;margin:2px 4px 2px 0">
+            <span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;background:var(--d-bg);padding:4px 9px;border-radius:12px;margin:2px 4px 2px 0">
               {{ t.icon }} {{ t.label }}
-              <span data-id="{{ t.id }}" data-label="{{ t.label|replace('"', '&quot;') }}" onclick="deleteCategory(this.dataset.id, this.dataset.label)" style="cursor:pointer;color:#EF4444;margin-left:2px">✕</span>
+              <span data-id="{{ t.id }}" data-label="{{ t.label }}" onclick="deleteCategory(this.dataset.id, this.dataset.label)" style="cursor:pointer;color:var(--m-dc2626);margin-left:2px">✕</span>
             </span>
             {% endfor %}
           </div>
@@ -264,26 +416,26 @@
 
 <!-- Yangi kategoriya qo'shish modali -->
 <div id="addCategoryModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:1000;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:16px;padding:24px;width:380px;max-width:100%">
+  <div style="background:var(--white);border-radius:16px;padding:24px;width:380px;max-width:100%">
     <div style="font-size:16px;font-weight:700;margin-bottom:16px">+ Yangi doimiy majburiyat</div>
     <div class="form-group"><label>Belgi (emoji, ixtiyoriy)</label><input type="text" id="cat-icon" placeholder="📦" maxlength="2" style="width:60px"></div>
-    <div class="form-group"><label>Nomi</label><input type="text" id="cat-label" placeholder="Masalan: Kommunal xizmatlar"></div>
+    <div class="form-group"><label>Nomi</label><input type="text" id="cat-label" placeholder="Masalan: Kommunal xizmatlar" maxlength="60"></div>
     <div class="form-group"><label>Har oy to'lanishi kerak (so'm)</label><input type="text" id="cat-target" placeholder="0" oninput="formatPriceInput(this)"></div>
     <div class="form-group"><label>Har oy nechinchi sanagacha</label><input type="number" id="cat-dueday" value="5" min="1" max="28"></div>
     <div style="display:flex;gap:8px;margin-top:14px">
       <button class="btn btn-dark w-full" onclick="saveNewCategory()">Saqlash</button>
-      <button class="btn btn-outline w-full" onclick="closeAddCategoryModal()">Bekor</button>
+      <button data-yopish class="btn btn-outline w-full" onclick="closeAddCategoryModal()">Bekor</button>
     </div>
   </div>
 </div>
 
 <!-- Timeline modali -->
 <div id="timelineModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:1000;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:16px;padding:24px;width:420px;max-width:100%;max-height:80vh;overflow-y:auto">
+  <div style="background:var(--white);border-radius:16px;padding:24px;width:420px;max-width:100%;max-height:80vh;overflow-y:auto">
     <div style="font-size:16px;font-weight:700;margin-bottom:4px" id="tl-title">To'lovlar tarixi</div>
-    <div style="font-size:12.5px;color:var(--d-text3);margin-bottom:16px" id="tl-sub"></div>
+    <div style="font-size:13px;color:var(--d-text3);margin-bottom:16px" id="tl-sub"></div>
     <div id="tl-list"></div>
-    <button class="btn btn-outline w-full" style="margin-top:16px" onclick="closeTimelineModal()">Yopish</button>
+    <button data-yopish class="btn btn-outline w-full" style="margin-top:16px" onclick="closeTimelineModal()">Yopish</button>
   </div>
 </div>
 {% endblock %}
@@ -316,14 +468,104 @@
 
 <script>
 function fmt(n){ return Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' '); }
-function parseNum(v) { return parseFloat(String(v||'').replace(/[^\d.]/g, '')) || 0; }
-function formatPriceInput(input) { const val = parseNum(input.value); if (val > 0) input.value = fmt(val); }
+// ── 118-band (kech94): YAGONA son / narx kiritish qoidasi ──────────────────
+// parseNum / narxMatni / narxniOqi / narxKorinishi / formatPriceInput matni debts, finance,
+// finished, hodim_panel, inventory, kpi, orders, supplier_receive, suppliers
+// sahifalarida AYNAN bir xil (tools/test_narx_kiritish_ui.js tekshiradi).
+// Ilgari har sahifada o'z ta'rifi bor edi va kasr kiritgan foydalanuvchi
+// JIMGINA 10x / 100x yoki yaxlitlangan summa yuborardi: harflab "10.5" → 105,
+// "1234.56" → 123 456, yopishtirilgan "1.000.000" → 1, "1 228 752,75" → 100x.
+//  • Kasr belgisi — nuqta YOKI vergul (kiritilgan belgi saqlanadi); pulda
+//    ko'pi bilan 2 xona (tiyin — bazada Numeric(12,2)), ortig'i kiritilmaydi.
+//  • Ming ajratgich — bo'shliq. Bir xil belgi bir necha marta ("1.000.000")
+//    yoki ikki xil belgi ("1,234.56", "1.234,56") — oxirgisidan boshqasi ming
+//    ajratgich. Pulda yolg'iz belgi + AYNAN 3 raqam ("12.500") — ming ajratgich
+//    (3 xonali tiyin bo'lmaydi; harflab "1.000.000" ham shunday to'g'ri chiqadi);
+//    butun qismi 0 bilan boshlansa yoki noto'g'ri guruhlangan bo'lsa — kasr.
+//  • Pul maydoni manfiy bo'lmaydi: "-" yozilsa maydon 0 bo'ladi (orders.html
+//    2026-09-17 qoidasi — endi hamma sahifada; ilgari ba'zi sahifalar "-500"
+//    ni jimgina 500 qilardi). Harf va boshqa belgilar maydonga tushmaydi.
+//  • parseNum — umumiy son (o'lcham, miqdor ham): yolg'iz nuqta / vergul — kasr
+//    ("0.125" → 0.125), manfiy ishora saqlanadi, hech narsa bo'lmasa 0.
+//  • narxniOqi — prompt oynasidagi pul matni: narxMatni qoidasi bilan o'qiladi;
+//    raqamsiz yoki manfiy matn — NaN (chaqiruvchi rad etadi, 0 YUBORILMAYDI).
+//  • narxKorinishi — prompt oynasiga beriladigan joriy summa (2 xonagacha,
+//    yaxlitlanMAYDI — "OK" bosilsa narx o'zgarmaydi).
+function parseNum(v) {
+  if (typeof v === 'number') return isFinite(v) ? v : 0;
+  let s = String(v == null ? '' : v).replace(/[\s\u00a0\u202f]/g, '');
+  if (/^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(s)) {
+    const n = Number(s);
+    return isFinite(n) ? n : 0;
+  }
+  const manfiy = s.charAt(0) === '-';
+  s = s.replace(/[^\d.,]/g, '');
+  let butun = s, kasr = '';
+  const oxirgi = Math.max(s.lastIndexOf('.'), s.lastIndexOf(','));
+  if (oxirgi >= 0 && s.split(s.charAt(oxirgi)).length === 2) {
+    butun = s.slice(0, oxirgi);
+    kasr = s.slice(oxirgi + 1);
+  }
+  butun = butun.replace(/[.,]/g, '');
+  const n = parseFloat((butun || '0') + '.' + (kasr || '0'));
+  if (!isFinite(n)) return 0;
+  return manfiy ? -n : n;
+}
+function narxMatni(v) {
+  const asl = String(v == null ? '' : v);
+  if (asl.indexOf('-') >= 0) return '0';
+  const t = asl.replace(/[\s\u00a0\u202f]+/g, ' ').replace(/[^\d., ]/g, '').trim();
+  const s = t.replace(/ /g, '');
+  if (!s) return '';
+  let butun = s, kasr = null, belgi = '';
+  const oxirgi = Math.max(t.lastIndexOf('.'), t.lastIndexOf(','));
+  if (oxirgi >= 0) {
+    const b = t.charAt(oxirgi);
+    const oldin = t.slice(0, oxirgi).trim();
+    const keyin = t.slice(oxirgi + 1).replace(/ /g, '');
+    const ming = keyin.length === 3 && /^[1-9]\d{0,2}( \d{3})*$/.test(oldin);
+    if (t.split(b).length === 2 && !ming) {
+      butun = oldin.replace(/ /g, '');
+      kasr = keyin.slice(0, 2);
+      belgi = b;
+    }
+  }
+  butun = butun.replace(/[.,]/g, '').replace(/^0+(?=\d)/, '') || '0';
+  butun = butun.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return kasr === null ? butun : butun + belgi + kasr;
+}
+function narxniOqi(v) {
+  const s = String(v == null ? '' : v);
+  if (!/\d/.test(s) || s.indexOf('-') >= 0) return NaN;
+  return parseNum(narxMatni(s));
+}
+function narxKorinishi(n) {
+  const x = Number(n);
+  return narxMatni((isFinite(x) ? x : 0).toFixed(2).replace(/\.?0+$/, ''));
+}
+function formatPriceInput(input) {
+  if (!input) return;
+  const eski = String(input.value == null ? '' : input.value);
+  const yangi = narxMatni(eski);
+  if (yangi === eski) return;
+  let joy = null;
+  try { joy = typeof input.selectionStart === 'number' ? input.selectionStart : null; } catch (e) { joy = null; }
+  input.value = yangi;
+  if (joy === null || typeof input.setSelectionRange !== 'function') return;
+  try {
+    if (typeof document !== 'undefined' && document.activeElement !== input) return;
+    const k = Math.max(0, Math.min(yangi.length, joy + yangi.length - eski.length));
+    input.setSelectionRange(k, k);
+  } catch (e) { /* kursor — faqat qulaylik */ }
+}
 
 function switchTab(t){
   document.querySelectorAll('.dbt-tab').forEach(b => b.classList.toggle('active', b.dataset.t === t));
   document.getElementById('tab-customers').style.display = t === 'customers' ? 'block' : 'none';
   document.getElementById('tab-suppliers').style.display = t === 'suppliers' ? 'block' : 'none';
   document.getElementById('tab-company').style.display = t === 'company' ? 'block' : 'none';
+  // kech100 (131-band): "Mijozga qaytarish" bo'limi
+  document.getElementById('tab-refunds').style.display = t === 'refunds' ? 'block' : 'none';
 }
 
 function openAddCategoryModal(){
@@ -335,18 +577,44 @@ function openAddCategoryModal(){
 }
 function closeAddCategoryModal(){ document.getElementById('addCategoryModal').style.display = 'none'; }
 
+// 17d (2026-09-21): kategoriya kodi nomdan avtomatik yasaladi (lotin /
+// kirill harflar, bo'shliqsiz) va oxiriga 4 raqam qo'shiladi. Bazada kod
+// ustuni 30 belgi — ilgari 25 belgidan uzun nom (masalan "Kommunal
+// tolovlar va boshqa xarajat") 40 belgili kod berib, server 500 qaytarardi
+// va hech narsa saqlanmasdi (JONLI O'LCHANGAN). Endi asos 25 belgigacha
+// qisqartiriladi: 25 + '_' + 4 = 30. Nom o'zi (60 belgigacha) to'liq saqlanadi.
+function majburiyatKodi(label, vaqt) {
+  let asos = String(label || '').toLowerCase()
+    .replace(/[^a-z0-9а-яёʻʼ]+/gi, '_').replace(/^_+|_+$/g, '');
+  asos = asos.slice(0, 25).replace(/_+$/g, '');
+  if (!asos) asos = 'xarajat';
+  return asos + '_' + String(vaqt).slice(-4);
+}
+
+// 17d: server yuborgan SABABNI o'qish (`suppliers.html` dagi 21-band
+// naqshi) — `detail` matn bo'lsa o'zi, obyekt bo'lsa `detail.message`.
+// Ilgari har qanday xatoda faqat "Xato yuz berdi" chiqardi.
+async function serverSababi(res, standart) {
+  let sabab = standart || 'Xato';
+  try {
+    const d = await res.json();
+    if (d && typeof d.detail === 'string' && d.detail) sabab = d.detail;
+    else if (d && d.detail && typeof d.detail.message === 'string') sabab = d.detail.message;
+  } catch(e) {}
+  return sabab;
+}
+
 async function saveNewCategory(){
   const label = document.getElementById('cat-label').value.trim();
   const target = parseNum(document.getElementById('cat-target').value);
   const dueDay = parseInt(document.getElementById('cat-dueday').value) || 5;
   const icon = document.getElementById('cat-icon').value.trim() || '📦';
   if (!label || !target) { alert("Nom va summani to'ldiring"); return; }
-  // Kategoriya kodini nomdan avtomatik yasaymiz (lotin harflarga, bo'shliqsiz)
-  const category = label.toLowerCase().replace(/[^a-z0-9а-яёʻʼ]+/gi, '_').replace(/^_+|_+$/g, '') + '_' + Date.now().toString().slice(-4);
+  const category = majburiyatKodi(label, Date.now());
   try {
     const res = await fetch(`/api/obligations/recurring?category=${encodeURIComponent(category)}&label=${encodeURIComponent(label)}&monthly_target=${target}&icon=${encodeURIComponent(icon)}&due_day=${dueDay}`, {method:'POST'});
     if (res.ok) location.reload();
-    else alert('Xato yuz berdi');
+    else alert('❌ ' + await serverSababi(res, 'Xato yuz berdi'));
   } catch(e) { alert('Server xatosi'); }
 }
 
@@ -359,63 +627,91 @@ async function deleteCategory(id, label){
   } catch(e) { alert('Server xatosi'); }
 }
 
-async function quickPayObligation(category, label, debt, year, month){
-  const amountStr = prompt(`${label} uchun qancha to'landi?`, String(Math.round(debt)));
-  if (!amountStr) return;
-  const amount = parseNum(amountStr);
-  if (!amount || amount <= 0) return;
+async function quickPayObligation(category, label, debt, year, month, monthLabel){
   // MUHIM: agar bu, o'tgan oydan qolgan qarz bo'lsa — to'lovni, "bugungi
   // sana"ga emas, balki qarzning O'ZI tegishli bo'lgan oyga yozamiz
   // (aks holda, kechikkan to'lov, boshqa oy hisobotini buzib qo'yardi).
-  const now = new Date();
-  const y = parseInt(year) || now.getFullYear();
-  const m = parseInt(month) || (now.getMonth() + 1);
-  const isCurrentMonth = (y === now.getFullYear() && m === (now.getMonth() + 1));
+  // kech106 (9 + 50-band C qismi, O'LCHANGAN — work/probe106ui.py): joriy oy va "bugun" — TOSHKENT. Ilgari
+  // `now.toISOString()` (UTC sanasi): Toshkent 1-kun 00:00–05:00 da joriy oy to'lovi O'TGAN oyning oxirgi kuniga
+  // (o'tgan oy hisobotiga) yozilardi.
+  const tk = tkHozir();
+  const y = parseInt(year) || tk.yil;
+  const m = parseInt(month) || tk.oy;
+  const isCurrentMonth = (y === tk.yil && m === tk.oy);
   const payDate = isCurrentMonth
-    ? now.toISOString().slice(0, 10)
+    ? tkISO()
     : `${y}-${String(m).padStart(2, '0')}-28`;
+  // kech120 (zip 131 — F bosqichi, audit G3-04): oynada QAYSI oy qarzi va qaysi SANAGA yozilishi ko'rinadi (o'tgan oy — 28-sana
+  // qoidasi ilgari aytilmasdi); qarzdan ko'p summa — alohida tasdiq (ilgari jim qabul qilinardi).
+  const oyMatn = String(monthLabel || '').replace(' (joriy)', '') || (y + '-' + String(m).padStart(2, '0'));
+  const izoh = `${oyMatn} ${y} · qarz ${narxKorinishi(debt)} so'm\n${tkSana(payDate)} sanasiga yoziladi` +
+    (isCurrentMonth ? '' : ' (o\'tgan oy qarzi — o\'sha oy hisobotiga)');
+  // kech118 (B — U-07): brauzerning xom prompt() oynasi o'rniga dastur oynasi (base.html `kiritishOyna`)
+  const amountStr = await kiritishOyna(`${label} uchun qancha to'landi?`, {qiymat: narxKorinishi(debt), izoh, inputmode: 'decimal', okText: "To'lovni yozish"});
+  if (!amountStr) return;
+  // 118-band: pul matni yagona qoida bilan o'qiladi ("1.500.000", "1 500,5");
+  // noto'g'ri / manfiy / 0 summa — ANIQ rad (ilgari jimgina qaytardi yoki 10x / 100x).
+  const amount = narxniOqi(amountStr);
+  if (!(amount > 0)) { alert("Summa noto'g'ri: " + amountStr); return; }
+  if (Number(debt) > 0 && amount - Number(debt) > 0.004) {      // tiyindan katta farq (yaxlitlashsiz — 118-band)
+    const ha = await customConfirm(`${narxKorinishi(amount)} so'm — ${oyMatn} qarzidan (${narxKorinishi(debt)} so'm) ko'p. Baribir shu summa yozilsinmi?`,
+                                   {danger: true, okText: 'Ha, yozilsin'});
+    if (!ha) return;
+  }
   try {
     const res = await fetch('/api/finance/transactions', {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ date: payDate+'T00:00:00', category, amount, notes: "To'lov (Qarzdorlar sahifasidan)" })
     });
     if (res.ok) location.reload();
-    else alert('Xato yuz berdi');
+    // 17e: server sababi (masalan: 'amount' musbat bo'lishi kerak).
+    else alert('❌ ' + await serverSababi(res, 'Xato yuz berdi'));
   } catch(e) { alert('Server xatosi'); }
 }
 
-async function openObligTimeline(category, label){
-  document.getElementById('tl-title').textContent = `📋 ${label} — to'lovlar tarixi`;
-  document.getElementById('tl-sub').textContent = 'Shu oy';
-  document.getElementById('tl-list').innerHTML = '<div style="text-align:center;padding:20px;color:#9CA3AF">Yuklanmoqda...</div>';
-  document.getElementById('timelineModal').style.display = 'flex';
-  const now = new Date();
-  try {
-    const rows = await fetch(`/api/obligations/timeline?category=${category}&year=${now.getFullYear()}&month=${now.getMonth()+1}`).then(r=>r.json());
-    renderTimeline(rows);
-  } catch(e) { document.getElementById('tl-list').innerHTML = '<div style="text-align:center;padding:20px;color:#EF4444">Xato yuz berdi</div>'; }
+// kech120 (zip 131 — F bosqichi, audit G3-05): tarix — qator qaysi oy qarzini ko'rsatsa, O'SHA oy (ilgari doim joriy oy so'ralardi:
+// avgust qarzini bossa — oktabr to'lovlari). Oy berilmasa — joriy oy (Toshkent).
+function tarixOyi(year, month, monthLabel) {
+  const tk = tkHozir();
+  const y = parseInt(year) || tk.yil, m = parseInt(month) || tk.oy;
+  const joriy = (y === tk.yil && m === tk.oy);
+  const nom = String(monthLabel || '').replace(' (joriy)', '');
+  return {y, m, sarlavha: joriy ? 'Shu oy' : ((nom || (y + '-' + String(m).padStart(2, '0'))) + ' ' + y)};
 }
 
-async function openEmpTimeline(empId, name){
-  document.getElementById('tl-title').textContent = `👷 ${name} — to'lovlar tarixi`;
-  document.getElementById('tl-sub').textContent = 'Shu oy (avans + yakuniy to\'lovlar)';
-  document.getElementById('tl-list').innerHTML = '<div style="text-align:center;padding:20px;color:#9CA3AF">Yuklanmoqda...</div>';
+async function openObligTimeline(category, label, year, month, monthLabel){
+  const tk0 = tkHozir();
+  const oy = (typeof tarixOyi === 'function') ? tarixOyi(year, month, monthLabel) : {y: tk0.yil, m: tk0.oy, sarlavha: 'Shu oy'};
+  document.getElementById('tl-title').textContent = `📋 ${label} — to'lovlar tarixi`;
+  document.getElementById('tl-sub').textContent = oy.sarlavha;
+  document.getElementById('tl-list').innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>';
   document.getElementById('timelineModal').style.display = 'flex';
-  const now = new Date();
   try {
-    const rows = await fetch(`/api/obligations/employee/${empId}/timeline?year=${now.getFullYear()}&month=${now.getMonth()+1}`).then(r=>r.json());
+    const rows = await fetch(`/api/obligations/timeline?category=${encodeURIComponent(category)}&year=${oy.y}&month=${oy.m}`).then(r=>r.json());
     renderTimeline(rows);
-  } catch(e) { document.getElementById('tl-list').innerHTML = '<div style="text-align:center;padding:20px;color:#EF4444">Xato yuz berdi</div>'; }
+  } catch(e) { document.getElementById('tl-list').innerHTML = '<div style="text-align:center;padding:20px;color:var(--m-dc2626)">Xato yuz berdi</div>'; }
+}
+
+async function openEmpTimeline(empId, name, year, month, monthLabel){
+  const tk0 = tkHozir();
+  const oy = (typeof tarixOyi === 'function') ? tarixOyi(year, month, monthLabel) : {y: tk0.yil, m: tk0.oy, sarlavha: 'Shu oy'};   // kech120 (G3-05)
+  document.getElementById('tl-title').textContent = `👷 ${name} — to'lovlar tarixi`;
+  document.getElementById('tl-sub').textContent = oy.sarlavha + ' (avans + yakuniy to\'lovlar)';
+  document.getElementById('tl-list').innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>';
+  document.getElementById('timelineModal').style.display = 'flex';
+  try {
+    const rows = await fetch(`/api/obligations/employee/${empId}/timeline?year=${oy.y}&month=${oy.m}`).then(r=>r.json());
+    renderTimeline(rows);
+  } catch(e) { document.getElementById('tl-list').innerHTML = '<div style="text-align:center;padding:20px;color:var(--m-dc2626)">Xato yuz berdi</div>'; }
 }
 
 function renderTimeline(rows){
   const el = document.getElementById('tl-list');
-  if (!rows.length) { el.innerHTML = '<div style="text-align:center;padding:20px;color:#9CA3AF">Bu oy hali to\'lov bo\'lmagan</div>'; return; }
+  if (!rows.length) { el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">Bu oyda to\'lov yo\'q</div>'; return; }
   el.innerHTML = rows.map(r => {
-    const d = new Date(r.date);
     return `<div class="tl-row">
-      <div><div style="font-weight:500">${d.toLocaleDateString('uz')}</div><div style="font-size:11.5px;color:#9CA3AF">${escapeHtml(r.notes||'')} ${r.created_by?'· '+escapeHtml(r.created_by):''}</div></div>
-      <div style="font-weight:700;color:#22C55E">${fmt(r.amount)} so'm</div>
+      <div><div style="font-weight:500">${tkSana(r.date)}</div><div style="font-size:12px;color:var(--text3)">${escapeHtml(r.notes||'')} ${r.created_by?'· '+escapeHtml(r.created_by):''}</div></div>
+      <div style="font-weight:700;color:var(--m-15803d)">${fmt(r.amount)} so'm</div>
     </div>`;
   }).join('');
 }
@@ -426,8 +722,9 @@ async function closeEmployeeDebt(empId, name, amount, year, month){
   // MUHIM: "hozirgi sana" emas, balki bu qarz AYNAN qaysi oyga tegishli
   // bo'lsa — o'sha yil/oyni yuboramiz (aks holda, kechikkan to'lov,
   // noto'g'ri — hozirgi — oy hisobotiga yozilib qolardi).
-  const y = year || new Date().getFullYear();
-  const m = month || (new Date().getMonth() + 1);
+  const tk = tkHozir();     // kech106: joriy oy — Toshkent
+  const y = year || tk.yil;
+  const m = month || tk.oy;
   try {
     const res = await fetch(`/api/obligations/employee/${empId}/close?year=${y}&month=${m}&amount=${amount}`, {method:'POST'});
     if (res.ok) location.reload();
@@ -437,9 +734,28 @@ async function closeEmployeeDebt(empId, name, amount, year, month){
 
 let selectedOrderId = null;
 
-function selectOrderDebt(el){
+// kech119 (C BOSQICH — telefon, audit G3-08, O'LCHANGAN work/k125/telefon.py: 390 px da qarzdor tanlanganda «To'lov qabul
+// qilish» 1 390 px da — ekranda yo'q, sahifa joyida qolardi): bitta ustunda (≤ 950 px) tanlangan qarzdor kartasiga
+// (tafsilot, uning ostida to'lov) o'zi suriladi — kimga yozilayotgani ko'rinib turadi.
+function qarzTafsilotigaSur(nomId) {
+  try {
+    if (!(window.matchMedia && window.matchMedia('(max-width: 950px)').matches)) return;
+    const el = document.getElementById(nomId);
+    const k = el && el.closest('.dbt-card');
+    if (k) k.scrollIntoView({ block: 'start' });
+  } catch (e) { /* ko'rinish — muhim emas */ }
+}
+
+function selectOrderDebt(el, surish){
   document.querySelectorAll('#tab-customers .dbt-item').forEach(i => i.classList.remove('active'));
   el.classList.add('active');
+  // kech120 (G3-07): qator mijoz guruhida — guruh ochiq bo'lsin; tanlov qayta yuklanganda (to'lovdan keyin) tiklanadi
+  const _mg = (typeof el.closest === 'function') ? el.closest('.dbt-mijoz') : null;   // sinov soxta elementida `closest` yo'q
+  if (_mg && typeof mijozGuruhiniOch === 'function') mijozGuruhiniOch(_mg, true);
+  try { sessionStorage.setItem('qarz_tanlangan', String(el.dataset.id || '')); } catch (e) { /* tiklanmaydi — ish buzilmaydi */ }
+  // kech119 (C — telefon, G3-08); kech120 (zip 131): sahifa YANGI ochilganda (`surish === false`) surilmaydi — ilgari telefonda
+  // sahifa qidiruv va ro'yxatdan o'tib, birinchi qarzdor kartasida ochilardi
+  if (surish !== false && typeof qarzTafsilotigaSur === 'function') qarzTafsilotigaSur('cd-name');
   selectedOrderId = el.dataset.id;
   const d = el.dataset;
   const agreed = parseFloat(d.agreed), paid = parseFloat(d.paid), debt = parseFloat(d.debt);
@@ -448,53 +764,207 @@ function selectOrderDebt(el){
   document.getElementById('cd-name').textContent = d.client;
   document.getElementById('cd-avatar').textContent = (d.client || '?')[0].toUpperCase();
   document.getElementById('cd-body').innerHTML = `
-    <div class="dbt-sum-row"><span style="color:#9CA3AF">Buyurtma</span><span style="font-weight:600">${d.orderNumber}</span></div>
-    <div class="dbt-sum-row"><span style="color:#9CA3AF">Loyiha</span><span>${d.project}</span></div>
-    <div class="dbt-sum-row"><span style="color:#9CA3AF">Telefon</span><span>${d.phone}</span></div>
-    <div class="dbt-sum-row"><span style="color:#9CA3AF">Muddat</span><span style="color:#F59E0B">${d.deadline}</span></div>
-    <div class="dbt-sum-row"><span style="color:#9CA3AF">Kelishilgan summa</span><span style="font-weight:600">${fmt(agreed)} so'm</span></div>
-    <div class="dbt-sum-row"><span style="color:#9CA3AF">To'langan</span><span style="font-weight:600;color:#22C55E">${fmt(paid)} so'm</span></div>
+    <div class="dbt-sum-row"><span style="color:var(--text3)">Buyurtma</span><span style="font-weight:600">${escapeHtml(d.orderNumber)}</span></div>
+    <div class="dbt-sum-row"><span style="color:var(--text3)">Loyiha</span><span>${escapeHtml(d.project)}</span></div>
+    <div class="dbt-sum-row"><span style="color:var(--text3)">Telefon</span><span>${escapeHtml(d.phone)}</span></div>
+    <div class="dbt-sum-row"><span style="color:var(--text3)">Muddat</span><span style="color:var(--m-b45309)">${escapeHtml(d.deadline)}</span></div>
+    <div class="dbt-sum-row"><span style="color:var(--text3)">Kelishilgan summa</span><span style="font-weight:600">${fmt(agreed)} so'm</span></div>
+    <div class="dbt-sum-row"><span style="color:var(--text3)">To'langan</span><span style="font-weight:600;color:var(--m-15803d)">${fmt(paid)} so'm</span></div>
     <div class="dbt-sum-row" style="border-top:2px solid #EF4444;padding-top:10px;margin-top:4px">
-      <span style="font-weight:700">QARZ:</span><span style="font-weight:800;font-size:17px;color:#EF4444">${fmt(debt)} so'm</span>
+      <span style="font-weight:700">QARZ:</span><span style="font-weight:800;font-size:16px;color:var(--m-dc2626)">${fmt(debt)} so'm</span>
     </div>
     <div style="margin-top:10px"><div class="dbt-progress-track"><div class="dbt-progress-fill" style="width:${pct}%"></div></div>
-      <div style="font-size:11px;color:#9CA3AF;margin-top:4px;text-align:right">${pct}% to'langan</div></div>
-    <a href="/orders" style="display:block;margin-top:12px;text-align:center;font-size:12.5px;color:#B9783F;text-decoration:none">Buyurtmalar sahifasida ochish →</a>`;
+      <div style="font-size:12px;color:var(--text3);margin-top:4px;text-align:right">${pct}% to'langan</div></div>
+    ${d.deleted === 'true'
+      ? '<div style="margin-top:12px;font-size:12px;color:var(--m-dc2626);text-align:center">Buyurtma o\'chirilgan (topshirilgan qismi hisobotda) — qarz undirilishi kerak</div><a href="/trash" style="display:block;margin-top:6px;text-align:center;font-size:13px;color:var(--gold-dark);text-decoration:none">O\'chirilganlar sahifasida ochish →</a>'
+      : `<a href="/orders?order=${encodeURIComponent(d.id)}" style="display:block;margin-top:12px;text-align:center;font-size:13px;color:var(--gold-dark);text-decoration:none">Buyurtmalar sahifasida ochish →</a>`}`;
 
   document.getElementById('payCard').style.display = 'block';
-  document.getElementById('pay-amount').value = fmt(debt);
+  // kech115 (G3-01, O'LCHANGAN — audit: robot tugmani BIR marta bosganda to'lov haqiqatan yozildi, kassa +380 000):
+  // summa endi o'zi yozilmaydi — xodim mijoz bergan summani yozadi yoki «Butun qarz» ni bosadi (124-band: aniq qarz,
+  // `narxKorinishi` — tiyingacha); saqlashdan oldin tasdiq (`savePayment`).
+  selectedDebt = { debt, client: d.client || '', orderNumber: d.orderNumber || '' };
+  document.getElementById('pay-amount').value = '';
   document.getElementById('pay-note').value = '';
+  if (document.getElementById('pay-method')) document.getElementById('pay-method').value = 'naqd';   // kech120 (G3-03)
   document.getElementById('pay-writeoff').checked = false;
   document.getElementById('pay-msg').style.display = 'none';
+  payYozuv();
+}
+
+// kech115 (G3-01 / G3-02): tanlangan qarz — tasdiq va kechiriladigan summa uchun
+let selectedDebt = null;
+
+function payButunQarz(){
+  if (!selectedDebt) return;
+  document.getElementById('pay-amount').value = narxKorinishi(selectedDebt.debt);
+  payYozuv();
+}
+
+// kech115 (G3-02, O'LCHANGAN — audit: 380 000 qarzga 10 000 yozib belgi qo'yilsa 370 000 JIM kechirilardi, xabar faqat
+// «10 000 qabul qilindi» derdi): belgi qo'yilganda kechiriladigan summa DOIM ko'rinib turadi (server qoidasi —
+// to'lovdan keyin qolgan butun qarz, `main._tolov_qoldigini_chegirmaga`; 0.5 so'mdan kichigi qarz emas).
+function payKechiriladi(){
+  if (!selectedDebt) return 0;
+  const amount = parseNum(document.getElementById('pay-amount').value) || 0;
+  const qolgan = (Math.round(Number(selectedDebt.debt) * 100) - Math.round(amount * 100)) / 100;   // butun tiyinlarda
+  return qolgan > 0.5 ? qolgan : 0;
+}
+
+function payYozuv(){
+  const izoh = document.getElementById('pay-writeoff-izoh');
+  if (!izoh) return;
+  const belgi = document.getElementById('pay-writeoff').checked;
+  if (!belgi || !selectedDebt) { izoh.style.display = 'none'; izoh.textContent = ''; return; }
+  const k = payKechiriladi();
+  izoh.style.display = 'block';
+  if (k > 0) {
+    const foiz = selectedDebt.debt > 0 ? Math.round(k / selectedDebt.debt * 1000) / 10 : 0;
+    izoh.textContent = "Kechiriladi: " + narxKorinishi(k) + " so'm (qarzning " + String(foiz).replace('.', ',')
+      + " %) — mijozdan olinmaydi, foyda hisobotidan ayiriladi.";
+  } else {
+    izoh.textContent = "Kechiriladigan summa yo'q — to'lov qarzni to'liq yopadi.";
+  }
 }
 
 async function savePayment(){
   if (!selectedOrderId) return;
   const amount = parseNum(document.getElementById('pay-amount').value);
-  if (!amount || amount <= 0) { alert('Summa kiriting!'); return; }
   const writeOff = document.getElementById('pay-writeoff').checked;
   const notes = document.getElementById('pay-note').value;
+  const msg = document.getElementById('pay-msg');
+  if (!amount || amount <= 0) {
+    msg.style.display = 'block'; msg.style.background = 'var(--f-fee2e2)'; msg.style.color = 'var(--m-dc2626)';
+    msg.textContent = "❌ Summani kiriting (yoki «Butun qarz» ni bosing)";
+    return;
+  }
 
-  const res = await fetch(`/api/payments?write_off_remainder=${writeOff}`, {
+  // kech115 (G3-01 / G3-02): to'lov BIR bosishda, tasdiqsiz yozilardi — endi har doim tasdiq: mijoz, buyurtma, summa
+  // va (belgi bo'lsa) kechiriladigan summa alohida qatorda.
+  const kechir = writeOff ? payKechiriladi() : 0;
+  const sd = selectedDebt || { client: '', orderNumber: '' };
+  // kech120 (G3-03): tanlangan usul tasdiqda ham ko'rinadi
+  const usulEl = document.getElementById('pay-method');
+  const usul = usulEl ? (usulEl.value || 'naqd') : 'naqd';
+  const usulNomi = (usulEl && usulEl.selectedIndex >= 0) ? usulEl.options[usulEl.selectedIndex].textContent.toLowerCase() : 'naqd';
+  let savol = (sd.client ? sd.client + " · " : "") + (sd.orderNumber || "") + ": " + narxKorinishi(amount)
+    + " so'm (" + usulNomi + ") to'lov qabul qilinsinmi?";
+  if (kechir > 0) savol += "\n\n⚠️ Qolgan " + narxKorinishi(kechir) + " so'm KECHIRILADI (chegirma) — mijozdan olinmaydi.";
+  const tasdiq = await customConfirm(savol, {danger: kechir > 0, okText: kechir > 0 ? "Ha, qabul qilib kechirish" : "Ha, qabul qilish"});
+  if (!tasdiq) { msg.style.display = 'none'; return; }
+
+  // 17f (2026-09-22): qarzdan ko'p summa kiritilsa server 409
+  // (`detail.type = "overpayment_warning"`, `detail.message` — savol) qaytaradi.
+  // Ilgari bu sahifa uni ham "Xato yuz berdi" deb ko'rsatardi — ya'ni mijoz
+  // qasddan ko'p (avans) to'lasa, uni bu yerdan umuman kiritib bo'lmasdi.
+  // Endi `orders.html` dagi kabi tasdiq so'raladi va `confirm_overpay: true`
+  // bilan qayta yuboriladi. Boshqa xatolarda server SABABI ko'rsatiladi.
+  const tana = { order_id: parseInt(selectedOrderId), amount, payment_method: usul, notes: notes || null };
+  const yubor = () => fetch(`/api/payments?write_off_remainder=${writeOff}`, {
     method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ order_id: parseInt(selectedOrderId), amount, notes: notes || null })
+    body: JSON.stringify(tana)
   });
 
-  const msg = document.getElementById('pay-msg');
+  let res = await yubor();
+  if (res.status === 409) {
+    let d = null;
+    try { d = await res.clone().json(); } catch(e) {}
+    if (d && d.detail && d.detail.type === 'overpayment_warning') {
+      const ha = await customConfirm(String(d.detail.message || ''), {danger: true, okText: 'Ha, davom etaman'});
+      if (!ha) { msg.style.display = 'none'; return; }
+      tana.confirm_overpay = true;
+      res = await yubor();
+    }
+  }
+
   msg.style.display = 'block';
   if (res.ok) {
-    msg.style.background = '#DCFCE7'; msg.style.color = '#166534';
-    msg.textContent = `✓ ${fmt(amount)} so'm qabul qilindi!`;
-    setTimeout(() => location.reload(), 1300);
+    // kech115 (G3-02): server javobidagi kechirilgan summa ham ko'rsatiladi (ilgari o'qilmasdi)
+    let j = null;
+    try { j = await res.json(); } catch(e) {}
+    msg.style.background = 'var(--f-dcfce7)'; msg.style.color = 'var(--m-166534)';
+    const wo = j && j.write_off;
+    msg.textContent = `✓ ${narxKorinishi(amount)} so'm qabul qilindi!`
+      + (wo && wo.amount ? ` Qolgan ${narxKorinishi(wo.amount)} so'm chegirma qilib kechirildi.` : '');
+    setTimeout(() => location.reload(), wo && wo.amount ? 3000 : 1300);
   } else {
-    msg.style.background = '#FEE2E2'; msg.style.color = '#DC2626';
-    msg.textContent = 'Xato yuz berdi';
+    msg.style.background = 'var(--f-fee2e2)'; msg.style.color = 'var(--m-dc2626)';
+    msg.textContent = '❌ ' + await serverSababi(res, 'Xato yuz berdi');
+  }
+}
+
+// ── kech100 (131-band, QAROR "B"): "Mijozga qaytarish kerak" — tanlash va "Qaytarildi" ─────────────
+let selectedRefundId = null;
+
+function selectRefund(el){
+  document.querySelectorAll('#tab-refunds .dbt-item').forEach(i => i.classList.remove('active'));
+  el.classList.add('active');
+  if (typeof qarzTafsilotigaSur === 'function') qarzTafsilotigaSur('rd-name');   // kech119 (C — telefon, G3-08)
+  selectedRefundId = el.dataset.id;
+  const d = el.dataset;
+  const agreed = parseFloat(d.agreed), paid = parseFloat(d.paid), ort = parseFloat(d.ortiqcha);
+  document.getElementById('rd-name').textContent = d.client;
+  document.getElementById('rd-avatar').textContent = (d.client || '?')[0].toUpperCase();
+  document.getElementById('rd-body').innerHTML = `
+    <div class="dbt-sum-row"><span style="color:var(--text3)">Buyurtma</span><span style="font-weight:600">${escapeHtml(d.orderNumber)}${d.deleted === 'true' ? ' <span style="color:var(--m-dc2626)">(o\'chirilgan)</span>' : ''}</span></div>
+    <div class="dbt-sum-row"><span style="color:var(--text3)">Loyiha</span><span>${escapeHtml(d.project)}</span></div>
+    <div class="dbt-sum-row"><span style="color:var(--text3)">Telefon</span><span>${escapeHtml(d.phone)}</span></div>
+    <div class="dbt-sum-row"><span style="color:var(--text3)">Kelishilgan summa</span><span style="font-weight:600">${escapeHtml(narxKorinishi(agreed))} so'm</span></div>
+    <div class="dbt-sum-row"><span style="color:var(--text3)">To'langan</span><span style="font-weight:600;color:var(--m-15803d)">${escapeHtml(narxKorinishi(paid))} so'm</span></div>
+    <div class="dbt-sum-row" style="border-top:2px solid #F97316;padding-top:10px;margin-top:4px">
+      <span style="font-weight:700">QAYTARISH KERAK:</span><span style="font-weight:800;font-size:16px;color:var(--m-c2410c)">${escapeHtml(narxKorinishi(ort))} so'm</span>
+    </div>`;
+  document.getElementById('refundCard').style.display = 'block';
+  // Aniq (tiyinli) summa — butun ortiqcha; qisman qaytarish uchun o'zgartirish mumkin
+  document.getElementById('ref-amount').value = narxKorinishi(ort);
+  document.getElementById('ref-method').value = 'naqd';
+  document.getElementById('ref-note').value = '';
+  document.getElementById('ref-msg').style.display = 'none';
+}
+
+let _refundYuborilmoqda = false;
+async function saveRefund(){
+  if (!selectedRefundId || _refundYuborilmoqda) return;
+  const msg = document.getElementById('ref-msg');
+  const amount = parseNum(document.getElementById('ref-amount').value);
+  if (!amount || amount <= 0) {
+    msg.style.display = 'block'; msg.style.background = 'var(--f-fee2e2)'; msg.style.color = 'var(--m-dc2626)';
+    msg.textContent = '❌ Summa kiriting';
+    return;
+  }
+  const tana = { amount, payment_method: document.getElementById('ref-method').value,
+                 notes: document.getElementById('ref-note').value || null };
+  const ha = await customConfirm(`Mijozga ${narxKorinishi(amount)} so'm qaytarildi deb yozilsinmi? (kassadan chiqim)`,
+                                 {okText: 'Ha, qaytarildi'});
+  if (!ha) return;
+  _refundYuborilmoqda = true;
+  try {
+    const res = await fetch(`/api/orders/${encodeURIComponent(selectedRefundId)}/refund-overpayment`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(tana)
+    });
+    msg.style.display = 'block';
+    if (res.ok) {
+      const d = await res.json();
+      msg.style.background = 'var(--f-dcfce7)'; msg.style.color = 'var(--m-166534)';
+      msg.textContent = `✓ ${narxKorinishi(d.qaytarildi)} so'm qaytarildi deb yozildi` +
+        (Number(d.ortiqcha_qoldi) > 0 ? ` — yana ${narxKorinishi(d.ortiqcha_qoldi)} so'm qaytarish kerak` : '');
+      setTimeout(() => location.reload(), 1300);
+    } else {
+      msg.style.background = 'var(--f-fee2e2)'; msg.style.color = 'var(--m-dc2626)';
+      msg.textContent = '❌ ' + await serverSababi(res, 'Xato yuz berdi');
+    }
+  } catch (e) {
+    msg.style.display = 'block'; msg.style.background = 'var(--f-fee2e2)'; msg.style.color = 'var(--m-dc2626)';
+    msg.textContent = '❌ Server bilan aloqa yo\'q';
+  } finally {
+    _refundYuborilmoqda = false;
   }
 }
 
 function selectSupplierDebt(el){
   document.querySelectorAll('#tab-suppliers .dbt-item').forEach(i => i.classList.remove('active'));
   el.classList.add('active');
+  if (typeof qarzTafsilotigaSur === 'function') qarzTafsilotigaSur('sd-name');   // kech119 (C — telefon, G3-08)
   const d = el.dataset;
   const credit = parseFloat(d.credit), paid = parseFloat(d.paid), debt = parseFloat(d.debt);
   const pct = credit > 0 ? Math.min(100, (paid/credit*100)).toFixed(0) : 0;
@@ -502,20 +972,92 @@ function selectSupplierDebt(el){
   document.getElementById('sd-name').textContent = d.name;
   document.getElementById('sd-avatar').textContent = (d.name || '?')[0].toUpperCase();
   document.getElementById('sd-body').innerHTML = `
-    <div class="dbt-sum-row"><span style="color:#9CA3AF">Telefon</span><span>${d.phone}</span></div>
-    <div class="dbt-sum-row"><span style="color:#9CA3AF">Nasiya xaridlar</span><span>${d.count} ta</span></div>
-    <div class="dbt-sum-row"><span style="color:#9CA3AF">Jami nasiya summasi</span><span style="font-weight:600">${fmt(credit)} so'm</span></div>
-    <div class="dbt-sum-row"><span style="color:#9CA3AF">To'langan</span><span style="font-weight:600;color:#22C55E">${fmt(paid)} so'm</span></div>
+    <div class="dbt-sum-row"><span style="color:var(--text3)">Telefon</span><span>${escapeHtml(d.phone)}</span></div>
+    <div class="dbt-sum-row"><span style="color:var(--text3)">Nasiya xaridlar</span><span>${d.count} ta</span></div>
+    <div class="dbt-sum-row"><span style="color:var(--text3)">Jami nasiya summasi</span><span style="font-weight:600">${fmt(credit)} so'm</span></div>
+    <div class="dbt-sum-row"><span style="color:var(--text3)">To'langan</span><span style="font-weight:600;color:var(--m-15803d)">${fmt(paid)} so'm</span></div>
     <div class="dbt-sum-row" style="border-top:2px solid #F59E0B;padding-top:10px;margin-top:4px">
-      <span style="font-weight:700">QARZ:</span><span style="font-weight:800;font-size:17px;color:#F59E0B">${fmt(debt)} so'm</span>
+      <span style="font-weight:700">QARZ:</span><span style="font-weight:800;font-size:16px;color:var(--m-b45309)">${fmt(debt)} so'm</span>
     </div>
-    <div style="margin-top:10px"><div class="dbt-progress-track"><div class="dbt-progress-fill" style="width:${pct}%;background:#F59E0B"></div></div></div>
-    <a href="/suppliers/receive?supplier_id=${d.id}" style="display:block;margin-top:12px;text-align:center;font-size:12.5px;color:#B9783F;text-decoration:none">To'lov qilish →</a>`;
+    <div style="margin-top:10px"><div class="dbt-progress-track"><div class="dbt-progress-fill" style="width:${pct}%;background:var(--f-f59e0b)"></div></div></div>
+    <a href="/suppliers/receive?supplier_id=${d.id}" style="display:block;margin-top:12px;text-align:center;font-size:13px;color:var(--gold-dark);text-decoration:none">To'lov qilish →</a>`;
+}
+
+// ── kech120 (E bosqichi 2-qism, G3-07): mijoz guruhlari, qidiruv, «Muddati o'tgan» filtri ──
+let qarzFiltri = 'hammasi';
+let qarzQidiruvMatni = '';
+
+function mijozGuruhiniOch(g, majburiy) {
+  if (!g) return;
+  const och = (majburiy === undefined) ? !g.classList.contains('ochiq') : !!majburiy;
+  g.classList.toggle('ochiq', och);
+  const b = g.querySelector('.dbt-mijoz-bosh');
+  if (b) b.setAttribute('aria-expanded', och ? 'true' : 'false');
+}
+
+function qarzRoyxatiniQoll() {
+  const q = String(qarzQidiruvMatni || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const qr = q.replace(/\D+/g, '');
+  const faol = qarzFiltri !== 'hammasi' || !!q;
+  let jami = 0;
+  document.querySelectorAll('#tab-customers .dbt-mijoz').forEach(g => {
+    const gMatn = String((g.dataset.mijoz || '') + ' ' + (g.dataset.telefon || '')).toLowerCase();
+    const gTel = String(g.dataset.telefon || '').replace(/\D+/g, '');
+    const gMos = !q || gMatn.includes(q) || (qr.length >= 3 && gTel.includes(qr));
+    let kor = 0;
+    g.querySelectorAll('.dbt-item').forEach(el => {
+      const d = el.dataset;
+      const matn = String([d.orderNumber, d.project, d.client].join(' ')).toLowerCase();
+      const fMos = qarzFiltri !== 'otgan' || d.muddatOtgan === '1';
+      const show = fMos && (gMos || matn.includes(q));
+      el.style.display = show ? '' : 'none';
+      if (show) kor++;
+    });
+    g.style.display = kor ? '' : 'none';
+    if (faol && kor) mijozGuruhiniOch(g, true);
+    jami += kor;
+  });
+  const bosh = document.getElementById('qarzBosh');
+  if (bosh) bosh.style.display = (faol && jami === 0) ? 'block' : 'none';
+}
+
+function qarzQidir(v) {
+  qarzQidiruvMatni = v || '';
+  qarzRoyxatiniQoll();
+}
+
+function qarzFiltrla(f) {
+  qarzFiltri = (f === 'otgan') ? 'otgan' : 'hammasi';
+  document.querySelectorAll('#tab-customers .dbt-f').forEach(b => {
+    const on = b.dataset.f === qarzFiltri;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+  qarzRoyxatiniQoll();
+}
+
+// to'lovdan keyingi qayta yuklanishda — o'sha buyurtma (hali qarzi bo'lsa) qayta tanlanadi; yangi ochilishda — birinchisi
+function qarzTanlovQaytaYuklanganda() {
+  try {
+    const n = performance.getEntriesByType('navigation')[0];
+    if (!n || n.type !== 'reload') return null;
+    const id = sessionStorage.getItem('qarz_tanlangan');
+    if (!id || !/^\d+$/.test(id)) return null;
+    return Array.from(document.querySelectorAll('#tab-customers .dbt-item')).find(x => x.dataset.id === id) || null;
+  } catch (e) { return null; }
 }
 
 window.addEventListener('load', () => {
-  const first = document.querySelector('#tab-customers .dbt-item');
-  if (first) selectOrderDebt(first);
+  const qayta = (typeof qarzTanlovQaytaYuklanganda === 'function' && qarzTanlovQaytaYuklanganda()) || null;
+  const first = qayta || document.querySelector('#tab-customers .dbt-item');
+  if (first) selectOrderDebt(first, !!qayta);     // kech120 (G3-08): yangi ochilishda surilmaydi, to'lovdan keyin — tanlanganga
+  // kech100 (131-band): /debts?qaytarish=<buyurtma id> (Buyurtmalar sahifasidagi belgidan) — shu buyurtma ochiladi
+  const firstR = document.querySelector('#tab-refunds .dbt-item');
+  let qid = null;
+  try { qid = new URLSearchParams(location.search).get('qaytarish'); } catch (e) { qid = null; }
+  const tanlangan = qid ? Array.from(document.querySelectorAll('#tab-refunds .dbt-item')).find(x => x.dataset.id === String(qid)) : null;
+  if (tanlangan) { switchTab('refunds'); selectRefund(tanlangan); tanlangan.scrollIntoView({block: 'nearest'}); }
+  else if (firstR) selectRefund(firstR);
   const firstS = document.querySelector('#tab-suppliers .dbt-item');
   if (firstS) selectSupplierDebt(firstS);
 });

@@ -7,7 +7,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/style.css?v={{ static_version }}">
+  <link rel="stylesheet" href="/static/ranglar.css?v={{ static_version }}">
   <style>
     :root{
       --ink:#14171F;
@@ -18,7 +19,7 @@
       --line:#E7E3DD;
       --text:#1A1C22;
       --text2:#5B5F6B;
-      --text3:#9A9DA6;
+      --text3:#696D78;   /* kech118 (U-03): 4.7:1 (ilgari 2.6) */
     }
     *{box-sizing:border-box}
     body{
@@ -32,11 +33,19 @@
     .side{
       width:42%;
       background:var(--ink);
+      /* kech120 (E, U-10 — O'LCHANGAN jonli saytda: `login-bg.png` 1 475 KB, siqilmaydi): JPEG 85 % (~103 KB) — hamma
+         brauzerda; WebP 92 % (~75 KB) — `image-set` ni tushunadigan brauzerda (tushunmasa ikkinchi qator e'tiborsiz,
+         birinchisi qoladi). Sifat: PSNR 44,7 / 45,7 dB (ko'zga farqsiz; chizma chiziqlari saqlanadi). */
       background-image:
         radial-gradient(circle at 15% 20%, rgba(201,121,58,0.10) 0%, transparent 45%),
         radial-gradient(circle at 85% 80%, rgba(201,121,58,0.08) 0%, transparent 45%),
         linear-gradient(rgba(12,16,24,0.30), rgba(12,16,24,0.30)),
-        url('/static/login-bg.png');
+        url('/static/login-bg.jpg');
+      background-image:
+        radial-gradient(circle at 15% 20%, rgba(201,121,58,0.10) 0%, transparent 45%),
+        radial-gradient(circle at 85% 80%, rgba(201,121,58,0.08) 0%, transparent 45%),
+        linear-gradient(rgba(12,16,24,0.30), rgba(12,16,24,0.30)),
+        image-set(url('/static/login-bg.webp') type('image/webp'), url('/static/login-bg.jpg') type('image/jpeg'));
       background-size: auto, auto, cover, cover;
       background-position: center, center, center, center;
       background-repeat: no-repeat, no-repeat, no-repeat, no-repeat;
@@ -62,15 +71,15 @@
       border-radius:3px;
       display:flex;align-items:center;justify-content:center;
       font-family:'JetBrains Mono',monospace;
-      font-weight:600;font-size:15px;
+      font-weight:600;font-size:16px;
       color:var(--amber);
       margin-bottom:22px;
     }
-    .brand-name{font-size:22px;font-weight:700;letter-spacing:-.3px}
+    .brand-name{font-size:24px;font-weight:700;letter-spacing:-.3px}
     .brand-name span{color:var(--amber)}
     .brand-sub{
       font-family:'JetBrains Mono',monospace;
-      font-size:11px;color:#6B7280;margin-top:8px;
+      font-size:12px;color:var(--m-6b7280);margin-top:8px;
       letter-spacing:.5px;text-transform:uppercase;
     }
     .side-quote{
@@ -79,11 +88,20 @@
       padding-left:18px;
       margin-top:40px;
     }
-    .side-quote .q-text{font-size:15px;line-height:1.6;color:#D1D5DB;font-weight:400}
-    .side-quote .q-meta{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#6B7280;margin-top:10px;letter-spacing:.4px;text-transform:uppercase}
+    .side-quote .q-text{font-size:16px;line-height:1.6;color:#D1D5DB;font-weight:400}
+    .side-quote .q-meta{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--m-6b7280);margin-top:10px;letter-spacing:.4px;text-transform:uppercase}
     .side-stats{position:relative;z-index:1;display:flex;gap:28px;margin-top:auto;padding-top:32px}
-    .side-stat .n{font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:600;color:var(--amber)}
-    .side-stat .l{font-size:10.5px;color:#6B7280;margin-top:3px;text-transform:uppercase;letter-spacing:.4px}
+    .side-stat .n{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;color:var(--amber)}
+    .side-stat .l{font-size:12px;color:var(--m-6b7280);margin-top:3px;text-transform:uppercase;letter-spacing:.4px}
+    /* kech120 (zip 137 — F bosqichi 5-qism, audit G6-24): pastki yozuvlar («03 MOLIYA») rasm ustida o'qilmasdi — qoramtir fon */
+    .side-stats{background:rgba(17,17,17,.62);padding:12px 16px;border-radius:8px}
+    .side-stat .l{color:#E5E7EB}
+    .mobil-brend{display:none;align-items:center;gap:10px;margin-bottom:22px}
+    .mobil-brend .brand-mark{width:34px;height:34px;font-size:13px}
+    .mobil-brend b{font-size:18px;color:var(--ink)}
+    .mobil-brend b span{color:var(--amber-dark)}
+    .parol-unutdim{margin-top:16px;font-size:13px;line-height:1.55;color:var(--m-6b7280)}
+    .parol-unutdim b{color:var(--ink)}
 
     /* O'ng panel — forma */
     .main{
@@ -97,30 +115,38 @@
     .form-wrap{width:100%;max-width:380px}
     .form-eyebrow{
       font-family:'JetBrains Mono',monospace;
-      font-size:11px;color:var(--amber-dark);
+      font-size:12px;color:var(--amber-dark);
       text-transform:uppercase;letter-spacing:.6px;
       margin-bottom:10px;font-weight:600;
     }
     .form-title{font-size:24px;font-weight:700;color:var(--text);letter-spacing:-.4px;margin-bottom:6px}
-    .form-sub{font-size:13.5px;color:var(--text3);margin-bottom:28px}
+    .form-sub{font-size:13px;color:var(--text3);margin-bottom:28px}
 
     .error-box{
-      background:#FEE2E2;border:1px solid #F1948A;border-radius:6px;
-      padding:11px 14px;color:#DC2626;font-size:13px;
+      background:var(--f-fee2e2);border:1px solid #F1948A;border-radius:6px;
+      padding:11px 14px;color:var(--m-dc2626);font-size:13px;
       margin-bottom:18px;display:flex;align-items:center;gap:8px;
     }
 
+    /* kech111 — korxona hisobi to'xtatilgan (platforma bloki) */
+    .blok-box{
+      background:var(--f-fee2e2);border:1px solid var(--ch-f3c7c7);border-radius:10px;
+      padding:14px 16px;color:var(--m-7f1d1d);font-size:13px;line-height:1.6;
+      margin-bottom:18px;display:flex;gap:12px;align-items:flex-start;
+    }
+    .blok-box svg{flex-shrink:0;margin-top:2px}
+
     .field{margin-bottom:18px}
     .field label{
-      display:block;font-size:11px;font-weight:600;color:var(--text2);
+      display:block;font-size:12px;font-weight:600;color:var(--text2);
       text-transform:uppercase;letter-spacing:.4px;margin-bottom:7px;
     }
     .field input{
-      width:100%;padding:12px 14px;
+      width:100%;box-sizing:border-box;min-height:var(--h-lg);padding:0 14px;
       border:1.5px solid var(--line);
-      border-radius:4px;
-      font-size:14.5px;color:var(--text);
-      background:#fff;outline:none;
+      border-radius:var(--r-btn);
+      font-size:16px;line-height:20px;color:var(--text);
+      background:var(--white);outline:none;
       transition:border-color .15s, box-shadow .15s;
       font-family:'Inter',sans-serif;
     }
@@ -129,10 +155,10 @@
       box-shadow:0 0 0 3px var(--amber-tint);
     }
     .btn-submit{
-      width:100%;padding:13px;
+      width:100%;box-sizing:border-box;min-height:var(--h-lg);padding:0 20px;
       background:var(--ink);color:#fff;
-      border:none;border-radius:4px;
-      font-size:14px;font-weight:600;
+      border:none;border-radius:var(--r-btn);
+      font-size:16px;line-height:20px;font-weight:600;
       cursor:pointer;letter-spacing:.2px;
       display:flex;align-items:center;justify-content:center;gap:8px;
       transition:background .15s;
@@ -143,6 +169,7 @@
     @media(max-width:860px){
       .side{display:none}
       .main{padding:24px}
+      .mobil-brend{display:flex}   /* kech120 (zip 137 — G6-24): telefonda chap panel yo'q — dastur nomi tepada */
     }
   </style>
 </head>
@@ -168,12 +195,19 @@
 
   <div class="main">
     <div class="form-wrap">
+      <div class="mobil-brend" aria-hidden="true"><div class="brand-mark">PD</div><b>Penodecor<span>Pro</span></b></div>
       <div class="form-eyebrow">Tizimga kirish</div>
       <div class="form-title">Xush kelibsiz</div>
       <div class="form-sub">Davom etish uchun login va parolingizni kiriting</div>
 
       {% if error %}
       <div class="error-box">⚠ {{ error }}</div>
+      {% endif %}
+      {% if bloklangan %}
+      <div class="blok-box" role="alert" id="blokXabari">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#991B1B" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
+        <div>{{ bloklangan }}</div>
+      </div>
       {% endif %}
 
       <form method="POST" action="/login">
@@ -190,6 +224,9 @@
         </div>
         <button class="btn-submit" type="submit">Kirish <span>→</span></button>
       </form>
+      {# kech120 (zip 137 — F bosqichi 5-qism, audit G6-24): parolni unutgan foydalanuvchi nima qilishni bilmasdi #}
+      <div class="parol-unutdim" id="parolUnutdim"><b>Parolni unutdingizmi?</b> Korxona administratoriga murojaat qiling — u
+        «Foydalanuvchilar» bo'limida yangi parol beradi. Administrator parolini dastur xizmati tiklaydi.</div>
     </div>
   </div>
 

@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Retseptlar — PenoDecorPro ERP{% endblock %}
-{% block page_title %}Retseptlar{% endblock %}
-{% block page_sub %}Loy (qoplama) retsepturalari — tarkibi Omborxonadagi istalgan materialdan tuziladi{% endblock %}
+{% block title %}Loy retseptlari — PenoDecorPro ERP{% endblock %}
+{% block page_title %}Loy retseptlari{% endblock %}
+{% block page_sub %}Loy (qoplama aralashmasi) retseptlari — tarkibi Omborxonadagi istalgan materialdan tuziladi. Mahsulot (karniz, panel …) tarkibi — «Ishlab chiqarish» bo'limida{% endblock %}
 
 {% block topbar_actions %}
-<button class="btn btn-dark" onclick="openAddModal()"><i class="ti ti-plus" style="vertical-align:-2px"></i> Yangi retsept</button>
+<button class="btn btn-dark" onclick="openAddModal()"><i class="ti ti-plus"></i> Yangi loy retsepti</button>
 {% endblock %}
 
 {% block head %}
@@ -13,81 +13,93 @@
 @media (max-width:900px){.rec-grid{grid-template-columns:1fr}}
 .rec-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius-card);box-shadow:var(--shadow-card);overflow:hidden}
 .rec-head{display:flex;align-items:center;gap:12px;padding:16px;border-bottom:1px solid var(--border2)}
-.rec-thumb{width:48px;height:48px;border-radius:10px;background:var(--gold-tint);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;color:var(--gold-dark);font-size:20px;position:relative;cursor:pointer}
+.rec-thumb{width:48px;height:48px;border-radius:10px;background:var(--gold-tint);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;color:var(--gold-dark);font-size:18px;position:relative;cursor:pointer}
 .rec-thumb img{width:100%;height:100%;object-fit:cover;cursor:zoom-in}
 .rec-thumb input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
-.rec-thumb-cam{position:absolute;right:1px;bottom:1px;width:16px;height:16px;border-radius:50%;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;color:#fff;font-size:9px;cursor:pointer;z-index:2}
+.rec-thumb-cam{position:absolute;right:1px;bottom:1px;width:16px;height:16px;border-radius:50%;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;cursor:pointer;z-index:2}
 .rec-meta{font-size:13px;color:var(--text3);margin-top:2px}
 .ing-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border2)}
 .ing-row:last-child{border-bottom:none}
-.ing-name{font-size:12.5px;color:var(--text2)}
+.ing-name{font-size:13px;color:var(--text2)}
 .ing-val{font-size:13px;font-weight:600;color:var(--text)}
 .ing-bar{height:4px;background:var(--border2);border-radius:2px;margin-top:5px;width:140px}
 .ing-fill{height:100%;background:var(--gold);border-radius:2px}
 .rec-stat{background:var(--bg);border-radius:10px;padding:12px;text-align:center}
 .rec-stat-val{font-size:16px;font-weight:600;color:var(--gold-dark)}
-.rec-stat-label{font-size:12.5px;color:var(--text3);margin-top:2px}
+.rec-stat-label{font-size:13px;color:var(--text3);margin-top:2px}
 .ing-form-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
-.ing-form-row select{flex:2;height:36px;padding:0 8px;border:1px solid var(--border);border-radius:7px;font-size:12.5px}
-.ing-form-row input{flex:1;height:36px;padding:0 8px;border:1px solid var(--border);border-radius:7px;font-size:12.5px}
-.ing-form-row button{flex-shrink:0;width:32px;height:32px;border:none;background:none;color:#DC2626;cursor:pointer;font-size:16px}
+.ing-form-row select{flex:2;height:36px;padding:0 8px;border:1px solid var(--border);border-radius:7px;font-size:13px}
+.ing-form-row input{flex:1;height:36px;padding:0 8px;border:1px solid var(--border);border-radius:7px;font-size:13px}
+.ing-form-row button{flex-shrink:0;width:32px;height:32px;border:none;background:none;color:var(--m-dc2626);cursor:pointer;font-size:16px}
 
 /* ── Retsept yozish/tahrirlash oynasi — qayta dizayn ── */
-.recp-modal{background:#fff;border-radius:16px;padding:26px;width:560px;max-width:100%;max-height:90vh;overflow-y:auto}
+.recp-modal{background:var(--white);border-radius:16px;padding:26px;width:560px;max-width:100%;max-height:90vh;overflow-y:auto}
 .recp-modal-head{display:flex;align-items:center;gap:13px;margin-bottom:22px}
-.recp-modal-icon{width:44px;height:44px;border-radius:12px;background:var(--gold-tint);color:var(--gold-dark);display:flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0}
-.recp-modal-title{font-size:17px;font-weight:700;color:var(--text);flex:1}
-.recp-modal-close{width:30px;height:30px;border-radius:8px;border:none;background:none;color:var(--text3);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.recp-modal-icon{width:44px;height:44px;border-radius:12px;background:var(--gold-tint);color:var(--gold-dark);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.recp-modal-title{font-size:16px;font-weight:700;color:var(--text);flex:1}
+.recp-modal-close{width:var(--h-sm);height:var(--h-sm);border-radius:var(--r-btn);border:none;background:none;color:var(--text3);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .recp-modal-close:hover{background:var(--bg);color:var(--text)}
-.recp-field label{display:block;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:7px}
+.recp-field label{display:block;font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:7px}
 .recp-field-input{position:relative}
-.recp-field-input i{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--gold-dark);font-size:15px;pointer-events:none}
-.recp-field-input input,.recp-field-input textarea{width:100%;height:44px;padding:0 14px 0 40px;border:1.5px solid var(--border2);border-radius:10px;font-size:13.5px;color:var(--text);outline:none;transition:border-color .15s;box-sizing:border-box}
-.recp-field-input textarea{height:auto;min-height:76px;padding:12px 14px 12px 40px;resize:vertical;font-family:inherit}
+.recp-field-input i{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--gold-dark);font-size:16px;pointer-events:none}
+.recp-field-input input,.recp-field-input textarea{width:100%;min-height:var(--h-btn);padding:0 12px 0 40px;line-height:20px;border:1.5px solid var(--border2);border-radius:var(--r-btn);font-size:var(--fs-maydon);color:var(--text);outline:none;transition:border-color .15s;box-sizing:border-box}
+.recp-field-input textarea{height:auto;min-height:80px;padding:10px 12px 10px 40px;resize:vertical;font-family:inherit}
 .recp-field-input textarea+i{top:19px;transform:none}
 .recp-field-input input:focus,.recp-field-input textarea:focus{border-color:var(--gold)}
-.recp-charcount{text-align:right;font-size:11px;color:var(--text3);margin-top:4px}
+.recp-charcount{text-align:right;font-size:12px;color:var(--text3);margin-top:4px}
 .recp-section{margin-top:22px}
 .recp-section-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px}
 .recp-section-title{font-size:12px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.4px}
 .recp-section-sub{font-size:12px;color:var(--text3);margin-bottom:12px}
-.recp-add-btn{display:flex;align-items:center;gap:5px;background:none;border:1.5px solid var(--gold);color:var(--gold-dark);font-size:12.5px;font-weight:700;padding:7px 13px;border-radius:9px;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.recp-add-btn{display:flex;align-items:center;justify-content:center;gap:6px;box-sizing:border-box;min-height:var(--h-md);background:none;border:1.5px solid var(--gold);color:var(--gold-dark);font-size:13px;line-height:18px;font-weight:700;padding:0 14px;border-radius:var(--r-btn);cursor:pointer;white-space:nowrap;flex-shrink:0}
 .recp-add-btn:hover{background:var(--gold-tint)}
 .recp-ing-table{border:1px solid var(--border2);border-radius:12px;overflow:hidden}
-.recp-ing-table-head{display:flex;background:var(--bg);padding:10px 14px;font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.3px}
+.recp-ing-table-head{display:flex;background:var(--bg);padding:10px 14px;font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.3px}
 .recp-ing-table-head span:first-child{flex:1}
 .recp-ing-table-head span:last-child{width:110px;text-align:left}
-.recp-ing-empty{padding:22px;text-align:center;color:var(--text3);font-size:12.5px}
+.recp-ing-empty{padding:22px;text-align:center;color:var(--text3);font-size:13px}
 .recp-ing-row{display:flex;align-items:center;gap:11px;padding:11px 14px;border-top:1px solid var(--border2)}
-.recp-ing-drag{color:var(--border);cursor:grab;font-size:13px;letter-spacing:-2px;flex-shrink:0;user-select:none}
-.recp-ing-icon{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.recp-ing-icon{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
 .recp-ing-info{flex:1;min-width:0}
-.recp-ing-name{font-size:13.5px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.recp-cat-pill{display:inline-block;font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:20px;margin-top:3px}
-.recp-ing-qty{display:flex;align-items:center;width:92px;height:36px;border:1.5px solid var(--border2);border-radius:8px;overflow:hidden;flex-shrink:0}
-.recp-ing-qty input{width:100%;height:100%;border:none;outline:none;padding:0 0 0 10px;font-size:13px;color:var(--text)}
-.recp-ing-qty span{padding:0 9px;color:var(--text3);font-size:11.5px;background:var(--bg);height:100%;display:flex;align-items:center}
-.recp-ing-del{width:30px;height:30px;border:none;background:none;color:#DC2626;cursor:pointer;font-size:15px;flex-shrink:0;border-radius:7px;display:flex;align-items:center;justify-content:center}
-.recp-ing-del:hover{background:#FEE2E2}
+.recp-ing-name{font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.recp-cat-pill{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:20px;margin-top:3px}
+.recp-ing-qty{display:flex;align-items:center;width:92px;height:var(--h-sm);box-sizing:border-box;border:1.5px solid var(--border2);border-radius:var(--r-btn);overflow:hidden;flex-shrink:0}
+.recp-ing-qty input{width:100%;height:100%;border:none;outline:none;padding:0 0 0 10px;font-size:var(--fs-maydon-sm);color:var(--text)}
+.recp-ing-qty span{padding:0 9px;color:var(--text3);font-size:12px;background:var(--bg);height:100%;display:flex;align-items:center}
+.recp-ing-del{width:var(--h-sm);height:var(--h-sm);border:none;background:none;color:var(--m-dc2626);cursor:pointer;font-size:16px;flex-shrink:0;border-radius:var(--r-btn);display:flex;align-items:center;justify-content:center}
+.recp-ing-del:hover{background:var(--f-fee2e2)}
 .recp-picker{position:relative}
-.recp-picker-panel{position:absolute;top:0;left:0;right:0;background:#fff;border:1px solid var(--border2);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.14);z-index:50;max-height:340px;display:flex;flex-direction:column}
-.recp-picker-search{display:flex;align-items:center;gap:8px;padding:11px 13px;border-bottom:1px solid var(--border2);flex-shrink:0}
-.recp-picker-search i{color:var(--text3);font-size:15px}
-.recp-picker-search input{flex:1;border:none;outline:none;font-size:13px;color:var(--text)}
+/* kech119 (C BOSQICH — telefon, audit G4-24, O'LCHANGAN work/k125/telefon.py: 390 px da tarkibdagi nomlar 46 px («Nam...»),
+   360 px da 16 px — «Namuna Kley» va «Namuna Qum» bir xil ko'rinardi; tanlash paneli oynadan chiqib kesilardi; «⋮⋮ Surish»
+   belgisi bor, surish yo'q edi — olib tashlandi): telefonda nom to'liq (2 qatorgacha), miqdor va o'chirish — keyingi qatorda;
+   tanlash paneli oqim ichida (oyna bilan birga suriladi) va ochilganda ko'rinishga keltiriladi. */
+@media (max-width:600px){
+  .recp-modal{padding:18px}
+  .recp-ing-row{flex-wrap:wrap;row-gap:8px}
+  .recp-ing-info{flex:1 1 calc(100% - 50px)}
+  .recp-ing-name{white-space:normal;overflow-wrap:anywhere}
+  .recp-ing-qty{margin-left:45px;flex:1 1 auto;max-width:180px}
+  .recp-ing-table-head span:last-child{display:none}
+  .recp-picker-panel{position:static;margin-bottom:12px;max-height:60vh}
+}
+.recp-picker-panel{position:absolute;top:0;left:0;right:0;background:var(--white);border:1px solid var(--border2);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.14);z-index:50;max-height:340px;display:flex;flex-direction:column}
+.recp-picker-search{display:flex;align-items:center;gap:8px;padding:6px 12px;border-bottom:1px solid var(--border2);flex-shrink:0}
+.recp-picker-search i{color:var(--text3);font-size:16px}
+.recp-picker-search input{flex:1;min-height:var(--h-sm);border:none;outline:none;font-size:var(--fs-maydon-sm);color:var(--text)}
 .recp-picker-list{overflow-y:auto;padding:8px}
-.recp-picker-cat{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:9px 8px 5px}
+.recp-picker-cat{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:9px 8px 5px}
 .recp-picker-item{display:flex;align-items:center;gap:10px;padding:8px;border-radius:8px;cursor:pointer;font-size:13px;color:var(--text)}
 .recp-picker-item:hover{background:var(--bg)}
 .recp-picker-item-icon{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
-.recp-picker-empty{padding:20px;text-align:center;color:var(--text3);font-size:12.5px}
+.recp-picker-empty{padding:20px;text-align:center;color:var(--text3);font-size:13px}
 
 /* Markazlashgan xabar oynasi — brauzerning standart alert() o'rniga */
 .recp-toast-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:3000;display:none;align-items:center;justify-content:center;padding:20px}
-.recp-toast{background:#fff;border-radius:16px;padding:30px 34px;max-width:340px;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.28)}
+.recp-toast{background:var(--white);border-radius:16px;padding:30px 34px;max-width:340px;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.28)}
 .recp-toast-icon{width:54px;height:54px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:24px}
-.recp-toast-icon.success{background:#DCFCE7;color:#16A34A}
-.recp-toast-icon.error{background:#FEE2E2;color:#DC2626}
-.recp-toast-text{font-size:14.5px;font-weight:600;color:var(--text);line-height:1.5}
+.recp-toast-icon.success{background:var(--f-dcfce7);color:var(--m-15803d)}
+.recp-toast-icon.error{background:var(--f-fee2e2);color:var(--m-dc2626)}
+.recp-toast-text{font-size:14px;font-weight:600;color:var(--text);line-height:1.5}
 </style>
 {% endblock %}
 
@@ -101,34 +113,35 @@
     <div class="rec-head">
       <label class="rec-thumb" title="{{ '' if recipe.image_url else 'Rasm yuklash' }}">
         {% if recipe.image_url %}
-        <img src="{{ recipe.image_url }}" alt="" onclick="event.preventDefault();event.stopPropagation();openRecLightbox('{{ recipe.image_url }}')">
+        <img src="{{ recipe.image_url|kichik_rasm }}" alt="" data-src="{{ recipe.image_url }}" onclick="event.preventDefault();event.stopPropagation();openRecLightbox(this.dataset.src)">
         <div class="rec-thumb-cam" onclick="event.preventDefault();event.stopPropagation();this.closest('.rec-thumb').querySelector('input[type=file]').click()"><i class="ti ti-camera"></i></div>
         {% else %}<i class="ti ti-flask"></i>{% endif %}
         <input type="file" accept="image/*" onchange="uploadRecipeImage({{ recipe.id }}, this)">
       </label>
       <div style="flex:1">
-        <div style="font-size:15px;font-weight:500;color:var(--text)">{{ recipe.name }} retsepti</div>
+        <div style="font-size:16px;font-weight:500;color:var(--text)">{{ recipe.name }} retsepti</div>
         <div class="rec-meta">
-          {{ recipe.batch_size_kg }} kg batch
-          {% if recipe.updated_at %} · Yangilangan: {{ recipe.updated_at.strftime('%d.%m.%Y') }}
-          {% else %} · Yaratilgan: {{ recipe.created_at.strftime('%d.%m.%Y') }}{% endif %}
+          {{ recipe.batch_size_kg|son(2) }} kg partiya
+          {% if recipe.updated_at %} · Yangilangan: {{ recipe.updated_at|toshkent('%d.%m.%Y') }}
+          {% else %} · Yaratilgan: {{ recipe.created_at|toshkent('%d.%m.%Y') }}{% endif %}
         </div>
       </div>
-      <button class="btn btn-outline btn-xs" onclick='openEditModal({{ recipe.id }}, {{ recipe.name|tojson }}, {{ recipe.batch_size_kg }}, {{ recipe.notes|tojson }}, {{ recipe.ingredients|map(attribute="inventory_id")|list|tojson }}, {{ recipe.ingredients|map(attribute="quantity_kg")|list|tojson }}, {{ recipe.ingredients|map(attribute="item_name")|list|tojson }}, {{ recipe.ingredients|map(attribute="unit")|list|tojson }})' title="Tahrirlash"><i class="ti ti-edit"></i></button>
-      <button class="btn btn-outline btn-xs" style="color:#EF4444;border-color:#EF4444" onclick="deleteRecipe({{ recipe.id }})" title="O'chirish"><i class="ti ti-trash"></i></button>
+      <button class="btn btn-outline btn-icon btn-sm" aria-label="Tahrirlash" onclick='openEditModal({{ recipe.id }}, {{ recipe.name|tojson }}, {{ recipe.batch_size_kg }}, {{ recipe.notes|tojson }}, {{ recipe.ingredients|map(attribute="inventory_id")|list|tojson }}, {{ recipe.ingredients|map(attribute="quantity_kg")|list|tojson }}, {{ recipe.ingredients|map(attribute="item_name")|list|tojson }}, {{ recipe.ingredients|map(attribute="unit")|list|tojson }})' title="Tahrirlash"><i class="ti ti-edit"></i></button>
+      <button class="btn btn-danger btn-icon btn-sm" aria-label="O'chirish" data-nom="{{ recipe.name }}" data-ishlatilgan="{{ ins.used_in|length }}" onclick="deleteRecipe({{ recipe.id }}, this.dataset.nom, Number(this.dataset.ishlatilgan) || 0)" title="O'chirish"><i class="ti ti-trash"></i></button>
     </div>
     <div class="card-body">
 
       <div style="margin-bottom:14px">
         <div class="rec-stat">
-          <div class="rec-stat-val">{{ "{:,.0f}".format(ins.cost_per_kg).replace(",", " ") }} so'm</div>
+          {# kech118 (ROLLAR 2-qism — egasi QARORI): «Tannarx va foyda» ruxsati yo'q — tannarx «—» #}
+          <div class="rec-stat-val">{% if current_user.ruxsat('tannarx', 'korish') %}{{ "{:,.0f}".format(ins.cost_per_kg).replace(",", " ") }} so'm{% else %}—{% endif %}</div>
           <div class="rec-stat-label">1 kg tannarxi (joriy narxda)</div>
         </div>
       </div>
 
       <div style="font-size:13px;color:var(--text3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px">Tarkibi</div>
       {% if not recipe.ingredients %}
-      <div style="color:var(--text3);font-size:12.5px;padding:8px 0">Tarkib hali kiritilmagan</div>
+      <div style="color:var(--text3);font-size:13px;padding:8px 0">Tarkib hali kiritilmagan</div>
       {% endif %}
       {% for ing in recipe.ingredients %}
       <div class="ing-row">
@@ -137,8 +150,8 @@
           <div class="ing-bar"><div class="ing-fill" style="width:{{ (ing.quantity_kg/recipe.batch_size_kg*100)|round }}%"></div></div>
         </div>
         <div style="text-align:right">
-          <div class="ing-val">{{ ing.quantity_kg }} {{ ing.unit }}</div>
-          <div style="font-size:12px;color:var(--text3)">{{ "%.1f"|format(ing.quantity_kg/recipe.batch_size_kg*100) }}%</div>
+          <div class="ing-val">{{ ing.quantity_kg|son(3) }} {{ ing.unit }}</div>
+          <div style="font-size:12px;color:var(--text3)">{{ (ing.quantity_kg/recipe.batch_size_kg*100)|son(1) }}%</div>
         </div>
       </div>
       {% endfor %}
@@ -157,7 +170,7 @@
 </div>
 
 <!-- ══ RETSEPT RASMINI KATTA KO'RISH (lightbox) ══ -->
-<div id="recLightbox" onclick="closeRecLightbox()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2000;align-items:center;justify-content:center;cursor:zoom-out">
+<div id="recLightbox" data-yopish onclick="closeRecLightbox()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2000;align-items:center;justify-content:center;cursor:zoom-out">
   <img id="recLightboxImg" src="" alt="" style="max-width:90vw;max-height:90vh;border-radius:8px;object-fit:contain">
 </div>
 {% endblock %}
@@ -179,6 +192,7 @@ function recpToast(text, type) {
     overlay = document.createElement('div');
     overlay.id = 'recpToastOverlay';
     overlay.className = 'recp-toast-overlay';
+    overlay.setAttribute('data-yopish', '');   // kech118 (U-08): Esc ham yopadi
     overlay.innerHTML = `
       <div class="recp-toast">
         <div class="recp-toast-icon" id="recpToastIcon"></div>
@@ -217,11 +231,14 @@ async function uploadRecipeImage(id, input) {
   }
 }
 
-async function deleteRecipe(id) {
-  if (!(await customConfirm('Retseptni o\'chirasizmi?', {danger:true}))) return;
+// kech120 (zip 132 — G4-23): tasdiqda retsept nomi va ishlatilganligi; server rad etsa — SABABI (ilgari «Xato yuz berdi»)
+async function deleteRecipe(id, nom, ishlatilgan) {
+  const savol = `«${nom || 'Retsept'}» retseptini o'chirasizmi?` +
+    (ishlatilgan ? `\n\nU ${ishlatilgan} xil detalda ishlatilgan — o'chirib bo'lmasligi mumkin.` : '');
+  if (!(await customConfirm(savol, {danger:true}))) return;
   const res = await fetch(`/api/recipes/${id}`, {method:'DELETE'});
   if (res.ok) location.reload();
-  else recpToast('Xato yuz berdi', 'error');
+  else recpToast('❌ ' + ((typeof serverXatoSababi === 'function') ? await serverXatoSababi(res, 'Xato yuz berdi') : 'Xato yuz berdi'), 'error');
 }
 
 // ── OMBORXONA MATERIALLARINI YUKLASH (ingredient tanlash uchun) ──
@@ -234,13 +251,15 @@ async function loadInvItemsForRecipe() {
 }
 
 // Kategoriya → rang/belgi (faqat ko'rinish uchun, hisob-kitobga aloqasi yo'q)
+// kech118 (zip 122 — tungi rejim): `bg` (fon) va `ic` (belgi rangi) — umumiy ranglar ro'yxatidan (tungi rejimda qorong'i fon,
+// yorug' belgi); `fg` — asl rang (yozuv uchun `matnRangi(fg)` rejimga qarab tanlaydi)
 const RECP_CAT_STYLE = {
-  "Kimyoviy qo'shimchalar": { icon: 'ti-flask', bg: '#EDE9FE', fg: '#7C3AED', label: "Kimyoviy qo'shimcha", groupLabel: "KIMYOVIY QO'SHIMCHALAR" },
-  "Qattiq qotishmalar":     { icon: 'ti-triangle', bg: '#DCFCE7', fg: '#16A34A', label: "Mineral qo'shimcha", groupLabel: "MINERAL QO'SHIMCHALAR" },
-  "Gips":                   { icon: 'ti-diamond', bg: '#FEF3C7', fg: '#D97706', label: 'Gips', groupLabel: 'GIPS' },
-  "Penoplast":              { icon: 'ti-square', bg: '#DBEAFE', fg: '#2563EB', label: 'Penoplast', groupLabel: 'PENOPLAST' },
-  "Bazalt":                 { icon: 'ti-mountain', bg: '#F3E8D8', fg: '#A86B36', label: 'Bazalt', groupLabel: 'BAZALT' },
-  "default":                { icon: 'ti-hexagon', bg: '#DBEAFE', fg: '#2563EB', label: 'Boshqa material', groupLabel: 'BOSHQA MATERIALLAR' }
+  "Kimyoviy qo'shimchalar": { icon: 'ti-flask', bg: 'var(--f-ede9fe)', fg: '#7C3AED', ic: 'var(--m-7c3aed)', label: "Kimyoviy qo'shimcha", groupLabel: "KIMYOVIY QO'SHIMCHALAR" },
+  "Qattiq qotishmalar":     { icon: 'ti-triangle', bg: 'var(--f-dcfce7)', fg: '#16A34A', ic: 'var(--m-16a34a)', label: "Mineral qo'shimcha", groupLabel: "MINERAL QO'SHIMCHALAR" },
+  "Gips":                   { icon: 'ti-diamond', bg: 'var(--f-fef3c7)', fg: '#D97706', ic: 'var(--m-d97706)', label: 'Gips', groupLabel: 'GIPS' },
+  "Penoplast":              { icon: 'ti-square', bg: 'var(--f-dbeafe)', fg: '#2563EB', ic: 'var(--m-2563eb)', label: 'Penoplast', groupLabel: 'PENOPLAST' },
+  "Bazalt":                 { icon: 'ti-mountain', bg: 'var(--f-f3e8d8)', fg: '#A86B36', ic: 'var(--m-a86b36)', label: 'Bazalt', groupLabel: 'BAZALT' },
+  "default":                { icon: 'ti-hexagon', bg: 'var(--f-dbeafe)', fg: '#2563EB', ic: 'var(--m-2563eb)', label: 'Boshqa material', groupLabel: 'BOSHQA MATERIALLAR' }
 };
 function recpCatStyle(cat) { return RECP_CAT_STYLE[cat] || RECP_CAT_STYLE.default; }
 
@@ -249,17 +268,16 @@ function ingredientRowHtml(prefix, idx, item, qty) {
   const name = item ? item.item_name : '?';
   return `
     <div class="recp-ing-row" id="${prefix}-ing-${idx}" data-inventory-id="${item ? item.id : ''}">
-      <div class="recp-ing-drag" title="Surish">⋮⋮</div>
-      <div class="recp-ing-icon" style="background:${st.bg};color:${st.fg}"><i class="ti ${st.icon}"></i></div>
+      <div class="recp-ing-icon" style="background:${st.bg};color:${st.ic}"><i class="ti ${st.icon}"></i></div>
       <div class="recp-ing-info">
-        <div class="recp-ing-name">${name}</div>
-        <span class="recp-cat-pill" style="background:${st.bg};color:${st.fg}">${st.label}</span>
+        <div class="recp-ing-name">${escapeHtml(name)}</div>
+        <span class="recp-cat-pill" style="background:${st.bg};color:${matnRangi(st.fg, 1)}">${st.label}</span>
       </div>
       <div class="recp-ing-qty">
         <input type="number" id="${prefix}-ing-qty-${idx}" min="0" step="0.01" value="${qty||''}" placeholder="0">
-        <span>kg</span>
+        <span>${escapeHtml(item && item.unit ? ((typeof birlikKor === 'function') ? birlikKor(item.unit) : item.unit) : 'kg')}</span>
       </div>
-      <button type="button" class="recp-ing-del" onclick="document.getElementById('${prefix}-ing-${idx}').remove()"><i class="ti ti-trash"></i></button>
+      <button type="button" class="recp-ing-del" title="Olib tashlash" aria-label="Olib tashlash" onclick="document.getElementById('${prefix}-ing-${idx}').remove()"><i class="ti ti-trash"></i></button>
     </div>`;
 }
 
@@ -321,11 +339,13 @@ async function openIngredientPicker(prefix) {
       <div class="recp-picker-search">
         <i class="ti ti-search"></i>
         <input type="text" id="${prefix}-picker-search" placeholder="Qidirish..." oninput="renderIngredientPickerList('${prefix}')">
-        <button type="button" class="recp-modal-close" onclick="closeIngredientPicker('${prefix}')" style="width:24px;height:24px"><i class="ti ti-x" style="font-size:14px"></i></button>
+        <button type="button" class="recp-modal-close" data-yopish-ichki onclick="closeIngredientPicker('${prefix}')" title="Yopish" aria-label="Yopish"><i class="ti ti-x"></i></button>
       </div>
       <div class="recp-picker-list" id="${prefix}-picker-list"></div>
     </div>`;
   renderIngredientPickerList(prefix);
+  // kech119 (C — telefon, G4-24): panel butunlay ko'rinsin (oyna pastida kesilib, 2 ta material ko'rinardi)
+  try { anchor.firstElementChild.scrollIntoView({ block: 'nearest' }); } catch (e) { /* ko'rinish — muhim emas */ }
   setTimeout(() => document.getElementById(prefix + '-picker-search')?.focus(), 30);
 }
 
@@ -356,10 +376,10 @@ async function renderIngredientPickerList(prefix) {
     const st = recpCatStyle(cat === 'default' ? null : cat);
     const rows = groups[cat].map(i => `
       <div class="recp-picker-item" onclick="selectIngredientFromPicker('${prefix}', ${i.id})">
-        <div class="recp-picker-item-icon" style="background:${st.bg};color:${st.fg}"><i class="ti ${st.icon}"></i></div>
+        <div class="recp-picker-item-icon" style="background:${st.bg};color:${st.ic}"><i class="ti ${st.icon}"></i></div>
         ${escapeHtml(i.item_name)}
       </div>`).join('');
-    return `<div class="recp-picker-cat" style="color:${st.fg}">${st.groupLabel}</div>${rows}`;
+    return `<div class="recp-picker-cat" style="color:${matnRangi(st.fg)}">${st.groupLabel}</div>${rows}`;
   }).join('');
 }
 
@@ -463,8 +483,8 @@ async function saveEditRecipe() {
   <div class="recp-modal">
     <div class="recp-modal-head">
       <div class="recp-modal-icon"><i class="ti ti-flask"></i></div>
-      <div class="recp-modal-title">+ Yangi retsept</div>
-      <button type="button" class="recp-modal-close" onclick="closeAddModal()"><i class="ti ti-x"></i></button>
+      <div class="recp-modal-title">+ Yangi loy retsepti</div>
+      <button data-yopish type="button" class="recp-modal-close" onclick="closeAddModal()"><i class="ti ti-x"></i></button>
     </div>
 
     <div class="form-row">
@@ -479,7 +499,7 @@ async function saveEditRecipe() {
         </div>
       </div>
       <div class="recp-field">
-        <label>Batch hajmi (kg)</label>
+        <label>Partiya hajmi (kg)</label>
         <div class="recp-field-input">
           <i class="ti ti-scale"></i>
           <input type="number" id="f-batch" value="100" min="1">
@@ -488,7 +508,7 @@ async function saveEditRecipe() {
     </div>
 
     <div class="recp-field" style="margin-top:14px">
-      <label>Izoh <span style="font-weight:400;text-transform:none;color:#bbb">(ixtiyoriy)</span></label>
+      <label>Izoh <span style="font-weight:400;text-transform:none;color:var(--text3)">(ixtiyoriy)</span></label>
       <div class="recp-field-input">
         <i class="ti ti-message-circle"></i>
         <textarea id="f-notes" placeholder="..." maxlength="200" oninput="document.getElementById('f-notes-count').textContent = this.value.length"></textarea>
@@ -503,19 +523,19 @@ async function saveEditRecipe() {
         </div>
         <button type="button" class="recp-add-btn" onclick="openIngredientPicker('f')"><i class="ti ti-plus"></i> Material qo'shish</button>
       </div>
-      <div class="recp-section-sub">Har biridan — yuqoridagi Batch hajmi (kg) uchun kerak miqdor (kg)</div>
+      <div class="recp-section-sub">Har biridan — yuqoridagi partiya hajmi (kg) uchun kerak miqdor (kg)</div>
 
       <div class="recp-picker" id="f-picker-anchor"></div>
 
       <div class="recp-ing-table">
-        <div class="recp-ing-table-head"><span>Material</span><span>Miqdor (kg)</span></div>
+        <div class="recp-ing-table-head"><span>Material</span><span>Miqdor</span></div>
         <div id="f-ingredients"></div>
       </div>
     </div>
 
     <div style="display:flex;gap:8px;margin-top:20px">
-      <button class="btn btn-dark w-full" id="recipe-save-btn" onclick="saveRecipe()"><i class="ti ti-device-floppy" style="vertical-align:-2px"></i> Saqlash</button>
-      <button class="btn btn-outline w-full" onclick="closeAddModal()"><i class="ti ti-x" style="vertical-align:-2px"></i> Bekor</button>
+      <button class="btn btn-dark w-full" id="recipe-save-btn" onclick="saveRecipe()"><i class="ti ti-device-floppy"></i> Saqlash</button>
+      <button data-yopish class="btn btn-outline w-full" onclick="closeAddModal()"><i class="ti ti-x"></i> Bekor</button>
     </div>
   </div>
 </div>
@@ -525,8 +545,8 @@ async function saveEditRecipe() {
   <div class="recp-modal">
     <div class="recp-modal-head">
       <div class="recp-modal-icon"><i class="ti ti-edit"></i></div>
-      <div class="recp-modal-title">Retseptni tahrirlash</div>
-      <button type="button" class="recp-modal-close" onclick="closeEditModal()"><i class="ti ti-x"></i></button>
+      <div class="recp-modal-title">Loy retseptini tahrirlash</div>
+      <button data-yopish type="button" class="recp-modal-close" onclick="closeEditModal()"><i class="ti ti-x"></i></button>
     </div>
     <input type="hidden" id="edit-id">
 
@@ -539,7 +559,7 @@ async function saveEditRecipe() {
         </div>
       </div>
       <div class="recp-field">
-        <label>Batch hajmi (kg)</label>
+        <label>Partiya hajmi (kg)</label>
         <div class="recp-field-input">
           <i class="ti ti-scale"></i>
           <input type="number" id="edit-batch" min="1">
@@ -548,7 +568,7 @@ async function saveEditRecipe() {
     </div>
 
     <div class="recp-field" style="margin-top:14px">
-      <label>Izoh <span style="font-weight:400;text-transform:none;color:#bbb">(ixtiyoriy)</span></label>
+      <label>Izoh <span style="font-weight:400;text-transform:none;color:var(--text3)">(ixtiyoriy)</span></label>
       <div class="recp-field-input">
         <i class="ti ti-message-circle"></i>
         <textarea id="edit-notes" placeholder="..." maxlength="200" oninput="document.getElementById('edit-notes-count').textContent = this.value.length"></textarea>
@@ -566,14 +586,14 @@ async function saveEditRecipe() {
       <div class="recp-picker" id="edit-picker-anchor"></div>
 
       <div class="recp-ing-table">
-        <div class="recp-ing-table-head"><span>Material</span><span>Miqdor (kg)</span></div>
+        <div class="recp-ing-table-head"><span>Material</span><span>Miqdor</span></div>
         <div id="edit-ingredients"></div>
       </div>
     </div>
 
     <div style="display:flex;gap:8px;margin-top:20px">
       <button class="btn btn-dark w-full" id="recipe-edit-save-btn" onclick="saveEditRecipe()">💾 Saqlash</button>
-      <button class="btn btn-outline w-full" onclick="closeEditModal()">Bekor</button>
+      <button data-yopish class="btn btn-outline w-full" onclick="closeEditModal()">Bekor</button>
     </div>
   </div>
 </div>

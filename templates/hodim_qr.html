@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+{# kech120 (zip 130 — audit G6-07): hodim paneliga kirish — CHOP ETISH sahifasi. Faqat QR (serverda yasalgan, ichida korxona
+   kodi), korxona nomi va kodi, qisqa yo'riqnoma. Ilgari «Chop etish» Foydalanuvchilar sahifasini butunligicha (menyu,
+   loginlar ro'yxati bilan) chop etardi. #}
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hodim paneliga kirish — {{ korxona }}</title>
+<style>
+  :root { --matn: #111827; --sust: #4B5563; --chiziq: #D1D5DB; --fon: #FFFFFF; --tugma: #9A6231; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--fon); color: var(--matn); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .varaq { max-width: 520px; margin: 0 auto; padding: 32px 20px; text-align: center; }
+  h1 { font-size: 24px; margin: 0 0 6px; }
+  .korxona { font-size: 16px; color: var(--sust); margin-bottom: 20px; overflow-wrap: anywhere; }
+  .qr { display: inline-block; padding: 10px; border: 1px solid var(--chiziq); border-radius: 14px; background: #fff; }
+  .qr svg { display: block; width: 260px; height: 260px; max-width: 70vw; max-height: 70vw; }
+  .kod { margin: 20px 0 6px; font-size: 14px; color: var(--sust); }
+  .kod b { display: block; margin-top: 4px; font-size: 24px; letter-spacing: 1px; color: var(--matn); overflow-wrap: anywhere; }
+  .manzil { font-family: ui-monospace, Menlo, monospace; font-size: 13px; color: var(--sust); overflow-wrap: anywhere; margin-bottom: 20px; }
+  ol { text-align: left; font-size: 16px; line-height: 1.7; margin: 0 auto 24px; max-width: 420px; padding-left: 22px; }
+  .tugmalar { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  /* U-13: chop etish sahifasi style.css ni yuklamaydi — umumiy «katta» tugma o'lchami shu yerda (44 px, burchak 8 px, 16 px) */
+  button, a.tugma { min-height: 44px; padding: 0 20px; border-radius: 8px; font-size: 16px; line-height: 20px; font-weight: 600; cursor: pointer;
+    border: 1px solid var(--tugma); background: var(--tugma); color: #fff; text-decoration: none; display: inline-flex; align-items: center; }
+  a.tugma { background: #fff; color: var(--tugma); }
+  @media print {
+    .tugmalar { display: none; }
+    .varaq { padding-top: 10mm; }
+  }
+</style>
+</head>
+<body>
+<div class="varaq">
+  <h1>📱 Hodim paneliga kirish</h1>
+  <div class="korxona">{{ korxona }}</div>
+  <div class="qr" id="qrRasm">{{ qr_svg|safe }}</div>
+  <div class="kod">Korxona kodi<b id="korxonaKodi">{{ kod or '—' }}</b></div>
+  <div class="manzil" id="kirishManzili">{{ manzil }}</div>
+  <ol>
+    <li>Telefon kamerasi bilan QR kodni skanerlang (yoki manzilni brauzerda oching).</li>
+    <li>Ochilgan sahifada korxona kodi o'zi yozilgan bo'ladi.</li>
+    <li>Telefon raqamingiz va 4 xonali PIN kodni kiriting — ularni administrator beradi.</li>
+  </ol>
+  <div class="tugmalar">
+    <button type="button" onclick="window.print()">🖨️ Chop etish</button>
+    <a class="tugma" href="/users">← Orqaga</a>
+  </div>
+</div>
+</body>
+</html>

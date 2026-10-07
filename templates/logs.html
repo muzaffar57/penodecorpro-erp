@@ -1,40 +1,118 @@
 {% extends "base.html" %}
-{% block title %}Tizim jurnallari — PenoDecorPro ERP{% endblock %}
-{% block page_title %}Tizim jurnallari{% endblock %}
-{% block page_sub %}Kirish tarixi, xatoliklar va amallar tarixi — faqat administrator uchun{% endblock %}
+{# kech120 (zip 137 — F bosqichi 5-qism, audit G6-22): `/sozlamalar` — korxona sozlamalari alohida sahifa (shu shablon, faqat sozlamalar) #}
+{% block title %}{% if sozlamalar_sahifasi %}Sozlamalar{% else %}Tizim jurnallari{% endif %} — PenoDecorPro ERP{% endblock %}
+{% block page_title %}{% if sozlamalar_sahifasi %}Korxona sozlamalari{% else %}Tizim jurnallari{% endif %}{% endblock %}
+{% block page_sub %}{% if sozlamalar_sahifasi %}Korxona nomi, logotip, mahsulot turlari, yo'nalishlar va Telegram bot{% else %}Kirish tarixi, xatoliklar va amallar tarixi — faqat administrator uchun{% endif %}{% endblock %}
+
+{% block head %}
+<style>
+/* kech117 (A2): Sozlamalar — yo'nalishlar ro'yxati belgilari */
+.yon-chip{display:inline-block;font-size:12px;font-weight:600;color:var(--text3);background:var(--bg);padding:2px 8px;border-radius:10px;white-space:nowrap}
+.yon-chip.yon-asosiy{color:var(--m-1e40af);background:var(--f-eff6ff)}
+.yon-chip.yon-yashirin{color:var(--m-92400e);background:var(--f-fef3c7)}
+/* kech120 (zip 129 — G6-23): jurnallar — filtr va sahifalash */
+.jr-filtr{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:flex-end;padding:12px 18px;border-bottom:1px solid var(--border2);background:var(--bg)}
+.jr-filtr label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--text3);min-width:0}
+.jr-filtr input,.jr-filtr select{min-height:var(--h-sm);padding:0 8px;border:1px solid var(--border);border-radius:var(--r-btn);font-size:var(--fs-maydon-sm);background:var(--white);color:var(--text);max-width:100%}
+.jr-filtr input[type=date]{width:150px}
+.jr-filtr select{min-width:150px;max-width:240px}
+.jr-filtr .jr-matn{width:200px}
+.jr-filtr .jr-tugmalar{display:flex;gap:8px;align-items:center}
+.jr-son{color:var(--text3);font-weight:400}
+.jr-sahifa{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 18px;font-size:13px;color:var(--text3);border-top:1px solid var(--border2)}
+.jr-sahifa .jr-havolalar{display:flex;gap:8px}
+.jr-sahifa a{display:inline-flex;align-items:center;box-sizing:border-box;min-height:var(--h-sm);padding:0 12px;border:1px solid var(--border);border-radius:var(--r-btn);font-size:13px;font-weight:600;color:var(--text);text-decoration:none;background:var(--white)}
+.jr-sahifa span.jr-yoq{display:inline-flex;align-items:center;box-sizing:border-box;min-height:var(--h-sm);padding:0 12px;border:1px solid var(--border2);border-radius:var(--r-btn);font-size:13px;font-weight:600;color:var(--text3);opacity:.6}
+/* U-13 (kech123): yorliqlar — umumiy `.tab` (tanlangani qora; Hisobotlar, Loyihalar bilan bir ko'rinish) */
+.log-tablar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px}
+.jr-farq{font-size:12px;color:var(--text2);margin-top:3px;padding-left:22px;overflow-wrap:anywhere}
+.jr-qiymat{font-size:12px;color:var(--text3);margin-top:3px;padding-left:22px;overflow-wrap:anywhere}
+@media (max-width:600px){
+  .jr-filtr label{flex:1 1 140px}
+  .jr-filtr input[type=date],.jr-filtr select,.jr-filtr .jr-matn{width:100%;max-width:none;min-width:0}
+  .jr-filtr .jr-tugmalar{flex:1 1 100%}
+  /* telefonda: yozuv nomi to'liq kenglikda, kim va vaqt — uning ostida (yonma-yon siqilmaydi) */
+  .jr-bosh{flex-wrap:wrap;align-items:flex-start !important;row-gap:2px !important}
+  .jr-bosh > .jr-vaqt{flex:1 1 100%;white-space:normal !important}
+}
+</style>
+{% endblock %}
 
 {% block content %}
 <div style="padding:14px">
 
-  <div class="tab-bar" style="display:flex;gap:4px;background:var(--bg);border-radius:12px;padding:4px;margin-bottom:16px;max-width:660px">
-    <button class="log-tab active" data-tab="login" onclick="switchLogTab('login')" style="flex:1;padding:9px 14px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:var(--white);box-shadow:0 1px 3px rgba(16,24,40,.1)">🔑 Kirish tarixi</button>
-    <button class="log-tab" data-tab="errors" onclick="switchLogTab('errors')" style="flex:1;padding:9px 14px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:none;color:var(--text3)">⚠️ Xatoliklar</button>
-    <button class="log-tab" data-tab="activity" onclick="switchLogTab('activity')" style="flex:1;padding:9px 14px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:none;color:var(--text3)">🕓 Audit jurnali</button>
-    <button class="log-tab" data-tab="health" onclick="switchLogTab('health')" style="flex:1;padding:9px 14px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:none;color:var(--text3)">🩺 Salomatlik</button>
+  <div class="log-tablar" role="tablist" style="display:{% if sozlamalar_sahifasi %}none{% else %}flex{% endif %}">
+    <button class="log-tab tab active" data-tab="login" onclick="switchLogTab('login')">🔑 Kirish tarixi</button>
+    {# Texnik xatolar FAQAT platforma administratori uchun — korxona
+       egasiga Python traceback hech narsa bermaydi, faqat keraksiz
+       xavotir tug'diradi va ichki tuzilishni oshkor qiladi. #}
+    {% if is_platform_admin %}
+    <button class="log-tab tab" data-tab="errors" onclick="switchLogTab('errors')">⚠️ Xatoliklar</button>
+    {% endif %}
+    <button class="log-tab tab" data-tab="activity" onclick="switchLogTab('activity')">🕓 Audit jurnali</button>
+    <button class="log-tab tab" data-tab="health" onclick="switchLogTab('health')">{% if current_user.is_platform_admin %}🩺 Salomatlik{% else %}💰 Tekshiruv{% endif %}</button>
+    {# kech120 (zip 137 — G6-22): sozlamalar — alohida sahifa (menyuda «Sozlamalar») #}
+    <a class="log-tab tab" href="/sozlamalar" style="text-decoration:none">⚙️ Sozlamalar →</a>
+    {% if current_user.is_platform_admin %}
+    <button class="log-tab tab" data-tab="platform" onclick="switchLogTab('platform')">🏛 Korxonalar</button>
+    {% endif %}
   </div>
 
-  <!-- KIRISH TARIXI -->
+  <!-- KIRISH TARIXI — kech120 (zip 129 — G6-23): filtr (sana, foydalanuvchi, natija) va sahifalash serverda -->
   <div id="tab-login" class="card">
-    <div class="card-head"><h3>🔑 Kirish urinishlari <span style="color:var(--text3);font-weight:400">(so'nggi {{ login_history|length }})</span></h3></div>
-    <div style="max-height:600px;overflow-y:auto">
+    <div class="card-head"><h3>🔑 Kirish urinishlari <span class="jr-son" id="kirishSoni">({{ kirish.jami|son }} ta{% if kirish.filtrlangan %} — filtr bo'yicha{% endif %})</span></h3></div>
+    <form class="jr-filtr" method="get" action="/logs" id="kirishFiltr">
+      {% for k, v in request.query_params.multi_items() %}{% if k.startswith('a_') and v %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{% endfor %}
+      <input type="hidden" name="tab" value="login">
+      <label>Sanadan <input type="date" name="k_dan" value="{{ kirish.filtr.dan }}"></label>
+      <label>Sanagacha <input type="date" name="k_gacha" value="{{ kirish.filtr.gacha }}"></label>
+      <label>Foydalanuvchi
+        <select name="k_kim">
+          <option value="">Hammasi</option>
+          {% for n in kirish.kimlar %}<option value="{{ n }}"{% if n == kirish.filtr.kim %} selected{% endif %}>{{ n }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Natija
+        <select name="k_natija">
+          <option value="">Hammasi</option>
+          <option value="ok"{% if kirish.filtr.natija == 'ok' %} selected{% endif %}>Muvaffaqiyatli</option>
+          <option value="xato"{% if kirish.filtr.natija == 'xato' %} selected{% endif %}>Noto'g'ri urinish</option>
+        </select>
+      </label>
+      <div class="jr-tugmalar">
+        <button type="submit" class="btn btn-dark btn-sm">Ko'rsatish</button>
+        {% if kirish.filtrlangan %}<a class="btn btn-outline btn-sm" href="{{ kirish.tozalash }}">Tozalash</a>{% endif %}
+      </div>
+    </form>
+    <div style="max-height:600px;overflow-y:auto" id="kirishRoyxati">
       {% if not login_history %}
-      <div style="text-align:center;padding:30px;color:var(--text3);font-size:13px">Hali hech qanday urinish yo'q</div>
+      <div style="text-align:center;padding:30px;color:var(--text3);font-size:13px">{% if kirish.filtrlangan %}Bu filtr bo'yicha yozuv yo'q{% else %}Hali hech qanday urinish yo'q{% endif %}</div>
       {% endif %}
       {% for l in login_history %}
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 18px;border-bottom:1px solid var(--border2)">
-        <div style="font-size:13px">
+      <div class="jr-qator jr-bosh" data-id="{{ l.id }}" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 18px;border-bottom:1px solid var(--border2)">
+        <div style="font-size:13px;min-width:0;overflow-wrap:anywhere">
           {% if l.success %}✅{% else %}❌{% endif %}
           <b>{{ l.username }}</b>
           {% if l.success %}muvaffaqiyatli kirdi{% else %}noto'g'ri urinish{% endif %}
           <span style="color:var(--text3)">· {{ l.ip_address or '—' }}</span>
         </div>
-        <div style="font-size:12px;color:var(--text3);white-space:nowrap">{{ l.created_at.strftime('%d.%m.%Y %H:%M') if l.created_at else '' }}</div>
+        <div class="jr-vaqt" style="font-size:12px;color:var(--text3);white-space:nowrap">{{ l.created_at|toshkent }}</div>
       </div>
       {% endfor %}
     </div>
+    {% if kirish.jami %}
+    <div class="jr-sahifa" id="kirishSahifa">
+      <span>{{ kirish.boshi|son }}–{{ kirish.oxiri|son }} / {{ kirish.jami|son }} ta · {{ kirish.sahifa }}-sahifa ({{ kirish.sahifalar }} dan)</span>
+      <span class="jr-havolalar">
+        {% if kirish.oldingi %}<a href="{{ kirish.oldingi }}" rel="prev">← Yangiroqlar</a>{% else %}<span class="jr-yoq">← Yangiroqlar</span>{% endif %}
+        {% if kirish.keyingi %}<a href="{{ kirish.keyingi }}" rel="next">Eskiroqlar →</a>{% else %}<span class="jr-yoq">Eskiroqlar →</span>{% endif %}
+      </span>
+    </div>
+    {% endif %}
   </div>
 
   <!-- XATOLIKLAR -->
+  {% if is_platform_admin %}
   <div id="tab-errors" class="card" style="display:none">
     <div class="card-head"><h3>⚠️ Backend xatoliklari <span style="color:var(--text3);font-weight:400">(so'nggi {{ error_logs|length }})</span></h3></div>
     <div style="max-height:600px;overflow-y:auto">
@@ -44,12 +122,13 @@
       {% for e in error_logs %}
       <div class="err-row" onclick="toggleErrDetail(this)" style="padding:12px 18px;border-bottom:1px solid var(--border2);cursor:pointer">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
-          <div style="font-size:13px;color:#DC2626;font-weight:600">{{ e.error_message[:200] }}</div>
+          <div style="font-size:13px;color:var(--m-dc2626);font-weight:600">{{ e.error_message[:200] }}</div>
+          {# kech106: ErrorLog.created_at — ALLAQACHON Toshkent vaqti (models._uzb_now) — |toshkent filtri QO'LLANMAYDI #}
           <div style="font-size:12px;color:var(--text3);white-space:nowrap;flex-shrink:0">{{ e.created_at.strftime('%d.%m.%Y %H:%M') if e.created_at else '' }}</div>
         </div>
         <div style="font-size:12px;color:var(--text3);margin-top:4px">{{ e.method or '' }} {{ e.endpoint or '' }} {% if e.performed_by %}· {{ e.performed_by }}{% endif %} <span style="color:var(--f-primary,#B9783F)">— bosib to'liq ko'ring ▾</span></div>
         {% if e.stack_trace %}
-        <pre class="err-detail" style="display:none;margin-top:10px;padding:12px;background:#1F2937;color:#E5E7EB;border-radius:8px;font-size:11.5px;white-space:pre-wrap;word-break:break-word;max-height:400px;overflow-y:auto">{{ e.stack_trace }}</pre>
+        <pre class="err-detail" style="display:none;margin-top:10px;padding:12px;background:#1F2937;color:#E5E7EB;border-radius:8px;font-size:12px;white-space:pre-wrap;word-break:break-word;max-height:400px;overflow-y:auto">{{ e.stack_trace }}</pre>
         {% endif %}
       </div>
       {% endfor %}
@@ -64,41 +143,247 @@
   </script>
 
   <!-- AUDIT JURNALI -->
+  {% endif %}
+
+  {# kech120 (zip 129 — G6-23): filtr (sana, foydalanuvchi, amal turi, matn), sahifalash; hamma amal — o'zbekcha
+     (`crud.AUDIT_AMALLARI`); tahrir yozuvida «O'zgardi: …» — faqat o'zgargan maydonlar. #}
   <div id="tab-activity" class="card" style="display:none">
-    <div class="card-head"><h3>🕓 Audit jurnali <span style="color:var(--text3);font-weight:400">(so'nggi {{ activity_log|length }})</span></h3></div>
-    <div style="max-height:600px;overflow-y:auto">
+    <div class="card-head"><h3>🕓 Audit jurnali <span class="jr-son" id="auditSoni">({{ audit.jami|son }} ta{% if audit.filtrlangan %} — filtr bo'yicha{% endif %})</span></h3></div>
+    <form class="jr-filtr" method="get" action="/logs" id="auditFiltr">
+      {% for k, v in request.query_params.multi_items() %}{% if k.startswith('k_') and v %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{% endfor %}
+      <input type="hidden" name="tab" value="activity">
+      <label>Sanadan <input type="date" name="a_dan" value="{{ audit.filtr.dan }}"></label>
+      <label>Sanagacha <input type="date" name="a_gacha" value="{{ audit.filtr.gacha }}"></label>
+      <label>Kim
+        <select name="a_kim">
+          <option value="">Hammasi</option>
+          {% for n in audit.kimlar %}<option value="{{ n }}"{% if n == audit.filtr.kim %} selected{% endif %}>{{ n }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Amal
+        <select name="a_amal">
+          <option value="">Hammasi</option>
+          {% for kalit, nom, _amallar in amal_guruhlari %}<option value="{{ kalit }}"{% if kalit == audit.filtr.amal %} selected{% endif %}>{{ nom }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Qidiruv <input type="search" class="jr-matn" name="a_q" value="{{ audit.filtr.matn }}" maxlength="100" placeholder="Buyurtma raqami, nom, summa…"></label>
+      <div class="jr-tugmalar">
+        <button type="submit" class="btn btn-dark btn-sm">Ko'rsatish</button>
+        {% if audit.filtrlangan %}<a class="btn btn-outline btn-sm" href="{{ audit.tozalash }}">Tozalash</a>{% endif %}
+      </div>
+    </form>
+    <div style="max-height:600px;overflow-y:auto" id="auditRoyxati">
       {% if not activity_log %}
-      <div style="text-align:center;padding:30px;color:var(--text3);font-size:13px">Hali hech qanday amal yo'q</div>
+      <div style="text-align:center;padding:30px;color:var(--text3);font-size:13px">{% if audit.filtrlangan %}Bu filtr bo'yicha yozuv yo'q{% else %}Hali hech qanday amal yo'q{% endif %}</div>
       {% endif %}
       {% for a in activity_log %}
-      <div style="padding:10px 18px;border-bottom:1px solid var(--border2)">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <div style="font-size:13px">
-            {% if a.action == 'deleted' %}🗑️{% elif a.action == 'restored' %}↩️{% elif a.action == 'permanently_deleted' %}❌{% elif a.action == 'created' %}➕{% elif a.action == 'updated' %}✏️{% elif a.action == 'activated' %}🚀{% elif a.action == 'produced' %}🏭{% else %}📝{% endif %}
+      {% set _am = amal_nomi(a.action) %}
+      {% set _qism = (a.new_value or '').split(farq_belgi, 1) %}
+      {% set _yangi = _qism[0] %}
+      {% set _farq = _qism[1] if _qism|length > 1 else '' %}
+      <div class="jr-qator" data-id="{{ a.id }}" data-amal="{{ a.action }}" style="padding:10px 18px;border-bottom:1px solid var(--border2)">
+        <div class="jr-bosh" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+          <div style="font-size:13px;min-width:0;overflow-wrap:anywhere">
+            {{ _am[0] }}
             <b>{{ a.entity_label or (a.entity_type ~ '#' ~ a.entity_id) }}</b>
-            {% if a.action == 'deleted' %}o'chirildi{% elif a.action == 'restored' %}tiklandi{% elif a.action == 'permanently_deleted' %}butunlay o'chirildi{% elif a.action == 'created' %}yaratildi{% elif a.action == 'updated' %}tahrirlandi{% elif a.action == 'activated' %}jarayonga olindi{% elif a.action == 'produced' %}ishlab chiqarildi{% else %}{{ a.action }}{% endif %}
+            {{ _am[1] }}
           </div>
-          <div style="font-size:12px;color:var(--text3);white-space:nowrap">{{ a.performed_by or '—' }} · {{ a.created_at.strftime('%d.%m.%Y %H:%M') if a.created_at else '' }}</div>
+          <div class="jr-vaqt" style="font-size:12px;color:var(--text3);white-space:nowrap">{{ a.performed_by or '—' }} · {{ a.created_at|toshkent }}</div>
         </div>
-        {% if a.action == 'updated' and a.old_value and a.new_value %}
-        <div style="font-size:11.5px;color:var(--text3);margin-top:3px;padding-left:22px">{{ a.old_value }} <span style="color:var(--gold-dark)">→</span> {{ a.new_value }}</div>
-        {% elif a.new_value %}
-        <div style="font-size:11.5px;color:var(--text3);margin-top:3px;padding-left:22px">{{ a.new_value }}</div>
+        {% if a.old_value and _yangi and a.old_value != _yangi %}
+        <div class="jr-qiymat">{{ a.old_value }} <span style="color:var(--gold-dark)">→</span> {{ _yangi }}</div>
+        {% elif _yangi and not a.old_value %}
+        <div class="jr-qiymat">{{ _yangi }}</div>
+        {% elif a.old_value and not _yangi %}
+        <div class="jr-qiymat">{{ a.old_value }}</div>
+        {% endif %}
+        {% if _farq %}
+        <div class="jr-farq"><b>O'zgardi:</b> {{ _farq }}</div>
+        {% elif a.action == 'updated' and a.old_value and a.old_value == _yangi %}
+        <div class="jr-farq" style="color:var(--text3)">{{ _yangi }} — qisqa tavsif o'zgarmagan (bu eski yozuvda tafsilot saqlanmagan)</div>
         {% endif %}
       </div>
       {% endfor %}
     </div>
+    {% if audit.jami %}
+    <div class="jr-sahifa" id="auditSahifa">
+      <span>{{ audit.boshi|son }}–{{ audit.oxiri|son }} / {{ audit.jami|son }} ta · {{ audit.sahifa }}-sahifa ({{ audit.sahifalar }} dan)</span>
+      <span class="jr-havolalar">
+        {% if audit.oldingi %}<a href="{{ audit.oldingi }}" rel="prev">← Yangiroqlar</a>{% else %}<span class="jr-yoq">← Yangiroqlar</span>{% endif %}
+        {% if audit.keyingi %}<a href="{{ audit.keyingi }}" rel="next">Eskiroqlar →</a>{% else %}<span class="jr-yoq">Eskiroqlar →</span>{% endif %}
+      </span>
+    </div>
+    {% endif %}
   </div>
 
   <!-- TIZIM SALOMATLIGI -->
+  {% if current_user.is_platform_admin %}
+  <!-- PLATFORMA: korxonalar (faqat platforma admini ko'radi) — kech111: to'liq panel alohida sahifada (/platforma) -->
+  <div id="tab-platform" class="card" style="display:none">
+    <div class="card-head"><h3>🏛 Platformadagi korxonalar</h3></div>
+    <div style="padding:18px;font-size:13px;color:var(--text2);line-height:1.7">
+      Mijoz korxonalar, obuna muddati, bloklash / ochish, parolni tiklash va yangi korxona qo'shish —
+      <b>Platforma paneli</b>da.
+      <div style="margin-top:12px"><a href="/platforma" class="btn btn-dark btn-sm" id="platformaHavola">🏛 Platforma paneliga o'tish →</a></div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- SOZLAMALAR: Telegram bot + zaxira -->
+  <div id="tab-settings" class="card" style="display:none">
+    <div class="card-head"><h3>⚙️ Korxona sozlamalari</h3></div>
+
+    <div style="padding:18px;border-bottom:1px solid var(--border2)">
+      <div style="font-size:13px;font-weight:700;margin-bottom:6px">🏢 Korxona nomi</div>
+      <div style="font-size:13px;color:var(--text3);line-height:1.6;margin-bottom:12px">
+        Bu nom chap paneldа va hujjatlarda ko'rinadi.
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+        <div>
+          <label style="display:block;font-size:12px;color:var(--text3);margin-bottom:4px">Nomi</label>
+          <input type="text" id="co-name" class="input-field" maxlength="200"
+                 style="width:280px" placeholder="Korxona nomi">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--text3);margin-bottom:4px">Shiori</label>
+          <input type="text" id="co-slogan" class="input-field" maxlength="150"
+                 style="width:220px" placeholder="Fasad bezaklari">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--text3);margin-bottom:4px">Telegram: ustaga salom shiori</label>
+          <input type="text" id="co-tg-tagline" class="input-field" maxlength="150"
+                 style="width:280px" placeholder="bo'sh qoldirilsa — chiqmaydi">
+          <div style="font-size:12px;color:var(--text3);margin-top:3px">
+            Yangi usta qo'shilganda botdagi salom xabari oxirida nom yonida chiqadi</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+        <div>
+          <label style="display:block;font-size:12px;color:var(--text3);margin-bottom:4px">Telefon</label>
+          <input type="text" id="co-phone" class="input-field" maxlength="60"
+                 style="width:200px" placeholder="+998 90 123 45 67">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--text3);margin-bottom:4px">Manzil</label>
+          <input type="text" id="co-address" class="input-field" maxlength="200"
+                 style="width:220px" placeholder="Andijon">
+        </div>
+        <button class="btn btn-dark btn-sm" onclick="saveCompany()">Saqlash</button>
+        <span id="co-status" style="font-size:13px"></span>
+      </div>
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border2)">
+        <div style="font-size:13px;color:var(--text3);margin-bottom:8px">
+          Logotip — yuk xati va hisobotlarda chiqadi (PNG/JPG/WEBP, 2 MB gacha)
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <img id="co-logo-preview" src="" alt="" style="display:none;height:40px;border-radius:6px;border:1px solid var(--border2)">
+          {# kech120 (zip 137 — G6-22): brauzerning inglizcha «Choose File / No file chosen» o'rniga o'zbekcha tugma va fayl nomi #}
+          <input type="file" id="co-logo-file" accept="image/png,image/jpeg,image/webp" style="display:none"
+                 onchange="document.getElementById('co-logo-nomi').textContent = this.files && this.files[0] ? this.files[0].name : 'Fayl tanlanmagan'">
+          <label for="co-logo-file" class="btn btn-outline btn-sm" style="cursor:pointer">Fayl tanlash</label>
+          <span id="co-logo-nomi" style="font-size:13px;color:var(--text3)">Fayl tanlanmagan</span>
+          <button class="btn btn-soft btn-sm" onclick="uploadLogo()">Logotipni yuklash</button>
+          <span id="co-logo-status" style="font-size:13px"></span>
+        </div>
+      </div>
+    </div>
+
+    <div style="padding:18px;border-bottom:1px solid var(--border2)">
+      <div style="font-size:13px;font-weight:700;margin-bottom:6px">📦 Mahsulot turlari</div>
+      <div style="font-size:13px;color:var(--text3);line-height:1.6;margin-bottom:12px">
+        Korxonangiz ishlab chiqarmaydigan turlarni o'chirib qo'ying — ular buyurtma va
+        ombor sahifalarida ko'rinmaydi. Asosiy turlar (Profil, Panel, Donali) har doim yoqiq; Blok — eskirgan, ixtiyoriy
+        (yangi mahsulotlar — «Ishlab chiqarish» bo'limida).
+      </div>
+      <div id="cat-list" style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:12px;font-size:13px">
+        Yuklanmoqda…
+      </div>
+      <button class="btn btn-dark btn-sm" onclick="saveCategories()">Saqlash</button>
+      <span id="cat-status" style="font-size:13px;margin-left:8px"></span>
+    </div>
+
+    {# kech117 (A2 — egasi QARORLARI kech114 00:08): korxona yo'nalishlari — qo'shish, nomini o'zgartirish, yashirish,
+       ishlatilmaganini o'chirish (ishlatilgani — faqat yashirish). Hammasi `/api/yonalishlar`. #}
+    <div style="padding:18px;border-bottom:1px solid var(--border2)" id="yon-bolim">
+      <div style="font-size:13px;font-weight:700;margin-bottom:6px">🧭 Yo'nalishlar</div>
+      <div style="font-size:13px;color:var(--text3);line-height:1.6;margin-bottom:12px">
+        Har yo'nalishning o'z sof foydasi Moliya sahifasida alohida ko'rinadi (yig'indisi — umumiy sof foyda).
+        <b>Asosiy</b> yo'nalishga profil, panel, donali, blok va loy sotish buyurtmalari yoziladi — nomini
+        o'zgartirish mumkin. «Ishlab chiqarish» bo'limidagi mahsulot turi, hodim, xarajat va kirimda yo'nalish tanlanadi. Ishlatilgan
+        yo'nalish o'chirilmaydi — faqat yashiriladi (eski yozuvlar va hisobot o'zgarmaydi).
+      </div>
+      <div id="yon-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">Yuklanmoqda…</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+        <div>
+          <label for="yon-yangi" style="display:block;font-size:12px;color:var(--text3);margin-bottom:4px">Yangi yo'nalish</label>
+          <input type="text" id="yon-yangi" class="input-field" maxlength="60" style="width:260px"
+                 placeholder="Masalan: Metall konstruksiya">
+        </div>
+        <button class="btn btn-dark btn-sm" id="yon-qosh-btn" onclick="yonQosh()">+ Qo'shish</button>
+        <span id="yon-status" style="font-size:13px"></span>
+      </div>
+    </div>
+
+    <div style="padding:18px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:6px">📱 Telegram bot</div>
+      <div style="font-size:13px;color:var(--text3);line-height:1.6;margin-bottom:14px">
+        Bildirishnomalar (yuk xati, buyurtma tayyor, ombor ogohlantirishi) shu bot orqali yuboriladi.
+        Bot <b>@BotFather</b> da yaratiladi. Bo'sh qoldirilsa — tizimning umumiy boti ishlatiladi (agar u sozlangan bo'lsa —
+        holati pastda yozilgan).
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">
+        <div>
+          <label style="display:block;font-size:12px;color:var(--text3);margin-bottom:4px">Bot tokeni</label>
+          <input type="text" id="tg-token" class="input-field maydon" placeholder="o'zgartirmaslik uchun bo'sh qoldiring"
+                 style="width:280px;font-family:monospace">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--text3);margin-bottom:4px">Chat ID (vergul bilan)</label>
+          <input type="text" id="tg-chat" class="input-field maydon" placeholder="123456789,987654321"
+                 style="width:220px;font-family:monospace">
+        </div>
+        <button class="btn btn-dark btn-sm" onclick="saveTgBot()">Saqlash</button>
+        <button class="btn btn-soft btn-sm" onclick="clearTgBot()">Tozalash</button>
+      </div>
+      <div id="tg-status" style="margin-top:12px;font-size:13px"></div>
+    </div>
+
+    {# 2026-09-20 — Zaxira yuklab olish tugmasi MIJOZDAN OLIB TASHLANDI.
+       Uch sabab:
+         1) `.json` fayl korxona egasiga tushunarsiz — u bilan hech narsa
+            qila olmaydi, faqat savol tug'diradi;
+         2) XAVFSIZLIK: korxonaning istalgan admin roli (hisobchi, menejer)
+            bitta bosishda butun biznesni — mijozlar, narxlar, foyda,
+            maoshlar — yuklab olardi;
+         3) "Zaxira" so'zi mijozda "demak o'zim saqlashim kerakmi?" degan
+            chalkashlik tug'diradi, holbuki zaxirani xizmat ko'rsatuvchi
+            oladi.
+       Mijozga kerak bo'lsa — murojaat qiladi, platforma admini beradi.
+       Mijoz uchun haqiqiy yechim — Excel eksport (rejada). #}
+    {% if current_user.is_platform_admin %}
+    <div style="padding:18px;border-top:1px solid var(--border2)">
+      <div style="font-size:13px;font-weight:700;margin-bottom:6px">💾 Zaxira nusxa</div>
+      <div style="font-size:13px;color:var(--text3);line-height:1.6;margin-bottom:12px">
+        Joriy korxonaning barcha ma'lumoti bitta faylga yuklanadi.
+      </div>
+      <a class="btn btn-dark btn-sm" href="/api/system/backup" download>Zaxirani yuklab olish</a>
+    </div>
+    {% endif %}
+  </div>
+
   <div id="tab-health" class="card" style="display:none">
     <div class="card-head">
-      <h3>🩺 Tizim salomatligi</h3>
-      <button class="btn btn-dark btn-sm" id="health-check-btn" onclick="runHealthCheck()" style="background:var(--gold);border-color:var(--gold)">Tekshirish</button>
+      <h3>{% if current_user.is_platform_admin %}🩺 Tizim salomatligi{% else %}💰 Moliyaviy tekshiruv{% endif %}</h3>
+      <button class="btn btn-gold btn-sm" id="health-check-btn" onclick="runHealthCheck()">Tekshirish</button>
     </div>
-    <div style="padding:16px 18px;font-size:12.5px;color:var(--text3);border-bottom:1px solid var(--border2)">
+    <div style="padding:16px 18px;font-size:13px;color:var(--text3);border-bottom:1px solid var(--border2)">
+      {% if current_user.is_platform_admin %}
       Bu — barcha muhim ma'lumot turlarini (masalan loyiha holati, buyurtma holati, hodim turi) tekshirib,
       noto'g'ri yozilgan qiymatlarni oldindan topadi. Faqat o'qiydi — hech narsani o'zgartirmaydi.
+      {% else %}
+      Buyurtma summalari, ombor qoldiqlari va to'lovlar bir-biriga mos kelishini tekshiradi.
+      Faqat o'qiydi — hech narsani o'zgartirmaydi.
+      {% endif %}
     </div>
     <div id="health-results" style="padding:20px">
       <div style="text-align:center;color:var(--text3);font-size:13px">"Tekshirish" tugmasini bosing</div>
@@ -111,17 +396,224 @@
 {% block scripts %}
 <script>
 function switchLogTab(tab) {
+  // kech120 (zip 129): ochiq yorliq manzilda (`?tab=`) — sahifa qayta yuklansa / filtr yuborilsa shu yorliq qoladi
+  try {
+    const _u = new URL(location.href);
+    if (_u.searchParams.get('tab') !== tab) { _u.searchParams.set('tab', tab); history.replaceState(null, '', _u); }
+  } catch (e) { /* jim */ }
   document.querySelectorAll('.log-tab').forEach(b => {
     const active = b.dataset.tab === tab;
-    b.style.background = active ? 'var(--white)' : 'none';
-    b.style.boxShadow = active ? '0 1px 3px rgba(16,24,40,.1)' : 'none';
-    b.style.color = active ? 'var(--text)' : 'var(--text3)';
-    b.classList.toggle('active', active);
+    b.classList.toggle('active', active);   // U-13: ko'rinishi umumiy `.tab.active` dan
   });
-  ['login','errors','activity','health'].forEach(t => {
-    document.getElementById('tab-' + t).style.display = (t === tab) ? 'block' : 'none';
+  ['login','errors','activity','health','settings','platform'].forEach(t => {
+    const _el = document.getElementById('tab-' + t);
+    if (_el) _el.style.display = (t === tab) ? 'block' : 'none';
   });
 }
+
+async function loadCompany() {
+  try {
+    const d = await fetch('/api/settings/company').then(r => r.json());
+    document.getElementById('co-name').value = d.name || '';
+    document.getElementById('co-slogan').value = d.slogan || '';
+    document.getElementById('co-phone').value = d.phone || '';
+    document.getElementById('co-address').value = d.address || '';
+    document.getElementById('co-tg-tagline').value = d.tg_tagline || '';
+    const img = document.getElementById('co-logo-preview');
+    if (d.logo_path) {
+      img.src = '/' + d.logo_path + '?v=' + Date.now();
+      img.style.display = 'inline-block';
+    } else {
+      img.style.display = 'none';
+    }
+  } catch (e) { /* jim */ }
+}
+
+async function uploadLogo() {
+  const inp = document.getElementById('co-logo-file');
+  const el = document.getElementById('co-logo-status');
+  if (!inp.files || !inp.files[0]) { el.innerHTML = '<span style="color:var(--m-b91c1c)">Rasm tanlang</span>'; return; }
+  const fd = new FormData();
+  fd.append('file', inp.files[0]);
+  const r = await fetch('/api/settings/company/logo', { method: 'POST', body: fd });
+  const d = await r.json().catch(() => ({}));
+  if (r.ok) {
+    el.innerHTML = '<span style="color:var(--green,#0a0)">✓ Yuklandi</span>';
+    inp.value = '';
+    loadCompany();
+  } else {
+    el.innerHTML = '<span style="color:var(--m-b91c1c)">' + escapeHtml(d.detail || 'Xato') + '</span>';
+  }
+}
+
+async function saveCompany() {
+  const nom = document.getElementById('co-name').value.trim();
+  const el = document.getElementById('co-status');
+  if (nom.length < 2) { el.innerHTML = '<span style="color:var(--m-b91c1c)">Nom juda qisqa</span>'; return; }
+  const fd = new FormData();
+  fd.append('name', nom);
+  fd.append('slogan', document.getElementById('co-slogan').value.trim());
+  fd.append('phone', document.getElementById('co-phone').value.trim());
+  fd.append('address', document.getElementById('co-address').value.trim());
+  fd.append('tg_tagline', document.getElementById('co-tg-tagline').value.trim());
+  const r = await fetch('/api/settings/company', { method: 'PUT', body: fd });
+  if (r.ok) {
+    el.innerHTML = '<span style="color:var(--green,#0a0)">✓ Saqlandi</span>';
+    setTimeout(() => location.reload(), 900);
+  } else {
+    const d = await r.json().catch(() => ({}));
+    el.innerHTML = '<span style="color:var(--m-b91c1c)">' + escapeHtml(d.detail || 'Xato') + '</span>';
+  }
+}
+
+async function loadCategories() {
+  const el = document.getElementById('cat-list');
+  if (!el) return;
+  try {
+    const d = await fetch('/api/settings/categories').then(r => r.json());
+    el.innerHTML = d.categories.map(c =>
+      '<label style="display:flex;align-items:center;gap:6px;cursor:pointer">' +
+      '<input type="checkbox" class="cat-cb" value="' + escapeHtml(c.code) + '"' +
+      (c.enabled ? ' checked' : '') + ' style="width:16px;height:16px;cursor:pointer">' +
+      escapeHtml(c.label) + '</label>').join('');
+  } catch (e) { el.textContent = "Yuklab bo'lmadi"; }
+}
+
+async function saveCategories() {
+  const kodlar = [...document.querySelectorAll('.cat-cb')]
+    .filter(c => c.checked).map(c => c.value).join(',');
+  const fd = new FormData();
+  fd.append('codes', kodlar);
+  const r = await fetch('/api/settings/categories', { method: 'PUT', body: fd });
+  const el = document.getElementById('cat-status');
+  if (r.ok) {
+    el.innerHTML = '<span style="color:var(--green,#0a0)">✓ Saqlandi</span>';
+    setTimeout(() => location.reload(), 900);
+  } else {
+    el.innerHTML = '<span style="color:var(--m-b91c1c)">Xato</span>';
+  }
+}
+
+async function loadTgBot() {
+  try {
+    const d = await fetch('/api/settings/telegram-bot').then(r => r.json());
+    const el = document.getElementById('tg-status');
+    if (d.configured) {
+      el.innerHTML = '<span style="color:var(--green,#0a0)">✓ O\'z boti sozlangan</span> ' +
+                     '<span style="color:var(--text3)">(token ' + escapeHtml(d.token_hint || '') + ')</span>';
+      document.getElementById('tg-chat').value = d.chat_id || '';
+    } else {
+      el.innerHTML = d.uses_system_bot
+        ? '<span style="color:var(--text3)">Sozlanmagan — tizimning umumiy boti ishlatiladi</span>'
+        : '<span style="color:var(--m-b91c1c)">Sozlanmagan — Telegram xabarlari YUBORILMAYDI. Botni sozlang.</span>';
+    }
+  } catch (e) { /* jim */ }
+}
+
+async function saveTgBot() {
+  const fd = new FormData();
+  fd.append('token', document.getElementById('tg-token').value.trim());
+  fd.append('chat_id', document.getElementById('tg-chat').value.trim());
+  const r = await fetch('/api/settings/telegram-bot', { method: 'PUT', body: fd });
+  document.getElementById('tg-token').value = '';
+  document.getElementById('tg-status').innerHTML = r.ok
+    ? '<span style="color:var(--green,#0a0)">✓ Saqlandi</span>'
+    : '<span style="color:var(--m-b91c1c)">Saqlashda xato</span>';
+  if (r.ok) setTimeout(loadTgBot, 600);
+}
+
+async function clearTgBot() {
+  // kech118 (B — U-07): xom confirm() o'rniga dastur oynasi
+  if (!(await customConfirm("Bot sozlamasi tozalansinmi? Shundan keyin korxonangizga Telegram xabarlari kelmasligi mumkin.", {danger: true, okText: 'Tozalash'}))) return;
+  const fd = new FormData();
+  fd.append('token', '-'); fd.append('chat_id', '-');
+  await fetch('/api/settings/telegram-bot', { method: 'PUT', body: fd });
+  document.getElementById('tg-chat').value = '';
+  loadTgBot();
+}
+
+// ── kech117 (A2): YO'NALISHLAR (Sozlamalar) ──────────────────────────────────────────────────────────────────
+const YON_ISH_NOMI = {hodim: 'hodim', xarajat: 'xarajat', transport: 'transport', kirim: 'kirim',
+                      'MRP mahsulot turi': 'MRP turi'};
+function yonHolat(matn, xato) {
+  const el = document.getElementById('yon-status');
+  if (!el) return;
+  el.innerHTML = matn ? '<span style="color:' + (xato ? '#c00' : 'var(--green,#0a0)') + '">' + escapeHtml(matn) + '</span>' : '';
+}
+function yonQatori(y) {
+  const ish = y.ishlatilishi || {};
+  const ishMatn = Object.keys(ish).map(k => (YON_ISH_NOMI[k] || k) + ': ' + ish[k]).join(', ');
+  const ishlatilgan = Object.keys(ish).length > 0;
+  const belgilar = (y.asosiy ? '<span class="yon-chip yon-asosiy">Asosiy</span>' : '') +
+                   (y.yashirin ? '<span class="yon-chip yon-yashirin">Yashirin</span>' : '') +
+                   (ishlatilgan ? '<span class="yon-chip">' + escapeHtml(ishMatn) + '</span>' : '<span class="yon-chip">ishlatilmagan</span>');
+  let tugmalar = '<button class="btn btn-soft btn-sm" data-id="' + y.id + '" onclick="yonNomSaqla(this)">Nomini saqlash</button>';
+  if (!y.asosiy) {
+    tugmalar += '<button class="btn btn-soft btn-sm" data-id="' + y.id +
+                '" data-yashirin="' + (y.yashirin ? '0' : '1') + '" onclick="yonYashir(this)">' +
+                (y.yashirin ? "Ko'rsatish" : 'Yashirish') + '</button>';
+    if (!ishlatilgan) {
+      tugmalar += '<button class="btn btn-danger btn-sm yon-ochir" data-id="' + y.id +
+                  '" data-bosqich="0" onclick="yonOchir(this)">O\'chirish</button>';
+    }
+  }
+  return '<div class="yon-qator" data-id="' + y.id + '" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap' +
+         (y.yashirin ? ';opacity:.65' : '') + '">' +
+         '<input type="text" class="input-field yon-nom" maxlength="60" style="width:220px" value="' + escapeHtml(y.nom) +
+         '" aria-label="Yo\'nalish nomi">' + belgilar + tugmalar + '</div>';
+}
+async function yonYukla() {
+  const el = document.getElementById('yon-list');
+  if (!el) return;
+  try {
+    const r = await fetch('/api/yonalishlar?hammasi=true');
+    if (!r.ok) { el.textContent = await serverXatoSababi(r, "Yuklab bo'lmadi"); return; }
+    const royxat = await r.json();
+    el.innerHTML = royxat.length ? royxat.map(yonQatori).join('') : '<span style="color:var(--text3)">Yo\'nalish yo\'q</span>';
+  } catch (e) { el.textContent = "Yuklab bo'lmadi"; }
+}
+async function yonSorov(url, metod, tana) {
+  const opt = {method: metod, headers: {'Content-Type': 'application/json'}};
+  if (tana !== undefined) opt.body = JSON.stringify(tana);
+  const r = await fetch(url, opt);
+  if (!r.ok) { yonHolat(await serverXatoSababi(r, 'Saqlanmadi'), true); return false; }
+  return true;
+}
+async function yonQosh() {
+  const inp = document.getElementById('yon-yangi');
+  const nom = (inp.value || '').trim();
+  if (!nom) { yonHolat("Yo'nalish nomini kiriting", true); inp.focus(); return; }
+  const btn = document.getElementById('yon-qosh-btn');
+  btn.disabled = true;
+  try {
+    if (await yonSorov('/api/yonalishlar', 'POST', {nom})) { inp.value = ''; yonHolat("✓ Qo'shildi"); yonYukla(); }
+  } finally { btn.disabled = false; }
+}
+async function yonNomSaqla(btn) {
+  const qator = btn.closest('.yon-qator');
+  const nom = (qator.querySelector('.yon-nom').value || '').trim();
+  if (!nom) { yonHolat("Yo'nalish nomini kiriting", true); return; }
+  if (await yonSorov('/api/yonalishlar/' + btn.dataset.id, 'PUT', {nom})) { yonHolat('✓ Saqlandi'); yonYukla(); }
+}
+async function yonYashir(btn) {
+  if (await yonSorov('/api/yonalishlar/' + btn.dataset.id, 'PUT', {yashirin: btn.dataset.yashirin === '1'})) {
+    yonHolat('✓ Saqlandi'); yonYukla();
+  }
+}
+async function yonOchir(btn) {
+  // Ikki bosqich (tasdiq oynasisiz): birinchi bosish — «Tasdiqlaysizmi?», ikkinchisi — o'chiradi.
+  if (btn.dataset.bosqich !== '1') {
+    btn.dataset.bosqich = '1';
+    btn.textContent = "Rostdan o'chirilsinmi? Yana bosing";
+    setTimeout(() => { if (btn.isConnected) { btn.dataset.bosqich = '0'; btn.textContent = "O'chirish"; } }, 5000);
+    return;
+  }
+  if (await yonSorov('/api/yonalishlar/' + btn.dataset.id, 'DELETE')) { yonHolat("✓ O'chirildi"); yonYukla(); }
+}
+
+document.addEventListener('DOMContentLoaded', () => { loadTgBot(); loadCompany(); loadCategories(); yonYukla(); });
+// kech120 (zip 129): server tanlagan yorliq (`?tab=` — filtr / sahifa havolasidan keyin shu yorliq ochiq qoladi)
+{% if yorliq != 'login' %}document.addEventListener('DOMContentLoaded', () => { if (document.getElementById('tab-{{ yorliq }}')) switchLogTab('{{ yorliq }}'); });{% endif %}
 
 async function runHealthCheck() {
   const btn = document.getElementById('health-check-btn');
@@ -136,29 +628,40 @@ async function runHealthCheck() {
     btn.disabled = false;
     btn.textContent = 'Tekshirish';
 
-    let html = `<div style="font-size:12px;color:var(--text3);margin-bottom:16px">Tekshirilgan sana: ${new Date(d.checked_at).toLocaleString('uz')} · ${d.total_checks} ta joy tekshirildi</div>`;
+    // 2026-09-20: TEXNIK skan (enum ustunlari) faqat platforma
+    // administratori uchun — korxona egasiga u tushunarsiz va foydasiz.
+    // Mijozga faqat MOLIYAVIY izchillik ko'rsatiladi, chunki u aynan
+    // biznes muammosi va uni o'zi tuzata oladi.
+    let html = '';
+    if (d.technical_hidden) {
+      html += `<div style="font-size:12px;color:var(--text3);margin-bottom:16px">Tekshirilgan sana: ${tkToliq(d.checked_at)}</div>`;
+    } else {
+      html += `<div style="font-size:12px;color:var(--text3);margin-bottom:16px">Tekshirilgan sana: ${tkToliq(d.checked_at)} · ${d.total_checks} ta joy tekshirildi</div>`;
+    }
 
-    if (d.issues_found === 0) {
-      html += `<div style="text-align:center;padding:30px;background:#F0FDF4;border-radius:12px">
+    if (d.technical_hidden) {
+      // texnik qism o'tkazib yuboriladi
+    } else if (d.issues_found === 0) {
+      html += `<div style="text-align:center;padding:30px;background:var(--f-f0fdf4);border-radius:12px">
         <div style="font-size:32px;margin-bottom:8px">✅</div>
-        <div style="font-weight:700;color:#16A34A;font-size:15px">Hammasi joyida!</div>
-        <div style="font-size:12.5px;color:var(--text3);margin-top:4px">Hech qanday noto'g'ri qiymat topilmadi.</div>
+        <div style="font-weight:700;color:var(--m-15803d);font-size:16px">Hammasi joyida!</div>
+        <div style="font-size:13px;color:var(--text3);margin-top:4px">Hech qanday noto'g'ri qiymat topilmadi.</div>
       </div>`;
     } else {
-      html += `<div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:12px 16px;margin-bottom:14px;font-weight:700;color:#DC2626">
+      html += `<div style="background:var(--f-fef2f2);border:1px solid var(--ch-fecaca);border-radius:10px;padding:12px 16px;margin-bottom:14px;font-weight:700;color:var(--m-dc2626)">
         ⚠️ ${d.issues_found} ta muammo topildi:
       </div>`;
       d.issues.forEach(issue => {
         html += `<div style="border:1px solid var(--border2);border-radius:10px;padding:14px 16px;margin-bottom:10px">
           <div style="font-size:13px;font-weight:600;color:var(--text)">${issue.label ? escapeHtml(issue.label) : ('#' + issue.id)} <span style="color:var(--text3);font-weight:400">(${issue.table}.${issue.column})</span></div>
-          <div style="font-size:12.5px;color:#DC2626;margin-top:4px">Noto'g'ri qiymat: <code style="background:#FEF2F2;padding:2px 6px;border-radius:4px">${escapeHtml(issue.bad_value)}</code></div>
-          <div style="font-size:11.5px;color:var(--text3);margin-top:4px">To'g'ri qiymatlar: ${issue.valid_names.join(', ')}</div>
+          <div style="font-size:13px;color:var(--m-dc2626);margin-top:4px">Noto'g'ri qiymat: <code style="background:var(--f-fef2f2);padding:2px 6px;border-radius:4px">${escapeHtml(issue.bad_value)}</code></div>
+          <div style="font-size:12px;color:var(--text3);margin-top:4px">To'g'ri qiymatlar: ${issue.valid_names.join(', ')}</div>
         </div>`;
       });
     }
 
-    if (d.check_errors && d.check_errors.length) {
-      html += `<div style="margin-top:14px;font-size:11.5px;color:var(--text3)">
+    if (!d.technical_hidden && d.check_errors && d.check_errors.length) {
+      html += `<div style="margin-top:14px;font-size:12px;color:var(--text3)">
         ⚠️ ${d.check_errors.length} ta jadval tekshirilmadi (eski deploy versiyasi bo'lishi mumkin).
       </div>`;
     }
@@ -166,12 +669,12 @@ async function runHealthCheck() {
     // Moliyaviy izchillik tekshiruvi — alohida, o'z bo'limida
     const fin = d.financial;
     if (fin) {
-      html += `<div style="margin-top:24px;padding-top:18px;border-top:2px dashed var(--border2)">
+      html += `<div style="${d.technical_hidden ? '' : 'margin-top:24px;padding-top:18px;border-top:2px dashed var(--border2)'}">
         <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:12px">💰 Moliyaviy izchillik</div>`;
       if (fin.issues_found === 0) {
-        html += `<div style="text-align:center;padding:24px;background:#F0FDF4;border-radius:12px">
-          <div style="font-size:28px;margin-bottom:6px">✅</div>
-          <div style="font-weight:700;color:#16A34A;font-size:14px">Hisob-kitoblar to'g'ri!</div>
+        html += `<div style="text-align:center;padding:24px;background:var(--f-f0fdf4);border-radius:12px">
+          <div style="font-size:24px;margin-bottom:6px">✅</div>
+          <div style="font-weight:700;color:var(--m-15803d);font-size:14px">Hisob-kitoblar to'g'ri!</div>
         </div>`;
       } else {
         const TYPE_LABEL = {
@@ -181,18 +684,17 @@ async function runHealthCheck() {
           purchase_total_mismatch: "Xarid summasi mos emas",
           duplicate_note_marker: "Takroriy texnik belgi",
           over_delivery: "Ortiqcha topshirilgan",
-          termopanel_missing_bazalt: "Bazalt tayinlanmagan",
           zero_price_item: "Narxi \"0\" detal",
           orphaned_payment: "Egasiz to'lov",
           orphaned_delivery: "Egasiz yetkazish"
         };
-        html += `<div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:12px 16px;margin-bottom:14px;font-weight:700;color:#DC2626">
+        html += `<div style="background:var(--f-fef2f2);border:1px solid var(--ch-fecaca);border-radius:10px;padding:12px 16px;margin-bottom:14px;font-weight:700;color:var(--m-dc2626)">
           ⚠️ ${fin.issues_found} ta moliyaviy nomuvofiqlik topildi:
         </div>`;
         fin.issues.forEach(iss => {
           html += `<div style="border:1px solid var(--border2);border-radius:10px;padding:14px 16px;margin-bottom:10px">
             <div style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(iss.label)} <span style="color:var(--text3);font-weight:400">(${TYPE_LABEL[iss.type] || iss.type})</span></div>
-            <div style="font-size:12.5px;color:#DC2626;margin-top:4px">${escapeHtml(iss.detail)}</div>
+            <div style="font-size:13px;color:var(--m-dc2626);margin-top:4px">${escapeHtml(iss.detail)}</div>
           </div>`;
         });
       }
@@ -203,7 +705,7 @@ async function runHealthCheck() {
   } catch (e) {
     btn.disabled = false;
     btn.textContent = 'Tekshirish';
-    resultsEl.innerHTML = '<div style="text-align:center;color:#DC2626;padding:20px">Xato yuz berdi, qaytadan urinib ko\'ring.</div>';
+    resultsEl.innerHTML = '<div style="text-align:center;color:var(--m-dc2626);padding:20px">Xato yuz berdi, qaytadan urinib ko\'ring.</div>';
   }
 }
 </script>

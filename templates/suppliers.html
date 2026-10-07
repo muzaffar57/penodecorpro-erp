@@ -1,19 +1,19 @@
 {% extends "base.html" %}
-{% block title %}Xomashyo ta'minoti — PenoDecorPro ERP{% endblock %}
-{% block page_title %}Xomashyo ta'minoti{% endblock %}
+{% block title %}Ta'minotchilar — PenoDecorPro ERP{% endblock %}
+{% block page_title %}Ta'minotchilar{% endblock %}
 {% block page_sub %}Nasiya (kredit) bilan olingan xomashyo qarzdorligi{% endblock %}
 
 {% block topbar_actions %}
-<button class="btn btn-dark" onclick="openSupplierModal()">+ Yetkazib beruvchi</button>
+<button class="btn btn-dark" onclick="openSupplierModal()">+ Ta'minotchi</button>
 {% endblock %}
 
 {% block head %}
 <style>
-.sup-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid #f5f5f5;cursor:pointer;transition:background .15s}
-.sup-row:hover{background:#fafaf8}
-.sup-name{font-size:13.5px;font-weight:600;color:var(--text)}
-.sup-meta{font-size:11px;color:#aaa;margin-top:2px}
-.mini-btn{width:26px;height:26px;border-radius:6px;border:1.5px solid #e5e5e5;background:#fff;font-size:13px;color:#555;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sup-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--ch-f5f5f5);cursor:pointer;transition:background .15s}
+.sup-row:hover{background:var(--f-fafaf8)}
+.sup-name{font-size:13px;font-weight:600;color:var(--text)}
+.sup-meta{font-size:12px;color:var(--text3);margin-top:2px}
+.mini-btn{width:var(--h-sm);height:var(--h-sm);border-radius:var(--r-btn);border:1.5px solid var(--ch-e5e5e5);background:var(--white);font-size:13px;color:var(--m-555555);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .mini-btn:hover{background:var(--dark);color:#fff;border-color:var(--dark)}
 </style>
 {% endblock %}
@@ -27,92 +27,92 @@
       <div class="kpi-label">Jami nasiya qarzi</div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-val" style="color:#F59E0B" id="k-supplier-count">—</div>
-      <div class="kpi-label">Qarzdor yetkazib beruvchi</div>
+      <div class="kpi-val" style="color:var(--m-b45309)" id="k-supplier-count">—</div>
+      <div class="kpi-label">Qarzdor ta'minotchi</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-val" style="color:var(--blue)" id="k-total-count">—</div>
-      <div class="kpi-label">Jami yetkazib beruvchi</div>
+      <div class="kpi-label">Jami ta'minotchi</div>
     </div>
   </div>
 
   <div class="card">
     <div class="card-head">
-      <h3>Yetkazib beruvchilar ro'yxati</h3>
+      <h3>Ta'minotchilar ro'yxati</h3>
       <input id="sup-search" placeholder="Qidirish..." oninput="filterSuppliers(this.value)"
-             style="padding:6px 10px;border:1px solid #e8e8e8;border-radius:7px;font-size:12px;width:180px;outline:none">
+             style="border:1px solid var(--ch-e8e8e8);width:180px;outline:none" class="maydon maydon-sm">
     </div>
     <div class="card-body" style="padding:0" id="supList">
-      <div style="text-align:center;padding:30px;color:#bbb">Yuklanmoqda...</div>
+      <div style="text-align:center;padding:30px;color:var(--text3)">Yuklanmoqda...</div>
     </div>
   </div>
 </div>
 
 <!-- ══ YETKAZIB BERUVCHI QO'SHISH/TAHRIRLASH ══ -->
 <div id="supplierModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:14px;padding:24px;width:420px;max-width:100%">
-    <div style="font-size:16px;font-weight:600;margin-bottom:18px" id="sup-modal-title">+ Yangi yetkazib beruvchi</div>
-    <div class="form-group"><label>Nomi</label><input type="text" id="s-name" placeholder="Masalan: Andijon bozori, Rustam aka"></div>
+  <div style="background:var(--white);border-radius:14px;padding:24px;width:420px;max-width:100%">
+    <div style="font-size:16px;font-weight:600;margin-bottom:18px" id="sup-modal-title">+ Yangi ta'minotchi</div>
+    <div class="form-group"><label>Nomi</label><input type="text" id="s-name" placeholder="Masalan: Qurilish bozori, 12-do'kon"></div>
     <div class="form-group"><label>Telefon</label><input type="text" id="s-phone" placeholder="+998901234567"></div>
     <div class="form-group"><label>Izoh</label><input type="text" id="s-notes" placeholder="..."></div>
-    <div id="sup-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:12px;color:#DC2626"></div>
+    <div id="sup-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:var(--f-fee2e2);border-radius:7px;font-size:12px;color:var(--m-dc2626)"></div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-dark w-full" onclick="saveSupplier()">Saqlash</button>
-      <button class="btn btn-outline w-full" onclick="closeSupplierModal()">Bekor</button>
+      <button data-yopish class="btn btn-outline w-full" onclick="closeSupplierModal()">Bekor</button>
     </div>
   </div>
 </div>
 
 <!-- ══ TARIX / TO'LOV MODALI ══ -->
 <div id="historyModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:14px;width:600px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
-    <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
+  <div style="background:var(--white);border-radius:14px;width:600px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
+    <div style="padding:18px 22px 14px;border-bottom:1px solid var(--ch-f0f0f0);display:flex;justify-content:space-between;align-items:center">
       <div>
         <div style="font-size:16px;font-weight:600;color:var(--text)" id="hist-name">—</div>
-        <div style="font-size:12px;color:#aaa;margin-top:2px" id="hist-phone">—</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:2px" id="hist-phone">—</div>
       </div>
-      <button onclick="closeHistoryModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
+      <button data-yopish class="btn btn-soft btn-icon btn-sm" onclick="closeHistoryModal()" title="Yopish" aria-label="Yopish">✕</button>
     </div>
 
-    <div style="padding:14px 22px;background:#FDF8F0;border-bottom:1px solid #F0E6D2">
+    <div style="padding:14px 22px;background:var(--f-fdf8f0);border-bottom:1px solid var(--ch-f0e6d2)">
       <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
-        <span style="color:#777">Jami nasiya</span><span style="font-weight:600" id="hist-credit">—</span>
+        <span style="color:var(--text3)">Jami nasiya</span><span style="font-weight:600" id="hist-credit">—</span>
       </div>
       <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
-        <span style="color:#777">To'langan</span><span style="font-weight:600;color:#22C55E" id="hist-paid">—</span>
+        <span style="color:var(--text3)">To'langan</span><span style="font-weight:600;color:var(--m-15803d)" id="hist-paid">—</span>
       </div>
-      <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:800;border-top:1px solid #F0E6D2;padding-top:6px;margin-top:6px">
-        <span>QARZ</span><span style="color:#DC2626" id="hist-debt">—</span>
+      <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:800;border-top:1px solid var(--ch-f0e6d2);padding-top:6px;margin-top:6px">
+        <span>QARZ</span><span style="color:var(--m-dc2626)" id="hist-debt">—</span>
       </div>
     </div>
 
-    <div style="padding:12px 22px;border-bottom:1px solid #f0f0f0;display:flex;gap:8px">
-      <input type="text" id="pay-amount" placeholder="To'lov summasi" oninput="formatPriceInput(this)" style="flex:1;height:38px;padding:0 12px;border:1.5px solid #ddd;border-radius:7px;font-size:13px;outline:none">
-      <button class="btn btn-dark" id="supplier-pay-save-btn" onclick="savePayment()">💰 To'lov qilish</button>
+    <div style="padding:12px 22px;border-bottom:1px solid var(--ch-f0f0f0);display:flex;flex-wrap:wrap;gap:8px">
+      <input type="text" id="pay-amount" placeholder="To'lov summasi" oninput="formatPriceInput(this)" style="flex:1 1 160px;min-width:0;border:1.5px solid var(--ch-dddddd);outline:none" class="maydon">
+      <button class="btn btn-dark" id="supplier-pay-save-btn" style="white-space:nowrap" onclick="savePayment()">💰 To'lov qilish</button>
     </div>
 
-    <div style="padding:12px 22px;border-bottom:1px solid #f0f0f0">
-      <button class="btn btn-outline btn-sm" style="width:100%;border-color:#A86B36;color:#A86B36" onclick="openAddPurchase()">+ Xarid qo'shish</button>
+    <div style="padding:12px 22px;border-bottom:1px solid var(--ch-f0f0f0)">
+      <button class="btn btn-gold-outline btn-block" onclick="openAddPurchase()">+ Xarid qo'shish</button>
       <div id="addPurchaseForm" style="display:none;margin-top:10px">
         <div class="form-group" style="margin-bottom:8px">
-          <label style="font-size:11px">Material</label>
-          <select id="ap-item" style="width:100%;height:36px;padding:0 10px;border:1.5px solid #ddd;border-radius:7px;font-size:12.5px;outline:none" onchange="apOnItemChange()"></select>
+          <label style="font-size:12px">Material</label>
+          <select id="ap-item" style="width:100%;border:1.5px solid var(--ch-dddddd);outline:none" onchange="apOnItemChange()" class="maydon"></select>
           <div style="margin-top:5px">
-            <button type="button" onclick="apToggleNewItem()" style="border:none;background:none;color:#A86B36;font-size:11.5px;cursor:pointer;padding:0">
+            <button type="button" class="btn-link" onclick="apToggleNewItem()">
               <span id="ap-newitem-toggle-text">🆕 Ro'yxatda yo'q, yangi material yozaman</span>
             </button>
           </div>
         </div>
 
-        <div id="ap-newitem-form" style="display:none;margin-bottom:8px;padding:10px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:7px">
+        <div id="ap-newitem-form" style="display:none;margin-bottom:8px;padding:10px;background:var(--f-eff6ff);border:1px solid var(--ch-bfdbfe);border-radius:7px">
           <div class="form-group" style="margin-bottom:8px">
-            <label style="font-size:11px">Yangi material nomi</label>
-            <input type="text" id="ap-newitem-name" placeholder="Masalan: Ftalat" style="width:100%;height:34px;padding:0 10px;border:1.5px solid #ddd;border-radius:7px;font-size:12.5px;outline:none">
+            <label style="font-size:12px">Yangi material nomi</label>
+            <input type="text" id="ap-newitem-name" placeholder="Masalan: Ftalat" style="width:100%;border:1.5px solid var(--ch-dddddd);outline:none" class="maydon">
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
             <div class="form-group" style="margin:0">
-              <label style="font-size:11px">Turi</label>
-              <select id="ap-newitem-category" style="width:100%;height:34px;padding:0 10px;border:1.5px solid #ddd;border-radius:7px;font-size:12.5px;outline:none">
+              <label style="font-size:12px">Turi</label>
+              <select id="ap-newitem-category" onchange="apNewItemCategoryChange()" style="width:100%;border:1.5px solid var(--ch-dddddd);outline:none" class="maydon">
                 <option value="Penoplast">Penoplast</option>
                 <option value="Kimyoviy qo'shimchalar" selected>Kimyoviy qo'shimcha</option>
                 <option value="Qattiq qotishmalar">Mineral qo'shimcha</option>
@@ -120,8 +120,8 @@
               </select>
             </div>
             <div class="form-group" style="margin:0">
-              <label style="font-size:11px">O'lchov</label>
-              <select id="ap-newitem-unit" style="width:100%;height:34px;padding:0 10px;border:1.5px solid #ddd;border-radius:7px;font-size:12.5px;outline:none">
+              <label style="font-size:12px">O'lchov</label>
+              <select id="ap-newitem-unit" style="width:100%;border:1.5px solid var(--ch-dddddd);outline:none" class="maydon">
                 <option value="kg">kg</option>
                 <option value="dona">dona</option>
                 <option value="litr">litr</option>
@@ -132,80 +132,81 @@
             </div>
           </div>
         </div>
-        <div id="ap-volume-wrap" style="display:none;margin-bottom:8px;padding:8px 10px;background:#FDF8F0;border-radius:7px">
-          <label style="font-size:11px;color:#A86B36;font-weight:600">📦 1 blok necha m³? (kubasi)</label>
+        <div id="ap-volume-wrap" style="display:none;margin-bottom:8px;padding:8px 10px;background:var(--f-fdf8f0);border-radius:7px">
+          <label style="font-size:12px;color:var(--gold-dark);font-weight:600">📦 1 blok necha m³? (kubasi)</label>
           <input type="number" id="ap-volume" placeholder="1.2" min="0.01" step="0.01" oninput="apCalc()"
-                 style="width:100%;height:34px;padding:0 10px;border:1.5px solid #E5DFD3;border-radius:7px;font-size:12.5px;outline:none;margin-top:4px">
-          <div id="ap-volume-hint" style="font-size:10.5px;color:#999;margin-top:4px"></div>
+                 style="width:100%;border:1.5px solid var(--ch-e5dfd3);outline:none;margin-top:4px" class="maydon">
+          <div id="ap-volume-hint" style="font-size:12px;color:var(--text3);margin-top:4px"></div>
         </div>
         <div style="display:flex;gap:8px;margin-bottom:8px">
           <div style="flex:1">
-            <label style="font-size:11px;color:#777">Miqdor</label>
+            <label style="font-size:12px;color:var(--text3)">Miqdor</label>
             <input type="number" id="ap-qty" placeholder="0" min="0.01" step="0.1" oninput="apCalc()"
-                   style="width:100%;height:36px;padding:0 10px;border:1.5px solid #ddd;border-radius:7px;font-size:12.5px;outline:none">
+                   style="width:100%;border:1.5px solid var(--ch-dddddd);outline:none" class="maydon">
           </div>
           <div style="flex:1">
-            <label style="font-size:11px;color:#777">1 birlik narxi</label>
+            <label style="font-size:12px;color:var(--text3)">1 birlik narxi</label>
             <input type="text" id="ap-price" placeholder="0" oninput="formatPriceInput(this);apCalc()"
-                   style="width:100%;height:36px;padding:0 10px;border:1.5px solid #ddd;border-radius:7px;font-size:12.5px;outline:none">
+                   style="width:100%;border:1.5px solid var(--ch-dddddd);outline:none" class="maydon">
           </div>
         </div>
-        <div id="ap-total" style="font-size:12.5px;color:#A86B36;margin-bottom:6px">Jami: —</div>
-        <button type="button" class="btn btn-outline btn-sm" style="width:100%;margin-bottom:10px;border-color:#22C55E;color:#22C55E" onclick="apAddToBasket()">🛒 Ro'yxatga qo'shish (yana material qo'shish uchun)</button>
+        <div id="ap-total" style="font-size:13px;color:var(--gold-dark);margin-bottom:6px">Jami: —</div>
+        <button type="button" class="btn btn-green-outline btn-block" title="Ro'yxatga qo'shib, yana material qo'shish mumkin" onclick="apAddToBasket()">🛒 Ro'yxatga qo'shish</button>
+        <div style="font-size:12px;color:var(--text3);margin:4px 0 10px">Qo'shgandan keyin yana material qo'shish mumkin</div>
 
-        <div id="ap-basket" style="display:none;margin-bottom:12px;background:#F0FDF4;border:1.5px solid #BBF7D0;border-radius:8px;padding:10px">
-          <div style="font-size:11.5px;font-weight:700;color:#166534;margin-bottom:6px">🛒 Xarid ro'yxati (shu safar birga saqlanadi)</div>
+        <div id="ap-basket" style="display:none;margin-bottom:12px;background:var(--f-f0fdf4);border:1.5px solid var(--ch-bbf7d0);border-radius:8px;padding:10px">
+          <div style="font-size:12px;font-weight:700;color:var(--m-166534);margin-bottom:6px">🛒 Xarid ro'yxati (shu safar birga saqlanadi)</div>
           <div id="ap-basket-list"></div>
-          <div style="display:flex;justify-content:space-between;font-weight:700;font-size:12.5px;color:#166534;margin-top:6px;padding-top:6px;border-top:1px solid #BBF7D0">
+          <div style="display:flex;justify-content:space-between;font-weight:700;font-size:13px;color:var(--m-166534);margin-top:6px;padding-top:6px;border-top:1px solid var(--ch-bbf7d0)">
             <span>Ro'yxat jami:</span><span id="ap-basket-total">0 so'm</span>
           </div>
         </div>
 
 
-        <div style="background:#FDF8F0;border:1.5px solid #F0E6D2;border-radius:7px;padding:10px;margin-bottom:10px">
+        <div style="background:var(--f-fdf8f0);border:1.5px solid var(--ch-f0e6d2);border-radius:7px;padding:10px;margin-bottom:10px">
           <div style="display:flex;justify-content:space-between;align-items:center">
-            <label style="font-size:11.5px;font-weight:600;color:#A86B36">💰 Hoziroq to'langan summa</label>
-            <button type="button" onclick="apFillFullPaid()" style="font-size:10.5px;color:var(--blue);background:none;border:none;cursor:pointer;text-decoration:underline">To'liq to'lash</button>
+            <label style="font-size:12px;font-weight:600;color:var(--gold-dark)">💰 Hoziroq to'langan summa</label>
+            <button type="button" class="btn-link" onclick="apFillFullPaid()">To'liq to'lash</button>
           </div>
           <input type="number" id="ap-paid-now" placeholder="0" min="0" step="1000" oninput="apCalc()"
-                 style="width:100%;height:36px;padding:0 10px;border:1.5px solid #E5DFD3;border-radius:7px;font-size:12.5px;outline:none;margin-top:4px">
-          <div style="font-size:11px;color:#999;margin-top:4px">Bo'sh qoldirsangiz — hammasi nasiya (qarz) bo'ladi. To'liq summani yozsangiz — qarzsiz.</div>
+                 style="width:100%;border:1.5px solid var(--ch-e5dfd3);outline:none;margin-top:4px" class="maydon">
+          <div style="font-size:12px;color:var(--text3);margin-top:4px">Bo'sh qoldirsangiz — hammasi nasiya (qarz) bo'ladi. To'liq summani yozsangiz — qarzsiz.</div>
           <div id="ap-debt-hint" style="font-size:12px;font-weight:600;margin-top:6px"></div>
         </div>
 
-        <div style="background:#F0F6FA;border-radius:7px;padding:10px;margin-bottom:10px">
-          <div style="font-size:11.5px;font-weight:600;color:var(--blue);margin-bottom:6px">🚚 Transport (ixtiyoriy)</div>
+        <div style="background:var(--f-f0f6fa);border-radius:7px;padding:10px;margin-bottom:10px">
+          <div style="font-size:12px;font-weight:600;color:var(--blue);margin-bottom:6px">🚚 Transport (ixtiyoriy)</div>
           <div style="display:flex;gap:8px">
-            <select id="ap-transport-payer" style="flex:1.2;height:34px;padding:0 8px;border:1.5px solid #ddd;border-radius:7px;font-size:12px;outline:none" onchange="apToggleTransport()">
+            <select id="ap-transport-payer" style="flex:1.2;border:1.5px solid var(--ch-dddddd);outline:none" onchange="apToggleTransport()" class="maydon">
               <option value="none">Transport yo'q</option>
-              <option value="supplier">Yetkazib beruvchidan (bepul)</option>
+              <option value="supplier">Ta'minotchidan (bepul)</option>
               <option value="self">O'z hisobimdan</option>
             </select>
             <input type="text" id="ap-transport-cost" placeholder="Summasi" disabled oninput="formatPriceInput(this)"
-                   style="flex:1;height:34px;padding:0 10px;border:1.5px solid #ddd;border-radius:7px;font-size:12.5px;outline:none;background:#f5f5f5">
+                   style="flex:1;border:1.5px solid var(--ch-dddddd);outline:none;background:var(--f-f5f5f5)" class="maydon">
           </div>
-          <div id="ap-transport-hint" style="font-size:10.5px;color:#999;margin-top:5px"></div>
+          <div id="ap-transport-hint" style="font-size:12px;color:var(--text3);margin-top:5px"></div>
         </div>
 
-        <button class="btn btn-dark btn-sm" style="width:100%" id="ap-save-btn" onclick="saveAddPurchase()">✓ Saqlash</button>
+        <button class="btn btn-dark btn-block" id="ap-save-btn" onclick="saveAddPurchase()">✓ Saqlash</button>
       </div>
     </div>
 
     <div style="padding:14px 22px;overflow-y:auto;flex:1">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <span style="font-size:12px;font-weight:600;color:#777">📦 Xaridlar tarixi</span>
+        <span style="font-size:12px;font-weight:600;color:var(--text3)">📦 Xaridlar tarixi</span>
         <div style="display:flex;gap:5px;align-items:center">
-          <input type="date" id="hist-from" style="height:28px;padding:0 6px;border:1.5px solid #ddd;border-radius:6px;font-size:11px;outline:none">
-          <span style="font-size:11px;color:#aaa">—</span>
-          <input type="date" id="hist-to" style="height:28px;padding:0 6px;border:1.5px solid #ddd;border-radius:6px;font-size:11px;outline:none">
-          <button class="mini-btn" onclick="applyHistoryFilter()" title="Filtrlash">🔍</button>
-          <button class="mini-btn" onclick="clearHistoryFilter()" title="Tozalash">✕</button>
+          <input type="date" id="hist-from" style="border:1.5px solid var(--ch-dddddd);outline:none" class="maydon maydon-sm">
+          <span style="font-size:12px;color:var(--text3)">—</span>
+          <input type="date" id="hist-to" style="border:1.5px solid var(--ch-dddddd);outline:none" class="maydon maydon-sm">
+          <button class="mini-btn" onclick="applyHistoryFilter()" title="Filtrlash" aria-label="Filtrlash">🔍</button>
+          <button class="mini-btn" onclick="clearHistoryFilter()" title="Tozalash" aria-label="Tozalash">✕</button>
         </div>
       </div>
       <div id="hist-purchases"></div>
       <div id="hist-pagination-purchases" style="display:flex;justify-content:center;align-items:center;gap:8px;margin:10px 0"></div>
 
-      <div style="font-size:12px;font-weight:600;color:#777;margin:16px 0 8px">💰 To'lovlar tarixi</div>
+      <div style="font-size:12px;font-weight:600;color:var(--text3);margin:16px 0 8px">💰 To'lovlar tarixi</div>
       <div id="hist-payments"></div>
     </div>
   </div>
@@ -215,18 +216,156 @@
 {% block scripts %}
 <script>
 function fmt(n){ return Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' '); }
+// ── 118-band (kech94): YAGONA son / narx kiritish qoidasi ──────────────────
+// parseNum / narxMatni / narxniOqi / narxKorinishi / formatPriceInput matni debts, finance,
+// finished, hodim_panel, inventory, kpi, orders, supplier_receive, suppliers
+// sahifalarida AYNAN bir xil (tools/test_narx_kiritish_ui.js tekshiradi).
+// Ilgari har sahifada o'z ta'rifi bor edi va kasr kiritgan foydalanuvchi
+// JIMGINA 10x / 100x yoki yaxlitlangan summa yuborardi: harflab "10.5" → 105,
+// "1234.56" → 123 456, yopishtirilgan "1.000.000" → 1, "1 228 752,75" → 100x.
+//  • Kasr belgisi — nuqta YOKI vergul (kiritilgan belgi saqlanadi); pulda
+//    ko'pi bilan 2 xona (tiyin — bazada Numeric(12,2)), ortig'i kiritilmaydi.
+//  • Ming ajratgich — bo'shliq. Bir xil belgi bir necha marta ("1.000.000")
+//    yoki ikki xil belgi ("1,234.56", "1.234,56") — oxirgisidan boshqasi ming
+//    ajratgich. Pulda yolg'iz belgi + AYNAN 3 raqam ("12.500") — ming ajratgich
+//    (3 xonali tiyin bo'lmaydi; harflab "1.000.000" ham shunday to'g'ri chiqadi);
+//    butun qismi 0 bilan boshlansa yoki noto'g'ri guruhlangan bo'lsa — kasr.
+//  • Pul maydoni manfiy bo'lmaydi: "-" yozilsa maydon 0 bo'ladi (orders.html
+//    2026-09-17 qoidasi — endi hamma sahifada; ilgari ba'zi sahifalar "-500"
+//    ni jimgina 500 qilardi). Harf va boshqa belgilar maydonga tushmaydi.
+//  • parseNum — umumiy son (o'lcham, miqdor ham): yolg'iz nuqta / vergul — kasr
+//    ("0.125" → 0.125), manfiy ishora saqlanadi, hech narsa bo'lmasa 0.
+//  • narxniOqi — prompt oynasidagi pul matni: narxMatni qoidasi bilan o'qiladi;
+//    raqamsiz yoki manfiy matn — NaN (chaqiruvchi rad etadi, 0 YUBORILMAYDI).
+//  • narxKorinishi — prompt oynasiga beriladigan joriy summa (2 xonagacha,
+//    yaxlitlanMAYDI — "OK" bosilsa narx o'zgarmaydi).
 function parseNum(v) {
-  return parseFloat(String(v||'').replace(/[^\d.]/g, '')) || 0;
+  if (typeof v === 'number') return isFinite(v) ? v : 0;
+  let s = String(v == null ? '' : v).replace(/[\s\u00a0\u202f]/g, '');
+  if (/^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(s)) {
+    const n = Number(s);
+    return isFinite(n) ? n : 0;
+  }
+  const manfiy = s.charAt(0) === '-';
+  s = s.replace(/[^\d.,]/g, '');
+  let butun = s, kasr = '';
+  const oxirgi = Math.max(s.lastIndexOf('.'), s.lastIndexOf(','));
+  if (oxirgi >= 0 && s.split(s.charAt(oxirgi)).length === 2) {
+    butun = s.slice(0, oxirgi);
+    kasr = s.slice(oxirgi + 1);
+  }
+  butun = butun.replace(/[.,]/g, '');
+  const n = parseFloat((butun || '0') + '.' + (kasr || '0'));
+  if (!isFinite(n)) return 0;
+  return manfiy ? -n : n;
+}
+function narxMatni(v) {
+  const asl = String(v == null ? '' : v);
+  if (asl.indexOf('-') >= 0) return '0';
+  const t = asl.replace(/[\s\u00a0\u202f]+/g, ' ').replace(/[^\d., ]/g, '').trim();
+  const s = t.replace(/ /g, '');
+  if (!s) return '';
+  let butun = s, kasr = null, belgi = '';
+  const oxirgi = Math.max(t.lastIndexOf('.'), t.lastIndexOf(','));
+  if (oxirgi >= 0) {
+    const b = t.charAt(oxirgi);
+    const oldin = t.slice(0, oxirgi).trim();
+    const keyin = t.slice(oxirgi + 1).replace(/ /g, '');
+    const ming = keyin.length === 3 && /^[1-9]\d{0,2}( \d{3})*$/.test(oldin);
+    if (t.split(b).length === 2 && !ming) {
+      butun = oldin.replace(/ /g, '');
+      kasr = keyin.slice(0, 2);
+      belgi = b;
+    }
+  }
+  butun = butun.replace(/[.,]/g, '').replace(/^0+(?=\d)/, '') || '0';
+  butun = butun.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return kasr === null ? butun : butun + belgi + kasr;
+}
+function narxniOqi(v) {
+  const s = String(v == null ? '' : v);
+  if (!/\d/.test(s) || s.indexOf('-') >= 0) return NaN;
+  return parseNum(narxMatni(s));
+}
+function narxKorinishi(n) {
+  const x = Number(n);
+  return narxMatni((isFinite(x) ? x : 0).toFixed(2).replace(/\.?0+$/, ''));
 }
 function formatPriceInput(input) {
-  const val = parseNum(input.value);
-  if (val > 0) input.value = fmt(val);
+  if (!input) return;
+  const eski = String(input.value == null ? '' : input.value);
+  const yangi = narxMatni(eski);
+  if (yangi === eski) return;
+  let joy = null;
+  try { joy = typeof input.selectionStart === 'number' ? input.selectionStart : null; } catch (e) { joy = null; }
+  input.value = yangi;
+  if (joy === null || typeof input.setSelectionRange !== 'function') return;
+  try {
+    if (typeof document !== 'undefined' && document.activeElement !== input) return;
+    const k = Math.max(0, Math.min(yangi.length, joy + yangi.length - eski.length));
+    input.setSelectionRange(k, k);
+  } catch (e) { /* kursor — faqat qulaylik */ }
+}
+
+// ── 117-band (kech95): buyurtma detali jami — SERVER qoidasi bilan AYNAN ─────────────────────
+// Server (`crud._buyurtma_narx_jami` = `_xarid_narx_jami`): narx bazadagidek 2 xonaga (HALF_UP —
+// yarimda noldan uzoqqa), jami SHU narxdan (miqdor × narx, yana 2 xonaga HALF_UP). Ikkalasi ham
+// sonning ENG QISQA o'nlik yozuvidan (Python `repr` = JS `String`) — float shovqinisiz:
+// 10.335 × 333 → narx 10.34, jami 3 443.22; 0.125 × 7 → 0.13 / 0.91; 333.333 × 3 → 999.99.
+// Ilgari forma "Jami" si xom ko'paytma edi (3 441.555), server esa boshqasini saqlardi (O'LCHANGAN
+// kech94 `work/probe117.py`). Endi forma jami, chegirma va kelishilgan summa saqlanadigan jamidan.
+function _onlikQism(x) {
+  const s = String(x).toLowerCase();
+  const j = s.indexOf('e');
+  let a = j >= 0 ? s.slice(0, j) : s;
+  let d = j >= 0 ? parseInt(s.slice(j + 1), 10) : 0;
+  let manfiy = false;
+  if (a.charAt(0) === '-') { manfiy = true; a = a.slice(1); } else if (a.charAt(0) === '+') { a = a.slice(1); }
+  const n = a.indexOf('.');
+  if (n >= 0) { d -= a.length - n - 1; a = a.slice(0, n) + a.slice(n + 1); }
+  const m = BigInt(a || '0');
+  return { m: manfiy ? -m : m, d: d };
+}
+function _tiyinHalfUp(m, d) {
+  // m × 10^d so'm → tiyin (BigInt), yarim — noldan uzoqqa (Python ROUND_HALF_UP)
+  const k = d + 2;
+  if (k >= 0) return m * (10n ** BigInt(k));
+  const b = 10n ** BigInt(-k);
+  const manfiy = m < 0n;
+  const a = manfiy ? -m : m;
+  let q = a / b;
+  if ((a % b) * 2n >= b) q += 1n;
+  return manfiy ? -q : q;
+}
+function buyurtmaJami(miqdor, narx) {
+  const q = Number(miqdor), n = Number(narx);
+  if (!isFinite(q) || !isFinite(n)) return { narx: 0, jami: 0 };
+  const nq = _onlikQism(n);
+  const narxT = _tiyinHalfUp(nq.m, nq.d);
+  const qq = _onlikQism(q);
+  const jamiT = _tiyinHalfUp(qq.m * narxT, qq.d - 2);
+  return { narx: Number(narxT) / 100, jami: Number(jamiT) / 100 };
+}
+// ── 125-band (kech96): hisoblangan pul qiymati — 2 xona (server qoidasi), yig'indi — TIYINDA ────────────
+// `tiyinga(x)` — bitta qiymatni bazaga yoziladigandek 2 xonaga (HALF_UP, `buyurtmaJami` bilan bir qoida):
+// 750 000.375 → 750 000.38; 1 516.666… → 1 516.67. Ilgari hisoblangan standartlar (blok / MRP narxi qoplama yoki
+// koeffitsient o'zgarganda, TM formasidagi "1 dona narxi", "To'liq to'lash") butun so'mga yaxlitlanardi
+// (O'LCHANGAN kech96 `work/probe125.py`, HAQIQIY brauzer): yozilgan 1 500 000,75 → qoplama Yo'q → Bor →
+// 1 500 001; TM "1 dona narxi" 1 517 (buyurtma sahifasi AYNAN shu o'lchamda 1 516.67).
+// `pulYigindi(ro'yxat)` — 2 xonali summalar yig'indisi butun tiyinlarda (float shovqinisiz).
+function tiyinga(x) {
+  return buyurtmaJami(1, x).narx;
+}
+function pulYigindi(qiymatlar) {
+  let t = 0;
+  for (const v of qiymatlar) t += Math.round((Number(v) || 0) * 100);
+  return t / 100;
 }
 function showMsg(t, type){
   const box = document.createElement('div');
   box.style.cssText = `position:fixed;bottom:22px;right:22px;z-index:2000;padding:12px 18px;border-radius:10px;
     font-size:13px;font-weight:500;box-shadow:0 4px 20px rgba(0,0,0,.18);white-space:pre-line;max-width:380px;
-    background:${type==='error'?'#FEE2E2':'#DCFCE7'};color:${type==='error'?'#DC2626':'#1e7e34'}`;
+    background:${type==='error'?'var(--f-fee2e2)':'var(--f-dcfce7)'};color:${type==='error'?'var(--m-dc2626)':'var(--m-1e7e34)'}`;
   box.textContent = t;
   document.body.appendChild(box);
   setTimeout(() => box.remove(), 4000);
@@ -252,36 +391,41 @@ async function loadSuppliers(){
 
 function daysAgoText(iso) {
   if (!iso) return "Hali xarid yo'q";
-  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  // kech106: Toshkent KALENDAR kunlari ("Bugun" — bugungi Toshkent sanasi, "Kecha" — kechagisi). Ilgari o'tgan
+  // 24 soatlik bo'laklar va zona belgisiz vaqt mahalliy deb o'qilardi (5 soat xato).
+  const diff = -tkKunFarqi(iso);
   if (diff <= 0) return "Bugun";
   if (diff === 1) return "Kecha";
   if (diff < 30) return `${diff} kun oldin`;
-  return new Date(iso).toLocaleDateString('uz');
+  return tkSana(iso);
 }
 
 function renderSupplierList(list){
   const box = document.getElementById('supList');
   if (!list.length){
-    box.innerHTML = '<div style="text-align:center;padding:30px;color:#bbb">Topilmadi</div>';
+    box.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)">Topilmadi</div>';
     return;
   }
 
+  // kech120 (zip 132 — G4-04): qatorda «Tarix» (🕓) — xaridlar va TO'LOVLAR tarixi (to'lovni ko'rish / bekor qilish); ilgari bu oynaga
+  // hech qayerdan kirilmasdi (qator bosilsa — Kirim sahifasi)
   box.innerHTML = list.map(s => `
     <div class="sup-row" onclick="location.href='/suppliers/receive?supplier_id=${s.id}'">
       <div style="flex:1;min-width:0">
         <div class="sup-name">${escapeHtml(s.name)}</div>
         <div class="sup-meta">
-          ${s.phone || '—'} · Oxirgi xarid: ${daysAgoText(s.last_purchase_at)}
+          ${escapeHtml(s.phone || '—')} · Oxirgi xarid: ${daysAgoText(s.last_purchase_at)}
           ${s.month_count > 0 ? ` · Bu oy: ${s.month_count} ta / ${fmt(s.month_total)} so'm` : ''}
         </div>
       </div>
       <div style="text-align:right;min-width:120px">
         ${s.debt > 0
-          ? `<div style="font-size:14px;font-weight:700;color:#DC2626">${fmt(s.debt)} so'm</div><div style="font-size:9.5px;color:#bbb">qarz</div>`
-          : `<div style="font-size:12px;font-weight:600;color:#22C55E">✓ Qarzi yo'q</div>`}
+          ? `<div style="font-size:14px;font-weight:700;color:var(--m-dc2626)">${fmt(s.debt)} so'm</div><div style="font-size:12px;color:var(--text3)">qarz</div>`
+          : `<div style="font-size:12px;font-weight:600;color:var(--m-15803d)">✓ Qarzi yo'q</div>`}
       </div>
-      <button class="mini-btn" onclick="event.stopPropagation();editSupplier(${s.id})">✏️</button>
-      <button class="mini-btn" style="color:#DC2626;border-color:#FADBD8" onclick="event.stopPropagation();deleteSupplier(${s.id}, ${s.debt})" title="O'chirish">✕</button>
+      <button class="mini-btn sup-tarix" onclick="event.stopPropagation();openHistory(${s.id})" title="Tarix — xaridlar va to'lovlar" aria-label="Tarix"><i class="ti ti-history"></i></button>
+      <button class="mini-btn" onclick="event.stopPropagation();editSupplier(${s.id})" title="Tahrirlash" aria-label="Tahrirlash">✏️</button>
+      <button class="mini-btn" style="color:var(--m-dc2626);border-color:var(--ch-fadbd8)" onclick="event.stopPropagation();deleteSupplier(${s.id}, ${s.debt})" title="O'chirish">✕</button>
     </div>`).join('');
 }
 
@@ -295,7 +439,7 @@ function filterSuppliers(q){
 
 function openSupplierModal(){
   editingSupplierId = null;
-  document.getElementById('sup-modal-title').textContent = "+ Yangi yetkazib beruvchi";
+  document.getElementById('sup-modal-title').textContent = "+ Yangi ta'minotchi";
   ['s-name','s-phone','s-notes'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('sup-error').style.display = 'none';
   document.getElementById('supplierModal').style.display = 'flex';
@@ -335,9 +479,24 @@ async function saveSupplier(){
   }catch(e){ err.style.display='block'; err.textContent='❌ Server xatosi'; }
 }
 
+// 21-band (2026-09-21): server yuborgan SABABNI o'qish — `detail` matn
+// bo'lsa o'zini, obyekt bo'lsa `detail.message` ni. JSON emas yoki ro'yxat
+// (FastAPI 422) — umumiy matn. Ilgari bu sahifadagi tugmalar har qanday
+// xatoda faqat "❌ Xato" derdi, ya'ni "Bu yetkazib beruvchida … qarz bor"
+// kabi aniq sabablarni foydalanuvchi KO'RMASDI.
+async function serverSababi(res, standart) {
+  let sabab = standart || 'Xato';
+  try {
+    const d = await res.json();
+    if (d && typeof d.detail === 'string' && d.detail) sabab = d.detail;
+    else if (d && d.detail && typeof d.detail.message === 'string') sabab = d.detail.message;
+  } catch(e) {}
+  return sabab;
+}
+
 async function deleteSupplier(id, debt){
   const s = suppliers.find(x => x.id === id);
-  const name = s ? s.name : 'Bu yetkazib beruvchi';
+  const name = s ? s.name : "Bu ta'minotchi";
 
   if (debt > 0) {
     const ok = await customConfirm(
@@ -351,17 +510,17 @@ async function deleteSupplier(id, debt){
     try {
       const res = await fetch(`/api/suppliers/${id}?force=true`, { method: 'DELETE' });
       if (res.ok) { showMsg('✓ O\'chirildi', 'success'); loadSuppliers(); }
-      else showMsg('❌ Xato', 'error');
+      else showMsg('❌ ' + (await serverSababi(res)), 'error');
     } catch(e) { showMsg('❌ Server xatosi', 'error'); }
     return;
   }
 
-  if (!(await customConfirm(`${name} o'chirilsinmi?\n\nXaridlar tarixi Omborxonada saqlanib qoladi, faqat bu hamkorga bog'lanmaydi.`))) return;
+  if (!(await customConfirm(`${name} o'chirilsinmi?\n\nXaridlar tarixi Omborxonada saqlanib qoladi, faqat bu ta'minotchiga bog'lanmaydi.`))) return;
 
   try {
     const res = await fetch(`/api/suppliers/${id}`, { method: 'DELETE' });
     if (res.ok) { showMsg('✓ O\'chirildi', 'success'); loadSuppliers(); }
-    else showMsg('❌ Xato', 'error');
+    else showMsg('❌ ' + (await serverSababi(res)), 'error');
   } catch(e) { showMsg('❌ Server xatosi', 'error'); }
 }
 
@@ -399,14 +558,14 @@ async function loadInvItemsForAp() {
 
     sel.innerHTML = sortedCats.map(cat => {
       const opts = groups[cat].map(i =>
-        `<option value="${i.id}" data-unit="${i.unit}">${escapeHtml(i.item_name)} (${i.unit})</option>`
+        `<option value="${i.id}" data-unit="${escapeHtml(i.unit)}">${escapeHtml(i.item_name)} (${escapeHtml(i.unit)})</option>`
       ).join('');
-      return `<optgroup label="${cat}">${opts}</optgroup>`;
+      return `<optgroup label="${escapeHtml(cat)}">${opts}</optgroup>`;
     }).join('');
 
     apOnItemChange();
   } catch(e) {
-    sel.innerHTML = `<option value="">❌ Tarmoq xatosi: ${e.message}</option>`;
+    sel.innerHTML = `<option value="">❌ Tarmoq xatosi: ${escapeHtml(e.message)}</option>`;
     console.error('loadInvItemsForAp xatosi:', e);
   }
 }
@@ -422,7 +581,33 @@ function apToggleNewItem() {
   if (apCreatingNewItem) {
     document.getElementById('ap-newitem-name').value = '';
     document.getElementById('ap-volume-wrap').style.display = 'none';
+    apNewItemCategoryChange();
+  } else {
+    apOnItemChange();
   }
+}
+
+// kech105 (K105-3): yangi material "Penoplast" turkumi bilan yozilsa — blok hajmi ("1 blok necha m³?")
+// maydoni ko'rinadi va MAJBURIY (Kirim sahifasidagi kabi). Ilgari yangi penoplast oddiy material bo'lib
+// yaratilardi: buyurtmadagi plotnost tanlovida yo'q, hajmi so'ralmasdi.
+function apYangiPenoplastmi() {
+  return apCreatingNewItem && document.getElementById('ap-newitem-category').value === 'Penoplast';
+}
+
+function apNewItemCategoryChange() {
+  if (!apCreatingNewItem) return;
+  const wrap = document.getElementById('ap-volume-wrap');
+  const volInp = document.getElementById('ap-volume');
+  if (apYangiPenoplastmi()) {
+    wrap.style.display = 'block';
+    volInp.value = '';
+    document.getElementById('ap-volume-hint').textContent =
+      "Yangi penoplast (plotnost): 1 blok necha m³ ekanini kiriting — majburiy.";
+  } else {
+    wrap.style.display = 'none';
+    volInp.value = '';
+  }
+  apCalc();
 }
 
 // Agar "yangi material" rejimida bo'lsak — avval uni Omborxonada
@@ -435,16 +620,26 @@ async function apResolveItemId() {
   if (!name) { showMsg('❌ Yangi material nomini kiriting', 'error'); return null; }
   const category = document.getElementById('ap-newitem-category').value;
   const unit = document.getElementById('ap-newitem-unit').value;
+  // kech105 (K105-3): "Penoplast" turkumi — penoplast (plotnost) belgisi va blok hajmi TANADA; hajm
+  // kiritilmasa material YARATILMAYDI.
+  const isPeno = category === 'Penoplast';
+  const tana = { item_name: name, category, unit, stock_quantity: 0, min_stock: 0, is_penoplast: isPeno };
+  if (isPeno) {
+    const hajm = parseFloat(document.getElementById('ap-volume').value) || 0;
+    if (!(hajm > 0)) { showMsg('❌ Penoplast uchun 1 blok necha m³ ekanini kiriting', 'error'); return null; }
+    tana.volume_per_unit = hajm;
+  }
 
   try {
     const res = await fetch('/api/inventory', {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ item_name: name, category, unit, stock_quantity: 0, min_stock: 0 })
+      body: JSON.stringify(tana)
     });
     if (!res.ok) { showMsg('❌ Yangi material yaratib bo\'lmadi', 'error'); return null; }
     const created = await res.json();
     invItems.push({ id: created.id, item_name: created.item_name, unit: created.unit,
-                     category: created.category, is_penoplast: created.is_penoplast });
+                     category: created.category, is_penoplast: created.is_penoplast,
+                     volume_per_unit: created.volume_per_unit });
     apToggleNewItem(); // yangi-material rejimidan chiqamiz, endi u ro'yxatda bor
     const sel = document.getElementById('ap-item');
     const opt = document.createElement('option');
@@ -452,6 +647,7 @@ async function apResolveItemId() {
     opt.textContent = `${created.item_name} (${created.unit})`;
     sel.appendChild(opt);
     sel.value = created.id;
+    apOnItemChange(); // kech105: yangi penoplast — hajm maydoni kiritilgan qiymat bilan qoladi
     return created.id;
   } catch(e) {
     showMsg('❌ Server xatosi', 'error');
@@ -502,10 +698,10 @@ function apToggleTransport() {
   const costInp = document.getElementById('ap-transport-cost');
   const hint = document.getElementById('ap-transport-hint');
   costInp.disabled = (payer === 'none');
-  costInp.style.background = (payer === 'none') ? '#f5f5f5' : '#fff';
+  costInp.style.background = (payer === 'none') ? 'var(--f-f5f5f5)' : 'var(--white)';
   if (payer === 'supplier') {
     costInp.value = '';
-    hint.innerHTML = "✅ Bepul — yetkazib beruvchi o'z hisobidan olib keladi, bizga xarajat yozilmaydi";
+    hint.innerHTML = "✅ Bepul — ta'minotchi o'z hisobidan olib keladi, bizga xarajat yozilmaydi";
   } else if (payer === 'self') {
     hint.innerHTML = '⚠️ Bu summa Moliya bo\'limidagi transport xarajatiga avtomatik qo\'shiladi';
   } else {
@@ -513,27 +709,40 @@ function apToggleTransport() {
   }
 }
 
-function apFillFullPaid() {
+// 125-band (kech96): joriy (hali savatga qo'shilmagan) qatorning jamisi — SERVER qoidasi bilan
+// (`crud._xarid_narx_jami`: narx 2 xonaga HALF_UP, jami shu narxdan; `buyurtmaJami` — o'sha qoida).
+function apJoriyJami() {
   const qty = parseFloat(document.getElementById('ap-qty').value) || 0;
   const price = parseNum(document.getElementById('ap-price').value) || 0;
-  document.getElementById('ap-paid-now').value = Math.round(qty * price) || '';
+  return (qty > 0 && price > 0) ? buyurtmaJami(qty, price).jami : 0;
+}
+
+function apFillFullPaid() {
+  // 125-band (kech96, O'LCHANGAN `work/probe125.py` S1 / S2 — HAQIQIY brauzer): "To'liq to'lash" faqat JORIY qatorni
+  // butun so'mga yaxlitlab yozardi (`Math.round(qty × price)`): savatdagi qatorlar tushib qolardi (S2: savatda
+  // 2 × 500,50 + joriy 3 × 1 000 → to'lov 3 000, oyna "✓ To'liq to'landi" derdi, ta'minotchiga 1 001 so'm qarz
+  // QOLDI); tiyinli jami yashirin qarz qoldirardi (S1: 7 × 1 000,07 = 7 000.49 → 7 000 to'lov, xarid nasiya,
+  // 0.49 qarz "0 so'm" bo'lib ko'rinadi). Endi — savat + joriy qator, har biri server jamisi bilan (tiyingacha).
+  const grand = pulYigindi(apBasket.map(b => b.total).concat([apJoriyJami()]));
+  document.getElementById('ap-paid-now').value = grand > 0 ? String(grand) : '';
   apCalc();
 }
 
 function apCalc() {
-  const qty = parseFloat(document.getElementById('ap-qty').value) || 0;
-  const price = parseNum(document.getElementById('ap-price').value) || 0;
-  const total = qty * price;
-  document.getElementById('ap-total').textContent = 'Jami: ' + fmt(total) + " so'm";
+  const total = apJoriyJami();
+  document.getElementById('ap-total').textContent = 'Jami: ' + narxKorinishi(total) + " so'm";
 
+  // 125-band (kech96): qarz — savat + joriy qator bo'yicha (to'lov saqlashda hamma qatorga taqsimlanadi —
+  // `saveAddPurchase`), ilgari faqat joriy qator bilan solishtirilardi (S2 — "✓ To'liq to'landi", qarz 1 001).
   const paidNow = parseFloat(document.getElementById('ap-paid-now').value) || 0;
   const hint = document.getElementById('ap-debt-hint');
-  if (total > 0) {
-    const debt = Math.max(0, total - paidNow);
-    if (debt > 0.01) {
-      hint.innerHTML = `To'landi: <b style="color:#22C55E">${fmt(paidNow)}</b> · Qarz qoladi: <b style="color:#DC2626">${fmt(debt)} so'm</b>`;
+  const grand = pulYigindi(apBasket.map(b => b.total).concat([total]));
+  if (grand > 0) {
+    const debt = Math.max(0, pulYigindi([grand, -paidNow]));
+    if (debt > 0.005) {
+      hint.innerHTML = `To'landi: <b style="color:var(--m-15803d)">${narxKorinishi(paidNow)}</b> · Qarz qoladi: <b style="color:var(--m-dc2626)">${narxKorinishi(debt)} so'm</b>`;
     } else {
-      hint.innerHTML = `<b style="color:#22C55E">✓ To'liq to'landi — qarz yo'q</b>`;
+      hint.innerHTML = `<b style="color:var(--m-15803d)">✓ To'liq to'landi — qarz yo'q</b>`;
     }
   } else {
     hint.textContent = '';
@@ -544,6 +753,9 @@ let apBasket = [];
 
 async function apAddToBasket() {
   const wasCreatingNew = apCreatingNewItem;
+  // kech105 (K105-3): yangi penoplast savatga tushmaydi — material YARATILISHIDAN OLDIN rad etiladi
+  // (ilgari avval yaratilib, keyin "savatga qo'shib bo'lmaydi" derdi).
+  if (apYangiPenoplastmi()) { showMsg('❌ Penoplast — savatga qo\'shib bo\'lmaydi, alohida saqlang', 'error'); return; }
   const itemId = await apResolveItemId();
   if (!itemId) { if (!wasCreatingNew) showMsg('❌ Materialni tanlang', 'error'); return; }
 
@@ -554,7 +766,8 @@ async function apAddToBasket() {
   if (!qty || !price) { showMsg('❌ Miqdor va narxni kiriting', 'error'); return; }
   if (item && item.is_penoplast) { showMsg('❌ Penoplast — savatga qo\'shib bo\'lmaydi, alohida saqlang', 'error'); return; }
 
-  apBasket.push({ itemId, itemName: item ? item.item_name : '?', unit: item ? item.unit : '', qty, price, total: qty*price });
+  // 125-band (kech96): qator jamisi — server qoidasi bilan (bazaga yoziladigan AYNAN summa)
+  apBasket.push({ itemId, itemName: item ? item.item_name : '?', unit: item ? item.unit : '', qty, price, total: buyurtmaJami(qty, price).jami });
 
   document.getElementById('ap-item').value = '';
   document.getElementById('ap-qty').value = '';
@@ -574,13 +787,13 @@ function renderApBasket() {
   if (!apBasket.length) { box.style.display = 'none'; document.getElementById('ap-save-btn').textContent = '✓ Saqlash'; return; }
   box.style.display = 'block';
   list.innerHTML = apBasket.map((b, i) => `
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px;color:#166534">
-      <span>${b.itemName} — ${b.qty} ${b.unit} × ${fmt(b.price)}</span>
-      <span style="display:flex;align-items:center;gap:6px"><b>${fmt(b.total)}</b>
-        <button onclick="apRemoveFromBasket(${i})" style="border:none;background:none;color:#DC2626;cursor:pointer">✕</button></span>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px;color:var(--m-166534)">
+      <span>${escapeHtml(b.itemName)} — ${b.qty} ${escapeHtml(b.unit)} × ${narxKorinishi(b.price)}</span>
+      <span style="display:flex;align-items:center;gap:6px"><b>${narxKorinishi(b.total)}</b>
+        <button class="btn btn-ghost btn-icon btn-sm" onclick="apRemoveFromBasket(${i})" title="Ro'yxatdan olib tashlash" aria-label="Ro'yxatdan olib tashlash" style="color:var(--m-dc2626)">✕</button></span>
     </div>`).join('');
-  const grandTotal = apBasket.reduce((s,b)=>s+b.total, 0);
-  document.getElementById('ap-basket-total').textContent = fmt(grandTotal) + " so'm";
+  const grandTotal = pulYigindi(apBasket.map(b => b.total));
+  document.getElementById('ap-basket-total').textContent = narxKorinishi(grandTotal) + " so'm";
   document.getElementById('ap-save-btn').textContent = `✓ Barchasini saqlash (${apBasket.length + 1} tagacha material)`;
 }
 
@@ -591,23 +804,37 @@ async function saveAddPurchase() {
   const price = parseNum(document.getElementById('ap-price').value) || 0;
   let itemId = null;
   if (qty && price) {
+    // kech105 (K105-3): penoplast savat bilan BIRGA saqlanmaydi (blok hajmi faqat yakka xaridda yuboriladi) —
+    // yangi penoplast material YARATILISHIDAN OLDIN, mavjudi ham rad etiladi.
+    if (apBasket.length) {
+      const _tanlangan = apCreatingNewItem ? null
+        : invItems.find(i => i.id === (parseInt(document.getElementById('ap-item').value) || null));
+      if (apYangiPenoplastmi() || (_tanlangan && _tanlangan.is_penoplast)) {
+        showMsg("❌ Penoplast — savatdagi materiallar bilan birga saqlab bo'lmaydi, alohida saqlang", 'error');
+        return;
+      }
+    }
     // Faqat joriy qator to'ldirilgan bo'lsa — materialni aniqlaymiz
     // (agar "yangi material" rejimida bo'lsa, shu yerda avtomatik yaratiladi)
+    const _yangiEdi = apCreatingNewItem;
     itemId = await apResolveItemId();
+    // kech105: joriy qator to'ldirilgan-u, material aniqlanmagan bo'lsa — saqlash TO'XTAYDI (ilgari savat
+    // jimgina saqlanib, joriy qator tashlab ketilardi).
+    if (!itemId) { if (!_yangiEdi) showMsg('❌ Materialni tanlang', 'error'); return; }
   }
 
   // Joriy formadagi to'ldirilgan qatorni ham ro'yxatga qo'shamiz (agar to'ldirilgan bo'lsa)
   const lines = [...apBasket];
   if (itemId && qty && price) {
     const item = invItems.find(i => i.id === itemId);
-    lines.push({ itemId, itemName: item ? item.item_name : '?', unit: item ? item.unit : '', qty, price, total: qty*price });
+    lines.push({ itemId, itemName: item ? item.item_name : '?', unit: item ? item.unit : '', qty, price, total: buyurtmaJami(qty, price).jami });
   }
   if (!lines.length) { showMsg('❌ Kamida bitta material kiriting', 'error'); return; }
 
   const paidNow = parseFloat(document.getElementById('ap-paid-now').value) || 0;
   const transportPayer = document.getElementById('ap-transport-payer').value;
   const transportCost = parseNum(document.getElementById('ap-transport-cost').value) || 0;
-  const grandTotal = lines.reduce((s,l)=>s+l.total, 0);
+  const grandTotal = pulYigindi(lines.map(l => l.total));
 
   if (paidNow > grandTotal + 0.01) {
     showMsg("❌ To'langan summa jami summadan ko'p bo'lishi mumkin emas", 'error'); return;
@@ -626,8 +853,26 @@ async function saveAddPurchase() {
   let totalPaid = 0, totalDebt = 0, hadError = false;
   document.getElementById('ap-save-btn').disabled = true;
 
-  for (const line of lines) {
-    const linePaid = grandTotal > 0 ? round2(paidNow * (line.total / grandTotal)) : 0;
+  // 125-band (kech96): to'lov qatorlarga TIYINDA taqsimlanadi — ulushlar yig'indisi AYNAN to'langan summa (ilgari
+  // har ulush alohida `round2` qilinardi — yig'indi ±1 tiyin farq qilishi mumkin edi), hech bir qatorga o'z
+  // jamisidan ko'p emas (server `min(paid_now, jami)` ortiqchani jim tashlardi). Katta summalar — BigInt.
+  const grandT = Math.round(grandTotal * 100);
+  const paidT = Math.max(0, Math.min(Math.round(paidNow * 100), grandT));
+  const ulushT = lines.map(l => {
+    const t = Math.round(l.total * 100);
+    return grandT > 0 ? Math.min(t, Number((BigInt(paidT) * BigInt(t)) / BigInt(grandT))) : 0;
+  });
+  let qoldiqT = paidT - ulushT.reduce((s, x) => s + x, 0);
+  for (let i = 0; i < lines.length && qoldiqT > 0; i++) {
+    const bosh = Math.round(lines[i].total * 100) - ulushT[i];
+    const q = Math.min(qoldiqT, bosh);
+    ulushT[i] += q;
+    qoldiqT -= q;
+  }
+
+  for (let li = 0; li < lines.length; li++) {
+    const line = lines[li];
+    const linePaid = ulushT[li] / 100;
     try {
       const res = await fetch(`/api/inventory/${line.itemId}/purchase`, {
         method: 'POST',
@@ -637,7 +882,7 @@ async function saveAddPurchase() {
           price_per_unit: line.price,
           paid_now: linePaid,
           supplier_id: currentSupplierId,
-          notes: lines.length > 1 ? "Bir vaqtda ko'p material xaridi" : 'Yetkazib beruvchi sahifasidan qo\'shildi',
+          notes: lines.length > 1 ? "Bir vaqtda ko'p material xaridi" : "Ta'minotchilar sahifasidan qo'shildi",
           transport_payer: line === lines[0] ? transportPayer : 'none',
           transport_cost: line === lines[0] ? transportCost : 0,
           volume_per_unit: volumePerUnit
@@ -656,8 +901,8 @@ async function saveAddPurchase() {
   if (hadError) {
     showMsg('⚠️ Ba\'zi materiallar saqlanmadi — qaytadan tekshiring', 'error');
   } else {
-    let msg = `✓ ${lines.length} ta material xaridi yozildi\n💰 To'landi: ${fmt(totalPaid)} so'm`;
-    if (totalDebt > 0.01) msg += `\n🔴 Qarz: ${fmt(totalDebt)} so'm`;
+    let msg = `✓ ${lines.length} ta material xaridi yozildi\n💰 To'landi: ${narxKorinishi(pulYigindi([totalPaid]))} so'm`;
+    if (totalDebt > 0.005) msg += `\n🔴 Qarz: ${narxKorinishi(pulYigindi([totalDebt]))} so'm`;
     showMsg(msg, 'success');
   }
 
@@ -697,7 +942,7 @@ async function openHistory(id, keepFilter, page){
 
     const pu = document.getElementById('hist-purchases');
     if (!d.purchases.length){
-      pu.innerHTML = '<div style="text-align:center;padding:14px;color:#bbb;font-size:12px">Xarid yo\'q</div>';
+      pu.innerHTML = '<div style="text-align:center;padding:14px;color:var(--text3);font-size:12px">Xarid yo\'q</div>';
     } else {
       // Kategoriya bo'yicha guruhlaymiz
       const groups = {};
@@ -715,27 +960,26 @@ async function openHistory(id, keepFilter, page){
       pu.innerHTML = sortedCats.map(cat => {
         const g = groups[cat];
         const rows = g.items.map(p => {
-          const dt = new Date(p.purchased_at);
-          const ds = dt.toLocaleDateString('uz');
+          const ds = tkSana(p.purchased_at);
           return `
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f5f5f5">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--ch-f5f5f5)">
             <div>
-              <div style="font-size:12.5px;font-weight:600;color:var(--text)">${escapeHtml(p.item_name)} ${p.is_credit ? '<span style="color:#F59E0B;font-size:10px">(nasiya)</span>' : ''}</div>
-              <div style="font-size:11px;color:#aaa">${p.quantity} ${p.unit||''} × ${fmt(p.price_per_unit)} · ${ds}</div>
+              <div style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(p.item_name)} ${p.is_credit ? '<span style="color:var(--m-b45309);font-size:12px">(nasiya)</span>' : ''}</div>
+              <div style="font-size:12px;color:var(--text3)">${p.quantity} ${escapeHtml(p.unit||'')} × ${fmt(p.price_per_unit)} · ${ds}</div>
             </div>
             <div style="display:flex;align-items:center;gap:6px">
-              <div style="font-size:12.5px;font-weight:700;color:#A86B36">${fmt(p.total_amount)} so'm</div>
+              <div style="font-size:13px;font-weight:700;color:var(--gold-dark)">${fmt(p.total_amount)} so'm</div>
               <button class="mini-btn" onclick="editPurchase(${p.id}, ${p.quantity}, ${p.price_per_unit}, ${p.is_credit})" title="Tahrirlash">✏️</button>
-              <button class="mini-btn" style="color:#DC2626;border-color:#FADBD8" onclick="deletePurchase(${p.id})" title="O'chirish">✕</button>
+              <button class="mini-btn" style="color:var(--m-dc2626);border-color:var(--ch-fadbd8)" onclick="deletePurchase(${p.id})" title="O'chirish">✕</button>
             </div>
           </div>`;
         }).join('');
 
         return `
         <div style="margin-bottom:12px">
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:2px solid #E5DFD3;margin-bottom:2px">
-            <span style="font-size:12px;font-weight:700;color:#A86B36">${catIcons[cat]||'📦'} ${cat}</span>
-            <span style="font-size:12px;font-weight:700;color:#A86B36">${fmt(g.total)} so'm</span>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:2px solid var(--ch-e5dfd3);margin-bottom:2px">
+            <span style="font-size:12px;font-weight:700;color:var(--gold-dark)">${catIcons[cat]||'📦'} ${escapeHtml(cat)}</span>
+            <span style="font-size:12px;font-weight:700;color:var(--gold-dark)">${fmt(g.total)} so'm</span>
           </div>
           ${rows}
         </div>`;
@@ -746,20 +990,19 @@ async function openHistory(id, keepFilter, page){
 
     const pa = document.getElementById('hist-payments');
     if (!d.payments.length){
-      pa.innerHTML = '<div style="text-align:center;padding:14px;color:#bbb;font-size:12px">To\'lov yo\'q</div>';
+      pa.innerHTML = '<div style="text-align:center;padding:14px;color:var(--text3);font-size:12px">To\'lov yo\'q</div>';
     } else {
       pa.innerHTML = d.payments.map(p => {
-        const dt = new Date(p.paid_at);
-        const ds = dt.toLocaleDateString('uz');
+        const ds = tkSana(p.paid_at);
         return `
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f5f5f5">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--ch-f5f5f5)">
           <div>
-            <div style="font-size:12.5px;color:var(--text)">${ds}${p.paid_by ? ' · '+escapeHtml(p.paid_by) : ''}</div>
-            ${p.notes ? `<div style="font-size:11px;color:#aaa">${escapeHtml(p.notes)}</div>` : ''}
+            <div style="font-size:13px;color:var(--text)">${ds}${p.paid_by ? ' · '+escapeHtml(p.paid_by) : ''}</div>
+            ${p.notes ? `<div style="font-size:12px;color:var(--text3)">${escapeHtml(p.notes)}</div>` : ''}
           </div>
           <div style="display:flex;align-items:center;gap:8px">
-            <div style="font-size:12.5px;font-weight:700;color:#22C55E">+${fmt(p.amount)} so'm</div>
-            <button class="mini-btn" style="color:#DC2626;border-color:#FADBD8" onclick="deletePayment(${p.id})">✕</button>
+            <div style="font-size:13px;font-weight:700;color:var(--m-15803d)">+${fmt(p.amount)} so'm</div>
+            <button class="mini-btn" style="color:var(--m-dc2626);border-color:var(--ch-fadbd8)" onclick="deletePayment(${p.id})">✕</button>
           </div>
         </div>`;
       }).join('');
@@ -777,7 +1020,7 @@ function renderHistPagination(pg) {
   const box = document.getElementById('hist-pagination-purchases');
   if (!pg || pg.total_pages <= 1) { box.innerHTML = ''; return; }
   let html = `<button class="mini-btn" ${pg.page<=1?'disabled':''} onclick="openHistory(currentSupplierId, true, ${pg.page-1})">‹</button>`;
-  html += `<span style="font-size:12px;color:#777">${pg.page} / ${pg.total_pages} (jami ${pg.total_count} ta)</span>`;
+  html += `<span style="font-size:12px;color:var(--text3)">${pg.page} / ${pg.total_pages} (jami ${pg.total_count} ta)</span>`;
   html += `<button class="mini-btn" ${pg.page>=pg.total_pages?'disabled':''} onclick="openHistory(currentSupplierId, true, ${pg.page+1})">›</button>`;
   box.innerHTML = html;
 }
@@ -790,20 +1033,34 @@ function clearHistoryFilter() {
 
 const inFlightPurchaseEdit = new Set();
 async function editPurchase(id, qty, price, isCredit) {
-  const newQtyStr = prompt("Miqdor:", qty);
+  // kech118 (B — U-07): xom prompt() o'rniga dastur oynasi (base.html `kiritishOyna`)
+  const newQtyStr = await kiritishOyna('Miqdor', {izoh: 'Kirim yozuvi tahriri — 1-qadam (2 tadan)', qiymat: qty, inputmode: 'decimal', okText: 'Keyingisi'});
   if (newQtyStr === null) return;
-  const newQty = parseFloat(newQtyStr);
+  // 118-band: "1,5" → 1.5, "1 500" → 1500 (ilgari parseFloat: 1 va 1)
+  const newQty = /\d/.test(newQtyStr) ? parseNum(newQtyStr) : NaN;
   if (!newQty || newQty <= 0) { showMsg('❌ Noto\'g\'ri miqdor', 'error'); return; }
 
-  const newPriceStr = prompt("1 birlik narxi:", price);
+  const newPriceStr = await kiritishOyna("1 birlik narxi (so'm)", {izoh: 'Kirim yozuvi tahriri — 2-qadam (2 tadan)', qiymat: narxKorinishi(price), inputmode: 'decimal', okText: 'Keyingisi'});
   if (newPriceStr === null) return;
-  const newPrice = parseFloat(newPriceStr);
+  const newPrice = narxniOqi(newPriceStr);
   if (!newPrice || newPrice <= 0) { showMsg('❌ Noto\'g\'ri narx', 'error'); return; }
 
+  // 21-band (2026-09-21): ilgari bu oyna "ombordagi joriy miqdor
+  // o'zgarmaydi, kerak bo'lsa Omborxonada o'zingiz to'g'rilang" derdi.
+  // Bu, o'chirish bilan BIRGA ishlatilganda, ombordan yo'qdan miqdor
+  // yaratardi (server o'chirishda YOZUVDAGI miqdorni ayiradi). Endi
+  // server miqdor FARQINI omborga qo'llaydi — oyna ham shuni aytadi.
+  const farq = newQty - qty;
+  const farqMatn = Math.abs(farq) < 1e-9
+    ? "Miqdor o'zgarmadi — omborga ta'sir qilmaydi."
+    : (farq > 0
+        ? `Ombordagi qoldiq ${farq} ga KO'PAYADI.`
+        : `Ombordagi qoldiq ${Math.abs(farq)} ga KAMAYADI (qoldiq manfiyga ` +
+          `tushishi mumkin — keyingi kirimda qoplanadi).`);
   if (!(await customConfirm(
     "Tarixiy yozuv yangilanadi va qarz hisobi qayta hisoblanadi.\n\n" +
-    "⚠️ DIQQAT: Ombordagi joriy miqdor va o'rtacha narxga TA'SIR QILMAYDI " +
-    "(agar kerak bo'lsa Omborxonada qo'lda tuzating).\n\nDavom etilsinmi?"
+    "⚠️ " + farqMatn + " O'rtacha narx o'zgarmaydi.\n\nDavom etilsinmi?",
+    {danger: Math.abs(farq) > 1e-9}
   ))) return;
 
   if (inFlightPurchaseEdit.has(id)) return; // Ikki marta bosishdan himoya
@@ -818,17 +1075,25 @@ async function editPurchase(id, qty, price, isCredit) {
       showMsg('✓ Yangilandi', 'success');
       openHistory(currentSupplierId, true);
       loadSuppliers();
-    } else showMsg('❌ Xato', 'error');
+    } else {
+      // 21-band: server sababini ko'rsatamiz (`serverSababi`).
+      showMsg('❌ ' + (await serverSababi(res)), 'error');
+    }
   } catch(e) { showMsg('❌ Server xatosi', 'error'); } finally {
     inFlightPurchaseEdit.delete(id);
   }
 }
 
 async function deletePurchase(id) {
+  // 20-band (2026-09-21): ilgari bu oyna "ombordagi joriy miqdor AVTOMATIK
+  // o'zgarmaydi" deb ogohlantirardi — bu NOTO'G'RI edi: server xarid
+  // miqdorini ombordan AYIRADI (Omborxona sahifasidagi oyna to'g'ri
+  // yozardi). Endi ikkala sahifa bir xil haqiqatni aytadi.
   if (!(await customConfirm(
     "Bu xarid yozuvi o'chirilsinmi?\n\n" +
-    "⚠️ Qarz hisobi qayta hisoblanadi, lekin ombordagi joriy miqdor/narx " +
-    "AVTOMATIK o'zgarmaydi.\n\nDavom etilsinmi?",
+    "⚠️ Xarid miqdori OMBORDAN AYIRILADI va qarz hisobi qayta hisoblanadi. " +
+    "Agar bu xomashyo allaqachon ishlatilgan bo'lsa, qoldiq manfiyga tushishi " +
+    "mumkin — keyingi kirimda qoplanadi. O'rtacha narx o'zgarmaydi.\n\nDavom etilsinmi?",
     {danger:true}
   ))) return;
 
@@ -838,7 +1103,11 @@ async function deletePurchase(id) {
       showMsg('✓ O\'chirildi', 'success');
       openHistory(currentSupplierId, true);
       loadSuppliers();
-    } else showMsg('❌ Xato', 'error');
+    } else {
+      // 20-band: server sababini ko'rsatamiz (21-band da `serverSababi`
+      // yordamchisiga ko'chirildi — xulq AYNAN bir xil).
+      showMsg('❌ ' + (await serverSababi(res)), 'error');
+    }
   } catch(e) { showMsg('❌ Server xatosi', 'error'); }
 }
 
@@ -878,16 +1147,18 @@ async function savePayment(confirmOverpay = false){
         await savePayment(true);
         return;
       }
-    } else showMsg('❌ Xato', 'error');
+    } else showMsg('❌ ' + (await serverSababi(res)), 'error');
   }catch(e){ showMsg('❌ Server xatosi', 'error'); } finally {
     isSavingSupplierPayment = false; setSupplierPayBtnSaving(false);
   }
 }
 
 async function deletePayment(id){
-  if (!(await customConfirm("O'chirilsinmi? Qarz qayta oshadi."))) return;
+  if (!(await customConfirm("O'chirilsinmi? Qarz qayta oshadi.", {danger: true}))) return;
   const res = await fetch(`/api/suppliers/payments/${id}`, {method:'DELETE'});
   if (res.ok){ openHistory(currentSupplierId); loadSuppliers(); }
+  // kech120 (G4-04): rad etilsa — sababi (ilgari jim)
+  else if (typeof showMsg === 'function') showMsg('❌ ' + ((typeof serverXatoSababi === 'function') ? await serverXatoSababi(res, "O'chirilmadi") : "O'chirilmadi"), 'error');
 }
 
 loadSuppliers();

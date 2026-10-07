@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Loyihalar — PenoDecorPro ERP{% endblock %}
 {% block page_title %}Loyihalar{% endblock %}
-{% block page_sub %}Korxonaning barcha buyurtmalarini boshqaruvchi markaziy modul{% endblock %}
+{% block page_sub %}Mijoz va loyiha kartasi — pul xulosasi va buyurtmalari (buyurtma ustida ish — «Buyurtmalar» sahifasida){% endblock %}
 
 {% block topbar_actions %}
-<button class="btn btn-dark" onclick="showAddModal()"><i class="ti ti-plus" style="vertical-align:-2px"></i> Yangi loyiha</button>
+<button class="btn btn-dark" onclick="showAddModal()"><i class="ti ti-plus"></i> Yangi loyiha</button>
 {% endblock %}
 
 {% block head %}
@@ -20,9 +20,30 @@
   }
 }
 .proj-filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
-.proj-filters input,.proj-filters select{height:38px;padding:0 12px;border:1.5px solid var(--border);border-radius:10px;font-size:13px;outline:none;transition:border .15s}
+.proj-filters input,.proj-filters select{min-height:var(--h-btn);padding:0 12px;border:1.5px solid var(--border);border-radius:var(--r-btn);font-size:var(--fs-maydon);line-height:20px;outline:none;transition:border .15s}
 .proj-filters input:focus,.proj-filters select:focus{border-color:var(--gold)}
 .proj-layout{display:grid;grid-template-columns:400px 1fr;gap:16px;height:calc(100vh - 230px);min-height:520px}
+/* kech119 (C — telefon, G2-18, O'LCHANGAN: 390 px da sahifa 776 px kenglikda — 8 ta tab tugmasi ustunni kengaytirardi,
+   karta o'ng qismi, «Faol», «% to'langan» ko'rinmasdi): ustun mazmun bilan kengaymaydi — tablar o'z joyida yon tomonga suriladi */
+.proj-layout > *{min-width:0}
+.status-panel > *{min-width:0}
+.status-panel-val{overflow-wrap:break-word}
+#moneyRow > *{min-width:0}
+@media (max-width:600px){
+  .proj-filters > *{flex:1 1 140px;min-width:0}
+  /* `!important` — quyidagi asosiy `.status-panel…` qoidalari (12px, 14px 16px, 19 px) keyin keladi: «Kutilmoqda» 19 px da
+     145 px li qutiga sig'masdi */
+  .status-panel{gap:8px !important}
+  .status-panel-item{padding:10px 12px !important}
+  .status-panel-val{font-size:16px !important}
+  /* loyiha tanlangach «Loyiha qiymati / To'langan / Qolgan to'lov» — uch ustunda «Qolgan to'lov» 390 px da ekrandan
+     15 px, 360 px da 45 px chiqib qirqilardi (O'LCHANGAN): bitta ustun, har biri — nom chapda, summa o'ngda */
+  #moneyRow{grid-template-columns:1fr !important;gap:8px !important}
+  #moneyRow > div{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:10px 14px !important}
+  #moneyRow > div > div:last-child{margin-top:0 !important;font-size:16px !important;text-align:right;white-space:nowrap}
+  /* ro'yxatda mijoz nomi va telefoni («… · +998…») qisqartirilmaydi — ikki qatorga o'tadi */
+  .proj-name, .proj-client{white-space:normal !important;overflow-wrap:anywhere}
+}
 @media (max-width:1000px){
   .proj-layout{grid-template-columns:1fr;height:auto}
   /* Mobilda ichki scroll konteynerlarni o'chirib, butun sahifa bitta scroll bo'lishini ta'minlaymiz */
@@ -34,37 +55,42 @@
 .proj-list{overflow-y:auto;padding:2px}
 .proj-card{display:flex;gap:12px;padding:14px;border:1px solid var(--border2);border-radius:14px;margin-bottom:10px;cursor:pointer;transition:box-shadow .15s,border-color .15s,transform .15s;background:var(--white);opacity:0;animation:pIn .3s ease forwards;box-shadow:0 1px 2px rgba(16,24,40,.03)}
 @keyframes pIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+/* kech120 (zip 130 — E bosqichi 6-qism, O'LCHANGAN work/k132/trace2.py — telefon, CPU 4× sekin): ro'yxatning HAR qatori ochilishda
+   «paydo bo'lish» animatsiyasi bilan chizilardi — 60 loyihada sahifa ~0,7 s davomida qayta-qayta bo'yaladi (asosiy oqim 1,6–2,3 s →
+   animatsiyasiz 0,8–1,2 s). Endi faqat birinchi 20 qator (ekranda ko'rinadiganlar) animatsiyali, qolganlari darhol; tizimda
+   «harakatni kamaytirish» yoqilgan bo'lsa — hech biri. */
+.proj-card.anim-yoq{animation:none;opacity:1}
+@media (prefers-reduced-motion:reduce){.proj-card{animation:none;opacity:1}}
 .proj-card:hover{box-shadow:0 4px 16px rgba(16,24,40,.09);border-color:var(--border-strong);transform:translateY(-1px)}
 .proj-card.active{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold-tint),0 4px 16px rgba(16,24,40,.08);background:var(--gold-tint)}
-.proj-thumb{width:52px;height:52px;align-self:flex-start;border-radius:12px;background:linear-gradient(135deg,var(--gold-tint),#F3EEE0);display:flex;align-items:center;justify-content:center;color:var(--gold-dark);font-size:22px;flex-shrink:0;position:relative;overflow:hidden;cursor:pointer}
+.proj-thumb{width:52px;height:52px;align-self:flex-start;border-radius:12px;background:linear-gradient(135deg,var(--gold-tint),var(--f-f3eee0));display:flex;align-items:center;justify-content:center;color:var(--gold-dark);font-size:24px;flex-shrink:0;position:relative;overflow:hidden;cursor:pointer}
 .proj-thumb img{width:100%;height:100%;object-fit:cover}
 .proj-thumb input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
-.proj-thumb-cam{position:absolute;right:1px;bottom:1px;width:17px;height:17px;border-radius:50%;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;color:#fff;font-size:9px;cursor:pointer;z-index:2}
+.proj-thumb-cam{position:absolute;right:1px;bottom:1px;width:17px;height:17px;border-radius:50%;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;color:#fff;font-size:12px;cursor:pointer;z-index:2}
 .proj-thumb:hover .proj-thumb-cam{opacity:1}
 .proj-card-body{flex:1;min-width:0}
-.proj-num{font-size:11.5px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
-.proj-name{font-size:14.5px;font-weight:700;color:var(--text);margin:2px 0 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.proj-client{font-size:12.5px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.proj-num{font-size:12px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.proj-name{font-size:14px;font-weight:700;color:var(--text);margin:2px 0 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.proj-client{font-size:13px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .proj-footer{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
 .progress-bar{height:6px;background:var(--border2);border-radius:4px;margin-top:9px;overflow:hidden}
 .progress-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--gold),var(--gold-dark));transition:width .5s ease}
-.status-badge{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;white-space:nowrap}
-.st-active{background:#E6F1FB;color:#0C447C}
-.st-draft{background:#F1F5F9;color:#475569}
-.st-completed{background:#DCFCE7;color:#166534}
-.st-on_hold{background:#FEF3C7;color:#92400E}
-.st-cancelled{background:#FEE2E2;color:#991B1B}
+.status-badge{font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px;white-space:nowrap}
+.st-active{background:var(--f-e6f1fb);color:var(--m-0c447c)}
+.st-draft{background:var(--f-f1f5f9);color:var(--m-475569)}
+.st-completed{background:var(--f-dcfce7);color:var(--m-166534)}
+.st-on_hold{background:var(--f-fef3c7);color:var(--m-92400e)}
+.st-cancelled{background:var(--f-fee2e2);color:var(--m-991b1b)}
 
 .proj-detail{display:flex;flex-direction:column;overflow:hidden}
 .status-panel{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px}
 @media (max-width:900px){.status-panel{grid-template-columns:repeat(2,1fr)}}
 .status-panel-item{text-align:left;background:var(--bg);border-radius:12px;padding:14px 16px;border-left:3px solid var(--gold)}
-.status-panel-val{font-size:19px;font-weight:800;color:var(--text)}
+.status-panel-val{font-size:18px;font-weight:800;color:var(--text)}
 .status-panel-lbl{font-size:12px;color:var(--text3);margin-top:3px;font-weight:600}
-.tab-bar{display:flex;gap:4px;background:var(--bg);border-radius:12px;padding:4px;margin-bottom:16px;overflow-x:auto;flex-shrink:0}
-.tab-btn{padding:9px 16px;font-size:12.5px;font-weight:600;color:var(--text3);background:none;border:none;border-radius:9px;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s}
-.tab-btn:hover{color:var(--text)}
-.tab-btn.active{color:var(--text);background:var(--white);box-shadow:0 1px 3px rgba(16,24,40,.1)}
+/* U-13 (kech123): bo'lim tablari — umumiy `.tab` (style.css; Hisobotlar, Qarzdorlar bilan bir ko'rinish); telefonda tasma yon tomonga suriladi */
+.tab-bar{display:flex;gap:6px;margin-bottom:16px;overflow-x:auto;flex-shrink:0;padding-bottom:2px}
+.tab-bar .tab{flex-shrink:0}
 .tab-content{flex:1;overflow-y:auto}
 .info-row{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border2);font-size:13px}
 .info-row:last-child{border-bottom:none}
@@ -77,26 +103,26 @@
 .fin-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px}
 .fin-stat{border-radius:12px;padding:14px}
 .fin-stat-head{display:flex;align-items:center;gap:7px;margin-bottom:6px;font-size:12px;font-weight:600}
-.fin-stat-val{font-size:19px;font-weight:800}
+.fin-stat-val{font-size:18px;font-weight:800}
 .fin-budget{background:var(--bg)}
 .fin-budget .fin-stat-head{color:var(--text3)}
 .fin-budget .fin-stat-val{color:var(--text)}
-.fin-paid{background:#EAF7EE}
-.fin-paid .fin-stat-head,.fin-paid .fin-stat-val{color:#1D7A3C}
-.fin-debt{background:#FDECEC}
-.fin-debt .fin-stat-head,.fin-debt .fin-stat-val{color:#C0392B}
-.fin-profit{background:#F2ECFB}
-.fin-profit .fin-stat-head,.fin-profit .fin-stat-val{color:#6B3FA0}
+.fin-paid{background:var(--f-eaf7ee)}
+.fin-paid .fin-stat-head,.fin-paid .fin-stat-val{color:var(--m-1d7a3c)}
+.fin-debt{background:var(--f-fdecec)}
+.fin-debt .fin-stat-head,.fin-debt .fin-stat-val{color:var(--m-c0392b)}
+.fin-profit{background:var(--f-f2ecfb)}
+.fin-profit .fin-stat-head,.fin-profit .fin-stat-val{color:var(--m-6b3fa0)}
 
 .zebra-list{border-radius:12px;overflow:hidden;border:1px solid var(--border2)}
 .zebra-row{display:flex;align-items:center;gap:12px;padding:10px 12px}
 .zebra-row:nth-child(even){background:var(--bg)}
 .zebra-row:not(:last-child){border-bottom:1px solid var(--border2)}
-.zebra-icon{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:15px}
-.zebra-icon.zi-in{background:#DCFCE7;color:#16A34A}
-.zebra-icon.zi-out{background:#FEE2E2;color:#DC2626}
+.zebra-icon{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px}
+.zebra-icon.zi-in{background:var(--f-dcfce7);color:var(--m-15803d)}
+.zebra-icon.zi-out{background:var(--f-fee2e2);color:var(--m-dc2626)}
 .zebra-icon.zi-neutral{background:var(--gold-tint);color:var(--gold-dark)}
-.zebra-title{font-size:13.5px;font-weight:600;color:var(--text)}
+.zebra-title{font-size:13px;font-weight:600;color:var(--text)}
 .zebra-sub{font-size:12px;color:var(--text3);margin-top:2px}
 .zebra-val{font-size:13px;font-weight:700;white-space:nowrap}
 
@@ -113,8 +139,34 @@
 .prod-acc-body.open{display:block}
 .zebra-list-flat .zebra-row:not(:last-child){border-bottom:1px solid var(--border2)}
 .zebra-list.zebra-list-flat{border:none;border-radius:0}
+/* kech124 (zip 144 — egasi QARORLARI 06.10): «Yuk xatlari» bo'limi — loyihaning hamma buyurtmalari yuk xatlari, belgilash va
+   «Jamlab olish». Tugmalar yozuvi bitta qatorda (sig'masa — tugma keyingi qatorga o'tadi, o'zi ikki qavat bo'lmaydi). */
+.yx-bosh{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;margin-bottom:10px}
+.yx-xulosa{font-size:13px;color:var(--text3);min-width:0}
+.yx-xulosa b{color:var(--text)}
+.yx-amallar{display:flex;flex-wrap:wrap;gap:6px}
+.yx-amallar .btn{white-space:nowrap}
+.btn.yx-ochiq-emas{opacity:.45;pointer-events:none;cursor:default}
+/* qator: belgi | raqam, sana, detallar | summa | 📄 — telefonda summa matn ostiga (matn ustuni torayib ketmasin) */
+.zebra-row.yx-qator{display:grid;grid-template-columns:18px minmax(0,1fr) auto auto;grid-template-areas:"belgi matn summa pdf";
+  align-items:start;column-gap:12px;cursor:pointer}
+.yx-qator input[type=checkbox]{grid-area:belgi;width:18px;height:18px;margin:2px 0 0;cursor:pointer;accent-color:var(--gold)}
+.yx-matn{grid-area:matn;min-width:0}
+.yx-pdf{grid-area:pdf}
+.yx-raqam{font-size:13px;font-weight:700;color:var(--text);overflow-wrap:anywhere}
+.yx-sana{font-weight:400;color:var(--text3)}
+.yx-detallar{font-size:13px;color:var(--text2);margin-top:3px;line-height:1.5;overflow-wrap:anywhere}
+.yx-detallar b{white-space:nowrap}
+.yx-summa{grid-area:summa;font-size:13px;font-weight:700;color:var(--gold-dark);white-space:nowrap;margin-top:1px}
+.yx-izoh{font-size:12px;color:var(--text3);margin-top:10px;line-height:1.5}
+@media (max-width:600px){
+  .yx-amallar{width:100%}
+  .yx-amallar > .btn{flex:1 1 auto}
+  .zebra-row.yx-qator{grid-template-columns:18px minmax(0,1fr) auto;grid-template-areas:"belgi matn pdf" "belgi summa pdf";row-gap:4px}
+  .yx-summa{margin-top:0}
+}
 .proj-toast-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:3000;display:none;align-items:center;justify-content:center;padding:20px}
-.proj-toast{background:#fff;border-radius:16px;padding:26px 30px;max-width:420px;max-height:80vh;overflow-y:auto;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.28);white-space:pre-line;font-size:14px;font-weight:600;color:var(--text);line-height:1.6}
+.proj-toast{background:var(--white);border-radius:16px;padding:26px 30px;max-width:420px;max-height:80vh;overflow-y:auto;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.28);white-space:pre-line;font-size:14px;font-weight:600;color:var(--text);line-height:1.6}
 </style>
 {% endblock %}
 
@@ -123,12 +175,12 @@
 
   <div class="stat-grid mb-16" id="kpiRow">
     <div class="stat-card"><div class="stat-icon"><i class="ti ti-briefcase"></i></div><div class="stat-label">Faol loyihalar</div><div class="stat-val">{{ kpi.active }} ta</div></div>
-    <div class="stat-card"><div class="stat-icon" style="background:#DCFCE7;color:#166534"><i class="ti ti-circle-check"></i></div><div class="stat-label">Yakunlangan</div><div class="stat-val">{{ kpi.completed }} ta</div></div>
-    <div class="stat-card"><div class="stat-icon" style="background:#FEF3C7;color:#92400E"><i class="ti ti-hourglass"></i></div><div class="stat-label">Kutayotgan</div><div class="stat-val">{{ kpi.on_hold }} ta</div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:var(--f-dcfce7);color:var(--m-166534)"><i class="ti ti-circle-check"></i></div><div class="stat-label">Yakunlangan</div><div class="stat-val">{{ kpi.completed }} ta</div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:var(--f-fef3c7);color:var(--m-92400e)"><i class="ti ti-hourglass"></i></div><div class="stat-label">Kutayotgan</div><div class="stat-val">{{ kpi.on_hold }} ta</div></div>
     <div class="stat-card"><div class="stat-icon"><i class="ti ti-calendar-plus"></i></div><div class="stat-label">Shu oy boshlangan</div><div class="stat-val">{{ kpi.started_this_month }} ta</div></div>
-    <div class="stat-card"><div class="stat-icon" style="background:#DCFCE7;color:#166534"><i class="ti ti-calendar-check"></i></div><div class="stat-label">Shu oy yakunlangan</div><div class="stat-val">{{ kpi.completed_this_month }} ta</div></div>
-    {% if current_user.role.value != 'manager' %}
-    <div class="stat-card"><div class="stat-icon" style="background:var(--gold);color:#fff"><i class="ti ti-report-money"></i></div><div class="stat-label">Umumiy sof foyda</div><div class="stat-val">{{ "%.1f"|format(kpi.total_profit/1000000) }} mln</div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:var(--f-dcfce7);color:var(--m-166534)"><i class="ti ti-calendar-check"></i></div><div class="stat-label">Shu oy yakunlangan</div><div class="stat-val">{{ kpi.completed_this_month }} ta</div></div>
+    {% if current_user.ruxsat('tannarx', 'korish') %}
+    <div class="stat-card"><div class="stat-icon" style="background:var(--gold-btn);color:#fff"><i class="ti ti-report-money"></i></div><div class="stat-label">Umumiy sof foyda</div><div class="stat-val">{{ (kpi.total_profit/1000000)|son(1) }} mln</div></div>
     {% endif %}
   </div>
 
@@ -150,8 +202,10 @@
     <div class="proj-list" id="projList">
       {% if projects %}
       {% for p in projects %}
-      {% set paid_pct = [(p.total_paid / p.total_budget * 100)|round if p.total_budget > 0 else 0, 100]|min %}
-      <div class="proj-card {% if loop.first %}active{% endif %}" style="animation-delay:{{ (loop.index0 % 20)*0.02 }}s" onclick="selectProj(this)"
+      {# kech116 (G2-01, QAROR «Loyiha qiymati — buyurtmalardan»): foiz, qiymat, to'langan, qarz — buyurtmalardan
+         (`crud.loyiha_pul_hisobi`); ilgari qo'lda yoziladigan «Byudjet» dan edi (odatda 0 — «0% to'langan») #}
+      {% set paid_pct = p.pul.foiz %}
+      <div class="proj-card {% if loop.first %}active{% endif %}{% if loop.index0 >= 20 %} anim-yoq{% endif %}"{% if loop.index0 < 20 %} style="animation-delay:{{ loop.index0 * 0.02 }}s"{% endif %} onclick="selectProj(this)"
            data-id="{{ p.id }}"
            data-num="{{ p.project_number }}"
            data-name="{{ p.project_name }}"
@@ -159,18 +213,20 @@
            data-phone="{{ p.client_phone or '—' }}"
            data-address="{{ p.client_address or '—' }}"
            data-status="{{ p.status.name }}"
-           data-budget="{{ p.total_budget }}"
-           data-paid="{{ p.total_paid }}"
-           data-start="{{ p.start_date.strftime('%d.%m.%Y') if p.start_date else '—' }}"
-           data-start-raw="{{ p.start_date.strftime('%Y-%m-%d') if p.start_date else '' }}"
-           data-deadline="{{ p.deadline.strftime('%d.%m.%Y') if p.deadline else '—' }}"
+           data-qiymat="{{ '%.2f'|format(p.pul.qiymat) }}"
+           data-paid="{{ '%.2f'|format(p.pul.tolangan) }}"
+           data-qarz="{{ '%.2f'|format(p.pul.qarz) }}"
+           data-ortiqcha="{{ '%.2f'|format(p.pul.ortiqcha) }}"
+           data-start="{{ p.start_date|toshkent('%d.%m.%Y') if p.start_date else '—' }}"
+           data-start-raw="{{ p.start_date|toshkent('%Y-%m-%d') if p.start_date else '' }}"
+           data-deadline="{{ p.deadline|toshkent('%d.%m.%Y') if p.deadline else '—' }}"
            data-deadline-raw="{{ p.deadline.isoformat() if p.deadline else '' }}"
            data-orders="{{ p.orders_count }}"
            data-notes="{{ p.notes or '' }}"
            data-image="{{ p.image_url or '' }}">
         <label class="proj-thumb" onclick="event.stopPropagation()">
           {% if p.image_url %}
-          <img src="{{ p.image_url }}" alt="" onclick="event.preventDefault();event.stopPropagation();openProjLightbox('{{ p.image_url }}')">
+          <img src="{{ p.image_url|kichik_rasm }}" alt="" data-src="{{ p.image_url }}" onclick="event.preventDefault();event.stopPropagation();openProjLightbox(this.dataset.src)">
           {% else %}
           <i class="ti ti-building-skyscraper" onclick="event.preventDefault();event.stopPropagation();document.getElementById('pimg-{{ p.id }}').click()"></i>
           {% endif %}
@@ -192,17 +248,25 @@
           <span style="font-size:13px;color:var(--text3)"><i class="ti ti-clipboard-list" style="font-size:13px"></i> {{ p.orders_count }} ta buyurtma</span>
           <span style="font-size:13px;color:var(--text3)">{{ paid_pct }}% to'langan</span>
         </div>
-        <div class="progress-bar" id="progress-{{ p.id }}"><div class="progress-fill" style="width:0%"></div></div>
+        {# kech120 (zip 134 — G2-19): chiziq — BAJARILISH foizi (tayyor / yetkazilgan buyurtmalar), «… to'langan» yozuvi ostida to'lov chizig'i
+           deb o'qilardi — endi nomi bilan #}
+        <div class="progress-bar" id="progress-{{ p.id }}" title="Bajarilgan (tayyor / yetkazilgan buyurtmalar ulushi)"><div class="progress-fill" style="width:0%"></div></div>
+        <div class="proj-bajarildi" id="pbaj-{{ p.id }}" style="font-size:12px;color:var(--text3);margin-top:3px"></div>
         </div>
       </div>
       {% endfor %}
       {% else %}
-      <div style="text-align:center;padding:40px;color:var(--text3)">Loyiha yo'q</div>
+      {# kech120 (zip 134 — F bosqichi 4-qism, audit G2-22): ilgari kulrang «Loyiha yo'q» va hech narsa qilmaydigan 8 ta tab #}
+      <div class="proj-bosh" style="text-align:center;padding:30px 18px;color:var(--text2);font-size:13px;line-height:1.55">
+        <div style="font-weight:700;color:var(--text);margin-bottom:6px">Hali loyiha yo'q</div>
+        Loyiha — mijoz va uning obyekti (masalan: «Karimov Botir — Hovli fasadi»). Buyurtmalar loyiha ichida yaratiladi.
+        {% if current_user.ruxsat('loyiha', 'yaratish') %}<div style="margin-top:12px"><button class="btn btn-dark" onclick="showAddModal()">+ Birinchi loyihani yaratish</button></div>{% endif %}
+      </div>
       {% endif %}
     </div>
 
     <!-- O'ng: detal -->
-    <div class="card proj-detail" id="projDetail">
+    <div class="card proj-detail" id="projDetail"{% if not projects %} style="display:none"{% endif %}>
       <div class="card-head">
         <h3 id="d-name">Loyiha tanlang</h3>
         <span class="status-badge" id="d-status"></span>
@@ -213,20 +277,24 @@
         <div class="status-panel" id="statusPanel"></div>
 
         <div class="tab-bar" id="tabBar">
-          <button class="tab-btn active" data-tab="asosiy" onclick="switchTab('asosiy')">Asosiy</button>
-          <button class="tab-btn" data-tab="orders" onclick="switchTab('orders')">Buyurtmalar</button>
-          {% if current_user.role.value != 'manager' %}
-          <button class="tab-btn" data-tab="finance" onclick="switchTab('finance')">Moliya</button>
+          <button class="tab-btn tab active" data-tab="asosiy" onclick="switchTab('asosiy')">Asosiy</button>
+          <button class="tab-btn tab" data-tab="orders" onclick="switchTab('orders')">Buyurtmalar</button>
+          {# kech124 (zip 144): yuk xatlari va «Jamlab olish» — yuk xati PDF i bilan bir ruxsat («Yetkazib berish va transport: Ko'rish») #}
+          {% if current_user.ruxsat('yetkazish', 'korish') %}
+          <button class="tab-btn tab" data-tab="yuklar" onclick="switchTab('yuklar')">Yuk xatlari</button>
           {% endif %}
-          <button class="tab-btn" data-tab="payments" onclick="switchTab('payments')">To'lovlar</button>
-          <button class="tab-btn" data-tab="products" onclick="switchTab('products')">Mahsulotlar</button>
-          <button class="tab-btn" data-tab="materials" onclick="switchTab('materials')">Xomashyo</button>
-          <button class="tab-btn" data-tab="timeline" onclick="switchTab('timeline')">Timeline</button>
-          <button class="tab-btn" data-tab="notes" onclick="switchTab('notes')">Izohlar</button>
+          {% if current_user.ruxsat('tannarx', 'korish') %}
+          <button class="tab-btn tab" data-tab="finance" onclick="switchTab('finance')">Moliya</button>
+          {% endif %}
+          <button class="tab-btn tab" data-tab="payments" onclick="switchTab('payments')">To'lovlar</button>
+          <button class="tab-btn tab" data-tab="products" onclick="switchTab('products')">Mahsulotlar</button>
+          <button class="tab-btn tab" data-tab="materials" onclick="switchTab('materials')">Xomashyo</button>
+          <button class="tab-btn tab" data-tab="timeline" onclick="switchTab('timeline')">Tarix</button>
+          <button class="tab-btn tab" data-tab="notes" onclick="switchTab('notes')">Izohlar</button>
         </div>
 
         <div class="tab-content" id="tabContent">
-          <div style="text-align:center;padding:30px;color:var(--text3)">Chapdan loyiha tanlang</div>
+          <div style="text-align:center;padding:30px;color:var(--text3)">Loyihani tanlang</div>
         </div>
       </div>
     </div>
@@ -235,33 +303,31 @@
 
 <!-- Yangi loyiha modal -->
 <div id="addModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:14px;padding:24px;width:480px;max-width:100%;max-height:90vh;overflow-y:auto">
+  <div style="background:var(--white);border-radius:14px;padding:24px;width:480px;max-width:100%;max-height:90vh;overflow-y:auto">
     <div style="font-size:16px;font-weight:600;margin-bottom:18px">+ Yangi loyiha</div>
     <div class="form-row">
-      <div class="form-group" style="margin-bottom:12px"><label>Mijoz ismi</label><input type="text" id="f-client" placeholder="Karimov Botir"></div>
-      <div class="form-group" style="margin-bottom:12px"><label>Telefon</label><input type="text" id="f-phone" placeholder="+998901234567"></div>
+      <div class="form-group" style="margin-bottom:12px"><label>Mijoz ismi</label><input type="text" id="f-client" placeholder="Masalan: Karimov Botir"></div>
+      <div class="form-group" style="margin-bottom:12px"><label>Telefon</label><input type="text" id="f-phone" placeholder="Masalan: +998 90 123 45 67"></div>
     </div>
-    <div class="form-group"><label>Loyiha nomi</label><input type="text" id="f-pname" placeholder="Hovli fasadi"></div>
+    <div class="form-group"><label>Loyiha nomi</label><input type="text" id="f-pname" placeholder="Masalan: Hovli fasadi"></div>
     <div class="form-group"><label>Manzil</label><input type="text" id="f-address" placeholder="Andijon, ..."></div>
     <div class="form-group">
-      <label>Mijoz Telegram ID <span style="color:var(--text3);font-weight:400">(buyurtma tayyor bo'lganda SMS uchun)</span></label>
+      <label>Mijoz Telegram ID <span style="color:var(--text3);font-weight:400">(buyurtma tayyor bo'lganda Telegram xabari uchun)</span></label>
       <input type="text" id="f-tg-id" placeholder="Masalan: 123456789">
     </div>
-    <div class="form-row">
-      <div class="form-group" style="margin:0"><label>Byudjet (so'm)</label><input type="number" id="f-budget" placeholder="0" min="0"></div>
-      <div class="form-group" style="margin:0"><label>Muddati</label><input type="date" id="f-deadline"></div>
-    </div>
+    <!-- kech116 (G2-01): «Byudjet» maydoni olib tashlandi — loyiha qiymati buyurtmalardan hisoblanadi -->
+    <div class="form-group" style="margin:0"><label>Muddati</label><input type="date" id="f-deadline"></div>
     <div class="form-group"><label>Izoh</label><input type="text" id="f-notes" placeholder="..."></div>
     <div style="display:flex;gap:8px;margin-top:12px">
       <button class="btn btn-dark w-full" id="proj-new-save-btn" onclick="saveProject()">Saqlash</button>
-      <button class="btn btn-outline w-full" onclick="closeModal()">Bekor</button>
+      <button data-yopish class="btn btn-outline w-full" onclick="closeModal()">Bekor</button>
     </div>
   </div>
 </div>
 
 <!-- Tahrirlash modal -->
 <div id="editModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:14px;padding:24px;width:480px;max-width:100%;max-height:90vh;overflow-y:auto">
+  <div style="background:var(--white);border-radius:14px;padding:24px;width:480px;max-width:100%;max-height:90vh;overflow-y:auto">
     <div style="font-size:16px;font-weight:600;margin-bottom:18px">✏️ Loyihani tahrirlash</div>
     <div class="form-row">
       <div class="form-group" style="margin-bottom:12px"><label>Mijoz ismi</label><input type="text" id="e-client"></div>
@@ -270,46 +336,36 @@
     <div class="form-group"><label>Loyiha nomi</label><input type="text" id="e-pname"></div>
     <div class="form-group"><label>Manzil</label><input type="text" id="e-address"></div>
     <div class="form-group">
-      <label>Mijoz Telegram ID <span style="color:var(--text3);font-weight:400">(buyurtma tayyor bo'lganda SMS uchun)</span></label>
+      <label>Mijoz Telegram ID <span style="color:var(--text3);font-weight:400">(buyurtma tayyor bo'lganda Telegram xabari uchun)</span></label>
       <input type="text" id="e-tg-id" placeholder="Masalan: 123456789">
     </div>
-    <div class="form-row">
-      <div class="form-group" style="margin:0"><label>Byudjet (so'm)</label><input type="number" id="e-budget" min="0"></div>
-      <div class="form-group" style="margin:0">
-        <label>Holati</label>
-        <select id="e-status">
-          <option value="DRAFT">Yangi</option>
-          <option value="ACTIVE">Faol</option>
-          <option value="ON_HOLD">Kutmoqda</option>
-          <option value="COMPLETED">Yakunlangan</option>
-          <option value="CANCELLED">Bekor qilingan</option>
-        </select>
-      </div>
+    <!-- kech116 (G2-01): «Byudjet» maydoni olib tashlandi — loyiha qiymati buyurtmalardan hisoblanadi (bazadagi ustunga
+         tegilmaydi: saqlash tanasida `total_budget` YO'Q) -->
+    <div class="form-group" style="margin:0">
+      <label>Holati</label>
+      <select id="e-status">
+        <option value="DRAFT">Yangi</option>
+        <option value="ACTIVE">Faol</option>
+        <option value="ON_HOLD">Kutmoqda</option>
+        <option value="COMPLETED">Yakunlangan</option>
+        <option value="CANCELLED">Bekor qilingan</option>
+      </select>
     </div>
+    <!-- kech107 (10a): muddatni tahrirda ham qo'shish / o'zgartirish / olib tashlash (bo'sh — muddatsiz) -->
+    <div class="form-group" style="margin-top:12px"><label>Muddati</label><input type="date" id="e-deadline"></div>
     <div class="form-group"><label>Izoh</label><input type="text" id="e-notes"></div>
     <div style="display:flex;gap:8px;margin-top:12px">
       <button class="btn btn-dark w-full" id="proj-edit-save-btn" onclick="saveEditProject()">Saqlash</button>
-      <button class="btn btn-outline w-full" onclick="document.getElementById('editModal').style.display='none'">Bekor</button>
+      <button data-yopish class="btn btn-outline w-full" onclick="document.getElementById('editModal').style.display='none'">Bekor</button>
     </div>
   </div>
 </div>
 
 <!-- ══ RASM KATTALASHTIRISH (LIGHTBOX) ══ -->
-<div id="projLightbox" onclick="closeProjLightbox()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2000;align-items:center;justify-content:center;cursor:zoom-out">
+<div id="projLightbox" data-yopish onclick="closeProjLightbox()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2000;align-items:center;justify-content:center;cursor:zoom-out">
   <img id="projLightboxImg" src="" alt="" style="max-width:90vw;max-height:90vh;border-radius:8px;object-fit:contain">
 </div>
 
-<!-- To'lov modal -->
-<div id="payModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:14px;padding:24px;width:360px;max-width:100%">
-    <div style="font-size:16px;font-weight:600;margin-bottom:18px">💰 To'lov qo'shish</div>
-    <div class="form-group"><label>Summa (so'm)</label><input type="number" id="pay-amount" placeholder="0" min="0"></div>
-    <div style="display:flex;gap:8px;margin-top:4px">
-      <button class="btn btn-gold w-full" id="proj-pay-save-btn" onclick="savePayment()">Qo'shish</button>
-      <button class="btn btn-outline w-full" onclick="document.getElementById('payModal').style.display='none'">Bekor</button>
-    </div>
-  </div>
-</div>
 {% endblock %}
 
 {% block scripts %}
@@ -341,6 +397,10 @@
 <script>
 let selectedProjId = null;
 let progressMap = {};
+// kech124 (zip 145): bajarilish foizlari xaritasi holati — 'kutilmoqda' (so'rov hali qaytmagan), 'tayyor', 'xato'. Ilgari holat
+// paneli «🏭 Bajarilgan» ni `progressMap[id] || 0` dan BIR MARTA yozardi: sahifa ochilganda birinchi loyiha `load` da tanlanadi,
+// xarita undan keyin kelsa panel 0 % bo'lib QOLARDI (staging, PRJ-051: panel 0 %, xaritada 40 % — jonli O'LCHANGAN).
+let progressMapHolat = 'kutilmoqda';
 let currentTab = 'asosiy';
 
 // MUHIM: brauzerning standart alert()'i o'rniga — u sayt manzilini
@@ -353,6 +413,7 @@ function projToast(text) {
     overlay = document.createElement('div');
     overlay.id = 'projToastOverlay';
     overlay.className = 'proj-toast-overlay';
+    overlay.setAttribute('data-yopish', '');   // kech118 (U-08): Esc ham yopadi
     overlay.innerHTML = '<div class="proj-toast" id="projToastText"></div>';
     document.body.appendChild(overlay);
     overlay.addEventListener('click', function(e) { if (e.target === overlay) projToastHide(); });
@@ -403,12 +464,31 @@ async function uploadProjImage(id, input) {
 
 async function loadProgressMap(){
   try {
-    progressMap = await fetch('/api/projects/progress-map').then(r=>r.json());
+    const r = await fetch('/api/projects/progress-map');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const xarita = await r.json();
+    if (!xarita || typeof xarita !== 'object' || Array.isArray(xarita)) throw new Error('xarita emas');
+    progressMap = xarita;
+    progressMapHolat = 'tayyor';
     Object.keys(progressMap).forEach(pid => {
       const el = document.querySelector(`#progress-${pid} .progress-fill`);
       if (el) el.style.width = progressMap[pid] + '%';
+      const yoz = document.getElementById('pbaj-' + pid);
+      if (yoz) yoz.textContent = '🏭 Bajarilgan ' + (Number(progressMap[pid]) || 0) + '%';
     });
-  } catch(e) {}
+  } catch(e) { progressMapHolat = 'xato'; }
+  bajarilganYangila();
+}
+
+// kech124 (zip 145): holat panelidagi «🏭 Bajarilgan» — xarita kelguncha «…», kelganda foiz, kelmasa (ruxsat yo'q / xato) «—»
+// (yolg'on 0 % emas). Xarita qaysi paytda kelsa ham HOZIR tanlangan loyiha uchun yangilanadi.
+function bajarilganMatni(pid) {
+  if (progressMapHolat === 'tayyor') return (Number(progressMap[pid]) || 0) + '%';
+  return progressMapHolat === 'xato' ? '—' : '…';
+}
+function bajarilganYangila() {
+  const el = document.getElementById('sp-bajarilgan');
+  if (el && selectedProjId != null) el.textContent = bajarilganMatni(selectedProjId);
 }
 
 function selectProj(el) {
@@ -421,22 +501,24 @@ function selectProj(el) {
   statusEl.className = `status-badge st-${d.status}`;
   statusEl.textContent = (STATUS_MAP[d.status] || '').replace(/<[^>]+>/g, '') || d.status;
 
-  const budget = parseFloat(d.budget)||0, paid = parseFloat(d.paid)||0;
-  const qolgan = Math.max(0, budget - paid);
+  // kech116 (G2-01, QAROR «Loyiha qiymati — buyurtmalardan»): qiymat = buyurtmalar kelishilgan summalari, to'langan —
+  // ularning to'lovlari, qolgan to'lov — ularning qarzi (Qarzdorlar / Buyurtmalar bilan bir qoida — `crud.loyiha_pul_hisobi`)
+  const budget = parseFloat(d.qiymat)||0, paid = parseFloat(d.paid)||0;
+  const qolgan = Math.max(0, parseFloat(d.qarz)||0);
   const moneyRow = document.getElementById('moneyRow');
   moneyRow.style.display = 'grid';
   moneyRow.innerHTML = `
-    <div style="background:#F8F2EB;border-radius:12px;padding:14px 16px">
-      <div style="font-size:11.5px;color:#A86B36;font-weight:700;text-transform:uppercase;letter-spacing:.03em">Loyiha qiymati</div>
-      <div style="font-size:18px;font-weight:800;color:#A86B36;margin-top:4px">${fmt(budget)} so'm</div>
+    <div style="background:var(--f-f8f2eb);border-radius:12px;padding:14px 16px">
+      <div style="font-size:12px;color:var(--gold-dark);font-weight:700;text-transform:uppercase;letter-spacing:.03em">Loyiha qiymati</div>
+      <div style="font-size:18px;font-weight:800;color:var(--gold-dark);margin-top:4px">${fmt(budget)} so'm</div>
     </div>
-    <div style="background:#F0FDF4;border-radius:12px;padding:14px 16px">
-      <div style="font-size:11.5px;color:#166534;font-weight:700;text-transform:uppercase;letter-spacing:.03em">To'langan</div>
-      <div style="font-size:18px;font-weight:800;color:#166534;margin-top:4px">${fmt(paid)} so'm</div>
+    <div style="background:var(--f-f0fdf4);border-radius:12px;padding:14px 16px">
+      <div style="font-size:12px;color:var(--m-166534);font-weight:700;text-transform:uppercase;letter-spacing:.03em">To'langan</div>
+      <div style="font-size:18px;font-weight:800;color:var(--m-166534);margin-top:4px">${fmt(paid)} so'm</div>
     </div>
-    <div style="background:${qolgan>0?'#FEF2F2':'#F0FDF4'};border-radius:12px;padding:14px 16px">
-      <div style="font-size:11.5px;color:${qolgan>0?'#DC2626':'#166534'};font-weight:700;text-transform:uppercase;letter-spacing:.03em">Qolgan to'lov</div>
-      <div style="font-size:18px;font-weight:800;color:${qolgan>0?'#DC2626':'#166534'};margin-top:4px">${fmt(qolgan)} so'm</div>
+    <div style="background:${qolgan>0?'var(--f-fef2f2)':'var(--f-f0fdf4)'};border-radius:12px;padding:14px 16px">
+      <div style="font-size:12px;color:${qolgan>0?'var(--m-b91c1c)':'var(--m-166534)'};font-weight:700;text-transform:uppercase;letter-spacing:.03em">Qolgan to'lov</div>
+      <div style="font-size:18px;font-weight:800;color:${qolgan>0?'var(--m-b91c1c)':'var(--m-166534)'};margin-top:4px">${fmt(qolgan)} so'm</div>
     </div>`;
 
   loadStatusPanel(d);
@@ -444,14 +526,14 @@ function selectProj(el) {
 }
 
 async function loadStatusPanel(d){
-  const budget = parseFloat(d.budget)||0;
+  const budget = parseFloat(d.qiymat)||0;     // kech116 (G2-01): loyiha qiymati — buyurtmalardan
   const paid = parseFloat(d.paid)||0;
   const paidPct = budget > 0 ? Math.min(100, Math.round(paid/budget*100)) : 0;
-  const progress = progressMap[d.id] || 0;
+  const progress = bajarilganMatni(d.id);     // kech124 (zip 145): xarita hali kelmagan bo'lsa «…» — kelganda bajarilganYangila()
 
   let deadlineTxt = '—', deadlineColor = 'var(--text)';
   if (d.deadlineRaw) {
-    const days = Math.ceil((new Date(d.deadlineRaw) - new Date()) / 86400000);
+    const days = tkKunFarqi(d.deadlineRaw);     // kech106: Toshkent kalendar kunlari
     deadlineTxt = days >= 0 ? `${days} kun qoldi` : `${Math.abs(days)} kun kechikdi`;
     deadlineColor = days < 0 ? '#DC2626' : (days <= 3 ? '#F59E0B' : 'var(--text)');
   }
@@ -459,9 +541,17 @@ async function loadStatusPanel(d){
   document.getElementById('statusPanel').innerHTML = `
     <div class="status-panel-item" style="border-color:#B9783F"><div class="status-panel-val">${paidPct}%</div><div class="status-panel-lbl">💰 To'langan</div></div>
     <div class="status-panel-item" style="border-color:#8E44AD"><div class="status-panel-val">${d.orders} ta</div><div class="status-panel-lbl">📦 Buyurtmalar</div></div>
-    <div class="status-panel-item" style="border-color:#22C55E"><div class="status-panel-val">${progress}%</div><div class="status-panel-lbl">🏭 Bajarilgan</div></div>
-    <div class="status-panel-item" style="border-color:#F59E0B"><div class="status-panel-val">${d.status === 'COMPLETED' ? 'Yetkazildi' : 'Kutilmoqda'}</div><div class="status-panel-lbl">🚚 Yetkazish</div></div>
-    <div class="status-panel-item" style="border-color:${deadlineColor==='var(--text)'?'#94A3B8':deadlineColor}"><div class="status-panel-val" style="color:${deadlineColor}">${deadlineTxt}</div><div class="status-panel-lbl">📅 Muddat</div></div>`;
+    <div class="status-panel-item" style="border-color:#22C55E"><div class="status-panel-val" id="sp-bajarilgan">${progress}</div><div class="status-panel-lbl">🏭 Bajarilgan</div></div>
+    <div class="status-panel-item" style="border-color:#F59E0B"><div class="status-panel-val" id="sp-yetkazish">${d.status === 'COMPLETED' ? 'Yetkazildi' : '…'}</div><div class="status-panel-lbl">🚚 Yetkazish</div></div>
+    <div class="status-panel-item" style="border-color:${deadlineColor==='var(--text)'?'#94A3B8':deadlineColor}"><div class="status-panel-val" style="color:${matnRangi(deadlineColor)}">${deadlineTxt}</div><div class="status-panel-lbl">📅 Muddat</div></div>`;
+  // kech120 (zip 134 — G2-19): «Yetkazish» — buyurtmalarning to'liq topshirilgani («2/3 topshirildi»); ilgari faqat loyiha «Yakunlangan» bo'lsa
+  try {
+    const t = await fetch(`/api/projects/${encodeURIComponent(d.id)}/topshirish`).then(r => r.ok ? r.json() : null);
+    const el = document.getElementById('sp-yetkazish');
+    if (el && t && String(selectedProjId) === String(d.id)) {
+      el.textContent = !t.jami ? '—' : (t.topshirilgan >= t.jami ? 'Hammasi topshirildi' : `${t.topshirilgan}/${t.jami} topshirildi`);
+    }
+  } catch (e) { const el = document.getElementById('sp-yetkazish'); if (el && el.textContent === '…') el.textContent = '—'; }
 }
 
 function switchTab(tab, force) {
@@ -477,6 +567,7 @@ function switchTab(tab, force) {
 
   if (tab === 'asosiy') return renderAsosiy(d);
   if (tab === 'orders') return renderOrders(d);
+  if (tab === 'yuklar') return renderYukXatlari(d);
   if (tab === 'finance') return renderFinance(d);
   if (tab === 'payments') return renderPayments(d);
   if (tab === 'products') return renderProducts(d);
@@ -486,79 +577,196 @@ function switchTab(tab, force) {
 }
 
 function renderAsosiy(d) {
-  const _budget = parseFloat(d.budget)||0, _paid = parseFloat(d.paid)||0;
-  const _debtLeft = Math.max(0, _budget - _paid);
+  // 17c (2026-09-21): loyihaga to'g'ridan-to'g'ri "💰 To'lov qo'shish"
+  // tugmasi OLIB TASHLANDI (foydalanuvchi qarori "1"): u pulni to'lov
+  // yozuvisiz yozardi, Moliyaga tushmasdi va keyingi buyurtma to'lovida
+  // o'chib ketardi. To'lov faqat buyurtma orqali qabul qilinadi.
   document.getElementById('tabContent').innerHTML = `
-    <div class="info-row"><span style="color:var(--text3)">Loyiha raqami</span><span style="font-weight:500">${d.num}</span></div>
+    <div class="info-row"><span style="color:var(--text3)">Loyiha raqami</span><span style="font-weight:500">${escapeHtml(d.num)}</span></div>
     <div class="info-row"><span style="color:var(--text3)">Mijoz</span><span style="font-weight:500">${escapeHtml(d.client)}</span></div>
-    <div class="info-row"><span style="color:var(--text3)">Telefon</span><span>${d.phone}</span></div>
+    <div class="info-row"><span style="color:var(--text3)">Telefon</span><span>${escapeHtml(d.phone)}</span></div>
     <div class="info-row"><span style="color:var(--text3)">Manzil</span><span>${escapeHtml(d.address)}</span></div>
-    <div class="info-row"><span style="color:var(--text3)">Boshlangan</span><span>${d.start}</span></div>
-    <div class="info-row"><span style="color:var(--text3)">Muddat</span><span>${d.deadline}</span></div>
+    <div class="info-row"><span style="color:var(--text3)">Boshlangan</span><span>${escapeHtml(d.start)}</span></div>
+    <div class="info-row"><span style="color:var(--text3)">Muddat</span><span>${escapeHtml(d.deadline)}</span></div>
     <div class="qa-row">
-      <button class="btn btn-outline btn-sm" onclick="openEditModal()"><i class="ti ti-edit" style="font-size:12px"></i> Tahrirlash</button>
-      <button class="btn btn-outline btn-sm" onclick="switchTab('orders')"><i class="ti ti-arrow-right" style="font-size:12px"></i> Buyurtmaga o'tish</button>
-      <button class="btn btn-outline btn-sm" onclick="switchTab('payments')"><i class="ti ti-cash" style="font-size:12px"></i> To'lovlarni ko'rish</button>
-      <button class="btn btn-outline btn-sm" onclick="switchTab('products')"><i class="ti ti-file-text" style="font-size:12px"></i> Hujjatlarni ko'rish</button>
-      <button class="btn btn-green btn-sm" id="proj-complete-btn" onclick="markProjectComplete()"><i class="ti ti-check" style="font-size:12px"></i> Yakunlash</button>
-      <button class="btn btn-gold btn-sm" ${_debtLeft <= 0.5 ? 'disabled title="Qarzdorlik yo\'q — buyurtma to\'liq to\'langan" style="opacity:.45;cursor:not-allowed"' : ''} onclick="showPayModal()">💰 To'lov qo'shish</button>
-      <button class="btn btn-outline btn-sm" style="color:#EF4444;border-color:#EF4444" onclick="deleteProj()">O'chirish</button>
+      <button class="btn btn-outline btn-sm" onclick="openEditModal()"><i class="ti ti-edit"></i> Tahrirlash</button>
+      <button class="btn btn-outline btn-sm" onclick="switchTab('orders')"><i class="ti ti-arrow-right"></i> Buyurtmalari</button>
+      <button class="btn btn-outline btn-sm" onclick="switchTab('payments')"><i class="ti ti-cash"></i> To'lovlarni ko'rish</button>
+      <button class="btn btn-outline btn-sm" onclick="switchTab('products')"><i class="ti ti-list"></i> Mahsulotlar ro'yxati</button>
+      <button class="btn btn-green btn-sm" id="proj-complete-btn" onclick="markProjectComplete()"><i class="ti ti-check"></i> Yakunlash</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteProj()">O'chirish</button>
     </div>`;
 }
 
+// kech118 (D-3, egasi QARORI G2-17 «Vazifalar ajratilsin»): loyiha — mijoz kartasi. Buyurtma qatori AYNAN shu buyurtmani ochadi
+// (`/orders?order=ID`), summa — KELISHILGAN (Buyurtmalar ro'yxati va loyiha pul xulosasi bilan bir xil; ilgari jami — chegirmasiz),
+// «+ Yangi buyurtma» — har loyihada (ilgari faqat buyurtmasiz loyihada).
+const BUYURTMA_YARATADI = {{ 'true' if current_user.ruxsat('buyurtma', 'yaratish') else 'false' }};
+function loyihaBuyurtmaSummasi(o) {
+  return (o.agreed_amount !== null && o.agreed_amount !== undefined) ? Number(o.agreed_amount) : Number(o.total_amount || 0);
+}
 async function renderOrders(d) {
   try {
-    const orders = await fetch(`/api/orders?project_id=${selectedProjId}`).then(r=>r.json());
+    const res = await fetch(`/api/orders?project_id=${selectedProjId}`);
+    if (!res.ok) {
+      document.getElementById('tabContent').innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">' +
+        escapeHtml(res.status === 403 ? "Buyurtmalarni ko'rishga ruxsat yo'q" : 'Yuklashda xato') + '</div>';
+      return;
+    }
+    const orders = await res.json();
+    const yangiTugma = BUYURTMA_YARATADI
+      ? `<button class="btn btn-dark btn-sm" onclick="window.location.href='/orders?new_for_project=${Number(selectedProjId)}'">+ Yangi buyurtma</button>`
+      : '';
     if (!orders.length) {
       document.getElementById('tabContent').innerHTML =
         '<div class="fp-empty" style="text-align:center;padding:30px;color:var(--text3)">' +
           'Buyurtma yo\'q' +
-          '<div style="margin-top:14px">' +
-            `<button class="btn btn-dark btn-sm" onclick="window.location.href='/orders?new_for_project=${selectedProjId}'">+ Yangi buyurtma</button>` +
-          '</div>' +
+          (yangiTugma ? '<div style="margin-top:14px">' + yangiTugma + '</div>' : '') +
         '</div>';
       return;
     }
     const STATUS_LABELS = {draft:'Qoralama',new:'Yangi',in_progress:'Jarayonda',coating:'Qoplashda',ready:'Tayyor',delivered:'Yetkazilgan',cancelled:'Bekor'};
-    document.getElementById('tabContent').innerHTML = orders.map(o => `
-      <div class="info-row" style="cursor:pointer" onclick="window.location.href='/orders'">
+    document.getElementById('tabContent').innerHTML =
+      (yangiTugma ? `<div style="display:flex;justify-content:flex-end;margin-bottom:8px">${yangiTugma}</div>` : '') +
+      orders.map(o => `
+      <div class="info-row" style="cursor:pointer" onclick="window.location.href='/orders?order=${Number(o.id)}'" title="Buyurtmani ochish">
         <div>
-          <div style="font-weight:600;font-size:13px">${o.order_number}</div>
-          <div style="font-size:13px;color:var(--text3)">${o.created_at ? new Date(o.created_at).toLocaleDateString('uz') : ''}</div>
+          <div style="font-weight:600;font-size:13px">${escapeHtml(o.order_number)}</div>
+          <div style="font-size:13px;color:var(--text3)">${o.created_at ? tkSana(o.created_at) : ''}</div>
         </div>
         <div style="text-align:right">
-          <span class="badge">${STATUS_LABELS[o.status]||o.status}</span>
-          <div style="font-size:12.5px;font-weight:600;margin-top:3px">${fmt(o.total_amount)} so'm</div>
+          <span class="badge">${escapeHtml(STATUS_LABELS[o.status]||o.status)}</span>
+          <div style="font-size:13px;font-weight:600;margin-top:3px">${fmt(loyihaBuyurtmaSummasi(o))} so'm</div>
         </div>
       </div>`).join('');
-  } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:#DC2626;text-align:center;padding:20px">Yuklashda xato</div>'; }
+  } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:var(--m-dc2626);text-align:center;padding:20px">Yuklashda xato</div>'; }
+}
+
+// kech124 (zip 144 — egasi QARORLARI 06.10): «Yuk xatlari» — loyihaning HAMMA buyurtmalari yuk xatlari bitta ro'yxatda (raqam, sana,
+// berilgan detallar — miqdor va birlik, summa; 📄 — o'sha yuk xati, buyurtmadagi kabi). Yuk xati raqami loyiha bo'yicha davom etadi
+// («ORD-001-2/Y-6» — buyurtma raqami qoladi, Y — loyiha bo'yicha). «Jamlab olish» — belgilangan yuk xatlaridagi (standart — hammasi)
+// BIR XIL detallar bitta qatorda: miqdor, birlik narxi, summa va jami summa (PDF). «Tanlangan» jami — serverdagi butun tiyinlardan
+// (`jami_tiyin`) qo'shiladi: varaqdagi JAMI bilan aynan. Ro'yxat yuklanguncha boshqa loyiha / bo'lim tanlansa — chizilmaydi.
+let yxRoyxat = [];
+
+function yxQatori(dl) {
+  const detallar = (dl.items || []).map(i =>
+    `${escapeHtml(i.item_name)}: <b>${sonKor(i.quantity)} ${escapeHtml(birlikQisqa(i.unit))}</b>`).join(' · ');
+  const raqam = escapeHtml(dl.delivery_number || '');
+  const qabul = dl.received_by ? ' · qabul: ' + escapeHtml(dl.received_by) : '';
+  return `
+    <label class="zebra-row yx-qator">
+      <input type="checkbox" class="yx-chk" value="${Number(dl.id)}" data-tiyin="${Number(dl.jami_tiyin) || 0}" checked
+             onchange="yxYangila()" aria-label="${raqam} — jamlashga kirsin">
+      <div class="yx-matn">
+        <div class="yx-raqam">${raqam} <span class="yx-sana">· ${escapeHtml(tkSana(dl.delivered_at))}${qabul}</span></div>
+        <div class="yx-detallar">${detallar || '—'}</div>
+      </div>
+      <div class="yx-summa">${fmt(dl.total_sum)} so'm</div>
+      <a class="btn btn-soft btn-icon btn-sm yx-pdf" href="/api/deliveries/${Number(dl.id)}/pdf" target="_blank" rel="noopener"
+         title="Yuk xati (PDF)" aria-label="${raqam} — yuk xati (PDF)" onclick="event.stopPropagation()">📄</a>
+    </label>`;
+}
+
+async function renderYukXatlari(d) {
+  const quti = document.getElementById('tabContent');
+  const pid = selectedProjId;
+  try {
+    const res = await fetch(`/api/projects/${encodeURIComponent(pid)}/yuk-xatlari`);
+    if (String(selectedProjId) !== String(pid) || currentTab !== 'yuklar') return;
+    if (!res.ok) {
+      quti.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">' +
+        escapeHtml(res.status === 403 ? "Yuk xatlarini ko'rishga ruxsat yo'q" : await serverXatoSababi(res, 'Yuklashda xato')) + '</div>';
+      return;
+    }
+    const j = await res.json();
+    if (String(selectedProjId) !== String(pid) || currentTab !== 'yuklar') return;
+    yxRoyxat = j.deliveries || [];
+    if (!yxRoyxat.length) {
+      quti.innerHTML = '<div class="fp-empty" style="text-align:center;padding:30px 18px;color:var(--text3);line-height:1.55">' +
+        '<div style="font-weight:700;color:var(--text);margin-bottom:6px">Hali yuk xati yo\'q</div>' +
+        'Yuk xati buyurtmada yoziladi — «Qisman topshirish», «Bir yo\'la to\'liq topshirish» yoki «Tayyor» bilan. ' +
+        'Shu loyihaning hamma buyurtmalari yuk xatlari shu yerda ko\'rinadi.</div>';
+      return;
+    }
+    quti.innerHTML = `
+      <div class="yx-bosh">
+        <div class="yx-xulosa"><b>${yxRoyxat.length} ta yuk xati</b> · Tanlangan: <b id="yx-tanlangan-soni">0</b> ·
+          <b id="yx-tanlangan-jami">0 so'm</b></div>
+        <div class="yx-amallar">
+          <button class="btn btn-outline btn-sm" onclick="yxBelgila(true)">Hammasi</button>
+          <button class="btn btn-outline btn-sm" onclick="yxBelgila(false)">Hech biri</button>
+          <a class="btn btn-dark btn-sm" id="yx-jamlab" target="_blank" rel="noopener">📄 Jamlab olish</a>
+        </div>
+      </div>
+      <div class="zebra-list">${yxRoyxat.map(yxQatori).join('')}</div>
+      <div class="yx-izoh">«Jamlab olish» — belgilangan yuk xatlaridagi bir xil detallar (nomi, o'lchami, qoplamasi, birligi va narxi bir xil)
+        bitta qatorda: jami miqdor, birlik narxi, summa va jami summa.</div>`;
+    yxYangila();
+  } catch (e) {
+    if (String(selectedProjId) === String(pid) && currentTab === 'yuklar') {
+      quti.innerHTML = '<div style="color:var(--m-dc2626);text-align:center;padding:20px">Yuklashda xato</div>';
+    }
+  }
+}
+
+function yxBelgila(holat) {
+  document.querySelectorAll('.yx-chk').forEach(c => { c.checked = holat; });
+  yxYangila();
+}
+
+function yxYangila() {
+  const tanlangan = [...document.querySelectorAll('.yx-chk:checked')];
+  let tiyin = 0;
+  tanlangan.forEach(c => { tiyin += parseInt(c.dataset.tiyin, 10) || 0; });
+  const n = tanlangan.length;
+  const soni = document.getElementById('yx-tanlangan-soni');
+  if (soni) soni.textContent = `${n} / ${document.querySelectorAll('.yx-chk').length}`;
+  const jami = document.getElementById('yx-tanlangan-jami');
+  if (jami) jami.textContent = fmt(tiyin / 100) + " so'm";
+  const a = document.getElementById('yx-jamlab');
+  if (!a) return;
+  if (n) {
+    a.href = `/api/projects/${encodeURIComponent(selectedProjId)}/yuk-xatlari/jamlama-pdf?ids=` + tanlangan.map(c => Number(c.value)).join(',');
+    a.classList.remove('yx-ochiq-emas');
+    a.removeAttribute('aria-disabled');
+    a.removeAttribute('tabindex');
+    a.textContent = `📄 Jamlab olish (${n} ta)`;
+  } else {
+    a.removeAttribute('href');
+    a.classList.add('yx-ochiq-emas');
+    a.setAttribute('aria-disabled', 'true');
+    a.setAttribute('tabindex', '-1');
+    a.textContent = '📄 Yuk xati belgilang';
+  }
 }
 
 async function renderFinance(d) {
   try {
     const stats = await fetch(`/api/projects/${selectedProjId}/detail-stats`).then(r=>r.json());
-    const budget = parseFloat(d.budget)||0, paid = parseFloat(d.paid)||0, debt = Math.max(0, budget-paid);
+    // kech116 (G2-01): «Byudjet» o'rniga «Loyiha qiymati» (buyurtmalardan), qarz — buyurtmalar qarzi
+    const budget = parseFloat(d.qiymat)||0, paid = parseFloat(d.paid)||0, debt = Math.max(0, parseFloat(d.qarz)||0);
     document.getElementById('tabContent').innerHTML = `
       <div class="fin-grid">
         <div class="fin-stat fin-budget">
-          <div class="fin-stat-head"><i class="ti ti-wallet" style="font-size:15px"></i> Byudjet</div>
+          <div class="fin-stat-head"><i class="ti ti-wallet" style="font-size:16px"></i> Loyiha qiymati</div>
           <div class="fin-stat-val">${fmt(budget)} so'm</div>
         </div>
         <div class="fin-stat fin-paid">
-          <div class="fin-stat-head"><i class="ti ti-circle-check" style="font-size:15px"></i> To'langan</div>
+          <div class="fin-stat-head"><i class="ti ti-circle-check" style="font-size:16px"></i> To'langan</div>
           <div class="fin-stat-val">${fmt(paid)} so'm</div>
         </div>
         <div class="fin-stat fin-debt">
-          <div class="fin-stat-head"><i class="ti ti-clock-exclamation" style="font-size:15px"></i> Qarz</div>
+          <div class="fin-stat-head"><i class="ti ti-clock-exclamation" style="font-size:16px"></i> Qarz</div>
           <div class="fin-stat-val">${fmt(debt)} so'm</div>
         </div>
         <div class="fin-stat fin-profit">
-          <div class="fin-stat-head"><i class="ti ti-chart-line" style="font-size:15px"></i> Sof foyda</div>
-          <div class="fin-stat-val">${fmt(stats.total_profit)} so'm</div>
+          <div class="fin-stat-head"><i class="ti ti-chart-line" style="font-size:16px"></i> Sof foyda</div>
+          <div class="fin-stat-val">${stats.total_profit === null ? '—' : fmt(stats.total_profit) + " so'm"}</div>
         </div>
       </div>
       <div class="progress-bar"><div class="progress-fill" style="width:${budget>0?Math.min(100,Math.round(paid/budget*100)):0}%"></div></div>`;
-  } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:#DC2626;text-align:center;padding:20px">Yuklashda xato</div>'; }
+  } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:var(--m-dc2626);text-align:center;padding:20px">Yuklashda xato</div>'; }
 }
 
 async function renderPayments(d) {
@@ -572,10 +780,10 @@ async function renderPayments(d) {
         <div class="zebra-icon zi-in"><i class="ti ti-cash"></i></div>
         <div style="flex:1;min-width:0">
           <div class="zebra-title">${fmt(p.amount)} so'm</div>
-          <div class="zebra-sub">${p.paid_at ? new Date(p.paid_at).toLocaleDateString('uz') : ''} · ${p.payment_method || ''}${p.received_by ? ' · '+escapeHtml(p.received_by) : ''}</div>
+          <div class="zebra-sub">${p.paid_at ? tkSana(p.paid_at) : ''} · ${escapeHtml(p.payment_method || '')}${p.received_by ? ' · '+escapeHtml(p.received_by) : ''}</div>
         </div>
       </div>`).join('')}</div>`;
-  } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:#DC2626;text-align:center;padding:20px">Yuklashda xato</div>'; }
+  } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:var(--m-dc2626);text-align:center;padding:20px">Yuklashda xato</div>'; }
 }
 
 async function renderProducts(d) {
@@ -583,7 +791,7 @@ async function renderProducts(d) {
     const res = await fetch(`/api/projects/${selectedProjId}/items`).then(r=>r.json());
     const items = res.items || [];
     if (!items.length) { document.getElementById('tabContent').innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)">Mahsulot yo\'q</div>'; return; }
-    const CAT_ICON = {profil:'ti-ruler-2', panel:'ti-square', blok:'ti-cube', dona:'ti-hexagon', termopanel:'ti-building', gips:'ti-flask'};
+    const CAT_ICON = {profil:'ti-ruler-2', panel:'ti-square', blok:'ti-cube', dona:'ti-hexagon', gips:'ti-flask'};
 
     // Buyurtma bo'yicha guruhlaymiz (backend allaqachon buyurtma tartibida
     // qaytaradi — eng yangisidan boshlab), tartibni buzmasdan.
@@ -602,7 +810,7 @@ async function renderProducts(d) {
         <div class="prod-acc-head${gi===0?' expanded':''}" onclick="this.classList.toggle('expanded'); this.nextElementSibling.classList.toggle('open')">
           <div class="prod-acc-head-left">
             <i class="ti ti-chevron-right prod-acc-chevron"></i>
-            <span style="font-weight:700;font-size:13.5px">${g.order_number}</span>
+            <span style="font-weight:700;font-size:13px">${escapeHtml(g.order_number)}</span>
           </div>
           <span style="font-size:12px;color:var(--text3)">${g.items.length} ta detal</span>
         </div>
@@ -612,13 +820,13 @@ async function renderProducts(d) {
               <div class="zebra-icon zi-neutral"><i class="ti ${CAT_ICON[(i.category||'').toLowerCase()] || 'ti-package'}"></i></div>
               <div style="flex:1;min-width:0">
                 <div class="zebra-title">${escapeHtml(i.name)}</div>
-                <div class="zebra-sub">${i.category||''}${i.is_coated?' · qoplamali':''}</div>
+                <div class="zebra-sub">${escapeHtml(i.category||'')}${i.is_coated?' · qoplamali':''}</div>
               </div>
-              <span class="zebra-val" style="color:var(--text2)">${i.order_qty_normalized} ${i.delivery_unit||''}</span>
+              <span class="zebra-val" style="color:var(--text2)">${i.order_qty_normalized} ${escapeHtml(i.delivery_unit||'')}</span>
             </div>`).join('')}</div>
         </div>
       </div>`).join('')}</div>`;
-  } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:#DC2626;text-align:center;padding:20px">Yuklashda xato</div>'; }
+  } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:var(--m-dc2626);text-align:center;padding:20px">Yuklashda xato</div>'; }
 }
 
 async function renderMaterials(d) {
@@ -643,7 +851,7 @@ async function renderMaterials(d) {
         <div class="prod-acc-head${gi===0?' expanded':''}" onclick="this.classList.toggle('expanded'); this.nextElementSibling.classList.toggle('open')">
           <div class="prod-acc-head-left">
             <i class="ti ti-chevron-right prod-acc-chevron"></i>
-            <span style="font-weight:700;font-size:13.5px">${g.order_number}</span>
+            <span style="font-weight:700;font-size:13px">${escapeHtml(g.order_number)}</span>
           </div>
           <span style="font-size:12px;color:var(--text3)">${g.items.length} ta xomashyo</span>
         </div>
@@ -653,13 +861,13 @@ async function renderMaterials(d) {
               <div class="zebra-icon zi-out"><i class="ti ti-package-export"></i></div>
               <div style="flex:1;min-width:0">
                 <div class="zebra-title">${escapeHtml(m.item_name)}</div>
-                <div class="zebra-sub">${new Date(m.created_at).toLocaleDateString('uz')} · ${escapeHtml(m.reason||'')}</div>
+                <div class="zebra-sub">${tkSana(m.created_at)} · ${escapeHtml(m.reason||'')}</div>
               </div>
-              <span class="zebra-val" style="color:#DC2626">−${m.quantity} ${m.unit||''}</span>
+              <span class="zebra-val" style="color:var(--m-dc2626)">−${m.quantity} ${escapeHtml(m.unit||'')}</span>
             </div>`).join('')}</div>
         </div>
       </div>`).join('')}</div>`;
-  } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:#DC2626;text-align:center;padding:20px">Yuklashda xato</div>'; }
+  } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:var(--m-dc2626);text-align:center;padding:20px">Yuklashda xato</div>'; }
 }
 
 async function renderTimeline(d) {
@@ -668,7 +876,7 @@ async function renderTimeline(d) {
     const payments = (await Promise.all(orders.map(o => fetch(`/api/payments?order_id=${o.id}`).then(r=>r.json())))).flat();
 
     let events = [];
-    events.push({ date: d.startRaw, icon: 'ti-target', text: `Loyiha yaratildi — ${escapeHtml(d.name)}` });
+    events.push({ date: d.startRaw, icon: 'ti-target', text: `Loyiha yaratildi — ${d.name}` });
     orders.forEach(o => {
       events.push({ date: o.created_at, icon: 'ti-package', text: `Buyurtma yaratildi — ${o.order_number}` });
       if (o.status === 'ready' || o.status === 'delivered') {
@@ -691,11 +899,11 @@ async function renderTimeline(d) {
       <div class="timeline-item">
         <div class="tl-dot-icon zebra-icon ${DOT_CLASS[e.icon]||'zi-neutral'}"><i class="ti ${e.icon}" style="font-size:13px"></i></div>
         <div>
-          <div style="font-size:13px;font-weight:500">${e.text}</div>
-          <div style="font-size:13px;color:var(--text3);margin-top:2px">${new Date(e.date).toLocaleString('uz')}</div>
+          <div style="font-size:13px;font-weight:500">${escapeHtml(e.text)}</div>
+          <div style="font-size:13px;color:var(--text3);margin-top:2px">${tkToliq(e.date)}</div>
         </div>
       </div>`).join('');
-  } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:#DC2626;text-align:center;padding:20px">Yuklashda xato</div>'; }
+  } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:var(--m-dc2626);text-align:center;padding:20px">Yuklashda xato</div>'; }
 }
 
 function renderNotes(d) {
@@ -706,6 +914,41 @@ function renderNotes(d) {
     <div style="font-size:13px;color:var(--text);white-space:pre-wrap">${d.notes ? escapeHtml(d.notes) : 'Izoh yo\'q'}</div>`;
 }
 
+// 16-band (2026-09-21): Mijoz Telegram ID va izoh BITTA `projects.notes`
+// ustunida saqlanadi. Server (main.py: yuk xati PDF va "Tayyor" xabari)
+// ID ni `notes.split('tg_id=')[1].split(',')[0]` bilan o'qiydi — ya'ni
+// VERGULGACHA bo'lgan qism ID, undan keyingisi server uchun ahamiyatsiz.
+// Shu sabab format: "tg_id=123456789, izoh matni".
+// Ilgari: (1) yaratish formasida `notes` kaliti IKKI MARTA yozilgan edi —
+// ikkinchisi birinchisini bosib, Telegram ID JIMGINA yo'qolardi (jonli
+// o'lchandi: 123456789 kiritildi, serverga `notes: null` ketdi);
+// (2) ID kiritilsa izoh butunlay tashlab yuborilardi, tahrir oynasi esa
+// ID bor loyihaning izohini bo'sh ko'rsatardi; (3) raqam bo'lmagan ID
+// (masalan "@user") saqlanib qolar, server esa uni jimgina e'tiborsiz
+// qoldirardi — mijozga xabar bormasdi va buni hech kim bilmasdi.
+// Ikkala forma (yaratish va tahrir) FAQAT shu ikki funksiyadan foydalanadi.
+const LOYIHA_TG_ID_RE = /^-?\d+$/;
+
+function loyihaIzohYasa(tgRaw, izohRaw) {
+  const tg = String(tgRaw == null ? '' : tgRaw).trim();
+  const izoh = String(izohRaw == null ? '' : izohRaw).trim();
+  if (tg && !LOYIHA_TG_ID_RE.test(tg)) {
+    return { xato: "Telegram ID faqat raqamlardan iborat bo'lishi kerak (masalan 123456789)" };
+  }
+  if (tg) return { notes: izoh ? `tg_id=${tg}, ${izoh}` : `tg_id=${tg}` };
+  return { notes: izoh || null };
+}
+
+function loyihaIzohAjrat(notesRaw) {
+  const notes = String(notesRaw == null ? '' : notesRaw);
+  const m = notes.match(/tg_id=(-?\d+)/);
+  if (!m) return { tg: '', izoh: notes === 'Yo\'q' ? '' : notes };
+  const qolgan = notes.replace(m[0], '')
+    .replace(/,\s*,/g, ',')
+    .replace(/^[\s,]+|[\s,]+$/g, '');
+  return { tg: m[1], izoh: qolgan };
+}
+
 function openEditModal() {
   const el = document.querySelector(`.proj-card[data-id="${selectedProjId}"]`);
   const d = el.dataset;
@@ -713,23 +956,29 @@ function openEditModal() {
   document.getElementById('e-phone').value = d.phone === '—' ? '' : d.phone;
   document.getElementById('e-pname').value = d.name;
   document.getElementById('e-address').value = d.address === '—' ? '' : d.address;
-  document.getElementById('e-budget').value = d.budget;
   document.getElementById('e-status').value = d.status;
+  // kech107 (10a): muddat — Toshkent sanasi (<input type="date">), yo'q bo'lsa bo'sh.
+  document.getElementById('e-deadline').value = d.deadlineRaw ? tkISO(d.deadlineRaw) : '';
   // MUHIM (2026-08-26): avval "Mijoz Telegram ID" maydoni bu formada
   // UMUMAN yo'q edi — shuning uchun eski (allaqachon yaratilgan)
   // loyihalarga uni qo'shish yoki tekshirish IMKONSIZ edi. Endi, agar
   // izohda "tg_id=..." belgisi bo'lsa, uni shu yerga ajratib chiqaramiz,
   // qolgan (haqiqiy) izohni esa "Izoh" maydonining o'ziga qoldiramiz.
-  const notes = d.notes || '';
-  const tgMatch = notes.match(/tg_id=(-?\d+)/);
-  document.getElementById('e-tg-id').value = tgMatch ? tgMatch[1] : '';
-  document.getElementById('e-notes').value = tgMatch ? '' : (notes === 'Yo\'q' ? '' : notes);
+  // 16-band: ID va izoh ALOHIDA ajratiladi — izoh endi yo'qolmaydi.
+  const ajr = loyihaIzohAjrat(d.notes);
+  document.getElementById('e-tg-id').value = ajr.tg;
+  document.getElementById('e-notes').value = ajr.izoh;
   document.getElementById('editModal').style.display = 'flex';
 }
 
 let isSavingEditProject = false;
 async function saveEditProject() {
   if (isSavingEditProject) return; // Ikki marta bosishdan himoya
+  // 16-band: Telegram ID tekshiruvi bayroq qo'yilishidan OLDIN — aks holda
+  // xato ID dan keyin tugma butunlay ishlamay qolardi.
+  const izohNatija = loyihaIzohYasa(document.getElementById('e-tg-id').value,
+                                    document.getElementById('e-notes').value);
+  if (izohNatija.xato) { projToast(izohNatija.xato); return; }
   isSavingEditProject = true;
   const btn = document.getElementById('proj-edit-save-btn');
   if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
@@ -738,11 +987,12 @@ async function saveEditProject() {
     client_phone: document.getElementById('e-phone').value.trim() || null,
     project_name: document.getElementById('e-pname').value.trim(),
     client_address: document.getElementById('e-address').value.trim() || null,
-    total_budget: parseFloat(document.getElementById('e-budget').value) || 0,
     status: document.getElementById('e-status').value,
-    // MUHIM: Yaratish formasidagi BIR XIL mantiq — agar Telegram ID
-    // kiritilgan bo'lsa, izoh o'rniga "tg_id=..." belgisi saqlanadi.
-    notes: document.getElementById('e-tg-id').value.trim() ? `tg_id=${document.getElementById('e-tg-id').value.trim()}` : (document.getElementById('e-notes').value.trim() || null)
+    // kech107 (10a): bo'sh maydon — muddat olib tashlanadi (server `null` ni tozalaydi).
+    deadline: document.getElementById('e-deadline').value || null,
+    // 16-band: yaratish formasi bilan BIR XIL — loyihaIzohYasa():
+    // "tg_id=ID, izoh" (izoh endi saqlanadi).
+    notes: izohNatija.notes
   };
   try {
     const res = await fetch(`/api/projects/${selectedProjId}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
@@ -771,34 +1021,26 @@ async function markProjectComplete() {
   }
 }
 
-function showPayModal(){document.getElementById('payModal').style.display='flex';}
 function showAddModal(){document.getElementById('addModal').style.display='flex';}
+// kech120 (zip 134 — G2-22): «/projects?yangi=1» (Buyurtma formasidan / bo'sh Buyurtmalar sahifasidan) — yangi loyiha oynasi ochiladi
+(function () {
+  try {
+    const p = new URLSearchParams(window.location.search);
+    if (p.get('yangi') !== '1') return;
+    history.replaceState(null, '', window.location.pathname);
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => showAddModal()); else showAddModal();
+  } catch (e) { /* URL — muhim emas */ }
+})();
 function closeModal(){
   document.getElementById('addModal').style.display='none';
-  document.getElementById('payModal').style.display='none';
-}
-
-let isSavingProjPayment = false;
-async function savePayment(){
-  const amount=parseFloat(document.getElementById('pay-amount').value);
-  if(!amount||amount<=0){projToast('Summa kiriting!');return;}
-  if (isSavingProjPayment) return; // Ikki marta bosishdan himoya
-  isSavingProjPayment = true;
-  const btn = document.getElementById('proj-pay-save-btn');
-  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
-  try {
-    const res=await fetch(`/api/projects/${selectedProjId}/payment?amount=${amount}`,{method:'POST'});
-    if(res.ok){projToast('✓ To\'lov qo\'shildi!');setTimeout(()=>location.reload(),1200);return;}else projToast('Xato');
-  } finally {
-    isSavingProjPayment = false;
-    if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
-  }
 }
 
 async function deleteProj(){
-  if(!(await customConfirm('Loyihani o\'chirasizmi? Barcha buyurtmalar ham o\'chadi!', {danger:true})))return;
+  // kech118 (D-1, G2-20 — egasi QARORI «Taqiqlansin»): buyurtmasi bor loyiha o'chirilmaydi (server sababi ko'rsatiladi);
+  // o'chirilgan loyiha «O'chirilganlar» bo'limida turadi — tiklash mumkin (ilgari «Barcha buyurtmalar ham o'chadi!» derdi — noto'g'ri)
+  if(!(await customConfirm('Loyihani o\'chirasizmi? U «O\'chirilganlar» bo\'limiga o\'tadi — kerak bo\'lsa o\'sha yerdan tiklash mumkin. Buyurtmasi bor loyihani o\'chirib bo\'lmaydi — avval buyurtmalarni o\'chiring.', {danger:true})))return;
   const res=await fetch(`/api/projects/${selectedProjId}`,{method:'DELETE'});
-  if(res.ok)location.reload();else projToast('Xato');
+  if(res.ok)location.reload();else projToast(await serverXatoSababi(res, 'Loyihani o\'chirib bo\'lmadi'));
 }
 
 function searchProj(){
@@ -838,6 +1080,10 @@ async function saveProject(){
       return;
     }
   }
+  // 16-band: Telegram ID tekshiruvi — himoya bayrog'idan OLDIN.
+  const izohNatija = loyihaIzohYasa(document.getElementById('f-tg-id').value,
+                                    document.getElementById('f-notes').value);
+  if (izohNatija.xato) { projToast(izohNatija.xato); return; }
   if (isSavingNewProject) return; // Ikki marta bosishdan himoya
   isSavingNewProject = true;
   const btn = document.getElementById('proj-new-save-btn');
@@ -845,13 +1091,13 @@ async function saveProject(){
   try {
     const res=await fetch('/api/projects',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
-        client_name:client,client_phone:document.getElementById('f-phone').value||null,
-        client_address:document.getElementById('f-address').value||null,
-        notes: document.getElementById('f-tg-id').value ? `tg_id=${document.getElementById('f-tg-id').value.trim()}` : (document.getElementById('f-notes').value||null),
+        client_name:client,client_phone:phoneVal||null,
+        client_address:document.getElementById('f-address').value.trim()||null,
         project_name:pname,
-        total_budget:parseFloat(document.getElementById('f-budget').value)||0,
         deadline:document.getElementById('f-deadline').value||null,
-        notes:document.getElementById('f-notes').value||null
+        // 16-band: ilgari `notes` shu obyektda IKKI MARTA edi — ikkinchisi
+        // Telegram ID ni bosib ketardi. Endi bitta, loyihaIzohYasa() dan.
+        notes:izohNatija.notes
       })});
     if(res.ok){projToast('✓ Loyiha yaratildi!');setTimeout(()=>location.reload(),1200);return;}else{const e=await res.json();projToast('Xato: '+(e.detail||''));}
   } finally {
