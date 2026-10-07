@@ -422,7 +422,9 @@ BUGUN = tashkent_date()
 ID = {"order_id": 999999, "project_id": 999999, "fp_id": IDS["fp_narxsiz"], "item_id": IDS["mat"],
       "supplier_id": IDS["sup"], "po_id": PO_QORALAMA, "pt_id": PT_ID, "master_id": 999999, "employee_id": 999999,
       "emp_id": 999999, "delivery_id": 999999, "sale_id": 999999, "group_id": "yoq", "receipt_id": 999999,
-      "bom_id": BOM_ID, "recipe_id": REC_ID, "loss_id": 999999, "return_id": 999999, "payment_id": 999999}
+      "bom_id": BOM_ID, "recipe_id": REC_ID, "loss_id": 999999, "return_id": 999999, "payment_id": 999999,
+      # kech126 (zip 148 — «Tez hisob / Taklif», MOSLANDI): taklif tafsiloti (yo'q taklif — 404; taklifda tannarx yo'q)
+      "taklif_id": 999999}
 SORAV = {"year": BUGUN.year, "month": BUGUN.month, "category": "arenda", "product_type_id": PT_ID, "bom_id": BOM_ID,
          "quantity": 4}
 TASHQARI = ("/cron", "/system", "/platform", "/hodim/", "telegram", "pdf", "/export", "backup")

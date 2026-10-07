@@ -420,6 +420,11 @@ YANGI_MARSHRUTLAR = {
     # ikkalasidan biri (brak oynasi ikkala yo'lda ochiladi)
     "POST /api/returns/{return_id}/taqdir": "AMW", "POST /api/finished/loss/{loss_id}/taqdir": "AWM",
     "GET /api/brak/tuzatish-materiallari": "AMW",
+    # kech126 (zip 148 — egasi qarorlari 07.10 «Tez hisob / Taklif»): ro'yxat / taklif / PDF — «Buyurtmalar: Ko'rish»; yozish, tahrirlash,
+    # bekor qilish, rasmiylashtirish — «Buyurtmalar: Yaratish» (egasi qarori 4 — alohida ruxsat yo'q; `POST /api/orders` bilan bir rollar)
+    "GET /api/takliflar": "AM", "POST /api/takliflar": "AM", "GET /api/takliflar/{taklif_id}": "AM",
+    "GET /api/takliflar/{taklif_id}/pdf": "AM", "PUT /api/takliflar/{taklif_id}": "AM",
+    "POST /api/takliflar/{taklif_id}/bekor": "AM", "POST /api/takliflar/{taklif_id}/rasmiylashtir": "AM",
 }
 # ATAYLAB o'zgarishlar (rol, marshrut) → yangi holat (True — ochiq). Sababi: tayyor rollar sahifa bo'yicha izchil.
 FARQLAR = {
