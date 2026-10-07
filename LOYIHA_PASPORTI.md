@@ -1,6 +1,6 @@
 # PenoDecorPro ERP — LOYIHA PASPORTI
 
-*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2); kech112: zip 108 — «Tayyor» da bo'sh loy = reja (K112-3), material nomi (K112-4), MRP qoplama belgisi (K112-5); ko'p korxonali yakuniy jonli sinov; kech115: zip 112 — butun dastur auditi A bosqichi (pul va ma'lumot xatolari) 1-qismi: kirim, qarzdorlar, «Tayyor», narxsiz buyurtma, o'chirilganlar jurnali, manfiy raqamlar, taqqoslash, korxona sog'ligi, ombor filtri; kech116: zip 113 — A bosqich 2-qismi: sog'liq sabablari (K115-2), «Bugungi xulosa» (K115-3), hujjatlardagi hisob qatorlari (G2-04), «Pul oqimi» — haqiqiy pul (G1-03), «Xarajat» — bitta ta'rif va «Tannarx» (G1-02), loyiha qiymati buyurtmalardan (G2-01), haqiqiy IP va kirish cheklovi (U-01), parol oynasi va kirishlarni yopish (G6-06); zip 114 — mijoz hujjatlarida kechirilgan qarz «Chegirma» ichida (egasi qarori); kech117: zip 115 — A2: yo'nalishlar bo'yicha moliya (G3-11, G6-09); zip 116 — jonli sinovdan keyin: «Belgilanmagan» manbalari, Moliya xarajatdan keyin yangilanadi; kech118: qolgan egasi qarorlari (6-bo'lim); zip 117 — B bosqichi 1-qism: dastur oynalari (xabar, kiritish, Esc / tashqariga bosish), o'zbekcha 404 / 403 sahifa, klaviatura fokusi; zip 118 — B bosqichi 2-qism: son / sana / birlik ko'rinishi, o'qiladigan rang, 12 px + yo'nalishlar bo'yicha moliyaviy natija (egasi qarori: taqsim yo'q, oyliklar alohida, davr, solishtirish); yangi qarorlar — rollar va ruxsatlar (6-bo'lim); zip 119 — rollar va ruxsatlar 1-qism (admin rollarni o'zi boshqaradi); kech119: zip 125 — Hisobotlar «oy boshi»: o'tgan oyning SHU KUNLARI bilan solishtirish (egasi qarori), taxminda oylik xarajat bir marta, xomashyo birligi; «Foyda tahlili» summalari (G2-15); zip 126 — telefon (C bosqichi); kech120: zip 127 — E bosqichi 1-qism: tezlik — hisobot xotirasi (so'rovlar orasida, yozuv bo'lsa darhol eskiradi), sahifa bir ochilishida bir xil so'rov bir marta, Bosh sahifa 5 ta buyurtma, kirish sahifasi rasmi, Hisobotlar taqqoslash kartalari telefonda (K120-1); zip 128 — E bosqichi 2-qism: katta ro'yxatlarda topish — Bosh sahifa «Bugungi vazifalar» havolalari, Buyurtmalar filtri / keng qidiruv / tanlovni tiklash, Qarzdorlar mijoz bo'yicha; zip 129 — E bosqichi 3-qism: tarix va jurnallar — «Tizim jurnallari» filtri va sahifalash, hamma amal o'zbekcha, tahrir yozuvida nima o'zgargani; Ombor «Tarix», «Yana yuklash», davr jami; zip 130 — E bosqichi 4-qism: qidiruvli tanlagich (Kirim — ta'minotchi, material; «Yangi qaytarish», «Brak yozish»), ta'minotchilar tabiiy tartibda, Tayyor mahsulotlar kategoriyalari korxonaning o'z mahsulot turlaridan; shu zipda — E bosqichi 5-qism: hodim kirishi — har korxonada kod (kodsizlarga ishga tushishda), QR serverda (ichida kod), kirish sahifasi kodni o'zi yozadi, chop etish sahifasi; shu zipda — E bosqichi 6-qism: rasmlar yuklashda 1920 px gacha kichraytiriladi (burilish qo'llanadi, joylashuv saqlanmaydi), ro'yxatlarda kichik nusxa (360 px); uzun ro'yxatlarda faqat birinchi 20 qator animatsiyali); zip 131 — F bosqichi 1-qism: Moliya, Qarzdorlar, «Xarajat qo'shish» (kirim xarajati faqat hujjat orqali, ro'yxat jami, kassa yozuvini o'chirish, «Yalpi foyda», qarz to'lovi usuli, majburiyat oyi); zip 132 — F bosqichi 2-qism: Ombor, Kirim, Ta'minotchilar, Retseptlar (kirim hujjatidan qator — to'lov / xarajat bo'lsa butun hujjat orqali, ishlatilgan retsept o'chmaydi, Telegram natijasi, Omborxona — ruxsat bo'yicha tugmalar, ustun nomlari, toifa filtri; ta'minotchi tarixida to'lov holati, penoplast blok hajmi); zip 133 — F bosqichi 3-qism: Tayyor mahsulotlar, Qaytarishlar, Ishlab chiqarish (birlik ko'rinishi — bitta qoida, qaytarishlar guruhi va kartalari, «Hisob-kitob qilish», tugmalar so'z bilan, sotishdan keyin sahifa qayta yuklanmaydi, narxsiz mahsulot qiymati, mahsulot turini tahrirlash / o'chirish, bo'sh korxona yo'riqnomasi); zip 134 — F bosqichi 4-qism: Buyurtmalar va Loyihalar (namuna matni rangi, saqlash kamchiliklari bitta ro'yxatda, detal raqami, profil — uzunlik bo'yicha, loyiha qarzi «384 ming», bitta hisob-kitob paneli, amallar tepada, «Bajarilgan» va «Yetkazish — 1/2 topshirildi», «Tarix», bo'sh korxonada «avval loyiha»); zip 135 — F bosqichi 5-qism: Bosh sahifa, Dashboard, Hisobotlar («Faol buyurtmalar» — bitta qoida, usta reytingi, yangi korxonaga «Boshlash», bo'sh grafiklar, davr filtri, jadval qidiruvi va Excel, «Yangilash»); zip 136 — F bosqichi 5-qism 2-bo'lagi: hujjatlar va KPI (buyurtma hisobi — birlik, ajratgich, bitta «TO'LOV SUMMASI»; yuk xati — shu yuk paytidagi holat; KPI sahifasi yozuvlari va hodim kartasi); zip 137 — F bosqichi 5-qism 3-bo'lagi: ustalar telefoni, menyu guruhlari, hodim va foydalanuvchi kirishi, alohida «Sozlamalar» sahifasi; kech121: zip 138 — egasi qarorlari 02.10 (Dashboard «Shu oy daromadi», brak foizi asosi, Menejer o'z xarajatini o'chiradi, narxsiz «Kirim (tuzatish)», qaytarish oynasida pul savoli, yuk xatida korxona to'lagan transport narxi yo'q); kech123: zip 139 — U-13 yagona ko'rinish 1-qism (tugma / maydon / tab / filtr o'lchamlari va yozuv shkalasi — bitta qoida; umumiy qobiq, Bosh sahifa, Dashboard, Hisobotlar, Foydalanuvchilar; zip 140 — 2-qism: Buyurtmalar, Loyihalar, Omborxona, Kirim qilish, Ta'minotchilar, Loy retseptlari, Ishlab chiqarish, Tayyor mahsulotlar, Qaytarishlar; zip 141 — 3-qism: Qarzdorlar, Moliya, Xarajat qo'shish, Ustalar KPI, Ustalar, Rollar; zip 142 — 4-qism: jurnallar, Sozlamalar, Savat, Platforma, kirish sahifalari, hodim paneli; zip 143 — qoplamachi bonusi va «har birlik uchun» hodim haqi yuk xatlari bo'yicha; kech124: zip 144 — loyihada «Yuk xatlari», yuk xati raqami loyiha bo'yicha, «Jamlab olish»; zip 145 — Loyihalar holat paneli «Bajarilgan»; kech125: zip 146 — brak taqdiri: Tashlandi / Tuzatildi / Kesildi / 2-nav; zip 147 — uning jonli sinovidan keyingi tuzatishlar; kech126: zip 148 — «Tez hisob / Taklif»: mijozga loyiha / buyurtma ochmasdan taklif, «Takliflar» ro'yxati, bir tugma bilan rasmiylashtirish; zip 149 — uning jonli sinovidan keyingi 2 tuzatish). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
+*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2); kech112: zip 108 — «Tayyor» da bo'sh loy = reja (K112-3), material nomi (K112-4), MRP qoplama belgisi (K112-5); ko'p korxonali yakuniy jonli sinov; kech115: zip 112 — butun dastur auditi A bosqichi (pul va ma'lumot xatolari) 1-qismi: kirim, qarzdorlar, «Tayyor», narxsiz buyurtma, o'chirilganlar jurnali, manfiy raqamlar, taqqoslash, korxona sog'ligi, ombor filtri; kech116: zip 113 — A bosqich 2-qismi: sog'liq sabablari (K115-2), «Bugungi xulosa» (K115-3), hujjatlardagi hisob qatorlari (G2-04), «Pul oqimi» — haqiqiy pul (G1-03), «Xarajat» — bitta ta'rif va «Tannarx» (G1-02), loyiha qiymati buyurtmalardan (G2-01), haqiqiy IP va kirish cheklovi (U-01), parol oynasi va kirishlarni yopish (G6-06); zip 114 — mijoz hujjatlarida kechirilgan qarz «Chegirma» ichida (egasi qarori); kech117: zip 115 — A2: yo'nalishlar bo'yicha moliya (G3-11, G6-09); zip 116 — jonli sinovdan keyin: «Belgilanmagan» manbalari, Moliya xarajatdan keyin yangilanadi; kech118: qolgan egasi qarorlari (6-bo'lim); zip 117 — B bosqichi 1-qism: dastur oynalari (xabar, kiritish, Esc / tashqariga bosish), o'zbekcha 404 / 403 sahifa, klaviatura fokusi; zip 118 — B bosqichi 2-qism: son / sana / birlik ko'rinishi, o'qiladigan rang, 12 px + yo'nalishlar bo'yicha moliyaviy natija (egasi qarori: taqsim yo'q, oyliklar alohida, davr, solishtirish); yangi qarorlar — rollar va ruxsatlar (6-bo'lim); zip 119 — rollar va ruxsatlar 1-qism (admin rollarni o'zi boshqaradi); kech119: zip 125 — Hisobotlar «oy boshi»: o'tgan oyning SHU KUNLARI bilan solishtirish (egasi qarori), taxminda oylik xarajat bir marta, xomashyo birligi; «Foyda tahlili» summalari (G2-15); zip 126 — telefon (C bosqichi); kech120: zip 127 — E bosqichi 1-qism: tezlik — hisobot xotirasi (so'rovlar orasida, yozuv bo'lsa darhol eskiradi), sahifa bir ochilishida bir xil so'rov bir marta, Bosh sahifa 5 ta buyurtma, kirish sahifasi rasmi, Hisobotlar taqqoslash kartalari telefonda (K120-1); zip 128 — E bosqichi 2-qism: katta ro'yxatlarda topish — Bosh sahifa «Bugungi vazifalar» havolalari, Buyurtmalar filtri / keng qidiruv / tanlovni tiklash, Qarzdorlar mijoz bo'yicha; zip 129 — E bosqichi 3-qism: tarix va jurnallar — «Tizim jurnallari» filtri va sahifalash, hamma amal o'zbekcha, tahrir yozuvida nima o'zgargani; Ombor «Tarix», «Yana yuklash», davr jami; zip 130 — E bosqichi 4-qism: qidiruvli tanlagich (Kirim — ta'minotchi, material; «Yangi qaytarish», «Brak yozish»), ta'minotchilar tabiiy tartibda, Tayyor mahsulotlar kategoriyalari korxonaning o'z mahsulot turlaridan; shu zipda — E bosqichi 5-qism: hodim kirishi — har korxonada kod (kodsizlarga ishga tushishda), QR serverda (ichida kod), kirish sahifasi kodni o'zi yozadi, chop etish sahifasi; shu zipda — E bosqichi 6-qism: rasmlar yuklashda 1920 px gacha kichraytiriladi (burilish qo'llanadi, joylashuv saqlanmaydi), ro'yxatlarda kichik nusxa (360 px); uzun ro'yxatlarda faqat birinchi 20 qator animatsiyali); zip 131 — F bosqichi 1-qism: Moliya, Qarzdorlar, «Xarajat qo'shish» (kirim xarajati faqat hujjat orqali, ro'yxat jami, kassa yozuvini o'chirish, «Yalpi foyda», qarz to'lovi usuli, majburiyat oyi); zip 132 — F bosqichi 2-qism: Ombor, Kirim, Ta'minotchilar, Retseptlar (kirim hujjatidan qator — to'lov / xarajat bo'lsa butun hujjat orqali, ishlatilgan retsept o'chmaydi, Telegram natijasi, Omborxona — ruxsat bo'yicha tugmalar, ustun nomlari, toifa filtri; ta'minotchi tarixida to'lov holati, penoplast blok hajmi); zip 133 — F bosqichi 3-qism: Tayyor mahsulotlar, Qaytarishlar, Ishlab chiqarish (birlik ko'rinishi — bitta qoida, qaytarishlar guruhi va kartalari, «Hisob-kitob qilish», tugmalar so'z bilan, sotishdan keyin sahifa qayta yuklanmaydi, narxsiz mahsulot qiymati, mahsulot turini tahrirlash / o'chirish, bo'sh korxona yo'riqnomasi); zip 134 — F bosqichi 4-qism: Buyurtmalar va Loyihalar (namuna matni rangi, saqlash kamchiliklari bitta ro'yxatda, detal raqami, profil — uzunlik bo'yicha, loyiha qarzi «384 ming», bitta hisob-kitob paneli, amallar tepada, «Bajarilgan» va «Yetkazish — 1/2 topshirildi», «Tarix», bo'sh korxonada «avval loyiha»); zip 135 — F bosqichi 5-qism: Bosh sahifa, Dashboard, Hisobotlar («Faol buyurtmalar» — bitta qoida, usta reytingi, yangi korxonaga «Boshlash», bo'sh grafiklar, davr filtri, jadval qidiruvi va Excel, «Yangilash»); zip 136 — F bosqichi 5-qism 2-bo'lagi: hujjatlar va KPI (buyurtma hisobi — birlik, ajratgich, bitta «TO'LOV SUMMASI»; yuk xati — shu yuk paytidagi holat; KPI sahifasi yozuvlari va hodim kartasi); zip 137 — F bosqichi 5-qism 3-bo'lagi: ustalar telefoni, menyu guruhlari, hodim va foydalanuvchi kirishi, alohida «Sozlamalar» sahifasi; kech121: zip 138 — egasi qarorlari 02.10 (Dashboard «Shu oy daromadi», brak foizi asosi, Menejer o'z xarajatini o'chiradi, narxsiz «Kirim (tuzatish)», qaytarish oynasida pul savoli, yuk xatida korxona to'lagan transport narxi yo'q); kech123: zip 139 — U-13 yagona ko'rinish 1-qism (tugma / maydon / tab / filtr o'lchamlari va yozuv shkalasi — bitta qoida; umumiy qobiq, Bosh sahifa, Dashboard, Hisobotlar, Foydalanuvchilar; zip 140 — 2-qism: Buyurtmalar, Loyihalar, Omborxona, Kirim qilish, Ta'minotchilar, Loy retseptlari, Ishlab chiqarish, Tayyor mahsulotlar, Qaytarishlar; zip 141 — 3-qism: Qarzdorlar, Moliya, Xarajat qo'shish, Ustalar KPI, Ustalar, Rollar; zip 142 — 4-qism: jurnallar, Sozlamalar, Savat, Platforma, kirish sahifalari, hodim paneli; zip 143 — qoplamachi bonusi va «har birlik uchun» hodim haqi yuk xatlari bo'yicha; kech124: zip 144 — loyihada «Yuk xatlari», yuk xati raqami loyiha bo'yicha, «Jamlab olish»; zip 145 — Loyihalar holat paneli «Bajarilgan»; kech125: zip 146 — brak taqdiri: Tashlandi / Tuzatildi / Kesildi / 2-nav; zip 147 — uning jonli sinovidan keyingi tuzatishlar; kech126: zip 148 — «Tez hisob / Taklif»: mijozga loyiha / buyurtma ochmasdan taklif, «Takliflar» ro'yxati, bir tugma bilan rasmiylashtirish; zip 149 — uning jonli sinovidan keyingi 2 tuzatish; kech127: `main` ga ko'chirish — 07.10; zip 150 — «Xomashyo narxlari va ombor qiymati» ruxsati, ORD-066-1 loy xatosi tuzatishi). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
 *Bu faylni `main` ga ko'chirish bilan birga, keyin har katta o'zgarishda yangilab boring. 9-bo'lim AVTOMATIK
 (`python3 tools/pasport_xarita.py --yoz`), qolgani qo'lda; `tools/test_pasport.py` ikkalasini ham tekshiradi.*
 
@@ -72,6 +72,11 @@ jarayon) uniki — ularni misol (haqiqiy raqamlar) va tavsiya bilan, tugmali sav
   jarayonlar (PostgreSQL, fon testlari) o'ladi — fon ishlarini `setsid nohup … &` bilan va qayta davom
   etadigan qilib yozing.
 - **Muhit o'zgaruvchilari** — 9-bo'lim, MUHIT bloki. `TENANT_FILTER=1` — global korxona filtri (4-bo'lim).
+- **`main` holati (kech127, 2026-10-07 — KO'CHIRISH BAJARILDI, 7-bo'lim):** `main` = staging kodi (`3b37806`; `tools/` siz daraxt staging
+  `f4b7899` bilan AYNAN — yangi klon bilan o'lchangan). `production` da `TENANT_FILTER=1`. Ko'chirishdan oldingi to'liq zaxira — Railway
+  Postgres Backups, 2026-10-07 19:36 (1,96 GB). Endi har zip: avval `staging` (jonli sinov), keyin egasi ruxsati bilan `main` ga AYNAN
+  o'sha fayllar, xuddi shu tartibda (papka bo'yicha; ildizdagi `.py` fayllar — BITTA commitda, oraliq deploy aralash kod bilan ishga
+  tushmasin); yuklangach — yangi klon, MD5, jonli faqat o'qish tekshiruvi.
 - **Zaxira:** `sinov` da Railway volume backup va PITR yoqilgan (Pro reja). `production` uchun to'liq zaxira
   (Railway Backups tab yoki `pg_dump --format=custom`) — `main` ga har qanday ko'chirishdan OLDIN majburiy.
   `/api/system/backup` (JSON eksport) — PostgreSQL zaxirasi EMAS: foydalanuvchilar paroli olib tashlanadi va
@@ -367,7 +372,7 @@ Admin uchun ochiq»; kech118 — «Menejer»). 403 sahifada rad sababi (qaysi bo
 inline `outline:none` ustidan); `style.css` havolalari `?v={{ static_version }}` bilan (kesh).
 **Rollar va ruxsatlar (kech118 — egasi QARORI 15:23 / 15:30; zip 119).** Huquq endi kodga qotirilmagan: korxona rollari
 `rollar` jadvalida (`models.Rol`: nom korxona ichida yagona, `kod` — tayyor rol, `ruxsatlar` — JSON {band: [amal]}),
-foydalanuvchi — `users.rol_id`. Katalog — `ruxsatlar.BOLIMLAR` (13 bo'lim, 32 band; har band o'z amallari bilan — masalan
+foydalanuvchi — `users.rol_id`. Katalog — `ruxsatlar.BOLIMLAR` (13 bo'lim, 33 band; har band o'z amallari bilan — masalan
 Dashboard faqat Ko'rish; «Tannarx va foyda» — alohida band). Har marshrut qorovuli — `Depends(auth.ruxsat("band", "amal"))`
 (sahifa — `ruxsat_biri`: birortasi yetadi; buyurtma foydasi — `ruxsat_hammasi(tannarx, buyurtma)`); menyu, bosh sahifa
 yo'naltirishi va sahifadagi tugmalar — `current_user.ruxsat(band, amal)` (amal berilmasa — bandning istalgani). ADMIN
@@ -399,7 +404,8 @@ izohi «Foyda 673 774 × 5%» («Foydadan foiz» turi; `detail`) → «Foyda —
 Qarzdorlar sahifasida — Jinja filtri `foyda_yashir`). Xato javobi, HTML, PDF, fayl — tegilmaydi.
 Brak va tayyor mahsulot yo'qotishi QIYMATI — tannarx bo'yicha baholanadi (1-qismdan: «Brak qiymati» kartasi ham faqat
 tannarxni ko'radiganga) — yashirin. Xomashyo narxi, xarid / kirim summasi, ta'minotchi qarzi — tannarxga KIRMAYDI (egasi qarori
-2): ko'rinadi (material ruxsatiga ko'ra). (2) PDF — `/api/finance/report-pdf` va `/api/finance/split-profit-pdf` ma'lumotni
+2): ko'rinadi (material ruxsatiga ko'ra; kech127 dan xomashyo narxi / kirim summasi / «Ombor qiymati» — alohida
+ruxsat «Xomashyo narxlari va ombor qiymati», pastda). (2) PDF — `/api/finance/report-pdf` va `/api/finance/split-profit-pdf` ma'lumotni
 sahifa bilan AYNAN tozalaydi (`tannarx_yoq=True` — `finance_pdf` da JAMI XARAJAT (tannarx bilan), SOF FOYDA, rentabellik,
 tannarx / brak qatorlari «—»; `_fmt*` None → «—»). (3) SAHIFALAR — `base.html` `TANNARX_KORADI` (bayroq) va `somYoq(n, f)`
 (null → «—», aks holda «N so'm»); har sahifa null ni «—» qiladi va null ustida hisoblamaydi (masalan qoplamali farqi, jami
@@ -407,6 +413,46 @@ tannarx, 1 birlik tannarxi, foyda chizig'i); tayyor mahsulot kalkulyatori (mijoz
 qatorini `TANNARX_KORADI` bilan umuman chizmaydi; retseptlar sahifasi 1 kg tannarxini (Jinja) «—». YANGI API maydoni tannarx /
 foyda bo'lsa — nomi `TANNARX_KALITLAR` da bo'lsin yoki `TANNARX_YOLLAR` ga yozilsin: `tools/test_tannarx.py` A3 / A4 / A5
 (hamma GET — «Hammasi» va «Tannarxsiz» rol farqi AYNAN tozalash) ushlaydi; sahifada — null uchun «—».
+**«Xomashyo narxlari va ombor qiymati» ruxsati (kech127, zip 150 — egasi QARORI 07.10 20:1x, tugmali: «Yashirilsin»; 6-bo'lim).** MUAMMO
+(O'LCHANGAN — `work/narx127.py`: `main` ning ko'chirilgan nusxasi, Menejer nomidan HAMMA GET marshrut, QIYMAT bo'yicha qidiruv — bazadagi
+narx / summa sonlari javoblarda izlanadi): Menejer sahifada narxni ko'rmasdi (Omborxona narx ustuni va «Ombor qiymati» — «Materiallar:
+Tahrirlash» sharti bilan), lekin server xomashyo narxini uning brauzeriga baribir yuborardi — `/api/inventory` (material narxi),
+`/api/inventory/kpi` (ombor qiymati 41 942 630), xarid tarixi, penoplast / loy narxi; Buyurtmalar va Tayyor mahsulotlar sahifasi manbasida
+penoplast narxi. YECHIM: yangi band `material_narx` («Xomashyo narxlari va ombor qiymati», Omborxona bo'limi, faqat Ko'rish); tayyor
+rollarda Admin / Omborchi / Moliyachi — bor, Menejer — YO'Q (tavsifida «xomashyo narxlari … ko'rinmaydi»). `ruxsatlar.narx_koradi(user)` =
+band YOKI «Tannarx va foyda» (tannarx shu narxlardan hisoblanadi — tannarxni ko'rgan narxni ham bilib oladi; tayyor mahsulot kalkulyatori
+narxsiz noto'g'ri tannarx chiqarardi); shablonda — `current_user.narx_koradi()`. SERVER: `auth.require_login` → `request.state.narx_yoq`;
+`main._TannarxHimoyasi` (o'sha qatlam) → `ruxsatlar.narx_tozala(data, marshrut)`: `NARX_YOLLAR` (7 marshrut — `/api/inventory` narx,
+`/api/inventory/kpi` `total_value`, `/api/inventory/purchases` narx / summa, `purchase-stats` jami, material bo'yicha jami va o'rtacha
+narx, `purchase-trend` oy jami, `/api/penoplasts` narx, `/api/loy-cost` tarkib narxi) — null. SAHIFALAR: Omborxona — «Ombor qiymati»
+kartasi, «1 birlik narxi» ustuni va narx katagi `narx_koradi()` bilan («Narxni tuzatish» tugmasi — qo'shimcha «Materiallar: Tahrirlash»);
+xarid tarixi null narx / summani «—» qiladi (`phSom`, `phNarxQismi`, `phSummaJami` — null `fmt` da «0 so'm» bo'lardi); `PENOPLASTS`
+(Buyurtmalar), `PENOS` (Tayyor mahsulotlar) — ko'rmaydiganga narx 0. Ta'minotchilar bo'limi (ta'minotchi qarzi, undan olingan xaridlar) —
+o'z ruxsati, bu bandga KIRMAYDI. MIGRATSIYA `main._migrate_material_narx_ruxsati` (IDEMPOTENT): belgisi (`company_settings`
+`rx_material_narx`) yo'q korxonaning MAVJUD rollari bir marta `ruxsatlar.material_narx_kerakmi` qoidasi bilan — tayyor Omborchi /
+Moliyachi; o'zi yaratilgan rol: material yoki kirim Yaratish / Tahrirlash / O'chirish, ta'minotchi yoki Moliya Ko'rish — band QO'SHILADI
+(avvalgidek ko'radi); faqat ko'ruvchi (Menejer) — yo'q; so'ng belgi (korxona — bitta tranzaksiya). Belgi tufayli admin keyin o'chirgan
+band qayta qo'shilmaydi; rollari hozirgi andozadan yaratiladigan YANGI korxonada belgini `auth.tayyor_rollar` darhol qo'yadi (admin o'zi
+yaratgan rolga migratsiya tegmaydi). O'LCHANGAN (`main` nusxasi, `work/natija/k150/`): Omborchi, Moliyachi + band, Menejer — yo'q; Menejer
+nomidan skan — sir YO'Q; admin javoblarida Moliya / hisobotlar AYNAN (farq — ORD-066-1 tuzatishidan, pastda, va rollar). YANGI API maydoni
+xomashyo narxi / ombor qiymati bo'lsa — `NARX_YOLLAR` ga: `tools/test_material_narx.py` A / V (QIYMAT bo'yicha qidiruv) ushlaydi.
+**ORD-066-1 loy xatosi — bir martalik tuzatish (kech127, zip 150 — egasi QARORLARI 07.10: loy 500 kg, qoldiq — ombor yozuvlari bo'yicha,
+«Toza tuzatish»; 6-bo'lim).** `main` da xodim 05.10 da ORD-066-1 loy rejasiga 500 o'rniga 500 000 kg yozgan («omborda yetishmaydi»
+oynasini tasdiqlab); eski `main` kodi loy xomashyosini 0 da qirqardi, harakatlar esa to'liq miqdor bilan (Akril 42 857 kg, Kroshka extra
+261 905 kg …) — 6 material qoldig'i 0, «tugash bashorati» va «eng ko'p ishlatilgan xomashyo» yolg'on. Ilova ichidan tuzatish (loy 500 + 6
+× «Qoldiqni tuzatish») qoldiqni to'g'rilardi, lekin 261 643 kg «qaytarildi» va 259 726 kg «tuzatish» yozuvlari qolardi — 14 kun yolg'on «1
+kundan keyin tugaydi», 90 kun «eng ko'p ishlatilgan» 523 252 kg (O'LCHANGAN — `work/natija/k126/z1924/fix.txt`).
+`main._migrate_ord066_loy_xatosi` (parametrlar `main.ORD066_TUZATISH` — korxona 1, ORD-066-1, 500 000 → 500; ishga tushishda; IDEMPOTENT)
+FAQAT aynan shu holatda ishlaydi: buyurtma bor, o'chirilmagan, «Tayyor» emas, haqiqiy loy kiritilmagan, rejasi AYNAN 500 000; loy
+harakatlari («Buyurtma ORD-066-1 (loy)») hammasi chiqim, kamida bitta; shu buyurtmada boshqa loy harakati (qaytarish, tahrir) yo'q — aks
+holda hech narsa qilmaydi, sababi logda (`holat_ozgargan` / `harakat_boshqa`; buyurtma yo'q — `yoq`, reja boshqa — `reja_boshqa`). Bitta
+tranzaksiya: har loy harakati × 1/1000 (narxi saqlanadi; shu buyurtmaning penoplast harakati — tegilmaydi), reja 500
+(`services._set_planned_loy` — ustun va izoh belgisi), shu materiallar qoldig'i = ombor yozuvlari balansi (Σ kirim − Σ chiqim; eski kod
+qirqib yo'qotgan qism shu bilan tiklanadi — 28.09 zaxirasida 9 / 9 material qoldig'i = balans, O'LCHANGAN), «Tizim jurnallari»ga
+`loy_tuzatish` («Tizim (tuzatish)», eski → yangi qoldiqlar). Ikkinchi ishga tushishda reja eski emas — hech narsa. O'LCHANGAN (`main`
+nusxasi): 6 material qoldig'i 221,84 / 1 916,81 / 755,20 / 108,80 / 11,72 / 30,02 — oldindan hisoblangan balans bilan AYNAN. Shu kod
+`main` ga tushgunga qadar ORD-066-1 «Tayyor» qilinmaydi va loyi o'zgartirilmaydi (egasiga aytilgan) — aks holda shart buziladi, tuzatish
+ishlamaydi (qo'lda qilinadi).
 **Mayda qoidalar va nomlar (kech118, D bosqichi 1-qism — egasi QARORLARI 11:40; zip 121).** (1) LOYIHA (G2-20): o'chirilmagan
 buyurtmasi bor loyiha o'chirilmaydi — `crud.loyiha_ochirish_tosigi` (korxona ichida sanaydi) → `crud.delete_project` `ValueError`
 → 400 «Loyihada N ta buyurtma bor — avval buyurtmalarni o'chiring»; savatdagi buyurtmalar to'sqinlik qilmaydi. Loyihasi o'chirilgan
@@ -1451,6 +1497,18 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   matni «50 kg loy × 15 600 so'm/kg»), `test_tayyor_reja_loy` (R7, R12, R16 — «20 kg loy»), `test_yonalish_natija`
   (S1 / S2 — «bugun» muzlatiladi: oy tugagan → o'tgan oy butun; yangi S5–S7 — 1–5 / 1–4 kesim qo'lda hisoblangan
   summalar bilan va haqiqiy bugun qoidasi; asl kodda S5–S7 yiqiladi).
+- (kech127, zip 150) `tools/test_material_narx.py` — «Xomashyo narxlari va ombor qiymati»: S (`narx_tozala` — faqat marshrut yo'llari,
+  boshqa maydon / marshrut tegilmaydi; `narx_koradi`; `material_narx_kerakmi`), K (katalog, tayyor rollar, `NARX_YOLLAR` — haqiqiy GET
+  marshrutlar, himoya ulangan, SAHIFA_KERAK), A (HAQIQIY HTTP, har GET /api: «Narxsiz» = «Tannarxsiz» + `narx_tozala`, holat kodlari bir
+  xil; «Faqat tannarx» = «Hammasi»; 7 majburiy yashirin), V (QIYMAT bo'yicha qidiruv: tayyor Menejer va «Ombor narxsiz» rol — sir yo'q;
+  Omborchi, Admin — ko'radi), H (Omborxona — 5 rol, H8 — tannarx bor, tahrir yo'q: narx bor, «Narxni tuzatish» yo'q; `PENOS`,
+  `PENOPLASTS`), J (xarid tarixi: eski `fmt(narx)` yo'q; node — null → «—»), M (migratsiya: qoida, belgi, ikkinchi ishga tushish, admin
+  o'chirgani, yangi korxona, roli bor korxona, korxona 1). `tools/test_ord066_tuzatish.py` — S (parametrlar, ishga tushishda), T (×
+  1/1000, narx saqlanadi, reja 500, qoldiq = mustaqil hisob = balans, boshqa material / buyurtma / penoplast harakati / korxona
+  tegilmaydi, jurnal), I (ikkinchi chaqiruv — AYNAN), G1–G9 (har shart alohida — hech narsa o'zgarmaydi), K (boshqa korxona, parametr
+  bilan). 44 + 26 (SQ / TF / PG) — zip 149 kodida 29 / 44 va 19 / 26 yiqiladi, qulamaydi. Mutatsiyalar `work/yx150/mut150.py` (40 ta:
+  ruxsat / tozalash / migratsiya, sahifalar, ORD-066 shartlari) — hammasi kutilgan tekshiruvlarda ushlanadi; ekvivalent ikkitasi (himoya
+  shartidagi `or narx_yoq` — `narx_yoq` ⇒ `tannarx_yoq`; balansdagi korxona filtri) — skript izohida. Eski sinovlar — o'zgartirilmagan.
 - (kech126, zip 148) `tools/test_taklif.py` — «Tez hisob / Taklif»: A (raqam korxona bo'yicha, muddat +3 kun, jurnal; HISOB buyurtma bilan
   AYNAN — 7 detal turi: profil + ichki detal, panel 333 × 10,335, donali 7 × 0,125, blok, loy sotish, MRP mahsuloti, tayyor mahsulot;
   chegirma; `agreed_amount` null / 0), B (taklif HECH NARSA yozmaydi — buyurtma, loyiha, harakat, to'lov, kassa, ishlab chiqarish, har
@@ -2128,8 +2186,30 @@ qarorlari 02.10»)**
   buyurtmasi ham; bir xil = nom, o'lcham, qoplama, birlik, birlik narxi; varaqda «Miqdor, narx va summa» (jami summa bilan; «Faqat
   miqdor» — RAD); pastida kirgan yuk xatlari (raqam, sana).
 
+**Yangi qarorlar (kech127, 2026-10-07 — `main` ga ko'chirish bosqichi; tugmali savollar; QAYTA SO'RALMAYDI)**
+- (~19:15) ORD-066-1 loy rejasi — 500 kg (500 000 adashib yozilgan). Xomashyo qoldig'i — ombor yozuvlari (harakatlar) bo'yicha. Tuzatish
+  (20:1x) — «Toza tuzatish» (bir martalik ma'lumot tuzatishi, «qaytarildi» / «tuzatish» yozuvlarisiz) — BAJARILDI zip 150 (4-bo'lim
+  «ORD-066-1 loy xatosi»).
+- (~19:15) ORD-038-1 ning sentabrda topshirilgan qismi (qoplamachi bonusi 740 000) egasi tomonidan qo'lda TO'LANGAN — yuk xati qoidasining
+  chegarasi `services.YUK_XATI_HISOBI_BOSHI` = 2026-10 QOLADI (7-bo'limdagi savol YOPILDI).
+- (~19:15) Ko'chirish — shu kuni kechqurun (bajarildi 19:53–20:21).
+- (20:1x) «Menejer» rolidagi hodimlar (2 kishi): Moliya, tannarx, foyda — rol allaqachon yopiq (O'LCHANGAN); xomashyo xarid narxlari va
+  «Ombor qiymati» ham KO'RINMASIN («Yashirilsin») — BAJARILDI zip 150 (4-bo'lim «Xomashyo narxlari va ombor qiymati» ruxsati).
+  Ta'minotchilar bo'limi (qarz) — o'z ruxsati bilan (Menejerda yo'q).
+
 ## 7. Ochiq masalalar
 
+- **`main` ga ko'chirish — BAJARILDI (kech127, 2026-10-07 19:53–20:21):** egasi Railway zaxirasi (19:36, 1,96 GB) → `TENANT_FILTER=1` →
+  GitHub `main` ga 4 commit papka bo'yicha (ildiz 22 fayl — bitta commitda; templates 29, static 6, fonts 5) → eski ustalar sahifasi
+  shabloni (yangi kod o'qimaydi) o'chirildi (`3b37806`). To'lqinlar birinchi ishga tushishda (14:54 UTC — `companies.created_at`).
+  Tekshiruv (ichki brauzer, faqat o'qish): 91 GET API simulyatsiya «keyin» holati bilan — 87 AYNAN, qolgani vaqt tamg'alari, muhit,
+  korxona filtri; health-check 0; xatolar — faqat eski 18.09. Oldindan: 3(a) o'lchovlar, 3(b) simulyatsiya, 3(c) egasi qarorlari
+  (6-bo'lim) — `work/kech127_holat.md`.
+- **`main` dan keyin (kech127) — OCHIQ:** (1) `tools/` (216 fayl) `main` ga — zip 150 bilan (ishga tushishga kerak emas — runtime import
+  yo'q); (2) egasi `/platforma` da «Aloqa telefoni» ni yozadi, o'z logotipini (yuklagan bo'lsa) bir marta qayta yuklaydi; (3) production
+  Postgres PITR: 19:36 da «WAL archive credentials may be invalid» ogohlantirishi — ko'rib chiqilmagan (to'liq zaxira 19:36 — bor); (4)
+  production o'zgaruvchilarida `MASTER_BOT_TOKEN`, `MASTER_WEBHOOK_SECRET` — kodda 09-01 dan ishlatilmaydi (olib tashlash — egasi bilan,
+  shoshilinch emas); (5) `saas_migration.py` — endi olib tashlansa bo'ladi («Texnik qarz» bandi).
 - **`main` o'lchovlari — BAJARILDI (kech108, egasi bergan JSON zaxira 2026-09-28 15:03 UTC, 43 jadval, lokal PG):**
   30+ chekka holat tekshiruvi — deyarli hammasi 0 (topilganlari: PRJ-033 `total_paid` 0 ↔ to'lovlar 2 560 000 — migratsiya
   tenglashtiradi; Penoplast 10P −0.06 (K108-2); Kirill 1 loyiha; retseptsiz 2 READY; "Tayyor loy" turkumi "Bazalt" —
@@ -2148,7 +2228,8 @@ qarorlari 02.10»)**
   ma'lumot — vaqt tamg'alaridan tashqari); 93 hisobot kech108 KEYIN bilan AYNAN (farq faqat K108-2 — kam qolgan 0 → 1, va vaqt
   tamg'alari); `orders` ni boshqa ulanish ushlab tursa — SINOV W3 da "qulf band" bilan to'xtaydi, baza O'ZGARMAYDI, qayta
   ishga tushganda yakunlanadi.
-- **`main` ga ko'chirish (keyingi bosqich).** Avval `production` ning to'liq zaxirasi (+ PITR), so'ng `main`
+- **`main` ga ko'chirish — BAJARILDI kech127 (2026-10-07; quyidagi reja — tarix uchun; ochiq qolganlari — «`main` dan keyin»
+  bandida).** Avval `production` ning to'liq zaxirasi (+ PITR), so'ng `main`
   bazasida faqat o'qish o'lchovlari (eski ma'lumotdagi chekka holatlar — topilganlari egasiga BIZNES savoli),
   keyin kod (to'lqinlar — `saas_otish.py`, birinchi ishga tushishda avtomatik; hech kim ishlamayotgan paytda — eski ilova
   o'tish paytida bir necha soniya yozishda xato berishi mumkin: to'lqinlardan keyin DEFAULT 1 olib tashlanadi).
@@ -2209,7 +2290,8 @@ qarorlari 02.10»)**
 - **(kech123, zip 143) `main` ga ko'chirishda — oylik chegarasi:** yuk xati qoidasi 2026-10 dan (`services.YUK_XATI_HISOBI_BOSHI`).
   Ishxonadagi `main` hozir eski kodda — ko'chirilguncha yopilgan oylarni (oktabr va keyingilari) egasi eski hisob bilan to'laydi;
   ko'chirishdan keyin o'sha oylar tarixi yangi qoida bilan ko'rinadi (farq qilishi mumkin). `main` bosqichida egasidan so'raladi: chegara
-  oyi — ko'chirish oyimi.
+  oyi — ko'chirish oyimi. YOPILDI kech127: egasi ORD-038-1 sentabr qismini qo'lda to'lagan,
+  chegara 2026-10 qoladi (6-bo'lim).
 
 ## 8. Texnik saboqlar (qayta qilmang)
 
@@ -2557,6 +2639,20 @@ qarorlari 02.10»)**
 - (kech123) Etalon: `dNNN_son.sh` asosiy skriptni o'ldirganda uning `hammasi2` bolasi yetim qolib, tf1 IKKI nusxada bitta papkaga
   yozgan (d149, d150 — loglar aralashgan, yuklama ~10, bir sinov kirishda qulagan). Endi butun daraxt o'ldiriladi, tf1 papkasi toza
   boshlanadi; ishlayotgan bash skript joyida tahrirlanmaydi (yangi fayl + `mv`).
+- (kech127, zip 150) Sahifada yashirish ≠ sirni yashirish: Menejer narxni ekranda ko'rmasdi, lekin server uni JSON da va sahifa manbasida
+  (`const PENOPLASTS = [...]`) yuborardi. Ruxsatni tekshirishda QIYMAT bo'yicha qidiring (bazadagi sir sonlar → HAMMA GET javoblari va
+  sahifa matni — `work/narx127.py`, `tools/test_material_narx.py` V), kalit nomiga tayanmang (`price`, `total`, `avg_price`, `total_value`
+  …).
+- (kech127, zip 150) Yangi ruxsat bandi MAVJUD rollarga — korxona belgisi bilan BIR MARTALIK migratsiya (belgisiz — har deployda admin
+  tanlovi qayta yoziladi, K105-2 sinfi); rollari yangi andozadan yaratiladigan korxonada belgi darhol (aks holda migratsiya admin o'zi
+  yaratgan rolga tegadi). Belgi — `company_settings` birlamchi kaliti (korxona, kalit): ikkinchi marta qo'shish istisno beradi va shu
+  ishga tushishda qolgan korxonalar o'tkazib yuboriladi — belgini tekshirmasdan qo'shmang (mutatsiya N12 — o'lchangan).
+- (kech127) Eski kod qirqqan (0 da clamp) qoldiq harakatlar bilan mos emas: ma'lumot tuzatishida qoldiqni ombor yozuvlari balansidan qayta
+  hisoblang (bitta tranzaksiya, qat'iy shartlar, jurnal) — «Qoldiqni tuzatish» bilan emas: u tarixda katta soxta «qaytarildi» / «tuzatish»
+  yozuvlarini qoldiradi va bashoratlarni buzadi (O'LCHANGAN). Bir buyurtmaning harakatlarini sabab (`reason`) bo'yicha AYNAN tanlang — shu
+  buyurtmaning penoplast harakati ham bor (production da o'lchangan; mutatsiya O15).
+- (kech127, zip 150) Ruxsat yashirgan son (null) sahifada `fmt(null)` → «0 so'm» bo'lib chiqadi (yolg'on nol): null tekshiruvli yordamchi
+  (`phSom` → «—»), jami — null qatori bo'lsa null.
 - (kech126, zip 148) Qulfli qayta o'qish (`with_for_update()`) shu sessiyada avval o'qilgan obyektni YANGILAMAYDI — SQLAlchemy sessiya
   xaritasidagi eski qiymatlar qoladi: holat tekshiruvi (masalan «yangi»mi) qulf kutilgach ham eski holatni ko'radi. Qulf ostidagi
   tekshiruv uchun `.with_for_update().populate_existing()`. Faqat HAQIQIY PG parallel sinovi (`threading.Barrier`, ikki alohida mijoz)
@@ -2714,13 +2810,15 @@ bajariladigan chaqiruvlar — AYNAN shu tartibda. `_migrate_*` — idempotent sx
 33. `_migrate_yuk_xati_ulush` — kech123 (zip 143 — qoplamachi bonusi va «har birlik uchun» hodim haqi YUK XATLARI bo'yicha) — IDEMPOTENT, PostgreSQL va SQLite.
 34. `_migrate_loyiha_yuk_seq` — kech124 (zip 144 — egasi QARORI 06.10: yuk xati raqami LOYIHA bo'yicha davom etadi, «ORD-001-2/Y-6») — IDEMPOTENT, PostgreSQL va SQLite.
 35. `_migrate_brak_taqdir` — kech125 (zip 146 — EGASI QARORLARI 07.10 «Brak taqdiri») — IDEMPOTENT, PostgreSQL va SQLite.
-36. `app.include_router(production_router)`
-37. `app.include_router(saas_migration_router)`
-38. `app.add_middleware`
-39. `_yuklama_marshrutini_oldinga`
-40. `_scheduler.add_job`
-41. `_scheduler.add_job`
-42. `_scheduler.start`
+36. `_migrate_material_narx_ruxsati` — kech127 (zip 150 — egasi QARORI 07.10 20:1x: «Xomashyo narxlari va «Ombor qiymati» Menejerga ko'rinmasin») — IDEMPOTENT, PostgreSQL va SQLite.
+37. `_migrate_ord066_loy_xatosi` — kech127 (zip 150) — BIR MARTALIK ma'lumot tuzatishi, IDEMPOTENT, PostgreSQL va SQLite. Faqat AYNAN shu holatda ishlaydi (aks holda hech narsa qilmaydi va sababini logga…
+38. `app.include_router(production_router)`
+39. `app.include_router(saas_migration_router)`
+40. `app.add_middleware`
+41. `_yuklama_marshrutini_oldinga`
+42. `_scheduler.add_job`
+43. `_scheduler.add_job`
+44. `_scheduler.start`
 <!-- AVTO:ISHGA_TUSHISH OXIRI -->
 
 ### 9.3 Sahifalar: URL → handler → shablon → API
@@ -3503,6 +3601,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_loyiha_izchillik.py` · PG — kech98 (2026-09-27), 130-band.
 - `test_loyiha_tahrir.py` · PG — kech107 darvozasi (5-bo'lim 10-band, "1a loyiha tahririda muddat"): LOYIHA TAHRIRI — muddat (deadline) va ixtiyoriy maydonlarni tozalash. UI qismi — `tools/test_loyiha_tahrir_…
 - `test_material_korxona.py` · PG — kech99 (2026-09-27), 112-band.
+- `test_material_narx.py` · PG — kech127 (zip 150): «XOMASHYO NARXLARI VA OMBOR QIYMATI» RUXSATI (egasi QARORI 07.10 20:1x, tugmali, QAYTA SO'RALMAYDI: «Ulugbek va Mirjalol (Menejer) xomashyo xarid narxlari v…
 - `test_material_nom.py` · PG — kech112 darvozasi: K112-4 — materialni (ombor) boshqa material nomiga qayta nomlash 500 berardi.
 - `test_mijozga_qaytarish.py` · PG — kech100 darvozasi (2026-09-27, 131-band, FOYDALANUVCHI QARORI "B" — "Kerak").
 - `test_moliya_tafsilot.py` · PG — kech106, K106-2 darvozasi: oylik moliya hisobotining xarajatlar ro'yxati (PDF "Xarajatlar tafsiloti" jadvali va Moliya sahifasidagi ro'yxat) JAMI XARAJAT bilan BIR xil bo'ls…
@@ -3528,6 +3627,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_ochirish_yopish.py` · PG — kech100 darvozasi (2026-09-27, 93-band, FOYDALANUVCHI QARORI "B").
 - `test_ombor_kpi_loy.py` · PG — K35-1 darvozasi (kech36, 2026-09-23).
 - `test_ombor_turkum.py` · PG — kech105 darvozasi: K105-2 (ombor turkumi "Boshqa" har deployda "Bazalt" ga aylanardi) va K105-3 (penoplast belgisi material NOMIDAN har deployda qo'yilardi; Ta'minotchilar sahi…
+- `test_ord066_tuzatish.py` · PG — kech127 (zip 150): `main` (production) dagi ORD-066-1 LOY XATOSINING bir martalik tuzatishi (`main._migrate_ord066_loy_xatosi`; egasi QARORI 07.10, tugmali: loy 500 kg, qold…
 - `test_ortiqcha_qaytarish.py` · PG — 5-bo'lim 57-band darvozasi (kech60, 2026-09-24): ORTIQCHA mahsulot omborga.
 - `test_oy_boshi.py` · PG — kech119 darvozasi (2026-10-01): Hisobotlar «oy boshi» xatolari va «Foyda tahlili» matnlari.
 - `test_pasport.py` · PG — `LOYIHA_PASPORTI.md` (16-band) izchilligi va shablon → marshrut havolalari darvozasi (kech104, 2026-09-28).
@@ -3628,5 +3728,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 208 (Python 173, JS 35).
+Jami test fayllari: 210 (Python 175, JS 35).
 <!-- AVTO:TESTLAR OXIRI -->
