@@ -359,6 +359,14 @@ if PW_BOR:
             check("B2b «⚡ Tez hisob» dan keyin darrov detal maydoniga o'tilsa — kursor o'sha maydonda qoladi (mijoz ismiga tortilmaydi)",
                   isinstance(q2b, dict) and q2b.get("fokus") is True and q2b.get("mijoz") == "" and q2b.get("rejim") == "yangi"
                   and q2b.get("detallar") == 1, q2b)
+            # B2c — kech126 (zip 149 — jonli sinov): taklifda to'lov yo'q — hisob panelida «Zaklat» / «Qolgan qarz» yashirin, sarlavha
+            PANEL_JS = """() => { const q = id => { const v = document.getElementById(id); return v ? getComputedStyle(v.closest('.sum-item')).display : null; };
+                return {s: (document.getElementById('lsSarlavha') || {}).textContent || null, z: q('ls-zaklat'), d: q('ls-debt'),
+                        t: q('ls-total'), live: getComputedStyle(document.getElementById('liveStats')).display}; }"""
+            q2c = ev(pg, PANEL_JS)
+            check("B2c taklifda hisob paneli — sarlavha «Taklif hisob-kitobi», «Zaklat» va «Qolgan qarz» qatorlari yashirin, kelishilgan summa bor",
+                  isinstance(q2c, dict) and q2c.get("s") == "Taklif hisob-kitobi" and q2c.get("z") == "none" and q2c.get("d") == "none"
+                  and q2c.get("t") not in (None, "none"), q2c)
             _n_post0 = len([x for x in SOROVLAR if "/api/takliflar" in x[1]])
             detal_toldir(pg, "UI Karniz 20x10", 20, 10, 10)
             bos(pg, "#newOrderForm .btn-dark")
@@ -477,6 +485,10 @@ if PW_BOR:
                   and q7.get("yulduz") != "none" and q7.get("zaklat") != "none" and q7.get("qoralama") != "none"
                   and q7.get("tugma") == "✅ Buyurtmani rasmiylashtirish" and q7.get("jami") == "180 000 so'm" and q7.get("yangiYoq") is True
                   and not NULL_SOROV, (q7, NULL_SOROV))
+            q7d = ev(pg, PANEL_JS)
+            check("B7d rasmiylashtirishda hisob paneli — oddiy buyurtmadagidek: «Buyurtma hisob-kitobi», «Zaklat» va «Qolgan qarz» ko'rinadi",
+                  isinstance(q7d, dict) and q7d.get("s") == "Buyurtma hisob-kitobi" and q7d.get("z") not in (None, "none")
+                  and q7d.get("d") not in (None, "none"), q7d)
             pg.screenshot(path=os.path.join(_T, "rasmiy_1440.png"))
             bos(pg, "#newOrderForm .btn-dark")
             kut(pg, "() => getComputedStyle(document.getElementById('validationModal')).display === 'flex'", 4000)
@@ -523,15 +535,20 @@ if PW_BOR:
             kut(pg, "() => document.querySelectorAll('#tkRoyxat .tk-qator').length === 3")
             _bk = [t for t in tk_hammasi() if t[3] == "Bekor Mijoz"]
             ev(pg, f"() => {{ taklifBekor({_bk[0][0] if _bk else 0}); }}")
-            kut(pg, "() => getComputedStyle(document.getElementById('genericConfirmOverlay')).display === 'flex'", 4000)
-            _tasdiq = ev(pg, "() => document.getElementById('genericConfirmMsg').innerText")
-            bos(pg, "#genericConfirmOk")
+            kut(pg, "() => getComputedStyle(document.getElementById('ccModal')).display === 'flex'", 4000)
+            _tasdiq = ev(pg, "() => document.getElementById('ccModalMessage').innerText")
+            _tugmalar8 = ev(pg, "() => [document.getElementById('ccModalTitle').textContent, document.getElementById('ccModalOk').textContent.trim(),"
+                                " document.getElementById('ccModalCancel').textContent.trim()]")
+            bos(pg, "#ccModalOk")
             kut(pg, "() => /Bekor qilingan/.test(document.getElementById('tkRoyxat').innerText)", 6000)
             _bk2 = [t for t in tk_hammasi() if t[3] == "Bekor Mijoz"]
             check("B8 «⛔ Bekor qilish» — tasdiq oynasi (taklif o'chirilmasligi aytiladi), keyin holat «Bekor qilingan», amallar faqat PDF",
                   "o'chirilmaydi" in str(_tasdiq) and _bk2 and _bk2[0][2] == "bekor"
                   and ev(pg, f"() => Array.from(document.querySelectorAll('#tkRoyxat .tk-qator[data-id=\"{_bk2[0][0] if _bk2 else 0}\"] .tk-amallar .btn')).map(b => b.textContent.trim())")
                   == ["📄 PDF"], (_tasdiq, _bk2))
+            # kech126 (zip 149 — zip 148 jonli sinovi): «yo'q» tugmasi ham «Bekor qilish» edi — amal nomi bilan bir xil, adashtirardi
+            check("B8b bekor qilish oynasi tugmalari ikki ma'noli emas: «Ha, bekor qilish» / «Yo'q, qolsin», sarlavha «Taklifni bekor qilish»",
+                  _tugmalar8 == ["Taklifni bekor qilish", "Ha, bekor qilish", "Yo'q, qolsin"], _tugmalar8)
             yoz(pg, "#tkQidiruv", "910010")
             kut(pg, "() => document.querySelectorAll('#tkRoyxat .tk-qator').length === 1", 5000)
             _q9 = ev(pg, "() => document.getElementById('tkRoyxat').innerText")
@@ -584,6 +601,10 @@ if PW_BOR:
                   isinstance(q10, dict) and q10.get("rejim") is None and q10.get("sar") == "Yangi buyurtma" and q10.get("loyiha") != "none"
                   and q10.get("mijoz") == "none" and q10.get("mv") == "" and "Taklif detali" not in (q10.get("nomlar") or [])
                   and q10.get("tugma") == "💾 Buyurtmani saqlash" and q10.get("taklifOpt") is False, q10)
+            q10b = ev(pg, PANEL_JS)
+            check("B10b oddiy buyurtma formasida hisob paneli asliga qaytdi: «Buyurtma hisob-kitobi», «Zaklat» va «Qolgan qarz» ko'rinadi",
+                  isinstance(q10b, dict) and q10b.get("s") == "Buyurtma hisob-kitobi" and q10b.get("z") not in (None, "none")
+                  and q10b.get("d") not in (None, "none") and q10b.get("live") != "none", q10b)
             _sx = ev(pg, "() => (window.__msgs || []).filter(x => /Server xatosi|Cannot|undefined/.test(x[0]))")
             check("B11 JS xatosi yo'q, «Server xatosi» xabari yo'q", not JS_XATOLAR and not _sx, (JS_XATOLAR, _sx))
             ctx.close()
