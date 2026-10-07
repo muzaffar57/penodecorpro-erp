@@ -980,7 +980,7 @@ input[type=number]{-moz-appearance:textfield}
          Endi BITTA panel: detallar → Jami (chegirmasiz) → Kelishilgan → Zaklat → Qolgan qarz (0 — kulrang) → hajm / uzunlik / loy.
          `#liveTotal` / `#liveTotalBody` / `ls-*` — o'sha identifikatorlar (yangilovchi funksiyalar o'zgarmaydi). -->
     <div class="card" id="liveStats" style="display:none;border-left:3px solid #B9783F;border-radius:0 12px 12px 0">
-      <div class="card-head"><h3><span class="ico-badge green"><i class="ti ti-calculator"></i></span> Buyurtma hisob-kitobi</h3></div>
+      <div class="card-head"><h3><span class="ico-badge green"><i class="ti ti-calculator"></i></span> <span id="lsSarlavha">Buyurtma hisob-kitobi</span></h3></div>
       <div id="liveTotal" style="display:none">
         <div style="padding:12px 12px 0;max-height:400px;overflow-y:auto" id="liveTotalBody">
           <div style="text-align:center;color:var(--text3);padding:20px">Detal qo'shing...</div>
@@ -3422,6 +3422,14 @@ function _tkEl(id) { return document.getElementById(id); }
 
 function _tkKorsat(el, kor) { if (el) el.style.display = kor ? '' : 'none'; }
 
+// kech126 (zip 149 — zip 148 jonli sinovi): taklifda to'lov hali yo'q — hisob panelida «Zaklat» / «Qolgan qarz» qatorlari yashirin,
+// sarlavha «Taklif hisob-kitobi» (ilgari taklifda «Qolgan qarz: 120 000» ko'rinardi). Rasmiylashtirish va oddiy buyurtma — avvalgidek
+function _tkHisobPanel(taklifda) {
+  const s = _tkEl('lsSarlavha');
+  if (s) s.textContent = taklifda ? 'Taklif hisob-kitobi' : 'Buyurtma hisob-kitobi';
+  ['ls-zaklat', 'ls-debt'].forEach(id => { const v = _tkEl(id); _tkKorsat(v ? v.closest('.sum-item') : null, !taklifda); });
+}
+
 // Forma maydonlari va detallari tozalanadi (taklif saqlangach yoki taklif rejimidan oddiy buyurtmaga qaytganda)
 function _tkFormaniTozala() {
   const items = _tkEl('items');
@@ -3456,6 +3464,7 @@ function taklifRejiminiTozala(formani) {
   const zu = _tkEl('zaklat_method');
   _tkKorsat(zu ? zu.closest('.yb-ikki-ustun') : null, true);
   _tkKorsat(_tkEl('takliflarPanel'), false);
+  _tkHisobPanel(false);
   if (edi && formani) _tkFormaniTozala();
 }
 
@@ -3476,6 +3485,7 @@ function taklifRejiminiOrnat(r) {
   const zu = _tkEl('zaklat_method');
   _tkKorsat(zu ? zu.closest('.yb-ikki-ustun') : null, rasmiy);
   _tkKorsat(_tkEl('draftSaveBtn'), rasmiy);
+  _tkHisobPanel(!rasmiy);
   _tkKorsat(_tkEl('editBanner'), false);
   _tkKorsat(_tkEl('takliflarPanel'), false);
   const saveBtn = document.querySelector('#newOrderForm .btn-dark');
@@ -3822,8 +3832,11 @@ async function taklifRasmiy(id) {
 async function taklifBekor(id) {
   const qator = document.querySelector(`#tkRoyxat .tk-qator[data-id="${Number(id)}"] .tk-raqam`);
   const raqam = qator ? qator.textContent : '';
-  if (!(await showConfirmModal(`${raqam} taklifi bekor qilinsinmi?\n\nTaklif o'chirilmaydi — ro'yxatda «Bekor qilingan» bo'lib qoladi, uni endi rasmiylashtirib bo'lmaydi.`,
-                               {danger: true, okText: 'Ha, bekor qilish', title: 'Taklifni bekor qilish'}))) return;
+  // kech126 (zip 149 — jonli sinov): umumiy oynada «yo'q» tugmasi ham «Bekor qilish» edi (amal nomi bilan bir xil — adashtirardi);
+  // `customConfirm` — tugma yozuvlari aniq: «Ha, bekor qilish» / «Yo'q, qolsin»
+  if (!(await customConfirm('Taklifni bekor qilish',
+      `${raqam} taklifi bekor qilinsinmi?\n\nTaklif o'chirilmaydi — ro'yxatda «Bekor qilingan» bo'lib qoladi, uni endi rasmiylashtirib bo'lmaydi.`,
+      {danger: true, okText: 'Ha, bekor qilish', cancelText: "Yo'q, qolsin"}))) return;
   try {
     const res = await fetch(`/api/takliflar/${Number(id)}/bekor`, { method: 'POST' });
     let d = null;
