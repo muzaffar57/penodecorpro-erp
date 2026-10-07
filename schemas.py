@@ -6,8 +6,8 @@ Ular API ga keladigan va chiqadigan ma'lumotlarni tekshiradi.
 """
 
 from datetime import datetime
-from typing import Optional, List
-from pydantic import BaseModel, Field
+from typing import Optional, List, Literal
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ============================================================
@@ -73,8 +73,8 @@ class InventoryRead(BaseModel):
     last_updated: datetime
     notes: Optional[str] = None
     image_url: Optional[str] = None
-    serp_ratio_per_m2: Optional[float] = None
-    kley_ratio_per_m2: Optional[float] = None
+    base_unit: Optional[str] = None
+    conversion_factor: Optional[float] = None
 
     model_config = {"from_attributes": True}
 
@@ -91,8 +91,8 @@ class InventoryCreate(BaseModel):
     is_default_penoplast: bool = Field(default=False, description="Asosiy plotnost")
     category: Optional[str] = None
     notes: Optional[str] = None
-    serp_ratio_per_m2: Optional[float] = Field(default=None, description="Bazalt uchun: 1 m² bazaltga necha m² serpiyanka")
-    kley_ratio_per_m2: Optional[float] = Field(default=None, description="Bazalt uchun: 1 m² bazaltga necha kg kley")
+    base_unit: Optional[str] = Field(default=None, description="Production/MRP retseptlari uchun mayda birlik, masalan 'g', 'ml'")
+    conversion_factor: Optional[float] = Field(default=None, gt=0, description="1 dona `unit` necha dona `base_unit`ga teng (masalan 1 qop=50000 g)")
 
 
 class InventoryUpdate(BaseModel):
@@ -107,8 +107,8 @@ class InventoryUpdate(BaseModel):
     is_default_penoplast: Optional[bool] = None
     category: Optional[str] = None
     notes: Optional[str] = None
-    serp_ratio_per_m2: Optional[float] = None
-    kley_ratio_per_m2: Optional[float] = None
+    base_unit: Optional[str] = None
+    conversion_factor: Optional[float] = Field(default=None, gt=0)
 
 
 class StockChange(BaseModel):
@@ -162,6 +162,12 @@ class InventoryReceiptCreate(BaseModel):
     add_to_cost: bool = Field(default=False, description="Qo'shimcha xarajatlarni tannarxga qo'shish")
     notes: Optional[str] = None
     production_type: Optional[str] = Field(default=None, description="umumiy / penoplast / gips")
+    # kech117 (A2): korxona yo'nalishi (`models.Yonalish`); NULL — «Umumiy».
+    yonalish_id: Optional[int] = Field(default=None, ge=1, le=2_147_483_647)
+    # kech115 (G4-03): formadagi «Sana» va «To'lov muddati» — ilgari serverga umuman yuborilmasdi (kirim doim bugungi
+    # sana bilan yozilardi, qarz muddati hech qayerda saqlanmasdi). YYYY-MM-DD; bo'sh — bugun / muddatsiz.
+    receipt_date: Optional[str] = Field(default=None, description="Kirim sanasi (YYYY-MM-DD, Toshkent kalendari)")
+    payment_due_date: Optional[str] = Field(default=None, description="Ta'minotchi qarzini to'lash muddati (YYYY-MM-DD)")
 
 
 class SupplierUpdate(BaseModel):
@@ -253,6 +259,9 @@ class ProjectCreate(BaseModel):
     client_address: Optional[str] = None
     description: Optional[str] = None
     total_budget: Optional[float] = 0
+    # 15-band: yaratish formasidagi "Muddati" — ilgari sxemada yo'q edi va
+    # JIMGINA tashlab yuborilardi (loyihalarning birortasida muddat yo'q edi).
+    deadline: Optional[datetime] = None
     notes: Optional[str] = None
 
 
@@ -295,26 +304,28 @@ class OrderItemCreate(BaseModel):
     length: Optional[float] = None
     quantity: float = Field(default=1.0, gt=0)
     is_coated: bool = True
-    unit_price: float = Field(default=0, ge=0)
+    # 2026-09-17 (audit topilmasi — haqiqiy xato): juda katta son (masalan
+    # 999999999999) bazadagi Numeric(12,2) ustunining sig'imidan oshib,
+    # tushunarsiz 500-xato berardi. Endi shu yerning o'zida, tushunarli
+    # xabar bilan rad etiladi — bazadagi haqiqiy chegara bilan bir xil.
+    unit_price: float = Field(default=0, ge=0, le=9_999_999_999.99)
     # "Donali" turi uchun — hajmni hisoblashda ISHLATILADIGAN (qulflangan)
     # narx, unit_price'dan farq qilishi mumkin (agar sotuv narxi keyinroq
     # o'zgartirilgan bo'lsa). Berilmasa — unit_price'ning o'zi ishlatiladi.
-    unit_price_for_volume: Optional[float] = None
+    unit_price_for_volume: Optional[float] = Field(default=None, le=9_999_999_999.99)
     penoplast_id: Optional[int] = None
-    price_per_m3: Optional[float] = None
+    price_per_m3: Optional[float] = Field(default=None, le=9_999_999_999.99)
     finished_product_id: Optional[int] = None
     image_url: Optional[str] = None
     notes: Optional[str] = None
-    # Termopanel (Bazalt) uchun — category='termopanel' bo'lganda ishlatiladi
-    bazalt_item_id: Optional[int] = None
-    serpiyanka_item_id: Optional[int] = None
-    kley_item_id: Optional[int] = None
-    termo_loy_kg: Optional[float] = None
     # "Loy sotish" turi uchun — shu detalning O'ZIGA tegishli retsept
     # (buyurtmaning umumiy qoplama retseptidan farq qilishi mumkin)
     recipe_id: Optional[int] = None
     # GIPS uchun — tanlangan birlik (metr/dona/m2)
     gips_unit: Optional[str] = None
+    # 2026-09-16: Production/MRP'dagi dinamik mahsulot turi tanlangan
+    # bo'lsa (category='mrp_product')
+    product_type_id: Optional[int] = None
     # Profil (karniz) turidagi detal ICHIDAGI qo'shimcha bo'laklar
     # (masalan rebristo detal) — bir nechtagacha bo'lishi mumkin
     sub_details: List[OrderItemSubDetailCreate] = Field(default_factory=list)
@@ -339,7 +350,7 @@ class OrderCreate(BaseModel):
     master_id: Optional[int] = None
     recipe_id: Optional[int] = None
     items: List[OrderItemCreate] = []
-    agreed_amount: Optional[float] = None
+    agreed_amount: Optional[float] = Field(default=None, ge=0, le=9_999_999_999.99)
     is_draft: bool = False
     deadline: Optional[datetime] = None
     notes: Optional[str] = None
@@ -347,8 +358,44 @@ class OrderCreate(BaseModel):
     gips_inventory_id: Optional[int] = None
     planned_gips_kg: Optional[float] = None
     gips_additives: List[GipsAdditiveInput] = []
-    base_price: Optional[float] = None
-    loy_kg: Optional[float] = None
+    base_price: Optional[float] = Field(default=None, le=9_999_999_999.99)
+    # 17d (2026-09-21): rejalashtirilgan loy (kg). QAT'IY: faqat JSON son
+    # (`true` / `"5"` — yo'q, ilgari 1 va 5 kg ga o'girilardi), chekli
+    # (`Infinity` loy xomashyosini −∞ qilardi), manfiy emas, chegara
+    # `crud._UPD_SON_CHEGARA` bilan bir xil. Ildizda `crud._json_loy` ham bor.
+    loy_kg: Optional[float] = Field(default=None, ge=0, le=1_000_000_000_000.0,
+                                    allow_inf_nan=False, strict=True)
+
+
+class TaklifBuyurtma(OrderCreate):
+    """kech126 (zip 148 — «Tez hisob / Taklif»): taklifdagi buyurtma tanasi — `OrderCreate` ning AYNAN o'zi (bir xil chegaralar,
+    bir xil detal sxemasi), faqat loyiha yo'q: `project_id` berilsa ham e'tiborga olinmaydi (taklifda loyiha ochilmaydi;
+    rasmiylashtirishda loyiha alohida tanlanadi yoki yaratiladi)."""
+    project_id: Optional[int] = None
+
+
+class TaklifCreate(BaseModel):
+    """kech126 (zip 148): `POST /api/takliflar` va `PUT /api/takliflar/{id}` tanasi. Mijoz ismi / telefoni sig'imi — loyihaning
+    `client_name` (2–100) / `client_phone` (20) bilan BIR XIL: rasmiylashtirishda yangi loyiha shulardan ochiladi."""
+    mijoz: str = Field(..., min_length=2, max_length=100)
+    telefon: Optional[str] = Field(default=None, max_length=20)
+    buyurtma: TaklifBuyurtma
+
+
+class TaklifYangiLoyiha(BaseModel):
+    """kech126 (zip 148): rasmiylashtirishda ochiladigan YANGI loyiha (ism / telefon — taklifdan; nomini xodim o'zgartirishi
+    mumkin). Chegaralar — `ProjectCreate` bilan bir xil; qat'iy tekshiruv `crud._clean_create("Project", …)` orqali."""
+    project_name: str = Field(..., min_length=2, max_length=200)
+    client_name: str = Field(..., min_length=2, max_length=100)
+    client_phone: Optional[str] = Field(default=None, max_length=20)
+
+
+class TaklifRasmiylashtir(BaseModel):
+    """kech126 (zip 148): `POST /api/takliflar/{id}/rasmiylashtir` — mavjud loyiha (`loyiha_id`) YOKI yangi loyiha
+    (`yangi_loyiha`) — aynan bittasi; `buyurtma` — buyurtma formasidan (taklif bilan to'ldirilgan, xodim ko'rib chiqqan)."""
+    loyiha_id: Optional[int] = None
+    yangi_loyiha: Optional[TaklifYangiLoyiha] = None
+    buyurtma: TaklifBuyurtma
 
 
 class OrderItemSubDetailRead(BaseModel):
@@ -383,16 +430,24 @@ class OrderItemRead(BaseModel):
     image_url: Optional[str] = None
     notes: Optional[str] = None
     gips_unit: Optional[str] = None
+    product_type_id: Optional[int] = None
     sub_details: List[OrderItemSubDetailRead] = Field(default_factory=list)
     model_config = {"from_attributes": True}
 
 
 class ExpenseTransactionCreate(BaseModel):
+    """17e (2026-09-22): marshrutlar endi xom JSON ni `crud._clean_val
+    ("ExpenseTransaction")` bilan tekshiradi; bu sxema ham xuddi shu
+    chegaralarni qo'yadi (boshqa joyda ishlatilsa — ikkinchi to'siq).
+    Ilgari faqat `ge=0` bor edi: `Infinity` SAQLANIB Moliya tarixini buzardi."""
     date: Optional[datetime] = None
-    category: str
-    amount: float = Field(..., ge=0)
-    notes: Optional[str] = None
-    production_type: Optional[str] = Field(default=None, description="umumiy / penoplast / gips")
+    category: str = Field(..., min_length=1, max_length=30)
+    amount: float = Field(..., gt=0, le=9_999_999_999.99, allow_inf_nan=False, strict=True)
+    notes: Optional[str] = Field(default=None, max_length=10_000)
+    production_type: Optional[Literal["umumiy", "penoplast", "gips"]] = Field(
+        default=None, description="umumiy / penoplast / gips")
+    # kech117 (A2): korxona yo'nalishi (`models.Yonalish`); NULL — «Umumiy».
+    yonalish_id: Optional[int] = Field(default=None, ge=1, le=2_147_483_647)
 
 
 class ExpenseTransactionRead(BaseModel):
@@ -405,6 +460,9 @@ class ExpenseTransactionRead(BaseModel):
     created_at: datetime
     source: str = "manual"
     production_type: Optional[str] = None
+    yonalish_id: Optional[int] = None
+    # kech120 (zip 131 — G3-18): doimiy majburiyat toifasi (`ijara_4821` kabi kod) — o'qiladigan nomi (ro'yxat uchun; yo'q — None)
+    category_label: Optional[str] = None
     model_config = {"from_attributes": True}
 
 
@@ -443,6 +501,13 @@ class FinishedProductLossCreate(BaseModel):
     finished_product_id: int
     quantity: float = Field(..., gt=0)
     reason: Optional[str] = None
+    # kech53 (13-band, 1-qadam): ixtiyoriy brak bosqichi (`crud.BRAK_BOSQICHLARI`).
+    brak_bosqich: Optional[Literal["kesish", "qoplash", "quritish", "saqlash_tashish"]] = None
+
+    # kech56 (13-band, 7-qadam): ixtiyoriy brak sababi (`crud.BRAK_SABABLARI`) va
+    # javobgar hodim (shu korxonaning hodimi — `crud._brak_javobgar_tekshir`).
+    brak_sabab: Optional[Literal["xomashyo", "ishchi", "uskuna", "olcham", "boshqa"]] = None
+    brak_javobgar_id: Optional[int] = Field(default=None, ge=1, le=2_147_483_647, strict=True)
 
 
 class GipsProduceAdditive(BaseModel):
@@ -470,6 +535,13 @@ class FinishedProductProductionBrakCreate(BaseModel):
     gips_kg_brak: Optional[float] = Field(default=None, gt=0, description="Faqat Gips uchun — to'g'ridan-to'g'ri kiritilgan, isrof bo'lgan kg")
     additives_brak: Optional[List[GipsProduceAdditive]] = Field(default=None, description="Faqat Gips uchun, ixtiyoriy — qo'shimcha materiallardan isrof bo'lgan bo'lsa")
     notes: Optional[str] = None
+    # kech53 (13-band, 1-qadam): ixtiyoriy brak bosqichi (`crud.BRAK_BOSQICHLARI`).
+    brak_bosqich: Optional[Literal["kesish", "qoplash", "quritish", "saqlash_tashish"]] = None
+
+    # kech56 (13-band, 7-qadam): ixtiyoriy brak sababi (`crud.BRAK_SABABLARI`) va
+    # javobgar hodim (shu korxonaning hodimi — `crud._brak_javobgar_tekshir`).
+    brak_sabab: Optional[Literal["xomashyo", "ishchi", "uskuna", "olcham", "boshqa"]] = None
+    brak_javobgar_id: Optional[int] = Field(default=None, ge=1, le=2_147_483_647, strict=True)
 
 
 class FinishedProductSaleCreate(BaseModel):
@@ -532,24 +604,11 @@ class ProduceCreate(BaseModel):
     quantity: Optional[float] = None    # panel/dona uchun — necha dona
     is_coated: bool = True
     penoplast_id: Optional[int] = None
-    price_per_m3: Optional[float] = None
+    price_per_m3: Optional[float] = Field(default=None, le=9_999_999_999.99)
     unit_price: float = Field(default=0, ge=0, description="Sotuv narxi (1 metr / 1 dona)")
     unit_price_for_volume: Optional[float] = Field(default=None, description="Dona uchun: 1 dona tan narxi (hajm hisobi)")
     loy_kg: float = Field(default=0, ge=0)
     recipe_id: Optional[int] = None
-    notes: Optional[str] = None
-
-
-class TermopanelProduceCreate(BaseModel):
-    """Bazalt asosidagi termopanel ishlab chiqarish (kvadrat metr bo'yicha)."""
-    name: str = Field(..., min_length=2, max_length=150)
-    required_m2: float = Field(..., gt=0, description="Kerakli kvadrat metr")
-    bazalt_item_id: int
-    serpiyanka_item_id: Optional[int] = None  # Ombordagi qaysi serpiyanka turi ishlatilishi (aniq tanlanadi)
-    kley_item_id: Optional[int] = None  # Ombordagi qaysi kley turi ishlatilishi (aniq tanlanadi)
-    recipe_id: Optional[int] = None
-    loy_kg: float = Field(default=0, ge=0)
-    unit_price: float = Field(default=0, ge=0, description="Sotuv narxi (1 kvadrat metr uchun)")
     notes: Optional[str] = None
 
 
@@ -600,20 +659,44 @@ class FinishedProductUpdate(BaseModel):
 # ============================================================
 
 class DeliveryItemCreate(BaseModel):
-    order_item_id: int
-    quantity: float = Field(..., gt=0)
+    """17g (2026-09-22): ikkinchi to'siq — marshrut xom JSON ni
+    `crud._clean_val("Delivery")` bilan tekshiradi. Ilgari faqat `gt=0` bor
+    edi: `Infinity` / `1e20` o'tib, "qoldiqdan ko'p" xabarida `inf metr`
+    bo'lib chiqardi."""
+    order_item_id: int = Field(..., ge=1, le=2_147_483_647, strict=True)
+    quantity: float = Field(..., gt=0, le=1_000_000_000_000.0, allow_inf_nan=False, strict=True)
 
 
 class DeliveryCreate(BaseModel):
-    order_id: int
-    items: List[DeliveryItemCreate] = []
-    received_by: Optional[str] = None
-    notes: Optional[str] = None
-    transport_carrier: Optional[str] = None
-    transport_cost: float = Field(default=0, ge=0)
-    transport_payer: str = Field(default="none", description="none/client/company/split")
-    payment_amount: Optional[float] = Field(default=None, ge=0, description="Shu yukka bog'liq to'lov (ixtiyoriy)")
-    payment_method: Optional[str] = Field(default="naqd", description="naqd/plastik/o'tkazma")
+    """Yangi yetkazish.
+
+    17g (2026-09-22): marshrut xom JSON ni `crud._clean_val("Delivery")` bilan
+    tekshiradi (u 1 tiyindan kichik to'lov / transportni ham rad etadi); bu
+    sxema — ikkinchi to'siq, ustun sig'imlari bilan bir xil. HAQIQIY PostgreSQL
+    da O'LCHANGAN (asl kod = 17f): to'lov / transport `Infinity` / `1e20` —
+    500; to'lov `true` → 1 so'm, `"7"` matni; noma'lum to'lovchi saqlanib
+    transport Moliyadan tushib qolardi; noma'lum usul jimgina "naqd";
+    qabul qiluvchi 101, tashuvchi 151, to'lovchi 21 belgi — 500.
+    `confirm_overpay` — qarzdan ko'p to'lov uchun aniq tasdiq (409 dan keyin)."""
+    order_id: int = Field(..., ge=1, le=2_147_483_647, strict=True)
+    # kech25: 500 edi — 501 detalli buyurtmaning "Tayyor" belgisi (servis
+    # shu sxemani tuzadi) 500 xato berardi (O'LCHANGAN). Chegara crud qoidasi
+    # bilan bir xil.
+    items: List[DeliveryItemCreate] = Field(default_factory=list, max_length=100_000)
+    received_by: Optional[str] = Field(default=None, max_length=100)
+    notes: Optional[str] = Field(default=None, max_length=10_000)
+    transport_carrier: Optional[str] = Field(default=None, max_length=150)
+    transport_cost: float = Field(default=0, ge=0, le=9_999_999_999.99, allow_inf_nan=False,
+                                  strict=True)
+    transport_payer: Literal["none", "client", "company", "split"] = Field(
+        default="none", description="none/client/company/split")
+    payment_amount: Optional[float] = Field(default=None, ge=0, le=9_999_999_999.99,
+                                            allow_inf_nan=False, strict=True,
+                                            description="Shu yukka bog'liq to'lov (ixtiyoriy)")
+    payment_method: Literal["naqd", "plastik", "o'tkazma"] = Field(
+        default="naqd", description="naqd/plastik/o'tkazma")
+    confirm_overpay: bool = Field(default=False, strict=True,
+                                  description="Qarzdan ko'p to'lov kiritilsa, aniq tasdiqlash uchun")
 
 
 class DeliveryItemRead(BaseModel):
@@ -647,10 +730,11 @@ class EmployeeCreate(BaseModel):
     fixed_amount: float = Field(default=0, ge=0)
     percent_value: float = Field(default=0, ge=0, le=100)
     per_unit_rate: float = Field(default=0, ge=0)
-    per_unit_type: str = Field(default="blok", description="blok/metr/dona/gips_metr/gips_qop/gips_kg")
-    gul_rate: Optional[float] = Field(default=None, description="Qoliplik gul (dona) uchun — qo'shimcha narx")
+    per_unit_type: str = Field(default="blok", description="blok/metr/dona")
     extra_monthly: Optional[float] = Field(default=None, description="Ixtiyoriy qo'shimcha doimiy oylik")
     production_type: Optional[str] = Field(default=None, description="penoplast / gips / umumiy")
+    # kech117 (A2): korxona yo'nalishi (`models.Yonalish`); NULL — «Umumiy».
+    yonalish_id: Optional[int] = Field(default=None, ge=1, le=2_147_483_647)
     notes: Optional[str] = None
 
 
@@ -662,9 +746,10 @@ class EmployeeUpdate(BaseModel):
     percent_value: Optional[float] = None
     per_unit_rate: Optional[float] = None
     per_unit_type: Optional[str] = None
-    gul_rate: Optional[float] = None
     extra_monthly: Optional[float] = None
     production_type: Optional[str] = None
+    # kech117 (A2): korxona yo'nalishi (`models.Yonalish`); NULL — «Umumiy».
+    yonalish_id: Optional[int] = Field(default=None, ge=1, le=2_147_483_647)
     is_active: Optional[bool] = None
     notes: Optional[str] = None
     # To'lov o'zgarishi qaysi oydan kuchga kirishi kerak (masalan, oylik
@@ -683,9 +768,9 @@ class EmployeeRead(BaseModel):
     percent_value: float
     per_unit_rate: float
     per_unit_type: str
-    gul_rate: Optional[float] = None
     extra_monthly: Optional[float] = None
     production_type: Optional[str] = None
+    yonalish_id: Optional[int] = None
     is_active: bool
     notes: Optional[str] = None
     phone: Optional[str] = None
@@ -693,26 +778,51 @@ class EmployeeRead(BaseModel):
 
 
 class MasterKpiUpdate(BaseModel):
+    """Usta KPI foizi (`kpi.html` — faqat `kpi_percent`, son).
+
+    kech93 (8-band, O'LCHANGAN `work/probe8.py`): sxema "lax" edi — `true` → 1.0,
+    "7" → 7.0 JIM saqlanardi, noma'lum kalit e'tiborsiz qolardi. Endi strict
+    (son — faqat JSON son), noma'lum kalit va NaN / cheksiz — 422."""
+    model_config = ConfigDict(extra="forbid", strict=True, allow_inf_nan=False)
     kpi_percent: float = Field(..., ge=0, le=100)
 
 
 class TransportExpenseCreate(BaseModel):
-    """Kirish transporti — xomashyo olib kelish xarajati."""
-    amount: float = Field(..., gt=0)
-    materials_note: Optional[str] = None
-    notes: Optional[str] = None
-    production_type: Optional[str] = Field(default=None, description="umumiy / penoplast / gips")
+    """Kirish transporti — xomashyo olib kelish xarajati.
+
+    17f (2026-09-22): marshrut xom JSON ni `crud._clean_val
+    ("TransportExpense")` bilan tekshiradi (u 1 tiyindan kichik summani ham
+    rad etadi); bu sxema — ikkinchi to'siq, ustun sig'imlari bilan bir xil.
+    Ilgari faqat `gt=0` bor edi: `Infinity` / `1e20` / uzun matn PostgreSQL
+    da 500, `true` → 1 so'm, `"5"` matni, ro'yxatdan tashqari tur o'tardi."""
+    amount: float = Field(..., gt=0, le=9_999_999_999.99, allow_inf_nan=False, strict=True)
+    materials_note: Optional[str] = Field(default=None, max_length=255)
+    notes: Optional[str] = Field(default=None, max_length=10_000)
+    production_type: Optional[Literal["umumiy", "penoplast", "gips"]] = Field(
+        default=None, description="umumiy / penoplast / gips")
+    # kech117 (A2): korxona yo'nalishi (`models.Yonalish`); NULL — «Umumiy».
+    yonalish_id: Optional[int] = Field(default=None, ge=1, le=2_147_483_647)
 
 
 class PaymentCreate(BaseModel):
-    """Yangi to'lov qo'shish."""
-    order_id: int
-    amount: float = Field(..., gt=0, description="To'lov summasi")
-    payment_type: str = Field(default="partial", description="zaklat / partial / final")
-    payment_method: str = Field(default="naqd", description="naqd / plastik / o'tkazma")
-    received_by: Optional[str] = None
-    notes: Optional[str] = None
-    confirm_overpay: bool = Field(default=False, description="Qarzdan ko'p to'lov kiritilsa, aniq tasdiqlash uchun")
+    """Yangi to'lov qo'shish.
+
+    17f (2026-09-22): marshrut xom JSON ni `crud._clean_val("Payment")` bilan
+    tekshiradi (u 1 tiyindan kichik summani ham rad etadi); bu sxema —
+    ikkinchi to'siq. Ilgari: `order_id: true` → 1-buyurtma, `amount: true` →
+    1 so'm, `"5"` matni, `Infinity` / `1e20` PostgreSQL da 500, noto'g'ri
+    tur / usul JIMGINA "partial" / "naqd" ga aylanardi."""
+    order_id: int = Field(..., ge=1, le=2_147_483_647, strict=True)
+    amount: float = Field(..., gt=0, le=9_999_999_999.99, allow_inf_nan=False, strict=True,
+                          description="To'lov summasi")
+    payment_type: Literal["zaklat", "partial", "final"] = Field(
+        default="partial", description="zaklat / partial / final")
+    payment_method: Literal["naqd", "plastik", "o'tkazma"] = Field(
+        default="naqd", description="naqd / plastik / o'tkazma")
+    received_by: Optional[str] = Field(default=None, max_length=100)
+    notes: Optional[str] = Field(default=None, max_length=10_000)
+    confirm_overpay: bool = Field(default=False, strict=True,
+                                  description="Qarzdan ko'p to'lov kiritilsa, aniq tasdiqlash uchun")
 
 
 class PaymentRead(BaseModel):
@@ -764,8 +874,12 @@ class OrderRead(BaseModel):
 
 
 class OrderAgreedUpdate(BaseModel):
-    """Kelishilgan summani yangilash."""
-    agreed_amount: float = Field(..., ge=0)
+    """Kelishilgan summani yangilash.
+
+    17e (2026-09-22): MUSBAT, chekli, Numeric(12,2) sig'imi ichida, faqat son
+    (marshrut xom JSON ni `crud._clean_val("OrderAgreed")` bilan tekshiradi;
+    bu — ikkinchi to'siq). Ilgari `ge=0`: `Infinity` va `1e20` o'tardi."""
+    agreed_amount: float = Field(..., gt=0, le=9_999_999_999.99, allow_inf_nan=False, strict=True)
 
 
 class ProjectUpdate(BaseModel):
@@ -779,6 +893,9 @@ class ProjectUpdate(BaseModel):
     total_paid: Optional[float] = None
     status: Optional[str] = None
     notes: Optional[str] = None
+    # kech107 (10a): tahrirda muddat (`crud._upd_rules` — "sana"). Maydon sxemada bo'lmasa pydantic uni JIM
+    # tashlab yuborardi (yaratishdagi 15-band nuqsoni bilan bir xil sinf).
+    deadline: Optional[datetime] = None
 
 
 # ============================================================
@@ -786,17 +903,38 @@ class ProjectUpdate(BaseModel):
 # ============================================================
 
 class ReturnItemCreate(BaseModel):
-    order_id: int
-    item_name: str
-    quantity: float
-    unit: str = "dona"
-    reason: str
-    refund_amount: float = 0
-    to_stock: bool = Field(default=True, description="Tayyor mahsulotlar omboriga qo'shilsinmi")
-    order_item_id: Optional[int] = None
-    notes: Optional[str] = None
-    coating_applied: bool = Field(default=False, description="Brak bo'lganda loy allaqachon tortilgan bo'lsa True")
-    gips_kg_used: Optional[float] = Field(default=None, description="GIPS brak uchun — taxminan qancha gips ketgani")
+    """Yangi qaytarish.
+
+    17g (2026-09-22): marshrut xom JSON ni `crud._clean_val("Return")` bilan
+    tekshiradi (u 1 tiyindan kichik summani ham rad etadi); bu sxema —
+    ikkinchi to'siq, ustun sig'imlari bilan bir xil. Ilgari HECH QANDAY
+    cheklov yo'q edi — HAQIQIY PostgreSQL da O'LCHANGAN: manfiy / 0 / `1e20`
+    miqdor saqlanardi, `Infinity` / `NaN` miqdor tayyor mahsulot qoldig'ini
+    buzardi, `NaN` summa bazaga yozilardi, noma'lum sabab jimgina "Brak"."""
+    order_id: int = Field(..., ge=1, le=2_147_483_647, strict=True)
+    item_name: str = Field(..., min_length=1, max_length=150)
+    quantity: float = Field(..., gt=0, le=1_000_000_000_000.0, allow_inf_nan=False, strict=True)
+    unit: str = Field(default="dona", max_length=20)
+    reason: Literal["Brak", "Ortiqcha", "Notog'ri o'lcham", "Mijoz iltimosi"]
+    refund_amount: float = Field(default=0, ge=0, le=9_999_999_999.99, allow_inf_nan=False,
+                                 strict=True)
+    to_stock: bool = Field(default=True, strict=True,
+                           description="Tayyor mahsulotlar omboriga qo'shilsinmi")
+    order_item_id: Optional[int] = Field(default=None, ge=1, le=2_147_483_647, strict=True)
+    notes: Optional[str] = Field(default=None, max_length=10_000)
+    coating_applied: bool = Field(default=False, strict=True,
+                                  description="Brak bo'lganda loy allaqachon tortilgan bo'lsa True")
+    gips_kg_used: Optional[float] = Field(default=None, ge=0, le=1_000_000_000_000.0,
+                                          allow_inf_nan=False, strict=True,
+                                          description="GIPS brak uchun — taxminan qancha gips ketgani")
+    # kech53 (13-band, 1-qadam): ixtiyoriy brak bosqichi — FAQAT sabab "Brak"
+    # bo'lganda (`crud.create_return_item` boshqa sababda 400 beradi).
+    brak_bosqich: Optional[Literal["kesish", "qoplash", "quritish", "saqlash_tashish"]] = None
+
+    # kech56 (13-band, 7-qadam): ixtiyoriy brak sababi (`crud.BRAK_SABABLARI`) va
+    # javobgar hodim (shu korxonaning hodimi — `crud._brak_javobgar_tekshir`).
+    brak_sabab: Optional[Literal["xomashyo", "ishchi", "uskuna", "olcham", "boshqa"]] = None
+    brak_javobgar_id: Optional[int] = Field(default=None, ge=1, le=2_147_483_647, strict=True)
 
 
 class ReturnItemRead(BaseModel):

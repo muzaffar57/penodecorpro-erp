@@ -1,7 +1,147 @@
 import os
+import datetime as _dt_modul     # kech106: tur tekshiruvi — HAQIQIY sinflar (testlar `database.datetime` ni almashtiradi)
+from datetime import datetime, timedelta, timezone
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from models import Base
+
+# 2026-09-17 (audit topilmasi — jiddiy, keng tarqalgan xato tuzatildi):
+# Bazadagi BARCHA datetime'lar (created_at, paid_at, completed_at va h.k.)
+# doim datetime.utcnow() bilan, ya'ni UTC vaqtida saqlanadi — bu TO'G'RI va
+# o'zgarishsiz qoladi. Lekin ko'plab hisobot/dashboard funksiyalarida
+# "BUGUN"ning boshlanishini topish uchun to'g'ridan-to'g'ri
+# `datetime.utcnow().replace(hour=0,...)` ishlatilgan edi — bu esa
+# Toshkent (UTC+5) vaqti bilan ertalabki soat 00:00–04:59 oralig'idagi
+# har qanday voqeani (to'lov, buyurtma yakunlanishi va h.k.) NOTO'G'RI
+# ravishda "KECHAGI KUN"ga hisoblab qo'yardi — chunki o'sha payt UTC
+# bo'yicha hali KECHAGI SANA edi. Quyidagi ikkita yordamchi funksiya —
+# shu muammoning YAGONA, markazlashtirilgan yechimi: "bugun" TOSHKENT
+# vaqti bo'yicha aniqlanadi, natija esa baza bilan solishtirish uchun
+# UTC ko'rinishida qaytariladi.
+TASHKENT_OFFSET = timedelta(hours=5)
+
+
+def tashkent_today_start_utc() -> datetime:
+    """Toshkent vaqti bo'yicha BUGUNNING boshlanishi (00:00), lekin UTC
+    ko'rinishida qaytariladi — shuning uchun bazadagi datetime ustuni
+    bilan TO'G'RIDAN-TO'G'RI solishtirish mumkin:
+        Model.some_date >= tashkent_today_start_utc()
+    "Hafta"/"oy" boshlanishini topish uchun ham shu qiymatdan
+    boshlab hisoblash kerak (masalan `.replace(day=1)`), alohida
+    UTC-asosli hisoblash EMAS."""
+    tashkent_now = datetime.utcnow() + TASHKENT_OFFSET
+    tashkent_midnight = tashkent_now.replace(hour=0, minute=0, second=0, microsecond=0)
+    return tashkent_midnight - TASHKENT_OFFSET
+
+
+def tashkent_date(dt: datetime = None):
+    """Berilgan (UTC, naive) datetime'ning Toshkent vaqti bo'yicha
+    SANASINI (`date` obyekti) qaytaradi. `dt` berilmasa — hozirgi kun
+    (Toshkent bo'yicha) qaytariladi. `.date() == today` ko'rinishidagi
+    solishtirishlar uchun: `tashkent_date(p.paid_at) == tashkent_date()`."""
+    if dt is None:
+        dt = datetime.utcnow()
+    return (dt + TASHKENT_OFFSET).date()
+
+
+def tashkent_vaqt(dt: datetime = None) -> datetime:
+    """kech106 (9 + 50-band B qismi; egasi qarori kech105 — "Toshkent vaqti bo'yicha"): KO'RINISH uchun Toshkent
+    devor soati (naive datetime). `dt` — bazadagi UTC (naive) vaqt; berilmasa — HOZIR.
+
+    PDF, Telegram xabari, sahifa (Jinja `|toshkent` filtri) va jurnal matnlaridagi sana-vaqt FAQAT shu orqali
+    yoziladi. O'LCHANGAN (work/probe106.py, TZ=UTC — Railway kabi): ilgari `datetime.now()` (jarayon mintaqasi —
+    Railway da UTC) va bazadagi UTC qiymatni to'g'ridan-to'g'ri `strftime` qilish Toshkent vaqtidan 5 soat orqada
+    ko'rsatardi — Toshkent 01.10 01:30 dagi amal "30.09.2026 20:30" bo'lib chiqardi. Mintaqali (aware) qiymat avval
+    UTC ga o'giriladi; faqat SANA (`date`) — kalendar kuni, siljitilmaydi. Natija bazaga YOZILMAYDI (saqlash — UTC)."""
+    if dt is None:
+        dt = datetime.utcnow()
+    elif not isinstance(dt, _dt_modul.datetime):
+        if isinstance(dt, _dt_modul.date):
+            return datetime(dt.year, dt.month, dt.day)
+        raise TypeError(f"tashkent_vaqt: datetime kerak, {type(dt).__name__} berildi")
+    elif dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt + TASHKENT_OFFSET
+
+
+# kech105 (9 + 50-band) — FOYDALANUVCHI QARORI (2026-09-28, "Toshkent vaqti bo'yicha"): hisobotlarning kun / oy /
+# yil chegaralari TOSHKENT kalendari bo'yicha — kun 00:00 da almashadi (ilgari oylik / kunlik hisobot, KPI, xarajat
+# ro'yxatlari UTC bo'yicha — Toshkent vaqti bilan 05:00 da almashardi: 1-oktyabr 01:30 dagi «Tayyor» sentyabrga
+# tushardi, "Bugun" oynasi esa uni 1-oktyabr derdi). Bazadagi vaqtlar UTC (naive) — Toshkent davri [boshi, oxiri)
+# UTC ko'rinishida olinadi. Faqat SANA kiritiladigan qiymatlar (xarajat / avans sanasi — yarim tun 00:00) o'z
+# kunida qoladi: Toshkent D kuni = [D−1 19:00, D 19:00) UTC — D 00:00 shu oraliqda.
+def tashkent_kun_oraligi(sana):
+    """Toshkent kalendar kuni (`date`) → `(boshi, oxiri)` UTC (naive), oxiri KIRMAYDI."""
+    boshi = datetime(sana.year, sana.month, sana.day) - TASHKENT_OFFSET
+    return boshi, boshi + timedelta(days=1)
+
+
+# kech119 (egasi QARORI 2026-10-01 «Shu kunlar bilan»): joriy (tugamagan) oy o'tgan oyning SHU KUNLARI bilan
+# solishtiriladi — 1–N oktabr ↔ 1–N sentabr (ilgari 1 kunlik oktabr butun sentabr bilan: oy boshida doim «Daromad
+# 100% kamaydi»). O'tgan oyning 1–N kunlik hisoboti — AYNAN oylik hisobot (`services.get_monthly_report`, uning
+# hamma qismlari: buyurtmalar, sotuv, qaytarish, xarajat, transport, brak, KPI, hodim …) faqat davr oxiri N-kun
+# oxirida: oylik hisobotning HAMMA oy chegaralari shu ikki yordamchidan (`tashkent_oy_oraligi` / `tashkent_oyida`)
+# o'tadi, shuning uchun kesim bitta joyda. Oy darajasidagi yozuvlar (oylik shakl — arenda / elektr …, hodimning
+# doimiy oyligi, oylik tuzatma) — butun oy uchun, ikkala oyda bir xil qoida.
+# Kesim faqat `with tashkent_oy_kesimi(...)` bloki ichida va FAQAT o'sha yil / oy uchun (boshqa oylar — to'liq).
+# `contextvars` — shu sinxron chaqiruv zanjiri ichida (o'rnatish va o'qish BITTA oqimda, blok tugashi bilan
+# tiklanadi; `tenant_context.py` dagi muammo — qiymat so'rov qatlamlari ORASIDA o'tishi — bu yerda yo'q).
+import contextlib as _contextlib_kesim
+import contextvars as _contextvars_kesim
+
+_OY_KESIMI = _contextvars_kesim.ContextVar("tashkent_oy_kesimi", default=None)
+
+
+@_contextlib_kesim.contextmanager
+def tashkent_oy_kesimi(yil, oy, kun):
+    """Blok ichida Toshkent `yil` / `oy` oyi faqat 1..`kun` kunlari (davr oxiri — `kun`-kunning oxiri, Toshkent
+    24:00). `kun` oy uzunligidan katta / teng — butun oy (kesim ta'sirsiz); `kun` < 1 — bo'sh davr."""
+    _token = _OY_KESIMI.set((int(yil), int(oy), int(kun)))
+    try:
+        yield
+    finally:
+        _OY_KESIMI.reset(_token)
+
+
+def tashkent_oy_oraligi(yil, oy):
+    """Toshkent kalendar oyi → `(boshi, oxiri)` UTC (naive), oxiri KIRMAYDI. `tashkent_oy_kesimi` bloki ichida (shu oy
+    uchun) oxiri — kesim kunining oxiri (oy oxiridan keyin emas)."""
+    yil, oy = int(yil), int(oy)
+    oxiri = datetime(yil + 1, 1, 1) if oy == 12 else datetime(yil, oy + 1, 1)
+    boshi = datetime(yil, oy, 1) - TASHKENT_OFFSET
+    oxiri = oxiri - TASHKENT_OFFSET
+    _k = _OY_KESIMI.get()
+    if _k is not None and _k[0] == yil and _k[1] == oy:
+        oxiri = min(oxiri, boshi + timedelta(days=max(_k[2], 0)))
+    return boshi, oxiri
+
+
+def tashkent_yil_oraligi(yil):
+    """Toshkent kalendar yili → `(boshi, oxiri)` UTC (naive), oxiri KIRMAYDI."""
+    yil = int(yil)
+    return datetime(yil, 1, 1) - TASHKENT_OFFSET, datetime(yil + 1, 1, 1) - TASHKENT_OFFSET
+
+
+def tashkent_kunida(ustun, sana):
+    """SQLAlchemy sharti: UTC ustun Toshkent `sana` kunida."""
+    from sqlalchemy import and_
+    boshi, oxiri = tashkent_kun_oraligi(sana)
+    return and_(ustun >= boshi, ustun < oxiri)
+
+
+def tashkent_oyida(ustun, yil, oy):
+    """SQLAlchemy sharti: UTC ustun Toshkent `yil` / `oy` oyida (`extract('year') == … AND extract('month') == …`
+    o'rniga — u UTC oyini olardi)."""
+    from sqlalchemy import and_
+    boshi, oxiri = tashkent_oy_oraligi(yil, oy)
+    return and_(ustun >= boshi, ustun < oxiri)
+
+
+def tashkent_yilida(ustun, yil):
+    """SQLAlchemy sharti: UTC ustun Toshkent `yil` yilida."""
+    from sqlalchemy import and_
+    boshi, oxiri = tashkent_yil_oraligi(yil)
+    return and_(ustun >= boshi, ustun < oxiri)
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./penodecor_erp.db")
 
@@ -40,6 +180,109 @@ else:
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+# ============================================================
+# kech120 (E bosqichi, U-09) — YOZUV VERSIYASI: shu jarayondagi HAR QANDAY bazaga yozish hisoblagichi
+# ============================================================
+# O'LCHANGAN (`work/k127/tez.py`, 300 buyurtma, HAQIQIY PG 16): «Hisobotlar» sahifasi bir ochilishda oylik hisobotni
+# 12 marta (bir xil oylar uchun) qayta hisoblaydi — serverda ~8 s; «Dashboard» — 4 marta, ~5,7 s. Sinov saytida (kam
+# ma'lumot) har hisobot so'rovi 0,5–1,2 s. `services` dagi HISOBOT XOTIRASI natijani so'rovlar ORASIDA eslab qoladi va
+# shu versiya o'zgarishi bilan (istalgan jadvalga istalgan yozuv) darhol eskiradi.
+#
+# Qoida (texnik — Claude): `SELECT` bilan boshlanmaydigan har bayonot (INSERT / UPDATE / DELETE / DDL …, CTE ham) — YOZUV
+# deb olinadi (shubhada — yozuv: xotira faqat kamroq ishlaydi, hech qachon eski natija bermaydi). Yozuv bajarilganda
+# versiya oshadi va ulanishga «shu tranzaksiyada yozdi» belgisi qo'yiladi; tranzaksiya yakunlanganda (commit YOKI
+# rollback) — versiya YANA oshadi. Ikkinchi oshish poyga uchun: boshqa ulanish tranzaksiya OCHIQ paytida (yozuv hali
+# ko'rinmas) hisoblagan natija commit dan keyin versiyasi eskirgan bo'lib qoladi. Hodisalar `Engine` SINFIGA ulanadi —
+# jarayondagi HAMMA dvigatellar (asosiy, test, migratsiya) hisobga olinadi.
+import threading as _threading_yv
+from sqlalchemy import event as _event_yv
+from sqlalchemy.engine import Engine as _Engine_yv
+
+_YV_QULF = _threading_yv.Lock()
+_YV = {"v": 0}
+_YV_BELGI = "_kech120_yozdi"
+_YV_OQISH = ("SELECT", "PRAGMA", "SHOW", "EXPLAIN")
+
+
+def yozuv_versiyasi():
+    """Shu jarayondagi yozuvlar hisoblagichi (har yozuv va har yozuvli tranzaksiya yakunida oshadi)."""
+    return _YV["v"]
+
+
+def _yv_osh():
+    with _YV_QULF:
+        _YV["v"] += 1
+
+
+def yozuv_bayonotimi(statement):
+    """Bayonot yozuvmi: `SELECT` / `PRAGMA` / `SHOW` / `EXPLAIN` (izoh va bo'shliqdan keyin) bilan boshlanmasa — HA."""
+    s = (statement or "").lstrip()
+    while s.startswith("--") or s.startswith("/*"):
+        if s.startswith("--"):
+            _n = s.find("\n")
+            s = "" if _n < 0 else s[_n + 1:].lstrip()
+        else:
+            _n = s.find("*/")
+            s = "" if _n < 0 else s[_n + 2:].lstrip()
+    _b = s[:8].upper()
+    return not any(_b.startswith(k) for k in _YV_OQISH)
+
+
+def ulanish_yozganmi(conn):
+    """Ulanish joriy tranzaksiyada yozganmi (`Connection.info` belgisi)."""
+    try:
+        return bool(conn.info.get(_YV_BELGI))
+    except Exception:
+        return True
+
+
+@_event_yv.listens_for(_Engine_yv, "before_cursor_execute")
+def _yv_bayonot(conn, cursor, statement, parameters, context, executemany):
+    if yozuv_bayonotimi(statement):
+        try:
+            conn.info[_YV_BELGI] = True
+        except Exception:
+            pass
+        _yv_osh()
+
+
+def _yv_yakun(conn):
+    try:
+        _yozdi = conn.info.pop(_YV_BELGI, None)
+    except Exception:
+        _yozdi = True
+    if _yozdi:
+        _yv_osh()
+
+
+_event_yv.listen(_Engine_yv, "commit", _yv_yakun)
+_event_yv.listen(_Engine_yv, "rollback", _yv_yakun)
+
+
+def _yv_qaytdi(dbapi_connection, connection_record):
+    """Ulanish hovuzga qaytdi — belgi tozalanadi (yozuvli, lekin yakunlanmagan tranzaksiya hovuzda rollback qilinadi:
+    ma'lumot o'zgarmagan; versiya baribir oshiriladi — ehtiyot)."""
+    try:
+        if connection_record.info.pop(_YV_BELGI, None):
+            _yv_osh()
+    except Exception:
+        pass
+
+
+try:
+    from sqlalchemy.pool import Pool as _Pool_yv
+    _event_yv.listen(_Pool_yv, "checkin", _yv_qaytdi)
+except Exception:
+    pass
+
+# 2026-09-19 — Faza 1: avtomatik tenant filtri (TENANT_FILTER=1 bo'lsa).
+# Modul o'zi standart holatda O'CHIQ — yoqilmaguncha hech narsa o'zgarmaydi.
+try:
+    import tenant_context as _tc
+    _tc.install(SessionLocal)
+except Exception as _e:   # modul yo'q bo'lsa ilova avvalgidek ishlayveradi
+    print(f"⚠ tenant_context o'rnatilmadi: {_e}")
+
 def get_db():
     db = SessionLocal()
     try:
@@ -52,7 +295,7 @@ def get_db():
 
 def _sql_type_for_column(col):
     """SQLAlchemy ustun turini Postgres/SQLite uchun mos SQL turiga aylantiradi."""
-    from sqlalchemy import String, Integer, Float, Boolean, DateTime, Text, Numeric
+    from sqlalchemy import String, Integer, Float, Boolean, DateTime, Date, Text, Numeric
 
     t = col.type
     if isinstance(t, String):
@@ -72,6 +315,10 @@ def _sql_type_for_column(col):
         return f"NUMERIC({precision},{scale})"
     if isinstance(t, DateTime):
         return "TIMESTAMP"
+    # kech111: `Date` (kalendar kuni — `companies.obuna_tugash` va h.k.). Ilgari bu yerda yo'q edi va TEXT ga
+    # tushardi (PG da sana matn bo'lib saqlanardi — taqqoslash va tartib buzilardi).
+    if isinstance(t, Date):
+        return "DATE"
     return "TEXT"  # noma'lum tur bo'lsa, xavfsiz variant
 
 

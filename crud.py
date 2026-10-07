@@ -5,9 +5,14 @@ CRUD = Create (yaratish), Read (o'qish), Update (yangilash), Delete (o'chirish).
 Bu fayl bazaga yozish va o'qish funksiyalarini saqlaydi.
 """
 
+import contextlib
 from typing import List, Optional, Dict
 from datetime import datetime
 from sqlalchemy.orm import Session
+# kech105 (9 + 50-band): Toshkent kalendari yordamchilari — `database.py` (hisobot kun / oy / yil chegarasi)
+from database import tashkent_date as _tashkent_date, tashkent_kunida as _tashkent_kunida, tashkent_oyida as _tashkent_oyida, tashkent_yilida as _tashkent_yilida, tashkent_oy_oraligi as _tashkent_oy_oraligi, tashkent_yil_oraligi as _tashkent_yil_oraligi
+# kech106 (9 + 50-band B qismi): matnga yoziladigan sana-vaqt (jurnal, ro'yxat) — Toshkent devor soati
+from database import tashkent_vaqt as _tashkent_vaqt
 
 from models import Master
 from schemas import MasterCreate, MasterUpdate
@@ -28,12 +33,55 @@ class OverpaymentWarning(Exception):
 # MASTER CRUD
 # ============================================================
 
-def create_master(db: Session, master_data: MasterCreate) -> Master:
-    """Yangi ustani bazaga qo'shadi."""
+def create_master(db: Session, master_data: MasterCreate,
+                  company_id: int = None) -> Master:
+    """Yangi ustani bazaga qo'shadi.
+
+    2026-09-18 (jonli sinovda topildi): ilgari bu funksiyada takror
+    tekshiruvi UMUMAN yo'q edi — bir xil telefon (yoki telegram_id)
+    bilan usta qo'shilsa, baza cheklovi ishlab, foydalanuvchiga xom
+    "Serverda kutilmagan xato yuz berdi" qaytardi. Ombor uchun bunday
+    himoya allaqachon bor edi (main.py:/api/inventory), ustalar uchun
+    esa yo'q. Endi ikkalasi bir xil: aniq, tushunarli xabar."""
+    from fastapi import HTTPException
+
+    # 15-band: qat'iy tekshiruv — HECH NARSA yozilmasdan OLDIN (ValueError → 400).
+    _clean_create("Master", master_data.model_dump(exclude_unset=True))
+
+    # M5 (2026-09-18) — TENANT: takror tekshiruvi FAQAT shu korxona
+    # ichida bo'ladi. Ilgari u butun tizim bo'yicha edi va ikki xato
+    # berardi: (1) boshqa korxonadagi ustaning ISMI va HOLATI xabarda
+    # oshkor bo'lardi (jonli sinovda tasdiqlangan); (2) A korxona
+    # B allaqachon ishlatgan raqamni umuman qo'sha olmasdi, holbuki
+    # bazadagi cheklov `uq_masters_company_phone`, ya'ni korxona ichida.
+    def _scoped(q):
+        return q.filter(Master.company_id == company_id) if company_id is not None else q
+
+    phone = (master_data.phone or "").strip()
+    if phone:
+        mavjud = _scoped(db.query(Master).filter(Master.phone == phone)).first()
+        if mavjud:
+            # Xabar ATAYLAB umumiy — boshqa yozuvning nomi/holati berilmaydi.
+            raise HTTPException(
+                status_code=400,
+                detail=(f'"{phone}" raqamli usta allaqachon mavjud. '
+                        f'Telefon raqami har bir ustada boshqa-boshqa '
+                        f'bo\'lishi kerak.'),
+            )
+
+    tg = (str(master_data.telegram_id).strip()
+          if getattr(master_data, "telegram_id", None) else "")
+    if tg:
+        _telegram_id_bandmi(db, tg, company_id)
+
     db_master = Master(
+        company_id=company_id,      # M5: tenant ANIQ beriladi
         name=master_data.name,
         phone=master_data.phone,
         cashback_percent=master_data.cashback_percent,
+        # 15-band (O'LCHANGAN): ilgari `kpi_percent` umuman yozilmasdi —
+        # sxema uni qabul qilib, jimgina tashlab yuborardi (7 → 0.0).
+        kpi_percent=(master_data.kpi_percent if master_data.kpi_percent is not None else 0.0),
         telegram_id=master_data.telegram_id,
         region=master_data.region,
         notes=master_data.notes,
@@ -45,27 +93,74 @@ def create_master(db: Session, master_data: MasterCreate) -> Master:
     return db_master
 
 
-def get_masters(db: Session, only_active: bool = False) -> List[Master]:
-    """Barcha ustalarni qaytaradi."""
+def _telegram_id_bandmi(db: Session, tg: str, company_id: int = None,
+                        exclude_id: int = None) -> None:
+    """Usta Telegram ID si SHU korxonada band bo'lsa — 400.
+
+    2026-09-21 (12-sizish) — O'LCHANGAN: bazadagi cheklov endi
+    `(company_id, telegram_id)` (Faza 3: bir usta ikki korxonada ishlashi
+    mumkin; webhook ko'p moslikni o'zi rad etadi). Eski tekshiruv esa
+    "global" yozilgan edi va natijasi FILTRGA bog'liq edi: filtr o'chiq —
+    boshqa korxonadagi ID ham rad etilardi (begona ID borligini oshkor
+    qiluvchi oracle), filtr yoniq — o'z korxonasidagi bilan solishtirardi.
+    PUT da esa umuman tekshiruv yo'q edi → dublikat = baza xatosi (500).
+    Endi POST va PUT bir xil, QAT'IY shu korxona bo'yicha."""
+    from fastapi import HTTPException
+    q = db.query(Master.id).filter(Master.telegram_id == tg)
+    if company_id is not None:
+        q = q.filter(Master.company_id == company_id)
+    if exclude_id is not None:
+        q = q.filter(Master.id != exclude_id)
+    if q.first():
+        raise HTTPException(status_code=400,
+                            detail=f'Bu Telegram ID ({tg}) allaqachon band.')
+
+
+def get_masters(db: Session, only_active: bool = False,
+                company_id: int = None) -> List[Master]:
+    """Barcha ustalarni qaytaradi.
+
+    M5 (2026-09-18) — TENANT: company_id berilsa, FAQAT shu korxona
+    ustalari qaytariladi (ro'yxat, dropdown, hisobot — hammasi shundan
+    o'qiydi)."""
     query = db.query(Master)
+    if company_id is not None:
+        query = query.filter(Master.company_id == company_id)
     if only_active:
         query = query.filter(Master.is_active == True)
     return query.order_by(Master.name).all()
 
 
-def get_master(db: Session, master_id: int) -> Optional[Master]:
-    """ID bo'yicha bitta ustani qaytaradi."""
-    return db.query(Master).filter(Master.id == master_id).first()
+def get_master(db: Session, master_id: int, company_id: int = None) -> Optional[Master]:
+    """ID bo'yicha bitta ustani qaytaradi — M5 markaziy getter.
+
+    M5 (2026-09-18) — TENANT: company_id berilsa, usta FAQAT shu
+    korxona ichidan qidiriladi; topilmasa None (chaqiruvchi 404 beradi).
+    `company_id=None` — filtrsiz, orqaga moslik uchun."""
+    q = db.query(Master).filter(Master.id == master_id)
+    if company_id is not None:
+        q = q.filter(Master.company_id == company_id)
+    return q.first()
 
 
-def update_master(db: Session, master_id: int, master_data: MasterUpdate) -> Optional[Master]:
+def update_master(db: Session, master_id: int, master_data: MasterUpdate,
+                  company_id: int = None) -> Optional[Master]:
     """Mavjud ustani yangilaydi."""
-    db_master = get_master(db, master_id)
+    db_master = get_master(db, master_id, company_id)   # M5: faqat shu korxonadan
     if not db_master:
         return None
 
     # Faqat berilgan maydonlarni yangilaymiz
     update_data = master_data.model_dump(exclude_unset=True)
+    # M5: company_id hech qachon mijoz so'rovidan qabul qilinmaydi.
+    update_data.pop("company_id", None)
+    # 14-band: qat'iy tekshiruv — HECH NARSA yozilmasdan OLDIN (ValueError → 400).
+    update_data = _clean_update("Master", update_data)
+    # 12-sizish: Telegram ID — POST bilan bir xil qoida (500 o'rniga 400).
+    if update_data.get("telegram_id"):
+        update_data["telegram_id"] = str(update_data["telegram_id"]).strip()
+        _telegram_id_bandmi(db, update_data["telegram_id"], db_master.company_id,
+                            exclude_id=db_master.id)
     for field, value in update_data.items():
         setattr(db_master, field, value)
 
@@ -74,9 +169,9 @@ def update_master(db: Session, master_id: int, master_data: MasterUpdate) -> Opt
     return db_master
 
 
-def delete_master(db: Session, master_id: int) -> bool:
+def delete_master(db: Session, master_id: int, company_id: int = None) -> bool:
     """Ustani o'chiradi (haqiqatda is_active=False qilamiz, ma'lumot saqlanadi)."""
-    db_master = get_master(db, master_id)
+    db_master = get_master(db, master_id, company_id)   # M5: faqat shu korxonadan
     if not db_master:
         return False
     db_master.is_active = False
@@ -92,30 +187,45 @@ from models import Inventory
 from schemas import InventoryCreate, InventoryUpdate
 
 
-def add_item(db: Session, item_data: InventoryCreate) -> Inventory:
-    """Yangi xomashyo qo'shadi."""
-    is_peno = getattr(item_data, 'is_penoplast', False)
-    is_default = getattr(item_data, 'is_default_penoplast', False)
+def add_item(db: Session, item_data: InventoryCreate, company_id: int = None) -> Inventory:
+    """Yangi xomashyo qo'shadi.
 
-    # MUHIM: Bazalt plita uchun — "1 dona necha m²" (volume_per_unit) bo'sh
-    # yoki 1 bo'lsa, avtomatik 0.72 qo'yamiz. Aks holda tizim "1 dona = 1 m²"
-    # deb hisoblab, kerakli bazalt sonini KAM ayirardi (139 o'rniga 100).
-    _nm = (getattr(item_data, 'item_name', '') or '').lower()
-    _is_bazalt = ('bazalt' in _nm) and ('kley' not in _nm) and ('serpiyank' not in _nm)
-    if _is_bazalt:
-        _vpu = getattr(item_data, 'volume_per_unit', None)
-        if _vpu is None or float(_vpu or 0) <= 0 or abs(float(_vpu) - 1.0) < 0.0001:
-            item_data.volume_per_unit = 0.72
+    2026-09-18 — M8/F1: `company_id` ANIQ beriladi. Ilgari endpoint uni
+    `add_item()` QAYTGANIDAN KEYIN qo'yardi, ya'ni funksiya ichidagi
+    `db.commit()` vaqtida ustun bo'sh bo'lar va faqat bazadagi vaqtinchalik
+    `DEFAULT 1` uni to'ldirardi. Default olib tashlangach bu yo'l
+    NOT NULL xatosi berardi — shuning uchun tenant endi boshidanoq
+    beriladi. "Tiriltirish" (o'chirilgan qatorni qayta ishlatish) mantig'i
+    ham SHU korxona ichida qidiradi."""
+    # 15-band: qat'iy tekshiruv — HECH NARSA yozilmasdan OLDIN (ValueError → 400).
+    _clean_create("Inventory", item_data.model_dump(exclude_unset=True))
+    # kech112 (K112-4): nom chetidagi bo'shliqlarsiz (" Akril " va "Akril" — bitta material; UI ham `trim` qiladi,
+    # API esa bo'shliqli nomni ALOHIDA material qilib yaratardi — O'LCHANGAN `work/k113/probe_nom.py`). Bo'shliqsiz
+    # uzunlik (kamida 2) yuqoridagi `_clean_create` da tekshirilgan.
+    _toza_nom = str(item_data.item_name or "").strip()
+    if _toza_nom != item_data.item_name:
+        item_data = item_data.model_copy(update={"item_name": _toza_nom})
+    is_peno = getattr(item_data, 'is_penoplast', False)
+    # kech105 (K105-3, O'LCHANGAN — work/probe105.py): turkum ANIQ "Penoplast", `is_penoplast` esa umuman
+    # YUBORILMAGAN bo'lsa (Ta'minotchilar sahifasi shunday yuborardi) — bu penoplast (plotnost). Ilgari
+    # oddiy material bo'lib qolardi: buyurtma plotnost tanlovida yo'q, blok hajmi so'ralmasdi. ANIQ
+    # yuborilgan `is_penoplast` (true / false) — o'zgarishsiz.
+    if (not is_peno and str(getattr(item_data, 'category', None) or '').strip() == 'Penoplast'
+            and 'is_penoplast' not in getattr(item_data, 'model_fields_set', set())):
+        is_peno = True
+    is_default = getattr(item_data, 'is_default_penoplast', False)
 
     # MUHIM: agar shu nomdagi xomashyo avval o'chirilgan bo'lsa (lekin xarid
     # tarixi bo'lgani uchun butunlay o'chmasdan, "yashirin" — is_deleted=True
     # holda qolgan bo'lsa) — YANGI qator yaratmaymiz (bu — nom takrorlanishi
     # xatosini keltirib chiqarardi), aksincha O'SHA eskisini "tiriltiramiz"
     # (is_deleted=False) va yangi ma'lumotlar bilan yangilaymiz.
-    existing_deleted = db.query(Inventory).filter(
+    _scope = (lambda q: q.filter(Inventory.company_id == company_id)) if company_id is not None else (lambda q: q)
+
+    existing_deleted = _scope(db.query(Inventory).filter(
         Inventory.item_name == item_data.item_name,
         Inventory.is_deleted.is_(True)
-    ).first()
+    )).first()
 
     # MUHIM (2): agar shu nomda ALLAQACHON, "yashirin" emas, ODDIY faol
     # (is_deleted=False) qator bo'lsa-yu, u HALI HECH QACHON ISHLATILMAGAN
@@ -129,11 +239,11 @@ def add_item(db: Session, item_data: InventoryCreate) -> Inventory:
     # beryapti" muammosini butunlay oldini oladi.
     existing_unused = None
     if not existing_deleted:
-        existing_unused = db.query(Inventory).filter(
+        existing_unused = _scope(db.query(Inventory).filter(
             Inventory.item_name == item_data.item_name,
             Inventory.is_deleted.is_(False),
             Inventory.stock_quantity == 0
-        ).first()
+        )).first()
         if existing_unused:
             from models import InventoryPurchase
             has_purchase = db.query(InventoryPurchase).filter(
@@ -144,6 +254,13 @@ def add_item(db: Session, item_data: InventoryCreate) -> Inventory:
 
     existing_to_reuse = existing_deleted or existing_unused
     if existing_to_reuse:
+        # 15-band (O'LCHANGAN): qayta ishlatilayotgan qator korxonaning
+        # ASOSIY penoplasti bo'lsa-yu, yangi tana uni oddiy material qilsa —
+        # korxonada asosiy penoplast qolmasdi. `update_item` dagi qoida bilan
+        # bir xil: rad etiladi, hech narsa yozilmaydi.
+        if existing_to_reuse.is_default_penoplast and not is_peno:
+            raise ValueError("Asosiy penoplastni oddiy materialga aylantirib bo'lmaydi — "
+                             "avval boshqa penoplastni asosiy qiling")
         existing_to_reuse.is_deleted = False
         existing_to_reuse.stock_quantity = item_data.stock_quantity
         existing_to_reuse.unit = item_data.unit
@@ -156,27 +273,69 @@ def add_item(db: Session, item_data: InventoryCreate) -> Inventory:
         existing_to_reuse.is_default_penoplast = (is_default and is_peno)
         if getattr(item_data, 'category', None):
             existing_to_reuse.category = item_data.category
-        existing_to_reuse.notes = item_data.notes
-        if getattr(item_data, 'serp_ratio_per_m2', None) is not None:
-            existing_to_reuse.serp_ratio_per_m2 = item_data.serp_ratio_per_m2
-        if getattr(item_data, 'kley_ratio_per_m2', None) is not None:
-            existing_to_reuse.kley_ratio_per_m2 = item_data.kley_ratio_per_m2
+        # 15-band (O'LCHANGAN): izoh berilmasa eski izoh JIMGINA o'chardi
+        # (UI yaratish formasi izoh yubormaydi). Endi kategoriya / birlik
+        # kabi — faqat berilganda yangilanadi.
+        if getattr(item_data, 'notes', None) is not None:
+            existing_to_reuse.notes = item_data.notes
+        if getattr(item_data, 'base_unit', None) is not None:
+            existing_to_reuse.base_unit = item_data.base_unit
+        if getattr(item_data, 'conversion_factor', None) is not None:
+            existing_to_reuse.conversion_factor = item_data.conversion_factor
         if is_peno and is_default:
-            db.query(Inventory).filter(Inventory.is_default_penoplast == True).update(
-                {"is_default_penoplast": False}
+            # 2026-09-21 (O'LCHANGAN): qayta tiklanayotgan pozitsiyaning o'zi
+            # UPDATE dan chiqariladi. Aks holda autoflush uning `True` sini
+            # bazaga yozib, UPDATE uni `False` qilardi, xotiradagi `True`
+            # esa "o'zgarish yo'q" bo'lib qolardi — korxonada birorta ham
+            # asosiy penoplast qolmasdi.
+            _scope(db.query(Inventory).filter(
+                Inventory.is_default_penoplast == True,
+                Inventory.id != existing_to_reuse.id)).update(
+                {"is_default_penoplast": False}, synchronize_session=False
             )
             existing_to_reuse.is_default_penoplast = True
+        db.flush()
+        # 15-band (O'LCHANGAN): bu yo'lda boshlang'ich qoldiq uchun xarid
+        # yozuvi yaratilmasdi (yangi qator yo'lida bor) — qoldiq 0 → 50
+        # bo'lsa ham, xarajat Moliyada ko'rinmasdi. Endi ikki yo'l bir xil.
+        _r_qty = float(item_data.stock_quantity or 0)
+        _r_price = float(item_data.price_per_unit or 0)
+        if _r_qty > 0 and _r_price > 0:
+            from models import InventoryPurchase
+            db.add(InventoryPurchase(
+                inventory_id=existing_to_reuse.id,
+                item_name=existing_to_reuse.item_name,
+                quantity=_r_qty,
+                unit=existing_to_reuse.unit,
+                # 17g: narx va jami bazadagidek yaxlitlanadi (`_xarid_narx_jami`)
+                price_per_unit=_xarid_narx_jami(_r_qty, _r_price)[0],
+                total_amount=_xarid_narx_jami(_r_qty, _r_price)[1],
+                notes="Boshlang'ich qoldiq (material yaratilganda kiritilgan)"
+            ))
+        # 15-band (O'LCHANGAN): yangi qator yo'lidagi kabi — korxonada asosiy
+        # penoplast qolmagan bo'lsa, shu penoplast asosiy bo'ladi (aks holda
+        # yagona asosiy penoplast qayta yaratilganda korxonada 0 ta qolardi).
+        if is_peno and not existing_to_reuse.is_default_penoplast:
+            # kech37 (18-band): yashirin qatordagi eski asosiy belgi hisobga olinmaydi
+            _bor = _scope(db.query(Inventory).filter(
+                Inventory.is_default_penoplast == True,
+                Inventory.id != existing_to_reuse.id,
+                Inventory.is_deleted.isnot(True)
+            )).first()
+            if not _bor:
+                existing_to_reuse.is_default_penoplast = True
         db.commit()
         db.refresh(existing_to_reuse)
         return existing_to_reuse
 
     # Agar asosiy deb belgilangan bo'lsa — eskisini bekor qilamiz
     if is_peno and is_default:
-        db.query(Inventory).filter(Inventory.is_default_penoplast == True).update(
-            {"is_default_penoplast": False}
+        _scope(db.query(Inventory).filter(Inventory.is_default_penoplast == True)).update(
+            {"is_default_penoplast": False}, synchronize_session=False
         )
 
     db_item = Inventory(
+        company_id=company_id,
         item_name=item_data.item_name,
         stock_quantity=item_data.stock_quantity,
         unit=item_data.unit,
@@ -187,8 +346,8 @@ def add_item(db: Session, item_data: InventoryCreate) -> Inventory:
         is_default_penoplast=(is_default and is_peno),
         category=(item_data.category if getattr(item_data, 'category', None) else guess_category(item_data.item_name, is_peno)),
         notes=item_data.notes,
-        serp_ratio_per_m2=getattr(item_data, 'serp_ratio_per_m2', None),
-        kley_ratio_per_m2=getattr(item_data, 'kley_ratio_per_m2', None)
+        base_unit=getattr(item_data, 'base_unit', None),
+        conversion_factor=getattr(item_data, 'conversion_factor', None)
     )
     db.add(db_item)
     db.commit()
@@ -207,18 +366,23 @@ def add_item(db: Session, item_data: InventoryCreate) -> Inventory:
             item_name=db_item.item_name,
             quantity=qty,
             unit=db_item.unit,
-            price_per_unit=price,
-            total_amount=round(qty * price, 2),
+            # 17g: narx va jami bazadagidek yaxlitlanadi (`_xarid_narx_jami`)
+            price_per_unit=_xarid_narx_jami(qty, price)[0],
+            total_amount=_xarid_narx_jami(qty, price)[1],
             notes="Boshlang'ich qoldiq (material yaratilganda kiritilgan)"
         )
         db.add(purchase)
         db.commit()
 
     # Agar birinchi penoplast bo'lsa — avtomatik asosiy qilamiz
+    # kech37 (18-band): yashirilgan (o'chirilgan) qatordagi eski asosiy belgi
+    # hisobga olinmaydi — aks holda korxonada ko'rinadigan asosiy penoplast
+    # bo'lmasa ham yangi penoplast asosiy bo'lmasdi (PG da O'LCHANGAN).
     if is_peno:
-        has_default = db.query(Inventory).filter(
-            Inventory.is_default_penoplast == True
-        ).first()
+        has_default = _scope(db.query(Inventory).filter(
+            Inventory.is_default_penoplast == True,
+            Inventory.is_deleted.isnot(True)
+        )).first()
         if not has_default:
             db_item.is_default_penoplast = True
             db.commit()
@@ -227,17 +391,27 @@ def add_item(db: Session, item_data: InventoryCreate) -> Inventory:
     return db_item
 
 
-def get_inventory(db: Session) -> List[Inventory]:
+def get_inventory(db: Session, company_id: int = None) -> List[Inventory]:
     """Barcha xomashyo ro'yxatini qaytaradi (o'chirilganlar bundan mustasno)."""
-    return db.query(Inventory).filter(Inventory.is_deleted.isnot(True)).order_by(Inventory.item_name).all()
+    q = db.query(Inventory).filter(Inventory.is_deleted.isnot(True))
+    if company_id is not None:
+        q = q.filter(Inventory.company_id == company_id)
+    return q.order_by(Inventory.item_name).all()
 
 
-def get_item(db: Session, item_id: int) -> Optional[Inventory]:
-    """ID bo'yicha bitta xomashyoni qaytaradi."""
-    return db.query(Inventory).filter(Inventory.id == item_id).first()
+def get_item(db: Session, item_id: int, company_id: int = None) -> Optional[Inventory]:
+    """ID bo'yicha bitta xomashyoni qaytaradi.
+
+    2026-09-18 — M3: company_id berilsa, material FAQAT shu korxonadan
+    qidiriladi. Berilmasa — eski xatti-harakat (ichki, allaqachon
+    tekshirilgan oqimlar uchun). Tashqi chaqiruvlar company_id uzatadi."""
+    q = db.query(Inventory).filter(Inventory.id == item_id)
+    if company_id is not None:
+        q = q.filter(Inventory.company_id == company_id)
+    return q.first()
 
 
-def get_item_locked(db: Session, item_id: int) -> Optional[Inventory]:
+def get_item_locked(db: Session, item_id: int, company_id: int = None) -> Optional[Inventory]:
     """ID bo'yicha xomashyoni QULFLAB qaytaradi (SELECT ... FOR UPDATE).
 
     Bir nechta foydalanuvchi AYNI shu xomashyoni bir vaqtda o'zgartirmoqchi
@@ -246,21 +420,252 @@ def get_item_locked(db: Session, item_id: int) -> Optional[Inventory]:
     Faqat MIQDORNI O'ZGARTIRISH kerak bo'lgan joylarda ishlatiladi —
     oddiy ko'rish/ro'yxat uchun emas (aks holda keraksiz sekinlik yaratadi).
     PostgreSQL'da haqiqiy qulflaydi; SQLite'da (test muhiti) e'tiborsiz qoldiriladi."""
-    return db.query(Inventory).filter(Inventory.id == item_id).with_for_update().first()
+    q = db.query(Inventory).filter(Inventory.id == item_id)
+    if company_id is not None:
+        q = q.filter(Inventory.company_id == company_id)
+    return q.with_for_update().first()
 
 
-def create_expense_transaction(db: Session, data, performed_by: Optional[str] = None, source: str = "manual"):
+# ============================================================
+# kech117 (A2) — YO'NALISHLAR (egasi QARORLARI kech114 00:08 — QAYTA SO'RALMAYDI)
+# ============================================================
+# Korxona o'z ish yo'nalishlarini yuritadi («Penoplast» — asosiy, kodda doimiy qolgan turkumlar shunga; boshqalarini o'zi
+# qo'shadi, nomini o'zgartiradi, ishlatilganini faqat yashiradi). Hodim, xarajat, transport, kirim va MRP mahsulot turi
+# `yonalish_id` bilan bog'lanadi (NULL — «Umumiy»; MRP turida — «Belgilanmagan»). Hisob — `services.
+# calculate_split_profit_report` (har yo'nalish sof foydasi, yig'indisi = Moliyadagi sof foyda).
+_YONALISH_NOM_MAX = 60
+_YON_YOQ = object()      # "kalit yuborilmagan" belgisi (None — «Umumiy» tanlangan degani)
+
+
+def standart_yonalish(db: Session, company_id: int, yarat: bool = True):
+    """Korxonaning ASOSIY yo'nalishi (`kod = 'penoplast'`). Yo'q bo'lsa va `yarat` — yaratiladi (faqat `flush`;
+    `commit` — chaqiruvchida). PostgreSQL da parallel yaratish `uq_yonalishlar_company_kod` bilan to'siladi:
+    savepoint ichida urinib, band bo'lsa mavjudini qaytaradi."""
+    from models import Yonalish, YONALISH_ASOSIY_KOD, YONALISH_ASOSIY_NOM
+    from sqlalchemy.exc import IntegrityError as _IE117
+    if company_id is None:
+        return None
+    y = db.query(Yonalish).filter(Yonalish.company_id == company_id,
+                                  Yonalish.kod == YONALISH_ASOSIY_KOD).first()
+    if y is not None or not yarat:
+        return y
+    y = Yonalish(company_id=company_id, nom=YONALISH_ASOSIY_NOM, kod=YONALISH_ASOSIY_KOD,
+                 yashirin=False, tartib=0)
+    if db.bind.dialect.name == "postgresql":
+        try:
+            with db.begin_nested():
+                db.add(y)
+                db.flush()
+        except _IE117:
+            return db.query(Yonalish).filter(Yonalish.company_id == company_id,
+                                             Yonalish.kod == YONALISH_ASOSIY_KOD).first()
+    else:
+        db.add(y)
+        db.flush()
+    return y
+
+
+def yonalishlar_royxati(db: Session, company_id: int, yashirinlar: bool = False) -> list:
+    """Korxona yo'nalishlari: asosiy birinchi, keyin `tartib`, `id`. `yashirinlar=False` — faqat ko'rinadiganlar
+    (yangi yozuv tanlovi uchun). Asosiy yo'nalish yo'q bo'lsa — yaratiladi (flush)."""
+    from models import Yonalish, YONALISH_ASOSIY_KOD
+    if company_id is None:
+        return []
+    standart_yonalish(db, company_id)
+    q = db.query(Yonalish).filter(Yonalish.company_id == company_id)
+    if not yashirinlar:
+        q = q.filter((Yonalish.yashirin.is_(None)) | (Yonalish.yashirin.is_(False)))
+    royxat = q.all()
+    return sorted(royxat, key=lambda y: (0 if y.kod == YONALISH_ASOSIY_KOD else 1, y.tartib or 0, y.id))
+
+
+def yonalish_of_company(db: Session, yonalish_id, company_id: int):
+    """Yo'nalish FAQAT shu korxonadan (begona / yo'q — None)."""
+    from models import Yonalish
+    if yonalish_id is None or company_id is None:
+        return None
+    return db.query(Yonalish).filter(Yonalish.id == yonalish_id, Yonalish.company_id == company_id).first()
+
+
+def yonalish_dict(y) -> dict:
+    return {"id": y.id, "nom": y.nom, "asosiy": bool(y.asosiy), "yashirin": bool(y.yashirin)}
+
+
+def _yonalish_nomi_toza(nom) -> str:
+    if not isinstance(nom, str):
+        raise ValueError("Yo'nalish nomi matn bo'lishi kerak")
+    toza = " ".join(nom.split())
+    if not toza:
+        raise ValueError("Yo'nalish nomini kiriting")
+    if len(toza) > _YONALISH_NOM_MAX:
+        raise ValueError(f"Yo'nalish nomi juda uzun ({_YONALISH_NOM_MAX} belgidan ko'p)")
+    return toza
+
+
+def _yonalish_nomi_bandmi(db: Session, company_id: int, nom: str, istisno_id=None) -> bool:
+    """Ko'rinadigan yo'nalishlar orasida bir xil nom (katta / kichik harf farqsiz) bormi."""
+    for y in yonalishlar_royxati(db, company_id):
+        if y.id != istisno_id and y.nom.strip().lower() == nom.lower():
+            return True
+    return False
+
+
+def yonalish_yarat(db: Session, company_id: int, nom, created_by: str = None):
+    """Yangi yo'nalish. Nom 1–60 belgi, ko'rinadiganlar orasida takrorlanmaydi. Xato — `ValueError`."""
+    from models import Yonalish
+    toza = _yonalish_nomi_toza(nom)
+    if _yonalish_nomi_bandmi(db, company_id, toza):
+        raise ValueError(f"«{toza}» nomli yo'nalish allaqachon bor")
+    oxirgi = max([y.tartib or 0 for y in yonalishlar_royxati(db, company_id, yashirinlar=True)] or [0])
+    y = Yonalish(company_id=company_id, nom=toza, kod=None, yashirin=False, tartib=oxirgi + 1,
+                 created_by=created_by)
+    db.add(y)
+    db.flush()
+    log_activity(db, "created", "yonalish", y.id, f"Yo'nalish «{y.nom}»", created_by,
+                 company_id=company_id, commit=False)
+    db.commit()
+    db.refresh(y)
+    return y
+
+
+def yonalish_yangila(db: Session, yonalish_id: int, company_id: int, data: dict, kim: str = None):
+    """Nomini o'zgartirish (`nom`) va / yoki yashirish / ko'rsatish (`yashirin`). Asosiy yo'nalish yashirilmaydi.
+    Noma'lum kalit / noto'g'ri tur — `ValueError`; topilmasa — None."""
+    if not isinstance(data, dict):
+        raise ValueError("Noto'g'ri so'rov")
+    notogri = sorted(str(k)[:40] for k in data if k not in ("nom", "yashirin"))
+    if notogri:
+        raise ValueError("Bu maydonni o'zgartirib bo'lmaydi: " + ", ".join(notogri[:10]))
+    y = yonalish_of_company(db, yonalish_id, company_id)
+    if y is None:
+        return None
+    eski = f"{y.nom}{' (yashirin)' if y.yashirin else ''}"
+    if "nom" in data:
+        toza = _yonalish_nomi_toza(data["nom"])
+        if _yonalish_nomi_bandmi(db, company_id, toza, istisno_id=y.id):
+            raise ValueError(f"«{toza}» nomli yo'nalish allaqachon bor")
+        y.nom = toza
+    if "yashirin" in data:
+        if not isinstance(data["yashirin"], bool):
+            raise ValueError("'yashirin' true yoki false bo'lishi kerak")
+        if data["yashirin"] and y.asosiy:
+            raise ValueError("Asosiy yo'nalish yashirilmaydi — profil, panel, donali, blok va loy sotish "
+                             "buyurtmalari shunga yoziladi (nomini o'zgartirish mumkin)")
+        if not data["yashirin"] and y.yashirin and _yonalish_nomi_bandmi(db, company_id, y.nom, istisno_id=y.id):
+            raise ValueError(f"«{y.nom}» nomli boshqa yo'nalish ko'rinib turibdi — avval nomini o'zgartiring")
+        y.yashirin = data["yashirin"]
+    yangi = f"{y.nom}{' (yashirin)' if y.yashirin else ''}"
+    log_activity(db, "updated", "yonalish", y.id, f"Yo'nalish «{y.nom}»", kim, old_value=eski, new_value=yangi,
+                 company_id=company_id, commit=False)
+    db.commit()
+    db.refresh(y)
+    return y
+
+
+_YONALISH_BOGLAMLARI = (
+    ("employees", "Employee", "hodim"),
+    ("expense_transactions", "ExpenseTransaction", "xarajat"),
+    ("transport_expenses", "TransportExpense", "transport"),
+    ("inventory_receipts", "InventoryReceipt", "kirim"),
+    ("product_types", "ProductType", "MRP mahsulot turi"),
+)
+
+
+def yonalish_ishlatilishi(db: Session, yonalish_id: int, company_id: int) -> dict:
+    """{nom: soni} — shu yo'nalishga bog'langan yozuvlar (o'chirilganlari ham — tarix buzilmasin)."""
+    import models as _m117
+    import production_models as _pm117
+    from sqlalchemy import func as _f117
+    natija = {}
+    for _jadval, _model, _nom in _YONALISH_BOGLAMLARI:
+        _cls = getattr(_m117, _model, None) or getattr(_pm117, _model)
+        n = db.query(_f117.count(_cls.id)).filter(_cls.yonalish_id == yonalish_id,
+                                                  _cls.company_id == company_id).scalar() or 0
+        if n:
+            natija[_nom] = int(n)
+    return natija
+
+
+def yonalish_ochir(db: Session, yonalish_id: int, company_id: int, kim: str = None):
+    """Ishlatilmagan yo'nalishni o'chiradi. Asosiy — o'chirilmaydi; ishlatilgan — `ValueError` (faqat yashirish).
+    Topilmasa — None; o'chirilsa — True."""
+    y = yonalish_of_company(db, yonalish_id, company_id)
+    if y is None:
+        return None
+    if y.asosiy:
+        raise ValueError("Asosiy yo'nalish o'chirilmaydi")
+    ish = yonalish_ishlatilishi(db, yonalish_id, company_id)
+    if ish:
+        raise ValueError("Bu yo'nalish ishlatilgan (" + ", ".join(f"{k}: {v}" for k, v in ish.items())
+                         + ") — o'chirib bo'lmaydi, faqat yashirish mumkin")
+    nom = y.nom
+    db.delete(y)
+    log_activity(db, "deleted", "yonalish", yonalish_id, f"Yo'nalish «{nom}»", kim, company_id=company_id,
+                 commit=False)
+    db.commit()
+    return True
+
+
+def yonalish_tanlovi(db: Session, company_id: int, yonalish_id=_YON_YOQ, production_type=_YON_YOQ,
+                     joriy_id=None):
+    """Yozuvga yoziladigan (yonalish_id, production_type) juftligi — YAGONA qoida (hodim, xarajat, transport, kirim).
+
+    * `yonalish_id` yuborilgan (None ham) — YANGI tanlov: None — «Umumiy»; son — shu korxonaning yo'nalishi bo'lishi
+      SHART (begona / yo'q — `ValueError` "topilmadi", oracle yo'q), yashirin bo'lsa faqat o'zgarmagan (joriy)
+      qiymat qabul qilinadi. Eski `production_type` belgisi — asosiy yo'nalishda 'penoplast', aks holda None (shunda
+      ishga tushish migratsiyasi uni qayta asosiyga o'tkazmaydi).
+    * Faqat eski `production_type` (API / eski sahifa): 'penoplast' — asosiy yo'nalish; boshqa qiymat ('umumiy',
+      'gips', bo'sh) — «Umumiy», matn o'zgarmay saqlanadi (Gips moliyadan olib tashlangan — egasi qarori kech114).
+    * Ikkalasi ham yo'q — (`_YON_YOQ`, `_YON_YOQ`): o'zgarmaydi (tahrirda)."""
+    from models import YONALISH_ASOSIY_KOD
+    if yonalish_id is not _YON_YOQ:
+        if yonalish_id is None:
+            return None, None
+        y = yonalish_of_company(db, yonalish_id, company_id)
+        if y is None:
+            raise ValueError("Yo'nalish topilmadi")
+        if y.yashirin and y.id != joriy_id:
+            raise ValueError(f"«{y.nom}» yo'nalishi yashirilgan — avval uni Sozlamalarda ko'rsating")
+        return y.id, (YONALISH_ASOSIY_KOD if y.kod == YONALISH_ASOSIY_KOD else None)
+    if production_type is not _YON_YOQ:
+        if production_type == YONALISH_ASOSIY_KOD:
+            s = standart_yonalish(db, company_id)
+            return (s.id if s is not None else None), YONALISH_ASOSIY_KOD
+        return None, production_type
+    return _YON_YOQ, _YON_YOQ
+
+
+def yonalish_nomlari(db: Session, company_id: int) -> dict:
+    """{id: nom} — korxonaning HAMMA yo'nalishi (yashirinlari ham) — ro'yxatlarda nom ko'rsatish uchun."""
+    return {y.id: y.nom for y in yonalishlar_royxati(db, company_id, yashirinlar=True)}
+
+
+def create_expense_transaction(db: Session, data, performed_by: Optional[str] = None, source: str = "manual",
+                               company_id: int = None):
     """Yangi xarajat tranzaksiyasini yaratadi. Bu funksiya faqat YANGI ExpenseTransaction
     jadvaliga yozadi — mavjud MonthlyExpense yoki hisob-kitob logikasiga umuman tegmaydi."""
     from models import ExpenseTransaction
+    # 17e (2026-09-22): ILDIZ — tana QAT'IY (summa musbat va chekli,
+    # kategoriya 1–30 belgi, yo'nalish ro'yxatdan, sana 2000–2100).
+    # Marshrut ham tekshiradi; bu qatlam boshqa chaqiruvchilar uchun.
+    data = _clean_val("ExpenseTransaction", _val_dump(data, "ExpenseTransaction"))
+    # kech117 (A2): yo'nalish — YAGONA qoida (`yonalish_tanlovi`; begona / yo'q / yashirin — ValueError, hech narsa
+    # yozilmaydi). Hech biri yuborilmasa — «Umumiy».
+    _yid, _pt = yonalish_tanlovi(db, company_id, data.get("yonalish_id", _YON_YOQ),
+                                 data.get("production_type", _YON_YOQ))
+    if _yid is _YON_YOQ:
+        _yid, _pt = None, None
+    # M6 — TENANT: company_id ANIQ beriladi (ota-FK yo'q, DEFAULT 1 ga tushmasin).
     tx = ExpenseTransaction(
+        company_id=company_id,
         date=data.get("date") or datetime.utcnow(),
         category=data["category"],
         amount=data.get("amount", 0),
         notes=data.get("notes"),
         created_by=performed_by,
         source=source,
-        production_type=data.get("production_type"),
+        production_type=_pt,
+        yonalish_id=_yid,
     )
     db.add(tx)
     db.commit()
@@ -268,26 +673,76 @@ def create_expense_transaction(db: Session, data, performed_by: Optional[str] = 
     return tx
 
 
-def get_expense_transactions(db: Session, year: Optional[int] = None, month: Optional[int] = None,
-                              day: Optional[int] = None, category: Optional[str] = None, limit: int = 200):
-    """Xarajat tranzaksiyalari ro'yxati — faqat o'qish."""
+def update_expense_transaction(db: Session, tx_id: int, data,
+                               company_id: int = None) -> Optional["ExpenseTransaction"]:
+    """2026-09-16: foydalanuvchi so'rovi bo'yicha qo'shildi — xato kiritilgan
+    summani (masalan "125 000" o'rniga "125") o'chirib-qayta yozish o'rniga,
+    to'g'ridan-to'g'ri TAHRIRLASH imkonini beradi. create_expense_transaction
+    kabi — faqat shu BITTA ExpenseTransaction yozuvini yangilaydi, boshqa
+    hech qanday jadval yoki hisob-kitobga (Kassa balansi va h.k. — bular
+    har safar JORIY yozuvlar asosida qayta hisoblanadi) alohida ta'sir
+    qilmaydi."""
     from models import ExpenseTransaction
-    from sqlalchemy import extract
+    # 17e (2026-09-22): ILDIZ — yaratish bilan BIR XIL qat'iy qoida
+    # (bazaga tegishdan OLDIN; xato → `ValueError`, hech narsa yozilmaydi).
+    data = _clean_val("ExpenseTransaction", _val_dump(data, "ExpenseTransaction"))
+    _q = db.query(ExpenseTransaction).filter(ExpenseTransaction.id == tx_id)
+    if company_id is not None:      # M6: faqat shu korxonadan
+        _q = _q.filter(ExpenseTransaction.company_id == company_id)
+    tx = _q.first()
+    if not tx:
+        return None
+    if "date" in data and data["date"]:
+        tx.date = data["date"]
+    if "category" in data and data["category"]:
+        tx.category = data["category"]
+    if "amount" in data and data["amount"] is not None:
+        tx.amount = data["amount"]
+    if "notes" in data:
+        tx.notes = data["notes"]
+    # kech117 (A2): yo'nalish — yaratish bilan BIR qoida; kalit yuborilmasa o'zgarmaydi. Yashirin yo'nalishli eski
+    # yozuvni tahrirlash (yo'nalishi o'zgarmasa) — ruxsat.
+    _yid, _pt = yonalish_tanlovi(db, company_id if company_id is not None else tx.company_id,
+                                 data.get("yonalish_id", _YON_YOQ), data.get("production_type", _YON_YOQ),
+                                 joriy_id=tx.yonalish_id)
+    if _yid is not _YON_YOQ:
+        tx.yonalish_id = _yid
+        tx.production_type = _pt
+    db.commit()
+    db.refresh(tx)
+    return tx
+
+
+def get_expense_transactions(db: Session, year: Optional[int] = None, month: Optional[int] = None,
+                              day: Optional[int] = None, category: Optional[str] = None, limit: int = 200,
+                              company_id: int = None):
+    """Xarajat tranzaksiyalari ro'yxati — faqat o'qish (M6 — tenant-safe)."""
+    from models import ExpenseTransaction
+    from datetime import date as _date_kx
     q = db.query(ExpenseTransaction)
-    if year:
-        q = q.filter(extract('year', ExpenseTransaction.date) == year)
-    if month:
-        q = q.filter(extract('month', ExpenseTransaction.date) == month)
-    if day:
-        q = q.filter(extract('day', ExpenseTransaction.date) == day)
+    if company_id is not None:
+        q = q.filter(ExpenseTransaction.company_id == company_id)
+    # kech105 (9 + 50-band, QAROR "Toshkent vaqti bo'yicha"): yil / oy / kun — TOSHKENT kalendari (ilgari UTC
+    # `extract` — Toshkent vaqti bilan 00:00–05:00 dagi xarajat oldingi kun / oyda chiqardi).
+    if (month and not year) or (day and not (year and month)):
+        raise ValueError("Oy filtri faqat yil bilan, kun filtri — yil va oy bilan birga beriladi")
+    if year and month and day:
+        q = q.filter(_tashkent_kunida(ExpenseTransaction.date, _date_kx(int(year), int(month), int(day))))
+    elif year and month:
+        q = q.filter(_tashkent_oyida(ExpenseTransaction.date, year, month))
+    elif year:
+        q = q.filter(_tashkent_yilida(ExpenseTransaction.date, year))
     if category:
         q = q.filter(ExpenseTransaction.category == category)
     return q.order_by(ExpenseTransaction.date.desc()).limit(limit).all()
 
 
-def delete_expense_transaction(db: Session, tx_id: int) -> bool:
+def delete_expense_transaction(db: Session, tx_id: int, company_id: int = None) -> bool:
     from models import ExpenseTransaction
-    tx = db.query(ExpenseTransaction).filter(ExpenseTransaction.id == tx_id).first()
+    _q = db.query(ExpenseTransaction).filter(ExpenseTransaction.id == tx_id)
+    if company_id is not None:      # M6: faqat shu korxonadan
+        _q = _q.filter(ExpenseTransaction.company_id == company_id)
+    tx = _q.first()
     if not tx:
         return False
     db.delete(tx)
@@ -298,8 +753,21 @@ def delete_expense_transaction(db: Session, tx_id: int) -> bool:
 def log_movement(db: Session, inventory_id: Optional[int], item_name: str, movement_type: str,
                   quantity: float, unit: Optional[str] = None, reason: Optional[str] = None,
                   order_id: Optional[int] = None, supplier_id: Optional[int] = None,
-                  performed_by: Optional[str] = None, notes: Optional[str] = None):
+                  performed_by: Optional[str] = None, notes: Optional[str] = None,
+                  company_id: Optional[int] = None, is_brak: Optional[bool] = None,
+                  unit_cost: Optional[float] = None):
     """Ombor harakati jurnaliga bitta yozuv qo'shadi.
+
+    kech107 (36-band): `unit_cost` — CHIQIM narxi berilsa (masalan tayyor loy zaxirasi: olingan paytdagi retsept
+    tannarxi — pozitsiyaning o'z narxi yo'q), shu narx muzlatiladi; berilmasa — avvalgidek materialning joriy narxi.
+
+    kech52 (13-band, 3-qadam): `is_brak` — brak harakati belgisi (hisobot shu
+    belgiga qaraydi, sabab matniga emas). Berilmasa: CHIQIM brak oynasi ichida
+    bo'lsa True — `create_return_item` brak yozuvi raqamini
+    (`db.info["_brak_qaytarish_id"]`) yoki ishlab chiqarish braki
+    `db.info["_brak_harakat"]` belgisini sessiyaga qo'yadi (chuqur `services`
+    chaqiruvlari — tayyor loy, loy ingredientlari — ham shu yo'l bilan
+    belgilanadi); aks holda False. Hech qachon NULL yozilmaydi.
 
     MUHIM: bu funksiya faqat LOG yozadi — hech qanday hisob-kitobga yoki
     stock_quantity qiymatiga ta'sir qilmaydi. Xato yuz bersa ham asosiy
@@ -308,11 +776,59 @@ def log_movement(db: Session, inventory_id: Optional[int], item_name: str, movem
     try:
         if quantity is None or quantity == 0:
             return
+        # M8/F1: uchala ota-FK (`inventory_id`, `order_id`, `supplier_id`)
+        # ham NULL bo'lishi mumkin (o'chirilgan material bo'yicha harakat) —
+        # bunday holatda qo'riqchi korxonani aniqlay olmaydi.
+        _cid = company_id
+        if _cid is None and inventory_id:
+            _inv_row = db.query(Inventory.company_id).filter(Inventory.id == inventory_id).first()
+            _cid = _inv_row[0] if _inv_row else None
+        # kech45 (13-band, 6-qadam): `create_return_item` brak xomashyosini
+        # yechayotganda sessiyaga brak yozuvi raqamini qo'yadi — shu oraliqda
+        # yozilgan HAR harakat (penoplast, tayyor loy, loy ingredientlari —
+        # `services` ichidagi chuqur chaqiruvlar ham) unga bog'lanadi.
+        _brak_rid = db.info.get("_brak_qaytarish_id") if movement_type == "out" else None
+        # kech125 (zip 146): tayyor mahsulot braki yozuvi (ishlab chiqarish braki xomashyosi, taqdir harakatlari) va taqdir
+        # qatori — `create_return_item` dagi `_brak_qaytarish_id` kabi sessiya belgisidan (faqat chiqim).
+        _brak_fpl = db.info.get("_brak_yoqotish_id") if movement_type == "out" else None
+        _brak_tq = db.info.get("_brak_taqdir_id") if movement_type == "out" else None
+        if is_brak is None:
+            _brak = movement_type == "out" and (_brak_rid is not None
+                                                or _brak_fpl is not None
+                                                or bool(db.info.get("_brak_harakat")))
+        else:
+            _brak = bool(is_brak)
+        # kech46 (13-band, 2-qadam): chiqim paytidagi 1 birlik narxi muzlatiladi.
+        # `db.get` — sessiyadagi (hali yozilmagan) o'zgarishni ham ko'radi.
+        # Narx belgilanmagan material — 0 (hisobot ham 0 deb hisoblardi).
+        # Material topilmasa (o'chirilgan) — NULL. Narxni o'qish yiqilsa ham
+        # harakat YOZILADI (narxsiz — hisobot joriy narxni oladi): tashqi
+        # `except` butun harakatni tashlab yuborardi (kech46 M04 da O'LCHANDI).
+        _narx = None
+        if movement_type == "out" and inventory_id and unit_cost is not None:
+            # kech107 (36-band): chaqiruvchi bergan narx (tayyor loy zaxirasi — retsept tannarxi).
+            try:
+                _narx = float(unit_cost)
+            except (TypeError, ValueError):
+                _narx = None
+        elif movement_type == "out" and inventory_id:
+            try:
+                _inv_narx = db.get(Inventory, inventory_id)
+                if _inv_narx is not None:
+                    _narx = float(_inv_narx.price_per_unit or 0)
+            except Exception:
+                _narx = None
         db.add(InventoryMovement(
+            company_id=_cid,
             inventory_id=inventory_id, item_name=item_name, movement_type=movement_type,
             quantity=abs(float(quantity)), unit=unit, reason=reason,
             order_id=order_id, supplier_id=supplier_id,
-            performed_by=performed_by, notes=notes
+            performed_by=performed_by, notes=notes,
+            return_item_id=_brak_rid,
+            fp_loss_id=_brak_fpl,
+            brak_taqdir_id=_brak_tq,
+            unit_cost=_narx,
+            is_brak=_brak
         ))
     except Exception as e:
         try:
@@ -321,22 +837,111 @@ def log_movement(db: Session, inventory_id: Optional[int], item_name: str, movem
             pass
 
 
-def update_stock(db: Session, item_id: int, quantity_change: float, performed_by: Optional[str] = None, notes: Optional[str] = None) -> Optional[Inventory]:
+# Qo'lda qoldiq tuzatish (`POST /api/inventory/{id}/stock`) tanasi —
+# 19-band (2026-09-21). Harakat jurnali `reason` ustuni String(200):
+# uzunroq izoh PostgreSQL da commit paytida 500 berardi.
+_STOCK_REASON_MAX = 200
+
+
+def _jurnal_sabab(matn) -> str:
+    """20-band (2026-09-21): ombor jurnali `reason` ustuni String(200).
+    Nom qo'shiladigan sabablar (mahsulot nomi 150 belgigacha) ustundan oshsa
+    PostgreSQL COMMIT paytida yiqiladi (`log_movement` ichidagi try/except
+    uni USHLAMAYDI — `db.add` o'tadi, xato keyin chiqadi). Shuning uchun
+    sabab 200 belgiga xavfsiz qisqartiriladi."""
+    matn = "" if matn is None else str(matn)
+    return matn if len(matn) <= _STOCK_REASON_MAX else matn[:_STOCK_REASON_MAX - 1] + "…"
+
+
+def _stock_son(value):
+    """`quantity_change` — ishorali (musbat = kirim, manfiy = chiqim), chekli,
+    0 emas, `true/false` emas, sig'imdan katta emas. Aks holda ValueError."""
+    import math
+    if value is None:
+        raise ValueError("'quantity_change' bo'sh bo'lishi mumkin emas")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError("'quantity_change' son bo'lishi kerak")
+    v = float(value)
+    if math.isnan(v) or math.isinf(v):
+        raise ValueError("'quantity_change' son bo'lishi kerak")
+    if v == 0:
+        raise ValueError("'quantity_change' 0 bo'lishi mumkin emas")
+    if abs(v) > _UPD_SON_CHEGARA:
+        raise ValueError("'quantity_change' juda katta")
+    return v
+
+
+def _clean_stock_change(data) -> dict:
+    """Marshrut tanasi (xom JSON) → {"quantity_change", "reason"}.
+    Ruxsat ro'yxati + qat'iy turlar; buzilsa ValueError (→ 400)."""
+    if not isinstance(data, dict):
+        raise ValueError("Noto'g'ri so'rov")
+    notogri = sorted(str(k)[:40] for k in data if k not in ("quantity_change", "reason"))
+    if notogri:
+        raise ValueError("Noma'lum maydon: " + ", ".join(notogri[:10]))
+    qc = _stock_son(data.get("quantity_change"))
+    reason = data.get("reason")
+    if reason is not None:
+        if not isinstance(reason, str):
+            raise ValueError("'reason' matn bo'lishi kerak")
+        if len(reason) > _STOCK_REASON_MAX:
+            raise ValueError(f"'reason' juda uzun ({_STOCK_REASON_MAX} belgidan ko'p)")
+    return {"quantity_change": qc, "reason": reason}
+
+
+# kech52 (13-band, 3-qadam, 38-band qarori "C"): Omborxonadagi qo'lda "Chiqim" izohi shu
+# so'z bilan boshlansa — o'sha chiqim brak xarajati hisoblanadi (`update_stock`).
+QOLDA_BRAK_BOSHI = "Brak"
+
+
+def update_stock(db: Session, item_id: int, quantity_change: float, performed_by: Optional[str] = None,
+                 notes: Optional[str] = None, company_id: int = None) -> Optional[Inventory]:
     """Mahsulot qoldig'ini yangilaydi (musbat = qo'shish, manfiy = ayirish).
     Narxsiz oddiy tuzatish uchun (masalan inventarizatsiya). Xarid uchun
-    purchase_stock() dan foydalaning — u narxni ham hisobga oladi."""
-    db_item = get_item_locked(db, item_id)
+    purchase_stock() dan foydalaning — u narxni ham hisobga oladi.
+
+    19-band (2026-09-21, O'LCHANGAN): ilgari chiqim qoldiqdan ko'p bo'lsa
+    qoldiq JIMGINA 0 ga qirqilardi, jurnalga esa so'ralgan to'liq miqdor
+    yozilardi (qoldiq 100, chiqim 1000 → 0, harakat "out 1000"). Loy
+    qoldig'i endi manfiy bo'lishi mumkin (foydalanuvchi qarori) — bu
+    qirqish MANFIY qoldiqdagi qarzni o'chirib yuborardi (-30 da 5 chiqim →
+    0, ya'ni +30). Endi: chiqim mavjud qoldiqdan (manfiy bo'lsa — 0 dan)
+    ko'p bo'lsa ValueError (→ 400), hech narsa yozilmaydi; kirim (musbat)
+    arifmetik — manfiy qoldiqni qoplaydi. Qiymat HECH NARSA yozilmasdan
+    OLDIN qat'iy tekshiriladi (NaN/cheksiz/bool/0 — ValueError)."""
+    qc = _stock_son(quantity_change)
+    if notes is not None and len(str(notes)) > _STOCK_REASON_MAX:
+        raise ValueError(f"'reason' juda uzun ({_STOCK_REASON_MAX} belgidan ko'p)")
+    db_item = get_item_locked(db, item_id, company_id)
     if not db_item:
         return None
-    new_qty = db_item.stock_quantity + quantity_change
-    if new_qty < 0:
-        new_qty = 0  # Manfiy bo'lmasin
+    current = float(db_item.stock_quantity or 0)
+    if qc < 0:
+        mavjud = max(current, 0.0)
+        if -qc > mavjud + 1e-9:
+            if current < 0:
+                raise ValueError(
+                    f"{db_item.item_name}: qoldiq manfiy ({current:g} {db_item.unit}) — "
+                    f"chiqim qilib bo'lmaydi, avval kirim qiling")
+            raise ValueError(
+                f"{db_item.item_name}: omborda {current:g} {db_item.unit} bor — "
+                f"{-qc:g} {db_item.unit} chiqim qilib bo'lmaydi")
+    new_qty = current + qc
+    if -1e-9 < new_qty < 0:
+        new_qty = 0.0
     db_item.stock_quantity = new_qty
     log_movement(
         db, db_item.id, db_item.item_name,
-        movement_type="in" if quantity_change > 0 else "out",
-        quantity=quantity_change, unit=db_item.unit,
-        reason=notes or "Qo'lda tuzatish (inventarizatsiya)", performed_by=performed_by
+        movement_type="in" if qc > 0 else "out",
+        quantity=qc, unit=db_item.unit,
+        reason=notes or "Qo'lda tuzatish (inventarizatsiya)", performed_by=performed_by,
+        # kech52 (13-band, 3-qadam) — FOYDALANUVCHI QARORI (38-band, tugma bilan): "C — izoh
+        # 'Brak' bilan boshlansa, brak hisoblansin (hozirgidek)". Qo'lda CHIQIM izohi
+        # QOLDA_BRAK_BOSHI bilan boshlansa — brak xarajati (Moliya, sof foyda). Katta-kichik
+        # harfga SEZGIR — Railway (PostgreSQL) dagi avvalgi `LIKE 'Brak%'` xulqi bilan AYNAN
+        # (kichik harfli "brak" avval SQLite da brak, PG da brak EMAS edi — endi ikkala bazada
+        # bir xil: EMAS). Belgi YOZISH paytida bir marta aniqlanadi, keyin matnga qaralmaydi.
+        is_brak=(qc < 0 and str(notes or "").startswith(QOLDA_BRAK_BOSHI))
     )
     db.commit()
     db.refresh(db_item)
@@ -389,7 +994,8 @@ def _purchase_stock_no_commit(db: Session, item_id: int, quantity: float, price_
                    purchased_by: str = None, notes: str = None,
                    supplier_id: int = None, is_credit: bool = False,
                    volume_per_unit: float = None, payment_due_date: str = None,
-                   is_opening_stock: bool = False, extra_cost_per_unit: float = 0.0):
+                   is_opening_stock: bool = False, extra_cost_per_unit: float = 0.0,
+                   company_id: int = None, sana: datetime = None):
     """Ombor kirimi — xarid narxi bilan. COMMIT QILMAYDI (chaqiruvchi
     o'zi, barcha ishlar tugagach, bitta marta commit qilishi kerak).
     O'rtacha vaznli narx hisoblanadi (eski qoldiq qayta baholanmaydi):
@@ -415,7 +1021,9 @@ def _purchase_stock_no_commit(db: Session, item_id: int, quantity: float, price_
     """
     from models import InventoryPurchase
 
-    db_item = get_item_locked(db, item_id)
+    # 2026-09-21 (12-sizish): company_id berilsa material FAQAT shu
+    # korxonadan (aks holda None → chaqiruvchi "Material topilmadi").
+    db_item = get_item_locked(db, item_id, company_id)
     if not db_item:
         return None
 
@@ -466,13 +1074,18 @@ def _purchase_stock_no_commit(db: Session, item_id: int, quantity: float, price_
         except (ValueError, TypeError):
             due_date_parsed = None
 
+    # 17g (2026-09-22): narx va jami BAZADAGIDEK yaxlitlanadi — jami SHU
+    # (yaxlitlangan) narxdan hisoblanadi (sababi `_xarid_narx_jami` izohida;
+    # HAQIQIY PostgreSQL da O'LCHANGAN: 333 × 10.335 → narx 10.34, jami
+    # 3441.56). Ombordagi o'rtacha narx hisobiga tegilmaydi.
+    _narx2, _jami2 = _xarid_narx_jami(quantity, price_per_unit)
     purchase = InventoryPurchase(
         inventory_id=db_item.id,
         item_name=db_item.item_name,
         quantity=quantity,
         unit=db_item.unit,
-        price_per_unit=price_per_unit,
-        total_amount=quantity * price_per_unit,
+        price_per_unit=_narx2,
+        total_amount=_jami2,
         purchased_by=purchased_by,
         notes=notes,
         supplier_id=supplier_id,
@@ -480,8 +1093,15 @@ def _purchase_stock_no_commit(db: Session, item_id: int, quantity: float, price_
         category=db_item.category,
         payment_due_date=due_date_parsed,
         is_opening_stock=is_opening_stock,
-        extra_cost_per_unit=round(extra_cost_per_unit or 0.0, 4)
+        extra_cost_per_unit=round(extra_cost_per_unit or 0.0, 4),
+        # kech107 (10f): bekor qilishda narxni AYNAN qaytarish uchun (NULL narx — 0, tizim uni 0 deb hisoblaydi).
+        narx_oldin=round(old_price, 2),
+        narx_keyin=round(float(db_item.price_per_unit or 0), 2)
     )
+    # kech115 (G4-03): kirim hujjatida tanlangan o'tgan sana (`kirim_sanalari`) — xarid shu kunga yoziladi (oylik
+    # hisobotdagi xomashyo xaridi `purchased_at` bo'yicha). Berilmasa — hozir (ustun standarti).
+    if sana is not None:
+        purchase.purchased_at = sana
     db.add(purchase)
     supplier_name = None
     if supplier_id:
@@ -491,7 +1111,7 @@ def _purchase_stock_no_commit(db: Session, item_id: int, quantity: float, price_
     log_movement(
         db, db_item.id, db_item.item_name, movement_type="in",
         quantity=quantity, unit=db_item.unit,
-        reason=f"Yetkazib beruvchi: {supplier_name}" if supplier_name else "Xarid",
+        reason=f"Ta'minotchi: {supplier_name}" if supplier_name else "Xarid",   # kech118 (D-1, U-12): nomlar lug'ati
         supplier_id=supplier_id, performed_by=purchased_by, notes=notes
     )
     db.flush()
@@ -502,11 +1122,90 @@ def _purchase_stock_no_commit(db: Session, item_id: int, quantity: float, price_
         "old_price": old_price,
         "new_price": float(db_item.price_per_unit),
         "old_qty": old_qty,
-        "purchase_total": quantity * price_per_unit,
+        "purchase_total": _jami2,
         "old_volume": old_volume,
         "new_volume": float(db_item.volume_per_unit),
         "volume_changed": volume_changed
     }
+
+
+# kech115 (G4-03): kirim sanasi necha kun orqaga bo'lishi mumkin — kiritishdagi yil xatosi (2025 o'rniga 2052 yoki
+# 2025) hisobotni jimgina boshqa yilga surmasin. Kelajak sanasi — rad.
+KIRIM_SANA_ORQAGA_KUN = 366
+
+
+def kirim_sanalari(receipt_date: str = None, payment_due_date: str = None):
+    """kech115 (G4-03): kirim hujjatining sanalari — tekshiruv va bazaga yoziladigan qiymat.
+
+    Qaytaradi: (kirim_vaqti, muddat). `kirim_vaqti` — None (bugun yoki berilmagan: hozirgi vaqt, ustun standarti) yoki
+    tanlangan O'TGAN kunning 00:00 i (naive; faqat sana kiritiladigan qiymatlar qoidasi — Toshkent kalendarida ham
+    o'sha kun: [kun−1 19:00, kun 19:00) UTC). `muddat` — 'YYYY-MM-DD' yoki None. Kun — TOSHKENT kalendari
+    (`database.tashkent_date`). Rad (ValueError): noto'g'ri shakl, kelajak sanasi, `KIRIM_SANA_ORQAGA_KUN` dan eski,
+    kirim sanasidan oldingi to'lov muddati."""
+    from datetime import date as _date_t, timedelta as _td_k
+
+    def _oqi(v, nomi):
+        if v is None:
+            return None
+        if isinstance(v, datetime):
+            return v.date()
+        if isinstance(v, _date_t):
+            return v
+        s = str(v).strip()
+        if not s:
+            return None
+        try:
+            return datetime.strptime(s[:10], "%Y-%m-%d").date()
+        except (ValueError, TypeError):
+            raise ValueError(f"{nomi} noto'g'ri: {s[:20]} (kutilgan shakl YYYY-MM-DD)")
+
+    bugun = _tashkent_date()
+    kun = _oqi(receipt_date, "Kirim sanasi")
+    if kun is not None and kun > bugun:
+        raise ValueError(f"Kirim sanasi kelajakda bo'lishi mumkin emas: {kun.strftime('%d.%m.%Y')} "
+                         f"(bugun {bugun.strftime('%d.%m.%Y')})")
+    if kun is not None and kun < bugun - _td_k(days=KIRIM_SANA_ORQAGA_KUN):
+        raise ValueError(f"Kirim sanasi juda eski: {kun.strftime('%d.%m.%Y')} — bir yildan eski sana bilan kirim "
+                         f"yozilmaydi, sanani tekshiring")
+    muddat = _oqi(payment_due_date, "To'lov muddati")
+    if muddat is not None and muddat < (kun or bugun):
+        raise ValueError(f"To'lov muddati ({muddat.strftime('%d.%m.%Y')}) kirim sanasidan "
+                         f"({(kun or bugun).strftime('%d.%m.%Y')}) oldin bo'lishi mumkin emas")
+    kirim_vaqti = None
+    if kun is not None and kun != bugun:
+        kirim_vaqti = datetime(kun.year, kun.month, kun.day)
+    return kirim_vaqti, (muddat.strftime("%Y-%m-%d") if muddat is not None else None)
+
+
+def kirim_takror_qator(db: Session, items: list, company_id: int = None):
+    """kech115 (G4-01): kirim hujjatida AYNAN bir xil qator (material, miqdor, tiyinga yaxlitlangan narx, hajm,
+    boshlang'ich belgisi) ikkinchi marta kelsa — ValueError (hech narsa yozilmaydi). Bir materialni BOSHQA narx yoki
+    miqdorda olish (ikki partiya — `_takror_material_yoq` izohi) — ruxsat."""
+    korilgan = {}
+    for i, it in enumerate(items):
+        g = it if isinstance(it, dict) else getattr(it, "__dict__", {})
+        _miq = float(g.get("quantity") or 0)
+        _narx2 = _xarid_narx_jami(_miq, float(g.get("price_per_unit") or 0))[0]
+        _hajm = g.get("volume_per_unit")
+        kalit = (g.get("inventory_id"), round(_miq, 6), _narx2,
+                 (round(float(_hajm), 4) if _hajm else None), bool(g.get("is_opening_stock", False)))
+        if kalit in korilgan:
+            _nom = None
+            try:
+                _nq = db.query(Inventory.item_name).filter(Inventory.id == g.get("inventory_id"))
+                if company_id is not None:
+                    _nq = _nq.filter(Inventory.company_id == company_id)
+                _r = _nq.first()
+                _nom = _r[0] if _r else None
+            except Exception:
+                _nom = None
+            raise ValueError(
+                f"{i + 1}-qator {korilgan[kalit] + 1}-qator bilan AYNAN bir xil"
+                + (f" («{_nom}», " if _nom else " (")
+                + f"{_miq:g} × {_narx2:,.2f}".replace(",", " ").replace(".00", "")
+                + ") — takror kiritilgan bo'lishi mumkin. Bittasini o'chiring; ikki partiya bo'lsa miqdorini "
+                  "bitta qatorga birlashtiring")
+        korilgan[kalit] = i
 
 
 def create_inventory_receipt(db: Session, items: list, transport_cost: float = 0.0,
@@ -514,7 +1213,9 @@ def create_inventory_receipt(db: Session, items: list, transport_cost: float = 0
                               boshqa_cost: float = 0.0, add_to_cost: bool = False,
                               supplier_id: int = None, document_number: str = None,
                               paid_now: float = 0.0, notes: str = None, created_by: str = None,
-                              production_type: str = None) -> dict:
+                              production_type: str = None, company_id: int = None,
+                              receipt_date: str = None, payment_due_date: str = None,
+                              yonalish_id=_YON_YOQ) -> dict:
     """Ombor Kirim hujjati — bir nechta mahsulotni, qo'shimcha xarajatlar
     (Transport, Tushirish/Grushchik, Yuklash, Boshqa) bilan birga, BITTA
     yagona tranzaksiya sifatida saqlaydi. Xato bo'lsa — HAMMASI (barcha
@@ -538,20 +1239,45 @@ def create_inventory_receipt(db: Session, items: list, transport_cost: float = 0
 
     SaaS uchun kengaytiriladigan: kelajakda yangi xarajat turi qo'shish uchun,
     shu funksiyaga yangi parametr va extra_costs ro'yxatiga yangi qator
-    qo'shish kifoya."""
-    from models import InventoryReceipt, ExpenseTransaction
+    qo'shish kifoya.
+
+    kech115 (G4-01, G4-03 — O'LCHANGAN `work/k115/probe_kirim.py`, SQLite = PG): (1) AYNAN bir xil qator (material,
+    miqdor, narx, hajm, boshlang'ich belgisi) ikki marta kelsa — hech narsa yozilmasdan rad (`kirim_takror_qator`):
+    sahifa oxirgi qatorni tekshiruvdan oldin savatga qo'shib, qayta bosishda IKKI marta yuborardi — ombor 200 kg,
+    ta'minotchi qarzi 600 000 (100 kg × 3 000 ikki marta). Bir materialni boshqa narxda (ikki partiya) olish —
+    avvalgidek mumkin. (2) `receipt_date` — kirim sanasi: o'tgan kun bo'lsa hujjat, xaridlar, qo'shimcha xarajatlar
+    va «hozir to'langan» to'lov shu kunga yoziladi (ombor harakati jurnali — kiritilgan vaqtda qoladi); bugun yoki
+    bo'sh — hozir. (3) `payment_due_date` — nasiya xaridlarining to'lov muddati (dashboard ogohlantirishi
+    `get_supplier_payment_due_dates` shunga tayanadi). Chegaralar — `kirim_sanalari`."""
+    from models import InventoryReceipt, ExpenseTransaction, KIRIM_TANNARX_MANBA
 
     if not items:
         return {"success": False, "error": "Hech qanday mahsulot kiritilmagan"}
 
+    # kech115: HECH NARSA yozilishidan OLDIN — sana chegaralari va takror qator (ValueError → marshrutda 400).
+    _kirim_vaqti, _muddat = kirim_sanalari(receipt_date, payment_due_date)
+    kirim_takror_qator(db, items, company_id=company_id)
+
     try:
+        # M8/F1: `InventoryReceipt`ning yagona ota-FK si (`supplier_id`)
+        # NULL bo'lishi mumkin — ta'minotchisiz kirim. U holda model
+        # qo'riqchisi korxonani aniqlay olmaydi, shuning uchun tenant
+        # ANIQ beriladi. (Ilgari vaqtinchalik `DEFAULT 1` to'ldirardi.)
+        # kech117 (A2): kirim yo'nalishi — YAGONA qoida (`yonalish_tanlovi`); kirimning qo'shimcha xarajatlari
+        # (pastda, `ExpenseTransaction`) AYNAN shu yo'nalishni oladi. Hech biri berilmasa — «Umumiy».
+        _yid_k, _pt_k = yonalish_tanlovi(db, company_id, yonalish_id, production_type)
+        if _yid_k is _YON_YOQ:
+            _yid_k, _pt_k = None, None
         receipt = InventoryReceipt(
+            company_id=company_id,
             supplier_id=supplier_id, document_number=document_number,
             transport_cost=transport_cost or 0, tushirish_cost=tushirish_cost or 0,
             yuklash_cost=yuklash_cost or 0, boshqa_cost=boshqa_cost or 0,
             add_to_cost=add_to_cost, notes=notes, created_by=created_by,
-            production_type=production_type
+            production_type=_pt_k, yonalish_id=_yid_k
         )
+        if _kirim_vaqti is not None:          # kech115 (G4-03): tanlangan o'tgan sana
+            receipt.receipt_date = _kirim_vaqti
         db.add(receipt)
         db.flush()  # receipt.id kerak bo'ladi
 
@@ -581,9 +1307,13 @@ def create_inventory_receipt(db: Session, items: list, transport_cost: float = 0
                 purchased_by=created_by, notes=it.get("notes") or notes,
                 supplier_id=supplier_id, is_credit=item_is_credit,
                 volume_per_unit=it.get("volume_per_unit"),
-                payment_due_date=it.get("payment_due_date"),
+                # kech115 (G4-03): hujjat muddati — faqat nasiyaga yoziladigan qatorda (boshlang'ich ombor /
+                # ta'minotchisiz qatorning qarzi yo'q, muddati ogohlantirish bermasin).
+                payment_due_date=(_muddat if item_is_credit else None),
                 is_opening_stock=is_opening,
-                extra_cost_per_unit=extra_per_unit
+                extra_cost_per_unit=extra_per_unit,
+                company_id=company_id,
+                sana=_kirim_vaqti,
             )
             if result is None:
                 raise ValueError(f"Material topilmadi (id={it['inventory_id']})")
@@ -595,8 +1325,10 @@ def create_inventory_receipt(db: Session, items: list, transport_cost: float = 0
         # 4 ta qo'shimcha xarajat turini, Moliyada ALOHIDA ko'rinishi uchun,
         # ExpenseTransaction sifatida yozamiz (add_to_cost holatidan qat'i
         # nazar — bu, "qancha transportga ketdi" kabi statistik ko'rinish
-        # uchun, hisob-kitobga qo'sh marta qo'shilib ketmaydi, chunki
-        # get_monthly_report o'zi buni alohida qatorga chiqaradi).
+        # uchun). kech87 (104-band, O'LCHANGAN): ilgari "tannarxga qo'shish" bilan yozilgan xarajat sof
+        # foydadan HAM ayrilardi (bir marta shu yozuv orqali, yana bir marta xomashyo tannarxi orqali) —
+        # endi bunday yozuv `source = KIRIM_TANNARX_MANBA` bilan belgilanadi va oylik hisobot uni sof
+        # foydaga alohida qo'shmaydi (Moliyada ko'rinishi saqlanadi).
         # MUHIM: agar BUTUN hujjatdagi barcha mahsulotlar "Ombordagi mavjud
         # xomashyo" (boshlang'ich ombor) deb belgilangan bo'lsa — bu haqiqiy
         # xarid/tranzaksiya EMAS, shunchaki mavjud zaxirani tizimga kiritish.
@@ -606,6 +1338,9 @@ def create_inventory_receipt(db: Session, items: list, transport_cost: float = 0
         # boshlang'ich ombor) bo'lsa — xavfsizlik uchun, xarajatlar odatdagidek
         # yoziladi (chunki hujjatning bir qismi haqiqiy xarid hisoblanadi).
         all_opening_stock = all(bool(it.get("is_opening_stock", False)) for it in items)
+        # kech87 (104-band): xarajat haqiqatan tannarxga qo'shildimi — yuqoridagi `extra_share` sharti bilan
+        # AYNAN bir xil (qo'shilmagan bo'lsa — oddiy xarajat, sof foydadan ayriladi).
+        _tannarxga = bool(add_to_cost and total_extra > 0 and items_total_value > 0)
 
         cost_categories = [
             ("transport_kirim", transport_cost, "Transport (kirim)"),
@@ -618,11 +1353,16 @@ def create_inventory_receipt(db: Session, items: list, transport_cost: float = 0
                 amount = float(amount or 0)
                 if amount <= 0:
                     continue
+                # M8/F1: `ExpenseTransaction` tenant ildiz modeli — ota-zanjiri
+                # yo'q, shuning uchun `company_id` ANIQ berilishi SHART
+                # (ilgari vaqtinchalik `DEFAULT 1` uni to'ldirardi).
                 tx = ExpenseTransaction(
+                    company_id=company_id,
                     date=receipt.receipt_date, category=cat, amount=amount,
                     notes=f"{label} — Kirim #{receipt.id}" + (f" ({document_number})" if document_number else ""),
-                    created_by=created_by, source="inventory_receipt",
-                    production_type=production_type
+                    created_by=created_by,
+                    source=(KIRIM_TANNARX_MANBA if _tannarxga else "inventory_receipt"),
+                    production_type=_pt_k, yonalish_id=_yid_k
                 )
                 db.add(tx)
 
@@ -635,6 +1375,8 @@ def create_inventory_receipt(db: Session, items: list, transport_cost: float = 0
                 paid_by=created_by,
                 notes=f"Kirim to'lovi — #{receipt.id}" + (f" ({document_number})" if document_number else "")
             )
+            if _kirim_vaqti is not None:      # kech115 (G4-03): to'lov kirim kunida
+                payment_created.paid_at = _kirim_vaqti
             db.add(payment_created)
 
         db.commit()
@@ -662,6 +1404,34 @@ def update_item(db: Session, item_id: int, item_data: InventoryUpdate) -> Option
     if not db_item:
         return None
     update_data = item_data.model_dump(exclude_unset=True)
+    # 14-band: qat'iy tekshiruv — HECH NARSA yozilmasdan OLDIN (ValueError → 400).
+    update_data = _clean_update("Inventory", update_data)
+    # Asosiy penoplast "penoplast emas" deb belgilansa, `default_id`
+    # penoplast bo'lmagan materialga ishora qilib qoladi.
+    if update_data.get("is_penoplast") is False and db_item.is_default_penoplast:
+        raise ValueError("Asosiy penoplastni oddiy materialga aylantirib bo'lmaydi — "
+                         "avval boshqa penoplastni asosiy qiling")
+    # kech112 (K112-4, O'LCHANGAN — `work/k113/probe_nom.py`, SQLite = PG; jonli C zanjiri sizish tekshiruvida topildi):
+    # materialni shu korxonadagi BOSHQA material nomiga qayta nomlash `uq_inventory_company_item_name` ga urilib
+    # 500 ("Serverda kutilmagan xato") va xato jurnaliga yozuv berardi; nom bo'shliqlari bilan ("Akril ") saqlanardi.
+    # Endi: nom chetidagi bo'shliqlarsiz; bo'sh — rad; boshqa material (yashirilgani ham — u nomni band qiladi) shu
+    # nomda bo'lsa — hech narsa yozilmasdan 400 (yaratishdagi "allaqachon mavjud" xabari kabi).
+    if "item_name" in update_data and update_data["item_name"] is not None:
+        _yangi_nom = str(update_data["item_name"]).strip()
+        if len(_yangi_nom) < 2:
+            raise ValueError("Material nomi kamida 2 belgi bo'lishi kerak")
+        update_data["item_name"] = _yangi_nom
+        if _yangi_nom != db_item.item_name:
+            _band = db.query(Inventory).filter(
+                Inventory.company_id == db_item.company_id,
+                Inventory.id != db_item.id,
+                Inventory.item_name == _yangi_nom
+            ).first()
+            if _band is not None:
+                if _band.is_deleted:
+                    raise ValueError(f'"{_yangi_nom}" nomi avval o\'chirilgan (yashirilgan) materialda band — '
+                                     f'boshqa nom tanlang')
+                raise ValueError(f'"{_yangi_nom}" nomli material allaqachon omborda mavjud — boshqa nom tanlang')
     for field, value in update_data.items():
         setattr(db_item, field, value)
     db.commit()
@@ -681,6 +1451,26 @@ def delete_item(db: Session, item_id: int) -> dict:
     if not db_item:
         return {"success": False, "message": "Xomashyo topilmadi"}
 
+    # kech37 (18-band, K37-1 — O'LCHANGAN, asl kod): asosiy penoplast bemalol
+    # o'chirilardi (200). Keyin korxonada "★ Asosiy" belgili penoplast qolmasdi,
+    # `/api/penoplasts` `default_id` esa tasodifiy qolgan penoplastga tushardi; PG da
+    # (tarixi bor → YASHIRILADI) yashirin qator `is_default_penoplast = True` ni
+    # saqlagani uchun keyin yaratilgan penoplast ham asosiy bo'lmasdi. Endi
+    # `update_item` / `add_item` dagi qoida bilan bir xil: boshqa ko'rinadigan
+    # penoplast bo'lsa — rad ("avval boshqa penoplastni asosiy qiling"); yagona
+    # penoplast bo'lsa — o'chiriladi / yashiriladi va belgisi olib tashlanadi
+    # (keyingi yangi penoplast avtomatik asosiy bo'ladi).
+    if db_item.is_default_penoplast:
+        _boshqa_peno = db.query(Inventory).filter(
+            Inventory.company_id == db_item.company_id,
+            Inventory.id != db_item.id,
+            Inventory.is_penoplast == True,
+            Inventory.is_deleted.isnot(True)
+        ).first()
+        if _boshqa_peno:
+            raise ValueError("Asosiy penoplastni o'chirib bo'lmaydi — avval boshqa penoplastni "
+                             "asosiy qiling (\"☆ Asosiy qilish\" tugmasi)")
+
     try:
         db.delete(db_item)
         db.commit()
@@ -689,6 +1479,8 @@ def delete_item(db: Session, item_id: int) -> dict:
         db.rollback()
         db_item = get_item(db, item_id)
         db_item.is_deleted = True
+        # kech37 (18-band): yashirilgan qator asosiy penoplast bo'lib QOLMAYDI
+        db_item.is_default_penoplast = False
         db.commit()
         return {
             "success": True, "soft": True,
@@ -697,7 +1489,33 @@ def delete_item(db: Session, item_id: int) -> dict:
         }
 
 
-def get_low_stock_items(db: Session) -> List[Inventory]:
+def kam_qoldiq_sharti():
+    """kech108 (K108-2, 19-band — EGASI QARORI "Ha, ko'rinsin"): "kam qolgan xomashyo" ning YAGONA sharti.
+
+    Qoldiq ≤ minimal qoldiq; minimal qoldiq belgilanmagan (0 / NULL) bo'lsa — 0: TUGAGAN material (qoldiq ≤ 0) ham
+    "kam" (qo'ng'iroqcha «qolmadi» va Omborxona «Kam qolganlar» bilan bir xil). Yashirilgan (`is_deleted`) material va
+    "Tayyor loy (" zaxirasi (kech36 / kech37 21-band qarori — ortgan loy uchun chegara yo'q) — hech qachon.
+    Ilgari uch xil qoida bor edi (O'LCHANGAN — `main` ning haqiqiy ma'lumotida Penoplast 10P −0.06 / 0: KPI va
+    qo'ng'iroqcha "tugagan", bosh sahifa "Barcha xomashyo yetarli"). Ishlatiladi: `get_low_stock_items` (Telegram
+    ogohlantirishlari), `services.check_low_stock` (bosh sahifa, dashboard, buyurtmalar sahifasi, bugungi vazifalar,
+    grafik), `services.get_business_alerts` (hisobotlar); `services.get_inventory_kpi` va `main.api_full_stock_report`
+    — xuddi shu qoida Python da (`kam_qoldiqmi`)."""
+    from sqlalchemy import func as _f
+    return (Inventory.is_deleted.isnot(True),
+            _f.coalesce(Inventory.stock_quantity, 0) <= _f.coalesce(Inventory.min_stock, 0),
+            ~Inventory.item_name.like('Tayyor loy (%'))
+
+
+def kam_qoldiqmi(item) -> bool:
+    """`kam_qoldiq_sharti` ning Python nusxasi (bitta obyekt uchun) — AYNAN o'sha qoida."""
+    if getattr(item, "is_deleted", False):
+        return False
+    if str(getattr(item, "item_name", "") or "").startswith("Tayyor loy ("):
+        return False
+    return float(getattr(item, "stock_quantity", 0) or 0) <= float(getattr(item, "min_stock", 0) or 0)
+
+
+def get_low_stock_items(db: Session, company_id: int = None) -> List[Inventory]:
     """Qoldiq min_stock dan kam bo'lgan xomashyolar (ogohlantirish).
 
     MUHIM: "Tayyor loy (...)" yozuvlari — bu, sotib olinadigan xomashyo
@@ -708,10 +1526,17 @@ def get_low_stock_items(db: Session) -> List[Inventory]:
     ogohlantirishidan chiqarib tashlanadi — ombordagi haqiqiy miqdorning
     o'ziga (va keyingi buyurtmalar uchun ishlatilishiga) bu SIRA tegmaydi.
     """
-    return db.query(Inventory).filter(
-        Inventory.stock_quantity <= Inventory.min_stock,
-        ~Inventory.item_name.like('Tayyor loy (%')
-    ).all()
+    # 2026-09-22 (kech34, K34-1): yashirilgan (o'chirilgan) material Telegram
+    # "kam qoldi" xabarlariga (qo'lda ogohlantirish, kunlik cron, buyurtma va
+    # ishlab chiqarishdan keyingi ogohlantirish) tushmaydi.
+    # kech108 (K108-2): YAGONA shart — `kam_qoldiq_sharti` (NULL min / qoldiq — 0)
+    q = db.query(Inventory).filter(*kam_qoldiq_sharti())
+    # 2026-09-21: QAT'IY filtr — korxona noma'lum (None) bo'lsa bo'sh ro'yxat
+    # (`company_id IS NULL` hech narsa topmaydi). Ilgari shartli edi: None da
+    # BARCHA korxonalarning kam qolgan xomashyosi qaytib, Telegram xabariga
+    # aralashib ketardi (4 marshrut korxonasiz chaqirardi).
+    q = q.filter(Inventory.company_id == company_id)
+    return q.all()
 
 
 # ============================================================
@@ -722,14 +1547,21 @@ from models import Recipe, RecipeIngredient
 from schemas import RecipeCreate
 
 
-def get_recipe_insights(db: Session, recipe_id: int) -> Dict:
+def get_recipe_insights(db: Session, recipe_id: int, company_id: int = None) -> Dict:
     """Retsept uchun qo'shimcha ma'lumot — faqat ko'rsatish uchun, hech narsani o'zgartirmaydi.
     - cost_per_kg: 1 kg tayyor aralashma tannarxi (ombordagi joriy narxlar bo'yicha)
     - used_in: shu retseptni ishlatgan buyurtma detallari (nomi bo'yicha noyob)
+
+    kech99 (112-band): `company_id` berilsa retsept FAQAT shu korxonadan; ingredient materiali va "ishlatilgan"
+    buyurtmalar — retseptning O'Z korxonasidan (begona ingredient narxi / begona buyurtma detali nomi chiqmaydi).
     """
     from models import Recipe, Inventory, OrderItem, Order
+    import services as _svc_ri
 
-    recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
+    _rq = db.query(Recipe).filter(Recipe.id == recipe_id)
+    if company_id is not None:
+        _rq = _rq.filter(Recipe.company_id == company_id)
+    recipe = _rq.first()
     if not recipe:
         return {"cost_per_kg": 0, "used_in": []}
 
@@ -737,24 +1569,53 @@ def get_recipe_insights(db: Session, recipe_id: int) -> Dict:
     for ing in recipe.ingredients:
         if not ing.quantity_kg or ing.quantity_kg <= 0:
             continue
-        if ing.inventory and ing.inventory.price_per_unit:
-            total_cost += float(ing.quantity_kg) * float(ing.inventory.price_per_unit)
+        _ing_inv = _svc_ri._retsept_materiali(ing, recipe)
+        if _ing_inv and _ing_inv.price_per_unit:
+            total_cost += float(ing.quantity_kg) * float(_ing_inv.price_per_unit)
 
     batch = float(recipe.batch_size_kg or 1)
     cost_per_kg = total_cost / batch if batch > 0 else 0
 
     items = db.query(OrderItem.name).join(Order, OrderItem.order_id == Order.id).filter(
-        OrderItem.recipe_id == recipe_id
+        OrderItem.recipe_id == recipe_id, Order.company_id == recipe.company_id
     ).distinct().limit(12).all()
     used_in = [i[0] for i in items]
 
     return {"cost_per_kg": round(cost_per_kg, 2), "used_in": used_in}
 
 
-def create_recipe(db: Session, recipe_data: RecipeCreate) -> Recipe:
+def _require_inventory_of_company(db: Session, inventory_ids, company_id: int) -> None:
+    """2026-09-21 (12-sizish) — berilgan materiallarning HAMMASI shu
+    korxonaniki ekanini QAT'IY tekshiradi, aks holda 404.
+
+    Nima uchun 404 (409 emas): begona korxona materiali \"mavjud emas\" deb
+    ko'rinishi kerak — 409 uning borligini oshkor qilardi (oracle)."""
+    from fastapi import HTTPException
+    ids = {int(i) for i in inventory_ids if i}
+    if not ids:
+        return
+    topildi = {r[0] for r in db.query(Inventory.id).filter(
+        Inventory.id.in_(ids), Inventory.company_id == company_id).all()}
+    yoq = sorted(ids - topildi)
+    if yoq:
+        raise HTTPException(status_code=404,
+                            detail=f"Material topilmadi (ID {yoq[0]})")
+
+
+def create_recipe(db: Session, recipe_data: RecipeCreate, company_id: int = None) -> Recipe:
     """Yangi retsept qo'shadi. Nomi ISTALGAN bo'lishi mumkin,
-    tarkibi Omborxonadagi istalgan materiallardan (ingredients ro'yxati) tuziladi."""
+    tarkibi Omborxonadagi istalgan materiallardan (ingredients ro'yxati) tuziladi.
+
+    2026-09-18 — M8/F1a: `company_id` berilmasdi (vaqtinchalik `DEFAULT 1`
+    ga tayanardi). Endi tenant ANIQ beriladi. Tarkib (`RecipeIngredient`)
+    esa avvalgidek retsept orqali `_TENANT_RULES` bilan to'ldiriladi."""
+    # 2026-09-21 (12-sizish): tarkibdagi HAR bir material shu korxonaniki
+    # bo'lishi SHART — hech narsa yozilishidan OLDIN tekshiriladi.
+    if company_id is not None:
+        _require_inventory_of_company(
+            db, [ing.inventory_id for ing in recipe_data.ingredients], company_id)
     db_recipe = Recipe(
+        company_id=company_id,
         name=recipe_data.name.strip(),
         batch_size_kg=recipe_data.batch_size_kg,
         notes=recipe_data.notes
@@ -774,12 +1635,22 @@ def create_recipe(db: Session, recipe_data: RecipeCreate) -> Recipe:
     return db_recipe
 
 
-def update_recipe(db: Session, recipe_id: int, recipe_data: RecipeCreate) -> Optional[Recipe]:
+def update_recipe(db: Session, recipe_id: int, recipe_data: RecipeCreate,
+                  company_id: int = None) -> Optional[Recipe]:
     """Mavjud retseptni tahrirlaydi — nomi, hajmi va BUTUN tarkibini
-    (eski ingredientlar o'chirilib, yangilari yoziladi) yangilaydi."""
-    db_recipe = get_recipe(db, recipe_id)
+    (eski ingredientlar o'chirilib, yangilari yoziladi) yangilaydi.
+
+    2026-09-21 (12-sizish): `company_id` berilsa retsept FAQAT shu
+    korxonadan. Tarkibdagi materiallar esa HAR DOIM retseptning O'Z
+    korxonasiga tekshiriladi (berilmasa ham) — eski tarkib o'chirilishidan
+    OLDIN, aks holda yarim-o'zgargan retsept qolardi."""
+    db_recipe = get_recipe(db, recipe_id, company_id)
     if not db_recipe:
         return None
+    if db_recipe.company_id is not None:
+        _require_inventory_of_company(
+            db, [ing.inventory_id for ing in recipe_data.ingredients],
+            db_recipe.company_id)
 
     db_recipe.name = recipe_data.name.strip()
     db_recipe.batch_size_kg = recipe_data.batch_size_kg
@@ -800,14 +1671,20 @@ def update_recipe(db: Session, recipe_id: int, recipe_data: RecipeCreate) -> Opt
     return db_recipe
 
 
-def get_recipes(db: Session) -> List[Recipe]:
+def get_recipes(db: Session, company_id: int = None) -> List[Recipe]:
     """Barcha retseptlarni qaytaradi."""
-    return db.query(Recipe).all()
+    q = db.query(Recipe)
+    if company_id is not None:
+        q = q.filter(Recipe.company_id == company_id)
+    return q.all()
 
 
-def get_recipe(db: Session, recipe_id: int) -> Optional[Recipe]:
+def get_recipe(db: Session, recipe_id: int, company_id: int = None) -> Optional[Recipe]:
     """ID bo'yicha bitta retseptni qaytaradi."""
-    return db.query(Recipe).filter(Recipe.id == recipe_id).first()
+    q = db.query(Recipe).filter(Recipe.id == recipe_id)
+    if company_id is not None:
+        q = q.filter(Recipe.company_id == company_id)
+    return q.first()
 
 
 # ============================================================
@@ -818,17 +1695,83 @@ from models import Project, Order, OrderItem, OrderItemSubDetail, ProjectStatus,
 from schemas import ProjectCreate, OrderCreate
 
 
-def create_project(db: Session, project_data: ProjectCreate) -> Project:
-    """Yangi loyiha qo'shadi."""
-    # Eng katta raqamni topib +1 qilamiz (count emas, chunki o'chirilgan bo'lishi mumkin)
-    last = db.query(Project).order_by(Project.id.desc()).first()
-    next_num = (last.id + 1) if last else 1
-    # Agar shu raqamli loyiha mavjud bo'lsa, keyingisini olamiz
-    while db.query(Project).filter(Project.project_number == f"PRJ-{next_num:03d}").first():
+def loyiha_raqam_asosi(db: Session, company_id) -> int:
+    """kech86 (QAROR "A" loyiha raqamiga ham): korxonada shu paytgacha BERILGAN eng katta loyiha raqami.
+
+    Korxona hisoblagichi `companies.oxirgi_loyiha_seq` (bazadan YANGI o'qiladi); u bo'sh (NULL) bo'lsa —
+    faoliyat jurnalidagi loyiha yozuvlari (`PRJ-003 — nomi`; butunlay o'chirilgan loyiha raqami faqat shu
+    yerda qoladi). Mavjud loyihalar raqamini `create_project` o'zi hisoblaydi.
+    """
+    if company_id is None:
+        return 0
+    import re as _re86p
+    from production_models import Company as _Co86
+    from models import ActivityLog as _AL86p
+    _h = db.query(_Co86.oxirgi_loyiha_seq).filter(_Co86.id == company_id).scalar()
+    _eng = int(_h or 0)
+    if _h is None:
+        _jq = db.query(_AL86p.entity_label).filter(
+            _AL86p.entity_type == "project", _AL86p.company_id == company_id,
+            _AL86p.entity_label.like("PRJ-%"))
+        for (_lab,) in _jq.all():
+            _m = _re86p.match(r"PRJ-(\d+)", str(_lab or ""))
+            if _m and int(_m.group(1)) > _eng:
+                _eng = int(_m.group(1))
+    return _eng
+
+
+def create_project(db: Session, project_data: ProjectCreate, company_id: int = None) -> Project:
+    """Yangi loyiha qo'shadi.
+
+    2026-09-18 — M8/F1a: `company_id` berilmasdi (vaqtinchalik `DEFAULT 1`
+    ga tayanardi) — B korxonaning loyihasi A ga yozilardi. Endi tenant
+    ANIQ beriladi. Loyiha raqami (`PRJ-NNN`) hisoblash mantig'i
+    O'ZGARTIRILMADI."""
+    # 2026-09-20 — raqam endi KORXONA BO'YICHA ketma-ket.
+    #
+    # Ilgari: `last.id + 1`, ya'ni `projects` jadvalining GLOBAL id
+    # ketma-ketligi. Ikkinchi mijozning birinchi loyihasi `PRJ-023`
+    # bo'lib chiqardi — u sizda yana 22 ta boshqa loyiha borligini
+    # payqardi. Endi har bir korxona o'zining `PRJ-001` idan boshlaydi.
+    #
+    # Baza buni allaqachon qo'llab-quvvatlaydi: W2b da `project_number`
+    # global noyoblikdan `UNIQUE(company_id, project_number)` ga
+    # o'tkazilgan, ya'ni ikki korxonada bir xil raqam bemalol yashaydi.
+    #
+    # MAVJUD ma'lumotga ta'sir qilmaydi: 1-korxonada eng katta raqam
+    # nechada bo'lsa, keyingisi o'shandan davom etadi.
+    # 15-band: qat'iy tekshiruv — HECH NARSA yozilmasdan OLDIN (ValueError → 400).
+    _toza_pr = _clean_create("Project", project_data.model_dump(exclude_unset=True))
+    import re as _re_pn
+    _pq = db.query(Project.project_number)
+    if company_id is not None:
+        _pq = _pq.filter(Project.company_id == company_id)
+    _raqamlar = []
+    for (_pn,) in _pq.all():
+        _m = _re_pn.search(r"(\d+)", _pn or "")
+        if _m:
+            _raqamlar.append(int(_m.group(1)))
+    next_num = (max(_raqamlar) + 1) if _raqamlar else 1
+    # kech86 (QAROR "A" loyiha raqamiga ham — O'LCHANDI probe86c: PRJ-003 butunlay o'chirilgach yangi
+    # loyiha yana PRJ-003 edi). Korxona qulfi (bir korxonada loyihalar ketma-ket raqamlanadi), keyin
+    # berilgan eng katta raqamdan KEYINGISI. Hisoblagich loyiha qo'shilgach yangilanadi.
+    if company_id is not None:
+        _pul_qulfi(db, 186, company_id)
+        next_num = max(next_num, loyiha_raqam_asosi(db, company_id) + 1)
+
+    # Agar shu raqam SHU KORXONADA band bo'lsa, keyingisini olamiz
+    def _band(n):
+        q = db.query(Project).filter(Project.project_number == f"PRJ-{n:03d}")
+        if company_id is not None:
+            q = q.filter(Project.company_id == company_id)
+        return q.first() is not None
+
+    while _band(next_num):
         next_num += 1
     project_number = f"PRJ-{next_num:03d}"
 
     db_project = Project(
+        company_id=company_id,
         project_number=project_number,
         project_name=project_data.project_name,
         client_name=project_data.client_name,
@@ -836,34 +1779,87 @@ def create_project(db: Session, project_data: ProjectCreate) -> Project:
         client_address=project_data.client_address,
         description=project_data.description,
         total_budget=project_data.total_budget or 0,
+        # 15-band (O'LCHANGAN): yaratish formasidagi "Muddati" sxemada yo'q
+        # edi va JIMGINA tashlab yuborilardi — hech bir yo'l uni yozmasdi.
+        deadline=_toza_pr.get("deadline"),
         notes=project_data.notes,
         status=ProjectStatus.ACTIVE
     )
     db.add(db_project)
+    if company_id is not None:
+        from production_models import Company as _Co86s
+        _kp86 = db.query(_Co86s).filter(_Co86s.id == company_id).first()
+        if _kp86 is not None and int(_kp86.oxirgi_loyiha_seq or 0) < next_num:
+            _kp86.oxirgi_loyiha_seq = next_num
     db.commit()
     db.refresh(db_project)
     return db_project
 
 
-def get_projects(db: Session) -> List[Project]:
-    return db.query(Project).filter(Project.is_deleted.isnot(True)).order_by(Project.start_date.desc()).all()
+def get_projects(db: Session, company_id: int = None) -> List[Project]:
+    q = db.query(Project).filter(Project.is_deleted.isnot(True))
+    if company_id is not None:
+        q = q.filter(Project.company_id == company_id)
+    return q.order_by(Project.start_date.desc()).all()
 
 
-def get_projects_dashboard_stats(db: Session) -> dict:
+def _hisobot_keshida(fn):
+    """kech90 (110-band): funksiya (birinchi argumenti — `db`) `services.hisobot_keshi` ichida bajariladi —
+    har buyurtma uchun `calculate_order_profit` so'rovlari (buyurtma, detal, harakat, material, PO, TM,
+    retsept, usta) bir necha IN so'roviga tushadi, natija AYNAN (kech89 52-band keshi). `services`
+    chaqiruv paytida import qilinadi (modul darajasida aylanma import yo'q)."""
+    import functools as _ft_hk
+
+    @_ft_hk.wraps(fn)
+    def _o(*args, **kwargs):
+        import services as _sv_hk
+        _db = args[0] if args else kwargs.get("db")
+        with _sv_hk.hisobot_keshi(_db):
+            return fn(*args, **kwargs)
+    return _o
+
+
+def loyiha_bajarilish_foizi(buyurtmalar) -> int:
+    """kech101 (139-band): loyiha bajarilish foizi — YAGONA qoida (Loyihalar kartasi chizig'i `GET /api/projects/progress-map`
+    va loyiha detali `progress_pct`). To'plam — loyihaning Buyurtmalar yorlig'i / kartadagi "N ta buyurtma" bilan bir xil
+    (o'chirilmaganlar), ish boshlanmagan (qoralama) va bekor qilinganlar maxrajga KIRMAYDI; bajarilgan — «Tayyor» (READY) va
+    yetkazilgan (DELIVERED). Bo'sh to'plam — 0."""
+    from models import OrderStatus as _OS139
+    jami = tayyor = 0
+    for o in buyurtmalar:
+        if o.is_deleted or o.status in (_OS139.DRAFT, _OS139.CANCELLED):
+            continue
+        jami += 1
+        if o.status in (_OS139.READY, _OS139.DELIVERED):
+            tayyor += 1
+    return round((tayyor / jami) * 100) if jami else 0
+
+
+@_hisobot_keshida
+def get_projects_dashboard_stats(db: Session, company_id: int = None) -> dict:
     """Loyihalar sahifasi uchun KPI ko'rsatkichlari — faqat o'qish, mavjud hisob-kitoblarga
     (get_projects_with_stats, calculate_order_profit) tegmaydi, faqat ulardan foydalanadi."""
     import services
     from models import Order, OrderStatus
-    from datetime import datetime
 
-    projects = db.query(Project).filter(Project.is_deleted.isnot(True)).all()
-    now = datetime.utcnow()
+    from sqlalchemy.orm import selectinload as _sil_pd
+    _dq = db.query(Project).filter(Project.is_deleted.isnot(True))
+    if company_id is not None:
+        _dq = _dq.filter(Project.company_id == company_id)
+    # kech97 (116-band): loyiha buyurtmalari ro'yxati bitta IN so'rovi bilan (tartib — `Project.orders` order_by=id,
+    # lazy bilan AYNAN); ilgari loyiha boshiga 1 so'rov (jonli 23 loyiha — 23 so'rov).
+    projects = _dq.options(_sil_pd(Project.orders)).all()
+    services._hk_loyihalar(db, projects)     # kech90 (110-band): loyihalardagi "Tayyor" buyurtmalar oldindan
+    now = _tashkent_date()        # kech105 (9 + 50-band): "shu oy" — Toshkent kalendari
+
+    def _shu_oyda(v):
+        return v is not None and (_tashkent_date(v).year, _tashkent_date(v).month) == (now.year, now.month)
 
     active = sum(1 for p in projects if p.status == ProjectStatus.ACTIVE)
     completed = sum(1 for p in projects if p.status == ProjectStatus.COMPLETED)
     on_hold = sum(1 for p in projects if p.status == ProjectStatus.ON_HOLD)
-    started_this_month = sum(1 for p in projects if p.start_date and p.start_date.year == now.year and p.start_date.month == now.month)
-    completed_this_month = sum(1 for p in projects if p.completed_at and p.completed_at.year == now.year and p.completed_at.month == now.month)
+    started_this_month = sum(1 for p in projects if _shu_oyda(p.start_date))
+    completed_this_month = sum(1 for p in projects if _shu_oyda(p.completed_at))
 
     total_profit = 0.0
     for p in projects:
@@ -888,41 +1884,202 @@ def get_projects_dashboard_stats(db: Session) -> dict:
     }
 
 
-def get_projects_with_stats(db: Session) -> List:
+def loyiha_pul_hisobi(orders) -> dict:
+    """kech116 (G2-01 — egasi QARORI kech114 «Loyiha qiymati — buyurtmalardan», O'LCHANGAN audit: Loyihalar sahifasidagi
+    «Loyiha qiymati», «Qolgan to'lov», «N% to'langan» va «Moliya» yorlig'idagi «Qarz» qo'lda yoziladigan «Byudjet»
+    maydonidan edi (odatda 0) — 3 buyurtmasida 764 000 qarzi bor loyiha «Qiymati 0, Qolgan to'lov 0» (yashil) ko'rinardi,
+    60 loyihaning hammasi «0 so'm»). Loyiha pul hisobi — BUYURTMALARDAN (byudjet maydoni kerak emas):
+
+      qiymat   = buyurtmalar kelishilgan summalari yig'indisi,
+      to'langan = shu buyurtmalar to'lovlari (sof — qaytarilgan pul ayrilgan),
+      qarz     = shu buyurtmalar qarzlari (`Order.debt_amount` — Qarzdorlar / Buyurtmalar sahifasi bilan bir qoida),
+      ortiqcha = ortiqcha to'langan (mijozga qaytarilishi kerak) buyurtmalar yig'indisi.
+
+    Qaysi buyurtmalar: Qarzdorlar sharti (`qarz_hisobidagi_buyurtma_sharti`, 134-band «A» — o'chirilmagan YOKI o'chirilgan,
+    lekin READY / DELIVERED), qoralama (hali buyurtma emas — K100-5) va bekor qilingan — KIRMAYDI. Tiyin aniqligida."""
+    tanlangan = [o for o in (orders or [])
+                 if (not o.is_deleted or o.status in (OrderStatus.READY, OrderStatus.DELIVERED))
+                 and o.status not in (OrderStatus.DRAFT, OrderStatus.CANCELLED)]
+    qiymat = pul_tiyin_yigindi(o.kelishilgan_summa for o in tanlangan)
+    tolangan = pul_tiyin_yigindi(o.paid_amount for o in tanlangan)
+    qarz = pul_tiyin_yigindi(o.debt_amount for o in tanlangan)
+    ortiqcha = pul_tiyin_yigindi(o.ortiqcha_tolov for o in tanlangan)
+    foiz = min(100, round(tolangan / qiymat * 100)) if qiymat > 0 else 0
+    return {"qiymat": qiymat, "tolangan": tolangan, "qarz": qarz, "ortiqcha": ortiqcha, "foiz": max(0, foiz),
+            "soni": len(tanlangan)}
+
+
+def get_projects_with_stats(db: Session, company_id: int = None) -> List:
     """Loyihalar + buyurtmalar summasi + qarz hisobi (orders ham qo'shilgan)."""
-    projects = db.query(Project).filter(Project.is_deleted.isnot(True)).order_by(Project.start_date.desc()).all()
+    from sqlalchemy.orm import selectinload as _sil_ps
+    _pq = db.query(Project).filter(Project.is_deleted.isnot(True))
+    if company_id is not None:
+        _pq = _pq.filter(Project.company_id == company_id)
+    # kech97 (116-band, O'LCHANGAN `work/probe116.py`): `p.orders` loyiha boshiga alohida so'rov edi (+10 loyiha —
+    # +10 so'rov); endi bitta IN so'rovi (tartib — `Project.orders` order_by=id).
+    # kech116 (G2-01): loyiha pul hisobi buyurtma to'lovlarini o'qiydi — to'lovlar ham bitta IN so'rovi (N+1 emas)
+    projects = _pq.options(_sil_ps(Project.orders).selectinload(Order.payments)).order_by(Project.start_date.desc()).all()
     for p in projects:
-        orders_count = len(p.orders) if p.orders else 0
+        # kech98 (130-band, O'LCHANGAN `work/probe130.py`): kartadagi "N ta buyurtma" yumshoq o'chirilganlarni ham
+        # sanardi (3), loyihaning "Buyurtmalar" yorlig'i (`get_orders`) va detali (`total_orders`) — 2. Endi soni —
+        # o'chirilmaganlar (yorliq bilan bir xil); summa — moliyaviy tarix (o'chirilganlar ham, avvalgidek).
+        orders_count = sum(1 for o in (p.orders or []) if not o.is_deleted)
         orders_sum = sum(float(o.total_amount or 0) for o in (p.orders or []))
-        budget = float(p.total_budget or 0)
-        paid = float(p.total_paid or 0)
-        actual = budget if budget > 0 else orders_sum
-        debt = actual - paid
+        # kech116 (G2-01, QAROR «Loyiha qiymati — buyurtmalardan»): qiymat / to'langan / qarz — `loyiha_pul_hisobi`
+        # (ilgari: byudjet > 0 bo'lsa byudjet, aks holda buyurtmalar JAMI summasi (chegirmasiz) − `total_paid`).
+        pul = loyiha_pul_hisobi(p.orders or [])
 
         # Atributlar qo'shamiz (template uchun)
         p.orders_count = orders_count
         p.orders_sum = orders_sum
-        p.debt = debt
-        p.actual_sum = actual
+        p.pul = pul
+        p.debt = pul["qarz"]
+        p.actual_sum = pul["qiymat"]
     return projects
 
 
-def add_payment(db: Session, project_id: int, amount: float) -> Optional[Project]:
-    """Loyihaga zaklat (avans) qo'shish."""
-    db_project = db.query(Project).filter(Project.id == project_id).first()
-    if not db_project:
-        return None
-    db_project.total_paid = (float(db_project.total_paid or 0) + amount)
-    db.commit()
-    db.refresh(db_project)
-    return db_project
+def _loyiha_tolangan_yangila(db: Session, project) -> None:
+    """17c (2026-09-21): `Project.total_paid` ni HAQIQIY to'lovlardan qayta
+    hisoblaydi — loyiha buyurtmalaridagi BARCHA `Payment` yozuvlari
+    yig'indisi (qaytarilgan pulning manfiy yozuvi ham, yumshoq o'chirilgan
+    buyurtmaning to'lovlari ham — ular bazada qoladi va ilgari ham shu
+    formula bilan hisoblanardi).
+
+    NIMA UCHUN (O'LCHANGAN, `work/probe17c.py` va jonli sayt):
+      * `total_paid` ni faqat `create_payment` / `delete_payment`
+        yangilardi. Yuk xati orqali to'lov (`create_delivery`), pul
+        qaytarish (`mark_refunded`) va buyurtmani butunlay o'chirish (unga
+        bog'liq to'lovlar ham o'chadi) uni YANGILAMASDI. Jonli: PRJ-033
+        buyurtmasi to'liq to'langan (2 560 000), loyiha esa "To'langan: 0".
+      * Loyihaga to'g'ridan-to'g'ri "zaklat" (`add_payment`) to'lov
+        YOZUVISIZ `total_paid` ga qo'shilardi va keyingi buyurtma to'lovida
+        izsiz o'chib ketardi. Foydalanuvchi qarori "1" (2026-09-21):
+        bu yo'l OLIB TASHLANDI, to'lov faqat buyurtma orqali.
+    Endi `total_paid` — to'lovlar keshi, va uni o'zgartiradigan HAR BIR
+    yo'l shu yordamchini chaqiradi.
+
+    TENANT: yig'indi loyiha korxonasi bo'yicha QAT'IY cheklanadi (ota —
+    buyurtma — orqali; `Payment` da `company_id` yo'q). Sessiya
+    `autoflush=False` — shuning uchun avval `flush`.
+    Commit QILMAYDI — chaqiruvchining tranzaksiyasi ichida ishlaydi."""
+    if project is None:
+        return
+    from models import Payment as _Pay_lt
+    from sqlalchemy import func as _func_lt
+    db.flush()
+    jami = db.query(_func_lt.coalesce(_func_lt.sum(_Pay_lt.amount), 0)).join(
+        Order, Order.id == _Pay_lt.order_id).filter(
+        Order.project_id == project.id,
+        Order.company_id == project.company_id).scalar()
+    project.total_paid = round(float(jami or 0), 2)
 
 
 # ============================================================
 # ORDER CRUD
 # ============================================================
 
-def create_order(db: Session, order_data: OrderCreate, performed_by: str = None) -> Order:
+def _detal_turi_tekshir(items):
+    """77-band (kech68) — detal turi (kategoriya) BO'SH satr bo'lsa: ValueError (aniq sabab).
+
+    O'LCHANGAN (kech67, `work/probe67_blok.py`): `orders.html` da tur varianti yo'q qator (korxonada
+    o'chirilgan eskirgan `blok`) `category: ''` bilan yuborilardi va server QABUL QILARDI —
+    detal narxi 0, uzunlik boshqa ma'noda, penoplast soxta qaytardi. Bo'sh tur hech qachon to'g'ri
+    emas (UI doim tur yuboradi). `None` (maydon berilmagan — API standarti) tegilmaydi.
+    """
+    for n, it in enumerate(items or [], start=1):
+        k = it.get("category") if isinstance(it, dict) else getattr(it, "category", None)
+        if isinstance(k, str) and not k.strip():
+            nom = (it.get("name") if isinstance(it, dict) else getattr(it, "name", None)) or ""
+            raise ValueError(
+                f"{n}-detal («{str(nom)[:60]}»): detal turi ko'rsatilmagan — sahifani yangilab, "
+                f"detal turini (Profil / Panel / Donali ...) tanlang va qayta saqlang")
+
+
+_BUYURTMA_RAQAM_URINISH = 5
+
+
+def _buyurtma_prefiksi(db: Session, project) -> str:
+    """Buyurtma raqamidagi loyiha prefiksi (`ORD-<prefiks>-<seq>`) — `create_order` qoidasi (2026-09-20),
+    kech86 da yordamchiga ko'chirildi (migratsiya ham AYNAN shu qoidadan foydalanadi):
+      1) loyihada buyurtma bo'lsa — birinchisining prefiksi;
+      2) bo'lmasa — loyihaning O'Z raqamidan (`PRJ-007` -> `007`);
+      3) ikkalasi ham bo'lmasa — `project_id` (3 xonali).
+    """
+    import re as _re_on
+    _mq = db.query(Order.order_number).filter(Order.project_id == project.id)
+    if getattr(project, "company_id", None) is not None:
+        _mq = _mq.filter(Order.company_id == project.company_id)
+    _mavjud = _mq.order_by(Order.id.asc()).first()
+
+    _prefiks = None
+    if _mavjud and _mavjud[0]:
+        _m = _re_on.match(r"ORD-(\d+)-", _mavjud[0])
+        if _m:
+            _prefiks = _m.group(1)
+    if _prefiks is None and getattr(project, "project_number", None):
+        _m = _re_on.search(r"(\d+)", project.project_number)
+        if _m:
+            _prefiks = f"{int(_m.group(1)):03d}"
+    if _prefiks is None:
+        _prefiks = f"{project.id:03d}"
+    return _prefiks
+
+
+def _buyurtma_seq_ol(raqam, prefiks):
+    """`ORD-<prefiks>-<N>` dan N (butun son); boshqa shakl — None."""
+    import re as _re86
+    _m = _re86.fullmatch(r"ORD-" + _re86.escape(str(prefiks)) + r"-(\d+)", str(raqam or "").strip())
+    return int(_m.group(1)) if _m else None
+
+
+def buyurtma_raqam_asosi(db: Session, project, prefiks, jurnal=None) -> int:
+    """kech86 (100-band, QAROR "A"): loyihada shu paytgacha BERILGAN eng katta buyurtma tartib raqami.
+
+    Manbalar (eng kattasi olinadi — raqam faqat o'sadi, bo'shliq qoladi):
+      - loyiha hisoblagichi `projects.oxirgi_buyurtma_seq` (bazadan YANGI o'qiladi — identity map eskirgan bo'lishi mumkin);
+      - korxonadagi SHU prefiksli HAMMA buyurtmalar (yumshoq o'chirilganlar ham; bir prefiks ikki loyihada
+        uchrasa ham to'qnashuv bo'lmasin);
+      - hisoblagich bo'sh (NULL) bo'lsa (yoki `jurnal=True`) — faoliyat jurnalidagi buyurtma yozuvlari
+        (qattiq o'chirilgan buyurtma raqami faqat shu yerda qoladi).
+    """
+    _cid = getattr(project, "company_id", None)
+    _hq = db.query(Project.oxirgi_buyurtma_seq).filter(Project.id == project.id)
+    if _cid is not None:
+        _hq = _hq.filter(Project.company_id == _cid)
+    _hisob = _hq.scalar()
+    _eng = int(_hisob or 0)
+    _oq = db.query(Order.order_number).filter(Order.order_number.like(f"ORD-{prefiks}-%"))
+    if _cid is not None:
+        _oq = _oq.filter(Order.company_id == _cid)
+    for (_r,) in _oq.all():
+        _s = _buyurtma_seq_ol(_r, prefiks)
+        if _s is not None and _s > _eng:
+            _eng = _s
+    if jurnal is None:
+        jurnal = _hisob is None
+    if jurnal:
+        from models import ActivityLog as _AL86
+        _jq = db.query(_AL86.entity_label).filter(
+            _AL86.entity_type == "order", _AL86.entity_label.like(f"ORD-{prefiks}-%"))
+        if _cid is not None:
+            _jq = _jq.filter(_AL86.company_id == _cid)
+        for (_r,) in _jq.all():
+            _s = _buyurtma_seq_ol(_r, prefiks)
+            if _s is not None and _s > _eng:
+                _eng = _s
+    return _eng
+
+
+def _buyurtma_raqami_bandmi(db: Session, company_id, raqam) -> bool:
+    """Shu korxonada shu raqamli buyurtma bormi (unique `uq_orders_company_order_number` bilan bir xil fazo)."""
+    _q = db.query(Order.id).filter(Order.order_number == raqam)
+    if company_id is not None:
+        _q = _q.filter(Order.company_id == company_id)
+    return _q.first() is not None
+
+
+def create_order(db: Session, order_data: OrderCreate, performed_by: str = None,
+                 company_id: int = None) -> Order:
     """Yangi buyurtma + detallar qo'shadi.
 
     Mantiq:
@@ -930,11 +2087,61 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None)
     - Har bir item ning total_price = quantity * unit_price (qoplamali bo'lsa x2)
     - Buyurtma umumiy summasi avtomatik hisoblanadi
     """
+    # K95-1 (kech95): sig'im — HECH NARSA yozilmasdan OLDIN (marshrut ham shu bilan 400 beradi).
+    _buyurtma_sigim_tekshir(getattr(order_data, "items", None) or [])
     # Order raqami: ORD-{project_id}-{seq}
     # Bir necha kishi AYNAN BIR VAQTDA shu loyihaga buyurtma yaratsa,
     # ikkalasi bir xil raqamni olib qolishi mumkin — shu holatni xavfsiz
     # tarzda avtomatik qayta urinib, o'zi tuzatib qo'yadi.
     from sqlalchemy.exc import IntegrityError
+
+    # 2026-09-21 — TENANT (11-sizish). Buyurtmaning korxonasi LOYIHADAN
+    # olinadi (pastda `_company_id = _project.company_id`). Chaqiruvchi
+    # korxonasi berilsa, loyiha AYNAN shu korxonaniki bo'lishi shart —
+    # aks holda B A ning `project_id` sini yuborib, buyurtmani A
+    # korxonasida yaratar va A omboridan xomashyo ayirar edi (qo'riqchi
+    # ushlamasdi: buyurtma, detal, penoplast — hammasi "A niki").
+    # MUHIM: bu tekshiruv takroriy-yuborish himoyasidan va advisory
+    # qulfdan OLDIN turadi — aks holda B ga A ning yaqinda yaratilgan
+    # buyurtmasi (narxlari bilan) "dublikat" sifatida qaytib ketardi.
+    if company_id is not None:
+        if not db.query(Project.id).filter(
+                Project.id == order_data.project_id,
+                Project.company_id == company_id).first():
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+
+    # 17d (2026-09-21): rejalashtirilgan loy (kg) — HECH NARSA yozilishidan
+    # OLDIN tekshiriladi. O'LCHANGAN: `loy_kg: Infinity` → loy xomashyosi
+    # qoldig'i −∞, `1e20` → −5×10¹⁹, `true` → 1 kg. Sxema (pydantic) ham
+    # rad etadi — bu ildiz to'sig'i sxemani chetlab chaqirilganda ishlaydi.
+    _json_loy("loy_kg", getattr(order_data, 'loy_kg', None))
+    # 77-band (kech68): bo'sh detal turi — HECH NARSA yozilishidan OLDIN rad (ildiz to'sig'i).
+    try:
+        _detal_turi_tekshir(getattr(order_data, "items", None))
+    except ValueError as _e_tur:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=str(_e_tur))
+
+    # 2026-09-17 (audit topilmasi — haqiqiy, nozik xato): pastdagi
+    # "so'nggi soniyalarda bir xil buyurtma bormi" tekshiruvi o'zi
+    # ATOMIK EMAS edi — ikkita so'rov AYNAN BIR VAQTDA kelsa (masalan
+    # tarmoq ikki marta jo'natib yuborsa), ikkalasi ham "yo'q" javobini
+    # olib, ikkalasi ham YANGI, DUBLIKAT buyurtma yaratib qo'yishi
+    # mumkin edi (4 ta bir vaqtdagi so'rovdan 2 tasi shunday dublikat
+    # bo'lib qolgani sinovda aniq ko'rsatildi). Yechim: shu loyiha
+    # uchun bir vaqtning o'zida faqat BITTA buyurtma yaratish jarayoni
+    # davom etishini ta'minlaydigan, tranzaksiya davomida ushlab
+    # turiladigan qulf (faqat PostgreSQL'da; mahalliy sinov uchun
+    # ishlatiladigan SQLite'da bunday funksiya yo'q, shuning uchun
+    # xavfsiz tarzda o'tkazib yuboriladi — u yerda haqiqiy bir vaqtlilik
+    # muammosi ham yo'q).
+    try:
+        if db.bind.dialect.name == "postgresql":
+            from sqlalchemy import text
+            db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": order_data.project_id})
+    except Exception:
+        pass
 
     # QO'SHIMCHA XAVFSIZLIK QATLAMI (server tomonida): brauzerda tugmani
     # ikki marta bosishdan himoya allaqachon bor, lekin bu — faqat
@@ -963,12 +2170,58 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None)
 
     is_draft = getattr(order_data, 'is_draft', False)
 
+    # 2026-09-18 — SaaS ko'p-tenantlilik (3-to'lqin).
+    # Buyurtma QAYSI KORXONANIKI ekani o'z loyihasidan olinadi.
+    # NIMA UCHUN ANIQ YOZILADI: bazada company_id ustunida vaqtinchalik
+    # DEFAULT 1 turibdi. Agar bu yerda qiymat berilmasa, 2-korxonaning
+    # loyihasiga yaratilgan buyurtma ham JIMGINA 1-korxonaga tushib qoladi
+    # — jonli sinovda aynan shunday bo'ldi. Bitta korxona bo'lganda bu
+    # sezilmaydi, ikkinchi mijoz qo'shilganda esa boshqa korxonaning
+    # ma'lumoti aralashib ketadi.
+    _project = db.query(Project).filter(Project.id == order_data.project_id).first()
+    if not _project:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+    _company_id = _project.company_id
+
+    # 2026-09-20 — buyurtma raqamidagi prefiks endi GLOBAL `project_id`
+    # emas.
+    #
+    # Ilgari: `ORD-{project_id:03d}-{seq}`. `project_id` butun platforma
+    # bo'yicha ketma-ket bo'lgani uchun, ikkinchi mijozning birinchi
+    # buyurtmasi `ORD-023-1` bo'lib chiqardi — loyiha raqamini korxona
+    # bo'yicha qilganimiz ham buni tuzatmasdi, chunki bu yerda loyihaning
+    # RAQAMI emas, ichki `id` si ishlatilardi.
+    #
+    # Yangi qoida, uch bosqichli (eski hujjatlarga TEGMASLIK uchun):
+    #   1) Loyihada allaqachon buyurtma bo'lsa — o'shalarning prefiksi
+    #      aynan davom ettiriladi. Ya'ni mavjud loyihalarning yangi
+    #      buyurtmalari ilgarigidek raqamlanadi, uzilish bo'lmaydi.
+    #   2) Buyurtma yo'q bo'lsa — loyihaning O'Z raqamidan olinadi
+    #      (`PRJ-007` -> `ORD-007-1`), bu hujjatda ko'rinadigan raqam.
+    #   3) Ikkalasi ham bo'lmasa — eski usul, `project_id`.
+    _prefiks = _buyurtma_prefiksi(db, _project)
+
+    # kech86 (100-band, QAROR "A" — raqam HECH QACHON qayta berilmaydi). Ilgari
+    # `seq = loyihadagi buyurtmalar SONI + 1 + urinish` edi (O'LCHANDI, probe100): qattiq o'chirilgan
+    # OXIRGI buyurtma raqami yangisiga qayta berilardi (jurnalda bir raqam — ikki buyurtma); o'rtadagisi
+    # o'chirilsa to'qnashuv -> `db.rollback()` advisory qulfni ham, endpoint tranzaksiyasini ham bekor
+    # qilardi (parallel takror-himoya ishlamay IKKI buyurtma, penoplast ikki marta — probe100b); birinchi
+    # 5 tasi o'chirilsa loyihaga buyurtma umuman yaratilmasdi (500). Endi: seq = BERILGAN eng katta
+    # raqam + 1 (`buyurtma_raqam_asosi`), band raqam oldindan o'tkazib yuboriladi; PG da bir vaqtdagi
+    # to'qnashuv (bir prefiksli boshqa loyiha) — faqat SAVEPOINT bekor qilinadi (qulf va oldingi
+    # yozuvlar saqlanadi), keyingi raqam; urinishlar tugasa — 409 (500 EMAS), hech narsa yozilmaydi.
+    from fastapi import HTTPException as _HE86
+    _pg86 = db.bind.dialect.name == "postgresql"
+    seq = buyurtma_raqam_asosi(db, _project, _prefiks)
     db_order = None
-    max_attempts = 5
-    for attempt in range(max_attempts):
-        seq = db.query(Order).filter(Order.project_id == order_data.project_id).count() + 1 + attempt
-        order_number = f"ORD-{order_data.project_id:03d}-{seq}"
-        db_order = Order(
+    for attempt in range(_BUYURTMA_RAQAM_URINISH):
+        seq += 1
+        while _buyurtma_raqami_bandmi(db, _company_id, f"ORD-{_prefiks}-{seq}"):
+            seq += 1
+        order_number = f"ORD-{_prefiks}-{seq}"
+        _yangi_buyurtma = Order(
+            company_id=_company_id,
             order_number=order_number,
             project_id=order_data.project_id,
             order_type=order_type,
@@ -976,19 +2229,28 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None)
             master_id=order_data.master_id,
             deadline=getattr(order_data, 'deadline', None),
             notes=order_data.notes,
-            total_amount=0
+            total_amount=0,
+            kechirilgan_qarz=0     # kech110 (K110-1): yangi buyurtmada kechirilgan qarz yo'q (NULL — eski, to'ldirilmagan)
         )
-        db.add(db_order)
         try:
-            db.flush()  # ID olish uchun
-            break  # Muvaffaqiyatli — raqam band emas edi
+            if _pg86:
+                with db.begin_nested():
+                    db.add(_yangi_buyurtma)
+                    db.flush()  # ID olish uchun
+            else:
+                db.add(_yangi_buyurtma)
+                db.flush()  # ID olish uchun
         except IntegrityError:
-            db.rollback()
-            if attempt == max_attempts - 1:
-                raise  # 5 marta urinib bo'lmasa, haqiqiy xato bor demak
+            if not _pg86:
+                raise _HE86(status_code=409, detail=f"Buyurtma raqami {order_number} band — qayta urinib ko'ring. Hech narsa saqlanmadi.")
+            continue
+        db_order = _yangi_buyurtma
+        break  # Muvaffaqiyatli — raqam band emas edi
+    if db_order is None:
+        raise _HE86(status_code=409, detail="Buyurtma raqamini ajratib bo'lmadi (bir vaqtda juda ko'p so'rov) — qayta urinib ko'ring. Hech narsa saqlanmadi.")
 
     # Detallarni qo'shamiz va umumiy summani hisoblaymiz
-    total_amount = 0
+    _jamilar = []
     for item_data in order_data.items:
         # unit_price allaqachon frontend tomonida YAKUNIY (qoplamali bo'lsa
         # allaqachon ×2 qilingan) holda yuboriladi — bu barcha turlar
@@ -1003,9 +2265,9 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None)
         # tasdiqlangan: 1000 so'm/dona yuborilsa, 2000 so'm/dona saqlanardi).
         # Endi — boshqa barcha turlar kabi, unit_price O'ZGARTIRILMASDAN
         # ishlatiladi.
-        _stored_unit_price = item_data.unit_price
-        item_total = _stored_unit_price * item_data.quantity
-        total_amount += item_total
+        # 117-band (kech95): narx bazadagidek 2 xonaga (HALF_UP), jami SHU narxdan (`_buyurtma_narx_jami`).
+        _stored_unit_price, item_total = _buyurtma_narx_jami(item_data.quantity, item_data.unit_price)
+        _jamilar.append(item_total)
 
         db_item = OrderItem(
             order_id=db_order.id,
@@ -1018,11 +2280,11 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None)
             is_coated=item_data.is_coated,
             recipe_id=(getattr(item_data, 'recipe_id', None) or order_data.recipe_id),
             penoplast_id=getattr(item_data, 'penoplast_id', None),
-            price_per_m3=getattr(item_data, 'price_per_m3', None),
+            price_per_m3=_pul2_bosh(getattr(item_data, 'price_per_m3', None)),
             finished_product_id=getattr(item_data, 'finished_product_id', None),
             unit_price=_stored_unit_price,
-            unit_price_for_volume=getattr(item_data, 'unit_price_for_volume', None),
-            gips_unit=getattr(item_data, 'gips_unit', None),
+            unit_price_for_volume=_pul2_bosh(getattr(item_data, 'unit_price_for_volume', None)),
+            product_type_id=getattr(item_data, 'product_type_id', None),
             total_price=item_total,
             notes=item_data.notes
         )
@@ -1055,31 +2317,14 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None)
                 total_price=sub_price
             ))
 
-        # MUHIM: Termopanel uchun — bazalt/serpiyanka/kley tanlovini
-        # DARHOL, yaratilgan zahoti notes'ga yozib qo'yamiz (avval bu —
-        # faqat TAHRIRLASHDA yozilardi, shuning uchun qoralama holatida
-        # "jarayonga olish"da bu ma'lumot yo'qolib qolar edi).
-        if (item_data.category or '').lower() == 'termopanel':
-            db_item.notes = _build_termo_notes(db, item_data, db_item.notes)
 
+    total_amount = _pul_yigindi(_jamilar)
     db_order.total_amount = total_amount
-    # Kelishilgan summa — boshida jami summaga teng (chegirmasiz)
-    db_order.agreed_amount = getattr(order_data, 'agreed_amount', None) or total_amount
+    # Kelishilgan summa — boshida jami summaga teng (chegirmasiz). 117-band: bazadagidek 2 xonaga.
+    db_order.agreed_amount = _pul2(getattr(order_data, 'agreed_amount', None) or total_amount)
     db_order.base_price = getattr(order_data, 'base_price', None)
     if total_amount > 0 and float(db_order.agreed_amount) < total_amount:
         db_order.discount_percent = round((total_amount - float(db_order.agreed_amount)) / total_amount * 100, 2)
-
-    # GIPS — taxminiy miqdor va qo'shimchalar (Loy kabi: ombordan DARHOL,
-    # rejalashtirilgan (taxminiy) miqdorda ayiriladi; "Tayyor" bosilganda
-    # haqiqiy son bilan solishtirilib, farq tuzatiladi)
-    db_order.planned_gips_kg = getattr(order_data, 'planned_gips_kg', None)
-    db_order.gips_inventory_id = getattr(order_data, 'gips_inventory_id', None)
-    for add_data in (getattr(order_data, 'gips_additives', None) or []):
-        db.add(OrderGipsAdditive(
-            order_id=db_order.id,
-            inventory_id=add_data.inventory_id,
-            planned_qty=add_data.planned_qty
-        ))
 
     db.flush()
 
@@ -1088,43 +2333,54 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None)
     import services as _services
     _planned_loy_direct = float(getattr(order_data, 'loy_kg', None) or 0)
     _services._set_planned_loy(db_order, _planned_loy_direct)
+    # kech82 (102-band): loy manbasi kuzatuvi (tayyor loy zaxirasi / xom) — yangi buyurtma (qoralama ham)
+    db_order.loy_manba_json = _services.LOY_MANBA_BOSH
+
+    # kech58 (K58-1 / K58-2): buyurtma UMUMIY loyi retsepti — yaratishda BIR MARTA belgilanadi
+    # (qoralama ham). Yechish / qaytarish / foyda / brak — hammasi shu retseptdan.
+    db.expire(db_order, ['items'])
+    _qr58 = _services.buyurtma_qoplama_retseptini_tanla(db, db_order)
+    db_order.qoplama_retsept_id = _qr58.id if _qr58 else None
 
     # Tayyor mahsulotlardan yechamiz (qoralama bo'lmasa)
     if not is_draft:
         _take_finished_for_order(db, db_order)
-        planned_gips = float(db_order.planned_gips_kg or 0)
-        if planned_gips > 0 and db_order.gips_inventory_id:
-            _services.deduct_gips_main(db, db_order.gips_inventory_id, planned_gips, db_order)
-        gips_adds = [{"inventory_id": a.inventory_id, "qty": a.planned_qty} for a in (getattr(order_data, 'gips_additives', None) or [])]
-        if gips_adds:
-            _services.deduct_gips_additives(db, gips_adds, db_order)
 
-        # "Loy sotish" detallari — har biri o'z retseptiga ko'ra, alohida
-        # ombordan yechiladi (buyurtma to'g'ridan-to'g'ri, qoralamasiz
-        # yaratilganda ham ishlashi kerak — avval bu yerda YO'Q edi)
-        for item in db_order.items:
-            if (item.category or '').lower() == 'loy_sotish':
-                if item.recipe_id and item.quantity:
-                    _services.deduct_loy_ingredients(db, db_order, float(item.quantity), recipe_id=item.recipe_id)
-                elif item.quantity:
-                    # MUHIM: retsept tanlanmagan "Loy sotish" detali —
-                    # xomashyo AYIRILMAYDI. Frontend endi buni oldindan
-                    # tekshiradi, lekin API to'g'ridan-to'g'ri chaqirilsa ham
-                    # (masalan SaaS mijozi tomonidan) — bu holat KUZATILISHI
-                    # kerak, shuning uchun xato jurnaliga yozamiz.
-                    try:
-                        log_error(db, f"Loy sotish detali (#{item.id}, {item.name}) — retsept tanlanmagan, xomashyo ayirilmadi!",
-                                  endpoint="create_order:loy_sotish_missing_recipe")
-                    except Exception:
-                        pass
+        # kech82 (102-band): buyurtma loyi — zaxiradan / xomdan qancha olingani yoziladi
+        with _services.loy_manba_rejimi(db, "ushla"):
+            # "Loy sotish" detallari — har biri o'z retseptiga ko'ra, alohida
+            # ombordan yechiladi (buyurtma to'g'ridan-to'g'ri, qoralamasiz
+            # yaratilganda ham ishlashi kerak — avval bu yerda YO'Q edi)
+            for item in db_order.items:
+                if (item.category or '').lower() == 'loy_sotish':
+                    if item.recipe_id and item.quantity:
+                        _services.deduct_loy_ingredients(db, db_order, float(item.quantity), recipe_id=item.recipe_id)
+                    elif item.quantity:
+                        # MUHIM: retsept tanlanmagan "Loy sotish" detali —
+                        # xomashyo AYIRILMAYDI. Frontend endi buni oldindan
+                        # tekshiradi, lekin API to'g'ridan-to'g'ri chaqirilsa ham
+                        # (masalan SaaS mijozi tomonidan) — bu holat KUZATILISHI
+                        # kerak, shuning uchun xato jurnaliga yozamiz.
+                        try:
+                            log_error(db, f"Loy sotish detali (#{item.id}, {item.name}) — retsept tanlanmagan, xomashyo ayirilmadi!",
+                                      endpoint="create_order:loy_sotish_missing_recipe")
+                        except Exception:
+                            pass
 
-        # UMUMIY QOPLAMA uchun Rejalashtirilgan Loy — MUHIM: bu ham avval
-        # BUTUNLAY YO'Q edi (faqat qoralama faollashtirish va tiklashda bor
-        # edi). To'g'ridan-to'g'ri yaratilgan buyurtmada, umumiy qoplama
-        # uchun xomashyo HECH QACHON ayirilmasdi.
-        _planned_loy_general = _planned_loy_direct + get_termopanel_planned_loy(db_order)
-        if _planned_loy_general > 0:
-            _services.deduct_loy_ingredients(db, db_order, _planned_loy_general)
+            # UMUMIY QOPLAMA uchun Rejalashtirilgan Loy — MUHIM: bu ham avval
+            # BUTUNLAY YO'Q edi (faqat qoralama faollashtirish va tiklashda bor
+            # edi). To'g'ridan-to'g'ri yaratilgan buyurtmada, umumiy qoplama
+            # uchun xomashyo HECH QACHON ayirilmasdi.
+            _planned_loy_general = _planned_loy_direct
+            if _planned_loy_general > 0:
+                _services.deduct_loy_ingredients(db, db_order, _planned_loy_general)
+
+    # kech86 (100-band): berilgan raqam loyiha hisoblagichiga yoziladi — keyingi buyurtma undan KATTA
+    # raqam oladi (bu buyurtma o'chirilsa ham). Loyiha qatori ATAYLAB OXIRIDA yangilanadi: tayyor mahsulot /
+    # ombor qulflaridan KEYIN (yuk xati + to'lov ham avval TM, keyin loyiha qatorini qulflaydi — teskari
+    # tartib deadlock berardi). Bir loyihaning buyurtmalari yuqoridagi advisory qulf bilan ketma-ket.
+    if int(_project.oxirgi_buyurtma_seq or 0) < seq:
+        _project.oxirgi_buyurtma_seq = seq
 
     db.commit()
     db.refresh(db_order)
@@ -1135,12 +2391,96 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None)
     try:
         log_activity(
             db, "created", "order", db_order.id, db_order.order_number, performed_by,
-            new_value=f"Jami: {float(db_order.total_amount or 0):,.0f} so'm, {len(db_order.items)} ta detal".replace(',', ' ')
+            new_value=f"Jami: {float(db_order.total_amount or 0):,.0f} so'm, {len(db_order.items)} ta detal".replace(',', ' '),
+            company_id=getattr(db_order, 'company_id', None)
         )
     except Exception:
         pass
 
     return db_order
+
+
+# ============================================================
+# M4 (2026-09-18) — TAYYOR MAHSULOT: TENANT-XAVFSIZ MARKAZIY QIDIRUV
+# ============================================================
+# Ilgari butun fayl bo'ylab `db.query(FinishedProduct).filter(
+# FinishedProduct.id == fp_id)` shaklidagi 17 ta joy bor edi — hammasi
+# korxona filtrisiz. Ya'ni A korxona xodimi B korxonaning mahsulot
+# ID sini yuborsa, uni ko'rardi, tahrirlardi, sotardi, o'chirardi.
+#
+# Endi ikkita markaziy funksiya bor:
+#   • get_finished_product()  — "topilmasa None" (endpointlar uchun → 404)
+#   • _fp_for_tenant()        — "boshqa korxonaniki bo'lsa RAD ET"
+#     (buyurtmaga biriktirish/allocation uchun — u yerda jimgina
+#      o'tkazib yuborish XAVFLI: miqdor yechilmay, buyurtma esa
+#      yaratilib ketardi).
+#
+# `company_id=None` — filtrsiz, ESKI xatti-harakat. Bu ataylab: ichki
+# chaqiruvchilar bosqichma-bosqich o'tkaziladi, hech narsa birdan
+# buzilmaydi. Barcha `/api/finished/*` endpointlari company_id ni
+# ANIQ uzatadi.
+
+def get_finished_product(db: Session, fp_id: int, company_id: int = None,
+                         lock: bool = False):
+    """Tayyor mahsulotni FAQAT shu korxona ichidan topadi (M4).
+
+    company_id berilmasa — filtrsiz (orqaga moslik uchun).
+    lock=True — `.with_for_update()` bilan qatorni qulflaydi (sotuv,
+    brak kabi miqdor o'zgartiradigan amallar uchun)."""
+    q = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id)
+    if company_id is not None:
+        q = q.filter(FinishedProduct.company_id == company_id)
+    if lock:
+        q = q.with_for_update()
+    return q.first()
+
+
+def _fp_for_tenant(db: Session, fp_id: int, company_id: int = None):
+    """Buyurtmaga biriktirish (allocation) uchun QAT'IY qidiruv.
+
+    • Mahsulot umuman yo'q (o'chirilgan) — None qaytaradi, chaqiruvchi
+      avvalgidek o'tkazib yuboradi (bu — eski, uzilgan havola).
+    • Mahsulot BOR, lekin BOSHQA korxonaniki — TenantMismatchError.
+      Bu yerda jimgina `continue` qilish mumkin emas edi: buyurtma
+      yaratilaverardi, B korxonaning qoldig'i esa o'qilardi/yechilardi."""
+    from models import TenantMismatchError
+    fp = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()
+    if fp is None:
+        return None
+    if company_id is not None and fp.company_id != company_id:
+        raise TenantMismatchError(
+            f"Tayyor mahsulot #{fp_id} boshqa korxonaga tegishli — "
+            f"buyurtmaga biriktirib bo'lmaydi."
+        )
+    return fp
+
+
+def _fp_qulf(db: Session, fp_ids, company_id: int = None) -> None:
+    """kech64 (68-band): buyurtma detallari bog'langan tayyor mahsulot (TM) qatorlarini
+    `SELECT ... FOR UPDATE` bilan, id TARTIBIDA qulflaydi va qiymatlarini bazadan QAYTA
+    yuklaydi (`populate_existing`).
+
+    O'LCHANGAN (HAQIQIY PG, `work/probe68.py`, 3 / 3): `_fp_for_tenant` qatorni qulfsiz
+    o'qiydi, chaqiruvchilar esa MUTLAQ qiymat yozadi (`fp.quantity = cur - diff`). TM sotuvi
+    (u qatorni qulflaydi) tugamasdan buyurtma tahriri yoki o'chirilishi shu TM ni o'qisa,
+    sotuv YO'QOLARDI: sotuv 5 || tahrir +5 → 85 (to'g'risi 80); sotuv 5 || buyurtmani
+    o'chirish (+10) → 100 (to'g'risi 95); bir buyurtmani ikki joydan tahrirlash (TM + penoplast
+    detali) → 87 (to'g'risi 82).
+    - Avval `flush` — sessiyadagi yozilmagan TM o'zgarishi `populate_existing` da yo'qolmasin.
+    - Id tartibi — ikki tranzaksiya bir nechta TM ni turli tartibda qulflab, bir-birini
+      kutib qolmasin.
+    - Korxona filtri bilan (M4); korxona noma'lum bo'lsa qulflanmaydi (eski chaqiruv —
+      xulq avvalgidek)."""
+    if company_id is None:
+        return
+    ids = sorted({int(i) for i in (fp_ids or []) if i})
+    if not ids:
+        return
+    db.flush()
+    for _i in ids:
+        db.query(FinishedProduct).filter(
+            FinishedProduct.id == _i, FinishedProduct.company_id == company_id
+        ).populate_existing().with_for_update().first()
 
 
 def _fp_item_qty(item) -> float:
@@ -1156,89 +2496,105 @@ def _fp_stable_unit_cost(db, fp) -> float:
     unit_volume_m3 (penoplast) va unit_loy_kg (loy) — bular ishlab
     chiqarilganda saqlanadi va HECH QACHON o'zgarmaydi. Shuning uchun
     bulardan hisoblangan tan narx — sotish/qaytarishdan qat'i nazar
-    barqaror qoladi (take va return simmetrik bo'ladi)."""
+    barqaror qoladi (take va return simmetrik bo'ladi).
+
+    M4 (2026-09-18) — TENANT: bu yerdagi BARCHA Inventory qidiruvlari
+    endi mahsulotning O'Z korxonasi (`fp.company_id`) bilan cheklangan.
+    Ilgari `penoplast_id` faqat id
+    bo'yicha olinardi — eski yoki buzilgan yozuvlarda A korxona
+    mahsulotining tannarxi B korxonaning material narxidan
+    hisoblanishi mumkin edi. Material boshqa korxonaniki bo'lsa, endi
+    u umuman topilmaydi va tannarxga QO'SHILMAYDI (noto'g'ri raqam
+    berishdan ko'ra, qo'shmaslik xavfsizroq)."""
+    # QO'SHILDI 2026-09-20 — MRP mahsuloti uchun barqaror narx ALOHIDA
+    # saqlanadi (`unit_cost_stable`), chunki MRP `unit_volume_m3` /
+    # `unit_loy_kg` maydonlarini to'ldirmaydi va pastdagi hisob u uchun
+    # 0 qaytarardi. Bo'lsa — ENG USTUN manba.
+    _ucs = getattr(fp, 'unit_cost_stable', None)
+    if _ucs:
+        return float(_ucs)
+
     import services as _svc
     from models import Inventory
+    _fp_cid = getattr(fp, 'company_id', None)
+
+    def _inv(inv_id, lock=False):
+        """Materialni FAQAT shu mahsulotning korxonasidan oladi."""
+        if not inv_id:
+            return None
+        _q = db.query(Inventory).filter(Inventory.id == inv_id)
+        if _fp_cid is not None:
+            _q = _q.filter(Inventory.company_id == _fp_cid)
+        if lock:
+            _q = _q.with_for_update()
+        return _q.first()
+
     unit_vol = float(getattr(fp, 'unit_volume_m3', None) or 0)
     unit_loy = float(getattr(fp, 'unit_loy_kg', None) or 0)
     cost = 0.0
     # Penoplast qismi
     if unit_vol > 0 and fp.penoplast_id:
-        p = db.query(Inventory).filter(Inventory.id == fp.penoplast_id).first()
+        p = _inv(fp.penoplast_id)
         if p and p.price_per_unit and p.volume_per_unit:
             narx_per_m3 = float(p.price_per_unit) / float(p.volume_per_unit)
             cost += unit_vol * narx_per_m3
     # Loy qismi
     if unit_loy > 0:
-        loy_info = _svc.get_loy_cost_per_kg(db, fp.recipe_id)
+        # 2026-09-21 — TENANT: korxona mahsulotning O'ZIDAN olinadi. Oldin
+        # berilmasdi: `fp.recipe_id` bo'sh bo'lsa BOSHQA korxonaning
+        # retsepti bo'yicha tan narx hisoblanardi (o'lchangan).
+        loy_info = _svc.get_loy_cost_per_kg(
+            db, fp.recipe_id, company_id=getattr(fp, 'company_id', None))
         cost += unit_loy * float(loy_info.get("cost_per_kg", 0) or 0)
-    # GIPS qismi — Gips mahsulotlar penoplast/loy emas, gips_kg_used saqlaydi.
-    # 1 birlikka gips: gips_kg_used / produced_quantity.
-    gips_kg = float(getattr(fp, 'gips_kg_used', None) or 0)
-    if gips_kg > 0 and getattr(fp, 'gips_inventory_id', None):
-        produced_q = float(fp.produced_quantity if fp.produced_quantity is not None else (fp.quantity or 0))
-        if produced_q > 0:
-            gips_item = db.query(Inventory).filter(Inventory.id == fp.gips_inventory_id).first()
-            if gips_item and gips_item.price_per_unit:
-                unit_gips_kg = gips_kg / produced_q
-                cost += unit_gips_kg * float(gips_item.price_per_unit)
-    # GIPS QO'SHIMCHALARI (Po'lat sim, Granula va h.k.) — bular
-    # gips_additives_json'da JAMI (produced_quantity uchun) miqdorda
-    # saqlanadi, xuddi pastdagi Bazalt/Serpiyanka/Kley kabi. MUHIM TUZATISH
-    # (2026-09, Gips brak funksiyasi tekshiruvida aniqlangan): avval bu
-    # qism BUTUNLAY YO'Q edi — qo'shimchali Gips mahsulot buyurtmaga
-    # o'tkazilganda yoki sotilganda faqat ASOSIY gips hisobga olinardi,
-    # qo'shimcha narxi esa hech qachon "ko'chib" o'tmasdi — natijada qolgan
-    # zaxiraning tan narxi haqiqiysidan QIMMAT, sotilgan/o'tkazilgan qism
-    # esa ARZON ko'rsatilardi (faqat to'liq qaytarilganda — masalan
-    # buyurtma o'chirilganda — bu farq o'z-o'zidan yo'qolib ketardi).
-    if getattr(fp, 'gips_additives_json', None):
-        try:
-            import json as _json_stable_cost
-            saved_additives = _json_stable_cost.loads(fp.gips_additives_json)
-        except Exception:
-            saved_additives = []
-        produced_q_add = float(fp.produced_quantity if fp.produced_quantity is not None else (fp.quantity or 0))
-        if produced_q_add > 0:
-            for a in (saved_additives or []):
-                a_inv_id = a.get("inventory_id") if isinstance(a, dict) else None
-                a_total_qty = float((a.get("quantity") if isinstance(a, dict) else 0) or 0)
-                if not a_inv_id or a_total_qty <= 0:
-                    continue
-                a_item = db.query(Inventory).filter(Inventory.id == a_inv_id).first()
-                if a_item and a_item.price_per_unit:
-                    unit_a_qty = a_total_qty / produced_q_add
-                    cost += unit_a_qty * float(a_item.price_per_unit)
-    # TERMOPANEL (Bazalt/Serpiyanka/Kley) qismi — bular JAMI (ishlab
-    # chiqarilgan/qo'shilgan barcha marta uchun) miqdorda saqlanadi, shuning
-    # uchun 1 birlikka: jami_miqdor / produced_quantity. MUHIM TUZATISH:
-    # avval bu qism BUTUNLAY YO'Q edi — "Tayyor mahsulotdan" buyurtmaga
-    # o'tkazilganda yoki sotilganda, faqat Loy qismi kamayardi, Bazalt/
-    # Serpiyanka/Kley esa hech qachon kamaymay, tan narx haqiqiysidan
-    # yuqori bo'lib qolaverardi (2026-08-23 zaxira tekshiruvida aniqlangan).
-    bazalt_qty = float(getattr(fp, 'termo_bazalt_qty', None) or 0)
-    if bazalt_qty > 0 and getattr(fp, 'bazalt_item_id', None):
-        produced_q = float(fp.produced_quantity if fp.produced_quantity is not None else (fp.quantity or 0))
-        if produced_q > 0:
-            b_item = db.query(Inventory).filter(Inventory.id == fp.bazalt_item_id).first()
-            if b_item and b_item.price_per_unit:
-                cost += (bazalt_qty / produced_q) * float(b_item.price_per_unit)
-            serp_qty = float(getattr(fp, 'termo_serp_qty', None) or 0)
-            if serp_qty > 0 and getattr(fp, 'termo_serp_id', None):
-                s_item = db.query(Inventory).filter(Inventory.id == fp.termo_serp_id).first()
-                if s_item and s_item.price_per_unit:
-                    cost += (serp_qty / produced_q) * float(s_item.price_per_unit)
-            kley_qty = float(getattr(fp, 'termo_kley_qty', None) or 0)
-            if kley_qty > 0 and getattr(fp, 'termo_kley_id', None):
-                k_item = db.query(Inventory).filter(Inventory.id == fp.termo_kley_id).first()
-                if k_item and k_item.price_per_unit:
-                    cost += (kley_qty / produced_q) * float(k_item.price_per_unit)
     return cost
 
 
-def _take_finished_for_order(db: Session, order) -> list:
-    """Buyurtmadagi tayyor mahsulot detallarini ombordan yechadi."""
+def _tm_detal_birligi(it):
+    """kech103 (56-band): detal tayyor mahsulotdan OLINGAN paytdagi 1 birlik tannarxi (`order_items.fp_unit_cost`);
+    yozilmagan / 0 bo'lsa — None (chaqiruvchi avvalgi qoidani qo'llaydi: TM ning joriy birlik tannarxi)."""
+    _v = getattr(it, 'fp_unit_cost', None)
+    try:
+        _v = float(_v) if _v is not None else None
+    except (TypeError, ValueError):
+        return None
+    return _v if (_v is not None and _v > 0) else None
+
+
+def _tm_detal_olindi(it, olindi: float, birlik: float, ushlab: float) -> None:
+    """kech103 (56-band): detal `ushlab` miqdorni o'z birlik tannarxida ushlab turardi, yana `olindi` miqdor TM ning
+    shu paytdagi `birlik` tannarxida olindi — detal birligi og'irlikli o'rtacha. Detal hech narsa ushlamagan bo'lsa —
+    `birlik` ning o'zi. Eski (yozilmagan) detal biror narsa ushlab turgan bo'lsa — tegilmaydi (avvalgi qoida saqlanadi).
+    Birlik farq qilmasa — yozilmaydi (qiymat o'zgarmasin)."""
+    if it is None or birlik is None or birlik <= 0 or olindi <= 1e-9:
+        return
+    _c = _tm_detal_birligi(it)
+    if ushlab <= 1e-9:
+        it.fp_unit_cost = birlik
+    elif _c is not None and abs(_c - birlik) > 1e-9:
+        it.fp_unit_cost = (_c * ushlab + birlik * olindi) / (ushlab + olindi)
+
+
+def _tm_qaytgan_ortacha(fp, joriy: float, qoldiq: float, qaytdi: float, qiymat: float) -> None:
+    """kech103 (56-band): TM ga `qaytdi` miqdor `qiymat` (detal OLINGAN paytdagi tannarx) bilan qaytdi — birlik tannarx
+    og'irlikli o'rtacha (qoldiq ≤ 0 bo'lsa — qaytganning o'zi). "+" qo'shish (`add_to_finished_product`) va qaytgan
+    mahsulot (`add_returned_to_stock`) dagi og'irlikli o'rtacha bilan bir qoida."""
+    _asos = max(float(qoldiq or 0), 0.0)
+    if _asos + qaytdi > 1e-9:
+        fp.unit_cost_stable = (joriy * _asos + qiymat) / (_asos + qaytdi)
+
+
+def _take_finished_for_order(db: Session, order, company_id: int = None) -> list:
+    """Buyurtmadagi tayyor mahsulot detallarini ombordan yechadi.
+
+    M4 (2026-09-18) — TENANT: mahsulot buyurtmaning O'Z korxonasiga
+    tegishli bo'lishi SHART. Boshqa korxonaniki bo'lsa — butun amal
+    rad etiladi (TenantMismatchError), chunki bu yerda jimgina
+    o'tkazib yuborish A korxonaning buyurtmasi B korxonaning
+    qoldig'ini yechishiga olib kelardi."""
     log = []
+    cid = company_id if company_id is not None else getattr(order, 'company_id', None)
+    # kech64 (68-band): TM qatorlari o'qishdan OLDIN qulflanadi (`_fp_qulf`).
+    _fp_qulf(db, [getattr(_it, 'finished_product_id', None) for _it in order.items], cid)
     for it in order.items:
         fpid = getattr(it, 'finished_product_id', None)
         if not fpid:
@@ -1246,7 +2602,7 @@ def _take_finished_for_order(db: Session, order) -> list:
         qty = _fp_item_qty(it)
         if qty <= 0:
             continue
-        fp = db.query(FinishedProduct).filter(FinishedProduct.id == fpid).first()
+        fp = _fp_for_tenant(db, fpid, cid)
         if not fp:
             continue
         # MUHIM: quantity kamayganda, cost_price ham kamayishi shart. Buni
@@ -1258,6 +2614,9 @@ def _take_finished_for_order(db: Session, order) -> list:
         unit_cost = _fp_stable_unit_cost(db, fp)
         if unit_cost > 0:
             fp.cost_price = max(0, float(fp.cost_price or 0) - (unit_cost * take))
+            # kech103 (56-band): detal SHU paytdagi birlik tannarxida muzlaydi (buyurtma foydasi, omborga qaytish,
+            # o'chirish / tahrir — shu qiymat bilan; TM o'rtachasi keyin o'zgarsa ham).
+            it.fp_unit_cost = unit_cost
         elif old_qty > 0 and fp.cost_price:
             # orqaga moslik (unit ma'lumot yo'q bo'lsa)
             fp.cost_price = float(fp.cost_price) - (float(fp.cost_price) / old_qty * take)
@@ -1268,7 +2627,8 @@ def _take_finished_for_order(db: Session, order) -> list:
     return log
 
 
-def _return_finished_for_order(db: Session, order, sign: float = 1.0) -> list:
+def _return_finished_for_order(db: Session, order, sign: float = 1.0,
+                               company_id: int = None) -> list:
     """Buyurtma o'chirilganda tayyor mahsulotlarni qaytaradi.
     sign=-1.0 — buyurtma tiklanganda qayta ombordan yechish uchun.
 
@@ -1281,6 +2641,10 @@ def _return_finished_for_order(db: Session, order, sign: float = 1.0) -> list:
     umuman chaqirilmaydi (remaining_qty=0 bo'lardi, farqi yo'q)."""
     log = []
     verb = "qaytarildi" if sign > 0 else "qayta yechildi"
+    # M4 (2026-09-18) — TENANT: _take bilan AYNAN bir xil qoida.
+    cid = company_id if company_id is not None else getattr(order, 'company_id', None)
+    # kech64 (68-band): TM qatorlari o'qishdan OLDIN qulflanadi (`_fp_qulf`).
+    _fp_qulf(db, [getattr(_it, 'finished_product_id', None) for _it in order.items], cid)
     for it in order.items:
         fpid = getattr(it, 'finished_product_id', None)
         if not fpid:
@@ -1288,7 +2652,7 @@ def _return_finished_for_order(db: Session, order, sign: float = 1.0) -> list:
         qty = it.remaining_qty
         if qty <= 0:
             continue
-        fp = db.query(FinishedProduct).filter(FinishedProduct.id == fpid).first()
+        fp = _fp_for_tenant(db, fpid, cid)
         if not fp:
             continue
         delta = qty * sign
@@ -1298,10 +2662,22 @@ def _return_finished_for_order(db: Session, order, sign: float = 1.0) -> list:
         # foyda sun'iy ko'tarilib/tushib ketmaydi.
         cur_qty = float(fp.quantity or 0)
         unit_cost = _fp_stable_unit_cost(db, fp)
-        if unit_cost > 0:
+        # kech103 (56-band, O'LCHANGAN `work/probe56tm.py` S3 / S5 / S6): qaytayotgan qism detal OLINGAN paytdagi
+        # birlikda (`fp_unit_cost`) — ilgari TM ning JORIY o'rtachasida qaytardi: +10 m dan keyin o'chirilgan
+        # buyurtmaning 10 m i 89 818 ga olinib 102 380 bo'lib qaytdi (12 562 so'm "havodan"). TM o'rtachasi
+        # og'irlikli qayta hisoblanadi; birlik farq qilmasa — avvalgi formula AYNAN.
+        _c56 = _tm_detal_birligi(it) if sign > 0 else None
+        if _c56 is not None and unit_cost > 0 and abs(_c56 - unit_cost) > 1e-9:
+            fp.cost_price = max(0, float(fp.cost_price or 0) + (_c56 * delta))
+            _tm_qaytgan_ortacha(fp, unit_cost, cur_qty, delta, _c56 * delta)
+        elif unit_cost > 0:
             fp.cost_price = max(0, float(fp.cost_price or 0) + (unit_cost * delta))
         elif cur_qty > 0 and fp.cost_price:
             fp.cost_price = float(fp.cost_price) + (float(fp.cost_price) / cur_qty * delta)
+        if sign < 0 and unit_cost > 0:
+            # tiklash: qolgan qism QAYTA olinadi — TM ning shu paytdagi birligida; topshirilgan (va ortiqcha
+            # qaytarilgan) qism detalning eski birligida qoladi.
+            _tm_detal_olindi(it, qty, unit_cost, max(float(it.order_qty_normalized or 0) - qty, 0.0))
         fp.quantity = cur_qty + delta
         log.append(f"🏭 {fp.name}: {delta:+.2f} {fp.unit} {verb}")
     if log:
@@ -1309,7 +2685,8 @@ def _return_finished_for_order(db: Session, order, sign: float = 1.0) -> list:
     return log
 
 
-def _adjust_finished_diff(db: Session, old_items, new_items) -> list:
+def _adjust_finished_diff(db: Session, old_items, new_items,
+                          company_id: int = None, detallar=None) -> list:
     """Tayyor mahsulot farqini to'g'rilaydi (buyurtma TAHRIRLANGANDA).
 
     MUHIM: avval bu yerda faqat `fp.quantity` to'g'rilanardi, `fp.cost_price`
@@ -1317,7 +2694,15 @@ def _adjust_finished_diff(db: Session, old_items, new_items) -> list:
     omborga qaytardi, lekin uning tan narxi hech qachon qaytmasdan, "yo'qolib"
     qolardi (bu — buyurtma O'CHIRILGANDA ishlaydigan _return_finished_for_order
     funksiyasida to'g'ri qilingan edi, lekin TAHRIRLASHDA unutilgan ekan).
-    Endi ikkalasi ham, bir xil BARQAROR formuladan foydalanadi."""
+    Endi ikkalasi ham, bir xil BARQAROR formuladan foydalanadi.
+
+    kech103 (56-band + K103-1, O'LCHANGAN `work/probe56tm.py` S4 / S10): `detallar` — detal bo'yicha o'tishlar
+    (`{"detal", "eski_tm", "eski_miqdor", "eski_birlik", "yangi_tm", "yangi_miqdor"}`, `update_order_full` /
+    `update_order_item` beradi). TM MIQDORI avvalgidek sof farq bo'yicha (TM bo'yicha guruh — AYNAN); TANNARX esa:
+    qaytgan qism detal OLINGAN paytdagi birlikda (`fp_unit_cost`), TM o'rtachasi og'irlikli qayta hisoblanadi, yangi
+    olingan qism — shu (yangilangan) o'rtachada, detal birligi og'irlikli o'rtacha. Ilgari tahrir detalning BUTUN
+    miqdorini TM ning joriy o'rtachasida qayta baholardi (10 → 15 m: 150 273, to'g'risi 152 471). Birliklar teng
+    (yoki `detallar` berilmagan) bo'lsa — avvalgi formula AYNAN."""
     def _group(items):
         out = {}
         for d in items:
@@ -1336,21 +2721,71 @@ def _adjust_finished_diff(db: Session, old_items, new_items) -> list:
     new_g = _group(new_items)
     log = []
 
-    for fpid in set(old_g) | set(new_g):
+    # kech103 (56-band): detal bo'yicha o'tishlar — TM → qaytadigan [(miqdor, detal birligi)], olinadigan
+    # [(detal, miqdor, ushlab turgani)].
+    _qaytadi = {}
+    _olinadi = {}
+    for _d56 in (detallar or []):
+        _of = _d56.get("eski_tm")
+        _nf = _d56.get("yangi_tm")
+        _oq = float(_d56.get("eski_miqdor") or 0)
+        _nq = float(_d56.get("yangi_miqdor") or 0)
+        if _of and _of == _nf:
+            if _nq < _oq - 1e-9:
+                _qaytadi.setdefault(_of, []).append((_oq - _nq, _d56.get("eski_birlik")))
+            elif _nq > _oq + 1e-9:
+                _olinadi.setdefault(_nf, []).append((_d56.get("detal"), _nq - _oq, _oq))
+        else:
+            if _of and _oq > 1e-9:
+                _qaytadi.setdefault(_of, []).append((_oq, _d56.get("eski_birlik")))
+            if _nf and _nq > 1e-9:
+                _olinadi.setdefault(_nf, []).append((_d56.get("detal"), _nq, 0.0))
+
+    # kech64 (68-band): TM qatorlari o'qishdan OLDIN, id tartibida qulflanadi (`_fp_qulf`).
+    _fp_qulf(db, set(old_g) | set(new_g), company_id)
+    for fpid in sorted(set(old_g) | set(new_g)):
         diff = new_g.get(fpid, 0.0) - old_g.get(fpid, 0.0)
-        if abs(diff) < 0.001:
+        _q56 = _qaytadi.get(fpid) or []
+        _o56 = _olinadi.get(fpid) or []
+        if abs(diff) < 0.001 and not _q56 and not _o56:
             continue
-        fp = db.query(FinishedProduct).filter(FinishedProduct.id == fpid).first()
+        # M4 (2026-09-18) — TENANT: boshqa korxonaning mahsuloti bo'lsa rad etiladi.
+        fp = _fp_for_tenant(db, fpid, company_id)
         if not fp:
             continue
         # diff > 0: buyurtmaga YANA olindi (ombordan yechiladi, tan narx kamayadi)
         # diff < 0: buyurtmadan qaytdi (omborga qaytadi, tan narx ham qaytadi)
         cur_qty = float(fp.quantity or 0)
         unit_cost = _fp_stable_unit_cost(db, fp)
-        cost_delta = -unit_cost * diff if unit_cost > 0 else (
-            -(float(fp.cost_price) / cur_qty * diff) if cur_qty > 0 and fp.cost_price else 0
-        )
-        fp.cost_price = max(0, float(fp.cost_price or 0) + cost_delta)
+        # kech103 (56-band): qaytgan qism detal birligida. D = Σ r × (c − Y) — birliklar teng (yoki yozilmagan)
+        # bo'lsa 0 va hamma narsa avvalgidek.
+        _R56 = sum(_r for _r, _ in _q56)
+        _D56 = 0.0
+        if unit_cost > 0:
+            for _r, _cb in _q56:
+                try:
+                    _cb = float(_cb) if _cb is not None else None
+                except (TypeError, ValueError):
+                    _cb = None
+                if _cb is not None and _cb > 0 and abs(_cb - unit_cost) > 1e-9:
+                    _D56 += _r * (_cb - unit_cost)
+        _Y56 = unit_cost
+        if _D56 != 0.0:
+            _asos56 = max(cur_qty, 0.0)
+            _Y56 = ((unit_cost * _asos56 + unit_cost * _R56 + _D56) / (_asos56 + _R56)
+                    if _asos56 + _R56 > 1e-9 else unit_cost)
+            _T56 = sum(_t for _, _t, _ in _o56)
+            fp.cost_price = max(0, float(fp.cost_price or 0) + unit_cost * _R56 + _D56 - _Y56 * _T56)
+            fp.unit_cost_stable = _Y56
+        for _det, _t, _ush in _o56:
+            _tm_detal_olindi(_det, _t, _Y56, _ush)
+        if abs(diff) < 0.001:
+            continue
+        if _D56 == 0.0:
+            cost_delta = -unit_cost * diff if unit_cost > 0 else (
+                -(float(fp.cost_price) / cur_qty * diff) if cur_qty > 0 and fp.cost_price else 0
+            )
+            fp.cost_price = max(0, float(fp.cost_price or 0) + cost_delta)
         if diff > 0:
             fp.quantity = max(0, cur_qty - diff)
             log.append(f"🏭 {fp.name}: -{diff:g} {fp.unit}")
@@ -1363,8 +2798,12 @@ def _adjust_finished_diff(db: Session, old_items, new_items) -> list:
     return log
 
 
-def check_finished_for_order(db: Session, items) -> dict:
-    """Tayyor mahsulot yetadimi — tekshiradi."""
+def check_finished_for_order(db: Session, items, company_id: int = None) -> dict:
+    """Tayyor mahsulot yetadimi — tekshiradi.
+
+    M4 (2026-09-18) — TENANT: company_id berilsa, mahsulot faqat SHU
+    korxonadan qidiriladi; boshqa korxonaniki bo'lsa "topilmadi" deb
+    hisoblanadi (uning qoldig'i O'QILMAYDI ham)."""
     shortages = []
     need = {}
 
@@ -1379,7 +2818,7 @@ def check_finished_for_order(db: Session, items) -> dict:
         need[fpid] = need.get(fpid, 0.0) + qty
 
     for fpid, qty in need.items():
-        fp = db.query(FinishedProduct).filter(FinishedProduct.id == fpid).first()
+        fp = get_finished_product(db, fpid, company_id)
         if not fp:
             shortages.append("Tayyor mahsulot topilmadi")
             continue
@@ -1391,14 +2830,30 @@ def check_finished_for_order(db: Session, items) -> dict:
     return {"enough": len(shortages) == 0, "shortages": shortages}
 
 
-def get_orders(db: Session, project_id: Optional[int] = None) -> List[Order]:
-    query = db.query(Order).filter(Order.is_deleted.isnot(True))
+def get_orders(db: Session, project_id: Optional[int] = None,
+               company_id: int = None, limit: Optional[int] = None) -> List[Order]:
+    """`/api/orders` (`schemas.OrderRead`: detallar + ichki detallar, to'lovlar, gips qo'shimchalari, to'langan /
+    qarz). kech97 (116-band, O'LCHANGAN `work/probe116.py`): javob ro'yxatlari buyurtma boshiga 4 ta so'rov edi
+    (+10 buyurtma — +40); endi munosabatlar bir necha IN so'rovi bilan (tartib — munosabat order_by=id).
+
+    kech120 (E, U-09 — O'LCHANGAN `work/k127/tez.py`): Bosh sahifa «So'nggi buyurtmalar» (5 ta) uchun HAMMA buyurtmani
+    olardi — 300 buyurtmada 373 KB. `limit` berilsa — eng yangi `limit` ta (yaratilgan vaqt, teng bo'lsa id kamayishi);
+    berilmasa — avvalgidek hammasi."""
+    from sqlalchemy.orm import selectinload as _sil_go
+    query = db.query(Order).filter(Order.is_deleted.isnot(True)).options(
+        _sil_go(Order.items).selectinload(OrderItem.sub_details),
+        _sil_go(Order.payments), _sil_go(Order.gips_additives))
+    if company_id is not None:
+        query = query.filter(Order.company_id == company_id)
     if project_id:
         query = query.filter(Order.project_id == project_id)
+    if limit is not None:
+        return query.order_by(Order.created_at.desc(), Order.id.desc()).limit(int(limit)).all()
     return query.order_by(Order.created_at.desc()).all()
 
 
-def get_orders_for_main_page(db: Session, days: int = 90, show_all: bool = False) -> List[Order]:
+def get_orders_for_main_page(db: Session, days: int = 90, show_all: bool = False,
+                             company_id: int = None, royxat_uchun: bool = False) -> List[Order]:
     """Buyurtmalar sahifasining ASOSIY ro'yxati uchun — tezlik uchun,
     faqat SO'NGGI `days` kunlik yakunlangan buyurtmalarni ko'rsatadi.
 
@@ -1407,11 +2862,23 @@ def get_orders_for_main_page(db: Session, days: int = 90, show_all: bool = False
     hali ishlanishi kerak bo'lgan, e'tibor talab qiladigan ish.
 
     show_all=True bo'lsa — barcha (eski) buyurtmalar ham qo'shiladi
-    ("Eski buyurtmalarni ko'rish" tugmasi uchun)."""
+    ("Eski buyurtmalarni ko'rish" tugmasi uchun).
+
+    kech97 (116-band, O'LCHANGAN `work/probe116.py`): `royxat_uchun=True` (Buyurtmalar sahifasi) — sahifa har
+    buyurtma uchun `is_fully_delivered` (detallar, har detal yetkazishlari, qaytarishlar) va `debt_amount`
+    (to'lovlar) ni o'qiydi: +10 buyurtma — +40 so'rov edi. Endi shu ro'yxatlar bir necha IN so'rovi bilan
+    (tartib — munosabat order_by=id). Qaytarishlar sahifasi bu ro'yxatlarni o'qimaydi — standart (False)."""
     from models import OrderStatus
     from datetime import timedelta
+    from sqlalchemy.orm import selectinload as _sil_mp
 
-    base = db.query(Order).filter(Order.is_deleted.isnot(True))
+    _mq = db.query(Order)
+    if royxat_uchun:
+        _mq = _mq.options(_sil_mp(Order.items).selectinload(OrderItem.deliveries),
+                          _sil_mp(Order.returns), _sil_mp(Order.payments))
+    if company_id is not None:
+        _mq = _mq.filter(Order.company_id == company_id)
+    base = _mq.filter(Order.is_deleted.isnot(True))
 
     if show_all:
         return base.order_by(Order.created_at.desc()).all()
@@ -1425,8 +2892,14 @@ def get_orders_for_main_page(db: Session, days: int = 90, show_all: bool = False
     return result
 
 
-def get_order(db: Session, order_id: int) -> Optional[Order]:
-    return db.query(Order).filter(Order.id == order_id).first()
+def get_order(db: Session, order_id: int, company_id: int = None) -> Optional[Order]:
+    """2026-09-18 — M2: company_id berilsa, buyurtma FAQAT o'sha korxonadan
+    qidiriladi. Berilmasa — eski xatti-harakat (ichki chaqiruvlar uchun).
+    Tashqi (API) chaqiruvlarning HAMMASI company_id uzatadi."""
+    q = db.query(Order).filter(Order.id == order_id)
+    if company_id is not None:
+        q = q.filter(Order.company_id == company_id)
+    return q.first()
 
 
 # MUHIM (2026-09 — Fasa 4, tozalash): bu yerda avval mark_order_ready()
@@ -1447,31 +2920,1846 @@ def get_order(db: Session, order_id: int) -> Optional[Order]:
 # ORDER edit/delete
 # ============================================================
 
-def update_order_item(db: Session, item_id: int, item_data: dict) -> Optional[OrderItem]:
-    """Buyurtma detalini yangilash — ombor farq bo'yicha to'g'rilanadi."""
+# 2026-09-21 (13-sizish) — `PUT /api/order-items/{id}` tanasidagi HAR
+# qanday kalit tekshiruvsiz `setattr` bilan detalga yozilardi (O'LCHANGAN):
+#   * `company_id` + `order_id` + `penoplast_id` BIRGA A korxonaniki qilib
+#     yuborilsa, model qo'riqchisi hammasini "A niki" deb ko'rib o'tkazardi:
+#     B ning detali A ning buyurtmasiga ko'chardi. Filtr o'chiq: A penoplasti
+#     kamayib, A da ombor harakati yozilardi. Filtr yoniq: A ombori
+#     o'zgarmasa ham A buyurtmasi ichiga begona detal tushardi. Yolg'iz
+#     kalitlarni qo'riqchi 409 bilan ushlardi — faqat uchalasi birga ochiq.
+#   * `id` (asosiy kalit) o'zgarardi (200); `sub_details` ro'yxati omborni
+#     to'g'rilamasdan o'chardi; `order`, `delivered_qty` → 500.
+# Endi FAQAT detalning o'z xususiyatlari o'zgaradi. Bog'lanishlar
+# (korxona, buyurtma, tayyor mahsulot, retsept, mahsulot turi, rasm —
+# o'z marshruti bor) bu yo'l bilan O'ZGARMAYDI.
+_ORDER_ITEM_UPDATE_FIELDS = {
+    "name", "category", "width", "thickness", "length", "quantity",
+    "is_coated", "unit_price", "unit_price_for_volume", "price_per_m3",
+    "penoplast_id", "notes",
+}
+# Bazadagi Numeric(12,2) sig'imi — schemas.OrderItemCreate dagi bilan bir xil.
+_ORDER_ITEM_MAX_MONEY = 9_999_999_999.99
+# 17f (2026-09-22): Numeric(12,2) ustunidagi ENG KICHIK musbat qiymat — 1 tiyin.
+# HAQIQIY PostgreSQL 16 da O'LCHANGAN (`work/probe17f_pg.py`): musbat bo'lishi
+# SHART bo'lgan 12 ta pul yo'lining HAMMASI `0.001` ni 200 bilan qabul qilardi,
+# baza esa uni 0.00 ga yaxlitlardi — ya'ni "musbat" qoidasi jimgina buzilardi:
+# 0 so'mlik xarajat / avans / ta'minotchiga to'lov / mijoz to'lovi / transport,
+# 0 so'mlik oylik majburiyat va sovg'a bosqichi, 1 tiyinlik xarid jami bilan
+# 0 so'mlik narx, kelishilgan summa 0 (chegirma 100 %, qarz esa JAMI summadan —
+# 17e aynan to'sgan ikki talqin). SQLite yaxlitlamaydi, shuning uchun lokal
+# testlar buni ko'rmasdi. Qoida: `chegara` = pul sig'imi bo'lgan (ya'ni 2 xonali
+# pul ustuniga yoziladigan) MUSBAT son 2 xonagacha yaxlitlanganda ham kamida
+# 1 tiyin bo'lsin. Manfiy bo'lmasligi kifoya qiladigan (0 ruxsat) maydonlarga
+# tegilmaydi — ular uchun 0.00 ga yaxlitlanish qonuniy qiymat.
+_PUL_ENG_KAM = 0.01
+# 17f (2026-09-22) — 0 RUXSAT etilgan, lekin 0 dan katta bo'lsa HOSILA yozuv
+# yaratadigan pul maydonlari: 0 yoki kamida 1 tiyin. HAQIQIY PostgreSQL 16 da
+# O'LCHANGAN (`work/probe17f_hosila.py`):
+#   * xarid (`POST /api/inventory/{id}/purchase`) `paid_now: 0.001` — 17e da
+#     0.00 so'mlik ta'minotchiga to'lov yozilardi; ta'minotchi to'lovi ildizi
+#     17f da qat'iy bo'lgach esa xarid SAQLANIB (ombor +miqdor), keyin 500
+#     chiqardi (to'lov yozilmay qolardi — YARIM saqlanish), chunki marshrut
+#     to'lovni xarid COMMIT qilingandan KEYIN yozadi; `transport_payer: self`
+#     bilan `transport_cost: 0.001` — 0.00 so'mlik kirish transporti (transport
+#     ildizi qat'iy bo'lgach — xuddi shu yarim saqlanish bo'lardi);
+#   * kirim hujjati (`POST /api/inventory/receipt`) transport / tushirish /
+#     yuklash / boshqa xarajat `0.001` — Moliyada 0.00 so'mlik xarajat,
+#     `paid_now: 0.001` — 0.00 so'mlik ta'minotchiga to'lov.
+# Tana tekshiruvi har qanday yozuvdan OLDIN ishlaydi, shuning uchun bu yerda
+# to'sish yarim saqlanishni ham, 0 so'mlik hosila yozuvni ham yo'q qiladi.
+# Aniq 0 — ruxsat (to'lov / xarajat yo'q degani).
+_NOL_YOKI_TIYIN = {
+    "Purchase": ("paid_now", "transport_cost"),
+    "Receipt": ("paid_now", "transport_cost", "tushirish_cost", "yuklash_cost",
+                "boshqa_cost"),
+    # 17g (2026-09-22) — HAQIQIY PostgreSQL 16 da O'LCHANGAN (`work/probe17g_pg.py`,
+    # asl kod = 17f): yetkazishdagi to'lov `0.001` → 0.00 so'mlik `Payment`
+    # yozuvi; qaytarish summasi `0.001` → 0.00 saqlanardi (0 esa "server o'zi
+    # hisoblasin" degani — ya'ni foydalanuvchi bergan summa jimgina yo'qolardi);
+    # yetkazish transporti `0.001` → 0.00.
+    "Delivery": ("payment_amount", "transport_cost"),
+    "Return": ("refund_amount",),
+    # kech93 (8-band, O'LCHANGAN `work/probe8b.py` M5 / M10): mahsulot turining
+    # qat'iy narxi va retsept qatorining qat'iy xarajati `0.001` → 0.00 bo'lib
+    # saqlanardi. 0 — "yo'q" (ruxsat), aks holda kamida 1 tiyin.
+    "ProductType": ("fixed_unit_price",),
+    "BOMItem": ("fixed_cost_per_unit",),
+}
+
+
+def _pul2_decimal(v):
+    """Pul qiymatini PostgreSQL `Numeric(12,2)` bilan AYNAN bir xil yaxlitlaydi
+    va `Decimal` qaytaradi (17g, 2026-09-22).
+
+    HAQIQIY PostgreSQL 16 da O'LCHANGAN: baza sonni uning o'nlik yozuvi
+    bo'yicha, 0.5 ni YUQORIGA yaxlitlaydi — `10.335` → 10.34, `1000.005` →
+    1000.01, `0.125` → 0.13. Python ning `round(10.335, 2)` esa 10.33 beradi
+    (ikkilik kasr + "bankir" yaxlitlashi), ya'ni `round()` bilan hisoblangan
+    jami bazadagi narxdan boshqa narxga tayanardi. Shuning uchun bu yerda
+    `repr` (eng qisqa aniq o'nlik yozuv) + `ROUND_HALF_UP`."""
+    from decimal import Decimal, ROUND_HALF_UP
+    return Decimal(repr(float(v))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def _pul2(v) -> float:
+    """`_pul2_decimal` — `float` ko'rinishida (bazaga yoziladigan qiymat)."""
+    return float(_pul2_decimal(v))
+
+
+def _xarid_narx_jami(miqdor, narx):
+    """Xarid qatorining bazaga yoziladigan (narx, jami) juftligi (17g).
+
+    HAQIQIY PostgreSQL 16 da O'LCHANGAN (asl kod = 17f): narx va jami ALOHIDA
+    yaxlitlanardi — `3 × 1234.567` → narx 1234.57, jami 3703.70 (3 × 1234.57 =
+    3703.71); `333 × 10.335` → narx 10.34, jami 3441.56 (to'g'risi 3443.22 —
+    1.66 so'm farq, miqdor oshgani sari o'sadi); `7 × 0.125` → narx 0.13, jami
+    0.88. Ya'ni xarid tarixida ko'rinadigan "miqdor × narx" ta'minotchi
+    qarzidagi (jami yig'indisi) summadan farq qilardi. UI foydalanuvchidan
+    AYNAN 1 birlik narxini oladi (jamini o'zi hisoblaydi), shuning uchun:
+    avval narx bazadagidek 2 xonaga yaxlitlanadi, jami SHU narxdan hisoblanadi.
+    Foydalanuvchi to'xtatilmaydi; farq 1 birlikka yarim tiyindan oshmaydi."""
+    from decimal import Decimal, ROUND_HALF_UP
+    narx2 = _pul2_decimal(narx)
+    jami2 = (Decimal(repr(float(miqdor))) * narx2).quantize(Decimal("0.01"),
+                                                              rounding=ROUND_HALF_UP)
+    return float(narx2), float(jami2)
+
+
+def _buyurtma_narx_jami(miqdor, narx):
+    """Buyurtma detalining bazaga yoziladigan (narx, jami) juftligi (117-band, kech95).
+
+    HAQIQIY PostgreSQL 16 va SQLite da O'LCHANGAN (kech94 `work/probe117.py`, asl kod): detal narxi
+    `Numeric(12,2)` ga yaxlitlanib yozilardi, jami esa YAXLITLANMAGAN narxdan — `333 × 10.335` → narx
+    10.34, jami 3441.56 (10.34 × 333 = 3443.22, 1.66 so'm farq, miqdor oshgani sari o'sadi); `7 × 0.125`
+    → narx SQLite 0.12 / PG 0.13, jami 0.88; 3 detalli buyurtma jami detallar jamisidan 1 tiyin farq
+    qilardi (7146.13 ↔ 7146.14). Tizimning o'z muvofiqlik tekshiruvi (`check_financial_consistency` —
+    "narx × miqdor = jami") bunday buyurtmani "order_total_mismatch" deb ko'rsatardi. Qoida xariddagi
+    (17g) va TM sotuvidagi (7-band) bilan BIR XIL: narx 2 xonaga (HALF_UP), jami SHU narxdan
+    (`_xarid_narx_jami`). Brauzer (`orders.html` `buyurtmaJami`) jamini AYNAN shu qoida bilan
+    ko'rsatadi — forma "Jami" si saqlanadigan summa bilan bir xil."""
+    return _xarid_narx_jami(miqdor, narx)
+
+
+def _pul_yigindi(qiymatlar) -> float:
+    """2 xonali pul qiymatlari yig'indisi o'nlik arifmetikada (float shovqinisiz) — 117-band.
+    Ilgari `sum(float(...))` edi (masalan 0.1 + 0.2 = 0.30000000000000004)."""
+    from decimal import Decimal
+    return float(sum((_pul2_decimal(v or 0) for v in qiymatlar), Decimal("0")))
+
+
+def _pul2_bosh(v):
+    """`_pul2`, lekin `None` — `None` (ixtiyoriy pul maydonlari: `price_per_m3`,
+    `unit_price_for_volume`) — 117-band: hisob bazaga yoziladigan qiymat bilan."""
+    return None if v is None else _pul2(v)
+
+
+_BUYURTMA_DETAL_SIGIM_XABAR = ("Detal summasi (miqdor × narx) juda katta — bitta detal "
+                               "9 999 999 999.99 so'mdan oshmasligi kerak. Hech narsa saqlanmadi.")
+_BUYURTMA_JAMI_SIGIM_XABAR = ("Buyurtma jami summasi juda katta — 9 999 999 999.99 so'mdan "
+                              "oshmasligi kerak. Hech narsa saqlanmadi.")
+
+
+def _jamilar_sigimi(jamilar):
+    """K95-1 (kech95): detal jamilari va ularning yig'indisi `Numeric(12,2)` sig'imiga sig'adimi."""
+    for j in jamilar:
+        if float(j or 0) > _ORDER_ITEM_MAX_MONEY:
+            raise ValueError(_BUYURTMA_DETAL_SIGIM_XABAR)
+    if _pul_yigindi(jamilar) > _ORDER_ITEM_MAX_MONEY:
+        raise ValueError(_BUYURTMA_JAMI_SIGIM_XABAR)
+
+
+def _buyurtma_sigim_tekshir(detallar):
+    """K95-1 (kech95) — buyurtma detallari (sxema obyekti yoki lug'at) sig'imi, HECH NARSA yozilmasdan OLDIN.
+
+    HAQIQIY PostgreSQL 16 da O'LCHANGAN (`work/probe117b.py` (5), asl kod): narx va miqdor ALOHIDA
+    chegaradan o'tsa ham (narx ≤ 9 999 999 999.99, miqdorda chegara yo'q) jami `Numeric(12,2)` dan
+    oshardi — 9 999 999 999.99 × 2 yoki 6e9 + 6e9 li buyurtma: yaratish, to'liq tahrir va
+    `PUT /api/order-items` — 500 "Serverda kutilmagan xato" (SQLite esa 200 bilan yozardi). Endi aniq
+    xabar (400). Jami yozuvchi qoida bilan hisoblanadi (`_buyurtma_narx_jami`); avval float ko'paytma
+    tekshiriladi — juda katta son `Decimal.quantize` ni yiqitmasin (xariddagi 17b naqshi)."""
+    import math
+    jamilar = []
+    for d in (detallar or []):
+        _q = d.get("quantity") if isinstance(d, dict) else getattr(d, "quantity", None)
+        _n = d.get("unit_price") if isinstance(d, dict) else getattr(d, "unit_price", None)
+        _q = float(_q) if _q else 1.0
+        _n = float(_n or 0)
+        if not (math.isfinite(_q) and math.isfinite(_n)):
+            raise ValueError("Detal miqdori va narxi chekli son bo'lishi kerak. Hech narsa saqlanmadi.")
+        if _q * _n > _ORDER_ITEM_MAX_MONEY:
+            raise ValueError(_BUYURTMA_DETAL_SIGIM_XABAR)
+        jamilar.append(_buyurtma_narx_jami(_q, _n)[1])
+    _jamilar_sigimi(jamilar)
+
+
+def _tiyin_float(v: float) -> float:
+    """Float ni tiyinga (2 xona) HALF_UP — brauzerdagi `_tiyin110` (`Math.floor(v * 100 + 0.5) / 100`) bilan AYNAN bir
+    xil amallar (musbat qiymatlar uchun; K110-1 — ko'rsatish / taqqoslash)."""
+    import math
+    return math.floor(float(v) * 100 + 0.5) / 100
+
+
+def _tiyinda(v) -> int:
+    """So'm → BUTUN tiyin (2 xonali pul qiymati uchun aniq; float `× 100` shovqini — 10 700 048.000000002 — yo'qoladi).
+    Brauzer `_tiyinda110` (`Math.round(v * 100)`) bilan AYNAN (qiymat hech qachon .5 tiyinda emas)."""
+    return int(round(float(v or 0) * 100))
+
+
+def kelishilgan_qayta_hisob(eski_jami, yangi_jami, eski_asl, kechirilgan=0.0):
+    """K110-1 (kech110) — buyurtma jami o'zgarganda KELISHILGAN summaning YAGONA qoidasi: to'liq tahrir
+    (`update_order_full`, summa qo'lda yozilmagan), detal tahriri / o'chirish (`_detal_ozgargach_buyurtma`),
+    qisman «Tayyor» / o'chirishda yakunlash (`finalize_partial_order_quantities`). Brauzerdagi nusxasi —
+    `templates/orders.html` `kelishilganQayta` (AYNAN shu butun sonli amallar; paritet — `tools/test_kelishilgan_nisbat.py`).
+
+    Kelishilgan summa (ASL — pul qaytarish kamaytirishidan OLDIN) = NARX KELISHUVI − kechirilgan qarz
+    (`Order.kechirilgan_qarz`). Narx kelishuvi P = ASL + kechirilgan: jamiga teng — chegirmasiz; kichik —
+    chegirma; katta — ustama.
+      * jami o'zgarmagan (tiyinda teng) — ASL o'zgarmaydi;
+      * chegirmasiz (yoki eski jami 0) — P = yangi jami (tiyinigacha);
+      * chegirma YOKI ustama — NISBAT saqlanadi: P = yangi jami × P / eski jami, butun so'mga HALF_UP (egasi
+        QARORLARI: chegirma — "foiz saqlanadi" (avvaldan); ustama — "Foizi saqlansin" (kech110));
+      * kechirilgan qarz SO'MDA ayiriladi (egasi QARORI "Kechirilgan so'mda qolsin", kech110); natija manfiy emas.
+    Hisob BUTUN tiyinlarda (Python int — brauzerda BigInt): float bilan `yangi × P / eski` .5 chegarasida 1 so'mga
+    adashardi (O'LCHANGAN: 736 334.90 / 368 167.45 (50 %), yangi jami 1 022 239 — aniq 511 119.5 → 511 120, float 511 119).
+
+    O'LCHANGAN (asl kod `ba6935c`, `work/probe110k2.py` — HAQIQIY brauzer, SQLite va PG): tahrirda chegirmasiz
+    400 000 li buyurtmadan 100 000 lik detal olib tashlansa kelishilgan 400 000 QOLARDI (mijoz qarzi 100 000 ga
+    ortiq), 10 → 15 dona — 400 000 (27 % "chegirma" o'z-o'zidan paydo bo'lardi); ustamali 450 000 — 450 000 qolardi
+    (jami 300 000); saqlangan chegirma foizi 2 xonaga yaxlitlangan (`discount_percent`) edi — nisbat endi aniq.
+    Qaytaradi: (yangi ASL, yangi narx kelishuvi P) — float."""
+    t0c = _tiyinda(eski_jami)
+    t1c = _tiyinda(yangi_jami)
+    xc = _tiyinda(kechirilgan)
+    p0c = _tiyinda(eski_asl) + xc
+    if t1c == t0c:
+        return float(eski_asl or 0), p0c / 100
+    if t0c <= 0 or p0c == t0c:
+        p1c = t1c
+    else:
+        _surat = t1c * p0c
+        _maxraj = t0c * 100
+        p1c = ((2 * _surat + _maxraj) // (2 * _maxraj)) * 100
+    return max(0.0, (p1c - xc) / 100), p1c / 100
+
+
+def _narx_chegirma_foizi(jami, narx_kelishuvi) -> float:
+    """`Order.discount_percent` — NARX chegirmasi (kechirilgan qarzsiz; ustamada 0), 2 xona (K110-1)."""
+    jami = float(jami or 0)
+    narx_kelishuvi = float(narx_kelishuvi or 0)
+    if jami > 0 and narx_kelishuvi < jami:
+        return round((jami - narx_kelishuvi) / jami * 100, 2)
+    return 0.0
+
+
+def _detal_ozgargach_buyurtma(db: Session, order, eski_jami: float) -> None:
+    """Bitta detal tahriri / o'chirilishidan keyin buyurtma jami va KELISHILGAN summa (117-band, kech95).
+
+    O'LCHANGAN (`work/probe117b.py` (6), SQLite = PG, asl kod): `PUT` / `DELETE /api/order-items`
+    jamini qayta hisoblardi, kelishilgan summaga esa UMUMAN tegmasdi — chegirmasiz 12 000 li buyurtma
+    detali kamaytirilib jami 6 000 bo'lganda kelishilgan 12 000 qolardi (mijoz qarzi 6 000 ga ortiq),
+    20 % chegirmali 9 600 ham 9 600 qolardi. Endi to'liq tahrirdagi ("kelishilgan summa
+    yuborilmagan") qoida bilan BIR XIL — `kelishilgan_qayta_hisob` (K110-1: chegirma / ustama nisbati,
+    kechirilgan qarz so'mda); pul qaytarish kamaytirishi qayta ayiriladi. UI bu marshrutlarni chaqirmaydi
+    (faqat API). Chaqiruvchi `order.agreed_amount` ga detal o'zgarishidan OLDIN tegmaydi — eski ASL shu yerda o'qiladi."""
+    order.total_amount = _pul_yigindi(it.total_price for it in order.items)
+    _yangi = float(order.total_amount)
+    if abs(_yangi - float(eski_jami or 0)) > 0.005:
+        _qk = pul_qaytarish_kamaytirgan(db, order)
+        _asl, _narx = kelishilgan_qayta_hisob(eski_jami, _yangi, round(order.kelishilgan_summa + _qk, 2),
+                                              order.kechirilgan)
+        order.agreed_amount = _pul2(max(0.0, _asl - _qk))
+        order.discount_percent = _narx_chegirma_foizi(_yangi, _narx)
+    db.flush()
+    db.refresh(order)
+    _update_order_payment_status(db, order)
+
+
+def _json_son(key, value, bosh_mumkin, musbat, chegara=None):
+    """JSON tanasidan kelgan sonni QAT'IY tekshiradi (2026-09-21).
+
+    Matn, `true/false`, NaN/cheksizlik, manfiy (va `musbat` da nol) yoki
+    `chegara` dan katta qiymat — `ValueError` (marshrutlar uni 400 ga
+    aylantiradi). Ilgari bunday qiymatlar yo 500 berardi (`float("abc")`,
+    PostgreSQL da Numeric sig'imidan oshish), yo jimgina yozilardi
+    (manfiy narx, `true` → 1.0)."""
+    import math
+    if value is None:
+        if bosh_mumkin:
+            return None
+        raise ValueError(f"'{key}' bo'sh bo'lishi mumkin emas")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"'{key}' son bo'lishi kerak")
+    v = float(value)
+    if math.isnan(v) or math.isinf(v):
+        raise ValueError(f"'{key}' son bo'lishi kerak")
+    if musbat and v <= 0:
+        raise ValueError(f"'{key}' musbat bo'lishi kerak")
+    if v < 0:
+        raise ValueError(f"'{key}' manfiy bo'lishi mumkin emas")
+    if chegara is not None and v > chegara:
+        raise ValueError(f"'{key}' juda katta")
+    # 17f: 2 xonali pul ustuniga yoziladigan MUSBAT son 0.00 ga aylanmasin.
+    if musbat and chegara == _ORDER_ITEM_MAX_MONEY and round(v, 2) < _PUL_ENG_KAM:
+        raise ValueError(f"'{key}' kamida {_PUL_ENG_KAM} bo'lishi kerak "
+                         "(1 tiyindan kichik summa bazada 0 ga aylanadi)")
+    return v
+
+
+# ── 17c (2026-09-21): SO'ROV QATORIDAGI (query) sonlar ──────────────────
+# Pul miqdori URL ning o'zida keladigan marshrutlar (avans, oylik
+# tuzatish, oylik qarzini yopish) FastAPI `float` ga o'girilardi va
+# `inf` / `nan` / `-5` / `1e20` ni JIMGINA qabul qilardi (O'LCHANGAN,
+# `work/probe17c.py`): cheksiz avans avanslar ro'yxatini (500), cheksiz
+# bonus "Qarzdorlar" sahifasini (500) BUZARDI, manfiy bonus esa mavjud
+# bonusni jimgina o'chirardi. UI `parseFloat` / `parseNum` natijasini
+# to'g'ridan-to'g'ri URL ga qo'yadi — `Infinity` ham brauzerdan KELADI.
+# Shuning uchun marshrut qiymatni MATN sifatida oladi va bu yerda QAT'IY
+# o'qiladi: faqat oddiy o'nlik yozuv (`12`, `12.5`, `1e3`), boshqa hamma
+# narsa (`inf`, `Infinity`, `nan`, `true`, `12abc`, bo'sh — agar majburiy
+# bo'lsa) — `ValueError` (marshrut → 400, hech narsa yozilmaydi).
+_QUERY_SON_NAQSH = __import__("re").compile(
+    r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$")
+
+
+def _query_son(key, qiymat, bosh_mumkin, musbat, chegara=None):
+    """So'rov qatoridagi sonni QAT'IY o'qiydi. `qiymat` — marshrutdan MATN
+    (yoki `None`), crud ildizidan esa son ham bo'lishi mumkin (u holda
+    to'g'ridan-to'g'ri `_json_son`). Bo'sh matn — `None` kabi."""
+    if isinstance(qiymat, str):
+        q = qiymat.strip()
+        if q == "":
+            qiymat = None
+        elif not _QUERY_SON_NAQSH.match(q):
+            raise ValueError(f"'{key}' son bo'lishi kerak")
+        else:
+            qiymat = float(q)
+    return _json_son(key, qiymat, bosh_mumkin=bosh_mumkin, musbat=musbat,
+                     chegara=chegara)
+
+
+def _query_butun(key, qiymat, kichik, katta):
+    """So'rov qatoridagi MAJBURIY butun sonni `kichik`–`katta` oralig'ida
+    o'qiydi (yil, oy). Crud ildizidan `int` ham qabul qilinadi (`bool` —
+    yo'q)."""
+    if isinstance(qiymat, bool):
+        raise ValueError(f"'{key}' butun son bo'lishi kerak")
+    if isinstance(qiymat, str):
+        q = qiymat.strip()
+        if not q or not q.lstrip("+-").isdigit() or len(q) > 12:
+            raise ValueError(f"'{key}' butun son bo'lishi kerak")
+        qiymat = int(q)
+    if not isinstance(qiymat, int):
+        raise ValueError(f"'{key}' butun son bo'lishi kerak")
+    if qiymat < kichik or qiymat > katta:
+        raise ValueError(f"'{key}' {kichik}–{katta} oralig'ida bo'lishi kerak")
+    return qiymat
+
+
+def _query_matn(key, qiymat, uzunlik):
+    """Ixtiyoriy izoh matni: `None` / matn, `uzunlik` belgidan oshmasin."""
+    if qiymat is None:
+        return None
+    if not isinstance(qiymat, str):
+        raise ValueError(f"'{key}' matn bo'lishi kerak")
+    if len(qiymat) > uzunlik:
+        raise ValueError(f"'{key}' juda uzun ({uzunlik} belgidan ko'p)")
+    return qiymat
+
+
+# Yil oralig'i — `_clean_by_rules` dagi "sana" qoidasi bilan bir xil.
+_YIL_KICHIK, _YIL_KATTA = 2000, 2100
+
+
+def _clean_avans(amount, notes=None, adv_date=None) -> dict:
+    """17c: hodim avansi. `amount` — MUSBAT, chekli, `Numeric(12,2)` sig'imi
+    ichida; `notes` — matn (Text ustun, oqilona chegara); `adv_date` —
+    `YYYY-MM-DD` matni yoki `datetime`, bo'sh / `None` — bugun (UI sana
+    maydoni bo'sh bo'lsa `adv_date=` yuboradi — bu SAQLANADI).
+    Ilgari noto'g'ri sana (`abc`, `2026-13-45`) JIMGINA bugungi sanaga
+    aylanardi — avans boshqa oyga tushib, o'sha oy oyligi noto'g'ri
+    hisoblanardi (O'LCHANGAN)."""
+    toza = {
+        "amount": _query_son("amount", amount, bosh_mumkin=False, musbat=True,
+                             chegara=_ORDER_ITEM_MAX_MONEY),
+        "notes": _query_matn("notes", notes, _UPD_MATN_CHEGARA),
+        "adv_date": None,
+    }
+    if isinstance(adv_date, datetime):
+        sana = adv_date
+    elif adv_date is None or (isinstance(adv_date, str) and adv_date.strip() == ""):
+        sana = None
+    elif isinstance(adv_date, str):
+        try:
+            sana = datetime.strptime(adv_date.strip(), "%Y-%m-%d")
+        except ValueError:
+            raise ValueError("'adv_date' YYYY-MM-DD ko'rinishidagi haqiqiy sana bo'lishi kerak")
+    else:
+        raise ValueError("'adv_date' YYYY-MM-DD ko'rinishidagi haqiqiy sana bo'lishi kerak")
+    if sana is not None and not (_YIL_KICHIK <= sana.year <= _YIL_KATTA):
+        raise ValueError(f"'adv_date' {_YIL_KICHIK}–{_YIL_KATTA} yillar oralig'ida bo'lishi kerak")
+    toza["adv_date"] = sana
+    return toza
+
+
+def _clean_oylik_tuzatish(year, month, reduction_amount=None, reason=None,
+                          bonus_amount=None, bonus_reason=None) -> dict:
+    """17c: hodimning oylik qo'lda kamaytirishi / bonusi.
+    `year` 2000–2100, `month` 1–12 (ilgari 13-oy, 0-oy, 1-yil, 99999-yil
+    yozilardi — hech bir hisobotda ko'rinmaydigan "yetim" yozuvlar).
+    Summalar — `None` (tegilmaydi), 0 (o'chiriladi — UI "Bo'sh/0 qoldirsangiz
+    o'chadi" deydi, bu SAQLANADI) yoki MUSBAT, chekli, sig'im ichida.
+    Manfiy summa ilgari mavjud bonusni JIMGINA o'chirardi — endi 400."""
+    return {
+        "year": _query_butun("year", year, _YIL_KICHIK, _YIL_KATTA),
+        "month": _query_butun("month", month, 1, 12),
+        "reduction_amount": _query_son("reduction_amount", reduction_amount,
+                                       bosh_mumkin=True, musbat=False,
+                                       chegara=_ORDER_ITEM_MAX_MONEY),
+        "reason": _query_matn("reason", reason, _UPD_MATN_CHEGARA),
+        "bonus_amount": _query_son("bonus_amount", bonus_amount,
+                                   bosh_mumkin=True, musbat=False,
+                                   chegara=_ORDER_ITEM_MAX_MONEY),
+        "bonus_reason": _query_matn("bonus_reason", bonus_reason, _UPD_MATN_CHEGARA),
+    }
+
+
+def _clean_oylik_yopish(year, month, amount) -> dict:
+    """17c: "Qarzdorlar" sahifasidagi hodim oylik qarzini yopish
+    (`services.close_employee_debt` — avans yozuvi yaratadi). `month` 13
+    ilgari `datetime(year, 13, …)` da 500 berardi; `amount` avans bilan bir
+    xil qoida (musbat, chekli, sig'im ichida)."""
+    return {
+        "year": _query_butun("year", year, _YIL_KICHIK, _YIL_KATTA),
+        "month": _query_butun("month", month, 1, 12),
+        "amount": _query_son("amount", amount, bosh_mumkin=False, musbat=True,
+                             chegara=_ORDER_ITEM_MAX_MONEY),
+    }
+
+
+# ── 17d (2026-09-21): LOY miqdori va doimiy majburiyat ──────────────────
+# O'LCHANGAN (`work/probe17d.py`, har prob alohida toza bazada, asl kod =
+# kech19): buyurtmaning loy miqdori 7 marshrutda URL da keladi va FastAPI
+# `float` uni tekshiruvsiz o'tkazardi:
+#   * `inf` → loy xomashyosi qoldig'i −Infinity SAQLANARDI, buyurtma
+#     kartasi (`/api/orders/{id}`) va "Qarzdorlar" / biznes-salomatlik
+#     sahifalari 500 (`/ready` va `PUT /loy` javobi 500 bo'lsa ham qiymat
+#     yozilib qolardi; `DELETE` esa 200 qaytarib buyurtmani o'chirardi);
+#   * manfiy reja / haqiqiy loy → omborga olinganidan KO'P qaytarilardi
+#     (5 kg olingan, −5 bilan 7.5 kg qaytdi);
+#   * `1e20` → qoldiq −5×10¹⁹; `nan` → `PUT /api/orders/{id}` detallarni
+#     saqlab bo'lgach 500 (yarim yozuv); `1_000` → 1000.
+# Tanadagi `loy_kg` (buyurtma yaratish) ham: `Infinity` → −∞, `true` → 1 kg,
+# `"5"` → 5 kg. Loy — og'irlik (kg): manfiy EMAS, chekli, `_UPD_SON_CHEGARA`
+# dan katta emas (17a `Produce.loy_kg` bilan bir xil chegara). 0 — ruxsat
+# ("loy yo'q" / rejani bekor qilish).
+def _query_loy(key, qiymat, bosh_mumkin):
+    """So'rov qatoridagi loy miqdori (kg) — MATN (marshrutdan) yoki son
+    (crud ildizidan). `bosh_mumkin` bo'lsa bo'sh / `None` → `None`."""
+    return _query_son(key, qiymat, bosh_mumkin=bosh_mumkin, musbat=False,
+                      chegara=_UPD_SON_CHEGARA)
+
+
+def _json_loy(key, qiymat):
+    """Tanadagi (JSON) ixtiyoriy loy miqdori: `None` yoki haqiqiy son.
+    Matn (`"5"`) va `true` RAD etiladi — `_query_son` matnni o'qirdi."""
+    return _json_son(key, qiymat, bosh_mumkin=True, musbat=False,
+                     chegara=_UPD_SON_CHEGARA)
+
+
+# `recurring_obligations` ustunlari: category String(30), label String(60),
+# icon String(10). PostgreSQL uzun matnni RAD etadi → 500 (JONLI O'LCHANGAN:
+# `debts.html` kodni nomdan yasaydi — 35 belgili nom → 40 belgili kod → 500,
+# hech narsa saqlanmadi). `monthly_target`: `inf` → "Qarzdorlar" sahifasi
+# va majburiyatlar ro'yxati 500; `nan` → NULL; manfiy / 0 / 1e20 qabul.
+# `due_day` (oyning nechanchi kuni): 0, −3, 32, 99999 qabul qilinardi.
+_MAJBURIYAT_KOD_MAX = 30
+_MAJBURIYAT_NOM_MAX = 60
+_MAJBURIYAT_BELGI_MAX = 10
+
+
+def _clean_majburiyat(category, label, monthly_target, icon=None, due_day=None) -> dict:
+    """17d: doimiy majburiyat (`POST /api/obligations/recurring`).
+    `category` — 1–30 belgi, `label` — 1–60 belgi (bo'sh / faqat bo'shliq —
+    yo'q), `icon` — 0–10 belgi (bo'sh → 📦), `monthly_target` — MUSBAT
+    (UI 0 ni o'zi rad etadi), chekli, `Numeric(12,2)` sig'imi ichida,
+    `due_day` — 1–31 (bo'sh → 5, UI ham shunday qiladi)."""
+    def _matn(key, v, uzunlik, majburiy):
+        if v is None:
+            if majburiy:
+                raise ValueError(f"'{key}' bo'sh bo'lishi mumkin emas")
+            return None
+        if not isinstance(v, str):
+            raise ValueError(f"'{key}' matn bo'lishi kerak")
+        v = v.strip()
+        if majburiy and not v:
+            raise ValueError(f"'{key}' bo'sh bo'lishi mumkin emas")
+        if len(v) > uzunlik:
+            raise ValueError(f"'{key}' juda uzun ({uzunlik} belgidan ko'p)")
+        return v
+
+    kun = due_day
+    if kun is None or (isinstance(kun, str) and kun.strip() == ""):
+        kun = 5
+    return {
+        "category": _matn("category", category, _MAJBURIYAT_KOD_MAX, True),
+        "label": _matn("label", label, _MAJBURIYAT_NOM_MAX, True),
+        "icon": _matn("icon", icon, _MAJBURIYAT_BELGI_MAX, False) or "📦",
+        "monthly_target": _query_son("monthly_target", monthly_target,
+                                     bosh_mumkin=False, musbat=True,
+                                     chegara=_ORDER_ITEM_MAX_MONEY),
+        "due_day": _query_butun("due_day", kun, 1, 31),
+    }
+
+
+# 2026-09-21 (14-band) — `setattr` sikllari: tahrir marshrutlari tanasi.
+# Material / tayyor mahsulot / usta / hodim / loyiha / ta'minotchi tahriri
+# tanadagi maydonni TEKSHIRUVSIZ yozardi (O'LCHANGAN, lokal va jonli):
+#   * `PUT /api/inventory/{id}` — manfiy narx (jonli: -5000 SAQLANDI; 13.3
+#     da `/price` yopilgan edi, lekin shu ikkinchi yo'l ochiq qolgan edi),
+#     hajm 0 / manfiy, manfiy min qoldiq, `stock_quantity` to'g'ridan
+#     (999 / -50, ombor HARAKATISIZ), `is_default_penoplast` ikkinchi
+#     materialga, bo'sh nom;
+#   * tayyor mahsulot — manfiy / 1e20 miqdor va narx, NaN → 500 (lekin
+#     qiymat baribir yozilgan);
+#   * usta — cashback -10 / 500 %, bo'sh ism; hodim — manfiy oylik, 500 %,
+#     noto'g'ri `pay_type` JIM e'tiborsiz qolardi (200);
+#   * loyiha — manfiy to'langan / byudjet, `total_paid` qo'lda (to'lovlardan
+#     hisoblanadigan qiymat buzilardi), noto'g'ri `status` → 500 (SQLite da
+#     qator yozilib, BUTUN loyihalar ro'yxati 500 berardi; PostgreSQL rad
+#     etadi); ta'minotchi — bo'sh nom, `null` nom → 500.
+# Kirish sxemasi (pydantic) bu qiymatlarning hech birini cheklamaydi va
+# `true` → 1.0 kabi JIM o'giradi. Endi: ruxsat ro'yxati + qat'iy turlar +
+# ustun sig'imi (PostgreSQL da uzun matn / katta son → 500) + ma'noli
+# chegara. Qoida buzilsa `ValueError` (marshrut → 400), hech narsa
+# yozilmaydi. Hisob yozuvi bilan o'zgarishi SHART bo'lgan maydonlar
+# (`stock_quantity`, tayyor mahsulot `quantity`, `total_paid`,
+# `is_default_penoplast`) bu yo'ldan umuman O'ZGARMAYDI — o'z yo'li bor.
+_UPD_MATN_CHEGARA = 10_000          # Text ustunlar uchun oqilona chegara
+_UPD_SON_CHEGARA = 1_000_000_000_000.0   # Float ustunlar (miqdor, hajm)
+
+# Qoida shakllari:
+#   ("matn", majburiy, uzunlik)        — majburiy: None/bo'sh rad
+#   ("son", bosh_mumkin, musbat, chegara)
+#   ("bool", bosh_mumkin)
+#   ("tanlov", bosh_mumkin, {qabul qilinadigan: kanonik})
+#   ("butun", bosh_mumkin, eng_kichik, eng_katta)
+#   ("tg",)                            — Telegram ID: matn yoki butun son
+
+
+def _upd_rules():
+    """Model nomi → {maydon: qoida}. Funksiya ichida — enum lar modul
+    oxirida import qilinadi, chaqiruv paytida esa hammasi tayyor."""
+    from models import PayType as _PT, ProjectStatus as _PS
+    pay = {}
+    for m in _PT:
+        pay[m.value] = m.value
+        pay[m.name] = m.value
+        pay[m.name.lower()] = m.value
+    st = {}
+    for m in _PS:
+        st[m.name] = m.name
+        st[m.value] = m.name
+        st[m.name.lower()] = m.name
+    money = _ORDER_ITEM_MAX_MONEY
+    return {
+        "Inventory": {
+            "item_name": ("matn", True, 100),
+            "unit": ("matn", True, 20),
+            "min_stock": ("son", True, False, _UPD_SON_CHEGARA),
+            "price_per_unit": ("son", True, False, money),
+            "volume_per_unit": ("son", True, True, _UPD_SON_CHEGARA),
+            "is_penoplast": ("bool", False),
+            "category": ("matn", False, 50),
+            "notes": ("matn", False, _UPD_MATN_CHEGARA),
+            "base_unit": ("matn", False, 20),
+            "conversion_factor": ("son", True, True, _UPD_SON_CHEGARA),
+        },
+        "FinishedProduct": {
+            "name": ("matn", True, 150),
+            "unit_price": ("son", True, False, money),
+            "notes": ("matn", False, _UPD_MATN_CHEGARA),
+        },
+        "Master": {
+            "name": ("matn", True, 100),
+            "phone": ("matn", True, 20),
+            "cashback_percent": ("son", True, False, 100.0),
+            "kpi_percent": ("son", True, False, 100.0),
+            "telegram_id": ("tg",),
+            "is_active": ("bool", False),
+            "region": ("matn", False, 50),
+            "notes": ("matn", False, _UPD_MATN_CHEGARA),
+        },
+        "Employee": {
+            "name": ("matn", True, 100),
+            "position": ("matn", False, 100),
+            "pay_type": ("tanlov", False, pay),
+            "fixed_amount": ("son", True, False, money),
+            "percent_value": ("son", True, False, 100.0),
+            "per_unit_rate": ("son", True, False, money),
+            "per_unit_type": ("tanlov", False, {"blok": "blok", "metr": "metr", "dona": "dona"}),
+            "extra_monthly": ("son", True, False, money),
+            "production_type": ("tanlov", True, {"penoplast": "penoplast", "gips": "gips",
+                                                 "umumiy": "umumiy"}),
+            # kech117 (A2): korxona yo'nalishi (`models.Yonalish`); NULL — «Umumiy». Korxonasi — `yonalish_tanlovi`.
+            "yonalish_id": ("id", True),
+            "is_active": ("bool", False),
+            "notes": ("matn", False, _UPD_MATN_CHEGARA),
+            "effective_year": ("butun", True, 2000, 2100),
+            "effective_month": ("butun", True, 1, 12),
+            "reason": ("matn", False, _UPD_MATN_CHEGARA),
+        },
+        "Project": {
+            "project_name": ("matn", True, 200),
+            "client_name": ("matn", True, 100),
+            "client_phone": ("matn", False, 20),
+            "client_address": ("matn", False, _UPD_MATN_CHEGARA),
+            "description": ("matn", False, _UPD_MATN_CHEGARA),
+            "total_budget": ("son", True, False, money),
+            "status": ("tanlov", False, st),
+            "notes": ("matn", False, _UPD_MATN_CHEGARA),
+            # kech107 (10a, O'LCHANGAN `work/probe107a.py`): tahrirda ham muddat — qo'shish, o'zgartirish,
+            # olib tashlash (`null`). Ilgari faqat yaratishda edi (400 "Bu maydonni o'zgartirib bo'lmaydi").
+            "deadline": ("sana", True),
+        },
+        "Supplier": {
+            "name": ("matn", True, 150),
+            "phone": ("matn", False, 20),
+            "notes": ("matn", False, _UPD_MATN_CHEGARA),
+            "is_active": ("bool", False),
+        },
+    }
+
+
+# Hisob yozuvi bilan o'zgarishi shart bo'lgan maydonlar — aniq sabab bilan.
+_UPD_TAQIQ = {
+    "Inventory": {
+        "stock_quantity": "Qoldiq faqat kirim / chiqim orqali o'zgaradi (ombor harakati yoziladi)",
+        "is_default_penoplast": "Asosiy penoplast alohida tugma orqali belgilanadi",
+    },
+    "FinishedProduct": {
+        "quantity": "Miqdor faqat qo'shish / kamaytirish / sotish orqali o'zgaradi",
+    },
+    "Project": {
+        "total_paid": "To'langan summa to'lovlardan hisoblanadi — qo'lda o'zgartirib bo'lmaydi",
+    },
+}
+
+
+def _clean_update(model: str, data) -> dict:
+    """Tahrir tanasini QAT'IY tekshiradi va tozalangan nusxasini qaytaradi.
+
+    `data` — xom JSON (marshrut) yoki `model_dump(exclude_unset=True)`
+    (crud ildizi). Noma'lum / taqiqlangan kalit, noto'g'ri tur, bo'sh
+    majburiy maydon, ustun sig'imidan uzun matn yoki chegaradan tashqari
+    son — `ValueError`. Matnlar O'ZGARTIRILMAYDI (faqat tekshiriladi);
+    tanlov maydonlari kanonik qiymatga keltiriladi (`status` → enum NOMI,
+    `pay_type` → enum QIYMATI) — pastdagi crud o'giruvchilari shuni kutadi."""
+    toza = _clean_by_rules(_upd_rules()[model], _UPD_TAQIQ.get(model, {}), data,
+                           "Bu maydonni o'zgartirib bo'lmaydi: ")
+    # kech120 (zip 137 — G6-16): usta telefoni tahrirda ham shu qoida bilan
+    if model == "Master" and "phone" in toza and usta_telefoni_xatosi(toza.get("phone")):
+        raise ValueError(usta_telefoni_xatosi(toza.get("phone")))
+    return toza
+
+
+def _clean_by_rules(rules: dict, taqiq: dict, data, notogri_xabar: str) -> dict:
+    """`_clean_update` va `_clean_create` ning umumiy yadrosi (2026-09-21,
+    15-band): qoida shakllari `_upd_rules` tepasidagi izohda. Qo'shimcha
+    shakl — ("sana", bosh_mumkin): `YYYY-MM-DD` yoki ISO sana-vaqt matni
+    (yoki crud ildizida `datetime`), 2000–2100 yillar; bo'sh matn → None."""
+    if not isinstance(data, dict):
+        raise ValueError("Noto'g'ri so'rov")
+    for key in data:
+        if key in taqiq:
+            raise ValueError(taqiq[key])
+    notogri = sorted(str(k)[:40] for k in data if k not in rules)
+    if notogri:
+        raise ValueError(notogri_xabar + ", ".join(notogri[:10]))
+
+    toza = {}
+    for key, value in data.items():
+        qoida = rules[key]
+        tur = qoida[0]
+        if tur == "matn":
+            majburiy, uzunlik = qoida[1], qoida[2]
+            if value is None:
+                if majburiy:
+                    raise ValueError(f"'{key}' bo'sh bo'lishi mumkin emas")
+                toza[key] = None
+                continue
+            if not isinstance(value, str):
+                raise ValueError(f"'{key}' matn bo'lishi kerak")
+            if majburiy and not value.strip():
+                raise ValueError(f"'{key}' bo'sh bo'lishi mumkin emas")
+            if len(value) > uzunlik:
+                raise ValueError(f"'{key}' juda uzun ({uzunlik} belgidan ko'p)")
+            toza[key] = value
+        elif tur == "son":
+            toza[key] = _json_son(key, value, bosh_mumkin=qoida[1],
+                                  musbat=qoida[2], chegara=qoida[3])
+        elif tur == "bool":
+            if value is None and qoida[1]:
+                toza[key] = None
+                continue
+            if not isinstance(value, bool):
+                raise ValueError(f"'{key}' true yoki false bo'lishi kerak")
+            toza[key] = value
+        elif tur == "tanlov":
+            bosh_mumkin, qabul = qoida[1], qoida[2]
+            if value is None:
+                if not bosh_mumkin:
+                    raise ValueError(f"'{key}' bo'sh bo'lishi mumkin emas")
+                toza[key] = None
+                continue
+            if isinstance(value, str) and value.strip() == "" and bosh_mumkin:
+                toza[key] = None
+                continue
+            if not isinstance(value, str) or value.strip() not in qabul:
+                raise ValueError(f"'{key}' noto'g'ri qiymat")
+            toza[key] = qabul[value.strip()]
+        elif tur == "butun":
+            bosh_mumkin, kichik, katta = qoida[1], qoida[2], qoida[3]
+            if value is None:
+                if not bosh_mumkin:
+                    raise ValueError(f"'{key}' bo'sh bo'lishi mumkin emas")
+                toza[key] = None
+                continue
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise ValueError(f"'{key}' butun son bo'lishi kerak")
+            if value < kichik or value > katta:
+                raise ValueError(f"'{key}' {kichik}–{katta} oralig'ida bo'lishi kerak")
+            toza[key] = value
+        elif tur == "tg":
+            if value is None:
+                toza[key] = None
+                continue
+            if isinstance(value, bool) or not isinstance(value, (str, int)):
+                raise ValueError(f"'{key}' matn yoki son bo'lishi kerak")
+            v = str(value).strip()
+            if len(v) > 50:
+                raise ValueError(f"'{key}' juda uzun (50 belgidan ko'p)")
+            toza[key] = v or None
+        elif tur == "id":
+            # 17-band: bog'lanish ID si — musbat butun son (bool emas).
+            if value is None:
+                if not qoida[1]:
+                    raise ValueError(f"'{key}' bo'sh bo'lishi mumkin emas")
+                toza[key] = None
+                continue
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise ValueError(f"'{key}' butun son bo'lishi kerak")
+            if value < 1 or value > 2_147_483_647:
+                raise ValueError(f"'{key}' noto'g'ri qiymat")
+            toza[key] = value
+        elif tur == "royxat":
+            # 17-band: ichki qatorlar ro'yxati — har qator o'z qoidalari
+            # bilan (`_clean_val`) to'liq tekshiriladi.
+            ichki, eng_kam, eng_kop = qoida[1], qoida[2], qoida[3]
+            if not isinstance(value, list):
+                raise ValueError(f"'{key}' ro'yxat bo'lishi kerak")
+            if len(value) < eng_kam:
+                raise ValueError(f"'{key}' kamida {eng_kam} ta qatordan iborat bo'lishi kerak")
+            if len(value) > eng_kop:
+                raise ValueError(f"'{key}' juda ko'p qator ({eng_kop} tadan ko'p)")
+            qatorlar = []
+            for i, el in enumerate(value):
+                try:
+                    qatorlar.append(_clean_val(ichki, el))
+                except ValueError as e:
+                    raise ValueError(f"'{key}' {i + 1}-qator: {e}")
+            toza[key] = qatorlar
+        elif tur == "idlar":
+            # kech93 (8-band): bog'lanish ID lari RO'YXATI (masalan ishlab
+            # chiqarishda tanlangan ixtiyoriy retsept qatorlari). O'LCHANGAN
+            # (`work/probe8b.py` M14, asl kod): pydantic `true` va "1" ni 1 ga
+            # JIM o'girardi, 2**31 esa saqlanardi. Har qiymat — musbat butun son
+            # (bool emas), takrorlar bir marta qoldiriladi; `null` — bo'sh ro'yxat.
+            eng_kop = qoida[1]
+            if value is None:
+                toza[key] = []
+                continue
+            if not isinstance(value, list):
+                raise ValueError(f"'{key}' ro'yxat bo'lishi kerak")
+            if len(value) > eng_kop:
+                raise ValueError(f"'{key}' juda ko'p ({eng_kop} tadan ko'p)")
+            idlar = []
+            for i, el in enumerate(value):
+                if isinstance(el, bool) or not isinstance(el, int) or not (1 <= el <= 2_147_483_647):
+                    raise ValueError(f"'{key}' {i + 1}-qiymat: musbat butun son bo'lishi kerak")
+                if el not in idlar:
+                    idlar.append(el)
+            toza[key] = idlar
+        elif tur == "sana":
+            if value is None or (isinstance(value, str) and value.strip() == ""):
+                if not qoida[1]:
+                    raise ValueError(f"'{key}' bo'sh bo'lishi mumkin emas")
+                toza[key] = None
+                continue
+            if isinstance(value, datetime):
+                sana = value
+            elif isinstance(value, str) and len(value.strip()) <= 40:
+                try:
+                    sana = datetime.fromisoformat(value.strip())
+                except ValueError:
+                    raise ValueError(f"'{key}' sana bo'lishi kerak (YYYY-MM-DD)")
+            else:
+                raise ValueError(f"'{key}' sana bo'lishi kerak (YYYY-MM-DD)")
+            if sana.tzinfo is not None:
+                sana = sana.replace(tzinfo=None)
+            if sana.year < 2000 or sana.year > 2100:
+                raise ValueError(f"'{key}' 2000–2100 yillar oralig'ida bo'lishi kerak")
+            toza[key] = sana
+    return toza
+
+
+# 2026-09-21 (15-band) — YARATISH (POST) marshrutlari tanasi.
+# O'LCHANGAN (asl kod, lokal TestClient): `POST /api/inventory | masters |
+# employees | projects | suppliers` sxemalari deyarli cheklovsiz edi —
+# manfiy narx / byudjet / qo'shimcha oylik SAQLANARDI; `1e13` va `1e20`
+# (PostgreSQL Numeric(12,2) da 500); Infinity SAQLANARDI, NaN yo 500, yo
+# JIMGINA bo'sh qiymat; `true` → 1.0, "5000" → 5000 JIM o'girilardi; ustun
+# sig'imidan uzun matn (PostgreSQL da 500); faqat bo'shliqdan iborat nom /
+# birlik / telefon SAQLANARDI (hodim va ta'minotchida `strip()` dan keyin
+# BO'SH nom); noto'g'ri `pay_type` JIMGINA "fixed" ga aylanardi (200),
+# noto'g'ri `per_unit_type` / `production_type` yozilardi. Funksional xato:
+# `create_master` `kpi_percent` ni umuman yozmasdi (7 → 0.0), loyiha
+# yaratish formasidagi "Muddati" (`deadline`) sxemada yo'q edi — JIMGINA
+# tashlab yuborilardi (jonli: 23 loyihaning birortasida muddat yo'q).
+# Begona korxonaga sizish YO'Q: `company_id` / `id` kalitlari e'tiborsiz
+# qolardi, korxona sessiyadan olinadi — endi ular 400 (noma'lum maydon).
+# Qoidalar tahrir qoidalaridan (`_upd_rules`) olinadi — farqlar pastda.
+_CREATE_MAJBURIY = {
+    # model → {maydon: eng kam uzunlik (bo'shliqsiz) yoki None — faqat bor bo'lsin}
+    "Inventory": {"item_name": 2, "unit": 1},
+    "Master": {"name": 2, "phone": 7},
+    "Employee": {"name": 2, "pay_type": None},
+    "Project": {"project_name": 2, "client_name": 2},
+    "Supplier": {"name": 2},
+}
+
+_CREATE_TAQIQ = {
+    "Project": {
+        "total_paid": "To'langan summa to'lovlardan hisoblanadi — qo'lda kiritib bo'lmaydi",
+        "status": "Yangi loyiha har doim faol holatda yaratiladi",
+    },
+}
+
+
+def _create_rules():
+    """Model nomi → {maydon: qoida} — YARATISH uchun. Tahrir qoidalaridan
+    farqi: boshlang'ich qoldiq (`stock_quantity`) va `is_default_penoplast`
+    yaratishda RUXSAT (hisob yozuvi `add_item` ichida); sxemada majburiy
+    son bo'lgan maydonlar bo'sh (null) bo'la olmaydi; `is_active`, hodim
+    `effective_*` / `reason` va loyiha `status` yaratishda yo'q; loyiha
+    `deadline` — tahrir qoidasidan (kech107 dan u yerda ham bor; pastdagi qator — o'zgarmagan xulq)."""
+    r = _upd_rules()
+    inv = dict(r["Inventory"])
+    inv["stock_quantity"] = ("son", False, False, _UPD_SON_CHEGARA)
+    inv["min_stock"] = ("son", False, False, _UPD_SON_CHEGARA)
+    inv["volume_per_unit"] = ("son", False, True, _UPD_SON_CHEGARA)
+    inv["is_default_penoplast"] = ("bool", False)
+    ms = dict(r["Master"])
+    ms.pop("is_active")
+    ms["cashback_percent"] = ("son", False, False, 100.0)
+    em = dict(r["Employee"])
+    for k in ("is_active", "effective_year", "effective_month", "reason"):
+        em.pop(k)
+    for k in ("fixed_amount", "percent_value", "per_unit_rate"):
+        em[k] = (em[k][0], False, em[k][2], em[k][3])
+    em["per_unit_type"] = ("tanlov", False, {"blok": "blok", "metr": "metr", "dona": "dona"})
+    pr = dict(r["Project"])
+    pr.pop("status")
+    pr["deadline"] = ("sana", True)
+    sp = dict(r["Supplier"])
+    sp.pop("is_active")
+    return {"Inventory": inv, "Master": ms, "Employee": em, "Project": pr, "Supplier": sp}
+
+
+# kech120 (zip 137 — F bosqichi 5-qism, audit G6-16): xato xabarida maydon NOMI o'zbekcha (ilgari «'phone' kamida 7 belgidan …»)
+_MAYDON_NOMLARI = {
+    ("Master", "name"): "Ism", ("Master", "phone"): "Telefon", ("Employee", "name"): "Ism", ("Employee", "pay_type"): "To'lov turi",
+    ("Inventory", "item_name"): "Material nomi", ("Inventory", "unit"): "Birlik", ("Project", "project_name"): "Loyiha nomi",
+    ("Project", "client_name"): "Mijoz ismi", ("Supplier", "name"): "Ta'minotchi nomi",
+}
+
+
+def _maydon_nomi(model: str, key: str) -> str:
+    return _MAYDON_NOMLARI.get((model, key), key)
+
+
+# kech120 (zip 137 — G6-16, O'LCHANGAN: «Ustalar» sahifasi orqali «abcdefg» telefon saqlanardi — server faqat uzunlikni tekshirardi;
+# KPI sahifasidagi oyna 2026-09-15 dan beri tekshirardi): usta telefoni — faqat raqam, «+», bo'shliq, «-», qavs; 7–15 ta raqam
+# (KPI oynasidagi qoida bilan bir; mavjud 7 raqamli yozuvlar tahrirda rad etilmasin). Xato bo'lsa — matn, aks holda None.
+USTA_TELEFON_XATO = "Telefon raqami noto'g'ri — faqat raqam, «+», bo'shliq va «-» (7–15 ta raqam), masalan +998 90 123 45 67"
+
+
+def usta_telefoni_xatosi(telefon):
+    t = str(telefon or "").strip()
+    if not t:
+        return None
+    raqam = sum(ch.isdigit() for ch in t)
+    if not _re_tel137.fullmatch(r"[\d+\s\-()]+", t) or not (7 <= raqam <= 15):
+        return USTA_TELEFON_XATO
+    return None
+
+
+import re as _re_tel137                             # noqa: E402
+
+
+def _clean_create(model: str, data) -> dict:
+    """Yaratish tanasini QAT'IY tekshiradi va tozalangan nusxasini qaytaradi
+    (15-band). `data` — xom JSON (marshrut) yoki `model_dump(exclude_unset=
+    True)` (crud ildizi). Qoida buzilsa — `ValueError`, hech narsa yozilmaydi.
+    Matnlar O'ZGARTIRILMAYDI; tanlov maydonlari kanonik qiymatga keladi."""
+    toza = _clean_by_rules(_create_rules()[model], _CREATE_TAQIQ.get(model, {}),
+                           data, "Noma'lum maydon: ")
+    for key, eng_kam in _CREATE_MAJBURIY[model].items():
+        if toza.get(key) is None:
+            raise ValueError(f"«{_maydon_nomi(model, key)}» kiritilishi shart")
+        if eng_kam and len(toza[key].strip()) < eng_kam:
+            raise ValueError(f"«{_maydon_nomi(model, key)}» kamida {eng_kam} belgidan iborat bo'lishi kerak")
+    if model == "Master" and usta_telefoni_xatosi(toza.get("phone")):
+        raise ValueError(usta_telefoni_xatosi(toza.get("phone")))      # kech120 (zip 137 — G6-16)
+    if model == "Inventory":
+        # Boshlang'ich qoldiq xarid yozuviga (`total_amount` Numeric(12,2))
+        # sig'ishi shart — aks holda PostgreSQL da material yaratilib, xarid
+        # yozuvi 500 bilan yiqilardi (material qoldiqli, xarajatsiz qolardi).
+        miqdor = toza.get("stock_quantity") or 0
+        narx = toza.get("price_per_unit") or 0
+        if miqdor > 0 and narx > 0 and round(miqdor * narx, 2) > _ORDER_ITEM_MAX_MONEY:
+            raise ValueError("Boshlang'ich qoldiq summasi (miqdor × narx) juda katta")
+    return toza
+
+
+# 2026-09-21 (17-band) — TAYYOR MAHSULOT qiymat yo'llari.
+# O'LCHANGAN (asl kod, lokal TestClient, har prob toza bazada):
+#   * `POST /api/finished/produce` — manfiy kenglik → hajm manfiy, penoplast
+#     YECHILMAYDI, mahsulot BEPUL paydo bo'ladi; noto'g'ri `category` →
+#     xomashyosiz "dona"; `unit_price` Infinity → 500, LEKIN yozuv qoladi va
+#     `/finished` + `/api/finished` BUTUNLAY 500; NaN uzunlik → 500 + yozuv;
+#     `loy_kg` Infinity → 500 + yozuv; 1e20 narx / miqdor; `true` → 1,
+#     `"5"` → 5 JIM o'giriladi; nom `"    "` → strip → BO'SH nom; manfiy
+#     `price_per_m3`; `penoplast_id` sifatida ODDIY material (penoplast
+#     emas) ombordan "blok" deb yechiladi;
+#   * `/{id}/add`, `/loss` — `true` → 1; JARAYONDAGI (in_progress)
+#     mahsulotga qo'shish / brak (UI buni faqat TAYYOR mahsulotga beradi);
+#   * `/sell` — narx 1e20 SAQLANDI (PostgreSQL Numeric(12,2) da 500),
+#     Infinity → 500 + yozuv + `/api/finished/sales` BUTUNLAY 500;
+#     noto'g'ri `payment_method` (ustun 20 belgi), 500 belgili xaridor
+#     (ustun 150), mavjud bo'lmagan `master_id` (FK) SAQLANDI; jarayondagi
+#     mahsulot SOTILDI;
+#   * `/sell-batch` — BIR mahsulot ikki qatorda (6 + 6, qoldiq 10) → har qator
+#     alohida tekshirilib, qoldiq -2 ga TUSHDI; Infinity narx → sotuv
+#     yozuvi qolib, `/api/finished/sales` 500;
+#   * `/production-brak` — `gips_*` maydonlari marshrutda e'tiborsiz edi.
+# Endi: ruxsat ro'yxati + qat'iy turlar (`_clean_val`) marshrutda HAM crud
+# ildizida HAM; hisob butunligi (savatcha yig'indisi, penoplast turi,
+# tayyor holat, usta korxonada, summa sig'imi) crud ildizida.
+_FP_KATEGORIYA = {"profil": "profil", "panel": "panel", "dona": "dona", "blok": "blok"}
+_TOLOV_USULI = {"naqd": "naqd", "karta": "karta", "bank": "bank"}
+# 17b (2026-09-21) — ombor kirimi va kirim hujjati tanlovlari.
+# `transport_payer`: kim to'laydi — hech kim / o'zimiz / ta'minotchi
+# (`suppliers.html` shu uchtasini yuboradi; boshqa qiymat JIM e'tiborsiz
+# qolardi, ya'ni "o'z hisobimdan" deb belgilangan transport xarajati
+# YOZILMASDAN qolishi mumkin edi).
+_TRANSPORT_TOLOVCHI = {"none": "none", "self": "self", "supplier": "supplier"}
+# `production_type`: kirim qaysi yo'nalishga tegishli. `supplier_receive.html`
+# "Umumiy" uchun `null` yuboradi; `services.get_monthly_report` faqat
+# 'penoplast' va 'gips' qiymatlarini taniydi, boshqa har qanday matn
+# hisobotdan JIMGINA tushib qolardi.
+_ISHLAB_CHIQARISH_TURI = {"umumiy": "umumiy", "penoplast": "penoplast",
+                          "gips": "gips"}
+# 17f (2026-09-22) — mijoz to'lovi tanlovlari: `models.PaymentType` va
+# `models.PaymentMethod` qiymatlari (`orders.html` to'lov oynasidagi
+# `pf-type` / `pf-method` va zaklat usuli AYNAN shular). Tayyor mahsulot
+# sotuvining `_TOLOV_USULI` (naqd/karta/bank) — BOSHQA ro'yxat.
+_TOLOV_TURI = {"zaklat": "zaklat", "partial": "partial", "final": "final"}
+_TOLOV_USULI_MIJOZ = {"naqd": "naqd", "plastik": "plastik", "o'tkazma": "o'tkazma"}
+# 17g (2026-09-22) — qaytarish sababi: `models.ReturnReason` qiymatlari
+# (`returns.html` AYNAN "Ortiqcha" / "Brak" yuboradi). HAQIQIY PostgreSQL da
+# O'LCHANGAN: noma'lum sabab (`"xyz"`) JIMGINA "Brak" ga aylanardi — ya'ni
+# ombordan xomashyo yechilar va mahsulot omborga qaytmasdi.
+_QAYTARISH_SABABI = {"Brak": "Brak", "Ortiqcha": "Ortiqcha",
+                     "Notog'ri o'lcham": "Notog'ri o'lcham",
+                     "Mijoz iltimosi": "Mijoz iltimosi"}
+# kech53 (13-band, 1-qadam) — brak BOSQICHLARI (foydalanuvchi ro'yxati, kech45:
+# "Kesish, Qoplash (loy tortish), Quritish, Saqlash / tashish"). Kod → yorliq.
+# YAGONA manba: `returns.html` / `finished.html` tanlovi va ro'yxatdagi yorliq
+# shu lug'atdan chiziladi (marshrut kontekstida `brak_bosqichlari`); sxemalardagi
+# `Literal` ro'yxati bilan mosligi testda tekshiriladi. Bosqich IXTIYORIY —
+# tanlanmasa NULL, brak yozish oqimi (miqdor, qiymat, xomashyo) O'ZGARMAYDI.
+BRAK_BOSQICHLARI = {
+    "kesish": "Kesish (penoplast kesish)",
+    "qoplash": "Qoplash (loy tortish)",
+    "quritish": "Quritish",
+    "saqlash_tashish": "Saqlash / tashish",
+}
+_BRAK_BOSQICHI = {k: k for k in BRAK_BOSQICHLARI}
+# kech56 (13-band, 7-qadam) — brak SABABLARI (foydalanuvchi qarori, kech56: "Ha, taklif
+# qilingan ro'yxat bilan"). Kod → yorliq; YAGONA manba (UI tanlovi, ro'yxat yorlig'i,
+# tahlil). Sabab IXTIYORIY — tanlanmasa NULL; brak yozish oqimi O'ZGARMAYDI.
+BRAK_SABABLARI = {
+    "xomashyo": "Xomashyo sifati",
+    "ishchi": "Ishchi xatosi",
+    "uskuna": "Uskuna / stanok nosozligi",
+    "olcham": "O'lcham / qolip xatosi",
+    "boshqa": "Boshqa",
+}
+_BRAK_SABABI = {k: k for k in BRAK_SABABLARI}
+# kech56 (13-band, 7-qadam) — brak ME'YORI (foydalanuvchi qarori, kech56: "5 %"): oylik
+# brak ulushi (Moliyadagi brak xarajati ÷ ishlab chiqarish tan narxi) shundan OSHSA —
+# ogohlantirish (`services.get_brak_tahlil`, `/returns` va `/dashboard`).
+BRAK_MEYORI_FOIZ = 5.0
+# kech125 (zip 146 — EGASI QARORLARI 07.10, QAYTA SO'RALMAYDI): brak mahsulotning keyingi TAQDIRI — kod → yorliq; YAGONA manba
+# (tana tekshiruvi, oyna tanlovi, ro'yxat belgisi, tahlil). «Tashlandi» — standart (jurnalda qator yo'q; eski yozuvlar ham).
+BRAK_TAQDIRLARI = {
+    "tashlandi": "Tashlandi",
+    "tuzatildi": "Tuzatildi",
+    "kesildi": "Kesildi",
+    "ikkinchi_nav": "2-nav",
+}
+_BRAK_TAQDIRI = {k: k for k in BRAK_TAQDIRLARI}
+# «Tuzatildi» — tuzatilgan detal qayerga: o'sha joyiga (buyurtma detali / tayyor mahsulot — qayta tayyorlanmadi; brak xomashyosi
+# omborga qaytadi) yoki omborga (Tayyor mahsulotlarga, asl narxi bilan — egasi qarori Q3).
+BRAK_TAQDIR_JOYLARI = {"joyiga": "O'sha joyiga", "omborga": "Omborga (Tayyor mahsulotlar)"}
+_BRAK_TAQDIR_JOYI = {k: k for k in BRAK_TAQDIR_JOYLARI}
+# «Kesildi» — kesib olingan detal birligi: brak birligi yoki shulardan biri (tayyor mahsulot birliklari)
+BRAK_TAQDIR_BIRLIKLARI = ("metr", "dona", "kvadrat", "kg")
+
+
+def _brak_javobgar_tekshir(db, hodim_id, company_id):
+    """kech56: brakka javobgar hodim — FAQAT shu korxonaning o'chirilmagan hodimi.
+    Berilmasa (None) — hech narsa. Topilmasa `ValueError` (marshrut → 400), hech
+    narsa yozilishidan OLDIN chaqiriladi."""
+    if hodim_id is None:
+        return None
+    _q = db.query(Employee.id).filter(Employee.id == hodim_id,
+                                      Employee.is_deleted.isnot(True))
+    if company_id is not None:
+        _q = _q.filter(Employee.company_id == company_id)
+    if _q.first() is None:
+        raise ValueError("Javobgar hodim topilmadi")
+    return hodim_id
+
+
+def hodim_nomlari(db, company_id=None) -> dict:
+    """kech56: {hodim id: ism} — brak ro'yxatidagi javobgar yorlig'i uchun
+    (o'chirilgan hodimlar ham — tarixiy yozuv nomsiz qolmasin)."""
+    _q = db.query(Employee.id, Employee.name)
+    if company_id is not None:
+        _q = _q.filter(Employee.company_id == company_id)
+    return {i: n for i, n in _q.all()}
+# 17g — yetkazish transporti kim hisobidan (`models.Delivery.company_transport_cost`
+# / `client_transport_cost` AYNAN shu to'rttasini taniydi; `orders.html`
+# `dlv-transport-payer` tanlovi ham shular). O'LCHANGAN: noma'lum qiymat
+# saqlanardi va transport summasi Moliyadan butunlay tushib qolardi (na
+# korxona, na mijoz hisobiga); 21+ belgi — String(20) → 500.
+_YETKAZISH_TOLOVCHI = {"none": "none", "client": "client", "company": "company",
+                       "split": "split"}
+
+# ── 17e (2026-09-22): kunlik xarajat va kelishilgan summa ───────────────
+# O'LCHANGAN (`work/probe17e.py`, har prob alohida toza bazada, asl kod =
+# 17d): `POST`/`PUT /api/finance/transactions` sxemasida summa uchun faqat
+# `ge=0` bor edi:
+#   * `Infinity` → javob 500, LEKIN yozuv SAQLANARDI va shundan keyin
+#     `/api/finance/history` hamda xarajatlar ro'yxati BUTUNLAY 500;
+#   * `1e20` (PostgreSQL da Numeric(12,2) → 500), `true` → 1 so'm,
+#     `"5000"` → 5000, 0 so'm — qabul;
+#   * kategoriya bo'sh / faqat bo'shliq / 31–300 belgi (PostgreSQL da
+#     String(30) → 500) — qabul; noto'g'ri `production_type` ("xyz") —
+#     qabul, oylik hisobotdan JIMGINA tushib qolardi; 21 belgili — PG 500;
+#   * sana 0001-yil, 1999-yil, `12345` (→ 1970-yil) — qabul.
+# `PUT /api/orders/{id}/agreed-amount` (`OrderAgreedUpdate`, faqat `ge=0`):
+#   * `Infinity` → 500 (SQLite da SAQLANARDI, JONLI PostgreSQL da 500 va
+#     `/logs` ga yozuv); `1e20` saqlanardi; `true` → 1 so'm (chegirma
+#     99.9 %); `"800"` → 800; 0 → chegirma 100 %, lekin qarz JAMI summadan.
+# Endi: ruxsat ro'yxati + qat'iy turlar (`_clean_val`) marshrutda HAM crud
+# ildizida HAM (17b/17c naqshi).
+_XARAJAT_KATEGORIYA_MAX = 30
+
+
+# kech93 (8-band) — foydalanuvchi, parol va ishlab chiqarish tanalari chegaralari.
+_LOGIN_MAX = 50                 # `users.username` String(50)
+_TOLIQ_ISM_MAX = 100            # `users.full_name` String(100)
+_PAROL_MIN = 6                  # parol almashtirishdagi mavjud qoida — endi yaratishda ham
+_PAROL_MAX_BELGI = 72
+# bcrypt 72 BAYTDAN keyingi qismini JIM tashlab yuboradi — HAQIQIY o'lchangan
+# (`work/probe8b.py` U2 / U3 / P5, bcrypt 4.2.0): 72 ta "A" + "X" parol bilan
+# yaratilgan foydalanuvchi 72 ta "A" + "Y" (BOSHQA parol) bilan ham kirdi; 40 ta
+# kirill harfli (80 bayt) parolda — 36 harf + ixtiyoriy dum bilan. Ya'ni
+# foydalanuvchi "uzun parol qo'ydim" deb o'ylaydi, aslida oxiri hisobga
+# olinmaydi. Endi 72 baytdan uzun parol ANIQ rad etiladi (jim kesish o'rniga).
+# Kirish (login) va mavjud xeshlarga TEGILMAYDI — faqat yangi parol qo'yish.
+_PAROL_MAX_BAYT = 72
+_QOPLAMA_KOEF_MAX = 100.0       # `production_schemas.ProductTypeCreate` `le=100` (ustun Numeric(5,2))
+_RETSEPT_QATOR_MAX = 500        # bitta retsept (BOM) qatorlari / tanlangan ixtiyoriy qatorlar
+
+
+def _faqat_kalitlar(data, ruxsat) -> dict:
+    """kech93 (8-band): xom JSON tanasida FAQAT ruxsat etilgan kalitlar bo'lsin
+    (qiymatlarni o'z funksiyasi tekshiradi). O'LCHANGAN: sovg'a davrini ochish /
+    bosqichni tahrirlash, material narxi / min qoldig'i marshrutlari noma'lum
+    kalitni JIM e'tiborsiz qoldirardi (200). Xabar `_clean_by_rules` bilan bir xil."""
+    if not isinstance(data, dict):
+        raise ValueError("Noto'g'ri so'rov")
+    notogri = sorted(str(k)[:40] for k in data if k not in ruxsat)
+    if notogri:
+        raise ValueError("Noma'lum maydon: " + ", ".join(notogri[:10]))
+    return data
+
+
+def _val_rules():
+    """17-band qoidalari: model (tana turi) → {maydon: qoida}."""
+    money = _ORDER_ITEM_MAX_MONEY
+    son = _UPD_SON_CHEGARA
+    matn = _UPD_MATN_CHEGARA
+    # kech93 (8-band): rol va ishlab chiqarish tanlovlari — ENUM lardan olinadi
+    # (qo'lda yozilgan ro'yxat emas: enum o'zgarsa, qoida ham o'zgaradi).
+    from models import UserRole as _UR
+    from production_models import (InputTemplate as _IT, PricingFormula as _PF,
+                                   BOMComponentType as _BCT,
+                                   ProductionSourceType as _PST)
+    rol = {r.value: r.value for r in _UR}
+    sotuv = {
+        "finished_product_id": ("id", False),
+        "quantity": ("son", False, True, son),
+        "unit_price": ("son", False, False, money),
+    }
+    return {
+        "Produce": {
+            "name": ("matn", True, 150),
+            "category": ("tanlov", False, _FP_KATEGORIYA),
+            # O'lchamlar: manfiy EMAS (0 — "berilmagan": UI \"Blok\" turida
+            # `length: _blokKerak || 0` yuboradi; hajm hisobi 0 ni e'tiborsiz
+            # qoldiradi). Manfiy o'lcham → manfiy hajm → penoplast yechilmasdi.
+            "width": ("son", True, False, son),
+            "thickness": ("son", True, False, son),
+            "length": ("son", True, False, son),
+            "quantity": ("son", True, False, son),
+            "is_coated": ("bool", False),
+            "penoplast_id": ("id", True),
+            "price_per_m3": ("son", True, False, money),
+            "unit_price": ("son", False, False, money),
+            "unit_price_for_volume": ("son", True, False, money),
+            "loy_kg": ("son", False, False, son),
+            "recipe_id": ("id", True),
+            "notes": ("matn", False, matn),
+        },
+        "StockAdjust": {
+            "quantity": ("son", False, True, son),
+            "reason": ("matn", False, matn),
+        },
+        "Loss": {
+            "finished_product_id": ("id", False),
+            "quantity": ("son", False, True, son),
+            "reason": ("matn", False, matn),
+            # kech53 (13-band, 1-qadam): ixtiyoriy brak bosqichi
+            "brak_bosqich": ("tanlov", True, _BRAK_BOSQICHI),
+            # kech56 (13-band, 7-qadam): ixtiyoriy sabab va javobgar hodim
+            "brak_sabab": ("tanlov", True, _BRAK_SABABI),
+            "brak_javobgar_id": ("id", True),
+        },
+        "ProductionBrak": {
+            "finished_product_id": ("id", False),
+            "brak_qty": ("son", False, True, son),
+            "notes": ("matn", False, matn),
+            # kech53 (13-band, 1-qadam): ixtiyoriy brak bosqichi
+            "brak_bosqich": ("tanlov", True, _BRAK_BOSQICHI),
+            # kech56 (13-band, 7-qadam): ixtiyoriy sabab va javobgar hodim
+            "brak_sabab": ("tanlov", True, _BRAK_SABABI),
+            "brak_javobgar_id": ("id", True),
+        },
+        # kech125 (zip 146 — EGASI QARORLARI 07.10 «Brak taqdiri»): brak yozilganda (`taqdir` kaliti — uch yo'l tanasida) va keyin
+        # o'zgartirishda (`…/taqdir` marshrutlari) BIR XIL tana. Tur / chegara — shu yerda; taqdirga bog'liq majburiy maydonlar va
+        # ortiqcha maydonlar — `brak_taqdir_tana` (brak miqdori va yo'li bilan).
+        "Taqdir": {
+            "taqdir": ("tanlov", False, _BRAK_TAQDIRI),
+            "joy": ("tanlov", True, _BRAK_TAQDIR_JOYI),
+            "materiallar": ("royxat", "TaqdirMaterial", 0, 10),
+            "ishlatildi": ("son", True, True, son),
+            "nomi": ("matn", False, 150),
+            "miqdor": ("son", True, True, son),
+            "birlik": ("matn", False, 20),
+            "eni": ("son", True, False, son),
+            "qalinligi": ("son", True, False, son),
+            "narx": ("son", True, False, money),
+        },
+        "TaqdirMaterial": {
+            "inventory_id": ("id", True),
+            "retsept_id": ("id", True),
+            "miqdor": ("son", False, True, son),
+        },
+        "Sale": dict(sotuv, **{
+            "buyer_name": ("matn", False, 150),
+            "payment_method": ("tanlov", False, _TOLOV_USULI),
+            "notes": ("matn", False, matn),
+            "master_id": ("id", True),
+            "confirm_below_cost": ("bool", False),
+        }),
+        "SaleBatchItem": dict(sotuv),
+        "SaleBatch": {
+            "items": ("royxat", "SaleBatchItem", 1, 200),
+            "buyer_name": ("matn", False, 150),
+            "payment_method": ("tanlov", False, _TOLOV_USULI),
+            "notes": ("matn", False, matn),
+            "agreed_amount": ("son", True, False, money),
+            "master_id": ("id", True),
+            "confirm_below_cost": ("bool", False),
+        },
+
+        # ── 17b (2026-09-21): ombor kirimi, kirim hujjati, retseptlar ──
+        # Maydonlar `suppliers.html` (632), `supplier_receive.html` (861) va
+        # `recipes.html` (395/408) YUBORADIGAN tanalarga AYNAN mos: UI ning
+        # birorta qonuniy so'rovi rad etilmaydi.
+        "Purchase": {
+            "quantity": ("son", False, True, son),
+            "price_per_unit": ("son", False, True, money),
+            "notes": ("matn", False, matn),
+            "supplier_id": ("id", True),
+            # Server `is_credit` ni O'ZI hisoblaydi (main.py) — tanadagisi
+            # e'tiborsiz qoladi, lekin sxemada bor, shuning uchun turi
+            # tekshiriladi.
+            "is_credit": ("bool", False),
+            "paid_now": ("son", True, False, money),
+            "transport_cost": ("son", True, False, money),
+            "transport_payer": ("tanlov", True, _TRANSPORT_TOLOVCHI),
+            # Penoplast uchun "1 blok necha m³" — MUSBAT bo'lishi shart.
+            # `Infinity` bu yerdan o'tib, `/api/penoplasts` sahifasini
+            # BUTUNLAY buzardi (o'lchandi: 500 va qiymat SAQLANARDI).
+            # UI penoplast bo'lmasa `null` yuboradi.
+            "volume_per_unit": ("son", True, True, son),
+            "payment_due_date": ("sana", True),
+            "is_opening_stock": ("bool", False),
+        },
+        "ReceiptItem": {
+            "inventory_id": ("id", False),
+            "quantity": ("son", False, True, son),
+            "price_per_unit": ("son", False, True, money),
+            "volume_per_unit": ("son", True, True, son),
+            "is_opening_stock": ("bool", False),
+            "notes": ("matn", False, matn),
+        },
+        "Receipt": {
+            "items": ("royxat", "ReceiptItem", 1, 200),
+            "supplier_id": ("id", True),
+            # `inventory_receipts.document_number` — String(50).
+            # 500 belgilik hujjat raqami PostgreSQL da COMMIT da yiqilardi.
+            "document_number": ("matn", False, 50),
+            "paid_now": ("son", True, False, money),
+            "transport_cost": ("son", True, False, money),
+            "tushirish_cost": ("son", True, False, money),
+            "yuklash_cost": ("son", True, False, money),
+            "boshqa_cost": ("son", True, False, money),
+            "add_to_cost": ("bool", False),
+            "notes": ("matn", False, matn),
+            "production_type": ("tanlov", True, _ISHLAB_CHIQARISH_TURI),
+            # kech117 (A2): korxona yo'nalishi (`models.Yonalish`); NULL — «Umumiy». Korxonasi — `yonalish_tanlovi`.
+            "yonalish_id": ("id", True),
+            # kech115 (G4-03): kirim sanasi va qarz muddati (sana haqiqiyligi shu yerda, chegaralar —
+            # `kirim_sanalari`).
+            "receipt_date": ("sana", True),
+            "payment_due_date": ("sana", True),
+        },
+        "RecipeIngredient": {
+            "inventory_id": ("id", False),
+            "quantity_kg": ("son", False, True, son),
+        },
+        # 17c (2026-09-21): ta'minotchiga to'lov — `suppliers.html` 906 va
+        # `supplier_receive.html` 518 AYNAN shu to'rt kalitni yuboradi.
+        # `supplier_id` tanada bo'lishi mumkin (UI yuboradi), lekin marshrut
+        # uni YO'L parametridan oladi.
+        "SupplierPayment": {
+            "supplier_id": ("id", True),
+            "amount": ("son", False, True, money),
+            "notes": ("matn", False, matn),
+            "confirm_overpay": ("bool", False),
+        },
+        "RecipeBody": {
+            "name": ("matn", True, 100),
+            "batch_size_kg": ("son", True, True, son),
+            "notes": ("matn", False, matn),
+            # Kamida 1 ta tarkibiy qism — UI ham shuni talab qiladi
+            # ("Kamida bitta tarkibiy qism kiriting!"). Ilgari bo'sh
+            # ro'yxat bilan PUT yuborilsa retsept TARKIBI BUTUNLAY
+            # o'chib ketardi (o'lchandi).
+            "ingredients": ("royxat", "RecipeIngredient", 1, 100),
+        },
+        # 17e (2026-09-22): kunlik xarajat tranzaksiyasi — `finance.html`
+        # (qo'shish VA tahrirlash), `kunlik_xarajat.html`, `debts.html`
+        # (majburiyatni to'lash) AYNAN shu besh kalitdan foydalanadi.
+        # `expense_transactions`: category String(30), amount Numeric(12,2),
+        # notes Text, production_type String(20). Kategoriya ERKIN matn —
+        # `debts.html` majburiyat KODINI (≤ 30) kategoriya qilib yuboradi.
+        "ExpenseTransaction": {
+            "date": ("sana", True),
+            "category": ("matn", True, _XARAJAT_KATEGORIYA_MAX),
+            "amount": ("son", False, True, money),
+            "notes": ("matn", False, matn),
+            "production_type": ("tanlov", True, _ISHLAB_CHIQARISH_TURI),
+            # kech117 (A2): korxona yo'nalishi (`models.Yonalish`); NULL — «Umumiy». Korxonasi — `yonalish_tanlovi`.
+            "yonalish_id": ("id", True),
+        },
+        # 17e: buyurtmaning kelishilgan summasi (`orders.html`
+        # `editAgreedAmount` — faqat shu bitta kalit). MUSBAT: 0 ikki xil
+        # talqin qilinardi (chegirma 100 %, lekin `_update_order_payment_status`
+        # 0 ni "berilmagan" deb JAMI summaga qaytaradi); UI ham 0 ni rad etadi.
+        "OrderAgreed": {
+            "agreed_amount": ("son", False, True, money),
+        },
+
+        # ── 17f (2026-09-22) ──
+        # Kirish transporti (`POST /api/transport-expenses`). Hech bir sahifa
+        # bu marshrutga YOZMAYDI (faqat API) — shuning uchun qoidalar ustunlardan:
+        # amount Numeric(12,2), materials_note String(255), notes Text,
+        # production_type String(20) (kunlik xarajat bilan bir xil tanlov).
+        "TransportExpense": {
+            "amount": ("son", False, True, money),
+            "materials_note": ("matn", False, 255),
+            "notes": ("matn", False, matn),
+            "production_type": ("tanlov", True, _ISHLAB_CHIQARISH_TURI),
+            # kech117 (A2): korxona yo'nalishi (`models.Yonalish`); NULL — «Umumiy». Korxonasi — `yonalish_tanlovi`.
+            "yonalish_id": ("id", True),
+        },
+        # Mijoz to'lovi (`POST /api/payments`) — `orders.html` (to'lov oynasi
+        # va zaklat), `debts.html` (qarzni yopish) AYNAN shu kalitlarni
+        # yuboradi. Ilgari noto'g'ri `payment_type` / `payment_method` JIMGINA
+        # "partial" / "naqd" ga aylanardi, `true` → 1 so'mlik to'lov,
+        # `"5"` → 5 so'm, `order_id: true` → 1-buyurtma; PostgreSQL da
+        # `Infinity` / `1e20` takror-tekshiruv so'rovida 500 (O'LCHANGAN).
+        "Payment": {
+            "order_id": ("id", False),
+            "amount": ("son", False, True, money),
+            "payment_type": ("tanlov", True, _TOLOV_TURI),
+            "payment_method": ("tanlov", True, _TOLOV_USULI_MIJOZ),
+            "received_by": ("matn", False, 100),
+            "notes": ("matn", False, matn),
+            "confirm_overpay": ("bool", False),
+        },
+        # Sovg'a davri bosqichi (`kpi.html` — faqat shu ikki kalit).
+        # `gift_period_tiers.gift_name` String(100), threshold Numeric(12,2).
+        "GiftTier": {
+            "gift_name": ("matn", True, 100),
+            "threshold_amount": ("son", False, True, money),
+        },
+        "GiftPeriodOpen": {
+            "tiers": ("royxat", "GiftTier", 1, 50),
+        },
+        # 17g (2026-09-22) — qaytarish (`POST /api/returns`). `returns.html`
+        # (qaytarish oynasi va "brak" oynasi) AYNAN shu kalitlarni yuboradi.
+        # HAQIQIY PostgreSQL da O'LCHANGAN (asl kod = 17f): miqdor manfiy / 0 /
+        # `1e20` — saqlanardi; `Infinity` / `NaN` — SAQLANARDI va tayyor
+        # mahsulot qoldig'ini cheksiz / "son emas" qilib qo'yardi (javob 500,
+        # keyin qoldiqni JSON ga aylantirib bo'lmaydi); summa `NaN` — bazaga
+        # "NaN" bo'lib yozilardi; `Infinity` / `1e20` — 500; nom 151 belgi,
+        # birlik 21 belgi — 500; `true` → 1, `"2"` matni — qabul.
+        # `ReturnItem`: item_name String(150), unit String(20), refund Numeric(12,2).
+        "Return": {
+            "order_id": ("id", False),
+            "order_item_id": ("id", True),
+            "item_name": ("matn", True, 150),
+            "quantity": ("son", False, True, son),
+            "unit": ("matn", False, 20),
+            "reason": ("tanlov", False, _QAYTARISH_SABABI),
+            "refund_amount": ("son", True, False, money),
+            "to_stock": ("bool", False),
+            "notes": ("matn", False, matn),
+            "coating_applied": ("bool", False),
+            "gips_kg_used": ("son", True, False, son),
+            # kech53 (13-band, 1-qadam): ixtiyoriy brak bosqichi (faqat "Brak")
+            "brak_bosqich": ("tanlov", True, _BRAK_BOSQICHI),
+            # kech56 (13-band, 7-qadam): ixtiyoriy sabab va javobgar hodim (faqat "Brak")
+            "brak_sabab": ("tanlov", True, _BRAK_SABABI),
+            "brak_javobgar_id": ("id", True),
+        },
+        # 17g — yetkazish (`POST /api/deliveries`). `orders.html` ("Yetkazish"
+        # oynasi va "Bir yo'la to'liq topshirish") AYNAN shu kalitlarni
+        # yuboradi; `confirm_overpay` — 409 tasdig'idan keyingi qayta yuborish.
+        # O'LCHANGAN: to'lov / transport `Infinity` / `1e20` — 500; to'lov `true`
+        # → 1 so'm, `"7"` matni; noma'lum usul JIMGINA "naqd"; qabul qiluvchi
+        # 101, tashuvchi 151, to'lovchi 21 belgi — 500.
+        # `Delivery`: received_by String(100), transport_carrier String(150),
+        # transport_payer String(20), transport_cost Numeric(12,2).
+        "Delivery": {
+            "order_id": ("id", False),
+            # kech25: chegara 500 edi — O'LCHANGAN: 501 detalli buyurtmada
+            # "Tayyor" belgisi (servisdagi avtomatik yetkazish) 500 xato,
+            # "bir yo'la to'liq topshirish" 400 berardi (17f da ishlardi;
+            # buyurtma detallari soni cheklanmagan). Bir detal ikki marta
+            # berilmagani uchun (pastda) haqiqiy yetkazish qatorlari soni
+            # buyurtma detallari sonidan oshmaydi; bu chegara faqat
+            # bema'ni tanaga qarshi.
+            "items": ("royxat", "DeliveryItem", 1, 100_000),
+            "received_by": ("matn", False, 100),
+            "notes": ("matn", False, matn),
+            "transport_carrier": ("matn", False, 150),
+            "transport_cost": ("son", True, False, money),
+            "transport_payer": ("tanlov", True, _YETKAZISH_TOLOVCHI),
+            "payment_amount": ("son", True, False, money),
+            "payment_method": ("tanlov", True, _TOLOV_USULI_MIJOZ),
+            "confirm_overpay": ("bool", False),
+        },
+        "DeliveryItem": {
+            "order_item_id": ("id", False),
+            "quantity": ("son", False, True, son),
+        },
+
+        # ── kech93 (8-band) — tanasi ilgari QAT'IY tekshirilmagan marshrutlar ──
+        # HAQIQIY PostgreSQL 16 da O'LCHANGAN (`work/probe8.py`, `work/probe8b.py`,
+        # asl kod = zip 86). Foydalanuvchi yaratish (`POST /api/users`;
+        # `users.html` AYNAN shu to'rt kalitni yuboradi): kalit yo'q / `true` /
+        # son / NaN → 500; login 51 belgi, to'liq ism 101 belgi → PostgreSQL 500
+        # (SQLite jim saqlardi); login `''` yoki faqat bo'shliq / tab → BO'SH
+        # loginli foydalanuvchi yaratilardi; parol 1 belgi → qabul (almashtirishda
+        # ≥ 6 edi); noma'lum kalit (`is_platform_admin`, `company_id`) — jim.
+        "UserCreate": {
+            "username": ("matn", True, _LOGIN_MAX),
+            "password": ("matn", True, _PAROL_MAX_BELGI),
+            "full_name": ("matn", False, _TOLIQ_ISM_MAX),
+            "role": ("tanlov", False, rol),
+            # kech118 (ROLLAR): korxona roli (berilsa — `role` e'tiborga olinmaydi, rol turi roldan olinadi)
+            "rol_id": ("id", False),
+        },
+        # Parolni almashtirish (`users.html`: `new_password`, o'z parolida
+        # `current_password` ham). O'LCHANGAN: `new_password` `true` / son /
+        # ro'yxat / `null` → 500; o'z parolida `current_password` son / ro'yxat /
+        # `true` → 500 (bcrypt `.encode()`); noma'lum kalit — jim.
+        # `current_password` — MAVJUD parol (72 baytdan uzun eski parol ham
+        # kiritila olsin), shuning uchun faqat umumiy matn chegarasi.
+        "UserPassword": {
+            "new_password": ("matn", True, _PAROL_MAX_BELGI),
+            "current_password": ("matn", False, matn),
+        },
+        # Sovg'a davriga usta qo'shish (`kpi.html` — faqat `master_id`, butun
+        # son). O'LCHANGAN: `true` / "1" / 1.0 / 2**31 → PostgreSQL 500 (SQLite
+        # da `true` = 1-usta!); noma'lum kalit — jim.
+        "GiftAddMaster": {
+            "master_id": ("id", False),
+        },
+        # Davrni yopish (`kpi.html` — faqat `force`: true / false). O'LCHANGAN:
+        # `{"force": "false"}` → `bool("false")` = True va `{"force": 1}` →
+        # MAJBURIY yopish (sovg'aga yetgan ustalar sovg'asiz qolardi).
+        "GiftClose": {
+            "force": ("bool", True),
+        },
+        # Ishlab chiqarish (`production.html`). O'LCHANGAN: pydantic "lax" —
+        # `true` → 1, "yes" → True, noma'lum kalit jim (`company_id`,
+        # `is_active`, `status`); tanlov maydonlariga ixtiyoriy matn ('qalbaki');
+        # PostgreSQL da narx 1e20 / `Infinity` / 9 999 999 999.995 → 500,
+        # retsept partiyasi `Infinity` BAZAGA yozilardi; faqat bo'shliqli tur /
+        # retsept nomi → '' saqlanardi; qoplama koeffitsiyenti 0.001 → 0.00
+        # (qoplamali narx × 0); qat'iy narx 0.001 → 0.00; id 2**31 va yo'q
+        # material → PostgreSQL 500 (SQLite jim bog'lamsiz qator saqlardi).
+        # Ustunlar: `product_types` name String(150), unit String(20),
+        # fixed_unit_price Numeric(12,2), coating_price_multiplier Numeric(5,2);
+        # `boms` variant_name String(100), batch_quantity Float; `bom_items`
+        # quantity / scrap / percentage Float, fixed_cost Numeric(12,2);
+        # `production_orders` quantity Float.
+        "ProductType": {
+            "name": ("matn", True, 150),
+            "unit": ("matn", True, 20),
+            "input_template": ("tanlov", False, {m.value: m.value for m in _IT}),
+            "pricing_formula": ("tanlov", False, {m.value: m.value for m in _PF}),
+            "fixed_unit_price": ("son", True, False, money),
+            "supports_coating": ("bool", False),
+            "coating_price_multiplier": ("son", True, True, _QOPLAMA_KOEF_MAX),
+            "notes": ("matn", False, matn),
+            # kech117 (A2): mahsulot turi yo'nalishi (UI da majburiy; API da NULL — «Belgilanmagan»)
+            "yonalish_id": ("id", True),
+        },
+        "BOMItem": {
+            "inventory_id": ("id", False),
+            "component_type": ("tanlov", False, {m.value: m.value for m in _BCT}),
+            "quantity": ("son", False, True, son),
+            "scrap_factor_percent": ("son", False, False, 100.0),
+            "is_optional": ("bool", False),
+            "is_coating": ("bool", False),
+            "fixed_cost_per_unit": ("son", True, False, money),
+            "percentage_cost": ("son", True, False, 1000.0),
+            "notes": ("matn", False, matn),
+        },
+        # Retsept: kamida bitta qator (`production.html` ham "Kamida bitta
+        # komponent qo'shing" deb to'xtatadi; O'LCHANGAN: server bo'sh retseptni
+        # qabul qilardi va undan 0 tannarxli mahsulot "ishlab chiqarilardi").
+        "BOM": {
+            "product_type_id": ("id", False),
+            "variant_name": ("matn", False, 100),
+            "batch_quantity": ("son", False, True, son),
+            "notes": ("matn", False, matn),
+            "items": ("royxat", "BOMItem", 1, _RETSEPT_QATOR_MAX),
+        },
+        "ProductionOrder": {
+            "product_type_id": ("id", False),
+            "bom_id": ("id", False),
+            "quantity": ("son", False, True, son),
+            "source_type": ("tanlov", False, {m.value: m.value for m in _PST}),
+            "source_order_id": ("id", True),
+            "source_order_item_id": ("id", True),
+            "selected_optional_bom_item_ids": ("idlar", _RETSEPT_QATOR_MAX),
+            "notes": ("matn", False, matn),
+        },
+    }
+
+
+# model → {majburiy maydon: eng kam uzunlik (bo'shliqsiz, matn uchun) yoki None}
+_VAL_MAJBURIY = {
+    "Produce": {"name": 2},
+    "StockAdjust": {"quantity": None},
+    "Loss": {"finished_product_id": None, "quantity": None},
+    "ProductionBrak": {"finished_product_id": None, "brak_qty": None},
+    "Sale": {"finished_product_id": None, "quantity": None, "unit_price": None},
+    "SaleBatchItem": {"finished_product_id": None, "quantity": None, "unit_price": None},
+    "SaleBatch": {"items": None},
+    # 17b (2026-09-21)
+    "Purchase": {"quantity": None, "price_per_unit": None},
+    "ReceiptItem": {"inventory_id": None, "quantity": None, "price_per_unit": None},
+    "Receipt": {"items": None},
+    "RecipeIngredient": {"inventory_id": None, "quantity_kg": None},
+    "RecipeBody": {"name": 1, "ingredients": None},
+    # 17c (2026-09-21)
+    "SupplierPayment": {"amount": None},
+    # 17e (2026-09-22)
+    "ExpenseTransaction": {"category": 1, "amount": None},
+    "OrderAgreed": {"agreed_amount": None},
+    # 17f (2026-09-22)
+    "TransportExpense": {"amount": None},
+    "Payment": {"order_id": None, "amount": None},
+    "GiftTier": {"gift_name": 1, "threshold_amount": None},
+    "GiftPeriodOpen": {"tiers": None},
+    # 17g (2026-09-22)
+    "Return": {"order_id": None, "item_name": 1, "quantity": None, "reason": None},
+    "Delivery": {"order_id": None, "items": None},
+    "DeliveryItem": {"order_item_id": None, "quantity": None},
+    # kech93 (8-band). `UserPassword` bu yerda YO'Q — kalit bo'lmasa ham
+    # xabar avvalgidek "Parol kamida 6 belgi" (`_clean_val` oxirida).
+    "UserCreate": {"username": 1, "password": None},
+    "GiftAddMaster": {"master_id": None},
+    "ProductType": {"name": 1, "unit": 1, "input_template": None, "pricing_formula": None},
+    "BOMItem": {"inventory_id": None, "quantity": None},
+    "BOM": {"product_type_id": None, "batch_quantity": None, "items": None},
+    "ProductionOrder": {"product_type_id": None, "bom_id": None, "quantity": None,
+                        "source_type": None},
+}
+
+
+def _takror_material_yoq(qatorlar, kalit: str, ro_yxat_nomi: str,
+                         nima: str = "material"):
+    """17b (2026-09-21): bitta materialni ro'yxatda IKKI MARTA ko'rsatishni
+    rad etadi.
+
+    Retseptda bu ANIQ xato: `services.deduct_loy_ingredients` har qatorni
+    alohida ayiradi, ya'ni bir material ikki qatorda bo'lsa ombordan IKKI
+    BARAVAR yechiladi, retsept oynasida esa bu ikki alohida qator bo'lib
+    ko'rinadi (o'lchandi: 200 va ikkala qator ham saqlanardi).
+
+    ⚠ Kirim HUJJATIDA (`Receipt`) bu ATAYLAB tekshirilmaydi: bir xil
+    materialni bitta hujjatda ikki xil narxda olish MUMKIN (ikki partiya),
+    va har qator o'z o'rtacha narxini to'g'ri hisoblaydi."""
+    korilgan = set()
+    for i, q in enumerate(qatorlar):
+        v = q.get(kalit) if isinstance(q, dict) else getattr(q, kalit, None)
+        if v in korilgan:
+            raise ValueError(f"'{ro_yxat_nomi}' {i + 1}-qator: bu {nima} "
+                             f"ro'yxatda allaqachon bor")
+        korilgan.add(v)
+
+
+def _clean_val(model: str, data) -> dict:
+    """17-band tanasini QAT'IY tekshiradi va tozalangan nusxasini qaytaradi.
+    `data` — xom JSON (marshrut) yoki `model_dump(exclude_unset=True)`
+    (crud ildizi). Noma'lum kalit, noto'g'ri tur, NaN / cheksizlik, manfiy
+    yoki chegaradan katta son, ustun sig'imidan uzun matn, noto'g'ri tanlov —
+    `ValueError` (marshrut → 400), hech narsa yozilmaydi."""
+    toza = _clean_by_rules(_val_rules()[model], {}, data, "Noma'lum maydon: ")
+    for key, eng_kam in _VAL_MAJBURIY.get(model, {}).items():
+        if toza.get(key) is None:
+            raise ValueError(f"'{key}' kiritilishi shart")
+        if eng_kam and len(toza[key].strip()) < eng_kam:
+            raise ValueError(f"'{key}' kamida {eng_kam} belgidan iborat bo'lishi kerak")
+    # 17b: retsept tarkibida bir material IKKI MARTA bo'lmasin (kirim
+    # hujjatida — ataylab RUXSAT, sababi `_takror_material_yoq` izohida).
+    if model == "RecipeBody":
+        _takror_material_yoq(toza.get("ingredients") or [], "inventory_id",
+                             "ingredients")
+    # 17g (kech25, 2026-09-22): yetkazishda BIR detal ikki qatorda bo'lmasin.
+    # O'LCHANGAN (asl kod = 17f va 17g WIP): 10 metrlik detal [6, 6] qatorlar
+    # bilan berilganda 200 qaytib, 12 metr topshirilgan deb yozilardi —
+    # `create_delivery` har qatorni detalning bazadagi qoldig'i bilan ALOHIDA
+    # solishtiradi (shu so'rovdagi boshqa qatorlarni hisobga olmaydi).
+    # `orders.html` har detalni bir marta yuboradi; servis ("Tayyor")
+    # ham har detal uchun bitta qator tuzadi.
+    if model == "Delivery":
+        _takror_material_yoq(toza.get("items") or [], "order_item_id", "items",
+                             nima="detal")
+    # 17b: miqdor va narx ALOHIDA chegaradan o'tsa ham, KO'PAYTMASI
+    # `InventoryPurchase.total_amount` (Numeric(12,2)) sig'imidan oshishi
+    # mumkin (o'lchandi: 1e9 × 1e6 = 1e15 → 200, PostgreSQL da COMMIT da
+    # 500). Shuning uchun jami summa ham tekshiriladi.
+    if model in ("Purchase", "ReceiptItem"):
+        _miq, _nar = toza.get("quantity"), toza.get("price_per_unit")
+        if _miq is not None and _nar is not None:
+            # 17g: jami bazaga YAXLITLANGAN narxdan hisoblanib yoziladi
+            # (`_xarid_narx_jami`), shuning uchun sig'im ham SHU jamiga
+            # nisbatan tekshiriladi — xom ko'paytma sig'im ichida bo'lsa-da,
+            # yaxlitlangan narx bilan oshib ketishi mumkin (2 ×
+            # 4 999 999 999.995 → narx 5 000 000 000.00, jami 10 000 000 000.00).
+            if _miq * _nar > _ORDER_ITEM_MAX_MONEY or \
+                    _xarid_narx_jami(_miq, _nar)[1] > _ORDER_ITEM_MAX_MONEY:
+                raise ValueError("'quantity' × 'price_per_unit' juda katta "
+                                 "(jami summa sig'imdan oshdi)")
+    # 17f: 0 ruxsat etilgan, lekin hosila yozuv yaratadigan pul maydonlari —
+    # 0 yoki kamida 1 tiyin (sababi `_NOL_YOKI_TIYIN` izohida).
+    for _nk in _NOL_YOKI_TIYIN.get(model, ()):
+        _nv = toza.get(_nk)
+        if _nv is not None and _nv > 0 and round(_nv, 2) < _PUL_ENG_KAM:
+            raise ValueError(f"'{_nk}' 0 yoki kamida {_PUL_ENG_KAM} bo'lishi kerak "
+                             "(1 tiyindan kichik summa bazada 0 ga aylanadi)")
+    # 17b: "sana" qoidasi matnni `datetime` ga o'giradi, lekin bu yo'lda
+    # `schemas.StockPurchase.payment_due_date` — MATN (`Optional[str]`) va
+    # `_purchase_stock_no_commit` uni `strptime(..., "%Y-%m-%d")` bilan
+    # o'qiydi. Shuning uchun tekshiruvdan keyin AYNAN shu shaklga
+    # qaytariladi (sana haqiqiyligi allaqachon tasdiqlangan).
+    if model == "Purchase" and isinstance(toza.get("payment_due_date"), datetime):
+        toza["payment_due_date"] = toza["payment_due_date"].strftime("%Y-%m-%d")
+    # kech115 (G4-03): kirim hujjatining sanalari ham — `schemas.InventoryReceiptCreate` da MATN (`kirim_sanalari`
+    # ularni `%Y-%m-%d` bilan o'qiydi).
+    if model == "Receipt":
+        for _sk in ("receipt_date", "payment_due_date"):
+            if isinstance(toza.get(_sk), datetime):
+                toza[_sk] = toza[_sk].strftime("%Y-%m-%d")
+    # kech93 (8-band): parol qoidalari — yaratishda VA almashtirishda BIR XIL
+    # (eng kami 6 belgi — avval faqat almashtirishda edi; eng ko'pi 72 bayt —
+    # sababi `_PAROL_MAX_BAYT` izohida).
+    if model in ("UserCreate", "UserPassword"):
+        _pk = "password" if model == "UserCreate" else "new_password"
+        _parol = toza.get(_pk)
+        if _parol is None or len(_parol) < _PAROL_MIN:
+            raise ValueError(f"Parol kamida {_PAROL_MIN} belgi")
+        if len(_parol.encode("utf-8")) > _PAROL_MAX_BAYT:
+            raise ValueError(f"Parol juda uzun: ko'pi bilan {_PAROL_MAX_BAYT} bayt "
+                             f"(lotin harflarida {_PAROL_MAX_BAYT} belgi, kirill harflarida "
+                             f"{_PAROL_MAX_BAYT // 2} belgi)")
+    # Login bazaga chetidagi bo'shliqlarsiz yoziladi (`auth.create_user` va
+    # login formasi ham `strip()` qiladi) — chegara ham shu qiymatga.
+    if model == "UserCreate":
+        toza["username"] = toza["username"].strip()
+    if model == "ProductType":
+        _koef = toza.get("coating_price_multiplier")
+        # Numeric(5,2): 0.005 dan kichik koeffitsiyent bazada 0.00 bo'ladi.
+        if _koef is not None and round(_koef, 2) < _PUL_ENG_KAM:
+            raise ValueError(f"'coating_price_multiplier' kamida {_PUL_ENG_KAM} bo'lishi kerak "
+                             "(bazada 2 xonagacha saqlanadi — kichigi 0 ga aylanadi)")
+        # Sxemadagi `_qoplama_tekshir` bilan bir xil qoida — bu yerda o'qiladigan
+        # matn bilan (sxema 422 ro'yxati UI da "[object Object]" bo'lib chiqardi).
+        if toza.get("supports_coating") and _koef is None:
+            raise ValueError("Qoplama yoqilgan — qoplama narx koeffitsiyentini kiriting "
+                             "(masalan 2 yoki 2.5)")
+    # Retsept nomi: bo'sh / faqat bo'shliq — "Standart" (bo'sh matn ilgari ham
+    # shunday edi; faqat bo'shliqli nom esa '' bo'lib saqlanardi — O'LCHANGAN).
+    if model == "BOM":
+        toza["variant_name"] = (toza.get("variant_name") or "").strip() or "Standart"
+    return toza
+
+
+def _val_dump(data, model: str) -> dict:
+    """crud ildizi uchun: tana → faqat BERILGAN maydonlar lug'ati.
+    pydantic obyekt — `model_dump(exclude_unset=True)`; boshqa obyekt
+    (ichki chaqiruv / test) — `model` qoidalaridagi atributlari; ichki
+    ro'yxat qatorlari ham lug'atga aylantiriladi."""
+    if isinstance(data, dict):
+        return data
+    if hasattr(data, "model_dump"):
+        return data.model_dump(exclude_unset=True)
+    qoidalar = _val_rules()[model]
+    out = {}
+    for k, q in qoidalar.items():
+        if not hasattr(data, k):
+            continue
+        v = getattr(data, k)
+        if q[0] == "royxat" and isinstance(v, list):
+            v = [_val_dump(el, q[1]) for el in v]
+        out[k] = v
+    return out
+
+
+def _penoplastmi(item) -> bool:
+    """Material penoplastmi — `services.get_default_penoplast` bilan BIR XIL
+    ta'rif: `is_penoplast` belgisi YOKI nomida \"penoplast\" (belgisi
+    qo'yilmagan eski yozuvlar uchun tizimning o'zi shunday hisoblaydi)."""
+    if getattr(item, "is_penoplast", False):
+        return True
+    return "penoplast" in (getattr(item, "item_name", "") or "").lower()
+
+
+def _fp_tayyormi(fp) -> bool:
+    """Mahsulot OMBORDAN CHIQADIGAN amal (sotish, savatcha, zaxiradan
+    kamaytirish) uchun tayyormi. Jarayondagi (IN_PROGRESS) — yo'q: UI ham
+    bu tugmalarni faqat tayyoriga beradi (`finished.html` — jarayondagida
+    faqat \"✓ Sotuv\"). Ishlab chiqarish amallari (qo'shish, ishlab chiqarish
+    braki) jarayondagiga ham RUXSAT — ular ishlab chiqarishning o'zi."""
+    from models import ProductionStatus
+    # UI bilan AYNAN bir xil: `inProgress = source === 'produced' &&
+    # production_status === 'in_progress'`. Qaytarilgan (RETURNED) mahsulot
+    # holati belgilanmay yaratiladi (bazada standart IN_PROGRESS) — u doim
+    # sotiladi.
+    return not (fp.source == StockSource.PRODUCED
+                and fp.production_status == ProductionStatus.IN_PROGRESS)
+
+
+_FP_JARAYONDA_XABAR = "Mahsulot hali ishlab chiqarilmoqda — avval \"Tayyor\" deb belgilang"
+
+# kech114 (K114-1, O'LCHANGAN — `work/k114/probe_mrp_tm.py`, asl `592a2e3`, SQLite = PG): «Tayyor mahsulotlar»
+# sahifasida JARAYONDAGI MRP mahsuloti qatorida «✓ Sotuvga tayyor» (`complete_production`) va «✕ Bekor qilish»
+# (`DELETE /api/finished/{id}`) bor edi — ikkalasi ham «Ishlab chiqarish» bo'limini CHETLAB o'tardi. MRP da xomashyo
+# ishlab chiqarish «Yakunlash»ida yechiladi va tannarx o'shanda yoziladi: «Sotuvga tayyor» TM ni tannarx 0 bilan
+# sotuvga chiqarardi (10 qop, 5 tasi 40 000 dan sotildi — foyda 200 000, aslida 168 500; keyin «Yakunlash» 63 000
+# tannarxni qolgan 5 qopga yozardi — 1 qop tannarxi 2 barobar), «Bekor qilish» TM ni o'chirardi, ishlab chiqarish
+# «jarayonda» qolardi va keyingi «Yakunlash» 63 000 so'mlik xomashyoni yechib, omborga HECH NARSA kiritmasdi.
+# Endi MRP mahsuloti (`category == "dynamic_bom"` — faqat `production_service.start_production_order` yaratadi)
+# holati faqat «Ishlab chiqarish» bo'limida o'zgaradi; jarayonda sotish / kamaytirish xabari ham o'sha yerga yo'llaydi.
+_MRP_JARAYON_XABAR = ("Bu mahsulot «Ishlab chiqarish» bo'limida ishlab chiqarilmoqda — uni o'sha yerda «Yakunlash» "
+                      "(xomashyo shunda yechiladi, tannarx yoziladi) yoki «Bekor qilish» kerak")
+
+
+def _mrp_tm_mi(fp) -> bool:
+    """MRP (Ishlab chiqarish bo'limi) yaratgan tayyor mahsulotmi — kech114 (K114-1)."""
+    return (getattr(fp, "category", None) or "") == "dynamic_bom"
+
+
+def _jarayonda_xabari(fp) -> str:
+    """Jarayondagi mahsulotdan ombordan chiqadigan amal rad etilganda — qayerda tugatilishini aytadi (kech114)."""
+    return _MRP_JARAYON_XABAR if _mrp_tm_mi(fp) else _FP_JARAYONDA_XABAR
+
+
+def _clean_order_item_update(item_data) -> dict:
+    """Detal tahriri tanasini tekshiradi va tozalangan nusxasini qaytaradi.
+
+    Noma'lum yoki ruxsat etilmagan kalit, noto'g'ri tur yoki chegara
+    tashqarisidagi qiymat — `ValueError` (marshrut uni 400 ga aylantiradi).
+    Hech narsa yozilmasdan OLDIN chaqiriladi."""
+    _son = _json_son
+    if not isinstance(item_data, dict):
+        raise ValueError("Noto'g'ri so'rov")
+    notogri = sorted(str(k)[:40] for k in item_data
+                     if k not in _ORDER_ITEM_UPDATE_FIELDS)
+    if notogri:
+        raise ValueError("Bu maydonni o'zgartirib bo'lmaydi: " + ", ".join(notogri[:10]))
+
+    toza = {}
+    for key, value in item_data.items():
+        if key == "name":
+            if not isinstance(value, str) or len(value.strip()) < 2:
+                raise ValueError("Detal nomi kamida 2 belgi bo'lishi kerak")
+            toza[key] = value.strip()
+        elif key == "category":
+            if value is not None and not isinstance(value, str):
+                raise ValueError("'category' matn bo'lishi kerak")
+            toza[key] = value
+        elif key == "notes":
+            if value is not None and not isinstance(value, str):
+                raise ValueError("'notes' matn bo'lishi kerak")
+            toza[key] = value
+        elif key == "is_coated":
+            if not isinstance(value, bool):
+                raise ValueError("'is_coated' true yoki false bo'lishi kerak")
+            toza[key] = value
+        elif key == "penoplast_id":
+            if value is None:
+                toza[key] = None
+            elif isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+                raise ValueError("'penoplast_id' musbat butun son bo'lishi kerak")
+            else:
+                toza[key] = value
+        elif key in ("width", "thickness", "length"):
+            toza[key] = _son(key, value, bosh_mumkin=True, musbat=False)
+        elif key == "quantity":
+            toza[key] = _son(key, value, bosh_mumkin=False, musbat=True)
+        elif key == "unit_price":
+            toza[key] = _son(key, value, bosh_mumkin=False, musbat=False,
+                             chegara=_ORDER_ITEM_MAX_MONEY)
+        elif key in ("unit_price_for_volume", "price_per_m3"):
+            toza[key] = _son(key, value, bosh_mumkin=True, musbat=False,
+                             chegara=_ORDER_ITEM_MAX_MONEY)
+    return toza
+
+
+def update_order_item(db: Session, item_id: int, item_data: dict,
+                      company_id: int = None) -> Optional[OrderItem]:
+    """Buyurtma detalini yangilash — ombor farq bo'yicha to'g'rilanadi.
+
+    2026-09-21 (13-sizish): faqat `_ORDER_ITEM_UPDATE_FIELDS` dagi maydonlar
+    o'zgaradi; boshqa kalit yoki noto'g'ri qiymat — `ValueError`.
+    `penoplast_id` HAR DOIM detalning O'Z korxonasiga QAT'IY tekshiriladi
+    (`company_id` berilmasa ham) — begona material 404."""
     import services
 
-    db_item = db.query(OrderItem).filter(OrderItem.id == item_id).first()
+    _q = db.query(OrderItem).filter(OrderItem.id == item_id)
+    if company_id is not None:
+        _q = _q.filter(OrderItem.company_id == company_id)
+    db_item = _q.first()
     if not db_item:
         return None
+    # kech41 (5-bo'lim 14-band, K41-1) — QULF (101, buyurtma), yetkazish /
+    # to'lov / qaytarish bilan BIR fazo. HAQIQIY PostgreSQL da O'LCHANGAN
+    # (asl kod, `work/probe41.py`, 3 / 3 urinish): qulfsiz "topshirilgan"
+    # tekshiruvi bir vaqtdagi yetkazishni ko'rmasdi —
+    # detal 10 → 6 ga kamaytirilayotganda 8 topshirilsa, ikkalasi saqlanib
+    # detal 6, topshirilgan 8 bo'lib qolardi (ikkala tartibda ham).
+    # Naqsh `create_delivery` / `delete_delivery` dagi bilan bir xil:
+    # yozilmagan o'zgarish yo'qolmasin (`flush`), qulf, so'ng qulf ostida
+    # bazadan QAYTA o'qiladi (`expire_all`).
+    if db_item.order_id is not None:
+        db.flush()
+        _pul_qulfi(db, 101, db_item.order_id)
+        db.expire_all()
+        db_item = _q.first()
+        if not db_item:
+            return None
 
     order = db_item.order
     # MUHIM (2026-09 audit): o'chirilgan buyurtmaning detalini tahrirlab
     # bo'lmaydi — aks holda order_qty_normalized/delivery_percent o'chirish
-    # va tiklash orasida o'zgarib, ombor hisobi (Gips/Loy/tayyor mahsulot
+    # va tiklash orasida o'zgarib, ombor hisobi (Loy/tayyor mahsulot
     # qaytarish-qayta yechish simmetriyasi) buzilib qolishi mumkin.
     if order and order.is_deleted:
         return None
     is_draft = order.status == OrderStatus.DRAFT if order else False
+    # 117-band (kech95): tahrirdan / o'chirishdan OLDINGI jami (`_detal_ozgargach_buyurtma`; K110-1 — eski kelishilgan
+    # summa u yerda o'qiladi).
+    _eski_jami117 = float(order.total_amount or 0) if order else 0.0
 
-    # Topshirilgandan kam qilib bo'lmaydi
+    # 13-sizish: tana HECH NARSA yozilmasdan OLDIN tekshiriladi.
+    item_data = _clean_order_item_update(item_data)
+    # K95-1 (kech95): yangi detal jami va buyurtma jami sig'imi — HECH NARSA yozilmasdan OLDIN.
+    _buyurtma_sigim_tekshir([{"quantity": item_data.get("quantity", db_item.quantity),
+                              "unit_price": item_data.get("unit_price", db_item.unit_price)}])
+    if order is not None:
+        _jamilar_sigimi([_buyurtma_narx_jami(item_data.get("quantity", db_item.quantity) or 1,
+                                             item_data.get("unit_price", db_item.unit_price) or 0)[1]]
+                        + [it.total_price or 0 for it in order.items if it.id != db_item.id])
+    if item_data.get("penoplast_id"):
+        _require_inventory_of_company(db, [item_data["penoplast_id"]],
+                                      db_item.company_id)
+
+    # Topshirilgandan kam qilib bo'lmaydi.
+    # 2026-09-21: ilgari `None` qaytarardi → marshrut "Detal topilmadi"
+    # (404) derdi — foydalanuvchi uchun noto'g'ri sabab. Endi aniq xabar.
+    # kech60 (57-band): omborga ortiqcha qo'yilgan qism ham chiqqan — undan kam qilib bo'lmaydi
+    # (aks holda kamaytirish uning xomashyosini IKKINCHI marta qaytarardi).
     delivered = db_item.delivered_qty
-    if delivered > 0.001:
+    _ortiqcha_u = db_item.ortiqcha_qty
+    if delivered + _ortiqcha_u > 0.001:
         cat = (item_data.get('category') or db_item.category or '').lower()
         new_qty = float(item_data.get('length') or db_item.length or 0) if cat == 'profil' \
                   else float(item_data.get('quantity') or db_item.quantity or 0)
-        if new_qty < delivered - 0.001:
-            return None
+        if new_qty < delivered + _ortiqcha_u - 0.001:
+            if _ortiqcha_u > 0.001:
+                raise ValueError(
+                    f"Topshirilgan ({round(delivered, 3)}) va omborga ortiqcha qaytarilgan "
+                    f"({round(_ortiqcha_u, 3)}) miqdordan kam qilib bo'lmaydi "
+                    f"(kamida {round(delivered + _ortiqcha_u, 3)})")
+            raise ValueError(
+                f"Topshirilgan miqdordan ({round(delivered, 3)}) kam qilib bo'lmaydi")
 
     # Eski holat snapshot
     # MUHIM (2026-09 audit): "finished_product_id" va "sub_details" ham
@@ -1484,6 +4772,10 @@ def update_order_item(db: Session, item_id: int, item_data: dict) -> Optional[Or
         "category": s.category, "width": s.width, "thickness": s.thickness,
         "length": s.length, "quantity": s.quantity,
     } for s in (db_item.sub_details or [])]
+    # 126-band (kech96, O'LCHANGAN `work/probe126.py` D1–D3): snapshotda qulflangan narx, detalning o'z
+    # "1 m³ narxi" va buyurtma asosiy narxi YO'Q edi — Donalik (eski usul) hajmi penoplast tannarxidan
+    # hisoblanib, 34 → 40 da 0.12 yechilardi (kerak 0.06). To'liq tahrir / yaratish bilan bir qoida.
+    _bp126 = float(order.base_price) if order is not None and order.base_price is not None else None
     old_snap = [{
         "category": db_item.category,
         "width": db_item.width,
@@ -1491,7 +4783,10 @@ def update_order_item(db: Session, item_id: int, item_data: dict) -> Optional[Or
         "length": db_item.length,
         "quantity": float(db_item.quantity or 1),
         "unit_price": float(db_item.unit_price or 0),
+        "unit_price_for_volume": float(db_item.unit_price_for_volume) if db_item.unit_price_for_volume is not None else None,
         "penoplast_id": db_item.penoplast_id,
+        "price_per_m3": float(db_item.price_per_m3) if db_item.price_per_m3 else None,
+        "order_base_price": _bp126,
         "finished_product_id": db_item.finished_product_id,
         "sub_details": old_sub_details,
     }]
@@ -1500,7 +4795,14 @@ def update_order_item(db: Session, item_id: int, item_data: dict) -> Optional[Or
         if hasattr(db_item, field):
             setattr(db_item, field, value)
 
-    db_item.total_price = float(db_item.unit_price or 0) * float(db_item.quantity or 1)
+    # 117-band (kech95): narx 2 xonaga (HALF_UP), jami SHU narxdan (`_buyurtma_narx_jami`).
+    db_item.unit_price, db_item.total_price = _buyurtma_narx_jami(db_item.quantity or 1, db_item.unit_price or 0)
+    # 126-band (kech96, O'LCHANGAN — yakuniy etalon `test_buyurtma_narx_jami` H, SQLite = PG): qulflangan narx va "1 m³ narxi"
+    # ham bazaga yoziladigan qiymatga (2 xona, HALF_UP) — yaratish / to'liq tahrir bilan bir qoida (`_pul2_bosh`). Aks holda
+    # yangi snapshot (endi bu kalitlarni o'qiydi) API dan kelgan 3 xonali qiymatni (3 997.125) ko'rardi, eski holat esa
+    # bazadagi 3 997.13 ni — "1 m³ narxi" 10 da o'zgarishsiz tahrir 0.017 m³ qaytarardi; SQLite esa xom qiymatni saqlardi.
+    db_item.unit_price_for_volume = _pul2_bosh(db_item.unit_price_for_volume)
+    db_item.price_per_m3 = _pul2_bosh(db_item.price_per_m3)
     db.flush()
 
     # Yangi holat snapshot — "sub_details" bu funksiya orqali o'zgartirilmaydi
@@ -1514,100 +4816,220 @@ def update_order_item(db: Session, item_id: int, item_data: dict) -> Optional[Or
         "length": db_item.length,
         "quantity": float(db_item.quantity or 1),
         "unit_price": float(db_item.unit_price or 0),
+        "unit_price_for_volume": float(db_item.unit_price_for_volume) if db_item.unit_price_for_volume is not None else None,
         "penoplast_id": db_item.penoplast_id,
+        "price_per_m3": float(db_item.price_per_m3) if db_item.price_per_m3 else None,
+        "order_base_price": _bp126,
         "finished_product_id": db_item.finished_product_id,
         "sub_details": old_sub_details,
     }]
 
     # Omborni farq bo'yicha to'g'rilaymiz
     if not is_draft:
-        services.adjust_inventory_diff(db, old_snap, new_snap, order_id=db_item.order_id)
+        services.adjust_inventory_diff(db, old_snap, new_snap, order_id=db_item.order_id,
+                                       company_id=db_item.company_id, commit=False)
+        # kech103 (K103-1, O'LCHANGAN `work/probe56tm.py` S10, SQLite = PG): TM li detal miqdori shu yo'l bilan
+        # o'zgartirilsa tayyor mahsulot ombori TEGILMASDI (10 → 15 m: TM 5 m yechilmadi, buyurtma tannarxi esa
+        # 15 m; 15 → 8: 7 m qaytmadi). To'liq tahrir (`update_order_full`) bilan BITTA yo'l — `_adjust_finished_diff`.
+        if old_snap[0].get("finished_product_id") or db_item.finished_product_id:
+            def _snap_miqdor(_s):
+                if ((_s.get("category") or '').lower()) == 'profil':
+                    return float(_s.get("length") or 0)
+                return float(_s.get("quantity") or 0)
+            _adjust_finished_diff(db, old_snap, new_snap, company_id=db_item.company_id, detallar=[{
+                "detal": db_item, "eski_tm": old_snap[0].get("finished_product_id"),
+                "eski_miqdor": _snap_miqdor(old_snap[0]), "eski_birlik": _tm_detal_birligi(db_item),
+                "yangi_tm": db_item.finished_product_id, "yangi_miqdor": _snap_miqdor(new_snap[0])}])
 
-    # Order summasi
+    # Order summasi va kelishilgan summa (117-band — `_detal_ozgargach_buyurtma`)
     if order:
-        order.total_amount = sum(float(it.total_price or 0) for it in order.items)
-        db.flush()
-        db.refresh(order)
-        _update_order_payment_status(db, order)
+        _detal_ozgargach_buyurtma(db, order, _eski_jami117)
 
     db.commit()
     db.refresh(db_item)
     return db_item
 
 
-def record_cash_transaction(db: Session, category: str, amount: float, notes: str = None, performed_by: str = None):
+def record_cash_transaction(db: Session, category: str, amount: float, notes: str = None,
+                           performed_by: str = None, company_id: int = None):
     """Kassaga qo'lda ta'sir qiladigan yozuv qo'shadi (boshlang'ich balans,
     Usta KPI to'landi, Ehson to'landi). amount — musbat (kirim) yoki
     manfiy (chiqim) bo'lishi mumkin."""
     from models import CashTransaction
-    tx = CashTransaction(category=category, amount=amount, notes=notes, performed_by=performed_by)
+    # M6 (2026-09-18) — TENANT: `CashTransaction`da ota-FK yo'q, shuning
+    # uchun `_tenant_guard` uni to'ldira olmaydi — company_id ANIQ
+    # berilmasa yozuv bazadagi vaqtinchalik DEFAULT 1 ga tushib qolardi.
+    tx = CashTransaction(company_id=company_id, category=category, amount=amount,
+                         notes=notes, performed_by=performed_by)
     db.add(tx)
     db.commit()
     return tx
 
 
-def get_cash_transactions(db: Session, limit: int = 100) -> List:
-    """Kassaga qo'lda qilingan yozuvlar tarixi."""
+def get_cash_transactions(db: Session, limit: int = 100, company_id: int = None) -> List:
+    """Kassaga qo'lda qilingan yozuvlar tarixi (M6 — tenant-safe)."""
     from models import CashTransaction
-    return db.query(CashTransaction).order_by(CashTransaction.created_at.desc()).limit(limit).all()
+    q = db.query(CashTransaction)
+    if company_id is not None:
+        q = q.filter(CashTransaction.company_id == company_id)
+    return q.order_by(CashTransaction.created_at.desc()).limit(limit).all()
 
 
-def get_setting(db: Session, key: str, default: str = None) -> str:
-    """Korxona sozlamasini o'qiydi (masalan Ehson foizi)."""
+def delete_cash_transaction(db: Session, tx_id: int, company_id: int = None) -> bool:
+    """Kassaga qo'lda qo'shilgan yozuvni o'chiradi (faqat Admin).
+
+    2026-09-18 — bu funksiya M6 sinovidan qolgan yozuvlarni tozalash uchun
+    qo'shildi: ilgari `CashTransaction` uchun o'chirish yo'li UMUMAN yo'q
+    edi (faqat `factory_reset_all_data()` butun bazani tozalash orqali),
+    shuning uchun noto'g'ri kiritilgan kassa yozuvini tuzatib bo'lmasdi.
+
+    TENANT: yozuv FAQAT shu korxonadan topiladi (aks holda False → 404).
+    Kassa balansi alohida saqlanmaydi — u har safar joriy yozuvlardan
+    qayta hisoblanadi, shuning uchun bu yerda boshqa hech narsani
+    yangilash shart emas."""
+    from models import CashTransaction
+    q = db.query(CashTransaction).filter(CashTransaction.id == tx_id)
+    if company_id is not None:
+        q = q.filter(CashTransaction.company_id == company_id)
+    tx = q.first()
+    if not tx:
+        return False
+    db.delete(tx)
+    db.commit()
+    return True
+
+
+def get_setting(db: Session, key: str, default: str = None,
+                company_id: int = None) -> str:
+    """Korxona sozlamasini o'qiydi (masalan Ehson foizi).
+
+    2026-09-18 — M8/F1a: qidiruv FAQAT `key` bo'yicha edi, ya'ni ikki
+    korxonali bazada bir korxona boshqasining sozlamasini o'qib olardi.
+    Endi `(company_id, key)` juftligi bo'yicha."""
     from models import CompanySetting
-    row = db.query(CompanySetting).filter(CompanySetting.key == key).first()
+    q = db.query(CompanySetting).filter(CompanySetting.key == key)
+    if company_id is not None:
+        q = q.filter(CompanySetting.company_id == company_id)
+    row = q.first()
     return row.value if row else default
 
 
-def set_setting(db: Session, key: str, value: str):
-    """Korxona sozlamasini saqlaydi/yangilaydi."""
+def set_setting(db: Session, key: str, value: str, company_id: int = None):
+    """Korxona sozlamasini saqlaydi/yangilaydi.
+
+    2026-09-18 — M8/F1a: qidiruv ham, yangi yozuv ham korxona bilan
+    bog'lanadi. Ilgari faqat `key` bo'yicha qidirilardi — bu o'qish
+    sizishi emas, MA'LUMOT BUZILISHI edi: B korxona Ehson foizini
+    o'zgartirsa, A korxonaning qatori qayta yozilardi."""
     from models import CompanySetting
-    row = db.query(CompanySetting).filter(CompanySetting.key == key).first()
+    q = db.query(CompanySetting).filter(CompanySetting.key == key)
+    if company_id is not None:
+        q = q.filter(CompanySetting.company_id == company_id)
+    row = q.first()
     if row:
         row.value = value
     else:
-        row = CompanySetting(key=key, value=value)
+        row = CompanySetting(company_id=company_id, key=key, value=value)
         db.add(row)
     db.commit()
 
 
 def log_activity(db: Session, action: str, entity_type: str, entity_id: int,
                   entity_label: str = None, performed_by: str = None,
-                  old_value: str = None, new_value: str = None):
+                  old_value: str = None, new_value: str = None,
+                  company_id: int = None, commit: bool = True):
     """Muhim amallarni audit uchun yozib boradi (o'chirish/tiklash/yaratish/
     tahrirlash). old_value/new_value — ixtiyoriy, qisqa tavsif (masalan
     "Jami: 850 000 so'm, 3 ta detal") — har bir maydonni emas, faqat
-    tezda "nima o'zgargani"ni ko'rsatish uchun."""
+    tezda "nima o'zgargani"ni ko'rsatish uchun.
+
+    kech110 (2c): `commit=False` — yozuv chaqiruvchining tranzaksiyasiga qo'shiladi (amal bilan BIRGA saqlanadi yoki
+    birga bekor bo'ladi — MRP amallari: retsept, ishlab chiqarish boshlash / yakunlash / bekor qilish)."""
     from models import ActivityLog
+    # M7 (2026-09-18) — TENANT: `ActivityLog`da company_id ustuni bor, lekin
+    # ota-FK yo'q va model `_TENANT_RULES` da emas — shuning uchun qiymat
+    # ANIQ berilmasa yozuv bazadagi vaqtinchalik DEFAULT 1 ga tushardi.
+    # Ya'ni B korxonaning audit izi A ning bazasiga yozilardi, B da esa
+    # audit izi umuman bo'lmasdi (lokal ikki korxonali sinovda tasdiqlangan).
     entry = ActivityLog(
+        company_id=company_id,
         action=action, entity_type=entity_type, entity_id=entity_id,
         entity_label=entity_label, performed_by=performed_by,
         old_value=old_value, new_value=new_value
     )
     db.add(entry)
-    db.commit()
+    if commit:
+        db.commit()
 
 
-def get_activity_log(db: Session, limit: int = 100) -> List:
-    """So'nggi audit yozuvlari."""
+# kech115 (G6-01): «O'chirilganlar» sahifasi jurnalidagi amallar — faqat o'chirish / tiklash / butunlay o'chirish.
+CHIQINDI_JURNAL_AMALLARI = ("deleted", "restored", "permanently_deleted")
+
+
+def get_activity_log(db: Session, limit: int = 100, company_id: int = None, amallar=None) -> List:
+    """So'nggi audit yozuvlari (M7 — tenant-safe).
+
+    kech115 (G6-01, O'LCHANGAN — audit: «O'chirilganlar» jurnali filtrsiz 50 yozuv olib, «o'chirildi» / «tiklandi» dan
+    boshqa HAMMA amalni — buyurtma yaratildi, ishlab chiqarish boshlandi / yakunlandi, tahrir — «butunlay o'chirildi»
+    deb ko'rsatardi; o'chirilgan buyurtma 0 ta bo'lsa ham jurnal «ORD-001-5 butunlay o'chirildi» bilan to'la edi):
+    `amallar` berilsa — faqat shu amal turlari (`CHIQINDI_JURNAL_AMALLARI`)."""
     from models import ActivityLog
-    return db.query(ActivityLog).order_by(ActivityLog.created_at.desc()).limit(limit).all()
+    q = db.query(ActivityLog)
+    if company_id is not None:
+        q = q.filter(ActivityLog.company_id == company_id)
+    if amallar:
+        q = q.filter(ActivityLog.action.in_(list(amallar)))
+    return q.order_by(ActivityLog.created_at.desc()).limit(limit).all()
 
 
-def log_login_attempt(db: Session, username: str, success: bool, ip_address: str = None, user_agent: str = None):
-    """Tizimga kirish urinishini yozib boradi (muvaffaqiyatli yoki muvaffaqiyatsiz)."""
+def _company_of_username(db: Session, username: str):
+    """Login vaqtida korxonani SERVER tomonda aniqlaydi (M7).
+
+    `User.username` butun tizim bo'yicha YAGONA (`unique=True`), shuning
+    uchun foydalanuvchi nomidan korxona bir qiymatli aniqlanadi — mijoz
+    yuborgan hech qanday `company_id` ga ishonilmaydi. Nom topilmasa
+    (mavjud bo'lmagan hisobga urinish) None qaytadi."""
+    from models import User, Employee
+    if not username:
+        return None
+    u = db.query(User).filter(User.username == username).first()
+    if u is not None:
+        return getattr(u, "company_id", None)
+    # 2026-09-20: xodimlar telefon raqami bilan kiradi (`/hodim/login`),
+    # ya'ni bu yerga username emas, TELEFON keladi. Uni ham tekshiramiz —
+    # aks holda xodimning kirish tarixi hech bir korxonaga bog'lanmay
+    # qolardi. Telefon `(company_id, phone)` bo'yicha yagona.
+    e = db.query(Employee).filter(Employee.phone == username).first()
+    return getattr(e, "company_id", None) if e else None
+
+
+def log_login_attempt(db: Session, username: str, success: bool, ip_address: str = None,
+                      user_agent: str = None, company_id: int = None):
+    """Tizimga kirish urinishini yozib boradi (muvaffaqiyatli yoki muvaffaqiyatsiz).
+
+    M7 — TENANT: korxona foydalanuvchi NOMIDAN aniqlanadi (yuqoridagi
+    `_company_of_username`). Nom noma'lum bo'lsa (mavjud bo'lmagan hisob)
+    yozuv korxonasiz qoladi — u hech bir tenantning ro'yxatida
+    ko'rinmaydi, faqat IP bo'yicha rate-limit uchun ishlatiladi."""
     from models import LoginHistory
-    entry = LoginHistory(username=username, success=success, ip_address=ip_address, user_agent=user_agent)
+    if company_id is None:
+        company_id = _company_of_username(db, username)
+    entry = LoginHistory(company_id=company_id, username=username, success=success,
+                         ip_address=ip_address, user_agent=user_agent)
     db.add(entry)
     db.commit()
 
 
 def check_login_rate_limit(db: Session, username: str, ip_address: str = None,
-                            max_attempts: int = 5, window_minutes: int = 15) -> dict:
-    """Rate limit — oxirgi `window_minutes` daqiqada, shu username YOKI shu
-    IP manzildan `max_attempts` martadan ko'p MUVAFFAQIYATSIZ urinish
-    bo'lgan bo'lsa, kirishni bloklaydi. Mavjud LoginHistory jadvalidan
-    foydalanadi — yangi jadval kerak emas.
+                            max_attempts: int = 5, window_minutes: int = 15, ip_max_attempts: int = 20) -> dict:
+    """Rate limit — oxirgi `window_minutes` daqiqada, shu username bo'yicha `max_attempts` YOKI shu IP manzildan
+    `ip_max_attempts` martadan ko'p MUVAFFAQIYATSIZ urinish bo'lgan bo'lsa, kirishni bloklaydi. Mavjud LoginHistory
+    jadvalidan foydalanadi — yangi jadval kerak emas.
+
+    kech116 (U-01): IP chegarasi 5 → 20 (foydalanuvchi nomi — 5, o'zgarmadi). Sabab (O'LCHANGAN): bitta ofis / bitta
+    uyali operator NAT i ortidagi hamma xodim bitta IP da — bitta xodimning 5 xatosi butun ofisni 15 daqiqa kiritmay
+    qo'yardi (ilgari esa IP Railway proksisiniki edi — hamma korxonani). Parol terish hujumi baribir: bitta hisobga — 5,
+    bitta IP dan turli hisoblarga — 20 urinish.
 
     Qaytaradi: {"blocked": bool, "retry_after_minutes": int}"""
     from models import LoginHistory
@@ -1615,6 +5037,13 @@ def check_login_rate_limit(db: Session, username: str, ip_address: str = None,
 
     cutoff = datetime.utcnow() - timedelta(minutes=window_minutes)
 
+    # M7 — TENANT: nom bo'yicha hisob (company_id, username) juftligi
+    # bo'yicha olinadi. Ilgari u global edi: bir korxonada `admin` nomiga
+    # 5 marta noto'g'ri urinilsa, BOSHQA korxonaning `admin`i ham bloklanardi
+    # (lokal sinovda tasdiqlangan — korxonalararo DoS).
+    # IP bo'yicha himoya ATAYLAB global qoladi: bitta IP dan turli
+    # korxonalarga urinish ham xuddi shunday hujum.
+    _uname_cid = _company_of_username(db, username)
     q = db.query(LoginHistory).filter(
         LoginHistory.success == False,
         LoginHistory.created_at >= cutoff
@@ -1622,23 +5051,290 @@ def check_login_rate_limit(db: Session, username: str, ip_address: str = None,
     # Username BO'YICHA yoki IP BO'YICHA — ikkalasidan qay biri ko'proq
     # xavfli bo'lsa (masalan bitta IP'dan ko'p turli hisobga urinish, yoki
     # bitta hisobga turli joydan urinish) — shuni hisobga olamiz.
-    by_username = q.filter(LoginHistory.username == username).count()
+    _uq = q.filter(LoginHistory.username == username)
+    if _uname_cid is not None:
+        _uq = _uq.filter(LoginHistory.company_id == _uname_cid)
+    by_username = _uq.count()
     by_ip = q.filter(LoginHistory.ip_address == ip_address).count() if ip_address else 0
 
-    attempts = max(by_username, by_ip)
-    if attempts >= max_attempts:
+    if by_username >= max_attempts or by_ip >= ip_max_attempts:
         return {"blocked": True, "retry_after_minutes": window_minutes}
     return {"blocked": False, "retry_after_minutes": 0}
 
 
-def get_login_history(db: Session, limit: int = 100) -> List:
-    """So'nggi kirish urinishlari."""
+def get_login_history(db: Session, limit: int = 100, company_id: int = None) -> List:
+    """So'nggi kirish urinishlari (M7 — tenant-safe)."""
     from models import LoginHistory
-    return db.query(LoginHistory).order_by(LoginHistory.created_at.desc()).limit(limit).all()
+    q = db.query(LoginHistory)
+    if company_id is not None:
+        q = q.filter(LoginHistory.company_id == company_id)
+    return q.order_by(LoginHistory.created_at.desc()).limit(limit).all()
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# kech120 (zip 129 — E bosqichi 3-qism, audit G6-23): JURNALLAR — filtr va sahifalash.
+# O'LCHANGAN (audit kech114, «Katta Korxona»): «Kirish tarixi» va «Audit jurnali» faqat oxirgi 100 yozuvni ko'rsatardi —
+# sana / foydalanuvchi bo'yicha filtr yoki qidiruv yo'q edi (300 buyurtma yaratilishi ham yoziladi — «o'tgan hafta kim
+# buyurtmani o'chirdi?» savoliga javob topib bo'lmasdi); nomi berilmagan amallar xom inglizcha chiqardi («refunded»,
+# «release_reservation», «delete», «gift_period_add_master»); «Zaxiradan tiklash» yozuvi korxonasiz yozilib (NOT NULL)
+# jimgina yo'qolardi.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+# Amal → (belgi, yozuv nomidan keyingi matn, filtrdagi nomi). Kodda yozilgan HAR amal shu ro'yxatda bo'lishi SHART —
+# `tools/test_e_tarix.py` kodning o'zidan (`log_activity` chaqiruvlari, `ActivityLog` konstruktori, `_po_jurnal`, obuna
+# `_jurnal`) amallarni yig'ib tekshiradi. Ro'yxatda yo'q (eski) amal sahifada «amal: <nom>» bo'lib chiqadi.
+AUDIT_AMALLARI = {
+    "created": ("➕", "yaratildi", "Yaratildi"),
+    "updated": ("✏️", "tahrirlandi", "Tahrirlandi"),
+    "deleted": ("🗑️", "o'chirildi", "O'chirildi"),
+    # «delete» — faqat brak yozuvini bekor qilish: yozuv nomining o'zi to'liq gap («Brak bekor qilindi: … · ombor tiklandi»)
+    "delete": ("🗑️", "", "O'chirildi"),
+    "restored": ("↩️", "tiklandi", "Tiklandi"),
+    "permanently_deleted": ("❌", "butunlay o'chirildi", "Butunlay o'chirildi"),
+    "activated": ("🚀", "jarayonga olindi", "Jarayonga olindi"),
+    "produced": ("🏭", "ishlab chiqarildi", "Ishlab chiqarildi"),
+    "cancelled": ("⛔", "bekor qilindi", "Bekor qilindi"),
+    "refunded": ("💸", "— ortiqcha to'lov mijozga qaytarildi", "Pul qaytarildi"),
+    "release_reservation": ("📦", "— band qilish bekor qilindi, umumiy sotuvga ochildi", "Band bekor qilindi"),
+    "auto_release_reservation": ("📦", "— band avtomatik bekor qilindi", "Band bekor qilindi"),
+    "gift_period_add_master": ("🎁", "— sovg'a davriga qo'shildi", "Sovg'a davriga qo'shildi"),
+    "password_reset": ("🔑", "— paroli tiklandi", "Parol tiklandi"),
+    "blocked": ("🔒", "bloklandi", "Bloklandi / ochildi"),
+    "unblocked": ("🔓", "ochildi", "Bloklandi / ochildi"),
+    "extended": ("📅", "— obuna uzaytirildi", "Obuna uzaytirildi"),
+    "backup_restored": ("💾", "— zaxiradan tiklandi", "Zaxiradan tiklandi"),
+    # kech125 (zip 146): brak taqdiri (Tashlandi / Tuzatildi / Kesildi / 2-nav) yozildi yoki o'zgardi — `new_value` da tafsilot
+    "brak_taqdir": ("🧩", "— brak taqdiri", "Brak taqdiri"),
+    # kech126 (zip 148): taklif («Tez hisob») bo'yicha buyurtma ochildi — `new_value` da buyurtma raqami va loyiha
+    "rasmiylashtirildi": ("✅", "rasmiylashtirildi", "Rasmiylashtirildi"),
+    # eski yozuvlar (zip 129 dan oldin shu nom bilan yozilishi mo'ljallangan, lekin NOT NULL sabab yozilmagan)
+    "Zaxiradan tiklash": ("💾", "— zaxiradan tiklandi", "Zaxiradan tiklandi"),
+}
+
+JURNAL_SAHIFA_HAJMI = 50          # bir sahifadagi yozuvlar (Kirish tarixi, Audit jurnali)
+JURNAL_TANLOV_CHEGARA = 300       # «Foydalanuvchi» ro'yxatidagi ismlar soni (eng ko'p uchraganlari emas — alifbo tartibida)
+
+
+def audit_amal_nomi(action: str):
+    """(belgi, matn) — sahifa uchun; noma'lum amal — («📝», «amal: <nom>»)."""
+    _a = AUDIT_AMALLARI.get(action)
+    if _a is None:
+        return "📝", f"amal: {action}"
+    return _a[0], _a[1]
+
+
+def audit_amal_guruhlari():
+    """Filtr ro'yxati: [(kalit, nom, (amallar, …))] — bir xil nomli amallar bitta bandda (kalit — birinchi amal)."""
+    _g = {}
+    for _amal, (_b, _m, _nom) in AUDIT_AMALLARI.items():
+        _g.setdefault(_nom, []).append(_amal)
+    return [(v[0], k, tuple(v)) for k, v in _g.items()]
+
+
+def _jurnal_sanasi(matn):
+    """'YYYY-MM-DD' → datetime (Toshkent kuni boshi) yoki None (bo'sh / noto'g'ri — filtr qo'llanmaydi)."""
+    try:
+        return datetime.strptime((matn or "").strip(), "%Y-%m-%d")
+    except ValueError:
+        return None
+
+
+def _jurnal_sana_oraligi(q, ustun, sana_dan, sana_gacha):
+    """Toshkent kunlari [dan; gacha] — bazadagi UTC vaqt bilan (−5 soat). Teskari berilsa — almashtiriladi.
+    Qaytaradi: (so'rov, dan_matn, gacha_matn) — sahifa maydonlariga qaytadigan TOZA qiymatlar."""
+    from datetime import timedelta as _td
+    from database import TASHKENT_OFFSET as _OF
+    _d, _g = _jurnal_sanasi(sana_dan), _jurnal_sanasi(sana_gacha)
+    if _d and _g and _d > _g:
+        _d, _g = _g, _d
+    if _d:
+        q = q.filter(ustun >= _d - _OF)
+    if _g:
+        q = q.filter(ustun < _g - _OF + _td(days=1))
+    return q, (_d.strftime("%Y-%m-%d") if _d else ""), (_g.strftime("%Y-%m-%d") if _g else "")
+
+
+def _jurnal_sahifalash(q, vaqt_ustun, id_ustun, sahifa, hajm):
+    """Umumiy son + bitta sahifa (yangisi tepada; bir xil vaqtda — id bo'yicha, sahifalar orasida takror / tushib
+    qolish yo'q). Sahifa raqami 1 dan kichik / oxiridan katta bo'lsa — chegaraga keltiriladi."""
+    _jami = q.order_by(None).count()
+    _sahifalar = max(1, (_jami + hajm - 1) // hajm)
+    try:
+        _s = int(sahifa or 1)
+    except (TypeError, ValueError):
+        _s = 1
+    _s = min(max(_s, 1), _sahifalar)
+    _y = q.order_by(vaqt_ustun.desc(), id_ustun.desc()).offset((_s - 1) * hajm).limit(hajm).all()
+    return {"yozuvlar": _y, "jami": _jami, "sahifa": _s, "sahifalar": _sahifalar, "hajm": hajm,
+            "boshi": ((_s - 1) * hajm + 1) if _y else 0, "oxiri": (_s - 1) * hajm + len(_y)}
+
+
+JURNAL_LIKE_ESCAPE = "!"           # LIKE ichidagi `%` / `_` ni oddiy belgi qiladigan belgi (teskari chiziq emas — PG / SQLite bir xil)
+
+
+def _jurnal_matn_qolipi(matn):
+    """Qidiruv matni → LIKE qolipi (`%` va `_` — oddiy belgi sifatida)."""
+    _t = (matn or "").strip()[:100]
+    if not _t:
+        return None, ""
+    _e = JURNAL_LIKE_ESCAPE
+    return "%" + _t.replace(_e, _e + _e).replace("%", _e + "%").replace("_", _e + "_") + "%", _t
+
+
+def audit_jurnali_sahifasi(db: Session, company_id: int, sana_dan: str = None, sana_gacha: str = None,
+                           kim: str = None, amal: str = None, matn: str = None, sahifa=1,
+                           hajm: int = JURNAL_SAHIFA_HAJMI) -> dict:
+    """«Audit jurnali» — FAQAT shu korxona; filtrlar: Toshkent sanasi oralig'i, kim (aynan), amal guruhi
+    (`audit_amal_guruhlari` kaliti), matn (yozuv nomi, eski / yangi qiymat, kim ichida — katta-kichik harf farqsiz).
+    Qaytaradi: `_jurnal_sahifalash` + toza filtr qiymatlari («filtr») va «Foydalanuvchi» ro'yxati («kimlar»)."""
+    from models import ActivityLog
+    from sqlalchemy import or_ as _or
+    q = db.query(ActivityLog).filter(ActivityLog.company_id == company_id)
+    q, _d, _g = _jurnal_sana_oraligi(q, ActivityLog.created_at, sana_dan, sana_gacha)
+    _kim = (kim or "").strip()
+    if _kim:
+        q = q.filter(ActivityLog.performed_by == _kim)
+    _amal = ""
+    for _k, _n, _amallar in audit_amal_guruhlari():
+        if amal == _k:
+            q = q.filter(ActivityLog.action.in_(list(_amallar)))
+            _amal = _k
+            break
+    _qolip, _matn = _jurnal_matn_qolipi(matn)
+    if _qolip:
+        _e = JURNAL_LIKE_ESCAPE
+        q = q.filter(_or(ActivityLog.entity_label.ilike(_qolip, escape=_e),
+                         ActivityLog.old_value.ilike(_qolip, escape=_e),
+                         ActivityLog.new_value.ilike(_qolip, escape=_e),
+                         ActivityLog.performed_by.ilike(_qolip, escape=_e)))
+    natija = _jurnal_sahifalash(q, ActivityLog.created_at, ActivityLog.id, sahifa, hajm)
+    natija["filtr"] = {"dan": _d, "gacha": _g, "kim": _kim, "amal": _amal, "matn": _matn}
+    natija["kimlar"] = [r[0] for r in db.query(ActivityLog.performed_by).filter(
+        ActivityLog.company_id == company_id, ActivityLog.performed_by.isnot(None), ActivityLog.performed_by != ""
+    ).distinct().order_by(ActivityLog.performed_by).limit(JURNAL_TANLOV_CHEGARA).all()]
+    return natija
+
+
+def kirish_tarixi_sahifasi(db: Session, company_id: int, sana_dan: str = None, sana_gacha: str = None,
+                           kim: str = None, natija_turi: str = None, sahifa=1,
+                           hajm: int = JURNAL_SAHIFA_HAJMI) -> dict:
+    """«Kirish tarixi» — FAQAT shu korxona; filtrlar: sana oralig'i, foydalanuvchi nomi (aynan), natija
+    («ok» — muvaffaqiyatli, «xato» — noto'g'ri urinish)."""
+    from models import LoginHistory
+    q = db.query(LoginHistory).filter(LoginHistory.company_id == company_id)
+    q, _d, _g = _jurnal_sana_oraligi(q, LoginHistory.created_at, sana_dan, sana_gacha)
+    _kim = (kim or "").strip()
+    if _kim:
+        q = q.filter(LoginHistory.username == _kim)
+    _nt = natija_turi if natija_turi in ("ok", "xato") else ""
+    if _nt:
+        q = q.filter(LoginHistory.success == (_nt == "ok"))
+    natija = _jurnal_sahifalash(q, LoginHistory.created_at, LoginHistory.id, sahifa, hajm)
+    natija["filtr"] = {"dan": _d, "gacha": _g, "kim": _kim, "natija": _nt}
+    natija["kimlar"] = [r[0] for r in db.query(LoginHistory.username).filter(
+        LoginHistory.company_id == company_id).distinct().order_by(LoginHistory.username).limit(JURNAL_TANLOV_CHEGARA).all()]
+    return natija
+
+
+# kech120 (zip 129 — G6-23): TAHRIR YOZUVIDA — NIMA O'ZGARGANI. O'LCHANGAN (audit kech114): «Retsept «Standart» — Dekor
+# panel tahrirlandi» yozuvida eski va yangi qiymat bir xil edi («partiya 1 m², 4 ta material → partiya 1 m², 4 ta
+# material») — material miqdori o'zgarsa ham qisqa tavsif o'zgarmaydi; buyurtma tahriri ham faqat «Jami, N ta detal».
+# Endi yangi qiymat 2-qatorida «O'zgardi: …» — faqat o'zgargan maydonlar (eski → yangi). 1-qator (qisqa tavsif) va
+# eski qiymat avvalgidek qoladi (eski yozuvlar va ularni o'qiydigan joylar o'zgarmaydi).
+AUDIT_FARQ_BELGI = "\nO'zgardi: "
+AUDIT_FARQ_CHEGARA = 12           # bitta yozuvdagi o'zgarishlar ro'yxati (qolgani — «yana N ta o'zgarish»)
+
+
+def audit_son(x) -> str:
+    """Jurnal matni uchun son: 1200000 → «1 200 000», 12.5 → «12,5» (kasr — vergul, U-05)."""
+    try:
+        x = float(x or 0)
+    except (TypeError, ValueError):
+        return str(x)
+    if abs(x - round(x)) < 1e-9:
+        return f"{int(round(x)):,}".replace(",", " ")
+    return f"{x:,.3f}".rstrip("0").rstrip(".").replace(",", " ").replace(".", ",")
+
+
+def audit_farq_matni(farqlar) -> str:
+    """O'zgarishlar ro'yxati → yangi qiymatga qo'shiladigan «\\nO'zgardi: a; b; …» (bo'sh — «hech narsa»)."""
+    _f = [str(x) for x in (farqlar or []) if x]
+    if not _f:
+        return AUDIT_FARQ_BELGI + "hech narsa (o'sha holat qayta saqlandi)"
+    _k = _f[:AUDIT_FARQ_CHEGARA]
+    if len(_f) > AUDIT_FARQ_CHEGARA:
+        _k.append(f"yana {len(_f) - AUDIT_FARQ_CHEGARA} ta o'zgarish")
+    return AUDIT_FARQ_BELGI + "; ".join(_k)
+
+
+def _buyurtma_audit_holati(order) -> dict:
+    """Buyurtmaning jurnal uchun holati (oddiy qiymatlar — sessiyadan mustaqil): jami, kelishilgan, muddat, usta va
+    detallar (nom + o'lcham + qoplama bo'yicha jamlangan miqdor / summa, penoplast / tayyor mahsulot)."""
+    _detal = {}
+    for _i in list(order.items or []):
+        _olcham = "×".join(audit_son(v) for v in (_i.width, _i.thickness, _i.length) if v)
+        _kalit = ((_i.name or "").strip(), (_i.category or "").strip(), _olcham, _i.is_coated is not False)
+        _d = _detal.setdefault(_kalit, {"miqdor": 0.0, "summa": 0.0, "birlik": None, "manba": set()})
+        _d["miqdor"] += float(_i.quantity or 0)
+        _d["summa"] += float(_i.total_price or 0)
+        _d["birlik"] = _d["birlik"] or (_i.gips_unit or None)
+        _d["manba"].add((_i.penoplast_id, _i.finished_product_id))
+    return {"jami": float(order.total_amount or 0),
+            "kelishilgan": float(order.agreed_amount) if order.agreed_amount is not None else None,
+            "muddat": order.deadline, "usta_id": order.master_id, "detallar": _detal}
+
+
+def _buyurtma_audit_farqi(db: Session, company_id: int, eski: dict, yangi: dict) -> list:
+    """Ikki `_buyurtma_audit_holati` orasidagi o'zgarishlar (matnlar ro'yxati)."""
+    _f = []
+
+    def _nom(k):
+        _s = k[0] or k[1] or "detal"
+        if k[2]:
+            _s += f" {k[2]}"
+        if not k[3]:
+            _s += " (qoplamasiz)"
+        return _s
+
+    def _bir(d):
+        return d.get("birlik") or "ta"
+
+    _e, _y = eski["detallar"], yangi["detallar"]
+    for _k in _e:
+        if _k not in _y:
+            _f.append(f"− {_nom(_k)} ({audit_son(_e[_k]['miqdor'])} {_bir(_e[_k])})")
+    for _k in _y:
+        if _k not in _e:
+            _f.append(f"+ {_nom(_k)} ({audit_son(_y[_k]['miqdor'])} {_bir(_y[_k])}, {audit_son(_y[_k]['summa'])} so'm)")
+            continue
+        _a, _b = _e[_k], _y[_k]
+        if abs(_a["miqdor"] - _b["miqdor"]) > 1e-9:
+            _f.append(f"{_nom(_k)}: {audit_son(_a['miqdor'])} → {audit_son(_b['miqdor'])} {_bir(_b)}")
+        elif abs(_a["summa"] - _b["summa"]) > 0.004:
+            _f.append(f"{_nom(_k)}: {audit_son(_a['summa'])} → {audit_son(_b['summa'])} so'm")
+        if _a["manba"] != _b["manba"]:
+            _f.append(f"{_nom(_k)}: xomashyo / mahsulot almashtirildi")
+    if abs(eski["jami"] - yangi["jami"]) > 0.004:
+        _f.append(f"jami: {audit_son(eski['jami'])} → {audit_son(yangi['jami'])} so'm")
+    if (eski["kelishilgan"] is None) != (yangi["kelishilgan"] is None) or (
+            eski["kelishilgan"] is not None and abs(eski["kelishilgan"] - yangi["kelishilgan"]) > 0.004):
+        _f.append(f"kelishilgan summa: {audit_son(eski['kelishilgan']) if eski['kelishilgan'] is not None else '—'} → "
+                  f"{audit_son(yangi['kelishilgan']) if yangi['kelishilgan'] is not None else '—'} so'm")
+    if eski["muddat"] != yangi["muddat"]:
+        def _sana(d):
+            return d.strftime("%d.%m.%Y") if d else "—"
+        _f.append(f"topshirish muddati: {_sana(eski['muddat'])} → {_sana(yangi['muddat'])}")
+    if eski["usta_id"] != yangi["usta_id"]:
+        _ids = [i for i in (eski["usta_id"], yangi["usta_id"]) if i]
+        _ismlar = {m.id: m.name for m in db.query(Master).filter(Master.id.in_(_ids), Master.company_id == company_id).all()} \
+            if _ids else {}
+        _f.append(f"usta: {_ismlar.get(eski['usta_id'], '—')} → {_ismlar.get(yangi['usta_id'], '—')}")
+    return _f
 
 
 def log_error(db: Session, error_message: str, stack_trace: str = None,
-              endpoint: str = None, method: str = None, performed_by: str = None):
+              endpoint: str = None, method: str = None, performed_by: str = None,
+              company_id: int = None):
     """Backend xatoligini yozib boradi.
 
     XAVFSIZLIK: bazaga ulanish/so'rov xatoliklarida, SQLAlchemy xato
@@ -1653,6 +5349,7 @@ def log_error(db: Session, error_message: str, stack_trace: str = None,
     safe_message = _param_re.sub('[parameters: YASHIRINGAN]', str(error_message))
     safe_trace = _param_re.sub('[parameters: YASHIRINGAN]', stack_trace or "")
     entry = ErrorLog(
+        company_id=company_id,
         error_message=safe_message[:5000], stack_trace=safe_trace[:8000],
         endpoint=endpoint, method=method, performed_by=performed_by
     )
@@ -1660,13 +5357,38 @@ def log_error(db: Session, error_message: str, stack_trace: str = None,
     db.commit()
 
 
-def get_error_logs(db: Session, limit: int = 100) -> List:
-    """So'nggi backend xatoliklari."""
+def get_error_logs(db: Session, limit: int = 100, company_id: int = None,
+                   include_platform: bool = False) -> List:
+    """So'nggi backend xatoliklari (Faza 3 — tenant-safe).
+
+    `error_logs.company_id` ustuni qo'shilgach, filtr aniq bo'ldi:
+      • korxonaga bog'langan xatolar — faqat o'sha korxonaga;
+      • `company_id IS NULL` — PLATFORMA xatolari (fon vazifalari,
+        ishga tushish, autentifikatsiyadan oldingi xatolar). Ularda
+        tenant ma'lumoti yo'q, shuning uchun hammaga ko'rsatiladi —
+        aks holda tizim egasi hech qanday xatoni ko'rmay qolardi
+        (M7 dan keyin aynan shunday bo'lgan edi)."""
     from models import ErrorLog
-    return db.query(ErrorLog).order_by(ErrorLog.created_at.desc()).limit(limit).all()
+    from sqlalchemy import or_ as _or
+    q = db.query(ErrorLog)
+    if company_id is not None:
+        if include_platform:
+            # PLATFORMA admini — o'z korxonasi + korxonaga bog'lanmagan
+            # (tizim) xatolari. Faqat u tizimni tuzatadi.
+            q = q.filter(_or(ErrorLog.company_id == company_id,
+                             ErrorLog.company_id.is_(None)))
+        else:
+            # 2026-09-20 — TUZATISH: oddiy korxona admini FAQAT o'z
+            # xatolarini ko'radi. Ilgari `company_id IS NULL` yozuvlari
+            # ham ko'rsatilardi ("platforma xatosi" deb) — natijada yangi
+            # mijoz birinchi kuni ERP ga kirib, bo'sh tizimda o'nlab
+            # begona traceback ko'rdi. Traceback ichida boshqa
+            # korxonaning jadval nomlari va ID lari bo'lishi ham mumkin.
+            q = q.filter(ErrorLog.company_id == company_id)
+    return q.order_by(ErrorLog.created_at.desc()).limit(limit).all()
 
 
-def check_system_health(db: Session) -> dict:
+def check_system_health(db: Session, company_id: int = None) -> dict:
     """Tizimdagi barcha ENUM ustunlarini tekshiradi — bazada noto'g'ri
     (masalan kichik/katta harf mos kelmaydigan) qiymat bor-yo'qligini
     aniqlaydi. MUHIM: bu tekshiruv XOM SQL orqali ishlaydi (ORM emas) —
@@ -1679,32 +5401,50 @@ def check_system_health(db: Session) -> dict:
                          ReturnReason, PayType, AdvanceRequestStatus, StockSource,
                          ProductionStatus, PaymentType, PaymentMethod)
 
+    # M7 (2026-09-18) — TENANT: bu tekshiruv 12 ta jadvalni GLOBAL
+    # skanerlab, nomuvofiqlik topilsa boshqa korxonaning `id` va nomini
+    # (username, order_number, project_name, xodim/mahsulot nomi)
+    # qaytarardi. Ro'yxatdagi 4-element — shu jadvalda korxona ustuni
+    # bormi; hammasida `company_id` bor, shuning uchun so'rovga
+    # PARAMETRLANGAN `WHERE company_id = :cid` qo'shiladi (jadval va
+    # ustun nomlari — faqat quyidagi HARDCODED ro'yxatdan, foydalanuvchi
+    # kiritmasi SQLga umuman tushmaydi).
     # (jadval, ustun, tekshiriladigan Enum sinfi, o'qiladigan "nom" ustuni — id yoki boshqa identifikator)
+    # 5-element — korxona bo'yicha cheklash bo'lagi. Ustunning O'ZIDA
+    # `company_id` bo'lmagan ikki jadval (payments, advance_requests) ota
+    # jadval orqali cheklanadi. Barchasi HARDCODED; o'zgaruvchan yagona
+    # qiymat — parametrlangan `:cid`.
+    _DIRECT = " AND company_id = :cid"
+    _VIA_ORDER = " AND order_id IN (SELECT id FROM orders WHERE company_id = :cid)"
+    _VIA_EMP = " AND employee_id IN (SELECT id FROM employees WHERE company_id = :cid)"
     checks = [
-        ("users", "role", UserRole, "username"),
-        ("projects", "status", ProjectStatus, "project_name"),
-        ("orders", "order_type", OrderType, "order_number"),
-        ("orders", "status", OrderStatus, "order_number"),
-        ("orders", "payment_status", PaymentStatus, "order_number"),
-        ("return_items", "reason", ReturnReason, "item_name"),
-        ("employees", "pay_type", PayType, "name"),
-        ("advance_requests", "status", AdvanceRequestStatus, "id"),
-        ("finished_products", "source", StockSource, "name"),
-        ("finished_products", "production_status", ProductionStatus, "name"),
-        ("payments", "payment_type", PaymentType, "id"),
-        ("payments", "payment_method", PaymentMethod, "id"),
+        ("users", "role", UserRole, "username", _DIRECT),
+        ("projects", "status", ProjectStatus, "project_name", _DIRECT),
+        ("orders", "order_type", OrderType, "order_number", _DIRECT),
+        ("orders", "status", OrderStatus, "order_number", _DIRECT),
+        ("orders", "payment_status", PaymentStatus, "order_number", _DIRECT),
+        ("return_items", "reason", ReturnReason, "item_name", _DIRECT),
+        ("employees", "pay_type", PayType, "name", _DIRECT),
+        ("advance_requests", "status", AdvanceRequestStatus, "id", _VIA_EMP),
+        ("finished_products", "source", StockSource, "name", _DIRECT),
+        ("finished_products", "production_status", ProductionStatus, "name", _DIRECT),
+        ("payments", "payment_type", PaymentType, "id", _VIA_ORDER),
+        ("payments", "payment_method", PaymentMethod, "id", _VIA_ORDER),
     ]
 
     issues = []
     check_errors = []
-    for table, column, enum_cls, label_col in checks:
+    for table, column, enum_cls, label_col, tenant_clause in checks:
         valid_names = [m.name for m in enum_cls]
         placeholders = ", ".join(f"'{n}'" for n in valid_names)
         try:
+            _tenant_sql = tenant_clause if company_id is not None else ""
+            _params = {"cid": company_id} if company_id is not None else {}
             rows = db.execute(text(
                 f"SELECT id, {label_col}, {column} FROM {table} "
                 f"WHERE {column} IS NOT NULL AND {column} NOT IN ({placeholders})"
-            )).fetchall()
+                f"{_tenant_sql}"
+            ), _params).fetchall()
             for r in rows:
                 issues.append({
                     "table": table, "column": column, "id": r[0],
@@ -1726,7 +5466,7 @@ def check_system_health(db: Session) -> dict:
     }
 
 
-def check_financial_consistency(db: Session) -> dict:
+def check_financial_consistency(db: Session, company_id: int = None) -> dict:
     """Moliyaviy izchillik tekshiruvi — bazadagi hisob-kitoblar o'zaro
     to'g'ri qo'shilganmi, tekshiradi (masalan buyurtma summasi = detallar
     yig'indisimi, qarz = kelishilgan − to'langan). Bu, "Salomatlik"dagi
@@ -1738,9 +5478,24 @@ def check_financial_consistency(db: Session) -> dict:
     issues = []
 
     # 1) Buyurtma summasi = detallar (unit_price × quantity) yig'indisimi?
-    orders = db.query(Order).filter(Order.is_deleted.is_(False)).all()
+    # M7 (2026-09-18) — TENANT: bu tekshiruv butun bazani skanerlab,
+    # boshqa korxonaning buyurtma raqami/detal nomi/summasini qaytarardi
+    # (jonli sinovda A ning javobida "ZZZB_ORD-001" chiqqan). Endi barcha
+    # so'rovlar joriy korxona bilan cheklanadi.
+    def _oc(q):    # Order bo'yicha
+        return q.filter(Order.company_id == company_id) if company_id is not None else q
+
+    def _oic(q):   # OrderItem bo'yicha
+        return q.filter(OrderItem.company_id == company_id) if company_id is not None else q
+
+    # kech97 (116-band, O'LCHANGAN `work/probe116.py`): detal, to'lov va yetkazish buyurtma / detal boshiga ALOHIDA
+    # so'ralardi (+10 buyurtma — +50 so'rov). Endi o'sha munosabatlar (o'sha FK sharti; TENANT_FILTER da o'sha
+    # korxona sharti) bir necha IN so'rovi bilan, tartib — munosabat order_by=id.
+    from sqlalchemy.orm import selectinload as _sil_fc
+    orders = _oc(db.query(Order).filter(Order.is_deleted.is_(False))).options(
+        _sil_fc(Order.items), _sil_fc(Order.payments)).all()
     for o in orders:
-        items = db.query(OrderItem).filter(OrderItem.order_id == o.id).all()
+        items = list(o.items or [])
         items_sum = sum(float(it.unit_price or 0) * float(it.quantity or 1) for it in items)
         total = float(o.total_amount or 0)
         diff = abs(items_sum - total)
@@ -1753,12 +5508,18 @@ def check_financial_consistency(db: Session) -> dict:
             })
 
     # 2) Qarz = kelishilgan − to'langan?
+    # kech98 (130-band, O'LCHANGAN `work/probe130.py`): kutilgan qarz `Order.debt_amount` QOIDASI bilan — tiyin
+    # aniqligida, qoldiq yarim so'mdan (`QARZ_BARDOSH`) oshmasa 0, ortiqcha to'langan — 0. Ilgari xom ayirma olinardi:
+    # ortiqcha to'langan (tasdiqlangan) buyurtma "Qarz hisobi mos emas" (kutilgan −5 000) bo'lib chiqardi — holbuki
+    # qarz 0 formula bo'yicha TO'G'RI. Tekshiruv maqsadi — qarz hisobining o'zi buzilganini topish.
     for o in orders:
-        pays = db.query(Payment).filter(Payment.order_id == o.id).all()
-        paid = sum(float(p.amount or 0) for p in pays)
-        agreed = float(o.agreed_amount or o.total_amount or 0)
+        pays = list(o.payments or [])
+        paid = pul_tiyin_yigindi(p.amount for p in pays)
+        agreed = o.kelishilgan_summa
         debt = float(o.debt_amount or 0)
-        expected_debt = agreed - paid
+        expected_debt = pul_tiyin(agreed - paid)
+        if expected_debt <= QARZ_BARDOSH:
+            expected_debt = 0.0
         diff = abs(debt - expected_debt)
         if diff > 1:
             issues.append({
@@ -1769,7 +5530,10 @@ def check_financial_consistency(db: Session) -> dict:
             })
 
     # 3) Manfiy ombor qoldig'i bormi?
-    for inv in db.query(Inventory).filter(Inventory.stock_quantity < 0).all():
+    _invq = db.query(Inventory).filter(Inventory.stock_quantity < 0)
+    if company_id is not None:
+        _invq = _invq.filter(Inventory.company_id == company_id)
+    for inv in _invq.all():
         issues.append({
             "type": "negative_stock",
             "label": inv.item_name,
@@ -1778,7 +5542,11 @@ def check_financial_consistency(db: Session) -> dict:
         })
 
     # 4) Xarid: miqdor × narx = jami summami?
-    for p in db.query(InventoryPurchase).all():
+    _ipq = db.query(InventoryPurchase)
+    if company_id is not None:      # ota (material) orqali
+        _ipq = _ipq.join(Inventory, Inventory.id == InventoryPurchase.inventory_id).filter(
+            Inventory.company_id == company_id)
+    for p in _ipq.all():
         expected = float(p.quantity or 0) * float(p.price_per_unit or 0)
         actual = float(p.total_amount or 0)
         diff = abs(expected - actual)
@@ -1793,9 +5561,9 @@ def check_financial_consistency(db: Session) -> dict:
     # 5) order_items notes'ida takroriy texnik belgi bormi? (masalan
     # 2026-08-17'da ORD-026-2'da topilgan [TERMO:...] ikki marta yozilish
     # holati kabi)
-    for it in db.query(OrderItem).all():
+    for it in _oic(db.query(OrderItem)).all():
         notes = it.notes or ""
-        for marker in ["[TERMO:", "[GISHT:"]:
+        for marker in ["[GISHT:"]:
             if notes.count(marker) > 1:
                 issues.append({
                     "type": "duplicate_note_marker",
@@ -1807,12 +5575,10 @@ def check_financial_consistency(db: Session) -> dict:
     # 6) Yetkazib berilgan miqdor, buyurtma qilingandan ko'pmi? (turkumga
     # qarab TO'G'RI maydonni solishtiramiz — "profil" uchun "length",
     # qolganlari uchun "quantity")
-    from models import DeliveryItem
-    for it in db.query(OrderItem).all():
+    for it in _oic(db.query(OrderItem)).options(_sil_fc(OrderItem.deliveries)).all():
         cat = (it.category or '').lower()
         ordered = float(it.length or 0) if cat == 'profil' else float(it.quantity or 0)
-        delivered = sum(float(di.quantity or 0) for di in
-                         db.query(DeliveryItem).filter(DeliveryItem.order_item_id == it.id).all())
+        delivered = sum(float(di.quantity or 0) for di in (it.deliveries or []))
         if delivered > ordered + 0.01:
             issues.append({
                 "type": "over_delivery",
@@ -1821,26 +5587,13 @@ def check_financial_consistency(db: Session) -> dict:
                 "diff": round(delivered - ordered, 2),
             })
 
-    # 7) Termopanel detali, lekin Bazalt tayinlanmaganmi? (bu, xomashyo
-    # ayirilmasdan qolib ketganini bildiradi — tayyor mahsulotdan
-    # olinganlar bundan mustasno, ular allaqachon ishlab chiqarishda
-    # ayirilgan)
-    for it in db.query(OrderItem).filter(OrderItem.category == 'termopanel').all():
-        if it.finished_product_id:
-            continue
-        if '[TERMO:' not in (it.notes or '') or 'bazalt_id=' not in (it.notes or ''):
-            issues.append({
-                "type": "termopanel_missing_bazalt",
-                "label": f"{it.name} (buyurtma #{it.order_id})",
-                "detail": "Bazalt turi tayinlanmagan — xomashyo to'g'ri ayirilmagan bo'lishi mumkin",
-                "diff": 0,
-            })
-
     # 8) Qoralama bo'lmagan buyurtmada, narxi "0" bo'lgan detal bormi?
     # (bu, narx kiritishni unutib qo'yganini bildirishi mumkin)
     from models import OrderStatus
-    for o in db.query(Order).filter(Order.is_deleted.is_(False), Order.status != OrderStatus.DRAFT).all():
-        for it in db.query(OrderItem).filter(OrderItem.order_id == o.id).all():
+    # kech97 (116-band): detallar 1-tekshiruvda (o'sha sessiya, o'sha buyurtmalar — bu ro'yxat uning qismi) oldindan
+    # yuklangan — qayta so'ralmaydi (kmut97a N24: alohida yuklash — ekvivalent).
+    for o in _oc(db.query(Order).filter(Order.is_deleted.is_(False), Order.status != OrderStatus.DRAFT)).all():
+        for it in (o.items or []):
             if float(it.unit_price or 0) <= 0:
                 issues.append({
                     "type": "zero_price_item",
@@ -1850,8 +5603,12 @@ def check_financial_consistency(db: Session) -> dict:
                 })
 
     # 9) Egasiz to'lovlar (mavjud bo'lmagan buyurtmaga bog'langan)
-    order_ids_set = {o.id for o in db.query(Order.id).all()}
-    for p in db.query(Payment).all():
+    order_ids_set = {o.id for o in _oc(db.query(Order.id)).all()}
+    _payq = db.query(Payment)
+    if company_id is not None:      # ota (buyurtma) orqali
+        _payq = _payq.join(Order, Order.id == Payment.order_id).filter(
+            Order.company_id == company_id)
+    for p in _payq.all():
         if p.order_id and p.order_id not in order_ids_set:
             issues.append({
                 "type": "orphaned_payment",
@@ -1862,7 +5619,11 @@ def check_financial_consistency(db: Session) -> dict:
 
     # 10) Egasiz yetkazishlar (mavjud bo'lmagan buyurtmaga bog'langan)
     from models import Delivery
-    for d in db.query(Delivery).all():
+    _delq = db.query(Delivery)
+    if company_id is not None:      # ota (buyurtma) orqali
+        _delq = _delq.join(Order, Order.id == Delivery.order_id).filter(
+            Order.company_id == company_id)
+    for d in _delq.all():
         if d.order_id and d.order_id not in order_ids_set:
             issues.append({
                 "type": "orphaned_delivery",
@@ -1878,6 +5639,112 @@ def check_financial_consistency(db: Session) -> dict:
     }
 
 
+def _auto_release_mrp_reservations(db: Session, order_item_ids, performed_by: str = None):
+    """2026-09-17: buyurtma yoki uning biror detali o'chirilganda/bekor
+    qilinganda ChaCHAQIRILADI — shu detal(lar)ga Production/MRP orqali
+    band qilingan tayyor mahsulot bo'lsa, AVTOMATIK ozod qiladi (mahsulot
+    o'zi YO'QOLMAYDI, faqat umumiy sotuvga qaytadi). Aks holda, band
+    qilingan mahsulot ENDI HECH QACHON ozod bo'lmasdan, abadiy "yo'q"
+    bo'lib qolar edi — chunki uni band qilgan buyurtma-detal endi
+    mavjud emas.
+
+    MUHIM: bu yerda commit QILINMAYDI — chaqiruvchi funksiya (delete_order/
+    delete_order_item) o'zining umumiy tranzaksiyasi ichida keyinroq
+    commit qiladi, shu bilan hammasi bitta atomik amal bo'lib qoladi.
+
+    kech109 (10b E-1, O'LCHANGAN `work/probe109e1.py` — SQLite, PG 16, PG + TENANT_FILTER=1): BEGONA korxonaning
+    tayyor mahsuloti shu detalga band bo'lsa (K93-1 dan oldingi eski ma'lumot) — B buyurtmasini o'chirish A bandini
+    5 → 0 qilar va A jurnaliga B foydalanuvchisi nomi bilan yozardi; TENANT_FILTER=1 da esa A mahsuloti so'rovga
+    ko'rinmay, bog'lam uzilmas va B o'z buyurtmasini / detalini o'chira olmasdi (PG FK — 500). Endi: detal
+    korxonasining O'Z TM lari — avvalgidek ozod + jurnal; BEGONA TM larda FAQAT FK bog'lami uziladi (bulk UPDATE —
+    filtrga bog'liq emas), band miqdori va egasining jurnali O'ZGARMAYDI (egasi «Tayyor mahsulotlar» da o'zi ozod qiladi).
+    """
+    from models import FinishedProduct
+    from sqlalchemy import or_ as _or109
+    if not order_item_ids:
+        return
+    _idlar109 = sorted({int(i) for i in order_item_ids if i is not None})
+    if not _idlar109:
+        return
+    # detal egasi (korxona) — chaqiruvchi o'z korxonasi bo'yicha tekshirgan detallar
+    _guruh109 = {}
+    for _iid109, _cid109 in db.query(OrderItem.id, OrderItem.company_id).filter(OrderItem.id.in_(_idlar109)).all():
+        _guruh109.setdefault(_cid109, []).append(_iid109)
+    _topilmagan109 = [i for i in _idlar109 if not any(i in v for v in _guruh109.values())]
+    if _topilmagan109:
+        _guruh109.setdefault(None, []).extend(_topilmagan109)
+    fps = []
+    for _cid109, _oz109 in _guruh109.items():
+        _fq109 = db.query(FinishedProduct).filter(FinishedProduct.reserved_for_order_item_id.in_(_oz109))
+        if _cid109 is not None:
+            # BEGONA korxona TM lari — faqat FK bog'lami (miqdor / jurnal o'zgarmaydi)
+            db.query(FinishedProduct).filter(
+                FinishedProduct.reserved_for_order_item_id.in_(_oz109),
+                FinishedProduct.company_id != _cid109,
+            ).update({"reserved_for_order_item_id": None}, synchronize_session="evaluate")
+            _fq109 = _fq109.filter(_or109(FinishedProduct.company_id == _cid109,
+                                          FinishedProduct.company_id.is_(None)))
+        fps.extend(_fq109.order_by(FinishedProduct.id).all())
+    for fp in fps:
+        if fp.reserved_quantity:
+            # kech41 (14-band): `log_activity` O'ZI `commit` qiladi — yuqoridagi
+            # "commit QILINMAYDI" va'dasini buzar va `delete_order_item` /
+            # `delete_order` dagi qulfni (101, buyurtma) muddatidan oldin
+            # bo'shatardi (kech38 saboqi). Audit yozuvi bir xil maydonlar bilan
+            # sessiyaga qo'shiladi, chaqiruvchining `commit` i bilan saqlanadi.
+            from models import ActivityLog as _AL_rel
+            db.add(_AL_rel(
+                company_id=getattr(fp, 'company_id', None),
+                action="auto_release_reservation", entity_type="finished_product",
+                entity_id=fp.id, entity_label=fp.name, performed_by=performed_by,
+                old_value=f"band: {fp.reserved_quantity}",
+                new_value="band emas — bog'langan buyurtma/detal o'chirilgani uchun avtomatik ozod qilindi"))
+        fp.reserved_quantity = 0.0
+        fp.reserved_for_order_item_id = None
+
+
+@contextlib.contextmanager
+def bitta_tranzaksiya(db: Session):
+    """kech81 (99-band) — ichidagi HAMMA yozuv BITTA tranzaksiyada: yo hammasi saqlanadi, yo hech biri.
+
+    O'LCHANGAN (`work/probe99.py`, asl kod `5ab360f` (zip 76), SQLite = PG 16 AYNAN, 72 dan 22 yiqilish):
+    buyurtmani o'chirish (`main.api_delete_order`) va tiklash (`restore_order`) xomashyoni bir necha
+    yordamchi orqali qaytaradi / yechadi — `services.return_inventory_for_order`, `return_loy_ingredients`,
+    `deduct_loy_ingredients`, `take_loy_from_stock`, `log_activity` — va ularning HAR BIRI o'zi `commit`
+    qilardi. Keyingi qadam yiqilsa (tarmoq uzilishi, 404, istisno) penoplast / loy omborda qaytgan
+    (yoki yechilgan) bo'lib QOLARDI, buyurtma esa o'chmagan / tiklanmagan va `stock_returned` o'zgarmagan —
+    foydalanuvchi qayta bossa ombor IKKINCHI marta o'zgarardi (qoplamali 10 m, loy 10 kg: penoplast
+    +0.2 blok / kley +20 kg o'rniga +0.1 / +10; qisman topshirilgan: +0.12 / +12 o'rniga +0.06 / +6;
+    tiklashda −0.2 / −20 o'rniga −0.1 / −10).
+
+    Qanday ishlaydi: blok ichida sessiyaning `commit()` i `flush()` ga almashtiriladi (yordamchilar
+    o'zgartirilmaydi — kelajakda qo'shilgan ichki `commit` ham bir tranzaksiyaga tushadi), blok oxirida
+    BITTA haqiqiy `commit`; blok ichidagi istalgan istisnoda (HTTPException ham) — `rollback` va istisno
+    qayta ko'tariladi. Ichma-ich ishlatish mumkin: ichkisi tashqi tranzaksiyaga qo'shiladi, haqiqiy
+    `commit` faqat eng tashqisining oxirida.
+    """
+    _oldin = db.__dict__.get("commit")
+    db.commit = db.flush
+
+    def _qaytar():
+        if _oldin is None:
+            db.__dict__.pop("commit", None)
+        else:
+            db.commit = _oldin
+
+    try:
+        yield db
+    except BaseException:
+        _qaytar()
+        try:
+            db.rollback()
+        except Exception:  # noqa: BLE001 — asl istisno muhimroq
+            pass
+        raise
+    _qaytar()
+    db.commit()
+
+
 def delete_order(db: Session, order_id: int, soft: bool = False, performed_by: str = None) -> bool:
     """Buyurtmani o'chirish.
     soft=True bo'lsa — bazadan o'chirilmaydi, faqat 'is_deleted' belgisi qo'yiladi.
@@ -1890,15 +5757,33 @@ def delete_order(db: Session, order_id: int, soft: bool = False, performed_by: s
         return False
     order_num = db_order.order_number
     if soft:
+        # 2026-09-17: MRP band qilingan detallar bo'lsa — avtomatik ozod
+        # qilamiz (bir xil tranzaksiya ichida, pastdagi commit bilan).
+        _auto_release_mrp_reservations(db, [i.id for i in db_order.items], performed_by)
         db_order.is_deleted = True
         db.commit()
-        log_activity(db, "deleted", "order", order_id, order_num, performed_by)
+        log_activity(db, "deleted", "order", order_id, order_num, performed_by,
+                     company_id=getattr(db_order, 'company_id', None))
     else:
         # MUHIM: "Ombor harakatlari jurnali" (InventoryMovement) — bu buyurtmaga
         # FK orqali bog'langan, lekin bu yozuvlar TARIXIY LOG bo'lgani uchun
         # o'chirilmasligi kerak — faqat buyurtmaga bog'lanishi uziladi (order_id=NULL),
         # aks holda ma'lumotlar bazasi FK cheklovi tufayli o'chirishga yo'l qo'ymaydi.
         from models import InventoryMovement, FinishedProduct, Payment
+        from production_models import ProductionOrder
+        _auto_release_mrp_reservations(db, [i.id for i in db_order.items], performed_by)
+        # 2026-09-18 (chuqur audit topilmasi — HAQIQIY, jonli sinovda aniqlangan
+        # xato): Production/MRP orqali shu buyurtmaga bog'langan
+        # ProductionOrder yozuvlari (source_order_id/source_order_item_id)
+        # bo'lsa — ular ham, yuqoridagi InventoryMovement/FinishedProduct
+        # kabi, TARIXIY YOZUV sifatida saqlanib qoladi (o'chirilmaydi), faqat
+        # bog'lanishi uziladi. Bu qo'shilmagan bo'lsa, PostgreSQL FK cheklovi
+        # ("production_orders_source_order_id_fkey") ushbu buyurtmani
+        # o'chirishning O'ZINI ham butunlay bloklab, 500-xato berardi —
+        # bu real sinovda dalili bilan aniqlandi.
+        db.query(ProductionOrder).filter(ProductionOrder.source_order_id == order_id).update(
+            {"source_order_id": None, "source_order_item_id": None}
+        )
         db.query(InventoryMovement).filter(InventoryMovement.order_id == order_id).update(
             {"order_id": None}
         )
@@ -1909,9 +5794,15 @@ def delete_order(db: Session, order_id: int, soft: bool = False, performed_by: s
         # shuning uchun unga bog'liq to'lovlar ham — haqiqiy xizmat ko'rsatilmagani
         # sabab — buyurtma bilan BIRGA, avtomatik o'chiriladi.
         db.query(Payment).filter(Payment.order_id == order_id).delete()
+        # kech126 (zip 148): shu buyurtma rasmiylashtirilgan taklif — bog'lam uziladi (raqami ro'yxatda «o'chirilgan» bo'lib qoladi)
+        taklif_buyurtmasini_uz(db, order_id, getattr(db_order, 'company_id', None))
+        _prj_do = db_order.project
         db.delete(db_order)
+        # 17c: o'chgan to'lovlar loyiha "To'langan" summasidan ham chiqadi.
+        _loyiha_tolangan_yangila(db, _prj_do)
         db.commit()
-        log_activity(db, "deleted", "order", order_id, order_num, performed_by)
+        log_activity(db, "deleted", "order", order_id, order_num, performed_by,
+                     company_id=getattr(db_order, 'company_id', None))
     return True
 
 
@@ -1924,11 +5815,22 @@ def permanent_delete_order(db: Session, order_id: int, performed_by: str = None)
         return False
     order_num = db_order.order_number
     from models import InventoryMovement, FinishedProduct
+    from production_models import ProductionOrder
+    db.query(ProductionOrder).filter(ProductionOrder.source_order_id == order_id).update(
+        {"source_order_id": None, "source_order_item_id": None}
+    )
     db.query(InventoryMovement).filter(InventoryMovement.order_id == order_id).update({"order_id": None})
     db.query(FinishedProduct).filter(FinishedProduct.from_order_id == order_id).update({"from_order_id": None})
+    # kech126 (zip 148): rasmiylashtirilgan taklif bog'lami uziladi (PG FK ham SET NULL; SQLite FK ni tekshirmaydi)
+    taklif_buyurtmasini_uz(db, order_id, getattr(db_order, 'company_id', None))
+    _prj_pd = db_order.project
     db.delete(db_order)
+    # 17c: buyurtma bilan birga uning to'lovlari ham o'chadi (cascade) —
+    # loyiha "To'langan" summasi qayta hisoblanadi.
+    _loyiha_tolangan_yangila(db, _prj_pd)
     db.commit()
-    log_activity(db, "permanently_deleted", "order", order_id, order_num, performed_by)
+    log_activity(db, "permanently_deleted", "order", order_id, order_num, performed_by,
+                 company_id=getattr(db_order, 'company_id', None))
     return True
 
 
@@ -1948,98 +5850,163 @@ def restore_order(db: Session, order_id: int, performed_by: str = None) -> bool:
     if not db_order:
         return False
 
-    if db_order.stock_returned:
-        has_delivery = bool(db_order.deliveries)
-        is_fully_delivered = db_order.status == OrderStatus.DELIVERED or db_order.is_fully_delivered
+    # kech81 (99-band — O'LCHANGAN, `work/probe99.py`): qayta yechish, bayroqlar va jurnal BITTA tranzaksiyada.
+    # Ilgari `return_inventory_for_order(sign=-1)` / `deduct_loy_ingredients` o'zi commit qilardi — keyingi
+    # qadam yiqilsa xomashyo yechilgan, buyurtma esa o'chirilgan (`stock_returned` True) qolar, qayta tiklash
+    # IKKINCHI marta yechardi (yuksiz READY: penoplast −0.2 / kley −20 o'rniga −0.1 / −10).
+    with bitta_tranzaksiya(db):
+        # kech100 (93-band): o'chirishda topshirilgan qismi bilan YAKUNLANGAN buyurtma — AVVAL yakunlash bekor qilinadi
+        # (detallar / summalar / holat / loy o'chirishdan OLDINGI holatga), so'ng odatdagi tiklash: qolgan qism
+        # xomashyosi qayta yechiladi — natija kech100 dan oldingi tiklash bilan AYNAN (`tools/test_ochirish_yopish.py`).
+        ochirish_yopishini_bekor_qil(db, db_order)
+        if db_order.stock_returned:
+            # kech60 (57-band): "qisman chiqqan" sharti — `services.buyurtmadan_qisman_chiqqan` (pastda)
+            is_fully_delivered = db_order.status == OrderStatus.DELIVERED or db_order.is_fully_delivered
 
-        if not is_fully_delivered:
-            if has_delivery:
-                # Qisman topshirilgan edi — faqat qolgan qism qayta yechiladi
-                services.return_inventory_for_order_partial(db, db_order, sign=-1.0)
-            else:
-                # Hech narsa topshirilmagan edi — hammasi qayta yechiladi
-                services.return_inventory_for_order(db, db_order, sign=-1.0)
-                services.return_termopanel_for_order(db, db_order, sign=-1.0)
+            if not is_fully_delivered:
+                # kech60 (57-band): o'chirishdagi (`main.api_delete_order`) bilan AYNAN bir xil
+                # shart — topshirilgan YOKI omborga ortiqcha qo'yilgan qism bo'lsa, faqat qolgan qism.
+                if services.buyurtmadan_qisman_chiqqan(db_order):
+                    # Qisman topshirilgan / omborga qo'yilgan edi — faqat qolgan qism qayta yechiladi
+                    services.return_inventory_for_order_partial(db, db_order, sign=-1.0)
+                else:
+                    # Hech narsa topshirilmagan edi — hammasi qayta yechiladi
+                    services.return_inventory_for_order(db, db_order, sign=-1.0)
 
-            # Tayyor mahsulotlar qayta yechiladi — hech narsa topshirilmagan
-            # bo'lsa TO'LIQ, QISMAN topshirilgan bo'lsa faqat QOLGAN qismi
-            # (_return_finished_for_order item.remaining_qty orqali o'zi farqni
-            # to'g'ri hisoblaydi — bu o'chirishdagi qaytarishning aynan aksi).
-            _return_finished_for_order(db, db_order, sign=-1.0)
+                # Tayyor mahsulotlar qayta yechiladi — hech narsa topshirilmagan
+                # bo'lsa TO'LIQ, QISMAN topshirilgan bo'lsa faqat QOLGAN qismi
+                # (_return_finished_for_order item.remaining_qty orqali o'zi farqni
+                # to'g'ri hisoblaydi — bu o'chirishdagi qaytarishning aynan aksi).
+                _return_finished_for_order(db, db_order, sign=-1.0)
 
-            # Loy/Gips uchun QOLGAN (topshirilmagan) qism ulushi — o'chirishda
-            # QANCHA qaytarilgan bo'lsa, tiklashda AYNAN O'SHA qism qayta
-            # yechiladi (bu ulush o'zgarmaydi, chunki buyurtma o'chirilgan
-            # holatda yetkazishlar qo'shilmaydi va detallar tahrirlanmaydi —
-            # create_delivery/update_order_item/delete_order_item endi
-            # is_deleted buyurtmalarni rad etadi).
-            # MUHIM (2026-09 chuqur audit — ikkinchi bosqich): order-wide
-            # delivery_percent EMAS — Loy va Gips uchun ALOHIDA, faqat shu
-            # xomashyoni haqiqatda sarflaydigan detallar bo'yicha hisoblangan
-            # ulush (qarang: main.py'dagi bir xil tuzatish va services.py
-            # dagi loy_relevant_remaining_fraction/gips_relevant_remaining_
-            # fraction izohlari).
-            loy_remaining_fraction = services.loy_relevant_remaining_fraction(db_order) if has_delivery else 1.0
-            gips_remaining_fraction = services.gips_relevant_remaining_fraction(db_order) if has_delivery else 1.0
+                # Loy uchun QOLGAN (topshirilmagan) qism ulushi — o'chirishda
+                # QANCHA qaytarilgan bo'lsa, tiklashda AYNAN O'SHA qism qayta
+                # yechiladi (bu ulush o'zgarmaydi, chunki buyurtma o'chirilgan
+                # holatda yetkazishlar qo'shilmaydi va detallar tahrirlanmaydi —
+                # create_delivery/update_order_item/delete_order_item endi
+                # is_deleted buyurtmalarni rad etadi).
+                # MUHIM (2026-09 chuqur audit — ikkinchi bosqich): order-wide
+                # delivery_percent EMAS — Loy uchun ALOHIDA, faqat shu
+                # xomashyoni haqiqatda sarflaydigan detallar bo'yicha hisoblangan
+                # ulush (qarang: main.py'dagi bir xil tuzatish va services.py
+                # dagi loy_relevant_remaining_fraction
+                # fraction izohlari).
+                loy_remaining_fraction = (services.loy_relevant_remaining_fraction(db_order)
+                                          if services.buyurtmadan_qisman_chiqqan(db_order) else 1.0)
 
-            # Loy (qoplama) — rejalashtirilgan miqdor (yoki QOLGAN ulushi) qayta yechiladi.
-            # Eslatma: agar o'chirishda "haqiqatda qancha ishlatilgan edi"
-            # deb alohida qiymat kiritilgan bo'lsa, o'sha aniq qiymat
-            # saqlanmaganligi sabab, bu yerda REJADAGI (standart) miqdor
-            # asos qilib olinadi — aksariyat holatlarda bu aynan to'g'ri keladi.
-            planned_loy = services._get_planned_loy(db_order) + get_termopanel_planned_loy(db_order)
-            redo_loy = planned_loy * loy_remaining_fraction
-            if redo_loy > 0.01:
-                services.deduct_loy_ingredients(db, db_order, redo_loy)
+                # Loy (qoplama). kech77 (95-band, K77-1 — O'LCHANGAN `work/probe95.py`, SQLite = PG): o'chirishda
+                # HAQIQATDA qo'llangan miqdor (`ochirishda_loy_kg`: + qaytgan, − qo'shimcha yechilgan) AYNAN teskari
+                # qilinadi. Ilgari bu yerda DOIM reja × qolgan ulush qayta yechilardi ("aniq qiymat saqlanmagan") —
+                # hodim o'chirishda "haqiqatda qancha ishlatilgan" deb boshqa miqdor yozgan bo'lsa, tiklash loy
+                # qoldig'ini abadiy siljitardi (qisman 4/10, loy 10: actual=7 → −3, actual=12 → −8). NULL — kech77 dan
+                # OLDIN o'chirilgan buyurtma (o'shanda UI miqdor so'ramasdi — qaytgani aynan reja × ulush edi): eski qoida.
+                # kech82 (102-band): o'chirishning AYNAN teskarisi — zaxiraga qaytgan loy zaxiradan, xomga qaytgani
+                # xomdan (o'chirish yozuvi "o" bo'yicha; yozuvsiz eski o'chirish — faqat xomdan).
+                with services.loy_manba_rejimi(db, "tiklash"):
+                    planned_loy = services._get_planned_loy(db_order)
+                    _qollangan = getattr(db_order, 'ochirishda_loy_kg', None)
+                    if _qollangan is not None:
+                        _qollangan = float(_qollangan)
+                        if _qollangan > 0.01:
+                            services.deduct_loy_ingredients(db, db_order, _qollangan)
+                        elif _qollangan < -0.01:
+                            services.return_loy_ingredients(
+                                db, db_order, abs(_qollangan),
+                                reason_override=f"Buyurtma {db_order.order_number} tiklandi (o'chirishda qo'shimcha yechilgan loy qaytarildi)")
+                    else:
+                        redo_loy = planned_loy * loy_remaining_fraction
+                        if redo_loy > 0.01:
+                            services.deduct_loy_ingredients(db, db_order, redo_loy)
 
-            # "Loy sotish" detallari — har biri o'z remaining_qty'i bo'yicha
-            # ALOHIDA qayta yechiladi (o'chirishdagi bilan bir xil, item
-            # darajasida — order-wide has_delivery emas; qarang: yuqoridagi
-            # main.py'dagi bir xil tuzatish).
-            for item in db_order.items:
-                if (item.category or '').lower() == 'loy_sotish' and item.recipe_id:
-                    remaining = item.remaining_qty
-                    if remaining > 0.001:
-                        services.deduct_loy_ingredients(db, db_order, float(remaining), recipe_id=item.recipe_id)
+                    # "Loy sotish" detallari — har biri o'z remaining_qty'i bo'yicha
+                    # ALOHIDA qayta yechiladi (o'chirishdagi bilan bir xil, item
+                    # darajasida — order-wide has_delivery emas; qarang: yuqoridagi
+                    # main.py'dagi bir xil tuzatish).
+                    for item in db_order.items:
+                        if (item.category or '').lower() == 'loy_sotish' and item.recipe_id:
+                            remaining = item.remaining_qty
+                            if remaining > 0.001:
+                                services.deduct_loy_ingredients(db, db_order, float(remaining), recipe_id=item.recipe_id)
 
-            # GIPS — rejalashtirilgan miqdor (yoki QOLGAN ulushi, asosiy va
-            # qo'shimchalar) qayta yechiladi
-            planned_gips = float(db_order.planned_gips_kg or 0)
-            redo_gips = planned_gips * gips_remaining_fraction
-            if redo_gips > 0.01 and db_order.gips_inventory_id:
-                services.deduct_gips_main(db, db_order.gips_inventory_id, redo_gips, db_order, reason=f"Buyurtma tiklandi ({db_order.order_number})")
-            gips_adds = db.query(OrderGipsAdditive).filter(OrderGipsAdditive.order_id == db_order.id).all()
-            if gips_adds and gips_remaining_fraction > 0:
-                redo_list = [{"inventory_id": a.inventory_id, "qty": float(a.planned_qty or 0) * gips_remaining_fraction} for a in gips_adds]
-                redo_list = [r for r in redo_list if abs(r["qty"]) > 0.001]
-                if redo_list:
-                    services.deduct_gips_additives(db, redo_list, db_order, reason=f"Buyurtma tiklandi ({db_order.order_number})")
+            db_order.stock_returned = False
+            # kech77 (K77-1): qo'llangan loy teskari qilindi — keyingi o'chirish o'zini qayta yozadi
+            db_order.ochirishda_loy_kg = None
+            # kech82 (102-band): o'chirish yozuvi teskari qilindi
+            services.loy_manba_ochirish_tozala(db_order)
 
-        db_order.stock_returned = False
-
-    db_order.is_deleted = False
-    db.commit()
-    log_activity(db, "restored", "order", order_id, db_order.order_number, performed_by)
+        db_order.is_deleted = False
+        # kech118 (D-1, G2-20 — egasi QARORI: buyurtmasi bor loyihani o'chirib bo'lmaydi): loyihasi o'chirilgan buyurtma
+        # tiklansa — loyihasi ham tiklanadi (faol buyurtmali o'chirilgan loyiha qolmaydi; ikkalasi jurnalda)
+        _loyiha_tiklandi = None
+        _pr = (db.query(Project).filter(Project.id == db_order.project_id,
+                                        Project.company_id == db_order.company_id).first()
+               if db_order.project_id else None)
+        if _pr is not None and _pr.is_deleted:
+            _pr.is_deleted = False
+            _loyiha_tiklandi = _pr
+        db.commit()
+        log_activity(db, "restored", "order", order_id, db_order.order_number, performed_by,
+                     company_id=getattr(db_order, 'company_id', None))
+        if _loyiha_tiklandi is not None:
+            log_activity(db, "restored", "project", _loyiha_tiklandi.id,
+                         f"{_loyiha_tiklandi.project_number} — {_loyiha_tiklandi.project_name} "
+                         f"(buyurtma {db_order.order_number} tiklangani uchun)", performed_by,
+                         company_id=getattr(_loyiha_tiklandi, 'company_id', None))
     return True
 
 
-def get_deleted_orders(db: Session) -> List[Order]:
+def get_deleted_orders(db: Session, company_id: int = None) -> List[Order]:
     """O'chirilgan (lekin hali bazada saqlanayotgan) buyurtmalar."""
-    return db.query(Order).filter(Order.is_deleted.is_(True)).order_by(Order.created_at.desc()).all()
+    _q = db.query(Order).filter(Order.is_deleted.is_(True))
+    if company_id is not None:
+        _q = _q.filter(Order.company_id == company_id)
+    return _q.order_by(Order.created_at.desc()).all()
 
 
-def delete_order_item(db: Session, item_id: int) -> bool:
+def delete_order_item(db: Session, item_id: int, company_id: int = None) -> bool:
     """Detal o'chirish — xomashyo omborga qaytariladi.
     Topshirilgan detalni o'chirib bo'lmaydi."""
     import services
 
-    db_item = db.query(OrderItem).filter(OrderItem.id == item_id).first()
+    # M2: detal FAQAT o'z korxonasidan topiladi.
+    _iq = db.query(OrderItem).filter(OrderItem.id == item_id)
+    if company_id is not None:
+        _iq = _iq.filter(OrderItem.company_id == company_id)
+    db_item = _iq.first()
     if not db_item:
         return False
+    # kech41 (5-bo'lim 14-band, K41-1) — QULF (101, buyurtma), yetkazish /
+    # to'lov / qaytarish bilan BIR fazo. HAQIQIY PostgreSQL da O'LCHANGAN
+    # (asl kod, `work/probe41.py`, 3 / 3 urinish): qulfsiz "topshirilgan"
+    # tekshiruvi bir vaqtdagi yetkazishni ko'rmasdi —
+    # detal o'chirilayotganda undan 3 topshirilsa, detal o'chib, yuk xati
+    # qolardi (buyurtma summasi 0, penoplast TO'LIQ omborga "qaytardi");
+    # teskari tartibda o'chirish FK xatosi bilan 500 berardi.
+    # Naqsh `create_delivery` / `delete_delivery` dagi bilan bir xil:
+    # yozilmagan o'zgarish yo'qolmasin (`flush`), qulf, so'ng qulf ostida
+    # bazadan QAYTA o'qiladi (`expire_all`).
+    if db_item.order_id is not None:
+        db.flush()
+        _pul_qulfi(db, 101, db_item.order_id)
+        db.expire_all()
+        db_item = _iq.first()
+        if not db_item:
+            return False
 
     # Topshirilgan bo'lsa — o'chirib bo'lmaydi
     if db_item.delivered_qty > 0.001:
         return False
+    # kech60 (57-band, K59-3): detaldan ortiqcha mahsulot omborga qo'yilgan bo'lsa — rad
+    # (ValueError -> marshrut 400, hech narsa o'zgarmaydi). O'LCHANGAN (asl kod): 10 m dan
+    # 5 m omborga qo'yilgach detal o'chirilsa penoplast 10 m uchun to'liq qaytardi VA 5 m
+    # tayyor mahsulot qolardi (ikki marta). Yo'l: qaytarishni o'chirish (22-band — tayyor
+    # mahsulot AYNAN olinadi) yoki detal miqdorini kamaytirish (omborga qo'yilgandan kam emas).
+    _ortiqcha_d = db_item.ortiqcha_qty
+    if _ortiqcha_d > 0.001:
+        raise ValueError(
+            f"«{db_item.name}» detalidan {_miqdor_matn(_ortiqcha_d)} {db_item.delivery_unit} ortiqcha "
+            f"mahsulot omborga qaytarilgan — detalni o'chirib bo'lmaydi. Avval o'sha qaytarishni "
+            f"o'chiring yoki detal miqdorini kamaytiring (kamida {_miqdor_matn(_ortiqcha_d)})")
 
     order = db_item.order
     # MUHIM (2026-09 audit): o'chirilgan buyurtmaning detalini o'chirib
@@ -2048,6 +6015,9 @@ def delete_order_item(db: Session, item_id: int) -> bool:
     if order and order.is_deleted:
         return False
     is_draft = order.status == OrderStatus.DRAFT if order else False
+    # 117-band (kech95): tahrirdan / o'chirishdan OLDINGI jami (`_detal_ozgargach_buyurtma`; K110-1 — eski kelishilgan
+    # summa u yerda o'qiladi).
+    _eski_jami117 = float(order.total_amount or 0) if order else 0.0
 
     # O'chiriladigan detalning xomashyosini qaytaramiz
     if not is_draft:
@@ -2058,6 +6028,11 @@ def delete_order_item(db: Session, item_id: int) -> bool:
             "length": db_item.length,
             "quantity": float(db_item.quantity or 1),
             "unit_price": float(db_item.unit_price or 0),
+            # 126-band (kech96, O'LCHANGAN `work/probe126.py` D1–D3): qulflangan narx, o'z "1 m³ narxi" va buyurtma
+            # asosiy narxi — Donalik (eski usul) yechilgan hajm AYNAN qaytsin (ilgari 0.40 o'rniga 0.80 qaytardi).
+            "unit_price_for_volume": float(db_item.unit_price_for_volume) if db_item.unit_price_for_volume is not None else None,
+            "price_per_m3": float(db_item.price_per_m3) if db_item.price_per_m3 else None,
+            "order_base_price": (float(order.base_price) if order is not None and order.base_price is not None else None),
             "penoplast_id": db_item.penoplast_id,
             # MUHIM (2026-09 audit): "Tayyor mahsulotdan" tanlangan detal
             # bo'lsa — bu maydon bo'lmasa, _item_volume_m3() buni oddiy
@@ -2079,22 +6054,39 @@ def delete_order_item(db: Session, item_id: int) -> bool:
                 "length": s.length, "quantity": s.quantity,
             } for s in (db_item.sub_details or [])],
         }]
-        services.adjust_inventory_diff(db, old_snap, [], order_id=db_item.order_id)
-        # Termopanel (bazalt/serpiyanka/kley) — detal butunlay o'chirilganda
-        # ilgari yechilgan xomashyo omborga qaytishi kerak (Penoplast bilan bir xil mantiq)
-        services.return_termopanel_for_item(db, db_item)
+        services.adjust_inventory_diff(db, old_snap, [], order_id=db_item.order_id,
+                                       company_id=db_item.company_id, commit=False)
+
+    # 2026-09-17: shu detalga Production/MRP orqali band qilingan tayyor
+    # mahsulot bo'lsa — avtomatik ozod qilamiz (aks holda, detal
+    # o'chirilgach, u band qilingancha, ABADIY qaytarib bo'lmaydigan
+    # holda qolib ketardi).
+    _auto_release_mrp_reservations(db, [db_item.id])
+    # 2026-09-18 (chuqur audit topilmasi — HAQIQIY, jonli sinovda
+    # aniqlangan xato): agar shu detalga Production/MRP buyurtmasi
+    # (source_order_item_id orqali) bog'langan bo'lsa, pastdagi
+    # db.delete(db_item) PostgreSQL FK cheklovi tufayli 500-xato bilan
+    # butunlay bloklanardi (delete_order()dagi bilan bir xil sabab —
+    # o'sha yerda aynan shu xato jonli sinovda topildi). ProductionOrder
+    # o'zi — TARIXIY YOZUV, o'chirilmaydi, faqat bog'lanishi uziladi.
+    from production_models import ProductionOrder
+    db.query(ProductionOrder).filter(ProductionOrder.source_order_item_id == db_item.id).update(
+        {"source_order_item_id": None}
+    )
 
     db.delete(db_item)
     db.flush()
 
     if order:
-        order.total_amount = sum(float(it.total_price or 0) for it in order.items)
-        db.flush()
-        db.refresh(order)
-        _update_order_payment_status(db, order)
+        # 117-band (kech95): jami va kelishilgan summa — `_detal_ozgargach_buyurtma`
+        _detal_ozgargach_buyurtma(db, order, _eski_jami117)
 
     db.commit()
     return True
+
+
+# kech107 (10a): tahrirda `null` bilan TOZALANADIGAN (ixtiyoriy) loyiha maydonlari — `update_project`.
+LOYIHA_TOZALANADIGAN = ("client_phone", "client_address", "description", "notes", "deadline")
 
 
 def update_project(db: Session, project_id: int, project_data) -> Optional[Project]:
@@ -2107,6 +6099,10 @@ def update_project(db: Session, project_id: int, project_data) -> Optional[Proje
         update_data = project_data.model_dump(exclude_unset=True)
     else:
         update_data = {k: v for k, v in project_data.items() if v is not None}
+    # 14-band: qat'iy tekshiruv — HECH NARSA yozilmasdan OLDIN (ValueError → 400).
+    # `status` kanonik enum NOMIGA keltiriladi, noma'lum qiymat rad etiladi
+    # (ilgari noma'lum matn to'g'ridan yozilib 500 berardi).
+    update_data = _clean_update("Project", update_data)
 
     # HIMOYA: "status" satr (string) sifatida kelsa — katta/kichik harfdan
     # qat'i nazar, to'g'ri ProjectStatus a'zosiga moslashtiramiz. Bu, manba
@@ -2123,25 +6119,56 @@ def update_project(db: Session, project_id: int, project_data) -> Optional[Proje
         if matched:
             update_data['status'] = matched
 
+    # kech107 (10a, O'LCHANGAN `work/probe107a.py`, SQLite = PG): ilgari `value is not None` sharti bilan
+    # YUBORILGAN `null` jimgina tashlab yuborilardi — tahrir oynasida telefon / manzil / Telegram ID (izoh) tozalansa
+    # 200 qaytib, eski qiymat joyida qolardi (mijozga Telegram xabarlari davom etardi). `update_data` faqat
+    # YUBORILGAN kalitlar (`exclude_unset`); ixtiyoriy maydon `null` — tozalanadi, `total_budget: null` — 0
+    # (`create_project` bilan bir qoida), majburiy maydonlar `null` ni `_clean_update` allaqachon rad etgan (400).
     for field, value in update_data.items():
-        if hasattr(db_project, field) and value is not None:
-            setattr(db_project, field, value)
+        if not hasattr(db_project, field):
+            continue
+        if value is None:
+            if field == "total_budget":
+                value = 0
+            elif field not in LOYIHA_TOZALANADIGAN:
+                continue
+        setattr(db_project, field, value)
 
     db.commit()
     db.refresh(db_project)
     return db_project
 
 
+def loyiha_ochirish_tosigi(db: Session, project_id: int, company_id: int = None):
+    """kech118 (D-1, G2-20 — egasi QARORI «Taqiqlansin»): loyihada o'chirilmagan buyurtma bo'lsa — o'chirishga TO'SIQ matni
+    («… — avval buyurtmalarni o'chiring»), bo'lmasa None. O'chirilgan (savatdagi) buyurtmalar to'sqinlik qilmaydi — ular
+    loyiha bilan birga «O'chirilganlar»da turadi (butunlay o'chirishda `permanent_delete_project` alohida so'raydi)."""
+    _q = db.query(Order).filter(Order.project_id == project_id, Order.is_deleted.isnot(True))
+    if company_id is not None:
+        _q = _q.filter(Order.company_id == company_id)
+    n = _q.count()
+    if n:
+        return f"Loyihada {n} ta buyurtma bor — avval buyurtmalarni o'chiring"
+    return None
+
+
 def delete_project(db: Session, project_id: int, performed_by: str = None) -> bool:
     """Loyihani o'chirish — YUMSHOQ (is_deleted=True). Ma'lumot yo'qolmaydi,
-    'O'chirilganlar' bo'limidan tiklash mumkin (inson xatosidan himoya)."""
+    'O'chirilganlar' bo'limidan tiklash mumkin (inson xatosidan himoya).
+    kech118 (D-1, G2-20): o'chirilmagan buyurtmasi bor loyiha — `ValueError` (sabab bilan; marshrut → 400), hech narsa
+    yozilmaydi (ilgari faqat loyiha belgilanardi, buyurtmalar, qarz va to'lovlar ro'yxatlarda qolib ketardi — sahifa esa
+    «Barcha buyurtmalar ham o'chadi!» derdi)."""
     db_project = db.query(Project).filter(Project.id == project_id).first()
     if not db_project:
         return False
+    _tosiq = loyiha_ochirish_tosigi(db, project_id, company_id=getattr(db_project, 'company_id', None))
+    if _tosiq:
+        raise ValueError(_tosiq)
     label = f"{db_project.project_number} — {db_project.project_name}"
     db_project.is_deleted = True
     db.commit()
-    log_activity(db, "deleted", "project", project_id, label, performed_by)
+    log_activity(db, "deleted", "project", project_id, label, performed_by,
+                 company_id=getattr(db_project, 'company_id', None))
     return True
 
 
@@ -2159,7 +6186,8 @@ def permanent_delete_project(db: Session, project_id: int, performed_by: str = N
     label = f"{db_project.project_number} — {db_project.project_name}"
     db.delete(db_project)
     db.commit()
-    log_activity(db, "permanently_deleted", "project", project_id, label, performed_by)
+    log_activity(db, "permanently_deleted", "project", project_id, label, performed_by,
+                 company_id=getattr(db_project, 'company_id', None))
     return True, "ok"
 
 
@@ -2171,13 +6199,17 @@ def restore_project(db: Session, project_id: int, performed_by: str = None) -> b
     db_project.is_deleted = False
     db.commit()
     label = f"{db_project.project_number} — {db_project.project_name}"
-    log_activity(db, "restored", "project", project_id, label, performed_by)
+    log_activity(db, "restored", "project", project_id, label, performed_by,
+                 company_id=getattr(db_project, 'company_id', None))
     return True
 
 
-def get_deleted_projects(db: Session) -> List[Project]:
+def get_deleted_projects(db: Session, company_id: int = None) -> List[Project]:
     """O'chirilgan (lekin hali bazada saqlanayotgan) loyihalar."""
-    return db.query(Project).filter(Project.is_deleted.is_(True)).order_by(Project.start_date.desc()).all()
+    _q = db.query(Project).filter(Project.is_deleted.is_(True))
+    if company_id is not None:
+        _q = _q.filter(Project.company_id == company_id)
+    return _q.order_by(Project.start_date.desc()).all()
 
 
 # ============================================================
@@ -2188,41 +6220,425 @@ from models import ReturnItem, ReturnReason
 from schemas import ReturnItemCreate
 
 
-def create_return_item(db: Session, data: ReturnItemCreate) -> ReturnItem:
+def _miqdor_matn(x) -> str:
+    """Miqdor xabar uchun: 3 xonagacha, ortiqcha nolsiz (6.0 -> '6',
+    3.3333 -> '3.333'). `:g` katta sonni 1.2e+06 qilib yuborardi."""
+    s = f"{float(x):.3f}".rstrip("0").rstrip(".")
+    return "0" if s in ("", "-0") else s
+
+
+def _som_butun(v) -> float:
+    """Butun so'mga, 0.5 YUQORIGA (musbat sonlarda JS `Math.round` bilan bir xil —
+    UI summasi va server avto-summasi farq qilmasin). Python `round()` —
+    "bankir" yaxlitlashi, 0.5 da farq berardi."""
+    from decimal import Decimal, ROUND_HALF_UP
+    return float(Decimal(repr(float(v))).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+
+def pul_qaytarish_kamaytirgan(db: Session, order) -> float:
+    """28-band (kech43, K42-2): buyurtmaning kelishilgan summasini YANGI pul
+    qaytarishlar (kech40 dan keyin belgilangan — `refunded_at` bor) AYNAN qanchaga
+    kamaytirgani: `refund_agreed_delta` yig'indisi (so'm).
+
+    Kelishilgan summani QAYTA HISOBLAYDIGAN har joy (buyurtmani tahrirlash,
+    qisman yakunlash, qo'lda kelishilgan summa) shu miqdorni hisobga olishi SHART.
+    O'LCHANGAN (asl kod, SQLite = PG, `work/probe43.py`): tahrirdan keyin pul
+    qaytarish kamaytirishi yo'qolardi (qarz qayta paydo bo'lardi, 150 000 naqd
+    qaytarilgan to'liq to'langan buyurtmada 150 000 "qarz"), yoki "chegirma" ga
+    aylanib keyingi qaytarish narxini tushirardi (30 %), qaytarishni o'chirish esa
+    summani JAMIDAN ham oshirardi (500 000 lik buyurtma 1 000 000).
+
+    Yangilanishdan OLDINGI pul qaytarishlar (`refunded_at` bo'sh) — qancha
+    kamaytirgani yozilmagan, taxmin qilinmaydi (0 deb olinadi)."""
+    if order is None or getattr(order, "id", None) is None:
+        return 0.0
+    _qaytganlar = db.query(ReturnItem).filter(
+        ReturnItem.order_id == order.id,
+        ReturnItem.company_id == order.company_id,
+        ReturnItem.is_refunded.is_(True),
+        ReturnItem.refunded_at.isnot(None)).all()
+    return float(sum(float(r.refund_agreed_delta or 0) for r in _qaytganlar))
+
+
+def buyurtma_hisob_qatorlari(db: Session, order, qaytarish: float = None, mijoz_hujjati: bool = False) -> dict:
+    """kech116 (G2-04, O'LCHANGAN — audit kech114: mijozga beriladigan «Yuk xati» va «Hisob-kitob varaqasi» da
+    «Buyurtma jami 900 000 − To'langan 600 000», lekin «QARZ QOLDI 264 000» — 36 000 so'mlik qaytarish hech qayerda
+    yozilmagan (chegirma qatori faqat `discount_percent > 0` bo'lsa chiqardi); buyurtma PDF i esa shu qaytarishni
+    «Chegirma» derdi; hisob-kitob varaqasida «Berilgan mahsulot» qatori summalar orasida turardi). Buyurtma pul
+    hisobining YAGONA qatorlari — uchala PDF va buyurtma oynasi (`/api/orders/{id}` → `hisob`) shundan:
+
+        Buyurtma jami − Chegirma (yoki + Ustama) − Qaytarish − Kechirilgan qarz = Kelishilgan summa
+        Kelishilgan summa − To'langan = Qarz qoldi (yoki Ortiqcha to'langan)
+
+    Tarkib (O'LCHANGAN — `Order` va `crud` qoidalari): kelishilgan summa = narx kelishuvi − to'lovda kechirilgan qarz
+    (`Order.kechirilgan_qarz`, K110-1) − pul qaytarish kamaytirishi (`pul_qaytarish_kamaytirgan`, 28-band); narx
+    chegirmasi (ustama — manfiy) = jami − shu uchalasining yig'indisi. Yangilanishdan oldingi (kech40 dan oldin, qancha
+    kamaytirgani yozilmagan) qaytarish ajratib bo'lmaydi — u chegirmada qoladi (taxmin qilinmaydi). To'langan — sof
+    (mijozga qaytarilgan pul — manfiy to'lov — ayrilgan), qarz va ortiqcha — `Order.debt_amount` / `ortiqcha_tolov`
+    qoidasi (tiyin, yarim so'm bardoshi). `qaytarish` — chaqiruvchi `pul_qaytarish_kamaytirgan` ni allaqachon o'qigan
+    bo'lsa (buyurtma oynasi API si) — qayta so'rov qilinmaydi.
+
+    `korinish` — hujjat va oynada ko'rsatiladigan BUTUN so'mlar (HALF_UP): jami, qaytarish, kechirilgan, to'langan —
+    o'z qiymati; kelishilgan — o'z qiymati (qarz bardosh ichida bo'lsa — to'langanga teng); chegirma / ustama va
+    qarz / ortiqcha — shu butun sonlardan AYIRMA, shuning uchun hujjatdagi qatorlar DOIM qo'shilib chiqadi (tiyinli
+    summalarda alohida yaxlitlash 1 so'm farq berardi). `qatorlar` — shu ko'rinish qiymatlari bilan. Faqat o'qiydi.
+
+    `mijoz_hujjati=True` — MIJOZGA beriladigan hujjatlar (yuk xati, hisob-kitob varaqasi, buyurtma nakladnoyi; egasi QARORI
+    kech116 «Chegirmaga qo'shilsin»): «Kechirilgan qarz» so'zi hujjatda chiqmaydi — kechirilgan summa «Chegirma» qatoriga
+    qo'shiladi (narx chegirmasi + kechirilgan; ikkalasi birga foizga to'g'ri kelmagani uchun — FOIZSIZ «Chegirma»);
+    narx chegirmasi yo'q (yoki ustama) bo'lsa — kechirilgan summa o'zi «Chegirma» qatori bo'ladi (ustama alohida qoladi).
+    Kechirilgan qarz yo'q bo'lsa qatorlar AYNAN (chegirma foizi bilan). Qatorlar baribir qo'shiladi; `korinish` va boshqa
+    qiymatlar o'zgarmaydi. Buyurtma oynasi (ichki, `/api/orders/{id}`) — odatiy (kechirilgan qarz alohida qator)."""
+    from decimal import Decimal as _D116, ROUND_HALF_UP as _HU116
+
+    def _som(v):
+        return int(_D116(repr(float(v or 0))).quantize(_D116("1"), rounding=_HU116))
+
+    jami = pul_tiyin(float(order.total_amount or 0))
+    if qaytarish is None:
+        qaytarish = pul_qaytarish_kamaytirgan(db, order) if db is not None else 0.0
+    qaytarish = pul_tiyin(qaytarish)
+    kechirilgan = pul_tiyin(order.kechirilgan)
+    kelishilgan = pul_tiyin(order.kelishilgan_summa)
+    narx_farqi = pul_tiyin(jami - kelishilgan - qaytarish - kechirilgan)     # > 0 — chegirma, < 0 — ustama
+    tolangan = pul_tiyin(order.paid_amount)
+    qarz = float(order.debt_amount or 0) + 0.0
+    ortiqcha = float(order.ortiqcha_tolov or 0) + 0.0
+
+    J, Q, K, T = _som(jami), _som(qaytarish), _som(kechirilgan), _som(tolangan)
+    if qarz > 0:
+        L = _som(kelishilgan)
+        QZ, OR = max(L - T, 0), 0
+    elif ortiqcha > 0:
+        L = _som(kelishilgan)
+        QZ, OR = 0, max(T - L, 0)
+    else:
+        L, QZ, OR = T, 0, 0          # qoldiq yarim so'm bardoshi ichida — qarz yo'q (Order.debt_amount)
+    NF = J - Q - K - L                   # ko'rsatiladigan narx farqi (> 0 — chegirma, < 0 — ustama)
+    chegirma_foiz = round(narx_farqi / jami * 100.0, 2) if (jami > 0 and narx_farqi > 0) else 0.0
+
+    qatorlar = [{"kalit": "jami", "nom": "Buyurtma jami", "summa": J, "ishora": ""}]
+    # mijoz hujjatida kechirilgan qarz «Chegirma» ga qo'shiladi (egasi QARORI kech116) — `K_ch`: chegirma qatoriga
+    # qo'shiladigan kechirilgan summa, `K_alohida`: alohida «Kechirilgan qarz» qatori (buyurtma oynasi)
+    K_ch, K_alohida = (K, 0) if mijoz_hujjati else (0, K)
+    if NF < 0:
+        qatorlar.append({"kalit": "ustama", "nom": "Ustama", "summa": -NF, "ishora": "+"})
+    if max(NF, 0) + K_ch > 0:
+        _ch_nomi = f"Chegirma ({chegirma_foiz:g}%)" if (chegirma_foiz and not K_ch) else "Chegirma"
+        qatorlar.append({"kalit": "chegirma", "nom": _ch_nomi, "summa": max(NF, 0) + K_ch, "ishora": "-"})
+    if Q:
+        qatorlar.append({"kalit": "qaytarish", "nom": "Qaytarish (qaytgan mahsulot)", "summa": Q, "ishora": "-"})
+    if K_alohida:
+        qatorlar.append({"kalit": "kechirilgan", "nom": "Kechirilgan qarz", "summa": K_alohida, "ishora": "-"})
+    if len(qatorlar) > 1:
+        qatorlar.append({"kalit": "kelishilgan", "nom": "Kelishilgan summa", "summa": L, "ishora": ""})
+    qatorlar.append({"kalit": "tolangan", "nom": "To'langan", "summa": T, "ishora": ""})
+    if OR > 0:
+        qatorlar.append({"kalit": "ortiqcha", "nom": "ORTIQCHA TO'LANGAN", "summa": OR, "ishora": ""})
+    else:
+        qatorlar.append({"kalit": "qarz", "nom": "QARZ QOLDI", "summa": QZ, "ishora": ""})
+    return {
+        # ishora sharti bilan (`max(-0.0, 0.0)` → −0.0 — javobda «-0.0» shovqini, test_qarz_tiyin C17)
+        "jami": jami, "chegirma": narx_farqi if narx_farqi > 0 else 0.0, "ustama": -narx_farqi if narx_farqi < 0 else 0.0,
+        "chegirma_foiz": chegirma_foiz,
+        "qaytarish": qaytarish, "kechirilgan": kechirilgan, "kelishilgan": kelishilgan, "tolangan": tolangan,
+        "qarz": qarz, "ortiqcha": ortiqcha,
+        "korinish": {"jami": J, "chegirma": max(NF, 0), "ustama": max(-NF, 0), "qaytarish": Q, "kechirilgan": K,
+                     "kelishilgan": L, "tolangan": T, "qarz": QZ, "ortiqcha": OR},
+        "qatorlar": qatorlar,
+    }
+
+
+def qaytarish_narx_koeffitsienti(db: Session, order) -> float:
+    """4-band (kech42, FOYDALANUVCHI QARORI: "Chegirmali narxdan"): qaytarish
+    summasi buyurtmaning KELISHILGAN (chegirmali) narxidan hisoblanadi —
+    1 000 000 lik buyurtma 900 000 ga kelishilgan bo'lsa, butun qaytarish
+    900 000. Koeffitsient = kelishilgan / jami (<= 1).
+
+    Joriy `agreed_amount` pul qaytarishlardan keyin KAMAYADI (mark_refunded) —
+    shuning uchun ASL kelishilgan = joriy + yangi belgilangan pul
+    qaytarishlarning `refund_agreed_delta` yig'indisi. U saqlangan chegirma
+    foiziga (`discount_percent`, 2 xonagacha yaxlitlangan) mos kelsa — aniq
+    nisbat; mos kelmasa (qarz kechirilgan — bu narx chegirmasi emas,
+    yangilanishdan oldingi pul qaytarish, qo'lda o'zgartirish) — saqlangan
+    foiz. Chegirma yo'q yoki ustama (kelishilgan > jami) — 1 (qaror faqat
+    chegirma haqida)."""
+    if order is None:
+        return 1.0
+    total = float(order.total_amount or 0)
+    dp = float(order.discount_percent or 0)
+    if total <= 0 or dp <= 0:
+        return 1.0
+    asl = order.kelishilgan_summa + pul_qaytarish_kamaytirgan(db, order)
+    k = asl / total
+    if abs((1.0 - k) * 100.0 - dp) <= 0.0051:
+        return min(1.0, max(0.0, k))
+    return min(1.0, max(0.0, 1.0 - dp / 100.0))
+
+
+def qaytarish_birlik_narxi(db: Session, order, order_item, koef: float = None) -> float:
+    """Qaytarishning 1 birlik narxi (kelishilgan narx bo'yicha, tiyingacha).
+    UI (`returns.html` `currentUnitPrice`) ham AYNAN shu qiymatni oladi
+    (`/api/orders/{id}` → `refund_price_per_unit`)."""
+    ordered = float(order_item.order_qty_normalized or 0)
+    if ordered <= 0:
+        return 0.0
+    if koef is None:
+        koef = qaytarish_narx_koeffitsienti(db, order)
+    return _pul2(float(order_item.total_price or 0) / ordered * koef)
+
+
+def _qaytarish_ortiqcha_qismi(db: Session, order_item, miqdor: float) -> float:
+    """kech60 (57-band, K59-3): yangi (brakdan boshqa) qaytarishning mijozga HALI
+    TOPSHIRILMAGAN qismi. Qoida: qaytarish avval topshirilgan (va hali qaytarilmagan)
+    miqdordan olinadi, qolgani — ortiqcha (omborga qo'yilgan). Topshirilgan miqdor
+    bazadan QAYTA o'qiladi (chaqiruvchi qulf (101, buyurtma) ostida). Eski yozuv
+    (`ortiqcha_miqdor` NULL) — to'liq topshirilgandan deb olinadi.
+    Migratsiya (`main._migrate_ortiqcha_qaytarish`) — AYNAN shu qoida, yozilish tartibida."""
+    from sqlalchemy import func as _fn_o
+    db.expire(order_item, ["deliveries"])
+    _topsh = float(order_item.delivered_qty or 0)
+    _oldin_topshdan = float(db.query(_fn_o.coalesce(_fn_o.sum(
+        ReturnItem.quantity - _fn_o.coalesce(ReturnItem.ortiqcha_miqdor, 0)), 0)).filter(
+        ReturnItem.company_id == order_item.company_id,
+        ReturnItem.order_item_id == order_item.id,
+        ReturnItem.reason != ReturnReason.DEFECT).scalar() or 0)
+    _bor = max(0.0, _topsh - _oldin_topshdan)
+    return max(0.0, float(miqdor) - _bor)
+
+
+def create_return_item(db: Session, data: ReturnItemCreate,
+                       company_id: int = None, taqdir: dict = None,
+                       performed_by: str = None) -> ReturnItem:
     """Yangi qaytarishni bazaga qo'shadi.
     to_stock=True bo'lsa — tayyor mahsulotlar omboriga ham tushadi.
     refund_amount kelmasa (masalan hodim narx ko'rmasdan yozganda) —
     server o'zi tan narx/sotuv narxdan hisoblab qo'yadi."""
     import services
 
-    try:
-        reason_enum = ReturnReason(data.reason)
-    except ValueError:
-        reason_enum = ReturnReason.DEFECT
+    # 17g (2026-09-22): ILDIZ — tana QAT'IY, bazaga tegishdan OLDIN (xato →
+    # `ValueError`, marshrut → 400, hech narsa yozilmaydi). HAQIQIY PostgreSQL
+    # da O'LCHANGAN (asl kod = 17f): miqdor manfiy / 0 / `1e20` — saqlanardi;
+    # `Infinity` / `NaN` — SAQLANARDI va tayyor mahsulot qoldig'ini cheksiz /
+    # "son emas" qilib qo'yardi (javob 500); summa `NaN` bazaga "NaN" bo'lib
+    # yozilardi, `Infinity` / `1e20` — 500, `0.001` → 0.00; nom / birlik
+    # sig'imdan uzun — 500; noma'lum sabab jimgina "Brak".
+    _clean_val("Return", _val_dump(data, "Return"))
+
+    # M2: qaytarish FAQAT o'z korxonasining buyurtmasiga yozilishi mumkin.
+    _oq = db.query(Order).filter(Order.id == data.order_id)
+    if company_id is not None:
+        _oq = _oq.filter(Order.company_id == company_id)
+    _o = _oq.first()
+    if not _o:
+        raise ValueError("Buyurtma topilmadi")
+
+    # 17g: sabab — faqat `models.ReturnReason` qiymatlari (yuqorida tekshirilgan).
+    # Ilgari noma'lum sabab JIMGINA "Brak" ga aylanardi (O'LCHANGAN): ombordan
+    # xomashyo yechilar, mahsulot esa omborga qaytmasdi.
+    reason_enum = ReturnReason(data.reason)
+    # kech53 (13-band, 1-qadam): bosqich FAQAT brak uchun — boshqa sababga
+    # berilsa jim tashlanmaydi, hech narsa yozilishidan OLDIN rad etiladi
+    # (texnik qaror: noto'g'ri tana — xato, ma'lumot emas).
+    _bosqich = getattr(data, 'brak_bosqich', None)
+    if _bosqich is not None and reason_enum != ReturnReason.DEFECT:
+        raise ValueError("Brak bosqichi faqat \"Brak\" sababi uchun tanlanadi")
+    # kech56 (13-band, 7-qadam): sabab va javobgar hodim — bosqich kabi FAQAT brak
+    # uchun; javobgar — shu korxonaning hodimi (hech narsa yozilishidan OLDIN).
+    _sabab = getattr(data, 'brak_sabab', None)
+    _javobgar = getattr(data, 'brak_javobgar_id', None)
+    if (_sabab is not None or _javobgar is not None) and reason_enum != ReturnReason.DEFECT:
+        raise ValueError("Brak sababi va javobgar hodim faqat \"Brak\" sababi uchun tanlanadi")
+    _brak_javobgar_tekshir(db, _javobgar, _o.company_id)
+    # kech125 (zip 146 — EGASI QARORLARI 07.10 «Brak taqdiri»): taqdir FAQAT brakda va hech narsa yozilishidan OLDIN
+    # tekshiriladi (qo'llash — brak xomashyosi yechilgandan keyin, shu tranzaksiyada — pastda).
+    if taqdir is not None:
+        if reason_enum != ReturnReason.DEFECT:
+            raise ValueError("Brak taqdiri faqat \"Brak\" sababi uchun tanlanadi")
+        brak_taqdir_tana(db, taqdir, "buyurtma", float(data.quantity or 0), data.unit, _o.company_id)
 
     order_item = None
     oi_id = getattr(data, 'order_item_id', None)
     if oi_id:
-        order_item = db.query(OrderItem).filter(OrderItem.id == oi_id).first()
-    if not order_item:
+        # 2026-09-21 (12-sizish) — O'LCHANGAN: detal faqat ID bo'yicha
+        # olinardi, buyurtmaga tegishliligi tekshirilmasdi. B o'z buyurtmasi
+        # + A ning `order_item_id` sini bersa, brak A ning penoplastini
+        # yechardi va qaytarish summasi A tan narxidan hisoblanib B ga
+        # qaytardi. Endi detal FAQAT shu buyurtma ichidan; topilmasa —
+        # nom bo'yicha taxmin QILINMAYDI, rad etiladi.
         order_item = db.query(OrderItem).filter(
+            OrderItem.id == oi_id,
+            OrderItem.order_id == data.order_id).first()
+        if not order_item:
+            raise ValueError("Buyurtma detali topilmadi")
+    if not order_item:
+        # kech39 (5-bo'lim 3-band): detal raqamisiz (faqat nom) so'rov — nom
+        # buyurtmada YAGONA bo'lsagina qabul qilinadi. O'LCHANGAN (asl kod
+        # `8265a94`, SQLite va HAQIQIY PG 16): bitta buyurtmada bir xil nomli
+        # ikki detal bo'lishi mumkin (`POST /api/orders` 200), `.first()` esa
+        # ulardan birini TAXMIN qilardi — omborga qaytarish, summa va endi
+        # yig'indi boshqa detalga yozilib ketardi. `returns.html` doim
+        # `order_item_id` yuboradi.
+        _nomdoshlar = db.query(OrderItem).filter(
+            OrderItem.company_id == _o.company_id,
             OrderItem.order_id == data.order_id,
             OrderItem.name == data.item_name
-        ).first()
+        ).order_by(OrderItem.id).all()
+        if len(_nomdoshlar) > 1:
+            raise ValueError(f"Buyurtmada '{data.item_name}' nomli {len(_nomdoshlar)} ta detal bor — "
+                             f"qaysi biri qaytayotganini tanlang (detal raqami kerak)")
+        order_item = _nomdoshlar[0] if _nomdoshlar else None
+    # 17g (kech25, 2026-09-22): qaytarish FAQAT buyurtmadagi detalga yoziladi.
+    # O'LCHANGAN (asl kod = 17f va 17g WIP): detal ID siz, buyurtmada YO'Q nom
+    # bilan (`"item_name": "boshqa"`) istalgan miqdor (999 999) 200 bilan
+    # saqlanardi — miqdor chegarasi, summa hisobi va omborga qaytarish faqat
+    # detal topilganda ishlaydi, ya'ni bunday yozuv hech narsaga tayanmasdi.
+    # `returns.html` (qaytarish va brak oynalari) doim `order_item_id` yuboradi.
+    if order_item is None:
+        raise ValueError("Buyurtma detali topilmadi")
+
+    # 17g (2026-09-22): bitta qaytarishda buyurtmadagidan KO'P miqdor bo'lmaydi.
+    # `returns.html` buni faqat brauzerda tekshirardi (`order_qty_normalized`);
+    # server tekshirmasdi — HAQIQIY PostgreSQL da O'LCHANGAN: 1000 metrlik
+    # detaldan 1001 metr qaytarish 200 bilan saqlandi (omborga 1001 qo'shildi).
+    # Xabar UI dagi bilan bir xil.
+    _buyurtmada = float(order_item.order_qty_normalized or 0)
+    if float(data.quantity) > _buyurtmada + 0.001:
+        raise ValueError(f"Buyurtmada {_buyurtmada:g} {order_item.delivery_unit} bor, "
+                         f"{float(data.quantity):g} qaytarib bo'lmaydi")
+
+    # kech39 (5-bo'lim 3-band): omborga QAYTADIGAN sabablar (brakdan boshqa
+    # hammasi; `to_stock=false` ham — mahsulot mijozdan baribir qaytgan) bo'yicha
+    # shu DETALNING jami qaytarilgani buyurtmadagi miqdordan oshmaydi.
+    # O'LCHANGAN (asl kod `8265a94`, SQLite va HAQIQIY PG 16, `work/probe39.py`):
+    # 10 metrli detaldan "Ortiqcha" 6 + 6 + 6 metr — uchalasi 200, tayyor
+    # mahsulotlar omboriga 18 metr qo'shildi. Brak uchun yig'indi cheklovi
+    # QO'YILMAYDI (takroriy brak haqiqatda bo'ladi — kelishilgan) va brak
+    # yig'indiga KIRMAYDI. Detal `order_item_id` ustuni bo'yicha (nom bo'yicha
+    # EMAS); detal raqamisiz eski yozuvlar (migratsiya bog'lay olmaganlari —
+    # nomi buyurtmada takrorlangan yoki topilmagan) yig'indiga kirmaydi: qaysi
+    # detalniki ekani noma'lum, taxmin qilinmaydi.
+    # Qulf (101, buyurtma) — yetkazish va to'lov bilan bir xil: ikki bir
+    # vaqtli qaytarish ikkalasi ham "sig'adi" deb o'tib ketmasin (faqat PG;
+    # yig'indi qulf OLINGANDAN KEYIN o'qiladi).
+    # kech54 (13-band, 5-qadam): MRP detali braki xomashyosi shu detalni ishlab chiqargan
+    # buyurtmaning retsept SURATIDAN olinadi (`services._mrp_birlik_sarfi`). Surat yo'q —
+    # ishlab chiqarish hali boshlanmagan: brak faqat ishlab chiqarish ichida bo'ladi
+    # (foydalanuvchi qoidasi, 2026-09-23), sarfni hisoblab bo'lmaydi — taxmin qilinmaydi,
+    # hech narsa yozilishidan OLDIN rad etiladi (ilgari summa 0 bilan jim saqlanardi).
+    if (reason_enum == ReturnReason.DEFECT
+            and (order_item.category or '').lower() == 'mrp_product'
+            and not getattr(order_item, 'finished_product_id', None)
+            and services._mrp_birlik_sarfi(db, _o.company_id, order_item=order_item) is None):
+        raise ValueError("Bu MRP mahsuloti uchun ishlab chiqarish hali boshlanmagan — brak faqat "
+                         "ishlab chiqarish jarayonida yoziladi (xomashyo sarfini retsept suratidan "
+                         "olib bo'lmaydi)")
+
+    if reason_enum != ReturnReason.DEFECT:
+        from sqlalchemy import func as _fn_q
+        _pul_qulfi(db, 101, _o.id)
+        _oldin = float(db.query(_fn_q.coalesce(_fn_q.sum(ReturnItem.quantity), 0)).filter(
+            ReturnItem.company_id == _o.company_id,
+            ReturnItem.order_item_id == order_item.id,
+            ReturnItem.reason != ReturnReason.DEFECT).scalar() or 0)
+        _qolgan = _buyurtmada - _oldin
+        if float(data.quantity) > _qolgan + 0.001:
+            _b = order_item.delivery_unit
+            if _qolgan <= 0.001:
+                raise ValueError(f"Bu detalning hammasi ({_miqdor_matn(_buyurtmada)} {_b}) allaqachon "
+                                 f"qaytarilgan — yana qaytarib bo'lmaydi (brak bundan mustasno)")
+            raise ValueError(f"Bu detaldan avval {_miqdor_matn(_oldin)} {_b} qaytarilgan (buyurtmada "
+                             f"{_miqdor_matn(_buyurtmada)} {_b}) — yana ko'pi bilan "
+                             f"{_miqdor_matn(_qolgan)} {_b} qaytarish mumkin")
+
+    # kech60 (57-band, K59-3): brakdan boshqa qaytarishning mijozga HALI TOPSHIRILMAGAN qismi
+    # (ortiqcha mahsulot omborga qo'yiladi — FOYDALANUVCHI QARORI, kech60). Qulf (101) yuqorida
+    # olingan — topshirilgan miqdor bazadan qayta o'qiladi (bir vaqtdagi yuk xati hisobga olinsin).
+    _ortiqcha_yangi = None
+    if reason_enum != ReturnReason.DEFECT:
+        _ortiqcha_yangi = _qaytarish_ortiqcha_qismi(db, order_item, float(data.quantity))
+        # O'chirilgan buyurtmada omborga qo'yish — o'chirish / tiklash simmetriyasini buzadi
+        # (o'chirishda qolgan qism xomashyosi allaqachon qaytgan).
+        if _o.is_deleted and _ortiqcha_yangi > 0.001:
+            raise ValueError("Buyurtma o'chirilgan — topshirilmagan mahsulotni omborga qaytarib bo'lmaydi "
+                             "(uning xomashyosi o'chirishda qaytgan)")
+    # kech73 (86-band, K72-1): MRP detalining ortiqcha qismi — band TAYYOR TM dan erkin qoldiqqa
+    # (`_mrp_ortiqcha_reja`; yetmasa ValueError — hali HECH NARSA yozilmagan). `to_stock=false` —
+    # omborga hech narsa qo'shilmaydi, band ham o'zgarmaydi (API; UI doim `to_stock: true`).
+    _mrp_ozod_reja = None
+    if (reason_enum != ReturnReason.DEFECT and _ortiqcha_yangi is not None and _ortiqcha_yangi > 0.001
+            and getattr(data, 'to_stock', True) and order_item is not None
+            and _mrp_yetkazish_detalimi(order_item)):
+        _mrp_ozod_reja = _mrp_ortiqcha_reja(db, order_item, _ortiqcha_yangi, _o.company_id)
 
     refund_amount = float(data.refund_amount or 0)
+    # 17g: QO'LDA berilgan qaytarish summasi buyurtma qiymatidan oshmaydi —
+    # `mark_refunded` shu summani kelishilgan summadan ayiradi (0 dan pastga
+    # tushirmaydi) va AYNAN shu summada manfiy to'lov yozadi. O'LCHANGAN:
+    # 1 000 000 so'mlik buyurtmaga 9 000 000 000 so'm qaytarish saqlandi,
+    # "pul qaytarildi" belgisidan keyin kelishilgan summa 0, to'lovlar
+    # −9 000 000 000 bo'ldi. Qiymat `mark_refunded` dagi bilan bir xil ta'rif
+    # (kelishilgan, bo'lmasa jami summa). Server o'zi hisoblaydigan summa
+    # (0 berilganda) bu tekshiruvga kirmaydi.
+    # kech25 (2026-09-22) — chegara `returns.html` summasini rad etmasligi
+    # SHART (hodimda summa maydoni yashirin — uni tuzatib bo'lmaydi). UI summasi
+    # = Math.round(miqdor × 1 birlik narxi), narx esa detal jamisidan BUTUN
+    # so'mga yaxlitlangan va CHEGIRMASIZ (`price_per_unit_final`). O'LCHANGAN
+    # (17g WIP): chegirmali buyurtmada (kelishilgan 900 000, jami 1 000 000)
+    # butun qaytarish 1 000 000 → 400; 6 × 166 666.67 (jami 1 000 000.02) → UI
+    # 6 × 166 667 = 1 000 002 → 400. Shuning uchun chegara — kelishilgan va
+    # jami summaning KATTASI, ustiga birlik narxini yaxlitlash farqi (har
+    # birlikka 0.5 so'm + oxirgi yaxlitlash 0.5). Bema'ni summa (9e9) baribir
+    # rad etiladi. Chegirmali buyurtmada qaytarish qiymatini qanday hisoblash
+    # (chegirmasiz yoki chegirmali narx) — alohida BIZNES masalasi, bu yerda
+    # o'zgartirilmaydi.
+    # kech42 (4-band, FOYDALANUVCHI QARORI "Chegirmali narxdan"): brakdan boshqa
+    # qaytarish summasi KELISHILGAN narxdan (`qaytarish_birlik_narxi`). O'LCHANGAN
+    # (asl kod): 500 000 lik buyurtma 450 000 ga kelishilgan — butun qaytarish
+    # 500 000 yozilardi. Qo'lda kiritilgan summa ham shu detal qismining
+    # kelishilgan qiymatidan oshmaydi (+ yaxlitlash farqi: har birlikka 0.5
+    # so'm + 0.5 — eski sahifadan chegirmasiz buyurtmaga butun so'mli narx
+    # bilan yuborilgan summa rad etilmasin). Brak — avvalgidek (tan narx,
+    # buyurtma darajasidagi chegara).
+    _birlik = None
+    if reason_enum != ReturnReason.DEFECT and order_item is not None:
+        _birlik = qaytarish_birlik_narxi(db, _o, order_item)
+    if refund_amount > 0:
+        _mq = float(data.quantity)
+        if _birlik is not None:
+            _qiymat = _som_butun(_birlik * _mq)
+            if refund_amount > _birlik * _mq + 0.5 * _mq + 0.5:
+                raise ValueError(f"Qaytariladigan summa ({refund_amount:,.0f} so'm) bu detal qismining "
+                                 f"kelishilgan qiymatidan ({_qiymat:,.0f} so'm = {_miqdor_matn(_mq)} × "
+                                 f"{_birlik:,.2f} so'm) katta bo'lishi mumkin emas")
+        else:
+            _qiymat = max(_o.kelishilgan_summa, float(_o.total_amount or 0))
+            if refund_amount > _qiymat + 0.5 * _mq + 0.5:
+                raise ValueError(f"Qaytariladigan summa ({refund_amount:,.0f} so'm) buyurtma "
+                                 f"qiymatidan ({_qiymat:,.0f} so'm) katta bo'lishi mumkin emas")
     if refund_amount <= 0 and order_item:
-        ordered = order_item.order_qty_normalized
         if reason_enum == ReturnReason.DEFECT:
             # Brak — tan narx (xomashyo qiymati)
-            unit_price = services.get_order_item_unit_cost(db, order_item.order, order_item)
+            # kech54 (42-band): loy FAQAT tortilgan bo'lsa ("✂️ Yo'q — loygacha" — loysiz).
+            # O'LCHANGAN (asl kod `aecce02`, `work/probe54.py`): qoplamali profil 1 m loygacha
+            # brak — ombordan faqat penoplast (5 000) yechilardi, summa esa loy bilan 10 200
+            # yozilardi (Qaytarishlar sahifasi "Brak qiymati" Moliyadan katta). FOYDALANUVCHI
+            # QARORI (kech54): eski yozuvlar O'ZGARMAYDI — faqat yangilari to'g'ri.
+            unit_price = services.get_order_item_unit_cost(
+                db, order_item.order, order_item,
+                include_coating=bool(getattr(data, 'coating_applied', False)))
+            refund_amount = round(unit_price * float(data.quantity or 0))
         else:
-            # Butun — sotuv narxi
-            unit_price = (float(order_item.total_price or 0) / ordered) if ordered else 0
-        refund_amount = round(unit_price * float(data.quantity or 0))
+            # Butun — kelishilgan (chegirmali) sotuv narxi
+            refund_amount = _som_butun((_birlik or 0) * float(data.quantity or 0))
 
+    # M8/F1: `order_id` va `finished_product_id` ikkalasi ham NULL
+    # bo'lishi mumkin — korxonani buyurtmadan olamiz.
     item = ReturnItem(
+        company_id=company_id,
         order_id=data.order_id,
+        # kech39 (3-band): detal raqami — yig'indi shu bo'yicha hisoblanadi
+        order_item_id=order_item.id,
         item_name=data.item_name,
         quantity=data.quantity,
         unit=data.unit,
@@ -2231,44 +6647,77 @@ def create_return_item(db: Session, data: ReturnItemCreate) -> ReturnItem:
         is_refunded=False,
         notes=data.notes,
         coating_applied=(getattr(data, 'coating_applied', False) if reason_enum == ReturnReason.DEFECT else False),
-        gips_kg_used=getattr(data, 'gips_kg_used', None)
+        # kech53 (13-band, 1-qadam): ixtiyoriy bosqich (yuqorida faqat brakka ruxsat)
+        brak_bosqich=(_bosqich if reason_enum == ReturnReason.DEFECT else None),
+        # kech56 (13-band, 7-qadam): ixtiyoriy sabab va javobgar (yuqorida faqat brakka ruxsat)
+        brak_sabab=(_sabab if reason_enum == ReturnReason.DEFECT else None),
+        brak_javobgar_id=(_javobgar if reason_enum == ReturnReason.DEFECT else None),
+        # kech60 (57-band): mijozga topshirilmagan (ortiqcha, omborga qo'yilgan) qism; brak — NULL
+        ortiqcha_miqdor=_ortiqcha_yangi
     )
     db.add(item)
     db.flush()
 
     # BRAK bo'lsa — sarflangan xomashyoni (Penoplast + shart bo'lsa Loy)
     # ombordan haqiqatda yechamiz (moliyaviy hisobdan MUSTAQIL, alohida)
-    is_gips = order_item and (order_item.category or '').lower() == 'gips'
-    if reason_enum == ReturnReason.DEFECT and is_gips and order_item.order:
-        import services
-        gips_kg = float(getattr(data, 'gips_kg_used', None) or 0)
-        if gips_kg > 0 and order_item.order.gips_inventory_id:
-            r = services.deduct_gips_main(
-                db, order_item.order.gips_inventory_id, gips_kg, order_item.order,
-                reason=f"Brak — {data.item_name} (Gips)"
+    if reason_enum == ReturnReason.DEFECT and order_item and order_item.order:
+        # kech45 (13-band, 6-qadam): yechilgan har harakat shu brak yozuviga
+        # bog'lanadi (`log_movement` sessiyadagi belgini o'qiydi) — o'chirishda
+        # AYNAN o'sha miqdor omborga qaytadi. Belgi `finally` da olinadi.
+        db.info["_brak_qaytarish_id"] = item.id
+        try:
+            brak_log = services.deduct_raw_material_for_brak(
+                db, order_item, order_item.order, float(data.quantity or 0),
+                getattr(data, 'coating_applied', False)
             )
-            if r:
-                print(f"✓ Gips brak uchun xomashyo yechildi: {r}")
-    elif reason_enum == ReturnReason.DEFECT and order_item and order_item.order:
-        brak_log = services.deduct_raw_material_for_brak(
-            db, order_item, order_item.order, float(data.quantity or 0),
-            getattr(data, 'coating_applied', False)
-        )
+        finally:
+            db.info.pop("_brak_qaytarish_id", None)
         if brak_log:
             print(f"✓ Brak uchun xomashyo yechildi: {brak_log}")
+        # kech125 (zip 146): brak yozilganda tanlangan taqdir — xomashyo yechilgach (uning qiymati TM ga o'tishi mumkin),
+        # shu tranzaksiyada (`bitta_tranzaksiya` — xato bo'lsa brak ham yozilmaydi)
+        if taqdir is not None:
+            db.flush()
+            _taqdir_almashtir(db, "qaytarish", item, taqdir, _o.company_id, performed_by, yangi_yozuv=True)
 
     # Tayyor mahsulotlar omboriga qo'shamiz (brak bo'lmasa)
     to_stock = getattr(data, 'to_stock', True)
     if to_stock and reason_enum != ReturnReason.DEFECT:
         oi = order_item
         if oi:
-            fp = add_returned_to_stock(
-                db, oi, float(data.quantity), reason_enum.value,
-                order_id=data.order_id,
-                notes=f"{data.notes or ''}".strip() or None
-            )
+            # kech40 (22-band, K39-1): omborga NIMA qo'shilgani yozuvga saqlanadi —
+            # o'chirishda AYNAN shu ayiriladi (`delete_return_item`). `commit=False`:
+            # yozuv, bog'lam va ombor BITTA tranzaksiyada (ilgari
+            # `add_returned_to_stock` o'zi commit qilardi — yozuv bog'lamsiz saqlanib,
+            # (101, buyurtma) qulfi yig'indi tekshiruvidan keyin muddatidan oldin
+            # bo'shardi).
+            _ombor = {}
+            # kech73 (86-band): MRP detalining ortiqcha qismi YANGI TM bo'lmaydi — band TM dan erkin
+            # qoldiqqa; `add_returned_to_stock` ga faqat mijozdan QAYTGAN (topshirilgan) qism.
+            _ombor_miqdor = float(data.quantity)
+            if _mrp_ozod_reja is not None:
+                import json as _json_oz
+                _ombor_miqdor = max(0.0, float(data.quantity) - float(_ortiqcha_yangi))
+                _ozod_yoz = []
+                for _fp_oz, _q_oz in _mrp_ozod_reja:
+                    _fp_oz.reserved_quantity = max(0.0, float(_fp_oz.reserved_quantity or 0) - _q_oz)
+                    _ozod_yoz.append([_fp_oz.id, round(_q_oz, 6)])
+                    print(f"✓ MRP band → erkin qoldiq: {_fp_oz.name} {_q_oz:g} {_fp_oz.unit}")
+                item.mrp_ozod = _json_oz.dumps(_ozod_yoz)
+            fp = None
+            if _ombor_miqdor > 1e-9:
+                fp = add_returned_to_stock(
+                    db, oi, _ombor_miqdor, reason_enum.value,
+                    order_id=data.order_id,
+                    notes=f"{data.notes or ''}".strip() or None,
+                    commit=False, natija=_ombor
+                )
             if fp:
-                print(f"✓ Tayyor mahsulotlar omboriga: {fp.name} +{data.quantity} {fp.unit}")
+                item.finished_product_id = fp.id
+                item.stock_qty = _ombor.get("qty")
+                item.stock_cost = _ombor.get("cost")
+                item.stock_volume_m3 = _ombor.get("volume")
+                print(f"✓ Tayyor mahsulotlar omboriga: {fp.name} +{_ombor_miqdor:g} {fp.unit}")
 
     db.commit()
     db.refresh(item)
@@ -2289,30 +6738,33 @@ def create_return_item(db: Session, data: ReturnItemCreate) -> ReturnItem:
 # orqali avval yaratilgan) tarixiy ma'lumot sifatida bazada saqlanib qoladi.
 
 
-def get_return_items(db: Session, order_id: Optional[int] = None) -> List:
+def get_return_items(db: Session, order_id: Optional[int] = None,
+                     company_id: int = None) -> List:
     """Barcha qaytarishlar yoki bitta buyurtma bo'yicha."""
     query = db.query(ReturnItem)
+    if company_id is not None:
+        query = query.filter(ReturnItem.company_id == company_id)
     if order_id:
         query = query.filter(ReturnItem.order_id == order_id)
     return query.order_by(ReturnItem.returned_at.desc()).all()
 
 
-def get_return_items_for_main_page(db: Session, days: int = 90, show_all: bool = False) -> List:
+def get_return_items_for_main_page(db: Session, days: int = 90, show_all: bool = False,
+                                   company_id: int = None) -> List:
     """Qaytarishlar sahifasining ASOSIY ro'yxati uchun — tezlik uchun,
     faqat so'nggi `days` kunlikni ko'rsatadi (show_all=True — hammasi)."""
     from datetime import timedelta
     query = db.query(ReturnItem)
+    if company_id is not None:
+        query = query.filter(ReturnItem.company_id == company_id)
     if not show_all:
         cutoff = datetime.utcnow() - timedelta(days=days)
         query = query.filter(ReturnItem.returned_at >= cutoff)
     return query.order_by(ReturnItem.returned_at.desc()).all()
 
 
-def get_return_item(db: Session, return_id: int) -> Optional[ReturnItem]:
-    return db.query(ReturnItem).filter(ReturnItem.id == return_id).first()
-
-
-def mark_refunded(db: Session, return_id: int, refunded_by: str = None) -> Optional[ReturnItem]:
+def mark_refunded(db: Session, return_id: int, refunded_by: str = None,
+                  company_id: int = None) -> Optional[ReturnItem]:
     """Qaytarishni 'pul qaytarildi' deb belgilaydi VA buni moliyaga to'g'ri
     ta'sir qiladigan qilib yozadi:
 
@@ -2320,52 +6772,373 @@ def mark_refunded(db: Session, return_id: int, refunded_by: str = None) -> Optio
        kamaytiriladi. Shu orqali bu pul endi Moliyadagi daromad/foyda
        hisob-kitoblarida (calculate_order_profit agreed_amount'dan
        foydalanadi) AVTOMATIK kamayadi — alohida "kirim" bo'lib qolmaydi.
-    2) MANFIY to'lov yozuvi qo'shiladi (mijozga naqd qaytarilgan puл),
+    2) MANFIY to'lov yozuvi qo'shiladi (mijozga naqd qaytarilgan pul),
        shunda "To'langan" va "Qarz qoldi" ham to'g'ri, izchil qoladi.
-    """
-    item = get_return_item(db, return_id)
+
+    kech40 (5-bo'lim 22-band, FOYDALANUVCHI QARORI B — qaytarish o'chirilsa
+    hammasi orqaga qaytadi): manfiy to'lov qaytarishga BOG'LANADI
+    (`Payment.return_item_id`), kelishilgan summa AYNAN qanchaga kamaygani
+    (`refund_agreed_delta` — `max(0, …)` tufayli summadan kam bo'lishi mumkin)
+    va vaqti (`refunded_at` — yangi belgilash belgisi) saqlanadi.
+    QULF (101, buyurtma) — to'lovlar va `delete_return_item` bilan bir fazo:
+    qulfsiz ikki parallel so'rov ikkalasi ham "hali qaytarilmagan" deb ko'rib
+    pulni IKKI marta qaytarardi (UI dagi `inFlightRefundToggle` faqat bitta
+    tabni to'sadi); o'chirish bilan poygada esa bog'lamsiz manfiy to'lov
+    qolishi mumkin edi. Korxona: `company_id` berilsa yozuv FAQAT shu
+    korxonadan (marshrut ham tekshiradi — ikki to'siq)."""
+    _rq = db.query(ReturnItem).filter(ReturnItem.id == return_id)
+    if company_id is not None:
+        _rq = _rq.filter(ReturnItem.company_id == company_id)
+    item = _rq.first()
     if not item:
         return None
     if item.is_refunded:
         return item  # Allaqachon qaytarilgan — qayta ishlamaymiz
+    # kech42 (FOYDALANUVCHI, so'zma-so'z mazmuni): brak — ishlab chiqarish
+    # zarari; mijozga yaroqsiz mahsulot HECH QACHON berilmaydi, buyurtma baribir
+    # to'liq tayyorlanadi — demak brak uchun mijozga pul qaytarilmaydi. UI
+    # tugmani brakda ko'rsatmaydi, lekin server tekshirmasdi (O'LCHANGAN:
+    # `POST /api/returns/{id}/refund` brak yozuviga 200, −25 000 to'lov).
+    if item.reason == ReturnReason.DEFECT:
+        raise ValueError("Brak — ishlab chiqarish zarari, mijozga pul qaytarilmaydi")
+    _cid = item.company_id
+    # QULF — `create_delivery` naqshi: yozilmagan o'zgarish yo'qolmasin
+    # (`flush`), qulf, so'ng qulf ostida bazadan QAYTA o'qiladi.
+    db.flush()
+    if item.order_id is not None:
+        _pul_qulfi(db, 101, item.order_id)
+    db.expire_all()
+    item = db.query(ReturnItem).filter(ReturnItem.id == return_id,
+                                       ReturnItem.company_id == _cid).first()
+    if not item:
+        return None             # parallel so'rov o'chirib yuborgan
+    if item.is_refunded:
+        return item             # parallel so'rov allaqachon belgilagan
 
     from models import Payment, PaymentType
     refund_amount = float(item.refund_amount or 0)
+    order = None
+    if item.order_id is not None:
+        order = db.query(Order).filter(Order.id == item.order_id,
+                                       Order.company_id == _cid).first()
+    _kamaydi = 0.0
 
-    if refund_amount > 0 and item.order:
-        order = item.order
-        order.agreed_amount = max(0, float(order.agreed_amount or order.total_amount or 0) - refund_amount)
+    _naqd = 0.0
+    if refund_amount > 0 and order is not None:
+        _eski = order.kelishilgan_summa
+        _yangi = max(0.0, _eski - refund_amount)
+        order.agreed_amount = _pul2(_yangi)
+        _kamaydi = _eski - _yangi
 
-        payment = Payment(
-            order_id=order.id,
-            amount=-refund_amount,
-            payment_type=PaymentType.PARTIAL,
-            received_by=refunded_by,
-            notes=f"Qaytarilgan mahsulot uchun pul qaytarildi: {item.item_name} ({item.quantity} {item.unit})"
-        )
-        db.add(payment)
+        # kech42 (24-band, qaror: "real hayotdagidek"): to'lanmagan pulni
+        # qaytarib bo'lmaydi — qaytgan mahsulot QARZDAN chegiriladi, naqd faqat
+        # mijoz ORTIQCHA to'lagan qism uchun: min(summa, max(0, to'langan −
+        # yangi kelishilgan)). O'LCHANGAN (asl kod): to'lanmagan buyurtmada 30 m
+        # qaytishi −150 000 to'lov yozib, qarzni kelishilgandan katta
+        # ko'rsatardi; 200 000 to'langan + 300 000 qaytgan → −300 000 to'lov va
+        # qarz 300 000 (asli 0, naqd yo'q). To'liq to'langanda — avvalgidek.
+        _tolangan = sum(float(p.amount or 0) for p in (order.payments or []))
+        _naqd = _pul2(min(refund_amount, max(0.0, _tolangan - _yangi)))
+        if _naqd >= 0.01:
+            payment = Payment(
+                order_id=order.id,
+                return_item_id=item.id,
+                amount=-_naqd,
+                payment_type=PaymentType.PARTIAL,
+                received_by=refunded_by,
+                notes=f"Qaytarilgan mahsulot uchun pul qaytarildi: {item.item_name} ({item.quantity} {item.unit})"
+            )
+            db.add(payment)
+            db.flush()
+            # 17c: manfiy to'lov loyiha "To'langan" summasiga ham tushadi —
+            # ilgari tushmasdi (`total_paid` faqat create/delete_payment da
+            # yangilanardi).
+            _loyiha_tolangan_yangila(db, order.project)
+        # kech42: to'lov holati ham yangilanadi (ilgari yangilanmasdi —
+        # O'LCHANGAN: to'liq qaytgan to'langan buyurtma "paid" + qarz 500 000).
+        db.flush()
+        db.expire(order, ["payments"])
+        _update_order_payment_status(db, order)
 
     item.is_refunded = True
+    item.refunded_at = datetime.utcnow()
+    item.refund_agreed_delta = _pul2(_kamaydi)
     db.commit()
     db.refresh(item)
+    item.naqd_qaytarildi = float(_naqd or 0)   # marshrut xabari uchun (bazaga yozilmaydi)
     return item
 
 
-def delete_return_item(db: Session, return_id: int) -> bool:
-    item = get_return_item(db, return_id)
+def delete_return_item(db: Session, return_id: int, company_id: int = None,
+                       performed_by: str = None):
+    """Qaytarish yozuvini o'chirish — qaytarish umuman bo'lmagandek.
+
+    Qaytaradi: muvaffaqiyatda dict (doim rost qiymat), topilmasa `False`;
+    o'chirib bo'lmasa `ValueError` (marshrut → 400, HECH NARSA o'zgarmaydi).
+
+    kech40 (5-bo'lim 22-band, K39-1) — O'LCHANGAN (asl kod, SQLite va HAQIQIY
+    PostgreSQL, `work/probe40.py`): funksiya faqat yozuvni o'chirardi.
+      * Omborga qaytgan detal: tayyor mahsulot QOLARDI — qayta kiritilsa ikki
+        baravar (10 → 20); qisman sotilgan / band qilingan bo'lsa ham jim 200.
+      * "Pul qaytdi" bosilgan: kamaytirilgan kelishilgan summa va manfiy
+        to'lov QOLARDI — qayta kiritib yana bosilsa pul IKKI marta qaytarilgan
+        bo'lib ko'rinardi (700 000 → 400 000, −300 000 × 2).
+    Endi (FOYDALANUVCHI QARORI B, kech40 — "hammasi orqaga qaytsin"):
+      1) Ombor: yozuv bilan qo'shilgan AYNAN miqdor / tan narxi / hajm
+         (`stock_*`) tayyor mahsulotdan ayiriladi. Bo'sh qoldiq (qoldiq −
+         band) yetmasa — rad (mahsulot sotilgan / band / kamaytirilgan).
+         Mahsulot faqat shu qaytarishlardan paydo bo'lgan va boshqa hech narsa
+         unga ishora qilmasa — butunlay o'chadi (bo'sh "arvoh" karta qolmaydi).
+         Mahsulot o'zi o'chirilgan bo'lsa (bog'lam uzilgan) — ayiradigan narsa yo'q.
+      2) Pul: `refunded_at` bor (yangi belgilash) — bog'langan manfiy to'lov(lar)
+         o'chadi (audit izi bilan), kelishilgan summa `refund_agreed_delta` ga
+         tiklanadi, to'lov holati va loyiha "To'langan" summasi qayta
+         hisoblanadi. `refunded_at` YO'Q (yangilanishdan oldingi belgilash) va
+         pul haqiqatan qaytarilgan — to'lov bog'lami noma'lum → RAD (taxmin
+         qilinmaydi).
+      3) Brak (kech45, 13-band 6-qadam): shu yozuvga bog'langan ombor
+         harakatlari (`InventoryMovement.return_item_id` — brak uchun yechilgan
+         penoplast / tayyor loy / loy ingredientlari) miqdori omborga
+         QAYTARILADI va harakatlar o'chiriladi — brak xarajati (hisobot va sof
+         foyda harakatlardan hisoblanadi) ham yo'qoladi. Bog'lamsiz ESKI brak
+         yozuvi — xomashyo avvalgidek qaytmaydi (qaysi harakat ekani noma'lum,
+         taxmin qilinmaydi).
+         Yangilanishdan OLDINGI omborga qaytgan yozuv (`stock_qty` NULL) —
+         ombor bog'lami noma'lum, avvalgidek faqat yozuv o'chadi.
+    Hamma tekshiruv O'ZGARTIRISHDAN OLDIN; hammasi BITTA tranzaksiyada
+    (`log_activity` o'zi commit qiladi — ishlatilmaydi, audit to'g'ridan).
+    QULF (101, buyurtma) — `create_return_item` (yig'indi), `mark_refunded`
+    va to'lovlar bilan bir fazo; tayyor mahsulot qatori `FOR UPDATE` (sotuv
+    bilan navbat)."""
+    from models import ActivityLog, Payment
+    _rq = db.query(ReturnItem).filter(ReturnItem.id == return_id)
+    if company_id is not None:
+        _rq = _rq.filter(ReturnItem.company_id == company_id)
+    item = _rq.first()
     if not item:
         return False
+    _cid = item.company_id
+    db.flush()
+    if item.order_id is not None:
+        _pul_qulfi(db, 101, item.order_id)
+    db.expire_all()
+    item = db.query(ReturnItem).filter(ReturnItem.id == return_id,
+                                       ReturnItem.company_id == _cid).first()
+    if not item:
+        return False            # parallel so'rov allaqachon o'chirgan
+    order = None
+    if item.order_id is not None:
+        order = db.query(Order).filter(Order.id == item.order_id,
+                                       Order.company_id == _cid).first()
+
+    # ── 1) TEKSHIRUVLAR — hech narsa o'zgartirilmaydi ────────────────
+    # kech60 (57-band): o'chirilgan buyurtmaning ORTIQCHA (topshirilmagan, omborga qo'yilgan)
+    # qaytarishi o'chirilmaydi — o'chirishda qolgan qism xomashyosi qaytgan, tiklash esa
+    # AYNAN o'shani qayta yechadi; qaytarish o'chsa ortiqcha qism buyurtmaga qaytib,
+    # tiklashda xomashyo ko'proq yechilardi (simmetriya buziladi).
+    if (order is not None and order.is_deleted and item.reason != ReturnReason.DEFECT
+            and float(item.ortiqcha_miqdor or 0) > 0.001):
+        raise ValueError("Buyurtma o'chirilgan — uning topshirilmagan (ortiqcha) mahsuloti qaytarishini "
+                         "o'chirib bo'lmaydi. Avval buyurtmani tiklang")
+    _summa = float(item.refund_amount or 0)
+    pul_orqaga = bool(item.is_refunded) and _summa > 0 and order is not None
+    if pul_orqaga and item.refunded_at is None:
+        raise ValueError(
+            f"Bu qaytarish uchun mijozga {_summa:,.0f} so'm qaytarilgani tizim yangilanishidan "
+            f"OLDIN belgilangan — qaysi to'lov yozuvi ekani saqlanmagan, shuning uchun pulni "
+            f"avtomatik bekor qilib bo'lmaydi va qaytarish o'chirilmadi")
+
+    # kech73 (86-band, K72-1): MRP detalining ortiqcha qismi band TM dan erkin qoldiqqa o'tgan
+    # (`mrp_ozod`) — o'chirishda AYNAN shu TM larga band qaytadi. TM hali SHU detalga bog'langan bo'lsa
+    # bo'sh qoldig'i yetishi SHART (sotilgan / kamaytirilgan bo'lsa — rad, hech narsa o'zgarmaydi);
+    # band ozod qilingan (admin yoki buyurtma o'chirilgan) TM ga band qayta yopilmaydi — mahsulot
+    # erkin qoldiqda qoladi (K71-1 qoidasi bilan bir xil). Qulf — id tartibida (band TM lar RETURNED
+    # TM dan oldin yaratilgan).
+    _ozod = _mrp_ozod_oqi(item) or []
+    _ozod_reja = []
+    _ozod_ozodlar = []
+    if _ozod:
+        _ozod_tm = {f.id: f for f in _mrp_tmlar_idlar(db, [r[0] for r in _ozod], _cid)}
+        for _fid_oz, _q_oz in _ozod:
+            _f_oz = _ozod_tm.get(_fid_oz)
+            if _f_oz is None or _q_oz <= 1e-9:
+                continue
+            if item.order_item_id is not None and _f_oz.reserved_for_order_item_id == item.order_item_id:
+                _bor_oz = float(_f_oz.quantity or 0)
+                _band_oz = float(_f_oz.reserved_quantity or 0)
+                _bosh_oz = _bor_oz - _band_oz
+                if _bosh_oz + 0.001 < _q_oz:
+                    raise ValueError(
+                        f"Bu qaytarish bilan \"{_f_oz.name}\" bandidan {_miqdor_matn(_q_oz)} {_f_oz.unit} erkin qoldiqqa "
+                        f"o'tkazilgan, hozir bo'sh qoldig'i {_miqdor_matn(max(_bosh_oz, 0))} {_f_oz.unit} (qoldiq "
+                        f"{_miqdor_matn(max(_bor_oz, 0))}, shundan band {_miqdor_matn(_band_oz)}) — mahsulot sotilgan "
+                        f"yoki kamaytirilgan, shuning uchun qaytarishni o'chirib bo'lmaydi")
+                _ozod_reja.append((_f_oz, _q_oz))
+            else:
+                _ozod_ozodlar.append((_f_oz, _q_oz))
+
+    # kech125 (zip 146 — brak taqdiri): faol taqdir TM ga mahsulot qo'shgan bo'lsa — u hali butun turishi SHART (sotilgan /
+    # band — rad, hech narsa o'zgarmaydi). Haqiqiy bekor qilish — pastda (3b).
+    if item.reason == ReturnReason.DEFECT:
+        _faol125 = _taqdir_faol(db, "qaytarish", item.id, _cid, lock=True)
+        if _faol125 is not None:
+            _taqdir_tm_tekshir(db, _faol125, _cid, amal="brak yozuvini o'chirib")
+
+    fp = None
+    _sq = float(item.stock_qty or 0)
+    if _sq > 0 and item.finished_product_id is not None:
+        fp = get_finished_product(db, item.finished_product_id, _cid, lock=True)
+        if fp is not None:
+            _bor = float(fp.quantity or 0)
+            _band = float(fp.reserved_quantity or 0)
+            _bosh = _bor - _band
+            if _bosh + 0.001 < _sq:
+                _izoh = f" (qoldiq {_miqdor_matn(max(_bor, 0))}, shundan band {_miqdor_matn(_band)})" if _band > 0 else ""
+                raise ValueError(
+                    f"Bu qaytarish bilan \"{fp.name}\" omboriga {_miqdor_matn(_sq)} {fp.unit} qo'shilgan, "
+                    f"hozir bo'sh qoldig'i {_miqdor_matn(max(_bosh, 0))} {fp.unit}{_izoh} — mahsulot "
+                    f"sotilgan, band qilingan yoki kamaytirilgan, shuning uchun qaytarishni o'chirib bo'lmaydi")
+
+    # ── 2) PUL orqaga ────────────────────────────────────────────────
+    _tolov_soni = 0
+    if pul_orqaga:
+        # TENANT: `Payment` da korxona ustuni yo'q — OTA (buyurtma) orqali.
+        tolovlar = db.query(Payment).join(Order, Order.id == Payment.order_id).filter(
+            Payment.return_item_id == item.id,
+            Payment.order_id == order.id,
+            Order.company_id == _cid,
+        ).order_by(Payment.id).all()
+        for p in tolovlar:
+            db.add(ActivityLog(
+                company_id=_cid, action="deleted", entity_type="payment",
+                entity_id=p.id, entity_label=f"Buyurtma {order.order_number}",
+                performed_by=performed_by,
+                new_value=_tolov_audit_matni(p) + f" · qaytarish #{item.id} o'chirilgani uchun "
+                                                  f"(pul qaytarish bekor qilindi)"))
+            db.delete(p)
+            _tolov_soni += 1
+        _asos = float(order.agreed_amount) if order.agreed_amount is not None else float(order.total_amount or 0)
+        order.agreed_amount = _pul2(_asos + float(item.refund_agreed_delta or 0))
+
+    # ── 3) OMBOR orqaga ──────────────────────────────────────────────
+    def _ayir(eski, qancha):
+        _q = float(eski or 0) - float(qancha or 0)
+        return 0.0 if _q < 1e-9 else _q
+    for _f_oz, _q_oz in _ozod_reja:
+        _f_oz.reserved_quantity = float(_f_oz.reserved_quantity or 0) + _q_oz
+    _fp_ochiriladi = False
+    if fp is not None:
+        # kech59 (47-band): qo'shilgandagi og'irlikli o'rtachaning TESKARISI (muzlagan birlik tannarx)
+        _qb59 = float(fp.quantity or 0)
+        _sb59 = float(fp.unit_cost_stable) if fp.unit_cost_stable is not None else 0.0
+        fp.quantity = _ayir(fp.quantity, _sq)
+        fp.produced_quantity = _ayir(fp.produced_quantity, _sq)
+        _qa59 = float(fp.quantity or 0)
+        if _sb59 > 0 and _qa59 > 1e-9:
+            _yangi_b59 = (_sb59 * _qb59 - float(item.stock_cost or 0)) / _qa59
+            if _yangi_b59 > 0:
+                fp.unit_cost_stable = _yangi_b59
+        fp.cost_price = _pul2(_ayir(fp.cost_price, item.stock_cost))
+        fp.volume_m3 = round(_ayir(fp.volume_m3, item.stock_volume_m3), 9)
+        _fp_ochiriladi = (fp.source == StockSource.RETURNED
+                          and float(fp.quantity or 0) <= 1e-9
+                          and float(fp.produced_quantity or 0) <= 1e-9
+                          and float(fp.reserved_quantity or 0) <= 1e-9)
+
+    # ── 3b) BRAK xomashyosi orqaga (kech45, 13-band 6-qadam) ─────────
+    from models import InventoryMovement as _IM4
+    _xom = []
+    _taqdir_jurnal = []
+    if item.reason == ReturnReason.DEFECT:
+        # kech125 (zip 146): avval TAQDIR — TM dan qo'shilgani olinadi, taqdir harakatlari (tuzatish xomashyosi, «joyiga»
+        # qaytgan xomashyo) qoldig'i bilan o'chadi, taqdir qatorlari o'chadi; so'ng brakning o'z harakatlari (avvalgidek).
+        _taqdir_jurnal = brak_taqdir_ochir(db, "qaytarish", item, _cid, performed_by)
+        _harakatlar = db.query(_IM4).filter(
+            _IM4.return_item_id == item.id,
+            _IM4.company_id == _cid,
+            _IM4.movement_type == "out",
+        ).order_by(_IM4.id).all()
+        for _h in _harakatlar:
+            _inv = None
+            if _h.inventory_id is not None:
+                _inv = db.query(Inventory).filter(
+                    Inventory.id == _h.inventory_id,
+                    Inventory.company_id == _cid,
+                ).with_for_update().first()
+            if _inv is not None:
+                _inv.stock_quantity = float(_inv.stock_quantity or 0) + float(_h.quantity or 0)
+                _xom.append(f"{_inv.item_name} +{_miqdor_matn(float(_h.quantity or 0))} {_inv.unit or ''}".rstrip())
+            db.delete(_h)
+
+    _qator = (f"{item.item_name} · {_miqdor_matn(item.quantity or 0)} {item.unit or ''} · "
+              f"{item.reason.value if item.reason else '-'}")
+    if _xom:
+        _qator += " · brak xomashyosi omborga qaytdi: " + "; ".join(_xom)
+    if _taqdir_jurnal:
+        _qator += " · brak taqdiri bekor: " + "; ".join(_taqdir_jurnal)
+    if _ozod_reja:
+        _qator += " · MRP bandi tiklandi: " + "; ".join(
+            f"{_f.name} +{_miqdor_matn(_q)} {_f.unit or ''}".rstrip() for _f, _q in _ozod_reja)
+    if _ozod_ozodlar:
+        _qator += " · band ozod qilingan — erkin qoldiqda qoldi: " + "; ".join(
+            f"{_f.name} {_miqdor_matn(_q)} {_f.unit or ''}".rstrip() for _f, _q in _ozod_ozodlar)
+    if fp is not None:
+        _qator += f" · ombordan olindi: {_miqdor_matn(_sq)} {fp.unit} ({fp.name})"
+    if pul_orqaga:
+        _qator += f" · pul qaytarish bekor qilindi: {_summa:,.0f} so'm (to'lov yozuvi: {_tolov_soni})"
+    db.add(ActivityLog(
+        company_id=_cid, action="deleted", entity_type="return", entity_id=item.id,
+        entity_label=(f"Buyurtma {order.order_number}" if order is not None else "Qaytarish"),
+        performed_by=performed_by, new_value=_qator))
+    _fp_id = fp.id if fp is not None else None
     db.delete(item)
+    db.flush()                  # tashqi kalitlar: to'lov va yozuv mahsulotdan OLDIN
+
+    if _fp_ochiriladi:
+        from models import FinishedProductSale as _FPS3, FinishedProductLoss as _FPL3
+        _havola = (
+            db.query(ReturnItem.id).filter(ReturnItem.finished_product_id == _fp_id,
+                                           ReturnItem.company_id == _cid).first()
+            or db.query(_FPS3.id).filter(_FPS3.finished_product_id == _fp_id).first()
+            or db.query(_FPL3.id).filter(_FPL3.finished_product_id == _fp_id).first()
+            or db.query(OrderItem.id).filter(OrderItem.finished_product_id == _fp_id,
+                                             OrderItem.company_id == _cid).first()
+        )
+        if _havola is None:
+            try:
+                from production_models import ProductionOrder as _PO3
+                _havola = db.query(_PO3.id).filter(_PO3.finished_product_id == _fp_id).first()
+            except ImportError:
+                _havola = None
+        if _havola is None:
+            db.delete(fp)
+            db.flush()
+        else:
+            _fp_ochiriladi = False
+
+    if pul_orqaga:
+        db.expire(order, ["payments"])
+        _update_order_payment_status(db, order)
+        _loyiha_tolangan_yangila(db, order.project)
+
     db.commit()
-    return True
+    return {
+        "ombordan_olindi": _sq if fp is not None else 0,
+        "mahsulot_ochirildi": bool(_fp_ochiriladi),
+        "pul_bekor_qilindi": _summa if pul_orqaga else 0,
+        "tolov_ochirildi": _tolov_soni,
+        "xomashyo_qaytdi": len(_xom),
+    }
 
 
-def get_return_stats(db: Session) -> dict:
+def get_return_stats(db: Session, company_id: int = None) -> dict:
     """Qaytarishlar statistikasi — jami va shu oy bo'yicha."""
-    from datetime import datetime
     from models import ReturnReason, FinishedProductLoss
 
-    all_returns = db.query(ReturnItem).all()
+    _rq = db.query(ReturnItem)
+    if company_id is not None:
+        _rq = _rq.filter(ReturnItem.company_id == company_id)
+    all_returns = _rq.all()
     total_count = len(all_returns)
     total_refund = sum(float(r.refund_amount) for r in all_returns)
     pending_refund = sum(float(r.refund_amount) for r in all_returns if not r.is_refunded)
@@ -2374,14 +7147,16 @@ def get_return_stats(db: Session) -> dict:
     for r in ReturnReason:
         by_reason[r.value] = sum(1 for i in all_returns if i.reason == r)
 
-    # Brak qiymati — jami va shu oy
+    # Brak — jami va shu oy: SONI — brak yozuvlari (quyida ishlab chiqarish braki ham), QIYMATI — pastda (kech107).
     brak_items = [r for r in all_returns if r.reason == ReturnReason.DEFECT]
-    brak_total_value = sum(float(r.refund_amount or 0) for r in brak_items)
     brak_total_count = len(brak_items)
 
-    now = datetime.utcnow()
-    month_brak = [r for r in brak_items if r.returned_at and r.returned_at.year == now.year and r.returned_at.month == now.month]
-    brak_month_value = sum(float(r.refund_amount or 0) for r in month_brak)
+    now = _tashkent_date()        # kech105 (9 + 50-band): "shu oy" — Toshkent kalendari
+
+    def _shu_oyda(v):
+        return v is not None and (_tashkent_date(v).year, _tashkent_date(v).month) == (now.year, now.month)
+
+    month_brak = [r for r in brak_items if _shu_oyda(r.returned_at)]
     brak_month_count = len(month_brak)
 
     # MUHIM (2026-09 chuqur audit — ikkinchi bosqich): "Ishlab chiqarish
@@ -2392,18 +7167,34 @@ def get_return_stats(db: Session) -> dict:
     # hisoblaymiz (faqat "ishlab chiqarish braki" belgisi bilan — oddiy
     # "zaxiradan kamaytirish" bu yerga kirmaydi, u haqiqiy brak emas,
     # balki alohida yo'qotish turi).
-    _PROD_BRAK_MARKER = "Ishlab chiqarish jarayonida brak"
-    prod_brak_losses = db.query(FinishedProductLoss).filter(
+    _PROD_BRAK_MARKER = _ISH_BRAK_BELGI
+    # M4 (2026-09-18) — TENANT: bu so'rov korxona filtrisiz edi — B
+    # korxonaning ishlab chiqarish braki A ning brak statistikasiga
+    # qo'shilib ketardi.
+    _pbq = db.query(FinishedProductLoss).filter(
         FinishedProductLoss.reason.like(f"{_PROD_BRAK_MARKER}%")
-    ).all()
+    )
+    if company_id is not None:
+        _pbq = _pbq.filter(FinishedProductLoss.company_id == company_id)
+    prod_brak_losses = _pbq.all()
     brak_total_count += len(prod_brak_losses)
-    brak_total_value += sum(float(l.cost_amount or 0) for l in prod_brak_losses)
-    month_prod_brak = [l for l in prod_brak_losses if l.lost_at and l.lost_at.year == now.year and l.lost_at.month == now.month]
+    month_prod_brak = [l for l in prod_brak_losses if _shu_oyda(l.lost_at)]
     brak_month_count += len(month_prod_brak)
-    brak_month_value += sum(float(l.cost_amount or 0) for l in month_prod_brak)
+
+    # kech107 (49-band, egasi qarori "Bitta raqam"; O'LCHANGAN `work/probe107b.py`, SQLite = PG): ilgari QIYMAT yozuvdagi
+    # saqlangan summa (`refund_amount`, zip 54 dan oldingi yozuvlarda — taxminiy) + ishlab chiqarish braki `cost_amount`
+    # edi: Moliyadagi "Brak" qatoridan (brak HARAKATLARI + tayyor turgan yo'qotish) va tahlildan (yozuvlar + HAMMA
+    # yo'qotishlar) boshqa raqam (asl: 86 905 / 124 560 / 136 905; haqiqiy xomashyo 74 560). Endi QIYMAT — Moliya
+    # "Brak" qatori bilan AYNAN bir funksiya va bir davr: brak chiqim harakatlari (chiqim paytidagi muzlatilgan narx),
+    # shu oy — Toshkent oyi (`tashkent_oy_oraligi`), jami — hamma vaqt. Omborda tayyor turgan mahsulot yo'qotishi bu
+    # yerga KIRMAYDI (Moliyada alohida qator — "Tayyor mahsulot yo'qotishi").
+    brak_total_value = float(get_brak_material_summary(db, company_id=company_id).get("total_value") or 0)
+    _oy_boshi, _oy_oxiri = _tashkent_oy_oraligi(now.year, now.month)
+    brak_month_value = float(get_brak_material_summary(db, start_date=_oy_boshi, end_date=_oy_oxiri,
+                                                       company_id=company_id).get("total_value") or 0)
 
     whole_items = [r for r in all_returns if r.reason != ReturnReason.DEFECT]
-    month_whole = [r for r in whole_items if r.returned_at and r.returned_at.year == now.year and r.returned_at.month == now.month]
+    month_whole = [r for r in whole_items if _shu_oyda(r.returned_at)]
 
     return {
         "total_count": total_count,
@@ -2415,6 +7206,13 @@ def get_return_stats(db: Session) -> dict:
         "brak_month_value": round(brak_month_value),
         "brak_month_count": brak_month_count,
         "whole_month_count": len(month_whole),
+        # kech120 (zip 133 — F bosqichi 3-qism, audit G5-18): kartalar sonlari bir-biriga mos kelmasdi («Brak (bu oy) 2», «Butun
+        # 1», «Jami 2») — brak soniga ishlab chiqarish braki (ro'yxatda yo'q) qo'shilardi, «Jami» esa hamma vaqt. Endi tarkibi
+        # alohida: ro'yxatdagi brak yozuvlari va ishlab chiqarish braki (bu oy); hamma vaqt — butun va brak yozuvlari.
+        "brak_month_yozuv_count": len(month_brak),
+        "brak_month_prod_count": len(month_prod_brak),
+        "total_whole_count": len(whole_items),
+        "total_brak_yozuv_count": len(brak_items),
     }
 
 
@@ -2423,20 +7221,36 @@ def get_return_stats(db: Session) -> dict:
 # ============================================================
 
 from models import Payment, PaymentType, PaymentMethod, PaymentStatus
+from models import QARZ_BARDOSH, pul_tiyin, pul_tiyin_yigindi
 from schemas import PaymentCreate
 
 
 def _update_order_payment_status(db: Session, order: Order) -> None:
     """Buyurtmaning to'lov holatini yangilaydi.
     Qarz to'liq to'lansa — avtomatik arxivga o'tkazadi."""
-    agreed = float(order.agreed_amount or order.total_amount or 0)
-    paid = sum(float(p.amount or 0) for p in (order.payments or []))
+    # kech92 (119-band, O'LCHANGAN — `models.QARZ_BARDOSH` izohi): summalar
+    # tiyin aniqligida, qoldiq 0.5 so'mdan oshmasa — qarz yo'q (`debt_amount`
+    # bilan AYNAN bir qoida). Ilgari `float` yig'indi QAT'IY solishtirilardi:
+    # to'liq to'langan buyurtma qarzi 1.2e-11 / 0.40000000002 bilan "qisman"
+    # qolib, arxivga o'tmasdi.
+    agreed = pul_tiyin(order.kelishilgan_summa)
+    paid = order.paid_amount
+    total = float(order.total_amount or 0)
 
-    if paid <= 0:
+    # kech42 (K42-1): kelishilgan summa 0 (hammasi qaytarilgan / qarz to'liq
+    # kechirilgan) va mijozdan qarz yo'q — hisob yopiq. Ilgari bu holda 0
+    # "kiritilmagan" deb olinib, jami summa bo'yicha "to'lanmagan" chiqardi.
+    # `total > 0` — bo'sh (0 so'mlik) yangi buyurtma arxivga tushib qolmasin.
+    if agreed <= QARZ_BARDOSH and total > 0 and paid >= -0.005:
+        order.payment_status = PaymentStatus.PAID
+        order.is_archived = True
+        if not order.closed_at:
+            order.closed_at = datetime.utcnow()
+    elif paid <= 0:
         order.payment_status = PaymentStatus.UNPAID
         order.is_archived = False
         order.closed_at = None
-    elif paid < agreed:
+    elif pul_tiyin(agreed - paid) > QARZ_BARDOSH:
         order.payment_status = PaymentStatus.PARTIAL
         order.is_archived = False
         order.closed_at = None
@@ -2448,44 +7262,165 @@ def _update_order_payment_status(db: Session, order: Order) -> None:
             order.closed_at = datetime.utcnow()
 
 
-def create_payment(db: Session, payment_data: PaymentCreate) -> Payment:
+# ============================================================
+# PUL AMALLARIDA TAKROR YUBORISH HIMOYASI  (2026-09-20)
+# ============================================================
+# Buyurtma yaratishda bu himoya allaqachon bor edi (pg_advisory_xact_lock
+# + "yaqinda bir xil tarkibli yozuv bormi" tekshiruvi). To'lovlarda esa
+# yo'q edi: tugmani ikki marta bosish yoki tarmoq so'rovni qayta yuborishi
+# IKKITA to'lov yozuvini yaratardi — ya'ni pul ikki marta hisoblanardi.
+#
+# Ikki qatlam:
+#   1) Qulf — bir vaqtning o'zida kelgan bir xil so'rovlarni NAVBATGA
+#      qo'yadi (aks holda ikkalasi ham "takror emas" deb o'tib ketardi)
+#   2) Imzo tekshiruvi — qulf ichida, yaqinda AYNAN shunday to'lov
+#      bormi deb qaraydi; bo'lsa, yangisini yaratmay, mavjudini qaytaradi
+
+PUL_TAKROR_SONIYA = 8      # buyurtma himoyasidagi oyna bilan bir xil
+
+
+def _pay_enum(enum_class, qiymat, sukut):
+    """Matnni enum ga aylantiradi; noto'g'ri bo'lsa sukutdagini qaytaradi.
+    Imzo tekshiruvi va yozish AYNAN bir xil qiymatni ishlatishi uchun
+    alohida funksiyaga chiqarilgan."""
+    try:
+        return enum_class(qiymat)
+    except ValueError:
+        return sukut
+
+
+def _pul_qulfi(db: Session, ns: int, kalit) -> None:
+    """Tranzaksiya davomida ushlanadigan qulf (faqat PostgreSQL).
+
+    Ikki argumentli shakl ishlatilgan — u `create_order` dagi bir
+    argumentli `pg_advisory_xact_lock(project_id)` bilan HECH QACHON
+    to'qnashmaydi, chunki Postgres ularni alohida fazoda saqlaydi.
+    SQLite'da bunday funksiya yo'q va u yerda bir vaqtlilik muammosi
+    ham yo'q — xavfsiz o'tkazib yuboriladi.
+    """
+    try:
+        if db.bind.dialect.name == "postgresql":
+            from sqlalchemy import text as _t
+            db.execute(_t("SELECT pg_advisory_xact_lock(:ns, :k)"),
+                       {"ns": ns, "k": int(kalit)})
+    except Exception:
+        pass
+
+
+def _tolov_chegarasi(order, summa: float, confirm_overpay: bool) -> None:
+    """Mijoz to'lovining buyurtmaga nisbatan chegaralari — YAGONA manba (17g).
+
+    1) "3 baravar" qoidasi: summa buyurtmaning UMUMIY qiymatidan 3 baravardan
+       ko'p bo'lsa — deyarli aniq tasodifiy xato (ortiqcha nol) → `ValueError`.
+    2) Qarzdan ko'p summa — `OverpaymentWarning` (marshrut → 409, UI aniq
+       tasdiq so'raydi va `confirm_overpay: true` bilan qayta yuboradi).
+
+    17g gacha bu ikki qoida faqat `create_payment` ichida edi; yetkazishdagi
+    to'lov (`create_delivery`) `Payment` ni TO'G'RIDAN yozardi va ularni
+    chetlab o'tardi — HAQIQIY PostgreSQL da O'LCHANGAN: 1 000 000 so'mlik
+    buyurtmaga yetkazish bilan 5 000 000 so'm to'lov jimgina yozildi (qo'lda
+    to'lov yo'li xuddi shunday summani 400 bilan rad etadi), ortiqcha to'lov
+    tasdig'i ham so'ralmadi. Endi ikkala yo'l AYNAN shu funksiyani chaqiradi."""
+    order_total = float(order.total_amount or 0)
+    if order_total > 0 and float(summa) > order_total * 3:
+        raise ValueError(
+            f"Kiritilgan summa ({summa:,.0f}) buyurtma qiymatidan "
+            f"({order_total:,.0f}) juda katta — xato bo'lishi mumkin. "
+            f"Iltimos, summani tekshirib qayta kiriting."
+        )
+    current_debt = order.debt_amount
+    # kech92 (119-band, O'LCHANGAN): kelishilgan 461 538.75 da UI ko'rsatgan
+    # qarz (butun so'm) 461 539 to'lansa "qarzdan (461,539 so'm) 0 so'mga ko'p"
+    # tasdig'i (409) chiqardi. Ortiqcha — tiyin aniqligida va faqat yarim
+    # so'mdan KO'P bo'lsa (`QARZ_BARDOSH`, `debt_amount` bilan bir qoida).
+    _ortiqcha = pul_tiyin(float(summa) - current_debt)
+    if _ortiqcha > QARZ_BARDOSH and not confirm_overpay:
+        raise OverpaymentWarning(
+            amount=float(summa), debt=current_debt,
+            excess=_ortiqcha
+        )
+
+
+def create_payment(db: Session, payment_data: PaymentCreate,
+                   company_id: int = None) -> Payment:
     """Yangi to'lov qo'shish."""
-    order = db.query(Order).filter(Order.id == payment_data.order_id).first()
+    # 17f (2026-09-22): ILDIZ — tana QAT'IY, bazaga tegishdan OLDIN (xato →
+    # `ValueError`, hech narsa yozilmaydi). HAQIQIY PostgreSQL da O'LCHANGAN:
+    # `Infinity` / `1e20` summa pastdagi takror-tekshiruv so'rovida
+    # (`Payment.amount == _summa`) 500 berardi; `0.001` → 0 so'mlik to'lov.
+    # Marshrut ham tekshiradi; bu qatlam boshqa chaqiruvchilar uchun.
+    _clean_val("Payment", _val_dump(payment_data, "Payment"))
+    # M2: to'lov FAQAT o'z korxonasining buyurtmasiga yozilishi mumkin.
+    _oq = db.query(Order).filter(Order.id == payment_data.order_id)
+    if company_id is not None:
+        _oq = _oq.filter(Order.company_id == company_id)
+    order = _oq.first()
     if not order:
         raise ValueError("Buyurtma topilmadi")
+
+    # ── TAKROR YUBORISH HIMOYASI ───────────────────────────────────────
+    # Ortiqcha to'lov ogohlantirishidan OLDIN turishi SHART: birinchi
+    # so'rov o'tib bo'lgach qarz kamayadi, shuning uchun takroriy so'rov
+    # bu yerga yetib kelsa foydalanuvchiga "ortiqcha to'lov" degan
+    # chalg'ituvchi oyna chiqib qolardi.
+    _pul_qulfi(db, 101, payment_data.order_id)
+    # kech100 (93-band, O'LCHANGAN `work/probe93b.py` — HAQIQIY PostgreSQL, parallel 2 oqim): buyurtma QULFDAN OLDIN
+    # o'qilgan edi — qulfni kutish paytida boshqa amal (o'chirishdagi yakunlash, qisman «Tayyor», kelishilgan summa
+    # tahriri) kelishilgan summani kamaytirsa, "qarzdan ko'p" tekshiruvi ESKI summa bilan o'tardi: kelishilgan 500 000
+    # o'chirish yakunlashida 200 000 ga tushgach 500 000 to'lov TASDIQSIZ yozildi (3 / 3; kutishsiz holatda — 409).
+    # Endi qulf ostida bazadan QAYTA o'qiladi (`create_delivery` naqshi); parallel butunlay o'chirilgan bo'lsa —
+    # "Buyurtma topilmadi" (ilgari PG da FK xatosi — 500).
+    db.expire_all()
+    order = _oq.first()
+    if not order:
+        raise ValueError("Buyurtma topilmadi")
+
+    # TENANT: bu so'rovda company_id filtri ATAYLAB yo'q. Payment'da
+    # bunday ustun umuman yo'q, filtrlash OTA orqali bo'ladi — va ota
+    # (buyurtma) YUQORIDA allaqachon tekshirilgan: boshqa korxonaniki
+    # bo'lsa, "Buyurtma topilmadi" xatosi bilan shu yergacha yetib
+    # kelinmaydi. Ya'ni bu order_id faqat shu korxonaniki bo'lishi mumkin.
+    from datetime import timedelta as _td_pay
+    _summa = round(float(payment_data.amount or 0), 2)
+    # kech38 (5-bo'lim 13-band): himoya FAQAT qo'lda kiritilgan to'lovlar
+    # orasida (`delivery_id IS NULL`). O'LCHANGAN (SQLite va HAQIQIY
+    # PostgreSQL 16, asl kod `c7a11f3`): yuk bilan 50 000 naqd to'lov
+    # yozilgach 8 s ichida qo'lda kiritilgan 50 000 naqd to'lov JIM yutilardi
+    # (javob `duplicate: true`, yangi yozuv yo'q; `orders.html` bu belgini
+    # o'qimaydi — foydalanuvchi "saqlandi" ko'rardi). Teskari tartibda (avval
+    # qo'lda, keyin yuk bilan) esa ikkalasi yozilardi — ya'ni bu "bir pulni
+    # ikki joyda yozish"ga qarshi himoya EMAS, tasodif edi. Himoyaning
+    # maqsadi — AYNAN bir so'rovning qayta yuborilishi (ikki bosish, tarmoq
+    # takrori); yuk to'lovi qo'lda to'lov so'rovining takrori bo'la olmaydi,
+    # uning o'z himoyasi bor (`create_delivery` imzosi).
+    _oldingi = db.query(Payment).filter(
+        Payment.order_id == payment_data.order_id,
+        Payment.delivery_id.is_(None),
+        Payment.amount == _summa,
+        Payment.payment_type == _pay_enum(PaymentType, payment_data.payment_type,
+                                          PaymentType.PARTIAL),
+        Payment.payment_method == _pay_enum(PaymentMethod, payment_data.payment_method,
+                                            PaymentMethod.CASH),
+        Payment.paid_at >= datetime.utcnow() - _td_pay(seconds=PUL_TAKROR_SONIYA),
+    ).order_by(Payment.paid_at.desc()).first()
+    if _oldingi is not None:
+        # main.py shu belgini o'qib, javobda "takroriy" deb ko'rsatadi
+        _oldingi._is_duplicate_submit = True
+        return _oldingi
 
     # Xavfsizlik: agar kiritilgan summa buyurtmaning UMUMIY qiymatidan
     # 3 baravardan ko'proq bo'lsa — bu, deyarli aniq, tasodifiy xato
     # (masalan ortiqcha nol qo'shilib ketgan). Kichik-o'rtacha ortiqcha
     # to'lovlar (mijoz qasddan ko'proq to'lasa) — bunga tegilmaydi.
-    order_total = float(order.total_amount or 0)
-    if order_total > 0 and float(payment_data.amount) > order_total * 3:
-        raise ValueError(
-            f"Kiritilgan summa ({payment_data.amount:,.0f}) buyurtma qiymatidan "
-            f"({order_total:,.0f}) juda katta — xato bo'lishi mumkin. "
-            f"Iltimos, summani tekshirib qayta kiriting."
-        )
-
     # Ortiqcha to'lov — qarzdan ko'p summa kiritilsa, aniq tasdiqlash talab qilinadi
     # (ehtiyotkorlik uchun — lekin AVANS sifatida qasddan ko'p to'lash ham mumkin,
-    # shuning uchun BUTUNLAY to'smaymiz, faqat tasdiqlashni so'raymiz)
-    current_debt = order.debt_amount
-    if float(payment_data.amount) > current_debt and not payment_data.confirm_overpay:
-        raise OverpaymentWarning(
-            amount=float(payment_data.amount), debt=current_debt,
-            excess=float(payment_data.amount) - current_debt
-        )
+    # shuning uchun BUTUNLAY to'smaymiz, faqat tasdiqlashni so'raymiz).
+    # 17g: ikkala qoida — `_tolov_chegarasi` (yetkazishdagi to'lov bilan umumiy).
+    _tolov_chegarasi(order, payment_data.amount, payment_data.confirm_overpay)
 
-    # Enum ga aylantirish
-    try:
-        p_type = PaymentType(payment_data.payment_type)
-    except ValueError:
-        p_type = PaymentType.PARTIAL
-
-    try:
-        p_method = PaymentMethod(payment_data.payment_method)
-    except ValueError:
-        p_method = PaymentMethod.CASH
+    # Enum ga aylantirish (yuqoridagi imzo tekshiruvi bilan bir xil mantiq)
+    p_type = _pay_enum(PaymentType, payment_data.payment_type, PaymentType.PARTIAL)
+    p_method = _pay_enum(PaymentMethod, payment_data.payment_method, PaymentMethod.CASH)
 
     db_payment = Payment(
         order_id=payment_data.order_id,
@@ -2502,49 +7437,170 @@ def create_payment(db: Session, payment_data: PaymentCreate) -> Payment:
     db.refresh(order)
     _update_order_payment_status(db, order)
 
-    # Loyihaning to'langan summasini yangilash
-    project = order.project
-    if project:
-        project.total_paid = sum(
-            sum(float(p.amount or 0) for p in (o.payments or []))
-            for o in (project.orders or [])
-        )
+    # Loyihaning to'langan summasini yangilash (17c: yagona yordamchi)
+    _loyiha_tolangan_yangila(db, order.project)
 
     db.commit()
     db.refresh(db_payment)
     return db_payment
 
 
-def get_payments(db: Session, order_id: Optional[int] = None) -> List[Payment]:
-    """To'lovlar ro'yxati."""
+# ============================================================
+# kech100 (131-band, FOYDALANUVCHI QARORI "B"): "MIJOZGA QAYTARISH KERAK" — ortiqcha to'lov ro'yxati va qaytarish
+# ============================================================
+# O'LCHANGAN (`work/probe131.py`, asl kod): to'langan > kelishilgan (tasdiqlangan ortiqcha to'lov, oldindan to'langan
+# qisman «Tayyor», kelishilgan summa kamaytirilgan) buyurtma hech qayerda ko'rinmasdi va uni yopish yo'li yo'q edi.
+# Ko'rsatkich — `Order.ortiqcha_tolov` (to'lovlar va kelishilgan summadan HAR SAFAR hisoblanadi — DOIMIY belgi;
+# `debt_amount` bilan bir bardosh). Yopish — MANFIY to'lov (mijozga pul qaytarildi): 24-band "Pul qaytdi" qoidasi
+# bilan bir xil yozuv (kassa kirimini kamaytiradi, to'langan summa kelishilganga tushadi). Qaytarish to'lovini o'chirish
+# (odatdagi to'lov o'chirish) ortiqchani qayta ochadi. O'chirilgan (yumshoq) buyurtma ham ro'yxatda — pul baribir
+# mijozniki (93-band yakunlashi ham ortiqcha to'lov qoldirishi mumkin).
+ORTIQCHA_QAYTARISH_BELGI = "↩ Ortiqcha to'lov mijozga qaytarildi"
+
+
+class OrtiqchaTolovYoq(ValueError):
+    """kech100 (131-band): buyurtmada mijozga qaytariladigan ortiqcha to'lov yo'q (marshrut → 409)."""
+
+
+def get_ortiqcha_tolovlar(db: Session, company_id: int = None) -> list:
+    """kech100 (131-band): mijozga QAYTARILISHI kerak bo'lgan (to'langan > kelishilgan) buyurtmalar — o'chirilgan
+    (yumshoq) buyurtmalar HAM. Tartib: ortiqcha summa kamayishi bo'yicha, teng bo'lsa id. So'rovlar soni buyurtmalar
+    soniga bog'liq EMAS: to'lovlar yig'indisi bitta GROUP BY (korxona — ota, buyurtma orqali) bilan saralanadi,
+    to'lovlar va loyiha bitta IN bilan yuklanadi; yakuniy shart — `Order.ortiqcha_tolov` (tiyin aniqligida)."""
+    from sqlalchemy import func as _f131
+    from sqlalchemy.orm import selectinload as _sil131
+    _sq = db.query(Payment.order_id.label("oid"), _f131.sum(Payment.amount).label("tol")) \
+        .join(Order, Order.id == Payment.order_id)
+    if company_id is not None:
+        _sq = _sq.filter(Order.company_id == company_id)
+    _sq = _sq.group_by(Payment.order_id).subquery()
+    _q = db.query(Order).join(_sq, _sq.c.oid == Order.id).filter(
+        _sq.c.tol > _f131.coalesce(Order.agreed_amount, Order.total_amount, 0) + 0.4)
+    if company_id is not None:
+        _q = _q.filter(Order.company_id == company_id)
+    royxat = [o for o in _q.options(_sil131(Order.payments), _sil131(Order.project)).all() if o.ortiqcha_tolov > 0]
+    royxat.sort(key=lambda o: (-o.ortiqcha_tolov, o.id))
+    return royxat
+
+
+def ortiqcha_tolovni_qaytar(db: Session, order_id: int, summa: float = None, usul: str = None, izoh: str = None,
+                            kim: str = None, company_id: int = None):
+    """kech100 (131-band): mijozga ortiqcha to'lovni QAYTARISH — manfiy to'lov yoziladi. `summa` berilmasa — butun
+    ortiqcha; qisman qaytarish mumkin (qolgani ro'yxatda qoladi). QULF (101, buyurtma) — to'lov / yuk / «Tayyor» /
+    o'chirish bilan bir fazo; ortiqcha qulf ostida bazadan QAYTA o'qilgan buyurtmadan hisoblanadi (ikki parallel
+    "Qaytarildi" pulni ikki marta chiqarmaydi). Takror yuborish (bir xil summa, `PUL_TAKROR_SONIYA` ichida) — yangi
+    yozuv YO'Q, mavjudi qaytadi (`_is_duplicate_submit`). Xatolar: `LookupError` (topilmadi), `OrtiqchaTolovYoq`
+    (ortiqcha yo'q), `ValueError` (summa noto'g'ri). `commit` — chaqiruvchining `bitta_tranzaksiya` si oxirida.
+    Qaytaradi: (to'lov, buyurtma)."""
+    import math as _m131
+    from datetime import timedelta as _td131
+    _oq = db.query(Order).filter(Order.id == order_id)
+    if company_id is not None:
+        _oq = _oq.filter(Order.company_id == company_id)
+    if not _oq.first():
+        raise LookupError("Buyurtma topilmadi")
+    db.flush()
+    _pul_qulfi(db, 101, order_id)
+    db.expire_all()
+    order = _oq.first()
+    if not order:
+        raise LookupError("Buyurtma topilmadi")
+    if summa is not None:
+        if isinstance(summa, bool) or not isinstance(summa, (int, float)) or not _m131.isfinite(float(summa)):
+            raise ValueError("Qaytariladigan summa son bo'lishi kerak")
+        summa = _pul2(float(summa))
+        if summa <= 0:
+            raise ValueError("Qaytariladigan summa musbat bo'lishi kerak")
+        # Takror yuborish — ortiqcha tekshiruvidan OLDIN (birinchi so'rov o'tgach ortiqcha 0 — chalg'ituvchi 409 bo'lardi)
+        _oldingi = db.query(Payment).join(Order, Order.id == Payment.order_id).filter(
+            Order.company_id == order.company_id,       # korxona — ota (buyurtma) orqali, lint ko'radi
+            Payment.order_id == order.id,
+            Payment.delivery_id.is_(None),
+            Payment.return_item_id.is_(None),
+            Payment.amount == -summa,
+            Payment.notes.like(ORTIQCHA_QAYTARISH_BELGI + "%"),
+            Payment.paid_at >= datetime.utcnow() - _td131(seconds=PUL_TAKROR_SONIYA),
+        ).order_by(Payment.paid_at.desc()).first()
+        if _oldingi is not None:
+            _oldingi._is_duplicate_submit = True
+            return _oldingi, order
+    ortiqcha = order.ortiqcha_tolov
+    if ortiqcha <= 0:
+        raise OrtiqchaTolovYoq("Bu buyurtmada mijozga qaytariladigan ortiqcha to'lov yo'q")
+    if summa is None:
+        summa = _pul2(ortiqcha)
+    if summa > ortiqcha + 0.005:
+        raise ValueError(f"Qaytariladigan summa ({summa:,.2f} so'm) ortiqcha to'lovdan ({ortiqcha:,.2f} so'm) ko'p")
+    p = Payment(
+        order_id=order.id,
+        amount=-summa,
+        payment_type=PaymentType.PARTIAL,
+        payment_method=_pay_enum(PaymentMethod, usul, PaymentMethod.CASH),
+        received_by=kim,
+        notes=(ORTIQCHA_QAYTARISH_BELGI + (f": {izoh}" if izoh else "")),
+    )
+    db.add(p)
+    db.flush()
+    db.expire(order, ["payments"])
+    _update_order_payment_status(db, order)
+    _loyiha_tolangan_yangila(db, order.project)
+    log_activity(db, "refunded", "order", order.id, order.order_number, kim,
+                 new_value=f"Ortiqcha to'lov mijozga qaytarildi: {summa:,.2f} so'm", company_id=order.company_id)
+    db.commit()
+    return p, order
+
+
+def get_payments(db: Session, order_id: Optional[int] = None,
+                 company_id: int = None) -> List[Payment]:
+    """To'lovlar ro'yxati.
+
+    2026-09-18 — M2: Payment'da company_id ustuni YO'Q, shuning uchun
+    filtrlash OTA (buyurtma) orqali — JOIN bilan."""
     query = db.query(Payment)
+    if company_id is not None:
+        query = query.join(Order, Order.id == Payment.order_id).filter(
+            Order.company_id == company_id)
     if order_id:
         query = query.filter(Payment.order_id == order_id)
     return query.order_by(Payment.paid_at.desc()).all()
 
 
-def delete_payment(db: Session, payment_id: int, performed_by: str = None) -> bool:
+def _tolov_audit_matni(payment) -> str:
+    """To'lovning audit uchun to'liq tafsiloti (summa, tur, usul, kim qabul
+    qilgan, qachon, izoh). kech38: `delete_payment` va `delete_delivery`
+    (yuk bilan birga to'lovni o'chirish — 12-band) uchun YAGONA manba."""
+    return (
+        f"{payment.amount:,.0f} so'm · {payment.payment_type.value if payment.payment_type else '-'} · "
+        f"{payment.payment_method.value if payment.payment_method else '-'} · "
+        f"qabul qilgan: {payment.received_by or '-'} · "
+        f"sana: {_tashkent_vaqt(payment.paid_at).strftime('%Y-%m-%d %H:%M') if payment.paid_at else '-'}"   # kech106: Toshkent
+        + (f" · izoh: {payment.notes}" if payment.notes else "")
+    )
+
+
+def delete_payment(db: Session, payment_id: int, performed_by: str = None,
+                   company_id: int = None) -> bool:
     """To'lovni o'chirish.
     XAVFSIZLIK/AUDIT: o'chirishdan OLDIN to'lovning to'liq tafsiloti
     (summa, usul, buyurtma, kim qabul qilgan, qachon) ActivityLog'ga
     yozib qo'yiladi — shunda to'lov o'chirilgandan keyin ham, KIM,
     QACHON va QANDAY to'lovni o'chirgani abadiy saqlanadi (kelishmovchilik
     yoki xatolikni keyinchalik tekshirish uchun)."""
-    payment = db.query(Payment).filter(Payment.id == payment_id).first()
+    # M2: to'lovda company_id yo'q — ota (buyurtma) orqali tekshiriladi.
+    _pq = db.query(Payment).filter(Payment.id == payment_id)
+    if company_id is not None:
+        _pq = _pq.join(Order, Order.id == Payment.order_id).filter(
+            Order.company_id == company_id)
+    payment = _pq.first()
     if not payment:
         return False
 
     order = payment.order
     order_label = order.order_number if order else f"#{payment.order_id}"
-    detail = (
-        f"{payment.amount:,.0f} so'm · {payment.payment_type.value if payment.payment_type else '-'} · "
-        f"{payment.payment_method.value if payment.payment_method else '-'} · "
-        f"qabul qilgan: {payment.received_by or '-'} · "
-        f"sana: {payment.paid_at.strftime('%Y-%m-%d %H:%M') if payment.paid_at else '-'}"
-        + (f" · izoh: {payment.notes}" if payment.notes else "")
-    )
+    detail = _tolov_audit_matni(payment)
     log_activity(
         db, "deleted", "payment", payment.id,
+        company_id=getattr(order, 'company_id', None),   # M7
         entity_label=f"Buyurtma {order_label}",
         performed_by=performed_by,
         new_value=detail
@@ -2556,12 +7612,8 @@ def delete_payment(db: Session, payment_id: int, performed_by: str = None) -> bo
     if order:
         db.refresh(order)
         _update_order_payment_status(db, order)
-        project = order.project
-        if project:
-            project.total_paid = sum(
-                sum(float(p.amount or 0) for p in (o.payments or []))
-                for o in (project.orders or [])
-            )
+        # 17c: yagona yordamchi
+        _loyiha_tolangan_yangila(db, order.project)
 
     db.commit()
     return True
@@ -2569,6 +7621,9 @@ def delete_payment(db: Session, payment_id: int, performed_by: str = None) -> bo
 
 def update_order_agreed_amount(db: Session, order_id: int, agreed_amount: float) -> Optional[Order]:
     """Kelishilgan summani (chegirmadan keyingi narx) yangilash."""
+    # 17e (2026-09-22): ILDIZ — summa MUSBAT, chekli, Numeric(12,2) sig'imi
+    # ichida (`true`, matn, `Infinity`, 0 — `ValueError`), bazaga tegishdan OLDIN.
+    agreed_amount = _clean_val("OrderAgreed", {"agreed_amount": agreed_amount})["agreed_amount"]
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         return None
@@ -2576,11 +7631,15 @@ def update_order_agreed_amount(db: Session, order_id: int, agreed_amount: float)
     total = float(order.total_amount or 0)
     order.agreed_amount = agreed_amount
 
-    # Chegirma foizini hisoblash
-    if total > 0 and agreed_amount < total:
-        order.discount_percent = round((total - agreed_amount) / total * 100, 2)
-    else:
-        order.discount_percent = 0.0
+    # Chegirma foizini hisoblash.
+    # 28-band (kech43): to'lov panelida xodim JORIY (pul qaytarishdan keyingi)
+    # summani ko'rib yangisini yozadi — summa yozilgandek saqlanadi, lekin
+    # chegirma foizi (narx chegirmasi) pul qaytarish kamaytirishisiz ASL summadan:
+    # aks holda qaytarilgan tovar "chegirma" bo'lib, keyingi qaytarish narxi
+    # tushib ketardi (4-band koeffitsienti).
+    # K110-1 (kech110): foiz — NARX chegirmasi, kechirilgan qarz (`Order.kechirilgan_qarz`) unga kirmaydi.
+    _asl_qolda = float(agreed_amount) + pul_qaytarish_kamaytirgan(db, order)
+    order.discount_percent = _narx_chegirma_foizi(total, _asl_qolda + order.kechirilgan)
 
     _update_order_payment_status(db, order)
     db.commit()
@@ -2588,12 +7647,19 @@ def update_order_agreed_amount(db: Session, order_id: int, agreed_amount: float)
     return order
 
 
-def get_delivery_stats(db: Session) -> dict:
+def get_delivery_stats(db: Session, company_id: int = None) -> dict:
     """Yetkazish statistikasi — dashboard uchun."""
-    orders = db.query(Order).filter(
+    from sqlalchemy.orm import selectinload as _sil_ds
+    _oq = db.query(Order).filter(
         Order.status.notin_([OrderStatus.DRAFT, OrderStatus.CANCELLED]),
         Order.is_deleted.isnot(True)
-    ).all()
+    )
+    if company_id is not None:
+        _oq = _oq.filter(Order.company_id == company_id)
+    # kech97 (116-band, O'LCHANGAN `work/probe116.py`): yetkazish foizi (detallar, yetkazishlar), qolgan miqdor
+    # (qaytarishlar), qarz (to'lovlar), mijoz (loyiha) — buyurtma boshiga 2+ so'rov edi; endi IN so'rovlari.
+    orders = _oq.options(_sil_ds(Order.items).selectinload(OrderItem.deliveries), _sil_ds(Order.returns),
+                         _sil_ds(Order.payments), _sil_ds(Order.project)).all()
 
     partial = []
     not_started = 0
@@ -2625,24 +7691,46 @@ def get_delivery_stats(db: Session) -> dict:
     }
 
 
-def get_debt_stats(db: Session) -> dict:
-    """Qarzdorlik statistikasi — dashboard uchun."""
-    orders = db.query(Order).filter(
-        Order.is_archived == False,
-        Order.is_deleted.isnot(True)
-    ).all()
+def qarz_hisobidagi_buyurtma_sharti():
+    """kech100 (134-band, FOYDALANUVCHI QARORI "A"): mijoz QARZI hisobiga kiradigan buyurtma — o'chirilmagan YOKI
+    o'chirilgan, lekin READY / DELIVERED (moliyaviy tarix: hisobotda qolgan, mahsulot mijozga berilgan — pul undirilishi
+    kerak; bosh sahifa "byudjet" qoidasi bilan bir xil). Eski o'chirilgan IN_PROGRESS (kech100 dan oldin qisman
+    topshirilib o'chirilgan — summa topshirilganga tushirilmagan) KIRMAYDI. SQL sharti (`filter` ga)."""
+    from sqlalchemy import or_ as _or134
+    return _or134(Order.is_deleted.isnot(True), Order.status.in_([OrderStatus.READY, OrderStatus.DELIVERED]))
 
-    total_agreed = 0.0
-    total_paid = 0.0
+
+def get_debt_stats(db: Session, company_id: int = None) -> dict:
+    """Qarzdorlik statistikasi — dashboard uchun."""
+    from sqlalchemy.orm import selectinload as _sil_db
+    _dq = db.query(Order)
+    if company_id is not None:
+        _dq = _dq.filter(Order.company_id == company_id)
+    # kech97 (116-band, O'LCHANGAN `work/probe116.py`): to'lovlar va loyiha buyurtma boshiga so'ralardi (+10 — +20).
+    # kech100 (134-band, QAROR "A"): o'chirilgan, lekin hisobotda qolgan (READY / DELIVERED) buyurtma qarzi HAM.
+    # K100-5 (O'LCHANGAN `tools/test_qarz_ochirilgan.py` B3): QORALAMA (zaklat bilan) bosh sahifa qarzdorlari ro'yxatiga
+    # tushardi (70 000 zaklatli qoralama — "430 000 qarz"), Qarzdorlar sahifasi esa qoralamani olmaydi — endi bir xil.
+    orders = _dq.filter(
+        Order.is_archived == False,
+        qarz_hisobidagi_buyurtma_sharti(),
+        Order.status != OrderStatus.DRAFT
+    ).options(_sil_db(Order.payments), _sil_db(Order.project)).all()
+
+    # kech92 (119-band): qarz — `Order.debt_amount` (tiyin aniqligi, 0.5 so'm
+    # chegarasi); ilgari bu yerda o'z `float` hisobi bor edi — to'liq to'langan
+    # buyurtma 1.2e-11 / 0.40000000002 qarz bilan ro'yxatga tushar, jami qarz
+    # 461539.95000000007 chiqardi. Jamilar tiyin aniqligida qo'shiladi.
+    _agreed_lar = []
+    _paid_lar = []
     debt_orders = []
 
     for o in orders:
-        agreed = float(o.agreed_amount or o.total_amount or 0)
-        paid = sum(float(p.amount or 0) for p in (o.payments or []))
-        debt = max(agreed - paid, 0)
+        agreed = o.kelishilgan_summa
+        paid = o.paid_amount
+        debt = o.debt_amount
 
-        total_agreed += agreed
-        total_paid += paid
+        _agreed_lar.append(agreed)
+        _paid_lar.append(paid)
 
         if debt > 0:
             days_passed = (datetime.utcnow() - o.created_at).days if o.created_at else 0
@@ -2657,27 +7745,34 @@ def get_debt_stats(db: Session) -> dict:
                 "payment_status": o.payment_status.value if o.payment_status else "unpaid",
                 "days_passed": days_passed,
                 "is_overdue": days_passed > 30,
-                "created_at": o.created_at.isoformat() if o.created_at else None
+                "created_at": o.created_at.isoformat() if o.created_at else None,
+                "is_deleted": bool(o.is_deleted),        # kech100 (134-band): ro'yxatda "o'chirilgan" belgisi
             })
 
     debt_orders.sort(key=lambda x: x["debt_amount"], reverse=True)
 
     # Bugungi to'lovlar
-    today = datetime.utcnow().date()
-    today_payments = db.query(Payment).all()
-    today_sum = sum(
-        float(p.amount or 0) for p in today_payments
-        if p.paid_at and p.paid_at.date() == today
+    from database import tashkent_date
+    today = tashkent_date()
+    # M6 — TENANT: bugungi to'lovlar ham joriy korxona bo'yicha.
+    _tpq = db.query(Payment)
+    if company_id is not None:
+        _tpq = _tpq.join(Order, Order.id == Payment.order_id).filter(
+            Order.company_id == company_id)
+    today_payments = _tpq.all()
+    today_sum = pul_tiyin_yigindi(
+        p.amount for p in today_payments
+        if p.paid_at and tashkent_date(p.paid_at) == today
     )
 
     return {
-        "total_agreed": total_agreed,
-        "total_paid": total_paid,
+        "total_agreed": pul_tiyin_yigindi(_agreed_lar),
+        "total_paid": pul_tiyin_yigindi(_paid_lar),
         # MUHIM: bu — har bir buyurtmaning (hech qachon manfiy bo'lmaydigan)
         # qarzlari YIG'INDISI, "jami kelishilgan - jami to'langan" emas.
         # Aks holda, agar ba'zi mijozlar ORTIQCHA to'lagan bo'lsa (masalan
         # oldindan to'lov), umumiy natija noto'g'ri, MANFIY chiqib qolar edi.
-        "total_debt": sum(d["debt_amount"] for d in debt_orders),
+        "total_debt": pul_tiyin_yigindi(d["debt_amount"] for d in debt_orders),
         "debt_orders_count": len(debt_orders),
         "overdue_count": sum(1 for d in debt_orders if d["is_overdue"]),
         "today_payments": today_sum,
@@ -2697,72 +7792,72 @@ def activate_draft_order(db: Session, order_id: int, performed_by: str = None) -
     if not order:
         return {"success": False, "message": "Buyurtma topilmadi"}
 
+    # kech65 (K65-2): qulf (101, buyurtma) → expire_all → qulf ostida QAYTA o'qish → holat
+    # tekshiruvi; yechishlar `commit=False`, oxirida BITTA `db.commit()`. O'LCHANGAN (HAQIQIY PG,
+    # `work/probe65c.py`, 3 / 3): bir qoralamani ikki joydan (yoki ikki marta bosib) jarayonga
+    # olish — IKKALASI ham "jarayonga olindi", penoplast IKKI MARTA yechilardi (holat qulfsiz
+    # o'qilar, `deduct_inventory_for_order` o'rtada commit qilardi).
+    _cid_q = getattr(order, 'company_id', None)
+    db.flush()
+    _pul_qulfi(db, 101, order.id)
+    db.expire_all()
+    _oq = db.query(Order).filter(Order.id == order_id)
+    if _cid_q is not None:
+        _oq = _oq.filter(Order.company_id == _cid_q)
+    order = _oq.first()
+    if not order:
+        db.rollback()
+        return {"success": False, "message": "Buyurtma topilmadi"}
+
     if order.status != OrderStatus.DRAFT:
+        db.rollback()
         return {"success": False, "message": "Bu buyurtma qoralama emas"}
+
+    # kech103 (54-band, QAROR "Majburiy tanlov"): qoralamada loy rejalashtirilgan bo'lsa — detallarda qoplama retsepti
+    # SHART (O'LCHANGAN `work/probe54r.py` Q1 / Q2: retseptsiz qoralama jarayonga olinganda loy zaxira retseptdan
+    # yechilardi). Yangi qoralama yaratishda allaqachon tekshirilgan; bu — eski qoralamalar uchun.
+    try:
+        qoplama_retsepti_tekshir(db, order.company_id, services._get_planned_loy(order), list(order.items),
+                                 saqlangan=True, joy="qoralama")
+    except ValueError as _e54:
+        db.rollback()
+        return {"success": False, "message": str(_e54)}
 
     # Xomashyo yetarliligini tekshiramiz
     check = services.check_inventory_for_order(db, order)
-    gcheck = services.check_gips_for_order(db, order)
-    all_shortages = list(check.get("shortages", [])) + list(gcheck.get("shortages", []))
+    all_shortages = list(check.get("shortages", []))
     if all_shortages:
+        db.rollback()
         return {
             "success": False,
             "message": "Xomashyo yetishmayapti!",
             "shortages": all_shortages
         }
 
-    # Ombordan penoplast yechamiz
-    log = services.deduct_inventory_for_order(db, order)
+    # kech82 (102-band): qoralamadan hech narsa yechilmagan edi — loy manbasi kuzatuvi shu yerdan TO'LIQ
+    # (migratsiyadan oldin yaratilgan qoralama ham).
+    if getattr(order, 'loy_manba_json', None) is None:
+        order.loy_manba_json = services.LOY_MANBA_BOSH
 
-    # TERMOPANEL (Bazalt/Serpiyanka/Kley) — [TERMO:] belgisidan (endi
-    # create_order() da HAR DOIM yoziladi, qoralama bo'lsa ham) o'qib,
-    # ombordan yechamiz. Avval bu — BUTUNLAY YO'Q edi.
-    from models import Inventory as _Inv_act
-    for oi in order.items:
-        if (oi.category or '').lower() != 'termopanel' or not oi.notes:
-            continue
-        bazalt_id = _parse_termo_note(oi.notes, 'bazalt_id')
-        bazalt_qty = _parse_termo_note(oi.notes, 'bazalt_qty', is_float=True)
-        serp_id = _parse_termo_note(oi.notes, 'serp_id')
-        serp_qty = _parse_termo_note(oi.notes, 'serp_qty', is_float=True)
-        kley_id = _parse_termo_note(oi.notes, 'kley_id')
-        kley_qty = _parse_termo_note(oi.notes, 'kley_qty', is_float=True)
-        for inv_id, qty in [(bazalt_id, bazalt_qty), (serp_id, serp_qty), (kley_id, kley_qty)]:
-            if inv_id and qty:
-                inv = db.query(_Inv_act).filter(_Inv_act.id == int(inv_id)).with_for_update().first()
-                if inv:
-                    inv.stock_quantity = float(inv.stock_quantity or 0) - float(qty)
-                    log_movement(db, inv.id, inv.item_name, movement_type="out", quantity=float(qty),
-                                  unit=inv.unit, order_id=order.id,
-                                  reason=f"Buyurtma jarayonga olindi — Termopanel ({order.order_number})")
+    # Ombordan penoplast yechamiz (kech65: commit=False — qulf oxirigacha)
+    log = services.deduct_inventory_for_order(db, order, commit=False)
 
-    # "Loy sotish" detallari — har biri o'z retseptiga ko'ra
-    for oi in order.items:
-        if (oi.category or '').lower() == 'loy_sotish' and oi.recipe_id and oi.quantity:
-            log.extend(services.deduct_loy_ingredients(db, order, float(oi.quantity), recipe_id=oi.recipe_id))
+    # kech82 (102-band): buyurtma loyi — zaxiradan / xomdan qancha olingani yoziladi
+    with services.loy_manba_rejimi(db, "ushla"):
+        # "Loy sotish" detallari — har biri o'z retseptiga ko'ra
+        for oi in order.items:
+            if (oi.category or '').lower() == 'loy_sotish' and oi.recipe_id and oi.quantity:
+                log.extend(services.deduct_loy_ingredients(db, order, float(oi.quantity), recipe_id=oi.recipe_id,
+                                                           commit=False))
 
-    # Rejalashtirilgan loy bo'lsa — uni ham yechamiz (umumiy qoplama +
-    # Termopanel qoplamasi — ikkalasi ham, create_order bilan izchil)
-    planned_loy = services._get_planned_loy(order) + get_termopanel_planned_loy(order)
-    if planned_loy > 0:
-        loy_log = services.deduct_loy_ingredients(db, order, planned_loy)
-        log.extend(loy_log)
+        # Rejalashtirilgan loy (qoplama) bo'lsa — uni ham yechamiz
+        planned_loy = services._get_planned_loy(order)
+        if planned_loy > 0:
+            loy_log = services.deduct_loy_ingredients(db, order, planned_loy, commit=False)
+            log.extend(loy_log)
 
     # Tayyor mahsulotlarni yechamiz
     log.extend(_take_finished_for_order(db, order))
-
-    # GIPS — asosiy xomashyo va qo'shimchalari (Loy kabi, "faollashtirish"
-    # bosqichida, rejalashtirilgan miqdorda ayiriladi)
-    planned_gips = float(order.planned_gips_kg or 0)
-    if planned_gips > 0 and order.gips_inventory_id:
-        r = services.deduct_gips_main(db, order.gips_inventory_id, planned_gips, order,
-                                       reason=f"Buyurtma jarayonga olindi ({order.order_number})")
-        if r:
-            log.append(r)
-    gips_adds = [{"inventory_id": a.inventory_id, "qty": float(a.planned_qty or 0)} for a in order.gips_additives]
-    if gips_adds:
-        log.extend(services.deduct_gips_additives(db, gips_adds, order,
-                                                    reason=f"Buyurtma jarayonga olindi ({order.order_number})"))
 
     order.status = OrderStatus.IN_PROGRESS
     db.commit()
@@ -2771,7 +7866,8 @@ def activate_draft_order(db: Session, order_id: int, performed_by: str = None) -
     # AUDIT: ombordan xomashyo yechiladigan lahza — eng muhim voqealardan
     # biri, shuning uchun kim va qachon bosgani alohida qayd etiladi.
     try:
-        log_activity(db, "activated", "order", order.id, order.order_number, performed_by)
+        log_activity(db, "activated", "order", order.id, order.order_number, performed_by,
+                     company_id=getattr(order, 'company_id', None))
     except Exception:
         pass
 
@@ -2785,91 +7881,7 @@ def activate_draft_order(db: Session, order_id: int, performed_by: str = None) -
 # ============================================================
 # BUYURTMANI TAHRIRLASH (ombor farq bo'yicha to'g'rilanadi)
 # ============================================================
-
-def _build_termo_notes(db: Session, item_data, existing_notes: str = None) -> str:
-    """Termopanel (Bazalt) detali uchun '[TERMO:...]' belgisini quradi —
-    bazalt_id/serp_id/kley_id/miqdorlarni item_data (frontend yuborgan
-    bazalt_item_id, serpiyanka_item_id, kley_item_id, quantity,
-    termo_loy_kg maydonlaridan) hisoblab, notes ichiga yozadi.
-
-    MUHIM: bu — YAGONA joy bo'lishi kerak, chunki frontend Termopanel
-    uchun '[TERMO:...]' belgisining o'zini HECH QACHON yubormaydi (faqat
-    xom bazalt_item_id/serpiyanka_item_id/kley_item_id/quantity yuboradi)
-    — belgini backend qurishi SHART. Buyurtma yaratishda ham,
-    tahrirlashda (qoralama bo'lsa ham) ham — aynan shu funksiya
-    ishlatilishi kerak, aks holda tahrirlashda '[TERMO:...]' yo'qolib,
-    "Jarayonga olish"da Bazalt/Serpiyanka/Kley ombordan umuman
-    yechilmay qolar edi (2026-08-21 sinovda aynan shu holat topilgan).
-
-    2026-09-14 tekshiruvi: 4 ta buyurtmada (#19,#26,#33,#36) bu belgi
-    ikki marta, so'zma-so'z bir xil holda yozilgan holati topildi.
-    Quyidagi qatordagi re.sub() — standart holatda BARCHA (faqat
-    birinchi emas) '[TERMO:...]' nusxalarini olib tashlaydi, shuning
-    uchun bu funksiya har safar chaqirilganda AVTOMATIK o'zini
-    tuzatadi (bir nechta eski nusxa bo'lsa ham, natija — doim bitta
-    to'g'ri belgi). Demak muammo BU FUNKSIYA ICHIDA emas — audit
-    jurnalida bu buyurtmalar bir necha soniya ichida "yaratildi →
-    o'chirildi → qayta yaratildi" ketma-ketligida ekani topildi, ya'ni
-    ehtimol SINOV_AVTOMATIK_TEST skriptining o'zi (server sekin javob
-    berganda) so'rovni ikki marta yuborgan. Xavf darajasi: YO'Q — bu
-    yerda faqat matn (notes) ikkilanadi, ombordan HECH QACHON ikki
-    marta ayirilmaydi (chunki qiymat o'qish — birinchi mosini topgan
-    zahoti to'xtaydi, ikkinchi nusxa bir xil bo'lgani uchun natija
-    baribir to'g'ri chiqadi). Mavjud 4 ta buyurtmadagi ikkilanган
-    yozuvni tozalash uchun — shu buyurtmani ochib, Termopanel
-    detalini o'zgartirmasdan qayta saqlash kifoya (shu funksiya
-    o'zi tozalab qo'yadi)."""
-    from models import Inventory as _Inv_termo
-    bazalt_id = getattr(item_data, 'bazalt_item_id', None)
-    serp_id = getattr(item_data, 'serpiyanka_item_id', None)
-    kley_id = getattr(item_data, 'kley_item_id', None)
-    loy_kg_t = float(getattr(item_data, 'termo_loy_kg', None) or 0)
-    parts = []
-    b = None
-    if bazalt_id:
-        b = db.query(_Inv_termo).filter(_Inv_termo.id == bazalt_id).first()
-        area = float(b.volume_per_unit or 0.72) if b else 0.72
-        sheets = float(item_data.quantity or 0) / area if area else 0
-        parts.append(f"bazalt_id={bazalt_id},bazalt_qty={sheets:.4f}")
-    if serp_id:
-        s = db.query(_Inv_termo).filter(_Inv_termo.id == serp_id).first()
-        area = float(s.volume_per_unit or 50.0) if s else 50.0
-        serp_ratio = float(b.serp_ratio_per_m2) if (b and b.serp_ratio_per_m2) else 2.0
-        rulon = (float(item_data.quantity or 0) * serp_ratio) / area if area else 0
-        parts.append(f"serp_id={serp_id},serp_qty={rulon:.4f}")
-    if kley_id:
-        kley_ratio = float(b.kley_ratio_per_m2) if (b and b.kley_ratio_per_m2) else 0.8
-        kley_kg = float(item_data.quantity or 0) * kley_ratio
-        parts.append(f"kley_id={kley_id},kley_qty={kley_kg:.4f}")
-    if loy_kg_t > 0:
-        parts.append(f"loy_kg={loy_kg_t:.4f}")
-    if not parts:
-        return existing_notes or ''
-    import re as _re_termo
-    base_notes = _re_termo.sub(r'\s*\[TERMO:[^\]]+\]', '', existing_notes or '').strip()
-    return (base_notes + " [TERMO:" + ",".join(parts) + "]").strip()
-
-
-def _parse_termo_note(notes, key, is_float=False):
-    """Detal notes ichidagi '[TERMO:...]' belgisidan bitta qiymatni o'qiydi.
-    Masalan: '[TERMO:bazalt_id=1,bazalt_qty=13.89,...]' dan 'bazalt_id'ni oladi."""
-    import re
-    if not notes:
-        return None
-    m = re.search(r'\[TERMO:([^\]]+)\]', notes)
-    if not m:
-        return None
-    parts = dict(p.split('=') for p in m.group(1).split(',') if '=' in p)
-    val = parts.get(key)
-    if val is None:
-        return None
-    try:
-        return float(val) if is_float else int(float(val))
-    except (ValueError, TypeError):
-        return None
-
-
-def finalize_partial_order_quantities(db: Session, order) -> dict:
+def finalize_partial_order_quantities(db: Session, order, faqat_hisob: bool = False) -> dict:
     """Buyurtma QISMAN topshirilgan holatda yakunlanganda —
     har bir detalning miqdorini (va narxini) HAQIQATDA berilgan
     miqdorga moslab qisqartiradi. Boshida yozilgan (lekin berilmagan)
@@ -2877,38 +7889,79 @@ def finalize_partial_order_quantities(db: Session, order) -> dict:
 
     Keyin: jami summa qayta hisoblanadi, to'langan pul bilan solishtiriladi —
     ortiqcha to'lov bo'lsa 'qaytarilishi kerak' deb belgilanadi,
-    yetmasa — oddiy qarz sifatida qoladi (avtomatik, debt_amount orqali)."""
+    yetmasa — oddiy qarz sifatida qoladi (avtomatik, debt_amount orqali).
+
+    kech100 (93-band): `faqat_hisob=True` — HECH NARSA o'zgartirilmaydi (na obyekt, na baza, `commit` yo'q):
+    o'chirish tasdig'i oldindan ko'rsatadigan natija (`ochirish_yopish_hisobi`) — AYNAN shu formulalar bilan
+    (yagona manba); qaytgan lug'at shakli o'sha (qarz — `debt_amount` qoidasi bilan)."""
     import re as _re
 
+    _yangi_jami = {}      # kech100: detal id → yakunlangandagi jami (faqat_hisob da obyekt o'zgarmaydi)
     for item in order.items:
         ordered = item.order_qty_normalized
         if ordered <= 0:
             continue
-        delivered = item.delivered_qty
+        # kech60 (57-band): omborga ORTIQCHA qo'yilgan qism ham buyurtmada qoladi — u mijoz
+        # uchun ishlab chiqarilgan (pul masalasi — alohida "Pul qaytdi" orqali, 24 / 28-band).
+        # Aks holda miqdor topshirilganga tushib, qaytarilgan yig'indi buyurtmadan oshardi.
+        delivered = min(item.delivered_qty + item.ortiqcha_qty, ordered)
         fraction = min(delivered / ordered, 1.0)
 
+        # 117-band (kech95, O'LCHANGAN `work/probe117b.py` (7) / (7b), SQLite + PG): jami "eski jami × ulush"
+        # edi — narx × topshirilgan bilan mos emas (10.335 × 333, 100 topshirildi → 1033.50, narx 10.34 × 100 =
+        # 1034.00); profilda narx butun uzunlikniki qolardi (100 000, jami 40 000) — muvofiqlik tekshiruvi
+        # yolg'on "order_total_mismatch" berardi. To'liq topshirilgan detal — O'ZGARMAYDI (avval ham shunday).
+        if fraction >= 1.0:
+            continue
         old_total = float(item.total_price or 0)
-        new_total = round(old_total * fraction, 2)
-
         cat = (item.category or '').lower()
         if cat == 'profil':
-            item.length = delivered
+            # profil: miqdor (dona) odatda 1, narx — butun uzunlik narxi; jami uzunlik ulushiga (HALF_UP),
+            # narx = jami / miqdor (narx × miqdor = jami).
+            _q117 = float(item.quantity or 1)
+            _narx100, _jami100 = _buyurtma_narx_jami(_q117, _pul2(old_total * fraction) / _q117)
+            if not faqat_hisob:
+                item.length = delivered
+                item.unit_price, item.total_price = _narx100, _jami100
         else:
-            item.quantity = delivered
-        item.total_price = new_total
+            _narx100, _jami100 = _buyurtma_narx_jami(delivered, item.unit_price or 0)
+            if not faqat_hisob:
+                item.quantity = delivered
+                item.unit_price, item.total_price = _narx100, _jami100
+        _yangi_jami[item.id] = float(_jami100)
 
-    new_total_amount = round(sum(float(i.total_price or 0) for i in order.items), 2)
+    new_total_amount = round(sum(_yangi_jami.get(i.id, float(i.total_price or 0)) for i in order.items), 2)
     old_total_amount = float(order.total_amount or 0)
-    order.total_amount = new_total_amount
+    if not faqat_hisob:
+        order.total_amount = new_total_amount
 
-    discount_pct = float(order.discount_percent or 0)
-    new_agreed = round(new_total_amount * (1 - discount_pct / 100), 2)
-    order.agreed_amount = new_agreed
+    # 28-band (kech43, O'LCHANGAN S5): 50 m berilgan, 20 m qaytib pul qaytarilgan
+    # buyurtma "Tayyor" bosilganda summa 250 000 bo'lardi (to'g'risi 150 000) —
+    # pul qaytarish kamaytirishi QAYTA ayiriladi (manfiy bo'lmaydi).
+    _qaytgan_kam = pul_qaytarish_kamaytirgan(db, order)
+    # K110-1 (kech110): tahrir bilan YAGONA qoida (`kelishilgan_qayta_hisob`) — ilgari `jami × (1 − discount_percent)`
+    # edi: ustama va kechirilgan qarz yo'qolardi, foiz 2 xonaga yaxlitlangan qiymatdan olinardi.
+    _asl110 = kelishilgan_qayta_hisob(old_total_amount, new_total_amount,
+                                      round(order.kelishilgan_summa + _qaytgan_kam, 2), order.kechirilgan)[0]
+    new_agreed = _pul2(max(0.0, _asl110 - _qaytgan_kam))
 
     paid = order.paid_amount
     overpaid = None
     if paid > new_agreed + 1:
         overpaid = round(paid - new_agreed, 2)
+    if faqat_hisob:
+        # kech100 (93-band): oldindan ko'rish — o'zgartirmasdan, o'sha shakl
+        _qarz100 = pul_tiyin(new_agreed - paid)
+        return {
+            "old_total": old_total_amount,
+            "new_total": new_total_amount,
+            "new_agreed": new_agreed,
+            "paid": paid,
+            "overpaid": overpaid,
+            "debt": _qarz100 if _qarz100 > QARZ_BARDOSH else 0.0,
+        }
+    order.agreed_amount = new_agreed
+    if overpaid is not None:
         base_notes = _re.sub(r'\s*\[OVERPAID:[\d.]+\]', '', order.notes or '').strip()
         order.notes = (base_notes + f" [OVERPAID:{overpaid}]").strip()
 
@@ -2933,7 +7986,235 @@ def finalize_partial_order_quantities(db: Session, order) -> dict:
     }
 
 
-def export_full_backup(db: Session) -> dict:
+# ============================================================
+# kech100 (93-band, FOYDALANUVCHI QARORI "B"): O'CHIRILGAN TOPSHIRILGAN BUYURTMA — YAKUNLASH / TIKLASH
+# ============================================================
+# O'LCHANGAN (`work/probe93.py`, asl kod = zip 93, SQLite = PG): 10 m dan 4 m topshirilgan buyurtma o'chirilsa
+# IN_PROGRESS + o'chirilgan qolardi — oylik / yillik hisobot (daromad 200 000, tannarx 28 000, qoplamachi bonusi
+# 40 000), usta KPI (17 200), kunlik moliya, grafik, eng yaxshi mijozlar, ehson foydasi uni SANAMASDI (hammasi faqat
+# READY ni oladi); bosh sahifa "Jami byudjet / qarz" dan esa 500 000 butunlay tushib qolardi. To'liq topshirilgan,
+# lekin «Tayyor» bosilmagan (DELIVERED) buyurtma o'chirilsa ham hisobotga kirmasdi. NAZORAT: xuddi shu buyurtma
+# qisman «Tayyor» (loy 4 kg) qilinib keyin o'chirilsa — hammasi hisobotda (qaror "B" kutgan natija).
+# QAROR "B" (misol bilan): "100 m dan 40 m topshirilib buyurtma o'chirilsa, topshirilgan 40 m DAROMADI, TANNARXI va
+# usta KPI hisobotda QOLADI" ("qisman bo'lsa ham tovar berilgan bo'ladi"). Texnik yechim (Claude): o'chirish
+# topshirilgan qismni qisman «Tayyor» bilan AYNAN bir qoida bilan YAKUNLAYDI — `finalize_partial_order_quantities`
+# (miqdor / narx / jami / kelishilgan summa topshirilganga, ortiqcha to'lov), ishlatilgan loy (reja − o'chirishda
+# qaytgan; to'liq topshirilganda — reja), holat READY, `completed_at` — o'chirilgan PAYT («Tayyor» ham bosilgan
+# paytni yozadi; o'tgan / yopilgan oy hisoboti o'zgarmaydi — oxirgi yuk sanasi o'tgan oyga tushib, yopilgan oyni
+# o'zgartirardi). Shundan keyin mavjud "o'chirilgan READY — moliyaviy tarix" qoidasi BARCHA hisobotlarda (oylik,
+# yillik, usta KPI / sovg'a, ehson, kunlik, grafik, mijozlar) o'zi ishlaydi — har hisobot funksiyasiga alohida
+# "topshirilgan ulush" formulasi qo'shilmaydi (yagona manba). Yakunlashdan OLDINGI holat `ochirish_yopish_json` da —
+# tiklash AYNAN qaytaradi (kech100 dan oldingi tiklash bilan bir xil natija).
+
+def ochirishda_yumshoqmi(order) -> bool:
+    """kech103 (5-bo'lim 59-band, FOYDALANUVCHI QARORI "Tarix saqlansin"): buyurtma o'chirilganda YUMSHOQ o'chiriladimi
+    (`is_deleted` belgisi — buyurtma, uning to'lovlari va qaytarish yozuvlari bazada qoladi, «O'chirilganlar» dan
+    tiklanadi). Haqiqiy ish izi bo'lsa — HA: yuk xati, «Tayyor» / «Yetkazilgan» holati YOKI qaytarish yozuvi (ortiqcha —
+    omborga qo'yilgan mahsulot, brak).
+    O'LCHANGAN (`work/probe59.py`, asl kod): yetkazilmagan buyurtmadan 3 m ortiqcha omborga qaytib, buyurtma o'chirilsa —
+    QATTIQ o'chirardi: qaytarish yozuvi (cascade) va 100 000 to'lov yo'qolar, tayyor mahsulotlar omboridagi 3 m qayerdan
+    kelgani izi qolmasdi; brak (2 m) bo'lsa — brak yozuvi o'chib, qaytarishlar statistikasi 10 000 → 0, oylik hisobot
+    brak xarajati esa 10 000 (ombor harakatlaridan) qolardi — bir-biriga zid.
+    `main.api_delete_order` va o'chirish rejasi (`main._buyurtma_ochirish_rejasi` — `orders.html` tasdiq matni) SHU
+    funksiyadan — biri o'zgarsa ikkinchisi ham (`tools/test_tayyor_yuk.py` rejani amal natijasi bilan solishtiradi)."""
+    return (bool(order.deliveries)
+            or order.status in (OrderStatus.READY, OrderStatus.DELIVERED)
+            or bool(order.returns))
+
+
+def ochirishda_yopiladimi(order) -> bool:
+    """kech100 (93-band): o'chirishda buyurtma topshirilgan qismi bilan YAKUNLANADIMI — yuk xati BOR va hali «Tayyor»
+    (READY) emas (qoralama / bekor — yo'q). Hech narsa topshirilmagan (yuksiz) buyurtma — butunlay o'chadi (o'zgarmagan)."""
+    return bool(order.deliveries) and order.status not in (OrderStatus.READY, OrderStatus.DRAFT, OrderStatus.CANCELLED)
+
+
+def _yopish_natijasi(order, fin: dict, eski_kelishilgan: float, toliq: bool) -> dict:
+    """kech100 (93-band): yakunlash natijasi (oldindan ko'rish va haqiqiy — bir shakl)."""
+    from models import ortiqcha_tolov_qiymati
+    natija = dict(fin)
+    natija["old_agreed"] = eski_kelishilgan
+    natija["toliq_topshirilgan"] = bool(toliq)
+    natija["ortiqcha"] = ortiqcha_tolov_qiymati(natija.get("paid") or 0, natija.get("new_agreed") or 0)
+    natija["qarz"] = float(natija.get("debt") or 0)
+    msg = (f"Topshirilgan qism YAKUNLANDI («Tayyor» kabi): buyurtma summasi {eski_kelishilgan:,.0f} → "
+           f"{float(natija.get('new_agreed') or 0):,.0f} so'm — daromad, tannarx va usta KPI oylik / yillik hisobotda qoladi.")
+    if natija["ortiqcha"] > 0:
+        msg += (f" ⚠️ Mijoz {natija['ortiqcha']:,.0f} so'm ORTIQCHA to'lagan — pulni QAYTARISH kerak "
+                f"(Qarzdorlar → «Mijozga qaytarish kerak»).")
+    elif natija["qarz"] > 0:
+        msg += f" Mijoz qarzi: {natija['qarz']:,.0f} so'm."
+    natija["message"] = msg
+    return natija
+
+
+def ochirish_yopish_hisobi(db: Session, order) -> dict:
+    """kech100 (93-band): o'chirish tasdig'i uchun OLDINDAN ko'rish — hech narsa o'zgartirmaydi. Natija
+    `ochirishda_topshirilganni_yopish` bilan AYNAN (bir xil formula — `finalize_partial_order_quantities(faqat_hisob=True)`)."""
+    toliq = order.status == OrderStatus.DELIVERED or order.is_fully_delivered
+    eski = order.kelishilgan_summa
+    if toliq:
+        fin = {"old_total": float(order.total_amount or 0), "new_total": float(order.total_amount or 0),
+               "new_agreed": eski, "paid": order.paid_amount, "overpaid": None, "debt": order.debt_amount}
+    else:
+        fin = finalize_partial_order_quantities(db, order, faqat_hisob=True)
+    return _yopish_natijasi(order, fin, eski, toliq)
+
+
+def _pul_matn100(v):
+    return None if v is None else str(v)
+
+
+def _pul_ol100(s):
+    from decimal import Decimal
+    return None if s is None else Decimal(str(s))
+
+
+def ochirishda_topshirilganni_yopish(db: Session, order, loy_ishlatilgan: float = None) -> dict:
+    """kech100 (93-band): o'chirilayotgan topshirilgan buyurtmani topshirilgan qismi bilan YAKUNLAYDI (qisman «Tayyor»
+    qoidasi). FAQAT `bitta_tranzaksiya` ichida chaqiriladi (`main.api_delete_order`) — `finalize_partial_order_quantities`
+    ichidagi `commit` u yerda `flush`. Ombor (qolgan qism xomashyosi / tayyor mahsulot / loy) — chaqiruvchida,
+    AVVAL (o'zgarmagan). `loy_ishlatilgan` — shu o'chirishda hisoblangan (reja − qaytgan); berilmasa: to'liq
+    topshirilgan — reja, aks holda reja × topshirilgan loy ulushi."""
+    import json as _json
+    import services
+    toliq = order.status == OrderStatus.DELIVERED or order.is_fully_delivered
+    eski = order.kelishilgan_summa
+    if loy_ishlatilgan is None:
+        _reja = float(services._get_planned_loy(order) or 0)
+        loy_ishlatilgan = _reja if toliq else _reja * (1.0 - services.loy_relevant_remaining_fraction(order))
+    # Oldingi holat — tiklash (`ochirish_yopishini_bekor_qil`) AYNAN qaytaradi
+    order.ochirish_yopish_json = _json.dumps({
+        "v": 1,
+        "status": order.status.value if order.status else None,
+        "completed_at": order.completed_at.isoformat() if order.completed_at else None,
+        "total_amount": _pul_matn100(order.total_amount),
+        "agreed_amount": _pul_matn100(order.agreed_amount),
+        "notes": order.notes,
+        "actual_loy_kg": order.actual_loy_kg,
+        "payment_status": order.payment_status.value if order.payment_status else None,
+        "is_archived": bool(order.is_archived),
+        "closed_at": order.closed_at.isoformat() if order.closed_at else None,
+        "items": [{"id": i.id, "quantity": i.quantity, "length": i.length,
+                   "unit_price": _pul_matn100(i.unit_price), "total_price": _pul_matn100(i.total_price)}
+                  for i in order.items],
+    }, ensure_ascii=False)
+    if toliq:
+        fin = {"old_total": float(order.total_amount or 0), "new_total": float(order.total_amount or 0),
+               "new_agreed": eski, "paid": order.paid_amount, "overpaid": None, "debt": order.debt_amount}
+    else:
+        fin = finalize_partial_order_quantities(db, order)
+    # Ishlatilgan loy — foyda (qoplama tannarxi) shundan: «Tayyor» dagi `actual_loy_kg` bilan bir ma'no
+    if order.actual_loy_kg is None and float(loy_ishlatilgan or 0) > 0.01:
+        order.actual_loy_kg = round(float(loy_ishlatilgan), 4)
+    order.status = OrderStatus.READY
+    order.completed_at = datetime.utcnow()
+    db.flush()
+    return _yopish_natijasi(order, fin, eski, toliq)
+
+
+def ochirish_yopishini_bekor_qil(db: Session, order) -> bool:
+    """kech100 (93-band): tiklashda o'chirish yakunlashini AYNAN bekor qiladi — detallar (miqdor / uzunlik / narx /
+    jami), buyurtma summalari, izoh, loy, holat, sanalar o'chirishdan OLDINGI holatga; to'lov holati hozirgi
+    to'lovlardan qayta hisoblanadi (o'chirilgan paytda mijozga pul qaytarilgan bo'lishi mumkin — 131-band). Yakunlanmagan
+    (NULL) — hech narsa qilmaydi, `False`."""
+    import json as _json
+    raw = getattr(order, "ochirish_yopish_json", None)
+    if not raw:
+        return False
+    snap = _json.loads(raw)
+    _by_id = {i.id: i for i in order.items}
+    for s in snap.get("items") or []:
+        it = _by_id.get(s.get("id"))
+        if it is None:
+            continue
+        it.quantity = s.get("quantity")
+        it.length = s.get("length")
+        it.unit_price = _pul_ol100(s.get("unit_price"))
+        it.total_price = _pul_ol100(s.get("total_price"))
+    order.total_amount = _pul_ol100(snap.get("total_amount"))
+    order.agreed_amount = _pul_ol100(snap.get("agreed_amount"))
+    order.notes = snap.get("notes")
+    order.actual_loy_kg = snap.get("actual_loy_kg")
+    if snap.get("status"):
+        order.status = OrderStatus(snap["status"])
+    order.completed_at = datetime.fromisoformat(snap["completed_at"]) if snap.get("completed_at") else None
+    if snap.get("payment_status"):
+        order.payment_status = PaymentStatus(snap["payment_status"])
+    order.is_archived = bool(snap.get("is_archived"))
+    order.closed_at = datetime.fromisoformat(snap["closed_at"]) if snap.get("closed_at") else None
+    order.ochirish_yopish_json = None
+    db.flush()
+    db.expire(order, ["payments"])
+    _update_order_payment_status(db, order)
+    return True
+
+
+# ============================================================
+# M7 (2026-09-18) — TENANT-SCOPED BACKUP / RESET uchun umumiy xarita
+# ============================================================
+# Qaysi jadval qanday cheklanadi:
+#   • modelda `company_id` ustuni bor       → to'g'ridan-to'g'ri filtr
+#   • yo'q                                   → ota-zanjir orqali (quyida)
+#   • ota ham yo'q (global/tizim jadvali)     → tenant amaliga KIRMAYDI
+# Faqat repozitoriyadagi HAQIQIY model/ustun nomlari ishlatiladi.
+_TENANT_PARENTS = {
+    # bola model nomi        : (FK ustuni, ota model nomi)
+    "Payment":               ("order_id", "Order"),
+    "Delivery":              ("order_id", "Order"),
+    "OrderAttachment":       ("order_id", "Order"),
+    "OrderGipsAdditive":     ("order_id", "Order"),
+    "OrderItemSubDetail":    ("order_item_id", "OrderItem"),
+    "DeliveryItem":          ("delivery_id", "Delivery"),
+    "InventoryPurchase":     ("inventory_id", "Inventory"),
+    "RecipeIngredient":      ("recipe_id", "Recipe"),
+    "SupplierPayment":       ("supplier_id", "Supplier"),
+    "EmployeeAdvance":       ("employee_id", "Employee"),
+    "AdvanceRequest":        ("employee_id", "Employee"),
+    "EmployeeCompensationHistory": ("employee_id", "Employee"),
+    "EmployeeMonthlyAdjustment":   ("employee_id", "Employee"),
+    "GiftPeriodTier":        ("period_id", "GiftPeriod"),
+    "GiftPeriodParticipant": ("period_id", "GiftPeriod"),
+    "MasterGiftPeriodRedemption": ("period_id", "GiftPeriod"),
+    "MasterGiftRedemption":  ("master_id", "Master"),
+}
+
+# Tenant amallariga UMUMAN kirmaydigan jadvallar.
+#   user_sessions / employee_sessions — xom sessiya TOKENlari (2026-09-15)
+#   error_logs                        — modelda `company_id` ustuni YO'Q;
+#       to'g'ri ajratish ALTER TABLE talab qiladi → M8 ga qoldirilgan.
+_NON_TENANT_TABLES = {"user_sessions", "employee_sessions", "error_logs"}
+
+# Zahira nusxaga HECH QACHON kiritilmaydigan ustunlar.
+_SECRET_COLUMNS = {"password_hash", "pin_hash"}
+
+
+def _tenant_filter(db: Session, model, query, company_id: int):
+    """So'rovni berilgan korxona bilan cheklaydi.
+    Qaytaradi: (cheklangan_query, True) yoki (None, False) — agar model
+    tenantga umuman bog'lanmasa."""
+    import models as _m
+    if company_id is None:
+        return query, True
+    if hasattr(model, "company_id"):
+        return query.filter(model.company_id == company_id), True
+    rule = _TENANT_PARENTS.get(model.__name__)
+    if not rule:
+        return None, False
+    fk, parent_name = rule
+    parent = getattr(_m, parent_name, None)
+    if parent is None:
+        return None, False
+    q = query.join(parent, parent.id == getattr(model, fk))
+    if hasattr(parent, "company_id"):
+        return q.filter(parent.company_id == company_id), True
+    # ota ham bevosita tenantga ega emas (masalan DeliveryItem → Delivery)
+    sub, ok = _tenant_filter(db, parent, db.query(parent.id), company_id)
+    if not ok:
+        return None, False
+    return query.filter(getattr(model, fk).in_(sub)), True
+
+
+def export_full_backup(db: Session, company_id: int = None) -> dict:
     """Butun bazaning TO'LIQ zaxira nusxasini (barcha jadvallar, sessiya
     jadvallaridan tashqari) JSON formatida qaytaradi.
 
@@ -2952,20 +8233,7 @@ def export_full_backup(db: Session) -> dict:
     import models as _models
 
     # Backupga umuman kiritilmaydigan jadvallar — sabab yuqorida yozilgan.
-    EXCLUDED_TABLES = {"user_sessions", "employee_sessions"}
-
-    # Backupga kiritilmaydigan USTUNLAR (2026-09-20).
-    # Zaxira fayli har kuni Telegram orqali yuboriladi va yuklab olinadi —
-    # ya'ni u ilovadan tashqarida yashaydi. Parol/PIN hashlari esa u yerda
-    # umuman kerak emas:
-    #   users.password_hash — tiklash `users` jadvaliga TEGMAYDI
-    #                         (import_full_backup dagi RESTORE_SKIP_TABLES)
-    #   employees.pin_hash  — 4 xonali PIN hashini tanlab olish oson;
-    #                         tiklashdan keyin xodimlarga yangi PIN beriladi
-    EXCLUDED_COLUMNS = {
-        "users": {"password_hash"},
-        "employees": {"pin_hash"},
-    }
+    EXCLUDED_TABLES = set(_NON_TENANT_TABLES)
 
     def serialize_value(v):
         if v is None:
@@ -2980,21 +8248,44 @@ def export_full_backup(db: Session) -> dict:
 
     # Barcha model klasslarini avtomatik topamiz (User dan tashqari — u ham
     # kiritiladi, chunki to'liq zaxira nusxa deganda HAMMASI saqlanishi kerak)
+    # 2026-09-19 — Faza 2: ishlab chiqarish (MRP) jadvallari ALOHIDA
+    # modulda e'lon qilingan va shu sababli zaxira nusxaga UMUMAN
+    # kirmasdi (`product_types`, `boms`, `bom_items`, `production_orders`).
+    # Ya'ni zahiradan tiklaganda butun MRP moduli yo'qolardi. Endi ikkala
+    # modul ham ko'rib chiqiladi.
+    import production_models as _pmodels
     all_models = []
-    for name in dir(_models):
-        obj = getattr(_models, name)
-        if isinstance(obj, type) and issubclass(obj, _models.Base) and obj is not _models.Base:
-            if obj.__tablename__ in EXCLUDED_TABLES:
+    _seen_tables = set()
+    for _mod in (_models, _pmodels):
+        for name in dir(_mod):
+            obj = getattr(_mod, name)
+            if not (isinstance(obj, type) and issubclass(obj, _models.Base)
+                    and obj is not _models.Base):
                 continue
+            tname = getattr(obj, "__tablename__", None)
+            if not tname or tname in EXCLUDED_TABLES or tname in _seen_tables:
+                continue
+            # `companies` — platforma jadvali, tenant zaxirasiga kirmaydi
+            if tname == "companies":
+                continue
+            _seen_tables.add(tname)
             all_models.append(obj)
 
     backup = {}
+    skipped = []
     for model in all_models:
         table_name = model.__tablename__
         mapper = sa_inspect(model)
-        maxfiy = EXCLUDED_COLUMNS.get(table_name, set())
-        columns = [c.key for c in mapper.columns if c.key not in maxfiy]
-        rows = db.query(model).all()
+        # M7 — XAVFSIZLIK: parol/PIN hashlari zahira nusxaga HECH QACHON
+        # kirmaydi (ular tiklash uchun kerak emas; tiklashdan keyin
+        # baribir parol qayta belgilanadi).
+        columns = [c.key for c in mapper.columns if c.key not in _SECRET_COLUMNS]
+        q, ok = _tenant_filter(db, model, db.query(model), company_id)
+        if not ok:
+            # Tenantga bog'lanmagan jadval — korxona zahirasiga kiritilmaydi.
+            skipped.append(table_name)
+            continue
+        rows = q.all()
         backup[table_name] = [
             {col: serialize_value(getattr(row, col)) for col in columns}
             for row in rows
@@ -3002,202 +8293,228 @@ def export_full_backup(db: Session) -> dict:
 
     return {
         "backup_created_at": datetime.utcnow().isoformat(),
+        "company_id": company_id,
+        "skipped_tables": skipped,
         "tables": backup
     }
 
 
-# ============================================================
-# ZAXIRADAN TIKLASH  (2026-09-20)
-# ============================================================
+def _reset_table_order():
+    """O'chirish tartibi: har bir "bola" o'z "ota"sidan OLDIN turadi.
 
-def _backup_table_order():
-    """Jadvallarni TO'G'RI tartibda qaytaradi: avval "ota", keyin "bola".
-
-    Tartib QO'LDA yozilmaydi — SQLAlchemy'ning o'zi ForeignKey'lar asosida
-    hisoblab beradi (`metadata.sorted_tables`). Sabab: qo'lda yozilgan
-    ro'yxat vaqt o'tishi bilan eskiradi va yangi jadval unutilib qoladi.
-
-    Qaytaradi: [(jadval_nomi, Table obyekti), ...] — INSERT tartibida.
-    O'CHIRISH uchun shu ro'yxatni teskarisiga o'qish kerak.
+    2026-09-19 — Faza 2: bu ro'yxat endi IKKI joyda ishlatiladi —
+    `factory_reset_all_data()` (shu tartibda o'chiradi) va
+    `import_full_backup()` (TESKARI tartibda qo'shadi). Yagona manba
+    bo'lgani uchun ular hech qachon bir-biridan ajralib qolmaydi.
     """
-    import models as _models
-    return [(t.name, t) for t in _models.Base.metadata.sorted_tables]
+    from production_models import ProductionOrder, BOM, BOMItem, ProductType
+    from models import (
+        DeliveryItem, Payment, OrderAttachment, ReturnItem, InventoryMovement,
+        Delivery, OrderGipsAdditive, OrderItemSubDetail, OrderItem,
+        FinishedProductSale, FinishedProductLoss, FinishedProduct, Order,
+        InventoryPurchase, InventoryReceipt, SupplierPayment,
+        TransportExpense, ExpenseTransaction, MonthlyExpense,
+        EmployeeSession, EmployeeAdvance, AdvanceRequest,
+        EmployeeMonthlyAdjustment, EmployeeCompensationHistory, Employee,
+        RecipeIngredient, Recipe, MasterGiftRedemption, MasterGift,
+        MasterGiftPeriodRedemption, GiftPeriodParticipant, GiftPeriodTier,
+        GiftPeriod, Master, Project, Supplier, CashTransaction, ActivityLog,
+        ErrorLog, LoginHistory, CompanySetting, RecurringObligation, Inventory,
+        Yonalish, BrakTaqdir, Taklif,
+    )
+    return [
+        ProductionOrder,
+        # kech125 (zip 146): ombor harakati brak yozuviga (`return_item_id`, `fp_loss_id`) va taqdir qatoriga
+        # (`brak_taqdir_id`) ishora qiladi, taqdir qatori — brak yozuvlari va tayyor mahsulotga: o'chirishda harakat →
+        # taqdir → qaytarish (bola avval), tiklashda (teskari) qaytarish → taqdir → harakat (ota avval). Ilgari harakat
+        # qaytarishdan KEYIN edi — tiklashda brakka bog'langan harakat qaytarishdan OLDIN qo'shilardi (PG FK).
+        DeliveryItem, Payment, OrderAttachment, InventoryMovement, BrakTaqdir, ReturnItem,
+        Delivery, OrderGipsAdditive,
+        OrderItemSubDetail, OrderItem,
+        # kech126 (zip 148): taklif rasmiylashtirilgan buyurtmaga (`order_id`) ishora qiladi — o'chirishda buyurtmadan OLDIN,
+        # tiklashda KEYIN
+        FinishedProductSale, FinishedProductLoss, FinishedProduct, Taklif, Order,
+        InventoryPurchase, InventoryReceipt, SupplierPayment,
+        TransportExpense, ExpenseTransaction, MonthlyExpense,
+        EmployeeSession, EmployeeAdvance, AdvanceRequest,
+        EmployeeMonthlyAdjustment, EmployeeCompensationHistory, Employee,
+        RecipeIngredient, Recipe,
+        BOMItem, BOM, ProductType, Inventory,
+        # kech117 (A2): yo'nalish — unga ishora qiluvchilardan (hodim, xarajat, transport, kirim, MRP turi) KEYIN
+        # o'chiriladi, tiklashda ulardan OLDIN qo'shiladi.
+        Yonalish,
+        MasterGiftRedemption, MasterGift,
+        MasterGiftPeriodRedemption, GiftPeriodParticipant, GiftPeriodTier, GiftPeriod,
+        Master, Project, Supplier,
+        CashTransaction, ActivityLog, ErrorLog, LoginHistory,
+        CompanySetting, RecurringObligation,
+    ]
 
 
-# Tiklashda UMUMAN tegilmaydigan jadvallar.
-#   users            — mavjud login hisoblari saqlanib qoladi, aks holda
-#                      tiklashdan keyin tizimga kira olmay qolish xavfi bor
-#   *_sessions       — zaxirada yo'q (xavfsizlik uchun ataylab chiqarilgan)
-RESTORE_SKIP_TABLES = {"users", "user_sessions", "employee_sessions"}
+def import_full_backup(db: Session, data: dict, company_id: int,
+                       replace: bool = False) -> dict:
+    """Zaxira nusxadan korxona ma'lumotini TIKLAYDI (Faza 2).
 
+    NIMA UCHUN KERAK
+    ----------------
+    Shu paytgacha `export_full_backup()` bor edi, TIKLASH esa YO'Q edi.
+    Ya'ni zaxira nusxa olinardi, lekin undan qaytarib bo'lmasdi — baza
+    yo'qolsa biznes to'xtardi. Bu funksiya o'sha bo'shliqni yopadi.
 
-def import_full_backup(db: Session, data: dict, replace: bool = False) -> dict:
-    """`export_full_backup()` chiqargan JSON dan bazani TIKLAYDI.
-
-    - Barcha ish BITTA tranzaksiyada: biror joyda xato chiqsa, HECH NARSA
-      o'zgarmaydi (to'liq rollback).
-    - `id` lar asl holida saqlanadi, keyin Postgres ketma-ketliklari
-      (sequence) to'g'rilanadi — aks holda keyingi yangi yozuv "duplicate
-      key" xatosini beradi.
-    - `replace=False` (sukut bo'yicha): baza bo'sh bo'lmasa, RAD ETADI.
-      Tasodifan ustiga yozib yuborishning oldini oladi.
-    - `replace=True`: avval mavjud yozuvlar o'chiriladi (teskari tartibda),
-      keyin zaxiradagilari yoziladi.
+    XAVFSIZLIK QOIDALARI
+    --------------------
+      • Faqat JORIY korxonaga tiklanadi. Fayldagi `company_id` boshqa
+        korxonaniki bo'lsa — rad etiladi.
+      • Har bir qatorning `company_id` si majburan joriy korxonaga
+        o'rnatiladi (fayl ichidagi qiymatga ISHONILMAYDI).
+      • Korxona bo'sh bo'lmasa, `replace=True` berilmaguncha rad etiladi.
+        `replace=True` bo'lsa avval `factory_reset_all_data()` bilan
+        SHU korxona tozalanadi (boshqa korxonalarga tegilmaydi).
+      • Hammasi BITTA tranzaksiyada: xato bo'lsa to'liq qaytariladi.
+      • `id` qiymatlari SAQLANADI — aks holda jadvallararo bog'lanishlar
+        (FK) buziladi. Oxirida PostgreSQL ketma-ketliklari yangilanadi.
+      • Sessiya jadvallari va `error_logs` zaxirada yo'q — tiklanmaydi.
+      • FOYDALANUVCHI HISOBLARI (`users`) ATAYLAB tiklanmaydi: zaxirada
+        parol hashlari yo'q (xavfsizlik uchun chiqarilgan), shuning uchun
+        ularni tiklash hech kim kira olmaydigan hisoblar yaratardi.
+        Tiklashdan keyin hisoblar qo'lda qayta yaratiladi.
     """
     import decimal
-    from datetime import datetime as _dt
-    from enum import Enum as _PyEnum
-    import sqlalchemy as _sa
+    from datetime import datetime as _dt, date as _date
+    from sqlalchemy import inspect as sa_inspect, text as _sa_text
 
-    if not isinstance(data, dict) or "tables" not in data:
-        raise ValueError(
-            "Fayl formati noto'g'ri — bu PenoDecorPro zaxira nusxasi emas "
-            "('tables' bo'limi topilmadi)."
-        )
+    tables = (data or {}).get("tables")
+    if not isinstance(tables, dict):
+        return {"success": False, "message": "Fayl formati noto'g'ri: 'tables' topilmadi"}
 
-    tables_data = data["tables"]
-    if not isinstance(tables_data, dict):
-        raise ValueError("Fayl formati noto'g'ri — 'tables' bo'limi obyekt emas.")
+    file_cid = (data or {}).get("company_id")
+    if file_cid is not None and company_id is not None and int(file_cid) != int(company_id):
+        return {"success": False,
+                "message": f"Bu zaxira boshqa korxonaniki (fayl: {file_cid}). "
+                           f"Tiklash rad etildi."}
 
-    order = _backup_table_order()
-    known = {name for name, _ in order}
+    # --- Model xaritasi (models + production_models) ---
+    import models as _models
+    import production_models as _pmodels
+    model_by_table = {}
+    for _mod in (_models, _pmodels):
+        for name in dir(_mod):
+            obj = getattr(_mod, name)
+            if (isinstance(obj, type) and issubclass(obj, _models.Base)
+                    and obj is not _models.Base and hasattr(obj, "__tablename__")):
+                model_by_table.setdefault(obj.__tablename__, obj)
 
-    # ── Faylni oldindan tekshiramiz ────────────────────────────────────
-    notanish = sorted(set(tables_data.keys()) - known)
-    fayldagi_yozuv = sum(
-        len(v) for v in tables_data.values() if isinstance(v, list)
-    )
-    if fayldagi_yozuv == 0:
-        raise ValueError("Zaxira fayli bo'sh — tiklaydigan yozuv yo'q.")
-
-    # ── Baza bo'shmi? ──────────────────────────────────────────────────
-    mavjud = {}
-    for name, table in order:
-        if name in RESTORE_SKIP_TABLES:
-            continue
-        n = db.execute(_sa.select(_sa.func.count()).select_from(table)).scalar() or 0
-        if n:
-            mavjud[name] = n
-
+    # --- Korxona bo'shmi? ---
+    from models import Order as _O, Master as _M, Inventory as _I
+    mavjud = (db.query(_O).filter(_O.company_id == company_id).count()
+              + db.query(_M).filter(_M.company_id == company_id).count()
+              + db.query(_I).filter(_I.company_id == company_id).count())
     if mavjud and not replace:
-        raise ValueError(
-            "Baza bo'sh emas — tiklash to'xtatildi. Mavjud ma'lumot: "
-            + ", ".join(f"{k}={v}" for k, v in sorted(mavjud.items()))
-            + ". Ustiga yozish uchun 'replace' belgisini yoqing."
-        )
+        return {"success": False,
+                "message": f"Korxonada allaqachon ma'lumot bor ({mavjud} ta asosiy yozuv). "
+                           f"Ustiga yozish uchun replace=true bering."}
 
-    # ── Qiymatlarni baza turlariga moslash ─────────────────────────────
-    def moslash(column, v):
+    def coerce(col, v):
+        """Matn ko'rinishidagi qiymatni ustun turiga moslaydi.
+
+        MUHIM (jonli mashqda aniqlangan): zaxiraga Enum qiymati sifatida
+        `.value` yoziladi (masalan "product"), SQLAlchemy esa bazada
+        Enum NOMINI saqlaydi ("PRODUCT"). Shuning uchun tiklashda qiymat
+        qayta Enum a'zosiga aylantiriladi — aks holda buyurtma turi
+        o'qilmay, `LookupError` beradi."""
         if v is None:
             return None
-        t = column.type
-
-        # Enum: zaxiraga .value yozilgan ("ready"), bazada esa NOM
-        # saqlanadi ("READY") — shuning uchun qiymatdan a'zoga qaytaramiz.
-        enum_class = getattr(t, "enum_class", None)
-        if enum_class is not None:
-            if isinstance(v, enum_class):
-                return v
-            for a in enum_class:
-                if a.value == v:
-                    return a
-            for a in enum_class:
-                if a.name == v:
-                    return a
-            raise ValueError(
-                f"{column.table.name}.{column.name}: '{v}' qiymati "
-                f"{enum_class.__name__} ro'yxatida yo'q."
-            )
-
-        if isinstance(t, _sa.DateTime) and isinstance(v, str):
-            return _dt.fromisoformat(v)
-        if isinstance(t, _sa.Date) and isinstance(v, str):
-            return _dt.fromisoformat(v).date()
-        if isinstance(t, _sa.Numeric) and not isinstance(t, _sa.Float) \
-                and isinstance(v, (int, float)):
+        # Enum ustuni — qiymatdan a'zoga qaytaramiz
+        enum_cls = getattr(col.type, "enum_class", None)
+        if enum_cls is not None and not isinstance(v, enum_cls):
+            try:
+                return enum_cls(v)              # qiymat bo'yicha ("product")
+            except (ValueError, KeyError):
+                try:
+                    return enum_cls[str(v)]     # nom bo'yicha ("PRODUCT")
+                except (ValueError, KeyError):
+                    return None
+        t = str(col.type).upper()
+        if isinstance(v, str) and ("DATETIME" in t or "TIMESTAMP" in t):
+            try:
+                return _dt.fromisoformat(v)
+            except ValueError:
+                return None
+        if isinstance(v, str) and t.startswith("DATE"):
+            try:
+                return _date.fromisoformat(v)
+            except ValueError:
+                return None
+        if isinstance(v, float) and "NUMERIC" in t:
             return decimal.Decimal(str(v))
-        if isinstance(v, _PyEnum):
-            return v.value
         return v
 
-    natija = {
-        "tiklangan_jadvallar": {},
-        "o_chirilgan_yozuvlar": 0,
-        "tashlab_ketilgan_jadvallar": sorted(RESTORE_SKIP_TABLES & known),
-        "faylda_bor_bazada_yo_q_jadvallar": notanish,
-        "tuzatilgan_sequence": 0,
-        "ogohlantirishlar": [],
-    }
-
     try:
-        # ── 1. Eski ma'lumotni tozalash (teskari tartibda: bola avval) ──
-        if replace:
-            for name, table in reversed(order):
-                if name in RESTORE_SKIP_TABLES:
-                    continue
-                r = db.execute(table.delete())
-                natija["o_chirilgan_yozuvlar"] += r.rowcount or 0
+        if replace and mavjud:
+            # kech125 (zip 146): tozalash ham SHU tranzaksiyada — qo'shishda xato bo'lsa `rollback` uni ham qaytaradi
+            factory_reset_all_data(db, company_id=company_id, commit=False)
 
-        # ── 2. Yozish (to'g'ri tartibda: ota avval) ─────────────────────
-        for name, table in order:
-            if name in RESTORE_SKIP_TABLES:
-                continue
-            rows = tables_data.get(name)
+        # Tartib: o'chirish tartibining TESKARISI — ota avval, bola keyin.
+        order = list(reversed(_reset_table_order()))
+        inserted, skipped_tables = {}, []
+
+        for model in order:
+            tname = model.__tablename__
+            rows = tables.get(tname)
             if not rows:
                 continue
+            mapper = sa_inspect(model)
+            cols = {c.key: c for c in mapper.columns}
+            payload = []
+            for r in rows:
+                rec = {}
+                for k, v in (r or {}).items():
+                    if k not in cols:
+                        continue          # sxema o'zgargan — noma'lum ustun tashlanadi
+                    rec[k] = coerce(cols[k], v)
+                if "company_id" in cols:
+                    rec["company_id"] = company_id   # faylga ISHONMAYMIZ
+                if rec:
+                    payload.append(rec)
+            if payload:
+                db.execute(model.__table__.insert(), payload)
+                inserted[tname] = len(payload)
 
-            cols = {c.name: c for c in table.columns}
-            tayyor = []
-            for row in rows:
-                if not isinstance(row, dict):
-                    continue
-                yangi = {}
-                for k, v in row.items():
-                    col = cols.get(k)
-                    if col is None:
-                        continue   # faylda bor, bazada yo'q ustun — tashlab ketamiz
-                    yangi[k] = moslash(col, v)
-                if yangi:
-                    tayyor.append(yangi)
+        for tname in tables:
+            if tname not in {m.__tablename__ for m in order}:
+                skipped_tables.append(tname)
 
-            if tayyor:
-                db.execute(table.insert(), tayyor)
-                natija["tiklangan_jadvallar"][name] = len(tayyor)
-
-            yetishmayotgan = set(rows[0].keys()) - set(cols) if rows and isinstance(rows[0], dict) else set()
-            if yetishmayotgan:
-                natija["ogohlantirishlar"].append(
-                    f"{name}: fayldagi {sorted(yetishmayotgan)} ustun(lar) bazada yo'q, tashlab ketildi"
-                )
-
-        # ── 3. Sequence'larni to'g'rilash (faqat PostgreSQL) ────────────
+        # --- PostgreSQL ketma-ketliklarini yangilaymiz ---
+        # `id` lar aniq berilgani uchun avtomatik hisoblagich orqada qoladi;
+        # tuzatilmasa keyingi yangi yozuv "duplicate key" xatosi beradi.
+        seq_fixed = 0
         if db.bind.dialect.name == "postgresql":
-            for name, table in order:
-                if name in RESTORE_SKIP_TABLES:
+            for model in order:
+                tname = model.__tablename__
+                if tname not in inserted or not hasattr(model, "id"):
                     continue
-                pk = [c for c in table.primary_key.columns]
-                if len(pk) != 1 or not isinstance(pk[0].type, _sa.Integer):
-                    continue
-                col = pk[0].name
-                db.execute(_sa.text(f"""
-                    SELECT setval(
-                        pg_get_serial_sequence('{name}', '{col}'),
-                        COALESCE((SELECT MAX({col}) FROM {name}), 1),
-                        (SELECT MAX({col}) FROM {name}) IS NOT NULL
-                    ) WHERE pg_get_serial_sequence('{name}', '{col}') IS NOT NULL
-                """))
-                natija["tuzatilgan_sequence"] += 1
+                try:
+                    db.execute(_sa_text(
+                        f"SELECT setval(pg_get_serial_sequence('{tname}', 'id'), "
+                        f"COALESCE((SELECT MAX(id) FROM {tname}), 1), true)"))
+                    seq_fixed += 1
+                except Exception:
+                    pass
 
         db.commit()
-    except Exception:
+        return {"success": True, "company_id": company_id,
+                "restored_tables": len(inserted),
+                "restored_rows": sum(inserted.values()),
+                "per_table": inserted,
+                "skipped_tables": skipped_tables,
+                "sequences_fixed": seq_fixed}
+    except Exception as e:
         db.rollback()
-        raise
-
-    natija["jami_yozuv"] = sum(natija["tiklangan_jadvallar"].values())
-    return natija
+        return {"success": False, "message": f"Tiklashda xato: {e}"}
 
 
-def factory_reset_all_data(db: Session, keep_only_user_id: int = None) -> dict:
+def factory_reset_all_data(db: Session, keep_only_user_id: int = None,
+                          company_id: int = None, commit: bool = True) -> dict:
     """DIQQAT: BU QAYTARIB BO'LMAYDIGAN AMAL!
     Foydalanuvchilar (User) dan TASHQARI — barcha ma'lumotni butunlay o'chiradi:
     buyurtmalar, ombor, retseptlar, ustalar, yetkazib beruvchilar, loyihalar,
@@ -3208,139 +8525,304 @@ def factory_reset_all_data(db: Session, keep_only_user_id: int = None) -> dict:
     yaratgan boshqa hisoblarni ham tozalang" desa).
 
     Chet el kaliti (ForeignKey) xatosi bermasligi uchun, jadvallar to'g'ri
-    (avval "bola", keyin "ota") tartibda tozalanadi."""
-    from models import User, UserSession
+    (avval "bola", keyin "ota") tartibda tozalanadi.
 
-    # Tartib QO'LDA yozilmaydi (2026-09-20). Ilgari shu yerda qo'lda
-    # tuzilgan ro'yxat bor edi va unda OLTITA jadval unutilgan edi
-    # (gift_periods, gift_period_tiers, gift_period_participants,
-    #  master_gift_period_redemptions, order_item_sub_details,
-    #  employee_compensation_history) — natijada reset ForeignKey xatosi
-    # bilan yiqilardi. Endi tartibni SQLAlchemy ForeignKey'lar asosida
-    # o'zi hisoblaydi, shuning uchun yangi jadval qo'shilganda ham
-    # ro'yxatni yangilash SHART EMAS.
-    #
-    # Tegilmaydigan ikkita jadval:
-    #   users         — pastda, keep_only_user_id mantig'i bilan alohida
-    #   user_sessions — o'chirilsa, amalni bajarayotgan adminning O'ZI
-    #                   shu zahoti tizimdan chiqib ketardi
-    SKIP = {"users", "user_sessions"}
+    commit — standart True (o'zi saqlaydi); False — chaqiruvchining tranzaksiyasida qoladi (faqat `flush`): zaxiradan tiklash
+    (`import_full_backup`) tozalash va qo'shishni BITTA tranzaksiyada qiladi (kech125, zip 146)."""
+    from models import (
+        DeliveryItem, Payment, OrderAttachment, ReturnItem, Delivery,
+        OrderItem, Order, InventoryMovement, InventoryPurchase, InventoryReceipt,
+        SupplierPayment, FinishedProduct, TransportExpense,
+        ExpenseTransaction, MonthlyExpense, EmployeeSession, EmployeeAdvance,
+        AdvanceRequest, Employee, RecipeIngredient, Recipe, Inventory, Master, Project, Supplier,
+        CashTransaction, ActivityLog, ErrorLog, LoginHistory, UserSession, User,
+        OrderGipsAdditive, FinishedProductSale, FinishedProductLoss, EmployeeMonthlyAdjustment,
+        CompanySetting, RecurringObligation, MasterGift, MasterGiftRedemption,
+        # 2026-09-18 — FK TARTIBI TUZATISHI: quyidagi "bola" jadvallar
+        # ro'yxatda YO'Q edi, shuning uchun ota yozuv o'chirilganda
+        # PostgreSQL chet el kaliti amalni to'xtatardi (staging'da
+        # `employee_compensation_history_employee_id_fkey` bilan 500 chiqdi).
+        # SQLite'da bu ko'rinmagan — u FK ni standart holatda tekshirmaydi.
+        OrderItemSubDetail, EmployeeCompensationHistory,
+        GiftPeriodParticipant, GiftPeriodTier, GiftPeriod,
+        MasterGiftPeriodRedemption
+    )
+    # Ishlab chiqarish (MRP) jadvallari alohida modulda — ular ham
+    # `orders`, `order_items`, `finished_products`, `inventory` ga ishora
+    # qiladi, shuning uchun reset zanjiriga kiritilishi SHART.
+    from production_models import ProductionOrder, BOM, BOMItem, ProductType
 
+    # Tartib MUHIM va TO'LIQ tekshirilgan (har bir ForeignKey hisobga olingan):
+    # 1) DeliveryItem — deliveries, order_items ga bog'langan
+    # 2) Payment — orders, deliveries ga bog'langan
+    # 3) OrderAttachment — orders ga bog'langan
+    # 4) ReturnItem — orders ga bog'langan
+    # 5) InventoryMovement — inventory, orders, suppliers ga bog'langan
+    # 6) Delivery — orders ga bog'langan (DeliveryItem, Payment dan keyin xavfsiz)
+    # 6b) OrderGipsAdditive — orders, inventory ga bog'langan, Order'dan OLDIN tozalanishi SHART
+    # 7) OrderItem — orders, recipes, inventory, finished_products ga bog'langan
+    # 7b) FinishedProductSale, FinishedProductLoss — finished_products ga bog'langan,
+    #     FinishedProduct'dan OLDIN tozalanishi SHART
+    # 8) FinishedProduct — orders, inventory, recipes ga bog'langan (OrderItem dan keyin)
+    # 9) Order — endi barcha "bolalari" tozalangan, xavfsiz
+    # 10) InventoryPurchase — inventory, suppliers, inventory_receipts ga bog'langan
+    # 11) InventoryReceipt — suppliers ga bog'langan, InventoryPurchase'dan OLDIN emas, KEYIN tozalanadi
+    #     (chunki InventoryPurchase.receipt_id shu jadvalga ishora qiladi — bola avval, ota keyin)
+    # 12) SupplierPayment — suppliers ga bog'langan
+    # 13-16) Mustaqil jadvallar
+    # 17-19) EmployeeSession/EmployeeAdvance/AdvanceRequest — employees ga bog'langan,
+    #        Employee'dan OLDIN tozalanishi SHART (bulk delete cascade ishlatmaydi)
+    # 19b) EmployeeMonthlyAdjustment — employees ga bog'langan, Employee'dan OLDIN
+    # 20) Employee — endi xavfsiz
+    # 21) RecipeIngredient — recipes VA inventory ga bog'langan, Recipe/Inventory'dan OLDIN tozalanishi SHART
+    # 22) Recipe — endi xavfsiz (OrderItem, FinishedProduct, RecipeIngredient tozalangan)
+    # 23) Inventory — endi xavfsiz
+    # 24) Master, 25) Project — endi xavfsiz (Order tozalangan)
+    # 26) Supplier — endi xavfsiz (InventoryReceipt, InventoryPurchase, SupplierPayment, InventoryMovement tozalangan)
+    # 27) CashTransaction, 28) ActivityLog — mustaqil, sinov izlarini tozalash uchun
+    # ── AYLANMA BOG'LANISHNI UZISH ──────────────────────────────
+    # `order_items.finished_product_id` → finished_products VA
+    # `finished_products.reserved_for_order_item_id` → order_items —
+    # ikkisi BIR-BIRIGA ishora qiladi, shuning uchun qay biri birinchi
+    # o'chirilsa ham FK buziladi. Loyihada allaqachon ishlatiladigan
+    # naqsh (`delete_order`, `delete_finished_product`): AVVAL bog'lanishni
+    # uzish, KEYIN o'chirish. Faqat JORIY korxona qatorlari uziladi.
+    _unlink_oi = db.query(OrderItem)
+    _unlink_fp = db.query(FinishedProduct)
+    if company_id is not None:
+        _unlink_oi = _unlink_oi.filter(OrderItem.company_id == company_id)
+        _unlink_fp = _unlink_fp.filter(FinishedProduct.company_id == company_id)
+    _oi_ids = [r[0] for r in _unlink_oi.with_entities(OrderItem.id).all()]
+    _fp_ids = [r[0] for r in _unlink_fp.with_entities(FinishedProduct.id).all()]
+    if _oi_ids:
+        db.query(OrderItem).filter(OrderItem.id.in_(_oi_ids)).update(
+            {"finished_product_id": None}, synchronize_session=False)
+    if _fp_ids:
+        db.query(FinishedProduct).filter(FinishedProduct.id.in_(_fp_ids)).update(
+            {"reserved_for_order_item_id": None}, synchronize_session=False)
+    # kech109 (10b E-1, O'LCHANGAN `work/probe109e1.py` S7 — HAQIQIY PG): BOSHQA korxona yozuvi shu korxonaning
+    # detali / buyurtmasi / TM iga ishora qilsa (K93-1 dan oldingi eski ma'lumot: begona TM bandi, begona ishlab
+    # chiqarish buyurtmasi manbasi) — tozalash FK bilan 500 berib, butunlay orqaga qaytardi. Faqat FK bog'lami
+    # uziladi; begona yozuvning boshqa maydonlari (band miqdori, holati) O'ZGARMAYDI.
+    if company_id is not None:
+        from production_models import ProductionOrder as _PO109
+        _buy109 = [r[0] for r in db.query(Order.id).filter(Order.company_id == company_id).all()]
+        if _oi_ids:
+            db.query(FinishedProduct).filter(FinishedProduct.company_id != company_id,
+                                             FinishedProduct.reserved_for_order_item_id.in_(_oi_ids)).update(
+                {"reserved_for_order_item_id": None}, synchronize_session=False)
+            db.query(_PO109).filter(_PO109.company_id != company_id,
+                                    _PO109.source_order_item_id.in_(_oi_ids)).update(
+                {"source_order_item_id": None}, synchronize_session=False)
+        if _buy109:
+            db.query(_PO109).filter(_PO109.company_id != company_id,
+                                    _PO109.source_order_id.in_(_buy109)).update(
+                {"source_order_id": None}, synchronize_session=False)
+        if _fp_ids:
+            db.query(_PO109).filter(_PO109.company_id != company_id,
+                                    _PO109.finished_product_id.in_(_fp_ids)).update(
+                {"finished_product_id": None}, synchronize_session=False)
+            db.query(OrderItem).filter(OrderItem.company_id != company_id,
+                                       OrderItem.finished_product_id.in_(_fp_ids)).update(
+                {"finished_product_id": None}, synchronize_session=False)
+    db.flush()
+
+    tables_in_order = _reset_table_order()
+
+
+    # M7 (2026-09-18) — TENANT: bu amal butun bazani (BARCHA korxonani)
+    # o'chirardi. Endi `company_id` berilsa FAQAT shu korxonaning
+    # ma'lumoti tozalanadi; boshqa korxonalarga umuman tegilmaydi.
+    # Cheklash `_tenant_filter()` orqali — backup bilan AYNAN bir xil
+    # xarita, shuning uchun "backupda bor, resetda yo'q" nomuvofiqligi
+    # bo'lishi mumkin emas.
     counts = {}
-    # Teskari tartibda: avval "bola", keyin "ota"
-    for _name, _table in reversed(_backup_table_order()):
-        if _name in SKIP:
+    skipped = []
+    for model in tables_in_order:
+        q, ok = _tenant_filter(db, model, db.query(model), company_id)
+        if not ok:
+            # Tenantga bog'lanmagan jadval (masalan error_logs) — korxona
+            # reseti unga TEGMAYDI.
+            skipped.append(model.__tablename__)
             continue
-        r = db.execute(_table.delete())
-        counts[_name] = r.rowcount or 0
+        if company_id is None:
+            n = db.query(model).delete(synchronize_session=False)
+        elif hasattr(model, "company_id"):
+            # Ustunning O'ZIDA korxona bor — to'g'ridan-to'g'ri (bu yo'l
+            # `id` ustuni bo'lmagan jadvallarni ham qamraydi, masalan
+            # CompanySetting: uning kaliti (company_id, key)).
+            n = db.query(model).filter(model.company_id == company_id).delete(
+                synchronize_session=False)
+        else:
+            # Ota orqali: avval ID lar yig'iladi, keyin o'chiriladi.
+            ids = [r[0] for r in q.with_entities(model.id).all()]
+            n = db.query(model).filter(model.id.in_(ids)).delete(
+                synchronize_session=False) if ids else 0
+        counts[model.__tablename__] = n
+    if skipped:
+        counts["_skipped_tables"] = skipped
 
     if keep_only_user_id is not None:
         # Boshqa foydalanuvchilarning sessiyalarini avval tozalaymiz (FK xatosi bo'lmasligi uchun)
-        other_user_ids = [u.id for u in db.query(User.id).filter(User.id != keep_only_user_id).all()]
+        _uq = db.query(User.id).filter(User.id != keep_only_user_id)
+        if company_id is not None:      # M7: faqat SHU korxona hisoblari
+            _uq = _uq.filter(User.company_id == company_id)
+        other_user_ids = [u.id for u in _uq.all()]
         if other_user_ids:
             db.query(UserSession).filter(UserSession.user_id.in_(other_user_ids)).delete(synchronize_session=False)
-        n_users = db.query(User).filter(User.id != keep_only_user_id).delete(synchronize_session=False)
+            n_users = db.query(User).filter(User.id.in_(other_user_ids)).delete(synchronize_session=False)
+        else:
+            n_users = 0
         counts["users"] = n_users
 
-    db.commit()
-    return counts
-
-
-def get_termopanel_planned_loy(order) -> float:
-    """Buyurtmadagi barcha termopanel detallarining rejalashtirilgan
-    (yaratishda kiritilgan) loy miqdorini yig'indisini qaytaradi."""
-    total = 0.0
-    for item in order.items:
-        if (item.category or '').lower() != 'termopanel':
-            continue
-        val = _parse_termo_note(item.notes, 'loy_kg', is_float=True)
-        if val:
-            total += val
-    return total
-
-
-def settle_termopanel_loy_share(order, total_planned: float, total_actual: float) -> None:
-    """Umumiy (Karniz + Termopanel) loy yakunlanganda — termopanel
-    detallarining 'reja' belgisini o'z ULUSHIGA qarab haqiqiy qiymatga
-    yangilaydi (keyingi tarix/audit uchun to'g'ri saqlansin).
-    Xomashyoni QAYTA yechmaydi — buni chaqiruvchi funksiya (complete_order)
-    allaqachon UMUMIY farq sifatida bir marta hisoblab bo'lgan."""
-    import re
-    if total_planned <= 0:
-        return
-    for item in order.items:
-        if (item.category or '').lower() != 'termopanel':
-            continue
-        old_val = _parse_termo_note(item.notes, 'loy_kg', is_float=True) or 0
-        if old_val <= 0:
-            continue
-        share = old_val / total_planned
-        new_val = round(total_actual * share, 4)
-        item.notes = re.sub(r'loy_kg=[\d.]+', f'loy_kg={new_val}', item.notes or '')
-
-
-def complete_termopanel_loy(db: Session, order_id: int, actual_loy_kg: float) -> dict:
-    """Termopanel buyurtmasi 'Tayyor' bo'lganda — rejalashtirilgan va haqiqiy
-    loy miqdorini solishtiradi, farqni ombordan ayiradi yoki qaytaradi.
-    Aynan asosiy (profil/panel) buyurtmalar uchun services.complete_order()
-    ishlatadigan reja/haqiqiy solishtirish mexanizmi bilan bir xil mantiq."""
-    import services
-    import re
-
-    order = get_order(db, order_id)
-    if not order:
-        return {"success": False, "message": "Buyurtma topilmadi"}
-
-    planned = get_termopanel_planned_loy(order)
-    actual = float(actual_loy_kg or 0)
-    diff = actual - planned
-
-    log = []
-    if diff > 0.01:
-        log = services.deduct_loy_ingredients(db, order, diff, use_stock=False)
-        action, message = "qoshimcha", f"Rejadan {diff:.1f} kg ko'p ketdi — xomashyo ayirildi"
-    elif diff < -0.01:
-        log = services.return_loy_ingredients(db, order, abs(diff))
-        action, message = "ortdi", f"{abs(diff):.1f} kg loy ortdi — omborga qo'shildi"
+    # kech125 (zip 146 — TOPILGAN ESKI NUQSON, O'LCHANGAN: tools/test_brak_taqdir L3): `import_full_backup(replace=True)` shu
+    # funksiyani chaqirib, so'ng qatorlarni qo'shadi; bu yerdagi `commit` tozalashni OLDINDAN saqlab qo'yardi — qo'shishda xato
+    # bo'lsa (masalan PG FK) korxona ma'lumoti O'CHIB QOLARDI («bitta tranzaksiya» va'dasi buzilardi). `commit=False` —
+    # chaqiruvchining tranzaksiyasida (faqat `flush`).
+    if commit:
+        db.commit()
     else:
-        action, message = "teng", "Reja bo'yicha ketdi"
+        db.flush()
+    return counts
+def _retsept_nomi53(r) -> str:
+    """kech63 (53-band): retsept nomi xabar / jurnal uchun (nom enum yoki matn bo'lishi mumkin)."""
+    n = getattr(r, 'name', None)
+    return str(getattr(n, 'value', n) or '')
 
-    # Har bir termopanel detalining belgisidagi loy_kg'ni yangi (haqiqiy) qiymatga yangilaymiz —
-    # bir nechta termopanel detali bo'lsa, ulushiga qarab taqsimlanadi.
-    if planned > 0:
-        for item in order.items:
-            if (item.category or '').lower() != 'termopanel':
+
+def _tahrir_loy_oldindan(db: Session, order, order_data, tanlov_oldin, loy_oldin_retsept, loy_kg: float) -> list:
+    """kech103 (5-bo'lim 69-band, O'LCHANGAN `work/probe69.py`): tahrir qoplama retseptini ALMASHTIRADIGAN bo'lsa —
+    yangi retsept xomashyosi yetishmovchiligi qatorlari, OLDINDAN (detallar o'zgarishidan oldin, `update_order_full`
+    2-qadami). Birinchi 409 ("davom etasizmi?") penoplast VA loy yetishmovchiligini BIRGA ko'rsatishi uchun: ilgari faqat
+    penoplast qatorlari ko'rinardi, tasdiqdan (`confirm_shortage`) keyin yangi retsept xomashyosi so'ralmay manfiyga
+    tushardi (faqat natija jurnalida ⚠).
+    Shartlar 5-qadamdagi bilan AYNAN: foydalanuvchi TANLOVI o'zgaradi (`buyurtma_qoplama_retseptini_tanla` — yangi
+    detallar, eski detallar bilan 3-qadamdagi nom + tur qoidasi bo'yicha moslanib, id tartibida), yangi tanlov loy
+    yechilgan retseptdan farqli, loy rejasi > 0, buyurtma «Tayyor» emas va undan hech narsa chiqmagan (aks holda 5-qadam
+    400 beradi). Hech narsa yozmaydi (`check_loy_ingredients_for_order`, `commit=False`)."""
+    import types as _types69
+    import services as _svc69
+    if loy_kg <= 0.001 or loy_oldin_retsept is None:
+        return []
+    if order.actual_loy_kg is not None or _svc69.buyurtmadan_qisman_chiqqan(order):
+        return []
+    _eski = list(order.items)
+    _mos = {}
+    _band = set()
+    for _oi in _eski:
+        _k = ((_oi.name or '').strip().lower(), (_oi.category or '').lower())
+        for _idx, _nd in enumerate(order_data.items):
+            if _idx in _band:
                 continue
-            old_val = _parse_termo_note(item.notes, 'loy_kg', is_float=True) or 0
-            if old_val <= 0:
-                continue
-            share = old_val / planned
-            new_val = round(actual * share, 4)
-            item.notes = re.sub(rf'loy_kg=[\d.]+', f'loy_kg={new_val}', item.notes or '')
-    elif actual > 0 and order.items:
-        # Reja yo'q edi, lekin haqiqiy kiritildi — birinchi termopanel detaliga yozamiz
-        for item in order.items:
-            if (item.category or '').lower() != 'termopanel':
-                continue
-            marker = f" [TERMO:loy_kg={actual}]" if '[TERMO:' not in (item.notes or '') else None
-            if marker:
-                item.notes = (item.notes or '') + marker
-            break
-
-    db.commit()
-
-    return {
-        "success": True,
-        "planned": round(planned, 2),
-        "actual": round(actual, 2),
-        "diff": round(diff, 2),
-        "action": action,
-        "message": message,
-        "inventory_log": log
-    }
+            if _k == ((_nd.name or '').strip().lower(), (_nd.category or '').lower()):
+                _mos[_idx] = _oi.id
+                _band.add(_idx)
+                break
+    _soxta = [_types69.SimpleNamespace(
+        id=_mos.get(_idx), category=_nd.category, is_coated=_nd.is_coated,
+        recipe_id=(getattr(_nd, 'recipe_id', None) or order_data.recipe_id),
+        finished_product_id=getattr(_nd, 'finished_product_id', None)) for _idx, _nd in enumerate(order_data.items)]
+    _keyin = _svc69.buyurtma_qoplama_retseptini_tanla(db, _types69.SimpleNamespace(items=_soxta),
+                                                      company_id=order.company_id)
+    if _keyin is None or getattr(tanlov_oldin, 'id', None) == _keyin.id or _keyin.id == loy_oldin_retsept.id:
+        return []
+    _chk = _svc69.check_loy_ingredients_for_order(db, _keyin.id, loy_kg, company_id=order.company_id, commit=False)
+    return list(_chk.get("shortages") or []) if not _chk.get("enough", True) else []
 
 
-def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: bool = False, performed_by: str = None) -> dict:
+_RETSEPT_ID_CHEGARA54 = 2_147_483_647     # PG `integer` — kattasi retsept emas (so'rov PG da 500 bermasin)
+
+
+def _qoplama_retsept_bormi(db: Session, company_id, idlar) -> bool:
+    """kech103 (54-band): `idlar` orasida korxonaning HAQIQIY retsepti bormi (bo'sh / yo'q / begona — yo'q)."""
+    _idlar = sorted({int(i) for i in (idlar or [])
+                     if isinstance(i, int) and not isinstance(i, bool) and 0 < i <= _RETSEPT_ID_CHEGARA54})
+    if not _idlar:
+        return False
+    _q = db.query(Recipe.id).filter(Recipe.id.in_(_idlar))
+    if company_id is not None:
+        _q = _q.filter(Recipe.company_id == company_id)
+    return _q.first() is not None
+
+
+def qoplama_retsepti_tekshir(db: Session, company_id, loy_kg, detallar, buyurtma_retsept_id=None,
+                             saqlangan: bool = False, joy: str = "buyurtma") -> None:
+    """kech103 (5-bo'lim 54-band, FOYDALANUVCHI QARORI "Majburiy tanlov"): buyurtmada loy rejalashtirilgan (> 0) bo'lsa —
+    loy qaysi retseptdan tayyorlanishi ANIQ tanlangan bo'lishi SHART. Aks holda `ValueError` (marshrut → 400, HECH NARSA
+    o'zgarmaydi). Loy 0 — retsept hech narsaga ta'sir qilmaydi, tekshirilmaydi.
+    O'LCHANGAN (`work/probe54r.py`, asl kod): retseptsiz buyurtma saqlanib, loy JIMGINA "korxonaning birinchi retsepti"
+    dan yechilardi (forma "— Yo'q —" ko'rsatsa ham) — PG da bu tartibsiz (`q.first()`: "Loy sotish" retsepti chiqdi, K103-6);
+    tahrir tanada retsept bo'lmasa retseptni zaxiraga JIMGINA almashtirardi; yo'q retsept id si PG da 500 berardi.
+    `saqlangan=False` — kiritilgan ma'lumot (yaratish / tahrir): buyurtma retsepti (`recipe_id`) yoki "Loy sotish" dan
+    boshqa detal retsepti (yaratish / tahrir detalga `detal.recipe_id or buyurtma.recipe_id` yozadi — "Loy sotish" ning
+    o'z retsepti qoplama uchun TANLOV emas). `saqlangan=True` — bazadagi buyurtma (qoralamani jarayonga olish,
+    `PUT /api/orders/{id}/loy`): detallar retsepti (`services._qoplama_retsept_nomzodlari_yangi` bilan bir to'plam).
+    `joy` — xabar: "buyurtma" (yaratish / tahrir), "qoralama" (jarayonga olish), "loy" (loy rejasini o'zgartirish)."""
+    try:
+        _loy = float(loy_kg or 0)
+    except (TypeError, ValueError):
+        _loy = 0.0
+    if _loy <= 0.001:
+        return
+    _detallar = list(detallar or [])
+    if saqlangan:
+        _idlar = [getattr(x, 'recipe_id', None) for x in _detallar]
+    else:
+        _idlar = [buyurtma_retsept_id] + [getattr(x, 'recipe_id', None) for x in _detallar
+                                          if (getattr(x, 'category', None) or '').lower() != 'loy_sotish']
+    if _qoplama_retsept_bormi(db, company_id, _idlar):
+        return
+    _kg = _miqdor_matn(_loy)
+    if joy == "qoralama":
+        raise ValueError(
+            f"Qoralamada {_kg} kg loy rejalashtirilgan, lekin qoplama retsepti tanlanmagan — qoralamani «Tahrirlash» "
+            f"orqali ochib «Retsept» maydonidan retseptni tanlang, so'ng jarayonga oling. Ombordan hech narsa yechilmadi")
+    if joy == "loy":
+        raise ValueError(
+            f"Buyurtmada qoplama retsepti tanlanmagan — {_kg} kg loy qaysi retseptdan yechilishi noma'lum. Avval "
+            f"buyurtmani «Tahrirlash» orqali ochib «Retsept» maydonidan retseptni tanlang. Hech narsa o'zgarmadi")
+    if buyurtma_retsept_id:
+        raise ValueError(
+            f"Tanlangan qoplama retsepti (№{buyurtma_retsept_id}) topilmadi — «Retsept» maydonidan ro'yxatdagi "
+            f"retseptni tanlang. Hech narsa saqlanmadi")
+    raise ValueError(
+        f"Qoplama retsepti tanlanmagan: buyurtmada {_kg} kg loy rejalashtirilgan, lekin loy qaysi retseptdan "
+        f"tayyorlanishi ko'rsatilmagan. «Retsept» maydonidan retseptni tanlang (korxonada retsept bo'lmasa — avval "
+        f"«Loy retseptlari» bo'limida yarating). Hech narsa saqlanmadi")
+
+
+def _mrp_faol_boglamlar(db: Session, detallar) -> list:
+    """kech109 (K109-2): detallarga FAOL ishlab chiqarish bog'lami — shu korxonaning band tayyor mahsuloti
+    (`reserved_quantity` > 0) yoki qoralama / jarayondagi ishlab chiqarish buyurtmasi. Har detal uchun bitta
+    o'qiladigan qator (detal nomi, band miqdori, buyurtma raqamlari); bog'lam yo'q — bo'sh ro'yxat.
+    Begona korxona yozuvlari (K93-1 dan oldingi eski ma'lumot) hisobga olinmaydi — ularda faqat FK uziladi."""
+    from production_models import ProductionOrder as _PO109f
+    xatolar = []
+    for oi in (detallar or []):
+        _cid = getattr(oi, 'company_id', None)
+        _fq = db.query(FinishedProduct).filter(FinishedProduct.reserved_for_order_item_id == oi.id,
+                                               FinishedProduct.reserved_quantity > 0.0001)
+        _pq = db.query(_PO109f).filter(_PO109f.source_order_item_id == oi.id,
+                                       _PO109f.status.in_(("draft", "in_progress")))
+        if _cid is not None:
+            _fq = _fq.filter(FinishedProduct.company_id == _cid)
+            _pq = _pq.filter(_PO109f.company_id == _cid)
+        _band = round(sum(float(f.reserved_quantity or 0) for f in _fq.all()), 6)
+        _faol = _pq.order_by(_PO109f.id).all()
+        if _band <= 0.0001 and not _faol:
+            continue
+        _qism = []
+        if _band > 0.0001:
+            _qism.append(f"{_miqdor_matn(_band)} {oi.delivery_unit} tayyor mahsulot band")
+        if _faol:
+            _qism.append("ishlab chiqarish buyurtmasi " + ", ".join(
+                f"#{p.id} ({'qoralama' if p.status == 'draft' else 'jarayonda'})" for p in _faol))
+        xatolar.append(f"«{oi.name}» — " + "; ".join(_qism))
+    return xatolar
+
+
+def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: bool = False, performed_by: str = None,
+                      yangi_loy_kg: float = None) -> dict:
     """Buyurtmani to'liq yangilaydi:
     - Detallarni almashtiradi
     - Omborni faqat FARQ miqdorida to'g'rilaydi
@@ -3349,15 +8831,63 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
     import services
     import re
 
+    # 77-band (kech68): bo'sh detal turi — qulf va HECH NARSA o'zgarishidan OLDIN rad.
+    try:
+        _detal_turi_tekshir(getattr(order_data, "items", None))
+        # K95-1 (kech95): sig'im — qulf va HECH NARSA o'zgarishidan OLDIN.
+        _buyurtma_sigim_tekshir(getattr(order_data, "items", None) or [])
+    except ValueError as _e_tur:
+        return {"success": False, "message": str(_e_tur)}
+
     order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        return {"success": False, "message": "Buyurtma topilmadi"}
+    # kech41 (5-bo'lim 14-band, K41-1) — QULF (101, buyurtma), yetkazish /
+    # to'lov / qaytarish bilan BIR fazo. HAQIQIY PostgreSQL da O'LCHANGAN
+    # (asl kod, `work/probe41.py`, 3 / 3 urinish): qulfsiz "topshirilgan"
+    # tekshiruvi bir vaqtdagi yetkazishni ko'rmasdi —
+    # butun buyurtma tahriri (`PUT /api/orders/{id}` — UI dagi "Tahrirlash")
+    # ham xuddi `update_order_item` / `delete_order_item` kabi "topshirilgan"
+    # miqdorni qulfsiz o'qirdi.
+    # Naqsh `create_delivery` / `delete_delivery` dagi bilan bir xil:
+    # yozilmagan o'zgarish yo'qolmasin (`flush`), qulf, so'ng qulf ostida
+    # bazadan QAYTA o'qiladi (`expire_all`).
+    _cid_q = order.company_id
+    db.flush()
+    _pul_qulfi(db, 101, order.id)
+    db.expire_all()
+    order = db.query(Order).filter(Order.id == order_id, Order.company_id == _cid_q).first()
     if not order:
         return {"success": False, "message": "Buyurtma topilmadi"}
 
     if order.status == OrderStatus.READY:
         return {"success": False, "message": "Tayyor buyurtmani tahrirlab bo'lmaydi"}
 
+    # kech101 (K101-2, O'LCHANGAN — `work/probe142.py` C3, SQLite = PG): kech100 dan OLDIN o'chirilgan (IN_PROGRESS,
+    # qolgan qism xomashyosi qaytgan — `stock_returned`) buyurtma to'liq tahrir qilinardi: 10 → 12 m — Savatdagi buyurtma
+    # uchun penoplast 0.02 blok YECHILDI (tiklash esa qaytgan qismni yana yechadi). Detal tahriri (`update_order_item`) buni
+    # 2026-09 auditdan beri rad etadi — to'liq tahrir ham AYNAN shunday (qulf ostidagi holat bilan).
+    if order.is_deleted:
+        return {"success": False, "message": OCHIRILGAN_BUYURTMA_XABARI}
+
+    # kech103 (54-band, QAROR "Majburiy tanlov"): tahrirdan KEYINGI loy rejasi (`PUT ?loy_kg=` — berilmasa joriy reja)
+    # > 0 bo'lsa tanada qoplama retsepti SHART (`qoplama_retsepti_tekshir`). O'LCHANGAN (`work/probe54r.py` T1): tanada
+    # retsept yo'q tahrir R3 ni zaxira retseptga JIMGINA almashtirardi. Hech narsa o'zgarishidan OLDIN.
+    try:
+        qoplama_retsepti_tekshir(db, order.company_id,
+                                 yangi_loy_kg if yangi_loy_kg is not None else services._get_planned_loy(order),
+                                 getattr(order_data, "items", None) or [],
+                                 buyurtma_retsept_id=getattr(order_data, "recipe_id", None))
+    except ValueError as _e54:
+        return {"success": False, "message": str(_e54)}
+
     # AUDIT uchun — tahrirlashdan OLDINGI qisqa holatni saqlab qo'yamiz
     _audit_before = f"Jami: {float(order.total_amount or 0):,.0f} so'm, {len(order.items)} ta detal".replace(',', ' ')
+    # kech120 (zip 129 — G6-23): nima o'zgarganini yozish uchun — tahrirdan OLDINGI holat (oddiy qiymatlar)
+    try:
+        _audit_eski = _buyurtma_audit_holati(order)
+    except Exception:
+        _audit_eski = None
 
     # 1) Eski detallarni snapshot qilamiz (ombor hisobi uchun)
     old_snapshot = [{
@@ -3375,11 +8905,10 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         "unit_price_for_volume": float(i.unit_price_for_volume) if i.unit_price_for_volume is not None else None,
         "penoplast_id": i.penoplast_id,
         "price_per_m3": float(i.price_per_m3) if i.price_per_m3 else None,
+        # 126-band (kech96, O'LCHANGAN `work/probe126.py` T2): tahrirdan OLDINGI asosiy narx — Donalik (eski usul)
+        # hajmi yaratishdagi qoida bilan (ilgari dict snapshot penoplast tannarxiga tushardi: 34 → 40 da 0.12, kerak 0.06).
+        "order_base_price": float(order.base_price) if order.base_price is not None else None,
         "finished_product_id": i.finished_product_id,
-        "bazalt_item_id": _parse_termo_note(i.notes, 'bazalt_id'),
-        "serpiyanka_item_id": _parse_termo_note(i.notes, 'serp_id'),
-        "kley_kg": _parse_termo_note(i.notes, 'kley_qty', is_float=True),
-        "termo_loy_kg": _parse_termo_note(i.notes, 'loy_kg', is_float=True),
         # Ichki qo'shimcha detallar — omborni FARQ bo'yicha to'g'ri
         # hisoblash uchun (bo'lmasa, tahrirlashda ularning hajmi "yo'q
         # bo'lib qolgandek" hisoblanib, xomashyo noto'g'ri qaytarilardi).
@@ -3402,16 +8931,16 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         "thickness": it.thickness,
         "length": it.length,
         "quantity": float(it.quantity or 1),
-        "unit_price": float(it.unit_price or 0),
-        "unit_price_for_volume": getattr(it, 'unit_price_for_volume', None),
+        # 117-band (kech95): yangi holat — bazaga YOZILADIGAN qiymatlar (2 xona). Ilgari xom narx edi:
+        # eski holat bazadan (2 xona) o'qilgani uchun o'zgarishsiz saqlashda ham Donalik hajmi farqi chiqardi.
+        "unit_price": _buyurtma_narx_jami(it.quantity or 1, it.unit_price or 0)[0],
+        "unit_price_for_volume": _pul2_bosh(getattr(it, 'unit_price_for_volume', None)),
         "penoplast_id": getattr(it, 'penoplast_id', None),
-        "price_per_m3": getattr(it, 'price_per_m3', None),
+        "price_per_m3": _pul2_bosh(getattr(it, 'price_per_m3', None)),
+        # 126-band (kech96): tahrirdan KEYINGI asosiy narx (`order.base_price` pastda shu qiymatga o'rnatiladi)
+        "order_base_price": (float(getattr(order_data, 'base_price', None))
+                             if getattr(order_data, 'base_price', None) is not None else None),
         "finished_product_id": getattr(it, 'finished_product_id', None),
-        "bazalt_item_id": getattr(it, 'bazalt_item_id', None),
-        "serpiyanka_item_id": getattr(it, 'serpiyanka_item_id', None),
-        "kley_item_id": getattr(it, 'kley_item_id', None),
-        "kley_kg": getattr(it, 'kley_kg', None) or 0,
-        "termo_loy_kg": getattr(it, 'termo_loy_kg', None) or 0,
         "sub_details": [{
             "category": sd.category, "width": sd.width, "thickness": sd.thickness,
             "length": sd.length, "quantity": sd.quantity,
@@ -3419,20 +8948,28 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
     } for it in order_data.items]
 
     is_draft = order.status == OrderStatus.DRAFT
+    # kech58 (K58-3): tahrirdan OLDINGI qoplama retsepti — umumiy loy SHUNDAN yechilgan.
+    _qr58_oldin = services.resolve_recipe(db, company_id=order.company_id, order=order)
+    # kech63 (53-band): tahrirdan OLDINGI foydalanuvchi TANLOVI (YANGI qoida — detallardan; UI shu
+    # tanlovni ko'rsatadi) va umumiy loy REJASI (shu `_qr58_oldin` retseptidan yechilgan miqdor).
+    _qr53_tanlov_oldin = None if is_draft else services.buyurtma_qoplama_retseptini_tanla(db, order)
+    _loy53 = 0.0 if is_draft else float(services._get_planned_loy(order) or 0)
 
     # 2) Qoralama bo'lmasa — xomashyo yetishini tekshiramiz
     if not is_draft:
-        check = services.check_inventory_diff(db, old_snapshot, new_snapshot)
-        tcheck = services.check_termopanel_diff(db, old_snapshot, new_snapshot)
+        check = services.check_inventory_diff(db, old_snapshot, new_snapshot,
+                                              company_id=order.company_id)
         _all_short = []
         if not check["enough"]:
             _all_short += list(check["shortages"])
-        if not tcheck["enough"]:
-            _all_short += list(tcheck["shortages"])
         # Yetishmovchilik bor-u, lekin foydalanuvchi hali tasdiqlamagan bo'lsa —
         # "davom etasizmi?" ogohlantirishini qaytaramiz (create bilan bir xil).
         # confirm_shortage=True bo'lsa — o'tkazib yuboramiz (ombor manfiy bo'ladi).
         if _all_short and not confirm_shortage:
+            # kech103 (69-band): qoplama retsepti ham almashsa — yangi retsept xomashyosi qatorlari SHU ro'yxatda
+            # (ilgari tasdiqdan keyin so'ralmay manfiyga tushardi).
+            _all_short += _tahrir_loy_oldindan(db, order, order_data, _qr53_tanlov_oldin, _qr58_oldin, _loy53)
+            db.rollback()
             return {
                 "success": False,
                 "type": "stock_shortage_warning",
@@ -3467,8 +9004,30 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
                 break
 
     # Tekshiramiz
+    _ortiqcha_xato63 = False       # kech103 (63-band): sabab omborga ortiqcha qaytarilgan qism bo'lsa — sarlavha shuni aytadi
     for oi in old_items:
         delivered = oi.delivered_qty
+        # kech60 (57-band, K59-3): omborga ortiqcha qo'yilgan qism ham chiqqan — undan kam
+        # qilib / o'chirib bo'lmaydi. O'LCHANGAN (asl kod): 10 m dan 5 m omborga qo'yilib
+        # 10 -> 3 m qilinsa penoplast 7 m uchun qaytardi VA 5 m tayyor mahsulot qolardi.
+        _ortiqcha_f = oi.ortiqcha_qty
+        if _ortiqcha_f > 0.001:
+            _nd_f = matched.get(oi.id)
+            _kamida_f = delivered + _ortiqcha_f
+            if _nd_f is None:
+                _ortiqcha_xato63 = True
+                delivery_errors.append(
+                    f"«{oi.name}» — {_miqdor_matn(_ortiqcha_f)} {oi.delivery_unit} ortiqcha mahsulot "
+                    f"omborga qaytarilgan, o'chirib bo'lmaydi (avval qaytarishni o'chiring)")
+                continue
+            _new_f = _qty_of(_nd_f)
+            if _new_f < _kamida_f - 0.001:
+                _ortiqcha_xato63 = True
+                delivery_errors.append(
+                    f"«{oi.name}» — {_miqdor_matn(_ortiqcha_f)} {oi.delivery_unit} omborga ortiqcha "
+                    f"qaytarilgan" + (f", {delivered:g} {oi.delivery_unit} topshirilgan" if delivered > 0.001 else "")
+                    + f" — {_new_f:g} qilib bo'lmaydi (kamida {_miqdor_matn(_kamida_f)})")
+                continue
         if delivered <= 0.001:
             continue          # topshirilmagan — hech qanday cheklov yo'q
 
@@ -3489,27 +9048,58 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
     if delivery_errors:
         return {
             "success": False,
-            "message": "Topshirilgan miqdordan kam qilib bo'lmaydi!",
+            # kech103 (63-band): ilgari sabab ORTIQCHA bo'lganda ham "Topshirilgan miqdordan …" derdi (izoh qatori to'g'ri edi)
+            "message": ("Topshirilgan va omborga ortiqcha qaytarilgan miqdordan kam qilib bo'lmaydi!" if _ortiqcha_xato63
+                        else "Topshirilgan miqdordan kam qilib bo'lmaydi!"),
             "shortages": delivery_errors
         }
 
+    # kech109 (K109-2, O'LCHANGAN `work/probe109e1.py` S8 — HAQIQIY PG 16; SQLite FK ni tekshirmaydi): tahrirda
+    # olib tashlangan (yoki NOMI o'zgargan — moslash nom + tur bo'yicha, eski detal o'chadi) MRP detaliga ishlab
+    # chiqarish bog'langan bo'lsa (band tayyor mahsulot, qoralama yoki yakunlangan ishlab chiqarish buyurtmasi) —
+    # PG da 500 "Serverda kutilmagan xato" (FK), SQLite da jim: band va manba YO'Q detalga ishora qilib qolardi.
+    # Endi: FAOL bog'lam (band TM yoki qoralama / jarayondagi buyurtma) — 400, aniq sabab, hech narsa o'zgarmaydi
+    # (nomi o'zgarganda band jimgina bo'shab, mahsulot ikkinchi marta ishlab chiqarilmasin); faol bo'lmagan (tarixiy)
+    # bog'lam — pastda `delete_order_item` naqshi bilan uziladi.
+    _mrp_xato109 = _mrp_faol_boglamlar(db, [oi for oi in old_items if matched.get(oi.id) is None])
+    if _mrp_xato109:
+        return {
+            "success": False,
+            "message": ("Ishlab chiqarishga bog'langan detalni tahrirda olib tashlab (yoki nomini o'zgartirib) "
+                        "bo'lmaydi. Nomi avvalgidek qolsin; detal kerak bo'lmasa — avval «Tayyor mahsulotlar» da "
+                        "bandni bo'shating yoki «Ishlab chiqarish» da buyurtmani bekor qiling."),
+            "shortages": _mrp_xato109
+        }
+
     # 4) Detallarni yangilaymiz — topshirilganlarini SAQLAB
-    total_amount = 0
+    _jamilar = []
     keep_ids = set()
+    # kech103 (56-band): tayyor mahsulot detallari bo'yicha o'tishlar (tannarx — `_adjust_finished_diff`)
+    _tm56 = []
 
     for oi in old_items:
         nd = matched.get(oi.id)
+        _tm56_eski = (oi.finished_product_id, _fp_item_qty(oi), _tm_detal_birligi(oi))
         if nd is None:
             # Yangi ro'yxatda yo'q — o'chiramiz (topshirilmagani tekshirildi)
+            if _tm56_eski[0]:
+                _tm56.append({"detal": None, "eski_tm": _tm56_eski[0], "eski_miqdor": _tm56_eski[1],
+                              "eski_birlik": _tm56_eski[2], "yangi_tm": None, "yangi_miqdor": 0.0})
+            # kech109 (K109-2): faol bog'lam yuqorida rad etilgan; qolgan (tarixiy) MRP bog'lamlari — FK uziladi
+            # (`delete_order_item` naqshi): band 0 TM ko'rsatgichi, yakunlangan / bekor qilingan buyurtma manbasi.
+            _auto_release_mrp_reservations(db, [oi.id], performed_by)
+            from production_models import ProductionOrder as _PO109t
+            db.query(_PO109t).filter(_PO109t.source_order_item_id == oi.id).update(
+                {"source_order_item_id": None}, synchronize_session=False)
             db.delete(oi)
             continue
 
         # MUHIM TUZATISH (2026-09 audit): "dona" uchun qo'shimcha ×2
         # qilinmaydi endi — sabab yuqoridagi create_order()dagi izohda
         # (frontend allaqachon yakuniy, qoplamali narx yuboradi).
-        _stored_up1 = float(nd.unit_price or 0)
-        item_total = _stored_up1 * float(nd.quantity or 1)
-        total_amount += item_total
+        # 117-band (kech95): narx 2 xonaga (HALF_UP), jami SHU narxdan (`_buyurtma_narx_jami`).
+        _stored_up1, item_total = _buyurtma_narx_jami(nd.quantity or 1, nd.unit_price or 0)
+        _jamilar.append(item_total)
 
         oi.width = nd.width
         oi.thickness = nd.thickness
@@ -3528,26 +9118,17 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         # umumiy retseptiga tushadi.
         oi.recipe_id = getattr(nd, 'recipe_id', None) or order_data.recipe_id
         oi.penoplast_id = getattr(nd, 'penoplast_id', None)
-        oi.price_per_m3 = getattr(nd, 'price_per_m3', None)
+        oi.price_per_m3 = _pul2_bosh(getattr(nd, 'price_per_m3', None))
         oi.finished_product_id = getattr(nd, 'finished_product_id', None)
         oi.unit_price = _stored_up1
-        oi.unit_price_for_volume = getattr(nd, 'unit_price_for_volume', None)
-        oi.gips_unit = getattr(nd, 'gips_unit', None)
+        oi.unit_price_for_volume = _pul2_bosh(getattr(nd, 'unit_price_for_volume', None))
+        oi.product_type_id = getattr(nd, 'product_type_id', None)
         oi.total_price = item_total
-        # MUHIM TUZATISH: "Termopanel" turi uchun frontend "[TERMO:...]"
-        # belgisini HECH QACHON yubormaydi (faqat xom bazalt/serpiyanka/
-        # kley ID va miqdorlarni yuboradi) — shuning uchun bu yerda
-        # to'g'ridan-to'g'ri "nd.notes" (deyarli har doim bo'sh/None)
-        # yozib qo'yilsa, belgi butunlay o'chib ketardi — buyurtma hali
-        # Qoralama bo'lsa, buni HECH KIM qayta tiklamasdi (pastdagi
-        # qayta hisoblash faqat Qoralama BO'LMAGAN holatda ishlaydi).
-        # Natijada "Jarayonga olish"da Bazalt/Serpiyanka/Kley ombordan
-        # UMUMAN yechilmay qolardi. Endi — Termopanel uchun, qoralama
-        # bo'lsa ham, belgi HAR DOIM to'g'ri qurib yoziladi.
-        if (nd.category or '').lower() == 'termopanel':
-            oi.notes = _build_termo_notes(db, nd, oi.notes)
-        else:
-            oi.notes = nd.notes
+        oi.notes = nd.notes
+        if _tm56_eski[0] or oi.finished_product_id:
+            _tm56.append({"detal": oi, "eski_tm": _tm56_eski[0], "eski_miqdor": _tm56_eski[1],
+                          "eski_birlik": _tm56_eski[2], "yangi_tm": oi.finished_product_id,
+                          "yangi_miqdor": _fp_item_qty(oi)})
 
         # Ichki qo'shimcha detallarni ALMASHTIRAMIZ — eskisini o'chirib
         # (cascade="all, delete-orphan"), yangisini yozamiz. Ombordagi
@@ -3574,13 +9155,9 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
             continue
         # MUHIM TUZATISH (2026-09 audit): "dona" uchun qo'shimcha ×2
         # qilinmaydi endi — sabab yuqoridagi create_order()dagi izohda.
-        _stored_up2 = float(nd.unit_price or 0)
-        item_total = _stored_up2 * float(nd.quantity or 1)
-        total_amount += item_total
-        # MUHIM: Termopanel uchun — xuddi yuqoridagi (mavjud detal)
-        # holatidagi kabi, "[TERMO:...]" belgisini shu yerda quramiz
-        # (frontend uni hech qachon yubormaydi).
-        _new_item_notes = _build_termo_notes(db, nd, nd.notes) if (nd.category or '').lower() == 'termopanel' else nd.notes
+        _stored_up2, item_total = _buyurtma_narx_jami(nd.quantity or 1, nd.unit_price or 0)
+        _jamilar.append(item_total)
+        _new_item_notes = nd.notes
         _new_oi = OrderItem(
             order_id=order.id,
             name=nd.name,
@@ -3592,11 +9169,11 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
             is_coated=nd.is_coated,
             recipe_id=(getattr(nd, 'recipe_id', None) or order_data.recipe_id),
             penoplast_id=getattr(nd, 'penoplast_id', None),
-            price_per_m3=getattr(nd, 'price_per_m3', None),
+            price_per_m3=_pul2_bosh(getattr(nd, 'price_per_m3', None)),
             finished_product_id=getattr(nd, 'finished_product_id', None),
             unit_price=_stored_up2,
-            unit_price_for_volume=getattr(nd, 'unit_price_for_volume', None),
-            gips_unit=getattr(nd, 'gips_unit', None),
+            unit_price_for_volume=_pul2_bosh(getattr(nd, 'unit_price_for_volume', None)),
+            product_type_id=getattr(nd, 'product_type_id', None),
             total_price=item_total,
             notes=_new_item_notes
         )
@@ -3612,110 +9189,153 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
                 volume_m3=sub_vol, total_price=sub_price
             ))
         db.add(_new_oi)
+        if _new_oi.finished_product_id:
+            _tm56.append({"detal": _new_oi, "eski_tm": None, "eski_miqdor": 0.0, "eski_birlik": None,
+                          "yangi_tm": _new_oi.finished_product_id, "yangi_miqdor": _fp_item_qty(_new_oi)})
 
     # 5) Buyurtma ma'lumotlarini yangilaymiz
     order.master_id = order_data.master_id
     if getattr(order_data, 'deadline', None):
         order.deadline = order_data.deadline
 
-    # GIPS — taxminiy miqdorni va qo'shimchalar ro'yxatini yangilaymiz.
-    # MUHIM: Gips DARHOL (Loy kabi) ayirilgani uchun — tahrirlashda FARQ
-    # bo'yicha to'g'irlaymiz (eski rejani qaytarib, yangi rejani ayiramiz),
-    # xuddi Penoplast/Bazalt kabi. Qoralama (hali is_draft) bo'lsa — ombor
-    # umuman tegilmagan edi, shunchaki yangilab qo'ya qolamiz.
-    old_planned_gips = float(order.planned_gips_kg or 0)
-    old_gips_inv_id = order.gips_inventory_id
-    old_additives = {a.inventory_id: float(a.planned_qty or 0) for a in
-                      db.query(OrderGipsAdditive).filter(OrderGipsAdditive.order_id == order.id).all()}
-
-    new_planned_gips = float(getattr(order_data, 'planned_gips_kg', None) or 0)
-    new_gips_inv_id = getattr(order_data, 'gips_inventory_id', None)
-    new_additives_list = getattr(order_data, 'gips_additives', None) or []
-    new_additives = {a.inventory_id: float(a.planned_qty or 0) for a in new_additives_list}
-
-    # XAVFSIZLIK TEKSHIRUVI: agar buyurtmada HALI HAM Gips turidagi
-    # detallar bo'lsa-yu, lekin frontend "planned_gips_kg=0" deb yuborgan
-    # bo'lsa — bu, deyarli har doim FRONTEND XATOSI (masalan, maydon
-    # sezilmasdan bo'shab qolgani), haqiqiy "Gips kerak emas" degani EMAS.
-    # Bunday holatda ESKI qiymatni SAQLAB QOLAMIZ — aks holda, keyinchalik
-    # buyurtma yakunlanganda, "reja" noto'g'ri (0/bo'sh) bo'lib qolib,
-    # "farq" butun haqiqiy miqdorni (masalan 1200 kg) qayta ayirib
-    # yuborishi mumkin edi (aynan shunday holat bir marta yuz bergan edi).
-    order_has_gips_item = any(
-        (getattr(it, 'category', None) or '').lower() == 'gips'
-        for it in getattr(order_data, 'items', [])
-    )
-    if new_planned_gips <= 0 and old_planned_gips > 0 and order_has_gips_item:
-        new_planned_gips = old_planned_gips
-        if not new_gips_inv_id:
-            new_gips_inv_id = old_gips_inv_id
-
-    if not is_draft:
-        import services as _services
-        # Asosiy Gips — agar bir xil xomashyo bo'lsa, faqat farqni; turi
-        # o'zgargan bo'lsa, eskisini to'liq qaytarib, yangisini to'liq ayiramiz
-        if old_gips_inv_id == new_gips_inv_id:
-            diff = new_planned_gips - old_planned_gips
-            if abs(diff) > 0.001:
-                _services.deduct_gips_main(db, new_gips_inv_id, diff, order, reason=f"Buyurtma tahrirlandi ({order.order_number})")
-        else:
-            if old_planned_gips > 0:
-                _services.deduct_gips_main(db, old_gips_inv_id, -old_planned_gips, order, reason=f"Buyurtma tahrirlandi — eski Gips qaytarildi ({order.order_number})")
-            if new_planned_gips > 0:
-                _services.deduct_gips_main(db, new_gips_inv_id, new_planned_gips, order, reason=f"Buyurtma tahrirlandi — yangi Gips ({order.order_number})")
-
-        # Qo'shimchalar — har bir xomashyo bo'yicha farqni hisoblaymiz
-        all_add_ids = set(old_additives.keys()) | set(new_additives.keys())
-        diff_additives = []
-        for inv_id in all_add_ids:
-            d = new_additives.get(inv_id, 0) - old_additives.get(inv_id, 0)
-            if abs(d) > 0.001:
-                diff_additives.append({"inventory_id": inv_id, "qty": d})
-        if diff_additives:
-            _services.deduct_gips_additives(db, diff_additives, order, reason=f"Buyurtma tahrirlandi ({order.order_number})")
-
-    order.planned_gips_kg = new_planned_gips if new_planned_gips > 0 else None
-    order.gips_inventory_id = new_gips_inv_id
-    db.query(OrderGipsAdditive).filter(OrderGipsAdditive.order_id == order.id).delete()
-    for add_data in new_additives_list:
-        db.add(OrderGipsAdditive(
-            order_id=order.id,
-            inventory_id=add_data.inventory_id,
-            planned_qty=add_data.planned_qty
-        ))
-
+    total_amount = _pul_yigindi(_jamilar)
     old_total = float(order.total_amount or 0)
     old_discount_pct = float(order.discount_percent or 0)
+    # 28-band (kech43, K42-2 — O'LCHANGAN, `work/probe43.py`): kelishilgan summa
+    # ikki qismdan iborat — ASL kelishilgan narx (chegirma / ustama bilan) va pul
+    # qaytarishlar kamaytirishi (`pul_qaytarish_kamaytirgan`). Tahrir ASL summani
+    # oladi (UI formasi ham ASL summani ko'rsatadi — `/api/orders/{id}`
+    # `kelishilgan_asl`), saqlanganda pul qaytarish kamaytirishi QAYTA ayiriladi.
+    # Chegirma foizi — faqat narx chegirmasi (ASL summadan).
+    _qaytgan_kam = pul_qaytarish_kamaytirgan(db, order)
+    _eski_asl = round(order.kelishilgan_summa + _qaytgan_kam, 2)
+    _kechirilgan = order.kechirilgan
     order.total_amount = total_amount
     order.base_price = getattr(order_data, 'base_price', None)
 
     agreed = getattr(order_data, 'agreed_amount', None)
 
     if agreed:
-        # Xodim qo'lda summa kiritdi — shuni olamiz
-        order.agreed_amount = agreed
-    elif old_discount_pct > 0 and abs(total_amount - old_total) > 0.01:
-        # Jami o'zgardi, chegirma foizi saqlanadi
-        order.agreed_amount = round(total_amount * (1 - old_discount_pct / 100))
+        # Xodim qo'lda (ASL) summa kiritdi — shuni olamiz (narx kelishuvi — kechirilgan qarz bilan)
+        _asl = float(agreed)
+        _narx = _asl + _kechirilgan
     else:
-        order.agreed_amount = total_amount
+        # K110-1 (kech110): YAGONA qoida — jami o'zgarmasa ASL o'zgarmaydi (chegirma, ustama, kechirilgan qarz
+        # saqlanadi); chegirmasiz — jamiga teng; chegirma / ustama — nisbat; kechirilgan qarz — so'mda.
+        # Brauzer (`orders.html`) summani QO'LDA yozilmagan bo'lsa yubormaydi — shu qoida hal qiladi.
+        _asl, _narx = kelishilgan_qayta_hisob(old_total, total_amount, _eski_asl, _kechirilgan)
+    order.agreed_amount = _pul2(max(0.0, _asl - _qaytgan_kam))
 
-    # Chegirma foizini qayta hisoblaymiz
-    if total_amount > 0 and float(order.agreed_amount) < total_amount:
-        order.discount_percent = round(
-            (total_amount - float(order.agreed_amount)) / total_amount * 100, 2)
+    # Chegirma foizi — NARX chegirmasi (kechirilgan qarzsiz; ustamada 0) — K110-1
+    order.discount_percent = _narx_chegirma_foizi(total_amount, _narx)
+
+    db.flush()
+
+    # kech58 (K58-3): qoplama retsepti tahrirda. O'LCHANGAN (asl kod, `work/probe58.py` S6):
+    # retsept R1 -> R2 tahririda ombor tegilmasdi, o'chirishda esa loy R2 ga qaytardi.
+    #  - Qoralama (hech narsa yechilmagan) — yangi tanlovga ergashadi.
+    #  - Qoralama emas: umumiy loy qaysi retseptdan YECHILGAN bo'lsa — shu saqlanadi
+    #    (yangi buyurtmada ustun allaqachon bor; eski NULL buyurtmada — faqat retsept
+    #    o'zgaradigan bo'lsa, oldingisi yoziladi, aks holda avvalgi qoida AYNAN qoladi).
+    #
+    # kech63 (53-band) — FOYDALANUVCHI QARORI (kech62, tugma): "Oq loy omborga qaytsin, Kulrang
+    # yechilsin" — jarayondagi buyurtmada qoplama retsepti o'zgartirilsa eski retsept loyi omborga
+    # QAYTADI, yangisidan YECHILADI. O'LCHANGAN (asl kod `25bcd8d`, `work/probe53.py`): PUT R1 -> R2
+    # 200 "Buyurtma yangilandi!" berardi, ombor tegilmasdi, `qoplama_retsept_id` R1 da qolardi, detallar
+    # va tahrir oynasi esa R2 ni ko'rsatardi — foydalanuvchi almashtirdim deb o'ylardi (JIM).
+    # Qoida (texnik — Claude):
+    #  - ALMASHTIRISH = foydalanuvchi TANLOVI o'zgargan (`buyurtma_qoplama_retseptini_tanla` tahrirdan
+    #    OLDIN va KEYIN farqli) VA yangi tanlov loy yechilgan retseptdan (`_qr58_oldin`) farqli.
+    #    Tanlov o'zgarmagan tahrir (masalan eski NULL buyurtma, K58-1 shakli) — kech58 qoidasi AYNAN.
+    #  - Loy rejasi > 0 va buyurtmadan biror qism CHIQQAN (topshirilgan / omborga ortiqcha) yoki
+    #    "Tayyor" (haqiqiy loy yozilgan) — 400, HECH NARSA yozilmaydi (loyning bir qismi mahsulotda —
+    #    qaytarib bo'lmaydi; aralash retsept foydani buzadi).
+    #  - Aks holda eski retseptga BUTUN reja qaytadi (o'chirishdagi yo'l — `return_loy_ingredients`),
+    #    yangisidan yechiladi (yaratishdagi yo'l — `deduct_loy_ingredients`, avval tayyor loy zaxirasi).
+    #    Yangi retsept xomashyosi yetmasa — yaratishdagidek 409 "davom etasizmi?" (`confirm_shortage`).
+    #  - Qulf (101) ostida, `commit=False` — tahrir bilan BITTA tranzaksiya (keyingi `commit` —
+    #    `adjust_inventory_diff`). Loy miqdori ham o'zgarsa — `PUT` keyin `update_order_loy` farqni
+    #    YANGI retseptda qo'llaydi (`resolve_recipe` -> `qoplama_retsept_id`).
+    #  - Loy rejasi 0 — ombor tegilmaydi, faqat yangi tanlov yoziladi (keyingi loy shundan yechiladi).
+    db.expire(order, ['items'])
+    _qr53_log = []
+    _qr53_matn = None
+    if is_draft:
+        _qr58_yangi = services.buyurtma_qoplama_retseptini_tanla(db, order)
+        order.qoplama_retsept_id = _qr58_yangi.id if _qr58_yangi else None
     else:
-        order.discount_percent = 0.0
-
+        _qr53_keyin = services.buyurtma_qoplama_retseptini_tanla(db, order)
+        _qr53_ozgardi = getattr(_qr53_tanlov_oldin, 'id', None) != getattr(_qr53_keyin, 'id', None)
+        if (_qr53_ozgardi and _qr58_oldin is not None and _qr53_keyin is not None
+                and _qr53_keyin.id != _qr58_oldin.id):
+            _eski53 = _retsept_nomi53(_qr58_oldin)
+            _yangi53 = _retsept_nomi53(_qr53_keyin)
+            if _loy53 > 0.001:
+                _sabab53 = None
+                if order.actual_loy_kg is not None:
+                    _sabab53 = "buyurtma «Tayyor» qilingan (haqiqiy loy yozilgan)"
+                elif services.buyurtmadan_qisman_chiqqan(order):
+                    _sabab53 = "buyurtmadan mahsulot allaqachon topshirilgan yoki omborga qaytarilgan"
+                if _sabab53:
+                    db.rollback()
+                    return {
+                        "success": False,
+                        "message": "Qoplama retseptini o'zgartirib bo'lmaydi!",
+                        "shortages": [
+                            f"Loy ({_miqdor_matn(_loy53)} kg) «{_eski53}» retseptidan yechilgan va {_sabab53} — "
+                            f"loyning bir qismi ishlatilgan, uni «{_yangi53}» ga almashtirib bo'lmaydi. "
+                            f"Retseptni «{_eski53}» holicha qoldiring."
+                        ]
+                    }
+                if not confirm_shortage:
+                    _lchk53 = services.check_loy_ingredients_for_order(
+                        db, _qr53_keyin.id, _loy53, company_id=order.company_id, commit=False)
+                    if not _lchk53.get("enough", True):
+                        db.rollback()
+                        return {
+                            "success": False,
+                            "type": "stock_shortage_warning",
+                            "message": "Omborda yetishmayotgan xomashyo bor. Shunday ham davom etasizmi?",
+                            "shortages": list(_lchk53.get("shortages") or [])
+                        }
+                _nomer53 = order.order_number or order.id
+                _qr53_log.append(
+                    f"🔄 Qoplama retsepti almashtirildi: «{_eski53}» → «{_yangi53}» — {_miqdor_matn(_loy53)} kg loy: "
+                    f"eskisi omborga qaytdi, yangisidan yechildi")
+                # kech82 (102-band): eski retsept loyi OLINGAN joyiga, yangisi — manbasi yoziladi
+                with services.loy_manba_rejimi(db, "ushla"):
+                    _qr53_log.extend(services.return_loy_ingredients(
+                        db, order, _loy53, recipe_id=_qr58_oldin.id, company_id=order.company_id,
+                        reason_override=f"Buyurtma {_nomer53} — qoplama retsepti almashtirildi (eski retsept loyi qaytarildi)",
+                        commit=False))
+                    _qr53_log.extend(services.deduct_loy_ingredients(
+                        db, order, _loy53, recipe_id=_qr53_keyin.id, company_id=order.company_id,
+                        reason_override=f"Buyurtma {_nomer53} (loy — yangi qoplama retsepti)",
+                        commit=False))
+            order.qoplama_retsept_id = _qr53_keyin.id
+            _qr53_matn = f"qoplama retsepti «{_eski53}» → «{_yangi53}»"
+        elif order.qoplama_retsept_id is None and _qr58_oldin is not None:
+            _qr58_keyin = services.resolve_recipe(db, company_id=order.company_id, order=order)
+            if _qr58_keyin is None or _qr58_keyin.id != _qr58_oldin.id:
+                order.qoplama_retsept_id = _qr58_oldin.id
     db.flush()
 
     # 6) Omborni farq bo'yicha to'g'rilaymiz (qoralama emas bo'lsa)
     inventory_log = []
     if not is_draft:
-        inventory_log = services.adjust_inventory_diff(db, old_snapshot, new_snapshot, order_id=order_id)
-        inventory_log.extend(services.adjust_termopanel_diff(db, old_snapshot, new_snapshot, recipe_id=order_data.recipe_id))
+        # kech64 (68-band): commit YO'Q (faqat flush) — butun 6-qadam qulf (101, buyurtma) ostida BITTA
+        # tranzaksiya (oxirgi `db.commit()`). O'LCHANGAN (PG): standart `commit=True` penoplast
+        # farqi bo'lganda qulfni shu yerda bo'shatardi — TM farqi qulfsiz qolar va keyingi qadam
+        # istisno bersa tahrir YARIM saqlanardi (detal va penoplast o'zgargan, TM yo'q).
+        inventory_log = services.adjust_inventory_diff(db, old_snapshot, new_snapshot, order_id=order_id,
+                                                       company_id=order.company_id, commit=False)
+        # kech63 (53-band): qoplama retsepti almashtirilgan bo'lsa — uning qatorlari jurnal boshida.
+        inventory_log[:0] = _qr53_log
         # Tayyor mahsulot farqi
-        inventory_log.extend(_adjust_finished_diff(db, old_snapshot, new_snapshot))
+        # M4: farq faqat SHU buyurtmaning korxonasidagi mahsulotlarga qo'llanadi.
+        inventory_log.extend(_adjust_finished_diff(db, old_snapshot, new_snapshot,
+                                                   company_id=getattr(order, 'company_id', None),
+                                                   detallar=_tm56))
 
         # "Loy sotish" — farq bo'yicha to'g'irlaymiz (recipe_id bo'yicha
         # jamlab, eski va yangi holatni solishtiramiz). Bu — avval BUTUNLAY
@@ -3725,50 +9345,18 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
             if (oi.category or '').lower() == 'loy_sotish' and oi.recipe_id:
                 new_loysale_by_recipe[oi.recipe_id] = new_loysale_by_recipe.get(oi.recipe_id, 0) + float(oi.quantity or 0)
         all_recipe_ids = set(old_loysale_by_recipe.keys()) | set(new_loysale_by_recipe.keys())
-        for rid in all_recipe_ids:
-            diff = new_loysale_by_recipe.get(rid, 0) - old_loysale_by_recipe.get(rid, 0)
-            if abs(diff) > 0.001:
-                if diff > 0:
-                    inventory_log.extend(services.deduct_loy_ingredients(db, order, diff, recipe_id=rid))
-                else:
-                    inventory_log.extend(services.return_loy_ingredients(db, order, abs(diff), recipe_id=rid))
+        # kech82 (102-band): "Loy sotish" farqi — manbasi yoziladi / olingan joyiga qaytadi
+        with services.loy_manba_rejimi(db, "ushla"):
+            for rid in all_recipe_ids:
+                diff = new_loysale_by_recipe.get(rid, 0) - old_loysale_by_recipe.get(rid, 0)
+                if abs(diff) > 0.001:
+                    if diff > 0:
+                        inventory_log.extend(services.deduct_loy_ingredients(db, order, diff, recipe_id=rid,
+                                                                             commit=False))
+                    else:
+                        inventory_log.extend(services.return_loy_ingredients(db, order, abs(diff), recipe_id=rid,
+                                                                             commit=False))
 
-        # TERMO belgisini yangi qiymatlar bilan qayta yozamiz — aks holda
-        # notes yangilanganda eski belgi o'chib, keyingi tahrirlash/o'chirish
-        # xomashyoni to'g'ri hisoblay olmay qoladi.
-        for oi in order.items:
-            if (oi.category or '').lower() != 'termopanel':
-                continue
-            nd = matched.get(oi.id)
-            if nd is None:
-                continue
-            bazalt_id = getattr(nd, 'bazalt_item_id', None)
-            loy_kg = float(getattr(nd, 'termo_loy_kg', None) or 0)
-            base_notes = re.sub(r'\s*\[TERMO:[^\]]+\]', '', oi.notes or '').strip()
-            parts = []
-            serp_ratio, kley_ratio = 2.0, 0.8
-            if bazalt_id:
-                b = db.query(Inventory).filter(Inventory.id == bazalt_id).first()
-                area = float(b.volume_per_unit or 0.72) if b else 0.72
-                sheets = float(oi.quantity or 0) / area if area else 0
-                parts.append(f"bazalt_id={bazalt_id},bazalt_qty={sheets:.4f}")
-                if b and b.serp_ratio_per_m2:
-                    serp_ratio = float(b.serp_ratio_per_m2)
-                if b and b.kley_ratio_per_m2:
-                    kley_ratio = float(b.kley_ratio_per_m2)
-            serp_m2 = float(oi.quantity or 0) * serp_ratio
-            s = services.find_serpiyanka(db)
-            if s:
-                area = float(s.volume_per_unit or 50.0)
-                rulon = serp_m2 / area if area else 0
-                parts.append(f"serp_id={s.id},serp_qty={rulon:.4f}")
-            k = services.find_kley(db)
-            if k:
-                kley_kg = float(oi.quantity or 0) * kley_ratio
-                parts.append(f"kley_id={k.id},kley_qty={kley_kg:.4f}")
-            if loy_kg > 0:
-                parts.append(f"loy_kg={loy_kg:.4f}")
-            oi.notes = (base_notes + " [TERMO:" + ",".join(parts) + "]") if parts else base_notes
         db.commit()
 
     # 7) To'lov holatini qayta hisoblaymiz
@@ -3793,8 +9381,17 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
     # kelgan edi (Termopanel belgisi yo'qolishi, va h.k.).
     try:
         _audit_after = f"Jami: {float(order.total_amount or 0):,.0f} so'm, {len(order.items)} ta detal".replace(',', ' ')
+        if _qr53_matn:
+            _audit_after += f"; {_qr53_matn}"
+        if _audit_eski is not None:
+            try:        # farq hisobidagi xato yozuvning O'ZINI yo'qotmasin
+                _audit_after += audit_farq_matni(_buyurtma_audit_farqi(db, order.company_id, _audit_eski,
+                                                                       _buyurtma_audit_holati(order)))
+            except Exception:
+                pass
         log_activity(db, "updated", "order", order.id, order.order_number, performed_by,
-                      old_value=_audit_before, new_value=_audit_after)
+                      old_value=_audit_before, new_value=_audit_after,
+                      company_id=getattr(order, 'company_id', None))
     except Exception:
         pass
 
@@ -3813,7 +9410,9 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
             "new_total": total_amount,
             "old_discount_pct": old_discount_pct,
             "new_discount_pct": float(order.discount_percent or 0),
-            "auto_applied": (not agreed and old_discount_pct > 0 and abs(total_amount - old_total) > 0.01)
+            # K110-1: summa qo'lda yozilmagan, jami o'zgargan va chegirma / ustama NISBATI qo'llangan
+            "auto_applied": (not agreed and abs(total_amount - old_total) > 0.005
+                             and abs(_tiyin_float(_eski_asl + _kechirilgan) - old_total) > 0.005 and old_total > 0)
         }
     }
 
@@ -3822,9 +9421,25 @@ def update_order_loy(db: Session, order_id: int, new_loy: float) -> dict:
     """Loy rejasini o'zgartiradi — ombor farq bo'yicha to'g'rilanadi."""
     import services
 
+    # 17d (2026-09-21): yangi reja OMBORGA TEGILISHIDAN oldin tekshiriladi
+    # (`adjust_loy_diff` xomashyoni darhol o'zgartiradi va commit qiladi).
+    # O'LCHANGAN: `inf` → qoldiq −∞ va buyurtma kartasi 500; manfiy reja →
+    # omborga olinganidan KO'P qaytardi (5 kg olingan, −5 bilan 7.5 qaytdi).
+    try:
+        new_loy = _query_loy("loy_kg", new_loy, bosh_mumkin=False)
+    except ValueError as e:
+        return {"success": False, "message": str(e)}
+
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         return {"success": False, "message": "Buyurtma topilmadi"}
+
+    # kech103 (54-band, QAROR "Majburiy tanlov"): yangi loy rejasi > 0 — detallarda qoplama retsepti SHART
+    # (O'LCHANGAN `work/probe54r.py` L1: retseptsiz buyurtmada 0 → 10 kg loy zaxira retseptdan yechilardi).
+    try:
+        qoplama_retsepti_tekshir(db, order.company_id, new_loy, list(order.items), saqlangan=True, joy="loy")
+    except ValueError as _e54:
+        return {"success": False, "message": str(_e54)}
 
     old_loy = services._get_planned_loy(order)
 
@@ -3851,21 +9466,493 @@ from models import Delivery, DeliveryItem
 from schemas import DeliveryCreate
 
 
-def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None) -> dict:
+def _mrp_yetkazish_detalimi(order_item) -> bool:
+    """kech70 (76-band): detal MRP orqali yetkaziladimi — ishlab chiqarish buyurtmasi SHU detalga
+    band qilgan tayyor mahsulot (TM) yuk xati bilan chiqadi. Buyurtma yaratilganda ombordan olingan
+    TM li detal (`finished_product_id`) — yo'q: u yaratishda allaqachon olingan."""
+    return (((getattr(order_item, 'category', None) or '').lower() == 'mrp_product')
+            and not getattr(order_item, 'finished_product_id', None))
+
+
+def _mrp_band_tmlar(db: Session, order_item, company_id: int = None, lock: bool = True) -> list:
+    """Shu detalga band qilingan TM lar — id TARTIBIDA.
+
+    kech70 (O'LCHANGAN, HAQIQIY PG): so'rovda ORDER BY yo'q edi — PG da UPDATE dan keyin qator
+    joylashuvi o'zgarib, qaysi partiyadan olinishi / qaytishi tasodifga bog'liq edi (bir xil amal
+    SQLite da 34 000, PG da 36 000 tan narx). Id tartibi `_fp_qulf` bilan bir xil — deadlock yo'q.
+    `lock` — `FOR UPDATE` + bazadan qayta yuklash (`populate_existing`; oldin `flush`, sessiyadagi
+    yozilmagan o'zgarish yo'qolmasin — kech64 saboqi)."""
+    cid = company_id if company_id is not None else getattr(order_item, 'company_id', None)
+    q = db.query(FinishedProduct).filter(
+        FinishedProduct.reserved_for_order_item_id == order_item.id)
+    if cid is not None:
+        q = q.filter(FinishedProduct.company_id == cid)
+    q = q.order_by(FinishedProduct.id)
+    if lock:
+        db.flush()
+        q = q.with_for_update().populate_existing()
+    return q.all()
+
+
+def _mrp_tmlar_idlar(db: Session, idlar, company_id: int = None) -> list:
+    """kech71 (K71-1): yuk qatorida YOZILGAN TM lar — id bo'yicha, detalga bog'langanmi-yo'qmi
+    qat'i nazar (band ozod qilingan TM ham topiladi). Id TARTIBIDA, `FOR UPDATE` + bazadan qayta
+    yuklash — `_mrp_band_tmlar` bilan bir xil qulf tartibi."""
+    idlar = sorted({int(i) for i in (idlar or [])})
+    if not idlar:
+        return []
+    q = db.query(FinishedProduct).filter(FinishedProduct.id.in_(idlar))
+    if company_id is not None:
+        q = q.filter(FinishedProduct.company_id == company_id)
+    db.flush()
+    return q.order_by(FinishedProduct.id).with_for_update().populate_existing().all()
+
+
+def _mrp_tayyor_qoldiq(db: Session, order_item, company_id: int = None, lock: bool = True) -> float:
+    """kech70 (FOYDALANUVCHI QARORI "Taqiqlansin"): shu detal uchun TAYYOR (ishlab chiqarilgan)
+    va hali topshirilmagan miqdor — jarayondagi (IN_PROGRESS) TM hisoblanmaydi (`_fp_tayyormi`)."""
+    return sum(float(fp.quantity or 0) for fp in _mrp_band_tmlar(db, order_item, company_id, lock)
+               if _fp_tayyormi(fp))
+
+
+def mrp_tayyor_yetadimi(qolgan: float, tayyor: float) -> bool:
+    """kech80 (88-band): MRP detalining hali topshirilishi kerak bo'lgan qoldig'i (`qolgan`) TAYYOR
+    (ishlab chiqarilgan) mahsulot bilan to'liq qoplanadimi — YAGONA shart. «Tayyor» tugmasi
+    (`services.complete_order`) va buyurtmadagi «MRP: tayyor» belgisi
+    (`production_service.get_order_mrp_readiness`, `mrp_topshirish_holati` orqali) shu funksiyadan;
+    yuk xati (`create_delivery` `mrp_kam`) ham xuddi shu chegara (tayyor + 0.001) bilan."""
+    return not (qolgan > 0.001 and qolgan > tayyor + 0.001)
+
+
+def mrp_topshirish_holati(db: Session, order_item, company_id: int = None, lock: bool = False) -> dict:
+    """kech80 (88-band — O'LCHANGAN, `work/probe88.py`): MRP detali topshirishga TAYYORMI.
+
+    Ilgari buyurtmadagi belgi faqat BAND qilinganini tekshirardi (`production_service.mrp_detal_kerak`),
+    band esa ishlab chiqarish BOSHLANGANDA qo'yiladi — ishlab chiqarish hali yakunlanmagan
+    (IN_PROGRESS) detal ham «✅ MRP: tayyor» ko'rinardi, «Tayyor» tugmasi esa 400 berardi
+    («… kerak 5, tayyor 0»); 3 tayyor + 2 jarayonda — xuddi shunday.
+
+    Qaytaradi:
+      qolgan    — hali topshirilishi kerak (`OrderItem.remaining_qty` — yetkazish oynasidagi «qolgan»);
+      tayyor    — shu detalga band qilingan TAYYOR TM lar qoldig'i (`_mrp_tayyor_qoldiq` — yuk xati va
+                  «Tayyor» tugmasi bilan AYNAN bir xil manba);
+      jarayonda — JARAYONDAGI TM lar bandi (ishlab chiqarish boshlangan, yakunlanmagan);
+      yetadi    — `mrp_tayyor_yetadimi(qolgan, tayyor)`.
+    MRP orqali yetkazilmaydigan detal (ombordagi TM dan olingan / MRP emas) — qolgan 0, yetadi True
+    (unga ishlab chiqarish kutilmaydi, «Tayyor» tugmasi ham uni tekshirmaydi)."""
+    if not _mrp_yetkazish_detalimi(order_item):
+        return {"qolgan": 0.0, "tayyor": 0.0, "jarayonda": 0.0, "yetadi": True}
+    qolgan = float(order_item.remaining_qty or 0)
+    tayyor = float(_mrp_tayyor_qoldiq(db, order_item, company_id, lock))
+    jarayonda = float(sum(float(fp.reserved_quantity or 0)
+                          for fp in _mrp_band_tmlar(db, order_item, company_id, lock=False)
+                          if not _fp_tayyormi(fp)))
+    return {"qolgan": qolgan, "tayyor": tayyor, "jarayonda": jarayonda,
+            "yetadi": mrp_tayyor_yetadimi(qolgan, tayyor)}
+
+
+def _mrp_olingan_oqi(delivery_item):
+    """`DeliveryItem.mrp_olingan` → [(tm_id, miqdor), ...]; yozilmagan (eski) / buzilgan → None."""
+    xom = getattr(delivery_item, 'mrp_olingan', None)
+    if not xom:
+        return None
+    try:
+        import json as _json
+        return [(int(r[0]), float(r[1])) for r in _json.loads(xom)]
+    except Exception:
+        return None
+
+
+def _mrp_ozod_oqi(return_item):
+    """kech73 (86-band): `ReturnItem.mrp_ozod` → [(tm_id, miqdor), ...]; yozilmagan / buzilgan → None."""
+    xom = getattr(return_item, 'mrp_ozod', None)
+    if not xom:
+        return None
+    try:
+        import json as _json
+        return [(int(r[0]), float(r[1])) for r in _json.loads(xom)]
+    except Exception:
+        return None
+
+
+def _mrp_ortiqcha_reja(db: Session, order_item, ortiqcha: float, company_id: int = None) -> list:
+    """kech73 (86-band, K72-1): MRP detalidan brakdan boshqa qaytarishning mijozga TOPSHIRILMAGAN
+    (ortiqcha) qismi omborga qo'yilganda mahsulot YANGI tayyor mahsulot (TM) bo'lib yaratilmaydi —
+    SHU detalga band qilingan TAYYOR TM bandidan erkin qoldiqqa o'tadi.
+
+    O'LCHANGAN (`work/probe73.py`, asl kod = zip 69, SQLite = HAQIQIY PG): `add_returned_to_stock`
+    band TM ga tegmay YANGI TM yaratardi:
+      * hech narsa ishlab chiqarilmagan detal 10 → "Ortiqcha" 3 → omborda 3 m² (tan narx 0) "havodan";
+      * PO 10 tayyor (band 10) → "Ortiqcha" 3 → yangi TM 3 / 9 000, band TM 10 / 10 o'zgarmaydi —
+        omborda 13 m² / 39 000 (to'g'risi 10 / 30 000); qolgan 7 topshirilgach band TM 3 / 3
+        topshirilgan detalga yopishib qoladi;
+      * aralash (yuk 5, qaytarish 7 = 5 topshirilgan + 2 ortiqcha) → yangi TM 7 → 12 m² (to'g'risi 10);
+      * PO jarayonda (TM hali tayyor emas) → "Ortiqcha" 3 → omborda 3 m² / 9 000 (ishlab chiqarilmagan);
+      * buyurtma o'chirilganda band ozod bo'ladi → ortiqcha ikki marta (13 m²).
+    Qoida (texnik — Claude; 57-band "Ha" va K70-1 "Taqiqlansin" ruhida):
+      * omborga faqat ISHLAB CHIQARILGAN ortiqcha qo'yiladi: tayyor band (jarayondagi TM emas —
+        `_fp_tayyormi`; har TM dan `min(qoldiq, band)`) − qaytarishdan KEYIN topshirilishi kerak
+        bo'lgan qoldiq ≥ ortiqcha. Yetmasa — ValueError, HECH NARSA yozilmaydi (mijozga kerak
+        bo'lmagan, hali ishlab chiqarilmagan miqdor — detal miqdorini kamaytirish bilan);
+      * bo'shatish ENG YANGI TM dan (teskari id): yuk xati (`_mrp_deliver_stock`) TM ni id tartibida
+        `quantity` bo'yicha oladi — erkin qism oxirgi TM da tursa, topshirish uni yemaydi;
+      * qulf — `_mrp_band_tmlar` (id tartibida FOR UPDATE — `_fp_qulf` bilan bir xil, deadlock yo'q);
+      * qoldiq bazadan QAYTA o'qiladi (chaqiruvchi (101, buyurtma) qulfi ostida; yangi / boshqa
+        so'rovdagi qaytarish sessiyadagi `order.returns` ro'yxatida bo'lmasligi mumkin — kech60 saboqi).
+    Qaytaradi: [(fp, miqdor), ...] — chaqiruvchi `reserved_quantity` ni kamaytiradi va
+    `ReturnItem.mrp_ozod` ga yozadi (o'chirishda AYNAN shu TM larga band qaytadi)."""
+    from sqlalchemy import func as _fn_oz
+    ortiqcha = float(ortiqcha or 0)
+    if ortiqcha <= 1e-9:
+        return []
+    cid = company_id if company_id is not None else getattr(order_item, 'company_id', None)
+    tmlar = _mrp_band_tmlar(db, order_item, cid, lock=True)
+    tayyor = [fp for fp in tmlar if _fp_tayyormi(fp)]
+
+    def _band(fp):
+        return max(0.0, min(float(fp.quantity or 0), float(fp.reserved_quantity or 0)))
+
+    tayyor_band = sum(_band(fp) for fp in tayyor)
+    jarayonda = sum(max(0.0, float(fp.reserved_quantity or 0)) for fp in tmlar if not _fp_tayyormi(fp))
+    db.expire(order_item, ["deliveries"])
+    _oldingi = float(db.query(_fn_oz.coalesce(_fn_oz.sum(ReturnItem.ortiqcha_miqdor), 0)).filter(
+        ReturnItem.company_id == cid,
+        ReturnItem.order_item_id == order_item.id,
+        ReturnItem.reason != ReturnReason.DEFECT).scalar() or 0)
+    _qolgan = max(0.0, float(order_item.order_qty_normalized or 0)
+                  - float(order_item.delivered_qty or 0) - _oldingi)
+    keyin_qolgan = max(0.0, _qolgan - ortiqcha)
+    mumkin = max(0.0, tayyor_band - keyin_qolgan)
+    if ortiqcha > mumkin + 1e-6:
+        _b = order_item.delivery_unit or ''
+        _jr = (f"; yana {_miqdor_matn(jarayonda)} {_b} hali ishlab chiqarilmoqda — tugagach qayta urinib ko'ring"
+               if jarayonda > 1e-9 else "")
+        raise ValueError(
+            f"«{order_item.name}» — MRP mahsuloti: omborga faqat ISHLAB CHIQARILGAN ortiqcha mahsulotni qo'yish "
+            f"mumkin. So'ralgan ortiqcha {_miqdor_matn(ortiqcha)} {_b}, tayyor ortiqcha {_miqdor_matn(mumkin)} {_b} "
+            f"(shu detalga band tayyor mahsulot {_miqdor_matn(tayyor_band)} {_b}, mijozga topshirilishi kerak "
+            f"qoladigan {_miqdor_matn(keyin_qolgan)} {_b}{_jr}). Mijozga kerak bo'lmagan, hali ishlab "
+            f"chiqarilmagan miqdor uchun buyurtma detalining miqdorini kamaytiring")
+    reja = []
+    qoldi = ortiqcha
+    for fp in reversed(tayyor):
+        if qoldi <= 1e-9:
+            break
+        q = min(qoldi, _band(fp))
+        if q > 1e-9:
+            reja.append((fp, q))
+            qoldi -= q
+    return reja
+
+
+def _mrp_deliver_stock(db: Session, order_item, qty: float,
+                       company_id: int = None, sign: float = 1.0,
+                       natija: dict = None, olingan=None) -> list:
+    """MRP orqali SHU DETALGA band qilingan tayyor mahsulotni yuk xati
+    bo'yicha ombordan chiqaradi (sign=1) yoki qaytaradi (sign=-1).
+
+    NIMA UCHUN KERAK (2026-09-20):
+    Oddiy "tayyor mahsulotdan" detallarda ombor buyurtma YARATILGANDA
+    olinadi (`_take_finished_for_order`). MRP esa mahsulotni buyurtmadan
+    KEYIN ishlab chiqaradi — o'sha payt allaqachon o'tib ketgan bo'ladi.
+    Natijada mahsulot mijozga ketgandan keyin ham omborda "band" holatda
+    abadiy turib qolardi.
+
+    Endi u YUK XATI yozilganda chiqadi — foydalanuvchi tanlagan tartib:
+    ishlab chiqarilgach omborda ko'rinib turadi, topshirilganda chiqadi.
+
+    Tan narx BARQAROR `unit_cost_stable` dan kamaytiriladi, shuning uchun
+    chiqarish va qaytarish aynan teng bo'ladi.
+
+    kech70 (76-band + K70-1, O'LCHANGAN `work/probe76.py`, SQLite + HAQIQIY PG 16):
+    bir detalga IKKI ishlab chiqarish buyurtmasi (TM A 5 × 3 000, B 5 × 5 000; jami 40 000):
+      * yuk 8 → A 5 + B 3 olindi; yuk o'chirildi → BUTUN 8 BIRINCHI topilgan TM ga qaytdi: A 8
+        (ishlab chiqarilgani 5!), B 2, tan narx 34 000 (−6 000 — keyingi sotuv foydasi sun'iy
+        oshardi). PG da tartib UPDATE dan keyin o'zgarib, 36 000 ham chiqdi.
+      * K70-1: faqat 5 ishlab chiqarilgan detalga yuk 8 → 200 (3 hech qayerdan yechilmadi);
+        yuk o'chirilganda TM 8 / 24 000 — 3 birlik va 9 000 so'm "havodan" paydo bo'ldi.
+    Yechim (texnik — Claude):
+      * olish — id TARTIBIDA, faqat TAYYOR (jarayondagi emas) TM dan; qaysi TM dan qancha
+        olingani `natija["olingan"]` → `DeliveryItem.mrp_olingan` ga yoziladi;
+      * qaytarish — `olingan` berilsa AYNAN shu TM larga shu miqdor; eski yozuvda (NULL) — teskari
+        id tartibida, har TM ga ISHLAB CHIQARILGANIDAN OSHMAYDIGAN miqdorgacha (ortig'i qaytmaydi);
+      * ishlab chiqarilganidan ko'p topshirish — `create_delivery` da RAD (foydalanuvchi qarori).
+    """
+    if not order_item or qty <= 0:
+        return []
+    log = []
+    qoldi = float(qty)
+    if sign > 0:
+        olindi = []
+        for fp in _mrp_band_tmlar(db, order_item, company_id):
+            if qoldi <= 1e-9:
+                break
+            if not _fp_tayyormi(fp):
+                continue
+            unit_cost = _fp_stable_unit_cost(db, fp)
+            olinadi = min(qoldi, float(fp.quantity or 0))
+            if olinadi <= 1e-9:
+                continue
+            fp.quantity = float(fp.quantity or 0) - olinadi
+            fp.reserved_quantity = max(0.0, float(fp.reserved_quantity or 0) - olinadi)
+            if unit_cost > 0:
+                fp.cost_price = max(0.0, float(fp.cost_price or 0) - unit_cost * olinadi)
+            log.append(f"🏭 {fp.name}: -{olinadi:g} {fp.unit} (yuk xati bo'yicha)")
+            olindi.append([fp.id, round(olinadi, 6)])
+            qoldi -= olinadi
+            # MUHIM: `reserved_for_order_item_id` TOZALANMAYDI, garchi
+            # `reserved_quantity` 0 ga tushsa ham. Bu — mahsulot qaysi
+            # detal uchun qilinganini ko'rsatuvchi TARIXIY bog'lam.
+            # Tozalansa, yuk xati keyin o'chirilganda mahsulotni topib
+            # bo'lmay qolardi va qaytarish ishlamasdi (sinovda aynan
+            # shunday chiqdi). Bandlik miqdori 0 — bu yetarli belgi.
+        if natija is not None:
+            natija["olingan"] = olindi
+    else:
+        reja = []
+        if olingan is not None:
+            # kech71 (K71-1, O'LCHANGAN `work/probe71r.py`, asl kod VA kech70 WIP): TM faqat
+            # SHU detalga bog'langanlar ichidan qidirilardi. Qisman topshirilgan detalning
+            # qolgan bandi “ozod qilish” bilan ochilib, keyin yuk xati o'chirilsa (UI da mumkin),
+            # topshirilgan 3 m² (9 000 so'm tan narx) HECH QAYERGA qaytmasdi. Endi yozilgan id
+            # bo'yicha topiladi; band ozod qilingan bo'lsa mahsulot ERKIN qoldiqqa qaytadi.
+            _cid_q = company_id if company_id is not None else getattr(order_item, 'company_id', None)
+            boyicha = {fp.id: fp for fp in _mrp_tmlar_idlar(db, [r[0] for r in olingan], _cid_q)}
+            for fid, miqdor in olingan:
+                fp = boyicha.get(fid)
+                if fp is None:
+                    log.append(f"⚠ Tayyor mahsulot #{fid} topilmadi — {miqdor:g} qaytarilmadi")
+                    continue
+                if miqdor > 1e-9:
+                    reja.append((fp, float(miqdor)))
+        else:
+            # Eski yozuv (kech70 dan oldin — qaysi TM dan olingani yozilmagan): olish tartibining
+            # aksi (teskari id), har TM ga ishlab chiqarilganidan OSHMAYDIGAN miqdorgacha.
+            tmlar = _mrp_band_tmlar(db, order_item, company_id)
+            for fp in reversed(tmlar):
+                if qoldi <= 1e-9:
+                    break
+                if fp.produced_quantity is None:
+                    sigadi = qoldi
+                else:
+                    sigadi = max(0.0, float(fp.produced_quantity or 0) - float(fp.quantity or 0))
+                miqdor = min(qoldi, sigadi)
+                if miqdor > 1e-9:
+                    reja.append((fp, miqdor))
+                    qoldi -= miqdor
+            if qoldi > 1e-9:
+                log.append(f"⚠ {qoldi:g} ishlab chiqarilganidan ortiq topshirilgan edi — omborga qaytarilmadi")
+        for fp, miqdor in reja:
+            unit_cost = _fp_stable_unit_cost(db, fp)
+            fp.quantity = float(fp.quantity or 0) + miqdor
+            if fp.reserved_for_order_item_id == order_item.id:
+                fp.reserved_quantity = float(fp.reserved_quantity or 0) + miqdor
+                _qayer = "yuk xati bekor qilindi"
+            else:
+                # kech71: band ozod qilingan — mahsulot erkin qoldiqqa (boshqa detal bandiga EMAS).
+                _qayer = "yuk xati bekor qilindi; band ozod qilingan — erkin qoldiqqa"
+            if unit_cost > 0:
+                fp.cost_price = float(fp.cost_price or 0) + unit_cost * miqdor
+            log.append(f"🏭 {fp.name}: +{miqdor:g} {fp.unit} ({_qayer})")
+    if log:
+        db.flush()
+    return log
+
+
+# ============================================================
+# YETKAZISH — TAKROR YUBORISH HIMOYASI VA QULF (kech27, 2026-09-22)
+# ============================================================
+# HAQIQIY PostgreSQL 16 da O'LCHANGAN (asl kod = 17g, `3319f4a`; har holat
+# 12 urinishdan 12 tasida):
+#   A) bir xil qisman yetkazish (+ to'lov 50 000) ketma-ket ikki marta
+#      yuborildi → ikkalasi 200: 2 yetkazish, 2 to'lov (pul ikki marta).
+#   B) xuddi shu so'rov ikki oqimda BIR VAQTDA → yana 2 yetkazish, 2 to'lov.
+#   C) ikki foydalanuvchi bir vaqtda 20 + 20 (qoldiq 30, to'lovsiz) →
+#      IKKALASI saqlandi: 40 topshirildi (buyurtma 30), ikkala yetkazish
+#      raqami ham bir xil "/Y-1". Qoldiq tekshiruvi qulfsiz edi — ikkala
+#      so'rov bir-birining yozuvini ko'rmasdan "sig'adi" deb o'tardi.
+#   D) C bilan bir xil, to'lov bilan → yana 40: qulf (101, buyurtma) faqat
+#      to'lov bo'lganda va qoldiq tekshiruvidan KEYIN olinardi.
+# Yechim (ikki qatlam, qo'lda to'lov / buyurtma himoyasi bilan bir naqsh):
+#   1) Qulf — HAR yetkazishda, har qanday tekshiruvdan OLDIN (to'lovdagi
+#      bilan bir fazo: 101, buyurtma). Keyin sessiya holati bazadan qayta
+#      o'qiladi — qoldiq, holat, qarz va yetkazish raqami navbatdagi so'rov
+#      uchun oldingisi yozib bo'lgandan keyingi haqiqiy qiymat bo'ladi.
+#   2) Imzo — qulf ichida: shu buyurtmada so'nggi `PUL_TAKROR_SONIYA`
+#      soniya ichida AYNAN shunday yetkazish (bazaga yoziladigan hamma
+#      narsa bir xil) bo'lsa, yangisi yozilmaydi, mavjudining o'zi
+#      `duplicate: true` bilan qaytariladi (qo'lda to'lov va buyurtmadagi
+#      kabi). Rad etish (400) EMAS — chunki birinchi so'rov haqiqatan
+#      saqlangan; xato ko'rgan foydalanuvchi oynadan keyin qayta kiritib,
+#      haqiqiy ikki marta yozib qo'yishi mumkin edi. Haqiqiy takroriy
+#      yetkazish oynadan keyin (yoki biror maydoni boshqacha bo'lsa) —
+#      odatdagidek yoziladi.
+
+# Yozish va imzo AYNAN bir xil usulni ishlatishi uchun yagona jadval
+_YETKAZISH_USULI = {
+    "naqd": PaymentMethod.CASH,
+    "plastik": PaymentMethod.CARD,
+    "o'tkazma": PaymentMethod.TRANSFER,
+}
+
+
+def _yetkazish_usuli(qiymat) -> "PaymentMethod":
+    return _YETKAZISH_USULI.get(qiymat or "naqd", PaymentMethod.CASH)
+
+
+def _yetkazish_imzo_sorov(data, detal_idlari) -> tuple:
+    """So'rovning imzosi — bazaga AYNAN nima yozilishi.
+
+    Qatorlar pastdagi yozuv bilan bir xil saralanadi: miqdori musbat va
+    shu buyurtmaning detali bo'lganlari (boshqalari yozilmaydi)."""
+    qatorlar = tuple(sorted(
+        (int(di.order_item_id), round(float(di.quantity), 6))
+        for di in (data.items or [])
+        if float(di.quantity or 0) > 0 and di.order_item_id in detal_idlari
+    ))
+    summa = getattr(data, 'payment_amount', None)
+    tolov = None
+    if summa and summa > 0:
+        tolov = (_pul2(summa), _yetkazish_usuli(getattr(data, 'payment_method', None)))
+    return (
+        qatorlar,
+        tolov,
+        _pul2(getattr(data, 'transport_cost', 0) or 0),
+        getattr(data, 'transport_payer', 'none') or 'none',
+        getattr(data, 'transport_carrier', None) or None,
+        getattr(data, 'received_by', None) or None,
+        getattr(data, 'notes', None) or None,
+    )
+
+
+def _yetkazish_imzo_bazadan(db: Session, d, korxona_id) -> tuple:
+    """Bazadagi yetkazishning imzosi (`_yetkazish_imzo_sorov` bilan bir shakl).
+
+    TENANT: `Payment` da korxona ustuni yo'q — filtr OTA (buyurtma) orqali;
+    `korxona_id` — chaqiruvchi allaqachon tekshirgan buyurtmaning korxonasi
+    (ortiqcha, lekin ataylab aniq: so'rov o'zi ham korxona bilan cheklangan)."""
+    qatorlar = tuple(sorted(
+        (int(x.order_item_id), round(float(x.quantity), 6)) for x in d.items
+    ))
+    tolovlar = db.query(Payment).join(Order, Order.id == Payment.order_id).filter(
+        Payment.delivery_id == d.id, Order.company_id == korxona_id).all()
+    tolov = None
+    if len(tolovlar) == 1:
+        tolov = (_pul2(tolovlar[0].amount or 0), tolovlar[0].payment_method)
+    elif tolovlar:
+        tolov = ("bir nechta", len(tolovlar))      # so'rov bilan hech qachon teng emas
+    return (
+        qatorlar,
+        tolov,
+        _pul2(d.transport_cost or 0),
+        d.transport_payer or 'none',
+        d.transport_carrier or None,
+        d.received_by or None,
+        d.notes or None,
+    )
+
+
+# kech101 (K101-1 … K101-4): o'chirilgan (Savatdagi) buyurtma ustida ombor / holat / miqdorga ta'sir qiladigan amallarning
+# YAGONA rad matni — yuk xati (2026-09 audit), «Tayyor», to'liq tahrir, yuk xatini o'chirish, ishlab chiqarishni bog'lash / boshlash.
+OCHIRILGAN_BUYURTMA_XABARI = "Bu buyurtma o'chirilgan — avval uni tiklang"
+
+
+import re as _re144                                 # noqa: E402
+_YUK_Y_RE = _re144.compile(r"/Y-(\d+)$")
+
+
+def _loyiha_yuk_eng_katta(db: Session, order, istisno_delivery_id=None):
+    """kech124 (zip 144 — egasi QARORI 06.10, «ORD-001-2/Y-6»): yuk xati Y-raqami LOYIHA bo'yicha davom etadi (buyurtma raqami
+    qoladi). Shu buyurtma loyihasida shu paytgacha BERILGAN eng katta Y-raqam — loyiha qatorini QULFLAB o'qiladi.
+
+    Manbalar (eng kattasi; raqam faqat o'sadi, o'chirilgan raqam qayta berilmaydi — QAROR «A»):
+      - loyiha hisoblagichi `projects.oxirgi_yuk_seq` (zip 144 dan; eski loyihaga — `main._migrate_loyiha_yuk_seq`);
+      - loyihaning HAMMA buyurtmalari (yumshoq o'chirilganlari ham) yuk xatlaridagi `/Y-<N>` (eski raqamlar — har buyurtma o'zicha
+        boshlangan: ORD-001-1/Y-1…Y-5, ORD-001-2/Y-1…Y-3 → keyingisi Y-6);
+      - shu buyurtmalarning hisoblagichi `orders.oxirgi_yuk_seq` (kech86 — buyurtma ichida o'chirilgan oxirgi raqam).
+    `istisno_delivery_id` — hozir yozilayotgan (vaqtinchalik buyurtma raqamli) yuk xati hisobga olinmaydi.
+
+    QULF (PostgreSQL; `FOR NO KEY UPDATE` — buyurtma qo'shishdagi tashqi kalit tekshiruvi `FOR KEY SHARE` bilan to'qnashmaydi):
+    bir loyihaning ikki buyurtmasiga BIR VAQTDA yuk xati yozilsa ham raqam takrorlanmaydi (qulf tranzaksiya oxirigacha). Tartib —
+    buyurtma qulfi (101) → tayyor mahsulot / ombor qatorlari → LOYIHA qatori (oxirida): `create_order` dagi loyiha hisoblagichi va
+    `_loyiha_tolangan_yangila` bilan BIR tartib (kech86 izohi: teskari tartib deadlock berardi) — chaqiruvchi (`create_delivery`)
+    buni yuk qatorlari va tayyor mahsulot chiqimidan KEYIN chaqiradi. SQLite da `FOR …` yo'q (yozuvlar baribir ketma-ket).
+
+    Qaytaradi: (loyiha obyekti yoki None, eng katta Y-raqam)."""
+    _cid = getattr(order, "company_id", None)
+    _pid = getattr(order, "project_id", None)
+    if _pid is None:
+        return None, 0
+    _pq = db.query(Project).filter(Project.id == _pid)
+    if _cid is not None:
+        _pq = _pq.filter(Project.company_id == _cid)
+    _prj = _pq.populate_existing().with_for_update(key_share=True).first()
+    if _prj is None:
+        return None, 0
+    _eng = int(_prj.oxirgi_yuk_seq or 0)
+    _yq = db.query(Delivery.delivery_number).join(Order, Order.id == Delivery.order_id).filter(Order.project_id == _prj.id)
+    if _cid is not None:
+        _yq = _yq.filter(Order.company_id == _cid)
+    if istisno_delivery_id is not None:
+        _yq = _yq.filter(Delivery.id != istisno_delivery_id)
+    for (_dn,) in _yq.all():
+        _m = _YUK_Y_RE.search(_dn or "")
+        if _m and int(_m.group(1)) > _eng:
+            _eng = int(_m.group(1))
+    from sqlalchemy import func as _fn144
+    _hq = db.query(_fn144.max(Order.oxirgi_yuk_seq)).filter(Order.project_id == _prj.id)
+    if _cid is not None:
+        _hq = _hq.filter(Order.company_id == _cid)
+    _hb = _hq.scalar()
+    if _hb is not None and int(_hb) > _eng:
+        _eng = int(_hb)
+    return _prj, _eng
+
+
+def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
+                    company_id: int = None) -> dict:
     """Yangi yetkazish qo'shadi.
-    Ombor tegilmaydi — bu faqat mijozga topshirish hisobi."""
-    order = db.query(Order).filter(Order.id == data.order_id).first()
+    Ombor tegilmaydi — bu faqat mijozga topshirish hisobi.
+
+    kech124 (zip 144): yuk xati raqami — `ORD-<loyiha>-<buyurtma>/Y-<N>`, N LOYIHA bo'yicha davom etadi
+    (`_loyiha_yuk_eng_katta`; buyurtma ichidagi raqam — faqat vaqtinchalik, loyiha qulfidan oldin)."""
+    # 17g (2026-09-22): ILDIZ — tana QAT'IY, bazaga tegishdan OLDIN (xato →
+    # `ValueError`, hech narsa yozilmaydi). HAQIQIY PostgreSQL da O'LCHANGAN
+    # (asl kod = 17f): to'lov / transport `Infinity` / `1e20` — 500; to'lov
+    # `0.001` → 0.00 so'mlik to'lov yozuvi; noma'lum to'lovchi saqlanib
+    # transport Moliyadan tushib qolardi; noma'lum usul jimgina "naqd";
+    # uzun matnlar — 500. Marshrut ham tekshiradi; bu qatlam ichki
+    # chaqiruvchilar (`services` — "Tayyor" belgisidagi avtomatik yetkazish)
+    # uchun ham amal qiladi.
+    _clean_val("Delivery", _val_dump(data, "Delivery"))
+    # M2: yetkazish FAQAT o'z korxonasining buyurtmasiga.
+    _oq = db.query(Order).filter(Order.id == data.order_id)
+    if company_id is not None:
+        _oq = _oq.filter(Order.company_id == company_id)
+    order = _oq.first()
     if not order:
         return {"success": False, "message": "Buyurtma topilmadi"}
 
+    # kech27: QULF — har qanday tekshiruvdan OLDIN, to'lov bo'lmasa ham
+    # (yuqoridagi "YETKAZISH — TAKROR YUBORISH HIMOYASI VA QULF" izohi, C/D).
+    # Korxona tekshiruvidan KEYIN — begona buyurtma raqami bilan qulf olinmaydi.
+    # `flush` — chaqiruvchining (masalan `services` "Tayyor" oqimi) hali
+    # yozilmagan o'zgarishlari `expire_all` da yo'qolmasin (sessiya
+    # `autoflush=False`). `expire_all` — qulfdan OLDIN o'qilgan buyurtma /
+    # detal / yetkazishlar holati eskirgan bo'lishi mumkin; endi hammasi
+    # qulf ostida bazadan qayta o'qiladi (oldingi so'rov yozib bo'lgach).
+    db.flush()
+    _pul_qulfi(db, 101, order.id)
+    db.expire_all()
+
     # MUHIM (2026-09 audit): o'chirilgan (is_deleted) buyurtmaga yetkazish
     # qo'shishga YO'L QO'YILMAYDI. Bunga yo'l qo'yilsa, buyurtma o'chirilgan
-    # paytda hisoblangan delivery_percent (Gips/Loy proporsional qaytarish
+    # paytda hisoblangan delivery_percent (Loy proporsional qaytarish
     # va keyinchalik tiklashda qayta yechish shu foizga tayanadi) o'chirish
     # va tiklash orasida o'zgarib qolib, ombor hisobini buzib qo'yishi mumkin
     # edi (masalan eski ochiq varaq yoki to'g'ridan-to'g'ri API chaqiruvi orqali).
     if order.is_deleted:
-        return {"success": False, "message": "Bu buyurtma o'chirilgan — avval uni tiklang"}
+        return {"success": False, "message": OCHIRILGAN_BUYURTMA_XABARI}
 
     if order.status == OrderStatus.DRAFT:
         return {"success": False, "message": "Qoralama buyurtmani yetkazib bo'lmaydi"}
@@ -3873,8 +9960,57 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None)
     if not data.items:
         return {"success": False, "message": "Kamida bitta detal kiriting"}
 
+    # kech38 (5-bo'lim 6-band): shu buyurtmaga TEGISHLI BO'LMAGAN yoki umuman
+    # mavjud bo'lmagan detal qatori — butun so'rov RAD etiladi. Ilgari bunday
+    # qator pastdagi siklda jimgina tashlab yuborilar, qolganlari 200 bilan
+    # saqlanardi — O'LCHANGAN (SQLite va HAQIQIY PostgreSQL 16, asl kod
+    # `c7a11f3`): [o'z detali 2, boshqa buyurtma detali 3] → 200, faqat o'z
+    # detali yozildi; [yo'q id, o'z detali] → 200. Haqiqiy holat: yetkazish
+    # oynasi ochiq turganda boshqa xodim detalni o'chirsa, foydalanuvchi
+    # "saqlandi" ko'rardi, lekin bir qator izsiz yo'qolardi. Tekshiruv IMZO
+    # va qoldiq tekshiruvidan OLDIN: noto'g'ri so'rov "takroriy" deb ham
+    # qabul qilinmaydi (imzo bunday qatorlarni e'tiborsiz qoldiradi).
+    # `order.items` — `expire_all` dan keyin, qulf ostida bazadan o'qiladi.
+    _detal_idlari = {oi.id for oi in order.items}
+    for _qator_n, _dq in enumerate(data.items, 1):
+        if _dq.order_item_id not in _detal_idlari:
+            return {"success": False,
+                    "message": (f"'items' {_qator_n}-qator: bu detal shu buyurtmada topilmadi "
+                                f"(o'chirilgan bo'lishi mumkin) — sahifani yangilab, qayta kiriting")}
+
+    # kech27: TAKROR YUBORISH — qoldiq tekshiruvidan ham, to'lov chegarasidan
+    # ham OLDIN turishi SHART: birinchi so'rov yozilgach qoldiq va qarz
+    # kamayadi, takroriy so'rov ularga yetib kelsa foydalanuvchiga
+    # "Qoldiqdan ko'p berib bo'lmaydi!" yoki "ortiqcha to'lov" degan
+    # chalg'ituvchi xabar chiqardi — holbuki yetkazish haqiqatan saqlangan.
+    from datetime import timedelta as _td_dlv
+    _imzo = _yetkazish_imzo_sorov(data, _detal_idlari)
+    if _imzo[0]:
+        # TENANT: `Delivery` da korxona ustuni yo'q — filtr OTA (buyurtma)
+        # orqali; buyurtma yuqorida korxona bilan tekshirilgan, bu yerda ham
+        # aniq cheklanadi.
+        _yaqinda = db.query(Delivery).join(Order, Order.id == Delivery.order_id).filter(
+            Delivery.order_id == order.id,
+            Order.company_id == order.company_id,
+            Delivery.delivered_at >= datetime.utcnow() - _td_dlv(seconds=PUL_TAKROR_SONIYA),
+        ).order_by(Delivery.delivered_at.desc(), Delivery.id.desc()).all()
+        for _eski in _yaqinda:
+            if _yetkazish_imzo_bazadan(db, _eski, order.company_id) == _imzo:
+                return {
+                    "success": True,
+                    "duplicate": True,
+                    "message": (f"{_eski.delivery_number} hozirgina saqlangan edi — "
+                                f"takroriy so'rov, qayta yozilmadi"),
+                    "delivery_id": _eski.id,
+                    "delivery_number": _eski.delivery_number,
+                    "delivery_percent": order.delivery_percent,
+                    "is_fully_delivered": order.is_fully_delivered,
+                    "order_status": order.status.value,
+                }
+
     # Tekshirish: qoldiqdan ko'p berilmasin
     errors = []
+    mrp_kam = []
     valid_items = []
     for di in data.items:
         if di.quantity <= 0:
@@ -3892,16 +10028,64 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None)
                 f"lekin qoldi {remaining:g} {oi.delivery_unit}"
             )
             continue
+        # kech70 (FOYDALANUVCHI QARORI "Taqiqlansin", K70-1): MRP detali faqat ishlab chiqarilgan
+        # (TAYYOR) miqdorgacha topshiriladi. Ilgari 5 tayyor detalga 8 yozilardi — 3 hech qayerdan
+        # yechilmasdi (xomashyo, tan narx, foyda noto'g'ri). TM qatorlari shu yerda qulflanadi
+        # (id tartibida) — keyingi chiqarish aynan shu qoldiqni ko'radi.
+        if _mrp_yetkazish_detalimi(oi):
+            _tayyor = _mrp_tayyor_qoldiq(db, oi, order.company_id)
+            if di.quantity > _tayyor + 0.001:
+                mrp_kam.append(
+                    f"{oi.name}: {di.quantity:g} {oi.delivery_unit} berilmoqchi, lekin tayyor "
+                    f"(ishlab chiqarilgan) {_tayyor:g} {oi.delivery_unit} — avval ishlab chiqarishni yakunlang"
+                )
+                continue
         valid_items.append((oi, di.quantity))
 
     if errors:
         return {"success": False, "message": "Qoldiqdan ko'p berib bo'lmaydi!", "shortages": errors}
+    if mrp_kam:
+        return {"success": False, "message": "Ishlab chiqarilganidan ko'p berib bo'lmaydi!", "shortages": mrp_kam}
 
     if not valid_items:
         return {"success": False, "message": "Yetkazish uchun miqdor kiritilmagan"}
 
+    # 17g (2026-09-22): shu yukka bog'liq to'lov — qo'lda to'lov
+    # (`create_payment`) bilan AYNAN bir xil chegaralar ("3 baravar" qoidasi →
+    # `ValueError`, qarzdan ko'p → `OverpaymentWarning`, marshrut → 409 va UI
+    # tasdig'i), va bu tekshiruv yetkazish YOZILISHIDAN OLDIN: rad etilsa hech
+    # narsa saqlanmaydi. Qulf (101, buyurtma — qo'lda to'lov bilan bir fazo)
+    # kech27 dan beri funksiya BOSHIDA olinadi (har yetkazishda), ya'ni bir
+    # vaqtda kelgan qo'lda to'lov yoki boshqa yetkazish qarzni eskirtirmaydi.
+    payment_amount = getattr(data, 'payment_amount', None)
+    if payment_amount and payment_amount > 0:
+        _tolov_chegarasi(order, payment_amount,
+                         bool(getattr(data, 'confirm_overpay', False)))
+
     # Yetkazish raqami: ORD-010-1/Y-2
+    # kech124 (zip 144): bu yerdagi raqam — buyurtma ichidagi (VAQTINCHALIK) raqam; yakuniysi LOYIHA bo'yicha pastda, loyiha
+    # qulfi ostida (yuk qatorlari va tayyor mahsulot chiqimidan KEYIN — qulf tartibi `_loyiha_yuk_eng_katta` izohida).
     seq = db.query(Delivery).filter(Delivery.order_id == order.id).count() + 1
+    # kech86 (K86-1, O'LCHANDI probe86c — SQLite va PG): `yuklar SONI + 1` o'rtadagi yuk xati
+    # o'chirilgach MAVJUD raqamni berardi (Y-1, Y-3, Y-3 — ikki hujjat bir raqamda). Endi raqam mavjud
+    # yuklarning eng kattasidan KEYIN (buyurtma qulfi 101 ostida — bir buyurtmaning yuklari ketma-ket).
+    import re as _re_y86
+    _yq86 = db.query(Delivery.delivery_number).join(Order, Order.id == Delivery.order_id).filter(
+        Delivery.order_id == order.id)
+    if getattr(order, "company_id", None) is not None:
+        _yq86 = _yq86.filter(Order.company_id == order.company_id)
+    for (_dn86,) in _yq86.all():
+        _my86 = _re_y86.search(r"/Y-(\d+)$", _dn86 or "")
+        if _my86 and int(_my86.group(1)) >= seq:
+            seq = int(_my86.group(1)) + 1
+    # kech86 (QAROR "A" yuk xatiga ham): buyurtma hisoblagichi — OXIRGI yuk xati o'chirilsa ham uning raqami
+    # qayta berilmaydi (hisoblagich yakuniy commitdan oldin yoziladi).
+    _yh86 = db.query(Order.oxirgi_yuk_seq).filter(Order.id == order.id)
+    if getattr(order, "company_id", None) is not None:
+        _yh86 = _yh86.filter(Order.company_id == order.company_id)
+    _yh86 = _yh86.scalar()
+    if _yh86 is not None and int(_yh86) >= seq:
+        seq = int(_yh86) + 1
     delivery_number = f"{order.order_number}/Y-{seq}"
 
     db_delivery = Delivery(
@@ -3917,13 +10101,27 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None)
     db.add(db_delivery)
     db.flush()
 
+    mrp_log = []
     for oi, qty in valid_items:
-        db.add(DeliveryItem(
+        # kech123 (zip 143): yuk paytidagi ulush — qoplamachi / «har birlik uchun» haqi ichki detallar bo'yicha shundan
+        # (`services._yuk_xati_ulushlari`); detal miqdori 0 bo'lsa — NULL.
+        _norm143 = float(oi.order_qty_normalized or 0)
+        _di = DeliveryItem(
             delivery_id=db_delivery.id,
             order_item_id=oi.id,
             quantity=qty,
-            unit=oi.delivery_unit
-        ))
+            unit=oi.delivery_unit,
+            ulush=(float(qty) / _norm143) if _norm143 > 0 else None
+        )
+        db.add(_di)
+        # 2026-09-20: MRP orqali shu detalga band qilingan tayyor mahsulot
+        # aynan SHU YERDA ombordan chiqadi (yuqoridagi izohga qarang).
+        # kech70: qaysi TM dan qancha olingani yuk qatoriga yoziladi — o'chirishda AYNAN qaytadi.
+        _mn = {}
+        mrp_log.extend(_mrp_deliver_stock(db, oi, qty, company_id=company_id, natija=_mn))
+        if _mn.get("olingan"):
+            import json as _json
+            _di.mrp_olingan = _json.dumps(_mn["olingan"])
 
     db.flush()
     db.refresh(order)
@@ -3931,7 +10129,14 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None)
     # Hammasi berilgan bo'lsa — status
     fully = order.is_fully_delivered
     if fully and order.status not in (OrderStatus.DELIVERED, OrderStatus.CANCELLED):
-        order.status = OrderStatus.DELIVERED
+        # kech75 (91 / 92-band, FOYDALANUVCHI QARORI B): "Tayyor" (READY) — hodim bosgan
+        # yakun; oylik hisobot va usta KPI faqat READY ni sanaydi. Yuk xati uni DELIVERED ga
+        # PASAYTIRMAYDI. O'LCHANGAN (`work/probe91.py` Q5 / Q7, asl kod): "Tayyor" buyurtmada
+        # yuk bo'lmasa (masalan hammasi "Ortiqcha" qaytib, keyin qaytarish o'chirilgan) va
+        # qolgani yuk bilan topshirilsa — DELIVERED bo'lib, hisobotdan JIM chiqib ketardi
+        # (daromad −500 000). "Tayyor" dagi avtomatik yuk ham shu yo'ldan o'tadi — READY qoladi.
+        if order.status != OrderStatus.READY:
+            order.status = OrderStatus.DELIVERED
         if not order.completed_at:
             order.completed_at = datetime.utcnow()
         # 2026-09-13: to'liq topshirilgan buyurtma "Pin qilingan" ro'yxatidan
@@ -3939,45 +10144,64 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None)
         # emas, ro'yxat vaqt o'tishi bilan eski ishlar bilan to'lib ketmasin.
         order.is_pinned = False
 
-    # Shu yukka bog'liq to'lov (ixtiyoriy) — mavjud to'lov tizimidan foydalanadi
-    payment_amount = getattr(data, 'payment_amount', None)
-    payment_warning = None
+    # kech124 (zip 144 — egasi QARORI 06.10): YAKUNIY raqam — LOYIHA bo'yicha. Masalan PRJ-001 da ORD-001-1/Y-1 … Y-5 bo'lsa,
+    # ORD-001-2 ning birinchi yuk xati — ORD-001-2/Y-6 (buyurtma raqami qoladi). Eski raqamlar O'ZGARMAYDI (mijozga qog'oz
+    # berilgan); o'chirilgan raqam qayta berilmaydi (QAROR «A»). Loyiha qatori QULFLANADI — bir loyihaning ikki buyurtmasiga
+    # parallel yuk xati ham takror raqam olmaydi. Qulf shu yerda (tayyor mahsulot / ombor qatorlaridan KEYIN, to'lov va loyiha
+    # «To'langan» summasidan OLDIN) — `create_order` va `_loyiha_tolangan_yangila` bilan bir tartib.
+    _prj144, _eng144 = _loyiha_yuk_eng_katta(db, order, istisno_delivery_id=db_delivery.id)
+    if _eng144 >= seq:
+        seq = _eng144 + 1
+    delivery_number = f"{order.order_number}/Y-{seq}"
+    db_delivery.delivery_number = delivery_number
+
+    # Shu yukka bog'liq to'lov (ixtiyoriy) — chegaralari yuqorida, yetkazish
+    # yozilishidan OLDIN tekshirilgan (`_tolov_chegarasi`).
+    # 17g (2026-09-22): to'lov yetkazish bilan BITTA tranzaksiyada (atomar)
+    # yoziladi. Ilgari bu yer `try/except` ichida edi — niyat "to'lov yozilmasa
+    # ham yetkazish saqlansin, foydalanuvchiga ogohlantirish" edi, lekin
+    # HAQIQIY PostgreSQL da O'LCHANGAN: `flush` xatosidan keyin sessiya
+    # tranzaksiyasi bekor bo'ladi va pastdagi `commit` `PendingRollbackError`
+    # beradi — ya'ni javob baribir 500, hech narsa saqlanmasdi (ogohlantirish
+    # hech qachon yetib bormasdi). Endi summa, usul va sig'im oldindan qat'iy
+    # tekshirilgani uchun bu yozuv xato bermaydi; kutilmagan baza xatosi
+    # bo'lsa — butun so'rov bekor bo'ladi (yetkazish to'lovsiz, yarim holda
+    # qolmaydi), foydalanuvchi qayta yuboradi.
     if payment_amount and payment_amount > 0:
-        try:
-            method_map = {"naqd": PaymentMethod.CASH, "plastik": PaymentMethod.CARD, "o'tkazma": PaymentMethod.TRANSFER}
-            pay_method = method_map.get(getattr(data, 'payment_method', None) or 'naqd', PaymentMethod.CASH)
-            db.add(Payment(
-                order_id=order.id,
-                delivery_id=db_delivery.id,
-                amount=payment_amount,
-                payment_type=PaymentType.PARTIAL,
-                payment_method=pay_method,
-                received_by=data.received_by,
-                notes=f"{delivery_number} yuki uchun to'lov"
-            ))
-            # MUHIM TUZATISH: avval bu yerda to'lov yozilgandan keyin
-            # buyurtmaning "To'lov holati" (payment_status) UMUMAN qayta
-            # hisoblanmasdi — chunki bu yerga to'g'ridan-to'g'ri Payment
-            # yozilardi, standart create_payment() (u har doim shu
-            # yangilashni chaqiradi) chetlab o'tilardi. Natijada, "Yuk
-            # xati" orqali to'liq to'lov qilingan buyurtmalar ham hamon
-            # "To'lanmagan" bo'lib ko'rinib qolardi (2026-08-21 zaxira
-            # tekshiruvida ORD-027-2/ORD-027-3'da aynan shu holat topildi).
-            db.flush()
-            db.refresh(order)
-            _update_order_payment_status(db, order)
-        except Exception as e:
-            # Yetkazish saqlanishida davom etadi (ma'lumot yo'qolmasligi uchun),
-            # lekin xato albatta logga yoziladi va foydalanuvchiga aniq ogohlantirish qaytariladi —
-            # shunda u to'lovni QO'LDA qo'shishi mumkin (pul "yo'qolib qolmasligi" uchun).
-            try:
-                log_error(db, str(e), endpoint="create_delivery:payment_write")
-            except Exception:
-                pass
-            payment_warning = (
-                f"⚠️ Yetkazish saqlandi, LEKIN {payment_amount:,.0f} so'mlik to'lovni yozishda xato "
-                f"yuz berdi. Iltimos, to'lovni QO'LDA qo'shib qo'ying."
-            )
+        # kech27: imzo tekshiruvi bilan AYNAN bir xil jadval (`_YETKAZISH_USULI`)
+        pay_method = _yetkazish_usuli(getattr(data, 'payment_method', None))
+        db.add(Payment(
+            order_id=order.id,
+            delivery_id=db_delivery.id,
+            amount=payment_amount,
+            payment_type=PaymentType.PARTIAL,
+            payment_method=pay_method,
+            received_by=data.received_by,
+            notes=f"{delivery_number} yuki uchun to'lov"
+        ))
+        # MUHIM TUZATISH: avval bu yerda to'lov yozilgandan keyin
+        # buyurtmaning "To'lov holati" (payment_status) UMUMAN qayta
+        # hisoblanmasdi — chunki bu yerga to'g'ridan-to'g'ri Payment
+        # yozilardi, standart create_payment() (u har doim shu
+        # yangilashni chaqiradi) chetlab o'tilardi. Natijada, "Yuk
+        # xati" orqali to'liq to'lov qilingan buyurtmalar ham hamon
+        # "To'lanmagan" bo'lib ko'rinib qolardi (2026-08-21 zaxira
+        # tekshiruvida ORD-027-2/ORD-027-3'da aynan shu holat topildi).
+        db.flush()
+        db.refresh(order)
+        _update_order_payment_status(db, order)
+        # 17c (2026-09-21): yuk xati to'lovi loyiha "To'langan"
+        # summasini YANGILAMASDI — jonli PRJ-033 da aynan shu topildi
+        # (buyurtma to'liq to'langan, loyiha "To'langan: 0").
+        _loyiha_tolangan_yangila(db, order.project)
+
+    # kech86 (QAROR "A" yuk xatiga ham): berilgan yuk raqami buyurtma hisoblagichiga.
+    if int(order.oxirgi_yuk_seq or 0) < seq:
+        order.oxirgi_yuk_seq = seq
+    # kech124 (zip 144): va LOYIHA hisoblagichiga — keyingi yuk xati (shu loyihaning istalgan buyurtmasida) undan KATTA raqam oladi,
+    # bu yuk xati yoki butun buyurtma o'chirilsa ham.
+    if _prj144 is not None and int(_prj144.oxirgi_yuk_seq or 0) < seq:
+        _prj144.oxirgi_yuk_seq = seq
 
     db.commit()
     db.refresh(db_delivery)
@@ -3992,8 +10216,8 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None)
         "is_fully_delivered": fully,
         "order_status": order.status.value
     }
-    if payment_warning:
-        result["payment_warning"] = payment_warning
+    if mrp_log:
+        result["inventory_log"] = mrp_log   # 2026-09-20: MRP mahsuloti chiqdi
     return result
 
 
@@ -4037,10 +10261,13 @@ def toggle_order_pin(db: Session, order_id: int) -> dict:
     return {"success": True, "is_pinned": order.is_pinned}
 
 
-def get_pinned_orders(db: Session) -> list:
+def get_pinned_orders(db: Session, company_id: int = None) -> list:
     """Pin qilingan buyurtmalarni, TOPSHIRISH MUDDATI eng yaqinidan
     boshlab (muddat kiritilmaganlar oxirida) qaytaradi."""
-    rows = db.query(Order).filter(
+    _pq = db.query(Order)
+    if company_id is not None:
+        _pq = _pq.filter(Order.company_id == company_id)
+    rows = _pq.filter(
         Order.is_pinned == True, Order.is_deleted.isnot(True)
     ).all()
     rows.sort(key=lambda o: (o.deadline is None, o.deadline))
@@ -4052,37 +10279,189 @@ def get_pinned_orders(db: Session) -> list:
             "project_name": o.project.project_name if o.project else "—",
             "status": o.status.value,
             "total_amount": float(o.total_amount or 0),
-            "agreed_amount": float(o.agreed_amount or 0) if o.agreed_amount else None,
+            "agreed_amount": float(o.agreed_amount) if o.agreed_amount is not None else None,
             "master_name": o.master.name if o.master else "—",
-            "created_at": o.created_at.strftime("%d.%m.%Y") if o.created_at else "—",
-            "deadline": o.deadline.strftime("%d.%m.%Y") if o.deadline else None,
+            # kech106 (9 + 50-band B qismi): Toshkent kuni (ilgari UTC — tungi buyurtma "kecha" bo'lib chiqardi)
+            "created_at": _tashkent_vaqt(o.created_at).strftime("%d.%m.%Y") if o.created_at else "—",
+            "deadline": _tashkent_vaqt(o.deadline).strftime("%d.%m.%Y") if o.deadline else None,
             "deadline_urgency": get_deadline_urgency(o.deadline, o.status.value, o.is_fully_delivered),
             "project_id": o.project_id,
         })
     return result
 
 
-def get_delivery(db: Session, delivery_id: int) -> Optional[Delivery]:
-    return db.query(Delivery).filter(Delivery.id == delivery_id).first()
+def get_delivery(db: Session, delivery_id: int, company_id: int = None) -> Optional[Delivery]:
+    _dq = db.query(Delivery).filter(Delivery.id == delivery_id)
+    if company_id is not None:
+        _dq = _dq.join(Order, Order.id == Delivery.order_id).filter(
+            Order.company_id == company_id)
+    return _dq.first()
 
 
-def delete_delivery(db: Session, delivery_id: int) -> bool:
-    """Yetkazishni o'chirish."""
-    d = db.query(Delivery).filter(Delivery.id == delivery_id).first()
+class YukToloviBor(Exception):
+    """kech38 (5-bo'lim 12-band): o'chirilayotgan yuk xatiga to'lov bog'langan,
+    foydalanuvchi esa to'lov bilan nima qilishni hali aytmagan (`tolov`).
+    Marshrut → 409 (`detail.type = "delivery_has_payment"`), `orders.html`
+    `deleteDelivery` uch tugmali oyna ko'rsatadi."""
+
+    def __init__(self, raqam, tolovlar):
+        self.raqam = raqam
+        self.tolovlar = list(tolovlar)              # [(payment_id, summa)]
+        self.jami = round(sum(s for _, s in self.tolovlar), 2)
+        jm = f"{self.jami:,.0f}"
+        nechta = (f"{jm} so'm to'lov" if len(self.tolovlar) == 1
+                  else f"{len(self.tolovlar)} ta to'lov (jami {jm} so'm)")
+        super().__init__(
+            f"Bu yuk xatiga ({raqam}) {nechta} bog'langan.\n\n"
+            f"To'lov ham o'chirilsinmi yoki saqlab qolinsinmi?\n\n"
+            f"• \"To'lovni ham o'chirish\" — mijoz bu pulni bermagan bo'lsa "
+            f"(qarz {jm} so'mga ko'payadi).\n"
+            f"• \"To'lovni saqlab qolish\" — pul haqiqatan olingan bo'lsa "
+            f"(to'lov buyurtmada oddiy to'lov bo'lib qoladi, qarz o'zgarmaydi).")
+
+
+YUK_TOLOV_AMALLARI = ("ochir", "qoldir")
+
+
+def delete_delivery(db: Session, delivery_id: int, company_id: int = None,
+                    tolov: str = None, performed_by: str = None):
+    """Yetkazishni (yuk xatini) o'chirish.
+
+    Qaytaradi: muvaffaqiyatda `{"tolov_ochirildi": N, "tolov_saqlandi": M}`
+    (doim rost qiymat), topilmasa `False`.
+
+    kech38 (5-bo'lim 12-band) — O'LCHANGAN (asl kod `c7a11f3`):
+      * HAQIQIY PostgreSQL da (jonli sinov saytida ham) to'lov bog'langan
+        yukni o'chirish → 500 (`payments_delivery_id_fkey`, 23503), hech narsa
+        o'zgarmasdi; `orders.html` `deleteDelivery` esa `!res.ok` da HECH
+        QANDAY xabar ko'rsatmasdi — tugma "ishlamaydigandek" edi.
+      * SQLite da (tashqi kalit tekshirilmaydi) yuk o'char, to'lov esa
+        mavjud bo'lmagan yukka ishora qilib qolardi; SQLite id ni qayta
+        ishlatgani uchun u keyingi (boshqa buyurtmaning) yukiga \"bog'lanib\"
+        qolardi.
+    FOYDALANUVCHI QARORI (kech38): \"Har safar so'rasin\" — pul haqiqatan
+    olinganini faqat xodim biladi. Shuning uchun:
+      * `tolov=None` va yukka to'lov bog'langan → `YukToloviBor` (hech narsa
+        o'zgarmaydi; marshrut → 409, UI so'raydi);
+      * `tolov="ochir"` → to'lov(lar) ham o'chiriladi (audit izi bilan —
+        `delete_payment` dagi AYNAN matn), qarz ko'payadi;
+      * `tolov="qoldir"` → to'lov buyurtmada oddiy to'lov bo'lib qoladi
+        (`delivery_id = NULL`, izohga belgi, audit izi), qarz o'zgarmaydi;
+      * boshqa qiymat → `ValueError` (400). To'lovsiz yukda `tolov` e'tiborsiz.
+    Hammasi BITTA tranzaksiyada: `log_activity` o'zi `commit` qiladi (qulfni
+    bo'shatib, yarim holatni saqlab qo'yardi) — shuning uchun audit yozuvi
+    shu yerda to'g'ridan qo'shiladi.
+
+    QULF (5-bo'lim 14-bandning shu funksiyaga tegishli qismi): (101,
+    buyurtma) — `create_delivery` va `create_payment` bilan bir fazo. Qulfsiz
+    parallel \"yukni o'chirish\" + \"yangi yuk\" buyurtmani yarim topshirilgan
+    holda \"Yetkazildi\" deb qoldirishi mumkin edi (yangi yuk eski yukni
+    ko'radi, o'chirish esa yangi yukni ko'rmaydi)."""
+    if tolov is not None and tolov not in YUK_TOLOV_AMALLARI:
+        raise ValueError("'tolov' noto'g'ri qiymat — faqat 'ochir' yoki 'qoldir'")
+    _dq = db.query(Delivery).filter(Delivery.id == delivery_id)
+    if company_id is not None:
+        _dq = _dq.join(Order, Order.id == Delivery.order_id).filter(
+            Order.company_id == company_id)
+    d = _dq.first()
     if not d:
         return False
     order = d.order
+    # QULF — `create_delivery` naqshi: yozilmagan o'zgarish yo'qolmasin
+    # (`flush`), qulf, so'ng qulf ostida HAMMASI bazadan qayta o'qiladi.
+    db.flush()
+    _pul_qulfi(db, 101, order.id)
+    db.expire_all()
+    d = db.query(Delivery).join(Order, Order.id == Delivery.order_id).filter(
+        Delivery.id == delivery_id, Order.company_id == order.company_id).first()
+    if not d:
+        return False            # parallel so'rov allaqachon o'chirgan
+    order = d.order
+
+    # kech75 (92-band, FOYDALANUVCHI QARORI B — "taqiqlansin"): "Tayyor" (READY) buyurtmaning
+    # yuk xati O'CHIRILMAYDI. O'LCHANGAN (`work/probe89.py` M2 / P1, SQLite = PG): o'chirilsa
+    # holat READY qolib mahsulot / MRP bandi omborga qaytardi, daromad va tan narx esa oylik
+    # hisobotda qolardi; keyin buyurtma o'chirilsa xomashyo ham qaytib, tan narx ikki joyda.
+    # Tekshiruv QULF ostida (holat parallel "Tayyor" bilan poyga qilmasin) va to'lov
+    # so'rovidan (`YukToloviBor`) OLDIN — rad etilganda hech narsa o'zgarmaydi.
+    if order.status == OrderStatus.READY:
+        _tayyor = '"Tayyor"'
+        raise ValueError(
+            f"Buyurtma {order.order_number} {_tayyor} deb belgilangan — yuk xatini "
+            f"({d.delivery_number}) o'chirib bo'lmaydi. {_tayyor} buyurtma oylik hisobot va "
+            f"usta KPI ga kirgan: yuk xati o'chirilsa mahsulot omborga qaytib, daromad "
+            f"hisobotda qolardi.")
+
+    # kech101 (K101-3, O'LCHANGAN — `work/probe142.py` C5, SQLite = PG): kech100 dan OLDIN o'chirilgan qisman topshirilgan
+    # (IN_PROGRESS) buyurtmaning yuk xati o'chirilardi (200) — o'chirishda faqat QOLGAN 6 m xomashyosi qaytgan edi, tiklash
+    # esa endi butun 10 m ni yechdi: penoplast 0.04 blok (topshirilgan 4 m) va loy IKKI marta yechildi (NAZORAT — o'chirilmagan
+    # buyurtmada yuk xatini o'chirish — 0). Yuk xati qo'shish (`create_delivery`) buni 2026-09 auditdan beri rad etadi (o'sha
+    # sabab: o'chirish va tiklash orasida topshirilgan ulush o'zgarmasin) — o'chirish ham AYNAN shunday. Qulf ostida,
+    # to'lov so'rovidan (`YukToloviBor`) OLDIN — rad etilganda hech narsa o'zgarmaydi.
+    if order.is_deleted:
+        raise ValueError(OCHIRILGAN_BUYURTMA_XABARI)
+
+    # TENANT: `Payment` da korxona ustuni yo'q — OTA (buyurtma) orqali.
+    tolovlar = db.query(Payment).join(Order, Order.id == Payment.order_id).filter(
+        Payment.delivery_id == d.id,
+        Payment.order_id == order.id,
+        Order.company_id == order.company_id,
+    ).order_by(Payment.id).all()
+    if tolovlar and tolov is None:
+        raise YukToloviBor(d.delivery_number,
+                           [(p.id, float(p.amount or 0)) for p in tolovlar])
+
+    from models import ActivityLog
+    _ochirildi = _saqlandi = 0
+    for p in tolovlar:
+        if tolov == "ochir":
+            db.add(ActivityLog(
+                company_id=order.company_id, action="deleted", entity_type="payment",
+                entity_id=p.id, entity_label=f"Buyurtma {order.order_number}",
+                performed_by=performed_by,
+                new_value=_tolov_audit_matni(p) + f" · yuk xati {d.delivery_number} bilan birga"))
+            db.delete(p)
+            _ochirildi += 1
+        else:
+            p.delivery_id = None
+            p.notes = ((p.notes or "") + f" · yuk xati {d.delivery_number} o'chirilgan, "
+                       f"to'lov saqlab qolingan").strip(" ·")
+            db.add(ActivityLog(
+                company_id=order.company_id, action="updated", entity_type="payment",
+                entity_id=p.id, entity_label=f"Buyurtma {order.order_number}",
+                performed_by=performed_by, old_value=f"yuk xati {d.delivery_number}",
+                new_value="yuk xati o'chirildi — to'lov saqlab qolindi (oddiy to'lov)"))
+            _saqlandi += 1
+    if tolovlar:
+        db.flush()              # tashqi kalit: to'lov yozuvlari yukdan OLDIN
+
+    # 2026-09-20: yuk xati bo'yicha ombordan chiqqan MRP mahsuloti
+    # QAYTADI — chiqarish bilan AYNAN simmetrik (barqaror 1 birlik tan
+    # narxi ishlatilgani uchun summa ham aynan tiklanadi).
+    _cid = order.company_id
+    for di in list(d.items or []):
+        _oi = db.query(OrderItem).filter(OrderItem.id == di.order_item_id).first()
+        if _oi:
+            _mrp_deliver_stock(db, _oi, float(di.quantity or 0),
+                               company_id=_cid, sign=-1.0,
+                               olingan=_mrp_olingan_oqi(di))
     db.delete(d)
     db.flush()
 
     # Status qayta hisoblanadi
-    if order:
-        db.refresh(order)
-        if not order.is_fully_delivered and order.status == OrderStatus.DELIVERED:
-            order.status = OrderStatus.READY
+    db.refresh(order)
+    # kech75 (91 / 92-band, QAROR B): to'liq YETKAZILGAN (hali "Tayyor" bosilmagan) buyurtmaning
+    # yuki o'chirilsa — JARAYONDA (`update_order_full` 8-qadami bilan bir xil). Ilgari READY
+    # bo'lardi: hech kim "Tayyor" bosmagan buyurtma oylik hisobotga kirardi (probe89 M1 / P2).
+    if not order.is_fully_delivered and order.status == OrderStatus.DELIVERED:
+        order.status = OrderStatus.IN_PROGRESS
+    if tolovlar:
+        # to'lov holati va loyiha "To'langan" summasi (`delete_payment` bilan bir xil)
+        _update_order_payment_status(db, order)
+        _loyiha_tolangan_yangila(db, order.project)
 
     db.commit()
-    return True
+    return {"tolov_ochirildi": _ochirildi, "tolov_saqlandi": _saqlandi}
 
 
 def get_delivery_status(db: Session, order_id: int) -> dict:
@@ -4095,6 +10474,10 @@ def get_delivery_status(db: Session, order_id: int) -> dict:
     for it in order.items:
         ordered = it.order_qty_normalized
         delivered = it.delivered_qty
+        # kech103 (83-band): MRP detali — shu detalga band qilingan TAYYOR (ishlab chiqarilgan) miqdor (yuk xati va «Tayyor»
+        # tekshiruvi bilan BITTA manba — `mrp_topshirish_holati`); yetkazish oynasi uni ko'rsatadi (ilgari faqat qoldiq —
+        # ko'prog'i kiritilsa server 400 bilan rad etardi). MRP emas — None.
+        _mrp83 = mrp_topshirish_holati(db, it, order.company_id) if _mrp_yetkazish_detalimi(it) else None
         items.append({
             "id": it.id,
             "name": it.name,
@@ -4102,9 +10485,12 @@ def get_delivery_status(db: Session, order_id: int) -> dict:
             "unit": it.delivery_unit,
             "ordered": round(ordered, 2),
             "delivered": round(delivered, 2),
-            "remaining": round(max(ordered - delivered, 0), 2),
+            # kech60 (57-band): omborga ortiqcha qo'yilgan qism ham chiqqan (`remaining_qty`)
+            "remaining": round(it.remaining_qty, 2),
+            "ortiqcha": round(it.ortiqcha_qty, 2),
+            "mrp_tayyor": round(_mrp83["tayyor"], 2) if _mrp83 is not None else None,
             "percent": round(delivered / ordered * 100, 1) if ordered > 0 else 0,
-            "is_done": (ordered - delivered) <= 0.001
+            "is_done": it.remaining_qty <= 0.001
         })
 
     return {
@@ -4160,11 +10546,154 @@ def _delivery_dict(d) -> dict:
 
 
 # ============================================================
+# LOYIHA — YUK XATLARI va «JAMLAB OLISH» (kech124, zip 144)
+# ============================================================
+# Egasi (2026-10-06 16:24–16:37, QARORLAR — QAYTA SO'RALMAYDI): (1) loyiha ichidan har yuk xatini olish — ilgari faqat buyurtma
+# ichida edi (O'LCHANGAN: `projects.html` da yuk xati UMUMAN yo'q); (2) yuk xatlaridagi detallarni JAMLAB olish — Y-1 da 100 m
+# karniz + Y-2 da 50 m = 150 m (loyihaning bir nechta buyurtmasi ham); varaqda «miqdor, birlik narxi, summa va jami summa»
+# («Faqat miqdor» RAD). Buyurtmadagi «Hisob-kitob varaqasi» (`delivery_pdf.generate_summary_pdf`) har yuk xatini ALOHIDA bo'lim
+# qiladi, jamlamaydi va faqat bitta buyurtma — u o'zgarmadi.
+
+def _yuk_qator_narxi(di) -> tuple:
+    """Yuk xati qatorining (birlik narxi, summa tiyinda). Birlik narxi — `_delivery_dict` / hisob-kitob varaqasi bilan BIR qoida:
+    detal jami narxi ÷ buyurtmadagi miqdori (`order_qty_normalized`; 0 bo'lsa — 0). Summa — narx × berilgan miqdor, tiyinga
+    (HALF_UP, `pul_tiyin`)."""
+    oi = di.order_item
+    if oi is None:
+        return 0.0, 0.0
+    ordered = float(oi.order_qty_normalized or 0)
+    unit_p = (float(oi.total_price or 0) / ordered) if ordered > 0 else 0.0
+    return unit_p, pul_tiyin(unit_p * float(di.quantity or 0))
+
+
+def _yuk_jami_tiyin(d) -> float:
+    """Bitta yuk xatining summasi (so'm, tiyin aniqligida) — qatorlar summalari `Decimal` da qo'shiladi."""
+    return pul_tiyin_yigindi(_yuk_qator_narxi(di)[1] for di in (d.items or []) if di.order_item is not None)
+
+
+def loyiha_yuk_xatlari(db: Session, project_id: int, company_id: int = None) -> list:
+    """kech124 (zip 144): loyihaning HAMMA buyurtmalari yuk xatlari — bitta ro'yxat (yangidan eskiga: topshirilgan vaqt, so'ng id;
+    buyurtmadagi «Yetkazish tarixi» bilan bir tartib).
+
+    Qaysi buyurtmalar — loyiha pul hisobi («Loyiha qiymati», `loyiha_pul_hisobi`) bilan BIR qoida: o'chirilmagan YOKI o'chirilgan,
+    lekin «Tayyor» / «Yetkazilgan» (`qarz_hisobidagi_buyurtma_sharti` — topshirilgan qismi bilan yakunlangan, hisobotda qolgan);
+    qoralama va bekor qilingan — yo'q. Shunda jamlangan summa loyiha qiymatiga KIRMAYDIGAN buyurtma mahsulotini qo'shmaydi.
+    Yuk xati RAQAMI esa barcha buyurtmalardan hisoblanadi (`_loyiha_yuk_eng_katta`) — raqam qayta berilmasin.
+
+    So'rovlar soni buyurtma / yuk xati soniga bog'liq EMAS: yuk xatlari buyurtma bilan bitta so'rovda (`contains_eager`), qatorlari va
+    ularning detallari — `selectinload` (IN). Korxona — buyurtma orqali (yuk xatida korxona ustuni yo'q)."""
+    from sqlalchemy.orm import selectinload as _sil144, contains_eager as _ce144
+    _q = db.query(Delivery).join(Order, Order.id == Delivery.order_id).filter(
+        Order.project_id == project_id, qarz_hisobidagi_buyurtma_sharti(),
+        Order.status.notin_([OrderStatus.DRAFT, OrderStatus.CANCELLED]))
+    if company_id is not None:
+        _q = _q.filter(Order.company_id == company_id)
+    return (_q.options(_ce144(Delivery.order), _sil144(Delivery.items).selectinload(DeliveryItem.order_item))
+            .order_by(Delivery.delivered_at.desc(), Delivery.id.desc()).all())
+
+
+def loyiha_yuk_xati_dict(d) -> dict:
+    """«Yuk xatlari» ro'yxati qatori — buyurtmadagi yuk xati tarixi (`_delivery_dict`: raqam, sana, berilgan detallar — miqdor va
+    birlik, summa) + buyurtma (raqami, id) va `jami_tiyin` (butun tiyin: tanlanganlar jami brauzerda shundan qo'shiladi — «Jamlab
+    olish» varag'idagi JAMI bilan AYNAN)."""
+    r = _delivery_dict(d)
+    r["order_id"] = d.order_id
+    r["order_number"] = d.order.order_number if d.order is not None else None
+    r["jami_tiyin"] = int(round(_yuk_jami_tiyin(d) * 100))
+    return r
+
+
+def _detal_nom_kaliti(nom) -> str:
+    """Bir xil nom: bo'shliqlar bitta, katta-kichik harf farqsiz («Karniz  A» = «karniz a»)."""
+    return " ".join(str(nom or "").split()).casefold()
+
+
+def _detal_olcham_kaliti(oi) -> tuple:
+    """Detalning O'LCHAMI (bir xil detalni aniqlash uchun): eni, qalinligi va bir birlik uzunligi — buyurtma MIQDORIGA bog'liq maydon
+    olinmaydi. O'LCHANGAN (`templates/orders.html` `collectItems`, `services._calc_dim_volume_price`): profilda `length` — buyurtma
+    metri (miqdorning o'zi, `order_qty_normalized`), donalida — kerakli metr ekvivalenti (dona ÷ «1 metrdan nechta»), blokda — blok
+    soni (metr ÷ «1 blokdan chiqadigan metr») — ikkalasi miqdorga mutanosib, shuning uchun 1 birlikka bo'linadi (dona / metr
+    xossasi); panel, MRP mahsuloti va qolganlarida `length` — o'lcham (miqdor alohida). 0 / bo'sh — None."""
+    cat = (oi.category or "").lower()
+
+    def _r(x, n=4):
+        try:
+            return None if x in (None, "") or float(x) == 0 else round(float(x), n)
+        except (TypeError, ValueError):
+            return None
+    if cat == "profil":
+        uzunlik = None
+    elif cat in ("dona", "blok"):
+        _l, _q = _r(oi.length, 9), _r(oi.quantity, 9)
+        uzunlik = round(_l / _q, 6) if (_l and _q) else None
+    else:
+        uzunlik = _r(oi.length)
+    return (_r(oi.width), _r(oi.thickness), uzunlik)
+
+
+def yuk_xatlari_jamlanmasi(deliveries) -> dict:
+    """kech124 (zip 144 — egasi QARORI 06.10): tanlangan yuk xatlaridagi detallar JAMLANADI — har BIR XIL detal BITTA qatorda, jami
+    miqdor bilan (Y-1 da 100 m karniz + Y-2 da 50 m = 150 m), loyihaning bir nechta buyurtmasi bo'yicha ham.
+
+    BIR XIL = nom (bo'shliq / katta-kichik harf farqsiz), detal turi, o'lcham (`_detal_olcham_kaliti` — eni, qalinligi, bir birlik
+    uzunligi), qoplama, birlik (`services.birlik_korinish`) va BIRLIK NARXI (tiyingacha) bir xil; biri farq qilsa — alohida qator
+    (masalan bir karniz ikki buyurtmada ikki narxda — ikki qator). Birlik narxi va summa — `_yuk_qator_narxi` (yuk xati / hisob-kitob
+    varaqasi bilan bir qoida); qator summasi — uning yuk xati qatorlari summalari, JAMI — hamma qatorlar (= tanlangan yuk xatlari
+    summalari yig'indisi; `Decimal`, tiyin aniqligida).
+
+    Tartib: yuk xatlari eskidan yangiga (topshirilgan vaqt, so'ng id), qatorlar — detal birinchi uchragan joyda.
+    Qaytaradi: {"qatorlar": [...], "jami", "yuk_xatlari": [{id, raqam, buyurtma, sana, summa}], "buyurtmalar": [...], "davr": (eng
+    eski, eng yangi topshirilgan vaqt)}."""
+    from datetime import datetime as _dt144
+    try:
+        from services import birlik_korinish as _bk144
+    except Exception:                      # noqa: BLE001
+        def _bk144(u):
+            return str(u or "")
+    tartib = sorted(list(deliveries or []), key=lambda d: (d.delivered_at or _dt144.min, d.id or 0))
+    qatorlar, indeks, yuklar, buyurtmalar = [], {}, [], []
+    for d in tartib:
+        _yuk_qatorlari = []
+        for di in sorted(list(d.items or []), key=lambda x: x.id or 0):
+            oi = di.order_item
+            if oi is None:
+                continue
+            unit_p, summa = _yuk_qator_narxi(di)
+            birlik = _bk144(di.unit)
+            kalit = (_detal_nom_kaliti(oi.name), (oi.category or "").lower(), _detal_olcham_kaliti(oi),
+                     bool(oi.is_coated), birlik, pul_tiyin(unit_p))
+            q = indeks.get(kalit)
+            if q is None:
+                q = {"nom": str(oi.name or "—"), "kategoriya": (oi.category or "").lower(),
+                     "eni": kalit[2][0], "qalinligi": kalit[2][1], "qoplama": bool(oi.is_coated), "birlik": birlik,
+                     "birlik_narxi": pul_tiyin(unit_p), "miqdor": 0.0, "_summalar": [], "yuk_xatlari": []}
+                indeks[kalit] = q
+                qatorlar.append(q)
+            q["miqdor"] += float(di.quantity or 0)
+            q["_summalar"].append(summa)
+            if d.id not in q["yuk_xatlari"]:
+                q["yuk_xatlari"].append(d.id)
+            _yuk_qatorlari.append(summa)
+        _raqam = d.delivery_number or ""
+        _buyurtma = d.order.order_number if getattr(d, "order", None) is not None else None
+        yuklar.append({"id": d.id, "raqam": _raqam, "buyurtma": _buyurtma, "sana": d.delivered_at,
+                       "summa": pul_tiyin_yigindi(_yuk_qatorlari)})
+        if _buyurtma and _buyurtma not in buyurtmalar:
+            buyurtmalar.append(_buyurtma)
+    for q in qatorlar:
+        q["miqdor"] = round(q["miqdor"], 6)
+        q["summa"] = pul_tiyin_yigindi(q.pop("_summalar"))
+    _sanalar = [y["sana"] for y in yuklar if y["sana"] is not None]
+    return {"qatorlar": qatorlar, "jami": pul_tiyin_yigindi(q["summa"] for q in qatorlar), "yuk_xatlari": yuklar,
+            "buyurtmalar": buyurtmalar, "davr": (min(_sanalar), max(_sanalar)) if _sanalar else (None, None)}
+
+
+# ============================================================
 # FINISHED PRODUCT — Tayyor mahsulotlar ombori
 # ============================================================
 
 from models import FinishedProduct, StockSource
-from schemas import ProduceCreate, TermopanelProduceCreate
+from schemas import ProduceCreate
 
 
 def _fp_unit(category: str) -> str:
@@ -4183,200 +10712,66 @@ def _fp_qty(data) -> float:
     if cat == 'profil':
         return float(data.length or 0)
     return float(data.quantity or 0)
-
-
-def produce_termopanel(db: Session, data: TermopanelProduceCreate, created_by: str = None) -> dict:
-    """Bazalt asosidagi termopanel ishlab chiqarish.
-
-    3 xil xomashyo ishlatiladi:
-    - Bazalt plita (120×60×5 sm = 0.72 m² bitta plitadan) — dona bo'yicha
-    - Serpiyanka (rulon) — ikkala yuzaga (old+orqa) yopishtirilgani uchun 2× kerakli maydon
-    - Kley (kg) — qo'lda kiritilgan miqdorda
-    - Qoplama (loy) — doim tortiladi, mavjud retsept tizimidan foydalaniladi
-
-    Har uchala xomashyo QULFLAB o'qiladi — bir nechta foydalanuvchi bir vaqtda
-    ishlab chiqarsa ham, ombor hisobi noto'g'ri bo'lib qolmaydi.
-    """
-    import services
-    from models import ProductionStatus, Recipe
-
-    required_m2 = float(data.required_m2 or 0)
-    if required_m2 <= 0:
-        return {"success": False, "message": "Kvadrat metr kiritilmagan"}
-
-    shortages = []
-    log = []
-
-    # 1) Bazalt plita — QULFLAB tekshiramiz
-    bazalt = db.query(Inventory).filter(Inventory.id == data.bazalt_item_id).with_for_update().first()
-    if not bazalt:
-        return {"success": False, "message": "Bazalt plita ombordan topilmadi"}
-    bazalt_area_per_sheet = float(bazalt.volume_per_unit or 0.72)  # m² — 1 plitadan
-    sheets_needed = required_m2 / bazalt_area_per_sheet
-    if float(bazalt.stock_quantity) < sheets_needed:
-        shortages.append(f"{bazalt.item_name}: kerak {sheets_needed:.2f} dona, qoldi {float(bazalt.stock_quantity):.2f} dona")
-
-    # 2) Serpiyanka — aniq tanlangan bo'lsa o'shani, bo'lmasa (eski moslik
-    # uchun) nomi bo'yicha avtomatik qidiramiz
-    if data.serpiyanka_item_id:
-        serpiyanka = db.query(Inventory).filter(Inventory.id == data.serpiyanka_item_id).with_for_update().first()
-        if not serpiyanka:
-            return {"success": False, "message": "Tanlangan serpiyanka ombordan topilmadi"}
-    else:
-        serpiyanka = services.find_serpiyanka(db, lock=True)
-        if not serpiyanka:
-            return {"success": False, "message": "Serpiyanka ombordan topilmadi (nomida 'serpiyanka' so'zi bo'lishi kerak, yoki uni aniq tanlang)"}
-    serp_area_per_rulon = float(serpiyanka.volume_per_unit or 50.0)  # m² — 1 rulondan
-    serp_ratio = float(bazalt.serp_ratio_per_m2) if bazalt.serp_ratio_per_m2 else 2.0
-    serp_area_needed = required_m2 * serp_ratio
-    rulon_needed = serp_area_needed / serp_area_per_rulon
-    if float(serpiyanka.stock_quantity) < rulon_needed:
-        shortages.append(f"{serpiyanka.item_name}: kerak {rulon_needed:.2f} rulon, qoldi {float(serpiyanka.stock_quantity):.2f} rulon")
-
-    # 3) Kley — aniq tanlangan bo'lsa o'shani, bo'lmasa (eski moslik uchun)
-    # nomi bo'yicha avtomatik qidiramiz
-    if data.kley_item_id:
-        kley = db.query(Inventory).filter(Inventory.id == data.kley_item_id).with_for_update().first()
-        if not kley:
-            return {"success": False, "message": "Tanlangan kley ombordan topilmadi"}
-    else:
-        kley = services.find_kley(db, lock=True)
-    kley_kg = 0.0
-    if not kley:
-        shortages.append("Kley ombordan topilmadi (nomi 'kley' so'zini o'z ichiga olishi kerak, yoki uni aniq tanlang)")
-    else:
-        kley_ratio = float(bazalt.kley_ratio_per_m2) if bazalt.kley_ratio_per_m2 else 0.8
-        kley_kg = required_m2 * kley_ratio
-        if float(kley.stock_quantity) < kley_kg:
-            shortages.append(f"{kley.item_name}: kerak {kley_kg:.2f} kg, qoldi {float(kley.stock_quantity):.2f} kg")
-
-    if shortages:
-        return {"success": False, "message": "Xomashyo yetishmayapti!", "shortages": shortages}
-
-    # ── Yechish ──
-    bazalt.stock_quantity = max(0, float(bazalt.stock_quantity) - sheets_needed)
-    bazalt_cost = sheets_needed * float(bazalt.price_per_unit or 0)
-    log.append(f"{bazalt.item_name}: -{sheets_needed:.2f} dona")
-
-    serpiyanka.stock_quantity = max(0, float(serpiyanka.stock_quantity) - rulon_needed)
-    serp_cost = rulon_needed * float(serpiyanka.price_per_unit or 0)
-    log.append(f"{serpiyanka.item_name}: -{rulon_needed:.2f} rulon")
-
-    kley_cost = 0.0
-    if kley and kley_kg > 0:
-        kley.stock_quantity = max(0, float(kley.stock_quantity) - kley_kg)
-        kley_cost = kley_kg * float(kley.price_per_unit or 0)
-        log.append(f"{kley.item_name}: -{kley_kg:.2f} kg")
-
-    # Qoplama (loy) — doim tortiladi
-    loy_kg = float(data.loy_kg or 0)
-    loy_cost = 0.0
-    if loy_kg > 0:
-        recipe = None
-        if data.recipe_id:
-            recipe = db.query(Recipe).filter(Recipe.id == data.recipe_id).first()
-        if not recipe:
-            recipe = db.query(Recipe).first()
-
-        loy_info = services.get_loy_cost_per_kg(db, recipe.id if recipe else None)
-        loy_cost = loy_kg * float(loy_info.get("cost_per_kg", 0))
-
-        class _FakeOrder:
-            def __init__(self, rid):
-                class _It:
-                    recipe_id = rid
-                self.items = [_It()]
-                self.id = None
-                self.order_number = "ISHLAB CHIQARISH"
-        fake = _FakeOrder(recipe.id if recipe else None)
-        log.extend(services.deduct_loy_ingredients(
-            db, fake, loy_kg, use_stock=False,
-            reason_override=f"Ishlab chiqarish: {data.name.strip()} (loy)"
-        ))
-
-    db.flush()
-
-    total_cost = bazalt_cost + serp_cost + kley_cost + loy_cost
-
-    fp = FinishedProduct(
-        name=data.name.strip(),
-        category="termopanel",
-        is_coated=True,
-        quantity=required_m2,
-        unit="kvadrat",
-        unit_price=data.unit_price,
-        cost_price=total_cost,
-        source=StockSource.PRODUCED,
-        penoplast_id=None,   # Bazalt/serpiyanka/kley — alohida xomashyo, penoplast emas
-        volume_m3=0,
-        bazalt_item_id=data.bazalt_item_id,
-        # MUHIM: Serpiyanka/Kley miqdorini ham TUZILGAN (structured) holda
-        # saqlaymiz — aks holda "Tayyor mahsulotdan" buyurtmaga o'tkazilganda
-        # yoki sotilganda, tan narxdan bu ikkalasi hech qachon kamaymay
-        # qolar edi (faqat matn ichida, "[Bazalt:...]" shaklida saqlansa,
-        # dastur buni o'qib, qayta hisoblay olmaydi).
-        termo_bazalt_qty=sheets_needed,
-        termo_serp_id=serpiyanka.id,
-        termo_serp_qty=rulon_needed,
-        termo_kley_id=(kley.id if kley else None),
-        termo_kley_qty=(kley_kg if kley else 0),
-        unit_loy_kg=(loy_kg / required_m2) if required_m2 > 0 else 0,
-        planned_loy_kg=loy_kg,
-        actual_loy_kg=loy_kg,
-        recipe_id=data.recipe_id,
-        production_status=ProductionStatus.IN_PROGRESS,
-        created_by=created_by,
-        notes=(data.notes or "") + f" [Bazalt:{sheets_needed:.2f} dona, Serpiyanka:{rulon_needed:.2f} rulon, Kley:{kley_kg:.2f} kg]"
-    )
-    db.add(fp)
+def release_finished_product_reservation(db: Session, fp_id: int, performed_by: str = None,
+                                         company_id: int = None) -> dict:
+    """2026-09-17: Production/MRP orqali biror aniq buyurtma-detaliga
+    band qilingan tayyor mahsulotni ozod qiladi — mahsulotning o'zi
+    OMBORDA QOLADI, faqat endi UMUMIY SOTUVGA ochiladi (boshqa har
+    qanday mijozga sotilishi mumkin bo'ladi). Buyurtma bekor qilingan,
+    mijoz pulini to'lamagan yoki uzoq vaqt olib ketmagan holatlar
+    uchun — aks holda mahsulot abadiy "band" bo'lib qolib, sex uni
+    qayta ishlab chiqarishga majbur bo'lardi."""
+    fp = get_finished_product(db, fp_id, company_id)   # M4: faqat shu korxonadan
+    if not fp:
+        return {"success": False, "message": "Tayyor mahsulot topilmadi"}
+    if not fp.reserved_for_order_item_id and not fp.reserved_quantity:
+        return {"success": False, "message": "Bu mahsulot hech kimga band qilinmagan"}
+    old_reserved = fp.reserved_quantity
+    old_order_item_id = fp.reserved_for_order_item_id
+    fp.reserved_quantity = 0.0
+    fp.reserved_for_order_item_id = None
+    log_activity(db, "release_reservation", "finished_product", fp.id,
+                 entity_label=fp.name, performed_by=performed_by,
+                 company_id=getattr(fp, 'company_id', None),
+                 old_value=f"band: {old_reserved} (detal #{old_order_item_id})", new_value="band emas — umumiy sotuvda")
     db.commit()
-    db.refresh(fp)
-
-    revenue = float(data.unit_price or 0) * required_m2
-    profit = revenue - total_cost
-    margin = (profit / revenue * 100) if revenue > 0 else 0
-
-    try:
-        log_activity(db, "produced", "finished_product", fp.id, fp.name, created_by,
-                      new_value=f"{float(fp.quantity):g} {fp.unit} (Termopanel), tan narxi: {round(total_cost):,} so'm".replace(',', ' '))
-    except Exception:
-        pass
-
-    return {
-        "success": True,
-        "message": "Termopanel ishlab chiqarish boshlandi!",
-        "product_id": fp.id,
-        "name": fp.name,
-        "quantity": float(fp.quantity),
-        "unit": fp.unit,
-        "bazalt_sheets": round(sheets_needed, 2),
-        "serpiyanka_rulon": round(rulon_needed, 2),
-        "kley_kg": kley_kg,
-        "bazalt_cost": round(bazalt_cost),
-        "serpiyanka_cost": round(serp_cost),
-        "kley_cost": round(kley_cost),
-        "loy_cost": round(loy_cost),
-        "total_cost": round(total_cost),
-        "revenue": round(revenue),
-        "profit": round(profit),
-        "margin": round(margin, 1),
-        "inventory_log": log
-    }
+    return {"success": True, "message": f"{fp.name} endi umumiy sotuv uchun ochiq"}
 
 
-def record_finished_product_loss(db: Session, data, created_by: str = None) -> dict:
+def record_finished_product_loss(db: Session, data, created_by: str = None,
+                                company_id: int = None, taqdir: dict = None) -> dict:
     """Tayyor mahsulotdan brak/yo'qotish sababli miqdorni KAMAYTIRADI
     (butunlay o'chirmaydi). Tan narx — o'sha mahsulotning 1 birlik tan
-    narxiga proporsional hisoblanadi, va Moliyada Brak xarajatiga qo'shiladi."""
+    narxiga proporsional hisoblanadi, va Moliyada "Tayyor mahsulot yo'qotishi
+    (omborda)" qatoriga qo'shiladi (kech107, 49-band — "Brak" qatoridan ALOHIDA;
+    jami xarajat o'zgarmaydi)."""
     from models import FinishedProduct, FinishedProductLoss
 
-    fp = db.query(FinishedProduct).filter(FinishedProduct.id == data.finished_product_id).with_for_update().first()
+    # 17-band: tana qiymatlari QAT'IY — hech narsa yozilmasdan OLDIN.
+    try:
+        _clean_val("Loss", _val_dump(data, "Loss"))
+    except ValueError as _e:
+        return {"success": False, "message": str(_e)}
+
+    # M4: mahsulot FAQAT joriy korxonadan (aks holda "topilmadi").
+    fp = get_finished_product(db, data.finished_product_id, company_id, lock=True)
     if not fp:
         return {"success": False, "message": "Mahsulot topilmadi"}
+    if not _fp_tayyormi(fp):
+        return {"success": False, "message": _jarayonda_xabari(fp)}
 
     available = float(fp.quantity or 0)
     if data.quantity > available + 0.001:
         return {"success": False, "message": f"Omborda faqat {available:g} {fp.unit} bor, {data.quantity:g} kamaytira olmaysiz"}
+    # kech56 (13-band, 7-qadam): javobgar hodim — shu korxonaning hodimi (yozuvdan OLDIN)
+    try:
+        _brak_javobgar_tekshir(db, getattr(data, 'brak_javobgar_id', None),
+                               getattr(fp, 'company_id', None))
+        # kech125 (zip 146 — EGASI QARORLARI 07.10 «Brak taqdiri»): taqdir — hech narsa yozilishidan OLDIN tekshiriladi
+        if taqdir is not None:
+            brak_taqdir_tana(db, taqdir, "ombor", float(data.quantity or 0), fp.unit, getattr(fp, 'company_id', None))
+    except ValueError as _e:
+        return {"success": False, "message": str(_e)}
 
     unit_cost = (float(fp.cost_price or 0) / available) if available > 0 else 0
     cost_amount = unit_cost * data.quantity
@@ -4386,159 +10781,179 @@ def record_finished_product_loss(db: Session, data, created_by: str = None) -> d
         fp.cost_price = max(0, float(fp.cost_price) - cost_amount)
 
     loss = FinishedProductLoss(
+        company_id=getattr(fp, 'company_id', None),      # M8/F1
         finished_product_id=fp.id,
         product_name=fp.name,
         category=fp.category,
         quantity=data.quantity,
         unit=fp.unit,
         cost_amount=cost_amount,
-        reason=data.reason,
-        created_by=created_by
+        # kech57 (K57-1): izoh belgi bilan boshlansa — "Izoh: " (yuqoridagi yordamchi)
+        reason=_ish_brak_belgisidan_ajrat(data.reason),
+        created_by=created_by,
+        # kech53 (13-band, 1-qadam): ixtiyoriy brak bosqichi
+        brak_bosqich=getattr(data, 'brak_bosqich', None),
+        # kech56 (13-band, 7-qadam): ixtiyoriy sabab va javobgar hodim
+        brak_sabab=getattr(data, 'brak_sabab', None),
+        brak_javobgar_id=getattr(data, 'brak_javobgar_id', None)
     )
     db.add(loss)
+    _taqdir_natija = None
+    if taqdir is not None:
+        # kech125 (zip 146): tanlangan taqdir — yozuv bilan BITTA tranzaksiyada (xato — hech narsa yozilmaydi)
+        try:
+            db.flush()
+            _taqdir_natija = _taqdir_almashtir(db, "yoqotish", loss, taqdir, getattr(fp, 'company_id', None),
+                                               created_by, yangi_yozuv=True)
+        except ValueError as _e:
+            db.rollback()
+            return {"success": False, "message": str(_e)}
     db.commit()
     db.refresh(loss)
+    db.refresh(fp)
     return {
         "success": True,
         "loss_id": loss.id,
         "cost_amount": float(cost_amount),
-        "remaining_stock": float(fp.quantity)
+        "remaining_stock": float(fp.quantity),
+        "taqdir": (_taqdir_natija or {}).get("taqdir", "tashlandi"),
     }
 
 
-def record_finished_product_production_brak(db: Session, finished_product_id: int, brak_qty: float = None,
-                                              notes: str = None, created_by: str = None,
-                                              gips_kg_brak: float = None, additives_brak: list = None) -> dict:
-    """Tayyor mahsulot ISHLAB CHIQARISH JARAYONIDA chiqqan brak (masalan
-    kesish yoki qoplama tortish paytida sinib ketishi) — bu, mahsulotdan
-    KEYINCHALIK (allaqachon tayyor turgan holda) yo'qotilishidan FARQ
-    QILADI: bu yerda YAKUNIY yetkaziladigan/omborga kiritiladigan miqdor
-    O'ZGARMAYDI (ustadan qayta ishlab chiqarilib, o'rni to'ldiriladi),
-    faqat O'SHA qayta ishlab chiqarish uchun QO'SHIMCHA xomashyo (Penoplast/
-    Bazalt+Serpiyanka+Kley, loy, Gips) ombordan ayiriladi. Shuning uchun,
-    mavjud "Kamaytirish" funksiyasidan farqli o'laroq — fp.quantity
-    (ombordagi mahsulot soni) ga UMUMAN TEGILMAYDI.
+# 18-band (2026-09-21): "ishlab chiqarish braki" yozuvlarining sabab matni
+# SHU belgi bilan boshlanadi. Moliya (`services.get_monthly_report`,
+# `services.calculate_split_profit_report`) va `get_return_stats` ham aynan shu
+# boshlanish bo'yicha ajratadi — belgi o'zgarsa hammasi birga o'zgarishi
+# SHART (`tools/test_brak_bekor.py` G bo'limi buni qulflaydi).
+_ISH_BRAK_BELGI = "Ishlab chiqarish jarayonida brak"
 
-    Ishlaydi: Profil/Panel/Donali/Blok (Penoplast+loy asosida, unit_volume_m3
-    orqali) va Termopanel/Bazalt (Bazalt+Serpiyanka+Kley+loy asosida, aynan
-    ishlab chiqarishda ishlatilgan xomashyo/nisbat bo'yicha) — bularda
-    `brak_qty` (mahsulot birligida) berilib, xomashyo BARQAROR nisbatdan
-    hisoblanadi.
 
-    Gips uchun (2026-09 qo'shildi) — MANTIQ BOSHQACHA: gips sarfi metrga
-    (yoki dona/m²ga) barqaror proporsional emas — devor holati, usta ishiga
-    qarab farq qiladi. Shuning uchun bu yerda `brak_qty` EMAS, `gips_kg_brak`
-    ishlatiladi — xodim TO'G'RIDAN-TO'G'RI, aniq necha kg gips isrof
-    bo'lganini kiritadi (hisoblanmaydi). Qo'shimcha materiallar (Po'lat
-    sim, Granula va h.k.) esa har doim ham gips miqdoriga proporsional
-    ishlatilmagani uchun avtomatik hisoblanmaydi — faqat xodim ixtiyoriy
-    `additives_brak` orqali ko'rsatgan aniq miqdorlar ayiriladi."""
-    from models import FinishedProduct, FinishedProductLoss, Inventory
+def _ish_brakimi(loss) -> bool:
+    """Yozuv "ishlab chiqarish braki" (mahsulot soniga tegmagan, xomashyo
+    sarflangan) mi — `record_finished_product_production_brak` yozgan."""
+    return (getattr(loss, "reason", None) or "").startswith(_ISH_BRAK_BELGI)
+
+
+def _ish_brak_belgisidan_ajrat(reason):
+    """kech57 (K57-1, 40-band): "tayyor turgan, keyin yo'qoldi" yozuvining izohi
+    (foydalanuvchi matni) ishlab chiqarish braki BELGISI bilan boshlansa, yozuv
+    ishlab chiqarish braki deb o'qilardi (O'LCHANGAN, SQLite va PG, `work/probe57.py`):
+    mahsulot soni va tan narxi kamaygan, lekin Moliya uni brak xarajatiga
+    QO'SHMASDI (sof foyda oshib ko'rinardi), `/returns/stats` ishlab chiqarish
+    braki deb sanardi, tahlil turi noto'g'ri, bekor qilish esa rad etilardi.
+
+    Buxgalteriya matnga emas, REJIMGA bo'ysunishi uchun bunday izoh "Izoh: "
+    bilan saqlanadi — foydalanuvchi matni o'zgarmaydi, faqat belgi boshida
+    qolmaydi. Katta-kichik harf farqsiz: SQLite `LIKE` ASCII da harf farqlamaydi
+    (`get_return_stats`), shunda har bazada bir xil."""
+    if reason is None:
+        return None
+    if str(reason).lower().startswith(_ISH_BRAK_BELGI.lower()):
+        return "Izoh: " + str(reason)
+    return reason
+
+
+def delete_finished_product_loss(db: Session, loss_id: int, company_id: int = None,
+                                 performed_by: str = None) -> dict:
+    """Brak (yo'qotish) yozuvini BEKOR QILADI.
+
+    NIMA UCHUN QO'SHILDI (2026-09-20): `record_finished_product_loss()`
+    bor edi, lekin uni orqaga qaytarish yo'li HECH QAYERDA yo'q edi —
+    xato yozilgan brak Moliya hisobotida abadiy qolib ketardi va
+    "Brak xarajati" ni jimgina shishirardi. Bu — haqiqiy bo'shliq:
+    aynan shu sabab sinov tozalashi paytida sentabr sof foydasi
+    6 573 773 so'mga siljib ketdi.
+
+    Xatti-harakat:
+      - Mahsulot hali mavjud bo'lsa — miqdor va tan narx QAYTARILADI
+        (haqiqiy "bekor qilish").
+      - Mahsulot o'chirilgan bo'lsa — faqat yozuv o'chiriladi.
+    Ikkala holatda ham yozuv Faoliyat jurnaliga tushadi.
+    """
+    from models import FinishedProduct, FinishedProductLoss
+
+    q = db.query(FinishedProductLoss).filter(FinishedProductLoss.id == loss_id)
+    if company_id is not None:
+        q = q.filter(FinishedProductLoss.company_id == company_id)
+    # kech125 (zip 146): yozuv qatori qulflanadi — taqdir o'zgartirish bilan navbat (qulf tartibi: yozuv → TM)
+    loss = q.with_for_update().first()
+    if not loss:
+        return {"success": False, "message": "Brak yozuvi topilmadi"}
+
+    # 18-band (2026-09-21, jonli o'lchandi): "ishlab chiqarish braki"
+    # mahsulot soniga TEGMAYDI, balki penoplast/loyni ombordan QO'SHIMCHA
+    # ayiradi; moliyadagi xarajati esa InventoryMovement ("Brak%") dan
+    # hisoblanadi, bu yozuvdan emas. Ilgari bu yerda uni ham oddiy brak
+    # kabi "bekor qilardi": mahsulot miqdori YO'QDAN oshardi (2 -> 2.1),
+    # tan narxi shishardi, penoplast omborga QAYTMASDI, xarajat moliyada
+    # QOLARDI — ya'ni bekor qilish hisobni tuzatmay, aksincha buzardi.
+    # Endi rad etiladi, hech narsa o'zgarmaydi. Korxona tekshiruvi
+    # YUQORIDA — begona yozuv baribir "topilmadi" (oracle yo'q).
+    if _ish_brakimi(loss):
+        return {"success": False, "kod": "ishlab_chiqarish_braki",
+                "message": ("Ishlab chiqarish brakini bu yo'l bilan bekor "
+                            "qilib bo'lmaydi — xomashyo ombordan allaqachon "
+                            "sarflangan, mahsulot soni esa o'zgarmagan edi")}
+
+    qty = float(loss.quantity or 0)
+    cost = float(loss.cost_amount or 0)
+    nomi = loss.product_name
+    tiklandi = False
+    # kech125 (zip 146 — brak taqdiri): avval taqdir bekor (TM dan qo'shilgani olinadi — sotilgan bo'lsa rad, hech narsa
+    # o'zgarmaydi; tuzatish xomashyosi omborga qaytadi; taqdir qatorlari o'chadi), so'ng avvalgi tiklash.
+    try:
+        _taqdir_jurnal = brak_taqdir_ochir(db, "yoqotish", loss, loss.company_id, performed_by)
+    except ValueError as _e:
+        db.rollback()
+        return {"success": False, "kod": "taqdir", "message": str(_e)}
+
+    if loss.finished_product_id:
+        fpq = db.query(FinishedProduct).filter(
+            FinishedProduct.id == loss.finished_product_id)
+        if company_id is not None:
+            fpq = fpq.filter(FinishedProduct.company_id == company_id)
+        fp = fpq.with_for_update().first()
+        if fp:
+            fp.quantity = float(fp.quantity or 0) + qty
+            fp.cost_price = float(fp.cost_price or 0) + cost
+            tiklandi = True
+
+    db.delete(loss)
+    try:
+        log_activity(db, "delete", "finished_product_loss", loss_id,
+                     f"Brak bekor qilindi: {nomi} — {qty:g} {loss.unit or ''} "
+                     f"({cost:,.0f} so'm)"
+                     + (" · ombor tiklandi" if tiklandi else " · mahsulot o'chirilgan")
+                     + (" · brak taqdiri bekor: " + "; ".join(_taqdir_jurnal) if _taqdir_jurnal else ""),
+                     performed_by=performed_by, company_id=company_id)
+    except Exception:
+        pass
+    db.commit()
+    return {"success": True, "qaytarilgan_summa": cost,
+            "ombor_tiklandi": tiklandi, "mahsulot": nomi}
+
+
+def _ishlab_chiqarish_braki_xomashyo(db: Session, fp, brak_qty, penoplast_vol_needed,
+                                     loy_kg_needed, company_id, _brak_inv, log) -> dict:
+    """kech52 (13-band, 3-qadam): `record_finished_product_production_brak` ning
+    xomashyo yechish qismi (mazmuni O'ZGARMAGAN — faqat ko'chirildi; chaqiruvchi uni
+    brak belgisi oynasi ichida `try/finally` bilan chaqiradi). Muvaffaqiyatda
+    `{"success": True, "peno_cost", "loy_cost"}`, aks holda chaqiruvchi qaytaradigan
+    `{"success": False, "message"}` (hech narsa yozilmasdan OLDIN — avvalgidek).
+
+    K52-1 (kech52, PostgreSQL da O'LCHANDI): harakat sababi 150 belgili mahsulot
+    nomi, qoplama va "12.345" kabi miqdor bilan 201 belgi bo'lardi — `reason`
+    String(200), COMMIT da 500 ("Serverda kutilmagan xato"), brak yozilmasdi.
+    Endi `_jurnal_sabab` (200 belgiga xavfsiz qisqartirish; boshi o'zgarmaydi)."""
     import services
-
-    fp = db.query(FinishedProduct).filter(FinishedProduct.id == finished_product_id).with_for_update().first()
-    if not fp:
-        return {"success": False, "message": "Mahsulot topilmadi"}
-
-    cat = (fp.category or '').lower()
-
-    # ── GIPS — alohida yo'l: xodim TO'G'RIDAN-TO'G'RI kg kiritadi ─────────
-    if cat == 'gips':
-        if gips_kg_brak is None or gips_kg_brak <= 0:
-            return {"success": False, "message": "Gips uchun isrof bo'lgan kg miqdorini kiriting"}
-        if not fp.gips_inventory_id:
-            return {"success": False, "message": "Bu mahsulotning Gips xomashyosi noma'lum (eski yozuv bo'lishi mumkin) — qo'lda hisoblash kerak"}
-        gips_item = db.query(Inventory).filter(Inventory.id == fp.gips_inventory_id).with_for_update().first()
-        if not gips_item:
-            return {"success": False, "message": "Gips xomashyosi ombordan topilmadi"}
-        if float(gips_item.stock_quantity or 0) < gips_kg_brak:
-            return {"success": False, "message": f"Gips yetishmayapti! Kerak: {gips_kg_brak:.2f} kg, omborda: {float(gips_item.stock_quantity):.2f} kg"}
-
-        log = []
-        gips_item.stock_quantity = float(gips_item.stock_quantity) - gips_kg_brak
-        gips_cost = gips_kg_brak * float(gips_item.price_per_unit or 0)
-        log.append(f"{gips_item.item_name}: -{gips_kg_brak:.2f} kg")
-        log_movement(
-            db, gips_item.id, gips_item.item_name, movement_type="out",
-            quantity=gips_kg_brak, unit=gips_item.unit,
-            reason=f"Brak (ishlab chiqarish) — {fp.name} ({gips_kg_brak:g} kg)"
-        )
-
-        additive_cost = 0.0
-        for a in (additives_brak or []):
-            a_inv_id = a.get("inventory_id") if isinstance(a, dict) else None
-            a_qty = float((a.get("quantity") if isinstance(a, dict) else 0) or 0)
-            if not a_inv_id or a_qty <= 0:
-                continue
-            a_item = db.query(Inventory).filter(Inventory.id == a_inv_id).with_for_update().first()
-            if not a_item:
-                return {"success": False, "message": f"Qo'shimcha material (ID {a_inv_id}) topilmadi"}
-            if float(a_item.stock_quantity or 0) < a_qty:
-                return {"success": False, "message": f"{a_item.item_name} yetishmayapti! Kerak: {a_qty:.2f} {a_item.unit}, omborda: {float(a_item.stock_quantity):.2f} {a_item.unit}"}
-            a_item.stock_quantity = float(a_item.stock_quantity) - a_qty
-            additive_cost += a_qty * float(a_item.price_per_unit or 0)
-            log.append(f"{a_item.item_name}: -{a_qty:.2f} {a_item.unit}")
-            log_movement(
-                db, a_item.id, a_item.item_name, movement_type="out",
-                quantity=a_qty, unit=a_item.unit,
-                reason=f"Brak (ishlab chiqarish) — {fp.name} (qo'shimcha)"
-            )
-
-        total_cost_gips = gips_cost + additive_cost
-
-        # MUHIM: fp.quantity, fp.gips_kg_used, fp.cost_price, fp.gips_additives_json
-        # GA TEGILMAYDI — boshqa turlar bilan bir xil qoida: brak — alohida,
-        # bir martalik xarajat, mahsulotning o'z tan narxiga qo'shilmaydi
-        # (aks holda xarajat ikki marta hisoblangan bo'lardi).
-        loss = FinishedProductLoss(
-            finished_product_id=fp.id,
-            product_name=fp.name,
-            category=fp.category,
-            quantity=gips_kg_brak,
-            unit="kg",
-            cost_amount=total_cost_gips,
-            reason="Ishlab chiqarish jarayonida brak — qo'shimcha xomashyo sarflandi (mahsulot soniga tegmaydi)"
-                   + (f". Izoh: {notes}" if notes else ""),
-            created_by=created_by
-        )
-        db.add(loss)
-        db.commit()
-        db.refresh(loss)
-
-        return {
-            "success": True,
-            "loss_id": loss.id,
-            "cost_amount": float(total_cost_gips),
-            "gips_cost": float(gips_cost),
-            "additive_cost": float(additive_cost),
-            "log": log,
-        }
-
-    if brak_qty is None or brak_qty <= 0:
-        return {"success": False, "message": "Brak miqdori noto'g'ri"}
-
-    unit_vol = float(fp.unit_volume_m3 or 0)
-    unit_loy = float(fp.unit_loy_kg or 0)
-    penoplast_vol_needed = (brak_qty * unit_vol) if cat != 'termopanel' else 0.0
-    loy_kg_needed = (brak_qty * unit_loy) if fp.is_coated else 0.0
-    # Termopanel uchun — brak_qty AYNAN kv.metr birligida (fp.quantity bilan
-    # bir xil birlik), shuning uchun Bazalt/Serpiyanka/Kley nisbatlari ishlab
-    # chiqarishdagi kabi to'g'ridan-to'g'ri shu miqdorga qo'llanadi.
-    bazalt_m2_needed = brak_qty if cat == 'termopanel' else 0.0
-
-    if penoplast_vol_needed <= 0 and loy_kg_needed <= 0 and bazalt_m2_needed <= 0:
-        return {"success": False, "message": "Bu mahsulot uchun xomashyo nisbati topilmadi (eski yozuv bo'lishi mumkin) — qo'lda hisoblash kerak"}
-
-    log = []
     peno_cost = 0.0
     loy_cost = 0.0
-    bazalt_cost = 0.0
 
     # 1) Penoplast — QO'SHIMCHA ayiriladi
     if penoplast_vol_needed > 0:
         if not fp.penoplast_id:
             return {"success": False, "message": "Bu mahsulotning Penoplast turi noma'lum — qo'lda hisoblash kerak"}
-        p = db.query(Inventory).filter(Inventory.id == fp.penoplast_id).with_for_update().first()
+        p = _brak_inv(fp.penoplast_id)
         if not p:
             return {"success": False, "message": "Penoplast ombordan topilmadi"}
         vol_per_unit = float(p.volume_per_unit or 1.0)
@@ -4557,83 +10972,35 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
         log_movement(
             db, p.id, p.item_name, movement_type="out",
             quantity=blocks, unit=p.unit,
-            reason=f"Brak (ishlab chiqarish) — {fp.name} ({brak_qty:g} birlik)"
+            reason=_jurnal_sabab(f"Brak (ishlab chiqarish) — {fp.name} ({brak_qty:g} birlik)")
         )
-
-    # 1B) Bazalt + Serpiyanka + Kley — QO'SHIMCHA ayiriladi (Termopanel).
-    # Nisbatlar — aynan shu mahsulot ishlab chiqarilganda ishlatilgan Bazalt
-    # turining o'zida saqlangan serp_ratio_per_m2/kley_ratio_per_m2 (yoki
-    # standart 2.0/0.8) bo'yicha — produce_termopanel() bilan bir xil mantiq.
-    if bazalt_m2_needed > 0:
-        if not fp.bazalt_item_id:
-            return {"success": False, "message": "Bu mahsulotning Bazalt turi noma'lum — qo'lda hisoblash kerak"}
-        b = db.query(Inventory).filter(Inventory.id == fp.bazalt_item_id).with_for_update().first()
-        if not b:
-            return {"success": False, "message": "Bazalt ombordan topilmadi"}
-        area = float(b.volume_per_unit or 0.72)
-        sheets = bazalt_m2_needed / area
-        if float(b.stock_quantity) < sheets:
-            return {"success": False, "message": f"Bazalt yetishmayapti! Kerak: {sheets:.2f} dona, omborda: {float(b.stock_quantity):.2f} dona"}
-        b.stock_quantity = float(b.stock_quantity) - sheets
-        bazalt_cost += sheets * float(b.price_per_unit or 0)
-        log.append(f"{b.item_name}: -{sheets:.2f} dona")
-        log_movement(
-            db, b.id, b.item_name, movement_type="out",
-            quantity=sheets, unit=b.unit,
-            reason=f"Brak (ishlab chiqarish) — {fp.name} ({brak_qty:g} birlik)"
-        )
-
-        serp_ratio = float(b.serp_ratio_per_m2) if b.serp_ratio_per_m2 else 2.0
-        kley_ratio = float(b.kley_ratio_per_m2) if b.kley_ratio_per_m2 else 0.8
-
-        s = services.find_serpiyanka(db, lock=True)
-        if s:
-            serp_area_needed = bazalt_m2_needed * serp_ratio
-            serp_area_per_rulon = float(s.volume_per_unit or 50.0)
-            rulon = serp_area_needed / serp_area_per_rulon if serp_area_per_rulon > 0 else 0.0
-            if float(s.stock_quantity) < rulon:
-                return {"success": False, "message": f"Serpiyanka yetishmayapti! Kerak: {rulon:.2f} rulon, omborda: {float(s.stock_quantity):.2f} rulon"}
-            s.stock_quantity = float(s.stock_quantity) - rulon
-            bazalt_cost += rulon * float(s.price_per_unit or 0)
-            log.append(f"{s.item_name}: -{rulon:.2f} rulon")
-            log_movement(
-                db, s.id, s.item_name, movement_type="out",
-                quantity=rulon, unit=s.unit,
-                reason=f"Brak (ishlab chiqarish) — {fp.name} (Serpiyanka, {brak_qty:g} birlik)"
-            )
-
-        k = services.find_kley(db, lock=True)
-        if k:
-            kley_kg = bazalt_m2_needed * kley_ratio
-            if float(k.stock_quantity) < kley_kg:
-                return {"success": False, "message": f"Kley yetishmayapti! Kerak: {kley_kg:.2f} kg, omborda: {float(k.stock_quantity):.2f} kg"}
-            k.stock_quantity = float(k.stock_quantity) - kley_kg
-            bazalt_cost += kley_kg * float(k.price_per_unit or 0)
-            log.append(f"{k.item_name}: -{kley_kg:.2f} kg")
-            log_movement(
-                db, k.id, k.item_name, movement_type="out",
-                quantity=kley_kg, unit=k.unit,
-                reason=f"Brak (ishlab chiqarish) — {fp.name} (Kley, {brak_qty:g} birlik)"
-            )
 
     # 2) Loy — QO'SHIMCHA ayiriladi (agar qoplama bo'lsa), xuddi shu
     # retseptdan (fp.recipe_id), ishlab chiqarishdagi kabi
     if loy_kg_needed > 0:
-        from models import Recipe
-        recipe = db.query(Recipe).filter(Recipe.id == fp.recipe_id).first() if fp.recipe_id else None
-        if not recipe:
-            recipe = db.query(Recipe).first()
-        loy_info = services.get_loy_cost_per_kg(db, recipe.id if recipe else None)
+        # 2026-09-21 — TENANT. Oldin bu yerda `db.query(Recipe).first()`
+        # zaxira yo'li bor edi: retsepti YO'Q korxona brak yozsa, BOSHQA
+        # korxonaning retsepti olinar va uning ingredientlari o'sha
+        # korxonaning omboridan ayirilar edi (o'lchangan: 995 → 992.5 kg).
+        _brak_cid = company_id if company_id is not None else getattr(fp, 'company_id', None)
+        recipe = services.resolve_recipe(db, recipe_id=fp.recipe_id,
+                                         company_id=_brak_cid)
+        loy_info = services.get_loy_cost_per_kg(
+            db, recipe.id if recipe else None, company_id=_brak_cid)
         loy_cost = loy_kg_needed * float(loy_info.get("cost_per_kg", 0))
 
         class _FakeOrder:
-            def __init__(self, rid):
+            def __init__(self, rid, cid):
                 self.id = None
+                # `company_id` SHART: services.resolve_recipe korxonani
+                # buyurtma obyektidan ham oladi.
+                self.company_id = cid
                 self.order_number = "TAYYOR MAHSULOT — ISHLAB CHIQARISH BRAKI"
-        fake = _FakeOrder(recipe.id if recipe else None)
+        fake = _FakeOrder(recipe.id if recipe else None, _brak_cid)
         log.extend(services.deduct_loy_ingredients(
             db, fake, loy_kg_needed, use_stock=False,
             recipe_id=(recipe.id if recipe else None),
+            company_id=_brak_cid,
             # MUHIM (2026-09 audit): reason "Brak" bilan boshlanishi SHART —
             # get_brak_material_summary() aynan "Brak%" naqshi bo'yicha
             # qidiradi (boshqa "Brak (ishlab chiqarish) — ..." yozuvlari
@@ -4641,25 +11008,195 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
             # chiqarish braki: ...") bu naqshga to'g'ri kelmagani uchun,
             # shu yo'l orqali yozilgan loy sarfi "Brak xarajati" hisobotidan
             # butunlay tashqarida qolar edi.
-            reason_override=f"Brak (ishlab chiqarish) — {fp.name} (qoplama, {brak_qty:g} birlik)"
+            reason_override=_jurnal_sabab(f"Brak (ishlab chiqarish) — {fp.name} (qoplama, {brak_qty:g} birlik)")
         ))
 
-    total_cost = peno_cost + bazalt_cost + loy_cost
+    return {"success": True, "peno_cost": peno_cost, "loy_cost": loy_cost}
+
+
+def _mrp_ishlab_chiqarish_braki_xomashyo(db: Session, fp, brak_qty, qatorlar, log) -> dict:
+    """kech54 (13-band, 5-qadam): MRP tayyor mahsuloti ishlab chiqarish braki — yetarliligi
+    tekshirilgan surat qatorlarini ombordan yechadi. Chaqiruvchining brak oynasi
+    (`_brak_harakat`) ichida: `log_movement` harakatni brak deb belgilaydi va narxni muzlatadi.
+    Ombor 0 dan pastga tushmaydi (tekshiruv chaqiruvchida, hech narsa yozilmasdan OLDIN)."""
+    xomashyo_cost = 0.0
+    for inv, kerak in qatorlar:
+        inv.stock_quantity = float(inv.stock_quantity or 0) - kerak
+        xomashyo_cost += kerak * float(inv.price_per_unit or 0)
+        log_movement(
+            db, inv.id, inv.item_name, movement_type="out",
+            quantity=kerak, unit=inv.unit,
+            reason=_jurnal_sabab(f"Brak (ishlab chiqarish) — {fp.name} ({brak_qty:g} birlik)"))
+        log.append(f"{inv.item_name}: -{kerak:g} {inv.unit}")
+    return {"success": True, "peno_cost": 0.0, "loy_cost": 0.0, "xomashyo_cost": xomashyo_cost}
+
+
+def record_finished_product_production_brak(db: Session, finished_product_id: int, brak_qty: float = None,
+                                              notes: str = None, created_by: str = None,
+                                              company_id: int = None, brak_bosqich: str = None,
+                                              brak_sabab: str = None,
+                                              brak_javobgar_id: int = None,
+                                              taqdir: dict = None) -> dict:
+    """Tayyor mahsulot ISHLAB CHIQARISH JARAYONIDA chiqqan brak (masalan
+    kesish yoki qoplama tortish paytida sinib ketishi) — bu, mahsulotdan
+    KEYINCHALIK (allaqachon tayyor turgan holda) yo'qotilishidan FARQ
+    QILADI: bu yerda YAKUNIY yetkaziladigan/omborga kiritiladigan miqdor
+    O'ZGARMAYDI (ustadan qayta ishlab chiqarilib, o'rni to'ldiriladi),
+    faqat O'SHA qayta ishlab chiqarish uchun QO'SHIMCHA xomashyo (Penoplast/
+    Bazalt+Serpiyanka+Kley, loy) ombordan ayiriladi. Shuning uchun,
+    mavjud "Kamaytirish" funksiyasidan farqli o'laroq — fp.quantity
+    (ombordagi mahsulot soni) ga UMUMAN TEGILMAYDI.
+
+    Ishlaydi: Profil/Panel/Donali/Blok (Penoplast+loy asosida, unit_volume_m3
+    orqali) va Termopanel/Bazalt (Bazalt+Serpiyanka+Kley+loy asosida, aynan
+    ishlab chiqarishda ishlatilgan xomashyo/nisbat bo'yicha) — bularda
+    `brak_qty` (mahsulot birligida) berilib, xomashyo BARQAROR nisbatdan
+    hisoblanadi."""
+    from models import FinishedProduct, FinishedProductLoss, Inventory
+
+    # M4: mahsulot FAQAT joriy korxonadan (aks holda "topilmadi").
+    # 17-band: qiymatlar QAT'IY — hech narsa yozilmasdan OLDIN.
+    try:
+        _clean_val("ProductionBrak", {"finished_product_id": finished_product_id,
+                                      "brak_qty": brak_qty, "notes": notes,
+                                      # kech56 (13-band, 7-qadam): sabab va javobgar hodim
+                                      "brak_sabab": brak_sabab,
+                                      "brak_javobgar_id": brak_javobgar_id,
+                                      "brak_bosqich": brak_bosqich})
+    except ValueError as _e:
+        return {"success": False, "message": str(_e)}
+    fp = get_finished_product(db, finished_product_id, company_id, lock=True)
+    if not fp:
+        return {"success": False, "message": "Mahsulot topilmadi"}
+    # kech56 (13-band, 7-qadam): javobgar hodim — shu korxonaning hodimi (xomashyo
+    # yechilishidan va yozuvdan OLDIN)
+    try:
+        _brak_javobgar_tekshir(db, brak_javobgar_id, getattr(fp, 'company_id', None))
+        # kech125 (zip 146 — EGASI QARORLARI 07.10 «Brak taqdiri»): taqdir — hech narsa yozilishidan OLDIN tekshiriladi
+        if taqdir is not None and brak_qty is not None and brak_qty > 0:
+            brak_taqdir_tana(db, taqdir, "ishlab", float(brak_qty), fp.unit, getattr(fp, 'company_id', None))
+    except ValueError as _e:
+        return {"success": False, "message": str(_e)}
+
+    # M4: brak'da ayiriladigan XOMASHYO ham faqat shu korxonaniki bo'lishi
+    # shart — aks holda A korxonaning braki B korxonaning omborini
+    # kamaytirib qo'yardi.
+    _brak_cid = company_id if company_id is not None else getattr(fp, 'company_id', None)
+
+    def _brak_inv(inv_id):
+        if not inv_id:
+            return None
+        _q = db.query(Inventory).filter(Inventory.id == inv_id)
+        if _brak_cid is not None:
+            _q = _q.filter(Inventory.company_id == _brak_cid)
+        return _q.with_for_update().first()
+
+    if brak_qty is None or brak_qty <= 0:
+        return {"success": False, "message": "Brak miqdori noto'g'ri"}
+
+    unit_vol = float(fp.unit_volume_m3 or 0)
+    unit_loy = float(fp.unit_loy_kg or 0)
+    penoplast_vol_needed = brak_qty * unit_vol
+    loy_kg_needed = (brak_qty * unit_loy) if fp.is_coated else 0.0
+
+    # kech54 (13-band, 5-qadam): MRP tayyor mahsuloti (`dynamic_bom`) — penoplast / loy
+    # nisbati yo'q (O'LCHANGAN, asl kod: 400 "xomashyo nisbati topilmadi"). Qo'shimcha sarf —
+    # shu mahsulotni ishlab chiqargan buyurtmaning retsept SURATIDAN, 1 birlikka (qoplama
+    # bilan — penoplast yo'lidagi `fp.is_coated` loyi kabi; qadoqsiz). Yetarlilik HAMMASI shu
+    # yerda, yozuvdan OLDIN (penoplast yo'li bilan bir xil qat'iy qoida).
+    _mrp_qatorlar = None
+    if (fp.category or '') == 'dynamic_bom':
+        import services as _svc_mrp
+        _sarf = _svc_mrp._mrp_birlik_sarfi(db, _brak_cid, finished_product=fp, qoplama=True)
+        _mrp_qatorlar = []
+        for _inv_id, _birlik in sorted((_sarf or {}).items()):
+            _kerak = float(_birlik) * float(brak_qty)
+            if _kerak <= 0:
+                continue
+            _inv = _brak_inv(_inv_id)
+            if not _inv:
+                return {"success": False, "message": f"Xomashyo ombordan topilmadi (ID {_inv_id})"}
+            if float(_inv.stock_quantity or 0) < _kerak:
+                return {"success": False,
+                        "message": (f"{_inv.item_name} yetishmayapti! Kerak: {_kerak:.2f} {_inv.unit}, "
+                                    f"omborda: {float(_inv.stock_quantity or 0):.2f} {_inv.unit}")}
+            _mrp_qatorlar.append((_inv, _kerak))
+        if not _mrp_qatorlar:
+            return {"success": False, "message": ("Bu mahsulotning ishlab chiqarish tarkibi surati topilmadi "
+                                                  "(hali ishlab chiqarilmagan bo'lishi mumkin) — qo'lda hisoblash kerak")}
+
+    if _mrp_qatorlar is None and penoplast_vol_needed <= 0 and loy_kg_needed <= 0:
+        return {"success": False, "message": "Bu mahsulot uchun xomashyo nisbati topilmadi (eski yozuv bo'lishi mumkin) — qo'lda hisoblash kerak"}
+
+    log = []
+    peno_cost = 0.0
+    loy_cost = 0.0
 
     # MUHIM: fp.quantity GA TEGILMAYDI — yakuniy mahsulot miqdori
     # o'zgarmagani uchun. Faqat Moliyada xarajat sifatida qayd etiladi.
+    # kech125 (zip 146 — brak taqdiri): yozuv xomashyo yechilishidan OLDIN yaratiladi — har harakat unga bog'lanadi
+    # (`fp_loss_id`; taqdir «O'sha joyiga» shu harakatlarni qaytaradi, tahlil yozuv qiymatini harakatlardan oladi). Tannarx —
+    # yechilgandan keyin; xomashyo yetmasa yozuv olib tashlanadi (hech narsa qolmaydi — avvalgidek).
     loss = FinishedProductLoss(
+        company_id=getattr(fp, 'company_id', None),      # M8/F1
         finished_product_id=fp.id,
         product_name=fp.name,
         category=fp.category,
         quantity=brak_qty,
         unit=fp.unit,
-        cost_amount=total_cost,
-        reason=f"Ishlab chiqarish jarayonida brak — qo'shimcha xomashyo sarflandi (mahsulot soniga tegmaydi)"
+        cost_amount=0,
+        reason=f"{_ISH_BRAK_BELGI} — qo'shimcha xomashyo sarflandi (mahsulot soniga tegmaydi)"
                + (f". Izoh: {notes}" if notes else ""),
-        created_by=created_by
+        created_by=created_by,
+        # kech53 (13-band, 1-qadam): ixtiyoriy brak bosqichi (`_clean_val` tekshirgan)
+        brak_bosqich=brak_bosqich,
+        # kech56 (13-band, 7-qadam): ixtiyoriy sabab va javobgar hodim (tekshirilgan)
+        brak_sabab=brak_sabab,
+        brak_javobgar_id=brak_javobgar_id
     )
     db.add(loss)
+    db.flush()
+
+    # kech52 (13-band, 3-qadam): xomashyo yechish — `_ishlab_chiqarish_braki_xomashyo`.
+    # Shu oraliqda yozilgan HAR chiqim harakati (penoplast, loy ingredientlari —
+    # `services` ichidagi chuqur chaqiruvlar ham) `log_movement` da brak deb
+    # belgilanadi (`db.info["_brak_harakat"]`); belgi `finally` da olinadi —
+    # yordamchidagi erta `return` (penoplast yetishmayapti va h.k.) ham uni
+    # sessiyada qoldirmaydi.
+    db.info["_brak_harakat"] = True
+    db.info["_brak_yoqotish_id"] = loss.id          # kech125 (zip 146): harakat → yozuv bog'lami
+    try:
+        if _mrp_qatorlar is not None:
+            # kech54 (13-band, 5-qadam): MRP mahsuloti — surat qatorlari (yuqorida tekshirilgan)
+            _xom = _mrp_ishlab_chiqarish_braki_xomashyo(db, fp, brak_qty, _mrp_qatorlar, log)
+        else:
+            _xom = _ishlab_chiqarish_braki_xomashyo(
+                db, fp, brak_qty, penoplast_vol_needed, loy_kg_needed, company_id, _brak_inv, log)
+    finally:
+        db.info.pop("_brak_harakat", None)
+        db.info.pop("_brak_yoqotish_id", None)
+    if not _xom.get("success"):
+        # Yechish boshlanmasdan rad etildi (tekshiruvlar yechishdan OLDIN) — yozuv ham qolmaydi
+        db.delete(loss)
+        db.flush()
+        return _xom
+    peno_cost = _xom["peno_cost"]
+    loy_cost = _xom["loy_cost"]
+    # kech54 (5-qadam): MRP mahsulotining surat xomashyosi (boshqa turlarda 0)
+    xomashyo_cost = float(_xom.get("xomashyo_cost", 0.0))
+
+    total_cost = peno_cost + loy_cost + xomashyo_cost
+    loss.cost_amount = total_cost
+    _taqdir_natija = None
+    if taqdir is not None:
+        # kech125 (zip 146): tanlangan taqdir — shu tranzaksiyada (marshrut `bitta_tranzaksiya`: xato — hech narsa yozilmaydi)
+        try:
+            db.flush()
+            _taqdir_natija = _taqdir_almashtir(db, "yoqotish", loss, taqdir, getattr(fp, 'company_id', None),
+                                               created_by, yangi_yozuv=True)
+        except ValueError as _e:
+            db.rollback()
+            return {"success": False, "message": str(_e)}
     db.commit()
     db.refresh(loss)
 
@@ -4668,13 +11205,30 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
         "loss_id": loss.id,
         "cost_amount": float(total_cost),
         "penoplast_cost": float(peno_cost),
-        "bazalt_cost": float(bazalt_cost),
         "loy_cost": float(loy_cost),
+        "xomashyo_cost": float(xomashyo_cost),   # kech54 (5-qadam): MRP surat xomashyosi
         "log": log,
+        "taqdir": (_taqdir_natija or {}).get("taqdir", "tashlandi"),   # kech125 (zip 146)
     }
 
 
-def sell_finished_products_batch(db: Session, data, created_by: str = None) -> dict:
+def _sotuv_ustasi_xatosi(db: Session, master_id, company_id):
+    """17-band: sotuvga biriktirilgan usta SHU korxonadan bo'lishi shart.
+    Ilgari mavjud bo'lmagan `master_id` ham yozilardi (SQLite da jim;
+    PostgreSQL da FK → 500). Xato matni yoki None qaytaradi."""
+    if master_id is None:
+        return None
+    from models import Master
+    q = db.query(Master).filter(Master.id == master_id)
+    if company_id is not None:
+        q = q.filter(Master.company_id == company_id)
+    if not q.first():
+        return "Usta topilmadi"
+    return None
+
+
+def sell_finished_products_batch(db: Session, data, created_by: str = None,
+                                company_id: int = None) -> dict:
     """Bir nechta turli tayyor mahsulotni, BITTA xaridorga, BITTA Yuk xati
     bilan sotadi ("savatcha"). Barchasi BITTA tranzaksiyada — birortasi
     xato bersa, HECH BIRI saqlanmaydi (rollback)."""
@@ -4683,27 +11237,65 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None) -> d
 
     if not data.items:
         return {"success": False, "message": "Hech qanday mahsulot tanlanmagan"}
+    # 17-band: tana qiymatlari QAT'IY — hech narsa yozilmasdan OLDIN.
+    try:
+        _clean_val("SaleBatch", _val_dump(data, "SaleBatch"))
+    except ValueError as _e:
+        return {"success": False, "message": str(_e)}
+    _usta_xato = _sotuv_ustasi_xatosi(db, getattr(data, "master_id", None), company_id)
+    if _usta_xato:
+        return {"success": False, "message": _usta_xato}
 
     group_id = uuid.uuid4().hex[:16]
+    # 17-band: BIR mahsulot savatchada bir necha qatorda bo'lsa — qoldiq
+    # YIG'INDIGA tekshiriladi (ilgari har qator alohida: 6 + 6, qoldiq 10 →
+    # qoldiq -2 ga tushardi, O'LCHANGAN).
+    _savatda = {}
 
     try:
+        # kech65 (K65-1): savatchadagi HAMMA TM qatorlari hech narsa o'qilmasdan OLDIN, id
+        # TARTIBIDA qulflanadi (`_fp_qulf`). O'LCHANGAN (HAQIQIY PG, `work/probe65b.py`, 3 / 3):
+        # qator-qator qulf savatcha TARTIBIDA edi — [B, A] savatcha || shu TM lar bilan buyurtma
+        # tahriri (A, B) → deadlock (tahrir 40P01 bilan yiqilardi); [A, B] || [B, A] ikki savatcha →
+        # ikkinchisi "Xato yuz berdi: ... deadlock detected". Hamma TM qulflovchilar (tahrir, olish,
+        # qaytarish, savatcha) endi bir xil tartibda qulflaydi.
+        _fp_qulf(db, [getattr(_it, 'finished_product_id', None) for _it in data.items], company_id)
         # ── 1-BOSQICH: har detalning ASL summasini hisoblab, tekshiramiz ──
         # (hali DB'ga yozmaymiz — avval umumiy asl jamini bilishimiz kerak,
         #  chegirma koeffitsientini shundan hisoblaymiz.)
         prepared = []   # {fp, quantity, unit_price, original_total, cost_amount}
         original_grand_total = 0.0
         for item in data.items:
-            fp = db.query(FinishedProduct).filter(FinishedProduct.id == item.finished_product_id).with_for_update().first()
+            # M4: har bir mahsulot FAQAT joriy korxonadan. Boshqa
+            # korxonaniki bo'lsa — "topilmadi" va BUTUN savatcha rad
+            # etiladi (rollback), ya'ni B ning qoldig'iga tegilmaydi.
+            fp = get_finished_product(db, item.finished_product_id, company_id, lock=True)
             if not fp:
                 db.rollback()
                 return {"success": False, "message": f"Mahsulot (ID {item.finished_product_id}) topilmadi"}
 
-            available = float(fp.quantity or 0)
-            if item.quantity > available + 0.001:
+            if not _fp_tayyormi(fp):
                 db.rollback()
-                return {"success": False, "message": f"{fp.name}: omborda faqat {available:g} {fp.unit} bor, {item.quantity:g} sota olmaysiz"}
+                return {"success": False, "message": f"{fp.name}: {_jarayonda_xabari(fp)}"}
 
-            orig_total = item.quantity * item.unit_price
+            available = float(fp.quantity or 0) - float(fp.reserved_quantity or 0)
+            _jami_qty = _savatda.get(fp.id, 0.0) + item.quantity
+            if _jami_qty > available + 0.001:
+                db.rollback()
+                extra = f" (shundan {fp.reserved_quantity:g} {fp.unit} boshqa buyurtmaga band qilingan)" if fp.reserved_quantity else ""
+                return {"success": False, "message": f"{fp.name}: sotish mumkin faqat {available:g} {fp.unit} bor{extra}, {_jami_qty:g} sota olmaysiz"}
+            _savatda[fp.id] = _jami_qty
+
+            # kech91 (7-band, O'LCHANGAN — `work/probe7.py`, SQLite + HAQIQIY PG): narx va jami ALOHIDA yaxlitlanardi
+            # (xariddagi 17g nuqsoni): `333 × 10.335` → bazada narx 10.34, jami 3441.56 (333 × 10.34 = 3443.22 —
+            # 1.66 so'm farq, miqdor oshgani sari o'sadi); `7 × 0.125` → PG narx 0.13, jami 0.88 (7 × 0.13 = 0.91);
+            # javobda `3441.5550000000003`. Endi xariddagidek: narx bazadagidek 2 xonaga (HALF_UP), jami SHU narxdan
+            # (`_xarid_narx_jami`); tan narxdan past tekshiruvi ham yoziladigan narx bilan. UI butun son yuboradi —
+            # uning natijasi o'zgarmaydi.
+            _narx2, orig_total = _xarid_narx_jami(item.quantity, item.unit_price)
+            if orig_total > _ORDER_ITEM_MAX_MONEY:
+                db.rollback()
+                return {"success": False, "message": f"{fp.name}: sotuv summasi (miqdor × narx) juda katta"}
             # FASA 4B: yagona manba — pastdagi izohga qarang (sell_finished_product)
             unit_cost = _fp_stable_unit_cost(db, fp)
             if unit_cost <= 0 and available > 0:
@@ -4711,7 +11303,10 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None) -> d
 
             # XAVFSIZLIK/NAZORAT: sell_finished_product'dagi bilan bir xil —
             # sotuv narxi tan narxidan past bo'lsa, aniq tasdiqlash so'raladi.
-            if unit_cost > 0 and float(item.unit_price) < unit_cost and not getattr(data, "confirm_below_cost", False):
+            # kech125 (zip 146 — egasi qarori Q2): 2-nav mahsulot tannarxdan arzon sotilishi tabiiy — so'ralmaydi (farq sotuv
+            # oyida zarar — sotuv tannarxi o'zgarmaydi)
+            if unit_cost > 0 and float(_narx2) < unit_cost and not getattr(data, "confirm_below_cost", False) \
+                    and getattr(fp, "brak_taqdir", None) != "ikkinchi_nav":
                 db.rollback()
                 return {
                     "success": False,
@@ -4722,12 +11317,13 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None) -> d
                     )
                 }
 
-            cost_amount = unit_cost * item.quantity
+            # 117-band (kech95): sotuv tannarxi bazadagidek 2 xonaga (bitta sotuvdagi bilan bir xil sabab).
+            cost_amount = _pul2(unit_cost * item.quantity)
 
             prepared.append({
                 "fp": fp,
                 "quantity": item.quantity,
-                "unit_price": item.unit_price,
+                "unit_price": _narx2,
                 "original_total": orig_total,
                 "cost_amount": cost_amount,
             })
@@ -4740,7 +11336,9 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None) -> d
             agreed_grand_total = original_grand_total
             discount_percent = 0.0
         else:
-            agreed_grand_total = float(agreed)
+            # kech91 (7-band): kelishilgan summa ham bazadagidek 2 xonaga (HALF_UP) — qatorlar yig'indisi
+            # AYNAN shu summa (O'LCHANGAN: 800.005 → qatorlar 800.00; to'g'risi 800.01).
+            agreed_grand_total = _pul2(agreed)
             discount_percent = round((1 - agreed_grand_total / original_grand_total) * 100, 2)
 
         # ── 2-BOSQICH: yozib chiqamiz. Chegirma har qatorga PROPORSIONAL ──
@@ -4767,9 +11365,10 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None) -> d
 
             fp.quantity = float(fp.quantity or 0) - p["quantity"]
             if fp.cost_price:
-                fp.cost_price = float(fp.cost_price) - p["cost_amount"]
+                fp.cost_price = float(_pul2_decimal(fp.cost_price) - _pul2_decimal(p["cost_amount"]))
 
             sale = FinishedProductSale(
+                company_id=getattr(fp, 'company_id', None),   # M8/F1
                 finished_product_id=fp.id,
                 product_name=fp.name,
                 quantity=p["quantity"],
@@ -4809,21 +11408,43 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None) -> d
         return {"success": False, "message": f"Xato yuz berdi: {str(e)}"}
 
 
-def sell_finished_product(db: Session, data, created_by: str = None) -> dict:
+def sell_finished_product(db: Session, data, created_by: str = None,
+                         company_id: int = None) -> dict:
     """Tayyor mahsulotni to'g'ridan-to'g'ri sotadi (buyurtma/Yuk xatisiz).
     Qoldiqdan ayiradi, savdo yozuvini yaratadi. cost_amount — mahsulotning
     o'z cost_price'iga proporsional (odatda G'isht kabi mahsulotlarda 0)."""
     from models import FinishedProduct, FinishedProductSale
 
-    fp = db.query(FinishedProduct).filter(FinishedProduct.id == data.finished_product_id).with_for_update().first()
+    # M4: mahsulot FAQAT joriy korxonadan (aks holda "topilmadi").
+    # 17-band: tana qiymatlari QAT'IY — hech narsa yozilmasdan OLDIN.
+    try:
+        _clean_val("Sale", _val_dump(data, "Sale"))
+    except ValueError as _e:
+        return {"success": False, "message": str(_e)}
+    fp = get_finished_product(db, data.finished_product_id, company_id, lock=True)
     if not fp:
         return {"success": False, "message": "Mahsulot topilmadi"}
+    if not _fp_tayyormi(fp):
+        return {"success": False, "message": _jarayonda_xabari(fp)}
 
     available = float(fp.quantity or 0)
     if data.quantity > available + 0.001:
         return {"success": False, "message": f"Omborda faqat {available:g} {fp.unit} bor, {data.quantity:g} sota olmaysiz"}
 
-    total_amount = data.quantity * data.unit_price
+    _usta_xato = _sotuv_ustasi_xatosi(db, getattr(data, "master_id", None),
+                                      company_id if company_id is not None else fp.company_id)
+    if _usta_xato:
+        return {"success": False, "message": _usta_xato}
+
+    # kech91 (7-band, O'LCHANGAN — `work/probe7.py`, SQLite + HAQIQIY PG): narx va jami ALOHIDA yaxlitlanardi
+    # (xariddagi 17g nuqsoni): `333 × 10.335` → bazada narx 10.34, jami 3441.56 (333 × 10.34 = 3443.22 —
+    # 1.66 so'm farq, miqdor oshgani sari o'sadi); `7 × 0.125` → PG narx 0.13, jami 0.88 (7 × 0.13 = 0.91);
+    # javobda `3441.5550000000003`. Endi xariddagidek: narx bazadagidek 2 xonaga (HALF_UP), jami SHU narxdan
+    # (`_xarid_narx_jami`); tan narxdan past tekshiruvi ham yoziladigan narx bilan. UI butun son yuboradi —
+    # uning natijasi o'zgarmaydi.
+    _sotuv_narx, total_amount = _xarid_narx_jami(data.quantity, data.unit_price)
+    if total_amount > _ORDER_ITEM_MAX_MONEY:
+        return {"success": False, "message": "Sotuv summasi (miqdor × narx) juda katta"}
     # FASA 4B: "1 birlik tan narxi" endi BARCHA joyda (sotish, buyurtmaga
     # olish/qaytarish, hisobot) BITTA manbadan — _fp_stable_unit_cost'dan
     # olinadi (xomashyoning joriy narxidan hisoblanadi). Avval bu yerda
@@ -4841,7 +11462,10 @@ def sell_finished_product(db: Session, data, created_by: str = None) -> dict:
     # narxining o'zi (mahsulot tannarxi — ichki, nozik ma'lumot) xabarda
     # KO'RSATILMAYDI — xodim uni bilmasligi kerak, faqat "bu narxda sotib
     # bo'lmaydi" degan xabarni ko'radi.
-    if unit_cost > 0 and float(data.unit_price) < unit_cost and not getattr(data, "confirm_below_cost", False):
+    # kech125 (zip 146 — egasi qarori Q2): 2-nav mahsulot (brakdan) tannarxdan arzon sotilishi tabiiy — so'ralmaydi; farq
+    # (tannarx − sotuv) sotuv oyida zarar (sotuv tannarxi — muzlagan `unit_cost_stable`)
+    if unit_cost > 0 and float(_sotuv_narx) < unit_cost and not getattr(data, "confirm_below_cost", False) \
+            and getattr(fp, "brak_taqdir", None) != "ikkinchi_nav":
         return {
             "success": False,
             "type": "below_cost_warning",
@@ -4851,18 +11475,24 @@ def sell_finished_product(db: Session, data, created_by: str = None) -> dict:
             )
         }
 
-    cost_amount = unit_cost * data.quantity
+    # 117-band (kech95, kech91 kuzatuvi — O'LCHANGAN `work/probe117b.py` (8), SQLite + PG): sotuv tannarxi va
+    # qolgan tannarx ALOHIDA yaxlitlanardi — PG da 10.01 li mahsulotning yarmi sotilganda 5.01 + 5.01 = 10.02
+    # (1 tiyin paydo bo'lardi), SQLite da 5.00 + 5.00 (yo'qolardi); javobdagi `profit` yaxlitlanmagan
+    # (14.995000000000001, bazada 14.99). Endi sotuv tannarxi bazadagidek 2 xonaga (HALF_UP), qolgani AYNAN
+    # ayirma (o'nlik), foyda — bazadagi summalardan.
+    cost_amount = _pul2(unit_cost * data.quantity)
 
     fp.quantity = available - data.quantity
     if fp.cost_price:
-        fp.cost_price = float(fp.cost_price) - cost_amount
+        fp.cost_price = float(_pul2_decimal(fp.cost_price) - _pul2_decimal(cost_amount))
 
     sale = FinishedProductSale(
+        company_id=getattr(fp, 'company_id', None),      # M8/F1
         finished_product_id=fp.id,
         product_name=fp.name,
         quantity=data.quantity,
         unit=fp.unit,
-        unit_price=data.unit_price,
+        unit_price=_sotuv_narx,
         total_amount=total_amount,
         cost_amount=cost_amount,
         buyer_name=data.buyer_name,
@@ -4879,139 +11509,13 @@ def sell_finished_product(db: Session, data, created_by: str = None) -> dict:
         "sale_id": sale.id,
         "product_name": fp.name,
         "total_amount": float(total_amount),
-        "profit": float(total_amount - cost_amount),
+        "profit": float(_pul2_decimal(total_amount) - _pul2_decimal(cost_amount)),
         "remaining_stock": float(fp.quantity)
     }
 
 
-def create_gisht_from_order(db: Session, order, quantity: float, created_by: str = None) -> dict:
-    """G'isht — ortgan (loydan qolgan) qismidan quyilgan mahsulot.
-    MUHIM: bu — yo'qotish EMAS (xomashyosi allaqachon shu buyurtmaning
-    o'z Gips hisobida hisoblangan), shuning uchun BU YERDA ombordan
-    QO'SHIMCHA hech narsa ayirilmaydi. Har bir buyurtmadan chiqqan G'isht
-    — ALOHIDA qator emas, BITTA umumiy "G'isht" mahsulotiga QO'SHILIB
-    boradi (tan narxi doim 0 — mahsulot tan narxiga hech qachon qo'shilmaydi,
-    sotuv narxini qo'lda belgilaysiz)."""
-    from models import FinishedProduct, StockSource, ProductionStatus
-
-    if quantity <= 0:
-        return {"success": False, "message": "Miqdor 0 dan katta bo'lishi kerak"}
-
-    existing = db.query(FinishedProduct).filter(
-        FinishedProduct.name == "G'isht",
-        FinishedProduct.category == "dona",
-        FinishedProduct.source == StockSource.PRODUCED
-    ).with_for_update().first()
-
-    if existing:
-        existing.quantity = float(existing.quantity or 0) + quantity
-        existing.is_coated = False
-        existing.notes = f"Oxirgi qo'shilgan: {order.order_number} orqali (+{quantity:g} dona)"
-        db.commit()
-        db.refresh(existing)
-        return {"success": True, "finished_product_id": existing.id, "quantity": quantity}
-
-    fp = FinishedProduct(
-        name="G'isht",
-        category="dona",
-        quantity=quantity,
-        produced_quantity=quantity,
-        unit="dona",
-        unit_price=0,
-        cost_price=0,
-        is_coated=False,
-        source=StockSource.PRODUCED,
-        from_order_id=order.id,
-        production_status=ProductionStatus.READY,
-        finished_production_at=datetime.utcnow(),
-        created_by=created_by,
-        notes=f"Birinchi marta {order.order_number} orqali qo'shildi"
-    )
-    db.add(fp)
-    db.commit()
-    db.refresh(fp)
-    return {"success": True, "finished_product_id": fp.id, "quantity": quantity}
-
-
-def produce_gips_finished_product(db: Session, data, created_by: str = None) -> dict:
-    """Gips mahsulotini to'g'ridan-to'g'ri (buyurtmasiz) ishlab chiqaradi.
-    Agar Gips xomashyosi va sarflangan kg ko'rsatilgan bo'lsa — ombordan
-    haqiqatan ayiradi va tan narxni shunga qarab hisoblaydi. Ko'rsatilmasa
-    — tan narxi 0 bo'ladi (masalan mavjud zaxiradan qayta ishlangan bo'lsa)."""
-    from models import FinishedProduct, Inventory, StockSource, ProductionStatus
-
-    cost_price = 0.0
-    if data.gips_inventory_id and data.gips_kg_used and data.gips_kg_used > 0:
-        gips_item = db.query(Inventory).filter(Inventory.id == data.gips_inventory_id).with_for_update().first()
-        if not gips_item:
-            return {"success": False, "message": "Tanlangan Gips xomashyosi topilmadi"}
-        if float(gips_item.stock_quantity or 0) < data.gips_kg_used:
-            return {"success": False, "message": f"Omborda faqat {float(gips_item.stock_quantity):.1f} kg {gips_item.item_name} bor"}
-        gips_item.stock_quantity = float(gips_item.stock_quantity) - data.gips_kg_used
-        cost_price = data.gips_kg_used * float(gips_item.price_per_unit or 0)
-        log_movement(
-            db, gips_item.id, gips_item.item_name, movement_type="out",
-            quantity=data.gips_kg_used, unit=gips_item.unit,
-            reason=f"Gips mahsulot ishlab chiqarish: {data.name}"
-        )
-
-    # Qo'shimchalar (Serpiyanka, Po'lat sim va h.k.) — har biri ombordan
-    # ayiriladi va tan narxga qo'shiladi
-    for add in (data.additives or []):
-        add_item = db.query(Inventory).filter(Inventory.id == add.inventory_id).with_for_update().first()
-        if not add_item:
-            return {"success": False, "message": f"Qo'shimcha material (ID {add.inventory_id}) topilmadi"}
-        if float(add_item.stock_quantity or 0) < add.quantity:
-            return {"success": False, "message": f"Omborda faqat {float(add_item.stock_quantity):.1f} {add_item.unit} {add_item.item_name} bor"}
-        add_item.stock_quantity = float(add_item.stock_quantity) - add.quantity
-        cost_price += add.quantity * float(add_item.price_per_unit or 0)
-        log_movement(
-            db, add_item.id, add_item.item_name, movement_type="out",
-            quantity=add.quantity, unit=add_item.unit,
-            reason=f"Gips mahsulot ishlab chiqarish (qo'shimcha): {data.name}"
-        )
-
-    # MUHIM: qo'shimchalar ro'yxatini (qaysi material, qancha miqdorda)
-    # JSON sifatida saqlab qo'yamiz — aks holda "+" orqali keyinroq
-    # miqdor qo'shilganda, tizim qaysi qo'shimchalar ishlatilganini
-    # bilmay, faqat asosiy Gipsni yechib, qo'shimchalarni UMUMAN
-    # ayirmay qoldirar edi.
-    import json as _json_gips
-    gips_additives_json = _json_gips.dumps([
-        {"inventory_id": a.inventory_id, "quantity": float(a.quantity)}
-        for a in (data.additives or [])
-    ]) if data.additives else None
-
-    fp = FinishedProduct(
-        name=data.name,
-        category="gips",
-        quantity=data.quantity,
-        unit=data.unit,
-        produced_quantity=data.quantity,
-        unit_price=data.unit_price,
-        cost_price=cost_price,
-        is_coated=False,
-        gips_kg_used=data.gips_kg_used,
-        gips_inventory_id=data.gips_inventory_id,
-        gips_additives_json=gips_additives_json,
-        source=StockSource.PRODUCED,
-        production_status=ProductionStatus.READY,
-        finished_production_at=datetime.utcnow(),
-        created_by=created_by,
-        notes=data.notes
-    )
-    db.add(fp)
-    db.commit()
-    db.refresh(fp)
-    try:
-        log_activity(db, "produced", "finished_product", fp.id, fp.name, created_by,
-                      new_value=f"{float(fp.quantity):g} {fp.unit} (Gips), tan narxi: {round(cost_price):,} so'm".replace(',', ' '))
-    except Exception:
-        pass
-    return {"success": True, "finished_product_id": fp.id}
-
-
-def produce_finished_product(db: Session, data: ProduceCreate, created_by: str = None) -> dict:
+def produce_finished_product(db: Session, data: ProduceCreate, created_by: str = None,
+                            company_id: int = None) -> dict:
     """Ishlab chiqarish boshlanadi:
     - Penoplast DARHOL ombordan yechiladi (kesish boshlanadi)
     - Loy REJA sifatida saqlanadi — "Tayyor" bosilganda aniq miqdor yechiladi
@@ -5019,6 +11523,14 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
     """
     import services
     from models import ProductionStatus
+
+    # 17-band: tana qiymatlari QAT'IY — hech narsa yozilmasdan OLDIN
+    # (manfiy o'lcham → manfiy hajm → penoplast yechilmay mahsulot BEPUL
+    # paydo bo'lardi; NaN / cheksizlik → 500 + yarim yozuv — O'LCHANGAN).
+    try:
+        _clean_val("Produce", _val_dump(data, "Produce"))
+    except ValueError as _e:
+        return {"success": False, "message": str(_e)}
 
     qty = _fp_qty(data)
     if qty <= 0:
@@ -5038,15 +11550,35 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
     tmp.price_per_m3 = data.price_per_m3
     tmp.finished_product_id = None
 
-    default_p = services.get_default_penoplast(db)
-    volume = services._item_volume_m3(db, tmp, default_p)
+    default_p = services.get_default_penoplast(db, company_id=company_id)
+    volume = services._item_volume_m3(db, tmp, default_p, company_id=company_id)   # kech99 (112-band)
 
     pid = data.penoplast_id or (default_p.id if default_p else None)
+
+    # M4 (2026-09-18) — TENANT: Penoplast FAQAT joriy korxonadan olinadi.
+    # Ilgari mijoz yuborgan `penoplast_id` faqat id bo'yicha o'qilardi —
+    # A korxona xodimi B korxonaning penoplast qoldig'ini kamaytirib
+    # yuborishi mumkin edi.
+    def _pf_inv(inv_id, lock=False):
+        if not inv_id:
+            return None
+        _q = db.query(Inventory).filter(Inventory.id == inv_id)
+        if company_id is not None:
+            _q = _q.filter(Inventory.company_id == company_id)
+        if lock:
+            _q = _q.with_for_update()
+        return _q.first()
 
     # Penoplast yetadimi
     shortages = []
     if volume > 0 and pid:
-        p = db.query(Inventory).filter(Inventory.id == pid).first()
+        p = _pf_inv(pid)
+        if company_id is not None and not p:
+            return {"success": False, "message": "Tanlangan Penoplast ombordan topilmadi"}
+        # 17-band: faqat PENOPLAST material "blok" sifatida yechiladi —
+        # ilgari oddiy material (masalan kg dagi kimyo) ham yechilardi.
+        if p and not _penoplastmi(p):
+            return {"success": False, "message": f"{p.item_name} — penoplast emas"}
         if p:
             vol_per_unit = float(p.volume_per_unit or 1.0)
             blocks = volume / vol_per_unit
@@ -5063,11 +11595,14 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
 
     # 1) Penoplastni DARHOL yechamiz
     if volume > 0 and pid:
-        p = db.query(Inventory).filter(Inventory.id == pid).with_for_update().first()
+        p = _pf_inv(pid, lock=True)
         if p:
             vol_per_unit = float(p.volume_per_unit or 1.0)
             blocks = volume / vol_per_unit
-            p.stock_quantity = max(0, float(p.stock_quantity) - blocks)
+            # 20-band (2026-09-21): 0 ga QIRQILMAYDI. Yetishmovchilik yuqorida
+            # rad etiladi; qirqish faqat manfiy "qarz"ni jimgina o'chirardi
+            # (jurnalga esa to'liq `blocks` yoziladi).
+            p.stock_quantity = float(p.stock_quantity) - blocks
             peno_cost = blocks * float(p.price_per_unit or 0)
             log.append(f"{p.item_name}: -{blocks:.2f} blok")
             # MUHIM: avval bu yerda Ombor harakati (log_movement) UMUMAN
@@ -5082,26 +11617,29 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
     # 2) Loyni ham DARHOL yechamiz (bir marta so'raladi)
     loy_kg = float(data.loy_kg or 0)
     if loy_kg > 0:
-        from models import Recipe
-        recipe = None
-        if data.recipe_id:
-            recipe = db.query(Recipe).filter(Recipe.id == data.recipe_id).first()
-        if not recipe:
-            recipe = db.query(Recipe).first()
+        # M4 — TENANT: retsept ham faqat joriy korxonadan. "Birinchi
+        # topilgan retsept" (fallback) ham SHU korxona ichidan olinadi.
+        # 2026-09-21 — qidiruv `services.resolve_recipe` ga o'tkazildi
+        # (yagona manba). Mantiq O'ZGARMADI: avval `data.recipe_id`,
+        # topilmasa SHU korxonaning birinchi retsepti.
+        recipe = services.resolve_recipe(db, recipe_id=data.recipe_id,
+                                         company_id=company_id)
 
-        loy_info = services.get_loy_cost_per_kg(db, recipe.id if recipe else None)
+        loy_info = services.get_loy_cost_per_kg(
+            db, recipe.id if recipe else None, company_id=company_id)
         loy_cost = loy_kg * float(loy_info.get("cost_per_kg", 0))
 
         class _FakeOrder:
-            def __init__(self, rid):
+            def __init__(self, rid, cid):
                 class _It:
                     recipe_id = rid
                 self.items = [_It()]
                 self.id = None
+                self.company_id = cid      # 2026-09-21 — TENANT
                 self.order_number = "ISHLAB CHIQARISH"
-        fake = _FakeOrder(recipe.id if recipe else None)
+        fake = _FakeOrder(recipe.id if recipe else None, company_id)
         log.extend(services.deduct_loy_ingredients(
-            db, fake, loy_kg, use_stock=False,
+            db, fake, loy_kg, use_stock=False, company_id=company_id,
             reason_override=f"Ishlab chiqarish: {data.name.strip()} (loy)"
         ))
 
@@ -5112,6 +11650,7 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
     # Har safar YANGI yozuv — birlashtirmaymiz (loy sarfi har birida boshqacha)
     unit = _fp_unit(data.category)
     fp = FinishedProduct(
+        company_id=company_id,          # M4: tenant ANIQ beriladi
         name=data.name.strip(),
         category=data.category,
         width=data.width,
@@ -5130,6 +11669,11 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
         unit_volume_m3=(volume / qty) if qty > 0 else 0,
         unit_loy_kg=(loy_kg / qty) if qty > 0 else 0,
         recipe_id=data.recipe_id,
+        # kech59 (47-band, K59-4): 1 birlik tannarxi ISHLAB CHIQARILGAN paytdagi narxda muzlaydi
+        # (32-band qarori "ishlatilgan paytdagi narxda muzlatilsin" bilan bir xil). Ilgari yozilmasdi —
+        # `_fp_stable_unit_cost` penoplast / loyning JORIY narxidan hisoblardi: narx oshsa sotuv,
+        # buyurtmaga olish va qaytarish tannarxi ham oshardi (O'LCHANGAN — work/probe59_47.py).
+        unit_cost_stable=(total_cost / qty) if qty > 0 else None,
         production_status=ProductionStatus.IN_PROGRESS,
         created_by=created_by,
         notes=data.notes
@@ -5145,7 +11689,8 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
     # AUDIT: ishlab chiqarish qayd etiladi
     try:
         log_activity(db, "produced", "finished_product", fp.id, fp.name, created_by,
-                      new_value=f"{float(fp.quantity):g} {fp.unit}, tan narxi: {round(total_cost):,} so'm".replace(',', ' '))
+                      new_value=f"{float(fp.quantity):g} {fp.unit}, tan narxi: {round(total_cost):,} so'm".replace(',', ' '),
+                      company_id=getattr(fp, 'company_id', None))
     except Exception:
         pass
 
@@ -5168,12 +11713,13 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
     }
 
 
-def complete_production(db: Session, fp_id: int, actual_loy_kg: float = 0) -> dict:
+def complete_production(db: Session, fp_id: int, actual_loy_kg: float = 0,
+                       company_id: int = None) -> dict:
     """Ishlab chiqarishni yakunlaydi — mahsulot sotuvga tayyor.
     Xomashyo allaqachon yechilgan, bu faqat status o'zgartirish."""
     from models import ProductionStatus
 
-    fp = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()
+    fp = get_finished_product(db, fp_id, company_id)   # M4: faqat shu korxonadan
     if not fp:
         return {"success": False, "message": "Topilmadi"}
 
@@ -5182,6 +11728,10 @@ def complete_production(db: Session, fp_id: int, actual_loy_kg: float = 0) -> di
 
     if fp.production_status == ProductionStatus.READY:
         return {"success": False, "message": "Bu mahsulot allaqachon tayyor"}
+
+    # kech114 (K114-1): MRP mahsuloti «Sotuvga tayyor» bo'lmaydi — ishlab chiqarish «Yakunlash»i (xomashyo, tannarx).
+    if _mrp_tm_mi(fp):
+        return {"success": False, "message": _MRP_JARAYON_XABAR}
 
     fp.production_status = ProductionStatus.READY
     fp.finished_production_at = datetime.utcnow()
@@ -5219,9 +11769,15 @@ def complete_production(db: Session, fp_id: int, actual_loy_kg: float = 0) -> di
     }
 
 
-def get_finished_products(db: Session, source: Optional[str] = None, only_available: bool = False) -> List[FinishedProduct]:
-    """Tayyor mahsulotlar ro'yxati."""
+def get_finished_products(db: Session, source: Optional[str] = None, only_available: bool = False,
+                         company_id: int = None) -> List[FinishedProduct]:
+    """Tayyor mahsulotlar ro'yxati.
+
+    M4 (2026-09-18) — TENANT: company_id berilsa, FAQAT shu korxona
+    mahsulotlari qaytariladi."""
     q = db.query(FinishedProduct)
+    if company_id is not None:
+        q = q.filter(FinishedProduct.company_id == company_id)
     if source:
         try:
             q = q.filter(FinishedProduct.source == StockSource(source))
@@ -5229,10 +11785,29 @@ def get_finished_products(db: Session, source: Optional[str] = None, only_availa
             pass
     if only_available:
         q = q.filter(FinishedProduct.quantity > 0)
-    return q.order_by(FinishedProduct.source, FinishedProduct.name).all()
+    # kech35 (15-band, jonli O'LCHANGAN kech28): nomi bir xil mahsulotlar orasida
+    # tartib aniqlanmagan edi (PG da UPDATE dan keyin o'rin almashardi) —
+    # `id` uchinchi (qidiruvda ikkinchi) kalit: tartib doim barqaror.
+    return q.order_by(FinishedProduct.source, FinishedProduct.name, FinishedProduct.id).all()
 
 
-def get_finished_products_for_main_page(db: Session, days: int = 90, show_all: bool = False) -> List[FinishedProduct]:
+def fp_ishlab_chiqarish_raqamlari(db: Session, fp_idlar, company_id: int = None) -> dict:
+    """{tayyor mahsulot id: ishlab chiqarish (MRP) raqami} — kech114 (dizayn 7-band, K114-1). BITTA so'rov."""
+    idlar = sorted({int(x) for x in (fp_idlar or []) if x is not None})
+    if not idlar:
+        return {}
+    from production_models import ProductionOrder as _PO114
+    q = db.query(_PO114.finished_product_id, _PO114.id).filter(_PO114.finished_product_id.in_(idlar))
+    if company_id is not None:
+        q = q.filter(_PO114.company_id == company_id)
+    natija = {}
+    for fp_id, po_id in q.order_by(_PO114.id).all():
+        natija.setdefault(fp_id, po_id)
+    return natija
+
+
+def get_finished_products_for_main_page(db: Session, days: int = 90, show_all: bool = False,
+                                       company_id: int = None) -> List[FinishedProduct]:
     """Tayyor mahsulotlar sahifasi uchun — tezlik uchun.
 
     MUHIM: ombordagi (quantity > 0) VA hali ishlab chiqarilayotgan
@@ -5242,21 +11817,37 @@ def get_finished_products_for_main_page(db: Session, days: int = 90, show_all: b
     from models import ProductionStatus
     from datetime import timedelta
 
+    # M4 (2026-09-18) — TENANT: SAHIFA ro'yxati. Auditda aynan shu
+    # funksiya orqali B korxonaning mahsuloti A ning sahifasida
+    # ko'ringan edi (H-2).
+    base = db.query(FinishedProduct)
+    if company_id is not None:
+        base = base.filter(FinishedProduct.company_id == company_id)
+
     if show_all:
-        return db.query(FinishedProduct).order_by(FinishedProduct.source, FinishedProduct.name).all()
+        # kech35 (15-band, jonli O'LCHANGAN kech28): nomi bir xil mahsulotlar orasida
+        # tartib aniqlanmagan edi (PG da UPDATE dan keyin o'rin almashardi) —
+        # `id` uchinchi (qidiruvda ikkinchi) kalit: tartib doim barqaror.
+        return base.order_by(FinishedProduct.source, FinishedProduct.name, FinishedProduct.id).all()
 
     cutoff = datetime.utcnow() - timedelta(days=days)
-    return db.query(FinishedProduct).filter(
+    return base.filter(
         (FinishedProduct.created_at >= cutoff) |
         (FinishedProduct.quantity > 0) |
         (FinishedProduct.production_status == ProductionStatus.IN_PROGRESS)
-    ).order_by(FinishedProduct.source, FinishedProduct.name).all()
+    ).order_by(FinishedProduct.source, FinishedProduct.name, FinishedProduct.id).all()
 
 
-def update_finished_product(db: Session, fp_id: int, data: dict) -> Optional[FinishedProduct]:
-    fp = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()
+def update_finished_product(db: Session, fp_id: int, data: dict,
+                           company_id: int = None) -> Optional[FinishedProduct]:
+    # M4: mahsulot FAQAT joriy korxonadan (aks holda None → 404).
+    fp = get_finished_product(db, fp_id, company_id)
     if not fp:
         return None
+    # M4: company_id hech qachon mijoz so'rovidan qabul qilinmaydi.
+    data = {k: v for k, v in (data or {}).items() if k != "company_id"}
+    # 14-band: qat'iy tekshiruv — HECH NARSA yozilmasdan OLDIN (ValueError → 400).
+    data = _clean_update("FinishedProduct", data)
     for k, v in data.items():
         if v is not None and hasattr(fp, k):
             setattr(fp, k, v)
@@ -5265,7 +11856,8 @@ def update_finished_product(db: Session, fp_id: int, data: dict) -> Optional[Fin
     return fp
 
 
-def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = False) -> bool:
+def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = False,
+                            company_id: int = None) -> bool:
     """Tayyor mahsulotni o'chirish.
 
     MUHIM (real hayot mantig'i): tayyor mahsulot — ALLAQACHON ishlab
@@ -5279,59 +11871,92 @@ def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = Fal
         aylangan — real hayotda sindirilsa ham qaytmaydi).
     `return_to_stock` parametri endi ISHLATILMAYDI (eski chaqiruvlar
     buzilmasligi uchun qoldirilgan)."""
-    fp = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()
+    # M4: mahsulot FAQAT joriy korxonadan (aks holda False → 404/xato).
+    fp = get_finished_product(db, fp_id, company_id)
     if not fp:
         return False
 
     # ── "JARAYONDA" (IN_PROGRESS, hali "Sotuvga tayyor" bosilmagan) ──
     # Bu — deyarli har doim XATO tuzatish (noto'g'ri nom/miqdor yozib
     # yuborilgan). Shuning uchun bunda: o'chirishga RUXSAT beramiz VA
-    # ishlab chiqarishda ketgan xomashyoni (Penoplast, Loy, Gips, Bazalt)
+    # ishlab chiqarishda ketgan xomashyoni (Penoplast, Loy, Bazalt)
     # OMBORGA QAYTARAMIZ. (READY — "Sotuvga tayyor" bosilgan — mahsulot
     # esa pastdagi qat'iy qoidaga bo'ysunadi: qoldiq 0 bo'lishi kerak,
     # xomashyo qaytmaydi.)
-    from models import ProductionStatus as _PS
-    if fp.production_status == _PS.IN_PROGRESS:
+    # kech40 (K40-1) — O'LCHANGAN (asl kod, SQLite va PG, `work/probe40b.py`):
+    # qaytgan (RETURNED) mahsulot holati belgilanmay yaratilardi (bazada
+    # standart IN_PROGRESS), shuning uchun bu "xato tuzatish" tarmog'iga
+    # tushardi: 100 metr qoldig'i bor qaytgan mahsulot jim o'chirilar va uning
+    # `volume_m3` si PENOPLAST omboriga QAYTARILARDI (99 → 100 blok) — penoplast
+    # allaqachon mahsulotga aylangan, qaytish soxta. Qaytgan mahsulot doim
+    # tayyor (`_fp_tayyormi` — UI bilan bir xil), u pastdagi qat'iy qoidaga
+    # bo'ysunadi (qoldiq 0 bo'lishi kerak, xomashyo qaytmaydi).
+    if not _fp_tayyormi(fp):
+        # kech114 (K114-1): jarayondagi MRP mahsuloti bu yerda O'CHIRILMAYDI — ishlab chiqarish «jarayonda» qolib,
+        # keyingi «Yakunlash» xomashyoni yechar va omborga hech narsa kiritmas edi. U «Ishlab chiqarish» bo'limida
+        # «Bekor qilish» bilan olib tashlanadi (`production_service.cancel_production_order`). Marshrut ham
+        # (`main.api_delete_finished`) shu qoidani o'zi tekshirib, aniq xabar beradi — bu ikkinchi to'siq.
+        if _mrp_tm_mi(fp):
+            return False
         import services as _svc
         from models import Inventory as _Inv
+        # M4: qaytariladigan xomashyo ham faqat SHU mahsulotning korxonasidan.
+        _del_cid = getattr(fp, 'company_id', None)
+
+        def _del_inv(_q):
+            return _q.filter(_Inv.company_id == _del_cid) if _del_cid is not None else _q
+
         # Penoplast qaytadi
         if fp.penoplast_id and fp.volume_m3:
-            p = db.query(_Inv).filter(_Inv.id == fp.penoplast_id).with_for_update().first()
+            p = _del_inv(db.query(_Inv).filter(_Inv.id == fp.penoplast_id)).with_for_update().first()
             if p:
                 vpu = float(p.volume_per_unit or 1.0)
-                p.stock_quantity = float(p.stock_quantity) + (float(fp.volume_m3) / vpu)
+                _qaytgan_blok = float(fp.volume_m3) / vpu
+                p.stock_quantity = float(p.stock_quantity) + _qaytgan_blok
+                # 20-band (2026-09-21): qaytish JURNALGA yoziladi — ilgari
+                # `produce` "out" yozardi, o'chirishdagi qaytish esa yozilmasdi
+                # (jurnal yig'indisi ombor qoldig'iga mos kelmasdi).
+                log_movement(
+                    db, p.id, p.item_name, movement_type="in",
+                    quantity=_qaytgan_blok, unit=p.unit,
+                    reason=_jurnal_sabab(f"Mahsulot o'chirildi — {fp.name} (penoplast qaytarildi)")
+                )
         # Loy qaytadi
         if fp.actual_loy_kg and fp.actual_loy_kg > 0:
-            _svc.return_loy_ingredients(db, _TermoFakeOrder(fp.recipe_id), float(fp.actual_loy_kg))
-        # Gips qaytadi
-        if getattr(fp, 'gips_kg_used', None) and fp.gips_kg_used > 0 and getattr(fp, 'gips_inventory_id', None):
-            g = db.query(_Inv).filter(_Inv.id == fp.gips_inventory_id).with_for_update().first()
-            if g:
-                g.stock_quantity = float(g.stock_quantity or 0) + float(fp.gips_kg_used)
-        # Bazalt (termopanel) qaytadi — bazalt/serpiyanka/kley
-        if (fp.category or '').lower() == 'termopanel' and getattr(fp, 'bazalt_item_id', None):
-            b = db.query(_Inv).filter(_Inv.id == fp.bazalt_item_id).with_for_update().first()
-            if b:
-                m2 = float(fp.quantity or 0)
-                area = float(b.volume_per_unit or 0.72)
-                sheets = m2 / area if area > 0 else 0
-                b.stock_quantity = float(b.stock_quantity) + sheets
-                serp_ratio = float(b.serp_ratio_per_m2) if b.serp_ratio_per_m2 else 2.0
-                kley_ratio = float(b.kley_ratio_per_m2) if b.kley_ratio_per_m2 else 0.8
-                serp = db.query(_Inv).filter(_Inv.item_name.ilike('%serpiyanka%')).first()
-                if serp:
-                    serp_area = float(serp.volume_per_unit or 50.0)
-                    serp.stock_quantity = float(serp.stock_quantity) + ((m2 * serp_ratio) / serp_area if serp_area > 0 else 0)
-                kley = db.query(_Inv).filter(_Inv.item_name.ilike('%kley%')).first()
-                if kley:
-                    kley.stock_quantity = float(kley.stock_quantity) + (m2 * kley_ratio)
-
+            # 20-band: jurnal sababi — mahsulot nomi bilan (ilgari soxta
+            # buyurtma obyekti tufayli har doim "Buyurtma TERMOPANEL +
+            # bekor qilindi" yozilardi).
+            _svc.return_loy_ingredients(
+                db, _TermoFakeOrder(fp.recipe_id, getattr(fp, 'company_id', None)),
+                float(fp.actual_loy_kg),
+                company_id=getattr(fp, 'company_id', None),
+                reason_override=_jurnal_sabab(f"Mahsulot o'chirildi — {fp.name} (loy qaytarildi)"))
         # Bog'liq yozuvlarni uzamiz (IN_PROGRESS'da sotuv bo'lmaydi, lekin
         # xavfsizlik uchun)
         from models import FinishedProductSale as _FPS, FinishedProductLoss as _FPL, OrderItem as _OI2
+        # 2026-09-18: Production/MRP orqali yaratilgan (IN_PROGRESS) mahsulot
+        # bo'lsa, `production_orders.finished_product_id` unga ishora qilib
+        # turadi — bog'lanish uzilmasa FK cheklovi o'chirishni bloklaydi
+        # (cancel_production_order'dagi bilan AYNI xato sinfi).
+        try:
+            from production_models import ProductionOrder as _PO_unlink
+            db.query(_PO_unlink).filter(
+                _PO_unlink.finished_product_id == fp_id
+            ).update({"finished_product_id": None})
+        except Exception:
+            pass
         db.query(_FPS).filter(_FPS.finished_product_id == fp_id).update({"finished_product_id": None})
         db.query(_FPL).filter(_FPL.finished_product_id == fp_id).update({"finished_product_id": None})
         db.query(_OI2).filter(_OI2.finished_product_id == fp_id).update({"finished_product_id": None})
+        # kech125 (zip 146): brak taqdiri qatori shu mahsulotga ishora qilsa — bog'lam uziladi (uzilmasa PG FK bloklaydi)
+        from models import BrakTaqdir as _BT125a
+        db.query(_BT125a).filter(_BT125a.tm_id == fp_id, _BT125a.company_id == fp.company_id).update(
+            {"tm_id": None}, synchronize_session=False)
+        # kech40 (22-band): qaytarish yozuvi endi omborga qo'shilgan mahsulotiga
+        # bog'lanadi — uzilmasa PostgreSQL FK o'chirishni bloklaydi.
+        db.query(ReturnItem).filter(ReturnItem.finished_product_id == fp_id,
+                                    ReturnItem.company_id == fp.company_id).update(
+            {"finished_product_id": None}, synchronize_session=False)
         db.delete(fp)
         db.commit()
         return True
@@ -5345,6 +11970,19 @@ def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = Fal
     # yo'qoladi. Shuning uchun bog'lanishni uzamiz (finished_product_id=NULL),
     # sotuv summasi/tarixи esa Moliyada saqlanib qoladi. Aks holda foreign
     # key cheklovi o'chirishни bloklaydi.
+    # 2026-09-18: Production/MRP orqali ishlab chiqarilib YAKUNLANGAN
+    # (READY) mahsulotda ham `production_orders.finished_product_id` unga
+    # ishora qilib turadi — yuqoridagi IN_PROGRESS tarmog'idagi bilan AYNI
+    # FK cheklovi (jonli sinovda tasdiqlangan: DELETE /api/finished/44 →
+    # "production_orders_finished_product_id_fkey"). Bog'lanish uziladi,
+    # ishlab chiqarish buyurtmasi TARIX sifatida saqlanib qoladi.
+    try:
+        from production_models import ProductionOrder as _PO_unlink2
+        db.query(_PO_unlink2).filter(
+            _PO_unlink2.finished_product_id == fp_id
+        ).update({"finished_product_id": None})
+    except Exception:
+        pass
     from models import FinishedProductSale, FinishedProductLoss
     db.query(FinishedProductSale).filter(
         FinishedProductSale.finished_product_id == fp_id
@@ -5354,10 +11992,21 @@ def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = Fal
     db.query(FinishedProductLoss).filter(
         FinishedProductLoss.finished_product_id == fp_id
     ).update({"finished_product_id": None})
+    # kech125 (zip 146): brak taqdiri qatori shu mahsulotga ishora qilsa — bog'lam uziladi (taqdir keyin o'zgartirilsa —
+    # «mahsulot o'chirilgan (sotib bo'lingan)» deb rad etiladi); uzilmasa PG FK o'chirishni bloklaydi.
+    from models import BrakTaqdir as _BT125b
+    db.query(_BT125b).filter(_BT125b.tm_id == fp_id, _BT125b.company_id == fp.company_id).update(
+        {"tm_id": None}, synchronize_session=False)
     # Buyurtma detallari — bog'lanishni uzamiz (detal o'z ma'lumotini
     # saqlaydi, faqat o'chirilgan mahsulotga havolasini yo'qotadi).
     from models import OrderItem as _OI
     db.query(_OI).filter(_OI.finished_product_id == fp_id).update({"finished_product_id": None})
+    # kech40 (22-band): qaytarish yozuvlari — bog'lam uziladi (yozuv tarix
+    # sifatida qoladi; mahsulot endi yo'q — keyin qaytarish o'chirilsa
+    # ayiradigan narsa ham yo'q). Uzilmasa PostgreSQL FK o'chirishni bloklaydi.
+    db.query(ReturnItem).filter(ReturnItem.finished_product_id == fp_id,
+                                ReturnItem.company_id == fp.company_id).update(
+        {"finished_product_id": None}, synchronize_session=False)
 
     db.delete(fp)
     db.commit()
@@ -5365,7 +12014,8 @@ def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = Fal
 
 
 def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
-                          order_id: int = None, notes: str = None) -> Optional[FinishedProduct]:
+                          order_id: int = None, notes: str = None,
+                          commit: bool = True, natija: dict = None) -> Optional[FinishedProduct]:
     """Buyurtmadan qaytgan detalni tayyor mahsulotlar omboriga qo'shadi.
     Sotuv narxi (unit_price) — buyurtmadagi narx (o'zgarmaydi).
     Tan narxi (cost_price) — asl xomashyo qiymatidan hisoblanadi (avval
@@ -5373,6 +12023,7 @@ def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
     buyurtmada ishlatilsa, o'sha buyurtmaning foydasi — demak usta KPI'si
     ham — sun'iy oshirilgan bo'lib chiqardi)."""
     import services as _svc
+    from models import ProductionStatus as _PS_ret
 
     if quantity <= 0 or not order_item:
         return None
@@ -5382,7 +12033,11 @@ def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
     unit_p = (total_price / ordered) if ordered > 0 else 0.0
     unit = order_item.delivery_unit
 
-    unit_cost = _svc.get_order_item_unit_cost(db, order_item.order, order_item)
+    # kech55 (5-bo'lim 34-band): tannarx — shu buyurtmada ISHLATILGAN paytdagi narxda
+    # (buyurtma tan narxi bilan bir manba, `_buyurtma_sarf_narxlari`; MRP — surat narxi).
+    # O'LCHANGAN (`work/probe56.py`): narx x3 dan keyin 2 m qaytarish 30 000 (joriy)
+    # yozardi, mahsulot esa 10 000 ga qilingan — sotuvda foyda 20 000 kam ko'rinardi.
+    unit_cost = _svc.get_order_item_unit_cost(db, order_item.order, order_item, muzlatilgan=True)
     new_cost_price = round(unit_cost * quantity, 2)
 
     # MUHIM: "Xarajatlar" (Foyda hisobi oynasi) — volume_m3'ga tayanib,
@@ -5391,21 +12046,63 @@ def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
     # "Xarajatlar → Penoplast" qatori noto'g'ri "0" ko'rsatardi.
     per_unit_volume = 0.0
     if ordered > 0:
-        full_volume = _svc._item_volume_m3(db, order_item, None)
+        # kech55 (34-band): donaning zaxira hajm yo'li (penoplast narxidan) — ishlatilgan
+        # paytdagi narxda (`calculate_order_profit` bilan bir xil).
+        _ret_pid = getattr(order_item, 'penoplast_id', None)
+        _ret_narx = (_svc._buyurtma_sarf_narxlari(db, order_item.order).get(_ret_pid)
+                     if (_ret_pid and getattr(order_item, 'order', None) is not None) else None)
+        full_volume = _svc._item_volume_m3(db, order_item, None, penoplast_narxi=_ret_narx)
         per_unit_volume = full_volume / ordered
     new_volume = round(per_unit_volume * quantity, 6)
+    # kech40 (22-band): chaqiruvchiga AYNAN nima qo'shilgani (qaytarish yozuvi
+    # o'chirilganda shu ayiriladi — tan narxi keyin o'zgarishi mumkin).
+    if natija is not None:
+        natija.update(qty=float(quantity), cost=new_cost_price, volume=new_volume)
 
-    # Bir xili bo'lsa birlashtiramiz
-    existing = db.query(FinishedProduct).filter(
+    # Bir xili bo'lsa birlashtiramiz.
+    # M4 (2026-09-18) — TENANT: bu "birlashtirish" so'rovi korxona
+    # filtrisiz edi — A korxonadan qaytgan detal, nomi/o'lchami/narxi
+    # tasodifan bir xil kelsa, B korxonaning qaytgan mahsulotiga
+    # qo'shilib ketishi mumkin edi.
+    _ret_cid = getattr(getattr(order_item, 'order', None), 'company_id', None)
+    _rq = db.query(FinishedProduct).filter(
         FinishedProduct.name == order_item.name,
         FinishedProduct.source == StockSource.RETURNED,
         FinishedProduct.width == order_item.width,
         FinishedProduct.thickness == order_item.thickness,
         FinishedProduct.is_coated == order_item.is_coated,
         FinishedProduct.unit_price == unit_p,
-    ).first()
+        # kech125 (zip 146): brakdan paydo bo'lgan partiya (2-nav, kesilgan, tuzatilgan) — boshqasi bilan birlashtirilmaydi
+        # (taqdir bekor qilinganda AYNAN o'sha partiyadan olinadi; 2-nav — alohida mahsulot)
+        FinishedProduct.brak_taqdir.is_(None),
+    )
+    if _ret_cid is not None:
+        _rq = _rq.filter(FinishedProduct.company_id == _ret_cid)
+    # QO'SHILDI 2026-09-20 (Bosqich 3, 10-band). Birlashtirish sharti
+    # turkumni ham, mahsulot TURINI ham tekshirmasdi — nomi, o'lchami va
+    # narxi tasodifan bir xil bo'lgan IKKI XIL TURDAGI mahsulot bitta
+    # yozuvga qo'shilib ketishi mumkin edi. Eski yozuvlarda bu ustun
+    # NULL, shuning uchun `IS NULL` sharti eski xatti-harakatni
+    # AYNAN saqlaydi (SQL da `= NULL` hech qachon mos kelmaydi).
+    _ret_pt = getattr(order_item, "product_type_id", None)
+    if _ret_pt is None:
+        _rq = _rq.filter(FinishedProduct.product_type_id.is_(None))
+    else:
+        _rq = _rq.filter(FinishedProduct.product_type_id == _ret_pt)
+    # kech40 (22-band): qator QULFLANADI — sotuv / kamaytirish / qaytarishni
+    # o'chirish ham `FOR UPDATE` bilan o'qiydi; qulfsiz o'qib-yozish parallel
+    # sotuvning kamaytirishini ustidan yozib yuborardi (yo'qolgan yangilanish).
+    existing = _rq.with_for_update().first()
 
     if existing:
+        # kech59 (47-band): qaytgan qismning muzlagan tannarxi mavjud qoldiq bilan og'irlikli o'rtacha
+        # (qaytarish o'chirilsa `delete_return_item` teskarisini qiladi). Qoldiq QO'SHISHDAN OLDIN o'qiladi.
+        _eski_q59 = float(existing.quantity or 0)
+        _eski_b59 = _fp_stable_unit_cost(db, existing)
+        if _eski_b59 <= 0 and _eski_q59 > 0 and existing.cost_price:
+            _eski_b59 = float(existing.cost_price) / _eski_q59
+        if _eski_q59 + quantity > 0:
+            existing.unit_cost_stable = (_eski_b59 * _eski_q59 + new_cost_price) / (_eski_q59 + quantity)
         existing.quantity = float(existing.quantity or 0) + quantity
         existing.produced_quantity = float(existing.produced_quantity or 0) + quantity
         existing.cost_price = float(existing.cost_price or 0) + new_cost_price
@@ -5413,11 +12110,15 @@ def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
         # Agar mavjud yozuvda hali rasm bo'lmasa — asl detal rasmini olamiz
         if not existing.image_url and order_item.image_url:
             existing.image_url = order_item.image_url
-        db.commit()
+        if commit:
+            db.commit()
+        else:
+            db.flush()
         db.refresh(existing)
         return existing
 
     fp = FinishedProduct(
+        company_id=_ret_cid,            # M4: tenant ANIQ beriladi
         name=order_item.name,
         category=order_item.category,
         width=order_item.width,
@@ -5428,26 +12129,41 @@ def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
         unit=unit,
         unit_price=unit_p,
         cost_price=new_cost_price,
+        # kech59 (47-band): qaytgan mahsulotning 1 birlik tannarxi — buyurtmada ISHLATILGAN paytdagi
+        # narx (34-band) muzlaydi; aks holda buyurtmaga olinganda / foyda hisobida
+        # `cost_price / produced_quantity` qoldiq kamaygan sari siljirdi (K59-1).
+        unit_cost_stable=(new_cost_price / quantity) if (quantity > 0 and new_cost_price > 0) else None,
         volume_m3=new_volume,
         source=StockSource.RETURNED,
         from_order_id=order_id or order_item.order_id,
         return_reason=reason,
         penoplast_id=order_item.penoplast_id,
+        # QO'SHILDI 2026-09-20 (Bosqich 3, 10-band). MRP mahsuloti
+        # (`category='mrp_product'`) buyurtmadan qaytarilganda, turi
+        # yo'qolmasin. Eski turkumlarda bu maydon NULL — bu ATAYLAB.
+        product_type_id=getattr(order_item, "product_type_id", None),
         image_url=order_item.image_url,
-        notes=notes
+        notes=notes,
+        # kech40 (K40-1): qaytgan mahsulot DOIM tayyor (sotiladi) — holat aniq
+        # yoziladi (ilgari bazada standart IN_PROGRESS qolardi; eski qatorlar
+        # `main._migrate_qaytarish_orqaga` da tuzatiladi).
+        production_status=_PS_ret.READY,
     )
     db.add(fp)
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     db.refresh(fp)
     return fp
 
 
-def search_finished_products(db: Session, query: str, category: str = None, exclude_category: str = None) -> List[dict]:
+def search_finished_products(db: Session, query: str, category: str = None, exclude_category: str = None,
+                            company_id: int = None) -> List[dict]:
     """Nom bo'yicha tayyor mahsulot qidirish — buyurtmada taklif uchun.
-    category — agar berilsa (masalan 'gips'), FAQAT shu turdagi mahsulotlar
-    qaytariladi. exclude_category — aksincha, shu turdagi mahsulotlar
-    RO'YXATDAN CHIQARIB TASHLANADI (masalan Penoplast qatorida — Gips
-    aralashib qolmasin uchun)."""
+    category — agar berilsa, FAQAT shu turdagi mahsulotlar qaytariladi.
+    exclude_category — aksincha, shu turdagi mahsulotlar RO'YXATDAN
+    CHIQARIB TASHLANADI."""
     q = (query or '').strip()
     if len(q) < 2:
         return []
@@ -5456,12 +12172,19 @@ def search_finished_products(db: Session, query: str, category: str = None, excl
         FinishedProduct.quantity > 0,
         FinishedProduct.name.ilike(f"%{q}%")
     ]
+    # M4 (2026-09-18) — TENANT: auditda `?q=ZZZB` B korxonaning
+    # mahsulotini topib berardi (H-4).
+    if company_id is not None:
+        filters.append(FinishedProduct.company_id == company_id)
     if category:
         filters.append(FinishedProduct.category == category)
     elif exclude_category:
         filters.append(FinishedProduct.category != exclude_category)
 
-    items = db.query(FinishedProduct).filter(*filters).order_by(FinishedProduct.name).limit(10).all()
+    # kech35 (15-band, jonli O'LCHANGAN kech28): nomi bir xil mahsulotlar orasida
+    # tartib aniqlanmagan edi (PG da UPDATE dan keyin o'rin almashardi) —
+    # `id` uchinchi (qidiruvda ikkinchi) kalit: tartib doim barqaror.
+    items = db.query(FinishedProduct).filter(*filters).order_by(FinishedProduct.name, FinishedProduct.id).limit(10).all()
 
     result = []
     for fp in items:
@@ -5471,6 +12194,7 @@ def search_finished_products(db: Session, query: str, category: str = None, excl
                 "id": fp.id,
                 "name": fp.name,
                 "category": fp.category,
+                "product_type_id": fp.product_type_id,   # Bosqich 3, 10-band
                 "width": fp.width,
                 "thickness": fp.thickness,
                 "is_coated": fp.is_coated,
@@ -5496,19 +12220,40 @@ def search_finished_products(db: Session, query: str, category: str = None, excl
 
 
 
-def get_finished_stats(db: Session) -> dict:
-    """Tayyor mahsulotlar statistikasi."""
+def get_finished_stats(db: Session, company_id: int = None) -> dict:
+    """Tayyor mahsulotlar statistikasi.
+
+    M4 (2026-09-18) — TENANT: auditda `produced_count` ichiga B
+    korxonaning mahsuloti ham sanalardi (H-3)."""
     from models import ProductionStatus
 
-    items = db.query(FinishedProduct).filter(FinishedProduct.quantity > 0).all()
+    _sq = db.query(FinishedProduct).filter(FinishedProduct.quantity > 0)
+    if company_id is not None:
+        _sq = _sq.filter(FinishedProduct.company_id == company_id)
+    items = _sq.all()
 
     produced = [i for i in items if i.source == StockSource.PRODUCED]
     returned = [i for i in items if i.source == StockSource.RETURNED]
     in_progress = [i for i in produced if i.production_status == ProductionStatus.IN_PROGRESS]
+    tayyor = [i for i in items if _fp_tayyormi(i)]
 
     def _val(lst):
-        return sum(float(i.quantity or 0) * float(i.unit_price or 0) for i in lst)
+        return sum(_fp_ombor_qiymati(i) for i in lst)
 
+    def _miqdorlar(lst):
+        # kech114 (dizayn 7-band): «Jami miqdor» qop + m + m² ni BITTA songa qo'shardi («134 birlik») — endi
+        # har birlik alohida (katta miqdordan kichikka; birlik nomi bazadagidek — ko'rinish sahifada).
+        jami = {}
+        for i in lst:
+            b = (i.unit or "").strip() or "dona"
+            jami[b] = jami.get(b, 0.0) + float(i.quantity or 0)
+        return [{"birlik": b, "miqdor": round(m, 4)}
+                for b, m in sorted(jami.items(), key=lambda x: (-x[1], x[0]))]
+
+    narxsiz = [i for i in items if not float(i.unit_price or 0) > 0]
+    # «narxsiz N ta» izohi — faqat TAYYOR partiyalar (jarayondagi MRP mahsulotining narxi ham, tannarxi ham hali 0 —
+    # u qiymatga 0 qo'shadi, sanalsa izoh chalg'itadi)
+    narxsiz_tayyor = [i for i in narxsiz if _fp_tayyormi(i)]
     return {
         "produced_count": len(produced),
         "returned_count": len(returned),
@@ -5516,24 +12261,44 @@ def get_finished_stats(db: Session) -> dict:
         "produced_value": round(_val(produced)),
         "returned_value": round(_val(returned)),
         "total_value": round(_val(items)),
+        # kech114 (egasi QARORI — MRP sotuv narxi «Hozirgidek qo'lda»: narx 0 qoladi, sotishda yoziladi; «Ombor
+        # qiymati» narxsiz partiyani TANNARX bo'yicha qo'shadi). Yuqoridagi uch qiymat ham shu qoida bilan.
+        "narxli_qiymat": round(sum(_fp_ombor_qiymati(i) for i in items if float(i.unit_price or 0) > 0)),
+        "narxsiz_tannarx_qiymati": round(sum(_fp_ombor_qiymati(i) for i in narxsiz)),
+        "narxsiz_soni": len(narxsiz_tayyor),
+        "miqdorlar": _miqdorlar(tayyor),
+        "jarayonda_miqdorlar": _miqdorlar(in_progress),
     }
+
+
+def _fp_ombor_qiymati(fp) -> float:
+    """Tayyor mahsulot qoldig'ining ombordagi qiymati (kech114, egasi QARORI): sotuv narxi bor bo'lsa — qoldiq × narx,
+    yo'q bo'lsa (MRP — narx sotishda yoziladi) — qoldiqning tannarxi (`cost_price` — qoldiq bilan birga kamayadi)."""
+    narx = float(fp.unit_price or 0)
+    if narx > 0:
+        return float(fp.quantity or 0) * narx
+    return max(0.0, float(fp.cost_price or 0))
 
 
 class _TermoFakeOrder:
     """Termopanel '+' qo'shishda loy ayirish uchun soxta buyurtma obyekti."""
-    def __init__(self, recipe_id):
+    def __init__(self, recipe_id, company_id=None):
         class _It:
             pass
         _it = _It()
         _it.recipe_id = recipe_id
         self.items = [_it]
         self.id = None
+        # 2026-09-21 — TENANT: `services.resolve_recipe` korxonani
+        # buyurtma obyektidan ham oladi, shuning uchun SHART.
+        self.company_id = company_id
         self.order_number = "TERMOPANEL +"
         self.deliveries = []
         self.is_fully_delivered = False
 
 
-def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str = None) -> dict:
+def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str = None,
+                     company_id: int = None) -> dict:
     """Mavjud tayyor mahsulotga miqdor qo'shadi.
     Penoplast va loy proporsional hisoblanib ombordan yechiladi.
 
@@ -5541,11 +12306,21 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
              +50 m qo'shilsa → 0.6 m³ penoplast va 60 kg loy yechiladi.
     """
     import services
-    from models import Recipe
 
-    fp = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()
+    # 17-band: miqdor QAT'IY (NaN / cheksizlik / manfiy / juda katta).
+    try:
+        _json_son("quantity", add_qty, bosh_mumkin=False, musbat=True, chegara=_UPD_SON_CHEGARA)
+    except ValueError as _e:
+        return {"success": False, "message": str(_e)}
+    fp = get_finished_product(db, fp_id, company_id)   # M4: faqat shu korxonadan
     if not fp:
         return {"success": False, "message": "Topilmadi"}
+
+    # M4: "+" qo'shishda ayiriladigan xomashyo ham faqat SHU korxonadan.
+    _add_cid = company_id if company_id is not None else getattr(fp, 'company_id', None)
+
+    def _add_inv(_q):
+        return _q.filter(Inventory.company_id == _add_cid) if _add_cid is not None else _q
 
     if add_qty <= 0:
         return {"success": False, "message": "Miqdor musbat bo'lishi kerak"}
@@ -5553,7 +12328,21 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
     if fp.source != StockSource.PRODUCED:
         return {"success": False, "message": "Faqat ishlab chiqarilgan mahsulotga qo'shiladi"}
 
+    # kech61 (K61-1) — O'LCHANGAN (`work/probe61.py`, asl `5e736a8`, SQLite + PG): MRP (Ishlab
+    # chiqarish moduli) mahsulotida `unit_volume_m3` / `unit_loy_kg` / `volume_m3` bo'sh — "+" 1 birlik
+    # xomashyoni 0 deb olib, 10 m² ni HECH NARSA yechmasdan qo'shdi (tannarx 30 000 da qoldi, 1 birlik
+    # 3 000 -> 1 500). MRP mahsuloti retsept (BOM) bo'yicha FAQAT ishlab chiqarish buyurtmasi orqali
+    # ko'paytiriladi — u yerda xomashyo yechiladi va tannarx muzlaydi.
+    if fp.category == "dynamic_bom" or getattr(fp, "product_type_id", None) is not None:
+        return {"success": False,
+                "message": "Bu mahsulot «Ishlab chiqarish» bo'limida mahsulot tarkibi bo'yicha tayyorlanadi — "
+                           "qo'shimcha partiyani o'sha yerda yarating (xomashyo tarkib bo'yicha yechiladi)"}
+
     base_qty = float(fp.quantity or 0)
+    # kech59 (47-band): qo'shishdan OLDINGI 1 birlik tannarxi (og'irlikli o'rtacha uchun)
+    _eski_birlik59 = _fp_stable_unit_cost(db, fp)
+    if _eski_birlik59 <= 0 and base_qty > 0 and fp.cost_price:
+        _eski_birlik59 = float(fp.cost_price) / base_qty
 
     # MUHIM: Profil uchun — "quantity" odatda 1 (bitta buyum), lekin HAJM
     # aslida UZUNLIK (metr) bo'yicha hisoblangan. Shuning uchun "1 birlikka
@@ -5562,200 +12351,6 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
     # To'g'risi: Profil uchun "birlik" = 1 METR, shuning uchun hajmni
     # haqiqiy metr soniga bo'lish kerak. Bu metr — unit_volume_m3 saqlangan
     # bo'lsa undan aniq keladi; aks holda pastdagi fallback ishlaydi.
-    cat_low = (fp.category or '').lower()
-
-    # ── TERMOPANEL (BAZALT) uchun maxsus "+" ────────────────────────
-    # Termopanel penoplast/volume ishlatmaydi — bazalt/serpiyanka/kley/loy
-    # ishlatadi. Bularni, saqlangan bazalt_item_id va unit_loy_kg asosida,
-    # 1 m² ga proporsional ayiramiz (aynan foydalanuvchi tushuntirgandek:
-    # boshida qancha ketgan bo'lsa, o'sha nisbatда davom etadi).
-    if cat_low == 'termopanel':
-        bazalt_id = getattr(fp, 'bazalt_item_id', None)
-        if not bazalt_id:
-            return {"success": False,
-                    "message": "Bu eski termopanel yozuvi — bazalt turi saqlanmagan. Yangi ishlab chiqarish yarating."}
-        bazalt = db.query(Inventory).filter(Inventory.id == bazalt_id).with_for_update().first()
-        if not bazalt:
-            return {"success": False, "message": "Bazalt xomashyosi topilmadi."}
-        add_m2 = float(add_qty)
-        # Bazalt plita (dona)
-        area_per_sheet = float(bazalt.volume_per_unit or 0.72)
-        sheets = add_m2 / area_per_sheet if area_per_sheet > 0 else 0
-        serp_ratio = float(bazalt.serp_ratio_per_m2) if bazalt.serp_ratio_per_m2 else 2.0
-        kley_ratio = float(bazalt.kley_ratio_per_m2) if bazalt.kley_ratio_per_m2 else 0.8
-        unit_loy = float(fp.unit_loy_kg or 0)
-        add_loy = unit_loy * add_m2
-
-        cost_add = 0.0
-        log2 = []
-        # Bazalt
-        bazalt.stock_quantity = float(bazalt.stock_quantity) - sheets
-        cost_add += sheets * float(bazalt.price_per_unit or 0)
-        log2.append(f"{bazalt.item_name}: -{sheets:.2f} dona")
-        # Serpiyanka — avval saqlangan aniq turdan (termo_serp_id),
-        # bo'lmasa (eski yozuv) — nomi bo'yicha qidiramiz
-        from models import Inventory as _Inv
-        rulon = 0.0
-        serp = None
-        if getattr(fp, 'termo_serp_id', None):
-            serp = db.query(_Inv).filter(_Inv.id == fp.termo_serp_id).with_for_update().first()
-        if not serp:
-            serp = db.query(_Inv).filter(_Inv.item_name.ilike('%serpiyanka%')).first()
-        if serp:
-            serp_rulon_area = float(serp.volume_per_unit or 50.0)
-            rulon = (add_m2 * serp_ratio) / serp_rulon_area if serp_rulon_area > 0 else 0
-            serp.stock_quantity = float(serp.stock_quantity) - rulon
-            cost_add += rulon * float(serp.price_per_unit or 0)
-            log2.append(f"{serp.item_name}: -{rulon:.2f} rulon")
-        # Kley — avval saqlangan aniq turdan (termo_kley_id), bo'lmasa
-        # (eski yozuv) — nomi bo'yicha qidiramiz
-        kley_kg = 0.0
-        kley = None
-        if getattr(fp, 'termo_kley_id', None):
-            kley = db.query(_Inv).filter(_Inv.id == fp.termo_kley_id).with_for_update().first()
-        if not kley:
-            kley = db.query(_Inv).filter(_Inv.item_name.ilike('%kley%bazalt%')).first() or db.query(_Inv).filter(_Inv.item_name.ilike('%kley%')).first()
-        if kley:
-            kley_kg = add_m2 * kley_ratio
-            kley.stock_quantity = float(kley.stock_quantity) - kley_kg
-            cost_add += kley_kg * float(kley.price_per_unit or 0)
-            log2.append(f"{kley.item_name}: -{kley_kg:.2f} kg")
-        # Loy
-        if add_loy > 0:
-            loy_log = services.deduct_loy_ingredients(db, _TermoFakeOrder(fp.recipe_id), add_loy)
-            log2.extend(loy_log)
-            loy_info = services.get_loy_cost_per_kg(db, fp.recipe_id)
-            cost_add += add_loy * float(loy_info.get("cost_per_kg", 0) or 0)
-
-        fp.quantity = base_qty + add_m2
-        fp.produced_quantity = float(fp.produced_quantity if fp.produced_quantity is not None else base_qty) + add_m2
-        fp.actual_loy_kg = float(fp.actual_loy_kg or 0) + add_loy
-        fp.planned_loy_kg = float(fp.planned_loy_kg or 0) + add_loy
-        fp.cost_price = float(fp.cost_price or 0) + cost_add
-        # MUHIM: yangi jami Bazalt/Serpiyanka/Kley miqdorini ham (TUZILGAN
-        # holda) yangilab qo'yamiz — aks holda "+" orqali qo'shilgan
-        # qism, "Tayyor mahsulotdan" buyurtmaga o'tkazilganda, tan
-        # narxdan hech qachon to'g'ri kamaymay qolar edi.
-        fp.termo_bazalt_qty = float(getattr(fp, 'termo_bazalt_qty', None) or 0) + sheets
-        if serp:
-            fp.termo_serp_id = serp.id
-            fp.termo_serp_qty = float(getattr(fp, 'termo_serp_qty', None) or 0) + rulon
-        if kley:
-            fp.termo_kley_id = kley.id
-            fp.termo_kley_qty = float(getattr(fp, 'termo_kley_qty', None) or 0) + kley_kg
-        db.commit()
-        db.refresh(fp)
-        try:
-            log_activity(db, "produced", "finished_product", fp.id, fp.name, performed_by,
-                          new_value=f"+{add_m2:g} m² qo'shildi (Termopanel), jami: {float(fp.quantity):g} {fp.unit}")
-        except Exception:
-            pass
-        return {
-            "success": True,
-            "message": f"+{add_m2:g} m² qo'shildi",
-            "product_id": fp.id,
-            "name": fp.name,
-            "added_qty": add_m2,
-            "new_qty": float(fp.quantity),
-            "unit": fp.unit,
-            "inventory_log": log2
-        }
-
-    # ── GIPS uchun maxsus "+" ────────────────────────────────────────
-    # Gips mahsulotlar Penoplast/Loy emas, gips_kg_used (sarflangan Gips
-    # kukuni, kg) saqlaydi. AVVAL bu holat umuman ko'zda tutilmagan edi —
-    # "+" bosilganda faqat mahsulot miqdori oshib, Gips xomashyosi
-    # ombordan HECH QACHON ayirilmasdi. Endi, 1 birlikka qancha Gips
-    # ketishini — BARQAROR nisbatdan (gips_kg_used ÷ produced_quantity,
-    # xuddi Loy/Penoplast'dagi kabi) hisoblab, proporsional ayiramiz.
-    if cat_low == 'gips':
-        from models import Inventory as _Inv_gips
-        import json as _json_gips_add
-        gips_inv_id = getattr(fp, 'gips_inventory_id', None)
-        gips_kg_used = float(getattr(fp, 'gips_kg_used', None) or 0)
-        produced_q = float(fp.produced_quantity if fp.produced_quantity is not None else base_qty)
-        if not gips_inv_id or gips_kg_used <= 0 or produced_q <= 0:
-            return {"success": False,
-                    "message": "Bu eski Gips yozuvi — 1 birlikka qancha Gips ketishi noma'lum. Yangi ishlab chiqarish yarating."}
-        gips_item = db.query(_Inv_gips).filter(_Inv_gips.id == gips_inv_id).with_for_update().first()
-        if not gips_item:
-            return {"success": False, "message": "Gips xomashyosi topilmadi."}
-        unit_gips_kg = gips_kg_used / produced_q
-        add_gips_kg = unit_gips_kg * add_qty
-        if float(gips_item.stock_quantity) < add_gips_kg:
-            return {"success": False, "message": "Xomashyo yetishmayapti!",
-                    "shortages": [f"{gips_item.item_name}: kerak {add_gips_kg:.2f} kg, qoldi {float(gips_item.stock_quantity):.2f} kg"]}
-
-        # MUHIM TUZATISH: avval bu yerda faqat asosiy Gips hisobga
-        # olinardi — ishlab chiqarishda qo'shilgan QO'SHIMCHA materiallar
-        # (Granula, Po'lat sim, Serpiyanka va h.k.) "+" bosilganda
-        # OMBORDAN UMUMAN AYIRILMASDI (chunki ular haqidagi ma'lumot hech
-        # qayerda saqlanmagan edi). Endi, saqlangan ro'yxatdan (BARQAROR
-        # nisbatda, xuddi Gipsning o'zi kabi) ularni ham to'g'ri, mos
-        # ravishda yechamiz.
-        saved_additives = []
-        if fp.gips_additives_json:
-            try:
-                saved_additives = _json_gips_add.loads(fp.gips_additives_json)
-            except Exception:
-                saved_additives = []
-
-        additive_items = []  # [(inv_item, add_amount)]
-        for a in saved_additives:
-            a_inv_id = a.get("inventory_id")
-            a_orig_qty = float(a.get("quantity") or 0)
-            if not a_inv_id or a_orig_qty <= 0:
-                continue
-            a_item = db.query(_Inv_gips).filter(_Inv_gips.id == a_inv_id).with_for_update().first()
-            if not a_item:
-                continue  # xomashyo o'chirilgan bo'lishi mumkin — o'tkazib yuboramiz
-            unit_a_qty = a_orig_qty / produced_q
-            add_a_qty = unit_a_qty * add_qty
-            if float(a_item.stock_quantity or 0) < add_a_qty:
-                return {"success": False, "message": "Xomashyo yetishmayapti!",
-                        "shortages": [f"{a_item.item_name}: kerak {add_a_qty:.2f} {a_item.unit}, qoldi {float(a_item.stock_quantity):.2f} {a_item.unit}"]}
-            additive_items.append((a_item, add_a_qty, a_orig_qty))
-
-        gips_item.stock_quantity = float(gips_item.stock_quantity) - add_gips_kg
-        cost_add = add_gips_kg * float(gips_item.price_per_unit or 0)
-
-        additive_log = []
-        new_additives_list = []
-        for a_item, add_a_qty, a_orig_qty in additive_items:
-            a_item.stock_quantity = float(a_item.stock_quantity or 0) - add_a_qty
-            cost_add += add_a_qty * float(a_item.price_per_unit or 0)
-            log_movement(
-                db, a_item.id, a_item.item_name, movement_type="out",
-                quantity=add_a_qty, unit=a_item.unit,
-                reason=f"Ishlab chiqarish: {fp.name} (+{add_qty:g} {fp.unit}, qo'shimcha)"
-            )
-            additive_log.append(f"{a_item.item_name}: -{add_a_qty:.2f} {a_item.unit}")
-            new_additives_list.append({"inventory_id": a_item.id, "quantity": a_orig_qty + add_a_qty})
-
-        fp.quantity = base_qty + add_qty
-        fp.produced_quantity = produced_q + add_qty
-        fp.gips_kg_used = gips_kg_used + add_gips_kg
-        fp.cost_price = float(fp.cost_price or 0) + cost_add
-        if new_additives_list:
-            fp.gips_additives_json = _json_gips_add.dumps(new_additives_list)
-        db.commit()
-        db.refresh(fp)
-        try:
-            log_activity(db, "produced", "finished_product", fp.id, fp.name, performed_by,
-                          new_value=f"+{add_qty:g} {fp.unit} qo'shildi (Gips), jami: {float(fp.quantity):g} {fp.unit}")
-        except Exception:
-            pass
-        return {
-            "success": True,
-            "message": f"+{add_qty:g} {fp.unit} qo'shildi",
-            "product_id": fp.id,
-            "name": fp.name,
-            "added_qty": add_qty,
-            "new_qty": float(fp.quantity),
-            "unit": fp.unit,
-            "inventory_log": [f"{gips_item.item_name}: -{add_gips_kg:.2f} kg"] + additive_log
-        }
-
     # MUHIM: 1 birlikka qancha xomashyo ketishini — JORIY qoldiq/hajmdan
     # EMAS, balki ishlab chiqarilganda saqlangan BARQAROR nisbatdan
     # olamiz. Sababi: mahsulot sotilganda faqat "quantity" kamayadi,
@@ -5767,8 +12362,13 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
         unit_volume = float(fp.unit_volume_m3 or 0)
         unit_loy = float(fp.unit_loy_kg or 0)
     elif base_qty > 0:
-        unit_volume = float(fp.volume_m3 or 0) / base_qty
-        unit_loy = float(fp.actual_loy_kg or 0) / base_qty
+        # kech61 (K61-3) — O'LCHANGAN: `volume_m3` / `actual_loy_kg` sotuvda KAMAYMAYDI (jami), shuning
+        # uchun ular JAMI ishlab chiqarilgan miqdorga bo'linadi. Qoldiqqa bo'linsa 100 m dan 80 m sotilgach
+        # "+10" 0.1 blok o'rniga 0.5 blok yechardi (5 barobar). `produced_quantity` bo'sh bo'lsa — qoldiq.
+        _jami_q61 = float(fp.produced_quantity or 0)
+        _bol61 = _jami_q61 if _jami_q61 > 0 else base_qty
+        unit_volume = float(fp.volume_m3 or 0) / _bol61
+        unit_loy = float(fp.actual_loy_kg or 0) / _bol61
     else:
         return {
             "success": False,
@@ -5779,10 +12379,17 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
     add_volume = unit_volume * add_qty
     add_loy = unit_loy * add_qty
 
+    # kech61 (K61-1): hech qanday xomashyo yechilmasa "+" bepul mahsulot yaratadi (tannarx o'zgarmaydi,
+    # 1 birlik tannarxi pasayadi) — rad etiladi.
+    if add_volume <= 0 and add_loy <= 0:
+        return {"success": False,
+                "message": "Bu mahsulotning 1 birligiga qancha xomashyo ketishi noma'lum — "
+                           "\"+\" xomashyosiz miqdor qo'sha olmaydi. Yangi ishlab chiqarish yarating."}
+
     # Xomashyo yetadimi
     shortages = []
     if add_volume > 0 and fp.penoplast_id:
-        p = db.query(Inventory).filter(Inventory.id == fp.penoplast_id).first()
+        p = _add_inv(db.query(Inventory).filter(Inventory.id == fp.penoplast_id)).first()
         if p:
             vol_per_unit = float(p.volume_per_unit or 1.0)
             blocks = add_volume / vol_per_unit
@@ -5799,33 +12406,50 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
 
     # 1) Penoplast
     if add_volume > 0 and fp.penoplast_id:
-        p = db.query(Inventory).filter(Inventory.id == fp.penoplast_id).with_for_update().first()
+        p = _add_inv(db.query(Inventory).filter(Inventory.id == fp.penoplast_id)).with_for_update().first()
         if p:
             vol_per_unit = float(p.volume_per_unit or 1.0)
             blocks = add_volume / vol_per_unit
-            p.stock_quantity = max(0, float(p.stock_quantity) - blocks)
+            # 20-band (2026-09-21): 0 ga QIRQILMAYDI (yetishmovchilik yuqorida
+            # rad etiladi) va sarf ombor JURNALIGA yoziladi — ilgari "+"
+            # qo'shishdagi penoplast sarfi "Harakatlar tarixi"da ko'rinmasdi
+            # (`produce` va brak yo'llari esa yozardi).
+            p.stock_quantity = float(p.stock_quantity) - blocks
             peno_cost = blocks * float(p.price_per_unit or 0)
             log.append(f"{p.item_name}: -{blocks:.2f} blok")
+            log_movement(
+                db, p.id, p.item_name, movement_type="out", quantity=blocks,
+                unit=p.unit,
+                reason=_jurnal_sabab(f"Ishlab chiqarish (+{add_qty:g}): {fp.name}")
+            )
 
     # 2) Loy
     if add_loy > 0:
-        recipe = db.query(Recipe).filter(Recipe.id == fp.recipe_id).first() if fp.recipe_id else None
-        if not recipe:
-            recipe = db.query(Recipe).first()
+        # 2026-09-21 — TENANT. Penoplast qismi yuqorida `_add_inv` bilan
+        # korxonaga bog'langan edi, LOY qismi esa bog'lanmagan: retsept
+        # global qidirilar, ingredientlar esa retseptning ichidan
+        # (`ing.inventory_id`) olinar — ya'ni `_add_inv` ni butunlay
+        # chetlab o'tib, BOSHQA korxonaning omboridan ayirilar edi.
+        # O'lchangan: B ning "+10 metr" amali A ning SEMENT qoldig'ini
+        # 1000 → 995 kg qildi.
+        recipe = services.resolve_recipe(db, recipe_id=fp.recipe_id,
+                                         company_id=_add_cid)
 
-        loy_info = services.get_loy_cost_per_kg(db, recipe.id if recipe else None)
+        loy_info = services.get_loy_cost_per_kg(
+            db, recipe.id if recipe else None, company_id=_add_cid)
         loy_cost = add_loy * float(loy_info.get("cost_per_kg", 0))
 
         class _FakeOrder:
-            def __init__(self, rid):
+            def __init__(self, rid, cid):
                 class _It:
                     recipe_id = rid
                 self.items = [_It()]
                 self.id = None
+                self.company_id = cid      # 2026-09-21 — TENANT
                 self.order_number = "ISHLAB CHIQARISH"
-        fake = _FakeOrder(recipe.id if recipe else None)
+        fake = _FakeOrder(recipe.id if recipe else None, _add_cid)
         log.extend(services.deduct_loy_ingredients(
-            db, fake, add_loy, use_stock=False,
+            db, fake, add_loy, use_stock=False, company_id=_add_cid,
             reason_override=f"Ishlab chiqarish: {fp.name} (+{add_qty:g} {fp.unit}, loy)"
         ))
 
@@ -5843,13 +12467,19 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
     fp.actual_loy_kg = float(fp.actual_loy_kg or 0) + add_loy
     fp.planned_loy_kg = float(fp.planned_loy_kg or 0) + add_loy
     fp.cost_price = float(fp.cost_price or 0) + peno_cost + loy_cost
+    # kech59 (47-band): yangi partiya SHU paytdagi narxda — qoldiq bilan og'irlikli o'rtacha
+    # (omborda turgan eski qism eski narxda qoladi, butun mahsulot joriy narxga o'tmaydi).
+    _jami_qty59 = base_qty + add_qty
+    if _jami_qty59 > 0:
+        fp.unit_cost_stable = (_eski_birlik59 * base_qty + peno_cost + loy_cost) / _jami_qty59
 
     db.commit()
     db.refresh(fp)
 
     try:
         log_activity(db, "produced", "finished_product", fp.id, fp.name, performed_by,
-                      new_value=f"+{add_qty:g} {fp.unit} qo'shildi, jami: {float(fp.quantity):g} {fp.unit}")
+                      new_value=f"+{add_qty:g} {fp.unit} qo'shildi, jami: {float(fp.quantity):g} {fp.unit}",
+                      company_id=getattr(fp, 'company_id', None))
     except Exception:
         pass
 
@@ -5868,12 +12498,20 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
     }
 
 
-def reduce_production(db: Session, fp_id: int, reduce_qty: float, reason: str = None) -> dict:
+def reduce_production(db: Session, fp_id: int, reduce_qty: float, reason: str = None,
+                     company_id: int = None) -> dict:
     """Tayyor mahsulot miqdorini kamaytiradi (brak/singan).
     Xomashyo omborga QAYTARILMAYDI — tan narxi saqlanadi."""
-    fp = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()
+    # 17-band: qiymatlar QAT'IY (NaN / cheksizlik / manfiy / juda katta).
+    try:
+        _clean_val("StockAdjust", {"quantity": reduce_qty, "reason": reason})
+    except ValueError as _e:
+        return {"success": False, "message": str(_e)}
+    fp = get_finished_product(db, fp_id, company_id)   # M4: faqat shu korxonadan
     if not fp:
         return {"success": False, "message": "Topilmadi"}
+    if not _fp_tayyormi(fp):
+        return {"success": False, "message": _jarayonda_xabari(fp)}
 
     if reduce_qty <= 0:
         return {"success": False, "message": "Miqdor musbat bo'lishi kerak"}
@@ -5910,59 +12548,52 @@ def reduce_production(db: Session, fp_id: int, reduce_qty: float, reason: str = 
     }
 
 
-def get_finished_profit(db: Session, fp_id: int) -> dict:
-    """Tayyor mahsulot foydasi — to'liq tafsilot bilan."""
+def get_finished_profit(db: Session, fp_id: int, company_id: int = None) -> dict:
+    """Tayyor mahsulot foydasi — to'liq tafsilot bilan.
+
+    M4 (2026-09-18) — TENANT: auditda aynan shu funksiya orqali
+    (`GET /api/finished/41/profit`) B korxonaning to'liq tannarx va
+    foyda ma'lumoti chiqib ketgan edi (CR-1)."""
     import services
 
-    fp = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()
+    fp = get_finished_product(db, fp_id, company_id)
     if not fp:
         return {"success": False, "message": "Topilmadi"}
+
+    # M4: tannarx tafsilotidagi material qidiruvlari ham shu korxonadan.
+    _pf_cid = getattr(fp, 'company_id', None)
+
+    def _pf_inv(_q):
+        return _q.filter(Inventory.company_id == _pf_cid) if _pf_cid is not None else _q
 
     qty = float(fp.quantity or 0)
     unit_price = float(fp.unit_price or 0)
     revenue = qty * unit_price
     total_cost = float(fp.cost_price or 0)
 
-    # GIPS mahsulotlar uchun — alohida, aniq tafsilot
-    if (fp.category or '').lower() == 'gips':
-        gips_kg = float(fp.gips_kg_used or 0)
-        gips_cost_per_kg = 0.0
-        gips_item_name = None
-        if fp.gips_inventory_id:
-            gips_item = db.query(Inventory).filter(Inventory.id == fp.gips_inventory_id).first()
-            if gips_item:
-                gips_cost_per_kg = float(gips_item.price_per_unit or 0)
-                gips_item_name = gips_item.item_name
-        profit = revenue - total_cost
-        margin = (profit / revenue * 100) if revenue > 0 else 0
-        return {
-            "success": True,
-            "id": fp.id,
-            "name": fp.name,
-            "category": "gips",
-            "quantity": qty,
-            "unit": fp.unit,
-            "unit_price": unit_price,
-            "revenue": round(revenue),
-            "gips_kg_used": gips_kg,
-            "gips_item_name": gips_item_name,
-            "gips_cost_per_kg": round(gips_cost_per_kg),
-            "total_cost": round(total_cost),
-            "profit": round(profit),
-            "margin": round(margin, 1),
-            "cost_per_unit": round(total_cost / qty) if qty > 0 else 0,
-            "profit_per_unit": round(profit / qty) if qty > 0 else 0,
-            "source": fp.source.value,
-            "production_status": fp.production_status.value if fp.production_status else None,
-        }
+    # kech61 (46-band) — O'LCHANGAN (`work/probe61.py`): `volume_m3` / `actual_loy_kg` JAMI ishlab
+    # chiqarilgan (qaytgan) miqdorniki — sotuv / buyurtmaga olish / kamaytirishda kamaymaydi, `cost_price`
+    # esa kamayadi. 100 m dan 60 m sotilgach oyna "Penoplast 500 000 + Loy 260 000" va "Tan narxi 304 000"
+    # ko'rsatardi. Xarajat qatorlari endi QOLDIQ ulushi bilan (qoldiq / jami ishlab chiqarilgan).
+    _jami_q46 = float(fp.produced_quantity or 0)
+    _ulush46 = min(1.0, qty / _jami_q46) if _jami_q46 > 0 else 1.0
+    jami_volume = float(fp.volume_m3 or 0)
+    jami_loy = float(fp.actual_loy_kg or 0)
+    qoldiq_volume = jami_volume * _ulush46
 
     # Loy narxi
     loy_cost = 0.0
     loy_per_kg = 0.0
     recipe_name = None
-    loy_kg = float(fp.actual_loy_kg or 0)
+    loy_kg = jami_loy * _ulush46
     if loy_kg > 0:
-        info = services.get_loy_cost_per_kg(db, fp.recipe_id)
+        # 2026-09-21 — TENANT: korxona aniq beriladi. Oldin berilmagani
+        # uchun, `fp.recipe_id` bo'sh mahsulotning foyda hisobotida
+        # BOSHQA korxonaning retsept NOMI va narxi chiqardi (o'lchangan).
+        info = services.get_loy_cost_per_kg(
+            db, fp.recipe_id,
+            company_id=company_id if company_id is not None
+            else getattr(fp, 'company_id', None))
         loy_per_kg = float(info.get("cost_per_kg", 0))
         loy_cost = loy_kg * loy_per_kg
         recipe_name = info.get("recipe")
@@ -5975,24 +12606,11 @@ def get_finished_profit(db: Session, fp_id: int) -> dict:
     # xomashyo narxlari vaqt o'tishi bilan ko'tarilgan bo'lsa), manfiy
     # chiqib, "Penoplast: 0 so'm" deb noto'g'ri ko'rsatilardi.
     peno_cost = 0.0
-    if fp.penoplast_id and float(fp.volume_m3 or 0) > 0:
-        peno_inv = db.query(Inventory).filter(Inventory.id == fp.penoplast_id).first()
+    if fp.penoplast_id and qoldiq_volume > 0:
+        peno_inv = _pf_inv(db.query(Inventory).filter(Inventory.id == fp.penoplast_id)).first()
         if peno_inv and peno_inv.volume_per_unit and peno_inv.price_per_unit:
             price_per_m3 = float(peno_inv.price_per_unit) / float(peno_inv.volume_per_unit)
-            peno_cost = float(fp.volume_m3) * price_per_m3
-
-    # Bazalt narxi — Termopanel mahsulotlar Penoplastdan emas, Bazalt
-    # panellardan tayyorlanadi. Xuddi Penoplast kabi, TO'G'RIDAN-TO'G'RI
-    # (mahsulot miqdori ÷ 1 bazaltning maydoni) × joriy bazalt narxidan
-    # hisoblanadi — "umumiy tan narxidan ayirish" orqali EMAS.
-    bazalt_cost = 0.0
-    bazalt_panels_used = 0.0
-    base_qty = float(fp.produced_quantity if fp.produced_quantity is not None else (fp.quantity or 0))
-    if fp.bazalt_item_id and base_qty > 0:
-        bazalt_inv = db.query(Inventory).filter(Inventory.id == fp.bazalt_item_id).first()
-        if bazalt_inv and bazalt_inv.volume_per_unit and bazalt_inv.price_per_unit:
-            bazalt_panels_used = base_qty / float(bazalt_inv.volume_per_unit)
-            bazalt_cost = bazalt_panels_used * float(bazalt_inv.price_per_unit)
+            peno_cost = qoldiq_volume * price_per_m3
 
     profit = revenue - total_cost
     margin = (profit / revenue * 100) if revenue > 0 else 0
@@ -6006,8 +12624,6 @@ def get_finished_profit(db: Session, fp_id: int) -> dict:
         "unit_price": unit_price,
         "revenue": round(revenue),
         "penoplast_cost": round(peno_cost),
-        "bazalt_cost": round(bazalt_cost),
-        "bazalt_panels_used": round(bazalt_panels_used, 2),
         "loy_kg": loy_kg,
         "loy_cost_per_kg": round(loy_per_kg),
         "loy_cost": round(loy_cost),
@@ -6017,7 +12633,10 @@ def get_finished_profit(db: Session, fp_id: int) -> dict:
         "margin": round(margin, 1),
         "cost_per_unit": round(total_cost / qty) if qty > 0 else 0,
         "profit_per_unit": round(profit / qty) if qty > 0 else 0,
-        "volume_m3": float(fp.volume_m3 or 0),
+        # kech61 (46-band): qoldiq uchun (xarajat qatorlari bilan bir xil); jami — tarix uchun.
+        "volume_m3": round(qoldiq_volume, 6),
+        "jami_volume_m3": jami_volume,
+        "jami_loy_kg": jami_loy,
         "source": fp.source.value,
         "production_status": fp.production_status.value if fp.production_status else None,
     }
@@ -6027,29 +12646,68 @@ def get_finished_profit(db: Session, fp_id: int) -> dict:
 # INVENTORY PURCHASES — Xarid statistikasi
 # ============================================================
 
-def get_purchases(db: Session, limit: int = 100, item_id: int = None) -> List:
-    """Xaridlar tarixi."""
+def get_purchases(db: Session, limit: int = 100, item_id: int = None,
+                  company_id: int = None, offset: int = 0) -> List:
+    """Xaridlar tarixi.
+
+    M3: InventoryPurchase'da company_id ustuni YO'Q — filtrlash ota
+    (material) orqali, JOIN bilan.
+
+    kech120 (zip 129 — G4-14): `offset` («Yana yuklash») va barqaror tartib (bir xil vaqtda — id bo'yicha: sahifalar
+    orasida takror / tushib qolish yo'q)."""
+    from models import InventoryPurchase
+    q = _xaridlar_sorovi(db, item_id, company_id)
+    return q.order_by(InventoryPurchase.purchased_at.desc(), InventoryPurchase.id.desc()) \
+        .offset(max(int(offset or 0), 0)).limit(limit).all()
+
+
+def _xaridlar_sorovi(db: Session, item_id: int = None, company_id: int = None):
+    """`get_purchases` / `xaridlar_soni` uchun umumiy so'rov (korxona — material orqali)."""
     from models import InventoryPurchase
     q = db.query(InventoryPurchase)
+    if company_id is not None:
+        q = q.join(Inventory, Inventory.id == InventoryPurchase.inventory_id).filter(
+            Inventory.company_id == company_id)
     if item_id:
         q = q.filter(InventoryPurchase.inventory_id == item_id)
-    return q.order_by(InventoryPurchase.purchased_at.desc()).limit(limit).all()
+    return q
 
 
-def get_purchase_stats(db: Session, year: int = None, month: int = None) -> dict:
+def xaridlar_soni(db: Session, item_id: int = None, company_id: int = None) -> int:
+    """kech120 (zip 129 — G4-14): xaridlar tarixining JAMI soni («Ko'rsatilgan: N / JAMI»)."""
+    return _xaridlar_sorovi(db, item_id, company_id).count()
+
+
+def kirim_qolgan_qatorlari(db: Session, receipt_id, olingan_idlar, company_id: int = None) -> List:
+    """kech120 (zip 129 — G4-14): sahifa chegarasi bitta «Kirim» hujjatini bo'lib yubormasin — sahifadagi oxirgi
+    xarid hujjatga tegishli bo'lsa, shu hujjatning sahifaga tushmagan qatorlari (tartib — xaridlar tarixidagidek)."""
+    from models import InventoryPurchase
+    if not receipt_id:
+        return []
+    q = _xaridlar_sorovi(db, None, company_id).filter(InventoryPurchase.receipt_id == receipt_id)
+    _ids = [i for i in (olingan_idlar or []) if i is not None]
+    if _ids:
+        q = q.filter(~InventoryPurchase.id.in_(_ids))
+    return q.order_by(InventoryPurchase.purchased_at.desc(), InventoryPurchase.id.desc()).all()
+
+
+def get_purchase_stats(db: Session, year: int = None, month: int = None,
+                       company_id: int = None) -> dict:
     """Material bo'yicha xarid statistikasi — Moliya/Dashboard uchun.
     year/month berilmasa — joriy oy."""
     from models import InventoryPurchase
-    from datetime import datetime as dt
 
-    now = dt.utcnow()
+    now = _tashkent_date()        # kech105 (9 + 50-band): joriy oy — Toshkent kalendari
     year = year or now.year
     month = month or now.month
 
-    start = dt(year, month, 1)
-    end = dt(year + 1, 1, 1) if month == 12 else dt(year, month + 1, 1)
+    start, end = _tashkent_oy_oraligi(year, month)
 
-    purchases = db.query(InventoryPurchase).filter(
+    _pq = db.query(InventoryPurchase)
+    if company_id is not None:
+        _pq = _pq.join(Inventory, Inventory.id == InventoryPurchase.inventory_id).filter(
+            Inventory.company_id == company_id)
+    purchases = _pq.filter(
         InventoryPurchase.purchased_at >= start,
         InventoryPurchase.purchased_at < end,
         InventoryPurchase.is_opening_stock.isnot(True)
@@ -6079,22 +12737,24 @@ def get_purchase_stats(db: Session, year: int = None, month: int = None) -> dict
     }
 
 
-def get_purchase_stats_range(db: Session, months: int = 6) -> dict:
+def get_purchase_stats_range(db: Session, months: int = 6, company_id: int = None) -> dict:
     """Oxirgi N oy bo'yicha xarid tendensiyasi (dashboard grafik uchun)."""
     from models import InventoryPurchase
-    from datetime import datetime as dt
 
-    now = dt.utcnow()
+    now = _tashkent_date()        # kech105 (9 + 50-band): joriy oy — Toshkent kalendari
     result = []
     y, m = now.year, now.month
     for _ in range(months):
-        start = dt(y, m, 1)
-        end = dt(y + 1, 1, 1) if m == 12 else dt(y, m + 1, 1)
-        total = db.query(InventoryPurchase).filter(
+        start, end = _tashkent_oy_oraligi(y, m)
+        _prq = db.query(InventoryPurchase).filter(
             InventoryPurchase.purchased_at >= start,
             InventoryPurchase.purchased_at < end,
             InventoryPurchase.is_opening_stock.isnot(True)
-        ).all()
+        )
+        if company_id is not None:      # M6: ota (material) orqali
+            _prq = _prq.join(Inventory, Inventory.id == InventoryPurchase.inventory_id).filter(
+                Inventory.company_id == company_id)
+        total = _prq.all()
         s = sum(float(p.total_amount) for p in total)
         result.append({"year": y, "month": m, "total": round(s)})
         m -= 1
@@ -6112,14 +12772,29 @@ from models import TransportExpense
 from schemas import TransportExpenseCreate
 
 
-def create_transport_expense(db: Session, data: TransportExpenseCreate, created_by: str = None) -> TransportExpense:
+def create_transport_expense(db: Session, data: TransportExpenseCreate, created_by: str = None,
+                            company_id: int = None) -> TransportExpense:
     """Kirish transporti xarajatini yozadi."""
+    # 17f (2026-09-22): ILDIZ — tana QAT'IY (summa musbat, chekli, sig'im
+    # ichida va kamida 1 tiyin; `materials_note` ≤ 255; `production_type`
+    # ro'yxatdan), bazaga tegishdan OLDIN. Marshrut ham tekshiradi; bu qatlam
+    # ichki chaqiruvchi (xarid marshrutidagi "o'z hisobimdan" transport) va
+    # boshqa chaqiruvchilar uchun. `data` — lug'at, pydantic yoki oddiy obyekt.
+    toza = _clean_val("TransportExpense", _val_dump(data, "TransportExpense"))
+    # kech117 (A2): yo'nalish — YAGONA qoida (`yonalish_tanlovi`); hech biri yuborilmasa — «Umumiy».
+    _yid, _pt = yonalish_tanlovi(db, company_id, toza.get("yonalish_id", _YON_YOQ),
+                                 toza.get("production_type", _YON_YOQ))
+    if _yid is _YON_YOQ:
+        _yid, _pt = None, None
+    # M6 — TENANT: company_id ANIQ beriladi.
     exp = TransportExpense(
-        amount=data.amount,
-        materials_note=data.materials_note,
+        company_id=company_id,
+        amount=toza["amount"],
+        materials_note=toza.get("materials_note"),
         created_by=created_by,
-        notes=data.notes,
-        production_type=getattr(data, 'production_type', None)
+        notes=toza.get("notes"),
+        production_type=_pt,
+        yonalish_id=_yid,
     )
     db.add(exp)
     db.commit()
@@ -6127,12 +12802,19 @@ def create_transport_expense(db: Session, data: TransportExpenseCreate, created_
     return exp
 
 
-def get_transport_expenses(db: Session, limit: int = 100) -> List[TransportExpense]:
-    return db.query(TransportExpense).order_by(TransportExpense.expense_date.desc()).limit(limit).all()
+def get_transport_expenses(db: Session, limit: int = 100,
+                          company_id: int = None) -> List[TransportExpense]:
+    q = db.query(TransportExpense)
+    if company_id is not None:      # M6
+        q = q.filter(TransportExpense.company_id == company_id)
+    return q.order_by(TransportExpense.expense_date.desc()).limit(limit).all()
 
 
-def delete_transport_expense(db: Session, exp_id: int) -> bool:
-    exp = db.query(TransportExpense).filter(TransportExpense.id == exp_id).first()
+def delete_transport_expense(db: Session, exp_id: int, company_id: int = None) -> bool:
+    _q = db.query(TransportExpense).filter(TransportExpense.id == exp_id)
+    if company_id is not None:      # M6: faqat shu korxonadan
+        _q = _q.filter(TransportExpense.company_id == company_id)
+    exp = _q.first()
     if not exp:
         return False
     db.delete(exp)
@@ -6140,30 +12822,39 @@ def delete_transport_expense(db: Session, exp_id: int) -> bool:
     return True
 
 
-def get_transport_stats(db: Session, year: int = None, month: int = None) -> dict:
-    """Transport xarajatlari statistikasi (kirish + chiqish) — joriy oy bo'yicha."""
-    from models import Delivery
-    from datetime import datetime as dt
+def get_transport_stats(db: Session, year: int = None, month: int = None,
+                       company_id: int = None) -> dict:
+    """Transport xarajatlari statistikasi (kirish + chiqish) — joriy oy bo'yicha.
 
-    now = dt.utcnow()
+    M6 — TENANT: kirish transporti `TransportExpense.company_id` bo'yicha,
+    chiqish transporti esa ota (Delivery → Order) orqali cheklanadi."""
+    from models import Delivery, Order as _Ord_ts
+
+    now = _tashkent_date()        # kech105 (9 + 50-band): joriy oy — Toshkent kalendari
     year = year or now.year
     month = month or now.month
-    start = dt(year, month, 1)
-    end = dt(year + 1, 1, 1) if month == 12 else dt(year, month + 1, 1)
+    start, end = _tashkent_oy_oraligi(year, month)
 
     # Kirish transporti
-    inbound = db.query(TransportExpense).filter(
+    _iq = db.query(TransportExpense).filter(
         TransportExpense.expense_date >= start,
         TransportExpense.expense_date < end
-    ).all()
+    )
+    if company_id is not None:
+        _iq = _iq.filter(TransportExpense.company_id == company_id)
+    inbound = _iq.all()
     inbound_total = sum(float(e.amount) for e in inbound)
 
     # Chiqish transporti (kompaniya ulushi)
-    deliveries = db.query(Delivery).filter(
+    _dq = db.query(Delivery).filter(
         Delivery.delivered_at >= start,
         Delivery.delivered_at < end,
         Delivery.transport_cost > 0
-    ).all()
+    )
+    if company_id is not None:
+        _dq = _dq.join(_Ord_ts, _Ord_ts.id == Delivery.order_id).filter(
+            _Ord_ts.company_id == company_id)
+    deliveries = _dq.all()
     outbound_company = sum(d.company_transport_cost for d in deliveries)
     outbound_client = sum(d.client_transport_cost for d in deliveries)
     outbound_total = sum(float(d.transport_cost or 0) for d in deliveries)
@@ -6189,24 +12880,36 @@ from models import Employee, PayType
 from schemas import EmployeeCreate, EmployeeUpdate
 
 
-def create_employee(db: Session, data: EmployeeCreate) -> Employee:
+def create_employee(db: Session, data: EmployeeCreate, company_id: int = None) -> Employee:
+    """Yangi xodim qo'shadi.
+
+    2026-09-18 — M8/F1: `company_id` ANIQ beriladi (ilgari endpoint uni
+    keyin qo'yardi, funksiya ichidagi commit esa `DEFAULT 1` ga tayanardi)."""
     from models import EmployeeCompensationHistory
-    try:
-        pt = PayType(data.pay_type)
-    except ValueError:
-        pt = PayType.FIXED
+    # 15-band: qat'iy tekshiruv — HECH NARSA yozilmasdan OLDIN (ValueError → 400).
+    # O'LCHANGAN: ilgari noto'g'ri `pay_type` JIMGINA "fixed" ga aylanardi
+    # (200), `per_unit_type` / `production_type` ixtiyoriy matn yozilardi.
+    # Tanlov maydonlari tozalangan (kanonik) qiymatdan olinadi.
+    toza = _clean_create("Employee", data.model_dump(exclude_unset=True))
+    pt = PayType(toza["pay_type"])
+    # kech117 (A2): hodim yo'nalishi — YAGONA qoida (`yonalish_tanlovi`); hech biri berilmasa — «Umumiy».
+    _yid, _pt = yonalish_tanlovi(db, company_id, toza.get("yonalish_id", _YON_YOQ),
+                                 toza.get("production_type", _YON_YOQ))
+    if _yid is _YON_YOQ:
+        _yid, _pt = None, None
 
     emp = Employee(
+        company_id=company_id,
         name=data.name.strip(),
         position=data.position,
         pay_type=pt,
         fixed_amount=data.fixed_amount,
         percent_value=data.percent_value,
         per_unit_rate=data.per_unit_rate,
-        per_unit_type=data.per_unit_type,
-        gul_rate=getattr(data, 'gul_rate', None),
+        per_unit_type=toza.get("per_unit_type", data.per_unit_type),
         extra_monthly=getattr(data, 'extra_monthly', None),
-        production_type=getattr(data, 'production_type', None),
+        production_type=_pt,
+        yonalish_id=_yid,
         notes=data.notes
     )
     db.add(emp)
@@ -6215,20 +12918,25 @@ def create_employee(db: Session, data: EmployeeCreate) -> Employee:
 
     # Boshlang'ich to'lov tarixi yozuvi — ishga kirgan oyidan boshlab
     hire = emp.hire_date or datetime.utcnow()
+    _hire_t = _tashkent_date(hire)      # kech105 (9 + 50-band): ishga kirgan oy — Toshkent kalendari (ilgari UTC)
     db.add(EmployeeCompensationHistory(
         employee_id=emp.id,
-        effective_year=hire.year, effective_month=hire.month,
+        effective_year=_hire_t.year, effective_month=_hire_t.month,
         pay_type=emp.pay_type, fixed_amount=emp.fixed_amount,
         percent_value=emp.percent_value, per_unit_rate=emp.per_unit_rate,
-        per_unit_type=emp.per_unit_type, gul_rate=emp.gul_rate,
+        per_unit_type=emp.per_unit_type,
         extra_monthly=emp.extra_monthly, reason="Ishga kirgan — boshlang'ich"
     ))
     db.commit()
     return emp
 
 
-def get_employees(db: Session, only_active: bool = True) -> List[Employee]:
+def get_employees(db: Session, only_active: bool = True,
+                  company_id: int = None) -> List[Employee]:
+    """2026-09-18 — M1: company_id berilsa, faqat o'sha korxona xodimlari."""
     q = db.query(Employee).filter(Employee.is_deleted.isnot(True))
+    if company_id is not None:
+        q = q.filter(Employee.company_id == company_id)
     if only_active:
         q = q.filter(Employee.is_active == True)
     return q.order_by(Employee.name).all()
@@ -6252,6 +12960,14 @@ def set_employee_monthly_adjustment(db: Session, employee_id: int, year: int, mo
     Faqat berilgan (None bo'lmagan) qiymatlar yangilanadi — ikkinchisiga tegilmaydi.
     Ikkalasi ham 0/bo'sh bo'lsa — yozuv butunlay o'chiriladi (endi kerak emas)."""
     from models import EmployeeMonthlyAdjustment
+
+    # 17c (2026-09-21): ILDIZ tekshiruvi — yil/oy oralig'i, summalar chekli
+    # va manfiy emas (manfiy ilgari mavjud yozuvni JIMGINA o'chirardi).
+    toza = _clean_oylik_tuzatish(year, month, reduction_amount, reason,
+                                 bonus_amount, bonus_reason)
+    year, month = toza["year"], toza["month"]
+    reduction_amount, reason = toza["reduction_amount"], toza["reason"]
+    bonus_amount, bonus_reason = toza["bonus_amount"], toza["bonus_reason"]
 
     existing = get_employee_monthly_adjustment(db, employee_id, year, month)
 
@@ -6292,12 +13008,17 @@ def create_employee_advance(db: Session, employee_id: int, amount: float, notes:
     avans kechroq kiritilgan, lekin haqiqatda boshqa kunda berilgan bo'lsa)."""
     from models import EmployeeAdvance
 
+    # 17c (2026-09-21): ILDIZ tekshiruvi — marshrut chetlab o'tilsa ham
+    # (`services.close_employee_debt`, ichki chaqiruvlar) cheksiz / manfiy /
+    # sig'imdan katta avans yoki noto'g'ri sana yozilmaydi (`ValueError`).
+    toza = _clean_avans(amount, notes, adv_date)
     emp = db.query(Employee).filter(Employee.id == employee_id).first()
     if not emp:
         return None
-    adv = EmployeeAdvance(employee_id=employee_id, amount=amount, notes=notes, given_by=given_by)
-    if adv_date:
-        adv.date = adv_date
+    adv = EmployeeAdvance(employee_id=employee_id, amount=toza["amount"],
+                          notes=toza["notes"], given_by=given_by)
+    if toza["adv_date"]:
+        adv.date = toza["adv_date"]
     db.add(adv)
     db.commit()
     db.refresh(adv)
@@ -6314,7 +13035,7 @@ def delete_employee_advance(db: Session, advance_id: int) -> bool:
     return True
 
 
-def get_employee_compensation_for_month(db: Session, employee_id: int, year: int, month: int):
+def get_employee_compensation_for_month(db: Session, employee_id: int, year: int, month: int, *, company_id: int):
     """Berilgan (year, month) uchun hodimning O'SHA PAYTDA amal qilgan
     to'lov parametrlarini qaytaradi (joriy/hozirgi qiymat emas!).
 
@@ -6322,36 +13043,61 @@ def get_employee_compensation_for_month(db: Session, employee_id: int, year: int
     ENG SO'NGGI (eng yaqin o'tmishdagi) yozuv olinadi. Agar hech qanday
     tarix yozuvi topilmasa (masalan, migratsiyadan oldin backfill
     qilinmagan eski ma'lumot) — xavfsiz variant sifatida hodimning
-    joriy (Employee jadvalidagi) qiymatlariga qaytiladi."""
+    joriy (Employee jadvalidagi) qiymatlariga qaytiladi.
+
+    kech109 (10b E-2): `company_id` MAJBURIY (kalit so'z bilan; berilmasa — TypeError, None — ValueError). Ilgari
+    korxona parametri ham, tekshiruvi ham yo'q edi — dasturda chaqirilmaydi (faqat testlar), lekin kelajakdagi
+    marshrut uni `auth.employee_of_company` siz chaqirsa, begona korxona hodimining to'lov tarixi qaytardi.
+    Endi tarix ham, zaxira (joriy qiymat) ham FAQAT shu korxona hodimidan; begona hodim — None."""
     from models import EmployeeCompensationHistory
 
-    rows = db.query(EmployeeCompensationHistory).filter(
-        EmployeeCompensationHistory.employee_id == employee_id
+    if company_id is None:
+        raise ValueError("company_id majburiy — hodim to'lov tarixi faqat o'z korxonasidan o'qiladi")
+    rows = db.query(EmployeeCompensationHistory).join(
+        Employee, Employee.id == EmployeeCompensationHistory.employee_id
+    ).filter(
+        EmployeeCompensationHistory.employee_id == employee_id,
+        Employee.company_id == company_id,
     ).all()
+    tanlangan = _kompensatsiya_tanla(rows, year, month)
+    if tanlangan is not None:
+        return tanlangan
 
-    candidates = [r for r in rows if (r.effective_year, r.effective_month) <= (year, month)]
-    if candidates:
-        best = max(candidates, key=lambda r: (r.effective_year, r.effective_month, r.id))
-        return {
-            "pay_type": best.pay_type, "fixed_amount": best.fixed_amount,
-            "percent_value": best.percent_value, "per_unit_rate": best.per_unit_rate,
-            "per_unit_type": best.per_unit_type, "gul_rate": best.gul_rate,
-            "extra_monthly": best.extra_monthly,
-        }
-
-    # Zaxira variant — tarix yo'q bo'lsa, joriy qiymatdan foydalanish
-    emp = get_employee(db, employee_id)
+    # Zaxira variant — tarix yo'q bo'lsa, joriy qiymatdan foydalanish (faqat shu korxona hodimi)
+    emp = db.query(Employee).filter(Employee.id == employee_id, Employee.company_id == company_id).first()
     if not emp:
         return None
+    return _kompensatsiya_joriy(emp)
+
+
+def _kompensatsiya_tanla(rows, year: int, month: int):
+    """kech97 (111-band): to'lov tarixi yozuvlaridan (bitta hodimniki) (year, month) da amal qilganini tanlaydi —
+    `get_employee_compensation_for_month` va oylik hisobotning oldindan o'qilgan yo'li (`services.
+    calculate_monthly_employee_pay`) uchun YAGONA qoida: (effective_year, effective_month) <= (year, month)
+    bo'lganlardan eng so'nggisi (teng bo'lsa — kattaroq id). Tarix yo'q bo'lsa — None."""
+    candidates = [r for r in rows if (r.effective_year, r.effective_month) <= (year, month)]
+    if not candidates:
+        return None
+    best = max(candidates, key=lambda r: (r.effective_year, r.effective_month, r.id))
+    return {
+        "pay_type": best.pay_type, "fixed_amount": best.fixed_amount,
+        "percent_value": best.percent_value, "per_unit_rate": best.per_unit_rate,
+        "per_unit_type": best.per_unit_type,
+        "extra_monthly": best.extra_monthly,
+    }
+
+
+def _kompensatsiya_joriy(emp):
+    """kech97 (111-band): tarix yozuvi yo'q hodim — joriy (Employee jadvalidagi) qiymatlar."""
     return {
         "pay_type": emp.pay_type, "fixed_amount": emp.fixed_amount,
         "percent_value": emp.percent_value, "per_unit_rate": emp.per_unit_rate,
-        "per_unit_type": emp.per_unit_type, "gul_rate": emp.gul_rate,
+        "per_unit_type": emp.per_unit_type,
         "extra_monthly": emp.extra_monthly,
     }
 
 
-def backfill_employee_compensation_history(db: Session) -> dict:
+def backfill_employee_compensation_history(db: Session, company_id: int = None) -> dict:
     """Bir martalik migratsiya: to'lov tarixi yozuvi HALI YO'Q bo'lgan
     hodimlar uchun, joriy qiymatlarini ishga kirgan oyidan boshlab amal
     qiladigan qilib belgilaydi. Bir necha marta xavfsiz chaqirsa bo'ladi —
@@ -6359,7 +13105,12 @@ def backfill_employee_compensation_history(db: Session) -> dict:
     from models import EmployeeCompensationHistory
 
     created = 0
-    employees = db.query(Employee).filter(Employee.is_deleted.isnot(True)).all()
+    # M5 (2026-09-18) — TENANT: ilgari bu funksiya BARCHA korxonalar
+    # xodimlarini aylanib chiqib, ularga tarix yozib qo'yardi.
+    _eq = db.query(Employee).filter(Employee.is_deleted.isnot(True))
+    if company_id is not None:
+        _eq = _eq.filter(Employee.company_id == company_id)
+    employees = _eq.all()
     for emp in employees:
         has_history = db.query(EmployeeCompensationHistory).filter(
             EmployeeCompensationHistory.employee_id == emp.id
@@ -6367,12 +13118,13 @@ def backfill_employee_compensation_history(db: Session) -> dict:
         if has_history:
             continue
         hire = emp.hire_date or datetime.utcnow()
+        _hire_t = _tashkent_date(hire)      # kech105 (9 + 50-band): ishga kirgan oy — Toshkent kalendari
         db.add(EmployeeCompensationHistory(
             employee_id=emp.id,
-            effective_year=hire.year, effective_month=hire.month,
+            effective_year=_hire_t.year, effective_month=_hire_t.month,
             pay_type=emp.pay_type, fixed_amount=emp.fixed_amount,
             percent_value=emp.percent_value, per_unit_rate=emp.per_unit_rate,
-            per_unit_type=emp.per_unit_type, gul_rate=emp.gul_rate,
+            per_unit_type=emp.per_unit_type,
             extra_monthly=emp.extra_monthly,
             reason="Avtomatik backfill — tizimga qo'shilgandan beri shunday deb belgilandi"
         ))
@@ -6393,9 +13145,20 @@ def update_employee(db: Session, emp_id: int, data: EmployeeUpdate, updated_by: 
         return None
 
     update_data = data.model_dump(exclude_unset=True)
+    # 14-band: qat'iy tekshiruv — HECH NARSA yozilmasdan OLDIN (ValueError → 400).
+    # `pay_type` kanonik qiymatga keltiriladi; noto'g'ri tur endi JIM
+    # e'tiborsiz qolmaydi (quyidagi `except ValueError` ga yetib kelmaydi).
+    update_data = _clean_update("Employee", update_data)
     effective_year = update_data.pop("effective_year", None)
     effective_month = update_data.pop("effective_month", None)
     reason = update_data.pop("reason", None)
+    # kech117 (A2): yo'nalish — yaratish bilan BIR qoida (`yonalish_tanlovi`); kalit yuborilmasa o'zgarmaydi,
+    # yashirin yo'nalishli hodimni boshqa maydoni bilan tahrirlash — ruxsat.
+    _yid, _pt = yonalish_tanlovi(db, emp.company_id, update_data.pop("yonalish_id", _YON_YOQ),
+                                 update_data.pop("production_type", _YON_YOQ), joriy_id=emp.yonalish_id)
+    if _yid is not _YON_YOQ:
+        update_data["yonalish_id"] = _yid
+        update_data["production_type"] = _pt
 
     if "pay_type" in update_data:
         try:
@@ -6409,14 +13172,14 @@ def update_employee(db: Session, emp_id: int, data: EmployeeUpdate, updated_by: 
     # (calculate_monthly_employee_pay shu tarixdan o'qiydi, joriy
     # Employee maydonidan emas — quyidagi services.py o'zgarishiga qarang).
     comp_fields = {"pay_type", "fixed_amount", "percent_value", "per_unit_rate",
-                   "per_unit_type", "gul_rate", "extra_monthly"}
+                   "per_unit_type", "extra_monthly"}
     comp_changed = comp_fields.intersection(update_data.keys())
 
     for k, v in update_data.items():
         setattr(emp, k, v)
 
     if comp_changed:
-        now = datetime.utcnow()
+        now = _tashkent_date()    # kech105 (9 + 50-band): joriy oy — Toshkent kalendari
         eff_year = effective_year or now.year
         eff_month = effective_month or now.month
 
@@ -6437,7 +13200,6 @@ def update_employee(db: Session, emp_id: int, data: EmployeeUpdate, updated_by: 
         hist.percent_value = emp.percent_value
         hist.per_unit_rate = emp.per_unit_rate
         hist.per_unit_type = emp.per_unit_type
-        hist.gul_rate = emp.gul_rate
         hist.extra_monthly = emp.extra_monthly
         if reason:
             hist.reason = reason
@@ -6458,7 +13220,8 @@ def delete_employee(db: Session, emp_id: int, performed_by: str = None) -> bool:
         return False
     emp.is_deleted = True
     db.commit()
-    log_activity(db, "deleted", "employee", emp_id, emp.name, performed_by)
+    log_activity(db, "deleted", "employee", emp_id, emp.name, performed_by,
+                 company_id=getattr(emp, 'company_id', None))
     return True
 
 
@@ -6469,7 +13232,8 @@ def restore_employee(db: Session, emp_id: int, performed_by: str = None) -> bool
         return False
     emp.is_deleted = False
     db.commit()
-    log_activity(db, "restored", "employee", emp_id, emp.name, performed_by)
+    log_activity(db, "restored", "employee", emp_id, emp.name, performed_by,
+                 company_id=getattr(emp, 'company_id', None))
     return True
 
 
@@ -6481,18 +13245,23 @@ def permanent_delete_employee(db: Session, emp_id: int, performed_by: str = None
     if not emp:
         return False
     name = emp.name
+    _emp_cid = getattr(emp, "company_id", None)   # M7: o'chirishdan OLDIN saqlanadi
     from models import EmployeeSession, EmployeeAdvance
     db.query(EmployeeSession).filter(EmployeeSession.employee_id == emp_id).delete()
     db.query(EmployeeAdvance).filter(EmployeeAdvance.employee_id == emp_id).delete()
     db.delete(emp)
     db.commit()
-    log_activity(db, "permanently_deleted", "employee", emp_id, name, performed_by)
+    log_activity(db, "permanently_deleted", "employee", emp_id, name, performed_by,
+                 company_id=_emp_cid)
     return True
 
 
-def get_deleted_employees(db: Session) -> List[Employee]:
+def get_deleted_employees(db: Session, company_id: int = None) -> List[Employee]:
     """O'chirilgan (lekin hali bazada saqlanayotgan) xodimlar."""
-    return db.query(Employee).filter(Employee.is_deleted.is_(True)).order_by(Employee.name).all()
+    _dq = db.query(Employee).filter(Employee.is_deleted.is_(True))
+    if company_id is not None:      # M5
+        _dq = _dq.filter(Employee.company_id == company_id)
+    return _dq.order_by(Employee.name).all()
 
 
 # ============================================================
@@ -6507,16 +13276,70 @@ def set_employee_login(db: Session, emp_id: int, phone: str, pin: str) -> Option
         return None
     emp.phone = phone.strip()
     emp.pin_hash = auth.hash_pin(pin.strip())
+    # kech116 (G6-06, O'LCHANGAN — audit: PIN almashtirilgach eski kirish 14 kungacha ishlardi): hodimning HAMMA panel
+    # sessiyalari PIN bilan BITTA tranzaksiyada o'chiriladi — yangi PIN bilan qayta kiradi.
+    from models import EmployeeSession as _ES116
+    db.query(_ES116).filter(
+        _ES116.employee_id == emp.id,
+        _ES116.employee_id.in_(db.query(Employee.id).filter(Employee.company_id == emp.company_id)),
+    ).delete(synchronize_session=False)
     db.commit()
     db.refresh(emp)
     return emp
 
 
-def authenticate_employee(db: Session, phone: str, pin: str):
-    """Telefon+PIN to'g'riligini tekshiradi."""
+def korxona_kodi_yarat(db: Session, nom: str) -> str:
+    """Korxona KODI — nomdan (lotin katta harf / raqam, qolgani «-», 24 belgigacha); band bo'lsa «-2», «-3» … (butun tizim
+    bo'yicha — `system_context`). kech120 (zip 130): platformadagi «+ Yangi korxona» va kodsiz korxonalarni to'ldirish
+    (`main._korxona_kodlarini_toldir`) — BITTA qoida."""
+    import re as _re_kod
+    import tenant_context as _tc
+    from production_models import Company
+    asos = _re_kod.sub(r"[^A-Z0-9]+", "-", (nom or "").upper()).strip("-")[:24] or "KORXONA"
+    kod, i = asos, 1
+    with _tc.system_context(db):
+        while db.query(Company).filter(Company.code == kod).first():
+            i += 1
+            kod = f"{asos[:20]}-{i}"
+    return kod
+
+
+def resolve_company_by_code(db: Session, code: str):
+    """Korxona KODI bo'yicha korxonani topadi. Mijoz yuborgan kodga
+    ISHONILMAYDI — u faqat qidiruv kaliti, natija bazadan olinadi.
+
+    2026-09-18 — M1. Agar tizimda BITTA korxona bo'lsa, kod shart emas:
+    server o'sha yagona korxonani oladi. Ikkinchi korxona paydo bo'lishi
+    bilan kod majburiy bo'ladi — bu mavjud (bir korxonali) o'rnatmalarni
+    buzmaslik uchun ataylab shunday."""
+    from production_models import Company
+    from sqlalchemy import func as _func
+    kod = (code or "").strip()
+    if kod:
+        return db.query(Company).filter(
+            _func.upper(Company.code) == kod.upper()).first()
+    korxonalar = db.query(Company).limit(2).all()
+    return korxonalar[0] if len(korxonalar) == 1 else None
+
+
+def authenticate_employee(db: Session, phone: str, pin: str, company_id: int = None):
+    """Telefon+PIN to'g'riligini tekshiradi — KORXONA ICHIDA.
+
+    2026-09-18 — M1 (CRITICAL). W2b da `employees.phone` cheklovi
+    (company_id, phone) juftligiga o'tkazildi, ya'ni IKKI KORXONADA bir xil
+    telefonli xodim bo'lishi mumkin. Bu funksiya esa faqat telefon bo'yicha
+    qidirib `.first()` olardi — qaysi qator kelishi tartibga bog'liq edi.
+    Natijada B korxona admini o'z xodimiga A korxona xodimining telefonini
+    berib, A ning xodim paneliga kirib qolishi mumkin edi.
+
+    Endi korxona majburiy: topish (company_id, phone) juftligi bo'yicha."""
     import auth
+    if not company_id:
+        return None
     emp = db.query(Employee).filter(
-        Employee.phone == phone.strip(), Employee.is_active == True
+        Employee.company_id == company_id,
+        Employee.phone == phone.strip(),
+        Employee.is_active == True
     ).first()
     if not emp or not emp.pin_hash:
         return None
@@ -6531,9 +13354,30 @@ def authenticate_employee(db: Session, phone: str, pin: str):
     return emp
 
 
-def create_advance_request(db: Session, employee_id: int, amount: float, requested_date, notes: str = None):
-    """Xodim o'zi 'avans oldim' deb yozadi — hali TASDIQLANMAGAN holatda."""
+def create_advance_request(db: Session, employee_id: int, amount: float, requested_date, notes: str = None,
+                           company_id: int = None):
+    """Xodim o'zi 'avans oldim' deb yozadi — hali TASDIQLANMAGAN holatda.
+
+    kech107 (10c, O'LCHANGAN `work/probe107h.py`): bir xil so'rov ikki marta yuborilsa (tugma ikki bosilsa, tarmoq
+    takrorlasa) IKKI so'rov yozilardi — admin ikkalasini tasdiqlasa avans ikki marta. Endi pul yo'llaridagi qoida bilan
+    bir xil: shu hodimning (summa, sana) bir xil KUTILAYOTGAN so'rovi `PUL_TAKROR_SONIYA` ichida bo'lsa — o'sha so'rov
+    qaytadi (yangisi yozilmaydi); PG da hodim bo'yicha qulf (`_pul_qulfi(107, hodim)`) — parallel ikki so'rov ham bitta."""
     from models import AdvanceRequest, AdvanceRequestStatus
+    from datetime import timedelta as _td107
+    _pul_qulfi(db, 107, employee_id)
+    _tq = db.query(AdvanceRequest).filter(
+        AdvanceRequest.employee_id == employee_id,
+        AdvanceRequest.status == AdvanceRequestStatus.PENDING,
+        AdvanceRequest.amount == round(float(amount), 2),
+        AdvanceRequest.requested_date == requested_date,
+        AdvanceRequest.submitted_at >= datetime.utcnow() - _td107(seconds=PUL_TAKROR_SONIYA),
+    )
+    if company_id is not None:      # TENANT: ota (hodim) orqali — `get_pending_advance_requests` bilan bir xil
+        _tq = _tq.join(Employee, Employee.id == AdvanceRequest.employee_id).filter(Employee.company_id == company_id)
+    _oldingi = _tq.order_by(AdvanceRequest.id.desc()).first()
+    if _oldingi is not None:
+        _oldingi._is_duplicate_submit = True
+        return _oldingi
     req = AdvanceRequest(
         employee_id=employee_id, amount=amount,
         requested_date=requested_date, notes=notes,
@@ -6545,12 +13389,20 @@ def create_advance_request(db: Session, employee_id: int, amount: float, request
     return req
 
 
-def get_pending_advance_requests(db: Session) -> List[dict]:
-    """Admin tasdiqlashi kerak bo'lgan, hali ko'rib chiqilmagan so'rovlar."""
+def get_pending_advance_requests(db: Session, company_id: int = None) -> List[dict]:
+    """Admin tasdiqlashi kerak bo'lgan, hali ko'rib chiqilmagan so'rovlar.
+
+    M5 (2026-09-18) — TENANT: ilgari BARCHA korxonalarning so'rovlari
+    qaytarilardi. `AdvanceRequest`da company_id ustuni yo'q — tenant
+    otasi (Employee) orqali cheklanadi."""
     from models import AdvanceRequest, AdvanceRequestStatus
-    rows = db.query(AdvanceRequest).filter(
+    q = db.query(AdvanceRequest).filter(
         AdvanceRequest.status == AdvanceRequestStatus.PENDING
-    ).order_by(AdvanceRequest.requested_date.asc()).all()
+    )
+    if company_id is not None:
+        q = q.join(Employee, Employee.id == AdvanceRequest.employee_id
+                   ).filter(Employee.company_id == company_id)
+    rows = q.order_by(AdvanceRequest.requested_date.asc()).all()
     result = []
     for r in rows:
         result.append({
@@ -6562,11 +13414,22 @@ def get_pending_advance_requests(db: Session) -> List[dict]:
     return result
 
 
-def confirm_advance_request(db: Session, request_id: int, confirmed_by: str) -> Optional[dict]:
+def _advance_request_of_company(db: Session, request_id: int, company_id: int = None):
+    """So'rovni FAQAT shu korxona xodimining so'rovi sifatida topadi (M5)."""
+    from models import AdvanceRequest
+    q = db.query(AdvanceRequest).filter(AdvanceRequest.id == request_id)
+    if company_id is not None:
+        q = q.join(Employee, Employee.id == AdvanceRequest.employee_id
+                   ).filter(Employee.company_id == company_id)
+    return q.first()
+
+
+def confirm_advance_request(db: Session, request_id: int, confirmed_by: str,
+                            company_id: int = None) -> Optional[dict]:
     """Admin tasdiqlaydi — shu bilan HAQIQIY EmployeeAdvance yozuvi yaratiladi
     (Moliya/Hisobotga to'g'ridan-to'g'ri ta'sir qiladigan)."""
     from models import AdvanceRequest, AdvanceRequestStatus, EmployeeAdvance
-    req = db.query(AdvanceRequest).filter(AdvanceRequest.id == request_id).first()
+    req = _advance_request_of_company(db, request_id, company_id)   # M5
     if not req or req.status != AdvanceRequestStatus.PENDING:
         return None
 
@@ -6585,22 +13448,31 @@ def confirm_advance_request(db: Session, request_id: int, confirmed_by: str) -> 
     return {"success": True, "advance_id": advance.id}
 
 
-def reject_advance_request(db: Session, request_id: int, confirmed_by: str) -> bool:
-    """Admin rad etadi — hech qanday moliyaviy yozuv yaratilmaydi."""
+def reject_advance_request(db: Session, request_id: int, confirmed_by: str,
+                           company_id: int = None, rad_sababi: str = None) -> bool:
+    """Admin rad etadi — hech qanday moliyaviy yozuv yaratilmaydi.
+    kech118 (D-1, G6-21 — egasi QARORI «Ha, majburiy»): rad etish SABABI yoziladi (hodim panelida ko'rinadi); sababsiz —
+    rad etilmaydi (`ValueError`, marshrut → 400). Matn — 1..300 belgi (bo'sh joylar olib tashlanadi)."""
     from models import AdvanceRequest, AdvanceRequestStatus
-    req = db.query(AdvanceRequest).filter(AdvanceRequest.id == request_id).first()
+    sabab = rad_sababi.strip() if isinstance(rad_sababi, str) else ''
+    if not sabab:
+        raise ValueError("Rad etish sababini yozing")
+    if len(sabab) > 300:
+        raise ValueError("Rad etish sababi 300 belgidan oshmasin")
+    req = _advance_request_of_company(db, request_id, company_id)   # M5
     if not req or req.status != AdvanceRequestStatus.PENDING:
         return False
     req.status = AdvanceRequestStatus.REJECTED
     req.confirmed_at = datetime.utcnow()
     req.confirmed_by = confirmed_by
+    req.rad_sababi = sabab
     db.commit()
     return True
 
 
 def get_employee_own_requests(db: Session, employee_id: int, limit: int = 20) -> List[dict]:
     """Xodimning o'zi yuborgan so'rovlari tarixi (o'z paneli uchun)."""
-    from models import AdvanceRequest
+    from models import AdvanceRequest, AdvanceRequestStatus
     rows = db.query(AdvanceRequest).filter(
         AdvanceRequest.employee_id == employee_id
     ).order_by(AdvanceRequest.submitted_at.desc()).limit(limit).all()
@@ -6608,7 +13480,9 @@ def get_employee_own_requests(db: Session, employee_id: int, limit: int = 20) ->
         "id": r.id, "amount": float(r.amount),
         "requested_date": r.requested_date.isoformat(),
         "status": r.status.value, "notes": r.notes,
-        "submitted_at": r.submitted_at.isoformat() if r.submitted_at else None
+        "submitted_at": r.submitted_at.isoformat() if r.submitted_at else None,
+        # kech118 (D-1, G6-21): rad etilgan so'rov sababi (eski yozuvlarda — null)
+        "rad_sababi": r.rad_sababi if r.status == AdvanceRequestStatus.REJECTED else None,
     } for r in rows]
 
 
@@ -6616,8 +13490,15 @@ def get_employee_own_requests(db: Session, employee_id: int, limit: int = 20) ->
 # MASTER KPI — Yillik KPI (sotuvdan %, yil oxiri sovg'a)
 # ============================================================
 
-def update_master_kpi(db: Session, master_id: int, kpi_percent: float) -> Optional[Master]:
-    m = db.query(Master).filter(Master.id == master_id).first()
+def update_master_kpi(db: Session, master_id: int, kpi_percent: float,
+                      company_id: int = None) -> Optional[Master]:
+    # kech93 (8-band): ildizda ham QAT'IY — marshrut sxemasi (`MasterKpiUpdate`,
+    # strict) birinchi to'siq. `true` / "7" / NaN / cheksiz / 0..100 dan
+    # tashqari — `ValueError` (O'LCHANGAN: sxema "lax" edi, `true` → 1.0,
+    # "7" → 7.0 jim saqlanardi).
+    kpi_percent = _json_son("kpi_percent", kpi_percent, bosh_mumkin=False,
+                            musbat=False, chegara=100.0)
+    m = get_master(db, master_id, company_id)   # M5: faqat shu korxonadan
     if not m:
         return None
     m.kpi_percent = kpi_percent
@@ -6626,15 +13507,16 @@ def update_master_kpi(db: Session, master_id: int, kpi_percent: float) -> Option
     return m
 
 
-def get_master_kpi_detail(db: Session, master_id: int, year: int) -> list:
+@_hisobot_keshida
+def get_master_kpi_detail(db: Session, master_id: int, year: int,
+                          company_id: int = None) -> list:
     """Bitta usta uchun — shu yilgi HAR BIR buyurtmadan qancha KPI (sovg'a ulushi)
     chiqqanini ko'rsatadi. Faqat o'qish — hech qanday hisob-kitobga ta'sir qilmaydi,
     calculate_order_profit() dan olingan tayyor foyda asosida hisoblanadi."""
     import services
     from models import Order, OrderStatus, Master
-    from sqlalchemy import extract
 
-    master = db.query(Master).filter(Master.id == master_id).first()
+    master = get_master(db, master_id, company_id)   # M5: faqat shu korxonadan
     if not master:
         return []
 
@@ -6643,14 +13525,15 @@ def get_master_kpi_detail(db: Session, master_id: int, year: int) -> list:
     orders = db.query(Order).filter(
         Order.master_id == master_id,
         Order.status == OrderStatus.READY,
-        extract('year', Order.completed_at) == year
+        _tashkent_yilida(Order.completed_at, year)
     ).order_by(Order.completed_at.desc()).all()
+    services._hk_tayyorla(db, orders)        # kech90 (110-band): N+1 o'rniga bir necha IN so'rovi
 
     kpi_pct = float(master.kpi_percent or 0)
     result = []
     for o in orders:
         try:
-            profit_data = services.calculate_order_profit(db, o.id)
+            profit_data = services.yakun_foydasi(db, o)      # kech102 (144-band): yakunlangan paytdagi
             profit = float(profit_data.get("foyda", 0))
         except Exception:
             db.rollback()
@@ -6664,6 +13547,22 @@ def get_master_kpi_detail(db: Session, master_id: int, year: int) -> list:
             "kpi_amount": round(profit * kpi_pct / 100),
         })
 
+    # kech102 (144-band, QAROR — usta KPI "yo'qotilgan foydaga"): shu yilda bo'lgan qaytarishlar (buyurtma
+    # yakunlangandan keyin) — alohida qator, qaytarish paytida (foyda — qaytarilgan pul − omborga qaytgan tannarx).
+    for _h144 in services.davr_qaytarishlari(db, *_tashkent_yil_oraligi(year),
+                                             company_id=master.company_id, master_id=master_id):
+        _o144 = _h144["order"]
+        _tur144 = {"pul": "mijozga pul qaytarildi", "ombor": "mahsulot omborga qaytdi",
+                   "ombor+pul": "mahsulot omborga qaytdi, pul qaytarildi"}.get(_h144["tur"], "qaytarish")
+        result.append({
+            "order_id": _o144.id,
+            "order_number": f"↩️ {_o144.order_number} ({_tur144})",
+            "completed_at": _h144["vaqt"].isoformat(),
+            "total_amount": round(_h144["daromad"], 2),
+            "profit": round(_h144["foyda"]),
+            "kpi_amount": round(_h144["foyda"] * kpi_pct / 100),
+        })
+
     # MUHIM (2026-09): Tayyor mahsulot bo'limidan TO'G'RIDAN-TO'G'RI
     # (buyurtmasiz) sotilgan, lekin sotuv paytida shu ustaga BIRIKTIRILGAN
     # (master_id) sotuvlar — ular ham shu ro'yxatga, alohida qator sifatida
@@ -6671,7 +13570,7 @@ def get_master_kpi_detail(db: Session, master_id: int, year: int) -> list:
     from models import FinishedProductSale as _FPS_detail
     fp_sales = db.query(_FPS_detail).filter(
         _FPS_detail.master_id == master_id,
-        extract('year', _FPS_detail.sold_at) == year
+        _tashkent_yilida(_FPS_detail.sold_at, year)
     ).all()
     for s in fp_sales:
         profit = float(s.total_amount or 0) - float(s.cost_amount or 0)
@@ -6688,14 +13587,17 @@ def get_master_kpi_detail(db: Session, master_id: int, year: int) -> list:
     return result
 
 
-def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = False) -> dict:
+@_hisobot_keshida
+def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = False,
+                          company_id: int = None) -> dict:
     """Har usta uchun yillik SOF FOYDA, KPI% va hisoblangan sovg'a.
     include_inactive=False bo'lsa — avvalgidek faqat faol ustalar (eski xatti-harakat saqlanadi)."""
     import services
     from models import Order, OrderStatus, FinishedProductSale as _FPS_report
-    from sqlalchemy import extract
 
     q = db.query(Master)
+    if company_id is not None:       # M5: faqat shu korxona ustalari
+        q = q.filter(Master.company_id == company_id)
     if not include_inactive:
         q = q.filter(Master.is_active == True)
     masters = q.all()
@@ -6710,8 +13612,9 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
     all_orders = db.query(Order).filter(
         Order.master_id.in_(master_ids),
         Order.status == OrderStatus.READY,
-        extract('year', Order.completed_at) == year
+        _tashkent_yilida(Order.completed_at, year)
     ).all() if master_ids else []
+    services._hk_tayyorla(db, all_orders)    # kech90 (110-band): N+1 o'rniga bir necha IN so'rovi
 
     orders_by_master = {}
     for o in all_orders:
@@ -6722,11 +13625,32 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
     # ular ham yillik sotuv/foyda/sovg'a hisobiga qo'shiladi.
     all_fp_sales = db.query(_FPS_report).filter(
         _FPS_report.master_id.in_(master_ids),
-        extract('year', _FPS_report.sold_at) == year
+        _tashkent_yilida(_FPS_report.sold_at, year)
     ).all() if master_ids else []
     fp_sales_by_master = {}
     for s in all_fp_sales:
         fp_sales_by_master.setdefault(s.master_id, []).append(s)
+
+    # kech98 (129-band, O'LCHANGAN `work/probe116.py`): "Oxirgi buyurtma" usta boshiga ALOHIDA so'ralardi
+    # (`ORDER BY completed_at DESC NULLS LAST` — faqat `completed_at` ishlatilardi). Endi bitta GROUP BY: MAX NULL larni
+    # tashlaydi — eng so'nggi HAQIQIY sana; "Tayyor" buyurtmasi yo'q yoki hammasining sanasi NULL — None (kech91,
+    # 115-band `nullslast()` natijasi bilan AYNAN; `tools/test_usta_oxirgi_sana.py` E bo'limi).
+    from sqlalchemy import func as _func_kpi
+    _oxirgi_sana = {}
+    for _i in range(0, len(master_ids), 500):
+        _oxq = db.query(Order.master_id, _func_kpi.max(Order.completed_at)).filter(
+            Order.master_id.in_(master_ids[_i:_i + 500]), Order.status == OrderStatus.READY)
+        if company_id is not None:      # ota (usta) orqali — ro'yxat allaqachon korxonaniki, natija o'zgarmaydi
+            _oxq = _oxq.join(Master, Master.id == Order.master_id).filter(Master.company_id == company_id)
+        for _mid, _mx in _oxq.group_by(Order.master_id).all():
+            _oxirgi_sana[_mid] = _mx
+
+    # kech102 (144-band, QAROR — usta KPI "yo'qotilgan foydaga"): shu yilda bo'lgan qaytarishlar o'sha buyurtma
+    # ustasining yillik foydasiga (buyurtmaning o'zi — yakunlangan paytdagi holatda). "Yillik sotuv" (jami summa) — o'zgarmaydi.
+    _qaytarish_usta = {}
+    for _h144 in services.davr_qaytarishlari(db, *_tashkent_yil_oraligi(year),
+                                             company_id=company_id):
+        _qaytarish_usta[_h144["master_id"]] = _qaytarish_usta.get(_h144["master_id"], 0.0) + _h144["foyda"]
 
     for m in masters:
         orders = orders_by_master.get(m.id, [])
@@ -6736,7 +13660,7 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
         for o in orders:
             yearly_sales += float(o.total_amount or 0)
             try:
-                profit_data = services.calculate_order_profit(db, o.id)
+                profit_data = services.yakun_foydasi(db, o)
                 yearly_profit += float(profit_data.get("foyda", 0))
             except Exception as e:
                 db.rollback()
@@ -6748,13 +13672,16 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
         for s in fp_sales_by_master.get(m.id, []):
             yearly_sales += float(s.total_amount or 0)
             yearly_profit += float(s.total_amount or 0) - float(s.cost_amount or 0)
+        yearly_profit += _qaytarish_usta.get(m.id, 0.0)      # kech102 (144-band)
 
         gift = yearly_profit * (m.kpi_percent or 0) / 100
         total_gift += gift
 
-        last_order = db.query(Order).filter(
-            Order.master_id == m.id, Order.status == OrderStatus.READY
-        ).order_by(Order.completed_at.desc()).first()
+        # kech91 (115-band, O'LCHANGAN — `work/probe90_null.py`): PG `DESC` da NULL larni BIRINCHI qo'yadi,
+        # SQLite — OXIRIDA. "Tayyor" buyurtmalardan birining `completed_at` i NULL bo'lsa (eski / qo'lda
+        # tuzatilgan ma'lumot) PG da "Oxirgi buyurtma" sanasi BO'SH chiqardi, SQLite da — haqiqiy oxirgi
+        # sana. kech98 (129-band): yuqoridagi MAX — ikkala bazada ham eng oxirgi HAQIQIY sana.
+        _oxirgi = _oxirgi_sana.get(m.id)
 
         rows.append({
             "id": m.id,
@@ -6772,7 +13699,7 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
             "yearly_profit": round(yearly_profit),
             "orders_count": len(orders),
             "gift_amount": round(gift),
-            "last_order_date": last_order.completed_at.isoformat() if last_order and last_order.completed_at else None
+            "last_order_date": _oxirgi.isoformat() if _oxirgi is not None else None
         })
 
     rows.sort(key=lambda x: x["gift_amount"], reverse=True)
@@ -6793,12 +13720,25 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
 # keshbekka qaytariladi.
 # ══════════════════════════════════════════════════════════════════
 
-def get_active_gift_period(db: Session):
+def get_active_gift_period(db: Session, company_id: int = None):
+    """Joriy FAOL sovg'a davri.
+
+    M5 (2026-09-18) — TENANT: ilgari bu so'rov korxona filtrisiz edi va
+    `.first()` butun tizimdagi BIRINCHI faol davrni qaytarardi. Natijada
+    (a) A korxona B ning davrini ko'rar/o'zgartira olardi, (b) B da faol
+    davr bo'lsa A umuman yangi davr ocha olmasdi. Endi har bir korxona
+    o'z davrida, mustaqil ishlaydi."""
     from models import GiftPeriod
-    return db.query(GiftPeriod).filter(GiftPeriod.is_active == True).first()
+    q = db.query(GiftPeriod).filter(GiftPeriod.is_active == True)
+    if company_id is not None:
+        q = q.filter(GiftPeriod.company_id == company_id)
+    return q.first()
 
 
 def get_gift_period_participant_ids(db: Session, period_id: int) -> set:
+    # ESLATMA: bu yerda alohida korxona filtri SHART EMAS — `period_id`
+    # allaqachon tenant-tekshirilgan davrdan keladi, ishtirokchilar esa
+    # o'sha davrga bog'langan.
     """Bo'sh to'plam qaytarsa — demak BARCHA faol ustalar ishtirok etadi
     (standart holat, ustalar aniq tanlanmagan)."""
     from models import GiftPeriodParticipant
@@ -6809,20 +13749,31 @@ def get_gift_period_participant_ids(db: Session, period_id: int) -> set:
 
 
 def _gift_period_eligible_masters(db: Session, period) -> list:
-    """Davrda ishtirok etadigan FAOL ustalar ro'yxatini (Master obyektlari) qaytaradi."""
+    """Davrda ishtirok etadigan FAOL ustalar ro'yxatini (Master obyektlari) qaytaradi.
+
+    M5 — TENANT: "barcha faol ustalar" rejimi endi FAQAT davrning O'Z
+    korxonasi ustalarini oladi. Ilgari B korxonaning ustasi A ning
+    davrida avtomatik ishtirok etardi (jonli sinovda tasdiqlangan)."""
     participant_ids = get_gift_period_participant_ids(db, period.id)
     q = db.query(Master).filter(Master.is_active == True)
+    _pcid = getattr(period, "company_id", None)
+    if _pcid is not None:
+        q = q.filter(Master.company_id == _pcid)
     if participant_ids:
         q = q.filter(Master.id.in_(participant_ids))
     return q.order_by(Master.name).all()
 
 
-def master_in_active_gift_period(db: Session, master_id: int) -> bool:
+def master_in_active_gift_period(db: Session, master_id: int,
+                                 company_id: int = None) -> bool:
     """Berilgan usta joriy faol davrda ishtirok etadimi (davr umuman
     faol bo'lmasa ham, yoki ishtirokchi sifatida tanlanmagan bo'lsa ham
     — False)."""
-    period = get_active_gift_period(db)
+    period = get_active_gift_period(db, company_id)
     if not period:
+        return False
+    # M5: usta davrning o'z korxonasidan bo'lishi shart.
+    if not get_master(db, master_id, getattr(period, "company_id", None)):
         return False
     participant_ids = get_gift_period_participant_ids(db, period.id)
     if not participant_ids:
@@ -6830,48 +13781,88 @@ def master_in_active_gift_period(db: Session, master_id: int) -> bool:
     return master_id in participant_ids
 
 
-def open_gift_period(db: Session, tiers: list, master_ids: list = None, performed_by: str = None) -> dict:
+_SOVGA_USTA_MAX = 1000
+_SOVGA_NOM_MAX = 100    # `gift_period_tiers.gift_name` — String(100)
+
+
+def _sovga_ustalari(master_ids) -> list:
+    """17f: sovg'a davri ishtirokchilari — `None` / bo'sh (barcha faol ustalar)
+    yoki musbat butun sonlar ro'yxati (`true` / matn / kasr — yo'q; ilgari
+    `int(True)` → 1-usta jimgina qo'shilardi, matn esa jim tashlanardi)."""
+    if master_ids is None:
+        return []
+    if not isinstance(master_ids, list):
+        raise ValueError("'master_ids' ro'yxat bo'lishi kerak")
+    if len(master_ids) > _SOVGA_USTA_MAX:
+        raise ValueError(f"'master_ids' juda ko'p ({_SOVGA_USTA_MAX} tadan ko'p)")
+    natija = []
+    for i, mid in enumerate(master_ids):
+        if isinstance(mid, bool) or not isinstance(mid, int) or not (1 <= mid <= 2_147_483_647):
+            raise ValueError(f"'master_ids' {i + 1}-qiymat: musbat butun son bo'lishi kerak")
+        if mid not in natija:
+            natija.append(mid)
+    return natija
+
+
+def open_gift_period(db: Session, tiers: list, master_ids: list = None, performed_by: str = None,
+                    company_id: int = None) -> dict:
     """Yangi sovg'a davrini ochadi. `tiers` — [{"gift_name": str,
     "threshold_amount": float}, ...], kamida bitta. Har bosqichning
     threshold_amount'i — RESET'dan keyingi YANGI savdo summasi (jami emas).
     `master_ids` — ixtiyoriy: bo'sh/berilmagan bo'lsa, BARCHA faol ustalar
     ishtirok etadi (standart); ro'yxat berilsa, FAQAT o'sha ustalar."""
     from models import GiftPeriod, GiftPeriodTier, GiftPeriodParticipant
-    if get_active_gift_period(db):
+    if get_active_gift_period(db, company_id):
         return {"success": False, "message": "Allaqachon faol sovg'a davri bor — avval uni yoping"}
-    clean_tiers = []
-    for t in (tiers or []):
-        name = (t.get("gift_name") or "").strip()
-        amt = float(t.get("threshold_amount") or 0)
-        if name and amt > 0:
-            clean_tiers.append((name, amt))
-    if not clean_tiers:
+    # 17f (2026-09-22) — HAQIQIY PostgreSQL da O'LCHANGAN (`work/probe17f_pg.py`):
+    # bosqichlar `float(t.get(...))` bilan TEKSHIRUVSIZ o'qilardi — `tiers`
+    # matn / `[5]` / summa "abc" / nom son / summa `Infinity` / `1e20` / 101
+    # belgili nom — HAMMASI 500; `0.001` → 0.00 so'mlik bosqich (har qanday
+    # savdo darhol "sovg'aga yetdi"); `"5000"` va `true` jimgina songa
+    # aylanardi; `master_ids` dagi `true` → 1-usta. `kpi.html` bo'sh
+    # qatorlarni O'ZI tashlab yuboradi va faqat {gift_name, threshold_amount}
+    # hamda butun sonli `master_ids` yuboradi — endi aynan shu talab qilinadi
+    # (yozishdan OLDIN, xato → 400).
+    if tiers is None or (isinstance(tiers, list) and not tiers):
         return {"success": False, "message": "Kamida bitta to'g'ri bosqich (nomi va musbat summasi bilan) kiriting"}
+    try:
+        toza = _clean_val("GiftPeriodOpen", {"tiers": tiers})
+        toza_ustalar = _sovga_ustalari(master_ids)
+    except ValueError as e:
+        return {"success": False, "message": str(e)}
+    clean_tiers = [(t["gift_name"].strip(), t["threshold_amount"]) for t in toza["tiers"]]
     clean_tiers.sort(key=lambda x: x[1])
-    period = GiftPeriod(is_active=True, created_by=performed_by)
+    # M5: davr ANIQ joriy korxonaga tegishli bo'ladi (ilgari company_id
+    # berilmagani uchun yozuv bazadagi vaqtinchalik DEFAULT 1 ga tushardi).
+    period = GiftPeriod(company_id=company_id, is_active=True, created_by=performed_by)
     db.add(period)
     db.flush()
     for i, (name, amt) in enumerate(clean_tiers):
         db.add(GiftPeriodTier(period_id=period.id, gift_name=name, threshold_amount=amt, sort_order=i))
-    for mid in (master_ids or []):
-        try:
-            db.add(GiftPeriodParticipant(period_id=period.id, master_id=int(mid)))
-        except (TypeError, ValueError):
+    for mid in toza_ustalar:
+        # M5: faqat SHU korxonaning ustasi ishtirokchi bo'la oladi.
+        if company_id is not None and not get_master(db, mid, company_id):
             continue
+        db.add(GiftPeriodParticipant(period_id=period.id, master_id=mid))
     db.commit()
     db.refresh(period)
     return {"success": True, "period_id": period.id}
 
 
-def _gift_period_sales_since(db: Session, master_id: int, start_dt, end_dt) -> float:
+def _gift_period_sales_since(db: Session, master_id: int, start_dt, end_dt,
+                             company_id: int = None) -> float:
     """(start_dt < vaqt <= end_dt] oralig'idagi ustaning umumiy savdo
     summasi — buyurtmalar (Order.total_amount) VA to'g'ridan-to'g'ri tayyor
     mahsulot sotuvlari (FinishedProductSale.total_amount) qo'shilib."""
     from models import Order, OrderStatus, FinishedProductSale
+    # M5 — TENANT: savdo yig'indisiga faqat SHU korxonaning buyurtma va
+    # sotuvlari kiradi.
     q1 = db.query(Order).filter(
         Order.master_id == master_id, Order.status == OrderStatus.READY,
         Order.completed_at > start_dt,
     )
+    if company_id is not None:
+        q1 = q1.filter(Order.company_id == company_id)
     if end_dt:
         q1 = q1.filter(Order.completed_at <= end_dt)
     total = sum(float(o.total_amount or 0) for o in q1.all())
@@ -6880,13 +13871,16 @@ def _gift_period_sales_since(db: Session, master_id: int, start_dt, end_dt) -> f
         FinishedProductSale.master_id == master_id,
         FinishedProductSale.sold_at > start_dt,
     )
+    if company_id is not None:
+        q2 = q2.filter(FinishedProductSale.company_id == company_id)
     if end_dt:
         q2 = q2.filter(FinishedProductSale.sold_at <= end_dt)
     total += sum(float(s.total_amount or 0) for s in q2.all())
     return total
 
 
-def _gift_period_profit_since(db: Session, master_id: int, start_dt, end_dt) -> float:
+def _gift_period_profit_since(db: Session, master_id: int, start_dt, end_dt,
+                              company_id: int = None) -> float:
     """Xuddi yuqoridagi kabi, lekin SAVDO emas, FOYDA — davr yopilganda
     keshbekka aylantirish uchun ishlatiladi."""
     import services
@@ -6896,15 +13890,22 @@ def _gift_period_profit_since(db: Session, master_id: int, start_dt, end_dt) -> 
         Order.master_id == master_id, Order.status == OrderStatus.READY,
         Order.completed_at > start_dt, Order.completed_at <= end_dt,
     )
+    if company_id is not None:      # M5
+        q1 = q1.filter(Order.company_id == company_id)
     for o in q1.all():
         try:
-            total += float(services.calculate_order_profit(db, o.id).get("foyda", 0))
+            total += float(services.yakun_foydasi(db, o).get("foyda", 0))    # kech102 (144-band)
         except Exception:
             db.rollback()
+    # kech102 (144-band): davr ichida bo'lgan qaytarishlar (buyurtma yakunlangandan keyin) — o'sha payt bo'yicha
+    total += sum(_h144["foyda"] for _h144 in services.davr_qaytarishlari(
+        db, start_dt, end_dt, company_id=company_id, master_id=master_id, oraliq="(]"))
     q2 = db.query(FinishedProductSale).filter(
         FinishedProductSale.master_id == master_id,
         FinishedProductSale.sold_at > start_dt, FinishedProductSale.sold_at <= end_dt,
     )
+    if company_id is not None:      # M5
+        q2 = q2.filter(FinishedProductSale.company_id == company_id)
     for s in q2.all():
         total += float(s.total_amount or 0) - float(s.cost_amount or 0)
     return total
@@ -6922,16 +13923,24 @@ def _master_gift_period_checkpoint(db: Session, master_id: int, period) -> datet
     return last.redeemed_at if last else period.started_at
 
 
-def get_master_gift_period_progress(db: Session, master_id: int) -> dict:
+def get_master_gift_period_progress(db: Session, master_id: int,
+                                   company_id: int = None) -> dict:
     """Faol davr bo'yicha — ustaning joriy (oxirgi reset'dan keyingi)
     savdosi, barcha bosqichlar va ENG YUQORI qaysi biriga 'tayyor' ekani.
     Agar davr faol bo'lsa-yu, bu usta unda ISHTIROK ETMASA — 'active: False'
-    qaytariladi (usta uchun davr umuman ko'rinmasligi kerak)."""
-    period = get_active_gift_period(db)
-    if not period or not master_in_active_gift_period(db, master_id):
+    qaytariladi (usta uchun davr umuman ko'rinmasligi kerak).
+
+    kech108 (K107-1): korxona MAJBURIY — berilmasa `active: False` (ilgari `None` → butun tizimdagi BIRINCHI faol davr:
+    ikkinchi korxona ustasi Telegram «Sovg'alar» da "faol davr yo'q" ko'rardi, yoki begona davr bilan solishtirilardi).
+    Chaqiruvchi ustaning korxonasini beradi (`main` — `master.company_id`)."""
+    if company_id is None:
         return {"active": False}
+    period = get_active_gift_period(db, company_id)
+    if not period or not master_in_active_gift_period(db, master_id, company_id):
+        return {"active": False}
+    _cid = getattr(period, "company_id", None)
     checkpoint = _master_gift_period_checkpoint(db, master_id, period)
-    sales = _gift_period_sales_since(db, master_id, checkpoint, None)
+    sales = _gift_period_sales_since(db, master_id, checkpoint, None, company_id=_cid)
     tiers = sorted(period.tiers, key=lambda t: t.threshold_amount)
     result_tiers = []
     highest_ready = None
@@ -6951,13 +13960,16 @@ def get_master_gift_period_progress(db: Session, master_id: int) -> dict:
     }
 
 
-def update_gift_period_tier(db: Session, tier_id: int, gift_name: str, threshold_amount: float) -> dict:
+def update_gift_period_tier(db: Session, tier_id: int, gift_name: str, threshold_amount: float,
+                           company_id: int = None) -> dict:
     """Faol davrdagi bir bosqichning nomi/summasini o'zgartiradi. Bu —
     ALLAQACHON berilgan sovg'alar tarixiga (MasterGiftPeriodRedemption)
     ta'sir qilmaydi, chunki tarix o'z nusxasini (gift_name, sales_amount)
     alohida saqlaydi."""
     from models import GiftPeriodTier
-    period = get_active_gift_period(db)
+    # M5: davr joriy korxonanikidan olinadi — bosqich esa SHU davrga
+    # tegishli bo'lishi shart, ya'ni begona `tier_id` topilmaydi.
+    period = get_active_gift_period(db, company_id)
     if not period:
         return {"success": False, "message": "Faol sovg'a davri yo'q"}
     tier = db.query(GiftPeriodTier).filter(
@@ -6965,34 +13977,53 @@ def update_gift_period_tier(db: Session, tier_id: int, gift_name: str, threshold
     ).first()
     if not tier:
         return {"success": False, "message": "Bosqich topilmadi"}
+    # 2026-09-21 — O'LCHANGAN: matnli summa (`float("abc")`) va matn
+    # bo'lmagan nom (`5.strip()`) → 500 edi; `1e20` summa SQLite da
+    # yozilardi, PostgreSQL da Numeric(12,2) sig'imidan oshib 500 berardi.
+    if gift_name is not None and not isinstance(gift_name, str):
+        return {"success": False, "message": "Sovg'a nomi matn bo'lishi kerak"}
     name = (gift_name or "").strip()
-    amt = float(threshold_amount or 0)
+    try:
+        amt = _json_son("threshold_amount", threshold_amount, bosh_mumkin=True,
+                        musbat=False, chegara=_ORDER_ITEM_MAX_MONEY) or 0
+    except ValueError:
+        return {"success": False, "message": "Summa to'g'ri son bo'lishi kerak "
+                                             "(musbat, 9 999 999 999.99 dan oshmasin)"}
     if not name or amt <= 0:
         return {"success": False, "message": "Sovg'a nomi va musbat summa shart"}
+    # 17f (2026-09-22) — HAQIQIY PostgreSQL da O'LCHANGAN: `0.001` → 0.00 so'mlik
+    # bosqich (200); 101+ belgili nom → String(100) → 500.
+    if round(amt, 2) < _PUL_ENG_KAM:
+        return {"success": False, "message": f"Summa kamida {_PUL_ENG_KAM} so'm bo'lishi kerak "
+                                             "(1 tiyindan kichik summa bazada 0 ga aylanadi)"}
+    if len(name) > _SOVGA_NOM_MAX:
+        return {"success": False, "message": f"Sovg'a nomi juda uzun ({_SOVGA_NOM_MAX} belgidan ko'p)"}
     tier.gift_name = name
     tier.threshold_amount = amt
     db.commit()
     return {"success": True}
 
 
-def redeem_gift_period_tier(db: Session, master_id: int, tier_id: int, performed_by: str = None) -> dict:
+def redeem_gift_period_tier(db: Session, master_id: int, tier_id: int, performed_by: str = None,
+                           company_id: int = None) -> dict:
     """Bir bosqichni ustaga 'berildi' deb belgilaydi. Muvaffaqiyatli
     bo'lsa, ustaning hisoblagichi shu paytdan RESET bo'ladi (checkpoint
     funksiyasi keyingi so'rovda avtomatik shu yozuvni topadi)."""
     from models import GiftPeriodTier, Master, MasterGiftPeriodRedemption
-    period = get_active_gift_period(db)
+    period = get_active_gift_period(db, company_id)
     if not period:
         return {"success": False, "message": "Faol sovg'a davri yo'q"}
+    _cid = getattr(period, "company_id", None)
     tier = db.query(GiftPeriodTier).filter(
         GiftPeriodTier.id == tier_id, GiftPeriodTier.period_id == period.id
     ).first()
     if not tier:
         return {"success": False, "message": "Bosqich topilmadi"}
-    master = db.query(Master).filter(Master.id == master_id).first()
+    master = get_master(db, master_id, _cid)    # M5: faqat shu korxona ustasi
     if not master:
         return {"success": False, "message": "Usta topilmadi"}
     checkpoint = _master_gift_period_checkpoint(db, master_id, period)
-    sales = _gift_period_sales_since(db, master_id, checkpoint, None)
+    sales = _gift_period_sales_since(db, master_id, checkpoint, None, company_id=_cid)
     if sales < float(tier.threshold_amount) - 0.01:
         return {"success": False,
                 "message": f"Usta hali bu bosqichga yetmagan (kerak: {tier.threshold_amount:,.0f}, mavjud: {sales:,.0f})"}
@@ -7004,18 +14035,19 @@ def redeem_gift_period_tier(db: Session, master_id: int, tier_id: int, performed
     return {"success": True}
 
 
-def get_gift_period_overview(db: Session) -> dict:
+def get_gift_period_overview(db: Session, company_id: int = None) -> dict:
     """Admin panel uchun — faol davr, uning bosqichlari, va har bir
     ISHTIROKCHI ustaning joriy holati (savdosi, tayyor bo'lsa qaysi bosqichga)."""
-    period = get_active_gift_period(db)
+    period = get_active_gift_period(db, company_id)
     if not period:
         return {"active": False}
+    _cid = getattr(period, "company_id", None)
     masters = _gift_period_eligible_masters(db, period)
     participant_ids = get_gift_period_participant_ids(db, period.id)
     rows = []
     pending = []
     for m in masters:
-        prog = get_master_gift_period_progress(db, m.id)
+        prog = get_master_gift_period_progress(db, m.id, company_id=_cid)
         row = {
             "master_id": m.id, "master_name": m.name,
             "current_sales": prog["current_sales"], "tiers": prog["tiers"],
@@ -7035,7 +14067,8 @@ def get_gift_period_overview(db: Session) -> dict:
     }
 
 
-def add_master_to_active_gift_period(db: Session, master_id: int, performed_by: str = None) -> dict:
+def add_master_to_active_gift_period(db: Session, master_id: int, performed_by: str = None,
+                                    company_id: int = None) -> dict:
     """2026-09-16 (foydalanuvchi so'rovi bo'yicha): davr ANIQ ustalar
     ro'yxati bilan (hammasi emas) ochilgan bo'lsa, keyinroq ishga
     qabul qilingan/faollashtirilgan yangi ustani davrni TO'XTATMASDAN
@@ -7050,10 +14083,17 @@ def add_master_to_active_gift_period(db: Session, master_id: int, performed_by: 
     — yangi usta ALLAQACHON avtomatik ishtirok etadi (dinamik so'rov
     orqali), shunchaki shu haqda xabar qaytariladi.
     """
-    period = get_active_gift_period(db)
+    # kech93 (8-band, O'LCHANGAN): `true` / "1" / 1.0 / 2**31 — PostgreSQL 500
+    # edi (SQLite da `true` = 1-usta). Ildizda ham QAT'IY (marshrut — birinchi to'siq).
+    try:
+        master_id = _clean_val("GiftAddMaster", {"master_id": master_id})["master_id"]
+    except ValueError as e:
+        return {"success": False, "message": str(e)}
+    period = get_active_gift_period(db, company_id)
     if not period:
         return {"success": False, "message": "Faol sovg'a davri yo'q"}
-    master = db.query(Master).filter(Master.id == master_id).first()
+    # M5: faqat davrning O'Z korxonasidagi usta qo'shilishi mumkin.
+    master = get_master(db, master_id, getattr(period, "company_id", None))
     if not master:
         return {"success": False, "message": "Usta topilmadi"}
     if not master.is_active:
@@ -7072,13 +14112,15 @@ def add_master_to_active_gift_period(db: Session, master_id: int, performed_by: 
 
     db.add(GiftPeriodParticipant(period_id=period.id, master_id=master_id))
     log_activity(db, "gift_period_add_master", "gift_period", period.id,
+                 company_id=getattr(period, 'company_id', None),
                  entity_label=master.name, performed_by=performed_by)
     db.commit()
     return {"success": True, "already_included": False, "all_masters_mode": False,
             "message": f"{master.name} davrga qo'shildi — bu daqiqadan boshlab uning savdosi hisoblana boshlaydi."}
 
 
-def close_gift_period(db: Session, performed_by: str = None, force: bool = False) -> dict:
+def close_gift_period(db: Session, performed_by: str = None, force: bool = False,
+                     company_id: int = None) -> dict:
     """Faol davrni yopadi. Agar biror usta biror bosqichga 'tayyor' bo'lib,
     hali 'Berildi' deb belgilanmagan bo'lsa va force=False bo'lsa — YOPMAY,
     ogohlantirish qaytaradi (aks holda uning haqli sovg'asi bekorga
@@ -7086,11 +14128,17 @@ def close_gift_period(db: Session, performed_by: str = None, force: bool = False
     ustaning checkpoint'dan keyingi qoldiq savdosi FOYDA orqali (KPI% ×)
     avtomatik keshbek hisobiga o'tkaziladi."""
     from models import MasterGiftPeriodRedemption
-    period = get_active_gift_period(db)
+    # kech93 (8-band): `force` — FAQAT haqiqiy true / false. O'LCHANGAN: marshrut
+    # `bool("false")` = True, `bool(1)` = True qilardi — majburiy yopish, ya'ni
+    # sovg'aga yetgan ustalarning sovg'asi keshbekka aylanib ketardi.
+    if not isinstance(force, bool):
+        return {"success": False, "message": "'force' true yoki false bo'lishi kerak"}
+    period = get_active_gift_period(db, company_id)
     if not period:
         return {"success": False, "message": "Faol sovg'a davri yo'q"}
+    _cid = getattr(period, "company_id", None)
 
-    overview = get_gift_period_overview(db)
+    overview = get_gift_period_overview(db, company_id=_cid)
     if overview["pending_master_names"] and not force:
         return {
             "success": False,
@@ -7102,10 +14150,10 @@ def close_gift_period(db: Session, performed_by: str = None, force: bool = False
     masters = _gift_period_eligible_masters(db, period)
     for m in masters:
         checkpoint = _master_gift_period_checkpoint(db, m.id, period)
-        sales = _gift_period_sales_since(db, m.id, checkpoint, now)
+        sales = _gift_period_sales_since(db, m.id, checkpoint, now, company_id=_cid)
         if sales <= 0.01:
             continue
-        profit = _gift_period_profit_since(db, m.id, checkpoint, now)
+        profit = _gift_period_profit_since(db, m.id, checkpoint, now, company_id=_cid)
         cashback_amount = profit * float(m.kpi_percent or 0) / 100
         db.add(MasterGiftPeriodRedemption(
             period_id=period.id, master_id=m.id, tier_id=None,
@@ -7118,20 +14166,30 @@ def close_gift_period(db: Session, performed_by: str = None, force: bool = False
     return {"success": True}
 
 
-def get_master_yearly_cashback(db: Session, master_id: int, year: int) -> dict:
+@_hisobot_keshida
+def get_master_yearly_cashback(db: Session, master_id: int, year: int,
+                              company_id: int = None) -> dict:
     """'Bonuslarim' (bot) uchun — yillik keshbek hisoboti. Har qanday
     sovg'a davri (o'tgan yoki joriy) davomida bo'lgan buyurtmalar/sotuvlar
     bu yerdan CHIQARIB TASHLANADI (ular sovg'aga ketgan yoki hali
     ketayapti); o'rniga, yopilgan davrlarning 'cashback_conversion'
     yozuvlari (ushbu yilga tegishlilari) qo'shiladi."""
     import services
-    from sqlalchemy import extract
     from models import Order, OrderStatus, FinishedProductSale, GiftPeriod, MasterGiftPeriodRedemption, Master
 
-    master = db.query(Master).filter(Master.id == master_id).first()
-    kpi_pct = float(master.kpi_percent or 0) if master else 0.0
+    # M5 (2026-09-18) — TENANT: usta, davrlar, buyurtmalar, sotuvlar va
+    # o'tkazmalar — hammasi SHU korxona ichidan.
+    master = get_master(db, master_id, company_id)
+    if not master:
+        return {"yearly_profit": 0.0, "kpi_percent": 0.0, "jami_bonus": 0.0,
+                "orders": [], "gift_period_conversion": 0.0}
+    kpi_pct = float(master.kpi_percent or 0)
+    cid = company_id if company_id is not None else getattr(master, "company_id", None)
 
-    periods = db.query(GiftPeriod).all()
+    _pq = db.query(GiftPeriod)
+    if cid is not None:
+        _pq = _pq.filter(GiftPeriod.company_id == cid)
+    periods = _pq.all()
 
     def _in_any_period(dt):
         if not dt:
@@ -7142,10 +14200,14 @@ def get_master_yearly_cashback(db: Session, master_id: int, year: int) -> dict:
                 return True
         return False
 
-    orders = db.query(Order).filter(
+    _oq = db.query(Order).filter(
         Order.master_id == master_id, Order.status == OrderStatus.READY,
-        extract('year', Order.completed_at) == year,
-    ).order_by(Order.completed_at.desc()).all()
+        _tashkent_yilida(Order.completed_at, year),
+    )
+    if cid is not None:
+        _oq = _oq.filter(Order.company_id == cid)
+    orders = _oq.order_by(Order.completed_at.desc()).all()
+    services._hk_tayyorla(db, orders)        # kech90 (110-band): N+1 o'rniga bir necha IN so'rovi
 
     yearly_profit = 0.0
     buyurtmalar = []
@@ -7153,17 +14215,28 @@ def get_master_yearly_cashback(db: Session, master_id: int, year: int) -> dict:
         if _in_any_period(o.completed_at):
             continue
         try:
-            foyda = float(services.calculate_order_profit(db, o.id).get("foyda", 0))
+            foyda = float(services.yakun_foydasi(db, o).get("foyda", 0))    # kech102 (144-band)
         except Exception:
             db.rollback()
             foyda = 0.0
         yearly_profit += foyda
         buyurtmalar.append((o.order_number, foyda))
+    # kech102 (144-band): shu yilda bo'lgan qaytarishlar — qaytarish PAYTI sovg'a davriga tushsa, o'sha davrda
+    # (davr yopilganda `_gift_period_profit_since` hisobida), aks holda keshbekda.
+    for _h144 in services.davr_qaytarishlari(db, *_tashkent_yil_oraligi(year),
+                                             company_id=cid, master_id=master_id):
+        if _in_any_period(_h144["vaqt"]):
+            continue
+        yearly_profit += _h144["foyda"]
+        buyurtmalar.append((f"↩️ {_h144['order'].order_number}", _h144["foyda"]))
 
-    fp_sales = db.query(FinishedProductSale).filter(
+    _sq = db.query(FinishedProductSale).filter(
         FinishedProductSale.master_id == master_id,
-        extract('year', FinishedProductSale.sold_at) == year,
-    ).all()
+        _tashkent_yilida(FinishedProductSale.sold_at, year),
+    )
+    if cid is not None:
+        _sq = _sq.filter(FinishedProductSale.company_id == cid)
+    fp_sales = _sq.all()
     for s in fp_sales:
         if _in_any_period(s.sold_at):
             continue
@@ -7171,11 +14244,17 @@ def get_master_yearly_cashback(db: Session, master_id: int, year: int) -> dict:
 
     jami_bonus = yearly_profit * kpi_pct / 100
 
-    conversions = db.query(MasterGiftPeriodRedemption).filter(
+    _cq = db.query(MasterGiftPeriodRedemption).filter(
         MasterGiftPeriodRedemption.master_id == master_id,
         MasterGiftPeriodRedemption.kind == "cashback_conversion",
-        extract('year', MasterGiftPeriodRedemption.redeemed_at) == year,
-    ).all()
+        _tashkent_yilida(MasterGiftPeriodRedemption.redeemed_at, year),
+    )
+    if cid is not None:
+        # MasterGiftPeriodRedemption'da company_id ustuni yo'q — tenant
+        # otasi (GiftPeriod) orqali cheklanadi.
+        _cq = _cq.join(GiftPeriod, GiftPeriod.id == MasterGiftPeriodRedemption.period_id
+                       ).filter(GiftPeriod.company_id == cid)
+    conversions = _cq.all()
     conversion_total = sum(float(c.profit_amount or 0) for c in conversions)
     jami_bonus += conversion_total
 
@@ -7190,30 +14269,57 @@ from models import Supplier, SupplierPayment, InventoryPurchase
 from schemas import SupplierCreate, SupplierUpdate, SupplierPaymentCreate
 
 
-def create_supplier(db: Session, data: SupplierCreate) -> Supplier:
-    s = Supplier(name=data.name.strip(), phone=data.phone, notes=data.notes)
+def create_supplier(db: Session, data: SupplierCreate, company_id: int = None) -> Supplier:
+    """Yangi ta'minotchi qo'shadi.
+
+    2026-09-18 — M8/F1a: `company_id` UMUMAN berilmasdi va yozuv faqat
+    bazadagi vaqtinchalik `DEFAULT 1` tufayli saqlanardi — ya'ni B korxona
+    admini ta'minotchi yaratsa, u A korxonaga tushib qolardi. Endi tenant
+    ANIQ beriladi (mijoz so'rovidan emas, sessiyadan)."""
+    # 15-band: qat'iy tekshiruv — HECH NARSA yozilmasdan OLDIN (ValueError → 400).
+    _clean_create("Supplier", data.model_dump(exclude_unset=True))
+    s = Supplier(company_id=company_id,
+                 name=data.name.strip(), phone=data.phone, notes=data.notes)
     db.add(s)
     db.commit()
     db.refresh(s)
     return s
 
 
-def get_suppliers(db: Session, only_active: bool = True) -> List[Supplier]:
+def tabiiy_tartib_kaliti(matn) -> tuple:
+    """kech120 (zip 130 — G4-20): nomlar «tabiiy» tartibda — raqamlar SON sifatida («Ta'minotchi 2» «Ta'minotchi 10» dan
+    OLDIN; ilgari matn tartibi: 1, 10, 11 … 19, 2, 20), katta-kichik harf farqsiz."""
+    import re as _re_tt
+    _q = _re_tt.split(r"(\d+)", str(matn or "").casefold())
+    return tuple((0, int(x), "") if x.isdigit() else (1, 0, x) for x in _q if x != "")
+
+
+def get_suppliers(db: Session, only_active: bool = True,
+                  company_id: int = None) -> List[Supplier]:
     q = db.query(Supplier)
+    if company_id is not None:
+        q = q.filter(Supplier.company_id == company_id)
     if only_active:
         q = q.filter(Supplier.is_active == True)
-    return q.order_by(Supplier.name).all()
+    # kech120 (zip 130 — G4-20): tabiiy tartib (Kirim formasidagi tanlov, Ta'minotchilar ro'yxati — qarz bo'yicha
+    # saralashda teng qarzlilar ichida ham)
+    return sorted(q.order_by(Supplier.name, Supplier.id).all(), key=lambda s: tabiiy_tartib_kaliti(s.name))
 
 
-def get_supplier(db: Session, supplier_id: int) -> Optional[Supplier]:
-    return db.query(Supplier).filter(Supplier.id == supplier_id).first()
+def get_supplier(db: Session, supplier_id: int, company_id: int = None) -> Optional[Supplier]:
+    q = db.query(Supplier).filter(Supplier.id == supplier_id)
+    if company_id is not None:
+        q = q.filter(Supplier.company_id == company_id)
+    return q.first()
 
 
 def update_supplier(db: Session, supplier_id: int, data: SupplierUpdate) -> Optional[Supplier]:
     s = get_supplier(db, supplier_id)
     if not s:
         return None
-    for k, v in data.model_dump(exclude_unset=True).items():
+    # 14-band: qat'iy tekshiruv — HECH NARSA yozilmasdan OLDIN (ValueError → 400).
+    toza = _clean_update("Supplier", data.model_dump(exclude_unset=True))
+    for k, v in toza.items():
         setattr(s, k, v)
     db.commit()
     db.refresh(s)
@@ -7232,14 +14338,37 @@ def delete_supplier(db: Session, supplier_id: int, force: bool = False) -> dict:
     if debt_info["debt"] > 0 and not force:
         return {
             "success": False,
-            "message": f"Bu yetkazib beruvchida {debt_info['debt']:,.0f} so'm qarz bor".replace(",", " "),
+            "message": f"Bu ta'minotchida {debt_info['debt']:,.0f} so'm qarz bor".replace(",", " "),
             "has_debt": True,
             "debt": debt_info["debt"]
         }
 
     # Bog'liq xaridlarni supplier_id=NULL qilamiz (tarixi Omborxonada saqlanib qoladi,
     # lekin endi hech kimga bog'lanmaydi) — to'lovlarni esa o'chiramiz (faqat shu supplierga tegishli)
+    #
+    # 21-band (2026-09-21, JONLI VA LOKAL O'LCHANGAN): `suppliers.id` ga
+    # ishora qiluvchi TO'RTTA ustun bor (models.py):
+    #     InventoryPurchase.supplier_id   (nullable)  — quyida NULL qilinardi
+    #     SupplierPayment.supplier_id     (NOT NULL)  — quyida o'chirilardi
+    #     InventoryMovement.supplier_id   (nullable)  — TEGILMASDI  ← nuqson
+    #     InventoryReceipt.supplier_id    (nullable)  — TEGILMASDI  ← nuqson
+    # Har kirimda `log_movement(..., supplier_id=...)` yoziladi, ya'ni BIR
+    # MARTA ham xarid qilingan ta'minotchini o'chirib bo'lmasdi: PostgreSQL
+    # `inventory_movements_supplier_id_fkey` cheklovini buzib COMMIT da
+    # yiqilardi va foydalanuvchi "Serverda kutilmagan xato yuz berdi" (500)
+    # ko'rardi. Xaridsiz ta'minotchi o'chgani uchun bu ilgari sezilmagan
+    # (kech13 nazorati aynan shunday edi). SQLite da FK cheklovi standart
+    # HOLATDA o'chiq — shuning uchun lokal testlarda ham ko'rinmagan
+    # (`tools/test_tamin_ochirish.py` `PRAGMA foreign_keys=ON` bilan
+    # ishlaydi va shu yo'lni qulflaydi).
+    from models import InventoryMovement, InventoryReceipt
     db.query(InventoryPurchase).filter(InventoryPurchase.supplier_id == supplier_id).update(
+        {"supplier_id": None}
+    )
+    db.query(InventoryMovement).filter(InventoryMovement.supplier_id == supplier_id).update(
+        {"supplier_id": None}
+    )
+    db.query(InventoryReceipt).filter(InventoryReceipt.supplier_id == supplier_id).update(
         {"supplier_id": None}
     )
     db.query(SupplierPayment).filter(SupplierPayment.supplier_id == supplier_id).delete()
@@ -7249,39 +14378,125 @@ def delete_supplier(db: Session, supplier_id: int, force: bool = False) -> dict:
     return {"success": True}
 
 
-def get_supplier_debt(db: Session, supplier_id: int) -> dict:
-    """Yetkazib beruvchiga qancha qarzdorlik bor."""
-    purchases = db.query(InventoryPurchase).filter(
-        InventoryPurchase.supplier_id == supplier_id,
-        InventoryPurchase.is_credit == True
-    ).all()
-    payments = db.query(SupplierPayment).filter(SupplierPayment.supplier_id == supplier_id).all()
+def _som_butun_int(v) -> int:
+    """kech98 (129-band): pul qiymati → butun so'm, 0.5 YUQORIGA (`_som_butun` qoidasi — JS `Math.round` va bazadagi
+    `Numeric` HALF_UP bilan bir xil); natija `int` (ta'minotchi maydonlari avvalgidek butun son)."""
+    from decimal import Decimal, ROUND_HALF_UP
+    return int(Decimal(str(v)).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
-    total_credit = sum(float(p.total_amount) for p in purchases)
-    total_paid = sum(float(p.amount) for p in payments)
-    debt = max(0, total_credit - total_paid)
 
+def _taminotchi_toplami(db: Session, supplier_ids, company_id: int = None, faqat_nasiya: bool = False) -> dict:
+    """kech98 (129-band, O'LCHANGAN `work/probe116.py` + `work/probe129a.py`): ta'minotchilar qarzi va xarid statistikasi
+    BIR NECHA so'rov bilan — ilgari ta'minotchi boshiga 3 so'rov edi (nasiya xaridlar, to'lovlar, barcha xaridlar;
+    `/api/suppliers`, `/api/suppliers/debt-total`, `/debts`, qarzlar xulosasi, hisobot PDF).
+
+    Pul yig'indilari `Decimal` da ANIQ (qator qiymatlari — bazadagi `Numeric(12,2)`, avvalgi `float(...)` bilan bir
+    xil). Ilgari float yig'indi QATOR TARTIBIGA bog'liq edi — O'LCHANGAN: 29 972.26 + 19 244.86 + 144.38 = 49 361.50
+    qarz SQLite da 49 361, PG da birinchi xaridning faqat IZOHI tahrirlangach (qator jismoniy oxirga ko'chadi) 49 362
+    ko'rinardi — pul o'zgarmasdan.
+
+    Qaytaradi: {ta'minotchi_id: {"kredit": Decimal (nasiya xaridlar), "tolov": Decimal, "soni": nasiya xaridlar soni,
+    "oxirgi": eng so'nggi `purchased_at` (NULL lar e'tiborsiz) yoki None, "oy_soni" / "oy_jami": joriy (UTC) oy
+    xaridlari (nasiya va naqd)}}. `faqat_nasiya=True` — faqat qarz uchun (naqd xaridlar o'qilmaydi).
+    `company_id` berilsa — ota (ta'minotchi) orqali shu korxona bilan cheklanadi."""
+    from decimal import Decimal
+    _hozir = _tashkent_date()     # kech105 (9 + 50-band): "shu oy" — Toshkent kalendari
+    natija = {}
+    for sid in supplier_ids:
+        natija[sid] = {"kredit": Decimal("0"), "tolov": Decimal("0"), "soni": 0, "oxirgi": None,
+                       "oy_soni": 0, "oy_jami": Decimal("0")}
+    _ids = list(natija)
+    for _i in range(0, len(_ids), 500):
+        _bolak = _ids[_i:_i + 500]
+        _xq = db.query(InventoryPurchase.supplier_id, InventoryPurchase.total_amount, InventoryPurchase.is_credit,
+                       InventoryPurchase.purchased_at).filter(InventoryPurchase.supplier_id.in_(_bolak))
+        if faqat_nasiya:
+            _xq = _xq.filter(InventoryPurchase.is_credit == True)
+        if company_id is not None:
+            _xq = _xq.join(Supplier, Supplier.id == InventoryPurchase.supplier_id).filter(
+                Supplier.company_id == company_id)
+        for _sid, _summa, _nasiya, _vaqt in _xq.all():
+            _t = natija[_sid]
+            _d = Decimal(str(_summa if _summa is not None else 0))
+            if _nasiya:
+                _t["kredit"] += _d
+                _t["soni"] += 1
+            if _vaqt is not None:
+                if _t["oxirgi"] is None or _vaqt > _t["oxirgi"]:
+                    _t["oxirgi"] = _vaqt
+                if (_tashkent_date(_vaqt).year, _tashkent_date(_vaqt).month) == (_hozir.year, _hozir.month):
+                    _t["oy_soni"] += 1
+                    _t["oy_jami"] += _d
+        _tq = db.query(SupplierPayment.supplier_id, SupplierPayment.amount).filter(
+            SupplierPayment.supplier_id.in_(_bolak))
+        if company_id is not None:
+            _tq = _tq.join(Supplier, Supplier.id == SupplierPayment.supplier_id).filter(
+                Supplier.company_id == company_id)
+        for _sid, _summa in _tq.all():
+            natija[_sid]["tolov"] += Decimal(str(_summa if _summa is not None else 0))
+    return natija
+
+
+def _taminotchi_aniq_qarz(t) -> float:
+    """kech98 (129-band): ta'minotchi qarzi TIYIN aniqligida (manfiy — ortiqcha to'langan — 0)."""
+    from decimal import Decimal
+    _q = t["kredit"] - t["tolov"]
+    return float(_q) if _q > Decimal("0") else 0.0
+
+
+def _taminotchi_qarz_korinishi(t) -> dict:
+    """kech98 (129-band): `get_supplier_debt` javobi — shakl avvalgidek (butun so'm, `int`).
+
+    Qoida (texnik, O'LCHANGAN `work/probe129a.py`): summalar aniq (`_taminotchi_toplami`), butun so'mga 0.5 YUQORIGA
+    (`_som_butun_int`); qarz qoldig'i yarim so'mdan oshmasa — 0 (`QARZ_BARDOSH`, mijoz qarzi — `Order.debt_amount` —
+    bilan bir qoida). Ilgari Python `round()` (bankir): 102.50 → 102, lekin 101.50 → 102; 1 002.50 − 1 000 qoldig'i
+    "2 so'm" edi."""
+    from decimal import Decimal
+    _q = t["kredit"] - t["tolov"]
+    if _q <= Decimal(str(QARZ_BARDOSH)):
+        _q = Decimal("0")
     return {
-        "total_credit": round(total_credit),
-        "total_paid": round(total_paid),
-        "debt": round(debt),
-        "purchase_count": len(purchases)
+        "total_credit": _som_butun_int(t["kredit"]),
+        "total_paid": _som_butun_int(t["tolov"]),
+        "debt": _som_butun_int(_q),
+        "purchase_count": t["soni"]
     }
 
 
-def get_supplier_payment_due_dates(db: Session) -> List[dict]:
+def get_supplier_debt(db: Session, supplier_id: int, company_id: int = None) -> dict:
+    """Yetkazib beruvchiga qancha qarzdorlik bor.
+
+    M6 — TENANT: ta'minotchi boshqa korxonaniki bo'lsa, bo'sh natija
+    qaytadi (xarid/to'lov summalari umuman o'qilmaydi).
+
+    kech98 (129-band): yig'indi va yaxlitlash — `_taminotchi_toplami` / `_taminotchi_qarz_korinishi` (ro'yxat bilan
+    YAGONA qoida)."""
+    if company_id is not None:
+        _sup = db.query(Supplier).filter(
+            Supplier.id == supplier_id, Supplier.company_id == company_id).first()
+        if not _sup:
+            return {"total_credit": 0, "total_paid": 0, "debt": 0, "purchase_count": 0}
+
+    _t = _taminotchi_toplami(db, [supplier_id], company_id=company_id, faqat_nasiya=True)[supplier_id]
+    return _taminotchi_qarz_korinishi(_t)
+
+
+def get_supplier_payment_due_dates(db: Session, company_id: int = None) -> List[dict]:
     """Qarzdor yetkazib beruvchilar orasida, TO'LOV MUDDATI belgilangan
     xaridlarni topadi — har bir yetkazib beruvchi uchun ENG YAQIN
     (eng shoshilinch) muddatni qaytaradi. Dashboard ogohlantirishi uchun.
     Faqat o'qish — hech narsani o'zgartirmaydi."""
-    from datetime import datetime as dt
 
-    now = dt.utcnow()
-    unpaid_with_due = db.query(InventoryPurchase).filter(
+    now = _tashkent_date()        # kech105 (9 + 50-band): "bugun" — Toshkent kalendari
+    _uq = db.query(InventoryPurchase).filter(
         InventoryPurchase.is_credit == True,
         InventoryPurchase.payment_due_date.isnot(None),
         InventoryPurchase.supplier_id.isnot(None)
-    ).order_by(InventoryPurchase.payment_due_date.asc()).all()
+    )
+    if company_id is not None:      # M6: ota (ta'minotchi) orqali
+        _uq = _uq.join(Supplier, Supplier.id == InventoryPurchase.supplier_id).filter(
+            Supplier.company_id == company_id)
+    unpaid_with_due = _uq.order_by(InventoryPurchase.payment_due_date.asc()).all()
 
     # Har bir yetkazib beruvchi uchun eng yaqin muddatni saqlaymiz
     earliest_by_supplier = {}
@@ -7290,15 +14505,26 @@ def get_supplier_payment_due_dates(db: Session) -> List[dict]:
         if sid not in earliest_by_supplier or p.payment_due_date < earliest_by_supplier[sid]:
             earliest_by_supplier[sid] = p.payment_due_date
 
+    # kech98 (129-band): qarz va ta'minotchi har biri uchun ALOHIDA so'ralardi — endi bir necha IN so'rovi (qarz
+    # qoidasi `get_supplier_debt` bilan AYNAN — `_taminotchi_qarz_korinishi`).
+    _sids = list(earliest_by_supplier)
+    _toplam = _taminotchi_toplami(db, _sids, company_id=company_id, faqat_nasiya=True)
+    _suppliers = {}
+    for _i in range(0, len(_sids), 500):
+        _sq = db.query(Supplier).filter(Supplier.id.in_(_sids[_i:_i + 500]))
+        if company_id is not None:
+            _sq = _sq.filter(Supplier.company_id == company_id)
+        for _x in _sq.all():
+            _suppliers[_x.id] = _x
     result = []
     for sid, due_date in earliest_by_supplier.items():
-        debt_info = get_supplier_debt(db, sid)
+        debt_info = _taminotchi_qarz_korinishi(_toplam[sid])
         if debt_info["debt"] <= 0:
             continue  # To'lab bo'lingan — ogohlantirish kerak emas
-        supplier = db.query(Supplier).filter(Supplier.id == sid).first()
+        supplier = _suppliers.get(sid)
         if not supplier:
             continue
-        days_left = (due_date.date() - now.date()).days
+        days_left = (due_date.date() - now).days
         status = "overdue" if days_left < 0 else ("due_soon" if days_left <= 3 else "ok")
         result.append({
             "supplier_id": sid, "supplier_name": supplier.name,
@@ -7310,26 +14536,19 @@ def get_supplier_payment_due_dates(db: Session) -> List[dict]:
     return result
 
 
-def get_suppliers_with_debt(db: Session) -> List[dict]:
+def get_suppliers_with_debt(db: Session, company_id: int = None) -> List[dict]:
     """Barcha yetkazib beruvchilar va ularning qarzdorligi + oxirgi xarid, oylik statistika."""
-    from datetime import datetime as dt
-
-    now = dt.utcnow()
-    suppliers = get_suppliers(db, only_active=True)
+    suppliers = get_suppliers(db, only_active=True, company_id=company_id)
+    # kech98 (129-band, O'LCHANGAN `work/probe116.py`): ta'minotchi boshiga 3 so'rov (qarz — 2, barcha xaridlar — 1)
+    # edi — endi bir necha IN so'rovi (`_taminotchi_toplami`). Oxirgi xarid — eng so'nggi `purchased_at` (NULL lar
+    # e'tiborsiz; ilgari PG da `DESC` NULL ni BIRINCHI qo'yib `.isoformat()` 500 berardi — `work/probe129a.py` R7);
+    # oylik jami — aniq yig'indi, butun so'mga 0.5 yuqoriga (qarz bilan bir qoida).
+    _toplam = _taminotchi_toplami(db, [s.id for s in suppliers], company_id=company_id)
     result = []
     for s in suppliers:
-        debt_info = get_supplier_debt(db, s.id)
-
-        all_purchases = db.query(InventoryPurchase).filter(
-            InventoryPurchase.supplier_id == s.id
-        ).order_by(InventoryPurchase.purchased_at.desc()).all()
-
-        last_purchase_at = all_purchases[0].purchased_at.isoformat() if all_purchases else None
-
-        month_purchases = [p for p in all_purchases
-                           if p.purchased_at and p.purchased_at.year == now.year
-                           and p.purchased_at.month == now.month]
-        month_total = sum(float(p.total_amount) for p in month_purchases)
+        _t = _toplam[s.id]
+        debt_info = _taminotchi_qarz_korinishi(_t)
+        last_purchase_at = _t["oxirgi"].isoformat() if _t["oxirgi"] is not None else None
 
         result.append({
             "id": s.id,
@@ -7337,45 +14556,242 @@ def get_suppliers_with_debt(db: Session) -> List[dict]:
             "phone": s.phone,
             "notes": s.notes,
             "last_purchase_at": last_purchase_at,
-            "month_count": len(month_purchases),
-            "month_total": round(month_total),
+            "month_count": _t["oy_soni"],
+            "month_total": _som_butun_int(_t["oy_jami"]),
             **debt_info
         })
     result.sort(key=lambda x: x["debt"], reverse=True)
     return result
 
 
-def update_purchase(db: Session, purchase_id: int, data: dict) -> Optional[InventoryPurchase]:
+def _purchase_of_company(db: Session, purchase_id: int, company_id: int = None):
+    """Xaridni ota (material) orqali tekshiradi — InventoryPurchase'da
+    company_id ustuni yo'q (M6, ikkilamchi himoya)."""
+    q = db.query(InventoryPurchase).filter(InventoryPurchase.id == purchase_id)
+    if company_id is not None:
+        q = q.join(Inventory, Inventory.id == InventoryPurchase.inventory_id).filter(
+            Inventory.company_id == company_id)
+    return q.first()
+
+
+def _xarid_son(value, nom: str, pul: bool = False) -> float:
+    """21-band (2026-09-21): xarid yozuvidagi son — musbat, chekli,
+    `true/false` emas, sig'imdan katta emas. Aks holda ValueError (→ 400).
+
+    17f (2026-09-22): `pul=True` — narx (`InventoryPurchase.price_per_unit`,
+    Numeric(12,2)). HAQIQIY PostgreSQL da O'LCHANGAN: narx uchun chegara
+    `_UPD_SON_CHEGARA` (1e12, Float ustunlar uchun) edi, ya'ni `1e10` narx
+    tekshiruvdan o'tib, COMMIT da "numeric field overflow" → 500; `0.001`
+    esa 0.00 bo'lib yozilardi (jami 0.01 bilan — narx va jami bir-biriga zid).
+    Endi narx — pul sig'imi ichida va kamida 1 tiyin.
+
+    Nima uchun kerak: `schemas.PurchaseUpdate` da `Field(gt=0)` bor, lekin
+    `float('inf') > 0` — ROST, ya'ni cheksizlik pydantic dan O'TADI. Tahrir
+    endi OMBORGA ham ta'sir qilgani uchun (pastga qarang), cheksiz yoki
+    haddan tashqari katta qiymat qoldiqni butunlay buzardi."""
+    import math
+    if value is None:
+        raise ValueError(f"'{nom}' bo'sh bo'lishi mumkin emas")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"'{nom}' son bo'lishi kerak")
+    v = float(value)
+    if math.isnan(v) or math.isinf(v):
+        raise ValueError(f"'{nom}' son bo'lishi kerak")
+    if v <= 0:
+        raise ValueError(f"'{nom}' 0 dan katta bo'lishi kerak")
+    if v > (_ORDER_ITEM_MAX_MONEY if pul else _UPD_SON_CHEGARA):
+        raise ValueError(f"'{nom}' juda katta")
+    if pul and round(v, 2) < _PUL_ENG_KAM:
+        raise ValueError(f"'{nom}' kamida {_PUL_ENG_KAM} bo'lishi kerak "
+                         "(1 tiyindan kichik summa bazada 0 ga aylanadi)")
+    return v
+
+
+# Xarid yozuvidagi izoh — `InventoryPurchase.notes` ustuni `Text` (cheklovsiz),
+# lekin cheksiz uzun matn sahifalarni va Telegram xabarlarini buzadi.
+_XARID_IZOH_MAX = 1000
+
+
+def _clean_xarid_tahrir(data) -> dict:
+    """Marshrut tanasi (xom JSON) → {"quantity", "price_per_unit",
+    "is_credit", "notes"}. Ruxsat ro'yxati + QAT'IY turlar; buzilsa
+    ValueError (→ 400). 19-band dagi `_clean_stock_change` naqshi.
+
+    Nima uchun pydantic yetarli emas: `schemas.PurchaseUpdate` "lax" rejimda
+    `true` ni JIMGINA `1.0` ga o'giradi (O'LCHANGAN: `{"quantity": true}` →
+    200 va qoldiq 1 ga tushardi). Tahrir endi OMBORGA ta'sir qilgani uchun
+    bunday jim o'girish ombor hisobini buzardi."""
+    if not isinstance(data, dict):
+        raise ValueError("Noto'g'ri so'rov")
+    RUXSAT = ("quantity", "price_per_unit", "is_credit", "notes")
+    notogri = sorted(str(k)[:40] for k in data if k not in RUXSAT)
+    if notogri:
+        raise ValueError("Noma'lum maydon: " + ", ".join(notogri[:10]))
+
+    toza = {}
+    if "quantity" in data and data["quantity"] is not None:
+        toza["quantity"] = _xarid_son(data["quantity"], "quantity")
+    if "price_per_unit" in data and data["price_per_unit"] is not None:
+        toza["price_per_unit"] = _xarid_son(data["price_per_unit"], "price_per_unit", pul=True)
+    if "is_credit" in data and data["is_credit"] is not None:
+        if not isinstance(data["is_credit"], bool):
+            raise ValueError("'is_credit' ha/yo'q (true/false) bo'lishi kerak")
+        toza["is_credit"] = data["is_credit"]
+    if "notes" in data:
+        izoh = data["notes"]
+        if izoh is not None:
+            if not isinstance(izoh, str):
+                raise ValueError("'notes' matn bo'lishi kerak")
+            if len(izoh) > _XARID_IZOH_MAX:
+                raise ValueError(f"'notes' juda uzun ({_XARID_IZOH_MAX} belgidan ko'p)")
+        toza["notes"] = izoh
+    return toza
+
+
+def update_purchase(db: Session, purchase_id: int, data: dict,
+                   company_id: int = None) -> Optional[InventoryPurchase]:
     """Xarid yozuvini tahrirlaydi.
-    DIQQAT: ombordagi joriy miqdor/o'rtacha narxni orqaga qaytarib hisoblamaydi —
-    faqat tarixiy yozuv va qarz hisobi (u har safar yangidan hisoblanadi) to'g'rilanadi."""
-    p = db.query(InventoryPurchase).filter(InventoryPurchase.id == purchase_id).first()
+
+    21-band (2026-09-21, O'LCHANGAN — lokal `work/probe20d.py`): ilgari bu
+    funksiya ATAYLAB omborga tegmasdi ("faqat tarixiy yozuv va qarz hisobi").
+    Lekin `delete_purchase` o'chirishda yozuvning JORIY `quantity` sini
+    ombordan ayiradi — ya'ni ikki amal bir-biriga zid edi:
+
+        kirim 3 kg  → qoldiq 3
+        tahrir 3→10 → qoldiq 3 (ombor tegilmaydi)
+        o'chirish   → qoldiq −7   (to'g'risi 0 — faqat 3 kg qo'shilgan edi)
+
+        kirim 10 kg → qoldiq 3 (oldingi holatdan)
+        tahrir 10→2 → qoldiq 3
+        o'chirish   → qoldiq 1    (to'g'risi −7)
+
+    Ya'ni yo'qdan 7 kg paydo bo'lardi (yoki 8 kg yo'qolardi) — 19/20-band
+    qoidasiga ("ombor va jurnal bir-biriga ZID BO'LMASIN") to'g'ridan-to'g'ri
+    qarshi.
+
+    TEXNIK YECHIM (ikki variantdan tanlandi): tahrirda FARQ omborga ham
+    qo'llanadi (jurnal yozuvi bilan). Shunda "xarid yozuvidagi miqdor" =
+    "shu xarid omborga qo'shgan miqdor" — invariant HAR DOIM to'g'ri, va
+    `delete_purchase` ning joriy `quantity` ni ayirishi avtomatik to'g'ri
+    bo'ladi. Ikkinchi variant (o'chirishda ASL kirim miqdorini saqlash)
+    yangi DB ustuni + migratsiya talab qilardi va eski yozuvlar baribir
+    xato qolardi; bundan tashqari ikkita "haqiqat manbai" saqlanib qolardi.
+
+    Foydalanuvchi uchun ham shu to'g'ri: miqdor tahrirlanishining sababi —
+    "kiritilgan son noto'g'ri edi", ya'ni OMBORDAGI son ham noto'g'ri.
+    Ilgari UI "kerak bo'lsa Omborxonada qo'lda tuzating" derdi — endi shart
+    emas (UI matni ham yangilandi).
+
+    O'rtacha NARX tegilmaydi: tarixiy xarid narxi tuzatilsa, joriy o'rtacha tan
+    narx qayta hisoblanmaydi (kech107, 10f: o'CHIRISHDA esa narx `narx_keyin` ga
+    teng bo'lsa `narx_oldin` ga qaytadi — `_xarid_narxini_qaytar`). Miqdor kamaytirilib qoldiq manfiyga tushsa — 20-band
+    qoidasi: manfiy ruxsat, keyingi kirimda qoplanadi."""
+    # 1) HECH NARSA yozilmasdan (va obyekt qidirilmasdan) OLDIN — tana
+    #    qat'iy tekshiriladi (ValueError → 400).
+    toza = _clean_xarid_tahrir(data)
+
+    p = _purchase_of_company(db, purchase_id, company_id)    # M6
     if not p:
         return None
 
-    if "quantity" in data and data["quantity"] is not None:
-        p.quantity = data["quantity"]
-    if "price_per_unit" in data and data["price_per_unit"] is not None:
-        p.price_per_unit = data["price_per_unit"]
-    if "is_credit" in data and data["is_credit"] is not None:
-        p.is_credit = data["is_credit"]
-    if "notes" in data:
-        p.notes = data["notes"]
+    # kech100 (109-band, O'LCHANGAN — `work/probe109.py` T1): nasiya FAQAT ta'minotchili, boshlang'ich ombor bo'lmagan
+    # xaridda (yaratish va Ombor Kirim hujjati qoidasi). Ilgari ta'minotchisiz naqd xarid tahrirda nasiyaga o'tkazilsa
+    # kassadan yo'qolardi, qarz esa hech kimga yozilmasdi. Hech narsa o'zgartirilmasdan OLDIN.
+    if toza.get("is_credit") is True and (not p.supplier_id or p.is_opening_stock):
+        raise ValueError("Ta'minotchisiz yoki boshlang'ich ombor xaridi nasiya bo'lolmaydi "
+                         "(nasiya — faqat ta'minotchidan olingan xarid)")
 
-    p.total_amount = float(p.quantity) * float(p.price_per_unit)
+    eski_qty = float(p.quantity or 0)
+
+    # 17f (2026-09-22): miqdor va narx ALOHIDA chegaradan o'tsa ham, KO'PAYTMASI
+    # `total_amount` (Numeric(12,2)) sig'imidan oshishi mumkin — HAQIQIY
+    # PostgreSQL da O'LCHANGAN: 1e6 × 1e5 → COMMIT da 500 (17b yaratish yo'lida
+    # shu tekshiruv bor edi, tahrirda yo'q edi). Faqat BITTASI berilsa, ikkinchisi
+    # yozuvning joriy qiymatidan olinadi. Hech narsa o'zgartirilmasdan OLDIN.
+    _yangi_qty = toza.get("quantity", float(p.quantity or 0))
+    _yangi_narx = toza.get("price_per_unit", float(p.price_per_unit or 0))
+    # 17g: jami YAXLITLANGAN narxdan yoziladi — sig'im ham shunga nisbatan.
+    if _yangi_qty * _yangi_narx > _ORDER_ITEM_MAX_MONEY or \
+            _xarid_narx_jami(_yangi_qty, _yangi_narx)[1] > _ORDER_ITEM_MAX_MONEY:
+        raise ValueError("'quantity' × 'price_per_unit' juda katta "
+                         "(jami summa sig'imdan oshdi)")
+
+    # 2) Yozuvning o'zi
+    if "quantity" in toza:
+        p.quantity = toza["quantity"]
+    if "price_per_unit" in toza:
+        p.price_per_unit = toza["price_per_unit"]
+    if "is_credit" in toza:
+        p.is_credit = toza["is_credit"]
+    if "notes" in toza:
+        p.notes = toza["notes"]
+
+    # 17g (2026-09-22): narx va jami bazadagidek yaxlitlanadi — jami SHU narxdan
+    # (HAQIQIY PostgreSQL da O'LCHANGAN: tahrir 7 × 0.125 → narx 0.13, jami 0.88).
+    p.price_per_unit, p.total_amount = _xarid_narx_jami(float(p.quantity),
+                                                        float(p.price_per_unit))
+
+    # 3) Ombor — FAQAT miqdor farqi (narx emas)
+    farq = float(p.quantity) - eski_qty
+    if p.inventory_id and abs(farq) > 1e-9:
+        # QAT'IY filtr + qator qulfi (19-band `update_stock` bilan bir xil).
+        # `_purchase_of_company` allaqachon materialni korxona bo'yicha
+        # tekshirgan — bu ikkilamchi himoya.
+        inv = get_item_locked(db, p.inventory_id, company_id)
+        if inv:
+            joriy = float(inv.stock_quantity or 0)
+            yangi = joriy + farq
+            if -1e-9 < yangi < 0:
+                yangi = 0.0     # suzuvchi nuqta qoldig'i (19/20-band bilan bir xil)
+            inv.stock_quantity = yangi
+            try:
+                log_movement(
+                    db, inv.id, inv.item_name,
+                    movement_type=("in" if farq > 0 else "out"),
+                    quantity=abs(farq), unit=inv.unit,
+                    supplier_id=p.supplier_id,
+                    reason=_jurnal_sabab(
+                        f"Xarid tahrirlandi — #{purchase_id}: "
+                        f"{eski_qty:g} → {float(p.quantity):g} {inv.unit or ''}".rstrip() +
+                        (f" ⚠️ qoldiq manfiy: {yangi:g} {inv.unit or ''} — keyingi kirimda qoplanadi"
+                         if yangi < 0 else "")))
+            except Exception:
+                pass
 
     db.commit()
     db.refresh(p)
     return p
 
 
-def delete_purchase(db: Session, purchase_id: int, reverse_stock: bool = True) -> bool:
+def _xarid_narxini_qaytar(joriy_narx: float, p) -> tuple:
+    """kech107 (10f) — xarid bekor qilinganda materialning O'RTACHA narxi (YAGONA qoida: yakka xarid ham, kirim hujjati ham).
+
+    O'LCHANGAN (asl, `work/probe107f.py`, SQLite = PG): Akril 100 kg × 1 000; xato kirim 100 kg × 3 000 → o'rtacha
+    2 000; xarid o'chirilgach qoldiq 100 kg, narx 2 000 da QOLARDI (1 000 emas) — keyingi har sarf ikki baravar
+    qimmat hisoblanardi. Qoida: xarid yozilganda `narx_oldin` / `narx_keyin` saqlanadi; material narxi hali
+    `narx_keyin` ga teng bo'lsa (orada boshqa kirim, qo'lda narx o'zgartirish bo'lmagan) — narx `narx_oldin` ga
+    qaytadi: "xarid bo'lmagandek" narx AYNAN shu (oradagi sarf / qaytish narxni o'zgartirmaydi). Aks holda — yoki eski
+    (kech107 dan oldingi, NULL) xaridda — narx TEGILMAYDI (21-band avvalgi xulqi): orada boshqa kirim bo'lsa teskari
+    hisob noaniq, qo'lda qo'yilgan narxni esa bekor qilish bosib ketmasligi kerak.
+    Qaytaradi: (yangi narx, qaytdimi)."""
+    joriy = float(joriy_narx or 0)
+    if p is None or getattr(p, "narx_oldin", None) is None or getattr(p, "narx_keyin", None) is None:
+        return joriy, False
+    if abs(joriy - float(p.narx_keyin)) > 0.005:
+        return joriy, False
+    return round(float(p.narx_oldin), 2), True
+
+
+def delete_purchase(db: Session, purchase_id: int, reverse_stock: bool = True,
+                   company_id: int = None) -> bool:
     """Xarid yozuvini o'chiradi.
     reverse_stock=True (standart) bo'lsa — bu xaridda qo'shilgan miqdorni
     ombordan ham QAYTARIB oladi (ya'ni to'liq bekor qiladi — ham pul oqimi,
     ham ombor). Bu, ayniqsa "boshlang'ich ombor"ni xato kirim qilib, keyin
-    tuzatmoqchi bo'lganda kerak."""
-    p = db.query(InventoryPurchase).filter(InventoryPurchase.id == purchase_id).first()
+    tuzatmoqchi bo'lganda kerak.
+
+    kech107 (10f): o'rtacha narx ham qaytadi — `_xarid_narxini_qaytar` (shartlari o'sha yerda)."""
+    p = _purchase_of_company(db, purchase_id, company_id)    # M6
     if not p:
         return False
 
@@ -7388,16 +14804,28 @@ def delete_purchase(db: Session, purchase_id: int, reverse_stock: bool = True) -
             # keyin o'chirishsa) — bu yerda tekshiruv yo'q edi, zaxira
             # manfiyga tushib qolar edi. Boshqa joylardagi (masalan
             # update_stock()) "manfiy bo'lmasin" qoidasiga moslashtirildi.
+            # 20-band (2026-09-21, FOYDALANUVCHI QARORI — "hammasi"): xarid
+            # o'chirilganda qoldiq ARIFMETIK kamayadi, BARCHA materiallar
+            # uchun (penoplast ham). Ilgari 0 da qirqilardi: manfiy qoldiqdagi
+            # "qarz" o'chardi, ishlatilgan xariddan keyin o'chirilsa sarflangan
+            # qism yo'qolardi, jurnalga esa to'liq miqdor yozilardi (ombor va
+            # jurnal bir-biriga zid). Manfiy qoldiq keyingi kirimda qoplanadi
+            # (`_purchase_stock_no_commit`), qo'lda chiqim esa manfiyda rad
+            # etiladi (`update_stock`, 19-band).
             current = float(inv.stock_quantity or 0)
             new_qty = current - float(p.quantity)
-            if new_qty < 0:
-                new_qty = 0.0
+            if -1e-9 < new_qty < 0:
+                new_qty = 0.0       # suzuvchi nuqta qoldig'i (19-band bilan bir xil)
             inv.stock_quantity = new_qty
+            # kech107 (10f): o'rtacha narx "xarid bo'lmagandek" (shart bajarilmasa — tegilmaydi).
+            inv.price_per_unit = _xarid_narxini_qaytar(inv.price_per_unit, p)[0]
             try:
                 log_movement(db, inv.id, inv.item_name, movement_type="out",
                              quantity=float(p.quantity), unit=inv.unit,
-                             reason=f"Xarid o'chirildi (bekor qilindi) — #{purchase_id}" +
-                                    (" ⚠️ OGOHLANTIRISH: bu miqdorning bir qismi allaqachon ishlatilgan bo'lishi mumkin — zaxira 0 dan pastga tushirilmadi" if current < float(p.quantity) else ""))
+                             reason=_jurnal_sabab(
+                                 f"Xarid o'chirildi (bekor qilindi) — #{purchase_id}" +
+                                 (f" ⚠️ qoldiq manfiy: {new_qty:g} {inv.unit or ''} — keyingi kirimda qoplanadi"
+                                  if new_qty < 0 else "")))
             except Exception:
                 pass
 
@@ -7406,15 +14834,221 @@ def delete_purchase(db: Session, purchase_id: int, reverse_stock: bool = True) -
     return True
 
 
-def create_supplier_payment(db: Session, data: SupplierPaymentCreate, paid_by: str = None) -> SupplierPayment:
-    """Yetkazib beruvchiga to'lov — bir nechta xaridni birdaniga yopishi mumkin."""
-    debt_info = get_supplier_debt(db, data.supplier_id)
-    current_debt = debt_info["debt"]
-    if float(data.amount) > current_debt and not data.confirm_overpay:
-        raise OverpaymentWarning(
-            amount=float(data.amount), debt=current_debt,
-            excess=float(data.amount) - current_debt
-        )
+# kech107 (10f): kirim hujjati qo'shimcha xarajatlari turlari — `create_inventory_receipt` `cost_categories` bilan AYNAN.
+KIRIM_XARAJAT_TURLARI = ("transport_kirim", "tushirish_kirim", "yuklash_kirim", "kirim_boshqa")
+KIRIM_BEKOR_TOLOV = ("ochirish", "avans")
+
+
+class KirimTolovTanloviKerak(Exception):
+    """kech107 (10f): kirim hujjatining «hozir to'langan» to'lovi bor, tanlov (`ochirish` / `avans`) berilmagan —
+    marshrut 409 `receipt_has_payment` qaytaradi, UI egasidan so'raydi (qaror "Har safar so'rasin")."""
+
+    def __init__(self, summa: float, xabar: str):
+        super().__init__(xabar)
+        self.summa = summa
+        self.xabar = xabar
+
+
+def _kirim_hujjati_qismlari(db: Session, receipt) -> dict:
+    """kech107 (10f) — kirim hujjati yozgan HAMMA narsa: xaridlar (`receipt_id`), qo'shimcha xarajatlar (Moliya —
+    manba "inventory_receipt" / "kirim_tannarx", tur `KIRIM_XARAJAT_TURLARI`, izohida AYNAN "Kirim #N" —
+    `_migrate_kirim_tannarx_manba` bilan bir qoida; "#1" "#12" ni tutmaydi) va "Kirim to'lovi — #N" ta'minotchi
+    to'lovi. Hammasi hujjat korxonasidan (xarid / to'lov — ota orqali)."""
+    import re as _re107
+    from models import ExpenseTransaction as _ET107, KIRIM_TANNARX_MANBA as _KTM107
+    xaridlar = db.query(InventoryPurchase).join(Inventory, Inventory.id == InventoryPurchase.inventory_id).filter(
+        InventoryPurchase.receipt_id == receipt.id, Inventory.company_id == receipt.company_id
+    ).order_by(InventoryPurchase.id).all()
+    _naqsh = _re107.compile(r"Kirim #(\d+)(?!\d)")
+    xarajatlar = [t for t in db.query(_ET107).filter(
+        _ET107.company_id == receipt.company_id,
+        _ET107.source.in_(("inventory_receipt", _KTM107)),
+        _ET107.category.in_(KIRIM_XARAJAT_TURLARI),
+        _ET107.notes.like(f"%Kirim #{receipt.id}%"),
+    ).order_by(_ET107.id).all() if any(int(_m) == receipt.id for _m in _naqsh.findall(t.notes or ""))]
+    tolovlar = []
+    if receipt.supplier_id:
+        _tn = _re107.compile(r"^Kirim to'lovi — #" + str(receipt.id) + r"(?!\d)")
+        tolovlar = [t for t in db.query(SupplierPayment).join(Supplier, Supplier.id == SupplierPayment.supplier_id).filter(
+            SupplierPayment.supplier_id == receipt.supplier_id,
+            Supplier.company_id == receipt.company_id,
+            SupplierPayment.notes.like(f"Kirim to'lovi — #{receipt.id}%"),
+        ).order_by(SupplierPayment.id).all() if _tn.match(t.notes or "")]
+    return {"xaridlar": xaridlar, "xarajatlar": xarajatlar, "tolovlar": tolovlar}
+
+
+def kirim_hujjatini_bekor_qilish(db: Session, receipt_id: int, company_id: int = None, tolov: str = None,
+                                 faqat_hisob: bool = False, performed_by: str = None) -> Optional[dict]:
+    """kech107 (10f) — Ombor KIRIM HUJJATINI butunlay bekor qilish. Reja (`faqat_hisob=True` — HECH NARSA o'zgarmaydi,
+    oynada ko'rsatiladi) va amal — BITTA funksiya (kech100 "reja = amal" qoidasi).
+
+    Nima orqaga qaytadi: har xarid — ombor miqdori (20-band: arifmetik, manfiyga ham — keyingi kirimda qoplanadi),
+    o'rtacha narx (`_xarid_narxini_qaytar`; hujjatda bir material ikki qatorda bo'lsa oxirgisidan boshlab), jurnal
+    yozuvi, xarid qatori; hujjatning Moliyadagi qo'shimcha xarajatlari (transport, tushirish, yuklash, boshqa — ikkala
+    manba); «hozir to'langan» ta'minotchi to'lovi — egasi qarori "Har safar so'rasin": `tolov="ochirish"` — o'chadi,
+    `tolov="avans"` — qoladi (ta'minotchida avans; izoh "Avans (bekor qilingan Kirim to'lovi — #N …)"); hujjat qatorining
+    o'zi; audit jurnali.
+    To'lov bor-u tanlov berilmasa — `KirimTolovTanloviKerak` (hech narsa o'zgarmaydi). Tranzaksiya — chaqiruvchida
+    (`bitta_tranzaksiya`). Topilmasa (yoki begona korxona) — None."""
+    from models import InventoryReceipt as _IR107
+    _rq = db.query(_IR107).filter(_IR107.id == receipt_id)
+    if company_id is not None:
+        _rq = _rq.filter(_IR107.company_id == company_id)
+    if not faqat_hisob:
+        _rq = _rq.with_for_update()
+    receipt = _rq.first()
+    if receipt is None:
+        return None
+    qism = _kirim_hujjati_qismlari(db, receipt)
+    tolov_jami = pul_tiyin_yigindi(float(t.amount or 0) for t in qism["tolovlar"])
+    if tolov is not None and tolov not in KIRIM_BEKOR_TOLOV:
+        raise ValueError("To'lov tanlovi noto'g'ri — 'ochirish' yoki 'avans'")
+    if not faqat_hisob and qism["tolovlar"] and tolov is None:
+        raise KirimTolovTanloviKerak(
+            tolov_jami,
+            f"Kirim #{receipt.id} bilan ta'minotchiga {tolov_jami:,.0f} so'm to'langan. "
+            "To'lovni ham o'chirasizmi yoki ta'minotchida avans bo'lib qolsinmi?".replace(",", " "))
+
+    holat = {}          # inventory_id -> [qoldiq, narx] — bir material ikki qatorda bo'lsa ketma-ket
+    materiallar = []
+    for p in reversed(qism["xaridlar"]):
+        if faqat_hisob:
+            inv = db.query(Inventory).filter(Inventory.id == p.inventory_id,
+                                             Inventory.company_id == receipt.company_id).first()
+        else:
+            inv = get_item_locked(db, p.inventory_id, receipt.company_id)
+        miqdor = float(p.quantity or 0)
+        if inv is None:
+            materiallar.append({"purchase_id": p.id, "inventory_id": p.inventory_id, "nomi": p.item_name,
+                                "miqdor": miqdor, "birlik": p.unit, "topilmadi": True})
+            if not faqat_hisob:
+                db.delete(p)
+            continue
+        qoldiq, narx = holat.get(inv.id, (float(inv.stock_quantity or 0), float(inv.price_per_unit or 0)))
+        yangi_narx, qaytdi = _xarid_narxini_qaytar(narx, p)
+        yangi_qoldiq = qoldiq - miqdor
+        if -1e-9 < yangi_qoldiq < 0:
+            yangi_qoldiq = 0.0      # suzuvchi nuqta qoldig'i (19 / 20-band bilan bir xil)
+        holat[inv.id] = (yangi_qoldiq, yangi_narx)
+        materiallar.append({
+            "purchase_id": p.id, "inventory_id": inv.id, "nomi": inv.item_name, "miqdor": miqdor,
+            "birlik": inv.unit, "joriy_qoldiq": qoldiq, "yangi_qoldiq": yangi_qoldiq,
+            "joriy_narx": narx, "yangi_narx": yangi_narx, "narx_qaytdi": qaytdi,
+            "xarid_narxi": float(p.price_per_unit or 0), "summa": float(p.total_amount or 0),
+        })
+        if not faqat_hisob:
+            try:
+                log_movement(db, inv.id, inv.item_name, movement_type="out", quantity=miqdor, unit=inv.unit,
+                             supplier_id=p.supplier_id, performed_by=performed_by, company_id=receipt.company_id,
+                             reason=_jurnal_sabab(
+                                 f"Kirim #{receipt.id} bekor qilindi — xarid #{p.id}" +
+                                 (f" ⚠️ qoldiq manfiy: {yangi_qoldiq:g} {inv.unit or ''} — keyingi kirimda qoplanadi"
+                                  if yangi_qoldiq < 0 else "")))
+            except Exception:
+                pass
+            inv.stock_quantity = yangi_qoldiq
+            inv.price_per_unit = yangi_narx
+            db.delete(p)
+    materiallar.reverse()
+
+    xarajatlar = [{"id": t.id, "turi": t.category, "summa": float(t.amount or 0), "izoh": t.notes}
+                  for t in qism["xarajatlar"]]
+    natija = {
+        "receipt_id": receipt.id,
+        "document_number": receipt.document_number,
+        "supplier_id": receipt.supplier_id,
+        "sana": receipt.receipt_date.isoformat() if receipt.receipt_date else None,
+        "materiallar": materiallar,
+        "xarajatlar": xarajatlar,
+        "xarajatlar_jami": pul_tiyin_yigindi(x["summa"] for x in xarajatlar),
+        "tolov": ({"summa": tolov_jami, "soni": len(qism["tolovlar"])} if qism["tolovlar"] else None),
+        "tolov_amali": (tolov if qism["tolovlar"] else None),
+        "manfiy": [m["nomi"] for m in materiallar if (m.get("yangi_qoldiq") or 0) < 0],
+        "bekor_qilindi": not faqat_hisob,
+    }
+    if faqat_hisob:
+        return natija
+
+    for t in qism["xarajatlar"]:
+        db.delete(t)
+    for t in qism["tolovlar"]:
+        if tolov == "ochirish":
+            db.delete(t)
+        else:
+            # Izoh "Kirim to'lovi — #N" bilan BOSHLANMASIN: shu raqamli hujjat qayta bekor qilinmaydi (qator o'chadi),
+            # lekin SQLite id ni qayta berishi mumkin — yangi hujjat eski avansni "o'z to'lovi" deb olmasin (O'LCHANDI).
+            t.notes = f"Avans (bekor qilingan {(t.notes or '').strip()})"
+    db.delete(receipt)
+    log_activity(db, "deleted", "inventory_receipt", receipt_id,
+                 entity_label=f"Kirim hujjati #{receipt_id}" + (f" ({receipt.document_number})" if receipt.document_number else ""),
+                 performed_by=performed_by, company_id=receipt.company_id,
+                 new_value=(f"{len(materiallar)} ta material, qo'shimcha xarajat {natija['xarajatlar_jami']:,.0f} so'm"
+                            + (f", to'lov {tolov_jami:,.0f} so'm — " + ("o'chirildi" if tolov == "ochirish" else "avans")
+                               if qism["tolovlar"] else "")).replace(",", " "))
+    return natija
+
+
+def create_supplier_payment(db: Session, data: SupplierPaymentCreate, paid_by: str = None,
+                            company_id: int = None, ichki: bool = False) -> SupplierPayment:
+    """Yetkazib beruvchiga to'lov — bir nechta xaridni birdaniga yopishi mumkin.
+
+    `ichki=True` (17g, 2026-09-22) — xarid marshruti (`POST /api/inventory/
+    {id}/purchase`) "hoziroq to'langan" qismni XARID BILAN BIRGA yozganda.
+    Bu holda takror-yuborish himoyasi va ortiqcha to'lov ogohlantirishi
+    QO'LLANILMAYDI, chunki:
+      * xarid o'zi allaqachon saqlangan (marshrut to'lovni xarid COMMIT
+        qilingandan KEYIN yozadi) — O'LCHANGAN (kech23): 8 s ichida shu
+        ta'minotchiga shu summada qo'lda to'lov bo'lsa, xarid 200 qaytarardi,
+        lekin uning to'lovi YARATILMASDI (xarid to'liq nasiya bo'lib qolardi,
+        qarz ortiqcha ko'rinardi);
+      * summa marshrutda shu xarid jamisi bilan cheklangan (`min(paid_now,
+        jami)`), ya'ni bu "ortiqcha to'lov" bo'lishi mumkin emas; qarz esa
+        (`get_supplier_debt`) butun so'mga yaxlitlanadi va avans holatida 0 dan
+        pastga tushmaydi — ogohlantirish bu yerda 409 emas, xarid saqlangandan
+        keyingi 500 (yarim saqlanish) bo'lardi.
+    Kirim hujjati (`create_inventory_receipt`) o'z to'lovini xuddi shu sabab
+    bilan to'g'ridan yozadi. Tana va korxona tekshiruvi ikkala holda ham bor."""
+    # 17c (2026-09-21): ILDIZ tekshiruvi — pydantic `Field(gt=0)` cheksizlik
+    # (`Infinity`, ortiqcha to'lov tasdig'i bilan SAQLANARDI va ta'minotchilar
+    # hamda qarzdorlar sahifalarini buzardi), `true` (→ 1 so'm), `"5000"`
+    # matni va sig'imdan katta summani o'tkazib yuborardi (O'LCHANGAN).
+    _clean_val("SupplierPayment", _val_dump(data, "SupplierPayment"))
+    # M6 — TENANT: to'lov faqat SHU korxona ta'minotchisiga yozilishi mumkin.
+    if company_id is not None:
+        if not db.query(Supplier).filter(
+                Supplier.id == data.supplier_id, Supplier.company_id == company_id).first():
+            from fastapi import HTTPException as _HE_sp
+            raise _HE_sp(status_code=404, detail="Ta'minotchi topilmadi")
+    # ── TAKROR YUBORISH HIMOYASI (buyurtma to'lovi bilan bir xil) ──────
+    _pul_qulfi(db, 102, data.supplier_id)
+
+    if not ichki:
+        # TENANT: yuqoridagi bilan bir xil sabab — ta'minotchi korxonasi
+        # SHU FUNKSIYANING BOSHIDA tekshirilgan (mos kelmasa 404), shuning
+        # uchun bu supplier_id faqat shu korxonaniki bo'lishi mumkin.
+        from datetime import timedelta as _td_sp
+        _summa_sp = round(float(data.amount or 0), 2)
+        _oldingi_sp = db.query(SupplierPayment).filter(
+            SupplierPayment.supplier_id == data.supplier_id,
+            SupplierPayment.amount == _summa_sp,
+            SupplierPayment.paid_at >= datetime.utcnow() - _td_sp(seconds=PUL_TAKROR_SONIYA),
+        ).order_by(SupplierPayment.paid_at.desc()).first()
+        if _oldingi_sp is not None:
+            _oldingi_sp._is_duplicate_submit = True
+            return _oldingi_sp
+
+        # kech98 (129-band, O'LCHANGAN `work/probe129a.py` R3): qarz butun so'mga yaxlitlangan qiymat bilan
+        # solishtirilardi — 7 × 1 000.07 = 7 000.49 qarzga AYNAN 7 000.49 to'lansa "Kiritilgan summa (7,000 so'm)
+        # qarzdan (7,000 so'm) 0 so'mga ko'p" (409) chiqardi. Endi qarz TIYIN aniqligida, ortiqcha faqat yarim
+        # so'mdan KO'P bo'lsa (`QARZ_BARDOSH` — mijoz to'lovi `_tolov_chegarasi` bilan bir qoida).
+        _tt = _taminotchi_toplami(db, [data.supplier_id], company_id=company_id, faqat_nasiya=True)[data.supplier_id]
+        current_debt = _taminotchi_aniq_qarz(_tt)
+        _ortiqcha = pul_tiyin(float(data.amount) - current_debt)
+        if _ortiqcha > QARZ_BARDOSH and not data.confirm_overpay:
+            raise OverpaymentWarning(
+                amount=float(data.amount), debt=current_debt,
+                excess=_ortiqcha
+            )
 
     p = SupplierPayment(
         supplier_id=data.supplier_id,
@@ -7428,7 +15062,105 @@ def create_supplier_payment(db: Session, data: SupplierPaymentCreate, paid_by: s
     return p
 
 
-def get_brak_material_summary(db: Session, start_date=None, end_date=None) -> dict:
+# kech52 (13-band, 3-qadam): ESKI (belgi yozilmagan) harakatlar uchun brak
+# ta'rifi — 33 / 37-band migratsiyalari va `main._migrate_brak_belgisi` bilan
+# AYNAN bir xil (yozuvga bog'langan YOKI sabab shu naqsh bilan boshlanadi).
+BRAK_ESKI_NAQSH = "Brak%"
+
+
+def brak_harakati_sharti(IM=None):
+    """kech52 (13-band, 3-qadam) — "bu harakat brakmi" ning YAGONA SQL sharti.
+
+    Yangi harakat — `is_brak` belgisi (sabab matnidan qat'i nazar). Belgi NULL
+    (shu yangilanishdan oldin yozilgan, migratsiya hali to'ldirmagan yoki
+    deploy paytida eski server yozgan) — eski ta'rif: `return_item_id` bor YOKI
+    sabab "Brak%" bilan boshlanadi. Sabab NULL bo'lsa ham natija aniq True /
+    False (NULL emas) — `not_(...)` bilan xavfsiz ishlatiladi.
+    Chaqiruvchilar: `get_brak_material_summary` (+ "out"),
+    `services._buyurtma_sarf_narxlari` (inkor)."""
+    from sqlalchemy import and_ as _and_bs, or_ as _or_bs
+    if IM is None:
+        from models import InventoryMovement as IM
+    return _or_bs(
+        IM.is_brak.is_(True),
+        _and_bs(IM.is_brak.is_(None),
+                _or_bs(IM.return_item_id.isnot(None),
+                       _and_bs(IM.reason.isnot(None), IM.reason.like(BRAK_ESKI_NAQSH)))))
+
+
+def _brak_harakat_narxi(harakat, inv) -> float:
+    """kech107 (49-band) — brak harakatining 1 birlik narxi, YAGONA qoida: CHIQIM paytidagi muzlatilgan `unit_cost`
+    (kech46, 13-band 2-qadam); u yo'q (eski harakat) — materialning joriy narxi; material ham yo'q — 0.
+    Chaqiruvchilar: `get_brak_material_summary` (Moliya "Brak" qatori, karta, PDF) va `brak_yozuv_qiymatlari` (tahlil)."""
+    if harakat.unit_cost is not None:
+        return float(harakat.unit_cost)
+    return float(inv.price_per_unit or 0) if inv else 0.0
+
+
+def brak_yozuv_qiymatlari(db: Session, return_item_ids, company_id: int = None,
+                          start_date=None, end_date=None) -> dict:
+    """kech107 (49-band, egasi qarori "Bitta raqam") — har brak YOZUVINING haqiqiy xomashyo narxi: shu yozuvga
+    bog'langan (`return_item_id`) brak chiqim harakatlari — miqdor × `_brak_harakat_narxi` (Moliyadagi "Brak" qatori
+    bilan AYNAN bir qoida). Bog'langan harakati yo'q yozuv — 0 (xomashyo yechilmagan, yoki bog'lamdan oldingi eski
+    yozuv — uning harakati Moliyada "bog'lanmagan" bo'lib sanaladi). Yozuvdagi saqlangan summa (`refund_amount`) —
+    TEGILMAYDI va bu yerda ishlatilmaydi. Qaytaradi: {return_item_id: qiymat} (har berilgan id uchun).
+
+    kech125 (zip 146 — brak taqdiri): taqdir harakatlari (tuzatish xomashyosi, «joyiga» qaytgan xomashyo — ishorali) va TM ga
+    o'tgan qiymat (taqdir hodisalari) ham. `start_date` / `end_date` berilsa — shu davr qiymati: brakning O'Z harakatlari —
+    yozuv shu davrda yozilgan bo'lsa (avvalgi qoida — yozuv sanasi bo'yicha), taqdir harakatlari va hodisalari — o'z vaqtida
+    (egasi qarori Q4 «hodisa vaqtida»)."""
+    from models import InventoryMovement as _IM107, Inventory as _Inv107
+    ids = sorted({int(i) for i in (return_item_ids or []) if i is not None})
+    natija = {i: 0.0 for i in ids}
+    if not ids:
+        return natija
+    davrda = set(ids)
+    if start_date is not None or end_date is not None:
+        _dq = db.query(ReturnItem.id).filter(ReturnItem.id.in_(ids))
+        if company_id is not None:
+            _dq = _dq.filter(ReturnItem.company_id == company_id)
+        if start_date is not None:
+            _dq = _dq.filter(ReturnItem.returned_at >= start_date)
+        if end_date is not None:
+            _dq = _dq.filter(ReturnItem.returned_at < end_date)
+        davrda = {r[0] for r in _dq.all()}
+    q = db.query(_IM107).filter(brak_harakatlari_sharti(_IM107), _IM107.return_item_id.in_(ids))
+    if company_id is not None:
+        q = q.filter(_IM107.company_id == company_id)
+    rows = []
+    for r in q.all():
+        if r.brak_taqdir_id is None:
+            if r.return_item_id not in davrda:
+                continue
+        else:
+            if start_date is not None and r.created_at < start_date:
+                continue
+            if end_date is not None and r.created_at >= end_date:
+                continue
+        rows.append(r)
+    inv_ids = sorted({r.inventory_id for r in rows if r.inventory_id})
+    inv_map = {}
+    if inv_ids:
+        _iq = db.query(_Inv107).filter(_Inv107.id.in_(inv_ids))
+        if company_id is not None:
+            _iq = _iq.filter(_Inv107.company_id == company_id)
+        inv_map = {i.id: i for i in _iq.all()}
+    for r in rows:
+        natija[r.return_item_id] = natija.get(r.return_item_id, 0.0) + \
+            _brak_ishora(r) * float(r.quantity or 0) * _brak_harakat_narxi(r, inv_map.get(r.inventory_id))
+    for h in _taqdir_hodisalari(db, company_id=company_id, start_date=start_date, end_date=end_date,
+                                return_item_ids=ids):
+        _rid = h["qator"].return_item_id
+        natija[_rid] = natija.get(_rid, 0.0) + h["qiymat"]
+    return natija
+
+
+# kech125 (zip 146): Moliya / xulosadagi TM ga o'tgan qiymat qatori nomi (material emas — `taqdir: True`)
+BRAK_TAQDIR_QATORI = "Tayyor mahsulotga o'tdi (brak taqdiri)"
+
+
+def get_brak_material_summary(db: Session, start_date=None, end_date=None,
+                             company_id: int = None, harakatlar: bool = False) -> dict:
     """Brak (defekt) sabab ombordan yechilgan XOMASHYO bo'yicha xulosa.
 
     Qaytaradi:
@@ -7438,26 +15170,63 @@ def get_brak_material_summary(db: Session, start_date=None, end_date=None) -> di
       xomashyo qancha brak bo'lganini ko'rsatadi.
     - total_value, total_penoplast_m3: umumiy jami.
 
-    Faqat o'qish. Joriy narx (price_per_unit) asosida hisoblanadi."""
+    Faqat o'qish. kech46 (13-band, 2-qadam): har harakat CHIQIM paytidagi
+    muzlatilgan narx (`unit_cost`) bilan baholanadi; u yo'q (eski harakat)
+    bo'lsa — materialning joriy narxi (`price_per_unit`), avvalgidek.
+    `by_material[].unit_price` — o'rtacha narx (qiymat / miqdor).
+
+    kech117 (A2): `harakatlar=True` — har brak harakati {return_item_id, order_id, value} (yaxlitlanmagan; yo'nalishlar
+    hisoboti bog'langan yozuv yo'nalishiga taqsimlaydi). Eski «gips / penoplast» ikkiga bo'linishi olib tashlandi (Gips
+    moliyadan butunlay olib tashlangan — egasi qarori kech114; ishlatuvchisi — eski bo'lingan hisobot — o'zgardi).
+
+    kech125 (zip 146 — EGASI QARORLARI 07.10 «Brak taqdiri», Q4 «hodisa vaqtida»): (1) taqdir KIRIMLARI (taqdir qatoriga
+    bog'langan `is_brak IS TRUE` kirim: «Tuzatildi — o'sha joyiga» bilan qaytgan brak xomashyosi, bekor qilingan tuzatish
+    xomashyosi) — MANFIY (miqdor va qiymat); taqdirsiz eski kirimlar — avvalgidek kirmaydi;
+    (2) buyurtma detali va ishlab chiqarish brakining Tayyor mahsulotga O'TGAN qiymati (Kesildi — ulush, 2-nav va
+    «Tuzatildi — omborga» — to'liq) — taqdir qo'llangan oyda MANFIY, bekor qilingan oyda MUSBAT: `by_material` da alohida qator
+    (`BRAK_TAQDIR_QATORI`, `taqdir: True`), `by_order` da o'z buyurtmasida, `harakatlar` da {return_item_id, fp_loss_id,
+    order_id, value}. Omborda turgan mahsulot yo'qotishining taqdiri — bu yerda EMAS («Tayyor mahsulot yo'qotishi» qatori,
+    `tm_yoqotish_qiymati`). Harakatlar ro'yxatida `fp_loss_id` ham (tayyor mahsulot braki yozuvi)."""
     from models import Inventory, InventoryMovement, Order
 
-    q = db.query(InventoryMovement).filter(
-        InventoryMovement.movement_type == "out",
-        InventoryMovement.reason.like("Brak%")
-    )
+    def _harakat_narxi(harakat, inv):
+        # kech107 (49-band): qoida YAGONA — `_brak_harakat_narxi` (tahlilning yozuv qiymati ham shu).
+        return _brak_harakat_narxi(harakat, inv)
+
+    # kech52 (13-band, 3-qadam): brak — `is_brak` belgisi (eski harakatlar —
+    # eski ta'rif), sabab matni EMAS: matn o'zgarsa hisobot nolga tushmaydi.
+    # kech125 (zip 146): + taqdir kirimlari (`brak_harakatlari_sharti`).
+    q = db.query(InventoryMovement).filter(brak_harakatlari_sharti(InventoryMovement))
+    if company_id is not None:      # M6
+        q = q.filter(InventoryMovement.company_id == company_id)
     if start_date:
         q = q.filter(InventoryMovement.created_at >= start_date)
     if end_date:
-        q = q.filter(InventoryMovement.created_at <= end_date)
-    rows = q.order_by(InventoryMovement.created_at.desc()).all()
+        # kech107 (49-band): oxiri KIRMAYDI — hamma chaqiruvchi (`tashkent_oy_oraligi`, brak-materials marshruti:
+        # tugash kuni + 1 kun) shunday beradi; ilgari `<=` bilan aynan 1-kun 00:00 dagi harakat IKKI oyda sanalardi.
+        q = q.filter(InventoryMovement.created_at < end_date)
+    rows = q.order_by(InventoryMovement.created_at.desc(), InventoryMovement.id.desc()).all()
+    taqdirlar = _taqdir_hodisalari(db, company_id=company_id, start_date=start_date or None, end_date=end_date or None,
+                                   manbalar=("buyurtma", "ishlab"))
 
-    if not rows:
-        return {"by_material": [], "by_order": [], "total_value": 0, "total_penoplast_m3": 0,
-                "gips_brak_value": 0, "penoplast_brak_value": 0}
+    if not rows and not taqdirlar:
+        _bosh = {"by_material": [], "by_order": [], "total_value": 0, "total_penoplast_m3": 0}
+        if harakatlar:
+            _bosh["harakatlar"] = []
+        return _bosh
 
     # Barcha kerakli Inventory va Order obyektlarini oldindan yuklaymiz
     inv_ids = {r.inventory_id for r in rows if r.inventory_id}
     order_ids = {r.order_id for r in rows if r.order_id}
+    # kech125: buyurtma detali braki taqdirining buyurtmasi (yozuvdan)
+    _t_ri_ids = sorted({h["qator"].return_item_id for h in taqdirlar if h["qator"].return_item_id})
+    _t_ri = {}
+    if _t_ri_ids:
+        _tq = db.query(ReturnItem).filter(ReturnItem.id.in_(_t_ri_ids))
+        if company_id is not None:
+            _tq = _tq.filter(ReturnItem.company_id == company_id)
+        _t_ri = {r.id: r for r in _tq.all()}
+        order_ids |= {r.order_id for r in _t_ri.values() if r.order_id}
     inv_map = {i.id: i for i in db.query(Inventory).filter(Inventory.id.in_(inv_ids)).all()} if inv_ids else {}
     order_map = {o.id: o for o in db.query(Order).filter(Order.id.in_(order_ids)).all()} if order_ids else {}
 
@@ -7471,96 +15240,985 @@ def get_brak_material_summary(db: Session, start_date=None, end_date=None) -> di
     by_material_agg = {}
     total_value = 0.0
     total_m3 = 0.0
-    gips_brak_value = 0.0
-    penoplast_brak_value = 0.0
+    harakat_royxati = []      # kech117 (A2)
     for r in rows:
         inv = inv_map.get(r.inventory_id)
-        price = float(inv.price_per_unit or 0) if inv else 0.0
-        value = float(r.quantity or 0) * price
-        m3 = m3_for(inv, r.quantity)
+        ishora = _brak_ishora(r)
+        price = _harakat_narxi(r, inv)
+        miqdor = ishora * float(r.quantity or 0)
+        value = miqdor * price
+        m3 = ishora * m3_for(inv, r.quantity)
         total_value += value
         total_m3 += m3
-        if inv and (inv.category or '').lower() == 'gips':
-            gips_brak_value += value
-        else:
-            penoplast_brak_value += value
+        if harakatlar:
+            harakat_royxati.append({"return_item_id": r.return_item_id, "fp_loss_id": r.fp_loss_id,
+                                    "order_id": r.order_id, "value": value})
         key = r.item_name
         if key not in by_material_agg:
             by_material_agg[key] = {"item_name": r.item_name, "quantity": 0.0, "unit": r.unit,
                                      "unit_price": price, "value": 0.0, "m3": 0.0}
-        by_material_agg[key]["quantity"] += float(r.quantity or 0)
+        by_material_agg[key]["quantity"] += miqdor
         by_material_agg[key]["value"] += value
         by_material_agg[key]["m3"] += m3
+    # kech125: Tayyor mahsulotga o'tgan qiymat — alohida qator (material emas)
+    for h in taqdirlar:
+        total_value += h["qiymat"]
+        qt = h["qator"]
+        _ri = _t_ri.get(qt.return_item_id) if qt.return_item_id else None
+        if harakatlar:
+            harakat_royxati.append({"return_item_id": qt.return_item_id, "fp_loss_id": qt.fp_loss_id,
+                                    "order_id": (_ri.order_id if _ri is not None else None), "value": h["qiymat"],
+                                    "taqdir_id": qt.id})
+        _agg = by_material_agg.setdefault(BRAK_TAQDIR_QATORI, {"item_name": BRAK_TAQDIR_QATORI, "quantity": 0.0, "unit": "",
+                                                               "unit_price": 0.0, "value": 0.0, "m3": 0.0, "taqdir": True})
+        _agg["value"] += h["qiymat"]
 
     by_material = sorted(by_material_agg.values(), key=lambda x: -x["value"])
     for m in by_material:
+        # Turli narxdagi harakatlar birlashganda — o'rtacha narx
+        if m["quantity"] > 0 and not m.get("taqdir"):
+            m["unit_price"] = m["value"] / m["quantity"]
         m["quantity"] = round(m["quantity"], 3)
         m["value"] = round(m["value"])
         m["m3"] = round(m["m3"], 3) if m["m3"] > 0 else None
 
     # ── Buyurtma bo'yicha ALOHIDA ──
     by_order_agg = {}
+
+    def _buyurtma_guruhi(oid):
+        if oid not in by_order_agg:
+            order = order_map.get(oid)
+            by_order_agg[oid] = {
+                "order_id": oid,
+                "order_number": order.order_number if order else f"#{oid}",
+                "client_name": (order.project.client_name if order and order.project else None),
+                "items": [], "total_value": 0.0, "total_m3": 0.0
+            }
+        return by_order_agg[oid]
+
     for r in rows:
         if not r.order_id:
             continue
         inv = inv_map.get(r.inventory_id)
-        price = float(inv.price_per_unit or 0) if inv else 0.0
-        value = float(r.quantity or 0) * price
-        m3 = m3_for(inv, r.quantity)
-        if r.order_id not in by_order_agg:
-            order = order_map.get(r.order_id)
-            by_order_agg[r.order_id] = {
-                "order_id": r.order_id,
-                "order_number": order.order_number if order else f"#{r.order_id}",
-                "client_name": (order.project.client_name if order and order.project else None),
-                "items": [], "total_value": 0.0, "total_m3": 0.0
-            }
-        by_order_agg[r.order_id]["items"].append({
-            "item_name": r.item_name, "quantity": round(float(r.quantity or 0), 3),
-            "unit": r.unit, "value": round(value), "m3": round(m3, 3) if m3 > 0 else None,
+        ishora = _brak_ishora(r)
+        price = _harakat_narxi(r, inv)
+        value = ishora * float(r.quantity or 0) * price
+        m3 = ishora * m3_for(inv, r.quantity)
+        g = _buyurtma_guruhi(r.order_id)
+        g["items"].append({
+            "item_name": r.item_name, "quantity": round(ishora * float(r.quantity or 0), 3),
+            "unit": r.unit, "value": round(value), "m3": round(m3, 3) if m3 != 0 else None,
             "date": r.created_at.isoformat() if r.created_at else None
         })
-        by_order_agg[r.order_id]["total_value"] += value
-        by_order_agg[r.order_id]["total_m3"] += m3
+        g["total_value"] += value
+        g["total_m3"] += m3
+    for h in taqdirlar:
+        qt = h["qator"]
+        _ri = _t_ri.get(qt.return_item_id) if qt.return_item_id else None
+        if _ri is None or not _ri.order_id:
+            continue
+        g = _buyurtma_guruhi(_ri.order_id)
+        g["items"].append({
+            "item_name": (f"{BRAK_TAQDIR_QATORI} — {BRAK_TAQDIRLARI.get(qt.taqdir, qt.taqdir)}"
+                          + (" (bekor qilindi)" if h["bekor"] else "")),
+            "quantity": None, "unit": "", "value": round(h["qiymat"]), "m3": None, "taqdir": True,
+            "date": h["vaqt"].isoformat() if h["vaqt"] else None
+        })
+        g["total_value"] += h["qiymat"]
 
     by_order = sorted(by_order_agg.values(), key=lambda x: -x["total_value"])
     for o in by_order:
         o["total_value"] = round(o["total_value"])
         o["total_m3"] = round(o["total_m3"], 3) if o["total_m3"] > 0 else None
 
-    return {
+    natija = {
         "by_material": by_material,
         "by_order": by_order,
         "total_value": round(total_value),
         "total_penoplast_m3": round(total_m3, 3),
-        "gips_brak_value": round(gips_brak_value),
-        "penoplast_brak_value": round(penoplast_brak_value)
+    }
+    if harakatlar:
+        natija["harakatlar"] = harakat_royxati
+    return natija
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# BRAK TAQDIRI (kech125, zip 146 — EGASI QARORLARI 07.10, QAYTA SO'RALMAYDI). Dizayn — `models.BrakTaqdir` izohida:
+#   * taqdir brak yozilganda (uch yo'lning tanasida `taqdir`) yoki keyin (`…/taqdir` marshrutlari) tanlanadi;
+#   * «Tashlandi» — jurnalda qator yo'q; «Tuzatildi» — tuzatish xomashyosi (brak) + «joyiga» (brak xomashyosi qaytadi) yoki
+#     «omborga» (TM, asl narx); «Kesildi» — TM ulush tannarx bilan; «2-nav» — TM to'liq tannarx bilan (sotuv narxi brakda);
+#   * pul ta'siri HODISA vaqtida (Q4): xomashyo — harakatlar (`created_at`), TM ga o'tgan qiymat — jurnal (`yaratilgan` /
+#     `bekor_vaqti`); o'tgan oy hisoboti o'zgarmaydi;
+#   * taqdir o'zgarsa — eskisining TESKARISI yoziladi (harakatlar o'chirilmaydi), TM dan AYNAN o'sha miqdor olinadi (bo'sh
+#     qoldiq yetmasa — rad, hech narsa o'zgarmaydi); brak yozuvi butunlay o'chirilsa — hammasi «bo'lmagandek».
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+_TAQDIR_MANBA_YORLIQ = {"buyurtma": "buyurtma detali", "ombor": "omborda turgan mahsulot", "ishlab": "ishlab chiqarish"}
+# tana maydonlari — taqdir bo'yicha ruxsat etilganlari (qolgani bo'sh bo'lishi SHART: noto'g'ri tana — xato, ma'lumot emas)
+_TAQDIR_MAYDONLARI = ("joy", "materiallar", "ishlatildi", "nomi", "miqdor", "birlik", "eni", "qalinligi", "narx")
+_TAQDIR_RUXSAT = {
+    "tashlandi": (),
+    "tuzatildi": ("joy", "materiallar"),
+    "kesildi": ("ishlatildi", "nomi", "miqdor", "birlik", "eni", "qalinligi", "narx"),
+    "ikkinchi_nav": ("narx",),
+}
+_TAQDIR_EPS = 0.001
+
+
+def _brak_ishora(h) -> float:
+    """Brak harakatining ishorasi: chiqim (+, zarar), taqdir kirimi (−: «joyiga» qaytgan xomashyo, bekor qilingan tuzatish)."""
+    return -1.0 if getattr(h, "movement_type", "out") == "in" else 1.0
+
+
+def brak_harakatlari_sharti(IM=None):
+    """kech125 (zip 146) — brak QIYMATIGA kiradigan HAMMA harakat: brak CHIQIMI (`brak_harakati_sharti`, avvalgidek) va taqdir
+    KIRIMI — faqat taqdir qatoriga bog'langan (`brak_taqdir_id IS NOT NULL`) va aniq `is_brak IS TRUE` kirim. Taqdirsiz kirim
+    (belgisiz ESKI kirim ham, migratsiya `is_brak` ni TRUE qilgan eski «Brak…» sababli kirim ham) — hech qachon brak qiymatiga
+    kirmaydi: o'tgan oylar raqami O'ZGARMAYDI (tools/test_brak_belgisi D2d). Qiymat — `_brak_ishora` × miqdor ×
+    `_brak_harakat_narxi`. Chaqiruvchilar: `get_brak_material_summary`, `brak_yozuv_qiymatlari`, `brak_davr_yozuvlari`."""
+    from sqlalchemy import and_ as _a125, or_ as _o125
+    if IM is None:
+        from models import InventoryMovement as IM
+    return _o125(_a125(IM.movement_type == "out", brak_harakati_sharti(IM)),
+                 _a125(IM.movement_type == "in", IM.is_brak.is_(True), IM.brak_taqdir_id.isnot(None)))
+
+
+def _taqdir_hodisalari(db: Session, company_id: int = None, start_date=None, end_date=None,
+                       manbalar=None, return_item_ids=None, fp_loss_ids=None) -> list:
+    """Davrdagi taqdir PUL hodisalari — [{"qator", "qiymat", "vaqt", "bekor"}]: qo'llanish (`yaratilgan`) zarardan `tm_tannarx`
+    ni chiqaradi (−), bekor qilinish (`bekor_vaqti`) qaytaradi (+). Egasi qarori Q4 — hodisa vaqtida (o'tgan oy o'zgarmaydi).
+    `manbalar` — ('buyurtma', 'ishlab') (Moliya «Brak» qatori) yoki ('ombor',) («Tayyor mahsulot yo'qotishi» qatori)."""
+    from models import BrakTaqdir as _BT
+    natija = []
+    for ustun, ishora, bekor in ((_BT.yaratilgan, -1.0, False), (_BT.bekor_vaqti, 1.0, True)):
+        q = db.query(_BT).filter(ustun.isnot(None), _BT.tm_tannarx.isnot(None), _BT.tm_tannarx != 0)
+        if company_id is not None:
+            q = q.filter(_BT.company_id == company_id)
+        if manbalar is not None:
+            q = q.filter(_BT.manba.in_(list(manbalar)))
+        if return_item_ids is not None:
+            q = q.filter(_BT.return_item_id.in_(list(return_item_ids) or [-1]))
+        if fp_loss_ids is not None:
+            q = q.filter(_BT.fp_loss_id.in_(list(fp_loss_ids) or [-1]))
+        if start_date is not None:
+            q = q.filter(ustun >= start_date)
+        if end_date is not None:
+            q = q.filter(ustun < end_date)
+        for r in q.order_by(_BT.id).all():
+            natija.append({"qator": r, "qiymat": ishora * float(r.tm_tannarx or 0),
+                           "vaqt": r.bekor_vaqti if bekor else r.yaratilgan, "bekor": bekor})
+    return natija
+
+
+def brak_davr_yozuvlari(db: Session, start_date=None, end_date=None, company_id: int = None) -> dict:
+    """kech125 (zip 146 — egasi qarori Q4 «hodisa vaqtida»): davrdagi HAR brak yozuvining SHU davrdagi qiymati — tahlil,
+    yo'nalishlar va «Tayyor mahsulot yo'qotishi» qatori uchun YAGONA hisob (Moliyadagi «Brak» qatori bilan bir qoida):
+      * `qaytarish` {ri_id: q} — buyurtma detali braki: O'Z harakatlari (yozuv shu davrda yozilgan bo'lsa — avvalgi qoida, yozuv
+        sanasi bo'yicha) + taqdir harakatlari va hodisalari (o'z vaqtida);
+      * `ishlab` {fpl_id: q} — ishlab chiqarish braki: xuddi shunday; harakati bog'lanmagan ESKI yozuv — `cost_amount` (yozilgan
+        davrda; uning harakatlari Moliyada bog'lamsiz sanaladi — avvalgi qoida);
+      * `ombor_brak` {fpl_id: q} — omborda turgan mahsulot yo'qotishining tuzatish xomashyosi (taqdir harakatlari, Moliya «Brak»);
+      * `ombor_tm` {fpl_id: q} — omborda turgan mahsulot yo'qotishi: `cost_amount` (yozilgan davrda) + taqdir hodisalari
+        («Tayyor mahsulot yo'qotishi» qatori);
+      * `yozuvlar` {("qaytarish"|"yoqotish", id): yozuv} — davrda yozilgan YOKI davrda taqdir hodisasi bo'lgan yozuvlar.
+    Davr — [start_date, end_date) (UTC, chegara KIRMAYDI); ikkalasi None — hamma vaqt."""
+    from models import InventoryMovement as _IM, Inventory as _Inv, FinishedProductLoss as _FPL
+    natija = {"qaytarish": {}, "ishlab": {}, "ombor_brak": {}, "ombor_tm": {}, "yozuvlar": {}}
+
+    def _davr(q, ustun):
+        if start_date is not None:
+            q = q.filter(ustun >= start_date)
+        if end_date is not None:
+            q = q.filter(ustun < end_date)
+        return q
+
+    def _bolaklar(ids):
+        ids = sorted(ids)
+        return [ids[i:i + 500] for i in range(0, len(ids), 500)]
+
+    inv_map = {}
+
+    def _qiymat(h):
+        if h.inventory_id and h.inventory_id not in inv_map:
+            _iq = db.query(_Inv).filter(_Inv.id == h.inventory_id)
+            if company_id is not None:
+                _iq = _iq.filter(_Inv.company_id == company_id)
+            inv_map[h.inventory_id] = _iq.first()
+        return _brak_ishora(h) * float(h.quantity or 0) * _brak_harakat_narxi(h, inv_map.get(h.inventory_id))
+
+    # 1) davrda yozilgan yozuvlar
+    rq = db.query(ReturnItem).filter(ReturnItem.reason == ReturnReason.DEFECT)
+    if company_id is not None:
+        rq = rq.filter(ReturnItem.company_id == company_id)
+    braklar = {r.id: r for r in _davr(rq, ReturnItem.returned_at).all()}
+    lq = db.query(_FPL)
+    if company_id is not None:
+        lq = lq.filter(_FPL.company_id == company_id)
+    yoqotishlar = {l.id: l for l in _davr(lq, _FPL.lost_at).all()}
+    davrdagi_ri, davrdagi_fpl = set(braklar), set(yoqotishlar)
+    # 2) taqdir harakatlari — hodisa vaqtida (`fpl_t` — yo'qotishlar harakatlari, `fpl_h` — yo'qotishlar pul hodisalari)
+    ri_t, fpl_t, fpl_h = {}, {}, {}
+    tq = db.query(_IM).filter(brak_harakatlari_sharti(_IM), _IM.brak_taqdir_id.isnot(None),
+                              (_IM.return_item_id.isnot(None)) | (_IM.fp_loss_id.isnot(None)))
+    if company_id is not None:
+        tq = tq.filter(_IM.company_id == company_id)
+    for h in _davr(tq, _IM.created_at).all():
+        if h.return_item_id is not None:
+            ri_t[h.return_item_id] = ri_t.get(h.return_item_id, 0.0) + _qiymat(h)
+        else:
+            fpl_t[h.fp_loss_id] = fpl_t.get(h.fp_loss_id, 0.0) + _qiymat(h)
+    # 3) taqdir hodisalari (TM ga o'tgan qiymat) — hodisa vaqtida
+    for h in _taqdir_hodisalari(db, company_id=company_id, start_date=start_date, end_date=end_date):
+        qt = h["qator"]
+        if qt.return_item_id is not None:
+            ri_t[qt.return_item_id] = ri_t.get(qt.return_item_id, 0.0) + h["qiymat"]
+        elif qt.fp_loss_id is not None:
+            fpl_h[qt.fp_loss_id] = fpl_h.get(qt.fp_loss_id, 0.0) + h["qiymat"]
+    # 4) davrda hodisasi bo'lgan (boshqa davrda yozilgan) yozuvlar
+    for _b in _bolaklar(set(ri_t) - set(braklar)):
+        _q2 = db.query(ReturnItem).filter(ReturnItem.id.in_(_b))
+        if company_id is not None:
+            _q2 = _q2.filter(ReturnItem.company_id == company_id)
+        braklar.update({r.id: r for r in _q2.all()})
+    for _b in _bolaklar((set(fpl_t) | set(fpl_h)) - set(yoqotishlar)):
+        _q3 = db.query(_FPL).filter(_FPL.id.in_(_b))
+        if company_id is not None:
+            _q3 = _q3.filter(_FPL.company_id == company_id)
+        yoqotishlar.update({l.id: l for l in _q3.all()})
+    # 5) brakning O'Z harakatlari — davrda yozilgan yozuvlarniki (istalgan vaqtdagi; avvalgi qoida)
+    ri_asl, fpl_asl, bogli = {}, {}, set()
+    for _b in _bolaklar(davrdagi_ri):
+        aq = db.query(_IM).filter(brak_harakatlari_sharti(_IM), _IM.brak_taqdir_id.is_(None), _IM.return_item_id.in_(_b))
+        if company_id is not None:
+            aq = aq.filter(_IM.company_id == company_id)
+        for h in aq.all():
+            ri_asl[h.return_item_id] = ri_asl.get(h.return_item_id, 0.0) + _qiymat(h)
+    _ish_davrda = [i for i in davrdagi_fpl if _ish_brakimi(yoqotishlar[i])]
+    for _b in _bolaklar(_ish_davrda):
+        aq = db.query(_IM).filter(brak_harakatlari_sharti(_IM), _IM.brak_taqdir_id.is_(None), _IM.fp_loss_id.in_(_b))
+        if company_id is not None:
+            aq = aq.filter(_IM.company_id == company_id)
+        for h in aq.all():
+            bogli.add(h.fp_loss_id)
+            fpl_asl[h.fp_loss_id] = fpl_asl.get(h.fp_loss_id, 0.0) + _qiymat(h)
+    # 6) yig'ish
+    for rid, r in braklar.items():
+        natija["qaytarish"][rid] = ri_asl.get(rid, 0.0) + ri_t.get(rid, 0.0)
+        natija["yozuvlar"][("qaytarish", rid)] = r
+    for lid, l in yoqotishlar.items():
+        natija["yozuvlar"][("yoqotish", lid)] = l
+        _yozilgan_davrda = lid in davrdagi_fpl
+        if _ish_brakimi(l):
+            q = fpl_t.get(lid, 0.0) + fpl_h.get(lid, 0.0)
+            if _yozilgan_davrda:
+                q += fpl_asl[lid] if lid in bogli else float(l.cost_amount or 0)
+            natija["ishlab"][lid] = q
+        else:
+            natija["ombor_brak"][lid] = fpl_t.get(lid, 0.0)
+            natija["ombor_tm"][lid] = (float(l.cost_amount or 0) if _yozilgan_davrda else 0.0) + fpl_h.get(lid, 0.0)
+    return natija
+
+
+def tm_yoqotish_qiymati(db: Session, start_date=None, end_date=None, company_id: int = None) -> float:
+    """kech125 (zip 146): Moliya «Tayyor mahsulot yo'qotishi (omborda)» qatori — omborda turgan mahsulot yo'qotishlari
+    (`cost_amount`, yozilgan davrda) + ularning taqdir hodisalari (tuzatilib o'sha partiyaga qaytgan, kesilgan, 2-nav — TM ga
+    o'tgan qiymat zarardan chiqadi; hodisa vaqtida — egasi qarori Q4). Ishlab chiqarish braki bu yerga KIRMAYDI («Brak»)."""
+    from models import FinishedProductLoss as _FPL
+    q = db.query(_FPL)
+    if company_id is not None:
+        q = q.filter(_FPL.company_id == company_id)
+    if start_date is not None:
+        q = q.filter(_FPL.lost_at >= start_date)
+    if end_date is not None:
+        q = q.filter(_FPL.lost_at < end_date)
+    jami = sum(float(l.cost_amount or 0) for l in q.all() if not _ish_brakimi(l))
+    jami += sum(h["qiymat"] for h in _taqdir_hodisalari(db, company_id=company_id, start_date=start_date,
+                                                         end_date=end_date, manbalar=("ombor",)))
+    return jami
+
+
+# ── yozuv, manba, qiymat ─────────────────────────────────────────────────────────────────────────────────────────────
+
+def _taqdir_brak_yozuvi(db: Session, turi: str, yozuv_id: int, company_id: int = None, lock: bool = False):
+    """Brak yozuvi — FAQAT shu korxonadan: 'qaytarish' — buyurtma detali braki (`ReturnItem`, sababi «Brak»), 'yoqotish' —
+    tayyor mahsulot braki (`FinishedProductLoss`: omborda turgan yoki ishlab chiqarishda). Topilmasa None (oracle yo'q)."""
+    from models import FinishedProductLoss as _FPL
+    if turi == "qaytarish":
+        q = db.query(ReturnItem).filter(ReturnItem.id == yozuv_id, ReturnItem.reason == ReturnReason.DEFECT)
+        if company_id is not None:
+            q = q.filter(ReturnItem.company_id == company_id)
+    elif turi == "yoqotish":
+        q = db.query(_FPL).filter(_FPL.id == yozuv_id)
+        if company_id is not None:
+            q = q.filter(_FPL.company_id == company_id)
+    else:
+        return None
+    if lock:
+        q = q.with_for_update()
+    return q.first()
+
+
+def _taqdir_manbasi(turi: str, yozuv) -> str:
+    """'buyurtma' (A) | 'ombor' (B) | 'ishlab' (C)."""
+    if turi == "qaytarish":
+        return "buyurtma"
+    return "ishlab" if _ish_brakimi(yozuv) else "ombor"
+
+
+def _taqdir_asl_harakatlari(db: Session, manba: str, yozuv, company_id: int) -> list:
+    """Brakning O'Z (taqdirdan oldingi) xomashyo harakatlari — A: `return_item_id`, C: `fp_loss_id`; taqdir harakatlari
+    (`brak_taqdir_id`) kirmaydi. B — xomashyo yechmaydi (bo'sh)."""
+    from models import InventoryMovement as _IM
+    if manba == "ombor":
+        return []
+    q = db.query(_IM).filter(brak_harakatlari_sharti(_IM), _IM.brak_taqdir_id.is_(None))
+    q = q.filter(_IM.return_item_id == yozuv.id) if manba == "buyurtma" else q.filter(_IM.fp_loss_id == yozuv.id)
+    if company_id is not None:
+        q = q.filter(_IM.company_id == company_id)
+    return q.order_by(_IM.id).all()
+
+
+def brak_yozuv_xomashyo_qiymati(db: Session, manba: str, yozuv, company_id: int) -> float:
+    """Brak yozuvining ASL qiymati (taqdirsiz «zarar»): A / C (bog'langan) — asl harakatlar (ishorali) × muzlatilgan narx
+    (Moliya bilan bir qoida); bog'lamsiz ESKI ishlab chiqarish braki va omborda turgan mahsulot yo'qotishi — `cost_amount`."""
+    from models import Inventory as _Inv
+    if manba == "ombor":
+        return float(yozuv.cost_amount or 0)
+    asl = _taqdir_asl_harakatlari(db, manba, yozuv, company_id)
+    if manba == "ishlab" and not asl:
+        return float(yozuv.cost_amount or 0)
+    jami = 0.0
+    for h in asl:
+        inv = None
+        if h.inventory_id is not None:
+            _q = db.query(_Inv).filter(_Inv.id == h.inventory_id)
+            if company_id is not None:
+                _q = _q.filter(_Inv.company_id == company_id)
+            inv = _q.first()
+        jami += _brak_ishora(h) * float(h.quantity or 0) * _brak_harakat_narxi(h, inv)
+    return jami
+
+
+def _taqdir_faol(db: Session, turi: str, yozuv_id: int, company_id: int = None, lock: bool = False):
+    """Yozuvning FAOL taqdir qatori (`bekor_vaqti IS NULL`) yoki None («Tashlandi»)."""
+    from models import BrakTaqdir as _BT
+    q = db.query(_BT).filter(_BT.bekor_vaqti.is_(None))
+    q = q.filter(_BT.return_item_id == yozuv_id) if turi == "qaytarish" else q.filter(_BT.fp_loss_id == yozuv_id)
+    if company_id is not None:
+        q = q.filter(_BT.company_id == company_id)
+    if lock:
+        q = q.with_for_update()
+    return q.order_by(_BT.id.desc()).first()
+
+
+# ── tana tekshiruvi ──────────────────────────────────────────────────────────────────────────────────────────────────
+
+def brak_taqdir_tana(db: Session, tana, manba: str, brak_miqdor: float, brak_birlik: str, company_id: int) -> dict:
+    """Taqdir tanasini QAT'IY tekshiradi (hech narsa yozilishidan OLDIN) — tur / chegara (`_clean_val("Taqdir")`), taqdirga
+    bog'liq majburiy va ortiqcha maydonlar, materiallarning shu korxonaga tegishliligi. Xato — `ValueError` (marshrut → 400).
+    Qaytaradi — toza lug'at (`materiallar` — [{"inventory_id"|"retsept_id", "miqdor"}])."""
+    from models import Inventory as _Inv, Recipe as _Rc
+    if not isinstance(tana, dict):
+        raise ValueError("Taqdir noto'g'ri berilgan")
+    toza = _clean_val("Taqdir", tana)
+    t = toza["taqdir"]
+    nomi_t = BRAK_TAQDIRLARI.get(t, t)
+
+    def _bosh(k):
+        v = toza.get(k)
+        return v is None or v == [] or (isinstance(v, str) and not v.strip())
+
+    ortiqcha = [k for k in _TAQDIR_MAYDONLARI if k not in _TAQDIR_RUXSAT[t] and not _bosh(k)]
+    if ortiqcha:
+        raise ValueError(f"«{nomi_t}» taqdirida bu maydon(lar) berilmaydi: {', '.join(ortiqcha)}")
+    natija = {"taqdir": t}
+    q_brak = float(brak_miqdor or 0)
+    if t == "tuzatildi":
+        joy = toza.get("joy")
+        if manba == "ombor":
+            if joy not in (None, "joyiga"):
+                raise ValueError("Omborda turgan mahsulot tuzatilsa — o'sha mahsulotga qaytadi (\"O'sha joyiga\")")
+            joy = "joyiga"
+        elif joy is None:
+            raise ValueError("Tuzatilgan detal qayerda ishlatildi — «O'sha joyiga» yoki «Omborga» ni tanlang")
+        natija["joy"] = joy
+        materiallar, korilgan = [], set()
+        for i, m in enumerate(toza.get("materiallar") or []):
+            _inv, _ret = m.get("inventory_id"), m.get("retsept_id")
+            if (_inv is None) == (_ret is None):
+                raise ValueError(f"Tuzatish xomashyosi {i + 1}-qator: material YOKI loy retseptini tanlang")
+            kalit = ("m", _inv) if _inv is not None else ("r", _ret)
+            if kalit in korilgan:
+                raise ValueError(f"Tuzatish xomashyosi {i + 1}-qator: bu xomashyo ro'yxatda ikki marta")
+            korilgan.add(kalit)
+            if _inv is not None:
+                _iq = db.query(_Inv).filter(_Inv.id == _inv, _Inv.is_deleted.isnot(True))
+                if company_id is not None:
+                    _iq = _iq.filter(_Inv.company_id == company_id)
+                inv = _iq.first()
+                if inv is None:
+                    raise ValueError(f"Tuzatish xomashyosi {i + 1}-qator: material topilmadi")
+                import services as _svc125
+                if (inv.item_name or "").startswith(_svc125.TAYYOR_LOY_PREFIKS):
+                    raise ValueError(f"Tuzatish xomashyosi {i + 1}-qator: tayyor loy — «Loy retsepti» orqali tanlanadi")
+                materiallar.append({"inventory_id": inv.id, "miqdor": float(m["miqdor"])})
+            else:
+                _rq = db.query(_Rc).filter(_Rc.id == _ret)
+                if company_id is not None:
+                    _rq = _rq.filter(_Rc.company_id == company_id)
+                if _rq.first() is None:
+                    raise ValueError(f"Tuzatish xomashyosi {i + 1}-qator: loy retsepti topilmadi")
+                materiallar.append({"retsept_id": _ret, "miqdor": float(m["miqdor"])})
+        natija["materiallar"] = materiallar
+    elif t == "kesildi":
+        ishlatildi = toza.get("ishlatildi")
+        if ishlatildi is None:
+            raise ValueError("Kesildi: brakning qancha qismi ishlatilganini yozing")
+        if ishlatildi > q_brak + _TAQDIR_EPS:
+            raise ValueError(f"Kesildi: ishlatilgan qism brak miqdoridan ({_miqdor_matn(q_brak)} {brak_birlik or ''}) "
+                             f"ko'p bo'lishi mumkin emas")
+        nomi = (toza.get("nomi") or "").strip()
+        if not nomi:
+            raise ValueError("Kesildi: yangi detal nomini yozing")
+        if toza.get("miqdor") is None:
+            raise ValueError("Kesildi: yangi detal miqdorini yozing")
+        birlik = (toza.get("birlik") or "").strip()
+        if not birlik:
+            raise ValueError("Kesildi: yangi detal birligini tanlang")
+        if birlik not in BRAK_TAQDIR_BIRLIKLARI and birlik != (brak_birlik or ""):
+            raise ValueError("Kesildi: birlik noto'g'ri")
+        natija.update(ishlatildi=min(float(ishlatildi), q_brak), nomi=nomi, miqdor=float(toza["miqdor"]),
+                      birlik=birlik, eni=toza.get("eni"), qalinligi=toza.get("qalinligi"), narx=toza.get("narx"))
+    elif t == "ikkinchi_nav":
+        narx = toza.get("narx")
+        if narx is None or narx <= 0:
+            raise ValueError("2-nav: sotuv narxini yozing (1 birlik uchun)")
+        natija["narx"] = float(narx)
+    return natija
+
+
+# ── harakat, TM ──────────────────────────────────────────────────────────────────────────────────────────────────────
+
+class _TaqdirSoxtaBuyurtma:
+    """Loy retsepti bo'yicha tuzatish xomashyosi (`services.deduct_loy_ingredients`) uchun — korxona, buyurtma raqami (A da
+    harakat shu buyurtmaga yoziladi — brak belgili, buyurtma tannarxiga KIRMAYDI) va sabab matni."""
+    def __init__(self, order_id, company_id, raqam):
+        self.id = order_id
+        self.company_id = company_id
+        self.order_number = raqam
+
+
+def _taqdir_inv(db: Session, inv_id, company_id, lock: bool = True):
+    from models import Inventory as _Inv
+    if not inv_id:
+        return None
+    q = db.query(_Inv).filter(_Inv.id == inv_id)
+    if company_id is not None:
+        q = q.filter(_Inv.company_id == company_id)
+    if lock:
+        q = q.with_for_update()
+    return q.first()
+
+
+def _taqdir_harakati(db: Session, *, inv, inventory_id, item_name, tur: str, miqdor: float, unit, unit_cost,
+                     sabab: str, order_id, company_id, return_item_id, fp_loss_id, taqdir_id, kim) -> None:
+    """Taqdir harakati — ombor qoldig'i (material bo'lsa) va jurnal: brak belgili (`is_brak=True`), muzlatilgan narx bilan,
+    brak yozuviga va taqdir qatoriga bog'langan."""
+    from models import InventoryMovement as _IM
+    _m = abs(float(miqdor or 0))
+    if _m <= 0:
+        return
+    if inv is not None:
+        _q = float(inv.stock_quantity or 0)
+        inv.stock_quantity = _q + _m if tur == "in" else _q - _m
+    db.add(_IM(company_id=company_id, inventory_id=inventory_id, item_name=(item_name or "—")[:150],
+               movement_type=tur, quantity=_m, unit=unit, reason=_jurnal_sabab(sabab), order_id=order_id,
+               return_item_id=return_item_id, fp_loss_id=fp_loss_id, brak_taqdir_id=taqdir_id,
+               unit_cost=(float(unit_cost) if unit_cost is not None else None), is_brak=True,
+               performed_by=(kim or None)))
+
+
+def _taqdir_teskari(db: Session, harakat, sabab: str, taqdir_id, company_id, kim) -> str:
+    """Harakatning AYNAN teskarisi (miqdor, narx, bog'lamlar o'sha) — qoldiq ham qaytadi. Jurnal matni qaytariladi."""
+    inv = _taqdir_inv(db, harakat.inventory_id, company_id)
+    tur = "in" if harakat.movement_type == "out" else "out"
+    _taqdir_harakati(db, inv=inv, inventory_id=harakat.inventory_id, item_name=harakat.item_name, tur=tur,
+                     miqdor=harakat.quantity, unit=harakat.unit, unit_cost=harakat.unit_cost, sabab=sabab,
+                     order_id=harakat.order_id, company_id=company_id, return_item_id=harakat.return_item_id,
+                     fp_loss_id=harakat.fp_loss_id, taqdir_id=taqdir_id, kim=kim)
+    return f"{harakat.item_name} {'+' if tur == 'in' else '−'}{_miqdor_matn(float(harakat.quantity or 0))} {harakat.unit or ''}".rstrip()
+
+
+def _taqdir_tm_manbasi(db: Session, manba: str, yozuv, company_id):
+    """TM yaratish uchun asl ma'lumot: A — buyurtma detali, B / C — tayyor mahsulot (o'chirilgan bo'lishi mumkin — None)."""
+    if manba == "buyurtma":
+        oi = None
+        if yozuv.order_item_id is not None:
+            _q = db.query(OrderItem).filter(OrderItem.id == yozuv.order_item_id)
+            if company_id is not None:
+                _q = _q.filter(OrderItem.company_id == company_id)
+            oi = _q.first()
+        return oi
+    if yozuv.finished_product_id is None:
+        return None
+    return get_finished_product(db, yozuv.finished_product_id, company_id)
+
+
+def _taqdir_asl_narx(manba: str, asl) -> float:
+    """«Tuzatildi — omborga» sotuv narxi — ASL narx (egasi qarori Q3): buyurtma detali — detal jami / buyurtmadagi miqdor
+    (`add_returned_to_stock` bilan bir qoida); tayyor mahsulot — uning narxi."""
+    if asl is None:
+        return 0.0
+    if manba == "buyurtma":
+        _ord = float(getattr(asl, "order_qty_normalized", 0) or 0)
+        return (float(asl.total_price or 0) / _ord) if _ord > 0 else 0.0
+    return float(asl.unit_price or 0)
+
+
+def _taqdir_tm_yarat(db: Session, *, manba, yozuv, asl, taqdir: str, nomi, miqdor: float, birlik, tannarx: float,
+                     narx: float, eni=None, qalinligi=None, company_id, kim):
+    """Brakdan YANGI tayyor mahsulot partiyasi (manba RETURNED — sotiladi, «+» ishlab chiqarish yo'q, hodim haqiga va ishlab
+    chiqarish hisobiga kirmaydi; `brak_taqdir` belgisi — boshqa partiya bilan birlashtirilmaydi). Tannarx muzlaydi
+    (`unit_cost_stable`) — sotuv / buyurtmaga olish shu narxda."""
+    _tn = _pul2(max(float(tannarx or 0), 0.0))
+    _q = float(miqdor or 0)
+    if manba == "buyurtma":
+        _nom = nomi or (asl.name if asl is not None else yozuv.item_name)
+        fp = FinishedProduct(
+            company_id=company_id, name=(_nom or "—")[:150],
+            category=(asl.category if asl is not None else None),
+            width=(eni if eni is not None else (asl.width if asl is not None else None)),
+            thickness=(qalinligi if qalinligi is not None else (asl.thickness if asl is not None else None)),
+            is_coated=bool(asl.is_coated) if asl is not None else False,
+            penoplast_id=(asl.penoplast_id if asl is not None else None),
+            product_type_id=(asl.product_type_id if asl is not None else None),
+            image_url=(asl.image_url if asl is not None else None),
+            from_order_id=yozuv.order_id)
+    else:
+        _nom = nomi or (asl.name if asl is not None else yozuv.product_name)
+        fp = FinishedProduct(
+            company_id=company_id, name=(_nom or "—")[:150],
+            category=(asl.category if asl is not None else yozuv.category),
+            width=(eni if eni is not None else (asl.width if asl is not None else None)),
+            thickness=(qalinligi if qalinligi is not None else (asl.thickness if asl is not None else None)),
+            is_coated=bool(asl.is_coated) if asl is not None else False,
+            penoplast_id=(asl.penoplast_id if asl is not None else None),
+            product_type_id=(asl.product_type_id if asl is not None else None),
+            recipe_id=(asl.recipe_id if asl is not None else None),
+            image_url=(asl.image_url if asl is not None else None))
+    from models import ProductionStatus as _PS125
+    fp.quantity = _q
+    fp.produced_quantity = _q
+    fp.unit = (birlik or "dona")[:20]
+    fp.unit_price = _pul2(max(float(narx or 0), 0.0))
+    fp.cost_price = _tn
+    fp.unit_cost_stable = (_tn / _q) if (_q > 0 and _tn > 0) else None
+    fp.volume_m3 = 0.0
+    fp.source = StockSource.RETURNED
+    fp.return_reason = f"Brak: {BRAK_TAQDIRLARI.get(taqdir, taqdir)}"[:50]
+    fp.production_status = _PS125.READY
+    fp.brak_taqdir = taqdir
+    fp.created_by = kim
+    fp.notes = f"Brak yozuvidan ({_TAQDIR_MANBA_YORLIQ.get(manba, manba)})"
+    db.add(fp)
+    db.flush()
+    return fp
+
+
+def _taqdir_tm_ochirilsinmi(db: Session, fp, company_id) -> bool:
+    """Brakdan yaratilgan partiya bo'sh qolsa va unga hech narsa ishora qilmasa — o'chiriladi (bo'sh «arvoh» qator qolmaydi).
+    Partiya taqdir bilan SHU korxonada yaratilgan — unga faqat shu korxona yozuvlari ishora qila oladi (korxona filtri bilan)."""
+    from models import (FinishedProductSale as _FPS, FinishedProductLoss as _FPL, BrakTaqdir as _BT)
+    if float(fp.quantity or 0) > 1e-9 or float(fp.reserved_quantity or 0) > 1e-9:
+        return False
+    _cid = fp.company_id if company_id is None else company_id
+    if (db.query(_FPS.id).filter(_FPS.finished_product_id == fp.id, _FPS.company_id == _cid).first()
+            or db.query(_FPL.id).filter(_FPL.finished_product_id == fp.id, _FPL.company_id == _cid).first()
+            or db.query(OrderItem.id).filter(OrderItem.finished_product_id == fp.id, OrderItem.company_id == _cid).first()
+            or db.query(ReturnItem.id).filter(ReturnItem.finished_product_id == fp.id, ReturnItem.company_id == _cid).first()):
+        return False
+    try:
+        from production_models import ProductionOrder as _PO125
+        if db.query(_PO125.id).filter(_PO125.finished_product_id == fp.id, _PO125.company_id == _cid).first():
+            return False
+    except ImportError:
+        pass
+    # boshqa (bekor qilingan) taqdir qatorlari ham shu partiyaga ishora qilishi mumkin — bog'lam uziladi
+    db.query(_BT).filter(_BT.tm_id == fp.id, _BT.company_id == _cid).update(
+        {"tm_id": None}, synchronize_session=False)
+    return True
+
+
+# ── qo'llash / bekor qilish ──────────────────────────────────────────────────────────────────────────────────────────
+
+def _taqdir_tm_tekshir(db: Session, qator, company_id, qattiq: bool = True, amal: str = "taqdirni o'zgartirib"):
+    """Bekor qilishdan OLDIN: TM dan AYNAN `tm_miqdor` olinishi mumkinmi (bo'sh qoldiq = qoldiq − band). Qaytaradi — qulflangan
+    TM (yoki None — TM ga hech narsa o'tmagan). Mumkin bo'lmasa `ValueError` (hech narsa o'zgarmagan).
+
+    kech125 (zip 147 — jonli sinovda topilgan): `qattiq=False` — tekshiruvsiz (partiya o'chirilgan bo'lsa ham None): omborda turgan
+    mahsulot yo'qotishi «Tuzatildi» (o'sha partiyaga) bilan butunlay o'chirilayotganda — yozuvni o'chirish o'sha miqdorni o'sha
+    partiyaga QAYTARADI (bir tranzaksiyada jami o'zgarish 0), shuning uchun «band qilingan» partiya rad sababi emas. `amal` — xabardagi
+    fe'l: «taqdirni o'zgartirib» yoki «brak yozuvini o'chirib»."""
+    _miq = float(qator.tm_miqdor or 0)
+    if _miq <= 1e-9:
+        return None
+    fp = get_finished_product(db, qator.tm_id, company_id, lock=True) if qator.tm_id else None
+    if not qattiq:
+        return fp
+    if fp is None:
+        raise ValueError("Bu brak taqdiri bilan omborga qo'shilgan tayyor mahsulot o'chirilgan (sotib bo'lingan) — "
+                         f"{amal} bo'lmaydi")
+    _bor = float(fp.quantity or 0)
+    _band = float(fp.reserved_quantity or 0)
+    if _bor - _band + _TAQDIR_EPS < _miq:
+        _izoh = f", shundan band {_miqdor_matn(_band)}" if _band > 0 else ""
+        raise ValueError(f"Bu brak taqdiri bilan \"{fp.name}\" omboriga {_miqdor_matn(_miq)} {fp.unit} qo'shilgan, hozir bo'sh "
+                         f"qoldig'i {_miqdor_matn(max(_bor - _band, 0))} {fp.unit} (qoldiq {_miqdor_matn(max(_bor, 0))}{_izoh}) — "
+                         f"mahsulot sotilgan, band qilingan yoki kamaytirilgan, shuning uchun {amal} bo'lmaydi")
+    return fp
+
+
+def _taqdir_bekor_qil(db: Session, qator, vaqt, kim, company_id, harakatlar: bool = True, qattiq: bool = True,
+                      amal: str = "taqdirni o'zgartirib") -> list:
+    """Faol taqdirni bekor qiladi (hodisa vaqtida — `bekor_vaqti`): TM dan AYNAN qo'shilgan miqdor / tannarx olinadi (yangi
+    partiya bo'sh qolsa — o'chadi), taqdir harakatlarining TESKARISI yoziladi (`harakatlar=False` — brak yozuvi butunlay
+    o'chirilayotganda: harakatlarni chaqiruvchi o'chiradi). Tekshiruv O'ZGARISHDAN OLDIN (`_taqdir_tm_tekshir`; `qattiq`, `amal` —
+    o'shanga uzatiladi)."""
+    from models import InventoryMovement as _IM
+    jurnal = []
+    fp = _taqdir_tm_tekshir(db, qator, company_id, qattiq=qattiq, amal=amal)
+    if fp is not None:
+        _miq = float(qator.tm_miqdor or 0)
+        _q = float(fp.quantity or 0) - _miq
+        if qattiq:
+            fp.quantity = 0.0 if _q < 1e-9 else _q
+            fp.cost_price = _pul2(max(float(fp.cost_price or 0) - float(qator.tm_tannarx or 0), 0.0))
+        else:
+            # kech125 (zip 147): o'sha tranzaksiyada chaqiruvchi o'sha miqdor / tannarxni o'sha partiyaga qaytaradi — oraliq qiymat
+            # 0 ga qisqartirilmaydi (qisqartirilsa qaytgandan keyin miqdor asl holidan ko'p bo'lib qolardi)
+            fp.quantity = _q
+            fp.cost_price = _pul2(float(fp.cost_price or 0) - float(qator.tm_tannarx or 0))
+        if qator.tm_yangi:
+            _p = float(fp.produced_quantity or 0) - _miq
+            fp.produced_quantity = 0.0 if _p < 1e-9 else _p
+        jurnal.append(f"TM dan olindi: {fp.name} −{_miqdor_matn(_miq)} {fp.unit}")
+        db.flush()
+        if qator.tm_yangi and _taqdir_tm_ochirilsinmi(db, fp, company_id):
+            db.delete(fp)
+            db.flush()
+            jurnal.append("bo'sh partiya o'chirildi")
+    if harakatlar:
+        hq = db.query(_IM).filter(_IM.brak_taqdir_id == qator.id)
+        if company_id is not None:
+            hq = hq.filter(_IM.company_id == company_id)
+        for h in hq.order_by(_IM.id).all():
+            jurnal.append(_taqdir_teskari(db, h, f"Brak taqdiri bekor — {h.item_name}", qator.id, company_id, kim))
+    qator.bekor_vaqti = vaqt
+    qator.bekor_qilgan = kim
+    return jurnal
+
+
+def _taqdir_qolla(db: Session, *, turi: str, yozuv, manba: str, toza: dict, company_id, kim, vaqt) -> tuple:
+    """Yangi taqdirni qo'llaydi («Tashlandi» dan boshqa). Qaytaradi (qator, jurnal). Xato — `ValueError` (chaqiruvchi
+    tranzaksiyani qaytaradi)."""
+    from models import BrakTaqdir as _BT
+    t = toza["taqdir"]
+    q_brak = float(yozuv.quantity or 0)
+    birlik = yozuv.unit
+    nom = yozuv.item_name if manba == "buyurtma" else yozuv.product_name
+    asl_qiymat = brak_yozuv_xomashyo_qiymati(db, manba, yozuv, company_id)
+    asl = _taqdir_tm_manbasi(db, manba, yozuv, company_id)
+    jurnal = []
+    qator = _BT(company_id=company_id, manba=manba, taqdir=t,
+                return_item_id=(yozuv.id if turi == "qaytarish" else None),
+                fp_loss_id=(yozuv.id if turi == "yoqotish" else None),
+                joy=toza.get("joy"), ishlatildi=toza.get("ishlatildi"), nomi=toza.get("nomi"),
+                narx=(_pul2(toza["narx"]) if toza.get("narx") is not None else None),
+                yaratilgan=vaqt, yaratgan=kim)
+    db.add(qator)
+    db.flush()
+    _order_id = yozuv.order_id if manba == "buyurtma" else None
+    _bog = {"return_item_id": (yozuv.id if turi == "qaytarish" else None),
+            "fp_loss_id": (yozuv.id if turi == "yoqotish" else None)}
+    if t == "tuzatildi":
+        # 1) tuzatish xomashyosi — brak (zarar), hodisa vaqtida
+        for m in toza.get("materiallar") or []:
+            if m.get("inventory_id") is not None:
+                inv = _taqdir_inv(db, m["inventory_id"], company_id)
+                if inv is None:
+                    raise ValueError("Tuzatish xomashyosi topilmadi")
+                if float(inv.stock_quantity or 0) + _TAQDIR_EPS < m["miqdor"]:
+                    raise ValueError(f"{inv.item_name} yetishmayapti! Kerak: {_miqdor_matn(m['miqdor'])} {inv.unit or ''}, "
+                                     f"omborda: {_miqdor_matn(float(inv.stock_quantity or 0))} {inv.unit or ''}")
+                _taqdir_harakati(db, inv=inv, inventory_id=inv.id, item_name=inv.item_name, tur="out",
+                                 miqdor=m["miqdor"], unit=inv.unit, unit_cost=float(inv.price_per_unit or 0),
+                                 sabab=f"Brak tuzatish — {nom}", order_id=_order_id, company_id=company_id,
+                                 taqdir_id=qator.id, kim=kim, **_bog)
+                jurnal.append(f"tuzatish: {inv.item_name} −{_miqdor_matn(m['miqdor'])} {inv.unit or ''}".rstrip())
+            else:
+                import services as _svc125
+                _flag = "_brak_qaytarish_id" if turi == "qaytarish" else "_brak_yoqotish_id"
+                db.info[_flag] = yozuv.id
+                db.info["_brak_taqdir_id"] = qator.id
+                try:
+                    _log = _svc125.deduct_loy_ingredients(
+                        db, _TaqdirSoxtaBuyurtma(_order_id, company_id, f"Brak tuzatish — {nom}"), m["miqdor"],
+                        use_stock=True, recipe_id=m["retsept_id"],
+                        reason_override=_jurnal_sabab(f"Brak tuzatish — {nom} (loy, {_miqdor_matn(m['miqdor'])} kg)"),
+                        company_id=company_id, commit=False)
+                finally:
+                    db.info.pop(_flag, None)
+                    db.info.pop("_brak_taqdir_id", None)
+                jurnal.append(f"tuzatish: loy {_miqdor_matn(m['miqdor'])} kg" + (f" ({'; '.join(_log)})" if _log else ""))
+        # 2) tuzatilgan detal qayerga
+        if toza.get("joy") == "joyiga":
+            if manba == "ombor":
+                fp = get_finished_product(db, yozuv.finished_product_id, company_id, lock=True) \
+                    if yozuv.finished_product_id else None
+                if fp is None:
+                    raise ValueError("Mahsulot o'chirilgan — tuzatilgan qismni unga qaytarib bo'lmaydi")
+                fp.quantity = float(fp.quantity or 0) + q_brak
+                fp.cost_price = _pul2(float(fp.cost_price or 0) + float(yozuv.cost_amount or 0))
+                qator.tm_id, qator.tm_miqdor = fp.id, q_brak
+                qator.tm_tannarx, qator.tm_yangi = _pul2(float(yozuv.cost_amount or 0)), False
+                jurnal.append(f"tuzatildi — o'sha mahsulotga qaytdi: {fp.name} +{_miqdor_matn(q_brak)} {fp.unit}")
+            else:
+                asl_h = _taqdir_asl_harakatlari(db, manba, yozuv, company_id)
+                if not asl_h:
+                    raise ValueError("Bu brak yozuvining xomashyo harakatlari yozuvga bog'lanmagan (eski yozuv) — "
+                                     "«O'sha joyiga» qaytarib bo'lmaydi; «Omborga» ni tanlang")
+                for h in asl_h:
+                    jurnal.append("qaytdi: " + _taqdir_teskari(db, h, f"Brak tuzatildi — {nom}: xomashyo qaytdi",
+                                                               qator.id, company_id, kim))
+        else:
+            narx = _taqdir_asl_narx(manba, asl)
+            fp = _taqdir_tm_yarat(db, manba=manba, yozuv=yozuv, asl=asl, taqdir=t, nomi=None, miqdor=q_brak,
+                                  birlik=birlik, tannarx=asl_qiymat, narx=narx, company_id=company_id, kim=kim)
+            qator.tm_id, qator.tm_miqdor, qator.tm_tannarx, qator.tm_yangi = fp.id, q_brak, _pul2(fp.cost_price), True
+            qator.narx = _pul2(narx)
+            jurnal.append(f"tuzatildi — omborga: {fp.name} +{_miqdor_matn(q_brak)} {fp.unit}")
+    elif t == "kesildi":
+        ulush = (asl_qiymat * float(toza["ishlatildi"]) / q_brak) if q_brak > 0 else 0.0
+        fp = _taqdir_tm_yarat(db, manba=manba, yozuv=yozuv, asl=asl, taqdir=t, nomi=toza["nomi"], miqdor=toza["miqdor"],
+                              birlik=toza["birlik"], tannarx=ulush, narx=toza.get("narx") or 0.0,
+                              eni=toza.get("eni"), qalinligi=toza.get("qalinligi"), company_id=company_id, kim=kim)
+        qator.tm_id, qator.tm_miqdor, qator.tm_tannarx, qator.tm_yangi = fp.id, float(toza["miqdor"]), _pul2(fp.cost_price), True
+        jurnal.append(f"kesildi: {fp.name} +{_miqdor_matn(toza['miqdor'])} {fp.unit} "
+                      f"(brakdan {_miqdor_matn(toza['ishlatildi'])} {birlik or ''} ishlatildi)")
+    elif t == "ikkinchi_nav":
+        fp = _taqdir_tm_yarat(db, manba=manba, yozuv=yozuv, asl=asl, taqdir=t, nomi=None, miqdor=q_brak, birlik=birlik,
+                              tannarx=asl_qiymat, narx=toza["narx"], company_id=company_id, kim=kim)
+        qator.tm_id, qator.tm_miqdor, qator.tm_tannarx, qator.tm_yangi = fp.id, q_brak, _pul2(fp.cost_price), True
+        jurnal.append(f"2-nav: {fp.name} +{_miqdor_matn(q_brak)} {fp.unit} (narx {_miqdor_matn(toza['narx'])})")
+    db.flush()
+    return qator, jurnal
+
+
+def _taqdir_almashtir(db: Session, turi: str, yozuv, tana, company_id, kim, yangi_yozuv: bool = False) -> dict:
+    """Yozuvning taqdirini o'rnatadi / o'zgartiradi (yozuv QULFLANGAN holda chaqiriladi): tana tekshiruvi → faol taqdir bekor
+    (TM tekshiruvi bilan) → yangisi qo'llanadi → jurnal (Faoliyat). Hammasi chaqiruvchining tranzaksiyasida (ichki `commit`
+    yo'q); xato — `ValueError`."""
+    from models import ActivityLog as _AL
+    manba = _taqdir_manbasi(turi, yozuv)
+    toza = brak_taqdir_tana(db, tana, manba, float(yozuv.quantity or 0), yozuv.unit, company_id)
+    faol = _taqdir_faol(db, turi, yozuv.id, company_id, lock=True)
+    eski = faol.taqdir if faol is not None else "tashlandi"
+    if toza["taqdir"] == "tashlandi" and faol is None:
+        return {"taqdir": "tashlandi", "ozgardi": False, "yorliq": BRAK_TAQDIRLARI["tashlandi"]}
+    vaqt = datetime.utcnow()
+    jurnal = []
+    if faol is not None:
+        jurnal += _taqdir_bekor_qil(db, faol, vaqt, kim, company_id)
+    qator = None
+    if toza["taqdir"] != "tashlandi":
+        qator, _j = _taqdir_qolla(db, turi=turi, yozuv=yozuv, manba=manba, toza=toza, company_id=company_id,
+                                  kim=kim, vaqt=vaqt)
+        jurnal += _j
+    _nom = yozuv.item_name if turi == "qaytarish" else yozuv.product_name
+    db.add(_AL(company_id=company_id, action="brak_taqdir",
+               entity_type=("return" if turi == "qaytarish" else "finished_product_loss"), entity_id=yozuv.id,
+               entity_label=f"Brak: {_nom}"[:200],
+               old_value=(None if yangi_yozuv else BRAK_TAQDIRLARI.get(eski, eski)),
+               new_value=(BRAK_TAQDIRLARI.get(toza["taqdir"], toza["taqdir"])
+                          + (" · " + "; ".join(jurnal) if jurnal else ""))[:4000],
+               performed_by=kim))
+    db.flush()
+    return {"taqdir": toza["taqdir"], "ozgardi": True, "yorliq": BRAK_TAQDIRLARI[toza["taqdir"]],
+            "taqdir_id": (qator.id if qator is not None else None),
+            "tm_id": (qator.tm_id if qator is not None else None), "jurnal": jurnal}
+
+
+def brak_taqdir_belgila(db: Session, turi: str, yozuv_id: int, tana, company_id: int = None,
+                        performed_by: str = None):
+    """`POST /api/returns/{id}/taqdir` va `POST /api/finished/loss/{id}/taqdir` — brak taqdirini KEYIN o'zgartirish (egasi
+    qarori (2)). Qulf: buyurtma detali braki — (101, buyurtma) (`delete_return_item` / `create_return_item` bilan bir fazo),
+    so'ng yozuv qatori `FOR UPDATE`; tayyor mahsulot braki — yozuv qatori, keyin TM. Topilmasa None (marshrut → 404);
+    xato — `ValueError` (→ 400, hech narsa o'zgarmaydi). `commit` — chaqiruvchida (`bitta_tranzaksiya`)."""
+    yozuv = _taqdir_brak_yozuvi(db, turi, yozuv_id, company_id)
+    if yozuv is None:
+        return None
+    _cid = yozuv.company_id
+    if turi == "qaytarish" and yozuv.order_id is not None:
+        db.flush()
+        _pul_qulfi(db, 101, yozuv.order_id)
+        db.expire_all()
+    yozuv = _taqdir_brak_yozuvi(db, turi, yozuv_id, _cid, lock=True)
+    if yozuv is None:
+        return None
+    return _taqdir_almashtir(db, turi, yozuv, tana, _cid, performed_by)
+
+
+def brak_taqdir_ochir(db: Session, turi: str, yozuv, company_id, kim) -> list:
+    """Brak yozuvi BUTUNLAY o'chirilayotganda (`delete_return_item`, `delete_finished_product_loss`): faol taqdir TM qismi
+    bekor qilinadi (tekshiruv bilan — sotilgan bo'lsa `ValueError`, hech narsa o'zgarmaydi), HAMMA taqdir harakatlari qoldig'i
+    qaytarilib o'chiriladi (chiqim → +, kirim → −), taqdir qatorlari o'chadi — «bo'lmagandek» (avvalgi o'chirish qoidasi).
+    Brakning o'z (asl) harakatlari — chaqiruvchida (avvalgidek)."""
+    from models import BrakTaqdir as _BT, InventoryMovement as _IM
+    jurnal = []
+    faol = _taqdir_faol(db, turi, yozuv.id, company_id, lock=True)
+    if faol is not None:
+        # kech125 (zip 147): omborda turgan mahsulot «Tuzatildi» — o'sha partiyaga qaytgan; yozuv o'chirilganda chaqiruvchi
+        # (`delete_finished_product_loss`) o'sha miqdorni o'sha partiyaga qaytaradi — bo'sh qoldiq tekshiruvi kerak emas
+        _bir_partiya = (turi == "yoqotish" and not faol.tm_yangi and faol.tm_id is not None
+                        and faol.tm_id == getattr(yozuv, "finished_product_id", None))
+        jurnal += _taqdir_bekor_qil(db, faol, datetime.utcnow(), kim, company_id, harakatlar=False,
+                                    qattiq=not _bir_partiya, amal="brak yozuvini o'chirib")
+    qq = db.query(_BT).filter(_BT.company_id == company_id)
+    qq = qq.filter(_BT.return_item_id == yozuv.id) if turi == "qaytarish" else qq.filter(_BT.fp_loss_id == yozuv.id)
+    qatorlar = qq.order_by(_BT.id).all()
+    _ids = [q.id for q in qatorlar]
+    if _ids:
+        for h in db.query(_IM).filter(_IM.brak_taqdir_id.in_(_ids), _IM.company_id == company_id).order_by(_IM.id).all():
+            inv = _taqdir_inv(db, h.inventory_id, company_id)
+            if inv is not None:
+                _q = float(inv.stock_quantity or 0)
+                inv.stock_quantity = _q + float(h.quantity or 0) if h.movement_type == "out" else _q - float(h.quantity or 0)
+            db.delete(h)
+        db.flush()
+        for q in qatorlar:
+            db.delete(q)
+        db.flush()
+        jurnal.append(f"taqdir yozuvlari o'chirildi: {len(_ids)}")
+    return jurnal
+
+
+def brak_taqdir_xaritasi(db: Session, turi: str, yozuv_ids, company_id: int = None) -> dict:
+    """Ro'yxatlar uchun: {yozuv_id: {"taqdir", "yorliq", "joy", "nomi", "ishlatildi", "narx", "tm_id", "tm_miqdor",
+    "birlik", "eni", "qalinligi", "materiallar"}} — faqat FAOL taqdiri borlar (yo'q — «Tashlandi»). Pul (tannarx) YO'Q — sahifa
+    va tahlil ruxsatsiz ham oladi. So'rovlar soni yozuvlar soniga bog'liq emas.
+
+    kech125 (zip 147 — jonli sinovda topilgan): `birlik`, `eni`, `qalinligi` — taqdir bilan Tayyor mahsulotga o'tgan partiyaning
+    birligi va o'lchami («🧩» oynasi Kesildi ni qayta ochganda shu qiymatlar tanlangan turadi; ilgari birlik brak birligiga — «m» ga
+    — tushib qolardi va shundayicha saqlansa partiya birligi o'zgarib ketardi). Partiya o'chirilgan bo'lsa — None."""
+    from models import BrakTaqdir as _BT, InventoryMovement as _IM, FinishedProduct as _FP147
+    ids = sorted({int(i) for i in (yozuv_ids or []) if i is not None})
+    if not ids:
+        return {}
+    ustun = _BT.return_item_id if turi == "qaytarish" else _BT.fp_loss_id
+    natija = {}
+    for _b in [ids[i:i + 500] for i in range(0, len(ids), 500)]:
+        q = db.query(_BT).filter(ustun.in_(_b), _BT.bekor_vaqti.is_(None))
+        if company_id is not None:
+            q = q.filter(_BT.company_id == company_id)
+        qatorlar = q.order_by(_BT.id).all()
+        _tq = [r.id for r in qatorlar]
+        materiallar = {}
+        if _tq:
+            hq = db.query(_IM).filter(_IM.brak_taqdir_id.in_(_tq), _IM.movement_type == "out")
+            if company_id is not None:
+                hq = hq.filter(_IM.company_id == company_id)
+            for h in hq.order_by(_IM.id).all():
+                materiallar.setdefault(h.brak_taqdir_id, []).append(
+                    {"nomi": h.item_name, "miqdor": round(float(h.quantity or 0), 6), "birlik": h.unit or ""})
+        _tm_ids = sorted({r.tm_id for r in qatorlar if r.tm_id is not None})
+        partiyalar = {}
+        if _tm_ids:
+            pq = db.query(_FP147).filter(_FP147.id.in_(_tm_ids))
+            if company_id is not None:
+                pq = pq.filter(_FP147.company_id == company_id)
+            partiyalar = {f.id: f for f in pq.all()}
+        for r in qatorlar:
+            _fp = partiyalar.get(r.tm_id) if r.tm_id is not None else None
+            natija[r.return_item_id if turi == "qaytarish" else r.fp_loss_id] = {
+                "taqdir": r.taqdir, "yorliq": BRAK_TAQDIRLARI.get(r.taqdir, r.taqdir), "joy": r.joy,
+                "nomi": r.nomi, "ishlatildi": r.ishlatildi,
+                "narx": float(r.narx) if r.narx is not None else None,
+                "tm_id": r.tm_id, "tm_miqdor": r.tm_miqdor,
+                "birlik": (_fp.unit if _fp is not None else None),
+                "eni": (float(_fp.width) if _fp is not None and _fp.width is not None else None),
+                "qalinligi": (float(_fp.thickness) if _fp is not None and _fp.thickness is not None else None),
+                "materiallar": materiallar.get(r.id, []),
+            }
+    return natija
+
+
+def brak_tuzatish_materiallari(db: Session, company_id: int) -> dict:
+    """«Tuzatildi» oynasidagi tanlov: loy retseptlari (kg — tayyor loy zaxirasidan, yetmasa xomashyodan) va materiallar
+    (o'chirilmagan; tayyor loy pozitsiyasi — retsept orqali). Narx berilmaydi (tannarx ruxsatidan mustaqil)."""
+    from models import Inventory as _Inv, Recipe as _Rc
+    import services as _svc125
+    inv = db.query(_Inv).filter(_Inv.company_id == company_id, _Inv.is_deleted.isnot(True),
+                                ~_Inv.item_name.like(_svc125.TAYYOR_LOY_PREFIKS + '%')).order_by(_Inv.item_name, _Inv.id).all()
+    ret = db.query(_Rc).filter(_Rc.company_id == company_id).order_by(_Rc.id).all()
+    return {
+        "retseptlar": [{"id": r.id, "nomi": _retsept_nomi53(r) or f"Retsept #{r.id}"} for r in ret],
+        "materiallar": [{"id": i.id, "nomi": i.item_name, "birlik": i.unit or ""} for i in inv],
     }
 
 
-
-def get_supplier_purchased_items(db: Session, supplier_id: int) -> List[dict]:
+def get_supplier_purchased_items(db: Session, supplier_id: int,
+                                 company_id: int = None) -> List[dict]:
     """Shu yetkazib beruvchidan ILGARI xarid qilingan materiallar ro'yxati
     (takrorlanmas) — Kirim sahifasida qulaylik uchun, tanlov ro'yxatini
     shu yetkazib beruvchiga xos materiallar bilan cheklash uchun."""
     from models import Inventory
-    rows = db.query(InventoryPurchase.inventory_id).filter(
+    # 2026-09-18 — TENANT (M7 validatsiyasida B sessiyasidan topilgan
+    # HAQIQIY sizish): `company_id` parametri qabul qilinardi, lekin
+    # so'rovda UMUMAN ishlatilmasdi. Natijada B korxona admini A ning
+    # ta'minotchi ID sini yuborib, A ning material nomlarini o'qiy olardi
+    # (supplier 1 → 11 ta, supplier 2 → 3 ta material).
+    #
+    # Endi UCH qatlamda cheklanadi:
+    #   1) ta'minotchining o'zi shu korxonaniki bo'lishi shart,
+    #   2) xaridlar ham shu korxona materiallariga tegishli bo'lishi shart,
+    #   3) qaytariladigan materiallar ham shu korxonadan.
+    if company_id is not None:
+        if not db.query(Supplier).filter(
+                Supplier.id == supplier_id, Supplier.company_id == company_id).first():
+            return []
+
+    _pq = db.query(InventoryPurchase.inventory_id).filter(
         InventoryPurchase.supplier_id == supplier_id
-    ).distinct().all()
-    item_ids = [r[0] for r in rows]
+    )
+    if company_id is not None:
+        _pq = _pq.join(Inventory, Inventory.id == InventoryPurchase.inventory_id).filter(
+            Inventory.company_id == company_id)
+    item_ids = [r[0] for r in _pq.distinct().all()]
     if not item_ids:
         return []
-    items = db.query(Inventory).filter(Inventory.id.in_(item_ids)).all()
+    _iq = db.query(Inventory).filter(Inventory.id.in_(item_ids))
+    if company_id is not None:
+        _iq = _iq.filter(Inventory.company_id == company_id)
+    items = _iq.all()
     return [{"id": i.id, "item_name": i.item_name, "unit": i.unit, "category": i.category} for i in items]
 
 
 def get_supplier_history(db: Session, supplier_id: int, start_date=None, end_date=None,
-                          page: int = 1, page_size: int = 20) -> dict:
+                          page: int = 1, page_size: int = 20, company_id: int = None) -> dict:
     """Yetkazib beruvchining xaridlar va to'lovlar tarixi.
     start_date/end_date berilsa — faqat shu oraliqdagi xaridlar qaytariladi
     (to'lovlar va umumiy qarz har doim to'liq hisoblanadi).
     page/page_size — XARIDLAR ro'yxati SAHIFALANGAN holda qaytariladi
     (tarix uzoq bo'lib ketsa ham, har doim tez yuklanishi uchun)."""
+    # M6 — TENANT: ta'minotchi boshqa korxonaniki bo'lsa — bo'sh tarix.
+    if company_id is not None:
+        if not db.query(Supplier).filter(
+                Supplier.id == supplier_id, Supplier.company_id == company_id).first():
+            return {"total_credit": 0, "total_paid": 0, "debt": 0, "purchase_count": 0,
+                    "purchases": [], "payments": [],
+                    "pagination": {"page": 1, "page_size": page_size,
+                                   "total_count": 0, "total_pages": 1}}
+
     q = db.query(InventoryPurchase).filter(InventoryPurchase.supplier_id == supplier_id)
     if start_date:
         q = q.filter(InventoryPurchase.purchased_at >= start_date)
@@ -7579,7 +16237,38 @@ def get_supplier_history(db: Session, supplier_id: int, start_date=None, end_dat
         SupplierPayment.supplier_id == supplier_id
     ).order_by(SupplierPayment.paid_at.desc()).all()
 
-    debt_info = get_supplier_debt(db, supplier_id)
+    debt_info = get_supplier_debt(db, supplier_id, company_id=company_id)
+
+    # kech120 (zip 132 — F bosqichi 2-qism, audit G4-16): har kirim qatori «Nasiya» deb ko'rinardi (`is_credit` — ta'minotchili HAR
+    # qatorga True), hujjat bilan to'langan bo'lsa ham. Endi kirim HUJJATI (`receipt_id`) bo'yicha: hujjat jami va hujjat bilan
+    # qilingan to'lov («Kirim to'lovi — #N») — `kirimda_tolangan` (to'liq / qisman / yo'q). Keyinroq umumiy «qarzni to'lash» bilan
+    # yopilgan qarz bu yerda ko'rinmaydi (u ta'minotchi qarzida — `debt`); hujjatsiz eski xarid — avvalgidek `is_credit`.
+    import re as _re132
+    from sqlalchemy import func as _f132
+    _rids = sorted({p.receipt_id for p in purchases if p.receipt_id})
+    _hujjat = {}
+    if _rids:
+        # TENANT: hujjat jami — FAQAT shu korxona materiallari (ota orqali; `tenant_lint`)
+        _jq132 = db.query(InventoryPurchase.receipt_id, _f132.sum(InventoryPurchase.total_amount)).join(
+            Inventory, Inventory.id == InventoryPurchase.inventory_id).filter(
+            InventoryPurchase.receipt_id.in_(_rids), InventoryPurchase.supplier_id == supplier_id)
+        if company_id is not None:
+            _jq132 = _jq132.filter(Inventory.company_id == company_id)
+        for _rid, _jami in _jq132.group_by(InventoryPurchase.receipt_id).all():
+            _hujjat[_rid] = {"jami": float(_jami or 0), "tolangan": 0.0}
+        _tn132 = _re132.compile(r"^Kirim to'lovi — #(\d+)(?!\d)")
+        for pay in payments:
+            _m = _tn132.match(pay.notes or "")
+            if _m and int(_m.group(1)) in _hujjat:
+                _hujjat[int(_m.group(1))]["tolangan"] += float(pay.amount or 0)
+
+    def _kirim_holati(p):
+        h = _hujjat.get(p.receipt_id) if p.receipt_id else None
+        if not h:
+            return None
+        if h["tolangan"] >= h["jami"] - 0.5:
+            return "tolangan"
+        return "qisman" if h["tolangan"] > 0.5 else "nasiya"
 
     return {
         **debt_info,
@@ -7591,6 +16280,8 @@ def get_supplier_history(db: Session, supplier_id: int, start_date=None, end_dat
             "price_per_unit": float(p.price_per_unit),
             "total_amount": float(p.total_amount),
             "is_credit": p.is_credit,
+            "receipt_id": p.receipt_id,
+            "kirimda_tolangan": _kirim_holati(p),
             "category": p.category or "Boshqa",
             "purchased_at": p.purchased_at.isoformat() if p.purchased_at else None,
             "purchased_by": p.purchased_by,
@@ -7612,10 +16303,416 @@ def get_supplier_history(db: Session, supplier_id: int, start_date=None, end_dat
     }
 
 
-def delete_supplier_payment(db: Session, payment_id: int) -> bool:
-    p = db.query(SupplierPayment).filter(SupplierPayment.id == payment_id).first()
+def delete_supplier_payment(db: Session, payment_id: int, company_id: int = None) -> bool:
+    _q = db.query(SupplierPayment).filter(SupplierPayment.id == payment_id)
+    if company_id is not None:      # M6: ota (ta'minotchi) orqali
+        _q = _q.join(Supplier, Supplier.id == SupplierPayment.supplier_id).filter(
+            Supplier.company_id == company_id)
+    p = _q.first()
     if not p:
         return False
     db.delete(p)
     db.commit()
     return True
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# TEZ HISOB / TAKLIF (kech126, zip 148 — EGASI QARORLARI 07.10 10:5x, QAYTA SO'RALMAYDI). Dizayn — `models.Taklif` izohida.
+#
+# Egasining muammosi: mijoz keladi, tezda hisoblab hujjat berish kerak — hozir avval loyiha, keyin buyurtma ochish shart.
+# Qarorlar: (1) taklif SAQLANADI («Takliflar» ro'yxati — mijoz ismi / telefoni bilan), mijoz «olaman» desa bitta tugma bilan
+# loyiha va buyurtma ochiladi, qayta yozilmaydi; (2) hujjat — «Buyurtma hisobi» ko'rinishida, sarlavha «TAKLIF (HISOB-KITOB)»,
+# pastida «Narxlar 3 kun amal qiladi»; (3) ombor TEGILMAYDI — faqat «omborda yetmaydi» ogohlantirishi; (4) taklifni «Buyurtmalar:
+# Yaratish» ruxsati borlar yozadi (alohida ruxsat yo'q). Egasi savoliga javob (11:12): taklif HECH QACHON avtomatik
+# o'chirilmaydi — muddat o'tgach faqat «muddati o'tgan» belgisi; bekor qilish — faqat qo'lda.
+#
+# Texnik qarorlar (Claude, O'LCHANGAN dev156):
+#   * Hisob — buyurtma bilan BIR qoida: detal narxi / jami `_buyurtma_narx_jami`, buyurtma jami `_pul_yigindi`, kelishilgan
+#     `_pul2(agreed_amount or jami)` (`create_order` dagi qatorlar AYNAN; `create_order` ning o'zi o'zgartirilmadi —
+#     `tools/test_buyurtma_narx_jami.py` uning matnini tekshiradi). Narxning o'zi (m³ narxi × hajm, qoplama) — brauzerda,
+#     buyurtma formasining O'ZI (taklif — o'sha forma «taklif» rejimida).
+#   * Tekshiruvlar — `POST /api/orders` dagi kabi (loy, bo'sh detal turi, sig'im, qoplama retsepti) + havolalar (usta,
+#     retsept, material, tayyor mahsulot, mahsulot turi) SHU korxonadan: taklifda ORM yozuv (detal) yaratilmaydi, demak
+#     `models._tenant_guard` ishlamaydi — tekshiruv shu yerda.
+#   * PDF — saqlanmaydi, har safar tanadan qayta yasaladi (`pdf_service.generate_taklif`; «Sana» — taklif sanasi): PDF baytlari
+#     bazada bo'lsa JSON zaxira (`export_full_backup`) baytni yoza olmasdi, base64 esa har kunlik Telegram zaxirasini
+#     o'nlab KB ga kattalashtirardi.
+#   * Muddat — oxirgi saqlash (yaratish / tahrir) kunidan + 3 kun (Toshkent sanasi); tahrirlangan taklif PDF i yangi sana bilan.
+#   * Rasmiylashtirish — `main.api_taklif_rasmiylashtir`: `main.api_create_order` ning O'ZI (bir tranzaksiyada, yangi loyiha
+#     bilan) — buyurtma yaratish qoidalari ikki joyda yozilmaydi.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+TAKLIF_MUDDAT_KUN = 3
+TAKLIF_HOLATLARI = {"yangi": "Yangi", "rasmiylashtirildi": "Rasmiylashtirildi", "bekor": "Bekor qilingan"}
+# Ro'yxat filtri: «faol» — yangi va muddati o'tmagan; «muddati_otgan» — yangi, muddati o'tgan (rasmiylashtirish mumkin)
+TAKLIF_FILTRLARI = ("hammasi", "faol", "muddati_otgan", "rasmiylashtirildi", "bekor")
+TAKLIF_SAHIFA_HAJMI = 50
+TAKLIF_QULF_NS = 148          # `_pul_qulfi` nomlar fazosi — korxona bo'yicha taklif raqami (boshqa fazolar: 101, 102, 107, 186)
+
+
+class TaklifHolatXatosi(ValueError):
+    """Taklif holati amalga to'g'ri kelmaydi (rasmiylashtirilgan / bekor qilingan taklifni tahrirlash, qayta bekor qilish,
+    ikki marta rasmiylashtirish) — marshrut 409 beradi, HECH NARSA o'zgarmaydi."""
+
+
+def taklif_raqami(seq) -> str:
+    """Korxona bo'yicha tartib raqamidan ko'rinadigan raqam: 1 → «T-0001»."""
+    return f"T-{int(seq):04d}"
+
+
+def taklif_hisobi(buyurtma) -> dict:
+    """Taklif summasi — `create_order` bilan AYNAN bir qoida (detal: narx 2 xonaga HALF_UP, jami SHU narxdan —
+    `_buyurtma_narx_jami`; buyurtma jami — `_pul_yigindi`; kelishilgan — `_pul2(agreed_amount or jami)`; chegirma foizi —
+    kelishilgan jamidan kam bo'lsa). Brauzer (`orders.html` `buyurtmaJami`) ham shu qoida bilan ko'rsatadi.
+    `buyurtma` — `schemas.TaklifBuyurtma` (yoki shunday atributli obyekt). Faqat hisoblaydi."""
+    detallar, _jamilar = [], []
+    for it in (getattr(buyurtma, "items", None) or []):
+        _narx, _jami = _buyurtma_narx_jami(it.quantity, it.unit_price)
+        detallar.append({"unit_price": _narx, "total_price": _jami})
+        _jamilar.append(_jami)
+    jami = _pul_yigindi(_jamilar)
+    kelishilgan = _pul2(getattr(buyurtma, "agreed_amount", None) or jami)
+    chegirma_foiz = round((jami - kelishilgan) / jami * 100, 2) if (jami > 0 and kelishilgan < jami) else 0.0
+    return {"detallar": detallar, "jami": jami, "kelishilgan": kelishilgan, "chegirma_foiz": chegirma_foiz}
+
+
+def _taklif_mijoz_toza(mijoz, telefon) -> tuple:
+    """Mijoz ismi / telefoni — loyiha yaratish (`_clean_create("Project")`) bilan BIR qoida (rasmiylashtirishda yangi loyiha
+    shulardan ochiladi — u yerda rad etilmasin). Bo'sh joylar olib tashlanadi; bo'sh telefon — None."""
+    _m = (mijoz or "").strip() if isinstance(mijoz, str) else mijoz
+    _t = (telefon or "").strip() if isinstance(telefon, str) else telefon
+    _t = _t or None
+    _toza = _clean_create("Project", {"project_name": _m, "client_name": _m, "client_phone": _t})
+    return _toza["client_name"].strip(), (_toza.get("client_phone") or None)
+
+
+def _taklif_havolalar_tekshir(db: Session, company_id: int, buyurtma) -> None:
+    """Taklif tanasidagi havolalar SHU korxonaniki ekanini tekshiradi (ValueError — 400). Buyurtmada bu ishni ORM qo'riqchisi
+    (`models._tenant_guard`, `_TENANT_REFS`) qiladi — taklifda detal yozuvi yaratilmaydi."""
+    from models import Recipe as _Rc, Inventory as _Inv, FinishedProduct as _Fp, Master as _Ms
+    from production_models import ProductType as _Pt
+
+    def _bor(model, qiymat):
+        try:
+            _id = int(qiymat)
+        except (TypeError, ValueError):
+            return False
+        return db.query(model.id).filter(model.id == _id, model.company_id == company_id).first() is not None
+
+    if buyurtma.master_id and not _bor(_Ms, buyurtma.master_id):
+        raise ValueError("Tanlangan usta topilmadi (o'chirilgan bo'lishi mumkin) — «Usta» maydonini qayta tanlang")
+    if buyurtma.recipe_id and not _bor(_Rc, buyurtma.recipe_id):
+        raise ValueError("Tanlangan retsept topilmadi (o'chirilgan bo'lishi mumkin) — «Retsept» maydonini qayta tanlang")
+    if getattr(buyurtma, "gips_inventory_id", None) and not _bor(_Inv, buyurtma.gips_inventory_id):
+        raise ValueError("Tanlangan gips xomashyosi topilmadi")
+    for _q in (getattr(buyurtma, "gips_additives", None) or []):
+        if not _bor(_Inv, _q.inventory_id):
+            raise ValueError("Gips qo'shimchasi xomashyosi topilmadi")
+    for n, it in enumerate(buyurtma.items or [], start=1):
+        _nom = str(getattr(it, "name", "") or "")[:60]
+        if it.penoplast_id and not _bor(_Inv, it.penoplast_id):
+            raise ValueError(f"{n}-detal («{_nom}»): tanlangan penoplast (plotnost) topilmadi — qayta tanlang")
+        if it.recipe_id and not _bor(_Rc, it.recipe_id):
+            raise ValueError(f"{n}-detal («{_nom}»): tanlangan retsept topilmadi — qayta tanlang")
+        if it.finished_product_id and not _bor(_Fp, it.finished_product_id):
+            raise ValueError(f"{n}-detal («{_nom}»): tanlangan tayyor mahsulot topilmadi — qayta tanlang")
+        if it.product_type_id and not _bor(_Pt, it.product_type_id):
+            raise ValueError(f"{n}-detal («{_nom}»): tanlangan mahsulot turi topilmadi — qayta tanlang")
+
+
+def taklif_tana_tekshir(db: Session, company_id: int, buyurtma) -> None:
+    """Taklif tanasi — `POST /api/orders` dagi tekshiruvlar (shu tartibda: loy miqdori, bo'sh detal turi, sig'im, qoplama
+    retsepti) va havolalar. Qoida buzilsa — ValueError (marshrut → 400), HECH NARSA yozilmaydi. Kamida bitta detal SHART
+    (bo'sh taklif ma'nosiz; buyurtma formasi ham bo'sh saqlamaydi)."""
+    _json_loy("loy_kg", getattr(buyurtma, "loy_kg", None))
+    _detal_turi_tekshir(buyurtma.items)
+    _buyurtma_sigim_tekshir(buyurtma.items)
+    if not (buyurtma.items or []):
+        raise ValueError("Kamida bitta detal kiriting (nomi bilan). Hech narsa saqlanmadi")
+    qoplama_retsepti_tekshir(db, company_id, buyurtma.loy_kg, buyurtma.items, buyurtma_retsept_id=buyurtma.recipe_id)
+    _taklif_havolalar_tekshir(db, company_id, buyurtma)
+
+
+def taklif_ogohlantirishlari(db: Session, company_id: int, buyurtma) -> list:
+    """Egasi qarori (3): taklif omborga TEGMAYDI — faqat «omborda yetmaydi» ogohlantirishi. Ro'yxat `POST /api/orders` dagi
+    yetishmovchilik tekshiruvi bilan AYNAN (penoplast, tayyor mahsulot, qoplama loyi). Loy tekshiruvi yo'q «Tayyor loy»
+    pozitsiyasini yaratishi mumkin (`get_or_create_loy_stock`) — shuning uchun `commit=False` va tekshiruvdan keyin
+    `rollback`: taklif yozilishidan OLDIN chaqiriladi, bazada hech narsa qolmaydi."""
+    import services as _sv126
+    try:
+        _p = _sv126.check_inventory_for_order(db, buyurtma, company_id=company_id)
+        _f = check_finished_for_order(db, buyurtma.items, company_id=company_id)
+        _l = _sv126.check_loy_ingredients_for_order(db, buyurtma.recipe_id, float(buyurtma.loy_kg or 0),
+                                                    company_id=company_id, commit=False)
+        return list(_p.get("shortages", [])) + list(_f.get("shortages", [])) + list(_l.get("shortages", []))
+    finally:
+        db.rollback()
+
+
+def _taklif_tana_json(buyurtma) -> str:
+    """Saqlanadigan buyurtma tanasi (JSON): `project_id` va `is_draft` siz — ular rasmiylashtirishda tanlanadi."""
+    import json as _js126
+    _d = buyurtma.model_dump(mode="json", exclude={"project_id", "is_draft"})
+    return _js126.dumps(_d, ensure_ascii=False)
+
+
+def taklif_tanasi(t) -> dict:
+    """Saqlangan buyurtma tanasi (dict); buzilgan JSON — bo'sh tana (sahifa yiqilmaydi)."""
+    import json as _js126t
+    try:
+        _d = _js126t.loads(t.tana or "{}")
+        return _d if isinstance(_d, dict) else {}
+    except (TypeError, ValueError):
+        return {}
+
+
+def _taklif_muddati(vaqt=None):
+    """Amal qilish muddati — Toshkent sanasi + `TAKLIF_MUDDAT_KUN` (oxirgi kun ichida — amalda)."""
+    from datetime import timedelta as _td126
+    return _tashkent_date(vaqt) + _td126(days=TAKLIF_MUDDAT_KUN)
+
+
+def taklif_ol(db: Session, company_id: int, taklif_id: int, lock: bool = False):
+    """Taklif FAQAT shu korxonadan (yo'q / begona — None). `lock` — PG da qator qulfi (holat o'zgartiradigan amallar)."""
+    from models import Taklif as _Tk
+    try:
+        _id = int(taklif_id)
+    except (TypeError, ValueError):
+        return None
+    q = db.query(_Tk).filter(_Tk.id == _id, _Tk.company_id == company_id)
+    if lock:
+        # `populate_existing` — SHART: shu so'rovda taklif avval (qulfsiz) o'qilgan bo'lsa, sessiya xaritasidagi ESKI holat
+        # qaytardi (O'LCHANGAN, PG parallel — tools/test_taklif.py P2: bitta taklif bir vaqtda IKKI marta rasmiylashtirilib, ikki
+        # buyurtma va ikki loyiha ochilgan); endi qulf kutilgach bazadagi YANGI holat o'qiladi
+        q = q.with_for_update().populate_existing()
+    return q.first()
+
+
+def _taklif_yorligi(t) -> str:
+    return f"Taklif {t.raqam} · {t.mijoz}"[:200]
+
+
+def _taklif_jami_matni(jami, kelishilgan) -> str:
+    _j = f"{float(jami or 0):,.0f}".replace(",", " ")
+    _k = f"{float(kelishilgan or 0):,.0f}".replace(",", " ")
+    return f"Jami: {_j} so'm" + (f", kelishilgan: {_k} so'm" if abs(float(jami or 0) - float(kelishilgan or 0)) > 0.005 else "")
+
+
+def taklif_yarat(db: Session, company_id: int, data, performed_by: str = None) -> tuple:
+    """Yangi taklif (egasi qarorlari 1–4). Qaytaradi: (taklif, ogohlantirishlar). ValueError — 400 (hech narsa yozilmaydi).
+    Ombor, loyiha, buyurtma, buyurtma / loyiha raqamlari, Moliya — TEGILMAYDI; Telegram yuborilmaydi. Raqam — korxona qulfi
+    (PG `_pul_qulfi(148, korxona)`) ostida eng katta + 1 (taklif o'chirilmaydi — raqam qayta berilmaydi)."""
+    from models import Taklif as _Tk
+    from sqlalchemy import func as _f126
+    mijoz, telefon = _taklif_mijoz_toza(data.mijoz, data.telefon)
+    buyurtma = data.buyurtma
+    taklif_tana_tekshir(db, company_id, buyurtma)
+    ogohlantirishlar = taklif_ogohlantirishlari(db, company_id, buyurtma)
+    hisob = taklif_hisobi(buyurtma)
+    _pul_qulfi(db, TAKLIF_QULF_NS, company_id)
+    _eng = db.query(_f126.max(_Tk.seq)).filter(_Tk.company_id == company_id).scalar()
+    seq = int(_eng or 0) + 1
+    _hozir = datetime.utcnow()
+    t = _Tk(company_id=company_id, seq=seq, raqam=taklif_raqami(seq), mijoz=mijoz, telefon=telefon,
+            tana=_taklif_tana_json(buyurtma), jami=hisob["jami"], kelishilgan=hisob["kelishilgan"], holat="yangi",
+            amal_muddati=_taklif_muddati(_hozir), yaratilgan=_hozir, yaratgan=performed_by)
+    db.add(t)
+    db.flush()
+    log_activity(db, "created", "taklif", t.id, _taklif_yorligi(t), performed_by,
+                 new_value=f"{_taklif_jami_matni(t.jami, t.kelishilgan)}, {len(buyurtma.items or [])} ta detal",
+                 company_id=company_id, commit=False)
+    db.commit()
+    db.refresh(t)
+    return t, ogohlantirishlar
+
+
+def taklif_tahrirla(db: Session, company_id: int, taklif_id: int, data, performed_by: str = None):
+    """Taklifni tahrirlash — FAQAT «yangi» (muddati o'tgan ham) holatda; rasmiylashtirilgan / bekor — `TaklifHolatXatosi`.
+    Tana, mijoz, summa qayta yoziladi; muddat — shu kundan yana 3 kun (yangi PDF yangi sana bilan). Qaytaradi:
+    (taklif, ogohlantirishlar) yoki None (topilmadi)."""
+    if taklif_ol(db, company_id, taklif_id) is None:
+        return None
+    mijoz, telefon = _taklif_mijoz_toza(data.mijoz, data.telefon)
+    buyurtma = data.buyurtma
+    taklif_tana_tekshir(db, company_id, buyurtma)
+    ogohlantirishlar = taklif_ogohlantirishlari(db, company_id, buyurtma)
+    hisob = taklif_hisobi(buyurtma)
+    t = taklif_ol(db, company_id, taklif_id, lock=True)
+    if t is None:
+        db.rollback()
+        return None
+    if t.holat != "yangi":
+        db.rollback()
+        raise TaklifHolatXatosi(f"Taklif {t.raqam} {TAKLIF_HOLATLARI.get(t.holat, t.holat).lower()} — uni tahrirlab bo'lmaydi")
+    _eski = _taklif_jami_matni(t.jami, t.kelishilgan)
+    _hozir = datetime.utcnow()
+    t.mijoz, t.telefon = mijoz, telefon
+    t.tana = _taklif_tana_json(buyurtma)
+    t.jami, t.kelishilgan = hisob["jami"], hisob["kelishilgan"]
+    t.amal_muddati = _taklif_muddati(_hozir)
+    t.tahrirlangan, t.tahrirlagan = _hozir, performed_by
+    log_activity(db, "updated", "taklif", t.id, _taklif_yorligi(t), performed_by, old_value=_eski,
+                 new_value=f"{_taklif_jami_matni(t.jami, t.kelishilgan)}, {len(buyurtma.items or [])} ta detal",
+                 company_id=company_id, commit=False)
+    db.commit()
+    db.refresh(t)
+    return t, ogohlantirishlar
+
+
+def taklif_bekor(db: Session, company_id: int, taklif_id: int, performed_by: str = None):
+    """Taklifni bekor qilish (faqat qo'lda, faqat «yangi»). Taklif o'chirilmaydi — ro'yxatda «Bekor qilingan» bo'lib qoladi.
+    Qaytaradi: taklif yoki None (topilmadi); holat mos emas — `TaklifHolatXatosi`."""
+    t = taklif_ol(db, company_id, taklif_id, lock=True)
+    if t is None:
+        db.rollback()
+        return None
+    if t.holat != "yangi":
+        db.rollback()
+        raise TaklifHolatXatosi(f"Taklif {t.raqam} allaqachon {TAKLIF_HOLATLARI.get(t.holat, t.holat).lower()}")
+    t.holat = "bekor"
+    t.bekor_vaqti, t.bekor_qilgan = datetime.utcnow(), performed_by
+    log_activity(db, "cancelled", "taklif", t.id, _taklif_yorligi(t), performed_by,
+                 old_value=_taklif_jami_matni(t.jami, t.kelishilgan), company_id=company_id, commit=False)
+    db.commit()
+    db.refresh(t)
+    return t
+
+
+def taklif_rasmiylashtirildi(db: Session, t, order, performed_by: str = None, loyiha=None) -> None:
+    """Rasmiylashtirish natijasini taklifga yozadi (chaqiruvchining tranzaksiyasida — `commit` YO'Q): holat, buyurtma,
+    kim / qachon; Faoliyat jurnali — «rasmiylashtirildi» (qaysi buyurtma va loyiha)."""
+    t.holat = "rasmiylashtirildi"
+    t.order_id = order.id
+    t.order_raqam = order.order_number
+    t.rasmiylashtirilgan, t.rasmiylashtirgan = datetime.utcnow(), performed_by
+    _lo = f" ({loyiha.project_number} — {loyiha.project_name})" if loyiha is not None else ""
+    log_activity(db, "rasmiylashtirildi", "taklif", t.id, _taklif_yorligi(t), performed_by,
+                 new_value=f"Buyurtma {order.order_number} ochildi{_lo}", company_id=t.company_id, commit=False)
+
+
+def taklif_buyurtmasini_uz(db: Session, order_id: int, company_id) -> None:
+    """Buyurtma BUTUNLAY o'chirilganda — undan rasmiylashtirilgan taklif bog'lami uziladi (PG da FK ham SET NULL; SQLite FK ni
+    tekshirmaydi — shu yerda aniq). `order_raqam` qoladi: ro'yxatda «ORD-… (o'chirilgan)». Commit YO'Q."""
+    from models import Taklif as _Tk
+    q = db.query(_Tk).filter(_Tk.order_id == order_id)
+    if company_id is not None:
+        q = q.filter(_Tk.company_id == company_id)
+    q.update({"order_id": None}, synchronize_session=False)
+
+
+def taklif_korinish(t, bugun=None, buyurtma_bor: bool = None) -> dict:
+    """Ro'yxat / API ko'rinishi. Vaqtlar — bazadagi UTC (brauzer `tkSana` / `tkSanaVaqt` bilan Toshkentda ko'rsatadi);
+    `amal_muddati` — Toshkent kalendar sanasi. `muddati_otgan` — «yangi» va bugun (Toshkent) muddatdan keyin."""
+    _b = bugun or _tashkent_date()
+    _tana = taklif_tanasi(t)
+    _det = _tana.get("items") or []
+    return {
+        "id": t.id, "raqam": t.raqam, "seq": t.seq, "mijoz": t.mijoz, "telefon": t.telefon,
+        "jami": float(t.jami or 0), "kelishilgan": float(t.kelishilgan or 0),
+        "holat": t.holat, "holat_nomi": TAKLIF_HOLATLARI.get(t.holat, t.holat),
+        "amal_muddati": t.amal_muddati.isoformat() if t.amal_muddati else None,
+        "muddati_otgan": bool(t.holat == "yangi" and t.amal_muddati is not None and t.amal_muddati < _b),
+        "yaratilgan": t.yaratilgan.isoformat() if t.yaratilgan else None, "yaratgan": t.yaratgan,
+        "tahrirlangan": t.tahrirlangan.isoformat() if t.tahrirlangan else None, "tahrirlagan": t.tahrirlagan,
+        "rasmiylashtirilgan": t.rasmiylashtirilgan.isoformat() if t.rasmiylashtirilgan else None,
+        "rasmiylashtirgan": t.rasmiylashtirgan,
+        "bekor_vaqti": t.bekor_vaqti.isoformat() if t.bekor_vaqti else None, "bekor_qilgan": t.bekor_qilgan,
+        "order_id": t.order_id, "order_raqam": t.order_raqam,
+        "buyurtma_bor": (bool(t.order_id) if buyurtma_bor is None else bool(buyurtma_bor)),
+        "detallar_soni": len(_det),
+        "detallar": [str(d.get("name") or "")[:80] for d in _det[:4] if isinstance(d, dict)],
+        "izoh": _tana.get("notes"),
+    }
+
+
+def takliflar_royxati(db: Session, company_id: int, qidiruv: str = None, filtr: str = None, sahifa: int = 1,
+                      hajm: int = TAKLIF_SAHIFA_HAJMI) -> dict:
+    """«📝 Takliflar» ro'yxati: eng yangisi tepada; qidiruv — mijoz ismi, telefon (bo'shliqlarsiz ham), raqam («T-0007», «7»);
+    filtr — `TAKLIF_FILTRLARI`. Har filtr soni (tugmalar uchun) — shu qidiruv bilan. Rasmiylashtirilgan taklif buyurtmasi
+    hali bormi (o'chirilmagan) — BITTA so'rov bilan."""
+    from models import Taklif as _Tk, Order as _Ord
+    from sqlalchemy import or_ as _or126, func as _f126r, case as _case126
+    _bugun = _tashkent_date()
+    q = db.query(_Tk).filter(_Tk.company_id == company_id)
+    _s = (qidiruv or "").strip()[:100]
+    if _s:
+        _naq = f"%{_s.lower()}%"
+        _raqam = "".join(ch for ch in _s if ch.isdigit())
+        _shartlar = [_f126r.lower(_Tk.mijoz).like(_naq), _f126r.lower(_Tk.raqam).like(_naq),
+                     _f126r.lower(_Tk.telefon).like(_naq)]
+        if _raqam:
+            _shartlar.append(_f126r.replace(_f126r.replace(_Tk.telefon, " ", ""), "-", "").like(f"%{_raqam}%"))
+            if len(_raqam) <= 9:
+                _shartlar.append(_Tk.seq == int(_raqam))
+        q = q.filter(_or126(*_shartlar))
+    _sonlar_q = q.with_entities(
+        _f126r.count(_Tk.id),
+        _f126r.sum(_case126(((_Tk.holat == "yangi") & (_Tk.amal_muddati >= _bugun), 1), else_=0)),
+        _f126r.sum(_case126(((_Tk.holat == "yangi") & (_Tk.amal_muddati < _bugun), 1), else_=0)),
+        _f126r.sum(_case126((_Tk.holat == "rasmiylashtirildi", 1), else_=0)),
+        _f126r.sum(_case126((_Tk.holat == "bekor", 1), else_=0)),
+    ).order_by(None)
+    _r = _sonlar_q.one()
+    sonlar = {"hammasi": int(_r[0] or 0), "faol": int(_r[1] or 0), "muddati_otgan": int(_r[2] or 0),
+              "rasmiylashtirildi": int(_r[3] or 0), "bekor": int(_r[4] or 0)}
+    _fl = filtr if filtr in TAKLIF_FILTRLARI else "hammasi"
+    if _fl == "faol":
+        q = q.filter(_Tk.holat == "yangi", _Tk.amal_muddati >= _bugun)
+    elif _fl == "muddati_otgan":
+        q = q.filter(_Tk.holat == "yangi", _Tk.amal_muddati < _bugun)
+    elif _fl in ("rasmiylashtirildi", "bekor"):
+        q = q.filter(_Tk.holat == _fl)
+    try:
+        _hajm = max(1, min(int(hajm), 200))
+    except (TypeError, ValueError):
+        _hajm = TAKLIF_SAHIFA_HAJMI
+    _jami = sonlar[_fl]
+    _sahifalar = max(1, (_jami + _hajm - 1) // _hajm)
+    try:
+        _sahifa = max(1, min(int(sahifa or 1), _sahifalar))
+    except (TypeError, ValueError):
+        _sahifa = 1
+    royxat = q.order_by(_Tk.yaratilgan.desc(), _Tk.id.desc()).offset((_sahifa - 1) * _hajm).limit(_hajm).all()
+    _oid = [t.order_id for t in royxat if t.order_id]
+    _bor = set()
+    if _oid:
+        _bor = {i for (i,) in db.query(_Ord.id).filter(_Ord.id.in_(_oid), _Ord.company_id == company_id,
+                                                         _Ord.is_deleted.isnot(True)).all()}
+    return {"takliflar": [taklif_korinish(t, _bugun, buyurtma_bor=(t.order_id in _bor)) for t in royxat],
+            "sonlar": sonlar, "filtr": _fl, "qidiruv": _s, "sahifa": _sahifa, "sahifalar": _sahifalar, "jami": _jami}
+
+
+def taklif_faol_soni(db: Session, company_id: int) -> int:
+    """«📝 Takliflar» tugmasidagi son — rasmiylashtirilmagan (yangi) takliflar, muddati o'tganlar ham."""
+    from models import Taklif as _Tk
+    from sqlalchemy import func as _f126s
+    return int(db.query(_f126s.count(_Tk.id)).filter(_Tk.company_id == company_id, _Tk.holat == "yangi").scalar() or 0)
+
+
+def taklif_buyurtma_shakli(t) -> dict:
+    """Buyurtma formasini to'ldirish uchun — `GET /api/orders/{id}` javobi shaklida (sahifadagi `editSelected` shu shaklni
+    o'qiydi): detal narxi — buyurtma saqlaydigan qiymat (`taklif_hisobi`), tana maydonlari o'zgarishsiz. `_taklif` — taklif
+    ma'lumoti (raqam, mijoz, telefon, izoh, holat)."""
+    from types import SimpleNamespace as _NS126
+    _tana = taklif_tanasi(t)
+    _items = [d for d in (_tana.get("items") or []) if isinstance(d, dict)]
+    _h = taklif_hisobi(_NS126(items=[_NS126(quantity=d.get("quantity") or 1.0, unit_price=d.get("unit_price") or 0)
+                                     for d in _items],
+                              agreed_amount=_tana.get("agreed_amount")))
+    items = []
+    for d, hd in zip(_items, _h["detallar"]):
+        _i = dict(d)
+        _i["unit_price"] = hd["unit_price"]
+        _i["total_price"] = hd["total_price"]
+        _i["sub_details"] = list(d.get("sub_details") or [])
+        items.append(_i)
+    return {
+        "id": t.id, "order_number": t.raqam, "project_id": None,
+        "master_id": _tana.get("master_id"), "deadline": _tana.get("deadline"),
+        "base_price": _tana.get("base_price"), "agreed_amount": _tana.get("agreed_amount"),
+        "total_amount": _h["jami"], "kelishilgan": _h["kelishilgan"],
+        "qoplama_retsept_id": _tana.get("recipe_id"), "recipe_id": _tana.get("recipe_id"),
+        "loy_kg": _tana.get("loy_kg"), "notes": _tana.get("notes"), "order_type": _tana.get("order_type") or "product",
+        "items": items,
+        "_taklif": taklif_korinish(t),
+    }

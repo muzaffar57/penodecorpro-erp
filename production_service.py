@@ -1,0 +1,1747 @@
+"""
+PenoDecorPro ERP — Production/MRP xizmat (service) qatlami
+=============================================================
+Mavjud crud.py uslubiga qat'iy mos yozilgan:
+  - Xatolar Exception emas, {"success": False, "message": "..."} shaklida
+    qaytariladi (crud.py dagi ishlab chiqarish funksiyalari bilan bir xil).
+  - Ombordan yechishdan oldin .with_for_update() bilan qator qulflanadi.
+  - Har bir ombor harakati log_movement() orqali jurnalga yoziladi.
+  - JSON-shaklidagi "suratlar" (snapshot) Text ustunga json.dumps bilan
+    yoziladi — crud.py/models.py dagi mavjud JSON ustunlar kabi.
+
+Bu fayl — mustaqil modul (production_models.py'ga bog'liq), lekin
+qolgan qismi (log_movement, FinishedProduct va h.k.) uchun mavjud
+crud.py/models.py'ga murojaat qiladi.
+
+2026-09-16 (davomi) — "7 ta Guardrails" arxitektura talabi bo'yicha
+qo'shilgan/mustahkamlangan narsalar:
+
+  [Qoida #1 — Unit Conversion] _compute_bom_line() endi HAR BIR qatorda
+  IKKI XIL miqdorni hisoblaydi: total_quantity_needed (RETSEPT birligida,
+  masalan gramm — Inventory.base_unit) va total_quantity_needed_stock_unit
+  (OMBOR birligida, masalan qop — Inventory.unit). Ombordan HAQIQIY
+  ayirish/tekshirish HAR DOIM ikkinchisi bilan amalga oshiriladi.
+  Agar Inventory.base_unit bo'sh bo'lsa — ikkalasi TENG (eski, konversiyasiz
+  xatti-harakat, orqaga to'liq mos).
+
+  [Qoida #3 — ACID/Rollback] Loyihaning butun stack'i SINXRON SQLAlchemy
+  (`Session`, pg8000 drayveri, database.py'ga qarang) — asosiy main.py'ning
+  BARCHA boshqa funksiyalari ham shu tarzda yozilgan. Shuning uchun
+  "async with session.begin()" BU LOYIHAGA MOS EMAS (loyihada asyncio/
+  asyncpg umuman yo'q — buni joriy qilish butun main.py'ni qayta yozishni
+  talab qiladi, alohida, katta qaror bo'lardi). O'RNIGA, xuddi shu ATOMIKLIK
+  KAFOLATI mavjud sinxron Session bilan, EXPLICIT try/except/rollback
+  orqali ta'minlanadi: har bir ko'p qadamli funksiya (start/complete)
+  butunlay bitta try blokida, YAGONA db.commit() oxirida, va istisno
+  (Exception) yuz bersa — db.rollback() ANIQ chaqirilib, xato qayta
+  ko'tariladi (raise). (Bundan tashqari, database.py'dagi get_db() ham
+  so'rov darajasida xuddi shunday zaxira rollback qiladi — bu esa ikkinchi,
+  ICHKI xavfsizlik qatlami sifatida qo'shildi.)
+"""
+
+import json
+import math
+from datetime import datetime
+from typing import List, Optional
+
+from sqlalchemy.orm import Session
+from sqlalchemy import func
+
+import crud  # log_movement uchun — mavjud, sinovdan o'tgan funksiya qayta ishlatiladi
+from production_models import (
+    Company, ProductType, BOM, BOMItem, ProductionOrder,
+    ProductionOrderStatus, ProductionSourceType, BOMComponentType,
+)
+
+
+# ============================================================
+# YORDAMCHI FUNKSIYALAR
+# ============================================================
+
+def _get_company(db: Session, company_id: int) -> Optional[Company]:
+    return db.query(Company).filter(Company.id == company_id).first()
+
+
+# kech93 (K93-2, 8-band o'lchovida topildi — HAQIQIY PostgreSQL 16 da
+# O'LCHANGAN `work/probe8b.py` M15 / M16, `work/probe8c.py`): katta miqdorli
+# ishlab chiqarish "Boshlash" dan o'tib, "Yakunlash" da 500 berardi —
+# `numeric field overflow`: tayyor mahsulot `cost_price` Numeric(12,2)
+# (1e9 kg × 100 so'm), buyurtma jamilari Numeric(14,2) (1e12 dona).
+# Buyurtma "jarayonda" qotib qolardi (faqat bekor qilish). Endi tannarx
+# bazaga sig'maydigan bo'lsa — boshlashda (erta) VA yakunlashda (oxirgi
+# yozuvchi) aniq xabar bilan rad etiladi, hech narsa yozilmaydi.
+_TANNARX_MAX = 9_999_999_999.99            # FinishedProduct.cost_price — Numeric(12,2)
+_BIRLIK_TANNARX_MAX = 9_999_999_999.9999   # FinishedProduct.unit_cost_stable — Numeric(14,4)
+
+
+def _tannarx_sigimi_xatosi(total_cost, quantity):
+    """Tannarx (jami va 1 birlik) bazaga sig'adimi: sig'masa — xabar matni,
+    sig'sa — None. `ProductionOrder.total_*` Numeric(14,2) — `cost_price`
+    dan kengroq, shuning uchun alohida tekshirilmaydi (jamidan katta emas)."""
+    t = float(total_cost or 0)
+    if not math.isfinite(t) or round(t, 2) > _TANNARX_MAX:
+        return (f"Ishlab chiqarish tannarxi juda katta ({t:,.2f} so'm) — tizim "
+                f"sig'imidan ({_TANNARX_MAX:,.2f} so'm) oshadi. Miqdorni kamaytiring "
+                f"yoki retseptni tekshiring.")
+    q = float(quantity or 0)
+    if q > 0 and round(t / q, 4) > _BIRLIK_TANNARX_MAX:
+        return ("1 birlik tannarxi juda katta — tizim sig'imidan oshadi. Retsept "
+                "miqdorlari va partiya hajmini tekshiring.")
+    return None
+
+
+# kech94 (122-band, O'LCHANGAN — `work/probe122.py`, SQLite = PG): yakunlash
+# qo'shimcha xarajatni (`fixed_cost_per_unit`, `percentage_cost`) JORIY
+# retseptdan va HAMMA qatorlardan olardi: (a) TANLANMAGAN ixtiyoriy qator
+# xarajati ham qo'shilardi (qat'iy 1000 × 2 → tannarx 200 o'rniga 2 200,
+# foizli 50 % → 300); (b) boshlangandan KEYIN retseptga yozilgan xarajat
+# tannarxni o'zgartirardi (500 × 2 → 1 200) — qoida #2 (surat o'zgarmasligi)
+# buzilardi, xomashyo narxi esa suratdan olinardi. Endi xarajat boshlashda
+# suratga (`recipe_snapshot_json` qatoriga) yoziladi va FAQAT kiritilgan
+# (`included`) qatorlardan hisoblanadi — boshlashdagi sig'im tekshiruvi
+# (K93-2) ham, yakunlash ham SHU bitta funksiya bilan.
+_XARAJAT_KALITI = "fixed_cost_per_unit"
+
+
+def _qoshimcha_xarajat(db: Session, po, snapshot: list, material_cost: float, company_id: int, bom=None) -> float:
+    """Ishlab chiqarish buyurtmasining qo'shimcha xarajati (qat'iy + foizli).
+
+    Surat kech94 dan keyin olingan bo'lsa (qatorlarda `fixed_cost_per_unit`
+    kaliti bor) — faqat suratdagi KIRITILGAN qatorlar: qat'iy × miqdor +
+    xomashyo tannarxi × foiz / 100. Retsept keyin o'zgarsa ham natija
+    o'zgarmaydi.
+
+    Eski surat (kech94 dan OLDIN boshlangan, xarajat kalitsiz) — xarajat
+    suratda yo'q, shuning uchun JORIY retseptdan olinadi (avvalgi xulq),
+    lekin surat `bom_item_id` bersa (kech54 dan beri) FAQAT suratdagi
+    kiritilgan qatorlar hisoblanadi — tanlanmagan ixtiyoriy qator va
+    boshlangandan keyin qo'shilgan qator kirmaydi. `bom_item_id` siz juda
+    eski surat — butun joriy retsept (o'zgarishsiz eski xulq).
+
+    `bom` (kech113) — shu korxonaning `po.bom_id` retsepti oldindan yuklangan bo'lsa (ro'yxat — `royxat_qoshimchalari`,
+    so'rovlar soni qator soniga bog'liq bo'lmasin); berilmasa — o'zi o'qiydi (avvalgidek)."""
+    q = float(po.quantity or 0)
+    m = float(material_cost or 0)
+    qatorlar = [l for l in (snapshot or []) if isinstance(l, dict)]
+    if any(_XARAJAT_KALITI in l for l in qatorlar):
+        jami = 0.0
+        for l in qatorlar:
+            if not l.get("included"):
+                continue
+            f = float(l.get("fixed_cost_per_unit") or 0)
+            p = float(l.get("percentage_cost") or 0)
+            if f:
+                jami += f * q
+            if p:
+                jami += m * (p / 100.0)
+        return jami
+    if bom is None:
+        bom = db.query(BOM).filter(BOM.id == po.bom_id, BOM.company_id == company_id).first()
+    if not bom:
+        return 0.0
+    idli = any("bom_item_id" in l for l in qatorlar)
+    kiritilgan = {l.get("bom_item_id") for l in qatorlar if l.get("included")}
+    jami = 0.0
+    for item in bom.items:
+        if idli and item.id not in kiritilgan:
+            continue
+        if item.fixed_cost_per_unit:
+            jami += float(item.fixed_cost_per_unit) * q
+        if item.percentage_cost:
+            jami += m * (float(item.percentage_cost) / 100.0)
+    return jami
+
+
+def _compute_bom_line(bom_item: BOMItem, production_quantity: float, batch_quantity: float) -> dict:
+    """Bitta BOMItem uchun, berilgan ishlab chiqarish miqdoriga mos
+    ravishda, ISROF FOIZINI HISOBGA OLGAN HOLDA, kerakli xomashyo
+    miqdorini hisoblaydi — HAM retsept birligida, HAM ombor birligida
+    (qoida #1 — Unit Conversion).
+
+    Formula: 1 batch uchun quantity (retsept birligida, masalan gramm),
+    isrof bilan (scrap_factor_percent), keyin (production_quantity /
+    batch_quantity) nisbatiga ko'paytiriladi. Natija ombor birligiga
+    material.conversion_factor orqali o'giriladi (agar base_unit
+    belgilangan bo'lsa) — aks holda ikkalasi bir xil (konversiya yo'q).
+    """
+    inv = bom_item.inventory
+
+    effective_per_batch = bom_item.quantity * (1 + (bom_item.scrap_factor_percent or 0) / 100.0)
+    ratio = production_quantity / batch_quantity if batch_quantity else 0
+    total_needed_recipe_unit = effective_per_batch * ratio
+
+    conversion_factor = float(inv.conversion_factor) if (inv and inv.conversion_factor) else None
+    has_conversion = bool(inv and inv.base_unit and conversion_factor)
+
+    if has_conversion:
+        # Masalan: retsept 500 g talab qiladi, 1 qop (ombor birligi) =
+        # 50000 g -> 500 / 50000 = 0.01 qop ombordan ayiriladi.
+        total_needed_stock_unit = total_needed_recipe_unit / conversion_factor
+    else:
+        total_needed_stock_unit = total_needed_recipe_unit  # Konversiya yo'q — eski xatti-harakat
+
+    # Narx HAR DOIM Inventory.price_per_unit — bu HAR DOIM ombor birligi
+    # (Inventory.unit) uchun narx, shuning uchun tannarx OMBOR birligidagi
+    # miqdorga ko'paytiriladi (retsept birligiga emas).
+    unit_price = float(inv.price_per_unit or 0) if inv else 0.0
+    line_cost = total_needed_stock_unit * unit_price
+
+    return {
+        "inventory_id": bom_item.inventory_id,
+        "item_name": bom_item.item_name,
+        "unit": bom_item.unit,                 # Retsept birligi (masalan "g") — ko'rsatish uchun
+        "stock_unit": bom_item.stock_unit,      # Ombor birligi (masalan "qop") — haqiqiy ayirish shu bilan
+        "conversion_factor_at_time": conversion_factor,  # Suratga olinadi — keyin material o'zgarsa ham bu buyurtmaga ta'sir qilmasin
+        "component_type": bom_item.component_type,
+        "is_optional": bool(bom_item.is_optional),
+        "base_quantity": float(bom_item.quantity),
+        "scrap_factor_percent": float(bom_item.scrap_factor_percent or 0),
+        "effective_quantity_per_batch": effective_per_batch,
+        "total_quantity_needed": total_needed_recipe_unit,
+        "total_quantity_needed_stock_unit": total_needed_stock_unit,
+        "unit_price_at_time": unit_price,
+        "line_cost": line_cost,
+    }
+
+
+def _surat_qatorlari(bom, quantity, tanlangan_ids) -> list:
+    """Retsept suratining qatorlari — kech113 da `start_production_order` dan AJRATILDI: boshlash va ishlab
+    chiqarish rejasi (`ishlab_chiqarish_rejasi`, `mavjud_ishlab_chiqarish_rejasi` — yangi ishlab chiqarish oynasi
+    va «Boshlash» oynasi) BITTA qoida bilan hisoblasin. Har BOM qatori uchun `_compute_bom_line` (qoida #1 —
+    birlik o'girish, isrof), so'ng:
+      * `included` — majburiy qator yoki TANLANGAN ixtiyoriy qator;
+      * `is_coating`, `bom_item_id` — kech54 (13-band, 5-qadam): brak sarfi (`services._mrp_birlik_sarfi`) qoplama
+        qatorini ANIQ ajratsin (bitta material retseptda ikki marta — xomashyo va qoplama — bo'lishi mumkin);
+      * `fixed_cost_per_unit`, `percentage_cost` — kech94 (122-band): qo'shimcha xarajat ham SURATGA olinadi
+        (qoida #2) — yakunlashda JORIY retsept emas, shu qiymatlar va faqat kiritilgan qatorlar.
+    Tanlanmagan ixtiyoriy qator ham ro'yxatda qoladi (`included` = False) — shaffoflik uchun."""
+    tanlangan = set(tanlangan_ids or [])
+    qatorlar = []
+    for item in bom.items:
+        included = (not item.is_optional) or (item.id in tanlangan)
+        line = _compute_bom_line(item, quantity, bom.batch_quantity)
+        line["included"] = included
+        line["is_coating"] = bool(getattr(item, "is_coating", False))
+        line["bom_item_id"] = item.id
+        line["fixed_cost_per_unit"] = float(item.fixed_cost_per_unit or 0)
+        line["percentage_cost"] = float(item.percentage_cost or 0)
+        qatorlar.append(line)
+    return qatorlar
+
+
+def _qoplama_tanlovi(bom, order_item, tanlangan):
+    """11.0-band (2026-09-20) — QOPLAMA AVTOMATIK BELGILANADI (kech113 da `create_production_order` dan AJRATILDI —
+    ishlab chiqarish rejasi ham AYNAN shu qoida bilan). Detal buyurtmada "Qoplama: ha" bilan yozilgan bo'lsa,
+    retseptdagi ixtiyoriy qoplama qatori(lari) o'z-o'zidan qo'shiladi — operator uni qo'lda belgilashi shart emas
+    (unutilsa, mijoz qoplamali mahsulot buyurtma qilgan bo'lsa ham loy ombordan yechilmay qolardi). Aksincha ham:
+    qoplamasiz detalda qoplama qatori zo'rlab OLIB TASHLANADI.
+    Retseptda ixtiyoriy qoplama qatori yo'q — None (tanlov O'ZGARMAYDI); aks holda yangi tanlov (tartiblangan)."""
+    _tanlangan = set(tanlangan or [])
+    _qoplama_qatorlari = {
+        bi.id for bi in bom.items
+        if getattr(bi, "is_optional", False) and getattr(bi, "is_coating", False)
+    }
+    if not _qoplama_qatorlari:
+        return None
+    if bool(getattr(order_item, "is_coated", False)):
+        _tanlangan |= _qoplama_qatorlari
+    else:
+        _tanlangan -= _qoplama_qatorlari
+    return sorted(_tanlangan)
+
+
+# kech113 (K113-1, O'LCHANGAN — `work/k113/probe_float.py`, asl `df465d8`, SQLite = PG): 1 kg + 10 % isrof × 3 m² =
+# 3.3000000000000003 (float); omborda AYNAN 3.3 kg bo'lsa «Boshlash» ham, «Yakunlash» ham 409 berardi
+# ("kerak: 3.3000 kg, bor: 3.30 kg") — xomashyo yetarli, lekin tizim rad etardi. Solishtirish endi nisbiy
+# 1e-9 chegarasi bilan (float shovqini ~1e-16; 1e-9 dan kichik "kamchilik" amalda ma'nosiz), boshlash, yakunlash
+# va reja — BITTA funksiya.
+_MIQDOR_TOLERANS = 1e-9
+
+
+def _miqdor_tolerans(kerak) -> float:
+    try:
+        k = abs(float(kerak or 0))
+    except (TypeError, ValueError):
+        k = 0.0
+    return _MIQDOR_TOLERANS * max(1.0, k)
+
+
+def _yetmaydimi(bor, kerak) -> bool:
+    """Ombordagi `bor` kerakli `kerak` dan kammi (float shovqinidan tashqari)? Ikkalasi OMBOR birligida."""
+    return float(bor or 0) < float(kerak or 0) - _miqdor_tolerans(kerak)
+
+
+def _qoldiq_keyin(bor, kerak) -> float:
+    """`bor` dan `kerak` ayirilgandan keyingi qoldiq; float shovqini (|qoldiq| ≤ tolerans) — AYNAN 0 (K113-1). Yakunlash
+    (ombordan yechish), boshlash (tekshiruv, K113-2) va reja — bitta qoida."""
+    q = float(bor or 0) - float(kerak or 0)
+    return 0.0 if abs(q) <= _miqdor_tolerans(kerak) else q
+
+
+def _miqdor_matn(x) -> str:
+    """Miqdor xabar matnida (kech113): 44.0 → "44", 43.5 → "43,5", 1234.5 → "1 234,5", 0.0125 → "0,0125" —
+    4 xonagacha, ortiqcha nolsiz, o'nlik vergul (sahifadagi `toLocaleString('ru-RU')` bilan bir xil ko'rinish)."""
+    try:
+        x = float(x)
+    except (TypeError, ValueError):
+        return str(x)
+    if not math.isfinite(x):
+        return str(x)
+    s = f"{abs(x):,.4f}".rstrip("0").rstrip(".")
+    butun, _, kasr = s.partition(".")
+    matn = butun.replace(",", " ") + ("," + kasr if kasr else "")
+    return ("-" + matn) if (x < 0 and matn != "0") else matn
+
+
+# ============================================================
+# 1. PRODUCTION ORDER YARATISH (DRAFT)
+# ============================================================
+
+def mrp_detal_kerak(db: Session, order_item) -> dict:
+    """kech72 (85-band, K71-2 — O'LCHANGAN: `work/probe85.py`, `work/probe85b.py`): MRP detali uchun
+    HALI ishlab chiqarib band qilish KERAK bo'lgan miqdor — YAGONA qoida. Tayyorlik belgisi
+    (`get_order_mrp_readiness`), "Mijoz buyurtmasi asosida" ro'yxati (`get_mrp_order_items_status`),
+    ishlab chiqarish buyurtmasini yaratish va boshlash (qulfli) tekshiruvlari — hammasi shu yerdan.
+
+    Ilgari to'rt joyda ham `quantity − SUM(band)` edi. Yuk xati band TM dan olgach band kamayadi,
+    detal miqdori esa o'zgarmaydi — shuning uchun:
+      * detal 10, 10 ishlab chiqarilgan, 5 topshirilgan → "tayyor EMAS, yana 5", ro'yxatda "kerak 5";
+      * TO'LIQ topshirilgan detal → ro'yxatda "kerak 10", yangi ishlab chiqarish QABUL qilinardi
+        (xomashyo ikkinchi marta yechilar, ortiqcha mahsulot shu detalga band bo'lib qolardi);
+      * buyurtma yaratilganda ombordagi TM dan olingan detal (`finished_product_id`) ham "kerak 3".
+
+    kerak = qolgan − band, bu yerda
+      qolgan = `OrderItem.remaining_qty` (buyurtma − topshirilgan − omborga qo'yilgan ortiqcha) —
+               yetkazish oynasidagi "qolgan" bilan AYNAN bir xil;
+      ombordan olingan detal (`finished_product_id`) — qolgan = 0 (butun miqdor buyurtma
+               yaratilganda TM dan yechilgan, `crud._take_finished_for_order`);
+      band   = shu detalga band qilingan TM lar `reserved_quantity` yig'indisi (jarayondagi ham).
+    Manfiy bo'lishi mumkin (eski ortiqcha band) — chaqiruvchi `max(0, …)` bilan ko'rsatadi.
+
+    Yuk xati band TM dan olganda band ham, qolgan ham bir xil kamayadi — natija o'zgarmaydi,
+    shuning uchun yetkazish bilan parallel boshlash yangi poyga tug'dirmaydi."""
+    from models import FinishedProduct
+    # kech109 (10b E-1, O'LCHANGAN `work/probe109e1.py` S1): band — faqat detal korxonasining TM laridan. Ilgari
+    # begona (A) mahsuloti B detaliga band bo'lsa (K93-1 dan oldingi eski ma'lumot) B ning "kerak" miqdori 10 → 5
+    # bo'lardi — B kam ishlab chiqarardi (TENANT_FILTER=1 da ro'yxat 10, tekshiruv esa 5 — ikki xil javob).
+    _bq109 = db.query(func.coalesce(func.sum(FinishedProduct.reserved_quantity), 0.0)).filter(
+        FinishedProduct.reserved_for_order_item_id == order_item.id)
+    _cid109 = getattr(order_item, 'company_id', None)
+    if _cid109 is not None:
+        _bq109 = _bq109.filter(FinishedProduct.company_id == _cid109)
+    band = float(_bq109.scalar() or 0.0)
+    ombordan = bool(getattr(order_item, 'finished_product_id', None))
+    topshirilgan = float(order_item.delivered_qty or 0)
+    qolgan = 0.0 if ombordan else float(order_item.remaining_qty or 0)
+    return {
+        "band": band,
+        "topshirilgan": topshirilgan,
+        "qolgan": qolgan,
+        "ombordan": ombordan,
+        "kerak": qolgan - band,
+    }
+
+
+def _mrp_kerak_izoh(k: dict) -> str:
+    """kech72 (85-band): rad xabaridagi qavs ichi — nima uchun kam qolgani."""
+    qism = [f"allaqachon {k['band']:g} band qilingan"]
+    if k["topshirilgan"] > 0.0001:
+        qism.append(f"{k['topshirilgan']:g} topshirilgan")
+    if k["ombordan"]:
+        qism.append("detal buyurtma yaratilganda ombordagi tayyor mahsulotdan olingan")
+    return ", ".join(qism)
+
+
+def get_order_mrp_readiness(db: Session, order_id: int) -> dict:
+    """2026-09-17 (Milestone 4 — xavfsiz variant): buyurtmadagi barcha
+    'mrp_product' turidagi detallar TO'LIQ band qilinganmi (demak,
+    ishlab chiqarilib bo'lganmi), degan holatni HISOBLAB qaytaradi.
+
+    MUHIM: bu — mavjud Order.status (OrderStatus.READY va h.k.)ga
+    HECH QANDAY tegishli emas va uni O'ZGARTIRMAYDI. O'sha holat allaqachon
+    ustalar KPI/bonus hisobini va buyurtmani tahrirlashni bloklashni
+    ishga tushiradi (crud.py'da tekshirilgan) — MRP-tayyorlik bilan
+    aralashtirib bo'lmaydi. Bu funksiya FAQAT ko'rsatish (badge) uchun.
+
+    Har safar JORIY ma'lumotdan HISOBLANADI (saqlanadigan holat emas) —
+    shuning uchun rezervatsiya ozod qilinsa, keyingi chaqiriqning o'zi
+    avtomatik "hali tayyor emas"ga qaytadi — alohida "rollback" kodi
+    kerak emas.
+
+    Aralash buyurtmalar haqida: faqat 'mrp_product' turidagi detallar
+    tekshiriladi. Eski turlar (Profil/Panel/Donali va h.k.) uchun ombordan
+    oldindan band qilish tushunchasi umuman yo'q (ular buyurtma bilan
+    birga tayyorlanadi) — shuning uchun ular har doim "tayyor" deb
+    hisoblanadi, faqat MRP qismi haqiqiy to'siq bo'la oladi.
+    """
+    from models import OrderItem
+    mrp_items = db.query(OrderItem).filter(
+        OrderItem.order_id == order_id, OrderItem.category == 'mrp_product'
+    ).all()
+    if not mrp_items:
+        return {"applicable": False}
+
+    lines = []
+    for item in mrp_items:
+        # kech72 (85-band): topshirilgan va ombordan olingan qism ham hisobga olinadi (yagona qoida).
+        k = mrp_detal_kerak(db, item)
+        # kech80 (88-band — O'LCHANGAN, `work/probe88.py`): BAND qilingan — hali TAYYOR degani emas.
+        # Band ishlab chiqarish BOSHLANGANDA qo'yiladi; yakunlanmagan (IN_PROGRESS) ishlab chiqarish
+        # «✅ MRP: tayyor» ko'rsatardi, «Tayyor» tugmasi esa 400 berardi. «Tayyor» tugmasi va yuk xati
+        # bilan AYNAN bir xil shart — `crud.mrp_topshirish_holati` (`mrp_tayyor_yetadimi`).
+        # `remaining_quantity` (hali ishlab chiqarib band qilish kerak) — O'ZGARMADI: jarayondagi band
+        # yangi ishlab chiqarishni talab qilmaydi (ro'yxat / PO yaratish ham shu qoidada).
+        _th = crud.mrp_topshirish_holati(db, item)
+        needed = float(item.quantity or 0)
+        remaining = k["kerak"]
+        lines.append({
+            "order_item_id": item.id,
+            "item_name": item.name,
+            "needed_quantity": needed,
+            "reserved_quantity": k["band"],
+            "delivered_quantity": k["topshirilgan"],
+            "remaining_quantity": max(0.0, remaining),
+            "tayyor_quantity": _th["tayyor"],
+            "ishlab_chiqarilmoqda": _th["jarayonda"],
+            "is_ready": remaining <= 0.0001 and _th["yetadi"],
+        })
+
+    fully_ready = all(l["is_ready"] for l in lines)
+    # kech80 (88-band): UI uchun uchta holat —
+    #   "tayyor"               — hamma MRP detali ishlab chiqarilgan, topshirishga tayyor;
+    #   "ishlab_chiqarilmoqda" — hammasi band qilingan, tayyor bo'lmagan qism faqat JARAYONDAGI ishlab
+    #                            chiqarishda (yangi ishlab chiqarish kerak EMAS — boshlanganini yakunlash);
+    #   "kutilmoqda"           — hali ishlab chiqarib band qilish kerak (yoki boshqa sabab).
+    if fully_ready:
+        holat = "tayyor"
+    elif all(l["is_ready"] or (l["remaining_quantity"] <= 0.0001 and l["ishlab_chiqarilmoqda"] > 0.0001)
+             for l in lines):
+        holat = "ishlab_chiqarilmoqda"
+    else:
+        holat = "kutilmoqda"
+    return {
+        "applicable": True,
+        "fully_ready": fully_ready,
+        "holat": holat,
+        "items": lines,
+    }
+
+
+def get_mrp_order_items_status(db: Session, company_id: int, product_type_id: int = None) -> list:
+    """2026-09-17: "Mijoz buyurtmasi asosida" ishlab chiqarish uchun —
+    barcha 'mrp_product' turidagi buyurtma-detallarini, ularning qancha
+    qismi ALLAQACHON ishlab chiqarilib band qilinganini hisoblab,
+    ro'yxat qilib qaytaradi. Faqat hali TO'LIQ band qilinmaganlari
+    (remaining_quantity > 0) qaytariladi — allaqachon to'liq
+    ta'minlanganlar ro'yxatda ko'rinmaydi (ular allaqachon bajarilgan)."""
+    from models import OrderItem, Order, Project
+    # M4 (2026-09-18) — TENANT: `company_id` parametri qabul qilinardi,
+    # lekin so'rovda UMUMAN ishlatilmasdi — B korxonaning buyurtma
+    # detallari A ning "ishlab chiqarish kerak" ro'yxatida chiqardi.
+    q = db.query(OrderItem).filter(
+        OrderItem.category == 'mrp_product',
+        OrderItem.company_id == company_id,
+    )
+    if product_type_id:
+        q = q.filter(OrderItem.product_type_id == product_type_id)
+    items = q.all()
+    result = []
+    for item in items:
+        # kech72 (85-band): to'liq topshirilgan / ombordan olingan detal ro'yxatga CHIQMAYDI (yagona qoida).
+        k = mrp_detal_kerak(db, item)
+        reserved = k["band"]
+        remaining = k["kerak"]
+        if remaining <= 0.0001:
+            continue
+        order = db.query(Order).filter(Order.id == item.order_id).first()
+        project = db.query(Project).filter(Project.id == order.project_id).first() if order else None
+        result.append({
+            "order_item_id": item.id,
+            "order_id": item.order_id,
+            "order_number": order.order_number if order else None,
+            "client_name": project.client_name if project else None,
+            "item_name": item.name,
+            "product_type_id": item.product_type_id,
+            "needed_quantity": float(item.quantity or 0),
+            "already_reserved": float(reserved),
+            "delivered_quantity": k["topshirilgan"],
+            "remaining_quantity": remaining,
+            # 11.0-band — detal qoplamalimi. Ishlab chiqarish oynasi shunga
+            # qarab qoplama tarkibini o'zi belgilaydi.
+            "is_coated": bool(item.is_coated),
+        })
+    return result
+
+
+_PO_HOLAT_NOMI = {"draft": "qoralama", "in_progress": "jarayonda", "completed": "yakunlangan", "cancelled": "bekor qilingan"}
+
+
+def _son110(x) -> str:
+    """Miqdor / summa jurnal matni uchun: 12.5 → "12.5", 1200000 → "1 200 000"."""
+    try:
+        x = float(x or 0)
+    except (TypeError, ValueError):
+        return str(x)
+    if abs(x - round(x)) < 1e-9:
+        return f"{int(round(x)):,}".replace(",", " ")
+    return f"{x:,.2f}".rstrip("0").rstrip(".").replace(",", " ")
+
+
+def _po_jurnal(db: Session, po, action: str, performed_by: str = None, new_value: str = None,
+               product_type=None) -> None:
+    """kech110 (5.2d 2c — 2026-09-18 audit: MRP amallari Faoliyat jurnalida YO'Q edi): ishlab chiqarish buyurtmasi
+    amali (yaratish / boshlash / yakunlash / bekor qilish) `/logs` «Audit jurnali» ga — amal bilan BITTA tranzaksiyada
+    (`crud.log_activity(commit=False)`: amal bekor bo'lsa, yozuv ham yo'q). Korxona — buyurtmaniki."""
+    if product_type is None:
+        product_type = db.query(ProductType).filter(
+            ProductType.id == po.product_type_id, ProductType.company_id == po.company_id).first()
+    _nom = product_type.name if product_type else "Noma'lum mahsulot"
+    crud.log_activity(db, action, "production_order", po.id, f"Ishlab chiqarish #{po.id} — {_nom}", performed_by,
+                      new_value=new_value, company_id=po.company_id, commit=False)
+
+
+def _yaratish_tekshiruvi(db: Session, company_id: int, data) -> dict:
+    """kech113: `create_production_order` tekshiruvlari — o'sha funksiyadan AJRATILDI (tartibi o'zgarmagan; xabarlarda
+    endi inglizcha texnik so'z yo'q — dizayn 1-band), yaratish ham, ishlab chiqarish rejasi (`ishlab_chiqarish_rejasi` —
+    «Yangi ishlab chiqarish» oynasi) ham shu funksiyadan. Birinchi to'siq `xato` ga yoziladi va tekshiruv o'sha joyda to'xtaydi (yaratish kabi);
+    shu paytgacha topilgan narsalar (mahsulot turi, retsept, buyurtma detali) qaytariladi — reja ularni ishlatadi.
+    `tanlangan` — qoplama qoidasidan (`_qoplama_tanlovi`) keyingi ixtiyoriy qatorlar (None — tanlov o'zgarmaydi);
+    `qolgan` / `kerak_izoh` — mijoz buyurtmasi detali uchun hali kerak miqdor va sababi (`mrp_detal_kerak`)."""
+    t = {"xato": None, "product_type": None, "bom": None, "order_item": None,
+         "source_order_id": getattr(data, "source_order_id", None), "buyurtma_raqami": None,
+         "tanlangan": None, "qolgan": None, "kerak_izoh": None}
+    product_type = db.query(ProductType).filter(
+        ProductType.id == data.product_type_id, ProductType.company_id == company_id
+    ).first()
+    if not product_type:
+        t["xato"] = "Mahsulot turi topilmadi"
+        return t
+    t["product_type"] = product_type
+
+    # M4 (2026-09-18) — F6: BOM ham ANIQ joriy korxonadan olinadi.
+    # Ilgari faqat `product_type` orqali bilvosita cheklanardi — bu
+    # auditda `ProductionOrder → BOM` yo'nalishidagi yagona NEEDS_FIX edi.
+    bom = db.query(BOM).filter(
+        BOM.id == data.bom_id, BOM.product_type_id == product_type.id,
+        BOM.company_id == company_id, BOM.is_active == True
+    ).first()
+    if not bom:
+        # kech113 (dizayn 1-band): foydalanuvchiga chiqadigan xabarda inglizcha texnik so'z yo'q.
+        t["xato"] = "Tanlangan retsept topilmadi yoki yashirilgan"
+        return t
+    t["bom"] = bom
+
+    # kech93 (K93-1, 8-band o'lchovida topildi — HAQIQIY PostgreSQL 16 da
+    # O'LCHANGAN, `work/probe8b.py` M12 / M13): "Omborga" (warehouse_stock)
+    # buyurtmada `source_order_id` / `source_order_item_id` TEKSHIRUVSIZ
+    # saqlanardi — BEGONA korxonaning buyurtmasi / detali ham (200). Boshlashda
+    # A korxonaning tayyor mahsuloti B korxona detaliga BAND qilinardi: B
+    # detalining "kerak" miqdori 10 → 8 bo'ldi (`mrp_detal_kerak` band ni
+    # korxonasiz sanaydi). Yo'q buyurtma id si — PostgreSQL 500 (FK). O'z
+    # detali ham yaratishdagi "kerak" tekshiruvisiz band bo'lardi (50 > 10).
+    # Endi: omborga — hech qanday bog'lanishsiz; mijoz buyurtmasiga — buyurtma
+    # id si detaldan olinadi (berilgan bo'lsa, AYNAN o'sha bo'lishi shart).
+    _manba_buyurtma = getattr(data, "source_order_id", None)
+    _manba_detal = getattr(data, "source_order_item_id", None)
+    if data.source_type not in (ProductionSourceType.CUSTOMER_ORDER.value,
+                                ProductionSourceType.WAREHOUSE_STOCK.value):
+        t["xato"] = "Noto'g'ri manba turi — «Omborga» yoki «Mijoz buyurtmasiga» bo'lishi kerak"
+        return t
+    if data.source_type == ProductionSourceType.WAREHOUSE_STOCK.value and \
+            (_manba_buyurtma is not None or _manba_detal is not None):
+        t["xato"] = "Omborga ishlab chiqarishda buyurtma yoki buyurtma-detali ko'rsatilmaydi"
+        return t
+
+    if data.source_type == ProductionSourceType.CUSTOMER_ORDER.value and not data.source_order_item_id:
+        t["xato"] = "Mijoz buyurtmasi asosida ishlab chiqarish uchun buyurtma detalini tanlang"
+        return t
+
+    if data.source_type == ProductionSourceType.CUSTOMER_ORDER.value:
+        from models import OrderItem
+        # M2 (2026-09-18): detal SHU korxonaniki bo'lishi shart. Ilgari faqat
+        # id bo'yicha olinardi — A korxonaning ishlab chiqarish buyurtmasi
+        # B korxonaning buyurtma-detaliga bog'lanib qolishi mumkin edi.
+        order_item = db.query(OrderItem).filter(
+            OrderItem.id == data.source_order_item_id,
+            OrderItem.company_id == company_id
+        ).first()
+        if not order_item:
+            t["xato"] = "Tanlangan buyurtma-detali topilmadi"
+            return t
+        # kech101 (K101-4, O'LCHANGAN — `work/probe142.py` C6, SQLite = PG): kech100 dan OLDIN o'chirilgan (IN_PROGRESS)
+        # MRP buyurtmasining detaliga ishlab chiqarish yaratilardi (200) — boshlanganda mahsulot Savatdagi buyurtmaga BAND
+        # bo'lib, hech kimga sotilmasdi. O'chirilgan buyurtma ustidagi boshqa amallar bilan AYNAN rad.
+        _ob101 = getattr(order_item, "order", None)
+        if _ob101 is not None and _ob101.is_deleted:
+            import crud as _crud101
+            t["xato"] = _crud101.OCHIRILGAN_BUYURTMA_XABARI
+            return t
+        if order_item.product_type_id != product_type.id:
+            t["xato"] = f"Bu detal '{product_type.name}' uchun emas — noto'g'ri detal tanlangan"
+            return t
+        # kech93 (K93-1): berilgan buyurtma id si detalning O'Z buyurtmasi bo'lsin
+        # (ilgari jimgina detaldagisi bilan almashtirilardi — xato tana ko'rinmasdi).
+        if _manba_buyurtma is not None and _manba_buyurtma != order_item.order_id:
+            t["xato"] = "Ko'rsatilgan buyurtma tanlangan buyurtma-detalining buyurtmasiga mos emas"
+            return t
+        t["order_item"] = order_item
+        # QO'SHILDI 2026-09-20 (11.0-band) — QOPLAMA AVTOMATIK BELGILANADI (qoida — `_qoplama_tanlovi`).
+        # kech113: "kerak" tekshiruvidan OLDIN hisoblanadi — reja miqdor ortiqcha bo'lsa ham qoplama qatorini
+        # to'g'ri ko'rsatsin; yaratishga ta'siri yo'q (to'siq bo'lsa hech narsa yozilmaydi).
+        t["tanlangan"] = _qoplama_tanlovi(bom, order_item, data.selected_optional_bom_item_ids)
+        # 2026-09-17: ORTIQCHA BAND QILISHNING oldini olish (haqiqiy xato,
+        # foydalanuvchi topdi). Bu yerdagi tekshiruv — DASTLABKI, tezkor
+        # signal uchun (hali qulflanmagan); HAQIQIY, poyga-xavfsiz
+        # tekshiruv start_production_order()da, qatorni qulflab
+        # (with_for_update) amalga oshiriladi — shu yerdagi tekshiruv
+        # buni ALMASHTIRMAYDI, faqat oldindan xabardor qiladi.
+        # kech72 (85-band, K71-2): kerak = qolgan (topshirilgan / ombordan olingan chiqarilgan) − band.
+        _k = mrp_detal_kerak(db, order_item)
+        remaining = max(0.0, _k["kerak"])
+        t["qolgan"] = remaining
+        t["kerak_izoh"] = _mrp_kerak_izoh(_k)
+        if data.quantity > remaining + 0.0001:
+            t["xato"] = (f"Bu buyurtma-detali uchun endi faqat {remaining:g} {product_type.unit} kerak "
+                         f"({_mrp_kerak_izoh(_k)}) — {data.quantity:g} ko'p")
+            return t
+        t["source_order_id"] = order_item.order_id
+        t["buyurtma_raqami"] = getattr(getattr(order_item, "order", None), "order_number", None)
+    return t
+
+
+def create_production_order(db: Session, company_id: int, data, created_by: str = None) -> dict:
+    """Yangi ishlab chiqarish buyurtmasini DRAFT holatida yaratadi.
+    Bu bosqichda OMBORGA HECH QANDAY TA'SIR YO'Q — faqat "reja" yozib
+    qo'yiladi, keyinchalik tahrirlash (masalan miqdorni o'zgartirish)
+    mumkin, chunki hali hech narsa "band qilinmagan"."""
+    # kech113: tekshiruvlar — `_yaratish_tekshiruvi` (tartibi o'zgarmagan; «Yangi ishlab chiqarish» oynasidagi reja —
+    # `ishlab_chiqarish_rejasi` — ham AYNAN shu funksiyadan).
+    _t = _yaratish_tekshiruvi(db, company_id, data)
+    if _t["xato"]:
+        return {"success": False, "message": _t["xato"]}
+    product_type, bom = _t["product_type"], _t["bom"]
+    source_order_id = _t["source_order_id"]
+    _buyurtma_raqami110 = _t["buyurtma_raqami"]
+    if _t["tanlangan"] is not None:
+        data.selected_optional_bom_item_ids = _t["tanlangan"]
+
+    po = ProductionOrder(
+        company_id=company_id,
+        product_type_id=product_type.id,
+        bom_id=bom.id,
+        source_type=data.source_type,
+        source_order_id=source_order_id,
+        source_order_item_id=getattr(data, 'source_order_item_id', None),
+        quantity=data.quantity,
+        selected_optional_bom_item_ids_json=json.dumps(data.selected_optional_bom_item_ids or []),
+        status=ProductionOrderStatus.DRAFT.value,
+        created_by=created_by,
+        notes=data.notes,
+    )
+    db.add(po)
+    db.flush()   # kech110 (2c): jurnal uchun id
+    _po_jurnal(db, po, "created", created_by,
+               new_value=(f"{_son110(po.quantity)} {product_type.unit}, retsept «{bom.variant_name}», "
+                          + (f"mijoz buyurtmasi {_buyurtma_raqami110 or ('#' + str(source_order_id))}"
+                             if data.source_type == ProductionSourceType.CUSTOMER_ORDER.value else "omborga")),
+               product_type=product_type)
+    db.commit()
+    db.refresh(po)
+    return {"success": True, "production_order": po}
+
+
+# ============================================================
+# 2. DRAFT -> IN_PROGRESS ("Boshlash" — retsept suratga olinadi)
+# ============================================================
+
+def start_production_order(db: Session, po_id: int, company_id: int, performed_by: str = None) -> dict:
+    """DRAFT holatidagi buyurtmani IN_PROGRESS'ga o'tkazadi:
+      1. Ombordagi HAR BIR kerakli xomashyoni TEKSHIRADI (yetarlimi) —
+         konversiya (qoida #1) hisobga olingan holda, OMBOR birligida.
+      2. Yetarli bo'lmasa — Company.allow_negative_stock ga qarab:
+         False bo'lsa -> BUTUNLAY TO'XTAYDI, hech narsa o'zgarmaydi
+         (qoida #4 — Hard Block);
+         True bo'lsa -> davom etadi, lekin ogohlantirish qaytaradi
+         (qoida #4 — Soft Warning).
+      3. Retseptni "suratga oladi" (recipe_snapshot_json) — shu paytdagi
+         narx/miqdorlar/konversiya koeffitsienti shu yerda QOTIB QOLADI
+         (qoida #2 — Snapshot Immutability).
+      4. Mavjud "Tayyor mahsulotlar" jadvaliga IN_PROGRESS holatda
+         bitta yozuv qo'shadi (hozirgi UX bilan bir xil ko'rinish uchun).
+
+    Butun funksiya BITTA atomik amal sifatida ishlaydi (qoida #3): agar
+    QAYERDADIR kutilmagan xato yuz bersa, HAMMASI (shu jumladan yuqoridagi
+    Inventory qulflari) db.rollback() bilan bekor qilinadi va xato qayta
+    ko'tariladi — yarim bajarilgan holat HECH QACHON saqlanmaydi.
+
+    MUHIM: bu bosqichda ombordan HALI HECH NARSA AYRILMAYDI — faqat
+    tekshiriladi va "suratga olinadi". Haqiqiy ayirish faqat
+    complete_production_order() da sodir bo'ladi. (Fayl boshidagi
+    docstring'da yozilgan "reservation" cheklovini albatta o'qing —
+    bu YETARLILIKNI TEKSHIRADI, lekin xomashyoni boshqa buyurtma
+    olib qo'yishidan HIMOYA QILMAYDI, chunki Inventory'da alohida
+    "band qilingan" ustuni yo'q.)
+    """
+    from models import Inventory  # Mavjud, asosiy Inventory jadvali
+
+    try:
+        po = db.query(ProductionOrder).filter(
+            ProductionOrder.id == po_id, ProductionOrder.company_id == company_id
+        ).first()
+        if not po:
+            return {"success": False, "message": "Ishlab chiqarish buyurtmasi topilmadi"}
+        if po.status != ProductionOrderStatus.DRAFT.value:
+            # kech113 (dizayn 1-band): holat nomi o'zbekcha (ilgari "'draft' … (hozirgi holat: in_progress)").
+            return {"success": False, "message": f"Faqat qoralamani boshlash mumkin — bu ishlab chiqarish "
+                                                 f"{_PO_HOLAT_NOMI.get(po.status, po.status)}"}
+
+        bom = db.query(BOM).filter(BOM.id == po.bom_id, BOM.company_id == company_id).first()
+        if not bom:
+            return {"success": False, "message": "Mahsulot tarkibi topilmadi"}
+
+        company = _get_company(db, company_id)
+        allow_negative = bool(company.allow_negative_stock) if company else False
+
+        selected_optional_ids = set(json.loads(po.selected_optional_bom_item_ids_json or "[]"))
+
+        # kech113: suratning qatorlari — `_surat_qatorlari` (ishlab chiqarish rejasi / oldindan ko'rish bilan YAGONA
+        # manba). Tanlanmagan ixtiyoriy komponent ham suratga kiradi (shaffoflik uchun, "bu safar ishlatilmagan"
+        # deb ko'rsatish mumkin bo'lsin), lekin ombor tekshiruviga ham, tannarxga ham ta'sir qilmaydi.
+        snapshot = _surat_qatorlari(bom, po.quantity, selected_optional_ids)
+        stock_warnings = []
+        # kech113 (K113-2, O'LCHANGAN — `work/k113/probe_ikki_qator.py`, asl `df465d8`, SQLite = PG): bir material
+        # retseptda ikki qatorda (xomashyo + qoplama; 5 + 3 kg, omborda 6 kg) — boshlash har qatorni ALOHIDA to'liq
+        # qoldiq bilan solishtirib o'tkazardi (6 ≥ 5, 6 ≥ 3), yakunlash esa ketma-ket ayirib rad etardi ("bor: 1").
+        # Endi boshlash ham yakunlash TARTIBIDA: qatorning ixtiyoridagi qoldiq — shu ishlab chiqarishning oldingi
+        # qatorlari ayirilgandan keyingisi (`_qoldiq_keyin`).
+        _qoldiq_k113, _oldingi_k113 = {}, {}
+        for line in snapshot:
+            if not line["included"]:
+                continue
+
+            # M4: xomashyo ham ANIQ joriy korxonadan (BOMItem→Inventory
+            # himoyasi faqat YOZISH paytida ishlaydi, o'qishda emas).
+            inv = db.query(Inventory).filter(
+                Inventory.id == line["inventory_id"],
+                Inventory.company_id == company_id,
+            ).with_for_update().first()
+            if not inv:
+                db.rollback()
+                return {"success": False, "message": f"Xomashyo topilmadi (ID {line['inventory_id']})"}
+
+            _ombor = float(inv.stock_quantity or 0)
+            _oldingi = _oldingi_k113.get(inv.id, 0.0)            # K113-2: shu material oldingi qatorlarda
+            available = _qoldiq_k113.get(inv.id, _ombor)
+            # Qoida #1: solishtirish HAR DOIM ombor birligida (stock_unit),
+            # retsept birligida (masalan gramm) EMAS.
+            needed = line["total_quantity_needed_stock_unit"]
+            if _yetmaydimi(available, needed):          # kech113 (K113-1): float shovqini — kamchilik emas
+                stock_warnings.append({
+                    "inventory_id": inv.id, "item_name": inv.item_name, "unit": inv.unit,
+                    "required_quantity": needed, "available_quantity": available,
+                    "shortage": needed - available,
+                })
+                if not allow_negative:
+                    # Qattiq rejim (qoida #4 — Hard Block): BUTUN amal
+                    # bekor qilinadi, hech narsa o'zgarmaydi.
+                    db.rollback()
+                    return {
+                        "success": False,
+                        "message": (f"Omborda yetarli '{inv.item_name}' yo'q (kerak: {_miqdor_matn(_oldingi + needed)} {inv.unit}"
+                                    + (" — retseptning bir necha qatorida" if _oldingi > 0 else "")
+                                    + f", bor: {_miqdor_matn(_ombor)} {inv.unit})"),
+                        "stock_issues": stock_warnings,
+                    }
+                # Yumshoq rejim (qoida #4 — Soft Warning): ogohlantirish
+                # bilan davom etiladi, amal to'xtatilmaydi.
+            _qoldiq_k113[inv.id] = _qoldiq_keyin(available, needed)
+            _oldingi_k113[inv.id] = _oldingi + needed
+            # (kech113: qator suratda — `_surat_qatorlari` uni tartibi bilan allaqachon qo'shgan.)
+
+        # 2026-09-17: ORTIQCHA BAND QILISH — HAQIQIY, POYGA-XAVFSIZ
+        # (race-safe) tekshiruv. Buyurtma-detal qatorini QULFLAB
+        # (with_for_update) o'qiymiz — shu tufayli, agar IKKI ISHCHI
+        # (yoki ikkita so'rov) AYNI BIR PAYTDA shu detal uchun ishlab
+        # chiqarishni boshlasa, IKKINCHISI birinchisi tugagunicha
+        # kutadi, so'ng ALLAQACHON YANGILANGAN (band qilingan) miqdorni
+        # ko'rib, kerak bo'lsa to'g'ri rad etiladi — omborni "ortiqcha
+        # band qilib qo'yish" (over-reservation) imkonsiz bo'ladi.
+        if po.source_order_item_id:
+            from models import OrderItem
+            locked_item = db.query(OrderItem).filter(
+                OrderItem.id == po.source_order_item_id,
+                OrderItem.company_id == company_id,          # M4
+            ).with_for_update().first()
+            if locked_item:
+                # kech101 (K101-4): yaratilgandan KEYIN buyurtma o'chirilgan bo'lsa (kech100 dan oldingi — IN_PROGRESS,
+                # qolgan qism kerak bo'lib turadi) — boshlanmaydi: mahsulot Savatdagi buyurtmaga band qilinmasin.
+                _ob101 = getattr(locked_item, "order", None)
+                if _ob101 is not None and _ob101.is_deleted:
+                    import crud as _crud101
+                    db.rollback()
+                    return {"success": False, "message": _crud101.OCHIRILGAN_BUYURTMA_XABARI}
+                # kech72 (85-band, K71-2): yaratishdagi bilan AYNAN bir qoida (`mrp_detal_kerak`) —
+                # topshirilgan va ombordan olingan qism ham chiqariladi. Qulf ostida o'qiladi.
+                _k = mrp_detal_kerak(db, locked_item)
+                remaining = max(0.0, _k["kerak"])
+                if po.quantity > remaining + 0.0001:
+                    db.rollback()
+                    return {
+                        "success": False,
+                        "message": f"Bu buyurtma-detali uchun endi faqat {remaining:g} kerak ({_mrp_kerak_izoh(_k)}) — boshqa ishlab chiqarish buyurtmasi band qilib ulgurgan yoki detal topshirilgan. {po.quantity:g} band qilib bo'lmaydi.",
+                    }
+            else:
+                # kech93 (K93-1): detal SHU korxonada topilmadi (begona yoki
+                # yo'q id — K93-1 dan oldin yaratilgan buyurtmalarda bo'lishi
+                # mumkin). Ilgari tekshiruvsiz davom etib, tayyor mahsulot shu
+                # (begona) detalga BAND qilinardi — O'LCHANGAN. Endi boshlanmaydi.
+                db.rollback()
+                return {
+                    "success": False,
+                    "message": "Bog'langan buyurtma-detali topilmadi (boshqa korxonaniki yoki "
+                               "o'chirilgan) — bu ishlab chiqarishni boshlab bo'lmaydi. "
+                               "Uni bekor qilib, qaytadan yarating.",
+                }
+
+        # kech93 (K93-2): tannarx bazaga sig'maydigan bo'lsa — ERTA rad
+        # (yakunlashdagi hisob bilan bir xil: kiritilgan qatorlar narxi +
+        # suratdagi kiritilgan qatorlarning qat'iy / foizli xarajati — kech94,
+        # 122-band: ilgari tanlanmagan ixtiyoriy qator ham qo'shilardi).
+        _tm = sum(float(_l.get("line_cost") or 0) for _l in snapshot if _l.get("included"))
+        _tq = _qoshimcha_xarajat(db, po, snapshot, _tm, company_id)
+        _sig_xato = _tannarx_sigimi_xatosi(_tm + _tq, po.quantity)
+        if _sig_xato:
+            db.rollback()
+            return {"success": False, "message": _sig_xato}
+
+        # Mavjud "Tayyor mahsulotlar" jadvaliga "ishlab chiqarilmoqda" yozuvi
+        from models import FinishedProduct, StockSource, ProductionStatus as FPStatus
+        product_type = db.query(ProductType).filter(
+            ProductType.id == po.product_type_id, ProductType.company_id == company_id
+        ).first()
+        fp = FinishedProduct(
+            # M4 (2026-09-18) — MUHIM: bu yozuvda `from_order_id`,
+            # `recipe_id`, `penoplast_id` ning hech biri yo'q, shuning
+            # uchun models.py dagi `_TENANT_RULES` otani topa olmaydi va
+            # yozuv bazadagi vaqtinchalik `DEFAULT 1` ga tushib qolardi —
+            # ya'ni B korxonaning MRP ishlab chiqarishi 1-korxonaga
+            # tegishli tayyor mahsulot yaratardi. Endi ANIQ beriladi.
+            company_id=company_id,
+            name=product_type.name if product_type else "Noma'lum mahsulot",
+            category="dynamic_bom",
+            quantity=po.quantity,
+            produced_quantity=po.quantity,
+            unit=product_type.unit if product_type else "dona",
+            unit_price=0,       # Sotuv narxi alohida (pricing_formula orqali) belgilanadi — bu yerga tegishli emas
+            cost_price=0,       # COMPLETED bosqichida to'ldiriladi
+            source=StockSource.PRODUCED,
+            production_status=FPStatus.IN_PROGRESS,
+            created_by=performed_by,
+            # 2026-09-17: "Mijoz buyurtmasi asosida" bo'lsa — chiqadigan
+            # BUTUN partiya SHU DAQIQADAN BOSHLAB (hali IN_PROGRESS
+            # bo'lsa ham) aynan shu buyurtma-detaliga BAND qilinadi —
+            # boshqa hech kim (boshqa sotuv/buyurtma) buni ololmaydi.
+            # Umumiy ombor uchun (source_type=warehouse_stock) —
+            # reserved_quantity=0, ya'ni butunlay erkin.
+            reserved_quantity=(po.quantity if po.source_order_item_id else 0.0),
+            reserved_for_order_item_id=po.source_order_item_id,
+            # QO'SHILDI 2026-09-20 (Bosqich 3, 10-band). Bu ma'lumot shu
+            # yerda ALLAQACHON bor edi (`po.product_type_id`), lekin tayyor
+            # mahsulotga yozilmasdi — natijada liniya bo'yicha moliya
+            # mahsulotning qaysi turdan ekanini bilolmasdi.
+            product_type_id=po.product_type_id,
+            # kech112 (K112-5, O'LCHANGAN — jonli C zanjiri va `work/k113/probe_mrp_qoplama.py`, SQLite = PG):
+            # `is_coated` berilmasdi — model standarti True, ya'ni HAR MRP mahsuloti (qoplamasiz travertin m², kafel
+            # kley kg ham) "qoplamali" bo'lib, oylik hisobotdagi qoplamachi bonusiga va donabay hodim haqiga
+            # (`services.get_monthly_report` — "faqat HAQIQATAN qoplamali") har birligi 1 000 so'mdan qo'shilardi.
+            # Endi — shu ishlab chiqarishda qoplama qatori HAQIQATAN kiritilganmi (surat; brak sarfi
+            # `services._mrp_birlik_sarfi` bilan bir qoida).
+            is_coated=any(bool(_l.get("included")) and bool(_l.get("is_coating")) for _l in snapshot),
+        )
+        db.add(fp)
+        db.flush()  # fp.id kerak, hali commit qilmasdan
+
+        po.finished_product_id = fp.id
+        po.recipe_snapshot_json = json.dumps(snapshot, ensure_ascii=False)
+        po.status = ProductionOrderStatus.IN_PROGRESS.value
+        po.started_at = datetime.utcnow()
+        # kech110 (2c): Faoliyat jurnali — boshlash bilan BITTA tranzaksiyada
+        _po_jurnal(db, po, "activated", performed_by,
+                   new_value=(f"{_son110(po.quantity)} {fp.unit} — retsept surati olindi, "
+                              f"{sum(1 for _l in snapshot if _l.get('included'))} ta xomashyo qatori; "
+                              f"tayyor mahsulot #{fp.id} (ishlab chiqarilmoqda)"
+                              + (f"; xomashyo ogohlantirishi: {len(stock_warnings)} ta" if stock_warnings else "")),
+                   product_type=product_type)
+        db.commit()
+        db.refresh(po)
+
+        return {"success": True, "production_order": po, "stock_warnings": stock_warnings}
+
+    except Exception:
+        # Qoida #3 — ACID: kutilmagan har qanday xatoda, shu paytgacha
+        # ushbu funksiya ichida bajarilgan HAMMA narsa (Inventory qulflari,
+        # FinishedProduct qo'shilishi va h.k.) bekor qilinadi.
+        db.rollback()
+        raise
+
+
+# ============================================================
+# 3. IN_PROGRESS -> COMPLETED ("Yakunlash" — haqiqiy ayirish/qo'shish)
+# ============================================================
+
+TM_YOQ_XABARI = ("Bu ishlab chiqarishning «Tayyor mahsulotlar»dagi yozuvi o'chirilgan — yakunlansa xomashyo yechilib, "
+                 "omborga hech narsa kirmaydi. Ishlab chiqarishni «Bekor qilish» bilan yopib, qaytadan yarating.")
+
+
+def _yakunlash_tm_xatosi(db: Session, po, company_id: int):
+    """kech114 (K114-1, O'LCHANGAN — `work/k114/probe_mrp_tm.py`): jarayondagi ishlab chiqarishning tayyor mahsuloti
+    («Tayyor mahsulotlar»da boshlashda yaratiladi) yo'q bo'lsa — yakunlash RAD (xabar), aks holda None. Ilgari TM
+    «Tayyor mahsulotlar»dan o'chirilsa, «Yakunlash» 200 berib xomashyoni yechar, omborga esa hech narsa kirmasdi
+    (63 000 so'mlik kley — izsiz). Endi TM u yerdan o'chirilmaydi (`crud._mrp_tm_mi`), bu — eski / chetlab o'tilgan
+    holat uchun ikkinchi to'siq. Yakunlash va «Yakunlash» oynasi rejasi (`mavjud_ishlab_chiqarish_rejasi`) — shu bitta
+    qoida."""
+    from models import FinishedProduct
+    if po.finished_product_id and db.query(FinishedProduct.id).filter(
+            FinishedProduct.id == po.finished_product_id, FinishedProduct.company_id == company_id).first():
+        return None
+    return TM_YOQ_XABARI
+
+
+def complete_production_order(db: Session, po_id: int, company_id: int, performed_by: str = None) -> dict:
+    """IN_PROGRESS holatidagi buyurtmani yakunlaydi:
+      1. recipe_snapshot_json'da QOTIRILGAN miqdorlarni o'qiydi (JORIY
+         BOM'ni QAYTA o'qimaydi — chunki BOM shu orada o'zgargan bo'lishi
+         mumkin, lekin bu buyurtma ESKI shartlar bilan boshlangan edi;
+         qoida #2 — Snapshot Immutability).
+      2. Har bir xomashyoni omborda HAQIQATAN ayiradi — snapshot'dagi
+         OMBOR birligidagi miqdor bilan (qoida #1 — Unit Conversion,
+         konversiya allaqachon start()'da hisoblab qo'yilgan), va
+         log_movement() bilan jurnalga yozadi.
+      3. Tayyor mahsulot yozuvini (FinishedProduct) 'ready' holatiga
+         o'tkazadi, tannarxni (cost_price) hisoblab yozadi.
+
+    Butun funksiya BITTA atomik amal (qoida #3): xomashyo ayirish,
+    tannarx hisoblash, order statusini o'zgartirish va FinishedProduct'ni
+    yangilash — HAMMASI bitta db.commit() bilan yakunlanadi; QAYERDADIR
+    xato chiqsa, HAMMASI (ayirilgan xomashyolar ham) db.rollback() bilan
+    butunlay bekor qilinadi.
+    """
+    from models import Inventory, FinishedProduct, ProductionStatus as FPStatus
+
+    try:
+        po = db.query(ProductionOrder).filter(
+            ProductionOrder.id == po_id, ProductionOrder.company_id == company_id
+        ).first()
+        if not po:
+            return {"success": False, "message": "Ishlab chiqarish buyurtmasi topilmadi"}
+        if po.status != ProductionOrderStatus.IN_PROGRESS.value:
+            # kech113 (dizayn 1-band): holat nomi o'zbekcha.
+            return {"success": False, "message": f"Faqat jarayondagi ishlab chiqarishni yakunlash mumkin — bu ishlab "
+                                                 f"chiqarish {_PO_HOLAT_NOMI.get(po.status, po.status)}"}
+        if not po.recipe_snapshot_json:
+            return {"success": False, "message": "Mahsulot tarkibi surati topilmadi — bu buyurtma to'g'ri boshlanmagan bo'lishi mumkin"}
+        # kech114 (K114-1): tayyor mahsuloti yo'q ishlab chiqarish yakunlanmaydi (xomashyo izsiz yechilardi).
+        _tm_xato = _yakunlash_tm_xatosi(db, po, company_id)
+        if _tm_xato:
+            return {"success": False, "message": _tm_xato}
+
+        snapshot = json.loads(po.recipe_snapshot_json)
+
+        # 2026-09-18 (chuqur audit — ENG MUHIM topilma, jonli sinovda
+        # dalili bilan aniqlandi): bu yergacha xomashyo HECH QANDAY
+        # tekshiruvsiz ayirilardi — agar boshqa bir ishlab chiqarish
+        # (yoki oddiy sotuv) shu orada xuddi shu xomashyoni band qilib
+        # ulgurgan bo'lsa (chunki IN_PROGRESS bosqichi ombordan hali
+        # HAQIQATAN ayirmaydi — fayl boshidagi arxitektura izohiga
+        # qarang), OMBOR MANFIY SONGA TUSHIB QOLARDI, hech qanday xato
+        # yoki ogohlantirishsiz. Jonli sinov: 40 kg ombor, ikkita 30 kg'lik
+        # ishlab chiqarish ikkalasi ham "Boshlash"dan o'tib, ikkalasini
+        # "Yakunlash" qilinganda ombor -20 kg ga tushib qoldi. Endi
+        # start_production_order() bilan BIR XIL qoidaga (company.allow_
+        # negative_stock) rioya qilinadi: standart holatda (False) qattiq
+        # to'xtatiladi, hozirgacha ayirilgan qatorlar (agar bo'lsa) BUTUN
+        # tranzaksiya bilan birga rollback qilinadi.
+        company = _get_company(db, company_id)
+        allow_negative = bool(company.allow_negative_stock) if company else False
+
+        total_material_cost = 0.0
+        for line in snapshot:
+            if not line.get("included"):
+                continue  # Tanlanmagan ixtiyoriy komponent — o'tkazib yuboriladi
+            inv = db.query(Inventory).filter(
+                Inventory.id == line["inventory_id"],
+                Inventory.company_id == company_id,          # M4
+            ).with_for_update().first()
+            if not inv:
+                continue  # Xomashyo o'chirilgan bo'lsa ham, yakunlashni to'xtatmaymiz — snapshot narxi bilan hisoblashda davom etamiz
+            # Qoida #1: OMBOR birligidagi miqdor bilan ayiriladi (agar
+            # eski, konversiyasiz snapshot bo'lsa — kalit yo'q, shuning
+            # uchun retsept-birlik qiymatiga qaytadi, orqaga mos).
+            needed = line.get("total_quantity_needed_stock_unit", line["total_quantity_needed"])
+            available = float(inv.stock_quantity or 0)
+            if _yetmaydimi(available, needed) and not allow_negative:     # kech113 (K113-1)
+                db.rollback()
+                return {
+                    "success": False,
+                    "message": (f"Omborda yetarli '{inv.item_name}' yo'q (kerak: {_miqdor_matn(needed)} {inv.unit}, "
+                                f"bor: {_miqdor_matn(available)} {inv.unit}) — boshqa ishlab chiqarish shu orada "
+                                f"band qilib ulgurgan bo'lishi mumkin"),
+                }
+            # kech113 (K113-1): AYNAN yetgan xomashyo qoldig'i −4.4e-16 kabi float shovqini emas, 0 bo'lsin
+            # (ombor sahifasida "-0" va "kam qoldiq" belgisi chiqmasin) — `_qoldiq_keyin`.
+            inv.stock_quantity = _qoldiq_keyin(available, needed)
+            crud.log_movement(
+                db, inv.id, inv.item_name, movement_type="out",
+                quantity=needed, unit=inv.unit,
+                reason=f"Ishlab chiqarish buyurtmasi #{po.id} yakunlandi",
+                performed_by=performed_by,
+            )
+            total_material_cost += line["line_cost"]
+
+        # Qo'shimcha xarajatlar (fixed_cost_per_unit, percentage_cost) — kech94
+        # (122-band): SURATdan va faqat kiritilgan qatorlardan (ilgari izoh
+        # "snapshot momentidagi" derdi, kod esa JORIY retseptning HAMMA
+        # qatorini o'qirdi — O'LCHANGAN). Eski surat — `_qoshimcha_xarajat` izohi.
+        total_extra_cost = _qoshimcha_xarajat(db, po, snapshot, total_material_cost, company_id)
+
+        total_cost = total_material_cost + total_extra_cost
+
+        # kech93 (K93-2): oxirgi yozuvchi — tannarx bazaga sig'masa, ayirilgan
+        # xomashyo ham bekor (rollback), buyurtma "jarayonda" qoladi.
+        _sig_xato = _tannarx_sigimi_xatosi(total_cost, po.quantity)
+        if _sig_xato:
+            db.rollback()
+            return {"success": False, "message": _sig_xato}
+
+        po.total_material_cost = total_material_cost
+        po.total_extra_cost = total_extra_cost
+        po.total_cost = total_cost
+        po.status = ProductionOrderStatus.COMPLETED.value
+        po.completed_at = datetime.utcnow()
+
+        if po.finished_product_id:
+            fp = db.query(FinishedProduct).filter(
+                FinishedProduct.id == po.finished_product_id,
+                FinishedProduct.company_id == company_id,    # M4
+            ).first()
+            if fp:
+                fp.cost_price = total_cost
+                # QO'SHILDI 2026-09-20 — BARQAROR 1 birlik tan narxi.
+                # `cost_price` mijozga topshirilgan sari kamayadi,
+                # `produced_quantity` esa o'zgarmaydi — shuning uchun
+                # ikkalasining nisbati vaqt o'tishi bilan siljiydi.
+                # Bu yerda bir marta yozilgan qiymat esa o'zgarmaydi va
+                # ombordan olish/qaytarish simmetrik bo'lishini
+                # ta'minlaydi (`crud._fp_stable_unit_cost` shuni oladi).
+                _q_produced = float(po.quantity or 0)
+                if _q_produced > 0:
+                    fp.unit_cost_stable = float(total_cost) / _q_produced
+                fp.production_status = FPStatus.READY
+                fp.finished_production_at = datetime.utcnow()
+
+        # kech110 (2c): Faoliyat jurnali — yakunlash (xomashyo yechilishi) bilan BITTA tranzaksiyada
+        _pt110 = db.query(ProductType).filter(
+            ProductType.id == po.product_type_id, ProductType.company_id == company_id).first()
+        _po_jurnal(db, po, "produced", performed_by,
+                   new_value=(f"{_son110(po.quantity)} {_pt110.unit if _pt110 else ''} — tannarx {_son110(total_cost)} so'm "
+                              f"(xomashyo {_son110(total_material_cost)}, qo'shimcha {_son110(total_extra_cost)})"),
+                   product_type=_pt110)
+        db.commit()
+        db.refresh(po)
+        return {"success": True, "production_order": po}
+
+    except Exception:
+        # Qoida #3 — ACID: xomashyo ayirish yarim yo'lda to'xtagan bo'lsa
+        # ham, HAMMASI (shu jumladan yuqorida ayirilgan qatorlar) bekor
+        # qilinadi — omborda "yarim ayirilgan" holat qolmaydi.
+        db.rollback()
+        raise
+
+
+# ============================================================
+# 4. BEKOR QILISH
+# ============================================================
+
+def cancel_production_order(db: Session, po_id: int, company_id: int, performed_by: str = None) -> dict:
+    """DRAFT yoki IN_PROGRESS holatidagi buyurtmani bekor qiladi.
+    IN_PROGRESS bo'lsa ham — xomashyo hali HAQIQATAN ayirilmagani
+    uchun (faqat tekshirilgan va suratga olingan), ombordan hech
+    narsa "qaytarish" shart emas. Faqat bog'liq FinishedProduct
+    yozuvi (agar bo'lsa) ham bekor qilinadi."""
+    from models import FinishedProduct
+
+    po = db.query(ProductionOrder).filter(
+        ProductionOrder.id == po_id, ProductionOrder.company_id == company_id
+    ).first()
+    if not po:
+        return {"success": False, "message": "Ishlab chiqarish buyurtmasi topilmadi"}
+    if po.status not in (ProductionOrderStatus.DRAFT.value, ProductionOrderStatus.IN_PROGRESS.value):
+        # kech113 (dizayn 1-band): holat nomi o'zbekcha (ilgari "'completed' holatidagi buyurtmani …").
+        return {"success": False, "message": f"Bu ishlab chiqarish {_PO_HOLAT_NOMI.get(po.status, po.status)} — "
+                                             f"uni bekor qilib bo'lmaydi"}
+
+    _eski_holat110 = _PO_HOLAT_NOMI.get(po.status, po.status)
+    _tm_ochdi110 = False
+    try:
+        if po.finished_product_id:
+            fp = db.query(FinishedProduct).filter(
+                FinishedProduct.id == po.finished_product_id,
+                FinishedProduct.company_id == company_id,    # M4
+            ).first()
+            if fp:
+                _tm_ochdi110 = True
+                # 2026-09-18 (jonli sinovda aniqlangan HAQIQIY xato):
+                # `production_orders.finished_product_id` hali shu yozuvga
+                # ishora qilib turgani uchun, uni to'g'ridan-to'g'ri
+                # o'chirish PostgreSQL FK cheklovini
+                # ("production_orders_finished_product_id_fkey") buzib,
+                # 500-xato berardi — IN_PROGRESS holatdagi ishlab
+                # chiqarish buyurtmasini bekor qilish umuman ishlamasdi.
+                # Yechim — `crud.delete_order` dagi mavjud, xavfsiz naqsh:
+                # AVVAL bog'lanish uziladi, KEYIN yozuv o'chiriladi.
+                fp_id_to_delete = fp.id
+                po.finished_product_id = None
+                db.query(ProductionOrder).filter(
+                    ProductionOrder.finished_product_id == fp_id_to_delete
+                ).update({"finished_product_id": None})
+                db.flush()
+                db.delete(fp)
+
+        po.status = ProductionOrderStatus.CANCELLED.value
+        po.cancelled_at = datetime.utcnow()
+        # kech110 (2c): Faoliyat jurnali — bekor qilish bilan BITTA tranzaksiyada
+        _po_jurnal(db, po, "cancelled", performed_by,
+                   new_value=(f"Holat: {_eski_holat110} → bekor qilindi"
+                              + ("; «ishlab chiqarilmoqda» tayyor mahsulot yozuvi o'chirildi" if _tm_ochdi110 else "")))
+        db.commit()
+        db.refresh(po)
+        return {"success": True, "production_order": po}
+    except Exception:
+        # Qoida #3 — ACID: FinishedProduct o'chirilib, lekin status
+        # yangilanmay qolgan oraliq holat hech qachon saqlanmasin.
+        db.rollback()
+        raise
+
+
+# ============================================================
+# 5. ISHLAB CHIQARISH REJASI VA RO'YXAT (kech113 — egasi qarori "MRP asosiy: 1–4", "A — Jadval + oynalar")
+# ============================================================
+# Hammasi FAQAT o'qiydi (hech narsa yozilmaydi). Qoidalar — boshlash / yakunlash bilan AYNAN bir funksiyalar:
+# qatorlar `_surat_qatorlari`, yaratish tekshiruvlari `_yaratish_tekshiruvi`, ombor solishtiruvi `_yetmaydimi` va
+# ketma-ket qoldiq `_qoldiq_keyin`, qo'shimcha xarajat `_qoshimcha_xarajat`, sig'im `_tannarx_sigimi_xatosi`.
+
+REJA_BOSHLASH = "boshlash"      # qoralama / yangi: `start_production_order` qoidasi
+REJA_YAKUNLASH = "yakunlash"    # jarayondagi: `complete_production_order` qoidasi
+
+
+def _jarayondagi_band(db: Session, company_id: int) -> dict:
+    """JARAYONDAGI (boshlangan, hali yakunlanmagan) ishlab chiqarishlar surati bo'yicha kerak bo'ladigan xomashyo:
+    {inventory_id: {"miqdor": ombor birligida jami, "po": {po_id: miqdor}}}. Boshlash xomashyoni faqat TEKSHIRADI,
+    ombordan yechish — «Yakunlash» da (`production_models` izohi: `Inventory` da "band" ustuni yo'q). Shuning uchun
+    ikkita jarayondagi ishlab chiqarish bir xil xomashyoga da'vogar bo'lsa, ikkinchisini yakunlash rad etiladi —
+    reja buni OLDINDAN ko'rsatadi (qaror emas, ogohlantirish: boshlash qoidasi o'zgarmagan)."""
+    band = {}
+    rows = db.query(ProductionOrder).filter(
+        ProductionOrder.company_id == company_id,
+        ProductionOrder.status == ProductionOrderStatus.IN_PROGRESS.value,
+    ).order_by(ProductionOrder.id).all()
+    for po in rows:
+        try:
+            surat = json.loads(po.recipe_snapshot_json or "[]")
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(surat, list):
+            continue
+        for l in surat:
+            if not isinstance(l, dict) or not l.get("included"):
+                continue
+            inv_id = l.get("inventory_id")
+            try:
+                miq = float(l.get("total_quantity_needed_stock_unit", l.get("total_quantity_needed")) or 0)
+            except (TypeError, ValueError):
+                continue
+            if inv_id is None or not math.isfinite(miq) or miq <= 0:
+                continue
+            b = band.setdefault(inv_id, {"miqdor": 0.0, "po": {}})
+            b["miqdor"] += miq
+            b["po"][po.id] = b["po"].get(po.id, 0.0) + miq
+    return band
+
+
+def _reja_hisobi(db: Session, company_id: int, qatorlar: list, miqdor, bom_id, rejim: str,
+                 istisno_po_id=None, band=None, inv_map=None, allow_negative=None) -> dict:
+    """Ishlab chiqarish rejasi — bitta ishlab chiqarish uchun xomashyo, ombor va tannarx.
+
+    `rejim`:
+      * REJA_BOSHLASH (qoralama / yangi) — `start_production_order` qoidasi: kiritilgan qator materiali korxonada
+        topilmasa — to'siq; ombor < kerak (`_yetmaydimi`) — to'siq (korxonada «manfiy qoldiq» ruxsati bo'lmasa);
+        tannarx — hamma kiritilgan qatorlar.
+    Ikkala rejimda ham bir material bir necha qatorda bo'lsa — qatorlar yakunlash TARTIBIDA, har biri oldingilaridan
+    qolgan qoldiq bilan solishtiriladi (K113-2; `oldingi` — shu materialning oldingi qatorlardagi kerak miqdori).
+      * REJA_YAKUNLASH (jarayondagi) — `complete_production_order` qoidasi: materiali topilmagan qator o'tkazib
+        yuboriladi va xomashyo tannarxiga KIRMAYDI (qo'shimcha xarajat — surat bo'yicha), ombor < kerak — to'siq.
+    Har kiritilgan qator uchun, qo'shimcha ravishda, BOSHQA jarayondagi ishlab chiqarishlar kutayotgan miqdor
+    (`band`) — ombor yetsa-yu, ular bilan birga yetmasa — ogohlantirish ("band_bilan_yetmaydi"), to'siq emas.
+    Boshlash rejimida — ombordagi xomashyodan eng ko'pi qancha chiqishi: `maks_ombor` (faqat qoldiq),
+    `maks_bosh` (boshqa jarayondagilar kutayotgani ayirilgan). Ro'yxat uchun `band` / `inv_map` / `allow_negative`
+    oldindan berilishi mumkin (so'rovlar soni qator soniga bog'liq bo'lmasin)."""
+    from types import SimpleNamespace
+    from models import Inventory
+    if band is None:
+        band = _jarayondagi_band(db, company_id)
+    kiritilgan_idlar = {l.get("inventory_id") for l in qatorlar
+                        if isinstance(l, dict) and l.get("included") and l.get("inventory_id") is not None}
+    if inv_map is None:
+        inv_map = {}
+        if kiritilgan_idlar:
+            inv_map = {i.id: i for i in db.query(Inventory).filter(
+                Inventory.company_id == company_id, Inventory.id.in_(sorted(kiritilgan_idlar))).all()}
+    if allow_negative is None:
+        company = _get_company(db, company_id)
+        allow_negative = bool(company.allow_negative_stock) if company else False
+    try:
+        q = float(miqdor or 0)
+    except (TypeError, ValueError):
+        q = 0.0
+
+    natija = []
+    yetmaydi, topilmadi, ogohlantirish = [], [], []
+    maks_ombor = maks_bosh = None
+    xomashyo = 0.0
+    # K113-2: bir material bir necha qatorda bo'lsa — yakunlash (va endi boshlash) tartibida: qatorning ixtiyoridagi
+    # qoldiq — shu ishlab chiqarishning OLDINGI qatorlari ayirilgandan keyingisi (`_qoldiq_keyin`).
+    qoldiq, oldingi, jami_kerak, ombor_map, bosh_map = {}, {}, {}, {}, {}
+    for l in qatorlar:
+        if not isinstance(l, dict):
+            continue
+        kiritilgan = bool(l.get("included"))
+        try:
+            kerak = float(l.get("total_quantity_needed_stock_unit", l.get("total_quantity_needed")) or 0)
+        except (TypeError, ValueError):
+            kerak = 0.0
+        inv = inv_map.get(l.get("inventory_id")) if kiritilgan else None
+        b = band.get(l.get("inventory_id")) or {"miqdor": 0.0, "po": {}}
+        boshqalar = {pid: m for pid, m in (b.get("po") or {}).items() if pid != istisno_po_id}
+        band_miqdor = float(sum(boshqalar.values()))
+        qator = {
+            "inventory_id": l.get("inventory_id"),
+            "bom_item_id": l.get("bom_item_id"),
+            "item_name": inv.item_name if inv is not None else l.get("item_name"),
+            "unit": l.get("unit"),
+            "stock_unit": inv.unit if inv is not None else l.get("stock_unit"),
+            "component_type": l.get("component_type"),
+            "is_optional": bool(l.get("is_optional")),
+            "is_coating": bool(l.get("is_coating")),
+            "included": kiritilgan,
+            "base_quantity": l.get("base_quantity"),
+            "scrap_factor_percent": l.get("scrap_factor_percent"),
+            "kerak": kerak,
+            "kerak_retsept": l.get("total_quantity_needed"),
+            "narx": l.get("unit_price_at_time"),
+            "summa": float(l.get("line_cost") or 0),
+            "omborda": None,
+            "oldingi": 0.0,
+            "band": band_miqdor,
+            "band_po": sorted(boshqalar.keys()),
+            "bosh": None,
+            "yetmaydi": 0.0,
+            "holat": "kiritilmagan",
+        }
+        if kiritilgan:
+            if inv is None:
+                qator["holat"] = "topilmadi"
+                if qator["item_name"] not in topilmadi:
+                    topilmadi.append(qator["item_name"])
+                if rejim == REJA_YAKUNLASH:
+                    natija.append(qator)      # yakunlash bu qatorni o'tkazib yuboradi — tannarxga kirmaydi
+                    continue
+            else:
+                omborda = float(inv.stock_quantity or 0)
+                oldin = oldingi.get(inv.id, 0.0)
+                bu_qatorga = qoldiq.get(inv.id, omborda)
+                bosh = max(0.0, omborda - band_miqdor)
+                qator["omborda"] = omborda
+                qator["oldingi"] = oldin
+                qator["bosh"] = bosh
+                if _yetmaydimi(bu_qatorga, kerak):
+                    qator["holat"] = "yetmaydi"
+                    # birinchi qator — to'liq kamchilik; keyingisi — oldingi qatorlar kamchiligi takror sanalmaydi
+                    qator["yetmaydi"] = kerak - (bu_qatorga if oldin <= 0 else max(bu_qatorga, 0.0))
+                    if qator["item_name"] not in yetmaydi:
+                        yetmaydi.append(qator["item_name"])
+                elif band_miqdor > 0 and _yetmaydimi(omborda - band_miqdor - oldin, kerak):
+                    qator["holat"] = "band_bilan_yetmaydi"
+                    if qator["item_name"] not in ogohlantirish:
+                        ogohlantirish.append(qator["item_name"])
+                else:
+                    qator["holat"] = "yetadi"
+                qoldiq[inv.id] = _qoldiq_keyin(bu_qatorga, kerak)
+                oldingi[inv.id] = oldin + kerak
+                jami_kerak[inv.id] = jami_kerak.get(inv.id, 0.0) + kerak
+                ombor_map[inv.id], bosh_map[inv.id] = omborda, bosh
+            xomashyo += qator["summa"]
+        natija.append(qator)
+
+    # Boshlash rejimi: ombordagi xomashyodan eng ko'pi qancha chiqadi — har material JAMI kerak miqdori bo'yicha.
+    if rejim == REJA_BOSHLASH and q > 0:
+        for inv_id, jk in jami_kerak.items():
+            if jk <= 0:
+                continue
+            birlikka = jk / q
+            m1 = max(0.0, ombor_map[inv_id]) / birlikka
+            m2 = bosh_map[inv_id] / birlikka
+            maks_ombor = m1 if maks_ombor is None else min(maks_ombor, m1)
+            maks_bosh = m2 if maks_bosh is None else min(maks_bosh, m2)
+
+    qoshimcha = _qoshimcha_xarajat(db, SimpleNamespace(quantity=q, bom_id=bom_id), qatorlar, xomashyo, company_id)
+    tannarx = xomashyo + qoshimcha
+    sigim_xato = _tannarx_sigimi_xatosi(tannarx, q)
+    tosiq = bool(yetmaydi) and not allow_negative
+    if rejim == REJA_BOSHLASH and topilmadi:
+        tosiq = True
+    return {
+        "rejim": rejim,
+        "miqdor": q,
+        "qatorlar": natija,
+        "xomashyo": xomashyo,
+        "qoshimcha": qoshimcha,
+        "tannarx": tannarx,
+        "bir_birlik": (tannarx / q) if q > 0 else None,
+        "maks_ombor": maks_ombor,
+        "maks_bosh": maks_bosh,
+        "yetmaydi": yetmaydi,
+        "topilmadi": topilmadi,
+        "ogohlantirish": ogohlantirish,
+        "manfiy_ruxsat": bool(allow_negative),
+        "sigim_xato": sigim_xato,
+        "mumkin": (not tosiq) and not sigim_xato,
+    }
+
+
+def ishlab_chiqarish_rejasi(db: Session, company_id: int, data) -> dict:
+    """«Yangi ishlab chiqarish» oynasi (kech113, dizayn 3-band): YARATISH + BOSHLASH natijasini OLDINDAN
+    ko'rsatadi — xomashyo yetadimi, qanchasi yetmaydi, eng ko'pi qancha chiqadi, taxminiy tannarx. Tekshiruvlar —
+    `_yaratish_tekshiruvi` (yaratish bilan AYNAN; qoplama tanlovi ham), qatorlar — `_surat_qatorlari`, ombor —
+    `_reja_hisobi` (boshlash qoidasi). Mahsulot turi yoki retsept topilmasa — {"success": False}; boshqa to'siq
+    (manba, buyurtma detali, "kerak" miqdori) `xatolar` ga yoziladi va reja baribir hisoblanadi."""
+    t = _yaratish_tekshiruvi(db, company_id, data)
+    if t["product_type"] is None or t["bom"] is None:
+        return {"success": False, "message": t["xato"] or "Mahsulot turi topilmadi"}
+    product_type, bom = t["product_type"], t["bom"]
+    tanlangan = t["tanlangan"] if t["tanlangan"] is not None else list(data.selected_optional_bom_item_ids or [])
+    qatorlar = _surat_qatorlari(bom, data.quantity, tanlangan)
+    reja = _reja_hisobi(db, company_id, qatorlar, data.quantity, bom.id, REJA_BOSHLASH)
+    xatolar = [t["xato"]] if t["xato"] else []
+    reja.update({
+        "success": True,
+        "mahsulot": product_type.name,
+        "birlik": product_type.unit,
+        "retsept": bom.variant_name,
+        "partiya": bom.batch_quantity,
+        "tanlangan_ixtiyoriy": sorted(set(tanlangan)),
+        "qolgan": t["qolgan"],
+        "kerak_izoh": t["kerak_izoh"],
+        "xatolar": xatolar,
+    })
+    reja["mumkin"] = bool(reja["mumkin"]) and not xatolar
+    return reja
+
+
+def mavjud_ishlab_chiqarish_rejasi(db: Session, po_id: int, company_id: int) -> dict:
+    """«Boshlash» / «Yakunlash» oynasi (kech113): mavjud ishlab chiqarish uchun reja. Qoralama — joriy retsept va
+    saqlangan ixtiyoriy tanlov (boshlash qoidasi, bog'langan buyurtma detali "kerak" tekshiruvi ham — boshlash
+    xabari bilan); jarayondagi — QOTGAN surat (yakunlash qoidasi). Yakunlangan / bekor qilingan — reja yo'q (409)."""
+    po = db.query(ProductionOrder).filter(
+        ProductionOrder.id == po_id, ProductionOrder.company_id == company_id
+    ).first()
+    if not po:
+        return {"success": False, "kod": 404, "message": "Ishlab chiqarish buyurtmasi topilmadi"}
+    product_type = db.query(ProductType).filter(
+        ProductType.id == po.product_type_id, ProductType.company_id == company_id).first()
+    xatolar = []
+    if po.status == ProductionOrderStatus.DRAFT.value:
+        bom = db.query(BOM).filter(BOM.id == po.bom_id, BOM.company_id == company_id).first()
+        if not bom:
+            return {"success": False, "kod": 409, "message": "Mahsulot tarkibi topilmadi"}
+        try:
+            tanlangan = json.loads(po.selected_optional_bom_item_ids_json or "[]")
+        except (TypeError, ValueError):
+            tanlangan = []
+        qatorlar = _surat_qatorlari(bom, po.quantity, tanlangan)
+        reja = _reja_hisobi(db, company_id, qatorlar, po.quantity, bom.id, REJA_BOSHLASH, istisno_po_id=po.id)
+        if po.source_order_item_id:
+            from models import OrderItem
+            oi = db.query(OrderItem).filter(OrderItem.id == po.source_order_item_id,
+                                            OrderItem.company_id == company_id).first()
+            if oi is None:
+                xatolar.append("Bog'langan buyurtma-detali topilmadi (boshqa korxonaniki yoki o'chirilgan) — bu "
+                               "ishlab chiqarishni boshlab bo'lmaydi. Uni bekor qilib, qaytadan yarating.")
+            else:
+                _ob = getattr(oi, "order", None)
+                if _ob is not None and _ob.is_deleted:
+                    xatolar.append(crud.OCHIRILGAN_BUYURTMA_XABARI)
+                else:
+                    _k = mrp_detal_kerak(db, oi)
+                    remaining = max(0.0, _k["kerak"])
+                    if float(po.quantity or 0) > remaining + 0.0001:
+                        xatolar.append(f"Bu buyurtma-detali uchun endi faqat {remaining:g} kerak ({_mrp_kerak_izoh(_k)}) — "
+                                       f"boshqa ishlab chiqarish buyurtmasi band qilib ulgurgan yoki detal topshirilgan. "
+                                       f"{float(po.quantity or 0):g} band qilib bo'lmaydi.")
+        reja["retsept"] = bom.variant_name
+        reja["partiya"] = bom.batch_quantity
+    elif po.status == ProductionOrderStatus.IN_PROGRESS.value:
+        try:
+            qatorlar = json.loads(po.recipe_snapshot_json or "[]")
+        except (TypeError, ValueError):
+            qatorlar = []
+        if not isinstance(qatorlar, list) or not qatorlar:
+            return {"success": False, "kod": 409,
+                    "message": "Mahsulot tarkibi surati topilmadi — bu buyurtma to'g'ri boshlanmagan bo'lishi mumkin"}
+        reja = _reja_hisobi(db, company_id, qatorlar, po.quantity, po.bom_id, REJA_YAKUNLASH, istisno_po_id=po.id)
+        _tm_xato = _yakunlash_tm_xatosi(db, po, company_id)       # kech114 (K114-1) — yakunlash bilan bir qoida
+        if _tm_xato:
+            xatolar.append(_tm_xato)
+        _bom = db.query(BOM).filter(BOM.id == po.bom_id, BOM.company_id == company_id).first()
+        reja["retsept"] = _bom.variant_name if _bom else None
+        reja["partiya"] = _bom.batch_quantity if _bom else None
+    else:
+        return {"success": False, "kod": 409,
+                "message": f"Bu ishlab chiqarish {_PO_HOLAT_NOMI.get(po.status, po.status)} — reja faqat qoralama "
+                           f"va jarayondagi ishlab chiqarish uchun"}
+    reja.update({
+        "success": True,
+        "id": po.id,
+        "status": po.status,
+        "mahsulot": product_type.name if product_type else None,
+        "birlik": product_type.unit if product_type else None,
+        "xatolar": xatolar,
+    })
+    reja["mumkin"] = bool(reja["mumkin"]) and not xatolar
+    return reja
+
+
+def _retsept_satri(bi, partiya: float) -> dict:
+    """Retseptning bitta qatori PARTIYA uchun (kech114 da `retsept_tannarxi` dan AJRATILDI — saqlanmagan retsept
+    (oyna) va saqlangan retsept (mahsulot turlari jadvali, `turlar_xulosasi`) BITTA hisob bilan): `_compute_bom_line`
+    (isrof, birlik o'girish, ombordagi hozirgi narx) + ixtiyoriy / qoplama belgilari va qo'shimcha xarajat kalitlari
+    (kalit bor — `_qoshimcha_xarajat` suratdagidek hisoblaydi, bazaga murojaat qilmaydi)."""
+    line = _compute_bom_line(bi, partiya, partiya)     # partiya uchun (nisbat 1)
+    line["is_optional"] = bool(bi.is_optional)
+    line["is_coating"] = bool(bi.is_coating)
+    line["fixed_cost_per_unit"] = float(bi.fixed_cost_per_unit or 0)
+    line["percentage_cost"] = float(bi.percentage_cost or 0)
+    return line
+
+
+def _retsept_holatlari(db: Session, company_id: int, satrlar: list, partiya: float) -> dict:
+    """1 birlik tannarxi uch holatda (kech113 retsept oynasi qoidasi, kech114 da ajratildi): «doim» (faqat majburiy
+    qatorlar), «qoplamali» (+ ixtiyoriy qoplama qatorlari), «hammasi» (+ boshqa ixtiyoriy qatorlar ham)."""
+    from types import SimpleNamespace
+
+    def _holat(sharti):
+        qat = [dict(l, included=bool(sharti(l))) for l in satrlar]
+        m = sum(float(l["line_cost"] or 0) for l in qat if l["included"])
+        x = _qoshimcha_xarajat(db, SimpleNamespace(quantity=partiya, bom_id=None), qat, m, company_id)
+        return {"xomashyo": m / partiya, "qoshimcha": x / partiya, "jami": (m + x) / partiya}
+
+    return {
+        "doim": _holat(lambda l: not l["is_optional"]),
+        "qoplamali": _holat(lambda l: (not l["is_optional"]) or l["is_coating"]),
+        "hammasi": _holat(lambda l: True),
+        "qoplama_bor": any(l["is_optional"] and l["is_coating"] for l in satrlar),
+        "ixtiyoriy_bor": any(l["is_optional"] and not l["is_coating"] for l in satrlar),
+        "narxsiz": sorted({l["item_name"] for l in satrlar if not float(l["unit_price_at_time"] or 0)}),
+    }
+
+
+def retsept_tannarxi(db: Session, company_id: int, product_type, data) -> dict:
+    """Retsept oynasi (kech113, dizayn 2-band): SAQLANMAGAN retseptning taxminiy tannarxi — ishlab chiqarish
+    suratidagi AYNAN hisob: `_compute_bom_line` (isrof, birlik o'girish, ombordagi hozirgi narx) va
+    `_qoshimcha_xarajat` (qat'iy so'm × miqdor, foiz × xomashyo). Qatorlar — partiya (retsept yozilgan miqdor)
+    uchun; jami — 1 birlik (`product_type.unit`) uchun, uch holatda: «doim» (faqat majburiy qatorlar),
+    «qoplamali» (+ ixtiyoriy qoplama qatorlari — qoplamali buyurtma detali uchun avtomatik qo'shiladi),
+    «hammasi» (+ boshqa ixtiyoriy qatorlar ham tanlansa). Hech narsa yozilmaydi: `BOMItem` obyektlari sessiyaga
+    QO'SHILMAYDI (vaqtinchalik; `Inventory` da BOMItem ga qaytuvchi bog'lam yo'q). Hisob — `_retsept_satri` va
+    `_retsept_holatlari` (kech114: saqlangan retseptlar jadvali ham shu ikkisi bilan)."""
+    from models import Inventory
+    idlar = sorted({it.inventory_id for it in data.items})
+    inv_map = {i.id: i for i in db.query(Inventory).filter(
+        Inventory.company_id == company_id, Inventory.id.in_(idlar)).all()} if idlar else {}
+    partiya = float(data.batch_quantity)
+    satrlar = []
+    for tartib, it in enumerate(data.items):
+        bi = BOMItem(inventory_id=it.inventory_id, company_id=company_id, component_type=it.component_type,
+                     quantity=it.quantity, scrap_factor_percent=it.scrap_factor_percent,
+                     is_optional=it.is_optional, is_coating=it.is_coating,
+                     fixed_cost_per_unit=it.fixed_cost_per_unit, percentage_cost=it.percentage_cost)
+        bi.inventory = inv_map.get(it.inventory_id)
+        line = _retsept_satri(bi, partiya)
+        line["tartib"] = tartib
+        inv = inv_map.get(it.inventory_id)
+        line["omborda"] = float(inv.stock_quantity or 0) if inv is not None else None
+        satrlar.append(line)
+
+    holatlar = _retsept_holatlari(db, company_id, satrlar, partiya)
+    return {
+        "birlik": product_type.unit,
+        "partiya": partiya,
+        "qatorlar": [{
+            "tartib": l["tartib"],
+            "inventory_id": l["inventory_id"],
+            "item_name": l["item_name"],
+            "unit": l["unit"],
+            "stock_unit": l["stock_unit"],
+            "samarali": l["effective_quantity_per_batch"],
+            "ombor_miqdor": l["total_quantity_needed_stock_unit"],
+            "narx": l["unit_price_at_time"],
+            "summa": l["line_cost"],
+            "omborda": l["omborda"],
+            "is_optional": l["is_optional"],
+            "is_coating": l["is_coating"],
+            "qoshimcha_qatiy": l["fixed_cost_per_unit"],
+            "qoshimcha_foiz": l["percentage_cost"],
+        } for l in satrlar],
+        "doim": holatlar["doim"],
+        "qoplamali": holatlar["qoplamali"],
+        "hammasi": holatlar["hammasi"],
+        "qoplama_bor": holatlar["qoplama_bor"],
+        "ixtiyoriy_bor": holatlar["ixtiyoriy_bor"],
+        "narxsiz": holatlar["narxsiz"],
+    }
+
+
+def tur_ishlatilishi(db: Session, company_id: int, idlar) -> dict:
+    """kech120 (zip 133 — F bosqichi 3-qism, audit G5-06): mahsulot turi QAYERDA ishlatilgan — {tur_id: {"retsept", "buyurtma",
+    "ishlab", "ochiq_ishlab", "ombor"}} (sonlar; retsept — faol ham, nofaol ham; buyurtma — o'chirilmagan buyurtmalardagi
+    detallar; ishlab — hamma holat, ochiq_ishlab — qoralama / jarayonda; ombor — tayyor mahsulot yozuvlari). Turning birligi /
+    kiritish shakli ishlatilgan turda O'ZGARTIRILMAYDI (retsept partiyasi, buyurtma miqdori va ishlab chiqarish tarixi shu
+    birlikda), ochiq ishlab chiqarishi bor tur nofaol qilinmaydi. So'rovlar soni tur soniga BOG'LIQ EMAS (4 ta)."""
+    from models import OrderItem as _OI133, Order as _O133, FinishedProduct as _FP133
+    idlar = sorted({int(x) for x in (idlar or []) if x is not None})
+    natija = {i: {"retsept": 0, "buyurtma": 0, "ishlab": 0, "ochiq_ishlab": 0, "ombor": 0} for i in idlar}
+    if not idlar:
+        return natija
+    for pt_id, n in db.query(BOM.product_type_id, func.count(BOM.id)).filter(
+            BOM.company_id == company_id, BOM.product_type_id.in_(idlar)).group_by(BOM.product_type_id).all():
+        natija[pt_id]["retsept"] = int(n or 0)
+    for pt_id, n in db.query(_OI133.product_type_id, func.count(_OI133.id)).join(
+            _O133, _O133.id == _OI133.order_id).filter(
+            _OI133.company_id == company_id, _OI133.product_type_id.in_(idlar),
+            _O133.is_deleted.isnot(True)).group_by(_OI133.product_type_id).all():
+        natija[pt_id]["buyurtma"] = int(n or 0)
+    _ochiq = (ProductionOrderStatus.DRAFT.value, ProductionOrderStatus.IN_PROGRESS.value)
+    for pt_id, holat, n in db.query(ProductionOrder.product_type_id, ProductionOrder.status, func.count(ProductionOrder.id)).filter(
+            ProductionOrder.company_id == company_id, ProductionOrder.product_type_id.in_(idlar)).group_by(
+            ProductionOrder.product_type_id, ProductionOrder.status).all():
+        natija[pt_id]["ishlab"] += int(n or 0)
+        if holat in _ochiq:
+            natija[pt_id]["ochiq_ishlab"] += int(n or 0)
+    for pt_id, n in db.query(_FP133.product_type_id, func.count(_FP133.id)).filter(
+            _FP133.company_id == company_id, _FP133.product_type_id.in_(idlar)).group_by(_FP133.product_type_id).all():
+        natija[pt_id]["ombor"] = int(n or 0)
+    return natija
+
+
+def tur_ishlatilishi_matni(ish: dict) -> str:
+    """`tur_ishlatilishi` qatori — odam o'qiydigan matn («2 ta retseptda, 5 ta buyurtma detalida …»); ishlatilmagan — bo'sh."""
+    q = []
+    if ish.get("retsept"):
+        q.append(f"{ish['retsept']} ta retseptda")
+    if ish.get("buyurtma"):
+        q.append(f"{ish['buyurtma']} ta buyurtma detalida")
+    if ish.get("ishlab"):
+        q.append(f"{ish['ishlab']} ta ishlab chiqarishda")
+    if ish.get("ombor"):
+        q.append(f"{ish['ombor']} ta tayyor mahsulot yozuvida")
+    return ", ".join(q)
+
+
+def turlar_xulosasi(db: Session, company_id: int) -> list:
+    """Mahsulot turlari JADVALI (kech114 — egasi QARORI «5B — Jadval»): har FAOL tur uchun — turning o'z maydonlari
+    (`ProductTypeRead` bilan bir xil: sahifa ularni retsept / ishlab chiqarish oynalarida ham ishlatadi), omborda
+    (tayyor + qaytgan, qoldiq > 0; `crud._fp_tayyormi` qoidasi), band (shu tayyor qoldiqning buyurtmaga band qismi),
+    jarayonda (jarayondagi ishlab chiqarishlar miqdori) va har FAOL retseptning 1 birlik taxminiy tannarxi (retsept
+    oynasidagi AYNAN hisob — `_retsept_satri` + `_retsept_holatlari`: «doim» va «qoplamali»). Hech narsa yozilmaydi.
+    So'rovlar soni tur / retsept soniga BOG'LIQ EMAS (turlar, retseptlar + qatorlar + materiallar, ombor yig'indisi,
+    jarayondagi yig'indi). Ilgari sahifa har tur uchun alohida `/boms` so'rovi yuborardi."""
+    from sqlalchemy import or_
+    from sqlalchemy.orm import selectinload
+    from models import FinishedProduct, StockSource, ProductionStatus as FPStatus
+    turlar = db.query(ProductType).filter(
+        ProductType.company_id == company_id, ProductType.is_active == True  # noqa: E712
+    ).order_by(ProductType.name, ProductType.id).all()
+    if not turlar:
+        return []
+    idlar = [t.id for t in turlar]
+    retseptlar = db.query(BOM).options(selectinload(BOM.items).selectinload(BOMItem.inventory)).filter(
+        BOM.company_id == company_id, BOM.is_active == True, BOM.product_type_id.in_(idlar)  # noqa: E712
+    ).order_by(BOM.id).all()
+    ombor = {}
+    for pt_id, miqdor, band in db.query(
+            FinishedProduct.product_type_id, func.sum(FinishedProduct.quantity),
+            func.sum(FinishedProduct.reserved_quantity)).filter(
+            FinishedProduct.company_id == company_id, FinishedProduct.product_type_id.in_(idlar),
+            FinishedProduct.quantity > 0,
+            or_(FinishedProduct.source == StockSource.RETURNED,
+                FinishedProduct.production_status == FPStatus.READY)).group_by(
+            FinishedProduct.product_type_id).all():
+        ombor[pt_id] = (float(miqdor or 0), float(band or 0))
+    jarayonda = {pt_id: float(miqdor or 0) for pt_id, miqdor in db.query(
+        ProductionOrder.product_type_id, func.sum(ProductionOrder.quantity)).filter(
+        ProductionOrder.company_id == company_id, ProductionOrder.product_type_id.in_(idlar),
+        ProductionOrder.status == ProductionOrderStatus.IN_PROGRESS.value).group_by(
+        ProductionOrder.product_type_id).all()}
+    tur_retseptlari = {}
+    for bom in retseptlar:
+        partiya = float(bom.batch_quantity or 0)
+        elementlar = list(bom.items or [])
+        if partiya > 0:
+            h = _retsept_holatlari(db, company_id, [_retsept_satri(bi, partiya) for bi in elementlar], partiya)
+            tannarx = {"doim": h["doim"]["jami"], "qoplamali": h["qoplamali"]["jami"]}
+            qoplama_bor, narxsiz = h["qoplama_bor"], h["narxsiz"]
+        else:
+            tannarx, qoplama_bor, narxsiz = None, False, []
+        tur_retseptlari.setdefault(bom.product_type_id, []).append({
+            "id": bom.id,
+            "variant_name": bom.variant_name,
+            "batch_quantity": float(bom.batch_quantity or 0),
+            "materiallar": len(elementlar),
+            "tannarx": tannarx,
+            "qoplama_bor": qoplama_bor,
+            "narxsiz": narxsiz,
+        })
+    # kech117 (A2): tur yo'nalishi (NULL — «Belgilanmagan»); nomlar — korxonaning HAMMA yo'nalishi (yashirini ham)
+    import crud as _crud117
+    _ynom = _crud117.yonalish_nomlari(db, company_id)
+    _ish133 = tur_ishlatilishi(db, company_id, idlar)     # kech120 (zip 133 — G5-06): tahrirlash / o'chirish oynasi uchun
+    natija = []
+    for t in turlar:
+        miqdor, band = ombor.get(t.id, (0.0, 0.0))
+        natija.append({
+            "id": t.id,
+            "company_id": t.company_id,
+            "name": t.name,
+            "yonalish_id": t.yonalish_id,
+            "yonalish_nom": _ynom.get(t.yonalish_id) if t.yonalish_id else None,
+            "unit": t.unit,
+            "input_template": t.input_template,
+            "pricing_formula": t.pricing_formula,
+            "fixed_unit_price": float(t.fixed_unit_price) if t.fixed_unit_price is not None else None,
+            "supports_coating": bool(t.supports_coating),
+            "coating_price_multiplier": (float(t.coating_price_multiplier)
+                                         if t.coating_price_multiplier is not None else None),
+            "is_active": bool(t.is_active),
+            "created_at": t.created_at.isoformat() if t.created_at else None,
+            "notes": t.notes,
+            "omborda": round(miqdor, 4),
+            "band": round(band, 4),
+            "jarayonda": round(jarayonda.get(t.id, 0.0), 4),
+            "retseptlar": tur_retseptlari.get(t.id, []),
+            "ishlatilishi": _ish133.get(t.id),
+            "ishlatilishi_matni": tur_ishlatilishi_matni(_ish133.get(t.id) or {}),
+        })
+    return natija
+
+
+def royxat_qoshimchalari(db: Session, company_id: int, rows: list) -> dict:
+    """Ishlab chiqarish ro'yxati (kech113, dizayn 4-band) uchun qo'shimcha maydonlar — {po_id: {...}}. So'rovlar
+    soni qator soniga BOG'LIQ EMAS: mahsulot turi nomi / birligi (nofaol tur ham), retsept nomi, mijoz buyurtmasi
+    raqami, mijoz ismi, buyurtma o'chirilganmi (K113-3), detal nomi va qoplamasi, tanlangan ixtiyoriy qatorlar;
+    qoralama uchun taxminiy tannarx va xomashyo holati (`_reja_hisobi` — boshlash qoidasi, jarayondagi ishlab
+    chiqarishlar kutayotgani hisobga olingan), jarayondagi uchun taxminiy tannarx (qotgan surat — yakunlash hisobi)."""
+    from sqlalchemy.orm import selectinload
+    from models import Inventory, OrderItem, Order, Project
+    natija = {}
+    if not rows:
+        return natija
+    pt_idlar = sorted({po.product_type_id for po in rows if po.product_type_id})
+    bom_idlar = sorted({po.bom_id for po in rows if po.bom_id})
+    oi_idlar = sorted({po.source_order_item_id for po in rows if po.source_order_item_id})
+    ord_idlar = sorted({po.source_order_id for po in rows if po.source_order_id})
+    turlar = {pt.id: pt for pt in db.query(ProductType).filter(
+        ProductType.company_id == company_id, ProductType.id.in_(pt_idlar)).all()} if pt_idlar else {}
+    retseptlar = {b.id: b for b in db.query(BOM).options(
+        selectinload(BOM.items).selectinload(BOMItem.inventory)).filter(
+        BOM.company_id == company_id, BOM.id.in_(bom_idlar)).all()} if bom_idlar else {}
+    # kech113 (K113-3, JONLI sinovda topildi — 13 dan 10 tasi): buyurtma BUTUNLAY o'chirilganda ishlab chiqarish TARIXIY
+    # yozuv bo'lib qoladi, ikkala bog'lam uziladi (`crud.delete_order` / `crud.permanent_delete_order`); detal o'chirilganda
+    # (buyurtma tahriri) faqat detal bog'lami uziladi. Shuning uchun buyurtma (raqam, mijoz, «o'chirilgan» — savatda) va
+    # detal (nomi, qoplama) ALOHIDA o'qiladi — detali yo'q buyurtma raqami ham ko'rinsin.
+    buyurtmalar = {}
+    if ord_idlar:
+        for o_id, raqam, mijoz, ochirilgan in db.query(
+                Order.id, Order.order_number, Project.client_name, Order.is_deleted).outerjoin(
+                Project, Project.id == Order.project_id).filter(
+                Order.company_id == company_id, Order.id.in_(ord_idlar)).all():
+            buyurtmalar[o_id] = {"raqam": raqam, "mijoz": mijoz, "ochirilgan": bool(ochirilgan)}
+    detallar = {}
+    if oi_idlar:
+        for oi_id, oi_nomi, oi_qoplamali in db.query(
+                OrderItem.id, OrderItem.name, OrderItem.is_coated).filter(
+                OrderItem.company_id == company_id, OrderItem.id.in_(oi_idlar)).all():
+            detallar[oi_id] = {"nomi": oi_nomi, "qoplamali": bool(oi_qoplamali)}
+
+    qoralamalar = [po for po in rows if po.status == ProductionOrderStatus.DRAFT.value and po.bom_id in retseptlar]
+    band = _jarayondagi_band(db, company_id) if qoralamalar else {}
+    inv_map, allow_negative = {}, False
+    reja_qatorlari = {}
+    if qoralamalar:
+        for po in qoralamalar:
+            try:
+                tanlangan = json.loads(po.selected_optional_bom_item_ids_json or "[]")
+            except (TypeError, ValueError):
+                tanlangan = []
+            reja_qatorlari[po.id] = _surat_qatorlari(retseptlar[po.bom_id], po.quantity, tanlangan)
+        inv_idlar = sorted({l.get("inventory_id") for q in reja_qatorlari.values() for l in q
+                            if l.get("included") and l.get("inventory_id") is not None})
+        if inv_idlar:
+            inv_map = {i.id: i for i in db.query(Inventory).filter(
+                Inventory.company_id == company_id, Inventory.id.in_(inv_idlar)).all()}
+        company = _get_company(db, company_id)
+        allow_negative = bool(company.allow_negative_stock) if company else False
+
+    for po in rows:
+        pt = turlar.get(po.product_type_id)
+        bom = retseptlar.get(po.bom_id)
+        d = detallar.get(po.source_order_item_id) if po.source_order_item_id else None
+        b = buyurtmalar.get(po.source_order_id) if po.source_order_id else None
+        mijozga = po.source_type == ProductionSourceType.CUSTOMER_ORDER.value
+        try:
+            tanlangan = json.loads(po.selected_optional_bom_item_ids_json or "[]")
+        except (TypeError, ValueError):
+            tanlangan = []
+        q = {
+            "mahsulot_nomi": pt.name if pt else None,
+            "birlik": pt.unit if pt else None,
+            "retsept_nomi": bom.variant_name if bom else None,
+            "manba_buyurtma_raqami": b["raqam"] if b else None,
+            "manba_mijoz": b["mijoz"] if b else None,
+            "manba_detal": d["nomi"] if d else None,
+            "manba_qoplamali": d["qoplamali"] if d else None,
+            # mijoz buyurtmasiga: buyurtma butunlay o'chirilgan (bog'lam yo'q) yoki savatda — True; omborga — None
+            "manba_ochirilgan": ((b["ochirilgan"] if b else True) if mijozga else None),
+            "ixtiyoriy_idlar": [x for x in tanlangan if isinstance(x, int)],
+            "finished_product_id": po.finished_product_id,
+            "taxminiy_tannarx": None,
+            "xomashyo_holati": None,
+            "yetmaydi": [],
+            "maks_bosh": None,
+        }
+        if po.id in reja_qatorlari:
+            r = _reja_hisobi(db, company_id, reja_qatorlari[po.id], po.quantity, po.bom_id, REJA_BOSHLASH,
+                             band=band, inv_map=inv_map, allow_negative=allow_negative)
+            q["taxminiy_tannarx"] = r["tannarx"]
+            q["yetmaydi"] = list(r["yetmaydi"]) + list(r["topilmadi"])
+            q["maks_bosh"] = r["maks_bosh"]
+            q["xomashyo_holati"] = ("yetmaydi" if q["yetmaydi"]
+                                    else "band_bilan_yetmaydi" if r["ogohlantirish"] else "yetadi")
+        elif po.status == ProductionOrderStatus.IN_PROGRESS.value and po.recipe_snapshot_json:
+            try:
+                surat = json.loads(po.recipe_snapshot_json)
+            except (TypeError, ValueError):
+                surat = []
+            if isinstance(surat, list):
+                m = sum(float(l.get("line_cost") or 0) for l in surat if isinstance(l, dict) and l.get("included"))
+                q["taxminiy_tannarx"] = m + _qoshimcha_xarajat(db, po, surat, m, company_id, bom=bom)
+        natija[po.id] = q
+    return natija

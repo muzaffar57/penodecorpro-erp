@@ -21,12 +21,66 @@ def _uzb_now():
 from enum import Enum as PyEnum
 
 from sqlalchemy import (
-    Column, Integer, String, Float, Boolean, DateTime,
-    ForeignKey, Enum, Text, Numeric
+    Column, Integer, String, Float, Boolean, DateTime, Date,
+    ForeignKey, Enum, Text, Numeric, text as sa_text, UniqueConstraint
 )
+from sqlalchemy import event
 from sqlalchemy.orm import relationship, declarative_base
+from sqlalchemy.orm import Session as SASession
+from sqlalchemy.orm.attributes import get_history
 
 Base = declarative_base()
+
+
+# ============================================================
+# PUL — tiyin aniqligi va "qarz yo'q" chegarasi (kech92, 119-band)
+# ============================================================
+# HAQIQIY PostgreSQL 16 va SQLite da O'LCHANGAN (`work/probe119.py`, asl kod =
+# zip 85): to'langan summa `float` lar yig'indisi sifatida hisoblanardi va
+# kelishilgan summa bilan QAT'IY (`paid < agreed`) solishtirilardi:
+#   * tiyinli qaytarishlar (3 × −166 517.15) yoki tiyinli to'lovlar
+#     (2 674.60 + 1 236.47 = 3 911.07) dan keyin to'langan = 3911.0699999999997
+#     — qarz 4.5e-13, holat "qisman", buyurtma arxivga O'TMASDI;
+#   * UI yo'li: kelishilgan 461 538.40, mijoz ko'rinib turgan qarzni
+#     (`formatNum` — butun so'm) 461 538 to'laydi → qarz 0.40000000002, holat
+#     "qisman", dashboard qarzdorlar ro'yxatida, 30 kundan keyin "qarzdor"
+#     ogohlantirishi; "chegirmaga yozish" esa 0.5 so'mdan kichik qoldiqni
+#     yozmaydi (BERK KO'CHA); kelishilgan .75 da ko'rinib turgan qarz
+#     (461 539) to'lansa — "qarzdan 0 so'mga ko'p" degan tasdiq (409).
+# Tizimdagi mavjud qoida — 0.5 so'mdan kichik qoldiq "qarz yo'q" (qarzdorlar
+# sahifasi va hisobot `> 0.5`, "chegirmaga yozish" `> 0.5`, majburiyatlar
+# `<= 0.5`), UI esa qarzni butun so'mda ko'rsatadi va butun so'm qabul qiladi.
+# Endi buyurtma qarzi / holati / ortiqcha to'lov tekshiruvi ham AYNAN shu
+# qoidada: yig'indi va ayirma tiyinga yaxlitlanadi (bazadagi `Numeric(12,2)`
+# kabi — HALF_UP), qoldiq `QARZ_BARDOSH` dan oshmasa — qarz 0.
+QARZ_BARDOSH = 0.5
+
+
+def pul_tiyin(v) -> float:
+    """Pul qiymati — 2 xonaga HALF_UP (bazadagi `Numeric(12,2)` va
+    `crud._pul2` bilan AYNAN). Manfiy nol (−0.0) qaytmaydi."""
+    from decimal import Decimal, ROUND_HALF_UP
+    return float(Decimal(repr(float(v or 0))).quantize(Decimal("0.01"),
+                                                       rounding=ROUND_HALF_UP)) + 0.0
+
+
+def pul_tiyin_yigindi(qiymatlar) -> float:
+    """Pul qiymatlari yig'indisi — `Decimal` da ANIQ qo'shiladi (float
+    shovqini to'planmaydi), natija tiyinga yaxlitlanadi."""
+    from decimal import Decimal, ROUND_HALF_UP
+    jami = Decimal("0")
+    for v in qiymatlar:
+        jami += Decimal(repr(float(v or 0)))
+    return float(jami.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)) + 0.0
+
+
+def ortiqcha_tolov_qiymati(tolangan, kelishilgan) -> float:
+    """kech100 (131-band, FOYDALANUVCHI QARORI "B"): mijoz kelishilgan summadan ORTIQCHA to'lagan (qaytarilishi
+    kerak bo'lgan) qism — tiyin aniqligida, `Order.debt_amount` ning aksi va AYNAN bir bardosh: ortiqcha yarim
+    so'mdan (`QARZ_BARDOSH`) oshmasa — 0 (UI summani butun so'mda ko'rsatadi). Manfiy to'lov (mijozga qaytarilgan
+    pul — 24-band "Pul qaytdi" va "Qaytarildi") to'langan summani kamaytiradi — ortiqcha shunga yopiladi."""
+    q = pul_tiyin(float(tolangan or 0) - float(kelishilgan or 0))
+    return q if q > QARZ_BARDOSH else 0.0
 
 
 # ============================================================
@@ -111,17 +165,100 @@ class PaymentStatus(PyEnum):
 class User(Base):
     __tablename__ = "users"
 
+    __table_args__ = (
+        UniqueConstraint("company_id", "telegram_id",
+                         name="uq_user_company_telegram"),
+    )
+
     id = Column(Integer, primary_key=True, index=True)
+
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 1-QADAM (poydevor).
+    # Butun tizimda "bu so'rov qaysi korxonaniki?" degan savolga javob
+    # beradigan YAGONA manba shu ustun: foydalanuvchi login qiladi ->
+    # uning company_id si aniqlanadi -> qolgan hamma so'rov shu bo'yicha
+    # filtrlanadi (keyingi bosqichlarda, jadval-jadval qo'shiladi).
+    #
+    # MUHIM: bu ustunni bazaga saas_migration.py (1-qadam) qo'shadi —
+    # backfill, indeks, tashqi kalit va NOT NULL bilan birga. Kod ANA
+    # SHUNDAN KEYIN yangilanadi. Agar yangi muhitda (masalan `main`)
+    # migratsiya ishlatilmasdan shu kod joylashtirilsa, `users` jadvalida
+    # ustun bo'lmagani uchun login ishlamaydi — shuning uchun HAR BIR
+    # muhitda avval migratsiya, keyin kod.
+    #
+    # Bazada ustunda vaqtinchalik DEFAULT 1 bor (o'tish davri uchun).
+    # U keyingi bosqichda, barcha yozuv nuqtalari company_id ni aniq
+    # yuboradigan bo'lgandan keyin OLIB TASHLANADI — aks holda unutilgan
+    # company_id jimgina 1-korxonaga tushib qoladi (ma'lumot sizib chiqishi).
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True)
+
     username = Column(String(50), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
     role = Column(Enum(UserRole), nullable=False, default=UserRole.MANAGER)
     full_name = Column(String(100))
-    telegram_id = Column(String(50), unique=True, nullable=True)
+    # 2026-09-19 — Faza 5: `Master.telegram_id` bilan bir xil sabab —
+    # bir odam ikki korxonada foydalanuvchi bo'la olishi kerak.
+    telegram_id = Column(String(50), nullable=True, index=True)
+    # 2026-09-19 — Faza 3: PLATFORMA admini (SaaS egasi).
+    # `admin_only` — bu KORXONA admini; har bir mijozning admini shu
+    # huquqqa ega. Platforma darajasidagi amallar (Telegram bot sozlamasi,
+    # global zaxira yuborish) esa faqat shu bayroqqa ega foydalanuvchiga
+    # ochiq bo'lishi kerak.
+    is_platform_admin = Column(Boolean, default=False, nullable=False,
+                               server_default=sa_text("false"))
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    # kech118 (ROLLAR — egasi QARORI 15:23): foydalanuvchining roli (`rollar`). Huquq — `ruxsatlar.bormi` (rol ruxsatlari);
+    # Admin — `role == ADMIN` (hamma narsa). NULL — eski foydalanuvchi (migratsiyadan oldin): `role` qiymatining tayyor
+    # andozasi ishlatiladi. `role` ustuni QOLADI: Admin belgisi va rolning eski turiga mos qiymat (`ruxsatlar.ROL_ENUM`).
+    rol_id = Column(Integer, ForeignKey("rollar.id"), nullable=True, index=True)
+    rol = relationship("Rol", foreign_keys=[rol_id], lazy="select")
+
+    def ruxsat(self, band: str, amal: str = None) -> bool:
+        """Shablon va kod uchun: `current_user.ruxsat('buyurtma', 'yaratish')`; amal berilmasa — bandning istalgan amali."""
+        import ruxsatlar as _rx
+        return _rx.bormi(self, band, amal)
+
+    @property
+    def rol_nomi(self) -> str:
+        """Ko'rinadigan rol nomi (menyu, Foydalanuvchilar): biriktirilgan rol nomi, bo'lmasa — eski turning tayyor nomi."""
+        import ruxsatlar as _rx
+        r = self.rol if self.rol_id else None
+        if r is not None and r.company_id == self.company_id:
+            return r.nom
+        k = _rx.ENUM_ROL.get(getattr(self.role, "value", ""), "")
+        return _rx.TAYYOR_ROLLAR.get(k, {}).get("nom", "—")
 
     def __repr__(self):
         return f"<User {self.username} ({self.role.value})>"
+
+
+class Rol(Base):
+    """kech118 (ROLLAR VA RUXSATLAR — egasi QARORI 15:23, tugmali javoblar 15:30; QAYTA SO'RALMAYDI): korxona roli.
+
+    * `ruxsatlar` — JSON matn {band: [amal, ...]} (katalog — `ruxsatlar.BOLIMLAR`; amallar: korish / yaratish /
+      tahrirlash / ochirish). Noma'lum band / amal o'qishda tashlanadi.
+    * `kod` — tayyor rol: 'admin' (o'zgarmaydi, o'chirilmaydi; ruxsati tekshirilmaydi — Admin hamma narsa), 'menejer',
+      'omborchi', 'moliyachi', 'usta' (eski «Usta» foydalanuvchisi bo'lsa). O'zi yaratilgan rol — NULL.
+    * Rol nomi korxona ichida yagona (`uq_rollar_company_nom`); foydalanuvchisi bor rol o'chirilmaydi."""
+    __tablename__ = "rollar"
+    __table_args__ = (
+        UniqueConstraint("company_id", "nom", name="uq_rollar_company_nom"),
+        UniqueConstraint("company_id", "kod", name="uq_rollar_company_kod"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    nom = Column(String(60), nullable=False)
+    tavsif = Column(String(300), nullable=True)
+    kod = Column(String(20), nullable=True)
+    ruxsatlar = Column(Text, nullable=False, default="{}")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=True)
+    updated_by = Column(String(100), nullable=True)
+
+    def __repr__(self):
+        return f"<Rol {self.nom}>"
 
 
 # ============================================================
@@ -131,10 +268,36 @@ class User(Base):
 class Master(Base):
     __tablename__ = "masters"
 
+    # 2026-09-18 — W2b: bu cheklov endi KORXONA ICHIDA yagona.
+    # Ilgari butun tizim bo'yicha yagona edi, ya'ni ikkinchi korxona
+    # bir xil qiymatni umuman qo'sha olmasdi. Nomi bazadagi indeks
+    # nomi bilan AYNAN bir xil bo'lishi shart.
+    __table_args__ = (
+        UniqueConstraint("company_id", "telegram_id",
+                         name="uq_master_company_telegram"),
+        UniqueConstraint("company_id", "phone",
+                         name="uq_masters_company_phone"),
+    )
+
     id = Column(Integer, primary_key=True, index=True)
+
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G2.
+    # Bazaga saas_migration.py (W2G2) qo'shadi. Kod ANA SHUNDAN KEYIN
+    # yangilanadi — har bir muhitda avval migratsiya, keyin kod.
+    # server_default SHART: usiz SQLAlchemy ustunni INSERT'ga NULL qilib
+    # qo'shib yuboradi va NOT NULL buziladi (G1 da shu xato chiqqan edi).
+    # Vaqtinchalik; barcha yozuv nuqtalari company_id ni aniq yuboradigan
+    # bo'lgach, baza DEFAULT'i bilan birga olib tashlanadi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True)
     name = Column(String(100), nullable=False)
-    phone = Column(String(20), unique=True, nullable=False)
-    telegram_id = Column(String(50), unique=True, nullable=True)
+    phone = Column(String(20), nullable=False)
+    # 2026-09-19 — Faza 3 (Telegram): ilgari `unique=True` edi, ya'ni
+    # bitta Telegram hisobi butun tizimda FAQAT BITTA usta bo'la olardi.
+    # SaaS uchun bu noto'g'ri: bir usta ikki korxonada ishlashi mumkin.
+    # Endi cheklov `(company_id, telegram_id)` juftligi bo'yicha — pastdagi
+    # `__table_args__` da.
+    telegram_id = Column(String(50), nullable=True, index=True)
     cashback_percent = Column(Float, default=0.0)
     kpi_percent = Column(Float, default=0.0)   # Yillik KPI % — yillik sotuvdan, yil oxiri sovg'a uchun
     is_active = Column(Boolean, default=True)
@@ -156,6 +319,16 @@ class MasterGift(Base):
     __tablename__ = "master_gifts"
 
     id = Column(Integer, primary_key=True, index=True)
+
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G2.
+    # Bazaga saas_migration.py (W2G2) qo'shadi. Kod ANA SHUNDAN KEYIN
+    # yangilanadi — har bir muhitda avval migratsiya, keyin kod.
+    # server_default SHART: usiz SQLAlchemy ustunni INSERT'ga NULL qilib
+    # qo'shib yuboradi va NOT NULL buziladi (G1 da shu xato chiqqan edi).
+    # Vaqtinchalik; barcha yozuv nuqtalari company_id ni aniq yuboradigan
+    # bo'lgach, baza DEFAULT'i bilan birga olib tashlanadi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True)
     name = Column(String(100), nullable=False)
     kpi_threshold = Column(Float, nullable=False)   # shu sovg'a uchun kerakli yillik KPI (so'm)
     sort_order = Column(Integer, default=0)
@@ -202,6 +375,16 @@ class GiftPeriod(Base):
     __tablename__ = "gift_periods"
 
     id = Column(Integer, primary_key=True, index=True)
+
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G2.
+    # Bazaga saas_migration.py (W2G2) qo'shadi. Kod ANA SHUNDAN KEYIN
+    # yangilanadi — har bir muhitda avval migratsiya, keyin kod.
+    # server_default SHART: usiz SQLAlchemy ustunni INSERT'ga NULL qilib
+    # qo'shib yuboradi va NOT NULL buziladi (G1 da shu xato chiqqan edi).
+    # Vaqtinchalik; barcha yozuv nuqtalari company_id ni aniq yuboradigan
+    # bo'lgach, baza DEFAULT'i bilan birga olib tashlanadi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True)
     is_active = Column(Boolean, default=True, nullable=False)
     started_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     closed_at = Column(DateTime, nullable=True)
@@ -220,9 +403,13 @@ class GiftPeriodTier(Base):
     __tablename__ = "gift_period_tiers"
 
     id = Column(Integer, primary_key=True, index=True)
+    # 2026-09-19 — Faza 3: model qo'riqchisi (`_TENANT_RULES`) ota yozuvda
+    # `company_id` ustunini qidiradi; bu jadvalda u yo'q edi, shuning uchun
+    # `MasterGiftPeriodRedemption.tier_id` zanjiri tekshirilmay qolardi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)
     period_id = Column(Integer, ForeignKey("gift_periods.id"), nullable=False, index=True)
     gift_name = Column(String(100), nullable=False)
-    threshold_amount = Column(Float, nullable=False)
+    threshold_amount = Column(Numeric(12, 2), nullable=False)
     sort_order = Column(Integer, default=0)
 
     def __repr__(self):
@@ -246,8 +433,8 @@ class MasterGiftPeriodRedemption(Base):
     master_id = Column(Integer, ForeignKey("masters.id"), nullable=False, index=True)
     tier_id = Column(Integer, ForeignKey("gift_period_tiers.id"), nullable=True)
     gift_name = Column(String(100), nullable=False)
-    sales_amount = Column(Float, nullable=False)
-    profit_amount = Column(Float, nullable=True)
+    sales_amount = Column(Numeric(12, 2), nullable=False)
+    profit_amount = Column(Numeric(12, 2), nullable=True)
     kind = Column(String(20), default="gift", nullable=False)
     redeemed_at = Column(DateTime, default=datetime.utcnow)
     redeemed_by = Column(String(100), nullable=True)
@@ -278,8 +465,26 @@ class GiftPeriodParticipant(Base):
 class Inventory(Base):
     __tablename__ = "inventory"
 
+    # 2026-09-18 — W2b: bu cheklov endi KORXONA ICHIDA yagona.
+    # Ilgari butun tizim bo'yicha yagona edi, ya'ni ikkinchi korxona
+    # bir xil qiymatni umuman qo'sha olmasdi. Nomi bazadagi indeks
+    # nomi bilan AYNAN bir xil bo'lishi shart.
+    __table_args__ = (
+        UniqueConstraint("company_id", "item_name",
+                         name="uq_inventory_company_item_name"),
+    )
+
     id = Column(Integer, primary_key=True, index=True)
-    item_name = Column(String(100), nullable=False, unique=True, index=True)
+
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G1.
+    # Bazaga saas_migration.py (W2G1) qo'shadi: backfill, indeks, tashqi
+    # kalit va NOT NULL bilan birga. Kod ANA SHUNDAN KEYIN yangilanadi —
+    # har bir muhitda avval migratsiya, keyin kod.
+    # Ustunda hozircha vaqtinchalik DEFAULT 1 bor; u barcha yozuv
+    # nuqtalari company_id ni aniq yuboradigan bo'lgach olib tashlanadi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True)
+    item_name = Column(String(100), nullable=False, index=True)
     stock_quantity = Column(Float, default=0.0)
     unit = Column(String(20), nullable=False)
     min_stock = Column(Float, default=0.0)
@@ -295,6 +500,17 @@ class Inventory(Base):
     kley_ratio_per_m2 = Column(Float, nullable=True)  # Bazalt uchun: 1 m² bazaltga necha kg kley
     is_deleted = Column(Boolean, default=False)  # "O'chirilgan" — lekin eski buyurtma/harakat tarixi uchun saqlanadi
 
+    # 2026-09-16: Dinamik Production/MRP moduli uchun — BIRLIK KONVERSIYASI.
+    # Muammo: xomashyo RETSEPTDA mayda birlikda (masalan gramm, ml) yozilishi
+    # kerak bo'lishi mumkin, lekin OMBORDA yirik birlikda (tonna, qop-50kg,
+    # bochka-200L) saqlanadi. Ikkalasi ham NULL bo'lsa — eski (2026-09-16
+    # gacha bo'lgan) xatti-harakat: retsept ham ombor birligi (`unit`)da
+    # yoziladi, konversiya YO'Q. Faqat Production moduli o'qiydi — qolgan
+    # butun tizim (Order/Recipe/FinishedProduct) bu ikki ustunga umuman
+    # tegmaydi va ularsiz avvalgidek ishlashda davom etadi.
+    base_unit = Column(String(20), nullable=True)  # Retseptda ishlatiladigan MAYDA birlik — masalan "g", "ml". Bo'sh bo'lsa, retsept ham shu materialning `unit` birligida yoziladi.
+    conversion_factor = Column(Float, nullable=True)  # 1 dona `unit` (ombor birligi) necha dona `base_unit`ga teng. Masalan: unit="qop", base_unit="g", conversion_factor=50000 (1 qop = 50000 gramm). Faqat base_unit to'ldirilganda ishlatiladi.
+
     def __repr__(self):
         return f"<Inventory {self.item_name}: {self.stock_quantity} {self.unit}>"
 
@@ -306,8 +522,26 @@ class Inventory(Base):
 class Recipe(Base):
     __tablename__ = "recipes"
 
+    # 2026-09-18 — W2b: bu cheklov endi KORXONA ICHIDA yagona.
+    # Ilgari butun tizim bo'yicha yagona edi, ya'ni ikkinchi korxona
+    # bir xil qiymatni umuman qo'sha olmasdi. Nomi bazadagi indeks
+    # nomi bilan AYNAN bir xil bo'lishi shart.
+    __table_args__ = (
+        UniqueConstraint("company_id", "name",
+                         name="uq_recipes_company_name"),
+    )
+
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(100), nullable=False, unique=True)  # Endi ISTALGAN nom bo'lishi mumkin
+
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G1.
+    # Bazaga saas_migration.py (W2G1) qo'shadi: backfill, indeks, tashqi
+    # kalit va NOT NULL bilan birga. Kod ANA SHUNDAN KEYIN yangilanadi —
+    # har bir muhitda avval migratsiya, keyin kod.
+    # Ustunda hozircha vaqtinchalik DEFAULT 1 bor; u barcha yozuv
+    # nuqtalari company_id ni aniq yuboradigan bo'lgach olib tashlanadi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True)
+    name = Column(String(100), nullable=False)  # Endi ISTALGAN nom bo'lishi mumkin
 
     batch_size_kg = Column(Float, default=150.0)
     notes = Column(Text, nullable=True)
@@ -335,13 +569,29 @@ class RecipeIngredient(Base):
     recipe = relationship("Recipe", back_populates="ingredients")
     inventory = relationship("Inventory")
 
+    def _oz_materiali(self):
+        """kech99 (112-band): ingredient materiali — FAQAT retseptning O'Z korxonasidan. 2026-09-21 (12-sizish) dan
+        OLDINGI (yoki Core bilan yozilgan) ingredient begona materialga ishora qilishi mumkin — Retseptlar sahifasi
+        uning NOMINI boshqa korxonaga ko'rsatardi. Begona material "yo'q" ("—"): tahrirlab saqlashda
+        (`crud._require_inventory_of_company`) almashtirish talab qilinadi."""
+        _inv = self.inventory
+        if _inv is None:
+            return None
+        _r = self.recipe
+        _rcid = getattr(_r, "company_id", None) if _r is not None else None
+        if _rcid is not None and getattr(_inv, "company_id", None) != _rcid:
+            return None
+        return _inv
+
     @property
     def item_name(self):
-        return self.inventory.item_name if self.inventory else "—"
+        _inv = self._oz_materiali()
+        return _inv.item_name if _inv else "—"
 
     @property
     def unit(self):
-        return self.inventory.unit if self.inventory else "kg"
+        _inv = self._oz_materiali()
+        return _inv.unit if _inv else "kg"
 
     def __repr__(self):
         return f"<RecipeIngredient {self.item_name}: {self.quantity_kg}kg>"
@@ -356,8 +606,26 @@ class Project(Base):
     Bir loyihada bir nechta order bo'lishi mumkin."""
     __tablename__ = "projects"
 
+    # 2026-09-18 — W2b: bu cheklov endi KORXONA ICHIDA yagona.
+    # Ilgari butun tizim bo'yicha yagona edi, ya'ni ikkinchi korxona
+    # bir xil qiymatni umuman qo'sha olmasdi. Nomi bazadagi indeks
+    # nomi bilan AYNAN bir xil bo'lishi shart.
+    __table_args__ = (
+        UniqueConstraint("company_id", "project_number",
+                         name="uq_projects_company_project_number"),
+    )
+
     id = Column(Integer, primary_key=True, index=True)
-    project_number = Column(String(20), unique=True, index=True)  # PRJ-001
+
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G1.
+    # Bazaga saas_migration.py (W2G1) qo'shadi: backfill, indeks, tashqi
+    # kalit va NOT NULL bilan birga. Kod ANA SHUNDAN KEYIN yangilanadi —
+    # har bir muhitda avval migratsiya, keyin kod.
+    # Ustunda hozircha vaqtinchalik DEFAULT 1 bor; u barcha yozuv
+    # nuqtalari company_id ni aniq yuboradigan bo'lgach olib tashlanadi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True)
+    project_number = Column(String(20), index=True)  # PRJ-001
     client_name = Column(String(100), nullable=False)
     client_phone = Column(String(20), nullable=True)
     client_address = Column(Text, nullable=True)
@@ -369,6 +637,17 @@ class Project(Base):
 
     total_budget = Column(Numeric(12, 2), default=0)
     total_paid = Column(Numeric(12, 2), default=0)
+    # kech86 (100-band, QAROR "A"): loyihada BERILGAN eng katta buyurtma tartib raqami (ORD-051-<N>).
+    # Raqam HECH QACHON qayta berilmaydi — o'chirilgan buyurtmaning raqami ham band qoladi. NULL — hali
+    # hisoblanmagan (`main._migrate_buyurtma_raqam_hisoblagich` yoki birinchi buyurtma to'ldiradi).
+    # `default=` ATAYLAB YO'Q (sync_missing_columns eski qatorlarga 0 yozib, jurnal hisobini o'tkazib yuborardi).
+    oxirgi_buyurtma_seq = Column(Integer, nullable=True)
+    # kech124 (zip 144 — egasi QARORI 06.10: yuk xati raqami LOYIHA bo'yicha davom etadi, ko'rinishi «ORD-001-2/Y-6» — buyurtma
+    # raqami qoladi, Y — loyiha bo'yicha): shu loyihada BERILGAN eng katta yuk xati tartib raqami (…/Y-<N>), loyihaning HAMMA
+    # buyurtmalari bo'yicha. Yuk xati (yoki butun buyurtma) o'chirilsa ham raqami qayta berilmaydi (QAROR «A»). NULL — hali yuk xati
+    # yo'q yoki zip 144 dan oldingi loyiha (`main._migrate_loyiha_yuk_seq` to'ldiradi; `crud.create_delivery` mavjud yuklardan ham
+    # hisoblaydi). `default=` ATAYLAB YO'Q (`sync_missing_columns` eski qatorlarga 0 yozmasin).
+    oxirgi_yuk_seq = Column(Integer, nullable=True)
 
     start_date = Column(DateTime, default=datetime.utcnow)
     deadline = Column(DateTime, nullable=True)
@@ -378,7 +657,9 @@ class Project(Base):
     image_url = Column(String(255), nullable=True)  # Loyiha rasmi (ixtiyoriy)
     is_deleted = Column(Boolean, default=False)  # "O'chirilgan" — lekin tiklash uchun saqlanadi
 
-    orders = relationship("Order", back_populates="project", cascade="all, delete-orphan")
+    # kech97 (114-band): ro'yxat tartibi `id` bo'yicha (Order.items izohiga qarang).
+    orders = relationship("Order", back_populates="project", cascade="all, delete-orphan",
+                          order_by="Order.id")
 
     def __repr__(self):
         return f"<Project #{self.project_number} — {self.project_name}>"
@@ -392,8 +673,23 @@ class Order(Base):
     """Loyiha ichidagi alohida buyurtma."""
     __tablename__ = "orders"
 
+    # 2026-09-18 — W3b: buyurtma raqami endi KORXONA ICHIDA yagona.
+    # Nomi bazadagi indeks nomi bilan AYNAN bir xil bo'lishi shart.
+    __table_args__ = (
+        UniqueConstraint("company_id", "order_number",
+                         name="uq_orders_company_order_number"),
+    )
+
     id = Column(Integer, primary_key=True, index=True)
-    order_number = Column(String(20), unique=True, index=True)
+
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 3-to'lqin.
+    # DIQQAT: bu ustunning qiymati 1 EMAS, buyurtmaning O'Z LOYIHASIDAN
+    # olinadi (crud.create_order). Bazadagi DEFAULT 1 faqat o'tish davri
+    # uchun zaxira — unga TAYANIB BO'LMAYDI: sinovda 2-korxona loyihasiga
+    # yaratilgan buyurtma DEFAULT tufayli 1-korxonaga tushib qolgan edi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True)
+    order_number = Column(String(20), index=True)
 
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
     project = relationship("Project", back_populates="orders")
@@ -404,10 +700,41 @@ class Order(Base):
     total_amount = Column(Numeric(12, 2), default=0)      # Jami summa (chegirmasiz)
     agreed_amount = Column(Numeric(12, 2), default=0)      # Kelishilgan summa (chegirmadan keyin)
     discount_percent = Column(Float, default=0.0)
+    # kech110 (K110-1, egasi QARORI "Kechirilgan so'mda qolsin"): to'lovda kechirilgan qarz (so'm, yig'indi) —
+    # `main._tolov_qoldigini_chegirmaga` qo'shadi. Kelishilgan summa = narx kelishuvi − shu summa: jami o'zgarganda
+    # (tahrir, qisman «Tayyor») kechirilgan summa so'mda saqlanadi (`crud.kelishilgan_qayta_hisob`). NULL — eski
+    # buyurtma, hali to'ldirilmagan (`main._migrate_kechirilgan_qarz` izohdagi `[WRITEOFF:…]` belgisidan to'ldiradi;
+    # kod NULL ni 0 deb o'qiydi — `kechirilgan`). `default=` ATAYLAB YO'Q (`sync_missing_columns` ustunni NULL bilan
+    # qo'shadi, migratsiya NULL qatorlarni to'ldiradi; yangi buyurtma — `crud.create_order` 0 yozadi).
+    kechirilgan_qarz = Column(Numeric(12, 2), nullable=True)
     payment_status = Column(Enum(PaymentStatus), default=PaymentStatus.UNPAID, nullable=False)
     is_archived = Column(Boolean, default=False)           # Arxivga o'tdimi (to'lov to'liq yopilganda)
     is_deleted = Column(Boolean, default=False)             # "O'chirilgan" — lekin KPI/hisobot uchun saqlanadi
     is_pinned = Column(Boolean, default=False)              # "Pin qilingan" — muhim buyurtmalar ro'yxati tepasida (2026-09-13)
+    # kech77 (95-band, K77-1): buyurtma o'chirilganda buyurtma LOYI bo'yicha HAQIQATDA qo'llangan miqdor (kg):
+    # musbat — omborga QAYTGAN, manfiy — qo'shimcha YECHILGAN (hodim rejadan ko'p ishlatilgan deb yozganda), 0 — hech
+    # narsa. `crud.restore_order` AYNAN shuni teskari qiladi. NULL — kech77 dan OLDIN o'chirilgan (yoki hali
+    # o'chirilmagan) buyurtma: tiklash eski qoida bilan (reja × qolgan ulush) — o'shanda UI miqdor so'ramasdi.
+    ochirishda_loy_kg = Column(Float, nullable=True)
+    # kech82 (102-band, QAROR "A"): buyurtma LOYI qayerdan olingani (retsept bo'yicha, JSON):
+    # {"r": {"<retsept_id>": {"z": tayyor loy zaxirasidan, "x": xom ingredientlardan}}, "o": {...}} — "r" ushlab
+    # turilgan loy, "o" — o'chirish nima qilgani (+ qaytgan, − qo'shimcha yechilgan; tiklash AYNAN teskarisi).
+    # Loy qaytganda avval xom qism, qolgani zaxiraga (`services` dagi "BUYURTMA LOYI OLINGAN JOYIGA QAYTADI").
+    # NULL — migratsiyadan OLDINGI buyurtma: eski qoida (qaytish xomga, tiklash xomdan).
+    loy_manba_json = Column(Text, nullable=True)
+    # kech100 (93-band, FOYDALANUVCHI QARORI "B" — "qisman bo'lsa ham tovar berilgan bo'ladi"): topshirilgan (qisman
+    # yoki to'liq, lekin «Tayyor» bosilmagan) buyurtma O'CHIRILGANDA u topshirilgan qismi bilan YAKUNLANADI («Tayyor»
+    # qisman yakunlash qoidasi: miqdor / summa topshirilganga, holat READY, `completed_at` — o'chirilgan payt) — daromad,
+    # tannarx va usta KPI hisobotda qoladi (`crud.ochirishda_topshirilganni_yopish`). Bu ustunda yakunlashdan OLDINGI
+    # holat (JSON) saqlanadi — `crud.restore_order` uni AYNAN qaytaradi (buyurtma avvalgi holatiga, qolgan qism
+    # xomashyosi avvalgidek qayta yechiladi). NULL — yakunlanmagan (yoki kech100 dan OLDIN o'chirilgan) buyurtma.
+    # `default=` ATAYLAB YO'Q (`sync_missing_columns` ustunni NULL bilan qo'shadi).
+    ochirish_yopish_json = Column(Text, nullable=True)
+    # kech86 (QAROR "A" yuk xatiga ham): shu buyurtmada BERILGAN eng katta yuk xati tartib raqami (…/Y-<N>).
+    # Yuk xati o'chirilsa ham raqami qayta berilmaydi. NULL — hali yuk yo'q yoki eski buyurtma (mavjud yuklardan
+    # hisoblanadi). `default=` ATAYLAB YO'Q. (kech124, zip 144: Y-raqam endi LOYIHA bo'yicha davom etadi — loyiha
+    # hisoblagichi `Project.oxirgi_yuk_seq`; bu ustun ham yangilanadi va loyiha raqami hisobida qatnashadi.)
+    oxirgi_yuk_seq = Column(Integer, nullable=True)
     stock_returned = Column(Boolean, default=False)         # O'chirilganda ombor QAYTARILGANMI — takroriy (tiklab-qayta o'chirilganda ikki marta) qaytarib yubormaslik uchun
 
     master_id = Column(Integer, ForeignKey("masters.id"), nullable=True, index=True)
@@ -428,15 +755,30 @@ class Order(Base):
     actual_gips_kg = Column(Float, nullable=True)
     actual_loy_kg = Column(Float, nullable=True)  # Haqiqiy Loy (qoplama) miqdori — "Tayyor" bosilganda kiritiladi
     planned_loy_kg = Column(Float, nullable=True)  # Rejalashtirilgan Loy (qoplama) — buyurtma yaratilganda/tahrirlashda
+    # kech58 (K58-1 / K58-2 / K58-3, 43-band): buyurtmaning UMUMIY qoplama loyi qaysi retseptdan
+    # yechilgan / yechiladi. FAQAT kech58 dan keyin YARATILGAN buyurtmaga yoziladi (foydalanuvchi
+    # qarori: eski buyurtmalar foydasi o'zgarmaydi); eski (NULL) — avvalgi qoida AYNAN
+    # (`services.buyurtma_qoplama_retsept_nomzodlari`). Retsept o'chirilsa — NULL (PG).
+    qoplama_retsept_id = Column(Integer, ForeignKey("recipes.id", ondelete="SET NULL"),
+                                nullable=True, index=True)
     base_price = Column(Numeric(12, 2), nullable=True)  # "1 m³ asosiy narxi" — hodim kiritgan, tahrirlashda tiklanishi uchun
     gips_inventory_id = Column(Integer, ForeignKey("inventory.id"), nullable=True)  # Aniq qaysi Gips xomashyosi ishlatilgani
 
-    items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
-    returns = relationship("ReturnItem", back_populates="order", cascade="all, delete-orphan")
-    payments = relationship("Payment", back_populates="order", cascade="all, delete-orphan")
+    # kech97 (114-band, O'LCHANGAN — kech90 `probe90_tartib`): ORDER BY siz PostgreSQL ro'yxat tartibi so'rov
+    # SHAKLIGA (lazy `= ?` / selectinload `IN (...)`) va qatorning jismoniy joyiga (UPDATE dan keyin ko'chadi)
+    # bog'liq edi — bir xil buyurtma ro'yxati ikki yo'lda turli tartibda chiqardi (SQLite da doim id tartibi).
+    # Tartib float yig'indilarning oxirgi raqamlarini va UI ro'yxatini belgilaydi, shuning uchun ro'yxatlarni
+    # oldindan (IN bilan) yuklash xavfsiz bo'lishi uchun tartib aniq: `id` (yaratilish) bo'yicha.
+    items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan",
+                         order_by="OrderItem.id")
+    returns = relationship("ReturnItem", back_populates="order", cascade="all, delete-orphan",
+                           order_by="ReturnItem.id")
+    payments = relationship("Payment", back_populates="order", cascade="all, delete-orphan",
+                            order_by="Payment.id")
     deliveries = relationship("Delivery", back_populates="order", cascade="all, delete-orphan")
     attachments = relationship("OrderAttachment", back_populates="order", cascade="all, delete-orphan")
-    gips_additives = relationship("OrderGipsAdditive", back_populates="order", cascade="all, delete-orphan")
+    gips_additives = relationship("OrderGipsAdditive", back_populates="order", cascade="all, delete-orphan",
+                                  order_by="OrderGipsAdditive.id")
 
     @property
     def delivery_percent(self):
@@ -469,14 +811,51 @@ class Order(Base):
 
     @property
     def paid_amount(self):
-        """To'langan jami summa."""
-        return sum(float(p.amount or 0) for p in (self.payments or []))
+        """To'langan jami summa — tiyin aniqligida (kech92, 119-band: `float`
+        yig'indisi 448.54999999998836 berardi, to'g'risi 448.55). To'lov
+        bo'lmasa — 0 (avvalgidek)."""
+        tolovlar = self.payments or []
+        if not tolovlar:
+            return 0
+        return pul_tiyin_yigindi(p.amount for p in tolovlar)
+
+    @property
+    def kelishilgan_summa(self):
+        """Kelishilgan summa (float).
+
+        kech42 (K42-1, O'LCHANGAN): 0 — HAQIQIY qiymat (to'liq qaytarilib pul
+        qaytarilgan yoki qarzi to'liq kechirilgan buyurtma). Ilgari hamma joyda
+        `agreed_amount or total_amount` yozilgan edi — 0 "kiritilmagan" deb
+        olinib, o'rniga JAMI summa chiqardi: to'lanmagan, to'liq qaytarilgan
+        buyurtmada qarz 1 000 000 (asli 0) ko'rinardi. Faqat bo'sh (NULL)
+        bo'lsa jami summa olinadi."""
+        if self.agreed_amount is not None:
+            return float(self.agreed_amount)
+        return float(self.total_amount or 0)
+
+    @property
+    def kechirilgan(self):
+        """kech110 (K110-1): to'lovda kechirilgan qarz (so'm, float). NULL (eski, hali to'ldirilmagan) — 0."""
+        return float(self.kechirilgan_qarz or 0)
 
     @property
     def debt_amount(self):
-        """Qarz qoldi."""
-        agreed = float(self.agreed_amount or self.total_amount or 0)
-        return max(agreed - self.paid_amount, 0)
+        """Qarz qoldi — tiyin aniqligida; `QARZ_BARDOSH` (0.5 so'm) dan
+        oshmaydigan qoldiq — qarz YO'Q (kech92, 119-band; UI qarzni butun
+        so'mda ko'rsatadi va butun so'm qabul qiladi). Qiymat shakli
+        avvalgidek: to'liq to'langan — 0.0, ortiqcha to'langan — 0."""
+        qoldiq = pul_tiyin(self.kelishilgan_summa - self.paid_amount)
+        if qoldiq > QARZ_BARDOSH:
+            return qoldiq
+        return 0.0 if qoldiq >= 0 else 0
+
+    @property
+    def ortiqcha_tolov(self):
+        """kech100 (131-band): mijozga QAYTARILISHI kerak bo'lgan ortiqcha to'lov (to'langan − kelishilgan, tiyin
+        aniqligida; yarim so'mgacha — 0). DOIMIY ko'rsatkich: to'lovlar va kelishilgan summadan har safar hisoblanadi
+        (ilgari faqat qisman «Tayyor» izohga `[OVERPAID:…]` yozardi — keyingi to'lov / qaytarishni bilmasdi).
+        Qaytarilgach (manfiy to'lov) — 0."""
+        return ortiqcha_tolov_qiymati(self.paid_amount, self.kelishilgan_summa)
 
     def __repr__(self):
         return f"<Order #{self.order_number} (Project #{self.project_id})>"
@@ -513,6 +892,12 @@ class OrderItem(Base):
     __tablename__ = "order_items"
 
     id = Column(Integer, primary_key=True, index=True)
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 4-to'lqin.
+    # Qiymat MIJOZDAN QABUL QILINMAYDI. U har doim ota-yozuvdan olinadi —
+    # models.py oxiridagi `_tenant_guard` hodisasi buni avtomatik bajaradi
+    # va ota bilan mos kelmasa yozuvni RAD ETADI.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True)
     order_id = Column(Integer, ForeignKey("orders.id"), nullable=False, index=True)
 
     name = Column(String(150), nullable=False)
@@ -534,7 +919,19 @@ class OrderItem(Base):
 
     # Tayyor mahsulotdan olingan bo'lsa — xomashyo hisoblanmaydi
     finished_product_id = Column(Integer, ForeignKey("finished_products.id"), nullable=True, index=True)
-    finished_product = relationship("FinishedProduct")
+    # 2026-09-17: foreign_keys ANIQ ko'rsatildi — chunki endi FinishedProduct
+    # tarafida ham OrderItem'ga qarab turuvchi YANGI FK bor
+    # (reserved_for_order_item_id, rezervatsiya uchun), shuning uchun
+    # SQLAlchemy ikkita jadval orasidagi FK yo'lini avtomatik aniqlay olmaydi.
+    finished_product = relationship("FinishedProduct", foreign_keys=[finished_product_id])
+    # kech103 (5-bo'lim 56-band, O'LCHANGAN `work/probe56tm.py`, SQLite = PG): tayyor mahsulotdan OLINGAN paytdagi
+    # 1 birlik tannarxi (shu detal ushlab turgan miqdor bo'yicha og'irlikli o'rtacha). TM ning o'z birlik tannarxi
+    # (`FinishedProduct.unit_cost_stable`) keyin boshqa narxdagi partiya ("+" qo'shish) yoki qaytgan mahsulot qo'shilganda
+    # o'zgaradi — ilgari avval olingan detal tannarxi ham, uning omborga qaytishi ham YANGI o'rtachada baholanardi
+    # (10 m × 7 600 = 76 000 lik buyurtma +20 m dan keyin 89 818 bo'lib qolardi, o'tgan oy hisobotini ham o'zgartirib).
+    # NULL — yozilmagan (tannarxsiz TM yoki eski yozuv; `main._migrate_tm_detal_tannarx` deploy paytida to'ldiradi):
+    # avvalgi qoida (TM ning joriy birlik tannarxi).
+    fp_unit_cost = Column(Numeric(14, 4), nullable=True)
 
     unit_price = Column(Numeric(12, 2), default=0)
     total_price = Column(Numeric(12, 2), default=0)
@@ -549,8 +946,31 @@ class OrderItem(Base):
 
     notes = Column(Text, nullable=True)
 
+    # 2026-09-16: Production/MRP orqali yaratilgan DINAMIK mahsulot turi
+    # tanlangan bo'lsa (category='mrp_product'), shu yerga bog'lanadi.
+    # Alohida jadval YO'Q — Production/MRP moduli natijasi ham xuddi shu
+    # Inventory/FinishedProduct omboriga tushadi (pastdagi izohga qarang).
+    product_type_id = Column(Integer, ForeignKey("product_types.id"), nullable=True, index=True)
+    # 2026-09-18: `delivery_unit` shu orqali mahsulot turining O'Z birligini
+    # (kg/litr/m²/qop...) oladi. Matn ko'rinishidagi nom ishlatilgan —
+    # ProductType `production_models.py`da, lekin SQLAlchemy uni kech
+    # (barcha modellar yuklangach) hal qiladi, shuning uchun bu yerda
+    # import qilish SHART EMAS (models.py↔production_models.py orasida
+    # aylanma import bo'lib qolmasligi uchun ataylab shunday).
+    #
+    # MUHIM — `lazy="joined"` ISHLATIB BO'LMAYDI (sinovda aniqlangan
+    # haqiqiy xato): u har bir OrderItem so'roviga LEFT OUTER JOIN
+    # qo'shadi, `production_service.start_production_order()` esa shu
+    # jadvalni `.with_for_update()` bilan QULFLAYDI — PostgreSQL bunga
+    # yo'l qo'ymaydi: "FOR UPDATE cannot be applied to the nullable side
+    # of an outer join". Shuning uchun standart (lazy="select") qoladi:
+    # ProductType faqat HAQIQATAN kerak bo'lganda (delivery_unit
+    # chaqirilganda) alohida so'rov bilan olinadi.
+    product_type = relationship("ProductType")
+
     order = relationship("Order", back_populates="items")
-    deliveries = relationship("DeliveryItem", back_populates="order_item", cascade="all, delete-orphan")
+    deliveries = relationship("DeliveryItem", back_populates="order_item", cascade="all, delete-orphan",
+                              order_by="DeliveryItem.id")     # kech97 (114-band)
 
     # Ichki qo'shimcha detallar (masalan karniz ichidagi rebristo/qo'shimcha
     # profil) — xuddi shu xomashyodan (parent bilan bir xil penoplast_id),
@@ -579,7 +999,8 @@ class OrderItem(Base):
     def delivery_unit(self):
         """O'lchov birligi — profil, panel va blok metrda (mijozga metr bo'yicha yetkaziladi),
         termopanel kvadrat metrda, GIPS — o'zi tanlangan birlik (metr/dona/m²),
-        loy sotish — kg, qolgani donada."""
+        loy sotish — kg, MRP mahsuloti — o'z mahsulot turining birligi,
+        qolgani donada."""
         cat = (self.category or '').lower()
         if cat in ('profil', 'panel', 'blok'):
             return 'metr'
@@ -590,6 +1011,15 @@ class OrderItem(Base):
             return 'm²' if unit == 'm2' else unit
         if cat == 'loy_sotish':
             return 'kg'
+        # 2026-09-18 (birlik auditi topilmasi — HAQIQIY xato tuzatildi):
+        # Production/MRP mahsulotlari bu funksiyadan OLDIN mavjud emas edi,
+        # shuning uchun ular pastdagi "dona"ga tushib ketardi — masalan
+        # kg'da o'lchanadigan mahsulot ham "dona" deb ko'rsatilardi.
+        # Endi mahsulot turining O'Z birligi olinadi (ProductType.unit).
+        if cat == 'mrp_product' and self.product_type_id:
+            pt = getattr(self, 'product_type', None)
+            if pt and pt.unit:
+                return pt.unit
         return 'dona'
 
     @property
@@ -599,8 +1029,27 @@ class OrderItem(Base):
 
     @property
     def remaining_qty(self):
-        """Qolgan miqdor."""
-        return max(self.order_qty_normalized - self.delivered_qty, 0)
+        """Qolgan (hali topshirilishi kerak) miqdor.
+
+        kech60 (57-band, K59-3): omborga qo'yilgan ORTIQCHA qism (`ortiqcha_qty`) ham
+        buyurtmadan chiqqan — u yana topshirilmaydi va o'chirishda xomashyo sifatida
+        qaytmaydi. Yetkazish foizi (`Order.delivery_percent`) — faqat topshirilgan."""
+        return max(self.order_qty_normalized - self.delivered_qty - self.ortiqcha_qty, 0)
+
+    @property
+    def ortiqcha_qty(self):
+        """kech60 (57-band): shu detaldan omborga qo'yilgan ortiqcha (mijozga topshirilmagan)
+        miqdor — brakdan boshqa, hozir MAVJUD qaytarish yozuvlarining `ortiqcha_miqdor`
+        yig'indisi. Yozuv o'chirilsa (22-band — tayyor mahsulot AYNAN olinadi) qism
+        buyurtmaga qaytadi."""
+        order = self.order
+        if order is None or self.id is None:
+            return 0.0
+        jami = 0.0
+        for r in (order.returns or []):
+            if r.order_item_id == self.id and r.reason != ReturnReason.DEFECT:
+                jami += float(r.ortiqcha_miqdor or 0)
+        return jami
 
     def __repr__(self):
         return f"<OrderItem {self.name} x{self.quantity}>"
@@ -654,6 +1103,12 @@ class ReturnItem(Base):
     __tablename__ = "return_items"
 
     id = Column(Integer, primary_key=True, index=True)
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 6-to'lqin.
+    # Qiymat MIJOZDAN QABUL QILINMAYDI. U har doim ota-yozuvdan olinadi —
+    # models.py oxiridagi `_tenant_guard` hodisasi buni avtomatik bajaradi
+    # va ota bilan mos kelmasa yozuvni RAD ETADI.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True)
     order_id = Column(Integer, ForeignKey("orders.id"), nullable=True, index=True)
     # Tayyor mahsulot ishlab chiqarish jarayonidagi brak uchun — order_id
     # o'rniga shu ishlatiladi (ikkalasidan FAQAT BITTASI to'ldiriladi).
@@ -672,6 +1127,88 @@ class ReturnItem(Base):
     image_url = Column(String(255), nullable=True)  # Mahsulot rasmi (ixtiyoriy)
     coating_applied = Column(Boolean, default=False)  # Brak bo'lganda loy allaqachon tortilganmi
     gips_kg_used = Column(Float, nullable=True)  # GIPS brak uchun — taxminan qancha gips ketgani (qo'lda kiritiladi)
+    # kech39 (5-bo'lim 3-band): qaysi buyurtma DETALIDAN qaytgani. Ilgari faqat
+    # `item_name` saqlanardi — bitta buyurtmada bir xil nomli ikki detal bo'lishi
+    # mumkin (O'LCHANGAN: `POST /api/orders` 200), shuning uchun detal bo'yicha
+    # yig'indini (omborga qaytgan jami <= buyurtmadagi miqdor) hisoblab
+    # bo'lmasdi. Yangi yozuvlarda `crud.create_return_item` doim to'ldiradi;
+    # eskilari `main._migrate_return_order_item` da FAQAT nomi buyurtmada
+    # YAGONA bo'lsa bog'lanadi (qolganlari NULL — taxmin qilinmaydi). Detal
+    # o'chirilsa — NULL (PostgreSQL `ON DELETE SET NULL`); oddiy kalit bo'lsa
+    # detalni o'chirish FK 23503 bilan 500 berardi (12-banddagi
+    # `payments.delivery_id` sinfi).
+    order_item_id = Column(Integer, ForeignKey("order_items.id", ondelete="SET NULL"),
+                           nullable=True, index=True)
+    # kech60 (57-band, K59-3) — qaytarilgan miqdorning mijozga HALI TOPSHIRILMAGAN
+    # qismi (ortiqcha mahsulot omborga qo'yilgan). FOYDALANUVCHI QARORI (kech60):
+    # "kerak bo'lmay qolgan ortiqcha mahsulotni omborga qo'yamiz" — bunday qaytarish
+    # hayotda BOR. Yozilgan paytda hisoblanadi (`crud._qaytarish_ortiqcha_qismi`:
+    # avval topshirilgandan, qolgani — ortiqcha). Bu qism buyurtmadan CHIQQAN
+    # hisoblanadi (`OrderItem.remaining_qty` dan ayiriladi): yana topshirilmaydi,
+    # buyurtma / detal o'chirilganda yoki kamaytirilganda uning xomashyosi IKKINCHI
+    # marta qaytmaydi. O'LCHANGAN (asl kod `55b6f69`, `work/probe60_k3.py`): 10 m
+    # profildan 5 m omborga qo'yilib buyurtma o'chirilsa penoplast 10 m uchun to'liq
+    # qaytardi VA 5 m tayyor mahsulot ham qolardi (25 000 so'm ikki marta); detalni
+    # o'chirish, 10 -> 3 m tahrir, qisman topshirilganni o'chirish — xuddi shunday.
+    # Brak va detalsiz yozuv — NULL (ishlatilmaydi). Eski yozuvlar migratsiyada
+    # (`main._migrate_ortiqcha_qaytarish`) yozilish tartibi bo'yicha to'ldiriladi.
+    ortiqcha_miqdor = Column(Float, nullable=True)
+    # kech73 (86-band, K72-1): MRP detalidan (ishlab chiqarish buyurtmasi band qilgan tayyor
+    # mahsulot) ortiqcha qism omborga qo'yilganda YANGI tayyor mahsulot yaratilmaydi — shu detalga
+    # band TM ning bandidan erkin qoldiqqa o'tadi. Qaysi TM dan qancha: JSON `[[tm_id, miqdor], ...]`.
+    # O'chirishda AYNAN shu TM larga band qaytadi. Boshqa yozuvlar — NULL (`default=` BERILMAGAN —
+    # `sync_missing_columns` eski qatorlarga yozmasin, kech52 saboqi).
+    mrp_ozod = Column(Text, nullable=True)
+
+    @property
+    def mrp_ozod_miqdor(self) -> float:
+        """kech103 (90-band): MRP detalidan ortiqcha qism band TM dan erkin qoldiqqa o'tkazilgan jami miqdor (`mrp_ozod`
+        yig'indisi; yozilmagan / buzilgan — 0). Qaytarishlar sahifasidagi o'chirish tasdig'i uchun."""
+        if not self.mrp_ozod:
+            return 0.0
+        try:
+            import json as _json90
+            return float(sum(float(r[1]) for r in _json90.loads(self.mrp_ozod)))
+        except Exception:
+            return 0.0
+    # kech40 (5-bo'lim 22-band, K39-1) — qaytarish yozuvi O'CHIRILGANDA hammasi
+    # AYNAN orqaga qaytishi uchun, yozuv paytida NIMA o'zgargani saqlanadi.
+    # O'LCHANGAN (asl kod, SQLite va PostgreSQL): o'chirish faqat yozuvni
+    # o'chirardi — omborga qo'shilgan tayyor mahsulot QOLARDI (qayta kiritilsa
+    # 10 → 20), pul qaytarilgan bo'lsa kamaytirilgan kelishilgan summa va manfiy
+    # to'lov QOLARDI (qayta kiritib yana "pul qaytdi" bosilsa — ikki marta).
+    #  * `finished_product_id` (yuqorida, ilgari hech qachon to'ldirilmasdi) +
+    #    `stock_qty` / `stock_cost` / `stock_volume_m3` — `add_returned_to_stock`
+    #    shu yozuv uchun tayyor mahsulotga AYNAN qancha qo'shgani (miqdor, tan
+    #    narxi, penoplast hajmi). Tan narxi keyin o'zgarishi mumkin, shuning uchun
+    #    qayta hisoblanmaydi — saqlangani ayiriladi. NULL = omborga tushmagan
+    #    (brak, `to_stock=false`) yoki yangilanishdan OLDINGI yozuv (bog'lam
+    #    noma'lum — o'chirish omborga tegmaydi, avvalgidek).
+    stock_qty = Column(Float, nullable=True)
+    stock_cost = Column(Numeric(12, 2), nullable=True)
+    stock_volume_m3 = Column(Float, nullable=True)
+    #  * FOYDALANUVCHI QARORI (kech40, B): pul qaytarilgan qaytarish o'chirilsa —
+    #    kelishilgan summa tiklanadi va manfiy to'lov o'chadi. `refunded_at` —
+    #    "pul qaytdi" YANGI kod bilan bosilganining belgisi (manfiy to'lov
+    #    `payments.return_item_id` orqali bog'langan); NULL + `is_refunded` =
+    #    eski belgilash, to'lov bog'lami yo'q → o'chirish rad etiladi (taxmin
+    #    qilinmaydi). `refund_agreed_delta` — kelishilgan summa AYNAN qanchaga
+    #    kamaygani (`max(0, …)` tufayli summadan kam bo'lishi mumkin).
+    refunded_at = Column(DateTime, nullable=True)
+    refund_agreed_delta = Column(Numeric(12, 2), nullable=True)
+    # kech53 (13-band, 1-qadam): brak BOSQICHI — ixtiyoriy, faqat brak yozuvida
+    # (`crud.BRAK_BOSQICHLARI` kodlari: kesish / qoplash / quritish /
+    # saqlash_tashish). NULL — tanlanmagan yoki shu yangilanishdan oldingi yozuv.
+    # STANDARTSIZ (kech52 saboqi: `database.sync_missing_columns` ORM `default=`
+    # ni ESKI qatorlarga ham yozadi — eski brak "tanlangan" bo'lib qolardi).
+    brak_bosqich = Column(String(20), nullable=True)
+    # kech56 (13-band, 7-qadam; foydalanuvchi qarori): brak SABABI — ixtiyoriy
+    # (`crud.BRAK_SABABLARI` kodlari: xomashyo / ishchi / uskuna / olcham / boshqa) va
+    # brakka sabab bo'lgan JAVOBGAR hodim — ixtiyoriy. NULL — tanlanmagan yoki eski
+    # yozuv. STANDARTSIZ (kech52 saboqi). Hodim butunlay o'chirilsa — NULL (PG FK).
+    brak_sabab = Column(String(20), nullable=True)
+    brak_javobgar_id = Column(Integer, ForeignKey("employees.id", ondelete="SET NULL"),
+                              nullable=True, index=True)
 
     order = relationship("Order", back_populates="returns")
 
@@ -689,6 +1226,12 @@ class InventoryMovement(Base):
     __tablename__ = "inventory_movements"
 
     id = Column(Integer, primary_key=True, index=True)
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 6-to'lqin.
+    # Qiymat MIJOZDAN QABUL QILINMAYDI. U har doim ota-yozuvdan olinadi —
+    # models.py oxiridagi `_tenant_guard` hodisasi buni avtomatik bajaradi
+    # va ota bilan mos kelmasa yozuvni RAD ETADI.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True)
     inventory_id = Column(Integer, ForeignKey("inventory.id"), nullable=True, index=True)
     item_name = Column(String(150), nullable=False)
 
@@ -699,6 +1242,43 @@ class InventoryMovement(Base):
     reason = Column(String(200), nullable=True)   # masalan "Yetkazib beruvchi: ABC" yoki "Buyurtma ORD-001-3"
     order_id = Column(Integer, ForeignKey("orders.id"), nullable=True, index=True)
     supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True, index=True)
+    # kech45 (13-band, 6-qadam): shu harakatni yaratgan BRAK yozuvi (buyurtma
+    # detali braki uchun ombordan yechilgan penoplast / loy). Brak yozuvi
+    # o'chirilganda AYNAN shu harakatlar topilib, miqdori omborga qaytariladi.
+    # Eski harakatlarda NULL — bog'lam noma'lum, ularga tegilmaydi.
+    return_item_id = Column(Integer, ForeignKey("return_items.id", ondelete="SET NULL"),
+                            nullable=True, index=True)
+    # kech46 (13-band, 2-qadam): CHIQIM ("out") paytidagi materialning 1 birlik
+    # narxi (`inventory.price_per_unit`) — muzlatilgan. Brak xarajati hisoboti
+    # va sof foyda shu narxni o'qiydi, shuning uchun keyinroq narx o'zgarsa
+    # o'tgan oy brakining qiymati o'zgarmaydi. Kirim ("in") va ushbu
+    # yangilanishdan OLDINGI harakatlarda NULL — hisobot ular uchun joriy
+    # narxni ishlatadi (avvalgidek; eski narx noma'lum, taxmin qilinmaydi).
+    unit_cost = Column(Float, nullable=True)
+    # kech52 (13-band, 3-qadam): BRAK harakati belgisi. Brak xarajati hisoboti
+    # (`crud.get_brak_material_summary` → Moliya, oylik hisobot, sof foyda,
+    # liniya hisoboti) va buyurtma tan narxidan brakni ajratish
+    # (`services._buyurtma_sarf_narxlari`) endi sabab MATNIGA ("Brak%") emas,
+    # shu belgiga qaraydi — sabab matni o'zgarsa (tarjima, yangi yozuv shakli)
+    # hisobot jimgina nolga tushmaydi. Yangi harakatda HAR DOIM True / False
+    # (`crud.log_movement` va `services.deduct_raw_material_for_brak` yozadi).
+    # NULL — shu yangilanishdan OLDINGI harakat: `main._migrate_brak_belgisi()`
+    # uni eski ta'rif bilan (bog'langan YOKI sabab "Brak%") to'ldiradi; o'qishda
+    # ham NULL qator eski ta'rif bilan baholanadi (`crud.brak_harakati_sharti`).
+    # ⚠ Standart qiymat (`default=`) BERILMAYDI: `database.sync_missing_columns`
+    # uni `ADD COLUMN ... DEFAULT FALSE` qilib ESKI qatorlarga ham yozardi —
+    # eski brak "brak emas" bo'lib, hisobotdan yo'qolardi.
+    is_brak = Column(Boolean, nullable=True)
+    # kech125 (zip 146 — EGASI QARORLARI 07.10 «Brak taqdiri»): tayyor mahsulot BRAKI yozuviga bog'lam (omborda turgan TM
+    # yo'qotishi va ishlab chiqarish braki — `FinishedProductLoss`). Ishlab chiqarish brakining xomashyosi (yangi yozuvlar) va
+    # taqdir harakatlari (tuzatish xomashyosi, «joyiga» qaytish) shu ustun bilan topiladi; eski harakatlarda NULL (bog'lam
+    # noma'lum — taxmin qilinmaydi). `return_item_id` ning tayyor mahsulotdagi juftligi. STANDARTSIZ.
+    fp_loss_id = Column(Integer, ForeignKey("finished_product_losses.id", ondelete="SET NULL"),
+                        nullable=True, index=True)
+    # kech125 (zip 146): shu harakatni yaratgan TAQDIR qatori (`BrakTaqdir`) — taqdir bekor qilinganda AYNAN shu harakatlarning
+    # teskarisi yoziladi; brakning o'z (asl) harakatlarida NULL. STANDARTSIZ.
+    brak_taqdir_id = Column(Integer, ForeignKey("brak_taqdirlari.id", ondelete="SET NULL"),
+                            nullable=True, index=True)
 
     performed_by = Column(String(100), nullable=True)
     notes = Column(Text, nullable=True)
@@ -743,6 +1323,12 @@ class InventoryPurchase(Base):
     # Shu qatorga to'g'ri kelgan qo'shimcha xarajat ulushi (agar hujjatda
     # "tannarxga qo'shish" yoqilgan bo'lsa) — bir birlikka, tarix uchun saqlanadi
     extra_cost_per_unit = Column(Numeric(12, 4), default=0)
+    # kech107 (10f): shu xarid materialning O'RTACHA narxini qanday o'zgartirgani — `narx_oldin` (xariddan oldingi),
+    # `narx_keyin` (xariddan keyin yozilgan). Xarid / kirim hujjati bekor qilinganda material narxi hali `narx_keyin`
+    # ga teng bo'lsa — `narx_oldin` ga qaytadi (`crud._xarid_narxini_qaytar`). `default=` ATAYLAB YO'Q: eski
+    # (kech107 dan oldingi) xaridlarda NULL — narx tegilmaydi (avvalgi xulq).
+    narx_oldin = Column(Numeric(12, 2), nullable=True)
+    narx_keyin = Column(Numeric(12, 2), nullable=True)
 
     def __repr__(self):
         return f"<InventoryPurchase {self.item_name} {self.quantity}>"
@@ -759,6 +1345,12 @@ class InventoryReceipt(Base):
     __tablename__ = "inventory_receipts"
 
     id = Column(Integer, primary_key=True, index=True)
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 6-to'lqin.
+    # Qiymat MIJOZDAN QABUL QILINMAYDI. U har doim ota-yozuvdan olinadi —
+    # models.py oxiridagi `_tenant_guard` hodisasi buni avtomatik bajaradi
+    # va ota bilan mos kelmasa yozuvni RAD ETADI.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True)
     supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True, index=True)
     supplier = relationship("Supplier")
     document_number = Column(String(50), nullable=True)
@@ -772,6 +1364,10 @@ class InventoryReceipt(Base):
     # Yo'nalish (ixtiyoriy): umumiy / penoplast / gips — hisobotda
     # Transport va boshqa qo'shimcha xarajatlarni ajratib ko'rish uchun
     production_type = Column(String(20), nullable=True)
+    # kech117 (A2 — egasi QARORLARI kech114 00:08): korxona YO'NALISHI (`Yonalish`). NULL — «Umumiy» (umumiy xarajat
+    # daromad ulushiga qarab bo'linadi). `production_type` — ESKI matn belgisi, faqat migratsiya o'qiydi
+    # (`main._migrate_yonalishlar`: 'penoplast' → asosiy yo'nalish); hisob `yonalish_id` dan.
+    yonalish_id = Column(Integer, ForeignKey("yonalishlar.id"), nullable=True, index=True)
 
     # "☑ Qo'shimcha xarajatlarni tannarxga qo'shish" — yoqilgan bo'lsa,
     # yuqoridagi 4 ta xarajat, mahsulotlar qiymatiga proporsional taqsimlanib,
@@ -808,7 +1404,26 @@ class Employee(Base):
     Har korxona xodimga turlicha haq to'lashi mumkin (SaaS uchun)."""
     __tablename__ = "employees"
 
+    # 2026-09-18 — W2b: bu cheklov endi KORXONA ICHIDA yagona.
+    # Ilgari butun tizim bo'yicha yagona edi, ya'ni ikkinchi korxona
+    # bir xil qiymatni umuman qo'sha olmasdi. Nomi bazadagi indeks
+    # nomi bilan AYNAN bir xil bo'lishi shart.
+    __table_args__ = (
+        UniqueConstraint("company_id", "phone",
+                         name="uq_employees_company_phone"),
+    )
+
     id = Column(Integer, primary_key=True, index=True)
+
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G2.
+    # Bazaga saas_migration.py (W2G2) qo'shadi. Kod ANA SHUNDAN KEYIN
+    # yangilanadi — har bir muhitda avval migratsiya, keyin kod.
+    # server_default SHART: usiz SQLAlchemy ustunni INSERT'ga NULL qilib
+    # qo'shib yuboradi va NOT NULL buziladi (G1 da shu xato chiqqan edi).
+    # Vaqtinchalik; barcha yozuv nuqtalari company_id ni aniq yuboradigan
+    # bo'lgach, baza DEFAULT'i bilan birga olib tashlanadi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True)
     name = Column(String(100), nullable=False)
     position = Column(String(100), nullable=True)   # Lavozimi: "Kesuvchi", "Qoplovchi" va h.k.
 
@@ -817,11 +1432,17 @@ class Employee(Base):
     fixed_amount = Column(Numeric(12, 2), default=0)      # FIXED uchun
     percent_value = Column(Float, default=0.0)             # PERCENT_SALES / PERCENT_PROFIT uchun
     per_unit_rate = Column(Numeric(12, 2), default=0)      # PER_UNIT uchun — 1 birlik narxi
-    per_unit_type = Column(String(20), default="blok")     # blok / metr / dona / gips_metr / gips_qop / gips_kg
-    # GIPS uchun qo'shimcha to'lov turlari:
-    gul_rate = Column(Numeric(12, 2), nullable=True)        # Qoliplik gul (dona) uchun — alohida, qo'shimcha narx
+    per_unit_type = Column(String(20), default="blok")     # blok / metr / dona
+    # 11.2b (2026-09-20): `gul_rate` modeldan olib tashlandi.
+    # DB ustuni `employees.gul_rate` ATAYLAB QOLDIRILDI (nullable) —
+    # eski yozuvlar buzilmasin uchun; ORM uni endi o'qimaydi ham,
+    # yozmaydi ham.
     extra_monthly = Column(Numeric(12, 2), nullable=True)   # Istalgan to'lov turiga qo'shiladigan, ixtiyoriy doimiy oylik
     production_type = Column(String(20), nullable=True)     # penoplast / gips / umumiy — Gips/Penoplast mustaqil hisobot uchun
+    # kech117 (A2 — egasi QARORLARI kech114 00:08): korxona YO'NALISHI (`Yonalish`). NULL — «Umumiy» (umumiy xarajat
+    # daromad ulushiga qarab bo'linadi). `production_type` — ESKI matn belgisi, faqat migratsiya o'qiydi
+    # (`main._migrate_yonalishlar`: 'penoplast' → asosiy yo'nalish); hisob `yonalish_id` dan.
+    yonalish_id = Column(Integer, ForeignKey("yonalishlar.id"), nullable=True, index=True)
 
     is_active = Column(Boolean, default=True)
     hire_date = Column(DateTime, default=datetime.utcnow)
@@ -829,7 +1450,7 @@ class Employee(Base):
     is_deleted = Column(Boolean, default=False)  # "O'chirilgan" — lekin tiklash uchun saqlanadi
 
     # Hodimning o'z paneliga kirishi uchun (ixtiyoriy — admin belgilaydi)
-    phone = Column(String(20), nullable=True, unique=True)
+    phone = Column(String(20), nullable=True)
     pin_hash = Column(String(64), nullable=True)
 
     advance_requests = relationship("AdvanceRequest", back_populates="employee", cascade="all, delete-orphan")
@@ -870,7 +1491,7 @@ class EmployeeCompensationHistory(Base):
     percent_value = Column(Float, default=0.0)
     per_unit_rate = Column(Numeric(12, 2), default=0)
     per_unit_type = Column(String(20), default="blok")
-    gul_rate = Column(Numeric(12, 2), nullable=True)
+    # 11.2b: `gul_rate` olib tashlandi, DB ustuni qoldirildi.
     extra_monthly = Column(Numeric(12, 2), nullable=True)
 
     reason = Column(Text, nullable=True)          # Ixtiyoriy: "1 yillik ishlagani uchun oshirildi"
@@ -919,6 +1540,13 @@ class CashTransaction(Base):
     __tablename__ = "cash_transactions"
 
     id = Column(Integer, primary_key=True, index=True)
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G3/G4.
+    # Bazaga saas_migration.py qo'shadi; kod ANA SHUNDAN KEYIN yangilanadi.
+    # server_default SHART: usiz SQLAlchemy ustunni INSERT'ga NULL qilib
+    # qo'shib yuboradi va NOT NULL buziladi (G1 da shu xato chiqqan edi).
+    # Vaqtinchalik; keyinroq baza DEFAULT'i bilan birga olib tashlanadi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True)
     category = Column(String(30), nullable=False)  # "boshlangich" / "usta_kpi" / "ehson"
     amount = Column(Numeric(12, 2), nullable=False)  # ijobiy=kirim, manfiy=chiqim
     notes = Column(Text, nullable=True)
@@ -931,6 +1559,13 @@ class CompanySetting(Base):
     Kelajakda boshqa umumiy sozlamalar ham shu yerga qo'shilishi mumkin."""
     __tablename__ = "company_settings"
 
+    # 2026-09-18 — W2b: BIRLAMCHI KALIT endi (company_id, key).
+    # Ilgari faqat `key` edi — ya'ni ikkita korxona bir xil nomli
+    # sozlamaga (masalan "Ehson foizi") ega bo'la olmasdi.
+    # server_default SHART: usiz SQLAlchemy ustunni INSERT'ga NULL qilib
+    # qo'shib yuboradi va NOT NULL buziladi (G1 da shu xato chiqqan edi).
+    company_id = Column(Integer, ForeignKey("companies.id"), primary_key=True,
+                        nullable=False)
     key = Column(String(50), primary_key=True)
     value = Column(String(255), nullable=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -964,6 +1599,13 @@ class ActivityLog(Base):
     __tablename__ = "activity_logs"
 
     id = Column(Integer, primary_key=True, index=True)
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G3/G4.
+    # Bazaga saas_migration.py qo'shadi; kod ANA SHUNDAN KEYIN yangilanadi.
+    # server_default SHART: usiz SQLAlchemy ustunni INSERT'ga NULL qilib
+    # qo'shib yuboradi va NOT NULL buziladi (G1 da shu xato chiqqan edi).
+    # Vaqtinchalik; keyinroq baza DEFAULT'i bilan birga olib tashlanadi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True)
     action = Column(String(30), nullable=False)          # "deleted" / "restored" / "created" / "updated" / va h.k.
     entity_type = Column(String(30), nullable=False)      # "order" / "project" / va h.k.
     entity_id = Column(Integer, nullable=False)
@@ -982,6 +1624,20 @@ class LoginHistory(Base):
     __tablename__ = "login_history"
 
     id = Column(Integer, primary_key=True, index=True)
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G3/G4.
+    # Bazaga saas_migration.py qo'shadi; kod ANA SHUNDAN KEYIN yangilanadi.
+    # server_default SHART: usiz SQLAlchemy ustunni INSERT'ga NULL qilib
+    # qo'shib yuboradi va NOT NULL buziladi (G1 da shu xato chiqqan edi).
+    # Vaqtinchalik; keyinroq baza DEFAULT'i bilan birga olib tashlanadi.
+    # 2026-09-20 — MUHIM: bu ustun ATAYLAB `nullable=True`.
+    # Mavjud BO'LMAGAN foydalanuvchi nomi bilan kirishga urinilganda
+    # korxonani aniqlab bo'lmaydi (nom hech kimga tegishli emas). Ilgari
+    # bazadagi vaqtinchalik `DEFAULT 1` uni to'ldirardi; u olib tashlangach
+    # `/login` NOT NULL xatosi bilan 500 qaytara boshladi — ya'ni loginni
+    # xato yozgan har bir odam server xatosini ko'rardi.
+    # Bunday yozuvlar hech bir korxonaning ro'yxatida ko'rinmaydi, lekin
+    # bazada saqlanadi va IP bo'yicha rate-limit ularni hisobga oladi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)
     username = Column(String(100), nullable=False)
     success = Column(Boolean, nullable=False)
     ip_address = Column(String(50), nullable=True)
@@ -997,6 +1653,12 @@ class ErrorLog(Base):
     __tablename__ = "error_logs"
 
     id = Column(Integer, primary_key=True, index=True)
+    # 2026-09-19 — Faza 3: xatolarni korxonaga bog'lash.
+    # ATAYLAB `nullable=True`: foydalanuvchi sessiyasisiz yuz bergan
+    # PLATFORMA xatolari (fon vazifalari, ishga tushish, autentifikatsiyadan
+    # oldingi xatolar) hech bir korxonaga tegishli emas — ular NULL bo'ladi
+    # va tenant adminlariga ham ko'rinadi (ularda tenant ma'lumoti yo'q).
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)
     error_message = Column(Text, nullable=False)
     stack_trace = Column(Text, nullable=True)
     endpoint = Column(String(255), nullable=True)
@@ -1029,6 +1691,9 @@ class AdvanceRequest(Base):
     submitted_at = Column(DateTime, default=datetime.utcnow)
     confirmed_at = Column(DateTime, nullable=True)
     confirmed_by = Column(String(100), nullable=True)
+    # kech118 (D-1, G6-21 — egasi QARORI «Ha, majburiy»): rad etish sababi — admin yozadi, hodim o'z panelida ko'radi.
+    # Eski rad etilgan so'rovlarda NULL (sababsiz). Ustun — `database.sync_missing_columns()` qo'shadi.
+    rad_sababi = Column(Text, nullable=True)
 
     employee = relationship("Employee", back_populates="advance_requests")
 
@@ -1064,8 +1729,24 @@ class RecurringObligation(Base):
     avtomatik qarz/ogohlantirish chiqaradi."""
     __tablename__ = "recurring_obligations"
 
+    # 2026-09-18 — W2b: bu cheklov endi KORXONA ICHIDA yagona.
+    # Ilgari butun tizim bo'yicha yagona edi, ya'ni ikkinchi korxona
+    # bir xil qiymatni umuman qo'sha olmasdi. Nomi bazadagi indeks
+    # nomi bilan AYNAN bir xil bo'lishi shart.
+    __table_args__ = (
+        UniqueConstraint("company_id", "category",
+                         name="uq_recurring_obligations_company_category"),
+    )
+
     id = Column(Integer, primary_key=True, index=True)
-    category = Column(String(30), unique=True, nullable=False)  # ExpenseTransaction.category bilan bir xil bo'lishi kerak
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G3/G4.
+    # Bazaga saas_migration.py qo'shadi; kod ANA SHUNDAN KEYIN yangilanadi.
+    # server_default SHART: usiz SQLAlchemy ustunni INSERT'ga NULL qilib
+    # qo'shib yuboradi va NOT NULL buziladi (G1 da shu xato chiqqan edi).
+    # Vaqtinchalik; keyinroq baza DEFAULT'i bilan birga olib tashlanadi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True)
+    category = Column(String(30), nullable=False)  # ExpenseTransaction.category bilan bir xil bo'lishi kerak
     label = Column(String(60), nullable=False)  # "Arenda (arendator)", "Transport"
     icon = Column(String(10), default="📦")
     monthly_target = Column(Numeric(12, 2), default=0)  # Har oy qancha to'lanishi kerak
@@ -1086,6 +1767,15 @@ class Supplier(Base):
     __tablename__ = "suppliers"
 
     id = Column(Integer, primary_key=True, index=True)
+
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G1.
+    # Bazaga saas_migration.py (W2G1) qo'shadi: backfill, indeks, tashqi
+    # kalit va NOT NULL bilan birga. Kod ANA SHUNDAN KEYIN yangilanadi —
+    # har bir muhitda avval migratsiya, keyin kod.
+    # Ustunda hozircha vaqtinchalik DEFAULT 1 bor; u barcha yozuv
+    # nuqtalari company_id ni aniq yuboradigan bo'lgach olib tashlanadi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True)
     name = Column(String(150), nullable=False)
     phone = Column(String(20), nullable=True)
     notes = Column(Text, nullable=True)
@@ -1125,12 +1815,23 @@ class TransportExpense(Base):
     __tablename__ = "transport_expenses"
 
     id = Column(Integer, primary_key=True, index=True)
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G3/G4.
+    # Bazaga saas_migration.py qo'shadi; kod ANA SHUNDAN KEYIN yangilanadi.
+    # server_default SHART: usiz SQLAlchemy ustunni INSERT'ga NULL qilib
+    # qo'shib yuboradi va NOT NULL buziladi (G1 da shu xato chiqqan edi).
+    # Vaqtinchalik; keyinroq baza DEFAULT'i bilan birga olib tashlanadi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True)
     amount = Column(Numeric(12, 2), nullable=False)
     materials_note = Column(String(255), nullable=True)   # "Akril, Kroshka, Mel uchun"
     expense_date = Column(DateTime, default=datetime.utcnow)
     created_by = Column(String(100), nullable=True)
     notes = Column(Text, nullable=True)
     production_type = Column(String(20), nullable=True)  # umumiy / penoplast / gips
+    # kech117 (A2 — egasi QARORLARI kech114 00:08): korxona YO'NALISHI (`Yonalish`). NULL — «Umumiy» (umumiy xarajat
+    # daromad ulushiga qarab bo'linadi). `production_type` — ESKI matn belgisi, faqat migratsiya o'qiydi
+    # (`main._migrate_yonalishlar`: 'penoplast' → asosiy yo'nalish); hisob `yonalish_id` dan.
+    yonalish_id = Column(Integer, ForeignKey("yonalishlar.id"), nullable=True, index=True)
 
     def __repr__(self):
         return f"<TransportExpense {self.amount}>"
@@ -1140,11 +1841,57 @@ class TransportExpense(Base):
 # 10. FINISHED PRODUCT — Tayyor mahsulotlar ombori
 # ============================================================
 
+def tm_kam_kaliti(fp) -> str:
+    """kech118 (D-1, G5-11 — egasi QARORI «Har mahsulotga o'zim yozaman»): tayyor mahsulotning «Kam» chegarasi kaliti —
+    bir xil mahsulot (turkum, MRP turi, nom — kichik harf, bo'shliqlar bittaga, birlik, qoplama, o'lcham) partiyalari BITTA
+    kalitda: chegara bir marta yoziladi, keyingi partiyalar ham oladi. Sahifadagi guruhlash (`finished.html`
+    `fpGuruhKaliti`) bilan bir xil belgilar (manbasiz — «Kam» faqat ishlab chiqarilganda)."""
+    def _s(v):
+        if v is None or v == "":
+            return ""
+        try:
+            return f"{float(v):g}"
+        except (TypeError, ValueError):
+            return str(v)
+    _w2 = ""
+    import re as _re_k
+    _m = _re_k.search(r"width2=([\d.]+)", getattr(fp, "notes", None) or "")
+    if _m:
+        _w2 = _s(_m.group(1))
+    _nom = " ".join(str(getattr(fp, "name", "") or "").split()).lower()
+    return "|".join([str(getattr(fp, "category", None) or ""), str(getattr(fp, "product_type_id", None) or ""), _nom,
+                     str(getattr(fp, "unit", None) or ""), "1" if getattr(fp, "is_coated", False) else "0",
+                     _s(getattr(fp, "width", None)), _s(getattr(fp, "thickness", None)), _w2])
+
+
+class TmKamChegara(Base):
+    """kech118 (D-1, G5-11 — egasi QARORI «Har mahsulotga o'zim yozaman», yozilmasa «Kam» yo'q): tayyor mahsulotning eng
+    kam qoldig'i (shu mahsulotning hamma partiyalari yig'indisi shu chegaradan kam bo'lsa — «Kam»). `mahsulot_kaliti` —
+    `tm_kam_kaliti`."""
+    __tablename__ = "tm_kam_chegaralar"
+    __table_args__ = (UniqueConstraint("company_id", "mahsulot_kaliti", name="uq_tm_kam_chegara_company_kalit"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    # nomi `kalit` EMAS: `tools/test_html_escape.py` har String ustun NOMINI foydalanuvchi matni deb biladi — sahifalardagi
+    # kod kalitlari (`y.kalit`, `kalit`) bilan to'qnashmasin
+    mahsulot_kaliti = Column(String(400), nullable=False)
+    chegara = Column(Float, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+    updated_by = Column(String(100), nullable=True)
+
+
 class FinishedProduct(Base):
     """Tayyor mahsulot: ishlab chiqarilgan yoki buyurtmadan qaytgan."""
     __tablename__ = "finished_products"
 
     id = Column(Integer, primary_key=True, index=True)
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 5-to'lqin.
+    # Qiymat MIJOZDAN QABUL QILINMAYDI. U har doim ota-yozuvdan olinadi —
+    # models.py oxiridagi `_tenant_guard` hodisasi buni avtomatik bajaradi
+    # va ota bilan mos kelmasa yozuvni RAD ETADI.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True)
 
     name = Column(String(150), nullable=False, index=True)
     category = Column(String(50), nullable=True)     # profil / panel / dona
@@ -1173,12 +1920,35 @@ class FinishedProduct(Base):
     penoplast_id = Column(Integer, ForeignKey("inventory.id"), nullable=True, index=True)
     penoplast = relationship("Inventory", foreign_keys=[penoplast_id])
     volume_m3 = Column(Float, default=0.0)          # Penoplast hajmi (darhol yechiladi)
-    price_per_m3 = Column(Float, nullable=True)      # Foydalanuvchi kiritgan "1 m³ narxi" — Donalik hajmini qayta hisoblash uchun SAQLANADI (aks holda yo'qolib, penoplast tan narxiga qaytib, hajm buzilardi)
+    price_per_m3 = Column(Numeric(12, 2), nullable=True)      # Foydalanuvchi kiritgan "1 m³ narxi" — Donalik hajmini qayta hisoblash uchun SAQLANADI (aks holda yo'qolib, penoplast tan narxiga qaytib, hajm buzilardi)
     planned_loy_kg = Column(Float, default=0.0)      # Reja qilingan loy
     actual_loy_kg = Column(Float, nullable=True)     # Haqiqiy sarflangan loy ("Tayyor" bosilganda)
     gips_kg_used = Column(Float, nullable=True)       # GIPS mahsulotlar uchun — sarflangan Gips (kg)
     gips_inventory_id = Column(Integer, ForeignKey("inventory.id"), nullable=True)  # Qaysi Gips ishlatilgani
     gips_inventory = relationship("Inventory", foreign_keys=[gips_inventory_id])
+    # QO'SHILDI 2026-09-20 (Bosqich 3, 10-band). Tayyor mahsulot QAYSI
+    # mahsulot turidan ekanini ko'rsatadi — liniya bo'yicha moliya (12-band)
+    # shu ustunga tayanadi. Hozircha faqat MRP (Production moduli) orqali
+    # ishlab chiqarilganlar va buyurtma detalidan qaytganlar to'ldiriladi;
+    # eski, qattiq kodlangan turkumlar (profil/panel/dona/blok/gips/
+    # termopanel) uchun hali `ProductType` yozuvi YO'Q, shuning uchun ular
+    # ATAYLAB NULL bo'lib qoladi — 11-band ularni ko'chirganda to'ldiriladi.
+    # `OrderItem.product_type_id` bilan bir xil naqsh (models.py:734).
+    product_type_id = Column(Integer, ForeignKey("product_types.id"), nullable=True, index=True)
+    # QO'SHILDI 2026-09-20 — BARQAROR "1 birlik tan narxi".
+    # `_fp_stable_unit_cost()` mavjud mahsulotlar uchun buni
+    # `unit_volume_m3`/`unit_loy_kg` dan hisoblaydi. MRP (Ishlab chiqarish
+    # moduli) esa u maydonlarni UMUMAN to'ldirmaydi — retsept ixtiyoriy
+    # materiallardan iborat bo'lishi mumkin. Shuning uchun MRP ishlab
+    # chiqarish yakunlanganda 1 birlik tan narxini SHU YERGA yozib qo'yadi.
+    # U keyin HECH QACHON o'zgarmaydi — shu tufayli ombordan olish va
+    # qaytarish simmetrik bo'ladi (qisman topshirishda ham).
+    unit_cost_stable = Column(Numeric(14, 4), nullable=True)
+    # MUHIM: `lazy="joined"` QO'YILMAYDI — `FinishedProduct` boshqa joyda
+    # `.with_for_update()` bilan qulflanadi va LEFT OUTER JOIN Postgres'da
+    # "FOR UPDATE cannot be applied to the nullable side of an outer join"
+    # xatosini beradi (2026-09-18 da OrderItem'da shunday yiqilgan edi).
+    product_type = relationship("ProductType")
     # GIPS qo'shimchalari (Granula, Po'lat sim, Serpiyanka va h.k.) —
     # ishlab chiqarishda tanlangan har bir qo'shimchani JSON ro'yxat
     # sifatida saqlaydi: [{"inventory_id": 12, "quantity": 10.0}, ...].
@@ -1214,6 +1984,21 @@ class FinishedProduct(Base):
     production_status = Column(Enum(ProductionStatus), default=ProductionStatus.IN_PROGRESS, nullable=False)
     finished_production_at = Column(DateTime, nullable=True)
 
+    # 2026-09-17: Production/MRP'dan "Mijoz buyurtmasi asosida" ishlab
+    # chiqarilgan partiya — aniq bitta buyurtma-detaliga BAND QILINADI
+    # (umumiy sotuvdan ajratiladi). reserved_quantity — shu qatordagi
+    # `quantity`dan qanchasi band (0 bo'lsa — butunlay erkin, umumiy
+    # sotuv uchun). "Sotish mumkin miqdor" = quantity - reserved_quantity.
+    # Bekor qilinsa (band ozod qilinsa), ikkalasi ham 0/NULL ga qaytariladi
+    # — mahsulotning o'zi YO'QOLMAYDI, faqat yana umumiy sotuvga qaytadi.
+    reserved_quantity = Column(Float, default=0.0)
+    reserved_for_order_item_id = Column(Integer, ForeignKey("order_items.id"), nullable=True, index=True)
+    # kech125 (zip 146 — EGASI QARORLARI 07.10 «Brak taqdiri»): mahsulot BRAKDAN paydo bo'lgan — `crud.BRAK_TAQDIRLARI` kodi:
+    # 'tuzatildi' (tuzatilib omborga), 'kesildi' (kesib olingan kichik detal), 'ikkinchi_nav' (2-nav, arzon sotiladi). NULL —
+    # oddiy mahsulot. Bunday mahsulot boshqasi bilan BIRLASHTIRILMAYDI (`add_returned_to_stock`), taqdir bekor qilinganda
+    # AYNAN shu partiyadan olinadi; 2-nav sotuvida «narx juda past» so'ralmaydi (egasi qarori Q2). STANDARTSIZ.
+    brak_taqdir = Column(String(20), nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow)
     created_by = Column(String(100), nullable=True)
     notes = Column(Text, nullable=True)
@@ -1236,6 +2021,12 @@ class FinishedProductSale(Base):
     __tablename__ = "finished_product_sales"
 
     id = Column(Integer, primary_key=True, index=True)
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 6-to'lqin.
+    # Qiymat MIJOZDAN QABUL QILINMAYDI. U har doim ota-yozuvdan olinadi —
+    # models.py oxiridagi `_tenant_guard` hodisasi buni avtomatik bajaradi
+    # va ota bilan mos kelmasa yozuvni RAD ETADI.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True)
     finished_product_id = Column(Integer, ForeignKey("finished_products.id"), nullable=True, index=True)
     product_name = Column(String(150), nullable=False)  # Nusxa — mahsulot keyin o'chsa ham tarix qolsin
 
@@ -1277,6 +2068,12 @@ class FinishedProductLoss(Base):
     __tablename__ = "finished_product_losses"
 
     id = Column(Integer, primary_key=True, index=True)
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 6-to'lqin.
+    # Qiymat MIJOZDAN QABUL QILINMAYDI. U har doim ota-yozuvdan olinadi —
+    # models.py oxiridagi `_tenant_guard` hodisasi buni avtomatik bajaradi
+    # va ota bilan mos kelmasa yozuvni RAD ETADI.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True)
     finished_product_id = Column(Integer, ForeignKey("finished_products.id"), nullable=True, index=True)
     product_name = Column(String(150), nullable=False)
     category = Column(String(30), nullable=True)
@@ -1288,11 +2085,107 @@ class FinishedProductLoss(Base):
     reason = Column(Text, nullable=True)
     lost_at = Column(DateTime, default=datetime.utcnow)
     created_by = Column(String(100), nullable=True)
+    # kech53 (13-band, 1-qadam): brak BOSQICHI — ixtiyoriy ("Kamaytirish" va
+    # ishlab chiqarish braki oynasi). `ReturnItem.brak_bosqich` bilan bir xil
+    # kodlar; NULL — tanlanmagan / eski yozuv. STANDARTSIZ (sabab — yuqorida).
+    brak_bosqich = Column(String(20), nullable=True)
+    # kech56 (13-band, 7-qadam): brak SABABI va JAVOBGAR hodim — ixtiyoriy
+    # (`ReturnItem` bilan bir xil kodlar va qoida).
+    brak_sabab = Column(String(20), nullable=True)
+    brak_javobgar_id = Column(Integer, ForeignKey("employees.id", ondelete="SET NULL"),
+                              nullable=True, index=True)
 
     finished_product = relationship("FinishedProduct")
 
     def __repr__(self):
         return f"<FinishedProductLoss {self.product_name} -{self.quantity}>"
+
+
+class BrakTaqdir(Base):
+    """kech125 (zip 146 — EGASI QARORLARI 07.10 «Brak taqdiri», QAYTA SO'RALMAYDI) — brak mahsulotning keyingi TAQDIRI jurnali.
+
+    Taqdirlar (`crud.BRAK_TAQDIRLARI`): «Tashlandi» — jurnalda qator YO'Q (standart; eski yozuvlar ham); «Tuzatildi» (qayta
+    qoplab / yopishtirib — o'sha joyiga yoki omborga; zarar = FAQAT tuzatish xomashyosi); «Kesildi» (kichik detal Tayyor
+    mahsulotlarga ULUSH tannarx bilan: tannarx × ishlatilgan / brak); «2-nav» (Tayyor mahsulotlarga TO'LIQ tannarx bilan, brak
+    zarari yozilmaydi — arzon sotilganda farq sotuv oyida). Har qo'llanish — bitta qator; faol taqdir — `bekor_vaqti IS NULL`
+    (ko'pi bilan bitta). Taqdir o'zgartirilsa eski qator YO'QOLMAYDI — `bekor_vaqti` yoziladi (egasi qarori Q4 «O'zgartirilgan
+    oyga»: pul ta'siri HODISA vaqtida — `tm_tannarx` `yaratilgan` oyida zararni kamaytiradi, `bekor_vaqti` oyida qaytaradi;
+    o'tgan oy hisoboti o'zgarmaydi). Brak yozuvi butunlay o'chirilsa — uning qatorlari ham o'chadi («bo'lmagandek»).
+
+    Brak yozuvi — BITTASI: `return_item_id` (buyurtma detali braki, `manba` = 'buyurtma') yoki `fp_loss_id` (omborda turgan
+    tayyor mahsulot yo'qotishi — 'ombor'; ishlab chiqarish braki — 'ishlab'). `manba` yozilganda qo'yiladi va o'zgarmaydi —
+    hisobot qaysi qatorga (A / C — «Brak (xomashyo)», B — «Tayyor mahsulot yo'qotishi») yozishni SHU ustundan biladi.
+    Tuzatish xomashyosi va «joyiga» qaytgan xomashyo — ombor harakatlari (`InventoryMovement.brak_taqdir_id`), bu yerda emas."""
+    __tablename__ = "brak_taqdirlari"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    return_item_id = Column(Integer, ForeignKey("return_items.id", ondelete="SET NULL"), nullable=True, index=True)
+    fp_loss_id = Column(Integer, ForeignKey("finished_product_losses.id", ondelete="SET NULL"), nullable=True, index=True)
+    manba = Column(String(10), nullable=False)          # 'buyurtma' | 'ombor' | 'ishlab'
+    taqdir = Column(String(20), nullable=False)         # 'tuzatildi' | 'kesildi' | 'ikkinchi_nav'
+    joy = Column(String(10), nullable=True)             # «Tuzatildi»: 'joyiga' | 'omborga'
+    ishlatildi = Column(Float, nullable=True)           # «Kesildi»: brakning ishlatilgan qismi (brak birligida)
+    nomi = Column(String(150), nullable=True)           # «Kesildi»: kesib olingan detal nomi
+    # Tayyor mahsulotga o'tgan qism: qaysi TM, qancha, qanday tannarx bilan (shu summa zarardan chiqadi). `tm_yangi` — TM shu
+    # taqdir bilan YARATILGAN (bekor qilinganda partiya bo'sh qolsa o'chadi) yoki mavjud TM ga QAYTARILGAN (omborda turgan
+    # mahsulot tuzatildi — o'sha partiyaga).
+    tm_id = Column(Integer, ForeignKey("finished_products.id", ondelete="SET NULL"), nullable=True, index=True)
+    tm_miqdor = Column(Float, nullable=True)
+    tm_tannarx = Column(Numeric(12, 2), nullable=True)
+    tm_yangi = Column(Boolean, nullable=True)
+    narx = Column(Numeric(12, 2), nullable=True)        # TM sotuv narxi (1 birlik) — 2-nav (egasi qarori Q1), kesilgan detal
+    yaratilgan = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    yaratgan = Column(String(100), nullable=True)
+    bekor_vaqti = Column(DateTime, nullable=True, index=True)
+    bekor_qilgan = Column(String(100), nullable=True)
+
+    def __repr__(self):
+        return f"<BrakTaqdir {self.taqdir} ri={self.return_item_id} fpl={self.fp_loss_id}>"
+
+
+class Taklif(Base):
+    """kech126 (zip 148 — EGASI QARORLARI 07.10 «Tez hisob / Taklif», QAYTA SO'RALMAYDI) — mijozga loyiha / buyurtma OCHMASDAN
+    berilgan narx taklifi (hujjat «TAKLIF (HISOB-KITOB)», pastida «Narxlar 3 kun amal qiladi»).
+
+    Qarorlar: (1) taklif SAQLANADI — «Takliflar» ro'yxati (mijoz ismi / telefoni bilan), mijoz «olaman» desa bitta tugma bilan
+    loyiha va buyurtma ochiladi (qayta yozilmaydi); (2) hujjat «Buyurtma hisobi» ko'rinishida; (3) ombor TEGILMAYDI — xomashyo
+    faqat buyurtma rasmiylashtirilganda ayiriladi, taklifda faqat «omborda yetmaydi» ogohlantirishi; (4) taklifni «Buyurtmalar:
+    Yaratish» ruxsati borlar yozadi. Egasi savoliga javob (07.10 11:12): taklif HECH QACHON avtomatik o'chirilmaydi — 3 kun faqat
+    PDF dagi yozuv; muddat o'tgach ro'yxatda «muddati o'tgan» belgisi, rasmiylashtirish mumkin; bekor qilish — faqat qo'lda.
+
+    `tana` — buyurtma tanasi (JSON, `schemas.OrderCreate` shakli, `project_id` siz): rasmiylashtirishda AYNAN shu tana buyurtma
+    formasiga to'ldiriladi. `jami` / `kelishilgan` — saqlash paytida buyurtma bilan BIR qoida bilan hisoblangan (`crud.taklif_hisobi`).
+    Taklif Moliya / hisobot / omborga KIRMAYDI, Telegram yuborilmaydi. Raqam — korxona bo'yicha ketma-ket (`seq`, «T-0001»), qayta
+    berilmaydi (taklif o'chirilmaydi — faqat «bekor»). `order_id` — rasmiylashtirilgan buyurtma (u butunlay o'chirilsa NULL bo'ladi,
+    `order_raqam` ro'yxatda qoladi)."""
+    __tablename__ = "takliflar"
+    __table_args__ = (UniqueConstraint("company_id", "seq", name="uq_takliflar_company_seq"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    seq = Column(Integer, nullable=False)                    # korxona bo'yicha tartib raqami (1, 2, …)
+    raqam = Column(String(20), nullable=False)               # «T-0001»
+    mijoz = Column(String(100), nullable=False)              # mijoz ismi (loyihaning `client_name` sig'imi bilan bir xil)
+    telefon = Column(String(20), nullable=True)              # loyihaning `client_phone` sig'imi bilan bir xil
+    tana = Column(Text, nullable=False)                      # buyurtma tanasi — JSON (project_id siz)
+    jami = Column(Numeric(12, 2), nullable=False, default=0)
+    kelishilgan = Column(Numeric(12, 2), nullable=False, default=0)
+    holat = Column(String(20), nullable=False, default="yangi")   # 'yangi' | 'rasmiylashtirildi' | 'bekor'
+    amal_muddati = Column(Date, nullable=False)              # Toshkent sanasi + 3 kun (oxirgi saqlash kunidan)
+    order_id = Column(Integer, ForeignKey("orders.id", ondelete="SET NULL"), nullable=True, index=True)
+    order_raqam = Column(String(30), nullable=True)          # rasmiylashtirilgan buyurtma raqami (buyurtma o'chsa ham qoladi)
+    yaratilgan = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    yaratgan = Column(String(100), nullable=True)
+    tahrirlangan = Column(DateTime, nullable=True)
+    tahrirlagan = Column(String(100), nullable=True)
+    rasmiylashtirilgan = Column(DateTime, nullable=True)
+    rasmiylashtirgan = Column(String(100), nullable=True)
+    bekor_vaqti = Column(DateTime, nullable=True)
+    bekor_qilgan = Column(String(100), nullable=True)
+
+    def __repr__(self):
+        return f"<Taklif {self.raqam} {self.holat} c={self.company_id}>"
 
 
 # ============================================================
@@ -1354,6 +2247,17 @@ class DeliveryItem(Base):
 
     quantity = Column(Float, nullable=False)   # Shu safar berilgan miqdor
     unit = Column(String(20), default="dona")  # metr / dona
+    # kech70 (76-band): MRP detali — shu yuk QAYSI tayyor mahsulotdan (TM) QANCHA olgani,
+    # JSON `[[tm_id, miqdor], ...]`. Yuk xati o'chirilganda mahsulot AYNAN shu TM larga
+    # qaytadi. Eski yozuvlarda NULL — standart qiymat ataylab BERILMAYDI (kech52 saboqi:
+    # `sync_missing_columns` `default=` ni eski qatorlarga ham yozadi).
+    mrp_olingan = Column(Text, nullable=True)
+    # kech123 (zip 143 — EGASI QARORI 06.10: qoplamachi / «har birlik uchun» hodim haqi YUK XATLARI bo'yicha): shu yukda detalning
+    # QANCHA ULUSHI topshirilgani (berilgan miqdor ÷ detalning yuk paytidagi miqdori). Detal «Tayyor» qilinganda qisman
+    # topshirilgan bo'lsa miqdori topshirilganga qisqaradi (`finalize_partial_order_quantities`), ichki qo'shimcha detallar esa
+    # qisqarmaydi — ularning haqi o'tgan oylar o'zgarmasligi uchun yuk PAYTIDAGI ulushdan olinadi. Eski yozuvlarda NULL —
+    # standart qiymat ataylab BERILMAYDI (kech52 saboqi); NULL bo'lsa hisob detalning joriy miqdoridan.
+    ulush = Column(Float, nullable=True)
 
     delivery = relationship("Delivery", back_populates="items")
     order_item = relationship("OrderItem", back_populates="deliveries")
@@ -1374,6 +2278,13 @@ class Payment(Base):
     id = Column(Integer, primary_key=True, index=True)
     order_id = Column(Integer, ForeignKey("orders.id"), nullable=False, index=True)
     delivery_id = Column(Integer, ForeignKey("deliveries.id"), nullable=True, index=True)  # Qaysi yukka bog'liq (ixtiyoriy)
+    # kech40 (22-band, foydalanuvchi qarori B): "pul qaytdi" bosilganda yoziladigan
+    # MANFIY to'lov qaysi qaytarishniki — qaytarish o'chirilsa AYNAN shu to'lov
+    # o'chiriladi (izoh matni bo'yicha qidirish — taxmin). Qaytarish yozuvi
+    # o'chsa — NULL (PostgreSQL `ON DELETE SET NULL`; kod baribir to'lovni oldin
+    # o'chiradi).
+    return_item_id = Column(Integer, ForeignKey("return_items.id", ondelete="SET NULL"),
+                            nullable=True, index=True)
 
     amount = Column(Numeric(12, 2), nullable=False)
     payment_type = Column(Enum(PaymentType), default=PaymentType.PARTIAL, nullable=False)
@@ -1413,6 +2324,60 @@ class OrderAttachment(Base):
 # 13. MONTHLY EXPENSE — Oylik xarajatlar
 # ============================================================
 
+# kech87 (104-band): kirim hujjatidagi qo'shimcha xarajat (transport / tushirish / yuklash / boshqa) "tannarxga
+# qo'shish" bilan yozilganda `ExpenseTransaction.source` shu qiymatni oladi. Bunday xarajat xomashyo tannarxida
+# (o'rtacha narxda) hisoblanadi va xomashyo ishlatilganda "ishlab chiqarish xarajati" orqali foydadan ayriladi —
+# shuning uchun oylik sof foydadan ALOHIDA ayrilmaydi (ilgari ikki marta ayrilardi — O'LCHANGAN, probe104 K4/K5).
+# Ustun `String(20)` — qiymat 13 belgi.
+KIRIM_TANNARX_MANBA = "kirim_tannarx"
+
+# kech88 (105-band): kirim hujjatining TANNARXGA QO'SHILMAGAN qo'shimcha xarajati (`crud.create_inventory_receipt`
+# shu qiymatni yozadi — 2026-07 dan beri). Bunday yozuv oylik hisobotda "qo'shimcha xarajat" sifatida sof foydadan
+# ayriladi; "Naqd xarajatlar" ko'rsatkichi ikkala manbani (shu va `KIRIM_TANNARX_MANBA`) chiqib ketgan pul deb sanaydi.
+KIRIM_XARAJAT_MANBA = "inventory_receipt"
+
+
+class Yonalish(Base):
+    """kech117 (A2 — YO'NALISHLAR BO'YICHA MOLIYA; egasi QARORLARI kech114 00:08, QAYTA SO'RALMAYDI): korxonaning
+    ish yo'nalishlari (masalan «Penoplast», «Metall»). Har yo'nalishning o'z sof foydasi hisoblanadi
+    (`services.calculate_split_profit_report`), ularning yig'indisi Moliyadagi sof foydaga TENG.
+
+    * `kod = 'penoplast'` — ASOSIY yo'nalish (har korxonada bittadan — `uq_yonalishlar_company_kod`): kodda doimiy
+      qolgan turkumlar (profil, panel, donali, blok, loy sotish) shu yo'nalishga yoziladi. Nomini o'zgartirish
+      mumkin, yashirib / o'chirib bo'lmaydi. Boshqa yo'nalishlarda `kod` NULL (NULL lar noyoblikka kirmaydi).
+    * Yo'nalishni korxona o'zi qo'shadi va nomini o'zgartiradi; ishlatilgan yo'nalish o'chirilmaydi — faqat
+      yashiriladi (`yashirin`: yangi yozuv tanlovida chiqmaydi, eski yozuvlar va hisobot o'zgarmaydi).
+    * Bog'lanadiganlar (`yonalish_id`, NULL — «Umumiy» / MRP turida «Belgilanmagan»): `employees`,
+      `expense_transactions`, `transport_expenses`, `inventory_receipts`, `product_types`.
+    """
+    __tablename__ = "yonalishlar"
+    __table_args__ = (
+        UniqueConstraint("company_id", "kod", name="uq_yonalishlar_company_kod"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    nom = Column(String(60), nullable=False)
+    kod = Column(String(20), nullable=True)              # 'penoplast' — asosiy; boshqalar NULL
+    yashirin = Column(Boolean, default=False, nullable=True)
+    tartib = Column(Integer, default=0, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    created_by = Column(String(100), nullable=True)
+
+    @property
+    def asosiy(self) -> bool:
+        return self.kod == YONALISH_ASOSIY_KOD
+
+    def __repr__(self):
+        return f"<Yonalish {self.nom}>"
+
+
+# kech117 (A2): asosiy yo'nalish kodi va standart nomi; kodda doimiy qolgan buyurtma turkumlari shu yo'nalishga yoziladi.
+YONALISH_ASOSIY_KOD = "penoplast"
+YONALISH_ASOSIY_NOM = "Penoplast"
+YONALISH_ASOSIY_TURKUMLAR = frozenset({"profil", "karniz", "panel", "dona", "blok", "loy_sotish"})
+
+
 class ExpenseTransaction(Base):
     """Har bir xarajatni ALOHIDA tranzaksiya sifatida saqlaydi (SaaS arxitekturasi uchun).
 
@@ -1424,6 +2389,13 @@ class ExpenseTransaction(Base):
     __tablename__ = "expense_transactions"
 
     id = Column(Integer, primary_key=True, index=True)
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G3/G4.
+    # Bazaga saas_migration.py qo'shadi; kod ANA SHUNDAN KEYIN yangilanadi.
+    # server_default SHART: usiz SQLAlchemy ustunni INSERT'ga NULL qilib
+    # qo'shib yuboradi va NOT NULL buziladi (G1 da shu xato chiqqan edi).
+    # Vaqtinchalik; keyinroq baza DEFAULT'i bilan birga olib tashlanadi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True)
     date = Column(DateTime, nullable=False, default=datetime.utcnow)
     category = Column(String(30), nullable=False)  # arenda / elektr / tushlik / soliqlar / boshqa
     amount = Column(Numeric(12, 2), nullable=False, default=0)
@@ -1437,6 +2409,10 @@ class ExpenseTransaction(Base):
     source = Column(String(20), default="manual")
     # Yo'nalish bo'yicha ajratish (ixtiyoriy): umumiy / penoplast / gips
     production_type = Column(String(20), nullable=True)
+    # kech117 (A2 — egasi QARORLARI kech114 00:08): korxona YO'NALISHI (`Yonalish`). NULL — «Umumiy» (umumiy xarajat
+    # daromad ulushiga qarab bo'linadi). `production_type` — ESKI matn belgisi, faqat migratsiya o'qiydi
+    # (`main._migrate_yonalishlar`: 'penoplast' → asosiy yo'nalish); hisob `yonalish_id` dan.
+    yonalish_id = Column(Integer, ForeignKey("yonalishlar.id"), nullable=True, index=True)
 
     def __repr__(self):
         return f"<ExpenseTransaction {self.category}: {self.amount}>"
@@ -1447,6 +2423,13 @@ class MonthlyExpense(Base):
     __tablename__ = "monthly_expenses"
 
     id         = Column(Integer, primary_key=True, index=True)
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G3/G4.
+    # Bazaga saas_migration.py qo'shadi; kod ANA SHUNDAN KEYIN yangilanadi.
+    # server_default SHART: usiz SQLAlchemy ustunni INSERT'ga NULL qilib
+    # qo'shib yuboradi va NOT NULL buziladi (G1 da shu xato chiqqan edi).
+    # Vaqtinchalik; keyinroq baza DEFAULT'i bilan birga olib tashlanadi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True)
     year       = Column(Integer, nullable=False)   # 2026
     month      = Column(Integer, nullable=False)   # 1-12
 
@@ -1488,3 +2471,373 @@ def create_all_tables(engine):
 
 def drop_all_tables(engine):
     Base.metadata.drop_all(bind=engine)
+
+
+# ============================================================
+# TENANT HIMOYASI — company_id ni ota-yozuvdan olish va tekshirish
+# ============================================================
+# 2026-09-18. Nima uchun markazlashtirilgan:
+#   Bu jadvallar kodning 16 xil joyida yaratiladi. Har bir joyga qo'lda
+#   `company_id=...` yozish — bittasi unutilishi bilan buziladigan yechim.
+#   Bu yerdagi hodisa esa HAR BIR yozuvda, qayerda yaratilganidan qat'i
+#   nazar ishlaydi.
+#
+# Uch qoida:
+#   1. company_id MIJOZDAN QABUL QILINMAYDI — u ota-yozuvdan olinadi.
+#   2. Agar yozuvda company_id allaqachon qo'yilgan bo'lsa-yu, otasiniki
+#      BOSHQA bo'lsa — yozuv RAD ETILADI (korxonalar aralashib ketmasin).
+#   3. Ota topilmasa — hech narsa taxmin qilinmaydi, qiymat o'zgarishsiz
+#      qoldiriladi. Bunday qatorlar migratsiya sahifasidagi TEKSHIRUV
+#      bo'limida "otasi aniqlanmagan" bo'lib alohida ko'rinadi.
+#
+# Har bir jadval uchun ota zanjiri (birinchi topilgani ishlatiladi):
+
+_TENANT_RULES = {
+    # Buyurtma o'z loyihasidan
+    "Order":               [("project_id", "Project")],
+    # Detal o'z buyurtmasidan (order_id NOT NULL — har doim topiladi)
+    "OrderItem":           [("order_id", "Order")],
+    # Tayyor mahsulot: buyurtmadan; bo'lmasa retseptdan; bo'lmasa penoplastdan.
+    # (MRP orqali omborga ishlab chiqarilganda buyurtma bo'lmaydi.)
+    "FinishedProduct":     [("from_order_id", "Order"),
+                            ("recipe_id", "Recipe"),
+                            ("penoplast_id", "Inventory")],
+    # Qaytarish: buyurtmadan; bo'lmasa qaytarilgan tayyor mahsulotdan
+    "ReturnItem":          [("order_id", "Order"),
+                            ("finished_product_id", "FinishedProduct")],
+    # Ombor harakati: materialdan; bo'lmasa buyurtmadan; bo'lmasa ta'minotchidan
+    "InventoryMovement":   [("inventory_id", "Inventory"),
+                            ("order_id", "Order"),
+                            ("supplier_id", "Supplier")],
+    # Ombor kirimi: ta'minotchidan
+    "InventoryReceipt":    [("supplier_id", "Supplier")],
+    # Sotuv: sotilgan tayyor mahsulotdan; bo'lmasa ustadan
+    "FinishedProductSale": [("finished_product_id", "FinishedProduct"),
+                            ("master_id", "Master")],
+    # Yo'qotish/brak: tayyor mahsulotdan
+    "FinishedProductLoss": [("finished_product_id", "FinishedProduct")],
+
+    # --- M2 (2026-09-18) ---
+    # Bu modellarda company_id ustuni YO'Q — ular ota orqali tenant oladi.
+    # Qoidalar shu yerda, chunki tenant mosligini tekshirish uchun otani
+    # bilish kifoya (company_id ustuni bo'lishi shart emas).
+    "Payment":             [("order_id", "Order")],
+    "Delivery":            [("order_id", "Order")],
+    "DeliveryItem":        [("delivery_id", "Delivery")],
+    "OrderAttachment":     [("order_id", "Order")],
+    "OrderItemSubDetail":  [("order_item_id", "OrderItem")],
+    "OrderGipsAdditive":   [("order_id", "Order")],
+
+    # --- M3 (2026-09-18) ---
+    # Bularda ham company_id ustuni yo'q — tenant otadan olinadi.
+    # InventoryPurchase uchun BIRINCHI ota (material) tenant'ni beradi,
+    # keyin _TENANT_REFS ta'minotchini ham SHU tenant'ga tekshiradi —
+    # ya'ni A materiali + B ta'minotchisi juftligi rad etiladi.
+    "InventoryPurchase":   [("inventory_id", "Inventory"),
+                            ("supplier_id", "Supplier")],
+    "SupplierPayment":     [("supplier_id", "Supplier")],
+    # 2026-09-21 (12-sizish) — O'LCHANGAN: `_TENANT_REFS` da
+    # `RecipeIngredient.inventory_id` qoidasi BOR edi, lekin HECH QACHON
+    # ishlamasdi: bu jadvalda o'z `company_id` si yo'q, bu yerda ota ham
+    # yo'q edi → `_check_refs` ga own_cid=None borardi va u darhol
+    # qaytardi. Natija: B retsepti A materialiga bog'lanardi, B loy
+    # ishlab chiqarganda A ombori kamayardi. Endi korxona retseptdan olinadi.
+    "RecipeIngredient":    [("recipe_id", "Recipe")],
+
+    # --- M5 (2026-09-18) — ustalar / hodimlar / sovg'a ---
+    # Bu modellarda ham company_id ustuni YO'Q; tenant otadan olinadi.
+    # Auditda aniqlangan holat: bu zanjirlarning HECH BIRI qoidalarda
+    # yo'q edi, ya'ni A korxonaning sovg'a davriga B korxonaning
+    # ustasini ishtirokchi qilib yozib qo'yish mumkin edi.
+    "GiftPeriodTier":              [("period_id", "GiftPeriod")],
+    "GiftPeriodTier": [("period_id", "GiftPeriod")],
+    "GiftPeriodParticipant":       [("period_id", "GiftPeriod")],
+    "MasterGiftPeriodRedemption":  [("period_id", "GiftPeriod")],
+    "MasterGiftRedemption":        [("master_id", "Master")],
+    "EmployeeAdvance":             [("employee_id", "Employee")],
+    "EmployeeCompensationHistory": [("employee_id", "Employee")],
+    "EmployeeMonthlyAdjustment":   [("employee_id", "Employee")],
+    "AdvanceRequest":              [("employee_id", "Employee")],
+    "EmployeeSession":             [("employee_id", "Employee")],
+}
+
+
+# ============================================================
+# HAVOLALAR (references) — ota emas, lekin BIR KORXONADA bo'lishi shart
+# ============================================================
+# 2026-09-18 — M2. Yuqoridagi _TENANT_RULES "bu yozuv qaysi korxonaniki?"
+# degan savolga javob beradi. Bu yerdagi qoidalar esa boshqa savolga:
+# "bu yozuv KO'RSATAYOTGAN boshqa yozuv ham SHU korxonanikimi?"
+#
+# Masalan buyurtma detali A korxonaniki, lekin uning `penoplast_id` si
+# B korxonaning materialiga ishora qilishi mumkin edi. Baza buni to'smaydi
+# (oddiy FK faqat "shunday id bormi" deb tekshiradi), tenant qoidasi ham
+# to'smasdi — chunki detalning o'z otasi (buyurtma) to'g'ri edi.
+#
+# Endi har bir havola tekshiriladi: ko'rsatilayotgan yozuvning company_id si
+# yozuvnikidan farq qilsa — RAD ETILADI.
+
+_TENANT_REFS = {
+    # Buyurtma detali qaysi material/retsept/tayyor mahsulotga ishora qiladi
+    "OrderItem": [
+        ("penoplast_id", "Inventory"),
+        ("recipe_id", "Recipe"),
+        ("finished_product_id", "FinishedProduct"),
+        # 2026-09-20: bu bog'lam bor edi, lekin qo'riqchida yo'q edi —
+        # `ProductType` ni topib bo'lmagani uchun. Endi topiladi.
+        ("product_type_id", "ProductType"),
+    ],
+    # Retsept tarkibidagi xomashyo
+    "RecipeIngredient": [("inventory_id", "Inventory")],
+    # Qaytarish — qaysi tayyor mahsulotga
+    "ReturnItem": [("finished_product_id", "FinishedProduct"),
+                   # kech39: qaytarish qaysi buyurtma detalidan (3-band)
+                   ("order_item_id", "OrderItem"),
+                   # kech56 (13-band, 7-qadam): brakka sabab bo'lgan javobgar hodim
+                   ("brak_javobgar_id", "Employee")],
+    # kech40 (22-band): pul qaytarish to'lovi — qaysi qaytarishniki (begona
+    # korxona qaytarishiga bog'langan to'lov yozishdayoq rad etiladi)
+    "Payment": [("return_item_id", "ReturnItem")],
+    # Yetkazish qatori — qaysi detalga
+    "DeliveryItem": [("order_item_id", "OrderItem")],
+    # Ombor harakati — qaysi material/buyurtma/ta'minotchiga
+    "InventoryMovement": [("inventory_id", "Inventory"), ("order_id", "Order"),
+                          ("supplier_id", "Supplier"),
+                          # kech45 (13-band): qaysi brak yozuvi yaratgan
+                          ("return_item_id", "ReturnItem"),
+                          # kech125 (zip 146): tayyor mahsulot braki yozuvi va taqdir qatori
+                          ("fp_loss_id", "FinishedProductLoss"), ("brak_taqdir_id", "BrakTaqdir")],
+
+    # --- M3 (2026-09-18) ---
+    # Ishlab chiqarish retsepti (BOM) qatori qaysi materialga ishora qiladi.
+    # Bu M3 dagi eng muhim FK teshigi edi: A korxonaning BOM'i B korxonaning
+    # materialini ko'rsatib, ishlab chiqarishda O'SHA omborni kamaytirardi.
+    "BOMItem": [("inventory_id", "Inventory")],
+    # Xarid — qaysi material va qaysi ta'minotchidan
+    "InventoryPurchase": [("inventory_id", "Inventory"), ("supplier_id", "Supplier")],
+    # Ombor kirimi — qaysi ta'minotchidan
+    "InventoryReceipt": [("supplier_id", "Supplier"),
+                         # kech117 (A2): kirim yo'nalishi — o'z korxonasiniki
+                         ("yonalish_id", "Yonalish")],
+    # Ta'minotchiga to'lov
+    "SupplierPayment": [("supplier_id", "Supplier")],
+    # Tayyor mahsulot — qaysi buyurtma/retsept/materialga
+    "FinishedProduct": [("from_order_id", "Order"), ("recipe_id", "Recipe"),
+                        ("penoplast_id", "Inventory"),
+                        ("gips_inventory_id", "Inventory"),
+                        # Bosqich 3, 10-band (2026-09-20) — yangi bog'lam.
+                        # `ProductType` production_models.py da, qo'riqchi
+                        # uni kech import orqali topadi (_check_refs).
+                        ("product_type_id", "ProductType"),
+                        # kech109 (10b E-1, O'LCHANGAN `work/probe109e1.py` S4): MRP bandi — qaysi detalga.
+                        # Ilgari qo'riqchida yo'q edi: A mahsuloti B detaliga ORM bilan band qilinardi
+                        # (K93-1 xizmat tekshiruvidan tashqari yo'l — xom yozuv, kelajakdagi kod).
+                        ("reserved_for_order_item_id", "OrderItem")],
+    # kech109 (10b E-1, O'LCHANGAN `work/probe109e1.py` S5): ishlab chiqarish buyurtmasi — manba buyurtma / detal,
+    # tayyor mahsulot, mahsulot turi va retsept BIR korxonada. Ilgari A buyurtmasi B detaliga manba qilib yozilardi
+    # (K93-1 dan oldingi eski ma'lumot shakli) — B detali o'chirilganda / korxonasi tozalanganda FK 500.
+    "ProductionOrder": [("source_order_id", "Order"), ("source_order_item_id", "OrderItem"),
+                        ("finished_product_id", "FinishedProduct"),
+                        ("product_type_id", "ProductType"), ("bom_id", "BOM")],
+    # Sotuv/brak — qaysi mahsulot/ustaga
+    "FinishedProductSale": [("finished_product_id", "FinishedProduct"),
+                            ("master_id", "Master")],
+    "FinishedProductLoss": [("finished_product_id", "FinishedProduct"),
+                            # kech56 (13-band, 7-qadam): javobgar hodim
+                            ("brak_javobgar_id", "Employee")],
+    # kech125 (zip 146 — brak taqdiri): taqdir qatori — o'z brak yozuvi va yaratilgan / qaytarilgan tayyor mahsuloti BIR korxonada
+    "BrakTaqdir": [("return_item_id", "ReturnItem"), ("fp_loss_id", "FinishedProductLoss"),
+                   ("tm_id", "FinishedProduct")],
+    # kech126 (zip 148 — «Tez hisob / Taklif»): rasmiylashtirilgan buyurtma — o'z korxonasiniki
+    "Taklif": [("order_id", "Order")],
+    # Buyurtma — qaysi loyiha va ustaga
+    "Order": [("project_id", "Project"), ("master_id", "Master"),
+              # kech58 (K58-1): qoplama retsepti — faqat o'z korxonasiniki
+              ("qoplama_retsept_id", "Recipe")],
+
+    # --- M5 (2026-09-18) — ustalar / hodimlar / sovg'a ---
+    # Ota "bu yozuv kimniki" degan savolga javob beradi; bu yerdagi
+    # qoidalar esa "ko'rsatilayotgan boshqa yozuv ham shu korxonanikimi"
+    # degan savolga. Sovg'a davri ishtirokchisi va sovg'ani olish
+    # yozuvida AYNAN shu teshik bor edi: davr A niki, usta esa B niki.
+    "GiftPeriodTier":              [("period_id", "GiftPeriod")],
+    "GiftPeriodParticipant":       [("period_id", "GiftPeriod"),
+                                    ("master_id", "Master")],
+    "MasterGiftPeriodRedemption":  [("period_id", "GiftPeriod"),
+                                    ("master_id", "Master"),
+                                    ("tier_id", "GiftPeriodTier")],
+    "MasterGiftRedemption":        [("master_id", "Master"),
+                                    ("gift_id", "MasterGift")],
+    "EmployeeAdvance":             [("employee_id", "Employee")],
+    "EmployeeCompensationHistory": [("employee_id", "Employee")],
+    "EmployeeMonthlyAdjustment":   [("employee_id", "Employee")],
+    "AdvanceRequest":              [("employee_id", "Employee")],
+    "EmployeeSession":             [("employee_id", "Employee")],
+
+    # --- kech117 (A2 — yo'nalishlar bo'yicha moliya) ---
+    # Hodim, xarajat, transport va MRP mahsulot turi — FAQAT o'z korxonasining yo'nalishiga. Aks holda A ning xarajati
+    # B ning yo'nalishiga yozilib, B ning yo'nalishlar hisobotida (va A ning sof foydasi bo'linishida) chiqardi.
+    "Employee":                    [("yonalish_id", "Yonalish")],
+    "ExpenseTransaction":          [("yonalish_id", "Yonalish")],
+    "TransportExpense":            [("yonalish_id", "Yonalish")],
+    "ProductType":                 [("yonalish_id", "Yonalish")],
+}
+
+
+class TenantMismatchError(Exception):
+    """Yozuvning company_id si ota-yozuvnikiga mos kelmadi."""
+
+
+# 2026-09-21 — O'LCHANGAN: `TENANT_FILTER=1` da himoya KO'R edi. Ota/havola
+# yozuvi `session.get()` bilan o'qiladi va bu o'qishning o'zi joriy korxona
+# filtridan o'tardi — BEGONA yozuv "mavjud emas" (None) bo'lib ko'rinardi,
+# `if ... is None: continue` esa uni jimgina o'tkazib yuborardi. Natija: filtr
+# o'chiq bo'lsa 409 bilan rad etiladigan bog'lanish (B ning buyurtma detaliga
+# A ning `penoplast_id` si) filtr yoniq bo'lganda BAZAGA YOZILARDI.
+# Himoyaning butun vazifasi — aynan begona yozuvni ko'rish, shuning uchun
+# bu ichki o'qish filtrsiz bajariladi. Hech narsa foydalanuvchiga
+# qaytarilmaydi — faqat `company_id` taqqoslanadi.
+_GUARD_READ_OPTS = {"skip_tenant_filter": True}
+
+
+def _resolve_parent_company(session, obj, rules):
+    """Ota zanjiri bo'yicha birinchi topilgan company_id ni qaytaradi."""
+    _mapped = {c.key for c in type(obj).__table__.columns}
+    for fk_attr, parent_name in rules:
+        if fk_attr not in _mapped:
+            continue
+        fk_value = getattr(obj, fk_attr, None)
+        if not fk_value:
+            continue
+        parent_cls = globals().get(parent_name)
+        if parent_cls is None:
+            continue
+        parent = session.get(parent_cls, fk_value,
+                             execution_options=_GUARD_READ_OPTS)
+        if parent is None:
+            continue
+        cid = getattr(parent, "company_id", None)
+        if cid:
+            return cid, f"{fk_attr} -> {parent_name}"
+    return None, None
+
+
+def _check_refs(session, obj, own_cid):
+    """Yozuv KO'RSATAYOTGAN boshqa yozuvlar ham shu korxonanikimi.
+
+    2026-09-18 — M2. own_cid — yozuvning o'z korxonasi (ota orqali yoki
+    aniq berilgan). Havola boshqa korxonaga ishora qilsa, rad etiladi."""
+    refs = _TENANT_REFS.get(type(obj).__name__)
+    if not refs or not own_cid:
+        return
+    _mapped = {c.key for c in type(obj).__table__.columns}
+    for fk_attr, ref_name in refs:
+        if fk_attr not in _mapped:
+            continue
+        fk_value = getattr(obj, fk_attr, None)
+        if not fk_value:
+            continue
+        ref_cls = globals().get(ref_name)
+        if ref_cls is None:
+            # QO'SHILDI 2026-09-20. Ba'zi modellar `production_models.py` da
+            # yashaydi va models.py ularni ATAYLAB import qilmaydi (aylanma
+            # import). Ular uchun kech (lazy) import — faqat haqiqatan
+            # kerak bo'lganda, funksiya ichida.
+            try:
+                import production_models as _pm
+                ref_cls = getattr(_pm, ref_name, None)
+            except Exception:
+                ref_cls = None
+        if ref_cls is None:
+            continue
+        ref = session.get(ref_cls, fk_value,
+                          execution_options=_GUARD_READ_OPTS)
+        if ref is None:
+            continue
+        ref_cid = getattr(ref, "company_id", None)
+        if ref_cid and ref_cid != own_cid:
+            raise TenantMismatchError(
+                f"{type(obj).__name__}.{fk_attr}={fk_value} boshqa korxonaga "
+                f"({ref_cid}) tegishli, yozuvning o'zi esa {own_cid} ga. "
+                f"Korxonalar orasida bog'lanish yaratib bo'lmaydi."
+            )
+
+
+@event.listens_for(SASession, "before_flush")
+def _tenant_guard(session, flush_context, instances):
+    """company_id ni ota-yozuvdan qo'yadi va mos kelishini tekshiradi.
+
+    NIMA UCHUN `before_flush`, `before_insert` EMAS:
+      `before_insert` mapper darajasidagi hodisa bo'lib, uning ichida
+      so'rov yuborish (ota-yozuvni qidirish) rasman qo'llab-quvvatlanmaydi
+      va flush holatini buzishi mumkin. `before_flush` esa aynan shu ish
+      uchun mo'ljallangan — sessiya hali barqaror holatda, so'rov yuborish
+      xavfsiz. `no_autoflush` esa qidiruvning yana flush chaqirib, cheksiz
+      aylanishga tushishini oldini oladi.
+
+    YANGI va O'ZGARTIRILGAN yozuvlarni ham tekshiradi: ota-FK keyinchalik
+    BOSHQA korxonaning yozuviga ko'chirilishi ham rad etiladi.
+
+    ⚠️ BU YAGONA HIMOYA EMAS. Quyidagilarni QAMRAB OLMAYDI:
+      * `query.update()` / `query.delete()` — ORM bularda hodisa chaqirmaydi
+      * `bulk_save_objects`, `bulk_insert_mappings`
+      * Core `insert()`/`update()` va xom SQL
+    Shuning uchun bazadagi tashqi kalitlar (FK) va xizmat qatlamidagi
+    tekshiruvlar SAQLANADI — bu hodisa ularning o'rnini bosmaydi, ustiga
+    qo'shimcha qatlam bo'lib turadi.
+    """
+    if not (session.new or session.dirty):
+        return
+    with session.no_autoflush:
+        # --- YANGI yozuvlar ---
+        for obj in session.new:
+            nom = type(obj).__name__
+            rules = _TENANT_RULES.get(nom)
+            own = getattr(obj, "company_id", None)
+            if rules:
+                parent_cid, manba = _resolve_parent_company(session, obj, rules)
+                if parent_cid is not None:
+                    if own is None:
+                        # Modelda company_id ustuni bo'lsa — to'ldiramiz.
+                        if hasattr(obj, "company_id"):
+                            obj.company_id = parent_cid
+                        own = parent_cid
+                    elif own != parent_cid:
+                        raise TenantMismatchError(
+                            f"{nom}: company_id={own} berilgan, lekin ota-yozuv "
+                            f"({manba}) company_id={parent_cid} ga tegishli. "
+                            f"Bir korxonaning yozuvini boshqasiga bog'lab bo'lmaydi."
+                        )
+            _check_refs(session, obj, own)
+
+        # --- O'ZGARTIRILGAN yozuvlar ---
+        # Mavjud yozuvning ota-FK'si yoki company_id si o'zgartirilsa,
+        # ular baribir bir-biriga mos bo'lishi shart.
+        for obj in session.dirty:
+            rules = _TENANT_RULES.get(type(obj).__name__)
+            if (not rules and type(obj).__name__ not in _TENANT_REFS):
+                continue
+            if not session.is_modified(obj, include_collections=False):
+                continue
+            rules = rules or []
+            kuzatiladi = ([r[0] for r in rules] + ["company_id"] +
+                          [r[0] for r in _TENANT_REFS.get(type(obj).__name__, [])])
+            # Faqat HAQIQATDA mavjud (mapped) maydonlar — aks holda
+            # get_history KeyError beradi.
+            _mapped = {c.key for c in type(obj).__table__.columns}
+            ozgargan = {a for a in kuzatiladi
+                        if a in _mapped and get_history(obj, a).has_changes()}
+            if not ozgargan:
+                continue
+            parent_cid, manba = _resolve_parent_company(session, obj, rules)
+            own = getattr(obj, "company_id", None)
+            if parent_cid is not None:
+                if own is not None and own != parent_cid:
+                    raise TenantMismatchError(
+                        f"{type(obj).__name__} (id={getattr(obj, 'id', '?')}): "
+                        f"o'zgartirilgan yozuvning company_id={own}, lekin yangi "
+                        f"ota-yozuv ({manba}) company_id={parent_cid} ga tegishli. "
+                        f"O'zgarish rad etildi."
+                    )
+                own = own or parent_cid
+            _check_refs(session, obj, own)
