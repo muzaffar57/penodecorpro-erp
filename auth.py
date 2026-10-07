@@ -284,6 +284,12 @@ def require_login(
         request.state.tannarx_yoq = not _rx.bormi(user, "tannarx", "korish")
     except Exception:
         request.state.tannarx_yoq = True
+    # kech127 (zip 150 — egasi QARORI 07.10): «Xomashyo narxlari va ombor qiymati» ko'rmaydigan — Omborxona narxlari null
+    # (`ruxsatlar.narx_tozala`, o'sha himoya qatlami).
+    try:
+        request.state.narx_yoq = not _rx.narx_koradi(user)
+    except Exception:
+        request.state.narx_yoq = True
     return user
 
 
@@ -571,6 +577,14 @@ def tayyor_rollar(db: Session, company_id: int, kodlar=None) -> dict:
     yoq = [k for k in kodlar if k not in bor]
     if not yoq:
         return bor
+    # kech127 (zip 150): korxonada hali BIRORTA rol yo'q — hamma rollari HOZIRGI andozadan yaratiladi, ya'ni «Xomashyo narxlari»
+    # bandi bilan allaqachon tayyor: migratsiya belgisi darhol qo'yiladi (keyin admin o'zi yaratgan rolga
+    # `main._migrate_material_narx_ruxsati` tegmasin).
+    if not db.query(Rol.id).filter(Rol.company_id == company_id).first():
+        from models import CompanySetting as _CS127
+        if not db.query(_CS127).filter(_CS127.company_id == company_id,
+                                       _CS127.key == _rx.NARX_MIGRATSIYA_KALITI).first():
+            db.add(_CS127(company_id=company_id, key=_rx.NARX_MIGRATSIYA_KALITI, value="1"))
     nomlar = {(n or "").strip().lower() for (n,) in db.query(Rol.nom).filter(Rol.company_id == company_id).all()}
     for k in yoq:
         a = _rx.TAYYOR_ROLLAR[k]

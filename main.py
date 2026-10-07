@@ -2983,6 +2983,138 @@ def _migrate_brak_taqdir():
 
 _migrate_brak_taqdir()
 
+
+def _migrate_material_narx_ruxsati():
+    """kech127 (zip 150 — egasi QARORI 07.10 20:1x: «Xomashyo narxlari va «Ombor qiymati» Menejerga ko'rinmasin») — IDEMPOTENT,
+    PostgreSQL va SQLite.
+
+    Yangi band `material_narx` («Xomashyo narxlari va ombor qiymati», faqat Ko'rish). MAVJUD rollar bir marta ko'rib chiqiladi
+    (`ruxsatlar.material_narx_kerakmi`): narx bilan ishlaydigan rol (tayyor Omborchi / Moliyachi; material / kirim yaratish,
+    tahrirlash yoki o'chirish; ta'minotchi yoki Moliya ko'rish) — avvalgidek ko'radi (band qo'shiladi); faqat ko'radigan rol
+    (tayyor Menejer) — yo'q. Admin — doim hammasi (tekshirilmaydi). Korxona bo'yicha belgi (`company_settings`
+    `rx_material_narx`) — keyin admin o'chirgan ruxsat qayta qo'shilmaydi; rollari hozirgi andozadan yaratilgan korxonada belgi
+    `auth.tayyor_rollar` da qo'yilgan. Bitta korxona — bitta tranzaksiya (rollar + belgi)."""
+    from database import SessionLocal as _SL127
+    from models import Rol as _R127, CompanySetting as _CS127
+    import ruxsatlar as _rx127
+    _d = _SL127()
+    _qoshildi = _korxona = 0
+    try:
+        _cids = sorted({c for (c,) in _d.query(_R127.company_id).distinct().all() if c is not None})
+        for _cid in _cids:
+            if _d.query(_CS127).filter(_CS127.company_id == _cid,
+                                       _CS127.key == _rx127.NARX_MIGRATSIYA_KALITI).first():
+                continue
+            for _rol in _d.query(_R127).filter(_R127.company_id == _cid).order_by(_R127.id).all():
+                _rx = _rx127.ruxsatlar_oqi(_rol.ruxsatlar)
+                if "material_narx" in _rx or not _rx127.material_narx_kerakmi(_rol.kod, _rx):
+                    continue
+                _rx["material_narx"] = {"korish"}
+                _rol.ruxsatlar = _rx127.ruxsatlar_json(_rx)
+                _qoshildi += 1
+            _d.add(_CS127(company_id=_cid, key=_rx127.NARX_MIGRATSIYA_KALITI, value="1"))
+            _d.commit()
+            _korxona += 1
+        if _korxona:
+            print(f"✓ «Xomashyo narxlari» ruxsati: {_korxona} korxona ko'rib chiqildi, {_qoshildi} ta rolga qo'shildi")
+    except Exception as e:
+        _d.rollback()
+        print(f"⚠ «Xomashyo narxlari» ruxsati migratsiyasi o'tkazib yuborildi: {e}")
+    finally:
+        _d.close()
+    return _qoshildi
+
+
+_migrate_material_narx_ruxsati()
+
+
+# kech127 (zip 150): `main` (production) dagi ORD-066-1 — xodim loy rejasiga 500 o'rniga 500 000 kg yozgan (05.10, «omborda
+# yetishmaydi» ogohlantirishini tasdiqlab). Eski `main` kodi loy xomashyosini 0 da QIRQARDI (staging kodi — manfiyga), harakatlar
+# esa to'liq miqdor bilan yozilgan: Akril 42 857 kg, Kroshka extra 261 905 kg, … — qoldiq 0, «tugash bashorati» va «eng ko'p
+# ishlatilgan xomashyo» yolg'on. O'LCHANGAN (`work/natija/k126/z1924/fix.txt`, `r_fix.json`): ilova ichidan tuzatish (loy 500 +
+# «Qoldiqni tuzatish») qoldiqni to'g'rilaydi, lekin 261 643 kg «qaytarildi» va 259 726 kg «tuzatish» yozuvlari qoladi — 14 kun
+# yolg'on «1 kundan keyin tugaydi», 90 kun «eng ko'p ishlatilgan» 523 252 kg. EGASI QARORI (07.10, tugmali): «Toza tuzatish».
+ORD066_TUZATISH = {"company_id": 1, "raqam": "ORD-066-1", "eski_kg": 500000.0, "yangi_kg": 500.0}
+
+
+def _migrate_ord066_loy_xatosi(korxona_id=None, raqam=None, eski_kg=None, yangi_kg=None):
+    """kech127 (zip 150) — BIR MARTALIK ma'lumot tuzatishi, IDEMPOTENT, PostgreSQL va SQLite. Faqat AYNAN shu holatda ishlaydi
+    (aks holda hech narsa qilmaydi va sababini logga yozadi):
+      buyurtma (korxona, raqam) bor, o'chirilmagan, «Tayyor» EMAS, haqiqiy loy kiritilmagan, rejasi AYNAN `eski_kg`;
+      uning loy harakatlari («Buyurtma <raqam> (loy)») — hammasi chiqim, kamida bitta; shu buyurtmada boshqa loy harakati
+      (qaytarish, tahrir) YO'Q.
+    Tuzatish (bitta tranzaksiya): har loy harakati miqdori × yangi / eski (o'z narxi saqlanadi); reja `yangi_kg` (ustun va
+    eski izoh belgisi — `services._set_planned_loy`); shu harakatlarning materiallari qoldig'i = ombor yozuvlari balansi
+    (Σ kirim − Σ chiqim) — eski kod qirqib yo'qotgan qism shu bilan tiklanadi (28.09 zaxirasida 9 / 9 material qoldig'i = balans,
+    O'LCHANGAN); Faoliyat jurnaliga yozuv. Ikkinchi ishga tushishda reja eski emas — hech narsa o'zgarmaydi."""
+    from database import SessionLocal as _SL066
+    from models import Order as _O066, OrderStatus as _OS066, InventoryMovement as _IM066, Inventory as _I066
+    from sqlalchemy import func as _f066, case as _c066
+    _p = ORD066_TUZATISH
+    korxona_id = _p["company_id"] if korxona_id is None else korxona_id
+    raqam = _p["raqam"] if raqam is None else raqam
+    eski_kg = float(_p["eski_kg"] if eski_kg is None else eski_kg)
+    yangi_kg = float(_p["yangi_kg"] if yangi_kg is None else yangi_kg)
+    _d = _SL066()
+    try:
+        _o = (_d.query(_O066).filter(_O066.company_id == korxona_id, _O066.order_number == raqam)
+              .with_for_update().first())
+        if _o is None:
+            return {"holat": "yoq"}
+        if abs(float(_o.planned_loy_kg or 0) - eski_kg) > 1e-6:
+            return {"holat": "reja_boshqa"}
+        if (_o.is_deleted or _o.status == _OS066.READY or _o.actual_loy_kg is not None):
+            print(f"⚠ {raqam} loy xatosi tuzatilmadi: buyurtma holati o'zgargan (o'chirilgan / «Tayyor» / haqiqiy loy bor)")
+            return {"holat": "holat_ozgargan"}
+        _sabab = f"Buyurtma {raqam} (loy)"
+        _loy = (_d.query(_IM066).filter(_IM066.company_id == korxona_id, _IM066.order_id == _o.id,
+                                        _IM066.reason == _sabab).order_by(_IM066.id).all())
+        _boshqa = (_d.query(_IM066.id).filter(_IM066.company_id == korxona_id, _IM066.order_id == _o.id,
+                                              _IM066.reason != _sabab, _IM066.reason.ilike("%loy%")).count())
+        if not _loy or any(h.movement_type != "out" for h in _loy) or _boshqa:
+            print(f"⚠ {raqam} loy xatosi tuzatilmadi: loy harakatlari kutilgan shaklda emas "
+                  f"(loy {len(_loy)}, boshqa loy harakati {_boshqa})")
+            return {"holat": "harakat_boshqa"}
+        _k = yangi_kg / eski_kg
+        _materiallar = []
+        for h in _loy:
+            h.quantity = float(h.quantity or 0) * _k
+            if h.inventory_id not in _materiallar:
+                _materiallar.append(h.inventory_id)
+        import services as _sv066
+        _sv066._set_planned_loy(_o, yangi_kg)
+        _d.flush()
+        _qoldiq = []
+        for _iid in _materiallar:
+            _inv = (_d.query(_I066).filter(_I066.id == _iid, _I066.company_id == korxona_id)
+                    .with_for_update().first())
+            if _inv is None:
+                continue
+            _bal = _d.query(_f066.coalesce(_f066.sum(_c066((_IM066.movement_type == "in", _IM066.quantity),
+                                                           (_IM066.movement_type == "out", -_IM066.quantity),
+                                                           else_=0.0)), 0.0)).filter(
+                _IM066.company_id == korxona_id, _IM066.inventory_id == _iid).scalar()
+            _eski_q = float(_inv.stock_quantity or 0)
+            _inv.stock_quantity = float(_bal or 0)
+            _qoldiq.append((_inv.item_name, _eski_q, float(_bal or 0), _inv.unit or ""))
+        _matn = "; ".join(f"{n}: {a:,.2f} → {b:,.2f} {u}".replace(",", " ") for n, a, b, u in _qoldiq)
+        crud.log_activity(_d, "loy_tuzatish", "order", _o.id, entity_label=raqam, performed_by="Tizim (tuzatish)",
+                          old_value=f"Loy rejasi {eski_kg:,.0f} kg".replace(",", " "),
+                          new_value=(f"Loy rejasi {yangi_kg:,.0f} kg (xato tuzatildi); ".replace(",", " ") + _matn)[:1000],
+                          company_id=korxona_id, commit=False)
+        _d.commit()
+        print(f"✓ {raqam} loy xatosi tuzatildi: {eski_kg:,.0f} → {yangi_kg:,.0f} kg; {_matn}".replace(",", " "))
+        return {"holat": "tuzatildi", "harakatlar": len(_loy), "qoldiq": _qoldiq}
+    except Exception as e:
+        _d.rollback()
+        print(f"⚠ {raqam} loy xatosi tuzatishi o'tkazib yuborildi: {e}")
+        return {"holat": "xato", "xato": str(e)}
+    finally:
+        _d.close()
+
+
+_migrate_ord066_loy_xatosi()
+
 # kech104 (K104-2): FastAPI ning o'rnatilgan API hujjatlari (/openapi.json, /docs, /redoc) login-siz
 # ochiq edi — butun API sxemasi (barcha marshrutlar, /api/system/* va /api/platform/* ham) har kimga ko'rinardi.
 # Ilova ularni ishlatmaydi (shablon / test havolasi yo'q) — o'chirildi. Marshrutlar xaritasi:
@@ -3039,7 +3171,9 @@ class _TannarxHimoyasi:
             if xabar["type"] == "http.response.start":
                 _st = scope.get("state") or {}
                 _tur = dict((k.lower(), v) for k, v in xabar.get("headers") or []).get(b"content-type", b"")
-                if _st.get("tannarx_yoq") and b"application/json" in _tur and 200 <= xabar.get("status", 200) < 300:
+                # kech127 (zip 150): «Xomashyo narxlari va ombor qiymati» yo'q (`narx_yoq`) — shu qatlam narxni ham tozalaydi
+                if ((_st.get("tannarx_yoq") or _st.get("narx_yoq")) and b"application/json" in _tur
+                        and 200 <= xabar.get("status", 200) < 300):
                     holat["boshi"], holat["yigish"] = xabar, True
                     return
                 await send(xabar)
@@ -3053,8 +3187,14 @@ class _TannarxHimoyasi:
                     import json as _js118
                     import ruxsatlar as _rx118t
                     _marshrut = getattr(scope.get("route"), "path", None)
-                    tana = _js118.dumps(_rx118t.tannarx_tozala(_js118.loads(tana), _marshrut), ensure_ascii=False,
-                                        allow_nan=False, separators=(",", ":")).encode("utf-8")
+                    _st2 = scope.get("state") or {}
+                    _ob = _js118.loads(tana)
+                    if _st2.get("tannarx_yoq"):
+                        _ob = _rx118t.tannarx_tozala(_ob, _marshrut)
+                    if _st2.get("narx_yoq"):
+                        _ob = _rx118t.narx_tozala(_ob, _marshrut)
+                    tana = _js118.dumps(_ob, ensure_ascii=False, allow_nan=False,
+                                        separators=(",", ":")).encode("utf-8")
                 except Exception:                  # noqa: BLE001 — tozalab bo'lmasa, pul sirini OSHKOR QILMAYMIZ
                     tana = b'{"detail":"Javobni tayyorlashda xato"}'
                     holat["boshi"] = dict(holat["boshi"], status=500)

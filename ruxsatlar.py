@@ -18,7 +18,12 @@ QOIDALAR (egasi qarorlari, tugmali javoblar kech118 15:30):
   Menejer — hech qaysi sahifasi ishlatmaydigan 6 ta Dashboard / Qarzlar so'rovi yopildi (ko'rinadigan farq YO'Q).
 * Admin (`users.role == ADMIN`) — hamma narsa; «Foydalanuvchilar va rollar» boshqaruvi — FAQAT Admin (topshirilmaydi:
   aks holda istalgan rol o'zini Admin qila olardi).
-* Foydalanuvchining rolida band / amal yo'q — 403 («Sizning rolingizda … ruxsati yo'q»)."""
+* Foydalanuvchining rolida band / amal yo'q — 403 («Sizning rolingizda … ruxsati yo'q»).
+* (kech127, zip 150 — egasi QARORI 07.10 20:1x, tugmali: «Xomashyo narxlari va «Ombor qiymati» ham yashirilsin» — 2 hodim,
+  «Menejer» roli) — ALOHIDA ruxsat «Xomashyo narxlari va ombor qiymati» (band `material_narx`, faqat Ko'rish): yo'q bo'lsa
+  Omborxonadagi xarid narxi, kirim summasi, «Ombor qiymati», penoplast / loy ro'yxatidagi narx — «—» (`narx_tozala`).
+  «Tannarx va foyda» bor rol narxni baribir ko'radi (tannarx shu narxlardan hisoblanadi — `narx_koradi`).
+  Ta'minotchilar bo'limi (ta'minotchi qarzi va undan olingan xaridlar) — o'z ruxsati bilan, bu bandga kirmaydi."""
 import json
 
 AMALLAR = (("korish", "Ko'rish"), ("yaratish", "Yaratish"), ("tahrirlash", "Tahrirlash"), ("ochirish", "O'chirish"))
@@ -51,6 +56,9 @@ BOLIMLAR = (
         ("material", "Materiallar", "Xomashyo ro'yxati, narx, minimal qoldiq, Telegramga qoldiq hisoboti", _HAMMA),
         ("qoldiq", "Qoldiqni qo'lda tuzatish", "Material qoldig'ini to'g'ridan-to'g'ri o'zgartirish", (_T,)),
         ("kirim", "Xomashyo kirimi (xaridlar)", "Kirim qilish, xaridni tahrirlash, kirimni bekor qilish", _HAMMA),
+        # kech127 (zip 150): egasi QARORI 07.10 — xarid narxi va ombor qiymati alohida ruxsat (Menejerda yo'q)
+        ("material_narx", "Xomashyo narxlari va ombor qiymati",
+         "Xarid narxi, kirim summasi, «Ombor qiymati»; «Tannarx va foyda» bor rol ham ko'radi", (_K,)),
     )),
     ("taminot", "Ta'minotchilar", "ti-truck", (
         ("taminotchi", "Ta'minotchilar", "Ta'minotchi ro'yxati, tarixi, qarzi", _HAMMA),
@@ -105,6 +113,8 @@ SAHIFA_KERAK = {
     "brak": ((("tayyor", _K), ("sotuv", _K)), "Tayyor mahsulotlar sahifasida ishlaydi"),
     "qoldiq": ((("material", _K),), "Omborxona sahifasida ishlaydi — «Materiallar: Ko'rish» ham kerak"),
     "kirim": ((("material", _K), ("kirim", _Y)), "Omborxona yoki Xomashyo ta'minoti sahifasida ishlaydi"),
+    "material_narx": ((("material", _K), ("kirim", _K), ("kirim", _Y), ("buyurtma", _K), ("tayyor", _K)),
+                      "Omborxona, Kirim, Buyurtmalar yoki Tayyor mahsulotlar sahifasida ishlaydi"),
     "taminotchi_tolov": ((("taminotchi", _K),), "Ta'minotchilar sahifasida ishlaydi — «Ta'minotchilar: Ko'rish» ham kerak"),
     "ishlab_buyurtma": ((("mahsulot_turi", _K), ("tayyor", _K)), "Ishlab chiqarish yoki Tayyor mahsulotlar sahifasida ishlaydi"),
     "kassa": ((("moliya", _K),), "Moliya sahifasida ishlaydi — «Moliyaviy hisobot: Ko'rish» ham kerak"),
@@ -123,7 +133,7 @@ TAYYOR_ROLLAR = {
     "admin": {"nom": "Admin", "tavsif": "Hamma narsa — moliya, ombor, foydalanuvchilar, sozlamalar. O'zgartirilmaydi.",
               "ruxsatlar": {b: list(v["amallar"]) for b, v in BANDLAR.items()}},
     "menejer": {"nom": "Menejer", "tavsif": "Loyiha va buyurtmalar, to'lovlar, yetkazish, tayyor mahsulot, qaytarishlar, ustalar. "
-                                            "Moliya, foyda, Ustalar KPI ko'rinmaydi.",
+                                            "Moliya, foyda, xomashyo narxlari, Ustalar KPI ko'rinmaydi.",
                 "ruxsatlar": _r(buyurtma=_HAMMA, buyurtma_fayl=(_Y, _O), tolov=(_K, _Y, _O), yetkazish=(_K, _Y, _O),
                                 loyiha=_HAMMA, loyiha_korsatkich=(_K, _T), tayyor=_HAMMA, sotuv=(_K, _Y), brak=(_Y,),
                                 material=(_K,), kirim=(_K,), ishlab_buyurtma=_HAMMA, qaytarish=_HAMMA, kunlik=(_Y, _T),
@@ -131,13 +141,13 @@ TAYYOR_ROLLAR = {
     "omborchi": {"nom": "Omborchi", "tavsif": "Omborxona, xomashyo kirimi, ta'minotchilar, retseptlar, ishlab chiqarish, "
                                               "tayyor mahsulot, qaytarish va brak.",
                  "ruxsatlar": _r(tayyor=_HAMMA, sotuv=(_K, _Y), brak=(_Y,), material=(_K, _Y, _T), kirim=_HAMMA,
-                                 taminotchi=_HAMMA, taminotchi_tolov=(_Y, _O), retsept=_HAMMA, mahsulot_turi=_HAMMA,
-                                 ishlab_buyurtma=_HAMMA, qaytarish=_HAMMA)},
+                                 material_narx=(_K,), taminotchi=_HAMMA, taminotchi_tolov=(_Y, _O), retsept=_HAMMA,
+                                 mahsulot_turi=_HAMMA, ishlab_buyurtma=_HAMMA, qaytarish=_HAMMA)},
     "moliyachi": {"nom": "Moliyachi", "tavsif": "Moliya, kassa, kunlik xarajatlar, qarzlar, hisobotlar, Ustalar KPI, "
                                                 "avans so'rovlari, mijoz to'lovlari.",
-                  "ruxsatlar": _r(dashboard=(_K,), tolov=(_K, _Y, _O), loyiha_korsatkich=(_K, _T), moliya=(_K, _T),
-                                  kassa=(_K,), kunlik=_HAMMA, qarz=(_K,), tannarx=(_K,), hisobot=(_K,), kpi=(_K, _T),
-                                  avans_sorov=(_K, _T))},
+                  "ruxsatlar": _r(dashboard=(_K,), tolov=(_K, _Y, _O), loyiha_korsatkich=(_K, _T),
+                                  material_narx=(_K,), moliya=(_K, _T), kassa=(_K,), kunlik=_HAMMA, qarz=(_K,),
+                                  tannarx=(_K,), hisobot=(_K,), kpi=(_K, _T), avans_sorov=(_K, _T))},
     "usta": {"nom": "Usta (eski)", "tavsif": "Eski «Usta» login roli: faqat buyurtmaga rasm / fayl biriktirish.",
              "ruxsatlar": _r(buyurtma_fayl=(_Y, _O)), "yashirin": True},
 }
@@ -450,4 +460,57 @@ def tannarx_tozala(data, marshrut: str = None):
         _yol_tozala(data, _yol_qismlari(yol))
     if marshrut in TANNARX_SHARTLI:
         TANNARX_SHARTLI[marshrut](data)
+    return data
+
+
+# ════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# «XOMASHYO NARXLARI VA OMBOR QIYMATI» (kech127, zip 150 — egasi QARORI 07.10 20:1x, tugmali; QAYTA SO'RALMAYDI:
+# «Ulugbek va Mirjalol (Menejer) xomashyo xarid narxlari va «Ombor qiymati» ni ham ko'rmasin»). O'LCHANGAN (`work/narx127.py`,
+# `main` ning ko'chirilgan nusxasi, Menejer nomidan HAMMA GET marshrut, QIYMAT bo'yicha qidiruv — material narxi, xarid summasi,
+# ombor qiymati): sir faqat quyidagi marshrutlarda edi; sahifalarda — Omborxona «Ombor qiymati» / narx ustuni (ilgari
+# «Materiallar: Tahrirlash» sharti), Buyurtmalar va Tayyor mahsulotlar sahifasiga yozilgan penoplast narxi (`PENOPLASTS`,
+# `PENOS`). Ta'minotchilar bo'limi (`taminotchi`) — o'z ruxsati (ta'minotchi qarzi, undan olingan xaridlar) — bu yerga kirmaydi.
+# ════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+NARX_YOLLAR = {
+    "/api/inventory": ("[].price_per_unit",),
+    "/api/inventory/kpi": ("total_value",),
+    "/api/inventory/purchases": ("[].price_per_unit", "[].total_amount"),
+    "/api/inventory/purchase-stats": ("total_amount", "by_material[].total", "by_material[].avg_price"),
+    "/api/inventory/purchase-trend": ("months[].total",),
+    "/api/penoplasts": ("items[].price_per_unit",),
+    "/api/loy-cost": ("breakdown[].price",),
+}
+
+# Migratsiya belgisi (korxona sozlamasi): shu korxona rollari yangi band bilan bir marta ko'rib chiqilgan — admin keyin
+# o'chirgan ruxsat qayta qo'shilmaydi; rollari HOZIRGI andozadan yaratilgan korxona (`auth.tayyor_rollar`) — darhol belgilanadi.
+NARX_MIGRATSIYA_KALITI = "rx_material_narx"
+
+
+def narx_koradi(user) -> bool:
+    """Xomashyo narxi va ombor qiymatini ko'radimi: «Xomashyo narxlari va ombor qiymati» YOKI «Tannarx va foyda» ruxsati
+    (tannarx shu narxlardan hisoblanadi — tannarxni ko'rgan narxni ham bilib oladi; sahifa kalkulyatorlari narxsiz noto'g'ri
+    tannarx chiqarardi). Admin — doim."""
+    return bormi(user, "material_narx", "korish") or bormi(user, "tannarx", "korish")
+
+
+def material_narx_kerakmi(kod, ruxsat: dict) -> bool:
+    """Migratsiya qoidasi (yangi band qo'shilganda MAVJUD rol uchun bir marta): narx bilan ishlaydigan rol — avvalgidek ko'radi.
+    Tayyor Omborchi / Moliyachi (andozada bor); o'zi yaratilgan rol — material / kirim YARATISH, TAHRIRLASH yoki O'CHIRISH
+    (narx kiritadi / tuzatadi), ta'minotchi yoki Moliya KO'RISH. Faqat ko'radigan rol (Menejer: «Materiallar: Ko'rish»,
+    «Xomashyo kirimi: Ko'rish») — yo'q (egasi qarori)."""
+    if kod in ("omborchi", "moliyachi"):
+        return True
+    if kod in ("admin", "menejer", "usta"):
+        return False
+    yt = {"yaratish", "tahrirlash", "ochirish"}
+    return bool((set(ruxsat.get("material") or ()) & yt) or (set(ruxsat.get("kirim") or ()) & yt)
+                or "korish" in set(ruxsat.get("taminotchi") or ()) or "korish" in set(ruxsat.get("moliya") or ()))
+
+
+def narx_tozala(data, marshrut: str = None):
+    """«Xomashyo narxlari va ombor qiymati» ko'rmaydigan foydalanuvchi uchun javobni JOYIDA tozalaydi (shu marshrutning
+    NARX_YOLLAR — null) va qaytaradi."""
+    for yol in NARX_YOLLAR.get(marshrut or "", ()):
+        _yol_tozala(data, _yol_qismlari(yol))
     return data

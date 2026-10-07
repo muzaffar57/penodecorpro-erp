@@ -219,6 +219,12 @@ class User(Base):
         import ruxsatlar as _rx
         return _rx.bormi(self, band, amal)
 
+    def narx_koradi(self) -> bool:
+        """kech127 (zip 150): xomashyo xarid narxi va «Ombor qiymati» ni ko'radimi (`ruxsatlar.narx_koradi`: «Xomashyo
+        narxlari va ombor qiymati» YOKI «Tannarx va foyda»). Shablon: `current_user.narx_koradi()`."""
+        import ruxsatlar as _rx
+        return _rx.narx_koradi(self)
+
     @property
     def rol_nomi(self) -> str:
         """Ko'rinadigan rol nomi (menyu, Foydalanuvchilar): biriktirilgan rol nomi, bo'lmasa — eski turning tayyor nomi."""
