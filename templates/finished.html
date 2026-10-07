@@ -62,7 +62,9 @@
 .fp-qty{font-size:14px;font-weight:700;color:var(--text);white-space:nowrap}
 .fp-price{font-size:12px;color:var(--gold-dark);font-weight:600;margin-top:1px;white-space:nowrap}
 .fp-empty{text-align:center;padding:30px;color:var(--text3);font-size:13px}
-.fp-badge{font-size:12px;padding:2px 7px;border-radius:9px;font-weight:600;white-space:nowrap}
+/* kech125 (zip 147 — jonli sinovda O'LCHANGAN, 756 px): ilgari `white-space:nowrap` — tor nom ustunida uzun belgi (masalan
+   «⏳ ISHLAB CHIQARILMOQDA», brak taqdiri) miqdor ustiga chiqib ketardi; endi sig'masa ustun ichida qatorga bo'linadi */
+.fp-badge{font-size:12px;padding:2px 7px;border-radius:9px;font-weight:600;max-width:100%;white-space:normal;overflow-wrap:anywhere}
 .fp-main{flex:1;min-width:0}
 .fp-price-col{text-align:right;flex-shrink:0;min-width:82px}
 .fp-total-col{text-align:right;flex-shrink:0;min-width:92px}
@@ -1310,7 +1312,7 @@ function rowHtml(i, partiyami) {
         ${inProgress ? '<span class="fp-badge" style="background:var(--f-fef3c7);color:var(--m-92400e)">⏳ ISHLAB CHIQARILMOQDA</span>' : ''}
         ${isRet && !i.brak_taqdir ? '<span class="fp-badge" style="background:var(--f-dcfce7);color:var(--m-1e7e34)">♻️ QAYTGAN</span>' : ''}
         ${i.brak_taqdir === 'ikkinchi_nav' ? '<span class="fp-badge fp-2nav" style="background:var(--f-fef3c7);color:var(--m-92400e)" title="Brakdan — arzon sotiladi (tannarxdan past sotilsa farq sotilgan oyda zarar)">🏷️ 2-NAV</span>' : ''}
-        ${i.brak_taqdir === 'kesildi' ? '<span class="fp-badge" style="background:var(--f-f8f2eb);color:var(--gold-dark)" title="Brak detaldan kesib olingan — ulush tannarx bilan">✂️ BRAKDAN KESILGAN</span>' : ''}
+        ${i.brak_taqdir === 'kesildi' ? '<span class="fp-badge" style="background:var(--f-f8f2eb);color:var(--gold-dark)" title="Brak detaldan kesib olingan — ulush tannarx bilan">✂️ KESILGAN</span>' : ''}
         ${i.brak_taqdir === 'tuzatildi' ? '<span class="fp-badge" style="background:var(--f-dcfce7);color:var(--m-1e7e34)" title="Brak detal tuzatilgan — asl narxi bilan">🔧 TUZATILGAN</span>' : ''}
         ${i.reserved_quantity > 0 ? `<span class="fp-badge" style="background:var(--f-fee2e2);color:var(--m-b91c1c)" title="Bu miqdor umumiy sotuvdan ajratilgan — faqat shu buyurtma uchun">🔒 Band: ${i.reserved_quantity} ${escapeHtml(unitLabel(i.unit))}</span>` : ''}
       </div>

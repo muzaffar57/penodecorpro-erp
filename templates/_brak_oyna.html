@@ -717,9 +717,9 @@ function taqdirFormaChiz(konteynerId, p, ktx) {
       </div>
       <div class="tq-qator2">
         <div class="form-group"><label for="${ep}-tq-eni">Eni, sm <span style="color:var(--text3);font-weight:400">(ixtiyoriy)</span></label>
-          <input type="text" inputmode="decimal" id="${ep}-tq-eni" class="maydon" placeholder="—"></div>
+          <input type="text" inputmode="decimal" id="${ep}-tq-eni" class="maydon" placeholder="—" value="${escapeHtml(j.taqdir === 'kesildi' && j.eni != null ? String(j.eni) : '')}"></div>
         <div class="form-group"><label for="${ep}-tq-qalinligi">Qalinligi, sm <span style="color:var(--text3);font-weight:400">(ixtiyoriy)</span></label>
-          <input type="text" inputmode="decimal" id="${ep}-tq-qalinligi" class="maydon" placeholder="—"></div>
+          <input type="text" inputmode="decimal" id="${ep}-tq-qalinligi" class="maydon" placeholder="—" value="${escapeHtml(j.taqdir === 'kesildi' && j.qalinligi != null ? String(j.qalinligi) : '')}"></div>
       </div>
       <div class="form-group" style="margin-bottom:0">
         <label for="${ep}-tq-knarx">Sotuv narxi, 1 birlik <span style="color:var(--text3);font-weight:400">(ixtiyoriy)</span></label>
@@ -735,6 +735,17 @@ function taqdirFormaChiz(konteynerId, p, ktx) {
     </div>
   </div>`;
   taqdirBirlikYangila(p, x.birlik);
+  // kech125 (zip 147 — jonli sinovda topilgan): Kesildi qayta ochilganda — partiyaning saqlangan birligi tanlangan turadi
+  // (ilgari brak birligiga tushib qolardi; shundayicha saqlansa partiya birligi o'zgarib ketardi)
+  if (j.taqdir === 'kesildi' && j.birlik) {
+    const sel = _tqEl(p, 'birlik');
+    if (sel) {
+      if (![...sel.options].some(o => o.value === j.birlik)) {
+        sel.insertAdjacentHTML('beforeend', `<option value="${escapeHtml(j.birlik)}">${escapeHtml(birlikQisqa(j.birlik))}</option>`);
+      }
+      sel.value = j.birlik;
+    }
+  }
   taqdirPanelKorsat(p);
 }
 
