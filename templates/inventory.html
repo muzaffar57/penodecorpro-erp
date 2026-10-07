@@ -117,7 +117,9 @@
     <div class="stat-card" id="kamQolganKarta" role="button" tabindex="0" title="Ro'yxatda ko'rsatish" style="cursor:pointer" onclick="kamQolganlarniKorsat()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();kamQolganlarniKorsat();}"><div class="stat-icon" style="background:var(--f-fee2e2);color:var(--m-dc2626)"><i class="ti ti-alert-triangle"></i></div><div class="stat-label">Kam qolganlar</div><div class="stat-val">{{ kpi.low_count }} ta</div></div>
     <div class="stat-card"><div class="stat-icon" style="background:var(--f-dcfce7);color:var(--m-166534)"><i class="ti ti-arrow-down-left"></i></div><div class="stat-label">Bugungi kirim</div><div class="stat-val">{{ kpi.today_in_count }} marta</div></div>
     <div class="stat-card"><div class="stat-icon" style="background:var(--f-fee2e2);color:var(--m-991b1b)"><i class="ti ti-arrow-up-right"></i></div><div class="stat-label">Bugungi chiqim</div><div class="stat-val">{{ kpi.today_out_count }} marta</div></div>
-    {% if current_user.ruxsat('material', 'tahrirlash') %}
+    {# kech127 (zip 150 — egasi QARORI 07.10): «Ombor qiymati» — «Xomashyo narxlari va ombor qiymati» (yoki «Tannarx va foyda»)
+       ruxsati bilan (ilgari «Materiallar: Tahrirlash») #}
+    {% if current_user.narx_koradi() %}
     <div class="stat-card"><div class="stat-icon" style="background:var(--f-ede9fe);color:var(--m-6d28d9)"><i class="ti ti-currency-dollar"></i></div><div class="stat-label">Ombor qiymati</div><div class="stat-val">{{ (kpi.total_value/1000000)|son(1) }} mln</div></div>
     {% endif %}
   </div>
@@ -165,7 +167,7 @@
 
   <span id="low-count" style="display:none"></span>
   {% if items %}
-  <div class="mat-bosh" aria-hidden="true"><span>Material</span><span>Qoldiq</span><span>Minimal chegara</span><span>Holat</span><span>{{ "1 birlik narxi" if current_user.ruxsat('material', 'tahrirlash') else "" }}</span><span></span></div>
+  <div class="mat-bosh" aria-hidden="true"><span>Material</span><span>Qoldiq</span><span>Minimal chegara</span><span>Holat</span><span>{{ "1 birlik narxi" if current_user.narx_koradi() else "" }}</span><span></span></div>
   {% else %}
   {# kech120 (zip 132 — G4-13): bo'sh korxonada yo'l-yo'riq (ilgari bo'sh sahifa) #}
   <div class="inv-bosh" id="invBosh">📦 Omborda hali material yo'q.<br>Material birinchi kirim bilan qo'shiladi:
@@ -248,9 +250,9 @@
       </div>
       <div><span class="stat-badge {{ st }}">{{ st_label }}</span></div>
       <div class="mat-col-updated" style="font-size:13px;color:var(--text3)">
-        {% if current_user.ruxsat('material', 'tahrirlash') %}
+        {% if current_user.narx_koradi() %}
         <span id="price-{{ item.id }}">{{ "{:,.0f}".format(item.price_per_unit).replace(",", " ") if item.price_per_unit else "—" }} so'm</span>
-        <button class="btn btn-outline btn-icon btn-sm" onclick="editPrice({{ item.id }}, {{ item.price_per_unit or 0 }})" title="Narxni tuzatish" aria-label="Narxni tuzatish" style="margin-left:4px"><i class="ti ti-edit"></i></button>
+        {% if current_user.ruxsat('material', 'tahrirlash') %}<button class="btn btn-outline btn-icon btn-sm" onclick="editPrice({{ item.id }}, {{ item.price_per_unit or 0 }})" title="Narxni tuzatish" aria-label="Narxni tuzatish" style="margin-left:4px"><i class="ti ti-edit"></i></button>{% endif %}
         {% else %}
         <span style="color:var(--text3)">—</span>
         {% endif %}
@@ -456,6 +458,13 @@ function invToastHide() {
 
 <script>
 function fmt(n){ return Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' '); }
+// kech127 (zip 150 — egasi QARORI 07.10): «Xomashyo narxlari va ombor qiymati» ruxsati yo'q — server xarid narxi / summasini
+// null beradi (`ruxsatlar.narx_tozala`): «× narx» qismi yozilmaydi, summa o'rnida «—» (null `fmt` da «0 so'm» bo'lardi).
+function phNarxQismi(p) { return (p.price_per_unit === null || p.price_per_unit === undefined) ? '' : ' × ' + fmt(p.price_per_unit); }
+function phSom(n) { return (n === null || n === undefined) ? '—' : fmt(n) + " so'm"; }
+function phSummaJami(rows) {
+  return rows.some(p => p.total_amount === null || p.total_amount === undefined) ? null : rows.reduce((s, p) => s + p.total_amount, 0);
+}
 // ── 118-band (kech94): YAGONA son / narx kiritish qoidasi ──────────────────
 // parseNum / narxMatni / narxniOqi / narxKorinishi / formatPriceInput matni debts, finance,
 // finished, hodim_panel, inventory, kpi, orders, supplier_receive, suppliers
@@ -859,14 +868,14 @@ async function openPurchaseHistory() {
     phJami = parseInt(javob.headers.get('X-Jami') || '0', 10) || purchases.length;
     phKeyingi = parseInt(javob.headers.get('X-Keyingi') || '0', 10) || purchases.length;
 
-    document.getElementById('hist-total').textContent = fmt(stats.total_amount) + " so'm";
+    document.getElementById('hist-total').textContent = phSom(stats.total_amount);
 
     const byMat = document.getElementById('hist-by-material');
     if (stats.by_material.length) {
       byMat.innerHTML = stats.by_material.map(m =>
         `<div style="display:flex;justify-content:space-between">
           <span>${escapeHtml(m.name)} (${m.quantity}${m.unit ? ' ' + escapeHtml(m.unit) : ''})</span>
-          <span style="font-weight:600">${fmt(m.total)} so'm</span>
+          <span style="font-weight:600">${phSom(m.total)}</span>
         </div>`).join('');
     } else {
       byMat.innerHTML = '<div style="color:var(--text3)">Bu oy kirim bo\'lmagan</div>';
@@ -936,13 +945,13 @@ function phChiz() {
           <div>
             <div style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(p.item_name)}</div>
             <div style="font-size:13px;color:var(--text3);margin-top:2px">
-              ${p.quantity} ${escapeHtml(p.unit||'')} × ${fmt(p.price_per_unit)} · ${ds}
+              ${p.quantity} ${escapeHtml(p.unit||'')}${phNarxQismi(p)} · ${ds}
               ${p.purchased_by ? ' · '+escapeHtml(p.purchased_by) : ''}
               ${p.notes ? ' · '+escapeHtml(p.notes) : ''}
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:10px">
-            <div style="font-size:13px;font-weight:700;color:var(--m-15803d);white-space:nowrap">${fmt(p.total_amount)} so'm</div>
+            <div style="font-size:13px;font-weight:700;color:var(--m-15803d);white-space:nowrap">${phSom(p.total_amount)}</div>
             <button class="btn btn-danger btn-icon btn-sm" onclick="deletePurchase(${p.id}, '${jsAttrEscape(p.item_name||'')}', ${p.quantity})"
                     title="Bu xaridni bekor qilish (ombordan ham, puldan ham)" aria-label="Xaridni bekor qilish">
               <i class="ti ti-trash"></i>
@@ -952,7 +961,7 @@ function phChiz() {
       }
       // Guruh — bosiladigan, qisqartirilgan qator
       const ds = tkSanaVaqt(e.latest);
-      const total = e.items.reduce((s, p) => s + p.total_amount, 0);
+      const total = phSummaJami(e.items);
       const namesPreview = escapeHtml(e.items.slice(0, 3).map(p => p.item_name).join(', ') + (e.items.length > 3 ? '…' : ''));
       return `
       <div class="mv-order-row" onclick="openPhDrawer('${jsAttrEscape(e.receiptId)}')" style="margin:8px 0">
@@ -962,7 +971,7 @@ function phChiz() {
         </div>
         <div style="text-align:right;flex-shrink:0;margin-left:10px">
           <div class="mv-order-count">${e.items.length} ta material →</div>
-          <div style="font-size:13px;font-weight:700;color:var(--m-15803d);margin-top:4px">${fmt(total)} so'm</div>
+          <div style="font-size:13px;font-weight:700;color:var(--m-15803d);margin-top:4px">${phSom(total)}</div>
         </div>
       </div>`;
     }).join('') + phYanaHtml();
@@ -979,20 +988,20 @@ let phAllPurchases = [];
 
 function openPhDrawer(receiptId) {
   const rows = phAllPurchases.filter(p => String(p.receipt_id) === String(receiptId));
-  const total = rows.reduce((s, p) => s + p.total_amount, 0);
+  const total = phSummaJami(rows);
   document.getElementById('phDrawerTitle').textContent = `📦 Kirim #${receiptId}`;
   document.getElementById('phDrawerBekor').dataset.receiptId = String(receiptId);
-  document.getElementById('phDrawerSub').textContent = `${rows.length} ta material · ${fmt(total)} so'm`;
+  document.getElementById('phDrawerSub').textContent = `${rows.length} ta material · ${phSom(total)}`;
   document.getElementById('phDrawerBody').innerHTML = rows.map(p => {
     const ds = tkSanaVaqt(p.purchased_at);
     return `
     <div class="mv-row">
       <div style="flex:1;min-width:0">
         <div style="font-weight:500;color:var(--text)">${escapeHtml(p.item_name)}</div>
-        <div style="font-size:13px;color:var(--text3);margin-top:2px">${p.quantity} ${escapeHtml(p.unit||'')} × ${fmt(p.price_per_unit)} · ${ds}${p.purchased_by ? ' · '+escapeHtml(p.purchased_by) : ''}</div>
+        <div style="font-size:13px;color:var(--text3);margin-top:2px">${p.quantity} ${escapeHtml(p.unit||'')}${phNarxQismi(p)} · ${ds}${p.purchased_by ? ' · '+escapeHtml(p.purchased_by) : ''}</div>
       </div>
       <div style="text-align:right;flex-shrink:0;margin-left:10px">
-        <div style="font-weight:700;color:var(--m-15803d)">${fmt(p.total_amount)} so'm</div>
+        <div style="font-weight:700;color:var(--m-15803d)">${phSom(p.total_amount)}</div>
         <button class="btn btn-danger btn-icon btn-sm" onclick="deletePurchase(${p.id}, '${jsAttrEscape(p.item_name||'')}', ${p.quantity})"
                 title="Bu xaridni bekor qilish" aria-label="Xaridni bekor qilish" style="margin-top:4px">
           <i class="ti ti-trash"></i>

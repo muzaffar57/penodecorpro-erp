@@ -1456,9 +1456,10 @@ let editInitialLoadDone = false; // MUHIM (2026-09): tahrirlash, hali TO'LIQ
   // kichik, keraksiz farq bilan, o'zgarib qolar edi).
 
 // ── PLOTNOST ──────────────────────────────────────────────
+// kech127 (zip 150): penoplast xarid narxi — faqat «Xomashyo narxlari» / «Tannarx» ko'radiganga
 const PENOPLASTS = [
   {% for p in penoplasts %}
-  {id: {{ p.id }}, name: {{ p.item_name|tojson }}, stock: {{ p.stock_quantity|float }}, isDefault: {{ 'true' if p.is_default_penoplast else 'false' }}, volPerUnit: {{ (p.volume_per_unit or 1)|float }}, pricePerUnit: {{ (p.price_per_unit or 0)|float }}},
+  {id: {{ p.id }}, name: {{ p.item_name|tojson }}, stock: {{ p.stock_quantity|float }}, isDefault: {{ 'true' if p.is_default_penoplast else 'false' }}, volPerUnit: {{ (p.volume_per_unit or 1)|float }}, pricePerUnit: {{ (p.price_per_unit or 0)|float if current_user.narx_koradi() else 0 }}},
   {% endfor %}
 ];
 const DEFAULT_PENO_ID = {{ default_penoplast_id if default_penoplast_id else 'null' }};
