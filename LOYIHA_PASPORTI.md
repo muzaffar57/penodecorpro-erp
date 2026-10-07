@@ -1,6 +1,6 @@
 # PenoDecorPro ERP — LOYIHA PASPORTI
 
-*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2); kech112: zip 108 — «Tayyor» da bo'sh loy = reja (K112-3), material nomi (K112-4), MRP qoplama belgisi (K112-5); ko'p korxonali yakuniy jonli sinov; kech115: zip 112 — butun dastur auditi A bosqichi (pul va ma'lumot xatolari) 1-qismi: kirim, qarzdorlar, «Tayyor», narxsiz buyurtma, o'chirilganlar jurnali, manfiy raqamlar, taqqoslash, korxona sog'ligi, ombor filtri; kech116: zip 113 — A bosqich 2-qismi: sog'liq sabablari (K115-2), «Bugungi xulosa» (K115-3), hujjatlardagi hisob qatorlari (G2-04), «Pul oqimi» — haqiqiy pul (G1-03), «Xarajat» — bitta ta'rif va «Tannarx» (G1-02), loyiha qiymati buyurtmalardan (G2-01), haqiqiy IP va kirish cheklovi (U-01), parol oynasi va kirishlarni yopish (G6-06); zip 114 — mijoz hujjatlarida kechirilgan qarz «Chegirma» ichida (egasi qarori); kech117: zip 115 — A2: yo'nalishlar bo'yicha moliya (G3-11, G6-09); zip 116 — jonli sinovdan keyin: «Belgilanmagan» manbalari, Moliya xarajatdan keyin yangilanadi; kech118: qolgan egasi qarorlari (6-bo'lim); zip 117 — B bosqichi 1-qism: dastur oynalari (xabar, kiritish, Esc / tashqariga bosish), o'zbekcha 404 / 403 sahifa, klaviatura fokusi; zip 118 — B bosqichi 2-qism: son / sana / birlik ko'rinishi, o'qiladigan rang, 12 px + yo'nalishlar bo'yicha moliyaviy natija (egasi qarori: taqsim yo'q, oyliklar alohida, davr, solishtirish); yangi qarorlar — rollar va ruxsatlar (6-bo'lim); zip 119 — rollar va ruxsatlar 1-qism (admin rollarni o'zi boshqaradi); kech119: zip 125 — Hisobotlar «oy boshi»: o'tgan oyning SHU KUNLARI bilan solishtirish (egasi qarori), taxminda oylik xarajat bir marta, xomashyo birligi; «Foyda tahlili» summalari (G2-15); zip 126 — telefon (C bosqichi); kech120: zip 127 — E bosqichi 1-qism: tezlik — hisobot xotirasi (so'rovlar orasida, yozuv bo'lsa darhol eskiradi), sahifa bir ochilishida bir xil so'rov bir marta, Bosh sahifa 5 ta buyurtma, kirish sahifasi rasmi, Hisobotlar taqqoslash kartalari telefonda (K120-1); zip 128 — E bosqichi 2-qism: katta ro'yxatlarda topish — Bosh sahifa «Bugungi vazifalar» havolalari, Buyurtmalar filtri / keng qidiruv / tanlovni tiklash, Qarzdorlar mijoz bo'yicha; zip 129 — E bosqichi 3-qism: tarix va jurnallar — «Tizim jurnallari» filtri va sahifalash, hamma amal o'zbekcha, tahrir yozuvida nima o'zgargani; Ombor «Tarix», «Yana yuklash», davr jami; zip 130 — E bosqichi 4-qism: qidiruvli tanlagich (Kirim — ta'minotchi, material; «Yangi qaytarish», «Brak yozish»), ta'minotchilar tabiiy tartibda, Tayyor mahsulotlar kategoriyalari korxonaning o'z mahsulot turlaridan; shu zipda — E bosqichi 5-qism: hodim kirishi — har korxonada kod (kodsizlarga ishga tushishda), QR serverda (ichida kod), kirish sahifasi kodni o'zi yozadi, chop etish sahifasi; shu zipda — E bosqichi 6-qism: rasmlar yuklashda 1920 px gacha kichraytiriladi (burilish qo'llanadi, joylashuv saqlanmaydi), ro'yxatlarda kichik nusxa (360 px); uzun ro'yxatlarda faqat birinchi 20 qator animatsiyali); zip 131 — F bosqichi 1-qism: Moliya, Qarzdorlar, «Xarajat qo'shish» (kirim xarajati faqat hujjat orqali, ro'yxat jami, kassa yozuvini o'chirish, «Yalpi foyda», qarz to'lovi usuli, majburiyat oyi); zip 132 — F bosqichi 2-qism: Ombor, Kirim, Ta'minotchilar, Retseptlar (kirim hujjatidan qator — to'lov / xarajat bo'lsa butun hujjat orqali, ishlatilgan retsept o'chmaydi, Telegram natijasi, Omborxona — ruxsat bo'yicha tugmalar, ustun nomlari, toifa filtri; ta'minotchi tarixida to'lov holati, penoplast blok hajmi); zip 133 — F bosqichi 3-qism: Tayyor mahsulotlar, Qaytarishlar, Ishlab chiqarish (birlik ko'rinishi — bitta qoida, qaytarishlar guruhi va kartalari, «Hisob-kitob qilish», tugmalar so'z bilan, sotishdan keyin sahifa qayta yuklanmaydi, narxsiz mahsulot qiymati, mahsulot turini tahrirlash / o'chirish, bo'sh korxona yo'riqnomasi); zip 134 — F bosqichi 4-qism: Buyurtmalar va Loyihalar (namuna matni rangi, saqlash kamchiliklari bitta ro'yxatda, detal raqami, profil — uzunlik bo'yicha, loyiha qarzi «384 ming», bitta hisob-kitob paneli, amallar tepada, «Bajarilgan» va «Yetkazish — 1/2 topshirildi», «Tarix», bo'sh korxonada «avval loyiha»); zip 135 — F bosqichi 5-qism: Bosh sahifa, Dashboard, Hisobotlar («Faol buyurtmalar» — bitta qoida, usta reytingi, yangi korxonaga «Boshlash», bo'sh grafiklar, davr filtri, jadval qidiruvi va Excel, «Yangilash»); zip 136 — F bosqichi 5-qism 2-bo'lagi: hujjatlar va KPI (buyurtma hisobi — birlik, ajratgich, bitta «TO'LOV SUMMASI»; yuk xati — shu yuk paytidagi holat; KPI sahifasi yozuvlari va hodim kartasi); zip 137 — F bosqichi 5-qism 3-bo'lagi: ustalar telefoni, menyu guruhlari, hodim va foydalanuvchi kirishi, alohida «Sozlamalar» sahifasi; kech121: zip 138 — egasi qarorlari 02.10 (Dashboard «Shu oy daromadi», brak foizi asosi, Menejer o'z xarajatini o'chiradi, narxsiz «Kirim (tuzatish)», qaytarish oynasida pul savoli, yuk xatida korxona to'lagan transport narxi yo'q); kech123: zip 139 — U-13 yagona ko'rinish 1-qism (tugma / maydon / tab / filtr o'lchamlari va yozuv shkalasi — bitta qoida; umumiy qobiq, Bosh sahifa, Dashboard, Hisobotlar, Foydalanuvchilar; zip 140 — 2-qism: Buyurtmalar, Loyihalar, Omborxona, Kirim qilish, Ta'minotchilar, Loy retseptlari, Ishlab chiqarish, Tayyor mahsulotlar, Qaytarishlar; zip 141 — 3-qism: Qarzdorlar, Moliya, Xarajat qo'shish, Ustalar KPI, Ustalar, Rollar; zip 142 — 4-qism: jurnallar, Sozlamalar, Savat, Platforma, kirish sahifalari, hodim paneli; zip 143 — qoplamachi bonusi va «har birlik uchun» hodim haqi yuk xatlari bo'yicha; kech124: zip 144 — loyihada «Yuk xatlari», yuk xati raqami loyiha bo'yicha, «Jamlab olish»; zip 145 — Loyihalar holat paneli «Bajarilgan»). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
+*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2); kech112: zip 108 — «Tayyor» da bo'sh loy = reja (K112-3), material nomi (K112-4), MRP qoplama belgisi (K112-5); ko'p korxonali yakuniy jonli sinov; kech115: zip 112 — butun dastur auditi A bosqichi (pul va ma'lumot xatolari) 1-qismi: kirim, qarzdorlar, «Tayyor», narxsiz buyurtma, o'chirilganlar jurnali, manfiy raqamlar, taqqoslash, korxona sog'ligi, ombor filtri; kech116: zip 113 — A bosqich 2-qismi: sog'liq sabablari (K115-2), «Bugungi xulosa» (K115-3), hujjatlardagi hisob qatorlari (G2-04), «Pul oqimi» — haqiqiy pul (G1-03), «Xarajat» — bitta ta'rif va «Tannarx» (G1-02), loyiha qiymati buyurtmalardan (G2-01), haqiqiy IP va kirish cheklovi (U-01), parol oynasi va kirishlarni yopish (G6-06); zip 114 — mijoz hujjatlarida kechirilgan qarz «Chegirma» ichida (egasi qarori); kech117: zip 115 — A2: yo'nalishlar bo'yicha moliya (G3-11, G6-09); zip 116 — jonli sinovdan keyin: «Belgilanmagan» manbalari, Moliya xarajatdan keyin yangilanadi; kech118: qolgan egasi qarorlari (6-bo'lim); zip 117 — B bosqichi 1-qism: dastur oynalari (xabar, kiritish, Esc / tashqariga bosish), o'zbekcha 404 / 403 sahifa, klaviatura fokusi; zip 118 — B bosqichi 2-qism: son / sana / birlik ko'rinishi, o'qiladigan rang, 12 px + yo'nalishlar bo'yicha moliyaviy natija (egasi qarori: taqsim yo'q, oyliklar alohida, davr, solishtirish); yangi qarorlar — rollar va ruxsatlar (6-bo'lim); zip 119 — rollar va ruxsatlar 1-qism (admin rollarni o'zi boshqaradi); kech119: zip 125 — Hisobotlar «oy boshi»: o'tgan oyning SHU KUNLARI bilan solishtirish (egasi qarori), taxminda oylik xarajat bir marta, xomashyo birligi; «Foyda tahlili» summalari (G2-15); zip 126 — telefon (C bosqichi); kech120: zip 127 — E bosqichi 1-qism: tezlik — hisobot xotirasi (so'rovlar orasida, yozuv bo'lsa darhol eskiradi), sahifa bir ochilishida bir xil so'rov bir marta, Bosh sahifa 5 ta buyurtma, kirish sahifasi rasmi, Hisobotlar taqqoslash kartalari telefonda (K120-1); zip 128 — E bosqichi 2-qism: katta ro'yxatlarda topish — Bosh sahifa «Bugungi vazifalar» havolalari, Buyurtmalar filtri / keng qidiruv / tanlovni tiklash, Qarzdorlar mijoz bo'yicha; zip 129 — E bosqichi 3-qism: tarix va jurnallar — «Tizim jurnallari» filtri va sahifalash, hamma amal o'zbekcha, tahrir yozuvida nima o'zgargani; Ombor «Tarix», «Yana yuklash», davr jami; zip 130 — E bosqichi 4-qism: qidiruvli tanlagich (Kirim — ta'minotchi, material; «Yangi qaytarish», «Brak yozish»), ta'minotchilar tabiiy tartibda, Tayyor mahsulotlar kategoriyalari korxonaning o'z mahsulot turlaridan; shu zipda — E bosqichi 5-qism: hodim kirishi — har korxonada kod (kodsizlarga ishga tushishda), QR serverda (ichida kod), kirish sahifasi kodni o'zi yozadi, chop etish sahifasi; shu zipda — E bosqichi 6-qism: rasmlar yuklashda 1920 px gacha kichraytiriladi (burilish qo'llanadi, joylashuv saqlanmaydi), ro'yxatlarda kichik nusxa (360 px); uzun ro'yxatlarda faqat birinchi 20 qator animatsiyali); zip 131 — F bosqichi 1-qism: Moliya, Qarzdorlar, «Xarajat qo'shish» (kirim xarajati faqat hujjat orqali, ro'yxat jami, kassa yozuvini o'chirish, «Yalpi foyda», qarz to'lovi usuli, majburiyat oyi); zip 132 — F bosqichi 2-qism: Ombor, Kirim, Ta'minotchilar, Retseptlar (kirim hujjatidan qator — to'lov / xarajat bo'lsa butun hujjat orqali, ishlatilgan retsept o'chmaydi, Telegram natijasi, Omborxona — ruxsat bo'yicha tugmalar, ustun nomlari, toifa filtri; ta'minotchi tarixida to'lov holati, penoplast blok hajmi); zip 133 — F bosqichi 3-qism: Tayyor mahsulotlar, Qaytarishlar, Ishlab chiqarish (birlik ko'rinishi — bitta qoida, qaytarishlar guruhi va kartalari, «Hisob-kitob qilish», tugmalar so'z bilan, sotishdan keyin sahifa qayta yuklanmaydi, narxsiz mahsulot qiymati, mahsulot turini tahrirlash / o'chirish, bo'sh korxona yo'riqnomasi); zip 134 — F bosqichi 4-qism: Buyurtmalar va Loyihalar (namuna matni rangi, saqlash kamchiliklari bitta ro'yxatda, detal raqami, profil — uzunlik bo'yicha, loyiha qarzi «384 ming», bitta hisob-kitob paneli, amallar tepada, «Bajarilgan» va «Yetkazish — 1/2 topshirildi», «Tarix», bo'sh korxonada «avval loyiha»); zip 135 — F bosqichi 5-qism: Bosh sahifa, Dashboard, Hisobotlar («Faol buyurtmalar» — bitta qoida, usta reytingi, yangi korxonaga «Boshlash», bo'sh grafiklar, davr filtri, jadval qidiruvi va Excel, «Yangilash»); zip 136 — F bosqichi 5-qism 2-bo'lagi: hujjatlar va KPI (buyurtma hisobi — birlik, ajratgich, bitta «TO'LOV SUMMASI»; yuk xati — shu yuk paytidagi holat; KPI sahifasi yozuvlari va hodim kartasi); zip 137 — F bosqichi 5-qism 3-bo'lagi: ustalar telefoni, menyu guruhlari, hodim va foydalanuvchi kirishi, alohida «Sozlamalar» sahifasi; kech121: zip 138 — egasi qarorlari 02.10 (Dashboard «Shu oy daromadi», brak foizi asosi, Menejer o'z xarajatini o'chiradi, narxsiz «Kirim (tuzatish)», qaytarish oynasida pul savoli, yuk xatida korxona to'lagan transport narxi yo'q); kech123: zip 139 — U-13 yagona ko'rinish 1-qism (tugma / maydon / tab / filtr o'lchamlari va yozuv shkalasi — bitta qoida; umumiy qobiq, Bosh sahifa, Dashboard, Hisobotlar, Foydalanuvchilar; zip 140 — 2-qism: Buyurtmalar, Loyihalar, Omborxona, Kirim qilish, Ta'minotchilar, Loy retseptlari, Ishlab chiqarish, Tayyor mahsulotlar, Qaytarishlar; zip 141 — 3-qism: Qarzdorlar, Moliya, Xarajat qo'shish, Ustalar KPI, Ustalar, Rollar; zip 142 — 4-qism: jurnallar, Sozlamalar, Savat, Platforma, kirish sahifalari, hodim paneli; zip 143 — qoplamachi bonusi va «har birlik uchun» hodim haqi yuk xatlari bo'yicha; kech124: zip 144 — loyihada «Yuk xatlari», yuk xati raqami loyiha bo'yicha, «Jamlab olish»; zip 145 — Loyihalar holat paneli «Bajarilgan»; kech125: zip 146 — brak taqdiri: Tashlandi / Tuzatildi / Kesildi / 2-nav). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
 *Bu faylni `main` ga ko'chirish bilan birga, keyin har katta o'zgarishda yangilab boring. 9-bo'lim AVTOMATIK
 (`python3 tools/pasport_xarita.py --yoz`), qolgani qo'lda; `tools/test_pasport.py` ikkalasini ham tekshiradi.*
 
@@ -773,6 +773,56 @@ Telegram — «umumiy bot (agar sozlangan bo'lsa — holati pastda)»; «MRP» o
 «Parolni unutdingizmi? Korxona administratoriga murojaat qiling … Administrator parolini dastur xizmati tiklaydi» (xizmat telefoni —
 EGASI qarori kech121: YOZILMAYDI, hozirgi yozuv yetarli), telefonda dastur nomi tepada (`.mobil-brend`), pastki yozuvlar qoramtir fonda. static_version `20261001-7`.
 Test: `tools/test_f_sozlama.py`.
+**Brak taqdiri — Tashlandi / Tuzatildi / Kesildi / 2-nav (kech125, zip 146; egasi QARORLARI 07.10 — 6-bo'lim).** YO'LLAR: A — buyurtma
+detali braki (`ReturnItem`, sababi «Brak»; xomashyo harakatlari `return_item_id` bilan); B — omborda turgan tayyor mahsulot yo'qotishi
+(`FinishedProductLoss`; Moliya «Tayyor mahsulot yo'qotishi»); C — ishlab chiqarish braki (`FinishedProductLoss`, `crud._ISH_BRAK_BELGI`;
+YANGI yozuvda xomashyo harakatlari `inventory_movements.fp_loss_id` bilan bog'lanadi — yozuv xomashyo yechimidan OLDIN `flush`; eskilari
+bog'lamsiz, `cost_amount` bilan baholanadi). TANLASH: «Brak yozish» oynasida (`templates/_brak_oyna.html`, «Brak taqdiri» bo'limi;
+`taqdir` kaliti — `POST /api/returns`, `/api/finished/loss`, `/api/finished/production-brak`; kalit yo'q yoki «Tashlandi» — avvalgidek) va
+KEYIN: `POST /api/returns/{id}/taqdir` (ruxsat «Qaytarishlar: Yaratish»), `POST /api/finished/loss/{id}/taqdir` («Brak: Yaratish») —
+Qaytarishlar sahifasidagi «🧩» tugmasi va tahlil yo'qotishlar jadvali («Taqdir» oynasi). Tana — `crud.brak_taqdir_tana` (`_clean_val`
+«Taqdir» / «TaqdirMaterial» — qat'iy: noma'lum kalit, ortiqcha maydon, ishlatilgan > brak, narxsiz / 0 narxli 2-nav, begona korxona
+materiali, bir xomashyo ikki marta, tayyor loy pozitsiyasi material sifatida — 400, HECH NARSA o'zgarmaydi). Tuzatish xomashyosi tanlovi —
+`GET /api/brak/tuzatish-materiallari` (loy retseptlari — kg, materiallar; narxsiz; faqat o'z korxonasi). JURNAL — `brak_taqdirlari`
+(`models.BrakTaqdir`): har qo'llanish bitta qator, faol — `bekor_vaqti IS NULL` (ko'pi bilan bitta); qatori yo'q yozuv = «Tashlandi» (eski
+yozuvlar ham). O'zgartirish = faol qatorni bekor qilish + yangisini qo'llash, BITTA tranzaksiyada (`crud.bitta_tranzaksiya`); qulf: A —
+(101, buyurtma) advisory (`delete_return_item` / `create_return_item` bilan bir fazo) + yozuv `FOR UPDATE`; B / C — yozuv `FOR UPDATE`,
+keyin TM. PUL — HODISA VAQTIDA (egasi qarori Q4): Tayyor mahsulotga o'tgan qiymat (`tm_tannarx`) taqdir qo'llangan oyda zarardan chiqadi
+(−), bekor qilingan oyda qaytadi (+); o'tgan oy O'ZGARMAYDI. A / C — Moliya «Brak» qatori (`crud.get_brak_material_summary`: alohida qator
+«Tayyor mahsulotga o'tdi» — `crud.BRAK_TAQDIR_QATORI`), B — «Tayyor mahsulot yo'qotishi (omborda)» (`crud.tm_yoqotish_qiymati`). OMBOR
+HARAKATLARI (brak belgili, yozuvga va `brak_taqdir_id` ga bog'langan, hodisa vaqtida): Tuzatildi — tuzatish xomashyosi CHIQIM (material
+yoki loy retsepti kg da — `services.deduct_loy_ingredients`); A / C «O'sha joyiga» — brakning asl chiqimlari KIRIM bo'lib qaytadi (asl
+`unit_cost` bilan, aniq teskari — detal ishlatildi, zarar faqat tuzatish xomashyosi); bekor qilishda — shu taqdir harakatlarining
+TESKARISI (yangi harakat, o'chirilmaydi). BRAK QIYMATI = Σ brak CHIQIM − Σ taqdir KIRIMI × `_brak_harakat_narxi`
+(`crud.brak_harakatlari_sharti`, `_brak_ishora`): kirim — FAQAT `is_brak IS TRUE` VA `brak_taqdir_id IS NOT NULL`; migratsiya `is_brak` ni
+TRUE qilgan eski «Brak…» sababli kirimlar KIRMAYDI (o'tgan oylar o'zgarmaydi — `test_brak_belgisi` D2d). Buyurtma tannarxiga (sarf) taqdir
+harakatlari kirmaydi (brak belgili). TM PARTIYASI (Kesildi, 2-nav, A / C «Tuzatildi — omborga»): yangi `FinishedProduct` (manba RETURNED,
+READY, `finished_products.brak_taqdir` belgisi, `unit_cost_stable` = tannarx / miqdor) — HECH QACHON boshqa partiya bilan
+birlashtirilmaydi (`create_return_item` birlashtirish filtri). Tannarx: Kesildi — ULUSH (brak xomashyo qiymati × ishlatilgan / brak
+miqdori: 30 000 lik 3 m dan 2 m ishlatildi → 20 000, zarar 10 000), 2-nav va «Tuzatildi — omborga» — to'liq (brak zarari 0). Sotuv narxi:
+2-nav — brak yozganda yoziladi (Q1; partiyaning `unit_price` i, sotishda o'zgartirsa bo'ladi), «Tuzatildi — omborga» — ASL narx (Q3:
+buyurtma detali / mahsulot narxi, 1-nav), Kesildi — ixtiyoriy. B «Tuzatildi» — faqat o'sha partiyaga (miqdor va `cost_amount` qaytadi;
+partiya o'chirilgan bo'lsa — 400), B da «Omborga» yo'q. BEKOR QILISH / O'ZGARTIRISH: TM dan AYNAN qo'shilgan miqdor va tannarx olinadi;
+bo'sh qoldiq (qoldiq − band) yetmasa (sotilgan / band / kamaytirilgan) — 400, hech narsa o'zgarmaydi; yangi partiya bo'shasa o'chadi.
+O'CHIRISH (`delete_return_item`, `delete_finished_product_loss`): faol taqdir avval bekor (TM tekshiruvi bilan), so'ng hamma taqdir
+harakatlari qoldig'i qaytib o'chadi va jurnal qatorlari o'chadi — «bo'lmagandek» (avvalgi qoida). 2-NAV SOTUVI: «narx juda past»
+so'ralmaydi (Q2; `sell_finished_product`, `sell_finished_products_batch`); farq (tannarx − sotuv) sotuv oyida zarar (sotuv tannarxi —
+muzlagan). TAHLIL / YO'NALISHLAR / «BITTA RAQAM»: `crud.brak_davr_yozuvlari` — davrdagi har yozuvning shu davrdagi qiymati: brakning O'Z
+harakatlari — yozuv sanasi bo'yicha (avvalgi qoida), taqdir harakatlari va hodisalari — o'z vaqtida; davrda faqat taqdir hodisasi bo'lgan
+(boshqa oyda yozilgan) yozuv ham ro'yxatda; `brak_yozuv_qiymatlari` davr bilan — xuddi shunday. Tahlilda «🧩 Taqdir bo'yicha» taqsimoti,
+yo'qotishlar jadvalida «Taqdiri» ustuni (ruxsat bo'lsa «🧩»; sahifa konstantasi `KORADI_BRAK_YARATISH`). SAHIFALAR: Qaytarishlar — brak
+qatorida belgi («🔧 Tuzatildi — o'sha joyiga / omborga», «✂️ Kesildi → nomi», «🏷️ 2-nav — omborda»; taqdirsiz — «Chiqindiga ketdi»),
+«zarar: …» (Tannarx ruxsati bilan) va «🧩»; Tayyor mahsulotlar — «🏷️ 2-NAV», «BRAKDAN KESILGAN», «TUZATILGAN» belgilari; `/api/finished` —
+`brak_taqdir`. Faoliyat jurnali — «🧩 Brak taqdiri» (`crud.AUDIT_AMALLARI`). ZAXIRA: `_reset_table_order` — `InventoryMovement`,
+`BrakTaqdir` → `ReturnItem` dan OLDIN (o'chirish; tiklash — teskari). TOPILGAN ESKI NUQSON (zip 146 da tuzatildi): asl kodda PG da
+buyurtma detali braki bor korxonani JSON zaxiradan tiklash `inventory_movements_return_item_id_fkey` 23503 bilan yiqilardi (harakat
+qaytarishdan OLDIN qo'shilardi). TOPILGAN IKKINCHI ESKI NUQSON (tuzatildi): `import_full_backup(replace=True)` tozalashni
+(`factory_reset_all_data`) OLDINDAN saqlab qo'yardi (ichki `commit`) — qo'shishda xato bo'lsa korxona ma'lumoti O'CHIB QOLARDI («bitta
+tranzaksiya» va'dasi buzilgan; asl kodda o'lchandi: buzilgan faylda loyiha, qaytarish, TM, harakatlar 0 ga tushdi); endi
+`factory_reset_all_data(..., commit=False)` — tozalash va qo'shish BITTA tranzaksiyada (boshqa chaqiruvchi — «Korxonani tozalash» —
+avvalgidek o'zi saqlaydi). MIGRATSIYA: `sync_missing_columns` + `create_all` + `main._migrate_brak_taqdir` (idempotent: ustunlar,
+indekslar, PG da ON DELETE SET NULL kalitlari); eski ma'lumot to'ldirilmaydi.
+
 **Loyihalar holat paneli «🏭 Bajarilgan» — xarita qachon kelsa ham to'g'ri (kech124, zip 145; texnik tuzatish — zip 144 jonli sinovida
 topilgan).** Loyihalar sahifasi ochilganda birinchi loyiha `window.load` da tanlanadi, foizlar xaritasi (`GET /api/projects/progress-map`,
 `loadProgressMap`) — alohida so'rov. Ilgari holat paneli «🏭 Bajarilgan» ni `progressMap[id] || 0` dan BIR MARTA yozardi: xarita tanlovdan
@@ -1329,6 +1379,28 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   matni «50 kg loy × 15 600 so'm/kg»), `test_tayyor_reja_loy` (R7, R12, R16 — «20 kg loy»), `test_yonalish_natija`
   (S1 / S2 — «bugun» muzlatiladi: oy tugagan → o'tgan oy butun; yangi S5–S7 — 1–5 / 1–4 kesim qo'lda hisoblangan
   summalar bilan va haqiqiy bugun qoidasi; asl kodda S5–S7 yiqiladi).
+- (kech125, zip 146) `tools/test_brak_taqdir.py` — brak taqdiri, uch yo'l × to'rt taqdir: A (egasining uch misoli AYNAN — tuzatish loyi
+  0,4 kg, Kesildi 20 000 / zarar 10 000, 2-nav 15 000 va 12 000 lik sotuv — farq 3 000 sotuv oyida; Tashlandi — avvalgidek), B (Moliya
+  «Brak» / «TM yo'qotishi» qatorlari, ombor, TM partiyasi; B4b — C yo'li harakati `fp_loss_id` bilan), C (o'zgartirish — eskisi AYNAN
+  qaytadi, Faoliyat jurnali), D (hodisa vaqti Q4: o'tgan oy o'zgarmaydi; D4 — faqat yozuv sanasi surilgan: o'z qiymati yozuv oyiga, taqdir
+  — hodisa oyiga; D5 — taqdirsiz eski «Brak…» kirimi brak qiymatiga kirmaydi), E (rad etishlar 400 va hech narsa o'zgarmaydi — sotilgan
+  TM, tana qoidalari), F (o'chirish «bo'lmagandek»; F1b — faol taqdir bilan to'g'ridan-to'g'ri), G / H (korxona, ruxsat), I / J (2-nav
+  sotuvida ogohlantirish yo'q — yakka va to'plam (I3) sotuvda; birlashtirilmaydi; «Tuzatildi — omborga» asl narx), K (bitta raqam: karta =
+  Moliya = tahlil; «Taqdir bo'yicha»; sahifa, ro'yxat maydonlari; Tannarxsiz rol), L (zaxira eksport → tiklash; L3 — buzilgan faylda
+  tiklash rad etiladi va korxona ma'lumoti O'ZGARMAYDI), P (PG parallel: bir yozuvga ikki taqdir — navbat). SQLite / TENANT_FILTER=1 80/0,
+  PG 81/0 — asl kodda (zip 145) 52 / 80 va 52 / 81 yiqiladi, qulamaydi.
+- (kech125, zip 146) `tools/test_brak_taqdir_ui.py` — HAQIQIY brauzerda (Chromium): S (shablon: taqdir bo'limi, JS yorliqlari va
+  birliklari serverdagi `crud.BRAK_TAQDIRLARI` / `BRAK_TAQDIR_BIRLIKLARI` bilan AYNAN, tana yig'uvchi, saqlash ikkala yo'lda), B
+  (Qaytarishlar belgilari va «🧩», «Taqdir» oynasi, narxsiz 2-nav — so'rov yo'q, Kesildi saqlash, «Brak yozish» 2-nav, Tayyor mahsulotlar
+  «2-NAV», standart «Tashlandi» — tanada `taqdir` yo'q, Tuzatildi xomashyo ro'yxati, tahlil «🧩», tungi rejim), R (telefon 390 px). 22/0
+  (SQLite va PG) — asl kodda 18 / 22 yiqiladi. Mutatsiyalar (`work/yx146/mut146.py`, 35 ta: hodisa ishorasi, bekor hodisasi, taqdirsiz
+  kirim, kirim ishorasi, birlashtirish, 2-nav sotuvi (yakka / to'plam), o'chirish A / B, sotilgan TM tekshiruvi, korxona, harakat vaqti,
+  TM qatori, Kesildi ulushi, 2-nav tannarxi, asl narx, tana chegaralari, material korxonasi, ruxsat, bo'sh partiya, «o'sha joyiga»,
+  xulosa, davr, TM belgisi, teskari harakat, o'chirish qoldig'i, tiklash tranzaksiyasi, PG tiklash tartibi, PG qulf, UI 4 ta, tahlil
+  escape; natija `work/natija/yx146/m/`) — kutilgan tekshiruvlarda ushlanadi. MOSLANDI (asl kodda ham o'tadi — o'lchandi):
+  `test_brak_tahlil` S3 / S9, `test_brak_bekor` G, `test_brak_belgi_himoya` S5, `test_brak_belgisi` S1, `test_tan_narx_muzlash` S6,
+  `test_brak_mrp_ui.js` (base.html yordamchilari kontekstga), `test_brak_tahlil_ui.js` (`KORADI_BRAK_YARATISH`, T7 — 7-bo'sh jadval; YANGI
+  T7b / T7c — «Taqdiri» ustuni, escape).
 - (kech124, zip 145) `tools/test_loyiha_bajarilgan_ui.py` — Loyihalar holat paneli «🏭 Bajarilgan», HAQIQIY brauzerda (Chromium): S
   (shablon: `#sp-bajarilgan`, `bajarilganMatni`, `bajarilganYangila`, `r.ok`, boshlang'ich holat), P (3 loyiha — 50 % / 100 % /
   buyurtmasiz; xarita API), B (1440 px: oddiy yuklash; xarita so'rovi Playwright `route` bilan USHLAB turiladi — panelda «…», qo'yib
@@ -1782,7 +1854,7 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
 - (2026-09-23) Brak faqat ishlab chiqarish ichida: mijoz brak olmaydi, buyurtma miqdori baribir to'liq
   tayyorlanadi; brak xomashyo yechish va zarar yozish uchun (mijozga pul qaytarish emas).
 - (kech45) Brak bosqichlari: Kesish, Qoplash (loy tortish), Quritish, Saqlash / tashish. Brak mahsulotning
-  keyingi taqdiri — keyin hal qilinadi (7-bo'lim).
+  keyingi taqdiri — kech124 / kech125 da hal qilindi (pastda).
 - (kech56) Brak me'yori 5 %; sabab ro'yxati — Xomashyo sifati, Ishchi xatosi, Uskuna / stanok nosozligi,
   O'lcham / qolip xatosi, Boshqa; javobgar hodim — ixtiyoriy.
 - (kech52, 38 "C") Omborxona qo'lda "Chiqim" izohi "Brak" bilan boshlansa — brak xarajati hisoblanadi.
@@ -1793,6 +1865,14 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
   omborda tayyor turgan mahsulot shikastlanishi — Moliyada ALOHIDA qator; jami xarajat o'zgarmaydi.
 - (kech107, K107-4 "Shart emas") Yozuvga bog'lanmagan ESKI brak (bog'lam 2026-09-23 dan oldin; `main` da — ko'chirishgacha
   hammasi: 13 yozuv, 2026-09) tahlil taqsimotida 0 so'm, summa «bog'lanmagan» izohida; jami raqamlar to'g'ri; kod o'zgarmaydi.
+- (kech124, 07.10 «Brak taqdiri») Amalda to'rttasi bo'ladi: Tashlandi / Tuzatildi / Kesildi / 2-nav; taqdir «Brak yozish» oynasida
+  tanlanadi, keyin o'zgartirish mumkin. Tuzatildi — zarar FAQAT tuzatish xomashyosi (masalan 0,4 kg loy ≈ 6 000), detal xomashyosi zarar
+  emas; tuzatilgan detal «o'sha buyurtmaga» yoki «omborga». Kesildi — bo'laklar Tayyor mahsulotlarga ULUSH tannarx bilan (30 000 lik 3 m
+  dan 1 m × 2 → tannarx 20 000, zarar 10 000). 2-nav — Tayyor mahsulotlarga TO'LIQ tannarx bilan, «2-nav» belgisi, brak zarari yo'q; arzon
+  sotilsa farq (15 000 − 12 000 = 3 000) sotuv oyida zarar.
+- (kech125, 07.10) Q1 — 2-nav sotuv narxi brak yozganda yoziladi (sotishda o'zgartirsa bo'ladi); Q2 — 2-nav tannarxdan arzon sotilganda
+  ogohlantirish CHIQMAYDI; Q3 — «Tuzatildi — omborga» mahsulot ASL narxi bilan (1-nav); Q4 — taqdir keyingi oyda o'zgartirilsa — pul
+  ta'siri o'zgartirilgan oyga (o'tgan oy o'zgarmaydi).
 
 **Platforma (SaaS) — admin paneli (kech110)**
 - Ko'rinish — "B — Kartochkalar" (har korxona kartochka, obuna muddati chizig'i, saralash). Qo'shimchalar (kech109): bloklash /
@@ -2001,8 +2081,7 @@ qarorlari 02.10»)**
   keyin saqlandi" ni tekshirib bo'lmaydi — deploydan keyin eski rasm 404 bo'lishi XATO EMAS; himoya yangi yuklangan fayl bilan
   tekshiriladi. Eski kod logotipni volume dan TASHQARIGA (`static/logos/`) yozgan — production da har deployda o'chgan
   (`company_logo_of` fayl yo'q bo'lsa `None` qaytaradi — sahifa buzilmaydi); yangi kod `static/uploads/logos/` ga yozadi.
-- **Egasi hal qiladi:** brak mahsulotning keyingi taqdiri (chiqindi / tuzatildi / qayta ishlatildi / 2-nav);
-  SaaS uchun alohida brend nomi, narx tariflari, mijoz bilan shartnoma (ma'lumot egaligi).
+- **Egasi hal qiladi:** SaaS uchun alohida brend nomi, narx tariflari, mijoz bilan shartnoma (ma'lumot egaligi).
 - **Rus tili (i18n)** — `main` ko'chirishidan KEYIN (qaror kech104); kodda hali yo'q (faqat Kirill ↔ Lotin), 25 sahifaga tegadi.
 - **Texnik qarz (ma'lum):** `orders.notes` ichidagi `[WRITEOFF:…]` (qarz kechirilgan) va `[OVERPAID:…]` belgilari
   (alohida ustun emas); tizim tekshiruvida eski `[GISHT:` izoh belgisini sanash qoldig'i; `saas_migration.py` —
@@ -2358,6 +2437,22 @@ qarorlari 02.10»)**
 - (kech123) Etalon: `dNNN_son.sh` asosiy skriptni o'ldirganda uning `hammasi2` bolasi yetim qolib, tf1 IKKI nusxada bitta papkaga
   yozgan (d149, d150 — loglar aralashgan, yuklama ~10, bir sinov kirishda qulagan). Endi butun daraxt o'ldiriladi, tf1 papkasi toza
   boshlanadi; ishlayotgan bash skript joyida tahrirlanmaydi (yangi fayl + `mv`).
+- (kech125, zip 146) Hisob formulasiga yangi qism qo'shsangiz (masalan brak KIRIMINI ayirish), shu shartga ESKI ma'lumotdagi qaysi
+  qatorlar tushishini o'lchang: migratsiya `is_brak` ni eski «Brak…» kirimlarga ham TRUE qilgan edi — yangi formula o'tgan oylarni
+  o'zgartirardi (`test_brak_belgisi` D2d ushladi). Yangi qoidani faqat YANGI qatorlarda bo'ladigan belgiga bog'lang (bu yerda
+  `brak_taqdir_id IS NOT NULL`).
+- (kech125, zip 146) JS sinov qobiqlari (jsdom / vm) shablondan faqat `{% %}` ni olib tashlaydi — `<script>` ichiga Jinja IFODASI yozilsa
+  (qiymat ham, izohdagi qavslar ham) qobiq «Unexpected token» bilan yiqiladi. Konstantani JS da oddiy qiymat qiling va server konstantasi
+  bilan AYNANLIGINI alohida tekshiring (`test_brak_taqdir_ui` S2); ruxsatga bog'liq sahifa konstantasi (`KORADI_BRAK_YARATISH`) — qobiq
+  o'zi beradi.
+- (kech125, zip 146) Yangi chet el kaliti (harakat → yozuv) qo'shilsa, JSON zaxira tiklash tartibini (`_reset_table_order`, tiklash —
+  teskari) PG da o'lchang: SQLite kalitni tekshirmaydi, nuqson faqat PG da (23503) ko'rinadi.
+- (kech125, zip 146) «Bitta tranzaksiya» deb yozilgan funksiyaning ichki yordamchilarida `commit` bo'lmasligini tekshiring
+  (`factory_reset_all_data` ichidagi `commit` tiklashni ikkiga bo'lardi — xatoda ma'lumot yo'qolardi). Sinovi — atayin buzilgan kirish
+  (bir qator ikki marta) va «hech narsa o'zgarmadi» tekshiruvi (SQLite da ham ishlaydi).
+- (kech125, zip 146) Yangi so'rovlar yozilgach `python3 tools/tenant_lint.py` ni DARHOL yurgizing (etalonda `test_lint_func_royxat` /
+  `test_lint_taxallus` R1 yiqiladi): «unga hech narsa ishora qilmaydimi» kabi mavjudlik tekshiruvlari va bog'lamni uzish (`update`) ham
+  korxona filtri bilan yoziladi.
 - (kech124, zip 145) Sahifadagi qiymat ALOHIDA so'rov natijasiga bog'liq bo'lsa (masalan holat paneli — foizlar xaritasiga), uni bir marta
   «hozir nima bor» dan yozmang: natija kelganda HOZIR ko'rinayotgan joyni yangilang, oraliqda «…», kelmasa «—» (yolg'on 0 emas). Bunday
   poyga sinovda Playwright `page.route` bilan so'rovni USHLAB turib (route saqlanadi, keyin `route.continue_()`) aniq takrorlanadi —
@@ -2467,13 +2562,14 @@ bajariladigan chaqiruvlar — AYNAN shu tartibda. `_migrate_*` — idempotent sx
 32. `_migrate_loyiha_tolangan_sinxron` — 17c (2026-09-21): `projects.total_paid` ni HAQIQIY to'lovlar bilan bir marta tenglashtiradi.
 33. `_migrate_yuk_xati_ulush` — kech123 (zip 143 — qoplamachi bonusi va «har birlik uchun» hodim haqi YUK XATLARI bo'yicha) — IDEMPOTENT, PostgreSQL va SQLite.
 34. `_migrate_loyiha_yuk_seq` — kech124 (zip 144 — egasi QARORI 06.10: yuk xati raqami LOYIHA bo'yicha davom etadi, «ORD-001-2/Y-6») — IDEMPOTENT, PostgreSQL va SQLite.
-35. `app.include_router(production_router)`
-36. `app.include_router(saas_migration_router)`
-37. `app.add_middleware`
-38. `_yuklama_marshrutini_oldinga`
-39. `_scheduler.add_job`
+35. `_migrate_brak_taqdir` — kech125 (zip 146 — EGASI QARORLARI 07.10 «Brak taqdiri») — IDEMPOTENT, PostgreSQL va SQLite.
+36. `app.include_router(production_router)`
+37. `app.include_router(saas_migration_router)`
+38. `app.add_middleware`
+39. `_yuklama_marshrutini_oldinga`
 40. `_scheduler.add_job`
-41. `_scheduler.start`
+41. `_scheduler.add_job`
+42. `_scheduler.start`
 <!-- AVTO:ISHGA_TUSHISH OXIRI -->
 
 ### 9.3 Sahifalar: URL → handler → shablon → API
@@ -2581,7 +2677,7 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 
 ### `GET /returns` → `main.py:returns_page` → `templates/returns.html`
 - Qorovul: auth.ruxsat('qaytarish', 'korish')
-- Server chaqiruvlari: auth.company_id_of, auth.ruxsat, crud.get_employees, crud.get_return_items_for_main_page, crud.hodim_nomlari
+- Server chaqiruvlari: auth.company_id_of, auth.ruxsat, crud.brak_taqdir_xaritasi, crud.brak_yozuv_qiymatlari, crud.get_employees, crud.get_return_items_for_main_page, crud.hodim_nomlari
 - `returns.html` API: `/api/orders/{}`, `/api/reports/brak-materials`, `/api/reports/brak-tahlil`, `/api/returns`, `/api/returns/stats`, `/api/returns/{}`, `/api/returns/{}/image`, `/api/returns/{}/refund`, `/api/tanlov/buyurtmalar`
 
 ### `GET /rollar` → `main.py:rollar_page` → `templates/rollar.html`
@@ -2638,6 +2734,9 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `POST /api/admin/advance-requests/{request_id}/confirm` → `main.py:api_confirm_advance_request` · 🔒 auth.ruxsat('avans_sorov', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud.confirm_advance_request
 - `POST /api/admin/advance-requests/{request_id}/reject` → `main.py:api_reject_advance_request` · 🔒 auth.ruxsat('avans_sorov', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud.reject_advance_request
 - `GET /api/admin/pending-advance-requests` → `main.py:api_pending_advance_requests` · 🔒 auth.ruxsat('avans_sorov', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_pending_advance_requests
+
+#### `/api/brak` (1)
+- `GET /api/brak/tuzatish-materiallari` → `main.py:api_brak_tuzatish_materiallari` · 🔒 auth.ruxsat_biri(('qaytarish', 'yaratish'), ('brak', 'yaratish')) · auth.company_id_of, auth.ruxsat_biri, crud.brak_tuzatish_materiallari
 
 #### `/api/cron` (3)
 - `GET /api/cron/cleanup-sessions` → `main.py:api_cron_cleanup_sessions` · 🔓 · auth.cleanup_expired_sessions
@@ -2696,10 +2795,11 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `DELETE /api/finance/transactions/{tx_id}/ozim` → `main.py:api_ozim_xarajatni_ochirish` · 🔒 auth.ruxsat('kunlik', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.log_activity
 - `GET /api/finance/yonalishlar` → `main.py:api_finance_yonalishlar` · 🔒 auth.ruxsat('moliya', 'korish') · auth.company_id_of, auth.ruxsat, services.calculate_split_profit_report
 
-#### `/api/finished` (21)
+#### `/api/finished` (22)
 - `GET /api/finished` → `main.py:api_get_finished` · 🔒 auth.ruxsat('tayyor', 'korish') · auth.company_id_of, auth.ruxsat, crud._fp_ombor_qiymati, crud.fp_ishlab_chiqarish_raqamlari, crud.get_finished_products, crud.get_finished_products_for_main_page, production_service.royxat_qoshimchalari
-- `POST /api/finished/loss` → `main.py:api_record_finished_loss` · 🔒 auth.ruxsat('brak', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.record_finished_product_loss
+- `POST /api/finished/loss` → `main.py:api_record_finished_loss` · 🔒 auth.ruxsat('brak', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.bitta_tranzaksiya, crud.record_finished_product_loss
 - `DELETE /api/finished/loss/{loss_id}` → `main.py:api_delete_finished_loss` · 🔒 auth.ruxsat('brak', 'ochirish') · auth.company_id_of, auth.ruxsat, crud.delete_finished_product_loss
+- `POST /api/finished/loss/{loss_id}/taqdir` → `main.py:api_finished_loss_taqdir` · 🔒 auth.ruxsat('brak', 'yaratish') · auth.ruxsat
 - `POST /api/finished/produce` → `main.py:api_produce` · 🔒 auth.ruxsat('tayyor', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.bitta_tranzaksiya, crud.get_low_stock_items, crud.produce_finished_product
 - `POST /api/finished/production-brak` → `main.py:api_finished_production_brak` · 🔒 auth.ruxsat('brak', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.bitta_tranzaksiya, crud.record_finished_product_production_brak
 - `GET /api/finished/sales` → `main.py:api_get_finished_sales` · 🔒 auth.ruxsat('sotuv', 'korish') · auth.company_id_of, auth.ruxsat
@@ -2905,13 +3005,14 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `GET /api/reports/top-products` → `main.py:api_reports_top_products` · 🔒 auth.ruxsat('hisobot', 'korish') · auth.company_id_of, auth.ruxsat, services.get_top_products_report
 - `GET /api/reports/top-suppliers` → `main.py:api_reports_top_suppliers` · 🔒 auth.ruxsat('hisobot', 'korish') · auth.company_id_of, auth.ruxsat, services.get_top_suppliers_report
 
-#### `/api/returns` (6)
+#### `/api/returns` (7)
 - `GET /api/returns` → `main.py:api_get_returns` · 🔒 auth.ruxsat('qaytarish', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_return_items
 - `POST /api/returns` → `main.py:api_create_return` · 🔒 auth.ruxsat('qaytarish', 'yaratish') · auth.company_id_of, auth.order_of_company, auth.ruxsat, crud._clean_val, crud.bitta_tranzaksiya, crud.create_return_item
 - `GET /api/returns/stats` → `main.py:api_return_stats` · 🔒 auth.ruxsat('qaytarish', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_return_stats
 - `DELETE /api/returns/{return_id}` → `main.py:api_delete_return` · 🔒 auth.ruxsat('qaytarish', 'ochirish') · auth.company_id_of, auth.return_of_company, auth.ruxsat, crud.delete_return_item
 - `POST /api/returns/{return_id}/image` → `main.py:api_upload_return_image` · 🔒 auth.ruxsat('qaytarish', 'tahrirlash') · auth.company_id_of, auth.return_of_company, auth.ruxsat
 - `POST /api/returns/{return_id}/refund` → `main.py:api_mark_refunded` · 🔒 auth.ruxsat('qaytarish', 'tahrirlash') · auth.company_id_of, auth.return_of_company, auth.ruxsat, crud.mark_refunded
+- `POST /api/returns/{return_id}/taqdir` → `main.py:api_return_brak_taqdir` · 🔒 auth.ruxsat('qaytarish', 'yaratish') · auth.ruxsat
 
 #### `/api/rollar` (5)
 - `GET /api/rollar` → `main.py:api_rollar` · 🔒 auth.admin_only · auth.company_id_of, auth.get_all_users, auth.tayyor_rollar
@@ -3043,7 +3144,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `GET /reports` → `main.py:reports_page` · 🔒 auth.ruxsat('hisobot', 'korish') · auth.ruxsat
 
 #### `/returns` (1)
-- `GET /returns` → `main.py:returns_page` · 🔒 auth.ruxsat('qaytarish', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_employees, crud.get_return_items_for_main_page, crud.hodim_nomlari
+- `GET /returns` → `main.py:returns_page` · 🔒 auth.ruxsat('qaytarish', 'korish') · auth.company_id_of, auth.ruxsat, crud.brak_taqdir_xaritasi, crud.brak_yozuv_qiymatlari, crud.get_employees, crud.get_return_items_for_main_page, crud.hodim_nomlari
 
 #### `/rollar` (1)
 - `GET /rollar` → `main.py:rollar_page` · 🔒 auth.admin_only
@@ -3083,7 +3184,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 #### `/ustalar` (1)
 - `GET /ustalar` → `main.py:masters_manage_page` · 🔒 auth.ruxsat('usta', 'korish') · auth.ruxsat
 
-Jami marshrutlar: 314 (main.py: 285, production_routes.py: 21, saas_migration.py: 8).
+Jami marshrutlar: 317 (main.py: 288, production_routes.py: 21, saas_migration.py: 8).
 <!-- AVTO:API OXIRI -->
 
 ### 9.5 Jadvallar
@@ -3096,6 +3197,7 @@ ORM qorovuli yangi / o'zgargan qatorda ota yozuv korxonasini tekshiradi.
 - `advance_requests` — `AdvanceRequest` (`models.py`, 10) — ota orqali (employee_id→Employee)
 - `bom_items` — `BOMItem` (`production_models.py`, 12) — o'z `company_id`
 - `boms` — `BOM` (`production_models.py`, 9) — o'z `company_id`
+- `brak_taqdirlari` — `BrakTaqdir` (`models.py`, 18) — o'z `company_id`
 - `cash_transactions` — `CashTransaction` (`models.py`, 7) — o'z `company_id`
 - `companies` — `Company` (`production_models.py`, 20) — korxonasiz
 - `company_settings` — `CompanySetting` (`models.py`, 4) — o'z `company_id`
@@ -3110,12 +3212,12 @@ ORM qorovuli yangi / o'zgargan qatorda ota yozuv korxonasini tekshiradi.
 - `expense_transactions` — `ExpenseTransaction` (`models.py`, 11) — o'z `company_id`
 - `finished_product_losses` — `FinishedProductLoss` (`models.py`, 14) — o'z `company_id` + ota tekshiruvi (finished_product_id→FinishedProduct)
 - `finished_product_sales` — `FinishedProductSale` (`models.py`, 18) — o'z `company_id` + ota tekshiruvi (finished_product_id→FinishedProduct, master_id→Master)
-- `finished_products` — `FinishedProduct` (`models.py`, 42) — o'z `company_id` + ota tekshiruvi (from_order_id→Order, recipe_id→Recipe, penoplast_id→Inventory)
+- `finished_products` — `FinishedProduct` (`models.py`, 43) — o'z `company_id` + ota tekshiruvi (from_order_id→Order, recipe_id→Recipe, penoplast_id→Inventory)
 - `gift_period_participants` — `GiftPeriodParticipant` (`models.py`, 3) — ota orqali (period_id→GiftPeriod)
 - `gift_period_tiers` — `GiftPeriodTier` (`models.py`, 6) — o'z `company_id` + ota tekshiruvi (period_id→GiftPeriod)
 - `gift_periods` — `GiftPeriod` (`models.py`, 6) — o'z `company_id`
 - `inventory` — `Inventory` (`models.py`, 19) — o'z `company_id`
-- `inventory_movements` — `InventoryMovement` (`models.py`, 16) — o'z `company_id` + ota tekshiruvi (inventory_id→Inventory, order_id→Order, supplier_id→Supplier)
+- `inventory_movements` — `InventoryMovement` (`models.py`, 18) — o'z `company_id` + ota tekshiruvi (inventory_id→Inventory, order_id→Order, supplier_id→Supplier)
 - `inventory_purchases` — `InventoryPurchase` (`models.py`, 19) — ota orqali (inventory_id→Inventory, supplier_id→Supplier)
 - `inventory_receipts` — `InventoryReceipt` (`models.py`, 15) — o'z `company_id` + ota tekshiruvi (supplier_id→Supplier)
 - `login_history` — `LoginHistory` (`models.py`, 7) — o'z `company_id`
@@ -3146,7 +3248,7 @@ ORM qorovuli yangi / o'zgargan qatorda ota yozuv korxonasini tekshiradi.
 - `users` — `User` (`models.py`, 11) — o'z `company_id`
 - `yonalishlar` — `Yonalish` (`models.py`, 8) — o'z `company_id`
 
-Jami jadvallar: 53.
+Jami jadvallar: 54.
 <!-- AVTO:MODELLAR OXIRI -->
 
 ### 9.6 Testlar katalogi
@@ -3178,6 +3280,8 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_brak_narx.py` · PG — 13-band (brak tizimi) 2-qadam darvozasi (kech46, 2026-09-24).
 - `test_brak_ochirish.py` · PG — 13-band (brak tizimi) 6-qadam darvozasi (kech45, 2026-09-23).
 - `test_brak_tahlil.py` · PG — 13-band 7-qadam darvozasi (kech56, 2026-09-24).
+- `test_brak_taqdir.py` · PG — kech125 (zip 146) darvozasi: BRAK TAQDIRI (EGASI QARORLARI 07.10, QAYTA SO'RALMAYDI).
+- `test_brak_taqdir_ui.py` · PG — kech125 (zip 146) darvozasi: BRAK TAQDIRI — HAQIQIY brauzerda (Chromium, Playwright) O'LCHANADI.
 - `test_buyurtma_narx_jami.py` · PG — kech95 darvozasi (2026-09-27, 117-band + K95-1): buyurtma detali NARXI bazadagidek 2 xonaga (HALF_UP), JAMI shu narxdan; buyurtma jami — detallar jamisining o'nlik yig'in…
 - `test_buyurtma_oqimi.py` — buyurtmaning to'liq hayot sikli va OMBOR.
 - `test_buyurtma_raqam.py` · PG — kech86 darvozasi (100-band, FOYDALANUVCHI QARORI "A": buyurtma raqami HECH QACHON qayta berilmaydi — raqam faqat o'sadi, o'chirilgan buyurtma raqami bo'shliq bo'lib qoladi) +…
@@ -3361,5 +3465,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 204 (Python 169, JS 35).
+Jami test fayllari: 206 (Python 171, JS 35).
 <!-- AVTO:TESTLAR OXIRI -->

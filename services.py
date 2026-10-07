@@ -3383,7 +3383,7 @@ def get_brak_tahlil(db: Session, year: int, month: int, company_id: int = None,
     javobgar hodim / detal bo'yicha taqsimot, tayyor mahsulot yo'qotishlari
     ro'yxati va oxirgi `oylar` oy bo'yicha ulush."""
     import crud as _cr
-    from models import ReturnItem, ReturnReason, FinishedProductLoss, Employee
+    from models import Employee
 
     meyor = float(_cr.BRAK_MEYORI_FOIZ)
 
@@ -3411,20 +3411,15 @@ def get_brak_tahlil(db: Session, year: int, month: int, company_id: int = None,
     joriy = trend[-1]
 
     # 2) Shu oyning yozuvlari (korxona filtri bilan).
-    _rq = db.query(ReturnItem).filter(
-        ReturnItem.reason == ReturnReason.DEFECT,
-        _tashkent_oyida(ReturnItem.returned_at, year, month),
-    )
-    if company_id is not None:
-        _rq = _rq.filter(ReturnItem.company_id == company_id)
-    braklar = _rq.order_by(ReturnItem.id).all()
-
-    _lq = db.query(FinishedProductLoss).filter(
-        _tashkent_oyida(FinishedProductLoss.lost_at, year, month),
-    )
-    if company_id is not None:
-        _lq = _lq.filter(FinishedProductLoss.company_id == company_id)
-    yoqotishlar = _lq.order_by(FinishedProductLoss.id).all()
+    # kech125 (zip 146 — EGASI QARORLARI 07.10 «Brak taqdiri», Q4 «hodisa vaqtida»): shu oyda yozilgan YOKI shu oyda hodisasi
+    # (taqdir qo'llangan / bekor qilingan, tuzatish xomashyosi) bo'lgan brak yozuvlari; har yozuv qiymati — SHU oydagi
+    # hodisalar (`crud.brak_davr_yozuvlari` — Moliya «Brak» / «Tayyor mahsulot yo'qotishi» qatorlari bilan bir hisob).
+    _b_boshi, _b_oxiri = _tashkent_oy_oraligi(year, month)
+    _dv = _cr.brak_davr_yozuvlari(db, start_date=_b_boshi, end_date=_b_oxiri, company_id=company_id)
+    braklar = sorted((v for k, v in _dv["yozuvlar"].items() if k[0] == "qaytarish"), key=lambda r: r.id)
+    yoqotishlar = sorted((v for k, v in _dv["yozuvlar"].items() if k[0] == "yoqotish"), key=lambda l: l.id)
+    _taqdir_ri = _cr.brak_taqdir_xaritasi(db, "qaytarish", [r.id for r in braklar], company_id=company_id)
+    _taqdir_fpl = _cr.brak_taqdir_xaritasi(db, "yoqotish", [l.id for l in yoqotishlar], company_id=company_id)
 
     _hodim_idlari = {r.brak_javobgar_id for r in braklar if r.brak_javobgar_id} | \
                     {l.brak_javobgar_id for l in yoqotishlar if l.brak_javobgar_id}
@@ -3446,45 +3441,63 @@ def get_brak_tahlil(db: Session, year: int, month: int, company_id: int = None,
     # taxminiy summa), ishlab chiqarish braki — `cost_amount` (uning harakatlari qiymati). Omborda tayyor turgan
     # mahsulot yo'qotishi — brak EMAS: taqsimot va ulushga KIRMAYDI (ilgari kirardi — tahlil jami Moliyadan katta
     # chiqardi), ro'yxatda (`yoqotishlar`) qoladi, jami — `tayyor_yoqotish_qiymati`.
-    _yozuv_qiymati = _cr.brak_yozuv_qiymatlari(db, [r.id for r in braklar], company_id=company_id)
+    # kech125: qiymatlar — `_dv` dan (hodisa vaqtida); omborda turgan mahsulotning tuzatish xomashyosi — brak (taqsimotda).
     yozuvlar = []
     for r in braklar:
+        _tq = _taqdir_ri.get(r.id)
         yozuvlar.append({
             "nomi": r.item_name or "", "birlik": r.unit or "",
-            "miqdor": float(r.quantity or 0), "qiymat": float(_yozuv_qiymati.get(r.id, 0.0)),
+            "miqdor": float(r.quantity or 0), "qiymat": float(_dv["qaytarish"].get(r.id, 0.0)),
             "bosqich": r.brak_bosqich, "sabab": r.brak_sabab, "javobgar_id": r.brak_javobgar_id,
+            "taqdir": (_tq["taqdir"] if _tq else "tashlandi"),
         })
     yoqotish_royxati = []
     tayyor_yoqotish_qiymati = 0.0
     for l in yoqotishlar:
         ish_braki = (l.reason or "").startswith(_cr._ISH_BRAK_BELGI)
+        _tq = _taqdir_fpl.get(l.id)
         if ish_braki:
+            _qiymat = float(_dv["ishlab"].get(l.id, 0.0))
             yozuvlar.append({
                 "nomi": l.product_name or "", "birlik": l.unit or "",
-                "miqdor": float(l.quantity or 0), "qiymat": float(l.cost_amount or 0),
+                "miqdor": float(l.quantity or 0), "qiymat": _qiymat,
                 "bosqich": l.brak_bosqich, "sabab": l.brak_sabab, "javobgar_id": l.brak_javobgar_id,
+                "taqdir": (_tq["taqdir"] if _tq else "tashlandi"),
             })
         else:
-            tayyor_yoqotish_qiymati += float(l.cost_amount or 0)
+            _qiymat = float(_dv["ombor_tm"].get(l.id, 0.0))
+            tayyor_yoqotish_qiymati += _qiymat
+            _tuzatish = float(_dv["ombor_brak"].get(l.id, 0.0))
+            if abs(_tuzatish) > 1e-9:
+                yozuvlar.append({
+                    "nomi": l.product_name or "", "birlik": l.unit or "",
+                    "miqdor": float(l.quantity or 0), "qiymat": _tuzatish,
+                    "bosqich": l.brak_bosqich, "sabab": l.brak_sabab, "javobgar_id": l.brak_javobgar_id,
+                    "taqdir": (_tq["taqdir"] if _tq else "tashlandi"),
+                })
         yoqotish_royxati.append({
             "id": l.id,
             "sana": l.lost_at.isoformat() if l.lost_at else None,
             "nomi": l.product_name or "",
             "miqdor": float(l.quantity or 0),
             "birlik": l.unit or "",
-            "qiymat": round(float(l.cost_amount or 0), 2),
+            "qiymat": round(_qiymat, 2),
             "turi": "Ishlab chiqarish braki" if ish_braki else "Yo'qotish (tayyor turgan)",
+            "manba": "ishlab" if ish_braki else "ombor",
             "bosqich": _cr.BRAK_BOSQICHLARI.get(l.brak_bosqich, l.brak_bosqich) if l.brak_bosqich else None,
             "sabab": _cr.BRAK_SABABLARI.get(l.brak_sabab, l.brak_sabab) if l.brak_sabab else None,
             "javobgar": _javobgar_ismi(l.brak_javobgar_id),
             "izoh": l.reason or "",
             "yozgan": l.created_by or "",
+            # kech125 (zip 146): joriy taqdir (yo'q — «Tashlandi») va uning tafsiloti (o'zgartirish oynasi uchun; pulsiz)
+            "taqdir": (_tq["taqdir"] if _tq else "tashlandi"),
+            "taqdir_yorliq": (_tq["yorliq"] if _tq else _cr.BRAK_TAQDIRLARI["tashlandi"]),
+            "taqdir_tafsilot": _tq,
         })
 
     jami_qiymat = sum(y["qiymat"] for y in yozuvlar)
     # kech107 (49-band): Moliya "Brak" qatori (yaxlitlanmagan — o'sha funksiya, o'sha Toshkent oyi) − yozuvlar jami =
     # yozuvga bog'lanmagan (bog'lamdan oldingi eski) brak harakatlari. Yangi ma'lumotda 0.
-    _b_boshi, _b_oxiri = _tashkent_oy_oraligi(year, month)
     _moliya_brak = float(_cr.get_brak_material_summary(db, start_date=_b_boshi, end_date=_b_oxiri,
                                                        company_id=company_id).get("total_value") or 0)
     boglanmagan_qiymat = round(_moliya_brak - jami_qiymat, 2)
@@ -3542,6 +3555,8 @@ def get_brak_tahlil(db: Session, year: int, month: int, company_id: int = None,
         "bosqichlar": _taqsimot("bosqich", lambda k: _cr.BRAK_BOSQICHLARI.get(k, k)),
         "sabablar": _taqsimot("sabab", lambda k: _cr.BRAK_SABABLARI.get(k, k)),
         "javobgarlar": _taqsimot("javobgar_id", _javobgar_ismi),
+        # kech125 (zip 146): brak taqdiri bo'yicha (Tashlandi / Tuzatildi / Kesildi / 2-nav) — shu oydagi zarar
+        "taqdirlar": _taqsimot("taqdir", lambda k: _cr.BRAK_TAQDIRLARI.get(k, k)),
         "top_detallar": [
             {"nomi": k[0], "birlik": k[1], "soni": v["soni"],
              "miqdor": round(v["miqdor"], 3), "qiymat": round(v["qiymat"], 2),
@@ -4105,17 +4120,18 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     # yerda literal nusxa edi; biri o'zgarsa ishlab chiqarish braki ikki marta
     # ayirilardi yoki bekor qilish ruxsat etilardi).
     import crud as _crud_belgi
-    _PROD_BRAK_MARKER = _crud_belgi._ISH_BRAK_BELGI
     _fplq = db.query(_FPL).filter(
         _tashkent_oyida(_FPL.lost_at, year, month)
     )
     if company_id is not None:      # M6
         _fplq = _fplq.filter(_FPL.company_id == company_id)
     fp_losses = _fplq.all()
-    fp_loss_xarajat = sum(
-        float(l.cost_amount or 0) for l in fp_losses
-        if not (l.reason or '').startswith(_PROD_BRAK_MARKER)
-    )
+    # kech125 (zip 146 — EGASI QARORLARI 07.10 «Brak taqdiri», Q4 «hodisa vaqtida»): yo'qotishlar (`cost_amount`, shu oyda
+    # yozilgan, ishlab chiqarish brakisiz — AYNAN avvalgi yig'indi) + ularning taqdir hodisalari (tuzatilib o'sha partiyaga
+    # qaytgan, kesilgan, 2-nav — Tayyor mahsulotga o'tgan qiymat qo'llangan oyda ayiriladi, bekor qilingan oyda qaytadi).
+    _fpl_boshi, _fpl_oxiri = _tashkent_oy_oraligi(year, month)
+    fp_loss_xarajat = _crud_belgi.tm_yoqotish_qiymati(db, start_date=_fpl_boshi, end_date=_fpl_oxiri,
+                                                      company_id=company_id)
     # kech107 (49-band): `brak_xarajat` ga QO'SHILMAYDI — jami xarajatga alohida qo'shiladi (pastda).
 
     # Jami xarajat (arenda/elektr/tushlik/soliq/reklama/kutilmagan va h.k. — hodim
@@ -4569,8 +4585,8 @@ def _yon_oy_aniq(db: Session, year: int, month: int, company_id, x: "_YonXarita"
     """BIR oyning yo'nalishlar qismlari (yaxlitlanmagan): daromad / tannarx {kalit}, bevosita {qism: {kalit}},
     oylik hisobotning AYNAN qismlari `t` (sof foyda tarkibi), `sof`, «Belgilanmagan» manbalari va izohlar."""
     from models import (ExpenseTransaction as _ET, TransportExpense as _TE, Employee as _Emp,
-                        FinishedProductSale as _FPS, FinishedProductLoss as _FPL, FinishedProduct as _FP,
-                        ReturnItem as _RI, KIRIM_TANNARX_MANBA as _KTM)
+                        FinishedProductSale as _FPS, FinishedProduct as _FP,
+                        KIRIM_TANNARX_MANBA as _KTM)
     from sqlalchemy.orm import selectinload as _sil
     import crud as _crud
 
@@ -4716,15 +4732,13 @@ def _yon_oy_aniq(db: Session, year: int, month: int, company_id, x: "_YonXarita"
     # Brak (xomashyo) — brak yozuviga bog'langan harakatlar (qaytarish detali / tayyor mahsuloti yo'nalishi) va ishlab
     # chiqarish braki (tayyor mahsulot yozuvi — `_ISH_BRAK_BELGI`) — o'z yo'nalishiga; bog'lanmagani (qo'lda «Brak»
     # chiqimi) — umumiy.
-    _brak = _crud.get_brak_material_summary(db, start_date=boshi, end_date=oxiri, company_id=company_id,
-                                            harakatlar=True)
-    _ri_ids = {h["return_item_id"] for h in _brak.get("harakatlar", []) if h.get("return_item_id")}
-    _ri = {}
-    if _ri_ids:
-        _rq = db.query(_RI).filter(_RI.id.in_(_ri_ids))
-        if company_id is not None:
-            _rq = _rq.filter(_RI.company_id == company_id)
-        _ri = {r.id: r for r in _rq.all()}
+    # kech125 (zip 146 — brak taqdiri, Q4 «hodisa vaqtida»): har yozuvning SHU oydagi qiymati — `crud.brak_davr_yozuvlari`
+    # (Moliya «Brak» va «Tayyor mahsulot yo'qotishi» qatorlari bilan bir hisob): buyurtma detali braki — bog'langan harakatlar
+    # + taqdir (TM ga o'tgan qiymat); ishlab chiqarish braki — bog'langan harakatlar + taqdir (bog'lamsiz ESKI yozuv —
+    # `cost_amount`); omborda turgan mahsulot — tuzatish xomashyosi «Brak» ga, yo'qotish + taqdir «TM yo'qotishi» ga.
+    _dv = _crud.brak_davr_yozuvlari(db, start_date=boshi, end_date=oxiri, company_id=company_id)
+    _ri = {k[1]: v for k, v in _dv["yozuvlar"].items() if k[0] == "qaytarish"}
+    _yoqotishlar = [v for k, v in _dv["yozuvlar"].items() if k[0] == "yoqotish"]
     _oi_ids = {r.order_item_id for r in _ri.values() if r.order_item_id}
     _fp_ids = {r.finished_product_id for r in _ri.values() if r.finished_product_id}
     _oi = {}
@@ -4733,10 +4747,6 @@ def _yon_oy_aniq(db: Session, year: int, month: int, company_id, x: "_YonXarita"
         if company_id is not None:
             _iq = _iq.filter(OrderItem.company_id == company_id)
         _oi = {i.id: i for i in _iq.all()}
-    _fpl_q = db.query(_FPL).filter(_tashkent_oyida(_FPL.lost_at, year, month))
-    if company_id is not None:
-        _fpl_q = _fpl_q.filter(_FPL.company_id == company_id)
-    _yoqotishlar = _fpl_q.all()
     _fp_ids |= {l.finished_product_id for l in _yoqotishlar if l.finished_product_id}
     _fp = {}
     if _fp_ids:
@@ -4744,24 +4754,27 @@ def _yon_oy_aniq(db: Session, year: int, month: int, company_id, x: "_YonXarita"
         if company_id is not None:
             _fq = _fq.filter(_FP.company_id == company_id)
         _fp = {f.id: f for f in _fq.all()}
-    for h in _brak.get("harakatlar", []):
-        r = _ri.get(h.get("return_item_id"))
+    for _rid, _qiymat in _dv["qaytarish"].items():
+        r = _ri.get(_rid)
         k = None
         if r is not None and r.order_item_id in _oi:
             k = x.detal_kalit(_oi[r.order_item_id])
         elif r is not None and r.finished_product_id in _fp:
             k = x.tm_kalit(_fp[r.finished_product_id])
-        if k is not None:
-            bevosita["brak"][k] = bevosita["brak"].get(k, 0.0) + float(h.get("value") or 0)
-    _ISH = _crud._ISH_BRAK_BELGI
+        if k is not None and _qiymat:
+            bevosita["brak"][k] = bevosita["brak"].get(k, 0.0) + float(_qiymat)
     for l in _yoqotishlar:
         k = x.tm_kalit(_fp.get(l.finished_product_id)) if l.finished_product_id in _fp else None
         if k is None:
             continue
-        if (l.reason or "").startswith(_ISH):
-            bevosita["brak"][k] = bevosita["brak"].get(k, 0.0) + float(l.cost_amount or 0)
+        if l.id in _dv["ishlab"]:
+            if _dv["ishlab"][l.id]:
+                bevosita["brak"][k] = bevosita["brak"].get(k, 0.0) + float(_dv["ishlab"][l.id])
         else:
-            bevosita["tm_yoqotish"][k] = bevosita["tm_yoqotish"].get(k, 0.0) + float(l.cost_amount or 0)
+            if _dv["ombor_brak"].get(l.id):
+                bevosita["brak"][k] = bevosita["brak"].get(k, 0.0) + float(_dv["ombor_brak"][l.id])
+            if _dv["ombor_tm"].get(l.id):
+                bevosita["tm_yoqotish"][k] = bevosita["tm_yoqotish"].get(k, 0.0) + float(_dv["ombor_tm"][l.id])
     return {"daromad_b": daromad_b, "daromad_tm": daromad_tm, "tannarx_b": tannarx_b, "tannarx_tm": tannarx_tm,
             "bevosita": bevosita, "t": {k: float(v or 0) for k, v in t.items()}, "sof": float(full["sof_foyda"]),
             "belg_manbalar": belg_manbalar, "izohlar": izohlar}

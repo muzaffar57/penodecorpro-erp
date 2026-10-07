@@ -2923,6 +2923,66 @@ def _migrate_loyiha_yuk_seq():
 
 _migrate_loyiha_yuk_seq()
 
+
+def _migrate_brak_taqdir():
+    """kech125 (zip 146 — EGASI QARORLARI 07.10 «Brak taqdiri») — IDEMPOTENT, PostgreSQL va SQLite.
+
+      A) `brak_taqdirlari` jadvali — `init_database()` (`create_all`) yaratadi (kalitlar va indekslar bilan).
+      B) `inventory_movements.fp_loss_id`, `inventory_movements.brak_taqdir_id`, `finished_products.brak_taqdir` — odatda
+         `database.sync_missing_columns()` qo'shgan (indeks va kalitsiz); yo'q bo'lsa shu yerda. STANDARTSIZ — eski qatorlar NULL
+         (eski harakat hech qaysi taqdirga / tayyor mahsulot yozuviga bog'lanmagan; oddiy mahsulot).
+      C) Indekslar `ix_inventory_movements_fp_loss_id`, `ix_inventory_movements_brak_taqdir_id` (yo'q bo'lsa).
+      D) Faqat PostgreSQL: chet el kalitlari `finished_product_losses(id)` / `brak_taqdirlari(id)` ON DELETE SET NULL (yo'q
+         bo'lsa; yetim qiymat bo'lsa QO'YILMAYDI, soni logga).
+    Eski ma'lumot to'ldirilMAYDI: eski brak — «Tashlandi» (jurnalda qator yo'q), eski ishlab chiqarish braki harakatlari
+    bog'lamsiz (taxmin qilinmaydi — tahlil ularni avvalgidek `cost_amount` bilan baholaydi)."""
+    from sqlalchemy import text, inspect as _insp
+    from database import engine
+    ustunlar_kerak = (("inventory_movements", "fp_loss_id", "INTEGER", "finished_product_losses"),
+                      ("inventory_movements", "brak_taqdir_id", "INTEGER", "brak_taqdirlari"),
+                      ("finished_products", "brak_taqdir", "VARCHAR(20)", None))
+    try:
+        _i = _insp(engine)
+        jadvallar = set(_i.get_table_names())
+        with engine.connect() as conn:
+            for jadval, ustun, tur, ota in ustunlar_kerak:
+                if jadval not in jadvallar:
+                    continue
+                if ustun not in {c["name"] for c in _i.get_columns(jadval)}:
+                    conn.execute(text(f"ALTER TABLE {jadval} ADD COLUMN {ustun} {tur}"))
+                    conn.commit()
+                    print(f"✓ {jadval}.{ustun} qo'shildi")
+                if ota is None:
+                    continue
+                _ix = f"ix_{jadval}_{ustun}"
+                if _ix not in {ix["name"] for ix in _i.get_indexes(jadval)}:
+                    conn.execute(text(f"CREATE INDEX IF NOT EXISTS {_ix} ON {jadval} ({ustun})"))
+                    conn.commit()
+                    print(f"✓ {_ix} indeksi qo'shildi")
+                if engine.dialect.name == "postgresql" and ota in jadvallar:
+                    bor_kalit = conn.execute(text(
+                        "SELECT 1 FROM pg_constraint c "
+                        "JOIN pg_class t ON t.oid = c.conrelid "
+                        "JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(c.conkey) "
+                        "WHERE t.relname = :j AND c.contype = 'f' AND a.attname = :u"), {"j": jadval, "u": ustun}).first()
+                    if not bor_kalit:
+                        yetim = conn.execute(text(
+                            f"SELECT COUNT(*) FROM {jadval} x LEFT JOIN {ota} p ON p.id = x.{ustun} "
+                            f"WHERE x.{ustun} IS NOT NULL AND p.id IS NULL")).scalar() or 0
+                        if yetim:
+                            print(f"⚠ {jadval}.{ustun}: {yetim} ta yetim qiymat — chet el kaliti QO'YILMADI")
+                        else:
+                            conn.execute(text(
+                                f"ALTER TABLE {jadval} ADD CONSTRAINT {jadval}_{ustun}_fkey "
+                                f"FOREIGN KEY ({ustun}) REFERENCES {ota}(id) ON DELETE SET NULL"))
+                            conn.commit()
+                            print(f"✓ {jadval}_{ustun}_fkey chet el kaliti qo'shildi")
+    except Exception as e:
+        print(f"⚠ Brak taqdiri migratsiyasi o'tkazib yuborildi: {e}")
+
+
+_migrate_brak_taqdir()
+
 # kech104 (K104-2): FastAPI ning o'rnatilgan API hujjatlari (/openapi.json, /docs, /redoc) login-siz
 # ochiq edi — butun API sxemasi (barcha marshrutlar, /api/system/* va /api/platform/* ham) har kimga ko'rinardi.
 # Ilova ularni ishlatmaydi (shablon / test havolasi yo'q) — o'chirildi. Marshrutlar xaritasi:
@@ -3371,6 +3431,11 @@ def _yonalishlar_royxati_shablon(company_id):
 
 
 templates.env.globals["yonalishlar_royxati"] = _yonalishlar_royxati_shablon
+# kech125 (zip 146 — brak taqdiri): «Brak yozish» oynasi (`_brak_oyna.html` — Qaytarishlar va Tayyor mahsulotlar sahifalari) va
+# ro'yxat belgilari — YAGONA manba `crud`
+templates.env.globals["BRAK_TAQDIRLARI"] = crud.BRAK_TAQDIRLARI
+templates.env.globals["BRAK_TAQDIR_JOYLARI"] = crud.BRAK_TAQDIR_JOYLARI
+templates.env.globals["BRAK_TAQDIR_BIRLIKLARI"] = crud.BRAK_TAQDIR_BIRLIKLARI
 # 2026-09-17: statik fayllar (masalan translit.js) uchun cache-busting —
 # brauzer/Telegram WebApp eski nusxani abadiy keshlab qolmasligi uchun.
 # Har deploy'da bu qiymat o'zgarishi kerak (masalan shu sana-vaqt) —
@@ -7703,6 +7768,14 @@ async def health():
 @app.get("/returns", response_class=HTMLResponse)
 async def returns_page(request: Request, show_all: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("qaytarish", "korish"))):
     returns = crud.get_return_items_for_main_page(db, days=90, show_all=show_all, company_id=auth.company_id_of(current_user))
+    # kech125 (zip 146 — brak taqdiri): brak qatorlarining FAOL taqdiri (yo'q — «Tashlandi») va taqdirli qatorning haqiqiy zarari
+    # (bog'langan harakatlar + TM ga o'tgan qiymat, hamma vaqt — «Tannarx va foyda» ruxsatida). So'rovlar soni qator soniga
+    # bog'liq emas.
+    _cid125 = auth.company_id_of(current_user)
+    _brak_idlar = [r.id for r in returns if getattr(r.reason, "value", r.reason) == "Brak"]
+    _taqdirlar = crud.brak_taqdir_xaritasi(db, "qaytarish", _brak_idlar, company_id=_cid125)
+    _brak_zarar = (crud.brak_yozuv_qiymatlari(db, list(_taqdirlar), company_id=_cid125)
+                   if (_taqdirlar and current_user.ruxsat("tannarx", "korish")) else {})
     # kech120 (zip 130 — G5-19, O'LCHANGAN — audit kech114: 300 buyurtmali korxonada «Yangi qaytarish» oynasiga HAMMA
     # buyurtma, «Brak yozish» ga hamma loyiha sahifa bilan birga chizilardi — qaytarish 0 ta bo'lsa ham DOM 708 element,
     # qidiruvsiz): buyurtma va loyiha ro'yxati sahifaga YOZILMAYDI — oyna ochilganda `/api/tanlov/buyurtmalar` /
@@ -7716,6 +7789,7 @@ async def returns_page(request: Request, show_all: bool = False, db: Session = D
         "brak_hodimlari": crud.get_employees(db, only_active=True,
                                              company_id=auth.company_id_of(current_user)),
         "hodim_nomlari": crud.hodim_nomlari(db, company_id=auth.company_id_of(current_user)),
+        "taqdirlar": _taqdirlar, "brak_zarar": _brak_zarar,     # kech125 (zip 146)
         "current_user": current_user, "show_all": show_all
     })
 
@@ -7793,6 +7867,9 @@ def api_create_return(data: dict = Body(...), db: Session = Depends(get_db), cur
     # uzun nom / birlik — 500. `returns.html` (qaytarish va brak oynalari)
     # yuboradigan tanalar AYNAN shu qoidalarga mos. Xato → 400, `detail` MATN
     # (`returns.html`: `e.detail?.message || e.detail`).
+    # kech125 (zip 146 — EGASI QARORLARI 07.10 «Brak taqdiri»): brak yozilganda tanlangan taqdir — alohida kalit (o'z qoidalari
+    # bilan `crud.brak_taqdir_tana` tekshiradi; qaytarish tanasi qoidalariga kirmaydi). Faqat «Brak» uchun (crud rad etadi).
+    _taqdir = data.pop("taqdir", None) if isinstance(data, dict) else None
     try:
         toza = crud._clean_val("Return", data)
         data = schemas.ReturnItemCreate(**{k: v for k, v in toza.items() if v is not None})
@@ -7817,7 +7894,8 @@ def api_create_return(data: dict = Body(...), db: Session = Depends(get_db), cur
     # tranzaksiyada — butun ish saqlanishidan oldin xato bo'lsa hech narsa yozilmaydi (qayta urinish — bir marta).
     try:
         with crud.bitta_tranzaksiya(db):
-            _qaytarish = crud.create_return_item(db, data, company_id=_cid)
+            _qaytarish = crud.create_return_item(db, data, company_id=_cid, taqdir=_taqdir,
+                                                 performed_by=current_user.full_name or current_user.username)
     except ValueError as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
@@ -9231,6 +9309,8 @@ def api_get_finished(source: Optional[str] = None, only_available: bool = False,
         "from_order_id": fp.from_order_id,
         "from_order_number": fp.from_order.order_number if fp.from_order else None,
         "return_reason": fp.return_reason,
+        # kech125 (zip 146): brakdan paydo bo'lgan partiya — 'tuzatildi' / 'kesildi' / 'ikkinchi_nav' (2-nav), yo'q — null
+        "brak_taqdir": fp.brak_taqdir,
         "volume_m3": float(fp.volume_m3 or 0),
         "planned_loy_kg": float(fp.planned_loy_kg or 0),
         "actual_loy_kg": float(fp.actual_loy_kg) if fp.actual_loy_kg is not None else None,
@@ -9397,14 +9477,18 @@ def _fp_tana(model: str, data, sxema):
 def api_record_finished_loss(data: dict = Body(...), db: Session = Depends(get_db),
                                current_user=Depends(auth.ruxsat("brak", "yaratish"))):
     """Tayyor mahsulotdan brak/yo'qotish sababli miqdorni kamaytirish (o'chirish emas)."""
+    # kech125 (zip 146): brak taqdiri — alohida kalit (`crud.brak_taqdir_tana`)
+    _taqdir = data.pop("taqdir", None) if isinstance(data, dict) else None
     data = _fp_tana("Loss", data, schemas.FinishedProductLossCreate)
     if not data.brak_sabab:     # kech118 (D-1, G5-20)
         raise HTTPException(status_code=400, detail={"success": False, "message": BRAK_SABABI_XATO})
     who = current_user.full_name or current_user.username
-    result = crud.record_finished_product_loss(db, data, created_by=who,
-                                              company_id=auth.company_id_of(current_user))
-    if not result["success"]:
-        raise HTTPException(status_code=400, detail=result)
+    # kech125 (zip 146): yozuv va taqdir (TM, tuzatish xomashyosi) BITTA tranzaksiyada
+    with crud.bitta_tranzaksiya(db):
+        result = crud.record_finished_product_loss(db, data, created_by=who,
+                                                  company_id=auth.company_id_of(current_user), taqdir=_taqdir)
+        if not result["success"]:
+            raise HTTPException(status_code=400, detail=result)
     return result
 
 
@@ -9423,7 +9507,7 @@ def api_delete_finished_loss(loss_id: int, db: Session = Depends(get_db),
         # 18-band: "ishlab chiqarish braki" — yozuv BOR (o'z korxonasida),
         # lekin bekor qilish rad etiladi → 400 (UI `detail.message` ni
         # o'qiydi). Qolgan hamma holat (yo'q / begona) — 404 (oracle yo'q).
-        if natija.get("kod") == "ishlab_chiqarish_braki":
+        if natija.get("kod") in ("ishlab_chiqarish_braki", "taqdir"):   # kech125 (zip 146): taqdir TM i sotilgan
             raise HTTPException(status_code=400, detail={
                 "success": False, "message": natija["message"]})
         raise HTTPException(status_code=404, detail=natija["message"])
@@ -9450,6 +9534,8 @@ def api_finished_production_brak(data: dict = Body(...), db: Session = Depends(g
     soniga tegmaydi, faqat qo'shimcha xomashyo ombordan ayiriladi.
     Profil/Panel/Donali/Blok — `brak_qty` (mahsulot birligida) orqali,
     BARQAROR nisbatdan hisoblab."""
+    # kech125 (zip 146): brak taqdiri — alohida kalit (`crud.brak_taqdir_tana`)
+    _taqdir = data.pop("taqdir", None) if isinstance(data, dict) else None
     data = _fp_tana("ProductionBrak", data, schemas.FinishedProductProductionBrakCreate)
     if not data.brak_sabab:     # kech118 (D-1, G5-20)
         raise HTTPException(status_code=400, detail={"success": False, "message": BRAK_SABABI_XATO})
@@ -9463,10 +9549,51 @@ def api_finished_production_brak(data: dict = Body(...), db: Session = Depends(g
             brak_bosqich=data.brak_bosqich,   # kech53 (13-band, 1-qadam)
             brak_sabab=data.brak_sabab,               # kech56 (13-band, 7-qadam)
             brak_javobgar_id=data.brak_javobgar_id,   # kech56 (13-band, 7-qadam)
+            taqdir=_taqdir,                           # kech125 (zip 146)
         )
         if not result["success"]:
             raise HTTPException(status_code=400, detail=result)
     return result
+
+
+# ════ kech125 (zip 146 — EGASI QARORLARI 07.10 «Brak taqdiri», QAYTA SO'RALMAYDI) ════
+# Brak yozilgandan KEYIN taqdirni o'zgartirish (egasi qarori (2) «keyin o'zgartirish ham mumkin»). Ruxsat — o'sha yo'lning brak
+# YOZISH ruxsati (buyurtma detali braki — «Qaytarishlar: Yaratish», tayyor mahsulot braki — «Brak: Yaratish»). Tana —
+# `crud.brak_taqdir_tana` (brak oynasidagi bilan bir xil). Pul ta'siri — hodisa vaqtida (Q4); TM sotilgan bo'lsa — 400.
+
+def _brak_taqdir_marshruti(db, turi, yozuv_id, data, current_user):
+    _cid = auth.company_id_of(current_user)
+    try:
+        with crud.bitta_tranzaksiya(db):
+            natija = crud.brak_taqdir_belgila(db, turi, yozuv_id, data, company_id=_cid,
+                                              performed_by=current_user.full_name or current_user.username)
+            if natija is None:
+                raise HTTPException(status_code=404, detail="Brak yozuvi topilmadi")
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"success": True, **natija}
+
+
+@app.post("/api/returns/{return_id}/taqdir")
+def api_return_brak_taqdir(return_id: int, data: dict = Body(...), db: Session = Depends(get_db),
+                           current_user=Depends(auth.ruxsat("qaytarish", "yaratish"))):
+    """Buyurtma detali brakining taqdiri (Tashlandi / Tuzatildi / Kesildi / 2-nav) — o'zgartirish."""
+    return _brak_taqdir_marshruti(db, "qaytarish", return_id, data, current_user)
+
+
+@app.post("/api/finished/loss/{loss_id}/taqdir")
+def api_finished_loss_taqdir(loss_id: int, data: dict = Body(...), db: Session = Depends(get_db),
+                             current_user=Depends(auth.ruxsat("brak", "yaratish"))):
+    """Tayyor mahsulot brakining (omborda turgan / ishlab chiqarishda) taqdiri — o'zgartirish."""
+    return _brak_taqdir_marshruti(db, "yoqotish", loss_id, data, current_user)
+
+
+@app.get("/api/brak/tuzatish-materiallari")
+def api_brak_tuzatish_materiallari(db: Session = Depends(get_db),
+                                   current_user=Depends(auth.ruxsat_biri(("qaytarish", "yaratish"), ("brak", "yaratish")))):
+    """«Tuzatildi» — tuzatish xomashyosi tanlovi: loy retseptlari (kg) va materiallar (narxsiz) — FAQAT shu korxona."""
+    return crud.brak_tuzatish_materiallari(db, auth.company_id_of(current_user))
 
 
 @app.post("/api/finished/sell-batch")

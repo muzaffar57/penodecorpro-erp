@@ -1269,6 +1269,16 @@ class InventoryMovement(Base):
     # uni `ADD COLUMN ... DEFAULT FALSE` qilib ESKI qatorlarga ham yozardi —
     # eski brak "brak emas" bo'lib, hisobotdan yo'qolardi.
     is_brak = Column(Boolean, nullable=True)
+    # kech125 (zip 146 — EGASI QARORLARI 07.10 «Brak taqdiri»): tayyor mahsulot BRAKI yozuviga bog'lam (omborda turgan TM
+    # yo'qotishi va ishlab chiqarish braki — `FinishedProductLoss`). Ishlab chiqarish brakining xomashyosi (yangi yozuvlar) va
+    # taqdir harakatlari (tuzatish xomashyosi, «joyiga» qaytish) shu ustun bilan topiladi; eski harakatlarda NULL (bog'lam
+    # noma'lum — taxmin qilinmaydi). `return_item_id` ning tayyor mahsulotdagi juftligi. STANDARTSIZ.
+    fp_loss_id = Column(Integer, ForeignKey("finished_product_losses.id", ondelete="SET NULL"),
+                        nullable=True, index=True)
+    # kech125 (zip 146): shu harakatni yaratgan TAQDIR qatori (`BrakTaqdir`) — taqdir bekor qilinganda AYNAN shu harakatlarning
+    # teskarisi yoziladi; brakning o'z (asl) harakatlarida NULL. STANDARTSIZ.
+    brak_taqdir_id = Column(Integer, ForeignKey("brak_taqdirlari.id", ondelete="SET NULL"),
+                            nullable=True, index=True)
 
     performed_by = Column(String(100), nullable=True)
     notes = Column(Text, nullable=True)
@@ -1983,6 +1993,11 @@ class FinishedProduct(Base):
     # — mahsulotning o'zi YO'QOLMAYDI, faqat yana umumiy sotuvga qaytadi.
     reserved_quantity = Column(Float, default=0.0)
     reserved_for_order_item_id = Column(Integer, ForeignKey("order_items.id"), nullable=True, index=True)
+    # kech125 (zip 146 — EGASI QARORLARI 07.10 «Brak taqdiri»): mahsulot BRAKDAN paydo bo'lgan — `crud.BRAK_TAQDIRLARI` kodi:
+    # 'tuzatildi' (tuzatilib omborga), 'kesildi' (kesib olingan kichik detal), 'ikkinchi_nav' (2-nav, arzon sotiladi). NULL —
+    # oddiy mahsulot. Bunday mahsulot boshqasi bilan BIRLASHTIRILMAYDI (`add_returned_to_stock`), taqdir bekor qilinganda
+    # AYNAN shu partiyadan olinadi; 2-nav sotuvida «narx juda past» so'ralmaydi (egasi qarori Q2). STANDARTSIZ.
+    brak_taqdir = Column(String(20), nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     created_by = Column(String(100), nullable=True)
@@ -2084,6 +2099,49 @@ class FinishedProductLoss(Base):
 
     def __repr__(self):
         return f"<FinishedProductLoss {self.product_name} -{self.quantity}>"
+
+
+class BrakTaqdir(Base):
+    """kech125 (zip 146 — EGASI QARORLARI 07.10 «Brak taqdiri», QAYTA SO'RALMAYDI) — brak mahsulotning keyingi TAQDIRI jurnali.
+
+    Taqdirlar (`crud.BRAK_TAQDIRLARI`): «Tashlandi» — jurnalda qator YO'Q (standart; eski yozuvlar ham); «Tuzatildi» (qayta
+    qoplab / yopishtirib — o'sha joyiga yoki omborga; zarar = FAQAT tuzatish xomashyosi); «Kesildi» (kichik detal Tayyor
+    mahsulotlarga ULUSH tannarx bilan: tannarx × ishlatilgan / brak); «2-nav» (Tayyor mahsulotlarga TO'LIQ tannarx bilan, brak
+    zarari yozilmaydi — arzon sotilganda farq sotuv oyida). Har qo'llanish — bitta qator; faol taqdir — `bekor_vaqti IS NULL`
+    (ko'pi bilan bitta). Taqdir o'zgartirilsa eski qator YO'QOLMAYDI — `bekor_vaqti` yoziladi (egasi qarori Q4 «O'zgartirilgan
+    oyga»: pul ta'siri HODISA vaqtida — `tm_tannarx` `yaratilgan` oyida zararni kamaytiradi, `bekor_vaqti` oyida qaytaradi;
+    o'tgan oy hisoboti o'zgarmaydi). Brak yozuvi butunlay o'chirilsa — uning qatorlari ham o'chadi («bo'lmagandek»).
+
+    Brak yozuvi — BITTASI: `return_item_id` (buyurtma detali braki, `manba` = 'buyurtma') yoki `fp_loss_id` (omborda turgan
+    tayyor mahsulot yo'qotishi — 'ombor'; ishlab chiqarish braki — 'ishlab'). `manba` yozilganda qo'yiladi va o'zgarmaydi —
+    hisobot qaysi qatorga (A / C — «Brak (xomashyo)», B — «Tayyor mahsulot yo'qotishi») yozishni SHU ustundan biladi.
+    Tuzatish xomashyosi va «joyiga» qaytgan xomashyo — ombor harakatlari (`InventoryMovement.brak_taqdir_id`), bu yerda emas."""
+    __tablename__ = "brak_taqdirlari"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    return_item_id = Column(Integer, ForeignKey("return_items.id", ondelete="SET NULL"), nullable=True, index=True)
+    fp_loss_id = Column(Integer, ForeignKey("finished_product_losses.id", ondelete="SET NULL"), nullable=True, index=True)
+    manba = Column(String(10), nullable=False)          # 'buyurtma' | 'ombor' | 'ishlab'
+    taqdir = Column(String(20), nullable=False)         # 'tuzatildi' | 'kesildi' | 'ikkinchi_nav'
+    joy = Column(String(10), nullable=True)             # «Tuzatildi»: 'joyiga' | 'omborga'
+    ishlatildi = Column(Float, nullable=True)           # «Kesildi»: brakning ishlatilgan qismi (brak birligida)
+    nomi = Column(String(150), nullable=True)           # «Kesildi»: kesib olingan detal nomi
+    # Tayyor mahsulotga o'tgan qism: qaysi TM, qancha, qanday tannarx bilan (shu summa zarardan chiqadi). `tm_yangi` — TM shu
+    # taqdir bilan YARATILGAN (bekor qilinganda partiya bo'sh qolsa o'chadi) yoki mavjud TM ga QAYTARILGAN (omborda turgan
+    # mahsulot tuzatildi — o'sha partiyaga).
+    tm_id = Column(Integer, ForeignKey("finished_products.id", ondelete="SET NULL"), nullable=True, index=True)
+    tm_miqdor = Column(Float, nullable=True)
+    tm_tannarx = Column(Numeric(12, 2), nullable=True)
+    tm_yangi = Column(Boolean, nullable=True)
+    narx = Column(Numeric(12, 2), nullable=True)        # TM sotuv narxi (1 birlik) — 2-nav (egasi qarori Q1), kesilgan detal
+    yaratilgan = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    yaratgan = Column(String(100), nullable=True)
+    bekor_vaqti = Column(DateTime, nullable=True, index=True)
+    bekor_qilgan = Column(String(100), nullable=True)
+
+    def __repr__(self):
+        return f"<BrakTaqdir {self.taqdir} ri={self.return_item_id} fpl={self.fp_loss_id}>"
 
 
 # ============================================================
@@ -2502,7 +2560,9 @@ _TENANT_REFS = {
     "InventoryMovement": [("inventory_id", "Inventory"), ("order_id", "Order"),
                           ("supplier_id", "Supplier"),
                           # kech45 (13-band): qaysi brak yozuvi yaratgan
-                          ("return_item_id", "ReturnItem")],
+                          ("return_item_id", "ReturnItem"),
+                          # kech125 (zip 146): tayyor mahsulot braki yozuvi va taqdir qatori
+                          ("fp_loss_id", "FinishedProductLoss"), ("brak_taqdir_id", "BrakTaqdir")],
 
     # --- M3 (2026-09-18) ---
     # Ishlab chiqarish retsepti (BOM) qatori qaysi materialga ishora qiladi.
@@ -2541,6 +2601,9 @@ _TENANT_REFS = {
     "FinishedProductLoss": [("finished_product_id", "FinishedProduct"),
                             # kech56 (13-band, 7-qadam): javobgar hodim
                             ("brak_javobgar_id", "Employee")],
+    # kech125 (zip 146 — brak taqdiri): taqdir qatori — o'z brak yozuvi va yaratilgan / qaytarilgan tayyor mahsuloti BIR korxonada
+    "BrakTaqdir": [("return_item_id", "ReturnItem"), ("fp_loss_id", "FinishedProductLoss"),
+                   ("tm_id", "FinishedProduct")],
     # Buyurtma — qaysi loyiha va ustaga
     "Order": [("project_id", "Project"), ("master_id", "Master"),
               # kech58 (K58-1): qoplama retsepti — faqat o'z korxonasiniki

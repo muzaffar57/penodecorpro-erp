@@ -788,8 +788,13 @@ def log_movement(db: Session, inventory_id: Optional[int], item_name: str, movem
         # yozilgan HAR harakat (penoplast, tayyor loy, loy ingredientlari —
         # `services` ichidagi chuqur chaqiruvlar ham) unga bog'lanadi.
         _brak_rid = db.info.get("_brak_qaytarish_id") if movement_type == "out" else None
+        # kech125 (zip 146): tayyor mahsulot braki yozuvi (ishlab chiqarish braki xomashyosi, taqdir harakatlari) va taqdir
+        # qatori — `create_return_item` dagi `_brak_qaytarish_id` kabi sessiya belgisidan (faqat chiqim).
+        _brak_fpl = db.info.get("_brak_yoqotish_id") if movement_type == "out" else None
+        _brak_tq = db.info.get("_brak_taqdir_id") if movement_type == "out" else None
         if is_brak is None:
             _brak = movement_type == "out" and (_brak_rid is not None
+                                                or _brak_fpl is not None
                                                 or bool(db.info.get("_brak_harakat")))
         else:
             _brak = bool(is_brak)
@@ -820,6 +825,8 @@ def log_movement(db: Session, inventory_id: Optional[int], item_name: str, movem
             order_id=order_id, supplier_id=supplier_id,
             performed_by=performed_by, notes=notes,
             return_item_id=_brak_rid,
+            fp_loss_id=_brak_fpl,
+            brak_taqdir_id=_brak_tq,
             unit_cost=_narx,
             is_brak=_brak
         ))
@@ -3904,6 +3911,21 @@ _BRAK_SABABI = {k: k for k in BRAK_SABABLARI}
 # brak ulushi (Moliyadagi brak xarajati ÷ ishlab chiqarish tan narxi) shundan OSHSA —
 # ogohlantirish (`services.get_brak_tahlil`, `/returns` va `/dashboard`).
 BRAK_MEYORI_FOIZ = 5.0
+# kech125 (zip 146 — EGASI QARORLARI 07.10, QAYTA SO'RALMAYDI): brak mahsulotning keyingi TAQDIRI — kod → yorliq; YAGONA manba
+# (tana tekshiruvi, oyna tanlovi, ro'yxat belgisi, tahlil). «Tashlandi» — standart (jurnalda qator yo'q; eski yozuvlar ham).
+BRAK_TAQDIRLARI = {
+    "tashlandi": "Tashlandi",
+    "tuzatildi": "Tuzatildi",
+    "kesildi": "Kesildi",
+    "ikkinchi_nav": "2-nav",
+}
+_BRAK_TAQDIRI = {k: k for k in BRAK_TAQDIRLARI}
+# «Tuzatildi» — tuzatilgan detal qayerga: o'sha joyiga (buyurtma detali / tayyor mahsulot — qayta tayyorlanmadi; brak xomashyosi
+# omborga qaytadi) yoki omborga (Tayyor mahsulotlarga, asl narxi bilan — egasi qarori Q3).
+BRAK_TAQDIR_JOYLARI = {"joyiga": "O'sha joyiga", "omborga": "Omborga (Tayyor mahsulotlar)"}
+_BRAK_TAQDIR_JOYI = {k: k for k in BRAK_TAQDIR_JOYLARI}
+# «Kesildi» — kesib olingan detal birligi: brak birligi yoki shulardan biri (tayyor mahsulot birliklari)
+BRAK_TAQDIR_BIRLIKLARI = ("metr", "dona", "kvadrat", "kg")
 
 
 def _brak_javobgar_tekshir(db, hodim_id, company_id):
@@ -4047,6 +4069,26 @@ def _val_rules():
             # kech56 (13-band, 7-qadam): ixtiyoriy sabab va javobgar hodim
             "brak_sabab": ("tanlov", True, _BRAK_SABABI),
             "brak_javobgar_id": ("id", True),
+        },
+        # kech125 (zip 146 — EGASI QARORLARI 07.10 «Brak taqdiri»): brak yozilganda (`taqdir` kaliti — uch yo'l tanasida) va keyin
+        # o'zgartirishda (`…/taqdir` marshrutlari) BIR XIL tana. Tur / chegara — shu yerda; taqdirga bog'liq majburiy maydonlar va
+        # ortiqcha maydonlar — `brak_taqdir_tana` (brak miqdori va yo'li bilan).
+        "Taqdir": {
+            "taqdir": ("tanlov", False, _BRAK_TAQDIRI),
+            "joy": ("tanlov", True, _BRAK_TAQDIR_JOYI),
+            "materiallar": ("royxat", "TaqdirMaterial", 0, 10),
+            "ishlatildi": ("son", True, True, son),
+            "nomi": ("matn", False, 150),
+            "miqdor": ("son", True, True, son),
+            "birlik": ("matn", False, 20),
+            "eni": ("son", True, False, son),
+            "qalinligi": ("son", True, False, son),
+            "narx": ("son", True, False, money),
+        },
+        "TaqdirMaterial": {
+            "inventory_id": ("id", True),
+            "retsept_id": ("id", True),
+            "miqdor": ("son", False, True, son),
         },
         "Sale": dict(sotuv, **{
             "buyer_name": ("matn", False, 150),
@@ -5061,6 +5103,8 @@ AUDIT_AMALLARI = {
     "unblocked": ("🔓", "ochildi", "Bloklandi / ochildi"),
     "extended": ("📅", "— obuna uzaytirildi", "Obuna uzaytirildi"),
     "backup_restored": ("💾", "— zaxiradan tiklandi", "Zaxiradan tiklandi"),
+    # kech125 (zip 146): brak taqdiri (Tashlandi / Tuzatildi / Kesildi / 2-nav) yozildi yoki o'zgardi — `new_value` da tafsilot
+    "brak_taqdir": ("🧩", "— brak taqdiri", "Brak taqdiri"),
     # eski yozuvlar (zip 129 dan oldin shu nom bilan yozilishi mo'ljallangan, lekin NOT NULL sabab yozilmagan)
     "Zaxiradan tiklash": ("💾", "— zaxiradan tiklandi", "Zaxiradan tiklandi"),
 }
@@ -6358,7 +6402,8 @@ def _qaytarish_ortiqcha_qismi(db: Session, order_item, miqdor: float) -> float:
 
 
 def create_return_item(db: Session, data: ReturnItemCreate,
-                       company_id: int = None) -> ReturnItem:
+                       company_id: int = None, taqdir: dict = None,
+                       performed_by: str = None) -> ReturnItem:
     """Yangi qaytarishni bazaga qo'shadi.
     to_stock=True bo'lsa — tayyor mahsulotlar omboriga ham tushadi.
     refund_amount kelmasa (masalan hodim narx ko'rmasdan yozganda) —
@@ -6399,6 +6444,12 @@ def create_return_item(db: Session, data: ReturnItemCreate,
     if (_sabab is not None or _javobgar is not None) and reason_enum != ReturnReason.DEFECT:
         raise ValueError("Brak sababi va javobgar hodim faqat \"Brak\" sababi uchun tanlanadi")
     _brak_javobgar_tekshir(db, _javobgar, _o.company_id)
+    # kech125 (zip 146 — EGASI QARORLARI 07.10 «Brak taqdiri»): taqdir FAQAT brakda va hech narsa yozilishidan OLDIN
+    # tekshiriladi (qo'llash — brak xomashyosi yechilgandan keyin, shu tranzaksiyada — pastda).
+    if taqdir is not None:
+        if reason_enum != ReturnReason.DEFECT:
+            raise ValueError("Brak taqdiri faqat \"Brak\" sababi uchun tanlanadi")
+        brak_taqdir_tana(db, taqdir, "buyurtma", float(data.quantity or 0), data.unit, _o.company_id)
 
     order_item = None
     oi_id = getattr(data, 'order_item_id', None)
@@ -6617,6 +6668,11 @@ def create_return_item(db: Session, data: ReturnItemCreate,
             db.info.pop("_brak_qaytarish_id", None)
         if brak_log:
             print(f"✓ Brak uchun xomashyo yechildi: {brak_log}")
+        # kech125 (zip 146): brak yozilganda tanlangan taqdir — xomashyo yechilgach (uning qiymati TM ga o'tishi mumkin),
+        # shu tranzaksiyada (`bitta_tranzaksiya` — xato bo'lsa brak ham yozilmaydi)
+        if taqdir is not None:
+            db.flush()
+            _taqdir_almashtir(db, "qaytarish", item, taqdir, _o.company_id, performed_by, yangi_yozuv=True)
 
     # Tayyor mahsulotlar omboriga qo'shamiz (brak bo'lmasa)
     to_stock = getattr(data, 'to_stock', True)
@@ -6915,6 +6971,13 @@ def delete_return_item(db: Session, return_id: int, company_id: int = None,
             else:
                 _ozod_ozodlar.append((_f_oz, _q_oz))
 
+    # kech125 (zip 146 — brak taqdiri): faol taqdir TM ga mahsulot qo'shgan bo'lsa — u hali butun turishi SHART (sotilgan /
+    # band — rad, hech narsa o'zgarmaydi). Haqiqiy bekor qilish — pastda (3b).
+    if item.reason == ReturnReason.DEFECT:
+        _faol125 = _taqdir_faol(db, "qaytarish", item.id, _cid, lock=True)
+        if _faol125 is not None:
+            _taqdir_tm_tekshir(db, _faol125, _cid)
+
     fp = None
     _sq = float(item.stock_qty or 0)
     if _sq > 0 and item.finished_product_id is not None:
@@ -6979,7 +7042,11 @@ def delete_return_item(db: Session, return_id: int, company_id: int = None,
     # ── 3b) BRAK xomashyosi orqaga (kech45, 13-band 6-qadam) ─────────
     from models import InventoryMovement as _IM4
     _xom = []
+    _taqdir_jurnal = []
     if item.reason == ReturnReason.DEFECT:
+        # kech125 (zip 146): avval TAQDIR — TM dan qo'shilgani olinadi, taqdir harakatlari (tuzatish xomashyosi, «joyiga»
+        # qaytgan xomashyo) qoldig'i bilan o'chadi, taqdir qatorlari o'chadi; so'ng brakning o'z harakatlari (avvalgidek).
+        _taqdir_jurnal = brak_taqdir_ochir(db, "qaytarish", item, _cid, performed_by)
         _harakatlar = db.query(_IM4).filter(
             _IM4.return_item_id == item.id,
             _IM4.company_id == _cid,
@@ -7001,6 +7068,8 @@ def delete_return_item(db: Session, return_id: int, company_id: int = None,
               f"{item.reason.value if item.reason else '-'}")
     if _xom:
         _qator += " · brak xomashyosi omborga qaytdi: " + "; ".join(_xom)
+    if _taqdir_jurnal:
+        _qator += " · brak taqdiri bekor: " + "; ".join(_taqdir_jurnal)
     if _ozod_reja:
         _qator += " · MRP bandi tiklandi: " + "; ".join(
             f"{_f.name} +{_miqdor_matn(_q)} {_f.unit or ''}".rstrip() for _f, _q in _ozod_reja)
@@ -8245,11 +8314,15 @@ def _reset_table_order():
         MasterGiftPeriodRedemption, GiftPeriodParticipant, GiftPeriodTier,
         GiftPeriod, Master, Project, Supplier, CashTransaction, ActivityLog,
         ErrorLog, LoginHistory, CompanySetting, RecurringObligation, Inventory,
-        Yonalish,
+        Yonalish, BrakTaqdir,
     )
     return [
         ProductionOrder,
-        DeliveryItem, Payment, OrderAttachment, ReturnItem, InventoryMovement,
+        # kech125 (zip 146): ombor harakati brak yozuviga (`return_item_id`, `fp_loss_id`) va taqdir qatoriga
+        # (`brak_taqdir_id`) ishora qiladi, taqdir qatori — brak yozuvlari va tayyor mahsulotga: o'chirishda harakat →
+        # taqdir → qaytarish (bola avval), tiklashda (teskari) qaytarish → taqdir → harakat (ota avval). Ilgari harakat
+        # qaytarishdan KEYIN edi — tiklashda brakka bog'langan harakat qaytarishdan OLDIN qo'shilardi (PG FK).
+        DeliveryItem, Payment, OrderAttachment, InventoryMovement, BrakTaqdir, ReturnItem,
         Delivery, OrderGipsAdditive,
         OrderItemSubDetail, OrderItem,
         FinishedProductSale, FinishedProductLoss, FinishedProduct, Order,
@@ -8370,7 +8443,8 @@ def import_full_backup(db: Session, data: dict, company_id: int,
 
     try:
         if replace and mavjud:
-            factory_reset_all_data(db, company_id=company_id)
+            # kech125 (zip 146): tozalash ham SHU tranzaksiyada — qo'shishda xato bo'lsa `rollback` uni ham qaytaradi
+            factory_reset_all_data(db, company_id=company_id, commit=False)
 
         # Tartib: o'chirish tartibining TESKARISI — ota avval, bola keyin.
         order = list(reversed(_reset_table_order()))
@@ -8432,7 +8506,7 @@ def import_full_backup(db: Session, data: dict, company_id: int,
 
 
 def factory_reset_all_data(db: Session, keep_only_user_id: int = None,
-                          company_id: int = None) -> dict:
+                          company_id: int = None, commit: bool = True) -> dict:
     """DIQQAT: BU QAYTARIB BO'LMAYDIGAN AMAL!
     Foydalanuvchilar (User) dan TASHQARI — barcha ma'lumotni butunlay o'chiradi:
     buyurtmalar, ombor, retseptlar, ustalar, yetkazib beruvchilar, loyihalar,
@@ -8443,7 +8517,10 @@ def factory_reset_all_data(db: Session, keep_only_user_id: int = None,
     yaratgan boshqa hisoblarni ham tozalang" desa).
 
     Chet el kaliti (ForeignKey) xatosi bermasligi uchun, jadvallar to'g'ri
-    (avval "bola", keyin "ota") tartibda tozalanadi."""
+    (avval "bola", keyin "ota") tartibda tozalanadi.
+
+    commit — standart True (o'zi saqlaydi); False — chaqiruvchining tranzaksiyasida qoladi (faqat `flush`): zaxiradan tiklash
+    (`import_full_backup`) tozalash va qo'shishni BITTA tranzaksiyada qiladi (kech125, zip 146)."""
     from models import (
         DeliveryItem, Payment, OrderAttachment, ReturnItem, Delivery,
         OrderItem, Order, InventoryMovement, InventoryPurchase, InventoryReceipt,
@@ -8590,7 +8667,14 @@ def factory_reset_all_data(db: Session, keep_only_user_id: int = None,
             n_users = 0
         counts["users"] = n_users
 
-    db.commit()
+    # kech125 (zip 146 — TOPILGAN ESKI NUQSON, O'LCHANGAN: tools/test_brak_taqdir L3): `import_full_backup(replace=True)` shu
+    # funksiyani chaqirib, so'ng qatorlarni qo'shadi; bu yerdagi `commit` tozalashni OLDINDAN saqlab qo'yardi — qo'shishda xato
+    # bo'lsa (masalan PG FK) korxona ma'lumoti O'CHIB QOLARDI («bitta tranzaksiya» va'dasi buzilardi). `commit=False` —
+    # chaqiruvchining tranzaksiyasida (faqat `flush`).
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     return counts
 def _retsept_nomi53(r) -> str:
     """kech63 (53-band): retsept nomi xabar / jurnal uchun (nom enum yoki matn bo'lishi mumkin)."""
@@ -10647,7 +10731,7 @@ def release_finished_product_reservation(db: Session, fp_id: int, performed_by: 
 
 
 def record_finished_product_loss(db: Session, data, created_by: str = None,
-                                company_id: int = None) -> dict:
+                                company_id: int = None, taqdir: dict = None) -> dict:
     """Tayyor mahsulotdan brak/yo'qotish sababli miqdorni KAMAYTIRADI
     (butunlay o'chirmaydi). Tan narx — o'sha mahsulotning 1 birlik tan
     narxiga proporsional hisoblanadi, va Moliyada "Tayyor mahsulot yo'qotishi
@@ -10675,6 +10759,9 @@ def record_finished_product_loss(db: Session, data, created_by: str = None,
     try:
         _brak_javobgar_tekshir(db, getattr(data, 'brak_javobgar_id', None),
                                getattr(fp, 'company_id', None))
+        # kech125 (zip 146 — EGASI QARORLARI 07.10 «Brak taqdiri»): taqdir — hech narsa yozilishidan OLDIN tekshiriladi
+        if taqdir is not None:
+            brak_taqdir_tana(db, taqdir, "ombor", float(data.quantity or 0), fp.unit, getattr(fp, 'company_id', None))
     except ValueError as _e:
         return {"success": False, "message": str(_e)}
 
@@ -10703,13 +10790,25 @@ def record_finished_product_loss(db: Session, data, created_by: str = None,
         brak_javobgar_id=getattr(data, 'brak_javobgar_id', None)
     )
     db.add(loss)
+    _taqdir_natija = None
+    if taqdir is not None:
+        # kech125 (zip 146): tanlangan taqdir — yozuv bilan BITTA tranzaksiyada (xato — hech narsa yozilmaydi)
+        try:
+            db.flush()
+            _taqdir_natija = _taqdir_almashtir(db, "yoqotish", loss, taqdir, getattr(fp, 'company_id', None),
+                                               created_by, yangi_yozuv=True)
+        except ValueError as _e:
+            db.rollback()
+            return {"success": False, "message": str(_e)}
     db.commit()
     db.refresh(loss)
+    db.refresh(fp)
     return {
         "success": True,
         "loss_id": loss.id,
         "cost_amount": float(cost_amount),
-        "remaining_stock": float(fp.quantity)
+        "remaining_stock": float(fp.quantity),
+        "taqdir": (_taqdir_natija or {}).get("taqdir", "tashlandi"),
     }
 
 
@@ -10768,7 +10867,8 @@ def delete_finished_product_loss(db: Session, loss_id: int, company_id: int = No
     q = db.query(FinishedProductLoss).filter(FinishedProductLoss.id == loss_id)
     if company_id is not None:
         q = q.filter(FinishedProductLoss.company_id == company_id)
-    loss = q.first()
+    # kech125 (zip 146): yozuv qatori qulflanadi — taqdir o'zgartirish bilan navbat (qulf tartibi: yozuv → TM)
+    loss = q.with_for_update().first()
     if not loss:
         return {"success": False, "message": "Brak yozuvi topilmadi"}
 
@@ -10791,6 +10891,13 @@ def delete_finished_product_loss(db: Session, loss_id: int, company_id: int = No
     cost = float(loss.cost_amount or 0)
     nomi = loss.product_name
     tiklandi = False
+    # kech125 (zip 146 — brak taqdiri): avval taqdir bekor (TM dan qo'shilgani olinadi — sotilgan bo'lsa rad, hech narsa
+    # o'zgarmaydi; tuzatish xomashyosi omborga qaytadi; taqdir qatorlari o'chadi), so'ng avvalgi tiklash.
+    try:
+        _taqdir_jurnal = brak_taqdir_ochir(db, "yoqotish", loss, loss.company_id, performed_by)
+    except ValueError as _e:
+        db.rollback()
+        return {"success": False, "kod": "taqdir", "message": str(_e)}
 
     if loss.finished_product_id:
         fpq = db.query(FinishedProduct).filter(
@@ -10808,7 +10915,8 @@ def delete_finished_product_loss(db: Session, loss_id: int, company_id: int = No
         log_activity(db, "delete", "finished_product_loss", loss_id,
                      f"Brak bekor qilindi: {nomi} — {qty:g} {loss.unit or ''} "
                      f"({cost:,.0f} so'm)"
-                     + (" · ombor tiklandi" if tiklandi else " · mahsulot o'chirilgan"),
+                     + (" · ombor tiklandi" if tiklandi else " · mahsulot o'chirilgan")
+                     + (" · brak taqdiri bekor: " + "; ".join(_taqdir_jurnal) if _taqdir_jurnal else ""),
                      performed_by=performed_by, company_id=company_id)
     except Exception:
         pass
@@ -10919,7 +11027,8 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
                                               notes: str = None, created_by: str = None,
                                               company_id: int = None, brak_bosqich: str = None,
                                               brak_sabab: str = None,
-                                              brak_javobgar_id: int = None) -> dict:
+                                              brak_javobgar_id: int = None,
+                                              taqdir: dict = None) -> dict:
     """Tayyor mahsulot ISHLAB CHIQARISH JARAYONIDA chiqqan brak (masalan
     kesish yoki qoplama tortish paytida sinib ketishi) — bu, mahsulotdan
     KEYINCHALIK (allaqachon tayyor turgan holda) yo'qotilishidan FARQ
@@ -10955,6 +11064,9 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
     # yechilishidan va yozuvdan OLDIN)
     try:
         _brak_javobgar_tekshir(db, brak_javobgar_id, getattr(fp, 'company_id', None))
+        # kech125 (zip 146 — EGASI QARORLARI 07.10 «Brak taqdiri»): taqdir — hech narsa yozilishidan OLDIN tekshiriladi
+        if taqdir is not None and brak_qty is not None and brak_qty > 0:
+            brak_taqdir_tana(db, taqdir, "ishlab", float(brak_qty), fp.unit, getattr(fp, 'company_id', None))
     except ValueError as _e:
         return {"success": False, "message": str(_e)}
 
@@ -11012,33 +11124,11 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
     peno_cost = 0.0
     loy_cost = 0.0
 
-    # kech52 (13-band, 3-qadam): xomashyo yechish — `_ishlab_chiqarish_braki_xomashyo`.
-    # Shu oraliqda yozilgan HAR chiqim harakati (penoplast, loy ingredientlari —
-    # `services` ichidagi chuqur chaqiruvlar ham) `log_movement` da brak deb
-    # belgilanadi (`db.info["_brak_harakat"]`); belgi `finally` da olinadi —
-    # yordamchidagi erta `return` (penoplast yetishmayapti va h.k.) ham uni
-    # sessiyada qoldirmaydi.
-    db.info["_brak_harakat"] = True
-    try:
-        if _mrp_qatorlar is not None:
-            # kech54 (13-band, 5-qadam): MRP mahsuloti — surat qatorlari (yuqorida tekshirilgan)
-            _xom = _mrp_ishlab_chiqarish_braki_xomashyo(db, fp, brak_qty, _mrp_qatorlar, log)
-        else:
-            _xom = _ishlab_chiqarish_braki_xomashyo(
-                db, fp, brak_qty, penoplast_vol_needed, loy_kg_needed, company_id, _brak_inv, log)
-    finally:
-        db.info.pop("_brak_harakat", None)
-    if not _xom.get("success"):
-        return _xom
-    peno_cost = _xom["peno_cost"]
-    loy_cost = _xom["loy_cost"]
-    # kech54 (5-qadam): MRP mahsulotining surat xomashyosi (boshqa turlarda 0)
-    xomashyo_cost = float(_xom.get("xomashyo_cost", 0.0))
-
-    total_cost = peno_cost + loy_cost + xomashyo_cost
-
     # MUHIM: fp.quantity GA TEGILMAYDI — yakuniy mahsulot miqdori
     # o'zgarmagani uchun. Faqat Moliyada xarajat sifatida qayd etiladi.
+    # kech125 (zip 146 — brak taqdiri): yozuv xomashyo yechilishidan OLDIN yaratiladi — har harakat unga bog'lanadi
+    # (`fp_loss_id`; taqdir «O'sha joyiga» shu harakatlarni qaytaradi, tahlil yozuv qiymatini harakatlardan oladi). Tannarx —
+    # yechilgandan keyin; xomashyo yetmasa yozuv olib tashlanadi (hech narsa qolmaydi — avvalgidek).
     loss = FinishedProductLoss(
         company_id=getattr(fp, 'company_id', None),      # M8/F1
         finished_product_id=fp.id,
@@ -11046,7 +11136,7 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
         category=fp.category,
         quantity=brak_qty,
         unit=fp.unit,
-        cost_amount=total_cost,
+        cost_amount=0,
         reason=f"{_ISH_BRAK_BELGI} — qo'shimcha xomashyo sarflandi (mahsulot soniga tegmaydi)"
                + (f". Izoh: {notes}" if notes else ""),
         created_by=created_by,
@@ -11057,6 +11147,48 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
         brak_javobgar_id=brak_javobgar_id
     )
     db.add(loss)
+    db.flush()
+
+    # kech52 (13-band, 3-qadam): xomashyo yechish — `_ishlab_chiqarish_braki_xomashyo`.
+    # Shu oraliqda yozilgan HAR chiqim harakati (penoplast, loy ingredientlari —
+    # `services` ichidagi chuqur chaqiruvlar ham) `log_movement` da brak deb
+    # belgilanadi (`db.info["_brak_harakat"]`); belgi `finally` da olinadi —
+    # yordamchidagi erta `return` (penoplast yetishmayapti va h.k.) ham uni
+    # sessiyada qoldirmaydi.
+    db.info["_brak_harakat"] = True
+    db.info["_brak_yoqotish_id"] = loss.id          # kech125 (zip 146): harakat → yozuv bog'lami
+    try:
+        if _mrp_qatorlar is not None:
+            # kech54 (13-band, 5-qadam): MRP mahsuloti — surat qatorlari (yuqorida tekshirilgan)
+            _xom = _mrp_ishlab_chiqarish_braki_xomashyo(db, fp, brak_qty, _mrp_qatorlar, log)
+        else:
+            _xom = _ishlab_chiqarish_braki_xomashyo(
+                db, fp, brak_qty, penoplast_vol_needed, loy_kg_needed, company_id, _brak_inv, log)
+    finally:
+        db.info.pop("_brak_harakat", None)
+        db.info.pop("_brak_yoqotish_id", None)
+    if not _xom.get("success"):
+        # Yechish boshlanmasdan rad etildi (tekshiruvlar yechishdan OLDIN) — yozuv ham qolmaydi
+        db.delete(loss)
+        db.flush()
+        return _xom
+    peno_cost = _xom["peno_cost"]
+    loy_cost = _xom["loy_cost"]
+    # kech54 (5-qadam): MRP mahsulotining surat xomashyosi (boshqa turlarda 0)
+    xomashyo_cost = float(_xom.get("xomashyo_cost", 0.0))
+
+    total_cost = peno_cost + loy_cost + xomashyo_cost
+    loss.cost_amount = total_cost
+    _taqdir_natija = None
+    if taqdir is not None:
+        # kech125 (zip 146): tanlangan taqdir — shu tranzaksiyada (marshrut `bitta_tranzaksiya`: xato — hech narsa yozilmaydi)
+        try:
+            db.flush()
+            _taqdir_natija = _taqdir_almashtir(db, "yoqotish", loss, taqdir, getattr(fp, 'company_id', None),
+                                               created_by, yangi_yozuv=True)
+        except ValueError as _e:
+            db.rollback()
+            return {"success": False, "message": str(_e)}
     db.commit()
     db.refresh(loss)
 
@@ -11068,6 +11200,7 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
         "loy_cost": float(loy_cost),
         "xomashyo_cost": float(xomashyo_cost),   # kech54 (5-qadam): MRP surat xomashyosi
         "log": log,
+        "taqdir": (_taqdir_natija or {}).get("taqdir", "tashlandi"),   # kech125 (zip 146)
     }
 
 
@@ -11162,7 +11295,10 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None,
 
             # XAVFSIZLIK/NAZORAT: sell_finished_product'dagi bilan bir xil —
             # sotuv narxi tan narxidan past bo'lsa, aniq tasdiqlash so'raladi.
-            if unit_cost > 0 and float(_narx2) < unit_cost and not getattr(data, "confirm_below_cost", False):
+            # kech125 (zip 146 — egasi qarori Q2): 2-nav mahsulot tannarxdan arzon sotilishi tabiiy — so'ralmaydi (farq sotuv
+            # oyida zarar — sotuv tannarxi o'zgarmaydi)
+            if unit_cost > 0 and float(_narx2) < unit_cost and not getattr(data, "confirm_below_cost", False) \
+                    and getattr(fp, "brak_taqdir", None) != "ikkinchi_nav":
                 db.rollback()
                 return {
                     "success": False,
@@ -11318,7 +11454,10 @@ def sell_finished_product(db: Session, data, created_by: str = None,
     # narxining o'zi (mahsulot tannarxi — ichki, nozik ma'lumot) xabarda
     # KO'RSATILMAYDI — xodim uni bilmasligi kerak, faqat "bu narxda sotib
     # bo'lmaydi" degan xabarni ko'radi.
-    if unit_cost > 0 and float(_sotuv_narx) < unit_cost and not getattr(data, "confirm_below_cost", False):
+    # kech125 (zip 146 — egasi qarori Q2): 2-nav mahsulot (brakdan) tannarxdan arzon sotilishi tabiiy — so'ralmaydi; farq
+    # (tannarx − sotuv) sotuv oyida zarar (sotuv tannarxi — muzlagan `unit_cost_stable`)
+    if unit_cost > 0 and float(_sotuv_narx) < unit_cost and not getattr(data, "confirm_below_cost", False) \
+            and getattr(fp, "brak_taqdir", None) != "ikkinchi_nav":
         return {
             "success": False,
             "type": "below_cost_warning",
@@ -11801,6 +11940,10 @@ def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = Fal
         db.query(_FPS).filter(_FPS.finished_product_id == fp_id).update({"finished_product_id": None})
         db.query(_FPL).filter(_FPL.finished_product_id == fp_id).update({"finished_product_id": None})
         db.query(_OI2).filter(_OI2.finished_product_id == fp_id).update({"finished_product_id": None})
+        # kech125 (zip 146): brak taqdiri qatori shu mahsulotga ishora qilsa — bog'lam uziladi (uzilmasa PG FK bloklaydi)
+        from models import BrakTaqdir as _BT125a
+        db.query(_BT125a).filter(_BT125a.tm_id == fp_id, _BT125a.company_id == fp.company_id).update(
+            {"tm_id": None}, synchronize_session=False)
         # kech40 (22-band): qaytarish yozuvi endi omborga qo'shilgan mahsulotiga
         # bog'lanadi — uzilmasa PostgreSQL FK o'chirishni bloklaydi.
         db.query(ReturnItem).filter(ReturnItem.finished_product_id == fp_id,
@@ -11841,6 +11984,11 @@ def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = Fal
     db.query(FinishedProductLoss).filter(
         FinishedProductLoss.finished_product_id == fp_id
     ).update({"finished_product_id": None})
+    # kech125 (zip 146): brak taqdiri qatori shu mahsulotga ishora qilsa — bog'lam uziladi (taqdir keyin o'zgartirilsa —
+    # «mahsulot o'chirilgan (sotib bo'lingan)» deb rad etiladi); uzilmasa PG FK o'chirishni bloklaydi.
+    from models import BrakTaqdir as _BT125b
+    db.query(_BT125b).filter(_BT125b.tm_id == fp_id, _BT125b.company_id == fp.company_id).update(
+        {"tm_id": None}, synchronize_session=False)
     # Buyurtma detallari — bog'lanishni uzamiz (detal o'z ma'lumotini
     # saqlaydi, faqat o'chirilgan mahsulotga havolasini yo'qotadi).
     from models import OrderItem as _OI
@@ -11916,6 +12064,9 @@ def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
         FinishedProduct.thickness == order_item.thickness,
         FinishedProduct.is_coated == order_item.is_coated,
         FinishedProduct.unit_price == unit_p,
+        # kech125 (zip 146): brakdan paydo bo'lgan partiya (2-nav, kesilgan, tuzatilgan) — boshqasi bilan birlashtirilmaydi
+        # (taqdir bekor qilinganda AYNAN o'sha partiyadan olinadi; 2-nav — alohida mahsulot)
+        FinishedProduct.brak_taqdir.is_(None),
     )
     if _ret_cid is not None:
         _rq = _rq.filter(FinishedProduct.company_id == _ret_cid)
@@ -14938,22 +15089,47 @@ def _brak_harakat_narxi(harakat, inv) -> float:
     return float(inv.price_per_unit or 0) if inv else 0.0
 
 
-def brak_yozuv_qiymatlari(db: Session, return_item_ids, company_id: int = None) -> dict:
+def brak_yozuv_qiymatlari(db: Session, return_item_ids, company_id: int = None,
+                          start_date=None, end_date=None) -> dict:
     """kech107 (49-band, egasi qarori "Bitta raqam") — har brak YOZUVINING haqiqiy xomashyo narxi: shu yozuvga
     bog'langan (`return_item_id`) brak chiqim harakatlari — miqdor × `_brak_harakat_narxi` (Moliyadagi "Brak" qatori
     bilan AYNAN bir qoida). Bog'langan harakati yo'q yozuv — 0 (xomashyo yechilmagan, yoki bog'lamdan oldingi eski
     yozuv — uning harakati Moliyada "bog'lanmagan" bo'lib sanaladi). Yozuvdagi saqlangan summa (`refund_amount`) —
-    TEGILMAYDI va bu yerda ishlatilmaydi. Qaytaradi: {return_item_id: qiymat} (har berilgan id uchun)."""
+    TEGILMAYDI va bu yerda ishlatilmaydi. Qaytaradi: {return_item_id: qiymat} (har berilgan id uchun).
+
+    kech125 (zip 146 — brak taqdiri): taqdir harakatlari (tuzatish xomashyosi, «joyiga» qaytgan xomashyo — ishorali) va TM ga
+    o'tgan qiymat (taqdir hodisalari) ham. `start_date` / `end_date` berilsa — shu davr qiymati: brakning O'Z harakatlari —
+    yozuv shu davrda yozilgan bo'lsa (avvalgi qoida — yozuv sanasi bo'yicha), taqdir harakatlari va hodisalari — o'z vaqtida
+    (egasi qarori Q4 «hodisa vaqtida»)."""
     from models import InventoryMovement as _IM107, Inventory as _Inv107
     ids = sorted({int(i) for i in (return_item_ids or []) if i is not None})
     natija = {i: 0.0 for i in ids}
     if not ids:
         return natija
-    q = db.query(_IM107).filter(_IM107.movement_type == "out", brak_harakati_sharti(_IM107),
-                                _IM107.return_item_id.in_(ids))
+    davrda = set(ids)
+    if start_date is not None or end_date is not None:
+        _dq = db.query(ReturnItem.id).filter(ReturnItem.id.in_(ids))
+        if company_id is not None:
+            _dq = _dq.filter(ReturnItem.company_id == company_id)
+        if start_date is not None:
+            _dq = _dq.filter(ReturnItem.returned_at >= start_date)
+        if end_date is not None:
+            _dq = _dq.filter(ReturnItem.returned_at < end_date)
+        davrda = {r[0] for r in _dq.all()}
+    q = db.query(_IM107).filter(brak_harakatlari_sharti(_IM107), _IM107.return_item_id.in_(ids))
     if company_id is not None:
         q = q.filter(_IM107.company_id == company_id)
-    rows = q.all()
+    rows = []
+    for r in q.all():
+        if r.brak_taqdir_id is None:
+            if r.return_item_id not in davrda:
+                continue
+        else:
+            if start_date is not None and r.created_at < start_date:
+                continue
+            if end_date is not None and r.created_at >= end_date:
+                continue
+        rows.append(r)
     inv_ids = sorted({r.inventory_id for r in rows if r.inventory_id})
     inv_map = {}
     if inv_ids:
@@ -14963,8 +15139,16 @@ def brak_yozuv_qiymatlari(db: Session, return_item_ids, company_id: int = None) 
         inv_map = {i.id: i for i in _iq.all()}
     for r in rows:
         natija[r.return_item_id] = natija.get(r.return_item_id, 0.0) + \
-            float(r.quantity or 0) * _brak_harakat_narxi(r, inv_map.get(r.inventory_id))
+            _brak_ishora(r) * float(r.quantity or 0) * _brak_harakat_narxi(r, inv_map.get(r.inventory_id))
+    for h in _taqdir_hodisalari(db, company_id=company_id, start_date=start_date, end_date=end_date,
+                                return_item_ids=ids):
+        _rid = h["qator"].return_item_id
+        natija[_rid] = natija.get(_rid, 0.0) + h["qiymat"]
     return natija
+
+
+# kech125 (zip 146): Moliya / xulosadagi TM ga o'tgan qiymat qatori nomi (material emas — `taqdir: True`)
+BRAK_TAQDIR_QATORI = "Tayyor mahsulotga o'tdi (brak taqdiri)"
 
 
 def get_brak_material_summary(db: Session, start_date=None, end_date=None,
@@ -14985,7 +15169,16 @@ def get_brak_material_summary(db: Session, start_date=None, end_date=None,
 
     kech117 (A2): `harakatlar=True` — har brak harakati {return_item_id, order_id, value} (yaxlitlanmagan; yo'nalishlar
     hisoboti bog'langan yozuv yo'nalishiga taqsimlaydi). Eski «gips / penoplast» ikkiga bo'linishi olib tashlandi (Gips
-    moliyadan butunlay olib tashlangan — egasi qarori kech114; ishlatuvchisi — eski bo'lingan hisobot — o'zgardi)."""
+    moliyadan butunlay olib tashlangan — egasi qarori kech114; ishlatuvchisi — eski bo'lingan hisobot — o'zgardi).
+
+    kech125 (zip 146 — EGASI QARORLARI 07.10 «Brak taqdiri», Q4 «hodisa vaqtida»): (1) taqdir KIRIMLARI (taqdir qatoriga
+    bog'langan `is_brak IS TRUE` kirim: «Tuzatildi — o'sha joyiga» bilan qaytgan brak xomashyosi, bekor qilingan tuzatish
+    xomashyosi) — MANFIY (miqdor va qiymat); taqdirsiz eski kirimlar — avvalgidek kirmaydi;
+    (2) buyurtma detali va ishlab chiqarish brakining Tayyor mahsulotga O'TGAN qiymati (Kesildi — ulush, 2-nav va
+    «Tuzatildi — omborga» — to'liq) — taqdir qo'llangan oyda MANFIY, bekor qilingan oyda MUSBAT: `by_material` da alohida qator
+    (`BRAK_TAQDIR_QATORI`, `taqdir: True`), `by_order` da o'z buyurtmasida, `harakatlar` da {return_item_id, fp_loss_id,
+    order_id, value}. Omborda turgan mahsulot yo'qotishining taqdiri — bu yerda EMAS («Tayyor mahsulot yo'qotishi» qatori,
+    `tm_yoqotish_qiymati`). Harakatlar ro'yxatida `fp_loss_id` ham (tayyor mahsulot braki yozuvi)."""
     from models import Inventory, InventoryMovement, Order
 
     def _harakat_narxi(harakat, inv):
@@ -14994,10 +15187,8 @@ def get_brak_material_summary(db: Session, start_date=None, end_date=None,
 
     # kech52 (13-band, 3-qadam): brak — `is_brak` belgisi (eski harakatlar —
     # eski ta'rif), sabab matni EMAS: matn o'zgarsa hisobot nolga tushmaydi.
-    q = db.query(InventoryMovement).filter(
-        InventoryMovement.movement_type == "out",
-        brak_harakati_sharti(InventoryMovement)
-    )
+    # kech125 (zip 146): + taqdir kirimlari (`brak_harakatlari_sharti`).
+    q = db.query(InventoryMovement).filter(brak_harakatlari_sharti(InventoryMovement))
     if company_id is not None:      # M6
         q = q.filter(InventoryMovement.company_id == company_id)
     if start_date:
@@ -15006,9 +15197,11 @@ def get_brak_material_summary(db: Session, start_date=None, end_date=None,
         # kech107 (49-band): oxiri KIRMAYDI — hamma chaqiruvchi (`tashkent_oy_oraligi`, brak-materials marshruti:
         # tugash kuni + 1 kun) shunday beradi; ilgari `<=` bilan aynan 1-kun 00:00 dagi harakat IKKI oyda sanalardi.
         q = q.filter(InventoryMovement.created_at < end_date)
-    rows = q.order_by(InventoryMovement.created_at.desc()).all()
+    rows = q.order_by(InventoryMovement.created_at.desc(), InventoryMovement.id.desc()).all()
+    taqdirlar = _taqdir_hodisalari(db, company_id=company_id, start_date=start_date or None, end_date=end_date or None,
+                                   manbalar=("buyurtma", "ishlab"))
 
-    if not rows:
+    if not rows and not taqdirlar:
         _bosh = {"by_material": [], "by_order": [], "total_value": 0, "total_penoplast_m3": 0}
         if harakatlar:
             _bosh["harakatlar"] = []
@@ -15017,6 +15210,15 @@ def get_brak_material_summary(db: Session, start_date=None, end_date=None,
     # Barcha kerakli Inventory va Order obyektlarini oldindan yuklaymiz
     inv_ids = {r.inventory_id for r in rows if r.inventory_id}
     order_ids = {r.order_id for r in rows if r.order_id}
+    # kech125: buyurtma detali braki taqdirining buyurtmasi (yozuvdan)
+    _t_ri_ids = sorted({h["qator"].return_item_id for h in taqdirlar if h["qator"].return_item_id})
+    _t_ri = {}
+    if _t_ri_ids:
+        _tq = db.query(ReturnItem).filter(ReturnItem.id.in_(_t_ri_ids))
+        if company_id is not None:
+            _tq = _tq.filter(ReturnItem.company_id == company_id)
+        _t_ri = {r.id: r for r in _tq.all()}
+        order_ids |= {r.order_id for r in _t_ri.values() if r.order_id}
     inv_map = {i.id: i for i in db.query(Inventory).filter(Inventory.id.in_(inv_ids)).all()} if inv_ids else {}
     order_map = {o.id: o for o in db.query(Order).filter(Order.id.in_(order_ids)).all()} if order_ids else {}
 
@@ -15033,25 +15235,40 @@ def get_brak_material_summary(db: Session, start_date=None, end_date=None,
     harakat_royxati = []      # kech117 (A2)
     for r in rows:
         inv = inv_map.get(r.inventory_id)
+        ishora = _brak_ishora(r)
         price = _harakat_narxi(r, inv)
-        value = float(r.quantity or 0) * price
-        m3 = m3_for(inv, r.quantity)
+        miqdor = ishora * float(r.quantity or 0)
+        value = miqdor * price
+        m3 = ishora * m3_for(inv, r.quantity)
         total_value += value
         total_m3 += m3
         if harakatlar:
-            harakat_royxati.append({"return_item_id": r.return_item_id, "order_id": r.order_id, "value": value})
+            harakat_royxati.append({"return_item_id": r.return_item_id, "fp_loss_id": r.fp_loss_id,
+                                    "order_id": r.order_id, "value": value})
         key = r.item_name
         if key not in by_material_agg:
             by_material_agg[key] = {"item_name": r.item_name, "quantity": 0.0, "unit": r.unit,
                                      "unit_price": price, "value": 0.0, "m3": 0.0}
-        by_material_agg[key]["quantity"] += float(r.quantity or 0)
+        by_material_agg[key]["quantity"] += miqdor
         by_material_agg[key]["value"] += value
         by_material_agg[key]["m3"] += m3
+    # kech125: Tayyor mahsulotga o'tgan qiymat — alohida qator (material emas)
+    for h in taqdirlar:
+        total_value += h["qiymat"]
+        qt = h["qator"]
+        _ri = _t_ri.get(qt.return_item_id) if qt.return_item_id else None
+        if harakatlar:
+            harakat_royxati.append({"return_item_id": qt.return_item_id, "fp_loss_id": qt.fp_loss_id,
+                                    "order_id": (_ri.order_id if _ri is not None else None), "value": h["qiymat"],
+                                    "taqdir_id": qt.id})
+        _agg = by_material_agg.setdefault(BRAK_TAQDIR_QATORI, {"item_name": BRAK_TAQDIR_QATORI, "quantity": 0.0, "unit": "",
+                                                               "unit_price": 0.0, "value": 0.0, "m3": 0.0, "taqdir": True})
+        _agg["value"] += h["qiymat"]
 
     by_material = sorted(by_material_agg.values(), key=lambda x: -x["value"])
     for m in by_material:
         # Turli narxdagi harakatlar birlashganda — o'rtacha narx
-        if m["quantity"] > 0:
+        if m["quantity"] > 0 and not m.get("taqdir"):
             m["unit_price"] = m["value"] / m["quantity"]
         m["quantity"] = round(m["quantity"], 3)
         m["value"] = round(m["value"])
@@ -15059,28 +15276,47 @@ def get_brak_material_summary(db: Session, start_date=None, end_date=None,
 
     # ── Buyurtma bo'yicha ALOHIDA ──
     by_order_agg = {}
+
+    def _buyurtma_guruhi(oid):
+        if oid not in by_order_agg:
+            order = order_map.get(oid)
+            by_order_agg[oid] = {
+                "order_id": oid,
+                "order_number": order.order_number if order else f"#{oid}",
+                "client_name": (order.project.client_name if order and order.project else None),
+                "items": [], "total_value": 0.0, "total_m3": 0.0
+            }
+        return by_order_agg[oid]
+
     for r in rows:
         if not r.order_id:
             continue
         inv = inv_map.get(r.inventory_id)
+        ishora = _brak_ishora(r)
         price = _harakat_narxi(r, inv)
-        value = float(r.quantity or 0) * price
-        m3 = m3_for(inv, r.quantity)
-        if r.order_id not in by_order_agg:
-            order = order_map.get(r.order_id)
-            by_order_agg[r.order_id] = {
-                "order_id": r.order_id,
-                "order_number": order.order_number if order else f"#{r.order_id}",
-                "client_name": (order.project.client_name if order and order.project else None),
-                "items": [], "total_value": 0.0, "total_m3": 0.0
-            }
-        by_order_agg[r.order_id]["items"].append({
-            "item_name": r.item_name, "quantity": round(float(r.quantity or 0), 3),
-            "unit": r.unit, "value": round(value), "m3": round(m3, 3) if m3 > 0 else None,
+        value = ishora * float(r.quantity or 0) * price
+        m3 = ishora * m3_for(inv, r.quantity)
+        g = _buyurtma_guruhi(r.order_id)
+        g["items"].append({
+            "item_name": r.item_name, "quantity": round(ishora * float(r.quantity or 0), 3),
+            "unit": r.unit, "value": round(value), "m3": round(m3, 3) if m3 != 0 else None,
             "date": r.created_at.isoformat() if r.created_at else None
         })
-        by_order_agg[r.order_id]["total_value"] += value
-        by_order_agg[r.order_id]["total_m3"] += m3
+        g["total_value"] += value
+        g["total_m3"] += m3
+    for h in taqdirlar:
+        qt = h["qator"]
+        _ri = _t_ri.get(qt.return_item_id) if qt.return_item_id else None
+        if _ri is None or not _ri.order_id:
+            continue
+        g = _buyurtma_guruhi(_ri.order_id)
+        g["items"].append({
+            "item_name": (f"{BRAK_TAQDIR_QATORI} — {BRAK_TAQDIRLARI.get(qt.taqdir, qt.taqdir)}"
+                          + (" (bekor qilindi)" if h["bekor"] else "")),
+            "quantity": None, "unit": "", "value": round(h["qiymat"]), "m3": None, "taqdir": True,
+            "date": h["vaqt"].isoformat() if h["vaqt"] else None
+        })
+        g["total_value"] += h["qiymat"]
 
     by_order = sorted(by_order_agg.values(), key=lambda x: -x["total_value"])
     for o in by_order:
@@ -15097,6 +15333,794 @@ def get_brak_material_summary(db: Session, start_date=None, end_date=None,
         natija["harakatlar"] = harakat_royxati
     return natija
 
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# BRAK TAQDIRI (kech125, zip 146 — EGASI QARORLARI 07.10, QAYTA SO'RALMAYDI). Dizayn — `models.BrakTaqdir` izohida:
+#   * taqdir brak yozilganda (uch yo'lning tanasida `taqdir`) yoki keyin (`…/taqdir` marshrutlari) tanlanadi;
+#   * «Tashlandi» — jurnalda qator yo'q; «Tuzatildi» — tuzatish xomashyosi (brak) + «joyiga» (brak xomashyosi qaytadi) yoki
+#     «omborga» (TM, asl narx); «Kesildi» — TM ulush tannarx bilan; «2-nav» — TM to'liq tannarx bilan (sotuv narxi brakda);
+#   * pul ta'siri HODISA vaqtida (Q4): xomashyo — harakatlar (`created_at`), TM ga o'tgan qiymat — jurnal (`yaratilgan` /
+#     `bekor_vaqti`); o'tgan oy hisoboti o'zgarmaydi;
+#   * taqdir o'zgarsa — eskisining TESKARISI yoziladi (harakatlar o'chirilmaydi), TM dan AYNAN o'sha miqdor olinadi (bo'sh
+#     qoldiq yetmasa — rad, hech narsa o'zgarmaydi); brak yozuvi butunlay o'chirilsa — hammasi «bo'lmagandek».
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+_TAQDIR_MANBA_YORLIQ = {"buyurtma": "buyurtma detali", "ombor": "omborda turgan mahsulot", "ishlab": "ishlab chiqarish"}
+# tana maydonlari — taqdir bo'yicha ruxsat etilganlari (qolgani bo'sh bo'lishi SHART: noto'g'ri tana — xato, ma'lumot emas)
+_TAQDIR_MAYDONLARI = ("joy", "materiallar", "ishlatildi", "nomi", "miqdor", "birlik", "eni", "qalinligi", "narx")
+_TAQDIR_RUXSAT = {
+    "tashlandi": (),
+    "tuzatildi": ("joy", "materiallar"),
+    "kesildi": ("ishlatildi", "nomi", "miqdor", "birlik", "eni", "qalinligi", "narx"),
+    "ikkinchi_nav": ("narx",),
+}
+_TAQDIR_EPS = 0.001
+
+
+def _brak_ishora(h) -> float:
+    """Brak harakatining ishorasi: chiqim (+, zarar), taqdir kirimi (−: «joyiga» qaytgan xomashyo, bekor qilingan tuzatish)."""
+    return -1.0 if getattr(h, "movement_type", "out") == "in" else 1.0
+
+
+def brak_harakatlari_sharti(IM=None):
+    """kech125 (zip 146) — brak QIYMATIGA kiradigan HAMMA harakat: brak CHIQIMI (`brak_harakati_sharti`, avvalgidek) va taqdir
+    KIRIMI — faqat taqdir qatoriga bog'langan (`brak_taqdir_id IS NOT NULL`) va aniq `is_brak IS TRUE` kirim. Taqdirsiz kirim
+    (belgisiz ESKI kirim ham, migratsiya `is_brak` ni TRUE qilgan eski «Brak…» sababli kirim ham) — hech qachon brak qiymatiga
+    kirmaydi: o'tgan oylar raqami O'ZGARMAYDI (tools/test_brak_belgisi D2d). Qiymat — `_brak_ishora` × miqdor ×
+    `_brak_harakat_narxi`. Chaqiruvchilar: `get_brak_material_summary`, `brak_yozuv_qiymatlari`, `brak_davr_yozuvlari`."""
+    from sqlalchemy import and_ as _a125, or_ as _o125
+    if IM is None:
+        from models import InventoryMovement as IM
+    return _o125(_a125(IM.movement_type == "out", brak_harakati_sharti(IM)),
+                 _a125(IM.movement_type == "in", IM.is_brak.is_(True), IM.brak_taqdir_id.isnot(None)))
+
+
+def _taqdir_hodisalari(db: Session, company_id: int = None, start_date=None, end_date=None,
+                       manbalar=None, return_item_ids=None, fp_loss_ids=None) -> list:
+    """Davrdagi taqdir PUL hodisalari — [{"qator", "qiymat", "vaqt", "bekor"}]: qo'llanish (`yaratilgan`) zarardan `tm_tannarx`
+    ni chiqaradi (−), bekor qilinish (`bekor_vaqti`) qaytaradi (+). Egasi qarori Q4 — hodisa vaqtida (o'tgan oy o'zgarmaydi).
+    `manbalar` — ('buyurtma', 'ishlab') (Moliya «Brak» qatori) yoki ('ombor',) («Tayyor mahsulot yo'qotishi» qatori)."""
+    from models import BrakTaqdir as _BT
+    natija = []
+    for ustun, ishora, bekor in ((_BT.yaratilgan, -1.0, False), (_BT.bekor_vaqti, 1.0, True)):
+        q = db.query(_BT).filter(ustun.isnot(None), _BT.tm_tannarx.isnot(None), _BT.tm_tannarx != 0)
+        if company_id is not None:
+            q = q.filter(_BT.company_id == company_id)
+        if manbalar is not None:
+            q = q.filter(_BT.manba.in_(list(manbalar)))
+        if return_item_ids is not None:
+            q = q.filter(_BT.return_item_id.in_(list(return_item_ids) or [-1]))
+        if fp_loss_ids is not None:
+            q = q.filter(_BT.fp_loss_id.in_(list(fp_loss_ids) or [-1]))
+        if start_date is not None:
+            q = q.filter(ustun >= start_date)
+        if end_date is not None:
+            q = q.filter(ustun < end_date)
+        for r in q.order_by(_BT.id).all():
+            natija.append({"qator": r, "qiymat": ishora * float(r.tm_tannarx or 0),
+                           "vaqt": r.bekor_vaqti if bekor else r.yaratilgan, "bekor": bekor})
+    return natija
+
+
+def brak_davr_yozuvlari(db: Session, start_date=None, end_date=None, company_id: int = None) -> dict:
+    """kech125 (zip 146 — egasi qarori Q4 «hodisa vaqtida»): davrdagi HAR brak yozuvining SHU davrdagi qiymati — tahlil,
+    yo'nalishlar va «Tayyor mahsulot yo'qotishi» qatori uchun YAGONA hisob (Moliyadagi «Brak» qatori bilan bir qoida):
+      * `qaytarish` {ri_id: q} — buyurtma detali braki: O'Z harakatlari (yozuv shu davrda yozilgan bo'lsa — avvalgi qoida, yozuv
+        sanasi bo'yicha) + taqdir harakatlari va hodisalari (o'z vaqtida);
+      * `ishlab` {fpl_id: q} — ishlab chiqarish braki: xuddi shunday; harakati bog'lanmagan ESKI yozuv — `cost_amount` (yozilgan
+        davrda; uning harakatlari Moliyada bog'lamsiz sanaladi — avvalgi qoida);
+      * `ombor_brak` {fpl_id: q} — omborda turgan mahsulot yo'qotishining tuzatish xomashyosi (taqdir harakatlari, Moliya «Brak»);
+      * `ombor_tm` {fpl_id: q} — omborda turgan mahsulot yo'qotishi: `cost_amount` (yozilgan davrda) + taqdir hodisalari
+        («Tayyor mahsulot yo'qotishi» qatori);
+      * `yozuvlar` {("qaytarish"|"yoqotish", id): yozuv} — davrda yozilgan YOKI davrda taqdir hodisasi bo'lgan yozuvlar.
+    Davr — [start_date, end_date) (UTC, chegara KIRMAYDI); ikkalasi None — hamma vaqt."""
+    from models import InventoryMovement as _IM, Inventory as _Inv, FinishedProductLoss as _FPL
+    natija = {"qaytarish": {}, "ishlab": {}, "ombor_brak": {}, "ombor_tm": {}, "yozuvlar": {}}
+
+    def _davr(q, ustun):
+        if start_date is not None:
+            q = q.filter(ustun >= start_date)
+        if end_date is not None:
+            q = q.filter(ustun < end_date)
+        return q
+
+    def _bolaklar(ids):
+        ids = sorted(ids)
+        return [ids[i:i + 500] for i in range(0, len(ids), 500)]
+
+    inv_map = {}
+
+    def _qiymat(h):
+        if h.inventory_id and h.inventory_id not in inv_map:
+            _iq = db.query(_Inv).filter(_Inv.id == h.inventory_id)
+            if company_id is not None:
+                _iq = _iq.filter(_Inv.company_id == company_id)
+            inv_map[h.inventory_id] = _iq.first()
+        return _brak_ishora(h) * float(h.quantity or 0) * _brak_harakat_narxi(h, inv_map.get(h.inventory_id))
+
+    # 1) davrda yozilgan yozuvlar
+    rq = db.query(ReturnItem).filter(ReturnItem.reason == ReturnReason.DEFECT)
+    if company_id is not None:
+        rq = rq.filter(ReturnItem.company_id == company_id)
+    braklar = {r.id: r for r in _davr(rq, ReturnItem.returned_at).all()}
+    lq = db.query(_FPL)
+    if company_id is not None:
+        lq = lq.filter(_FPL.company_id == company_id)
+    yoqotishlar = {l.id: l for l in _davr(lq, _FPL.lost_at).all()}
+    davrdagi_ri, davrdagi_fpl = set(braklar), set(yoqotishlar)
+    # 2) taqdir harakatlari — hodisa vaqtida (`fpl_t` — yo'qotishlar harakatlari, `fpl_h` — yo'qotishlar pul hodisalari)
+    ri_t, fpl_t, fpl_h = {}, {}, {}
+    tq = db.query(_IM).filter(brak_harakatlari_sharti(_IM), _IM.brak_taqdir_id.isnot(None),
+                              (_IM.return_item_id.isnot(None)) | (_IM.fp_loss_id.isnot(None)))
+    if company_id is not None:
+        tq = tq.filter(_IM.company_id == company_id)
+    for h in _davr(tq, _IM.created_at).all():
+        if h.return_item_id is not None:
+            ri_t[h.return_item_id] = ri_t.get(h.return_item_id, 0.0) + _qiymat(h)
+        else:
+            fpl_t[h.fp_loss_id] = fpl_t.get(h.fp_loss_id, 0.0) + _qiymat(h)
+    # 3) taqdir hodisalari (TM ga o'tgan qiymat) — hodisa vaqtida
+    for h in _taqdir_hodisalari(db, company_id=company_id, start_date=start_date, end_date=end_date):
+        qt = h["qator"]
+        if qt.return_item_id is not None:
+            ri_t[qt.return_item_id] = ri_t.get(qt.return_item_id, 0.0) + h["qiymat"]
+        elif qt.fp_loss_id is not None:
+            fpl_h[qt.fp_loss_id] = fpl_h.get(qt.fp_loss_id, 0.0) + h["qiymat"]
+    # 4) davrda hodisasi bo'lgan (boshqa davrda yozilgan) yozuvlar
+    for _b in _bolaklar(set(ri_t) - set(braklar)):
+        _q2 = db.query(ReturnItem).filter(ReturnItem.id.in_(_b))
+        if company_id is not None:
+            _q2 = _q2.filter(ReturnItem.company_id == company_id)
+        braklar.update({r.id: r for r in _q2.all()})
+    for _b in _bolaklar((set(fpl_t) | set(fpl_h)) - set(yoqotishlar)):
+        _q3 = db.query(_FPL).filter(_FPL.id.in_(_b))
+        if company_id is not None:
+            _q3 = _q3.filter(_FPL.company_id == company_id)
+        yoqotishlar.update({l.id: l for l in _q3.all()})
+    # 5) brakning O'Z harakatlari — davrda yozilgan yozuvlarniki (istalgan vaqtdagi; avvalgi qoida)
+    ri_asl, fpl_asl, bogli = {}, {}, set()
+    for _b in _bolaklar(davrdagi_ri):
+        aq = db.query(_IM).filter(brak_harakatlari_sharti(_IM), _IM.brak_taqdir_id.is_(None), _IM.return_item_id.in_(_b))
+        if company_id is not None:
+            aq = aq.filter(_IM.company_id == company_id)
+        for h in aq.all():
+            ri_asl[h.return_item_id] = ri_asl.get(h.return_item_id, 0.0) + _qiymat(h)
+    _ish_davrda = [i for i in davrdagi_fpl if _ish_brakimi(yoqotishlar[i])]
+    for _b in _bolaklar(_ish_davrda):
+        aq = db.query(_IM).filter(brak_harakatlari_sharti(_IM), _IM.brak_taqdir_id.is_(None), _IM.fp_loss_id.in_(_b))
+        if company_id is not None:
+            aq = aq.filter(_IM.company_id == company_id)
+        for h in aq.all():
+            bogli.add(h.fp_loss_id)
+            fpl_asl[h.fp_loss_id] = fpl_asl.get(h.fp_loss_id, 0.0) + _qiymat(h)
+    # 6) yig'ish
+    for rid, r in braklar.items():
+        natija["qaytarish"][rid] = ri_asl.get(rid, 0.0) + ri_t.get(rid, 0.0)
+        natija["yozuvlar"][("qaytarish", rid)] = r
+    for lid, l in yoqotishlar.items():
+        natija["yozuvlar"][("yoqotish", lid)] = l
+        _yozilgan_davrda = lid in davrdagi_fpl
+        if _ish_brakimi(l):
+            q = fpl_t.get(lid, 0.0) + fpl_h.get(lid, 0.0)
+            if _yozilgan_davrda:
+                q += fpl_asl[lid] if lid in bogli else float(l.cost_amount or 0)
+            natija["ishlab"][lid] = q
+        else:
+            natija["ombor_brak"][lid] = fpl_t.get(lid, 0.0)
+            natija["ombor_tm"][lid] = (float(l.cost_amount or 0) if _yozilgan_davrda else 0.0) + fpl_h.get(lid, 0.0)
+    return natija
+
+
+def tm_yoqotish_qiymati(db: Session, start_date=None, end_date=None, company_id: int = None) -> float:
+    """kech125 (zip 146): Moliya «Tayyor mahsulot yo'qotishi (omborda)» qatori — omborda turgan mahsulot yo'qotishlari
+    (`cost_amount`, yozilgan davrda) + ularning taqdir hodisalari (tuzatilib o'sha partiyaga qaytgan, kesilgan, 2-nav — TM ga
+    o'tgan qiymat zarardan chiqadi; hodisa vaqtida — egasi qarori Q4). Ishlab chiqarish braki bu yerga KIRMAYDI («Brak»)."""
+    from models import FinishedProductLoss as _FPL
+    q = db.query(_FPL)
+    if company_id is not None:
+        q = q.filter(_FPL.company_id == company_id)
+    if start_date is not None:
+        q = q.filter(_FPL.lost_at >= start_date)
+    if end_date is not None:
+        q = q.filter(_FPL.lost_at < end_date)
+    jami = sum(float(l.cost_amount or 0) for l in q.all() if not _ish_brakimi(l))
+    jami += sum(h["qiymat"] for h in _taqdir_hodisalari(db, company_id=company_id, start_date=start_date,
+                                                         end_date=end_date, manbalar=("ombor",)))
+    return jami
+
+
+# ── yozuv, manba, qiymat ─────────────────────────────────────────────────────────────────────────────────────────────
+
+def _taqdir_brak_yozuvi(db: Session, turi: str, yozuv_id: int, company_id: int = None, lock: bool = False):
+    """Brak yozuvi — FAQAT shu korxonadan: 'qaytarish' — buyurtma detali braki (`ReturnItem`, sababi «Brak»), 'yoqotish' —
+    tayyor mahsulot braki (`FinishedProductLoss`: omborda turgan yoki ishlab chiqarishda). Topilmasa None (oracle yo'q)."""
+    from models import FinishedProductLoss as _FPL
+    if turi == "qaytarish":
+        q = db.query(ReturnItem).filter(ReturnItem.id == yozuv_id, ReturnItem.reason == ReturnReason.DEFECT)
+        if company_id is not None:
+            q = q.filter(ReturnItem.company_id == company_id)
+    elif turi == "yoqotish":
+        q = db.query(_FPL).filter(_FPL.id == yozuv_id)
+        if company_id is not None:
+            q = q.filter(_FPL.company_id == company_id)
+    else:
+        return None
+    if lock:
+        q = q.with_for_update()
+    return q.first()
+
+
+def _taqdir_manbasi(turi: str, yozuv) -> str:
+    """'buyurtma' (A) | 'ombor' (B) | 'ishlab' (C)."""
+    if turi == "qaytarish":
+        return "buyurtma"
+    return "ishlab" if _ish_brakimi(yozuv) else "ombor"
+
+
+def _taqdir_asl_harakatlari(db: Session, manba: str, yozuv, company_id: int) -> list:
+    """Brakning O'Z (taqdirdan oldingi) xomashyo harakatlari — A: `return_item_id`, C: `fp_loss_id`; taqdir harakatlari
+    (`brak_taqdir_id`) kirmaydi. B — xomashyo yechmaydi (bo'sh)."""
+    from models import InventoryMovement as _IM
+    if manba == "ombor":
+        return []
+    q = db.query(_IM).filter(brak_harakatlari_sharti(_IM), _IM.brak_taqdir_id.is_(None))
+    q = q.filter(_IM.return_item_id == yozuv.id) if manba == "buyurtma" else q.filter(_IM.fp_loss_id == yozuv.id)
+    if company_id is not None:
+        q = q.filter(_IM.company_id == company_id)
+    return q.order_by(_IM.id).all()
+
+
+def brak_yozuv_xomashyo_qiymati(db: Session, manba: str, yozuv, company_id: int) -> float:
+    """Brak yozuvining ASL qiymati (taqdirsiz «zarar»): A / C (bog'langan) — asl harakatlar (ishorali) × muzlatilgan narx
+    (Moliya bilan bir qoida); bog'lamsiz ESKI ishlab chiqarish braki va omborda turgan mahsulot yo'qotishi — `cost_amount`."""
+    from models import Inventory as _Inv
+    if manba == "ombor":
+        return float(yozuv.cost_amount or 0)
+    asl = _taqdir_asl_harakatlari(db, manba, yozuv, company_id)
+    if manba == "ishlab" and not asl:
+        return float(yozuv.cost_amount or 0)
+    jami = 0.0
+    for h in asl:
+        inv = None
+        if h.inventory_id is not None:
+            _q = db.query(_Inv).filter(_Inv.id == h.inventory_id)
+            if company_id is not None:
+                _q = _q.filter(_Inv.company_id == company_id)
+            inv = _q.first()
+        jami += _brak_ishora(h) * float(h.quantity or 0) * _brak_harakat_narxi(h, inv)
+    return jami
+
+
+def _taqdir_faol(db: Session, turi: str, yozuv_id: int, company_id: int = None, lock: bool = False):
+    """Yozuvning FAOL taqdir qatori (`bekor_vaqti IS NULL`) yoki None («Tashlandi»)."""
+    from models import BrakTaqdir as _BT
+    q = db.query(_BT).filter(_BT.bekor_vaqti.is_(None))
+    q = q.filter(_BT.return_item_id == yozuv_id) if turi == "qaytarish" else q.filter(_BT.fp_loss_id == yozuv_id)
+    if company_id is not None:
+        q = q.filter(_BT.company_id == company_id)
+    if lock:
+        q = q.with_for_update()
+    return q.order_by(_BT.id.desc()).first()
+
+
+# ── tana tekshiruvi ──────────────────────────────────────────────────────────────────────────────────────────────────
+
+def brak_taqdir_tana(db: Session, tana, manba: str, brak_miqdor: float, brak_birlik: str, company_id: int) -> dict:
+    """Taqdir tanasini QAT'IY tekshiradi (hech narsa yozilishidan OLDIN) — tur / chegara (`_clean_val("Taqdir")`), taqdirga
+    bog'liq majburiy va ortiqcha maydonlar, materiallarning shu korxonaga tegishliligi. Xato — `ValueError` (marshrut → 400).
+    Qaytaradi — toza lug'at (`materiallar` — [{"inventory_id"|"retsept_id", "miqdor"}])."""
+    from models import Inventory as _Inv, Recipe as _Rc
+    if not isinstance(tana, dict):
+        raise ValueError("Taqdir noto'g'ri berilgan")
+    toza = _clean_val("Taqdir", tana)
+    t = toza["taqdir"]
+    nomi_t = BRAK_TAQDIRLARI.get(t, t)
+
+    def _bosh(k):
+        v = toza.get(k)
+        return v is None or v == [] or (isinstance(v, str) and not v.strip())
+
+    ortiqcha = [k for k in _TAQDIR_MAYDONLARI if k not in _TAQDIR_RUXSAT[t] and not _bosh(k)]
+    if ortiqcha:
+        raise ValueError(f"«{nomi_t}» taqdirida bu maydon(lar) berilmaydi: {', '.join(ortiqcha)}")
+    natija = {"taqdir": t}
+    q_brak = float(brak_miqdor or 0)
+    if t == "tuzatildi":
+        joy = toza.get("joy")
+        if manba == "ombor":
+            if joy not in (None, "joyiga"):
+                raise ValueError("Omborda turgan mahsulot tuzatilsa — o'sha mahsulotga qaytadi (\"O'sha joyiga\")")
+            joy = "joyiga"
+        elif joy is None:
+            raise ValueError("Tuzatilgan detal qayerda ishlatildi — «O'sha joyiga» yoki «Omborga» ni tanlang")
+        natija["joy"] = joy
+        materiallar, korilgan = [], set()
+        for i, m in enumerate(toza.get("materiallar") or []):
+            _inv, _ret = m.get("inventory_id"), m.get("retsept_id")
+            if (_inv is None) == (_ret is None):
+                raise ValueError(f"Tuzatish xomashyosi {i + 1}-qator: material YOKI loy retseptini tanlang")
+            kalit = ("m", _inv) if _inv is not None else ("r", _ret)
+            if kalit in korilgan:
+                raise ValueError(f"Tuzatish xomashyosi {i + 1}-qator: bu xomashyo ro'yxatda ikki marta")
+            korilgan.add(kalit)
+            if _inv is not None:
+                _iq = db.query(_Inv).filter(_Inv.id == _inv, _Inv.is_deleted.isnot(True))
+                if company_id is not None:
+                    _iq = _iq.filter(_Inv.company_id == company_id)
+                inv = _iq.first()
+                if inv is None:
+                    raise ValueError(f"Tuzatish xomashyosi {i + 1}-qator: material topilmadi")
+                import services as _svc125
+                if (inv.item_name or "").startswith(_svc125.TAYYOR_LOY_PREFIKS):
+                    raise ValueError(f"Tuzatish xomashyosi {i + 1}-qator: tayyor loy — «Loy retsepti» orqali tanlanadi")
+                materiallar.append({"inventory_id": inv.id, "miqdor": float(m["miqdor"])})
+            else:
+                _rq = db.query(_Rc).filter(_Rc.id == _ret)
+                if company_id is not None:
+                    _rq = _rq.filter(_Rc.company_id == company_id)
+                if _rq.first() is None:
+                    raise ValueError(f"Tuzatish xomashyosi {i + 1}-qator: loy retsepti topilmadi")
+                materiallar.append({"retsept_id": _ret, "miqdor": float(m["miqdor"])})
+        natija["materiallar"] = materiallar
+    elif t == "kesildi":
+        ishlatildi = toza.get("ishlatildi")
+        if ishlatildi is None:
+            raise ValueError("Kesildi: brakning qancha qismi ishlatilganini yozing")
+        if ishlatildi > q_brak + _TAQDIR_EPS:
+            raise ValueError(f"Kesildi: ishlatilgan qism brak miqdoridan ({_miqdor_matn(q_brak)} {brak_birlik or ''}) "
+                             f"ko'p bo'lishi mumkin emas")
+        nomi = (toza.get("nomi") or "").strip()
+        if not nomi:
+            raise ValueError("Kesildi: yangi detal nomini yozing")
+        if toza.get("miqdor") is None:
+            raise ValueError("Kesildi: yangi detal miqdorini yozing")
+        birlik = (toza.get("birlik") or "").strip()
+        if not birlik:
+            raise ValueError("Kesildi: yangi detal birligini tanlang")
+        if birlik not in BRAK_TAQDIR_BIRLIKLARI and birlik != (brak_birlik or ""):
+            raise ValueError("Kesildi: birlik noto'g'ri")
+        natija.update(ishlatildi=min(float(ishlatildi), q_brak), nomi=nomi, miqdor=float(toza["miqdor"]),
+                      birlik=birlik, eni=toza.get("eni"), qalinligi=toza.get("qalinligi"), narx=toza.get("narx"))
+    elif t == "ikkinchi_nav":
+        narx = toza.get("narx")
+        if narx is None or narx <= 0:
+            raise ValueError("2-nav: sotuv narxini yozing (1 birlik uchun)")
+        natija["narx"] = float(narx)
+    return natija
+
+
+# ── harakat, TM ──────────────────────────────────────────────────────────────────────────────────────────────────────
+
+class _TaqdirSoxtaBuyurtma:
+    """Loy retsepti bo'yicha tuzatish xomashyosi (`services.deduct_loy_ingredients`) uchun — korxona, buyurtma raqami (A da
+    harakat shu buyurtmaga yoziladi — brak belgili, buyurtma tannarxiga KIRMAYDI) va sabab matni."""
+    def __init__(self, order_id, company_id, raqam):
+        self.id = order_id
+        self.company_id = company_id
+        self.order_number = raqam
+
+
+def _taqdir_inv(db: Session, inv_id, company_id, lock: bool = True):
+    from models import Inventory as _Inv
+    if not inv_id:
+        return None
+    q = db.query(_Inv).filter(_Inv.id == inv_id)
+    if company_id is not None:
+        q = q.filter(_Inv.company_id == company_id)
+    if lock:
+        q = q.with_for_update()
+    return q.first()
+
+
+def _taqdir_harakati(db: Session, *, inv, inventory_id, item_name, tur: str, miqdor: float, unit, unit_cost,
+                     sabab: str, order_id, company_id, return_item_id, fp_loss_id, taqdir_id, kim) -> None:
+    """Taqdir harakati — ombor qoldig'i (material bo'lsa) va jurnal: brak belgili (`is_brak=True`), muzlatilgan narx bilan,
+    brak yozuviga va taqdir qatoriga bog'langan."""
+    from models import InventoryMovement as _IM
+    _m = abs(float(miqdor or 0))
+    if _m <= 0:
+        return
+    if inv is not None:
+        _q = float(inv.stock_quantity or 0)
+        inv.stock_quantity = _q + _m if tur == "in" else _q - _m
+    db.add(_IM(company_id=company_id, inventory_id=inventory_id, item_name=(item_name or "—")[:150],
+               movement_type=tur, quantity=_m, unit=unit, reason=_jurnal_sabab(sabab), order_id=order_id,
+               return_item_id=return_item_id, fp_loss_id=fp_loss_id, brak_taqdir_id=taqdir_id,
+               unit_cost=(float(unit_cost) if unit_cost is not None else None), is_brak=True,
+               performed_by=(kim or None)))
+
+
+def _taqdir_teskari(db: Session, harakat, sabab: str, taqdir_id, company_id, kim) -> str:
+    """Harakatning AYNAN teskarisi (miqdor, narx, bog'lamlar o'sha) — qoldiq ham qaytadi. Jurnal matni qaytariladi."""
+    inv = _taqdir_inv(db, harakat.inventory_id, company_id)
+    tur = "in" if harakat.movement_type == "out" else "out"
+    _taqdir_harakati(db, inv=inv, inventory_id=harakat.inventory_id, item_name=harakat.item_name, tur=tur,
+                     miqdor=harakat.quantity, unit=harakat.unit, unit_cost=harakat.unit_cost, sabab=sabab,
+                     order_id=harakat.order_id, company_id=company_id, return_item_id=harakat.return_item_id,
+                     fp_loss_id=harakat.fp_loss_id, taqdir_id=taqdir_id, kim=kim)
+    return f"{harakat.item_name} {'+' if tur == 'in' else '−'}{_miqdor_matn(float(harakat.quantity or 0))} {harakat.unit or ''}".rstrip()
+
+
+def _taqdir_tm_manbasi(db: Session, manba: str, yozuv, company_id):
+    """TM yaratish uchun asl ma'lumot: A — buyurtma detali, B / C — tayyor mahsulot (o'chirilgan bo'lishi mumkin — None)."""
+    if manba == "buyurtma":
+        oi = None
+        if yozuv.order_item_id is not None:
+            _q = db.query(OrderItem).filter(OrderItem.id == yozuv.order_item_id)
+            if company_id is not None:
+                _q = _q.filter(OrderItem.company_id == company_id)
+            oi = _q.first()
+        return oi
+    if yozuv.finished_product_id is None:
+        return None
+    return get_finished_product(db, yozuv.finished_product_id, company_id)
+
+
+def _taqdir_asl_narx(manba: str, asl) -> float:
+    """«Tuzatildi — omborga» sotuv narxi — ASL narx (egasi qarori Q3): buyurtma detali — detal jami / buyurtmadagi miqdor
+    (`add_returned_to_stock` bilan bir qoida); tayyor mahsulot — uning narxi."""
+    if asl is None:
+        return 0.0
+    if manba == "buyurtma":
+        _ord = float(getattr(asl, "order_qty_normalized", 0) or 0)
+        return (float(asl.total_price or 0) / _ord) if _ord > 0 else 0.0
+    return float(asl.unit_price or 0)
+
+
+def _taqdir_tm_yarat(db: Session, *, manba, yozuv, asl, taqdir: str, nomi, miqdor: float, birlik, tannarx: float,
+                     narx: float, eni=None, qalinligi=None, company_id, kim):
+    """Brakdan YANGI tayyor mahsulot partiyasi (manba RETURNED — sotiladi, «+» ishlab chiqarish yo'q, hodim haqiga va ishlab
+    chiqarish hisobiga kirmaydi; `brak_taqdir` belgisi — boshqa partiya bilan birlashtirilmaydi). Tannarx muzlaydi
+    (`unit_cost_stable`) — sotuv / buyurtmaga olish shu narxda."""
+    _tn = _pul2(max(float(tannarx or 0), 0.0))
+    _q = float(miqdor or 0)
+    if manba == "buyurtma":
+        _nom = nomi or (asl.name if asl is not None else yozuv.item_name)
+        fp = FinishedProduct(
+            company_id=company_id, name=(_nom or "—")[:150],
+            category=(asl.category if asl is not None else None),
+            width=(eni if eni is not None else (asl.width if asl is not None else None)),
+            thickness=(qalinligi if qalinligi is not None else (asl.thickness if asl is not None else None)),
+            is_coated=bool(asl.is_coated) if asl is not None else False,
+            penoplast_id=(asl.penoplast_id if asl is not None else None),
+            product_type_id=(asl.product_type_id if asl is not None else None),
+            image_url=(asl.image_url if asl is not None else None),
+            from_order_id=yozuv.order_id)
+    else:
+        _nom = nomi or (asl.name if asl is not None else yozuv.product_name)
+        fp = FinishedProduct(
+            company_id=company_id, name=(_nom or "—")[:150],
+            category=(asl.category if asl is not None else yozuv.category),
+            width=(eni if eni is not None else (asl.width if asl is not None else None)),
+            thickness=(qalinligi if qalinligi is not None else (asl.thickness if asl is not None else None)),
+            is_coated=bool(asl.is_coated) if asl is not None else False,
+            penoplast_id=(asl.penoplast_id if asl is not None else None),
+            product_type_id=(asl.product_type_id if asl is not None else None),
+            recipe_id=(asl.recipe_id if asl is not None else None),
+            image_url=(asl.image_url if asl is not None else None))
+    from models import ProductionStatus as _PS125
+    fp.quantity = _q
+    fp.produced_quantity = _q
+    fp.unit = (birlik or "dona")[:20]
+    fp.unit_price = _pul2(max(float(narx or 0), 0.0))
+    fp.cost_price = _tn
+    fp.unit_cost_stable = (_tn / _q) if (_q > 0 and _tn > 0) else None
+    fp.volume_m3 = 0.0
+    fp.source = StockSource.RETURNED
+    fp.return_reason = f"Brak: {BRAK_TAQDIRLARI.get(taqdir, taqdir)}"[:50]
+    fp.production_status = _PS125.READY
+    fp.brak_taqdir = taqdir
+    fp.created_by = kim
+    fp.notes = f"Brak yozuvidan ({_TAQDIR_MANBA_YORLIQ.get(manba, manba)})"
+    db.add(fp)
+    db.flush()
+    return fp
+
+
+def _taqdir_tm_ochirilsinmi(db: Session, fp, company_id) -> bool:
+    """Brakdan yaratilgan partiya bo'sh qolsa va unga hech narsa ishora qilmasa — o'chiriladi (bo'sh «arvoh» qator qolmaydi).
+    Partiya taqdir bilan SHU korxonada yaratilgan — unga faqat shu korxona yozuvlari ishora qila oladi (korxona filtri bilan)."""
+    from models import (FinishedProductSale as _FPS, FinishedProductLoss as _FPL, BrakTaqdir as _BT)
+    if float(fp.quantity or 0) > 1e-9 or float(fp.reserved_quantity or 0) > 1e-9:
+        return False
+    _cid = fp.company_id if company_id is None else company_id
+    if (db.query(_FPS.id).filter(_FPS.finished_product_id == fp.id, _FPS.company_id == _cid).first()
+            or db.query(_FPL.id).filter(_FPL.finished_product_id == fp.id, _FPL.company_id == _cid).first()
+            or db.query(OrderItem.id).filter(OrderItem.finished_product_id == fp.id, OrderItem.company_id == _cid).first()
+            or db.query(ReturnItem.id).filter(ReturnItem.finished_product_id == fp.id, ReturnItem.company_id == _cid).first()):
+        return False
+    try:
+        from production_models import ProductionOrder as _PO125
+        if db.query(_PO125.id).filter(_PO125.finished_product_id == fp.id, _PO125.company_id == _cid).first():
+            return False
+    except ImportError:
+        pass
+    # boshqa (bekor qilingan) taqdir qatorlari ham shu partiyaga ishora qilishi mumkin — bog'lam uziladi
+    db.query(_BT).filter(_BT.tm_id == fp.id, _BT.company_id == _cid).update(
+        {"tm_id": None}, synchronize_session=False)
+    return True
+
+
+# ── qo'llash / bekor qilish ──────────────────────────────────────────────────────────────────────────────────────────
+
+def _taqdir_tm_tekshir(db: Session, qator, company_id):
+    """Bekor qilishdan OLDIN: TM dan AYNAN `tm_miqdor` olinishi mumkinmi (bo'sh qoldiq = qoldiq − band). Qaytaradi — qulflangan
+    TM (yoki None — TM ga hech narsa o'tmagan). Mumkin bo'lmasa `ValueError` (hech narsa o'zgarmagan)."""
+    _miq = float(qator.tm_miqdor or 0)
+    if _miq <= 1e-9:
+        return None
+    fp = get_finished_product(db, qator.tm_id, company_id, lock=True) if qator.tm_id else None
+    if fp is None:
+        raise ValueError("Bu brak taqdiri bilan omborga qo'shilgan tayyor mahsulot o'chirilgan (sotib bo'lingan) — "
+                         "taqdirni o'zgartirib bo'lmaydi")
+    _bor = float(fp.quantity or 0)
+    _band = float(fp.reserved_quantity or 0)
+    if _bor - _band + _TAQDIR_EPS < _miq:
+        _izoh = f", shundan band {_miqdor_matn(_band)}" if _band > 0 else ""
+        raise ValueError(f"Bu brak taqdiri bilan \"{fp.name}\" omboriga {_miqdor_matn(_miq)} {fp.unit} qo'shilgan, hozir bo'sh "
+                         f"qoldig'i {_miqdor_matn(max(_bor - _band, 0))} {fp.unit} (qoldiq {_miqdor_matn(max(_bor, 0))}{_izoh}) — "
+                         f"mahsulot sotilgan, band qilingan yoki kamaytirilgan, shuning uchun taqdirni o'zgartirib bo'lmaydi")
+    return fp
+
+
+def _taqdir_bekor_qil(db: Session, qator, vaqt, kim, company_id, harakatlar: bool = True) -> list:
+    """Faol taqdirni bekor qiladi (hodisa vaqtida — `bekor_vaqti`): TM dan AYNAN qo'shilgan miqdor / tannarx olinadi (yangi
+    partiya bo'sh qolsa — o'chadi), taqdir harakatlarining TESKARISI yoziladi (`harakatlar=False` — brak yozuvi butunlay
+    o'chirilayotganda: harakatlarni chaqiruvchi o'chiradi). Tekshiruv O'ZGARISHDAN OLDIN (`_taqdir_tm_tekshir`)."""
+    from models import InventoryMovement as _IM
+    jurnal = []
+    fp = _taqdir_tm_tekshir(db, qator, company_id)
+    if fp is not None:
+        _miq = float(qator.tm_miqdor or 0)
+        _q = float(fp.quantity or 0) - _miq
+        fp.quantity = 0.0 if _q < 1e-9 else _q
+        fp.cost_price = _pul2(max(float(fp.cost_price or 0) - float(qator.tm_tannarx or 0), 0.0))
+        if qator.tm_yangi:
+            _p = float(fp.produced_quantity or 0) - _miq
+            fp.produced_quantity = 0.0 if _p < 1e-9 else _p
+        jurnal.append(f"TM dan olindi: {fp.name} −{_miqdor_matn(_miq)} {fp.unit}")
+        db.flush()
+        if qator.tm_yangi and _taqdir_tm_ochirilsinmi(db, fp, company_id):
+            db.delete(fp)
+            db.flush()
+            jurnal.append("bo'sh partiya o'chirildi")
+    if harakatlar:
+        hq = db.query(_IM).filter(_IM.brak_taqdir_id == qator.id)
+        if company_id is not None:
+            hq = hq.filter(_IM.company_id == company_id)
+        for h in hq.order_by(_IM.id).all():
+            jurnal.append(_taqdir_teskari(db, h, f"Brak taqdiri bekor — {h.item_name}", qator.id, company_id, kim))
+    qator.bekor_vaqti = vaqt
+    qator.bekor_qilgan = kim
+    return jurnal
+
+
+def _taqdir_qolla(db: Session, *, turi: str, yozuv, manba: str, toza: dict, company_id, kim, vaqt) -> tuple:
+    """Yangi taqdirni qo'llaydi («Tashlandi» dan boshqa). Qaytaradi (qator, jurnal). Xato — `ValueError` (chaqiruvchi
+    tranzaksiyani qaytaradi)."""
+    from models import BrakTaqdir as _BT
+    t = toza["taqdir"]
+    q_brak = float(yozuv.quantity or 0)
+    birlik = yozuv.unit
+    nom = yozuv.item_name if manba == "buyurtma" else yozuv.product_name
+    asl_qiymat = brak_yozuv_xomashyo_qiymati(db, manba, yozuv, company_id)
+    asl = _taqdir_tm_manbasi(db, manba, yozuv, company_id)
+    jurnal = []
+    qator = _BT(company_id=company_id, manba=manba, taqdir=t,
+                return_item_id=(yozuv.id if turi == "qaytarish" else None),
+                fp_loss_id=(yozuv.id if turi == "yoqotish" else None),
+                joy=toza.get("joy"), ishlatildi=toza.get("ishlatildi"), nomi=toza.get("nomi"),
+                narx=(_pul2(toza["narx"]) if toza.get("narx") is not None else None),
+                yaratilgan=vaqt, yaratgan=kim)
+    db.add(qator)
+    db.flush()
+    _order_id = yozuv.order_id if manba == "buyurtma" else None
+    _bog = {"return_item_id": (yozuv.id if turi == "qaytarish" else None),
+            "fp_loss_id": (yozuv.id if turi == "yoqotish" else None)}
+    if t == "tuzatildi":
+        # 1) tuzatish xomashyosi — brak (zarar), hodisa vaqtida
+        for m in toza.get("materiallar") or []:
+            if m.get("inventory_id") is not None:
+                inv = _taqdir_inv(db, m["inventory_id"], company_id)
+                if inv is None:
+                    raise ValueError("Tuzatish xomashyosi topilmadi")
+                if float(inv.stock_quantity or 0) + _TAQDIR_EPS < m["miqdor"]:
+                    raise ValueError(f"{inv.item_name} yetishmayapti! Kerak: {_miqdor_matn(m['miqdor'])} {inv.unit or ''}, "
+                                     f"omborda: {_miqdor_matn(float(inv.stock_quantity or 0))} {inv.unit or ''}")
+                _taqdir_harakati(db, inv=inv, inventory_id=inv.id, item_name=inv.item_name, tur="out",
+                                 miqdor=m["miqdor"], unit=inv.unit, unit_cost=float(inv.price_per_unit or 0),
+                                 sabab=f"Brak tuzatish — {nom}", order_id=_order_id, company_id=company_id,
+                                 taqdir_id=qator.id, kim=kim, **_bog)
+                jurnal.append(f"tuzatish: {inv.item_name} −{_miqdor_matn(m['miqdor'])} {inv.unit or ''}".rstrip())
+            else:
+                import services as _svc125
+                _flag = "_brak_qaytarish_id" if turi == "qaytarish" else "_brak_yoqotish_id"
+                db.info[_flag] = yozuv.id
+                db.info["_brak_taqdir_id"] = qator.id
+                try:
+                    _log = _svc125.deduct_loy_ingredients(
+                        db, _TaqdirSoxtaBuyurtma(_order_id, company_id, f"Brak tuzatish — {nom}"), m["miqdor"],
+                        use_stock=True, recipe_id=m["retsept_id"],
+                        reason_override=_jurnal_sabab(f"Brak tuzatish — {nom} (loy, {_miqdor_matn(m['miqdor'])} kg)"),
+                        company_id=company_id, commit=False)
+                finally:
+                    db.info.pop(_flag, None)
+                    db.info.pop("_brak_taqdir_id", None)
+                jurnal.append(f"tuzatish: loy {_miqdor_matn(m['miqdor'])} kg" + (f" ({'; '.join(_log)})" if _log else ""))
+        # 2) tuzatilgan detal qayerga
+        if toza.get("joy") == "joyiga":
+            if manba == "ombor":
+                fp = get_finished_product(db, yozuv.finished_product_id, company_id, lock=True) \
+                    if yozuv.finished_product_id else None
+                if fp is None:
+                    raise ValueError("Mahsulot o'chirilgan — tuzatilgan qismni unga qaytarib bo'lmaydi")
+                fp.quantity = float(fp.quantity or 0) + q_brak
+                fp.cost_price = _pul2(float(fp.cost_price or 0) + float(yozuv.cost_amount or 0))
+                qator.tm_id, qator.tm_miqdor = fp.id, q_brak
+                qator.tm_tannarx, qator.tm_yangi = _pul2(float(yozuv.cost_amount or 0)), False
+                jurnal.append(f"tuzatildi — o'sha mahsulotga qaytdi: {fp.name} +{_miqdor_matn(q_brak)} {fp.unit}")
+            else:
+                asl_h = _taqdir_asl_harakatlari(db, manba, yozuv, company_id)
+                if not asl_h:
+                    raise ValueError("Bu brak yozuvining xomashyo harakatlari yozuvga bog'lanmagan (eski yozuv) — "
+                                     "«O'sha joyiga» qaytarib bo'lmaydi; «Omborga» ni tanlang")
+                for h in asl_h:
+                    jurnal.append("qaytdi: " + _taqdir_teskari(db, h, f"Brak tuzatildi — {nom}: xomashyo qaytdi",
+                                                               qator.id, company_id, kim))
+        else:
+            narx = _taqdir_asl_narx(manba, asl)
+            fp = _taqdir_tm_yarat(db, manba=manba, yozuv=yozuv, asl=asl, taqdir=t, nomi=None, miqdor=q_brak,
+                                  birlik=birlik, tannarx=asl_qiymat, narx=narx, company_id=company_id, kim=kim)
+            qator.tm_id, qator.tm_miqdor, qator.tm_tannarx, qator.tm_yangi = fp.id, q_brak, _pul2(fp.cost_price), True
+            qator.narx = _pul2(narx)
+            jurnal.append(f"tuzatildi — omborga: {fp.name} +{_miqdor_matn(q_brak)} {fp.unit}")
+    elif t == "kesildi":
+        ulush = (asl_qiymat * float(toza["ishlatildi"]) / q_brak) if q_brak > 0 else 0.0
+        fp = _taqdir_tm_yarat(db, manba=manba, yozuv=yozuv, asl=asl, taqdir=t, nomi=toza["nomi"], miqdor=toza["miqdor"],
+                              birlik=toza["birlik"], tannarx=ulush, narx=toza.get("narx") or 0.0,
+                              eni=toza.get("eni"), qalinligi=toza.get("qalinligi"), company_id=company_id, kim=kim)
+        qator.tm_id, qator.tm_miqdor, qator.tm_tannarx, qator.tm_yangi = fp.id, float(toza["miqdor"]), _pul2(fp.cost_price), True
+        jurnal.append(f"kesildi: {fp.name} +{_miqdor_matn(toza['miqdor'])} {fp.unit} "
+                      f"(brakdan {_miqdor_matn(toza['ishlatildi'])} {birlik or ''} ishlatildi)")
+    elif t == "ikkinchi_nav":
+        fp = _taqdir_tm_yarat(db, manba=manba, yozuv=yozuv, asl=asl, taqdir=t, nomi=None, miqdor=q_brak, birlik=birlik,
+                              tannarx=asl_qiymat, narx=toza["narx"], company_id=company_id, kim=kim)
+        qator.tm_id, qator.tm_miqdor, qator.tm_tannarx, qator.tm_yangi = fp.id, q_brak, _pul2(fp.cost_price), True
+        jurnal.append(f"2-nav: {fp.name} +{_miqdor_matn(q_brak)} {fp.unit} (narx {_miqdor_matn(toza['narx'])})")
+    db.flush()
+    return qator, jurnal
+
+
+def _taqdir_almashtir(db: Session, turi: str, yozuv, tana, company_id, kim, yangi_yozuv: bool = False) -> dict:
+    """Yozuvning taqdirini o'rnatadi / o'zgartiradi (yozuv QULFLANGAN holda chaqiriladi): tana tekshiruvi → faol taqdir bekor
+    (TM tekshiruvi bilan) → yangisi qo'llanadi → jurnal (Faoliyat). Hammasi chaqiruvchining tranzaksiyasida (ichki `commit`
+    yo'q); xato — `ValueError`."""
+    from models import ActivityLog as _AL
+    manba = _taqdir_manbasi(turi, yozuv)
+    toza = brak_taqdir_tana(db, tana, manba, float(yozuv.quantity or 0), yozuv.unit, company_id)
+    faol = _taqdir_faol(db, turi, yozuv.id, company_id, lock=True)
+    eski = faol.taqdir if faol is not None else "tashlandi"
+    if toza["taqdir"] == "tashlandi" and faol is None:
+        return {"taqdir": "tashlandi", "ozgardi": False, "yorliq": BRAK_TAQDIRLARI["tashlandi"]}
+    vaqt = datetime.utcnow()
+    jurnal = []
+    if faol is not None:
+        jurnal += _taqdir_bekor_qil(db, faol, vaqt, kim, company_id)
+    qator = None
+    if toza["taqdir"] != "tashlandi":
+        qator, _j = _taqdir_qolla(db, turi=turi, yozuv=yozuv, manba=manba, toza=toza, company_id=company_id,
+                                  kim=kim, vaqt=vaqt)
+        jurnal += _j
+    _nom = yozuv.item_name if turi == "qaytarish" else yozuv.product_name
+    db.add(_AL(company_id=company_id, action="brak_taqdir",
+               entity_type=("return" if turi == "qaytarish" else "finished_product_loss"), entity_id=yozuv.id,
+               entity_label=f"Brak: {_nom}"[:200],
+               old_value=(None if yangi_yozuv else BRAK_TAQDIRLARI.get(eski, eski)),
+               new_value=(BRAK_TAQDIRLARI.get(toza["taqdir"], toza["taqdir"])
+                          + (" · " + "; ".join(jurnal) if jurnal else ""))[:4000],
+               performed_by=kim))
+    db.flush()
+    return {"taqdir": toza["taqdir"], "ozgardi": True, "yorliq": BRAK_TAQDIRLARI[toza["taqdir"]],
+            "taqdir_id": (qator.id if qator is not None else None),
+            "tm_id": (qator.tm_id if qator is not None else None), "jurnal": jurnal}
+
+
+def brak_taqdir_belgila(db: Session, turi: str, yozuv_id: int, tana, company_id: int = None,
+                        performed_by: str = None):
+    """`POST /api/returns/{id}/taqdir` va `POST /api/finished/loss/{id}/taqdir` — brak taqdirini KEYIN o'zgartirish (egasi
+    qarori (2)). Qulf: buyurtma detali braki — (101, buyurtma) (`delete_return_item` / `create_return_item` bilan bir fazo),
+    so'ng yozuv qatori `FOR UPDATE`; tayyor mahsulot braki — yozuv qatori, keyin TM. Topilmasa None (marshrut → 404);
+    xato — `ValueError` (→ 400, hech narsa o'zgarmaydi). `commit` — chaqiruvchida (`bitta_tranzaksiya`)."""
+    yozuv = _taqdir_brak_yozuvi(db, turi, yozuv_id, company_id)
+    if yozuv is None:
+        return None
+    _cid = yozuv.company_id
+    if turi == "qaytarish" and yozuv.order_id is not None:
+        db.flush()
+        _pul_qulfi(db, 101, yozuv.order_id)
+        db.expire_all()
+    yozuv = _taqdir_brak_yozuvi(db, turi, yozuv_id, _cid, lock=True)
+    if yozuv is None:
+        return None
+    return _taqdir_almashtir(db, turi, yozuv, tana, _cid, performed_by)
+
+
+def brak_taqdir_ochir(db: Session, turi: str, yozuv, company_id, kim) -> list:
+    """Brak yozuvi BUTUNLAY o'chirilayotganda (`delete_return_item`, `delete_finished_product_loss`): faol taqdir TM qismi
+    bekor qilinadi (tekshiruv bilan — sotilgan bo'lsa `ValueError`, hech narsa o'zgarmaydi), HAMMA taqdir harakatlari qoldig'i
+    qaytarilib o'chiriladi (chiqim → +, kirim → −), taqdir qatorlari o'chadi — «bo'lmagandek» (avvalgi o'chirish qoidasi).
+    Brakning o'z (asl) harakatlari — chaqiruvchida (avvalgidek)."""
+    from models import BrakTaqdir as _BT, InventoryMovement as _IM
+    jurnal = []
+    faol = _taqdir_faol(db, turi, yozuv.id, company_id, lock=True)
+    if faol is not None:
+        jurnal += _taqdir_bekor_qil(db, faol, datetime.utcnow(), kim, company_id, harakatlar=False)
+    qq = db.query(_BT).filter(_BT.company_id == company_id)
+    qq = qq.filter(_BT.return_item_id == yozuv.id) if turi == "qaytarish" else qq.filter(_BT.fp_loss_id == yozuv.id)
+    qatorlar = qq.order_by(_BT.id).all()
+    _ids = [q.id for q in qatorlar]
+    if _ids:
+        for h in db.query(_IM).filter(_IM.brak_taqdir_id.in_(_ids), _IM.company_id == company_id).order_by(_IM.id).all():
+            inv = _taqdir_inv(db, h.inventory_id, company_id)
+            if inv is not None:
+                _q = float(inv.stock_quantity or 0)
+                inv.stock_quantity = _q + float(h.quantity or 0) if h.movement_type == "out" else _q - float(h.quantity or 0)
+            db.delete(h)
+        db.flush()
+        for q in qatorlar:
+            db.delete(q)
+        db.flush()
+        jurnal.append(f"taqdir yozuvlari o'chirildi: {len(_ids)}")
+    return jurnal
+
+
+def brak_taqdir_xaritasi(db: Session, turi: str, yozuv_ids, company_id: int = None) -> dict:
+    """Ro'yxatlar uchun: {yozuv_id: {"taqdir", "yorliq", "joy", "nomi", "ishlatildi", "narx", "tm_id", "tm_miqdor",
+    "materiallar"}} — faqat FAOL taqdiri borlar (yo'q — «Tashlandi»). Pul (tannarx) YO'Q — sahifa va tahlil ruxsatsiz ham oladi.
+    So'rovlar soni yozuvlar soniga bog'liq emas."""
+    from models import BrakTaqdir as _BT, InventoryMovement as _IM
+    ids = sorted({int(i) for i in (yozuv_ids or []) if i is not None})
+    if not ids:
+        return {}
+    ustun = _BT.return_item_id if turi == "qaytarish" else _BT.fp_loss_id
+    natija = {}
+    for _b in [ids[i:i + 500] for i in range(0, len(ids), 500)]:
+        q = db.query(_BT).filter(ustun.in_(_b), _BT.bekor_vaqti.is_(None))
+        if company_id is not None:
+            q = q.filter(_BT.company_id == company_id)
+        qatorlar = q.order_by(_BT.id).all()
+        _tq = [r.id for r in qatorlar]
+        materiallar = {}
+        if _tq:
+            hq = db.query(_IM).filter(_IM.brak_taqdir_id.in_(_tq), _IM.movement_type == "out")
+            if company_id is not None:
+                hq = hq.filter(_IM.company_id == company_id)
+            for h in hq.order_by(_IM.id).all():
+                materiallar.setdefault(h.brak_taqdir_id, []).append(
+                    {"nomi": h.item_name, "miqdor": round(float(h.quantity or 0), 6), "birlik": h.unit or ""})
+        for r in qatorlar:
+            natija[r.return_item_id if turi == "qaytarish" else r.fp_loss_id] = {
+                "taqdir": r.taqdir, "yorliq": BRAK_TAQDIRLARI.get(r.taqdir, r.taqdir), "joy": r.joy,
+                "nomi": r.nomi, "ishlatildi": r.ishlatildi,
+                "narx": float(r.narx) if r.narx is not None else None,
+                "tm_id": r.tm_id, "tm_miqdor": r.tm_miqdor,
+                "materiallar": materiallar.get(r.id, []),
+            }
+    return natija
+
+
+def brak_tuzatish_materiallari(db: Session, company_id: int) -> dict:
+    """«Tuzatildi» oynasidagi tanlov: loy retseptlari (kg — tayyor loy zaxirasidan, yetmasa xomashyodan) va materiallar
+    (o'chirilmagan; tayyor loy pozitsiyasi — retsept orqali). Narx berilmaydi (tannarx ruxsatidan mustaqil)."""
+    from models import Inventory as _Inv, Recipe as _Rc
+    import services as _svc125
+    inv = db.query(_Inv).filter(_Inv.company_id == company_id, _Inv.is_deleted.isnot(True),
+                                ~_Inv.item_name.like(_svc125.TAYYOR_LOY_PREFIKS + '%')).order_by(_Inv.item_name, _Inv.id).all()
+    ret = db.query(_Rc).filter(_Rc.company_id == company_id).order_by(_Rc.id).all()
+    return {
+        "retseptlar": [{"id": r.id, "nomi": _retsept_nomi53(r) or f"Retsept #{r.id}"} for r in ret],
+        "materiallar": [{"id": i.id, "nomi": i.item_name, "birlik": i.unit or ""} for i in inv],
+    }
 
 
 def get_supplier_purchased_items(db: Session, supplier_id: int,
