@@ -108,7 +108,7 @@ ESKI = {
     "POST /api/admin/advance-requests/{request_id}/reject": "AF",
     "GET /api/admin/pending-advance-requests": "AF",
     "GET /api/cron/cleanup-sessions": "-",
-    "GET /api/cron/find-chat-id": "-",
+    # kech130 (zip 154): «GET /api/cron/find-chat-id» (vaqtinchalik yordamchi) OLIB TASHLANDI
     "GET /api/cron/low-stock-check": "-",
     "GET /api/dashboard/charts": "AF",
     "GET /api/dashboard/debts": "AM",
@@ -430,6 +430,11 @@ YANGI_MARSHRUTLAR = {
     "GET /api/murojaatlar/{murojaat_id}": "A", "POST /api/murojaatlar/{murojaat_id}/xabar": "A",
     "GET /api/platform/murojaatlar": "PLAT", "GET /api/platform/murojaatlar/{murojaat_id}": "PLAT",
     "POST /api/platform/murojaatlar/{murojaat_id}/javob": "PLAT", "POST /api/platform/murojaatlar/{murojaat_id}/yopish": "PLAT",
+    # kech130 (zip 154): umumiy bot qayerga ulangani — FAQAT platforma admini; korxona botini ulash — Telegram sozlamasi
+    # (PUT /api/settings/telegram-bot) bilan bir xil ruxsat («Sozlamalar: Tahrirlash»); korxona boti webhooki — qorovulsiz
+    # (Telegram yuboradi; ichida korxona siri bilan solishtiriladi — sir yo'q / mos emas → 403)
+    "GET /api/system/telegram-webhook-info": "PLAT", "POST /api/settings/telegram-bot/ulash": "A",
+    "POST /telegram/webhook/{company_id}": "-",
 }
 # ATAYLAB o'zgarishlar (rol, marshrut) → yangi holat (True — ochiq). Sababi: tayyor rollar sahifa bo'yicha izchil.
 FARQLAR = {
