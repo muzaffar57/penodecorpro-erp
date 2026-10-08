@@ -40,6 +40,9 @@ import production_service
 
 import urllib.request
 import json as _json
+import re as _re_tg                        # kech130 (zip 154): bot tokeni ko'rinishi
+import hmac as _hmac_tg                    # kech130 (zip 154): webhook sirini solishtirish (vaqtga bog'liq emas)
+import secrets as _secrets_tg              # kech130 (zip 154): korxona boti sirini yaratish
 
 TELEGRAM_BOT_TOKEN  = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_COATING_ID = "8461987934"
@@ -317,6 +320,130 @@ def _send_telegram_document(chat_id: str, file_bytes: bytes, filename: str, capt
     except Exception as e:
         print(f"⚠ Telegram fayl yuborilmadi: {e}")
         return False
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# kech130 (zip 154) — TELEGRAM: BOT MANZILI HIMOYASI, HOLATI VA HAR KORXONAGA O'Z BOTI
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# O'LCHANGAN (kech129, 08.10): «🔐 Telegram xavfsizligini yoqish» qaysi saytda bosilsa (`request.base_url`), bot o'sha saytga
+# ulanadi. Staging va production bir xil bot tokenida bo'lganda staging dagi tugma production botini «o'g'irlagan»: @Penoustabot
+# xabarlari sinov saytiga borgan (staging logi `POST /telegram/webhook 200`, production logida yo'q), ustalar sinov bazasini ko'rgan
+# bo'lishi mumkin. QOIDA: Telegram tomonida bot manzilini O'ZGARTIRADIGAN har amal (setWebhook / deleteWebhook — umumiy bot ham,
+# korxona boti ham) FAQAT asosiy muhitda: Railway `RAILWAY_ENVIRONMENT_NAME` = «production» (07.10 jonli o'lchovi
+# `natija/k126/z1924/api_jonli.json` — production «production», domen web-production-a064). Boshqa yoki aniqlanmagan muhit — 409,
+# Telegram'ga so'rov KETMAYDI. O'qish (getMe / getWebhookInfo) — istalgan muhitda.
+TG_ASOSIY_MUHIT = "production"
+# Korxona boti ulanishi — korxona sozlamalarida (Railway o'zgaruvchisi EMAS: har mijoz uchun Railway ga tegilmaydi). Sir hech
+# qaysi javobga / sahifaga chiqmaydi (faqat Telegram'ga `secret_token` sifatida beriladi va kelgan so'rov bilan solishtiriladi).
+TG_KORXONA_SIR = "telegram_webhook_secret"
+TG_KORXONA_URL = "telegram_webhook_url"
+TG_KORXONA_BOT = "telegram_bot_username"
+# @BotFather tokeni: bot raqami + «:» + 35 belgi. Boshqa ko'rinish (bo'shliq, «/», «?») Telegram manziliga qo'shilib so'rovni
+# boshqa metodga burishi mumkin — ulashda rad etiladi.
+_TG_TOKEN_NAQSH = _re_tg.compile(r"^\d{5,15}:[A-Za-z0-9_-]{30,64}$")
+
+
+def _railway_muhit():
+    """Railway muhit nomi («production», «sinov» …); Railway dan tashqarida — bo'sh."""
+    return (os.environ.get("RAILWAY_ENVIRONMENT_NAME") or os.environ.get("RAILWAY_ENVIRONMENT") or "").strip()
+
+
+def _asosiy_muhitmi():
+    """AYNAN «production» (katta-kichik harf ham — Railway muhit nomlari farqlanadi; boshqa nom — asosiy emas)."""
+    return _railway_muhit() == TG_ASOSIY_MUHIT
+
+
+def _tg_sinov_muhit_xabari():
+    return (f"Bu sayt asosiy sayt emas (muhit: «{_railway_muhit() or 'aniqlanmadi'}»). Telegram botini ulash yoki uzish faqat "
+            "asosiy saytda (production) mumkin — aks holda bot asosiy saytdan uzilib, shu saytga ulanib qoladi va ustalar sinov "
+            "ma'lumotini ko'radi.")
+
+
+def _tg_asosiy_muhit_shart():
+    """Bot manzilini o'zgartiradigan amal oldidan: asosiy muhit bo'lmasa — 409 (Telegram'ga so'rov ketmaydi)."""
+    if not _asosiy_muhitmi():
+        raise HTTPException(status_code=409, detail=_tg_sinov_muhit_xabari())
+
+
+def _sayt_manzili(request):
+    """Shu saytning tashqi manzili. Railway proksisi ichkarida «http://» ko'rsatishi mumkin — Telegram faqat https ni qabul qiladi."""
+    return str(request.base_url).rstrip("/").replace("http://", "https://", 1)
+
+
+class TelegramRad(Exception):
+    """Telegram so'rovni rad etdi — matn Telegram'ning o'z tavsifi (masalan «Unauthorized»)."""
+
+
+def _tg_toza(matn, token):
+    """Xabardan bot tokenini olib tashlaydi (token hech qachon javobga / logga chiqmasin)."""
+    matn = str(matn)
+    return matn.replace(token, "…") if token else matn
+
+
+def _tg_xato_tavsifi(e):
+    """urllib HTTPError tanasidagi Telegram tavsifi («Conflict: … webhook is active …»). Ilgari faqat «HTTP Error 409:
+    Conflict» ko'rinardi — webhook faolmi yoki boshqa dastur getUpdates qilyaptimi, farqlab bo'lmasdi (kech129)."""
+    try:
+        tana = e.read()
+        d = _json.loads(tana.decode("utf-8", "replace")) if tana else {}
+        return (d.get("description") or "").strip() or str(e)
+    except Exception:
+        return str(e)
+
+
+def _tg_api(token, metod, maydonlar=None, timeout=10):
+    """Telegram Bot API chaqiruvi (POST, JSON) — natija `result`. Telegram rad etsa — `TelegramRad(tavsif)`; tarmoq xatosi —
+    o'zicha ko'tariladi (chaqiruvchi `_tg_toza` bilan ko'rsatadi)."""
+    import urllib.error as _ue
+    so_rov = urllib.request.Request(f"https://api.telegram.org/bot{token}/{metod}",
+                                    data=_json.dumps(maydonlar or {}).encode("utf-8"),
+                                    headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        tana = urllib.request.urlopen(so_rov, timeout=timeout).read()
+    except _ue.HTTPError as e:
+        raise TelegramRad(_tg_toza(_tg_xato_tavsifi(e), token))
+    try:
+        d = _json.loads(tana.decode("utf-8") if isinstance(tana, (bytes, bytearray)) else tana)
+    except Exception:
+        raise TelegramRad("Telegram javobi o'qilmadi")
+    if not isinstance(d, dict) or not d.get("ok"):
+        raise TelegramRad(_tg_toza(((d.get("description") if isinstance(d, dict) else "") or "noma'lum sabab").strip(), token))
+    return d.get("result")
+
+
+def _tg_sana(ts):
+    """Telegram vaqt tamg'asi (UNIX, UTC) → Toshkent vaqti «dd.mm.yyyy HH:MM»; yo'q bo'lsa — bo'sh."""
+    try:
+        if not ts:
+            return ""
+        from datetime import timezone as _tz
+        return _t_vaqt(datetime.fromtimestamp(int(ts), tz=_tz.utc)).strftime("%d.%m.%Y %H:%M")
+    except Exception:
+        return ""
+
+
+def _tg_webhook_holati(token):
+    """getWebhookInfo — FAQAT kerakli maydonlar (token, sir, IP manzil qaytarilmaydi)."""
+    r = _tg_api(token, "getWebhookInfo") or {}
+    return {"url": r.get("url") or "",
+            "pending_update_count": int(r.get("pending_update_count") or 0),
+            "last_error_date": r.get("last_error_date"),
+            "last_error_vaqt": _tg_sana(r.get("last_error_date")),
+            "last_error_message": r.get("last_error_message") or "",
+            "max_connections": r.get("max_connections")}
+
+
+def _tg_javob(token, chat_id, text):
+    """Usta botining oddiy javobi (klaviaturasiz) — bot tokeni ANIQ beriladi (umumiy bot yoki korxona boti). Xato — jim (log).
+    Umumiy bot uchun ilgari `_send_telegram_to(chat_id, matn)` edi (u ham muhit tokenini olardi) — xatti-harakat o'sha."""
+    if not token:
+        print("⚠ Telegram tokeni yo'q")
+        return
+    try:
+        _tg_post_message(token, chat_id, text)
+        print(f"✓ Telegram xabar yuborildi: {chat_id}")
+    except Exception as e:
+        print(f"⚠ Mijozga Telegram xabar yuborilmadi: {_tg_toza(e, token)}")
 
 
 def _master_bot_keyboard(db, master=None) -> dict:
@@ -6206,43 +6333,12 @@ def api_cron_cleanup_sessions(secret: str = "", db: Session = Depends(get_db)):
     return {"cleaned": True, "message": f"{total} ta eski sessiya tozalandi", "detail": result}
 
 
-# ═══════════════════════════════════════════════════════════════
-# VAQTINCHALIK YORDAMCHI: to'g'ri Telegram Chat ID'ni topish uchun.
-# Foydalanish: 1) Telegram'da botga (masalan @penodecorprobot) istalgan
-# xabar yozing (masalan "salom"). 2) Shu manzilni oching:
-# /api/cron/find-chat-id?secret=SIZNING_KALITINGIZ — u yerda, so'nggi
-# yozgan odamning ismi va Chat ID'si ko'rinadi. Chat ID'ni topgach, buni
-# TELEGRAM_COATING_ID o'rniga ishlatish uchun Claude'ga ayting.
-# ═══════════════════════════════════════════════════════════════
-@app.get("/api/cron/find-chat-id")
-def api_find_chat_id(secret: str = ""):
-    if not CRON_SECRET or secret != CRON_SECRET:
-        raise HTTPException(status_code=403, detail="Noto'g'ri maxfiy kalit")
-    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-    if not token:
-        return {"error": "TELEGRAM_BOT_TOKEN Railway'da o'rnatilmagan"}
-    try:
-        url = f"https://api.telegram.org/bot{token}/getUpdates"
-        with urllib.request.urlopen(url, timeout=8) as resp:
-            data = _json.loads(resp.read().decode("utf-8"))
-        results = []
-        for u in data.get("result", []):
-            msg = u.get("message") or u.get("channel_post")
-            if not msg:
-                continue
-            chat = msg.get("chat", {})
-            results.append({
-                "chat_id": chat.get("id"),
-                "chat_type": chat.get("type"),
-                "name": chat.get("title") or f"{chat.get('first_name','')} {chat.get('last_name','')}".strip(),
-                "username": chat.get("username"),
-                "text": msg.get("text")
-            })
-        if not results:
-            return {"message": "Hech qanday xabar topilmadi. Avval botga Telegram'da biror xabar yozing, keyin bu sahifani qayta oching."}
-        return {"found": results[-10:]}
-    except Exception as e:
-        return {"error": str(e)}
+# kech130 (zip 154): `GET /api/cron/find-chat-id` («VAQTINCHALIK YORDAMCHI» — 2026-08 da TELEGRAM_COATING_ID ni topish
+# uchun) OLIB TASHLANDI. O'LCHANGAN: u umumiy bot tokeni bilan `getUpdates` qilardi — bot webhook rejimida bo'lganda (production,
+# kech129 o'lchovi 08.10 17:00: telegram-debug getUpdates → «HTTP Error 409: Conflict») Telegram buni DOIM rad etadi, ya'ni
+# ishlamas edi; ishlaganda esa CRON_SECRET ni bilgan har kimga (URL dagi kalit loglarda qoladi) botga yozganlarning ismi,
+# username va xabar matnini berardi. O'rnini — botdagi «🪪 Mening ID raqamim» tugmasi (usta / admin o'z ID sini oladi) va
+# platforma adminiga `GET /api/system/telegram-debug`.
 
 
 @app.delete("/api/inventory/{item_id}")
@@ -8663,6 +8759,7 @@ def api_telegram_debug(current_user=Depends(auth.platform_admin_only)):
     except Exception as e:
         result["bot_info_error"] = str(e)
 
+    import urllib.error as _ue_dbg
     try:
         updates_url = f"https://api.telegram.org/bot{token}/getUpdates?limit=10"
         with _ur.urlopen(updates_url, timeout=10) as r:
@@ -8679,10 +8776,57 @@ def api_telegram_debug(current_user=Depends(auth.platform_admin_only)):
                 })
         result["recent_chats"] = recent_chats
         result["configured_backup_chat_id"] = os.environ.get("BACKUP_TELEGRAM_CHAT_ID", "(sozlanmagan)")
+    except _ue_dbg.HTTPError as e:
+        # kech130 (zip 154): 409 ning SABABI Telegram javob tanasida — ilgari yutilardi («HTTP Error 409: Conflict»), webhook
+        # faolmi yoki boshqa dastur (alohida server) getUpdates qilyaptimi, farqlab bo'lmasdi (kech129, 08.10 17:00).
+        result["updates_error"] = str(e)
+        _tv = _tg_toza(_tg_xato_tavsifi(e), token)
+        result["updates_error_tavsif"] = _tv
+        _tvk = _tv.lower()
+        if "webhook is active" in _tvk:
+            result["updates_error_izoh"] = ("Bot webhook rejimida ishlayapti — bu NORMAL (xabarlar saytga keladi). Qaysi saytga "
+                                            "ulanganini «Bot hozir qayerga ulangan» qatori ko'rsatadi.")
+        elif "terminated by other getupdates" in _tvk:
+            result["updates_error_izoh"] = ("Shu token bilan BOSHQA dastur (alohida server) xabarlarni o'qiyapti — bot bu saytga "
+                                            "emas, o'sha dasturga ishlayapti.")
+        else:
+            result["updates_error_izoh"] = ""
     except Exception as e:
         result["updates_error"] = str(e)
 
     return result
+
+
+@app.get("/api/system/telegram-webhook-info")
+def api_telegram_webhook_info(request: Request, current_user=Depends(auth.platform_admin_only)):
+    """kech130 (zip 154) — umumiy bot (@Penoustabot) HOZIR qayerga ulangan (Telegram `getWebhookInfo`) — «🔒 Telegram
+    xavfsizligi» kartochkasi ochilganda ko'rsatiladi. Faqat O'QISH (Telegram'da hech narsa o'zgarmaydi), FAQAT platforma admini.
+    Javobda bot TOKENI va webhook SIRI yo'q (faqat bot nomi, manzil, kutayotgan xabarlar soni, oxirgi xato).
+
+    holat: «mos» — shu saytga ulangan; «boshqa_sayt» — boshqa manzilga (kech129 dagi kabi sinov sayti «o'g'irlagan» bo'lishi
+    mumkin); «ulanmagan» — webhook yo'q; «token_yoq» — shu saytda `TELEGRAM_BOT_TOKEN` yo'q; «xato» — Telegram javob bermadi."""
+    bu_url = _sayt_manzili(request) + "/telegram/webhook"
+    natija = {"muhit": _railway_muhit(), "asosiy_muhit": _asosiy_muhitmi(), "bu_sayt_url": bu_url,
+              "token_sozlangan": False, "imzo_sozlangan": bool(TELEGRAM_WEBHOOK_SECRET),
+              "bot": None, "webhook": None, "mos": False, "holat": "token_yoq", "xato": ""}
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    if not token:
+        return natija
+    natija["token_sozlangan"] = True
+    try:
+        me = _tg_api(token, "getMe") or {}
+        natija["bot"] = {"id": me.get("id"), "username": me.get("username") or "", "first_name": me.get("first_name") or ""}
+        wh = _tg_webhook_holati(token)
+    except TelegramRad as e:
+        natija["holat"], natija["xato"] = "xato", f"Telegram rad etdi: {_tg_toza(e, token)}"
+        return natija
+    except Exception as e:
+        natija["holat"], natija["xato"] = "xato", f"Telegram bilan bog'lanishda xato: {_tg_toza(e, token)}"
+        return natija
+    natija["webhook"] = wh
+    natija["mos"] = wh["url"] == bu_url
+    natija["holat"] = "mos" if natija["mos"] else ("boshqa_sayt" if wh["url"] else "ulanmagan")
+    return natija
 
 
 @app.post("/api/system/telegram-setup-webhook-security")
@@ -8694,11 +8838,15 @@ def api_telegram_setup_webhook_security(request: Request, current_user=Depends(a
     Yangi, tasodifiy imzo o'zi yaratiladi va qaytariladi — buni albatta
     Railway'dagi TELEGRAM_WEBHOOK_SECRET muhit o'zgaruvchisiga qo'shib,
     saqlab qo'yish kerak (aks holda, server qayta ishga tushganda,
-    tizim eski imzoni "unutadi" va tekshiruv o'chib qoladi)."""
+    tizim eski imzoni "unutadi" va tekshiruv o'chib qoladi).
+
+    kech130 (zip 154): FAQAT asosiy saytda (production) — boshqa muhitda 409, Telegram'ga so'rov ketmaydi (kech129: staging dagi
+    shu tugma @Penoustabot ni sinov saytiga ulab qo'ygan edi). Javobda bot oldin qayerga ulangani ham (`oldingi_url`)."""
     import urllib.request as _ur
     import json as _json_mod
     import secrets as _secrets
 
+    _tg_asosiy_muhit_shart()
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     if not token:
         raise HTTPException(status_code=400, detail="TELEGRAM_BOT_TOKEN sozlanmagan")
@@ -8711,6 +8859,10 @@ def api_telegram_setup_webhook_security(request: Request, current_user=Depends(a
     webhook_url = str(request.base_url).rstrip("/") + "/telegram/webhook"
     webhook_url = webhook_url.replace("http://", "https://", 1)
     new_secret = _secrets.token_urlsafe(32)
+    try:
+        oldingi_url = _tg_webhook_holati(token)["url"]
+    except Exception:
+        oldingi_url = None          # faqat ma'lumot uchun — o'qilmasa ham ulash davom etadi
 
     try:
         set_url = f"https://api.telegram.org/bot{token}/setWebhook"
@@ -8738,6 +8890,7 @@ def api_telegram_setup_webhook_security(request: Request, current_user=Depends(a
     return {
         "status": "ok",
         "webhook_url": webhook_url,
+        "oldingi_url": oldingi_url,
         "new_secret": new_secret,
         "message": (
             "✅ Webhook xavfsiz imzo bilan qayta ro'yxatdan o'tkazildi. "
@@ -8761,10 +8914,14 @@ def api_telegram_delete_webhook(current_user=Depends(auth.platform_admin_only)):
     kech104 (K104-1): marshrut 2026-09-01 dagi tozalashda (`abb2044`) olib tashlangan, tugma va
     uning ogohlantirishi esa sahifada qolgan edi — platforma admini bosganda 404 "Not Found".
     Qayta tiklandi. Qorovul qo'shni `telegram-setup-webhook-security` bilan bir xil —
-    FAQAT platforma admini (korxona admini global botga tegolmaydi)."""
+    FAQAT platforma admini (korxona admini global botga tegolmaydi).
+
+    kech130 (zip 154): FAQAT asosiy saytda (production) — sinov saytida shu token bo'lsa, tugma production botining webhookini
+    o'chirib, ustalar botini to'xtatardi. Boshqa muhitda 409, Telegram'ga so'rov ketmaydi."""
     import urllib.request as _ur
     import json as _json_mod
 
+    _tg_asosiy_muhit_shart()
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     if not token:
         raise HTTPException(status_code=400, detail="TELEGRAM_BOT_TOKEN sozlanmagan")
@@ -9502,16 +9659,61 @@ def api_get_telegram_bot(db: Session = Depends(get_db),
     """Korxonaning o'z Telegram boti sozlamasi (Faza 3).
 
     Token QAYTARILMAYDI — faqat sozlangan yoki yo'qligi va oxirgi 4 belgisi.
-    Aks holda token brauzer tarixida va loglarda qolib ketardi."""
+    Aks holda token brauzer tarixida va loglarda qolib ketardi.
+
+    kech130 (zip 154): + bot ulanganmi (`ulangan` — ustalar botga yozsa javob oladimi), bot nomi va manzili, sayt asosiy
+    muhitdami (ulash tugmasi faqat asosiy saytda ishlaydi). Webhook SIRI QAYTARILMAYDI."""
     cid = auth.company_id_of(current_user)
     tok = crud.get_setting(db, "telegram_bot_token", "", company_id=cid) or ""
     chat = crud.get_setting(db, "telegram_chat_id", "", company_id=cid) or ""
+    _sir = crud.get_setting(db, TG_KORXONA_SIR, "", company_id=cid) or ""
+    _url = crud.get_setting(db, TG_KORXONA_URL, "", company_id=cid) or ""
+    _bot = crud.get_setting(db, TG_KORXONA_BOT, "", company_id=cid) or ""
+    _ulangan = bool(tok and _sir and _url)
     return {"configured": bool(tok),
             "token_hint": (("…" + tok[-4:]) if len(tok) >= 4 else ""),
             "chat_id": chat,
             # 9-sizish tuzatmasidan keyin o'z boti yo'q korxonaga xabar
             # UMUMAN yuborilmaydi — umumiy bot faqat 1-korxonaniki
-            "uses_system_bot": cid == auth.DEFAULT_COMPANY_ID}
+            "uses_system_bot": cid == auth.DEFAULT_COMPANY_ID,
+            "ulangan": _ulangan,
+            "bot_username": _bot if _ulangan else "",
+            "webhook_url": _url if _ulangan else "",
+            "asosiy_muhit": _asosiy_muhitmi()}
+
+
+def _tg_token_boshqa_korxonada(db, token, cid):
+    """Shu token BOSHQA korxona sozlamasida ham bormi (tizim so'rovi — TENANT_FILTER=1 da ham hamma korxona). Bitta bot ikki
+    korxonaga ulansa, ikkinchisining «Botni ulash» i birinchisining webhookini o'g'irlardi."""
+    import tenant_context as _tc
+    from models import CompanySetting as _CS
+    with _tc.system_context(db):
+        _bor = (db.query(_CS.company_id)
+                .filter(_CS.key == "telegram_bot_token", _CS.value == token, _CS.company_id != cid)
+                .first())
+    return _bor is not None
+
+
+def _korxona_botini_uzish(db, cid, eski_token, kim="", tozalandi=False):
+    """Korxona boti tokeni almashsa yoki tozalansa (kech130, reja 4-band): eski botning webhooki Telegram'da o'chiriladi —
+    FAQAT asosiy muhitda va FAQAT bot hozir AYNAN shu korxona manziliga ulangan bo'lsa (mijoz botni boshqa joyda ishlatayotgan
+    bo'lsa yoki baza sinov saytiga ko'chirilgan bo'lsa — Telegram'ga tegilmaydi). Bazadagi ulanish belgilari (sir, manzil, bot
+    nomi) HAR DOIM tozalanadi — eski sir bilan kelgan so'rov endi 403. Telegram javob bermasa ham saqlash to'xtamaydi."""
+    url = (crud.get_setting(db, TG_KORXONA_URL, "", company_id=cid) or "").strip()
+    bot = (crud.get_setting(db, TG_KORXONA_BOT, "", company_id=cid) or "").strip()
+    if _asosiy_muhitmi() and url and eski_token:
+        try:
+            if _tg_webhook_holati(eski_token)["url"] == url:
+                _tg_api(eski_token, "deleteWebhook", {"drop_pending_updates": False})
+        except Exception as e:
+            print(f"⚠ Eski korxona boti webhooki o'chirilmadi: {_tg_toza(e, eski_token)}")
+    for _k in (TG_KORXONA_SIR, TG_KORXONA_URL, TG_KORXONA_BOT):
+        crud.set_setting(db, _k, "", company_id=cid)
+    crud.log_activity(db, "telegram_bot_uzildi", "company", cid, "Korxona Telegram boti", performed_by=kim,
+                      old_value=(f"@{bot} → {url}" if bot else url) or None,
+                      new_value=("bot sozlamasi tozalandi" if tozalandi else "bot tokeni almashtirildi"), company_id=cid)
+    return ("Bot sozlamasi tozalandi — bot uzildi." if tozalandi else
+            "Bot tokeni o'zgardi — eski bot uzildi. Yangi botni ishlatish uchun «🔗 Botni ulash» ni bosing.")
 
 
 @app.put("/api/settings/telegram-bot")
@@ -9522,8 +9724,12 @@ def api_set_telegram_bot(token: str = Form(""), chat_id: str = Form(""),
 
     Har korxona O'Z botiga ega bo'ladi (@BotFather orqali yaratiladi).
     Bo'sh token yuborilsa — eski qiymat saqlanib qoladi (tasodifan
-    o'chirib yubormaslik uchun); tozalash uchun "-" yuboriladi."""
+    o'chirib yubormaslik uchun); tozalash uchun "-" yuboriladi.
+
+    kech130 (zip 154): bot ULANGAN bo'lsa va token almashsa / tozalansa — eski bot uziladi (`_korxona_botini_uzish`),
+    javobda `bot_uzildi: true` va xabar."""
     cid = auth.company_id_of(current_user)
+    _eski = (crud.get_setting(db, "telegram_bot_token", "", company_id=cid) or "").strip()
     t = (token or "").strip()
     if t == "-":
         crud.set_setting(db, "telegram_bot_token", "", company_id=cid)
@@ -9534,7 +9740,55 @@ def api_set_telegram_bot(token: str = Form(""), chat_id: str = Form(""),
         crud.set_setting(db, "telegram_chat_id", "", company_id=cid)
     elif c:
         crud.set_setting(db, "telegram_chat_id", c, company_id=cid)
-    return {"status": "ok"}
+    natija = {"status": "ok"}
+    _yangi = (crud.get_setting(db, "telegram_bot_token", "", company_id=cid) or "").strip()
+    if _eski and _yangi != _eski and (crud.get_setting(db, TG_KORXONA_SIR, "", company_id=cid) or ""):
+        natija["bot_uzildi"] = True
+        natija["message"] = _korxona_botini_uzish(db, cid, _eski, kim=current_user.username, tozalandi=not _yangi)
+    return natija
+
+
+@app.post("/api/settings/telegram-bot/ulash")
+def api_telegram_bot_ulash(request: Request, db: Session = Depends(get_db),
+                           current_user=Depends(auth.ruxsat("sozlama", "tahrirlash"))):
+    """kech130 (zip 154) — «🔗 Botni ulash»: korxonaning o'z boti (token — shu korxona sozlamasida) Telegram'da shu saytning
+    `/telegram/webhook/<korxona id>` manziliga yangi sir bilan ulanadi. Shundan keyin ustalar botga yozsa (/start,
+    «🪪 Mening ID raqamim», «💰 Bonuslarim», «🎁 Sovg'alar») javob shu korxona ma'lumotidan, shu bot orqali keladi.
+
+    Rad etiladi (Telegram'ga so'rov ketmaydi): asosiy muhit emas — 409; token yo'q / ko'rinishi noto'g'ri — 400; token —
+    platformaning umumiy boti — 400; shu token boshqa korxonada — 409. Telegram rad etsa — 400 (Telegram sababi bilan)."""
+    cid = auth.company_id_of(current_user)
+    _tg_asosiy_muhit_shart()
+    token = (crud.get_setting(db, "telegram_bot_token", "", company_id=cid) or "").strip()
+    if not token:
+        raise HTTPException(status_code=400, detail="Avval bot tokenini yozib «Saqlash» ni bosing (token @BotFather da olinadi).")
+    if not _TG_TOKEN_NAQSH.match(token):
+        raise HTTPException(status_code=400, detail=("Bot tokeni noto'g'ri ko'rinishda. @BotFather bergan tokenni to'liq nusxalab "
+                                                     "qayta saqlang (masalan 123456789:AAH… — raqamlar, «:», keyin 35 belgi)."))
+    if token == (os.environ.get("TELEGRAM_BOT_TOKEN", "") or "").strip():
+        raise HTTPException(status_code=400, detail=("Bu platformaning umumiy boti — uni korxonaga ulab bo'lmaydi. @BotFather da "
+                                                     "o'z botingizni oching va uning tokenini saqlang."))
+    if _tg_token_boshqa_korxonada(db, token, cid):
+        raise HTTPException(status_code=409, detail=("Bu bot boshqa korxonaning sozlamasida ham turibdi — bitta botni ikki "
+                                                     "korxonaga ulab bo'lmaydi. @BotFather da yangi bot oching."))
+    url = _sayt_manzili(request) + f"/telegram/webhook/{cid}"
+    sir = _secrets_tg.token_urlsafe(32)
+    try:
+        me = _tg_api(token, "getMe") or {}
+        _tg_api(token, "setWebhook", {"url": url, "secret_token": sir, "allowed_updates": ["message"]})
+    except TelegramRad as e:
+        raise HTTPException(status_code=400, detail=f"Telegram rad etdi: {_tg_toza(e, token)}")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Telegram bilan bog'lanishda xato: {_tg_toza(e, token)}")
+    bot = (me.get("username") or "").strip() if isinstance(me, dict) else ""
+    # Tartib ATAYLAB: avval Telegram, keyin baza — Telegram rad etsa eski (ishlab turgan) ulanish va uning siri buzilmaydi.
+    crud.set_setting(db, TG_KORXONA_SIR, sir, company_id=cid)
+    crud.set_setting(db, TG_KORXONA_URL, url, company_id=cid)
+    crud.set_setting(db, TG_KORXONA_BOT, bot, company_id=cid)
+    _nom = f"@{bot}" if bot else "bot"
+    crud.log_activity(db, "telegram_bot_ulandi", "company", cid, "Korxona Telegram boti", performed_by=current_user.username,
+                      new_value=f"{_nom} → {url}", company_id=cid)
+    return {"status": "ok", "bot": _nom, "webhook_url": url, "message": f"✅ Bot ulandi: {_nom} → {url}"}
 
 
 @app.post("/api/system/restore")
@@ -10613,8 +10867,12 @@ def api_project_yuk_jamlama_pdf(project_id: int, ids: str = "", db: Session = De
 # MAHSULOT RASMI VA BUYURTMA FAYLLARI (faqat qo'shimcha — hisob-kitobga ta'sir qilmaydi)
 # ============================================================
 
-def _master_by_chat_id(db, chat_id):
+def _master_by_chat_id(db, chat_id, korxonalar=None):
     """Telegram chat_id bo'yicha ustani topadi (ko'p-tenantga tayyor).
+
+    kech130 (zip 154): `korxonalar` (korxona id lari to'plami) berilsa — usta FAQAT shu korxonalardan qidiriladi (bo'sh
+    to'plam — hech kim). Umumiy bot — platforma egasi korxona(lar)i (`_umumiy_bot_korxonalari`), korxona boti — faqat o'sha
+    korxona. Berilmasa (None) — hamma korxona (eski xatti-harakat; `tools/test_platforma_obuna.py` B14 / B15).
 
     2026-09-19 — Faza 3 (Telegram): ilgari `Master.telegram_id` butun tizim
     bo'yicha YAGONA edi, shuning uchun bitta usta faqat BITTA korxonada
@@ -10628,8 +10886,12 @@ def _master_by_chat_id(db, chat_id):
     bot ulanganda, korxona bot tokenidan aniqlanadi va bu holat
     umuman tug'ilmaydi — bu keyingi qadam.)"""
     from models import Master as _Mst
+    if korxonalar is not None and not korxonalar:
+        return None, None
     rows = db.query(_Mst).filter(_Mst.telegram_id == chat_id,
                                  _Mst.is_active == True).all()
+    if korxonalar is not None:
+        rows = [_m for _m in rows if getattr(_m, "company_id", None) in korxonalar]
     if not rows:
         return None, None
     # kech111 — korxonasi bloklangan (platforma bloki) ustaga bot menyusi ishlamaydi: faqat ochiq korxonalar
@@ -10652,6 +10914,28 @@ def _master_by_chat_id(db, chat_id):
     return None, ("Sizning Telegram hisobingiz bir nechta korxonada usta "
                   "sifatida ro'yxatdan o'tgan. Iltimos, korxona "
                   "administratoriga murojaat qiling.")
+
+
+def _umumiy_bot_korxonalari(db):
+    """Umumiy bot (@Penoustabot, `TELEGRAM_BOT_TOKEN`) xizmat qiladigan korxonalar.
+
+    EGASI QARORI (08.10 17:42, kech129): «Ulanmasin penoustabotga — u faqat men uchun bo'lsin». Ilgari usta HAMMA korxonadan
+    qidirilardi — mijoz korxona ustasi umumiy botda o'z korxonasi nomi, bonusi, sovg'a davrini ko'rardi. Endi FAQAT platforma
+    egasi korxona(lar)i (`obuna.platforma_korxonalari` — platforma admini bor korxonalar); mijoz korxona ustasi umumiy botda
+    noma'lum foydalanuvchi — unga o'z korxonasining boti xizmat qiladi (`/telegram/webhook/<korxona id>`).
+    Platforma admini hali yo'q baza (yangi o'rnatish) — 1-korxona (`_tenant_telegram` dagi muhit boti qoidasi bilan bir xil)."""
+    try:
+        s = set(_obuna.platforma_korxonalari(db))
+    except Exception as e:
+        print(f"⚠ Platforma korxonalari o'qilmadi: {e}")
+        s = set()
+    return s or {auth.DEFAULT_COMPANY_ID}
+
+
+def _bot_ustasi(db, chat_id, korxona_id=None):
+    """Bot yozgan ustani topadi: korxona_id=None — umumiy bot (platforma korxonalari), aks holda — faqat shu korxona."""
+    _k = _umumiy_bot_korxonalari(db) if korxona_id is None else {korxona_id}
+    return _master_by_chat_id(db, chat_id, _k)
 
 
 ALLOWED_IMAGE_EXT = {".jpg", ".jpeg", ".png", ".webp"}
@@ -11037,44 +11321,37 @@ def api_debt_stats(db: Session = Depends(get_db), current_user=Depends(auth.ruxs
     return crud.get_debt_stats(db, company_id=auth.company_id_of(current_user))
 
 
-@app.post("/telegram/webhook")
-async def telegram_webhook(request: Request):
-    # Xavfsizlik: "standart yopiq" (fail-closed) — agar TELEGRAM_WEBHOOK_SECRET
-    # muhit o'zgaruvchisi sozlanmagan bo'lsa, so'rovni RAD ETAMIZ (avval esa
-    # sozlanmagan bo'lsa hech qanday tekshiruvsiz qabul qilinar edi). Bu —
-    # kelajakda o'zgaruvchi tasodifan o'chib qolsa ham, endpoint himoyasiz
-    # qolmasligini kafolatlaydi.
-    if not TELEGRAM_WEBHOOK_SECRET:
-        raise HTTPException(status_code=503, detail="Webhook sozlanmagan")
-    incoming_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
-    if incoming_secret != TELEGRAM_WEBHOOK_SECRET:
-        raise HTTPException(status_code=403, detail="Noto'g'ri imzo")
+def _usta_boti_javobi(data, token, korxona_id=None):
+    """Usta boti menyusi (/start, «🪪 Mening ID raqamim», «💰 Bonuslarim», «🎁 Sovg'alar») — umumiy bot ham, korxona boti ham.
 
-    try:
-        data = await request.json()
-    except:
+    kech130 (zip 154): ilgari bu `POST /telegram/webhook` ning o'zida edi va FAQAT umumiy bot (`TELEGRAM_BOT_TOKEN`) bilan javob
+    berardi. Endi:
+      * korxona_id=None — umumiy bot (@Penoustabot): usta FAQAT platforma egasi korxona(lar)idan (egasi QARORI 08.10 17:42),
+        javob `token` (muhit tokeni) bilan, noma'lum foydalanuvchiga — 1-korxona (bot egasi) imzosi (eski matnlar AYNAN);
+      * korxona_id=N — N korxonaning o'z boti: usta, nom, bonus, sovg'a davri — FAQAT N; javob N ning tokeni bilan.
+    Matnlar va klaviatura — eskisidek (tools/test_telegram_tenant.py, tools/test_sovga_davr_tenant.py)."""
+    egasi_cid = korxona_id or auth.DEFAULT_COMPANY_ID
+    message = data.get("message", {}) if isinstance(data, dict) else {}
+    if not message or not isinstance(message, dict):
         return {"ok": True}
-    message = data.get("message", {})
-    if not message:
-        return {"ok": True}
-    chat_id = str(message.get("chat", {}).get("id", ""))
-    text = (message.get("text") or "").strip().lower()
+    _chat = message.get("chat", {})
+    chat_id = str(_chat.get("id", "") if isinstance(_chat, dict) else "")
+    _matn = message.get("text") or ""
+    text = _matn.strip().lower() if isinstance(_matn, str) else ""
     if not chat_id:
         return {"ok": True}
 
     if text == "/start":
         db = SessionLocal()
         try:
-            from models import Master
-            master, _amb = _master_by_chat_id(db, chat_id)
+            master, _amb = _bot_ustasi(db, chat_id, korxona_id)
             if _amb:
-                _send_telegram_to(chat_id, _amb)
+                _tg_javob(token, chat_id, _amb)
                 return {"ok": True}
             keyboard = _master_bot_keyboard(db, master)
-            # 2026-09-21: bot — global (1-korxonaniki). Usta topilsa — uning
-            # korxonasi nomi, topilmasa — bot egasi (1-korxona) nomi.
-            _wh_cid = (getattr(master, "company_id", None) if master else None) \
-                or auth.DEFAULT_COMPANY_ID
+            # 2026-09-21: usta topilsa — uning korxonasi nomi, topilmasa — bot egasi nomi (umumiy bot — 1-korxona,
+            # korxona boti — o'sha korxona).
+            _wh_cid = (getattr(master, "company_id", None) if master else None) or egasi_cid
             _wh_nom = _tg_brand(db, _wh_cid)[0]
         finally:
             db.close()
@@ -11083,28 +11360,27 @@ async def telegram_webhook(request: Request):
                           else "Botga xush kelibsiz!")
                        + "\n\nQuyidagi tugmalardan foydalaning:")
         try:
-            _tg_post_message(os.environ.get('TELEGRAM_BOT_TOKEN', ''), chat_id,
-                             welcome_msg, reply_markup=keyboard)
+            _tg_post_message(token, chat_id, welcome_msg, reply_markup=keyboard)
         except Exception as e:
-            print(f"Keyboard SMS xatosi: {e}")
+            print(f"Keyboard SMS xatosi: {_tg_toza(e, token)}")
         return {"ok": True}
 
     if text in ["/id", "🪪 mening id raqamim", "mening id raqamim"]:
         reply = f"🪪 *Sizning Telegram ID raqamingiz:*\n\n`{chat_id}`\n\nShu raqamni nusxalab administratorga yuboring — ustalar ro'yxatiga qo'shilasiz va bonuslaringizni kuzatib borishingiz mumkin bo'ladi! 👷"
-        _send_telegram_to(chat_id, reply)
+        _tg_javob(token, chat_id, reply)
         return {"ok": True}
 
     if text in ["/bonus", "💰 bonuslarim", "bonuslarim", "/balans"]:
         db = SessionLocal()
+        master = None             # kech130: qidiruv xato bersa ham klaviatura chiziladi (ilgari NameError → 500)
         try:
-            from models import Master
-            master, _amb = _master_by_chat_id(db, chat_id)
+            master, _amb = _bot_ustasi(db, chat_id, korxona_id)
             if _amb:
-                _send_telegram_to(chat_id, _amb)
+                _tg_javob(token, chat_id, _amb)
                 return {"ok": True}
             if not master:
                 reply = ("❌ Siz ustalar ro'yxatida topilmadingiz.\n\nIltimos, administrator bilan bog'laning.\n\n"
-                         + _tg_footer(db, auth.DEFAULT_COMPANY_ID, bold=False, emoji="📞"))
+                         + _tg_footer(db, egasi_cid, bold=False, emoji="📞"))
             else:
                 # 2026-09-12: har doim ishlaydigan, yillik SOF FOYDADAN
                 # hisoblangan keshbek hisoboti (admin panelidagi "Ustalar
@@ -11116,7 +11392,7 @@ async def telegram_webhook(request: Request):
                 info = crud.get_master_yearly_cashback(
                     db, master.id, current_year,
                     company_id=getattr(master, "company_id", None))
-                reply = f"💰 *Sizning {current_year}-yil keshbegingiz*\n\n👤 {master.name}\n\n🎁 *Hisoblangan keshbek: {int(info['jami_bonus']):,} so'm*\n\n" + _tg_footer(db, getattr(master, "company_id", None) or auth.DEFAULT_COMPANY_ID, bold=False)
+                reply = f"💰 *Sizning {current_year}-yil keshbegingiz*\n\n👤 {master.name}\n\n🎁 *Hisoblangan keshbek: {int(info['jami_bonus']):,} so'm*\n\n" + _tg_footer(db, getattr(master, "company_id", None) or egasi_cid, bold=False)
         except Exception as e:
             reply = "⚠️ Xatolik yuz berdi. Iltimos qayta urinib ko'ring."
         finally:
@@ -11128,10 +11404,9 @@ async def telegram_webhook(request: Request):
         finally:
             db2.close()
         try:
-            _tg_post_message(os.environ.get('TELEGRAM_BOT_TOKEN', ''), chat_id,
-                             reply, reply_markup=keyboard)
+            _tg_post_message(token, chat_id, reply, reply_markup=keyboard)
         except Exception as e:
-            _send_telegram_to(chat_id, reply)
+            _tg_javob(token, chat_id, reply)
         return {"ok": True}
 
     if text in ["/sovgalar", "🎁 sovg'alar", "sovg'alar", "sovgalar"]:
@@ -11140,22 +11415,22 @@ async def telegram_webhook(request: Request):
         # ko'rsatilmaydi, faqat qaysi bosqichga yetgani/necha % qolgani
         # (eski show_gifts tizimi bilan bir xil falsafa).
         db = SessionLocal()
+        master = None             # kech130: qidiruv xato bersa ham klaviatura chiziladi (ilgari NameError → 500)
         try:
-            from models import Master
-            master, _amb = _master_by_chat_id(db, chat_id)
+            master, _amb = _bot_ustasi(db, chat_id, korxona_id)
             if _amb:
-                _send_telegram_to(chat_id, _amb)
+                _tg_javob(token, chat_id, _amb)
                 return {"ok": True}
             if not master:
                 reply = ("❌ Siz ustalar ro'yxatida topilmadingiz.\n\nIltimos, administrator bilan bog'laning.\n\n"
-                         + _tg_footer(db, auth.DEFAULT_COMPANY_ID, bold=False, emoji="📞"))
+                         + _tg_footer(db, egasi_cid, bold=False, emoji="📞"))
             else:
                 # kech108 (K107-1): ustaning O'Z korxonasidagi davr (ilgari korxonasiz — tizimdagi birinchi faol davr)
                 prog = crud.get_master_gift_period_progress(db, master.id,
                                                             company_id=getattr(master, "company_id", None))
                 if not prog["active"]:
                     reply = ("🎁 Hozircha faol sovg'a davri yo'q.\n\n"
-                             + _tg_footer(db, getattr(master, "company_id", None) or auth.DEFAULT_COMPANY_ID, bold=False))
+                             + _tg_footer(db, getattr(master, "company_id", None) or egasi_cid, bold=False))
                 else:
                     sales = prog["current_sales"]
                     reply = f"🎁 *Sovg'a davri — joriy holatingiz*\n\n👤 {master.name}\n━━━━━━━━━━━━━━━━━━━\n"
@@ -11170,7 +11445,7 @@ async def telegram_webhook(request: Request):
                             reply += f"⬜ {t['gift_name']} — {pct}% (qolgan: {100-pct}%)\n"
                         prev_threshold = t["threshold_amount"]
                     reply += ("━━━━━━━━━━━━━━━━━━━\n\n"
-                              + _tg_footer(db, getattr(master, "company_id", None) or auth.DEFAULT_COMPANY_ID, bold=False))
+                              + _tg_footer(db, getattr(master, "company_id", None) or egasi_cid, bold=False))
         except Exception as e:
             reply = "⚠️ Xatolik yuz berdi. Iltimos qayta urinib ko'ring."
         finally:
@@ -11182,13 +11457,56 @@ async def telegram_webhook(request: Request):
         finally:
             db2.close()
         try:
-            _tg_post_message(os.environ.get('TELEGRAM_BOT_TOKEN', ''), chat_id,
-                             reply, reply_markup=keyboard)
+            _tg_post_message(token, chat_id, reply, reply_markup=keyboard)
         except Exception as e:
-            _send_telegram_to(chat_id, reply)
+            _tg_javob(token, chat_id, reply)
         return {"ok": True}
 
     return {"ok": True}
+
+
+@app.post("/telegram/webhook")
+async def telegram_webhook(request: Request):
+    """Umumiy bot (@Penoustabot, `TELEGRAM_BOT_TOKEN`) — FAQAT platforma egasi korxona(lar)i ustalari (kech130, egasi QARORI)."""
+    # Xavfsizlik: "standart yopiq" (fail-closed) — agar TELEGRAM_WEBHOOK_SECRET
+    # muhit o'zgaruvchisi sozlanmagan bo'lsa, so'rovni RAD ETAMIZ (avval esa
+    # sozlanmagan bo'lsa hech qanday tekshiruvsiz qabul qilinar edi). Bu —
+    # kelajakda o'zgaruvchi tasodifan o'chib qolsa ham, endpoint himoyasiz
+    # qolmasligini kafolatlaydi.
+    if not TELEGRAM_WEBHOOK_SECRET:
+        raise HTTPException(status_code=503, detail="Webhook sozlanmagan")
+    incoming_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+    if not _hmac_tg.compare_digest(incoming_secret.encode("utf-8"), TELEGRAM_WEBHOOK_SECRET.encode("utf-8")):
+        raise HTTPException(status_code=403, detail="Noto'g'ri imzo")
+
+    try:
+        data = await request.json()
+    except Exception:
+        return {"ok": True}
+    return _usta_boti_javobi(data, os.environ.get("TELEGRAM_BOT_TOKEN", ""), korxona_id=None)
+
+
+@app.post("/telegram/webhook/{company_id}")
+async def telegram_korxona_webhook(company_id: int, request: Request):
+    """kech130 (zip 154) — KORXONANING O'Z BOTI (mijoz @BotFather da ochib, «Sozlamalar → 📱 Telegram bot» da ulaydi).
+
+    Telegram har xabarga ulashda berilgan sirni (`X-Telegram-Bot-Api-Secret-Token`) qo'shadi; sir — shu korxonaning sozlamasida
+    (`TG_KORXONA_SIR`). Sir yo'q (bot ulanmagan), token yo'q, korxona yo'q yoki sir mos emas (boshqa korxonaniki ham) — 403, hech
+    narsa o'qilmaydi va yuborilmaydi. Usta, nom, bonus, sovg'a — FAQAT shu korxona; javob shu korxona tokeni bilan."""
+    db = SessionLocal()
+    try:
+        token = (crud.get_setting(db, "telegram_bot_token", "", company_id=company_id) or "").strip()
+        sir = (crud.get_setting(db, TG_KORXONA_SIR, "", company_id=company_id) or "").strip()
+    finally:
+        db.close()
+    kelgan = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+    if not token or not sir or not _hmac_tg.compare_digest(kelgan.encode("utf-8"), sir.encode("utf-8")):
+        raise HTTPException(status_code=403, detail="Noto'g'ri imzo")
+    try:
+        data = await request.json()
+    except Exception:
+        return {"ok": True}
+    return _usta_boti_javobi(data, token, korxona_id=company_id)
 
 
 # ============================================================

@@ -5109,6 +5109,10 @@ AUDIT_AMALLARI = {
     "rasmiylashtirildi": ("✅", "rasmiylashtirildi", "Rasmiylashtirildi"),
     # kech127 (zip 150): bir martalik ma'lumot tuzatishi (`main._migrate_ord066_loy_xatosi` — ORD-066-1 loy rejasi 500 000 → 500)
     "loy_tuzatish": ("🛠️", "— loy rejasi xatosi tuzatildi", "Loy tuzatish"),
+    # kech130 (zip 154): korxonaning o'z Telegram boti ulandi («🔗 Botni ulash») yoki uzildi (token almashdi / tozalandi) —
+    # `new_value` da bot nomi va manzil
+    "telegram_bot_ulandi": ("🔗", "— ulandi", "Telegram bot"),
+    "telegram_bot_uzildi": ("🔌", "— uzildi", "Telegram bot"),
     # eski yozuvlar (zip 129 dan oldin shu nom bilan yozilishi mo'ljallangan, lekin NOT NULL sabab yozilmagan)
     "Zaxiradan tiklash": ("💾", "— zaxiradan tiklandi", "Zaxiradan tiklandi"),
 }
