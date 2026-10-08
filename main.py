@@ -9459,6 +9459,9 @@ async def api_upload_company_logo(file: UploadFile = File(...),
         raise HTTPException(status_code=400, detail="Rasm 2 MB dan katta bo'lmasin")
     if not data:
         raise HTTPException(status_code=400, detail="Fayl bo'sh")
+    # kech128 (zip 152): turi (content-type) brauzer aytgani — ichi ham rasm bo'lishi SHART (hujjatlarga chiqadi)
+    if rasm_imzosi(data) is None:
+        raise HTTPException(status_code=400, detail=RASM_EMAS_XABARI)
 
     cid = auth.company_id_of(current_user)
     # kech111: logotip boshqa yuklangan fayllar bilan BIR joyda — `static/uploads/logos/` (himoyalangan marshrut,
@@ -10675,6 +10678,25 @@ RASM_PIKSEL_CHEGARA = 60_000_000  # bundan katta rasm (piksel) — ishlov berilm
 RASM_KICHIK_PAPKA = "_kichik"
 _RASM_FORMATI = {".jpg": "JPEG", ".jpeg": "JPEG", ".png": "PNG", ".webp": "WEBP"}
 
+# kech128 (zip 152 — staging jonli sinovi 08.10, murojaat #1): kengaytmasi rasm (.jpg / .png / .webp), ichi esa rasm EMAS fayl
+# (masalan matn — `soxta.png`, 18 bayt) HAMMA rasm yuklash joylarida (detal, material, retsept, tayyor mahsulot, loyiha, qaytarish,
+# murojaat, buyurtma ilovasi, logotip) qabul qilinib saqlanardi — ko'rinishda «singan rasm», logotip bo'lsa hujjatlarda ham.
+# Endi fayl BOSHIDAGI imzo tekshiriladi (Pillow shart emas). Imzosi to'g'ri, lekin ichi buzilgan rasm — avvalgidek ASLICHA
+# (`rasmni_kichraytir` izohi; `tools/test_e_rasm.py` Y5). Kengaytma va imzo turi farq qilsa (PNG `.jpg` nomli) — rasm, qabul qilinadi.
+RASM_EMAS_XABARI = "Bu fayl rasm emas — JPG, PNG yoki WEBP rasm tanlang"
+
+
+def rasm_imzosi(contents: bytes):
+    """Fayl boshidagi imzo bo'yicha rasm turi: "JPEG" / "PNG" / "WEBP" yoki None (rasm emas yoki bo'sh)."""
+    b = contents or b""
+    if b[:3] == b"\xff\xd8\xff":
+        return "JPEG"
+    if b[:8] == b"\x89PNG\r\n\x1a\n":
+        return "PNG"
+    if len(b) >= 12 and b[:4] == b"RIFF" and b[8:12] == b"WEBP":
+        return "WEBP"
+    return None
+
 
 def _pillow():
     try:
@@ -10803,6 +10825,9 @@ def _save_upload(file: UploadFile, subfolder: str, allowed_ext: set) -> str:
     contents = file.file.read()
     if len(contents) > MAX_UPLOAD_SIZE:
         raise HTTPException(status_code=400, detail="Fayl hajmi 25 MB dan katta bo'lmasin")
+    # kech128 (zip 152): kengaytmasi rasm bo'lsa — ichi ham rasm bo'lishi SHART (faqat-rasm yuklamasi ham, buyurtma ilovasi ham)
+    if ext in ALLOWED_IMAGE_EXT and rasm_imzosi(contents) is None:
+        raise HTTPException(status_code=400, detail=RASM_EMAS_XABARI)
     # kech120 (G5-16): faqat-rasm yuklamasi — kichraytiriladi (ilovalar — ASLICHA, yuqoridagi izoh)
     faqat_rasm = allowed_ext == ALLOWED_IMAGE_EXT
     if faqat_rasm:
