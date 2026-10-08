@@ -371,7 +371,14 @@ def _sayt_manzili(request):
 
 
 class TelegramRad(Exception):
-    """Telegram so'rovni rad etdi — matn Telegram'ning o'z tavsifi (masalan «Unauthorized»)."""
+    """Telegram so'rovni rad etdi — matn Telegram'ning o'z tavsifi (masalan «Unauthorized»).
+
+    kech131 (zip 155): + `kod` — Telegram javobining HTTP kodi / `error_code` (401, 404, 409, 429 …; noma'lum — None). O'zbekcha
+    izoh (`_tg_xato_izohi`) shu kod bo'yicha tanlanadi."""
+
+    def __init__(self, tavsif, kod=None):
+        super().__init__(tavsif)
+        self.kod = kod
 
 
 def _tg_toza(matn, token):
@@ -391,9 +398,119 @@ def _tg_xato_tavsifi(e):
         return str(e)
 
 
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# kech131 (zip 155) — TELEGRAM XATOLARI O'ZBEKCHA
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# Ilgari foydalanuvchiga Telegram'ning XOM inglizcha javobi chiqardi: «Telegram rad etdi: Not Found», «… Unauthorized», bot holatida
+# «Oxirgi xato: Wrong response from the webhook: 403 Forbidden» — egasi ham, mijoz korxona admini ham o'qiy olmaydi (kech130 jonli
+# sinovi: staging «Bot hozir qayerga ulangan» — «❌ Telegram rad etdi: Not Found»; `telegram-debug` izohi faqat 409 ni tushuntirardi).
+# O'LCHANGAN (08.10 ~20:50, soxta tokenlar — haqiqiy bot yo'q; ichki brauzer, Telegram javobi o'zi):
+#   token KO'RINISHI buzuq (ikki nuqta yo'q, «-», oxirida bo'shliq)           → HTTP 404 {"error_code":404,"description":"Not Found"}
+#   ko'rinishi to'g'ri (raqam:belgilar), lekin bunday bot yo'q / token bekor → HTTP 401 {"error_code":401,"description":"Unauthorized"}
+#   (getMe, getWebhookInfo, getUpdates — bir xil). Staging dagi TELEGRAM_BOT_TOKEN — 404 holati.
+# QOIDA: izoh — NIMA bo'ldi va NIMA qilish kerak (token QAYERDA turganiga qarab); Telegram'ning o'z matni qavs ichida QOLADI (yordam
+# so'ralganda sababni aniq ko'rish uchun). Tanilmagan xato — eskisidek «Telegram rad etdi: …». Token hech qachon matnga tushmaydi.
+TG_JOY_UMUMIY = "umumiy"      # platformaning umumiy boti (@Penoustabot) — token Railway o'zgaruvchisida (TELEGRAM_BOT_TOKEN)
+TG_JOY_KORXONA = "korxona"    # korxonaning o'z boti — token korxona sozlamasida («Sozlamalar → 📱 Telegram bot»)
+
+
+def _tg_token_maslahati(joy):
+    """Token rad etilganda nima qilish kerak — token QAYERDA turganiga va saytga qarab."""
+    if joy == TG_JOY_KORXONA:
+        return ("@BotFather → /mybots → botingiz → «API Token» dan tokenni qayta nusxalab, «Bot tokeni» maydoniga yozing, «Saqlash» "
+                "ni bosing, so'ng «🔗 Botni ulash» ni qayta bosing.")
+    if _asosiy_muhitmi():
+        return ("@BotFather → /mybots → bot → «API Token» dan to'g'ri tokenni olib, Railway → Variables → TELEGRAM_BOT_TOKEN ga "
+                "qo'ying.")
+    # Sinov sayti: umumiy botning (asosiy saytdagi) tokenini bu yerga qo'yish — kech129 hodisasi (bot sinov saytiga «o'g'irlanardi»).
+    return ("Bu sinov sayti — bu yerda umumiy bot kerak emas: asosiy botning tokenini bu yerga QO'YMANG. Xohlasangiz Railway (sinov "
+            "muhiti) → Variables dan TELEGRAM_BOT_TOKEN ni o'chirib qo'yishingiz mumkin.")
+
+
+def _tg_xato_izohi(kod, tavsif, joy=TG_JOY_UMUMIY):
+    """Telegram rad javobi (HTTP kodi / `error_code` + Telegram tavsifi) → o'zbekcha izoh; tanilmasa — bo'sh qator."""
+    try:
+        kod = int(kod) if kod not in (None, "") else None
+    except (TypeError, ValueError):
+        kod = None
+    t = str(tavsif or "").strip().lower()
+    if kod == 401 or t == "unauthorized":
+        return ("Telegram bu bot tokenini qabul qilmadi — token noto'g'ri yoki eskirgan (bot @BotFather da o'chirilgan yoki tokeni "
+                "yangilangan). " + _tg_token_maslahati(joy))
+    if kod == 404 or t == "not found":
+        return ("Telegram bunday botni topmadi — bot tokeni noto'g'ri yozilgan (to'liq nusxalanmagan yoki ortiqcha belgi bor). "
+                + _tg_token_maslahati(joy))
+    if "webhook is active" in t:
+        return ("Bot webhook rejimida ishlayapti — bu NORMAL (xabarlar saytga keladi). Qaysi saytga ulanganini «Bot hozir qayerga "
+                "ulangan» qatori ko'rsatadi.")
+    if "terminated by other getupdates" in t:
+        return ("Shu token bilan BOSHQA dastur (alohida server) xabarlarni o'qiyapti — bot bu saytga emas, o'sha dasturga "
+                "ishlayapti.")
+    if kod == 429 or "too many requests" in t:
+        _m = _re_tg.search(r"retry after (\d+)", t)
+        return ("Telegram juda ko'p so'rov sababli vaqtincha kutishni so'radi — "
+                + (f"{_m.group(1)} soniyadan keyin" if _m else "birozdan keyin") + " qayta urinib ko'ring.")
+    if "bad webhook" in t:
+        return "Telegram botni shu sayt manziliga ulashni rad etdi — sayt manzili qabul qilinmadi."
+    if kod is not None and kod >= 500:
+        return "Telegram serverida vaqtincha nosozlik — birozdan keyin qayta urinib ko'ring."
+    return ""
+
+
+def _tg_xato_matni(kod, tavsif, joy=TG_JOY_UMUMIY):
+    """Foydalanuvchiga ko'rsatiladigan matn: o'zbekcha izoh + qavsda Telegram'ning o'z javobi; izoh topilmasa — eskisidek
+    «Telegram rad etdi: …». `tavsif` — tokendan TOZALANGAN bo'lishi shart (chaqiruvchi `_tg_toza` bilan beradi)."""
+    tavsif = str(tavsif or "").strip() or "noma'lum sabab"
+    izoh = _tg_xato_izohi(kod, tavsif, joy)
+    return f"{izoh} (Telegram rad etdi: {tavsif})" if izoh else f"Telegram rad etdi: {tavsif}"
+
+
+def _tg_tarmoq_xato_matni(e, token=""):
+    """Telegram'ga umuman yetib bo'lmadi (tarmoq, vaqt tugadi, DNS — `OSError` oilasi: `URLError`, `TimeoutError`) — o'zbekcha izoh +
+    qavsda xom sabab (tokensiz). Boshqa istisno (javobni o'qishdagi xato kabi) tarmoq deb ATALMAYDI — eskisidek xom matn."""
+    _xom = f"Telegram bilan bog'lanishda xato: {_tg_toza(e, token)}"
+    if isinstance(e, OSError):
+        return ("Server Telegram bilan bog'lana olmadi (internet yoki Telegram vaqtincha ishlamayapti) — birozdan keyin qayta "
+                f"urinib ko'ring. ({_xom})")
+    return _xom
+
+
+def _tg_webhook_xato_izohi(xabar):
+    """getWebhookInfo `last_error_message` — Telegram xabarni SAYTGA yetkaza olmagan oxirgi sabab → o'zbekcha ma'nosi; tanilmasa —
+    bo'sh. Bu — o'tmishdagi xato (vaqti alohida ko'rsatiladi); keyin xabarlar o'tgan bo'lsa, xato allaqachon tuzalgan."""
+    t = str(xabar or "").strip().lower()
+    if not t:
+        return ""
+    _m = _re_tg.search(r"wrong response from the webhook:\s*(\d{3})", t)
+    if _m:
+        k = int(_m.group(1))
+        if k == 403:
+            return ("sayt Telegram xabarini rad etdi (403) — saytdagi maxfiy imzo (TELEGRAM_WEBHOOK_SECRET) botga berilgan imzo bilan "
+                    "mos kelmadi")
+        if k == 503:
+            return ("sayt xabarni qabul qilmadi (503) — o'sha paytda TELEGRAM_WEBHOOK_SECRET sozlanmagan yoki sayt vaqtincha "
+                    "ishlamagan")
+        if k in (502, 504):
+            return f"sayt o'sha paytda javob bermadi ({k}) — ishlamagan yoki qayta ishga tushayotgan edi (masalan yangilanish paytida)"
+        if k == 404:
+            return "saytda bunday manzil topilmadi (404)"
+        if k == 500:
+            return "saytda ichki xato bo'ldi (500)"
+        return f"sayt xato javob qaytardi ({k})"
+    if "timed out" in t or "timeout" in t:
+        return "sayt o'z vaqtida javob bermadi"
+    if "resolve host" in t:
+        return "sayt manzili (domen) topilmadi"
+    if "ssl" in t or "certificate" in t:
+        return "sayt xavfsiz ulanishida (SSL sertifikati) muammo bor edi"
+    if "connection refused" in t:
+        return "sayt ulanishni rad etdi"
+    return ""
+
+
 def _tg_api(token, metod, maydonlar=None, timeout=10):
-    """Telegram Bot API chaqiruvi (POST, JSON) — natija `result`. Telegram rad etsa — `TelegramRad(tavsif)`; tarmoq xatosi —
-    o'zicha ko'tariladi (chaqiruvchi `_tg_toza` bilan ko'rsatadi)."""
+    """Telegram Bot API chaqiruvi (POST, JSON) — natija `result`. Telegram rad etsa — `TelegramRad(tavsif, kod)`; tarmoq xatosi —
+    o'zicha ko'tariladi (chaqiruvchi `_tg_tarmoq_xato_matni` bilan ko'rsatadi)."""
     import urllib.error as _ue
     so_rov = urllib.request.Request(f"https://api.telegram.org/bot{token}/{metod}",
                                     data=_json.dumps(maydonlar or {}).encode("utf-8"),
@@ -401,13 +518,14 @@ def _tg_api(token, metod, maydonlar=None, timeout=10):
     try:
         tana = urllib.request.urlopen(so_rov, timeout=timeout).read()
     except _ue.HTTPError as e:
-        raise TelegramRad(_tg_toza(_tg_xato_tavsifi(e), token))
+        raise TelegramRad(_tg_toza(_tg_xato_tavsifi(e), token), kod=getattr(e, "code", None))
     try:
         d = _json.loads(tana.decode("utf-8") if isinstance(tana, (bytes, bytearray)) else tana)
     except Exception:
         raise TelegramRad("Telegram javobi o'qilmadi")
     if not isinstance(d, dict) or not d.get("ok"):
-        raise TelegramRad(_tg_toza(((d.get("description") if isinstance(d, dict) else "") or "noma'lum sabab").strip(), token))
+        raise TelegramRad(_tg_toza(((d.get("description") if isinstance(d, dict) else "") or "noma'lum sabab").strip(), token),
+                          kod=(d.get("error_code") if isinstance(d, dict) else None))
     return d.get("result")
 
 
@@ -423,13 +541,15 @@ def _tg_sana(ts):
 
 
 def _tg_webhook_holati(token):
-    """getWebhookInfo — FAQAT kerakli maydonlar (token, sir, IP manzil qaytarilmaydi)."""
+    """getWebhookInfo — FAQAT kerakli maydonlar (token, sir, IP manzil qaytarilmaydi).
+    kech131 (zip 155): + `last_error_izoh` — oxirgi xatoning o'zbekcha ma'nosi (`_tg_webhook_xato_izohi`; tanilmasa — bo'sh)."""
     r = _tg_api(token, "getWebhookInfo") or {}
     return {"url": r.get("url") or "",
             "pending_update_count": int(r.get("pending_update_count") or 0),
             "last_error_date": r.get("last_error_date"),
             "last_error_vaqt": _tg_sana(r.get("last_error_date")),
             "last_error_message": r.get("last_error_message") or "",
+            "last_error_izoh": _tg_webhook_xato_izohi(r.get("last_error_message")),
             "max_connections": r.get("max_connections")}
 
 
@@ -8751,15 +8871,22 @@ def api_telegram_debug(current_user=Depends(auth.platform_admin_only)):
     if not token:
         return result
 
+    import urllib.error as _ue_dbg
     try:
         me_url = f"https://api.telegram.org/bot{token}/getMe"
         with _ur.urlopen(me_url, timeout=10) as r:
             me_data = _json_mod.loads(r.read())
         result["bot_info"] = me_data.get("result", {})
+    except _ue_dbg.HTTPError as e:
+        # kech131 (zip 155): ilgari faqat xom «HTTP Error 404: Not Found» — endi Telegram sababi va o'zbekcha izoh (401 / 404 — token)
+        result["bot_info_error"] = _tg_toza(e, token)
+        _bt = _tg_toza(_tg_xato_tavsifi(e), token)
+        result["bot_info_tavsif"] = _bt
+        result["bot_info_izoh"] = _tg_xato_izohi(getattr(e, "code", None), _bt, TG_JOY_UMUMIY)
     except Exception as e:
-        result["bot_info_error"] = str(e)
+        result["bot_info_error"] = _tg_toza(e, token)
+        result["bot_info_izoh"] = _tg_tarmoq_xato_matni(e, token) if isinstance(e, OSError) else ""
 
-    import urllib.error as _ue_dbg
     try:
         updates_url = f"https://api.telegram.org/bot{token}/getUpdates?limit=10"
         with _ur.urlopen(updates_url, timeout=10) as r:
@@ -8779,20 +8906,15 @@ def api_telegram_debug(current_user=Depends(auth.platform_admin_only)):
     except _ue_dbg.HTTPError as e:
         # kech130 (zip 154): 409 ning SABABI Telegram javob tanasida — ilgari yutilardi («HTTP Error 409: Conflict»), webhook
         # faolmi yoki boshqa dastur (alohida server) getUpdates qilyaptimi, farqlab bo'lmasdi (kech129, 08.10 17:00).
-        result["updates_error"] = str(e)
+        result["updates_error"] = _tg_toza(e, token)
         _tv = _tg_toza(_tg_xato_tavsifi(e), token)
         result["updates_error_tavsif"] = _tv
-        _tvk = _tv.lower()
-        if "webhook is active" in _tvk:
-            result["updates_error_izoh"] = ("Bot webhook rejimida ishlayapti — bu NORMAL (xabarlar saytga keladi). Qaysi saytga "
-                                            "ulanganini «Bot hozir qayerga ulangan» qatori ko'rsatadi.")
-        elif "terminated by other getupdates" in _tvk:
-            result["updates_error_izoh"] = ("Shu token bilan BOSHQA dastur (alohida server) xabarlarni o'qiyapti — bot bu saytga "
-                                            "emas, o'sha dasturga ishlayapti.")
-        else:
-            result["updates_error_izoh"] = ""
+        # kech131 (zip 155): izoh umumiy `_tg_xato_izohi` dan — 409 (webhook faol / boshqa dastur) matnlari AYNAN o'sha; + 401 / 404
+        # (token rad etildi), 429, 5xx. Tanilmasa — bo'sh (eskisidek).
+        result["updates_error_izoh"] = _tg_xato_izohi(getattr(e, "code", None), _tv, TG_JOY_UMUMIY)
     except Exception as e:
-        result["updates_error"] = str(e)
+        result["updates_error"] = _tg_toza(e, token)
+        result["updates_error_izoh"] = _tg_tarmoq_xato_matni(e, token) if isinstance(e, OSError) else ""
 
     return result
 
@@ -8804,7 +8926,8 @@ def api_telegram_webhook_info(request: Request, current_user=Depends(auth.platfo
     Javobda bot TOKENI va webhook SIRI yo'q (faqat bot nomi, manzil, kutayotgan xabarlar soni, oxirgi xato).
 
     holat: «mos» — shu saytga ulangan; «boshqa_sayt» — boshqa manzilga (kech129 dagi kabi sinov sayti «o'g'irlagan» bo'lishi
-    mumkin); «ulanmagan» — webhook yo'q; «token_yoq» — shu saytda `TELEGRAM_BOT_TOKEN` yo'q; «xato» — Telegram javob bermadi."""
+    mumkin); «ulanmagan» — webhook yo'q; «token_yoq» — shu saytda `TELEGRAM_BOT_TOKEN` yo'q; «xato» — Telegram javob bermadi.
+    kech131 (zip 155): «xato» matni — o'zbekcha izoh + qavsda Telegram matni (`_tg_xato_matni`); `webhook.last_error_izoh`."""
     bu_url = _sayt_manzili(request) + "/telegram/webhook"
     natija = {"muhit": _railway_muhit(), "asosiy_muhit": _asosiy_muhitmi(), "bu_sayt_url": bu_url,
               "token_sozlangan": False, "imzo_sozlangan": bool(TELEGRAM_WEBHOOK_SECRET),
@@ -8818,10 +8941,11 @@ def api_telegram_webhook_info(request: Request, current_user=Depends(auth.platfo
         natija["bot"] = {"id": me.get("id"), "username": me.get("username") or "", "first_name": me.get("first_name") or ""}
         wh = _tg_webhook_holati(token)
     except TelegramRad as e:
-        natija["holat"], natija["xato"] = "xato", f"Telegram rad etdi: {_tg_toza(e, token)}"
+        # kech131 (zip 155): o'zbekcha izoh (401 / 404 — token; sinov saytida «asosiy botning tokenini QO'YMANG») + Telegram matni
+        natija["holat"], natija["xato"] = "xato", _tg_xato_matni(e.kod, _tg_toza(e, token), TG_JOY_UMUMIY)
         return natija
     except Exception as e:
-        natija["holat"], natija["xato"] = "xato", f"Telegram bilan bog'lanishda xato: {_tg_toza(e, token)}"
+        natija["holat"], natija["xato"] = "xato", _tg_tarmoq_xato_matni(e, token)
         return natija
     natija["webhook"] = wh
     natija["mos"] = wh["url"] == bu_url
@@ -8880,12 +9004,16 @@ def api_telegram_setup_webhook_security(request: Request, current_user=Depends(a
             err_detail = err_body.get("description", str(e))
         except Exception:
             err_detail = str(e)
-        raise HTTPException(status_code=400, detail=f"Telegram rad etdi: {err_detail}")
+        # kech131 (zip 155): o'zbekcha izoh (401 / 404 — token qayerda va nima qilish kerak) + Telegram matni qavsda
+        raise HTTPException(status_code=400, detail=_tg_xato_matni(getattr(e, "code", None), _tg_toza(err_detail, token),
+                                                                   TG_JOY_UMUMIY))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Telegram bilan bog'lanishda xato: {e}")
+        raise HTTPException(status_code=500, detail=_tg_tarmoq_xato_matni(e, token))
 
     if not tg_response.get("ok"):
-        raise HTTPException(status_code=400, detail=f"Telegram rad etdi: {tg_response.get('description')}")
+        raise HTTPException(status_code=400, detail=_tg_xato_matni(tg_response.get("error_code"),
+                                                                   _tg_toza(tg_response.get("description") or "", token),
+                                                                   TG_JOY_UMUMIY))
 
     return {
         "status": "ok",
@@ -8938,12 +9066,16 @@ def api_telegram_delete_webhook(current_user=Depends(auth.platform_admin_only)):
             err_detail = err_body.get("description", str(e))
         except Exception:
             err_detail = str(e)
-        raise HTTPException(status_code=400, detail=f"Telegram rad etdi: {err_detail}")
+        # kech131 (zip 155): o'zbekcha izoh + Telegram matni qavsda (qo'shni marshrut bilan bir xil)
+        raise HTTPException(status_code=400, detail=_tg_xato_matni(getattr(e, "code", None), _tg_toza(err_detail, token),
+                                                                   TG_JOY_UMUMIY))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Telegram bilan bog'lanishda xato: {e}")
+        raise HTTPException(status_code=500, detail=_tg_tarmoq_xato_matni(e, token))
 
     if not tg_response.get("ok"):
-        raise HTTPException(status_code=400, detail=f"Telegram rad etdi: {tg_response.get('description')}")
+        raise HTTPException(status_code=400, detail=_tg_xato_matni(tg_response.get("error_code"),
+                                                                   _tg_toza(tg_response.get("description") or "", token),
+                                                                   TG_JOY_UMUMIY))
 
     return {
         "status": "ok",
@@ -9756,7 +9888,8 @@ def api_telegram_bot_ulash(request: Request, db: Session = Depends(get_db),
     «🪪 Mening ID raqamim», «💰 Bonuslarim», «🎁 Sovg'alar») javob shu korxona ma'lumotidan, shu bot orqali keladi.
 
     Rad etiladi (Telegram'ga so'rov ketmaydi): asosiy muhit emas — 409; token yo'q / ko'rinishi noto'g'ri — 400; token —
-    platformaning umumiy boti — 400; shu token boshqa korxonada — 409. Telegram rad etsa — 400 (Telegram sababi bilan)."""
+    platformaning umumiy boti — 400; shu token boshqa korxonada — 409. Telegram rad etsa — 400 (Telegram sababi bilan).
+    kech131 (zip 155): rad / tarmoq xatosi matni — o'zbekcha izoh + qavsda Telegram matni (`_tg_xato_matni`, joy «korxona»)."""
     cid = auth.company_id_of(current_user)
     _tg_asosiy_muhit_shart()
     token = (crud.get_setting(db, "telegram_bot_token", "", company_id=cid) or "").strip()
@@ -9777,9 +9910,11 @@ def api_telegram_bot_ulash(request: Request, db: Session = Depends(get_db),
         me = _tg_api(token, "getMe") or {}
         _tg_api(token, "setWebhook", {"url": url, "secret_token": sir, "allowed_updates": ["message"]})
     except TelegramRad as e:
-        raise HTTPException(status_code=400, detail=f"Telegram rad etdi: {_tg_toza(e, token)}")
+        # kech131 (zip 155): mijoz korxona admini inglizcha «Unauthorized» ni o'qiy olmaydi — o'zbekcha izoh (tokenni qayerdan qayta
+        # olish, «Saqlash», «🔗 Botni ulash») + Telegram matni qavsda
+        raise HTTPException(status_code=400, detail=_tg_xato_matni(e.kod, _tg_toza(e, token), TG_JOY_KORXONA))
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Telegram bilan bog'lanishda xato: {_tg_toza(e, token)}")
+        raise HTTPException(status_code=502, detail=_tg_tarmoq_xato_matni(e, token))
     bot = (me.get("username") or "").strip() if isinstance(me, dict) else ""
     # Tartib ATAYLAB: avval Telegram, keyin baza — Telegram rad etsa eski (ishlab turgan) ulanish va uning siri buzilmaydi.
     crud.set_setting(db, TG_KORXONA_SIR, sir, company_id=cid)
