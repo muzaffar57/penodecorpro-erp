@@ -15,8 +15,12 @@ BO'LIMLAR:
   B4 platforma egasi yopadi (tasdiq oynasi «Ha, yopish» / «Yo'q, qolsin»; «Yo'q» — o'zgarmaydi) → mijozda yozish formasi yo'q,
      «yopilgan» izohi;
   B5 telefon (390 px) va ilova yon paneli (756 px): gorizontal aylantirish yo'q, forma va yozishma sig'adi;
-  B6 JS xatosi yo'q (har sahifa).
-REJIMLAR: SQLite (odatiy); `PG_URL` bilan HAQIQIY PostgreSQL 16. Asl kodga (zip 150) qarshi QULAMAYDI — yiqiladi.
+  B6 JS xatosi yo'q (har sahifa);
+  B7 (kech128, zip 152 — staging jonli sinovida topilgan) platforma yozishma oynasi: rasm so'rovlari USHLAB turilib, yozishma
+     chizilgandan keyin qo'yib yuboriladi — rasmlar yuklangach oyna eng pastda, eng yangi xabar to'liq ko'rinadi; foydalanuvchi
+     o'zi tepaga aylantirgan bo'lsa — keyingi rasm yuklanganda oyna sakramaydi.
+REJIMLAR: SQLite (odatiy); `PG_URL` bilan HAQIQIY PostgreSQL 16. Asl kodga (zip 150) qarshi QULAMAYDI — yiqiladi (B7 — zip 151 ga
+qarshi ham yiqiladi).
 ISHLATISH: python3 tools/test_murojaat_ui.py
 """
 import os
@@ -390,6 +394,121 @@ if PW_BOR:
                     _bad.append((_w, _url, _sc, _el))
                 cx.close()
         check("B5 390 px va 756 px: gorizontal aylantirish yo'q, forma / ro'yxat ekranga sig'adi", not _bad, _bad)
+
+        # ══════════════════════════════════════════════════════════════════════════════════════════════════════
+        section("B7. Platforma yozishma oynasi — rasmlar KEYIN yuklansa ham eng yangi xabar ko'rinadi (kech128, zip 152)")
+        # ══════════════════════════════════════════════════════════════════════════════════════════════════════
+        # O'LCHANGAN (staging, 08.10): oyna (420 px) rasmlar yuklanishidan OLDIN pastga aylantirilardi; rasmlar keyin yuklanib
+        # balandlik oshgach eng yangi xabar pastda yashirinib qolardi (3 xabar, 2 rasm: oyna boshida — 578 / 420 px). Rasm so'rovlari
+        # USHLAB turiladi (`page.route`) va yozishma chizilgandan KEYIN qo'yib yuboriladi — kechikish aniq takrorlanadi.
+        def baland_png(rang):
+            from PIL import Image
+            b = io.BytesIO()
+            Image.new("RGB", (300, 900), rang).save(b, "PNG")
+            return b.getvalue()
+
+        _YUBOR = """async ([yol, maydonlar, b64]) => {
+            const fd = new FormData();
+            for (const k in maydonlar) fd.append(k, maydonlar[k]);
+            if (b64) { const s = atob(b64); const u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i);
+                       fd.append('file', new Blob([u], {type: 'image/png'}), 'baland.png'); }
+            const r = await fetch(yol, {method: 'POST', body: fd, credentials: 'same-origin'});
+            let d = null; try { d = await r.json(); } catch (e) { d = null; }
+            return {st: r.status, id: d && d.id}; }"""
+
+        def yozishma_yasa(nomi, rang1, rang2):
+            """Mijoz (rasm bilan) → platforma javobi (rasm bilan) → mijozning eng yangi xabari (rasmsiz) — o'z sahifalaridan
+            (brauzer seansi bilan). Murojaat raqami yoki None."""
+            import base64
+            r1 = ev(pa, _YUBOR, ["/api/murojaatlar", {"turi": "savol", "matn": nomi + " — 1-xabar"},
+                                 base64.b64encode(baland_png(rang1)).decode()])
+            mid = r1.get("id") if isinstance(r1, dict) and r1.get("st") == 200 else None
+            if not mid:
+                print(f"    (yozishma yasalmadi: {r1})")
+                return None
+            r2 = ev(pe, _YUBOR, [f"/api/platform/murojaatlar/{mid}/javob", {"matn": nomi + " — platforma javobi"},
+                                 base64.b64encode(baland_png(rang2)).decode()])
+            r3 = ev(pa, _YUBOR, [f"/api/murojaatlar/{mid}/xabar", {"matn": nomi + " — ENG YANGI XABAR"}, ""])
+            if not (isinstance(r2, dict) and r2.get("st") == 200 and isinstance(r3, dict) and r3.get("st") == 200):
+                print(f"    (yozishma to'liq yasalmadi: {r2} {r3})")
+                return None
+            return mid
+
+        USHLANGAN = []
+        RASM_YOL = re.compile(r".*/static/uploads/murojaat/.*")
+
+        def ushla(route):
+            USHLANGAN.append(route)
+
+        def qoyib_yubor():
+            while USHLANGAN:
+                rt = USHLANGAN.pop(0)
+                try:
+                    rt.continue_()
+                except Exception:          # noqa: BLE001
+                    pass
+
+        _OYNA = """() => { const xs = document.getElementById('mpXabarlar'); if (!xs) return null;
+            const x = xs.querySelectorAll('.mp-xabar'); const oxirgi = x.length ? x[x.length - 1].getBoundingClientRect() : null;
+            const q = xs.getBoundingClientRect();
+            return {n: x.length, sh: xs.scrollHeight, ch: xs.clientHeight, st: Math.round(xs.scrollTop),
+                    pastda: xs.scrollHeight - xs.clientHeight - xs.scrollTop < 24,
+                    oxirgiKorinadi: !!oxirgi && oxirgi.bottom <= q.bottom + 1 && oxirgi.top >= q.top - 1,
+                    oxirgiMatn: x.length ? x[x.length - 1].querySelector('.t').textContent : '',
+                    rasmlar: [...xs.querySelectorAll('img')].map(i => i.complete && i.naturalWidth > 0)}; }"""
+        M2 = yozishma_yasa("B7 birinchi", (200, 60, 60), (60, 160, 60))
+        M3 = yozishma_yasa("B7 ikkinchi", (60, 60, 200), (200, 160, 40))
+        check("B7 tayyorgarlik: 2 ta yozishma (har birida 3 xabar, 2 baland rasm)", M2 is not None and M3 is not None, (M2, M3))
+        xav(pe.goto, BU + "/platforma")
+        pe.wait_for_load_state("networkidle")
+        xav(pe.route, RASM_YOL, ushla)
+        _o1 = _o2 = _o3 = None
+        if M2:
+            kut(pe, f"!!document.querySelector('#mpRoyxat [data-mp-id=\"{M2}\"]')")
+            xav(pe.click, f"#mpRoyxat [data-mp-id='{M2}']")
+            kut(pe, "document.querySelectorAll('#mpXabarlar .mp-xabar').length === 3")
+            kut(pe, "false", 1500)                                  # rasm so'rovlari ushlandi — chizilgan holat
+            _o1 = ev(pe, _OYNA)
+            qoyib_yubor()
+            kut(pe, "[...document.querySelectorAll('#mpXabarlar img')].every(i => i.complete && i.naturalWidth > 0)", 15000)
+            kut(pe, "false", 600)                                   # `load` ishlovchilari
+            _o2 = ev(pe, _OYNA)
+        check("B7a rasmlar yuklanguncha — xabarlar chizildi, rasmlar hali kelmagan (kechikish takrorlandi)",
+              isinstance(_o1, dict) and _o1.get("n") == 3 and _o1.get("rasmlar") and not any(_o1.get("rasmlar")), _o1)
+        check("B7b rasmlar yuklangach — oyna toshdi (balandlik > oyna) va eng PASTDA: eng yangi xabar to'liq ko'rinadi",
+              isinstance(_o2, dict) and all(_o2.get("rasmlar") or [False]) and _o2.get("sh", 0) > _o2.get("ch", 0) + 100
+              and _o2.get("pastda") is True and _o2.get("oxirgiKorinadi") is True
+              and (_o2.get("oxirgiMatn") or "").endswith("ENG YANGI XABAR"), _o2)
+        _n_ushlangan = -1
+        if M3:
+            xav(pe.click, f"#mpRoyxat [data-mp-id='{M3}']")
+            kut(pe, "document.querySelectorAll('#mpXabarlar .mp-xabar').length === 3 && "
+                    "document.querySelector('#mpXabarlar .mp-xabar:last-child .t').textContent.includes('B7 ikkinchi')")
+            kut(pe, "false", 1500)
+            _n_ushlangan = len(USHLANGAN)
+            if USHLANGAN:                                          # faqat BIRINCHI rasm keladi — oyna toshadi
+                try:
+                    USHLANGAN.pop(0).continue_()
+                except Exception:          # noqa: BLE001
+                    pass
+            kut(pe, "[...document.querySelectorAll('#mpXabarlar img')].filter(i => i.complete && i.naturalWidth > 0).length === 1", 15000)
+            kut(pe, "false", 600)
+            # foydalanuvchi eski xabarni o'qish uchun oynani TEPAGA aylantiradi (g'ildirak — haqiqiy `scroll` hodisasi)
+            _q = ev(pe, "() => { const r = document.getElementById('mpXabarlar').getBoundingClientRect(); return [r.x + r.width / 2, r.y + 60]; }")
+            if isinstance(_q, list):
+                xav(pe.mouse.move, _q[0], _q[1])
+                xav(pe.mouse.wheel, 0, -5000)
+            kut(pe, "document.getElementById('mpXabarlar').scrollTop === 0", 3000)
+            kut(pe, "false", 300)
+            qoyib_yubor()                                          # ikkinchi rasm endi keladi
+            kut(pe, "[...document.querySelectorAll('#mpXabarlar img')].every(i => i.complete && i.naturalWidth > 0)", 15000)
+            kut(pe, "false", 600)
+            _o3 = ev(pe, _OYNA)
+        check("B7c foydalanuvchi o'zi tepaga aylantirgan bo'lsa — keyingi rasm yuklanganda oyna SAKRAMAYDI (tepada qoladi)",
+              _n_ushlangan == 2 and isinstance(_o3, dict) and all(_o3.get("rasmlar") or [False]) and _o3.get("st") == 0
+              and _o3.get("sh", 0) > _o3.get("ch", 0) + 100, (_n_ushlangan, _o3))
+        xav(pe.unroute, RASM_YOL)
+        qoyib_yubor()
 
         section("B6. JS xatolari")
         check("B6 hech bir sahifada JS xatosi yo'q", not JS_XATO, JS_XATO[:5])
