@@ -25,6 +25,7 @@ import services
 import auth
 # kech111 — platforma: korxona obunasi / bloklash / eslatma (YAGONA manba — `obuna.py`)
 import obuna as _obuna
+import murojaat as _mj
 from models import UserRole, Inventory, OrderStatus
 
 # 2026-09-16: Dinamik Ishlab chiqarish (Production/MRP) moduli — ATAYLAB
@@ -3548,6 +3549,29 @@ def _obuna_banneri(user):
 
 
 templates.env.globals["obuna_banneri"] = _obuna_banneri
+
+
+def _murojaat_soni(user):
+    """kech127 (zip 151): menyudagi son — platforma admini: javob kutayotgan («Yangi») murojaatlar; korxona admini: o'qilmagan
+    platforma javoblari; boshqalar — 0. Xato bo'lsa — 0 (sahifa buzilmaydi)."""
+    if not user:
+        return 0
+    try:
+        from database import SessionLocal as _SL
+        _d = _SL()
+        try:
+            if getattr(user, "is_platform_admin", False):
+                return _mj.platforma_soni(_d)
+            if getattr(getattr(user, "role", None), "value", None) == "admin":
+                return _mj.mijoz_soni(_d, user)
+            return 0
+        finally:
+            _d.close()
+    except Exception:
+        return 0
+
+
+templates.env.globals["murojaat_soni"] = _murojaat_soni
 templates.env.globals["cat_on"] = cat_on
 
 
@@ -3726,7 +3750,8 @@ def _yuklama_manbalari():
     """(papka → [(model, ustun, korxona sharti yasovchisi)]) — faylga ishora qiluvchi hamma yozuvlar.
     Bir fayl bir necha jadvalda bo'lishi mumkin (tayyor mahsulot detal rasmini nusxalaydi — `crud` 10816)."""
     from models import (OrderItem as _OI, OrderAttachment as _OA, Order as _O, Inventory as _Inv,
-                        Recipe as _Rc, FinishedProduct as _FP, Project as _Pr, ReturnItem as _RI)
+                        Recipe as _Rc, FinishedProduct as _FP, Project as _Pr, ReturnItem as _RI,
+                        MurojaatXabari as _MX)
     from production_models import Company as _Co
 
     def oddiy(model, ustun):
@@ -3749,6 +3774,8 @@ def _yuklama_manbalari():
         "projects": [oddiy(_Pr, "image_url")],
         "returns": [oddiy(_RI, "image_url")],
         "logos": [logo],
+        # kech127 (zip 151): murojaat rasmi — o'z korxonasi (platforma admini — `yuklangan_fayl` dagi alohida shart)
+        "murojaat": [oddiy(_MX, "rasm")],
     }
     return hammasi
 
@@ -3780,7 +3807,10 @@ def yuklangan_fayl(papka: str, fayl: str, request: Request, o: Optional[str] = N
     yol = os.path.realpath(os.path.join(ildiz, papka, fayl))
     if not yol.startswith(ildiz + os.sep) or not os.path.isfile(yol):
         raise HTTPException(status_code=404, detail="Fayl topilmadi")
-    if not yuklama_korxonanikimi(db, papka, fayl, auth.company_id_of(user)):
+    if not yuklama_korxonanikimi(db, papka, fayl, auth.company_id_of(user)) and not (
+            # kech127 (zip 151): platforma egasi mijoz murojaatidagi rasmni ham ko'radi (faqat murojaat papkasi)
+            papka == "murojaat" and getattr(user, "is_platform_admin", False)
+            and _mj.rasm_bormi(db, f"/static/uploads/{papka}/{fayl}")):
         raise HTTPException(status_code=404, detail="Fayl topilmadi")
     # kech120 (zip 130 — G5-16): `?o=k` — ro'yxat uchun KICHIK NUSXA (ruxsat tekshiruvi yuqorida — asl fayl bilan bir xil).
     # Logotip (nomi doimiy) va rasm bo'lmagan fayl — asl fayl; nusxani yasab bo'lmasa ham — asl fayl.
@@ -4255,6 +4285,17 @@ def _ruxsat_farqi(eski: dict, yangi: dict) -> str:
 @app.get("/rollar", response_class=HTMLResponse)
 async def rollar_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     return templates.TemplateResponse(request, "rollar.html", {"current_user": current_user, "active_page": "rollar"})
+
+
+@app.get("/murojaat", response_class=HTMLResponse)
+def murojaat_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """kech127 (zip 151 — EGASI QARORLARI 08.10: murojaatni FAQAT korxona admini yozadi, javob — dastur ichida): «Yordam /
+    Murojaat» sahifasi (`murojaat.py`). Platforma egasi murojaatlarni «Platforma» sahifasida ko'radi — bu yerga emas."""
+    if getattr(current_user, "is_platform_admin", False):
+        return RedirectResponse("/platforma", status_code=303)
+    return templates.TemplateResponse(request, "murojaat.html", {
+        "current_user": current_user, "active_page": "murojaat", "turlar": _mj.TURLAR, "matn_max": _mj.MATN_MAX,
+        "aloqa_telefoni": _obuna.aloqa_telefoni(db)})
 
 
 @app.get("/api/rollar")
@@ -7369,16 +7410,24 @@ def api_inventory_movements_jami(item_id: Optional[int] = None, movement_type: O
                                  date_to: Optional[str] = None, db: Session = Depends(get_db),
                                  current_user=Depends(auth.ruxsat("material", "korish"))):
     """kech120 (zip 129 — G4-14): «Tanlangan davr — jami» — HAMMA mos harakatlar bo'yicha (ilgari sahifadagi 500 ta
-    yuklangan qatordan hisoblanardi — ko'p bo'lsa kam chiqardi). Material (nom + birlik) bo'yicha kirim / chiqim."""
-    from models import InventoryMovement
+    yuklangan qatordan hisoblanardi — ko'p bo'lsa kam chiqardi). MATERIAL bo'yicha kirim / chiqim.
+
+    kech127 (zip 151, O'LCHANGAN — `main`, 08.10): penoplast kirimi «dona» birligida, buyurtma / ishlab chiqarish chiqimi esa
+    «blok» deb yoziladi (`services` — `unit="blok"`; 1 blok = 1 dona, qoldiq ikkalasining yig'indisi — AYNAN). Ilgari jami
+    (nom + birlik) bo'yicha guruhlanardi — bitta penoplast ikki qatorda («+103,46 dona», «−58,79 blok») chiqardi. Endi —
+    material (`inventory_id`) bo'yicha, nomi va birligi materialning HOZIRGI yozuvidan (qoldiq kabi); materialga bog'lanmagan
+    eski harakat — o'z nomi va birligi bilan."""
+    from models import InventoryMovement, Inventory
     from sqlalchemy import func as _f, case as _case
     q = _harakatlar_sorovi(db, auth.company_id_of(current_user), item_id, movement_type, order_id, date_from, date_to)
-    rows = q.with_entities(
-        InventoryMovement.item_name, InventoryMovement.unit,
+    _nom = _f.coalesce(Inventory.item_name, InventoryMovement.item_name)
+    _birlik = _f.coalesce(Inventory.unit, InventoryMovement.unit)
+    rows = q.outerjoin(Inventory, Inventory.id == InventoryMovement.inventory_id).with_entities(
+        _nom, _birlik,
         _f.sum(_case((InventoryMovement.movement_type == "in", InventoryMovement.quantity), else_=0.0)),
         _f.sum(_case((InventoryMovement.movement_type == "out", InventoryMovement.quantity), else_=0.0)),
         _f.count(InventoryMovement.id),
-    ).group_by(InventoryMovement.item_name, InventoryMovement.unit).order_by(InventoryMovement.item_name).all()
+    ).group_by(InventoryMovement.inventory_id, _nom, _birlik).order_by(_nom).all()
     return {"materiallar": [{"name": r[0], "unit": r[1] or "", "in": round(float(r[2] or 0), 6),
                              "out": round(float(r[3] or 0), 6), "soni": int(r[4] or 0)} for r in rows],
             "jami": sum(int(r[4] or 0) for r in rows)}
@@ -8902,6 +8951,179 @@ def api_platform_errors(korxona: str = "", q: str = "", limit: int = 200, db: Se
         return _obuna.xatolar(db, korxona=(korxona or None), qidiruv=q, limit=limit)
     except _obuna.ObunaXato as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# MUROJAAT (kech127, zip 151 — EGASI QARORLARI 08.10 01:40, tugmali, QAYTA SO'RALMAYDI): korxona admini → platforma egasi.
+# Mantiq — `murojaat.py`; rasm — `static/uploads/murojaat/` (himoya: o'z korxonasi + platforma admini — `yuklangan_fayl`).
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+def _mj_xato(e):
+    if isinstance(e, _mj.MurojaatYoq):
+        return HTTPException(status_code=404, detail=str(e))
+    if isinstance(e, _mj.MurojaatYopiq):
+        return HTTPException(status_code=409, detail=str(e))
+    return HTTPException(status_code=400, detail=str(e))
+
+
+def _mj_platforma_emas(user):
+    if getattr(user, "is_platform_admin", False):
+        raise HTTPException(status_code=403, detail="Platforma egasi murojaatlarni «Platforma» sahifasida ko'radi")
+
+
+def _mj_rasm_saqla(file):
+    """Ixtiyoriy rasm (jpg / png / webp; kichraytiriladi) → URL yoki None."""
+    if file is None or not (getattr(file, "filename", None) or "").strip():
+        return None
+    return _save_upload(file, "murojaat", ALLOWED_IMAGE_EXT)
+
+
+def _mj_rasm_ochir(url):
+    """Yozuv saqlanmagan bo'lsa — yuklangan rasm diskda yetim qolmasin."""
+    if not url:
+        return
+    asl = os.path.join(static_dir, url.replace("/static/", "", 1))
+    yollar = [asl]
+    try:
+        yollar += list(_kichik_nusxa_yollari(asl, "murojaat"))       # yuklashda yasalgan kichik nusxa ham
+    except Exception:                      # noqa: BLE001
+        pass
+    for y in yollar:
+        try:
+            os.remove(y)
+        except OSError:
+            pass
+
+
+def _mj_telegram(matn):
+    """Platforma egasiga (muhit boti — `company_id=None`). Yuborilmasa ham murojaat saqlangan."""
+    try:
+        _send_telegram(matn, company_id=None)
+    except Exception as e:                 # noqa: BLE001
+        print(f"⚠ Murojaat Telegram xabari yuborilmadi: {e}")
+
+
+@app.get("/api/murojaatlar")
+def api_murojaatlar(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Korxonaning murojaatlari (yangilangani — tepada), o'qilmagan javob belgisi bilan."""
+    _mj_platforma_emas(current_user)
+    return _mj.mijoz_royxati(db, auth.company_id_of(current_user))
+
+
+@app.post("/api/murojaatlar")
+def api_murojaat_yarat(request: Request, turi: str = Form(...), matn: str = Form(...), sahifa: Optional[str] = Form(None),
+                       ekran: Optional[str] = Form(None), file: Optional[UploadFile] = File(None),
+                       db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Yangi murojaat (birinchi xabari bilan; ixtiyoriy rasm). Dastur kontekst qo'shadi; platforma egasiga Telegram."""
+    _mj_platforma_emas(current_user)
+    cid = auth.company_id_of(current_user)
+    try:
+        _mj.turi_tekshir(turi)
+        _mj.matn_tekshir(matn)
+    except _mj.MurojaatXato as e:
+        raise _mj_xato(e)
+    rasm = _mj_rasm_saqla(file)
+    try:
+        m, toza = _mj.yarat(db, current_user, cid, turi, matn, sahifa=sahifa,
+                            brauzer=request.headers.get("user-agent"), ekran=ekran, rasm=rasm)
+    except (_mj.MurojaatXato, _mj.MurojaatYoq, _mj.MurojaatYopiq) as e:
+        db.rollback()
+        _mj_rasm_ochir(rasm)
+        raise _mj_xato(e)
+    except Exception:
+        db.rollback()
+        _mj_rasm_ochir(rasm)
+        raise
+    m_id, m_turi, m_sahifa = m.id, m.turi, m.kelgan_sahifa
+    _mj_telegram(_mj.telegram_yangi(m_id, m_turi, _mj.korxona_nomi(db, cid), _mj.muallif_nomi(current_user),
+                                    current_user.username, m_sahifa, toza, rasm_bor=bool(rasm)))
+    return {"status": "ok", "id": m_id}
+
+
+@app.get("/api/murojaatlar/{murojaat_id}")
+def api_murojaat_yozishmasi(murojaat_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Yozishma (ochilganda — javob «o'qildi»)."""
+    _mj_platforma_emas(current_user)
+    try:
+        return _mj.mijoz_yozishmasi(db, murojaat_id, auth.company_id_of(current_user))
+    except (_mj.MurojaatXato, _mj.MurojaatYoq, _mj.MurojaatYopiq) as e:
+        raise _mj_xato(e)
+
+
+@app.post("/api/murojaatlar/{murojaat_id}/xabar")
+def api_murojaat_xabar(murojaat_id: int, matn: str = Form(...), file: Optional[UploadFile] = File(None),
+                       db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Mijozning qo'shimcha xabari (yopilmagan murojaatga) — murojaat yana «Yangi»; platforma egasiga Telegram."""
+    _mj_platforma_emas(current_user)
+    cid = auth.company_id_of(current_user)
+    try:
+        _mj.matn_tekshir(matn)
+        _mj.mijoz_ol(db, murojaat_id, cid)
+    except (_mj.MurojaatXato, _mj.MurojaatYoq) as e:
+        raise _mj_xato(e)
+    rasm = _mj_rasm_saqla(file)
+    try:
+        m, toza = _mj.mijoz_xabari(db, current_user, murojaat_id, cid, matn, rasm=rasm)
+    except (_mj.MurojaatXato, _mj.MurojaatYoq, _mj.MurojaatYopiq) as e:
+        db.rollback()
+        _mj_rasm_ochir(rasm)
+        raise _mj_xato(e)
+    except Exception:
+        db.rollback()
+        _mj_rasm_ochir(rasm)
+        raise
+    _mj_telegram(_mj.telegram_qoshimcha(murojaat_id, _mj.korxona_nomi(db, cid), _mj.muallif_nomi(current_user), toza,
+                                        rasm_bor=bool(rasm)))
+    return {"status": "ok"}
+
+
+@app.get("/api/platform/murojaatlar")
+def api_platform_murojaatlar(holat: str = "", korxona: Optional[int] = None, limit: int = 200, db: Session = Depends(get_db),
+                             current_user=Depends(auth.platform_admin_only)):
+    """HAMMA korxonalar murojaatlari (holat bo'yicha filtr, sanoq bilan). Faqat platforma admini."""
+    return _mj.platforma_royxati(db, holat=(holat or None), korxona=korxona, limit=limit)
+
+
+@app.get("/api/platform/murojaatlar/{murojaat_id}")
+def api_platform_murojaat(murojaat_id: int, db: Session = Depends(get_db), current_user=Depends(auth.platform_admin_only)):
+    """Yozishma + dastur qo'shgan kontekst (ochilganda — «ko'rildi»)."""
+    try:
+        return _mj.platforma_yozishmasi(db, murojaat_id)
+    except (_mj.MurojaatXato, _mj.MurojaatYoq, _mj.MurojaatYopiq) as e:
+        raise _mj_xato(e)
+
+
+@app.post("/api/platform/murojaatlar/{murojaat_id}/javob")
+def api_platform_murojaat_javob(murojaat_id: int, matn: str = Form(...), file: Optional[UploadFile] = File(None),
+                                db: Session = Depends(get_db), current_user=Depends(auth.platform_admin_only)):
+    """Platforma javobi (mijoz dasturida ko'radi) — murojaat «Javob berildi»."""
+    try:
+        _mj.matn_tekshir(matn)
+        _mj.platforma_yozishmasi(db, murojaat_id, korildi=False)
+    except (_mj.MurojaatXato, _mj.MurojaatYoq) as e:
+        raise _mj_xato(e)
+    rasm = _mj_rasm_saqla(file)
+    try:
+        _mj.javob(db, current_user, murojaat_id, matn, rasm=rasm)
+    except (_mj.MurojaatXato, _mj.MurojaatYoq, _mj.MurojaatYopiq) as e:
+        db.rollback()
+        _mj_rasm_ochir(rasm)
+        raise _mj_xato(e)
+    except Exception:
+        db.rollback()
+        _mj_rasm_ochir(rasm)
+        raise
+    return {"status": "ok"}
+
+
+@app.post("/api/platform/murojaatlar/{murojaat_id}/yopish")
+def api_platform_murojaat_yopish(murojaat_id: int, db: Session = Depends(get_db),
+                                 current_user=Depends(auth.platform_admin_only)):
+    """Yozishmani yopish (mijoz endi unga yozolmaydi — kerak bo'lsa yangi murojaat ochadi)."""
+    try:
+        _mj.yopish(db, current_user, murojaat_id)
+    except (_mj.MurojaatXato, _mj.MurojaatYoq, _mj.MurojaatYopiq) as e:
+        raise _mj_xato(e)
+    return {"status": "ok"}
 
 
 @app.post("/api/platform/companies")

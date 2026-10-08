@@ -5107,6 +5107,8 @@ AUDIT_AMALLARI = {
     "brak_taqdir": ("🧩", "— brak taqdiri", "Brak taqdiri"),
     # kech126 (zip 148): taklif («Tez hisob») bo'yicha buyurtma ochildi — `new_value` da buyurtma raqami va loyiha
     "rasmiylashtirildi": ("✅", "rasmiylashtirildi", "Rasmiylashtirildi"),
+    # kech127 (zip 150): bir martalik ma'lumot tuzatishi (`main._migrate_ord066_loy_xatosi` — ORD-066-1 loy rejasi 500 000 → 500)
+    "loy_tuzatish": ("🛠️", "— loy rejasi xatosi tuzatildi", "Loy tuzatish"),
     # eski yozuvlar (zip 129 dan oldin shu nom bilan yozilishi mo'ljallangan, lekin NOT NULL sabab yozilmagan)
     "Zaxiradan tiklash": ("💾", "— zaxiradan tiklandi", "Zaxiradan tiklandi"),
 }
@@ -8182,7 +8184,10 @@ _TENANT_PARENTS = {
 #   user_sessions / employee_sessions — xom sessiya TOKENlari (2026-09-15)
 #   error_logs                        — modelda `company_id` ustuni YO'Q;
 #       to'g'ri ajratish ALTER TABLE talab qiladi → M8 ga qoldirilgan.
-_NON_TENANT_TABLES = {"user_sessions", "employee_sessions", "error_logs"}
+#   murojaatlar / murojaat_xabarlari  — kech127 (zip 151): mijozning PLATFORMA egasi bilan yozishmasi (xat kabi) —
+#       korxona JSON zaxirasiga kirmaydi (tiklash platforma javoblarini eski holatga qaytarmasin); `_reset_table_order` da
+#       ham yo'q — korxonaning «Barcha ma'lumotlarni o'chirish» amali yozishmani o'chirmaydi (`models.Murojaat` izohi).
+_NON_TENANT_TABLES = {"user_sessions", "employee_sessions", "error_logs", "murojaatlar", "murojaat_xabarlari"}
 
 # Zahira nusxaga HECH QACHON kiritilmaydigan ustunlar.
 _SECRET_COLUMNS = {"password_hash", "pin_hash"}
