@@ -196,6 +196,15 @@
       Telegram botiga soxta (Telegram'dan bo'lmagan) xabarlar yuborilishining oldini olish uchun,
       "xavfsiz imzo"ni yoqib qo'ying. Bu — <b>bir martalik</b> sozlash.
     </div>
+    {# kech130 (zip 154): umumiy bot (@Penoustabot) HOZIR qayerga ulangan — `GET /api/system/telegram-webhook-info` (faqat o'qish).
+       kech129 da bot sinov saytiga ulanib qolgani faqat Railway loglaridan topilgan edi. Sinov saytida tugmalar o'chiq (server ham 409). #}
+    <div id="tg-holat" style="margin-bottom:12px;padding:12px 14px;border-radius:10px;background:var(--bg);font-size:13px;line-height:1.7">
+      <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">
+        <b>Bot hozir qayerga ulangan</b>
+        <button class="btn btn-soft btn-sm" onclick="tgHolatYukla()" id="tg-holat-btn">↻ Tekshirish</button>
+      </div>
+      <div id="tg-holat-matn" style="margin-top:6px;color:var(--text3)">Tekshirilmoqda…</div>
+    </div>
     <!-- MUHIM OGOHLANTIRISH (2026-08-28) — bu tugma, agar sizning
          "asosiy" botingiz (katalog/mijozlar) BOSHQA, alohida serverda,
          "polling" rejimida ishlasa, o'sha botni buzib qo'yishi mumkin
@@ -417,9 +426,68 @@ function hodimQrChop(){
   window.open('/users/hodim-qr?manzil=' + encodeURIComponent(window.location.origin), '_blank', 'noopener');
 }
 
+// kech130 (zip 154): umumiy bot holati — Telegram `getWebhookInfo` (server orqali, token brauzerga kelmaydi)
+let tgAsosiyMuhit = true;
+async function tgHolatYukla(){
+  const el = document.getElementById('tg-holat-matn');
+  if (!el) return;
+  el.style.color = 'var(--text3)'; el.textContent = 'Tekshirilmoqda…';
+  let d = null;
+  try {
+    const r = await fetch('/api/system/telegram-webhook-info');
+    d = await r.json();
+    if (!r.ok) { el.style.color = 'var(--m-dc2626)'; el.textContent = '❌ ' + (d.detail || 'Holatni o\'qib bo\'lmadi'); return; }
+  } catch (e) { el.style.color = 'var(--m-dc2626)'; el.textContent = '❌ Server bilan aloqa yo\'q'; return; }
+  tgAsosiyMuhit = !!d.asosiy_muhit;
+  const qator = [];
+  if (!d.asosiy_muhit) {
+    qator.push('<div style="color:var(--m-92400e)">⚠️ Bu sinov sayti (muhit: «' + escapeHtml(d.muhit || 'aniqlanmadi') +
+               '»). Botni ulash va uzish tugmalari faqat asosiy saytda ishlaydi.</div>');
+  }
+  if (d.holat === 'token_yoq') {
+    qator.push('<div>Bu saytda umumiy bot tokeni (TELEGRAM_BOT_TOKEN) yo\'q — bot bu saytga ulanmaydi.</div>');
+  } else if (d.holat === 'xato') {
+    qator.push('<div style="color:var(--m-dc2626)">❌ ' + escapeHtml(d.xato || 'Telegram javob bermadi') + '</div>');
+  } else {
+    const nom = d.bot && d.bot.username ? '@' + d.bot.username : 'bot';
+    if (d.holat === 'mos') {
+      qator.push('<div style="color:var(--m-166534)">✅ ' + escapeHtml(nom) + ' shu saytga ulangan: <span style="word-break:break-all">' +
+                 escapeHtml(d.webhook.url) + '</span></div>');
+    } else if (d.holat === 'boshqa_sayt') {
+      qator.push('<div style="color:var(--m-dc2626)">⚠️ ' + escapeHtml(nom) + ' BOSHQA manzilga ulangan: <span style="word-break:break-all">' +
+                 escapeHtml(d.webhook.url) + '</span></div>' +
+                 '<div style="color:var(--text3)">Bu sayt manzili: <span style="word-break:break-all">' + escapeHtml(d.bu_sayt_url) + '</span></div>');
+    } else {
+      qator.push('<div style="color:var(--m-dc2626)">⚠️ ' + escapeHtml(nom) + ' hech qayerga ulanmagan — ustalar botga yozsa javob olmaydi.</div>');
+    }
+    if (d.webhook && d.webhook.pending_update_count) {
+      qator.push('<div style="color:var(--text3)">Yetkazilmagan xabarlar: ' + escapeHtml(String(d.webhook.pending_update_count)) + '</div>');
+    }
+    if (d.webhook && d.webhook.last_error_message) {
+      qator.push('<div style="color:var(--text3)">Oxirgi xato' + (d.webhook.last_error_vaqt ? ' (' + escapeHtml(d.webhook.last_error_vaqt) + ')' : '') +
+                 ': ' + escapeHtml(d.webhook.last_error_message) + '</div>');
+    }
+    if (d.holat === 'mos' && !d.imzo_sozlangan) {
+      qator.push('<div style="color:var(--m-dc2626)">⚠️ TELEGRAM_WEBHOOK_SECRET sozlanmagan — sayt bot xabarlarini rad etadi.</div>');
+    }
+  }
+  el.style.color = 'var(--text2)';
+  el.innerHTML = qator.join('');
+  ['tg-security-btn', 'tg-delete-webhook-btn'].forEach(function (id) {
+    const b = document.getElementById(id);
+    if (b) { b.disabled = !d.asosiy_muhit; b.title = d.asosiy_muhit ? '' : 'Faqat asosiy saytda'; }
+  });
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', function () { if (document.getElementById('tg-holat')) tgHolatYukla(); });
+} else if (document.getElementById('tg-holat')) { tgHolatYukla(); }
+
 async function setupTelegramSecurity(){
   const btn = document.getElementById('tg-security-btn');
   const resultBox = document.getElementById('tg-security-result');
+  // kech130 (zip 154): ilgari tasdiqsiz — bot qaysi saytga ulanishi ko'rsatilmasdi (kech129: sinov saytiga ulanib qolgan)
+  if (!(await customConfirm("Umumiy bot SHU saytga ulanadi:\n" + window.location.host +
+                            "\n\nUstalar xabarlari shu saytga keladi. Davom etasizmi?", {okText: 'Ulash'}))) return;
   btn.disabled = true; btn.textContent = 'Sozlanmoqda...';
   try {
     const res = await fetch('/api/system/telegram-setup-webhook-security', { method: 'POST' });
@@ -432,7 +500,12 @@ async function setupTelegramSecurity(){
         <div style="margin-bottom:10px">Endi quyidagi qiymatni nusxalab, <b>Railway → Variables</b> bo'limiga
         <code style="background:var(--white);padding:2px 6px;border-radius:4px">TELEGRAM_WEBHOOK_SECRET</code> nomi bilan qo'shing:</div>
         <div style="background:var(--white);padding:10px 12px;border-radius:8px;font-family:monospace;word-break:break-all;user-select:all;border:1px solid var(--ch-86efac)">${escapeHtml(data.new_secret)}</div>
-        <div style="margin-top:10px;color:var(--m-166534)">Saqlagach, Railway serverni avtomatik qayta ishga tushiradi — shundan keyin xavfsizlik to'liq yoqiladi.</div>`;
+        <div style="margin-top:10px;color:var(--m-166534)">Saqlagach, Railway serverni avtomatik qayta ishga tushiradi — shundan keyin xavfsizlik to'liq yoqiladi.</div>` +
+        // kech130 (zip 154): bot oldin boshqa manzilda bo'lgan bo'lsa — qayerdan ko'chgani ko'rinsin
+        (data.oldingi_url && data.oldingi_url !== data.webhook_url
+          ? '<div style="margin-top:10px;color:var(--text2)">Bot oldin shu manzilga ulangan edi: <span style="word-break:break-all">' +
+            escapeHtml(data.oldingi_url) + '</span></div>'
+          : '');
     } else {
       resultBox.style.display = 'block';
       resultBox.style.background = 'var(--f-fee2e2)'; resultBox.style.color = 'var(--m-dc2626)';
@@ -443,7 +516,8 @@ async function setupTelegramSecurity(){
     resultBox.style.background = 'var(--f-fee2e2)'; resultBox.style.color = 'var(--m-dc2626)';
     resultBox.textContent = '❌ Server bilan aloqa yo\'q';
   }
-  btn.disabled = false; btn.textContent = '🔐 Telegram xavfsizligini yoqish';
+  btn.disabled = !tgAsosiyMuhit; btn.textContent = '🔐 Telegram xavfsizligini yoqish';
+  tgHolatYukla();
 }
 
 async function deleteTelegramWebhook(){
@@ -468,7 +542,8 @@ async function deleteTelegramWebhook(){
     resultBox.style.background = 'var(--f-fee2e2)'; resultBox.style.color = 'var(--m-dc2626)';
     resultBox.textContent = '❌ Server bilan aloqa yo\'q';
   }
-  btn.disabled = false; btn.textContent = "🔄 Botni asl holatiga qaytarish";        // kech123 (zip 142): tugma yozuvi bilan bir xil
+  btn.disabled = !tgAsosiyMuhit; btn.textContent = "🔄 Botni asl holatiga qaytarish";        // kech123 (zip 142): tugma yozuvi bilan bir xil
+  tgHolatYukla();
 }
 
 let isRunningFactoryReset = false;
