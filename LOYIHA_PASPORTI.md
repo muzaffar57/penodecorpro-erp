@@ -1,7 +1,7 @@
 # PenoDecorPro ERP — LOYIHA PASPORTI
 
 *Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2); kech112: zip 108 — «Tayyor» da bo'sh loy = reja (K112-3), material nomi (K112-4), MRP qoplama belgisi (K112-5); ko'p korxonali yakuniy jonli sinov; kech115: zip 112 — butun dastur auditi A bosqichi (pul va ma'lumot xatolari) 1-qismi: kirim, qarzdorlar, «Tayyor», narxsiz buyurtma, o'chirilganlar jurnali, manfiy raqamlar, taqqoslash, korxona sog'ligi, ombor filtri; kech116: zip 113 — A bosqich 2-qismi: sog'liq sabablari (K115-2), «Bugungi xulosa» (K115-3), hujjatlardagi hisob qatorlari (G2-04), «Pul oqimi» — haqiqiy pul (G1-03), «Xarajat» — bitta ta'rif va «Tannarx» (G1-02), loyiha qiymati buyurtmalardan (G2-01), haqiqiy IP va kirish cheklovi (U-01), parol oynasi va kirishlarni yopish (G6-06); zip 114 — mijoz hujjatlarida kechirilgan qarz «Chegirma» ichida (egasi qarori); kech117: zip 115 — A2: yo'nalishlar bo'yicha moliya (G3-11, G6-09); zip 116 — jonli sinovdan keyin: «Belgilanmagan» manbalari, Moliya xarajatdan keyin yangilanadi; kech118: qolgan egasi qarorlari (6-bo'lim); zip 117 — B bosqichi 1-qism: dastur oynalari (xabar, kiritish, Esc / tashqariga bosish), o'zbekcha 404 / 403 sahifa, klaviatura fokusi; zip 118 — B bosqichi 2-qism: son / sana / birlik ko'rinishi, o'qiladigan rang, 12 px + yo'nalishlar bo'yicha moliyaviy natija (egasi qarori: taqsim yo'q, oyliklar alohida, davr, solishtirish); yangi qarorlar — rollar va ruxsatlar (6-bo'lim); zip 119 — rollar va ruxsatlar 1-qism (admin rollarni o'zi boshqaradi); kech119: zip 125 — Hisobotlar «oy boshi»: o'tgan oyning SHU KUNLARI bilan solishtirish (egasi qarori), taxminda oylik xarajat bir marta, xomashyo birligi; «Foyda tahlili» summalari (G2-15); zip 126 — telefon (C bosqichi); kech120: zip 127 — E bosqichi 1-qism: tezlik — hisobot xotirasi (so'rovlar orasida, yozuv bo'lsa darhol eskiradi), sahifa bir ochilishida bir xil so'rov bir marta, Bosh sahifa 5 ta buyurtma, kirish sahifasi rasmi, Hisobotlar taqqoslash kartalari telefonda (K120-1); zip 128 — E bosqichi 2-qism: katta ro'yxatlarda topish — Bosh sahifa «Bugungi vazifalar» havolalari, Buyurtmalar filtri / keng qidiruv / tanlovni tiklash, Qarzdorlar mijoz bo'yicha; zip 129 — E bosqichi 3-qism: tarix va jurnallar — «Tizim jurnallari» filtri va sahifalash, hamma amal o'zbekcha, tahrir yozuvida nima o'zgargani; Ombor «Tarix», «Yana yuklash», davr jami; zip 130 — E bosqichi 4-qism: qidiruvli tanlagich (Kirim — ta'minotchi, material; «Yangi qaytarish», «Brak yozish»), ta'minotchilar tabiiy tartibda, Tayyor mahsulotlar kategoriyalari korxonaning o'z mahsulot turlaridan; shu zipda — E bosqichi 5-qism: hodim kirishi — har korxonada kod (kodsizlarga ishga tushishda), QR serverda (ichida kod), kirish sahifasi kodni o'zi yozadi, chop etish sahifasi; shu zipda — E bosqichi 6-qism: rasmlar yuklashda 1920 px gacha kichraytiriladi (burilish qo'llanadi, joylashuv saqlanmaydi), ro'yxatlarda kichik nusxa (360 px); uzun ro'yxatlarda faqat birinchi 20 qator animatsiyali); zip 131 — F bosqichi 1-qism: Moliya, Qarzdorlar, «Xarajat qo'shish» (kirim xarajati faqat hujjat orqali, ro'yxat jami, kassa yozuvini o'chirish, «Yalpi foyda», qarz to'lovi usuli, majburiyat oyi); zip 132 — F bosqichi 2-qism: Ombor, Kirim, Ta'minotchilar, Retseptlar (kirim hujjatidan qator — to'lov / xarajat bo'lsa butun hujjat orqali, ishlatilgan retsept o'chmaydi, Telegram natijasi, Omborxona — ruxsat bo'yicha tugmalar, ustun nomlari, toifa filtri; ta'minotchi tarixida to'lov holati, penoplast blok hajmi); zip 133 — F bosqichi 3-qism: Tayyor mahsulotlar, Qaytarishlar, Ishlab chiqarish (birlik ko'rinishi — bitta qoida, qaytarishlar guruhi va kartalari, «Hisob-kitob qilish», tugmalar so'z bilan, sotishdan keyin sahifa qayta yuklanmaydi, narxsiz mahsulot qiymati, mahsulot turini tahrirlash / o'chirish, bo'sh korxona yo'riqnomasi); zip 134 — F bosqichi 4-qism: Buyurtmalar va Loyihalar (namuna matni rangi, saqlash kamchiliklari bitta ro'yxatda, detal raqami, profil — uzunlik bo'yicha, loyiha qarzi «384 ming», bitta hisob-kitob paneli, amallar tepada, «Bajarilgan» va «Yetkazish — 1/2 topshirildi», «Tarix», bo'sh korxonada «avval loyiha»); zip 135 — F bosqichi 5-qism: Bosh sahifa, Dashboard, Hisobotlar («Faol buyurtmalar» — bitta qoida, usta reytingi, yangi korxonaga «Boshlash», bo'sh grafiklar, davr filtri, jadval qidiruvi va Excel, «Yangilash»); zip 136 — F bosqichi 5-qism 2-bo'lagi: hujjatlar va KPI (buyurtma hisobi — birlik, ajratgich, bitta «TO'LOV SUMMASI»; yuk xati — shu yuk paytidagi holat; KPI sahifasi yozuvlari va hodim kartasi); zip 137 — F bosqichi 5-qism 3-bo'lagi: ustalar telefoni, menyu guruhlari, hodim va foydalanuvchi kirishi, alohida «Sozlamalar» sahifasi; kech121: zip 138 — egasi qarorlari 02.10 (Dashboard «Shu oy daromadi», brak foizi asosi, Menejer o'z xarajatini o'chiradi, narxsiz «Kirim (tuzatish)», qaytarish oynasida pul savoli, yuk xatida korxona to'lagan transport narxi yo'q); kech123: zip 139 — U-13 yagona ko'rinish 1-qism (tugma / maydon / tab / filtr o'lchamlari va yozuv shkalasi — bitta qoida; umumiy qobiq, Bosh sahifa, Dashboard, Hisobotlar, Foydalanuvchilar; zip 140 — 2-qism: Buyurtmalar, Loyihalar, Omborxona, Kirim qilish, Ta'minotchilar, Loy retseptlari, Ishlab chiqarish, Tayyor mahsulotlar, Qaytarishlar; zip 141 — 3-qism: Qarzdorlar, Moliya, Xarajat qo'shish, Ustalar KPI, Ustalar, Rollar; zip 142 — 4-qism: jurnallar, Sozlamalar, Savat, Platforma, kirish sahifalari, hodim paneli; zip 143 — qoplamachi bonusi va «har birlik uchun» hodim haqi yuk xatlari bo'yicha; kech124: zip 144 — loyihada «Yuk xatlari», yuk xati raqami loyiha bo'yicha, «Jamlab olish»; zip 145 — Loyihalar holat paneli «Bajarilgan»; kech125: zip 146 — brak taqdiri: Tashlandi / Tuzatildi / Kesildi / 2-nav; zip 147 — uning jonli sinovidan keyingi tuzatishlar; kech126: zip 148 — «Tez hisob / Taklif»: mijozga loyiha / buyurtma ochmasdan taklif, «Takliflar» ro'yxati, bir tugma bilan rasmiylashtirish; zip 149 — uning jonli sinovidan keyingi 2 tuzatish; kech127: `main` ga ko'chirish — 07.10; zip 150 — «Xomashyo narxlari va ombor qiymati» ruxsati, ORD-066-1 loy xatosi tuzatishi; zip 151 — «Murojaat» bo'limi, jurnal `loy_tuzatish` yorlig'i, ombor harakatlari jami — material bo'yicha; kech128: zip 152 — rasm emas fayl rad etiladi (hamma rasm yuklash joylari va logotip), murojaat matnida qator oxirlari, platforma yozishma oynasi; kech129: zip 153 — SaaS migratsiya sahifasi (8 marshrut) olib tashlandi: mijoz korxona admini ham kirib, boshqa korxonalar nomini ko'rar va haqiqiy migratsiya qadamini bajarar edi; logotip PDF da o'z nisbati va yo'nalishi bilan, buzilgan
-logotip qabul qilinmaydi; kech130: zip 154 — Telegram: bot manzilini o'zgartirish faqat asosiy saytda, «Bot hozir qayerga ulangan», umumiy bot faqat platforma egasi ustalariga, har korxonaga o'z boti («🔗 Botni ulash»)). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
+logotip qabul qilinmaydi; kech130: zip 154 — Telegram: bot manzilini o'zgartirish faqat asosiy saytda, «Bot hozir qayerga ulangan», umumiy bot faqat platforma egasi ustalariga, har korxonaga o'z boti («🔗 Botni ulash»); kech131: zip 155 — Telegram xatolari o'zbekcha (token rad etilsa nima qilish kerak, oxirgi xato ma'nosi)). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
 *Bu faylni `main` ga ko'chirish bilan birga, keyin har katta o'zgarishda yangilab boring. 9-bo'lim AVTOMATIK
 (`python3 tools/pasport_xarita.py --yoz`), qolgani qo'lda; `tools/test_pasport.py` ikkalasini ham tekshiradi.*
 
@@ -545,6 +545,22 @@ belgilari tozalanadi (eski sir 403), eski botning webhooki faqat asosiy muhitda 
 kartasiga «Telegram ID». CHIQUVCHI xabarlar — avvalgidek (`_tenant_telegram`: korxona boti bo'lsa — o'shaniki). `GET /api/cron/find-chat-id`
 OLIB TASHLANDI (webhook rejimida 409 — ishlamas edi; CRON_SECRET bilan chat ismlari / xabarlarni berardi). Sinov:
 `tools/test_telegram_webhook.py`, `tools/test_telegram_webhook_ui.py`.
+**Telegram xatolari O'ZBEKCHA (kech131, zip 155 — egasi tanlovi 08.10).** Ilgari foydalanuvchiga Telegram'ning xom inglizcha javobi chiqardi
+(«Telegram rad etdi: Not Found», «… Unauthorized», «Oxirgi xato: Wrong response from the webhook: 403 Forbidden»). O'LCHANGAN (08.10, soxta
+tokenlar, ichki brauzer): token KO'RINISHI buzuq (ikki nuqta yo'q, «-», oxirida bo'shliq) → HTTP 404 «Not Found»; ko'rinishi to'g'ri, lekin
+bot yo'q / token bekor → HTTP 401 «Unauthorized» (getMe, getWebhookInfo, getUpdates). Yagona yordamchi `main._tg_xato_izohi(kod, tavsif, joy)`
+(`TelegramRad.kod` — HTTP / `error_code`): 401 / 404 — token rad etildi + NIMA QILISH (joy «umumiy» asosiy saytda — @BotFather → Railway →
+TELEGRAM_BOT_TOKEN; joy «umumiy» SINOV saytida — «asosiy botning tokenini bu yerga QO'YMANG» (kech129 hodisasi takrorlanmasin); joy
+«korxona» — «Bot tokeni» maydoni → «Saqlash» → «🔗 Botni ulash», Railway tilga olinmaydi); 409 — eski `telegram-debug` matnlari AYNAN;
+429 — «N soniyadan keyin»; «bad webhook» — sayt manzili qabul qilinmadi; 5xx — Telegram nosozligi. Matn — `_tg_xato_matni`: «<izoh>
+(Telegram rad etdi: <Telegram matni>)», tanilmasa eskisidek «Telegram rad etdi: …». Tarmoq (`OSError` — URLError, vaqt tugadi) —
+`_tg_tarmoq_xato_matni` «Server Telegram bilan bog'lana olmadi … (Telegram bilan bog'lanishda xato: …)»; boshqa istisno tarmoq deb
+atalmaydi. Oxirgi xato (`getWebhookInfo.last_error_message`) — `_tg_webhook_xato_izohi` → `webhook.last_error_izoh` (403 — maxfiy imzo
+mos kelmadi; 502 / 503 / 504 / 404 / 500; vaqt tugadi, domen, SSL); sahifada «Oxirgi xato (vaqt): <izoh> (Telegram: <xom>)». Qo'llangan
+joylar: `telegram-webhook-info`, `telegram-debug` (`bot_info_tavsif` / `bot_info_izoh` — YANGI, `updates_error_izoh` — 401 / 404 ham;
+xato matnlari tokendan tozalanadi — ilgari tarmoq xatosida token debug javobiga tushishi mumkin edi), setup / delete, korxona «ulash».
+Yuborish xatolari (`_tenant_telegram`, `_tg_javob`) — faqat log (o'zgarmadi). Sinov: `tools/test_telegram_xato_izoh.py`,
+`tools/test_telegram_xato_izoh_ui.py`.
 **Mayda qoidalar va nomlar (kech118, D bosqichi 1-qism — egasi QARORLARI 11:40; zip 121).** (1) LOYIHA (G2-20): o'chirilmagan
 buyurtmasi bor loyiha o'chirilmaydi — `crud.loyiha_ochirish_tosigi` (korxona ichida sanaydi) → `crud.delete_project` `ValueError`
 → 400 «Loyihada N ta buyurtma bor — avval buyurtmalarni o'chiring»; savatdagi buyurtmalar to'sqinlik qilmaydi. Loyihasi o'chirilgan
@@ -2093,6 +2109,15 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   (production muhitida) + C4a / C4b (sinov / aniqlanmagan muhit — 409), `test_rollar` (3 yangi marshrut, `find-chat-id` olib tashlandi),
   `test_lint_taxallus` R2 (baseline dagi taxallusli so'rovlar 21 → 20: `_master_by_chat_id` endi korxona to'plami bilan; etalon d163 topdi —
   baseline ni o'qiydigan testlar: `grep -l tenant_lint_baseline tools/`).
+- (kech131, zip 155) Telegram xatolari o'zbekcha: `tools/test_telegram_xato_izoh.py` — A (yordamchilar: 401 / 404 — joy va sayt bo'yicha
+  maslahat, SINOV saytida Railway ga qo'yish maslahati YO'Q, mijozga Railway tilga olinmaydi; 409 matnlari AYNAN; 429; bad webhook; 5xx;
+  tanilmagan — eskisidek; tarmoq ↔ tarmoq emas; oxirgi xato izohlari; `TelegramRad.kod`, `_tg_api` kodi), B (`telegram-webhook-info`:
+  401 / 404 asosiy va sinov sayti, ok=false + error_code, 429, tarmoq — token yo'q, `last_error_izoh`), C (`telegram-debug`: getMe / getUpdates
+  izohi, 409 AYNAN, tarmoqda token javobda YO'Q), D (setup / delete: 401 / 404 / 429 / «noma'lum sabab» / tarmoq / javob o'qilmadi; sinov
+  saytida 409 o'zgarmagan), E (korxona «🔗 Botni ulash»: 401 — «Bot tokeni» maslahati, Railway yo'q; bad webhook; tarmoq 502; muvaffaqiyat
+  eskisidek), F (users.html). 50 (SQ / PG / TF) — zip 154 kodida 43 yiqiladi (7 — regressiya qo'riqchilari, ikkalasida o'tadi), qulamaydi.
+  `tools/test_telegram_xato_izoh_ui.py` (Chromium): holat blokida qizil izoh (asosiy / sinov sayti), oxirgi xato izohi va xom matn qavsda,
+  tanilmagan xato HTML sifatida chizilmaydi, korxona ulash xatosi, 390 px uzun matn bilan, JS xatosi yo'q.
 
 **Yangi o'zgarish tartibi:** (1) asl kodda nuqsonni o'lchash (probe — SQLite va PG); (2) tuzatish; (3) yangi test
 (asl kodga qarshi yiqiladi, QULAMAYDI); (4) mutatsiyalar; (5) `bash tools/hammasi.sh` (+ `TF=1`), PG testlari,
@@ -2417,6 +2442,9 @@ qarorlari 02.10»)**
   tushish — endi ogohlantirish, «Bekor» — hech narsa o'zgarmaydi).
 - **`main` o'lchoviga (kech107) — O'LCHANDI kech108:** `base_price` NULL va `price_per_m3` NULL detalli buyurtma — 0; brak
   kartasi 1 379 476 → 1 030 301 (egasiga ko'rsatildi).
+- **Sinov saytidagi `TELEGRAM_BOT_TOKEN` (kech130 jonli: Telegram «Not Found» — qiymat buzuq):** zararsiz (ulash / uzish 409, bot hech
+  qayerga ulanmaydi); kech131 (zip 155) dan «Bot hozir qayerga ulangan» da o'zbekcha izoh va «asosiy botning tokenini bu yerga QO'YMANG».
+  Egasi xohlasa Railway (sinov muhiti → web → Variables) dan o'chiradi — shart emas (o'chirilsa holat «token_yoq»).
 - **SaaS / Telegram (kech107, 10g) — YOPILDI kech130 (zip 154):** korxona boti endi usta menyusiga ham xizmat qiladi («🔗 Botni ulash»,
   `/telegram/webhook/<korxona id>`); umumiy bot — faqat platforma egasi ustalariga (4-bo'lim «Telegram»).
 - **Ko'p korxonali YAKUNIY jonli sinov — BAJARILDI (kech112, `sinov`):** C korxonada (yangi mijoz, bo'sh) TO'LIQ ish zanjiri
@@ -2928,6 +2956,11 @@ qarorlari 02.10»)**
 - (kech130) `tools/tenant_lint.py` evristikasi funksiyada `company_id` so'zini ko'rsa so'rovni «filtrlangan» deb hisoblaydi:
   `_master_by_chat_id` ga Python ichidagi korxona filtri qo'shilgach baseline yozuvi «eskirgan» bo'ldi (so'rovning o'zi o'zgarmagan,
   `korxonalar=None` — hamma korxona). Baseline dan faqat SHU yozuv olib tashlandi (`--update` hamma qator raqamlarini qayta yozardi).
+- (kech131) Konteynerdan tashqi API (api.telegram.org) — proksi 403 (ruxsat ro'yxatida yo'q). Tashqi xizmatning HAQIQIY javobini o'lchash —
+  ichki brauzerda `fetch` (Telegram CORS ochiq) SOXTA qiymatlar bilan (haqiqiy botga / hisobga tegmaydi); taxmin bilan yozilmaydi.
+- (kech131) Xato izohidagi «nima qilish kerak» maslahati QAYSI saytda ko'rsatilishiga qarab: sinov saytida «tokenni Railway ga qo'ying»
+  maslahati kech129 hodisasini (production boti sinov saytiga ulanishi) takrorlatardi — sinov saytida aksincha ogohlantirish; mijoz
+  korxonasiga Railway tilga olinmaydi (unga tegishli emas).
 - (kech129) Statik «yo'q» tekshiruvi izohga tushdi: `test_rollar` dagi yangi izohda `SAAS_IXTIYORIY` so'zi qoldi — «so'z yo'q» tekshiruvi
   yangi kodda yiqildi; tekshiruv KOD qatoriga (`SAAS_IXTIYORIY = {`, `not in SAAS_IXTIYORIY`) qaratildi.
 - (kech123, zip 139) Telefonda ikki tugma yonma-yon (`flex:1`) uzun yozuv bilan ikki qatorga o'tib 64 px bo'ladi — `flex-wrap` va
@@ -3879,6 +3912,8 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_telegram_tenant.py` — Telegram xabarnomalari va dashboard o'qishlari bo'yicha korxonalararo darvoza (9-sizish).
 - `test_telegram_webhook.py` · PG — kech130 (zip 154): Telegram bot MANZILI himoyasi, holati va HAR KORXONAGA O'Z BOTI.
 - `test_telegram_webhook_ui.py` · PG — kech130 (zip 154): «🔒 Telegram xavfsizligi» (Foydalanuvchilar, platforma admini) va «📱 Telegram bot» (Sozlamalar, korxona admini) — HAQIQIY brauzerda (Chromium, Playwrig…
+- `test_telegram_xato_izoh.py` · PG — kech131 (zip 155): Telegram XATOLARI O'ZBEKCHA (egasi tanlovi 08.10 «Telegram xato izohi»).
+- `test_telegram_xato_izoh_ui.py` · PG — kech131 (zip 155): Telegram xatolari O'ZBEKCHA — HAQIQIY brauzerda (Chromium, Playwright) O'LCHANADI.
 - `test_tenant_isolation.py` — ikki korxonali avtomatik izolyatsiya testi.
 - `test_tf1_login_band.py` · PG — kech108, K107-2 darvozasi: TENANT_FILTER=1 da boshqa korxonada BAND login.
 - `test_tm_detal_tannarx.py` · PG — 5-bo'lim 56-band + K103-1 darvozasi (kech103, 2026-09-28): "Tayyor mahsulotdan" olingan detal tannarxi OLINGAN paytda muzlaydi.
@@ -3940,5 +3975,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 217 (Python 182, JS 35).
+Jami test fayllari: 219 (Python 184, JS 35).
 <!-- AVTO:TESTLAR OXIRI -->
