@@ -1131,8 +1131,9 @@ function renderFp() {
   }
 
   if (!groups.length && !returned.length) {
+    // kech132 (zip 156): tugma NOMI bilan (ilgari «yuqoridagi … tugmasi» — telefonda sahifa tugmalari boshqa joyda bo'lishi mumkin)
     html = `<div class="fp-empty">
-      ${q || category || activeChips.size ? 'Topilmadi' : (yashirin > 0 ? 'Omborda qoldiq yo\'q' : 'Ombor bo\'sh<br><br><span style="font-size:12px">Penoplast detal — yuqoridagi <b>+ Penoplast detal</b> tugmasi; boshqa mahsulot — <b>Retsept bo\'yicha</b> («Ishlab chiqarish» bo\'limi)</span>')}
+      ${q || category || activeChips.size ? 'Topilmadi' : (yashirin > 0 ? 'Omborda qoldiq yo\'q' : 'Ombor bo\'sh<br><br><span style="font-size:12px">Penoplast detal — <b>+ Penoplast detal</b> tugmasi; boshqa mahsulot — <b>Retsept bo\'yicha</b> («Ishlab chiqarish» bo\'limi)</span>')}
     </div>` + (yashirin > 0 ? `<div class="fp-yashirin" id="fpYashirinIzoh">Tugagan partiyalar yashirilgan: ${yashirin} ta — <button type="button" class="btn-link" onclick="fpTugaganniKorsat()">ko'rsatish</button></div>` : '');
   }
 
