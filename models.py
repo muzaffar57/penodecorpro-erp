@@ -2194,6 +2194,59 @@ class Taklif(Base):
         return f"<Taklif {self.raqam} {self.holat} c={self.company_id}>"
 
 
+class Murojaat(Base):
+    """kech127 (zip 151 — EGASI QARORLARI 08.10 01:40, tugmali, QAYTA SO'RALMAYDI) — mijoz korxonaning platforma egasiga
+    MUROJAATI (savol, xato, taklif, to'lov / obuna). Qarorlar: (1) bo'lim hozir — birinchi mijozdan oldin; (2) murojaatni FAQAT
+    korxona admini yozadi; (3) javob — DASTUR ICHIDA (yozishma tarixi saqlanadi; telefon — qo'shimcha).
+
+    Bitta murojaat — bitta yozishma: birinchi xabar va keyingilari `murojaat_xabarlari` da. Holat: `yangi` (platforma javobini
+    kutmoqda; mijoz qo'shimcha yozsa ham shu holatga qaytadi) → `javob_berildi` (platforma javob yozdi) → `yopildi` (platforma
+    yopdi — yozishma tugadi, mijoz yangi murojaat ochadi). `kontekst` — yaratishda dastur o'zi qo'shgan ma'lumot (JSON: brauzer,
+    ekran, korxonaning oxirgi 24 soatdagi texnik xatosi) — platforma egasi «qaysi sahifada edingiz?» deb so'ramasin.
+    `mijoz_korgan` / `platforma_korgan` — tomonlar yozishmani oxirgi ochgan vaqt (o'qilmagan javob belgisi).
+    PLATFORMA YOZISHMASI: korxona JSON zaxirasiga kirmaydi va korxonaning «Barcha ma'lumotlarni o'chirish» amali uni
+    o'chirmaydi (`crud._NON_TENANT_TABLES`, `_reset_table_order` da yo'q) — xizmat ko'rsatuvchi bilan yozishma tarixi (xat kabi).
+    Foydalanuvchiga FK yo'q (zaxiradan tiklashda `users` tiklanmaydi) — muallif nomi matn bilan."""
+    __tablename__ = "murojaatlar"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    turi = Column(String(20), nullable=False)                         # 'xato' | 'savol' | 'taklif' | 'tolov'
+    holat = Column(String(20), nullable=False, default="yangi", index=True)   # 'yangi' | 'javob_berildi' | 'yopildi'
+    kelgan_sahifa = Column(String(200), nullable=True)                # murojaat ochilgan sahifa yo'li («/orders»)
+    kontekst = Column(Text, nullable=True)                            # JSON — dastur qo'shgan ma'lumot
+    yaratilgan = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    yaratgan = Column(String(100), nullable=True)                     # ism (yoki login)
+    yaratgan_login = Column(String(50), nullable=True)
+    yangilangan = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)   # oxirgi xabar vaqti
+    mijoz_korgan = Column(DateTime, nullable=True)
+    platforma_korgan = Column(DateTime, nullable=True)
+    yopilgan = Column(DateTime, nullable=True)
+    yopgan = Column(String(100), nullable=True)
+
+    def __repr__(self):
+        return f"<Murojaat #{self.id} {self.turi} {self.holat} c={self.company_id}>"
+
+
+class MurojaatXabari(Base):
+    """kech127 (zip 151): murojaat yozishmasidagi bitta xabar — mijozdan (`mijoz`) yoki platformadan (`platforma`). `rasm` —
+    ixtiyoriy skrinshot (`/static/uploads/murojaat/<uuid>.<kengaytma>`; himoya — `main.yuklangan_fayl`: o'z korxonasi va
+    platforma admini). `company_id` — murojaatniki (`_TENANT_RULES`)."""
+    __tablename__ = "murojaat_xabarlari"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    murojaat_id = Column(Integer, ForeignKey("murojaatlar.id", ondelete="CASCADE"), nullable=False, index=True)
+    kimdan = Column(String(10), nullable=False)                       # 'mijoz' | 'platforma'
+    muallif = Column(String(100), nullable=True)
+    matni = Column(Text, nullable=False)
+    rasm = Column(String(300), nullable=True)
+    yaratilgan = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    def __repr__(self):
+        return f"<MurojaatXabari #{self.id} m={self.murojaat_id} {self.kimdan}>"
+
+
 # ============================================================
 # 11. DELIVERY — Yetkazishlar (bosqichma-bosqich topshirish)
 # ============================================================
@@ -2565,6 +2618,8 @@ _TENANT_RULES = {
     "EmployeeMonthlyAdjustment":   [("employee_id", "Employee")],
     "AdvanceRequest":              [("employee_id", "Employee")],
     "EmployeeSession":             [("employee_id", "Employee")],
+    # kech127 (zip 151): murojaat xabari — o'z murojaatining korxonasidan
+    "MurojaatXabari":              [("murojaat_id", "Murojaat")],
 }
 
 
