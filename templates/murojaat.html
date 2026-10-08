@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+{% block title %}Yordam / Murojaat — PenoDecorPro ERP{% endblock %}
+{% block page_title %}Yordam / Murojaat{% endblock %}
+{% block page_sub %}Dastur xizmatiga savol, xato yoki taklif yozing — javob shu sahifada keladi{% endblock %}
+
+{% block head %}
+{# kech127 (zip 151 — EGASI QARORLARI 08.10 01:40: murojaatni FAQAT korxona admini yozadi, javob — DASTUR ICHIDA). Keng ekranda —
+   yangi murojaat (tur, matn, ixtiyoriy rasm; qaysi sahifadan kelgani avtomatik) va «Murojaatlarim» yonma-yon (telefonda — ustma-ust), pastda — tanlangan
+   yozishma (javob yozish — yopilmagan bo'lsa). Ma'lumot — /api/murojaatlar (`murojaat.py`). Foydalanuvchi matni — escapeHtml. #}
+<style>
+.mj-grid{display:grid;grid-template-columns:minmax(300px,1fr) minmax(320px,1.4fr);gap:14px;align-items:start}
+@media (max-width:900px){.mj-grid{grid-template-columns:1fr}}
+.mj-forma{padding:16px;display:flex;flex-direction:column;gap:10px}
+.mj-label{font-size:12px;font-weight:600;color:var(--text2)}
+.mj-turlar{display:flex;flex-wrap:wrap;gap:8px}
+.mj-tur{display:inline-flex;align-items:center;gap:6px;box-sizing:border-box;min-height:var(--h-sm);padding:0 12px;border:1px solid var(--border);
+  border-radius:999px;background:var(--white);color:var(--text);font-size:13px;font-weight:600;cursor:pointer}
+.mj-tur:has(input:checked){border-color:var(--gold);background:var(--gold-tint)}
+.mj-forma textarea,.mj-yoz textarea{box-sizing:border-box;width:100%;min-height:120px;padding:10px 12px;border:1px solid var(--border);
+  border-radius:var(--r-btn);background:var(--white);color:var(--text);font:inherit;font-size:var(--fs-maydon);line-height:1.5;resize:vertical}
+.mj-izoh{font-size:12px;color:var(--text2);line-height:1.5}
+.mj-qator{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border2);
+  cursor:pointer;width:100%;box-sizing:border-box;background:transparent;border-left:0;border-right:0;border-top:0;text-align:left;font:inherit;color:var(--text)}
+.mj-qator:hover,.mj-qator.tanlangan{background:var(--gold-tint)}
+.mj-qator .p{font-size:13px;color:var(--text);word-break:break-word;margin-top:4px}
+.mj-qator .s{font-size:12px;color:var(--text3);white-space:nowrap}
+.mj-belgi{display:inline-block;font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px;white-space:nowrap}
+.mj-h-yangi{background:var(--f-fef3c7);color:var(--m-78350f)}
+.mj-h-javob_berildi{background:var(--f-dcfce7);color:var(--m-166534)}
+.mj-h-yopildi{background:var(--bg);color:var(--text2)}
+.mj-tur-belgi{background:var(--bg);color:var(--text2)}
+.mj-yangi-javob{background:var(--gold);color:var(--dark)}
+.mj-xabarlar{display:flex;flex-direction:column;gap:10px;padding:16px}
+.mj-xabar{max-width:82%;padding:10px 12px;border-radius:12px;border:1px solid var(--border2);background:var(--white)}
+.mj-xabar.mijoz{align-self:flex-end;background:var(--gold-tint);border-color:var(--gold)}
+.mj-xabar.platforma{align-self:flex-start;background:var(--bg)}
+.mj-xabar .m{font-size:12px;color:var(--text2);margin-bottom:4px}
+.mj-xabar .t{font-size:14px;color:var(--text);white-space:pre-wrap;word-break:break-word;line-height:1.5}
+.mj-xabar img{display:block;margin-top:8px;max-width:240px;max-height:240px;border-radius:8px;border:1px solid var(--border2)}
+.mj-yoz{padding:0 16px 16px;display:flex;flex-direction:column;gap:8px}
+.mj-bosh{padding:14px 16px;color:var(--text2);font-size:13px}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="erp-content">
+  <div class="mj-grid">
+    <div class="card">
+      <div class="card-head"><h3>+ Yangi murojaat</h3></div>
+      <div class="mj-forma">
+        <div class="mj-label" id="mjTurYozuv">Turi</div>
+        <div class="mj-turlar" role="radiogroup" aria-labelledby="mjTurYozuv">
+          {% for k, v in turlar.items() %}
+          <label class="mj-tur"><input type="radio" name="mjTuri" value="{{ k }}"{% if loop.first %} checked{% endif %}> {{ v }}</label>
+          {% endfor %}
+        </div>
+        <label class="mj-label" for="mjMatn">Matn</label>
+        <textarea id="mjMatn" maxlength="{{ matn_max }}" rows="6"
+                  placeholder="Masalan: «Buyurtmalar» sahifasida «Saqlash» bosilganda xato chiqyapti"></textarea>
+        <div class="mj-izoh"><span id="mjSanoq">0</span> / {{ matn_max }} belgi</div>
+        <label class="mj-label" for="mjRasm">Rasm — ixtiyoriy (ekran surati: JPG, PNG yoki WEBP)</label>
+        <input type="file" id="mjRasm" accept="image/jpeg,image/png,image/webp">
+        <div class="mj-izoh" id="mjSahifaIzoh"></div>
+        <div><button type="button" class="btn btn-dark" id="mjYubor">Yuborish</button></div>
+        <div class="mj-izoh">Javob shu sahifada chiqadi — menyudagi «Yordam / Murojaat» yonida son paydo bo'ladi.
+          {% if aloqa_telefoni %}Shoshilinch bo'lsa: <b>{{ aloqa_telefoni }}</b>.{% endif %}</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h3>Murojaatlarim</h3></div>
+      <div id="mjRoyxat"><div class="mj-bosh">Yuklanmoqda…</div></div>
+    </div>
+  </div>
+
+  <div class="card" id="mjYozishma" style="margin-top:14px" hidden>
+    <div class="card-head"><h3 id="mjYozSarlavha">Murojaat</h3></div>
+    <div class="mj-xabarlar" id="mjXabarlar"></div>
+    <div class="mj-yoz" id="mjYoz">
+      <label class="mj-label" for="mjJavobMatn">Qo'shimcha yozish</label>
+      <textarea id="mjJavobMatn" maxlength="{{ matn_max }}" rows="3" placeholder="Javob yoki qo'shimcha ma'lumot"></textarea>
+      <label class="mj-label" for="mjJavobRasm">Rasm — ixtiyoriy</label>
+      <input type="file" id="mjJavobRasm" accept="image/jpeg,image/png,image/webp">
+      <div><button type="button" class="btn btn-dark" id="mjJavobYubor">Yuborish</button></div>
+    </div>
+    <div class="mj-bosh" id="mjYopiqIzoh" hidden>Bu murojaat yopilgan. Yangi savol bo'lsa — yangi murojaat oching.</div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var MJ = {royxat: [], ochiq: null, sahifa: null, band: false};
+
+function mjSahifa() {                       // qaysi sahifadan kelgani (shu sayt ichidan bo'lsa)
+  try {
+    if (document.referrer) {
+      var u = new URL(document.referrer);
+      if (u.origin === location.origin && u.pathname !== '/murojaat') return u.pathname;
+    }
+  } catch (e) {}
+  return null;
+}
+
+function mjRoyxatChiz() {
+  var el = document.getElementById('mjRoyxat');
+  if (!MJ.royxat.length) { el.innerHTML = '<div class="mj-bosh">Hali murojaat yo\'q.</div>'; return; }
+  el.innerHTML = MJ.royxat.map(function (r) {
+    return '<button type="button" class="mj-qator' + (MJ.ochiq === r.id ? ' tanlangan' : '') + '" data-id="' + escapeHtml(String(r.id)) + '">' +
+      '<div style="min-width:0;flex:1"><div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">' +
+      '<b>#' + escapeHtml(String(r.id)) + '</b> <span class="mj-belgi mj-tur-belgi">' + escapeHtml(r.turi_nomi) + '</span> ' +
+      '<span class="mj-belgi mj-h-' + escapeHtml(r.holat) + '">' + escapeHtml(r.holat_nomi) + '</span>' + (r.yangi_javob ? ' <span class="mj-belgi mj-yangi-javob">Yangi javob</span>' : '') + '</div>' +
+      '<div class="p">' + escapeHtml(r.parcha) + '</div></div>' +
+      '<div class="s">' + escapeHtml(tkSanaVaqt(r.yangilangan)) + '</div></button>';
+  }).join('');
+}
+
+async function mjYukla() {
+  try {
+    var r = await fetch('/api/murojaatlar');
+    if (!r.ok) { showMsg(await serverXatoSababi(r, "Murojaatlarni yuklab bo'lmadi"), 'error'); return; }
+    var d = await r.json();
+    MJ.royxat = d.murojaatlar || [];
+    mjRoyxatChiz();
+  } catch (e) { showMsg('Internet aloqasini tekshiring', 'error'); }
+}
+
+function mjXabarHtml(x) {
+  var kim = x.kimdan === 'platforma' ? 'Dastur xizmati' : (x.muallif || '');
+  return '<div class="mj-xabar ' + (x.kimdan === 'platforma' ? 'platforma' : 'mijoz') + '">' +
+    '<div class="m">' + escapeHtml(kim) + ' · ' + escapeHtml(tkSanaVaqt(x.yaratilgan)) + '</div>' +
+    '<div class="t">' + escapeHtml(x.matn) + '</div>' +
+    (x.rasm ? '<a href="' + escapeHtml(x.rasm) + '" target="_blank" rel="noopener"><img src="' + escapeHtml(kichikRasm(x.rasm)) +
+      '" alt="Biriktirilgan rasm" loading="lazy"></a>' : '') + '</div>';
+}
+
+function mjMenyuSoni() {                     // o'qilmagan javoblar soni (menyudagi belgi)
+  var n = MJ.royxat.filter(function (r) { return r.yangi_javob; }).length;
+  var a = document.querySelector('a.nav-item[href="/murojaat"]');
+  if (!a) return;
+  var b = a.querySelector('.n-badge');
+  if (!n) { if (b) b.remove(); return; }
+  if (!b) { b = document.createElement('span'); b.className = 'n-badge'; a.appendChild(b); }
+  b.textContent = String(n);
+}
+
+async function mjOch(id) {
+  try {
+    var r = await fetch('/api/murojaatlar/' + encodeURIComponent(id));
+    if (!r.ok) { showMsg(await serverXatoSababi(r, "Murojaatni ochib bo'lmadi"), 'error'); return; }
+    var d = await r.json();
+    MJ.ochiq = d.id;
+    var q = MJ.royxat.find(function (x) { return x.id === d.id; });
+    if (q) { q.yangi_javob = false; q.holat = d.holat; q.holat_nomi = d.holat_nomi; }
+    mjRoyxatChiz();
+    mjMenyuSoni();
+    document.getElementById('mjYozSarlavha').innerHTML = 'Murojaat #' + escapeHtml(String(d.id)) + ' · ' +
+      escapeHtml(d.turi_nomi) + ' <span class="mj-belgi mj-h-' + escapeHtml(d.holat) + '">' + escapeHtml(d.holat_nomi) + '</span>';
+    document.getElementById('mjXabarlar').innerHTML = (d.xabarlar || []).map(mjXabarHtml).join('');
+    var yopiq = d.holat === 'yopildi';
+    document.getElementById('mjYoz').hidden = yopiq;
+    document.getElementById('mjYopiqIzoh').hidden = !yopiq;
+    var k = document.getElementById('mjYozishma');
+    k.hidden = false;
+    k.scrollIntoView({block: 'start', behavior: 'smooth'});
+  } catch (e) { showMsg('Internet aloqasini tekshiring', 'error'); }
+}
+
+async function mjYubor() {
+  if (MJ.band) return;
+  var matn = document.getElementById('mjMatn').value.trim();
+  if (!matn) { showMsg('Murojaat matnini yozing', 'error'); document.getElementById('mjMatn').focus(); return; }
+  var tanlangan = document.querySelector('input[name="mjTuri"]:checked');
+  var fd = new FormData();
+  fd.append('turi', tanlangan ? tanlangan.value : '');
+  fd.append('matn', matn);
+  if (MJ.sahifa) fd.append('sahifa', MJ.sahifa);
+  if (window.screen && screen.width) fd.append('ekran', screen.width + 'x' + screen.height);
+  var f = document.getElementById('mjRasm').files[0];
+  if (f) fd.append('file', f);
+  var btn = document.getElementById('mjYubor');
+  MJ.band = true; btn.disabled = true; btn.textContent = 'Yuborilmoqda…';
+  try {
+    var r = await fetch('/api/murojaatlar', {method: 'POST', body: fd});
+    if (!r.ok) { showMsg(await serverXatoSababi(r, "Murojaatni yuborib bo'lmadi"), 'error'); return; }
+    var d = await r.json();
+    document.getElementById('mjMatn').value = '';
+    document.getElementById('mjRasm').value = '';
+    document.getElementById('mjSanoq').textContent = '0';
+    showMsg('Murojaat yuborildi — javob shu sahifada chiqadi', 'success');
+    await mjYukla();
+    await mjOch(d.id);
+  } catch (e) { showMsg('Internet aloqasini tekshiring', 'error'); }
+  finally { MJ.band = false; btn.disabled = false; btn.textContent = 'Yuborish'; }
+}
+
+async function mjJavob() {
+  if (MJ.band || !MJ.ochiq) return;
+  var matn = document.getElementById('mjJavobMatn').value.trim();
+  if (!matn) { showMsg('Xabar matnini yozing', 'error'); document.getElementById('mjJavobMatn').focus(); return; }
+  var fd = new FormData();
+  fd.append('matn', matn);
+  var f = document.getElementById('mjJavobRasm').files[0];
+  if (f) fd.append('file', f);
+  var btn = document.getElementById('mjJavobYubor');
+  MJ.band = true; btn.disabled = true; btn.textContent = 'Yuborilmoqda…';
+  try {
+    var r = await fetch('/api/murojaatlar/' + encodeURIComponent(MJ.ochiq) + '/xabar', {method: 'POST', body: fd});
+    if (!r.ok) { showMsg(await serverXatoSababi(r, "Xabarni yuborib bo'lmadi"), 'error'); return; }
+    document.getElementById('mjJavobMatn').value = '';
+    document.getElementById('mjJavobRasm').value = '';
+    showMsg('Xabar yuborildi', 'success');
+    var id = MJ.ochiq;
+    await mjYukla();
+    await mjOch(id);
+  } catch (e) { showMsg('Internet aloqasini tekshiring', 'error'); }
+  finally { MJ.band = false; btn.disabled = false; btn.textContent = 'Yuborish'; }
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  MJ.sahifa = mjSahifa();
+  if (MJ.sahifa) document.getElementById('mjSahifaIzoh').textContent = 'Murojaatga qaysi sahifadan kelganingiz qo\'shiladi: ' + MJ.sahifa;
+  document.getElementById('mjMatn').addEventListener('input', function (e) {
+    document.getElementById('mjSanoq').textContent = String(e.target.value.length);
+  });
+  document.getElementById('mjYubor').addEventListener('click', mjYubor);
+  document.getElementById('mjJavobYubor').addEventListener('click', mjJavob);
+  document.getElementById('mjRoyxat').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-id]'); if (b) mjOch(parseInt(b.dataset.id, 10));
+  });
+  mjYukla();
+});
+</script>
+{% endblock %}

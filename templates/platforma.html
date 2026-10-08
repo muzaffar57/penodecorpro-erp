@@ -70,6 +70,32 @@
   .pl-xato pre{display:none;margin-top:8px;padding:10px;background:#1F2937;color:#E5E7EB;border-radius:8px;font-size:12px;
           white-space:pre-wrap;word-break:break-word;max-height:360px;overflow-y:auto}
   .pl-xato.ochiq pre{display:block}
+  /* kech127 (zip 151): «💬 Murojaatlar» — mijoz korxonalar murojaatlari (keng ekranda: ro'yxat | yozishma; telefonda — ustma-ust) */
+  .mp-grid{display:grid;grid-template-columns:minmax(260px,1fr) minmax(320px,1.6fr);align-items:stretch}
+  @media (max-width:900px){.mp-grid{grid-template-columns:1fr}}
+  .mp-royxat{max-height:620px;overflow-y:auto;border-right:1px solid var(--border2)}
+  @media (max-width:900px){.mp-royxat{border-right:0;border-bottom:1px solid var(--border2)}}
+  .mp-qator{display:block;width:100%;box-sizing:border-box;text-align:left;padding:11px 14px;border:0;border-bottom:1px solid var(--border2);
+            background:transparent;color:var(--text);font:inherit;cursor:pointer}
+  .mp-qator:hover,.mp-qator.tanlangan{background:var(--gold-tint)}
+  .mp-qator .y{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:13px}
+  .mp-qator .p{font-size:13px;color:var(--text);margin-top:4px;word-break:break-word}
+  .mp-qator .s{font-size:12px;color:var(--text3);margin-top:3px}
+  .mp-qator.oqilmagan .p{font-weight:700}
+  .mp-belgi{display:inline-block;font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px;white-space:nowrap;background:var(--bg);color:var(--text2)}
+  .mp-belgi.yangi{background:var(--f-fef3c7);color:var(--m-78350f)}
+  .mp-belgi.javob_berildi{background:var(--f-dcfce7);color:var(--m-166534)}
+  .mp-yoz{padding:14px;display:flex;flex-direction:column;gap:12px;min-width:0}
+  .mp-kontekst{font-size:12px;color:var(--text2);line-height:1.6;background:var(--bg);border-radius:10px;padding:10px 12px;word-break:break-word}
+  .mp-xabarlar{display:flex;flex-direction:column;gap:10px;max-height:420px;overflow-y:auto}
+  .mp-xabar{max-width:85%;padding:10px 12px;border-radius:12px;border:1px solid var(--border2);background:var(--white)}
+  .mp-xabar.mijoz{align-self:flex-start;background:var(--bg)}
+  .mp-xabar.platforma{align-self:flex-end;background:var(--gold-tint);border-color:var(--gold)}
+  .mp-xabar .m{font-size:12px;color:var(--text2);margin-bottom:4px}
+  .mp-xabar .t{font-size:14px;color:var(--text);white-space:pre-wrap;word-break:break-word;line-height:1.5}
+  .mp-xabar img{display:block;margin-top:8px;max-width:240px;max-height:240px;border-radius:8px;border:1px solid var(--border2)}
+  .mp-yoz textarea{box-sizing:border-box;width:100%;min-height:90px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--r-btn);
+            background:var(--white);color:var(--text);font:inherit;font-size:var(--fs-maydon);line-height:1.5;resize:vertical}
   .pl-modal{position:fixed;inset:0;background:rgba(24,27,34,.55);display:none;align-items:center;justify-content:center;z-index:2500;padding:16px}
   .pl-modal.ochiq{display:flex}
   .pl-oyna{width:500px;max-width:100%;background:var(--white);border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:14px;
@@ -136,6 +162,23 @@
     Chiziq — obuna davrining qolgan qismi. Muddatga 7 kun qolganda kartochka sariq bo'ladi va Telegram'ga eslatma
     ketadi; muddat tugagach 3 kun imtiyoz, so'ng kirish avtomatik yopiladi (ma'lumot o'chmaydi).
     <span id="plEgaIzoh"></span>
+  </div>
+
+  <div class="card" id="mpKarta">
+    <div class="card-head" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+      <h3>💬 Murojaatlar</h3>
+      <div class="pl-chips" role="group" aria-label="Murojaat holati" id="mpChiplar">
+        <button type="button" class="pl-chip chip aktiv" data-holat="yangi">Yangi · <span data-son="yangi">0</span></button>
+        <button type="button" class="pl-chip chip" data-holat="javob_berildi">Javob berildi · <span data-son="javob_berildi">0</span></button>
+        <button type="button" class="pl-chip chip" data-holat="yopildi">Yopildi · <span data-son="yopildi">0</span></button>
+        <button type="button" class="pl-chip chip" data-holat="">Hammasi</button>
+      </div>
+    </div>
+    <div class="mp-grid">
+      <div class="mp-royxat" id="mpRoyxat"><div class="pl-izoh" style="padding:14px">Yuklanmoqda…</div></div>
+      <div class="mp-yoz" id="mpYozishma"><div class="pl-izoh">Ro'yxatdan murojaatni tanlang. Mijoz korxona admini yozadi; javobingiz
+        uning dasturida chiqadi (menyuda son bilan).</div></div>
+    </div>
   </div>
 
   <div class="pl-bottom">
@@ -497,6 +540,140 @@ async function plXatolar() {
       (x.trace ? '<pre>' + escapeHtml(x.trace) + '</pre>' : '') + '</div>';
   }).join('') : '<div class="pl-izoh" style="padding:14px">Xato yo\'q ✅</div>';
 }
+
+// ══ kech127 (zip 151 — EGASI QARORLARI 08.10): MUROJAATLAR — mijoz korxona admini yozadi, javob — dastur ichida
+// (`murojaat.py`). Matn — escapeHtml; tugmalar — data-* (onclick YO'Q); vaqt — tkSanaVaqt (Toshkent).
+var MP = {holat: 'yangi', royxat: [], ochiq: null, band: false};
+
+function mpMenyuSoni(n) {                    // menyudagi «Platforma» yonidagi son — javob kutayotganlar
+  var a = document.querySelector('a.nav-item[href="/platforma"]');
+  if (!a) return;
+  var b = a.querySelector('.n-badge');
+  if (!n) { if (b) b.remove(); return; }
+  if (!b) { b = document.createElement('span'); b.className = 'n-badge'; a.appendChild(b); }
+  b.textContent = String(n);
+}
+
+async function mpYukla() {
+  var el = document.getElementById('mpRoyxat');
+  try {
+    var res = await fetch('/api/platform/murojaatlar' + (MP.holat ? '?holat=' + encodeURIComponent(MP.holat) : ''));
+    if (!res.ok) { el.innerHTML = '<div class="pl-izoh" style="padding:14px">' + escapeHtml(await serverXatoSababi(res, 'Yuklab bo\'lmadi')) + '</div>'; return; }
+    var d = await res.json();
+    MP.royxat = d.murojaatlar || [];
+    var sanoq = d.sanoq || {};
+    document.querySelectorAll('#mpChiplar [data-son]').forEach(function (s) { s.textContent = plSon(sanoq[s.dataset.son] || 0); });
+    mpMenyuSoni(sanoq.yangi || 0);
+    el.innerHTML = MP.royxat.length ? MP.royxat.map(function (r) {
+      return '<button type="button" class="mp-qator' + (r.oqilmagan ? ' oqilmagan' : '') + (MP.ochiq === r.id ? ' tanlangan' : '') +
+        '" data-mp-id="' + escapeHtml(String(r.id)) + '"><div class="y"><b>#' + escapeHtml(String(r.id)) + '</b> ' +
+        escapeHtml(r.korxona) + ' <span class="mp-belgi">' + escapeHtml(r.turi_nomi) + '</span> <span class="mp-belgi ' +
+        escapeHtml(r.holat) + '">' + escapeHtml(r.holat_nomi) + '</span></div>' +
+        '<div class="p">' + escapeHtml(r.parcha) + '</div>' +
+        '<div class="s">' + escapeHtml(r.yaratgan || '') + ' · ' + escapeHtml(tkSanaVaqt(r.yangilangan)) + ' · ' +
+        escapeHtml(String(r.xabarlar_soni)) + ' ta xabar</div></button>';
+    }).join('') : '<div class="pl-izoh" style="padding:14px">Bu holatda murojaat yo\'q.</div>';
+  } catch (e) { el.innerHTML = '<div class="pl-izoh" style="padding:14px">Internet aloqasini tekshiring</div>'; }
+}
+
+function mpXabarHtml(x) {
+  return '<div class="mp-xabar ' + (x.kimdan === 'platforma' ? 'platforma' : 'mijoz') + '">' +
+    '<div class="m">' + escapeHtml(x.kimdan === 'platforma' ? 'Siz (' + (x.muallif || '') + ')' : (x.muallif || '')) + ' · ' +
+    escapeHtml(tkSanaVaqt(x.yaratilgan)) + '</div><div class="t">' + escapeHtml(x.matn) + '</div>' +
+    (x.rasm ? '<a href="' + escapeHtml(x.rasm) + '" target="_blank" rel="noopener"><img src="' + escapeHtml(kichikRasm(x.rasm)) +
+      '" alt="Biriktirilgan rasm" loading="lazy"></a>' : '') + '</div>';
+}
+
+function mpKontekstHtml(d) {
+  var k = d.kontekst || {}, s = [];
+  s.push('<b>' + escapeHtml(d.korxona) + '</b> · ' + escapeHtml(d.yaratgan || '') + (d.yaratgan_login ? ' (' + escapeHtml(d.yaratgan_login) + ')' : ''));
+  s.push('Ochilgan: ' + escapeHtml(tkSanaVaqt(d.yaratilgan)) + (d.sahifa ? ' · sahifa: ' + escapeHtml(d.sahifa) : ''));
+  if (k.ekran || k.brauzer) s.push('Ekran: ' + escapeHtml(k.ekran || '—') + ' · ' + escapeHtml(k.brauzer || ''));
+  if (k.oxirgi_xato) s.push('<span style="color:var(--m-dc2626)">Oxirgi texnik xato (24 soat ichida): ' + escapeHtml(k.oxirgi_xato.vaqt) +
+    ' · ' + escapeHtml(k.oxirgi_xato.usul) + ' ' + escapeHtml(k.oxirgi_xato.endpoint) + ' — ' + escapeHtml(k.oxirgi_xato.xabar) + '</span>');
+  else s.push('Oxirgi 24 soatda texnik xato yo\'q');
+  if (d.holat === 'yopildi') s.push('Yopilgan: ' + escapeHtml(tkSanaVaqt(d.yopilgan)) + (d.yopgan ? ' · ' + escapeHtml(d.yopgan) : ''));
+  return '<div class="mp-kontekst">' + s.join('<br>') + '</div>';
+}
+
+async function mpOch(id) {
+  var el = document.getElementById('mpYozishma');
+  try {
+    var res = await fetch('/api/platform/murojaatlar/' + encodeURIComponent(id));
+    if (!res.ok) { showMsg(await serverXatoSababi(res, 'Murojaatni ochib bo\'lmadi'), 'error'); return; }
+    var d = await res.json();
+    MP.ochiq = d.id;
+    var yopiq = d.holat === 'yopildi';
+    el.innerHTML = '<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap">' +
+      '<div style="font-weight:700">Murojaat #' + escapeHtml(String(d.id)) + ' · ' + escapeHtml(d.turi_nomi) + ' ' +
+      '<span class="mp-belgi ' + escapeHtml(d.holat) + '">' + escapeHtml(d.holat_nomi) + '</span></div>' +
+      (yopiq ? '' : '<button type="button" class="pl-btn qizil" data-mp="yop">Yopish</button>') + '</div>' +
+      mpKontekstHtml(d) +
+      '<div class="mp-xabarlar" id="mpXabarlar">' + (d.xabarlar || []).map(mpXabarHtml).join('') + '</div>' +
+      (yopiq ? '<div class="pl-izoh">Murojaat yopilgan — mijoz kerak bo\'lsa yangi murojaat ochadi.</div>' :
+        '<div class="pl-field"><label for="mpMatn">Javob</label><textarea id="mpMatn" maxlength="4000" rows="4" ' +
+        'placeholder="Mijozga javob — u dasturida ko\'radi"></textarea></div>' +
+        '<div class="pl-field"><label for="mpRasm">Rasm — ixtiyoriy</label><input type="file" id="mpRasm" accept="image/jpeg,image/png,image/webp"></div>' +
+        '<div><button type="button" class="pl-btn qora" data-mp="javob">Javob yuborish</button></div>');
+    var xs = document.getElementById('mpXabarlar'); if (xs) xs.scrollTop = xs.scrollHeight;
+    document.querySelectorAll('#mpRoyxat .mp-qator').forEach(function (b) {
+      b.classList.toggle('tanlangan', b.dataset.mpId === String(d.id));
+      if (b.dataset.mpId === String(d.id)) b.classList.remove('oqilmagan');
+    });
+  } catch (e) { showMsg('Internet aloqasini tekshiring', 'error'); }
+}
+
+async function mpJavob() {
+  if (MP.band || !MP.ochiq) return;
+  var t = document.getElementById('mpMatn'), matn = t ? t.value.trim() : '';
+  if (!matn) { showMsg('Javob matnini yozing', 'error'); if (t) t.focus(); return; }
+  var fd = new FormData(); fd.append('matn', matn);
+  var f = document.getElementById('mpRasm'); if (f && f.files[0]) fd.append('file', f.files[0]);
+  var btn = document.querySelector('#mpYozishma button[data-mp="javob"]');
+  MP.band = true; if (btn) { btn.disabled = true; btn.textContent = 'Yuborilmoqda…'; }
+  try {
+    var res = await fetch('/api/platform/murojaatlar/' + encodeURIComponent(MP.ochiq) + '/javob', {method: 'POST', body: fd});
+    if (!res.ok) { showMsg(await serverXatoSababi(res, 'Javobni yuborib bo\'lmadi'), 'error'); return; }
+    showMsg('Javob yuborildi — mijoz dasturida ko\'radi', 'success');
+    var id = MP.ochiq;
+    await mpYukla(); await mpOch(id);
+  } catch (e) { showMsg('Internet aloqasini tekshiring', 'error'); }
+  finally { MP.band = false; if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = 'Javob yuborish'; } }
+}
+
+async function mpYop() {
+  if (MP.band || !MP.ochiq) return;
+  var ok = await customConfirm('Murojaatni yopish', 'Mijoz endi bu murojaatga yoza olmaydi (kerak bo\'lsa yangisini ochadi). Yopilsinmi?',
+    {okText: 'Ha, yopish', cancelText: 'Yo\'q, qolsin'});
+  if (!ok) return;
+  MP.band = true;
+  try {
+    var res = await fetch('/api/platform/murojaatlar/' + encodeURIComponent(MP.ochiq) + '/yopish', {method: 'POST'});
+    if (!res.ok) { showMsg(await serverXatoSababi(res, 'Yopib bo\'lmadi'), 'error'); return; }
+    showMsg('Murojaat yopildi', 'success');
+    var id = MP.ochiq;
+    await mpYukla(); await mpOch(id);
+  } catch (e) { showMsg('Internet aloqasini tekshiring', 'error'); }
+  finally { MP.band = false; }
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  document.getElementById('mpChiplar').addEventListener('click', function (e) {
+    var b = e.target.closest('.pl-chip'); if (!b) return;
+    MP.holat = b.dataset.holat;
+    document.querySelectorAll('#mpChiplar .pl-chip').forEach(function (c) { c.classList.toggle('aktiv', c === b); });
+    mpYukla();
+  });
+  document.getElementById('mpRoyxat').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-mp-id]'); if (b) mpOch(parseInt(b.dataset.mpId, 10));
+  });
+  document.getElementById('mpYozishma').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-mp]'); if (!b) return;
+    if (b.dataset.mp === 'javob') mpJavob();
+    else if (b.dataset.mp === 'yop') mpYop();
+  });
+  mpYukla();
+});
 
 document.addEventListener('DOMContentLoaded', function () {
   document.getElementById('plChiplar').addEventListener('click', function (e) {
