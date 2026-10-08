@@ -337,7 +337,7 @@ ID = {"item_id": IDS["a"], "recipe_id": REC_ID, "receipt_id": 999999, "supplier_
       "project_id": 999999, "fp_id": 999999, "po_id": 999999, "pt_id": 999999, "master_id": 999999,
       "employee_id": 999999, "emp_id": 999999, "delivery_id": 999999, "sale_id": 999999, "group_id": "yoq",
       "bom_id": 999999, "loss_id": 999999, "return_id": 999999, "payment_id": 999999, "taklif_id": 999999,
-      "purchase_id": 999999}
+      "purchase_id": 999999, "murojaat_id": 999999}
 TASHQARI = ("/cron", "/system", "/platform", "/hodim/", "telegram", "pdf", "/export", "backup")
 
 

@@ -120,10 +120,12 @@ def oqi(yol):
 U13_SHABLONLAR = ["base.html", "home.html", "dashboard.html", "reports.html", "users.html", "orders.html", "projects.html",
                   "inventory.html", "supplier_receive.html", "suppliers.html", "recipes.html", "production.html", "finished.html",
                   "returns.html", "_brak_oyna.html", "debts.html", "finance.html", "kunlik_xarajat.html", "kpi.html", "masters_manage.html",
-                  "rollar.html", "logs.html", "trash.html", "platforma.html"]
+                  "rollar.html", "logs.html", "trash.html", "platforma.html",
+                  # kech127 (zip 151 — «Murojaat», MOSLANDI): yangi sahifa ham yagona qoidada
+                  "murojaat.html"]
 U13_SAHIFALAR = ["/", "/dashboard", "/reports", "/users", "/orders", "/projects", "/inventory", "/suppliers/receive", "/suppliers", "/recipes",
                  "/production", "/finished", "/returns", "/debts", "/finance", "/kunlik-xarajat", "/kpi", "/ustalar", "/rollar", "/logs",
-                 "/sozlamalar", "/trash"]
+                 "/sozlamalar", "/trash", "/murojaat"]
 ISTISNO_SEL = (".attach-thumb .rm, .attach-thumb .dl, .prod-thumb, .prod-thumb-cam, .proj-thumb-cam, .mat-thumb-cam, .cam-overlay, "
                ".fp-tag button, .cat-badge, .btn-link, .fp-thumb, .ret-group-header")
 SHKALA = {12.0, 13.0, 14.0, 16.0, 18.0, 24.0, 32.0}

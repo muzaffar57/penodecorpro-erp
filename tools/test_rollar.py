@@ -425,6 +425,11 @@ YANGI_MARSHRUTLAR = {
     "GET /api/takliflar": "AM", "POST /api/takliflar": "AM", "GET /api/takliflar/{taklif_id}": "AM",
     "GET /api/takliflar/{taklif_id}/pdf": "AM", "PUT /api/takliflar/{taklif_id}": "AM",
     "POST /api/takliflar/{taklif_id}/bekor": "AM", "POST /api/takliflar/{taklif_id}/rasmiylashtir": "AM",
+    # kech127 (zip 151 — egasi qarorlari 08.10 «Murojaat»): murojaatni FAQAT korxona admini yozadi; javob — platforma admini
+    "GET /murojaat": "A", "GET /api/murojaatlar": "A", "POST /api/murojaatlar": "A",
+    "GET /api/murojaatlar/{murojaat_id}": "A", "POST /api/murojaatlar/{murojaat_id}/xabar": "A",
+    "GET /api/platform/murojaatlar": "PLAT", "GET /api/platform/murojaatlar/{murojaat_id}": "PLAT",
+    "POST /api/platform/murojaatlar/{murojaat_id}/javob": "PLAT", "POST /api/platform/murojaatlar/{murojaat_id}/yopish": "PLAT",
 }
 # ATAYLAB o'zgarishlar (rol, marshrut) → yangi holat (True — ochiq). Sababi: tayyor rollar sahifa bo'yicha izchil.
 FARQLAR = {
@@ -625,7 +630,8 @@ check("H4 bosh sahifa: Admin, Moliyachi — 200; Menejer, Usta → /orders; Ombo
 # kichik tugmadan ochilardi; ruxsat o'zgarmagan)
 MENYU_KUT = {
     "A": ["/", "/dashboard", "/projects", "/orders", "/inventory", "/suppliers/receive", "/suppliers", "/recipes", "/production",
-          "/finished", "/returns", "/debts", "/finance", "/kpi", "/reports", "/users", "/rollar", "/trash", "/sozlamalar", "/logs"],
+          "/finished", "/returns", "/debts", "/finance", "/kpi", "/reports", "/users", "/rollar", "/murojaat", "/trash", "/sozlamalar",
+          "/logs"],
     "M": ["/projects", "/orders", "/inventory", "/finished", "/kunlik-xarajat", "/returns", "/ustalar"],
     "F": ["/", "/dashboard", "/projects", "/debts", "/finance", "/kpi", "/reports"],
     "W": ["/inventory", "/suppliers/receive", "/suppliers", "/recipes", "/production", "/finished", "/returns"],
@@ -638,6 +644,7 @@ for h in "AMFWU":
     _nav = _t[_t.find('<nav class="s-nav">'):_t.find("</nav>", _t.find('<nav class="s-nav">'))]
     _menyu[h] = re.findall(r'<a href="([^"]+)" class="nav-item', _nav)
 # kech120 (zip 137 — G6-22, MOSLANDI): Admin menyusida «Sozlamalar» (/sozlamalar)
+# kech127 (zip 151 — egasi qarorlari 08.10, MOSLANDI): Admin menyusida «Yordam / Murojaat» (/murojaat; platforma adminida — yo'q)
 check("H5 menyu havolalari — eski ro'yxat bilan AYNAN (Admin — yangi «Rollar va ruxsatlar», «Sozlamalar»; D-1 — «Ta'minotchilar»)", _menyu == MENYU_KUT,
       {h: (sorted(set(_menyu[h]) ^ set(MENYU_KUT[h]))) for h in "AMFWU"})
 _rolnom = {h: re.search(r'<div class="u-role">([^<]*)</div>', KL[h].get(_sah[h]).text) for h in "AMFWU"}
