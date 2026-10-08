@@ -208,8 +208,11 @@ check("N1 Tayyor mahsulotlar: «+ Penoplast detal» (eski oyna — openProduceMo
       and re.search(r'<a class="btn btn-outline" id="retseptBoyichaHavola" href="/production"[^>]*>.*Retsept bo\'yicha →</a>', FIN)
       and "🏭 Penoplast detal ishlab chiqarish" in FIN and "> Ishlab chiqarish</button>" not in FIN
       and "Tayyor mahsulot ishlab chiqarish</div>" not in FIN)
+# kech132 (zip 156) MOSLANDI: «yuqoridagi» so'zi olib tashlandi (joylashuv so'zi — tools/test_joylashuv_matn.py T2) — N2 maslahat
+# MAZMUNINI tekshiradi (tugma nomi va «Retsept bo'yicha»), joylashuv so'ziga bog'lanmaydi (zip 155 va 156 shablonida ham o'tadi).
 check("N2 bo'sh ombor maslahati: «+ Penoplast detal» va «Retsept bo'yicha» (eski «+ Ishlab chiqarish tugmasini bosing» YO'Q)",
-      "Penoplast detal — yuqoridagi <b>+ Penoplast detal</b> tugmasi" in FIN and "Ishlab chiqarish</b> tugmasini bosing" not in FIN)
+      "<b>+ Penoplast detal</b> tugmasi; boshqa mahsulot — <b>Retsept bo\\'yicha</b>" in FIN
+      and "Ishlab chiqarish</b> tugmasini bosing" not in FIN)
 _k4, _h4 = sahifa(_kl["Faqat brak yozuvchi"], "/finished")
 check("N3 «Mahsulot turlari: Ko'rish» ruxsati yo'q — «Retsept bo'yicha» havolasi YO'Q (sahifa ochilmasdi)",
       _k4 == 200 and "retseptBoyichaHavola" not in _h4 and "> Penoplast detal</button>" in _h4, _k4)
