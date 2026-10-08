@@ -982,6 +982,15 @@ function kichikRasm(url) {
         <i class="ti ti-shield-lock n-ico"></i>
         <span class="n-txt">Rollar va ruxsatlar</span>
       </a>
+      {# kech127 (zip 151 — EGASI QARORI 08.10: murojaatni FAQAT korxona admini yozadi): dastur xizmatiga murojaat; son —
+         o'qilmagan javoblar. Platforma egasining o'zi murojaatlarni «Platforma» da ko'radi. #}
+      {% if not current_user.is_platform_admin %}
+      {% set _mj_soni = murojaat_soni(current_user) %}
+      <a href="/murojaat" class="nav-item {% if active_page == 'murojaat' %}active{% endif %}">
+        <i class="ti ti-lifebuoy n-ico"></i>
+        <span class="n-txt">Yordam / Murojaat</span>{% if _mj_soni %}<span class="n-badge" title="O'qilmagan javob">{{ _mj_soni }}</span>{% endif %}
+      </a>
+      {% endif %}
       {% endif %}
       {% if m_savat %}
       <a href="/trash" class="nav-item {% if active_page == 'trash' %}active{% endif %}">
@@ -1003,9 +1012,10 @@ function kichikRasm(url) {
       {% endif %}
       {# kech111 — platforma paneli (mijoz korxonalar, obuna, bloklash) — FAQAT platforma admini #}
       {% if current_user.is_platform_admin %}
+      {% set _mj_pl = murojaat_soni(current_user) %}
       <a href="/platforma" class="nav-item {% if active_page == 'platforma' %}active{% endif %}">
         <i class="ti ti-building-skyscraper n-ico"></i>
-        <span class="n-txt">Platforma</span>
+        <span class="n-txt">Platforma</span>{% if _mj_pl %}<span class="n-badge" title="Javob kutayotgan murojaatlar">{{ _mj_pl }}</span>{% endif %}
       </a>
       {% endif %}
     </nav>
