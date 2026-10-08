@@ -294,6 +294,11 @@ r = req(C0, "post", YOL)
 check("C2 kirmagan → 401", r.status_code == 401, (r.status_code, r.text[:120]))
 r = req(CA, "post", YOL)
 check("C3 KORXONA admini (platforma emas) → 403", r.status_code == 403 and "platforma" in r.text, (r.status_code, r.text[:160]))
+# kech130 (zip 154, MOSLANDI): bot manzilini o'zgartiruvchi amal FAQAT asosiy muhitda (Railway «production») — C4 … C10 shu
+# muhitda; asosiy bo'lmagan muhit — C4a / C4b (409, Telegram'ga so'rov ketmaydi).
+os.environ.pop("RAILWAY_ENVIRONMENT_NAME", None)
+os.environ.pop("RAILWAY_ENVIRONMENT", None)
+os.environ["RAILWAY_ENVIRONMENT_NAME"] = "production"
 r = req(CP, "post", YOL)
 check("C4 platforma admini, TELEGRAM_BOT_TOKEN yo'q → 400 'TELEGRAM_BOT_TOKEN sozlanmagan'",
       r.status_code == 400 and "TELEGRAM_BOT_TOKEN sozlanmagan" in r.text, (r.status_code, r.text[:160]))
@@ -355,9 +360,21 @@ try:
     r = req(CA, "post", YOL)
     check("C10 token BOR bo'lsa ham korxona admini → 403 va Telegram'ga so'rov KETMAYDI",
           r.status_code == 403 and len(_CHAQIRUVLAR) == _n, (r.status_code, len(_CHAQIRUVLAR) - _n))
+    # kech130 (zip 154): sinov saytida (kech129 — staging token bilan production botini «o'g'irlagan») bu tugma production
+    # botining webhookini o'chirib, ustalar botini to'xtatardi
+    urllib.request.urlopen = _soxta({"ok": True, "result": True, "description": "Webhook was deleted"})
+    for _mn, _ism in (("sinov", "«sinov»"), ("", "«aniqlanmadi»")):
+        os.environ["RAILWAY_ENVIRONMENT_NAME"] = _mn
+        _n = len(_CHAQIRUVLAR)
+        r = req(CP, "post", YOL)
+        check(f"C4{'a' if _mn else 'b'} muhit {_ism} (asosiy emas), token BOR, platforma admini → 409 «asosiy sayt emas» va "
+              f"Telegram'ga so'rov KETMAYDI",
+              r.status_code == 409 and "asosiy sayt emas" in r.text and _ism in r.text and len(_CHAQIRUVLAR) == _n,
+              (r.status_code, r.text[:200], len(_CHAQIRUVLAR) - _n))
 finally:
     urllib.request.urlopen = _ASL_URLOPEN
     os.environ.pop("TELEGRAM_BOT_TOKEN", None)
+    os.environ.pop("RAILWAY_ENVIRONMENT_NAME", None)
 
 _uh = fayl("templates/users.html")
 check("C11 users.html: deleteTelegramWebhook() aynan shu yo'lga POST yuboradi",

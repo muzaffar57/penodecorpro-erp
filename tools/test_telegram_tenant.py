@@ -161,6 +161,9 @@ with contextlib.redirect_stdout(_quiet):
     crud.set_setting(db, "telegram_bot_token", "B_TOKEN", company_id=2)
     crud.set_setting(db, "telegram_chat_id", "B_CHAT", company_id=2)
     crud.set_setting(db, "telegram_qoplamachi_chat_id", "B_QOP", company_id=2)
+    # kech130 (zip 154): B ning o'z boti ULANGAN (ustalar menyusi — `/telegram/webhook/2`, B siri)
+    crud.set_setting(db, "telegram_webhook_secret", "B_WH_SIR", company_id=2)
+    crud.set_setting(db, "telegram_webhook_url", "https://testserver/telegram/webhook/2", company_id=2)
 
 MARK = {1: "AAA_KAM", 2: "BBB_KAM", 3: "CCC_KAM"}
 for _cid, _m in MARK.items():
@@ -568,29 +571,43 @@ for cid, tg in ((1, "600001"), (2, "600002")):
         check("[1] A mijoz xabari eski imzo bilan (qalin emas)",
               _c and "\n🏗 PenoDecorPro — Andijon\n\n" in _c[0], repr(_c[0][:200]) if _c else "")
 
-# 6.6 Webhook — bot global (1-korxonaniki); usta topilsa — o'z korxonasi
+# 6.6 Webhook — umumiy bot (1-korxonaniki) FAQAT platforma korxonasi ustalariga; B ustasi — o'z korxonasi botidan.
+# kech130 (zip 154, MOSLANDI — egasi QARORI 08.10 «@Penoustabot faqat men uchun»): ilgari B ustasi UMUMIY botda B nomini
+# ko'rardi (shu tekshiruvlar o'shani talab qilardi); endi B ustasi `/telegram/webhook/2` (B siri) orqali yozadi, javob B_TOKEN bilan.
 WH = TestClient(main.app, base_url="https://testserver", raise_server_exceptions=False)
+WH_TOK = []        # oxirgi _wh javoblari qaysi token bilan ketdi
 
 
-def _wh(chat, text):
+def _wh(chat, text, yol="/telegram/webhook", sir="WH_SECRET"):
     SENT.clear()
     with contextlib.redirect_stdout(_quiet):
-        r = WH.post("/telegram/webhook", json={"message": {
+        r = WH.post(yol, json={"message": {
             "chat": {"id": int(chat)}, "text": text}},
-            headers={"X-Telegram-Bot-Api-Secret-Token": "WH_SECRET"})
+            headers={"X-Telegram-Bot-Api-Secret-Token": sir})
+    WH_TOK[:] = [tk for tk, ch, _ in SENT if ch == str(chat)]
     return r.status_code, [t for _, ch, t in SENT if ch == str(chat)]
 
 
-_st, _t = _wh("700002", "/start")
+def _wh_b(chat, text):
+    return _wh(chat, text, yol="/telegram/webhook/2", sir="B_WH_SIR")
+
+
+_st, _t = _wh_b("700002", "/start")
 check("[wh] B ustasi /start → 200 + javob", _st == 200 and len(_t) == 1, f"{_st} {_t}")
+check("[wh] B ustasi /start — javob B_TOKEN bilan (B ning o'z boti)", WH_TOK == ["B_TOKEN"], str(WH_TOK))
 _clean_b("[wh] B ustasi /start", _t)
-_st, _t = _wh("700002", "/bonus")
+_st, _t = _wh_b("700002", "/bonus")
 check("[wh] B ustasi /bonus → javob (xatosiz)",
       _st == 200 and len(_t) == 1 and "Xatolik" not in _t[0], f"{_st} {_t}")
+check("[wh] B ustasi /bonus — javob B_TOKEN bilan", WH_TOK == ["B_TOKEN"], str(WH_TOK))
 _clean_b("[wh] B ustasi /bonus", _t)
-_st, _t = _wh("700002", "/sovgalar")
+_st, _t = _wh_b("700002", "/sovgalar")
 check("[wh] B ustasi /sovgalar → javob", _st == 200 and len(_t) == 1, f"{_st} {_t}")
 _clean_b("[wh] B ustasi /sovgalar", _t)
+_st, _t = _wh("700002", "/bonus")
+check("[wh] kech130: B ustasi UMUMIY botda — noma'lum (B nomi / usta ismi YO'Q), javob umumiy bot (ENV_TOKEN) bilan",
+      _st == 200 and len(_t) == 1 and "topilmadingiz" in _t[0] and "BBB_BREND" not in _t[0] and "USTA_2" not in _t[0]
+      and WH_TOK == ["ENV_TOKEN"], f"{_st} {_t} {WH_TOK}")
 _st, _t = _wh("700001", "/start")
 check("[wh] A ustasi /start — eski matn",
       _t == ["Assalomu alaykum! 👋\n\n*PenoDecorPro* bot ga xush kelibsiz!\n\n"
@@ -758,7 +775,7 @@ _mb = db.query(_Mst).filter(_Mst.telegram_id == "700002").first()
 _mb.name = "MD_BUZUQ_USTA"
 db.commit()
 ATTEMPTS.clear()
-_st, _t = _wh("700002", "/bonus")
+_st, _t = _wh_b("700002", "/bonus")
 check("[wh] Markdown rad etildi → javob baribir yetdi",
       _st == 200 and len(_t) == 1 and "MD_BUZUQ_USTA" in _t[0], str(_t)[:150])
 check("[wh] ikkinchi urinish parse_mode SIZ",

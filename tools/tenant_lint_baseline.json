@@ -93,7 +93,6 @@
   "main.py:8233 db.query(Project) — korxona filtri yo'q (funksiya: api_upload_project_image) │ proj = db.query(Project).filter(Project.id == project_id).first()",
   "main.py:8249 db.query(ReturnItem) — korxona filtri yo'q (funksiya: api_upload_return_image) │ ret = db.query(ReturnItem).filter(ReturnItem.id == return_id).first()",
   "main.py:8762 db.query(Order) — korxona filtri yo'q (funksiya: api_summary_pdf) │ order = db.query(_Order).filter(_Order.id == order_id).first()",
-  "main.py:8809 db.query(Master) — korxona filtri yo'q (funksiya: _master_by_chat_id) │ rows = db.query(_Mst).filter(_Mst.telegram_id == chat_id,",
   "main.py:8869 db.query(OrderItem) — korxona filtri yo'q (funksiya: api_upload_order_item_image) │ item = db.query(OrderItem).filter(OrderItem.id == item_id).first()",
   "main.py:8888 db.query(OrderItem) — korxona filtri yo'q (funksiya: api_delete_order_item_image) │ item = db.query(OrderItem).filter(OrderItem.id == item_id).first()",
   "main.py:8923 db.query(OrderAttachment) — korxona filtri yo'q (funksiya: api_list_order_attachments) │ atts = db.query(OrderAttachment).filter(OrderAttachment.order_id == order_id).order_by(OrderAttachme",
