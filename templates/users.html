@@ -464,8 +464,11 @@ async function tgHolatYukla(){
       qator.push('<div style="color:var(--text3)">Yetkazilmagan xabarlar: ' + escapeHtml(String(d.webhook.pending_update_count)) + '</div>');
     }
     if (d.webhook && d.webhook.last_error_message) {
+      // kech131 (zip 155): o'zbekcha ma'nosi (server `last_error_izoh`), Telegram'ning o'z (inglizcha) matni qavsda; tanilmasa — xom matn
+      const tgIzoh = d.webhook.last_error_izoh || '';
       qator.push('<div style="color:var(--text3)">Oxirgi xato' + (d.webhook.last_error_vaqt ? ' (' + escapeHtml(d.webhook.last_error_vaqt) + ')' : '') +
-                 ': ' + escapeHtml(d.webhook.last_error_message) + '</div>');
+                 ': ' + (tgIzoh ? escapeHtml(tgIzoh) + ' (Telegram: ' + escapeHtml(d.webhook.last_error_message) + ')'
+                                : escapeHtml(d.webhook.last_error_message)) + '</div>');
     }
     if (d.holat === 'mos' && !d.imzo_sozlangan) {
       qator.push('<div style="color:var(--m-dc2626)">⚠️ TELEGRAM_WEBHOOK_SECRET sozlanmagan — sayt bot xabarlarini rad etadi.</div>');
