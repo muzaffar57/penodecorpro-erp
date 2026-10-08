@@ -328,8 +328,17 @@
       <div style="font-size:13px;font-weight:700;margin-bottom:6px">📱 Telegram bot</div>
       <div style="font-size:13px;color:var(--text3);line-height:1.6;margin-bottom:14px">
         Bildirishnomalar (yuk xati, buyurtma tayyor, ombor ogohlantirishi) shu bot orqali yuboriladi.
-        Bot <b>@BotFather</b> da yaratiladi. Bo'sh qoldirilsa — tizimning umumiy boti ishlatiladi (agar u sozlangan bo'lsa —
-        holati pastda yozilgan).
+        Bot <b>@BotFather</b> da yaratiladi. Bot sozlanmagan bo'lsa nima bo'lishi — holat qatorida yozilgan.
+      </div>
+      {# kech130 (zip 154): korxonaning o'z boti ustalar menyusiga ham xizmat qiladi — «🔗 Botni ulash» (POST
+         /api/settings/telegram-bot/ulash). Egasi 08.10: mijoz botni O'ZI ulaydi; qadamlar shu yerda. #}
+      <div style="font-size:13px;color:var(--text3);line-height:1.6;margin-bottom:14px" id="tg-qadamlar">
+        <b>Ustalar boti qanday ulanadi:</b><br>
+        1) Telegram'da <b>@BotFather</b> → <code>/newbot</code> → bot nomini yozing → bergan <b>tokenni</b> nusxalang.<br>
+        2) Tokenni «Bot tokeni» maydoniga yozib, «Saqlash» ni bosing.<br>
+        3) «🔗 Botni ulash» ni bosing.<br>
+        4) Ustalar botga <code>/start</code> yozadi → «🪪 Mening ID raqamim» → shu raqamni usta kartasidagi «Telegram ID» ga yozasiz.
+        Shundan keyin usta botda o'z bonusi va sovg'alarini ko'radi.
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">
         <div>
@@ -344,8 +353,10 @@
         </div>
         <button class="btn btn-dark btn-sm" onclick="saveTgBot()">Saqlash</button>
         <button class="btn btn-soft btn-sm" onclick="clearTgBot()">Tozalash</button>
+        <button class="btn btn-outline btn-sm" onclick="tgUlash()" id="tg-ulash-btn" style="display:none">🔗 Botni ulash</button>
       </div>
       <div id="tg-status" style="margin-top:12px;font-size:13px"></div>
+      <div id="tg-ulanish" style="margin-top:8px;font-size:13px;line-height:1.6"></div>
     </div>
 
     {# 2026-09-20 — Zaxira yuklab olish tugmasi MIJOZDAN OLIB TASHLANDI.
@@ -507,7 +518,50 @@ async function loadTgBot() {
         ? '<span style="color:var(--text3)">Sozlanmagan — tizimning umumiy boti ishlatiladi</span>'
         : '<span style="color:var(--m-b91c1c)">Sozlanmagan — Telegram xabarlari YUBORILMAYDI. Botni sozlang.</span>';
     }
+    tgUlanishHolati(d);
   } catch (e) { /* jim */ }
+}
+
+// kech130 (zip 154): korxona boti ulanganmi (ustalar menyusi) — server sozlamasidan; sir brauzerga kelmaydi
+function tgUlanishHolati(d) {
+  const el = document.getElementById('tg-ulanish');
+  const btn = document.getElementById('tg-ulash-btn');
+  if (!el || !btn) return;
+  if (!d.configured) { el.innerHTML = ''; btn.style.display = 'none'; return; }
+  btn.style.display = '';
+  btn.disabled = !d.asosiy_muhit;
+  btn.title = d.asosiy_muhit ? '' : 'Faqat asosiy saytda';
+  btn.textContent = d.ulangan ? '🔗 Qayta ulash' : '🔗 Botni ulash';
+  let h = d.ulangan
+    ? '<div style="color:var(--green,#0a0)">✅ Ustalar boti ulangan: ' + escapeHtml(d.bot_username ? '@' + d.bot_username : 'bot') + '</div>'
+    : '<div style="color:var(--m-b91c1c)">Bot hali ulanmagan — ustalar botga yozsa javob olmaydi. «🔗 Botni ulash» ni bosing.</div>';
+  if (!d.asosiy_muhit) {
+    h += '<div style="color:var(--text3)">Bu sinov sayti — botni ulash faqat asosiy saytda ishlaydi.</div>';
+  }
+  el.innerHTML = h;
+}
+
+async function tgUlash() {
+  if (!(await customConfirm("Botingiz SHU saytga ulanadi:\n" + window.location.host +
+                            "\n\nUstalar botga yozsa (/start, «💰 Bonuslarim», «🎁 Sovg'alar», «🪪 Mening ID raqamim») javob " +
+                            "korxonangiz ma'lumotidan, shu bot orqali keladi. Davom etasizmi?", {okText: 'Ulash'}))) return;
+  const btn = document.getElementById('tg-ulash-btn');
+  const el = document.getElementById('tg-ulanish');
+  btn.disabled = true;
+  let d = {};
+  let ok = false;
+  try {
+    const r = await fetch('/api/settings/telegram-bot/ulash', { method: 'POST' });
+    ok = r.ok;
+    d = await r.json();
+  } catch (e) { d = {detail: 'Server bilan aloqa yo\'q'}; }
+  if (ok) {
+    await loadTgBot();
+    el.innerHTML = '<div style="color:var(--green,#0a0)">' + escapeHtml(d.message || '✅ Bot ulandi') + '</div>';
+  } else {
+    el.innerHTML = '<div style="color:var(--m-b91c1c)">❌ ' + escapeHtml(d.detail || 'Xato yuz berdi') + '</div>';
+  }
+  btn.disabled = false;
 }
 
 async function saveTgBot() {
@@ -515,11 +569,20 @@ async function saveTgBot() {
   fd.append('token', document.getElementById('tg-token').value.trim());
   fd.append('chat_id', document.getElementById('tg-chat').value.trim());
   const r = await fetch('/api/settings/telegram-bot', { method: 'PUT', body: fd });
+  let d = {};
+  try { d = await r.json(); } catch (e) { /* jim */ }
   document.getElementById('tg-token').value = '';
   document.getElementById('tg-status').innerHTML = r.ok
     ? '<span style="color:var(--green,#0a0)">✓ Saqlandi</span>'
     : '<span style="color:var(--m-b91c1c)">Saqlashda xato</span>';
-  if (r.ok) setTimeout(loadTgBot, 600);
+  if (r.ok) {
+    await new Promise(function (ok) { setTimeout(ok, 600); });
+    await loadTgBot();
+    // kech130: token almashsa ulangan bot uziladi — sababi ko'rinsin
+    if (d.bot_uzildi) {
+      document.getElementById('tg-ulanish').innerHTML += '<div style="color:var(--m-b91c1c)">' + escapeHtml(d.message || '') + '</div>';
+    }
+  }
 }
 
 async function clearTgBot() {
@@ -527,9 +590,14 @@ async function clearTgBot() {
   if (!(await customConfirm("Bot sozlamasi tozalansinmi? Shundan keyin korxonangizga Telegram xabarlari kelmasligi mumkin.", {danger: true, okText: 'Tozalash'}))) return;
   const fd = new FormData();
   fd.append('token', '-'); fd.append('chat_id', '-');
-  await fetch('/api/settings/telegram-bot', { method: 'PUT', body: fd });
+  const r = await fetch('/api/settings/telegram-bot', { method: 'PUT', body: fd });
+  let d = {};
+  try { d = await r.json(); } catch (e) { /* jim */ }
   document.getElementById('tg-chat').value = '';
-  loadTgBot();
+  await loadTgBot();
+  if (d.bot_uzildi) {          // kech130: ulangan bot ham uzildi
+    document.getElementById('tg-ulanish').innerHTML = '<div style="color:var(--text3)">' + escapeHtml(d.message || '') + '</div>';
+  }
 }
 
 // ── kech117 (A2): YO'NALISHLAR (Sozlamalar) ──────────────────────────────────────────────────────────────────
