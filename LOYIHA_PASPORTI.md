@@ -1,7 +1,7 @@
 # PenoDecorPro ERP — LOYIHA PASPORTI
 
 *Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2); kech112: zip 108 — «Tayyor» da bo'sh loy = reja (K112-3), material nomi (K112-4), MRP qoplama belgisi (K112-5); ko'p korxonali yakuniy jonli sinov; kech115: zip 112 — butun dastur auditi A bosqichi (pul va ma'lumot xatolari) 1-qismi: kirim, qarzdorlar, «Tayyor», narxsiz buyurtma, o'chirilganlar jurnali, manfiy raqamlar, taqqoslash, korxona sog'ligi, ombor filtri; kech116: zip 113 — A bosqich 2-qismi: sog'liq sabablari (K115-2), «Bugungi xulosa» (K115-3), hujjatlardagi hisob qatorlari (G2-04), «Pul oqimi» — haqiqiy pul (G1-03), «Xarajat» — bitta ta'rif va «Tannarx» (G1-02), loyiha qiymati buyurtmalardan (G2-01), haqiqiy IP va kirish cheklovi (U-01), parol oynasi va kirishlarni yopish (G6-06); zip 114 — mijoz hujjatlarida kechirilgan qarz «Chegirma» ichida (egasi qarori); kech117: zip 115 — A2: yo'nalishlar bo'yicha moliya (G3-11, G6-09); zip 116 — jonli sinovdan keyin: «Belgilanmagan» manbalari, Moliya xarajatdan keyin yangilanadi; kech118: qolgan egasi qarorlari (6-bo'lim); zip 117 — B bosqichi 1-qism: dastur oynalari (xabar, kiritish, Esc / tashqariga bosish), o'zbekcha 404 / 403 sahifa, klaviatura fokusi; zip 118 — B bosqichi 2-qism: son / sana / birlik ko'rinishi, o'qiladigan rang, 12 px + yo'nalishlar bo'yicha moliyaviy natija (egasi qarori: taqsim yo'q, oyliklar alohida, davr, solishtirish); yangi qarorlar — rollar va ruxsatlar (6-bo'lim); zip 119 — rollar va ruxsatlar 1-qism (admin rollarni o'zi boshqaradi); kech119: zip 125 — Hisobotlar «oy boshi»: o'tgan oyning SHU KUNLARI bilan solishtirish (egasi qarori), taxminda oylik xarajat bir marta, xomashyo birligi; «Foyda tahlili» summalari (G2-15); zip 126 — telefon (C bosqichi); kech120: zip 127 — E bosqichi 1-qism: tezlik — hisobot xotirasi (so'rovlar orasida, yozuv bo'lsa darhol eskiradi), sahifa bir ochilishida bir xil so'rov bir marta, Bosh sahifa 5 ta buyurtma, kirish sahifasi rasmi, Hisobotlar taqqoslash kartalari telefonda (K120-1); zip 128 — E bosqichi 2-qism: katta ro'yxatlarda topish — Bosh sahifa «Bugungi vazifalar» havolalari, Buyurtmalar filtri / keng qidiruv / tanlovni tiklash, Qarzdorlar mijoz bo'yicha; zip 129 — E bosqichi 3-qism: tarix va jurnallar — «Tizim jurnallari» filtri va sahifalash, hamma amal o'zbekcha, tahrir yozuvida nima o'zgargani; Ombor «Tarix», «Yana yuklash», davr jami; zip 130 — E bosqichi 4-qism: qidiruvli tanlagich (Kirim — ta'minotchi, material; «Yangi qaytarish», «Brak yozish»), ta'minotchilar tabiiy tartibda, Tayyor mahsulotlar kategoriyalari korxonaning o'z mahsulot turlaridan; shu zipda — E bosqichi 5-qism: hodim kirishi — har korxonada kod (kodsizlarga ishga tushishda), QR serverda (ichida kod), kirish sahifasi kodni o'zi yozadi, chop etish sahifasi; shu zipda — E bosqichi 6-qism: rasmlar yuklashda 1920 px gacha kichraytiriladi (burilish qo'llanadi, joylashuv saqlanmaydi), ro'yxatlarda kichik nusxa (360 px); uzun ro'yxatlarda faqat birinchi 20 qator animatsiyali); zip 131 — F bosqichi 1-qism: Moliya, Qarzdorlar, «Xarajat qo'shish» (kirim xarajati faqat hujjat orqali, ro'yxat jami, kassa yozuvini o'chirish, «Yalpi foyda», qarz to'lovi usuli, majburiyat oyi); zip 132 — F bosqichi 2-qism: Ombor, Kirim, Ta'minotchilar, Retseptlar (kirim hujjatidan qator — to'lov / xarajat bo'lsa butun hujjat orqali, ishlatilgan retsept o'chmaydi, Telegram natijasi, Omborxona — ruxsat bo'yicha tugmalar, ustun nomlari, toifa filtri; ta'minotchi tarixida to'lov holati, penoplast blok hajmi); zip 133 — F bosqichi 3-qism: Tayyor mahsulotlar, Qaytarishlar, Ishlab chiqarish (birlik ko'rinishi — bitta qoida, qaytarishlar guruhi va kartalari, «Hisob-kitob qilish», tugmalar so'z bilan, sotishdan keyin sahifa qayta yuklanmaydi, narxsiz mahsulot qiymati, mahsulot turini tahrirlash / o'chirish, bo'sh korxona yo'riqnomasi); zip 134 — F bosqichi 4-qism: Buyurtmalar va Loyihalar (namuna matni rangi, saqlash kamchiliklari bitta ro'yxatda, detal raqami, profil — uzunlik bo'yicha, loyiha qarzi «384 ming», bitta hisob-kitob paneli, amallar tepada, «Bajarilgan» va «Yetkazish — 1/2 topshirildi», «Tarix», bo'sh korxonada «avval loyiha»); zip 135 — F bosqichi 5-qism: Bosh sahifa, Dashboard, Hisobotlar («Faol buyurtmalar» — bitta qoida, usta reytingi, yangi korxonaga «Boshlash», bo'sh grafiklar, davr filtri, jadval qidiruvi va Excel, «Yangilash»); zip 136 — F bosqichi 5-qism 2-bo'lagi: hujjatlar va KPI (buyurtma hisobi — birlik, ajratgich, bitta «TO'LOV SUMMASI»; yuk xati — shu yuk paytidagi holat; KPI sahifasi yozuvlari va hodim kartasi); zip 137 — F bosqichi 5-qism 3-bo'lagi: ustalar telefoni, menyu guruhlari, hodim va foydalanuvchi kirishi, alohida «Sozlamalar» sahifasi; kech121: zip 138 — egasi qarorlari 02.10 (Dashboard «Shu oy daromadi», brak foizi asosi, Menejer o'z xarajatini o'chiradi, narxsiz «Kirim (tuzatish)», qaytarish oynasida pul savoli, yuk xatida korxona to'lagan transport narxi yo'q); kech123: zip 139 — U-13 yagona ko'rinish 1-qism (tugma / maydon / tab / filtr o'lchamlari va yozuv shkalasi — bitta qoida; umumiy qobiq, Bosh sahifa, Dashboard, Hisobotlar, Foydalanuvchilar; zip 140 — 2-qism: Buyurtmalar, Loyihalar, Omborxona, Kirim qilish, Ta'minotchilar, Loy retseptlari, Ishlab chiqarish, Tayyor mahsulotlar, Qaytarishlar; zip 141 — 3-qism: Qarzdorlar, Moliya, Xarajat qo'shish, Ustalar KPI, Ustalar, Rollar; zip 142 — 4-qism: jurnallar, Sozlamalar, Savat, Platforma, kirish sahifalari, hodim paneli; zip 143 — qoplamachi bonusi va «har birlik uchun» hodim haqi yuk xatlari bo'yicha; kech124: zip 144 — loyihada «Yuk xatlari», yuk xati raqami loyiha bo'yicha, «Jamlab olish»; zip 145 — Loyihalar holat paneli «Bajarilgan»; kech125: zip 146 — brak taqdiri: Tashlandi / Tuzatildi / Kesildi / 2-nav; zip 147 — uning jonli sinovidan keyingi tuzatishlar; kech126: zip 148 — «Tez hisob / Taklif»: mijozga loyiha / buyurtma ochmasdan taklif, «Takliflar» ro'yxati, bir tugma bilan rasmiylashtirish; zip 149 — uning jonli sinovidan keyingi 2 tuzatish; kech127: `main` ga ko'chirish — 07.10; zip 150 — «Xomashyo narxlari va ombor qiymati» ruxsati, ORD-066-1 loy xatosi tuzatishi; zip 151 — «Murojaat» bo'limi, jurnal `loy_tuzatish` yorlig'i, ombor harakatlari jami — material bo'yicha; kech128: zip 152 — rasm emas fayl rad etiladi (hamma rasm yuklash joylari va logotip), murojaat matnida qator oxirlari, platforma yozishma oynasi; kech129: zip 153 — SaaS migratsiya sahifasi (8 marshrut) olib tashlandi: mijoz korxona admini ham kirib, boshqa korxonalar nomini ko'rar va haqiqiy migratsiya qadamini bajarar edi; logotip PDF da o'z nisbati va yo'nalishi bilan, buzilgan
-logotip qabul qilinmaydi). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
+logotip qabul qilinmaydi; kech130: zip 154 — Telegram: bot manzilini o'zgartirish faqat asosiy saytda, «Bot hozir qayerga ulangan», umumiy bot faqat platforma egasi ustalariga, har korxonaga o'z boti («🔗 Botni ulash»)). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
 *Bu faylni `main` ga ko'chirish bilan birga, keyin har katta o'zgarishda yangilab boring. 9-bo'lim AVTOMATIK
 (`python3 tools/pasport_xarita.py --yoz`), qolgani qo'lda; `tools/test_pasport.py` ikkalasini ham tekshiradi.*
 
@@ -519,6 +519,32 @@ ichi buzilgan PNG — yuklash 200 berardi, keyin shu korxonaning HAR «Buyurtma 
 shart (`_rasm_ochish`; buzilgan / 60 mln pikseldan katta / animatsiyali — 400 `LOGO_OQILMADI_XABARI`, fayl va yozuv o'zgarmaydi); diskdagi
 logotip baribir o'qilmasa — PDF 200, logotip o'rniga korxona nomi. Boshqa rasm joylari (detal, material …) — avvalgidek (imzoli buzilgan
 rasm ASLICHA; ular faqat `<img>` da). Sinov: `tools/test_logo_pdf.py`.
+**Telegram: bot manzili, holati va har korxonaga o'z boti (kech130, zip 154 — kech129 da O'LCHANGAN; egasi QARORLARI 08.10 17:3x–17:42).**
+(1) MANZIL HIMOYASI: «🔐 Telegram xavfsizligini yoqish» (`telegram-setup-webhook-security`) qaysi saytda bosilsa, umumiy bot (@Penoustabot,
+`TELEGRAM_BOT_TOKEN`) o'sha saytga ulanadi (`request.base_url`) — kech129 da bot sinov saytiga ulanib qolgan edi (ustalar sinov bazasini
+ko'rgan bo'lishi mumkin). Endi bot manzilini O'ZGARTIRADIGAN har amal (umumiy bot — ulash va «Botni asl holatiga qaytarish»; korxona boti —
+ulash, token almashganda uzish) FAQAT asosiy muhitda: `main._asosiy_muhitmi` — Railway `RAILWAY_ENVIRONMENT_NAME` AYNAN «production»
+(07.10 jonli o'lchovi). Boshqa / aniqlanmagan muhit — 409 «Bu sayt asosiy sayt emas (muhit: «…»)», Telegram'ga so'rov KETMAYDI; sahifada
+tugmalar o'chiq. Ulashdan oldin tasdiq oynasi (shu sayt manzili), javobda bot oldin qayerga ulangani (`oldingi_url`). (2) HOLAT:
+`GET /api/system/telegram-webhook-info` (FAQAT platforma admini, faqat o'qish — getMe + getWebhookInfo): holat «mos» / «boshqa_sayt» /
+«ulanmagan» / «token_yoq» / «xato», manzil, kutayotgan xabarlar, oxirgi xato (Toshkent vaqti); token, sir, Telegram IP — javobda YO'Q.
+«Foydalanuvchilar» → «🔒 Telegram xavfsizligi» → «Bot hozir qayerga ulangan» (sahifa ochilganda, «↻ Tekshirish»). `telegram-debug` 409
+SABABINI ko'rsatadi (`updates_error_tavsif`, `updates_error_izoh`: «webhook is active» — normal; «terminated by other getUpdates» — boshqa
+dastur). (3) UMUMIY BOT FAQAT PLATFORMA EGASIGA (egasi: «u faqat men uchun bo'lsin»): `/telegram/webhook` da usta FAQAT
+`main._umumiy_bot_korxonalari` dan (`obuna.platforma_korxonalari`; platforma admini yo'q bazada — 1-korxona) — mijoz korxona ustasi umumiy
+botda noma'lum («topilmadingiz», uning nomi / bonusi / sovg'asi chiqmaydi). (4) KORXONA BOTI: mijoz @BotFather da bot ochadi → «Sozlamalar
+→ 📱 Telegram bot» ga token → «🔗 Botni ulash» (`POST /api/settings/telegram-bot/ulash`, «Sozlamalar: Tahrirlash»): getMe + setWebhook
+korxona tokeni bilan `/telegram/webhook/<korxona id>` ga, yangi sir (`secrets.token_urlsafe(32)`) — korxona SOZLAMASIDA
+(`telegram_webhook_secret`, `telegram_webhook_url`, `telegram_bot_username`; Railway o'zgaruvchisi EMAS). Rad: token yo'q / ko'rinishi
+noto'g'ri (`_TG_TOKEN_NAQSH`) / umumiy bot tokeni — 400; shu token boshqa korxonada — 409; Telegram rad etsa — 400 (sababi bilan), bazaga
+yozilmaydi (avval Telegram, keyin baza). Kiruvchi `POST /telegram/webhook/{company_id}`: sir korxonaniki bilan `hmac.compare_digest` —
+sir / token / korxona yo'q yoki mos emas → 403; usta, nom, bonus, sovg'a — FAQAT shu korxona, javob shu korxona tokeni bilan
+(`main._usta_boti_javobi` — umumiy bot bilan bitta menyu kodi). Token almashsa / tozalansa (`PUT /api/settings/telegram-bot`) — ulanish
+belgilari tozalanadi (eski sir 403), eski botning webhooki faqat asosiy muhitda VA bot AYNAN shu manzilda bo'lsa o'chiriladi
+(`_korxona_botini_uzish`). Jurnal: «telegram_bot_ulandi» / «telegram_bot_uzildi». Ustalar botda «🪪 Mening ID raqamim» → admin usta
+kartasiga «Telegram ID». CHIQUVCHI xabarlar — avvalgidek (`_tenant_telegram`: korxona boti bo'lsa — o'shaniki). `GET /api/cron/find-chat-id`
+OLIB TASHLANDI (webhook rejimida 409 — ishlamas edi; CRON_SECRET bilan chat ismlari / xabarlarni berardi). Sinov:
+`tools/test_telegram_webhook.py`, `tools/test_telegram_webhook_ui.py`.
 **Mayda qoidalar va nomlar (kech118, D bosqichi 1-qism — egasi QARORLARI 11:40; zip 121).** (1) LOYIHA (G2-20): o'chirilmagan
 buyurtmasi bor loyiha o'chirilmaydi — `crud.loyiha_ochirish_tosigi` (korxona ichida sanaydi) → `crud.delete_project` `ValueError`
 → 400 «Loyihada N ta buyurtma bor — avval buyurtmalarni o'chiring»; savatdagi buyurtmalar to'sqinlik qilmaydi. Loyihasi o'chirilgan
@@ -1395,7 +1421,7 @@ qo'shilganda (kech105: `'Boshqa'` → `'Bazalt'` olib tashlandi; nomdan `is_peno
 **Xavfsizlik.** Shablonlarda foydalanuvchi matni `escapeHtml` bilan; `onclick` ga qiymat `data-*` atribut orqali
 (`|tojson` emas). `/api/` da 401 — JSON, sahifalarda — `/login` ga yo'naltirish. Platforma amallari
 (Telegram bot, butun zaxira, korxona qo'shish) — `auth.platform_admin_only`. FastAPI API hujjatlari
-(`/docs`, `/openapi.json`) o'chirilgan.
+(`/docs`, `/openapi.json`) o'chirilgan. Telegram bot manzilini o'zgartiruvchi amal — faqat asosiy muhitda (kech130, 4-bo'lim «Telegram»).
 **Qorovul tanlash qoidasi (kech129, zip 153 — O'LCHANGAN nuqsondan):** `auth.admin_only` = ISTALGAN korxonaning admini (mijoz korxona
 admini ham). Butun bazaga / hamma korxonaga ta'sir qiladigan yoki boshqa korxona ma'lumotini ko'rsatadigan amal — FAQAT
 `auth.platform_admin_only`. SaaS migratsiya sahifasi (8 marshrut) `admin_only` bilan qo'riqlangan edi: mijoz admini holat API dan boshqa
@@ -2054,6 +2080,19 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   ikkala PDF 200, korxona nomi). 16 (SQ / PG / TF) — zip 152 kodida 12 / 16 yiqiladi, qulamaydi. MOSLANDI: `test_platforma_obuna` F9–F12
   logotipga qo'lda yozilgan 1 × 1 PNG yuklardi — uning IDAT qismi BUZILGAN (Pillow «broken data stream»), yangi kodda 400 (to'g'ri);
   logotip uchun Pillow yasagan PNG (`_png_logo`) — eski va yangi kodda o'tadi (etalon d162 topdi; `grep -l "company/logo"` 5 test).
+- (kech130, zip 154) Telegram: `tools/test_telegram_webhook.py` — A (umumiy bot ulash / uzish: muhit yo'q, «sinov», «Production», «staging» —
+  409 va Telegram'ga so'rov yo'q; production — getWebhookInfo + setWebhook, `oldingi_url`), B (`telegram-webhook-info`: qorovul, mos /
+  boshqa_sayt / ulanmagan / token_yoq / xato, Toshkent vaqti, token / sir / IP qiymat bo'yicha yo'q, faqat o'qish), C (debug 409 tavsifi),
+  D (umumiy bot — mijoz ustasi noma'lum, ikki korxonadagi usta — platforma yozuvi), E (korxona botini ulash: muhit, ruxsat, token
+  tekshiruvlari, Telegram so'rovlari, sir hech bir javob / sahifada yo'q, jurnal), F (`/telegram/webhook/<id>`: shu korxona ma'lumoti va
+  tokeni, 9 xil begona so'rov — 403, buzuq tana — 200), G (token almashsa / tozalansa — uzish faqat asosiy muhitda va shu manzilda), H
+  (sahifalar, `find-chat-id` 404). 79 (SQ / PG / TF) — zip 153 kodida 67 yiqiladi, qulamaydi. `tools/test_telegram_webhook_ui.py` (Chromium):
+  holat bloki, sinov saytida tugmalar o'chiq (bosilsa ham so'rov yo'q), tasdiq oynasi, «🔗 Botni ulash», token almashgandagi xabar, 390 px.
+  MOSLANDI (egasi QARORI — umumiy bot faqat platforma egasiga): `test_telegram_tenant` [wh] B ustasi — o'z boti `/telegram/webhook/2`
+  orqali (+ umumiy botda noma'lum), `test_sovga_davr_tenant` 1.x (B — o'z boti, 1.5 — umumiy botda B davri yo'q), `test_pasport` C4–C10
+  (production muhitida) + C4a / C4b (sinov / aniqlanmagan muhit — 409), `test_rollar` (3 yangi marshrut, `find-chat-id` olib tashlandi),
+  `test_lint_taxallus` R2 (baseline dagi taxallusli so'rovlar 21 → 20: `_master_by_chat_id` endi korxona to'plami bilan; etalon d163 topdi —
+  baseline ni o'qiydigan testlar: `grep -l tenant_lint_baseline tools/`).
 
 **Yangi o'zgarish tartibi:** (1) asl kodda nuqsonni o'lchash (probe — SQLite va PG); (2) tuzatish; (3) yangi test
 (asl kodga qarshi yiqiladi, QULAMAYDI); (4) mutatsiyalar; (5) `bash tools/hammasi.sh` (+ `TF=1`), PG testlari,
@@ -2378,8 +2417,8 @@ qarorlari 02.10»)**
   tushish — endi ogohlantirish, «Bekor» — hech narsa o'zgarmaydi).
 - **`main` o'lchoviga (kech107) — O'LCHANDI kech108:** `base_price` NULL va `price_per_m3` NULL detalli buyurtma — 0; brak
   kartasi 1 379 476 → 1 030 301 (egasiga ko'rsatildi).
-- **SaaS / Telegram (kech107, 10g):** korxona sozlamasidagi bot — xabar YUBORADI, lekin usta menyusi (`/telegram/webhook`)
-  faqat muhit boti (`TELEGRAM_BOT_TOKEN`) uchun ishlaydi.
+- **SaaS / Telegram (kech107, 10g) — YOPILDI kech130 (zip 154):** korxona boti endi usta menyusiga ham xizmat qiladi («🔗 Botni ulash»,
+  `/telegram/webhook/<korxona id>`); umumiy bot — faqat platforma egasi ustalariga (4-bo'lim «Telegram»).
 - **Ko'p korxonali YAKUNIY jonli sinov — BAJARILDI (kech112, `sinov`):** C korxonada (yangi mijoz, bo'sh) TO'LIQ ish zanjiri
   (sozlama → ombor, rasm → ta'minotchi, kirim → qoplama retsepti → usta, hodim → loyiha → MRP: tur, retsept, 3 ishlab
   chiqarish → 3 buyurtma: profil qoplamali + panel, donali + loy sotish + MRP, qoralama → jarayonga → zaklat, yuk xatlari,
@@ -2883,6 +2922,12 @@ qarorlari 02.10»)**
   BOSHI — PDF ga chiziladigan rasm TO'LIQ o'qilishi (Pillow `load`) shart, aks holda bitta buzilgan fayl hamma hujjatni 500 qiladi.
 - (kech129) Production o'qish (ichki brauzer, `fetch`) — avtomatik rejim klassifikatori rad etdi («Production Reads»): aylanib
   o'tilmaydi; production holati egasining ko'zi / skrinshoti yoki oldingi o'lchovlar (07.10 o'tish simulyatsiyasi) bilan.
+- (kech130) Telegram bot manzili (webhook) — bitta, bot tokeniga bog'liq: qaysi sayt `setWebhook` qilsa, bot o'sha saytga o'tadi.
+  Staging va production bir xil tokenda bo'lsa, staging dagi tugma production botini «o'g'irlaydi» (kech129). Manzilni o'zgartiruvchi
+  har amal — muhit tekshiruvi bilan; bot hozir qayerda ekani — `getWebhookInfo` (loglarni qidirish shart emas).
+- (kech130) `tools/tenant_lint.py` evristikasi funksiyada `company_id` so'zini ko'rsa so'rovni «filtrlangan» deb hisoblaydi:
+  `_master_by_chat_id` ga Python ichidagi korxona filtri qo'shilgach baseline yozuvi «eskirgan» bo'ldi (so'rovning o'zi o'zgarmagan,
+  `korxonalar=None` — hamma korxona). Baseline dan faqat SHU yozuv olib tashlandi (`--update` hamma qator raqamlarini qayta yozardi).
 - (kech129) Statik «yo'q» tekshiruvi izohga tushdi: `test_rollar` dagi yangi izohda `SAAS_IXTIYORIY` so'zi qoldi — «so'z yo'q» tekshiruvi
   yangi kodda yiqildi; tekshiruv KOD qatoriga (`SAAS_IXTIYORIY = {`, `not in SAAS_IXTIYORIY`) qaratildi.
 - (kech123, zip 139) Telefonda ikki tugma yonma-yon (`flex:1`) uzun yozuv bilan ikki qatorga o'tib 64 px bo'ladi — `flex-wrap` va
@@ -2909,8 +2954,8 @@ Kod o'qiydigan muhit o'zgaruvchilari (Railway → Variables). Ro'yxat `os.getenv
 - `CRON_SECRET` — `main.py`
 - `DATABASE_URL` — `database.py`
 - `QOPLAMACHI_TELEGRAM_CHAT_ID` — `main.py`
-- `RAILWAY_ENVIRONMENT` — `saas_migration.py`
-- `RAILWAY_ENVIRONMENT_NAME` — `saas_migration.py`
+- `RAILWAY_ENVIRONMENT` — `main.py`, `saas_migration.py`
+- `RAILWAY_ENVIRONMENT_NAME` — `main.py`, `saas_migration.py`
 - `RAILWAY_PUBLIC_DOMAIN` — `saas_migration.py`
 - `RAILWAY_SERVICE_NAME` — `saas_migration.py`
 - `RESET_ADMIN_PASSWORD` — `auth.py`
@@ -3043,7 +3088,7 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 ### `GET /logs` → `main.py:logs_page` → `templates/logs.html`
 - Qorovul: auth.ruxsat('jurnal', 'korish')
 - Server chaqiruvlari: auth.company_id_of, auth.ruxsat, crud.audit_amal_guruhlari, crud.audit_jurnali_sahifasi, crud.get_error_logs, crud.kirish_tarixi_sahifasi
-- `logs.html` API: `/api/settings/categories`, `/api/settings/company`, `/api/settings/company/logo`, `/api/settings/telegram-bot`, `/api/system/backup`, `/api/system/health-check`, `/api/yonalishlar`, `/api/yonalishlar/{}`
+- `logs.html` API: `/api/settings/categories`, `/api/settings/company`, `/api/settings/company/logo`, `/api/settings/telegram-bot`, `/api/settings/telegram-bot/ulash`, `/api/system/backup`, `/api/system/health-check`, `/api/yonalishlar`, `/api/yonalishlar/{}`
 
 ### `GET /murojaat` → `main.py:murojaat_page` → `templates/murojaat.html`
 - Qorovul: auth.admin_only
@@ -3091,7 +3136,7 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 ### `GET /sozlamalar` → `main.py:logs_page` → `templates/logs.html`
 - Qorovul: auth.ruxsat('jurnal', 'korish')
 - Server chaqiruvlari: auth.company_id_of, auth.ruxsat, crud.audit_amal_guruhlari, crud.audit_jurnali_sahifasi, crud.get_error_logs, crud.kirish_tarixi_sahifasi
-- `logs.html` API: `/api/settings/categories`, `/api/settings/company`, `/api/settings/company/logo`, `/api/settings/telegram-bot`, `/api/system/backup`, `/api/system/health-check`, `/api/yonalishlar`, `/api/yonalishlar/{}`
+- `logs.html` API: `/api/settings/categories`, `/api/settings/company`, `/api/settings/company/logo`, `/api/settings/telegram-bot`, `/api/settings/telegram-bot/ulash`, `/api/system/backup`, `/api/system/health-check`, `/api/yonalishlar`, `/api/yonalishlar/{}`
 
 ### `GET /suppliers` → `main.py:suppliers_page` → `templates/suppliers.html`
 - Qorovul: auth.ruxsat('taminotchi', 'korish')
@@ -3111,7 +3156,7 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 ### `GET /users` → `main.py:users_page` → `templates/users.html`
 - Qorovul: auth.admin_only
 - Server chaqiruvlari: auth.company_id_of, auth.get_all_users, auth.tayyor_rollar
-- `users.html` API: `/api/hodim-qr.svg`, `/api/settings/company`, `/api/system/factory-reset`, `/api/system/telegram-delete-webhook`, `/api/system/telegram-setup-webhook-security`, `/api/users`, `/api/users/{}/password`, `/api/users/{}/rol`, `/api/users/{}/toggle`
+- `users.html` API: `/api/hodim-qr.svg`, `/api/settings/company`, `/api/system/factory-reset`, `/api/system/telegram-delete-webhook`, `/api/system/telegram-setup-webhook-security`, `/api/system/telegram-webhook-info`, `/api/users`, `/api/users/{}/password`, `/api/users/{}/rol`, `/api/users/{}/toggle`
 
 ### `GET /users/hodim-qr` → `main.py:hodim_qr_page` → `templates/hodim_qr.html`
 - Qorovul: auth.require_login
@@ -3142,9 +3187,8 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 #### `/api/brak` (1)
 - `GET /api/brak/tuzatish-materiallari` → `main.py:api_brak_tuzatish_materiallari` · 🔒 auth.ruxsat_biri(('qaytarish', 'yaratish'), ('brak', 'yaratish')) · auth.company_id_of, auth.ruxsat_biri, crud.brak_tuzatish_materiallari
 
-#### `/api/cron` (3)
+#### `/api/cron` (2)
 - `GET /api/cron/cleanup-sessions` → `main.py:api_cron_cleanup_sessions` · 🔓 · auth.cleanup_expired_sessions
-- `GET /api/cron/find-chat-id` → `main.py:api_find_chat_id` · 🔓
 - `GET /api/cron/low-stock-check` → `main.py:api_cron_low_stock_check` · 🔓 · crud.get_low_stock_items
 
 #### `/api/dashboard` (8)
@@ -3435,7 +3479,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `DELETE /api/rollar/{rol_id}` → `main.py:api_rol_ochir` · 🔒 auth.admin_only · auth.company_id_of, auth.rol_foydalanuvchilari, auth.rol_of_company, crud.log_activity
 - `POST /api/rollar/{rol_id}/andoza` → `main.py:api_rol_andoza` · 🔒 auth.admin_only · auth.company_id_of, auth.rol_of_company, crud.log_activity
 
-#### `/api/settings` (9)
+#### `/api/settings` (10)
 - `GET /api/settings/categories` → `main.py:api_get_categories` · 🔒 auth.ruxsat('sozlama', 'korish') · auth.company_id_of, auth.ruxsat
 - `PUT /api/settings/categories` → `main.py:api_set_categories` · 🔒 auth.ruxsat('sozlama', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud.set_setting
 - `GET /api/settings/company` → `main.py:api_get_company` · 🔒 auth.require_login · auth.company_id_of
@@ -3444,7 +3488,8 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `GET /api/settings/ehson-percent` → `main.py:api_get_ehson_percent` · 🔒 auth.ruxsat('kpi', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_setting
 - `PUT /api/settings/ehson-percent` → `main.py:api_set_ehson_percent` · 🔒 auth.ruxsat('sozlama', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud.set_setting
 - `GET /api/settings/telegram-bot` → `main.py:api_get_telegram_bot` · 🔒 auth.ruxsat('sozlama', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_setting
-- `PUT /api/settings/telegram-bot` → `main.py:api_set_telegram_bot` · 🔒 auth.ruxsat('sozlama', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud.set_setting
+- `PUT /api/settings/telegram-bot` → `main.py:api_set_telegram_bot` · 🔒 auth.ruxsat('sozlama', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud.get_setting, crud.set_setting
+- `POST /api/settings/telegram-bot/ulash` → `main.py:api_telegram_bot_ulash` · 🔒 auth.ruxsat('sozlama', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud.get_setting, crud.log_activity, crud.set_setting
 
 #### `/api/suppliers` (10)
 - `GET /api/suppliers` → `main.py:api_get_suppliers` · 🔒 auth.ruxsat('taminotchi', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_suppliers_with_debt
@@ -3458,7 +3503,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `POST /api/suppliers/{supplier_id}/payment` → `main.py:api_supplier_payment` · 🔒 auth.ruxsat('taminotchi_tolov', 'yaratish') · auth.company_id_of, auth.ruxsat, auth.supplier_of_company, crud._clean_val, crud.create_supplier_payment, crud.get_supplier_debt
 - `GET /api/suppliers/{supplier_id}/purchased-items` → `main.py:api_supplier_purchased_items` · 🔒 auth.ruxsat('taminotchi', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_supplier_purchased_items
 
-#### `/api/system` (8)
+#### `/api/system` (9)
 - `GET /api/system/backup` → `main.py:api_system_backup` · 🔒 auth.platform_admin_only · auth.company_id_of, crud.export_full_backup
 - `POST /api/system/backup/send-now` → `main.py:api_backup_send_now` · 🔒 auth.platform_admin_only
 - `POST /api/system/factory-reset` → `main.py:api_factory_reset` · 🔒 auth.platform_admin_only · auth.company_id_of, crud.factory_reset_all_data
@@ -3467,6 +3512,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `GET /api/system/telegram-debug` → `main.py:api_telegram_debug` · 🔒 auth.platform_admin_only
 - `POST /api/system/telegram-delete-webhook` → `main.py:api_telegram_delete_webhook` · 🔒 auth.platform_admin_only
 - `POST /api/system/telegram-setup-webhook-security` → `main.py:api_telegram_setup_webhook_security` · 🔒 auth.platform_admin_only
+- `GET /api/system/telegram-webhook-info` → `main.py:api_telegram_webhook_info` · 🔒 auth.platform_admin_only
 
 #### `/api/takliflar` (7)
 - `GET /api/takliflar` → `main.py:api_takliflar` · 🔒 auth.ruxsat('buyurtma', 'korish') · auth.company_id_of, auth.ruxsat, crud.takliflar_royxati
@@ -3581,8 +3627,9 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `GET /suppliers` → `main.py:suppliers_page` · 🔒 auth.ruxsat('taminotchi', 'korish') · auth.ruxsat
 - `GET /suppliers/receive` → `main.py:supplier_receive_page` · 🔒 auth.ruxsat('kirim', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.get_suppliers
 
-#### `/telegram` (1)
-- `POST /telegram/webhook` → `main.py:telegram_webhook` · 🔓 · crud.get_master_gift_period_progress, crud.get_master_yearly_cashback
+#### `/telegram` (2)
+- `POST /telegram/webhook` → `main.py:telegram_webhook` · 🔓
+- `POST /telegram/webhook/{company_id}` → `main.py:telegram_korxona_webhook` · 🔓 · crud.get_setting
 
 #### `/tiklash` (2)
 - `GET /tiklash` → `main.py:tiklash_sahifa` · 🔒 auth.platform_admin_only · auth.company_id_of
@@ -3598,7 +3645,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 #### `/ustalar` (1)
 - `GET /ustalar` → `main.py:masters_manage_page` · 🔒 auth.ruxsat('usta', 'korish') · auth.ruxsat
 
-Jami marshrutlar: 325 (main.py: 304, production_routes.py: 21).
+Jami marshrutlar: 327 (main.py: 306, production_routes.py: 21).
 <!-- AVTO:API OXIRI -->
 
 ### 9.5 Jadvallar
@@ -3830,6 +3877,8 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_tayyor_reja_loy.py` · PG — kech112 darvozasi: K112-3 — «Tayyor» da haqiqiy loy kiritilmasa, qoplama xarajati foydadan tushib qolardi.
 - `test_tayyor_yuk.py` · PG — kech75 darvozasi (2026-09-25, 91 / 92 / 93 / 94-band): "Tayyor" (READY) va yuk xati.
 - `test_telegram_tenant.py` — Telegram xabarnomalari va dashboard o'qishlari bo'yicha korxonalararo darvoza (9-sizish).
+- `test_telegram_webhook.py` · PG — kech130 (zip 154): Telegram bot MANZILI himoyasi, holati va HAR KORXONAGA O'Z BOTI.
+- `test_telegram_webhook_ui.py` · PG — kech130 (zip 154): «🔒 Telegram xavfsizligi» (Foydalanuvchilar, platforma admini) va «📱 Telegram bot» (Sozlamalar, korxona admini) — HAQIQIY brauzerda (Chromium, Playwrig…
 - `test_tenant_isolation.py` — ikki korxonali avtomatik izolyatsiya testi.
 - `test_tf1_login_band.py` · PG — kech108, K107-2 darvozasi: TENANT_FILTER=1 da boshqa korxonada BAND login.
 - `test_tm_detal_tannarx.py` · PG — 5-bo'lim 56-band + K103-1 darvozasi (kech103, 2026-09-28): "Tayyor mahsulotdan" olingan detal tannarxi OLINGAN paytda muzlaydi.
@@ -3891,5 +3940,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 215 (Python 180, JS 35).
+Jami test fayllari: 217 (Python 182, JS 35).
 <!-- AVTO:TESTLAR OXIRI -->
