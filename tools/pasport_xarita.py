@@ -26,8 +26,8 @@ QOIDALAR (natija Python 3.11 va 3.12 da AYNAN bir xil bo'lishi uchun)
 ---------------------------------------------------------------------
 * `main.py`, `production_routes.py`, `models.py`, `production_models.py` va
   testlar `ast` bilan o'qiladi (ular 3.11 da ham import qilinadi).
-* `saas_migration.py` faqat MATN (regex) bilan o'qiladi — unda 3.12 ga xos
-  f-satr sintaksisi bor, 3.11 `ast` uni o'qiy olmaydi.
+* `saas_migration.py` da marshrut YO'Q (kech129 — HTTP sahifasi olib tashlandi);
+  u faqat muhit o'zgaruvchilari ro'yxati uchun MATN (regex) bilan o'qiladi.
 * Qator raqamlari YOZILMAYDI (har tahrirda o'zgaradi) — faqat nomlar.
 * Hamma ro'yxat tartiblangan — natija deterministik.
 """
@@ -56,14 +56,6 @@ CHAQIRUV_MODULLARI = {
     "pdf_service": "pdf_service",
     "tenant_context": "tenant_context",
 }
-
-ILOVA_FAYLLARI = (
-    "auth.py", "company_brand.py", "crud.py", "database.py", "delivery_pdf.py",
-    "erp_backup_tekshiruv.py", "finance_pdf.py", "main.py", "models.py", "pdf_service.py",
-    "production_models.py", "production_routes.py", "production_schemas.py",
-    "production_service.py", "saas_migration.py", "schemas.py", "services.py",
-    "tenant_context.py",
-)
 
 BLOKLAR = ("MUHIT", "ISHGA_TUSHISH", "SAHIFALAR", "API", "MODELLAR", "TESTLAR")
 
@@ -186,46 +178,9 @@ def _ast_marshrutlari(nisbiy, obyekt_nomi):
     return natija
 
 
-_SAAS_DEK = re.compile(r'^\s*@router\.(get|post|put|delete|patch)\(\s*"([^"]+)"')
-_SAAS_DEF = re.compile(r'^\s*(?:async\s+)?def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(')
-_SAAS_DEP = re.compile(r'Depends\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\)')
-
-
-def _saas_marshrutlari():
-    """saas_migration.py — faqat matn bilan (3.12 sintaksisi, 3.11 ast o'qimaydi)."""
-    qatorlar = _oqi("saas_migration.py").splitlines()
-    natija = []
-    i = 0
-    while i < len(qatorlar):
-        m = _SAAS_DEK.match(qatorlar[i])
-        if not m:
-            i += 1
-            continue
-        usul, yol = m.group(1).upper(), m.group(2)
-        j = i + 1
-        while j < len(qatorlar) and not _SAAS_DEF.match(qatorlar[j]):
-            j += 1
-        if j >= len(qatorlar):
-            break
-        nom = _SAAS_DEF.match(qatorlar[j]).group(1)
-        # imzo — `):` gacha
-        imzo = []
-        k = j
-        while k < len(qatorlar):
-            imzo.append(qatorlar[k])
-            if qatorlar[k].rstrip().endswith(":"):
-                break
-            k += 1
-        qorovul = sorted(set(d for d in _SAAS_DEP.findall(" ".join(imzo)) if d != "get_db"))
-        natija.append(Marshrut(usul, yol, nom, "saas_migration.py", qorovul, [], []))
-        i = k + 1
-    return natija
-
-
 def hamma_marshrutlar():
     m = _ast_marshrutlari("main.py", "app")
     m += _ast_marshrutlari("production_routes.py", "router")
-    m += _saas_marshrutlari()
     m.sort(key=lambda r: (r.yol, HTTP_USULLAR.index(r.usul.lower()), r.handler))
     return m
 
@@ -273,9 +228,12 @@ def shablon_api_yollari(nisbiy):
 # ---------------------------------------------------------------- bloklar
 
 def blok_muhit():
-    naqsh = re.compile(r"""os\.(?:getenv|environ\.get)\(\s*['"]([A-Z][A-Z0-9_]*)['"]|os\.environ\[\s*['"]([A-Z][A-Z0-9_]*)['"]\s*\]""")
+    # kech129: ildizdagi HAMMA `*.py` va istalgan modul nomi (`import os as _os_hx` — `_os_hx.environ.get(...)`); ilgari qat'iy fayl
+    # ro'yxati va faqat `os.` — `services.py` dagi `WEB_CONCURRENCY` tushib qolgan edi.
+    naqsh = re.compile(r"""\b[A-Za-z_][A-Za-z0-9_]*\.(?:getenv|environ\.get)\(\s*['"]([A-Z][A-Z0-9_]*)['"]"""
+                       r"""|\b[A-Za-z_][A-Za-z0-9_]*\.environ\[\s*['"]([A-Z][A-Z0-9_]*)['"]\s*\]""")
     joylar = {}
-    for f in ILOVA_FAYLLARI:
+    for f in sorted(os.path.basename(p) for p in glob.glob(os.path.join(ROOT, "*.py"))):
         for m in naqsh.finditer(_oqi(f)):
             nom = m.group(1) or m.group(2)
             joylar.setdefault(nom, set()).add(f)
@@ -373,8 +331,7 @@ def blok_api(marshrutlar):
             q.append(f"- `{r.usul} {r.yol}` → `{r.fayl}:{r.handler}` · {qorovul}{chaq}")
         q.append("")
     q.append(f"Jami marshrutlar: {jami} (main.py: {sum(1 for r in marshrutlar if r.fayl == 'main.py')}, "
-             f"production_routes.py: {sum(1 for r in marshrutlar if r.fayl == 'production_routes.py')}, "
-             f"saas_migration.py: {sum(1 for r in marshrutlar if r.fayl == 'saas_migration.py')}).")
+             f"production_routes.py: {sum(1 for r in marshrutlar if r.fayl == 'production_routes.py')}).")
     return "\n".join(q)
 
 
