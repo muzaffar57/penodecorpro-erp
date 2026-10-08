@@ -133,7 +133,9 @@ INV = oqi("templates/inventory.html")
 
 # Koddagi HAMMA amal turlari — o'zbekcha nom ro'yxatida bo'lishi SHART (yangi amal qo'shilsa — shu yerda yiqiladi)
 _AMAL_RE = [
-    re.compile(r"log_activity\(\s*(?:db|_db|s|session)\s*,\s*(?:action\s*=\s*)?[\"']([^\"']+)[\"']"),
+    # kech127 (zip 151): birinchi argument — istalgan nom (zip 150 dagi `crud.log_activity(_d, "loy_tuzatish", …)` ilgari
+    # ko'rinmasdi — sessiya nomi `_d`; jurnalda «amal: loy_tuzatish» bo'lib chiqdi)
+    re.compile(r"log_activity\(\s*[A-Za-z_]\w*\s*,\s*(?:action\s*=\s*)?[\"']([^\"']+)[\"']"),
     re.compile(r"log_activity\((?:(?!log_activity\()[\s\S]){0,400}?\baction\s*=\s*[\"']([^\"']+)[\"']"),
     re.compile(r"ActivityLog\((?:(?!ActivityLog\()[\s\S]){0,400}?\baction\s*=\s*[\"']([^\"']+)[\"']"),
     re.compile(r"_po_jurnal\(\s*db\s*,\s*po\s*,\s*[\"']([^\"']+)[\"']"),
