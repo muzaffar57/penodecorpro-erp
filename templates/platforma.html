@@ -596,6 +596,20 @@ function mpKontekstHtml(d) {
   return '<div class="mp-kontekst">' + s.join('<br>') + '</div>';
 }
 
+// kech128 (zip 152 — staging jonli sinovi 08.10, O'LCHANDI): yozishma oynasi (420 px) rasmlar yuklanishidan OLDIN pastga aylantirilardi —
+// rasmlar keyin yuklanib balandlik oshgach eng yangi xabar pastda yashirinib qolardi (3 xabar, 2 rasm: oyna boshida, 578 / 420 px).
+// Endi har rasm yuklanganda — foydalanuvchi o'zi yuqoriga aylantirmagan bo'lsa — yana eng yangi xabarga.
+function mpPastga(xs) {
+  if (!xs) return;
+  var pastda = true;
+  xs.scrollTop = xs.scrollHeight;
+  xs.addEventListener('scroll', function () { pastda = xs.scrollHeight - xs.clientHeight - xs.scrollTop < 24; });
+  xs.querySelectorAll('img').forEach(function (im) {
+    if (im.complete) return;
+    im.addEventListener('load', function () { if (pastda) xs.scrollTop = xs.scrollHeight; }, {once: true});
+  });
+}
+
 async function mpOch(id) {
   var el = document.getElementById('mpYozishma');
   try {
@@ -615,7 +629,7 @@ async function mpOch(id) {
         'placeholder="Mijozga javob — u dasturida ko\'radi"></textarea></div>' +
         '<div class="pl-field"><label for="mpRasm">Rasm — ixtiyoriy</label><input type="file" id="mpRasm" accept="image/jpeg,image/png,image/webp"></div>' +
         '<div><button type="button" class="pl-btn qora" data-mp="javob">Javob yuborish</button></div>');
-    var xs = document.getElementById('mpXabarlar'); if (xs) xs.scrollTop = xs.scrollHeight;
+    mpPastga(document.getElementById('mpXabarlar'));
     document.querySelectorAll('#mpRoyxat .mp-qator').forEach(function (b) {
       b.classList.toggle('tanlangan', b.dataset.mpId === String(d.id));
       if (b.dataset.mpId === String(d.id)) b.classList.remove('oqilmagan');
