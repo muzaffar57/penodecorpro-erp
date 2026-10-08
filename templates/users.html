@@ -210,8 +210,9 @@
          "polling" rejimida ishlasa, o'sha botni buzib qo'yishi mumkin
          (2 marta shunday bo'lgan). Shuning uchun, bosishdan OLDIN aniq
          ogohlantirish ko'rsatiladi. -->
+    {# kech132 (zip 156): tugmalar NOMI bilan (ilgari «bu tugmani», «pastdagi qizil tugma» — joylashuv / rang so'zi; kech127 qoidasi) #}
     <div style="background:var(--f-fef3c7);border:1.5px solid var(--ch-fde68a);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:13px;color:var(--m-92400e);line-height:1.6">
-      ⚠️ <b>Diqqat:</b> Agar sizning asosiy (katalog) botingiz BOSHQA, alohida serverda ishlasa — bu tugmani bosish o'sha botni vaqtincha to'xtatib qo'yishi mumkin (bu, avval 2 marta bo'lgan). Agar shunday bo'lsa — pastdagi qizil tugma orqali darhol tuzatib olishingiz mumkin.
+      ⚠️ <b>Diqqat:</b> Agar sizning asosiy (katalog) botingiz BOSHQA, alohida serverda ishlasa — «🔐 Telegram xavfsizligini yoqish» tugmasini bosish o'sha botni vaqtincha to'xtatib qo'yishi mumkin (bu, avval 2 marta bo'lgan). Agar shunday bo'lsa — «🔄 Botni asl holatiga qaytarish» tugmasi orqali darhol tuzatib olishingiz mumkin.
     </div>
     <button class="btn btn-dark" onclick="setupTelegramSecurity()" id="tg-security-btn">
       🔐 Telegram xavfsizligini yoqish
@@ -225,7 +226,8 @@
          webhookni butunlay o'chirib, botni asl holatiga qaytarish
          mumkin. -->
     <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--ch-fadbd8)">
-      <div style="font-size:13px;color:var(--m-dc2626);margin-bottom:8px">⚠️ Agar shu tugmani bosgandan keyin, botingiz (boshqa, alohida serverdagi) ishlamay qolgan bo'lsa — quyidagi tugma orqali qaytaring:</div>
+      {# kech132 (zip 156): tugmalar NOMI bilan (ilgari «shu tugmani», «quyidagi tugma orqali») #}
+      <div style="font-size:13px;color:var(--m-dc2626);margin-bottom:8px">⚠️ Agar «🔐 Telegram xavfsizligini yoqish» tugmasini bosgandan keyin botingiz (boshqa, alohida serverdagi) ishlamay qolgan bo'lsa — «🔄 Botni asl holatiga qaytarish» tugmasi orqali qaytaring:</div>
       <!-- kech123 (zip 142 — U-13 jonli sinovi, zip 139 staging, 390 px): uzun yozuv («Webhookni o'chirib, botni asl holatiga
            qaytarish») telefonda ikki qatorga tushib tugma 64 px bo'lardi (yagona balandlik — 44). Yozuv qisqardi; to'liq ma'nosi — ustidagi
            ogohlantirishda, tasdiq oynasida va `title` da. -->
@@ -476,9 +478,14 @@ async function tgHolatYukla(){
   }
   el.style.color = 'var(--text2)';
   el.innerHTML = qator.join('');
+  // kech132 (zip 156): asosiy saytda tugmaning ASL `title` i tiklanadi — ilgari '' yozilib «🔄 Botni asl holatiga qaytarish» ning to'liq
+  // ma'nosi («Webhookni o'chirib, botni asl (polling) holatiga qaytarish» — kech123) production da yo'qolardi. Asli birinchi chaqiruvda saqlanadi.
   ['tg-security-btn', 'tg-delete-webhook-btn'].forEach(function (id) {
     const b = document.getElementById(id);
-    if (b) { b.disabled = !d.asosiy_muhit; b.title = d.asosiy_muhit ? '' : 'Faqat asosiy saytda'; }
+    if (!b) return;
+    if (!b.hasAttribute('data-asl-title')) b.setAttribute('data-asl-title', b.getAttribute('title') || '');
+    b.disabled = !d.asosiy_muhit;
+    b.title = d.asosiy_muhit ? b.getAttribute('data-asl-title') : 'Faqat asosiy saytda';
   });
 }
 if (document.readyState === 'loading') {
