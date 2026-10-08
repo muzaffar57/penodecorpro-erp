@@ -43,7 +43,13 @@ class MurojaatYopiq(Exception):
 # YORDAMCHILAR
 # ══════════════════════════════════════════════════════════════
 def matn_tekshir(matn):
-    t = (matn or "").strip() if isinstance(matn, str) else ""
+    """Bo'sh emas, ko'pi bilan `MATN_MAX` belgi; qaytaradigani — saqlanadigan matn.
+
+    kech128 (zip 152 — O'LCHANDI haqiqiy Chromium da, `work/k152/crlf_olchov.py`): brauzer forma (FormData) yangi qatorni «\\r\\n»
+    qilib yuboradi, `maxlength` esa uni 1 belgi sanaydi — 40 qatorli 4000 belgilik matn serverga 4040 bo'lib kelib «juda uzun» deb rad
+    etilardi (hisoblagich «4000 / 4000» ko'rsatib turganda). Qator oxirlari tekshiruvdan OLDIN «\\n» ga keltiriladi (saqlanadigani ham)."""
+    t = (matn or "") if isinstance(matn, str) else ""
+    t = t.replace("\r\n", "\n").replace("\r", "\n").strip()
     if not t:
         raise MurojaatXato("Murojaat matnini yozing")
     if len(t) > MATN_MAX:
