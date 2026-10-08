@@ -203,15 +203,13 @@ try:
 except Exception as e:                     # noqa: BLE001
     _xarita_yollar = set()
     print(f"  (hamma_marshrutlar xato: {type(e).__name__}: {e})")
-# saas_migration.py marshrutlari Python 3.11 da yuklanmaydi (3.12 sintaksisi, main.py try/except) — ilova ro'yxatida
-# bo'lmasligi mumkin; qolganlari AYNAN bo'lishi shart.
-_saas = {(u, y) for u, y in _xarita_yollar if "saas-migra" in y}
-_app_saassiz = {(u, y) for u, y in _app_yollar if "saas-migra" not in y}
-check("A6 xaritadagi marshrutlar (saas_migration dan tashqari) = ilova marshrutlari (main.app.routes)",
-      (_xarita_yollar - _saas) == _app_saassiz,
-      f"xaritada ortiqcha: {sorted((_xarita_yollar - _saas) - _app_saassiz)[:8]}; "
-      f"xaritada yo'q: {sorted(_app_saassiz - (_xarita_yollar - _saas))[:8]}")
-check("A7 saas_migration.py marshrutlari xaritada (matndan o'qiladi) — 8 ta", len(_saas) == 8, sorted(_saas))
+# kech129 (zip 153, MOSLANDI): SaaS migratsiya sahifasi olib tashlandi — xarita va ilova marshrutlari AYNAN, `saas-migra` YO'Q.
+_saas = {(u, y) for u, y in _xarita_yollar | _app_yollar if "saas-migra" in y}
+check("A6 xaritadagi marshrutlar = ilova marshrutlari (main.app.routes)",
+      _xarita_yollar == _app_yollar,
+      f"xaritada ortiqcha: {sorted(_xarita_yollar - _app_yollar)[:8]}; "
+      f"xaritada yo'q: {sorted(_app_yollar - _xarita_yollar)[:8]}")
+check("A7 SaaS migratsiya marshrutlari (`saas-migra`) na xaritada, na ilovada YO'Q (kech129 — olib tashlandi)", not _saas, sorted(_saas))
 _blok_api = BLOKLAR.get("API", "")
 check("A8 API blokidagi 'Jami marshrutlar' soni = xaritadagi marshrutlar soni",
       f"Jami marshrutlar: {len(_xarita_yollar)} " in _blok_api, (len(_xarita_yollar), _blok_api[-200:]))

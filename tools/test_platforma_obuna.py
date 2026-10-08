@@ -837,7 +837,13 @@ check("F6b xuddi shu yo'llar — BOSHQA korxona ham ololmaydi", _ua_nom and all(
 check("F7 umumiy statik fayllar (CSS) — loginsiz ochiq qoladi", req(C0, "get", "/static/style.css").status_code == 200)
 r = req(CA, "get", "/static/uploads/inventory/yoq_fayl.png")
 check("F8 mavjud bo'lmagan fayl — 404", r.status_code == 404, r.status_code)
-r = req(CB, "post", "/api/settings/company/logo", files={"file": ("l.png", _png, "image/png")})
+# kech129 (zip 153, MOSLANDI): logotip endi TO'LIQ o'qiladi (PDF ga chiziladi) — yuqoridagi qo'lda yozilgan `_png` ning IDAT qismi
+# buzilgan (Pillow: «broken data stream»), u 400 bilan rad etiladi. Logotip uchun — Pillow yasagan haqiqiy 1 × 1 PNG.
+from PIL import Image as _PilImage                 # noqa: E402
+_png_logo_b = io.BytesIO()
+_PilImage.new("RGBA", (1, 1), (200, 30, 30, 255)).save(_png_logo_b, "PNG")
+_png_logo = _png_logo_b.getvalue()
+r = req(CB, "post", "/api/settings/company/logo", files={"file": ("l.png", _png_logo, "image/png")})
 _lp = (js(r) or {}).get("logo_path") or ""
 if _lp:
     YARATILGAN.append(os.path.join(ROOT, _lp))

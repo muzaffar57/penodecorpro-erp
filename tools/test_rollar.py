@@ -526,12 +526,9 @@ check("S2 tayyor rollar faqat katalogdagi band / amal; Admin andozasi — HAMMA 
 check("S3 «Tannarx va foyda» — alohida band (faqat Ko'rish); Menejer / Omborchi da YO'Q, Moliyachi da BOR (eskisidek)",
       RX.BANDLAR["tannarx"]["amallar"] == ("korish",) and "tannarx" not in RX.TAYYOR_ROLLAR["menejer"]["ruxsatlar"]
       and "tannarx" not in RX.TAYYOR_ROLLAR["omborchi"]["ruxsatlar"] and "tannarx" in RX.TAYYOR_ROLLAR["moliyachi"]["ruxsatlar"])
-# kech123 (MOSLANDI — konteynerda Python 3.13): `saas_migration.py` Python ≥ 3.12 da yuklanadi (Railway — 3.12), 3.11 da — yo'q; uning
-# VAQTINCHALIK marshrutlari (qorovuli — o'z modulida: admin + tasdiq iborasi) bor bo'lishi ham, bo'lmasligi ham mumkin — jadvalda tekshirilmaydi
-SAAS_IXTIYORIY = {"GET /api/saas-migration/status", "GET /saas-migratsiya", "POST /api/saas-migration/step/{kalit}",
-                  "POST /saas-migratsiya/haqiqiy/{kalit}", "POST /saas-migratsiya/kod/haqiqiy", "POST /saas-migratsiya/kod/sinov",
-                  "POST /saas-migratsiya/sinov-tenant", "POST /saas-migratsiya/sinov/{kalit}"}
-_jadvalsiz = sorted(k for k in MARSHRUT if k not in ESKI and k not in YANGI_MARSHRUTLAR and k not in SAAS_IXTIYORIY)
+# kech129 (zip 153, MOSLANDI): kech123 dagi `SAAS_IXTIYORIY` istisnosi OLIB TASHLANDI — o'sha 8 marshrut (qorovuli `auth.admin_only`)
+# jadvaldan tashqarida qolib, mijoz korxona admini ham kirishi sezilmagan edi. Endi istisno YO'Q: har marshrut jadvalda bo'lishi shart.
+_jadvalsiz = sorted(k for k in MARSHRUT if k not in ESKI and k not in YANGI_MARSHRUTLAR)
 _yoq = sorted(k for k in list(ESKI) + list(YANGI_MARSHRUTLAR) if k not in MARSHRUT)
 check("S4 HAR marshrut jadvalda (yangi marshrut ruxsati belgilanmay qolmagan), jadvaldagi hamma marshrut ilovada bor",
       not _jadvalsiz and not _yoq, (_jadvalsiz, _yoq))
