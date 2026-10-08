@@ -22,14 +22,14 @@ QANDAY ISHLAYDI (texnik qaror — Claude, kech109)
      ular bilan ishlaydi (vaqtinchalik DEFAULT 1), keyingi ishga tushish davom ettiradi.
   4. Xato bo'lsa — `RuntimeError` (ilova ishga tushmaydi, Railway loglarida aniq qadam va sabab): yarim
      sxemali ilova ishlab turgandan ko'ra to'xtagani xavfsiz.
-`saas_migration.py` Python 3.12 sintaksisiga ega — faqat KERAK bo'lganda (eski baza) yuklanadi; bu modul 3.11
-bilan ham ishlaydi (lokal testlar).
+`saas_migration.py` faqat KERAK bo'lganda (eski baza) yuklanadi. kech129 (zip 153): undagi HTTP sahifa (8 marshrut) olib
+tashlandi — dvigatel (`run_step`, `verify_tables`, `run_kod_migration`) o'zgarmadi; endi u Python 3.11 da ham o'qiladi.
 """
 
 from sqlalchemy import inspect as _sa_inspect, text
 
 # `saas_migration.STEPS` dagi to'lqin tartibi (kech108 simulyatsiyasida sinalgan). TEKSHIRUV — `verify_tables`,
-# M1KOD — `run_kod_migration` (alohida chaqiriladi). SINOV-TENANT — faqat staging, bu yerda YO'Q.
+# M1KOD — `run_kod_migration` (alohida chaqiriladi). (SINOV-TENANT qadami kech129 da olib tashlandi.)
 OTISH_TARTIBI = ("W1", "W2G1", "W2G2", "W2G3", "W2G4", "W2B", "W3", "W3B", "W4", "W5", "W6")
 
 # To'lqinlar `company_id` qo'shadigan 25 jadval (`saas_migration.STEPS` "jadvallar") — aniqlash uchun
@@ -174,7 +174,7 @@ def otish(engine, sm=None, chiqar=print) -> dict:
     """Eski bazani to'lqinlardan o'tkazadi: SINOV (hammasi qaytariladi) → HAQIQIY. `sm` — `saas_migration`
     moduli (testda almashtiriladi). Qaytaradi: {ok, bosqich, qadam, xato}."""
     if sm is None:
-        import saas_migration as sm  # noqa: F811 — 3.12 sintaksisi, faqat eski bazada yuklanadi
+        import saas_migration as sm  # noqa: F811 — faqat eski bazada yuklanadi
     chiqar("🔄 SaaS o'tishi: eski (bitta korxonali) baza aniqlandi — to'lqinlar staging kodidan OLDIN bajariladi")
 
     # 1) SINOV — bitta tranzaksiya, oxirida ROLLBACK

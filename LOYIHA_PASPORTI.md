@@ -1,6 +1,7 @@
 # PenoDecorPro ERP — LOYIHA PASPORTI
 
-*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2); kech112: zip 108 — «Tayyor» da bo'sh loy = reja (K112-3), material nomi (K112-4), MRP qoplama belgisi (K112-5); ko'p korxonali yakuniy jonli sinov; kech115: zip 112 — butun dastur auditi A bosqichi (pul va ma'lumot xatolari) 1-qismi: kirim, qarzdorlar, «Tayyor», narxsiz buyurtma, o'chirilganlar jurnali, manfiy raqamlar, taqqoslash, korxona sog'ligi, ombor filtri; kech116: zip 113 — A bosqich 2-qismi: sog'liq sabablari (K115-2), «Bugungi xulosa» (K115-3), hujjatlardagi hisob qatorlari (G2-04), «Pul oqimi» — haqiqiy pul (G1-03), «Xarajat» — bitta ta'rif va «Tannarx» (G1-02), loyiha qiymati buyurtmalardan (G2-01), haqiqiy IP va kirish cheklovi (U-01), parol oynasi va kirishlarni yopish (G6-06); zip 114 — mijoz hujjatlarida kechirilgan qarz «Chegirma» ichida (egasi qarori); kech117: zip 115 — A2: yo'nalishlar bo'yicha moliya (G3-11, G6-09); zip 116 — jonli sinovdan keyin: «Belgilanmagan» manbalari, Moliya xarajatdan keyin yangilanadi; kech118: qolgan egasi qarorlari (6-bo'lim); zip 117 — B bosqichi 1-qism: dastur oynalari (xabar, kiritish, Esc / tashqariga bosish), o'zbekcha 404 / 403 sahifa, klaviatura fokusi; zip 118 — B bosqichi 2-qism: son / sana / birlik ko'rinishi, o'qiladigan rang, 12 px + yo'nalishlar bo'yicha moliyaviy natija (egasi qarori: taqsim yo'q, oyliklar alohida, davr, solishtirish); yangi qarorlar — rollar va ruxsatlar (6-bo'lim); zip 119 — rollar va ruxsatlar 1-qism (admin rollarni o'zi boshqaradi); kech119: zip 125 — Hisobotlar «oy boshi»: o'tgan oyning SHU KUNLARI bilan solishtirish (egasi qarori), taxminda oylik xarajat bir marta, xomashyo birligi; «Foyda tahlili» summalari (G2-15); zip 126 — telefon (C bosqichi); kech120: zip 127 — E bosqichi 1-qism: tezlik — hisobot xotirasi (so'rovlar orasida, yozuv bo'lsa darhol eskiradi), sahifa bir ochilishida bir xil so'rov bir marta, Bosh sahifa 5 ta buyurtma, kirish sahifasi rasmi, Hisobotlar taqqoslash kartalari telefonda (K120-1); zip 128 — E bosqichi 2-qism: katta ro'yxatlarda topish — Bosh sahifa «Bugungi vazifalar» havolalari, Buyurtmalar filtri / keng qidiruv / tanlovni tiklash, Qarzdorlar mijoz bo'yicha; zip 129 — E bosqichi 3-qism: tarix va jurnallar — «Tizim jurnallari» filtri va sahifalash, hamma amal o'zbekcha, tahrir yozuvida nima o'zgargani; Ombor «Tarix», «Yana yuklash», davr jami; zip 130 — E bosqichi 4-qism: qidiruvli tanlagich (Kirim — ta'minotchi, material; «Yangi qaytarish», «Brak yozish»), ta'minotchilar tabiiy tartibda, Tayyor mahsulotlar kategoriyalari korxonaning o'z mahsulot turlaridan; shu zipda — E bosqichi 5-qism: hodim kirishi — har korxonada kod (kodsizlarga ishga tushishda), QR serverda (ichida kod), kirish sahifasi kodni o'zi yozadi, chop etish sahifasi; shu zipda — E bosqichi 6-qism: rasmlar yuklashda 1920 px gacha kichraytiriladi (burilish qo'llanadi, joylashuv saqlanmaydi), ro'yxatlarda kichik nusxa (360 px); uzun ro'yxatlarda faqat birinchi 20 qator animatsiyali); zip 131 — F bosqichi 1-qism: Moliya, Qarzdorlar, «Xarajat qo'shish» (kirim xarajati faqat hujjat orqali, ro'yxat jami, kassa yozuvini o'chirish, «Yalpi foyda», qarz to'lovi usuli, majburiyat oyi); zip 132 — F bosqichi 2-qism: Ombor, Kirim, Ta'minotchilar, Retseptlar (kirim hujjatidan qator — to'lov / xarajat bo'lsa butun hujjat orqali, ishlatilgan retsept o'chmaydi, Telegram natijasi, Omborxona — ruxsat bo'yicha tugmalar, ustun nomlari, toifa filtri; ta'minotchi tarixida to'lov holati, penoplast blok hajmi); zip 133 — F bosqichi 3-qism: Tayyor mahsulotlar, Qaytarishlar, Ishlab chiqarish (birlik ko'rinishi — bitta qoida, qaytarishlar guruhi va kartalari, «Hisob-kitob qilish», tugmalar so'z bilan, sotishdan keyin sahifa qayta yuklanmaydi, narxsiz mahsulot qiymati, mahsulot turini tahrirlash / o'chirish, bo'sh korxona yo'riqnomasi); zip 134 — F bosqichi 4-qism: Buyurtmalar va Loyihalar (namuna matni rangi, saqlash kamchiliklari bitta ro'yxatda, detal raqami, profil — uzunlik bo'yicha, loyiha qarzi «384 ming», bitta hisob-kitob paneli, amallar tepada, «Bajarilgan» va «Yetkazish — 1/2 topshirildi», «Tarix», bo'sh korxonada «avval loyiha»); zip 135 — F bosqichi 5-qism: Bosh sahifa, Dashboard, Hisobotlar («Faol buyurtmalar» — bitta qoida, usta reytingi, yangi korxonaga «Boshlash», bo'sh grafiklar, davr filtri, jadval qidiruvi va Excel, «Yangilash»); zip 136 — F bosqichi 5-qism 2-bo'lagi: hujjatlar va KPI (buyurtma hisobi — birlik, ajratgich, bitta «TO'LOV SUMMASI»; yuk xati — shu yuk paytidagi holat; KPI sahifasi yozuvlari va hodim kartasi); zip 137 — F bosqichi 5-qism 3-bo'lagi: ustalar telefoni, menyu guruhlari, hodim va foydalanuvchi kirishi, alohida «Sozlamalar» sahifasi; kech121: zip 138 — egasi qarorlari 02.10 (Dashboard «Shu oy daromadi», brak foizi asosi, Menejer o'z xarajatini o'chiradi, narxsiz «Kirim (tuzatish)», qaytarish oynasida pul savoli, yuk xatida korxona to'lagan transport narxi yo'q); kech123: zip 139 — U-13 yagona ko'rinish 1-qism (tugma / maydon / tab / filtr o'lchamlari va yozuv shkalasi — bitta qoida; umumiy qobiq, Bosh sahifa, Dashboard, Hisobotlar, Foydalanuvchilar; zip 140 — 2-qism: Buyurtmalar, Loyihalar, Omborxona, Kirim qilish, Ta'minotchilar, Loy retseptlari, Ishlab chiqarish, Tayyor mahsulotlar, Qaytarishlar; zip 141 — 3-qism: Qarzdorlar, Moliya, Xarajat qo'shish, Ustalar KPI, Ustalar, Rollar; zip 142 — 4-qism: jurnallar, Sozlamalar, Savat, Platforma, kirish sahifalari, hodim paneli; zip 143 — qoplamachi bonusi va «har birlik uchun» hodim haqi yuk xatlari bo'yicha; kech124: zip 144 — loyihada «Yuk xatlari», yuk xati raqami loyiha bo'yicha, «Jamlab olish»; zip 145 — Loyihalar holat paneli «Bajarilgan»; kech125: zip 146 — brak taqdiri: Tashlandi / Tuzatildi / Kesildi / 2-nav; zip 147 — uning jonli sinovidan keyingi tuzatishlar; kech126: zip 148 — «Tez hisob / Taklif»: mijozga loyiha / buyurtma ochmasdan taklif, «Takliflar» ro'yxati, bir tugma bilan rasmiylashtirish; zip 149 — uning jonli sinovidan keyingi 2 tuzatish; kech127: `main` ga ko'chirish — 07.10; zip 150 — «Xomashyo narxlari va ombor qiymati» ruxsati, ORD-066-1 loy xatosi tuzatishi; zip 151 — «Murojaat» bo'limi, jurnal `loy_tuzatish` yorlig'i, ombor harakatlari jami — material bo'yicha; kech128: zip 152 — rasm emas fayl rad etiladi (hamma rasm yuklash joylari va logotip), murojaat matnida qator oxirlari, platforma yozishma oynasi). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
+*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2); kech112: zip 108 — «Tayyor» da bo'sh loy = reja (K112-3), material nomi (K112-4), MRP qoplama belgisi (K112-5); ko'p korxonali yakuniy jonli sinov; kech115: zip 112 — butun dastur auditi A bosqichi (pul va ma'lumot xatolari) 1-qismi: kirim, qarzdorlar, «Tayyor», narxsiz buyurtma, o'chirilganlar jurnali, manfiy raqamlar, taqqoslash, korxona sog'ligi, ombor filtri; kech116: zip 113 — A bosqich 2-qismi: sog'liq sabablari (K115-2), «Bugungi xulosa» (K115-3), hujjatlardagi hisob qatorlari (G2-04), «Pul oqimi» — haqiqiy pul (G1-03), «Xarajat» — bitta ta'rif va «Tannarx» (G1-02), loyiha qiymati buyurtmalardan (G2-01), haqiqiy IP va kirish cheklovi (U-01), parol oynasi va kirishlarni yopish (G6-06); zip 114 — mijoz hujjatlarida kechirilgan qarz «Chegirma» ichida (egasi qarori); kech117: zip 115 — A2: yo'nalishlar bo'yicha moliya (G3-11, G6-09); zip 116 — jonli sinovdan keyin: «Belgilanmagan» manbalari, Moliya xarajatdan keyin yangilanadi; kech118: qolgan egasi qarorlari (6-bo'lim); zip 117 — B bosqichi 1-qism: dastur oynalari (xabar, kiritish, Esc / tashqariga bosish), o'zbekcha 404 / 403 sahifa, klaviatura fokusi; zip 118 — B bosqichi 2-qism: son / sana / birlik ko'rinishi, o'qiladigan rang, 12 px + yo'nalishlar bo'yicha moliyaviy natija (egasi qarori: taqsim yo'q, oyliklar alohida, davr, solishtirish); yangi qarorlar — rollar va ruxsatlar (6-bo'lim); zip 119 — rollar va ruxsatlar 1-qism (admin rollarni o'zi boshqaradi); kech119: zip 125 — Hisobotlar «oy boshi»: o'tgan oyning SHU KUNLARI bilan solishtirish (egasi qarori), taxminda oylik xarajat bir marta, xomashyo birligi; «Foyda tahlili» summalari (G2-15); zip 126 — telefon (C bosqichi); kech120: zip 127 — E bosqichi 1-qism: tezlik — hisobot xotirasi (so'rovlar orasida, yozuv bo'lsa darhol eskiradi), sahifa bir ochilishida bir xil so'rov bir marta, Bosh sahifa 5 ta buyurtma, kirish sahifasi rasmi, Hisobotlar taqqoslash kartalari telefonda (K120-1); zip 128 — E bosqichi 2-qism: katta ro'yxatlarda topish — Bosh sahifa «Bugungi vazifalar» havolalari, Buyurtmalar filtri / keng qidiruv / tanlovni tiklash, Qarzdorlar mijoz bo'yicha; zip 129 — E bosqichi 3-qism: tarix va jurnallar — «Tizim jurnallari» filtri va sahifalash, hamma amal o'zbekcha, tahrir yozuvida nima o'zgargani; Ombor «Tarix», «Yana yuklash», davr jami; zip 130 — E bosqichi 4-qism: qidiruvli tanlagich (Kirim — ta'minotchi, material; «Yangi qaytarish», «Brak yozish»), ta'minotchilar tabiiy tartibda, Tayyor mahsulotlar kategoriyalari korxonaning o'z mahsulot turlaridan; shu zipda — E bosqichi 5-qism: hodim kirishi — har korxonada kod (kodsizlarga ishga tushishda), QR serverda (ichida kod), kirish sahifasi kodni o'zi yozadi, chop etish sahifasi; shu zipda — E bosqichi 6-qism: rasmlar yuklashda 1920 px gacha kichraytiriladi (burilish qo'llanadi, joylashuv saqlanmaydi), ro'yxatlarda kichik nusxa (360 px); uzun ro'yxatlarda faqat birinchi 20 qator animatsiyali); zip 131 — F bosqichi 1-qism: Moliya, Qarzdorlar, «Xarajat qo'shish» (kirim xarajati faqat hujjat orqali, ro'yxat jami, kassa yozuvini o'chirish, «Yalpi foyda», qarz to'lovi usuli, majburiyat oyi); zip 132 — F bosqichi 2-qism: Ombor, Kirim, Ta'minotchilar, Retseptlar (kirim hujjatidan qator — to'lov / xarajat bo'lsa butun hujjat orqali, ishlatilgan retsept o'chmaydi, Telegram natijasi, Omborxona — ruxsat bo'yicha tugmalar, ustun nomlari, toifa filtri; ta'minotchi tarixida to'lov holati, penoplast blok hajmi); zip 133 — F bosqichi 3-qism: Tayyor mahsulotlar, Qaytarishlar, Ishlab chiqarish (birlik ko'rinishi — bitta qoida, qaytarishlar guruhi va kartalari, «Hisob-kitob qilish», tugmalar so'z bilan, sotishdan keyin sahifa qayta yuklanmaydi, narxsiz mahsulot qiymati, mahsulot turini tahrirlash / o'chirish, bo'sh korxona yo'riqnomasi); zip 134 — F bosqichi 4-qism: Buyurtmalar va Loyihalar (namuna matni rangi, saqlash kamchiliklari bitta ro'yxatda, detal raqami, profil — uzunlik bo'yicha, loyiha qarzi «384 ming», bitta hisob-kitob paneli, amallar tepada, «Bajarilgan» va «Yetkazish — 1/2 topshirildi», «Tarix», bo'sh korxonada «avval loyiha»); zip 135 — F bosqichi 5-qism: Bosh sahifa, Dashboard, Hisobotlar («Faol buyurtmalar» — bitta qoida, usta reytingi, yangi korxonaga «Boshlash», bo'sh grafiklar, davr filtri, jadval qidiruvi va Excel, «Yangilash»); zip 136 — F bosqichi 5-qism 2-bo'lagi: hujjatlar va KPI (buyurtma hisobi — birlik, ajratgich, bitta «TO'LOV SUMMASI»; yuk xati — shu yuk paytidagi holat; KPI sahifasi yozuvlari va hodim kartasi); zip 137 — F bosqichi 5-qism 3-bo'lagi: ustalar telefoni, menyu guruhlari, hodim va foydalanuvchi kirishi, alohida «Sozlamalar» sahifasi; kech121: zip 138 — egasi qarorlari 02.10 (Dashboard «Shu oy daromadi», brak foizi asosi, Menejer o'z xarajatini o'chiradi, narxsiz «Kirim (tuzatish)», qaytarish oynasida pul savoli, yuk xatida korxona to'lagan transport narxi yo'q); kech123: zip 139 — U-13 yagona ko'rinish 1-qism (tugma / maydon / tab / filtr o'lchamlari va yozuv shkalasi — bitta qoida; umumiy qobiq, Bosh sahifa, Dashboard, Hisobotlar, Foydalanuvchilar; zip 140 — 2-qism: Buyurtmalar, Loyihalar, Omborxona, Kirim qilish, Ta'minotchilar, Loy retseptlari, Ishlab chiqarish, Tayyor mahsulotlar, Qaytarishlar; zip 141 — 3-qism: Qarzdorlar, Moliya, Xarajat qo'shish, Ustalar KPI, Ustalar, Rollar; zip 142 — 4-qism: jurnallar, Sozlamalar, Savat, Platforma, kirish sahifalari, hodim paneli; zip 143 — qoplamachi bonusi va «har birlik uchun» hodim haqi yuk xatlari bo'yicha; kech124: zip 144 — loyihada «Yuk xatlari», yuk xati raqami loyiha bo'yicha, «Jamlab olish»; zip 145 — Loyihalar holat paneli «Bajarilgan»; kech125: zip 146 — brak taqdiri: Tashlandi / Tuzatildi / Kesildi / 2-nav; zip 147 — uning jonli sinovidan keyingi tuzatishlar; kech126: zip 148 — «Tez hisob / Taklif»: mijozga loyiha / buyurtma ochmasdan taklif, «Takliflar» ro'yxati, bir tugma bilan rasmiylashtirish; zip 149 — uning jonli sinovidan keyingi 2 tuzatish; kech127: `main` ga ko'chirish — 07.10; zip 150 — «Xomashyo narxlari va ombor qiymati» ruxsati, ORD-066-1 loy xatosi tuzatishi; zip 151 — «Murojaat» bo'limi, jurnal `loy_tuzatish` yorlig'i, ombor harakatlari jami — material bo'yicha; kech128: zip 152 — rasm emas fayl rad etiladi (hamma rasm yuklash joylari va logotip), murojaat matnida qator oxirlari, platforma yozishma oynasi; kech129: zip 153 — SaaS migratsiya sahifasi (8 marshrut) olib tashlandi: mijoz korxona admini ham kirib, boshqa korxonalar nomini ko'rar va haqiqiy migratsiya qadamini bajarar edi; logotip PDF da o'z nisbati va yo'nalishi bilan, buzilgan
+logotip qabul qilinmaydi). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
 *Bu faylni `main` ga ko'chirish bilan birga, keyin har katta o'zgarishda yangilab boring. 9-bo'lim AVTOMATIK
 (`python3 tools/pasport_xarita.py --yoz`), qolgani qo'lda; `tools/test_pasport.py` ikkalasini ham tekshiradi.*
 
@@ -59,8 +60,8 @@ jarayon) uniki — ularni misol (haqiqiy raqamlar) va tavsiya bilan, tugmali sav
 - **Stek:** Python 3.12 (`runtime.txt`), FastAPI, SQLAlchemy 2.0, `pg8000`, Jinja2 shablonlar, ReportLab (PDF),
   APScheduler (kunlik zaxira 23:30 Toshkent vaqti bilan — `main.run_daily_backup`). `Procfile`:
   `uvicorn main:app`. Baza: Railway PostgreSQL; lokal testlar SQLite va PostgreSQL 16.
-- **Diqqat — Python versiyasi:** `saas_migration.py` da 3.12 ga xos f-satr bor; 3.11 da u yuklanmaydi (`main.py`
-  uni `try/except` bilan ulaydi), shuning uchun lokal 3.11 testlarida `/saas-migratsiya` marshrutlari yo'q.
+- **Python versiyasi:** kech129 (zip 153) dan `saas_migration.py` da 3.12 ga xos sintaksis YO'Q (u HTML qismida edi — olib
+  tashlandi); ilova 3.11 / 3.12 / 3.13 da bir xil marshrutlar bilan ishlaydi (lokal konteyner — 3.13).
 - **Yuklash tartibi (egasi qiladi):** zipni ochadi, papka ICHIDAGI narsalarni GitHub saytida `staging` shoxida
   **Add file → Upload files** ga sudraydi. `templates/*.html` fayllari `templates/` papkasi ICHIGA tushishi SHART
   (ikki marta ildizga tushgan — sahifa eski qolgan; bir marta `templates/` dagi fayllar adashib o'chirilgan →
@@ -88,7 +89,7 @@ jarayon) uniki — ularni misol (haqiqiy raqamlar) va tavsiya bilan, tugmali sav
 
 Ildizdagi Python fayllari (vazifasi; aniq marshrutlar va funksiyalar — 9-bo'lim):
 
-- `main.py` — FastAPI ilovasi: HAMMA sahifa va API marshrutlari (production va saas_migration dan tashqari),
+- `main.py` — FastAPI ilovasi: HAMMA sahifa va API marshrutlari (`production_routes.py` dagilaridan tashqari),
   ishga tushishdagi `_migrate_*` migratsiyalar (9-bo'lim ISHGA_TUSHISH), Telegram yuborish, kunlik zaxira.
 - `crud.py` — bazaga yozish / o'qish: buyurtma, loyiha, to'lov, yetkazish (yuk xati), qaytarish, ombor, tayyor
   mahsulot, hodim, ta'minotchi, sozlamalar, zaxira / tiklash, jurnal.
@@ -116,14 +117,19 @@ Ildizdagi Python fayllari (vazifasi; aniq marshrutlar va funksiyalar — 9-bo'li
   (foydalanuvchi matni — `_x(…)`, katta sarlavha — korxona nomi; kech106, K106-3 / K106-4).
 - `pdf_shrift.py` + `fonts/` — PDF shrifti: Liberation Sans 2.1.5 (SIL OFL 1.1, `fonts/OFL.txt`) standart Helvetica nomlari
   bilan (kech106, K106-1); har PDF moduli boshida `shriftlarni_ulash()`.
-- `saas_migration.py` — VAQTINCHALIK: ko'p korxonali (SaaS) migratsiya sahifasi `/saas-migratsiya`
-  (bosqichlar W1–W6, dry-run; `sinov` da BAJARILGAN, `main` da hali bajarilmagan).
+- `saas_migration.py` — ko'p korxonali (SaaS) migratsiya DVIGATELI (to'lqinlar W1–W6, W2B, W3B, TEKSHIRUV, M1KOD; `run_step`,
+  `verify_tables`, `run_kod_migration`, `status_report`, terminal buyrug'i `python3 saas_migration.py --status`). `sinov` (2026-09) va
+  `main` (2026-10-07) da BAJARILGAN — u yerda yuklanmaydi ham; faqat `saas_otish` eski bazani aniqlaganda chaqiradi (07.10 dan oldingi
+  Railway zaxirasi tiklansa). HTTP sahifasi (`/saas-migratsiya`, `/api/saas-migration/*`, 8 marshrut), HTML qismi va «Sinov tenanti»
+  — kech129 (zip 153) da OLIB TASHLANDI (4-bo'lim «Xavfsizlik»).
 - `obuna.py` — (kech111) PLATFORMA: korxona obunasi, bloklash / ochish, uzaytirish, sinov davri, kunlik tekshiruv (eslatma,
   avtomatik bloklash), mijoz ogohlantirishi, platforma paneli ro'yxati / raqamlari / xatolari — YAGONA manba (4-bo'lim
   "Platforma — obuna va bloklash"). Platforma moduli: so'rovlari ataylab korxonalararo (`system_context`), `tools/tenant_lint.py`
   uni tekshirmaydi.
 - `saas_otish.py` — (kech109, K108-1) `main` ga BIR MARTALIK o'tish: ilova ishga tushishida, `init_database()` dan OLDIN,
   eski (to'lqinlarsiz) bazani aniqlab `saas_migration` to'lqinlarini SINOV → HAQIQIY bajaradi (4-bo'lim "`main` ko'chirishi").
+  `main` 07.10 da shu bilan o'tdi; endi — eski zaxira tiklansa ishlaydigan himoya (kech129: sun'iy eski bazada zip 152 va 153
+  dvigateli natijasi AYNAN — sxema `pg_dump` bir xil, ma'lumot vaqt tamg'asi / parol tuzidan tashqari bir xil).
 - `erp_backup_tekshiruv.py` — JSON zaxira faylini tekshiruvchi mustaqil skript (tiklamaydi).
 - `templates/` — 25 ta Jinja2 sahifa (kech111: `platforma.html` — platforma paneli; `base.html` — umumiy qobiq, brauzer vaqti yordamchilari `tk*`, server rad sababi
   `xatoSababi` / `serverXatoSababi`; kech107 da hech bir handler ko'rsatmaydigan eski usta shabloni olib tashlandi); `static/` — CSS,
@@ -247,8 +253,8 @@ baza. Shunda: (1) SINOV — `companies` (id=1) + W1 … W6 (W2B, W3B ichida) + `
 qadam savepoint), oxirida HAMMASI qaytariladi; biror qadam to'xtasa (NULL, yetim, takror, qulf) — baza O'ZGARMAYDI; (2) HAQIQIY —
 xuddi shu, har qadam o'z tranzaksiyasida (`saas_migration.run_step`); (3) xato — `RuntimeError`, ilova ATAYLAB ishga
 tushmaydi (Railway logida qadam va sabab); qayta ishga tushish davom ettiradi (qadamlar idempotent, eski kod qisman o'tgan
-baza bilan ishlaydi — vaqtinchalik DEFAULT 1). Yangi / staging baza — hech narsa qilinmaydi. `saas_migration.py` (3.12
-sintaksisi) faqat eski bazada yuklanadi. Korxonalar id ketma-ketligi har ishga tushishda MAX(id) ga tenglashtiriladi
+baza bilan ishlaydi — vaqtinchalik DEFAULT 1). Yangi / staging baza — hech narsa qilinmaydi. `saas_migration.py` faqat eski
+bazada yuklanadi (kech129 dan — faqat dvigatel; HTTP sahifasi yo'q). Korxonalar id ketma-ketligi har ishga tushishda MAX(id) ga tenglashtiriladi
 (`_seed_default_company`, K109-3 — ilgari id=1 aniq yozilgani uchun platformadan BIRINCHI "korxona qo'shish" 400 berardi).
 
 **Kelishilgan summa — jami o'zgarganda YAGONA qoida (kech110, K110-1; egasi QARORLARI — ustama "Foizi saqlansin",
@@ -502,6 +508,17 @@ matni ham). Boshqa `maxlength` li maydonlar (taklif izohi, retsept izohi, rol ta
 balandlik oshgach eng yangi xabar pastda yashirinib qolardi (staging: oyna boshida, 578 / 420 px). `platforma.html` `mpPastga` — har rasm
 `load` da, foydalanuvchi o'zi tepaga aylantirmagan bo'lsa (`scroll` kuzatiladi), yana eng pastga. Mijoz sahifasida yozishma oynasi alohida
 aylanmaydi (sahifa bilan) — o'zgarmadi.
+**Logotip PDF da (kech129, zip 153 — egasi yangi logotip yuklamoqchi, 08.10; O'LCHANGAN asl kodda).** Logotip faqat «Buyurtma hisobi» va
+«Taklif» PDF lari sarlavhasida (`pdf_service.generate_nakladnoy`; yuk xati / TM sotuvi / moliya PDF larida — korxona NOMI) va chap panelda
+(`base.html`, 42 × 42, `contain`). (1) NISBAT: PDF da QAT'IY 32 × 18 mm chizilardi (standart logotip 998 × 561 uchun) — kvadrat logotip 1,78
+marta, tik (1 : 2) — 3,6 marta cho'zilardi. Endi `pdf_service._logo_olcham` — fayl o'lchamidan, `LOGO_QUTI_MM` (32 × 18) qutiga nisbati
+bilan; standart logotip (nisbat farqi < 1 %) — AYNAN 32 × 18 mm. (2) EXIF YO'NALISHI: telefonda olingan JPEG (EXIF 6 — 90°) — brauzer
+to'g'ri ko'rsatadi, ReportLab EXIF ni hisobga OLMAYDI (PDF da yonboshlab). Endi yuklashda (`/api/settings/company/logo`) yo'nalishli rasm
+to'g'rilab saqlanadi (`_rasm_ochish` → `_rasm_bayt`, sifat 92); yo'nalishsiz — ASLICHA (baytlar o'zgarmaydi). (3) BUZILGAN FAYL: imzoli,
+ichi buzilgan PNG — yuklash 200 berardi, keyin shu korxonaning HAR «Buyurtma hisobi» / «Taklif» PDF i 500. Endi logotip TO'LIQ o'qilishi
+shart (`_rasm_ochish`; buzilgan / 60 mln pikseldan katta / animatsiyali — 400 `LOGO_OQILMADI_XABARI`, fayl va yozuv o'zgarmaydi); diskdagi
+logotip baribir o'qilmasa — PDF 200, logotip o'rniga korxona nomi. Boshqa rasm joylari (detal, material …) — avvalgidek (imzoli buzilgan
+rasm ASLICHA; ular faqat `<img>` da). Sinov: `tools/test_logo_pdf.py`.
 **Mayda qoidalar va nomlar (kech118, D bosqichi 1-qism — egasi QARORLARI 11:40; zip 121).** (1) LOYIHA (G2-20): o'chirilmagan
 buyurtmasi bor loyiha o'chirilmaydi — `crud.loyiha_ochirish_tosigi` (korxona ichida sanaydi) → `crud.delete_project` `ValueError`
 → 400 «Loyihada N ta buyurtma bor — avval buyurtmalarni o'chiring»; savatdagi buyurtmalar to'sqinlik qilmaydi. Loyihasi o'chirilgan
@@ -1379,6 +1396,13 @@ qo'shilganda (kech105: `'Boshqa'` → `'Bazalt'` olib tashlandi; nomdan `is_peno
 (`|tojson` emas). `/api/` da 401 — JSON, sahifalarda — `/login` ga yo'naltirish. Platforma amallari
 (Telegram bot, butun zaxira, korxona qo'shish) — `auth.platform_admin_only`. FastAPI API hujjatlari
 (`/docs`, `/openapi.json`) o'chirilgan.
+**Qorovul tanlash qoidasi (kech129, zip 153 — O'LCHANGAN nuqsondan):** `auth.admin_only` = ISTALGAN korxonaning admini (mijoz korxona
+admini ham). Butun bazaga / hamma korxonaga ta'sir qiladigan yoki boshqa korxona ma'lumotini ko'rsatadigan amal — FAQAT
+`auth.platform_admin_only`. SaaS migratsiya sahifasi (8 marshrut) `admin_only` bilan qo'riqlangan edi: mijoz admini holat API dan boshqa
+korxonalar nomi, butun baza qatorlari soni va tasdiq so'zlarini ko'rar, `W1` ni HAQIQIY bajarib `users.company_id` ga `DEFAULT 1` ni
+qaytarar edi (korxonasiz yozuv 1-korxonaga tushardi), `M1KOD` boshqa korxonalarga kod yozar edi. Sahifa olib tashlandi (migratsiya
+tugagan; eski bazani o'tkazish — faqat ishga tushishda, `saas_otish`). Sinov: `tools/test_saas_marshrut.py` (asl kodda SQ 10 / 13,
+PG 16 / 21 yiqiladi, qulamaydi). Marshrut ruxsat jadvalida (`tools/test_rollar.py`) ISTISNO YO'Q — har yangi marshrut jadvalga.
 
 ## 5. Testlar va darvozalar
 
@@ -1709,7 +1733,8 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   PG (86) — asl kodda (zip 138) 58 / 86 yiqiladi, qulamaydi; D6 — har o'lcham klassi (belgi-tugma kvadrati bilan) `display` block / inline-block /
   flex bo'lsa ham token balandligida, yozuv o'rtada. Mutatsiyalar (`work/u13/mutatsiya_u13.py`, 31 ta; natija `work/natija/u13/mut/`)
   — hammasi ushlanadi (U2, U23 — S4b / D6 qo'shilgach; U31 — belgilash katagi istisnosi olib tashlansa). Moslangan: `test_f_sozlama` B1 (maydon ichki joyi 12 px), `test_rollar` R28
-  (`u-rol-tanlov` qo'shimcha klass bilan) va S4 (Python ≥ 3.12 da `saas_migration` marshrutlari — ixtiyoriy). O'lchov vositasi: `work/u13/olchov.py` (+ `u13.js`; `OYNA=1` — oynalar), xulosa — `work/u13/xulosa.py`.
+  (`u-rol-tanlov` qo'shimcha klass bilan) va S4 (Python ≥ 3.12 da `saas_migration` marshrutlari — ixtiyoriy; kech129 da bu istisno
+  OLIB TASHLANDI — 4-bo'lim «Qorovul tanlash qoidasi»). O'lchov vositasi: `work/u13/olchov.py` (+ `u13.js`; `OYNA=1` — oynalar), xulosa — `work/u13/xulosa.py`.
 - (kech121, zip 138) Egasi qarorlari 02.10: `tools/test_g_qaror.py` — S (statik, 3), D (A korxona: admin, Menejer, Moliyachi; B: admin va
   Menejer bilan bir ismli hodim; 5 ishlab chiqarish — 2 shu oy omborga, o'tgan oy, buyurtmaga, bekor; brak chiqimi; buyurtma va to'lov;
   tayyor mahsulot sotuvi), A (bugungi tushum = to'lovlar + sotuv; brak asosi va foizi; B korxona — 0; «Tannarx» ruxsatisiz maxsus rol —
@@ -2015,6 +2040,20 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   ketma-ketligi (K108-1, K109-3): `tools/test_saas_otish.py`; tahrirda qoralama tugmasi (HAQIQIY forma markupi, K109-1):
   `tools/test_qoralama_tugma_ui.js`. Haqiqiy `main` ma'lumoti ustidagi o'tish (python3.12 — `saas_migration` sintaksisi;
   `python3.12 -m pip install -r requirements.txt httpx2`): ISH zipidagi `otish109.sh`.
+- (kech129, zip 153) SaaS migratsiya sahifasi olib tashlandi: `tools/test_saas_marshrut.py` — S (statik: ilovada `saas-migra` marshruti
+  yo'q — ulangan routerlar ICHI ham (`original_router.routes`); `main.py` ulamaydi; modulda router / FastAPI / HTML / «Sinov tenanti»
+  yo'q; dvigatel bor; `STEPS` 13 = `OTISH_TARTIBI` + TEKSHIRUV + M1KOD; `test_rollar` da istisno yo'q), H (8 marshrut — mijoz admini,
+  menejer, platforma egasi, kirmagan — 404), D (PG: tasdiq so'zli so'rovlardan keyin `company_id` DEFAULT va `companies` AYNAN), E (PG:
+  `status_report`, `run_step` / `run_kod_migration` dry-run, terminal `--status`). SQLite 13, PG / TF 21. Moslangan: `test_pasport` A6 / A7
+  (xarita = ilova, `saas-migra` yo'q), `test_rollar` S4 (`SAAS_IXTIYORIY` olib tashlandi). Sun'iy eski baza (25 jadvaldan `company_id`
+  olib tashlangan) ustida `saas_otish` — ISH zipidagi `k153/otish_sintetik.py` (zip 152 ↔ 153 natijasi AYNAN).
+- (kech129, zip 153) Logotip PDF da: `tools/test_logo_pdf.py` — S (statik: `_logo_olcham`, RLImage o'lchami undan; yuklashda `_rasm_ochish`
+  diskka yozishdan OLDIN), N (logotipsiz — nom; kvadrat / tik / keng JPEG / kvadrat WEBP — PDF dagi rasm nisbati = fayl nisbati ±2 %, 32 × 18
+  qutiga sig'adi; taklif PDF i; standart logotip — AYNAN 32 × 18 mm; PDF dagi rasm o'lchami `pdfplumber` bilan), E (EXIF 6 JPEG — saqlangani
+  200 × 600, PDF da tik; EXIF siz — baytlar AYNAN), B (imzoli buzilgan PNG — 400, logotip va disk o'zgarmaydi; diskdagi logotip buzilgan —
+  ikkala PDF 200, korxona nomi). 16 (SQ / PG / TF) — zip 152 kodida 12 / 16 yiqiladi, qulamaydi. MOSLANDI: `test_platforma_obuna` F9–F12
+  logotipga qo'lda yozilgan 1 × 1 PNG yuklardi — uning IDAT qismi BUZILGAN (Pillow «broken data stream»), yangi kodda 400 (to'g'ri);
+  logotip uchun Pillow yasagan PNG (`_png_logo`) — eski va yangi kodda o'tadi (etalon d162 topdi; `grep -l "company/logo"` 5 test).
 
 **Yangi o'zgarish tartibi:** (1) asl kodda nuqsonni o'lchash (probe — SQLite va PG); (2) tuzatish; (3) yangi test
 (asl kodga qarshi yiqiladi, QULAMAYDI); (4) mutatsiyalar; (5) `bash tools/hammasi.sh` (+ `TF=1`), PG testlari,
@@ -2282,10 +2321,14 @@ qarorlari 02.10»)**
   Tekshiruv (ichki brauzer, faqat o'qish): 91 GET API simulyatsiya «keyin» holati bilan — 87 AYNAN, qolgani vaqt tamg'alari, muhit,
   korxona filtri; health-check 0; xatolar — faqat eski 18.09. Oldindan: 3(a) o'lchovlar, 3(b) simulyatsiya, 3(c) egasi qarorlari
   (6-bo'lim) — `work/kech127_holat.md`.
-- **`main` dan keyin (kech127) — OCHIQ:** (1) `tools/` `main` ga — BAJARILDI (zip 150, 08.10 00:21; `main` daraxti = staging); (2) egasi `/platforma` da «Aloqa telefoni» ni yozadi, o'z logotipini (yuklagan bo'lsa) bir marta qayta yuklaydi; (3) production
-  Postgres PITR: 19:36 da «WAL archive credentials may be invalid» ogohlantirishi — ko'rib chiqilmagan (to'liq zaxira 19:36 — bor); (4)
-  production o'zgaruvchilarida `MASTER_BOT_TOKEN`, `MASTER_WEBHOOK_SECRET` — kodda 09-01 dan ishlatilmaydi (olib tashlash — egasi bilan,
-  shoshilinch emas); (5) `saas_migration.py` — endi olib tashlansa bo'ladi («Texnik qarz» bandi).
+- **`main` dan keyin (kech127) — OCHIQ:** (1) `tools/` `main` ga — BAJARILDI (zip 150, 08.10 00:21; `main` daraxti = staging); (2) «Aloqa telefoni» — production da platforma sozlamasi yozilmagan, korxona telefoni (+998 97 999 57 57)
+  ko'rsatiladi; kech129: egasi «boshqa raqam kerak» dedi — o'zi `/platforma` → «📞 Aloqa telefoni» ga yozadi. Logotip — production da
+  korxona 1 `static/logo_transparent.png` (dastur ichidagi fayl, `static/logos/` da EMAS — 07.10 o'tish simulyatsiyasi `api_keyin.json`):
+  «qayta yuklash» shart emas; kech129: egasi YANGI logotip yuklaydi — zip 153 `main` ga tushgach (nisbat / yo'nalish tuzatishi bilan);
+  (3) production Postgres PITR — TUZATILDI kech128 (08.10 14:39: `status: ok`, Volume backups Daily + Weekly); (4) production
+  o'zgaruvchilarida `MASTER_BOT_TOKEN`, `MASTER_WEBHOOK_SECRET` — kodda ishlatilmaydi (kech129: kod o'qiydigan 14 ta o'zgaruvchi —
+  9-bo'lim MUHIT; egasi Railway'dan o'chiradi); (5) `saas_migration.py` — kech129 (zip 153): HTTP sahifasi (8 marshrut — mijoz admini ham kirardi), HTML va
+  «Sinov tenanti» OLIB TASHLANDI; dvigatel QOLDI (07.10 dan oldingi zaxira tiklansa `saas_otish` uni ishlatadi — 3-bo'lim).
 - **`main` o'lchovlari — BAJARILDI (kech108, egasi bergan JSON zaxira 2026-09-28 15:03 UTC, 43 jadval, lokal PG):**
   30+ chekka holat tekshiruvi — deyarli hammasi 0 (topilganlari: PRJ-033 `total_paid` 0 ↔ to'lovlar 2 560 000 — migratsiya
   tenglashtiradi; Penoplast 10P −0.06 (K108-2); Kirill 1 loyiha; retseptsiz 2 READY; "Tayyor loy" turkumi "Bazalt" —
@@ -2361,8 +2404,8 @@ qarorlari 02.10»)**
 - **Egasi hal qiladi:** SaaS uchun alohida brend nomi, narx tariflari, mijoz bilan shartnoma (ma'lumot egaligi).
 - **Rus tili (i18n)** — `main` ko'chirishidan KEYIN (qaror kech104); kodda hali yo'q (faqat Kirill ↔ Lotin), 25 sahifaga tegadi.
 - **Texnik qarz (ma'lum):** `orders.notes` ichidagi `[WRITEOFF:…]` (qarz kechirilgan) va `[OVERPAID:…]` belgilari
-  (alohida ustun emas); tizim tekshiruvida eski `[GISHT:` izoh belgisini sanash qoldig'i; `saas_migration.py` —
-  `main` migratsiyasidan keyin olib tashlanadi (Python 3.12 sintaksisi).
+  (alohida ustun emas); tizim tekshiruvida eski `[GISHT:` izoh belgisini sanash qoldig'i. (`saas_migration.py` — kech129 da HTTP
+  qismi olib tashlandi, dvigatel ataylab qoldi — 3-bo'lim; 3.12 sintaksisi endi yo'q.)
 - **(kech123, zip 143) `main` ga ko'chirishda — oylik chegarasi:** yuk xati qoidasi 2026-10 dan (`services.YUK_XATI_HISOBI_BOSHI`).
   Ishxonadagi `main` hozir eski kodda — ko'chirilguncha yopilgan oylarni (oktabr va keyingilari) egasi eski hisob bilan to'laydi;
   ko'chirishdan keyin o'sha oylar tarixi yangi qoida bilan ko'rinadi (farq qilishi mumkin). `main` bosqichida egasidan so'raladi: chegara
@@ -2829,6 +2872,19 @@ qarorlari 02.10»)**
   joy bilan: JS `style.display = 'block'` qilsa ham, emoji / belgi qatorni kattalashtirsa ham — bir xil.
 - (kech123) Konteyner Python 3.13 (ilgari 3.11): `saas_migration.py` endi yuklanadi — uning marshrutlari ilovada paydo bo'ladi
   (Railway 3.12 da ham bor); marshrut jadvali testlari bunga tayyor bo'lsin (`test_rollar` `SAAS_IXTIYORIY`).
+- (kech129) Test jadvalidan ISTISNO qilingan marshrut — xavfsizlik ko'r nuqtasi: kech123 dagi `SAAS_IXTIYORIY` 8 marshrutni ruxsat
+  tekshiruvidan chiqardi («qorovuli o'z modulida: admin + tasdiq iborasi») — `admin_only` har korxona admini ekani sezilmadi, mijoz admini
+  butun bazaga ta'sir qiluvchi migratsiyani bajarar edi. Istisno o'rniga — marshrutni jadvalga kiritish yoki olib tashlash.
+- (kech129) FastAPI 0.141: `include_router` bilan ulangan marshrutlar `app.routes` da `_IncludedRouter` ichida — `getattr(r, "path")` ularni
+  KO'RMAYDI; `original_router.routes` ga kirish shart (`test_pasport._yigish`). `test_saas_marshrut` S1 dastlab shuni hisobga olmagan —
+  asl kodda ham o'tib ketgan (asl kodga qarshi yurgizish ushladi).
+- (kech129) Rasm PDF ga chizilsa — QAT'IY eni × bo'yi berilmaydi (ReportLab cho'zadi): fayl o'lchamidan qutiga nisbati bilan. ReportLab EXIF
+  yo'nalishini hisobga OLMAYDI (brauzer oladi) — PDF ga ketadigan rasm yuklashda to'g'rilanadi. Imzo tekshiruvi (`rasm_imzosi`) faqat fayl
+  BOSHI — PDF ga chiziladigan rasm TO'LIQ o'qilishi (Pillow `load`) shart, aks holda bitta buzilgan fayl hamma hujjatni 500 qiladi.
+- (kech129) Production o'qish (ichki brauzer, `fetch`) — avtomatik rejim klassifikatori rad etdi («Production Reads»): aylanib
+  o'tilmaydi; production holati egasining ko'zi / skrinshoti yoki oldingi o'lchovlar (07.10 o'tish simulyatsiyasi) bilan.
+- (kech129) Statik «yo'q» tekshiruvi izohga tushdi: `test_rollar` dagi yangi izohda `SAAS_IXTIYORIY` so'zi qoldi — «so'z yo'q» tekshiruvi
+  yangi kodda yiqildi; tekshiruv KOD qatoriga (`SAAS_IXTIYORIY = {`, `not in SAAS_IXTIYORIY`) qaratildi.
 - (kech123, zip 139) Telefonda ikki tugma yonma-yon (`flex:1`) uzun yozuv bilan ikki qatorga o'tib 64 px bo'ladi — `flex-wrap` va
   `flex: 1 1 <eng kichik kenglik>` (tor ekranda ustma-ust).
 - (kech123, zip 139) Umumiy forma qoidasi (`.form-group input { width: 100%; min-height: … }`) `type` ni ajratmaydi — belgilash
@@ -2861,6 +2917,7 @@ Kod o'qiydigan muhit o'zgaruvchilari (Railway → Variables). Ro'yxat `os.getenv
 - `TELEGRAM_BOT_TOKEN` — `main.py`
 - `TELEGRAM_WEBHOOK_SECRET` — `main.py`
 - `TENANT_FILTER` — `tenant_context.py`
+- `WEB_CONCURRENCY` — `services.py`
 <!-- AVTO:MUHIT OXIRI -->
 
 ### 9.2 Ishga tushish tartibi (migratsiyalar)
@@ -2908,12 +2965,11 @@ bajariladigan chaqiruvlar — AYNAN shu tartibda. `_migrate_*` — idempotent sx
 36. `_migrate_material_narx_ruxsati` — kech127 (zip 150 — egasi QARORI 07.10 20:1x: «Xomashyo narxlari va «Ombor qiymati» Menejerga ko'rinmasin») — IDEMPOTENT, PostgreSQL va SQLite.
 37. `_migrate_ord066_loy_xatosi` — kech127 (zip 150) — BIR MARTALIK ma'lumot tuzatishi, IDEMPOTENT, PostgreSQL va SQLite. Faqat AYNAN shu holatda ishlaydi (aks holda hech narsa qilmaydi va sababini logga…
 38. `app.include_router(production_router)`
-39. `app.include_router(saas_migration_router)`
-40. `app.add_middleware`
-41. `_yuklama_marshrutini_oldinga`
+39. `app.add_middleware`
+40. `_yuklama_marshrutini_oldinga`
+41. `_scheduler.add_job`
 42. `_scheduler.add_job`
-43. `_scheduler.add_job`
-44. `_scheduler.start`
+43. `_scheduler.start`
 <!-- AVTO:ISHGA_TUSHISH OXIRI -->
 
 ### 9.3 Sahifalar: URL → handler → shablon → API
@@ -3379,10 +3435,6 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `DELETE /api/rollar/{rol_id}` → `main.py:api_rol_ochir` · 🔒 auth.admin_only · auth.company_id_of, auth.rol_foydalanuvchilari, auth.rol_of_company, crud.log_activity
 - `POST /api/rollar/{rol_id}/andoza` → `main.py:api_rol_andoza` · 🔒 auth.admin_only · auth.company_id_of, auth.rol_of_company, crud.log_activity
 
-#### `/api/saas-migration` (2)
-- `GET /api/saas-migration/status` → `saas_migration.py:api_status` · 🔒 auth.admin_only
-- `POST /api/saas-migration/step/{kalit}` → `saas_migration.py:api_step` · 🔒 auth.admin_only
-
 #### `/api/settings` (9)
 - `GET /api/settings/categories` → `main.py:api_get_categories` · 🔒 auth.ruxsat('sozlama', 'korish') · auth.company_id_of, auth.ruxsat
 - `PUT /api/settings/categories` → `main.py:api_set_categories` · 🔒 auth.ruxsat('sozlama', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud.set_setting
@@ -3519,14 +3571,6 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 #### `/rollar` (1)
 - `GET /rollar` → `main.py:rollar_page` · 🔒 auth.admin_only
 
-#### `/saas-migratsiya` (6)
-- `GET /saas-migratsiya` → `saas_migration.py:panel_page` · 🔒 auth.admin_only
-- `POST /saas-migratsiya/haqiqiy/{kalit}` → `saas_migration.py:panel_apply` · 🔒 auth.admin_only
-- `POST /saas-migratsiya/kod/haqiqiy` → `saas_migration.py:panel_kod_haqiqiy` · 🔒 auth.admin_only
-- `POST /saas-migratsiya/kod/sinov` → `saas_migration.py:panel_kod_sinov` · 🔒 auth.admin_only
-- `POST /saas-migratsiya/sinov-tenant` → `saas_migration.py:panel_test_tenant` · 🔒 auth.admin_only
-- `POST /saas-migratsiya/sinov/{kalit}` → `saas_migration.py:panel_dry_run` · 🔒 auth.admin_only
-
 #### `/sozlamalar` (1)
 - `GET /sozlamalar` → `main.py:logs_page` · 🔒 auth.ruxsat('jurnal', 'korish') · auth.company_id_of, auth.ruxsat, crud.audit_amal_guruhlari, crud.audit_jurnali_sahifasi, crud.get_error_logs, crud.kirish_tarixi_sahifasi
 
@@ -3554,7 +3598,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 #### `/ustalar` (1)
 - `GET /ustalar` → `main.py:masters_manage_page` · 🔒 auth.ruxsat('usta', 'korish') · auth.ruxsat
 
-Jami marshrutlar: 333 (main.py: 304, production_routes.py: 21, saas_migration.py: 8).
+Jami marshrutlar: 325 (main.py: 304, production_routes.py: 21).
 <!-- AVTO:API OXIRI -->
 
 ### 9.5 Jadvallar
@@ -3706,6 +3750,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_kirim_tolov_chegara.py` · PG — kech96 (2026-09-27), 125-band (server + brauzer↔server paritet qismi).
 - `test_lint_func_royxat.py` · PG — kech109, K107-3: `tools/tenant_lint.py` ko'r nuqtalari.
 - `test_lint_taxallus.py` · PG — kech99 (2026-09-27), 113-band.
+- `test_logo_pdf.py` · PG — kech129 (zip 153): korxona logotipi «Buyurtma hisobi» va «Taklif» PDF larida — o'z NISBATI va YO'NALISHI bilan; o'qib bo'lmaydigan logotip qabul qilinmaydi va PDF ni yiqitmaydi.
 - `test_loy_manba.py` · PG — kech82 darvozasi (2026-09-26, 102-band, FOYDALANUVCHI QARORI "A"): buyurtmaning ishlatilmagan LOYI OLINGAN joyiga qaytadi — tayyor loy zaxirasidan olingani zaxiraga, xom ingredien…
 - `test_loy_manfiy.py` — 19-band: loy xomashyosi yetishmasa qoldiq MANFIYGA tushadi, kirimda qoplanadi; qo'lda chiqim manfiy qoldiqdagi qarzni o'chira olmaydi.
 - `test_loy_query.py` — 17d-band: so'rov qatoridagi LOY miqdori, doimiy majburiyat va eskirgan marshrutlar.
@@ -3768,6 +3813,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_retsept_almashtirish.py` · PG — 5-bo'lim 53-band (+ 67-band) darvozasi (kech63, 2026-09-24): jarayondagi buyurtmada QOPLAMA RETSEPTI o'zgartirilsa eski retsept loyi omborga QAYTADI, yangisidan YECHILA…
 - `test_rollar.py` · PG — kech118 ROLLAR VA RUXSATLAR (egasi QARORI 2026-09-30 15:23: «Hodim rollarini admin o'zi boshqaradigan qilaylik»; tugmali javoblar 15:30 — rasmdagidek 4 belgi (Ko'rish / Yaratish / Ta…
 - `test_royxat_n1.py` · PG — kech97 (2026-09-27), 116-band 1-qadam (buyurtma / loyiha N+1) + 114-band (ro'yxat tartibi).
+- `test_saas_marshrut.py` · PG — kech129 (zip 153): SaaS migratsiya HTTP sahifasi (`/saas-migratsiya`, `/api/saas-migration/*`, 8 marshrut) OLIB TASHLANDI; migratsiya DVIGATELI (`saas_migration.STEPS`, `run_s…
 - `test_saas_otish.py` · PG — kech109 darvozasi: `main` ko'chirishi (K108-1) — `saas_otish.py` va korxona id ketma-ketligi (K109-3).
 - `test_soat_utc.py` — kech96 (2026-09-27), 123-band.
 - `test_sovga_davr_tenant.py` · PG — kech108, K107-1 darvozasi: Telegram usta boti «🎁 Sovg'alar» ikki korxonada.
@@ -3845,5 +3891,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 213 (Python 178, JS 35).
+Jami test fayllari: 215 (Python 180, JS 35).
 <!-- AVTO:TESTLAR OXIRI -->

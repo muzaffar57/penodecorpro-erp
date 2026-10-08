@@ -3126,15 +3126,10 @@ app = FastAPI(title="PenoDecorPro ERP", description="Ishlab chiqarish boshqaruv 
 # 2026-09-16: yangi, dinamik Production/MRP moduli — /api/production/... yo'llari
 app.include_router(production_router)
 
-# 2026-09-18: VAQTINCHALIK — SaaS ko'p-tenantlilik migratsiyasi (/api/saas-migration/...).
-# Faqat ADMIN kira oladi, standart holatda DRY-RUN (sinov) rejimida ishlaydi.
-# Migratsiya to'liq tugagach, bu 2 qator VA saas_migration.py fayli olib tashlanadi.
-try:
-    from saas_migration import router as saas_migration_router
-    if saas_migration_router is not None:
-        app.include_router(saas_migration_router)
-except Exception as _e:
-    print(f"⚠ SaaS migratsiya moduli yuklanmadi (o'tkazib yuborildi): {_e}")
+# kech129 (zip 153): SaaS migratsiya sahifasi (`/saas-migratsiya`, `/api/saas-migration/*`) OLIB TASHLANDI. Qorovuli
+# `auth.admin_only` edi — mijoz korxona admini ham kirib, boshqa korxonalar nomini ko'rar va HAQIQIY qadam bajarar edi
+# (O'LCHANGAN: `W1` `users.company_id` ga `DEFAULT 1` ni qaytardi). Migratsiya tugagan; eski bazani o'tkazish — faqat
+# ishga tushishda, avtomatik (`saas_otish.startup_otish` → `saas_migration` dvigateli). `tools/test_saas_marshrut.py`.
 
 
 @app.middleware("http")
@@ -9462,6 +9457,16 @@ async def api_upload_company_logo(file: UploadFile = File(...),
     # kech128 (zip 152): turi (content-type) brauzer aytgani — ichi ham rasm bo'lishi SHART (hujjatlarga chiqadi)
     if rasm_imzosi(data) is None:
         raise HTTPException(status_code=400, detail=RASM_EMAS_XABARI)
+    # kech129 (zip 153): logotip TO'LIQ o'qilishi SHART (imzoli, ichi buzilgan PNG — ilgari 200, keyin shu korxonaning HAR «Buyurtma
+    # hisobi» / «Taklif» PDF i 500 edi — O'LCHANGAN). Boshqa rasm joylaridan farqi: logotip PDF ga chiziladi (ular — faqat <img>).
+    # EXIF yo'nalishli rasm (telefonda olingan) — to'g'rilab saqlanadi: brauzer EXIF ni hisobga oladi, ReportLab — YO'Q (PDF da
+    # logotip yonboshlab chiqardi). Yo'nalishsiz rasm — ASLICHA (baytlari o'zgarmaydi).
+    _ochildi = _rasm_ochish(data, 10 ** 9)
+    if _ochildi is None:
+        raise HTTPException(status_code=400, detail=LOGO_OQILMADI_XABARI)
+    _im_logo, _burildi = _ochildi
+    if _burildi:
+        data = _rasm_bayt(_im_logo, {"image/png": "PNG", "image/jpeg": "JPEG", "image/webp": "WEBP"}[file.content_type], 92)
 
     cid = auth.company_id_of(current_user)
     # kech111: logotip boshqa yuklangan fayllar bilan BIR joyda — `static/uploads/logos/` (himoyalangan marshrut,
@@ -10684,6 +10689,8 @@ _RASM_FORMATI = {".jpg": "JPEG", ".jpeg": "JPEG", ".png": "PNG", ".webp": "WEBP"
 # Endi fayl BOSHIDAGI imzo tekshiriladi (Pillow shart emas). Imzosi to'g'ri, lekin ichi buzilgan rasm — avvalgidek ASLICHA
 # (`rasmni_kichraytir` izohi; `tools/test_e_rasm.py` Y5). Kengaytma va imzo turi farq qilsa (PNG `.jpg` nomli) — rasm, qabul qilinadi.
 RASM_EMAS_XABARI = "Bu fayl rasm emas — JPG, PNG yoki WEBP rasm tanlang"
+# kech129 (zip 153): logotip — imzosi to'g'ri, lekin rasmni to'liq o'qib bo'lmadi (buzilgan, juda katta yoki animatsiyali)
+LOGO_OQILMADI_XABARI = "Logotip rasmini o'qib bo'lmadi (fayl buzilgan, juda katta yoki animatsiyali) — boshqa PNG, JPG yoki WEBP rasm tanlang"
 
 
 def rasm_imzosi(contents: bytes):

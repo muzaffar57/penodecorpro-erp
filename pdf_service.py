@@ -28,6 +28,33 @@ def _x(qiymat):
     return _xml_escape("" if qiymat is None else str(qiymat))
 
 
+# kech129 (zip 153): logotip sarlavhadagi 32 × 18 mm QUTIGA o'z nisbati bilan sig'diriladi. Ilgari QAT'IY 32 × 18 mm chizilardi
+# (standart logotip nisbati 1,78 uchun yozilgan) — kvadrat logotip 1,78 marta, tik (1 : 2) — 3,6 marta cho'zilardi (O'LCHANGAN,
+# `tools/test_logo_pdf.py`). Standart logotip (998 × 561) — AYNAN 32 × 18 mm (nisbat farqi 1 % dan kam — qutining o'zi).
+LOGO_QUTI_MM = (32, 18)
+
+
+def _logo_olcham(yol):
+    """(eni, bo'yi) — PDF birligida (nuqta), logotip qutiga nisbati bilan sig'diriladi; fayl TO'LIQ o'qilmasa — None (PDF yiqilmasin:
+    logotip o'rniga korxona nomi chiqadi; ilgari buzilgan logotip HAR «Buyurtma hisobi» / «Taklif» PDF ini 500 qilardi)."""
+    try:
+        from PIL import Image as _PilImage
+        with _PilImage.open(yol) as _im:
+            _im.load()
+            w, h = _im.size
+    except Exception:
+        return None
+    if not w or not h:
+        return None
+    qe, qb = LOGO_QUTI_MM[0] * mm, LOGO_QUTI_MM[1] * mm
+    nisbat = w / float(h)
+    if abs(nisbat / (qe / qb) - 1) < 0.01:
+        return qe, qb
+    if nisbat > qe / qb:
+        return qe, qe / nisbat
+    return qb * nisbat, qb
+
+
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.lib.styles import ParagraphStyle
@@ -158,12 +185,14 @@ def generate_nakladnoy(order, db=None, taklif=None) -> bytes:
     _kontakt = "  ·  ".join([x for x in (_brand["address"], _brand["phone"]) if x])
 
     logo_path = _brand["logo"]
+    # kech129 (zip 153): o'lcham — fayl nisbatidan (`_logo_olcham`); fayl o'qilmasa — logotipsiz sarlavha (korxona nomi)
+    _lo = _logo_olcham(logo_path) if logo_path and os.path.exists(logo_path) else None
 
-    if logo_path and os.path.exists(logo_path):
+    if _lo:
         # MUHIM (2026-08-29): endi haqiqiy shaffof fonli PNG ishlatiladi
         # (nisbati 1.779) — shu nisbatga mos o'lcham berilmasa, logotip
         # cho'zilib/torayib, buzilib ko'rinardi.
-        logo_img = RLImage(logo_path, width=32*mm, height=18*mm)
+        logo_img = RLImage(logo_path, width=_lo[0], height=_lo[1])
         logo_img.hAlign = 'LEFT'
         header_left = [
             logo_img,
