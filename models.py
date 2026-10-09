@@ -11,6 +11,7 @@ Mantiq:
 """
 
 from datetime import datetime, timedelta
+from typing import Optional
 
 
 def _uzb_now():
@@ -1718,12 +1719,48 @@ class AdvanceRequest(Base):
     # kech118 (D-1, G6-21 — egasi QARORI «Ha, majburiy»): rad etish sababi — admin yozadi, hodim o'z panelida ko'radi.
     # Eski rad etilgan so'rovlarda NULL (sababsiz). Ustun — `database.sync_missing_columns()` qo'shadi.
     rad_sababi = Column(Text, nullable=True)
+    # kech134 (zip 160): tasdiqlangan so'rovdan yaratilgan avans (`EmployeeAdvance.id`). Bazada FK YO'Q ATAYLAB:
+    # `sync_missing_columns` mavjud bazaga ustunni FK siz qo'shadi (yangi bazada FK bo'lsa — ikki xil xulq), JSON zaxira tiklash
+    # tartibi ham o'zgarmaydi. Avans o'chirilsa — `avans_ochirildi_vaqti` / `avans_ochirgan` yoziladi (hodim panelida so'rov
+    # «Tasdiqlangan · keyin admin o'chirgan» bo'ladi; ilgari «✅ Tasdiqlandi» bo'lib qolardi, «Oyligim» da esa yo'q edi).
+    # Eski tasdiqlangan so'rovlar — bir martalik bog'lash (`main._migrate_avans_manba`): avans topilmasa — o'chirilgan (vaqti
+    # noma'lum, `avans_ochirgan` NULL).
+    avans_id = Column(Integer, nullable=True, index=True)
+    avans_ochirildi_vaqti = Column(DateTime, nullable=True)
+    avans_ochirgan = Column(String(100), nullable=True)
 
     employee = relationship("Employee", back_populates="advance_requests")
 
     def __repr__(self):
         return f"<AdvanceRequest {self.employee_id} {self.amount} ({self.status.value})>"
 
+
+
+# kech134 (zip 160 — egasi QARORI 09.10 «C — hodim tasdig'i bilan»): avans manbasi va hodim javobi (`EmployeeAdvance`).
+AVANS_MANBA_HODIM = "hodim"          # hodim panelidan so'rov — admin tasdiqlagan («📱 O'zingiz»)
+AVANS_MANBA_ADMIN = "admin"          # admin yozgan (KPI «💰», Qarzdorlar «oylikni yopish») — «🧑‍💼 Admin»
+JAVOB_KUTILMOQDA = "kutilmoqda"
+JAVOB_OLDIM = "oldim"
+JAVOB_OLMADIM = "olmadim"
+# `crud.confirm_advance_request` hodim izohiga qo'shadigan matn (2026-07-22 `b836fcf` dan beri o'zgarmagan — `git log -S`): zip 160
+# dan oldingi yozuvlarda manba shu bilan aniqlanadi.
+HODIM_SOROV_IZOH_QOSHIMCHA = " (xodim o'zi yozgan, admin tasdiqladi)"
+
+
+def avans_manbasi(adv) -> str:
+    """`EmployeeAdvance` qaysi tomondan yozilgan: ustun bo'lsa — o'zi; NULL (zip 160 dan oldingi) — izoh oxiridagi qo'shimchadan."""
+    if adv.avans_manba in (AVANS_MANBA_HODIM, AVANS_MANBA_ADMIN):
+        return adv.avans_manba
+    return AVANS_MANBA_HODIM if (adv.notes or "").endswith(HODIM_SOROV_IZOH_QOSHIMCHA) else AVANS_MANBA_ADMIN
+
+
+def avans_izohi_hodimga(adv) -> Optional[str]:
+    """Hodim panelida ko'rinadigan izoh: hodim o'zi yozgan avansda tizim qo'shimchasi olib tashlanadi (bo'sh qolsa — None)."""
+    s = adv.notes or ""
+    if s.endswith(HODIM_SOROV_IZOH_QOSHIMCHA):
+        s = s[:-len(HODIM_SOROV_IZOH_QOSHIMCHA)]
+    s = s.strip()
+    return s or None
 
 
 class EmployeeAdvance(Base):
@@ -1737,6 +1774,17 @@ class EmployeeAdvance(Base):
     date = Column(DateTime, default=datetime.utcnow)
     notes = Column(Text, nullable=True)
     given_by = Column(String(100), nullable=True)
+    # kech134 (zip 160 — egasi QARORI 09.10 «C — hodim tasdig'i bilan»): kim yozgan — `AVANS_MANBA_HODIM` (hodim panelidan so'rov,
+    # admin tasdiqlagan — «📱 O'zingiz») yoki `AVANS_MANBA_ADMIN` (admin KPI «💰» yoki Qarzdorlar «oylikni yopish» — «🧑‍💼 Admin»).
+    # NULL — zip 160 dan oldingi yozuv: `avans_manbasi()` izohdan aniqlaydi (`main._migrate_avans_manba` bir marta to'ldiradi).
+    avans_manba = Column(String(10), nullable=True)
+    # Admin yozgan avansga hodimning javobi: NULL — so'ralmaydi (hodim o'zi yozgan yoki zip 160 dan oldingi, joriy oydan eski —
+    # egasi tanlovi «Faqat joriy oy»), `JAVOB_KUTILMOQDA`, `JAVOB_OLDIM`, `JAVOB_OLMADIM`. Avans hisobda javobdan QAT'I NAZAR turadi.
+    hodim_javobi = Column(String(12), nullable=True)
+    hodim_javob_vaqti = Column(DateTime, nullable=True)
+    # «Olmaganman» — adminga ogohlantirish; admin «✔ Ko'rib chiqdim» bossa ogohlantirish yopiladi (hodim javobi o'zgarmaydi).
+    nizo_korildi_vaqti = Column(DateTime, nullable=True)
+    nizo_korgan = Column(String(100), nullable=True)
 
     employee = relationship("Employee", backref="advances")
 

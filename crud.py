@@ -5119,6 +5119,12 @@ AUDIT_AMALLARI = {
     "qurilma_rad": ("⛔", "— telefon so'rovi rad etildi", "Hodim telefoni"),
     "qurilma_uzildi": ("🔌", "— telefoni uzildi", "Hodim telefoni"),
     "pin_ozgartirildi": ("🔒", "— o'z PIN ini qo'ydi", "Hodim PIN i"),
+    # kech134 (zip 160): hodim avansi (yozuv nomi — «Ism: summa (sana)»): hodim javobi admin yozgan avansga, admin «Olmaganman» ni
+    # ko'rib chiqdi, avans o'chirildi (`old_value` — izohi)
+    "avans_oldim": ("✅", "— admin yozgan avansni «Ha, oldim» deb tasdiqladi", "Hodim avans javobi"),
+    "avans_olmadim": ("❗", "— admin yozgan avansga «Olmaganman» dedi", "Hodim avans javobi"),
+    "avans_nizo_korildi": ("👁️", "— «Olmaganman» javobi ko'rib chiqildi", "Hodim avans javobi"),
+    "avans_ochirildi": ("🗑️", "— avans yozuvi o'chirildi", "Hodim avansi"),
     # eski yozuvlar (zip 129 dan oldin shu nom bilan yozilishi mo'ljallangan, lekin NOT NULL sabab yozilmagan)
     "Zaxiradan tiklash": ("💾", "— zaxiradan tiklandi", "Zaxiradan tiklandi"),
 }
@@ -13021,8 +13027,13 @@ def create_employee_advance(db: Session, employee_id: int, amount: float, notes:
                               given_by: str = None, adv_date=None):
     """Hodimga avans (oldindan pul) berilganini qayd etadi.
     adv_date — agar berilsa, aynan shu sana bilan yoziladi (masalan
-    avans kechroq kiritilgan, lekin haqiqatda boshqa kunda berilgan bo'lsa)."""
-    from models import EmployeeAdvance
+    avans kechroq kiritilgan, lekin haqiqatda boshqa kunda berilgan bo'lsa).
+
+    kech134 (zip 160 — egasi QARORI 09.10 «C — hodim tasdig'i bilan»): bu yo'l — ADMIN yozgan avans (KPI «💰», Qarzdorlar
+    «oylikni yopish» — `services.close_employee_debt`): `avans_manba` = admin; hodim panelga kira olsa (telefon + PIN berilgan) —
+    javobi so'raladi (`hodim_javobi` = kutilmoqda: «✅ Ha, oldim / ❌ Olmaganman»). Avans hisobda darhol turadi (javobdan qat'i
+    nazar). Hodim so'rovidan yaratiladigan avans — `confirm_advance_request` (manba — hodim, javob so'ralmaydi)."""
+    from models import EmployeeAdvance, AVANS_MANBA_ADMIN, JAVOB_KUTILMOQDA
 
     # 17c (2026-09-21): ILDIZ tekshiruvi — marshrut chetlab o'tilsa ham
     # (`services.close_employee_debt`, ichki chaqiruvlar) cheksiz / manfiy /
@@ -13032,7 +13043,9 @@ def create_employee_advance(db: Session, employee_id: int, amount: float, notes:
     if not emp:
         return None
     adv = EmployeeAdvance(employee_id=employee_id, amount=toza["amount"],
-                          notes=toza["notes"], given_by=given_by)
+                          notes=toza["notes"], given_by=given_by,
+                          avans_manba=AVANS_MANBA_ADMIN,
+                          hodim_javobi=JAVOB_KUTILMOQDA if hodim_panelga_kiradimi(emp) else None)
     if toza["adv_date"]:
         adv.date = toza["adv_date"]
     db.add(adv)
@@ -13041,11 +13054,80 @@ def create_employee_advance(db: Session, employee_id: int, amount: float, notes:
     return adv
 
 
-def delete_employee_advance(db: Session, advance_id: int) -> bool:
+def hodim_panelga_kiradimi(emp) -> bool:
+    """kech134 (zip 160): hodimga panel kirishi berilganmi (telefon + PIN — `set_employee_login`). Admin yozgan avansga javob FAQAT
+    shunday hodimdan so'raladi (kira olmaydigan hodim javob bera olmaydi — savol abadiy «kutilmoqda» bo'lib qolardi)."""
+    return bool(emp is not None and (emp.phone or "").strip() and emp.pin_hash and not emp.is_deleted)
+
+
+class AvansJavobZiddiyati(Exception):
+    """kech134 (zip 160): avans javobi / nizo amali joriy holatga mos emas (marshrut → 409, sababi bilan)."""
+
+
+def _avans_qulfli(db: Session, advance_id: int, *, employee_id: int = None, company_id: int = None):
+    """Avansni qatori QULFLANGAN holda topadi (PG `FOR UPDATE OF employee_advances`; SQLite — oddiy). Korxona — ota (hodim)
+    orqali; `employee_id` berilsa — faqat shu hodimniki."""
     from models import EmployeeAdvance
-    adv = db.query(EmployeeAdvance).filter(EmployeeAdvance.id == advance_id).first()
+    q = db.query(EmployeeAdvance).filter(EmployeeAdvance.id == advance_id)
+    if employee_id is not None:
+        q = q.filter(EmployeeAdvance.employee_id == employee_id)
+    if company_id is not None:      # TENANT: ota (hodim) orqali — `get_pending_advance_requests` bilan bir xil
+        q = q.join(Employee, Employee.id == EmployeeAdvance.employee_id).filter(Employee.company_id == company_id)
+    return q.populate_existing().with_for_update(of=EmployeeAdvance).first()
+
+
+def avans_dict(adv, *, hodim_uchun: bool = False) -> dict:
+    """kech134 (zip 160): avans yozuvi — admin (KPI) va hodim paneli uchun BITTA ko'rinish. `hodim_uchun` — izohdan tizim
+    qo'shimchasi olib tashlanadi, nizoni kim ko'rib chiqqani berilmaydi."""
+    from models import avans_manbasi, avans_izohi_hodimga
+    d = {
+        "id": adv.id,
+        "amount": float(adv.amount or 0),
+        "date": adv.date.isoformat() if adv.date else None,
+        "notes": avans_izohi_hodimga(adv) if hodim_uchun else adv.notes,
+        "given_by": adv.given_by,
+        "manba": avans_manbasi(adv),
+        "javob": adv.hodim_javobi,
+        "javob_vaqti": adv.hodim_javob_vaqti.isoformat() if adv.hodim_javob_vaqti else None,
+    }
+    if not hodim_uchun:
+        d["nizo_korildi_vaqti"] = adv.nizo_korildi_vaqti.isoformat() if adv.nizo_korildi_vaqti else None
+        d["nizo_korgan"] = adv.nizo_korgan
+    return d
+
+
+def _avans_jurnal_nomi(emp, adv) -> str:
+    """Jurnal yozuvi nomi: «Ism: 205 000 so'm (02.10.2026)» — sana Toshkent bo'yicha."""
+    _s = f"{float(adv.amount or 0):,.0f}".replace(",", " ")
+    _k = _tashkent_date(adv.date).strftime("%d.%m.%Y") if adv.date else "—"
+    return f"{emp.name if emp else '—'}: {_s} so'm ({_k})"[:200]
+
+
+def delete_employee_advance(db: Session, advance_id: int, performed_by: str = None, company_id: int = None) -> bool:
+    """Avans yozuvini o'chiradi.
+
+    kech134 (zip 160): qator QULFLANADI (ikki admin bir vaqtda o'chirsa — ikkinchisi «topilmadi»); hodim so'rovidan yaratilgan
+    avans bo'lsa — so'rovga «avans o'chirilgan» belgisi (hodim panelida «Tasdiqlangan · keyin admin o'chirgan»; ilgari «✅
+    Tasdiqlandi» bo'lib qolardi, «Oyligim» da esa yo'q edi — O'LCHANGAN); jurnalga yozuv (avval o'chirish izsiz edi)."""
+    from models import AdvanceRequest
+    adv = _avans_qulfli(db, advance_id, company_id=company_id)
     if not adv:
+        db.rollback()       # qulf bo'shatiladi
         return False
+    _eq = db.query(Employee).filter(Employee.id == adv.employee_id)
+    _rq = db.query(AdvanceRequest).filter(AdvanceRequest.avans_id == adv.id, AdvanceRequest.employee_id == adv.employee_id)
+    if company_id is not None:      # TENANT: ota (hodim) orqali
+        _eq = _eq.filter(Employee.company_id == company_id)
+        _rq = _rq.join(Employee, Employee.id == AdvanceRequest.employee_id).filter(Employee.company_id == company_id)
+    emp = _eq.first()
+    _hozir = datetime.utcnow()
+    for _r in _rq.all():
+        _r.avans_ochirildi_vaqti = _hozir
+        # NULL — «kim / qachon noma'lum» belgisi (zip 160 dan oldin o'chirilgan, `main._migrate_avans_manba`): haqiqiy o'chirishda
+        # doim qiymat bor
+        _r.avans_ochirgan = (performed_by or "").strip()[:100] or "—"
+    log_activity(db, "avans_ochirildi", "employee", adv.employee_id, _avans_jurnal_nomi(emp, adv), performed_by,
+                 old_value=(adv.notes or None), company_id=(emp.company_id if emp else company_id), commit=False)
     db.delete(adv)
     db.commit()
     return True
@@ -13664,36 +13746,48 @@ def get_pending_advance_requests(db: Session, company_id: int = None) -> List[di
     return result
 
 
-def _advance_request_of_company(db: Session, request_id: int, company_id: int = None):
-    """So'rovni FAQAT shu korxona xodimining so'rovi sifatida topadi (M5)."""
+def _advance_request_of_company(db: Session, request_id: int, company_id: int = None, lock: bool = False):
+    """So'rovni FAQAT shu korxona xodimining so'rovi sifatida topadi (M5).
+    kech134 (zip 160, O'LCHANGAN `work/k160/poyga_tasdiq.py`, HAQIQIY PG): `lock=True` — qator `FOR UPDATE OF advance_requests` bilan
+    qulflanadi. Ilgari tasdiq / rad «tekshir → yoz» edi: ikki admin bir vaqtda «✅ Ha, berganman» bossa — IKKI avans (pul ikki marta),
+    biri tasdiqlab biri rad etsa — ikkalasiga ham «bajarildi», avans yozilgan, holat esa oxirgi yozganniki."""
     from models import AdvanceRequest
     q = db.query(AdvanceRequest).filter(AdvanceRequest.id == request_id)
     if company_id is not None:
         q = q.join(Employee, Employee.id == AdvanceRequest.employee_id
                    ).filter(Employee.company_id == company_id)
+    if lock:
+        q = q.populate_existing().with_for_update(of=AdvanceRequest)
     return q.first()
 
 
 def confirm_advance_request(db: Session, request_id: int, confirmed_by: str,
                             company_id: int = None) -> Optional[dict]:
     """Admin tasdiqlaydi — shu bilan HAQIQIY EmployeeAdvance yozuvi yaratiladi
-    (Moliya/Hisobotga to'g'ridan-to'g'ri ta'sir qiladigan)."""
-    from models import AdvanceRequest, AdvanceRequestStatus, EmployeeAdvance
-    req = _advance_request_of_company(db, request_id, company_id)   # M5
+    (Moliya/Hisobotga to'g'ridan-to'g'ri ta'sir qiladigan).
+
+    kech134 (zip 160): so'rov qatori qulflanadi (parallel ikki tasdiq — bitta avans); avans manbasi — hodim («📱 O'zingiz»,
+    javob so'ralmaydi), so'rovga avans bog'lanadi (`avans_id` — avans keyin o'chirilsa so'rovda ko'rinadi)."""
+    from models import AdvanceRequest, AdvanceRequestStatus, EmployeeAdvance, AVANS_MANBA_HODIM, HODIM_SOROV_IZOH_QOSHIMCHA
+    req = _advance_request_of_company(db, request_id, company_id, lock=True)   # M5
     if not req or req.status != AdvanceRequestStatus.PENDING:
+        db.rollback()       # qulf bo'shatiladi
         return None
 
     advance = EmployeeAdvance(
         employee_id=req.employee_id, amount=req.amount,
         date=req.requested_date,
-        notes=(req.notes or "") + " (xodim o'zi yozgan, admin tasdiqladi)",
-        given_by=confirmed_by
+        notes=(req.notes or "") + HODIM_SOROV_IZOH_QOSHIMCHA,
+        given_by=confirmed_by,
+        avans_manba=AVANS_MANBA_HODIM, hodim_javobi=None,
     )
     db.add(advance)
+    db.flush()
 
     req.status = AdvanceRequestStatus.CONFIRMED
     req.confirmed_at = datetime.utcnow()
     req.confirmed_by = confirmed_by
+    req.avans_id = advance.id
     db.commit()
     return {"success": True, "advance_id": advance.id}
 
@@ -13702,15 +13796,17 @@ def reject_advance_request(db: Session, request_id: int, confirmed_by: str,
                            company_id: int = None, rad_sababi: str = None) -> bool:
     """Admin rad etadi — hech qanday moliyaviy yozuv yaratilmaydi.
     kech118 (D-1, G6-21 — egasi QARORI «Ha, majburiy»): rad etish SABABI yoziladi (hodim panelida ko'rinadi); sababsiz —
-    rad etilmaydi (`ValueError`, marshrut → 400). Matn — 1..300 belgi (bo'sh joylar olib tashlanadi)."""
-    from models import AdvanceRequest, AdvanceRequestStatus
+    rad etilmaydi (`ValueError`, marshrut → 400). Matn — 1..300 belgi (bo'sh joylar olib tashlanadi).
+    kech134 (zip 160): qator qulflanadi (tasdiq bilan bir vaqtda — faqat bittasi bajariladi)."""
+    from models import AdvanceRequestStatus
     sabab = rad_sababi.strip() if isinstance(rad_sababi, str) else ''
     if not sabab:
         raise ValueError("Rad etish sababini yozing")
     if len(sabab) > 300:
         raise ValueError("Rad etish sababi 300 belgidan oshmasin")
-    req = _advance_request_of_company(db, request_id, company_id)   # M5
+    req = _advance_request_of_company(db, request_id, company_id, lock=True)   # M5
     if not req or req.status != AdvanceRequestStatus.PENDING:
+        db.rollback()       # qulf bo'shatiladi
         return False
     req.status = AdvanceRequestStatus.REJECTED
     req.confirmed_at = datetime.utcnow()
@@ -13720,20 +13816,171 @@ def reject_advance_request(db: Session, request_id: int, confirmed_by: str,
     return True
 
 
-def get_employee_own_requests(db: Session, employee_id: int, limit: int = 20) -> List[dict]:
-    """Xodimning o'zi yuborgan so'rovlari tarixi (o'z paneli uchun)."""
+def _hodim_oyna_boshi_utc(oylar: int = None):
+    """Hodim panelidagi oxirgi `oylar` (standart — `services.HODIM_OYLIK_OYLAR` = 12) Toshkent oyining boshi (UTC, naive)."""
+    from services import HODIM_OYLIK_OYLAR
+    n = HODIM_OYLIK_OYLAR if oylar is None else int(oylar)
+    b = _tashkent_date()
+    k = b.year * 12 + (b.month - 1) - (n - 1)
+    return _tashkent_oy_oraligi(k // 12, k % 12 + 1)[0]
+
+
+def get_employee_own_requests(db: Session, employee_id: int, limit: int = None, company_id: int = None) -> List[dict]:
+    """Xodimning o'zi yuborgan so'rovlari tarixi (o'z paneli uchun).
+
+    kech134 (zip 160 — egasi QARORI 09.10; O'LCHANGAN: ilgari `limit=20` — eskilari umuman chiqmasdi): oxirgi 12 oy (so'rov SANASI
+    — hodim yozgan «qachon oldim» — Toshkent oyi bo'yicha, «Oyligim» bilan bir xil oyna) + KUTILAYOTGANLAR qaysi sanada bo'lmasin.
+    Har yozuvda `oy` ('YYYY-MM' — panel oylab guruhlaydi), tasdiqlangan so'rov avansi keyin o'chirilgan bo'lsa — `avans_ochirildi`
+    (True), `avans_ochirgan` va `avans_ochirildi_vaqti` (zip 160 dan oldin o'chirilganda — kim / qachon noma'lum: ikkalasi null).
+    Tartib — eng yangi yuborilgani birinchi.
+    `limit` — ixtiyoriy (eski chaqiruvlar uchun; panel bermaydi)."""
     from models import AdvanceRequest, AdvanceRequestStatus
-    rows = db.query(AdvanceRequest).filter(
-        AdvanceRequest.employee_id == employee_id
-    ).order_by(AdvanceRequest.submitted_at.desc()).limit(limit).all()
-    return [{
-        "id": r.id, "amount": float(r.amount),
-        "requested_date": r.requested_date.isoformat(),
-        "status": r.status.value, "notes": r.notes,
-        "submitted_at": r.submitted_at.isoformat() if r.submitted_at else None,
-        # kech118 (D-1, G6-21): rad etilgan so'rov sababi (eski yozuvlarda — null)
-        "rad_sababi": r.rad_sababi if r.status == AdvanceRequestStatus.REJECTED else None,
-    } for r in rows]
+    from sqlalchemy import or_ as _or160
+    q = db.query(AdvanceRequest).filter(
+        AdvanceRequest.employee_id == employee_id,
+        _or160(AdvanceRequest.requested_date >= _hodim_oyna_boshi_utc(),
+               AdvanceRequest.status == AdvanceRequestStatus.PENDING),
+    )
+    if company_id is not None:      # TENANT: ota (hodim) orqali
+        q = q.join(Employee, Employee.id == AdvanceRequest.employee_id).filter(Employee.company_id == company_id)
+    q = q.order_by(AdvanceRequest.submitted_at.desc(), AdvanceRequest.id.desc())
+    if limit:
+        q = q.limit(int(limit))
+    natija = []
+    for r in q.all():
+        _t = _tashkent_date(r.requested_date)
+        _och = r.status == AdvanceRequestStatus.CONFIRMED and r.avans_ochirildi_vaqti is not None
+        natija.append({
+            "id": r.id, "amount": float(r.amount),
+            "requested_date": r.requested_date.isoformat(),
+            "oy": f"{_t.year:04d}-{_t.month:02d}",
+            "status": r.status.value, "notes": r.notes,
+            "submitted_at": r.submitted_at.isoformat() if r.submitted_at else None,
+            # kech118 (D-1, G6-21): rad etilgan so'rov sababi (eski yozuvlarda — null)
+            "rad_sababi": r.rad_sababi if r.status == AdvanceRequestStatus.REJECTED else None,
+            # kech134 (zip 160): tasdiqlangan so'rovning avansi keyin o'chirilgan
+            "avans_ochirildi": _och,
+            "avans_ochirildi_vaqti": r.avans_ochirildi_vaqti.isoformat() if (_och and r.avans_ochirgan) else None,
+            "avans_ochirgan": r.avans_ochirgan if _och else None,
+        })
+    return natija
+
+
+# ============================================================
+# kech134 (zip 160 — egasi QARORI 09.10 «C — hodim tasdig'i bilan»): admin yozgan avansga hodim javobi va «Olmaganman» nizosi
+# ============================================================
+
+def hodim_javob_kutilayotgan_avanslar(db: Session, emp) -> List[dict]:
+    """Hodim javob berishi kerak bo'lgan admin avanslari (qaysi oyda bo'lmasin; eng eskisi birinchi) — panelning «🔔» kartasi."""
+    from models import EmployeeAdvance, JAVOB_KUTILMOQDA
+    rows = db.query(EmployeeAdvance).join(Employee, Employee.id == EmployeeAdvance.employee_id).filter(
+        EmployeeAdvance.employee_id == emp.id, Employee.company_id == emp.company_id,
+        EmployeeAdvance.hodim_javobi == JAVOB_KUTILMOQDA,
+    ).order_by(EmployeeAdvance.date.asc(), EmployeeAdvance.id.asc()).all()
+    return [avans_dict(a, hodim_uchun=True) for a in rows]
+
+
+def hodim_avans_javob(db: Session, emp, advance_id: int, javob) -> dict:
+    """Hodim admin yozgan avansga javob beradi: «oldim» yoki «olmadim». Ruxsat etilgan o'tishlar: kutilmoqda → oldim / olmadim;
+    olmadim → oldim (keyin olgan yoki adashgan bo'lsa). «Oldim» — oxirgi (o'zgartirib bo'lmaydi). Qator qulflanadi.
+    Xatolar: `LookupError` — avans topilmadi (boshqa hodimniki / korxonaniki ham); `ValueError` — javob noto'g'ri;
+    `AvansJavobZiddiyati` — joriy holatga mos emas. Qaytaradi: avans (`avans_dict`, hodim ko'rinishi) + `ogohlantirish` (True —
+    «olmadim» yangi yozildi: marshrut adminga Telegram xabarini yuboradi)."""
+    from models import JAVOB_KUTILMOQDA, JAVOB_OLDIM, JAVOB_OLMADIM
+    if javob not in (JAVOB_OLDIM, JAVOB_OLMADIM):
+        raise ValueError("Javob noto'g'ri — «oldim» yoki «olmadim»")
+    adv = _avans_qulfli(db, advance_id, employee_id=emp.id, company_id=emp.company_id)
+    if not adv:
+        db.rollback()
+        raise LookupError("To'lov topilmadi (o'chirilgan bo'lishi mumkin) — sahifani yangilang")
+    joriy = adv.hodim_javobi
+    if joriy is None:
+        db.rollback()
+        raise AvansJavobZiddiyati("Bu to'lovga javob so'ralmagan")
+    if joriy == JAVOB_OLDIM:
+        db.rollback()
+        raise AvansJavobZiddiyati("Siz bu to'lovni allaqachon «Ha, oldim» deb tasdiqlagansiz — o'zgartirib bo'lmaydi")
+    if joriy == JAVOB_OLMADIM and javob == JAVOB_OLMADIM:
+        db.rollback()
+        raise AvansJavobZiddiyati("Siz bu to'lovga allaqachon «Olmaganman» deb javob bergansiz")
+    if joriy not in (JAVOB_KUTILMOQDA, JAVOB_OLMADIM):
+        db.rollback()
+        raise AvansJavobZiddiyati("Bu to'lovga javob berib bo'lmaydi")
+    adv.hodim_javobi = javob
+    adv.hodim_javob_vaqti = datetime.utcnow()
+    if javob == JAVOB_OLMADIM:
+        adv.nizo_korildi_vaqti = None
+        adv.nizo_korgan = None
+    log_activity(db, "avans_oldim" if javob == JAVOB_OLDIM else "avans_olmadim", "employee", emp.id,
+                 _avans_jurnal_nomi(emp, adv), emp.name,
+                 old_value=joriy, new_value=javob, company_id=emp.company_id, commit=False)
+    db.commit()
+    db.refresh(adv)
+    d = avans_dict(adv, hodim_uchun=True)
+    d["ogohlantirish"] = javob == JAVOB_OLMADIM
+    return d
+
+
+def admin_avans_nizolar(db: Session, company_id: int, employee_id: int = None) -> List[dict]:
+    """Hodim «Olmaganman» degan va admin hali ko'rib chiqmagan avanslar (eng eskisi birinchi) — Bosh sahifa / Dashboard oynasi va
+    KPI. O'chirilgan hodimniki chiqmaydi (tiklansa — qaytadi)."""
+    from models import EmployeeAdvance, JAVOB_OLMADIM
+    q = db.query(EmployeeAdvance, Employee).join(Employee, Employee.id == EmployeeAdvance.employee_id).filter(
+        Employee.company_id == company_id, Employee.is_deleted == False,   # noqa: E712
+        EmployeeAdvance.hodim_javobi == JAVOB_OLMADIM, EmployeeAdvance.nizo_korildi_vaqti.is_(None),
+    )
+    if employee_id is not None:
+        q = q.filter(EmployeeAdvance.employee_id == employee_id)
+    natija = []
+    for a, e in q.order_by(EmployeeAdvance.hodim_javob_vaqti.asc(), EmployeeAdvance.id.asc()).all():
+        d = avans_dict(a)
+        d.update({"employee_id": e.id, "employee_name": e.name, "position": e.position})
+        natija.append(d)
+    return natija
+
+
+def avans_holat_xulosasi(db: Session, company_id: int) -> Dict[int, dict]:
+    """KPI hodimlar ro'yxati uchun (bitta so'rov): hodim → {nizo_soni, nizo_summa, kutilmoqda_soni} — ko'rib chiqilmagan
+    «Olmaganman» va javob kutilayotgan admin avanslari."""
+    from models import EmployeeAdvance, JAVOB_OLMADIM, JAVOB_KUTILMOQDA
+    from sqlalchemy import func as _f160, case as _c160
+    _nizo = _c160((EmployeeAdvance.nizo_korildi_vaqti.is_(None) & (EmployeeAdvance.hodim_javobi == JAVOB_OLMADIM), 1), else_=0)
+    rows = db.query(
+        EmployeeAdvance.employee_id,
+        _f160.sum(_nizo),
+        _f160.sum(_c160((_nizo == 1, EmployeeAdvance.amount), else_=0)),
+        _f160.sum(_c160((EmployeeAdvance.hodim_javobi == JAVOB_KUTILMOQDA, 1), else_=0)),
+    ).join(Employee, Employee.id == EmployeeAdvance.employee_id).filter(
+        Employee.company_id == company_id,
+        EmployeeAdvance.hodim_javobi.in_((JAVOB_OLMADIM, JAVOB_KUTILMOQDA)),
+    ).group_by(EmployeeAdvance.employee_id).all()
+    return {eid: {"nizo_soni": int(n or 0), "nizo_summa": float(sm or 0), "kutilmoqda_soni": int(k or 0)}
+            for eid, n, sm, k in rows}
+
+
+def admin_avans_nizo_korildi(db: Session, advance_id: int, company_id: int, korgan: str) -> dict:
+    """Admin «Olmaganman» javobini ko'rib chiqdi — ogohlantirish yopiladi (avans va hodim javobi O'ZGARMAYDI; avans xato
+    yozilgan bo'lsa — uni o'chirish alohida amal). Xatolar: `LookupError` — topilmadi; `AvansJavobZiddiyati` — «Olmaganman»
+    emas (hodim javobini o'zgartirgan) yoki allaqachon ko'rib chiqilgan."""
+    from models import JAVOB_OLMADIM
+    adv = _avans_qulfli(db, advance_id, company_id=company_id)
+    if not adv:
+        db.rollback()
+        raise LookupError("Avans topilmadi (o'chirilgan bo'lishi mumkin)")
+    if adv.hodim_javobi != JAVOB_OLMADIM:
+        db.rollback()
+        raise AvansJavobZiddiyati("Hodim bu avansga endi «Olmaganman» demayapti — ro'yxat yangilandi")
+    if adv.nizo_korildi_vaqti is not None:
+        db.rollback()
+        raise AvansJavobZiddiyati(f"Bu javobni {adv.nizo_korgan or 'boshqa foydalanuvchi'} allaqachon ko'rib chiqqan")
+    emp = db.query(Employee).filter(Employee.id == adv.employee_id, Employee.company_id == company_id).first()
+    adv.nizo_korildi_vaqti = datetime.utcnow()
+    adv.nizo_korgan = korgan
+    log_activity(db, "avans_nizo_korildi", "employee", adv.employee_id, _avans_jurnal_nomi(emp, adv), korgan,
+                 company_id=company_id, commit=False)
+    db.commit()
+    db.refresh(adv)
+    return avans_dict(adv)
 
 
 # ============================================================

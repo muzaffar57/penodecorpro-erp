@@ -7561,7 +7561,7 @@ def _hodim_oy_xulosa(db: Session, employee_id: int, company_id: int, y: int, m: 
     bo'lmasa (hali ishga kirmagan) — None."""
     rep = get_monthly_report(db, y, m, company_id=company_id)
     e = next((r for r in rep.get("hodimlar_moslashuvchan_breakdown", []) if r.get("employee_id") == employee_id), None)
-    tolovlar = get_employee_advances_list(db, employee_id, y, m)
+    tolovlar = get_employee_advances_list(db, employee_id, y, m, hodim_uchun=True)
     if not (joriy or e is not None or tolovlar):
         return None
     hisob = float(e["amount"]) if e else 0.0
@@ -7575,7 +7575,11 @@ def _hodim_oy_xulosa(db: Session, employee_id: int, company_id: int, y: int, m: 
         "bonus_sababi": (e.get("bonus_reason") or None) if e else None,
         "kamaytirish": round(float(e.get("adjustment") or 0)) if e else 0,
         "kamaytirish_sababi": (e.get("adjustment_reason") or None) if e else None,
-        "tolovlar": [{"sana": t["date"], "summa": round(float(t["amount"] or 0))} for t in tolovlar],
+        # kech134 (zip 160 — egasi QARORI «C»): har to'lovda manba («📱 O'zingiz» / «🧑‍💼 Admin» — kim), izoh va admin yozganiga
+        # hodim javobi (kutilmoqda / oldim / olmadim — vaqti bilan)
+        "tolovlar": [{"id": t["id"], "sana": t["date"], "summa": round(float(t["amount"] or 0)), "manba": t["manba"],
+                      "kim": t["given_by"] if t["manba"] == "admin" else None, "izoh": t["notes"],
+                      "javob": t["javob"], "javob_vaqti": t["javob_vaqti"]} for t in tolovlar],
     }
 
 
@@ -7621,7 +7625,10 @@ def hodim_oylik_xulosa(db: Session, employee_id: int, company_id: int, oy: tuple
         ishda = emp is not None and emp.hire_date is not None and emp.hire_date < _tashkent_oy_oraligi(y, m)[1]
         if ishda or (y, m) in tolov_oylari:
             boshqa.append({"yil": y, "oy": m, "nomi": f"{_HODIM_OY_NOMI[m]} {y}"})
-    return {"oylar": oylar, "boshqa_oylar": boshqa}
+    # kech134 (zip 160): javobi kutilayotgan admin avanslari — qaysi oyda bo'lmasin (panel tepasidagi «🔔» kartasi)
+    import crud as _crud_jk160
+    javob_kutilmoqda = _crud_jk160.hodim_javob_kutilayotgan_avanslar(db, emp) if emp is not None else []
+    return {"oylar": oylar, "boshqa_oylar": boshqa, "javob_kutilmoqda": javob_kutilmoqda}
 
 
 def get_employee_advances_total(db: Session, employee_id: int, year: int, month: int) -> float:
@@ -7636,21 +7643,18 @@ def get_employee_advances_total(db: Session, employee_id: int, year: int, month:
     return float(total or 0)
 
 
-def get_employee_advances_list(db: Session, employee_id: int, year: int, month: int) -> list:
-    """Hodimga shu OYda berilgan barcha avanslar ro'yxati (sana, summa, izoh bilan)."""
+def get_employee_advances_list(db: Session, employee_id: int, year: int, month: int, hodim_uchun: bool = False) -> list:
+    """Hodimga shu OYda berilgan barcha avanslar ro'yxati (sana, summa, izoh bilan).
+    kech134 (zip 160): har yozuvda manba («hodim» — o'zi so'ragan, «admin» — admin yozgan) va hodim javobi (`crud.avans_dict`);
+    `hodim_uchun` — hodim paneli ko'rinishi (izohda tizim qo'shimchasi yo'q). Tartib — sana, keyin id (bir xil sanalilar barqaror)."""
     from models import EmployeeAdvance
+    import crud as _crud_av160
 
     rows = db.query(EmployeeAdvance).filter(
         EmployeeAdvance.employee_id == employee_id,
         _tashkent_oyida(EmployeeAdvance.date, year, month)
-    ).order_by(EmployeeAdvance.date.desc()).all()
-    return [{
-        "id": r.id,
-        "amount": float(r.amount or 0),
-        "date": r.date.isoformat() if r.date else None,
-        "notes": r.notes,
-        "given_by": r.given_by
-    } for r in rows]
+    ).order_by(EmployeeAdvance.date.desc(), EmployeeAdvance.id.desc()).all()
+    return [_crud_av160.avans_dict(r, hodim_uchun=hodim_uchun) for r in rows]
 
 
 def fmt_num(n):
