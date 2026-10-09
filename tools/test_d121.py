@@ -537,7 +537,9 @@ check("A6 hodimning «Mening so'rovlarim»: rad etilganda — sababi, tasdiqlang
       and _myd.get(RQ[2], {}).get("rad_sababi") is None and _myd.get(RQ[2], {}).get("status") == "confirmed", _my)
 check("A7 boshqa hodim birinchisining so'rovlarini ko'rmaydi", (js(H2.get("/api/hodim/my-requests")) or []) == [],
       js(H2.get("/api/hodim/my-requests")))
-_dash = fayl("templates/dashboard.html")
+# kech134 (zip 160, MOSLANDI): avans so'rovlari oynasi `_hodim_oynalari.html` ga ko'chdi (Dashboard va Bosh sahifa include qiladi) —
+# ikkalasi birga (zip 159 da fayl yo'q — bo'sh satr, tekshiruv o'zgarishsiz)
+_dash = fayl("templates/dashboard.html") + "\n" + fayl("templates/_hodim_oynalari.html")
 _hp = fayl("templates/hodim_panel.html")
 check("A8 Dashboard: «❌ Yo'q» — sabab so'raladi (kiritishOyna, bo'sh bo'lsa qayta), tana {sabab}; hodim panelida «Sabab: …»",
       "kiritishOyna(\"Nega rad etasiz?\"" in _dash and "JSON.stringify({sabab})" in _dash and "r.rad_sababi" in _hp

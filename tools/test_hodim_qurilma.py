@@ -545,6 +545,9 @@ def oqi(yol):
 
 LOGIN, KUT, PIN, DASH, KPI = (oqi("templates/hodim_login.html"), oqi("templates/hodim_kutish.html"), oqi("templates/hodim_pin.html"),
                               oqi("templates/dashboard.html"), oqi("templates/kpi.html"))
+# kech134 (zip 160, MOSLANDI): hodim oynalari (telefon, «Olmaganman», avans so'rovlari) `_hodim_oynalari.html` ga ko'chdi — Dashboard va
+# Bosh sahifa uni `{% include %}` qiladi; tekshiruv ikkalasining birlashmasida (zip 159 da fayl yo'q — `oqi` bo'sh, o'zgarishsiz o'tadi)
+DASH = DASH + "\n" + oqi("templates/_hodim_oynalari.html")
 check("E1 kirish sahifasi: telefon modeli — `navigator.userAgentData.getHighEntropyValues(['model'])` (yashirin maydon)",
       "getHighEntropyValues(['model'])" in LOGIN and 'id="qurilmaModel"' in LOGIN, "")
 check("E2 kutish sahifasi: har 4 soniyada holat, ruxsatda /hodim, 401 da kirish; style.css dan keyin surilish ochiq",

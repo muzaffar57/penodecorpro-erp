@@ -32,7 +32,9 @@ const FINISHED = oqi('finished.html');
 const BASE = oqi('base.html');
 const RETURNS = oqi('returns.html');
 const HODIM = oqi('hodim_panel.html');
-const DASHBOARD = oqi('dashboard.html');
+// kech134 (zip 160, MOSLANDI): avans so'rovlari oynasi funksiyalari `_hodim_oynalari.html` ga ko'chdi (Dashboard va Bosh sahifa include
+// qiladi) — ikkalasi birga o'qiladi (zip 159 da fayl yo'q — bo'sh satr)
+const DASHBOARD = oqi('dashboard.html') + '\n' + oqi('_hodim_oynalari.html');
 const FINANCE = oqi('finance.html');
 
 let OK = 0, FAIL = 0;
@@ -385,6 +387,10 @@ async function hodimBolimi() {
   // kech133 (zip 158 — MOSLANDI): `loadOylik` tugagan oylarni yopiq («shtorka») chizadi — yordamchilari ham yuklanadi (zip 157 va
   // undan oldingi shablonda yo'q — topilganlari qo'shiladi; ikkala shablonda ham H3 o'tadi)
   eh.kod += '\n' + funks(HODIM, ['oyXulosaMatni', 'oyYopiqHtml', 'oyYuklanmaganHtml']).kod;
+  // kech134 (zip 160 — MOSLANDI): to'lov qatori (manba belgisi, javob), «🔔» kartasi va so'rovlar oylab — yordamchilari (zip 159 va
+  // undan oldingi shablonda yo'q — topilganlari qo'shiladi)
+  eh.kod += '\n' + funks(HODIM, ['tolovBelgisi', 'tolovQatorHtml', 'javobBlokHtml', 'javobKartaChiz', 'sorovOyNomi', 'sorovQatorHtml',
+                                 'sorovXulosaMatni', 'tkHozir']).kod;
   let m = muhit({}, {});
   let r = await ishga(m, eh.kod, `oylikHtml({nomi: 'Oktabr 2026', joriy: true, hisoblangan: 3110000, olingan: 350002, qolgan: 2759998,
       bonus: 150000, bonus_sababi: '<b>Yaxshi</b>', kamaytirish: 40000, kamaytirish_sababi: '2 kun', tolovlar: [
@@ -395,7 +401,7 @@ async function hodimBolimi() {
           !r.xato && h.includes('Oktabr 2026') && h.includes('(joriy oy — hozirgacha)') && h.includes("3 110 000 so'm")
           && h.includes("+150 000 so'm") && h.includes('&lt;b&gt;Yaxshi&lt;/b&gt;') && !h.includes('<b>Yaxshi')
           && h.includes("−40 000 so'm") && h.includes("350 002 so'm") && h.includes('>Qolgan<') && h.includes("2 759 998 so'm")
-          && h.includes("01.10.2026 — 100 002 so'm"), r.xato || qisqa(h));
+          && (h.includes("01.10.2026 — 100 002 so'm") || /01\.10\.2026<\/span><b>100 002 so'm<\/b>/.test(h)), r.xato || qisqa(h));
   r = await ishga(m, '', `oylikHtml({nomi: 'Sentabr 2026', joriy: false, hisoblangan: 0, olingan: 70000, qolgan: -70000, bonus: 0,
       kamaytirish: 0, tolovlar: []})`);
   const h2 = bosh(r.natija || '');
@@ -433,11 +439,15 @@ async function adminBolimi() {
   bolim("dashboard.html — rad etishda sabab; finance.html — boshlang'ich balans");
   const k = funks(DASHBOARD, ['rejectAdvReq']);
   tekshir('D0 rejectAdvReq topildi', !k.yoq.length);
+  // kech134 (zip 160, MOSLANDI): tugmalarni o'chirib-yoqish yordamchisi (zip 159 da yo'q — topilsa qo'shiladi)
+  k.kod += '\n' + funks(DASHBOARD, ['advTugmalar']).kod;
   async function sina(javoblar, server) {
     const q = javoblar.slice();
     const izohlar = [];
     const m = muhit({}, { kiritishOyna: async (sar, o) => { izohlar.push(o && o.izoh); return q.length ? q.shift() : null; },
       removeAdvRow(id) { m.chaqiruvlar.push('olib:' + id); }, serverXatoSababi: async () => 'Server sababi',
+      // kech134 (zip 160, MOSLANDI): xabar endi dastur oynasida (`xabarOyna`; ilgari `alert` — base.html uni shu oynaga yo'naltiradi)
+      xabarOyna: async (t) => { m.xabarlar.push({ t: String(t), tur: 'oyna' }); },
       customConfirm: async () => true });
     if (server) m.javoblar.push(server);
     const r = await ishga(m, k.kod, 'rejectAdvReq(9)');

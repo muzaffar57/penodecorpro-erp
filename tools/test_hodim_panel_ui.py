@@ -276,9 +276,14 @@ if PW_BOR:
         xav(pg.evaluate, "window.scrollTo(0, 0)")
         _j = ev(pg, """() => { const nb = """ + NB + """; const b = document.querySelector('#oylik-list > .oy-blok');
             return b ? {matn: nb(b.innerText), ichida: !!b.closest('details')} : null; }""")
+        def tolov_bor(m, summa):
+            """kech134 (zip 160, MOSLANDI): to'lov qatori — «DD.MM.YYYY — summa» (zip 159) yoki sana va summa alohida (zip 160: manba
+            belgisi bilan qator) — ikkala shablonda ham o'tadi."""
+            return re.search(r"\d\d\.\d\d\.\d{4}(?: — |\n)" + re.escape(summa), m or "") is not None
+
         check("U3a joriy oy OCHIQ (shtorkasiz): «" + nomi(0) + " (joriy oy — hozirgacha)», Hisoblangan 11 000 000, to'lovlar ro'yxati",
               isinstance(_j, dict) and _j.get("ichida") is False and nomi(0) in _j.get("matn", "") and "(joriy oy — hozirgacha)" in _j["matn"]
-              and "11 000 000 so'm" in _j["matn"] and "— 50 000 so'm" in _j["matn"], _j)
+              and "11 000 000 so'm" in _j["matn"] and tolov_bor(_j["matn"], "50 000 so'm"), _j)
         _y = yopiqlar(pg)
         _kut_nomlar = [nomi(1), nomi(2), nomi(3), nomi(4), nomi(6)]
         check("U3b tugagan oylar — YOPIQ: o'tgan oy (sarlavhada «Qolgan " + pul(OTGAN_QOLGAN) + "»), keyin 3-…5-oy (ishga kirgan oy — 5-oy) va "
@@ -301,7 +306,7 @@ if PW_BOR:
         _y3, _m3 = oldin(3)
         check("U3d eski oy (3-oy) ochilsa — BITTA so'rov `?oy=" + f"{_y3:04d}-{_m3:02d}" + "`, sarlavha «Qolgan " + pul(QOLGAN_3) + "», ichida «— 70 000 so'm»",
               isinstance(_y, list) and len(_y) == 5 and _y[2].get("ochiq") is True and _y[2].get("xulosa") == "Qolgan " + pul(QOLGAN_3)
-              and "— 70 000 so'm" in _y[2].get("ichi", "") and len(_yangi) == 1 and _yangi[0].endswith(f"?oy={_y3:04d}-{_m3:02d}"),
+              and tolov_bor(_y[2].get("ichi", ""), "70 000 so'm") and len(_yangi) == 1 and _yangi[0].endswith(f"?oy={_y3:04d}-{_m3:02d}"),
               (_y[2:3] if isinstance(_y, list) else _y, _yangi))
         # SARLAVHA bosiladi (ochiq `<details>` markazi — ichidagi matn, u yopmaydi); orada pauza — tez bosilsa `toggle` birlashadi
         xav(pg.click, "#oylik-list details[data-oy] >> nth=1 >> summary")

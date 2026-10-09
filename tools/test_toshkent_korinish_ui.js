@@ -313,7 +313,8 @@ async function ichki() {
   });
   await sinov('T12', async () => {
     const m = muhit({ javob: { '/api/employees/7/advances': { total: 30000, advances: [{ id: 1, date: LAHZA, amount: 30000, notes: '' }] } },
-                      qoshimcha: fnlar(KPI, PUL.concat(['openAdvanceModal', 'loadAdvanceHistory'])) + '\nvar advanceEmpId = null;' });
+                      // kech134 (zip 160, MOSLANDI): tarix qatorida manba belgisi, oynada «Olmaganman» bo'limi (zip 159 da yo'q — topilmasa o'tkaziladi)
+                      qoshimcha: fnlar(KPI, PUL.concat(['openAdvanceModal', 'loadAdvanceHistory', 'loadAvansNizo', 'avansManbaHtml'])) + '\nvar advanceEmpId = null;' });
     await yurgiz(m, `openAdvanceModal(7, 'Hodim'); await loadAdvanceHistory(7);`);
     tekshir('T12 KPI — avans berish standart sanasi 2026-10-01 (asl: 2026-09-30)', m.el('adv-date').value === '2026-10-01', m.el('adv-date').value);
     const h = m.el('adv-history').innerHTML;
@@ -396,7 +397,8 @@ async function ichki() {
   await sinov('T23', async () => {
     const m = muhit({ javob: { '/api/admin/pending-advance-requests': [{ id: 1, employee_name: 'H', amount: 1, requested_date: '2026-10-01T00:00:00' }],
                                '/api/obligations/status': { recurring: [], employees: [] }, '/api/suppliers': [], '/api/suppliers/due-dates': [] },
-                      qoshimcha: fnlar(DASH, ['checkPendingAdvanceRequests', 'loadObligationsWidget']) });
+                      // kech134 (zip 160, MOSLANDI): avans so'rovlari oynasi `_hodim_oynalari.html` da (zip 159 da — dashboard.html da)
+                      qoshimcha: fnlar(DASH + '\n' + oqi('_hodim_oynalari.html'), ['checkPendingAdvanceRequests', 'loadObligationsWidget']) });
     await yurgiz(m, `await checkPendingAdvanceRequests(); await loadObligationsWidget();`);
     tekshir(`T23 bosh sahifa — avans so'rovi sanasi "${S_UZ}" (faqat sana — kalendar kuni)`, m.el('advReqList').innerHTML.includes(S_UZ),
             m.el('advReqList').innerHTML.slice(0, 200));
@@ -441,7 +443,8 @@ async function ichki() {
           standart('kx-date', KX, /document\.getElementById\('kx-date'\)\.value = [^;\n]*;/));
   await sinov('T31', async () => {
     const HB = HOD.indexOf('function tkMs(') >= 0;
-    const m = muhit({ yordamchi: HOD_YORDAMCHI, qoshimcha: fnlar(HOD, ['loadMyRequests']) });
+    // kech134 (zip 160, MOSLANDI): so'rovlar oylab — yordamchilari (zip 159 da yo'q — topilmasa o'tkaziladi)
+    const m = muhit({ yordamchi: HOD_YORDAMCHI, qoshimcha: fnlar(HOD, ['loadMyRequests', 'sorovOyNomi', 'sorovQatorHtml', 'sorovXulosaMatni', 'tkHozir']) });
     m.ctx.fetch = async () => ({ ok: true, json: async () => [{ amount: 1, requested_date: '2026-10-01T00:00:00', status: 'pending', notes: '' }] });
     await yurgiz(m, `await loadMyRequests();`);
     tekshir(`T31 hodim paneli — so'rovlar ro'yxati sanasi "${S_UZ}" (panelning O'Z yordamchilari bilan)`,
@@ -509,10 +512,17 @@ function statik() {
     'finished.html': ['tkToliq(item.created_at)', 'tkISO(i.created_at)'],
   };
   const yoq = [];
-  for (const [f, lst] of Object.entries(KUT)) { const s = oqi(f); lst.forEach(x => { if (!s.includes(x)) yoq.push(`${f}: ${x}`); }); }
+  // kech134 (zip 160, MOSLANDI): Dashboard ning hodim oynalari `_hodim_oynalari.html` da (include) — birga qaraladi (zip 159 da fayl yo'q)
+  for (const [f, lst] of Object.entries(KUT)) {
+    const s = oqi(f) + (f === 'dashboard.html' ? '\n' + oqi('_hodim_oynalari.html') : '');
+    lst.forEach(x => { if (!s.includes(x)) yoq.push(`${f}: ${x}`); });
+  }
   tekshir(`S7 kutilgan tk chaqiruvlari joyida (${Object.values(KUT).reduce((a, b) => a + b.length, 0)} ta)`, !yoq.length, yoq);
   const tkIshlatadi = fayllar.filter(f => /\btk(Ms|Date|Sana|Vaqt|SanaVaqt|Toliq|ISO|Hozir|KunFarqi)\(/.test(jsQismi(oqi(f))));
-  const asossiz = tkIshlatadi.filter(f => f !== 'base.html' && f !== 'hodim_panel.html' && !/\{%\s*extends\s+["']base\.html["']\s*%\}/.test(oqi(f)));
+  // kech134 (zip 160, MOSLANDI): `_…html` bo'lak — base.html ni kengaytiradigan sahifa uni `{% include %}` qilsa, yordamchilar o'sha sahifada
+  const kengaytiradi = (f) => /\{%\s*extends\s+["']base\.html["']\s*%\}/.test(oqi(f));
+  const bolakmi = (f) => f.startsWith('_') && fayllar.some(g => kengaytiradi(g) && new RegExp('\\{%\\s*include\\s+["\']' + f.replace(/\./g, '\\.') + '["\']').test(oqi(g)));
+  const asossiz = tkIshlatadi.filter(f => f !== 'base.html' && f !== 'hodim_panel.html' && !kengaytiradi(f) && !bolakmi(f));
   const TK_SAHIFALAR = ['dashboard.html', 'debts.html', 'finance.html', 'finished.html', 'hodim_panel.html', 'inventory.html',
                         'kpi.html', 'kunlik_xarajat.html', 'logs.html', 'orders.html', 'projects.html',
                         'reports.html', 'returns.html', 'supplier_receive.html', 'suppliers.html'];
