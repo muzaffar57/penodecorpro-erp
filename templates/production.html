@@ -242,6 +242,9 @@
 .bom-jami .o b{font-size:18px}
 .bom-ogoh{font-size:12px;color:var(--m-92400e);margin-top:6px}
 .bom-ogoh:empty{display:none}
+/* kech135 (zip 161): material ro'yxati yuklanmasa — sababi (ilgari tanlov XABARSIZ bo'sh edi) */
+.bom-material-xato{font-size:13px;color:var(--m-92400e);background:var(--f-fef3c7);border-radius:8px;padding:8px 12px;margin:0 0 8px;overflow-wrap:anywhere}
+.bom-material-xato[hidden]{display:none}
 @media (max-width:760px){
   .modal-overlay{padding:0;align-items:flex-end}
   .modal-box,.modal-box.wide,.modal-box.juda-keng{width:100%;max-height:94vh;border-radius:16px 16px 0 0;padding:18px 16px}
@@ -298,7 +301,9 @@
 <div id="prod-sahifa" data-joriy-oy="{{ joriy_oy }}">
 <div class="prod-tabs" role="tablist">
   <div class="prod-tab tab active" role="tab" data-tab="types" onclick="switchProdTab('types')">Mahsulot turlari</div>
-  <div class="prod-tab tab" role="tab" data-tab="orders" onclick="switchProdTab('orders')">Ishlab chiqarish <span class="prod-tab-son" id="po-soni"></span></div>
+  {# kech135 (zip 161, O'LCHANGAN): «Ishlab chiqarish buyurtmalari: Ko'rish» ruxsati yo'q rolga yorliq ko'rinardi, ro'yxat 403 bilan
+     yuklanmay «Hali ishlab chiqarish yo'q» deb yozardi — endi yorliq yo'q #}
+  {% if current_user.ruxsat('ishlab_buyurtma', 'korish') %}<div class="prod-tab tab" role="tab" data-tab="orders" onclick="switchProdTab('orders')">Ishlab chiqarish <span class="prod-tab-son" id="po-soni"></span></div>{% endif %}
 </div>
 
 <!-- ═══ MAHSULOT TURLARI ═══ -->
@@ -465,6 +470,7 @@
       <div style="font-size:12px;font-weight:700;color:var(--m-374151);text-transform:uppercase" id="bom-tarkib-sarlavha">Tarkibi</div>
       <button type="button" class="btn btn-outline btn-sm" onclick="addBomItemRow()"><i class="ti ti-plus"></i> Material qo'shish</button>
     </div>
+    <div class="bom-material-xato" id="bom-material-xato" role="alert" hidden></div>
     <div class="bom-ustunlar" aria-hidden="true"><div>Material</div><div>Miqdor</div><div>Isrof</div><div class="o">Narxi</div><div style="width:112px"></div></div>
     <div id="bom-items-wrap"></div>
 
@@ -600,6 +606,8 @@ var PT_YARATISH = {{ 'true' if current_user.ruxsat('mahsulot_turi', 'yaratish') 
 var PT_TAHRIR = {{ 'true' if current_user.ruxsat('mahsulot_turi', 'tahrirlash') else 'false' }};
 var PT_OCHIRISH = {{ 'true' if current_user.ruxsat('mahsulot_turi', 'ochirish') else 'false' }};
 var PO_YARATISH = {{ 'true' if current_user.ruxsat('ishlab_buyurtma', 'yaratish') else 'false' }};
+// kech135 (zip 161): «Ishlab chiqarish buyurtmalari: Ko'rish» — yo'q bo'lsa «Ishlab chiqarish» yorlig'i va ro'yxati yo'q (so'rov ham yuborilmaydi)
+var PO_KORISH = {{ 'true' if current_user.ruxsat('ishlab_buyurtma', 'korish') else 'false' }};
 const HOLAT_NOMI = {draft: 'Qoralama', in_progress: 'Jarayonda', completed: 'Yakunlandi', cancelled: 'Bekor qilindi'};
 const HOLAT_CHIP = [['hammasi', 'Hammasi'], ['draft', 'Qoralama'], ['in_progress', 'Jarayonda'],
                     ['completed', 'Yakunlandi'], ['cancelled', 'Bekor qilingan']];
@@ -608,6 +616,7 @@ const QACHON_NOMI = {doim: 'Har doim', qoplama: 'Faqat qoplamali buyurtmada', ta
                      doim_qoplama: 'Har doim (qoplama sifatida)'};
 
 function switchProdTab(tab){
+  if (tab === 'orders' && !PO_KORISH) tab = 'types';   // kech135 (zip 161): ruxsatsiz — buyurtmalar yorlig'i yo'q
   document.querySelectorAll('.prod-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   document.querySelectorAll('.prod-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('panel-' + tab).classList.add('active');
@@ -618,11 +627,42 @@ function switchProdTab(tab){
 function closeModal(id){ document.getElementById(id).classList.remove('open'); }
 function openModalEl(id){ document.getElementById(id).classList.add('open'); }
 
+// kech135 (zip 161 — egasi QARORI 09.10, O'LCHANGAN work/k161/olchov161.py): tarkib oynasining material tanlovi `/api/material-royxati`
+// dan — «Materiallar ro'yxati (retsept va tarkib uchun)» YOKI «Omborxona → Materiallar: Ko'rish» yetadi. Ilgari `/api/inventory`:
+// faqat tarkib ruxsati bor rolga 403 → `[]` sahifa yopilguncha saqlanib, tanlov XABARSIZ bo'sh edi. Endi ro'yxat FAQAT muvaffaqiyatli
+// javobda saqlanadi, rad sababi `invItemsXato` da (oynada ko'rsatiladi); oyna qayta ochilganda qayta so'raladi. Qoldiq (`stock_quantity`)
+// — faqat «Materiallar: Ko'rish» bor rolga keladi.
+let invItemsXato = '';
 async function loadInvItems(){
   if (invItemsCache) return invItemsCache;
-  const res = await fetch('/api/inventory');
-  invItemsCache = res.ok ? await res.json() : [];
-  return invItemsCache;
+  if (invItemsXato) return [];
+  try {
+    const res = await fetch('/api/material-royxati');
+    if (res.ok) {
+      invItemsCache = await res.json();
+      invItemsXato = '';
+      return invItemsCache;
+    }
+    invItemsXato = (typeof serverXatoSababi === 'function')
+      ? await serverXatoSababi(res, "Materiallar ro'yxati yuklanmadi") : "Materiallar ro'yxati yuklanmadi";
+  } catch (e) {
+    invItemsXato = "Server bilan aloqa yo'q — materiallar ro'yxati yuklanmadi";
+  }
+  return [];
+}
+// Tanlovdagi material yozuvi: qoldiq kelgan bo'lsa — «— omborda 12,5 kg» (avvalgidek, ombor birligi), kelmasa — «— kg» (tarkib
+// birligi — miqdor yonidagi bilan bir xil).
+function bomMaterialMatni(i) {
+  const qoldiq = (typeof i.stock_quantity === 'number')
+    ? 'omborda ' + sonKorinish(i.stock_quantity) + ' ' + i.unit
+    : (i.base_unit || i.unit);
+  return i.item_name + ' — ' + qoldiq;
+}
+function bomMaterialXatoKorsat() {
+  const el = document.getElementById('bom-material-xato');
+  if (!el) return;
+  el.textContent = invItemsXato ? "Material tanlab bo'lmaydi: " + invItemsXato : '';
+  el.hidden = !invItemsXato;
 }
 
 // ── Son va sana ko'rinishi ───────────────────────────────────────────────────────────────────────────
@@ -1007,11 +1047,16 @@ function addBomItemRow(existing){
     // 2026-09-16: material RETSEPT birligida (base_unit, masalan "g") ko'rsatiladi, ombor birligi (unit, masalan
     // "qop") emas. kech113: yonida ombordagi qoldiq; retseptdagi material yashirilgan bo'lsa ham ro'yxatda qoladi
     // (aks holda tahrirda tanlov jim boshqa materialga o'tib ketardi).
-    const opts = items.map(i => `<option value="${i.id}" data-unit="${escapeHtml(i.base_unit || i.unit)}" data-stock-unit="${escapeHtml(i.unit)}" data-has-conversion="${i.base_unit && i.base_unit !== i.unit ? '1' : ''}">${escapeHtml(i.item_name)} — omborda ${escapeHtml(sonKorinish(i.stock_quantity))} ${escapeHtml(i.unit)}</option>`);
+    // kech135 (zip 161): qoldiq faqat «Materiallar: Ko'rish» bor rolga (`bomMaterialMatni`); ro'yxat YUKLANGAN, lekin material unda
+    // yo'q — Omborxonadan o'chirilgan («(o'chirilgan)»); ro'yxat yuklanmagan bo'lsa — belgisiz nomi (ilgari ikkalasida ham
+    // «yashirilgan» belgisi — ruxsat yo'q rolga noto'g'ri) va oynada sababi.
+    const royxatBor = !!invItemsCache;
+    bomMaterialXatoKorsat();
+    const opts = items.map(i => `<option value="${i.id}" data-unit="${escapeHtml(i.base_unit || i.unit)}" data-stock-unit="${escapeHtml(i.unit)}" data-has-conversion="${i.base_unit && i.base_unit !== i.unit ? '1' : ''}">${escapeHtml(bomMaterialMatni(i))}</option>`);
     if (existing && !items.some(i => i.id === existing.inventory_id)) {
-      opts.push(`<option value="${existing.inventory_id}" data-unit="${escapeHtml(existing.unit || '')}" data-stock-unit="${escapeHtml(existing.unit || '')}" data-has-conversion="">${escapeHtml(existing.item_name)} (yashirilgan)</option>`);
+      opts.push(`<option value="${existing.inventory_id}" data-unit="${escapeHtml(existing.unit || '')}" data-stock-unit="${escapeHtml(existing.unit || '')}" data-has-conversion="">${escapeHtml(existing.item_name)}${royxatBor ? " (o'chirilgan)" : ''}</option>`);
     }
-    if (!existing) opts.unshift('<option value="">— Material tanlang —</option>');
+    if (!existing) opts.unshift(`<option value="">${royxatBor ? '— Material tanlang —' : "— Material tanlab bo'lmaydi —"}</option>`);
     sel.innerHTML = opts.join('');
     if (existing) {
       sel.value = String(existing.inventory_id);
@@ -1064,6 +1109,8 @@ async function openBomModal(productTypeId, bomId){
   document.getElementById('bom-f-product-type-id').value = productTypeId;
   document.getElementById('bom-f-editing-id').value = bomId || '';
   document.getElementById('bom-items-wrap').innerHTML = '';
+  if (!invItemsCache) invItemsXato = '';   // kech135 (zip 161): oyna ochilganda ro'yxat qayta so'raladi
+  bomMaterialXatoKorsat();
   const pt = productTypesCache.find(p => p.id === productTypeId);
   bomBirlik = pt ? birlikYoz(pt.unit) : 'birlik';
   document.getElementById('bom-batch-label').textContent = `Tarkib necha ${bomBirlik} uchun yozilgan`;
@@ -1572,10 +1619,20 @@ function poDavrTanloviniQur() {
   sel.innerHTML = opts.join('');
 }
 
+// kech135 (zip 161): ro'yxat yuklanmasa (rad, tarmoq) — jadvalda SABABI (ilgari «Hali ishlab chiqarish yo'q» — yolg'on); ruxsatsiz rolga
+// so'rov yuborilmaydi (yorliq ham yo'q).
+let poXato = '';
 async function loadProductionOrders(){
+  if (!PO_KORISH) return;
   const davr = document.getElementById('po-davr').value || 'hammasi';
-  const res = await fetch('/api/production/orders?oy=' + encodeURIComponent(davr));
-  poRoyxat = res.ok ? await res.json() : [];
+  try {
+    const res = await fetch('/api/production/orders?oy=' + encodeURIComponent(davr));
+    if (res.ok) { poRoyxat = await res.json(); poXato = ''; }
+    else { poRoyxat = []; poXato = await serverXatoSababi(res, "Ishlab chiqarishlar ro'yxati yuklanmadi"); }
+  } catch (e) {
+    poRoyxat = [];
+    poXato = "Server bilan aloqa yo'q — ishlab chiqarishlar ro'yxati yuklanmadi";
+  }
   poMahsulotTanloviniQur();
   poChiz();
 }
@@ -1670,12 +1727,13 @@ function poChiz() {
   saralangan.forEach(po => { if (son[po.status] !== undefined) son[po.status] += 1; });
   document.getElementById('po-holat-chiplar').innerHTML = HOLAT_CHIP.map(([kalit, nom]) =>
     `<button type="button" class="po-chip chip${poHolatTanlov === kalit ? ' faol' : ''}" aria-pressed="${poHolatTanlov === kalit ? 'true' : 'false'}" onclick="poHolatTanla('${kalit}')">${escapeHtml(nom)} · ${son[kalit]}</button>`).join('');
-  document.getElementById('po-soni').textContent = poRoyxat.length ? String(poRoyxat.length) : '';
+  const poSoni = document.getElementById('po-soni');   // kech135 (zip 161): ruxsatsiz rolda yorliq (va hisoblagich) yo'q
+  if (poSoni) poSoni.textContent = poRoyxat.length ? String(poRoyxat.length) : '';
   const qatorlar = saralangan.filter(po => poHolatTanlov === 'hammasi' || po.status === poHolatTanlov);
   const tbody = document.getElementById('po-list');
   tbody.innerHTML = qatorlar.length
     ? qatorlar.map(poQatorHtml).join('')
-    : `<tr class="po-bosh"><td colspan="8" style="text-align:center;padding:24px;color:var(--text3)">${poRoyxat.length ? 'Tanlangan saralashda ishlab chiqarish yo\'q' : 'Hali ishlab chiqarish yo\'q'}</td></tr>`;
+    : `<tr class="po-bosh"><td colspan="8" style="text-align:center;padding:24px;color:var(--text3);overflow-wrap:anywhere">${poXato ? escapeHtml(poXato) : (poRoyxat.length ? 'Tanlangan saralashda ishlab chiqarish yo\'q' : 'Hali ishlab chiqarish yo\'q')}</td></tr>`;
   const davrSel = document.getElementById('po-davr');
   const davrNomi = davrSel.selectedOptions[0] ? davrSel.selectedOptions[0].textContent : '';
   const yakun = saralangan.filter(po => po.status === 'completed');
@@ -1869,10 +1927,15 @@ loadProductTypes();
 (async function () {
   let poId = null;
   try { poId = parseInt(new URLSearchParams(location.search).get('po') || '', 10); } catch (e) { poId = null; }
+  if (poId > 0 && !PO_KORISH) {
+    showMsg("Rolingizda «Ishlab chiqarish buyurtmalari» ni ko'rish ruxsati yo'q. Admin bilan bog'laning.", 'error');
+    return;
+  }
   if (poId > 0) {
     document.getElementById('po-davr').value = 'hammasi';
     switchProdTab('orders');
   }
+  if (!PO_KORISH) return;   // kech135 (zip 161): ruxsatsiz — ro'yxat so'ralmaydi (ilgari har ochilishda 403)
   await loadProductionOrders();
   if (poId > 0) {
     if (poRoyxat.some(p => p.id === poId)) poBatafsil(poId);
