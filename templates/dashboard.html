@@ -48,7 +48,22 @@
 .master-rank{width:24px;height:24px;border-radius:6px;background:var(--f-f5f5f5);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:var(--text3);flex-shrink:0}
 .master-rank.top{background:var(--gold-btn);color:#fff}
 
-/* Mobile carousel — faqat telefon kengligida ishlaydi, desktop o'zgarmaydi */
+/* Mobile carousel — faqat telefon kengligida (≤ 768 px) ishlaydi, desktop o'zgarmaydi.
+   kech136 (zip 162, O'LCHANGAN work/k162/olchov162.py): nuqtalarning asosiy qoidasi (`display:none`) media blokidan KEYIN turgani
+   uchun telefon qoidasini bekor qilardi — nuqtalar hech qachon ko'rinmasdi; endi asosiy qoida OLDIN. Nuqta — tugma (bosilsa o'sha
+   karta; 760 px da sichqoncha g'ildiragi ikkinchi kartaga yetkazmasdi): tugma 24 × 36 px (umumiy tugma qoidasi — telefonda 36 px,
+   burchak 8 px, yozuv 13 px; barmoq bilan bosish maydoni), ko'rinadigan nuqta — uning `::before` i (6 px, faoli 16 px). Faol bo'lmagan
+   nuqta fonga nisbatan ≥ 3:1 (ilgari `--f-d1d5db` — kunduzgi 1.39, tungi 1.54): `--text3` 80 % — kunduzgi ≈ 3.3, tungi ≈ 4.3 (faol
+   oltin nuqta 3.4 / 4.9). Nuqtalar qatori manfiy chekka bilan — nuqta markazi va keyingi blok joyi avvalgidek (karta ostidan 11 px /
+   28 px); qatorning bo'sh joyi bosishni ushlamaydi (`pointer-events`).
+   Kartalar orasi — `#topGrid` ning o'z `style` atributidagi 14px (telefon blokidagi `gap:12px` hech qachon ishlamagan — olib
+   tashlandi, ko'rinish o'zgarmadi). */
+#topGridDots{display:none}
+.carousel-dot{position:relative;flex:0 0 auto;width:24px;height:36px;padding:0;margin:0;border:0;border-radius:8px;font-size:13px;
+  background:transparent;cursor:pointer;pointer-events:auto;-webkit-appearance:none;appearance:none;-webkit-tap-highlight-color:transparent}
+.carousel-dot::before{content:'';position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;
+  background:var(--text3);opacity:.8;transition:width .2s,margin-left .2s,background-color .2s,opacity .2s}
+.carousel-dot.active::before{width:16px;margin-left:-8px;border-radius:3px;background:var(--gold);opacity:1}
 @media(max-width:768px){
   #topGrid{
     display:flex !important;
@@ -56,7 +71,6 @@
     overflow-x:auto;
     scroll-snap-type:x mandatory;
     -webkit-overflow-scrolling:touch;
-    gap:12px;
     padding-bottom:4px;
     margin-left:-2px;margin-right:-2px;padding-left:2px;padding-right:2px;
     scrollbar-width:none;
@@ -68,12 +82,9 @@
     min-width:0;
   }
   #topGridDots{
-    display:flex;justify-content:center;gap:6px;margin:-6px 0 14px;
+    display:flex;justify-content:center;gap:0;margin:-21px 0 -1px;pointer-events:none;
   }
 }
-#topGridDots{display:none}
-.carousel-dot{width:6px;height:6px;border-radius:50%;background:var(--f-d1d5db);transition:all .2s}
-.carousel-dot.active{background:var(--gold);width:16px;border-radius:3px}
 </style>
 {% endblock %}
 
@@ -140,8 +151,10 @@
       </div>
     </div>
   </div>
-  <div id="topGridDots"></div>
-  <style>@media(max-width:900px){ #topGrid{grid-template-columns:1fr} }</style>
+  {# kech136 (zip 162): `role="group"` — karusel kartalari tanlovi; nuqtalar (tugmalar) JS da (`initTopGridDots`). Shu yerdagi
+     `@media(max-width:900px)` bitta ustun qoidasi olib tashlandi — `#topGrid` ning o'z `style` atributi ustun turgani uchun hech qachon
+     ishlamagan (O'LCHANGAN: 769–900 px da ikki ustun); ko'rinish o'zgarmadi. #}
+  <div id="topGridDots" role="group" aria-label="Kartalar"></div>
 
   <!-- Moliya — kech118 (ROLLAR): «Moliyaviy hisobot» ruxsati borlarga (ilgari faqat Admin) -->
   {% if current_user.ruxsat('moliya', 'korish') %}
@@ -767,28 +780,80 @@ checkQurilmaSorovlari();
 loadAll();
 setInterval(loadAll,5*60*1000);
 
-// ══ Mobil carousel dot-indikator (faqat vizual, hech qanday mavjud funksiyaga tegmaydi) ══
+// ══ Mobil karusel nuqtalari (telefonda ≤ 768 px ko'rinadi; desktopda yashirin) ══
+// kech136 (zip 162, O'LCHANGAN work/k162/olchov162.py): (1) ilgari `resize` da butun init qayta yurardi — har safar yangi `scroll`
+// tinglovchisi qo'shilar (4 o'lcham o'zgarishida 6 ta) va faol nuqta birinchiga qaytardi (ikkinchi karta ko'rinib turganda; telefonda
+// manzil satri yashirinishi / burilish — `resize`); endi tinglovchilar BIR MARTA, faol nuqta HOZIRGI surilishdan. (2) Faol karta —
+// panjara markaziga eng yaqin karta (ilgari kartalar orasi 12px deb qat'iy olinardi, haqiqiysi 14px); chetga surilganda — chetdagi
+// karta. (3) Nuqta — tugma: bosilsa (yoki Tab + Enter) o'sha karta markazga suriladi (760 px da sichqoncha g'ildiragi ikkinchi
+// kartaga yetkazmasdi); nomi — karta sarlavhasi.
+function topGridKartalari(){
+  const grid = document.getElementById('topGrid');
+  return grid ? Array.from(grid.children).filter(el => el.classList.contains('card')) : [];
+}
+function topGridFaol(){
+  const grid = document.getElementById('topGrid');
+  const kartalar = topGridKartalari();
+  if (!grid || kartalar.length < 2) return 0;
+  const chekka = grid.scrollWidth - grid.clientWidth;
+  if (chekka <= 1 || grid.scrollLeft <= 1) return 0;
+  if (grid.scrollLeft >= chekka - 1) return kartalar.length - 1;
+  const g = grid.getBoundingClientRect();
+  const markaz = g.left + g.width / 2;
+  let eng = 0, farq = Infinity;
+  kartalar.forEach((k, i) => {
+    const r = k.getBoundingClientRect();
+    const f = Math.abs(r.left + r.width / 2 - markaz);
+    if (f < farq) { farq = f; eng = i; }
+  });
+  return eng;
+}
+function topGridNuqtaYangila(){
+  const dotsBox = document.getElementById('topGridDots');
+  if (!dotsBox) return;
+  const idx = topGridFaol();
+  dotsBox.querySelectorAll('.carousel-dot').forEach((d, i) => {
+    const faol = i === idx;
+    d.classList.toggle('active', faol);
+    if (faol) d.setAttribute('aria-current', 'true'); else d.removeAttribute('aria-current');
+  });
+}
+function topGridKartagaSur(i){
+  const grid = document.getElementById('topGrid');
+  const karta = topGridKartalari()[i];
+  if (!grid || !karta) return;
+  // karta markazi panjara markaziga (`scroll-snap-align:center` bilan bir xil), chegaradan chiqmaydi
+  const g = grid.getBoundingClientRect(), r = karta.getBoundingClientRect();
+  const chap = grid.scrollLeft + (r.left + r.width / 2) - (g.left + g.width / 2);
+  const sekin = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  grid.scrollTo({left: Math.max(0, Math.min(chap, grid.scrollWidth - grid.clientWidth)), behavior: sekin ? 'auto' : 'smooth'});
+}
 function initTopGridDots(){
   const grid = document.getElementById('topGrid');
   const dotsBox = document.getElementById('topGridDots');
-  if(!grid || !dotsBox) return;
-  const cards = Array.from(grid.children).filter(el=>el.classList.contains('card'));
-  if(!cards.length) return;
-  dotsBox.innerHTML = cards.map((_,i)=>`<span class="carousel-dot${i===0?' active':''}"></span>`).join('');
-  const dots = dotsBox.querySelectorAll('.carousel-dot');
-  let ticking = false;
-  grid.addEventListener('scroll', ()=>{
-    if(ticking) return;
-    ticking = true;
-    requestAnimationFrame(()=>{
-      const cardW = cards[0].getBoundingClientRect().width + 12;
-      const idx = Math.min(dots.length-1, Math.round(grid.scrollLeft / cardW));
-      dots.forEach((d,i)=>d.classList.toggle('active', i===idx));
-      ticking = false;
-    });
-  }, {passive:true});
+  if (!grid || !dotsBox || initTopGridDots.ulandi) return;
+  const kartalar = topGridKartalari();
+  if (!kartalar.length) return;
+  initTopGridDots.ulandi = true;
+  dotsBox.innerHTML = kartalar.map((k, i) => {
+    const h = k.querySelector('.card-head h3');
+    const nom = escapeHtml((h && h.textContent.trim()) || ((i + 1) + '-karta'));
+    return `<button type="button" class="carousel-dot" data-i="${i}" aria-label="${nom}" title="${nom}"></button>`;
+  }).join('');
+  dotsBox.addEventListener('click', e => {
+    const b = e.target.closest('.carousel-dot');
+    if (b) topGridKartagaSur(Number(b.dataset.i));
+  });
+  let navbat = false;
+  const yangila = () => {
+    if (navbat) return;
+    navbat = true;
+    requestAnimationFrame(() => { navbat = false; topGridNuqtaYangila(); });
+  };
+  grid.addEventListener('scroll', yangila, {passive: true});
+  window.addEventListener('resize', yangila);
+  topGridNuqtaYangila();
 }
-window.addEventListener('load', initTopGridDots);
-window.addEventListener('resize', initTopGridDots);
+initTopGridDots();
 </script>
 {% endblock %}
