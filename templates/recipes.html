@@ -246,15 +246,18 @@ async function deleteRecipe(id, nom, ishlatilgan) {
 
 // ── OMBORXONA MATERIALLARINI YUKLASH (ingredient tanlash uchun) ──
 // kech133 (zip 157, O'LCHANGAN — work/k157/olchov157.py): ro'yxat FAQAT muvaffaqiyatli javobda saqlanadi (ilgari xato javob ham `[]`
-// bo'lib sahifa yopilguncha qolardi). Rad sababi (403 — rolda «Omborxona → Materiallar: Ko'rish» yo'q; tarmoq uzilishi) —
-// `invItemsXato` da: tanlash paneli SHUNI yozadi (ilgari «Material topilmadi» — sababi noma'lum edi).
+// bo'lib sahifa yopilguncha qolardi). Rad sababi (403 — rolda ruxsat yo'q; tarmoq uzilishi) — `invItemsXato` da: tanlash paneli
+// SHUNI yozadi (ilgari «Material topilmadi» — sababi noma'lum edi).
+// kech135 (zip 161 — egasi QARORI 09.10): ro'yxat `/api/material-royxati` dan — «Materiallar ro'yxati (retsept va tarkib uchun)»
+// YOKI «Omborxona → Materiallar: Ko'rish» yetadi (ilgari `/api/inventory` — faqat retsept ruxsati bor rol material qo'sha olmasdi).
+// Javobda faqat id, nomi, birligi, turkumi (narxsiz) — shu oyna boshqasini ishlatmaydi.
 let invItemsCache = null;
 let invItemsXato = '';
 async function loadInvItemsForRecipe() {
   if (invItemsCache) return invItemsCache;
   if (invItemsXato) return [];   // xato qayd etilgan — qayta so'rov oyna / tanlash paneli QAYTA ochilganda (har harf terilganda emas)
   try {
-    const res = await fetch('/api/inventory');
+    const res = await fetch('/api/material-royxati');
     if (res.ok) {
       invItemsCache = await res.json();
       invItemsXato = '';
