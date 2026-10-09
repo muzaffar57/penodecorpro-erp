@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PIN kod — PenoDecorPro</title>
+  <link rel="stylesheet" href="/static/style.css?v={{ static_version }}">
+  <link rel="stylesheet" href="/static/ranglar.css?v={{ static_version }}">
+  {# kech133 (zip 159 — egasi QARORI 09.10 «PIN ni hodimning o'zi o'zgartirsin»): admin bergan PIN VAQTINCHALIK — telefon ruxsat
+     berilgach hodim avval o'z PIN ini qo'yadi (`majburiy`: hozirgi PIN so'ralmaydi — kirishda hozirgina terilgan; panelga
+     o'tib bo'lmaydi). Paneldagi «🔒 PIN» — ixtiyoriy almashtirish (hozirgi PIN shart). Server — `POST /api/hodim/pin`. #}
+  <style>
+    body{background:var(--f-f8f8f6);margin:0;min-height:100vh;height:auto;overflow:visible;display:flex;align-items:center;justify-content:center}
+    .h-wrap{width:100%;max-width:400px;padding:20px;box-sizing:border-box}
+    .h-card{background:var(--white);border-radius:16px;border:1px solid var(--ch-ebebeb);padding:28px 24px}
+    .h-title{font-size:18px;font-weight:700;color:var(--m-111111);margin-bottom:8px;text-align:center}
+    .h-matn{font-size:14px;color:var(--m-333333);line-height:1.6;margin-bottom:18px;text-align:center}
+    .field-label{font-size:12px;color:var(--text3);font-weight:500;text-transform:uppercase;letter-spacing:.3px;margin-bottom:5px;display:block}
+    .field-input{width:100%;box-sizing:border-box;min-height:var(--h-lg);padding:0 14px;border:1.5px solid var(--ch-e8e8e8);border-radius:var(--r-btn);font-size:18px;line-height:20px;color:var(--m-111111);outline:none;background:var(--f-fafafa);margin-bottom:14px;letter-spacing:8px;font-weight:700;text-align:center}
+    .field-input:focus{border-color:var(--gold);background:var(--white)}
+    .h-btn{width:100%;box-sizing:border-box;min-height:var(--h-lg);padding:0 20px;background:var(--m-111111);color:var(--white);border:none;border-radius:var(--r-btn);font-size:16px;font-weight:600;cursor:pointer;margin-top:4px}
+    .h-btn:disabled{opacity:.6;cursor:wait}
+    .h-xato{display:none;background:var(--f-fee2e2);border-radius:8px;padding:11px 14px;color:var(--m-dc2626);font-size:13px;margin-bottom:14px}
+    .h-kichik{font-size:12px;color:var(--text3);margin-top:14px;text-align:center;line-height:1.5}
+    .h-orqaga{display:block;text-align:center;margin-top:14px;font-size:14px;color:var(--m-333333)}
+  </style>
+</head>
+<body>
+  <div class="h-wrap">
+    <div class="h-card">
+      {% if majburiy %}
+      <div class="h-title">🔒 O'z PIN kodingizni qo'ying</div>
+      <div class="h-matn">{{ employee.name }}, admin bergan PIN — vaqtinchalik. Endi faqat o'zingiz biladigan 4 xonali PIN qo'ying —
+        keyingi kirishlarda shu PIN bilan kirasiz.</div>
+      {% else %}
+      <div class="h-title">🔒 PIN kodni o'zgartirish</div>
+      <div class="h-matn">Hozirgi PIN va yangi 4 xonali PIN ni yozing.</div>
+      {% endif %}
+      <div class="h-xato" id="pinXato" role="alert"></div>
+      <form id="pinForma" autocomplete="off" novalidate>
+        {% if not majburiy %}
+        <label class="field-label" for="pinEski">Hozirgi PIN</label>
+        <input class="field-input" type="password" id="pinEski" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="••••" autocomplete="current-password">
+        {% endif %}
+        <label class="field-label" for="pinYangi">Yangi PIN</label>
+        <input class="field-input" type="password" id="pinYangi" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="••••" autocomplete="new-password">
+        <label class="field-label" for="pinTakror">Yangi PIN — yana bir marta</label>
+        <input class="field-input" type="password" id="pinTakror" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="••••" autocomplete="new-password">
+        <button type="submit" class="h-btn" id="pinSaqla">Saqlash</button>
+      </form>
+      <div class="h-kichik">1111, 1234 kabi oson PIN qabul qilinmaydi. PIN ni hech kimga aytmang — admin ham uni bilmaydi.</div>
+      {% if majburiy %}
+      <a class="h-orqaga" href="/hodim/logout">Chiqish</a>
+      {% else %}
+      <a class="h-orqaga" href="/hodim">← Panelga qaytish</a>
+      {% endif %}
+    </div>
+  </div>
+  <script>
+    (function () {
+      var forma = document.getElementById('pinForma');
+      var xato = document.getElementById('pinXato');
+      var tugma = document.getElementById('pinSaqla');
+      function korsat(m) { xato.textContent = '⚠️ ' + m; xato.style.display = 'block'; }
+      forma.addEventListener('submit', function (e) {
+        e.preventDefault();
+        xato.style.display = 'none';
+        var eskiEl = document.getElementById('pinEski');
+        var tana = {yangi: document.getElementById('pinYangi').value.trim(), takror: document.getElementById('pinTakror').value.trim()};
+        if (eskiEl) {
+          tana.eski = eskiEl.value.trim();
+          if (!/^\d{4}$/.test(tana.eski)) { korsat('Hozirgi PIN ni yozing (4 xonali raqam)'); return; }
+        }
+        if (!/^\d{4}$/.test(tana.yangi)) { korsat("Yangi PIN aynan 4 xonali raqam bo'lishi kerak"); return; }
+        if (tana.yangi !== tana.takror) { korsat('Yangi PIN ikki marta bir xil yozilmadi'); return; }
+        tugma.disabled = true;
+        tugma.textContent = 'Saqlanmoqda…';
+        fetch('/api/hodim/pin', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'},
+                                 body: JSON.stringify(tana)}).then(function (r) {
+          if (r.ok) { location.href = '/hodim'; return null; }
+          if (r.status === 401) { location.href = '/hodim/login'; return null; }
+          return r.json().catch(function () { return {}; }).then(function (d) {
+            korsat((d && typeof d.detail === 'string') ? d.detail : "Saqlanmadi — qayta urining");
+          });
+        }).catch(function () {
+          korsat("Internet aloqasi yo'q — qayta urining");
+        }).then(function () {
+          tugma.disabled = false;
+          tugma.textContent = 'Saqlash';
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

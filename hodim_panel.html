@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hodim paneli — PenoDecorPro</title>
+  <link rel="stylesheet" href="/static/style.css?v={{ static_version }}">
+  <link rel="stylesheet" href="/static/ranglar.css?v={{ static_version }}">
+  <style>
+    /* kech133 (zip 158, O'LCHANGAN — work/k158/hodim_skrol.py, haqiqiy Chromium 375 / 390 / 1440 px): style.css dagi asosiy ilova
+       qoidasi `body{height:100vh;overflow:hidden}` (ilova ichki blokda suriladi) 2026-09-30 da style.css ulangandan beri bu MUSTAQIL
+       sahifada ham qo'llanardi — sahifa umuman SURILMASDI: «Oyligim» ro'yxati uzaygach «💰 Avans oldim deb yozish» formasi ekrandan
+       tashqarida qoldi (20 to'lovda forma 915 px da, ekran 812 px; g'ildirak / barmoq — siljish 0). Endi sahifa butun hujjat bo'ylab. */
+    body{background:var(--f-f8f8f6);margin:0;min-height:100vh;height:auto;overflow:visible}
+    .h-topbar{background:var(--white);border-bottom:1px solid var(--ch-eeeeee);padding:16px 20px;display:flex;justify-content:space-between;align-items:center}
+    .h-topbar .name{font-size:16px;font-weight:700;color:var(--m-111111)}
+    .h-topbar .role{font-size:12px;color:var(--text3)}
+    .h-logout{display:inline-flex;align-items:center;box-sizing:border-box;min-height:var(--h-sm);font-size:13px;font-weight:600;color:var(--m-dc2626);text-decoration:none;padding:0 12px;border-radius:var(--r-btn);border:1px solid var(--ch-fadbd8)}
+    /* kech133 (zip 159): o'z PIN ini o'zgartirish havolasi (egasi qarori 09.10 — PIN ni hodim o'zi qo'yadi) */
+    .h-top-tugmalar{display:flex;gap:8px;align-items:center;flex-shrink:0}
+    .h-pin{display:inline-flex;align-items:center;box-sizing:border-box;min-height:var(--h-sm);font-size:13px;font-weight:600;color:var(--m-333333);text-decoration:none;padding:0 12px;border-radius:var(--r-btn);border:1px solid var(--ch-e8e8e8)}
+    .h-body{max-width:480px;margin:0 auto;padding:18px}
+    .h-card{background:var(--white);border-radius:16px;border:1px solid var(--ch-ebebeb);padding:22px;margin-bottom:16px}
+    .h-card-title{font-size:16px;font-weight:700;color:var(--m-111111);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+    .field-label{font-size:12px;color:var(--text3);font-weight:500;text-transform:uppercase;letter-spacing:.3px;margin-bottom:5px;display:block}
+    .field-input{width:100%;min-height:var(--h-btn);padding:0 14px;border:1.5px solid var(--ch-e8e8e8);border-radius:var(--r-btn);font-size:var(--fs-maydon);line-height:20px;color:var(--m-111111);outline:none;background:var(--f-fafafa);margin-bottom:14px;box-sizing:border-box}
+    .field-input:focus{border-color:#2563EB;background:var(--white)}
+    .h-btn{width:100%;box-sizing:border-box;min-height:var(--h-btn);padding:0 20px;background:#2563EB;color:#fff;border:none;border-radius:var(--r-btn);font-size:14px;line-height:20px;font-weight:600;cursor:pointer}
+    .h-btn:disabled{background:var(--f-cccccc);cursor:not-allowed}
+    .h-msg{padding:11px 14px;border-radius:8px;font-size:13px;margin-bottom:14px;display:none}
+    .h-msg.ok{background:var(--f-dcfce7);color:var(--m-166534);display:block}
+    .h-msg.err{background:var(--f-fee2e2);color:var(--m-dc2626);display:block}
+    .req-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--ch-f5f5f5)}
+    .req-row:last-child{border-bottom:none}
+    .req-amount{font-weight:700;font-size:14px;color:var(--m-111111)}
+    .req-date{font-size:12px;color:var(--text3);margin-top:2px}
+    .req-status{font-size:12px;font-weight:700;padding:4px 10px;border-radius:20px}
+    .st-pending{background:var(--f-fffbeb);color:var(--m-b45309)}
+    .st-confirmed{background:var(--f-dcfce7);color:var(--m-166534)}
+    .st-rejected{background:var(--f-fee2e2);color:var(--m-dc2626)}
+    .empty{text-align:center;padding:24px;color:var(--text3);font-size:13px}
+    /* kech118 (D-1, G6-21): «Oyligim» va rad etish sababi */
+    .req-sabab{font-size:13px;color:var(--m-b91c1c);margin-top:4px}
+    .oy-blok{padding:12px 0;border-bottom:1px solid var(--ch-f0f0f0)}
+    .oy-blok:last-child{border-bottom:none;padding-bottom:0}
+    .oy-blok:first-child{padding-top:0}
+    .oy-nomi{font-size:14px;font-weight:700;color:var(--m-111111);margin-bottom:8px}
+    .oy-nomi small{font-weight:500;color:var(--text3);font-size:12px}
+    .oy-qator{display:flex;justify-content:space-between;gap:10px;font-size:14px;padding:4px 0;color:var(--m-333333)}
+    .oy-qator b{white-space:nowrap}
+    .oy-izoh{font-size:12px;color:var(--text3);margin:-2px 0 4px}
+    .oy-qolgan{border-top:1px dashed var(--ch-e5e5e5);margin-top:4px;padding-top:8px;font-weight:700}
+    .oy-tolovlar{font-size:13px;color:var(--text3);margin-top:6px;line-height:1.6}
+    /* kech133 (zip 158 — egasi 09.10): tugagan oylar — yopiq («shtorka»), joriy oy — ochiq; oxirgi 12 oy */
+    .oy-yopiq{border-top:1px solid var(--ch-f0f0f0)}
+    .oy-yopiq > summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px;
+      min-height:44px;padding:6px 0;font-size:14px;font-weight:700;color:var(--m-111111)}
+    .oy-yopiq > summary::-webkit-details-marker{display:none}
+    .oy-yopiq > summary .oy-xulosa{font-size:13px;font-weight:600;color:var(--m-333333);white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+    .oy-yopiq > summary .oy-xulosa::after{content:'▾';font-size:12px;color:var(--text3);transition:transform .15s}
+    .oy-yopiq[open] > summary .oy-xulosa::after{transform:rotate(180deg)}
+    .oy-yopiq > .oy-blok, .oy-yopiq > .oy-ichi{padding:0 0 12px}
+    .oy-qayta{min-height:var(--h-sm);margin-top:8px;padding:0 14px;border:1px solid var(--ch-e8e8e8);border-radius:var(--r-btn);
+      background:var(--white);color:var(--m-111111);font-size:13px;font-weight:600;cursor:pointer}
+  </style>
+</head>
+<body>
+  <div class="h-topbar">
+    <div>
+      <div class="name">👷 {{ employee.name }}</div>
+      <div class="role">{{ employee.position or 'Hodim' }}</div>
+    </div>
+    <div class="h-top-tugmalar">
+      <a href="/hodim/pin" class="h-pin" aria-label="PIN kodni o'zgartirish">🔒 PIN</a>
+      <a href="/hodim/logout" class="h-logout">Chiqish</a>
+    </div>
+  </div>
+
+  <div class="h-body">
+    {# kech133 (zip 158 — egasi tanlovi 09.10): avans formasi BIRINCHI (ilgari «Oyligim» dan keyin — ro'yxat uzaygach topilmay qoldi) #}
+    <div class="h-card">
+      <div class="h-card-title">💰 Avans oldim deb yozish</div>
+      <div id="h-msg" class="h-msg"></div>
+      <form id="req-form">
+        <label class="field-label">Summasi (so'm)</label>
+        <input class="field-input" type="text" inputmode="numeric" id="f-amount" placeholder="500 000" oninput="formatPriceInput(this)">
+
+        <label class="field-label">Qachon oldingiz?</label>
+        <input class="field-input" type="date" id="f-date" required>
+
+        <label class="field-label">Izoh (ixtiyoriy)</label>
+        <input class="field-input" type="text" id="f-notes" placeholder="Masalan: naqd, ustadan oldim">
+
+        <button type="submit" class="h-btn" id="submit-btn">Yuborish</button>
+      </form>
+      <div style="font-size:12px;color:var(--text3);margin-top:10px;text-align:center">
+        Yuborilgandan keyin — admin tasdiqlashi kerak
+      </div>
+    </div>
+
+    <!-- kech118 (D-1, G6-21 — egasi QARORI «Oylik ko'rinsin»): hisoblangan / olingan / qolgan; kech133 (zip 158): joriy oy ochiq,
+         tugagan oylar yopiq, oxirgi 12 oy -->
+    <div class="h-card">
+      <div class="h-card-title">💵 Oyligim</div>
+      <div id="oylik-list"><div class="empty">Yuklanmoqda...</div></div>
+    </div>
+
+    <div class="h-card">
+      <div class="h-card-title">📋 Mening so'rovlarim</div>
+      <div id="req-list"><div class="empty">Yuklanmoqda...</div></div>
+    </div>
+  </div>
+
+<script>
+// Bu sahifa base.html'ga bog'lanmagan (alohida, mustaqil sahifa), shuning
+// uchun escapeHtml() shu yerda alohida e'lon qilinadi (2026-09-13,
+// xavfsizlik tekshiruvi — izoh maydoni himoyasi uchun).
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+// ══ UMUMIY (kech106, 9 + 50-band C qismi — egasi qarori kech105: "Toshkent vaqti bo'yicha"): TOSHKENT VAQTI.
+// Server vaqtni bazadagi UTC da, ZONA BELGISIZ beradi ("2026-09-30T20:30:00"). `new Date(s)` bunday satrni
+// brauzerning MAHALLIY vaqti deb o'qiydi — Toshkentdagi kompyuterda 5 soat orqada (Toshkent 01.10 01:30 dagi to'lov
+// "30.09 20:30"), `new Date().toISOString().slice(0, 10)` esa UTC sanasi — Toshkent 00:00–05:00 da KECHAGI kun
+// (avans / kirim / xarajat standart sanasi o'tgan oyga tushardi). O'LCHANGAN: work/probe106ui.py (haqiqiy Chromium).
+// QOIDA: serverdan kelgan vaqtni ko'rsatish, "bugun" sanasi va joriy oy / yil — FAQAT shu yordamchilar orqali.
+// Brauzer qaysi mintaqada bo'lmasin, natija Toshkent: UTC+5, yozgi vaqt yo'q (server `database.TASHKENT_OFFSET`).
+// Bu blok base.html va hodim_panel.html da AYNAN bir xil (tools/test_toshkent_korinish_ui.js tekshiradi).
+function tkMs(v) {
+  // Server vaqti → haqiqiy UTC millisekund (NaN — qiymat yo'q / noto'g'ri). Zona belgisiz satr — UTC; faqat sana
+  // ("2026-10-01") — o'sha kun 00:00 UTC; Date va son — o'zi.
+  if (v === null || v === undefined || v === '') return NaN;
+  if (v instanceof Date) return v.getTime();
+  if (typeof v === 'number') return v;
+  let s = String(v).trim().replace(' ', 'T');
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) s += 'T00:00:00';
+  s = s.replace(/(\.\d{3})\d+/, '$1');
+  if (!/(Z|[+-]\d{2}:?\d{2})$/i.test(s)) s += 'Z';
+  return Date.parse(s);
+}
+function tkDate(v) {
+  // Toshkent devor soati — qaytgan Date ning UTC maydonlarida (getUTCFullYear / getUTCHours …). Argumentsiz — HOZIR.
+  const SILJISH_MS = 5 * 60 * 60 * 1000;
+  return new Date((arguments.length ? tkMs(v) : Date.now()) + SILJISH_MS);
+}
+// kech118 (B — U-05, O'LCHANGAN: audit Chromium da 'uz' tili «2026-09-29» va «2026 M09 29» berdi — brauzerning o'zbek
+// tili ma'lumotiga bog'liq): standart ('uz' / til berilmagan) ko'rinish — QO'LDA, har brauzerda bir xil: sana «01.10.2026»,
+// oy nomi bilan «1-oktabr, 2026», vaqt «01:30». Boshqa til ('ru-RU') — brauzerning o'zi (avvalgidek). Yangi global nom YO'Q
+// (oy nomlari va nol qo'shish — funksiya ichida): sahifadan funksiya olib ishlatadigan testlar o'zgarmaydi.
+function tkSana(v, til, opt) {   // "01.10.2026" ('uz'); {month: 'long'} — "1-oktabr, 2026"; 'ru-RU' — brauzer; yo'q — ''
+  const d = tkDate(v);
+  if (isNaN(d.getTime())) return '';
+  if (til && til !== 'uz') return d.toLocaleDateString(til, Object.assign({}, opt || {}, {timeZone: 'UTC'}));
+  const k = d.getUTCDate(), o = d.getUTCMonth(), y = d.getUTCFullYear();
+  if (opt && opt.month === 'long') {
+    const OY = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avgust', 'sentabr', 'oktabr', 'noyabr', 'dekabr'];
+    return k + '-' + OY[o] + (opt.year ? ', ' + y : '');
+  }
+  return String(k).padStart(2, '0') + '.' + String(o + 1).padStart(2, '0') + '.' + y;
+}
+function tkVaqt(v, til) {        // "01:30"
+  const d = tkDate(v);
+  if (isNaN(d.getTime())) return '';
+  if (til && til !== 'uz') return d.toLocaleTimeString(til, {hour: '2-digit', minute: '2-digit', timeZone: 'UTC'});
+  return String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0');
+}
+function tkSanaVaqt(v) {         // "01.10.2026 01:30"
+  const s = tkSana(v);
+  return s ? s + ' ' + tkVaqt(v) : '';
+}
+function tkToliq(v, til) {       // "01.10.2026, 01:30:00"
+  const d = tkDate(v);
+  if (isNaN(d.getTime())) return '';
+  if (til && til !== 'uz') return d.toLocaleString(til, {timeZone: 'UTC'});
+  return tkSana(v) + ', ' + tkVaqt(v) + ':' + String(d.getUTCSeconds()).padStart(2, '0');
+}
+function tkISO(v) {              // "2026-10-01" — Toshkent sanasi (<input type="date">); argumentsiz — BUGUN
+  const d = arguments.length ? tkDate(v) : tkDate();
+  return isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
+}
+function tkHozir() {             // joriy Toshkent {yil, oy (1–12), kun}
+  const d = tkDate();
+  return {yil: d.getUTCFullYear(), oy: d.getUTCMonth() + 1, kun: d.getUTCDate()};
+}
+function tkKunFarqi(v) {         // v ning Toshkent sanasi − bugungi Toshkent sanasi (kunlarda); noto'g'ri — NaN
+  const a = tkISO(v), b = tkISO();
+  return a ? Math.round((Date.parse(a + 'T00:00:00Z') - Date.parse(b + 'T00:00:00Z')) / 86400000) : NaN;
+}
+// ── 118-band (kech94): YAGONA son / narx kiritish qoidasi ──────────────────
+// parseNum / narxMatni / narxniOqi / narxKorinishi / formatPriceInput matni debts, finance,
+// finished, hodim_panel, inventory, kpi, orders, supplier_receive, suppliers
+// sahifalarida AYNAN bir xil (tools/test_narx_kiritish_ui.js tekshiradi).
+// Ilgari har sahifada o'z ta'rifi bor edi va kasr kiritgan foydalanuvchi
+// JIMGINA 10x / 100x yoki yaxlitlangan summa yuborardi: harflab "10.5" → 105,
+// "1234.56" → 123 456, yopishtirilgan "1.000.000" → 1, "1 228 752,75" → 100x.
+//  • Kasr belgisi — nuqta YOKI vergul (kiritilgan belgi saqlanadi); pulda
+//    ko'pi bilan 2 xona (tiyin — bazada Numeric(12,2)), ortig'i kiritilmaydi.
+//  • Ming ajratgich — bo'shliq. Bir xil belgi bir necha marta ("1.000.000")
+//    yoki ikki xil belgi ("1,234.56", "1.234,56") — oxirgisidan boshqasi ming
+//    ajratgich. Pulda yolg'iz belgi + AYNAN 3 raqam ("12.500") — ming ajratgich
+//    (3 xonali tiyin bo'lmaydi; harflab "1.000.000" ham shunday to'g'ri chiqadi);
+//    butun qismi 0 bilan boshlansa yoki noto'g'ri guruhlangan bo'lsa — kasr.
+//  • Pul maydoni manfiy bo'lmaydi: "-" yozilsa maydon 0 bo'ladi (orders.html
+//    2026-09-17 qoidasi — endi hamma sahifada; ilgari ba'zi sahifalar "-500"
+//    ni jimgina 500 qilardi). Harf va boshqa belgilar maydonga tushmaydi.
+//  • parseNum — umumiy son (o'lcham, miqdor ham): yolg'iz nuqta / vergul — kasr
+//    ("0.125" → 0.125), manfiy ishora saqlanadi, hech narsa bo'lmasa 0.
+//  • narxniOqi — prompt oynasidagi pul matni: narxMatni qoidasi bilan o'qiladi;
+//    raqamsiz yoki manfiy matn — NaN (chaqiruvchi rad etadi, 0 YUBORILMAYDI).
+//  • narxKorinishi — prompt oynasiga beriladigan joriy summa (2 xonagacha,
+//    yaxlitlanMAYDI — "OK" bosilsa narx o'zgarmaydi).
+function parseNum(v) {
+  if (typeof v === 'number') return isFinite(v) ? v : 0;
+  let s = String(v == null ? '' : v).replace(/[\s\u00a0\u202f]/g, '');
+  if (/^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(s)) {
+    const n = Number(s);
+    return isFinite(n) ? n : 0;
+  }
+  const manfiy = s.charAt(0) === '-';
+  s = s.replace(/[^\d.,]/g, '');
+  let butun = s, kasr = '';
+  const oxirgi = Math.max(s.lastIndexOf('.'), s.lastIndexOf(','));
+  if (oxirgi >= 0 && s.split(s.charAt(oxirgi)).length === 2) {
+    butun = s.slice(0, oxirgi);
+    kasr = s.slice(oxirgi + 1);
+  }
+  butun = butun.replace(/[.,]/g, '');
+  const n = parseFloat((butun || '0') + '.' + (kasr || '0'));
+  if (!isFinite(n)) return 0;
+  return manfiy ? -n : n;
+}
+function narxMatni(v) {
+  const asl = String(v == null ? '' : v);
+  if (asl.indexOf('-') >= 0) return '0';
+  const t = asl.replace(/[\s\u00a0\u202f]+/g, ' ').replace(/[^\d., ]/g, '').trim();
+  const s = t.replace(/ /g, '');
+  if (!s) return '';
+  let butun = s, kasr = null, belgi = '';
+  const oxirgi = Math.max(t.lastIndexOf('.'), t.lastIndexOf(','));
+  if (oxirgi >= 0) {
+    const b = t.charAt(oxirgi);
+    const oldin = t.slice(0, oxirgi).trim();
+    const keyin = t.slice(oxirgi + 1).replace(/ /g, '');
+    const ming = keyin.length === 3 && /^[1-9]\d{0,2}( \d{3})*$/.test(oldin);
+    if (t.split(b).length === 2 && !ming) {
+      butun = oldin.replace(/ /g, '');
+      kasr = keyin.slice(0, 2);
+      belgi = b;
+    }
+  }
+  butun = butun.replace(/[.,]/g, '').replace(/^0+(?=\d)/, '') || '0';
+  butun = butun.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return kasr === null ? butun : butun + belgi + kasr;
+}
+function narxniOqi(v) {
+  const s = String(v == null ? '' : v);
+  if (!/\d/.test(s) || s.indexOf('-') >= 0) return NaN;
+  return parseNum(narxMatni(s));
+}
+function narxKorinishi(n) {
+  const x = Number(n);
+  return narxMatni((isFinite(x) ? x : 0).toFixed(2).replace(/\.?0+$/, ''));
+}
+function formatPriceInput(input) {
+  if (!input) return;
+  const eski = String(input.value == null ? '' : input.value);
+  const yangi = narxMatni(eski);
+  if (yangi === eski) return;
+  let joy = null;
+  try { joy = typeof input.selectionStart === 'number' ? input.selectionStart : null; } catch (e) { joy = null; }
+  input.value = yangi;
+  if (joy === null || typeof input.setSelectionRange !== 'function') return;
+  try {
+    if (typeof document !== 'undefined' && document.activeElement !== input) return;
+    const k = Math.max(0, Math.min(yangi.length, joy + yangi.length - eski.length));
+    input.setSelectionRange(k, k);
+  } catch (e) { /* kursor — faqat qulaylik */ }
+}
+
+document.getElementById('f-date').value = tkISO();
+
+document.getElementById('req-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('submit-btn');
+  const msg = document.getElementById('h-msg');
+  const amount = parseNum(document.getElementById('f-amount').value);
+  const date = document.getElementById('f-date').value;
+  const notes = document.getElementById('f-notes').value;
+
+  if (!amount || amount <= 0) {
+    msg.className = 'h-msg err'; msg.textContent = "Summani to'g'ri kiriting"; return;
+  }
+  if (btn.disabled) return; // ikki marta bosilib ketishning oldini olish
+
+  btn.disabled = true; btn.textContent = 'Yuborilmoqda...';
+  try {
+    const fd = new FormData();
+    fd.append('amount', amount);
+    fd.append('requested_date', date);
+    fd.append('notes', notes);
+    const res = await fetch('/api/hodim/advance-request', { method: 'POST', body: fd });
+    if (res.ok) {
+      msg.className = 'h-msg ok';
+      msg.textContent = "✅ Yuborildi! Admin tasdiqlashini kuting.";
+      document.getElementById('req-form').reset();
+      document.getElementById('f-date').value = tkISO();
+      loadMyRequests();
+    } else {
+      const e2 = await res.json();
+      msg.className = 'h-msg err'; msg.textContent = '❌ ' + (e2.detail || 'Xato yuz berdi');
+    }
+  } catch(err) {
+    msg.className = 'h-msg err'; msg.textContent = '❌ Server bilan aloqa yo\'q';
+  }
+  btn.disabled = false; btn.textContent = 'Yuborish';
+});
+
+async function loadMyRequests(){
+  const list = document.getElementById('req-list');
+  try {
+    const rows = await fetch('/api/hodim/my-requests').then(r => r.json());
+    if (!rows.length) { list.innerHTML = '<div class="empty">Hali so\'rov yubormagansiz</div>'; return; }
+    const fmt = n => Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' ');
+    const statusLabel = {pending: '⏳ Kutilmoqda', confirmed: '✅ Tasdiqlandi', rejected: '❌ Rad etildi'};
+    const statusClass = {pending: 'st-pending', confirmed: 'st-confirmed', rejected: 'st-rejected'};
+    list.innerHTML = rows.map(r => `
+      <div class="req-row">
+        <div>
+          <div class="req-amount">${fmt(r.amount)} so'm</div>
+          <div class="req-date">${tkSana(r.requested_date)}${r.notes ? ' · ' + escapeHtml(r.notes) : ''}</div>
+          ${r.status === 'rejected' && r.rad_sababi ? `<div class="req-sabab">Sabab: ${escapeHtml(r.rad_sababi)}</div>` : ''}
+        </div>
+        <div class="req-status ${statusClass[r.status]}">${statusLabel[r.status]}</div>
+      </div>`).join('');
+  } catch(e) {
+    list.innerHTML = '<div class="empty">Yuklashda xato</div>';
+  }
+}
+loadMyRequests();
+
+// kech118 (D-1, G6-21): «Oyligim» — server `/api/hodim/oylik` (admin Hisobot / Moliya bilan bitta manba)
+// kech133 (zip 158): `nomsiz` — yopiq oy ichida (nomi sarlavhada)
+function oylikHtml(o, nomsiz) {
+  const fmt = n => Math.round(Math.abs(n || 0)).toLocaleString('ru-RU').replace(/,/g, ' ');
+  const q = [];
+  if (!nomsiz) q.push(`<div class="oy-nomi">${escapeHtml(o.nomi)}${o.joriy ? ' <small>(joriy oy — hozirgacha)</small>' : ''}</div>`);
+  q.push(`<div class="oy-qator"><span>Hisoblangan</span><b>${fmt(o.hisoblangan)} so'm</b></div>`);
+  if (o.bonus > 0) {
+    q.push(`<div class="oy-qator"><span>shundan bonus</span><b style="color:var(--m-15803d)">+${fmt(o.bonus)} so'm</b></div>`);
+    if (o.bonus_sababi) q.push(`<div class="oy-izoh">${escapeHtml(o.bonus_sababi)}</div>`);
+  }
+  if (o.kamaytirish > 0) {
+    q.push(`<div class="oy-qator"><span>kamaytirildi</span><b style="color:var(--m-b91c1c)">−${fmt(o.kamaytirish)} so'm</b></div>`);
+    if (o.kamaytirish_sababi) q.push(`<div class="oy-izoh">${escapeHtml(o.kamaytirish_sababi)}</div>`);
+  }
+  q.push(`<div class="oy-qator"><span>Olingan (avans va to'lovlar)</span><b>${fmt(o.olingan)} so'm</b></div>`);
+  q.push(o.qolgan < 0
+    ? `<div class="oy-qator oy-qolgan"><span>Ortiqcha olingan</span><b style="color:var(--m-b91c1c)">${fmt(o.qolgan)} so'm</b></div>`
+    : `<div class="oy-qator oy-qolgan"><span>Qolgan</span><b>${fmt(o.qolgan)} so'm</b></div>`);
+  if (o.tolovlar && o.tolovlar.length) {
+    q.push(`<div class="oy-tolovlar">${o.tolovlar.map(t => `${tkSana(t.sana)} — ${fmt(t.summa)} so'm`).join('<br>')}</div>`);
+  }
+  return `<div class="oy-blok">${q.join('')}</div>`;
+}
+// kech133 (zip 158 — egasi 09.10): tugagan oy — yopiq «shtorka» (sarlavhada qolgan summa), joriy oy — ochiq. O'tgan oy darhol
+// keladi; undan oldingilari (`boshqa_oylar`, oxirgi 12 oygacha) ochilganda bitta oy so'raladi (har oy — korxona oylik hisoboti).
+function oyXulosaMatni(o) {
+  const fmt = n => Math.round(Math.abs(n || 0)).toLocaleString('ru-RU').replace(/,/g, ' ');
+  return (o.qolgan < 0 ? 'Ortiqcha olingan ' : 'Qolgan ') + fmt(o.qolgan) + " so'm";
+}
+function oyYopiqHtml(o) {
+  return `<details class="oy-yopiq"><summary><span>${escapeHtml(o.nomi)}</span><span class="oy-xulosa">${oyXulosaMatni(o)}</span></summary>`
+    + oylikHtml(o, true) + '</details>';
+}
+function oyYuklanmaganHtml(b) {
+  const kalit = String(b.yil) + '-' + String(b.oy).padStart(2, '0');
+  return `<details class="oy-yopiq" data-oy="${escapeHtml(kalit)}" ontoggle="if (this.open) oyniYukla(this)"><summary>`
+    + `<span>${escapeHtml(b.nomi)}</span><span class="oy-xulosa">Ko'rish</span></summary><div class="oy-ichi"></div></details>`;
+}
+async function oyniYukla(dt) {
+  if (!dt || dt.dataset.yuklandi === '1' || dt.dataset.yuklanmoqda === '1') return;
+  dt.dataset.yuklanmoqda = '1';
+  const ichi = dt.querySelector('.oy-ichi');
+  const xul = dt.querySelector('.oy-xulosa');
+  ichi.innerHTML = '<div class="empty">Yuklanmoqda...</div>';
+  try {
+    const res = await fetch('/api/hodim/oylik?oy=' + encodeURIComponent(dt.dataset.oy));
+    if (!res.ok) throw new Error(String(res.status));
+    const d = await res.json();
+    const o = ((d && d.oylar) || [])[0];
+    if (o) {
+      ichi.innerHTML = oylikHtml(o, true);
+      xul.textContent = oyXulosaMatni(o);
+    } else {
+      ichi.innerHTML = '<div class="empty">Bu oyda hisob ham, to\'lov ham yo\'q</div>';
+      xul.textContent = '—';
+    }
+    dt.dataset.yuklandi = '1';
+  } catch (e) {
+    // kech133: qayta urinish — tugma bilan (hodim «yopib, qayta ochish» kerakligini bilmasligi mumkin)
+    ichi.innerHTML = '<div class="empty">Yuklashda xato<br><button type="button" class="oy-qayta" '
+      + 'onclick="oyniYukla(this.closest(\'details\'))">🔄 Qayta yuklash</button></div>';
+  } finally {
+    dt.dataset.yuklanmoqda = '';
+  }
+}
+async function loadOylik() {
+  const el = document.getElementById('oylik-list');
+  try {
+    const res = await fetch('/api/hodim/oylik');
+    if (!res.ok) throw new Error(String(res.status));
+    const d = await res.json();
+    const oylar = (d && d.oylar) || [];
+    const boshqa = (d && d.boshqa_oylar) || [];
+    el.innerHTML = (oylar.length || boshqa.length)
+      ? oylar.map(o => o.joriy ? oylikHtml(o) : oyYopiqHtml(o)).join('') + boshqa.map(oyYuklanmaganHtml).join('')
+      : '<div class="empty">Ma\'lumot yo\'q</div>';
+  } catch (e) {
+    el.innerHTML = '<div class="empty">Yuklashda xato</div>';
+  }
+}
+loadOylik();
+</script>
+</body>
+</html>
