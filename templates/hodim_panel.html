@@ -7,7 +7,11 @@
   <link rel="stylesheet" href="/static/style.css?v={{ static_version }}">
   <link rel="stylesheet" href="/static/ranglar.css?v={{ static_version }}">
   <style>
-    body{background:var(--f-f8f8f6);margin:0;min-height:100vh}
+    /* kech133 (zip 158, O'LCHANGAN — work/k158/hodim_skrol.py, haqiqiy Chromium 375 / 390 / 1440 px): style.css dagi asosiy ilova
+       qoidasi `body{height:100vh;overflow:hidden}` (ilova ichki blokda suriladi) 2026-09-30 da style.css ulangandan beri bu MUSTAQIL
+       sahifada ham qo'llanardi — sahifa umuman SURILMASDI: «Oyligim» ro'yxati uzaygach «💰 Avans oldim deb yozish» formasi ekrandan
+       tashqarida qoldi (20 to'lovda forma 915 px da, ekran 812 px; g'ildirak / barmoq — siljish 0). Endi sahifa butun hujjat bo'ylab. */
+    body{background:var(--f-f8f8f6);margin:0;min-height:100vh;height:auto;overflow:visible}
     .h-topbar{background:var(--white);border-bottom:1px solid var(--ch-eeeeee);padding:16px 20px;display:flex;justify-content:space-between;align-items:center}
     .h-topbar .name{font-size:16px;font-weight:700;color:var(--m-111111)}
     .h-topbar .role{font-size:12px;color:var(--text3)}
@@ -44,6 +48,17 @@
     .oy-izoh{font-size:12px;color:var(--text3);margin:-2px 0 4px}
     .oy-qolgan{border-top:1px dashed var(--ch-e5e5e5);margin-top:4px;padding-top:8px;font-weight:700}
     .oy-tolovlar{font-size:13px;color:var(--text3);margin-top:6px;line-height:1.6}
+    /* kech133 (zip 158 — egasi 09.10): tugagan oylar — yopiq («shtorka»), joriy oy — ochiq; oxirgi 12 oy */
+    .oy-yopiq{border-top:1px solid var(--ch-f0f0f0)}
+    .oy-yopiq > summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px;
+      min-height:44px;padding:6px 0;font-size:14px;font-weight:700;color:var(--m-111111)}
+    .oy-yopiq > summary::-webkit-details-marker{display:none}
+    .oy-yopiq > summary .oy-xulosa{font-size:13px;font-weight:600;color:var(--m-333333);white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+    .oy-yopiq > summary .oy-xulosa::after{content:'▾';font-size:12px;color:var(--text3);transition:transform .15s}
+    .oy-yopiq[open] > summary .oy-xulosa::after{transform:rotate(180deg)}
+    .oy-yopiq > .oy-blok, .oy-yopiq > .oy-ichi{padding:0 0 12px}
+    .oy-qayta{min-height:var(--h-sm);margin-top:8px;padding:0 14px;border:1px solid var(--ch-e8e8e8);border-radius:var(--r-btn);
+      background:var(--white);color:var(--m-111111);font-size:13px;font-weight:600;cursor:pointer}
   </style>
 </head>
 <body>
@@ -56,12 +71,7 @@
   </div>
 
   <div class="h-body">
-    <!-- kech118 (D-1, G6-21 — egasi QARORI «Oylik ko'rinsin»): hisoblangan / olingan / qolgan (joriy va o'tgan oy) -->
-    <div class="h-card">
-      <div class="h-card-title">💵 Oyligim</div>
-      <div id="oylik-list"><div class="empty">Yuklanmoqda...</div></div>
-    </div>
-
+    {# kech133 (zip 158 — egasi tanlovi 09.10): avans formasi BIRINCHI (ilgari «Oyligim» dan keyin — ro'yxat uzaygach topilmay qoldi) #}
     <div class="h-card">
       <div class="h-card-title">💰 Avans oldim deb yozish</div>
       <div id="h-msg" class="h-msg"></div>
@@ -80,6 +90,13 @@
       <div style="font-size:12px;color:var(--text3);margin-top:10px;text-align:center">
         Yuborilgandan keyin — admin tasdiqlashi kerak
       </div>
+    </div>
+
+    <!-- kech118 (D-1, G6-21 — egasi QARORI «Oylik ko'rinsin»): hisoblangan / olingan / qolgan; kech133 (zip 158): joriy oy ochiq,
+         tugagan oylar yopiq, oxirgi 12 oy -->
+    <div class="h-card">
+      <div class="h-card-title">💵 Oyligim</div>
+      <div id="oylik-list"><div class="empty">Yuklanmoqda...</div></div>
     </div>
 
     <div class="h-card">
@@ -322,10 +339,11 @@ async function loadMyRequests(){
 loadMyRequests();
 
 // kech118 (D-1, G6-21): «Oyligim» — server `/api/hodim/oylik` (admin Hisobot / Moliya bilan bitta manba)
-function oylikHtml(o) {
+// kech133 (zip 158): `nomsiz` — yopiq oy ichida (nomi sarlavhada)
+function oylikHtml(o, nomsiz) {
   const fmt = n => Math.round(Math.abs(n || 0)).toLocaleString('ru-RU').replace(/,/g, ' ');
   const q = [];
-  q.push(`<div class="oy-nomi">${escapeHtml(o.nomi)}${o.joriy ? ' <small>(joriy oy — hozirgacha)</small>' : ''}</div>`);
+  if (!nomsiz) q.push(`<div class="oy-nomi">${escapeHtml(o.nomi)}${o.joriy ? ' <small>(joriy oy — hozirgacha)</small>' : ''}</div>`);
   q.push(`<div class="oy-qator"><span>Hisoblangan</span><b>${fmt(o.hisoblangan)} so'm</b></div>`);
   if (o.bonus > 0) {
     q.push(`<div class="oy-qator"><span>shundan bonus</span><b style="color:var(--m-15803d)">+${fmt(o.bonus)} so'm</b></div>`);
@@ -344,6 +362,48 @@ function oylikHtml(o) {
   }
   return `<div class="oy-blok">${q.join('')}</div>`;
 }
+// kech133 (zip 158 — egasi 09.10): tugagan oy — yopiq «shtorka» (sarlavhada qolgan summa), joriy oy — ochiq. O'tgan oy darhol
+// keladi; undan oldingilari (`boshqa_oylar`, oxirgi 12 oygacha) ochilganda bitta oy so'raladi (har oy — korxona oylik hisoboti).
+function oyXulosaMatni(o) {
+  const fmt = n => Math.round(Math.abs(n || 0)).toLocaleString('ru-RU').replace(/,/g, ' ');
+  return (o.qolgan < 0 ? 'Ortiqcha olingan ' : 'Qolgan ') + fmt(o.qolgan) + " so'm";
+}
+function oyYopiqHtml(o) {
+  return `<details class="oy-yopiq"><summary><span>${escapeHtml(o.nomi)}</span><span class="oy-xulosa">${oyXulosaMatni(o)}</span></summary>`
+    + oylikHtml(o, true) + '</details>';
+}
+function oyYuklanmaganHtml(b) {
+  const kalit = String(b.yil) + '-' + String(b.oy).padStart(2, '0');
+  return `<details class="oy-yopiq" data-oy="${escapeHtml(kalit)}" ontoggle="if (this.open) oyniYukla(this)"><summary>`
+    + `<span>${escapeHtml(b.nomi)}</span><span class="oy-xulosa">Ko'rish</span></summary><div class="oy-ichi"></div></details>`;
+}
+async function oyniYukla(dt) {
+  if (!dt || dt.dataset.yuklandi === '1' || dt.dataset.yuklanmoqda === '1') return;
+  dt.dataset.yuklanmoqda = '1';
+  const ichi = dt.querySelector('.oy-ichi');
+  const xul = dt.querySelector('.oy-xulosa');
+  ichi.innerHTML = '<div class="empty">Yuklanmoqda...</div>';
+  try {
+    const res = await fetch('/api/hodim/oylik?oy=' + encodeURIComponent(dt.dataset.oy));
+    if (!res.ok) throw new Error(String(res.status));
+    const d = await res.json();
+    const o = ((d && d.oylar) || [])[0];
+    if (o) {
+      ichi.innerHTML = oylikHtml(o, true);
+      xul.textContent = oyXulosaMatni(o);
+    } else {
+      ichi.innerHTML = '<div class="empty">Bu oyda hisob ham, to\'lov ham yo\'q</div>';
+      xul.textContent = '—';
+    }
+    dt.dataset.yuklandi = '1';
+  } catch (e) {
+    // kech133: qayta urinish — tugma bilan (hodim «yopib, qayta ochish» kerakligini bilmasligi mumkin)
+    ichi.innerHTML = '<div class="empty">Yuklashda xato<br><button type="button" class="oy-qayta" '
+      + 'onclick="oyniYukla(this.closest(\'details\'))">🔄 Qayta yuklash</button></div>';
+  } finally {
+    dt.dataset.yuklanmoqda = '';
+  }
+}
 async function loadOylik() {
   const el = document.getElementById('oylik-list');
   try {
@@ -351,7 +411,10 @@ async function loadOylik() {
     if (!res.ok) throw new Error(String(res.status));
     const d = await res.json();
     const oylar = (d && d.oylar) || [];
-    el.innerHTML = oylar.length ? oylar.map(oylikHtml).join('') : '<div class="empty">Ma\'lumot yo\'q</div>';
+    const boshqa = (d && d.boshqa_oylar) || [];
+    el.innerHTML = (oylar.length || boshqa.length)
+      ? oylar.map(o => o.joriy ? oylikHtml(o) : oyYopiqHtml(o)).join('') + boshqa.map(oyYuklanmaganHtml).join('')
+      : '<div class="empty">Ma\'lumot yo\'q</div>';
   } catch (e) {
     el.innerHTML = '<div class="empty">Yuklashda xato</div>';
   }
