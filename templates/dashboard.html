@@ -349,6 +349,20 @@
     </div>
   </div>
 </div>
+{# kech133 (zip 159 — egasi QARORLARI 09.10 «faqat o'z telefonidan», «har yangi telefonga admin ruxsati»): hodim yangi telefondan
+   to'g'ri telefon + PIN bilan kirdi — o'sha telefon sahifasi ruxsatni KUTIB turibdi. Avans so'rovlaridan OLDIN ko'rsatiladi (odam kutyapti). #}
+<div id="qurilmaModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.55);z-index:2000;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px)">
+  <div style="background:var(--white);border-radius:16px;width:460px;max-width:100%;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.25)">
+    <div style="padding:20px 22px 14px;border-bottom:1px solid var(--ch-f0f0f0)">
+      <div style="font-size:16px;font-weight:700;color:var(--m-111111)">🔔 Hodim yangi telefondan kirmoqchi</div>
+      <div style="font-size:13px;color:var(--text3);margin-top:4px;line-height:1.5">Hodim o'zi shu telefondan kirayotganini bilsangiz — ruxsat bering. Ruxsatdan keyin u panelga FAQAT shu telefondan kiradi (eski telefoni uziladi).</div>
+    </div>
+    <div id="qurilmaList" style="padding:14px 22px;overflow-y:auto;flex:1"></div>
+    <div style="padding:14px 22px;border-top:1px solid var(--ch-f0f0f0)">
+      <button data-yopish class="btn btn-outline w-full" onclick="qurilmaOynaYop()">Keyinroq ko'raman</button>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -834,8 +848,66 @@ function removeAdvRow(id){
   if (!list.children.length) document.getElementById('advReqModal').style.display = 'none';
 }
 
+// ══ kech133 (zip 159): hodim telefoniga ruxsat — `GET /api/admin/qurilma-sorovlari` («Hodimlar: Tahrirlash» ruxsati yo'q — 403,
+// oyna chiqmaydi). Oyna yopilgach (yoki so'rovlar tugagach) — avans so'rovlari oynasi (ikkisi ustma-ust chiqmasin).
+async function checkQurilmaSorovlari(){
+  let rows = null;
+  try {
+    const res = await fetch('/api/admin/qurilma-sorovlari');
+    if (res.ok) rows = await res.json();
+  } catch(e) { console.error(e); }
+  if (!Array.isArray(rows) || !rows.length) { checkPendingAdvanceRequests(); return; }
+  document.getElementById('qurilmaList').innerHTML = rows.map(r => `
+      <div class="qurilma-qator" id="qurilma-row-${r.employee_id}" style="border:1px solid var(--ch-eeeeee);border-radius:10px;padding:14px;margin-bottom:10px">
+        <div style="font-weight:700;font-size:14px">${escapeHtml(r.name)}${r.position ? ` <span style="font-weight:500;color:var(--text3);font-size:13px">${escapeHtml(r.position)}</span>` : ''}</div>
+        <div style="font-size:13px;color:var(--m-333333);margin-top:4px">📱 ${escapeHtml(r.nomi || "Noma'lum telefon")}</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:2px">${tkSanaVaqt(r.vaqti)} da kirmoqchi bo'ldi${r.hozirgi ? ` · hozirgi telefoni: ${escapeHtml(r.hozirgi)}` : ''}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
+          <button class="btn btn-dark" style="flex:1 1 160px" data-id="${r.employee_id}" data-kalit="${escapeHtml(r.kalit)}" onclick="qurilmaJavob(this, 'ruxsat')">✅ Ruxsat berish</button>
+          <button class="btn btn-danger" style="flex:1 1 120px" data-id="${r.employee_id}" data-kalit="${escapeHtml(r.kalit)}" onclick="qurilmaJavob(this, 'rad')">❌ Rad etish</button>
+        </div>
+      </div>`).join('');
+  document.getElementById('qurilmaModal').style.display = 'flex';
+}
+
+async function qurilmaJavob(btn, amal){
+  const id = btn.dataset.id;
+  try {
+    const yol = amal === 'ruxsat' ? `/api/employees/${id}/qurilma/ruxsat` : `/api/employees/${id}/qurilma/rad`;
+    const res = await fetch(yol, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({kalit: btn.dataset.kalit})});
+    if (!res.ok) {
+      await xabarOyna('❌ ' + await serverXatoSababi(res, "Saqlanmadi. Iltimos, qayta urinib ko'ring."));
+      if (res.status === 409) { checkQurilmaSorovlariQayta(); }
+      return;
+    }
+  } catch(e) {
+    await xabarOyna("❌ Server bilan aloqa yo'q. Internetni tekshirib, qayta urinib ko'ring.");
+    return;
+  }
+  const row = document.getElementById(`qurilma-row-${id}`);
+  if (row) row.remove();
+  if (!document.getElementById('qurilmaList').children.length) qurilmaOynaYop();
+}
+
+function checkQurilmaSorovlariQayta(){
+  // so'rov shu orada yangilangan (boshqa telefondan) — ro'yxat qayta olinadi (avans oynasi bu yo'lda ochilmaydi)
+  fetch('/api/admin/qurilma-sorovlari').then(r => r.ok ? r.json() : []).then(rows => {
+    if (!Array.isArray(rows) || !rows.length) { qurilmaOynaYop(); return; }
+    document.getElementById('qurilmaModal').style.display = 'none';
+    checkQurilmaSorovlari();
+  }).catch(() => {});
+}
+
+function qurilmaOynaYop(){
+  const m = document.getElementById('qurilmaModal');
+  const ochiq = m.style.display !== 'none';
+  m.style.display = 'none';
+  if (ochiq) checkPendingAdvanceRequests();
+}
+
 loadObligationsWidget();
-checkPendingAdvanceRequests();
+checkQurilmaSorovlari();
 loadAll();
 setInterval(loadAll,5*60*1000);
 
