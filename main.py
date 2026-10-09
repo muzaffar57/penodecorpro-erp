@@ -6477,16 +6477,43 @@ def api_delete_item(item_id: int, db: Session = Depends(get_db), current_user=De
     return {"status": "ok", "soft": result["soft"], "message": result["message"]}
 
 
+def _retsept_nomi_band(db: Session, nom: str, company_id: int, recipe_id: int = None) -> bool:
+    """kech133 (zip 157): shu korxonada AYNAN shu nomli (chetidagi bo'shliqsiz — `crud.create_recipe` / `update_recipe` shunday yozadi)
+    BOSHQA retsept bormi. Qoida bazadagi `uq_recipes_company_name` bilan bir xil (katta-kichik harf farqli). Ilgari takror nom
+    500 «Serverda kutilmagan xato yuz berdi» berardi va xatolar jurnaliga tushardi (O'LCHANGAN — POST va PUT, SQLite va PG)."""
+    from models import Recipe
+    q = db.query(Recipe.id).filter(Recipe.company_id == company_id, Recipe.name == (nom or "").strip())
+    if recipe_id is not None:
+        q = q.filter(Recipe.id != recipe_id)
+    return q.first() is not None
+
+
+def _retsept_nomi_band_matni(nom: str) -> str:
+    return (f"«{(nom or '').strip()}» nomli loy retsepti allaqachon bor — boshqa nom yozing "
+            "(yoki o'sha retseptni tahrirlang)")
+
+
 @app.post("/api/recipes", response_model=schemas.RecipeRead)
 def api_create_recipe(recipe: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("retsept", "yaratish"))):
     """17b (2026-09-21): tana QAT'IY tekshiriladi. O'LCHANGAN kamchiliklar —
     nom `"   "` (BO'SH nomli retsept saqlanardi), `batch_size_kg: Infinity`,
     `batch_size_kg`/`quantity_kg` `1e20`, tarkibsiz retsept, bir material
     IKKI marta (ombordan ikki baravar yechilardi) va noma'lum maydonlar —
-    hammasi 200 qaytarardi."""
+    hammasi 200 qaytarardi.
+    kech133 (zip 157): takror nom — 409 va tushunarli sabab (ilgari 500); bir vaqtdagi ikki so'rov (tekshiruvdan keyin bazaning o'zi
+    rad etsa) — ham 409."""
     recipe = _tana_400("RecipeBody", recipe, schemas.RecipeCreate)
     # M8/F1a: retsept joriy adminning korxonasiga biriktiriladi.
-    return crud.create_recipe(db, recipe, company_id=auth.company_id_of(current_user))
+    _cid = auth.company_id_of(current_user)
+    if _retsept_nomi_band(db, recipe.name, _cid):
+        raise HTTPException(status_code=409, detail=_retsept_nomi_band_matni(recipe.name))
+    try:
+        return crud.create_recipe(db, recipe, company_id=_cid)
+    except IntegrityError:
+        db.rollback()
+        if _retsept_nomi_band(db, recipe.name, _cid):
+            raise HTTPException(status_code=409, detail=_retsept_nomi_band_matni(recipe.name))
+        raise
 
 
 @app.put("/api/recipes/{recipe_id}", response_model=schemas.RecipeRead)
@@ -6500,8 +6527,17 @@ def api_update_recipe(recipe_id: int, data: dict = Body(...), db: Session = Depe
     if not auth.recipe_of_company(db, recipe_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Retsept topilmadi")
     data = _tana_400("RecipeBody", data, schemas.RecipeCreate)
-    recipe = crud.update_recipe(db, recipe_id, data,
-                                company_id=auth.company_id_of(current_user))
+    # kech133 (zip 157): boshqa retseptning nomiga o'zgartirish — 409 (ilgari 500); o'z nomi — bemalol.
+    _cid = auth.company_id_of(current_user)
+    if _retsept_nomi_band(db, data.name, _cid, recipe_id):
+        raise HTTPException(status_code=409, detail=_retsept_nomi_band_matni(data.name))
+    try:
+        recipe = crud.update_recipe(db, recipe_id, data, company_id=_cid)
+    except IntegrityError:
+        db.rollback()
+        if _retsept_nomi_band(db, data.name, _cid, recipe_id):
+            raise HTTPException(status_code=409, detail=_retsept_nomi_band_matni(data.name))
+        raise
     if not recipe:
         raise HTTPException(status_code=404, detail="Retsept topilmadi")
     return recipe
