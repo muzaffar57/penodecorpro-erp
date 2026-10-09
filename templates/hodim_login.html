@@ -23,6 +23,7 @@
     .h-btn{width:100%;box-sizing:border-box;min-height:var(--h-lg);padding:0 20px;background:#111;color:#fff;border:none;border-radius:var(--r-btn);font-size:16px;line-height:20px;font-weight:600;cursor:pointer;transition:background .15s;margin-top:4px}
     .h-btn:hover{background:#222}
     .error-box{background:var(--f-fee2e2);border:1px solid #F1948A;border-radius:8px;padding:11px 14px;color:var(--m-dc2626);font-size:13px;margin-bottom:18px;display:flex;align-items:center;gap:8px}
+    .h-izoh{font-size:12px;color:var(--text3);margin-top:14px;text-align:center;line-height:1.5}
   </style>
 </head>
 <body>
@@ -55,9 +56,27 @@
         <label class="field-label">PIN kod (4 xonali)</label>
         <input class="field-input pin-input" type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="••••" required {% if telefon %}autofocus{% endif %}>
 
+        {# kech133 (zip 159): telefon modeli — FAQAT admin ko'radigan telefon nomi uchun (xavfsizlikka ta'sir qilmaydi) #}
+        <input type="hidden" name="qurilma_model" id="qurilmaModel" value="">
+
         <button type="submit" class="h-btn">Kirish</button>
       </form>
+      <div class="h-izoh">Yangi telefondan birinchi kirishda admin ruxsat berishi kerak bo'ladi.</div>
     </div>
   </div>
+  <script>
+    // kech133 (zip 159): Chrome / Samsung Internet telefon modelini brauzer satrida yashiradi — so'rab olinadi (bo'lmasa server
+    // brauzer satridan oladi). Faqat admin oynasidagi «qaysi telefon» nomi uchun.
+    (function () {
+      try {
+        if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
+          navigator.userAgentData.getHighEntropyValues(['model']).then(function (v) {
+            var el = document.getElementById('qurilmaModel');
+            if (el && v && v.model) el.value = String(v.model).slice(0, 40);
+          }).catch(function () {});
+        }
+      } catch (e) { /* model yo'q — server brauzer satridan oladi */ }
+    })();
+  </script>
 </body>
 </html>

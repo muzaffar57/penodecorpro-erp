@@ -451,8 +451,13 @@
       <a href="/users/hodim-qr" id="pa-qr-havola" target="_blank" rel="noopener" style="margin-left:6px;font-size:13px;color:var(--gold-dark)">QR kod (chop etish) →</a>
     </div>
 
+    {# kech133 (zip 159 — egasi QARORLARI 09.10): hodim BITTA telefonga bog'lanadi (har yangi telefonga admin ruxsati); admin bergan PIN —
+       vaqtinchalik (hodim kirgach o'zinikini qo'yadi). Bu yerda: bog'langan telefon, ruxsat kutayotgan telefon, uzish. #}
+    <div id="pa-qurilma" style="margin-bottom:16px;padding:10px 12px;border:1px solid var(--ch-eeeeee);border-radius:9px;font-size:13px;line-height:1.6"></div>
+
     <div class="form-group"><label>Telefon raqami</label><input type="tel" id="pa-phone" placeholder="+998901234567"></div>
-    <div class="form-group"><label>PIN kod (4 xonali)</label><input type="text" id="pa-pin" inputmode="numeric" maxlength="4" placeholder="1234"></div>
+    <div class="form-group"><label>PIN kod (4 xonali)</label><input type="text" id="pa-pin" inputmode="numeric" maxlength="4" placeholder="1234">
+      <div style="font-size:12px;color:var(--text3);margin-top:4px">Bu PIN — vaqtinchalik: hodim panelga kirgach o'z PIN ini qo'yadi (siz uni bilmaysiz).</div></div>
 
     <div id="pa-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:var(--f-fee2e2);border-radius:7px;font-size:12px;color:var(--m-dc2626)"></div>
 
@@ -862,6 +867,7 @@ async function loadEmployees() {
             <span style="font-size:13px;color:var(--text3);margin-left:6px">${detail}</span>
           </div>
           <div id="emp-avans-${e.id}" style="margin-top:4px;font-size:12px;color:var(--m-b45309)"></div>
+          ${qurilmaQatori(e)}
         </div>
         <div class="emp-fin" id="emp-fin-${e.id}" style="flex-shrink:0"></div>
         <div class="emp-holat" id="emp-status-${e.id}" style="flex-shrink:0"></div>
@@ -903,11 +909,77 @@ function closeAdvanceModal() {
   advanceEmpId = null;
 }
 
+// ══ kech133 (zip 159): hodim telefoni — qatordagi qisqa holat va «🔑 Kirish» oynasidagi bo'lim ══
+function qurilmaQatori(e) {
+  if (e.qurilma_sorov) {
+    return `<div class="emp-qurilma" style="margin-top:4px;font-size:12px;font-weight:700;color:var(--m-b45309)">🔔 Yangi telefon ruxsat kutmoqda: ${escapeHtml(e.qurilma_sorov.nomi || "Noma'lum telefon")}</div>`;
+  }
+  if (e.qurilma) {
+    return `<div class="emp-qurilma" style="margin-top:4px;font-size:12px;color:var(--text3)">📱 ${escapeHtml(e.qurilma.nomi || 'Telefon bog\'langan')}${e.pin_vaqtinchalik ? ' · PIN hali vaqtinchalik' : ''}</div>`;
+  }
+  if (e.phone) {
+    return `<div class="emp-qurilma" style="margin-top:4px;font-size:12px;color:var(--text3)">📱 Telefon hali bog'lanmagan</div>`;
+  }
+  return '';
+}
+
+function paQurilmaChiz(empId) {
+  const box = document.getElementById('pa-qurilma');
+  if (!box) return;
+  const e = (empItems || []).find(x => String(x.id) === String(empId));
+  if (!e) { box.innerHTML = ''; return; }
+  let h = '';
+  if (e.qurilma_sorov) {
+    h += `<div style="font-weight:700;color:var(--m-b45309)">🔔 Yangi telefon ruxsat kutmoqda</div>
+      <div>📱 ${escapeHtml(e.qurilma_sorov.nomi || "Noma'lum telefon")} · ${tkSanaVaqt(e.qurilma_sorov.vaqti)}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 6px">
+        <button type="button" class="btn btn-dark btn-sm" data-id="${e.id}" data-kalit="${escapeHtml(e.qurilma_sorov.kalit)}" onclick="paQurilmaAmal(this, 'ruxsat')">✅ Ruxsat berish</button>
+        <button type="button" class="btn btn-danger btn-sm" data-id="${e.id}" data-kalit="${escapeHtml(e.qurilma_sorov.kalit)}" onclick="paQurilmaAmal(this, 'rad')">❌ Rad etish</button>
+      </div>`;
+  }
+  if (e.qurilma) {
+    h += `<div>📱 Bog'langan telefon: <b>${escapeHtml(e.qurilma.nomi || "Noma'lum telefon")}</b> (${tkSana(e.qurilma.vaqti)} dan)</div>
+      <button type="button" class="btn btn-outline btn-sm" style="margin:6px 0" data-id="${e.id}" onclick="paQurilmaAmal(this, 'uzish')">Telefonni uzish</button>`;
+  } else if (!e.qurilma_sorov) {
+    h += `<div style="color:var(--text3)">📱 Telefon hali bog'lanmagan — hodim birinchi kirganda shu yerda (va Bosh sahifada) ruxsat so'rovi chiqadi.</div>`;
+  }
+  if (e.phone) {
+    h += `<div style="color:var(--text3)">🔒 ${e.pin_vaqtinchalik ? "PIN hali vaqtinchalik — hodim kirgach o'zinikini qo'yadi" : "PIN ni hodimning o'zi qo'ygan"}</div>`;
+  }
+  box.innerHTML = h;
+}
+
+async function paQurilmaAmal(btn, amal) {
+  const id = btn.dataset.id;
+  if (amal === 'uzish' && !(await customConfirm("Telefon uzilsinmi?\n\nHodim panelidan chiqadi; keyingi kirishida yangi ruxsat so'rovi chiqadi.",
+                                               {okText: 'Uzish', danger: true}))) return;
+  const opts = {method: 'POST'};
+  if (amal !== 'uzish') {
+    opts.headers = {'Content-Type': 'application/json'};
+    opts.body = JSON.stringify({kalit: btn.dataset.kalit});
+  }
+  btn.disabled = true;
+  try {
+    // yo'llar to'liq yozilgan (pasport xaritasi har birini marshrut bilan bog'lay olsin)
+    const yol = {ruxsat: `/api/employees/${id}/qurilma/ruxsat`, rad: `/api/employees/${id}/qurilma/rad`,
+                 uzish: `/api/employees/${id}/qurilma/uzish`}[amal];
+    const res = await fetch(yol, opts);
+    if (!res.ok) await xabarOyna('❌ ' + await serverXatoSababi(res, "Saqlanmadi. Iltimos, qayta urinib ko'ring."));
+  } catch (e) {
+    await xabarOyna("❌ Server bilan aloqa yo'q. Internetni tekshirib, qayta urinib ko'ring.");
+  } finally {
+    btn.disabled = false;
+  }
+  await loadEmployees();
+  paQurilmaChiz(id);
+}
+
 let panelAccessEmpId = null;
 function openPanelAccessModal(empId, empName, currentPhone) {
   panelAccessEmpId = empId;
   document.getElementById('pa-emp-name').textContent = empName;
   document.getElementById('pa-phone').value = currentPhone || '';
+  paQurilmaChiz(empId);
   document.getElementById('pa-pin').value = '';
   document.getElementById('pa-error').style.display = 'none';
   document.getElementById('panelAccessModal').style.display = 'flex';

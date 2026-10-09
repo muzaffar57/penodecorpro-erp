@@ -16,6 +16,9 @@
     .h-topbar .name{font-size:16px;font-weight:700;color:var(--m-111111)}
     .h-topbar .role{font-size:12px;color:var(--text3)}
     .h-logout{display:inline-flex;align-items:center;box-sizing:border-box;min-height:var(--h-sm);font-size:13px;font-weight:600;color:var(--m-dc2626);text-decoration:none;padding:0 12px;border-radius:var(--r-btn);border:1px solid var(--ch-fadbd8)}
+    /* kech133 (zip 159): o'z PIN ini o'zgartirish havolasi (egasi qarori 09.10 — PIN ni hodim o'zi qo'yadi) */
+    .h-top-tugmalar{display:flex;gap:8px;align-items:center;flex-shrink:0}
+    .h-pin{display:inline-flex;align-items:center;box-sizing:border-box;min-height:var(--h-sm);font-size:13px;font-weight:600;color:var(--m-333333);text-decoration:none;padding:0 12px;border-radius:var(--r-btn);border:1px solid var(--ch-e8e8e8)}
     .h-body{max-width:480px;margin:0 auto;padding:18px}
     .h-card{background:var(--white);border-radius:16px;border:1px solid var(--ch-ebebeb);padding:22px;margin-bottom:16px}
     .h-card-title{font-size:16px;font-weight:700;color:var(--m-111111);margin-bottom:16px;display:flex;align-items:center;gap:8px}
@@ -67,7 +70,10 @@
       <div class="name">👷 {{ employee.name }}</div>
       <div class="role">{{ employee.position or 'Hodim' }}</div>
     </div>
-    <a href="/hodim/logout" class="h-logout">Chiqish</a>
+    <div class="h-top-tugmalar">
+      <a href="/hodim/pin" class="h-pin" aria-label="PIN kodni o'zgartirish">🔒 PIN</a>
+      <a href="/hodim/logout" class="h-logout">Chiqish</a>
+    </div>
   </div>
 
   <div class="h-body">
