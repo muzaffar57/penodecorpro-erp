@@ -382,6 +382,9 @@ async function hodimBolimi() {
   bolim('hodim_panel.html — G6-21 «Oyligim» va rad etish sababi');
   const eh = funks(HODIM, ['escapeHtml', 'tkMs', 'tkDate', 'tkSana', 'oylikHtml', 'loadOylik', 'loadMyRequests']);
   tekshir('H0 oylikHtml / loadOylik / loadMyRequests topildi', !eh.yoq.length, qisqa(eh.yoq));
+  // kech133 (zip 158 — MOSLANDI): `loadOylik` tugagan oylarni yopiq («shtorka») chizadi — yordamchilari ham yuklanadi (zip 157 va
+  // undan oldingi shablonda yo'q — topilganlari qo'shiladi; ikkala shablonda ham H3 o'tadi)
+  eh.kod += '\n' + funks(HODIM, ['oyXulosaMatni', 'oyYopiqHtml', 'oyYuklanmaganHtml']).kod;
   let m = muhit({}, {});
   let r = await ishga(m, eh.kod, `oylikHtml({nomi: 'Oktabr 2026', joriy: true, hisoblangan: 3110000, olingan: 350002, qolgan: 2759998,
       bonus: 150000, bonus_sababi: '<b>Yaxshi</b>', kamaytirish: 40000, kamaytirish_sababi: '2 kun', tolovlar: [
