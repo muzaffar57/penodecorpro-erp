@@ -937,7 +937,9 @@ check("M4b eski baza (ustunlar yo'q) — _migrate_platforma_obuna ularni qo'shad
 section("S. Statik — kod tuzilishi")
 # ══════════════════════════════════════════════════════════════
 _gcu = manba(auth, "get_current_user")
-_gce = manba(auth, "get_current_employee")
+# kech133 (zip 159, MOSLANDI): hodim sessiyasi tekshiruvi `auth.hodim_holati` ga ko'chdi (telefon va PIN holati bilan) —
+# `get_current_employee` uni chaqiradi; blok tekshiruvi o'sha yerda (B13 / D9 — xatti-harakat o'zgarmagan). Asl kodda — eskisidek.
+_gce = manba(auth, "hodim_holati") if hasattr(auth, "hodim_holati") else manba(auth, "get_current_employee")
 check("S1 auth.get_current_user — korxona bloki tekshiruvi (sessiya o'chiriladi)", "_korxona_bloklanganmi" in _gcu
       and "delete_session" in _gcu, _gcu[-300:])
 check("S2 auth.get_current_employee — xuddi shu tekshiruv", "_korxona_bloklanganmi" in _gce

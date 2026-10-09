@@ -4,7 +4,7 @@
   "auth.py:465 db.query(User) — korxona filtri yo'q (funksiya: _login_egasi) │ return (db.query(User).execution_options(skip_tenant_filter=True)",
   "auth.py:617 db.query(EmployeeSession) — korxona filtri yo'q (funksiya: get_employee_session) │ entry = db.query(EmployeeSession).filter(EmployeeSession.token == token).first()",
   "auth.py:629 db.query(EmployeeSession) — korxona filtri yo'q (funksiya: delete_employee_session) │ db.query(EmployeeSession).filter(EmployeeSession.token == token).delete()",
-  "auth.py:641 db.query(Employee) — korxona filtri yo'q (funksiya: get_current_employee) │ employee = db.query(Employee).filter(",
+  "auth.py:804 db.query(Employee) — korxona filtri yo'q (funksiya: hodim_holati) │ employee = db.query(Employee).filter(",
   "crud.py:1102 db.query(Supplier) — korxona filtri yo'q (funksiya: _purchase_stock_no_commit) │ sup = db.query(Supplier).filter(Supplier.id == supplier_id).first()",
   "crud.py:11224 db.query(ProductionOrder) — korxona filtri yo'q (funksiya: delete_finished_product) │ db.query(_PO_unlink).filter(",
   "crud.py:11229 db.query(FinishedProductSale) — korxona filtri yo'q (funksiya: delete_finished_product) │ db.query(_FPS).filter(_FPS.finished_product_id == fp_id).update({\"finished_product_id\": None})",

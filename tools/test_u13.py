@@ -736,6 +736,10 @@ if PW_BOR:
                 const r = await fetch('/api/employees/' + I.hodim + '/set-login', {method: 'POST', body: fd}); return {st: r.status}; }""",
                                  Z.get("I") or {})
             ctx.close()
+            # kech133 (zip 159, MOSLANDI): hodim paneli endi FAQAT admin ruxsat bergan telefondan va hodimning O'Z PIN i bilan ochiladi
+            # (egasi qarorlari 09.10). Bu bo'lim panel ko'rinishini o'lchaydi — birinchi kenglikda admin ruxsat beradi va hodim o'z PIN ini
+            # qo'yadi; ikkinchisiga o'sha telefon kaliti (`emp_qurilma`) qo'yiladi (bitta telefon). Asl kodda bu yo'llar yo'q — eskisidek.
+            HODIM_TEL = {"pin": "4321", "cookie": None}
             for w in (1440, 390):
                 ctx, pg = kontekst(w)
                 och(pg, "/users/hodim-qr", 800)
@@ -759,12 +763,31 @@ if PW_BOR:
                         _kod1 = (_sk.query(_Co).filter(_Co.id == 1).first().code or "")
                     finally:
                         _sk.close()
+                    if HODIM_TEL.get("cookie"):
+                        ctx.add_cookies([HODIM_TEL["cookie"]])
                     pg.fill("input[name=korxona]", _kod1)
                     pg.fill("input[name=phone]", "+998901112233")
-                    pg.fill("input[name=pin]", "4321")
+                    pg.fill("input[name=pin]", HODIM_TEL["pin"])
                     pg.press("input[name=pin]", "Enter")
                     pg.wait_for_load_state("networkidle")
                     pg.wait_for_timeout(900)
+                    if not HODIM_TEL.get("cookie") and pg.query_selector("#kutishHolat"):
+                        actx, apg = kontekst(1440)
+                        js(apg, """async () => { const r = await fetch('/api/admin/qurilma-sorovlari'); const q = r.ok ? await r.json() : [];
+                            for (const x of q) await fetch('/api/employees/' + x.employee_id + '/qurilma/ruxsat', {method: 'POST',
+                                headers: {'Content-Type': 'application/json'}, body: JSON.stringify({kalit: x.kalit})});
+                            return q.length; }""")
+                        actx.close()
+                        och(pg, "/hodim", 600)
+                        if pg.query_selector("#pinYangi"):
+                            pg.fill("#pinYangi", "4826")
+                            pg.fill("#pinTakror", "4826")
+                            pg.click("#pinSaqla")
+                            pg.wait_for_selector("#submit-btn")
+                            pg.wait_for_load_state("networkidle")
+                            pg.wait_for_timeout(900)
+                            HODIM_TEL["pin"] = "4826"
+                        HODIM_TEL["cookie"] = next((c for c in ctx.cookies() if c.get("name") == "emp_qurilma"), None)
                 except Exception as _e:    # noqa: BLE001
                     KN[f"{w}_hodim_xato"] = str(_e)[:200]
                 KN[f"{w}_hodim_url"] = pg.url
