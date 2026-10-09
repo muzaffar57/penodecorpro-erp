@@ -445,6 +445,9 @@ YANGI_MARSHRUTLAR = {
     # (panel) sessiyasi; «Olmaganman» ro'yxati va «Ko'rib chiqdim» — «Hodimlar: Tahrirlash» (avansni o'chirish bilan bir ruxsat)
     "POST /api/hodim/avans/{advance_id}/javob": "EMP",
     "GET /api/admin/avans-nizolar": "A", "POST /api/employees/advance/{advance_id}/nizo-korildi": "A",
+    # kech135 (zip 161 — egasi QARORI 09.10, MOSLANDI): retsept / tarkib oynalarining material tanlovi — «Materiallar ro'yxati
+    # (retsept va tarkib uchun)» YOKI «Materiallar: Ko'rish» (tayyor rollarda — `GET /api/inventory` bilan bir xil: Admin, Omborchi, Menejer)
+    "GET /api/material-royxati": "AWM",
 }
 # ATAYLAB o'zgarishlar (rol, marshrut) → yangi holat (True — ochiq). Sababi: tayyor rollar sahifa bo'yicha izchil.
 FARQLAR = {
