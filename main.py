@@ -5094,6 +5094,19 @@ def api_get_inventory(db: Session = Depends(get_db), current_user=Depends(auth.r
     return crud.get_inventory(db, company_id=auth.company_id_of(current_user))
 
 
+@app.get("/api/material-royxati")
+def api_material_royxati(db: Session = Depends(get_db),
+                         current_user=Depends(auth.ruxsat_biri(("material_royxat", "korish"), ("material", "korish")))):
+    """kech135 (zip 161 — egasi QARORI 09.10): «Loy retseptlari» va «Mahsulot tarkibi» oynalarining material tanlovi.
+    Ruxsat — «Materiallar ro'yxati (retsept va tarkib uchun)» YOKI «Omborxona → Materiallar: Ko'rish» (ilgari tanlov
+    `/api/inventory` dan olinardi — faqat retsept ruxsati bor rol material qo'sha olmasdi). Ro'yxat — `crud.get_inventory`
+    bilan AYNAN (o'chirilganlarsiz, nom tartibida, faqat shu korxona); maydonlar `ruxsatlar.MATERIAL_ROYXAT_MAYDONLAR`
+    (nomi, birligi, turkumi), qoldiq — faqat «Materiallar: Ko'rish» bor rolga, narx — hech kimga."""
+    _qoldiq = _rx118.material_qoldiq_koradi(current_user)
+    return [_rx118.material_royxat_yozuvi(i, _qoldiq)
+            for i in crud.get_inventory(db, company_id=auth.company_id_of(current_user))]
+
+
 @app.post("/api/inventory/{item_id}/stock", response_model=schemas.InventoryRead)
 def api_update_stock(item_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("qoldiq", "tahrirlash"))):
     """Qoldiqni narxsiz tuzatish (inventarizatsiya, kamomad va h.k.).
