@@ -160,6 +160,14 @@ def hodim(nom, tel, pin):
     req(A, "post", f"/api/employees/{eid}/set-login", data={"phone": tel, "pin": pin})
     h = TestClient(main.app, base_url="https://testserver", raise_server_exceptions=False)
     r = req(h, "post", "/hodim/login", data={"phone": tel, "pin": pin, "korxona": ""}, follow_redirects=False)
+    # kech133 (zip 159, MOSLANDI): panel endi FAQAT admin ruxsat bergan telefondan va hodimning O'Z PIN i bilan ochiladi (egasi
+    # qarorlari 09.10). Bu sinov avans so'rovini sinaydi — admin telefonga ruxsat beradi, hodim o'z PIN ini qo'yadi (asl kodda bu
+    # yo'llar yo'q — 404, sinov eskisidek ishlaydi).
+    _q = js(req(A, "get", "/api/admin/qurilma-sorovlari"))
+    _k = next((x.get("kalit") for x in (_q if isinstance(_q, list) else []) if x.get("employee_id") == eid), None)
+    if _k:
+        req(A, "post", f"/api/employees/{eid}/qurilma/ruxsat", json={"kalit": _k})
+        req(h, "post", "/api/hodim/pin", json={"yangi": "4826", "takror": "4826"})
     return eid, h, r.status_code
 
 

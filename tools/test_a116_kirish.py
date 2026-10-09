@@ -255,8 +255,11 @@ try:
                     headers={"X-Forwarded-For": "203.0.113.61"}, follow_redirects=False, timeout=30)
 except Exception as e:                     # noqa: BLE001
     _h = _Xato(e)
-check("L4 hodim kirishi ham haqiqiy IP bilan (203.0.113.61)", oxirgi_ip("+998900000116") == "203.0.113.61",
-      (_h.status_code, oxirgi_ip("+998900000116")))
+# kech133 (zip 159, MOSLANDI): hodim urinishi jurnalga telefonning RAQAM kaliti bilan yoziladi (`crud.telefon_kaliti`:
+# «+998 90 …», «90 …» — bitta raqam; urinishlar cheklovi ko'rinishni o'zgartirib aylanib o'tilmasin) — «+998900000116» → «998900000116»
+_HKAL = crud.telefon_kaliti("+998900000116") if hasattr(crud, "telefon_kaliti") else "+998900000116"
+check("L4 hodim kirishi ham haqiqiy IP bilan (203.0.113.61)", oxirgi_ip(_HKAL) == "203.0.113.61",
+      (_h.status_code, oxirgi_ip(_HKAL)))
 
 # ══════════════════════════════════════════════════════════════
 section("R. Kirish cheklovi — foydalanuvchi nomi 5, IP 20")
@@ -354,6 +357,13 @@ _r = req(ADM, "post", f"/api/employees/{EMP_ID}/set-login", data={"phone": "+998
 check("H0 hodimga telefon + PIN berildi", _r.status_code == 200, (_r.status_code, js(_r)))
 HD = mijoz("203.0.113.103")
 _r = req(HD, "post", "/hodim/login", data={"phone": "+998901160116", "pin": "1234", "korxona": "K116A"}, follow_redirects=False)
+# kech133 (zip 159, MOSLANDI): panel endi FAQAT admin ruxsat bergan telefondan va hodimning O'Z PIN i bilan — admin ruxsat beradi,
+# hodim o'z PIN ini qo'yadi (asl kodda bu yo'llar yo'q — 404). H2 / H3 o'zgarmagan: admin PIN ni qayta bersa sessiyalar yopiladi.
+_hq = js(req(ADM, "get", "/api/admin/qurilma-sorovlari"))
+_hk0 = next((x.get("kalit") for x in (_hq if isinstance(_hq, list) else []) if x.get("employee_id") == EMP_ID), None)
+if _hk0:
+    req(ADM, "post", f"/api/employees/{EMP_ID}/qurilma/ruxsat", json={"kalit": _hk0})
+    req(HD, "post", "/api/hodim/pin", json={"yangi": "4826", "takror": "4826"})
 _hk = req(HD, "get", "/api/hodim/my-requests").status_code
 check("H1 hodim panelga kirdi", _r.status_code in (302, 303) and _hk == 200, (_r.status_code, _hk))
 _r = req(ADM, "post", f"/api/employees/{EMP_ID}/set-login", data={"phone": "+998901160116", "pin": "5678"})

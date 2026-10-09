@@ -435,6 +435,12 @@ YANGI_MARSHRUTLAR = {
     # (Telegram yuboradi; ichida korxona siri bilan solishtiriladi — sir yo'q / mos emas → 403)
     "GET /api/system/telegram-webhook-info": "PLAT", "POST /api/settings/telegram-bot/ulash": "A",
     "POST /telegram/webhook/{company_id}": "-",
+    # kech133 (zip 159 — egasi qarorlari 09.10, MOSLANDI): hodim telefoniga ruxsat — «Hodimlar: Tahrirlash» (telefon + PIN belgilash
+    # bilan bir xil); hodimning o'z PIN i va ruxsat kutish holati — qorovulsiz (telefon kutayotganda / PIN vaqtinchalik bo'lganda
+    # `require_employee_login` o'tkazmaydi — hodim sessiyasi ichida tekshiriladi: `auth.hodim_holati`)
+    "GET /api/admin/qurilma-sorovlari": "A", "POST /api/employees/{emp_id}/qurilma/ruxsat": "A",
+    "POST /api/employees/{emp_id}/qurilma/rad": "A", "POST /api/employees/{emp_id}/qurilma/uzish": "A",
+    "GET /hodim/pin": "-", "GET /api/hodim/qurilma-holati": "-", "POST /api/hodim/pin": "-",
 }
 # ATAYLAB o'zgarishlar (rol, marshrut) → yangi holat (True — ochiq). Sababi: tayyor rollar sahifa bo'yicha izchil.
 FARQLAR = {

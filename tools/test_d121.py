@@ -479,6 +479,14 @@ def hodim(nom, tel, pin, **qosh):
     CA.post(f"/api/employees/{eid}/set-login", data={"phone": tel, "pin": pin})
     h = TestClient(main.app, base_url="https://testserver", raise_server_exceptions=False)
     r = h.post("/hodim/login", data={"phone": tel, "pin": pin, "korxona": "D1"}, follow_redirects=False)
+    # kech133 (zip 159, MOSLANDI): panel endi FAQAT admin ruxsat bergan telefondan va hodimning O'Z PIN i bilan ochiladi (egasi
+    # qarorlari 09.10). Bu bo'lim avans so'rovlarini sinaydi — admin telefonga ruxsat beradi, hodim o'z PIN ini qo'yadi (asl kodda
+    # bu yo'llar yo'q — 404, bo'lim eskisidek ishlaydi).
+    _k = next((x.get("kalit") for x in (js(CA.get("/api/admin/qurilma-sorovlari")) or []) if isinstance(x, dict)
+               and x.get("employee_id") == eid), None)
+    if _k:
+        CA.post(f"/api/employees/{eid}/qurilma/ruxsat", json={"kalit": _k})
+        h.post("/api/hodim/pin", json={"yangi": "4826", "takror": "4826"})
     return eid, h, r.status_code
 
 

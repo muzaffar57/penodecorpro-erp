@@ -159,6 +159,7 @@ if PW_BOR:
     BU = f"http://127.0.0.1:{port}"
     JS_XATO = []
     SOROV = []
+    TELEFON = {"pin": "4321", "cookie": None}     # kech133 (zip 159, MOSLANDI): hodimning telefoni (brauzer kaliti) va joriy PIN i
 
     with sync_playwright() as pw:
         _exe = None
@@ -177,10 +178,33 @@ if PW_BOR:
             pg.on("pageerror", lambda e: JS_XATO.append((w, str(e)[:300])))
             pg.on("request", lambda r: SOROV.append((w, r.url)) if "/api/hodim/oylik" in r.url else None)
             pg.goto(BU + "/hodim/login")
+            # kech133 (zip 159, MOSLANDI): panel endi FAQAT admin ruxsat bergan telefondan va hodimning O'Z PIN i bilan ochiladi
+            # (egasi qarorlari 09.10). Bu sinov sahifa KO'RINISHINI o'lchaydi — uchala kenglik BITTA telefon (bitta brauzer kaliti):
+            # birinchi kontekstda admin ruxsat beradi (TestClient A), hodim o'z PIN ini qo'yadi; keyingilariga o'sha telefon kaliti
+            # (`emp_qurilma`) qo'yiladi (yangi ruxsat so'ralmaydi — 375 px konteksti oxirigacha ishlaydi). Asl kodda (zip 158) bu
+            # yo'llar yo'q — kirish eskisidek.
+            if TELEFON.get("cookie"):
+                ctx.add_cookies([TELEFON["cookie"]])
             pg.fill("input[name=phone]", "+998901119911")
-            pg.fill("input[name=pin]", "4321")
+            pg.fill("input[name=pin]", TELEFON["pin"])
             pg.click("button[type=submit]")
             pg.wait_for_load_state("networkidle")
+            if not TELEFON.get("cookie"):
+                _q = A.get("/api/admin/qurilma-sorovlari")
+                _q = _q.json() if _q.status_code == 200 else []
+                _k = next((x.get("kalit") for x in _q if x.get("employee_id") == EU), None)
+                if _k:
+                    A.post(f"/api/employees/{EU}/qurilma/ruxsat", json={"kalit": _k})
+                    pg.goto(BU + "/hodim")
+                    pg.wait_for_load_state("networkidle")
+                    if pg.query_selector("#pinYangi"):
+                        pg.fill("#pinYangi", "4826")
+                        pg.fill("#pinTakror", "4826")
+                        pg.click("#pinSaqla")
+                        pg.wait_for_selector("#submit-btn")
+                        pg.wait_for_load_state("networkidle")
+                        TELEFON["pin"] = "4826"
+                    TELEFON["cookie"] = next((c for c in ctx.cookies() if c.get("name") == "emp_qurilma"), None)
             return ctx, pg
 
         def ev(pg, kod, arg=None):
