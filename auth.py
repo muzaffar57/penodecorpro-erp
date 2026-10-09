@@ -9,6 +9,7 @@ Admin (`users.role == ADMIN`) — hamma narsa.
 """
 
 import hashlib
+import re
 import secrets
 import bcrypt
 from datetime import datetime, timedelta
@@ -713,12 +714,15 @@ def verify_pin(plain_pin: str, hashed_pin: str) -> bool:
     return verify_password(plain_pin, hashed_pin)
 
 
-def create_employee_session(db: Session, employee_id: int) -> str:
+def create_employee_session(db: Session, employee_id: int, qurilma_hash: Optional[str] = None) -> str:
+    """kech133 (zip 159): `qurilma_hash` — sessiya ochilgan telefon (brauzer kaliti xeshi, `qurilma_hash_ol`). Usiz sessiya
+    `hodim_holati` da yaroqsiz (eski sessiyalar ham shunday)."""
     from models import EmployeeSession
     token = secrets.token_urlsafe(32)
     entry = EmployeeSession(
         token=token, employee_id=employee_id,
-        expires_at=datetime.utcnow() + timedelta(hours=EMPLOYEE_SESSION_HOURS)
+        expires_at=datetime.utcnow() + timedelta(hours=EMPLOYEE_SESSION_HOURS),
+        qurilma_hash=qurilma_hash,
     )
     db.add(entry)
     db.commit()
@@ -734,7 +738,7 @@ def get_employee_session(db: Session, token: str) -> Optional[dict]:
         db.delete(entry)
         db.commit()
         return None
-    return {"employee_id": entry.employee_id, "expires": entry.expires_at}
+    return {"employee_id": entry.employee_id, "expires": entry.expires_at, "qurilma_hash": entry.qurilma_hash}
 
 
 def delete_employee_session(db: Session, token: str):
@@ -743,23 +747,86 @@ def delete_employee_session(db: Session, token: str):
     db.commit()
 
 
-def get_current_employee(request: Request, db: Session = Depends(get_db)) -> Optional[Employee]:
-    """Cookie dan token olib, joriy xodimni qaytaradi."""
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# kech133 (zip 159 — egasi QARORLARI 09.10: «hodim tel raqami va PIN ni tersa hamma kira olar ekan — faqat o'z telefonidan»;
+# «har yangi telefonga admin ruxsati»; «PIN ni hodimning o'zi o'zgartirsin»).
+# TELEFON = brauzerdagi tasodifiy KALIT (`QURILMA_COOKIE`: httponly — sahifa skripti ham o'qiy olmaydi; 400 kun — brauzerlar
+# cookie umrini shu bilan cheklaydi, har kirishda yangilanadi). Sayt telefon raqami / IMEI ni o'qiy olmaydi — shuning uchun
+# bog'lash brauzerga: brauzer ma'lumoti tozalansa yoki boshqa brauzer ochilsa — «yangi telefon» (admin yana ruxsat beradi).
+# Bazada kalitning o'zi emas — SHA-256 i (`Employee.qurilma_hash`, `EmployeeSession.qurilma_hash`).
+# HOLAT (`hodim_holati`): sessiya + telefon kaliti sessiyanikiga mos bo'lsa —
+#   «tayyor»      — telefon ruxsat berilgan, PIN o'zi qo'ygan → panel;
+#   «pin»         — telefon ruxsat berilgan, PIN hali admin bergan (vaqtinchalik) → avval o'z PIN i;
+#   «kutilmoqda»  — telefon ruxsat kutmoqda (`Employee.qurilma_sorov_hash`);
+#   «rad»         — na ruxsat, na kutish (admin rad etdi, so'rov boshqa telefondan yangilandi yoki telefon uzildi).
+# Mos kelmasa (kalit yo'q / boshqa / eski sessiya) — sessiya YO'Q deb olinadi.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+QURILMA_COOKIE = "emp_qurilma"
+QURILMA_COOKIE_SONIYA = 400 * 24 * 3600
+_QURILMA_KALIT_RE = re.compile(r"^[A-Za-z0-9_-]{43}$")
+HOLAT_TAYYOR, HOLAT_PIN, HOLAT_KUTILMOQDA, HOLAT_RAD = "tayyor", "pin", "kutilmoqda", "rad"
+PIN_AVVAL_XABARI = "Avval o'z PIN kodingizni qo'ying"
+
+
+def qurilma_kaliti(request: Request) -> Optional[str]:
+    """Brauzerdagi telefon kaliti (to'g'ri ko'rinishda bo'lsa), aks holda None."""
+    k = request.cookies.get(QURILMA_COOKIE) or ""
+    return k if _QURILMA_KALIT_RE.match(k) else None
+
+
+def yangi_qurilma_kaliti() -> str:
+    return secrets.token_urlsafe(32)          # 43 belgi
+
+
+def qurilma_hash_ol(kalit: str) -> str:
+    return hashlib.sha256(kalit.encode("utf-8")).hexdigest()
+
+
+def pin_vaqtinchalikmi(emp) -> bool:
+    """NULL ham vaqtinchalik (xavfsiz tomon) — faqat hodim o'zi qo'ygan PIN `False`."""
+    return getattr(emp, "pin_vaqtinchalik", None) is not False
+
+
+def hodim_holati(request: Request, db: Session) -> Optional[dict]:
+    """{"employee", "holat", "token", "qurilma_hash"} yoki None (sessiya yo'q / yaroqsiz). Korxonasi bloklangan bo'lsa —
+    sessiya o'chiriladi va 403 (`_korxona_bloklanganmi`, eskisidek)."""
     token = request.cookies.get("emp_session_token")
     if not token:
         return None
     session = get_employee_session(db, token)
     if not session:
         return None
+    kalit = qurilma_kaliti(request)
+    qh = qurilma_hash_ol(kalit) if kalit else None
+    if not qh or not session.get("qurilma_hash") or session["qurilma_hash"] != qh:
+        return None
+    # kech133 (zip 159, O'LCHANGAN): o'chirilgan («O'chirilganlar» dagi) hodim ham kirib, avans yozardi — `is_deleted` tekshirilmasdi
     employee = db.query(Employee).filter(
         Employee.id == session["employee_id"],
-        Employee.is_active == True
+        Employee.is_active == True,
+        Employee.is_deleted.isnot(True),
     ).first()
-    if employee is not None:
-        # kech111 — korxonasi bloklangan hodim paneli ham yopiladi (`_korxona_bloklanganmi`).
-        _korxona_bloklanganmi(db, getattr(employee, "company_id", None),
-                              yop=lambda: delete_employee_session(db, token))
-    return employee
+    if employee is None:
+        return None
+    # kech111 — korxonasi bloklangan hodim paneli ham yopiladi (`_korxona_bloklanganmi`).
+    _korxona_bloklanganmi(db, getattr(employee, "company_id", None),
+                          yop=lambda: delete_employee_session(db, token))
+    if employee.qurilma_hash and employee.qurilma_hash == qh:
+        holat = HOLAT_PIN if pin_vaqtinchalikmi(employee) else HOLAT_TAYYOR
+    elif employee.qurilma_sorov_hash and employee.qurilma_sorov_hash == qh:
+        holat = HOLAT_KUTILMOQDA
+    else:
+        holat = HOLAT_RAD
+    return {"employee": employee, "holat": holat, "token": token, "qurilma_hash": qh}
+
+
+def get_current_employee(request: Request, db: Session = Depends(get_db)) -> Optional[Employee]:
+    """Cookie dan token olib, joriy xodimni qaytaradi — kech133 (zip 159): FAQAT ruxsat berilgan telefondan va o'z PIN i bilan
+    (holat «tayyor»); boshqa holatlar — `hodim_holati`."""
+    h = hodim_holati(request, db)
+    if not h or h["holat"] != HOLAT_TAYYOR:
+        return None
+    return h["employee"]
 
 
 def inventory_of_company(db: Session, item_id: int, company_id: int):
@@ -914,15 +981,18 @@ def employee_of_company(db: Session, emp_id: int, company_id: int):
 
 
 def require_employee_login(request: Request, db: Session = Depends(get_db)) -> Employee:
-    """Xodim login qilganligini tekshiradi."""
-    employee = get_current_employee(request, db)
-    if not employee:
+    """Xodim login qilganligini tekshiradi. kech133 (zip 159): ruxsat berilgan telefondan; PIN hali vaqtinchalik bo'lsa — 403
+    (avval o'z PIN i — `POST /api/hodim/pin`); telefon ruxsat kutayotgan / rad etilgan yoki sessiya yo'q — 401."""
+    h = hodim_holati(request, db)
+    if h and h["holat"] == HOLAT_PIN:
+        raise HTTPException(status_code=403, detail=PIN_AVVAL_XABARI)
+    if not h or h["holat"] != HOLAT_TAYYOR:
         raise HTTPException(
             status_code=401,
             detail="Iltimos, tizimga kiring",
             headers={"Location": "/hodim/login"}
         )
-    return employee
+    return h["employee"]
 
 
 

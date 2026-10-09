@@ -5113,6 +5113,12 @@ AUDIT_AMALLARI = {
     # `new_value` da bot nomi va manzil
     "telegram_bot_ulandi": ("🔗", "— ulandi", "Telegram bot"),
     "telegram_bot_uzildi": ("🔌", "— uzildi", "Telegram bot"),
+    # kech133 (zip 159): hodim telefoni (yozuv nomi — «Ism: telefon nomi»; ruxsatda `old_value` — eski telefon) va o'z PIN i
+    "qurilma_sorov": ("📱", "— yangi telefondan kirish so'radi", "Hodim telefoni"),
+    "qurilma_ruxsat": ("✅", "— telefoniga ruxsat berildi", "Hodim telefoni"),
+    "qurilma_rad": ("⛔", "— telefon so'rovi rad etildi", "Hodim telefoni"),
+    "qurilma_uzildi": ("🔌", "— telefoni uzildi", "Hodim telefoni"),
+    "pin_ozgartirildi": ("🔒", "— o'z PIN ini qo'ydi", "Hodim PIN i"),
     # eski yozuvlar (zip 129 dan oldin shu nom bilan yozilishi mo'ljallangan, lekin NOT NULL sabab yozilmagan)
     "Zaxiradan tiklash": ("💾", "— zaxiradan tiklandi", "Zaxiradan tiklandi"),
 }
@@ -8194,7 +8200,8 @@ _TENANT_PARENTS = {
 _NON_TENANT_TABLES = {"user_sessions", "employee_sessions", "error_logs", "murojaatlar", "murojaat_xabarlari"}
 
 # Zahira nusxaga HECH QACHON kiritilmaydigan ustunlar.
-_SECRET_COLUMNS = {"password_hash", "pin_hash"}
+# kech133 (zip 159): + hodim telefon kalitlari xeshi (ruxsat berilgan va kutayotgan) — tiklashdan keyin telefonlar qayta tasdiqlanadi
+_SECRET_COLUMNS = {"password_hash", "pin_hash", "qurilma_hash", "qurilma_sorov_hash"}
 
 
 def _tenant_filter(db: Session, model, query, company_id: int):
@@ -13228,6 +13235,13 @@ def delete_employee(db: Session, emp_id: int, performed_by: str = None) -> bool:
     if not emp:
         return False
     emp.is_deleted = True
+    # kech133 (zip 159, O'LCHANGAN): o'chirilgan hodimning ochiq panel sessiyalari ham yopiladi (ilgari 14 kungacha ishlardi;
+    # kirish va sessiya endi `is_deleted` ni ham tekshiradi — `authenticate_employee`, `auth.hodim_holati`)
+    from models import EmployeeSession as _ES159
+    db.query(_ES159).filter(
+        _ES159.employee_id == emp.id,
+        _ES159.employee_id.in_(db.query(Employee.id).filter(Employee.company_id == emp.company_id)),
+    ).delete(synchronize_session=False)
     db.commit()
     log_activity(db, "deleted", "employee", emp_id, emp.name, performed_by,
                  company_id=getattr(emp, 'company_id', None))
@@ -13277,14 +13291,43 @@ def get_deleted_employees(db: Session, company_id: int = None) -> List[Employee]
 # XODIM PANELI — login sozlash va avans so'rovlari
 # ============================================================
 
+import re as _re159                                 # noqa: E402
+
+
+def telefon_kaliti(telefon) -> str:
+    """kech133 (zip 159, O'LCHANGAN): hodim telefonini SOLISHTIRISH kaliti — faqat raqamlar; 9 xonali (operator kodidan,
+    «90 123 45 67») bo'lsa oldiga 998. Ilgari kirishda telefon harfma-harf solishtirilardi: kirish sahifasi namunasi
+    «+998 90 123 45 67» (bo'sh joyli), admin oynasiniki «+998901234567» — bo'sh joy yoki «+998» farqi bilan to'g'ri PIN ham
+    «Telefon yoki PIN noto'g'ri» berardi. Bazada telefon admin yozgandek saqlanadi (ko'rsatish uchun)."""
+    r = _re159.sub(r"\D", "", str(telefon or ""))
+    if len(r) == 9:
+        r = "998" + r
+    return r
+
+
+def _telefon_bandmi(db: Session, company_id: int, telefon: str, emp_id: int) -> bool:
+    """Shu korxonada BOSHQA hodimda shu raqam bormi (ko'rinishidan qat'i nazar — `telefon_kaliti`)."""
+    kalit = telefon_kaliti(telefon)
+    for (eid, tel) in db.query(Employee.id, Employee.phone).filter(
+            Employee.company_id == company_id, Employee.phone.isnot(None), Employee.id != emp_id).all():
+        if telefon_kaliti(tel) == kalit:
+            return True
+    return False
+
+
 def set_employee_login(db: Session, emp_id: int, phone: str, pin: str) -> Optional[Employee]:
-    """Admin xodimga telefon+PIN belgilaydi (xodim panelga kirishi uchun)."""
+    """Admin xodimga telefon+PIN belgilaydi (xodim panelga kirishi uchun).
+    kech133 (zip 159): raqam boshqa hodimda (boshqa ko'rinishda ham) bo'lsa — ValueError; PIN — VAQTINCHALIK (hodim panelga
+    kirgach o'z PIN ini qo'yadi, egasi qarori 09.10). Bog'langan telefon O'ZGARMAYDI (PIN unutilsa — o'sha telefondan kiradi)."""
     import auth
     emp = get_employee(db, emp_id)
     if not emp:
         return None
+    if _telefon_bandmi(db, emp.company_id, phone, emp.id):
+        raise ValueError("Bu telefon raqami boshqa xodimda band")
     emp.phone = phone.strip()
     emp.pin_hash = auth.hash_pin(pin.strip())
+    emp.pin_vaqtinchalik = True
     # kech116 (G6-06, O'LCHANGAN — audit: PIN almashtirilgach eski kirish 14 kungacha ishlardi): hodimning HAMMA panel
     # sessiyalari PIN bilan BITTA tranzaksiyada o'chiriladi — yangi PIN bilan qayta kiradi.
     from models import EmployeeSession as _ES116
@@ -13341,19 +13384,28 @@ def authenticate_employee(db: Session, phone: str, pin: str, company_id: int = N
     Natijada B korxona admini o'z xodimiga A korxona xodimining telefonini
     berib, A ning xodim paneliga kirib qolishi mumkin edi.
 
-    Endi korxona majburiy: topish (company_id, phone) juftligi bo'yicha."""
+    Endi korxona majburiy: topish (company_id, phone) juftligi bo'yicha.
+
+    kech133 (zip 159, O'LCHANGAN): telefon — `telefon_kaliti` bo'yicha (bo'sh joy, «+», «998» siz yozuv ham); o'chirilgan
+    («O'chirilganlar» dagi) hodim KIRMAYDI (ilgari faqat `is_active` tekshirilardi — o'chirilgan hodim kirib avans yozardi).
+    Bir xil raqamli ikki eski yozuvdan PIN i mos kelgani olinadi; ikkalasi mos kelsa — hech biri (noaniq)."""
     import auth
     if not company_id:
         return None
-    emp = db.query(Employee).filter(
+    kalit = telefon_kaliti(phone)
+    if len(kalit) < 7:
+        return None
+    nomzodlar = [e for e in db.query(Employee).filter(
         Employee.company_id == company_id,
-        Employee.phone == phone.strip(),
-        Employee.is_active == True
-    ).first()
-    if not emp or not emp.pin_hash:
+        Employee.is_active == True,
+        Employee.is_deleted.isnot(True),
+        Employee.phone.isnot(None),
+        Employee.pin_hash.isnot(None),
+    ).all() if telefon_kaliti(e.phone) == kalit]
+    mos = [e for e in nomzodlar if auth.verify_pin(pin.strip(), e.pin_hash)]
+    if len(mos) != 1:
         return None
-    if not auth.verify_pin(pin.strip(), emp.pin_hash):
-        return None
+    emp = mos[0]
     # MUHIM: agar PIN hali eski (SHA-256) formatda bo'lsa — muvaffaqiyatli
     # kirishning o'zida, sezilmas tarzda bcrypt'ga yangilaymiz (parol bilan
     # bir xil mantiq — auth.verify_and_upgrade_password'ga qarang).
@@ -13361,6 +13413,195 @@ def authenticate_employee(db: Session, phone: str, pin: str, company_id: int = N
         emp.pin_hash = auth.hash_pin(pin.strip())
         db.commit()
     return emp
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# kech133 (zip 159 — egasi QARORLARI 09.10): HODIM TELEFONI (bitta, admin ruxsati bilan) va O'Z PIN i. Holatlar — `auth.hodim_holati`.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+QURILMA_NOMI_MAX = 120
+_QURILMA_BRAUZER = (("SamsungBrowser", "Samsung Internet"), ("YaBrowser", "Yandex"), ("OPR/", "Opera"), ("EdgA/", "Edge"),
+                    ("Edg/", "Edge"), ("FxiOS", "Firefox"), ("Firefox", "Firefox"), ("CriOS", "Chrome"), ("Chrome", "Chrome"),
+                    ("Safari", "Safari"))
+
+
+def _qurilma_model_toza(m) -> str:
+    return _re159.sub(r"[^0-9A-Za-z _.()\-]", "", str(m or "")).strip()[:40]
+
+
+def qurilma_nomi_yasash(user_agent: str, model: str = None) -> str:
+    """Admin ko'radigan telefon nomi: «Android · SM-A525F · Chrome». `model` — kirish sahifasi skripti brauzerdan olgan model
+    (`navigator.userAgentData` — Chrome / Samsung Internet; faqat KO'RSATISH uchun, xavfsizlikka ta'sir qilmaydi). Bo'lmasa —
+    brauzer satridan (yangi Chrome modelni yashiradi: «Android 10; K»)."""
+    ua = str(user_agent or "")
+    if "iPhone" in ua:
+        tizim = "iPhone"
+    elif "iPad" in ua:
+        tizim = "iPad"
+    elif "Android" in ua:
+        tizim = "Android"
+    elif "Windows" in ua:
+        tizim = "Windows"
+    elif "Macintosh" in ua or "Mac OS" in ua:
+        tizim = "Mac"
+    elif "Linux" in ua:
+        tizim = "Linux"
+    else:
+        tizim = "Noma'lum qurilma"
+    brauzer = next((nom for belgi, nom in _QURILMA_BRAUZER if belgi in ua), "")
+    m = _qurilma_model_toza(model)
+    if not m and tizim == "Android":
+        _x = _re159.search(r"Android [0-9.]+; ([^;)]+?)(?: Build/[^;)]*)?\)", ua)
+        if _x and _x.group(1).strip() not in ("K", "wv"):
+            m = _qurilma_model_toza(_x.group(1))
+    return " · ".join([tizim] + ([m] if m else []) + ([brauzer] if brauzer else []))[:QURILMA_NOMI_MAX]
+
+
+def _qurilma_sorov_kaliti(emp) -> str:
+    """Admin oynasidagi so'rov belgisi — ruxsat aynan KO'RILGAN telefonga berilsin (shu orada boshqa telefondan yangi so'rov
+    kelsa — 409)."""
+    return (emp.qurilma_sorov_hash or "")[:16]
+
+
+def _utc_iso(v):
+    return (v.isoformat() + "Z") if v else None
+
+
+def hodim_qurilma_sorovi(db: Session, emp, qurilma_hash: str, nomi: str) -> bool:
+    """Ruxsat berilmagan telefondan TO'G'RI telefon + PIN bilan kirildi — shu telefon «ruxsat kutmoqda» bo'ladi. So'rov
+    BITTA: boshqa telefondan kelgani eskisini almashtiradi (o'sha telefon sahifasi «ruxsat berilmadi» ga o'tadi). Yangi so'rov —
+    True (adminga Telegram xabari), o'sha telefon qayta kirsa — False."""
+    if emp.qurilma_sorov_hash == qurilma_hash:
+        return False
+    emp.qurilma_sorov_hash = qurilma_hash
+    emp.qurilma_sorov_nomi = (nomi or "")[:QURILMA_NOMI_MAX] or None
+    emp.qurilma_sorov_vaqti = datetime.utcnow()
+    log_activity(db, "qurilma_sorov", "employee", emp.id, f"{emp.name}: {emp.qurilma_sorov_nomi or ''}"[:200], emp.name,
+                 company_id=emp.company_id, commit=False)
+    db.commit()
+    return True
+
+
+def hodim_qurilma_sorovlari(db: Session, company_id: int) -> List[dict]:
+    """Ruxsat kutayotgan telefonlar (eng eskisi birinchi) — Bosh sahifa oynasi va «🔑 Kirish» uchun."""
+    rows = db.query(Employee).filter(
+        Employee.company_id == company_id,
+        Employee.is_active == True,
+        Employee.is_deleted.isnot(True),
+        Employee.qurilma_sorov_hash.isnot(None),
+    ).order_by(Employee.qurilma_sorov_vaqti.asc(), Employee.id.asc()).all()
+    return [{"employee_id": e.id, "name": e.name, "position": e.position, "nomi": e.qurilma_sorov_nomi,
+             "vaqti": _utc_iso(e.qurilma_sorov_vaqti), "kalit": _qurilma_sorov_kaliti(e), "hozirgi": e.qurilma_nomi}
+            for e in rows]
+
+
+def hodim_qurilma_xulosa(emp) -> dict:
+    """`/api/employees` qatori uchun: bog'langan telefon, kutayotgan so'rov, PIN holati."""
+    return {
+        "qurilma": ({"nomi": emp.qurilma_nomi, "vaqti": _utc_iso(emp.qurilma_vaqti)} if emp.qurilma_hash else None),
+        "qurilma_sorov": ({"nomi": emp.qurilma_sorov_nomi, "vaqti": _utc_iso(emp.qurilma_sorov_vaqti),
+                           "kalit": _qurilma_sorov_kaliti(emp)} if emp.qurilma_sorov_hash else None),
+        "pin_vaqtinchalik": bool(emp.pin_hash) and emp.pin_vaqtinchalik is not False,
+    }
+
+
+def _hodim_sessiyalarini_yop(db: Session, emp, qoldir_hash: str = None, qoldir_token: str = None) -> None:
+    """Hodim panel sessiyalarini yopadi; `qoldir_hash` — shu telefonnikidan tashqari, `qoldir_token` — shu sessiyadan tashqari.
+    Hodim — FAQAT o'z korxonasidan (set_employee_login dagi naqsh)."""
+    from models import EmployeeSession as _ES
+    from sqlalchemy import or_ as _or159
+    q = db.query(_ES).filter(
+        _ES.employee_id == emp.id,
+        _ES.employee_id.in_(db.query(Employee.id).filter(Employee.company_id == emp.company_id)),
+    )
+    if qoldir_hash is not None:
+        q = q.filter(_or159(_ES.qurilma_hash.is_(None), _ES.qurilma_hash != qoldir_hash))
+    if qoldir_token is not None:
+        q = q.filter(_ES.token != qoldir_token)
+    q.delete(synchronize_session=False)
+
+
+def hodim_qurilma_ruxsat(db: Session, emp, kalit: str, performed_by: str) -> dict:
+    """Admin kutayotgan telefonga ruxsat beradi: u hodimning YAGONA telefoni bo'ladi; eski telefondagi sessiyalar yopiladi
+    (kutib turgan yangi telefon sahifasi o'zi panelga o'tadi). `kalit` — admin ko'rgan so'rov belgisi (mos kelmasa LookupError)."""
+    if not emp.qurilma_sorov_hash or not kalit or _qurilma_sorov_kaliti(emp) != str(kalit):
+        raise LookupError("So'rov topilmadi yoki yangilangan — sahifani yangilab, qayta ko'ring")
+    eski = emp.qurilma_nomi
+    emp.qurilma_hash = emp.qurilma_sorov_hash
+    emp.qurilma_nomi = emp.qurilma_sorov_nomi
+    emp.qurilma_vaqti = datetime.utcnow()
+    emp.qurilma_sorov_hash = emp.qurilma_sorov_nomi = emp.qurilma_sorov_vaqti = None
+    _hodim_sessiyalarini_yop(db, emp, qoldir_hash=emp.qurilma_hash)
+    log_activity(db, "qurilma_ruxsat", "employee", emp.id, f"{emp.name}: {emp.qurilma_nomi or ''}"[:200], performed_by,
+                 old_value=eski, company_id=emp.company_id, commit=False)
+    db.commit()
+    return {"status": "ok", "nomi": emp.qurilma_nomi, "eski": eski}
+
+
+def hodim_qurilma_rad(db: Session, emp, kalit: str, performed_by: str) -> dict:
+    """Admin so'rovni rad etadi: o'sha telefon sahifasi «ruxsat berilmadi» ga o'tadi (sessiyasi o'sha sahifa ochilganda yopiladi —
+    `main.hodim_panel`; bu yerda yopilsa kutayotgan sahifa sababsiz kirish sahifasiga o'tib qolardi; holati «rad» — hech narsaga
+    kirmaydi); bog'langan telefon (bo'lsa) qoladi."""
+    if not emp.qurilma_sorov_hash or not kalit or _qurilma_sorov_kaliti(emp) != str(kalit):
+        raise LookupError("So'rov topilmadi yoki yangilangan — sahifani yangilab, qayta ko'ring")
+    nomi = emp.qurilma_sorov_nomi
+    emp.qurilma_sorov_hash = emp.qurilma_sorov_nomi = emp.qurilma_sorov_vaqti = None
+    log_activity(db, "qurilma_rad", "employee", emp.id, f"{emp.name}: {nomi or ''}"[:200], performed_by,
+                 company_id=emp.company_id, commit=False)
+    db.commit()
+    return {"status": "ok"}
+
+
+def hodim_qurilma_uz(db: Session, emp, performed_by: str) -> dict:
+    """Admin bog'langan telefonni uzadi (telefon yo'qolgan / almashgan): hodimning hamma sessiyasi yopiladi; keyingi kirish —
+    yangi ruxsat so'rovi."""
+    if not emp.qurilma_hash:
+        raise LookupError("Bu hodimga telefon bog'lanmagan")
+    nomi = emp.qurilma_nomi
+    emp.qurilma_hash = emp.qurilma_nomi = emp.qurilma_vaqti = None
+    _hodim_sessiyalarini_yop(db, emp)
+    log_activity(db, "qurilma_uzildi", "employee", emp.id, f"{emp.name}: {nomi or ''}"[:200], performed_by,
+                 company_id=emp.company_id, commit=False)
+    db.commit()
+    return {"status": "ok"}
+
+
+_PIN_RE159 = _re159.compile(r"[0-9]{4}")
+
+
+def pin_juda_osonmi(pin: str) -> bool:
+    """1111 … 9999 va ketma-ket 0123 … 6789 / 9876 … 3210."""
+    if len(set(pin)) == 1:
+        return True
+    farq = {int(pin[i + 1]) - int(pin[i]) for i in range(3)}
+    return farq in ({1}, {-1})
+
+
+def hodim_pin_almashtir(db: Session, emp, yangi: str, takror: str, eski: str = None, majburiy: bool = False,
+                        joriy_token: str = None) -> dict:
+    """Hodim O'Z PIN ini qo'yadi (egasi qarori 09.10: admin bergan PIN vaqtinchalik). `majburiy` — PIN hali vaqtinchalik (kirish
+    paytida hozirgina terilgan — qayta so'ralmaydi); aks holda hozirgi PIN shart (`PermissionError` — chaqiruvchi urinish sifatida
+    yozadi). Qoida buzilsa — ValueError (o'zbekcha sabab). Hodimning BOSHQA sessiyalari yopiladi (joriysi qoladi)."""
+    import auth
+    if not majburiy:
+        if not isinstance(eski, str) or not _PIN_RE159.fullmatch(eski.strip()) or not emp.pin_hash \
+                or not auth.verify_pin(eski.strip(), emp.pin_hash):
+            raise PermissionError("Hozirgi PIN noto'g'ri")
+    yangi = yangi.strip() if isinstance(yangi, str) else ""
+    takror = takror.strip() if isinstance(takror, str) else ""
+    if not _PIN_RE159.fullmatch(yangi):
+        raise ValueError("Yangi PIN aynan 4 xonali raqam bo'lishi kerak")
+    if yangi != takror:
+        raise ValueError("Yangi PIN ikki marta bir xil yozilmadi")
+    if pin_juda_osonmi(yangi):
+        raise ValueError("Bu PIN juda oson (1111, 1234 kabi) — boshqasini tanlang")
+    if emp.pin_hash and auth.verify_pin(yangi, emp.pin_hash):
+        raise ValueError("Yangi PIN hozirgisidan farq qilishi kerak")
+    emp.pin_hash = auth.hash_pin(yangi)
+    emp.pin_vaqtinchalik = False
+    _hodim_sessiyalarini_yop(db, emp, qoldir_token=joriy_token)
+    log_activity(db, "pin_ozgartirildi", "employee", emp.id, emp.name, emp.name, company_id=emp.company_id, commit=False)
+    db.commit()
+    return {"status": "ok"}
 
 
 def create_advance_request(db: Session, employee_id: int, amount: float, requested_date, notes: str = None,
