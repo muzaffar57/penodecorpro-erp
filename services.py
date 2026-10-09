@@ -7543,38 +7543,85 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
     return {"total": round(total), "breakdown": breakdown}
 
 
-def hodim_oylik_xulosa(db: Session, employee_id: int, company_id: int) -> dict:
+_HODIM_OY_NOMI = ["", "Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun", "Iyul", "Avgust", "Sentabr", "Oktabr", "Noyabr", "Dekabr"]
+# kech133 (zip 158 — egasi 09.10 12:0x): hodim panelidagi «Oyligim» — joriy oy + 11 o'tgan oy (jami 12). Joriy va o'tgan oy darhol
+# hisoblanadi; qolganlari faqat ro'yxat (hodim ochganda bitta oy so'raladi — har oy uchun butun korxona oylik hisoboti kerak, staging da
+# bittasi ~0,5–1 s: 12 tasi birdan — telefonda bir necha soniya).
+HODIM_OYLIK_OYLAR = 12
+
+
+def _oy_oldin(y: int, m: int, n: int) -> tuple:
+    """(yil, oy) dan n oy oldingi (yil, oy)."""
+    k = y * 12 + (m - 1) - n
+    return k // 12, k % 12 + 1
+
+
+def _hodim_oy_xulosa(db: Session, employee_id: int, company_id: int, y: int, m: int, joriy: bool):
+    """Bitta oy: hisoblangan (bonus va kamaytirish bilan), olingan, qolgan, to'lovlar. Joriy bo'lmagan oyda hisob ham, to'lov ham
+    bo'lmasa (hali ishga kirmagan) — None."""
+    rep = get_monthly_report(db, y, m, company_id=company_id)
+    e = next((r for r in rep.get("hodimlar_moslashuvchan_breakdown", []) if r.get("employee_id") == employee_id), None)
+    tolovlar = get_employee_advances_list(db, employee_id, y, m)
+    if not (joriy or e is not None or tolovlar):
+        return None
+    hisob = float(e["amount"]) if e else 0.0
+    olingan = float(e["avans"]) if e else float(round(sum(t["amount"] for t in tolovlar)))
+    return {
+        "yil": y, "oy": m, "nomi": f"{_HODIM_OY_NOMI[m]} {y}", "joriy": joriy,
+        "hisoblangan": round(hisob),
+        "olingan": round(olingan),
+        "qolgan": round(float(e["qolgan"]) if e else hisob - olingan),
+        "bonus": round(float(e.get("bonus") or 0)) if e else 0,
+        "bonus_sababi": (e.get("bonus_reason") or None) if e else None,
+        "kamaytirish": round(float(e.get("adjustment") or 0)) if e else 0,
+        "kamaytirish_sababi": (e.get("adjustment_reason") or None) if e else None,
+        "tolovlar": [{"sana": t["date"], "summa": round(float(t["amount"] or 0))} for t in tolovlar],
+    }
+
+
+def hodim_oylik_xulosa(db: Session, employee_id: int, company_id: int, oy: tuple = None) -> dict:
     """kech118 (D-1, G6-21 — egasi QARORI «Oylik ko'rinsin»): hodim panelidagi «Oyligim» — joriy (Toshkent) va o'tgan oy:
     hisoblangan (bonus va kamaytirish bilan), olingan (shu oyga yozilgan avans va to'lovlar), qolgan. Raqamlar — admin
     Hisobot / Moliya / «Kimga qarzmiz» bilan AYNAN bitta manbadan (`get_monthly_report` → `hodimlar_moslashuvchan_breakdown`,
     `calculate_monthly_employee_pay`). Hisob TAFSILOTI (korxona sotuvi / foydasi summasi) BERILMAYDI — faqat hodimning
-    o'z raqamlari. Oyga hali ishga kirmagan (hisob ham, to'lov ham yo'q) o'tgan oy ko'rsatilmaydi."""
-    OY = ["", "Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun", "Iyul", "Avgust", "Sentabr", "Oktabr", "Noyabr", "Dekabr"]
+    o'z raqamlari. Oyga hali ishga kirmagan (hisob ham, to'lov ham yo'q) o'tgan oy ko'rsatilmaydi.
+
+    kech133 (zip 158 — egasi 09.10): `boshqa_oylar` — undan oldingi oylar (jami `HODIM_OYLIK_OYLAR` = 12 oygacha) faqat nomi bilan:
+    hodim ishga kirgan oy (`hire_date` — oylik hisobidagi qoida bilan bir xil: oy oxirigacha) va keyingilari yoki shu oyda to'lov
+    bo'lgan oy. `oy=(yil, oy)` — bitta oy (panelda yopiq oy ochilganda), FAQAT oxirgi 12 oy ichida (aks holda ValueError)."""
+    from models import Employee, EmployeeAdvance
     bugun = _tashkent_date()
-    y, m = bugun.year, bugun.month
+    y0, m0 = bugun.year, bugun.month
+    if oy is not None:
+        y, m = int(oy[0]), int(oy[1])
+        k = (y0 - y) * 12 + (m0 - m)
+        if not (1 <= m <= 12) or not (0 <= k < HODIM_OYLIK_OYLAR):
+            raise ValueError("Oy noto'g'ri — faqat oxirgi 12 oy ko'rsatiladi")
+        x = _hodim_oy_xulosa(db, employee_id, company_id, y, m, joriy=(k == 0))
+        return {"oylar": [x] if x else []}
     oylar = []
-    for i in range(2):
-        rep = get_monthly_report(db, y, m, company_id=company_id)
-        e = next((r for r in rep.get("hodimlar_moslashuvchan_breakdown", []) if r.get("employee_id") == employee_id), None)
-        tolovlar = get_employee_advances_list(db, employee_id, y, m)
-        if i == 0 or e is not None or tolovlar:
-            hisob = float(e["amount"]) if e else 0.0
-            olingan = float(e["avans"]) if e else float(round(sum(t["amount"] for t in tolovlar)))
-            oylar.append({
-                "yil": y, "oy": m, "nomi": f"{OY[m]} {y}", "joriy": i == 0,
-                "hisoblangan": round(hisob),
-                "olingan": round(olingan),
-                "qolgan": round(float(e["qolgan"]) if e else hisob - olingan),
-                "bonus": round(float(e.get("bonus") or 0)) if e else 0,
-                "bonus_sababi": (e.get("bonus_reason") or None) if e else None,
-                "kamaytirish": round(float(e.get("adjustment") or 0)) if e else 0,
-                "kamaytirish_sababi": (e.get("adjustment_reason") or None) if e else None,
-                "tolovlar": [{"sana": t["date"], "summa": round(float(t["amount"] or 0))} for t in tolovlar],
-            })
-        m -= 1
-        if m == 0:
-            m, y = 12, y - 1
-    return {"oylar": oylar}
+    for k in range(2):
+        y, m = _oy_oldin(y0, m0, k)
+        x = _hodim_oy_xulosa(db, employee_id, company_id, y, m, joriy=(k == 0))
+        if x:
+            oylar.append(x)
+    emp = db.query(Employee).filter(Employee.id == employee_id, Employee.company_id == company_id).first()
+    yE, mE = _oy_oldin(y0, m0, HODIM_OYLIK_OYLAR - 1)
+    _bosh_utc = _tashkent_oy_oraligi(yE, mE)[0]
+    tolov_oylari = set()
+    for (sana,) in db.query(EmployeeAdvance.date).join(Employee, Employee.id == EmployeeAdvance.employee_id).filter(
+            Employee.company_id == company_id, EmployeeAdvance.employee_id == employee_id,
+            EmployeeAdvance.date >= _bosh_utc).all():
+        if sana is not None:
+            _t = _tashkent_date(sana)
+            tolov_oylari.add((_t.year, _t.month))
+    boshqa = []
+    for k in range(2, HODIM_OYLIK_OYLAR):
+        y, m = _oy_oldin(y0, m0, k)
+        ishda = emp is not None and emp.hire_date is not None and emp.hire_date < _tashkent_oy_oraligi(y, m)[1]
+        if ishda or (y, m) in tolov_oylari:
+            boshqa.append({"yil": y, "oy": m, "nomi": f"{_HODIM_OY_NOMI[m]} {y}"})
+    return {"oylar": oylar, "boshqa_oylar": boshqa}
 
 
 def get_employee_advances_total(db: Session, employee_id: int, year: int, month: int) -> float:

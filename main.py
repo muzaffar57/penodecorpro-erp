@@ -5762,10 +5762,20 @@ def api_hodim_my_requests(db: Session = Depends(get_db), emp=Depends(auth.requir
 
 
 @app.get("/api/hodim/oylik")
-def api_hodim_oylik(db: Session = Depends(get_db), emp=Depends(auth.require_employee_login)):
+def api_hodim_oylik(oy: Optional[str] = None, db: Session = Depends(get_db), emp=Depends(auth.require_employee_login)):
     """kech118 (D-1, G6-21 — egasi QARORI «Oylik ko'rinsin»): hodim O'Z oyligini ko'radi — joriy va o'tgan oy
-    (`services.hodim_oylik_xulosa`; manba — admin Hisobot / Moliya bilan bitta)."""
-    return services.hodim_oylik_xulosa(db, emp.id, emp.company_id)
+    (`services.hodim_oylik_xulosa`; manba — admin Hisobot / Moliya bilan bitta).
+    kech133 (zip 158 — egasi 09.10): `boshqa_oylar` — oxirgi 12 oyning qolganlari (nomi bilan); `?oy=YYYY-MM` — o'sha bitta oy
+    (panelda yopiq oy ochilganda), faqat oxirgi 12 oy ichida — aks holda 400."""
+    if oy is None or not str(oy).strip():
+        return services.hodim_oylik_xulosa(db, emp.id, emp.company_id)
+    _m = _re_hodim.fullmatch(r"(\d{4})-(\d{2})", str(oy).strip())
+    if not _m:
+        raise HTTPException(status_code=400, detail="Oy noto'g'ri (YYYY-MM)")
+    try:
+        return services.hodim_oylik_xulosa(db, emp.id, emp.company_id, oy=(int(_m.group(1)), int(_m.group(2))))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.post("/api/hodim/advance-request")
