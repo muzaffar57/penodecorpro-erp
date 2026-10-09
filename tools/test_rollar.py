@@ -441,6 +441,10 @@ YANGI_MARSHRUTLAR = {
     "GET /api/admin/qurilma-sorovlari": "A", "POST /api/employees/{emp_id}/qurilma/ruxsat": "A",
     "POST /api/employees/{emp_id}/qurilma/rad": "A", "POST /api/employees/{emp_id}/qurilma/uzish": "A",
     "GET /hodim/pin": "-", "GET /api/hodim/qurilma-holati": "-", "POST /api/hodim/pin": "-",
+    # kech134 (zip 160 — egasi QARORI 09.10 «C — hodim tasdig'i bilan», MOSLANDI): admin yozgan avansga hodim javobi — faqat hodim
+    # (panel) sessiyasi; «Olmaganman» ro'yxati va «Ko'rib chiqdim» — «Hodimlar: Tahrirlash» (avansni o'chirish bilan bir ruxsat)
+    "POST /api/hodim/avans/{advance_id}/javob": "EMP",
+    "GET /api/admin/avans-nizolar": "A", "POST /api/employees/advance/{advance_id}/nizo-korildi": "A",
 }
 # ATAYLAB o'zgarishlar (rol, marshrut) → yangi holat (True — ochiq). Sababi: tayyor rollar sahifa bo'yicha izchil.
 FARQLAR = {
