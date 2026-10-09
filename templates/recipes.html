@@ -69,19 +69,6 @@
 .recp-ing-del{width:var(--h-sm);height:var(--h-sm);border:none;background:none;color:var(--m-dc2626);cursor:pointer;font-size:16px;flex-shrink:0;border-radius:var(--r-btn);display:flex;align-items:center;justify-content:center}
 .recp-ing-del:hover{background:var(--f-fee2e2)}
 .recp-picker{position:relative}
-/* kech119 (C BOSQICH — telefon, audit G4-24, O'LCHANGAN work/k125/telefon.py: 390 px da tarkibdagi nomlar 46 px («Nam...»),
-   360 px da 16 px — «Namuna Kley» va «Namuna Qum» bir xil ko'rinardi; tanlash paneli oynadan chiqib kesilardi; «⋮⋮ Surish»
-   belgisi bor, surish yo'q edi — olib tashlandi): telefonda nom to'liq (2 qatorgacha), miqdor va o'chirish — keyingi qatorda;
-   tanlash paneli oqim ichida (oyna bilan birga suriladi) va ochilganda ko'rinishga keltiriladi. */
-@media (max-width:600px){
-  .recp-modal{padding:18px}
-  .recp-ing-row{flex-wrap:wrap;row-gap:8px}
-  .recp-ing-info{flex:1 1 calc(100% - 50px)}
-  .recp-ing-name{white-space:normal;overflow-wrap:anywhere}
-  .recp-ing-qty{margin-left:45px;flex:1 1 auto;max-width:180px}
-  .recp-ing-table-head span:last-child{display:none}
-  .recp-picker-panel{position:static;margin-bottom:12px;max-height:60vh}
-}
 .recp-picker-panel{position:absolute;top:0;left:0;right:0;background:var(--white);border:1px solid var(--border2);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.14);z-index:50;max-height:340px;display:flex;flex-direction:column}
 .recp-picker-search{display:flex;align-items:center;gap:8px;padding:6px 12px;border-bottom:1px solid var(--border2);flex-shrink:0}
 .recp-picker-search i{color:var(--text3);font-size:16px}
@@ -92,6 +79,22 @@
 .recp-picker-item:hover{background:var(--bg)}
 .recp-picker-item-icon{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
 .recp-picker-empty{padding:20px;text-align:center;color:var(--text3);font-size:13px}
+
+/* kech119 (C BOSQICH — telefon, audit G4-24, O'LCHANGAN work/k125/telefon.py: 390 px da tarkibdagi nomlar 46 px («Nam...»),
+   360 px da 16 px — «Namuna Kley» va «Namuna Qum» bir xil ko'rinardi; tanlash paneli oynadan chiqib kesilardi; «⋮⋮ Surish»
+   belgisi bor, surish yo'q edi — olib tashlandi): telefonda nom to'liq (2 qatorgacha), miqdor va o'chirish — keyingi qatorda;
+   tanlash paneli oqim ichida (oyna bilan birga suriladi) va ochilganda ko'rinishga keltiriladi.
+   kech133 (zip 157, O'LCHANGAN — work/k157/telefon_panel.py): bu blok asosiy `.recp-picker-panel` qoidasidan OLDIN turgani uchun
+   390 px da ham panel `position: absolute` / `max-height: 340px` edi — tarkib qatorlarini yopib turardi. Endi asosiy qoidalardan KEYIN. */
+@media (max-width:600px){
+  .recp-modal{padding:18px}
+  .recp-ing-row{flex-wrap:wrap;row-gap:8px}
+  .recp-ing-info{flex:1 1 calc(100% - 50px)}
+  .recp-ing-name{white-space:normal;overflow-wrap:anywhere}
+  .recp-ing-qty{margin-left:45px;flex:1 1 auto;max-width:180px}
+  .recp-ing-table-head span:last-child{display:none}
+  .recp-picker-panel{position:static;margin-bottom:12px;max-height:60vh}
+}
 
 /* Markazlashgan xabar oynasi — brauzerning standart alert() o'rniga */
 .recp-toast-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:3000;display:none;align-items:center;justify-content:center;padding:20px}
@@ -242,12 +245,27 @@ async function deleteRecipe(id, nom, ishlatilgan) {
 }
 
 // ── OMBORXONA MATERIALLARINI YUKLASH (ingredient tanlash uchun) ──
+// kech133 (zip 157, O'LCHANGAN — work/k157/olchov157.py): ro'yxat FAQAT muvaffaqiyatli javobda saqlanadi (ilgari xato javob ham `[]`
+// bo'lib sahifa yopilguncha qolardi). Rad sababi (403 — rolda «Omborxona → Materiallar: Ko'rish» yo'q; tarmoq uzilishi) —
+// `invItemsXato` da: tanlash paneli SHUNI yozadi (ilgari «Material topilmadi» — sababi noma'lum edi).
 let invItemsCache = null;
+let invItemsXato = '';
 async function loadInvItemsForRecipe() {
   if (invItemsCache) return invItemsCache;
-  const res = await fetch('/api/inventory');
-  invItemsCache = res.ok ? await res.json() : [];
-  return invItemsCache;
+  if (invItemsXato) return [];   // xato qayd etilgan — qayta so'rov oyna / tanlash paneli QAYTA ochilganda (har harf terilganda emas)
+  try {
+    const res = await fetch('/api/inventory');
+    if (res.ok) {
+      invItemsCache = await res.json();
+      invItemsXato = '';
+      return invItemsCache;
+    }
+    invItemsXato = (typeof serverXatoSababi === 'function')
+      ? await serverXatoSababi(res, "Materiallar ro'yxati yuklanmadi") : "Materiallar ro'yxati yuklanmadi";
+  } catch (e) {
+    invItemsXato = "Server bilan aloqa yo'q — materiallar ro'yxati yuklanmadi";
+  }
+  return [];
 }
 
 // Kategoriya → rang/belgi (faqat ko'rinish uchun, hisob-kitobga aloqasi yo'q)
@@ -262,23 +280,52 @@ const RECP_CAT_STYLE = {
   "default":                { icon: 'ti-hexagon', bg: 'var(--f-dbeafe)', fg: '#2563EB', ic: 'var(--m-2563eb)', label: 'Boshqa material', groupLabel: 'BOSHQA MATERIALLAR' }
 };
 function recpCatStyle(cat) { return RECP_CAT_STYLE[cat] || RECP_CAT_STYLE.default; }
+// kech133 (zip 157): «O'chirilgan material» belgisi — fon ro'yxatdan, yozuv `matnRangi(fg, 1)` (tungi rejimda yorug' tus; ≥ 4.5:1)
+const RECP_OCHIRILGAN = { bg: 'var(--f-fee2e2)', fg: '#DC2626' };
 
-function ingredientRowHtml(prefix, idx, item, qty) {
+// kech133 (zip 157): `zaxira` — material omborxona ro'yxatida TOPILMAGANDA (o'chirilgan / yashirilgan material yoki rolda
+// «Materiallar: Ko'rish» yo'q) retseptning O'ZIDAGI ma'lumot (server: id, nom, birlik; `ochirilgan` — ro'yxat yuklangan, lekin
+// material unda yo'q). Ilgari bunday qator «?» va «kg» bo'lib chiqar, `data-inventory-id` bo'sh qolar va saqlashda material retseptdan
+// JIMGINA o'chib ketardi (O'LCHANGAN: faqat izoh o'zgartirilib saqlansa ham «O157 Bo'yoq» yo'qoldi — SQLite va PG).
+function ingredientRowHtml(prefix, idx, item, qty, zaxira) {
   const st = recpCatStyle(item ? item.category : null);
-  const name = item ? item.item_name : '?';
+  const z = item ? null : (zaxira || null);
+  // bazada umuman yo'q material (server nomi «—») — ID bilan: saqlashda server «Material topilmadi (ID …)» desa, qaysi qator ekani aniq
+  const name = item ? item.item_name
+    : (z && z.nom && z.nom !== '—' ? z.nom : (z && z.id ? `Noma'lum material (ID ${z.id})` : '?'));
+  const invId = item ? item.id : (z && z.id ? z.id : '');
+  const birlik = item ? item.unit : (z ? z.birlik : '');
+  let pill = `<span class="recp-cat-pill" style="background:${st.bg};color:${matnRangi(st.fg, 1)}">${st.label}</span>`;
+  if (z && z.ochirilgan) {
+    pill = `<span class="recp-cat-pill recp-pill-ochirilgan" style="background:${RECP_OCHIRILGAN.bg};color:${matnRangi(RECP_OCHIRILGAN.fg, 1)}" ` +
+           `title="Bu material Omborxona ro'yxatidan o'chirilgan. Retseptda o'zgarishsiz qoladi; kerak bo'lmasa — «Olib tashlash» tugmasi bilan olib tashlang.">O'chirilgan material</span>`;
+  } else if (z) {
+    pill = `<span class="recp-cat-pill" style="background:var(--bg);color:var(--text3)">Material</span>`;
+  }
   return `
-    <div class="recp-ing-row" id="${prefix}-ing-${idx}" data-inventory-id="${item ? item.id : ''}">
+    <div class="recp-ing-row" id="${prefix}-ing-${idx}" data-inventory-id="${invId}">
       <div class="recp-ing-icon" style="background:${st.bg};color:${st.ic}"><i class="ti ${st.icon}"></i></div>
       <div class="recp-ing-info">
         <div class="recp-ing-name">${escapeHtml(name)}</div>
-        <span class="recp-cat-pill" style="background:${st.bg};color:${matnRangi(st.fg, 1)}">${st.label}</span>
+        ${pill}
       </div>
       <div class="recp-ing-qty">
         <input type="number" id="${prefix}-ing-qty-${idx}" min="0" step="0.01" value="${qty||''}" placeholder="0">
-        <span>${escapeHtml(item && item.unit ? ((typeof birlikKor === 'function') ? birlikKor(item.unit) : item.unit) : 'kg')}</span>
+        <span>${escapeHtml(birlik ? ((typeof birlikKor === 'function') ? birlikKor(birlik) : birlik) : 'kg')}</span>
       </div>
-      <button type="button" class="recp-ing-del" title="Olib tashlash" aria-label="Olib tashlash" onclick="document.getElementById('${prefix}-ing-${idx}').remove()"><i class="ti ti-trash"></i></button>
+      <button type="button" class="recp-ing-del" title="Olib tashlash" aria-label="Olib tashlash" onclick="recpQatorOlibTashla(this, '${prefix}')"><i class="ti ti-trash"></i></button>
     </div>`;
+}
+
+// kech133 (zip 157): qator raqami — sahifa bo'yicha HISOBLAGICH (ilgari `Date.now() + tasodifiy 0…999`: bir millisekundda chizilgan
+// qatorlar bir xil `id` olishi mumkin edi — «Olib tashlash» boshqa qatorni o'chirardi). Olib tashlangach: oxirgisi bo'lsa — «Hali material
+// qo'shilmagan» qaytadi, tanlash paneli ochiq bo'lsa — material unda yana ko'rinadi.
+let recpQatorN = 0;
+function recpQatorOlibTashla(btn, prefix) {
+  const row = btn ? btn.closest('.recp-ing-row') : null;
+  if (row) row.remove();
+  recpRenumberEmptyState(prefix);
+  if (document.getElementById(prefix + '-picker-list')) renderIngredientPickerList(prefix);
 }
 
 function recpRenumberEmptyState(prefix) {
@@ -303,22 +350,7 @@ async function addIngredientRow(prefix, selectedId, qty) {
   }
   const items = await loadInvItemsForRecipe();
   const item = items.find(i => i.id === selectedId);
-  const idx = Date.now() + Math.floor(Math.random()*1000);
-  wrap.insertAdjacentHTML('beforeend', ingredientRowHtml(prefix, idx, item, qty));
-}
-
-function collectIngredients(prefix) {
-  const wrap = document.getElementById(prefix + '-ingredients');
-  const ingredients = [];
-  Array.from(wrap.children).forEach(row => {
-    const invId = parseInt(row.dataset?.inventoryId);
-    const qtyEl = row.querySelector('input[type="number"]');
-    const qty = parseFloat(qtyEl?.value);
-    if (invId && qty > 0) {
-      ingredients.push({ inventory_id: invId, quantity_kg: qty });
-    }
-  });
-  return ingredients;
+  wrap.insertAdjacentHTML('beforeend', ingredientRowHtml(prefix, ++recpQatorN, item, qty));
 }
 
 // ── MATERIAL TANLASH PANELI (qidiruv + kategoriya bo'yicha guruhlangan) ──
@@ -343,6 +375,7 @@ async function openIngredientPicker(prefix) {
       </div>
       <div class="recp-picker-list" id="${prefix}-picker-list"></div>
     </div>`;
+  if (!invItemsCache) invItemsXato = '';   // kech133 (zip 157): panel ochilganda ro'yxat qayta so'raladi
   renderIngredientPickerList(prefix);
   // kech119 (C — telefon, G4-24): panel butunlay ko'rinsin (oyna pastida kesilib, 2 ta material ko'rinardi)
   try { anchor.firstElementChild.scrollIntoView({ block: 'nearest' }); } catch (e) { /* ko'rinish — muhim emas */ }
@@ -361,7 +394,10 @@ async function renderIngredientPickerList(prefix) {
 
   const filtered = items.filter(i => !usedIds.has(i.id) && (!q || i.item_name.toLowerCase().includes(q)));
   if (!filtered.length) {
-    listEl.innerHTML = '<div class="recp-picker-empty">Material topilmadi</div>';
+    // kech133 (zip 157): ro'yxat yuklanmagan bo'lsa — SABABI (masalan rolda «Materiallar: Ko'rish» yo'q); omborxona bo'sh bo'lsa — nima qilish
+    const sabab = !items.length && invItemsXato ? "Material tanlab bo'lmaydi: " + invItemsXato
+      : (!items.length ? "Omborxonada hali material yo'q — avval «Omborxona» bo'limida material qo'shing" : 'Material topilmadi');
+    listEl.innerHTML = '<div class="recp-picker-empty">' + escapeHtml(sabab) + '</div>';
     return;
   }
 
@@ -401,37 +437,86 @@ async function openAddModal() {
 }
 function closeAddModal() { document.getElementById('addModal').style.display = 'none'; closeIngredientPicker('f'); }
 
-let isSavingRecipe = false;
-async function saveRecipe() {
-  const name = document.getElementById('f-name').value.trim();
-  if (!name) { recpToast('Nom shart!', 'error'); return; }
-  const ingredients = collectIngredients('f');
-  if (!ingredients.length) { recpToast('Kamida bitta tarkibiy qism kiriting!', 'error'); return; }
-  if (isSavingRecipe) return; // Ikki marta bosishdan himoya
-  isSavingRecipe = true;
-  const btn = document.getElementById('recipe-save-btn');
-  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
-  const data = {
-    name,
-    batch_size_kg: parseFloat(document.getElementById('f-batch').value) || 100,
-    notes: document.getElementById('f-notes').value || null,
-    ingredients
-  };
-  try {
-    const res = await fetch('/api/recipes', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(data)
-    });
-    if (res.ok) { recpToast("✓ Retsept qo'shildi!", 'success'); setTimeout(() => location.reload(), 1200); return; }
-    else { const e = await res.json(); recpToast('Xato: ' + (e.detail || ''), 'error'); }
-  } finally {
-    isSavingRecipe = false;
-    if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
+// ── SAQLASH (yangi va tahrir — BITTA qoida) ──
+// kech133 (zip 157, O'LCHANGAN — work/k157/olchov157.py, SQLite va PG): (1) bo'sh «Partiya hajmi (kg)» jimgina 100 bo'lib saqlanardi
+// (`parseFloat(…) || 100`: 120 kg retsept → 100 kg); (2) miqdori yozilmagan material jimgina tashlab yuborilar, «✓ Retsept yangilandi!»
+// chiqardi; (3) tahrirda nom bo'sh bo'lsa server xabari «'name' bo'sh bo'lishi mumkin emas» (inglizcha kalit); (4) server JSON bo'lmagan
+// javob bersa (502) yoki tarmoq uzilsa — HECH QANDAY xabar chiqmasdi (sahifa xatosi); (5) xatodan keyin «Saqlash» tugmasining belgisi
+// yo'qolardi (`textContent` bilan tiklanardi); (6) muvaffaqiyatdan keyin qayta yuklanguncha tugma yana bosiladigan bo'lardi.
+// Server chegarasi bilan AYNAN: `crud._UPD_SON_CHEGARA` («Partiya hajmi» va miqdor uchun «son» qoidasi).
+const RECP_SON_CHEGARA = 1000000000000;
+function retseptTanasi(prefix) {
+  const name = document.getElementById(prefix + '-name').value.trim();
+  if (!name) return {xato: '«Retsept nomi» kiritilishi shart'};
+  const hajmEl = document.getElementById(prefix + '-batch');
+  const hajm = (!hajmEl || String(hajmEl.value).trim() === '') ? NaN : Number(hajmEl.value);
+  if (!isFinite(hajm) || !(hajm > 0)) return {xato: '«Partiya hajmi (kg)» — 0 dan katta son kiriting'};
+  if (hajm > RECP_SON_CHEGARA) return {xato: '«Partiya hajmi (kg)» juda katta'};
+  const qatorlar = Array.from(document.getElementById(prefix + '-ingredients').querySelectorAll('.recp-ing-row'));
+  if (!qatorlar.length) return {xato: 'Kamida bitta tarkibiy qism kiriting!'};
+  const ingredients = [];
+  for (const row of qatorlar) {
+    const nom = ((row.querySelector('.recp-ing-name') || {}).textContent || '').trim() || 'material';
+    const invId = parseInt(row.dataset.inventoryId);
+    if (!invId) return {xato: `«${nom}» — material aniqlanmadi: uni olib tashlab, ro'yxatdan qayta tanlang`};
+    const q = row.querySelector('input[type="number"]');
+    const qty = (!q || String(q.value).trim() === '') ? NaN : Number(q.value);
+    if (!isFinite(qty) || !(qty > 0)) return {xato: `«${nom}» uchun miqdor kiriting (0 dan katta)`};
+    if (qty > RECP_SON_CHEGARA) return {xato: `«${nom}» miqdori juda katta`};
+    ingredients.push({ inventory_id: invId, quantity_kg: qty });
   }
+  return {tana: {name, batch_size_kg: hajm, notes: document.getElementById(prefix + '-notes').value || null, ingredients}};
 }
 
+const RECP_SAQLASH = {
+  f:    {btn: 'recipe-save-btn', metod: 'POST', url: () => '/api/recipes', ok: "✓ Retsept qo'shildi!"},
+  edit: {btn: 'recipe-edit-save-btn', metod: 'PUT', url: () => '/api/recipes/' + document.getElementById('edit-id').value,
+         ok: '✓ Retsept yangilandi!'}
+};
+const recpSaqlanmoqda = {f: false, edit: false};   // Ikki marta bosishdan himoya
+async function retseptSaqlash(prefix) {
+  const t = retseptTanasi(prefix);
+  if (t.xato) { recpToast(t.xato, 'error'); return; }
+  if (recpSaqlanmoqda[prefix]) return;
+  recpSaqlanmoqda[prefix] = true;
+  const c = RECP_SAQLASH[prefix];
+  const btn = document.getElementById(c.btn);
+  const aslHtml = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.textContent = 'Saqlanmoqda...'; }
+  let saqlandi = false;
+  try {
+    let res = null;
+    try {
+      res = await fetch(c.url(), {method: c.metod, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(t.tana)});
+    } catch (e) {
+      recpToast("Server bilan aloqa yo'q. Internetni tekshirib, qayta urinib ko'ring.", 'error');
+      return;
+    }
+    if (res.ok) {
+      saqlandi = true;
+      recpToast(c.ok, 'success');
+      setTimeout(() => location.reload(), 1200);
+      return;
+    }
+    const standart = `Saqlanmadi (server javobi: ${res.status})`;
+    recpToast('Xato: ' + ((typeof serverXatoSababi === 'function') ? await serverXatoSababi(res, standart) : standart), 'error');
+  } finally {
+    if (!saqlandi) {
+      recpSaqlanmoqda[prefix] = false;
+      if (btn) { btn.disabled = false; btn.style.opacity = ''; btn.innerHTML = aslHtml; }
+    }
+  }
+}
+async function saveRecipe() { return retseptSaqlash('f'); }
+
 // ── TAHRIRLASH MODALI ──
+// kech133 (zip 157, O'LCHANGAN): (1) tugma tez ikki marta bosilsa (materiallar ro'yxati hali yuklanmagan) ikkala chaqiruv ham qator
+// qo'shardi — 2 material → 4 qator; endi faqat ENG OXIRGI ochish qatorlarni chizadi. (2) Ro'yxatda topilmagan material — retseptning
+// o'zidagi nomi / birligi bilan (`ingredientRowHtml` → `zaxira`), saqlashda o'zgarishsiz qoladi. (3) Ro'yxat BIR marta so'raladi
+// (ilgari har qator uchun `addIngredientRow` → ro'yxat yuklanmasa har qatorda qayta so'rov).
+let editOchishNavbat = 0;
 async function openEditModal(id, name, batch, notes, invIds, qtys, names, units) {
+  const navbat = ++editOchishNavbat;
   document.getElementById('edit-id').value = id;
   document.getElementById('edit-name').value = name;
   document.getElementById('edit-batch').value = batch;
@@ -439,43 +524,23 @@ async function openEditModal(id, name, batch, notes, invIds, qtys, names, units)
   document.getElementById('edit-notes-count').textContent = (notes || '').length;
   document.getElementById('edit-ingredients').innerHTML = '';
   closeIngredientPicker('edit');
-  await loadInvItemsForRecipe();
+  if (!invItemsCache) invItemsXato = '';   // oyna ochilganda ro'yxat qayta so'raladi
+  const items = await loadInvItemsForRecipe();
+  if (navbat !== editOchishNavbat) return;   // keyinroq bosilgan ochish chizadi
+  const royxatYuklandi = !!invItemsCache;
+  const wrap = document.getElementById('edit-ingredients');
+  wrap.innerHTML = '';
   for (let i = 0; i < invIds.length; i++) {
-    await addIngredientRow('edit', invIds[i], qtys[i]);
+    const item = items.find(x => x.id === invIds[i]) || null;
+    const zaxira = item ? null : {id: invIds[i], nom: (names || [])[i], birlik: (units || [])[i], ochirilgan: royxatYuklandi};
+    wrap.insertAdjacentHTML('beforeend', ingredientRowHtml('edit', ++recpQatorN, item, qtys[i], zaxira));
   }
   recpRenumberEmptyState('edit');
   document.getElementById('editModal').style.display = 'flex';
 }
 function closeEditModal() { document.getElementById('editModal').style.display = 'none'; closeIngredientPicker('edit'); }
 
-let isSavingEditRecipe = false;
-async function saveEditRecipe() {
-  const id = document.getElementById('edit-id').value;
-  const name = document.getElementById('edit-name').value.trim();
-  const ingredients = collectIngredients('edit');
-  if (!ingredients.length) { recpToast('Kamida bitta tarkibiy qism kiriting!', 'error'); return; }
-  if (isSavingEditRecipe) return; // Ikki marta bosishdan himoya
-  isSavingEditRecipe = true;
-  const btn = document.getElementById('recipe-edit-save-btn');
-  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
-  const data = {
-    name,
-    batch_size_kg: parseFloat(document.getElementById('edit-batch').value) || 100,
-    notes: document.getElementById('edit-notes').value || null,
-    ingredients
-  };
-  try {
-    const res = await fetch(`/api/recipes/${id}`, {
-      method: 'PUT', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(data)
-    });
-    if (res.ok) { recpToast('✓ Retsept yangilandi!', 'success'); setTimeout(() => location.reload(), 1200); return; }
-    else { const e = await res.json(); recpToast('Xato: ' + (e.detail || ''), 'error'); }
-  } finally {
-    isSavingEditRecipe = false;
-    if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
-  }
-}
+async function saveEditRecipe() { return retseptSaqlash('edit'); }
 </script>
 
 <!-- Qo'shish modali -->
@@ -484,7 +549,7 @@ async function saveEditRecipe() {
     <div class="recp-modal-head">
       <div class="recp-modal-icon"><i class="ti ti-flask"></i></div>
       <div class="recp-modal-title">+ Yangi loy retsepti</div>
-      <button data-yopish type="button" class="recp-modal-close" onclick="closeAddModal()"><i class="ti ti-x"></i></button>
+      <button data-yopish type="button" class="recp-modal-close" title="Yopish" aria-label="Yopish" onclick="closeAddModal()"><i class="ti ti-x"></i></button>
     </div>
 
     <div class="form-row">
@@ -492,7 +557,7 @@ async function saveEditRecipe() {
         <label>Retsept nomi</label>
         <div class="recp-field-input">
           <i class="ti ti-file-text"></i>
-          <input type="text" id="f-name" list="recipe-name-suggest" placeholder="Masalan: Kvars, Oq marmar, Bej...">
+          <input type="text" id="f-name" list="recipe-name-suggest" maxlength="100" placeholder="Masalan: Kvars, Oq marmar, Bej...">
           <datalist id="recipe-name-suggest">
             <option value="Kvars"><option value="Oq marmar"><option value="Kulrang marmar"><option value="Sariq marmar">
           </datalist>
@@ -547,7 +612,7 @@ async function saveEditRecipe() {
     <div class="recp-modal-head">
       <div class="recp-modal-icon"><i class="ti ti-edit"></i></div>
       <div class="recp-modal-title">Loy retseptini tahrirlash</div>
-      <button data-yopish type="button" class="recp-modal-close" onclick="closeEditModal()"><i class="ti ti-x"></i></button>
+      <button data-yopish type="button" class="recp-modal-close" title="Yopish" aria-label="Yopish" onclick="closeEditModal()"><i class="ti ti-x"></i></button>
     </div>
     <input type="hidden" id="edit-id">
 
@@ -556,7 +621,7 @@ async function saveEditRecipe() {
         <label>Retsept nomi</label>
         <div class="recp-field-input">
           <i class="ti ti-file-text"></i>
-          <input type="text" id="edit-name">
+          <input type="text" id="edit-name" maxlength="100">
         </div>
       </div>
       <div class="recp-field">
@@ -579,10 +644,13 @@ async function saveEditRecipe() {
 
     <div class="recp-section">
       <div class="recp-section-head">
-        <div class="recp-section-title">Tarkibi</div>
+        <div>
+          <div class="recp-section-title">Tarkibi (Omborxonadagi materiallardan)</div>
+        </div>
         <button type="button" class="recp-add-btn" onclick="openIngredientPicker('edit')"><i class="ti ti-plus"></i> Material qo'shish</button>
       </div>
-      <div class="recp-section-sub">&nbsp;</div>
+      {# kech133 (zip 157): yangi retsept oynasidagi bilan AYNAN (ilgari bu yerda bo'sh `&nbsp;` edi — egasi kuzatuvi, kech132) #}
+      <div class="recp-section-sub">Har biridan — «Partiya hajmi (kg)» uchun kerak miqdor (kg)</div>
 
       <div class="recp-picker" id="edit-picker-anchor"></div>
 
@@ -593,8 +661,8 @@ async function saveEditRecipe() {
     </div>
 
     <div style="display:flex;gap:8px;margin-top:20px">
-      <button class="btn btn-dark w-full" id="recipe-edit-save-btn" onclick="saveEditRecipe()">💾 Saqlash</button>
-      <button data-yopish class="btn btn-outline w-full" onclick="closeEditModal()">Bekor</button>
+      <button class="btn btn-dark w-full" id="recipe-edit-save-btn" onclick="saveEditRecipe()"><i class="ti ti-device-floppy"></i> Saqlash</button>
+      <button data-yopish class="btn btn-outline w-full" onclick="closeEditModal()"><i class="ti ti-x"></i> Bekor</button>
     </div>
   </div>
 </div>
