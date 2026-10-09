@@ -23,7 +23,13 @@ QOIDALAR (egasi qarorlari, tugmali javoblar kech118 15:30):
   «Menejer» roli) — ALOHIDA ruxsat «Xomashyo narxlari va ombor qiymati» (band `material_narx`, faqat Ko'rish): yo'q bo'lsa
   Omborxonadagi xarid narxi, kirim summasi, «Ombor qiymati», penoplast / loy ro'yxatidagi narx — «—» (`narx_tozala`).
   «Tannarx va foyda» bor rol narxni baribir ko'radi (tannarx shu narxlardan hisoblanadi — `narx_koradi`).
-  Ta'minotchilar bo'limi (ta'minotchi qarzi va undan olingan xaridlar) — o'z ruxsati bilan, bu bandga kirmaydi."""
+  Ta'minotchilar bo'limi (ta'minotchi qarzi va undan olingan xaridlar) — o'z ruxsati bilan, bu bandga kirmaydi.
+* (kech135, zip 161 — egasi QARORI 09.10 22:0x, tugmali: «retsept ruxsati + rollarda belgi — admin xohlasa ochadi, xohlasa
+  yopadi»; ro'yxatda — «Nomi va birligi») — ALOHIDA ruxsat «Materiallar ro'yxati (retsept va tarkib uchun)» (band
+  `material_royxat`, faqat Ko'rish): «Loy retseptlari» / «Mahsulot turlari va tarkibi» ruxsati bor, lekin «Omborxona →
+  Materiallar: Ko'rish» yo'q rol shu belgi bilan retsept / tarkibga material tanlaydi (`GET /api/material-royxati` — nomi,
+  birligi, turkumi; qoldiq va narx YO'Q). «Materiallar: Ko'rish» bor rol ro'yxatni avvalgidek (qoldig'i bilan) ko'radi. Mavjud
+  rollarda O'CHIQ (migratsiya yo'q — admin o'zi yoqadi); tayyor rollar andozasi o'zgarmadi (Admin — hammasi)."""
 import json
 
 AMALLAR = (("korish", "Ko'rish"), ("yaratish", "Yaratish"), ("tahrirlash", "Tahrirlash"), ("ochirish", "O'chirish"))
@@ -68,6 +74,10 @@ BOLIMLAR = (
         ("retsept", "Loy retseptlari", "Retsept yaratish va tahrirlash", _HAMMA),
         ("mahsulot_turi", "Mahsulot turlari va tarkibi", "Ishlab chiqarish sahifasi: mahsulot turi, tarkibi (MRP)",
          _HAMMA),
+        # kech135 (zip 161): egasi QARORI 09.10 — Omborxonasiz rolga retsept / tarkib uchun materiallar nomi va birligi
+        ("material_royxat", "Materiallar ro'yxati (retsept va tarkib uchun)",
+         "Loy retsepti va mahsulot tarkibiga material tanlash: faqat nomi va birligi (narx va qoldiqsiz); "
+         "«Omborxona → Materiallar: Ko'rish» bor rol ro'yxatni baribir ko'radi", (_K,)),
         ("ishlab_buyurtma", "Ishlab chiqarish buyurtmalari", "MRP buyurtmasi: yaratish, boshlash, yakunlash, bekor qilish",
          _HAMMA),
     )),
@@ -117,10 +127,25 @@ SAHIFA_KERAK = {
                       "Omborxona, Kirim, Buyurtmalar yoki Tayyor mahsulotlar sahifasida ishlaydi"),
     "taminotchi_tolov": ((("taminotchi", _K),), "Ta'minotchilar sahifasida ishlaydi — «Ta'minotchilar: Ko'rish» ham kerak"),
     "ishlab_buyurtma": ((("mahsulot_turi", _K), ("tayyor", _K)), "Ishlab chiqarish yoki Tayyor mahsulotlar sahifasida ishlaydi"),
+    "material_royxat": ((("retsept", _K), ("mahsulot_turi", _K)),
+                        "Loy retseptlari yoki Ishlab chiqarish sahifasida ishlaydi — «Loy retseptlari» yoki «Mahsulot turlari "
+                        "va tarkibi»: Ko'rish ham kerak"),
     "kassa": ((("moliya", _K),), "Moliya sahifasida ishlaydi — «Moliyaviy hisobot: Ko'rish» ham kerak"),
     "hodim": ((("kpi", _K),), "«Ustalar KPI / Hodimlar» sahifasida ishlaydi — «Ustalar KPI: Ko'rish» ham kerak"),
     "avans_sorov": ((("dashboard", _K),), "Dashboard sahifasida ishlaydi — «Bosh sahifa va Dashboard: Ko'rish» ham kerak"),
     "sozlama": ((("jurnal", _K),), "«Tizim jurnallari» sahifasida ishlaydi — «Tizim jurnallari: Ko'rish» ham kerak"),
+}
+
+
+# kech135 (zip 161): band amali boshqa ruxsatsiz TO'LIQ ishlamaydi (sahifa ochiladi, lekin bir qismi yopiq) — Rollar sahifasida
+# sariq ogohlantirish, faqat `amallar` dan biri berilganda: band → (amallar, kerak — birortasi yetadi, matn). O'LCHANGAN
+# (work/k161/olchov161.py, zip 160 kodi): faqat retsept ruxsati bor rol — «Loy retseptlari» da material tanlab bo'lmaydi (403),
+# «Mahsulot tarkibi» da ro'yxat XABARSIZ bo'sh edi.
+AMAL_KERAK = {
+    "retsept": ((_Y, _T), (("material_royxat", _K), ("material", _K)),
+                "Retseptga yangi material qo'shish uchun «Materiallar ro'yxati (retsept va tarkib uchun)» ham kerak"),
+    "mahsulot_turi": ((_Y, _T), (("material_royxat", _K), ("material", _K)),
+                      "Tarkibga yangi material qo'shish uchun «Materiallar ro'yxati (retsept va tarkib uchun)» ham kerak"),
 }
 
 
@@ -243,13 +268,47 @@ def rad_matni(band: str, amal: str) -> str:
             f"«{AMAL_NOMI.get(amal, amal)}» ruxsati yo'q. Admin bilan bog'laning.")
 
 
+def _amal_kerak(b):
+    """Katalog uchun AMAL_KERAK yozuvi ({amallar, kerak, matn}) yoki None."""
+    if b not in AMAL_KERAK:
+        return None
+    am, k, matn = AMAL_KERAK[b]
+    return {"amallar": list(am), "kerak": [{"band": kb, "amal": ka} for kb, ka in k], "matn": matn}
+
+
 def katalog() -> list:
-    """Sahifa uchun katalog: [{kod, nom, ikon, bandlar: [{kod, nom, izoh, amallar}]}]."""
+    """Sahifa uchun katalog: [{kod, nom, ikon, bandlar: [{kod, nom, izoh, amallar, kerak, kerak_matn, amal_kerak}]}]."""
     return [{"kod": m, "nom": mn, "ikon": ik,
              "bandlar": [{"kod": b, "nom": bn, "izoh": iz, "amallar": list(am),
                           "kerak": [{"band": kb, "amal": ka} for kb, ka in SAHIFA_KERAK.get(b, ((), ""))[0]],
-                          "kerak_matn": SAHIFA_KERAK.get(b, ((), ""))[1]} for b, bn, iz, am in bl]}
+                          "kerak_matn": SAHIFA_KERAK.get(b, ((), ""))[1],
+                          "amal_kerak": _amal_kerak(b)} for b, bn, iz, am in bl]}
             for m, mn, ik, bl in BOLIMLAR]
+
+
+# ════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# «MATERIALLAR RO'YXATI (RETSEPT VA TARKIB UCHUN)» (kech135, zip 161 — egasi QARORI 09.10, tugmali; QAYTA SO'RALMAYDI:
+# ro'yxatda «Nomi va birligi»): `GET /api/material-royxati` — retsept / tarkib oynalarining material tanlovi (ilgari
+# `/api/inventory` — «Materiallar: Ko'rish» talab qilardi). Maydonlar — faqat tanlov uchun: nomi, birligi (ombor va retsept
+# birligi), turkumi. Qoldiq — FAQAT «Materiallar: Ko'rish» bor rolga (u Omborxonada baribir ko'radi; «Mahsulot tarkibi»
+# tanlovida «— omborda …» avvalgidek). Narx — HECH KIMGA (tanlovga kerak emas; tannarx — `boms/preview`).
+# ════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+MATERIAL_ROYXAT_MAYDONLAR = ("id", "item_name", "unit", "base_unit", "category")
+
+
+def material_qoldiq_koradi(user) -> bool:
+    """Material tanlovida ombordagi qoldiqni ko'radimi: «Omborxona → Materiallar: Ko'rish» (Admin — doim)."""
+    return bormi(user, "material", "korish")
+
+
+def material_royxat_yozuvi(inv, qoldiq: bool) -> dict:
+    """Bitta material → tanlov yozuvi (MATERIAL_ROYXAT_MAYDONLAR; `qoldiq` bo'lsa + `stock_quantity`)."""
+    d = {k: getattr(inv, k, None) for k in MATERIAL_ROYXAT_MAYDONLAR}
+    if qoldiq:
+        sq = getattr(inv, "stock_quantity", None)
+        d["stock_quantity"] = float(sq) if sq is not None else 0.0
+    return d
 
 
 # Bosh sahifa (`/`) — Dashboard ruxsati bo'lmasa, birinchi ochiq sahifaga yo'naltiriladi (menyu tartibida). Eski qoida
