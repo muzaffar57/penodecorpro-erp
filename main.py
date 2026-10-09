@@ -3363,6 +3363,75 @@ def _migrate_ord066_loy_xatosi(korxona_id=None, raqam=None, eski_kg=None, yangi_
 
 _migrate_ord066_loy_xatosi()
 
+
+def _migrate_avans_manba():
+    """kech134 (zip 160 — egasi QARORLARI 09.10: «C — hodim tasdig'i bilan» va «Faqat joriy oy») — IDEMPOTENT, PostgreSQL va SQLite.
+    Ustunlarni (`employee_advances.avans_manba` / `hodim_javobi` / …, `advance_requests.avans_id` / `avans_ochirildi_vaqti` / …)
+    `database.sync_missing_columns()` qo'shadi (hammasi NULL).
+
+      A) `avans_manba` NULL qatorlar (zip 160 dan oldingi): manba izohdan (`models.avans_manbasi` — hodim so'rovi tasdig'i izohiga
+         « (xodim o'zi yozgan, admin tasdiqladi)» qo'shilgan; qolgani — admin). Admin yozgani JORIY Toshkent oyida bo'lsa va hodim
+         panelga kira olsa (`crud.hodim_panelga_kiradimi`) — `hodim_javobi` = kutilmoqda (egasi tanlovi «Faqat joriy oy»); eskisi —
+         NULL (savolsiz, faqat belgi). Yangi kod manbani doim yozadi — keyingi ishga tushishda bu qism hech narsa topmaydi.
+      B) Tasdiqlangan so'rov ↔ avans (`avans_id` NULL va `avans_ochirildi_vaqti` NULL bo'lgan so'rovlar): avans — o'sha hodim, summa,
+         sana = so'rov sanasi, izoh = so'rov izohi + qo'shimcha, yozgan = tasdiqlovchi (`confirm_advance_request` aynan shunday
+         yozadi — 5 maydon AYNAN; bir xil kalitlilar id tartibida juftlanadi, bitta avans bitta so'rovga). Topilmasa — avans keyin
+         o'chirilgan (tahrirlash yo'li yo'q): `avans_ochirildi_vaqti` = hozir, `avans_ochirgan` NULL (kim / qachon — noma'lum).
+    Bitta tranzaksiya; xato bo'lsa hech narsa o'zgarmaydi (keyingi ishga tushishda qayta)."""
+    from database import SessionLocal as _SL134, tashkent_date as _td134
+    from models import (EmployeeAdvance as _EA134, AdvanceRequest as _AR134, AdvanceRequestStatus as _ARS134,
+                        Employee as _E134, avans_manbasi as _am134, AVANS_MANBA_ADMIN as _ADM134,
+                        JAVOB_KUTILMOQDA as _JK134, HODIM_SOROV_IZOH_QOSHIMCHA as _IZ134)
+    _d = _SL134()
+    _a = _k = _b = _o = 0
+    try:
+        _bugun = _td134()
+        _hodimlar = {}
+        for _adv in _d.query(_EA134).filter(_EA134.avans_manba.is_(None)).order_by(_EA134.id).all():
+            _m = _am134(_adv)
+            _adv.avans_manba = _m
+            _a += 1
+            if _m != _ADM134 or _adv.date is None or _adv.hodim_javobi is not None:
+                continue
+            _t = _td134(_adv.date)
+            if (_t.year, _t.month) != (_bugun.year, _bugun.month):
+                continue
+            if _adv.employee_id not in _hodimlar:
+                _hodimlar[_adv.employee_id] = _d.query(_E134).filter(_E134.id == _adv.employee_id).first()
+            if crud.hodim_panelga_kiradimi(_hodimlar[_adv.employee_id]):
+                _adv.hodim_javobi = _JK134
+                _k += 1
+        _sorovlar = _d.query(_AR134).filter(_AR134.status == _ARS134.CONFIRMED, _AR134.avans_id.is_(None),
+                                            _AR134.avans_ochirildi_vaqti.is_(None)).order_by(_AR134.id).all()
+        if _sorovlar:
+            _band = {i for (i,) in _d.query(_AR134.avans_id).filter(_AR134.avans_id.isnot(None)).all()}
+            _hozir = datetime.utcnow()
+            for _r in _sorovlar:
+                _q = _d.query(_EA134).filter(_EA134.employee_id == _r.employee_id, _EA134.amount == _r.amount,
+                                             _EA134.date == _r.requested_date, _EA134.notes == (_r.notes or "") + _IZ134)
+                _q = _q.filter(_EA134.given_by.is_(None)) if _r.confirmed_by is None else _q.filter(_EA134.given_by == _r.confirmed_by)
+                _top = next((x for x in _q.order_by(_EA134.id).all() if x.id not in _band), None)
+                if _top is not None:
+                    _r.avans_id = _top.id
+                    _band.add(_top.id)
+                    _b += 1
+                else:
+                    _r.avans_ochirildi_vaqti = _hozir
+                    _o += 1
+        _d.commit()
+        if _a or _b or _o:
+            print(f"✓ Avans manbasi: {_a} ta avans belgilandi ({_k} tasi hodim javobiga), {_b} ta so'rov avansga bog'landi, "
+                  f"{_o} ta so'rov avansi o'chirilgan deb belgilandi")
+    except Exception as e:
+        _d.rollback()
+        print(f"⚠ Avans manbasi migratsiyasi o'tkazib yuborildi: {e}")
+    finally:
+        _d.close()
+    return {"avans": _a, "kutilmoqda": _k, "boglandi": _b, "ochirilgan": _o}
+
+
+_migrate_avans_manba()
+
 # kech104 (K104-2): FastAPI ning o'rnatilgan API hujjatlari (/openapi.json, /docs, /redoc) login-siz
 # ochiq edi — butun API sxemasi (barcha marshrutlar, /api/system/* va /api/platform/* ham) har kimga ko'rinardi.
 # Ilova ularni ishlatmaydi (shablon / test havolasi yo'q) — o'chirildi. Marshrutlar xaritasi:
@@ -5384,6 +5453,9 @@ def api_get_employees(only_active: bool = True, db: Session = Depends(get_db), c
                                company_id=auth.company_id_of(current_user))
     # kech117 (A2): hodim yo'nalishi (NULL — «Umumiy») va nomi
     _ynom = crud.yonalish_nomlari(db, auth.company_id_of(current_user))
+    # kech134 (zip 160): ko'rib chiqilmagan «Olmaganman» va javob kutilayotgan admin avanslari (bitta so'rov — qator holati uchun)
+    _avh = crud.avans_holat_xulosasi(db, auth.company_id_of(current_user))
+    _avh0 = {"nizo_soni": 0, "nizo_summa": 0.0, "kutilmoqda_soni": 0}
     return [{
         "id": e.id, "name": e.name, "position": e.position,
         "pay_type": e.pay_type.value,
@@ -5401,6 +5473,7 @@ def api_get_employees(only_active: bool = True, db: Session = Depends(get_db), c
         # bog'langan telefon, ruxsat kutayotgan telefon, PIN holati
         "phone": e.phone,
         **crud.hodim_qurilma_xulosa(e),
+        "avans_holat": _avh.get(e.id, _avh0),
     } for e in items]
 
 
@@ -5497,8 +5570,10 @@ def api_delete_employee_advance(advance_id: int, db: Session = Depends(get_db), 
     if not _adv or not auth.employee_of_company(
             db, _adv.employee_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Topilmadi")
-    if not crud.delete_employee_advance(db, advance_id):
-        raise HTTPException(status_code=404, detail="Topilmadi")
+    # kech134 (zip 160): qator qulflanadi (parallel o'chirishda ikkinchisi — 404), bog'langan so'rovga belgi, jurnal
+    if not crud.delete_employee_advance(db, advance_id, performed_by=current_user.full_name or current_user.username,
+                                        company_id=auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Topilmadi (o'chirilgan bo'lishi mumkin)")
     return {"status": "ok"}
 
 
@@ -5913,7 +5988,69 @@ def api_qurilma_uzish(emp_id: int, db: Session = Depends(get_db), current_user=D
 
 @app.get("/api/hodim/my-requests")
 def api_hodim_my_requests(db: Session = Depends(get_db), emp=Depends(auth.require_employee_login)):
-    return crud.get_employee_own_requests(db, emp.id)
+    """kech134 (zip 160 — egasi QARORI 09.10): oxirgi 12 oy (so'rov sanasi bo'yicha) + kutilayotganlar har qanday sana bilan;
+    har yozuvda `oy` ('YYYY-MM'), avansi keyin o'chirilgan tasdiqlangan so'rovda `avans_ochirildi` (`crud.get_employee_own_requests`)."""
+    return crud.get_employee_own_requests(db, emp.id, company_id=emp.company_id)
+
+
+def _avans_olmadim_telegram(ism: str, summa: float, sana, kim: Optional[str], company_id: int) -> None:
+    """kech134 (zip 160 — egasi QARORI «C»): hodim admin yozgan avansga «Olmaganman» dedi — korxona Telegram chatiga (fon vazifasi:
+    hodim sahifasi kutmaydi; xabar ketmasa ham ogohlantirish dasturda — Bosh sahifa / Dashboard oynasi va KPI qatori)."""
+    try:
+        _s = f"{float(summa or 0):,.0f}".replace(",", " ")
+        _k = _t_vaqt(sana).strftime("%d.%m.%Y") if sana else "—"
+        _matn = (f"❗ *Hodim avansni olmaganini aytdi*\n\n👷 {ism}\n💰 {_s} so'm ({_k})\n"
+                 + (f"Yozgan: {kim}\n" if kim else "")
+                 + "\nKo'rish: «Bosh sahifa» yoki «Ustalar KPI / Hodimlar» — hodim qatoridagi ogohlantirish.")
+        _send_telegram(_matn, company_id=company_id)
+    except Exception as _e:         # noqa: BLE001 — xabar ketmasa ham javob saqlangan
+        print(f"⚠ «Olmaganman» Telegram xabari yuborilmadi: {_e}")
+
+
+@app.post("/api/hodim/avans/{advance_id}/javob")
+def api_hodim_avans_javob(advance_id: int, background_tasks: BackgroundTasks, data: dict = Body(default=None),
+                          db: Session = Depends(get_db), emp=Depends(auth.require_employee_login)):
+    """kech134 (zip 160 — egasi QARORI 09.10 «C — hodim tasdig'i bilan»): hodim admin yozgan avansga javob beradi — tana
+    {"javob": "oldim" | "olmadim"}. FAQAT o'z avansi (boshqasi — 404); javob so'ralmagan / allaqachon «oldim» / takror «olmadim» —
+    409 sababi bilan; «olmadim» → «oldim» mumkin. «Olmaganman» — adminga Telegram xabari (fon). Avans hisobda javobdan qat'i nazar
+    turadi (`crud.hodim_avans_javob`)."""
+    if not isinstance(data, dict) or set(data) != {"javob"} or not isinstance(data.get("javob"), str):
+        raise HTTPException(status_code=400, detail="Javob noto'g'ri — «oldim» yoki «olmadim»")
+    try:
+        natija = crud.hodim_avans_javob(db, emp, advance_id, data["javob"])
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except crud.AvansJavobZiddiyati as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    if natija.pop("ogohlantirish", False):
+        background_tasks.add_task(_avans_olmadim_telegram, emp.name, natija["amount"],
+                                  datetime.fromisoformat(natija["date"]) if natija.get("date") else None,
+                                  natija.get("given_by"), emp.company_id)
+    return natija
+
+
+@app.get("/api/admin/avans-nizolar")
+def api_admin_avans_nizolar(employee_id: Optional[int] = None, db: Session = Depends(get_db),
+                            current_user=Depends(auth.ruxsat("hodim", "tahrirlash"))):
+    """kech134 (zip 160): hodim «Olmaganman» degan, hali ko'rib chiqilmagan avanslar (Bosh sahifa / Dashboard oynasi; KPI —
+    `employee_id` bilan bitta hodimniki). Ruxsat — «Hodimlar: Tahrirlash» (avansni o'chirish / ko'rib chiqish shu ruxsat bilan)."""
+    return crud.admin_avans_nizolar(db, auth.company_id_of(current_user), employee_id=employee_id)
+
+
+@app.post("/api/employees/advance/{advance_id}/nizo-korildi")
+def api_avans_nizo_korildi(advance_id: int, db: Session = Depends(get_db),
+                           current_user=Depends(auth.ruxsat("hodim", "tahrirlash"))):
+    """kech134 (zip 160): admin «Olmaganman» javobini ko'rib chiqdi — ogohlantirish yopiladi (avans va hodim javobi o'zgarmaydi).
+    Topilmasa — 404; endi «Olmaganman» emas yoki allaqachon ko'rib chiqilgan — 409 sababi bilan."""
+    try:
+        return crud.admin_avans_nizo_korildi(db, advance_id, auth.company_id_of(current_user),
+                                             current_user.full_name or current_user.username)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except crud.AvansJavobZiddiyati as e:
+        raise HTTPException(status_code=409, detail=str(e))
 
 
 @app.get("/api/hodim/oylik")
