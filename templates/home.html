@@ -124,6 +124,10 @@ a.boshlash-qadam:hover, a.boshlash-qadam:focus-visible { border-color: var(--gol
   </div>
   {% endif %}
 </div>
+{% if u.ruxsat('dashboard', 'korish') %}
+{# kech134 (zip 160): hodim oynalari — Dashboard bilan bir xil (telefon ruxsati, «Olmaganman», avans so'rovlari) #}
+{% include "_hodim_oynalari.html" %}
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -135,6 +139,9 @@ const fmtM = n => (n / 1000000).toFixed(1).replace('.', ',') + ' mln';   // kech
 // kech118 (U-06, O'LCHANGAN — audit: qoralama / qoplamadagi buyurtma ro'yxatda «draft» deb chiqardi)
 const STATUS_LABELS = {draft: "Qoralama", new: "Yangi", in_progress: "Jarayonda", coating: "Qoplamada", ready: "Tayyor", delivered: "Yetkazilgan", cancelled: "Bekor qilingan"};
 const TUR_NOMI = {product: "Mahsulot", service: "Xizmat"};
+
+// kech134 (zip 160): hodim oynalari (`_hodim_oynalari.html`): telefon ruxsati → «Olmaganman» → avans so'rovlari (har biri o'z ruxsati bilan)
+checkQurilmaSorovlari();
 
 fetch('/api/dashboard/stats').then(r => r.json()).then(s => {
   document.getElementById('k-orders').textContent = fmt(s.total_orders);

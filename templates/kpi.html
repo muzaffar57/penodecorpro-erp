@@ -420,7 +420,9 @@
 <div id="advanceModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
   <div style="background:var(--white);border-radius:14px;padding:24px;width:420px;max-width:100%">
     <div style="font-size:16px;font-weight:600;margin-bottom:4px">💰 Avans berish — <span id="adv-emp-name" style="color:var(--m-b45309)"></span></div>
-    <div style="font-size:13px;color:var(--text3);margin-bottom:16px">Bu summa oy oxirida hisoblangan oylikdan avtomatik ayriladi</div>
+    <div style="font-size:13px;color:var(--text3);margin-bottom:16px">Bu summa oy oxirida hisoblangan oylikdan avtomatik ayriladi. Hodim panelga kira olsa — «Ha, oldim» deb tasdiqlaydi.</div>
+    {# kech134 (zip 160): shu hodimning «Olmaganman» degan avanslari (amallar bilan) #}
+    <div id="adv-nizo"></div>
 
     <div class="form-group"><label>Sana</label><input type="date" id="adv-date"></div>
     <div class="form-group"><label>Summa (so'm)</label><input type="text" id="adv-amount" placeholder="0" oninput="formatPriceInput(this)"></div>
@@ -868,6 +870,7 @@ async function loadEmployees() {
           </div>
           <div id="emp-avans-${e.id}" style="margin-top:4px;font-size:12px;color:var(--m-b45309)"></div>
           ${qurilmaQatori(e)}
+          ${avansHolatQatori(e)}
         </div>
         <div class="emp-fin" id="emp-fin-${e.id}" style="flex-shrink:0"></div>
         <div class="emp-holat" id="emp-status-${e.id}" style="flex-shrink:0"></div>
@@ -921,6 +924,80 @@ function qurilmaQatori(e) {
     return `<div class="emp-qurilma" style="margin-top:4px;font-size:12px;color:var(--text3)">📱 Telefon hali bog'lanmagan</div>`;
   }
   return '';
+}
+
+// ══ kech134 (zip 160 — egasi QARORI 09.10 «C — hodim tasdig'i bilan»): admin yozgan avansga hodim javobi ══
+// Qatorda: ko'rib chiqilmagan «Olmaganman» (bosilsa — «💰 Avans berish» oynasi, unda amallar) va javob kutilayotganlar soni.
+function avansHolatQatori(e) {
+  const h = e.avans_holat || {};
+  let q = '';
+  if (h.nizo_soni > 0) {
+    q += `<button type="button" class="btn btn-sm emp-nizo" style="margin-top:6px;color:var(--m-dc2626);border:1.5px solid var(--ch-fadbd8);background:var(--white)" data-id="${e.id}" data-name="${escapeHtml(e.name||'')}" onclick="openAdvanceModal(this.dataset.id, this.dataset.name)">❗ ${Number(h.nizo_soni)} ta avansga «Olmaganman» dedi — ${fmt(h.nizo_summa)} so'm · Ko'rish</button>`;
+  }
+  if (h.kutilmoqda_soni > 0) {
+    q += `<div class="emp-avans-kutish" style="margin-top:4px;font-size:12px;color:var(--text3)">⏳ ${Number(h.kutilmoqda_soni)} ta avans hodim javobini kutmoqda</div>`;
+  }
+  return q;
+}
+
+// Avans yozuvi belgisi (oyna tarixi va oylik hisobot): kim yozgani va hodim javobi.
+function avansManbaHtml(a) {
+  if (a.manba === 'hodim') {
+    return `<div class="adv-manba" style="font-size:12px;color:var(--m-166534);margin-top:2px">📱 Hodim o'zi yozgan, tasdiqlangan</div>`;
+  }
+  let j = '';
+  if (a.javob === 'kutilmoqda') j = ` · <span style="color:var(--m-b45309)">⏳ hodim javobi kutilmoqda</span>`;
+  else if (a.javob === 'oldim') j = ` · <span style="color:var(--m-166534)">✅ hodim «Ha, oldim» degan${a.javob_vaqti ? ' ' + tkSana(a.javob_vaqti) : ''}</span>`;
+  else if (a.javob === 'olmadim') {
+    j = ` · <span style="color:var(--m-dc2626);font-weight:700">❗ hodim «Olmaganman» degan${a.javob_vaqti ? ' ' + tkSana(a.javob_vaqti) : ''}</span>`
+      + (a.nizo_korildi_vaqti ? ` <span style="color:var(--text3)">(ko'rib chiqilgan${a.nizo_korgan ? ': ' + escapeHtml(a.nizo_korgan) : ''})</span>` : '');
+  }
+  return `<div class="adv-manba" style="font-size:12px;color:var(--m-b45309);margin-top:2px">🧑‍💼 Admin${a.given_by ? ' · ' + escapeHtml(a.given_by) : ''}${j}</div>`;
+}
+
+// «💰 Avans berish» oynasining boshida — shu hodimning ko'rib chiqilmagan «Olmaganman» avanslari (qaysi oyda bo'lmasin)
+async function loadAvansNizo(empId) {
+  const box = document.getElementById('adv-nizo');
+  if (!box) return;
+  box.innerHTML = '';
+  let rows = [];
+  try {
+    const res = await fetch(`/api/admin/avans-nizolar?employee_id=${encodeURIComponent(empId)}`);
+    if (!res.ok) return;          // ruxsat yo'q (403) — bo'lim chiqmaydi
+    rows = await res.json();
+  } catch (e) { return; }
+  if (String(advanceEmpId) !== String(empId) || !Array.isArray(rows) || !rows.length) return;
+  box.innerHTML = `<div style="border:1px solid var(--ch-fadbd8);border-radius:10px;padding:12px;margin-bottom:14px">
+      <div style="font-size:13px;font-weight:700;color:var(--m-dc2626);margin-bottom:6px">❗ Hodim «Olmaganman» degan avanslar</div>
+      ${rows.map(r => `<div class="adv-nizo-qator" style="padding:8px 0;border-top:1px solid var(--ch-f0f0f0);font-size:13px">
+        <div style="display:flex;justify-content:space-between;gap:8px"><span style="min-width:0;overflow-wrap:anywhere">${tkSana(r.date)}${r.notes ? ' — ' + escapeHtml(r.notes) : ''}</span><b style="white-space:nowrap">${fmt(r.amount)} so'm</b></div>
+        <div style="font-size:12px;color:var(--text3);margin-top:2px">Yozgan: ${r.given_by ? escapeHtml(r.given_by) : '—'} · «Olmaganman» — ${tkSanaVaqt(r.javob_vaqti)}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+          <button type="button" class="btn btn-dark btn-sm" data-id="${Number(r.id)}" onclick="avansNizoAmal(this, 'korildi')">✔ Ko'rib chiqdim</button>
+          <button type="button" class="btn btn-danger btn-sm" data-id="${Number(r.id)}" onclick="avansNizoAmal(this, 'ochir')">🗑 Avansni o'chirish</button>
+        </div></div>`).join('')}
+    </div>`;
+}
+
+async function avansNizoAmal(btn, amal) {
+  if (btn.disabled) return;
+  const id = Number(btn.dataset.id);
+  if (amal === 'ochir' && !(await customConfirm("Bu avans yozuvini o'chirasizmi? Hodimning oyligidan ayrilmaydi.", {okText: "O'chirish", danger: true}))) return;
+  const qator = btn.closest('.adv-nizo-qator');
+  const tugmalar = qator ? qator.querySelectorAll('button') : [btn];
+  tugmalar.forEach(b => { b.disabled = true; });
+  try {
+    const res = amal === 'ochir'
+      ? await fetch(`/api/employees/advance/${id}`, {method: 'DELETE'})
+      : await fetch(`/api/employees/advance/${id}/nizo-korildi`, {method: 'POST'});
+    if (!res.ok) await xabarOyna('❌ ' + await serverXatoSababi(res, "Saqlanmadi. Iltimos, qayta urinib ko'ring."));
+  } catch (e) {
+    await xabarOyna("❌ Server bilan aloqa yo'q. Internetni tekshirib, qayta urinib ko'ring.");
+  }
+  tugmalar.forEach(b => { b.disabled = false; });
+  // muvaffaqiyat yoki 404 / 409 (holat o'zgargan) — oyna va ro'yxat yangilanadi
+  if (advanceEmpId) loadAdvanceHistory(advanceEmpId);
+  loadEmployees();
 }
 
 function paQurilmaChiz(empId) {
@@ -1040,6 +1117,7 @@ async function savePanelAccess() {
 }
 
 async function loadAdvanceHistory(empId) {
+  loadAvansNizo(empId);     // kech134 (zip 160): «Olmaganman» avanslari — qaysi oyda bo'lmasin
   const tk = tkHozir();     // kech106: "shu oy" — Toshkent
   const res = await fetch(`/api/employees/${empId}/advances?year=${tk.yil}&month=${tk.oy}`);
   const d = await res.json();
@@ -1051,9 +1129,9 @@ async function loadAdvanceHistory(empId) {
   }
   list.innerHTML = d.advances.map(a => `
     <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--ch-f0f0f0);font-size:13px">
-      <span>${tkSana(a.date)} ${a.notes ? '— '+escapeHtml(a.notes) : ''}</span>
+      <span style="min-width:0;overflow-wrap:anywhere">${tkSana(a.date)} ${a.notes ? '— '+escapeHtml(a.notes) : ''}${avansManbaHtml(a)}</span>
       <span style="display:flex;align-items:center;gap:6px">
-        <b>${fmt(a.amount)} so'm</b>
+        <b style="white-space:nowrap">${fmt(a.amount)} so'm</b>
         <button class="btn btn-danger btn-icon btn-sm" onclick="deleteAdvance(${a.id})" title="Avansni o'chirish" aria-label="Avansni o'chirish">✕</button>
       </span>
     </div>`).join('');
@@ -1615,8 +1693,8 @@ async function toggleEmpAdvanceDetail(empId, idx, year, month) {
     const d = await res.json();
     const html = d.advances.map(a => `
       <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:var(--m-92400e)">
-        <span>${tkSana(a.date)} ${a.notes ? '— '+escapeHtml(a.notes) : ''}</span>
-        <span style="font-weight:600">${fmt(a.amount)} so'm</span>
+        <span>${tkSana(a.date)} ${a.notes ? '— '+escapeHtml(a.notes) : ''}${avansManbaHtml(a)}</span>
+        <span style="font-weight:600;white-space:nowrap">${fmt(a.amount)} so'm</span>
       </div>`).join('');
     detailBox.innerHTML = html;
     empAdvCache[cacheKey] = html;
