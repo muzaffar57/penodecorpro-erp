@@ -1458,6 +1458,21 @@ class Employee(Base):
     # Hodimning o'z paneliga kirishi uchun (ixtiyoriy — admin belgilaydi)
     phone = Column(String(20), nullable=True)
     pin_hash = Column(String(64), nullable=True)
+    # kech133 (zip 159 — egasi QARORLARI 09.10 «faqat o'z telefonidan»): hodim BITTA telefonga (undagi brauzerga) bog'lanadi.
+    # Telefon — brauzerdagi tasodifiy kalit (`auth.QURILMA_COOKIE`, faqat serverga ko'rinadi); bazada — uning SHA-256 i.
+    # `qurilma_*` — admin ruxsat bergan telefon; `qurilma_sorov_*` — ruxsat kutayotgan yangi telefon (bittagina; yangisi eskisini
+    # almashtiradi). Ikkala xesh — zaxira nusxaga KIRMAYDI (`crud._SECRET_COLUMNS`): tiklashdan keyin telefonlar qayta tasdiqlanadi.
+    # Ustunlar — `database.sync_missing_columns()` qo'shadi (hammasi NULL bo'la oladi).
+    qurilma_hash = Column(String(64), nullable=True)
+    qurilma_nomi = Column(String(120), nullable=True)
+    qurilma_vaqti = Column(DateTime, nullable=True)
+    qurilma_sorov_hash = Column(String(64), nullable=True)
+    qurilma_sorov_nomi = Column(String(120), nullable=True)
+    qurilma_sorov_vaqti = Column(DateTime, nullable=True)
+    # kech133 (zip 159 — egasi QARORI «PIN ni hodimning o'zi o'zgartirsin»): admin bergan PIN — VAQTINCHALIK; hodim panelga
+    # kirgach avval o'z PIN ini qo'yadi (`crud.hodim_pin_almashtir`). Mavjud qatorlarga `sync_missing_columns` DEFAULT TRUE bilan
+    # qo'shadi — hozirgi PIN lar ham admin bergan. NULL — vaqtinchalik deb olinadi (xavfsiz tomon).
+    pin_vaqtinchalik = Column(Boolean, nullable=True, default=True)
 
     advance_requests = relationship("AdvanceRequest", back_populates="employee", cascade="all, delete-orphan")
     compensation_history = relationship("EmployeeCompensationHistory", back_populates="employee",
@@ -1598,6 +1613,9 @@ class EmployeeSession(Base):
     employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False, index=True)
     expires_at = Column(DateTime, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+    # kech133 (zip 159): sessiya qaysi telefondan ochilgani (brauzer kaliti xeshi). Sessiya FAQAT shu telefondan, va u hodimning
+    # ruxsat berilgan telefoni bo'lsa ishlaydi (`auth.hodim_holati`). NULL — zip 159 dan oldingi sessiya: endi yaroqsiz (qayta kirish).
+    qurilma_hash = Column(String(64), nullable=True)
 
 
 class ActivityLog(Base):

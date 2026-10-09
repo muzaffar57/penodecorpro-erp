@@ -6,7 +6,7 @@ PenoDecorPro ERP — Asosiy server
 import os
 from datetime import datetime, timedelta
 from typing import List, Optional
-from fastapi import FastAPI, Request, Depends, HTTPException, Form, UploadFile, File, Body, Query, Response
+from fastapi import FastAPI, Request, Depends, HTTPException, Form, UploadFile, File, Body, Query, Response, BackgroundTasks
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -5396,7 +5396,11 @@ def api_get_employees(only_active: bool = True, db: Session = Depends(get_db), c
         "yonalish_id": e.yonalish_id,
         "yonalish_nom": _ynom.get(e.yonalish_id) if e.yonalish_id else None,
         "is_active": e.is_active,
-        "notes": e.notes
+        "notes": e.notes,
+        # kech133 (zip 159): «🔑 Kirish» oynasi — hozirgi telefon raqami (ilgari javobda yo'q edi — oyna doim bo'sh ochilardi),
+        # bog'langan telefon, ruxsat kutayotgan telefon, PIN holati
+        "phone": e.phone,
+        **crud.hodim_qurilma_xulosa(e),
     } for e in items]
 
 
@@ -5672,7 +5676,7 @@ def hodim_qr_page(request: Request, manzil: str = "", db: Session = Depends(get_
 @app.get("/hodim/login", response_class=HTMLResponse)
 async def hodim_login_page(request: Request, b: str = "", k: str = "", db: Session = Depends(get_db)):
     try:
-        emp = auth.get_current_employee(request, db)
+        _h = auth.hodim_holati(request, db)
     except HTTPException as _e:
         # kech111: korxonasi bloklangan hodim sessiyasi — o'chirildi, xabar bilan
         if _e.status_code != 403 or not (_e.headers or {}).get(_obuna.BLOK_SARLAVHA):
@@ -5680,7 +5684,8 @@ async def hodim_login_page(request: Request, b: str = "", k: str = "", db: Sessi
         _r = templates.TemplateResponse(request, "hodim_login.html", {"error": None, "bloklangan": _e.detail})
         _r.delete_cookie("emp_session_token")
         return _r
-    if emp:
+    # kech133 (zip 159): panel, PIN qo'yish yoki ruxsat kutish — hammasi `/hodim` da (rad etilgan sessiya — qayta kirish)
+    if _h and _h["holat"] != auth.HOLAT_RAD:
         return RedirectResponse("/hodim", status_code=302)
     # kech120 (zip 130 — G6-07): QR / havoladagi korxona kodi (`?k=KOD`) — maydonga o'zi yoziladi (faqat matn, 30 belgigacha)
     return templates.TemplateResponse(request, "hodim_login.html", {
@@ -5688,12 +5693,19 @@ async def hodim_login_page(request: Request, b: str = "", k: str = "", db: Sessi
 
 
 @app.post("/hodim/login")
-async def hodim_login_submit(request: Request, phone: str = Form(...), pin: str = Form(...),
-                              korxona: str = Form(""), db: Session = Depends(get_db)):
+async def hodim_login_submit(request: Request, background_tasks: BackgroundTasks, phone: str = Form(...),
+                              pin: str = Form(...), korxona: str = Form(""), qurilma_model: str = Form(""),
+                              db: Session = Depends(get_db)):
+    """kech133 (zip 159 — egasi QARORLARI 09.10): to'g'ri telefon + PIN dan keyin TELEFON tekshiriladi — brauzer kaliti
+    (`auth.QURILMA_COOKIE`; yo'q bo'lsa shu yerda yaratiladi). Hodimning ruxsat berilgan telefoni bo'lsa — panel (PIN hali admin
+    bergan bo'lsa — avval o'z PIN i); bo'lmasa — telefon «ruxsat kutmoqda» (`crud.hodim_qurilma_sorovi`), yangi so'rovda adminga
+    Telegram xabari, sahifa ruxsatni kutadi. Telefon raqami — `crud.telefon_kaliti` bo'yicha (bo'sh joy / «+998» farqi —
+    o'sha raqam); urinishlar hisobi ham shu kalit bilan (ko'rinishini o'zgartirib cheklovdan qochib bo'lmaydi)."""
     ip = auth.mijoz_ip(request)     # kech116 (U-01): haqiqiy mijoz manzili (Railway proksisi emas)
     ua = request.headers.get("user-agent", "")[:250]
+    _tel_kalit = crud.telefon_kaliti(phone) or (phone or "").strip()
 
-    rl = crud.check_login_rate_limit(db, phone, ip)
+    rl = crud.check_login_rate_limit(db, _tel_kalit, ip)
     if rl["blocked"]:
         return templates.TemplateResponse(request, "hodim_login.html", {
             "error": f"Juda ko'p noto'g'ri urinish. {rl['retry_after_minutes']} daqiqadan so'ng qayta urining.",
@@ -5705,7 +5717,7 @@ async def hodim_login_submit(request: Request, phone: str = Form(...), pin: str 
     # bazadan topiladi. Bitta korxonali o'rnatmada kod bo'sh bo'lishi mumkin.
     _korxona = crud.resolve_company_by_code(db, korxona)
     if not _korxona:
-        crud.log_login_attempt(db, phone, success=False, ip_address=ip, user_agent=ua)
+        crud.log_login_attempt(db, _tel_kalit, success=False, ip_address=ip, user_agent=ua)
         return templates.TemplateResponse(request, "hodim_login.html", {
             "error": "Korxona kodi topilmadi. Kodni administratordan so'rang.", "kod": (korxona or "").strip()[:30],
             "telefon": (phone or "").strip()[:20]
@@ -5713,7 +5725,7 @@ async def hodim_login_submit(request: Request, phone: str = Form(...), pin: str 
 
     emp = crud.authenticate_employee(db, phone, pin, company_id=_korxona.id)
     if not emp:
-        crud.log_login_attempt(db, phone, success=False, ip_address=ip, user_agent=ua)
+        crud.log_login_attempt(db, _tel_kalit, success=False, ip_address=ip, user_agent=ua)
         # kech120 (zip 137 — F bosqichi 5-qism, audit G6-20): telefon saqlanadi (faqat PIN qayta yoziladi), keyin nima qilish
         return templates.TemplateResponse(request, "hodim_login.html", {
             "error": "Telefon yoki PIN noto'g'ri! PIN ni unutgan bo'lsangiz — korxona administratoridan so'rang.",
@@ -5727,12 +5739,33 @@ async def hodim_login_submit(request: Request, phone: str = Form(...), pin: str 
     if _rad:
         return templates.TemplateResponse(request, "hodim_login.html", {"error": None, "bloklangan": _rad[0]})
 
-    crud.log_login_attempt(db, phone, success=True, ip_address=ip, user_agent=ua)
-    token = auth.create_employee_session(db, emp.id)
+    crud.log_login_attempt(db, _tel_kalit, success=True, ip_address=ip, user_agent=ua)
+    _kalit = auth.qurilma_kaliti(request) or auth.yangi_qurilma_kaliti()
+    _qh = auth.qurilma_hash_ol(_kalit)
+    if emp.qurilma_hash != _qh:
+        _nomi = crud.qurilma_nomi_yasash(ua, qurilma_model)
+        if crud.hodim_qurilma_sorovi(db, emp, _qh, _nomi):
+            background_tasks.add_task(_hodim_qurilma_telegram, emp.name, emp.qurilma_nomi, _nomi, emp.company_id)
+    token = auth.create_employee_session(db, emp.id, qurilma_hash=_qh)
     response = RedirectResponse("/hodim", status_code=302)
     response.set_cookie(key="emp_session_token", value=token, httponly=True,
                          max_age=3600 * auth.EMPLOYEE_SESSION_HOURS, samesite="lax", secure=True)
+    # telefon kaliti — har kirishda yangilanadi (umri 400 kun — brauzerlar cookie umrini shu bilan cheklaydi)
+    response.set_cookie(key=auth.QURILMA_COOKIE, value=_kalit, httponly=True, max_age=auth.QURILMA_COOKIE_SONIYA,
+                        samesite="lax", secure=True)
     return response
+
+
+def _hodim_qurilma_telegram(ism: str, hozirgi: Optional[str], yangi: str, company_id: int) -> None:
+    """kech133 (zip 159): yangi telefondan kirish so'rovi — korxona Telegram chatiga (fon vazifasi: hodim sahifasi kutmaydi)."""
+    try:
+        _tel = yangi or "Noma'lum telefon"
+        _matn = (f"🔔 *Hodim yangi telefondan kirmoqchi*\n\n👷 {ism}\n📱 {_tel}\n"
+                 + (f"Hozirgi telefoni: {hozirgi}\n" if hozirgi else "")
+                 + "\nRuxsat berish: «Bosh sahifa» yoki «Ustalar KPI / Hodimlar» → «🔑 Kirish».")
+        _send_telegram(_matn, company_id=company_id)
+    except Exception as _e:         # noqa: BLE001 — xabar ketmasa ham kirish ishlaydi (so'rov dasturda ko'rinadi)
+        print(f"⚠ Telefon so'rovi Telegram xabari yuborilmadi: {_e}")
 
 
 @app.get("/hodim/logout")
@@ -5747,13 +5780,135 @@ async def hodim_logout(request: Request, db: Session = Depends(get_db)):
 
 @app.get("/hodim", response_class=HTMLResponse)
 async def hodim_panel(request: Request, db: Session = Depends(get_db)):
-    emp = auth.get_current_employee(request, db)
-    if not emp:
+    """kech133 (zip 159): holatga qarab — panel; o'z PIN ini qo'yish (`hodim_pin.html`, majburiy); telefon ruxsatini kutish yoki
+    «ruxsat berilmadi» (`hodim_kutish.html`; rad etilganda sessiya yopiladi)."""
+    _h = auth.hodim_holati(request, db)
+    if not _h:
         # kech120 (zip 130 — G6-07): QR dagi `?k=KOD` kirish sahifasiga o'tadi
         _k = (request.query_params.get("k") or "").strip()[:30]
         from urllib.parse import quote as _q131
         return RedirectResponse("/hodim/login" + (f"?k={_q131(_k)}" if _k else ""), status_code=302)
+    emp = _h["employee"]
+    if _h["holat"] == auth.HOLAT_PIN:
+        return templates.TemplateResponse(request, "hodim_pin.html", {"employee": emp, "majburiy": True})
+    if _h["holat"] in (auth.HOLAT_KUTILMOQDA, auth.HOLAT_RAD):
+        _r = templates.TemplateResponse(request, "hodim_kutish.html", {"employee": emp, "holat": _h["holat"]})
+        if _h["holat"] == auth.HOLAT_RAD:
+            auth.delete_employee_session(db, _h["token"])
+            _r.delete_cookie("emp_session_token")
+        return _r
     return templates.TemplateResponse(request, "hodim_panel.html", {"employee": emp})
+
+
+@app.get("/hodim/pin", response_class=HTMLResponse)
+async def hodim_pin_sahifa(request: Request, db: Session = Depends(get_db)):
+    """kech133 (zip 159): o'z PIN ini o'zgartirish (paneldagi «🔒 PIN» havolasi). Panelga kira olmaydigan holat — `/hodim`."""
+    _h = auth.hodim_holati(request, db)
+    if not _h or _h["holat"] not in (auth.HOLAT_TAYYOR, auth.HOLAT_PIN):
+        return RedirectResponse("/hodim", status_code=302)
+    return templates.TemplateResponse(request, "hodim_pin.html", {"employee": _h["employee"],
+                                                                  "majburiy": _h["holat"] == auth.HOLAT_PIN})
+
+
+@app.get("/api/hodim/qurilma-holati")
+def api_hodim_qurilma_holati(request: Request, db: Session = Depends(get_db)):
+    """kech133 (zip 159): ruxsat kutayotgan sahifa shu yerdan so'raydi — {"holat": tayyor | pin | kutilmoqda | rad}. Sessiya yo'q —
+    401. Qorovulsiz marshrut: telefon kutayotganda `require_employee_login` o'tkazmaydi — tekshiruv ichida (`auth.hodim_holati`)."""
+    _h = auth.hodim_holati(request, db)
+    if not _h:
+        raise HTTPException(status_code=401, detail="Iltimos, tizimga kiring")
+    return {"holat": _h["holat"]}
+
+
+@app.post("/api/hodim/pin")
+def api_hodim_pin(request: Request, data: dict = Body(default=None), db: Session = Depends(get_db)):
+    """kech133 (zip 159 — egasi QARORI «PIN ni hodimning o'zi o'zgartirsin»): tana {"yangi", "takror"} (+ "eski" — PIN o'zi
+    qo'ygan bo'lsa SHART). Faqat ruxsat berilgan telefondan (holat «pin» / «tayyor»). Noto'g'ri «eski» — kirish urinishi sifatida
+    yoziladi (5 ta / 15 daqiqa — `check_login_rate_limit`, kirish bilan bir hisob). Qorovulsiz marshrut: PIN vaqtinchalik
+    bo'lganda `require_employee_login` 403 beradi — tekshiruv ichida."""
+    _h = auth.hodim_holati(request, db)
+    if not _h or _h["holat"] not in (auth.HOLAT_TAYYOR, auth.HOLAT_PIN):
+        raise HTTPException(status_code=401, detail="Iltimos, tizimga kiring")
+    emp = _h["employee"]
+    if not isinstance(data, dict) or not set(data) <= {"eski", "yangi", "takror"} \
+            or not all(isinstance(v, str) for v in data.values()):
+        raise HTTPException(status_code=400, detail="Ma'lumot noto'g'ri")
+    majburiy = _h["holat"] == auth.HOLAT_PIN
+    _tel_kalit = crud.telefon_kaliti(emp.phone) or (emp.phone or "")
+    ip = auth.mijoz_ip(request)
+    if not majburiy:
+        rl = crud.check_login_rate_limit(db, _tel_kalit, ip)
+        if rl["blocked"]:
+            raise HTTPException(status_code=429, detail=f"Juda ko'p noto'g'ri urinish. {rl['retry_after_minutes']} daqiqadan "
+                                                        f"so'ng qayta urining.")
+    try:
+        return crud.hodim_pin_almashtir(db, emp, data.get("yangi"), data.get("takror"), eski=data.get("eski"),
+                                        majburiy=majburiy, joriy_token=_h["token"])
+    except PermissionError as e:
+        db.rollback()
+        crud.log_login_attempt(db, _tel_kalit, success=False, ip_address=ip,
+                               user_agent=request.headers.get("user-agent", "")[:250])
+        raise HTTPException(status_code=400, detail=str(e))
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# kech133 (zip 159): ADMIN — hodim telefonlariga ruxsat (Bosh sahifa oynasi va «🔑 Kirish» oynasi). Ruxsat — «Hodimlar: Tahrirlash»
+# (telefon + PIN belgilash bilan bir xil). Hodim FAQAT joriy korxonadan (aks holda 404).
+# ════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+@app.get("/api/admin/qurilma-sorovlari")
+def api_qurilma_sorovlari(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("hodim", "tahrirlash"))):
+    return crud.hodim_qurilma_sorovlari(db, auth.company_id_of(current_user))
+
+
+def _qurilma_hodimi(db, emp_id: int, current_user):
+    emp = auth.employee_of_company(db, emp_id, auth.company_id_of(current_user))
+    if not emp or emp.is_deleted:
+        raise HTTPException(status_code=404, detail="Xodim topilmadi")
+    return emp
+
+
+def _qurilma_tana_kaliti(data) -> str:
+    if not isinstance(data, dict) or set(data) != {"kalit"} or not isinstance(data["kalit"], str):
+        raise HTTPException(status_code=400, detail="So'rov belgisi yo'q — sahifani yangilang")
+    return data["kalit"]
+
+
+@app.post("/api/employees/{emp_id}/qurilma/ruxsat")
+def api_qurilma_ruxsat(emp_id: int, data: dict = Body(default=None), db: Session = Depends(get_db),
+                       current_user=Depends(auth.ruxsat("hodim", "tahrirlash"))):
+    """Tana {"kalit": <so'rov belgisi>} — admin ko'rgan so'rov; shu orada boshqa telefondan yangi so'rov kelgan bo'lsa — 409."""
+    kalit = _qurilma_tana_kaliti(data)
+    emp = _qurilma_hodimi(db, emp_id, current_user)
+    try:
+        return crud.hodim_qurilma_ruxsat(db, emp, kalit, current_user.full_name or current_user.username)
+    except LookupError as e:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(e))
+
+
+@app.post("/api/employees/{emp_id}/qurilma/rad")
+def api_qurilma_rad(emp_id: int, data: dict = Body(default=None), db: Session = Depends(get_db),
+                    current_user=Depends(auth.ruxsat("hodim", "tahrirlash"))):
+    kalit = _qurilma_tana_kaliti(data)
+    emp = _qurilma_hodimi(db, emp_id, current_user)
+    try:
+        return crud.hodim_qurilma_rad(db, emp, kalit, current_user.full_name or current_user.username)
+    except LookupError as e:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(e))
+
+
+@app.post("/api/employees/{emp_id}/qurilma/uzish")
+def api_qurilma_uzish(emp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("hodim", "tahrirlash"))):
+    emp = _qurilma_hodimi(db, emp_id, current_user)
+    try:
+        return crud.hodim_qurilma_uz(db, emp, current_user.full_name or current_user.username)
+    except LookupError as e:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(e))
 
 
 @app.get("/api/hodim/my-requests")
