@@ -1,0 +1,266 @@
+{# kech134 (zip 160): HODIM OYNALARI — Bosh sahifa (`home.html`) va Dashboard (`dashboard.html`) da BIR XIL (ilgari faqat Dashboard da edi;
+   admin kirgach Bosh sahifaga tushadi — zip 159 Telegram xabari ham «Bosh sahifa» deydi). Navbat (ustma-ust chiqmaydi):
+   «🔔 Hodim yangi telefondan kirmoqchi» → «❗ Hodim avansni olmaganini aytdi» → «💰 Xodimlar yozgan avans so'rovlari».
+   Har oyna o'z ruxsati bilan (403 — oyna chiqmaydi). Sahifa skripti `checkQurilmaSorovlari()` ni chaqiradi; base.html yordamchilari
+   (`escapeHtml`, `tkSana`, `xabarOyna`, `kiritishOyna`, `customConfirm`, `serverXatoSababi`) — chaqiruv paytida tayyor. #}
+<!-- ══ XODIM AVANS SO'ROVLARINI TASDIQLASH ══ -->
+<div id="advReqModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.55);z-index:2000;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px)">
+  <div style="background:var(--white);border-radius:16px;width:460px;max-width:100%;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.25)">
+    <div style="padding:20px 22px 14px;border-bottom:1px solid var(--ch-f0f0f0)">
+      <div style="font-size:16px;font-weight:700;color:var(--m-111111)">💰 Xodimlar yozgan avans so'rovlari</div>
+      <div style="font-size:13px;color:var(--text3);margin-top:4px">Rostdan ham shu summani berganingizni tasdiqlang</div>
+    </div>
+    <div id="advReqList" style="padding:14px 22px;overflow-y:auto;flex:1"></div>
+    <div style="padding:14px 22px;border-top:1px solid var(--ch-f0f0f0)">
+      <button data-yopish class="btn btn-outline w-full" onclick="document.getElementById('advReqModal').style.display='none'">Keyinroq ko'raman</button>
+    </div>
+  </div>
+</div>
+{# kech133 (zip 159 — egasi QARORLARI 09.10 «faqat o'z telefonidan», «har yangi telefonga admin ruxsati»): hodim yangi telefondan
+   to'g'ri telefon + PIN bilan kirdi — o'sha telefon sahifasi ruxsatni KUTIB turibdi. Avans so'rovlaridan OLDIN ko'rsatiladi (odam kutyapti). #}
+<div id="qurilmaModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.55);z-index:2000;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px)">
+  <div style="background:var(--white);border-radius:16px;width:460px;max-width:100%;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.25)">
+    <div style="padding:20px 22px 14px;border-bottom:1px solid var(--ch-f0f0f0)">
+      <div style="font-size:16px;font-weight:700;color:var(--m-111111)">🔔 Hodim yangi telefondan kirmoqchi</div>
+      <div style="font-size:13px;color:var(--text3);margin-top:4px;line-height:1.5">Hodim o'zi shu telefondan kirayotganini bilsangiz — ruxsat bering. Ruxsatdan keyin u panelga FAQAT shu telefondan kiradi (eski telefoni uziladi).</div>
+    </div>
+    <div id="qurilmaList" style="padding:14px 22px;overflow-y:auto;flex:1"></div>
+    <div style="padding:14px 22px;border-top:1px solid var(--ch-f0f0f0)">
+      <button data-yopish class="btn btn-outline w-full" onclick="qurilmaOynaYop()">Keyinroq ko'raman</button>
+    </div>
+  </div>
+</div>
+{# kech134 (zip 160 — egasi QARORI 09.10 «C»): hodim admin yozgan avansga «Olmaganman» dedi. Telefon oynasidan keyin, avans
+   so'rovlaridan oldin. #}
+<div id="avansNizoModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.55);z-index:2000;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px)">
+  <div style="background:var(--white);border-radius:16px;width:460px;max-width:100%;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.25)">
+    <div style="padding:20px 22px 14px;border-bottom:1px solid var(--ch-f0f0f0)">
+      <div style="font-size:16px;font-weight:700;color:var(--m-111111)">❗ Hodim avansni olmaganini aytdi</div>
+      <div style="font-size:13px;color:var(--text3);margin-top:4px;line-height:1.5">Admin yozgan avansga hodim «Olmaganman» deb javob berdi. Avans hisobda turibdi. Xato yozilgan bo'lsa — «🗑 Avansni o'chirish»; berilganini bilsangiz — hodim bilan gaplashib, «✔ Ko'rib chiqdim» ni bosing.</div>
+    </div>
+    <div id="avansNizoList" style="padding:14px 22px;overflow-y:auto;flex:1"></div>
+    <div style="padding:14px 22px;border-top:1px solid var(--ch-f0f0f0)">
+      <button data-yopish class="btn btn-outline w-full" onclick="nizoOynaYop()">Keyinroq ko'raman</button>
+    </div>
+  </div>
+</div>
+<script>
+async function checkPendingAdvanceRequests(){
+  try {
+    const rows = await fetch('/api/admin/pending-advance-requests').then(r => r.json());
+    if (!rows || !rows.length) return;
+    const list = document.getElementById('advReqList');
+    const fmt = n => Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' ');
+    list.innerHTML = rows.map(r => `
+      <div id="adv-row-${r.id}" style="border:1px solid var(--ch-eeeeee);border-radius:10px;padding:14px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px">
+          <div>
+            <div style="font-weight:700;font-size:14px">${escapeHtml(r.employee_name)}</div>
+            <div style="font-size:13px;color:var(--text3);margin-top:2px">${tkSana(r.requested_date)} kuni oldim deb yozgan</div>
+          </div>
+          <div style="font-weight:800;font-size:16px;color:var(--m-b45309)">${fmt(r.amount)} so'm</div>
+        </div>
+        ${r.notes ? `<div style="font-size:13px;color:var(--text3);margin-bottom:10px;overflow-wrap:anywhere">💬 ${escapeHtml(r.notes)}</div>` : ''}
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <button class="btn btn-dark" style="flex:1 1 160px" onclick="confirmAdvReq(${r.id})">✅ Ha, berganman</button>
+          <button class="btn btn-danger" style="flex:1 1 120px" onclick="rejectAdvReq(${r.id})">❌ Yo'q</button>
+        </div>
+      </div>`).join('');
+    document.getElementById('advReqModal').style.display = 'flex';
+  } catch(e) { console.error(e); }
+}
+
+// kech134 (zip 160): tugmalar so'rov davomida o'chiq (ikki marta bosish ikkinchi so'rov yubormaydi); rad sababi — serverdan; so'rovni
+// boshqa admin allaqachon ko'rib chiqqan bo'lsa (404) — sababi aytiladi va qator olib tashlanadi (ilgari «Tasdiqlashda xato» va qator
+// qolardi). Server so'rov qatorini qulflaydi — ikki admin bir vaqtda bossa ham avans BITTA (`crud.confirm_advance_request`).
+function advTugmalar(id, yoqiq){
+  const row = document.getElementById(`adv-row-${id}`);
+  if (row) row.querySelectorAll('button').forEach(b => { b.disabled = !yoqiq; });
+}
+async function confirmAdvReq(id){
+  const row = document.getElementById(`adv-row-${id}`);
+  if (row && row.dataset.band === '1') return;
+  if (row) row.dataset.band = '1';
+  advTugmalar(id, false);
+  try {
+    const res = await fetch(`/api/admin/advance-requests/${id}/confirm`, { method: 'POST' });
+    if (res.ok) { removeAdvRow(id); return; }
+    const sabab = await serverXatoSababi(res, "Tasdiqlashda xato yuz berdi. Iltimos, qayta urinib ko'ring.");
+    await xabarOyna('❌ ' + sabab);
+    if (res.status === 404) { removeAdvRow(id); return; }
+  } catch(e) {
+    await xabarOyna("❌ Server bilan aloqa yo'q. Internetni tekshirib, qayta urinib ko'ring.");
+  }
+  if (row) row.dataset.band = '';
+  advTugmalar(id, true);
+}
+
+// kech118 (D-1, G6-21 — egasi QARORI «Ha, majburiy»): rad etishda SABAB so'raladi — hodim o'z panelida ko'radi.
+async function rejectAdvReq(id){
+  let izoh = "Sabab hodimning panelida ko'rinadi. Hech qanday moliyaviy yozuv yaratilmaydi.";
+  let sabab = '';
+  while (!sabab) {
+    const v = await kiritishOyna("Nega rad etasiz?", {izoh, okText: 'Rad etish'});
+    if (v === null) return;
+    sabab = String(v).trim();
+    izoh = "⚠ Sabab yozilmadi — rad etish uchun sababini yozing (hodim ko'radi).";
+  }
+  const row = document.getElementById(`adv-row-${id}`);
+  if (row && row.dataset.band === '1') return;
+  if (row) row.dataset.band = '1';
+  advTugmalar(id, false);
+  try {
+    const res = await fetch(`/api/admin/advance-requests/${id}/reject`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({sabab})});
+    if (res.ok) { removeAdvRow(id); return; }
+    await xabarOyna('❌ ' + await serverXatoSababi(res, "Rad etishda xato yuz berdi. Iltimos, qayta urinib ko'ring."));
+    if (res.status === 404) { removeAdvRow(id); return; }
+  } catch(e) {
+    await xabarOyna("❌ Server bilan aloqa yo'q. Internetni tekshirib, qayta urinib ko'ring.");
+  }
+  if (row) row.dataset.band = '';
+  advTugmalar(id, true);
+}
+
+function removeAdvRow(id){
+  const row = document.getElementById(`adv-row-${id}`);
+  if (row) row.remove();
+  const list = document.getElementById('advReqList');
+  if (!list.children.length) document.getElementById('advReqModal').style.display = 'none';
+}
+
+// ══ kech133 (zip 159): hodim telefoniga ruxsat — `GET /api/admin/qurilma-sorovlari` («Hodimlar: Tahrirlash» ruxsati yo'q — 403,
+// oyna chiqmaydi). Oyna yopilgach (yoki so'rovlar tugagach) — avans so'rovlari oynasi (ikkisi ustma-ust chiqmasin).
+async function checkQurilmaSorovlari(){
+  let rows = null;
+  try {
+    const res = await fetch('/api/admin/qurilma-sorovlari');
+    if (res.ok) rows = await res.json();
+  } catch(e) { console.error(e); }
+  if (!Array.isArray(rows) || !rows.length) { checkAvansNizolar(); return; }
+  document.getElementById('qurilmaList').innerHTML = rows.map(r => `
+      <div class="qurilma-qator" id="qurilma-row-${r.employee_id}" style="border:1px solid var(--ch-eeeeee);border-radius:10px;padding:14px;margin-bottom:10px">
+        <div style="font-weight:700;font-size:14px">${escapeHtml(r.name)}${r.position ? ` <span style="font-weight:500;color:var(--text3);font-size:13px">${escapeHtml(r.position)}</span>` : ''}</div>
+        <div style="font-size:13px;color:var(--m-333333);margin-top:4px">📱 ${escapeHtml(r.nomi || "Noma'lum telefon")}</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:2px">${tkSanaVaqt(r.vaqti)} da kirmoqchi bo'ldi${r.hozirgi ? ` · hozirgi telefoni: ${escapeHtml(r.hozirgi)}` : ''}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
+          <button class="btn btn-dark" style="flex:1 1 160px" data-id="${r.employee_id}" data-kalit="${escapeHtml(r.kalit)}" onclick="qurilmaJavob(this, 'ruxsat')">✅ Ruxsat berish</button>
+          <button class="btn btn-danger" style="flex:1 1 120px" data-id="${r.employee_id}" data-kalit="${escapeHtml(r.kalit)}" onclick="qurilmaJavob(this, 'rad')">❌ Rad etish</button>
+        </div>
+      </div>`).join('');
+  document.getElementById('qurilmaModal').style.display = 'flex';
+}
+
+async function qurilmaJavob(btn, amal){
+  const id = btn.dataset.id;
+  try {
+    const yol = amal === 'ruxsat' ? `/api/employees/${id}/qurilma/ruxsat` : `/api/employees/${id}/qurilma/rad`;
+    const res = await fetch(yol, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({kalit: btn.dataset.kalit})});
+    if (!res.ok) {
+      await xabarOyna('❌ ' + await serverXatoSababi(res, "Saqlanmadi. Iltimos, qayta urinib ko'ring."));
+      if (res.status === 409) { checkQurilmaSorovlariQayta(); }
+      return;
+    }
+  } catch(e) {
+    await xabarOyna("❌ Server bilan aloqa yo'q. Internetni tekshirib, qayta urinib ko'ring.");
+    return;
+  }
+  const row = document.getElementById(`qurilma-row-${id}`);
+  if (row) row.remove();
+  if (!document.getElementById('qurilmaList').children.length) qurilmaOynaYop();
+}
+
+function checkQurilmaSorovlariQayta(){
+  // so'rov shu orada yangilangan (boshqa telefondan) — ro'yxat qayta olinadi (avans oynasi bu yo'lda ochilmaydi)
+  fetch('/api/admin/qurilma-sorovlari').then(r => r.ok ? r.json() : []).then(rows => {
+    if (!Array.isArray(rows) || !rows.length) { qurilmaOynaYop(); return; }
+    document.getElementById('qurilmaModal').style.display = 'none';
+    checkQurilmaSorovlari();
+  }).catch(() => {});
+}
+
+function qurilmaOynaYop(){
+  const m = document.getElementById('qurilmaModal');
+  const ochiq = m.style.display !== 'none';
+  m.style.display = 'none';
+  if (ochiq) checkAvansNizolar();
+}
+
+// ══ kech134 (zip 160 — egasi QARORI 09.10 «C — hodim tasdig'i bilan»): hodim admin yozgan avansga «Olmaganman» dedi —
+// `GET /api/admin/avans-nizolar` («Hodimlar: Tahrirlash» ruxsati yo'q — 403, oyna chiqmaydi). Telefon oynasidan KEYIN, avans
+// so'rovlaridan OLDIN (ikkisi ustma-ust chiqmasin). Amallar: «✔ Ko'rib chiqdim» (ogohlantirish yopiladi, avans qoladi) va
+// «🗑 Avansni o'chirish» (xato yozilgan bo'lsa).
+async function checkAvansNizolar(){
+  let rows = null;
+  try {
+    const res = await fetch('/api/admin/avans-nizolar');
+    if (res.ok) rows = await res.json();
+  } catch(e) { console.error(e); }
+  if (!Array.isArray(rows) || !rows.length) { checkPendingAdvanceRequests(); return; }
+  const fmt = n => Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' ');
+  document.getElementById('avansNizoList').innerHTML = rows.map(r => `
+      <div class="nizo-qator" id="nizo-row-${Number(r.id)}" style="border:1px solid var(--ch-fadbd8);border-radius:10px;padding:14px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:start;gap:10px">
+          <div style="min-width:0;overflow-wrap:anywhere">
+            <div style="font-weight:700;font-size:14px">${escapeHtml(r.employee_name)}${r.position ? ` <span style="font-weight:500;color:var(--text3);font-size:13px">${escapeHtml(r.position)}</span>` : ''}</div>
+            <div style="font-size:13px;color:var(--text3);margin-top:2px">${tkSana(r.date)} · yozgan: ${r.given_by ? escapeHtml(r.given_by) : '—'}</div>
+          </div>
+          <div style="font-weight:800;font-size:16px;color:var(--m-dc2626);white-space:nowrap">${fmt(r.amount)} so'm</div>
+        </div>
+        ${r.notes ? `<div style="font-size:13px;color:var(--text3);margin-top:6px;overflow-wrap:anywhere">💬 ${escapeHtml(r.notes)}</div>` : ''}
+        <div style="font-size:13px;color:var(--m-dc2626);font-weight:600;margin-top:6px">❗ «Olmaganman» dedi — ${tkSanaVaqt(r.javob_vaqti)}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
+          <button class="btn btn-dark" style="flex:1 1 160px" data-id="${Number(r.id)}" onclick="nizoKorildi(this)">✔ Ko'rib chiqdim</button>
+          <button class="btn btn-danger" style="flex:1 1 160px" data-id="${Number(r.id)}" onclick="nizoAvansOchir(this)">🗑 Avansni o'chirish</button>
+        </div>
+      </div>`).join('');
+  document.getElementById('avansNizoModal').style.display = 'flex';
+}
+
+function nizoTugmalar(id, yoqiq){
+  const row = document.getElementById(`nizo-row-${id}`);
+  if (row) row.querySelectorAll('button').forEach(b => { b.disabled = !yoqiq; });
+}
+
+function nizoQatorniOl(id){
+  const row = document.getElementById(`nizo-row-${id}`);
+  if (row) row.remove();
+  if (!document.getElementById('avansNizoList').children.length) nizoOynaYop();
+}
+
+async function nizoAmal(btn, yol, metod){
+  const id = Number(btn.dataset.id);
+  const row = document.getElementById(`nizo-row-${id}`);
+  if (row && row.dataset.band === '1') return;
+  if (row) row.dataset.band = '1';
+  nizoTugmalar(id, false);
+  try {
+    const res = await fetch(yol, {method: metod});
+    if (res.ok) { nizoQatorniOl(id); return; }
+    await xabarOyna('❌ ' + await serverXatoSababi(res, "Saqlanmadi. Iltimos, qayta urinib ko'ring."));
+    // 404 — avans o'chirilgan, 409 — hodim javobini o'zgartirgan yoki boshqa admin ko'rib chiqqan: qator endi kerak emas
+    if (res.status === 404 || res.status === 409) { nizoQatorniOl(id); return; }
+  } catch(e) {
+    await xabarOyna("❌ Server bilan aloqa yo'q. Internetni tekshirib, qayta urinib ko'ring.");
+  }
+  if (row) row.dataset.band = '';
+  nizoTugmalar(id, true);
+}
+
+function nizoKorildi(btn){
+  return nizoAmal(btn, `/api/employees/advance/${Number(btn.dataset.id)}/nizo-korildi`, 'POST');
+}
+
+async function nizoAvansOchir(btn){
+  if (!(await customConfirm("Bu avans yozuvini o'chirasizmi? Hodimning oyligidan ayrilmaydi.", {okText: "O'chirish", danger: true}))) return;
+  return nizoAmal(btn, `/api/employees/advance/${Number(btn.dataset.id)}`, 'DELETE');
+}
+
+function nizoOynaYop(){
+  const m = document.getElementById('avansNizoModal');
+  const ochiq = m.style.display !== 'none';
+  m.style.display = 'none';
+  if (ochiq) checkPendingAdvanceRequests();
+}
+</script>

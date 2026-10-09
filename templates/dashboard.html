@@ -336,33 +336,7 @@
 
 </div>
 
-<!-- ══ XODIM AVANS SO'ROVLARINI TASDIQLASH ══ -->
-<div id="advReqModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.55);z-index:2000;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px)">
-  <div style="background:var(--white);border-radius:16px;width:460px;max-width:100%;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.25)">
-    <div style="padding:20px 22px 14px;border-bottom:1px solid var(--ch-f0f0f0)">
-      <div style="font-size:16px;font-weight:700;color:var(--m-111111)">💰 Xodimlar yozgan avans so'rovlari</div>
-      <div style="font-size:13px;color:var(--text3);margin-top:4px">Rostdan ham shu summani berganingizni tasdiqlang</div>
-    </div>
-    <div id="advReqList" style="padding:14px 22px;overflow-y:auto;flex:1"></div>
-    <div style="padding:14px 22px;border-top:1px solid var(--ch-f0f0f0)">
-      <button data-yopish class="btn btn-outline w-full" onclick="document.getElementById('advReqModal').style.display='none'">Keyinroq ko'raman</button>
-    </div>
-  </div>
-</div>
-{# kech133 (zip 159 — egasi QARORLARI 09.10 «faqat o'z telefonidan», «har yangi telefonga admin ruxsati»): hodim yangi telefondan
-   to'g'ri telefon + PIN bilan kirdi — o'sha telefon sahifasi ruxsatni KUTIB turibdi. Avans so'rovlaridan OLDIN ko'rsatiladi (odam kutyapti). #}
-<div id="qurilmaModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.55);z-index:2000;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px)">
-  <div style="background:var(--white);border-radius:16px;width:460px;max-width:100%;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.25)">
-    <div style="padding:20px 22px 14px;border-bottom:1px solid var(--ch-f0f0f0)">
-      <div style="font-size:16px;font-weight:700;color:var(--m-111111)">🔔 Hodim yangi telefondan kirmoqchi</div>
-      <div style="font-size:13px;color:var(--text3);margin-top:4px;line-height:1.5">Hodim o'zi shu telefondan kirayotganini bilsangiz — ruxsat bering. Ruxsatdan keyin u panelga FAQAT shu telefondan kiradi (eski telefoni uziladi).</div>
-    </div>
-    <div id="qurilmaList" style="padding:14px 22px;overflow-y:auto;flex:1"></div>
-    <div style="padding:14px 22px;border-top:1px solid var(--ch-f0f0f0)">
-      <button data-yopish class="btn btn-outline w-full" onclick="qurilmaOynaYop()">Keyinroq ko'raman</button>
-    </div>
-  </div>
-</div>
+{% include "_hodim_oynalari.html" %}
 {% endblock %}
 
 {% block scripts %}
@@ -786,127 +760,9 @@ async function loadObligationsWidget(){
   } catch(e) { console.error(e); }
 }
 
-async function checkPendingAdvanceRequests(){
-  try {
-    const rows = await fetch('/api/admin/pending-advance-requests').then(r => r.json());
-    if (!rows || !rows.length) return;
-    const list = document.getElementById('advReqList');
-    const fmt = n => Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' ');
-    list.innerHTML = rows.map(r => `
-      <div id="adv-row-${r.id}" style="border:1px solid var(--ch-eeeeee);border-radius:10px;padding:14px;margin-bottom:10px">
-        <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px">
-          <div>
-            <div style="font-weight:700;font-size:14px">${escapeHtml(r.employee_name)}</div>
-            <div style="font-size:13px;color:var(--text3);margin-top:2px">${tkSana(r.requested_date)} kuni oldim deb yozgan</div>
-          </div>
-          <div style="font-weight:800;font-size:16px;color:var(--m-b45309)">${fmt(r.amount)} so'm</div>
-        </div>
-        ${r.notes ? `<div style="font-size:13px;color:var(--text3);margin-bottom:10px">💬 ${escapeHtml(r.notes)}</div>` : ''}
-        <div style="display:flex;flex-wrap:wrap;gap:8px">
-          <button class="btn btn-dark" style="flex:1 1 160px" onclick="confirmAdvReq(${r.id})">✅ Ha, berganman</button>
-          <button class="btn btn-danger" style="flex:1 1 120px" onclick="rejectAdvReq(${r.id})">❌ Yo'q</button>
-        </div>
-      </div>`).join('');
-    document.getElementById('advReqModal').style.display = 'flex';
-  } catch(e) { console.error(e); }
-}
-
-async function confirmAdvReq(id){
-  try {
-    const res = await fetch(`/api/admin/advance-requests/${id}/confirm`, { method: 'POST' });
-    if (res.ok) removeAdvRow(id);
-    else alert("❌ Tasdiqlashda xato yuz berdi. Iltimos, qayta urinib ko'ring.");
-  } catch(e) {
-    alert("❌ Server bilan aloqa yo'q. Internetni tekshirib, qayta urinib ko'ring.");
-  }
-}
-
-// kech118 (D-1, G6-21 — egasi QARORI «Ha, majburiy»): rad etishda SABAB so'raladi — hodim o'z panelida ko'radi.
-async function rejectAdvReq(id){
-  let izoh = "Sabab hodimning panelida ko'rinadi. Hech qanday moliyaviy yozuv yaratilmaydi.";
-  let sabab = '';
-  while (!sabab) {
-    const v = await kiritishOyna("Nega rad etasiz?", {izoh, okText: 'Rad etish'});
-    if (v === null) return;
-    sabab = String(v).trim();
-    izoh = "⚠ Sabab yozilmadi — rad etish uchun sababini yozing (hodim ko'radi).";
-  }
-  try {
-    const res = await fetch(`/api/admin/advance-requests/${id}/reject`, {
-      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({sabab})});
-    if (res.ok) removeAdvRow(id);
-    else alert('❌ ' + await serverXatoSababi(res, "Rad etishda xato yuz berdi. Iltimos, qayta urinib ko'ring."));
-  } catch(e) {
-    alert("❌ Server bilan aloqa yo'q. Internetni tekshirib, qayta urinib ko'ring.");
-  }
-}
-
-function removeAdvRow(id){
-  const row = document.getElementById(`adv-row-${id}`);
-  if (row) row.remove();
-  const list = document.getElementById('advReqList');
-  if (!list.children.length) document.getElementById('advReqModal').style.display = 'none';
-}
-
-// ══ kech133 (zip 159): hodim telefoniga ruxsat — `GET /api/admin/qurilma-sorovlari` («Hodimlar: Tahrirlash» ruxsati yo'q — 403,
-// oyna chiqmaydi). Oyna yopilgach (yoki so'rovlar tugagach) — avans so'rovlari oynasi (ikkisi ustma-ust chiqmasin).
-async function checkQurilmaSorovlari(){
-  let rows = null;
-  try {
-    const res = await fetch('/api/admin/qurilma-sorovlari');
-    if (res.ok) rows = await res.json();
-  } catch(e) { console.error(e); }
-  if (!Array.isArray(rows) || !rows.length) { checkPendingAdvanceRequests(); return; }
-  document.getElementById('qurilmaList').innerHTML = rows.map(r => `
-      <div class="qurilma-qator" id="qurilma-row-${r.employee_id}" style="border:1px solid var(--ch-eeeeee);border-radius:10px;padding:14px;margin-bottom:10px">
-        <div style="font-weight:700;font-size:14px">${escapeHtml(r.name)}${r.position ? ` <span style="font-weight:500;color:var(--text3);font-size:13px">${escapeHtml(r.position)}</span>` : ''}</div>
-        <div style="font-size:13px;color:var(--m-333333);margin-top:4px">📱 ${escapeHtml(r.nomi || "Noma'lum telefon")}</div>
-        <div style="font-size:12px;color:var(--text3);margin-top:2px">${tkSanaVaqt(r.vaqti)} da kirmoqchi bo'ldi${r.hozirgi ? ` · hozirgi telefoni: ${escapeHtml(r.hozirgi)}` : ''}</div>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
-          <button class="btn btn-dark" style="flex:1 1 160px" data-id="${r.employee_id}" data-kalit="${escapeHtml(r.kalit)}" onclick="qurilmaJavob(this, 'ruxsat')">✅ Ruxsat berish</button>
-          <button class="btn btn-danger" style="flex:1 1 120px" data-id="${r.employee_id}" data-kalit="${escapeHtml(r.kalit)}" onclick="qurilmaJavob(this, 'rad')">❌ Rad etish</button>
-        </div>
-      </div>`).join('');
-  document.getElementById('qurilmaModal').style.display = 'flex';
-}
-
-async function qurilmaJavob(btn, amal){
-  const id = btn.dataset.id;
-  try {
-    const yol = amal === 'ruxsat' ? `/api/employees/${id}/qurilma/ruxsat` : `/api/employees/${id}/qurilma/rad`;
-    const res = await fetch(yol, {
-      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({kalit: btn.dataset.kalit})});
-    if (!res.ok) {
-      await xabarOyna('❌ ' + await serverXatoSababi(res, "Saqlanmadi. Iltimos, qayta urinib ko'ring."));
-      if (res.status === 409) { checkQurilmaSorovlariQayta(); }
-      return;
-    }
-  } catch(e) {
-    await xabarOyna("❌ Server bilan aloqa yo'q. Internetni tekshirib, qayta urinib ko'ring.");
-    return;
-  }
-  const row = document.getElementById(`qurilma-row-${id}`);
-  if (row) row.remove();
-  if (!document.getElementById('qurilmaList').children.length) qurilmaOynaYop();
-}
-
-function checkQurilmaSorovlariQayta(){
-  // so'rov shu orada yangilangan (boshqa telefondan) — ro'yxat qayta olinadi (avans oynasi bu yo'lda ochilmaydi)
-  fetch('/api/admin/qurilma-sorovlari').then(r => r.ok ? r.json() : []).then(rows => {
-    if (!Array.isArray(rows) || !rows.length) { qurilmaOynaYop(); return; }
-    document.getElementById('qurilmaModal').style.display = 'none';
-    checkQurilmaSorovlari();
-  }).catch(() => {});
-}
-
-function qurilmaOynaYop(){
-  const m = document.getElementById('qurilmaModal');
-  const ochiq = m.style.display !== 'none';
-  m.style.display = 'none';
-  if (ochiq) checkPendingAdvanceRequests();
-}
-
 loadObligationsWidget();
+// kech134 (zip 160): hodim oynalari (telefon ruxsati → «Olmaganman» → avans so'rovlari) — `templates/_hodim_oynalari.html`
+// (Bosh sahifa bilan umumiy)
 checkQurilmaSorovlari();
 loadAll();
 setInterval(loadAll,5*60*1000);

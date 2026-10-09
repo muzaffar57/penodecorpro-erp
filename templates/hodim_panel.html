@@ -62,6 +62,46 @@
     .oy-yopiq > .oy-blok, .oy-yopiq > .oy-ichi{padding:0 0 12px}
     .oy-qayta{min-height:var(--h-sm);margin-top:8px;padding:0 14px;border:1px solid var(--ch-e8e8e8);border-radius:var(--r-btn);
       background:var(--white);color:var(--m-111111);font-size:13px;font-weight:600;cursor:pointer}
+    /* kech134 (zip 160 — egasi QARORI 09.10 «C — hodim tasdig'i bilan»): to'lov manbasi belgisi, admin yozgan to'lovga javob,
+       «Mening so'rovlarim» — oylab (joriy oy ochiq, o'tganlari yopiq), kutilayotganlar birinchi */
+    .tolov-qator{padding:8px 0;border-top:1px dashed var(--ch-eeeeee);color:var(--m-333333)}
+    .tolov-qator:first-child{border-top:none}
+    .tolov-bosh{display:flex;justify-content:space-between;gap:10px;font-size:13px}
+    .tolov-bosh b{white-space:nowrap;color:var(--m-111111)}
+    .tolov-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:4px;font-size:12px}
+    .tolov-belgi{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:12px;font-weight:700;white-space:nowrap}
+    .belgi-hodim{background:var(--f-dcfce7);color:var(--m-166534)}
+    .belgi-admin{background:var(--f-fffbeb);color:var(--m-b45309)}
+    .tolov-izoh{color:var(--text3);overflow-wrap:anywhere}
+    .tolov-holat{margin-top:4px;font-size:12px;font-weight:600}
+    .tolov-holat.h-kut{color:var(--m-b45309)}
+    .tolov-holat.h-ok{color:var(--m-166534)}
+    .tolov-holat.h-yoq{color:var(--m-dc2626)}
+    .javob-izoh{font-size:13px;color:var(--text3);margin:-6px 0 12px;line-height:1.5}
+    .javob-qator{border:1px solid var(--ch-ebebeb);border-radius:12px;padding:12px;margin-bottom:10px}
+    .javob-qator:last-child{margin-bottom:0}
+    .javob-bosh{display:flex;justify-content:space-between;gap:10px;font-size:14px;color:var(--m-333333)}
+    .javob-bosh b{font-size:16px;color:var(--m-111111);white-space:nowrap}
+    .javob-tugmalar{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+    .javob-tugmalar .j-btn{flex:1 1 130px;box-sizing:border-box;min-height:var(--h-btn);padding:0 12px;border-radius:var(--r-btn);
+      font-size:14px;line-height:20px;font-weight:600;cursor:pointer;border:1.5px solid transparent}
+    .j-btn:disabled{opacity:.6;cursor:not-allowed}
+    .j-ha{background:#2563EB;color:#fff}
+    .j-yoq{background:var(--white);color:var(--m-dc2626);border-color:var(--ch-fadbd8)}
+    .j-bekor{background:var(--white);color:var(--m-333333);border-color:var(--ch-e8e8e8)}
+    .javob-savol{flex:1 1 100%;font-size:13px;color:var(--m-333333);line-height:1.5}
+    .javob-xabar{margin:10px 0 0}
+    .tolov-holat .j-kichik{min-height:var(--h-sm);margin:6px 0 0;padding:0 12px;border:1px solid var(--ch-e8e8e8);border-radius:var(--r-btn);
+      background:var(--white);color:var(--m-166534);font-size:13px;font-weight:600;cursor:pointer}
+    .tolov-holat .javob-tugmalar .j-btn{min-height:var(--h-sm);font-size:13px}
+    .sorov-guruh{padding:4px 0 8px}
+    .sorov-guruh + .sorov-guruh, .sorov-guruh + .oy-yopiq{border-top:1px solid var(--ch-f0f0f0)}
+    .sorov-guruh-nomi{font-size:14px;font-weight:700;color:var(--m-111111);padding:8px 0 2px}
+    .sorov-guruh-nomi small{font-weight:500;color:var(--text3);font-size:12px}
+    .sorov-oy > summary > span:first-child{white-space:nowrap}
+    .sorov-oy > summary .oy-xulosa{white-space:normal;text-align:right;font-weight:500}
+    .st-ochirilgan{background:var(--f-f3f4f6);color:var(--m-4b5563)}
+    .req-izoh2{font-size:12px;color:var(--text3);margin-top:3px}
   </style>
 </head>
 <body>
@@ -96,6 +136,15 @@
       <div style="font-size:12px;color:var(--text3);margin-top:10px;text-align:center">
         Yuborilgandan keyin — admin tasdiqlashi kerak
       </div>
+    </div>
+
+    {# kech134 (zip 160 — egasi QARORI 09.10 «C»): admin yozgan to'lovlar — hodim javobi («✅ Ha, oldim / ❌ Olmaganman»). Qaysi oyda
+       bo'lmasin javob kutilayotgani shu kartada; javob yo'q bo'lsa karta yashirin (javobdan keyin xabar uchun ko'rinadi). #}
+    <div class="h-card" id="javob-karta" style="display:none">
+      <div class="h-card-title">🔔 Admin yozgan to'lovlar — oldingizmi?</div>
+      <div class="javob-izoh">Admin bu to'lovlarni sizga berdim deb yozgan. Har biriga javob bering — «Olmaganman» desangiz, admin ogohlantiriladi.</div>
+      <div id="javob-msg" class="h-msg"></div>
+      <div id="javob-list"></div>
     </div>
 
     <!-- kech118 (D-1, G6-21 — egasi QARORI «Oylik ko'rinsin»): hisoblangan / olingan / qolgan; kech133 (zip 158): joriy oy ochiq,
@@ -312,8 +361,8 @@ document.getElementById('req-form').addEventListener('submit', async (e) => {
       document.getElementById('f-date').value = tkISO();
       loadMyRequests();
     } else {
-      const e2 = await res.json();
-      msg.className = 'h-msg err'; msg.textContent = '❌ ' + (e2.detail || 'Xato yuz berdi');
+      // kech134: server sababi (JSON bo'lmasa — masalan 502 sahifasi — umumiy matn; ilgari «Server bilan aloqa yo'q» deb adashtirardi)
+      msg.className = 'h-msg err'; msg.textContent = '❌ ' + await serverSababi(res, "Xato yuz berdi — qayta urinib ko'ring");
     }
   } catch(err) {
     msg.className = 'h-msg err'; msg.textContent = '❌ Server bilan aloqa yo\'q';
@@ -321,25 +370,72 @@ document.getElementById('req-form').addEventListener('submit', async (e) => {
   btn.disabled = false; btn.textContent = 'Yuborish';
 });
 
-async function loadMyRequests(){
-  const list = document.getElementById('req-list');
-  try {
-    const rows = await fetch('/api/hodim/my-requests').then(r => r.json());
-    if (!rows.length) { list.innerHTML = '<div class="empty">Hali so\'rov yubormagansiz</div>'; return; }
-    const fmt = n => Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' ');
-    const statusLabel = {pending: '⏳ Kutilmoqda', confirmed: '✅ Tasdiqlandi', rejected: '❌ Rad etildi'};
-    const statusClass = {pending: 'st-pending', confirmed: 'st-confirmed', rejected: 'st-rejected'};
-    list.innerHTML = rows.map(r => `
+// kech134 (zip 160 — egasi QARORI 09.10; O'LCHANGAN: ilgari faqat oxirgi 20 ta so'rov, oylarsiz): «Mening so'rovlarim» — server oxirgi
+// 12 oyni (so'rov sanasi bo'yicha) va kutilayotganlarni beradi; KUTILAYOTGANLAR qaysi oyda bo'lmasin birinchi (ochiq), keyin joriy oy
+// (ochiq), o'tgan oylar — yopiq «shtorka» (sarlavhada «N ta so'rov · X so'm tasdiqlangan»).
+function sorovOyNomi(k) {           // 'YYYY-MM' → «Oktabr 2026» (oy nomlari — funksiya ichida: yangi global nom yo'q)
+  const OY = ['', 'Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun', 'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr'];
+  const m = /^(\d{4})-(\d{2})$/.exec(String(k || ''));
+  return m && OY[Number(m[2])] ? OY[Number(m[2])] + ' ' + m[1] : escapeHtml(k);
+}
+function sorovQatorHtml(r) {
+  const fmt = n => Math.round(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
+  const statusLabel = {pending: '⏳ Kutilmoqda', confirmed: '✅ Tasdiqlandi', rejected: '❌ Rad etildi'};
+  const statusClass = {pending: 'st-pending', confirmed: 'st-confirmed', rejected: 'st-rejected'};
+  const ochirilgan = r.status === 'confirmed' && r.avans_ochirildi;
+  const qosh = [];
+  if (r.status === 'rejected' && r.rad_sababi) qosh.push(`<div class="req-sabab">Sabab: ${escapeHtml(r.rad_sababi)}</div>`);
+  if (ochirilgan) {
+    qosh.push(`<div class="req-izoh2">Tasdiqlangan edi, keyin admin o'chirgan${r.avans_ochirgan && r.avans_ochirgan !== '—' ? ' (' + escapeHtml(r.avans_ochirgan) + ')' : ''}${r.avans_ochirildi_vaqti ? ' · ' + tkSana(r.avans_ochirildi_vaqti) : ''} — oyligingizda hisoblanmaydi</div>`);
+  }
+  const yorliq = ochirilgan ? "🗑 O'chirilgan" : (statusLabel[r.status] || escapeHtml(r.status));
+  const sinf = ochirilgan ? 'st-ochirilgan' : (statusClass[r.status] || '');
+  return `
       <div class="req-row">
         <div>
           <div class="req-amount">${fmt(r.amount)} so'm</div>
           <div class="req-date">${tkSana(r.requested_date)}${r.notes ? ' · ' + escapeHtml(r.notes) : ''}</div>
-          ${r.status === 'rejected' && r.rad_sababi ? `<div class="req-sabab">Sabab: ${escapeHtml(r.rad_sababi)}</div>` : ''}
+          ${qosh.join('')}
         </div>
-        <div class="req-status ${statusClass[r.status]}">${statusLabel[r.status]}</div>
-      </div>`).join('');
+        <div class="req-status ${sinf}">${yorliq}</div>
+      </div>`;
+}
+function sorovXulosaMatni(qs) {
+  const fmt = n => Math.round(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
+  const tasdiq = qs.filter(r => r.status === 'confirmed' && !r.avans_ochirildi).reduce((a, r) => a + (Number(r.amount) || 0), 0);
+  return `${qs.length} ta so'rov · ${fmt(tasdiq)} so'm tasdiqlangan`;
+}
+async function loadMyRequests(){
+  const list = document.getElementById('req-list');
+  try {
+    const res = await fetch('/api/hodim/my-requests');
+    if (!res.ok) throw new Error(String(res.status));
+    const rows = await res.json();
+    if (!Array.isArray(rows)) throw new Error('format');
+    if (!rows.length) { list.innerHTML = '<div class="empty">Hali so\'rov yubormagansiz</div>'; return; }
+    const h = tkHozir();
+    const joriy = h.yil + '-' + String(h.oy).padStart(2, '0');
+    const kutilayotgan = rows.filter(r => r.status === 'pending');
+    const oylar = {};
+    rows.filter(r => r.status !== 'pending').forEach(r => { (oylar[r.oy] = oylar[r.oy] || []).push(r); });
+    let html = '';
+    if (kutilayotgan.length) {
+      html += `<div class="sorov-guruh sorov-kutilmoqda"><div class="sorov-guruh-nomi">⏳ Admin tasdiqlashi kutilmoqda</div>`
+        + kutilayotgan.map(sorovQatorHtml).join('') + '</div>';
+    }
+    Object.keys(oylar).sort().reverse().forEach(k => {
+      const qs = oylar[k];
+      if (k >= joriy) {
+        html += `<div class="sorov-guruh" data-oy="${escapeHtml(k)}"><div class="sorov-guruh-nomi">${sorovOyNomi(k)}${k === joriy ? ' <small>(joriy oy)</small>' : ''}</div>`
+          + qs.map(sorovQatorHtml).join('') + '</div>';
+      } else {
+        html += `<details class="oy-yopiq sorov-oy" data-oy="${escapeHtml(k)}"><summary><span>${sorovOyNomi(k)}</span>`
+          + `<span class="oy-xulosa">${sorovXulosaMatni(qs)}</span></summary><div class="oy-ichi">${qs.map(sorovQatorHtml).join('')}</div></details>`;
+      }
+    });
+    list.innerHTML = html;
   } catch(e) {
-    list.innerHTML = '<div class="empty">Yuklashda xato</div>';
+    list.innerHTML = '<div class="empty">Yuklashda xato<br><button type="button" class="oy-qayta" onclick="loadMyRequests()">🔄 Qayta yuklash</button></div>';
   }
 }
 loadMyRequests();
@@ -364,9 +460,116 @@ function oylikHtml(o, nomsiz) {
     ? `<div class="oy-qator oy-qolgan"><span>Ortiqcha olingan</span><b style="color:var(--m-b91c1c)">${fmt(o.qolgan)} so'm</b></div>`
     : `<div class="oy-qator oy-qolgan"><span>Qolgan</span><b>${fmt(o.qolgan)} so'm</b></div>`);
   if (o.tolovlar && o.tolovlar.length) {
-    q.push(`<div class="oy-tolovlar">${o.tolovlar.map(t => `${tkSana(t.sana)} — ${fmt(t.summa)} so'm`).join('<br>')}</div>`);
+    q.push(`<div class="oy-tolovlar">${o.tolovlar.map(tolovQatorHtml).join('')}</div>`);
   }
   return `<div class="oy-blok">${q.join('')}</div>`;
+}
+// kech134 (zip 160 — egasi QARORI 09.10 «C»): to'lov qatori — sana, summa, kim yozgani («📱 O'zingiz» — siz so'ragan, admin
+// tasdiqlagan; «🧑‍💼 Admin · ism» — admin yozgan), izoh va admin yozganiga javobingiz.
+function tolovBelgisi(t) {
+  return t.manba === 'hodim'
+    ? `<span class="tolov-belgi belgi-hodim">📱 O'zingiz</span>`
+    : `<span class="tolov-belgi belgi-admin">🧑‍💼 Admin${t.kim ? ' · ' + escapeHtml(t.kim) : ''}</span>`;
+}
+function tolovQatorHtml(t) {
+  const fmt = n => Math.round(Math.abs(n || 0)).toLocaleString('ru-RU').replace(/,/g, ' ');
+  let holat = '';
+  if (t.manba === 'admin' && t.javob === 'kutilmoqda') {
+    holat = `<div class="tolov-holat h-kut">⏳ Javobingiz kutilmoqda — «🔔 Admin yozgan to'lovlar» kartasida</div>`;
+  } else if (t.manba === 'admin' && t.javob === 'oldim') {
+    holat = `<div class="tolov-holat h-ok">✅ Siz tasdiqlagansiz${t.javob_vaqti ? ' · ' + tkSana(t.javob_vaqti) : ''}</div>`;
+  } else if (t.manba === 'admin' && t.javob === 'olmadim') {
+    holat = `<div class="tolov-holat h-yoq">❌ Siz «Olmaganman» degansiz${t.javob_vaqti ? ' · ' + tkSana(t.javob_vaqti) : ''}`
+      + javobBlokHtml(t, true) + '</div>';
+  }
+  return `<div class="tolov-qator"><div class="tolov-bosh"><span>${tkSana(t.sana)}</span><b>${fmt(t.summa)} so'm</b></div>`
+    + `<div class="tolov-meta">${tolovBelgisi(t)}${t.izoh ? `<span class="tolov-izoh">💬 ${escapeHtml(t.izoh)}</span>` : ''}</div>${holat}</div>`;
+}
+// Javob tugmalari. `keyinOldim` — «Olmaganman» degan to'lovni keyin «Oldim» ga o'zgartirish (bitta tugma). «Ha, oldim» — oxirgi
+// javob (o'zgartirib bo'lmaydi), shuning uchun avval bir marta so'raladi; «Olmaganman» — darhol (keyin «Oldim» ga o'zgartirsa bo'ladi).
+function javobBlokHtml(t, keyinOldim) {
+  return `<div class="javob-blok" data-id="${Number(t.id)}" data-summa="${Number(t.summa != null ? t.summa : t.amount) || 0}">`
+    + `<div class="javob-tugmalar">`
+    + (keyinOldim
+      ? `<button type="button" class="j-kichik" onclick="javobBos(this, 'oldim')">✅ Endi oldim</button>`
+      : `<button type="button" class="j-btn j-ha" onclick="javobBos(this, 'oldim')">✅ Ha, oldim</button>`
+        + `<button type="button" class="j-btn j-yoq" onclick="javobBos(this, 'olmadim')">❌ Olmaganman</button>`)
+    + `</div><div class="javob-xabar h-msg"></div></div>`;
+}
+function javobBos(btn, javob) {
+  const blok = btn.closest('.javob-blok');
+  if (!blok || blok.dataset.band === '1') return;
+  if (javob !== 'oldim') { javobYubor(blok, javob); return; }
+  const fmt = n => Math.round(Math.abs(n || 0)).toLocaleString('ru-RU').replace(/,/g, ' ');
+  const tug = blok.querySelector('.javob-tugmalar');
+  blok.dataset.aslTugmalar = tug.innerHTML;
+  tug.innerHTML = `<div class="javob-savol">${fmt(Number(blok.dataset.summa))} so'mni olganingizni tasdiqlaysizmi? Keyin o'zgartirib bo'lmaydi.</div>`
+    + `<button type="button" class="j-btn j-ha" onclick="javobYubor(this.closest('.javob-blok'), 'oldim')">✅ Ha, tasdiqlayman</button>`
+    + `<button type="button" class="j-btn j-bekor" onclick="javobBekor(this)">Bekor qilish</button>`;
+}
+function javobBekor(btn) {
+  const blok = btn.closest('.javob-blok');
+  if (!blok || blok.dataset.band === '1') return;
+  blok.querySelector('.javob-tugmalar').innerHTML = blok.dataset.aslTugmalar || '';
+}
+async function serverSababi(res, zaxira) {
+  try {
+    const d = await res.json();
+    if (d && typeof d.detail === 'string' && d.detail.trim()) return d.detail;
+  } catch (e) { /* JSON emas (masalan 502 sahifasi) */ }
+  return zaxira;
+}
+async function javobYubor(blok, javob) {
+  if (!blok || blok.dataset.band === '1') return;
+  blok.dataset.band = '1';
+  blok.querySelectorAll('button').forEach(b => { b.disabled = true; });
+  const xabar = blok.querySelector('.javob-xabar');
+  xabar.className = 'javob-xabar h-msg';
+  xabar.textContent = '';
+  try {
+    const res = await fetch('/api/hodim/avans/' + encodeURIComponent(blok.dataset.id) + '/javob', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({javob})});
+    if (res.ok) {
+      javobKartaChiz.xabar = javob === 'oldim'
+        ? {tur: 'ok', matn: "✅ Rahmat — to'lovni olganingiz saqlandi."}
+        : {tur: 'err', matn: "❗ «Olmaganman» javobingiz saqlandi — admin ogohlantirildi. Keyin olsangiz yoki adashgan bo'lsangiz — «✅ Endi oldim» tugmasini bosing («💵 Oyligim» da)."};
+      await loadOylik();
+      return;
+    }
+    const sabab = await serverSababi(res, "Saqlanmadi — qayta urinib ko'ring");
+    if (res.status === 404 || res.status === 409) {
+      // to'lov o'chirilgan yoki javob boshqa joydan berilgan — ro'yxat yangilanadi, sababi kartada
+      javobKartaChiz.xabar = {tur: 'err', matn: '❌ ' + sabab};
+      await loadOylik();
+      return;
+    }
+    xabar.className = 'javob-xabar h-msg err';
+    xabar.textContent = '❌ ' + sabab;
+  } catch (e) {
+    xabar.className = 'javob-xabar h-msg err';
+    xabar.textContent = "❌ Server bilan aloqa yo'q — internetni tekshirib, qayta urinib ko'ring";
+  }
+  blok.dataset.band = '';
+  blok.querySelectorAll('button').forEach(b => { b.disabled = false; });
+}
+// `javobKartaChiz.xabar` — javobdan keyingi xabar ({tur, matn}): karta qayta chizilganda ko'rsatiladi (yangi global nom yo'q).
+function javobKartaChiz(items) {
+  const karta = document.getElementById('javob-karta');
+  const list = document.getElementById('javob-list');
+  const msg = document.getElementById('javob-msg');
+  if (!karta || !list || !msg) return;
+  const xabar = javobKartaChiz.xabar || null;
+  const fmt = n => Math.round(Math.abs(n || 0)).toLocaleString('ru-RU').replace(/,/g, ' ');
+  if (xabar) { msg.className = 'h-msg ' + xabar.tur; msg.textContent = xabar.matn; }
+  else { msg.className = 'h-msg'; msg.textContent = ''; }
+  if (!items.length && !xabar) { karta.style.display = 'none'; list.innerHTML = ''; return; }
+  karta.style.display = '';
+  list.innerHTML = items.length
+    ? items.map(t => `<div class="javob-qator" data-id="${Number(t.id)}"><div class="javob-bosh"><span>${tkSana(t.date)}</span>`
+        + `<b>${fmt(t.amount)} so'm</b></div><div class="tolov-meta"><span class="tolov-belgi belgi-admin">🧑‍💼 Admin${t.given_by ? ' · ' + escapeHtml(t.given_by) : ''}</span>`
+        + `${t.notes ? `<span class="tolov-izoh">💬 ${escapeHtml(t.notes)}</span>` : ''}</div>`
+        + javobBlokHtml({id: t.id, summa: t.amount}, false) + '</div>').join('')
+    : '<div class="empty">Hamma to\'lovlarga javob berdingiz</div>';
 }
 // kech133 (zip 158 — egasi 09.10): tugagan oy — yopiq «shtorka» (sarlavhada qolgan summa), joriy oy — ochiq. O'tgan oy darhol
 // keladi; undan oldingilari (`boshqa_oylar`, oxirgi 12 oygacha) ochilganda bitta oy so'raladi (har oy — korxona oylik hisoboti).
@@ -421,8 +624,12 @@ async function loadOylik() {
     el.innerHTML = (oylar.length || boshqa.length)
       ? oylar.map(o => o.joriy ? oylikHtml(o) : oyYopiqHtml(o)).join('') + boshqa.map(oyYuklanmaganHtml).join('')
       : '<div class="empty">Ma\'lumot yo\'q</div>';
+    // kech134 (zip 160): javobi kutilayotgan admin to'lovlari — «🔔» kartasi
+    javobKartaChiz(Array.isArray(d && d.javob_kutilmoqda) ? d.javob_kutilmoqda : []);
   } catch (e) {
-    el.innerHTML = '<div class="empty">Yuklashda xato</div>';
+    // kech134: qayta urinish tugmasi (ilgari faqat «Yuklashda xato» — sahifani qayta ochish kerak edi)
+    el.innerHTML = '<div class="empty">Yuklashda xato<br><button type="button" class="oy-qayta" onclick="loadOylik()">🔄 Qayta yuklash</button></div>';
+    if (javobKartaChiz.xabar) javobKartaChiz([]);
   }
 }
 loadOylik();
