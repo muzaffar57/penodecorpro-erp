@@ -1,7 +1,7 @@
 # PenoDecorPro ERP — LOYIHA PASPORTI
 
 *Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2); kech112: zip 108 — «Tayyor» da bo'sh loy = reja (K112-3), material nomi (K112-4), MRP qoplama belgisi (K112-5); ko'p korxonali yakuniy jonli sinov; kech115: zip 112 — butun dastur auditi A bosqichi (pul va ma'lumot xatolari) 1-qismi: kirim, qarzdorlar, «Tayyor», narxsiz buyurtma, o'chirilganlar jurnali, manfiy raqamlar, taqqoslash, korxona sog'ligi, ombor filtri; kech116: zip 113 — A bosqich 2-qismi: sog'liq sabablari (K115-2), «Bugungi xulosa» (K115-3), hujjatlardagi hisob qatorlari (G2-04), «Pul oqimi» — haqiqiy pul (G1-03), «Xarajat» — bitta ta'rif va «Tannarx» (G1-02), loyiha qiymati buyurtmalardan (G2-01), haqiqiy IP va kirish cheklovi (U-01), parol oynasi va kirishlarni yopish (G6-06); zip 114 — mijoz hujjatlarida kechirilgan qarz «Chegirma» ichida (egasi qarori); kech117: zip 115 — A2: yo'nalishlar bo'yicha moliya (G3-11, G6-09); zip 116 — jonli sinovdan keyin: «Belgilanmagan» manbalari, Moliya xarajatdan keyin yangilanadi; kech118: qolgan egasi qarorlari (6-bo'lim); zip 117 — B bosqichi 1-qism: dastur oynalari (xabar, kiritish, Esc / tashqariga bosish), o'zbekcha 404 / 403 sahifa, klaviatura fokusi; zip 118 — B bosqichi 2-qism: son / sana / birlik ko'rinishi, o'qiladigan rang, 12 px + yo'nalishlar bo'yicha moliyaviy natija (egasi qarori: taqsim yo'q, oyliklar alohida, davr, solishtirish); yangi qarorlar — rollar va ruxsatlar (6-bo'lim); zip 119 — rollar va ruxsatlar 1-qism (admin rollarni o'zi boshqaradi); kech119: zip 125 — Hisobotlar «oy boshi»: o'tgan oyning SHU KUNLARI bilan solishtirish (egasi qarori), taxminda oylik xarajat bir marta, xomashyo birligi; «Foyda tahlili» summalari (G2-15); zip 126 — telefon (C bosqichi); kech120: zip 127 — E bosqichi 1-qism: tezlik — hisobot xotirasi (so'rovlar orasida, yozuv bo'lsa darhol eskiradi), sahifa bir ochilishida bir xil so'rov bir marta, Bosh sahifa 5 ta buyurtma, kirish sahifasi rasmi, Hisobotlar taqqoslash kartalari telefonda (K120-1); zip 128 — E bosqichi 2-qism: katta ro'yxatlarda topish — Bosh sahifa «Bugungi vazifalar» havolalari, Buyurtmalar filtri / keng qidiruv / tanlovni tiklash, Qarzdorlar mijoz bo'yicha; zip 129 — E bosqichi 3-qism: tarix va jurnallar — «Tizim jurnallari» filtri va sahifalash, hamma amal o'zbekcha, tahrir yozuvida nima o'zgargani; Ombor «Tarix», «Yana yuklash», davr jami; zip 130 — E bosqichi 4-qism: qidiruvli tanlagich (Kirim — ta'minotchi, material; «Yangi qaytarish», «Brak yozish»), ta'minotchilar tabiiy tartibda, Tayyor mahsulotlar kategoriyalari korxonaning o'z mahsulot turlaridan; shu zipda — E bosqichi 5-qism: hodim kirishi — har korxonada kod (kodsizlarga ishga tushishda), QR serverda (ichida kod), kirish sahifasi kodni o'zi yozadi, chop etish sahifasi; shu zipda — E bosqichi 6-qism: rasmlar yuklashda 1920 px gacha kichraytiriladi (burilish qo'llanadi, joylashuv saqlanmaydi), ro'yxatlarda kichik nusxa (360 px); uzun ro'yxatlarda faqat birinchi 20 qator animatsiyali); zip 131 — F bosqichi 1-qism: Moliya, Qarzdorlar, «Xarajat qo'shish» (kirim xarajati faqat hujjat orqali, ro'yxat jami, kassa yozuvini o'chirish, «Yalpi foyda», qarz to'lovi usuli, majburiyat oyi); zip 132 — F bosqichi 2-qism: Ombor, Kirim, Ta'minotchilar, Retseptlar (kirim hujjatidan qator — to'lov / xarajat bo'lsa butun hujjat orqali, ishlatilgan retsept o'chmaydi, Telegram natijasi, Omborxona — ruxsat bo'yicha tugmalar, ustun nomlari, toifa filtri; ta'minotchi tarixida to'lov holati, penoplast blok hajmi); zip 133 — F bosqichi 3-qism: Tayyor mahsulotlar, Qaytarishlar, Ishlab chiqarish (birlik ko'rinishi — bitta qoida, qaytarishlar guruhi va kartalari, «Hisob-kitob qilish», tugmalar so'z bilan, sotishdan keyin sahifa qayta yuklanmaydi, narxsiz mahsulot qiymati, mahsulot turini tahrirlash / o'chirish, bo'sh korxona yo'riqnomasi); zip 134 — F bosqichi 4-qism: Buyurtmalar va Loyihalar (namuna matni rangi, saqlash kamchiliklari bitta ro'yxatda, detal raqami, profil — uzunlik bo'yicha, loyiha qarzi «384 ming», bitta hisob-kitob paneli, amallar tepada, «Bajarilgan» va «Yetkazish — 1/2 topshirildi», «Tarix», bo'sh korxonada «avval loyiha»); zip 135 — F bosqichi 5-qism: Bosh sahifa, Dashboard, Hisobotlar («Faol buyurtmalar» — bitta qoida, usta reytingi, yangi korxonaga «Boshlash», bo'sh grafiklar, davr filtri, jadval qidiruvi va Excel, «Yangilash»); zip 136 — F bosqichi 5-qism 2-bo'lagi: hujjatlar va KPI (buyurtma hisobi — birlik, ajratgich, bitta «TO'LOV SUMMASI»; yuk xati — shu yuk paytidagi holat; KPI sahifasi yozuvlari va hodim kartasi); zip 137 — F bosqichi 5-qism 3-bo'lagi: ustalar telefoni, menyu guruhlari, hodim va foydalanuvchi kirishi, alohida «Sozlamalar» sahifasi; kech121: zip 138 — egasi qarorlari 02.10 (Dashboard «Shu oy daromadi», brak foizi asosi, Menejer o'z xarajatini o'chiradi, narxsiz «Kirim (tuzatish)», qaytarish oynasida pul savoli, yuk xatida korxona to'lagan transport narxi yo'q); kech123: zip 139 — U-13 yagona ko'rinish 1-qism (tugma / maydon / tab / filtr o'lchamlari va yozuv shkalasi — bitta qoida; umumiy qobiq, Bosh sahifa, Dashboard, Hisobotlar, Foydalanuvchilar; zip 140 — 2-qism: Buyurtmalar, Loyihalar, Omborxona, Kirim qilish, Ta'minotchilar, Loy retseptlari, Ishlab chiqarish, Tayyor mahsulotlar, Qaytarishlar; zip 141 — 3-qism: Qarzdorlar, Moliya, Xarajat qo'shish, Ustalar KPI, Ustalar, Rollar; zip 142 — 4-qism: jurnallar, Sozlamalar, Savat, Platforma, kirish sahifalari, hodim paneli; zip 143 — qoplamachi bonusi va «har birlik uchun» hodim haqi yuk xatlari bo'yicha; kech124: zip 144 — loyihada «Yuk xatlari», yuk xati raqami loyiha bo'yicha, «Jamlab olish»; zip 145 — Loyihalar holat paneli «Bajarilgan»; kech125: zip 146 — brak taqdiri: Tashlandi / Tuzatildi / Kesildi / 2-nav; zip 147 — uning jonli sinovidan keyingi tuzatishlar; kech126: zip 148 — «Tez hisob / Taklif»: mijozga loyiha / buyurtma ochmasdan taklif, «Takliflar» ro'yxati, bir tugma bilan rasmiylashtirish; zip 149 — uning jonli sinovidan keyingi 2 tuzatish; kech127: `main` ga ko'chirish — 07.10; zip 150 — «Xomashyo narxlari va ombor qiymati» ruxsati, ORD-066-1 loy xatosi tuzatishi; zip 151 — «Murojaat» bo'limi, jurnal `loy_tuzatish` yorlig'i, ombor harakatlari jami — material bo'yicha; kech128: zip 152 — rasm emas fayl rad etiladi (hamma rasm yuklash joylari va logotip), murojaat matnida qator oxirlari, platforma yozishma oynasi; kech129: zip 153 — SaaS migratsiya sahifasi (8 marshrut) olib tashlandi: mijoz korxona admini ham kirib, boshqa korxonalar nomini ko'rar va haqiqiy migratsiya qadamini bajarar edi; logotip PDF da o'z nisbati va yo'nalishi bilan, buzilgan
-logotip qabul qilinmaydi; kech130: zip 154 — Telegram: bot manzilini o'zgartirish faqat asosiy saytda, «Bot hozir qayerga ulangan», umumiy bot faqat platforma egasi ustalariga, har korxonaga o'z boti («🔗 Botni ulash»); kech131: zip 155 — Telegram xatolari o'zbekcha (token rad etilsa nima qilish kerak, oxirgi xato ma'nosi); kech132: zip 156 — joylashuv so'zlarisiz matnlar (tugma / maydon / bo'lim — nomi bilan), «🔄 Botni asl holatiga qaytarish» ning to'liq izohi). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
+logotip qabul qilinmaydi; kech130: zip 154 — Telegram: bot manzilini o'zgartirish faqat asosiy saytda, «Bot hozir qayerga ulangan», umumiy bot faqat platforma egasi ustalariga, har korxonaga o'z boti («🔗 Botni ulash»); kech131: zip 155 — Telegram xatolari o'zbekcha (token rad etilsa nima qilish kerak, oxirgi xato ma'nosi); kech132: zip 156 — joylashuv so'zlarisiz matnlar (tugma / maydon / bo'lim — nomi bilan), «🔄 Botni asl holatiga qaytarish» ning to'liq izohi; kech133: zip 157 — «Loy retseptlari» oynalari: tahrirda izoh, o'chirilgan material tahrirda jimgina yo'qolmaydi, bo'sh hajm / miqdorsiz material — xabar, takror nom — 409, server javob bermasa — xabar). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
 *Bu faylni `main` ga ko'chirish bilan birga, keyin har katta o'zgarishda yangilab boring. 9-bo'lim AVTOMATIK
 (`python3 tools/pasport_xarita.py --yoz`), qolgani qo'lda; `tools/test_pasport.py` ikkalasini ham tekshiradi.*
 
@@ -1437,6 +1437,27 @@ Foydalanuvchilar → Telegram xavfsizligi (2 ogohlantirish — tugmalar nomi bil
 («🏗 Korxona nomi — shior» — `main._tg_signature` shakli). «🔄 Botni asl holatiga qaytarish» ning `title` i (to'liq ma'nosi — kech123)
 asosiy saytda holat yuklangach '' bo'lib qolardi — endi asli `data-asl-title` da saqlanib tiklanadi (sinov saytida «Faqat asosiy
 saytda»).
+**Loy retseptlari oynalari (kech133, zip 157 — egasi tanlovi 09.10 «Retsept oynasi izohi»; O'LCHANGAN `work/k157/olchov157.py`, SQLite va
+PG).** Yangi va tahrir oynasi BIR XIL: «Tarkibi (Omborxonadagi materiallardan)», izoh «Har biridan — «Partiya hajmi (kg)» uchun kerak
+miqdor (kg)» (tahrirda bo'sh edi), «Saqlash» / «Bekor», «×» — «Yopish». SAQLASH — bitta yo'l (`recipes.html` `retseptSaqlash` →
+`retseptTanasi`): nom bo'sh — ««Retsept nomi» kiritilishi shart»; «Partiya hajmi (kg)» bo'sh / 0 / manfiy — xabar (ilgari `|| 100` —
+jimgina 100 saqlanardi), `RECP_SON_CHEGARA` (= `crud._UPD_SON_CHEGARA`) dan katta — «juda katta»; miqdori yo'q material — ««…» uchun
+miqdor kiriting (0 dan katta)» (ilgari jimgina tashlanardi); server sababi `serverXatoSababi` bilan (JSON bo'lmasa — «Saqlanmadi (server
+javobi: N)»), tarmoq uzilsa — «Server bilan aloqa yo'q…»; muvaffaqiyatdan keyin qayta yuklanguncha tugma o'chiq. O'CHIRILGAN MATERIAL:
+PG da retseptdagi material o'chirilsa — yashiriladi (`is_deleted`, `/api/inventory` da yo'q), kartada ko'rinadi; tahrirda «?» bo'lib
+saqlashda retseptdan JIMGINA o'chardi. Endi tahrir qatori retseptdagi nomi / birligi bilan (`openEditModal` `names` / `units`),
+belgisi «O'chirilgan material», raqami saqlanadi — o'zgartirilmasa retseptda qoladi (server shu korxona materialini qabul qiladi);
+bazada umuman yo'q (nomi «—») — «Noma'lum material (ID n)». Rolda «Omborxona → Materiallar: Ko'rish» bo'lmasa — qatorlar nomi bilan,
+belgisi «Material», saqlanadi; tanlash paneli sababini yozadi (server 403 matni); omborxona bo'sh — «avval «Omborxona» bo'limida
+material qo'shing». Ro'yxat FAQAT muvaffaqiyatda saqlanadi, xato bo'lsa panel / oyna qayta ochilganda qayta so'raladi. Tahrir tugmasi
+tez ikki marta — faqat oxirgi ochish chizadi (`editOchishNavbat`; ikki retseptning tahriri ketma-ket bosilib javoblar teskari kelsa,
+kech qolgan javob ikkinchi retsept oynasiga BIRINCHISINING tarkibini yozardi — saqlansa begona tarkib; O'LCHANGAN, U8b); qator raqami — hisoblagich (`recpQatorN`; ilgari vaqt + tasodifiy
+son — takrorlanishi mumkin edi); qator olib tashlansa — bo'sh holat va ochiq panel yangilanadi. TAKROR NOM: `main._retsept_nomi_band`
+(bazadagi `uq_recipes_company_name` bilan bir xil — korxona ichida, katta-kichik harf farqli, chetidagi bo'shliqsiz) — POST / PUT 409
+««…» nomli loy retsepti allaqachon bor — boshqa nom yozing (yoki o'sha retseptni tahrirlang)» (ilgari 500 va xatolar jurnali); bir
+vaqtdagi so'rov — `IntegrityError` → qayta tekshiruv → 409 (nom bilan bog'liq bo'lmasa — 500, niqoblanmaydi). TELEFON: kech119 telefon
+bloki asosiy `.recp-picker-panel` qoidasidan OLDIN turgani uchun 390 px da ham panel `absolute` edi (tarkib qatorlarini yopardi) —
+blok asosiy qoidalardan KEYINGA ko'chirildi.
 
 **Migratsiyalar.** Alembic YO'Q. `main.py` dagi `_migrate_*` funksiyalari server ishga tushganda (import paytida)
 ketma-ket yuradi — 9-bo'lim ISHGA_TUSHISH. Har biri IDEMPOTENT, o'z `try/except` va `conn.rollback()` bilan
@@ -2139,6 +2160,16 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   matni va title / placeholder / aria-label / alt — joylashuv so'zi faqat ruxsat etilgan «Quyidagi …» da (o'lchovning o'zi — U5c); 390 px;
   JS xatosi yo'q. 18 (SQ / PG) — zip 155 kodida 11 yiqiladi. MOSLANDI: `test_d123` N2 (maslahat MAZMUNI — tugma nomi va «Retsept
   bo'yicha», joylashuv so'ziga bog'lanmaydi; zip 155 va 156 shablonida ham o'tadi).
+- (kech133, zip 157) Loy retseptlari oynalari: `tools/test_retsept_oyna.py` — A (takror nom: POST / PUT 409 matni AYNAN, yozuv va
+  tarkib o'zgarmaydi, xatolar jurnaliga yozilmaydi; bo'shliq bilan; o'z nomi — 200; boshqa korxona; katta-kichik harf — eskisidek; bir
+  vaqtdagi so'rov (`_retsept_nomi_band` birinchi chaqiruvda «band emas») — 409, tarkib o'chmaydi; boshqa IntegrityError — 500), B
+  (yashirilgan material PUT da qoladi; sahifa tahrir tugmasiga nom va birlik beradi), C (statik: oynalar AYNAN, «Yopish», `maxlength`
+  = 100, `|| 100` / `collectIngredients` / `Math.random` yo'q, JS chegarasi = server, CSS tartibi — telefon qoidasi bekor bo'lmaydi).
+  21 (SQ / PG / TF1) — zip 156 kodida 13 yiqiladi, qulamaydi. `tools/test_retsept_oyna_ui.py` (Chromium): oynalar ko'rinishi, nom /
+  hajm (bo'sh, 0, −5, 1e13) / miqdorsiz material — xabar va so'rov YO'Q, to'g'ri saqlash va tugma o'chiq, o'chirilgan material (nomi,
+  belgisi, birligi, saqlashda qoladi; SQLite — bazada yo'q material), takror nom, 502 va tarmoq uzilishi, tahrir tugmasi ikki marta
+  (`/api/inventory` ushlab turiladi; ikki retsept — javoblar teskari tartibda), «Materiallar: Ko'rish» siz rol, materialsiz korxona, qator olib tashlash, `id` takrorlanmasligi,
+  belgi kontrasti (yorug' / tungi), 390 px (panel oqim ichida). 32 (PG — 30) — zip 156 kodida 27 yiqiladi, qulamaydi.
 
 **Yangi o'zgarish tartibi:** (1) asl kodda nuqsonni o'lchash (probe — SQLite va PG); (2) tuzatish; (3) yangi test
 (asl kodga qarshi yiqiladi, QULAMAYDI); (4) mutatsiyalar; (5) `bash tools/hammasi.sh` (+ `TF=1`), PG testlari,
@@ -2490,6 +2521,14 @@ qarorlari 02.10»)**
   tekshiriladi. Eski kod logotipni volume dan TASHQARIGA (`static/logos/`) yozgan — production da har deployda o'chgan
   (`company_logo_of` fayl yo'q bo'lsa `None` qaytaradi — sahifa buzilmaydi); yangi kod `static/uploads/logos/` ga yozadi.
 - **Egasi hal qiladi:** SaaS uchun alohida brend nomi, narx tariflari, mijoz bilan shartnoma (ma'lumot egaligi).
+- **(kech133) Faqat «Loy retseptlari» ruxsati bor rol** (Omborxona → Materiallar: Ko'rish YO'Q): retseptni tahrirlay oladi (zip 157),
+  lekin YANGI material qo'sha olmaydi — materiallar ro'yxati (`/api/inventory`) «Materiallar: Ko'rish» ni talab qiladi; «Ishlab
+  chiqarish → Mahsulot tarkibi» ham shunday (`production.html` `loadInvItems`). Variantlar (egasi qarori): rol tahririda ogohlantirish
+  yoki retsept / tarkib uchun faqat nom-birlik ro'yxati (narx va qoldiqsiz).
+- **(kech133) Telefon CSS tartibi — boshqa sahifalar** (statik skaner `work/k157/css_tartib_skan.py` + 390 px o'lchovi): Dashboard
+  `#topGridDots` (yuqori kartalar karuseli nuqtalari) — telefon qoidasi keyingi `#topGridDots{display:none}` bilan bekor, nuqtalar hech
+  qachon ko'rinmaydi (2 karta suriladi). Buyurtmalar `.right-panel{flex-direction:column-reverse}` — keyingi asosiy qoida bekor qiladi,
+  lekin kech119 dan beri tartib `order` bilan (hozirgi tartib to'g'ri — eskirgan qoida); `.ord-list` — keyingi telefon bloki tiklaydi.
 - **Rus tili (i18n)** — `main` ko'chirishidan KEYIN (qaror kech104); kodda hali yo'q (faqat Kirill ↔ Lotin), 25 sahifaga tegadi.
 - **Texnik qarz (ma'lum):** `orders.notes` ichidagi `[WRITEOFF:…]` (qarz kechirilgan) va `[OVERPAID:…]` belgilari
   (alohida ustun emas); tizim tekshiruvida eski `[GISHT:` izoh belgisini sanash qoldig'i. (`saas_migration.py` — kech129 da HTTP
@@ -2988,6 +3027,15 @@ qarorlari 02.10»)**
   (JS shablon satri boshi) ko'rinmay qoldi.
 - (kech132) Holatga qarab tugma `title` ini almashtirganda asl qiymat saqlanadi (`data-asl-title`): `b.title = shart ? '' : '…'`
   HTML dagi to'liq izohni (kech123 — yozuv qisqargani uchun ma'no shu yerda) production da o'chirib yuborardi.
+- (kech133) Telefon `@media` bloki shu selektorning asosiy qoidasidan OLDIN tursa — asosiy qoida uni bekor qiladi (bir xil aniqlik,
+  keyingisi g'olib): recipes.html `.recp-picker-panel{position:static}` kech119 dan beri ishlamagan. Telefon blokini asosiy qoidalardan
+  KEYIN qo'ying; tekshiruv — `getComputedStyle` (390 px) yoki `test_retsept_oyna.py` C9 skaneri.
+- (kech133) Saqlash tanasida «bo'sh bo'lsa standart qiymat» (`parseFloat(x) || 100`) va «noto'g'ri qatorni jimgina tashlash» — foydalanuvchi
+  kiritgan ma'lumotni so'roqsiz o'zgartiradi (120 kg → 100 kg; miqdorsiz material yo'qoldi, «✓ yangilandi» chiqdi). Bo'sh / noto'g'ri
+  qiymat — XABAR va so'rov yuborilmaydi. Tahrir oynasi ro'yxatda topilmagan yozuvni «?» qilib tashlamasin — server bergan nom / raqam
+  bilan ko'rsatib, o'zgartirilmasa o'zgarishsiz yuborsin.
+- (kech133) Playwright SINXRON API da `time.sleep` hodisa tsiklini to'xtatadi: `page.route` ishlovchisi (so'rovni ushlash) uyqu vaqtida
+  chaqirilmaydi — `page.wait_for_timeout(ms)` ishlating; ushlangan so'rov keyin `route.continue_()`.
 - (kech129) Statik «yo'q» tekshiruvi izohga tushdi: `test_rollar` dagi yangi izohda `SAAS_IXTIYORIY` so'zi qoldi — «so'z yo'q» tekshiruvi
   yangi kodda yiqildi; tekshiruv KOD qatoriga (`SAAS_IXTIYORIY = {`, `not in SAAS_IXTIYORIY`) qaratildi.
 - (kech123, zip 139) Telefonda ikki tugma yonma-yon (`flex:1`) uzun yozuv bilan ikki qatorga o'tib 64 px bo'ladi — `flex-wrap` va
@@ -3920,6 +3968,8 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_qoplama_vaqti.py` — 22-band: qoplamachi bonusi (va ishlab chiqarish miqdoriga bog'liq hodim to'lovi) FAQAT mahsulot "Sotuvga tayyor" (READY) bo'lganda, va u TAYYOR BO'LGAN oyda hisoblanadi.
 - `test_rasm_imzo.py` · PG — kech128 (zip 152): zip 151 ning staging JONLI sinovida (08.10) topilgan ikki kichik nuqson.
 - `test_retsept_almashtirish.py` · PG — 5-bo'lim 53-band (+ 67-band) darvozasi (kech63, 2026-09-24): jarayondagi buyurtmada QOPLAMA RETSEPTI o'zgartirilsa eski retsept loyi omborga QAYTADI, yangisidan YECHILA…
+- `test_retsept_oyna.py` · PG — kech133 (zip 157): «Loy retseptlari» oynalari — SERVER (takror nom, o'chirilgan material) va SHABLON (statik).
+- `test_retsept_oyna_ui.py` · PG — kech133 (zip 157): «Loy retseptlari» oynalari (yangi / tahrir) — HAQIQIY brauzerda (Chromium, Playwright), HAQIQIY lokal server bilan (uvicorn, test bazasi) O'LCHANADI.
 - `test_rollar.py` · PG — kech118 ROLLAR VA RUXSATLAR (egasi QARORI 2026-09-30 15:23: «Hodim rollarini admin o'zi boshqaradigan qilaylik»; tugmali javoblar 15:30 — rasmdagidek 4 belgi (Ko'rish / Yaratish / Ta…
 - `test_royxat_n1.py` · PG — kech97 (2026-09-27), 116-band 1-qadam (buyurtma / loyiha N+1) + 114-band (ro'yxat tartibi).
 - `test_saas_marshrut.py` · PG — kech129 (zip 153): SaaS migratsiya HTTP sahifasi (`/saas-migratsiya`, `/api/saas-migration/*`, 8 marshrut) OLIB TASHLANDI; migratsiya DVIGATELI (`saas_migration.STEPS`, `run_s…
@@ -4004,5 +4054,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 221 (Python 186, JS 35).
+Jami test fayllari: 223 (Python 188, JS 35).
 <!-- AVTO:TESTLAR OXIRI -->
