@@ -170,6 +170,10 @@ SAQLASH_HTML = '<i class="ti ti-device-floppy"></i> Saqlash'
 BEKOR_HTML = '<i class="ti ti-x"></i> Bekor'
 HAJM_XATO = "«Partiya hajmi (kg)» — 0 dan katta son kiriting"
 ROL_SABAB = "Material tanlab bo'lmaydi: Sizning rolingizda «Omborxona → Materiallar» bo'limida «Ko'rish» ruxsati yo'q. Admin bilan bog'laning."
+# kech135 (zip 161, MOSLANDI): ro'yxat endi `/api/material-royxati` dan — rad sababida yangi ruxsat nomi («Materiallar ro'yxati (retsept va
+# tarkib uchun)»); eski (zip 157 … 160) shablon — `/api/inventory` sababi. Ikkalasi ham to'g'ri sabab — sinov ikkala shablonda o'tadi.
+ROL_SABABLAR = (ROL_SABAB, "Material tanlab bo'lmaydi: Sizning rolingizda «Retsept va ishlab chiqarish → Materiallar ro'yxati (retsept "
+                           "va tarkib uchun)» bo'limida «Ko'rish» ruxsati yo'q. Admin bilan bog'laning.")
 
 
 def band_matn(nom):
@@ -474,7 +478,8 @@ if PW_BOR:
         # ══════════════════════════════════════════════════════════════════════════════════════════════════════
         ochish(pa)
         USHLANGAN = []
-        _iy = re.compile(r".*/api/inventory$")
+        # kech135 (zip 161, MOSLANDI): ro'yxat so'rovi — `/api/material-royxati` (eski shablonda `/api/inventory`) — ikkalasi ushlanadi
+        _iy = re.compile(r".*/api/(inventory|material-royxati)$")
         xav(pa.route, _iy, lambda route: USHLANGAN.append(route))
         ev(pa, """() => { const k = Array.from(document.querySelectorAll('.rec-card')).find(c => c.textContent.includes('RU157 Kvars retsepti'));
             const b = k && k.querySelector("button[aria-label='Tahrirlash']"); if (b) { b.click(); setTimeout(() => b.click(), 120); } }""")
@@ -575,7 +580,8 @@ if PW_BOR:
         kut(px, "!!document.querySelector('#edit-picker-list .recp-picker-empty')")
         _pn = ev(px, "() => (document.querySelector('#edit-picker-list .recp-picker-empty') || {}).textContent")
         check("U9b tanlash paneli — SABABI: «Material tanlab bo'lmaydi: Sizning rolingizda «Omborxona → Materiallar» bo'limida «Ko'rish» "
-              "ruxsati yo'q. Admin bilan bog'laning.» (ilgari «Material topilmadi»)", _pn == ROL_SABAB, _pn)
+              "ruxsati yo'q. Admin bilan bog'laning.» (ilgari «Material topilmadi»; zip 161 dan — yangi ruxsat nomi bilan)",
+              _pn in ROL_SABABLAR, _pn)
         ev(px, "() => { try { closeIngredientPicker('edit'); } catch (e) {} }")
         if len(_qr) == 3:
             xav(px.fill, f"#{_qr[0].get('qid')}", "2.75")
@@ -590,7 +596,7 @@ if PW_BOR:
         xav(px.click, "#addModal .recp-add-btn")
         kut(px, "!!document.querySelector('#f-picker-list .recp-picker-empty')")
         _pn = ev(px, "() => (document.querySelector('#f-picker-list .recp-picker-empty') || {}).textContent")
-        check("U9d yangi retsept oynasida ham — o'sha sabab", _pn == ROL_SABAB, _pn)
+        check("U9d yangi retsept oynasida ham — o'sha sabab", _pn in ROL_SABABLAR, _pn)
         cx.close()
 
         # ══════════════════════════════════════════════════════════════════════════════════════════════════════
