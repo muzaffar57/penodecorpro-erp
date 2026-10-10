@@ -16,6 +16,19 @@
 .dash-yangilandi{font-size:13px;color:var(--text3);margin-right:8px;white-space:nowrap}
 #dashYangilaBtn.yuklanmoqda .ti-refresh{animation:dash-aylan .8s linear infinite;display:inline-block}
 @keyframes dash-aylan{to{transform:rotate(360deg)}}
+/* kech137 (zip 163, O'LCHANGAN work/k163/olchov163.py, zip 162 kodi): bo'lim yuklanmasa — sababi O'SHA bo'limda, qizil matn (ilgari
+   bitta so'rov xatosi butun sahifani to'xtatardi, ba'zi xato javoblar «0 so'm» / «✓ Qarzdorlik yo'q» bo'lib ko'rinardi). Umumiy
+   xabar (sessiya tugagani ham) — sahifa boshida (`#xato-umumiy`); «Yangilash» holati yozuvi faqat QISQA («Yangilanmadi» — qizil):
+   O'LCHANGAN work/k163/holat_probe.py — 800 / 1024 px da uzun yozuv sahifa sarlavhasini 0 px gacha siqib, «Yangilash» tugmasini
+   ekrandan chiqarardi. Qizil — `--m-b91c1c` (13 px matn kulrang fonda ham ≥ 4.5:1; `--m-dc2626` — 4.5 chegarasida). `.yakka` — rolda
+   ikki kartadan bittasi bo'lsa. */
+.dash-yangilandi.xato{color:var(--m-b91c1c);font-weight:600}
+#xato-umumiy{margin:0 0 14px}
+.dash-xato{font-size:13px;font-weight:600;color:var(--m-b91c1c);margin:-8px 0 14px;overflow-wrap:anywhere}
+.card-body .dash-xato,.dash-xato.ichki{margin:6px 0}
+.dash-xato-qator{text-align:center;padding:20px 16px;color:var(--m-b91c1c);font-size:13px;font-weight:600;overflow-wrap:anywhere}
+.dash-grid2.yakka{grid-template-columns:1fr}
+.grafik-bosh.xato{color:var(--m-b91c1c)}
 /* kech120 (zip 135 — G1-12): uzun ism bir qatorda (ilgari 4 qatorga bo'linib kartani cho'zardi), to'liq ismi — ko'rsatkichda */
 .master-ism{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* kech119 (C BOSQICH — telefon, audit G1-20, O'LCHANGAN work/k125/telefon.py: majburiyat nomi «Namuna Ijara (har oy
@@ -90,6 +103,8 @@
 
 {% block content %}
 <div class="erp-content">
+  {# kech137 (zip 163): bo'limlardan birortasi yuklanmasa — umumiy xabar (sabab — o'sha bo'limda); sessiya tugagan bo'lsa — kirish havolasi #}
+  <p class="dash-xato" id="xato-umumiy" aria-live="polite" hidden></p>
 
   <!-- BUGUNGI KUN — KPI -->
   <div class="stat-grid mb-16">
@@ -128,6 +143,8 @@
       <div class="stat-val" id="t-profit">—</div>
     </div>
   </div>
+  {# kech137 (zip 163): bo'lim yuklanmasa — sababi (`dashXatoKor`); odatda yashirin #}
+  <p class="dash-xato" id="xato-bugun" hidden></p>
 
   <!-- kech118 (D-3, egasi QARORI G1-09 «Vazifalar ajratilsin»): Dashboard — ISH JARAYONI. Olib tashlandi (takror edi): «Bugungi
        vazifalar» (Bosh sahifaga ko'chdi), «Ishlab chiqarish holati» (doira bilan bir xil son), «Ombor ogohlantirishlari» va
@@ -169,11 +186,14 @@
     <div class="kpi-card"><div class="kpi-val text-gold" id="f-budget">—</div><div class="kpi-label">Jami byudjet</div>
       <div style="font-size:12px;color:var(--text3)">butun vaqt</div></div>
   </div>
+  <p class="dash-xato" id="xato-moliya" hidden></p>
   {% endif %}
 
   <!-- TO'LANISHI KERAK BO'LGAN MAJBURIYATLAR — kech118 (ROLLAR): «Qarzlar» ruxsati borlarga (ilgari faqat Admin) -->
+  {# kech137 (zip 163, O'LCHANGAN): ta'minotchilar ro'yxati («Ta'minotchilar: Ko'rish») — faqat ruxsati borga so'raladi (`data-taminotchi`);
+     ilgari ruxsatsiz rolda (masalan tayyor «Moliyachi») ro'yxat rad etilib (403) butun blok — ijara, ish haqi ham — yashirinardi #}
   {% if current_user.ruxsat('qarz', 'korish') %}
-  <div class="card mb-16" id="obligWidget" style="display:none;border-left:3px solid #EF4444">
+  <div class="card mb-16" id="obligWidget" data-taminotchi="{{ '1' if current_user.ruxsat('taminotchi', 'korish') else '0' }}" style="display:none;border-left:3px solid #EF4444">
     <div class="card-head" style="flex-wrap:wrap;gap:8px">
       <h3>⚠️ To'lanishi kerak bo'lgan majburiyatlar</h3>
       <a href="/debts" class="btn btn-outline btn-sm">Qarzdorlar sahifasi →</a>
@@ -198,6 +218,7 @@
       <div class="kpi-label">Muddati o'tgan (30+ kun)</div>
     </div>
   </div>
+  <p class="dash-xato" id="xato-qarzdorlik" hidden></p>
 
   <!-- Grafik: Buyurtmalar soni (oylik daromad — Hisobotlar da) -->
   <div class="card mb-16">
@@ -206,10 +227,18 @@
   </div>
 
   <!-- XOMASHYO XARIDLARI -->
+  {# kech137 (zip 163, O'LCHANGAN): xaridlar ro'yxati — «Xomashyo kirimi: Ko'rish» ruxsati bilan (ilgari ruxsatsiz rolda server rad
+     etardi, sahifa esa «0 so'm» va «Bu oy xomashyo xaridi bo'lmagan» deb yozardi). Ruxsatsiz rolga — faqat transport qatorlari
+     («Bosh sahifa va Dashboard» ruxsati bilan). #}
+  {% set _xarid = current_user.ruxsat('kirim', 'korish') %}
   <div class="card mb-16" style="border-left:3px solid var(--gold-dark);border-radius:0 12px 12px 0">
     <div class="card-head">
+      {% if _xarid %}
       <h3 style="color:var(--gold-dark)"><i class="ti ti-shopping-cart"></i> Xomashyo xaridlari (bu oy)</h3>
       <span id="purch-total" style="font-size:16px;font-weight:800;color:var(--gold-dark)">—</span>
+      {% else %}
+      <h3 style="color:var(--gold-dark)"><i class="ti ti-truck"></i> Transport xarajatlari (bu oy)</h3>
+      {% endif %}
     </div>
     <div style="padding:6px 16px;border-bottom:1px solid var(--border2);background:var(--f-fafaf8)">
       <div class="dash-info-row" style="padding:9px 2px;border-bottom:1px solid var(--border2)">
@@ -220,15 +249,21 @@
         <span class="dash-info-label"><i class="ti ti-truck" style="font-size:13px"></i> Transport (yetkazish, kompaniya ulushi)</span>
         <span id="tr-outbound" class="dash-info-val" style="color:var(--gold-dark)">—</span>
       </div>
+      <p class="dash-xato ichki" id="xato-transport" hidden></p>
     </div>
+    {% if _xarid %}
     <div class="card-body" style="padding:0">
       <div id="purchList" style="max-height:280px;overflow-y:auto">
         <div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>
       </div>
     </div>
+    {% endif %}
   </div>
 
   <!-- YETKAZIB BERUVCHI QARZI -->
+  {# kech137 (zip 163, O'LCHANGAN): «Ta'minotchilar: Ko'rish» ruxsati bilan (ilgari ruxsatsiz rolda «0 so'm» va «undefined ta
+     ta'minotchiga qarzdormiz») #}
+  {% if current_user.ruxsat('taminotchi', 'korish') %}
   <div class="card mb-16" style="border-left:3px solid #F59E0B;border-radius:0 12px 12px 0">
     <div class="card-head">
       <h3 style="color:var(--m-b45309)"><i class="ti ti-truck"></i> Ta'minotchilarga nasiya qarzi</h3>
@@ -238,14 +273,24 @@
       <span id="sup-debt-count" style="font-size:12px;color:var(--text3)"></span>
     </div>
   </div>
+  {% endif %}
 
   <!-- TAYYOR MAHSULOTLAR VA BRAK -->
-  <div class="dash-grid2">
+  {# kech137 (zip 163, O'LCHANGAN): «Tayyor mahsulotlar» — «Tayyor mahsulotlar: Ko'rish»; brak soni / qiymati — «Qaytarishlar: Ko'rish»;
+     brak ulushi — «Hisobotlar: Ko'rish» (ilgari ruxsatsiz rolda «0 so'm», «undefined ta», «Brak 0 ta» ko'rinardi). Bitta karta qolsa —
+     butun kenglikda (`.yakka`). #}
+  {% set _tayyor = current_user.ruxsat('tayyor', 'korish') %}
+  {% set _qaytarish = current_user.ruxsat('qaytarish', 'korish') %}
+  {% set _hisobot = current_user.ruxsat('hisobot', 'korish') %}
+  {% if _tayyor or _qaytarish or _hisobot %}
+  <div class="dash-grid2{{ '' if (_tayyor and (_qaytarish or _hisobot)) else ' yakka' }}">
+    {% if _tayyor %}
     <div class="card" style="border-left:3px solid var(--gold-dark);border-radius:0 12px 12px 0">
       <div class="card-head">
         <h3 style="color:var(--gold-dark)"><i class="ti ti-building-factory-2"></i> Tayyor mahsulotlar</h3>
       </div>
       <div class="card-body">
+        <p class="dash-xato" id="xato-tayyor" hidden></p>
         <div class="dash-info-row">
           <span class="dash-info-label">Ishlab chiqarilgan qiymati</span>
           <span id="fp-produced-value" class="dash-info-val" style="color:var(--gold-dark)">—</span>
@@ -264,12 +309,16 @@
         </div>
       </div>
     </div>
+    {% endif %}
 
+    {% if _qaytarish or _hisobot %}
     <div class="card" style="border-left:3px solid #DC2626;border-radius:0 12px 12px 0">
       <div class="card-head">
         <h3 style="color:var(--m-dc2626)"><i class="ti ti-alert-circle"></i> Brak (bu oy)</h3>
       </div>
       <div class="card-body">
+        {% if _qaytarish %}
+        <p class="dash-xato" id="xato-brak" hidden></p>
         <div class="dash-info-row">
           <span class="dash-info-label">Brak soni (bu oy)</span>
           <span id="brk-month-count" class="dash-info-val" style="color:var(--m-dc2626)">—</span>
@@ -282,19 +331,27 @@
           <span class="dash-info-label"><i class="ti ti-circle-check" style="color:var(--m-15803d)"></i> Butun qaytgan (bu oy)</span>
           <span id="brk-whole-count" class="dash-info-val" style="color:var(--m-15803d)">—</span>
         </div>
+        {% endif %}
+        {% if _hisobot %}
         <!-- kech56 (13-band, 7-qadam): brak ulushi (Moliya bilan bir manba) va me'yor -->
+        <p class="dash-xato" id="xato-brak-ulush" hidden></p>
         <div class="dash-info-row">
           <span class="dash-info-label">Brak ulushi (bu oy, me'yor <span id="brk-meyor">—</span>)</span>
           <span id="brk-foiz" class="dash-info-val">—</span>
         </div>
         <div id="brk-ogohlantirish" style="display:none;background:var(--f-fee2e2);color:var(--m-991b1b);border-radius:8px;padding:8px 10px;margin:6px 0;font-size:13px;font-weight:700"></div>
+        {% endif %}
+        {% if _qaytarish %}
         <div class="dash-info-row total">
           <span>Jami brak (barcha vaqt)</span>
           <span id="brk-total-value" style="color:var(--m-dc2626)">—</span>
         </div>
+        {% endif %}
       </div>
     </div>
+    {% endif %}
   </div>
+  {% endif %}
 
   <!-- YETKAZISH -->
   <div class="kpi-grid mb-16" style="grid-template-columns:repeat(3,1fr)">
@@ -311,6 +368,7 @@
       <div class="kpi-label">Topshirilmagan</div>
     </div>
   </div>
+  <p class="dash-xato" id="xato-yetkazish" hidden></p>
 
   <!-- QISMAN TOPSHIRILGANLAR -->
   <div class="card mb-16" style="border-left:3px solid #F59E0B;border-radius:0 12px 12px 0" id="partialCard">
@@ -387,41 +445,193 @@ let mC,sC;
 function fmt(n){return qisqaSumma(n);}   // kech115 (G3-10): manfiy ham ajratgichli (base.html)
 
 const OY_NOMI_DASH=['','Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust','Sentabr','Oktabr','Noyabr','Dekabr'];
-async function loadAll(){
-  const [s,c,t]=await Promise.all([
-    fetch('/api/dashboard/stats').then(r=>r.json()),
-    fetch('/api/dashboard/charts').then(r=>r.json()),
-    fetch('/api/dashboard/today').then(r=>r.json())
-  ]);
-  const fg=document.getElementById('finGrid');
-  if(fg){
-    document.getElementById('f-paid').textContent=fmt(c.finance.total_paid)+' so\'m';
-    document.getElementById('f-budget').textContent=fmt(c.finance.total_budget)+' so\'m';
-    // kech121 (zip 138 — G1-08): shu oy daromadi — Hisobotlar «Daromad» bilan bir manba
-    try {
-      const h = await fetch('/api/finance/history?months=1').then(r => r.ok ? r.json() : []);
-      const cur = Array.isArray(h) && h.length ? h[h.length - 1] : null;
-      document.getElementById('f-revenue').textContent = cur ? fmt(cur.daromad) + ' so\'m' : '—';
-      const tk = tkHozir();
-      document.getElementById('f-revenue-sub').textContent = `${OY_NOMI_DASH[tk.oy]} ${tk.yil} · Hisobotlar bilan bir xil`;
-    } catch (e) { document.getElementById('f-revenue').textContent = '—'; }
+
+// ══ kech137 (zip 163) — Dashboard yuklanishi: bitta so'rov xatosi butun sahifani to'xtatmaydi ══
+// O'LCHANGAN (work/k163/olchov163.py → work/natija/k163/olchov_repo_dev171.json, zip 162 kodi: 16 so'rov × 502 HTML / 500 JSON /
+// tarmoq / 401; Chart.js yuklanmasa; 3 rol; «Yangilash»; sessiya tugashi; poyga):
+//  1) `loadAll` bitta `Promise.all` edi — stats / charts / today dan biri xato bersa (deploy paytidagi 502, internet uzilishi) BUTUN
+//     sahifa to'xtardi: pul kartalari «—», «Ishlab chiqarish» kartasi va 4 ro'yxat abadiy «Yuklanmoqda...», qolgan bloklar
+//     yuklanmasdi, sabab yozilmasdi; Chart.js (CDN) kelmasa ham shunday. `/api/dashboard/stats` javobi ishlatilmasdi — so'rov olib
+//     tashlandi («Faol buyurtmalar» — server chizishi va `today`).
+//  2) `r.ok` tekshirilmasdi: xato JSON (500 / 401) «0 so'm», «✓ Qarzdorlik yo'q», «Bu oy xomashyo xaridi bo'lmagan», «Brak 0 ta»,
+//     8 joyda «undefined ta» bo'lib ko'rinardi; tarmoq / 502 da — «—» va abadiy «Yuklanmoqda...».
+//  3) Ruxsatsiz rol (tayyor «Moliyachi»: Ta'minotchilar / Kirim / Tayyor / Qaytarish yo'q) — server rad etardi (403), sahifa yolg'on
+//     son yozardi; majburiyatlar bloki ta'minotchilar rad etilgani uchun BUTUNLAY yashirinardi (ijara, ish haqi ham). Endi ruxsatsiz
+//     blok server chizishida yo'q va so'ralmaydi (shablonda ruxsat sharti; majburiyatlar — `data-taminotchi`).
+//  4) «Yangilash»: qarzdorlik / majburiyatlar yuklanmasa ham «Yangilandi: …» derdi; sessiya tugaganda «qayta urinib ko'ring» derdi.
+//  5) Poyga: sekin birinchi javob «Yangilash» dan KEYIN kelsa yangi raqam ustiga eskisi yozilardi (2,2 mln → 1,1 mln).
+// Endi: har blok alohida (`dashBlok`); javob faqat `r.ok` va JSON bo'lsa chiziladi; xato — o'sha blokda qizil sabab (`dashXatoMatn`),
+// qiymatlar «—» (yolg'on 0 emas); blokning eski so'rovi kech kelsa tashlanadi (`dashNavbat`); umumiy natija — «Yangilash» holati
+// yozuvida (`dashHolatYoz`). Yordamchilar global `const` / `let` ishlatmaydi (JS sinovlari funksiyani shablondan ajratib oladi).
+function dashXato(tur, kod){ return { dashXato: true, tur: tur, kod: kod || 0 }; }
+
+async function dashOl(url){
+  let r;
+  try { r = await fetch(url); } catch (e) { throw dashXato('tarmoq'); }
+  if (!r.ok) throw dashXato(r.status === 401 ? 'sessiya' : (r.status === 403 ? 'ruxsat' : 'server'), r.status);
+  try { return await r.json(); } catch (e) { throw dashXato('server', r.status); }
+}
+
+function dashSabab(e){
+  const t = e && e.tur;
+  if (t === 'sessiya') return 'kirish muddati tugagan, qayta kiring';
+  if (t === 'ruxsat') return "ko'rish ruxsati yo'q";
+  if (t === 'tarmoq') return "internet aloqasi yo'q, «Yangilash» tugmasini bosing";
+  return "server javob bermadi, «Yangilash» tugmasini bosing";
+}
+
+function dashXatoMatn(nima, e){ return '⚠️ ' + nima + ' yuklanmadi — ' + dashSabab(e); }
+
+// sabab yozuvi (`<p class="dash-xato" hidden>`): matn bo'sh — yashiriladi
+function dashXatoKor(id, matn){
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = matn || '';
+  el.hidden = !matn;
+}
+
+// ro'yxat / blok ichida sabab (abadiy «Yuklanmoqda...» o'rniga)
+function dashRoyxatXato(id, matn){
+  const el = document.getElementById(id);
+  if (el) el.innerHTML = `<div class="dash-xato-qator">${escapeHtml(matn)}</div>`;
+}
+
+function dashQiymat(idlar, matn){
+  idlar.forEach(id => { const el = document.getElementById(id); if (el) el.textContent = matn; });
+}
+
+// kichik izoh (kartadagi ikkinchi qator): xato bo'lsa qizil
+function dashIzoh(id, matn, xato){
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = matn;
+  el.style.color = xato ? 'var(--m-b91c1c)' : 'var(--text3)';
+}
+
+// grafik qutisi: matn bo'lsa — kanvas o'rnida yozuv (`grafikBosh`, base.html), xato bo'lsa qizil
+function dashGrafikXato(id, matn){
+  if (typeof grafikBosh !== 'function') return;
+  grafikBosh(id, matn);
+  const c = document.getElementById(id);
+  const y = c && c.parentElement ? c.parentElement.querySelector('.grafik-bosh') : null;
+  if (y) y.classList.toggle('xato', !!matn);
+}
+
+// blokning har yuklanishiga navbat raqami; javob kelganda faqat ENG OXIRGI so'rovniki chiziladi (eski kech kelsa — tashlanadi)
+function dashNavbat(nom){
+  const h = dashNavbat.h || (dashNavbat.h = {});
+  const n = (h[nom] || 0) + 1;
+  h[nom] = n;
+  return () => h[nom] === n;
+}
+
+// bitta blok: so'rov → chizish; xato — `xatoChiz` (sabab) va xato qaytariladi (yiqilmaydi); muvaffaqiyat / eskirgan — null
+async function dashBlok(nom, url, chiz, xatoChiz){
+  const joriy = dashNavbat(nom);
+  try {
+    const d = await dashOl(url);
+    if (!joriy()) return null;
+    chiz(d);
+    return null;
+  } catch (x) {
+    if (!joriy()) return null;
+    const e = (x && x.dashXato) ? x : dashXato('server');
+    if (!(x && x.dashXato)) console.error('Dashboard — ' + nom + ':', x);
+    try { xatoChiz(e); } catch (y) { console.error(y); }
+    return e;
   }
+}
 
-  document.getElementById('t-revenue').textContent=fmt(t.today_revenue)+' so\'m';
-  const _trs = document.getElementById('t-revenue-sub');   // kech121 (zip 138 — G1-08): tarkibi
-  if (_trs) _trs.textContent = `to'lovlar ${fmt(t.today_payments || 0)} · sotuv ${fmt(t.today_sales || 0)}`;
-  document.getElementById('t-active').textContent=t.active_orders+' ta';
-  document.getElementById('t-production').textContent=t.in_production+' ta';
-  document.getElementById('t-due').textContent=t.due_today+' ta';
-  document.getElementById('t-masters').textContent=t.active_masters+' ta';
-  document.getElementById('t-profit').textContent=somYoq(t.today_profit, fmt);   // kech118 (ROLLAR 2-qism): yashirin — «—»
+// `Promise.allSettled` natijalari → xatolar ro'yxati (blok qaytargan xato yoki kutilmagan rad)
+function dashNatija(n){
+  const x = [];
+  n.forEach(s => {
+    if (s.status === 'rejected') x.push(dashXato('server'));
+    else if (Array.isArray(s.value)) s.value.forEach(v => { if (v) x.push(v); });
+    else if (s.value) x.push(s.value);
+  });
+  return x;
+}
 
-  // kech118 (D-3, G1-09): ish jarayoni — holat doirasi (afsona bilan), buyurtmalar soni, usta reytingi
-  buildOrdersCountChart(c.months);buildStatusChart(c.statuses);buildMasterList(c.master_kpi);
+// Umumiy natija: sahifa boshidagi xabar (`#xato-umumiy`) — xato bo'lsa ko'rinadi (sessiya tugagan — kirish havolasi), aks holda
+// yashirin; «Yangilash» holati yozuvi — QISQA: qo'lda yangilashda (yoki yozuv allaqachon to'ldirilgan bo'lsa — avtomatik yangilashda
+// ham) «Yangilandi: SS:DD» yoki qizil «Yangilanmadi»; sahifa birinchi ochilganda yozuv bo'sh qoladi (avvalgidek).
+function dashHolatYoz(xatolar, qolda){
+  const sessiya = xatolar.some(e => e && e.tur === 'sessiya');
+  const umumiy = document.getElementById('xato-umumiy');
+  if (umumiy) {
+    if (sessiya) umumiy.innerHTML = '⚠️ Kirish muddati tugagan — <a href="/login">qayta kiring</a>';
+    else umumiy.textContent = xatolar.length ? "⚠️ Ba'zi ma'lumotlar yuklanmadi — sababi o'sha bo'limda yozilgan; «Yangilash» tugmasini bosing" : '';
+    umumiy.hidden = !xatolar.length;
+  }
+  const yoz = document.getElementById('dashYangilandi');
+  if (!yoz || !(qolda || (yoz.textContent || '').trim())) return;
+  yoz.classList.toggle('xato', xatolar.length > 0);
+  yoz.textContent = xatolar.length ? 'Yangilanmadi' : 'Yangilandi: ' + tkVaqt(Date.now());   // Toshkent vaqti (base.html)
+}
 
-  // kech120 (zip 135 — G1-25): «Yangilash» tugashini bilish uchun — hamma bo'lim yuklanib bo'lishi kutiladi
-  await Promise.allSettled([loadDebts(), loadDeliveryStats(), loadPurchaseStats(), loadTransportStats(), loadSupplierDebt(),
-    loadFinishedStats(), loadReturnStats(), loadBrakFoiz() /* kech56 (13-band, 7-qadam) */, loadProdPeriods()]);
+async function loadToday(){
+  return dashBlok('bugun', '/api/dashboard/today', t => {
+    document.getElementById('t-revenue').textContent=fmt(t.today_revenue)+' so\'m';
+    const _trs = document.getElementById('t-revenue-sub');   // kech121 (zip 138 — G1-08): tarkibi
+    if (_trs) _trs.textContent = `to'lovlar ${fmt(t.today_payments || 0)} · sotuv ${fmt(t.today_sales || 0)}`;
+    document.getElementById('t-active').textContent=t.active_orders+' ta';
+    document.getElementById('t-production').textContent=t.in_production+' ta';
+    document.getElementById('t-due').textContent=t.due_today+' ta';
+    document.getElementById('t-masters').textContent=t.active_masters+' ta';
+    document.getElementById('t-profit').textContent=somYoq(t.today_profit, fmt);   // kech118 (ROLLAR 2-qism): yashirin — «—»
+    dashXatoKor('xato-bugun', '');
+  }, e => {
+    dashQiymat(['t-revenue', 't-active', 't-production', 't-due', 't-masters', 't-profit'], '—');
+    dashQiymat(['t-revenue-sub'], '');
+    dashXatoKor('xato-bugun', dashXatoMatn("Bugungi ko'rsatkichlar", e));
+  });
+}
+
+// kech118 (D-3, G1-09): ish jarayoni — holat doirasi (afsona bilan), buyurtmalar soni, usta reytingi; «To'langan» / «Jami byudjet»
+async function loadCharts(){
+  return dashBlok('grafik', '/api/dashboard/charts', c => {
+    if (document.getElementById('finGrid')) {
+      document.getElementById('f-paid').textContent=fmt(c.finance.total_paid)+' so\'m';
+      document.getElementById('f-budget').textContent=fmt(c.finance.total_budget)+' so\'m';
+      dashXatoKor('xato-moliya', '');
+    }
+    dashGrafikXato('ordersCountChart', '');
+    dashGrafikXato('statusChart', '');
+    buildOrdersCountChart(c.months);buildStatusChart(c.statuses);buildMasterList(c.master_kpi);
+  }, e => {
+    dashQiymat(['f-paid', 'f-budget'], '—');
+    dashXatoKor('xato-moliya', dashXatoMatn("«To'langan» va «Jami byudjet»", e));
+    dashGrafikXato('ordersCountChart', dashXatoMatn('Buyurtmalar soni', e));
+    dashGrafikXato('statusChart', '—');
+    dashRoyxatXato('statusLegend', dashXatoMatn('Buyurtmalar holati', e));
+    dashRoyxatXato('masterList', dashXatoMatn('Usta reytingi', e));
+  });
+}
+
+// kech121 (zip 138 — G1-08): shu oy daromadi — Hisobotlar «Daromad» bilan bir manba (faqat «Moliyaviy hisobot» ruxsati — `finGrid`)
+async function loadOyDaromad(){
+  if (!document.getElementById('finGrid')) return null;
+  return dashBlok('daromad', '/api/finance/history?months=1', h => {
+    const cur = Array.isArray(h) && h.length ? h[h.length - 1] : null;
+    document.getElementById('f-revenue').textContent = cur ? fmt(cur.daromad) + ' so\'m' : '—';
+    const tk = tkHozir();
+    dashIzoh('f-revenue-sub', `${OY_NOMI_DASH[tk.oy]} ${tk.yil} · Hisobotlar bilan bir xil`, false);
+  }, e => {
+    dashQiymat(['f-revenue'], '—');
+    dashIzoh('f-revenue-sub', dashXatoMatn('Shu oy daromadi', e), true);
+  });
+}
+
+// kech137 (zip 163): «Yangilash» va 5 daqiqalik avtomatik yangilash — hamma blok (majburiyatlar ham; ilgari avtomatik yangilashda
+// yo'q edi) ALOHIDA; natija — `dashHolatYoz` (qo'lda — `loadAll(true)`). Hech qachon rad etilmaydi.
+async function loadAll(qolda){
+  const n = await Promise.allSettled([loadToday(), loadCharts(), loadOyDaromad(), loadProdPeriods(), loadDebts(), loadDeliveryStats(),
+    loadPurchaseStats(), loadTransportStats(), loadSupplierDebt(), loadFinishedStats(), loadReturnStats(),
+    loadBrakFoiz() /* kech56 (13-band, 7-qadam) */, loadObligationsWidget()]);
+  const x = dashNatija(n);
+  dashHolatYoz(x, qolda === true);
+  return x;
 }
 
 // kech120 (zip 135 — F bosqichi 5-qism, audit G1-25): «Yangilash» — aylanuvchi belgi, tugagach «Yangilandi: 14:05» (Toshkent vaqti);
@@ -431,58 +641,59 @@ async function dashYangila(){
   const btn = document.getElementById('dashYangilaBtn');
   const yoz = document.getElementById('dashYangilandi');
   if (btn) { if (btn.disabled) return; btn.disabled = true; btn.classList.add('yuklanmoqda'); }
-  if (yoz) yoz.textContent = 'Yangilanmoqda…';
-  let xato = false;
+  if (yoz) { yoz.classList.remove('xato'); yoz.textContent = 'Yangilanmoqda…'; }
   try {
-    const n = await Promise.allSettled([loadAll(), loadObligationsWidget(), checkPendingAdvanceRequests()]);
-    xato = n[0].status === 'rejected';
-  } catch (e) { xato = true; }
-  if (yoz) yoz.textContent = xato ? "Yangilab bo'lmadi — qayta urinib ko'ring" : ('Yangilandi: ' + tkVaqt(Date.now()));   // Toshkent vaqti (base.html)
+    const n = await Promise.allSettled([loadAll(true), checkPendingAdvanceRequests()]);
+    if (n[0].status === 'rejected') dashHolatYoz([dashXato('server')], true);
+  } catch (e) { dashHolatYoz([dashXato('server')], true); }
   if (btn) { btn.disabled = false; btn.classList.remove('yuklanmoqda'); }
 }
 
 
 async function loadProdPeriods(){
-  try{
-    const p = await fetch('/api/dashboard/production-periods').then(r=>r.json());
+  if (!document.getElementById('prodPeriods')) return null;
+  return dashBlok('davr', '/api/dashboard/production-periods', p => {
     document.getElementById('prodPeriods').innerHTML = `
-      <div><div style="font-size:18px;font-weight:700;color:var(--gold-dark)">${p.today}</div><div style="font-size:13px;color:var(--text3)">Bugun</div></div>
-      <div><div style="font-size:18px;font-weight:700;color:var(--gold-dark)">${p.week}</div><div style="font-size:13px;color:var(--text3)">Hafta</div></div>
-      <div><div style="font-size:18px;font-weight:700;color:var(--gold-dark)">${p.month}</div><div style="font-size:13px;color:var(--text3)">Oy</div></div>`;
-  }catch(e){}
+      <div><div style="font-size:18px;font-weight:700;color:var(--gold-dark)">${Number(p.today)}</div><div style="font-size:13px;color:var(--text3)">Bugun</div></div>
+      <div><div style="font-size:18px;font-weight:700;color:var(--gold-dark)">${Number(p.week)}</div><div style="font-size:13px;color:var(--text3)">Hafta</div></div>
+      <div><div style="font-size:18px;font-weight:700;color:var(--gold-dark)">${Number(p.month)}</div><div style="font-size:13px;color:var(--text3)">Oy</div></div>`;
+  }, e => dashRoyxatXato('prodPeriods', dashXatoMatn('Ishlab chiqarish', e)));
 }
 
 
-
-
-
 async function loadFinishedStats(){
-  try{
-    const d = await fetch('/api/finished/stats').then(r=>r.json());
+  if (!document.getElementById('fp-total-value')) return null;      // «Tayyor mahsulotlar: Ko'rish» yo'q — karta chizilmagan
+  return dashBlok('tayyor', '/api/finished/stats', d => {
     // kech118 (ROLLAR 2-qism): «Tannarx va foyda» ruxsati yo'q — qiymatlar null → «—»
     document.getElementById('fp-produced-value').textContent = somYoq(d.produced_value, fmt);
     document.getElementById('fp-progress-count').textContent = d.in_progress_count + ' ta';
     document.getElementById('fp-returned-value').textContent = somYoq(d.returned_value, fmt);
     document.getElementById('fp-total-value').textContent = somYoq(d.total_value, fmt);
-  }catch(e){console.error('Finished stats:',e);}
+    dashXatoKor('xato-tayyor', '');
+  }, e => {
+    dashQiymat(['fp-produced-value', 'fp-progress-count', 'fp-returned-value', 'fp-total-value'], '—');
+    dashXatoKor('xato-tayyor', dashXatoMatn('Tayyor mahsulotlar', e));
+  });
 }
 
 async function loadReturnStats(){
-  try{
-    const d = await fetch('/api/returns/stats').then(r=>r.json());
+  if (!document.getElementById('brk-month-count')) return null;     // «Qaytarishlar: Ko'rish» yo'q — qatorlar chizilmagan
+  return dashBlok('brak', '/api/returns/stats', d => {
     document.getElementById('brk-month-count').textContent = (d.brak_month_count||0) + ' ta';
     document.getElementById('brk-month-value').textContent = somYoq(d.brak_month_value === null ? null : (d.brak_month_value||0), fmt);
     document.getElementById('brk-whole-count').textContent = (d.whole_month_count||0) + ' ta';
     document.getElementById('brk-total-value').textContent = somYoq(d.brak_total_value === null ? null : (d.brak_total_value||0), fmt);
-  }catch(e){console.error('Return stats:',e);}
+    dashXatoKor('xato-brak', '');
+  }, e => {
+    dashQiymat(['brk-month-count', 'brk-month-value', 'brk-whole-count', 'brk-total-value'], '—');
+    dashXatoKor('xato-brak', dashXatoMatn('Brak', e));
+  });
 }
 
-// kech56 (13-band, 7-qadam): brak ulushi va me'yor ogohlantirishi (server hisoblaydi).
+// kech56 (13-band, 7-qadam): brak ulushi va me'yor ogohlantirishi (server hisoblaydi). «Hisobotlar: Ko'rish» yo'q — qator chizilmagan.
 async function loadBrakFoiz(){
-  try{
-    const r = await fetch('/api/reports/brak-tahlil?oylar=1');
-    if (!r.ok) return;
-    const d = await r.json();
+  if (!document.getElementById('brk-foiz')) return null;
+  return dashBlok('brak_ulush', '/api/reports/brak-tahlil?oylar=1', d => {
     const foizMatn = f => (f === null || f === undefined) ? '—' : (sonKor(f, 2) + ' %');   // kech118 (U-05): kasr — vergul
     const mey = document.getElementById('brk-meyor');
     if (mey) mey.textContent = foizMatn(d.meyor_foiz);
@@ -496,29 +707,44 @@ async function loadBrakFoiz(){
       if (d.ogohlantirish) { og.textContent = '⚠️ ' + d.ogohlantirish; og.style.display = 'block'; }
       else { og.textContent = ''; og.style.display = 'none'; }
     }
-  }catch(e){console.error('Brak foizi:',e);}
+    dashXatoKor('xato-brak-ulush', '');
+  }, e => {
+    dashQiymat(['brk-meyor', 'brk-foiz'], '—');
+    const el = document.getElementById('brk-foiz');
+    if (el) el.style.color = '';
+    const og = document.getElementById('brk-ogohlantirish');
+    if (og) { og.textContent = ''; og.style.display = 'none'; }
+    dashXatoKor('xato-brak-ulush', dashXatoMatn('Brak ulushi', e));
+  });
 }
 
 async function loadSupplierDebt(){
-  try{
-    const d = await fetch('/api/suppliers/debt-total').then(r=>r.json());
+  if (!document.getElementById('sup-debt-total')) return null;      // «Ta'minotchilar: Ko'rish» yo'q — karta chizilmagan
+  return dashBlok('taminotchi', '/api/suppliers/debt-total', d => {
     document.getElementById('sup-debt-total').textContent = fmt(d.total_debt) + " so'm";
-    document.getElementById('sup-debt-count').textContent = d.supplier_count + " ta ta'minotchiga qarzdormiz";
-  }catch(e){console.error('Supplier debt:',e);}
+    dashIzoh('sup-debt-count', d.supplier_count + " ta ta'minotchiga qarzdormiz", false);
+  }, e => {
+    dashQiymat(['sup-debt-total'], '—');
+    dashIzoh('sup-debt-count', dashXatoMatn("Ta'minotchilar qarzi", e), true);
+  });
 }
 
 
 async function loadTransportStats(){
-  try{
-    const t = await fetch('/api/transport-stats').then(r=>r.json());
+  if (!document.getElementById('tr-inbound')) return null;
+  return dashBlok('transport', '/api/transport-stats', t => {
     document.getElementById('tr-inbound').textContent = fmt(t.inbound_total) + " so'm";
     document.getElementById('tr-outbound').textContent = fmt(t.outbound_company) + " so'm";
-  }catch(e){console.error('Transport statistikasi:',e);}
+    dashXatoKor('xato-transport', '');
+  }, e => {
+    dashQiymat(['tr-inbound', 'tr-outbound'], '—');
+    dashXatoKor('xato-transport', dashXatoMatn('Transport xarajatlari', e));
+  });
 }
 
 async function loadPurchaseStats(){
-  try{
-    const d = await fetch('/api/inventory/purchase-stats').then(r=>r.json());
+  if (!document.getElementById('purchList')) return null;           // «Xomashyo kirimi: Ko'rish» yo'q — ro'yxat chizilmagan
+  return dashBlok('xarid', '/api/inventory/purchase-stats', d => {
     document.getElementById('purch-total').textContent = fmt(d.total_amount) + " so'm";
 
     const el = document.getElementById('purchList');
@@ -566,16 +792,20 @@ async function loadPurchaseStats(){
         </div>
         ${rows}`;
     }).join('');
-  }catch(e){console.error('Xarid statistikasi:',e);}
+  }, e => {
+    dashQiymat(['purch-total'], '—');
+    dashRoyxatXato('purchList', dashXatoMatn('Xomashyo xaridlari', e));
+  });
 }
 
 async function loadDeliveryStats(){
-  try{
-    const d = await fetch('/api/dashboard/deliveries').then(r=>r.json());
+  if (!document.getElementById('partialList')) return null;
+  return dashBlok('yetkazish', '/api/dashboard/deliveries', d => {
     document.getElementById('dl-full').textContent    = d.fully_delivered+' ta';
     document.getElementById('dl-partial').textContent = d.partial_count+' ta';
     document.getElementById('dl-none').textContent    = d.not_started+' ta';
     document.getElementById('partial-label').textContent = d.partial_count+' ta buyurtma';
+    dashXatoKor('xato-yetkazish', '');
 
     const el = document.getElementById('partialList');
     const card = document.getElementById('partialCard');
@@ -601,18 +831,30 @@ async function loadDeliveryStats(){
           ${o.debt_amount>0?`<div style="font-size:12px;color:var(--m-dc2626);margin-top:1px">qarz ${fmt(o.debt_amount)}</div>`:''}
         </div>
       </div>`).join('');
-  }catch(e){console.error('Yetkazish statistikasi:',e);}
+  }, e => {
+    dashQiymat(['dl-full', 'dl-partial', 'dl-none', 'partial-label'], '—');
+    dashXatoKor('xato-yetkazish', dashXatoMatn("Yetkazish ko'rsatkichlari", e));
+    // qisman topshirilganlar bormi — noma'lum: karta sabab bilan ko'rinadi (yashirilsa «yo'q» deb o'qilardi)
+    const card = document.getElementById('partialCard');
+    if (card) card.style.display = '';
+    dashRoyxatXato('partialList', dashXatoMatn('Qisman topshirilgan buyurtmalar', e));
+  });
 }
 
 async function loadDebts(){
-  try{
-    const d = await fetch('/api/dashboard/debts').then(r=>r.json());
+  if (!document.getElementById('debtList')) return null;
+  return dashBlok('qarz', '/api/dashboard/debts', d => {
     document.getElementById('d-total').textContent   = fmt(d.total_debt)+' so\'m';
     document.getElementById('d-count').textContent   = d.debt_orders_count+' ta';
     document.getElementById('d-overdue').textContent = d.overdue_count+' ta';
     document.getElementById('debt-count-label').textContent = d.debt_orders_count+' ta buyurtma';
     buildDebtList(d.debt_orders);
-  }catch(e){console.error('Qarzdorlik yuklashda xato:',e);}
+    dashXatoKor('xato-qarzdorlik', '');
+  }, e => {
+    dashQiymat(['d-total', 'd-count', 'd-overdue', 'debt-count-label'], '—');
+    dashXatoKor('xato-qarzdorlik', dashXatoMatn('Qarzdorlik', e));
+    dashRoyxatXato('debtList', dashXatoMatn('Qarzdor buyurtmalar', e));
+  });
 }
 
 function buildDebtList(debts){
@@ -653,6 +895,11 @@ function buildOrdersCountChart(months){
   const _bosh = !(months || []).some(m => Number(m.orders) > 0);
   if (typeof grafikBosh === 'function') grafikBosh('ordersCountChart', _bosh ? "Hali buyurtma yo'q" : '');
   if (_bosh) return;
+  // kech137 (zip 163, O'LCHANGAN): Chart.js (internetdan) yuklanmasa — `new Chart` xatosi butun yuklashni to'xtatardi
+  if (typeof Chart !== 'function') {
+    if (typeof grafikBosh === 'function') grafikBosh('ordersCountChart', "Grafik chizilmadi — internet aloqasini tekshiring");
+    return;
+  }
   window._ocC = new Chart(document.getElementById('ordersCountChart').getContext('2d'), {
     type:'bar',
     data:{labels:months.map(m=>m.label), datasets:[
@@ -665,20 +912,25 @@ function buildOrdersCountChart(months){
 
 // kech117 (A2 — egasi QARORI kech114): oylik daromad YO'NALISHLAR bo'yicha (`get_chart_data` → `yonalishlar`,
 // `months[].yonalishlar`); bitta yo'nalish bo'lsa (va boshqasida daromad bo'lmasa) karta yashirin.
+// kech137 (zip 163): afsona doiradan OLDIN — Chart.js yuklanmasa ham holatlar va sonlar ko'rinadi (doira o'rnida yozuv).
 function buildStatusChart(statuses){
-  if(sC)sC.destroy();
+  if(sC){ sC.destroy(); sC = null; }
   const keys=Object.keys(statuses).filter(k=>statuses[k]>0);
-  if(!keys.length){ const l=document.getElementById('statusLegend'); if(l) l.innerHTML='<div style="color:var(--text3)">Buyurtma yo\'q</div>'; return; }
+  const leg=document.getElementById('statusLegend');
+  if(!keys.length){ if(leg) leg.innerHTML='<div style="color:var(--text3)">Buyurtma yo\'q</div>'; return; }
+  // kech118 (D-3, G1-09): afsona — holat va soni (ilgari yonidagi «Ishlab chiqarish holati» bloki shu sonlarni takrorlardi)
+  if(leg) leg.innerHTML=keys.map(k=>`<div style="display:flex;justify-content:space-between;gap:10px;padding:4px 0">
+      <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${ST_COLORS[k]||COLORS.gray};margin-right:7px"></span>${escapeHtml(ST_LABELS[k]||k)}</span>
+      <b>${Number(statuses[k])} ta</b></div>`).join('');
+  if (typeof Chart !== 'function') {
+    if (typeof grafikBosh === 'function') grafikBosh('statusChart', 'Grafik chizilmadi');
+    return;
+  }
   sC=new Chart(document.getElementById('statusChart').getContext('2d'),{
     type:'doughnut',
     data:{labels:keys.map(k=>ST_LABELS[k]||k),datasets:[{data:keys.map(k=>statuses[k]),backgroundColor:keys.map(k=>ST_COLORS[k]||COLORS.gray),borderWidth:2,borderColor:'#fff'}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{display:false}}}
   });
-  // kech118 (D-3, G1-09): afsona — holat va soni (ilgari yonidagi «Ishlab chiqarish holati» bloki shu sonlarni takrorlardi)
-  const leg=document.getElementById('statusLegend');
-  if(leg) leg.innerHTML=keys.map(k=>`<div style="display:flex;justify-content:space-between;gap:10px;padding:4px 0">
-      <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${ST_COLORS[k]||COLORS.gray};margin-right:7px"></span>${escapeHtml(ST_LABELS[k]||k)}</span>
-      <b>${Number(statuses[k])} ta</b></div>`).join('');
 }
 function buildMasterList(masters){
   const el=document.getElementById('masterList');
@@ -691,18 +943,34 @@ function buildMasterList(masters){
       <div style="font-size:13px;font-weight:600;color:var(--m-15803d);flex-shrink:0">${fmt(m.total)} so'm</div>
     </div>`).join('');
 }
+
+// kech137 (zip 163, O'LCHANGAN): uch so'rov ALOHIDA — birortasi xato bersa blok yashirinmaydi: yuklangani ko'rinadi, yuklanmagani
+// sababi bilan (ilgari ta'minotchilar / muddatlar xatosida butun blok — kechikkan ijara, ish haqi ham — jimgina yashirinardi;
+// holat xato JSON bersa faqat ta'minotchilar va kam «Jami» chiqardi). Ta'minotchilar — faqat «Ta'minotchilar: Ko'rish» ruxsati bilan
+// (`data-taminotchi`); «Jami majburiyat» — holat va ta'minotchilar ikkalasi yuklangandagina (aks holda to'liq emas).
 async function loadObligationsWidget(){
   const widget = document.getElementById('obligWidget');
-  if (!widget) return;
+  if (!widget) return null;
+  const joriy = dashNavbat('majburiyat');
+  const tm = widget.dataset.taminotchi !== '0';
+  const tk = tkHozir();     // kech106: joriy oy — Toshkent
+  const ol = url => dashOl(url).then(d => ({ d: d }), e => ({ e: e }));
+  let [st, sp, dd] = await Promise.all([
+    ol(`/api/obligations/status?year=${tk.yil}&month=${tk.oy}`),
+    tm ? ol('/api/suppliers') : Promise.resolve({ d: [] }),
+    tm ? ol('/api/suppliers/due-dates') : Promise.resolve({ d: [] })
+  ]);
+  if (!joriy()) return null;
+  // javob kutilgan ko'rinishda emas — xato (jimgina bo'sh ro'yxat emas)
+  if (!st.e && (!st.d || typeof st.d !== 'object' || Array.isArray(st.d))) st = { e: dashXato('server') };
+  if (!sp.e && !Array.isArray(sp.d)) sp = { e: dashXato('server') };
+  if (!dd.e && !Array.isArray(dd.d)) dd = { e: dashXato('server') };
   try {
-    const tk = tkHozir();     // kech106: joriy oy — Toshkent
-    const [status, suppliers, dueDates] = await Promise.all([
-      fetch(`/api/obligations/status?year=${tk.yil}&month=${tk.oy}`).then(r=>r.json()),
-      fetch('/api/suppliers').then(r=>r.json()),
-      fetch('/api/suppliers/due-dates').then(r=>r.json()).catch(()=>[])
-    ]);
+    const status = st.d || {};
+    const suppliers = sp.d || [];
+    const dueDates = dd.d || [];
     const dueBySupplier = {};
-    (dueDates || []).forEach(d => { dueBySupplier[d.supplier_id] = d; });
+    dueDates.forEach(d => { dueBySupplier[d.supplier_id] = d; });
 
     // Har bir element endi "group" bilan belgilanadi — guruh sarlavhasi
     // va avatar/ikonka shu asosda tanlanadi. Miqdor/status hisoblash —
@@ -713,7 +981,7 @@ async function loadObligationsWidget(){
       items.push({group: 'recurring', icon: r.icon, label: `${escapeHtml(r.label)} (${dayInfo})`, amount: r.debt, status: r.status});
     });
     (status.employees || []).forEach(e => items.push({group: 'employee', name: e.name, label: escapeHtml(e.name) + ' ish haqi', amount: e.qolgan, status: e.status}));
-    (suppliers || []).filter(s => s.debt > 0).forEach(s => {
+    suppliers.filter(s => s.debt > 0).forEach(s => {
       const due = dueBySupplier[s.id];
       if (due) {
         const dateStr = tkSana(due.due_date);
@@ -724,7 +992,12 @@ async function loadObligationsWidget(){
       }
     });
 
-    if (!items.length) { widget.style.display = 'none'; return; }
+    const sabablar = [];
+    if (st.e) sabablar.push(dashXatoMatn('Doimiy majburiyatlar va ish haqi', st.e));
+    if (sp.e) sabablar.push(dashXatoMatn("Ta'minotchilar qarzi", sp.e));
+    else if (dd.e) sabablar.push(dashXatoMatn("Ta'minotchilarga to'lov muddatlari", dd.e));
+
+    if (!items.length && !sabablar.length) { widget.style.display = 'none'; return null; }
     widget.style.display = 'block';
 
     const STATUS_COLOR = {overdue:'#EF4444', due_soon:'#F59E0B', partial:'#F59E0B', full:'#22C55E'};
@@ -736,7 +1009,7 @@ async function loadObligationsWidget(){
     const avatarColor = ['var(--f-f8f2eb)', 'var(--f-fffbeb)', 'var(--f-f0fdf4)', 'var(--f-eff6ff)', 'var(--f-fdf2f8)'];
     const avatarText = ['#A86B36', '#B45309', '#16A34A', '#1D4ED8', '#DB2777'];
 
-    let html = '';
+    let html = sabablar.map(m => `<div class="dash-xato ichki">${escapeHtml(m)}</div>`).join('');
     let rowIdx = 0;
     ['recurring', 'employee', 'supplier'].forEach(groupKey => {
       const groupItems = items.filter(it => it.group === groupKey);
@@ -765,17 +1038,25 @@ async function loadObligationsWidget(){
       });
     });
 
-    const total = items.reduce((s,it)=>s+it.amount, 0);
-    html += `<div style="display:flex;justify-content:space-between;padding:12px 0 0;margin-top:8px;border-top:2px solid var(--border);font-weight:700">
-      <span>Jami majburiyat</span><span style="color:var(--m-dc2626)">${fmtN(total)} so'm</span></div>`;
+    if (items.length && !st.e && !sp.e) {
+      const total = items.reduce((s,it)=>s+it.amount, 0);
+      html += `<div style="display:flex;justify-content:space-between;padding:12px 0 0;margin-top:8px;border-top:2px solid var(--border);font-weight:700">
+        <span>Jami majburiyat</span><span style="color:var(--m-dc2626)">${fmtN(total)} so'm</span></div>`;
+    }
 
     document.getElementById('obligList').innerHTML = html;
-  } catch(e) { console.error(e); }
+    return st.e || sp.e || dd.e || null;
+  } catch (x) {
+    console.error('Majburiyatlar:', x);
+    widget.style.display = 'block';
+    const e = dashXato('server');
+    dashRoyxatXato('obligList', dashXatoMatn('Majburiyatlar', e));
+    return e;
+  }
 }
 
-loadObligationsWidget();
 // kech134 (zip 160): hodim oynalari (telefon ruxsati → «Olmaganman» → avans so'rovlari) — `templates/_hodim_oynalari.html`
-// (Bosh sahifa bilan umumiy)
+// (Bosh sahifa bilan umumiy). kech137 (zip 163): majburiyatlar bloki — `loadAll` ichida (avtomatik yangilashda ham).
 checkQurilmaSorovlari();
 loadAll();
 setInterval(loadAll,5*60*1000);
