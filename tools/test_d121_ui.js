@@ -467,6 +467,11 @@ async function adminBolimi() {
 
   const kc = funks(FINANCE, ['loadCashBalance']);
   tekshir('Q0 loadCashBalance topildi', !kc.yoq.length);
+  // kech138 (zip 164, MOSLANDI): `loadCashBalance` endi base.html dagi umumiy yuklash yordamchilari (`yukBlok`, `yukOl`, `yukXatoKor` …)
+  // bilan ishlaydi — ular bo'lsa birga yuklanadi (eski shablonda yo'q — kod o'zgarmagan holda ishlaydi)
+  const YUK = ['xatoSababi', 'escapeHtml', 'yukXato', 'yukOl', 'yukSabab', 'yukXatoMatn', 'yukNavbat', 'yukBlok', 'yukXatoKor',
+    'yukRoyxatXato', 'yukSessiyaKor'].map((n) => jinja(olib(BASE, n)) || '').join('\n');
+  kc.kod = YUK + '\n' + kc.kod;
   for (const [nomi, qiy, kut] of [["kiritilmagan", false, false], ['kiritilgan', true, true], ['eski server (kalit yo\'q)', undefined, true]]) {
     const ogoh = element(''); ogoh.hidden = !kut;
     const val = element(''); val.style = {};

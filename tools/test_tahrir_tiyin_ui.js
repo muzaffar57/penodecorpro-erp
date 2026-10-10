@@ -91,6 +91,13 @@ function yukla(ctx, src, nomlar, sahifa) {
 const YORDAMCHI = ['parseNum', 'narxMatni', 'narxniOqi', 'narxKorinishi', 'formatPriceInput'];
 // kech106: finance.html funksiyalari "bugun" / joriy oyni base.html dagi Toshkent vaqti yordamchilaridan oladi
 const TK_FUNKS = ['tkMs', 'tkDate', 'tkSana', 'tkVaqt', 'tkSanaVaqt', 'tkToliq', 'tkISO', 'tkHozir', 'tkKunFarqi'];
+// kech138 (zip 164, MOSLANDI): finance.html `fillEhsonAmount` endi base.html dagi umumiy yuklash yordamchilari bilan (`yukOl`,
+// `yukSabab` …) — bo'lsa birga yuklanadi (eski shablonda yo'q — kod o'zgarmagan holda ishlaydi)
+const YUK_YORDAM = ['xatoSababi', 'yukXato', 'yukOl', 'yukSabab', 'yukXatoMatn', 'yukNavbat', 'yukBlok', 'yukXatoKor', 'yukRoyxatXato',
+  'yukSessiyaKor'];
+function yuklaBorlari(ctx, src, nomlar) {
+  for (const n of nomlar) { const f = olib(src, n); if (f) vm.runInContext(f, ctx); }
+}
 
 // ── Soxta DOM ──
 function el(qiymat, qo) {
@@ -388,6 +395,7 @@ async function tolovSina(summa, qarz) {
                   fetch: async () => javob(200, { ehson_xarajat: 1234.56 }),
                   fmtFull: (n) => Number(Math.round(n || 0)).toLocaleString('ru-RU') };
     vm.createContext(ctx);
+    yuklaBorlari(ctx, oqi('base'), YUK_YORDAM);
     const yoq = yukla(ctx, oqi('base'), TK_FUNKS, 'base')
       // kech117 (A2): editTx yashirin yo'nalish variantini `txYonalishVarianti` bilan tayyorlaydi
       .concat(yukla(ctx, SRC.finance, YORDAMCHI.concat(['editTx', 'fillEhsonAmount', 'txYonalishVarianti']), 'finance'));

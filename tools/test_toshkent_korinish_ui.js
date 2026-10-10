@@ -110,7 +110,11 @@ async function ichki() {
   const BASE = oqi('base.html');
   const HOD = oqi('hodim_panel.html');
   const yordamchilar = (src) => TK_NOMLAR.map(n => olib(src, n)).filter(Boolean).join('\n') + '\n' + (olib(src, 'escapeHtml') || '');
-  const YORDAMCHI = yordamchilar(BASE);        // base.html ni kengaytiradigan sahifalar
+  // kech138 (zip 164, MOSLANDI): Moliya / Hisobotlar yuklovchilari endi base.html dagi umumiy yuklash yordamchilari bilan (`yukBlok`,
+  // `yukOl`, `yukNavbat`, `yukXatoKor` …) — bo'lsa birga yuklanadi (eski shablonda yo'q — kod o'zgarmagan holda ishlaydi)
+  const YUK_NOMLAR = ['xatoSababi', 'yukXato', 'yukOl', 'yukSabab', 'yukXatoMatn', 'yukNavbat', 'yukBlok', 'yukXatoKor', 'yukRoyxatXato',
+    'yukSessiyaKor'];
+  const YORDAMCHI = yordamchilar(BASE) + '\n' + YUK_NOMLAR.map(n => olib(BASE, n)).filter(Boolean).join('\n');   // base.html ni kengaytiradigan sahifalar
   const HOD_YORDAMCHI = yordamchilar(HOD);     // hodim_panel.html — O'Z nusxasi (base.html ga bog'lanmagan)
 
   function element(id) {
@@ -296,7 +300,8 @@ async function ichki() {
   await sinov('T10', async () => {
     const m = muhit({ javob: { '/api/finance/daily': { date: '2026-10-01', sales: { total: 0, orders_count: 0, profit: 0, cost: 0 },
                                                           expenses: { total: 0, material: { breakdown: [] }, other: { breakdown: [] }, transport: null } } },
-                      qoshimcha: fnlar(FIN, PUL.concat(['loadDailyFinance'])) + '\nfunction animateCounter() {}' });
+                      // kech138 (zip 164, MOSLANDI): bugungi pul oqimi — alohida `bugungiOqim` (bo'lsa)
+                      qoshimcha: fnlar(FIN, PUL.concat(['loadDailyFinance', 'bugungiOqim'])) + '\nfunction animateCounter() {}' });
     await yurgiz(m, `await loadDailyFinance();`);
     const kut = UZUN_OY;
     tekshir(`T10 moliya — kunlik hisobot sanasi "${kut}" (asl: G'arb mintaqasida — oldingi kun)`, m.el('daily-date').textContent === kut,
