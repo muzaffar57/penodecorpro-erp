@@ -368,6 +368,80 @@ function qisqaSumma(n) {
 const TANNARX_KORADI = {{ 'true' if current_user and current_user.ruxsat('tannarx', 'korish') else 'false' }};
 function somYoq(n, f) { return n === null ? '—' : (f || qisqaSumma)(n) + " so'm"; }
 
+// ══ kech138 (zip 164) — SAHIFA BLOKLARI YUKLANISHI: bitta so'rov xatosi butun sahifani to'xtatmaydi, yolg'on qiymat ko'rsatmaydi ══
+// O'LCHANGAN (work/k164/olchov164.py, zip 163 kodi; Moliya va Hisobotlar — har so'rov × 502 HTML / 500 JSON / tarmoq / 401 / 403):
+// `fetch(...).then(r => r.json())` — `r.ok` tekshirilmasdi (xato JSON «0 so'm», «Ma'lumot yo'q», «Hozircha muhim ogohlantirish
+// yo'q», «Tranzaksiya topilmadi» bo'lib chizilardi), bitta `Promise.all` dagi so'rov yiqilsa qolganlari ham chizilmasdi (4 reyting
+// abadiy «Yuklanmoqda...»), oy almashtirilganda hisobot kelmasa ekranda OLDINGI oy raqamlari qolardi. Dashboard (zip 163)
+// `dashOl` / `dashBlok` / `dashNavbat` naqshining UMUMIY nusxasi — har sahifa shu yordamchilarni ishlatadi:
+//  `yukOl(url)` — javob faqat `r.ok` va JSON bo'lsa qaytadi, aks holda `yukXato` bilan rad etadi (tur: tarmoq / sessiya / ruxsat /
+//    rad — serverning 4xx sababi bilan / server). 401 — sahifa boshidagi umumiy xabar (`#yukSessiya`, kirish havolasi) ham ochiladi.
+//  `yukBlok(nom, url, chiz, xatoChiz)` — bitta blok: hech qachon rad etmaydi; xato — `xatoChiz(e)` va xato qaytadi, aks holda null;
+//    blokning eski so'rovi kech kelsa tashlanadi (`yukNavbat`).
+//  `yukXatoMatn(nima, e)` — «⚠️ Hisobot yuklanmadi — internet aloqasi yo'q, sahifani yangilang».
+//  `yukXatoKor(el, matn)` — sabab yozuvi (`<p class="yuk-xato" hidden>`): matn bo'sh — yashiriladi.
+//  `yukRoyxatXato(el, matn)` — ro'yxat / jadval qutisi ichida sabab (abadiy «Yuklanmoqda...» yoki yolg'on «Ma'lumot yo'q» o'rniga).
+// Yordamchilar global `const` / `let` ishlatmaydi (JS sinovlari funksiyani shablondan ajratib oladi).
+function yukXato(tur, kod, matn) { return { yukXato: true, tur: tur, kod: kod || 0, matn: matn || '' }; }
+async function yukOl(url) {
+  let r;
+  try { r = await fetch(url); } catch (e) { throw yukXato('tarmoq'); }
+  if (!r.ok) {
+    if (r.status === 401) { yukSessiyaKor(); throw yukXato('sessiya', 401); }
+    if (r.status === 403) throw yukXato('ruxsat', 403);
+    let matn = '';
+    if (r.status >= 400 && r.status < 500) {
+      try { matn = String(xatoSababi(await r.json(), ' ')).trim(); } catch (e) { matn = ''; }
+    }
+    throw yukXato(matn ? 'rad' : 'server', r.status, matn);
+  }
+  try { return await r.json(); } catch (e) { throw yukXato('server', r.status); }
+}
+function yukSabab(e) {
+  const t = e && e.tur;
+  if (t === 'sessiya') return 'kirish muddati tugagan, qayta kiring';
+  if (t === 'ruxsat') return "ko'rish ruxsati yo'q";
+  if (t === 'tarmoq') return "internet aloqasi yo'q, sahifani yangilang";
+  if (t === 'rad' && e.matn) return e.matn;
+  return 'server javob bermadi, sahifani yangilang';
+}
+function yukXatoMatn(nima, e) { return '⚠️ ' + nima + ' yuklanmadi — ' + yukSabab(e); }
+function yukNavbat(nom) {
+  const h = yukNavbat.h || (yukNavbat.h = {});
+  const n = (h[nom] || 0) + 1;
+  h[nom] = n;
+  return () => h[nom] === n;
+}
+async function yukBlok(nom, url, chiz, xatoChiz) {
+  const joriy = yukNavbat(nom);
+  try {
+    const d = await yukOl(url);
+    if (!joriy()) return null;
+    chiz(d);
+    return null;
+  } catch (x) {
+    if (!joriy()) return null;
+    const e = (x && x.yukXato) ? x : yukXato('server');
+    if (!(x && x.yukXato)) console.error(nom + ':', x);
+    try { xatoChiz(e); } catch (y) { console.error(y); }
+    return e;
+  }
+}
+function yukXatoKor(el, matn) {
+  const x = typeof el === 'string' ? document.getElementById(el) : el;
+  if (!x) return;
+  x.textContent = matn || '';
+  x.hidden = !matn;
+}
+function yukRoyxatXato(el, matn) {
+  const x = typeof el === 'string' ? document.getElementById(el) : el;
+  if (x) x.innerHTML = '<div class="yuk-xato-qator">' + escapeHtml(matn) + '</div>';
+}
+function yukSessiyaKor() {
+  const x = document.getElementById('yukSessiya');
+  if (x) x.hidden = false;
+}
+
 function showMsg(text, type) {
   const box = document.createElement('div');
   box.style.cssText = `position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:3000;
@@ -733,6 +807,13 @@ function kichikRasm(url) {
   #tbKopMenyu[hidden]{display:none}
   #tbKopMenyu button{height:var(--h-btn);text-align:left;padding:0 12px;border:0;border-radius:8px;background:transparent;color:var(--text);font-size:14px;font-weight:600;cursor:pointer}
   #tbKopMenyu button:hover{background:var(--gold-tint)}
+  /* kech138 (zip 164): blok yuklanmadi — sabab yozuvi (`yukXatoKor`), ro'yxat ichida (`yukRoyxatXato`), sessiya (`#yukSessiya`) */
+  .yuk-xato{font-size:13px;font-weight:600;color:var(--m-b91c1c);margin:8px 0;overflow-wrap:anywhere}
+  .yuk-xato a{color:inherit;text-decoration:underline}
+  .yuk-xato-qator{text-align:center;padding:16px;color:var(--m-b91c1c);font-size:13px;font-weight:600;overflow-wrap:anywhere}
+  .yuk-xato.ichki{margin:4px 0 0;font-size:12px}
+  .grafik-bosh.xato{color:var(--m-b91c1c)}
+  .yuk-umumiy{margin:12px 20px 0}
   @media (max-width: 768px) {
     .erp-topbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 10px}
     .erp-topbar .tb-left{flex:1 1 0;min-width:0}
@@ -1250,6 +1331,8 @@ function kichikRasm(url) {
       });
     })();
     </script>
+    {# kech138 (zip 164): sahifa bloki yuklanayotganda sessiya tugasa (401) — `yukOl` ochadi #}
+    <p class="yuk-xato yuk-umumiy" id="yukSessiya" role="alert" hidden>⚠️ Kirish muddati tugagan — <a href="/login">qayta kiring</a></p>
     {# Kontent #}
     {% block content %}{% endblock %}
   </div>

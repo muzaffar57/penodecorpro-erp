@@ -68,6 +68,9 @@ html[data-theme="dark"]{
 .fin-hero-label{ font-size:13px; font-weight:600; color:var(--f-text3); text-transform:uppercase; letter-spacing:.04em; }
 .fin-hero-value{ font-size:32px; font-weight:800; color:var(--f-text); margin-top:6px; letter-spacing:-.02em; line-height:1.15; }
 .fin-hero-sub{ font-size:13px; color:var(--f-text3); margin-top:6px; display:flex; align-items:center; gap:5px; }
+/* kech138 (zip 164): blok yuklanmadi — kartadagi kichik izoh qizil; qora kassa kartasida sabab yorug' qizil (≥ 4.5:1) */
+.fin-hero-sub.yuk-qizil{ color:var(--m-b91c1c); }
+.yuk-xato.qora-fonda{ color:var(--m-f87171); }
 
 @keyframes finFadeIn{ to{ opacity:1; transform:translateY(0); } }
 .fin-hero-card:nth-child(1){ animation-delay:.02s; }
@@ -293,11 +296,14 @@ html[data-theme="dark"]{
 <div class="fin-wrap">
 
   <!-- ═══ 0-QATOR: KASSA + BANK (hozir qancha pul bor — naqd, karta, bank; kech118 D-1, G3-14 — egasi QARORI) ═══ -->
+  {# kech138 (zip 164, O'LCHANGAN): kassa so'rovlari «Kassa: Ko'rish» ruxsatini so'raydi — ruxsatsiz rolga blok chizilmaydi va so'ralmaydi #}
+  {% if current_user.ruxsat('kassa', 'korish') %}
   <div class="fin-section">
     <div style="background:linear-gradient(135deg,#111827,#1F2937);border-radius:16px;padding:22px 26px;color:#fff;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px">
       <div>
         <div style="font-size:13px;color:#CBD5E1;font-weight:600;text-transform:uppercase;letter-spacing:.04em">💰 Kassa + bank — hozir qancha pul bor</div>
         <div id="cash-balance-val" style="font-size:32px;font-weight:800;margin-top:6px">—</div>
+        <p class="yuk-xato qora-fonda" id="xato-kassa" hidden></p>
         <div style="font-size:13px;color:#CBD5E1;margin-top:4px">naqd, karta va bank o'tkazmasi — hammasi birga</div>
         <div id="cash-boshlangich-yoq" hidden style="margin-top:10px;background:rgba(251,191,36,.14);border:1px solid rgba(251,191,36,.5);border-radius:10px;padding:10px 12px;font-size:13px;color:#FDE68A;line-height:1.5;max-width:560px">
           ⚠️ Boshlang'ich balans kiritilmagan — dasturni ishlata boshlagan kundagi pulingiz hisobda yo'q, shuning uchun summa noto'g'ri (masalan manfiy) chiqishi mumkin.
@@ -319,6 +325,7 @@ html[data-theme="dark"]{
       <div id="cashTxHistoryList" style="display:none;background:var(--f-card);border:1px solid var(--f-border);border-radius:10px;padding:4px 14px"></div>
     </div>
   </div>
+  {% endif %}
 
   <!-- ═══ 1-QATOR: HERO KPI (Bugungi holat) ═══ -->
   <div class="fin-section">
@@ -326,6 +333,7 @@ html[data-theme="dark"]{
       <div class="fin-section-title"><i class="ti ti-calendar-event"></i> Bugungi holat <span id="daily-date" style="font-weight:500;color:var(--f-text3);font-size:13px"></span></div>
       <span id="daily-loading" style="font-size:12px;color:var(--f-text3)"></span>
     </div>
+    <p class="yuk-xato" id="xato-bugun" hidden></p>
     <div class="fin-hero-grid" id="heroGrid">
       <div class="fin-hero-card">
         <div class="fin-hero-icon" style="background:var(--f-success-tint);color:var(--f-success)"><i class="ti ti-trending-up"></i></div>
@@ -349,12 +357,14 @@ html[data-theme="dark"]{
         <div class="fin-hero-value" id="hero-foyda">—</div>
         <div class="fin-hero-sub" id="hero-tannarx-sub">—</div>
       </div>
+      {% if current_user.ruxsat('kassa', 'korish') %}
       <div class="fin-hero-card">
         <div class="fin-hero-icon" style="background:var(--f-warning-tint);color:var(--f-warning)"><i class="ti ti-arrows-exchange"></i></div>
         <div class="fin-hero-label">Pul oqimi</div>
         <div class="fin-hero-value" id="hero-oqim">—</div>
         <div class="fin-hero-sub" id="hero-oqim-sub">Olingan − to'langan pul (bugun)</div>
       </div>
+      {% endif %}
     </div>
 
     <!-- Bugungi xarajat — ixcham batafsil panel (Xarajat kartasidagi "Batafsil" bosilganda ochiladi) -->
@@ -399,10 +409,15 @@ html[data-theme="dark"]{
       <div class="fin-mini-card"><div class="fin-mini-label">Tannarx</div><div class="fin-mini-value" id="r-tannarx" style="color:var(--f-danger)">—</div></div>
       <div class="fin-mini-card"><div class="fin-mini-label">Xarajat</div><div class="fin-mini-value" id="r-xarajat" style="color:var(--f-danger)">—</div></div>
       <div class="fin-mini-card"><div class="fin-mini-label">Sof foyda</div><div class="fin-mini-value" id="r-foyda">—</div></div>
-      <div class="fin-mini-card"><div class="fin-mini-label">Ombor qiymati</div><div class="fin-mini-value" id="r-ombor">—</div></div>
+      {% if current_user.ruxsat('material', 'korish') %}
+      <div class="fin-mini-card"><div class="fin-mini-label">Ombor qiymati</div><div class="fin-mini-value" id="r-ombor">—</div>
+        <p class="yuk-xato ichki" id="xato-ombor" hidden></p></div>
+      {% endif %}
       <div class="fin-mini-card"><div class="fin-mini-label">Buyurtmalar</div><div class="fin-mini-value" id="r-buyurtma">—</div></div>
       <div class="fin-mini-card"><div class="fin-mini-label">Rentabellik</div><div class="fin-mini-value" id="r-foiz" style="color:var(--f-success)">—</div></div>
     </div>
+
+    <p class="yuk-xato" id="xato-hisobot" hidden></p>
 
     <div id="emptyState" class="fin-card">
       <div class="fin-empty">
@@ -421,6 +436,7 @@ html[data-theme="dark"]{
     <div class="fin-section">
       <div class="fin-section-title" style="margin-bottom:12px"><i class="ti ti-scale"></i> Qarzlar va majburiyatlar</div>
       <div class="fin-card" style="padding:20px">
+        <p class="yuk-xato" id="xato-qarzlar" hidden></p>
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px" id="debt-summary-grid">
           <div class="dg-box" style="background:var(--f-f0fdf4);border-radius:12px;padding:14px">
             <div style="font-size:12px;font-weight:600;color:var(--m-166534);margin-bottom:6px">💚 Bizga qarzdorlar</div>
@@ -451,7 +467,7 @@ html[data-theme="dark"]{
     </div>
 
     <!-- ═══ 4-QATOR: MOLIYAVIY TAHLILLAR ═══ -->
-    <div class="fin-section">
+    <div class="fin-section" id="hisobotTahlil">
       <div class="fin-analytics-grid">
 
         <!-- Naqd xarajatlar -->
@@ -534,6 +550,8 @@ html[data-theme="dark"]{
             <button class="btn btn-outline" onclick="downloadSplitProfitPdf()" title="Yo'nalishlar bo'yicha moliyaviy natija — PDF (shu davr)"><i class="ti ti-file-type-pdf"></i> PDF</button>
           </div>
         </div>
+        <p class="yuk-xato" id="xato-yonalish" hidden></p>
+        <div id="yonMazmun">
         <div id="yonKartalar" class="yon-kartalar"></div>
         <div id="yonOgoh" style="display:none;margin:0 0 12px;padding:9px 12px;border-radius:10px;background:var(--f-danger-tint);color:var(--m-b91c1c);font-size:13px"></div>
         <div class="yon-asosiy">
@@ -557,10 +575,13 @@ html[data-theme="dark"]{
             </div>
           </div>
         </div>
+        </div>
       </div></div>
     </div>
 
     <!-- ═══ 5-QATOR: TRANZAKSIYALAR JADVALI ═══ -->
+    {# kech138 (zip 164): ro'yxat «Kunlik xarajatlar: Ko'rish» ruxsatini so'raydi — ruxsatsiz rolga chizilmaydi #}
+    {% if current_user.ruxsat('kunlik', 'korish') %}
     <div class="fin-section">
       <div class="fin-card">
         <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:1px solid var(--f-border);flex-wrap:wrap;gap:10px">
@@ -598,6 +619,7 @@ html[data-theme="dark"]{
         </div>
       </div>
     </div>
+    {% endif %}
 
   </div>
 </div>
@@ -688,24 +710,33 @@ html[data-theme="dark"]{
 <script>
 const fmtCash = n => Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' ');
 
+// kech138 (zip 164, O'LCHANGAN — work/k164/olchov164.py, zip 163 kodi): xato JSON (500 / 401 / 403) «0 so'm» bo'lib chizilardi
+// (haqiqiy qoldiq −17 755 000), 502 / tarmoq — «—» va sababsiz. Endi `yukBlok`: xato — «—» va kartada sabab (`#xato-kassa`).
+// «Kassa: Ko'rish» ruxsati yo'q — karta chizilmaydi va so'ralmaydi.
 async function loadCashBalance(){
-  try {
-    const d = await fetch('/api/finance/cash-balance').then(r=>r.json());
-    const el = document.getElementById('cash-balance-val');
-    if (el) {
-      const isNegative = d.balance < 0;
-      // 2026-09-13: avval manfiy balans juda yumshoq (#FCA5A5) rangda edi —
-      // bu raqam butun ilovadagi eng jiddiy ko'rsatkichlardan biri bo'lgani
-      // uchun, endi ilovaning standart "xavfli" rangida (--red) va ⚠️
-      // belgisi bilan chiqadi.
-      el.textContent = (isNegative ? '⚠️ ' : '') + fmtCash(d.balance) + " so'm";
-      el.style.color = isNegative ? 'var(--m-f87171)' : '#fff';   // kech118 (U-03): qorong'i kartada o'qiladigan qizil
-    }
+  const el = document.getElementById('cash-balance-val');
+  if (!el) return null;
+  return yukBlok('kassa', '/api/finance/cash-balance', d => {
+    if (!d || typeof d.balance !== 'number') throw yukXato('server');
+    const isNegative = d.balance < 0;
+    // 2026-09-13: avval manfiy balans juda yumshoq (#FCA5A5) rangda edi —
+    // bu raqam butun ilovadagi eng jiddiy ko'rsatkichlardan biri bo'lgani
+    // uchun, endi ilovaning standart "xavfli" rangida (--red) va ⚠️
+    // belgisi bilan chiqadi.
+    el.textContent = (isNegative ? '⚠️ ' : '') + fmtCash(d.balance) + " so'm";
+    el.style.color = isNegative ? 'var(--m-f87171)' : '#fff';   // kech118 (U-03): qorong'i kartada o'qiladigan qizil
     // kech118 (D-1, G3-14): boshlang'ich balans kiritilmagan — ogohlantirish va tugma
     const bosh = document.getElementById('cash-boshlangich-yoq');
     if (bosh) bosh.hidden = d.boshlangich_kiritilgan !== false;
     if (typeof boshlangichKiritilgan !== 'undefined') boshlangichKiritilgan = d.boshlangich_kiritilgan;   // kech120 (G3-15)
-  } catch(e) { console.error(e); }
+    yukXatoKor('xato-kassa', '');
+  }, e => {
+    el.textContent = '—';
+    el.style.color = '#fff';
+    const bosh = document.getElementById('cash-boshlangich-yoq');
+    if (bosh) bosh.hidden = true;
+    yukXatoKor('xato-kassa', yukXatoMatn("Kassa qoldig'i", e));
+  });
 }
 
 let cashTxHistoryLoaded = false;
@@ -722,10 +753,12 @@ async function toggleCashTxHistory(){
   if (opening) await loadCashTxHistory();
 }
 
+// kech138 (zip 164, O'LCHANGAN): xato JSON — «Hali qo'lda kiritilgan yozuv yo'q» (yozuvlar bor edi); tarmoq / 502 — «Yuklashda
+// xato» (sababsiz). Endi `yukBlok` — sabab ro'yxat ichida.
 async function loadCashTxHistory(){
   const list = document.getElementById('cashTxHistoryList');
-  try {
-    const rows = await fetch('/api/finance/cash-transactions').then(r=>r.json());
+  return yukBlok('kassa_tarix', '/api/finance/cash-transactions', rows => {
+    if (!Array.isArray(rows)) throw yukXato('server');
     if (!rows.length) {
       list.innerHTML = '<div style="padding:12px 0;color:var(--f-text3);font-size:13px">Hali qo\'lda kiritilgan yozuv yo\'q</div>';
       return;
@@ -748,9 +781,7 @@ async function loadCashTxHistory(){
         </div>
       </div>`;
     }).join('');
-  } catch(e) {
-    list.innerHTML = '<div style="padding:12px 0;color:var(--m-dc2626);font-size:13px">Yuklashda xato</div>';
-  }
+  }, e => yukRoyxatXato(list, yukXatoMatn('Kassa tarixi', e)));
 }
 
 const CASH_TX_LABELS = {
@@ -778,10 +809,12 @@ async function fillEhsonAmount(){
   const origText = btn.textContent;
   btn.textContent = 'Yuklanmoqda...';
   btn.disabled = true;
+  // kech138 (zip 164, O'LCHANGAN): hisobot xato JSON bersa maydonga «0» yozilib «Bu oy uchun hisoblangan Ehson yo'q» derdi (yolg'on) —
+  // endi maydon o'zgarmaydi, tugmada sabab
   try {
     const tk = tkHozir();     // kech106: joriy oy — Toshkent
-    const res = await fetch(`/api/finance/report?year=${tk.yil}&month=${tk.oy}`);
-    const d = await res.json();
+    const d = await yukOl(`/api/finance/report?year=${tk.yil}&month=${tk.oy}`);
+    if (!d || typeof d !== 'object' || Array.isArray(d)) throw yukXato('server');
     const amount = d.ehson_xarajat || 0;
     // 124-band (kech95): hisoblangan summa tiyini bilan (ilgari `fmtFull` — butun so'm, saqlashda yaxlitlanardi)
     document.getElementById('cashtx-amount').value = narxKorinishi(amount);
@@ -792,9 +825,9 @@ async function fillEhsonAmount(){
       btn.textContent = origText;
       btn.disabled = false;
     }
-  } catch(e) {
-    btn.textContent = 'Xato — qayta urinib ko\'ring';
-    setTimeout(() => { btn.textContent = origText; btn.disabled = false; }, 2000);
+  } catch(x) {
+    btn.textContent = '⚠️ Yuklanmadi — ' + yukSabab((x && x.yukXato) ? x : yukXato('server'));
+    setTimeout(() => { btn.textContent = origText; btn.disabled = false; }, 3000);
   }
 }
 
@@ -987,23 +1020,76 @@ function downloadSplitProfitPdf(){
 
 // kech117 (zip 115 jonli sinovi): `txSaqla` — xarajat qo'shilgach / tahrirlangach / o'chirilgach hisobot, kartalar va
 // yo'nalishlar jadvali yangilanadi, kunlik ro'yxat sanasi joyida qoladi (ilgari sahifa qayta ochilmaguncha eski raqamlar).
+// kech138 (zip 164, O'LCHANGAN — work/k164/olchov164.py, zip 163 kodi): hisobot, ombor qiymati va qarzlar bitta `Promise.all` da
+// edi — internet uzilsa hammasi to'xtardi (xabarsiz, xarajatlar ro'yxati va yo'nalishlar ham yuklanmasdi); boshqa oy tanlanganda
+// hisobot kelmasa (502 / 500 / 401 / 403 / tarmoq) ekranda OLDINGI oyning daromadi, xarajati, sof foydasi, qarzlari qolardi
+// (tanlovda esa yangi oy); qarzlar kelmasa — eski oy qiymatlari jimgina qolardi; sekin eski javob yangi oy ustiga yozilardi.
+// Endi har blok alohida (`yukOl`), xato — o'sha blokda sabab, eski oy raqami ko'rinmaydi, eski javob tashlanadi (`yukNavbat`);
+// hisobot kelmasa ham qarzlar, yo'nalishlar va xarajatlar ro'yxati yuklanadi. «Ombor qiymati» — «Materiallar: Ko'rish» bilan.
 async function loadReport(opts){
   const txSaqla = !!(opts && opts.txSaqla);
   const month=document.getElementById('sel-month').value;
   const year=document.getElementById('sel-year').value;
-  const [res, invRes, debtRes] = await Promise.all([
-    fetch(`/api/finance/report?year=${year}&month=${month}`),
-    fetch('/api/inventory/kpi').catch(()=>null),
-    fetch(`/api/finance/debt-summary?year=${year}&month=${month}`).catch(()=>null)
+  const joriy = yukNavbat('hisobot');
+  const omborEl = document.getElementById('r-ombor');
+  const [rep, inv, dg] = await Promise.allSettled([
+    yukOl(`/api/finance/report?year=${year}&month=${month}`),
+    omborEl ? yukOl('/api/inventory/kpi') : Promise.resolve(null),
+    yukOl(`/api/finance/debt-summary?year=${year}&month=${month}`)
   ]);
-  if(!res.ok){alert('❌ ' + ((typeof serverXatoSababi === 'function') ? await serverXatoSababi(res, 'Hisobot yuklanmadi') : 'Hisobot yuklanmadi'));return;}
-  const d=await res.json();
+  if (!joriy()) return;
+  document.getElementById('monthlyReportWrap').style.display='block';
+  document.getElementById('emptyState').style.display='none';
+  hisobotChiz(rep, year, month);
+  if (omborEl) {
+    const v = inv.status === 'fulfilled' ? inv.value : null;
+    if (v && typeof v === 'object' && (typeof v.total_value === 'number' || v.total_value === null)) {
+      omborEl.textContent = v.total_value === null ? '—' : fmt(v.total_value)+" so'm";   // null — narx ruxsati yo'q
+      yukXatoKor('xato-ombor', '');
+    } else {
+      omborEl.textContent = '—';
+      yukXatoKor('xato-ombor', yukXatoMatn('Ombor qiymati', (inv.reason && inv.reason.yukXato) ? inv.reason : yukXato('server')));
+    }
+  }
+  qarzlarChiz(dg);
+  if (!txSaqla) initDailyTx();
+  loadYonalishlar();
+}
+
+// hisobot kelmasa — oylik kartalar va «Moliyaviy tahlillar» yashiriladi (eski oy raqami qolmaydi), sabab — `#xato-hisobot`
+function hisobotXato(e){
+  currentData = null;
+  if (typeof korsatilganOy !== 'undefined') korsatilganOy = null;   // PDF — tanlangan oy
+  document.getElementById('finReport').style.display = 'none';
+  const tahlil = document.getElementById('hisobotTahlil');
+  if (tahlil) tahlil.style.display = 'none';
+  yukXatoKor('xato-hisobot', yukXatoMatn('Oylik hisobot', e));
+}
+
+function hisobotChiz(rep, year, month){
+  const d = rep.status === 'fulfilled' ? rep.value : null;
+  if (!d || typeof d !== 'object' || Array.isArray(d) || !d.xarajatlar) {
+    hisobotXato((rep.reason && rep.reason.yukXato) ? rep.reason : yukXato('server'));
+    return;
+  }
+  try {
+    hisobotKartalar(d);
+    buildExpDetail(d);
+    buildCashSection(d);
+  } catch (x) {
+    console.error(x);
+    hisobotXato(yukXato('server'));
+    return;
+  }
   currentData=d;
   if (typeof korsatilganOy !== 'undefined') korsatilganOy = {year, month};      // kech120 (G3-20): PDF shu oyni oladi
   document.getElementById('finReport').style.display='grid';
-  document.getElementById('monthlyReportWrap').style.display='block';
-  document.getElementById('emptyState').style.display='none';
+  const tahlil = document.getElementById('hisobotTahlil');
+  if (tahlil) tahlil.style.display = '';
+  yukXatoKor('xato-hisobot', '');
+}
 
+function hisobotKartalar(d){
   document.getElementById('r-daromad').textContent=fmt(d.daromad)+" so'm";
   // kech117 (G6-09): Tannarx alohida karta (Hisobotlar / Dashboard bilan bir: Daromad − Tannarx − Xarajat = Sof foyda)
   // kech118 (ROLLAR 2-qism): «Tannarx va foyda» ruxsati yo'q — tannarx, sof foyda, rentabellik null → «—»
@@ -1015,14 +1101,20 @@ async function loadReport(opts){
   // kech115 (G1-04): manfiy rentabellik — qizil (ilgari doim yashil)
   document.getElementById('r-foiz').style.color = d.foyda_foiz === null ? 'var(--f-text2)' : ((Number(d.foyda_foiz) || 0) < 0 ? 'var(--f-danger)' : 'var(--f-success)');
   document.getElementById('r-buyurtma').textContent=d.buyurtmalar_soni+' ta';
+}
 
-  if (invRes && invRes.ok) {
-    const inv = await invRes.json();
-    document.getElementById('r-ombor').textContent = fmt(inv.total_value)+" so'm";
+// qarzlar kelmasa — hamma qiymat «—» (eski oy qiymati qolmaydi), sabab — `#xato-qarzlar`
+function qarzlarChiz(nat){
+  const dg = nat.status === 'fulfilled' ? nat.value : null;
+  if (!dg || typeof dg !== 'object' || Array.isArray(dg) || typeof dg.customer_debt !== 'number') {
+    ['dg-customer', 'dg-customer-n', 'dg-supplier', 'dg-supplier-n', 'dg-employee', 'dg-employee-n', 'dg-recurring', 'dg-recurring-n',
+     'dg-net'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '—'; });
+    const net = document.getElementById('dg-net');
+    if (net) net.style.color = '';
+    yukXatoKor('xato-qarzlar', yukXatoMatn('Qarzlar', (nat.reason && nat.reason.yukXato) ? nat.reason : yukXato('server')));
+    return;
   }
-
-  if (debtRes && debtRes.ok) {
-    const dg = await debtRes.json();
+  {
     document.getElementById('dg-customer').textContent = fmt(dg.customer_debt)+" so'm";
     document.getElementById('dg-customer-n').textContent = dg.customer_debt_count+" ta loyiha";
     document.getElementById('dg-supplier').textContent = fmt(dg.supplier_debt)+" so'm";
@@ -1036,11 +1128,7 @@ async function loadReport(opts){
     netEl.textContent = sign + fmt(Math.abs(dg.net_position)) + " so'm";
     netEl.style.color = dg.net_position >= 0 ? 'var(--m-15803d)' : 'var(--m-dc2626)';
   }
-
-  buildExpDetail(d);
-  buildCashSection(d);
-  if (!txSaqla) initDailyTx();
-  loadYonalishlar();
+  yukXatoKor('xato-qarzlar', '');
 }
 
 // ── kech117 (A2) / kech118 (egasi QARORI 15:23 — tugmali javoblar 15:30): YO'NALISHLAR BO'YICHA MOLIYAVIY NATIJA ──────
@@ -1105,17 +1193,32 @@ function yonDavrOzgardi() {
 }
 let yonTarkibInst = null;
 const YON_TARKIB_RANGLAR = ['#2563EB', '#D97706', '#16A34A', '#9333EA', '#DC2626', '#0891B2', '#64748B', '#DB2777'];
+// kech138 (zip 164, O'LCHANGAN): har qanday xato (502 / 500 / tarmoq / 401 / 403) bo'limni jimgina yashirardi — «bitta
+// yo'nalish» (bo'lim kerak emas) bilan farqi yo'q edi. Endi xato — bo'lim ko'rinadi, mazmun o'rnida sabab (`#xato-yonalish`;
+// noto'g'ri davr — serverning sababi); bo'lim faqat haqiqatan bitta yo'nalish bo'lsa yashiriladi. Davr tez almashtirilsa
+// eski javob tashlanadi (`yukNavbat`).
 async function loadYonalishlar() {
   const bolim = document.getElementById('yonBolim');
   const p = yonDavrParam();
   if (p.xato) { showMsg(p.xato, 'error'); return; }
+  const joriy = yukNavbat('yonalish');
+  const mazmun = document.getElementById('yonMazmun');
   let d = null;
   try {
-    const r = await fetch(`/api/finance/yonalishlar?${p.qs}`);
-    if (r.ok) d = await r.json();
-    else if (r.status === 400) showMsg(await serverXatoSababi(r, "Davr noto'g'ri"), 'error');
-  } catch (e) { d = null; }
-  if (!d || !Array.isArray(d.yonalishlar) || !(d.korinadigan_soni > 1 || d.yonalishlar.length > 1)) {
+    d = await yukOl(`/api/finance/yonalishlar?${p.qs}`);
+    if (!d || typeof d !== 'object' || !Array.isArray(d.yonalishlar)) throw yukXato('server');
+  } catch (x) {
+    if (!joriy()) return;
+    bolim.style.display = 'block';
+    if (mazmun) mazmun.style.display = 'none';
+    document.getElementById('yonDavrNomi').textContent = '';
+    yukXatoKor('xato-yonalish', yukXatoMatn("Yo'nalishlar bo'yicha natija", (x && x.yukXato) ? x : yukXato('server')));
+    return;
+  }
+  if (!joriy()) return;
+  yukXatoKor('xato-yonalish', '');
+  if (mazmun) mazmun.style.display = '';
+  if (!(d.korinadigan_soni > 1 || d.yonalishlar.length > 1)) {
     bolim.style.display = 'none';
     return;
   }
@@ -1449,7 +1552,9 @@ function buildRevDonut(d){
 
   const entries = royxat.map((y, i) => [y.nom, Number(y.daromad), y.kalit === 'belgilanmagan' ? '#DC2626' : YON_RANGLAR[i % YON_RANGLAR.length]]);
 
-  revDonutInst = new Chart(document.getElementById('revDonutChart'), {
+  // kech138 (zip 164, O'LCHANGAN): Chart.js (CDN) yuklanmasa `new Chart` yiqilib, hisobotning qolgani (xarajatlar ro'yxati,
+  // yo'nalishlar) yuklanmasdi — endi doira chizilmaydi, raqamlar va ro'yxat baribir chiqadi
+  if (typeof Chart !== 'undefined') revDonutInst = new Chart(document.getElementById('revDonutChart'), {
     type: 'doughnut',
     data: { labels: entries.map(e=>e[0]), datasets: [{ data: entries.map(e=>e[1]), backgroundColor: entries.map(e=>e[2]), borderWidth: 2, borderColor: '#fff' }] },
     options: {
@@ -1488,6 +1593,7 @@ function toggleTodayDetail(){
 
 // ── KUNLIK TRANZAKSIYALARNI BOSHLASH ────────────────────────
 function initDailyTx(){
+  if (!document.getElementById('tx-date')) return;   // kech138 (zip 164): «Kunlik xarajatlar: Ko'rish» ruxsati yo'q — ro'yxat yo'q
   const y = document.getElementById('sel-year').value, m = document.getElementById('sel-month').value;
   document.getElementById('tx-date').value = `${y}-${String(m).padStart(2,'0')}-01`;
   loadDailyTransactions();
@@ -1513,9 +1619,20 @@ async function loadDailyTransactions(){
 
   const tbody = document.getElementById('tx-body');
   tbody.innerHTML = `<tr><td colspan="7" style="padding:20px"><div class="fin-skeleton" style="height:16px;width:100%"></div></td></tr>`.repeat(1);
+  // kech138 (zip 164, O'LCHANGAN): xato JSON (500 / 401 / 403) — «Tranzaksiya topilmadi — Tanlangan davrda hech qanday xarajat
+  // yozilmagan» (xarajatlar bor edi); endi sabab jadvalda; sana / turkum tez almashtirilsa eski javob tashlanadi
+  const joriy = yukNavbat('xarajatlar');
   try {
-    const res = await fetch(url);
-    const rows = await res.json();
+    let rows;
+    try {
+      rows = await yukOl(url);
+      if (!Array.isArray(rows)) throw yukXato('server');
+    } catch (x) {
+      if (!joriy()) return;
+      tbody.innerHTML = `<tr><td colspan="7"><div class="yuk-xato-qator">${escapeHtml(yukXatoMatn('Xarajatlar ro\'yxati', (x && x.yukXato) ? x : yukXato('server')))}</div></td></tr>`;
+      return;
+    }
+    if (!joriy()) return;
     if (!rows.length) {
       tbody.innerHTML = `<tr><td colspan="7"><div class="fin-empty" style="padding:32px"><i class="ti ti-receipt-off"></i><div class="fin-empty-title">Tranzaksiya topilmadi</div><div style="font-size:13px">Tanlangan davrda hech qanday xarajat yozilmagan</div></div></td></tr>`;
       return;
@@ -1664,12 +1781,29 @@ async function deleteTx(id){
   } catch(e) { alert('Server xatosi'); }
 }
 
+// kech138 (zip 164, O'LCHANGAN): kunlik hisobot yuklanmasa — «Xato yuz berdi» (sababsiz), «Batafsil» ro'yxatlarida yolg'on «Bugun
+// xarid bo'lmagan»; xato JSON da Pul oqimi so'ralmasdi. Endi sabab — `#xato-bugun`, qiymatlar «—»; Pul oqimi alohida
+// (`bugungiOqim`, «Kassa: Ko'rish» ruxsati bilan) — kunlik hisobot kelmasa ham Toshkent bugungi sanasi bilan yuklanadi.
 async function loadDailyFinance() {
   const loadingEl = document.getElementById('daily-loading');
   loadingEl.textContent = 'Yuklanmoqda...';
+  let d;
   try {
-    const res = await fetch('/api/finance/daily');
-    const d = await res.json();
+    d = await yukOl('/api/finance/daily');
+    if (!d || typeof d !== 'object' || !d.sales || !d.expenses) throw yukXato('server');
+  } catch (x) {
+    loadingEl.textContent = '';
+    ['hero-savdo', 'hero-savdo-sub', 'hero-xarajat', 'hero-foyda', 'hero-tannarx-sub'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.textContent = '—'; });
+    ['d-material-list', 'd-transport-total', 'd-other-list'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.innerHTML = '<div class="fin-breakdown-empty">—</div>'; });
+    yukXatoKor('xato-bugun', yukXatoMatn('Bugungi holat', (x && x.yukXato) ? x : yukXato('server')));
+    const t = tkHozir();
+    await bugungiOqim(`${t.yil}-${String(t.oy).padStart(2, '0')}-${String(t.kun).padStart(2, '0')}`);
+    return;
+  }
+  yukXatoKor('xato-bugun', '');
+  try {
     loadingEl.textContent = '';
 
     document.getElementById('daily-date').textContent = tkSana(d.date, 'uz', {day:'numeric', month:'long', year:'numeric'});
@@ -1687,23 +1821,7 @@ async function loadDailyFinance() {
     // kech116 (G1-03 — egasi QARORI «Pul oqimi — haqiqiy pul»): bugun mijozlardan OLINGAN pul − haqiqatda TO'LANGAN pul
     // (`/api/finance/pul-oqimi?sana=` — Hisobotlar, Dashboard va kassa bilan BITTA qoida). Ilgari «Savdo − Xarajat»
     // (yakunlangan buyurtmalar summasi − xarid) edi — pul emas.
-    const oqimEl = document.getElementById('hero-oqim');
-    try {
-      const pr = await fetch(`/api/finance/pul-oqimi?sana=${encodeURIComponent(d.date)}`);
-      const po = pr.ok ? await pr.json() : null;
-      if (po && typeof po.balans === 'number') {
-        // kech115 (G3-10, O'LCHANGAN — audit: 1 674 000 − 25 480 000 kartada «23 806 000 so'm» — minus tashlanardi, farqi
-        // faqat rangda): ishora saqlanadi
-        animateCounter(oqimEl, po.balans, " so'm");
-        oqimEl.style.color = po.balans < 0 ? 'var(--f-danger)' : '';
-        document.getElementById('hero-oqim-sub').textContent =
-          `Olingan ${fmtFull(po.kirim)} − to'langan ${fmtFull(po.chiqim)} so'm (bugun)`;
-      } else {
-        oqimEl.textContent = '—';
-      }
-    } catch (e) {
-      oqimEl.textContent = '—';
-    }
+    await bugungiOqim(d.date);
 
     // (Jami xarajat summasi allaqachon "hero-xarajat" kartasida ko'rsatilgan)
 
@@ -1730,7 +1848,34 @@ async function loadDailyFinance() {
       othList.innerHTML = '<div class="fin-breakdown-empty">Bugun boshqa xarajat yo\'q</div>';
     }
   } catch(e) {
-    loadingEl.textContent = 'Xato yuz berdi';
+    console.error(e);
+    yukXatoKor('xato-bugun', yukXatoMatn('Bugungi holat', yukXato('server')));
+  }
+}
+
+// Bugungi pul oqimi (kartasi faqat «Kassa: Ko'rish» ruxsati bilan): xato — «—» va kartada sabab
+async function bugungiOqim(sana) {
+  const oqimEl = document.getElementById('hero-oqim');
+  if (!oqimEl) return;
+  const sub = document.getElementById('hero-oqim-sub');
+  try {
+    const po = await yukOl(`/api/finance/pul-oqimi?sana=${encodeURIComponent(sana)}`);
+    if (!po || typeof po.balans !== 'number') throw yukXato('server');
+    // kech115 (G3-10, O'LCHANGAN — audit: 1 674 000 − 25 480 000 kartada «23 806 000 so'm» — minus tashlanardi, farqi
+    // faqat rangda): ishora saqlanadi
+    animateCounter(oqimEl, po.balans, " so'm");
+    oqimEl.style.color = po.balans < 0 ? 'var(--f-danger)' : '';
+    if (sub) {
+      sub.textContent = `Olingan ${fmtFull(po.kirim)} − to'langan ${fmtFull(po.chiqim)} so'm (bugun)`;
+      sub.classList.remove('yuk-qizil');
+    }
+  } catch (x) {
+    oqimEl.textContent = '—';
+    oqimEl.style.color = '';
+    if (sub) {
+      sub.textContent = yukXatoMatn('Pul oqimi', (x && x.yukXato) ? x : yukXato('server'));
+      sub.classList.add('yuk-qizil');
+    }
   }
 }
 
