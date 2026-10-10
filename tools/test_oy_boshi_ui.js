@@ -83,6 +83,13 @@ function yukla(ctx, src, nomlar) {
   return yoq;
 }
 const BASE_YORDAM = ['escapeHtml', 'sonKor', 'foizKor', 'birlikKor', 'matnRangi'];
+// kech138 (zip 164, MOSLANDI): reports.html yuklovchilari endi base.html dagi umumiy yuklash yordamchilari bilan (`yukBlok`, `yukOl`,
+// `yukNavbat` …) — bo'lsa birga yuklanadi (eski shablonda yo'q — kod o'zgarmagan holda ishlaydi)
+const YUK_YORDAM = ['xatoSababi', 'yukXato', 'yukOl', 'yukSabab', 'yukXatoMatn', 'yukNavbat', 'yukBlok', 'yukXatoKor', 'yukRoyxatXato',
+  'yukSessiyaKor'];
+function yuklaBorlari(ctx, src, nomlar) {
+  for (const n of nomlar) { const k = olib(src, n); if (k) vm.runInContext(k, ctx); }
+}
 function soxtaFetch(javob) {
   return async (url) => {
     const kalit = Object.keys(javob).find(k => String(url).startsWith(k));
@@ -115,6 +122,7 @@ async function hisobotBolimi() {
     davr: DAVR,
   };
   const ctx = ctxYasa({ document, fetch: soxtaFetch({}), tkHozir: () => ({ yil: 2026, oy: 10, kun: 10 }) });
+  yuklaBorlari(ctx, BASE, YUK_YORDAM);
   const qolgan = yukla(ctx, BASE, BASE_YORDAM)
     .concat(yukla(ctx, REPORTS, ['fmt', 'fmtQty', 'fmtShort', 'nisbatanMatni', 'davrSarlavhaMatni', 'ozgarishKorinishi',
       'topListHtml', 'loadComparison', 'loadForecast', 'loadTopRankings', 'buildAiSummary']));

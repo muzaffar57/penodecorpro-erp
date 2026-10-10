@@ -188,7 +188,8 @@ check("R1 jadval tablari: Ombor, Mahsulotlar, Ustalar / KPI, Moliya (Sotuv, Ishl
       _kr == 200 and _tablar == ["inventory", "products", "masters", "finance"]
       and not any(re.search(r"\b" + f + r"\s*\(", REP) for f in ("loadSalesReport", "loadProductionReport", "loadTopProducts",
                                                                  "loadTopMaterials")), (_kr, _tablar))
-_fr = re.search(r"async function loadFinanceReport\(\) \{[\s\S]*?\n\}", REP)
+# kech138 (zip 164, MOSLANDI): `loadFinanceReport(joriy)` — eski javobni tashlash uchun parametr oldi
+_fr = re.search(r"async function loadFinanceReport\([^)]*\) \{[\s\S]*?\n\}", REP)
 check("R2 «Moliya» jadvalida «Buyurtmalar soni» ustuni (ilgari alohida «Sotuv» jadvalida); «Bugungi xulosa» → «Oy xulosasi»",
       _fr and '["Buyurtmalar soni", h => h.buyurtmalar_soni + \' ta\']' in _fr.group(0)
       and '<div class="bi-summary-title">Oy xulosasi</div>' in REP and "Bugungi xulosa</div>" not in REP)
