@@ -115,7 +115,8 @@ DPDF = oqi("delivery_pdf.py")
 RX = oqi("ruxsatlar.py")
 check("S1 Dashboard: «Shu oy daromadi» (`/api/finance/history?months=1`), «Qarz» / «Bugungi to'lovlar» takror kartalari yo'q, tushum "
       "tarkibi; server: `today_payments` / `today_sales`", ">Shu oy daromadi<" in DASH and ">Jami daromad<" not in DASH
-      and 'id="f-debt"' not in DASH and 'id="d-today"' not in DASH and "fetch('/api/finance/history?months=1')" in DASH
+      # kech137 (zip 163, MOSLANDI): so'rov endi `dashBlok('daromad', '/api/finance/history?months=1', …)` orqali — manzil izlanadi
+      and 'id="f-debt"' not in DASH and 'id="d-today"' not in DASH and "'/api/finance/history?months=1'" in DASH
       and 'id="t-revenue-sub"' in DASH and '"today_payments": float(today_payments)' in SRV and '"today_sales": float(today_sales)' in SRV)
 check("S2 «Xarajat qo'shish»: «Bugun siz kiritganlar», o'z xarajatini o'chirish; server — `bugungi-ozim`, `…/ozim` (yaratish ruxsati, "
       "o'ziniki, bugun, qo'lda)", 'id="kx-bugun-list"' in KX and "function kxOchir(id)" in KX

@@ -419,7 +419,8 @@ if br:
         check("B6 «Yangilash»: bosilganda aylanuvchi belgi va «Yangilanmoqda…» (tugma qayta bosilmaydi), tugagach «Yangilandi: SS:DD»; "
               "majburiyatlar bloki va avans so'rovlari ham qayta so'raladi (ilgari — hech narsa ko'rinmasdi, ular yangilanmasdi)",
               _yj == {"aylan": True, "yopiq": True, "yoz": "Yangilanmoqda…"} and not _ys["aylan"] and not _ys["yopiq"]
-              and re.fullmatch(r"Yangilandi: \d{2}:\d{2}", _ys["yoz"] or "") and any(u.startswith("/api/dashboard/stats") for u in _ss)
+              # kech137 (zip 163, MOSLANDI): Dashboard `/api/dashboard/stats` ni endi so'ramaydi (javobi ishlatilmasdi) — `today`
+              and re.fullmatch(r"Yangilandi: \d{2}:\d{2}", _ys["yoz"] or "") and any(u.startswith("/api/dashboard/today") for u in _ss)
               and any(u.startswith("/api/obligations/status") for u in _ss) and any(u.startswith("/api/admin/pending-advance-requests") for u in _ss),
               (_yj, _ys, _ss))
     except Exception as _e:                # noqa: BLE001

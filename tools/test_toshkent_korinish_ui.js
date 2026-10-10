@@ -398,7 +398,11 @@ async function ichki() {
     const m = muhit({ javob: { '/api/admin/pending-advance-requests': [{ id: 1, employee_name: 'H', amount: 1, requested_date: '2026-10-01T00:00:00' }],
                                '/api/obligations/status': { recurring: [], employees: [] }, '/api/suppliers': [], '/api/suppliers/due-dates': [] },
                       // kech134 (zip 160, MOSLANDI): avans so'rovlari oynasi `_hodim_oynalari.html` da (zip 159 da — dashboard.html da)
-                      qoshimcha: fnlar(DASH + '\n' + oqi('_hodim_oynalari.html'), ['checkPendingAdvanceRequests', 'loadObligationsWidget']) });
+                      // kech137 (zip 163, MOSLANDI): `loadObligationsWidget` so'rovlarni `dashOl` / `dashNavbat` orqali yuboradi, xatoni
+                      // `dashXatoMatn` bilan yozadi — ular ham olinadi (zip 162 shablonida yo'q — `fnlar` tashlab ketadi)
+                      qoshimcha: fnlar(DASH + '\n' + oqi('_hodim_oynalari.html'), ['checkPendingAdvanceRequests', 'loadObligationsWidget',
+                                                                                     'dashXato', 'dashOl', 'dashSabab', 'dashXatoMatn',
+                                                                                     'dashRoyxatXato', 'dashNavbat']) });
     await yurgiz(m, `await checkPendingAdvanceRequests(); await loadObligationsWidget();`);
     tekshir(`T23 bosh sahifa — avans so'rovi sanasi "${S_UZ}" (faqat sana — kalendar kuni)`, m.el('advReqList').innerHTML.includes(S_UZ),
             m.el('advReqList').innerHTML.slice(0, 200));

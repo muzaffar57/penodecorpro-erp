@@ -481,7 +481,11 @@ async function dashBolimi() {
     const m = muhit(el, {}, {}, { fetch: async (u) => { urllar.push(String(u)); return javob(status, d); } });
     // kech118 (B — U-05, MOSLANDI): `loadBrakFoiz` base.html `sonKor` ni chaqiradi
     const sk = olib(BASE, 'sonKor');
-    const r = (fn && sk) ? await ishga(m, sk + '\n' + fn, 'loadBrakFoiz()') : { xato: 'topilmadi' };
+    // kech137 (zip 163, MOSLANDI): `loadBrakFoiz` so'rovni `dashBlok` / `dashOl` orqali yuboradi, xatoda «—» va sabab — yordamchilar
+    // ham olinadi (zip 162 shablonida yo'q — tashlab ketiladi)
+    const yord = ['dashXato', 'dashOl', 'dashSabab', 'dashXatoMatn', 'dashXatoKor', 'dashQiymat', 'dashNavbat', 'dashBlok']
+      .map((n) => olib(DASHBOARD, n)).filter(Boolean).join('\n');
+    const r = (fn && sk) ? await ishga(m, sk + '\n' + yord + '\n' + fn, 'loadBrakFoiz()') : { xato: 'topilmadi' };
     return { xato: r.xato, el, urllar };
   };
   let s = await sina(200, { brak_foizi: 6.5, meyor_foiz: 5, meyordan_oshdi: true, ogohlantirish: "Brak me'yordan oshdi: 6,5 % (me'yor 5 %)" });
@@ -499,8 +503,9 @@ async function dashBolimi() {
   s = await sina(200, { brak_foizi: null, meyor_foiz: 5, meyordan_oshdi: false, ogohlantirish: null });
   tekshir("D3 ulush yo'q → '—'", !s.xato && s.el['brk-foiz'].textContent === '—', s.xato || qisqa(s.el['brk-foiz']));
   s = await sina(403, { detail: 'Ruxsat yo\'q' });
-  tekshir("D4 rad (403) → hech narsa o'zgarmaydi, yiqilmaydi",
-          !s.xato && s.el['brk-foiz'].textContent === '' && s.el['brk-ogohlantirish'].style.display === 'none', s.xato);
+  // kech137 (zip 163, MOSLANDI): rad etilsa ulush «—» va sabab (zip 162 da — o'zgarishsiz bo'sh); ikkalasida ham yolg'on son yo'q
+  tekshir("D4 rad (403) → yiqilmaydi, ulush yolg'on son emas ('' yoki '—'), ogohlantirish yashirin",
+          !s.xato && ['', '—'].includes(s.el['brk-foiz'].textContent) && s.el['brk-ogohlantirish'].style.display === 'none', s.xato);
   // kech120 (zip 135 — G1, MOSLANDI): sahifa yuklanishi bitta `Promise.all` ga yig'ildi («Yangilash» tugmasi ham shuni chaqiradi) —
   // chaqiruv endi `loadBrakFoiz()` (nuqta-vergulsiz, ro'yxat ichida); funksiya ta'rifidan TASHQARIDAGI chaqiruv izlanadi
   const _dashChaqiruv = DASHBOARD.replace(/async function loadBrakFoiz\(\)\s*\{/, '');
