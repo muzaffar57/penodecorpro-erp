@@ -45,17 +45,29 @@ function tekshir(label, shart, izoh) {
 }
 function bolim(t) { console.log(`\n${'='.repeat(66)}\n${t}\n${'='.repeat(66)}`); }
 
+// kech139 (zip 166, MOSLANDI): `saveChiqim` sababni endi base.html `amalSababi` bilan o'qiydi — base.html dagi yordamchilar BOR
+// bo'lsa birga yuklanadi (eski shablonda yo'q — kod o'zgarmagan holda ishlaydi). base.html — sinalayotgan fayl yonidan, bo'lmasa repodan.
+function oqiBase() {
+  for (const p of [path.join(path.dirname(HTML_YOLI), 'base.html'), path.join(ROOT, 'templates', 'base.html')]) {
+    try { return fs.readFileSync(p, 'utf8'); } catch (e) { /* keyingisi */ }
+  }
+  return '';
+}
+const BASE = oqiBase();
+const BASE_BOR = ['xatoSababi', 'yukSessiyaKor', 'amalSababi'];
+
 // Funksiyani HTML dan nomi bo'yicha ajratib olish (`async` bilan).
-function olib(nom) {
+function olib(nom, src) {
+  src = src || SRC;
   const re = new RegExp('(async\\s+)?function\\s+' + nom + '\\s*\\(');
-  const m = re.exec(SRC);
+  const m = re.exec(src);
   if (!m) return null;
   const i = m.index;
   let d = 0;
-  const j = SRC.indexOf('{', i + m[0].length);
-  for (let k = j; k < SRC.length; k++) {
-    if (SRC[k] === '{') d++;
-    else if (SRC[k] === '}') { d--; if (d === 0) return SRC.slice(i, k + 1); }
+  const j = src.indexOf('{', i + m[0].length);
+  for (let k = j; k < src.length; k++) {
+    if (src[k] === '{') d++;
+    else if (src[k] === '}') { d--; if (d === 0) return src.slice(i, k + 1); }
   }
   return null;
 }
@@ -94,7 +106,10 @@ function muhitYarat(javob) {
 function yukla(muhit) {
   const f = olib('saveChiqim');
   if (!f) return 'topilmadi';
-  try { vm.runInContext(f, muhit.ctx); } catch (e) { return 'sintaksis: ' + e.message; }
+  try {
+    for (const n of BASE_BOR) { const b = olib(n, BASE); if (b) vm.runInContext(b, muhit.ctx); }
+    vm.runInContext(f, muhit.ctx);
+  } catch (e) { return 'sintaksis: ' + e.message; }
   return null;
 }
 
@@ -174,12 +189,16 @@ async function main() {
           !r.xato && r.m.toastlar.length === 1 && r.m.toastlar[0].indexOf('Obyekt sababi') >= 0,
           r.xato || JSON.stringify(r.m.toastlar));
   r = await ishlat(javob500jsonemas, '8');
-  tekshir('B5 JSON emas javob → "Xato yuz berdi" (qulamaydi)',
-          !r.xato && r.m.toastlar.length === 1 && r.m.toastlar[0].indexOf('Xato yuz berdi') >= 0,
+  // kech139 (zip 166, MOSLANDI): 5xx (JSON emas) — «server javob bermadi — sahifani yangilab tekshiring» (`amalSababi`; eski — «Xato yuz berdi»)
+  tekshir('B5 JSON emas javob → "Xato yuz berdi" / "server javob bermadi" (qulamaydi)',
+          !r.xato && r.m.toastlar.length === 1 && (r.m.toastlar[0].indexOf('Xato yuz berdi') >= 0
+                                                   || r.m.toastlar[0].indexOf('server javob bermadi') >= 0),
           r.xato || JSON.stringify(r.m.toastlar));
   r = await ishlat(javob422royxat, '8');
-  tekshir('B6 422 (detail ro\'yxat) → "Xato yuz berdi", [object Object] emas',
-          !r.xato && r.m.toastlar.length === 1 && r.m.toastlar[0].indexOf('Xato yuz berdi') >= 0
+  // kech139 (zip 166, MOSLANDI): pydantic ro'yxati — `xatoSababi` bilan maydon xabari («Field required»; eski — «Xato yuz berdi»)
+  tekshir('B6 422 (detail ro\'yxat) → "Xato yuz berdi" / "Field required", [object Object] emas',
+          !r.xato && r.m.toastlar.length === 1 && (r.m.toastlar[0].indexOf('Xato yuz berdi') >= 0
+                                                   || r.m.toastlar[0].indexOf('Field required') >= 0)
           && r.m.toastlar[0].indexOf('[object') < 0,
           r.xato || JSON.stringify(r.m.toastlar));
 
