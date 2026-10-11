@@ -19,6 +19,7 @@ ISHLATISH: python3 tools/test_f_hujjat.py
 import os
 import re
 import io
+import json
 import sys
 import glob
 import time
@@ -332,6 +333,21 @@ if br:
         check("B4 «Hisoblangan» — bir ma'noda: karta «bonus va kamaytirish bilan», jadvalda «Asosiy hisob»; Jami — avans minus bilan "
               "(«Avans jami -100 000 so'm»; ilgari minussiz)", "bonus va kamaytirish bilan" in _kc and "Asosiy hisob" in _jd["sar"]
               and "Hisoblangan" not in _jd["sar"] and "Avans jami -100 000 so'm" in nb(_jd["jami"]), (_kc, _jd))
+        # kech139 (zip 167, production skrinshoti 11.10): bonus / kamaytirish jami 0 bo'lsa «+0» / «-0» chiqardi — ishora faqat > 0 da
+        _nol = {"hodimlar_breakdown": [{"employee_id": 999001, "name": "Nol hodim", "detail": "", "amount": 1000000, "adjustment": 0,
+                                        "bonus": 0, "avans": 0, "qolgan": 1000000, "bonus_reason": "", "adjustment_reason": ""}]}
+        _nol_url = re.compile(r".*/api/finance/report\?year=\d+&month=\d+$")
+        pg.route(_nol_url, lambda route: route.fulfill(status=200, content_type="application/json", body=json.dumps(_nol)))
+        pg.evaluate("() => loadEmpMonthlyReport()")
+        pg.wait_for_timeout(700)
+        _jn = nb(pg.evaluate("() => document.querySelector('#empMonthlyReport .kpi-oylik-jami').innerText.replace(/\\s+/g, ' ')"))
+        pg.unroute(_nol_url)
+        check("B4b Jami ishorasi: 0 da «Bonus jami 0 so'm», «Kamaytirish jami 0 so'm», «Avans jami 0 so'm» (ilgari «+0» / «-0»); "
+              "summa bor bo'lsa «+50 000» / «-80 000»", "Bonus jami 0 so'm" in _jn and "Kamaytirish jami 0 so'm" in _jn
+              and "Avans jami 0 so'm" in _jn and "+0" not in _jn and "-0" not in _jn
+              and "Bonus jami +50 000 so'm" in nb(_jd["jami"]) and "Kamaytirish jami -80 000 so'm" in nb(_jd["jami"]), (_jn, _jd["jami"]))
+        pg.evaluate("() => loadEmpMonthlyReport()")
+        pg.wait_for_timeout(700)
         pg.evaluate(f"() => {{ window.__ar = editEmpBonus({_eid1}, 'FH', {_tk.year}, {_tk.month}, 50000, 'yaxshi'); }}")
         pg.wait_for_timeout(300)
         _v0 = pg.evaluate("() => document.getElementById('arModal-amount').value")
