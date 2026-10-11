@@ -615,6 +615,7 @@ def rol_biriktir(db: Session, user_id: int, rol_id: int, company_id: int, bajaru
     user = db.query(User).filter(User.id == user_id, User.company_id == company_id).first()
     if user is None:
         raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
+    platforma_egasi_himoyasi(user, bajaruvchi)          # kech139 (zip 167, A-X01)
     rol = rol_of_company(db, rol_id, company_id)
     if rol is None:
         raise HTTPException(status_code=400, detail="Rol topilmadi")
@@ -646,22 +647,38 @@ def get_all_users(db: Session, company_id: int) -> list:
             .order_by(User.username).all())
 
 
-def toggle_user_active(db: Session, user_id: int, company_id: int) -> Optional[User]:
+def platforma_egasi_himoyasi(user, bajaruvchi) -> None:
+    """kech139 (zip 167, AUDIT A-X01 — O'LCHANGAN): platforma egasi (`is_platform_admin`) — 1-korxonaning ODDIY `users` qatori;
+    korxona foydalanuvchilarini boshqarish (parol, faollik, rol) faqat «Admin» rolini tekshirardi — o'sha korxonaga qo'shilgan
+    BOSHQA Admin platforma egasining parolini almashtira / uni o'chira / rolini tushira olardi (platforma paneli orqali boshqa
+    korxonalarga yo'l). Endi platforma egasi hisobini faqat O'ZI o'zgartiradi; boshqa har kim — 403."""
+    if user is not None and getattr(user, "is_platform_admin", False) and (bajaruvchi is None or bajaruvchi.id != user.id):
+        raise HTTPException(status_code=403, detail="Platforma egasining hisobini faqat uning o'zi o'zgartira oladi")
+
+
+def toggle_user_active(db: Session, user_id: int, company_id: int, bajaruvchi=None) -> Optional[User]:
     """Foydalanuvchini faollashtiradi yoki o'chiradi.
 
     2026-09-18 — M1: company_id shart. Ilgari faqat id bo'yicha qidirilardi,
-    ya'ni A korxona admini B korxona adminini o'chirib qo'yishi mumkin edi."""
+    ya'ni A korxona admini B korxona adminini o'chirib qo'yishi mumkin edi.
+
+    kech139 (zip 167): platforma egasi hisobi — faqat o'zi (A-X01); AUDIT A-X03 (O'LCHANGAN): o'chirilgan foydalanuvchining
+    sessiyalari qolardi — qayta faollashtirilsa ESKI kirish (cookie) yana ishlardi. Endi o'chirishda hamma sessiyalari o'chiriladi."""
+    from models import UserSession
     user = db.query(User).filter(
         User.id == user_id, User.company_id == company_id).first()
     if not user:
         return None
+    platforma_egasi_himoyasi(user, bajaruvchi)
     user.is_active = not user.is_active
+    if not user.is_active:
+        db.query(UserSession).filter(UserSession.user_id == user.id).delete(synchronize_session=False)
     db.commit()
     return user
 
 
 def change_password(db: Session, user_id: int, new_password: str,
-                    company_id: int = None, saqlanadigan_token: str = None) -> bool:
+                    company_id: int = None, saqlanadigan_token: str = None, bajaruvchi=None) -> bool:
     """Parolni yangilaydi.
 
     2026-09-18 — M1: company_id shart (eng jiddiy topilma). Ilgari faqat id
@@ -671,7 +688,9 @@ def change_password(db: Session, user_id: int, new_password: str,
     kech116 (G6-06, O'LCHANGAN — audit kech114): parol almashtirilgach o'sha odamning boshqa kompyuter / telefondagi
     kirishi YOPILMASDI (8 soatgacha ishlayverardi) — ishdan ketgan odamni «parolini almashtirib» chiqarib bo'lmasdi.
     Endi shu foydalanuvchining HAMMA sessiyalari parol bilan BITTA tranzaksiyada o'chiriladi; faqat
-    `saqlanadigan_token` (o'z parolini almashtirayotgan odamning JORIY sessiyasi) qoladi."""
+    `saqlanadigan_token` (o'z parolini almashtirayotgan odamning JORIY sessiyasi) qoladi.
+
+    kech139 (zip 167, A-X01): platforma egasining parolini faqat o'zi almashtiradi (`bajaruvchi` — amalni bajaruvchi)."""
     from models import UserSession
     if not company_id:
         raise HTTPException(
@@ -681,6 +700,7 @@ def change_password(db: Session, user_id: int, new_password: str,
         User.id == user_id, User.company_id == company_id).first()
     if not user:
         return False
+    platforma_egasi_himoyasi(user, bajaruvchi)
     user.password_hash = hash_password(new_password)
     _sq = db.query(UserSession).filter(UserSession.user_id == user.id)
     if saqlanadigan_token:
@@ -1021,5 +1041,8 @@ def create_default_admin(db: Session):
             admin = db.query(User).filter(User.username == "admin").first()
             if admin:
                 admin.password_hash = hash_password(password)
+                # kech139 (zip 167, AUDIT A-X02): parol tiklanganda eski kirishlar ham yopiladi
+                from models import UserSession as _US139
+                db.query(_US139).filter(_US139.user_id == admin.id).delete(synchronize_session=False)
                 db.commit()
                 print(f"✓ Admin paroli yangilandi!")
