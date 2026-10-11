@@ -4475,7 +4475,7 @@ def api_create_user(data: dict, db: Session = Depends(get_db), current_user=Depe
 @app.post("/api/users/{user_id}/toggle")
 def api_toggle_user(user_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     user = auth.toggle_user_active(db, user_id,
-                                   company_id=auth.company_id_of(current_user))
+                                   company_id=auth.company_id_of(current_user), bajaruvchi=current_user)
     if not user:
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"is_active": user.is_active}
@@ -4513,7 +4513,8 @@ def api_change_password(user_id: int, data: dict, request: Request, db: Session 
     # sessiyasi qoladi (boshqa qurilmalardagi kirishlari yopiladi).
     _joriy = request.cookies.get("session_token") if user_id == current_user.id else None
     if not auth.change_password(db, user_id, new_pass,
-                                company_id=auth.company_id_of(current_user), saqlanadigan_token=_joriy):
+                                company_id=auth.company_id_of(current_user), saqlanadigan_token=_joriy,
+                                bajaruvchi=current_user):
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok", "sessiyalar_yopildi": True}
 
@@ -4622,7 +4623,9 @@ def api_rollar(db: Session = Depends(get_db), current_user=Depends(auth.admin_on
             "rollar": [_rol_dict(db, r, cid) for r in rollar],
             "foydalanuvchilar": [{"id": u.id, "username": u.username, "full_name": u.full_name or "",
                                   "is_active": bool(u.is_active), "rol_id": u.rol_id, "rol_nomi": u.rol_nomi,
-                                  "ozim": u.id == current_user.id} for u in users]}
+                                  "ozim": u.id == current_user.id,
+                                  # kech139 (zip 167, A-X01): platforma egasi roli — faqat o'zi (server 403); sahifada tanlov yo'q
+                                  "platforma_egasi": bool(getattr(u, "is_platform_admin", False))} for u in users]}
 
 
 @app.post("/api/rollar")
@@ -9881,6 +9884,10 @@ def api_platform_reset_admin_password(company_id: int, username: str = Form(""),
         alifbo = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789"
         parol = "".join(secrets.choice(alifbo) for _ in range(12))
         u.password_hash = auth.hash_password(parol)
+        # kech139 (zip 167, AUDIT A-X02 — O'LCHANGAN): parol tiklangach eski kirishlar 8 soatgacha ishlayverardi (parol
+        # o'g'irlangan bo'lsa — tiklash hech narsa bermasdi). Endi shu foydalanuvchining HAMMA sessiyalari o'chiriladi.
+        from models import UserSession as _US139
+        db.query(_US139).filter(_US139.user_id == u.id).delete(synchronize_session=False)
 
         # ── HISOBDORLIK ────────────────────────────────────────────
         # Platforma admini texnik jihatdan har doim kira oladi (bazaga

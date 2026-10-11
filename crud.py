@@ -8400,6 +8400,15 @@ def import_full_backup(db: Session, data: dict, company_id: int,
         parol hashlari yo'q (xavfsizlik uchun chiqarilgan), shuning uchun
         ularni tiklash hech kim kira olmaydigan hisoblar yaratardi.
         Tiklashdan keyin hisoblar qo'lda qayta yaratiladi.
+
+    kech139 (zip 167, AUDIT A-T01 — production zaxirasi bilan O'LCHANGAN): bo'sh korxonaga (yangi o'rnatish — falokatdan keyingi
+    asosiy holat) tiklash YIQILARDI: tozalash faqat `replace and mavjud` da ishlardi, startup migratsiyalari yaratgan qatorlar
+    (`company_settings` — `rx_material_narx` …, asosiy yo'nalish) bilan «duplicate key». Endi tiklashdan oldin korxona DOIM
+    tozalanadi (ma'lumotli korxonaga — avvalgidek faqat `replace=True` bilan; bo'sh korxonada faqat startup qatorlari bor).
+    kech139 (zip 167, AUDIT A-X07 — O'LCHANGAN): fayldagi bog'lanishlar tekshirilmasdi — `company_id` ustuni yo'q jadval qatori
+    (to'lov, yetkazish …) BOSHQA korxona buyurtmasiga ishora qilsa ham qo'shilardi; `employee_sessions` (sessiya) ham qabul
+    qilinardi. Endi: sessiya jadvallari HECH QACHON tiklanmaydi; har bog'lanish (FK, `company_id` dan tashqari) yoki bo'sh, yoki
+    SHU fayldagi qatorga ishora qiladi — aks holda tiklash hech narsa o'zgartirmasdan rad etiladi (sabab — jadval va ustun).
     """
     import decimal
     from datetime import datetime as _dt, date as _date
@@ -8471,13 +8480,56 @@ def import_full_backup(db: Session, data: dict, company_id: int,
             return decimal.Decimal(str(v))
         return v
 
-    try:
-        if replace and mavjud:
-            # kech125 (zip 146): tozalash ham SHU tranzaksiyada — qo'shishda xato bo'lsa `rollback` uni ham qaytaradi
-            factory_reset_all_data(db, company_id=company_id, commit=False)
+    # Tartib: o'chirish tartibining TESKARISI — ota avval, bola keyin. kech139 (A-X07): sessiya jadvali — HECH QACHON.
+    _sessiya_jadvallari = {"employee_sessions", "user_sessions"}
+    order = [m for m in reversed(_reset_table_order()) if m.__tablename__ not in _sessiya_jadvallari]
 
-        # Tartib: o'chirish tartibining TESKARISI — ota avval, bola keyin.
-        order = list(reversed(_reset_table_order()))
+    # kech139 (zip 167, A-X07): bog'lanishlar tekshiruvi — HECH NARSA o'zgartirilmasdan OLDIN. Fayldagi har jadvalning `id` lari
+    # yig'iladi; har FK ustuni (korxonaga ishora qiluvchi `company_id` dan tashqari) qiymati bo'sh yoki SHU fayldagi qator bo'lishi
+    # shart (boshqa korxona yozuviga ishora qiluvchi fayl rad etiladi).
+    _fayl_idlari = {}
+    for model in order:
+        _rows = tables.get(model.__tablename__) or []
+        if "id" in model.__table__.columns and isinstance(_rows, list):
+            _ids = set()
+            for r in _rows:
+                if isinstance(r, dict) and r.get("id") is not None:
+                    try:
+                        _ids.add(int(r.get("id")))
+                    except (TypeError, ValueError):
+                        return {"success": False,
+                                "message": f"Fayl formati noto'g'ri: {model.__tablename__} jadvalida id butun son emas"}
+            _fayl_idlari[model.__tablename__] = _ids
+    for model in order:
+        tname = model.__tablename__
+        _rows = tables.get(tname) or []
+        if not isinstance(_rows, list):
+            return {"success": False, "message": f"Fayl formati noto'g'ri: {tname} ro'yxat emas"}
+        for col in model.__table__.columns:
+            for fk in col.foreign_keys:
+                _ota = fk.column.table.name
+                if _ota == "companies":
+                    continue                  # `company_id` — pastda majburan joriy korxonaga o'rnatiladi
+                _bor = _fayl_idlari.get(_ota, set())
+                for r in _rows:
+                    v = (r or {}).get(col.name) if isinstance(r, dict) else None
+                    if v is None:
+                        continue
+                    try:
+                        _v = int(v)
+                    except (TypeError, ValueError):
+                        _v = None
+                    if _v is None or _v not in _bor:
+                        return {"success": False,
+                                "message": (f"Zaxira fayli buzilgan: {tname}.{col.name} = {v} — shu faylda {_ota} jadvalida bunday "
+                                            f"yozuv yo'q. Tiklash rad etildi (hech narsa o'zgarmadi).")}
+
+    try:
+        # kech125 (zip 146): tozalash ham SHU tranzaksiyada — qo'shishda xato bo'lsa `rollback` uni ham qaytaradi.
+        # kech139 (zip 167, A-T01): DOIM — bo'sh korxonada ham (startup yaratgan sozlama / yo'nalish qatorlari bilan to'qnashmasin).
+        # Ma'lumotli korxona bu yerga faqat `replace=True` bilan yetadi (yuqorida rad etiladi).
+        factory_reset_all_data(db, company_id=company_id, commit=False)
+
         inserted, skipped_tables = {}, []
 
         for model in order:
