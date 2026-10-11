@@ -76,6 +76,8 @@ function muhit(o) {
   const q = [];
   const yoq = [];
   for (const n of ['escapeHtml', 'xatoSababi', 'serverXatoSababi']) { const f = olib(BASE, n); if (f) q.push(f); else yoq.push('base:' + n); }
+  // kech139 (zip 166, MOSLANDI): amal sababi endi base.html `amalSababi` (u `yukSessiyaKor` ni chaqiradi) — BOR bo'lsa birga yuklanadi
+  for (const n of ['yukSessiyaKor', 'amalSababi']) { const f = olib(BASE, n); if (f) q.push(f); }
   for (const n of ['kirimBekorRejaMatni', 'kirimHujjatiniBekorQil']) { const f = olib(INV, n); if (f) q.push(f); else yoq.push(n); }
   q.push('var _kirimBekorYuborilmoqda = false;');
   return { ctx, elementlar, sorovlar, xabarlar, tasdiqlar, kod: q.join('\n'), yoq };

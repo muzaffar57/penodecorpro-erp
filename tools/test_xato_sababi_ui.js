@@ -84,6 +84,10 @@ function javob(status, data) {
 
 // kech118 (B — U-05, MOSLANDI): sahifa funksiyalari base.html `sonKor` / `matnRangi` … ni ham chaqiradi
 const BASE_FN = ['escapeHtml', 'xatoSababi', 'serverXatoSababi', 'sonKor', 'foizKor', 'birlikKor', 'matnRangi'];
+// kech139 (zip 166, MOSLANDI): Omborxona amallari endi base.html `amalSababi` (u `yukSessiyaKor` ni chaqiradi) va yuklash yordamchilarini
+// ham ishlatadi — BOR bo'lsa birga yuklanadi (eski shablonda yo'q — tekshirilmaydi, kod o'zgarmagan holda ishlaydi)
+const BASE_BOR = ['yukXato', 'yukOl', 'yukSabab', 'yukXatoMatn', 'yukNavbat', 'yukBlok', 'yukXatoKor', 'yukRoyxatXato', 'yukSessiyaKor',
+  'amalSababi'];
 function kod(src, nomlar) {
   const qism = [];
   const yoq = [];
@@ -138,11 +142,12 @@ async function sinov(o) {
   Object.assign(ctx, o.globallar || {});
   vm.createContext(ctx);
   const b = kod(BASE, BASE_FN);
+  const bb = kod(BASE, BASE_BOR);
   const p = kod(o.src, o.yordamchi || []);
   const f = kod(o.src, [o.fn]);
   if (f.yoq.length) return { xato: `funksiya topilmadi: ${o.fn}`, xabarlar, sorovlar, elementlar };
   try {
-    vm.runInContext(b.kod + '\n' + p.kod + '\n' + (o.oldin || '') + '\n' + f.kod, ctx);
+    vm.runInContext(b.kod + '\n' + bb.kod + '\n' + p.kod + '\n' + (o.oldin || '') + '\n' + f.kod, ctx);
     await vm.runInContext(o.chaqiruv, ctx);
     return { xato: null, xabarlar, sorovlar, elementlar };
   } catch (e) {
@@ -313,9 +318,10 @@ function korindimi(n, matn) {
   ];
   const yordamsiz = [];
   for (const [src, nomlar] of YORDAMCHILI) {
-    for (const n of nomlar) { const f = olib(src, n) || ''; if (!/\b(server)?[xX]atoSababi\(/.test(f)) yordamsiz.push(n); }
+    // kech139 (zip 166, MOSLANDI): `amalSababi` (base.html) — sababni o'zi `xatoSababi` bilan o'qiydi (yagona qoida saqlanadi)
+    for (const n of nomlar) { const f = olib(src, n) || ''; if (!/\b((server)?[xX]atoSababi|amalSababi)\(/.test(f)) yordamsiz.push(n); }
   }
-  tekshir("S2 28 ta funksiyaning rad shoxi yagona yordamchi bilan (`xatoSababi` / `serverXatoSababi`)", !yordamsiz.length, yordamsiz);
+  tekshir("S2 28 ta funksiyaning rad shoxi yagona yordamchi bilan (`xatoSababi` / `serverXatoSababi` / `amalSababi`)", !yordamsiz.length, yordamsiz);
   tekshir("S3 base.html: yordamchilar bitta ta'rif (takror yo'q)",
           (BASE.match(/function xatoSababi\(/g) || []).length === 1 && (BASE.match(/function serverXatoSababi\(/g) || []).length === 1, '');
   tekshir("S4 base.html: `tkKunFarqi` blokidan KEYIN (tk* bloki — base.html ↔ hodim_panel.html AYNAN nusxasi — o'zgarmaydi)",

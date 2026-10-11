@@ -68,8 +68,11 @@ try { ({ JSDOM, VirtualConsole } = require('jsdom')); } catch (e) { JSDOM = null
 
 const MARKUP = jinjasiz(blok(SRC, 'content'));
 const SKRIPT = (blok(SRC, 'scripts').match(/<script>([\s\S]*)<\/script>/) || [])[1] || '';
+// kech139 (zip 166, MOSLANDI): sahifa endi base.html dagi umumiy yuklash / amal sababi yordamchilarini ham ishlatadi (`yukBlok`,
+// `yukOl`, `yukNavbat`, `amalSababi` …) — bo'lsa birga yuklanadi (eski shablonda yo'q — `olib` bo'sh qaytaradi, kod o'zgarmagan holda ishlaydi)
 const YORDAM = ['escapeHtml', 'tkMs', 'tkDate', 'tkSana', 'tkVaqt', 'tkSanaVaqt', 'tkISO', 'tkKunFarqi', 'xatoSababi',
-  'serverXatoSababi'].map(n => olib(BASE, n) || '').join('\n');
+  'serverXatoSababi', 'yukXato', 'yukOl', 'yukSabab', 'yukXatoMatn', 'yukNavbat', 'yukBlok', 'yukXatoKor', 'yukRoyxatXato',
+  'yukSessiyaKor', 'amalSababi'].map(n => olib(BASE, n) || '').join('\n');
 
 // ── Fikstura ──
 const HOZIR = new Date(Date.now()).toISOString().slice(0, 19);     // server shakli: UTC, zona belgisiz
