@@ -120,7 +120,8 @@ check("S1 holat paneli «🏭 Bajarilgan» qiymati o'z id si bilan (`sp-bajarilg
       _lsp[:600])
 check("S2 `loadProgressMap` — HTTP holati tekshiriladi (`r.ok`), javob obyekt bo'lishi shart; muvaffaqiyatda holat 'tayyor', xatoda "
       "'xato'; ikkala holatda ham oxirida `bajarilganYangila()` (xarita qachon kelsa ham panel yangilanadi)",
-      "r.ok" in _lpm and "progressMapHolat = 'tayyor'" in _lpm and "progressMapHolat = 'xato'" in _lpm
+      # kech138 (zip 165, MOSLANDI): HTTP holati endi base.html `yukOl` da tekshiriladi (r.ok, JSON, sabab) — u ham qabul qilinadi
+      ("r.ok" in _lpm or "yukOl(" in _lpm) and "progressMapHolat = 'tayyor'" in _lpm and "progressMapHolat = 'xato'" in _lpm
       and re.search(r"catch\s*\(e\)\s*\{[^}]*\}\s*bajarilganYangila\(\);\s*\}$", _lpm.strip()) is not None, _lpm[:900])
 check("S3 `bajarilganMatni`: 'tayyor' — foiz (`Number(...) || 0` + '%'), 'xato' — «—», aks holda «…»; `bajarilganYangila` — HOZIR "
       "tanlangan loyiha (`selectedProjId`) uchun `sp-bajarilgan` ni yozadi",
@@ -364,8 +365,11 @@ if PW_BOR:
             _v5 = panel(pg)
             _bosdi = bos(pg, B)
             _v5b = panel(pg)
-            check("B5a xarita 500 qaytardi: panelda «—» (yolg'on «0%» emas), boshqa loyiha tanlanganda ham «—»; ro'yxat kartasida foiz "
-                  "yozilmaydi", _v5 == "—" and _bosdi and _v5b == "—" and karta_matni(pg, A) == "", [_v5, _bosdi, _v5b, karta_matni(pg, A)])
+            # kech138 (zip 165, MOSLANDI): xarita kelmasa kartada endi «🏭 Bajarilgan —» (qiymat noma'lum — foiz EMAS; sabab panel ostida)
+            _karta5 = "🏭 Bajarilgan —" if "pbajYoz(" in PRJ else ""
+            check(f"B5a xarita 500 qaytardi: panelda «—» (yolg'on «0%» emas), boshqa loyiha tanlanganda ham «—»; ro'yxat kartasida foiz "
+                  f"yozilmaydi («{_karta5}»)", _v5 == "—" and _bosdi and _v5b == "—" and karta_matni(pg, A) == _karta5,
+                  [_v5, _bosdi, _v5b, karta_matni(pg, A)])
             JS_XATOLAR += xat5
             ctx.close()
 
