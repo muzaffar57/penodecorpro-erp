@@ -298,7 +298,10 @@
 {% endblock %}
 
 {% block content %}
-<div id="prod-sahifa" data-joriy-oy="{{ joriy_oy }}">
+{# kech139 (zip 167, egasi 11.10 17:19 «pastga tushmayapti»): `.erp-main` — overflow:hidden, sahifa o'z skroll konteyneriga muhtoj
+   (`.erp-content`: flex:1, min-height:0, overflow-y:auto). Ilgari bu o'ram oddiy blok edi — telefonda (va past ekranda) sahifa
+   pastga SURILMASDI (O'LCHANGAN: sinov saytida 375×812). #}
+<div id="prod-sahifa" class="erp-content" data-joriy-oy="{{ joriy_oy }}">
 <div class="prod-tabs" role="tablist">
   <div class="prod-tab tab active" role="tab" data-tab="types" onclick="switchProdTab('types')">Mahsulot turlari</div>
   {# kech135 (zip 161, O'LCHANGAN): «Ishlab chiqarish buyurtmalari: Ko'rish» ruxsati yo'q rolga yorliq ko'rinardi, ro'yxat 403 bilan

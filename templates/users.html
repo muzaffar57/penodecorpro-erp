@@ -38,8 +38,10 @@
             <td data-label="Login"><span style="font-weight:500;color:var(--text)">{{ u.username }}</span></td>
             <td data-label="Ismi">{{ u.full_name or '—' }}</td>
             <td data-label="Rol">
-              {# kech118 (ROLLAR): rol — korxona roli (nomi admin o'zi bergan). O'zidan boshqasiga — rolni shu yerda almashtirish. #}
-              {% if u.username != current_user.username %}
+              {# kech118 (ROLLAR): rol — korxona roli (nomi admin o'zi bergan). O'zidan boshqasiga — rolni shu yerda almashtirish.
+                 kech139 (zip 167, AUDIT A-X01): platforma egasi hisobini faqat uning o'zi o'zgartiradi (server 403) — boshqa Admin
+                 uchun rol tanlovi va tugmalar o'rniga belgi. #}
+              {% if u.username != current_user.username and not u.is_platform_admin %}
               <select class="u-rol-tanlov maydon maydon-sm" aria-label="{{ u.username }} roli" data-eski="{{ u.rol_id or '' }}"
                       onchange="userRoli({{ u.id }}, this)" style="max-width:150px">
                 {% if not u.rol_id %}<option value="" selected>{{ u.rol_nomi }}</option>{% endif %}
@@ -54,7 +56,9 @@
             </td>
             <td data-label="Yaratilgan" style="color:var(--text3);font-size:12px">{{ u.created_at|toshkent('%d.%m.%Y') if u.created_at else '—' }}</td>
             <td data-label="">
-              {% if u.username != current_user.username %}
+              {% if u.username != current_user.username and u.is_platform_admin %}
+              <span style="font-size:12px;color:var(--text3)">🏛 Platforma egasi</span>
+              {% elif u.username != current_user.username %}
               <div style="display:flex;gap:4px">
                 <button class="btn btn-outline btn-xs" onclick="toggleUser({{ u.id }}, {{ 'true' if u.is_active else 'false' }}, this)">
                   {{ 'O\'chir' if u.is_active else 'Faollashtir' }}

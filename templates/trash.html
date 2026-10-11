@@ -4,7 +4,10 @@
 {% block page_sub %}Inson xatosidan himoya — o'chirilgan buyurtma va loyihalarni tiklash{% endblock %}
 
 {% block content %}
-<div style="padding:14px">
+{# kech139 (zip 167, egasi 11.10 17:19 «pastga tushmayapti»): `.erp-main` — overflow:hidden, sahifa o'z skroll konteyneriga muhtoj
+   (`.erp-content`: flex:1, min-height:0, overflow-y:auto). Ilgari bu o'ram oddiy blok edi — telefonda (va past ekranda) sahifa
+   pastga SURILMASDI (O'LCHANGAN: sinov saytida 375×812). #}
+<div class="erp-content" style="padding:14px">
 
   <div style="background:var(--f-eff6ff);border-radius:12px;padding:14px 16px;margin-bottom:18px;font-size:13px;color:var(--m-1a6fa8);display:flex;gap:10px;align-items:flex-start">
     <i class="ti ti-info-circle" style="font-size:18px;flex-shrink:0;margin-top:1px"></i>

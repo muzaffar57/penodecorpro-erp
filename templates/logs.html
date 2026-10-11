@@ -39,7 +39,10 @@
 {% endblock %}
 
 {% block content %}
-<div style="padding:14px">
+{# kech139 (zip 167, egasi 11.10 17:19 «pastga tushmayapti»): `.erp-main` — overflow:hidden, sahifa o'z skroll konteyneriga muhtoj
+   (`.erp-content`: flex:1, min-height:0, overflow-y:auto). Ilgari bu o'ram oddiy blok edi — telefonda (va past ekranda) sahifa
+   pastga SURILMASDI (O'LCHANGAN: sinov saytida 375×812). #}
+<div class="erp-content" style="padding:14px">
 
   <div class="log-tablar" role="tablist" style="display:{% if sozlamalar_sahifasi %}none{% else %}flex{% endif %}">
     <button class="log-tab tab active" data-tab="login" onclick="switchLogTab('login')">🔑 Kirish tarixi</button>

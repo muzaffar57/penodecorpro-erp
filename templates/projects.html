@@ -9,7 +9,10 @@
 
 {% block head %}
 <style>
-.proj-page{padding:14px}
+/* kech139 (zip 167, egasi 11.10 «pastga tushmayapti» — barcha sahifalar o'lchandi, `tools/test_sahifa_skroll_ui.py`): kompyuterda ham
+   o'ram skroll konteyneri — `.erp-main` overflow:hidden; past ekranda (masalan 1280×520, noutbuk) `.proj-layout` ning min-height 520 px
+   i bilan sahifa pastki qismi (oxirgi tugma) ko'rinmay qolardi. Ichki ro'yxat / tafsilot — avvalgidek o'z skrolli. */
+.proj-page{padding:14px;flex:1;min-height:0;overflow-y:auto}
 @media (max-width:1000px){
   .proj-page{
     flex:1;

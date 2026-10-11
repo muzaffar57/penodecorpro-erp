@@ -8,6 +8,9 @@
   /* kech111 — PLATFORMA PANELI, egasi QARORI kech110 "B — Kartochkalar" (Design artifact «Platforma admin paneli —
      variantlar», VariantB). Ranglar — style.css o'zgaruvchilari (qorong'i rejim ham). */
   .pl-wrap{padding:14px;display:flex;flex-direction:column;gap:16px;max-width:1280px}
+  /* kech139 (zip 167): `.pl-wrap` endi skroll konteyneri (`erp-content`, balandligi cheklangan) — bolalari siqilmasin (overflow:hidden
+     li kartalar `min-height:auto` siz qisqarib, ustma-ust tushardi — test_murojaat_ui B7c da topildi) */
+  .pl-wrap > *{flex-shrink:0}
   .pl-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
   .pl-stat{background:var(--white);border:1px solid var(--border);border-radius:var(--radius-card);padding:12px 14px}
   .pl-stat .l{font-size:12px;color:var(--text2)}
@@ -115,7 +118,10 @@
 {% endblock %}
 
 {% block content %}
-<div class="pl-wrap">
+{# kech139 (zip 167, egasi 11.10 17:19 «pastga tushmayapti»): `.erp-main` — overflow:hidden, sahifa o'z skroll konteyneriga muhtoj
+   (`.erp-content`: flex:1, min-height:0, overflow-y:auto). Ilgari bu o'ram oddiy blok edi — telefonda (va past ekranda) sahifa
+   pastga SURILMASDI (O'LCHANGAN: sinov saytida 375×812). #}
+<div class="pl-wrap erp-content">
 
   <div class="pl-stats" id="plRaqamlar" aria-live="polite">
     <div class="pl-stat"><div class="l">Yuklanmoqda…</div><div class="n">—</div></div>
