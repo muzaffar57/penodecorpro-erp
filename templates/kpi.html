@@ -18,7 +18,7 @@
 .mk-inp:focus{border-color:#B9783F}
 @media (max-width: 640px) {
   .kpi-two{grid-template-columns:1fr}
-  .kpi-grid[style*="repeat(5"]{grid-template-columns:repeat(2,minmax(0,1fr)) !important}
+  .kpi-grid[style*="repeat("]{grid-template-columns:repeat(2,minmax(0,1fr)) !important}
 }
 /* kech119 (C BOSQICH — telefon, audit G6-15, O'LCHANGAN work/k125/telefon.py: 390 px da usta kartasidagi ✏️ / 🚫, hodim
    qatoridagi holat va 4 tugma ekrandan chiqardi (408..623 px), «Qolgan jami» — faqat «2», sarlavha so'zma-so'z, sovg'a davri
@@ -95,9 +95,16 @@
 {% endblock %}
 
 {% block content %}
+{# kech138 (zip 165, O'LCHANGAN — work/k164/olchov164.py, zip 163 kodi): sahifa «Ustalar KPI: Ko'rish» bilan ochiladi, lekin bloklar
+   boshqa ruxsatlarni so'raydi — hodimlar ro'yxati va avanslari «Hodimlar: Ko'rish», oylik kartalar va «Oylik hisob-kitob» —
+   «Moliyaviy hisobot: Ko'rish», nofaol ustalar — «Ustalar: Ko'rish». Tayyor «Moliyachi» da hodimlar 403 berib «Hodim qo'shilmagan»
+   (yolg'on) derdi. Endi ruxsatsiz blok chizilmaydi va so'ralmaydi. #}
+{% set R_HODIM = current_user.ruxsat('hodim', 'korish') %}
+{% set R_MOLIYA = current_user.ruxsat('moliya', 'korish') %}
+{% set R_USTA = current_user.ruxsat('usta', 'korish') %}
 <div class="erp-content">
 
-  <div class="kpi-grid mb-16" style="grid-template-columns:repeat(5,1fr)">
+  <div class="kpi-grid mb-16" style="grid-template-columns:repeat({{ 2 + (1 if R_HODIM else 0) + (2 if R_MOLIYA else 0) }},1fr)">
     <div class="kpi-card" style="display:flex;align-items:center;gap:14px;text-align:left">
       <div class="kpi-ikon" style="width:46px;height:46px;border-radius:12px;background:var(--gold-tint);color:var(--gold-dark);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0"><i class="ti ti-users"></i></div>
       <div>
@@ -106,6 +113,7 @@
         <div style="font-size:12px;color:var(--text3)">Jami hamkor ustalar</div>
       </div>
     </div>
+    {% if R_HODIM %}
     <div class="kpi-card" style="display:flex;align-items:center;gap:14px;text-align:left">
       <div class="kpi-ikon" style="width:46px;height:46px;border-radius:12px;background:var(--f-f0fdf4);color:var(--m-15803d);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0"><i class="ti ti-user"></i></div>
       <div>
@@ -114,6 +122,8 @@
         <div style="font-size:12px;color:var(--text3)">Jami ichki hodimlar</div>
       </div>
     </div>
+    {% endif %}
+    {% if R_MOLIYA %}
     <div class="kpi-card" style="display:flex;align-items:center;gap:14px;text-align:left">
       <div class="kpi-ikon" style="width:46px;height:46px;border-radius:12px;background:var(--f-f3e8ff);color:var(--m-8e44ad);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0"><i class="ti ti-coins"></i></div>
       <div>
@@ -131,6 +141,7 @@
         <div style="font-size:12px;color:var(--text3)">Kompaniya qarzdorligi</div>
       </div>
     </div>
+    {% endif %}
     <div class="kpi-card" style="display:flex;align-items:center;gap:14px;text-align:left">
       <div class="kpi-ikon" style="width:46px;height:46px;border-radius:12px;background:var(--f-fffbeb);color:var(--m-b45309);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0"><i class="ti ti-gift"></i></div>
       <div>
@@ -140,6 +151,7 @@
       </div>
     </div>
   </div>
+  <p class="yuk-xato" id="xato-kpi-kartalar" hidden></p>
 
   <div class="kpi-two">
 
@@ -167,16 +179,19 @@
         <div id="mkList">
           <div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>
         </div>
+        {% if R_USTA %}
         <div id="mkInactiveWrap" style="display:none;margin-top:6px">
           <button onclick="toggleInactiveMasters()" id="mkInactiveBtn" class="btn btn-ghost btn-sm">
             ▼ Nofaol ustalarni ko'rsatish
           </button>
           <div id="mkInactiveList" style="display:none"></div>
         </div>
+        {% endif %}
       </div>
     </div>
 
     <!-- HODIMLAR -->
+    {% if R_HODIM %}
     <div class="card">
       <div class="card-head"><h3>👷 Hodimlar (moslashuvchan to'lov)</h3></div>
       <div class="card-body" style="padding-top:0">
@@ -188,6 +203,7 @@
         </div>
       </div>
     </div>
+    {% endif %}
 
     {% if current_user.ruxsat('sozlama', 'tahrirlash') %}
     <!-- EHSON SOZLAMASI — ixcham, bitta qator -->
@@ -196,11 +212,14 @@
         <span style="font-size:18px">🤲</span>
         <h3 style="white-space:nowrap;font-size:14px">Ehson foizi</h3>
         <span class="kpi-ehson-oraliq" style="flex:1"></span>
-        <input type="number" id="ehson-percent-input" min="0" max="100" step="0.5" class="input-field" style="width:80px;text-align:center;font-weight:600" placeholder="0">
+        {# kech138 (zip 165, O'LCHANGAN): foiz yuklanmasa maydon «0» / bo'sh qolardi — «Saqlash» bosilsa haqiqiy foiz (masalan 7 %)
+           o'rniga 0 % yozilardi. Endi maydon va tugma foiz yuklangandagina ochiladi; xato — sabab #}
+        <input type="number" id="ehson-percent-input" min="0" max="100" step="0.5" class="input-field" style="width:80px;text-align:center;font-weight:600" placeholder="…" disabled>
         <span style="font-size:14px;color:var(--text3)">%</span>
-        <button class="btn btn-dark btn-sm" onclick="saveEhsonPercent()">Saqlash</button>
+        <button class="btn btn-dark btn-sm" id="ehson-save-btn" onclick="saveEhsonPercent()" disabled>Saqlash</button>
         <span id="ehson-save-msg" style="font-size:13px;color:var(--m-15803d);font-weight:600;display:none">✓ Saqlandi</span>
       </div>
+      <p class="yuk-xato" id="xato-ehson" hidden style="margin:0 16px 12px"></p>
     </div>
     {% endif %}
 
@@ -216,6 +235,7 @@
       </div>
       <div class="card-body" style="padding-top:0">
         <div id="giftPeriodSummary"></div>
+        <p class="yuk-xato" id="xato-sovga" hidden></p>
       </div>
     </div>
 
@@ -232,6 +252,7 @@
     </div>
 
 
+    {% if R_MOLIYA %}
     <div class="card" style="grid-column:1/-1">
       <div class="card-head kpi-oylik-sarlavha" style="align-items:flex-start">
         <div>
@@ -250,6 +271,7 @@
         </div>
       </div>
     </div>
+    {% endif %}
 
   </div>
 </div>
@@ -540,12 +562,15 @@ function kpiIshora(n) {
 }
 
 // ── USTA YILLIK KPI ────────────────────────────────────────
+// kech138 (zip 165, O'LCHANGAN — work/k164/olchov164.py, zip 163 kodi): xato (502 / tarmoq / xato JSON) — ro'yxat abadiy
+// «Yuklanmoqda...», kartalar sababsiz; yil tez almashtirilsa eski yil javobi yangisi ustiga yozilardi. Endi `yukBlok`: kartalar «—»,
+// ro'yxatda sabab, eski javob tashlanadi. `ustalarXato` — ro'yxat qidiruv / saralashda ham sabab qoladi («Usta yo'q» — yolg'on emas).
+let ustalarXato = null;
 async function loadMasterKpi() {
   const year = parseInt(document.getElementById('kpi-year').value) || tkHozir().yil;
   document.getElementById('k-year').textContent = year;
-
-  try {
-    const d = await fetch(`/api/masters/kpi-report?year=${year}`).then(r => r.json());
+  return yukBlok('ustalar', `/api/masters/kpi-report?year=${year}`, d => {
+    if (!d || typeof d !== 'object' || !Array.isArray(d.masters)) throw yukXato('server');
     document.getElementById('k-total-gift').textContent = fmt(d.total_gift) + " so'm";
     document.getElementById('k-master-count').textContent = d.masters.length + ' ta';
     const top = [...d.masters].sort((a,b)=>b.gift_amount-a.gift_amount)[0];
@@ -553,15 +578,25 @@ async function loadMasterKpi() {
     document.getElementById('k-top-master').textContent = (top && Number(top.gift_amount) > 0) ? top.name : 'hali yo\'q';
 
     allMasterKpiData = d.masters;
+    ustalarXato = null;
     renderMasterKpiList();
-    document.getElementById('mkInactiveWrap').style.display = 'block';
-  } catch(e) { console.error(e); }
+    const w = document.getElementById('mkInactiveWrap');     // «Ustalar: Ko'rish» ruxsati yo'q — bo'lim yo'q
+    if (w) w.style.display = 'block';
+  }, e => {
+    ['k-total-gift', 'k-master-count', 'k-top-master'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '—'; });
+    allMasterKpiData = [];
+    ustalarXato = e;
+    yukRoyxatXato('mkList', yukXatoMatn('Hamkor ustalar', e));
+    const w = document.getElementById('mkInactiveWrap');
+    if (w) w.style.display = 'none';
+  });
 }
 
 function initials(name){ return (name||'').trim().split(' ').map(p=>p[0]).slice(0,2).join('').toUpperCase(); }
 
 function renderMasterKpiList() {
   const list = document.getElementById('mkList');
+  if (typeof ustalarXato !== 'undefined' && ustalarXato) { yukRoyxatXato(list, yukXatoMatn('Hamkor ustalar', ustalarXato)); return; }
   if (!allMasterKpiData.length) {
     list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">Usta yo\'q</div>';
     return;
@@ -626,10 +661,22 @@ function renderMasterKpiList() {
 let allMasterKpiData = [];
 let allMastersFull = [];
 
+// kech138 (zip 165): nofaol ustalar — faqat «Ustalar: Ko'rish» bilan (bo'lim bo'lmasa so'ralmaydi; ilgari Moliyachida 403 jimgina
+// «Nofaol usta yo'q» bo'lardi); xato — ochilganda sabab
+let ustalarToliqXato = null;
 async function loadAllMastersFull() {
+  if (!document.getElementById('mkInactiveWrap')) return null;
   try {
-    allMastersFull = await fetch('/api/masters?only_active=false').then(r => r.json());
-  } catch(e) {}
+    const d = await yukOl('/api/masters?only_active=false');
+    if (!Array.isArray(d)) throw yukXato('server');
+    allMastersFull = d;
+    ustalarToliqXato = null;
+  } catch (x) {
+    ustalarToliqXato = (x && x.yukXato) ? x : yukXato('server');
+  }
+  const ochiq = document.getElementById('mkInactiveList');
+  if (ochiq && ochiq.style.display !== 'none') renderInactiveMasters();
+  return ustalarToliqXato;
 }
 
 function toggleInactiveMasters() {
@@ -642,8 +689,12 @@ function toggleInactiveMasters() {
 }
 
 function renderInactiveMasters() {
-  const inactive = allMastersFull.filter(m => !m.is_active);
   const list = document.getElementById('mkInactiveList');
+  if (typeof ustalarToliqXato !== 'undefined' && ustalarToliqXato) {
+    yukRoyxatXato(list, yukXatoMatn("Nofaol ustalar ro'yxati", ustalarToliqXato));
+    return;
+  }
+  const inactive = allMastersFull.filter(m => !m.is_active);
   if (!inactive.length) {
     list.innerHTML = '<div style="text-align:center;padding:14px;color:var(--text3);font-size:12px">Nofaol usta yo\'q</div>';
     return;
@@ -664,9 +715,19 @@ async function openMasterDetail(id, name) {
   document.getElementById('masterDetailModal').style.display = 'flex';
   const list = document.getElementById('md-list');
   list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>';
+  // kech138 (zip 165): xato — sabab (ilgari xato JSON — JS xatosi, «Yuklashda xato»); boshqa usta tez ochilsa eski javob tashlanadi
+  const joriy = yukNavbat('usta_tafsilot');
+  let rows;
   try {
-    const res = await fetch(`/api/masters/${id}/kpi-detail?year=${year}`);
-    const rows = await res.json();
+    rows = await yukOl(`/api/masters/${id}/kpi-detail?year=${year}`);
+    if (!Array.isArray(rows)) throw yukXato('server');
+  } catch (x) {
+    if (!joriy()) return;
+    yukRoyxatXato(list, yukXatoMatn("Buyurtmalar bo'yicha KPI", (x && x.yukXato) ? x : yukXato('server')));
+    return;
+  }
+  if (!joriy()) return;
+  try {
     if (!rows.length) {
       list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)">Shu yil buyurtma yo\'q</div>';
     } else {
@@ -687,7 +748,8 @@ async function openMasterDetail(id, name) {
         </div>`;
     }
   } catch(e) {
-    list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--m-dc2626)">Yuklashda xato</div>';
+    console.error(e);
+    yukRoyxatXato(list, yukXatoMatn("Buyurtmalar bo'yicha KPI", yukXato('server')));
   }
 }
 
@@ -834,12 +896,32 @@ async function reactivateMaster(id, btn) {
 let empItems = [];
 let editingEmpId = null;
 
+// kech138 (zip 165, O'LCHANGAN): 502 / tarmoq — abadiy «Yuklanmoqda...», xato JSON (500 / 401 / 403) — «Hodim qo'shilmagan» (YOLG'ON),
+// avans so'rovi xatosi — jim (avans yo'qdek). Endi sabab; «Hodimlar: Ko'rish» ruxsati yo'q — bo'lim yo'q, so'ralmaydi; tez qayta
+// yuklashda eski javob tashlanadi.
 async function loadEmployees() {
+  const list = document.getElementById('empList');
+  if (!list) return null;
+  const joriy = yukNavbat('hodimlar');
+  let rows;
   try {
-    empItems = await fetch('/api/employees').then(r => r.json());
-    document.getElementById('k-emp-count').textContent = empItems.length;
+    rows = await yukOl('/api/employees');
+    if (!Array.isArray(rows)) throw yukXato('server');
+  } catch (x) {
+    if (!joriy()) return null;
+    const e = (x && x.yukXato) ? x : yukXato('server');
+    empItems = [];
+    const c = document.getElementById('k-emp-count');
+    if (c) c.textContent = '—';
+    yukRoyxatXato(list, yukXatoMatn('Hodimlar', e));
+    return e;
+  }
+  if (!joriy()) return null;
+  try {
+    empItems = rows;
+    const c = document.getElementById('k-emp-count');
+    if (c) c.textContent = empItems.length;
 
-    const list = document.getElementById('empList');
     if (!empItems.length) {
       list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">Hodim qo\'shilmagan</div>';
       return;
@@ -883,17 +965,26 @@ async function loadEmployees() {
       </div>`;
     }).join('');
 
-    // Har bir hodim uchun — shu oy berilgan avans summasini yuklaymiz
+    // Har bir hodim uchun — shu oy berilgan avans summasini yuklaymiz (xato — o'sha qatorda sabab)
     const tk = tkHozir();     // kech106: "shu oy" — Toshkent
     empItems.forEach(e => {
-      fetch(`/api/employees/${e.id}/advances?year=${tk.yil}&month=${tk.oy}`)
-        .then(r => r.json())
+      yukOl(`/api/employees/${e.id}/advances?year=${tk.yil}&month=${tk.oy}`)
         .then(d => {
+          if (!d || typeof d.total !== 'number') throw yukXato('server');
           const el = document.getElementById(`emp-avans-${e.id}`);
           if (el && d.total > 0) el.textContent = `💰 Bu oy avans: ${fmt(d.total)} so'm`;
-        }).catch(()=>{});
+        }).catch(x => {
+          const el = document.getElementById(`emp-avans-${e.id}`);
+          if (!el) return;
+          el.textContent = yukXatoMatn('Bu oy avansi', (x && x.yukXato) ? x : yukXato('server'));
+          el.style.color = 'var(--m-b91c1c)';
+        });
     });
-  } catch(e) { console.error(e); }
+  } catch(e) {
+    console.error(e);
+    yukRoyxatXato(list, yukXatoMatn('Hodimlar', yukXato('server')));
+  }
+  return null;
 }
 
 let advanceEmpId = null;
@@ -961,12 +1052,17 @@ async function loadAvansNizo(empId) {
   if (!box) return;
   box.innerHTML = '';
   let rows = [];
+  // kech138 (zip 165): ruxsat yo'q (403) — bo'lim chiqmaydi (avvalgidek); boshqa xato — sabab (ilgari jim: «Olmaganman» yo'qdek)
   try {
-    const res = await fetch(`/api/admin/avans-nizolar?employee_id=${encodeURIComponent(empId)}`);
-    if (!res.ok) return;          // ruxsat yo'q (403) — bo'lim chiqmaydi
-    rows = await res.json();
-  } catch (e) { return; }
-  if (String(advanceEmpId) !== String(empId) || !Array.isArray(rows) || !rows.length) return;
+    rows = await yukOl(`/api/admin/avans-nizolar?employee_id=${encodeURIComponent(empId)}`);
+    if (!Array.isArray(rows)) throw yukXato('server');
+  } catch (x) {
+    const e = (x && x.yukXato) ? x : yukXato('server');
+    if (e.tur === 'ruxsat' || String(advanceEmpId) !== String(empId)) return;
+    yukRoyxatXato(box, yukXatoMatn("«Olmaganman» degan avanslar", e));
+    return;
+  }
+  if (String(advanceEmpId) !== String(empId) || !rows.length) return;
   box.innerHTML = `<div style="border:1px solid var(--ch-fadbd8);border-radius:10px;padding:12px;margin-bottom:14px">
       <div style="font-size:13px;font-weight:700;color:var(--m-dc2626);margin-bottom:6px">❗ Hodim «Olmaganman» degan avanslar</div>
       ${rows.map(r => `<div class="adv-nizo-qator" style="padding:8px 0;border-top:1px solid var(--ch-f0f0f0);font-size:13px">
@@ -1119,9 +1215,19 @@ async function savePanelAccess() {
 async function loadAdvanceHistory(empId) {
   loadAvansNizo(empId);     // kech134 (zip 160): «Olmaganman» avanslari — qaysi oyda bo'lmasin
   const tk = tkHozir();     // kech106: "shu oy" — Toshkent
-  const res = await fetch(`/api/employees/${empId}/advances?year=${tk.yil}&month=${tk.oy}`);
-  const d = await res.json();
   const list = document.getElementById('adv-history');
+  // kech138 (zip 165): xato — «0 so'm» / JS xatosi o'rniga «—» va sabab; boshqa hodim oynasi ochilgan bo'lsa — eski javob tashlanadi
+  let d;
+  try {
+    d = await yukOl(`/api/employees/${empId}/advances?year=${tk.yil}&month=${tk.oy}`);
+    if (!d || !Array.isArray(d.advances)) throw yukXato('server');
+  } catch (x) {
+    if (advanceEmpId != null && String(advanceEmpId) !== String(empId)) return;
+    document.getElementById('adv-total').textContent = '—';
+    yukRoyxatXato(list, yukXatoMatn('Bu oy avanslari', (x && x.yukXato) ? x : yukXato('server')));
+    return;
+  }
+  if (advanceEmpId != null && String(advanceEmpId) !== String(empId)) return;
   document.getElementById('adv-total').textContent = fmt(d.total) + " so'm";
   if (!d.advances.length) {
     list.innerHTML = '<div style="color:var(--text3);font-size:13px;text-align:center;padding:8px">Bu oy hali avans berilmagan</div>';
@@ -1324,7 +1430,9 @@ function closeCompHistoryModal() {
 async function loadCompHistory(empId) {
   const list = document.getElementById('ch-list');
   try {
-    const rows = await fetch(`/api/employees/${empId}/compensation-history`).then(r => r.json());
+    // kech138 (zip 165): xato JSON — «Tarix topilmadi» (yolg'on) / JS xatosi edi; endi sabab
+    const rows = await yukOl(`/api/employees/${empId}/compensation-history`);
+    if (!Array.isArray(rows)) throw yukXato('server');
     if (!rows.length) {
       list.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3);font-size:13px">Tarix topilmadi</div>';
       return;
@@ -1345,8 +1453,8 @@ async function loadCompHistory(empId) {
           ${r.created_by ? `<div style="font-size:12px;color:var(--text3);margin-top:2px">${escapeHtml(r.created_by)}${r.created_at ? ' · ' + escapeHtml(r.created_at) : ''}</div>` : ''}
         </div>`;
     }).join('');
-  } catch (e) {
-    list.innerHTML = '<div style="text-align:center;padding:16px;color:var(--m-dc2626);font-size:13px">Yuklashda xato yuz berdi</div>';
+  } catch (x) {
+    yukRoyxatXato(list, yukXatoMatn("To'lov tarixi", (x && x.yukXato) ? x : yukXato('server')));
   }
 }
 
@@ -1497,6 +1605,7 @@ function initEmpReportSelectors() {
   const tk = tkHozir();     // kech106: joriy oy / yil — Toshkent
   const monthSel = document.getElementById('emp-report-month');
   const yearSel = document.getElementById('emp-report-year');
+  if (!monthSel || !yearSel) return;     // kech138 (zip 165): «Moliyaviy hisobot: Ko'rish» ruxsati yo'q — bo'lim yo'q
   monthSel.innerHTML = MONTH_NAMES_UZ.slice(1).map((m,i) => `<option value="${i+1}">${m}</option>`).join('');
   monthSel.value = tk.oy;
   let yearsHtml = '';
@@ -1505,15 +1614,17 @@ function initEmpReportSelectors() {
   yearSel.value = tk.yil;
 }
 
+// kech138 (zip 165, O'LCHANGAN): xato JSON — «Bu oy uchun hech kimga to'lov hisoblanmagan» (YOLG'ON), 502 / tarmoq — «Xato yuz berdi»
+// (sababsiz); boshqa oy tez tanlansa eski oy jadvali yangisi ustiga yozilardi. Endi `yukBlok`: sabab, eski javob tashlanadi.
 async function loadEmpMonthlyReport() {
+  const box = document.getElementById('empMonthlyReport');
+  if (!box) return null;     // «Moliyaviy hisobot: Ko'rish» ruxsati yo'q — bo'lim yo'q
   const month = document.getElementById('emp-report-month').value;
   const year = document.getElementById('emp-report-year').value;
-  const box = document.getElementById('empMonthlyReport');
   box.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>';
-  try {
-    const res = await fetch(`/api/finance/report?year=${year}&month=${month}`);
-    const d = await res.json();
-    const list = d.hodimlar_breakdown || [];
+  return yukBlok('oylik_hisobot', `/api/finance/report?year=${year}&month=${month}`, d => {
+    if (!d || typeof d !== 'object' || !Array.isArray(d.hodimlar_breakdown)) throw yukXato('server');
+    const list = d.hodimlar_breakdown;
     if (!list.length) {
       box.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">Bu oy uchun hech kimga to\'lov hisoblanmagan</div>';
       return;
@@ -1583,9 +1694,7 @@ async function loadEmpMonthlyReport() {
           <div style="font-weight:800;color:var(--gold-dark);font-size:18px">${fmt(list.reduce((s,e)=>s+e.qolgan,0))} so'm</div>
         </div>
       </div>`;
-  } catch(e) {
-    box.innerHTML = '<div style="text-align:center;padding:20px;color:var(--m-dc2626)">Xato yuz berdi</div>';
-  }
+  }, e => yukRoyxatXato(box, yukXatoMatn('Oylik hisob-kitob', e)));
 }
 
 let _arResolveFn = null;
@@ -1689,8 +1798,9 @@ async function toggleEmpAdvanceDetail(empId, idx, year, month) {
 
   detailBox.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:6px 0">Yuklanmoqda...</div>';
   try {
-    const res = await fetch(`/api/employees/${empId}/advances?year=${year}&month=${month}`);
-    const d = await res.json();
+    // kech138 (zip 165): xato — sabab (keshga yozilmaydi — keyingi ochishda qayta so'raladi)
+    const d = await yukOl(`/api/employees/${empId}/advances?year=${year}&month=${month}`);
+    if (!d || !Array.isArray(d.advances)) throw yukXato('server');
     const html = d.advances.map(a => `
       <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:var(--m-92400e)">
         <span>${tkSana(a.date)} ${a.notes ? '— '+escapeHtml(a.notes) : ''}${avansManbaHtml(a)}</span>
@@ -1698,25 +1808,47 @@ async function toggleEmpAdvanceDetail(empId, idx, year, month) {
       </div>`).join('');
     detailBox.innerHTML = html;
     empAdvCache[cacheKey] = html;
-  } catch(e) {
-    detailBox.innerHTML = '<div style="font-size:12px;color:var(--m-dc2626)">Xato yuz berdi</div>';
+  } catch(x) {
+    yukRoyxatXato(detailBox, yukXatoMatn('Avanslar', (x && x.yukXato) ? x : yukXato('server')));
   }
 }
 
+// kech138 (zip 165, O'LCHANGAN — work/k164/olchov164.py): 502 / tarmoq — maydon bo'sh, xato JSON — «0»; shu holatda «Saqlash» haqiqiy
+// foiz (7 %) o'rniga 0 % yozardi (sof foydadan ehson ajratilmay qolardi). Endi maydon va «Saqlash» foiz YUKLANGANDAGINA ochiladi;
+// xato — sabab va yopiq qoladi; bo'sh maydon saqlanmaydi.
+let ehsonYuklandi = false;
 async function loadEhsonPercent() {
   const input = document.getElementById('ehson-percent-input');
-  if (!input) return;
-  try {
-    const data = await fetch('/api/settings/ehson-percent').then(r => r.json());
-    input.value = data.ehson_percent || 0;
-  } catch(e) {}
+  if (!input) return null;
+  const btn = document.getElementById('ehson-save-btn');
+  return yukBlok('ehson', '/api/settings/ehson-percent', data => {
+    if (!data || typeof data.ehson_percent !== 'number' || !isFinite(data.ehson_percent)) throw yukXato('server');
+    input.value = data.ehson_percent;
+    input.disabled = false;
+    if (btn) btn.disabled = false;
+    ehsonYuklandi = true;
+    yukXatoKor('xato-ehson', '');
+  }, e => {
+    input.value = '';
+    input.disabled = true;
+    if (btn) btn.disabled = true;
+    ehsonYuklandi = false;
+    yukXatoKor('xato-ehson', yukXatoMatn('Ehson foizi', e) + " («Saqlash» yopiq — joriy foiz ko'rinmaguncha o'zgartirilmaydi)");
+  });
 }
 
 let isSavingEhsonPercent = false;
 async function saveEhsonPercent() {
   if (isSavingEhsonPercent) return; // Ikki marta bosishdan himoya
+  if (typeof ehsonYuklandi !== 'undefined' && !ehsonYuklandi) return;   // joriy foiz yuklanmagan — saqlanmaydi
+  const xom = String(document.getElementById('ehson-percent-input').value).trim();
+  if (xom === '' || !isFinite(Number(xom))) {
+    yukXatoKor('xato-ehson', "⚠️ Foizni kiriting (ehson bo'lmasa — 0)");
+    return;
+  }
+  yukXatoKor('xato-ehson', '');
   isSavingEhsonPercent = true;
-  const val = parseFloat(document.getElementById('ehson-percent-input').value) || 0;
+  const val = Number(xom);
   const fd = new FormData();
   fd.append('percent', val);
   try {
@@ -1737,12 +1869,31 @@ async function saveEhsonPercent() {
 // ══════════════════ "Sovg'a davri" (2026-09-12) ══════════════════
 let _newPeriodTiers = [{name:'', amount:''}];
 
+// kech138 (zip 165, O'LCHANGAN): xato (502 / 500 / tarmoq / 401 / 403) — davr FAOL bo'lsa ham «Yopiq» va oynada «Davrni ochish»
+// formasi chiqardi (ikkinchi davr ochishga undardi). Endi holat «—», sahifada va oynada sabab, forma YO'Q; tez qayta yuklashda eski
+// javob tashlanadi.
 async function loadGiftPeriod() {
   const pill = document.getElementById('giftPeriodStatusPill');
   const summary = document.getElementById('giftPeriodSummary');
   const box = document.getElementById('giftPeriodBox');
+  const joriy = yukNavbat('sovga');
+  let data;
   try {
-    const data = await fetch('/api/gift-period').then(r => r.json());
+    data = await yukOl('/api/gift-period');
+    if (!data || typeof data !== 'object' || typeof data.active !== 'boolean'
+        || (data.active && (!Array.isArray(data.tiers) || !Array.isArray(data.masters)))) throw yukXato('server');
+  } catch (x) {
+    if (!joriy()) return null;
+    const e = (x && x.yukXato) ? x : yukXato('server');
+    if (pill) { pill.textContent = '—'; pill.className = 'status-pill status-pill--off'; }
+    if (summary) summary.innerHTML = '';
+    yukXatoKor('xato-sovga', yukXatoMatn("Sovg'a davri", e));
+    if (box) yukRoyxatXato(box, yukXatoMatn("Sovg'a davri", e));
+    return e;
+  }
+  if (!joriy()) return null;
+  yukXatoKor('xato-sovga', '');
+  try {
     if (pill) {
       if (data.active) { pill.textContent = 'Faol'; pill.className = 'status-pill status-pill--on'; }
       else { pill.textContent = 'Yopiq'; pill.className = 'status-pill status-pill--off'; }
@@ -1757,8 +1908,10 @@ async function loadGiftPeriod() {
       else await renderGiftPeriodActive(box, data);
     }
   } catch(e) {
-    if (box) box.innerHTML = '<div style="text-align:center;padding:16px;color:var(--m-dc2626)">Yuklashda xato</div>';
+    console.error(e);
+    if (box) yukRoyxatXato(box, yukXatoMatn("Sovg'a davri", yukXato('server')));
   }
+  return null;
 }
 
 function openGiftPeriodModal() {
@@ -1788,6 +1941,10 @@ function renderGiftPeriodClosed(box) {
 function renderGiftPeriodMasterOptions() {
   const picker = document.getElementById('giftPeriodMasterPicker');
   if (!picker) return;
+  if (typeof ustalarXato !== 'undefined' && ustalarXato && !(allMasterKpiData || []).length) {
+    yukRoyxatXato(picker, yukXatoMatn("Ustalar ro'yxati", ustalarXato));
+    return;
+  }
   picker.innerHTML = (allMasterKpiData || []).map(m => `
     <label style="display:flex;align-items:center;gap:8px;padding:5px 2px;font-size:13px;cursor:pointer">
       <input type="checkbox" class="gift-period-master-cb" value="${m.id}">
@@ -1806,11 +1963,17 @@ async function toggleGiftPeriodMasterPicker() {
   // (2026-09-12: avval bo'sh ko'rinish bug'i bo'lgan).
   if (!allMasterKpiData || !allMasterKpiData.length) {
     picker.innerHTML = '<div style="color:var(--text3);font-size:13px">Yuklanmoqda...</div>';
+    // kech138 (zip 165): xato — ro'yxat o'rnida sabab (ilgari «Faol usta topilmadi» — yolg'on)
     try {
       const year = parseInt(document.getElementById('kpi-year').value) || tkHozir().yil;
-      const d = await fetch(`/api/masters/kpi-report?year=${year}`).then(r => r.json());
+      const d = await yukOl(`/api/masters/kpi-report?year=${year}`);
+      if (!d || !Array.isArray(d.masters)) throw yukXato('server');
       allMasterKpiData = d.masters;
-    } catch(e) {}
+      ustalarXato = null;
+    } catch(x) {
+      yukRoyxatXato(picker, yukXatoMatn("Ustalar ro'yxati", (x && x.yukXato) ? x : yukXato('server')));
+      return;
+    }
   }
   renderGiftPeriodMasterOptions();
 }
@@ -1923,12 +2086,15 @@ async function renderGiftPeriodActive(box, data) {
   // 2026-09-16: "usta qo'shish" ro'yxati uchun allMasterKpiData kerak —
   // agar sahifa hali to'liq yuklanib ulgurmagan bo'lsa (xuddi 2026-09-12
   // dagi tanlov-piker bug'i kabi), shu yerda ham zaxira yuklab olamiz.
+  let ustaRoyxatXato = null;
   if (!allMasterKpiData || !allMasterKpiData.length) {
+    // kech138 (zip 165): ustalar ro'yxati kelmasa — «Yangi usta qo'shish» tanlovi ostida sabab (ilgari bo'sh tanlov, sababsiz)
     try {
       const year = parseInt(document.getElementById('kpi-year')?.value) || tkHozir().yil;
-      const d = await fetch(`/api/masters/kpi-report?year=${year}`).then(r => r.json());
+      const d = await yukOl(`/api/masters/kpi-report?year=${year}`);
+      if (!d || !Array.isArray(d.masters)) throw yukXato('server');
       allMasterKpiData = d.masters;
-    } catch(e) {}
+    } catch(x) { ustaRoyxatXato = (x && x.yukXato) ? x : yukXato('server'); }
   }
   const rowsHtml = data.masters.map(m => {
     const tiersProgress = m.tiers.map(t => t.ready
@@ -1956,7 +2122,7 @@ async function renderGiftPeriodActive(box, data) {
           `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('')}
       </select>
       <button class="btn btn-outline btn-sm" onclick="submitAddMasterToGiftPeriod()" style="flex-shrink:0;white-space:nowrap">+ Qo'shish</button>
-    </div>`;
+    </div>${ustaRoyxatXato ? `<p class="yuk-xato">${escapeHtml(yukXatoMatn("Ustalar ro'yxati", ustaRoyxatXato))}</p>` : ''}`;
   box.innerHTML = `
     <div style="font-size:13px;color:var(--text3);margin-bottom:10px">${data.all_masters ? 'Barcha faol ustalar ishtirok etadi' : `Faqat ${data.masters.length} ta tanlangan usta ishtirok etadi`}</div>
     ${addMasterControl}
@@ -2040,8 +2206,9 @@ async function submitCloseGiftPeriod(force) {
 document.getElementById('kpi-year').value = tkHozir().yil;     // kech106: joriy yil — Toshkent
 // kech120 (E, U-09 — O'LCHANGAN): sahifa ochilishida `/api/finance/report` (joriy oy) 2 marta so'ralardi — «Hodimlar oylik
 // hisoboti» va yuqoridagi kartalar; `bittaYuklash` (base.html) — bir marta. Chaqiruvlar tartibi o'zgarmagan.
+// kech138 (zip 165): `allSettled` — har blok o'z xatosini ko'rsatadi, biri yiqilsa qolganlari baribir chiziladi
 (function () {
-  const _boshla = () => Promise.all([
+  const _boshla = () => Promise.allSettled([
     loadEhsonPercent(),
     loadMasterKpi(),
     loadGiftPeriod(),
@@ -2055,11 +2222,15 @@ document.getElementById('kpi-year').value = tkHozir().yil;     // kech106: joriy
 // Joriy oy hodimlar holati — yuqoridagi "Hisoblangan oylik" va "To'lanmagan
 // summa" KPI kartalari uchun. Mavjud, sinalgan /api/finance/report dan
 // foydalanadi — yangi hisoblash formulasi yo'q, faqat qo'shimcha ko'rsatish.
+// kech138 (zip 165, O'LCHANGAN): xato JSON — «Hisoblangan oylik 0 so'm», «To'lanmagan summa 0 so'm» (YOLG'ON), 502 / tarmoq — «—»
+// sababsiz, hodim qatorlaridagi «To'langan / Qolgan» bo'sh. Endi `yukBlok`: «—» va kartalar ostida sabab; «Moliyaviy hisobot: Ko'rish»
+// ruxsati yo'q — kartalar yo'q, so'ralmaydi.
 async function loadCurrentMonthEmpStatus() {
+  if (!document.getElementById('k-emp-calculated')) return null;
   const tk = tkHozir();     // kech106: joriy oy — Toshkent
-  try {
-    const d = await fetch(`/api/finance/report?year=${tk.yil}&month=${tk.oy}`).then(r => r.json());
-    const list = d.hodimlar_breakdown || [];
+  return yukBlok('oylik_kartalar', `/api/finance/report?year=${tk.yil}&month=${tk.oy}`, d => {
+    if (!d || typeof d !== 'object' || !Array.isArray(d.hodimlar_breakdown)) throw yukXato('server');
+    const list = d.hodimlar_breakdown;
     const totalCalc = list.reduce((s,e) => s + (e.amount||0), 0);
     const totalUnpaid = list.reduce((s,e) => s + Math.max(0, e.qolgan||0), 0);
     const elCalc = document.getElementById('k-emp-calculated');
@@ -2090,7 +2261,13 @@ async function loadCurrentMonthEmpStatus() {
         else statusEl.innerHTML = `<span class="status-badge status-debt">🔴 To'lanmagan</span>`;   // kech120 (zip 136 — G6-14): ilgari «Qarzdor» (aslida korxona hodimga qarzdor)
       }
     });
-  } catch(e) { console.error(e); }
+    yukXatoKor('xato-kpi-kartalar', '');
+  }, e => {
+    ['k-emp-calculated', 'k-emp-unpaid'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '—'; });
+    document.querySelectorAll('[id^="emp-fin-"]').forEach(el => { el.textContent = '—'; });
+    document.querySelectorAll('[id^="emp-status-"]').forEach(el => { el.innerHTML = ''; });
+    yukXatoKor('xato-kpi-kartalar', yukXatoMatn('Joriy oy oyliklari', e));
+  });
 }
 </script>
 {% endblock %}

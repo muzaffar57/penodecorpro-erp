@@ -250,8 +250,10 @@
         </div>
         {# kech120 (zip 134 — G2-19): chiziq — BAJARILISH foizi (tayyor / yetkazilgan buyurtmalar), «… to'langan» yozuvi ostida to'lov chizig'i
            deb o'qilardi — endi nomi bilan #}
+        {% if current_user.ruxsat('loyiha_korsatkich', 'korish') %}
         <div class="progress-bar" id="progress-{{ p.id }}" title="Bajarilgan (tayyor / yetkazilgan buyurtmalar ulushi)"><div class="progress-fill" style="width:0%"></div></div>
         <div class="proj-bajarildi" id="pbaj-{{ p.id }}" style="font-size:12px;color:var(--text3);margin-top:3px"></div>
+        {% endif %}
         </div>
       </div>
       {% endfor %}
@@ -274,22 +276,50 @@
       <div id="moneyRow" style="display:none;grid-template-columns:1fr 1fr 1fr;gap:12px;padding:14px 16px 0"></div>
       <div class="card-body" style="display:flex;flex-direction:column;overflow:hidden;flex:1">
 
-        <div class="status-panel" id="statusPanel"></div>
+        {# kech138 (zip 165): «🏭 Bajarilgan» va «🚚 Yetkazish» — «Loyiha ko'rsatkichlari: Ko'rish» bilan (`data-korsatkich`); yuklanmasa —
+           «—» va panel ostida sabab (ilgari «🚚 Yetkazish» abadiy «…», bajarilish — sababsiz «—») #}
+        <div class="status-panel" id="statusPanel" data-korsatkich="{{ '1' if current_user.ruxsat('loyiha_korsatkich', 'korish') else '0' }}"></div>
+        <p class="yuk-xato" id="xato-bajarilgan" hidden></p>
+        <p class="yuk-xato" id="xato-yetkazish" hidden></p>
 
-        <div class="tab-bar" id="tabBar">
+        {# kech138 (zip 165, O'LCHANGAN — tayyor «Moliyachi»: «Buyurtmalar» — «ko'rishga ruxsat yo'q», «To'lovlar», «Xomashyo», «Tarix» —
+           «Yuklashda xato», «Mahsulotlar» — «Mahsulot yo'q» (yolg'on)): bo'lim — so'rovlari talab qiladigan ruxsat bilan:
+           Buyurtmalar / Tarix — «Buyurtmalar: Ko'rish», To'lovlar — + «To'lovlar: Ko'rish», Xomashyo — + «Materiallar: Ko'rish»,
+           Mahsulotlar — «Loyihalar: Ko'rish», Moliya — «Tannarx va foyda» + «Loyiha ko'rsatkichlari». `data-bolimlar` — JS ham shu ro'yxat
+           bilan (ruxsatsiz bo'limga o'tilmaydi), `data-tolov` — «Tarix» ga to'lovlar qo'shiladimi. #}
+        {% set _bolimlar = ['asosiy']
+             + (['orders'] if current_user.ruxsat('buyurtma', 'korish') else [])
+             + (['yuklar'] if current_user.ruxsat('yetkazish', 'korish') else [])
+             + (['finance'] if (current_user.ruxsat('tannarx', 'korish') and current_user.ruxsat('loyiha_korsatkich', 'korish')) else [])
+             + (['payments'] if (current_user.ruxsat('buyurtma', 'korish') and current_user.ruxsat('tolov', 'korish')) else [])
+             + (['products'] if current_user.ruxsat('loyiha', 'korish') else [])
+             + (['materials'] if (current_user.ruxsat('buyurtma', 'korish') and current_user.ruxsat('material', 'korish')) else [])
+             + (['timeline'] if current_user.ruxsat('buyurtma', 'korish') else [])
+             + ['notes'] %}
+        <div class="tab-bar" id="tabBar" data-bolimlar="{{ _bolimlar|join(',') }}" data-tolov="{{ '1' if current_user.ruxsat('tolov', 'korish') else '0' }}">
           <button class="tab-btn tab active" data-tab="asosiy" onclick="switchTab('asosiy')">Asosiy</button>
+          {% if 'orders' in _bolimlar %}
           <button class="tab-btn tab" data-tab="orders" onclick="switchTab('orders')">Buyurtmalar</button>
+          {% endif %}
           {# kech124 (zip 144): yuk xatlari va «Jamlab olish» — yuk xati PDF i bilan bir ruxsat («Yetkazib berish va transport: Ko'rish») #}
           {% if current_user.ruxsat('yetkazish', 'korish') %}
           <button class="tab-btn tab" data-tab="yuklar" onclick="switchTab('yuklar')">Yuk xatlari</button>
           {% endif %}
-          {% if current_user.ruxsat('tannarx', 'korish') %}
+          {% if 'finance' in _bolimlar %}
           <button class="tab-btn tab" data-tab="finance" onclick="switchTab('finance')">Moliya</button>
           {% endif %}
+          {% if 'payments' in _bolimlar %}
           <button class="tab-btn tab" data-tab="payments" onclick="switchTab('payments')">To'lovlar</button>
+          {% endif %}
+          {% if 'products' in _bolimlar %}
           <button class="tab-btn tab" data-tab="products" onclick="switchTab('products')">Mahsulotlar</button>
+          {% endif %}
+          {% if 'materials' in _bolimlar %}
           <button class="tab-btn tab" data-tab="materials" onclick="switchTab('materials')">Xomashyo</button>
+          {% endif %}
+          {% if 'timeline' in _bolimlar %}
           <button class="tab-btn tab" data-tab="timeline" onclick="switchTab('timeline')">Tarix</button>
+          {% endif %}
           <button class="tab-btn tab" data-tab="notes" onclick="switchTab('notes')">Izohlar</button>
         </div>
 
@@ -401,7 +431,28 @@ let progressMap = {};
 // paneli «🏭 Bajarilgan» ni `progressMap[id] || 0` dan BIR MARTA yozardi: sahifa ochilganda birinchi loyiha `load` da tanlanadi,
 // xarita undan keyin kelsa panel 0 % bo'lib QOLARDI (staging, PRJ-051: panel 0 %, xaritada 40 % — jonli O'LCHANGAN).
 let progressMapHolat = 'kutilmoqda';
+let progressMapXato = null;      // kech138 (zip 165): xarita kelmagan sabab (panel ostida)
 let currentTab = 'asosiy';
+
+// kech138 (zip 165): ruxsat bo'yicha bo'limlar (`#tabBar[data-bolimlar]`) va ko'rsatkichlar (`#statusPanel[data-korsatkich]`);
+// belgi yo'q bo'lsa (sahifa funksiyasini alohida oladigan sinovlar) — hammasi bor deb olinadi
+function bolimlarRoyxati() {
+  const tb = document.getElementById('tabBar');
+  const r = tb && tb.dataset ? tb.dataset.bolimlar : null;
+  return r ? r.split(',') : null;
+}
+function bolimBor(tab) {
+  const r = bolimlarRoyxati();
+  return !r || r.indexOf(tab) >= 0;
+}
+function korsatkichBor() {
+  const el = document.getElementById('statusPanel');
+  return !(el && el.dataset && el.dataset.korsatkich === '0');
+}
+function tolovBor() {
+  const tb = document.getElementById('tabBar');
+  return !(tb && tb.dataset && tb.dataset.tolov === '0');
+}
 
 // MUHIM: brauzerning standart alert()'i o'rniga — u sayt manzilini
 // ("...railway.app says:") xunuk qilib ko'rsatib qo'yardi. Endi
@@ -462,21 +513,26 @@ async function uploadProjImage(id, input) {
   }
 }
 
+// kech138 (zip 165, O'LCHANGAN): xarita kelmasa kartalardagi «🏭 Bajarilgan …» bo'sh qolardi (0 % chiziq bilan — 0 % deb o'qilardi),
+// sabab yo'q edi. Endi kartalarda «—», panel ostida sabab; «Loyiha ko'rsatkichlari: Ko'rish» ruxsati yo'q — so'ralmaydi.
+function pbajYoz(matn) {
+  document.querySelectorAll('[id^="pbaj-"]').forEach(el => { el.textContent = '🏭 Bajarilgan ' + matn; });
+}
 async function loadProgressMap(){
+  if (!korsatkichBor()) { progressMapHolat = 'xato'; return; }
   try {
-    const r = await fetch('/api/projects/progress-map');
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const xarita = await r.json();
-    if (!xarita || typeof xarita !== 'object' || Array.isArray(xarita)) throw new Error('xarita emas');
+    const xarita = await yukOl('/api/projects/progress-map');
+    if (!xarita || typeof xarita !== 'object' || Array.isArray(xarita)) throw yukXato('server');
     progressMap = xarita;
     progressMapHolat = 'tayyor';
+    progressMapXato = null;
     Object.keys(progressMap).forEach(pid => {
       const el = document.querySelector(`#progress-${pid} .progress-fill`);
       if (el) el.style.width = progressMap[pid] + '%';
       const yoz = document.getElementById('pbaj-' + pid);
       if (yoz) yoz.textContent = '🏭 Bajarilgan ' + (Number(progressMap[pid]) || 0) + '%';
     });
-  } catch(e) { progressMapHolat = 'xato'; }
+  } catch(e) { progressMapHolat = 'xato'; progressMapXato = (e && e.yukXato) ? e : yukXato('server'); pbajYoz('—'); }
   bajarilganYangila();
 }
 
@@ -489,6 +545,10 @@ function bajarilganMatni(pid) {
 function bajarilganYangila() {
   const el = document.getElementById('sp-bajarilgan');
   if (el && selectedProjId != null) el.textContent = bajarilganMatni(selectedProjId);
+  if (typeof yukXatoKor === 'function') {
+    yukXatoKor('xato-bajarilgan', (el && typeof progressMapXato !== 'undefined' && progressMapXato)
+      ? yukXatoMatn('Bajarilish foizi', progressMapXato) : '');
+  }
 }
 
 function selectProj(el) {
@@ -538,24 +598,36 @@ async function loadStatusPanel(d){
     deadlineColor = days < 0 ? '#DC2626' : (days <= 3 ? '#F59E0B' : 'var(--text)');
   }
 
+  const korsatkich = korsatkichBor();     // kech138 (zip 165): ruxsat yo'q — bajarilish va yetkazish kartalari yo'q, so'ralmaydi
   document.getElementById('statusPanel').innerHTML = `
     <div class="status-panel-item" style="border-color:#B9783F"><div class="status-panel-val">${paidPct}%</div><div class="status-panel-lbl">💰 To'langan</div></div>
     <div class="status-panel-item" style="border-color:#8E44AD"><div class="status-panel-val">${d.orders} ta</div><div class="status-panel-lbl">📦 Buyurtmalar</div></div>
-    <div class="status-panel-item" style="border-color:#22C55E"><div class="status-panel-val" id="sp-bajarilgan">${progress}</div><div class="status-panel-lbl">🏭 Bajarilgan</div></div>
-    <div class="status-panel-item" style="border-color:#F59E0B"><div class="status-panel-val" id="sp-yetkazish">${d.status === 'COMPLETED' ? 'Yetkazildi' : '…'}</div><div class="status-panel-lbl">🚚 Yetkazish</div></div>
+    ${korsatkich ? `<div class="status-panel-item" style="border-color:#22C55E"><div class="status-panel-val" id="sp-bajarilgan">${progress}</div><div class="status-panel-lbl">🏭 Bajarilgan</div></div>
+    <div class="status-panel-item" style="border-color:#F59E0B"><div class="status-panel-val" id="sp-yetkazish">${d.status === 'COMPLETED' ? 'Yetkazildi' : '…'}</div><div class="status-panel-lbl">🚚 Yetkazish</div></div>` : ''}
     <div class="status-panel-item" style="border-color:${deadlineColor==='var(--text)'?'#94A3B8':deadlineColor}"><div class="status-panel-val" style="color:${matnRangi(deadlineColor)}">${deadlineTxt}</div><div class="status-panel-lbl">📅 Muddat</div></div>`;
+  if (typeof bajarilganYangila === 'function') bajarilganYangila();
+  if (typeof yukXatoKor === 'function') yukXatoKor('xato-yetkazish', '');
+  if (!korsatkich) return;
   // kech120 (zip 134 — G2-19): «Yetkazish» — buyurtmalarning to'liq topshirilgani («2/3 topshirildi»); ilgari faqat loyiha «Yakunlangan» bo'lsa
+  // kech138 (zip 165, O'LCHANGAN): xato (502 / 500 / 401 / 403) — abadiy «…» edi; endi «—» va panel ostida sabab
   try {
-    const t = await fetch(`/api/projects/${encodeURIComponent(d.id)}/topshirish`).then(r => r.ok ? r.json() : null);
+    const t = await yukOl(`/api/projects/${encodeURIComponent(d.id)}/topshirish`);
+    if (!t || typeof t !== 'object' || Array.isArray(t)) throw yukXato('server');
     const el = document.getElementById('sp-yetkazish');
-    if (el && t && String(selectedProjId) === String(d.id)) {
+    if (el && String(selectedProjId) === String(d.id)) {
       el.textContent = !t.jami ? '—' : (t.topshirilgan >= t.jami ? 'Hammasi topshirildi' : `${t.topshirilgan}/${t.jami} topshirildi`);
     }
-  } catch (e) { const el = document.getElementById('sp-yetkazish'); if (el && el.textContent === '…') el.textContent = '—'; }
+  } catch (x) {
+    if (String(selectedProjId) !== String(d.id)) return;
+    const el = document.getElementById('sp-yetkazish');
+    if (el) el.textContent = '—';
+    yukXatoKor('xato-yetkazish', yukXatoMatn('Yetkazish holati', (x && x.yukXato) ? x : yukXato('server')));
+  }
 }
 
 function switchTab(tab, force) {
   if (!selectedProjId) return;
+  if (!bolimBor(tab)) tab = 'asosiy';     // kech138 (zip 165): ruxsatsiz bo'lim yo'q — «Asosiy»
   if (tab === currentTab && !force) return;
   currentTab = tab;
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
@@ -576,7 +648,17 @@ function switchTab(tab, force) {
   if (tab === 'notes') return renderNotes(d);
 }
 
+// kech138 (zip 165, O'LCHANGAN — bo'lim almashtirilganda kech kelgan javob («To'lovlar») ochiq bo'limni («Buyurtmalar») bosardi):
+// har bo'lim chizuvchisi boshida `yukNavbat('loyiha_bolim')` — eski bo'lim javobi tashlanadi (so'rovsiz bo'limlar ham navbatni oladi).
+function bolimNavbati() {
+  return (typeof yukNavbat === 'function') ? yukNavbat('loyiha_bolim') : () => true;
+}
+function bolimSababi(nima, x) {
+  return `<div class="yuk-xato-qator">${escapeHtml(yukXatoMatn(nima, (x && x.yukXato) ? x : yukXato('server')))}</div>`;
+}
+
 function renderAsosiy(d) {
+  bolimNavbati();
   // 17c (2026-09-21): loyihaga to'g'ridan-to'g'ri "💰 To'lov qo'shish"
   // tugmasi OLIB TASHLANDI (foydalanuvchi qarori "1"): u pulni to'lov
   // yozuvisiz yozardi, Moliyaga tushmasdi va keyingi buyurtma to'lovida
@@ -590,9 +672,9 @@ function renderAsosiy(d) {
     <div class="info-row"><span style="color:var(--text3)">Muddat</span><span>${escapeHtml(d.deadline)}</span></div>
     <div class="qa-row">
       <button class="btn btn-outline btn-sm" onclick="openEditModal()"><i class="ti ti-edit"></i> Tahrirlash</button>
-      <button class="btn btn-outline btn-sm" onclick="switchTab('orders')"><i class="ti ti-arrow-right"></i> Buyurtmalari</button>
-      <button class="btn btn-outline btn-sm" onclick="switchTab('payments')"><i class="ti ti-cash"></i> To'lovlarni ko'rish</button>
-      <button class="btn btn-outline btn-sm" onclick="switchTab('products')"><i class="ti ti-list"></i> Mahsulotlar ro'yxati</button>
+      ${bolimBor('orders') ? `<button class="btn btn-outline btn-sm" onclick="switchTab('orders')"><i class="ti ti-arrow-right"></i> Buyurtmalari</button>` : ''}
+      ${bolimBor('payments') ? `<button class="btn btn-outline btn-sm" onclick="switchTab('payments')"><i class="ti ti-cash"></i> To'lovlarni ko'rish</button>` : ''}
+      ${bolimBor('products') ? `<button class="btn btn-outline btn-sm" onclick="switchTab('products')"><i class="ti ti-list"></i> Mahsulotlar ro'yxati</button>` : ''}
       <button class="btn btn-green btn-sm" id="proj-complete-btn" onclick="markProjectComplete()"><i class="ti ti-check"></i> Yakunlash</button>
       <button class="btn btn-danger btn-sm" onclick="deleteProj()">O'chirish</button>
     </div>`;
@@ -606,14 +688,17 @@ function loyihaBuyurtmaSummasi(o) {
   return (o.agreed_amount !== null && o.agreed_amount !== undefined) ? Number(o.agreed_amount) : Number(o.total_amount || 0);
 }
 async function renderOrders(d) {
+  const joriy = bolimNavbati();
+  let orders;
   try {
-    const res = await fetch(`/api/orders?project_id=${selectedProjId}`);
-    if (!res.ok) {
-      document.getElementById('tabContent').innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">' +
-        escapeHtml(res.status === 403 ? "Buyurtmalarni ko'rishga ruxsat yo'q" : 'Yuklashda xato') + '</div>';
-      return;
-    }
-    const orders = await res.json();
+    orders = await yukOl(`/api/orders?project_id=${selectedProjId}`);
+    if (!Array.isArray(orders)) throw yukXato('server');
+  } catch (x) {
+    if (joriy()) document.getElementById('tabContent').innerHTML = bolimSababi('Buyurtmalar', x);
+    return;
+  }
+  if (!joriy()) return;
+  try {
     const yangiTugma = BUYURTMA_YARATADI
       ? `<button class="btn btn-dark btn-sm" onclick="window.location.href='/orders?new_for_project=${Number(selectedProjId)}'">+ Yangi buyurtma</button>`
       : '';
@@ -639,7 +724,7 @@ async function renderOrders(d) {
           <div style="font-size:13px;font-weight:600;margin-top:3px">${fmt(loyihaBuyurtmaSummasi(o))} so'm</div>
         </div>
       </div>`).join('');
-  } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:var(--m-dc2626);text-align:center;padding:20px">Yuklashda xato</div>'; }
+  } catch(e) { console.error(e); document.getElementById('tabContent').innerHTML = bolimSababi('Buyurtmalar', e); }
 }
 
 // kech124 (zip 144 — egasi QARORLARI 06.10): «Yuk xatlari» — loyihaning HAMMA buyurtmalari yuk xatlari bitta ro'yxatda (raqam, sana,
@@ -671,17 +756,19 @@ function yxQatori(dl) {
 async function renderYukXatlari(d) {
   const quti = document.getElementById('tabContent');
   const pid = selectedProjId;
+  const joriy = bolimNavbati();
+  // kech138 (zip 165): xato — sabab (502 / tarmoq ilgari sababsiz «Yuklashda xato»)
+  let j;
   try {
-    const res = await fetch(`/api/projects/${encodeURIComponent(pid)}/yuk-xatlari`);
-    if (String(selectedProjId) !== String(pid) || currentTab !== 'yuklar') return;
-    if (!res.ok) {
-      quti.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">' +
-        escapeHtml(res.status === 403 ? "Yuk xatlarini ko'rishga ruxsat yo'q" : await serverXatoSababi(res, 'Yuklashda xato')) + '</div>';
-      return;
-    }
-    const j = await res.json();
-    if (String(selectedProjId) !== String(pid) || currentTab !== 'yuklar') return;
-    yxRoyxat = j.deliveries || [];
+    j = await yukOl(`/api/projects/${encodeURIComponent(pid)}/yuk-xatlari`);
+    if (!j || typeof j !== 'object' || !Array.isArray(j.deliveries)) throw yukXato('server');
+  } catch (x) {
+    if (joriy() && String(selectedProjId) === String(pid) && currentTab === 'yuklar') quti.innerHTML = bolimSababi('Yuk xatlari', x);
+    return;
+  }
+  if (!joriy() || String(selectedProjId) !== String(pid) || currentTab !== 'yuklar') return;
+  try {
+    yxRoyxat = j.deliveries;
     if (!yxRoyxat.length) {
       quti.innerHTML = '<div class="fp-empty" style="text-align:center;padding:30px 18px;color:var(--text3);line-height:1.55">' +
         '<div style="font-weight:700;color:var(--text);margin-bottom:6px">Hali yuk xati yo\'q</div>' +
@@ -704,9 +791,8 @@ async function renderYukXatlari(d) {
         bitta qatorda: jami miqdor, birlik narxi, summa va jami summa.</div>`;
     yxYangila();
   } catch (e) {
-    if (String(selectedProjId) === String(pid) && currentTab === 'yuklar') {
-      quti.innerHTML = '<div style="color:var(--m-dc2626);text-align:center;padding:20px">Yuklashda xato</div>';
-    }
+    console.error(e);
+    if (String(selectedProjId) === String(pid) && currentTab === 'yuklar') quti.innerHTML = bolimSababi('Yuk xatlari', e);
   }
 }
 
@@ -741,11 +827,20 @@ function yxYangila() {
   }
 }
 
+// kech138 (zip 165, O'LCHANGAN): ko'rsatkich xato JSON bersa — «Sof foyda 0 so'm» (YOLG'ON), 502 / tarmoq — butun bo'lim «Yuklashda xato»
+// (qiymat / to'langan / qarz — sahifadagi ma'lumot — ham yo'qolardi). Endi uch karta doim, sof foyda — «—» va sabab.
 async function renderFinance(d) {
+  const joriy = bolimNavbati();
+  let stats = null, xato = null;
   try {
-    const stats = await fetch(`/api/projects/${selectedProjId}/detail-stats`).then(r=>r.json());
+    stats = await yukOl(`/api/projects/${selectedProjId}/detail-stats`);
+    if (!stats || typeof stats !== 'object' || !('total_profit' in stats)) throw yukXato('server');
+  } catch (x) { xato = (x && x.yukXato) ? x : yukXato('server'); stats = null; }
+  if (!joriy()) return;
+  try {
     // kech116 (G2-01): «Byudjet» o'rniga «Loyiha qiymati» (buyurtmalardan), qarz — buyurtmalar qarzi
     const budget = parseFloat(d.qiymat)||0, paid = parseFloat(d.paid)||0, debt = Math.max(0, parseFloat(d.qarz)||0);
+    const foyda = xato ? '—' : (stats.total_profit === null ? '—' : fmt(stats.total_profit) + " so'm");
     document.getElementById('tabContent').innerHTML = `
       <div class="fin-grid">
         <div class="fin-stat fin-budget">
@@ -762,20 +857,51 @@ async function renderFinance(d) {
         </div>
         <div class="fin-stat fin-profit">
           <div class="fin-stat-head"><i class="ti ti-chart-line" style="font-size:16px"></i> Sof foyda</div>
-          <div class="fin-stat-val">${stats.total_profit === null ? '—' : fmt(stats.total_profit) + " so'm"}</div>
+          <div class="fin-stat-val">${foyda}</div>
         </div>
       </div>
-      <div class="progress-bar"><div class="progress-fill" style="width:${budget>0?Math.min(100,Math.round(paid/budget*100)):0}%"></div></div>`;
-  } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:var(--m-dc2626);text-align:center;padding:20px">Yuklashda xato</div>'; }
+      <div class="progress-bar"><div class="progress-fill" style="width:${budget>0?Math.min(100,Math.round(paid/budget*100)):0}%"></div></div>
+      ${xato ? `<p class="yuk-xato">${escapeHtml(yukXatoMatn('Sof foyda', xato))}</p>` : ''}`;
+  } catch(e) { console.error(e); document.getElementById('tabContent').innerHTML = bolimSababi('Moliya', e); }
 }
 
+// kech138 (zip 165, O'LCHANGAN): buyurtmalardan birining to'lovlari xato JSON bersa — «0 so'm ·» qatori (YOLG'ON), 502 / tarmoq — butun
+// bo'lim «Yuklashda xato» (qolgan buyurtmalar to'lovlari ham ko'rinmasdi). Endi har buyurtma alohida: yuklanganlari chiziladi,
+// kelmaganida — «⚠️ ORD-… to'lovlari yuklanmadi — sabab».
+async function loyihaBuyurtmalari() {
+  const orders = await yukOl(`/api/orders?project_id=${selectedProjId}`);
+  if (!Array.isArray(orders)) throw yukXato('server');
+  return orders;
+}
+async function buyurtmaRoyxatlari(orders, url, nima) {
+  const nat = await Promise.allSettled(orders.map(o => yukOl(url(o)).then(r => {
+    if (!Array.isArray(r)) throw yukXato('server');
+    return r;
+  })));
+  const qatorlar = [], sabablar = [];
+  nat.forEach((n, i) => {
+    if (n.status === 'fulfilled') qatorlar.push({ order: orders[i], items: n.value });
+    else sabablar.push(bolimSababi(`${orders[i].order_number || ('#' + orders[i].id)} ${nima}`, n.reason));
+  });
+  return { qatorlar, sabablar: sabablar.join('') };
+}
 async function renderPayments(d) {
+  const joriy = bolimNavbati();
+  let orders;
+  try { orders = await loyihaBuyurtmalari(); } catch (x) {
+    if (joriy()) document.getElementById('tabContent').innerHTML = bolimSababi("To'lovlar", x);
+    return;
+  }
+  const r = await buyurtmaRoyxatlari(orders, o => `/api/payments?order_id=${o.id}`, "to'lovlari");
+  if (!joriy()) return;
   try {
-    const orders = await fetch(`/api/orders?project_id=${selectedProjId}`).then(r=>r.json());
-    const allPayments = (await Promise.all(orders.map(o => fetch(`/api/payments?order_id=${o.id}`).then(r=>r.json())))).flat();
+    const allPayments = r.qatorlar.map(q => q.items).flat();
     allPayments.sort((a,b) => new Date(b.paid_at) - new Date(a.paid_at));
-    if (!allPayments.length) { document.getElementById('tabContent').innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)">To\'lov yo\'q</div>'; return; }
-    document.getElementById('tabContent').innerHTML = `<div class="zebra-list">${allPayments.map(p => `
+    if (!allPayments.length) {
+      document.getElementById('tabContent').innerHTML = r.sabablar || '<div style="text-align:center;padding:30px;color:var(--text3)">To\'lov yo\'q</div>';
+      return;
+    }
+    document.getElementById('tabContent').innerHTML = r.sabablar + `<div class="zebra-list">${allPayments.map(p => `
       <div class="zebra-row">
         <div class="zebra-icon zi-in"><i class="ti ti-cash"></i></div>
         <div style="flex:1;min-width:0">
@@ -783,13 +909,23 @@ async function renderPayments(d) {
           <div class="zebra-sub">${p.paid_at ? tkSana(p.paid_at) : ''} · ${escapeHtml(p.payment_method || '')}${p.received_by ? ' · '+escapeHtml(p.received_by) : ''}</div>
         </div>
       </div>`).join('')}</div>`;
-  } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:var(--m-dc2626);text-align:center;padding:20px">Yuklashda xato</div>'; }
+  } catch(e) { console.error(e); document.getElementById('tabContent').innerHTML = bolimSababi("To'lovlar", e); }
 }
 
+// kech138 (zip 165, O'LCHANGAN): xato JSON — «Mahsulot yo'q» (YOLG'ON), 502 / tarmoq — sababsiz «Yuklashda xato». Endi sabab.
 async function renderProducts(d) {
+  const joriy = bolimNavbati();
+  let res;
   try {
-    const res = await fetch(`/api/projects/${selectedProjId}/items`).then(r=>r.json());
-    const items = res.items || [];
+    res = await yukOl(`/api/projects/${selectedProjId}/items`);
+    if (!res || typeof res !== 'object' || !Array.isArray(res.items)) throw yukXato('server');
+  } catch (x) {
+    if (joriy()) document.getElementById('tabContent').innerHTML = bolimSababi('Mahsulotlar', x);
+    return;
+  }
+  if (!joriy()) return;
+  try {
+    const items = res.items;
     if (!items.length) { document.getElementById('tabContent').innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)">Mahsulot yo\'q</div>'; return; }
     const CAT_ICON = {profil:'ti-ruler-2', panel:'ti-square', blok:'ti-cube', dona:'ti-hexagon', gips:'ti-flask'};
 
@@ -826,27 +962,33 @@ async function renderProducts(d) {
             </div>`).join('')}</div>
         </div>
       </div>`).join('')}</div>`;
-  } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:var(--m-dc2626);text-align:center;padding:20px">Yuklashda xato</div>'; }
+  } catch(e) { console.error(e); document.getElementById('tabContent').innerHTML = bolimSababi('Mahsulotlar', e); }
 }
 
+// kech138 (zip 165, O'LCHANGAN): bir buyurtma harakatlari xato JSON bersa — o'sha buyurtma jimgina tushib qolardi, hammasi xato bo'lsa —
+// «xomashyo jurnali topilmadi» (YOLG'ON); 502 / tarmoq — butun bo'lim «Yuklashda xato». Endi har buyurtma alohida, kelmaganida sabab.
 async function renderMaterials(d) {
+  const joriy = bolimNavbati();
+  let orders;
+  try { orders = await loyihaBuyurtmalari(); } catch (x) {
+    if (joriy()) document.getElementById('tabContent').innerHTML = bolimSababi('Xomashyo jurnali', x);
+    return;
+  }
+  // Har bir buyurtma uchun ALOHIDA so'raymiz — shuning uchun guruhlash
+  // uchun qo'shimcha ishlov kerak emas, javoblarning o'zi allaqachon
+  // buyurtma bo'yicha ajratilgan.
+  const r = await buyurtmaRoyxatlari(orders, o => `/api/inventory/movements?order_id=${o.id}&movement_type=out`, 'xomashyo jurnali');
+  if (!joriy()) return;
   try {
-    const orders = await fetch(`/api/orders?project_id=${selectedProjId}`).then(r=>r.json());
-    // Har bir buyurtma uchun ALOHIDA so'raymiz — shuning uchun guruhlash
-    // uchun qo'shimcha ishlov kerak emas, javoblarning o'zi allaqachon
-    // buyurtma bo'yicha ajratilgan.
-    const perOrder = await Promise.all(orders.map(async o => {
-      const moves = await fetch(`/api/inventory/movements?order_id=${o.id}&movement_type=out`).then(r=>r.json());
-      return { order_number: o.order_number, created_at: o.created_at, items: moves };
-    }));
-    const groups = perOrder.filter(g => g.items.length > 0)
+    const groups = r.qatorlar.map(q => ({ order_number: q.order.order_number, created_at: q.order.created_at, items: q.items }))
+                            .filter(g => g.items.length > 0)
                             .sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
 
     if (!groups.length) {
-      document.getElementById('tabContent').innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)">Bu loyiha uchun sarflangan xomashyo jurnali topilmadi (faqat buyurtma yakunlanganidan keyingi harakatlar qayd etiladi)</div>';
+      document.getElementById('tabContent').innerHTML = r.sabablar || '<div style="text-align:center;padding:30px;color:var(--text3)">Bu loyiha uchun sarflangan xomashyo jurnali topilmadi (faqat buyurtma yakunlanganidan keyingi harakatlar qayd etiladi)</div>';
       return;
     }
-    document.getElementById('tabContent').innerHTML = `<div class="prod-accordion">${groups.map((g, gi) => `
+    document.getElementById('tabContent').innerHTML = r.sabablar + `<div class="prod-accordion">${groups.map((g, gi) => `
       <div class="prod-acc-item">
         <div class="prod-acc-head${gi===0?' expanded':''}" onclick="this.classList.toggle('expanded'); this.nextElementSibling.classList.toggle('open')">
           <div class="prod-acc-head-left">
@@ -867,13 +1009,25 @@ async function renderMaterials(d) {
             </div>`).join('')}</div>
         </div>
       </div>`).join('')}</div>`;
-  } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:var(--m-dc2626);text-align:center;padding:20px">Yuklashda xato</div>'; }
+  } catch(e) { console.error(e); document.getElementById('tabContent').innerHTML = bolimSababi('Xomashyo jurnali', e); }
 }
 
+// kech138 (zip 165, O'LCHANGAN): to'lovlar xato JSON bersa — tarixdan to'lovlar JIMGINA tushib qolardi; 502 / tarmoq — butun bo'lim
+// «Yuklashda xato». Endi buyurtma voqealari doim, kelmagan to'lovlar — sabab bilan; «To'lovlar: Ko'rish» ruxsati yo'q — to'lovlar
+// so'ralmaydi (tarixda faqat buyurtma voqealari).
 async function renderTimeline(d) {
+  const joriy = bolimNavbati();
+  let orders;
+  try { orders = await loyihaBuyurtmalari(); } catch (x) {
+    if (joriy()) document.getElementById('tabContent').innerHTML = bolimSababi('Tarix', x);
+    return;
+  }
+  const r = tolovBor()
+    ? await buyurtmaRoyxatlari(orders, o => `/api/payments?order_id=${o.id}`, "to'lovlari")
+    : { qatorlar: [], sabablar: '' };
+  if (!joriy()) return;
   try {
-    const orders = await fetch(`/api/orders?project_id=${selectedProjId}`).then(r=>r.json());
-    const payments = (await Promise.all(orders.map(o => fetch(`/api/payments?order_id=${o.id}`).then(r=>r.json())))).flat();
+    const payments = r.qatorlar.map(q => q.items).flat();
 
     let events = [];
     events.push({ date: d.startRaw, icon: 'ti-target', text: `Loyiha yaratildi — ${d.name}` });
@@ -892,10 +1046,10 @@ async function renderTimeline(d) {
 
     events = events.filter(e => e.date).sort((a,b) => new Date(b.date) - new Date(a.date));
 
-    if (!events.length) { document.getElementById('tabContent').innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)">Voqealar yo\'q</div>'; return; }
+    if (!events.length) { document.getElementById('tabContent').innerHTML = r.sabablar || '<div style="text-align:center;padding:30px;color:var(--text3)">Voqealar yo\'q</div>'; return; }
 
     const DOT_CLASS = {'ti-target':'zi-neutral','ti-package':'zi-neutral','ti-circle-check':'zi-in','ti-truck-delivery':'zi-in','ti-cash':'zi-in'};
-    document.getElementById('tabContent').innerHTML = events.map(e => `
+    document.getElementById('tabContent').innerHTML = r.sabablar + events.map(e => `
       <div class="timeline-item">
         <div class="tl-dot-icon zebra-icon ${DOT_CLASS[e.icon]||'zi-neutral'}"><i class="ti ${e.icon}" style="font-size:13px"></i></div>
         <div>
@@ -903,10 +1057,11 @@ async function renderTimeline(d) {
           <div style="font-size:13px;color:var(--text3);margin-top:2px">${tkToliq(e.date)}</div>
         </div>
       </div>`).join('');
-  } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:var(--m-dc2626);text-align:center;padding:20px">Yuklashda xato</div>'; }
+  } catch(e) { console.error(e); document.getElementById('tabContent').innerHTML = bolimSababi('Tarix', e); }
 }
 
 function renderNotes(d) {
+  bolimNavbati();
   document.getElementById('tabContent').innerHTML = `
     <div style="background:var(--bg);border-radius:8px;padding:6px 12px;margin-bottom:12px;font-size:13px;color:var(--text3);line-height:1.6">
       Hozircha bitta umumiy izoh maydoni mavjud — ketma-ket sharhlar tarixi hali qo'llab-quvvatlanmaydi.
