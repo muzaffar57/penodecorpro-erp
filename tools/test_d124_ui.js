@@ -145,6 +145,11 @@ async function loyihaBolimi() {
   const tk = olib(BASE, 'tkSana');
   tekshir('L0 fmt, loyihaBuyurtmaSummasi, renderOrders topildi', kod.every(Boolean));
   if (!kod.every(Boolean)) return;
+  // kech138 (zip 165, MOSLANDI): `renderOrders` endi base.html dagi umumiy yuklash yordamchilari (`yukOl`, `yukNavbat`, `yukXatoMatn` …)
+  // va sahifaning bo'lim navbati / sabab qatori (`bolimNavbati`, `bolimSababi`) bilan — bo'lsa birga yuklanadi (eski shablonda yo'q)
+  const YUK = ['xatoSababi', 'yukXato', 'yukOl', 'yukSabab', 'yukXatoMatn', 'yukNavbat', 'yukSessiyaKor'].map((n) => olib(BASE, n))
+    .concat(['bolimNavbati', 'bolimSababi'].map((n) => olib(PROJECTS, n))).filter(Boolean);
+  const YANGI = YUK.length > 0 && /yukOl\(/.test(kod[2]);
   async function sina(yaratadi, javob) {
     const tab = element('');
     const ctx = ctxYasa({
@@ -152,7 +157,7 @@ async function loyihaBolimi() {
       fetch: async () => ({ ok: javob.status === 200, status: javob.status, json: async () => javob.data }),
       selectedProjId: 3, BUYURTMA_YARATADI: yaratadi, tkSana: (v) => String(v).slice(0, 10),
     });
-    vm.runInContext(ESC + '\n' + kod.join('\n'), ctx);
+    vm.runInContext(ESC + '\n' + YUK.join('\n') + '\n' + kod.join('\n'), ctx);
     await vm.runInContext('renderOrders({})', ctx);
     return tab.innerHTML;
   }
@@ -172,8 +177,10 @@ async function loyihaBolimi() {
   h = await sina(true, { status: 200, data: [] });
   tekshir("L5 bo'sh loyiha — «Buyurtma yo'q» va «+ Yangi buyurtma»", h.includes("Buyurtma yo'q") && h.includes('+ Yangi buyurtma'));
   h = await sina(true, { status: 403, data: { detail: 'x' } });
-  tekshir("L6 403 — «Buyurtmalarni ko'rishga ruxsat yo'q» (ilgari «Buyurtma yo'q» deb noto'g'ri yozilardi)",
-          h.replace(/&#39;/g, "'").includes("Buyurtmalarni ko'rishga ruxsat yo'q") && !h.includes("Buyurtma yo'q<"), qisqa(h));
+  // kech138 (zip 165, MOSLANDI): sabab — umumiy yozuvda («⚠️ Buyurtmalar yuklanmadi — ko'rish ruxsati yo'q», boshqa bo'limlar bilan bir xil)
+  const RUXSAT = YANGI ? "⚠️ Buyurtmalar yuklanmadi — ko'rish ruxsati yo'q" : "Buyurtmalarni ko'rishga ruxsat yo'q";
+  tekshir(`L6 403 — «${RUXSAT}» (ilgari «Buyurtma yo'q» deb noto'g'ri yozilardi)`,
+          h.replace(/&#39;/g, "'").includes(RUXSAT) && !h.includes("Buyurtma yo'q<"), qisqa(h));
 }
 
 async function dashboardBolimi() {

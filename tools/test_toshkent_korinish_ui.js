@@ -378,7 +378,12 @@ async function ichki() {
     const jv = { '/api/orders?project_id=': [{ id: 9, order_number: 'ORD-9', status: 'ready', created_at: LAHZA, completed_at: LAHZA }],
                  '/api/payments?order_id=': [{ id: 1, amount: 1000, paid_at: LAHZA, payment_method: 'naqd' }] };
     // kech124 (zip 145, MOSLANDI): `loadStatusPanel` «🏭 Bajarilgan» ni `bajarilganMatni` dan oladi (xarita holati bilan) — u ham olinadi
-    const m = muhit({ javob: jv, qoshimcha: fnlar(PRJ, PUL.concat(['renderPayments', 'renderTimeline', 'bajarilganMatni', 'loadStatusPanel']))
+    // kech138 (zip 165, MOSLANDI): loyiha bo'limlari endi bo'lim navbati (`bolimNavbati` — kech kelgan javob tashlanadi), bo'lim ruxsati
+    // (`bolimBor` / `korsatkichBor` / `tolovBor`), buyurtmalar ro'yxati (`loyihaBuyurtmalari`, `buyurtmaRoyxatlari` — har buyurtma alohida)
+    // va sabab qatori (`bolimSababi`) bilan — bo'lsa birga olinadi (eski shablonda yo'q — `fnlar` tashlab yuboradi)
+    const LOY_YORDAMCHI = ['bolimlarRoyxati', 'bolimBor', 'korsatkichBor', 'tolovBor', 'bolimNavbati', 'bolimSababi', 'loyihaBuyurtmalari',
+      'buyurtmaRoyxatlari'];
+    const m = muhit({ javob: jv, qoshimcha: fnlar(PRJ, PUL.concat(LOY_YORDAMCHI, ['renderPayments', 'renderTimeline', 'bajarilganMatni', 'loadStatusPanel']))
                                             + "\nvar selectedProjId = 1; var progressMap = {}; var progressMapHolat = 'tayyor';" });
     await yurgiz(m, `await renderPayments({});`);
     const p = m.el('tabContent').innerHTML;
