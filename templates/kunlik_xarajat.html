@@ -4,7 +4,10 @@
 {% block page_sub %}Kunlik xarajatlarni (tushlik, kutilmagan va h.k.) qayd eting{% endblock %}
 
 {% block content %}
-<div style="max-width:480px;margin:0 auto;padding:20px 16px">
+{# kech139 (zip 167, egasi 11.10 17:19 «pastga tushmayapti»): `.erp-main` — overflow:hidden, sahifa o'z skroll konteyneriga muhtoj
+   (`.erp-content`: flex:1, min-height:0, overflow-y:auto). Ilgari bu o'ram oddiy blok edi — telefonda (va past ekranda) sahifa
+   pastga SURILMASDI (O'LCHANGAN: sinov saytida 375×812). #}
+<div class="erp-content" style="max-width:480px;margin:0 auto;padding:20px 16px">
   <div style="background:var(--white);border-radius:16px;padding:26px;box-shadow:0 1px 2px rgba(24,27,34,.04),0 4px 16px rgba(24,27,34,.06);border:1px solid var(--ch-e8e3dd)">
 
     <div class="form-group">

@@ -425,6 +425,7 @@ function tezkorniChiz() {
   }).join('');
 }
 
+// kech139 (zip 167, AUDIT A-X01): platforma egasi (`platforma_egasi`) — rolini faqat o'zi o'zgartiradi (server 403), tanlov o'rniga belgi
 function userlarniChiz() {
   const r = rlRol(rlTanlangan);
   const ul = RL.foydalanuvchilar.filter(u => u.rol_id === r.id);
@@ -434,6 +435,7 @@ function userlarniChiz() {
     <div class="rl-user"><span class="rl-av">${escapeHtml((u.full_name || u.username || '?').charAt(0).toUpperCase())}</span>
       <span class="rl-un">${escapeHtml(u.full_name || u.username)}<small>${escapeHtml(u.username)}${u.is_active ? '' : " · o'chirilgan"}</small></span>
       ${u.ozim ? '<span class="rl-belgi">Siz</span>'
+               : u.platforma_egasi ? '<span class="rl-belgi">🏛 Platforma egasi</span>'
                : `<select aria-label="${escapeHtml(u.username)} roli" onchange="userRoliniOzgartir(${u.id}, this)">${tanlov(u)}</select>`}
     </div>`).join('')
     : `<div class="rl-bosh-yoq" style="padding:10px 0">Bu rolda hali foydalanuvchi yo'q.</div>`;
