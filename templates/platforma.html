@@ -58,12 +58,15 @@
   .pl-btn.qizil{border-color:var(--ch-f3c7c7);color:var(--m-991b1b)}
   .pl-btn.yashil{background:#166534;color:#fff;border-color:#166534}
   .pl-btn.shaffof{border-color:transparent;background:transparent;color:var(--text2)}
+  /* kech139 (zip 166): yopiq tugma / maydon (masalan «Aloqa telefoni» yuklanguncha) — ko'rinib tursin (`.btn:disabled` bilan bir) */
+  .pl-btn:disabled{opacity:.55;cursor:not-allowed}
   .pl-izoh{font-size:13px;color:var(--text2);line-height:1.6}
   .pl-bottom{display:grid;grid-template-columns:minmax(260px,1fr) minmax(320px,2fr);gap:14px;align-items:start}
   @media (max-width:900px){.pl-bottom{grid-template-columns:1fr}}
   .pl-field label{display:block;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:5px}
   .pl-field input,.pl-field select{box-sizing:border-box;min-height:var(--h-btn);border:1px solid var(--border);border-radius:var(--r-btn);
           padding:0 10px;font-size:var(--fs-maydon);line-height:20px;width:100%;background:var(--white);color:var(--text)}
+  .pl-field input:disabled{opacity:.6;cursor:not-allowed}
   .pl-xato{padding:10px 14px;border-bottom:1px solid var(--border2);cursor:pointer}
   .pl-xato .m{font-size:13px;color:var(--m-dc2626);font-weight:600;word-break:break-word}
   .pl-xato .s{font-size:12px;color:var(--text3);margin-top:3px}
@@ -117,6 +120,7 @@
   <div class="pl-stats" id="plRaqamlar" aria-live="polite">
     <div class="pl-stat"><div class="l">Yuklanmoqda…</div><div class="n">—</div></div>
   </div>
+  <p class="yuk-xato" id="xato-pl-raqam" role="alert" hidden></p>
 
   <div class="pl-head">
     <div class="pl-chips" role="group" aria-label="Saralash" id="plChiplar">
@@ -168,9 +172,9 @@
     <div class="card-head" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
       <h3>💬 Murojaatlar</h3>
       <div class="pl-chips" role="group" aria-label="Murojaat holati" id="mpChiplar">
-        <button type="button" class="pl-chip chip aktiv" data-holat="yangi">Yangi · <span data-son="yangi">0</span></button>
-        <button type="button" class="pl-chip chip" data-holat="javob_berildi">Javob berildi · <span data-son="javob_berildi">0</span></button>
-        <button type="button" class="pl-chip chip" data-holat="yopildi">Yopildi · <span data-son="yopildi">0</span></button>
+        <button type="button" class="pl-chip chip aktiv" data-holat="yangi">Yangi · <span data-son="yangi">…</span></button>
+        <button type="button" class="pl-chip chip" data-holat="javob_berildi">Javob berildi · <span data-son="javob_berildi">…</span></button>
+        <button type="button" class="pl-chip chip" data-holat="yopildi">Yopildi · <span data-son="yopildi">…</span></button>
         <button type="button" class="pl-chip chip" data-holat="">Hammasi</button>
       </div>
     </div>
@@ -187,9 +191,12 @@
       <div style="padding:16px;display:flex;flex-direction:column;gap:10px">
         <div class="pl-izoh">Bloklangan korxonaning kirish sahifasida, hodim panelida, botda va obuna ogohlantirishida
           ko'rinadi. Bo'sh bo'lsa — korxonangiz hujjatlaridagi telefon.</div>
+        {# kech139 (zip 166, O'LCHANGAN — HAQIQIY server): raqamlar yoki korxonalar so'rovi yiqilsa maydon BO'SH qolardi va «Saqlash»
+           («✓ Saqlandi») serverdagi telefonni O'CHIRARDI. Endi maydon va tugma joriy telefon YUKLANGUNCHA yopiq (`PL.telefonYuklandi`). #}
         <div class="pl-field"><label for="plTelefon">Telefon</label>
-          <input type="text" id="plTelefon" maxlength="60" placeholder="+998 __ ___ __ __"></div>
-        <div><button type="button" class="pl-btn qora" id="plTelefonSaqla">Saqlash</button>
+          <input type="text" id="plTelefon" maxlength="60" placeholder="+998 __ ___ __ __" disabled></div>
+        <p class="yuk-xato ichki" id="xato-pl-telefon" role="alert" hidden></p>
+        <div><button type="button" class="pl-btn qora" id="plTelefonSaqla" disabled>Saqlash</button>
           <span id="plTelefonNatija" class="pl-izoh" style="margin-left:8px"></span></div>
       </div>
     </div>
@@ -217,7 +224,18 @@
 <script>
 // ══ kech111 — PLATFORMA PANELI. Hamma hisob serverda (`obuna.py`): holat, muddat, uzaytirish sanasi (`korish=1`).
 // Brauzer faqat ko'rsatadi — formula nusxasi YO'Q. Foydalanuvchi matni — escapeHtml; tugmalar — data-* (onclick YO'Q).
-var PL = {royxat: [], raqam: null, filtr: 'hammasi', qidiruv: '', sabablar: [], oylar: [1, 3, 6, 12]};
+var PL = {royxat: [], raqam: null, filtr: 'hammasi', qidiruv: '', sabablar: [], oylar: [1, 3, 6, 12],
+          korxonaXato: null, telefonYuklandi: false, telefonBand: false, band: false};
+// ══ kech139 (zip 166) — SAHIFA BITTA SO'ROV XATOSIDA QOTMAYDI. O'LCHANGAN (work/k166/olchov166.py, zip 165 kodi, HAQIQIY server):
+//  * korxonalar va raqamlar bitta `Promise.all` da edi: raqamlar so'rovi yiqilsa (502 / 500 / tarmoq / 401 / 403) — raqamlar abadiy
+//    «Yuklanmoqda… —», tarmoqda esa kartochkalar ham «Yuklab bo'lmadi»; korxonalar yiqilsa — raqamlar ham chizilmasdi;
+//  * «Aloqa telefoni» shu holatlarda BO'SH qolardi va «Saqlash» serverdagi telefonni O'CHIRARDI («✓ Saqlandi»);
+//  * murojaatlar yuklanmasa — «Yangi · 0» (yolg'on nol); xatolar ro'yxati tarmoqda abadiy «Yuklanmoqda…»;
+//  * poyga: murojaat holati, xatolar korxona tanlovi va «Muddatni uzaytirish» oldindan ko'rishi tez almashtirilsa kech kelgan ESKI
+//    javob yangisining ustiga yozilardi («+12 oy» tanlangan — «+1 oy» sanasi ko'rsatilardi);
+//  * internet uzilsa — bloklash, uzaytirish, ochish, parol, yangi korxona, telefon: ekranda hech narsa chiqmasdi.
+// Endi: har blok alohida (`yukBlok`, base.html), o'sha blokda sabab, «—» (yolg'on qiymat emas), navbat (`yukNavbat`), telefon
+// yuklanguncha yopiq, amallar sababi — `amalSababi` (base.html), amal ketayotganda qayta bosish e'tiborsiz (`PL.band`).
 
 function plSana(iso) {                     // "2026-11-15" → "15.11.2026" (sana — kalendar kuni, siljitilmaydi)
   var s = String(iso || '');
@@ -308,7 +326,20 @@ function plKarta(r) {
     '<div class="pl-btns">' + tugmalar + '</div></section>';
 }
 
+var PL_CHIP_NOMI = {hammasi: 'Hammasi', faol: 'Faol', yaqin: 'Muddati yaqin', bloklangan: 'Bloklangan', sinov: 'Sinov davri'};
+function plKorxonaXatoChiz(e) {             // korxonalar ro'yxati yuklanmadi — sanoqlar «—», kartochkalar o'rnida sabab
+  document.querySelectorAll('#plChiplar .pl-chip').forEach(function (b) {
+    var f = b.dataset.filtr;
+    b.textContent = PL_CHIP_NOMI[f] + ' · —';
+    b.classList.toggle('aktiv', f === PL.filtr);
+    b.setAttribute('aria-pressed', f === PL.filtr ? 'true' : 'false');
+  });
+  yukRoyxatXato('plKartalar', yukXatoMatn('Mijoz korxonalar', e));
+  document.getElementById('plEgaIzoh').textContent = '';
+}
+
 function plChizish() {
+  if (PL.korxonaXato) { plKorxonaXatoChiz(PL.korxonaXato); return; }
   var mijoz = PL.royxat.filter(function (r) { return !r.platforma_egasi; });
   var ega = PL.royxat.filter(function (r) { return r.platforma_egasi; });
   var sana = {hammasi: mijoz.length, faol: 0, yaqin: 0, bloklangan: 0, sinov: 0};
@@ -319,10 +350,9 @@ function plChizish() {
     if (h.bosqich === 'bloklangan') sana.bloklangan++;
     if (h.sinov && !h.bloklangan) sana.sinov++;
   });
-  var nomlar = {hammasi: 'Hammasi', faol: 'Faol', yaqin: 'Muddati yaqin', bloklangan: 'Bloklangan', sinov: 'Sinov davri'};
   document.querySelectorAll('#plChiplar .pl-chip').forEach(function (b) {
     var f = b.dataset.filtr;
-    b.textContent = nomlar[f] + ' · ' + sana[f];
+    b.textContent = PL_CHIP_NOMI[f] + ' · ' + sana[f];
     b.classList.toggle('aktiv', f === PL.filtr);
     b.setAttribute('aria-pressed', f === PL.filtr ? 'true' : 'false');
   });
@@ -343,31 +373,58 @@ function plChizish() {
 }
 
 function plRaqamlarChiz() {
+  var bor = !!PL.raqam;                     // yuklanmagan — «—» (yolg'on «0» emas)
   var r = PL.raqam || {};
   var q = [['Mijoz korxonalar', r.jami], ['Faol', r.faol], ['Sinov davrida', r.sinov], ['Muddati yaqin', r.muddati_yaqin],
            ['Bloklangan', r.bloklangan], ['Bugun kirishlar', r.bugun_kirish], ['Bugun xatolar', r.bugun_xato]];
   document.getElementById('plRaqamlar').innerHTML = q.map(function (x) {
-    return '<div class="pl-stat"><div class="l">' + escapeHtml(x[0]) + '</div><div class="n">' + plSon(x[1]) + '</div></div>';
+    return '<div class="pl-stat"><div class="l">' + escapeHtml(x[0]) + '</div><div class="n">' + (bor ? plSon(x[1]) : '—') + '</div></div>';
   }).join('');
 }
 
+function plTelefonQoy(v) {                  // joriy telefon yuklandi — maydon va «Saqlash» ochiladi
+  var tel = document.getElementById('plTelefon');
+  if (document.activeElement !== tel) tel.value = v || '';
+  tel.disabled = false;
+  document.getElementById('plTelefonSaqla').disabled = false;
+  PL.telefonYuklandi = true;
+  yukXatoKor('xato-pl-telefon', '');
+}
+function plTelefonXato(e) {                 // hali BIRORTA marta yuklanmagan — yopiq va sabab (yuklangan qiymat — o'z joyida qoladi)
+  if (PL.telefonYuklandi) return;
+  var tel = document.getElementById('plTelefon');
+  tel.value = '';
+  tel.disabled = true;
+  document.getElementById('plTelefonSaqla').disabled = true;
+  yukXatoKor('xato-pl-telefon', yukXatoMatn('Aloqa telefoni', e) + " («Saqlash» yopiq — joriy telefon ko'rinmaguncha o'zgartirilmaydi)");
+}
+
 async function plYukla() {
-  try {
-    var jv = await Promise.all([fetch('/api/platform/companies'), fetch('/api/platform/summary')]);
-    if (!jv[0].ok) { document.getElementById('plKartalar').innerHTML = '<div class="pl-izoh">' + escapeHtml(await serverXatoSababi(jv[0], 'Yuklab bo\'lmadi')) + '</div>'; return; }
-    PL.royxat = await jv[0].json();
-    if (jv[1].ok) {
-      var s = await jv[1].json();
+  await Promise.allSettled([
+    yukBlok('pl-korxonalar', '/api/platform/companies', function (d) {
+      if (!Array.isArray(d)) throw yukXato('server');
+      PL.royxat = d;
+      PL.korxonaXato = null;
+      plChizish();
+    }, function (e) {
+      PL.royxat = [];
+      PL.korxonaXato = e;
+      plChizish();
+    }),
+    yukBlok('pl-xulosa', '/api/platform/summary', function (s) {
+      if (!s || typeof s !== 'object' || !s.raqamlar || typeof s.raqamlar !== 'object') throw yukXato('server');
       PL.raqam = s.raqamlar; PL.sabablar = s.sabablar || []; PL.oylar = s.oylar || PL.oylar;
-      var tel = document.getElementById('plTelefon');
-      if (document.activeElement !== tel) tel.value = s.aloqa_telefoni || '';
+      plTelefonQoy(s.aloqa_telefoni);
       document.getElementById('plSinovMatn').textContent = (s.sinov_kun || 30) + ' kunlik sinov davri';
       plRaqamlarChiz();
-    }
-    plChizish();
-  } catch (e) {
-    document.getElementById('plKartalar').innerHTML = '<div class="pl-izoh">Yuklab bo\'lmadi</div>';
-  }
+      yukXatoKor('xato-pl-raqam', '');
+    }, function (e) {
+      PL.raqam = null;
+      plRaqamlarChiz();
+      yukXatoKor('xato-pl-raqam', yukXatoMatn('Platforma raqamlari', e));
+      plTelefonXato(e);
+    })
+  ]);
 }
 
 function plKorxona(id) { return PL.royxat.find(function (r) { return String(r.id) === String(id); }) || null; }
@@ -395,17 +452,29 @@ function plBloklashOynasi(r) {
     '<div id="blXato" class="pl-izoh" style="color:var(--m-dc2626)"></div>' +
     '<div class="pl-btns" style="justify-content:flex-end"><button type="button" class="pl-btn" data-modal="yop">Bekor</button>' +
     '<button type="button" class="pl-btn" style="background:#B91C1C;color:#fff;border-color:#B91C1C" data-modal="blokla" data-id="' + escapeHtml(r.id) + '">Bloklash</button></div>');
+  // kech139 (zip 166): sabablar ro'yxati (raqamlar so'rovi bilan keladi) yuklanmagan — bo'sh tanlov o'rniga sabab, tugma yopiq
+  if (!PL.sabablar.length) {
+    document.getElementById('blXato').textContent = "⚠️ Bloklash sabablari yuklanmadi — sahifani yangilang";
+    document.querySelector('#plOyna button[data-modal="blokla"]').disabled = true;
+  }
 }
 
 async function plBlokla(id) {
+  if (PL.band) return;
   var fd = new FormData();
   fd.append('sabab', document.getElementById('blSabab').value);
   fd.append('izoh', document.getElementById('blIzoh').value.trim());
-  var res = await fetch('/api/platform/companies/' + id + '/block', {method: 'POST', body: fd});
-  if (!res.ok) { document.getElementById('blXato').textContent = await serverXatoSababi(res, 'Bloklab bo\'lmadi'); return; }
-  plModalYop();
-  showMsg('Korxona bloklandi', 'success');
-  plYukla();
+  var xato = document.getElementById('blXato');
+  PL.band = true;
+  try {
+    var res;
+    try { res = await fetch('/api/platform/companies/' + id + '/block', {method: 'POST', body: fd}); }
+    catch (e) { xato.textContent = await amalSababi(e); return; }
+    if (!res.ok) { xato.textContent = await amalSababi(res); return; }
+    plModalYop();
+    showMsg('Korxona bloklandi', 'success');
+    plYukla();
+  } finally { PL.band = false; }
 }
 
 function plUzaytirishOynasi(r, ochsin) {
@@ -445,24 +514,42 @@ async function plUzaytirKorish(id) {
   var fd = plUzaytirTanlov();
   fd.append('korish', '1');
   var el = document.getElementById('uzKorish');
-  var res = await fetch('/api/platform/companies/' + id + '/extend', {method: 'POST', body: fd});
-  if (!document.getElementById('uzKorish')) return;
-  if (!res.ok) { el.textContent = await serverXatoSababi(res, 'Hisoblab bo\'lmadi'); return; }
-  var d = await res.json();
-  el.textContent = 'Yangi muddat: ' + plSana(d.obuna_tugash) + ' gacha';
+  // kech139 (zip 166): navbat — tanlov tez almashtirilsa oldingi tanlovning kech kelgan sanasi ustiga yozilmaydi; kutish paytida
+  // eski sana emas «Hisoblanmoqda…»; xato (tarmoq ham) — sabab
+  var joriy = yukNavbat('uz-korish');
+  el.textContent = 'Hisoblanmoqda…';
+  var res;
+  try { res = await fetch('/api/platform/companies/' + id + '/extend', {method: 'POST', body: fd}); }
+  catch (e) { var m0 = await amalSababi(e); if (joriy()) el.textContent = m0; return; }
+  if (!joriy()) return;
+  if (!res.ok) { var m1 = await amalSababi(res); if (joriy()) el.textContent = m1; return; }
+  var d = null;
+  try { d = await res.json(); } catch (e) { d = null; }
+  if (!joriy()) return;
+  el.textContent = (d && d.obuna_tugash) ? 'Yangi muddat: ' + plSana(d.obuna_tugash) + ' gacha'
+    : "server javobi o'qilmadi — sahifani yangilab tekshiring";
 }
 
 async function plUzaytir(id, ochsin) {
-  var res = await fetch('/api/platform/companies/' + id + '/extend', {method: 'POST', body: plUzaytirTanlov()});
-  if (!res.ok) { document.getElementById('uzXato').textContent = await serverXatoSababi(res, 'Uzaytirib bo\'lmadi'); return; }
-  var d = await res.json();
-  if (ochsin && d.holat && d.holat.bloklangan) {
-    var r2 = await fetch('/api/platform/companies/' + id + '/unblock', {method: 'POST', body: new FormData()});
-    if (!r2.ok) { document.getElementById('uzXato').textContent = await serverXatoSababi(r2, 'Muddat uzaytirildi, lekin ochib bo\'lmadi'); plYukla(); return; }
-  }
-  plModalYop();
-  showMsg('Obuna ' + plSana(d.obuna_tugash) + ' gacha uzaytirildi', 'success');
-  plYukla();
+  if (PL.band) return;                      // kech139: ikki marta bosilsa ikki marta uzaytirilmasin
+  var xato = document.getElementById('uzXato');
+  PL.band = true;
+  try {
+    var res;
+    try { res = await fetch('/api/platform/companies/' + id + '/extend', {method: 'POST', body: plUzaytirTanlov()}); }
+    catch (e) { xato.textContent = await amalSababi(e); return; }
+    if (!res.ok) { xato.textContent = await amalSababi(res); return; }
+    var d = await res.json();
+    if (ochsin && d.holat && d.holat.bloklangan) {
+      var r2;
+      try { r2 = await fetch('/api/platform/companies/' + id + '/unblock', {method: 'POST', body: new FormData()}); }
+      catch (e) { xato.textContent = 'Muddat uzaytirildi, lekin ochilmadi: ' + await amalSababi(e); plYukla(); return; }
+      if (!r2.ok) { xato.textContent = 'Muddat uzaytirildi, lekin ochilmadi: ' + await amalSababi(r2); plYukla(); return; }
+    }
+    plModalYop();
+    showMsg('Obuna ' + plSana(d.obuna_tugash) + ' gacha uzaytirildi', 'success');
+    plYukla();
+  } finally { PL.band = false; }
 }
 
 async function plOch(id) {
@@ -472,12 +559,17 @@ async function plOch(id) {
   var izoh = 'Korxona yana tizimga kira oladi.';
   if (h.avtomatik) izoh += ' Obuna muddati o\'tgan — 3 kunlik imtiyoz beriladi; shu kunlarda uzaytirilmasa, yana avtomatik yopiladi.';
   var ok = await customConfirm('«' + (r.name || '') + '» ochilsinmi?', izoh, {okText: 'Ochish'});
-  if (!ok) return;
-  var res = await fetch('/api/platform/companies/' + id + '/unblock', {method: 'POST', body: new FormData()});
-  if (!res.ok) { showMsg(await serverXatoSababi(res, 'Ochib bo\'lmadi'), 'error'); return; }
-  var d = await res.json();
-  showMsg(d.imtiyoz_gacha ? 'Ochildi — imtiyoz ' + plSana(d.imtiyoz_gacha) + ' gacha' : 'Korxona ochildi', 'success');
-  plYukla();
+  if (!ok || PL.band) return;
+  PL.band = true;
+  try {
+    var res;
+    try { res = await fetch('/api/platform/companies/' + id + '/unblock', {method: 'POST', body: new FormData()}); }
+    catch (e) { showMsg('Ochilmadi: ' + await amalSababi(e), 'error'); return; }
+    if (!res.ok) { showMsg('Ochilmadi: ' + await amalSababi(res), 'error'); return; }
+    var d = await res.json();
+    showMsg(d.imtiyoz_gacha ? 'Ochildi — imtiyoz ' + plSana(d.imtiyoz_gacha) + ' gacha' : 'Korxona ochildi', 'success');
+    plYukla();
+  } finally { PL.band = false; }
 }
 
 function plNatijaChiz(sarlavha, qatorlar) {
@@ -492,20 +584,31 @@ async function plParol(id) {
   var r = plKorxona(id); if (!r) return;
   var ok = await customConfirm('«' + (r.name || '') + '» adminining paroli yangilansinmi?',
     'Eski parol ishlamay qoladi. Mijozning audit jurnaliga yozuv tushadi va botiga xabar boradi.', {okText: 'Yangilash', danger: true});
-  if (!ok) return;
-  var res = await fetch('/api/platform/companies/' + id + '/reset-admin-password', {method: 'POST', body: new FormData()});
-  if (!res.ok) { showMsg(await serverXatoSababi(res, 'Parolni tiklab bo\'lmadi'), 'error'); return; }
-  var d = await res.json();
-  plNatijaChiz('🔑 Parol yangilandi — ' + (r.name || ''), [['Login', d.username], ['Yangi parol', d.password]]);
+  if (!ok || PL.band) return;
+  PL.band = true;
+  try {
+    var res;
+    try { res = await fetch('/api/platform/companies/' + id + '/reset-admin-password', {method: 'POST', body: new FormData()}); }
+    catch (e) { showMsg('Parol tiklanmadi: ' + await amalSababi(e), 'error'); return; }
+    if (!res.ok) { showMsg('Parol tiklanmadi: ' + await amalSababi(res), 'error'); return; }
+    var d = await res.json();
+    plNatijaChiz('🔑 Parol yangilandi — ' + (r.name || ''), [['Login', d.username], ['Yangi parol', d.password]]);
+  } finally { PL.band = false; }
 }
 
 async function plYarat() {
   var nom = document.getElementById('ncNom').value.trim(), login = document.getElementById('ncLogin').value.trim();
   if (!nom || !login) { showMsg('Korxona nomi va admin login shart', 'error'); return; }
+  if (PL.band) return;                      // kech139: ikki marta bosilsa ikkinchi so'rov ketmaydi
   var fd = new FormData();
   fd.append('name', nom); fd.append('admin_username', login); fd.append('admin_full_name', document.getElementById('ncIsm').value.trim());
-  var res = await fetch('/api/platform/companies', {method: 'POST', body: fd});
-  if (!res.ok) { showMsg(await serverXatoSababi(res, 'Yaratib bo\'lmadi'), 'error'); return; }
+  PL.band = true;
+  var res;
+  try {
+    try { res = await fetch('/api/platform/companies', {method: 'POST', body: fd}); }
+    catch (e) { showMsg('Korxona yaratilmadi: ' + await amalSababi(e), 'error'); return; }
+    if (!res.ok) { showMsg('Korxona yaratilmadi: ' + await amalSababi(res), 'error'); return; }
+  } finally { PL.band = false; }
   var d = await res.json();
   plNatijaChiz('✓ Korxona yaratildi — ' + d.company.name, [['Kod', d.company.code],
     ['Sinov davri', plSana(d.company.obuna_tugash) + ' gacha'], ['Login', d.admin.username], ['Parol', d.admin.password]]);
@@ -515,23 +618,38 @@ async function plYarat() {
 }
 
 async function plTelefonSaqla() {
+  // kech139 (zip 166): joriy telefon yuklanmagan bo'lsa — saqlanmaydi (bo'sh maydon serverdagi telefonni o'chirardi)
+  if (!PL.telefonYuklandi || PL.telefonBand) return;
   var fd = new FormData();
   fd.append('telefon', document.getElementById('plTelefon').value.trim());
-  var res = await fetch('/api/platform/contact-phone', {method: 'POST', body: fd});
   var el = document.getElementById('plTelefonNatija');
-  if (!res.ok) { el.textContent = await serverXatoSababi(res, 'Saqlanmadi'); return; }
-  var d = await res.json();
-  document.getElementById('plTelefon').value = d.aloqa_telefoni || '';
-  el.textContent = '✓ Saqlandi';
+  var xato = function (m) { el.textContent = 'Saqlanmadi: ' + m; el.style.color = 'var(--m-b91c1c)'; };
+  el.textContent = ''; el.style.color = '';
+  PL.telefonBand = true;
+  try {
+    var res;
+    try { res = await fetch('/api/platform/contact-phone', {method: 'POST', body: fd}); }
+    catch (e) { xato(await amalSababi(e)); return; }
+    if (!res.ok) { xato(await amalSababi(res)); return; }
+    var d = await res.json();
+    document.getElementById('plTelefon').value = d.aloqa_telefoni || '';
+    el.textContent = '✓ Saqlandi';
+  } finally { PL.telefonBand = false; }
 }
 
 async function plXatolar() {
   var k = document.getElementById('xtKorxona').value, q = document.getElementById('xtQidiruv').value.trim();
   var el = document.getElementById('xtRoyxat');
   var u = new URLSearchParams(); if (k) u.set('korxona', k); if (q) u.set('q', q);
-  var res = await fetch('/api/platform/errors' + (u.toString() ? '?' + u.toString() : ''));
-  if (!res.ok) { el.innerHTML = '<div class="pl-izoh" style="padding:14px">' + escapeHtml(await serverXatoSababi(res, 'Yuklab bo\'lmadi')) + '</div>'; return; }
-  var rows = await res.json();
+  // kech139 (zip 166): navbat (tez almashtirilgan tanlovning eski javobi tashlanadi), tarmoqda ham sabab (abadiy «Yuklanmoqda…» emas)
+  el.innerHTML = '<div class="pl-izoh" style="padding:14px">Yuklanmoqda…</div>';
+  return yukBlok('pl-xatolar', '/api/platform/errors' + (u.toString() ? '?' + u.toString() : ''), function (rows) {
+    if (!Array.isArray(rows)) throw yukXato('server');
+    plXatolarChiz(el, rows);
+  }, function (e) { yukRoyxatXato(el, yukXatoMatn("Xatolar ro'yxati", e)); });
+}
+
+function plXatolarChiz(el, rows) {
   el.innerHTML = rows.length ? rows.map(function (x) {
     return '<div class="pl-xato" data-xato="1"><div style="display:flex;justify-content:space-between;gap:10px">' +
       '<div class="m">' + escapeHtml(x.xabar) + '</div><div class="s" style="white-space:nowrap;margin:0">' + escapeHtml(x.vaqt) + '</div></div>' +
@@ -554,13 +672,12 @@ function mpMenyuSoni(n) {                    // menyudagi «Platforma» yonidagi
   b.textContent = String(n);
 }
 
+// kech139 (zip 166): navbat (holat tez almashtirilsa eski javob tashlanadi), xato — sabab va sanoqlar «—» (ilgari «Yangi · 0»)
 async function mpYukla() {
   var el = document.getElementById('mpRoyxat');
-  try {
-    var res = await fetch('/api/platform/murojaatlar' + (MP.holat ? '?holat=' + encodeURIComponent(MP.holat) : ''));
-    if (!res.ok) { el.innerHTML = '<div class="pl-izoh" style="padding:14px">' + escapeHtml(await serverXatoSababi(res, 'Yuklab bo\'lmadi')) + '</div>'; return; }
-    var d = await res.json();
-    MP.royxat = d.murojaatlar || [];
+  return yukBlok('mp-royxat', '/api/platform/murojaatlar' + (MP.holat ? '?holat=' + encodeURIComponent(MP.holat) : ''), function (d) {
+    if (!d || !Array.isArray(d.murojaatlar)) throw yukXato('server');
+    MP.royxat = d.murojaatlar;
     var sanoq = d.sanoq || {};
     document.querySelectorAll('#mpChiplar [data-son]').forEach(function (s) { s.textContent = plSon(sanoq[s.dataset.son] || 0); });
     mpMenyuSoni(sanoq.yangi || 0);
@@ -573,7 +690,11 @@ async function mpYukla() {
         '<div class="s">' + escapeHtml(r.yaratgan || '') + ' · ' + escapeHtml(tkSanaVaqt(r.yangilangan)) + ' · ' +
         escapeHtml(String(r.xabarlar_soni)) + ' ta xabar</div></button>';
     }).join('') : '<div class="pl-izoh" style="padding:14px">Bu holatda murojaat yo\'q.</div>';
-  } catch (e) { el.innerHTML = '<div class="pl-izoh" style="padding:14px">Internet aloqasini tekshiring</div>'; }
+  }, function (e) {
+    MP.royxat = [];
+    document.querySelectorAll('#mpChiplar [data-son]').forEach(function (s) { s.textContent = '—'; });
+    yukRoyxatXato(el, yukXatoMatn('Murojaatlar', e));
+  });
 }
 
 function mpXabarHtml(x) {
@@ -612,29 +733,35 @@ function mpPastga(xs) {
 
 async function mpOch(id) {
   var el = document.getElementById('mpYozishma');
+  // kech139 (zip 166): navbat — tez bosilgan ikkinchi murojaat ustiga birinchisining kech kelgan yozishmasi chizilmaydi; sabab — `yuk*`
+  var joriy = yukNavbat('mp-och');
+  var d;
   try {
-    var res = await fetch('/api/platform/murojaatlar/' + encodeURIComponent(id));
-    if (!res.ok) { showMsg(await serverXatoSababi(res, 'Murojaatni ochib bo\'lmadi'), 'error'); return; }
-    var d = await res.json();
-    MP.ochiq = d.id;
-    var yopiq = d.holat === 'yopildi';
-    el.innerHTML = '<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap">' +
-      '<div style="font-weight:700">Murojaat #' + escapeHtml(String(d.id)) + ' · ' + escapeHtml(d.turi_nomi) + ' ' +
-      '<span class="mp-belgi ' + escapeHtml(d.holat) + '">' + escapeHtml(d.holat_nomi) + '</span></div>' +
-      (yopiq ? '' : '<button type="button" class="pl-btn qizil" data-mp="yop">Yopish</button>') + '</div>' +
-      mpKontekstHtml(d) +
-      '<div class="mp-xabarlar" id="mpXabarlar">' + (d.xabarlar || []).map(mpXabarHtml).join('') + '</div>' +
-      (yopiq ? '<div class="pl-izoh">Murojaat yopilgan — mijoz kerak bo\'lsa yangi murojaat ochadi.</div>' :
-        '<div class="pl-field"><label for="mpMatn">Javob</label><textarea id="mpMatn" maxlength="4000" rows="4" ' +
-        'placeholder="Mijozga javob — u dasturida ko\'radi"></textarea></div>' +
-        '<div class="pl-field"><label for="mpRasm">Rasm — ixtiyoriy</label><input type="file" id="mpRasm" accept="image/jpeg,image/png,image/webp"></div>' +
-        '<div><button type="button" class="pl-btn qora" data-mp="javob">Javob yuborish</button></div>');
-    mpPastga(document.getElementById('mpXabarlar'));
-    document.querySelectorAll('#mpRoyxat .mp-qator').forEach(function (b) {
-      b.classList.toggle('tanlangan', b.dataset.mpId === String(d.id));
-      if (b.dataset.mpId === String(d.id)) b.classList.remove('oqilmagan');
-    });
-  } catch (e) { showMsg('Internet aloqasini tekshiring', 'error'); }
+    d = await yukOl('/api/platform/murojaatlar/' + encodeURIComponent(id));
+    if (!joriy()) return;
+    if (!d || typeof d !== 'object' || d.id === undefined) throw yukXato('server');
+  } catch (x) {
+    if (joriy()) showMsg(yukXatoMatn('Murojaat #' + id, (x && x.yukXato) ? x : yukXato('server')), 'error');
+    return;
+  }
+  MP.ochiq = d.id;
+  var yopiq = d.holat === 'yopildi';
+  el.innerHTML = '<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap">' +
+    '<div style="font-weight:700">Murojaat #' + escapeHtml(String(d.id)) + ' · ' + escapeHtml(d.turi_nomi) + ' ' +
+    '<span class="mp-belgi ' + escapeHtml(d.holat) + '">' + escapeHtml(d.holat_nomi) + '</span></div>' +
+    (yopiq ? '' : '<button type="button" class="pl-btn qizil" data-mp="yop">Yopish</button>') + '</div>' +
+    mpKontekstHtml(d) +
+    '<div class="mp-xabarlar" id="mpXabarlar">' + (d.xabarlar || []).map(mpXabarHtml).join('') + '</div>' +
+    (yopiq ? '<div class="pl-izoh">Murojaat yopilgan — mijoz kerak bo\'lsa yangi murojaat ochadi.</div>' :
+      '<div class="pl-field"><label for="mpMatn">Javob</label><textarea id="mpMatn" maxlength="4000" rows="4" ' +
+      'placeholder="Mijozga javob — u dasturida ko\'radi"></textarea></div>' +
+      '<div class="pl-field"><label for="mpRasm">Rasm — ixtiyoriy</label><input type="file" id="mpRasm" accept="image/jpeg,image/png,image/webp"></div>' +
+      '<div><button type="button" class="pl-btn qora" data-mp="javob">Javob yuborish</button></div>');
+  mpPastga(document.getElementById('mpXabarlar'));
+  document.querySelectorAll('#mpRoyxat .mp-qator').forEach(function (b) {
+    b.classList.toggle('tanlangan', b.dataset.mpId === String(d.id));
+    if (b.dataset.mpId === String(d.id)) b.classList.remove('oqilmagan');
+  });
 }
 
 async function mpJavob() {
@@ -646,12 +773,14 @@ async function mpJavob() {
   var btn = document.querySelector('#mpYozishma button[data-mp="javob"]');
   MP.band = true; if (btn) { btn.disabled = true; btn.textContent = 'Yuborilmoqda…'; }
   try {
-    var res = await fetch('/api/platform/murojaatlar/' + encodeURIComponent(MP.ochiq) + '/javob', {method: 'POST', body: fd});
-    if (!res.ok) { showMsg(await serverXatoSababi(res, 'Javobni yuborib bo\'lmadi'), 'error'); return; }
+    var res;
+    try { res = await fetch('/api/platform/murojaatlar/' + encodeURIComponent(MP.ochiq) + '/javob', {method: 'POST', body: fd}); }
+    catch (e) { showMsg('Javob yuborilmadi: ' + await amalSababi(e), 'error'); return; }
+    if (!res.ok) { showMsg('Javob yuborilmadi: ' + await amalSababi(res), 'error'); return; }
     showMsg('Javob yuborildi — mijoz dasturida ko\'radi', 'success');
     var id = MP.ochiq;
     await mpYukla(); await mpOch(id);
-  } catch (e) { showMsg('Internet aloqasini tekshiring', 'error'); }
+  } catch (e) { console.error(e); }
   finally { MP.band = false; if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = 'Javob yuborish'; } }
 }
 
@@ -662,12 +791,14 @@ async function mpYop() {
   if (!ok) return;
   MP.band = true;
   try {
-    var res = await fetch('/api/platform/murojaatlar/' + encodeURIComponent(MP.ochiq) + '/yopish', {method: 'POST'});
-    if (!res.ok) { showMsg(await serverXatoSababi(res, 'Yopib bo\'lmadi'), 'error'); return; }
+    var res;
+    try { res = await fetch('/api/platform/murojaatlar/' + encodeURIComponent(MP.ochiq) + '/yopish', {method: 'POST'}); }
+    catch (e) { showMsg('Murojaat yopilmadi: ' + await amalSababi(e), 'error'); return; }
+    if (!res.ok) { showMsg('Murojaat yopilmadi: ' + await amalSababi(res), 'error'); return; }
     showMsg('Murojaat yopildi', 'success');
     var id = MP.ochiq;
     await mpYukla(); await mpOch(id);
-  } catch (e) { showMsg('Internet aloqasini tekshiring', 'error'); }
+  } catch (e) { console.error(e); }
   finally { MP.band = false; }
 }
 

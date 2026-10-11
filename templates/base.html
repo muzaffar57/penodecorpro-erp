@@ -383,9 +383,12 @@ function somYoq(n, f) { return n === null ? '—' : (f || qisqaSumma)(n) + " so'
 //  `yukRoyxatXato(el, matn)` — ro'yxat / jadval qutisi ichida sabab (abadiy «Yuklanmoqda...» yoki yolg'on «Ma'lumot yo'q» o'rniga).
 // Yordamchilar global `const` / `let` ishlatmaydi (JS sinovlari funksiyani shablondan ajratib oladi).
 function yukXato(tur, kod, matn) { return { yukXato: true, tur: tur, kod: kod || 0, matn: matn || '' }; }
-async function yukOl(url) {
+// kech139 (zip 166): `yukOl(url, javob)` — ikkinchi (ixtiyoriy) argument obyekt bo'lsa, unga `javob.r` = fetch javobi yoziladi
+// (sarlavhalar kerak: «Xaridlar tarixi» / «Ombor harakatlari» — `X-Jami`, `X-Keyingi`).
+async function yukOl(url, javob) {
   let r;
   try { r = await fetch(url); } catch (e) { throw yukXato('tarmoq'); }
+  if (javob && typeof javob === 'object') javob.r = r;
   if (!r.ok) {
     if (r.status === 401) { yukSessiyaKor(); throw yukXato('sessiya', 401); }
     if (r.status === 403) throw yukXato('ruxsat', 403);
@@ -440,6 +443,24 @@ function yukRoyxatXato(el, matn) {
 function yukSessiyaKor() {
   const x = document.getElementById('yukSessiya');
   if (x) x.hidden = false;
+}
+// ══ kech139 (zip 166) — AMAL (POST / PUT / DELETE) XATOSI SABABI. O'LCHANGAN (work/k166/olchov166.py, zip 165 kodi): Omborxonada
+// internet uzilganda narx, minimal chegara, material o'chirish, Telegram hisobotlari — ekranda HECH NARSA chiqmasdi (brauzer ichida
+// «Failed to fetch» xatosi), 502 (deploy almashinuvi) da Telegram hisobotlari ham jim, boshqalari «Xato yuz berdi»; rasm —
+// inglizcha «Failed to fetch»; Platforma amallari — xuddi shunday. `amalSababi(x)`: `x` — `fetch` javobi (ok emas) yoki ushlangan
+// xato (`fetch` rad etdi) → foydalanuvchiga sabab: 4xx — serverning sababi (`xatoSababi`), 401 — «kirish muddati tugagan» (+ sahifa
+// boshidagi `#yukSessiya` havolasi), sababsiz 403 — «bu amalga ruxsat yo'q», 5xx / JSON emas — «server javob bermadi», tarmoq —
+// «internet aloqasi yo'q». Bajarilgan-bajarilmaganini bilib bo'lmaydigan holatda (tarmoq, 5xx) — «sahifani yangilab tekshiring»
+// (qayta bosishdan oldin — masalan chiqim ikki marta yozilmasin). Chaqiruvchi oldiga nimani bildirishini qo'shadi: «❌ Narx saqlanmadi: …».
+async function amalSababi(x) {
+  if (!x || typeof x.status !== 'number') return "internet aloqasi yo'q — sahifani yangilab tekshiring";
+  if (x.status === 401) { yukSessiyaKor(); return 'kirish muddati tugagan, qayta kiring'; }
+  if (x.status >= 500) return 'server javob bermadi — sahifani yangilab tekshiring';
+  let m = '';
+  try { m = String(xatoSababi(await x.json(), ' ')).trim(); } catch (e) { m = ''; }
+  if (m) return m;
+  if (x.status === 403) return "bu amalga ruxsat yo'q";
+  return "so'rov rad etildi (" + x.status + ')';
 }
 
 function showMsg(text, type) {
