@@ -1909,6 +1909,24 @@ def loyiha_pul_hisobi(orders) -> dict:
             "soni": len(tanlangan)}
 
 
+def loyihalar_pul_hisobi(db: Session, project_ids, company_id: int = None) -> dict:
+    """kech140 (zip 168, audit A-P06 — O'LCHANGAN): bir nechta loyihaning pul hisobi `{project_id: loyiha_pul_hisobi(...)}` —
+    loyihaning BARCHA buyurtmalari bo'yicha (tanlash qoidasi faqat `loyiha_pul_hisobi` ichida). Buyurtmalar sahifasi loyiha
+    sarlavhasidagi «Qarz» ilgari SAHIFADA KO'RINGAN buyurtmalar yig'indisi edi: qoralama (zaklat bilan) qarzi kirardi, 90 kundan
+    eski «Tayyor» va savatdagi yakunlangan buyurtmalar qarzi kirmasdi — bitta loyiha: Buyurtmalar 830 000 («Hammasi» — 1 030 000),
+    Loyihalar va Qarzdorlar 750 000. Endi uchalasi bitta qoida. So'rovlar soni loyihalar soniga bog'liq emas (500 lik IN)."""
+    from sqlalchemy.orm import selectinload as _sil_lph
+    ids = sorted({p for p in (project_ids or []) if p is not None})
+    guruh = {}
+    for i in range(0, len(ids), 500):
+        q = db.query(Order).filter(Order.project_id.in_(ids[i:i + 500]))
+        if company_id is not None:
+            q = q.filter(Order.company_id == company_id)
+        for o in q.options(_sil_lph(Order.payments)).order_by(Order.id).all():
+            guruh.setdefault(o.project_id, []).append(o)
+    return {pid: loyiha_pul_hisobi(guruh.get(pid, [])) for pid in ids}
+
+
 def get_projects_with_stats(db: Session, company_id: int = None) -> List:
     """Loyihalar + buyurtmalar summasi + qarz hisobi (orders ham qo'shilgan)."""
     from sqlalchemy.orm import selectinload as _sil_ps
@@ -5867,12 +5885,24 @@ def restore_order(db: Session, order_id: int, performed_by: str = None) -> bool:
     db_order = db.query(Order).filter(Order.id == order_id).first()
     if not db_order:
         return False
+    _cid_r = db_order.company_id
 
     # kech81 (99-band — O'LCHANGAN, `work/probe99.py`): qayta yechish, bayroqlar va jurnal BITTA tranzaksiyada.
     # Ilgari `return_inventory_for_order(sign=-1)` / `deduct_loy_ingredients` o'zi commit qilardi — keyingi
     # qadam yiqilsa xomashyo yechilgan, buyurtma esa o'chirilgan (`stock_returned` True) qolar, qayta tiklash
     # IKKINCHI marta yechardi (yuksiz READY: penoplast −0.2 / kley −20 o'rniga −0.1 / −10).
     with bitta_tranzaksiya(db):
+        # kech140 (zip 168, audit A-P08 / A-O07 — O'LCHANGAN): tiklash buyurtma pul qulfisiz (101) edi va buyurtma HALI
+        # o'chirilganmi deb qayta tekshirmasdi: savatda bo'lmagan buyurtmani tiklash 200 qaytarib jurnalga soxta «tiklandi»
+        # yozardi; ikki parallel tiklash xomashyoni IKKI marta yechardi. Endi qulf ostida qayta o'qiladi; savatda bo'lmasa —
+        # `ValueError` (marshrut → 409), hech narsa o'zgarmaydi (blok — rollback).
+        _pul_qulfi(db, 101, order_id)
+        db.expire_all()
+        db_order = db.query(Order).filter(Order.id == order_id, Order.company_id == _cid_r).first()
+        if not db_order:
+            return False
+        if not db_order.is_deleted:
+            raise ValueError("Buyurtma savatda emas — u allaqachon tiklangan")
         # kech100 (93-band): o'chirishda topshirilgan qismi bilan YAKUNLANGAN buyurtma — AVVAL yakunlash bekor qilinadi
         # (detallar / summalar / holat / loy o'chirishdan OLDINGI holatga), so'ng odatdagi tiklash: qolgan qism
         # xomashyosi qayta yechiladi — natija kech100 dan oldingi tiklash bilan AYNAN (`tools/test_ochirish_yopish.py`).
@@ -7612,6 +7642,15 @@ def delete_payment(db: Session, payment_id: int, performed_by: str = None,
     payment = _pq.first()
     if not payment:
         return False
+    # kech140 (zip 168, audit A-P08 — O'LCHANGAN): to'lovni o'chirish buyurtma pul qulfisiz (101) edi — boshqa pul amallari
+    # (`create_payment`, `create_delivery`, `ortiqcha_tolovni_qaytar`, …) shu qulfni oladi. Parallel ikki o'chirish PG da
+    # StaleDataError (500) berardi; boshqa amal bilan bir vaqtda to'lov holati / loyiha `total_paid` ESKI qiymatdan hisoblanardi.
+    # Endi qulf ostida QAYTA o'qiladi (`create_payment` naqshi); parallel o'chirilgan bo'lsa — topilmadi.
+    _pul_qulfi(db, 101, payment.order_id)
+    db.expire_all()
+    payment = _pq.first()
+    if not payment:
+        return False
 
     order = payment.order
     order_label = order.order_number if order else f"#{payment.order_id}"
@@ -7642,9 +7681,18 @@ def update_order_agreed_amount(db: Session, order_id: int, agreed_amount: float)
     # 17e (2026-09-22): ILDIZ — summa MUSBAT, chekli, Numeric(12,2) sig'imi
     # ichida (`true`, matn, `Infinity`, 0 — `ValueError`), bazaga tegishdan OLDIN.
     agreed_amount = _clean_val("OrderAgreed", {"agreed_amount": agreed_amount})["agreed_amount"]
+    # kech140 (zip 168, audit A-P08): buyurtma pul qulfi (101) ostida — parallel to'lov / yetkazish / qaytarish bilan bir
+    # vaqtda chegirma foizi va to'lov holati ESKI qiymatlardan hisoblanmasin (marshrut `order_of_company` da buyurtmani
+    # oldinroq o'qigan bo'lishi mumkin — `expire_all`).
+    _pul_qulfi(db, 101, order_id)
+    db.expire_all()
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         return None
+    # kech140 (zip 168, A-P01): savatdagi buyurtma summasi o'zgartirilmaydi — tiklash kelishilgan summani o'chirish paytidagi
+    # holatdan hisoblaydi (savatdagi tahrir jimgina yo'qolardi). Avval tiklanadi.
+    if order.is_deleted:
+        raise ValueError("Buyurtma savatda — kelishilgan summani o'zgartirish uchun avval uni tiklang")
 
     total = float(order.total_amount or 0)
     order.agreed_amount = agreed_amount
@@ -8102,7 +8150,11 @@ def ochirishda_topshirilganni_yopish(db: Session, order, loy_ishlatilgan: float 
         loy_ishlatilgan = _reja if toliq else _reja * (1.0 - services.loy_relevant_remaining_fraction(order))
     # Oldingi holat — tiklash (`ochirish_yopishini_bekor_qil`) AYNAN qaytaradi
     order.ochirish_yopish_json = _json.dumps({
-        "v": 1,
+        # kech140 (zip 168, audit A-P01): v2 — o'chirish paytidagi pul qaytarish kamaytirishi va kechirilgan qarz ham
+        # (tiklashda kelishilgan summa ular bilan JORIY holatdan qayta hisoblanadi — `ochirish_yopishini_bekor_qil`)
+        "v": 2,
+        "pul_qaytarish": _pul_matn100(pul_qaytarish_kamaytirgan(db, order)),
+        "kechirilgan": _pul_matn100(order.kechirilgan),
         "status": order.status.value if order.status else None,
         "completed_at": order.completed_at.isoformat() if order.completed_at else None,
         "total_amount": _pul_matn100(order.total_amount),
@@ -8151,6 +8203,20 @@ def ochirish_yopishini_bekor_qil(db: Session, order) -> bool:
         it.total_price = _pul_ol100(s.get("total_price"))
     order.total_amount = _pul_ol100(snap.get("total_amount"))
     order.agreed_amount = _pul_ol100(snap.get("agreed_amount"))
+    # kech140 (zip 168, audit A-P01 — O'LCHANGAN `work/audit/tasdiq/pul/probe_p01.py`): ilgari kelishilgan summa o'chirish
+    # paytidagi qiymatga AYNAN qaytarilardi — buyurtma savatda turganda bo'lgan pul o'zgarishlari (pul qaytarilgan qaytarishni
+    # o'chirish, «Pul qaytdi», kechirilgan qarz) yo'qolardi: tiklangach qarz 800 000 (o'chirilmagan nazorat — 900 000), soxta
+    # «Ustama». v2 snapshot: narx kelishuvi = kelishilgan + o'sha paytdagi pul qaytarish + kechirilgan; tiklashda — undan JORIY
+    # pul qaytarish va kechirilgan ayiriladi, chegirma foizi shundan (`update_order_agreed_amount` qoidasi). v1 (eski) —
+    # avvalgidek.
+    if int(snap.get("v") or 1) >= 2 and order.agreed_amount is not None:
+        _narx_kel = (float(order.agreed_amount) + float(_pul_ol100(snap.get("pul_qaytarish")) or 0)
+                     + float(_pul_ol100(snap.get("kechirilgan")) or 0))
+        _r_joriy = pul_qaytarish_kamaytirgan(db, order)
+        _k_joriy = order.kechirilgan
+        order.agreed_amount = _pul2(max(0.0, _narx_kel - _r_joriy - _k_joriy))
+        order.discount_percent = _narx_chegirma_foizi(float(order.total_amount or 0),
+                                                      float(order.agreed_amount) + _r_joriy + _k_joriy)
     order.notes = snap.get("notes")
     order.actual_loy_kg = snap.get("actual_loy_kg")
     if snap.get("status"):
@@ -13075,8 +13141,64 @@ def set_employee_monthly_adjustment(db: Session, employee_id: int, year: int, mo
     return existing
 
 
+class AvansOylikdanOrtiq(Exception):
+    """kech140 (zip 168, audit A-P09 — egasi QARORI 11.10 «Ogohlantirib so'rasin» + «Keyingi oydan ushlansin»): avans (yoki
+    «oylikni yopish» to'lovi, hodim so'rovini tasdiqlash) shu oy hisoblangan oylikning qolganidan KO'P — tasdiqsiz yozilmaydi
+    (marshrut → 409, UI so'raydi va `confirm_excess=true` bilan qayta yuboradi). Tasdiqlansa ortiqchasi keyingi oy oyligidan
+    ushlanadi (`EmployeeAdvance.keyingi_oyga`)."""
+
+    def __init__(self, qolgan: float, summa: float, ortiqcha: float, yil: int, oy: int):
+        self.qolgan, self.summa, self.ortiqcha, self.yil, self.oy = qolgan, summa, ortiqcha, yil, oy
+        ky, km = (yil + 1, 1) if oy == 12 else (yil, oy + 1)
+        from services import _HODIM_OY_NOMI as _on
+        _f = lambda x: f"{round(float(x)):,}".replace(",", " ")
+        self.message = (f"{_on[oy]} {yil} uchun oylikdan qolgani {_f(max(qolgan, 0))} so'm, kiritilgan summa {_f(summa)} so'm — "
+                        f"{_f(ortiqcha)} so'mga ko'p. Davom etsangiz, ortiqcha {_f(ortiqcha)} so'm keyingi oy ({_on[km]} {ky}) "
+                        f"oyligidan ushlanadi; ungacha hodim korxonaga qarzdor bo'lib ko'rinadi.")
+        super().__init__(self.message)
+
+    def javob(self) -> dict:
+        return {"type": "avans_oylikdan_ortiq", "message": self.message, "qolgan": round(self.qolgan),
+                "amount": round(self.summa), "excess": round(self.ortiqcha), "year": self.yil, "month": self.oy}
+
+
+def _avans_ortiqchasi(db: Session, emp, summa: float, sana, confirm_excess: bool):
+    """kech140 (zip 168, A-P09): avans `sana` (Toshkent) oyining hisoblangan oylik QOLGANIDAN ko'pmi. Qolgan — admin KPI / Qarzdorlar /
+    hodim paneli bilan bitta manba (`services.hodim_oy_qoldigi`). Ko'p bo'lsa: `confirm_excess` siz — `AvansOylikdanOrtiq`;
+    tasdiq bilan — ortiqcha summa (keyingi oyga o'tadi). Aks holda `None`."""
+    import services
+    from database import tashkent_date
+    t = tashkent_date(sana) if sana is not None else tashkent_date()
+    qolgan = float(services.hodim_oy_qoldigi(db, emp.id, emp.company_id, t.year, t.month))
+    ortiqcha = pul_tiyin(float(summa) - max(0.0, qolgan))
+    if ortiqcha <= QARZ_BARDOSH:
+        return None
+    if not confirm_excess:
+        raise AvansOylikdanOrtiq(qolgan, float(summa), ortiqcha, t.year, t.month)
+    return ortiqcha
+
+
+def _avans_takrori(db: Session, employee_id: int, company_id: int, summa: float, notes, adv_date, manba):
+    """kech140 (zip 168, A-P09 — O'LCHANGAN `work/audit/tasdiq/pul/probe_p09.py`): bir xil avans so'rovi (ikki bosish, ikki tab,
+    tarmoq takrori) `PUL_TAKROR_SONIYA` ichida — mavjud yozuv (yangisi yaratilmaydi; `create_payment` naqshi). Chaqiruvchi hodim
+    qulfini (107) olgan bo'lishi SHART."""
+    from models import EmployeeAdvance
+    from datetime import timedelta as _td_av
+    q = db.query(EmployeeAdvance).join(Employee, Employee.id == EmployeeAdvance.employee_id).filter(
+        Employee.company_id == company_id,          # TENANT: ota (hodim) orqali
+        EmployeeAdvance.employee_id == employee_id,
+        EmployeeAdvance.amount == round(float(summa), 2),
+        EmployeeAdvance.avans_manba == manba,
+        EmployeeAdvance.created_at.isnot(None),
+        EmployeeAdvance.created_at >= datetime.utcnow() - _td_av(seconds=PUL_TAKROR_SONIYA))
+    q = q.filter(EmployeeAdvance.notes.is_(None) if notes is None else EmployeeAdvance.notes == notes)
+    if adv_date is not None:
+        q = q.filter(EmployeeAdvance.date == adv_date)
+    return q.order_by(EmployeeAdvance.id.desc()).first()
+
+
 def create_employee_advance(db: Session, employee_id: int, amount: float, notes: str = None,
-                              given_by: str = None, adv_date=None):
+                              given_by: str = None, adv_date=None, confirm_excess: bool = False):
     """Hodimga avans (oldindan pul) berilganini qayd etadi.
     adv_date — agar berilsa, aynan shu sana bilan yoziladi (masalan
     avans kechroq kiritilgan, lekin haqiqatda boshqa kunda berilgan bo'lsa).
@@ -13094,10 +13216,27 @@ def create_employee_advance(db: Session, employee_id: int, amount: float, notes:
     emp = db.query(Employee).filter(Employee.id == employee_id).first()
     if not emp:
         return None
+    # kech140 (zip 168, audit A-P09 — O'LCHANGAN): ilgari qulf ham, takror tekshiruvi ham yo'q edi — bir xil so'rov ikki marta
+    # (ikki bosish / ikki tab / parallel) IKKI avans yozardi (oylik 3 000 000: «oylikni yopish» ikki marta → qolgan −3 000 000), va
+    # oylikdan ko'p summa (10 000 000) jimgina qabul qilinardi. Endi: hodim qulfi (107 — hodim so'rovi bilan bir fazo) → qayta o'qish →
+    # takror (8 s, bir xil summa / izoh / sana / manba — mavjudi qaytadi, `_takror`) → oylikdan ortiqmi (tasdiqsiz — 409).
+    _cid_e = emp.company_id
+    _pul_qulfi(db, 107, employee_id)
+    db.expire_all()
+    emp = db.query(Employee).filter(Employee.id == employee_id, Employee.company_id == _cid_e).first()
+    if not emp:
+        return None
+    _oldingi = _avans_takrori(db, employee_id, _cid_e, toza["amount"], toza["notes"], toza["adv_date"], AVANS_MANBA_ADMIN)
+    if _oldingi is not None:
+        db.rollback()       # qulf bo'shatiladi
+        _oldingi._takror = True
+        return _oldingi
+    _keyingi = _avans_ortiqchasi(db, emp, toza["amount"], toza["adv_date"], confirm_excess)
     adv = EmployeeAdvance(employee_id=employee_id, amount=toza["amount"],
                           notes=toza["notes"], given_by=given_by,
                           avans_manba=AVANS_MANBA_ADMIN,
-                          hodim_javobi=JAVOB_KUTILMOQDA if hodim_panelga_kiradimi(emp) else None)
+                          hodim_javobi=JAVOB_KUTILMOQDA if hodim_panelga_kiradimi(emp) else None,
+                          created_at=datetime.utcnow(), keyingi_oyga=_keyingi)
     if toza["adv_date"]:
         adv.date = toza["adv_date"]
     db.add(adv)
@@ -13141,6 +13280,8 @@ def avans_dict(adv, *, hodim_uchun: bool = False) -> dict:
         "manba": avans_manbasi(adv),
         "javob": adv.hodim_javobi,
         "javob_vaqti": adv.hodim_javob_vaqti.isoformat() if adv.hodim_javob_vaqti else None,
+        # kech140 (zip 168): shu summaning keyingi oy oyligi hisobiga o'tgan qismi (oylikdan ortiq avans, tasdiq bilan)
+        "keyingi_oyga": round(float(adv.keyingi_oyga or 0), 2),
     }
     if not hodim_uchun:
         d["nizo_korildi_vaqti"] = adv.nizo_korildi_vaqti.isoformat() if adv.nizo_korildi_vaqti else None
@@ -13814,7 +13955,7 @@ def _advance_request_of_company(db: Session, request_id: int, company_id: int = 
 
 
 def confirm_advance_request(db: Session, request_id: int, confirmed_by: str,
-                            company_id: int = None) -> Optional[dict]:
+                            company_id: int = None, confirm_excess: bool = False) -> Optional[dict]:
     """Admin tasdiqlaydi — shu bilan HAQIQIY EmployeeAdvance yozuvi yaratiladi
     (Moliya/Hisobotga to'g'ridan-to'g'ri ta'sir qiladigan).
 
@@ -13825,6 +13966,17 @@ def confirm_advance_request(db: Session, request_id: int, confirmed_by: str,
     if not req or req.status != AdvanceRequestStatus.PENDING:
         db.rollback()       # qulf bo'shatiladi
         return None
+    # kech140 (zip 168, A-P09 — egasi QARORI 11.10): hodim so'ragan avans ham oylikdan ortiq bo'lsa — admin tasdig'isiz yozilmaydi
+    # (409 → «Ha» bilan qayta), tasdiqlansa ortiqchasi keyingi oy oyligidan ushlanadi.
+    _emp_q = db.query(Employee).filter(Employee.id == req.employee_id)
+    if company_id is not None:
+        _emp_q = _emp_q.filter(Employee.company_id == company_id)
+    _emp = _emp_q.first()
+    try:
+        _keyingi = _avans_ortiqchasi(db, _emp, float(req.amount or 0), req.requested_date, confirm_excess) if _emp else None
+    except AvansOylikdanOrtiq:
+        db.rollback()       # qulf bo'shatiladi, so'rov o'zgarmaydi
+        raise
 
     advance = EmployeeAdvance(
         employee_id=req.employee_id, amount=req.amount,
@@ -13832,6 +13984,7 @@ def confirm_advance_request(db: Session, request_id: int, confirmed_by: str,
         notes=(req.notes or "") + HODIM_SOROV_IZOH_QOSHIMCHA,
         given_by=confirmed_by,
         avans_manba=AVANS_MANBA_HODIM, hodim_javobi=None,
+        created_at=datetime.utcnow(), keyingi_oyga=_keyingi,
     )
     db.add(advance)
     db.flush()
@@ -14079,6 +14232,11 @@ def get_master_kpi_detail(db: Session, master_id: int, year: int,
     services._hk_tayyorla(db, orders)        # kech90 (110-band): N+1 o'rniga bir necha IN so'rovi
 
     kpi_pct = float(master.kpi_percent or 0)
+    # kech140 (zip 168, egasi QARORI 11.10 «Bot to'g'ri»): ishtirokchining sovg'a davri ichidagi buyurtmasi / qaytarishi /
+    # sotuvi — qator ko'rinadi («🎁 sovg'a davrida»), KPI si 0 (sovg'a hisobiga); davr yopilganda o'tkazilgan qoldiq —
+    # alohida qator. Yig'indi = KPI sahifasi `gift_amount` = bot «Bonuslarim».
+    _ichida = sovga_davr_tekshirgich(db, master.company_id)
+    _SOVGA_BELGI = " (🎁 sovg'a davrida — keshbekka kirmaydi)"
     result = []
     for o in orders:
         try:
@@ -14087,13 +14245,14 @@ def get_master_kpi_detail(db: Session, master_id: int, year: int,
         except Exception:
             db.rollback()
             profit = 0.0
+        _davrda = _ichida(master, o.completed_at)
         result.append({
             "order_id": o.id,
-            "order_number": o.order_number,
+            "order_number": o.order_number + (_SOVGA_BELGI if _davrda else ""),
             "completed_at": o.completed_at.isoformat() if o.completed_at else None,
             "total_amount": float(o.total_amount or 0),
             "profit": round(profit),
-            "kpi_amount": round(profit * kpi_pct / 100),
+            "kpi_amount": 0 if _davrda else round(profit * kpi_pct / 100),
         })
 
     # kech102 (144-band, QAROR — usta KPI "yo'qotilgan foydaga"): shu yilda bo'lgan qaytarishlar (buyurtma
@@ -14103,13 +14262,14 @@ def get_master_kpi_detail(db: Session, master_id: int, year: int,
         _o144 = _h144["order"]
         _tur144 = {"pul": "mijozga pul qaytarildi", "ombor": "mahsulot omborga qaytdi",
                    "ombor+pul": "mahsulot omborga qaytdi, pul qaytarildi"}.get(_h144["tur"], "qaytarish")
+        _davrda = _ichida(master, _h144["vaqt"])
         result.append({
             "order_id": _o144.id,
-            "order_number": f"↩️ {_o144.order_number} ({_tur144})",
+            "order_number": f"↩️ {_o144.order_number} ({_tur144})" + (_SOVGA_BELGI if _davrda else ""),
             "completed_at": _h144["vaqt"].isoformat(),
             "total_amount": round(_h144["daromad"], 2),
             "profit": round(_h144["foyda"]),
-            "kpi_amount": round(_h144["foyda"] * kpi_pct / 100),
+            "kpi_amount": 0 if _davrda else round(_h144["foyda"] * kpi_pct / 100),
         })
 
     # MUHIM (2026-09): Tayyor mahsulot bo'limidan TO'G'RIDAN-TO'G'RI
@@ -14123,13 +14283,25 @@ def get_master_kpi_detail(db: Session, master_id: int, year: int,
     ).all()
     for s in fp_sales:
         profit = float(s.total_amount or 0) - float(s.cost_amount or 0)
+        _davrda = _ichida(master, s.sold_at)
         result.append({
             "order_id": None,
-            "order_number": f"🏪 {s.product_name}",
+            "order_number": f"🏪 {s.product_name}" + (_SOVGA_BELGI if _davrda else ""),
             "completed_at": s.sold_at.isoformat() if s.sold_at else None,
             "total_amount": float(s.total_amount or 0),
             "profit": round(profit),
-            "kpi_amount": round(profit * kpi_pct / 100),
+            "kpi_amount": 0 if _davrda else round(profit * kpi_pct / 100),
+        })
+    # kech140 (zip 168): sovg'a davri yopilganda keshbekka o'tkazilgan qoldiq (foyda saqlanmaydi — «—»)
+    for _ot in sovga_keshbek_otkazmalari(db, *_tashkent_yil_oraligi(year), company_id=master.company_id,
+                                         master_id=master_id):
+        result.append({
+            "order_id": None,
+            "order_number": "🎁 Sovg'a davri yopildi — olinmagan qismi keshbekka o'tkazildi",
+            "completed_at": _ot.redeemed_at.isoformat() if _ot.redeemed_at else None,
+            "total_amount": float(_ot.sales_amount or 0),
+            "profit": None,
+            "kpi_amount": round(float(_ot.profit_amount or 0)),
         })
 
     result.sort(key=lambda x: x["completed_at"] or "", reverse=True)
@@ -14144,14 +14316,17 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
     import services
     from models import Order, OrderStatus, FinishedProductSale as _FPS_report
 
+    # kech140 (zip 168, audit A-P02 usta qismi): «Jami sovg'a» (`total_gift`) — korxonaning HAMMA ustalari (faolsizlantirilgan
+    # usta ham shu yil topgan KPI si bilan; ilgari u faolsizlantirilgach yil jamidan yo'qolardi va oylik hisobotlar yig'indisiga
+    # teng emasdi). Ro'yxat (`masters`) — avvalgidek: `include_inactive=False` bo'lsa faqat faollar; nofaollar ulushi —
+    # `nofaol_gift`.
     q = db.query(Master)
     if company_id is not None:       # M5: faqat shu korxona ustalari
         q = q.filter(Master.company_id == company_id)
-    if not include_inactive:
-        q = q.filter(Master.is_active == True)
     masters = q.all()
     rows = []
     total_gift = 0.0
+    nofaol_gift = 0.0
 
     # N+1 o'rniga — BARCHA ustalarning shu yillik buyurtmalarini
     # BITTA so'rov bilan olib, keyin usta bo'yicha guruhlaymiz.
@@ -14196,10 +14371,20 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
 
     # kech102 (144-band, QAROR — usta KPI "yo'qotilgan foydaga"): shu yilda bo'lgan qaytarishlar o'sha buyurtma
     # ustasining yillik foydasiga (buyurtmaning o'zi — yakunlangan paytdagi holatda). "Yillik sotuv" (jami summa) — o'zgarmaydi.
+    # kech140 (zip 168, egasi QARORI 11.10 «Bot to'g'ri»): ishtirokchining sovg'a davri ichidagi buyurtmasi / qaytarishi /
+    # sotuvi keshbek (KPI) foydasiga KIRMAYDI («Yillik sotuv» ga kiradi); davr yopilganda o'tkazilgan qoldiq — `gift_amount`
+    # ga (bot «Bonuslarim» bilan bir qoida — `sovga_davr_tekshirgich`).
+    _ichida = sovga_davr_tekshirgich(db, company_id)
+    _usta_obj = {m.id: m for m in masters}
     _qaytarish_usta = {}
     for _h144 in services.davr_qaytarishlari(db, *_tashkent_yil_oraligi(year),
                                              company_id=company_id):
+        if _ichida(_usta_obj.get(_h144["master_id"]), _h144["vaqt"]):
+            continue
         _qaytarish_usta[_h144["master_id"]] = _qaytarish_usta.get(_h144["master_id"], 0.0) + _h144["foyda"]
+    _otkazma_usta = {}
+    for _ot in (sovga_keshbek_otkazmalari(db, *_tashkent_yil_oraligi(year), company_id=company_id) if master_ids else []):
+        _otkazma_usta[_ot.master_id] = _otkazma_usta.get(_ot.master_id, 0.0) + float(_ot.profit_amount or 0)
 
     for m in masters:
         orders = orders_by_master.get(m.id, [])
@@ -14208,6 +14393,8 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
         yearly_profit = 0.0
         for o in orders:
             yearly_sales += float(o.total_amount or 0)
+            if _ichida(m, o.completed_at):
+                continue
             try:
                 profit_data = services.yakun_foydasi(db, o)
                 yearly_profit += float(profit_data.get("foyda", 0))
@@ -14220,11 +14407,17 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
 
         for s in fp_sales_by_master.get(m.id, []):
             yearly_sales += float(s.total_amount or 0)
+            if _ichida(m, s.sold_at):
+                continue
             yearly_profit += float(s.total_amount or 0) - float(s.cost_amount or 0)
         yearly_profit += _qaytarish_usta.get(m.id, 0.0)      # kech102 (144-band)
 
-        gift = yearly_profit * (m.kpi_percent or 0) / 100
+        _otkazma = _otkazma_usta.get(m.id, 0.0)
+        gift = yearly_profit * (m.kpi_percent or 0) / 100 + _otkazma
         total_gift += gift
+        if not include_inactive and not m.is_active:
+            nofaol_gift += gift
+            continue
 
         # kech91 (115-band, O'LCHANGAN — `work/probe90_null.py`): PG `DESC` da NULL larni BIRINCHI qo'yadi,
         # SQLite — OXIRIDA. "Tayyor" buyurtmalardan birining `completed_at` i NULL bo'lsa (eski / qo'lda
@@ -14248,11 +14441,12 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
             "yearly_profit": round(yearly_profit),
             "orders_count": len(orders),
             "gift_amount": round(gift),
+            "sovga_otkazma": round(_otkazma),       # kech140 (zip 168): sovg'a davridan keshbekka o'tgan qism
             "last_order_date": _oxirgi.isoformat() if _oxirgi is not None else None
         })
 
     rows.sort(key=lambda x: x["gift_amount"], reverse=True)
-    return {"year": year, "masters": rows, "total_gift": round(total_gift)}
+    return {"year": year, "masters": rows, "total_gift": round(total_gift), "nofaol_gift": round(nofaol_gift)}
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -14297,14 +14491,66 @@ def get_gift_period_participant_ids(db: Session, period_id: int) -> set:
     return {r[0] for r in rows}
 
 
-def _gift_period_eligible_masters(db: Session, period) -> list:
+def sovga_davr_tekshirgich(db: Session, company_id: int = None):
+    """kech140 (zip 168, audit A-P03 — egasi QARORI 11.10 «Bot to'g'ri»): «usta shu paytda sovg'a davrining ISHTIROKCHISI
+    edimi» — YAGONA qoida (bot «Bonuslarim», KPI sahifasi, KPI tafsiloti, oylik hisobot «Usta bonusi (KPI)», «Tayyor» oynasi).
+    Ishtirokchining davr ichidagi sotuvi / qaytarishi keshbekka KIRMAYDI (sovg'a hisobiga), davr yopilganda olinmagan qoldiq
+    `cashback_conversion` yozuvi bilan keshbekka qaytadi. Ishtirokchi emas usta — oddiy keshbek oladi (davr unga tegishli emas).
+    Ilgari bot HAMMA ustaning davr ichidagi buyurtmalarini chiqarardi (qatnashmagan usta keshbeki yo'qolardi — O'LCHANGAN:
+    bot 95 000, KPI sahifasi 190 000), KPI sahifasi va oylik hisobot esa davrni UMUMAN hisobga olmasdi (ishtirokchi davr
+    sotuvi keshbek HAM, sovg'a HAM bo'lib turardi).
+    Ishtirokchi: davrning o'z korxonasi ustasi VA (ishtirokchilar ro'yxati bo'sh — «barcha ustalar» YOKI ro'yxatda). Oraliq —
+    `boshlangan < vaqt <= yopilgan` (faol davr — hozirgacha), bot va `_gift_period_*_since` bilan bir xil.
+    Qaytaradi: `ichida(usta, vaqt) -> bool` (`usta` — Master obyekti yoki `company_id` / `id` li obyekt)."""
+    from models import GiftPeriod
+    _q = db.query(GiftPeriod)
+    if company_id is not None:
+        _q = _q.filter(GiftPeriod.company_id == company_id)
+    davrlar = [(p.started_at, p.closed_at, getattr(p, "company_id", None), get_gift_period_participant_ids(db, p.id))
+               for p in _q.all()]
+    hozir = datetime.utcnow()
+
+    def ichida(usta, vaqt) -> bool:
+        if usta is None or not vaqt or not davrlar:
+            return False
+        for bosh, tugash, _pcid, ids in davrlar:
+            if _pcid is not None and getattr(usta, "company_id", None) != _pcid:
+                continue
+            if ids and usta.id not in ids:
+                continue
+            if bosh is not None and bosh < vaqt <= (tugash or hozir):
+                return True
+        return False
+    return ichida
+
+
+def sovga_keshbek_otkazmalari(db: Session, bosh, oxir, company_id: int = None, master_id: int = None) -> list:
+    """kech140 (zip 168): yopilgan davrlarning keshbekka o'tkazilgan qoldig'i (`kind='cashback_conversion'`, `profit_amount` —
+    KPI summasi) — o'tkazilgan PAYTDAGI oyga / yilga (bot «Bonuslarim» bilan bir qoida). `bosh` / `oxir` — UTC chegaralar
+    (`_tashkent_oy_oraligi` / `_tashkent_yil_oraligi`). Qaytaradi: yozuvlar ro'yxati (`master_id`, `profit_amount`, `sales_amount`,
+    `redeemed_at`)."""
+    from models import GiftPeriod, MasterGiftPeriodRedemption
+    _q = db.query(MasterGiftPeriodRedemption).filter(
+        MasterGiftPeriodRedemption.kind == "cashback_conversion",
+        MasterGiftPeriodRedemption.redeemed_at >= bosh, MasterGiftPeriodRedemption.redeemed_at < oxir)
+    if master_id is not None:
+        _q = _q.filter(MasterGiftPeriodRedemption.master_id == master_id)
+    if company_id is not None:
+        # yozuvda company_id yo'q — ota (davr) orqali
+        _q = _q.join(GiftPeriod, GiftPeriod.id == MasterGiftPeriodRedemption.period_id).filter(GiftPeriod.company_id == company_id)
+    return _q.order_by(MasterGiftPeriodRedemption.redeemed_at).all()
+
+
+def _gift_period_eligible_masters(db: Session, period, faollar: bool = True) -> list:
     """Davrda ishtirok etadigan FAOL ustalar ro'yxatini (Master obyektlari) qaytaradi.
 
     M5 — TENANT: "barcha faol ustalar" rejimi endi FAQAT davrning O'Z
     korxonasi ustalarini oladi. Ilgari B korxonaning ustasi A ning
     davrida avtomatik ishtirok etardi (jonli sinovda tasdiqlangan)."""
     participant_ids = get_gift_period_participant_ids(db, period.id)
-    q = db.query(Master).filter(Master.is_active == True)
+    q = db.query(Master)
+    if faollar:
+        q = q.filter(Master.is_active == True)
     _pcid = getattr(period, "company_id", None)
     if _pcid is not None:
         q = q.filter(Master.company_id == _pcid)
@@ -14696,7 +14942,9 @@ def close_gift_period(db: Session, performed_by: str = None, force: bool = False
         }
 
     now = datetime.utcnow()
-    masters = _gift_period_eligible_masters(db, period)
+    # kech140 (zip 168): faolsizlantirilgan ishtirokchi ham — uning davr ichidagi sotuvi keshbekdan chiqarilgan
+    # (`sovga_davr_tekshirgich`), o'tkazilmasa qoldig'i hech qayerda bo'lmasdi.
+    masters = _gift_period_eligible_masters(db, period, faollar=False)
     for m in masters:
         checkpoint = _master_gift_period_checkpoint(db, m.id, period)
         sales = _gift_period_sales_since(db, m.id, checkpoint, now, company_id=_cid)
@@ -14724,7 +14972,7 @@ def get_master_yearly_cashback(db: Session, master_id: int, year: int,
     ketayapti); o'rniga, yopilgan davrlarning 'cashback_conversion'
     yozuvlari (ushbu yilga tegishlilari) qo'shiladi."""
     import services
-    from models import Order, OrderStatus, FinishedProductSale, GiftPeriod, MasterGiftPeriodRedemption, Master
+    from models import Order, OrderStatus, FinishedProductSale, Master
 
     # M5 (2026-09-18) — TENANT: usta, davrlar, buyurtmalar, sotuvlar va
     # o'tkazmalar — hammasi SHU korxona ichidan.
@@ -14735,19 +14983,12 @@ def get_master_yearly_cashback(db: Session, master_id: int, year: int,
     kpi_pct = float(master.kpi_percent or 0)
     cid = company_id if company_id is not None else getattr(master, "company_id", None)
 
-    _pq = db.query(GiftPeriod)
-    if cid is not None:
-        _pq = _pq.filter(GiftPeriod.company_id == cid)
-    periods = _pq.all()
+    # kech140 (zip 168, audit A-P03): FAQAT usta ishtirokchi bo'lgan davrlar (ilgari — korxonaning HAMMA davrlari:
+    # qatnashmagan ustaning davr ichidagi keshbeki botdan yo'qolardi). Yagona qoida — `sovga_davr_tekshirgich`.
+    _ichida = sovga_davr_tekshirgich(db, cid)
 
     def _in_any_period(dt):
-        if not dt:
-            return False
-        for p in periods:
-            end = p.closed_at or datetime.utcnow()
-            if p.started_at < dt <= end:
-                return True
-        return False
+        return _ichida(master, dt)
 
     _oq = db.query(Order).filter(
         Order.master_id == master_id, Order.status == OrderStatus.READY,
@@ -14793,17 +15034,8 @@ def get_master_yearly_cashback(db: Session, master_id: int, year: int,
 
     jami_bonus = yearly_profit * kpi_pct / 100
 
-    _cq = db.query(MasterGiftPeriodRedemption).filter(
-        MasterGiftPeriodRedemption.master_id == master_id,
-        MasterGiftPeriodRedemption.kind == "cashback_conversion",
-        _tashkent_yilida(MasterGiftPeriodRedemption.redeemed_at, year),
-    )
-    if cid is not None:
-        # MasterGiftPeriodRedemption'da company_id ustuni yo'q — tenant
-        # otasi (GiftPeriod) orqali cheklanadi.
-        _cq = _cq.join(GiftPeriod, GiftPeriod.id == MasterGiftPeriodRedemption.period_id
-                       ).filter(GiftPeriod.company_id == cid)
-    conversions = _cq.all()
+    # kech140 (zip 168): o'tkazmalar — KPI sahifasi / oylik hisobot bilan bitta yordamchi
+    conversions = sovga_keshbek_otkazmalari(db, *_tashkent_yil_oraligi(year), company_id=cid, master_id=master_id)
     conversion_total = sum(float(c.profit_amount or 0) for c in conversions)
     jami_bonus += conversion_total
 

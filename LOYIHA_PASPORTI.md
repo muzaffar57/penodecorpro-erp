@@ -1,7 +1,7 @@
 # PenoDecorPro ERP — LOYIHA PASPORTI
 
 *Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2); kech112: zip 108 — «Tayyor» da bo'sh loy = reja (K112-3), material nomi (K112-4), MRP qoplama belgisi (K112-5); ko'p korxonali yakuniy jonli sinov; kech115: zip 112 — butun dastur auditi A bosqichi (pul va ma'lumot xatolari) 1-qismi: kirim, qarzdorlar, «Tayyor», narxsiz buyurtma, o'chirilganlar jurnali, manfiy raqamlar, taqqoslash, korxona sog'ligi, ombor filtri; kech116: zip 113 — A bosqich 2-qismi: sog'liq sabablari (K115-2), «Bugungi xulosa» (K115-3), hujjatlardagi hisob qatorlari (G2-04), «Pul oqimi» — haqiqiy pul (G1-03), «Xarajat» — bitta ta'rif va «Tannarx» (G1-02), loyiha qiymati buyurtmalardan (G2-01), haqiqiy IP va kirish cheklovi (U-01), parol oynasi va kirishlarni yopish (G6-06); zip 114 — mijoz hujjatlarida kechirilgan qarz «Chegirma» ichida (egasi qarori); kech117: zip 115 — A2: yo'nalishlar bo'yicha moliya (G3-11, G6-09); zip 116 — jonli sinovdan keyin: «Belgilanmagan» manbalari, Moliya xarajatdan keyin yangilanadi; kech118: qolgan egasi qarorlari (6-bo'lim); zip 117 — B bosqichi 1-qism: dastur oynalari (xabar, kiritish, Esc / tashqariga bosish), o'zbekcha 404 / 403 sahifa, klaviatura fokusi; zip 118 — B bosqichi 2-qism: son / sana / birlik ko'rinishi, o'qiladigan rang, 12 px + yo'nalishlar bo'yicha moliyaviy natija (egasi qarori: taqsim yo'q, oyliklar alohida, davr, solishtirish); yangi qarorlar — rollar va ruxsatlar (6-bo'lim); zip 119 — rollar va ruxsatlar 1-qism (admin rollarni o'zi boshqaradi); kech119: zip 125 — Hisobotlar «oy boshi»: o'tgan oyning SHU KUNLARI bilan solishtirish (egasi qarori), taxminda oylik xarajat bir marta, xomashyo birligi; «Foyda tahlili» summalari (G2-15); zip 126 — telefon (C bosqichi); kech120: zip 127 — E bosqichi 1-qism: tezlik — hisobot xotirasi (so'rovlar orasida, yozuv bo'lsa darhol eskiradi), sahifa bir ochilishida bir xil so'rov bir marta, Bosh sahifa 5 ta buyurtma, kirish sahifasi rasmi, Hisobotlar taqqoslash kartalari telefonda (K120-1); zip 128 — E bosqichi 2-qism: katta ro'yxatlarda topish — Bosh sahifa «Bugungi vazifalar» havolalari, Buyurtmalar filtri / keng qidiruv / tanlovni tiklash, Qarzdorlar mijoz bo'yicha; zip 129 — E bosqichi 3-qism: tarix va jurnallar — «Tizim jurnallari» filtri va sahifalash, hamma amal o'zbekcha, tahrir yozuvida nima o'zgargani; Ombor «Tarix», «Yana yuklash», davr jami; zip 130 — E bosqichi 4-qism: qidiruvli tanlagich (Kirim — ta'minotchi, material; «Yangi qaytarish», «Brak yozish»), ta'minotchilar tabiiy tartibda, Tayyor mahsulotlar kategoriyalari korxonaning o'z mahsulot turlaridan; shu zipda — E bosqichi 5-qism: hodim kirishi — har korxonada kod (kodsizlarga ishga tushishda), QR serverda (ichida kod), kirish sahifasi kodni o'zi yozadi, chop etish sahifasi; shu zipda — E bosqichi 6-qism: rasmlar yuklashda 1920 px gacha kichraytiriladi (burilish qo'llanadi, joylashuv saqlanmaydi), ro'yxatlarda kichik nusxa (360 px); uzun ro'yxatlarda faqat birinchi 20 qator animatsiyali); zip 131 — F bosqichi 1-qism: Moliya, Qarzdorlar, «Xarajat qo'shish» (kirim xarajati faqat hujjat orqali, ro'yxat jami, kassa yozuvini o'chirish, «Yalpi foyda», qarz to'lovi usuli, majburiyat oyi); zip 132 — F bosqichi 2-qism: Ombor, Kirim, Ta'minotchilar, Retseptlar (kirim hujjatidan qator — to'lov / xarajat bo'lsa butun hujjat orqali, ishlatilgan retsept o'chmaydi, Telegram natijasi, Omborxona — ruxsat bo'yicha tugmalar, ustun nomlari, toifa filtri; ta'minotchi tarixida to'lov holati, penoplast blok hajmi); zip 133 — F bosqichi 3-qism: Tayyor mahsulotlar, Qaytarishlar, Ishlab chiqarish (birlik ko'rinishi — bitta qoida, qaytarishlar guruhi va kartalari, «Hisob-kitob qilish», tugmalar so'z bilan, sotishdan keyin sahifa qayta yuklanmaydi, narxsiz mahsulot qiymati, mahsulot turini tahrirlash / o'chirish, bo'sh korxona yo'riqnomasi); zip 134 — F bosqichi 4-qism: Buyurtmalar va Loyihalar (namuna matni rangi, saqlash kamchiliklari bitta ro'yxatda, detal raqami, profil — uzunlik bo'yicha, loyiha qarzi «384 ming», bitta hisob-kitob paneli, amallar tepada, «Bajarilgan» va «Yetkazish — 1/2 topshirildi», «Tarix», bo'sh korxonada «avval loyiha»); zip 135 — F bosqichi 5-qism: Bosh sahifa, Dashboard, Hisobotlar («Faol buyurtmalar» — bitta qoida, usta reytingi, yangi korxonaga «Boshlash», bo'sh grafiklar, davr filtri, jadval qidiruvi va Excel, «Yangilash»); zip 136 — F bosqichi 5-qism 2-bo'lagi: hujjatlar va KPI (buyurtma hisobi — birlik, ajratgich, bitta «TO'LOV SUMMASI»; yuk xati — shu yuk paytidagi holat; KPI sahifasi yozuvlari va hodim kartasi); zip 137 — F bosqichi 5-qism 3-bo'lagi: ustalar telefoni, menyu guruhlari, hodim va foydalanuvchi kirishi, alohida «Sozlamalar» sahifasi; kech121: zip 138 — egasi qarorlari 02.10 (Dashboard «Shu oy daromadi», brak foizi asosi, Menejer o'z xarajatini o'chiradi, narxsiz «Kirim (tuzatish)», qaytarish oynasida pul savoli, yuk xatida korxona to'lagan transport narxi yo'q); kech123: zip 139 — U-13 yagona ko'rinish 1-qism (tugma / maydon / tab / filtr o'lchamlari va yozuv shkalasi — bitta qoida; umumiy qobiq, Bosh sahifa, Dashboard, Hisobotlar, Foydalanuvchilar; zip 140 — 2-qism: Buyurtmalar, Loyihalar, Omborxona, Kirim qilish, Ta'minotchilar, Loy retseptlari, Ishlab chiqarish, Tayyor mahsulotlar, Qaytarishlar; zip 141 — 3-qism: Qarzdorlar, Moliya, Xarajat qo'shish, Ustalar KPI, Ustalar, Rollar; zip 142 — 4-qism: jurnallar, Sozlamalar, Savat, Platforma, kirish sahifalari, hodim paneli; zip 143 — qoplamachi bonusi va «har birlik uchun» hodim haqi yuk xatlari bo'yicha; kech124: zip 144 — loyihada «Yuk xatlari», yuk xati raqami loyiha bo'yicha, «Jamlab olish»; zip 145 — Loyihalar holat paneli «Bajarilgan»; kech125: zip 146 — brak taqdiri: Tashlandi / Tuzatildi / Kesildi / 2-nav; zip 147 — uning jonli sinovidan keyingi tuzatishlar; kech126: zip 148 — «Tez hisob / Taklif»: mijozga loyiha / buyurtma ochmasdan taklif, «Takliflar» ro'yxati, bir tugma bilan rasmiylashtirish; zip 149 — uning jonli sinovidan keyingi 2 tuzatish; kech127: `main` ga ko'chirish — 07.10; zip 150 — «Xomashyo narxlari va ombor qiymati» ruxsati, ORD-066-1 loy xatosi tuzatishi; zip 151 — «Murojaat» bo'limi, jurnal `loy_tuzatish` yorlig'i, ombor harakatlari jami — material bo'yicha; kech128: zip 152 — rasm emas fayl rad etiladi (hamma rasm yuklash joylari va logotip), murojaat matnida qator oxirlari, platforma yozishma oynasi; kech129: zip 153 — SaaS migratsiya sahifasi (8 marshrut) olib tashlandi: mijoz korxona admini ham kirib, boshqa korxonalar nomini ko'rar va haqiqiy migratsiya qadamini bajarar edi; logotip PDF da o'z nisbati va yo'nalishi bilan, buzilgan
-logotip qabul qilinmaydi; kech130: zip 154 — Telegram: bot manzilini o'zgartirish faqat asosiy saytda, «Bot hozir qayerga ulangan», umumiy bot faqat platforma egasi ustalariga, har korxonaga o'z boti («🔗 Botni ulash»); kech131: zip 155 — Telegram xatolari o'zbekcha (token rad etilsa nima qilish kerak, oxirgi xato ma'nosi); kech132: zip 156 — joylashuv so'zlarisiz matnlar (tugma / maydon / bo'lim — nomi bilan), «🔄 Botni asl holatiga qaytarish» ning to'liq izohi; kech133: zip 157 — «Loy retseptlari» oynalari: tahrirda izoh, o'chirilgan material tahrirda jimgina yo'qolmaydi, bo'sh hajm / miqdorsiz material — xabar, takror nom — 409, server javob bermasa — xabar; zip 158 — hodim paneli: sahifa suriladi, avans formasi tepada, «Oyligim» — joriy oy ochiq, tugagan oylar yopiq, oxirgi 12 oy; zip 159 — hodim paneliga FAQAT admin ruxsat bergan telefondan kiriladi, PIN ni hodimning o'zi qo'yadi, telefon raqami har ko'rinishda bitta, o'chirilgan hodim kirmaydi; kech134: zip 160 — hodim avanslari: «📱 O'zingiz» / «🧑‍💼 Admin» belgilari, admin yozgan avansga hodim «Ha, oldim / Olmaganman», «Olmaganman» — adminga ogohlantirish, «Mening so'rovlarim» — 12 oy oylab, avans so'rovini parallel tasdiqlash — bitta avans, hodim oynalari Bosh sahifada ham; kech135: zip 161 — «Materiallar ro'yxati (retsept va tarkib uchun)» ruxsati: Omborxonaga kirmaydigan rol retsept va mahsulot tarkibiga material tanlaydi (faqat nomi va birligi), Rollar sahifasida «ro'yxat ham kerak» ogohlantirishi, «Ishlab chiqarish» yorlig'i faqat buyurtmalar ruxsati bilan; kech136: zip 162 — Dashboard karuseli nuqtalari telefonda ko'rinadi va bosiladi, o'lcham o'zgarganda adashmaydi, ikkala rejimda aniq; hech qachon ishlamagan uslub qoidalari olib tashlandi; kech137: zip 163 — Dashboard bitta so'rov xatosida qotmaydi: har blok alohida yuklanadi, yuklanmagan blokda sabab (yolg'on «0» yo'q), ruxsatsiz blok rolga ko'rsatilmaydi va so'ralmaydi, eski javob yangisini bosmaydi; kech138: zip 164 — Moliya va Hisobotlar ham qotmaydi: har blok alohida, yuklanmagan blokda sabab, boshqa oy tanlanganda eski oy raqami qolmaydi, ruxsatsiz blok yo'q; zip 165 — Ustalar KPI va Loyihalar ham qotmaydi: ehson foizi yuklanmasa «Saqlash» yopiq (0 % yozilmaydi), sovg'a davri xatoda «Yopiq» emas, loyiha bo'limlarida yolg'on qiymat va poyga yo'q, bo'limlar va bloklar ruxsat bo'yicha; zip 166 — Omborxona va Platforma ham qotmaydi: «Aloqa telefoni» yuklanmasa «Saqlash» yopiq (telefon o'chmaydi), «Xaridlar tarixi» da eski jami qolmaydi, amal xatolari sababi bilan (internet uzilsa ham), «Muddatni uzaytirish» ikki marta bosilsa bir marta uzayadi, 4 poyga yopildi, xaridni bekor qilish tugmalari ruxsat bilan; zip 167 — audit 1-to'lqini: zaxira BO'SH yangi bazaga ham tiklanadi, buzilgan / begona yozuvli zaxira rad etiladi, platforma egasi hisobini faqat o'zi o'zgartiradi, parol tiklanganda / foydalanuvchi o'chirilganda eski kirish yopiladi, KPI «Jami» da «-0» yo'q; Platforma, Sozlamalar, Tizim jurnallari, O'chirilganlar, Ishlab chiqarish, Xarajat qo'shish sahifalari telefonda va past ekranda oxirigacha suriladi, Loyihalar — past noutbuk ekranida ham). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
+logotip qabul qilinmaydi; kech130: zip 154 — Telegram: bot manzilini o'zgartirish faqat asosiy saytda, «Bot hozir qayerga ulangan», umumiy bot faqat platforma egasi ustalariga, har korxonaga o'z boti («🔗 Botni ulash»); kech131: zip 155 — Telegram xatolari o'zbekcha (token rad etilsa nima qilish kerak, oxirgi xato ma'nosi); kech132: zip 156 — joylashuv so'zlarisiz matnlar (tugma / maydon / bo'lim — nomi bilan), «🔄 Botni asl holatiga qaytarish» ning to'liq izohi; kech133: zip 157 — «Loy retseptlari» oynalari: tahrirda izoh, o'chirilgan material tahrirda jimgina yo'qolmaydi, bo'sh hajm / miqdorsiz material — xabar, takror nom — 409, server javob bermasa — xabar; zip 158 — hodim paneli: sahifa suriladi, avans formasi tepada, «Oyligim» — joriy oy ochiq, tugagan oylar yopiq, oxirgi 12 oy; zip 159 — hodim paneliga FAQAT admin ruxsat bergan telefondan kiriladi, PIN ni hodimning o'zi qo'yadi, telefon raqami har ko'rinishda bitta, o'chirilgan hodim kirmaydi; kech134: zip 160 — hodim avanslari: «📱 O'zingiz» / «🧑‍💼 Admin» belgilari, admin yozgan avansga hodim «Ha, oldim / Olmaganman», «Olmaganman» — adminga ogohlantirish, «Mening so'rovlarim» — 12 oy oylab, avans so'rovini parallel tasdiqlash — bitta avans, hodim oynalari Bosh sahifada ham; kech135: zip 161 — «Materiallar ro'yxati (retsept va tarkib uchun)» ruxsati: Omborxonaga kirmaydigan rol retsept va mahsulot tarkibiga material tanlaydi (faqat nomi va birligi), Rollar sahifasida «ro'yxat ham kerak» ogohlantirishi, «Ishlab chiqarish» yorlig'i faqat buyurtmalar ruxsati bilan; kech136: zip 162 — Dashboard karuseli nuqtalari telefonda ko'rinadi va bosiladi, o'lcham o'zgarganda adashmaydi, ikkala rejimda aniq; hech qachon ishlamagan uslub qoidalari olib tashlandi; kech137: zip 163 — Dashboard bitta so'rov xatosida qotmaydi: har blok alohida yuklanadi, yuklanmagan blokda sabab (yolg'on «0» yo'q), ruxsatsiz blok rolga ko'rsatilmaydi va so'ralmaydi, eski javob yangisini bosmaydi; kech138: zip 164 — Moliya va Hisobotlar ham qotmaydi: har blok alohida, yuklanmagan blokda sabab, boshqa oy tanlanganda eski oy raqami qolmaydi, ruxsatsiz blok yo'q; zip 165 — Ustalar KPI va Loyihalar ham qotmaydi: ehson foizi yuklanmasa «Saqlash» yopiq (0 % yozilmaydi), sovg'a davri xatoda «Yopiq» emas, loyiha bo'limlarida yolg'on qiymat va poyga yo'q, bo'limlar va bloklar ruxsat bo'yicha; zip 166 — Omborxona va Platforma ham qotmaydi: «Aloqa telefoni» yuklanmasa «Saqlash» yopiq (telefon o'chmaydi), «Xaridlar tarixi» da eski jami qolmaydi, amal xatolari sababi bilan (internet uzilsa ham), «Muddatni uzaytirish» ikki marta bosilsa bir marta uzayadi, 4 poyga yopildi, xaridni bekor qilish tugmalari ruxsat bilan; zip 167 — audit 1-to'lqini: zaxira BO'SH yangi bazaga ham tiklanadi, buzilgan / begona yozuvli zaxira rad etiladi, platforma egasi hisobini faqat o'zi o'zgartiradi, parol tiklanganda / foydalanuvchi o'chirilganda eski kirish yopiladi, KPI «Jami» da «-0» yo'q; Platforma, Sozlamalar, Tizim jurnallari, O'chirilganlar, Ishlab chiqarish, Xarajat qo'shish sahifalari telefonda va past ekranda oxirigacha suriladi, Loyihalar — past noutbuk ekranida ham; kech140: zip 168 — audit, pul (1-qism): avans / «oylikni yopish» ikki marta bosilsa bitta yoziladi, oylikdan ko'p avans so'raladi va ortig'i keyingi oy oyligidan ushlanadi, «Hodim qarzdor» ko'rinadi, sovg'a davri faqat ishtirokchiga (bot = KPI sahifasi = oylik hisobot), usta KPI oylari yig'indisi = yil, faolsizlantirilgan usta o'tgan oylardan yo'qolmaydi, loyiha qarzi Buyurtmalar / Loyihalar / Qarzdorlar da bir xil, savatdan tiklashda pul o'zgarishlari saqlanadi). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
 *Bu faylni `main` ga ko'chirish bilan birga, keyin har katta o'zgarishda yangilab boring. 9-bo'lim AVTOMATIK
 (`python3 tools/pasport_xarita.py --yoz`), qolgani qo'lda; `tools/test_pasport.py` ikkalasini ham tekshiradi.*
 
@@ -862,6 +862,51 @@ qo'shish (`kunlik_xarajat.html`) o'rami oddiy blok edi — kontent ekrandan uzun
 Sozlamalarda Telegram bot va «Zaxira nusxa» ko'rinmasdi); Loyihalar (`.proj-page`) kompyuterda skrollsiz edi — past ekranda
 (`.proj-layout` min-height 520) pastki qism ko'rinmasdi. Endi hammasi `erp-content` (Loyihalar — `.proj-page` o'zi). YANGI sahifa —
 o'rami `erp-content` bilan. Test: `tools/test_sahifa_skroll_ui.py`.
+AVANS VA HODIM QARZI (kech140, zip 168 — audit A-P09, O'LCHANGAN `work/audit/tasdiq/pul/probe_p09.py`; egasi QARORLARI 11.10
+«Ogohlantirib so'rasin», «Keyingi oydan ushlansin»). Admin avansi (`POST /api/employees/{id}/advance`), «oylikni yopish»
+(`POST /api/obligations/employee/{id}/close` → `services.close_employee_debt`) va hodim so'rovini tasdiqlash
+(`crud.confirm_advance_request`) — bitta yo'l `crud.create_employee_advance` qoidalari bilan: (1) hodim qulfi (`_pul_qulfi(107)`,
+hodim so'rovi bilan bir fazo) → qayta o'qish; (2) TAKROR — bir xil summa / izoh / sana / manba `PUL_TAKROR_SONIYA` (8 s) ichida
+(`EmployeeAdvance.created_at` — yangi ustun; `date` tanlangan kun 00:00 — imzoga yaramaydi) — mavjud yozuv qaytadi
+(`duplicate: true`; ilgari ikki bosish / ikki tab / parallel — IKKI avans); (3) OYLIKDAN KO'P — summa shu oy (`date` ning Toshkent
+oyi) oylik QOLGANIDAN (`services.hodim_oy_qoldigi` — KPI / Qarzdorlar / hodim paneli bilan bitta manba) ko'p bo'lsa
+`crud.AvansOylikdanOrtiq` → 409 `{type: 'avans_oylikdan_ortiq', message, qolgan, amount, excess}`; UI (`base.html` `avansYubor`)
+oynada so'raydi, «Ha» — o'sha so'rov `confirm_excess=true` bilan. Tasdiqlansa ortiqcha `EmployeeAdvance.keyingi_oyga` ga yoziladi
+(pul bir marta, `date` kuni — kassa o'zgarmaydi). OYLIK HISOBI (`services.calculate_monthly_employee_pay`): shu oy hisobidagi
+avans = shu oy avanslari − ularning `keyingi_oyga` qismi + O'TGAN oy avanslarining `keyingi_oyga` qismi (breakdown: `avans`,
+`avans_jami`, `keyingi_oyga`, `oldingi_oydan`); oyligi 0, lekin avansi bor hodim ham ro'yxatda. Bir oy oldinga ko'chadi —
+keyingi oy oyligi ham yetmasa o'sha oyda qolgan manfiy = «Hodim qarzdor». KO'RINISH: KPI «Joriy oy» kartasi (`kpi.html`
+`loadCurrentMonthEmpStatus` — «🟠 Hodim qarzdor: X so'm», ilgari «🟢 To'liq to'langan»), Qarzdorlar → «Boshqa majburiyatlarimiz»
+→ «🟠 Hodimlar bizga qarzdor» (`get_company_obligations_status` → `employees_overdrawn`; `get_full_debt_summary` →
+`employee_overdrawn` — sof pozitsiya formulasi o'zgarmagan), hodim paneli «Oyligim» (keyingi oyga / o'tgan oydan qatorlari).
+Avans UI xatolari — `amalSababi` (ilgari «Xato yuz berdi»).
+PUL QULFI VA SAVATDAN TIKLASH (kech140, zip 168 — audit A-P08 / A-P01). To'lovni o'chirish (`crud.delete_payment`), kelishilgan
+summa tahriri (`crud.update_order_agreed_amount`) va savatdan tiklash (`crud.restore_order`) — buyurtma pul qulfi
+(`_pul_qulfi(101)`) ostida, qayta o'qib. Tiklash buyurtma HALI savatdami deb tekshiradi — aks holda 409 «allaqachon tiklangan»
+(ilgari 200 + soxta jurnal yozuvi; ikki parallel tiklash xomashyoni ikki marta yechardi). Savatdagi buyurtma summasi
+o'zgartirilmaydi (400 «avval tiklang»). O'chirish yakunlash surati v2 (`ochirishda_topshirilganni_yopish`): o'sha paytdagi pul
+qaytarish kamaytirishi va kechirilgan qarz ham; tiklashda kelishilgan = narx kelishuvi − JORIY pul qaytarish − JORIY kechirilgan
+(ilgari surat summasi — savatda bo'lgan «Pul qaytdi» / qaytarishni o'chirish / kechirish yo'qolardi: qarz 800 000, nazorat
+900 000). v1 surat (eski) — avvalgidek.
+SOVG'A DAVRI — FAQAT ISHTIROKCHI (kech140, zip 168 — audit A-P03; egasi QARORI 11.10 «Bot to'g'ri»). Yagona qoida
+`crud.sovga_davr_tekshirgich(db, company_id)` → `ichida(usta, vaqt)`: usta davr ISHTIROKCHISI (davrning o'z korxonasi; ro'yxat
+bo'sh — hamma usta) va `boshlangan < vaqt <= yopilgan` (faol — hozirgacha). Ishtirokchining davr ichidagi buyurtmasi / TM sotuvi /
+qaytarishi keshbekka (KPI) KIRMAYDI — bot «Bonuslarim» (`get_master_yearly_cashback`), KPI sahifasi (`get_masters_kpi_report`;
+«Yillik sotuv» ga kiradi), KPI tafsiloti (`get_master_kpi_detail` — qator «🎁 sovg'a davrida», KPI 0), oylik hisobot «Usta
+bonusi (KPI)» (`services.calculate_monthly_master_kpi`), «Tayyor» oynasi (`master_kpi.sovga_davrida`). Davr yopilganda olinmagan
+qoldiq (`cashback_conversion`) — `crud.sovga_keshbek_otkazmalari` orqali o'tkazilgan OYGA (KPI sahifasi `sovga_otkazma`,
+tafsilotda alohida qator). Yopishda faolsizlantirilgan ishtirokchi ham o'tkazma oladi (`_gift_period_eligible_masters(faollar=False)`).
+Ilgari bot HAMMA ustaning davr buyurtmalarini chiqarardi (qatnashmagan usta keshbeki yo'qolardi), KPI sahifasi va oylik hisobot
+davrni bilmasdi (ishtirokchi keshbek HAM, sovg'a HAM).
+USTA KPI — OYLAR = YIL (kech140, zip 168 — audit A-P04, A-P02 usta qismi). Oylik usta KPI: faqat HODISASI (yakunlangan buyurtma,
+TM sotuvi, qaytarish, o'tkazma) yo'q oy o'tkaziladi; manfiy oy (oldingi oy buyurtmasining qaytarishi) KPI xarajatini kamaytiradi —
+12 oy yig'indisi = KPI sahifasi `total_gift` = bot (ilgari `monthly_profit <= 0` oy tashlanardi: 255 000 ↔ 225 000). Usta
+faolligidan qat'i nazar hisoblanadi (ilgari faolsizlantirilgan usta O'TGAN oylardan yo'qolardi); KPI sahifasi «Jami» — hamma
+ustalar, ro'yxat — faollar, nofaollar ulushi `nofaol_gift` («shundan nofaol ustalar: X»).
+LOYIHA QARZI — BITTA QOIDA (kech140, zip 168 — audit A-P06). Buyurtmalar sahifasi loyiha sarlavhasi «Qarz» / qiymat —
+`crud.loyihalar_pul_hisobi` (har loyiha uchun `crud.loyiha_pul_hisobi`, loyihaning BARCHA buyurtmalari) — Loyihalar va Qarzdorlar
+bilan AYNAN (ilgari sahifada ko'ringan buyurtmalar yig'indisi: qoralama zaklati kirardi, 90 kundan eski va savatdagi yakunlangan
+kirmasdi). Test: `tools/test_audit_pul.py`, `tools/test_avans_yubor_ui.js`.
 Test: `tools/test_c_telefon.py` (HAQIQIY Chromium, sensorli ekran). Rasmni serverda kichraytirish (G5-16 ikkinchi qismi) — E
 bosqichida.
 **Tezlik — hisobot xotirasi va bitta yuklash (kech120, zip 127 — E bosqichi 1-qism; audit U-09, U-10; JONLI topilma K120-1).**
@@ -2550,6 +2595,16 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   cheklangan ro'yxatdan tashqari) ekrandan pastda bo'lsa, kontent markazida g'ildirak bilan surilgach ekranda ko'rinadi; U8 har sahifa
   kontenti o'rami (`.erp-main` ning bolasi) — skroll konteyneri; U9 JS xatosi yo'q. 48 (SQ / PG) — zip 166 kodida 12
   yiqiladi (Platforma, Sozlamalar, Tizim jurnallari, O'chirilganlar, Ishlab chiqarish, Xarajat qo'shish, Loyihalar kompyuterda).
+- (kech140, zip 168) Audit — pul (1-qism): `tools/test_audit_pul.py` (HTTP + funksiya; V avans: takror, oylikdan ko'p 409 / tasdiq,
+  keyingi oyga o'tish, «Hodim qarzdor» — Qarzdorlar / Moliya / hodim paneli, hodim so'rovi tasdig'i, parallel; Q pul qulfi va
+  savatdan tiklash 409, savatda summa tahriri 400, to'lovni parallel o'chirish; S sovg'a davri — qatnashmagan / ishtirokchi / o'tkazma
+  / faolsizlantirilgan ishtirokchi, bot = KPI sahifasi = tafsilot = oylik hisobot, «Tayyor» oynasi; K oylik KPI manfiy oy, oylar =
+  yil, faolsiz usta o'tgan oyda qoladi, KPI «Jami»; L loyiha qarzi — Buyurtmalar = Loyihalar = Qarzdorlar; T savatdan tiklash —
+  kechirish / «Pul qaytdi» / qaytarishni o'chirish). 48 (SQ / PG / `TENANT_FILTER=1`) — zip 167 kodida 40 yiqiladi,
+  qulamaydi (parallel tekshiruvlar — PG da). `tools/test_avans_yubor_ui.js` (node, soxta muhit): `avansYubor` (409 → oyna → «Ha» —
+  `confirm_excess=true`, «Bekor» — so'rov yo'q, boshqa rad — sabab), KPI avans va «Joriy oy» kartasi, Qarzdorlar «oylikni yopish»,
+  hodim so'rovi tasdig'i, hodim paneli «Oyligim» — 23. `tools/test_xato_sababi_ui.js` MOSLANDI (`avansYubor`).
+  Mutatsiyalar — `work/k168/mut168.py`.
 
 **Yangi o'zgarish tartibi:** (1) asl kodda nuqsonni o'lchash (probe — SQLite va PG); (2) tuzatish; (3) yangi test
 (asl kodga qarshi yiqiladi, QULAMAYDI); (4) mutatsiyalar; (5) `bash tools/hammasi.sh` (+ `TF=1`), PG testlari,
@@ -2825,15 +2880,21 @@ qarorlari 02.10»)**
 - Hodim ishdan ketgan (o'chirilgan) oy — «Ketgan kungacha» (kunlarga mutanosib); o'tgan oylar hisoboti o'zgarmaydi.
 - «Tayyor» buyurtma summasi keyin o'zgarsa — «O'zgargan oyga» (qaytarish qoidasi kabi); yopilgan oy hisoboti o'zgarmaydi.
 
+**Yangi qarorlar (kech140, 2026-10-11 23:3x — AUDIT, pul; tugmali savollar; QAYTA SO'RALMAYDI)**
+- Oylikdan ko'p avansning ortig'i — «Keyingi oydan ushlansin» (ungacha «Hodim qarzdor» ko'rinadi).
+- Hodimni o'chirish / faolsizlantirishda ketgan sana — «Sanani o'zim tanlayman» (oynada «Ishdan ketgan sana», oldindan bugun) —
+  zip 169.
+- Sovg'a davri ishtirokchisining davr ichidagi sotuvi — «Bot to'g'ri»: keshbekka kirmaydi (KPI sahifasi va oylik hisobot ham);
+  davr yopilganda olinmagan qismi keshbekka o'tadi.
+
 ## 7. Ochiq masalalar
 
 - **AUDIT 1-to'lqini (kech139) — QOLGAN tasdiqlangan topilmalar** (`work/audit/TOPILMALAR_1.md`, dalil — `work/audit/tasdiq/`;
-  zip 167 da yopilganlari: A-T01, A-X07, A-X01, A-X02, A-X03). PUL (zip 168 rejasi): A-P09 avans / «oylikni yopish» takror va
-  oylikdan ko'p (egasi qarori — ogohlantirib so'rasin), A-P02 o'chirilgan hodim / usta o'tgan oylardan yo'qoladi (qaror — ketgan
-  kungacha), A-P05 «Tayyor» summasi o'zgarishi yopilgan oyni qayta yozadi (qaror — o'zgargan oyga), A-P03 «Bonuslarim» —
-  qatnashmagan ustalar bonusi, A-P01 savatdan tiklashda pul o'zgarishlari yo'qoladi, A-P04 KPI oy bo'yicha 0 dan pastga tushmaydi,
-  A-P06 loyiha qarzi uch joyda uch xil, A-P08 summa tahriri to'lov qulfisiz, A-P07 grafik ↔ hisobot (qaytarishda). OMBOR / MRP
-  (zip 169 rejasi; MRP production da hali ishlatilmaydi): A-O01 bitta «Sotish» band mahsulotni sotadi, A-O02 retsept tahriri
+  zip 167 da yopilganlari: A-T01, A-X07, A-X01, A-X02, A-X03; zip 168 da: A-P09, A-P08, A-P03, A-P04, A-P06, A-P01, A-P02 usta
+  qismi). PUL (zip 169 rejasi): A-P02 o'chirilgan / faolsizlantirilgan HODIM o'tgan oylardan yo'qoladi (qarorlar — ketgan kungacha,
+  sanani admin tanlaydi; ish davrlari), A-P05 «Tayyor» summasi o'zgarishi yopilgan oyni qayta yozadi (qaror — o'zgargan oyga;
+  tuzatish hodisalari jadvali; kamaytirishda «mijozga qaytarish» belgisi), A-P07 grafik ↔ hisobot (qaytarishda). OMBOR / MRP
+  (zip 170 rejasi; MRP production da hali ishlatilmaydi): A-O01 bitta «Sotish» band mahsulotni sotadi, A-O02 retsept tahriri
   qoplamani tushiradi, A-O03 parallel «Yakunlash» / «Boshlash», A-O05 qoldiq harakatsiz o'zgaradigan yo'llar, A-O06 penoplast
   hajmi manfiy qoldiq bilan, A-O09 bir xil nomli material, A-O04 (`add_to_production`), A-O08 (/reduce — faqat API). HIMOYA
   QATLAMI (P3): A-X04 (CSRF — faqat SameSite=Lax), A-X05 (tannarx sotuv xato turidan), A-X06 (QR — begona host), A-X08 (login
@@ -3496,6 +3557,12 @@ qarorlari 02.10»)**
   birinchi javobni ushlab turish (server bajargan, brauzer hali bilmaydi).
 - (kech139, zip 166) Amal xatosida «Xato yuz berdi» / «Server xatosi» o'rniga — nima bajarilmagani + sabab; tarmoq / 5xx da
   «sahifani yangilab tekshiring» (bajarilgan bo'lishi mumkin — qayta bosib ikki marta yozmasin). Yagona joy — `amalSababi`.
+- (kech140, zip 168) Bir xil pul so'rovi takrorini YARATILGAN vaqt bilan aniqlang — foydalanuvchi tanlagan sana (`date` 00:00)
+  imzoga yaramaydi; takror tekshiruvi ortiqcha summa ogohlantirishidan OLDIN (ikkinchi so'rov chalg'ituvchi oyna chiqarmasin).
+- (kech140, zip 168) «Ishtirokchimi / qaysi davrda» kabi qoida bir nechta hisobotda kerak bo'lsa — bitta yordamchi (tekshirgich)
+  va HAR hisobotda sinov (bot, sahifa, tafsilot, oylik): A-P03 da bot bitta qoidani, sahifa boshqasini, hisobot uchinchisini qo'llardi.
+- (kech140, zip 168) Oylik qiymatlar yillikka teng bo'lishi kerak bo'lsa — oyni «0 dan past emas» deb qisqichlamang: keyingi
+  oydagi qaytarish yo'qoladi. Sinov — 12 oy yig'indisi = yil.
 - (kech139, zip 167) Zaxiradan tiklashni BO'SH yangi bazaga ham sinang (falokat holati): startup migratsiyalari yaratgan qatorlar
   (sozlamalar, yo'nalish, rollar) faqat «ma'lumotli korxona» sinovida ko'rinmaydi. Tiklash — avval fayl bog'lanishlari, keyin yozish.
 - (kech139, zip 167) Sahifa sinovi kontentni faqat «sig'adimi» bilan emas, FOYDALANUVCHI SURISHI bilan o'lchasin (g'ildirak / barmoq):
@@ -3717,7 +3784,7 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 
 ### `GET /orders` → `main.py:orders_page` → `templates/orders.html`
 - Qorovul: auth.ruxsat_biri(('buyurtma', 'korish'), ('buyurtma_fayl', 'yaratish'))
-- Server chaqiruvlari: auth.company_id_of, auth.ruxsat_biri, crud.get_deadline_urgency, crud.get_masters, crud.get_orders_for_main_page, crud.get_projects, crud.get_recipes, crud.taklif_faol_soni, services.get_default_penoplast, services.get_penoplast_list
+- Server chaqiruvlari: auth.company_id_of, auth.ruxsat_biri, crud.get_deadline_urgency, crud.get_masters, crud.get_orders_for_main_page, crud.get_projects, crud.get_recipes, crud.loyiha_pul_hisobi, crud.loyihalar_pul_hisobi, crud.taklif_faol_soni, services.get_default_penoplast, services.get_penoplast_list
 - `orders.html` API: `/api/deliveries`, `/api/deliveries/{}`, `/api/deliveries/{}/pdf`, `/api/finished`, `/api/finished/search`, `/api/loy-stock`, `/api/order-items/{}/image`, `/api/orders`, `/api/orders/attachments/{}`, `/api/orders/pinned`, `/api/orders/{}`, `/api/orders/{}/activate`, `/api/orders/{}/agreed-amount`, `/api/orders/{}/attachments`, `/api/orders/{}/coating-notify`, `/api/orders/{}/delivery-status`, `/api/orders/{}/pdf`, `/api/orders/{}/pin`, `/api/orders/{}/planned-loy`, `/api/orders/{}/profit`, `/api/orders/{}/ready`, `/api/orders/{}/summary-pdf`, `/api/payments`, `/api/payments/{}`, `/api/production/product-types`, `/api/takliflar`, `/api/takliflar/{}`, `/api/takliflar/{}/bekor`, `/api/takliflar/{}/pdf`, `/api/takliflar/{}/rasmiylashtir`, `/api/warnings/low-stock`
 
 ### `GET /platforma` → `main.py:platforma_page` → `templates/platforma.html`
@@ -4228,7 +4295,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `GET /murojaat` → `main.py:murojaat_page` · 🔒 auth.admin_only
 
 #### `/orders` (1)
-- `GET /orders` → `main.py:orders_page` · 🔒 auth.ruxsat_biri(('buyurtma', 'korish'), ('buyurtma_fayl', 'yaratish')) · auth.company_id_of, auth.ruxsat_biri, crud.get_deadline_urgency, crud.get_masters, crud.get_orders_for_main_page, crud.get_projects, crud.get_recipes, crud.taklif_faol_soni, services.get_default_penoplast, services.get_penoplast_list
+- `GET /orders` → `main.py:orders_page` · 🔒 auth.ruxsat_biri(('buyurtma', 'korish'), ('buyurtma_fayl', 'yaratish')) · auth.company_id_of, auth.ruxsat_biri, crud.get_deadline_urgency, crud.get_masters, crud.get_orders_for_main_page, crud.get_projects, crud.get_recipes, crud.loyiha_pul_hisobi, crud.loyihalar_pul_hisobi, crud.taklif_faol_soni, services.get_default_penoplast, services.get_penoplast_list
 
 #### `/platforma` (1)
 - `GET /platforma` → `main.py:platforma_page` · 🔓 · auth.get_current_user
@@ -4298,7 +4365,7 @@ ORM qorovuli yangi / o'zgargan qatorda ota yozuv korxonasini tekshiradi.
 - `company_settings` — `CompanySetting` (`models.py`, 4) — o'z `company_id`
 - `deliveries` — `Delivery` (`models.py`, 10) — ota orqali (order_id→Order)
 - `delivery_items` — `DeliveryItem` (`models.py`, 7) — ota orqali (delivery_id→Delivery)
-- `employee_advances` — `EmployeeAdvance` (`models.py`, 11) — ota orqali (employee_id→Employee)
+- `employee_advances` — `EmployeeAdvance` (`models.py`, 13) — ota orqali (employee_id→Employee)
 - `employee_compensation_history` — `EmployeeCompensationHistory` (`models.py`, 13) — ota orqali (employee_id→Employee)
 - `employee_monthly_adjustments` — `EmployeeMonthlyAdjustment` (`models.py`, 10) — ota orqali (employee_id→Employee)
 - `employee_sessions` — `EmployeeSession` (`models.py`, 5) — ota orqali (employee_id→Employee)
@@ -4367,6 +4434,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_asosiy_penoplast.py` · PG — 18-band (K37-1) darvozasi (kech37, 2026-09-23).
 - `test_atomik_103.py` · PG — kech84 darvozasi (2026-09-27, 103-band): YOZADIGAN endpointlar atomik — nosozlik bo'lsa baza O'ZGARMAYDI, qayta urinish ishni BIR marta bajaradi.
 - `test_atomik_tolov.py` · PG — kech99 (2026-09-27), probe103 QOLDIG'I (G, H, I).
+- `test_audit_pul.py` · PG — kech140 (zip 168): AUDIT 1-to'lqini — PUL topilmalari (1-qism).
 - `test_audit_zaxira_xavfsizlik.py` · PG — kech139 (zip 167): AUDIT 1-to'lqin — zaxiradan tiklash va foydalanuvchi boshqaruvi.
 - `test_b118_korinish.py` · PG — kech118, B bosqichi 2-qism: YAGONA KO'RINISH — o'qiladigan rang va yozuv o'lchami, raqam / sana / birlik yozilishi, inglizcha va xom so'zlar.
 - `test_b118_oyna.py` · PG — kech118, B bosqichi 1-qism: DASTURNING O'Z OYNALARI (xabar, kiritish, yopish) va o'zbekcha 404 / 403.
@@ -4560,6 +4628,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_xati_loyiha.py` · PG — kech124 (zip 144): loyiha sahifasida «Yuk xatlari», yuk xati raqami LOYIHA bo'yicha, «Jamlab olish».
 - `test_yuk_xati_oylik.py` · PG — kech123 (zip 143): qoplamachi bonusi va «har birlik uchun» (blok / metr / dona) hodim haqi YUK XATLARI bo'yicha.
 - `test_zaxira_loy_narx.py` · PG — kech107, 36-band darvozasi: TAYYOR LOY ZAXIRASIDAN olingan qoplama narxi.
+- `test_avans_yubor_ui.js` · JS — kech140 (zip 168, audit A-P09 — egasi QARORLARI 11.10 «Ogohlantirib so'rasin», «Keyingi oydan ushlansin»).
 - `test_brak_bitta_raqam_ui.js` · JS — kech107, 49-band ("Bitta raqam", egasi qarori) UI darvozasi.
 - `test_brak_bosqich_ui.js` · JS — 13-band 1-qadam (kech53, 2026-09-24): brak BOSQICHI tanlovi UI si.
 - `test_brak_mrp_ui.js` · JS — 13-band 5-qadam (kech54, 2026-09-24): "Ishlab chiqarishda chiqdi" MRP tayyor mahsuloti (`category = 'dynamic_bom'`) uchun ham ochiladi.
@@ -4596,5 +4665,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 239 (Python 204, JS 35).
+Jami test fayllari: 241 (Python 205, JS 36).
 <!-- AVTO:TESTLAR OXIRI -->

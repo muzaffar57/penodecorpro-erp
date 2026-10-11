@@ -4402,7 +4402,11 @@ def api_restore_order(order_id: int, db: Session = Depends(get_db), current_user
     if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     who = current_user.full_name or current_user.username
-    if not crud.restore_order(db, order_id, performed_by=who):
+    try:
+        _tiklandi = crud.restore_order(db, order_id, performed_by=who)
+    except ValueError as e:     # kech140 (zip 168, A-P08): savatda emas (allaqachon tiklangan) — 409, hech narsa o'zgarmadi
+        raise HTTPException(status_code=409, detail=str(e))
+    if not _tiklandi:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     return {"status": "ok"}
 
@@ -4944,10 +4948,18 @@ async def orders_page(request: Request, show_all: bool = False, db: Session = De
             }
         g = groups[pid]
         g["orders"].append(o)
-        g["total"] += o.kelishilgan_summa
-        g["debt"] += o.debt_amount
         if o.status.value not in ("ready", "delivered", "cancelled"):
             g["active"] += 1
+    # kech140 (zip 168, audit A-P06): sarlavhadagi «Qarz» / qiymat — loyihaning BUTUN pul hisobi, YAGONA qoida
+    # (`crud.loyiha_pul_hisobi` — Loyihalar va Qarzdorlar bilan AYNAN): 90 kunlik ko'rinishda yashiringan buyurtmalar ham,
+    # qoralama — yo'q. Loyihasiz guruh — ko'ringan buyurtmalaridan (o'sha qoida bilan).
+    _lph = crud.loyihalar_pul_hisobi(db, list(groups.keys()), company_id=auth.company_id_of(current_user))
+    for _pid, g in groups.items():
+        _p = _lph.get(_pid) if _pid is not None else None
+        if _p is None:
+            _p = crud.loyiha_pul_hisobi(g["orders"])
+        g["debt"] = _p["qarz"]
+        g["total"] = _p["qiymat"]
 
     # 2026-09-15: har bir loyiha ichida buyurtmalar endi shunchaki "qachon
     # yaratilgan" tartibida emas — HALI TUGALLANMAGAN (jarayonda) buyurtmalar
@@ -5497,6 +5509,7 @@ def api_get_employees(only_active: bool = True, db: Session = Depends(get_db), c
 def api_create_employee_advance(employee_id: int, amount: Optional[str] = None,
                                   notes: Optional[str] = None,
                                   adv_date: Optional[str] = None,
+                                  confirm_excess: bool = False,
                                   db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("hodim", "tahrirlash"))):
     """Hodimga avans (oldindan pul) berilganini qayd etadi.
     adv_date — YYYY-MM-DD formatida, ixtiyoriy (berilmasa yoki bo'sh — bugungi sana).
@@ -5511,13 +5524,17 @@ def api_create_employee_advance(employee_id: int, amount: Optional[str] = None,
         toza = crud._clean_avans(amount, notes, adv_date)
         adv = crud.create_employee_advance(db, employee_id, toza["amount"], toza["notes"],
                                             given_by=current_user.full_name or current_user.username,
-                                            adv_date=toza["adv_date"])
+                                            adv_date=toza["adv_date"], confirm_excess=confirm_excess)
+    except crud.AvansOylikdanOrtiq as e:     # kech140 (zip 168, A-P09): oylikdan ko'p — UI so'raydi, «Ha» bilan qayta
+        db.rollback()
+        raise HTTPException(status_code=409, detail=e.javob())
     except ValueError as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
     if not adv:
         raise HTTPException(status_code=404, detail="Hodim topilmadi")
-    return {"status": "ok", "id": adv.id}
+    return {"status": "ok", "id": adv.id, "duplicate": bool(getattr(adv, "_takror", False)),
+            "keyingi_oyga": round(float(adv.keyingi_oyga or 0))}
 
 
 @app.get("/api/employees/{employee_id}/advances")
@@ -6121,9 +6138,12 @@ def api_pending_advance_requests(db: Session = Depends(get_db), current_user=Dep
 
 
 @app.post("/api/admin/advance-requests/{request_id}/confirm")
-def api_confirm_advance_request(request_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("avans_sorov", "tahrirlash"))):
-    result = crud.confirm_advance_request(db, request_id, current_user.full_name or current_user.username,
-                                         company_id=auth.company_id_of(current_user))
+def api_confirm_advance_request(request_id: int, confirm_excess: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("avans_sorov", "tahrirlash"))):
+    try:
+        result = crud.confirm_advance_request(db, request_id, current_user.full_name or current_user.username,
+                                             company_id=auth.company_id_of(current_user), confirm_excess=confirm_excess)
+    except crud.AvansOylikdanOrtiq as e:     # kech140 (zip 168, A-P09): oylikdan ko'p — admin «Ha» bilan qayta
+        raise HTTPException(status_code=409, detail=e.javob())
     if not result:
         raise HTTPException(status_code=404, detail="So'rov topilmadi yoki allaqachon ko'rib chiqilgan")
     return result
@@ -8266,7 +8286,7 @@ def api_employee_obligation_timeline(employee_id: int, year: int, month: int, db
 
 @app.post("/api/obligations/employee/{employee_id}/close")
 def api_close_employee_debt(employee_id: int, year: Optional[str] = None, month: Optional[str] = None,
-                              amount: Optional[str] = None,
+                              amount: Optional[str] = None, confirm_excess: bool = False,
                               db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("qarz", "tahrirlash"))):
     # M5: xodim FAQAT joriy korxonadan (aks holda 404).
     if not auth.employee_of_company(db, employee_id, auth.company_id_of(current_user)):
@@ -8278,7 +8298,10 @@ def api_close_employee_debt(employee_id: int, year: Optional[str] = None, month:
     try:
         toza = crud._clean_oylik_yopish(year, month, amount)
         return services.close_employee_debt(db, employee_id, toza["year"], toza["month"],
-                                            toza["amount"], paid_by=who)
+                                            toza["amount"], paid_by=who, confirm_excess=confirm_excess)
+    except crud.AvansOylikdanOrtiq as e:     # kech140 (zip 168, A-P09)
+        db.rollback()
+        raise HTTPException(status_code=409, detail=e.javob())
     except ValueError as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
