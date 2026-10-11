@@ -82,14 +82,12 @@ async function confirmAdvReq(id){
   if (row && row.dataset.band === '1') return;
   if (row) row.dataset.band = '1';
   advTugmalar(id, false);
-  try {
-    const res = await fetch(`/api/admin/advance-requests/${id}/confirm`, { method: 'POST' });
-    if (res.ok) { removeAdvRow(id); return; }
-    const sabab = await serverXatoSababi(res, "Tasdiqlashda xato yuz berdi. Iltimos, qayta urinib ko'ring.");
-    await xabarOyna('❌ ' + sabab);
-    if (res.status === 404) { removeAdvRow(id); return; }
-  } catch(e) {
-    await xabarOyna("❌ Server bilan aloqa yo'q. Internetni tekshirib, qayta urinib ko'ring.");
+  // kech140 (zip 168, A-P09): so'ralgan avans oylikdan ko'p bo'lsa — so'raladi (`avansYubor`, «Ha» — ortiqchasi keyingi oydan)
+  const r = await avansYubor(`/api/admin/advance-requests/${id}/confirm`);
+  if (r.ok) { removeAdvRow(id); return; }
+  if (!r.bekor) {
+    await xabarOyna('❌ Tasdiqlanmadi: ' + r.xato);
+    if (r.holat === 404) { removeAdvRow(id); return; }
   }
   if (row) row.dataset.band = '';
   advTugmalar(id, true);

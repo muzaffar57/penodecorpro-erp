@@ -463,6 +463,30 @@ async function amalSababi(x) {
   return "so'rov rad etildi (" + x.status + ')';
 }
 
+// kech140 (zip 168, audit A-P09 — egasi QARORI 11.10): avans berish, «oylikni yopish», hodim so'rovini tasdiqlash — summa shu oy
+// oylikning qolganidan ko'p bo'lsa server 409 (`detail.type` = 'avans_oylikdan_ortiq', `detail.message` — qancha ko'p va keyingi oy
+// oyligidan ushlanishi) qaytaradi: oyna so'raydi, «Ha» — AYNAN o'sha so'rov `confirm_excess=true` bilan qayta. Natija:
+// {ok, javob} | {ok: false, bekor: true} (foydalanuvchi «Bekor») | {ok: false, holat, xato} (sabab — `amalSababi`).
+async function avansYubor(url) {
+  let res;
+  try { res = await fetch(url, {method: 'POST'}); } catch (e) { return {ok: false, holat: 0, xato: await amalSababi(e)}; }
+  if (res.status === 409) {
+    let d = null;
+    try { d = await res.clone().json(); } catch (e) { d = null; }
+    const det = d && d.detail;
+    if (det && typeof det === 'object' && det.type === 'avans_oylikdan_ortiq') {
+      const ha = await customConfirm("⚠️ Oylikdan ko'p", String(det.message || ''), {okText: 'Ha, yozilsin'});
+      if (!ha) return {ok: false, bekor: true};
+      try { res = await fetch(url + (url.indexOf('?') >= 0 ? '&' : '?') + 'confirm_excess=true', {method: 'POST'}); }
+      catch (e) { return {ok: false, holat: 0, xato: await amalSababi(e)}; }
+    }
+  }
+  if (!res.ok) return {ok: false, holat: res.status, xato: await amalSababi(res)};
+  let j = null;
+  try { j = await res.json(); } catch (e) { j = null; }
+  return {ok: true, javob: j};
+}
+
 function showMsg(text, type) {
   const box = document.createElement('div');
   box.style.cssText = `position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:3000;

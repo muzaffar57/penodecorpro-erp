@@ -372,7 +372,7 @@ input[type=number]{-moz-appearance:textfield}
               {# kech120 (zip 134 — F bosqichi 4-qism, audit G2-14): ilgari qarz butun MILLIONGA yaxlitlanib, nomsiz («🔴 0 mln» — 384 000 qarz)
                  va faqat 2+ buyurtmali loyihada edi. Endi «Qarz: 384 ming» (`|qisqa_summa` — brauzerdagi `qisqaSumma` bilan bir qoida), har loyihada. #}
               {% if g.debt > 0 %}
-              <div class="proj-debt" title="Loyiha qarzi: {{ g.debt|son(2) }} so'm">🔴 Qarz: {{ g.debt|qisqa_summa }}</div>
+              <div class="proj-debt" title="Loyiha qarzi (barcha buyurtmalari): {{ g.debt|son(2) }} so'm">🔴 Qarz: {{ g.debt|qisqa_summa }}</div>
               {% elif g.total > 0 %}
               <div class="proj-paid">✅ To'langan</div>
               {% endif %}
@@ -6756,7 +6756,9 @@ async function submitReadyModal() {
       if (result.master_kpi && result.master_kpi.total_kpi !== null && result.master_kpi.total_kpi !== undefined) {
         // kech103 (45-band): server endi haqiqiy qoidani beradi — shu buyurtma foydasi × ustaning KPI foizi
         const k = result.master_kpi;
-        html += `<br><br>👷 Usta KPI (${escapeHtml(String(k.kpi_percent))}% — shu buyurtma foydasidan): ${formatNum(k.total_kpi)} so'm`;
+        // kech140 (zip 168): usta sovg'a davri ishtirokchisi — buyurtma sovg'a hisobiga (davr yopilganda olinmagan qismi keshbekka o'tadi)
+        if (k.sovga_davrida) html += `<br><br>👷 Usta KPI: 🎁 usta sovg'a davrida — bu buyurtma keshbekka emas, sovg'a hisobiga kiradi`;
+        else html += `<br><br>👷 Usta KPI (${escapeHtml(String(k.kpi_percent))}% — shu buyurtma foydasidan): ${formatNum(k.total_kpi)} so'm`;
       }
       box.innerHTML = html; box.className = 'result-box success';
       box.style.display = 'block';

@@ -456,6 +456,9 @@ function oylikHtml(o, nomsiz) {
     if (o.kamaytirish_sababi) q.push(`<div class="oy-izoh">${escapeHtml(o.kamaytirish_sababi)}</div>`);
   }
   q.push(`<div class="oy-qator"><span>Olingan (avans va to'lovlar)</span><b>${fmt(o.olingan)} so'm</b></div>`);
+  // kech140 (zip 168 — egasi QARORI 11.10): oylikdan ko'p olingan avansning keyingi oy oyligidan ushlanadigan qismi
+  if (o.keyingi_oyga > 0) q.push(`<div class="oy-izoh">yana ${fmt(o.keyingi_oyga)} so'm olingan — u keyingi oy oyligidan ushlanadi</div>`);
+  if (o.oldingi_oydan > 0) q.push(`<div class="oy-izoh">shundan ${fmt(o.oldingi_oydan)} so'm — o'tgan oyda ortiqcha olingan avans</div>`);
   q.push(o.qolgan < 0
     ? `<div class="oy-qator oy-qolgan"><span>Ortiqcha olingan</span><b style="color:var(--m-b91c1c)">${fmt(o.qolgan)} so'm</b></div>`
     : `<div class="oy-qator oy-qolgan"><span>Qolgan</span><b>${fmt(o.qolgan)} so'm</b></div>`);
