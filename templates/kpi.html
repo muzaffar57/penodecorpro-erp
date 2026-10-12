@@ -908,7 +908,7 @@ let editingEmpId = null;
 // kech138 (zip 165, O'LCHANGAN): 502 / tarmoq — abadiy «Yuklanmoqda...», xato JSON (500 / 401 / 403) — «Hodim qo'shilmagan» (YOLG'ON),
 // avans so'rovi xatosi — jim (avans yo'qdek). Endi sabab; «Hodimlar: Ko'rish» ruxsati yo'q — bo'lim yo'q, so'ralmaydi; tez qayta
 // yuklashda eski javob tashlanadi.
-async function loadEmployees() {
+async function loadEmployees(holatsiz) {
   const list = document.getElementById('empList');
   if (!list) return null;
   const joriy = yukNavbat('hodimlar');
@@ -993,6 +993,11 @@ async function loadEmployees() {
     console.error(e);
     yukRoyxatXato(list, yukXatoMatn('Hodimlar', yukXato('server')));
   }
+  // kech140 (zip 168, sinov saytida JONLI TOPILDI): ro'yxat qayta chizilganda (avans berish / o'chirish, hodim tahriri, o'chirish —
+  // 8 joy) hodim qatorlaridagi «To'langan / Qolgan» va holat belgisi BO'SH qolardi (ular faqat sahifa ochilishida to'ldirilardi) —
+  // endi har chizishdan keyin joriy oy holati ham (kutib — chaqiruvchi tugashini kutsa, so'rovlar tugagan bo'ladi). Sahifa ochilishi
+  // (`holatsiz`) — holatni o'zi chaqiradi: ro'yxat yuklanmasa ham yuqoridagi kartalar o'z so'rovidan chiziladi (test_kpi_loyiha_yuklash_ui K2).
+  if (!holatsiz && typeof loadCurrentMonthEmpStatus === 'function') await loadCurrentMonthEmpStatus();
   return null;
 }
 
@@ -1270,6 +1275,8 @@ async function saveAdvance() {
       document.getElementById('adv-notes').value = '';
       loadAdvanceHistory(advanceEmpId);
       loadEmployees();
+      // kech140 (zip 168): «Hodimlar oylik hisoboti» (avans / qolgan ustunlari) ham — ilgari sahifa yangilanguncha eski qolardi
+      if (typeof loadEmpMonthlyReport === 'function') loadEmpMonthlyReport();
     } else if (!r.bekor) alert('❌ Avans saqlanmadi: ' + r.xato);
   } finally {
     btn.disabled = false;
@@ -1280,7 +1287,7 @@ async function saveAdvance() {
 async function deleteAdvance(id) {
   if (!(await customConfirm("Bu avans yozuvini o'chirasizmi?"))) return;
   const res = await fetch(`/api/employees/advance/${id}`, {method:'DELETE'});
-  if (res.ok) { loadAdvanceHistory(advanceEmpId); loadEmployees(); }
+  if (res.ok) { loadAdvanceHistory(advanceEmpId); loadEmployees(); if (typeof loadEmpMonthlyReport === 'function') loadEmpMonthlyReport(); }
   else alert('❌ ' + await serverXatoSababi(res));     // kech107 (10d): ilgari rad jim qolardi
 }
 
@@ -2225,7 +2232,7 @@ document.getElementById('kpi-year').value = tkHozir().yil;     // kech106: joriy
     loadMasterKpi(),
     loadGiftPeriod(),
     loadAllMastersFull(),
-    loadEmployees().then(() => loadCurrentMonthEmpStatus()),
+    loadEmployees(true).then(() => loadCurrentMonthEmpStatus()),     // kech140: holat — ro'yxat yuklanmasa ham (bir marta)
     (initEmpReportSelectors(), loadEmpMonthlyReport()),
   ]);
   (typeof bittaYuklash === 'function' ? bittaYuklash(_boshla) : _boshla()).catch(e => console.error(e));
@@ -2273,7 +2280,7 @@ async function loadCurrentMonthEmpStatus() {
             <div style="font-size:12px;color:var(--text3);text-transform:uppercase;font-weight:600">${qarzdor ? 'Hodim qarzi' : 'Qolgan'}</div>
             <div style="font-size:16px;font-weight:800;color:${e.qolgan > 0 || qarzdor ? 'var(--m-dc2626)' : 'var(--m-15803d)'}">${fmt(Math.abs(Math.min(0, e.qolgan)) || Math.max(0, e.qolgan))}</div>
           </div>
-        </div>${otish ? `<div style="font-size:12px;color:var(--text3);margin-top:4px">${escapeHtml(otish)}</div>` : ''}`;
+        </div>${otish ? `<div style="font-size:12px;color:var(--text3);margin-top:4px;max-width:180px;margin-left:auto;text-align:right">${escapeHtml(otish)}</div>` : ''}`;
       if (statusEl) {
         if (qarzdor) statusEl.innerHTML = `<span class="status-badge status-debt">🟠 Hodim qarzdor: ${fmt(-e.qolgan)} so'm</span>`;
         else if (e.qolgan <= 0.5) statusEl.innerHTML = `<span class="status-badge status-paid">🟢 To'liq to'langan</span>`;
