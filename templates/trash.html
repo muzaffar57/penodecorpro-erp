@@ -70,13 +70,15 @@
       <div style="text-align:center;padding:30px;color:var(--text3);font-size:13px">O'chirilgan hodim yo'q</div>
       {% endif %}
       {% for emp in deleted_employees %}
+      {# kech141 (zip 169, A-P02): ishdan ketgan sana (ish davridan) — tiklash oynasi «Ishga qaytgan sana» uchun #}
+      {% set _ks = (ketgan_sanalar or {}).get(emp.id) %}
       <div id="row-employee-{{ emp.id }}" style="display:flex;justify-content:space-between;align-items:center;padding:13px 18px;border-bottom:1px solid var(--border2);gap:10px">
         <div style="min-width:0">
           <div style="font-weight:700;font-size:14px">{{ emp.name }}</div>
-          <div style="font-size:13px;color:var(--text3);margin-top:2px">{{ emp.position or '—' }}{% if emp.phone %} · {{ emp.phone }}{% endif %}</div>
+          <div style="font-size:13px;color:var(--text3);margin-top:2px">{{ emp.position or '—' }}{% if emp.phone %} · {{ emp.phone }}{% endif %}{% if _ks %} · ishdan ketgan {{ _ks.strftime('%d.%m.%Y') }}{% endif %}</div>
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
-          <button class="btn btn-dark btn-sm" onclick="restoreItem('employee', {{ emp.id }}, this)">↩️ Tiklash</button>
+          <button class="btn btn-dark btn-sm" data-ketgan="{{ _ks.isoformat() if _ks else '' }}" data-nom="{{ emp.name }}" onclick="hodimTiklash({{ emp.id }}, this)">↩️ Tiklash</button>
           <button class="btn btn-danger btn-sm" data-label="{{ emp.name }}" onclick="permanentDelete('employee', {{ emp.id }}, this.dataset.label, this)">❌ Butunlay o'chirish</button>
         </div>
       </div>
@@ -107,12 +109,38 @@
   </div>
 
 </div>
+
+{# kech141 (zip 169, A-P02): hodimni tiklash — ishga qaytdimi (qaytgan sanadan) yoki xato o'chirilgan edi (ish uzilmagan) #}
+<div id="hodimTiklashModal" role="dialog" aria-modal="true" aria-labelledby="ht-sarlavha" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1100;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--white);border-radius:14px;width:440px;max-width:100%;padding:22px">
+    <div id="ht-sarlavha" style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:4px"></div>
+    <div id="ht-ketgan" style="font-size:13px;color:var(--text3);line-height:1.5;margin-bottom:12px"></div>
+    <label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;margin-bottom:8px;cursor:pointer">
+      <input type="radio" name="ht-tur" id="ht-qaytdi" value="qaytdi" checked onchange="hodimTiklashTur()" style="margin-top:3px">
+      <span><b>Ishga qaytdi</b><span style="display:block;color:var(--text3);font-size:12px">Ketgan va qaytgan kunlar orasida oylik hisoblanmaydi.</span></span>
+    </label>
+    <div id="ht-sana-wrap" style="margin:0 0 12px 24px">
+      <label for="ht-sana" style="font-size:12px;font-weight:600;color:var(--text2)">Ishga qaytgan sana</label>
+      <input type="date" id="ht-sana" class="maydon" style="width:100%;border:1.5px solid var(--border);margin-top:6px">
+    </div>
+    <label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;margin-bottom:14px;cursor:pointer">
+      <input type="radio" name="ht-tur" id="ht-xato" value="xato" onchange="hodimTiklashTur()" style="margin-top:3px">
+      <span><b>Xato o'chirilgan edi</b><span style="display:block;color:var(--text3);font-size:12px">Ish uzilmagan — oylik ketgan kundan keyin ham hisoblanadi.</span></span>
+    </label>
+    <div id="ht-xatolik" style="display:none;margin-bottom:10px;padding:9px 12px;background:var(--f-fee2e2);border-radius:7px;font-size:12px;color:var(--m-b91c1c)"></div>
+    <div style="display:flex;gap:8px">
+      <button id="ht-ok" class="btn btn-dark w-full" onclick="hodimTiklashTasdiq()">↩️ Tiklash</button>
+      <button data-yopish class="btn btn-outline w-full" onclick="hodimTiklashYop()">Bekor</button>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-async function restoreItem(type, id, btn) {
-  const endpoint = type === 'project' ? `/api/projects/${id}/restore` : (type === 'employee' ? `/api/employees/${id}/restore` : `/api/orders/${id}/restore`);
+async function restoreItem(type, id, btn, qs) {
+  const endpoint = (type === 'project' ? `/api/projects/${id}/restore` : (type === 'employee' ? `/api/employees/${id}/restore` : `/api/orders/${id}/restore`))
+    + (qs ? '?' + qs : '');
   btn.disabled = true; btn.textContent = 'Tiklanmoqda...';
   try {
     const res = await fetch(endpoint, { method: 'POST' });
@@ -120,6 +148,7 @@ async function restoreItem(type, id, btn) {
       document.getElementById(`row-${type}-${id}`).style.opacity = '0.4';
       btn.textContent = '✅ Tiklandi';
       setTimeout(() => location.reload(), 700);
+      return true;
     } else {
       // kech140 (zip 168): sabab — umumiy `amalSababi` (masalan «Buyurtma savatda emas — u allaqachon tiklangan»)
       xabarOyna('❌ Tiklanmadi: ' + await amalSababi(res));
@@ -129,11 +158,52 @@ async function restoreItem(type, id, btn) {
     xabarOyna('❌ Tiklanmadi: ' + await amalSababi(e));
     btn.disabled = false; btn.textContent = '↩️ Tiklash';
   }
+  return false;
+}
+
+// kech141 (zip 169, audit A-P02 — egasi QARORLARI 11.10): hodimni tiklash = ISHGA QAYTISH. Ishdan ketgan sana bugundan oldin bo'lsa —
+// oyna: «Ishga qaytdi» (qaytgan sana, oldindan bugun — oradagi kunlar hisoblanmaydi) yoki «Xato o'chirilgan edi» (ish uzilmagan).
+// Ketgan sana bugun yoki noma'lum (zip 169 dan oldingi o'chirish) — oynasiz, avvalgidek.
+function hodimTiklash(id, btn) {
+  const ketgan = (btn && btn.dataset.ketgan) || '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ketgan) || ketgan >= tkISO()) return restoreItem('employee', id, btn);
+  hodimTiklash.id = id; hodimTiklash.btn = btn; hodimTiklash.ketgan = ketgan;
+  document.getElementById('ht-sarlavha').textContent = '↩️ ' + (btn.dataset.nom || 'Hodim') + ' — tiklash';
+  document.getElementById('ht-ketgan').textContent = 'Ishdan ketgan sana: ' + ketgan.split('-').reverse().join('.');
+  document.getElementById('ht-qaytdi').checked = true;
+  const sana = document.getElementById('ht-sana');
+  sana.value = tkISO(); sana.max = tkISO(); sana.min = ketgan;
+  document.getElementById('ht-xatolik').style.display = 'none';
+  hodimTiklashTur();
+  document.getElementById('hodimTiklashModal').style.display = 'flex';
+}
+
+function hodimTiklashTur() {
+  const qaytdi = document.getElementById('ht-qaytdi').checked;
+  document.getElementById('ht-sana-wrap').style.display = qaytdi ? 'block' : 'none';
+}
+
+function hodimTiklashYop() {
+  document.getElementById('hodimTiklashModal').style.display = 'none';
+}
+
+async function hodimTiklashTasdiq() {
+  const xato = document.getElementById('ht-xatolik');
+  const qaytdi = document.getElementById('ht-qaytdi').checked;
+  const sana = qaytdi ? document.getElementById('ht-sana').value : hodimTiklash.ketgan;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(sana || '')) { xato.style.display = 'block'; xato.textContent = '❌ Ishga qaytgan sanani tanlang'; return; }
+  if (sana < hodimTiklash.ketgan) { xato.style.display = 'block'; xato.textContent = "❌ Ishga qaytgan sana ishdan ketgan sanadan oldin bo'lishi mumkin emas"; return; }
+  hodimTiklashYop();
+  await restoreItem('employee', hodimTiklash.id, hodimTiklash.btn, 'qaytgan_sana=' + encodeURIComponent(sana));
 }
 
 async function permanentDelete(type, id, label, btn) {
   const confirmText = type === 'project' ? "loyiha" : (type === 'employee' ? "hodim" : "buyurtma");
-  if (!(await customConfirm("⚠️ Diqqat — qaytarib bo'lmaydi!", `"${label}" ${confirmText}sini bazadan BUTUNLAY o'chirmoqchimisiz?\n\nBu amalni ORQAGA QAYTARIB BO'LMAYDI.`, {danger:true, okText:"Davom etish"}))) return;
+  // kech141 (zip 169 — egasi QARORI 12.10 «Hisobotda qolsin»): hodim — ro'yxatdan yo'qoladi, o'tgan oylar hisobotida qoladi
+  const izoh = type === 'employee'
+    ? `"${label}" hodimini butunlay o'chirmoqchimisiz?\n\nU «O'chirilganlar» ro'yxatidan yo'qoladi va uni tiklab bo'lmaydi; telefon raqami va PIN o'chadi. O'tgan oylar hisobotida ismi, oyligi va avanslari qoladi.`
+    : `"${label}" ${confirmText}sini bazadan BUTUNLAY o'chirmoqchimisiz?\n\nBu amalni ORQAGA QAYTARIB BO'LMAYDI.`;
+  if (!(await customConfirm("⚠️ Diqqat — qaytarib bo'lmaydi!", izoh, {danger:true, okText:"Davom etish"}))) return;
   if (!(await customConfirm("So'nggi tasdiq: rostdan ham butunlay o'chirilsinmi?", {danger:true, okText:"Ha, butunlay o'chirish"}))) return;
 
   const endpoint = type === 'project' ? `/api/projects/${id}/permanent` : (type === 'employee' ? `/api/employees/${id}/permanent` : `/api/orders/${id}/permanent`);
@@ -144,12 +214,12 @@ async function permanentDelete(type, id, label, btn) {
       document.getElementById(`row-${type}-${id}`).style.opacity = '0.3';
       setTimeout(() => location.reload(), 700);
     } else {
-      const e = await res.json();
-      alert('❌ ' + (e.detail || 'Xato yuz berdi'));
+      // kech141 (zip 169): sabab — umumiy `amalSababi` (ilgari JSON emas javobda «Server bilan aloqa yo'q» — yolg'on sabab)
+      xabarOyna("❌ O'chirilmadi: " + await amalSababi(res));
       btn.disabled = false; btn.textContent = "❌ Butunlay o'chirish";
     }
   } catch(e) {
-    alert('❌ Server bilan aloqa yo\'q');
+    xabarOyna("❌ O'chirilmadi: " + await amalSababi(e));
     btn.disabled = false; btn.textContent = "❌ Butunlay o'chirish";
   }
 }

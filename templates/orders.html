@@ -3086,6 +3086,8 @@ async function loadPayments(orderId) {
 
 async function editAgreedAmount() {
   if (!selectedOrderId) return;
+  // kech141 (zip 169): oy nomlari (✏️ izohi) — funksiya ichida (JS sinovlari funksiyani alohida ajratib oladi — global yo'q)
+  const MONTHS_UZ_TZ = ['', 'Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun', 'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr'];
   try {
     const r = await fetch(`/api/orders/${selectedOrderId}`);
     if (!r.ok) return;
@@ -3093,11 +3095,14 @@ async function editAgreedAmount() {
     const total = o.total_amount || 0;
     const cur = o.agreed_amount ?? total;  // kech42 K42-1
 
+    // kech141 (zip 169, audit A-P05 — egasi QARORI «O'zgargan oyga»): «Tayyor» buyurtmada o'zgarish shu oy hisobotiga yoziladi
+    const tayyorIzoh = (o.status === 'ready' && typeof tkHozir === 'function')
+      ? `\n\nBuyurtma «Tayyor» — o'zgarish ${MONTHS_UZ_TZ[tkHozir().oy]} hisobotiga yoziladi (yakunlangan oy o'zgarmaydi).` : '';
     const v = await showPromptModal(
       `Kelishilgan summani kiriting (so'm):\n\n` +
       `Jami summa: ${formatNum(total)}\n` +
       `Hozirgi kelishilgan: ${formatNum(cur)}\n` +
-      `Chegirma: ${sonKor(o.discount_percent||0, 2)}%`,
+      `Chegirma: ${sonKor(o.discount_percent||0, 2)}%` + tayyorIzoh,
       // 124-band (kech95, O'LCHANGAN `work/probe124.py` O4): standart qiymat Math.round edi — o'zgartirmay "OK"
       // bosilsa 6 228 752.75 → 6 228 753. Endi aniq (`narxKorinishi`), matn maydoni (`type:'number'` bo'shliqli
       // summani qabul qilmaydi), o'qish — prompt standarti `narxniOqi` (raqamsiz / manfiy — rad).
@@ -3116,7 +3121,11 @@ async function editAgreedAmount() {
     if (res.ok) {
       const d = await res.json();
       loadPayments(selectedOrderId);
-      showMsg(`✓ Yangilandi! Chegirma: ${sonKor(d.discount_percent, 2)}% · Qarz: ${formatNum(d.debt_amount)} so'm`, 'success');
+      // kech141 (zip 169, A-P05): «Tayyor» buyurtmada — qaysi oy hisobotiga yozilgani; to'lovdan kam bo'lsa — mijozga qaytarish
+      let qosh = '';
+      if (d.tuzatish && d.tuzatish.oy) qosh += ` · ${MONTHS_UZ_TZ[d.tuzatish.oy]} ${d.tuzatish.yil} hisobotiga yozildi`;
+      if (Number(d.ortiqcha_tolov||0) > 0.5) qosh += ` · ↩ Mijozga ${formatNum(d.ortiqcha_tolov)} so'm qaytarish kerak`;
+      showMsg(`✓ Yangilandi! Chegirma: ${sonKor(d.discount_percent, 2)}% · Qarz: ${formatNum(d.debt_amount)} so'm` + qosh, 'success');
     } else {
       // 17e: server sababi — `detail` obyekt (`detail.message`) yoki matn.
       let sabab = 'Xato';

@@ -339,6 +339,12 @@
       <div class="form-group" style="margin:0"><label>Ismi</label><input type="text" id="e-name" placeholder="Hodim ismi"></div>
       <div class="form-group" style="margin:0"><label>Lavozimi</label><input type="text" id="e-position" placeholder="Kesuvchi"></div>
     </div>
+    {# kech141 (zip 169, A-P02 — egasi QARORI 12.10 «Kirgan kundan»): faqat yangi hodimda; kirgan oy oyligi shu kundan #}
+    <div class="form-group" id="e-kirgan-wrap" style="margin:12px 0 0;display:none">
+      <label for="e-kirgan">Ishga kirgan sana</label>
+      <input type="date" id="e-kirgan" class="maydon" oninput="kirganSanaIzoh()" style="width:100%">
+      <div id="e-kirgan-izoh" style="font-size:12px;color:var(--text3);margin-top:5px;line-height:1.4">Shu oy oyligi shu kundan (ishlagan kunlarga mutanosib) hisoblanadi.</div>
+    </div>
 
     <div class="modal-section-label">Yo'nalish <span class="modal-hint">— har yo'nalishning o'z sof foydasi uchun, majburiy («Umumiy» — daromad ulushida bo'linadi)</span></div>
     <div class="dir-toggle segment" id="e-prodtype-toggle">
@@ -510,6 +516,22 @@
     <div style="display:flex;gap:8px">
       <button id="arModal-ok" class="btn btn-dark w-full">Saqlash</button>
       <button data-yopish class="btn btn-outline w-full" onclick="_arResolve(null)">Bekor</button>
+    </div>
+  </div>
+</div>
+
+{# kech141 (zip 169, A-P02 — egasi QARORI 11.10 «Sanani o'zim tanlayman»): hodimni o'chirish = ishdan ketish; sana — oldindan bugun #}
+<div id="empKetishModal" role="dialog" aria-modal="true" aria-labelledby="ek-sarlavha" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1100;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--white);border-radius:14px;width:420px;max-width:100%;padding:22px">
+    <div id="ek-sarlavha" style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:4px"></div>
+    <div style="font-size:13px;color:var(--text3);line-height:1.5;margin-bottom:14px">Ma'lumot yo'qolmaydi — «O'chirilganlar» bo'limidan keyin tiklash mumkin.</div>
+    <label for="ek-sana" style="font-size:12px;font-weight:600;color:var(--text2)">Ishdan ketgan sana</label>
+    <input type="date" id="ek-sana" class="maydon" oninput="ketishSanaIzoh()" style="width:100%;border:1.5px solid var(--border);margin:6px 0 8px">
+    <div id="ek-izoh" style="font-size:12px;color:var(--text3);line-height:1.5;margin-bottom:12px"></div>
+    <div id="ek-xato" style="display:none;margin-bottom:10px;padding:9px 12px;background:var(--f-fee2e2);border-radius:7px;font-size:12px;color:var(--m-b91c1c)"></div>
+    <div style="display:flex;gap:8px">
+      <button id="ek-ok" class="btn btn-red w-full" onclick="ketishTasdiq()">O'chirish</button>
+      <button data-yopish class="btn btn-outline w-full" onclick="ketishYop()">Bekor</button>
     </div>
   </div>
 </div>
@@ -1417,8 +1439,26 @@ function openEmpModal() {
   document.getElementById('e-unittype').value = 'blok';
   document.getElementById('emp-error').style.display = 'none';
   document.getElementById('emp-effective-section').style.display = 'none';
+  // kech141 (zip 169, A-P02): «Ishga kirgan sana» — oldindan bugun (Toshkent), kelajak tanlanmaydi
+  const kirgan = document.getElementById('e-kirgan');
+  if (kirgan) { kirgan.value = tkISO(); kirgan.max = tkISO(); }
+  const kirganWrap = document.getElementById('e-kirgan-wrap');
+  if (kirganWrap) kirganWrap.style.display = 'block';
+  kirganSanaIzoh();
   empToggle();
   document.getElementById('empModal').style.display = 'flex';
+}
+
+// kech141 (zip 169, A-P02): ishga kirgan sana izohi — o'tgan oyda bo'lsa, o'sha oy(lar) hisobotiga ham oylik qo'shilishi aytiladi
+function kirganSanaIzoh() {
+  const el = document.getElementById('e-kirgan'), iz = document.getElementById('e-kirgan-izoh');
+  if (!el || !iz) return;
+  const v = el.value, tk = tkHozir();
+  const otgan = /^\d{4}-\d{2}-\d{2}$/.test(v) && (Number(v.slice(0, 4)) * 12 + Number(v.slice(5, 7))) < (tk.yil * 12 + tk.oy);
+  iz.textContent = otgan
+    ? "⚠️ Sana o'tgan oyda — o'sha oydan boshlab hisobotlarga ham oylik qo'shiladi (kirgan oyi — shu kundan)."
+    : "Shu oy oyligi shu kundan (ishlagan kunlarga mutanosib) hisoblanadi.";
+  iz.style.color = otgan ? 'var(--m-b45309)' : 'var(--text3)';
 }
 
 function closeEmpModal() {
@@ -1513,6 +1553,8 @@ function editEmployee(id) {
   hodimYonalishVarianti(e.yonalish_id, e.yonalish_nom);
   setProdType(e.yonalish_id ? String(e.yonalish_id) : 'umumiy');
   document.getElementById('emp-error').style.display = 'none';
+  const kirganWrap = document.getElementById('e-kirgan-wrap');     // kech141 (zip 169): sana — faqat yangi hodimda
+  if (kirganWrap) kirganWrap.style.display = 'none';
 
   const tk = tkHozir();     // kech106: joriy oy — Toshkent
   document.getElementById('e-effective-month').value = `${tk.yil}-${String(tk.oy).padStart(2,'0')}`;
@@ -1565,6 +1607,13 @@ async function saveEmployee() {
     notes: document.getElementById('e-notes').value.trim() || null
   };
 
+  if (!editingEmpId) {
+    // kech141 (zip 169, A-P02): «Ishga kirgan sana» — majburiy (oldindan bugun)
+    const kirganVal = (document.getElementById('e-kirgan') || {}).value || '';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(kirganVal)) { err.style.display = 'block'; err.textContent = "❌ Ishga kirgan sanani tanlang"; return; }
+    data.ishga_kirgan_sana = kirganVal;
+  }
+
   if (editingEmpId) {
     const effVal = document.getElementById('e-effective-month').value;
     if (effVal) {
@@ -1593,13 +1642,15 @@ async function saveEmployee() {
     if (res.ok) {
       closeEmpModal();
       loadEmployees();
+      loadEmpMonthlyReport();     // kech141 (zip 169): kirgan oy oyligi hisobotda
     } else {
+      // kech141 (zip 169): server sababi (masalan «Ishga kirgan sana kelajakda bo'lishi mumkin emas») — umumiy `amalSababi`
       err.style.display = 'block';
-      err.textContent = '❌ Xato yuz berdi';
+      err.textContent = '❌ Saqlanmadi: ' + await amalSababi(res);
     }
   } catch(e) {
     err.style.display = 'block';
-    err.textContent = '❌ Server xatosi';
+    err.textContent = '❌ Saqlanmadi: ' + await amalSababi(e);
   } finally {
     isSavingEmployee = false;
     saveBtn.disabled = false;
@@ -1609,11 +1660,69 @@ async function saveEmployee() {
   }
 }
 
-async function deleteEmployee(id) {
-  if (!(await customConfirm("Hodim o'chirilsinmi?\n\n(Ma'lumot yo'qolmaydi — \"O'chirilganlar\" bo'limidan keyin tiklash mumkin)"))) return;
-  const res = await fetch(`/api/employees/${id}`, {method:'DELETE'});
-  if (res.ok) loadEmployees();
-  else alert('❌ ' + await serverXatoSababi(res));     // kech107 (10d): ilgari rad jim qolardi
+// kech141 (zip 169, audit A-P02 — egasi QARORLARI 11.10): o'chirish = ISHDAN KETISH. Oyna «Ishdan ketgan sana» ni so'raydi (oldindan
+// bugun, kelajak va ishga kirgan kundan oldingi kun tanlanmaydi — server ham rad etadi); o'sha oy oyligi shu kungacha (kunlarga
+// mutanosib), keyingi oylarda yo'q, o'tgan oylar hisobotida qoladi. Ilgari oddiy «o'chirilsinmi?» — hodim hamma oylardan yo'qolardi.
+function deleteEmployee(id) {
+  const e = (typeof empItems !== 'undefined' && Array.isArray(empItems)) ? empItems.find(x => x.id === id) : null;
+  const m = document.getElementById('empKetishModal');
+  if (!m) return;
+  deleteEmployee.id = id;
+  deleteEmployee.band = false;
+  document.getElementById('ek-sarlavha').textContent = "🗑️ " + (e ? e.name : 'Hodim') + " — o'chirish";
+  const sana = document.getElementById('ek-sana');
+  sana.value = tkISO();
+  sana.max = tkISO();
+  sana.min = (e && /^\d{4}-\d{2}-\d{2}$/.test(e.ishga_kirgan_sana || '')) ? e.ishga_kirgan_sana : '';
+  document.getElementById('ek-xato').style.display = 'none';
+  const ok = document.getElementById('ek-ok');
+  ok.disabled = false; ok.textContent = "O'chirish";
+  ketishSanaIzoh();
+  m.style.display = 'flex';
+}
+
+function ketishYop() {
+  const m = document.getElementById('empKetishModal');
+  if (m) m.style.display = 'none';
+}
+
+function ketishSanaIzoh() {
+  const el = document.getElementById('ek-sana'), iz = document.getElementById('ek-izoh');
+  if (!el || !iz) return;
+  const v = el.value, tk = tkHozir();
+  const togri = /^\d{4}-\d{2}-\d{2}$/.test(v);
+  const oyNomi = togri ? (MONTH_NAMES_UZ[Number(v.slice(5, 7))] + ' ' + v.slice(0, 4)) : '';
+  const otgan = togri && (Number(v.slice(0, 4)) * 12 + Number(v.slice(5, 7))) < (tk.yil * 12 + tk.oy);
+  iz.textContent = !togri ? '' : (oyNomi + " oyligi shu kungacha (ishlagan kunlarga mutanosib) hisoblanadi, keyingi oylarda hisoblanmaydi. "
+    + "O'tgan oylar hisobotida hodim qoladi." + (otgan ? "\n⚠️ Sana o'tgan oyda — " + oyNomi + " oyligi ham kamayadi." : ''));
+  iz.style.whiteSpace = 'pre-line';
+  iz.style.color = otgan ? 'var(--m-b45309)' : 'var(--text3)';
+}
+
+async function ketishTasdiq() {
+  if (deleteEmployee.band) return;     // ikki bosish — bitta so'rov
+  const id = deleteEmployee.id;
+  const sana = (document.getElementById('ek-sana') || {}).value || '';
+  const xato = document.getElementById('ek-xato');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(sana)) { xato.style.display = 'block'; xato.textContent = "❌ Ishdan ketgan sanani tanlang"; return; }
+  const ok = document.getElementById('ek-ok');
+  deleteEmployee.band = true; ok.disabled = true; ok.textContent = "O'chirilmoqda...";
+  try {
+    const res = await fetch(`/api/employees/${id}?ketgan_sana=${encodeURIComponent(sana)}`, {method: 'DELETE'});
+    if (res.ok) {
+      ketishYop();
+      loadEmployees();
+      loadEmpMonthlyReport();
+      return;
+    }
+    xato.style.display = 'block';
+    xato.textContent = "❌ O'chirilmadi: " + await amalSababi(res);
+  } catch (e) {
+    xato.style.display = 'block';
+    xato.textContent = "❌ O'chirilmadi: " + await amalSababi(e);
+  } finally {
+    deleteEmployee.band = false; ok.disabled = false; ok.textContent = "O'chirish";
+  }
 }
 
 const MONTH_NAMES_UZ = ['','Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust','Sentabr','Oktabr','Noyabr','Dekabr'];
@@ -1669,7 +1778,7 @@ async function loadEmpMonthlyReport() {
                 <td style="padding:12px 6px">
                   <div style="display:flex;align-items:center;gap:9px">
                     <div style="width:30px;height:30px;border-radius:50%;background:var(--gold-tint);color:var(--gold-dark);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0">${(e.name||'?')[0].toUpperCase()}</div>
-                    <span style="font-weight:700;color:var(--text)">${escapeHtml(e.name)}</span>
+                    <span style="min-width:0"><span style="font-weight:700;color:var(--text)">${escapeHtml(e.name)}</span>${e.ishda === false ? `<span class="hodim-ketgan-belgi" style="display:block;font-size:12px;color:var(--text3);font-weight:500">ishdan ketgan${e.ketgan_sana ? ' ' + escapeHtml(String(e.ketgan_sana).split('-').reverse().join('.')) : ''}</span>` : ''}</span>
                   </div>
                 </td>
                 <td style="padding:12px 6px;color:var(--text3);font-size:12px">${escapeHtml(e.detail)}</td>
