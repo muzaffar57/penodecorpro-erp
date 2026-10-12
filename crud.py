@@ -3526,6 +3526,9 @@ def _upd_rules():
             "effective_year": ("butun", True, 2000, 2100),
             "effective_month": ("butun", True, 1, 12),
             "reason": ("matn", False, _UPD_MATN_CHEGARA),
+            # kech141 (zip 169, A-P02): `is_active` o'zgarganda — ishdan ketgan / ishga qaytgan sana (Toshkent; berilmasa — bugun)
+            "ketgan_sana": ("sana", True),
+            "qaytgan_sana": ("sana", True),
         },
         "Project": {
             "project_name": ("matn", True, 200),
@@ -3781,8 +3784,10 @@ def _create_rules():
     ms.pop("is_active")
     ms["cashback_percent"] = ("son", False, False, 100.0)
     em = dict(r["Employee"])
-    for k in ("is_active", "effective_year", "effective_month", "reason"):
+    for k in ("is_active", "effective_year", "effective_month", "reason", "ketgan_sana", "qaytgan_sana"):
         em.pop(k)
+    # kech141 (zip 169 — egasi QARORI 12.10 «Kirgan kundan»): «Ishga kirgan sana» (berilmasa — bugun)
+    em["ishga_kirgan_sana"] = ("sana", True)
     for k in ("fixed_amount", "percent_value", "per_unit_rate"):
         em[k] = (em[k][0], False, em[k][2], em[k][3])
     em["per_unit_type"] = ("tanlov", False, {"blok": "blok", "metr": "metr", "dona": "dona"})
@@ -4741,6 +4746,11 @@ def update_order_item(db: Session, item_id: int, item_data: dict,
     # qaytarish-qayta yechish simmetriyasi) buzilib qolishi mumkin.
     if order and order.is_deleted:
         return None
+    # kech141 (zip 169, audit A-P05 — O'LCHANGAN): «Tayyor» buyurtma detali narxi / miqdori shu yo'l bilan o'zgarardi (UI
+    # chaqirmaydi, API ochiq) — yopilgan oy daromadi va kelishilgan summa hodisasiz qayta yozilardi. To'liq tahrir kabi rad;
+    # narx o'zgarishi — «Kelishilgan summa» (✏️) orqali (o'z oyida).
+    if order and order.status == OrderStatus.READY:
+        raise ValueError("Tayyor buyurtma detalini o'zgartirib bo'lmaydi — narxni «Kelishilgan summa» (✏️) orqali tuzating")
     is_draft = order.status == OrderStatus.DRAFT if order else False
     # 117-band (kech95): tahrirdan / o'chirishdan OLDINGI jami (`_detal_ozgargach_buyurtma`; K110-1 — eski kelishilgan
     # summa u yerda o'qiladi).
@@ -6041,6 +6051,10 @@ def delete_order_item(db: Session, item_id: int, company_id: int = None) -> bool
         if not db_item:
             return False
 
+    # kech141 (zip 169, audit A-P05): «Tayyor» buyurtma detali o'chirilmaydi (yopilgan oy daromadi hodisasiz o'zgarardi) —
+    # sabab bilan 400 (topshirilgan detal tekshiruvidan OLDIN: aks holda «Detal topilmadi» — noto'g'ri sabab)
+    if db_item.order is not None and not db_item.order.is_deleted and db_item.order.status == OrderStatus.READY:
+        raise ValueError("Tayyor buyurtma detalini o'chirib bo'lmaydi — narxni «Kelishilgan summa» (✏️) orqali tuzating")
     # Topshirilgan bo'lsa — o'chirib bo'lmaydi
     if db_item.delivered_qty > 0.001:
         return False
@@ -7676,8 +7690,33 @@ def delete_payment(db: Session, payment_id: int, performed_by: str = None,
     return True
 
 
-def update_order_agreed_amount(db: Session, order_id: int, agreed_amount: float) -> Optional[Order]:
-    """Kelishilgan summani (chegirmadan keyingi narx) yangilash."""
+def tuzatish_yoz(db: Session, order, eski_kelishilgan: float, tur: str, kim: str = None):
+    """kech141 (zip 169, audit A-P05 — egasi QARORI 11.10 «O'zgargan oyga»): «Tayyor» (yakunlangan) buyurtmaning kelishilgan
+    summasi o'zgarganda — farq HODISA sifatida yoziladi (`models.BuyurtmaTuzatish`, vaqt — hozir): hisobotlar uni o'zgargan oyda
+    alohida qator qiladi, yakunlangan (yopilgan) oy o'zgarmaydi. Yakunlanmagan buyurtma (daromad hali hisobotda emas), o'chirilgan
+    yoki farqsiz (0,5 tiyindan kam) — hech narsa (None). `order.agreed_amount` ALLAQACHON yangi qiymatda bo'lishi kerak; commit —
+    chaqiruvchida. Qaytaradi — yozuv yoki None."""
+    import services as _sv_tz
+    from models import BuyurtmaTuzatish
+    if order is None or order.is_deleted or _sv_tz._yakun_vaqti(order) is None:
+        return None
+    _eski = _pul2(eski_kelishilgan)
+    _yangi = _pul2(order.kelishilgan_summa)
+    _farq = _pul2(_yangi - _eski)
+    if abs(_farq) < 0.005:
+        return None
+    t = BuyurtmaTuzatish(company_id=order.company_id, order_id=order.id, tur=tur, vaqt=datetime.utcnow(),
+                         eski_kelishilgan=_eski, yangi_kelishilgan=_yangi, farq=_farq, kim=(kim or None))
+    db.add(t)
+    return t
+
+
+def update_order_agreed_amount(db: Session, order_id: int, agreed_amount: float, kim: str = None) -> Optional[Order]:
+    """Kelishilgan summani (chegirmadan keyingi narx) yangilash.
+
+    kech141 (zip 169, audit A-P05): «Tayyor» buyurtmada o'zgarish — hodisa (`tuzatish_yoz`): o'zgargan oyning hisobotida
+    alohida qator, yakunlangan oy o'zgarmaydi (ilgari yopilgan oy daromadi / KPI si jimgina qayta yozilardi). Natija buyurtmasida
+    `_tuzatish` — yozilgan hodisa (yoki None)."""
     # 17e (2026-09-22): ILDIZ — summa MUSBAT, chekli, Numeric(12,2) sig'imi
     # ichida (`true`, matn, `Infinity`, 0 — `ValueError`), bazaga tegishdan OLDIN.
     agreed_amount = _clean_val("OrderAgreed", {"agreed_amount": agreed_amount})["agreed_amount"]
@@ -7695,7 +7734,9 @@ def update_order_agreed_amount(db: Session, order_id: int, agreed_amount: float)
         raise ValueError("Buyurtma savatda — kelishilgan summani o'zgartirish uchun avval uni tiklang")
 
     total = float(order.total_amount or 0)
+    _eski_kel = order.kelishilgan_summa
     order.agreed_amount = agreed_amount
+    _tuz = tuzatish_yoz(db, order, _eski_kel, "kelishilgan", kim=kim)
 
     # Chegirma foizini hisoblash.
     # 28-band (kech43): to'lov panelida xodim JORIY (pul qaytarishdan keyingi)
@@ -7710,6 +7751,9 @@ def update_order_agreed_amount(db: Session, order_id: int, agreed_amount: float)
     _update_order_payment_status(db, order)
     db.commit()
     db.refresh(order)
+    if _tuz is not None:
+        db.refresh(_tuz)
+    order._tuzatish = _tuz
     return order
 
 
@@ -8408,7 +8452,7 @@ def _reset_table_order():
         MasterGiftPeriodRedemption, GiftPeriodParticipant, GiftPeriodTier,
         GiftPeriod, Master, Project, Supplier, CashTransaction, ActivityLog,
         ErrorLog, LoginHistory, CompanySetting, RecurringObligation, Inventory,
-        Yonalish, BrakTaqdir, Taklif,
+        Yonalish, BrakTaqdir, Taklif, HodimIshDavri, BuyurtmaTuzatish,
     )
     return [
         ProductionOrder,
@@ -8421,11 +8465,13 @@ def _reset_table_order():
         OrderItemSubDetail, OrderItem,
         # kech126 (zip 148): taklif rasmiylashtirilgan buyurtmaga (`order_id`) ishora qiladi — o'chirishda buyurtmadan OLDIN,
         # tiklashda KEYIN
-        FinishedProductSale, FinishedProductLoss, FinishedProduct, Taklif, Order,
+        # kech141 (zip 169, A-P05): buyurtma tuzatishi — buyurtmadan OLDIN o'chiriladi, tiklashda KEYIN qo'shiladi
+        FinishedProductSale, FinishedProductLoss, FinishedProduct, Taklif, BuyurtmaTuzatish, Order,
         InventoryPurchase, InventoryReceipt, SupplierPayment,
         TransportExpense, ExpenseTransaction, MonthlyExpense,
         EmployeeSession, EmployeeAdvance, AdvanceRequest,
-        EmployeeMonthlyAdjustment, EmployeeCompensationHistory, Employee,
+        # kech141 (zip 169, A-P02): ish davri — hodimdan OLDIN o'chiriladi, tiklashda KEYIN qo'shiladi
+        EmployeeMonthlyAdjustment, EmployeeCompensationHistory, HodimIshDavri, Employee,
         RecipeIngredient, Recipe,
         BOMItem, BOM, ProductType, Inventory,
         # kech117 (A2): yo'nalish — unga ishora qiluvchilardan (hodim, xarajat, transport, kirim, MRP turi) KEYIN
@@ -8640,6 +8686,10 @@ def import_full_backup(db: Session, data: dict, company_id: int,
                     seq_fixed += 1
                 except Exception:
                     pass
+
+        # kech141 (zip 169, A-P02): zip 169 dan oldingi zaxira (ish davrlari jadvalisiz) — o'chirilgan hodimlarning ish davri
+        # jurnaldan (ishga tushishdagi migratsiya bilan bir funksiya). Ketma-ketliklar yangilangandan KEYIN (yangi qator id si).
+        ish_davrlarini_tola(db, company_id=company_id)
 
         db.commit()
         return {"success": True, "company_id": company_id,
@@ -13037,6 +13087,16 @@ def create_employee(db: Session, data: EmployeeCreate, company_id: int = None) -
                                  toza.get("production_type", _YON_YOQ))
     if _yid is _YON_YOQ:
         _yid, _pt = None, None
+    # kech141 (zip 169, A-P02 — egasi QARORI 12.10 «Kirgan kundan»): «Ishga kirgan sana» — kirgan oy oyligi shu kundan (kunlarga
+    # mutanosib). Berilmasa yoki bugun — hozirgi vaqt (ilgarigidek); boshqa kun — o'sha Toshkent kunining boshi (UTC). Kelajak — 400.
+    from database import TASHKENT_OFFSET as _TASHKENT_OFFSET_K
+    _kirgan = _hodim_sanasi(toza.get("ishga_kirgan_sana"), "Ishga kirgan sana")
+    _bugun_k = _tashkent_date()
+    if _kirgan is not None and _kirgan > _bugun_k:
+        raise ValueError(f"Ishga kirgan sana kelajakda bo'lishi mumkin emas (bugun {_sana_matni(_bugun_k)})")
+    _hire = None
+    if _kirgan is not None and _kirgan != _bugun_k:
+        _hire = datetime(_kirgan.year, _kirgan.month, _kirgan.day) - _TASHKENT_OFFSET_K
 
     emp = Employee(
         company_id=company_id,
@@ -13050,8 +13110,11 @@ def create_employee(db: Session, data: EmployeeCreate, company_id: int = None) -
         extra_monthly=getattr(data, 'extra_monthly', None),
         production_type=_pt,
         yonalish_id=_yid,
-        notes=data.notes
+        notes=data.notes,
+        kirgan_kundan=True,
     )
+    if _hire is not None:
+        emp.hire_date = _hire
     db.add(emp)
     db.commit()
     db.refresh(emp)
@@ -13443,6 +13506,19 @@ def update_employee(db: Session, emp_id: int, data: EmployeeUpdate, updated_by: 
     effective_year = update_data.pop("effective_year", None)
     effective_month = update_data.pop("effective_month", None)
     reason = update_data.pop("reason", None)
+    # kech141 (zip 169, A-P02): faolsizlantirish = ishdan ketish, qayta faollashtirish = ishga qaytish — ish davri admin bergan
+    # sana bilan (berilmasa — bugun). Sanalar faqat `is_active` o'zgarganda ishlatiladi.
+    _ketgan = _hodim_sanasi(update_data.pop("ketgan_sana", None), "Ishdan ketgan sana")
+    _qaytgan = _hodim_sanasi(update_data.pop("qaytgan_sana", None), "Ishga qaytgan sana")
+    if "is_active" in update_data:
+        _pul_qulfi(db, 107, emp.id)
+        if emp.butunlay_ochirilgan:
+            raise HodimHolatXatosi("Hodim butunlay o'chirilgan")
+        if not emp.is_deleted and bool(emp.is_active) != bool(update_data["is_active"]):
+            if update_data["is_active"]:
+                hodim_ishga_qaytar(db, emp, _qaytgan, kim=updated_by)
+            else:
+                hodim_ishdan_chiqar(db, emp, _ketgan, kim=updated_by)
     # kech117 (A2): yo'nalish — yaratish bilan BIR qoida (`yonalish_tanlovi`); kalit yuborilmasa o'zgarmaydi,
     # yashirin yo'nalishli hodimni boshqa maydoni bilan tahrirlash — ruxsat.
     _yid, _pt = yonalish_tanlovi(db, emp.company_id, update_data.pop("yonalish_id", _YON_YOQ),
@@ -13503,12 +13579,182 @@ def update_employee(db: Session, emp_id: int, data: EmployeeUpdate, updated_by: 
     return emp
 
 
-def delete_employee(db: Session, emp_id: int, performed_by: str = None) -> bool:
+class HodimHolatXatosi(ValueError):
+    """kech141 (zip 169): hodim holati amalga mos emas (butunlay o'chirilgan hodimni tiklash / o'chirish, o'chirilmaganini
+    tiklash) — marshrut 409, sababi bilan."""
+
+
+def _hodim_sanasi(qiymat, nom: str):
+    """kech141 (zip 169, A-P02): admin tanlagan sana (`YYYY-MM-DD` matn, `date` yoki `datetime`) → `date`. Bo'sh — None.
+    Noto'g'ri ko'rinish — ValueError (400)."""
+    from datetime import date as _date_hs
+    if qiymat is None or (isinstance(qiymat, str) and not qiymat.strip()):
+        return None
+    if isinstance(qiymat, datetime):
+        return qiymat.date()
+    if isinstance(qiymat, _date_hs):
+        return qiymat
+    if isinstance(qiymat, str) and len(qiymat.strip()) <= 40:
+        try:
+            s = datetime.fromisoformat(qiymat.strip()).date()
+        except ValueError:
+            raise ValueError(f"«{nom}» sana bo'lishi kerak (YYYY-MM-DD)")
+        if s.year < 2000 or s.year > 2100:
+            raise ValueError(f"«{nom}» 2000–2100 yillar oralig'ida bo'lishi kerak")
+        return s
+    raise ValueError(f"«{nom}» sana bo'lishi kerak (YYYY-MM-DD)")
+
+
+def _hodim_davrlari(db: Session, emp) -> list:
+    """Hodimning ish davrlari (`HodimIshDavri`, korxonasi bo'yicha) — yaratilish tartibida."""
+    from models import HodimIshDavri
+    return db.query(HodimIshDavri).filter(HodimIshDavri.employee_id == emp.id,
+                                          HodimIshDavri.company_id == emp.company_id).order_by(HodimIshDavri.id).all()
+
+
+def _sana_matni(s) -> str:
+    return s.strftime("%d.%m.%Y")
+
+
+def hodim_ishdan_chiqar(db: Session, emp, sana=None, kim: str = None) -> None:
+    """kech141 (zip 169, audit A-P02 — egasi QARORLARI 11.10 / 12.10): hodim ISHDAN KETDI (o'chirish yoki faolsizlantirish) —
+    ochiq ish davri admin tanlagan sana bilan yopiladi (berilmasa — bugun, Toshkent). O'sha oy oyligi shu kungacha (kunlarga
+    mutanosib), keyingi oylarda hisoblanmaydi, o'tgan oylar o'zgarmaydi (`services.hodim_ish_kunlari`).
+    Sana: kelajakda emas, ishga kirgan / qaytgan kundan oldin emas (ValueError — 400, hech narsa yozilmaydi). Ochiq davr bo'lmasa
+    (allaqachon ketgan) — hech narsa. Commit — chaqiruvchida."""
+    import services as _sv
+    from models import HodimIshDavri
+    bugun = _tashkent_date()
+    sana = sana or bugun
+    if sana > bugun:
+        raise ValueError(f"Ishdan ketgan sana kelajakda bo'lishi mumkin emas (bugun {_sana_matni(bugun)})")
+    davrlar = _hodim_davrlari(db, emp)
+    if not davrlar:
+        kirgan = _sv.hodim_kirgan_sanasi(emp)
+        if sana < kirgan:
+            raise ValueError(f"Ishdan ketgan sana ishga kirgan sanadan ({_sana_matni(kirgan)}) oldin bo'lishi mumkin emas")
+        db.add(HodimIshDavri(company_id=emp.company_id, employee_id=emp.id, boshlangan=None, tugagan=sana,
+                             kim=kim, manba="ishdan_ketdi", yaratilgan=datetime.utcnow()))
+        return
+    ochiq = [d for d in davrlar if d.tugagan is None]
+    if not ochiq:
+        return
+    d = ochiq[-1]
+    bosh = d.boshlangan or _sv.hodim_kirgan_sanasi(emp)
+    if sana < bosh:
+        _nom = "ishga qaytgan" if d.boshlangan is not None else "ishga kirgan"
+        raise ValueError(f"Ishdan ketgan sana {_nom} sanadan ({_sana_matni(bosh)}) oldin bo'lishi mumkin emas")
+    d.tugagan = sana
+    d.kim = kim
+
+
+def hodim_ishga_qaytar(db: Session, emp, sana=None, kim: str = None) -> None:
+    """kech141 (zip 169, A-P02): hodim QAYTA ISHLAYDI («O'chirilganlar» dan tiklash yoki qayta faollashtirish). Admin tanlagan
+    `sana` (berilmasa — bugun): oxirgi ketgan kuni yoki ertasi bo'lsa — o'sha davr qayta ochiladi (ish uzilmagan: «xato
+    o'chirilgan edi»), keyinroq bo'lsa — YANGI davr shu kundan (oradagi kunlar hisoblanmaydi). Kelajakda yoki ketgan kundan oldin —
+    ValueError (400). Davri yozilmagan eski hodim — hech narsa (ilgarigi xulq: ishga kirgandan beri). Commit — chaqiruvchida."""
+    from datetime import timedelta as _td_q
+    from models import HodimIshDavri
+    davrlar = _hodim_davrlari(db, emp)
+    if not davrlar or any(d.tugagan is None for d in davrlar):
+        return
+    bugun = _tashkent_date()
+    sana = sana or bugun
+    if sana > bugun:
+        raise ValueError(f"Ishga qaytgan sana kelajakda bo'lishi mumkin emas (bugun {_sana_matni(bugun)})")
+    oxirgi = max(davrlar, key=lambda d: (d.tugagan, d.id))
+    if sana < oxirgi.tugagan:
+        raise ValueError(f"Ishga qaytgan sana ishdan ketgan sanadan ({_sana_matni(oxirgi.tugagan)}) oldin bo'lishi mumkin emas")
+    if sana <= oxirgi.tugagan + _td_q(days=1):
+        oxirgi.tugagan = None
+        oxirgi.kim = kim
+        return
+    db.add(HodimIshDavri(company_id=emp.company_id, employee_id=emp.id, boshlangan=sana, tugagan=None,
+                         kim=kim, manba="qaytdi", yaratilgan=datetime.utcnow()))
+
+
+def ish_davrlarini_tola(db: Session, company_id: int = None) -> int:
+    """kech141 (zip 169, A-P02) — IDEMPOTENT: zip 169 dan OLDIN o'chirilgan (faol holida o'chirilgan) hodimlarning ish davri
+    jurnaldan (`activity_logs`: «deleted» / «restored», vaqt tartibida) tiklanadi — o'chirilgan kuni ishdan ketgan, tiklangan kuni
+    qaytgan; oxirgi «deleted» — hozirgi ketish. Natija: bunday hodim o'tgan oylar hisobotiga QAYTADI (ilgari hamma oydan yo'qolgan
+    edi — egasi QARORI «o'tgan oylar o'zgarmaydi»). Jurnali yo'q yoki faolsizlantirilgan (qachon — noma'lum) hodimga — hech narsa
+    (ilgarigi xulq, hech bir oyda yo'q). Ish davri bor hodimga tegilmaydi. Commit — chaqiruvchida. Qaytaradi — tiklangan hodimlar soni.
+    Ishga tushishda (`main._migrate_ish_davrlari`) va zaxiradan tiklashdan keyin (`import_full_backup` — eski zaxira) chaqiriladi."""
+    from datetime import timedelta as _td_t
+    import services as _sv
+    from models import HodimIshDavri, ActivityLog
+    q = db.query(Employee).filter(Employee.is_deleted.is_(True), Employee.is_active.is_(True))
+    if company_id is not None:
+        q = q.filter(Employee.company_id == company_id)
+    soni = 0
+    for emp in q.order_by(Employee.id).all():
+        if db.query(HodimIshDavri.id).filter(HodimIshDavri.employee_id == emp.id,
+                                             HodimIshDavri.company_id == emp.company_id).first() is not None:
+            continue
+        loglar = db.query(ActivityLog).filter(
+            ActivityLog.company_id == emp.company_id, ActivityLog.entity_type == "employee",
+            ActivityLog.entity_id == emp.id, ActivityLog.action.in_(("deleted", "restored")),
+            ActivityLog.created_at.isnot(None)).order_by(ActivityLog.created_at, ActivityLog.id).all()
+        if not loglar or loglar[-1].action != "deleted":
+            continue
+        kirgan = _sv.hodim_kirgan_sanasi(emp)
+        davrlar, bosh, ochiq = [], None, True
+        for lg in loglar:
+            s = max(_sv.toshkent_sanasi(lg.created_at), kirgan)
+            if lg.action == "deleted" and ochiq:
+                davrlar.append([bosh, max(s, bosh) if bosh is not None else s])
+                ochiq = False
+            elif lg.action == "restored" and not ochiq:
+                if s <= davrlar[-1][1] + _td_t(days=1):
+                    bosh = davrlar[-1][0]
+                    davrlar.pop()
+                else:
+                    bosh = s
+                ochiq = True
+        if ochiq or not davrlar:
+            continue
+        for b, t in davrlar:
+            db.add(HodimIshDavri(company_id=emp.company_id, employee_id=emp.id, boshlangan=b, tugagan=t,
+                                 manba="migratsiya", yaratilgan=datetime.utcnow()))
+        soni += 1
+    return soni
+
+
+def hodim_ketgan_sanalari(db: Session, company_id: int) -> dict:
+    """kech141 (zip 169): {hodim id: oxirgi ishdan ketgan sana (`date`)} — «O'chirilganlar» sahifasi (tiklash oynasi) uchun.
+    Ish davri yozilmagan (eski) hodim — yo'q."""
+    from models import HodimIshDavri
+    natija = {}
+    for eid, tug in db.query(HodimIshDavri.employee_id, HodimIshDavri.tugagan).filter(
+            HodimIshDavri.company_id == company_id, HodimIshDavri.tugagan.isnot(None)).all():
+        if eid not in natija or tug > natija[eid]:
+            natija[eid] = tug
+    return natija
+
+
+def delete_employee(db: Session, emp_id: int, performed_by: str = None, ketgan_sana=None) -> bool:
     """Xodimni o'chirish — YUMSHOQ (is_deleted=True). Ma'lumot yo'qolmaydi,
-    'O'chirilganlar' bo'limidan tiklash mumkin (inson xatosidan himoya)."""
+    'O'chirilganlar' bo'limidan tiklash mumkin (inson xatosidan himoya).
+
+    kech141 (zip 169, A-P02): o'chirish = ISHDAN KETISH — ish davri admin tanlagan «Ishdan ketgan sana» bilan yopiladi
+    (`hodim_ishdan_chiqar`; berilmasa — bugun). Hodim o'tgan oylar hisobotida QOLADI. Hodim qulfi (107 — avans bilan bir fazo).
+    Allaqachon o'chirilgan — hech narsa (True). Butunlay o'chirilgan — `HodimHolatXatosi`."""
     emp = get_employee(db, emp_id)
     if not emp:
         return False
+    _pul_qulfi(db, 107, emp.id)
+    db.expire_all()
+    emp = get_employee(db, emp_id)
+    if not emp:
+        return False
+    if emp.butunlay_ochirilgan:
+        raise HodimHolatXatosi("Hodim butunlay o'chirilgan")
+    if emp.is_deleted:
+        db.rollback()
+        return True
+    sana = _hodim_sanasi(ketgan_sana, "Ishdan ketgan sana")
+    if emp.is_active:
+        hodim_ishdan_chiqar(db, emp, sana, kim=performed_by)
     emp.is_deleted = True
     # kech133 (zip 159, O'LCHANGAN): o'chirilgan hodimning ochiq panel sessiyalari ham yopiladi (ilgari 14 kungacha ishlardi;
     # kirish va sessiya endi `is_deleted` ni ham tekshiradi — `authenticate_employee`, `auth.hodim_holati`)
@@ -13517,46 +13763,88 @@ def delete_employee(db: Session, emp_id: int, performed_by: str = None) -> bool:
         _ES159.employee_id == emp.id,
         _ES159.employee_id.in_(db.query(Employee.id).filter(Employee.company_id == emp.company_id)),
     ).delete(synchronize_session=False)
+    _ketdi = [d.tugagan for d in _hodim_davrlari(db, emp) if d.tugagan is not None]
     db.commit()
     log_activity(db, "deleted", "employee", emp_id, emp.name, performed_by,
+                 new_value=(f"Ishdan ketgan: {_sana_matni(max(_ketdi))}" if _ketdi else None),
                  company_id=getattr(emp, 'company_id', None))
     return True
 
 
-def restore_employee(db: Session, emp_id: int, performed_by: str = None) -> bool:
-    """O'chirilgan xodimni tiklaydi."""
-    emp = db.query(Employee).filter(Employee.id == emp_id).first()
+def restore_employee(db: Session, emp_id: int, performed_by: str = None, qaytgan_sana=None) -> bool:
+    """O'chirilgan xodimni tiklaydi.
+
+    kech141 (zip 169, A-P02): tiklash = ISHGA QAYTISH — admin tanlagan «Ishga qaytgan sana» (berilmasa — bugun; ketgan kuni
+    tanlansa — ish uzilmagan, «xato o'chirilgan edi») bilan ish davri qayta ochiladi yoki yangisi boshlanadi (`hodim_ishga_qaytar`).
+    O'chirilmagan hodim — `HodimHolatXatosi` (ilgari jimgina 200 va jurnalda soxta «tiklandi»); butunlay o'chirilgan — tiklanmaydi
+    (egasi QARORI 12.10 «Hisobotda qolsin»)."""
+    emp = get_employee(db, emp_id)
     if not emp:
         return False
+    _cid_t = emp.company_id
+    _pul_qulfi(db, 107, emp.id)
+    db.expire_all()
+    emp = db.query(Employee).filter(Employee.id == emp_id, Employee.company_id == _cid_t).first()
+    if not emp:
+        return False
+    if emp.butunlay_ochirilgan:
+        raise HodimHolatXatosi("Hodim butunlay o'chirilgan — uni tiklab bo'lmaydi")
+    if not emp.is_deleted:
+        raise HodimHolatXatosi("Hodim o'chirilganlar ro'yxatida emas — u allaqachon tiklangan")
+    sana = _hodim_sanasi(qaytgan_sana, "Ishga qaytgan sana")
+    if emp.is_active:
+        hodim_ishga_qaytar(db, emp, sana, kim=performed_by)
     emp.is_deleted = False
+    _yangi = [d.boshlangan for d in _hodim_davrlari(db, emp) if d.tugagan is None and d.boshlangan is not None]
     db.commit()
     log_activity(db, "restored", "employee", emp_id, emp.name, performed_by,
+                 new_value=(f"Ishga qaytgan: {_sana_matni(max(_yangi))}" if _yangi else None),
                  company_id=getattr(emp, 'company_id', None))
     return True
 
 
 def permanent_delete_employee(db: Session, emp_id: int, performed_by: str = None) -> bool:
-    """YUMSHOQ o'chirilgan xodimni BAZADAN BUTUNLAY o'chiradi. Avval unga
-    bog'liq barcha yozuvlarni (sessiya, avans tarixi) tozalaydi — aks holda
-    baza (Postgres) "chet el kaliti" xatosi berib, o'chirishga yo'l qo'ymaydi."""
-    emp = db.query(Employee).filter(Employee.id == emp_id, Employee.is_deleted.is_(True)).first()
+    """«O'chirilganlar» dagi hodimni BUTUNLAY o'chirish.
+
+    kech141 (zip 169 — egasi QARORI 12.10 «Hisobotda qolsin»): ilgari hodim qatori avanslari bilan bazadan o'chirilardi — o'tgan
+    oylar hisobotidan oyligi va berilgan avanslari yo'qolib, sof foyda va kassa raqamlari o'zgarardi. Endi: hodim
+    `butunlay_ochirilgan` — «O'chirilganlar» ro'yxatidan yo'qoladi, tiklanmaydi, kirish ma'lumotlari (telefon, PIN, bog'langan
+    telefon) va panel sessiyalari o'chadi; ismi, oyligi, avanslari va ish davrlari o'tgan oylar hisobotida QOLADI. Faqat
+    o'chirilgan (savatdagi) hodim; allaqachon butunlay o'chirilgan — False (404)."""
+    emp = get_employee(db, emp_id)
+    if not emp or not emp.is_deleted or emp.butunlay_ochirilgan:
+        return False
+    _cid_b = emp.company_id
+    _pul_qulfi(db, 107, emp.id)
+    db.expire_all()
+    emp = db.query(Employee).filter(Employee.id == emp_id, Employee.company_id == _cid_b, Employee.is_deleted.is_(True),
+                                    Employee.butunlay_ochirilgan.isnot(True)).first()
     if not emp:
         return False
     name = emp.name
-    _emp_cid = getattr(emp, "company_id", None)   # M7: o'chirishdan OLDIN saqlanadi
-    from models import EmployeeSession, EmployeeAdvance
-    db.query(EmployeeSession).filter(EmployeeSession.employee_id == emp_id).delete()
-    db.query(EmployeeAdvance).filter(EmployeeAdvance.employee_id == emp_id).delete()
-    db.delete(emp)
+    _emp_cid = getattr(emp, "company_id", None)   # M7
+    from models import EmployeeSession
+    db.query(EmployeeSession).filter(
+        EmployeeSession.employee_id == emp_id,
+        EmployeeSession.employee_id.in_(db.query(Employee.id).filter(Employee.company_id == _emp_cid)),
+    ).delete(synchronize_session=False)
+    emp.butunlay_ochirilgan = True
+    emp.phone = None
+    emp.pin_hash = None
+    emp.pin_vaqtinchalik = True
+    for _ust in ("qurilma_hash", "qurilma_nomi", "qurilma_vaqti", "qurilma_sorov_hash", "qurilma_sorov_nomi",
+                 "qurilma_sorov_vaqti"):
+        setattr(emp, _ust, None)
     db.commit()
     log_activity(db, "permanently_deleted", "employee", emp_id, name, performed_by,
-                 company_id=_emp_cid)
+                 new_value="O'tgan oylar hisobotida qoladi", company_id=_emp_cid)
     return True
 
 
 def get_deleted_employees(db: Session, company_id: int = None) -> List[Employee]:
-    """O'chirilgan (lekin hali bazada saqlanayotgan) xodimlar."""
-    _dq = db.query(Employee).filter(Employee.is_deleted.is_(True))
+    """O'chirilgan (lekin hali bazada saqlanayotgan) xodimlar. kech141 (zip 169): butunlay o'chirilganlari — yo'q (ular faqat
+    o'tgan oylar hisobotida)."""
+    _dq = db.query(Employee).filter(Employee.is_deleted.is_(True), Employee.butunlay_ochirilgan.isnot(True))
     if company_id is not None:      # M5
         _dq = _dq.filter(Employee.company_id == company_id)
     return _dq.order_by(Employee.name).all()
@@ -14261,11 +14549,14 @@ def get_master_kpi_detail(db: Session, master_id: int, year: int,
                                              company_id=master.company_id, master_id=master_id):
         _o144 = _h144["order"]
         _tur144 = {"pul": "mijozga pul qaytarildi", "ombor": "mahsulot omborga qaytdi",
-                   "ombor+pul": "mahsulot omborga qaytdi, pul qaytarildi"}.get(_h144["tur"], "qaytarish")
+                   "ombor+pul": "mahsulot omborga qaytdi, pul qaytarildi",
+                   # kech141 (zip 169, A-P05): «Tayyor» dan keyingi kelishilgan summa tuzatishi (✏️ / kechirish) — o'z oyida
+                   "tuzatish": "narx tuzatildi"}.get(_h144["tur"], "qaytarish")
+        _belgi144 = "✏️" if _h144["tur"] == "tuzatish" else "↩️"
         _davrda = _ichida(master, _h144["vaqt"])
         result.append({
             "order_id": _o144.id,
-            "order_number": f"↩️ {_o144.order_number} ({_tur144})" + (_SOVGA_BELGI if _davrda else ""),
+            "order_number": f"{_belgi144} {_o144.order_number} ({_tur144})" + (_SOVGA_BELGI if _davrda else ""),
             "completed_at": _h144["vaqt"].isoformat(),
             "total_amount": round(_h144["daromad"], 2),
             "profit": round(_h144["foyda"]),
@@ -15018,7 +15309,7 @@ def get_master_yearly_cashback(db: Session, master_id: int, year: int,
         if _in_any_period(_h144["vaqt"]):
             continue
         yearly_profit += _h144["foyda"]
-        buyurtmalar.append((f"↩️ {_h144['order'].order_number}", _h144["foyda"]))
+        buyurtmalar.append((f"{'✏️' if _h144['tur'] == 'tuzatish' else '↩️'} {_h144['order'].order_number}", _h144["foyda"]))
 
     _sq = db.query(FinishedProductSale).filter(
         FinishedProductSale.master_id == master_id,
