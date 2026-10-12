@@ -453,13 +453,17 @@ tb0 = tolangan(PB_ID)
 section("D. Hodim avansi — POST /api/employees/{id}/advance")
 # ══════════════════════════════════════════════════════════════
 # kpi.html 942: `?amount=${amount}&notes=${encodeURIComponent(notes)}&adv_date=${dateVal}`
-r = req("post", f"/api/employees/{E_ID}/advance?amount=150000&notes=&adv_date=")
+# kech140 (zip 168, MOSLANDI): bu bo'lim KIRITISH qoidalarini tekshiradi; hodimning oyligi yo'q — oylikdan ko'p avans endi 409
+# (egasi qarori «Ogohlantirib so'rasin», `tools/test_audit_pul.py` V), UI tasdiqdan keyin `confirm_excess=true` bilan yuboradi —
+# to'g'ri qiymatli so'rovlar shu belgi bilan (eski kodda parametr e'tiborsiz — natija o'zgarmaydi).
+_TQ = "&confirm_excess=true"
+r = req("post", f"/api/employees/{E_ID}/advance?amount=150000&notes=&adv_date=" + _TQ)
 _a = avanslar(E_ID)
 check(f"D1 UI tanasi (izoh va sana BO'SH) → {r.status_code} (200 shart)", r.status_code == 200,
       r.text[:140])
 check("D2 avans 150 000, sana BUGUN (bo'sh sana saqlangan xulq)",
       len(_a) == 1 and _a[0][0] == 150_000 and _a[0][1] == BUGUN, f"{_a}")
-r = req("post", f"/api/employees/{E_ID}/advance?amount=75000.5&notes=Oldindan&adv_date=2026-09-05")
+r = req("post", f"/api/employees/{E_ID}/advance?amount=75000.5&notes=Oldindan&adv_date=2026-09-05" + _TQ)
 _a = avanslar(E_ID)
 check(f"D3 UI tanasi (izoh + sana) → {r.status_code}, 75 000.50, 2026-09-05, izoh saqlandi",
       r.status_code == 200 and len(_a) == 2 and _a[1] == (75_000.5, "2026-09-05", "Oldindan"),
@@ -473,7 +477,7 @@ for _v in ("inf", "-inf", "nan", "Infinity", "-Infinity", "NaN", "-5", "0", "0.0
 r = req("post", f"/api/employees/{E_ID}/advance?notes=x")
 check(f"D5 amount YO'Q → {r.status_code} (400 shart)",
       r.status_code == 400 and avanslar(E_ID) == _a0, r.text[:120])
-r = req("post", f"/api/employees/{E_ID}/advance?amount=9999999999.99&notes=&adv_date=")
+r = req("post", f"/api/employees/{E_ID}/advance?amount=9999999999.99&notes=&adv_date=" + _TQ)
 _a = avanslar(E_ID)
 check(f"D6 aynan sig'im chegarasi 9 999 999 999.99 → {r.status_code} (200 shart)",
       r.status_code == 200 and len(_a) == len(_a0) + 1, r.text[:120])
@@ -486,7 +490,7 @@ for _d in ("abc", "2026-13-45", "2026-02-30", "1999-12-31", "2101-01-01", "05.09
 r = req("post", f"/api/employees/{E_ID}/advance?amount=1000&notes=" + "x" * 10_001)
 check(f"D8 izoh 10 001 belgi → {r.status_code} (400 shart)",
       r.status_code == 400 and avanslar(E_ID) == _a0, r.text[:120])
-r = req("post", f"/api/employees/{E_ID}/advance?amount=1000&notes=" + "y" * 10_000)
+r = req("post", f"/api/employees/{E_ID}/advance?amount=1000&notes=" + "y" * 10_000 + _TQ)
 check(f"D9 izoh aynan 10 000 belgi → {r.status_code} (200 shart)",
       r.status_code == 200 and len(avanslar(E_ID)) == len(_a0) + 1, r.text[:120])
 _ab0 = avanslar(EB_ID)
@@ -567,7 +571,7 @@ section("F. Oylik qarzini yopish — POST /api/obligations/employee/{id}/close")
 # ══════════════════════════════════════════════════════════════
 _F = f"/api/obligations/employee/{E_ID}/close"
 _a0 = avanslar(E_ID)
-r = req("post", f"{_F}?year=2026&month=8&amount=120000")        # debts.html 432
+r = req("post", f"{_F}?year=2026&month=8&amount=120000" + _TQ)        # debts.html 432 (kech140: tasdiq bilan — oylik yo'q)
 _a = avanslar(E_ID)
 check(f"F1 UI tanasi → {r.status_code} (200 shart), success",
       r.status_code == 200 and (r.json() or {}).get("success") is True, r.text[:140])
@@ -752,8 +756,10 @@ check("H9 crud.create_employee_advance(sana 2026-13-45) — ValueError",
       _ok and avanslar(E_ID) == _a0)
 _ok = False
 try:
+    import inspect as _ins140      # kech140 (zip 168, MOSLANDI): oylikdan ko'p — tasdiq bilan (eski imzoda parametr yo'q)
+    _kw140 = ({"confirm_excess": True} if "confirm_excess" in _ins140.signature(crud.create_employee_advance).parameters else {})
     _r9 = crud.create_employee_advance(db, E_ID, 1000.0, "ildiz nazorat",
-                                       adv_date=datetime(2026, 9, 3))
+                                       adv_date=datetime(2026, 9, 3), **_kw140)
     _ok = _r9 is not None
 except Exception:
     _ok = False

@@ -87,7 +87,7 @@ const BASE_FN = ['escapeHtml', 'xatoSababi', 'serverXatoSababi', 'sonKor', 'foiz
 // kech139 (zip 166, MOSLANDI): Omborxona amallari endi base.html `amalSababi` (u `yukSessiyaKor` ni chaqiradi) va yuklash yordamchilarini
 // ham ishlatadi — BOR bo'lsa birga yuklanadi (eski shablonda yo'q — tekshirilmaydi, kod o'zgarmagan holda ishlaydi)
 const BASE_BOR = ['yukXato', 'yukOl', 'yukSabab', 'yukXatoMatn', 'yukNavbat', 'yukBlok', 'yukXatoKor', 'yukRoyxatXato', 'yukSessiyaKor',
-  'amalSababi'];
+  'amalSababi', 'avansYubor'];     // kech140 (zip 168, MOSLANDI): avans berish — `avansYubor` (409 tasdig'i, sabab — `amalSababi`)
 function kod(src, nomlar) {
   const qism = [];
   const yoq = [];
@@ -319,7 +319,8 @@ function korindimi(n, matn) {
   const yordamsiz = [];
   for (const [src, nomlar] of YORDAMCHILI) {
     // kech139 (zip 166, MOSLANDI): `amalSababi` (base.html) — sababni o'zi `xatoSababi` bilan o'qiydi (yagona qoida saqlanadi)
-    for (const n of nomlar) { const f = olib(src, n) || ''; if (!/\b((server)?[xX]atoSababi|amalSababi)\(/.test(f)) yordamsiz.push(n); }
+    // kech140 (zip 168, MOSLANDI): `avansYubor` (base.html) — rad sababini `amalSababi` bilan o'qiydi
+    for (const n of nomlar) { const f = olib(src, n) || ''; if (!/\b((server)?[xX]atoSababi|amalSababi|avansYubor)\(/.test(f)) yordamsiz.push(n); }
   }
   tekshir("S2 28 ta funksiyaning rad shoxi yagona yordamchi bilan (`xatoSababi` / `serverXatoSababi` / `amalSababi`)", !yordamsiz.length, yordamsiz);
   tekshir("S3 base.html: yordamchilar bitta ta'rif (takror yo'q)",
