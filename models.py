@@ -1785,6 +1785,13 @@ class EmployeeAdvance(Base):
     # «Olmaganman» — adminga ogohlantirish; admin «✔ Ko'rib chiqdim» bossa ogohlantirish yopiladi (hodim javobi o'zgarmaydi).
     nizo_korildi_vaqti = Column(DateTime, nullable=True)
     nizo_korgan = Column(String(100), nullable=True)
+    # kech140 (zip 168, audit A-P09): yozuv YARATILGAN vaqt (UTC) — takror yuborish himoyasi (`date` — tanlangan kun 00:00, imzoga
+    # yaramaydi). NULL — zip 168 dan oldingi yozuvlar (takror deb hech qachon topilmaydi).
+    created_at = Column(DateTime, nullable=True, default=datetime.utcnow)
+    # kech140 (zip 168 — egasi QARORI 11.10 «Keyingi oydan ushlansin»): oylikdan ortiq avans admin TASDIG'I bilan yozilganda ortiqcha
+    # qismi — u KEYINGI oy oyligi hisobiga o'tadi (pul bir marta, `date` kuni berilgan — kassa o'zgarmaydi; faqat qaysi oy oyligidan
+    # ayirilishi). NULL / 0 — butun summa `date` oyi hisobida (avvalgidek). Hisob — `services.calculate_monthly_employee_pay`.
+    keyingi_oyga = Column(Numeric(12, 2), nullable=True)
 
     employee = relationship("Employee", backref="advances")
 

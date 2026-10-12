@@ -719,6 +719,7 @@ def get_company_obligations_status(db: Session, year: int, month: int,
             y -= 1
 
     employees_with_debt = []
+    employees_overdrawn = []        # kech140 (zip 168): hodim korxonaga qarzdor (oylikdan ko'p olgan)
     for (chk_year, chk_month) in months_to_check:
         # MUHIM: to'g'ridan-to'g'ri calculate_monthly_employee_pay(...,0,0,0,0,0)
         # chaqirilsa — "necha metr/blok ishlatilgan" kabi HAQIQIY miqdorlar
@@ -730,6 +731,15 @@ def get_company_obligations_status(db: Session, year: int, month: int,
         emp_result = {"breakdown": monthly.get("hodimlar_moslashuvchan_breakdown", [])}
         is_current = (chk_year, chk_month) == (year, month)
         for e in emp_result["breakdown"]:
+            # kech140 (zip 168, A-P09 — egasi QARORI 11.10): oylikdan ko'p olgan hodim — «Hodimlar bizga qarzdor» (ilgari jim
+            # tashlanardi). Keyingi oyga o'tgani shu oyda 0 ga tushadi; ushlangan oyda ham yetmasa — o'sha oyda qarz.
+            if e["qolgan"] < -0.5:
+                employees_overdrawn.append({
+                    "employee_id": e["employee_id"], "name": e["name"],
+                    "amount": e["amount"], "avans": e["avans"], "qarz": -e["qolgan"],
+                    "year": chk_year, "month": chk_month,
+                    "month_label": OY_NOMLARI[chk_month] if not is_current else f"{OY_NOMLARI[chk_month]} (joriy)",
+                })
             if e["qolgan"] <= 0.5:
                 continue
             employees_with_debt.append({
@@ -742,6 +752,8 @@ def get_company_obligations_status(db: Session, year: int, month: int,
     # Eng eski oy, birinchi (eng "shoshilinch") bo'lib ko'rinsin
     employees_with_debt.sort(key=lambda e: (e["year"], e["month"]))
     total_employee_debt = sum(e["qolgan"] for e in employees_with_debt)
+    employees_overdrawn.sort(key=lambda e: (e["year"], e["month"]))
+    total_employee_overdrawn = sum(e["qarz"] for e in employees_overdrawn)
 
     recurring = []
     _obq = db.query(RecurringObligation).filter(RecurringObligation.is_active == True)
@@ -807,6 +819,9 @@ def get_company_obligations_status(db: Session, year: int, month: int,
         "recurring_all": recurring,
         "total_recurring_debt": round(total_recurring_debt),
         "total_company_debt": round(total_employee_debt + total_recurring_debt),
+        # kech140 (zip 168, A-P09): hodimlar korxonaga qarzdor (oylikdan ko'p olgan) — alohida, «Hodimlarga qarzimiz» ga aralashmaydi
+        "employees_overdrawn": employees_overdrawn,
+        "total_employee_overdrawn": round(total_employee_overdrawn),
     }
 
 
@@ -853,6 +868,8 @@ def get_full_debt_summary(db: Session, year: int, month: int,
         "supplier_debt_count": len(supplier_debts),
         "employee_debt": company["total_employee_debt"],
         "employee_debt_count": len(company["employees"]),
+        "employee_overdrawn": company["total_employee_overdrawn"],        # kech140 (zip 168): hodimlar bizga qarzdor
+        "employee_overdrawn_count": len(company["employees_overdrawn"]),
         "recurring_debt": company["total_recurring_debt"],
         "recurring_debt_count": len(company["recurring"]),
         "net_position": total_customer_debt - total_supplier_debt - company["total_employee_debt"] - company["total_recurring_debt"],
@@ -883,7 +900,17 @@ def get_employee_payment_timeline(db: Session, employee_id: int, year: int, mont
               "created_by": a["given_by"]} for a in advances]
 
 
-def close_employee_debt(db: Session, employee_id: int, year: int, month: int, amount: float, paid_by: str = None) -> dict:
+def hodim_oy_qoldigi(db: Session, employee_id: int, company_id: int, year: int, month: int) -> float:
+    """kech140 (zip 168, A-P09): hodimning shu oy oyligidan QOLGANI (hisoblangan − shu oy hisobidagi avanslar) — admin KPI «Joriy oy»,
+    Qarzdorlar va hodim paneli bilan bitta manba (`get_monthly_report` → `hodimlar_moslashuvchan_breakdown`). Hodim ro'yxatda
+    bo'lmasa (oylik ham, avans ham yo'q — masalan hali ishga kirmagan oy) — 0. Manfiy — hodim korxonaga qarzdor."""
+    rep = get_monthly_report(db, year, month, company_id=company_id)
+    e = next((r for r in rep.get("hodimlar_moslashuvchan_breakdown", []) if r.get("employee_id") == employee_id), None)
+    return float(e["qolgan"]) if e else 0.0
+
+
+def close_employee_debt(db: Session, employee_id: int, year: int, month: int, amount: float, paid_by: str = None,
+                        confirm_excess: bool = False) -> dict:
     """Hodimning shu oydagi qolgan qarzini to'lash — mavjud, sinalgan
     EmployeeAdvance mexanizmining o'zidan foydalanadi (avans va yakuniy
     to'lov — matematik jihatdan bir xil narsa: ikkalasi ham hisoblangan
@@ -892,9 +919,10 @@ def close_employee_debt(db: Session, employee_id: int, year: int, month: int, am
     import crud as _crud
     _bugun_t = _tashkent_date()   # kech105 (9 + 50-band): joriy oy / kun — Toshkent kalendari
     adv_date = datetime(year, month, min(28, _bugun_t.day) if (year, month) == (_bugun_t.year, _bugun_t.month) else 28)
+    # kech140 (zip 168, A-P09): takror (8 s) — mavjud yozuv; qolgandan ko'p — `AvansOylikdanOrtiq` (marshrut → 409)
     adv = _crud.create_employee_advance(db, employee_id, amount, notes="Oy oxiri — qolgan oylik to'landi",
-                                         given_by=paid_by, adv_date=adv_date)
-    return {"success": adv is not None}
+                                         given_by=paid_by, adv_date=adv_date, confirm_excess=confirm_excess)
+    return {"success": adv is not None, "duplicate": bool(getattr(adv, "_takror", False))}
 
 
 def get_production_period_stats(db: Session, company_id: int = None) -> dict:
@@ -1671,11 +1699,16 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
                     _foyda45 = float(yakun_foydasi(db, order, company_id=getattr(order, 'company_id', None))
                                      .get("foyda", 0) or 0)
                     _pct45 = float(_usta45.kpi_percent or 0)
+                    # kech140 (zip 168, egasi QARORI 11.10): sovg'a davri ishtirokchisi — bu buyurtma keshbekka kirmaydi
+                    import crud as _crud_sd45
+                    _davrda45 = _crud_sd45.sovga_davr_tekshirgich(db, getattr(order, 'company_id', None))(
+                        _usta45, order.completed_at)
                     result["master_kpi"] = {
                         "master": _usta45.name,
                         "kpi_percent": _pct45,
                         "foyda": round(_foyda45),
-                        "total_kpi": round(max(_foyda45, 0.0) * _pct45 / 100),
+                        "total_kpi": 0 if _davrda45 else round(max(_foyda45, 0.0) * _pct45 / 100),
+                        "sovga_davrida": bool(_davrda45),
                     }
                 except Exception as _e45:
                     try:
@@ -7232,7 +7265,11 @@ def calculate_monthly_master_kpi(db: Session, year: int, month: int,
     # M5 (2026-09-18) — TENANT: ilgari barcha korxonalar ustalari
     # olinardi, ya'ni B ustasining KPI xarajati A ning oylik hisobiga
     # tushardi.
-    _mq = db.query(Master).filter(Master.is_active == True, Master.kpi_percent > 0)
+    # kech140 (zip 168, audit A-P02 usta qismi — O'LCHANGAN): faolsizlantirilgan usta (`is_active` False) ilgari O'TGAN oylar
+    # hisobotidan ham yo'qolardi (sentyabr «Usta bonusi (KPI)» 95 000 → 0, sof foyda oshardi). Usta KPI — har yakunlangan
+    # buyurtma / sotuv / qaytarish hodisasidan: faolligidan qat'i nazar, o'sha oyda hodisasi bo'lsa hisoblanadi (KPI sahifasi
+    # va bot ham hodisalarni sanaydi — oylar yig'indisi = yil).
+    _mq = db.query(Master).filter(Master.kpi_percent > 0)
     if company_id is not None:
         _mq = _mq.filter(Master.company_id == company_id)
     masters = _mq.all()
@@ -7264,13 +7301,25 @@ def calculate_monthly_master_kpi(db: Session, year: int, month: int,
     _hk_tayyorla(db, [o for _l in _buyurtma_oy.values() for o in _l])   # kech89 (52-band): hisobot ichida
     # kech102 (144-band, QAROR — usta KPI "yo'qotilgan foydaga"): shu oyda bo'lgan qaytarishlar o'sha buyurtma ustasining
     # foydasiga (qaytarilgan pul − omborga qaytgan tannarx); buyurtmaning o'zi — yakunlangan paytdagi holatda.
+    # kech140 (zip 168, egasi QARORI 11.10 «Bot to'g'ri»): sovg'a davri ISHTIROKCHISINING davr ichidagi buyurtmasi / sotuvi /
+    # qaytarishi keshbek (KPI) xarajatiga KIRMAYDI (sovg'a hisobiga); davr yopilganda keshbekka o'tkazilgan qoldiq — o'tkazilgan
+    # oyga (bot «Bonuslarim» va KPI sahifasi bilan bitta qoida — `crud.sovga_davr_tekshirgich`).
+    import crud as _crud_sd
+    _ichida = _crud_sd.sovga_davr_tekshirgich(db, company_id)
+    _usta_obj = {m.id: m for m in masters}
     _qaytarish_usta = {}
     for _h144 in davr_qaytarishlari(db, *_tashkent_oy_oraligi(year, month),
                                    company_id=company_id):
+        if _ichida(_usta_obj.get(_h144["master_id"]), _h144["vaqt"]):
+            continue
         _qaytarish_usta[_h144["master_id"]] = _qaytarish_usta.get(_h144["master_id"], 0.0) + _h144["foyda"]
+    _otkazma_usta = {}
+    for _ot in (_crud_sd.sovga_keshbek_otkazmalari(db, *_tashkent_oy_oraligi(year, month), company_id=company_id)
+                if _mids else []):
+        _otkazma_usta[_ot.master_id] = _otkazma_usta.get(_ot.master_id, 0.0) + float(_ot.profit_amount or 0)
 
     for m in masters:
-        orders = _buyurtma_oy.get(m.id, [])
+        orders = [o for o in _buyurtma_oy.get(m.id, []) if not _ichida(m, o.completed_at)]
 
         monthly_profit = 0.0
         for o in orders:
@@ -7290,14 +7339,19 @@ def calculate_monthly_master_kpi(db: Session, year: int, month: int,
         # hisobiga qo'shiladi. Aks holda usta "Tayyor mahsulot" bo'limidan
         # to'g'ridan-to'g'ri xarid qilib sotsa, buyurtma ochilmagani uchun
         # KPI umuman hisoblanmay qolar edi.
-        fp_sales = _sotuv_oy.get(m.id, [])
+        fp_sales = [s for s in _sotuv_oy.get(m.id, []) if not _ichida(m, s.sold_at)]
         monthly_profit += sum(float(s.total_amount or 0) - float(s.cost_amount or 0) for s in fp_sales)
         monthly_profit += _qaytarish_usta.get(m.id, 0.0)      # kech102 (144-band)
+        _otkazma = _otkazma_usta.get(m.id, 0.0)
 
-        if monthly_profit <= 0:
+        # kech140 (zip 168, audit A-P04 — O'LCHANGAN): ilgari `monthly_profit <= 0` bo'lgan oy TASHLANARDI — oldingi oy
+        # buyurtmasining qaytarishi (keyingi oyda) KPI ni kamaytirmasdi: oylar yig'indisi 255 000, KPI sahifasi (yil) va bot
+        # 225 000. Endi faqat HODISASI yo'q oy o'tkaziladi; manfiy oy — KPI xarajati kamayadi (qaytarilgan foydaning ulushi),
+        # yig'indi = yillik `gift_amount`.
+        if not orders and not fp_sales and m.id not in _qaytarish_usta and not _otkazma:
             continue
 
-        kpi_amount = monthly_profit * m.kpi_percent / 100
+        kpi_amount = monthly_profit * m.kpi_percent / 100 + _otkazma
         total += kpi_amount
         breakdown.append({
             "master_name": m.name,
@@ -7419,6 +7473,7 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
     from sqlalchemy import func as _func_oy
     _eids = [e.id for e in employees]
     _tarix_oy, _tuzatish_oy, _avans_oy = {}, {}, {}
+    _keyingi_oy, _oldingi_oy = {}, {}       # kech140 (zip 168): keyingi oyga o'tgan / o'tgan oydan kelgan avans qismi
     for _b in _hk_bolaklar(_eids):
         _tq = db.query(EmployeeCompensationHistory).filter(EmployeeCompensationHistory.employee_id.in_(_b))
         if company_id is not None:      # ota (hodim) orqali — ro'yxat allaqachon korxonaniki
@@ -7434,13 +7489,26 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
                 Employee.company_id == company_id)
         for _r in _aq.order_by(EmployeeMonthlyAdjustment.id).all():
             _tuzatish_oy.setdefault(_r.employee_id, _r)
-        _vq = db.query(EmployeeAdvance.employee_id, _func_oy.sum(EmployeeAdvance.amount)).filter(
+        # kech140 (zip 168 — egasi QARORI 11.10 «Keyingi oydan ushlansin»): shu oy avanslarining keyingi oyga o'tgan qismi
+        # (`keyingi_oyga`) ayiriladi, O'TGAN oy avanslarining keyingi oyga o'tgan qismi — shu oyga qo'shiladi.
+        _vq = db.query(EmployeeAdvance.employee_id, _func_oy.sum(EmployeeAdvance.amount),
+                       _func_oy.sum(_func_oy.coalesce(EmployeeAdvance.keyingi_oyga, 0))).filter(
             EmployeeAdvance.employee_id.in_(_b), _tashkent_oyida(EmployeeAdvance.date, year, month))
         if company_id is not None:
             _vq = _vq.join(Employee, Employee.id == EmployeeAdvance.employee_id).filter(
                 Employee.company_id == company_id)
-        for _eid, _s in _vq.group_by(EmployeeAdvance.employee_id).all():
+        for _eid, _s, _k in _vq.group_by(EmployeeAdvance.employee_id).all():
             _avans_oy[_eid] = float(_s or 0)
+            _keyingi_oy[_eid] = float(_k or 0)
+        _oy_o = (year - 1, 12) if month == 1 else (year, month - 1)
+        _kq = db.query(EmployeeAdvance.employee_id, _func_oy.sum(EmployeeAdvance.keyingi_oyga)).filter(
+            EmployeeAdvance.employee_id.in_(_b), EmployeeAdvance.keyingi_oyga.isnot(None),
+            _tashkent_oyida(EmployeeAdvance.date, *_oy_o))
+        if company_id is not None:
+            _kq = _kq.join(Employee, Employee.id == EmployeeAdvance.employee_id).filter(
+                Employee.company_id == company_id)
+        for _eid, _s in _kq.group_by(EmployeeAdvance.employee_id).all():
+            _oldingi_oy[_eid] = float(_s or 0)
 
     for e in employees:
         amount = 0.0
@@ -7522,9 +7590,15 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
         # hodimning o'zi ko'rinmay qolardi). Endi — agar adjustment yoki
         # bonus qo'llanilgan bo'lsa, "amount=0" bo'lsa ham hodim ro'yxatda
         # qoladi (shunda uni yana ko'rish/tuzatish mumkin bo'ladi).
-        if amount > 0 or adjustment > 0 or bonus > 0:
+        # kech140 (zip 168, A-P09): shu oy hisobidagi avans = shu oy avanslari − keyingi oyga o'tgan qismi + o'tgan oydan kelgan
+        # qism. Oylik 0, lekin avans bor (masalan foizli hodim, sotuv yo'q) — hodim ro'yxatda qoladi: qolgan manfiy = hodim
+        # korxonaga qarzdor (ilgari bunday hodim ro'yxatdan tushib, qarzi hech qayerda ko'rinmasdi).
+        _av_jami = _avans_oy.get(e.id, 0.0)
+        _av_keyingi = _keyingi_oy.get(e.id, 0.0)
+        _av_oldingi = _oldingi_oy.get(e.id, 0.0)
+        avans = _av_jami - _av_keyingi + _av_oldingi
+        if amount > 0 or adjustment > 0 or bonus > 0 or abs(avans) > 0.5:
             total += amount
-            avans = _avans_oy.get(e.id, 0.0)
             breakdown.append({
                 "employee_id": e.id,
                 "name": e.name,
@@ -7533,6 +7607,9 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
                 "detail": detail,
                 "amount": round(amount),
                 "avans": round(avans),
+                "avans_jami": round(_av_jami),
+                "keyingi_oyga": round(_av_keyingi),
+                "oldingi_oydan": round(_av_oldingi),
                 "qolgan": round(amount - avans),
                 "adjustment": round(adjustment) if adjustment else 0,
                 "adjustment_reason": adjustment_reason,
@@ -7575,6 +7652,9 @@ def _hodim_oy_xulosa(db: Session, employee_id: int, company_id: int, y: int, m: 
         "bonus_sababi": (e.get("bonus_reason") or None) if e else None,
         "kamaytirish": round(float(e.get("adjustment") or 0)) if e else 0,
         "kamaytirish_sababi": (e.get("adjustment_reason") or None) if e else None,
+        # kech140 (zip 168): «Olingan» ichida — keyingi oyga o'tgan (ayirilgan) / o'tgan oydan kelgan (qo'shilgan) avans qismi
+        "keyingi_oyga": round(float(e.get("keyingi_oyga") or 0)) if e else 0,
+        "oldingi_oydan": round(float(e.get("oldingi_oydan") or 0)) if e else 0,
         # kech134 (zip 160 — egasi QARORI «C»): har to'lovda manba («📱 O'zingiz» / «🧑‍💼 Admin» — kim), izoh va admin yozganiga
         # hodim javobi (kutilmoqda / oldim / olmadim — vaqti bilan)
         "tolovlar": [{"id": t["id"], "sana": t["date"], "summa": round(float(t["amount"] or 0)), "manba": t["manba"],
