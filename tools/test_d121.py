@@ -476,6 +476,19 @@ def hodim(nom, tel, pin, **qosh):
     t.update(qosh)
     r = CA.post("/api/employees", json=t)
     eid = (js(r) or {}).get("id") if r.status_code == 200 else None
+    # kech141 (zip 169, MOSLANDI — egasi QARORI 12.10 «Kirgan kundan»): kirgan oy oyligi kirgan kundan (oy o'rtasida — mutanosib);
+    # H bo'limi to'liq oylik (3 000 000 / 2 000 000) bilan sinaydi — hodim joriy oyning 1-kuni (Toshkent 00:00) ishga kirgan deb
+    # yoziladi (eski kodda ta'sirsiz)
+    if eid:
+        import datetime as _dt141
+        import models as _m141
+        _d141 = SessionLocal()
+        _x141 = _d141.get(_m141.Employee, eid)
+        if _x141 is not None:
+            _b141 = tashkent_date()
+            _x141.hire_date = _dt141.datetime(_b141.year, _b141.month, 1) - _dt141.timedelta(hours=5)
+            _d141.commit()
+        _d141.close()
     CA.post(f"/api/employees/{eid}/set-login", data={"phone": tel, "pin": pin})
     h = TestClient(main.app, base_url="https://testserver", raise_server_exceptions=False)
     r = h.post("/hodim/login", data={"phone": tel, "pin": pin, "korxona": "D1"}, follow_redirects=False)
