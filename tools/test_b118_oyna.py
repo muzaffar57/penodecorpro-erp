@@ -253,7 +253,9 @@ for fn, src in SHABLON.items():
         if re.search(r"((?<![\w])delFp\(|doCancel|clearFinished|delete|Delete|ochir|save|Save|submit|Submit|confirm\w*\(|Tasdiq|reset)", oc):
             _xavfli.append(f"{fn}: {oc[:60]}")
 check("S5 `data-yopish` faqat yopish tugmalarida (o'chirish / saqlash / bekor qilish AMALLARIDA yo'q)", not _xavfli, _xavfli)
-_bekor = re.search(r"const bekorTugma = `([^`]*)`", SHABLON.get("production.html", ""))
+# kech142 (zip 170, A-O03 — MOSLANDI): tugma endi faqat qoralama / jarayondagi ishlab chiqarishda (`(shart) ? `…` : ''`) — ikkala
+# yozuv ham o'qiladi (eski kodda — to'g'ridan-to'g'ri satr).
+_bekor = re.search(r"const bekorTugma = (?:\([^)]*\)\s*\?\s*)?`([^`]*)`", SHABLON.get("production.html", ""))
 check("S6 ishlab chiqarishni BEKOR QILISH tugmasi («Bekor qilish» → doCancel) belgisiz — Esc uni bosmaydi",
       _bekor and "doCancel(" in _bekor.group(1) and "data-yopish" not in _bekor.group(1), _bekor.group(1) if _bekor else None)
 

@@ -358,9 +358,21 @@ check("C7 oddiy material (turkum Kimyoviy, belgi yo'q) → penoplast EMAS", stc7
 # qayta ishlatish yo'li (`add_item`: shu nomli, hali ishlatilmagan — qoldiq 0, kirimsiz — qator qayta ishlatiladi)
 stc8, P35b = yarat(CA, {"item_name": "OT Plotnost 35", "category": "Penoplast", "unit": "dona", "stock_quantity": 0,
                         "min_stock": 0})
-check("C8 qayta ishlatish yo'lida ham (o'sha qator) — turkum 'Penoplast', belgi yuborilmagan → penoplast",
-      stc8 == 200 and P35b == P35 and material(P35) and material(P35)["is_penoplast"] is True,
-      [stc8, P35b, P35, material(P35)])
+# kech142 (zip 170, A-O09 — MOSLANDI): shu nomli FAOL material endi qayta ishlatilmaydi (qayta yozilmaydi) — 409 + mavjud
+# material id si, material O'ZGARMAYDI (yangi qoida `tools/test_audit_ombor.py` N bo'limida). Eski kodda (zip 169) — avvalgi
+# kutilgan javob (o'sha qator qayta ishlatiladi va turkum bo'yicha penoplast bo'ladi).
+import crud as _crud142                            # noqa: E402
+if hasattr(_crud142, "MaterialNomiBand"):
+    _r8 = req(CA, "post", "/api/inventory", json={"item_name": "OT Plotnost 35", "category": "Penoplast", "unit": "dona",
+                                                  "stock_quantity": 0, "min_stock": 0})
+    _d8 = (js(_r8) or {}).get("detail") or {}
+    check("C8 faol material nomi qayta yuborildi — 409 + o'sha qator id si, material o'zgarmadi (penoplast EMAS — aniq qiymat)",
+          stc8 == 409 and _r8.status_code == 409 and isinstance(_d8, dict) and _d8.get("id") == P35
+          and material(P35) and material(P35)["is_penoplast"] is False, [stc8, _r8.status_code, _d8, material(P35)])
+else:
+    check("C8 qayta ishlatish yo'lida ham (o'sha qator) — turkum 'Penoplast', belgi yuborilmagan → penoplast",
+          stc8 == 200 and P35b == P35 and material(P35) and material(P35)["is_penoplast"] is True,
+          [stc8, P35b, P35, material(P35)])
 
 # ════════════════════════════════════════════════════════════════════════════════════════════════════════════
 section("D. ESKI baza (penoplast ustunlari YO'Q) — bir martalik migratsiya hali ishlaydi, faqat BIR marta")

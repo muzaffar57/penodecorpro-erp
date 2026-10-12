@@ -45,6 +45,10 @@ _quiet = io.StringIO()
 with contextlib.redirect_stdout(_quiet):
     import main                                    # noqa: E402
     import crud, auth, schemas                     # noqa: E402
+# kech142 (zip 170, A-O08 — MOSLANDI): `/reduce` endi «Brak» ning aniq taxallusi — sabab (`brak_sabab`) majburiy; eski kodda
+# (zip 169) kalit noma'lum — shuning uchun faqat yangi imzoda yuboriladi (eski va yangi kodda ham shu test o'tadi).
+import inspect as _insp142                         # noqa: E402
+_BRAK142 = {"brak_sabab": "boshqa"} if "brak_sabab" in _insp142.signature(crud.reduce_production).parameters else {}
 
 from database import SessionLocal, engine          # noqa: E402
 from sqlalchemy import event, text                 # noqa: E402
@@ -550,7 +554,7 @@ check(f"UI production-brak 2 \u2192 {r.status_code}", r.status_code == 200 and i
       r.text[:140])
 r = req("post", PB, json={"brak_sabab": "boshqa", "finished_product_id": F_IP2, "brak_qty": 1, "notes": "kesishda"})
 check(f"JARAYONDAGI production-brak RUXSAT \u2192 {r.status_code}", r.status_code == 200, r.text[:140])
-r = req("post", f"/api/finished/{F}/reduce", json={"quantity": 1, "reason": "singan"})
+r = req("post", f"/api/finished/{F}/reduce", json={"quantity": 1, "reason": "singan", **_BRAK142})
 check(f"reduce 1 \u2192 {r.status_code}", r.status_code == 200 and fp_q(F) == 10, f"{r.status_code} {fp_q(F)}")
 r = req("post", S, json=sb(finished_product_id=F, quantity=2, buyer_name="Ali",
                            payment_method="karta", master_id=MS_A_ID, confirm_below_cost=False))
