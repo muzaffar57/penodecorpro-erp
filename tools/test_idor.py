@@ -1629,18 +1629,36 @@ def _purch10(iid):
     return db.query(_IP10).filter(_IP10.inventory_id == iid).count()
 
 
+# kech142 (zip 170, A-O09 — MOSLANDI): shu nomli FAOL material endi qayta yozilmaydi — 409 + mavjud material id si (yangi qoida
+# `tools/test_audit_ombor.py` N bo'limida to'liq); eski kodda (zip 169) — avvalgi kutilgan javob. Yashirin material — qoldiq
+# 0 qilingach o'chiriladi (EGASI QARORI «O'chirishdan oldin 0 bo'lsin»; eski kodda ham o'sha natija).
+_YANGI142 = hasattr(crud, "MaterialNomiBand")
+
+
+def _band142(r, iid):
+    try:
+        d = r.json().get("detail")
+    except Exception:                                # noqa: BLE001
+        d = None
+    return r.status_code == 409 and isinstance(d, dict) and d.get("id") == iid
+
+
 # (1) ishlatilmagan (qoldiq 0, xaridsiz) qator — qoldiq 50 bilan qayta
 _nm = _n10("BBB_R")
 _req7("post", "/api/inventory", json={"item_name": _nm, "unit": "kg", "stock_quantity": 0,
                                       "notes": "asl izoh"})
 _o = _inv_row10(_nm)
 _p0 = _purch10(_o.id) if _o else None
+_id0 = _o.id if _o else None
 r = _req7("post", "/api/inventory", json={"item_name": _nm, "unit": "kg", "stock_quantity": 50,
                                           "price_per_unit": 1000})
 _o = _inv_row10(_nm)
-check(f"qayta yaratish (ishlatilmagan): qoldiq 50 \u2192 {r.status_code}, xarid yozuvi yaratildi",
-      r.status_code == 200 and _o is not None and _o.stock_quantity == 50
-      and _p0 == 0 and _purch10(_o.id) == 1, f"{r.text[:90]} | xarid {_p0} -> {_purch10(_o.id) if _o else None}")
+check(f"qayta yaratish (ishlatilmagan): qoldiq 50 \u2192 {r.status_code}, "
+      + ("faol material QAYTA YOZILMADI (409 + id)" if _YANGI142 else "xarid yozuvi yaratildi"),
+      (_band142(r, _id0) and _o is not None and _o.stock_quantity == 0 and _p0 == 0 and _purch10(_o.id) == 0)
+      if _YANGI142 else
+      (r.status_code == 200 and _o is not None and _o.stock_quantity == 50
+       and _p0 == 0 and _purch10(_o.id) == 1), f"{r.text[:90]} | xarid {_p0} -> {_purch10(_o.id) if _o else None}")
 check("  \u21b3 izoh berilmagan — eski izoh saqlandi",
       _o is not None and _o.notes == "asl izoh", repr(_o.notes if _o else None))
 
@@ -1650,6 +1668,7 @@ r0 = _req7("post", "/api/inventory", json={"item_name": _nm, "unit": "kg", "stoc
                                            "price_per_unit": 500})
 _o = _inv_row10(_nm)
 if _o is not None:
+    _req7("post", f"/api/inventory/{_o.id}/stock", json={"quantity_change": -7, "reason": "o'chirishdan oldin 0"})
     _req7("delete", f"/api/inventory/{_o.id}")
 _o = _inv_row10(_nm)
 _soft = bool(_o is not None and _o.is_deleted)
@@ -1683,12 +1702,13 @@ check(f"  (tayyorgarlik: yangi penoplast asosiy qilindi \u2192 {_rs.status_code}
 r = _req7("post", "/api/inventory", json={"item_name": _nm, "unit": "blok", "is_penoplast": True,
                                           "is_default_penoplast": False})
 check(f"qayta yaratish (asosiy penoplast, is_default false) \u2192 {r.status_code}, korxonada asosiy penoplast SAQLANDI",
-      r.status_code == 200 and _def10() == [_px_id], f"{r.text[:80]} | asosiylar: {_def10()}")
+      (_band142(r, _px_id) if _YANGI142 else r.status_code == 200) and _def10() == [_px_id],
+      f"{r.text[:80]} | asosiylar: {_def10()}")
 c0 = _cnt10()
 r = _req7("post", "/api/inventory", json={"item_name": _nm, "unit": "blok", "is_penoplast": False})
 _o = _inv_row10(_nm)
-check(f"qayta yaratish (asosiy penoplast \u2192 oddiy material) \u2192 {r.status_code} (400 shart), o'zgarmadi",
-      r.status_code == 400 and _o is not None and _o.is_penoplast and _def10() == [_px_id]
+check(f"qayta yaratish (asosiy penoplast \u2192 oddiy material) \u2192 {r.status_code} ({409 if _YANGI142 else 400} shart), o'zgarmadi",
+      (_band142(r, _px_id) if _YANGI142 else r.status_code == 400) and _o is not None and _o.is_penoplast and _def10() == [_px_id]
       and c0 == _cnt10(), f"{r.text[:90]} | peno={_o.is_penoplast if _o else None} asosiylar={_def10()}")
 _rs = _req7("post", f"/api/inventory/{B_DEF9}/set-default-penoplast")
 check(f"  (tiklash: B ning asl asosiy penoplasti qaytarildi \u2192 {_rs.status_code})",

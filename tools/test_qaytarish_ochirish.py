@@ -67,6 +67,10 @@ with contextlib.redirect_stdout(_quiet):
     import main                                    # noqa: E402
     import crud, auth, schemas                     # noqa: E402
     import database                                # noqa: E402
+# kech142 (zip 170, A-O08 — MOSLANDI): `/reduce` endi «Brak» ning aniq taxallusi — sabab (`brak_sabab`) majburiy; eski kodda
+# (zip 169) kalit noma'lum — shuning uchun faqat yangi imzoda yuboriladi (eski va yangi kodda ham shu test o'tadi).
+import inspect as _insp142                         # noqa: E402
+_BRAK142 = {"brak_sabab": "boshqa"} if "brak_sabab" in _insp142.signature(crud.reduce_production).parameters else {}
 
 from sqlalchemy import text, inspect as sa_inspect  # noqa: E402
 from database import SessionLocal, engine          # noqa: E402
@@ -504,7 +508,7 @@ def bolim_ishlatilgan():
     O, i1, _b = buyurtma("QO_C")
     _, rc = qaytar(O, i1, 10)
     fid = fp_id_of(rc)
-    r = req(C, "post", f"/api/finished/{fid}/reduce", json={"quantity": 8, "reason": "QO singan"})
+    r = req(C, "post", f"/api/finished/{fid}/reduce", json={"quantity": 8, "reason": "QO singan", **_BRAK142})
     check("C0 kamaytirish 8 → 200", r.status_code == 200, (r.status_code, r.text[:200]))
     f0 = fp(fid)
     r = ochir(rc)
@@ -572,7 +576,7 @@ def bolim_mahsulot_ochirish():
     check("F2 eski IN_PROGRESS qaytgan mahsulot (qoldiq 5) ham → 400", r.status_code == 400,
           (r.status_code, xabar(r)))
     check("F2 penoplast soxta qaytmadi", peno() == p0, (p0, peno()))
-    r = req(C, "post", f"/api/finished/{fid}/reduce", json={"quantity": 5, "reason": "QO nolga"})
+    r = req(C, "post", f"/api/finished/{fid}/reduce", json={"quantity": 5, "reason": "QO nolga", **_BRAK142})
     r = req(C, "delete", f"/api/finished/{fid}")
     check("F3 nolga tushgach DELETE → 200 (PG da FK 500 EMAS)", r.status_code == 200, (r.status_code, r.text[:200]))
     check("F3 penoplast ombori o'zgarmadi (IN_PROGRESS qatorda ham)", peno() == p0, (p0, peno()))
@@ -713,7 +717,7 @@ def bolim_pul():
     _, r8 = qaytar(O, i1, 10)
     pul_qaytdi(r8)
     fid = fp_id_of(r8)
-    req(C, "post", f"/api/finished/{fid}/reduce", json={"quantity": 4, "reason": "QO R8"})
+    req(C, "post", f"/api/finished/{fid}/reduce", json={"quantity": 4, "reason": "QO R8", **_BRAK142})
     pa, fa = pul(O), fp(fid)
     r = ochir(r8)
     check("R8 → 400", r.status_code == 400, (r.status_code, xabar(r)))

@@ -407,10 +407,24 @@ if br:
         check("B5 chiqim oynasida qoldiq — son qoidasi bilan («8,253 metr», xom «8.253333333333332» emas)", _cq == "8,253 metr", _cq)
         pg.evaluate("""(n) => { const r = [...document.querySelectorAll('#matList .mat-row')].find(x => x.dataset.name === n);
                               r.querySelector('.act-btn.danger').click(); }""", M["m4"].item_name.lower())
-        _m = tasdiq_matni(pg)
-        tasdiqla(pg, False)
-        check("B6 material o'chirish tasdig'i — NOMI va qoldiq ogohlantirishi («Omborda hali 8,253 metr bor»); «Bekor» — so'rov yo'q",
-              M["m4"].item_name in _m and "Omborda hali 8,253 metr bor" in _m and not any(x[0] == "DELETE" for x in SOROV), _m)
+        # kech142 (zip 170 — EGASI QARORI «O'chirishdan oldin 0 bo'lsin», MOSLANDI): qoldig'i bor material endi O'CHIRILMAYDI —
+        # tasdiq o'rniga sabab oynasi (`xabarOyna`: «… omborda hali 8,253 metr bor — o'chirishdan oldin «Chiqim (tuzatish)» …»).
+        # Eski kodda (zip 169) — tasdiq oynasi («Omborda hali 8,253 metr bor») va «Bekor». Ikkalasida: nomi, son qoidasi, so'rov yo'q.
+        pg.wait_for_function("""() => ['ccModal', 'xoModal'].some(i => { const m = document.getElementById(i);
+                                       return m && getComputedStyle(m).display !== 'none'; })""")
+        _yangi142 = pg.evaluate("() => { const m = document.getElementById('xoModal'); return !!m && getComputedStyle(m).display !== 'none'; }")
+        if _yangi142:
+            _m = pg.evaluate("() => document.getElementById('xoMatn').textContent").replace("\xa0", " ")
+            pg.click("#xoOk")
+            pg.wait_for_timeout(150)
+        else:
+            _m = tasdiq_matni(pg)
+            tasdiqla(pg, False)
+        check("B6 qoldig'i bor materialni o'chirish — NOMI va qoldiq («8,253 metr»)"
+              + (" bilan rad (avval «Chiqim (tuzatish)»)" if _yangi142 else " ogohlantirishi; «Bekor»") + " — so'rov yo'q",
+              M["m4"].item_name in _m and ("omborda hali 8,253 metr bor" in _m and "Chiqim (tuzatish)" in _m if _yangi142
+                                           else "Omborda hali 8,253 metr bor" in _m)
+              and not any(x[0] == "DELETE" for x in SOROV), _m)
         del SOROV[:]
         pg.evaluate("""(n) => { const r = [...document.querySelectorAll('#matList .mat-row')].find(x => x.dataset.name === n);
                               r.querySelector('.cat-badge').click(); }""", M["m4"].item_name.lower())

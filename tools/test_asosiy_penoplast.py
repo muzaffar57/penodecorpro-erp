@@ -175,12 +175,18 @@ check("/api/penoplasts: default_id == P1, P1 ro'yxatda", _d == P1 and P1 in _it,
 section("3. Avval P2 asosiy qilinadi — keyin P1 (endi oddiy) o'chiriladi")
 _r = req(C, "post", f"/api/inventory/{P2}/set-default-penoplast")
 check("set-default P2 → 200", _r.status_code == 200, f"{_r.status_code}")
+# kech142 (zip 170 — EGASI QARORI «O'chirishdan oldin 0 bo'lsin», MOSLANDI): qoldig'i bor material o'chirilmaydi — avval qoldiq
+# tuzatish bilan 0 qilinadi (eski kodda ham shu natija: 0 qoldiqli penoplast o'chiriladi).
+_r0 = req(C, "post", f"/api/inventory/{P1}/stock", json={"quantity_change": -5, "reason": "o'chirishdan oldin 0"})
+check("P1 qoldig'i 0 qilindi (tuzatish) → 200", _r0.status_code == 200, f"{_r0.status_code}")
 _r = req(C, "delete", f"/api/inventory/{P1}")
 check("DELETE P1 (oddiy penoplast) → 200", _r.status_code == 200, f"{_r.status_code} {getattr(_r, 'text', '')[:160]}")
 _d, _it = pp()
 check("default_id == P2, P2 is_default, P1 ro'yxatda YO'Q", _d == P2 and _it.get(P2) and P1 not in _it, f"{_d} {_it}")
 
 section("4. YAGONA penoplast (asosiy) o'chiriladi — ruxsat; yashirin qator asosiy bo'lib QOLMAYDI")
+_r0 = req(C, "post", f"/api/inventory/{P2}/stock", json={"quantity_change": -5, "reason": "o'chirishdan oldin 0"})
+check("P2 qoldig'i 0 qilindi (tuzatish) → 200", _r0.status_code == 200, f"{_r0.status_code}")
 _r = req(C, "delete", f"/api/inventory/{P2}")
 _rj = js(_r) or {}
 check("DELETE P2 (yagona, asosiy) → 200", _r.status_code == 200, f"{_r.status_code} {getattr(_r, 'text', '')[:160]}")

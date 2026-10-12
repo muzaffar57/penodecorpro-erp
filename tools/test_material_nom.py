@@ -211,12 +211,22 @@ r = so("A", "put", f"/api/inventory/{ID['bosh']}", json={"item_name": "mn akril"
 check("N12 katta / kichik harf farqi — alohida nom (qoida o'zgarmagan) → 200", r.status_code == 200, (r.status_code, r.text[:200]))
 
 section("Y. Yaratish — nom chetidagi bo'shliqlar")
-r = so("A", "post", "/api/inventory", json={"item_name": "  MN Akril ", "unit": "kg"})
-check("Y1 ishlatilgan nom bo'shliqlar bilan → 400 (alohida material YARATILMAYDI)", r.status_code == 400, (r.status_code, r.text[:200]))
+# kech142 (zip 170, A-O09 — MOSLANDI): shu nomli FAOL material endi qayta yozilmaydi — 409 + mavjud material id si (yangi qoida
+# `tools/test_audit_ombor.py` N bo'limida); eski kodda (zip 169) — avvalgi kutilgan javob (400 / qayta ishlatish).
+_YANGI142 = hasattr(crud, "MaterialNomiBand")
 _n = len(nomlar())
+r = so("A", "post", "/api/inventory", json={"item_name": "  MN Akril ", "unit": "kg"})
+check("Y1 ishlatilgan nom bo'shliqlar bilan → " + ("409 + mavjud material id si" if _YANGI142 else "400")
+      + " (alohida material YARATILMAYDI)",
+      (r.status_code == 409 and ((js(r) or {}).get("detail") or {}).get("id") == ID["akril"]) if _YANGI142
+      else r.status_code == 400, (r.status_code, r.text[:200]))
+check("Y1b yangi qator yaratilmadi", len(nomlar()) == _n, len(nomlar()))
 r = so("A", "post", "/api/inventory", json={"item_name": " MN Qum Sariq ", "unit": "kg"})
-check("Y2 ishlatilmagan nom bo'shliqlar bilan → o'sha material qayta ishlatiladi (yangi qator yo'q)",
-      r.status_code == 200 and (js(r) or {}).get("id") == ID["qum"] and len(nomlar()) == _n, (r.status_code, r.text[:160]))
+check("Y2 ishlatilmagan nom bo'shliqlar bilan → " + ("409 + o'sha material id si (qayta yozilmaydi)" if _YANGI142
+                                                     else "o'sha material qayta ishlatiladi") + " (yangi qator yo'q)",
+      ((r.status_code == 409 and ((js(r) or {}).get("detail") or {}).get("id") == ID["qum"]) if _YANGI142
+       else (r.status_code == 200 and (js(r) or {}).get("id") == ID["qum"])) and len(nomlar()) == _n,
+      (r.status_code, r.text[:160]))
 r = so("A", "post", "/api/inventory", json={"item_name": "  MN Yangi  ", "unit": "kg"})
 check("Y3 yangi nom bo'shliqlar bilan → «MN Yangi» saqlandi", r.status_code == 200 and (js(r) or {}).get("item_name") == "MN Yangi",
       (r.status_code, r.text[:160]))

@@ -211,6 +211,9 @@ for _nom, _q, _m in ((V1, 1, 5), (N1, 1, 4), (OKQ, 50, 5), (H2, 0, 3)):
 # H1: narx + qoldiq → boshlang'ich qoldiq xaridi (FK) → DELETE → soft (PG da)
 _st, IDS[H1] = yarat(H1, 2, 10, narx=1000)
 check(f"material yaratildi: {H1} (narx bilan — boshlang'ich xarid)", _st == 200 and IDS[H1], f"status {_st}")
+# kech142 (zip 170 — EGASI QARORI «O'chirishdan oldin 0 bo'lsin», MOSLANDI): qoldig'i bor material o'chirilmaydi — avval tuzatish
+# bilan 0 (0 qoldiq ham «kam qolgan» — minimal 10; eski kodda ham shu natija).
+req(C, "post", f"/api/inventory/{IDS[H1]}/stock", json={"quantity_change": -2, "reason": "o'chirishdan oldin 0"})
 _dr = req(C, "delete", f"/api/inventory/{IDS[H1]}")
 _dd = js(_dr) or {}
 if PG_URL:
