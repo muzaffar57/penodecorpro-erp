@@ -895,8 +895,22 @@ async function apResolveItemId(){
       })
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      showMsg('❌ ' + (err.detail || "Yangi material yaratib bo'lmadi"), 'error');
+      // kech142 (zip 170, A-O09): shu nomli material omborda BOR — server 409 va mavjud material id si: «yangi material» rejimidan
+      // chiqib, o'sha material ro'yxatdan tanlanadi (mavjudi qayta yozilmaydi, yangisi yaratilmaydi); foydalanuvchi birlikni
+      // ko'rib, «Qo'shish» ni qayta bosadi. Qolgan xatolar — server sababi bilan (ilgari obyekt sabab «[object Object]» edi).
+      let err = {};
+      try { err = await res.clone().json(); } catch (e) { err = {}; }
+      const d = err && err.detail;
+      if (res.status === 409 && d && typeof d === 'object' && d.type === 'material_nomi_band'
+          && invItems.some(i => i.id === d.id)) {
+        apToggleNewItem();
+        const sel = document.getElementById('ap-item');
+        sel.value = String(d.id);
+        apOnItemChange();
+        showMsg('ℹ️ ' + d.message + " — o'sha material tanlandi: birligini tekshirib, «+ Material ro'yxatga qo'shish» ni qayta bosing", 'info');
+        return null;
+      }
+      showMsg("❌ Yangi material yaratib bo'lmadi: " + await amalSababi(res), 'error');
       return null;
     }
     const created = await res.json();

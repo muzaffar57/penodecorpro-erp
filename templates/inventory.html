@@ -1375,8 +1375,15 @@ async function deleteItem(id, d) {
   const qoldiq = Number(d.qty) || 0;
   const birlik = (typeof birlikKor === 'function') ? birlikKor(d.unit || '') : (d.unit || '');
   const qoldiqMatn = (typeof sonKor === 'function') ? sonKor(qoldiq, 3) : String(qoldiq);
+  // kech142 (zip 170 — EGASI QARORI 12.10 «O'chirishdan oldin 0 bo'lsin»): qoldig'i bor material o'chirilmaydi — avval qoldiq
+  // tuzatish bilan 0 qilinadi (ombor harakatlarida ko'rinadi). Server ham rad etadi (409) — bu yerda so'rovsiz, darhol sabab.
+  if (Math.abs(qoldiq) > 1e-9) {
+    const tuzatish = qoldiq < 0 ? '«Kirim (tuzatish)»' : '«Chiqim (tuzatish)»';
+    const holat = qoldiq < 0 ? `qoldig'i manfiy (${qoldiqMatn} ${birlik})` : `omborda hali ${qoldiqMatn} ${birlik} bor`;
+    xabarOyna(`«${nom}» o'chirilmadi: ${holat} — o'chirishdan oldin ${tuzatish} bilan qoldiqni 0 qiling (tuzatish ombor harakatlarida ko'rinadi).`);
+    return;
+  }
   let savol = `«${nom}» materialini o'chirasizmi?`;
-  if (qoldiq > 0) savol += `\n\n⚠️ Omborda hali ${qoldiqMatn} ${birlik} bor — o'chirilsa ro'yxatdan yo'qoladi.`;
   if(!(await customConfirm(savol, {danger: true, okText: "Ha, o'chirilsin"}))) return;
   // kech139 (zip 166, O'LCHANGAN): internet uzilsa — ekranda hech narsa chiqmasdi (o'chdimi-yo'qmi noma'lum)
   let res;

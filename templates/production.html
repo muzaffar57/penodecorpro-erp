@@ -1482,7 +1482,7 @@ function rejaOgohHtml(reja, birlik, miqdorTugmasi) {
   const topilmadi = reja.topilmadi || [];
   if (topilmadi.length) {
     qismlar.push(reja.rejim === 'yakunlash'
-      ? `<div class="ogoh sariq"><i class="ti ti-alert-triangle"></i><div><b>${escapeHtml(topilmadi.join(', '))}</b> omborda topilmadi (o'chirilgan) — yakunlashda bu qator o'tkazib yuboriladi va tannarxga kirmaydi.</div></div>`
+      ? `<div class="ogoh sariq"><i class="ti ti-alert-triangle"></i><div><b>${escapeHtml(topilmadi.join(', '))}</b> omborda topilmadi (o'chirilgan) — yakunlashda bu qator ombordan yechilmaydi, lekin tannarxga boshlangan kundagi narx bilan kiradi.</div></div>`
       : `<div class="ogoh qizil"><i class="ti ti-alert-triangle"></i><div><b>Tarkibdagi material omborda topilmadi: ${escapeHtml(topilmadi.join(', '))}</b> (o'chirilgan). Hozir boshlab bo'lmaydi — tarkibni tahrirlang.</div></div>`);
   }
   const yetmaydi = reja.yetmaydi || [];
@@ -1818,7 +1818,11 @@ async function poOyna(poId, rejim) {
   // kech120 (zip 133 — F bosqichi 3-qism, audit G5-21): ilgari «Bekor qilish» (qizil) «Yopish» yonida — boshqa oynalarda «Bekor» =
   // oynani yopish; xodim ishlab chiqarishni bekor qilib yuborishiga oz qolardi. Endi to'liq nom, chetda (`margin-right:auto`),
   // tasdiqda «Ha, bekor qilinsin» / «Yo'q, qaytish».
-  const bekorTugma = `<button class="btn btn-outline po-bekor-tugma" style="color:var(--m-b91c1c);border-color:var(--ch-f3c7c7);margin-right:auto" onclick="doCancel(${poId})">Ishlab chiqarishni bekor qilish</button>`;
+  // kech142 (zip 170, A-O03): «bekor qilish» — faqat qoralama / jarayondagi ishlab chiqarishda (yakunlangan / bekor qilinganda
+  // server baribir rad etadi — tugma ko'rinib turmasin).
+  const bekorTugma = (po.status === 'draft' || po.status === 'in_progress')
+    ? `<button class="btn btn-outline po-bekor-tugma" style="color:var(--m-b91c1c);border-color:var(--ch-f3c7c7);margin-right:auto" onclick="doCancel(${poId})">Ishlab chiqarishni bekor qilish</button>`
+    : '';
   let asosiy = '';
   if (po.status === 'draft') asosiy = `<button class="btn btn-dark" id="po-oyna-amal" onclick="poBoshlashTasdiq(${poId})"${reja && reja.mumkin ? '' : ' disabled'}>Boshlash</button>`;
   if (po.status === 'in_progress') asosiy = `<button class="btn btn-dark" id="po-oyna-amal" onclick="poYakunlashTasdiq(${poId})"${reja && reja.mumkin ? '' : ' disabled'}>Yakunlash</button>`;
@@ -1846,7 +1850,10 @@ async function poBoshlashTasdiq(poId) {
     } else {
       showMsg(xatoSababi(data, 'Boshlanmadi'), 'error');
       await loadProductionOrders();
-      poOyna(poId, 'boshlash');
+      // kech142 (zip 170, A-O03): boshqa oynada / qurilmada shu orada boshlangan yoki bekor qilingan bo'lsa — oyna yopiladi
+      // (ilgari eski holatdagi oyna qayta ochilardi).
+      const _p142 = poRoyxat.find(p => p.id === poId);
+      if (_p142 && _p142.status === 'draft') poOyna(poId, 'boshlash'); else closeModal('snapshot-modal');
     }
   } finally { poAmalda = false; }
 }
@@ -1867,7 +1874,9 @@ async function poYakunlashTasdiq(poId) {
     } else {
       showMsg(xatoSababi(data, 'Yakunlanmadi'), 'error');
       await loadProductionOrders();
-      poOyna(poId, 'yakunlash');
+      // kech142 (zip 170, A-O03): shu orada boshqa joyda yakunlangan / bekor qilingan bo'lsa — oyna yopiladi.
+      const _p142 = poRoyxat.find(p => p.id === poId);
+      if (_p142 && _p142.status === 'in_progress') poOyna(poId, 'yakunlash'); else closeModal('snapshot-modal');
     }
   } finally { poAmalda = false; }
 }
