@@ -879,7 +879,10 @@ keyingi oy oyligi ham yetmasa o'sha oyda qolgan manfiy = «Hodim qarzdor». KO'R
 `loadCurrentMonthEmpStatus` — «🟠 Hodim qarzdor: X so'm», ilgari «🟢 To'liq to'langan»), Qarzdorlar → «Boshqa majburiyatlarimiz»
 → «🟠 Hodimlar bizga qarzdor» (`get_company_obligations_status` → `employees_overdrawn`; `get_full_debt_summary` →
 `employee_overdrawn` — sof pozitsiya formulasi o'zgarmagan), hodim paneli «Oyligim» (keyingi oyga / o'tgan oydan qatorlari).
-Avans UI xatolari — `amalSababi` (ilgari «Xato yuz berdi»).
+Avans UI xatolari — `amalSababi` (ilgari «Xato yuz berdi»). KPI sahifasi `loadEmployees` (ro'yxat qayta chiziladigan 8 joy — avans,
+hodim tahriri / o'chirish) oxirida joriy oy holatini (`loadCurrentMonthEmpStatus`) ham yuklaydi — ilgari «To'langan / Qolgan» va
+holat belgisi sahifa yangilanguncha BO'SH qolardi (zip 168 sinov saytida jonli topildi); avans berish / o'chirishda «Hodimlar oylik
+hisoboti» ham yangilanadi.
 PUL QULFI VA SAVATDAN TIKLASH (kech140, zip 168 — audit A-P08 / A-P01). To'lovni o'chirish (`crud.delete_payment`), kelishilgan
 summa tahriri (`crud.update_order_agreed_amount`) va savatdan tiklash (`crud.restore_order`) — buyurtma pul qulfi
 (`_pul_qulfi(101)`) ostida, qayta o'qib. Tiklash buyurtma HALI savatdami deb tekshiradi — aks holda 409 «allaqachon tiklangan»
@@ -2603,7 +2606,8 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   kechirish / «Pul qaytdi» / qaytarishni o'chirish). 48 (SQ / PG / `TENANT_FILTER=1`) — zip 167 kodida 40 yiqiladi,
   qulamaydi (parallel tekshiruvlar — PG da). `tools/test_avans_yubor_ui.js` (node, soxta muhit): `avansYubor` (409 → oyna → «Ha» —
   `confirm_excess=true`, «Bekor» — so'rov yo'q, boshqa rad — sabab), KPI avans va «Joriy oy» kartasi, Qarzdorlar «oylikni yopish»,
-  hodim so'rovi tasdig'i, hodim paneli «Oyligim» — 23. `tools/test_xato_sababi_ui.js` MOSLANDI (`avansYubor`).
+  hodim so'rovi tasdig'i, hodim paneli «Oyligim», K7 hodimlar ro'yxati qayta chizilgach «Joriy oy» holati ham yuklanadi, K6b izoh qatori kengligi — 26 (zip 167 kodida 10 yiqiladi).
+  `tools/test_xato_sababi_ui.js` MOSLANDI (`avansYubor`).
   Mutatsiyalar — `work/k168/mut168.py`.
 
 **Yangi o'zgarish tartibi:** (1) asl kodda nuqsonni o'lchash (probe — SQLite va PG); (2) tuzatish; (3) yangi test
