@@ -103,6 +103,8 @@
 .fp-amal i{font-size:16px}
 .fp-amal:hover{border-color:var(--dark);background:var(--dark);color:#fff}
 .fp-amal-sotish{color:var(--m-15803d);border-color:var(--ch-bbf7d0)}
+/* kech142 (zip 170, A-O01): hammasi buyurtmaga band partiya — «Sotish» yopiq (ochiqdek ko'rinmasin, bosilganda qoraymasin) */
+.fp-amal-sotish:disabled,.fp-amal-sotish:disabled:hover{opacity:.55;cursor:not-allowed;background:var(--white);color:var(--m-15803d);border-color:var(--ch-bbf7d0)}
 .fp-amal-brak{color:var(--m-dc2626);border-color:var(--ch-fadbd8)}
 .fp-more{flex-direction:column;align-items:stretch;gap:2px;min-width:220px}
 .fp-more-band{display:flex;align-items:center;gap:9px;width:100%;min-height:var(--h-md);padding:6px 10px;border:0;border-radius:var(--r-btn);background:none;font-size:13px;font-weight:500;color:var(--text);cursor:pointer;text-align:left}
@@ -926,6 +928,8 @@ function fpGuruhXulosa(kalit, partiyalar) {
     kalit, partiyalar, bosh: partiyalar[0], tayyor, jarayon, miqdor,
     jarayonMiqdor: jarayon.reduce((s, i) => s + (Number(i.quantity) || 0), 0),
     band: qoldiqli.reduce((s, i) => s + (Number(i.reserved_quantity) || 0), 0),
+    // kech142 (zip 170, A-O01): sotsa bo'ladigani (qoldiq − band) — guruh «Sotish» tugmasi shunga qarab
+    sotsa: qoldiqli.reduce((s, i) => s + Math.max(0, (Number(i.quantity) || 0) - Math.max(0, Number(i.reserved_quantity) || 0)), 0),
     birlikTannarx: tannarxYoq ? null : (miqdor > 0 ? tannarxJami / miqdor : 0),
     narxlar,
     narxsizBor: qoldiqli.some(i => !((Number(i.unit_price) || 0) > 0)),
@@ -1016,7 +1020,7 @@ function guruhHtml(g) {
         <div class="fp-kul">${escapeHtml(qiymatIzoh)}</div>
       </div>
       <div class="fp-actions-wrap" style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-        ${g.miqdor > 0 ? `<button class="mini-btn" type="button" onclick="fpGuruhSotish(this)" title="Sotish — partiyalar savatchada, miqdorni o'zingiz yozasiz" aria-label="Sotish" style="color:var(--m-15803d);border-color:var(--ch-bbf7d0)"><i class="ti ti-cash"></i></button>` : ''}
+        ${g.sotsa > 0 ? `<button class="mini-btn" type="button" onclick="fpGuruhSotish(this)" title="Sotish — partiyalar savatchada, miqdorni o'zingiz yozasiz" aria-label="Sotish" style="color:var(--m-15803d);border-color:var(--ch-bbf7d0)"><i class="ti ti-cash"></i></button>` : ''}
         ${TM_TAHRIR ? `<button class="mini-btn" type="button" onclick="fpKamChegaraYoz(${Number(i0.id)})" title="«Kam» chegarasi — eng kam qoldiq" aria-label="«Kam» chegarasini yozish"><i class="ti ti-bell"></i></button>` : ''}
         <button class="mini-btn fp-guruh-tugma" type="button" aria-expanded="${ochiq ? 'true' : 'false'}"
                 aria-label="Partiyalarni ochish yoki yig'ish" title="Partiyalar" onclick="fpGuruhAlmashtir(this)"><i class="ti ti-chevron-down"></i></button>
@@ -1237,6 +1241,11 @@ function rowHtml(i, partiyami) {
   if (cleanNote) meta.push(cleanNote);
 
   const low = i.quantity <= 0;
+  // kech142 (zip 170, A-O01): sotsa bo'ladigani — qoldiq − band (server `crud._fp_bosh_qoldiq` bilan bir qoida). Band bo'lmasa
+  // qator avvalgidek (bir xil belgilar).
+  const bandQ = Math.max(0, Number(i.reserved_quantity) || 0);
+  const sotsaQ = Math.max(0, (Number(i.quantity) || 0) - bandQ);
+  const hammasiBand = bandQ > 0 && sotsaQ <= 0;
   // kech118 (D-1, G5-11): «Kam» — egasi yozgan chegara bilan; partiya guruh ichida (partiyami) — holat guruh qatorida
   const chegara = fpKamChegara(i);
   const isKam = chegara !== null && i.quantity > 0 && i.quantity < chegara;
@@ -1266,9 +1275,9 @@ function rowHtml(i, partiyami) {
     <button class="mini-btn" style="color:var(--m-dc2626);border-color:var(--ch-fadbd8)"
             onclick="delFp(${i.id}, '${jsAttrEscape(i.source)}')" title="Bekor qilish">✕</button>
   ` : `
-    <button class="fp-amal fp-amal-sotish" onclick="openSellModal(${i.id}, '${jsAttrEscape(i.name)}', ${i.quantity}, '${jsAttrEscape(i.unit)}', ${i.unit_price || 0})" title="Sotish"><i class="ti ti-cash"></i><span>Sotish</span></button>
+    <button class="fp-amal fp-amal-sotish" onclick="openSellModal(${i.id}, '${jsAttrEscape(i.name)}', ${i.quantity}, '${jsAttrEscape(i.unit)}', ${i.unit_price || 0}${bandQ > 0 ? ', ' + bandQ : ''})"${hammasiBand ? ` disabled title="Hammasi buyurtmaga band — sotish uchun avval «Bandni bekor qilish»"` : ` title="Sotish"`}><i class="ti ti-cash"></i><span>Sotish</span></button>
     ${i.source === 'produced' ? `
-    <button class="fp-amal fp-amal-brak" onclick="openLossModal(${i.id}, '${jsAttrEscape(i.name)}', ${i.quantity}, '${jsAttrEscape(i.unit)}', '${jsAttrEscape(i.category || '')}')"
+    <button class="fp-amal fp-amal-brak" onclick="openLossModal(${i.id}, '${jsAttrEscape(i.name)}', ${i.quantity}, '${jsAttrEscape(i.unit)}', '${jsAttrEscape(i.category || '')}'${bandQ > 0 ? ', ' + bandQ : ''})"
             title="Brak / yo'qotish — miqdor kamayadi, Moliyaga yoziladi"><i class="ti ti-alert-triangle"></i><span>Brak</span></button>
     ${(i.category !== 'dynamic_bom' && !i.product_type_id) ? `
     <button class="fp-amal" onclick="yanaIshlabChiqarish(${i.id})"
@@ -1278,7 +1287,7 @@ function rowHtml(i, partiyami) {
     <button class="mini-btn fp-yana" onclick="toggleFpMore(event, ${i.id})" title="Yana amallar" aria-label="Yana amallar" aria-haspopup="true"><i class="ti ti-dots"></i></button>
     <div class="fp-more" id="fp-more-${i.id}" role="menu">
       <button class="fp-more-band" role="menuitem" onclick="editPrice(${i.id})"><i class="ti ti-edit"></i><span>Narxni o'zgartirish</span></button>
-      ${i.source !== 'produced' ? `<button class="fp-more-band" role="menuitem" onclick="openLossModal(${i.id}, '${jsAttrEscape(i.name)}', ${i.quantity}, '${jsAttrEscape(i.unit)}', '${jsAttrEscape(i.category || '')}')" style="color:var(--m-b45309)"><i class="ti ti-alert-triangle"></i><span>Brak / yo'qotish</span></button>` : ''}
+      ${i.source !== 'produced' ? `<button class="fp-more-band" role="menuitem" onclick="openLossModal(${i.id}, '${jsAttrEscape(i.name)}', ${i.quantity}, '${jsAttrEscape(i.unit)}', '${jsAttrEscape(i.category || '')}'${bandQ > 0 ? ', ' + bandQ : ''})" style="color:var(--m-b45309)"><i class="ti ti-alert-triangle"></i><span>Brak / yo'qotish</span></button>` : ''}
       <button class="fp-more-band" role="menuitem" onclick="openHistoryModal(${i.id})"><i class="ti ti-info-circle"></i><span>Ma'lumot</span></button>
       ${(TM_TAHRIR && i.source === 'produced' && !partiyami) ? `<button class="fp-more-band" role="menuitem" onclick="fpKamChegaraYoz(${i.id})" aria-label="«Kam» chegarasini yozish"><i class="ti ti-bell"></i><span>«Kam» chegarasi</span></button>` : ''}
       ${i.reserved_quantity > 0 ? `<button class="fp-more-band" role="menuitem" onclick="releaseFpReservation(${i.id}, '${jsAttrEscape(i.name)}')" title="Band qilishni bekor qilib, umumiy sotuvga qaytarish" style="color:var(--m-b91c1c)"><i class="ti ti-lock-open"></i><span>Bandni bekor qilish</span></button>` : ''}
@@ -1291,7 +1300,7 @@ function rowHtml(i, partiyami) {
 
   return `
   <div class="fp-row ${isRet ? 'returned' : ''} ${inProgress ? 'progress' : ''}" data-name="${escapeHtml(i.name.toLowerCase())}">
-    ${(!inProgress && !isRet) ? `<input type="checkbox" class="fp-batch-check" data-id="${i.id}" data-name="${escapeHtml(partiyami ? fpSavatNomi(i) : i.name)}" data-qty="${i.quantity}" data-unit="${escapeHtml(i.unit)}" data-price="${i.unit_price || 0}" onchange="onBatchCheckChange()" style="width:20px;height:20px;margin-right:10px;cursor:pointer;flex-shrink:0;accent-color:#16A34A;border:2px solid #94A3B8;border-radius:4px" onclick="event.stopPropagation()">` : `<div style="width:20px;margin-right:10px;flex-shrink:0"></div>`}
+    ${(!inProgress && !isRet) ? `<input type="checkbox" class="fp-batch-check" data-id="${i.id}" data-name="${escapeHtml(partiyami ? fpSavatNomi(i) : i.name)}" data-qty="${bandQ > 0 ? sotsaQ : i.quantity}"${hammasiBand ? ' disabled title="Hammasi buyurtmaga band"' : ''} data-unit="${escapeHtml(i.unit)}" data-price="${i.unit_price || 0}" onchange="onBatchCheckChange()" style="width:20px;height:20px;margin-right:10px;cursor:pointer;flex-shrink:0;accent-color:#16A34A;border:2px solid #94A3B8;border-radius:4px" onclick="event.stopPropagation()">` : `<div style="width:20px;margin-right:10px;flex-shrink:0"></div>`}
     <div class="fp-thumb" onclick="event.stopPropagation()">
       ${i.image_url
         ? `<img src="${escapeHtml(kichikRasm(i.image_url))}" alt="" onclick="event.preventDefault();event.stopPropagation();openLightbox('${jsAttrEscape(i.image_url)}')">`
@@ -1483,7 +1492,7 @@ function fpGuruhSotish(btn) {
   if (!checks.length) { showMsg("Sotish uchun qoldiq yo'q", 'error'); return; }
   if (checks.length === 1) {
     const it = fpItems.find(x => String(x.id) === checks[0].dataset.id);
-    if (it) { openSellModal(it.id, it.name, it.quantity, it.unit, it.unit_price || 0); return; }
+    if (it) { openSellModal(it.id, it.name, it.quantity, it.unit, it.unit_price || 0, Number(it.reserved_quantity) || 0); return; }
   }
   checks.forEach(c => { c.checked = true; });
   onBatchCheckChange();
@@ -1692,12 +1701,17 @@ async function submitBatchSell(confirmBelowCost) {
 
 let _sellData = null;
 
-function openSellModal(id, name, quantity, unit, currentPrice) {
-  _sellData = { id, name, quantity, unit };
+function openSellModal(id, name, quantity, unit, currentPrice, reserved) {
+  // kech142 (zip 170, A-O01): `reserved` — buyurtmaga band qism; sotsa bo'ladigani = qoldiq − band (server bilan bir qoida).
+  const band = Math.max(0, Number(reserved) || 0);
+  const sotsa = Math.max(0, (Number(quantity) || 0) - band);
+  _sellData = { id, name, quantity, unit, reserved: band, sotsa };
   document.getElementById('sell-modal-sub').textContent = name;
-  document.getElementById('sell-stock-info').textContent = `Omborda: ${fpMiqdor(quantity)} ${unitLabel(unit)}`;   // kech120 (zip 133 — G5-07): ilgari «8 metr»
+  document.getElementById('sell-stock-info').textContent = band > 0
+    ? `Omborda: ${fpMiqdor(quantity)} ${unitLabel(unit)} · band: ${fpMiqdor(band)} (buyurtma uchun) · sotsa bo'ladi: ${fpMiqdor(sotsa)} ${unitLabel(unit)}`
+    : `Omborda: ${fpMiqdor(quantity)} ${unitLabel(unit)}`;   // kech120 (zip 133 — G5-07): ilgari «8 metr»
   document.getElementById('sell-qty').value = '';
-  document.getElementById('sell-qty').max = quantity;
+  document.getElementById('sell-qty').max = band > 0 ? sotsa : quantity;
   document.getElementById('sell-price').value = currentPrice ? fmt(currentPrice) : '';
   document.getElementById('sell-buyer').value = '';
   document.getElementById('sell-master').value = '';
@@ -1722,7 +1736,15 @@ async function submitSell(confirmBelowCost) {
   const qty = parseFloat(document.getElementById('sell-qty').value) || 0;
   const price = parseNum(document.getElementById('sell-price').value) || 0;
   if (qty <= 0) { showMsg('Miqdorni kiriting', 'error'); return; }
-  if (qty > _sellData.quantity + 0.001) { showMsg(`Omborda faqat ${fpMiqdor(_sellData.quantity)} ${unitLabel(_sellData.unit)} bor`, 'error'); return; }
+  // kech142 (zip 170, A-O01): band qism sotilmaydi (eski chaqiruvda `reserved` yo'q — avvalgidek butun qoldiq)
+  const bandQ = Math.max(0, Number(_sellData.reserved) || 0);
+  const lim = bandQ > 0 ? Math.max(0, (Number(_sellData.quantity) || 0) - bandQ) : _sellData.quantity;
+  if (qty > lim + 0.001) {
+    showMsg(bandQ > 0
+      ? `Sotsa bo'ladi faqat ${fpMiqdor(lim)} ${unitLabel(_sellData.unit)} (${fpMiqdor(bandQ)} buyurtmaga band — avval «Bandni bekor qilish»)`
+      : `Omborda faqat ${fpMiqdor(_sellData.quantity)} ${unitLabel(_sellData.unit)} bor`, 'error');
+    return;
+  }
   if (price <= 0) { showMsg('Narxni kiriting', 'error'); return; }
 
   const sellMasterVal = document.getElementById('sell-master').value;

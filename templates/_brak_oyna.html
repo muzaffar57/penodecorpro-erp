@@ -315,7 +315,10 @@ function _brakTmMiqdor() {
   const birlik = (typeof birlikQisqa === 'function') ? birlikQisqa(_lossData.unit) : ((typeof birlikKor === 'function') ? birlikKor(_lossData.unit) : (_lossData.unit || ''));
   if (info) {
     info.style.display = _lossMode === 'stock' ? 'block' : 'none';
-    info.textContent = `Omborda: ${(typeof sonKor === 'function') ? sonKor(_lossData.quantity) : _lossData.quantity} ${birlik}`;
+    // kech142 (zip 170, A-O08): buyurtmaga band qism ko'rsatiladi (band yo'q — matn avvalgidek)
+    const _band = Math.max(0, Number(_lossData.reserved) || 0);
+    info.textContent = `Omborda: ${(typeof sonKor === 'function') ? sonKor(_lossData.quantity) : _lossData.quantity} ${birlik}`
+      + (_band > 0 ? ` · shundan band: ${(typeof sonKor === 'function') ? sonKor(_band) : _band} (buyurtma uchun)` : '');
   }
   if (qty) qty.max = _lossMode === 'stock' ? _lossData.quantity : '';
 }
@@ -352,15 +355,17 @@ function brakFpTanla() {
   const id = parseInt((sel && sel.value) || '', 10);
   const i = (_brakTmRoyxat || []).find(x => Number(x.id) === id);
   _lossData = i ? { id: Number(i.id), name: i.name, quantity: Number(i.quantity), unit: i.unit,
-                    category: String(i.category || '').toLowerCase() } : null;
+                    category: String(i.category || '').toLowerCase(),
+                    reserved: Math.max(0, Number(i.reserved_quantity) || 0) } : null;   // kech142 (A-O08): band
   _brakTmMiqdor();
   if (typeof taqdirBirlikYangila === 'function') taqdirBirlikYangila('bt', _lossData ? _lossData.unit : '');   // kech125
 }
 
 // Tayyor mahsulotlardagi «−» — shu oyna, mahsulot TANLANGAN, (B) tanlangan; (C) — faqat ishlab chiqariladigan turda
-function openLossModal(id, name, quantity, unit, category) {
+function openLossModal(id, name, quantity, unit, category, reserved) {
   showBrakModal();
-  _lossData = { id, name, quantity, unit, category: (category || '').toLowerCase() };
+  // kech142 (zip 170, A-O08): `reserved` — buyurtmaga band qism (ixtiyoriy; eski chaqiruv — 0)
+  _lossData = { id, name, quantity, unit, category: (category || '').toLowerCase(), reserved: Math.max(0, Number(reserved) || 0) };
   _brakTmQotirilgan = true;
   _brakKor('brak-manba-buyurtma', false);
   _brakKor('brak-manba-ishlab', PROD_BRAK_CATEGORIES.includes(_lossData.category));
@@ -597,6 +602,18 @@ async function submitLoss() {
   try {
     if (_lossMode === 'stock') {
       if (qty > _lossData.quantity + 0.001) { showMsg(`Omborda faqat ${(typeof sonKor === 'function') ? sonKor(_lossData.quantity, 3) : _lossData.quantity} ${(typeof birlikQisqa === 'function') ? birlikQisqa(_lossData.unit) : _lossData.unit} bor`, 'error'); return; }
+      // kech142 (zip 170, A-O08): brak avval bo'sh qismdan, keyin buyurtmaga band qismdan — band qism ham kamaysa, oldindan so'raladi
+      // (buyurtma uchun shuncha qayta ishlab chiqarish kerak bo'ladi).
+      const _band = Math.max(0, Number(_lossData.reserved) || 0);
+      const _bandDan = _band > 0 ? qty - Math.max(0, (Number(_lossData.quantity) || 0) - _band) : 0;
+      if (_bandDan > 0.001) {
+        const _n = (typeof sonKor === 'function') ? sonKor(_bandDan, 3) : String(_bandDan);
+        const _b = (typeof birlikQisqa === 'function') ? birlikQisqa(_lossData.unit) : (_lossData.unit || '');
+        const ok = await customConfirm('Diqqat — buyurtmaga band mahsulot',
+          `Bu brak buyurtmaga band qilingan mahsulotdan ham ayiriladi (${_n} ${_b}) — buyurtma uchun yana ${_n} ${_b} ishlab chiqarish kerak bo'ladi. Davom etasizmi?`,
+          {okText: 'Ha, davom etish', danger: true});
+        if (!ok) return;
+      }
       const res = await fetch('/api/finished/loss', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
@@ -611,10 +628,13 @@ async function submitLoss() {
       const r = await res.json();
       if (res.ok) {
         closeBrakModal();
+        // kech142 (zip 170, A-O08): band kamaygan bo'lsa — ogohlantirish xabarga qo'shiladi
+        const _bk = Number(r.band_kamaydi) || 0;
+        const _bandXabar = _bk > 0 ? ` ⚠️ Buyurtmaga band qism ${(typeof sonKor === 'function') ? sonKor(_bk, 3) : _bk} kamaydi — buyurtma uchun shuncha qayta ishlab chiqarish kerak.` : '';
         {% if current_user.ruxsat('tannarx', 'korish') %}
-        showMsg(`✓ Kamaytirildi! Tan narxi (${_fmt(r.cost_amount)} so'm) Moliyada «Tayyor mahsulot yo'qotishi» qatoriga qo'shildi`, 'success');
+        showMsg(`✓ Kamaytirildi! Tan narxi (${_fmt(r.cost_amount)} so'm) Moliyada «Tayyor mahsulot yo'qotishi» qatoriga qo'shildi` + _bandXabar, 'success');
         {% else %}
-        showMsg(`✓ Kamaytirildi!`, 'success');
+        showMsg(`✓ Kamaytirildi!` + _bandXabar, 'success');
         {% endif %}
         // kech120 (zip 133 — G5-13): Tayyor mahsulotlar sahifasida — faqat ro'yxat yangilanadi (xabar o'qiladi); boshqa sahifada — avvalgidek
         if (typeof loadFp === 'function') loadFp(); else setTimeout(() => location.reload(), 1500);
