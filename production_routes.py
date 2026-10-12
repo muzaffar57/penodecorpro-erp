@@ -414,7 +414,10 @@ def update_bom(bom_id: int, data: dict = Body(...), db: Session = Depends(get_db
     o'zining recipe_snapshot_json'idan foydalanadi, JORIY BOM'ni emas."""
     # kech93 (8-band): tana QAT'IY (`_tana`), materiallar — shu korxonadan.
     data = _tana("BOM", data, schemas.BOMCreate)
-    bom = db.query(BOM).filter(BOM.id == bom_id, BOM.company_id == auth.company_id_of(current_user)).first()
+    # kech142 (zip 170, A-O02): retsept qatori QULFLANADI va qayta o'qiladi — ikki parallel saqlash navbat bilan
+    # (ikkinchisi birinchisining qatorlarini ko'radi; ilgari PG da qatorlar IKKI baravar bo'lib qolishi mumkin edi).
+    bom = db.query(BOM).filter(BOM.id == bom_id, BOM.company_id == auth.company_id_of(current_user)
+                               ).populate_existing().with_for_update().first()
     if not bom:
         raise HTTPException(status_code=404, detail="Mahsulot tarkibi topilmadi")
     _retsept_materiallari(db, data.items, auth.company_id_of(current_user))
@@ -438,10 +441,10 @@ def update_bom(bom_id: int, data: dict = Body(...), db: Session = Depends(get_db
     bom.variant_name = _vnom
     bom.batch_quantity = data.batch_quantity
     bom.notes = data.notes
-    db.query(BOMItem).filter(BOMItem.bom_id == bom.id, BOMItem.company_id == auth.company_id_of(current_user)).delete()
-    for item_data in data.items:
-        db.add(BOMItem(bom_id=bom.id, company_id=auth.company_id_of(current_user), **item_data.model_dump()))
-    db.flush()
+    # kech142 (zip 170, A-O02 — O'LCHANGAN HAQIQIY PG `work/audit/tasdiq/ombor/p_o02.py`): qatorlar JOYIDA yangilanadi
+    # (mos qator id si saqlanadi — `service.retsept_qatorlarini_yangila`). Ilgari hammasi o'chirilib qayta yaratilardi —
+    # qoralama ishlab chiqarishning qoplama tanlovi eski id larda qolib, o'zgarishsiz saqlash ham qoplamani tushirardi.
+    service.retsept_qatorlarini_yangila(db, bom, data.items, auth.company_id_of(current_user))
     db.expire(bom, ["items"])
     # kech110 (2c): Faoliyat jurnali — eski → yangi (amal bilan BITTA tranzaksiyada)
     try:        # farq matnidagi kutilmagan xato retseptni saqlashga xalaqit bermasin — yozuv qisqa tavsif bilan qoladi

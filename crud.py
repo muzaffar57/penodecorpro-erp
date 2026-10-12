@@ -187,7 +187,50 @@ from models import Inventory
 from schemas import InventoryCreate, InventoryUpdate
 
 
-def add_item(db: Session, item_data: InventoryCreate, company_id: int = None) -> Inventory:
+class MaterialNomiBand(ValueError):
+    """kech142 (zip 170, A-O09): yaratilayotgan material nomi shu korxonada band — marshrut 409. `detail` — sahifa uchun
+    (JSON): `type` («material_nomi_band» — faol material, «material_nomi_yashirin» — o'chirilgan (yashirilgan) material
+    boshqa birlik / turda), `message`, faol material uchun `id`, `item_name`, `unit`, `is_penoplast` — Kirim /
+    Ta'minotchilar sahifasi mavjud materialni ro'yxatdan o'zi tanlaydi."""
+
+    def __init__(self, detail: dict):
+        super().__init__(str((detail or {}).get("message") or "Material nomi band"))
+        self.detail = dict(detail or {})
+
+
+def material_nomi_band_detail(m) -> dict:
+    """kech142 (zip 170, A-O09): faol material nomi band bo'lganda 409 javobi (yaratish va parallel yaratish — bitta matn)."""
+    return {
+        "type": "material_nomi_band",
+        "message": (f"«{m.item_name}» nomli material omborda allaqachon bor (birligi: {m.unit or '—'}) — "
+                    f"ro'yxatdan tanlang"),
+        "id": m.id,
+        "item_name": m.item_name,
+        "unit": m.unit,
+        "is_penoplast": bool(m.is_penoplast),
+    }
+
+
+def _birlik_ogirish_xatosi(unit, base_unit, conversion_factor):
+    """kech142 (zip 170, A-O10 c — O'LCHANGAN kodda): materialning «mayda birligi» (`base_unit`, masalan «g») ombor birligidan
+    (`unit`, masalan «qop») farq qilsa — o'girish koeffitsienti (`conversion_factor` > 0, 1 qop necha g) MAJBURIY.
+    Ilgari koeffitsientsiz ham saqlanardi: retseptda «500 g» ko'rinardi, ishlab chiqarish esa 500 QOP yechib, 500 qop
+    narxini tannarxga yozardi (`production_service._compute_bom_line` faqat ikkalasi bo'lsa o'giradi). Yaratish va
+    tahrirda NATIJAVIY holat tekshiriladi (koeffitsient o'chirilib, mayda birlik qolsa ham). Xato — matn, aks holda None."""
+    bu = str(base_unit).strip() if base_unit is not None else ""
+    if not bu or bu == str(unit or "").strip():
+        return None
+    try:
+        f = float(conversion_factor) if conversion_factor is not None else 0.0
+    except (TypeError, ValueError):
+        f = 0.0
+    if not (f > 0):
+        return (f"«{bu}» mayda birligi uchun o'girish koeffitsienti kerak (1 {str(unit or '').strip() or 'birlik'} "
+                f"necha {bu}) — usiz retseptdagi miqdor ombor birligida yechilib ketadi")
+    return None
+
+
+def add_item(db: Session, item_data: InventoryCreate, company_id: int = None, performed_by: str = None) -> Inventory:
     """Yangi xomashyo qo'shadi.
 
     2026-09-18 — M8/F1: `company_id` ANIQ beriladi. Ilgari endpoint uni
@@ -196,7 +239,23 @@ def add_item(db: Session, item_data: InventoryCreate, company_id: int = None) ->
     `DEFAULT 1` uni to'ldirardi. Default olib tashlangach bu yo'l
     NOT NULL xatosi berardi — shuning uchun tenant endi boshidanoq
     beriladi. "Tiriltirish" (o'chirilgan qatorni qayta ishlatish) mantig'i
-    ham SHU korxona ichida qidiradi."""
+    ham SHU korxona ichida qidiradi.
+
+    kech142 (zip 170, A-O09 — O'LCHANGAN `work/audit/tasdiq/ombor/p_o09.py`, SQLite = PG; egasi qarori 12.10 «O'chirishdan
+    oldin 0 bo'lsin» bilan birga):
+      * Shu nomli FAOL material bor — `MaterialNomiBand` (409, mavjud material id si bilan), HECH NARSA yozilmaydi.
+        Ilgari qoldig'i 0 va xaridsiz faol material jimgina QAYTA YOZILARDI: birligi, penoplast belgisi, hatto
+        korxonaning ASOSIY penoplasti belgisi, blok hajmi (yuborilmasa ham 1.0), minimal qoldiq — retseptda / harakatlarda
+        ishlatilgan bo'lsa ham («O9 Akril» kg → litr, asosiy penoplast; boshqa foydalanuvchining «Lenta» si almashdi).
+      * O'chirilgan (yashirilgan) material — boshqa birlik yoki tur bilan — 409 («material_nomi_yashirin»); AYNAN shu
+        birlik va turda — o'sha material TIKLANADI: eski qoldiq SAQLANADI, yangi miqdor QO'SHILADI (harakat bilan —
+        hech narsa jim yo'qolmaydi; ilgari qoldiq ustidan yozilardi: 30 kg + 5 → 5 kg, harakat yo'q), narx / hajm —
+        kirim qoidasi bilan (eski qoldiq musbat bo'lsa o'rtacha, aks holda yangi), boshqa maydonlar — faqat
+        yuborilganlari.
+    kech142 (zip 170, A-O05 d): boshlang'ich qoldiq ombor HARAKATI bilan («Boshlang'ich qoldiq …»; ilgari qoldiq 50,
+    harakatlar yig'indisi 0 — «Harakatlar tarixi» qoldiqqa mos kelmasdi). Material, harakat, xarid va asosiy penoplast
+    belgisi — BITTA tranzaksiyada (ilgari 2–3 commit). Mayda birlik — koeffitsient bilan (`_birlik_ogirish_xatosi`)."""
+    from models import InventoryPurchase
     # 15-band: qat'iy tekshiruv — HECH NARSA yozilmasdan OLDIN (ValueError → 400).
     _clean_create("Inventory", item_data.model_dump(exclude_unset=True))
     # kech112 (K112-4): nom chetidagi bo'shliqlarsiz (" Akril " va "Akril" — bitta material; UI ham `trim` qiladi,
@@ -210,16 +269,13 @@ def add_item(db: Session, item_data: InventoryCreate, company_id: int = None) ->
     # YUBORILMAGAN bo'lsa (Ta'minotchilar sahifasi shunday yuborardi) — bu penoplast (plotnost). Ilgari
     # oddiy material bo'lib qolardi: buyurtma plotnost tanlovida yo'q, blok hajmi so'ralmasdi. ANIQ
     # yuborilgan `is_penoplast` (true / false) — o'zgarishsiz.
+    _yuborilgan = set(getattr(item_data, 'model_fields_set', set()) or set())
     if (not is_peno and str(getattr(item_data, 'category', None) or '').strip() == 'Penoplast'
-            and 'is_penoplast' not in getattr(item_data, 'model_fields_set', set())):
+            and 'is_penoplast' not in _yuborilgan):
         is_peno = True
     is_default = getattr(item_data, 'is_default_penoplast', False)
 
-    # MUHIM: agar shu nomdagi xomashyo avval o'chirilgan bo'lsa (lekin xarid
-    # tarixi bo'lgani uchun butunlay o'chmasdan, "yashirin" — is_deleted=True
-    # holda qolgan bo'lsa) — YANGI qator yaratmaymiz (bu — nom takrorlanishi
-    # xatosini keltirib chiqarardi), aksincha O'SHA eskisini "tiriltiramiz"
-    # (is_deleted=False) va yangi ma'lumotlar bilan yangilaymiz.
+    # Nom korxona ichida YAGONA (`uq_inventory_company_item_name` — yashirilgan qator ham nomni band qiladi).
     _scope = (lambda q: q.filter(Inventory.company_id == company_id)) if company_id is not None else (lambda q: q)
 
     existing_deleted = _scope(db.query(Inventory).filter(
@@ -227,106 +283,121 @@ def add_item(db: Session, item_data: InventoryCreate, company_id: int = None) ->
         Inventory.is_deleted.is_(True)
     )).first()
 
-    # MUHIM (2): agar shu nomda ALLAQACHON, "yashirin" emas, ODDIY faol
-    # (is_deleted=False) qator bo'lsa-yu, u HALI HECH QACHON ISHLATILMAGAN
-    # bo'lsa (qoldiq=0 VA birorta xarid tarixi yo'q) — bu, katta ehtimol
-    # bilan, "Kirim" sahifasida bekor qilingan/tugallanmagan urinishdan
-    # qolgan "bo'sh" yozuv (masalan: material qo'shib, keyin ro'yxatdan
-    # olib tashlangan, lekin haqiqiy kirim hech qachon tasdiqlanmagan).
-    # Bunday holatda ham YANGI qator yaratib, nom takrorlanishi xatosini
-    # chiqarish o'rniga — O'SHA bo'sh yozuvni qayta ishlatamiz (xuddi
-    # yuqoridagi holat kabi). Bu, "materialni o'chirib-qayta yozsam xato
-    # beryapti" muammosini butunlay oldini oladi.
-    existing_unused = None
-    if not existing_deleted:
-        existing_unused = _scope(db.query(Inventory).filter(
+    if existing_deleted is None:
+        # kech142 (zip 170, A-O09): FAOL material — qayta yozilmaydi (409, sahifa uni ro'yxatdan tanlaydi). `isnot(True)` —
+        # eski NULL qatorlar ham ko'rinadigan material hisoblanadi (boshqa joylardagidek).
+        _faol = _scope(db.query(Inventory).filter(
             Inventory.item_name == item_data.item_name,
-            Inventory.is_deleted.is_(False),
-            Inventory.stock_quantity == 0
+            Inventory.is_deleted.isnot(True)
         )).first()
-        if existing_unused:
-            from models import InventoryPurchase
-            has_purchase = db.query(InventoryPurchase).filter(
-                InventoryPurchase.inventory_id == existing_unused.id
-            ).first()
-            if has_purchase:
-                existing_unused = None  # haqiqiy, ishlatilgan material ekan — tegmaymiz
+        if _faol is not None:
+            raise MaterialNomiBand(material_nomi_band_detail(_faol))
 
-    existing_to_reuse = existing_deleted or existing_unused
-    if existing_to_reuse:
-        # 15-band (O'LCHANGAN): qayta ishlatilayotgan qator korxonaning
-        # ASOSIY penoplasti bo'lsa-yu, yangi tana uni oddiy material qilsa —
-        # korxonada asosiy penoplast qolmasdi. `update_item` dagi qoida bilan
-        # bir xil: rad etiladi, hech narsa yozilmaydi.
-        if existing_to_reuse.is_default_penoplast and not is_peno:
-            raise ValueError("Asosiy penoplastni oddiy materialga aylantirib bo'lmaydi — "
-                             "avval boshqa penoplastni asosiy qiling")
-        existing_to_reuse.is_deleted = False
-        existing_to_reuse.stock_quantity = item_data.stock_quantity
-        existing_to_reuse.unit = item_data.unit
-        existing_to_reuse.min_stock = item_data.min_stock
+    qty = float(item_data.stock_quantity or 0)
+    price = float(item_data.price_per_unit or 0)
+
+    if existing_deleted is not None:
+        e = existing_deleted
+        # O'chirilgan material — faqat AYNAN shu birlik va turda tiklanadi (birligi / turi boshqa material retsept, harakat,
+        # eski buyurtmalarda shu qator orqali ko'rinadi — uni boshqa narsaga aylantirib bo'lmaydi).
+        if (str(item_data.unit or "").strip() != str(e.unit or "").strip()
+                or bool(is_peno) != bool(e.is_penoplast)):
+            raise MaterialNomiBand({
+                "type": "material_nomi_yashirin",
+                "message": (f"«{e.item_name}» nomi avval o'chirilgan (yashirilgan) materialda band (birligi: "
+                            f"{e.unit or '—'}{', penoplast' if e.is_penoplast else ''}). Shu birlik va turda yarating — "
+                            f"o'sha material tiklanadi — yoki boshqa nom tanlang"),
+                "item_name": e.item_name,
+                "unit": e.unit,
+                "is_penoplast": bool(e.is_penoplast),
+            })
+        # Mayda birlik / koeffitsient YUBORILGAN bo'lsa — natijaviy holat tekshiriladi (eski koeffitsientsiz yozuv tiklashni to'smaydi).
+        if 'base_unit' in _yuborilgan or 'conversion_factor' in _yuborilgan:
+            _bu = item_data.base_unit if 'base_unit' in _yuborilgan else e.base_unit
+            _cf = item_data.conversion_factor if 'conversion_factor' in _yuborilgan else e.conversion_factor
+            _bx = _birlik_ogirish_xatosi(e.unit, _bu, _cf)
+            if _bx:
+                raise ValueError(_bx)
+        _eski_qty = float(e.stock_quantity or 0)
+        _eski_narx = float(e.price_per_unit or 0)
+        _eski_hajm = float(e.volume_per_unit or 1.0)
+        e.is_deleted = False
+        # Narx: kirim qoidasi (`_purchase_stock_no_commit`) — eski qoldiq musbat bo'lsa o'rtacha vaznli; eski qoldiq 0 /
+        # manfiy bo'lsa yangi narx; yangi miqdorsiz (faqat narx) — eski musbat qoldiq narxi o'zgarmaydi.
         if item_data.price_per_unit is not None:
-            existing_to_reuse.price_per_unit = item_data.price_per_unit
-        if item_data.volume_per_unit is not None:
-            existing_to_reuse.volume_per_unit = item_data.volume_per_unit
-        existing_to_reuse.is_penoplast = is_peno
-        existing_to_reuse.is_default_penoplast = (is_default and is_peno)
+            _yn = float(item_data.price_per_unit)
+            if qty > 0 and _eski_qty > 0:
+                e.price_per_unit = round((_eski_qty * _eski_narx + qty * _yn) / (_eski_qty + qty), 2)
+            elif qty > 0 or _eski_qty <= 0:
+                e.price_per_unit = _yn
+        # Blok hajmi (penoplast) — faqat YUBORILGAN bo'lsa (sxema standarti 1.0 — yuborilmasa eski hajm qoladi), xuddi
+        # shu qoida (A-O06).
+        if 'volume_per_unit' in _yuborilgan and item_data.volume_per_unit is not None:
+            _yh = float(item_data.volume_per_unit)
+            if qty > 0 and _eski_qty > 0:
+                e.volume_per_unit = round((_eski_qty * _eski_hajm + qty * _yh) / (_eski_qty + qty), 4)
+            elif qty > 0 or _eski_qty <= 0:
+                e.volume_per_unit = _yh
+        if 'min_stock' in _yuborilgan:
+            e.min_stock = item_data.min_stock
         if getattr(item_data, 'category', None):
-            existing_to_reuse.category = item_data.category
-        # 15-band (O'LCHANGAN): izoh berilmasa eski izoh JIMGINA o'chardi
-        # (UI yaratish formasi izoh yubormaydi). Endi kategoriya / birlik
-        # kabi — faqat berilganda yangilanadi.
+            e.category = item_data.category
+        # 15-band (O'LCHANGAN): izoh berilmasa eski izoh saqlanadi (UI yaratish formasi izoh yubormaydi).
         if getattr(item_data, 'notes', None) is not None:
-            existing_to_reuse.notes = item_data.notes
-        if getattr(item_data, 'base_unit', None) is not None:
-            existing_to_reuse.base_unit = item_data.base_unit
-        if getattr(item_data, 'conversion_factor', None) is not None:
-            existing_to_reuse.conversion_factor = item_data.conversion_factor
+            e.notes = item_data.notes
+        if 'base_unit' in _yuborilgan:
+            e.base_unit = item_data.base_unit
+        if 'conversion_factor' in _yuborilgan:
+            e.conversion_factor = item_data.conversion_factor
+        # Qoldiq: eski + yangi (hech qachon ustidan yozilmaydi); yangi miqdor — kirim harakati bilan.
+        e.stock_quantity = _eski_qty + qty
+        e.is_default_penoplast = bool(is_default and is_peno)
         if is_peno and is_default:
-            # 2026-09-21 (O'LCHANGAN): qayta tiklanayotgan pozitsiyaning o'zi
-            # UPDATE dan chiqariladi. Aks holda autoflush uning `True` sini
-            # bazaga yozib, UPDATE uni `False` qilardi, xotiradagi `True`
-            # esa "o'zgarish yo'q" bo'lib qolardi — korxonada birorta ham
-            # asosiy penoplast qolmasdi.
+            # 2026-09-21 (O'LCHANGAN): tiklanayotgan pozitsiyaning o'zi UPDATE dan chiqariladi. Aks holda autoflush uning
+            # `True` sini bazaga yozib, UPDATE uni `False` qilardi, xotiradagi `True` esa "o'zgarish yo'q" bo'lib qolardi —
+            # korxonada birorta ham asosiy penoplast qolmasdi.
             _scope(db.query(Inventory).filter(
                 Inventory.is_default_penoplast == True,
-                Inventory.id != existing_to_reuse.id)).update(
+                Inventory.id != e.id)).update(
                 {"is_default_penoplast": False}, synchronize_session=False
             )
-            existing_to_reuse.is_default_penoplast = True
+            e.is_default_penoplast = True
         db.flush()
-        # 15-band (O'LCHANGAN): bu yo'lda boshlang'ich qoldiq uchun xarid
-        # yozuvi yaratilmasdi (yangi qator yo'lida bor) — qoldiq 0 → 50
-        # bo'lsa ham, xarajat Moliyada ko'rinmasdi. Endi ikki yo'l bir xil.
-        _r_qty = float(item_data.stock_quantity or 0)
-        _r_price = float(item_data.price_per_unit or 0)
-        if _r_qty > 0 and _r_price > 0:
-            from models import InventoryPurchase
+        if qty > 0:
+            log_movement(db, e.id, e.item_name, "in", qty, unit=e.unit,
+                         reason="Boshlang'ich qoldiq (o'chirilgan material qayta yaratilganda kiritilgan)",
+                         performed_by=performed_by, company_id=e.company_id)
+        # 15-band (O'LCHANGAN): boshlang'ich qoldiq xaridi — yangi qator yo'lidagi kabi (xarajat Moliyada ko'rinsin).
+        if qty > 0 and price > 0:
             db.add(InventoryPurchase(
-                inventory_id=existing_to_reuse.id,
-                item_name=existing_to_reuse.item_name,
-                quantity=_r_qty,
-                unit=existing_to_reuse.unit,
+                inventory_id=e.id,
+                item_name=e.item_name,
+                quantity=qty,
+                unit=e.unit,
                 # 17g: narx va jami bazadagidek yaxlitlanadi (`_xarid_narx_jami`)
-                price_per_unit=_xarid_narx_jami(_r_qty, _r_price)[0],
-                total_amount=_xarid_narx_jami(_r_qty, _r_price)[1],
+                price_per_unit=_xarid_narx_jami(qty, price)[0],
+                total_amount=_xarid_narx_jami(qty, price)[1],
                 notes="Boshlang'ich qoldiq (material yaratilganda kiritilgan)"
             ))
-        # 15-band (O'LCHANGAN): yangi qator yo'lidagi kabi — korxonada asosiy
-        # penoplast qolmagan bo'lsa, shu penoplast asosiy bo'ladi (aks holda
-        # yagona asosiy penoplast qayta yaratilganda korxonada 0 ta qolardi).
-        if is_peno and not existing_to_reuse.is_default_penoplast:
+        # 15-band (O'LCHANGAN): korxonada asosiy penoplast qolmagan bo'lsa, shu penoplast asosiy bo'ladi.
+        if is_peno and not e.is_default_penoplast:
             # kech37 (18-band): yashirin qatordagi eski asosiy belgi hisobga olinmaydi
             _bor = _scope(db.query(Inventory).filter(
                 Inventory.is_default_penoplast == True,
-                Inventory.id != existing_to_reuse.id,
+                Inventory.id != e.id,
                 Inventory.is_deleted.isnot(True)
             )).first()
             if not _bor:
-                existing_to_reuse.is_default_penoplast = True
+                e.is_default_penoplast = True
         db.commit()
-        db.refresh(existing_to_reuse)
-        return existing_to_reuse
+        db.refresh(e)
+        return e
+
+    # Yangi material
+    _bx = _birlik_ogirish_xatosi(item_data.unit, getattr(item_data, 'base_unit', None),
+                                 getattr(item_data, 'conversion_factor', None))
+    if _bx:
+        raise ValueError(_bx)
 
     # Agar asosiy deb belgilangan bo'lsa — eskisini bekor qilamiz
     if is_peno and is_default:
@@ -350,17 +421,19 @@ def add_item(db: Session, item_data: InventoryCreate, company_id: int = None) ->
         conversion_factor=getattr(item_data, 'conversion_factor', None)
     )
     db.add(db_item)
-    db.commit()
-    db.refresh(db_item)
+    db.flush()
+
+    # kech142 (zip 170, A-O05 d): boshlang'ich qoldiq — ombor harakati bilan (narxsiz ham; xarid — faqat narx bo'lsa).
+    if qty > 0:
+        log_movement(db, db_item.id, db_item.item_name, "in", qty, unit=db_item.unit,
+                     reason="Boshlang'ich qoldiq (material yaratilganda kiritilgan)",
+                     performed_by=performed_by, company_id=company_id)
 
     # MUHIM: agar boshlang'ich miqdor (va narx) kiritilgan bo'lsa —
     # bu ham HAQIQIY xarajat, shuning uchun uni ham "xarid" tarixiga
     # yozamiz. Aks holda bu pul Moliya hisobotlarida umuman ko'rinmay
     # qolar edi (faqat ombor miqdori yozilib, xarajat qayd etilmasdi).
-    qty = float(item_data.stock_quantity or 0)
-    price = float(item_data.price_per_unit or 0)
     if qty > 0 and price > 0:
-        from models import InventoryPurchase
         purchase = InventoryPurchase(
             inventory_id=db_item.id,
             item_name=db_item.item_name,
@@ -372,7 +445,6 @@ def add_item(db: Session, item_data: InventoryCreate, company_id: int = None) ->
             notes="Boshlang'ich qoldiq (material yaratilganda kiritilgan)"
         )
         db.add(purchase)
-        db.commit()
 
     # Agar birinchi penoplast bo'lsa — avtomatik asosiy qilamiz
     # kech37 (18-band): yashirilgan (o'chirilgan) qatordagi eski asosiy belgi
@@ -385,9 +457,9 @@ def add_item(db: Session, item_data: InventoryCreate, company_id: int = None) ->
         )).first()
         if not has_default:
             db_item.is_default_penoplast = True
-            db.commit()
-            db.refresh(db_item)
 
+    db.commit()
+    db.refresh(db_item)
     return db_item
 
 
@@ -419,11 +491,36 @@ def get_item_locked(db: Session, item_id: int, company_id: int = None) -> Option
     shunda hech kimning o'zgartirishi "yo'qolib" ketmaydi.
     Faqat MIQDORNI O'ZGARTIRISH kerak bo'lgan joylarda ishlatiladi —
     oddiy ko'rish/ro'yxat uchun emas (aks holda keraksiz sekinlik yaratadi).
-    PostgreSQL'da haqiqiy qulflaydi; SQLite'da (test muhiti) e'tiborsiz qoldiriladi."""
+    PostgreSQL'da haqiqiy qulflaydi; SQLite'da (test muhiti) e'tiborsiz qoldiriladi.
+
+    kech142 (zip 170, A-O04): qiymatlar bazadan QAYTA yuklanadi — `inventory_qulf` izohi."""
+    return inventory_qulf(db, item_id, company_id)
+
+
+def inventory_qulf_sorov(db: Session, q):
+    """kech142 (zip 170, A-O04 — O'LCHANGAN HAQIQIY PG `work/audit/tasdiq/ombor/p_o04b.py` S6): material (Inventory)
+    qatorini `SELECT … FOR UPDATE` bilan qulflaydi VA qiymatlarini bazadan QAYTA yuklaydi (`populate_existing`).
+
+    Sabab: sessiya shu qatorni OLDIN qulfsiz o'qigan bo'lsa (masalan tekshiruv yoki boshqa obyekt orqali — `fp.penoplast`,
+    `ing.inventory`), `FOR UPDATE` boshqa tranzaksiyaning commit ini KUTADI, lekin SQLAlchemy sessiyadagi ESKI obyektni
+    eski qiymatlari bilan qaytaradi; chaqiruvchi esa mutlaq qiymat yozadi (`p.stock_quantity = eski − blok`) — parallel
+    kirim YO'QOLARDI (penoplast 119.95 + 10 kirim − 0.05 → 119.9, to'g'risi 129.85; qoldiq ≠ Σ harakat).
+    - Avval `flush` — sessiyadagi yozilmagan o'zgarish `populate_existing` da yo'qolmasin (`SessionLocal` autoflush=False;
+      `_fp_qulf` naqshi).
+    - `q` — `db.query(Inventory)…` (chaqiruvchining filtrlari bilan: id, korxona); natija — bitta qator yoki None."""
+    db.flush()
+    return q.populate_existing().with_for_update().first()
+
+
+def inventory_qulf(db: Session, item_id, company_id: int = None) -> Optional[Inventory]:
+    """kech142 (zip 170, A-O04): id (va korxona) bo'yicha material qatori — QULFLANGAN va bazadan QAYTA yuklangan
+    (`inventory_qulf_sorov`). id bo'sh bo'lsa — None (so'rov yuborilmaydi)."""
+    if not item_id:
+        return None
     q = db.query(Inventory).filter(Inventory.id == item_id)
     if company_id is not None:
         q = q.filter(Inventory.company_id == company_id)
-    return q.with_for_update().first()
+    return inventory_qulf_sorov(db, q)
 
 
 # ============================================================
@@ -1058,7 +1155,11 @@ def _purchase_stock_no_commit(db: Session, item_id: int, quantity: float, price_
     if db_item.is_penoplast and volume_per_unit and volume_per_unit > 0:
         if abs(volume_per_unit - old_volume) > 0.001:
             volume_changed = True
-        if total_qty > 0:
+        # kech142 (zip 170, A-O06 — O'LCHANGAN `work/audit/tasdiq/ombor/p_o06.py`): blok hajmi ham NARX qoidasi bilan —
+        # eski qoldiq MANFIY yoki 0 bo'lsa o'rtachaga KIRMAYDI (yangi partiya hajmi olinadi). Ilgari faqat `total_qty > 0`
+        # tekshirilardi: −1 blok (1.0 m³) + 4 blok (1.4 m³) → 1.5333 m³ (ikkala partiyadan ham katta), −3.9 @1.0 + 4 @1.4 →
+        # 17.0 m³, −1.9 @1.4 + 2 @1.0 → −6.6 m³ (manfiy hajm — buyurtma penoplastni AYIRISH o'rniga QO'SHARDI).
+        if old_qty > 0 and total_qty > 0:
             weighted_volume = (old_qty * old_volume + quantity * volume_per_unit) / total_qty
         else:
             weighted_volume = volume_per_unit
@@ -1432,6 +1533,17 @@ def update_item(db: Session, item_id: int, item_data: InventoryUpdate) -> Option
                     raise ValueError(f'"{_yangi_nom}" nomi avval o\'chirilgan (yashirilgan) materialda band — '
                                      f'boshqa nom tanlang')
                 raise ValueError(f'"{_yangi_nom}" nomli material allaqachon omborda mavjud — boshqa nom tanlang')
+    # kech142 (zip 170, A-O10 c): mayda birlik — koeffitsient bilan (NATIJAVIY holat: koeffitsient o'chirilib mayda birlik
+    # qolsa ham, oddiy materialga koeffitsientsiz mayda birlik berilsa ham — rad, hech narsa yozilmaydi). Faqat birlik /
+    # mayda birlik / koeffitsient o'zgartirilganda — eski (koeffitsientsiz) materialning boshqa tahriri (nom, minimal qoldiq)
+    # to'silmaydi.
+    if any(k in update_data for k in ("unit", "base_unit", "conversion_factor")):
+        _bx = _birlik_ogirish_xatosi(update_data["unit"] if "unit" in update_data else db_item.unit,
+                                     update_data["base_unit"] if "base_unit" in update_data else db_item.base_unit,
+                                     update_data["conversion_factor"] if "conversion_factor" in update_data
+                                     else db_item.conversion_factor)
+        if _bx:
+            raise ValueError(_bx)
     for field, value in update_data.items():
         setattr(db_item, field, value)
     db.commit()
@@ -1439,15 +1551,37 @@ def update_item(db: Session, item_id: int, item_data: InventoryUpdate) -> Option
     return db_item
 
 
+class MaterialQoldiqBor(ValueError):
+    """kech142 (zip 170 — EGASI QARORI 12.10 «O'chirishdan oldin 0 bo'lsin»): qoldig'i 0 bo'lmagan material o'chirilmaydi —
+    marshrut 409, sababi bilan (avval qoldiq «Chiqim (tuzatish)» / «Kirim (tuzatish)» bilan 0 qilinadi — jurnalda
+    ko'rinadi)."""
+
+
+def material_qoldiq_xabari(m) -> str:
+    """kech142 (zip 170): qoldig'i bor materialni o'chirish rad xabari (server va sahifa — bir xil ma'no)."""
+    q = float(m.stock_quantity or 0)
+    _q = f"{q:.4f}".rstrip("0").rstrip(".")
+    if q < 0:
+        return (f"«{m.item_name}» qoldig'i manfiy ({_q} {m.unit or ''}) — o'chirishdan oldin «Kirim (tuzatish)» bilan "
+                f"qoldiqni 0 qiling (tuzatish ombor harakatlarida ko'rinadi)")
+    return (f"«{m.item_name}» omborda hali {_q} {m.unit or ''} bor — o'chirishdan oldin «Chiqim (tuzatish)» bilan "
+            f"qoldiqni 0 qiling (tuzatish ombor harakatlarida ko'rinadi)")
+
+
 def delete_item(db: Session, item_id: int) -> dict:
     """Xomashyoni o'chiradi.
     Agar bu xomashyo biror buyurtma/harakat/xarid tarixida ISHLATILGAN bo'lsa —
     bazadan butunlay o'chirib bo'lmaydi (eski hisobotlar buziladi). Shunday holatda
     XAVFSIZ tarzda 'yumshoq o'chirish' qilinadi — Omborxona ro'yxatidan yo'qoladi,
-    lekin eski buyurtmalarda ko'rinishda davom etadi."""
+    lekin eski buyurtmalarda ko'rinishda davom etadi.
+
+    kech142 (zip 170 — EGASI QARORI 12.10 «O'chirishdan oldin 0 bo'lsin»): qoldig'i 0 bo'lmagan material o'chirilmaydi
+    (`MaterialQoldiqBor` → 409). Ilgari qoldiq bilan jimgina yashirilardi — o'sha qoldiq hech qayerda ko'rinmas, nom
+    qayta yaratilganda esa ustidan yozilib yo'qolardi (A-O09). Endi qoldiq avval tuzatish bilan 0 qilinadi (jurnalda
+    ko'rinadi), so'ng o'chiriladi. Qoldiq QULF ostida o'qiladi (parallel kirim bilan poyga bo'lmasin)."""
     from sqlalchemy.exc import IntegrityError, ProgrammingError
 
-    db_item = get_item(db, item_id)
+    db_item = inventory_qulf(db, item_id)
     if not db_item:
         return {"success": False, "message": "Xomashyo topilmadi"}
 
@@ -1470,6 +1604,10 @@ def delete_item(db: Session, item_id: int) -> dict:
         if _boshqa_peno:
             raise ValueError("Asosiy penoplastni o'chirib bo'lmaydi — avval boshqa penoplastni "
                              "asosiy qiling (\"☆ Asosiy qilish\" tugmasi)")
+    # kech142 (zip 170 — egasi qarori): qoldiq tekshiruvi asosiy penoplast qoidasidan KEYIN — avval tuzilma sababi (boshqa
+    # penoplastni asosiy qilish), so'ng qoldiq (foydalanuvchi qoldiqni behuda 0 qilib, keyin baribir o'chira olmay qolmasin).
+    if abs(float(db_item.stock_quantity or 0)) > 1e-9:
+        raise MaterialQoldiqBor(material_qoldiq_xabari(db_item))
 
     try:
         db.delete(db_item)
@@ -1477,7 +1615,13 @@ def delete_item(db: Session, item_id: int) -> dict:
         return {"success": True, "soft": False, "message": "Xomashyo butunlay o'chirildi"}
     except (IntegrityError, ProgrammingError):
         db.rollback()
-        db_item = get_item(db, item_id)
+        # kech142 (zip 170): rollback qulfni bo'shatdi — qator QAYTA qulflanib, qoldiq yana tekshiriladi (shu orada kirim
+        # qilingan bo'lsa — qoldiqli material yashirilmasin).
+        db_item = inventory_qulf(db, item_id)
+        if not db_item:
+            return {"success": False, "message": "Xomashyo topilmadi"}
+        if abs(float(db_item.stock_quantity or 0)) > 1e-9:
+            raise MaterialQoldiqBor(material_qoldiq_xabari(db_item))
         db_item.is_deleted = True
         # kech37 (18-band): yashirilgan qator asosiy penoplast bo'lib QOLMAYDI
         db_item.is_default_penoplast = False
@@ -2444,12 +2588,18 @@ def get_finished_product(db: Session, fp_id: int, company_id: int = None,
 
     company_id berilmasa — filtrsiz (orqaga moslik uchun).
     lock=True — `.with_for_update()` bilan qatorni qulflaydi (sotuv,
-    brak kabi miqdor o'zgartiradigan amallar uchun)."""
+    brak kabi miqdor o'zgartiradigan amallar uchun).
+
+    kech142 (zip 170, A-O08 / A-O04): lock=True da qiymatlar bazadan QAYTA yuklanadi (avval `flush`, so'ng
+    `populate_existing` — `_fp_qulf` naqshi). Ilgari marshrut qatorni 404 tekshiruvi uchun OLDIN qulfsiz o'qigan
+    bo'lsa, `FOR UPDATE` parallel sotuv commit ini kutardi-yu, sessiyadagi ESKI qoldiqni qaytarardi — mutlaq yozuv
+    (`fp.quantity = eski − x`) parallel sotuvni yo'qotardi."""
     q = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id)
     if company_id is not None:
         q = q.filter(FinishedProduct.company_id == company_id)
     if lock:
-        q = q.with_for_update()
+        db.flush()
+        return q.populate_existing().with_for_update().first()
     return q.first()
 
 
@@ -2544,7 +2694,7 @@ def _fp_stable_unit_cost(db, fp) -> float:
         if _fp_cid is not None:
             _q = _q.filter(Inventory.company_id == _fp_cid)
         if lock:
-            _q = _q.with_for_update()
+            return inventory_qulf_sorov(db, _q)      # kech142 (A-O04): qulf + bazadan qayta yuklash
         return _q.first()
 
     unit_vol = float(getattr(fp, 'unit_volume_m3', None) or 0)
@@ -4627,6 +4777,41 @@ def _fp_tayyormi(fp) -> bool:
     # sotiladi.
     return not (fp.source == StockSource.PRODUCED
                 and fp.production_status == ProductionStatus.IN_PROGRESS)
+
+
+def _fp_bosh_qoldiq(fp) -> float:
+    """kech142 (zip 170, A-O01): sotsa / boshqa ishga olsa bo'ladigan qoldiq = qoldiq − band (manfiy emas). Band — MRP
+    buyurtma detaliga ajratilgan qism (`models.FinishedProduct.reserved_quantity` — qoldiqning ICHIDA), uni faqat o'sha
+    detalning yuk xati oladi. Bitta sotuv va savatcha sotuvi — shu bitta qoida."""
+    return max(0.0, float(fp.quantity or 0) - max(0.0, float(fp.reserved_quantity or 0)))
+
+
+def _fp_band_xabari(fp, soralgan: float) -> str:
+    """kech142 (zip 170, A-O01): band sababli sotuv rad xabari — bitta va savatcha sotuvi uchun BIR matn (manfiy son
+    yo'q: band qoldiqdan katta eski yozuvda ham «faqat 0»)."""
+    band = max(0.0, float(fp.reserved_quantity or 0))
+    return (f"{fp.name}: omborda {float(fp.quantity or 0):g} {fp.unit}, shundan {band:g} {fp.unit} buyurtmaga band — "
+            f"sotsa bo'ladi faqat {_fp_bosh_qoldiq(fp):g} {fp.unit}, {float(soralgan):g} sota olmaysiz. Band mahsulotni "
+            f"sotish uchun avval «Bandni bekor qilish»")
+
+
+def _fp_band_qoldiqqa_moslash(db: Session, fp, performed_by: str = None) -> float:
+    """kech142 (zip 170, A-O08): tayyor mahsulotda band QOLDIQDAN oshmaydi — brak / yo'qotish avval bo'sh qismdan, keyin
+    banddan (qoldiq bitta qatorda; buyurtma himoyalanadi). Kamaygan band miqdori qaytariladi (0 — o'zgarmadi); shu
+    miqdor buyurtma detali uchun yana ishlab chiqarilishi kerak (`production_service.mrp_detal_kerak` uni o'zi ko'radi).
+    `reserved_for_order_item_id` TOZALANMAYDI (tarixiy bog'lam). Ilgari band qoldiqdan katta qolardi (qoldiq 0, band 10):
+    yuk xati, «Tayyor» va yangi ishlab chiqarish uchalasi rad etilib, buyurtma qotib qolardi."""
+    band = float(fp.reserved_quantity or 0)
+    q = max(0.0, float(fp.quantity or 0))
+    if not _fp_tayyormi(fp) or band <= q + 1e-9:
+        return 0.0
+    fp.reserved_quantity = q
+    log_activity(db, "updated", "finished_product", fp.id, fp.name, performed_by,
+                 old_value=f"band: {band:g}",
+                 new_value=(f"band: {q:g} — brak / yo'qotish; buyurtma detali #{fp.reserved_for_order_item_id} uchun "
+                            f"yana {band - q:g} {fp.unit or ''} ishlab chiqarish kerak").replace("  ", " "),
+                 company_id=getattr(fp, 'company_id', None), commit=False)
+    return band - q
 
 
 _FP_JARAYONDA_XABAR = "Mahsulot hali ishlab chiqarilmoqda — avval \"Tayyor\" deb belgilang"
@@ -7123,10 +7308,12 @@ def delete_return_item(db: Session, return_id: int, company_id: int = None,
         for _h in _harakatlar:
             _inv = None
             if _h.inventory_id is not None:
+                # kech142 (A-O04): qulf + bazadan qayta yuklash (avval flush — `inventory_qulf_sorov` naqshi)
+                db.flush()
                 _inv = db.query(Inventory).filter(
                     Inventory.id == _h.inventory_id,
                     Inventory.company_id == _cid,
-                ).with_for_update().first()
+                ).populate_existing().with_for_update().first()
             if _inv is not None:
                 _inv.stock_quantity = float(_inv.stock_quantity or 0) + float(_h.quantity or 0)
                 _xom.append(f"{_inv.item_name} +{_miqdor_matn(float(_h.quantity or 0))} {_inv.unit or ''}".rstrip())
@@ -10998,6 +11185,9 @@ def record_finished_product_loss(db: Session, data, created_by: str = None,
         except ValueError as _e:
             db.rollback()
             return {"success": False, "message": str(_e)}
+    # kech142 (zip 170, A-O08): band qoldiqdan oshmasin — taqdirdan KEYIN («Tuzatildi → o'sha partiyaga» qaytgan mahsulot
+    # bandni kamaytirmaydi).
+    _band_kamaydi = _fp_band_qoldiqqa_moslash(db, fp, created_by)
     db.commit()
     db.refresh(loss)
     db.refresh(fp)
@@ -11007,6 +11197,7 @@ def record_finished_product_loss(db: Session, data, created_by: str = None,
         "cost_amount": float(cost_amount),
         "remaining_stock": float(fp.quantity),
         "taqdir": (_taqdir_natija or {}).get("taqdir", "tashlandi"),
+        "band_kamaydi": float(_band_kamaydi),
     }
 
 
@@ -11097,16 +11288,50 @@ def delete_finished_product_loss(db: Session, loss_id: int, company_id: int = No
         db.rollback()
         return {"success": False, "kod": "taqdir", "message": str(_e)}
 
+    _band_tiklandi = 0.0
     if loss.finished_product_id:
+        # kech142 (zip 170, A-O08): band qaytishi uchun buyurtma detali qatori TM dan OLDIN qulflanadi (ishlab chiqarishni
+        # boshlash bilan bir tartib: detal → TM); detal id si — ustun so'rovi bilan (obyekt sessiyaga kirmaydi).
+        _bq142 = db.query(FinishedProduct.reserved_for_order_item_id).filter(
+            FinishedProduct.id == loss.finished_product_id)
+        if company_id is not None:
+            _bq142 = _bq142.filter(FinishedProduct.company_id == company_id)
+        _bq142 = _bq142.first()
+        _detal142 = None
+        if _bq142 is not None and _bq142[0]:
+            _dq142 = db.query(OrderItem).filter(OrderItem.id == _bq142[0])
+            if company_id is not None:
+                _dq142 = _dq142.filter(OrderItem.company_id == company_id)
+            db.flush()
+            _detal142 = _dq142.populate_existing().with_for_update().first()
         fpq = db.query(FinishedProduct).filter(
             FinishedProduct.id == loss.finished_product_id)
         if company_id is not None:
             fpq = fpq.filter(FinishedProduct.company_id == company_id)
-        fp = fpq.with_for_update().first()
+        # kech142 (A-O04 / A-O08): qulf + bazadan qayta yuklash (avval flush — taqdir bekori yozgan o'zgarish yo'qolmasin)
+        db.flush()
+        fp = fpq.populate_existing().with_for_update().first()
         if fp:
             fp.quantity = float(fp.quantity or 0) + qty
             fp.cost_price = float(fp.cost_price or 0) + cost
             tiklandi = True
+            # kech142 (zip 170, A-O08): brakda kamaygan band qaytadi — faqat buyurtma detaliga HALI kerak bo'lsa
+            # (`mrp_detal_kerak`; shu orada qayta ishlab chiqarilgan bo'lsa — kerak 0, qaytgan mahsulot bo'sh qoldiq bo'ladi).
+            if _detal142 is not None and _fp_tayyormi(fp) and fp.reserved_for_order_item_id == _detal142.id:
+                import production_service as _ps142
+                _kerak142 = max(0.0, float(_ps142.mrp_detal_kerak(db, _detal142)["kerak"]))
+                _bosh142 = max(0.0, float(fp.quantity or 0) - float(fp.reserved_quantity or 0))
+                _band_tiklandi = min(qty, _bosh142, _kerak142)
+                if _band_tiklandi > 1e-9:
+                    _eski_band142 = float(fp.reserved_quantity or 0)
+                    fp.reserved_quantity = _eski_band142 + _band_tiklandi
+                    log_activity(db, "updated", "finished_product", fp.id, fp.name, performed_by,
+                                 old_value=f"band: {_eski_band142:g}",
+                                 new_value=(f"band: {float(fp.reserved_quantity):g} — brak bekor qilindi, buyurtma "
+                                            f"detali #{_detal142.id} uchun qayta band"),
+                                 company_id=getattr(fp, 'company_id', None), commit=False)
+                else:
+                    _band_tiklandi = 0.0
 
     db.delete(loss)
     try:
@@ -11120,7 +11345,7 @@ def delete_finished_product_loss(db: Session, loss_id: int, company_id: int = No
         pass
     db.commit()
     return {"success": True, "qaytarilgan_summa": cost,
-            "ombor_tiklandi": tiklandi, "mahsulot": nomi}
+            "ombor_tiklandi": tiklandi, "mahsulot": nomi, "band_tiklandi": float(_band_tiklandi)}
 
 
 def _ishlab_chiqarish_braki_xomashyo(db: Session, fp, brak_qty, penoplast_vol_needed,
@@ -11279,7 +11504,7 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
         _q = db.query(Inventory).filter(Inventory.id == inv_id)
         if _brak_cid is not None:
             _q = _q.filter(Inventory.company_id == _brak_cid)
-        return _q.with_for_update().first()
+        return inventory_qulf_sorov(db, _q)      # kech142 (A-O04): qulf + bazadan qayta yuklash
 
     if brak_qty is None or brak_qty <= 0:
         return {"success": False, "message": "Brak miqdori noto'g'ri"}
@@ -11468,12 +11693,16 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None,
                 db.rollback()
                 return {"success": False, "message": f"{fp.name}: {_jarayonda_xabari(fp)}"}
 
-            available = float(fp.quantity or 0) - float(fp.reserved_quantity or 0)
+            # kech142 (zip 170, A-O01): sotsa bo'ladigani — `_fp_bosh_qoldiq` (bitta sotuv bilan bir qoida); band sababli rad —
+            # bitta matn (`_fp_band_xabari`; ilgari band qoldiqdan katta eski yozuvda «faqat -10» chiqardi). Bandsiz rad matni
+            # o'zgarmagan.
+            available = _fp_bosh_qoldiq(fp)
             _jami_qty = _savatda.get(fp.id, 0.0) + item.quantity
             if _jami_qty > available + 0.001:
                 db.rollback()
-                extra = f" (shundan {fp.reserved_quantity:g} {fp.unit} boshqa buyurtmaga band qilingan)" if fp.reserved_quantity else ""
-                return {"success": False, "message": f"{fp.name}: sotish mumkin faqat {available:g} {fp.unit} bor{extra}, {_jami_qty:g} sota olmaysiz"}
+                if float(fp.reserved_quantity or 0) > 1e-9:
+                    return {"success": False, "message": _fp_band_xabari(fp, _jami_qty)}
+                return {"success": False, "message": f"{fp.name}: sotish mumkin faqat {available:g} {fp.unit} bor, {_jami_qty:g} sota olmaysiz"}
             _savatda[fp.id] = _jami_qty
 
             # kech91 (7-band, O'LCHANGAN — `work/probe7.py`, SQLite + HAQIQIY PG): narx va jami ALOHIDA yaxlitlanardi
@@ -11488,8 +11717,12 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None,
                 return {"success": False, "message": f"{fp.name}: sotuv summasi (miqdor × narx) juda katta"}
             # FASA 4B: yagona manba — pastdagi izohga qarang (sell_finished_product)
             unit_cost = _fp_stable_unit_cost(db, fp)
-            if unit_cost <= 0 and available > 0:
-                unit_cost = float(fp.cost_price or 0) / available
+            # kech142 (zip 170, A-O01): eski yozuv (barqaror narxsiz) — `cost_price` BUTUN qoldiqniki, shuning uchun JAMI qoldiqqa
+            # bo'linadi (ilgari sotsa bo'ladigan qismga bo'linardi: band bo'lsa 1 birlik tannarxi oshib, sotuv tannarxi
+            # shishardi — 10 dan 6 band, 4 sotuv: 12 000 o'rniga 30 000).
+            _jami_qoldiq142 = float(fp.quantity or 0)
+            if unit_cost <= 0 and _jami_qoldiq142 > 0:
+                unit_cost = float(fp.cost_price or 0) / _jami_qoldiq142
 
             # XAVFSIZLIK/NAZORAT: sell_finished_product'dagi bilan bir xil —
             # sotuv narxi tan narxidan past bo'lsa, aniq tasdiqlash so'raladi.
@@ -11618,7 +11851,13 @@ def sell_finished_product(db: Session, data, created_by: str = None,
         return {"success": False, "message": _jarayonda_xabari(fp)}
 
     available = float(fp.quantity or 0)
-    if data.quantity > available + 0.001:
+    # kech142 (zip 170, A-O01 — O'LCHANGAN `work/audit/tasdiq/ombor/p_o01.py`, zip 169 kodida qayta): sotsa bo'ladigani —
+    # qoldiq − band (`_fp_bosh_qoldiq`, savatcha sotuvi bilan bir qoida). Ilgari bitta «Sotish» bandni hisobga olmasdi:
+    # 10 m² ning hammasi buyurtmaga band bo'lsa ham sotilardi (qoldiq 0, band 10) — so'ng o'sha buyurtmaning yuk xati,
+    # «Tayyor» va yangi ishlab chiqarishi uchalasi ham rad etilib, buyurtma qotib qolardi.
+    if data.quantity > _fp_bosh_qoldiq(fp) + 0.001:
+        if float(fp.reserved_quantity or 0) > 1e-9:
+            return {"success": False, "message": _fp_band_xabari(fp, data.quantity)}
         return {"success": False, "message": f"Omborda faqat {available:g} {fp.unit} bor, {data.quantity:g} sota olmaysiz"}
 
     _usta_xato = _sotuv_ustasi_xatosi(db, getattr(data, "master_id", None),
@@ -11700,7 +11939,10 @@ def sell_finished_product(db: Session, data, created_by: str = None,
         "product_name": fp.name,
         "total_amount": float(total_amount),
         "profit": float(_pul2_decimal(total_amount) - _pul2_decimal(cost_amount)),
-        "remaining_stock": float(fp.quantity)
+        "remaining_stock": float(fp.quantity),
+        # kech142 (zip 170, A-O01): band va sotsa bo'ladigan qoldiq (sahifa ko'rsatishi uchun)
+        "band": float(fp.reserved_quantity or 0),
+        "sotsa_boladi": _fp_bosh_qoldiq(fp),
     }
 
 
@@ -11756,13 +11998,16 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
         if company_id is not None:
             _q = _q.filter(Inventory.company_id == company_id)
         if lock:
-            _q = _q.with_for_update()
+            return inventory_qulf_sorov(db, _q)      # kech142 (A-O04): qulf + bazadan qayta yuklash
         return _q.first()
 
     # Penoplast yetadimi
+    # kech142 (zip 170, A-O04): tekshiruv QULFLANGAN va bazadan qayta o'qilgan qatorda — `get_default_penoplast` shu
+    # qatorni sessiyaga oldin yuklagan; qulfsiz eski qiymat bilan tekshirilsa, parallel chiqimdan keyin qoldiq
+    # yetmasa ham o'tib, manfiyga tushardi ("penoplast yetishmasa to'xtaydi" qoidasi buzilardi).
     shortages = []
     if volume > 0 and pid:
-        p = _pf_inv(pid)
+        p = _pf_inv(pid, lock=True)
         if company_id is not None and not p:
             return {"success": False, "message": "Tanlangan Penoplast ombordan topilmadi"}
         # 17-band: faqat PENOPLAST material "blok" sifatida yechiladi —
@@ -12098,7 +12343,8 @@ def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = Fal
 
         # Penoplast qaytadi
         if fp.penoplast_id and fp.volume_m3:
-            p = _del_inv(db.query(_Inv).filter(_Inv.id == fp.penoplast_id)).with_for_update().first()
+            # kech142 (A-O04): qulf + bazadan qayta yuklash (`inventory_qulf_sorov`)
+            p = inventory_qulf_sorov(db, _del_inv(db.query(_Inv).filter(_Inv.id == fp.penoplast_id)))
             if p:
                 vpu = float(p.volume_per_unit or 1.0)
                 _qaytgan_blok = float(fp.volume_m3) / vpu
@@ -12502,7 +12748,11 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
         _json_son("quantity", add_qty, bosh_mumkin=False, musbat=True, chegara=_UPD_SON_CHEGARA)
     except ValueError as _e:
         return {"success": False, "message": str(_e)}
-    fp = get_finished_product(db, fp_id, company_id)   # M4: faqat shu korxonadan
+    # kech142 (zip 170, A-O08 — O'LCHANGAN `work/audit/tasdiq/ombor/p_o08.py`): mahsulot QULFLANADI va bazadan qayta
+    # o'qiladi. Ilgari qulfsiz o'qilardi (marshrut ham 404 uchun oldin yuklaydi) va oxirida mutlaq qiymat yozilardi
+    # (`fp.quantity = base_qty + add_qty`) — parallel sotuv / brak YO'QOLARDI (sotuv 5 ∥ «Yana ishlab chiqarish» 2,
+    # 100 → 102, to'g'risi 97). Qulf tartibi: tayyor mahsulot → material (sotuv, brak, buyurtma bilan bir xil).
+    fp = get_finished_product(db, fp_id, company_id, lock=True)   # M4: faqat shu korxonadan
     if not fp:
         return {"success": False, "message": "Topilmadi"}
 
@@ -12577,9 +12827,13 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
                            "\"+\" xomashyosiz miqdor qo'sha olmaydi. Yangi ishlab chiqarish yarating."}
 
     # Xomashyo yetadimi
+    # kech142 (zip 170, A-O04 — O'LCHANGAN HAQIQIY PG `work/audit/tasdiq/ombor/p_o04b.py` S6): penoplast qatori AVVAL
+    # qulflanib bazadan qayta o'qiladi, tekshiruv va ayirish — o'sha qatorda. Ilgari tekshiruv qulfsiz o'qir, so'ng
+    # `FOR UPDATE` sessiyadagi ESKI obyektni qaytarardi: parallel kirim (+10 blok) yo'qolardi (119.95 → 119.9, to'g'risi
+    # 129.85) va qoldiq ≠ Σ harakat bo'lib qolardi.
     shortages = []
     if add_volume > 0 and fp.penoplast_id:
-        p = _add_inv(db.query(Inventory).filter(Inventory.id == fp.penoplast_id)).first()
+        p = inventory_qulf_sorov(db, _add_inv(db.query(Inventory).filter(Inventory.id == fp.penoplast_id)))
         if p:
             vol_per_unit = float(p.volume_per_unit or 1.0)
             blocks = add_volume / vol_per_unit
@@ -12594,9 +12848,9 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
     peno_cost = 0.0
     loy_cost = 0.0
 
-    # 1) Penoplast
+    # 1) Penoplast (qator yuqorida qulflangan va qayta o'qilgan — kech142, A-O04)
     if add_volume > 0 and fp.penoplast_id:
-        p = _add_inv(db.query(Inventory).filter(Inventory.id == fp.penoplast_id)).with_for_update().first()
+        p = inventory_qulf_sorov(db, _add_inv(db.query(Inventory).filter(Inventory.id == fp.penoplast_id)))
         if p:
             vol_per_unit = float(p.volume_per_unit or 1.0)
             blocks = add_volume / vol_per_unit
@@ -12689,53 +12943,42 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
 
 
 def reduce_production(db: Session, fp_id: int, reduce_qty: float, reason: str = None,
-                     company_id: int = None) -> dict:
+                     company_id: int = None, created_by: str = None, brak_sabab: str = None,
+                     brak_bosqich: str = None, brak_javobgar_id: int = None) -> dict:
     """Tayyor mahsulot miqdorini kamaytiradi (brak/singan).
-    Xomashyo omborga QAYTARILMAYDI — tan narxi saqlanadi."""
-    # 17-band: qiymatlar QAT'IY (NaN / cheksizlik / manfiy / juda katta).
+    Xomashyo omborga QAYTARILMAYDI — tan narxi saqlanadi.
+
+    kech142 (zip 170, A-O08 — O'LCHANGAN `work/audit/tasdiq/ombor/p_o08.py`): endi «Brak» (`record_finished_product_loss`)
+    ning AYNAN o'zi — bitta qoida. Ilgari alohida yo'l edi: qulfsiz o'qib mutlaq yozardi (parallel sotuv yo'qolardi),
+    tannarxni (`cost_price`) kamaytirmasdi (10 × 3 000 dan 4 kamaytirilsa ombor qiymati 18 000 o'rniga 30 000; 0 gacha
+    kamaytirilsa — qoldiq 0, tannarx 30 000 abadiy), brak yozuvi (`FinishedProductLoss`) yaratmasdi — Moliya «Tayyor
+    mahsulot yo'qotishi» ni ko'rmasdi, bandni hisobga olmasdi (band mahsulotni 0 gacha kamaytirib buyurtmani qotirardi).
+    Eski javob maydonlari saqlanadi (`message`, `product_id`, `name`, `new_qty`, `unit`, `lost_value`) + `loss_id`,
+    `cost_amount`, `band_kamaydi`. Sabab (`brak_sabab`) majburiyligi — marshrutda (`/loss` bilan bir xil)."""
+    from schemas import FinishedProductLossCreate
+    # 17-band: qiymatlar QAT'IY (NaN / cheksizlik / manfiy / juda katta) — hech narsa yozilmasdan OLDIN.
+    _tana = {"finished_product_id": fp_id, "quantity": reduce_qty, "reason": reason, "brak_sabab": brak_sabab,
+             "brak_bosqich": brak_bosqich, "brak_javobgar_id": brak_javobgar_id}
     try:
-        _clean_val("StockAdjust", {"quantity": reduce_qty, "reason": reason})
+        _toza = _clean_val("Loss", _tana)
+        data = FinishedProductLossCreate(**_toza)
     except ValueError as _e:
         return {"success": False, "message": str(_e)}
-    fp = get_finished_product(db, fp_id, company_id)   # M4: faqat shu korxonadan
-    if not fp:
-        return {"success": False, "message": "Topilmadi"}
-    if not _fp_tayyormi(fp):
-        return {"success": False, "message": _jarayonda_xabari(fp)}
-
-    if reduce_qty <= 0:
-        return {"success": False, "message": "Miqdor musbat bo'lishi kerak"}
-
-    current = float(fp.quantity or 0)
-    if reduce_qty > current + 0.001:
-        return {
-            "success": False,
-            "message": f"Omborda {current:g} {fp.unit} bor, {reduce_qty:g} ayirib bo'lmaydi"
-        }
-
-    fp.quantity = max(0, current - reduce_qty)
-
-    # Izohga yozib qo'yamiz
-    note = f"brak: -{reduce_qty:g}{fp.unit}"
-    if reason:
-        note += f" ({reason})"
-    fp.notes = (fp.notes + " · " + note) if fp.notes else note
-
-    db.commit()
-    db.refresh(fp)
-
-    # Yo'qotilgan qiymat
-    lost_value = reduce_qty * float(fp.unit_price or 0)
-
-    return {
-        "success": True,
-        "message": f"-{reduce_qty:g} {fp.unit} chiqarildi (brak)",
-        "product_id": fp.id,
-        "name": fp.name,
-        "new_qty": float(fp.quantity),
-        "unit": fp.unit,
-        "lost_value": round(lost_value)
-    }
+    natija = record_finished_product_loss(db, data, created_by=created_by, company_id=company_id)
+    if not natija.get("success"):
+        return natija
+    fp = get_finished_product(db, fp_id, company_id)
+    _birlik = fp.unit if fp is not None else ""
+    natija.update({
+        "message": f"-{float(data.quantity):g} {_birlik} chiqarildi (brak)",
+        "product_id": fp_id,
+        "name": fp.name if fp is not None else None,
+        "new_qty": float(fp.quantity or 0) if fp is not None else 0.0,
+        "unit": _birlik,
+        # Yo'qotilgan qiymat (sotuv narxida — eski javob maydoni); tannarx bo'yicha — `cost_amount`.
+        "lost_value": round(float(data.quantity) * float((fp.unit_price if fp is not None else 0) or 0)),
+    })
+    return natija
 
 
 def get_finished_profit(db: Session, fp_id: int, company_id: int = None) -> dict:
@@ -15772,6 +16015,14 @@ def update_purchase(db: Session, purchase_id: int, data: dict,
     if toza.get("is_credit") is True and (not p.supplier_id or p.is_opening_stock):
         raise ValueError("Ta'minotchisiz yoki boshlang'ich ombor xaridi nasiya bo'lolmaydi "
                          "(nasiya — faqat ta'minotchidan olingan xarid)")
+    # kech142 (zip 170, A-O10 b): Kirim hujjati qatori — ta'minotchidan nasiya (hujjat shunday yozadi), «hozir to'langan»
+    # summa esa ALOHIDA ta'minotchi to'lovi. Qator naqdga o'tkazilsa, pul oqimida ikki marta chiqardi (naqd xarid VA
+    # ta'minotchi to'lovi), ta'minotchi balansi manfiyga tushardi. To'lov turi faqat O'ZGARMASA qabul qilinadi (bir xil
+    # qiymat — zararsiz); miqdor / narx tahriri avvalgidek. Hech narsa o'zgartirilmasdan OLDIN.
+    if ("is_credit" in toza and getattr(p, "receipt_id", None)
+            and bool(toza["is_credit"]) != bool(p.is_credit)):
+        raise ValueError("Kirim hujjati qatorining to'lov turi (nasiya / naqd) o'zgartirilmaydi — "
+                         "to'lov «Ta'minotchilar» sahifasida yoziladi")
 
     eski_qty = float(p.quantity or 0)
 
@@ -15868,7 +16119,9 @@ def delete_purchase(db: Session, purchase_id: int, reverse_stock: bool = True,
         return False
 
     if reverse_stock and p.inventory_id and p.quantity:
-        inv = db.query(Inventory).filter(Inventory.id == p.inventory_id).with_for_update().first()
+        # kech142 (zip 170, A-O04): qulf + bazadan qayta yuklash (`inventory_qulf`); material — shu korxonadan
+        # (xarid yuqorida material orqali tekshirilgan — ikkinchi to'siq).
+        inv = inventory_qulf(db, p.inventory_id, company_id)
         if inv:
             # MUHIM (2026-09 audit): agar shu xariddan kelgan xomashyoning
             # bir qismi ALLAQACHON ishlab chiqarishda ishlatilgan bo'lsa
@@ -16788,7 +17041,7 @@ def _taqdir_inv(db: Session, inv_id, company_id, lock: bool = True):
     if company_id is not None:
         q = q.filter(_Inv.company_id == company_id)
     if lock:
-        q = q.with_for_update()
+        return inventory_qulf_sorov(db, q)      # kech142 (A-O04): qulf + bazadan qayta yuklash
     return q.first()
 
 

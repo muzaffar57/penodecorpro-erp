@@ -270,7 +270,10 @@ class BOM(Base):
     notes = Column(Text, nullable=True)
 
     product_type = relationship("ProductType", back_populates="boms")
-    items = relationship("BOMItem", back_populates="bom", cascade="all, delete-orphan")
+    # kech142 (zip 170, A-O02): qatorlar tartibi — id bo'yicha (ANIQ). Qatorlar endi joyida yangilanadi
+    # (`production_service.retsept_qatorlarini_yangila`); PostgreSQL da UPDATE qilingan qator jismoniy joyini
+    # o'zgartiradi — tartibsiz o'qishda tahrirlangan qator oxiriga o'tib qolardi. Id tartibi — avvalgi amaldagi tartib.
+    items = relationship("BOMItem", back_populates="bom", cascade="all, delete-orphan", order_by="BOMItem.id")
 
     def __repr__(self):
         return f"<BOM {self.product_type.name if self.product_type else '?'} / {self.variant_name}>"
@@ -345,7 +348,12 @@ class BOMItem(Base):
         (Inventory.unit)ning o'zi."""
         if not self.inventory:
             return "—"
-        return self.inventory.base_unit or self.inventory.unit
+        # kech142 (zip 170, A-O10 c): mayda birlik — faqat o'girish koeffitsienti BOR bo'lsa (hisob ham faqat shunda
+        # o'giradi — `production_service._compute_bom_line`). Koeffitsientsiz eski qatorda retsept «500 g» ko'rsatib,
+        # ombordan 500 QOP yechilardi; endi ko'rinish = hisob (ombor birligi).
+        if self.inventory.base_unit and self.inventory.conversion_factor:
+            return self.inventory.base_unit
+        return self.inventory.unit
 
     @property
     def stock_unit(self):

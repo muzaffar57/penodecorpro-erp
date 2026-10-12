@@ -5112,18 +5112,31 @@ def api_create_item(data: dict = Body(...), db: Session = Depends(get_db), curre
         item = schemas.InventoryCreate(**crud._clean_create("Inventory", data))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    _cid = auth.company_id_of(current_user)
     try:
         # M3/M8-F1: yangi material ALBATTA joriy adminning korxonasiga
         # tegishli — tenant endi `add_item()` ga BOSHIDAN uzatiladi
         # (ilgari qaytgandan keyin qo'yilardi va ichki commit vaqtida
         # ustun bo'sh qolardi).
-        _it = crud.add_item(db, item, company_id=auth.company_id_of(current_user))
+        # kech142 (zip 170, A-O05 d): boshlang'ich qoldiq harakati kim nomidan.
+        _it = crud.add_item(db, item, company_id=_cid,
+                            performed_by=current_user.full_name or current_user.username)
         return _it
+    except crud.MaterialNomiBand as e:
+        # kech142 (zip 170, A-O09): nom band — 409, mavjud material id si bilan (sahifa uni ro'yxatdan tanlaydi); hech narsa
+        # yozilmagan. `ValueError` dan OLDIN (u ham ValueError).
+        db.rollback()
+        raise HTTPException(status_code=409, detail=e.detail)
     except ValueError as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
     except IntegrityError:
+        # Parallel so'rov (tekshiruv va yozish orasida boshqasi shu nomni yaratgan) — 409, mavjud material bilan (ilgari 400).
         db.rollback()
+        _bor142 = db.query(Inventory).filter(Inventory.company_id == _cid,
+                                             Inventory.item_name == str(item.item_name or "").strip()).first()
+        if _bor142 is not None and not _bor142.is_deleted:
+            raise HTTPException(status_code=409, detail=crud.material_nomi_band_detail(_bor142))
         raise HTTPException(
             status_code=400,
             detail=f'"{item.item_name}" nomli material allaqachon omborda mavjud. '
@@ -6861,8 +6874,12 @@ def api_delete_item(item_id: int, db: Session = Depends(get_db), current_user=De
     if not auth.inventory_of_company(db, item_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Material topilmadi")
     # kech37 (18-band): asosiy penoplastni (boshqa penoplast bor bo'lsa) o'chirish — 400
+    # kech142 (zip 170 — EGASI QARORI 12.10 «O'chirishdan oldin 0 bo'lsin»): qoldig'i bor material — 409, sababi bilan.
     try:
         result = crud.delete_item(db, item_id)
+    except crud.MaterialQoldiqBor as e:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(e))
     except ValueError as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
@@ -11086,16 +11103,30 @@ def api_add_production(fp_id: int, data: dict = Body(...),
 
 @app.post("/api/finished/{fp_id}/reduce")
 def api_reduce_production(fp_id: int, data: dict = Body(...),
-                          db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("tayyor", "tahrirlash"))):
-    """Tayyor mahsulot miqdorini kamaytirish (brak/singan) — xomashyo qaytmaydi."""
+                          db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("brak", "yaratish"))):
+    """Tayyor mahsulot miqdorini kamaytirish (brak/singan) — xomashyo qaytmaydi.
+
+    kech142 (zip 170, A-O08): «Brak» (`POST /api/finished/loss`) ning AYNAN taxallusi — bir xil ruxsat («Brak: Yaratish»;
+    ilgari «Tayyor mahsulotlar: Tahrirlash» — brak qoidalarini chetlab o'tardi), sabab majburiy (kech118 G5-20), bitta
+    tranzaksiya, tannarx kamayadi, brak yozuvi (Moliya «Tayyor mahsulot yo'qotishi») yoziladi (`crud.reduce_production`).
+    Sahifa bu yo'lni chaqirmaydi (faqat API). Tana: `quantity`, `brak_sabab` (majburiy), ixtiyoriy `reason`,
+    `brak_bosqich`, `brak_javobgar_id`; `finished_product_id` / `taqdir` — yo'q (manzildagi id; taqdir — «Brak» oynasida)."""
+    _cid = auth.company_id_of(current_user)
     # 17-band: begona ID — tana tekshiruvidan OLDIN 404 (oracle bo'lmasin).
-    if not crud.get_finished_product(db, fp_id, auth.company_id_of(current_user)):
+    if not crud.get_finished_product(db, fp_id, _cid):
         raise HTTPException(status_code=404, detail="Topilmadi")
-    data = _fp_tana("StockAdjust", data, schemas.StockAdjust)
-    result = crud.reduce_production(db, fp_id, data.quantity, data.reason,
-                                    company_id=auth.company_id_of(current_user))
-    if not result["success"]:
-        raise HTTPException(status_code=400, detail=result)
+    if not isinstance(data, dict) or "finished_product_id" in data or "taqdir" in data:
+        raise HTTPException(status_code=400, detail={"success": False, "message": "Noto'g'ri so'rov"})
+    tana = _fp_tana("Loss", {**data, "finished_product_id": fp_id}, schemas.FinishedProductLossCreate)
+    if not tana.brak_sabab:     # kech118 (D-1, G5-20) — har brak yo'li
+        raise HTTPException(status_code=400, detail={"success": False, "message": BRAK_SABABI_XATO})
+    who = current_user.full_name or current_user.username
+    with crud.bitta_tranzaksiya(db):
+        result = crud.reduce_production(db, fp_id, tana.quantity, tana.reason, company_id=_cid, created_by=who,
+                                        brak_sabab=tana.brak_sabab, brak_bosqich=tana.brak_bosqich,
+                                        brak_javobgar_id=tana.brak_javobgar_id)
+        if not result["success"]:
+            raise HTTPException(status_code=400, detail=result)
     return result
 
 
