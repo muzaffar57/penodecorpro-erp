@@ -1538,7 +1538,7 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
                         }
                     else:
                         # To'liq yakunlangan — haqiqatan aralashtirilgan, tayyor loy sifatida saqlanadi
-                        msg = add_loy_to_stock(db, recipe, extra)
+                        msg = add_loy_to_stock(db, recipe, extra, order=order)
                         if msg:
                             result["inventory_changes"].append(msg)
                         result["loy_info"] = {
@@ -1603,7 +1603,8 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
             # degani. Qolgan (topshirilmagan) qism uchun xomashyo omborga qaytadi.
             # (Hali hech narsa topshirilmagan — oddiy holat — bunga tegilmaydi.)
             if is_partial_completion:
-                partial_log = return_inventory_for_order_partial(db, order)
+                partial_log = return_inventory_for_order_partial(
+                    db, order, sabab=f"Buyurtma {order.order_number} «Tayyor» (qisman) — qolgan qism penoplasti qaytdi")
                 # kech100 (K100-1 / K100-2 / K100-3a — O'LCHANGAN `work/probe_k100_mrp.py`, asl SQLite = PG; 93-band oracle
                 # testi `tools/test_ochirish_yopish.py` topdi): qolgan (topshirilmagan) qismning TAYYOR MAHSULOTI, "Loy sotish"
                 # XOMASHYOSI va MRP BANDI qaytmasdi — "Loy sotish" 20 kg dan 4 kg topshirilib «Tayyor»: 16 kg qum na omborda,
@@ -5730,7 +5731,10 @@ def _peno_of(db, pid, company_id=None, lock=False):
     if company_id is not None:
         q = q.filter(Inventory.company_id == company_id)
     if lock:
-        q = q.with_for_update()
+        # kech142 (zip 170, A-O04): qulf + bazadan qayta yuklash — sessiyada shu penoplast oldin o'qilgan bo'lsa
+        # (`get_default_penoplast`, `item.penoplast`), eski qoldiq ustiga yozilib parallel o'zgarish yo'qolmasin.
+        import crud as _crud_q142
+        return _crud_q142.inventory_qulf_sorov(db, q)
     return q.first()
 
 
@@ -5940,11 +5944,32 @@ def buyurtmadan_qisman_chiqqan(order) -> bool:
     return any(it.ortiqcha_qty > 0.001 for it in (order.items or []))
 
 
-def return_inventory_for_order_partial(db: Session, order, sign: float = 1.0) -> list:
+def _penoplast_qaytish_harakati(db: Session, p, blocks: float, order, sabab: str) -> None:
+    """kech142 (zip 170, A-O05 — O'LCHANGAN `work/audit/tasdiq/ombor/p_o05.py`): buyurtma o'chirilganda / tiklanganda /
+    qisman «Tayyor» da penoplast qoldig'i o'zgarishi ombor HARAKATI bilan (ilgari qoldiq o'zgarar, «Harakatlar tarixi» da
+    yozuv yo'q edi — qoldiq ≠ Σ harakat: o'chirishda +0.1 blok, harakat 0). Kirim (+) — "in", chiqim (−) — "out" (joriy
+    narx — `crud.log_movement` qoidasi, loy ingredientlarining tiklanishi bilan bir xil); birlik «blok»
+    (`deduct_inventory_for_order` kabi). Buyurtma raqami — sababda va `order_id` da."""
+    import crud as _crud_ph
+    if abs(blocks) <= 0:
+        return
+    _crud_ph.log_movement(db, p.id, p.item_name, movement_type=("in" if blocks > 0 else "out"),
+                          quantity=abs(blocks), unit="blok", order_id=getattr(order, 'id', None),
+                          reason=_crud_ph._jurnal_sabab(sabab), company_id=getattr(p, 'company_id', None))
+    # Yozuv darhol bazaga (shu tranzaksiya ichida; `SessionLocal` autoflush=False): keyingi so'rovlar (buyurtma sarfi,
+    # bog'lamni uzish) uni ko'rsin — himoya choralari (bugungi oqimlarda keyingi qadamlar ham flush qiladi).
+    db.flush()
+
+
+def return_inventory_for_order_partial(db: Session, order, sign: float = 1.0, sabab: str = None) -> list:
     """Qisman topshirilgan buyurtma bekor qilinganda/o'chirilganda —
     FAQAT hali topshirilmagan (mijozga berilmagan) qismi uchun xomashyoni
     omborga qaytaradi. Topshirib bo'lingan qism — mijozda, qaytmaydi.
-    sign=-1.0 — buyurtma tiklanganda qayta ombordan yechish uchun."""
+    sign=-1.0 — buyurtma tiklanganda qayta ombordan yechish uchun.
+
+    kech142 (zip 170, A-O05 b): har o'zgarish ombor harakati bilan (`_penoplast_qaytish_harakati`); `sabab` — jurnal matni
+    (berilmasa: «Buyurtma … o'chirildi — penoplast qaytdi (qolgan qism)» / «… tiklandi — … qayta yechildi (qolgan qism)»;
+    «Tayyor» (qisman) o'z matnini beradi)."""
 
     log = []
     undelivered = get_undelivered_items(order)
@@ -5953,6 +5978,10 @@ def return_inventory_for_order_partial(db: Session, order, sign: float = 1.0) ->
 
     prorated_items = [_ProratedItem(item, fraction) for item, fraction, _, _ in undelivered]
     verb = "qaytarildi" if sign > 0 else "qayta yechildi"
+    _nr = getattr(order, 'order_number', None) or f"#{getattr(order, 'id', '?')}"
+    if sabab is None:
+        sabab = (f"Buyurtma {_nr} o'chirildi — penoplast qaytdi (qolgan qism)" if sign > 0
+                 else f"Buyurtma {_nr} tiklandi — penoplast qayta yechildi (qolgan qism)")
 
     # 1) Penoplast — qolgan qism bo'yicha
     cid = getattr(order, 'company_id', None)
@@ -5964,6 +5993,7 @@ def return_inventory_for_order_partial(db: Session, order, sign: float = 1.0) ->
         vol_per_unit = float(p.volume_per_unit or 1.0)
         blocks = (vol / vol_per_unit) * sign
         p.stock_quantity = float(p.stock_quantity) + blocks
+        _penoplast_qaytish_harakati(db, p, blocks, order, sabab)
         log.append(f"{p.item_name}: {blocks:+.2f} blok {verb} (qolgan qism)")
 
     return log
@@ -5975,11 +6005,16 @@ def return_inventory_for_order(db: Session, order, sign: float = 1.0) -> list:
     Har detal o'z plotnostiga qaytariladi.
     sign=1.0 — qaytarish (standart). sign=-1.0 — teskarisi, ya'ni
     buyurtma TIKLANGANDA xuddi shu miqdorni qayta ombordan yechish uchun.
+
+    kech142 (zip 170, A-O05 a): har o'zgarish ombor harakati bilan (`_penoplast_qaytish_harakati`).
     """
 
     log = []
     cid = getattr(order, 'company_id', None)
     volumes = _group_volumes_by_penoplast(db, order.items, company_id=cid)
+    _nr = getattr(order, 'order_number', None) or f"#{getattr(order, 'id', '?')}"
+    sabab = (f"Buyurtma {_nr} o'chirildi — penoplast qaytdi" if sign > 0
+             else f"Buyurtma {_nr} tiklandi — penoplast qayta yechildi")
 
     for pid, vol in volumes.items():
         p = _peno_of(db, pid, cid, lock=True)
@@ -5988,6 +6023,7 @@ def return_inventory_for_order(db: Session, order, sign: float = 1.0) -> list:
         vol_per_unit = float(p.volume_per_unit or 1.0)
         blocks = (vol / vol_per_unit) * sign
         p.stock_quantity = float(p.stock_quantity) + blocks
+        _penoplast_qaytish_harakati(db, p, blocks, order, sabab)
         verb = "qaytarildi" if sign > 0 else "qayta yechildi"
         log.append(f"{p.item_name}: {blocks:+.2f} blok {verb}")
 
@@ -6256,7 +6292,8 @@ def get_or_create_loy_stock(db: Session, recipe, company_id: int = None, commit:
     _q = db.query(Inventory).filter(Inventory.item_name == item_name)
     if cid is not None:
         _q = _q.filter(Inventory.company_id == cid)
-    stock = _q.with_for_update().first()
+    import crud as _crud_q142
+    stock = _crud_q142.inventory_qulf_sorov(db, _q)      # kech142 (A-O04): qulf + bazadan qayta yuklash
     if stock:
         return stock
 
@@ -6283,14 +6320,26 @@ def get_or_create_loy_stock(db: Session, recipe, company_id: int = None, commit:
     return stock
 
 
-def add_loy_to_stock(db: Session, recipe, kg: float) -> str:
-    """Ortgan loyni omborga qo'shadi."""
+def add_loy_to_stock(db: Session, recipe, kg: float, order=None) -> str:
+    """Ortgan loyni omborga qo'shadi.
+
+    kech142 (zip 170, A-O05 c — O'LCHANGAN `work/audit/tasdiq/ombor/p_o05.py` 3b): kirim ombor HARAKATI bilan (ilgari
+    «Tayyor loy» +3 kg, harakat yo'q). `order_id` ATAYLAB bo'sh: buyurtma sarfi hisobi (`_buyurtma_sarf_hisobi`)
+    buyurtmaga bog'langan "in" harakatlarini ayiradi — bog'lansa, yakunlangan buyurtmaning qoplama tannarxi o'zgarardi
+    (zaxiradan olingan loy ulushi kamayardi). Buyurtma raqami — sabab matnida."""
     if kg <= 0:
         return ""
     stock = get_or_create_loy_stock(db, recipe)
     if not stock:
         return ""
     stock.stock_quantity = float(stock.stock_quantity or 0) + kg
+    import crud as _crud_al
+    _nr = (getattr(order, 'order_number', None) or f"#{getattr(order, 'id', '?')}") if order is not None else None
+    _crud_al.log_movement(
+        db, stock.id, stock.item_name, movement_type="in", quantity=kg, unit=stock.unit,
+        reason=_crud_al._jurnal_sabab(f"Buyurtma {_nr} «Tayyor» — ortgan loy tayyor loy zaxirasiga" if _nr
+                                      else "Ortgan loy tayyor loy zaxirasiga"),
+        order_id=None, company_id=getattr(stock, 'company_id', None))
     db.commit()
     msg = f"{stock.item_name}: +{kg:.1f} kg (ortdi)"
     print(f"✓ {msg}")
@@ -6567,7 +6616,7 @@ def _mrp_brakini_yech(db, order_item, order, brak_qty: float, coating_applied: b
         q = db.query(Inventory).filter(Inventory.id == inv_id)
         if company_id is not None:
             q = q.filter(Inventory.company_id == company_id)
-        inv = q.with_for_update().first()
+        inv = _crud_mb.inventory_qulf_sorov(db, q)      # kech142 (A-O04): qulf + bazadan qayta yuklash
         if not inv:
             continue
         inv.stock_quantity = float(inv.stock_quantity or 0) - kerak
@@ -6612,7 +6661,9 @@ def deduct_raw_material_for_brak(db: Session, order_item, order, brak_qty: float
         brak_volume = per_unit_volume * brak_qty
         pid = order_item.penoplast_id or (default_p.id if default_p else None)
         if pid and brak_volume > 0:
-            p = _peno_of(db, pid, _bcid)
+            # kech142 (zip 170, A-O04): penoplast QULFLANADI va bazadan qayta o'qiladi — ilgari qulfsiz o'qib mutlaq
+            # qiymat yozilardi (`old_qty - blocks`): parallel kirim / chiqim yo'qolardi.
+            p = _peno_of(db, pid, _bcid, lock=True)
             if p and p.volume_per_unit and p.volume_per_unit > 0:
                 blocks = brak_volume / float(p.volume_per_unit)
                 old_qty = float(p.stock_quantity or 0)
@@ -6964,10 +7015,13 @@ def deduct_loy_ingredients(db: Session, order, loy_kg: float, use_stock: bool = 
         if recipe_kg <= 0 or not _retsept_materiali(ing, recipe):
             continue
         needed_kg = loy_kg * (recipe_kg / batch)
-        inv_item = db.query(Inventory).filter(
+        # kech142 (zip 170, A-O04): qulf + bazadan qayta yuklash — ingredient materiali sessiyada oldin o'qilgan
+        # (`get_loy_cost_per_kg` / `_retsept_materiali` → `ing.inventory`); eski qoldiq ustiga yozilmasin.
+        import crud as _crud_q142
+        inv_item = _crud_q142.inventory_qulf_sorov(db, db.query(Inventory).filter(
             Inventory.id == ing.inventory_id,
             Inventory.company_id == recipe.company_id,
-        ).with_for_update().first()
+        ))
         if inv_item:
             # 2026-09-21 — FOYDALANUVCHI QARORI (19-band): loy xomashyosi
             # yetishmasa ishlab chiqarish TO'XTAMAYDI, qoldiq MANFIYGA
@@ -7074,10 +7128,13 @@ def return_loy_ingredients(db: Session, order, loy_kg: float, recipe_id: int = N
         if recipe_kg <= 0 or not _retsept_materiali(ing, recipe):
             continue
         needed_kg = loy_kg * (recipe_kg / batch)
-        inv_item = db.query(Inventory).filter(
+        # kech142 (zip 170, A-O04): qulf + bazadan qayta yuklash — ingredient materiali sessiyada oldin o'qilgan
+        # (`get_loy_cost_per_kg` / `_retsept_materiali` → `ing.inventory`); eski qoldiq ustiga yozilmasin.
+        import crud as _crud_q142
+        inv_item = _crud_q142.inventory_qulf_sorov(db, db.query(Inventory).filter(
             Inventory.id == ing.inventory_id,
             Inventory.company_id == recipe.company_id,
-        ).with_for_update().first()
+        ))
         if inv_item:
             inv_item.stock_quantity = float(inv_item.stock_quantity) + needed_kg
             log.append(f"{inv_item.item_name}: +{needed_kg:.2f} qaytarildi")

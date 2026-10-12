@@ -261,6 +261,18 @@ def check_inventory_balance(tables, rep):
                 f"qoldiq {computed:.3f} {inv.get('unit')}, lekin stock_quantity="
                 f"{actual:.3f} {inv.get('unit')} (farq {computed - actual:.3f})",
             )
+    # kech142 (zip 170, A-O05): harakati UMUMAN yo'q, lekin qoldig'i bor material ham (ilgari tekshirilmasdi — masalan
+    # boshlang'ich qoldiq bilan yaratilgan material: qoldiq 50, harakat 0).
+    for inv_id, inv in inv_by_id.items():
+        if inv_id in by_item:
+            continue
+        actual = inv.get("stock_quantity") or 0.0
+        if abs(actual) > QTY_TOLERANCE:
+            rep.add(
+                "inventory_balance",
+                f"{inv.get('item_name')} (id={inv_id}): ombor harakati yo'q, lekin stock_quantity="
+                f"{actual:.3f} {inv.get('unit')} (farq {-actual:.3f})",
+            )
 
 
 def check_recipes(tables, rep):
