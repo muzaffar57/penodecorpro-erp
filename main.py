@@ -3432,6 +3432,31 @@ def _migrate_avans_manba():
 
 _migrate_avans_manba()
 
+
+def _migrate_ish_davrlari():
+    """kech141 (zip 169, audit A-P02 — egasi QARORLARI 11.10 / 12.10) — IDEMPOTENT, PostgreSQL va SQLite. `hodim_ish_davrlari`
+    jadvalini `init_database()` (`create_all`), `employees.kirgan_kundan` / `butunlay_ochirilgan` ustunlarini `sync_missing_columns`
+    (DEFAULT FALSE — mavjud hodimlarning kirgan oyi ilgarigidek to'liq) yaratadi. Bu yerda: zip 169 dan oldin (faol holida)
+    o'chirilgan hodimlarning ish davri jurnaldan tiklanadi (`crud.ish_davrlarini_tola`) — ular o'tgan oylar hisobotiga qaytadi.
+    Bitta tranzaksiya; xato bo'lsa hech narsa o'zgarmaydi (keyingi ishga tushishda qayta)."""
+    from database import SessionLocal as _SL141
+    _d = _SL141()
+    _n = 0
+    try:
+        _n = crud.ish_davrlarini_tola(_d)
+        _d.commit()
+        if _n:
+            print(f"✓ Hodim ish davrlari: {_n} ta o'chirilgan hodimning davri jurnaldan tiklandi")
+    except Exception as e:
+        _d.rollback()
+        print(f"⚠ Hodim ish davrlari migratsiyasi o'tkazib yuborildi: {e}")
+    finally:
+        _d.close()
+    return {"tiklandi": _n}
+
+
+_migrate_ish_davrlari()
+
 # kech104 (K104-2): FastAPI ning o'rnatilgan API hujjatlari (/openapi.json, /docs, /redoc) login-siz
 # ochiq edi — butun API sxemasi (barcha marshrutlar, /api/system/* va /api/platform/* ham) har kimga ko'rinardi.
 # Ilova ularni ishlatmaydi (shablon / test havolasi yo'q) — o'chirildi. Marshrutlar xaritasi:
@@ -4259,9 +4284,11 @@ async def trash_page(request: Request, db: Session = Depends(get_db), current_us
     activity_log = crud.get_activity_log(db, limit=50,
                                          company_id=auth.company_id_of(current_user),
                                          amallar=crud.CHIQINDI_JURNAL_AMALLARI)
+    # kech141 (zip 169, A-P02): o'chirilgan hodimning ishdan ketgan sanasi (tiklash oynasi — «Ishga qaytgan sana»)
+    ketgan_sanalar = crud.hodim_ketgan_sanalari(db, auth.company_id_of(current_user))
     return templates.TemplateResponse(request, "trash.html", {
         "deleted_orders": deleted_orders, "deleted_projects": deleted_projects,
-        "deleted_employees": deleted_employees,
+        "deleted_employees": deleted_employees, "ketgan_sanalar": ketgan_sanalar,
         "activity_log": activity_log,
         "current_user": current_user, "active_page": "trash"
     })
@@ -5497,6 +5524,8 @@ def api_get_employees(only_active: bool = True, db: Session = Depends(get_db), c
         "yonalish_nom": _ynom.get(e.yonalish_id) if e.yonalish_id else None,
         "is_active": e.is_active,
         "notes": e.notes,
+        # kech141 (zip 169, A-P02): ishga kirgan Toshkent sanasi (o'chirish oynasidagi «Ishdan ketgan sana» — undan oldin emas)
+        "ishga_kirgan_sana": services.hodim_kirgan_sanasi(e).isoformat(),
         # kech133 (zip 159): «🔑 Kirish» oynasi — hozirgi telefon raqami (ilgari javobda yo'q edi — oyna doim bo'sh ochilardi),
         # bog'langan telefon, ruxsat kutayotgan telefon, PIN holati
         "phone": e.phone,
@@ -5620,6 +5649,9 @@ def api_update_employee(emp_id: int, data: dict = Body(...), db: Session = Depen
     try:
         toza = crud._clean_update("Employee", data)
         emp = crud.update_employee(db, emp_id, schemas.EmployeeUpdate(**toza), updated_by=who)
+    except crud.HodimHolatXatosi as e:      # kech141 (zip 169): butunlay o'chirilgan hodimni faollashtirish — 409
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(e))
     except ValueError as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
@@ -5666,23 +5698,46 @@ def api_backfill_compensation_history(db: Session = Depends(get_db), current_use
 
 
 @app.delete("/api/employees/{emp_id}")
-def api_delete_employee(emp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("hodim", "ochirish"))):
+def api_delete_employee(emp_id: int, ketgan_sana: Optional[str] = None, db: Session = Depends(get_db),
+                        current_user=Depends(auth.ruxsat("hodim", "ochirish"))):
+    """kech141 (zip 169, A-P02 — egasi QARORI 11.10 «Sanani o'zim tanlayman»): `ketgan_sana` (YYYY-MM-DD, Toshkent; berilmasa —
+    bugun) — o'sha oy oyligi shu kungacha, keyingi oylarda yo'q, o'tgan oylar o'zgarmaydi. Noto'g'ri sana — 400 (hech narsa
+    yozilmaydi), butunlay o'chirilgan hodim — 409."""
     # M1: xodim FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.employee_of_company(db, emp_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Xodim topilmadi")
     who = current_user.full_name or current_user.username
-    if not crud.delete_employee(db, emp_id, performed_by=who):
+    try:
+        ok = crud.delete_employee(db, emp_id, performed_by=who, ketgan_sana=ketgan_sana)
+    except crud.HodimHolatXatosi as e:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(e))
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    if not ok:
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok"}
 
 
 @app.post("/api/employees/{emp_id}/restore")
-def api_restore_employee(emp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("hodim", "tahrirlash"))):
+def api_restore_employee(emp_id: int, qaytgan_sana: Optional[str] = None, db: Session = Depends(get_db),
+                         current_user=Depends(auth.ruxsat("hodim", "tahrirlash"))):
+    """kech141 (zip 169, A-P02): `qaytgan_sana` (YYYY-MM-DD; berilmasa — bugun) — ishga qaytgan kun; ishdan ketgan kuni (yoki
+    ertasi) — ish uzilmagan («xato o'chirilgan edi»). Noto'g'ri sana — 400; o'chirilmagan / butunlay o'chirilgan hodim — 409."""
     # M1: xodim FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.employee_of_company(db, emp_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Xodim topilmadi")
     who = current_user.full_name or current_user.username
-    if not crud.restore_employee(db, emp_id, performed_by=who):
+    try:
+        ok = crud.restore_employee(db, emp_id, performed_by=who, qaytgan_sana=qaytgan_sana)
+    except crud.HodimHolatXatosi as e:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(e))
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    if not ok:
         raise HTTPException(status_code=404, detail="Xodim topilmadi")
     return {"status": "ok"}
 
@@ -5693,6 +5748,7 @@ def api_permanent_delete_employee(emp_id: int, db: Session = Depends(get_db), cu
     if not auth.employee_of_company(db, emp_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Xodim topilmadi")
     who = current_user.full_name or current_user.username
+    # kech141 (zip 169 — egasi QARORI 12.10 «Hisobotda qolsin»): hodim savatdan yo'qoladi, o'tgan oylar hisobotida qoladi
     if not crud.permanent_delete_employee(db, emp_id, performed_by=who):
         raise HTTPException(status_code=404, detail="Xodim topilmadi (avval yumshoq o'chirilgan bo'lishi kerak)")
     return {"status": "ok"}
@@ -8896,10 +8952,12 @@ def api_delete_return(return_id: int, db: Session = Depends(get_db), current_use
 # PAYMENTS — To'lovlar API
 # ============================================================
 
-def _tolov_qoldigini_chegirmaga(db: Session, order):
+def _tolov_qoldigini_chegirmaga(db: Session, order, kim: str = None):
     """To'lovdan keyin qolgan (kichik) qarzni CHEGIRMA sifatida yozadi (`write_off_remainder=true`); natija — javobdagi
     `write_off` (yoki None). kech99: `api_create_payment` ichidan ko'chirildi — to'lov bilan BITTA tranzaksiyada
-    chaqiriladi (o'zi `commit` qilmaydi; mantiq AYNAN)."""
+    chaqiriladi (o'zi `commit` qilmaydi; mantiq AYNAN).
+    kech141 (zip 169, audit A-P05): «Tayyor» buyurtmada kechirish — hodisa (`crud.tuzatish_yoz`, tur «kechirish»): daromad
+    kamayishi kechirilgan oyda, yakunlangan oy o'zgarmaydi (ilgari yopilgan oy daromadi qayta yozilardi)."""
     if not order:
         return None
     remaining = order.debt_amount
@@ -8909,7 +8967,9 @@ def _tolov_qoldigini_chegirmaga(db: Session, order):
         # buyurtmaning asl (chegirmasiz) qiymatini ko'rsatib turadi,
         # "Chegirma" esa (Jami - Kelishilgan) o'zi avtomatik kattalashadi —
         # boshidagi chegirma bilan bu "kechirilgan" summa TABIIY qo'shilib boradi.
+        _eski_kel141 = order.kelishilgan_summa
         order.agreed_amount = order.kelishilgan_summa - remaining
+        crud.tuzatish_yoz(db, order, _eski_kel141, "kechirish", kim=kim)
         # kech110 (K110-1, egasi QARORI "Kechirilgan so'mda qolsin"): kechirilgan summa alohida ustunda (yig'indi) —
         # tahrir / qisman «Tayyor» da jami o'zgarsa u so'mda saqlanadi (`crud.kelishilgan_qayta_hisob`). Izohdagi
         # `[WRITEOFF:…]` belgisi — faqat ko'rsatish uchun (oxirgisi, butun so'm).
@@ -8957,7 +9017,8 @@ def api_create_payment(data: dict = Body(...), write_off_remainder: bool = False
         with crud.bitta_tranzaksiya(db):
             payment = crud.create_payment(db, data, company_id=auth.company_id_of(current_user))
             order = crud.get_order(db, data.order_id, company_id=auth.company_id_of(current_user))
-            write_off_info = _tolov_qoldigini_chegirmaga(db, order) if write_off_remainder else None
+            write_off_info = (_tolov_qoldigini_chegirmaga(db, order, kim=current_user.full_name or current_user.username)
+                              if write_off_remainder else None)
     except crud.OverpaymentWarning as w:
         raise HTTPException(status_code=409, detail={
             "type": "overpayment_warning",
@@ -9126,12 +9187,17 @@ def api_update_agreed_amount(order_id: int, data: dict = Body(...), db: Session 
     # OBYEKT (`orders.html` boshqa buyurtma xatolari kabi `detail.message`).
     try:
         toza = crud._clean_val("OrderAgreed", data)
-        order = crud.update_order_agreed_amount(db, order_id, toza["agreed_amount"])
+        order = crud.update_order_agreed_amount(db, order_id, toza["agreed_amount"],
+                                                kim=current_user.full_name or current_user.username)
     except ValueError as e:
         db.rollback()
         raise HTTPException(status_code=400, detail={"success": False, "message": str(e)})
     if not order:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+    # kech141 (zip 169, audit A-P05 — egasi QARORI 11.10): «Tayyor» buyurtmada o'zgarish o'z oyida (`tuzatish` — farq va oy);
+    # kamaytirilib to'lovdan kam bo'lsa — `ortiqcha_tolov` («↩ Mijozga N so'm qaytarish kerak»).
+    _tz = getattr(order, "_tuzatish", None)
+    _tz_t = _t_vaqt(_tz.vaqt) if _tz is not None else None
     return {
         "status": "ok",
         "total_amount": float(order.total_amount or 0),
@@ -9139,7 +9205,9 @@ def api_update_agreed_amount(order_id: int, data: dict = Body(...), db: Session 
         "discount_percent": order.discount_percent,
         "paid_amount": order.paid_amount,
         "debt_amount": order.debt_amount,
-        "payment_status": order.payment_status.value
+        "payment_status": order.payment_status.value,
+        "ortiqcha_tolov": order.ortiqcha_tolov,
+        "tuzatish": ({"farq": float(_tz.farq), "yil": _tz_t.year, "oy": _tz_t.month} if _tz is not None else None),
     }
 
 

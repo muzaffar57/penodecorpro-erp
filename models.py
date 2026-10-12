@@ -786,6 +786,9 @@ class Order(Base):
     attachments = relationship("OrderAttachment", back_populates="order", cascade="all, delete-orphan")
     gips_additives = relationship("OrderGipsAdditive", back_populates="order", cascade="all, delete-orphan",
                                   order_by="OrderGipsAdditive.id")
+    # kech141 (zip 169, audit A-P05): «Tayyor» dan keyingi kelishilgan summa tuzatishlari (o'z oyida hisoblanadi)
+    tuzatishlar = relationship("BuyurtmaTuzatish", back_populates="order", cascade="all, delete-orphan",
+                               order_by="BuyurtmaTuzatish.id")
 
     @property
     def delivery_percent(self):
@@ -866,6 +869,31 @@ class Order(Base):
 
     def __repr__(self):
         return f"<Order #{self.order_number} (Project #{self.project_id})>"
+
+
+class BuyurtmaTuzatish(Base):
+    """kech141 (zip 169, audit A-P05 — O'LCHANGAN: «Tayyor» buyurtmaning kelishilgan summasi keyin o'zgartirilsa (✏️ yoki to'lovda
+    qarz qoldig'ini kechirish) YOPILGAN oy daromadi, foydasi va usta KPI si jimgina qayta yozilardi — hodisa qoldirilmasdi).
+    Egasi QARORI (11.10 «O'zgargan oyga» — qaytarish qoidasi kabi): o'zgarish O'ZI BO'LGAN oyda alohida qator, yopilgan oy
+    o'zgarmaydi; kamaytirishda ortiqcha to'lov — «Mijozga qaytarish» belgisi.
+
+    Bitta qator — yakunlangan buyurtmaning bitta pul tuzatishi: `farq` = yangi − eski kelishilgan summa (ishorali). Hisobot
+    qaytarish naqshida (`services._qaytarish_hodisalari` — «tuzatish» hodisasi): yakunlangan paytdagi daromad
+    (`services.yakun_daromadi`) va holat (`calculate_order_profit(holat_vaqti=…)`) undan keyingi tuzatishlarsiz, tuzatish — o'z
+    oyida (`services.davr_qaytarishlari`). Yozuvchi yagona yo'l — `crud.tuzatish_yoz`."""
+    __tablename__ = "buyurtma_tuzatishlari"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, index=True)
+    tur = Column(String(20), nullable=False)               # 'kelishilgan' (✏️) | 'kechirish' (to'lovda qarz qoldig'i)
+    vaqt = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    eski_kelishilgan = Column(Numeric(12, 2), nullable=False)
+    yangi_kelishilgan = Column(Numeric(12, 2), nullable=False)
+    farq = Column(Numeric(12, 2), nullable=False)
+    kim = Column(String(100), nullable=True)
+
+    order = relationship("Order", back_populates="tuzatishlar")
 
 
 class OrderGipsAdditive(Base):
@@ -1474,13 +1502,52 @@ class Employee(Base):
     # kirgach avval o'z PIN ini qo'yadi (`crud.hodim_pin_almashtir`). Mavjud qatorlarga `sync_missing_columns` DEFAULT TRUE bilan
     # qo'shadi — hozirgi PIN lar ham admin bergan. NULL — vaqtinchalik deb olinadi (xavfsiz tomon).
     pin_vaqtinchalik = Column(Boolean, nullable=True, default=True)
+    # kech141 (zip 169, audit A-P02 — egasi QARORI 12.10 «Kirgan kundan»): TRUE — ishga kirgan oy oyligi KIRGAN KUNDAN (kunlarga
+    # mutanosib; `hire_date` — admin tanlagan «Ishga kirgan sana»). FALSE / NULL — zip 169 dan oldingi hodim: kirgan oyi TO'LIQ
+    # (o'tgan oylar o'zgarmasin). Mavjud qatorlarga `sync_missing_columns` DEFAULT FALSE bilan qo'shadi; `crud.create_employee` — TRUE.
+    kirgan_kundan = Column(Boolean, nullable=True, default=False)
+    # kech141 (zip 169 — egasi QARORI 12.10 «Hisobotda qolsin»): «❌ Butunlay o'chirish» — hodim «O'chirilganlar» ro'yxatidan
+    # yo'qoladi, tiklanmaydi, telefon / PIN / qurilma o'chadi; o'tgan oylar hisobotida ismi, oyligi va avanslari QOLADI (ilgari
+    # qator avanslari bilan bazadan o'chirilardi — o'tgan oylar xarajati va kassa o'zgarardi).
+    butunlay_ochirilgan = Column(Boolean, nullable=True, default=False)
 
     advance_requests = relationship("AdvanceRequest", back_populates="employee", cascade="all, delete-orphan")
+    # kech141 (zip 169, A-P02): ishdan ketish / qaytish davrlari (`HodimIshDavri`)
+    ish_davrlari = relationship("HodimIshDavri", back_populates="employee", cascade="all, delete-orphan",
+                                order_by="HodimIshDavri.id")
     compensation_history = relationship("EmployeeCompensationHistory", back_populates="employee",
                                          cascade="all, delete-orphan", order_by="desc(EmployeeCompensationHistory.effective_year), desc(EmployeeCompensationHistory.effective_month)")
 
     def __repr__(self):
         return f"<Employee {self.name} ({self.pay_type.value})>"
+
+
+class HodimIshDavri(Base):
+    """kech141 (zip 169, audit A-P02 — O'LCHANGAN: o'chirilgan / faolsizlantirilgan hodim HAMMA oylardan, o'tganlaridan ham, yo'qolardi —
+    sentyabr hodimlar xarajati 6 000 000 → 0, sof foyda shuncha oshardi). Egasi QARORLARI (11.10 16:4x, 23:3x; 12.10): ishdan ketgan oy
+    oyligi KETGAN KUNGACHA (kunlarga mutanosib), ketgan sanani admin TANLAYDI (o'chirish oynasida «Ishdan ketgan sana», oldindan bugun),
+    o'tgan oylar o'zgarmaydi; qayta ishga olish mumkin.
+
+    Bitta qator — bitta ish davri, sanalar TOSHKENT kalendari bo'yicha (ikkala chet kuni ham ishlagan kun):
+      • `boshlangan` NULL — birinchi davr: ishga kirgandan (`Employee.hire_date`; `kirgan_kundan` FALSE bo'lsa kirgan oyining 1-kunidan);
+        sana — qayta ishga olingan kun;
+      • `tugagan` NULL — hozir ham ishlaydi; sana — ishdan ketgan kun.
+    Qatori YO'Q hodim — zip 169 dan oldingi xulq: hozir ishlasa (faol, o'chirilmagan) ishga kirgandan beri, aks holda (eski faolsiz /
+    jurnalsiz o'chirilgan) hech bir oyda yo'q. Birinchi ketishda `[NULL, sana]` yoziladi, qaytishda — davr qayta ochiladi (bir kundan
+    ortiq uzilish bo'lmasa) yoki yangi `[sana, NULL]`. Yozuvchi yagona yo'l — `crud.hodim_ishdan_chiqar` / `crud.hodim_ishga_qaytar`,
+    oylik hisobi — `services.hodim_ish_kunlari`."""
+    __tablename__ = "hodim_ish_davrlari"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False, index=True)
+    boshlangan = Column(Date, nullable=True)
+    tugagan = Column(Date, nullable=True)
+    yaratilgan = Column(DateTime, default=datetime.utcnow)
+    kim = Column(String(100), nullable=True)
+    manba = Column(String(20), nullable=True)      # 'ishdan_ketdi' | 'qaytdi' | 'migratsiya'
+
+    employee = relationship("Employee", back_populates="ish_davrlari")
 
 
 class EmployeeCompensationHistory(Base):
@@ -2693,6 +2760,10 @@ _TENANT_RULES = {
     "EmployeeSession":             [("employee_id", "Employee")],
     # kech127 (zip 151): murojaat xabari — o'z murojaatining korxonasidan
     "MurojaatXabari":              [("murojaat_id", "Murojaat")],
+    # kech141 (zip 169, A-P02): hodim ish davri — o'z hodimining korxonasidan (`company_id` ustuni bor — mos kelmasa rad)
+    "HodimIshDavri":               [("employee_id", "Employee")],
+    # kech141 (zip 169, A-P05): buyurtma tuzatishi — o'z buyurtmasining korxonasidan
+    "BuyurtmaTuzatish":            [("order_id", "Order")],
 }
 
 

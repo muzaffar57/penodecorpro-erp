@@ -356,6 +356,8 @@ TANNARX_KALITLAR = frozenset({
     "total_material_cost", "total_extra_cost", "line_cost", "loy_cost", "loy_cost_per_kg", "peno_cost", "penoplast_cost",
     "xomashyo_cost", "unit_cost", "stock_cost", "cost_price_per_unit", "cost_price_per_unit_no_coating",
     "narxsiz_tannarx_qiymati", "tannarx_jami", "tannarx_buyurtmalar", "tannarx_tm", "qaytarish_tannarx", "fp_sales_tannarx",
+    # kech141 (zip 169, A-P05): «Tayyor» buyurtma narx tuzatishining tannarx (usta haqi) farqi
+    "tuzatish_tannarx",
     "ishlab_chiqarish_xarajat", "brak_xarajat", "fp_loss_xarajat", "brak_total_value", "brak_month_value",
     # kech121 (zip 138 — G5-23): brak ulushi asosining tarkibi
     "buyurtmalar_tannarxi", "omborga_ishlab_tannarxi",

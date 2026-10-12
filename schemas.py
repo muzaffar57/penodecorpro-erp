@@ -736,6 +736,8 @@ class EmployeeCreate(BaseModel):
     # kech117 (A2): korxona yo'nalishi (`models.Yonalish`); NULL — «Umumiy».
     yonalish_id: Optional[int] = Field(default=None, ge=1, le=2_147_483_647)
     notes: Optional[str] = None
+    # kech141 (zip 169, A-P02 — egasi QARORI 12.10 «Kirgan kundan»): «Ishga kirgan sana» (Toshkent; berilmasa — bugun)
+    ishga_kirgan_sana: Optional[datetime] = None
 
 
 class EmployeeUpdate(BaseModel):
@@ -757,6 +759,9 @@ class EmployeeUpdate(BaseModel):
     effective_year: Optional[int] = None
     effective_month: Optional[int] = Field(default=None, ge=1, le=12)
     reason: Optional[str] = None
+    # kech141 (zip 169, A-P02): `is_active` o'zgarganda — ishdan ketgan / ishga qaytgan sana (Toshkent; berilmasa — bugun)
+    ketgan_sana: Optional[datetime] = None
+    qaytgan_sana: Optional[datetime] = None
 
 
 class EmployeeRead(BaseModel):

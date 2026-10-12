@@ -738,6 +738,8 @@ def get_company_obligations_status(db: Session, year: int, month: int,
                     "employee_id": e["employee_id"], "name": e["name"],
                     "amount": e["amount"], "avans": e["avans"], "qarz": -e["qolgan"],
                     "year": chk_year, "month": chk_month,
+                    # kech141 (zip 169, A-P02): ishdan ketgan hodim — belgi bilan
+                    "ishda": e.get("ishda", True), "ketgan_sana": e.get("ketgan_sana"),
                     "month_label": OY_NOMLARI[chk_month] if not is_current else f"{OY_NOMLARI[chk_month]} (joriy)",
                 })
             if e["qolgan"] <= 0.5:
@@ -746,6 +748,7 @@ def get_company_obligations_status(db: Session, year: int, month: int,
                 "employee_id": e["employee_id"], "name": e["name"], "detail": e["detail"],
                 "amount": e["amount"], "avans": e["avans"], "qolgan": e["qolgan"],
                 "year": chk_year, "month": chk_month,
+                "ishda": e.get("ishda", True), "ketgan_sana": e.get("ketgan_sana"),     # kech141 (zip 169, A-P02)
                 "month_label": OY_NOMLARI[chk_month] if not is_current else f"{OY_NOMLARI[chk_month]} (joriy)",
                 "status": "overdue" if (not is_current or today.day > 5) else "partial",
             })
@@ -1826,12 +1829,10 @@ def get_chart_data(db: Session, company_id: int = None) -> Dict:
         # MUHIM: daromad (revenue) — moliyaviy tarix, o'chirilgan
         # buyurtmalar ham hisobga olinishi kerak (faqat "count" — necha ta
         # buyurtma yaratilgani — o'zgarishsiz qoladi, chunki bu shunchaki son).
-        revenue = float(_oc(db.query(func.sum(func.coalesce(Order.agreed_amount, Order.total_amount, 0))).filter(
-            Order.completed_at >= month_start,      # kech105 (K105-4): «Tayyor» oyi — oylik hisobot bilan bir qoida
-            Order.completed_at < month_end,
-            Order.status == OrderStatus.READY
-        )).scalar() or 0)
-
+        # kech141 (zip 169, audit A-P07 — O'LCHANGAN): ilgari daromad — buyurtmaning JORIY kelishilgan summasi: «Tayyor» dan
+        # keyingi «Pul qaytdi» va narx tuzatishi (✏️ / kechirish) grafikda YAKUNLANGAN oyni o'zgartirardi, oylik hisobot esa
+        # ularni o'z oyida ko'rsatadi — grafik va hisobot bir oy uchun ikki xil son berardi. Endi oylik hisobot bilan BITTA qoida:
+        # yakunlangan paytdagi daromad (`yakun_daromadi`) + shu oydagi hodisalar (`davr_qaytarishlari`) + TM sotuvi.
         # Gips va Penoplast (va boshqa) — detal darajasida, ulush bo'yicha
         # ajratilgan holda (har bir detalning umumiy summadagi ulushi ×
         # kelishilgan summa — chegirma/qo'shimchani ham to'g'ri hisobga oladi)
@@ -1841,8 +1842,12 @@ def get_chart_data(db: Session, company_id: int = None) -> Dict:
             Order.completed_at < month_end,
             Order.status == OrderStatus.READY
         )).options(_sil_cd(Order.items)).all()
-        # kech117 (A2): yo'nalishlar bo'yicha — YAGONA qoida (`yonalish_daromadlari`); bu grafikda avvalgidek
-        # joriy kelishilgan summa (qaytarish hodisalarisiz) — faqat taqsimot «Gips / Penoplast» o'rniga yo'nalishlar.
+        _hk_tayyorla(db, month_orders)
+        _oy_hodisalar = davr_qaytarishlari(db, month_start, month_end, company_id=company_id)
+        revenue = (sum(yakun_daromadi(db, _o) for _o in month_orders)
+                   + sum(float(_h["daromad"]) for _h in _oy_hodisalar))
+        # kech117 (A2): yo'nalishlar bo'yicha — YAGONA qoida (`yonalish_daromadlari`); kech141 (zip 169): oylik hisobot bilan bir
+        # qoida (yakunlangan paytdagi daromad + shu oydagi qaytarish / tuzatish hodisalari).
 
         # Tayyor mahsulotlar bo'limidan to'g'ridan-to'g'ri (buyurtmasiz)
         # sotilganlar — avval bu grafikda hisobga olinmasdi.
@@ -1863,8 +1868,8 @@ def get_chart_data(db: Session, company_id: int = None) -> Dict:
         for s in month_fp_sales:
             s_total = float(s.total_amount or 0)
             revenue += s_total
-        _oy_yon = yonalish_daromadlari(db, company_id, month_orders, lambda _o: _o.kelishilgan_summa,
-                                       tm_sotuvlari=month_fp_sales, xarita=_yx_c)
+        _oy_yon = yonalish_daromadlari(db, company_id, month_orders, lambda _o: yakun_daromadi(db, _o),
+                                       qaytarishlar=_oy_hodisalar, tm_sotuvlari=month_fp_sales, xarita=_yx_c)
         for _k in _oy_yon:
             _yon_nomlari[_k] = _yx_c.nom(_k)
 
@@ -2069,6 +2074,11 @@ def _hisobot_keshi_bilan(fn):
         with hisobot_keshi(_db):
             return fn(*args, **kwargs)
     return _o
+
+
+# kech141 (zip 169, A-P07): Dashboard grafigi endi yakunlangan paytdagi daromadni (`yakun_daromadi`) va oy hodisalarini
+# o'qiydi — buyurtmalar hisobot keshida oldindan yuklanadi (`_hk_tayyorla`; funksiya dekoratordan oldin e'lon qilingan).
+get_chart_data = _hisobot_keshi_bilan(get_chart_data)
 
 
 # ============================================================
@@ -2364,7 +2374,8 @@ def _hk_tayyorla(db, orders):
             _sil_hk(Order.items).selectinload(OrderItem.sub_details),
             _sil_hk(Order.master),
             # kech102 (144-band): qaytarish hodisalari (`_qaytarish_hodisalari`) — buyurtma boshiga so'rov o'rniga
-            _sil_hk(Order.returns)).all()
+            # kech141 (zip 169, A-P05): va kelishilgan summa tuzatishlari
+            _sil_hk(Order.returns), _sil_hk(Order.tuzatishlar)).all()
     items = [it for o in yangi for it in (o.items or [])]
     item_ids = [it.id for it in items]
     # 2) harakatlar — `_buyurtma_sarf_narxlari` sharti (brak EMAS), `id` tartibida.
@@ -2672,6 +2683,14 @@ def _qaytarish_hodisalari(db: Session, order) -> list:
         _s = float(r.stock_cost or 0)
         if r.finished_product_id is not None and r.returned_at is not None and _s > 0:
             natija.append(("ombor", r.returned_at, _s, r))
+    # kech141 (zip 169, audit A-P05 — egasi QARORI «O'zgargan oyga»): «Tayyor» dan keyingi kelishilgan summa tuzatishi
+    # (`models.BuyurtmaTuzatish`, ✏️ / kechirish) — summa ISHORALI (yangi − eski): kelishilgan summa `summa` ga o'zgargan
+    for t in (getattr(order, "tuzatishlar", None) or []):
+        if _cid is not None and t.company_id != _cid:
+            continue
+        _f = float(t.farq or 0)
+        if t.vaqt is not None and abs(_f) >= 0.005:
+            natija.append(("tuzatish", t.vaqt, _f, t))
     return natija
 
 
@@ -2686,13 +2705,16 @@ def _yakun_vaqti(order):
 
 def yakun_daromadi(db: Session, order) -> float:
     """Buyurtma YAKUNLANGAN paytdagi daromad: joriy kelishilgan summa + yakunlanishdan keyin "Pul qaytdi" bilan
-    kamaygan qism (u qaytarish bo'lgan davrda hisoblanadi — `davr_qaytarishlari`)."""
+    kamaygan qism (u qaytarish bo'lgan davrda hisoblanadi — `davr_qaytarishlari`).
+    kech141 (zip 169, A-P05): yakunlanishdan keyingi kelishilgan summa tuzatishlari (✏️ / kechirish) ham chiqariladi — ular
+    o'zgargan oyda."""
     _s = float(order.kelishilgan_summa)
     _t = _yakun_vaqti(order)
     if _t is None:
         return _s
-    return _s + sum(summa for tur, vaqt, summa, _r in _qaytarish_hodisalari(db, order)
-                    if tur == "pul" and vaqt >= _t)
+    _h = _qaytarish_hodisalari(db, order)
+    return (_s + sum(summa for tur, vaqt, summa, _r in _h if tur == "pul" and vaqt >= _t)
+            - sum(summa for tur, vaqt, summa, _r in _h if tur == "tuzatish" and vaqt >= _t))
 
 
 def yakun_foydasi(db: Session, order, company_id: int = None) -> Dict:
@@ -2733,7 +2755,21 @@ def davr_qaytarishlari(db: Session, boshi, oxiri, company_id: int = None, master
         _q = _q.filter(Order.company_id == company_id, _RI144.company_id == company_id)
     if master_id is not None:
         _q = _q.filter(Order.master_id == master_id)
-    _oids = sorted({_r[0] for _r in _q.distinct().all() if _r[0] is not None})
+    _oids = {_r[0] for _r in _q.distinct().all() if _r[0] is not None}
+    # kech141 (zip 169, A-P05): davrdagi «Tayyor» dan keyingi kelishilgan summa tuzatishlari (✏️ / kechirish) — o'z davrida
+    from models import BuyurtmaTuzatish as _BT169
+    _tq = db.query(_BT169.order_id).join(Order, Order.id == _BT169.order_id).filter(
+        _BT169.company_id == Order.company_id,
+        Order.status == OrderStatus.READY,
+        Order.completed_at.isnot(None),
+        Order.completed_at < b,
+        _BT169.vaqt >= a, _BT169.vaqt < b)
+    if company_id is not None:
+        _tq = _tq.filter(Order.company_id == company_id, _BT169.company_id == company_id)
+    if master_id is not None:
+        _tq = _tq.filter(Order.master_id == master_id)
+    _oids |= {_r[0] for _r in _tq.distinct().all() if _r[0] is not None}
+    _oids = sorted(_oids)
     natija = []
     if _oids:
         _oq = db.query(Order).filter(Order.id.in_(_oids))
@@ -2758,8 +2794,10 @@ def davr_qaytarishlari(db: Session, boshi, oxiri, company_id: int = None, master
                     "tannarx": float(_p1["tan_narxi"]) - float(_p0["tan_narxi"]),
                     "foyda": float(_p1["foyda"]) - float(_p0["foyda"]),
                     # kech117 (A2): hodisadagi qaytarishlar — (detal id, vazn: qaytarilgan pul / omborga qaytgan
-                    # tannarx); yo'nalishlar hisoboti hodisani shu detallar yo'nalishiga taqsimlaydi (ilgari "gips" belgisi)
-                    "detallar": [(getattr(r, "order_item_id", None), float(_s or 0)) for _t, r, _s in _shu],
+                    # tannarx); yo'nalishlar hisoboti hodisani shu detallar yo'nalishiga taqsimlaydi (ilgari "gips" belgisi).
+                    # kech141 (zip 169): tuzatish — detalsiz (buyurtma detallari ulushida taqsimlanadi)
+                    "detallar": [(getattr(r, "order_item_id", None), float(_s or 0)) for _t, r, _s in _shu
+                                 if _t != "tuzatish"],
                 })
     _hk_qoy(db, "qaytarish_davr", _kalit, natija)
     return natija
@@ -3149,6 +3187,10 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None, h
                 _omborga_qaytgan += _summa144
                 _qaytgan_qismlari.append({"tur": "qaytgan", "summa": -_summa144,
                                           "detal_id": getattr(_r144, "order_item_id", None)})
+        elif _tur144 == "tuzatish":
+            # kech141 (zip 169, A-P05): kelishilgan summa `summa` ga O'ZGARGAN (ishorali) — `holat_vaqti` dan keyingisi qaytariladi
+            if holat_vaqti is not None and _vaqt144 >= holat_vaqti:
+                sotuv_narxi -= _summa144
         elif holat_vaqti is not None and _vaqt144 >= holat_vaqti:
             sotuv_narxi += _summa144
     if _omborga_qaytgan > 0:
@@ -3317,9 +3359,12 @@ def get_daily_finance_summary(db: Session, target_date, company_id: int = None) 
             "cost": round(total_cost),
             "profit": round(total_profit),
             # kech102 (144-band): shu kungi qaytarishlar (yuqoridagi summalar ICHIDA)
-            "qaytarish_soni": len(_qaytarishlar_kun),
-            "qaytarish_daromad": round(sum(h["daromad"] for h in _qaytarishlar_kun)),
-            "qaytarish_tannarx": round(sum(h["tannarx"] for h in _qaytarishlar_kun)),
+            # kech141 (zip 169, A-P05): narx tuzatishlari — alohida (ular ham yuqoridagi summalar ICHIDA)
+            "qaytarish_soni": len([h for h in _qaytarishlar_kun if h["tur"] != "tuzatish"]),
+            "qaytarish_daromad": round(sum(h["daromad"] for h in _qaytarishlar_kun if h["tur"] != "tuzatish")),
+            "qaytarish_tannarx": round(sum(h["tannarx"] for h in _qaytarishlar_kun if h["tur"] != "tuzatish")),
+            "tuzatish_soni": len([h for h in _qaytarishlar_kun if h["tur"] == "tuzatish"]),
+            "tuzatish_daromad": round(sum(h["daromad"] for h in _qaytarishlar_kun if h["tur"] == "tuzatish")),
         },
         "expenses": {
             "total": round(total_expense),
@@ -3828,10 +3873,16 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     # omborga qaytgan mahsulot tannarxi — ishlab chiqarish xarajatidan ayriladi (alohida qator — `qaytarish_*`).
     _q144_boshi, _q144_oxiri = _tashkent_oy_oraligi(year, month)
     _qaytarishlar = davr_qaytarishlari(db, _q144_boshi, _q144_oxiri, company_id=company_id)
-    qaytarish_daromad = sum(h["daromad"] for h in _qaytarishlar)
-    qaytarish_tannarx = sum(h["tannarx"] for h in _qaytarishlar)
-    daromad += qaytarish_daromad
-    ishlab_chiqarish_xarajat += qaytarish_tannarx
+    # kech141 (zip 169, A-P05): «Tayyor» dan keyingi kelishilgan summa tuzatishlari (✏️ / kechirish) — shu oyda, ALOHIDA qator
+    # («Qaytarishlar» qatoriga aralashmaydi); daromad va tannarx (usta haqi o'zgarishi) jamiga kiradi.
+    _tuzatishlar_oy = [h for h in _qaytarishlar if h["tur"] == "tuzatish"]
+    _qaytarishlar_oy = [h for h in _qaytarishlar if h["tur"] != "tuzatish"]
+    qaytarish_daromad = sum(h["daromad"] for h in _qaytarishlar_oy)
+    qaytarish_tannarx = sum(h["tannarx"] for h in _qaytarishlar_oy)
+    tuzatish_daromad = sum(h["daromad"] for h in _tuzatishlar_oy)
+    tuzatish_tannarx = sum(h["tannarx"] for h in _tuzatishlar_oy)
+    daromad += qaytarish_daromad + tuzatish_daromad
+    ishlab_chiqarish_xarajat += qaytarish_tannarx + tuzatish_tannarx
 
     sof_daromad = daromad - ishlab_chiqarish_xarajat
 
@@ -4290,7 +4341,11 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
         # kech102 (144-band): shu oydagi qaytarishlar (daromad va ishlab chiqarish xarajati ICHIDA) — alohida qator uchun
         "qaytarish_daromad": round(qaytarish_daromad),
         "qaytarish_tannarx": round(qaytarish_tannarx),
-        "qaytarish_soni": len(_qaytarishlar),
+        "qaytarish_soni": len(_qaytarishlar_oy),
+        # kech141 (zip 169, A-P05): shu oydagi «Tayyor» buyurtma narx tuzatishlari (daromad — ishorali, tannarx — usta haqi farqi)
+        "tuzatish_daromad": round(tuzatish_daromad),
+        "tuzatish_tannarx": round(tuzatish_tannarx),
+        "tuzatish_soni": len(_tuzatishlar_oy),
         "fp_sales_daromad": round(fp_sales_daromad),
         "fp_sales_foyda": round(fp_sales_foyda),
         "fp_sales_soni": len(fp_sales),
@@ -7427,6 +7482,63 @@ def calculate_monthly_ehson(db: Session, year: int, month: int,
     return {"percent": percent, "monthly_profit": round(monthly_profit), "ehson_amount": round(ehson_amount)}
 
 
+def hodim_ishlayaptimi(e) -> bool:
+    """kech141 (zip 169, A-P02): hodim HOZIR ishlaydimi — faol va o'chirilmagan (o'chirish / faolsizlantirish = ishdan ketish)."""
+    return bool(e is not None and e.is_active and not e.is_deleted)
+
+
+def toshkent_sanasi(dt):
+    """kech141 (zip 169): UTC (naive) vaqt → Toshkent kalendar sanasi. `_tashkent_date(dt)` bilan bir xil; alohida nom — testlar
+    «bugun» ni `services._tashkent_date` ni almashtirib soxtalashtiradi (argumentsiz), bu o'giruv unga bog'lanmasin."""
+    from database import TASHKENT_OFFSET as _TO_k
+    return (dt + _TO_k).date()
+
+
+def hodim_kirgan_sanasi(e):
+    """kech141 (zip 169): hodim ishga kirgan Toshkent sanasi (`hire_date` — UTC vaqt). Yo'q bo'lsa — 2000-01-01."""
+    from datetime import date as _date_k
+    return toshkent_sanasi(e.hire_date) if getattr(e, "hire_date", None) is not None else _date_k(2000, 1, 1)
+
+
+def hodim_ish_kunlari(e, davrlar, year: int, month: int):
+    """kech141 (zip 169, audit A-P02 — egasi QARORLARI 11.10 / 12.10): hodim Toshkent (year, month) oyida NECHA KUN ishlagan.
+
+    Qaytaradi `(kun, oy_kunlari, hodisalar)`: `kun` None — hodim bu oy hisobiga UMUMAN kirmaydi (ish davri yozilmagan, hozir ham
+    ishlamaydi: zip 169 dan oldingi faolsizlantirilgan / jurnalsiz o'chirilgan hodim — ilgarigi xulq, avanslari ham chiqmaydi);
+    `hodisalar` — shu oydagi `("kirgan" | "ketgan" | "qaytgan", sana)` (izoh uchun, sana tartibida).
+
+    Davrlar — `models.HodimIshDavri` (ikkala chet kuni ham ishlagan kun). Birinchi davr (`boshlangan` NULL) ishga kirgan kundan
+    (`kirgan_kundan` — egasi QARORI 12.10 «Kirgan kundan»; zip 169 dan oldingi hodimda — kirgan oyining 1-kunidan, ilgarigidek TO'LIQ
+    oy). Davr yozilmagan, hozir ishlaydigan hodim — ishga kirgandan beri (ilgarigi xulq)."""
+    import calendar as _cal_ik
+    from datetime import date as _date_ik
+    oy_kun = _cal_ik.monthrange(year, month)[1]
+    boshi, oxiri = _date_ik(year, month, 1), _date_ik(year, month, oy_kun)
+    kirgan = hodim_kirgan_sanasi(e)
+    birinchi = kirgan if getattr(e, "kirgan_kundan", False) else kirgan.replace(day=1)
+    if davrlar:
+        oraliqlar = [(d.boshlangan or birinchi, d.tugagan, d.boshlangan is None) for d in davrlar]
+    elif hodim_ishlayaptimi(e):
+        oraliqlar = [(birinchi, None, True)]
+    else:
+        return None, oy_kun, []
+    kunlar = set()
+    hodisalar = []
+    for bosh, tug, ilk in oraliqlar:
+        a, b = max(bosh, boshi), min(tug or oxiri, oxiri)
+        if a <= b:
+            kunlar.update(range(a.toordinal(), b.toordinal() + 1))
+        if boshi < bosh <= oxiri:
+            hodisalar.append(("kirgan" if ilk else "qaytgan", bosh))
+        if tug is not None and boshi <= tug < oxiri:
+            hodisalar.append(("ketgan", tug))
+    hodisalar.sort(key=lambda h: (h[1], 1 if h[0] == "ketgan" else 0))      # bir kunda — avval kirgan / qaytgan
+    return len(kunlar), oy_kun, hodisalar
+
+
+_ISH_HODISA_NOMI = {"kirgan": "ishga kirgan", "ketgan": "ishdan ketgan", "qaytgan": "ishga qaytgan"}
+
+
 def calculate_monthly_employee_pay(db: Session, year: int, month: int,
                                    daromad: float, sof_foyda_before: float,
                                    jami_metr: float, jami_dona: float,
@@ -7450,14 +7562,28 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
     _month_end = _tashkent_oy_oraligi(year, month)[1]
     # M5 (2026-09-18) — TENANT: B korxonaning xodimi A ning oylik
     # to'lov hisobiga tushmasligi uchun.
+    # kech141 (zip 169, audit A-P02 — O'LCHANGAN): ilgari faqat HOZIR faol va o'chirilmagan hodim olinardi — o'chirilgan /
+    # faolsizlantirilgan hodim o'tgan oylardan ham yo'qolardi (sentyabr oyligi va avanslari hisobotdan tushib, sof foyda oshardi).
+    # Endi hamma hodim olinadi, oyga kirishi — ish davrlaridan (`hodim_ish_kunlari`): ishlagan kunlari yoki shu oy avansi /
+    # tuzatmasi bor bo'lsa ro'yxatda; davri yozilmagan eski faolsiz / jurnalsiz o'chirilgan hodim — ilgarigidek yo'q.
+    from models import HodimIshDavri as _HID169
     _eq = db.query(Employee).filter(
-        Employee.is_active == True,
-        Employee.is_deleted.isnot(True),
         Employee.hire_date < _month_end
     )
     if company_id is not None:
         _eq = _eq.filter(Employee.company_id == company_id)
-    employees = _eq.all()
+    employees = _eq.order_by(Employee.id).all()
+    _davrlar_oy = {}
+    for _b in _hk_bolaklar([e.id for e in employees]):
+        _dq169 = db.query(_HID169).filter(_HID169.employee_id.in_(_b))
+        if company_id is not None:
+            _dq169 = _dq169.filter(_HID169.company_id == company_id)
+        for _r in _dq169.order_by(_HID169.id).all():
+            _davrlar_oy.setdefault(_r.employee_id, []).append(_r)
+    _ish_kun = {}
+    for e in employees:
+        _ish_kun[e.id] = hodim_ish_kunlari(e, _davrlar_oy.get(e.id, []), year, month)
+    employees = [e for e in employees if _ish_kun[e.id][0] is not None]
     breakdown = []
     total = 0.0
 
@@ -7558,6 +7684,16 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
             extra_txt = f"qo'shimcha oylik {fmt_num(c_extra_monthly)}"
             detail = f"{detail} + {extra_txt}" if detail else extra_txt
 
+        # kech141 (zip 169, A-P02 — egasi QARORLARI): oyning bir qismida ishlagan (kirgan / ketgan / qaytgan) — oylik ISHLAGAN
+        # KUNLARGA mutanosib (ketgan / kirgan kun — ishlagan kun). Hamma to'lov turiga bir qoida; qo'lda bonus / kamaytirish — o'zgarmaydi.
+        _kun, _oy_kun, _hodisalar = _ish_kun[e.id]
+        if _kun < _oy_kun:
+            amount = amount * _kun / _oy_kun
+            _kt = f"{_kun}/{_oy_kun} kun ishlagan"
+            if _hodisalar:
+                _kt += " (" + ", ".join(f"{_ISH_HODISA_NOMI[t]} {s.strftime('%d.%m.%Y')}" for t, s in _hodisalar) + ")"
+            detail = f"{detail} × {_kt}" if detail else _kt
+
         # QO'LDA KAMAYTIRISH — masalan kelmagan kunlar uchun (admin real
         # vaziyatni bilgan holda kiritadi, avtomatik formula EMAS).
         # QO'LDA BONUS — masalan yaxshi ishlagani uchun qo'shimcha rag'bat.
@@ -7614,10 +7750,23 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
                 "adjustment": round(adjustment) if adjustment else 0,
                 "adjustment_reason": adjustment_reason,
                 "bonus": round(bonus) if bonus else 0,
-                "bonus_reason": bonus_reason_val
+                "bonus_reason": bonus_reason_val,
+                # kech141 (zip 169, A-P02): shu oyda ishlagan kunlari, hozir ishlaydimi, ishdan ketgan bo'lsa — oxirgi ketgan sana
+                "ish_kuni": _kun,
+                "oy_kuni": _oy_kun,
+                "ishda": hodim_ishlayaptimi(e),
+                "ketgan_sana": _hodim_ketgan_sanasi(e, _davrlar_oy.get(e.id, [])),
             })
 
     return {"total": round(total), "breakdown": breakdown}
+
+
+def _hodim_ketgan_sanasi(e, davrlar):
+    """kech141 (zip 169): ishlamayotgan hodimning oxirgi ishdan ketgan sanasi (ISO) — davri yozilmagan bo'lsa None."""
+    if hodim_ishlayaptimi(e):
+        return None
+    _yopiq = [d.tugagan for d in (davrlar or []) if d.tugagan is not None]
+    return max(_yopiq).isoformat() if _yopiq else None
 
 
 _HODIM_OY_NOMI = ["", "Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun", "Iyul", "Avgust", "Sentabr", "Oktabr", "Noyabr", "Dekabr"]
