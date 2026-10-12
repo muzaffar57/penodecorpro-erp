@@ -121,11 +121,12 @@ async function restoreItem(type, id, btn) {
       btn.textContent = '✅ Tiklandi';
       setTimeout(() => location.reload(), 700);
     } else {
-      alert('❌ Tiklashda xato yuz berdi');
+      // kech140 (zip 168): sabab — umumiy `amalSababi` (masalan «Buyurtma savatda emas — u allaqachon tiklangan»)
+      xabarOyna('❌ Tiklanmadi: ' + await amalSababi(res));
       btn.disabled = false; btn.textContent = '↩️ Tiklash';
     }
   } catch(e) {
-    alert('❌ Server bilan aloqa yo\'q');
+    xabarOyna('❌ Tiklanmadi: ' + await amalSababi(e));
     btn.disabled = false; btn.textContent = '↩️ Tiklash';
   }
 }

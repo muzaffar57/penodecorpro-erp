@@ -148,6 +148,7 @@
         <div class="kpi-val text-green" id="k-total-gift">—</div>
         <div class="kpi-label">Yillik KPI fondi</div>
         <div style="font-size:12px;color:var(--text3)">Ustalar sovg'asi uchun</div>
+        <div id="k-nofaol-gift" style="font-size:12px;color:var(--text3);display:none"></div>
       </div>
     </div>
   </div>
@@ -572,6 +573,13 @@ async function loadMasterKpi() {
   return yukBlok('ustalar', `/api/masters/kpi-report?year=${year}`, d => {
     if (!d || typeof d !== 'object' || !Array.isArray(d.masters)) throw yukXato('server');
     document.getElementById('k-total-gift').textContent = fmt(d.total_gift) + " so'm";
+    // kech140 (zip 168): jami — faolsizlantirilgan ustalar shu yil topgan KPI bilan (ro'yxatda faqat faollar)
+    const nf = document.getElementById('k-nofaol-gift');
+    if (nf) {
+      const nfs = Math.round(Number(d.nofaol_gift) || 0);
+      nf.textContent = nfs !== 0 ? "shundan nofaol ustalar: " + fmt(nfs) + " so'm" : '';
+      nf.style.display = nfs !== 0 ? 'block' : 'none';
+    }
     document.getElementById('k-master-count').textContent = d.masters.length + ' ta';
     const top = [...d.masters].sort((a,b)=>b.gift_amount-a.gift_amount)[0];
     // kech120 (zip 136 — G6-14): hamma ustaning sovg'asi 0 bo'lsa ham «TOP: Usta 1» chiqardi
@@ -584,6 +592,7 @@ async function loadMasterKpi() {
     if (w) w.style.display = 'block';
   }, e => {
     ['k-total-gift', 'k-master-count', 'k-top-master'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '—'; });
+    { const nf = document.getElementById('k-nofaol-gift'); if (nf) { nf.textContent = ''; nf.style.display = 'none'; } }
     allMasterKpiData = [];
     ustalarXato = e;
     yukRoyxatXato('mkList', yukXatoMatn('Hamkor ustalar', e));
@@ -899,7 +908,7 @@ let editingEmpId = null;
 // kech138 (zip 165, O'LCHANGAN): 502 / tarmoq — abadiy «Yuklanmoqda...», xato JSON (500 / 401 / 403) — «Hodim qo'shilmagan» (YOLG'ON),
 // avans so'rovi xatosi — jim (avans yo'qdek). Endi sabab; «Hodimlar: Ko'rish» ruxsati yo'q — bo'lim yo'q, so'ralmaydi; tez qayta
 // yuklashda eski javob tashlanadi.
-async function loadEmployees() {
+async function loadEmployees(holatsiz) {
   const list = document.getElementById('empList');
   if (!list) return null;
   const joriy = yukNavbat('hodimlar');
@@ -984,6 +993,11 @@ async function loadEmployees() {
     console.error(e);
     yukRoyxatXato(list, yukXatoMatn('Hodimlar', yukXato('server')));
   }
+  // kech140 (zip 168, sinov saytida JONLI TOPILDI): ro'yxat qayta chizilganda (avans berish / o'chirish, hodim tahriri, o'chirish —
+  // 8 joy) hodim qatorlaridagi «To'langan / Qolgan» va holat belgisi BO'SH qolardi (ular faqat sahifa ochilishida to'ldirilardi) —
+  // endi har chizishdan keyin joriy oy holati ham (kutib — chaqiruvchi tugashini kutsa, so'rovlar tugagan bo'ladi). Sahifa ochilishi
+  // (`holatsiz`) — holatni o'zi chaqiradi: ro'yxat yuklanmasa ham yuqoridagi kartalar o'z so'rovidan chiziladi (test_kpi_loyiha_yuklash_ui K2).
+  if (!holatsiz && typeof loadCurrentMonthEmpStatus === 'function') await loadCurrentMonthEmpStatus();
   return null;
 }
 
@@ -1254,13 +1268,16 @@ async function saveAdvance() {
   try {
     const notes = document.getElementById('adv-notes').value.trim();
     const dateVal = document.getElementById('adv-date').value;
-    const res = await fetch(`/api/employees/${advanceEmpId}/advance?amount=${amount}&notes=${encodeURIComponent(notes)}&adv_date=${dateVal}`, {method:'POST'});
-    if (res.ok) {
+    // kech140 (zip 168, A-P09): oylikdan ko'p bo'lsa so'raladi (`avansYubor`); takror yuborish (8 s) — server bitta yozadi
+    const r = await avansYubor(`/api/employees/${advanceEmpId}/advance?amount=${amount}&notes=${encodeURIComponent(notes)}&adv_date=${dateVal}`);
+    if (r.ok) {
       document.getElementById('adv-amount').value = '';
       document.getElementById('adv-notes').value = '';
       loadAdvanceHistory(advanceEmpId);
       loadEmployees();
-    } else alert('❌ ' + await serverXatoSababi(res));
+      // kech140 (zip 168): «Hodimlar oylik hisoboti» (avans / qolgan ustunlari) ham — ilgari sahifa yangilanguncha eski qolardi
+      if (typeof loadEmpMonthlyReport === 'function') loadEmpMonthlyReport();
+    } else if (!r.bekor) alert('❌ Avans saqlanmadi: ' + r.xato);
   } finally {
     btn.disabled = false;
     btn.textContent = origText;
@@ -1270,7 +1287,7 @@ async function saveAdvance() {
 async function deleteAdvance(id) {
   if (!(await customConfirm("Bu avans yozuvini o'chirasizmi?"))) return;
   const res = await fetch(`/api/employees/advance/${id}`, {method:'DELETE'});
-  if (res.ok) { loadAdvanceHistory(advanceEmpId); loadEmployees(); }
+  if (res.ok) { loadAdvanceHistory(advanceEmpId); loadEmployees(); if (typeof loadEmpMonthlyReport === 'function') loadEmpMonthlyReport(); }
   else alert('❌ ' + await serverXatoSababi(res));     // kech107 (10d): ilgari rad jim qolardi
 }
 
@@ -2215,7 +2232,7 @@ document.getElementById('kpi-year').value = tkHozir().yil;     // kech106: joriy
     loadMasterKpi(),
     loadGiftPeriod(),
     loadAllMastersFull(),
-    loadEmployees().then(() => loadCurrentMonthEmpStatus()),
+    loadEmployees(true).then(() => loadCurrentMonthEmpStatus()),     // kech140: holat — ro'yxat yuklanmasa ham (bir marta)
     (initEmpReportSelectors(), loadEmpMonthlyReport()),
   ]);
   (typeof bittaYuklash === 'function' ? bittaYuklash(_boshla) : _boshla()).catch(e => console.error(e));
@@ -2246,6 +2263,13 @@ async function loadCurrentMonthEmpStatus() {
       const statusEl = document.getElementById(`emp-status-${e.employee_id}`);
       if (!finEl) return;
       const toLangan = Math.max(0, (e.amount||0) - Math.max(0, e.qolgan||0));
+      // kech140 (zip 168, A-P09 — egasi QARORI 11.10): oylikdan ko'p olgan hodim — «Hodim qarzdor» (ilgari «To'liq to'langan»,
+      // qolgan 0); keyingi oyga o'tgan / o'tgan oydan ushlanayotgan avans qismi — izoh qatori
+      const qarzdor = (e.qolgan || 0) < -0.5;
+      const otish = [
+        Number(e.keyingi_oyga) > 0.5 ? `↪ ${fmt(e.keyingi_oyga)} keyingi oy oyligidan ushlanadi` : '',
+        Number(e.oldingi_oydan) > 0.5 ? `↩ o'tgan oydan ${fmt(e.oldingi_oydan)} ushlandi` : '',
+      ].filter(Boolean).join(' · ');
       finEl.innerHTML = `
         <div style="display:flex;gap:14px;align-items:center">
           <div style="text-align:right;padding-right:14px;border-right:1px solid var(--ch-f0f0f0)">
@@ -2253,12 +2277,13 @@ async function loadCurrentMonthEmpStatus() {
             <div style="font-size:16px;font-weight:800;color:var(--m-15803d)">${fmt(toLangan)}</div>
           </div>
           <div style="text-align:right">
-            <div style="font-size:12px;color:var(--text3);text-transform:uppercase;font-weight:600">Qolgan</div>
-            <div style="font-size:16px;font-weight:800;color:${e.qolgan > 0 ? 'var(--m-dc2626)' : 'var(--m-15803d)'}">${fmt(Math.max(0,e.qolgan))}</div>
+            <div style="font-size:12px;color:var(--text3);text-transform:uppercase;font-weight:600">${qarzdor ? 'Hodim qarzi' : 'Qolgan'}</div>
+            <div style="font-size:16px;font-weight:800;color:${e.qolgan > 0 || qarzdor ? 'var(--m-dc2626)' : 'var(--m-15803d)'}">${fmt(Math.abs(Math.min(0, e.qolgan)) || Math.max(0, e.qolgan))}</div>
           </div>
-        </div>`;
+        </div>${otish ? `<div style="font-size:12px;color:var(--text3);margin-top:4px;max-width:180px;margin-left:auto;text-align:right">${escapeHtml(otish)}</div>` : ''}`;
       if (statusEl) {
-        if (e.qolgan <= 0.5) statusEl.innerHTML = `<span class="status-badge status-paid">🟢 To'liq to'langan</span>`;
+        if (qarzdor) statusEl.innerHTML = `<span class="status-badge status-debt">🟠 Hodim qarzdor: ${fmt(-e.qolgan)} so'm</span>`;
+        else if (e.qolgan <= 0.5) statusEl.innerHTML = `<span class="status-badge status-paid">🟢 To'liq to'langan</span>`;
         else if (e.avans > 0) statusEl.innerHTML = `<span class="status-badge status-partial">🟡 Qisman to'langan</span>`;
         else statusEl.innerHTML = `<span class="status-badge status-debt">🔴 To'lanmagan</span>`;   // kech120 (zip 136 — G6-14): ilgari «Qarzdor» (aslida korxona hodimga qarzdor)
       }
