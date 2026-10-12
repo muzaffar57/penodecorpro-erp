@@ -542,6 +542,17 @@ if PW_BOR and ZANJIR_JS:
             const k = await fetch('/api/finance/cash-transaction', {method: 'POST', body: fk});
             return [e.status, k.status]; }""")
         pg.close()
+        # kech141 (zip 169, MOSLANDI — egasi QARORI 12.10 «Kirgan kundan»): zanjir hodimi BUGUN qo'shiladi — kirgan oy oyligi kirgan
+        # kundan (kunlarga mutanosib). Bu test kutilgan qiymatlarni to'liq oylik (3 000 000) bilan o'lchaydi — hodim joriy oyning
+        # 1-kuni (Toshkent 00:00) ishga kirgan deb yoziladi (o'tgan oyda baribir yo'q; eski kodda ta'sirsiz)
+        _s141 = SessionLocal()
+        try:
+            from models import Employee as _E141
+            for _e141 in _s141.query(_E141).all():
+                _e141.hire_date = datetime.datetime(_tk.year, _tk.month, 1) - datetime.timedelta(hours=5)
+            _s141.commit()
+        finally:
+            _s141.close()
         check("0c ish zanjiri: hamma qadam 2xx (ombor, kirim, retsept, usta, hodim, loyiha, 2 buyurtma, to'lov, yetkazish, qaytarish, brak, "
               "MRP, tayyor mahsulot, moliya, majburiyat), ehson 7 % va boshlang'ich kassa",
               not Z.get("yiqilgan") and len(Z.get("L") or []) >= 50 and Q == [200, 200], [Z.get("yiqilgan"), len(Z.get("L") or []), Q])

@@ -212,7 +212,13 @@ function korindimi(n, matn) {
     ['K4 kpi saveAdvance (avans berish)', KPI, 'saveAdvance', 'saveAdvance()', {elementlar: {'adv-amount': el({value: '100000'}),
       'adv-date': el({value: '2026-09-28'})}, oldin: 'var advanceEmpId = 3;'}],
     ["K5 kpi deleteAdvance (avansni o'chirish — asl: rad JIM)", KPI, 'deleteAdvance', 'deleteAdvance(7)', {oldin: 'var advanceEmpId = 3;'}],
-    ["K6 kpi deleteEmployee (hodimni o'chirish — asl: rad JIM)", KPI, 'deleteEmployee', 'deleteEmployee(7)', {}],
+    // kech141 (zip 169, MOSLANDI): o'chirish endi «Ishdan ketgan sana» oynasi (`deleteEmployee` — oyna, `ketishTasdiq` — so'rov);
+    // eski shablonda `ketishTasdiq` yo'q — `deleteEmployee` o'zi so'rov yuboradi (ikkala shoxda sabab ekranda)
+    ["K6 kpi deleteEmployee (hodimni o'chirish — asl: rad JIM)", KPI, 'deleteEmployee',
+      "(async () => { await deleteEmployee(7); if (typeof ketishTasdiq === 'function') await ketishTasdiq(); })()",
+      {yordamchi: ['parseNum', 'narxMatni', 'narxniOqi', 'narxKorinishi', 'fmt', 'ketishTasdiq', 'ketishYop', 'ketishSanaIzoh'],
+       globallar: {tkISO: () => '2026-10-12', tkHozir: () => ({yil: 2026, oy: 10, kun: 12}),
+                   MONTH_NAMES_UZ: ['', 'Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun', 'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr']}}],
     ['K7 kpi editEmpAdjustment (oylik kamaytirish)', KPI, 'editEmpAdjustment', "editEmpAdjustment(3, 'H', 2026, 9, 0, '')",
       {oldin: 'var inFlightEmpAdjustment = new Set();'}],
     ['K8 kpi editEmpBonus (bonus)', KPI, 'editEmpBonus', "editEmpBonus(3, 'H', 2026, 9, 0, '')",
@@ -320,7 +326,9 @@ function korindimi(n, matn) {
   for (const [src, nomlar] of YORDAMCHILI) {
     // kech139 (zip 166, MOSLANDI): `amalSababi` (base.html) — sababni o'zi `xatoSababi` bilan o'qiydi (yagona qoida saqlanadi)
     // kech140 (zip 168, MOSLANDI): `avansYubor` (base.html) — rad sababini `amalSababi` bilan o'qiydi
-    for (const n of nomlar) { const f = olib(src, n) || ''; if (!/\b((server)?[xX]atoSababi|amalSababi|avansYubor)\(/.test(f)) yordamsiz.push(n); }
+    // kech141 (zip 169, MOSLANDI): `deleteEmployee` — oyna; rad shoxi uning tasdig'ida (`ketishTasdiq`) — ikkalasi birga o'qiladi
+    for (const n of nomlar) { const f = (olib(src, n) || '') + (n === 'deleteEmployee' ? (olib(src, 'ketishTasdiq') || '') : '');
+                              if (!/\b((server)?[xX]atoSababi|amalSababi|avansYubor)\(/.test(f)) yordamsiz.push(n); }
   }
   tekshir("S2 28 ta funksiyaning rad shoxi yagona yordamchi bilan (`xatoSababi` / `serverXatoSababi` / `amalSababi`)", !yordamsiz.length, yordamsiz);
   tekshir("S3 base.html: yordamchilar bitta ta'rif (takror yo'q)",

@@ -320,7 +320,8 @@ _sp = inspect.getsource(main.api_create_payment)
 check("S1 to'lov: create_payment, get_order, chegirma — bitta tranzaksiya bloki ichida",
       "with crud.bitta_tranzaksiya(db):" in _sp
       and _sp.find("with crud.bitta_tranzaksiya(db):") < _sp.find("payment = crud.create_payment(")
-      < _sp.find("order = crud.get_order(") < _sp.find("_tolov_qoldigini_chegirmaga(db, order)")
+      # kech141 (zip 169, MOSLANDI): chaqiruvga `kim=` (tuzatish hodisasi muallifi) qo'shildi — qavs yopilishi talab qilinmaydi
+      < _sp.find("order = crud.get_order(") < _sp.find("_tolov_qoldigini_chegirmaga(db, order")
       < _sp.find("except crud.OverpaymentWarning"))
 _wo = getattr(main, "_tolov_qoldigini_chegirmaga", None)
 check("S2 chegirma yordamchisi o'zi commit qilmaydi", _wo is not None and "db.commit()" not in inspect.getsource(_wo))

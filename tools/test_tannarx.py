@@ -410,6 +410,16 @@ _loss_h = CH.post("/api/finished/loss", json={"brak_sabab": "boshqa", "finished_
 _loss_t = CT.post("/api/finished/loss", json={"brak_sabab": "boshqa", "finished_product_id": IDS["fp_narxli"], "quantity": 1, "reason": "TN sinov"})
 # «Foydadan foiz» hodim — oylik izohida foyda summasi (Moliya, Qarzdorlar)
 _emp = CA.post("/api/employees", json={"name": "TN Foizchi", "pay_type": "percent_profit", "percent_value": 5})
+# kech141 (zip 169, MOSLANDI — egasi QARORI 12.10 «Kirgan kundan»): kirgan oy oyligi kirgan kundan (izohda «× N/M kun ishlagan»);
+# A13 izohni to'liq oy bilan tekshiradi — hodim joriy oyning 1-kuni (Toshkent 00:00) ishga kirgan deb yoziladi (eski kodda ta'sirsiz)
+if _emp.status_code in (200, 201) and (_emp.json() or {}).get("id"):
+    import datetime as _dt141
+    import models as _m141
+    _s141 = SessionLocal()
+    _b141 = tashkent_date()
+    _s141.get(_m141.Employee, _emp.json()["id"]).hire_date = _dt141.datetime(_b141.year, _b141.month, 1) - _dt141.timedelta(hours=5)
+    _s141.commit()
+    _s141.close()
 check("F0b fikstura: «Foydadan foiz» hodim yaratildi", _emp.status_code in (200, 201), (_emp.status_code, _emp.text[:200]))
 check("F0 fikstura: MRP turi, retsept, ishlab chiqarish (yakunlandi + qoralama), loy retsepti, sotuv, brak — yaratildi",
       all([PT_ID, BOM_ID, PO_YAKUN, PO_QORALAMA, REC_ID]) and _st1.status_code == 200 and _co1.status_code == 200

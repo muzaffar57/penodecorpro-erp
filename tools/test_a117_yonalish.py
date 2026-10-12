@@ -447,6 +447,16 @@ _e2 = req(CA, "post", "/api/employees", json={"name": "A117 Umumiy hodim", "pay_
 _e3 = req(CA, "post", "/api/employees", json={"name": "A117 Eski hodim", "pay_type": "fixed", "fixed_amount": 0,
                                               "production_type": "penoplast"})
 E1, E2, E3 = (js(_e1) or {}).get("id"), (js(_e2) or {}).get("id"), (js(_e3) or {}).get("id")
+# kech141 (zip 169, MOSLANDI — egasi QARORI 12.10 «Kirgan kundan»): yangi hodimning kirgan oyi oyligi KIRGAN KUNDAN (oy o'rtasida —
+# kunlarga mutanosib). Bu bo'lim yo'nalishlar hisobini TO'LIQ oylik bilan sinaydi — hodimlar joriy oyning 1-kuni (Toshkent 00:00)
+# ishga kirgan deb yoziladi (eski kodda ta'sirsiz: kirgan oy u yerda ham to'liq).
+_d141 = SessionLocal()
+for _e141 in (E1, E2, E3):
+    _x141 = _d141.get(Employee, _e141) if _e141 else None
+    if _x141 is not None:
+        _x141.hire_date = tashkent_oy_oraligi(tashkent_date().year, tashkent_date().month)[0]
+_d141.commit()
+_d141.close()
 _eb = req(CA, "post", "/api/employees", json={"name": "A117 Begona", "pay_type": "fixed", "fixed_amount": 1,
                                               "yonalish_id": BM.get("id")})
 _el = {e.get("id"): e for e in (js(req(CA, "get", "/api/employees")) or [])}

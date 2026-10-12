@@ -1340,8 +1340,10 @@ try:
                 continue
             if _f9 in ("id", "company_id") or (_f9.endswith("_id") and _f9 != "telegram_id"):
                 _yomon9.append(f"{_mn9}.{_f9} (bog'lanish)")
+            # kech141 (zip 169, MOSLANDI): `ketgan_sana` / `qaytgan_sana` — ustun emas, `is_active` o'zgarganda ish davri sanasi
+            # (`crud.hodim_ishdan_chiqar` / `hodim_ishga_qaytar`); eski kodda bu kalitlar yo'q — ro'yxat ta'sirsiz
             if _f9 not in _cols9 and not (_mn9 == "Employee" and _f9 in (
-                    "effective_year", "effective_month", "reason")):
+                    "effective_year", "effective_month", "reason", "ketgan_sana", "qaytgan_sana")):
                 _yomon9.append(f"{_mn9}.{_f9} (ustun yo'q)")
         for _t9 in _taqiq9.get(_mn9, {}):
             if _t9 in _r9:
@@ -1748,6 +1750,10 @@ try:
         _cols = {c.name: c for c in _mod10[_mn].__table__.columns}
         for _f in _r:
             if (_mn, _f) in (("Employee", "yonalish_id"),):     # kech117 (A2) — 9i dagi izoh
+                continue
+            # kech141 (zip 169, MOSLANDI): `ishga_kirgan_sana` — ustun emas, `hire_date` ga yoziladi (`crud.create_employee`);
+            # eski kodda bu kalit yo'q — ta'sirsiz
+            if (_mn, _f) in (("Employee", "ishga_kirgan_sana"),):
                 continue
             if _f == "id" or _f == "company_id" or _f.endswith("_id") and _f != "telegram_id":
                 _yomon10.append(f"{_mn}.{_f} (bog'lanish)")
