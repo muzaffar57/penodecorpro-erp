@@ -170,6 +170,30 @@ const BASE_FN = ['escapeHtml', 'xatoSababi', 'serverXatoSababi', 'amalSababi', '
       const f2 = toza(mk.elementlar['emp-fin-2'].innerHTML), s2 = toza(mk.elementlar['emp-status-2'].innerHTML);
       tekshir("K6 keyingi oyga o'tgan 8 000 000 — izoh; holat «To'liq to'langan»", f2.includes('keyingi oy') && f2.includes('8 000 000')
               && s2.includes("To'liq to'langan"), { f2, s2 });
+      // kech140 (zip 168, sinov saytida JONLI O'LCHANDI — 756 px panel): kenglik cheklanmagan izoh qatori hodim qatorini 312 → 515 px
+      // ga kengaytirib, holat belgisini ekrandan chiqarardi; cheklov bilan 312 / 312
+      tekshir("K6b izoh qatori kengligi cheklangan (qator toshmaydi)", /max-width:\s*1[0-9]{2}px/.test(f2.split('keyingi oy')[0].slice(-400)), f2);
+    }
+  }
+
+  // kech140 (zip 168, sinov saytida JONLI TOPILDI): avans berilgach ro'yxat qayta chizilardi, «To'langan / Qolgan» va holat bo'sh qolardi
+  {
+    const mr = muhit({ elementlar: { empList: el(), 'k-emp-count': el() }, javobFn: () => javob(200, {}) });
+    let holatChaqirildi = 0;
+    const yr = yukla(mr, [[BASE, ['escapeHtml']], [KPI, ['fmt', 'loadEmployees']]]);
+    tekshir('K7a `loadEmployees` topildi', !yr.length, yr);
+    if (!yr.length) {
+      for (const pc of KPI.match(/^const PAY_[A-Z_]+ = \{[\s\S]*?\};/gm) || []) vm.runInContext(pc.replace('const ', 'var '), mr.ctx);
+      mr.ctx.yukNavbat = () => () => true;
+      mr.ctx.yukOl = async (url) => (String(url).startsWith('/api/employees/') ? { advances: [], total: 0 }
+        : [{ id: 5, name: 'H', pay_type: 'fixed', fixed_amount: 1000000, is_active: true, avans_holat: {} }]);
+      mr.ctx.yukXato = () => new Error('x'); mr.ctx.yukXatoMatn = () => ''; mr.ctx.yukRoyxatXato = () => {};
+      mr.ctx.loadCurrentMonthEmpStatus = async () => { holatChaqirildi++; };
+      let xato = null;
+      mr.ctx.console = { log() {}, warn() {}, error() {}, info() {} };    // qator chizish yordamchilari shart emas (holat chaqiruvi tekshiriladi)
+      try { await mr.ctx.loadEmployees(); } catch (e) { xato = String(e && e.stack || e); }
+      tekshir("K7 hodimlar ro'yxati qayta chizilgach joriy oy holati («To'langan / Qolgan», belgi) ham qayta yuklanadi",
+              !xato && holatChaqirildi === 1, { xato, holatChaqirildi });
     }
   }
 
