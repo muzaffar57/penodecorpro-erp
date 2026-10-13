@@ -394,7 +394,8 @@
     <div style="padding:16px 18px;font-size:13px;color:var(--text3);border-bottom:1px solid var(--border2)">
       {% if current_user.is_platform_admin %}
       Bu — barcha muhim ma'lumot turlarini (masalan loyiha holati, buyurtma holati, hodim turi) tekshirib,
-      noto'g'ri yozilgan qiymatlarni oldindan topadi. Faqat o'qiydi — hech narsani o'zgartirmaydi.
+      noto'g'ri yozilgan qiymatlarni oldindan topadi, baza tuzilishini kod bilan solishtiradi. Faqat o'qiydi — hech narsani
+      o'zgartirmaydi.
       {% else %}
       Buyurtma summalari, ombor qoldiqlari va to'lovlar bir-biriga mos kelishini tekshiradi.
       Faqat o'qiydi — hech narsani o'zgartirmaydi.
@@ -695,8 +696,8 @@ async function runHealthCheck() {
   resultsEl.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:20px">⏳ Tekshirilmoqda...</div>';
 
   try {
-    const res = await fetch('/api/system/health-check');
-    const d = await res.json();
+    // kech144 (zip 172): javob holati tekshiriladi (`yukOl`) — ilgari 500 / 403 ham `json()` qilinib, bo'sh natija chizilardi
+    const d = await yukOl('/api/system/health-check');
     btn.disabled = false;
     btn.textContent = 'Tekshirish';
 
@@ -731,6 +732,9 @@ async function runHealthCheck() {
         </div>`;
       });
     }
+
+    // kech144 (zip 172, N4): baza tuzilishi (sxema) ↔ kod — faqat platforma administratori
+    if (!d.technical_hidden && d.sxema) html += sxemaHtml(d.sxema);
 
     if (!d.technical_hidden && d.check_errors && d.check_errors.length) {
       html += `<div style="margin-top:14px;font-size:12px;color:var(--text3)">
@@ -777,8 +781,63 @@ async function runHealthCheck() {
   } catch (e) {
     btn.disabled = false;
     btn.textContent = 'Tekshirish';
-    resultsEl.innerHTML = '<div style="text-align:center;color:var(--m-dc2626);padding:20px">Xato yuz berdi, qaytadan urinib ko\'ring.</div>';
+    if (!(e && e.yukXato)) console.error('runHealthCheck:', e);
+    // kech144 (zip 172): sabab bilan (sessiya / ruxsat / server / internet — `yukXatoMatn`), «Xato yuz berdi» emas
+    resultsEl.innerHTML = '<div style="text-align:center;color:var(--m-b91c1c);padding:20px">'
+      + escapeHtml(yukXatoMatn('Tekshiruv natijasi', (e && e.yukXato) ? e : yukXato('server'))) + '</div>';
   }
+}
+
+// kech144 (zip 172, N4 — production 12.10 11:47): «🧱 Baza tuzilishi» bloki. Server (`database.sxema_farqlari`) har model
+// ustunini bazadagi haqiqiy ustun bilan solishtiradi; ishga tushishda faqat KENGAYTIRISH avtomatik (`kengaytirilgan` —
+// qachon nima o'zgargani), qolgan farqlar — «qo'lda» (avtomatik o'zgartirilmaydi).
+function sxemaHtml(sx) {
+  let h = `<div style="margin-top:24px;padding-top:18px;border-top:2px dashed var(--border2)">
+    <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:12px">🧱 Baza tuzilishi (kod bilan solishtirish)</div>`;
+  if (!sx || !sx.tekshirildi) {
+    const sabab = (sx && (sx.izoh || (sx.xato ? 'tekshirib bo\'lmadi — ' + sx.xato : ''))) || 'tekshirilmadi';
+    return h + `<div class="sxema-holat" style="font-size:13px;color:var(--text3)">${escapeHtml(sabab)}</div></div>`;
+  }
+  const farqlar = Array.isArray(sx.farqlar) ? sx.farqlar : [];
+  const keng = Array.isArray(sx.kengaytirilgan) ? sx.kengaytirilgan : [];
+  const xatolar = (sx.ishga_tushish && Array.isArray(sx.ishga_tushish.xatolar)) ? sx.ishga_tushish.xatolar : [];
+  const qatorUstun = x => `<code style="background:var(--bg);padding:1px 6px;border-radius:4px;overflow-wrap:anywhere">${escapeHtml(x.jadval || '—')}.${escapeHtml(x.ustun || '—')}</code>`;
+  if (!farqlar.length) {
+    h += `<div class="sxema-holat" style="text-align:center;padding:20px;background:var(--f-f0fdf4);border-radius:12px">
+      <div style="font-size:24px;margin-bottom:6px">✅</div>
+      <div style="font-weight:700;color:var(--m-15803d);font-size:14px">Baza tuzilishi kod bilan mos</div>
+      <div style="font-size:13px;color:var(--text3);margin-top:4px">${Number(sx.jadvallar) || 0} ta jadval, ${Number(sx.ustunlar) || 0} ta ustun tekshirildi</div>
+    </div>`;
+  } else {
+    h += `<div class="sxema-holat" style="background:var(--f-fef2f2);border:1px solid var(--ch-fecaca);border-radius:10px;padding:12px 16px;margin-bottom:14px;font-weight:700;color:var(--m-b91c1c)">
+      ⚠️ ${farqlar.length} ta farq topildi (${Number(sx.ustunlar) || 0} ta ustundan):
+    </div>`;
+    farqlar.forEach(x => {
+      const qanday = x.tur === 'kengaytirish' ? 'Server qayta ishga tushganda avtomatik kengaytiriladi' : "Qo'lda ko'rish kerak — avtomatik o'zgartirilmaydi";
+      h += `<div class="sxema-farq" style="border:1px solid var(--border2);border-radius:10px;padding:12px 16px;margin-bottom:10px">
+        <div style="font-size:13px;font-weight:600;color:var(--text)">${qatorUstun(x)}</div>
+        <div style="font-size:13px;color:var(--text);margin-top:4px">Kodda: <b>${escapeHtml(x.kodda)}</b> · Bazada: <b>${escapeHtml(x.bazada)}</b></div>
+        <div style="font-size:12px;color:var(--text3);margin-top:4px">${escapeHtml(x.izoh || '')} — ${escapeHtml(qanday)}</div>
+      </div>`;
+    });
+  }
+  if (keng.length) {
+    h += `<div class="sxema-keng" style="margin-top:14px;font-size:13px;color:var(--text)">
+      <div style="font-weight:700;margin-bottom:6px">🔧 Ishga tushishda kengaytirilgan ustunlar (${keng.length} ta) — qiymatlar o'zgarmagan:</div>`;
+    keng.forEach(x => {
+      h += `<div style="padding:4px 0;border-bottom:1px solid var(--border2)">${qatorUstun(x)}: ${escapeHtml(x.oldin || '?')} → ${escapeHtml(x.keyin || '?')}${x.vaqt ? ' <span style="color:var(--text3)">(' + escapeHtml(tkToliq(x.vaqt)) + ')</span>' : ''}</div>`;
+    });
+    h += `</div>`;
+  }
+  if (xatolar.length) {
+    h += `<div class="sxema-xato" style="margin-top:14px;font-size:13px;color:var(--m-b91c1c)">
+      <div style="font-weight:700;margin-bottom:6px">⚠️ Ishga tushishda kengaytirib bo'lmadi (keyingi ishga tushishda qayta urinadi):</div>`;
+    xatolar.forEach(x => {
+      h += `<div style="padding:4px 0">${qatorUstun(x)} — ${escapeHtml(x.xato || '')}</div>`;
+    });
+    h += `</div>`;
+  }
+  return h + `</div>`;
 }
 </script>
 {% endblock %}
