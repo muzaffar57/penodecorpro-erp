@@ -729,6 +729,10 @@ class Order(Base):
     # Loy qaytganda avval xom qism, qolgani zaxiraga (`services` dagi "BUYURTMA LOYI OLINGAN JOYIGA QAYTADI").
     # NULL — migratsiyadan OLDINGI buyurtma: eski qoida (qaytish xomga, tiklash xomdan).
     loy_manba_json = Column(Text, nullable=True)
+    # kech144 (zip 173, audit 2-to'lqin — O'LCHANGAN `work/k173/probe_buyurtma.py` V4): yaratish kaliti — «Buyurtmalar» formasi
+    # har ochilishida yangi tasodifiy kalit yuboradi; server saqlab, javobi yo'qolsa (502 / internet) foydalanuvchi qayta bossa —
+    # o'sha kalitli buyurtma QAYTARILADI (ikkinchisi yaratilmaydi, ombor ikkinchi marta yechilmaydi; 8 s chegarasidan keyin ham).
+    yaratish_kaliti = Column(String(64), nullable=True, index=True)
     # kech100 (93-band, FOYDALANUVCHI QARORI "B" — "qisman bo'lsa ham tovar berilgan bo'ladi"): topshirilgan (qisman
     # yoki to'liq, lekin «Tayyor» bosilmagan) buyurtma O'CHIRILGANDA u topshirilgan qismi bilan YAKUNLANADI («Tayyor»
     # qisman yakunlash qoidasi: miqdor / summa topshirilganga, holat READY, `completed_at` — o'chirilgan payt) — daromad,

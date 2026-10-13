@@ -703,6 +703,7 @@ def add_missing_indexes():
         ("delivery_items", "delivery_id"), ("delivery_items", "order_item_id"),
         ("payments", "order_id"), ("payments", "delivery_id"),
         ("order_attachments", "order_id"),
+        ("orders", "yaratish_kaliti"),          # kech144 (zip 173): takror yaratishdan himoya kaliti
     ]
 
     from sqlalchemy import inspect
