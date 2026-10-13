@@ -278,11 +278,19 @@ def buyurtma(narx, dona, kelishilgan=None):
     return oid, iid, nom, r.status_code
 
 
+def _kechirish173(oid, summa):
+    """kech144 (zip 173, egasi QARORI 13.10 «Faqat ko'rsatilgani»): oynada ko'rsatiladigan kechiriladigan summa — joriy qarz −
+    to'lov (butun tiyinlarda; 0,5 so'mdan kichigi — 0), `debts.html` `payKechiriladi` / `orders.html` `savePayment` bilan AYNAN."""
+    d = C.get(f"/api/orders/{oid}").json()
+    q = (round(float(d.get("debt_amount") or 0) * 100) - round(float(summa) * 100)) / 100
+    return q if q > 0.5 else 0
+
+
 def tolov(oid, summa, kechir=False, ortiqcha=False):
     t = {"order_id": oid, "amount": summa, "payment_method": "naqd"}
     if ortiqcha:
         t["confirm_overpay"] = True
-    return req(C, "post", "/api/payments" + ("?write_off_remainder=true" if kechir else ""), json=t)
+    return req(C, "post", "/api/payments" + (f"?write_off_remainder=true&kechirish={_kechirish173(oid, summa)}" if kechir else ""), json=t)
 
 
 def yuk(oid, iid, miqdor):

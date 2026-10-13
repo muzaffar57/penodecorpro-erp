@@ -501,6 +501,28 @@ _b = _html.find("async function deleteSelected() {")
 _e = _html.find("\n}\n", _b)
 FUNK = _html[_b:_e + 2] if _b >= 0 and _e > _b else ""
 check("C0 deleteSelected topildi (Jinja belgisiz)", FUNK and "{{" not in FUNK and "{%" not in FUNK, len(FUNK))
+# kech144 (zip 173, MOSLANDI): `deleteSelected` buyurtmani base.html `yukOl` bilan o'qiydi, sabab — `yukSabab` / `amalSababi`:
+# yordamchilar (HAQIQIY, base.html dan) funksiya oldiga qo'shiladi
+_base_html = open(os.path.join(ROOT, "templates", "base.html"), encoding="utf-8").read()
+
+
+def _base_funk(nom):
+    for bosh in (f"async function {nom}(", f"function {nom}("):
+        i = _base_html.find(bosh)
+        if i >= 0 and (i == 0 or _base_html[i - 1] in "\n "):
+            j = _base_html.find("{", i)
+            d = 0
+            for k in range(j, len(_base_html)):
+                if _base_html[k] == "{":
+                    d += 1
+                elif _base_html[k] == "}":
+                    d -= 1
+                    if d == 0:
+                        return _base_html[i:k + 1]
+    return ""
+
+
+FUNK = "\n".join(_base_funk(n) for n in ("xatoSababi", "yukXato", "yukOl", "yukSabab", "yukSessiyaKor", "amalSababi")) + "\n" + FUNK
 
 NODE_UI = r"""
 const fs = require("fs"); const vm = require("vm");

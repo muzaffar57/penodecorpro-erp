@@ -278,7 +278,7 @@ ESKI = {
     "POST /api/production/orders/{po_id}/complete": "AWM",
     "GET /api/production/orders/{po_id}/preview": "AWM",
     "POST /api/production/orders/{po_id}/start": "AWM",
-    "GET /api/production/product-types": "AW",
+    "GET /api/production/product-types": "AWM",   # kech144 (zip 173, audit P1-3): buyurtma yaratish / tahrirlash ham — MRP detalini tanlash
     "POST /api/production/product-types": "AW",
     "GET /api/production/product-types/xulosa": "AW",
     "DELETE /api/production/product-types/{pt_id}": "AW",

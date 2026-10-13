@@ -289,8 +289,16 @@ def kelishilgan(oid, summa):
     return req(C, "put", f"/api/orders/{oid}/agreed-amount", json={"agreed_amount": summa})
 
 
+def _kechirish173(oid, summa):
+    """kech144 (zip 173, egasi QARORI 13.10 «Faqat ko'rsatilgani»): oynada ko'rsatiladigan kechiriladigan summa — joriy qarz −
+    to'lov (butun tiyinlarda; 0,5 so'mdan kichigi — 0), `debts.html` `payKechiriladi` / `orders.html` `savePayment` bilan AYNAN."""
+    d = C.get(f"/api/orders/{oid}").json()
+    q = (round(float(d.get("debt_amount") or 0) * 100) - round(float(summa) * 100)) / 100
+    return q if q > 0.5 else 0
+
+
 def tolov(oid, summa, write_off=False, tasdiq=False):
-    url = "/api/payments" + ("?write_off_remainder=true" if write_off else "")
+    url = "/api/payments" + (f"?write_off_remainder=true&kechirish={_kechirish173(oid, summa)}" if write_off else "")
     tana = {"order_id": oid, "amount": summa, "payment_method": "naqd"}
     if tasdiq:
         tana["confirm_overpay"] = True

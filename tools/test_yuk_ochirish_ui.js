@@ -133,7 +133,8 @@ const F_DEL = olib(ORDERS, 'deleteDelivery');
 const F_XQ = olib(ORDERS, 'yetkazishXatoQismlari');
 const F_SCM = olib(ORDERS, 'showConfirmModal');
 const F_ESC = olib(BASE, 'escapeHtml');
-const KOD = [F_XQ, F_DEL].filter(Boolean).join('\n');
+// kech144 (zip 173, MOSLANDI): base.html sabab yordamchilari (`amalSababi` → `xatoSababi`, 401 — `yukSessiyaKor`)
+const KOD = [F_XQ, F_DEL].concat(['xatoSababi', 'amalSababi', 'yukSessiyaKor'].map((n) => olib(BASE, n))).filter(Boolean).join('\n');
 
 async function del(o) {
   const m = muhit(o);
@@ -184,12 +185,14 @@ async function asosiy() {
       && m.xabarlar[0].t.includes('bekor qilindi') && m.xabarlar[0].t.includes("o'zgarmadi"), qisqa([m.sorovlar, m.xabarlar]));
   }
 
+  // kech144 (zip 173, MOSLANDI — audit P2-9): 4xx — server sababi, oldida «Yuk xati o'chirilmadi: »; sababsiz — `amalSababi`
   const radlar = [
-    ['500 (asl kodda — jim edi)', javob(500, { detail: 'Serverda kutilmagan xato yuz berdi' }), '❌ Serverda kutilmagan xato yuz berdi'],
-    ['404 matnli detail', javob(404, { detail: 'Yetkazish topilmadi' }), '❌ Yetkazish topilmadi'],
-    ['400 obyekt detail', javob(400, { detail: { success: false, message: "'tolov' noto'g'ri qiymat" } }), "❌ 'tolov' noto'g'ri qiymat"],
-    ['409 boshqa tur', javob(409, { detail: 'Boshqa ziddiyat' }), '❌ Boshqa ziddiyat'],
-    ['502 JSON emas', javob(502, null, true), '❌ Xato'],
+    ['404 matnli detail', javob(404, { detail: 'Yetkazish topilmadi' }), "❌ Yuk xati o'chirilmadi: Yetkazish topilmadi"],
+    ['400 obyekt detail', javob(400, { detail: { success: false, message: "'tolov' noto'g'ri qiymat" } }),
+     "❌ Yuk xati o'chirilmadi: 'tolov' noto'g'ri qiymat"],
+    ['409 boshqa tur', javob(409, { detail: 'Boshqa ziddiyat' }), "❌ Yuk xati o'chirilmadi: Boshqa ziddiyat"],
+    ['422 ro\'yxatli detail (ilgari «❌ Xato»)', javob(422, { detail: [{ loc: ['query', 'tolov'], msg: 'noto\'g\'ri' }] }),
+     "❌ Yuk xati o'chirilmadi: tolov: noto'g'ri"],
   ];
   for (const [nom, j, kutilgan] of radlar) {
     m = await del({ tasdiqlar: [true], javoblar: [j] });
@@ -198,15 +201,25 @@ async function asosiy() {
       && m.xabarlar.length === 1 && m.xabarlar[0].t === kutilgan && m.xabarlar[0].tur === 'error',
       qisqa([m.xato, m.xabarlar]));
   }
+  // kech144 (zip 173, MOSLANDI): 5xx — javob yo'qolgan bo'lishi mumkin: «Natija noma'lum», ro'yxat YANGILANADI (asl: 500 da jim edi)
+  for (const [nom, j] of [['500 (asl kodda — jim edi)', javob(500, { detail: 'Serverda kutilmagan xato yuz berdi' })],
+                          ['502 JSON emas', javob(502, null, true)]]) {
+    m = await del({ tasdiqlar: [true], javoblar: [j] });
+    tekshir(`D6 ${nom} → «❌ Natija noma'lum — server javob bermadi …», bitta so'rov, ro'yxat yangilandi`,
+      !m.xato && m.sorovlar.length === 1 && m.hodisalar.join() === 'loadDeliveries:42'
+      && m.xabarlar.length === 1 && m.xabarlar[0].t.startsWith("❌ Natija noma'lum — server javob bermadi")
+      && m.xabarlar[0].tur === 'error', qisqa([m.xato, m.xabarlar, m.hodisalar]));
+  }
 
   m = await del({ tasdiqlar: [true], javoblar: ['otadi'] });
-  tekshir('D7 tarmoq uzildi → "❌ Tarmoq xatosi"',
-    !m.xato && m.xabarlar.length === 1 && m.xabarlar[0].t === '❌ Tarmoq xatosi', qisqa(m.xabarlar));
+  tekshir("D7 tarmoq uzildi → «❌ Natija noma'lum — internet aloqasi yo'q …», ro'yxat yangilandi",
+    !m.xato && m.xabarlar.length === 1 && m.xabarlar[0].t.startsWith("❌ Natija noma'lum — internet aloqasi yo'q")
+    && m.hodisalar.join() === 'loadDeliveries:42', qisqa([m.xabarlar, m.hodisalar]));
 
   m = await del({ tasdiqlar: [true, true], javoblar: [J409(), javob(500, { detail: 'Serverda kutilmagan xato yuz berdi' })] });
-  tekshir('D8 tanlovdan keyingi so\'rov 500 → xato xabari, jami 2 so\'rov, ro\'yxat yangilanmadi',
-    !m.xato && m.sorovlar.length === 2 && m.hodisalar.length === 0 && m.xabarlar.length === 1
-    && m.xabarlar[0].t === '❌ Serverda kutilmagan xato yuz berdi', qisqa([m.sorovlar, m.xabarlar]));
+  tekshir('D8 tanlovdan keyingi so\'rov 500 → «Natija noma\'lum», jami 2 so\'rov, ro\'yxat yangilandi',
+    !m.xato && m.sorovlar.length === 2 && m.hodisalar.join() === 'loadDeliveries:42' && m.xabarlar.length === 1
+    && m.xabarlar[0].t.startsWith("❌ Natija noma'lum"), qisqa([m.sorovlar, m.xabarlar]));
 
   m = await del({ tasdiqlar: [true, 'alt', true], javoblar: [J409(), J409(), javob(200, {})] });
   tekshir('D9 tanlovdan keyin YANA 409 → faqat xabar, qayta so\'ramaydi (2 so\'rov, 2 oyna)',
@@ -214,8 +227,9 @@ async function asosiy() {
     && m.xabarlar[0].tur === 'error' && m.xabarlar[0].t.startsWith('❌ '), qisqa([m.sorovlar, m.xabarlar]));
 
   m = await del({ tasdiqlar: [true, true], javoblar: [J409(), 'otadi'] });
-  tekshir('D10 tanlovdan keyin tarmoq uzildi → "❌ Tarmoq xatosi"',
-    !m.xato && m.xabarlar.length === 1 && m.xabarlar[0].t === '❌ Tarmoq xatosi', qisqa(m.xabarlar));
+  tekshir("D10 tanlovdan keyin tarmoq uzildi → «❌ Natija noma'lum — internet aloqasi yo'q …»",
+    !m.xato && m.xabarlar.length === 1 && m.xabarlar[0].t.startsWith("❌ Natija noma'lum — internet aloqasi yo'q"),
+    qisqa(m.xabarlar));
 
   bolim('M. showConfirmModal — ixtiyoriy uchinchi tugma');
   function el() { return { textContent: '', innerHTML: '', style: { display: 'none', background: '' }, onclick: null }; }

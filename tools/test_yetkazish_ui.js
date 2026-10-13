@@ -209,10 +209,12 @@ async function chaqir(m, chaqiruv) {
 // ══════════════════════════════════════════════════════════════
 // orders.html
 // ══════════════════════════════════════════════════════════════
-const O_NOMLAR = ['parseNum', 'yetkazishXatoQismlari', 'yetkazishYubor', 'saveDelivery', 'submitFullDlvModal'];
+// kech144 (zip 173, MOSLANDI): `fdXato` (to'liq topshirish oynasi xatosi) va base.html sabab yordamchilari (`amalSababi`)
+const O_NOMLAR = ['parseNum', 'yetkazishXatoQismlari', 'yetkazishYubor', 'saveDelivery', 'submitFullDlvModal', 'fdXato'];
 const O_FN = O_NOMLAR.map((n) => olib(ORDERS, n));
 const ESC = olib(BASE, 'escapeHtml');
-const O_KOD = [ESC].concat(O_FN).filter(Boolean).join('\n');
+const B_FN = ['xatoSababi', 'amalSababi', 'yukSessiyaKor'].map((n) => olib(BASE, n));
+const O_KOD = [ESC].concat(O_FN).concat(B_FN).filter(Boolean).join('\n');
 
 const OVER_XABAR = "Kiritilgan summa (1,500,000 so'm) qarzdan (1,000,000 so'm) 500,000 so'mga ko'p. Shunday ham davom etasizmi?";
 const OVER = { detail: { type: 'overpayment_warning', message: OVER_XABAR,
@@ -428,22 +430,25 @@ async function saveDeliveryBolimi() {
           !m.xato && m.err.style.display === 'block' && korinadi(m.err.innerHTML) === '❌ Tizimga kiring',
           m.xato || qisqa(m.err.innerHTML));
 
+  // kech144 (zip 173, MOSLANDI): sababsiz rad — `amalSababi` (holat kodi bilan; ilgari «❌ Xato»)
   m = await sSina({}, [javob(400, { detail: { success: false } })]);
-  tekshir("S 400 (`message` yo'q) → \"❌ Xato\"",
-          !m.xato && korinadi(m.err.innerHTML) === '❌ Xato', m.xato || qisqa(m.err.innerHTML));
+  tekshir("S 400 (`message` yo'q) → «❌ so'rov rad etildi (400)» (ilgari «❌ Xato»)",
+          !m.xato && korinadi(m.err.innerHTML) === "❌ so'rov rad etildi (400)", m.xato || qisqa(m.err.innerHTML));
 
   m = await sSina({}, [javob(422, { detail: [{ loc: ['body'], msg: 'x' }] })]);
-  tekshir("S 422 (ro'yxat) → \"❌ Xato\", istisno yo'q",
-          !m.xato && korinadi(m.err.innerHTML) === '❌ Xato', m.xato || qisqa(m.err.innerHTML));
+  tekshir("S 422 (ro'yxat) → maydon xabari «❌ x», istisno yo'q",
+          !m.xato && korinadi(m.err.innerHTML) === '❌ x', m.xato || qisqa(m.err.innerHTML));
 
   m = await sSina({}, [javob(500, null, true)]);
-  tekshir("S 500 JSON emas → \"❌ Server xatosi\", oyna ochiq",
-          !m.xato && m.err.style.display === 'block' && m.err.textContent === '❌ Server xatosi'
-          && m.soni('closeDeliveryModal') === 0, m.xato || qisqa([m.err, m.hodisalar]));
+  // kech144 (zip 173, MOSLANDI — audit P1-5): javob yo'qolgan bo'lishi mumkin — «Natija noma'lum», ro'yxat yangilanadi, oyna ochiq
+  tekshir("S 500 JSON emas → «❌ Natija noma'lum — server javob bermadi …», ro'yxat yangilanadi, oyna ochiq",
+          !m.xato && m.err.style.display === 'block' && m.err.textContent.startsWith("❌ Natija noma'lum — server javob bermadi")
+          && m.soni('loadDeliveries:55') === 1 && m.soni('closeDeliveryModal') === 0, m.xato || qisqa([m.err, m.hodisalar]));
 
   m = await sSina({}, ['otadi']);
-  tekshir('S tarmoq xatosi → "❌ Server xatosi"',
-          !m.xato && m.err.textContent === '❌ Server xatosi', m.xato || qisqa(m.err));
+  tekshir("S tarmoq xatosi → «❌ Natija noma'lum — internet aloqasi yo'q …», ro'yxat yangilanadi",
+          !m.xato && m.err.textContent.startsWith("❌ Natija noma'lum — internet aloqasi yo'q")
+          && m.soni('loadDeliveries:55') === 1, m.xato || qisqa(m.err));
 
   m = await sSina({ inputlar: [[701, '11', 10]] }, [javob(200, OK_QISMAN)]);
   tekshir("S qoldiqdan ko'p → so'rov yo'q, xabar, maydon qizil",
@@ -495,14 +500,18 @@ async function saveDeliveryBolimi() {
 
 // ── submitFullDlvModal ──────────────────────────────────────
 function fMuhit(o, javoblar, tasdiq = true) {
-  const el = { 'fd-payment': element(o.tolov || ''), 'fd-transport': element(o.transport || '') };
+  // kech144 (zip 173, MOSLANDI — egasi QARORI «So'rasin»): to'lov usuli, transportni kim to'lagani, oyna ichidagi xato qutisi
+  const el = { 'fd-payment': element(o.tolov || ''), 'fd-transport': element(o.transport || ''),
+               'fd-payment-method': element(o.usul === undefined ? 'naqd' : o.usul),
+               'fd-transport-payer': element(o.tolovchi === undefined ? 'none' : o.tolovchi),
+               'fd-error': element('') };
   const pending = o.pending === undefined
     ? [{ id: 701, name: 'QY_D1_0', remaining: 4.5, unit: 'metr', is_done: false },
        { id: 702, name: 'QY_D1_1', remaining: 3.33, unit: 'dona', is_done: false }]
     : o.pending;
   const m = muhit({ elementlar: el, javoblar, tasdiq,
                     globallar: { selectedOrderId: 55, _fullDlvPending: pending, _dlvYuborilmoqda: false } });
-  return Object.assign(m, { kodXato: yukla(m, O_KOD) });
+  return Object.assign(m, { kodXato: yukla(m, O_KOD), fdErr: el['fd-error'] });
 }
 
 async function fSina(o, javoblar, tasdiq = true) {
@@ -527,8 +536,9 @@ async function submitFullBolimi() {
           !m.xato && m.sorovlar.length === 1 && m.sorovlar[0].url === '/api/deliveries'
           && JSON.stringify(m.sorovlar[0].tana) === JSON.stringify(F_TANA),
           m.xato || qisqa(m.sorovlar));
-  tekshir("F oyna so'rovdan OLDIN yopiladi",
-          m.hodisalar.indexOf('closeFullDlvModal') === 0 && m.hodisalar.indexOf('fetch') === 1,
+  // kech144 (zip 173, MOSLANDI — audit P2-13): oyna FAQAT muvaffaqiyatdan keyin yopiladi (ilgari so'rovdan OLDIN)
+  tekshir("F oyna so'rov MUVAFFAQIYATIDAN keyin yopiladi (so'rovdan oldin emas)",
+          m.hodisalar.indexOf('fetch') === 0 && m.hodisalar.indexOf('closeFullDlvModal') === 1,
           qisqa(m.hodisalar));
   const rt = m.taymerlar.find((t) => t.ms === 2500);
   if (rt) { try { rt.fn(); } catch (e) { /* tekshiruvda ko'rinadi */ } }
@@ -539,19 +549,32 @@ async function submitFullBolimi() {
           && !!rt && m.reloadSoni() === 1,
           qisqa([m.hodisalar, m.xabarlar, m.taymerlar.map((t) => t.ms)]));
 
-  m = await fSina({ tolov: '200 000', transport: '30 000' }, [javob(200, OK_TOLIQ)]);
-  tekshir("F to'lov va transport → payment_amount / transport_cost son, to'lovchi 'company'",
+  // kech144 (zip 173, MOSLANDI — egasi QARORI 13.10 «So'rasin»): to'lovchi va to'lov usuli oynadan (ilgari doim 'company' / 'naqd')
+  m = await fSina({ tolov: '200 000', transport: '30 000', tolovchi: 'client', usul: 'plastik' }, [javob(200, OK_TOLIQ)]);
+  tekshir("F to'lov va transport → payment_amount / transport_cost son, to'lovchi va usul — OYNADAN ('client', 'plastik')",
           !m.xato && m.sorovlar.length === 1 && JSON.stringify(m.sorovlar[0].tana) === JSON.stringify(
-            Object.assign({}, F_TANA, { transport_cost: 30000, transport_payer: 'company', payment_amount: 200000 })),
+            Object.assign({}, F_TANA, { transport_cost: 30000, transport_payer: 'client', payment_amount: 200000,
+                                        payment_method: 'plastik' })),
           m.xato || qisqa(m.sorovlar));
+  m = await fSina({ transport: '30 000', tolovchi: 'split' }, [javob(200, OK_TOLIQ)]);
+  tekshir("F kech144: transport 50/50 → transport_payer 'split'",
+          !m.xato && m.sorovlar.length === 1 && m.sorovlar[0].tana.transport_payer === 'split', m.xato || qisqa(m.sorovlar));
+  m = await fSina({ transport: '30 000' }, [javob(200, OK_TOLIQ)]);
+  tekshir("F kech144: transport bor, kim to'lagani tanlanmagan → so'rov YO'Q, oyna ochiq, sabab oynada",
+          !m.xato && m.sorovlar.length === 0 && m.soni('closeFullDlvModal') === 0 && m.fdErr.style.display === 'block'
+          && m.fdErr.textContent.includes("Transportni kim to'laganini tanlang"), m.xato || qisqa([m.sorovlar, m.fdErr]));
+  m = await fSina({ tolovchi: 'client' }, [javob(200, OK_TOLIQ)]);
+  tekshir("F kech144: transport yo'q — to'lovchi tanlansa ham 'none' yuboriladi",
+          !m.xato && m.sorovlar.length === 1 && m.sorovlar[0].tana.transport_payer === 'none', m.xato || qisqa(m.sorovlar));
 
   m = await fSina({ tolov: '1 500 000' }, [javob(409, OVER)], false);
-  tekshir("F 409 → \"Bekor\" → \"Yetkazish saqlanmadi — ...\" (xato), bitta so'rov, nakladnoy yo'q",
-          !m.xato && m.sorovlar.length === 1 && m.tasdiqlar.length === 1 && m.xabarlar.length === 1
-          && m.xabarlar[0].tur === 'error'
-          && m.xabarlar[0].t === "Yetkazish saqlanmadi — to'lov summasini tekshirib qayta kiriting"
+  tekshir("F 409 → \"Bekor\" → «Yetkazish saqlanmadi — ...» OYNA ICHIDA, oyna ochiq, bitta so'rov, nakladnoy yo'q",
+          !m.xato && m.sorovlar.length === 1 && m.tasdiqlar.length === 1 && m.xabarlar.length === 0
+          && m.fdErr.style.display === 'block'
+          && m.fdErr.textContent === "Yetkazish saqlanmadi — to'lov summasini tekshirib qayta kiriting"
+          && m.soni('closeFullDlvModal') === 0
           && m.hodisalar.filter((h) => h.startsWith('openPdfSafe')).length === 0,
-          m.xato || qisqa([m.sorovlar.length, m.xabarlar, m.hodisalar]));
+          m.xato || qisqa([m.sorovlar.length, m.xabarlar, m.fdErr, m.hodisalar]));
 
   m = await fSina({ tolov: '1 500 000' }, [javob(409, OVER), javob(200, OK_TOLIQ)], true);
   tekshir('F 409 → "Ha" → confirm_overpay true bilan qayta, tana qolgani AYNAN → yashil xabar',
@@ -563,23 +586,26 @@ async function submitFullBolimi() {
 
   m = await fSina({}, [javob(400, { detail: { success: false, message: "Qoldiqdan ko'p berib bo'lmaydi!",
                                               shortages: ['A: 1', 'B: 2'] } })]);
-  tekshir("F 400 (message + shortages) → showMsg sabab va yetishmovchiliklar bilan",
-          !m.xato && m.xabarlar.length === 1 && m.xabarlar[0].tur === 'error'
-          && m.xabarlar[0].t === "❌ Qoldiqdan ko'p berib bo'lmaydi!\nA: 1\nB: 2",
-          m.xato || qisqa(m.xabarlar));
+  // kech144 (zip 173, MOSLANDI): xato — OYNA ICHIDA (`#fd-error`), oyna ochiq (kiritilganlar saqlanadi)
+  tekshir("F 400 (message + shortages) → oynada sabab va yetishmovchiliklar, oyna ochiq",
+          !m.xato && m.xabarlar.length === 0 && m.fdErr.style.display === 'block'
+          && m.fdErr.textContent === "❌ Yetkazish saqlanmadi: Qoldiqdan ko'p berib bo'lmaydi!\nA: 1\nB: 2"
+          && m.soni('closeFullDlvModal') === 0, m.xato || qisqa([m.xabarlar, m.fdErr]));
 
   m = await fSina({}, [javob(401, { detail: 'Tizimga kiring' })]);
-  tekshir("F 401 (`detail` MATN) → matnning o'zi ko'rsatiladi",
-          !m.xato && m.xabarlar.length === 1 && m.xabarlar[0].t === '❌ Tizimga kiring',
-          m.xato || qisqa(m.xabarlar));
+  tekshir("F 401 (`detail` MATN) → matnning o'zi ko'rsatiladi (oynada)",
+          !m.xato && m.fdErr.textContent === '❌ Yetkazish saqlanmadi: Tizimga kiring',
+          m.xato || qisqa(m.fdErr));
 
   m = await fSina({}, [javob(500, null, true)]);
-  tekshir('F 500 JSON emas → "❌ Server xatosi"',
-          !m.xato && m.xabarlar.length === 1 && m.xabarlar[0].t === '❌ Server xatosi', m.xato || qisqa(m.xabarlar));
+  tekshir("F 500 JSON emas → «❌ Natija noma'lum — server javob bermadi …» (oynada), ro'yxat yangilanadi",
+          !m.xato && m.fdErr.textContent.startsWith("❌ Natija noma'lum — server javob bermadi")
+          && m.soni('loadDeliveries:55') === 1 && m.soni('closeFullDlvModal') === 0, m.xato || qisqa([m.fdErr, m.hodisalar]));
 
   m = await fSina({}, ['otadi']);
-  tekshir('F tarmoq xatosi → "❌ Server xatosi"',
-          !m.xato && m.xabarlar.length === 1 && m.xabarlar[0].t === '❌ Server xatosi', m.xato || qisqa(m.xabarlar));
+  tekshir("F tarmoq xatosi → «❌ Natija noma'lum — internet aloqasi yo'q …» (oynada), ro'yxat yangilanadi",
+          !m.xato && m.fdErr.textContent.startsWith("❌ Natija noma'lum — internet aloqasi yo'q")
+          && m.soni('loadDeliveries:55') === 1, m.xato || qisqa(m.fdErr));
 
   m = fMuhit({}, [kechik(javob(200, OK_TOLIQ)), javob(200, OK_TOLIQ), javob(200, OK_TOLIQ)]);
   let p1 = null;

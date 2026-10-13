@@ -212,7 +212,7 @@ check("A1 to'lov 200, javob maydonlari (to'langan / qarz / holat)", kod == 200 a
 kod, d = tolov(o, 30_000)
 check("A2 8 s ichida AYNAN o'sha to'lov — takror (yangi yozuv yo'q)", kod == 200 and isinstance(d, dict)
       and d.get("duplicate") is True and holat(o)["tolovlar"] == [30_000.0], (kod, d, holat(o)))
-kod, d = tolov(o, 69_900, write_off_remainder="true")
+kod, d = tolov(o, 69_900, write_off_remainder="true", kechirish="100")   # kech144 (zip 173): oynada ko'rsatilgan 100
 _h = holat(o)
 check("A3 qoldiqni chegirmaga (100 so'm) — kelishilgan 99 900, qarz 0, izohda [WRITEOFF:100]",
       kod == 200 and isinstance(d, dict) and (d.get("write_off") or {}).get("amount") == 100
@@ -236,14 +236,14 @@ section("G to'lov — nosozlik va qayta urinish")
 o1 = buyurtma(100_000)
 check("G0 fikstura: har buyurtma alohida (takror himoyasi yutmagan)", o1 and o1 != o, (o, o1))
 with buz(crud, "_update_order_payment_status", shart=lambda db, order, *a, **k: "[WRITEOFF:" in (order.notes or "")):
-    kod, _ = so("post", "/api/payments", sun_iy=True, params={"write_off_remainder": "true"},
+    kod, _ = so("post", "/api/payments", sun_iy=True, params={"write_off_remainder": "true", "kechirish": "100"},
                 json={"order_id": o1, "amount": 99_900, "payment_type": "partial", "payment_method": "naqd"})
 _h1 = holat(o1)
 check("G1a chegirmani yozishda xato — 500 va HECH NARSA saqlanmagan (to'lov yo'q, kelishilgan 100 000)",
       kod == 500 and _h1["tolovlar"] == [] and abs(_h1["kelishilgan"] - 100_000) < 0.01 and "[WRITEOFF:" not in _h1["izoh"],
       (kod, _h1))
 with himoyasiz():
-    kod, d = tolov(o1, 99_900, write_off_remainder="true")
+    kod, d = tolov(o1, 99_900, write_off_remainder="true", kechirish="100")
 _h1 = holat(o1)
 check("G1b 8 s dan keyin qayta urinish — 200, BITTA to'lov, chegirma 100, qarz 0",
       kod == 200 and _h1["tolovlar"] == [99_900.0] and abs(_h1["kelishilgan"] - 99_900) < 0.01 and _h1["qarz"] == 0,

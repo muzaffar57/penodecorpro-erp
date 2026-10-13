@@ -794,7 +794,8 @@ check("H4 belgi: mrp_detal_kerak -> mrp_topshirish_holati -> is_ready = kerak<=0
                '"is_ready": remaining <= 0.0001 and _th["yetadi"]', '"holat": holat'), _tr[-300:])
 _lo = js_funksiya(_ord, "loadOrderItems")
 check("H5 UI: loadOrderItems belgini /api/orders javobidan (order.mrp_readiness) chizadi; eski if/else YO'Q",
-      tartibda(_lo, "fetch(`/api/orders/${id}`)", "const order = await res.json();",
+      # kech144 (zip 173, MOSLANDI): buyurtma `yukOl` bilan (502 da sabab; eskirgan javob chizilmaydi — `tanlovJoriy`)
+      tartibda(_lo, "order = await yukOl(`/api/orders/${id}`);", "if (!joriy()) return;",
                "mrpEl.innerHTML = mrpTayyorlikBelgisi(order.mrp_readiness);")
       and "ombordan band qilingan" not in _ord, _lo[:200])
 

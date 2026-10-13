@@ -362,9 +362,17 @@ def buyurtma(agreed=None, a=(10, 30_000), b=(5, 20_000)):
     return (d.get("id") if isinstance(d, dict) else None), k
 
 
+def _kechirish173(oid, summa):
+    """kech144 (zip 173, egasi QARORI 13.10 «Faqat ko'rsatilgani»): oynada ko'rsatiladigan kechiriladigan summa — joriy qarz −
+    to'lov (butun tiyinlarda; 0,5 so'mdan kichigi — 0), `debts.html` `payKechiriladi` / `orders.html` `savePayment` bilan AYNAN."""
+    d = C.get(f"/api/orders/{oid}").json()
+    q = (round(float(d.get("debt_amount") or 0) * 100) - round(float(summa) * 100)) / 100
+    return q if q > 0.5 else 0
+
+
 def kechir(oid, tolanadi):
     """`tolanadi` so'm to'lanadi, qolgan qarz KECHIRILADI (`write_off_remainder=true`)."""
-    r = _qayd(req(C, "post", "/api/payments", params={"write_off_remainder": "true"},
+    r = _qayd(req(C, "post", "/api/payments", params={"write_off_remainder": "true", "kechirish": str(_kechirish173(oid, tolanadi))},
                   json={"order_id": oid, "amount": tolanadi, "payment_type": "partial", "payment_method": "naqd"}),
               "kechirish")
     return r.status_code

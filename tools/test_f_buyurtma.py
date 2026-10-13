@@ -343,8 +343,9 @@ if br:
         pg.evaluate("() => { window.__msg = []; submitOrderRequest({project_id: 1, items: []}, false, 0, 'naqd', false); }")
         pg.wait_for_timeout(500)
         _m = pg.evaluate("() => window.__msg")
-        check("B7 server rad etsa — sababi oddiy gap («❌ Sinov sababi: …», ilgari «Xato: {…}»)",
-              any(m[0] == "❌ Sinov sababi: narx noto'g'ri" for m in _m) and not any("{" in m[0] for m in _m), _m)
+        # kech144 (zip 173, MOSLANDI): xabar oldida kontekst — «❌ Buyurtma saqlanmadi: <sabab>» (`amalSababi`)
+        check("B7 server rad etsa — sababi oddiy gap («❌ Buyurtma saqlanmadi: Sinov sababi: …», ilgari «Xato: {…}»)",
+              any(m[0] == "❌ Buyurtma saqlanmadi: Sinov sababi: narx noto'g'ri" for m in _m) and not any("{" in m[0] for m in _m), _m)
         pg.unroute(re.compile(r".*/api/orders(\?.*)?$"))
         # buyurtma ko'rinishi — amallar tepada, detallar ochiq, tayyorda izoh
         pg.goto(B + f"/orders?order={ID['o1']}", wait_until="networkidle")
