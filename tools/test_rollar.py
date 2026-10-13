@@ -448,6 +448,9 @@ YANGI_MARSHRUTLAR = {
     # kech135 (zip 161 — egasi QARORI 09.10, MOSLANDI): retsept / tarkib oynalarining material tanlovi — «Materiallar ro'yxati
     # (retsept va tarkib uchun)» YOKI «Materiallar: Ko'rish» (tayyor rollarda — `GET /api/inventory` bilan bir xil: Admin, Omborchi, Menejer)
     "GET /api/material-royxati": "AWM",
+    # kech144 (zip 174 — egasi QARORI 13.10 «Detal va miqdor», MOSLANDI): «Yangi qaytarish» / «Brak yozish → Buyurtma detalida» detallari —
+    # tanlov ro'yxatlari bilan bir ruxsat («Qaytarishlar: Yaratish»; tayyor rollarda Admin, Menejer, Omborchi)
+    "GET /api/tanlov/buyurtmalar/{order_id}/detallar": "AMW", "GET /api/tanlov/loyihalar/{project_id}/detallar": "AMW",
 }
 # ATAYLAB o'zgarishlar (rol, marshrut) → yangi holat (True — ochiq). Sababi: tayyor rollar sahifa bo'yicha izchil.
 FARQLAR = {

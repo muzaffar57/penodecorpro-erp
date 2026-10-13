@@ -117,6 +117,10 @@ function kontekst(qo) {
   vm.createContext(ctx);
   // kech118 (B — U-05, MOSLANDI): ko'rinadigan son / hajm — base.html `sonKor` … (hisobga ta'sir qilmaydi)
   yukla(ctx, BASE_SRC, ['sonKor', 'foizKor', 'birlikKor', 'matnRangi'], 'base.html');
+  // kech144 (zip 174, MOSLANDI): yozuvchi amallar endi base.html amal kaliti yordamchilari bilan — `amalYubor` (`X-Amal-Kaliti`,
+  // natija noma'lum ajratiladi), `tugmaBand`, sabab — `amalSababi` (u `xatoSababi` / `yukSessiyaKor` ni chaqiradi)
+  yukla(ctx, BASE_SRC, ['xatoSababi', 'yukSessiyaKor', 'amalSababi', 'amalKalitiYangi', 'amalKaliti', 'amalKalitiTashla', 'amalYubor',
+    'amalNomalumMatn', 'amalTakrorIzoh', 'tugmaBand'], 'base.html');
   return ctx;
 }
 const BASE_SRC = oqi('base');
@@ -211,7 +215,8 @@ function qator(elementlar, dataset) {
                                          loyRecipeName: '', customConfirm: async () => true, closeProduceModal: () => {},
                                          loadFp: () => {}, showMsg: () => {} }, qo || {}));
     // kech120 (zip 133 — G5, MOSLANDI): pCalc birlik nomini `unitLabel` bilan yozadi — u ham yuklanadi
-    const yoq = yukla(ctx, SRC.finished, NARX118.concat(YORDAM, ['fmt', 'recalcBlokPrice', 'onBlokPriceInput', 'setPCoating',
+    // kech144 (zip 174, MOSLANDI): muvaffaqiyat xabari miqdorni `fpMiqdor` bilan yozadi — u ham yuklanadi
+    const yoq = yukla(ctx, SRC.finished, NARX118.concat(YORDAM, ['fmt', 'fpMiqdor', 'recalcBlokPrice', 'onBlokPriceInput', 'setPCoating',
       'unitLabel', 'pCalc', 'saveProduce']), 'finished');
     return { ctx, yoq };
   }

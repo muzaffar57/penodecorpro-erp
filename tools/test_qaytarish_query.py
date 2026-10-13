@@ -1244,15 +1244,17 @@ def g_bolimi():
     # kech118 (zip 123 — G5-04, MOSLANDI): brak oynasi — BITTA «Brak yozish» oynasi (templates/_brak_oyna.html, returns.html ulaydi)
     ret = fayl("templates/returns.html") + "\n" + fayl("templates/_brak_oyna.html")
     sb = js_funksiya(ret, "saveBrakBatch")
+    # kech144 (zip 174, MOSLANDI): har detal — `amalYubor` (amal kaliti; rad sababi `amalSababi` dan — `n.xato`)
     check("G returns.html saveBrakBatch: rad etilgan qator server SABABI bilan, jim tashlanmaydi",
-          "brakServerSababi(res)" in sb and "if (res.ok) okCount++;" not in sb
+          "amalYubor(" in sb and "xatolar.push(`${item.name}: ${n.xato}`)" in sb and "if (res.ok) okCount++;" not in sb
           and "xatolar.length" in sb, "")
     check("G returns.html closeBrakModal: qisman saqlangan bo'lsa sahifa yangilanadi",
           "brakSaqlanganBor" in js_funksiya(ret, "closeBrakModal")
           and "location.reload()" in js_funksiya(ret, "closeBrakModal"), "")
     sr = js_funksiya(ret, "saveReturn")
-    check("G returns.html saveReturn: server sababi (`e.detail?.message || e.detail`)",
-          "e.detail?.message || e.detail" in sr, "")
+    # kech144 (zip 174, MOSLANDI): rad sababi — `amalYubor` → `amalSababi` (`n.xato`; `detail` matn / `{message}` / ro'yxat)
+    check("G returns.html saveReturn: server sababi (`amalYubor` → `n.xato`)",
+          "amalYubor(" in sr and "'❌ Qaytarish saqlanmadi: ' + n.xato" in sr, "")
 
 
 # ══════════════════════════════════════════════════════════════

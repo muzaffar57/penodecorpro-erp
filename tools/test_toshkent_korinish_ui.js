@@ -114,6 +114,10 @@ async function ichki() {
   // `yukOl`, `yukNavbat`, `yukXatoKor` …) — bo'lsa birga yuklanadi (eski shablonda yo'q — kod o'zgarmagan holda ishlaydi)
   const YUK_NOMLAR = ['xatoSababi', 'yukXato', 'yukOl', 'yukSabab', 'yukXatoMatn', 'yukNavbat', 'yukBlok', 'yukXatoKor', 'yukRoyxatXato',
     'yukSessiyaKor'];
+  // kech144 (zip 174, MOSLANDI): yozuvchi amallar endi base.html amal kaliti yordamchilari bilan — `amalYubor` (`X-Amal-Kaliti`,
+  // natija noma'lum ajratiladi), `tugmaBand`, sabab — `amalSababi` (u `xatoSababi` / `yukSessiyaKor` ni chaqiradi)
+  YUK_NOMLAR.push('amalSababi', 'amalKalitiYangi', 'amalKaliti', 'amalKalitiTashla', 'amalYubor', 'amalNomalumMatn', 'amalTakrorIzoh',
+    'tugmaBand');
   const YORDAMCHI = yordamchilar(BASE) + '\n' + YUK_NOMLAR.map(n => olib(BASE, n)).filter(Boolean).join('\n');   // base.html ni kengaytiradigan sahifalar
   const HOD_YORDAMCHI = yordamchilar(HOD);     // hodim_panel.html — O'Z nusxasi (base.html ga bog'lanmagan)
 

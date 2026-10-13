@@ -38,6 +38,12 @@ function oqi(p) {
 // (templates/_brak_oyna.html; returns.html va finished.html ulaydi) — sahifa matniga qo'shib o'qiladi
 const RETURNS = oqi(process.argv[2] || path.join(ROOT, 'templates', 'returns.html')) + '\n' + oqi(path.join(ROOT, 'templates', '_brak_oyna.html'));
 const FINISHED = oqi(process.argv[3] || path.join(ROOT, 'templates', 'finished.html')) + '\n' + oqi(path.join(ROOT, 'templates', '_brak_oyna.html'));
+// kech144 (zip 174, MOSLANDI): yozuvchi amallar endi base.html amal kaliti yordamchilari bilan — `amalYubor` (`X-Amal-Kaliti`,
+// natija noma'lum ajratiladi), `tugmaBand`, sabab — `amalSababi` (u `xatoSababi` / `yukSessiyaKor` ni chaqiradi)
+const BASE_SRC = oqi(path.join(ROOT, 'templates', 'base.html'));
+const AMAL_KOD = ['xatoSababi', 'yukSessiyaKor', 'amalSababi', 'amalKalitiYangi', 'amalKaliti', 'amalKalitiTashla', 'amalYubor',
+  'amalNomalumMatn', 'amalTakrorIzoh', 'tugmaBand']
+  .map((n) => olib(BASE_SRC, n)).filter(Boolean).join('\n');
 
 let OK = 0, FAIL = 0;
 const FAILED = [];
@@ -157,7 +163,7 @@ async function brakSina(bosqich, sabab) {
   const m = muhit(el, { 'input[name="brak-coating-applied"]:checked': { value: 'yes' } }, { '.brak-qty-inp': inp },
                   { brakItems: JSON.parse(JSON.stringify(BRAK_ITEMS)), isSavingBrak: false, brakSaqlanganBor: false });
   const kod = olib(RETURNS, 'saveBrakBatch');
-  const r = kod ? await ishga(m, kod, 'saveBrakBatch()') : { xato: 'saveBrakBatch topilmadi' };
+  const r = kod ? await ishga(m, AMAL_KOD + '\n' + kod, 'saveBrakBatch()') : { xato: 'saveBrakBatch topilmadi' };
   return Object.assign(m, { xato: r.xato });
 }
 
@@ -225,7 +231,7 @@ async function lossSina(rejim, bosqich) {
                                 _lossMode: rejim });
   const kod = [olib(FINISHED, 'lossBosqichTana'), jinjasiz(olib(FINISHED, 'submitLoss'))];
   if (kod.some((x) => !x)) return Object.assign(m, { xato: 'funksiya topilmadi: ' + kod.map(Boolean) });
-  const r = await ishga(m, kod.join('\n'), 'submitLoss()');
+  const r = await ishga(m, AMAL_KOD + '\n' + kod.join('\n'), 'submitLoss()');
   return Object.assign(m, { xato: r.xato });
 }
 

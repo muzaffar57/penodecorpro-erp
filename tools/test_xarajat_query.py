@@ -826,8 +826,9 @@ def _funksiya(src, nomi):
 _debts = _fayl("templates/debts.html")
 _orders = _fayl("templates/orders.html")
 _qp = _funksiya(_debts, "async function quickPayObligation")
-check("H debts.html majburiyat to'lovi — xatoda server sababi (serverSababi)",
-      tartibda(_qp, "/api/finance/transactions", "res.ok", "serverSababi(res"), _qp[:80])
+# kech144 (zip 174, MOSLANDI): so'rov — `amalYubor` (amal kaliti), rad sababi — `amalSababi` dan (`n.xato`)
+check("H debts.html majburiyat to'lovi — xatoda server sababi (`amalYubor` → `n.xato`)",
+      tartibda(_qp, "amalYubor('/api/finance/transactions'", "n.ok", "n.xato"), _qp[:80])
 check("H debts.html majburiyat to'lovi — faqat \"Xato yuz berdi\" emas",
       "else alert('Xato yuz berdi')" not in _qp)
 _ea = _funksiya(_orders, "async function editAgreedAmount")
@@ -843,10 +844,11 @@ check("H orders.html — UI ham 0 va manfiyni rad etadi (server bilan mos)",
 _fin = _fayl("templates/finance.html")
 _kx = _fayl("templates/kunlik_xarajat.html")
 # kech120 (zip 131 — G3-17, MOSLANDI): server sababi — umumiy `serverXatoSababi` (xom JSON / «Xato:» emas)
+# kech144 (zip 174, MOSLANDI): rad sababi — `amalYubor` → `amalSababi` (`n.xato`)
 check("H finance.html saveTx — server matnli sababini ko'rsatadi",
-      "alert('❌ ' + await serverXatoSababi(res, 'Saqlanmadi'))" in _fin)
+      "alert('❌ Saqlanmadi: ' + n.xato)" in _fin)
 check("H kunlik_xarajat.html — server matnli sababini ko'rsatadi",
-      "err.textContent = '❌ ' + await serverXatoSababi(res, 'Xato yuz berdi')" in _kx)
+      "err.textContent = '❌ Xarajat saqlanmadi: ' + n.xato" in _kx)
 for nom, src in [("finance.html", _funksiya(_fin, "async function saveTx")),
                  ("kunlik_xarajat.html", _kx), ("debts.html", _qp)]:
     check(f"H {nom} — faqat ruxsat etilgan kalitlarni yuboradi",

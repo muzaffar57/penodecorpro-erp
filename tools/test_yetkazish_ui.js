@@ -635,7 +635,11 @@ async function submitFullBolimi() {
 // ══════════════════════════════════════════════════════════════
 const R_NOMLAR = ['brakServerSababi', 'closeBrakModal', 'saveBrakBatch'];
 const R_FN = R_NOMLAR.map((n) => olib(RETURNS, n));
-const R_KOD = R_FN.filter(Boolean).join('\n');
+// kech144 (zip 174, MOSLANDI): yozuvchi amallar endi base.html amal kaliti yordamchilari bilan — `amalYubor` (`X-Amal-Kaliti`,
+// natija noma'lum ajratiladi), `tugmaBand`, sabab — `amalSababi` (u `xatoSababi` / `yukSessiyaKor` ni chaqiradi)
+const AMAL_FN = ['amalKalitiYangi', 'amalKaliti', 'amalKalitiTashla', 'amalYubor', 'amalNomalumMatn', 'amalTakrorIzoh', 'tugmaBand']
+  .map((n) => olib(BASE, n));
+const R_KOD = R_FN.concat(B_FN, AMAL_FN).filter(Boolean).join('\n');
 
 const BRAK_ITEMS = [
   { order_id: 301, item_id: 4001, name: 'BRK_A', delivery_unit: 'metr', order_qty_normalized: 10 },
@@ -733,22 +737,26 @@ async function brakBolimi() {
           && m.reloadSoni() === 0,
           m.xato || qisqa([m.err.textContent, m.ctx.brakSaqlanganBor]));
 
+  // kech144 (zip 174, MOSLANDI): rad sababi — `amalSababi` (pydantic ro'yxati — o'zi; sababsiz — «so'rov rad etildi (400)»); 5xx va
+  // tarmoq — NATIJA NOMA'LUM (saqlangan bo'lishi mumkin): o'sha qatorda to'xtaydi, qatori va amal kaliti qoladi (qayta bosilsa server
+  // ikkinchi marta yozmaydi), bayroq — oyna yopilsa sahifa yangilanadi
   m = await bSina({ qiymatlar: ['2', '', ''] }, [javob(422, { detail: [{ msg: 'x' }] })]);
-  tekshir('B 422 (ro\'yxat) → "Xato (422)"',
-          !m.xato && m.err.textContent === '❌ 1 ta saqlanmadi — BRK_A: Xato (422)', m.xato || qisqa(m.err.textContent));
+  tekshir('B 422 (ro\'yxat) → sabab o\'zi ("x")',
+          !m.xato && m.err.textContent === '❌ 1 ta saqlanmadi — BRK_A: x', m.xato || qisqa(m.err.textContent));
 
   m = await bSina({ qiymatlar: ['2', '', ''] }, [javob(500, null, true)]);
-  tekshir('B 500 JSON emas → "Xato (500)", istisno yo\'q',
-          !m.xato && m.err.textContent === '❌ 1 ta saqlanmadi — BRK_A: Xato (500)', m.xato || qisqa(m.err.textContent));
+  tekshir("B 500 JSON emas → natija noma'lum, istisno yo'q, qator qoladi, bayroq bor",
+          !m.xato && m.err.textContent === "⚠️ natijasi noma'lum — BRK_A: server javob bermadi — sahifani yangilab tekshiring. Qayta bossangiz — ikki marta yozilmaydi."
+          && m.inp[0].value === '2' && m.ctx.brakSaqlanganBor === true, m.xato || qisqa([m.err.textContent, m.ctx.brakSaqlanganBor]));
 
   m = await bSina({ qiymatlar: ['2', '', ''] }, [javob(400, { detail: '' })]);
-  tekshir("B `detail` bo'sh matn → \"Xato (400)\"",
-          !m.xato && m.err.textContent === '❌ 1 ta saqlanmadi — BRK_A: Xato (400)', m.xato || qisqa(m.err.textContent));
+  tekshir("B `detail` bo'sh matn → \"so'rov rad etildi (400)\"",
+          !m.xato && m.err.textContent === "❌ 1 ta saqlanmadi — BRK_A: so'rov rad etildi (400)", m.xato || qisqa(m.err.textContent));
 
   m = await bSina({}, [javob(200, { id: 1 }), 'otadi']);
-  tekshir("B tarmoq 2-qatorda uzildi → \"Server xatosi — 1 ta saqlandi\", bayroq true (oyna yopilsa yangilanadi)",
+  tekshir("B tarmoq 2-qatorda uzildi → «1 ta saqlandi, natijasi noma'lum — …», bayroq true (oyna yopilsa yangilanadi)",
           !m.xato && m.err.style.display === 'block'
-          && m.err.textContent === '❌ Server xatosi — 1 ta saqlandi, qolganlari saqlanmadi'
+          && m.err.textContent === "⚠️ 1 ta saqlandi, natijasi noma'lum — BRK_B: internet aloqasi yo'q — sahifani yangilab tekshiring. Qayta bossangiz — ikki marta yozilmaydi."
           && m.ctx.brakSaqlanganBor === true && m.inp[0].value === '' && m.inp[1].value === '1.5'
           && m.reloadSoni() === 0,
           m.xato || qisqa([m.err.textContent, m.ctx.brakSaqlanganBor, m.inp.map((x) => x.value)]));
@@ -757,9 +765,11 @@ async function brakBolimi() {
           !cz2.xato && m.reloadSoni() === 1, cz2.xato || qisqa(m.reloadSoni()));
 
   m = await bSina({}, ['otadi']);
-  tekshir('B tarmoq 1-qatordayoq uzildi → "❌ Server xatosi", bayroq YO\'Q',
-          !m.xato && m.err.textContent === '❌ Server xatosi' && m.ctx.brakSaqlanganBor === false
-          && m.inp[0].value === '2', m.xato || qisqa([m.err.textContent, m.ctx.brakSaqlanganBor]));
+  tekshir("B tarmoq 1-qatordayoq uzildi → natija noma'lum, qolgan qator YUBORILMAYDI, bayroq bor (saqlangan bo'lishi mumkin)",
+          !m.xato && m.sorovlar.length === 1
+          && m.err.textContent === "⚠️ natijasi noma'lum — BRK_A: internet aloqasi yo'q — sahifani yangilab tekshiring, 1 ta yuborilmadi. Qayta bossangiz — ikki marta yozilmaydi."
+          && m.ctx.brakSaqlanganBor === true && m.inp[0].value === '2' && m.inp[1].value === '1.5',
+          m.xato || qisqa([m.err.textContent, m.ctx.brakSaqlanganBor, m.sorovlar.length]));
 
   m = await bSina({ qiymatlar: ['11', '1', ''] }, [javob(200, { id: 1 })]);
   tekshir("B buyurtmadagidan ko'p → so'rov yo'q, xabar, maydon qizil",

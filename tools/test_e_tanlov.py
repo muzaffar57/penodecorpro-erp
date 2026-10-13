@@ -586,7 +586,8 @@ if br:
     _dom = jsq(PG, "() => document.querySelectorAll('*').length")
     jsq(PG, "() => showAddModal()")
     PG.wait_for_timeout(300)
-    _q0 = sum("buyurtmalar" in u for u in SOROV)
+    # kech144 (zip 174, MOSLANDI): detallar endi `/api/tanlov/buyurtmalar/{id}/detallar` — RO'YXAT so'rovlari manzil oxiri bo'yicha sanaladi
+    _q0 = sum(u.endswith("/api/tanlov/buyurtmalar") for u in SOROV)
     och(PG, "f-order", "Q ochish")
     kut(PG, "() => document.getElementById('f-order').options.length > 1")
     _q1 = jsq(PG, "() => [...document.getElementById('f-order').options].map(o => o.text)")
@@ -594,7 +595,7 @@ if br:
     check("Q1 ro'yxat tanlagich BIRINCHI ochilganda yuklandi (oyna ochilishi so'rov yubormaydi), BIR marta, qatorlar = API (raqam — mijoz · "
           "holat), ochiq panelda darhol ko'rinadi",
           _q0 == 0 and isinstance(_q1, list) and len(_q1) == len(_kb) + 1 and _q1[1].startswith(_kb[0] + " — ETN Mijoz")
-          and sum("buyurtmalar" in u for u in SOROV) == 1 and isinstance(_q1b, dict) and _q1b.get("ochiq") and len(_q1b.get("bandlar", [])) == len(_kb) + 1,
+          and sum(u.endswith("/api/tanlov/buyurtmalar") for u in SOROV) == 1 and isinstance(_q1b, dict) and _q1b.get("ochiq") and len(_q1b.get("bandlar", [])) == len(_kb) + 1,
           (_q0, _q1[:3] if isinstance(_q1, list) else _q1, SOROV))
     amal(lambda: PG.keyboard.type("93005"), "Q telefon")      # bo'shliqsiz — raqamlar bo'yicha («+998 93 005 45 67»)
     _q2 = jsq(PG, HOLAT_JS, "f-order")
@@ -629,19 +630,19 @@ if br:
     _q5 = jsq(PG, """() => ({oyna: getComputedStyle(document.getElementById('addModal')).display,
         sorov: [...document.querySelectorAll('div')].some(d => getComputedStyle(d).position === 'fixed' && /saqlanmaydi/.test(d.textContent) && d.offsetParent !== null)})""")
     check("Q5 faqat QIDIRUV yozilgan oyna (ma'lumot kiritilmagan) — Esc da «ma'lumot saqlanmaydi» so'rovisiz yopiladi; ro'yxat qayta "
-          "so'ralmadi (kesh)", isinstance(_q5, dict) and _q5.get("oyna") == "none" and not _q5.get("sorov") and sum("buyurtmalar" in u for u in SOROV) == 1,
+          "so'ralmadi (kesh)", isinstance(_q5, dict) and _q5.get("oyna") == "none" and not _q5.get("sorov") and sum(u.endswith("/api/tanlov/buyurtmalar") for u in SOROV) == 1,
           [_q5, SOROV])
     jsq(PG, "() => showBrakModal()")
     jsq(PG, "() => { const r = document.querySelector('input[name=\"brak-manba\"][value=\"buyurtma\"]'); if (r) { r.click(); } }")
     PG.wait_for_timeout(300)
-    _q6a = sum("loyihalar" in u for u in SOROV)
+    _q6a = sum(u.endswith("/api/tanlov/loyihalar") for u in SOROV)
     och(PG, "brak-project", "Q brak ochish")
     kut(PG, "() => document.getElementById('brak-project').options.length > 1")
     _q6 = jsq(PG, "() => [...document.getElementById('brak-project').options].map(o => o.text)")
     check("Q6 «Brak yozish»: loyihalar tanlagich ochilganda yuklandi (oldin so'rov yo'q) — ishdagi buyurtmasi bor loyihalar (9 ta), "
           "o'chirilgani / faqat qoralama — yo'q",
           _q6a == 0 and isinstance(_q6, list) and _q6[1:] == [f"ETN Loyiha {i} — ETN Mijoz {i}" for i in range(8, -1, -1)]
-          and sum("loyihalar" in u for u in SOROV) == 1, (_q6a, _q6))
+          and sum(u.endswith("/api/tanlov/loyihalar") for u in SOROV) == 1, (_q6a, _q6))
     amal(lambda: PG.keyboard.type("93 002"), "Q brak yozish")
     amal(lambda: PG.keyboard.press("Enter"), "Q brak enter")
     kut(PG, "() => /Detal 2-/.test(document.getElementById('brakList').textContent)")
