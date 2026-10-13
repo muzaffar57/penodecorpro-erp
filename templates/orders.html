@@ -3041,14 +3041,29 @@ async function activateDraft() {
   activateDraft.band = true;
   try {
     let res;
-    try {
-      res = await fetch(`/api/orders/${oid}/activate`, { method: 'POST' });
-    } catch (e) {
-      showMsg("❌ Natija noma'lum — " + await amalSababi(e) + ' (sahifani yangilab buyurtma holatini tekshiring)', 'error');
-      return;
+    let tasdiq = false;
+    // kech144 (zip 176, A-O10 d F5): tayyor mahsulot yetmasa — 409 «davom etasizmi?»; «Davom etish» — `confirm_shortage=true` (minusga)
+    while (true) {
+      try {
+        res = await fetch(`/api/orders/${oid}/activate` + (tasdiq ? '?confirm_shortage=true' : ''), { method: 'POST' });
+      } catch (e) {
+        showMsg("❌ Natija noma'lum — " + await amalSababi(e) + ' (sahifani yangilab buyurtma holatini tekshiring)', 'error');
+        return;
+      }
+      if (res.status !== 409 || tasdiq) break;
+      let d409 = null;
+      try { d409 = await res.clone().json(); } catch (e) { d409 = null; }
+      const t409 = (d409 && d409.detail && typeof d409.detail === 'object') ? d409.detail : {};
+      if (t409.type !== 'stock_shortage_warning') break;
+      const roy = (Array.isArray(t409.shortages) ? t409.shortages : []).map(x => '• ' + String(x)).join('\n');
+      const ha = await customConfirm("⚠ Tayyor mahsulot omborda yetmaydi",
+        roy + "\n\nShunday ham jarayonga olasizmi? (qoldiq minusga tushadi — keyin ishlab chiqariladi)",
+        {danger: true, okText: 'Davom etish'});
+      if (!ha) return;
+      tasdiq = true;
     }
     if (res.ok) {
-      showMsg('✓ Buyurtma jarayonga olindi!', 'success');
+      showMsg(tasdiq ? "✓ Buyurtma jarayonga olindi (tayyor mahsulot qoldig'i minusda)!" : '✓ Buyurtma jarayonga olindi!', 'success');
       setTimeout(()=>location.reload(), 1000);
       return;
     }
