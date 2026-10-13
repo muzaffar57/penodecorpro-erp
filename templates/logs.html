@@ -235,6 +235,14 @@
   <!-- SOZLAMALAR: Telegram bot + zaxira -->
   <div id="tab-settings" class="card" style="display:none">
     <div class="card-head"><h3>⚙️ Korxona sozlamalari</h3></div>
+    {# kech144 (zip 175, audit C8 — O'LCHANGAN fy_probe1 S2: sahifa «Tizim jurnallari: Ko'rish» bilan ochiladi, lekin hamma «Saqlash»,
+       «Tozalash», «Ulash», yo'nalish tugmalari chizilardi va bosilsa server 403 berardi): tahrir tugmalari — «Korxona sozlamalari:
+       Tahrirlash» ruxsati bilan; yo'nalish qo'shish / o'chirish — o'z ruxsatlari bilan. #}
+    {% set _soz_tahrir = current_user.ruxsat('sozlama', 'tahrirlash') %}
+    {% if not _soz_tahrir %}
+    <div style="padding:10px 18px;font-size:13px;color:var(--m-92400e);background:var(--f-fef3c7)">
+      👁 Ko'rish rejimi — o'zgartirish uchun «Korxona sozlamalari: Tahrirlash» ruxsati kerak (Admin beradi).</div>
+    {% endif %}
 
     <div style="padding:18px;border-bottom:1px solid var(--border2)">
       <div style="font-size:13px;font-weight:700;margin-bottom:6px">🏢 Korxona nomi</div>
@@ -272,7 +280,8 @@
           <input type="text" id="co-address" class="input-field" maxlength="200"
                  style="width:220px" placeholder="Andijon">
         </div>
-        <button class="btn btn-dark btn-sm" onclick="saveCompany()">Saqlash</button>
+        {# kech144 (zip 175, audit C2): ma'lumot yuklanmaguncha yopiq (bo'sh maydonlar saqlanib slogan / telefon / manzil o'chmasin) #}
+        {% if _soz_tahrir %}<button class="btn btn-dark btn-sm" id="co-save-btn" onclick="saveCompany()" disabled>Saqlash</button>{% endif %}
         <span id="co-status" style="font-size:13px"></span>
       </div>
       <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border2)">
@@ -286,7 +295,7 @@
                  onchange="document.getElementById('co-logo-nomi').textContent = this.files && this.files[0] ? this.files[0].name : 'Fayl tanlanmagan'">
           <label for="co-logo-file" class="btn btn-outline btn-sm" style="cursor:pointer">Fayl tanlash</label>
           <span id="co-logo-nomi" style="font-size:13px;color:var(--text3)">Fayl tanlanmagan</span>
-          <button class="btn btn-soft btn-sm" onclick="uploadLogo()">Logotipni yuklash</button>
+          {% if _soz_tahrir %}<button class="btn btn-soft btn-sm" id="co-logo-btn" onclick="uploadLogo()">Logotipni yuklash</button>{% endif %}
           <span id="co-logo-status" style="font-size:13px"></span>
         </div>
       </div>
@@ -302,7 +311,8 @@
       <div id="cat-list" style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:12px;font-size:13px">
         Yuklanmoqda…
       </div>
-      <button class="btn btn-dark btn-sm" onclick="saveCategories()">Saqlash</button>
+      {# kech144 (zip 175, audit C1): ro'yxat yuklanmaguncha yopiq (ilgari bosilsa Loy sotish va Blok o'chardi) #}
+      {% if _soz_tahrir %}<button class="btn btn-dark btn-sm" id="cat-save-btn" onclick="saveCategories()" disabled>Saqlash</button>{% endif %}
       <span id="cat-status" style="font-size:13px;margin-left:8px"></span>
     </div>
 
@@ -318,12 +328,14 @@
       </div>
       <div id="yon-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">Yuklanmoqda…</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+        {% if current_user.ruxsat('sozlama', 'yaratish') %}
         <div>
           <label for="yon-yangi" style="display:block;font-size:12px;color:var(--text3);margin-bottom:4px">Yangi yo'nalish</label>
           <input type="text" id="yon-yangi" class="input-field" maxlength="60" style="width:260px"
                  placeholder="Masalan: Metall konstruksiya">
         </div>
         <button class="btn btn-dark btn-sm" id="yon-qosh-btn" onclick="yonQosh()">+ Qo'shish</button>
+        {% endif %}
         <span id="yon-status" style="font-size:13px"></span>
       </div>
     </div>
@@ -355,9 +367,11 @@
           <input type="text" id="tg-chat" class="input-field maydon" placeholder="123456789,987654321"
                  style="width:220px;font-family:monospace">
         </div>
-        <button class="btn btn-dark btn-sm" onclick="saveTgBot()">Saqlash</button>
-        <button class="btn btn-soft btn-sm" onclick="clearTgBot()">Tozalash</button>
+        {% if _soz_tahrir %}
+        <button class="btn btn-dark btn-sm" id="tg-save-btn" onclick="saveTgBot()">Saqlash</button>
+        <button class="btn btn-soft btn-sm" id="tg-clear-btn" onclick="clearTgBot()">Tozalash</button>
         <button class="btn btn-outline btn-sm" onclick="tgUlash()" id="tg-ulash-btn" style="display:none">🔗 Botni ulash</button>
+        {% endif %}
       </div>
       <div id="tg-status" style="margin-top:12px;font-size:13px"></div>
       <div id="tg-ulanish" style="margin-top:8px;font-size:13px;line-height:1.6"></div>
@@ -427,14 +441,28 @@ function switchLogTab(tab) {
   });
 }
 
-async function loadCompany() {
+// kech144 (zip 175, audit C2 — O'LCHANGAN: `.then(r => r.json())`, xato jim — 5xx / tarmoq / 401 da HAMMA maydon bo'sh, sababsiz;
+// egasi nomni qayta yozib saqlasa server slogan, telefon, manzil, Telegram shiorini O'CHIRARDI — bo'sh = tozalash). Endi `yukOl`:
+// yuklanmasa — sabab, «Saqlash» yopiq qoladi; yuklanganda — ochiladi. `faqatLogo` — logotipdan keyin faqat rasm yangilanadi (C9:
+// ilgari yozilgan, hali saqlanmagan nom / telefon qayta yuklanib yo'qolardi).
+async function loadCompany(faqatLogo) {
+  const st = document.getElementById('co-status');
+  let d;
+  try { d = await yukOl('/api/settings/company'); }
+  catch (e) {
+    if (st) st.innerHTML = '<span style="color:var(--m-b91c1c)">' + escapeHtml(yukXatoMatn("Korxona ma'lumoti", (e && e.yukXato) ? e : yukXato('server'))) + '</span>';
+    return;
+  }
   try {
-    const d = await fetch('/api/settings/company').then(r => r.json());
+    if (!faqatLogo) {
     document.getElementById('co-name').value = d.name || '';
     document.getElementById('co-slogan').value = d.slogan || '';
     document.getElementById('co-phone').value = d.phone || '';
     document.getElementById('co-address').value = d.address || '';
     document.getElementById('co-tg-tagline').value = d.tg_tagline || '';
+    const sb = document.getElementById('co-save-btn');
+    if (sb) sb.disabled = false;
+    }
     const img = document.getElementById('co-logo-preview');
     if (d.logo_path) {
       img.src = '/' + d.logo_path + '?v=' + Date.now();
@@ -442,29 +470,42 @@ async function loadCompany() {
     } else {
       img.style.display = 'none';
     }
-  } catch (e) { /* jim */ }
+  } catch (e) { console.error(e); }
 }
 
+// kech144 (zip 175, audit C6 / C9 / C10): internet uzilsa ham xabar, sabab — `amalSababi`; muvaffaqiyatda faqat logotip yangilanadi
+// (yozilgan nom / telefon qoladi) va fayl nomi yozuvi tozalanadi
 async function uploadLogo() {
   const inp = document.getElementById('co-logo-file');
   const el = document.getElementById('co-logo-status');
+  const btn = document.getElementById('co-logo-btn');
   if (!inp.files || !inp.files[0]) { el.innerHTML = '<span style="color:var(--m-b91c1c)">Rasm tanlang</span>'; return; }
+  if (btn && btn.disabled) return;
   const fd = new FormData();
   fd.append('file', inp.files[0]);
-  const r = await fetch('/api/settings/company/logo', { method: 'POST', body: fd });
-  const d = await r.json().catch(() => ({}));
-  if (r.ok) {
-    el.innerHTML = '<span style="color:var(--green,#0a0)">✓ Yuklandi</span>';
-    inp.value = '';
-    loadCompany();
-  } else {
-    el.innerHTML = '<span style="color:var(--m-b91c1c)">' + escapeHtml(d.detail || 'Xato') + '</span>';
-  }
+  if (btn) btn.disabled = true;
+  try {
+    let r;
+    try { r = await fetch('/api/settings/company/logo', { method: 'POST', body: fd }); }
+    catch (e) { el.innerHTML = '<span style="color:var(--m-b91c1c)">' + escapeHtml("❌ Logotip yuklanmadi: " + await amalSababi(e)) + '</span>'; return; }
+    if (r.ok) {
+      el.innerHTML = '<span style="color:var(--green,#0a0)">✓ Yuklandi</span>';
+      inp.value = '';
+      const nomi = document.getElementById('co-logo-nomi');
+      if (nomi) nomi.textContent = 'Fayl tanlanmagan';
+      loadCompany(true);
+    } else {
+      el.innerHTML = '<span style="color:var(--m-b91c1c)">' + escapeHtml("❌ Logotip yuklanmadi: " + await amalSababi(r)) + '</span>';
+    }
+  } finally { if (btn) btn.disabled = false; }
 }
 
 async function saveCompany() {
   const nom = document.getElementById('co-name').value.trim();
   const el = document.getElementById('co-status');
+  // kech144 (zip 175, audit C2): ma'lumot yuklanmagan bo'lsa saqlanmaydi (bo'sh maydonlar serverda tozalash deb olinadi)
+  const sb = document.getElementById('co-save-btn');
+  if (sb && sb.disabled) return;
   if (nom.length < 2) { el.innerHTML = '<span style="color:var(--m-b91c1c)">Nom juda qisqa</span>'; return; }
   const fd = new FormData();
   fd.append('name', nom);
@@ -472,48 +513,79 @@ async function saveCompany() {
   fd.append('phone', document.getElementById('co-phone').value.trim());
   fd.append('address', document.getElementById('co-address').value.trim());
   fd.append('tg_tagline', document.getElementById('co-tg-tagline').value.trim());
-  const r = await fetch('/api/settings/company', { method: 'PUT', body: fd });
-  if (r.ok) {
-    el.innerHTML = '<span style="color:var(--green,#0a0)">✓ Saqlandi</span>';
-    setTimeout(() => location.reload(), 900);
-  } else {
-    const d = await r.json().catch(() => ({}));
-    el.innerHTML = '<span style="color:var(--m-b91c1c)">' + escapeHtml(d.detail || 'Xato') + '</span>';
-  }
+  // kech144 (zip 175, audit C6): internet uzilsa ham xabar; 5xx — natija noma'lum; rad — sabab (`amalSababi`)
+  if (sb) sb.disabled = true;
+  let r;
+  try {
+    try { r = await fetch('/api/settings/company', { method: 'PUT', body: fd }); }
+    catch (e) { el.innerHTML = '<span style="color:var(--m-b91c1c)">' + escapeHtml("❌ Saqlanmadi: " + await amalSababi(e)) + '</span>'; return; }
+    if (r.ok) {
+      el.innerHTML = '<span style="color:var(--green,#0a0)">✓ Saqlandi</span>';
+      setTimeout(() => location.reload(), 900);
+    } else {
+      el.innerHTML = '<span style="color:var(--m-b91c1c)">' + escapeHtml((r.status >= 500 ? "⚠️ Natija noma'lum: " : "❌ Saqlanmadi: ") + await amalSababi(r)) + '</span>';
+    }
+  } finally { if (sb) sb.disabled = false; }
 }
 
+// kech144 (zip 175, audit C1 — O'LCHANGAN fy_probe1 S1: ro'yxat «Yuklanmoqda…» / xato holatida «Saqlash» `codes=''` yuborib Loy sotish
+// va Blokni O'CHIRARDI): `yukOl`; yuklanmasa — sabab, «Saqlash» yopiq qoladi; yuklanganda — ochiladi.
 async function loadCategories() {
   const el = document.getElementById('cat-list');
   if (!el) return;
+  let d;
+  try { d = await yukOl('/api/settings/categories'); }
+  catch (e) { el.textContent = yukXatoMatn("Mahsulot turlari", (e && e.yukXato) ? e : yukXato('server')); return; }
   try {
-    const d = await fetch('/api/settings/categories').then(r => r.json());
-    el.innerHTML = d.categories.map(c =>
+    el.innerHTML = (d.categories || []).map(c =>
       '<label style="display:flex;align-items:center;gap:6px;cursor:pointer">' +
       '<input type="checkbox" class="cat-cb" value="' + escapeHtml(c.code) + '"' +
       (c.enabled ? ' checked' : '') + ' style="width:16px;height:16px;cursor:pointer">' +
       escapeHtml(c.label) + '</label>').join('');
-  } catch (e) { el.textContent = "Yuklab bo'lmadi"; }
+    const sb = document.getElementById('cat-save-btn');
+    if (sb) sb.disabled = false;
+  } catch (e) { el.textContent = yukXatoMatn("Mahsulot turlari", yukXato('server')); }
 }
 
 async function saveCategories() {
+  // kech144 (zip 175, audit C1): ro'yxat yuklanmagan bo'lsa saqlanmaydi; hammasi o'chirilsa — `bosh=1` (server bo'sh ro'yxatni faqat
+  // shu belgi bilan qabul qiladi); sabab — `amalSababi` (ilgari «Xato»)
+  const sb = document.getElementById('cat-save-btn');
+  if (sb && sb.disabled) return;
+  if (!document.querySelector('.cat-cb')) return;      // ro'yxat chizilmagan — «hammasini o'chirish» deb yuborilmaydi
   const kodlar = [...document.querySelectorAll('.cat-cb')]
     .filter(c => c.checked).map(c => c.value).join(',');
   const fd = new FormData();
   fd.append('codes', kodlar);
-  const r = await fetch('/api/settings/categories', { method: 'PUT', body: fd });
+  if (!kodlar) fd.append('bosh', '1');
   const el = document.getElementById('cat-status');
-  if (r.ok) {
-    el.innerHTML = '<span style="color:var(--green,#0a0)">✓ Saqlandi</span>';
-    setTimeout(() => location.reload(), 900);
-  } else {
-    el.innerHTML = '<span style="color:var(--m-b91c1c)">Xato</span>';
-  }
+  if (sb) sb.disabled = true;
+  try {
+    let r;
+    try { r = await fetch('/api/settings/categories', { method: 'PUT', body: fd }); }
+    catch (e) { el.innerHTML = '<span style="color:var(--m-b91c1c)">' + escapeHtml("❌ Saqlanmadi: " + await amalSababi(e)) + '</span>'; return; }
+    if (r.ok) {
+      el.innerHTML = '<span style="color:var(--green,#0a0)">✓ Saqlandi</span>';
+      setTimeout(() => location.reload(), 900);
+    } else {
+      el.innerHTML = '<span style="color:var(--m-b91c1c)">' + escapeHtml((r.status >= 500 ? "⚠️ Natija noma'lum: " : "❌ Saqlanmadi: ") + await amalSababi(r)) + '</span>';
+    }
+  } finally { if (sb) sb.disabled = false; }
 }
 
+// kech144 (zip 175, audit C3 — O'LCHANGAN: `r.ok` tekshirilmasdi — 403 / 401 JSON da bot sozlangan bo'lsa ham qizil «Sozlanmagan —
+// Telegram xabarlari YUBORILMAYDI» chiqardi): `yukOl`; yuklanmasa — sabab, holat taxmin qilinmaydi.
 async function loadTgBot() {
+  const el = document.getElementById('tg-status');
+  let d;
+  try { d = await yukOl('/api/settings/telegram-bot'); }
+  catch (e) {
+    if (el) el.innerHTML = '<span style="color:var(--m-b91c1c)">' + escapeHtml(yukXatoMatn('Bot holati', (e && e.yukXato) ? e : yukXato('server'))) + '</span>';
+    const ub = document.getElementById('tg-ulash-btn');
+    if (ub) ub.style.display = 'none';
+    return;
+  }
   try {
-    const d = await fetch('/api/settings/telegram-bot').then(r => r.json());
-    const el = document.getElementById('tg-status');
     if (d.configured) {
       el.innerHTML = '<span style="color:var(--green,#0a0)">✓ O\'z boti sozlangan</span> ' +
                      '<span style="color:var(--text3)">(token ' + escapeHtml(d.token_hint || '') + ')</span>';
@@ -524,7 +596,7 @@ async function loadTgBot() {
         : '<span style="color:var(--m-b91c1c)">Sozlanmagan — Telegram xabarlari YUBORILMAYDI. Botni sozlang.</span>';
     }
     tgUlanishHolati(d);
-  } catch (e) { /* jim */ }
+  } catch (e) { console.error(e); }
 }
 
 // kech130 (zip 154): korxona boti ulanganmi (ustalar menyusi) — server sozlamasidan; sir brauzerga kelmaydi
@@ -553,34 +625,46 @@ async function tgUlash() {
   const btn = document.getElementById('tg-ulash-btn');
   const el = document.getElementById('tg-ulanish');
   btn.disabled = true;
-  let d = {};
-  let ok = false;
-  try {
-    const r = await fetch('/api/settings/telegram-bot/ulash', { method: 'POST' });
-    ok = r.ok;
-    d = await r.json();
-  } catch (e) { d = {detail: 'Server bilan aloqa yo\'q'}; }
-  if (ok) {
+  // kech144 (zip 175, audit C11): JSON `r.ok` dan keyin (502 HTML — «aloqa yo'q» emas, sabab); xatodan keyin tugma holati serverdan
+  // qayta o'qiladi (ilgari sinov saytida ham ochilib qolardi)
+  let r = null;
+  try { r = await fetch('/api/settings/telegram-bot/ulash', { method: 'POST' }); } catch (e) { r = e; }
+  if (r && r.ok) {
+    let d = {};
+    try { d = await r.json(); } catch (e) { d = {}; }
     await loadTgBot();
     el.innerHTML = '<div style="color:var(--green,#0a0)">' + escapeHtml(d.message || '✅ Bot ulandi') + '</div>';
   } else {
-    el.innerHTML = '<div style="color:var(--m-b91c1c)">❌ ' + escapeHtml(d.detail || 'Xato yuz berdi') + '</div>';
+    const nomalum = !(r && typeof r.status === 'number') || r.status >= 500;
+    const sabab = await amalSababi(r);
+    await loadTgBot();
+    el.innerHTML = '<div style="color:var(--m-b91c1c)">' + escapeHtml((nomalum ? "⚠️ Natija noma'lum: " : '❌ ') + sabab) + '</div>';
   }
-  btn.disabled = false;
 }
 
+// kech144 (zip 175, audit C5): internet uzilsa ham xabar, rad — sabab (`amalSababi`; ilgari «Saqlashda xato»), token maydoni FAQAT
+// muvaffaqiyatda tozalanadi (ilgari xatoda ham — qayta yozish kerak edi)
 async function saveTgBot() {
+  const btn = document.getElementById('tg-save-btn');
+  if (btn && btn.disabled) return;
   const fd = new FormData();
   fd.append('token', document.getElementById('tg-token').value.trim());
   fd.append('chat_id', document.getElementById('tg-chat').value.trim());
-  const r = await fetch('/api/settings/telegram-bot', { method: 'PUT', body: fd });
+  const st = document.getElementById('tg-status');
+  if (btn) btn.disabled = true;
+  let r;
+  try { r = await fetch('/api/settings/telegram-bot', { method: 'PUT', body: fd }); }
+  catch (e) { st.innerHTML = '<span style="color:var(--m-b91c1c)">' + escapeHtml("❌ Saqlanmadi: " + await amalSababi(e)) + '</span>'; if (btn) btn.disabled = false; return; }
+  if (btn) btn.disabled = false;
+  if (!r.ok) {
+    st.innerHTML = '<span style="color:var(--m-b91c1c)">' + escapeHtml((r.status >= 500 ? "⚠️ Natija noma'lum: " : "❌ Saqlanmadi: ") + await amalSababi(r)) + '</span>';
+    return;
+  }
   let d = {};
   try { d = await r.json(); } catch (e) { /* jim */ }
   document.getElementById('tg-token').value = '';
-  document.getElementById('tg-status').innerHTML = r.ok
-    ? '<span style="color:var(--green,#0a0)">✓ Saqlandi</span>'
-    : '<span style="color:var(--m-b91c1c)">Saqlashda xato</span>';
-  if (r.ok) {
+  st.innerHTML = '<span style="color:var(--green,#0a0)">✓ Saqlandi</span>';
+  {
     await new Promise(function (ok) { setTimeout(ok, 600); });
     await loadTgBot();
     // kech130: token almashsa ulangan bot uziladi — sababi ko'rinsin
@@ -595,7 +679,16 @@ async function clearTgBot() {
   if (!(await customConfirm("Bot sozlamasi tozalansinmi? Shundan keyin korxonangizga Telegram xabarlari kelmasligi mumkin.", {danger: true, okText: 'Tozalash'}))) return;
   const fd = new FormData();
   fd.append('token', '-'); fd.append('chat_id', '-');
-  const r = await fetch('/api/settings/telegram-bot', { method: 'PUT', body: fd });
+  // kech144 (zip 175, audit C4 — ilgari `r.ok` tekshirilmasdi: 403 da hech narsa demay chat maydonini tozalab, «Sozlanmagan» ko'rsatardi —
+  // go'yo bot tozalangandek): rad / tarmoq — sabab, maydon tegilmaydi
+  let r;
+  try { r = await fetch('/api/settings/telegram-bot', { method: 'PUT', body: fd }); }
+  catch (e) { document.getElementById('tg-status').innerHTML = '<span style="color:var(--m-b91c1c)">' + escapeHtml("❌ Tozalanmadi: " + await amalSababi(e)) + '</span>'; return; }
+  if (!r.ok) {
+    document.getElementById('tg-status').innerHTML = '<span style="color:var(--m-b91c1c)">' +
+      escapeHtml((r.status >= 500 ? "⚠️ Natija noma'lum: " : "❌ Tozalanmadi: ") + await amalSababi(r)) + '</span>';
+    return;
+  }
   let d = {};
   try { d = await r.json(); } catch (e) { /* jim */ }
   document.getElementById('tg-chat').value = '';
@@ -620,12 +713,20 @@ function yonQatori(y) {
   const belgilar = (y.asosiy ? '<span class="yon-chip yon-asosiy">Asosiy</span>' : '') +
                    (y.yashirin ? '<span class="yon-chip yon-yashirin">Yashirin</span>' : '') +
                    (ishlatilgan ? '<span class="yon-chip">' + escapeHtml(ishMatn) + '</span>' : '<span class="yon-chip">ishlatilmagan</span>');
+  // kech144 (zip 175, audit C8): tugmalar — ruxsat bilan («Korxona sozlamalari: Tahrirlash» / «O'chirish»; sinov qobig'ida o'zgaruvchi
+  // bo'lmasa — avvalgidek hammasi)
+  const _yt = (typeof YON_TAHRIR === 'undefined') ? true : YON_TAHRIR;
+  const _yo = (typeof YON_OCHIR === 'undefined') ? true : YON_OCHIR;
+  if (!_yt) {
+    return '<div class="yon-qator" data-id="' + y.id + '" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap' +
+           (y.yashirin ? ';opacity:.65' : '') + '"><span style="width:220px;font-weight:600">' + escapeHtml(y.nom) + '</span>' + belgilar + '</div>';
+  }
   let tugmalar = '<button class="btn btn-soft btn-sm" data-id="' + y.id + '" onclick="yonNomSaqla(this)">Nomini saqlash</button>';
   if (!y.asosiy) {
     tugmalar += '<button class="btn btn-soft btn-sm" data-id="' + y.id +
                 '" data-yashirin="' + (y.yashirin ? '0' : '1') + '" onclick="yonYashir(this)">' +
                 (y.yashirin ? "Ko'rsatish" : 'Yashirish') + '</button>';
-    if (!ishlatilgan) {
+    if (!ishlatilgan && _yo) {
       tugmalar += '<button class="btn btn-danger btn-sm yon-ochir" data-id="' + y.id +
                   '" data-bosqich="0" onclick="yonOchir(this)">O\'chirish</button>';
     }
@@ -635,21 +736,31 @@ function yonQatori(y) {
          '<input type="text" class="input-field yon-nom" maxlength="60" style="width:220px" value="' + escapeHtml(y.nom) +
          '" aria-label="Yo\'nalish nomi">' + belgilar + tugmalar + '</div>';
 }
+// kech144 (zip 175, audit C12): eski javob yangisini bosmaydi (`yukNavbat`), xato — sabab (5xx / tarmoq ham)
 async function yonYukla() {
   const el = document.getElementById('yon-list');
   if (!el) return;
-  try {
-    const r = await fetch('/api/yonalishlar?hammasi=true');
-    if (!r.ok) { el.textContent = await serverXatoSababi(r, "Yuklab bo'lmadi"); return; }
-    const royxat = await r.json();
-    el.innerHTML = royxat.length ? royxat.map(yonQatori).join('') : '<span style="color:var(--text3)">Yo\'nalish yo\'q</span>';
-  } catch (e) { el.textContent = "Yuklab bo'lmadi"; }
+  const joriy = yukNavbat('yonalishlar');
+  let royxat;
+  try { royxat = await yukOl('/api/yonalishlar?hammasi=true'); }
+  catch (e) { if (joriy()) el.textContent = yukXatoMatn("Yo'nalishlar", (e && e.yukXato) ? e : yukXato('server')); return; }
+  if (!joriy()) return;
+  royxat = Array.isArray(royxat) ? royxat : [];
+  el.innerHTML = royxat.length ? royxat.map(yonQatori).join('') : '<span style="color:var(--text3)">Yo\'nalish yo\'q</span>';
 }
+// kech144 (zip 175, audit C7): internet uzilsa ham xabar (ilgari chaqiruvchilarda ushlanmagan xato — ekranda hech narsa), sabab —
+// `amalSababi` (5xx — natija noma'lum, ro'yxat yangilanadi)
 async function yonSorov(url, metod, tana) {
   const opt = {method: metod, headers: {'Content-Type': 'application/json'}};
   if (tana !== undefined) opt.body = JSON.stringify(tana);
-  const r = await fetch(url, opt);
-  if (!r.ok) { yonHolat(await serverXatoSababi(r, 'Saqlanmadi'), true); return false; }
+  let r;
+  try { r = await fetch(url, opt); }
+  catch (e) { yonHolat("❌ Bajarilmadi: " + await amalSababi(e), true); return false; }
+  if (!r.ok) {
+    if (r.status >= 500) { yonHolat("⚠️ Natija noma'lum: " + await amalSababi(r), true); yonYukla(); return false; }
+    yonHolat("❌ Bajarilmadi: " + await amalSababi(r), true);
+    return false;
+  }
   return true;
 }
 async function yonQosh() {
@@ -674,16 +785,25 @@ async function yonYashir(btn) {
   }
 }
 async function yonOchir(btn) {
+  // kech144 (zip 175, audit C12): o'chirish so'rovi yuborilgan — keyingi tez bosishlar hech narsa qilmaydi (ikkinchi DELETE yo'q;
+  // qo'riqchi birinchi tarmoqdan OLDIN — aks holda '2' !== '1' bo'lib tugma «Yana bosing» ga qaytardi)
+  if (btn.dataset.bosqich === '2') return;
   // Ikki bosqich (tasdiq oynasisiz): birinchi bosish — «Tasdiqlaysizmi?», ikkinchisi — o'chiradi.
   if (btn.dataset.bosqich !== '1') {
     btn.dataset.bosqich = '1';
     btn.textContent = "Rostdan o'chirilsinmi? Yana bosing";
-    setTimeout(() => { if (btn.isConnected) { btn.dataset.bosqich = '0'; btn.textContent = "O'chirish"; } }, 5000);
+    setTimeout(() => { if (btn.isConnected && btn.dataset.bosqich === '1') { btn.dataset.bosqich = '0'; btn.textContent = "O'chirish"; } }, 5000);
     return;
   }
+  btn.dataset.bosqich = '2';
+  btn.disabled = true;
   if (await yonSorov('/api/yonalishlar/' + btn.dataset.id, 'DELETE')) { yonHolat("✓ O'chirildi"); yonYukla(); }
+  else if (btn.isConnected) { btn.disabled = false; btn.dataset.bosqich = '0'; btn.textContent = "O'chirish"; }
 }
 
+// kech144 (zip 175, audit C8): yo'nalish tugmalari ruxsati (server: tahrirlash / o'chirish)
+const YON_TAHRIR = {{ 'true' if current_user.ruxsat('sozlama', 'tahrirlash') else 'false' }};
+const YON_OCHIR = {{ 'true' if current_user.ruxsat('sozlama', 'ochirish') else 'false' }};
 document.addEventListener('DOMContentLoaded', () => { loadTgBot(); loadCompany(); loadCategories(); yonYukla(); });
 // kech120 (zip 129): server tanlagan yorliq (`?tab=` — filtr / sahifa havolasidan keyin shu yorliq ochiq qoladi)
 {% if yorliq != 'login' %}document.addEventListener('DOMContentLoaded', () => { if (document.getElementById('tab-{{ yorliq }}')) switchLogTab('{{ yorliq }}'); });{% endif %}

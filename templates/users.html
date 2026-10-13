@@ -86,7 +86,7 @@
           <div style="padding:12px 0;border-bottom:1px solid var(--border2)">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
               <span class="badge" style="{% if r.kod == 'admin' %}background:var(--dark);color:var(--gold){% else %}background:var(--gold-tint);color:var(--gold-dark){% endif %}">{{ r.nom }}</span>
-              <span style="font-size:12px;color:var(--text3)">{{ rol_soni.get(r.id, 0) }} ta foydalanuvchi</span>
+              <span style="font-size:12px;color:var(--text3)" data-rol-soni="{{ r.id }}">{{ rol_soni.get(r.id, 0) }} ta foydalanuvchi</span>
             </div>
             <div style="font-size:12px;color:var(--text3)">{{ r.tavsif or '—' }}</div>
           </div>
@@ -318,13 +318,22 @@
 
 <script>
 function showAddModal(){document.getElementById('addModal').style.display='flex'}
-function closeModal(){document.getElementById('addModal').style.display='none'}
+// kech144 (zip 175, audit U13): oyna yopilganda yozilgan parol sahifada (DOM da) qolmaydi
+function closeModal(){document.getElementById('addModal').style.display='none'; const p = document.getElementById('f-password'); if (p) p.value = '';}
+// kech144 (zip 175, audit U1 — O'LCHANGAN fy_probe1 S3: boshqa admin / boshqa oyna allaqachon o'chirgan foydalanuvchini eski sahifadagi
+// «O'chir» QAYTA YOQARDI): so'rov MAQSAD holatni yuboradi (`faol`) — holat allaqachon shunday bo'lsa server 409 qaytaradi (sabab ko'rinadi,
+// sahifa yangilanadi). U2 / U3: rad — sabab (`amalSababi`; ilgari «Xato»), internet uzilsa — xabar (ilgari hech narsa).
 async function toggleUser(id, isActive, btn){
   if(!(await customConfirm(isActive?'O\'chirilsinmi?':'Faollashtirilsinmi?')))return;
   if (btn) { if (btn.disabled) return; btn.disabled = true; btn.style.opacity = '0.6'; }
+  let res;
   try {
-    const res=await fetch(`/api/users/${id}/toggle`,{method:'POST'});
-    if(res.ok) { location.reload(); return; } else alert('Xato');
+    try { res = await fetch(`/api/users/${id}/toggle?faol=${isActive ? 'false' : 'true'}`, {method:'POST'}); }
+    catch (e) { await xabarOyna("❌ Holat o'zgartirilmadi: " + await amalSababi(e)); return; }
+    if (res.ok) { location.reload(); return; }
+    const sabab = await amalSababi(res);
+    if (res.status === 409) { await xabarOyna('⚠️ ' + sabab); location.reload(); return; }
+    await xabarOyna("❌ Holat o'zgartirilmadi: " + sabab);
   } finally {
     if (btn) { btn.disabled = false; btn.style.opacity = ''; }
   }
@@ -392,7 +401,8 @@ async function parolSaqlash() {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(tana)
       });
     } catch (e) {
-      parolXato("Server bilan aloqa yo'q — parol o'zgartirilmadi. Qayta urinib ko'ring.");
+      // kech144 (zip 175, audit U8): internet uzildi — parol o'zgargan-o'zgarmagani noma'lum (ilgari «o'zgartirilmadi» derdi)
+      parolXato("Natija noma'lum: " + await amalSababi(e) + ". Parol o'zgargan bo'lishi mumkin.");
       return;
     }
     if (res.ok) {
@@ -402,7 +412,9 @@ async function parolSaqlash() {
         : `✓ «${holat.username}» paroli o'zgartirildi. Uning ochiq kirishlari yopildi.`, 'success');
       return;
     }
-    parolXato(await serverXatoSababi(res, "Parol o'zgartirilmadi"));
+    // kech144 (zip 175, audit U8): 5xx — natija noma'lum; rad — server sababi (`amalSababi`; 401 — kirish havolasi)
+    parolXato(res.status >= 500 ? "Natija noma'lum: " + await amalSababi(res) + ". Parol o'zgargan bo'lishi mumkin."
+                                : "Parol o'zgartirilmadi: " + await amalSababi(res));
   } finally {
     b.disabled = false;
     b.textContent = 'Saqlash';
@@ -423,10 +435,19 @@ async function showHodimQR(){
   const manzil = encodeURIComponent(window.location.origin);
   document.getElementById('hodimQrImg').src = '/api/hodim-qr.svg?manzil=' + manzil + '&t=' + Date.now();
   document.getElementById('hodimQrModal').style.display = 'flex';
-  let kod = '';
-  try { const r = await fetch('/api/settings/company'); if (r.ok) kod = (await r.json()).code || ''; } catch (e) { /* kod ko'rinmaydi */ }
-  document.getElementById('hodimQrKod').textContent = kod || '—';
-  document.getElementById('hodimQrUrl').textContent = window.location.origin + '/hodim' + (kod ? '?k=' + encodeURIComponent(kod) : '');
+  // kech144 (zip 175, audit U9): korxona kodi yuklanmasa — sabab va havola KO'RSATILMAYDI (ilgari «—» va kodsiz havola — admin uni
+  // nusxalab hodimlarga yuborardi, ular korxonani tanlay olmasdi)
+  const kodEl = document.getElementById('hodimQrKod'), urlEl = document.getElementById('hodimQrUrl');
+  kodEl.textContent = '…'; urlEl.textContent = '';
+  try {
+    const d = await yukOl('/api/settings/company');
+    const kod = (d && d.code) || '';
+    kodEl.textContent = kod || '—';
+    urlEl.textContent = kod ? window.location.origin + '/hodim?k=' + encodeURIComponent(kod) : "Korxona kodi yo'q — havola berilmaydi";
+  } catch (e) {
+    kodEl.textContent = '—';
+    urlEl.textContent = yukXatoMatn('Korxona kodi', (e && e.yukXato) ? e : yukXato('tarmoq')) + ' (havolani nusxalamang)';
+  }
 }
 function hodimQrChop(){
   window.open('/users/hodim-qr?manzil=' + encodeURIComponent(window.location.origin), '_blank', 'noopener');
@@ -438,12 +459,17 @@ async function tgHolatYukla(){
   const el = document.getElementById('tg-holat-matn');
   if (!el) return;
   el.style.color = 'var(--text3)'; el.textContent = 'Tekshirilmoqda…';
+  // kech144 (zip 175, audit U10): javob `r.ok` dan keyin o'qiladi (502 HTML — «aloqa yo'q» emas, sabab), eski javob yangisini bosmaydi
+  const joriy = yukNavbat('tgHolat');
   let d = null;
   try {
-    const r = await fetch('/api/system/telegram-webhook-info');
-    d = await r.json();
-    if (!r.ok) { el.style.color = 'var(--m-dc2626)'; el.textContent = '❌ ' + (d.detail || 'Holatni o\'qib bo\'lmadi'); return; }
-  } catch (e) { el.style.color = 'var(--m-dc2626)'; el.textContent = '❌ Server bilan aloqa yo\'q'; return; }
+    d = await yukOl('/api/system/telegram-webhook-info');
+  } catch (e) {
+    if (!joriy()) return;
+    el.style.color = 'var(--m-dc2626)'; el.textContent = yukXatoMatn('Bot holati', (e && e.yukXato) ? e : yukXato('server'));
+    return;
+  }
+  if (!joriy()) return;
   tgAsosiyMuhit = !!d.asosiy_muhit;
   const qator = [];
   if (!d.asosiy_muhit) {
@@ -504,9 +530,17 @@ async function setupTelegramSecurity(){
                             "\n\nUstalar xabarlari shu saytga keladi. Davom etasizmi?", {okText: 'Ulash'}))) return;
   btn.disabled = true; btn.textContent = 'Sozlanmoqda...';
   try {
+    // kech144 (zip 175, audit U11): JSON `res.ok` dan keyin; 5xx — natija noma'lum (Telegram yangi kalitni olgan bo'lishi mumkin)
     const res = await fetch('/api/system/telegram-setup-webhook-security', { method: 'POST' });
+    if (!res.ok) {
+      resultBox.style.display = 'block';
+      resultBox.style.background = 'var(--f-fee2e2)'; resultBox.style.color = 'var(--m-dc2626)';
+      resultBox.textContent = (res.status >= 500 ? "⚠️ Natija noma'lum: " : '❌ ') + await amalSababi(res) +
+        (res.status >= 500 ? ". Bot holatini «↻ Tekshirish» tugmasi bilan tekshiring — kerak bo'lsa qayta ulang." : '');
+      throw {qayta: false};
+    }
     const data = await res.json();
-    if (res.ok) {
+    {
       resultBox.style.display = 'block';
       resultBox.style.background = 'var(--f-dcfce7)'; resultBox.style.color = 'var(--m-166534)';
       resultBox.innerHTML = `
@@ -520,15 +554,13 @@ async function setupTelegramSecurity(){
           ? '<div style="margin-top:10px;color:var(--text2)">Bot oldin shu manzilga ulangan edi: <span style="word-break:break-all">' +
             escapeHtml(data.oldingi_url) + '</span></div>'
           : '');
-    } else {
-      resultBox.style.display = 'block';
-      resultBox.style.background = 'var(--f-fee2e2)'; resultBox.style.color = 'var(--m-dc2626)';
-      resultBox.textContent = '❌ ' + (data.detail || 'Xato yuz berdi');
     }
   } catch(e) {
-    resultBox.style.display = 'block';
-    resultBox.style.background = 'var(--f-fee2e2)'; resultBox.style.color = 'var(--m-dc2626)';
-    resultBox.textContent = '❌ Server bilan aloqa yo\'q';
+    if (!(e && e.qayta === false)) {
+      resultBox.style.display = 'block';
+      resultBox.style.background = 'var(--f-fee2e2)'; resultBox.style.color = 'var(--m-dc2626)';
+      resultBox.textContent = "⚠️ Natija noma'lum: " + await amalSababi(e) + '. Bot holatini «↻ Tekshirish» tugmasi bilan tekshiring.';
+    }
   }
   btn.disabled = !tgAsosiyMuhit; btn.textContent = '🔐 Telegram xavfsizligini yoqish';
   tgHolatYukla();
@@ -539,22 +571,19 @@ async function deleteTelegramWebhook(){
   const btn = document.getElementById('tg-delete-webhook-btn');
   const resultBox = document.getElementById('tg-delete-webhook-result');
   btn.disabled = true; btn.textContent = 'Bajarilmoqda...';
-  try {
-    const res = await fetch('/api/system/telegram-delete-webhook', { method: 'POST' });
-    const data = await res.json();
-    if (res.ok) {
-      resultBox.style.display = 'block';
-      resultBox.style.background = 'var(--f-dcfce7)'; resultBox.style.color = 'var(--m-166534)';
-      resultBox.textContent = data.message;
-    } else {
-      resultBox.style.display = 'block';
-      resultBox.style.background = 'var(--f-fee2e2)'; resultBox.style.color = 'var(--m-dc2626)';
-      resultBox.textContent = '❌ ' + (data.detail || 'Xato yuz berdi');
-    }
-  } catch(e) {
-    resultBox.style.display = 'block';
+  // kech144 (zip 175, audit U11): JSON `res.ok` dan keyin; 5xx / tarmoq — natija noma'lum (bot holati qayta tekshiriladi)
+  let res = null;
+  try { res = await fetch('/api/system/telegram-delete-webhook', { method: 'POST' }); } catch (e) { res = e; }
+  resultBox.style.display = 'block';
+  if (res && res.ok) {
+    let data = {};
+    try { data = await res.json(); } catch (e) { data = {}; }
+    resultBox.style.background = 'var(--f-dcfce7)'; resultBox.style.color = 'var(--m-166534)';
+    resultBox.textContent = data.message || '✓ Bajarildi';
+  } else {
+    const nomalum = !(res && typeof res.status === 'number') || res.status >= 500;
     resultBox.style.background = 'var(--f-fee2e2)'; resultBox.style.color = 'var(--m-dc2626)';
-    resultBox.textContent = '❌ Server bilan aloqa yo\'q';
+    resultBox.textContent = (nomalum ? "⚠️ Natija noma'lum: " : '❌ ') + await amalSababi(res) + (nomalum ? '. Bot holatini «↻ Tekshirish» tugmasi bilan tekshiring.' : '');
   }
   btn.disabled = !tgAsosiyMuhit; btn.textContent = "🔄 Botni asl holatiga qaytarish";        // kech123 (zip 142): tugma yozuvi bilan bir xil
   tgHolatYukla();
@@ -592,20 +621,25 @@ async function startFactoryReset(){
   if (isRunningFactoryReset) return;
   isRunningFactoryReset = true;
 
+  // kech144 (zip 175, audit U12): javob `res.ok` dan keyin o'qiladi; 5xx / tarmoq — NATIJA NOMA'LUM (ilgari 502 da inglizcha
+  // «Unexpected token '<'» va «bog'lanib bo'lmadi» — go'yo hech narsa bo'lmagandek; o'chirish bajarilgan bo'lishi mumkin)
   try {
     const url = `/api/system/factory-reset?confirm=${encodeURIComponent(phrase)}&keep_only_self=${keepOnlySelf}`;
-    const res = await fetch(url, { method: 'POST' });
-    const r = await res.json();
+    let res;
+    try { res = await fetch(url, { method: 'POST' }); }
+    catch (e) { await xabarOyna("⚠️ Natija noma'lum: " + await amalSababi(e) + ". Ma'lumotlar o'chgan bo'lishi mumkin — qayta bosishdan oldin tekshiring."); return; }
     if (res.ok) {
+      let r = {};
+      try { r = await res.json(); } catch (e) { r = {}; }
       const lines = Object.entries(r.deleted || {}).map(([table, n]) => `${table}: ${n} ta`).join("\n");
       // kech118 (B): dastur oynasi sahifani to'xtatmaydi — xabar yopilgach yangilanadi
-      await xabarOyna("✅ " + r.message + "\n\n" + lines);
+      await xabarOyna("✅ " + (r.message || "Bajarildi") + "\n\n" + lines);
       location.reload();
+    } else if (res.status >= 500) {
+      await xabarOyna("⚠️ Natija noma'lum: " + await amalSababi(res) + ". Ma'lumotlar o'chgan bo'lishi mumkin — qayta bosishdan oldin tekshiring.");
     } else {
-      alert("❌ Xato: " + (r.detail || "Noma'lum xato"));
+      alert("❌ O'chirilmadi: " + await amalSababi(res));
     }
-  } catch(e) {
-    alert("❌ Server bilan bog'lanib bo'lmadi: " + e.message);
   } finally {
     isRunningFactoryReset = false;
   }
@@ -629,18 +663,38 @@ function showAddedToast(){
 
 let isSavingUser = false;
 // kech118 (ROLLAR): foydalanuvchi rolini almashtirish — PUT /api/users/{id}/rol (tasdiq bilan; xato — eski qiymatga qaytadi)
+// kech144 (zip 175, audit U14): «Rollar va huquqlar» kartasidagi son — rol o'zgargach (sahifa yangilanmasdan) eskisidan bitta kam,
+// yangisiga bitta ko'p
+function rolSoniOzgar(eski, yangi) {
+  [[eski, -1], [yangi, 1]].forEach(([id, d]) => {
+    const el = id ? document.querySelector(`[data-rol-soni="${String(id).replace(/[^0-9]/g, '')}"]`) : null;
+    if (!el) return;
+    const n = Math.max(0, (parseInt(el.textContent, 10) || 0) + d);
+    el.textContent = `${n} ta foydalanuvchi`;
+  });
+}
+
 async function userRoli(userId, sel) {
   const eski = sel.dataset.eski || '';
   const nom = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
   const ha = await customConfirm("Rolni o'zgartirish", `Bu foydalanuvchi endi «${nom}» rolida ishlaydi. Tasdiqlaysizmi?`, {okText: "O'zgartirish"});
   if (!ha) { sel.value = eski; return; }
+  // kech144 (zip 175, audit U6 / U7): so'rov ketayotganda tanlov yopiq (ketma-ket o'zgartirish va javoblar aralashmasin), sabab —
+  // `amalSababi` (5xx — natija noma'lum: sahifa yangilanadi)
+  sel.disabled = true;
   try {
-    const res = await fetch(`/api/users/${userId}/rol`, {method: 'PUT', headers: {'Content-Type': 'application/json'},
-                                                         body: JSON.stringify({rol_id: parseInt(sel.value)})});
-    if (!res.ok) { showMsg(await serverXatoSababi(res, "O'zgartirilmadi"), 'error'); sel.value = eski; return; }
+    let res;
+    try { res = await fetch(`/api/users/${userId}/rol`, {method: 'PUT', headers: {'Content-Type': 'application/json'},
+                                                          body: JSON.stringify({rol_id: parseInt(sel.value)})}); }
+    catch (e) { showMsg(amalNomalumMatn("Rolni o'zgartirish", await amalSababi(e)), 'error'); sel.value = eski; return; }
+    if (!res.ok) {
+      if (res.status >= 500) { await xabarOyna("⚠️ Natija noma'lum: " + await amalSababi(res)); location.reload(); return; }
+      showMsg("❌ Rol o'zgartirilmadi: " + await amalSababi(res), 'error'); sel.value = eski; return;
+    }
+    rolSoniOzgar(eski, sel.value);
     sel.dataset.eski = sel.value;
     showMsg(`✓ Rol o'zgartirildi: ${nom}`, 'success');
-  } catch (e) { showMsg('Internet aloqasini tekshiring', 'error'); sel.value = eski; }
+  } finally { sel.disabled = false; }
 }
 
 async function saveUser(){
@@ -658,10 +712,15 @@ async function saveUser(){
   isSavingUser = true;
   const btn = document.getElementById('user-save-btn');
   if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
+  // kech144 (zip 175, audit U4 / U5): amal kaliti — javob yo'qolib (502) qayta bosilsa «Bu username band» emas (server birinchi javobni
+  // qaytaradi); natija noma'lum ajratiladi; rad sababi — `amalSababi` (ilgari 502 da JSON xatosi, xabar yo'q)
   try {
-    const res=await fetch('/api/users',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({username,password,rol_id:parseInt(document.getElementById('f-role').value),full_name:document.getElementById('f-fullname').value})});
-    if(res.ok){ showAddedToast(); return; }else{const e=await res.json(); err.textContent='Xato: '+(e.detail||''); err.style.display='block';}
+    const n = await amalYubor('/api/users', {method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({username,password,rol_id:parseInt(document.getElementById('f-role').value),full_name:document.getElementById('f-fullname').value})},
+      'foydalanuvchi_yaratish');
+    if (n.ok) { showAddedToast(); return; }
+    err.textContent = n.nomalum ? amalNomalumMatn("Foydalanuvchi yaratish", n.xato) : "❌ Saqlanmadi: " + n.xato;
+    err.style.display = 'block';
   } finally {
     isSavingUser = false;
     if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }

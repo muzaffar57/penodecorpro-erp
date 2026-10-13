@@ -1477,6 +1477,10 @@ function customConfirm(a, b, c) {
   var title, message, opts;
   if (typeof b === 'string') { title = a; message = b; opts = c || {}; }
   else { title = null; message = a; opts = b || {}; }
+  // kech144 (zip 175, audit X1): oyna ochiq turganda ikkinchi chaqiruv — birinchisi «Bekor» (false) bilan yopiladi. Ilgari ikkinchisi
+  // tugmalarni egallab olardi: birinchi va'da hech qachon tugamasdi, uning Enter tinglovchisi qolib, keyingi istalgan Enter
+  // (boshqa maydonda ham) uni «Ha» deb tasdiqlardi.
+  if (typeof customConfirm.ochiq === 'function') customConfirm.ochiq(false);
   return new Promise(function(resolve) {
     var modal = document.getElementById('ccModal');
     var titleEl = document.getElementById('ccModalTitle');
@@ -1500,10 +1504,12 @@ function customConfirm(a, b, c) {
     }
     modal.style.display = 'flex';
     function cleanup(result) {
+      if (customConfirm.ochiq === cleanup) customConfirm.ochiq = null;
       modal.style.display = 'none';
       document.removeEventListener('keydown', onKey);
       resolve(result);
     }
+    customConfirm.ochiq = cleanup;
     function onKey(e) {
       if (e.key === 'Escape') cleanup(false);
       if (e.key === 'Enter') cleanup(true);

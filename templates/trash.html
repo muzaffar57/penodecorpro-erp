@@ -29,8 +29,9 @@
           <div style="font-size:13px;color:var(--text3);margin-top:2px">{{ p.client_name }} · {{ p.client_phone or '' }}</div>
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
-          <button class="btn btn-dark btn-sm" onclick="restoreItem('project', {{ p.id }}, this)">↩️ Tiklash</button>
-          <button class="btn btn-danger btn-sm" data-label="{{ p.project_number ~ ' — ' ~ p.project_name }}" onclick="permanentDelete('project', {{ p.id }}, this.dataset.label, this)">❌ Butunlay o'chirish</button>
+          {# kech144 (zip 175, audit T1): tugmalar — server ruxsati bilan (faqat ko'rish rolida ko'rinmaydi) #}
+          {% if current_user.ruxsat('savat', 'tahrirlash') %}<button class="btn btn-dark btn-sm" onclick="restoreItem('project', {{ p.id }}, this)">↩️ Tiklash</button>{% endif %}
+          {% if current_user.ruxsat('savat', 'ochirish') %}<button class="btn btn-danger btn-sm" data-label="{{ p.project_number ~ ' — ' ~ p.project_name }}" onclick="permanentDelete('project', {{ p.id }}, this.dataset.label, this)">❌ Butunlay o'chirish</button>{% endif %}
         </div>
       </div>
       {% endfor %}
@@ -52,8 +53,8 @@
           <div style="font-size:13px;color:var(--text3);margin-top:2px">{{ o.project.client_name if o.project else '—' }} · {{ o.total_amount|round|int }} so'm</div>
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
-          <button class="btn btn-dark btn-sm" onclick="restoreItem('order', {{ o.id }}, this)">↩️ Tiklash</button>
-          <button class="btn btn-danger btn-sm" data-label="{{ o.order_number }}" onclick="permanentDelete('order', {{ o.id }}, this.dataset.label, this)">❌ Butunlay o'chirish</button>
+          {% if current_user.ruxsat('savat', 'tahrirlash') %}<button class="btn btn-dark btn-sm" onclick="restoreItem('order', {{ o.id }}, this)">↩️ Tiklash</button>{% endif %}
+          {% if current_user.ruxsat('savat', 'ochirish') %}<button class="btn btn-danger btn-sm" data-label="{{ o.order_number }}" onclick="permanentDelete('order', {{ o.id }}, this.dataset.label, this)">❌ Butunlay o'chirish</button>{% endif %}
         </div>
       </div>
       {% endfor %}
@@ -78,8 +79,9 @@
           <div style="font-size:13px;color:var(--text3);margin-top:2px">{{ emp.position or '—' }}{% if emp.phone %} · {{ emp.phone }}{% endif %}{% if _ks %} · ishdan ketgan {{ _ks.strftime('%d.%m.%Y') }}{% endif %}</div>
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
-          <button class="btn btn-dark btn-sm" data-ketgan="{{ _ks.isoformat() if _ks else '' }}" data-nom="{{ emp.name }}" onclick="hodimTiklash({{ emp.id }}, this)">↩️ Tiklash</button>
-          <button class="btn btn-danger btn-sm" data-label="{{ emp.name }}" onclick="permanentDelete('employee', {{ emp.id }}, this.dataset.label, this)">❌ Butunlay o'chirish</button>
+          {# kech144 (zip 175, audit T1 / S8): hodimni tiklash / butunlay o'chirish — «Hodimlar» ruxsati bilan (server qoidasi) #}
+          {% if current_user.ruxsat('hodim', 'tahrirlash') %}<button class="btn btn-dark btn-sm" data-ketgan="{{ _ks.isoformat() if _ks else '' }}" data-nom="{{ emp.name }}" onclick="hodimTiklash({{ emp.id }}, this)">↩️ Tiklash</button>{% endif %}
+          {% if current_user.ruxsat('hodim', 'ochirish') %}<button class="btn btn-danger btn-sm" data-label="{{ emp.name }}" onclick="permanentDelete('employee', {{ emp.id }}, this.dataset.label, this)">❌ Butunlay o'chirish</button>{% endif %}
         </div>
       </div>
       {% endfor %}
@@ -198,16 +200,19 @@ async function hodimTiklashTasdiq() {
 }
 
 async function permanentDelete(type, id, label, btn) {
+  // kech144 (zip 175, audit T5): band — tasdiqlardan OLDIN (ikkinchi chaqiruv ikkinchi DELETE yubormaydi); bekor qilinsa — tugma qaytadi
+  if (btn.disabled) return;
+  btn.disabled = true;
   const confirmText = type === 'project' ? "loyiha" : (type === 'employee' ? "hodim" : "buyurtma");
   // kech141 (zip 169 — egasi QARORI 12.10 «Hisobotda qolsin»): hodim — ro'yxatdan yo'qoladi, o'tgan oylar hisobotida qoladi
   const izoh = type === 'employee'
     ? `"${label}" hodimini butunlay o'chirmoqchimisiz?\n\nU «O'chirilganlar» ro'yxatidan yo'qoladi va uni tiklab bo'lmaydi; telefon raqami va PIN o'chadi. O'tgan oylar hisobotida ismi, oyligi va avanslari qoladi.`
     : `"${label}" ${confirmText}sini bazadan BUTUNLAY o'chirmoqchimisiz?\n\nBu amalni ORQAGA QAYTARIB BO'LMAYDI.`;
-  if (!(await customConfirm("⚠️ Diqqat — qaytarib bo'lmaydi!", izoh, {danger:true, okText:"Davom etish"}))) return;
-  if (!(await customConfirm("So'nggi tasdiq: rostdan ham butunlay o'chirilsinmi?", {danger:true, okText:"Ha, butunlay o'chirish"}))) return;
+  if (!(await customConfirm("⚠️ Diqqat — qaytarib bo'lmaydi!", izoh, {danger:true, okText:"Davom etish"}))) { btn.disabled = false; return; }
+  if (!(await customConfirm("So'nggi tasdiq: rostdan ham butunlay o'chirilsinmi?", {danger:true, okText:"Ha, butunlay o'chirish"}))) { btn.disabled = false; return; }
 
   const endpoint = type === 'project' ? `/api/projects/${id}/permanent` : (type === 'employee' ? `/api/employees/${id}/permanent` : `/api/orders/${id}/permanent`);
-  btn.disabled = true; btn.textContent = 'O\'chirilmoqda...';
+  btn.textContent = 'O\'chirilmoqda...';
   try {
     const res = await fetch(endpoint, { method: 'DELETE' });
     if (res.ok) {
