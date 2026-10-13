@@ -7309,6 +7309,11 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[str] = None,
 
     all_shortages = (list(check.get("shortages", []))
                       + list(fcheck.get("shortages", [])) + list(lcheck.get("shortages", [])))
+    # kech144 (zip 176, A-O10 d — egasi qarori 13.10 «Rad etsin»): band qismga tegadigan / tayyor bo'lmagan tayyor mahsulot — tasdiq bilan
+    # ham o'tmaydi (400; ilgari tekshirilmasdi — band qoldiqdan katta bo'lib, band buyurtma qotardi)
+    if fcheck.get("rad") and not getattr(order, 'is_draft', False):
+        raise HTTPException(status_code=400, detail={"success": False, "message": "Tayyor mahsulotni olib bo'lmaydi!\n"
+                                                     + "\n".join(fcheck["rad"]), "shortages": fcheck["rad"]})
     if all_shortages and not confirm_shortage:
         raise HTTPException(status_code=409, detail={
             "type": "stock_shortage_warning",
@@ -7319,19 +7324,31 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[str] = None,
     # tranzaksiyada (`crud.bitta_tranzaksiya`). Ilgari `crud.create_order` (buyurtma + loy yechish) o'zi
     # saqlardi, penoplast esa keyin alohida yechilardi — orada xato bo'lsa buyurtma va yechilgan loy QOLARDI,
     # qayta urinish ikkinchi buyurtma yaratib loyni IKKI MARTA yechardi. Telegram — blokdan KEYIN.
-    with crud.bitta_tranzaksiya(db):
-        # kech144 (zip 172, N4): «Faoliyat jurnali» da kim yaratgani (ilgari bo'sh edi)
-        new_order = crud.create_order(db, order, company_id=auth.company_id_of(current_user),
-                                      performed_by=current_user.full_name or current_user.username)
-        # kech84 (K84-1, O'LCHANGAN — `tools/test_atomik_103.py` T2, asl kod `2170432` da ham): `crud.create_order`
-        # 8 s ichida AYNAN shunday tarkibli buyurtmani (ikki marta bosish, tarmoq takrori) YANGI yaratmay, MAVJUDINI
-        # `_is_duplicate_submit` belgisi bilan qaytaradi — lekin bu yerda penoplast baribir yana yechilardi (bitta
-        # buyurtma, penoplast -0.2 o'rniga -0.1 kutilgan). Belgi tekshiruvi 2026-08-22 da bor edi, `abb2044`
-        # (2026-09-01) da tushib qolgan. Takrorda ombor, Telegram — hech narsa qayta qilinmaydi.
-        takror = bool(getattr(new_order, '_is_duplicate_submit', False))
-        is_draft = getattr(order, 'is_draft', False)
-        if not is_draft and not takror:
-            services.deduct_inventory_for_order(db, new_order)
+    try:
+        with crud.bitta_tranzaksiya(db):
+            # kech144 (zip 172, N4): «Faoliyat jurnali» da kim yaratgani (ilgari bo'sh edi)
+            # kech144 (zip 176, A-O10 d F6): tayyor mahsulot qulf ostida qayta tekshiriladi (`tm_tasdiq`)
+            new_order = crud.create_order(db, order, company_id=auth.company_id_of(current_user),
+                                          performed_by=current_user.full_name or current_user.username,
+                                          tm_tasdiq=bool(confirm_shortage))
+            # kech84 (K84-1, O'LCHANGAN — `tools/test_atomik_103.py` T2, asl kod `2170432` da ham): `crud.create_order`
+            # 8 s ichida AYNAN shunday tarkibli buyurtmani (ikki marta bosish, tarmoq takrori) YANGI yaratmay, MAVJUDINI
+            # `_is_duplicate_submit` belgisi bilan qaytaradi — lekin bu yerda penoplast baribir yana yechilardi (bitta
+            # buyurtma, penoplast -0.2 o'rniga -0.1 kutilgan). Belgi tekshiruvi 2026-08-22 da bor edi, `abb2044`
+            # (2026-09-01) da tushib qolgan. Takrorda ombor, Telegram — hech narsa qayta qilinmaydi.
+            takror = bool(getattr(new_order, '_is_duplicate_submit', False))
+            is_draft = getattr(order, 'is_draft', False)
+            if not is_draft and not takror:
+                services.deduct_inventory_for_order(db, new_order)
+    except crud.TmRadError as e:
+        raise HTTPException(status_code=400, detail={"success": False, "message": "Tayyor mahsulotni olib bo'lmaydi!\n" + str(e),
+                                                     "shortages": str(e).split("\n")})
+    except crud.TmKamError as e:
+        # parallel boshqa buyurtma / sotuv tekshiruvdan keyin oldi — «davom etasizmi?» (tasdiq bilan minus)
+        raise HTTPException(status_code=409, detail={
+            "type": "stock_shortage_warning",
+            "message": "Omborda yetishmayotgan xomashyo bor. Shunday ham davom etasizmi?",
+            "shortages": e.shortages})
     if takror:
         # kech144 (zip 173): sahifa bilsin — avval saqlangan buyurtma (forma kaliti / 8 s): zaklat qayta yozilmaydi, rasm qayta
         # yuklanmaydi, foydalanuvchiga «avval saqlangan ekan» deyiladi
@@ -9595,13 +9612,19 @@ def api_set_default_penoplast(item_id: int, db: Session = Depends(get_db), curre
 
 
 @app.post("/api/orders/{order_id}/activate")
-def api_activate_draft(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "tahrirlash"))):
-    """Qoralamani jarayonga olish — ombordan xomashyo yechiladi."""
+def api_activate_draft(order_id: int, confirm_shortage: bool = False, db: Session = Depends(get_db),
+                       current_user=Depends(auth.ruxsat("buyurtma", "tahrirlash"))):
+    """Qoralamani jarayonga olish — ombordan xomashyo yechiladi.
+    kech144 (zip 176, A-O10 d F5): tayyor mahsulot yetmasa — 409 «davom etasizmi?» (`confirm_shortage=true` bilan minusga — egasi
+    qarori); band / tayyor emas — 400."""
     # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
-    result = crud.activate_draft_order(db, order_id, performed_by=current_user.full_name or current_user.username)  # kech144: «kim»
+    result = crud.activate_draft_order(db, order_id, performed_by=current_user.full_name or current_user.username,  # kech144: «kim»
+                                       confirm_shortage=bool(confirm_shortage))
     if not result["success"]:
+        if result.get("type") == "stock_shortage_warning":
+            raise HTTPException(status_code=409, detail=result)
         raise HTTPException(status_code=400, detail=result)
     return result
 
