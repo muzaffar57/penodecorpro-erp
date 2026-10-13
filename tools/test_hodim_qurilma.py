@@ -443,6 +443,7 @@ check("C6 eski PIN bilan kirish — rad (sahifada xato)", _ek.status_code == 200
 _sl = A.post(f"/api/employees/{E2}/set-login", data={"phone": "+998901110002", "pin": "7777"})
 _e = emp_ol(E2)
 J4 = mijoz(ANDROID)
+_J4_IP = f"203.0.113.{_IP['n']}"         # kech143 (MOSLANDI): J4 ning ulanish manzili — C8 dagi kirish xatolari shu manzildan
 cookie_qoy(J4, "emp_qurilma", cookie_ol(J, "emp_qurilma"))
 _kr = kirish(J4, "+998901110002", "7777")
 check("C7 admin PIN ni qayta berdi: hodim sessiyalari yopildi, PIN — vaqtinchalik, telefon bog'liq qoldi; o'sha telefondan yangi "
@@ -452,13 +453,22 @@ check("C7 admin PIN ni qayta berdi: hodim sessiyalari yopildi, PIN — vaqtincha
       (_sl.status_code, _e.get("pin_vaqtinchalik"), holat(J), holat(J4)))
 
 _mj = J4.post("/api/hodim/pin", json={"yangi": "5824", "takror": "5824"})
+# kech143 (zip 171, A-X08 — MOSLANDI): cheklov endi (telefon, IP) juftligi bo'yicha (hujumchi boshqa IP dan hodimni yopa olmaydi) —
+# «bitta hisob» (kirish xatolari + «hozirgi PIN» xatolari) SHU telefon brauzeri manzilidan: 3 ta noto'g'ri PIN bilan kirish (J4
+# manzilidan) + 2 ta noto'g'ri «hozirgi PIN» = 5. Asl kodda (raqam bo'yicha hamma manzildan) — 2 + 1 + 3 + 2 = 8 ≥ 5, natija bir xil.
+for _i in range(3):
+    try:
+        _jx = TestClient(main.app, base_url="https://testserver", raise_server_exceptions=False, client=(_J4_IP, 50000))
+    except TypeError:                      # eski Starlette — `client=` yo'q
+        _jx = TestClient(main.app, base_url="https://testserver", raise_server_exceptions=False)
+    kirish(_jx, "+998901110002", "1357")
 for _i in range(2):
     J4.post("/api/hodim/pin", json={"eski": "1357", "yangi": "6201", "takror": "6201"})
 _blok = J4.post("/api/hodim/pin", json={"eski": "5824", "yangi": "6201", "takror": "6201"})
 _s = SessionLocal()
 _qoldi = crud.authenticate_employee(_s, "+998901110002", "5824", company_id=1) is not None
 _s.close()
-check("C8 noto'g'ri «hozirgi PIN» lar kirish xatolari bilan BITTA hisobda (raqam bo'yicha): jami 5 ta (C4 — 2, C6 — 1, bu yerda 2) → "
+check("C8 noto'g'ri «hozirgi PIN» lar kirish xatolari bilan BITTA hisobda (raqam bo'yicha; shu manzildan): 3 kirish + 2 «hozirgi PIN» → "
       "keyingi urinish to'g'ri PIN bilan ham 429, sabab o'zbekcha; PIN o'zgarmadi",
       _mj.status_code == 200 and _blok.status_code == 429 and "Juda ko'p noto'g'ri urinish" in js(_blok).get("detail", "") and _qoldi,
       (_mj.status_code, _blok.status_code, js(_blok), _qoldi))

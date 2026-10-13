@@ -212,6 +212,13 @@ for _i in range(140):
     _yoz.append(ActivityLog(company_id=1, action=_AMALLAR[_i % len(_AMALLAR)], entity_type="order", entity_id=_i,
                             entity_label=f"ETR-{_i:03d}", performed_by=_KIMLAR[(_i % 5) % 3], new_value=f"qiymat {_i}",
                             created_at=_vaqt))
+# kech143 (zip 171, MOSLANDI — fikstura): amallar ro'yxati (`crud.AUDIT_AMALLARI`) o'sgani sari 140 yozuvdagi «O'chirildi»
+# (`deleted` / `delete`) soni kamayadi (zip 171 — «tannarxdan_past_sotuv» qo'shilib 8 ta) — L6 dagi «≥ 10» fikstura sharti uchun
+# qo'shimcha 6 ta; hamma kutilgan qiymatlar bazadan mustaqil hisoblanadi (`kutilgan_audit`).
+for _i in range(6):
+    _yoz.append(ActivityLog(company_id=1, action=("deleted", "delete")[_i % 2], entity_type="order", entity_id=950 + _i,
+                            entity_label=f"ETR-O{_i}", performed_by=_KIMLAR[_i % 3], new_value=f"o'chirish {_i}",
+                            created_at=_BAZA_VAQT - timedelta(minutes=200 + _i)))
 _yoz += [
     ActivityLog(company_id=1, action="updated", entity_type="order", entity_id=900, entity_label="CHEGARA-1",
                 performed_by="Ali Usta", created_at=datetime(2026, 9, 30, 19, 30)),      # Toshkent 01.10 00:30

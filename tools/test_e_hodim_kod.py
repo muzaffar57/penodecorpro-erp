@@ -190,9 +190,13 @@ check("H3 kodsiz ochilganda maydon bo'sh, ko'rsatma «Admindan so'rang»", 'name
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 section("Q. QR kod (server)")
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
-_q1 = C.get("/api/hodim-qr.svg?manzil=https%3A%2F%2Fweb-sinov.up.railway.app")
-_q2 = C.get("/api/hodim-qr.svg?manzil=javascript%3Aalert(1)")
-_q3 = CB.get("/api/hodim-qr.svg?manzil=https%3A%2F%2Fweb-sinov.up.railway.app")
+# kech143 (zip 171, A-X06 — MOSLANDI): `manzil` endi faqat so'rovning o'z xosti bo'lsa olinadi (begona xost — rad). Sinov so'rovi
+# sinov saytidagidek — `Host: web-sinov.up.railway.app` (brauzer `location.origin` ni o'sha saytdan yuboradi); asl kodda sarlavha
+# e'tiborsiz (manzil baribir olinadi) — kutilgan QR matnlari o'zgarmagan.
+_SAYT = {"host": "web-sinov.up.railway.app"}
+_q1 = C.get("/api/hodim-qr.svg?manzil=https%3A%2F%2Fweb-sinov.up.railway.app", headers=_SAYT)
+_q2 = C.get("/api/hodim-qr.svg?manzil=javascript%3Aalert(1)", headers=_SAYT)
+_q3 = CB.get("/api/hodim-qr.svg?manzil=https%3A%2F%2Fweb-sinov.up.railway.app", headers=_SAYT)
 _q4 = TestClient(main.app, base_url="https://testserver", raise_server_exceptions=False).get("/api/hodim-qr.svg", follow_redirects=False)
 check("Q1 `/api/hodim-qr.svg`: SVG (image/svg+xml, bitta `path`, oq fon), kirmagan — rad (401 / kirishga)",
       _q1.status_code == 200 and _q1.headers.get("content-type", "").startswith("image/svg+xml") and _q1.text.startswith("<svg")
