@@ -74,8 +74,12 @@
    ketayotgani aniqlangan (foydalanuvchi skrinshot yuborgan). Bu — butun
    faylda birinchi va yagona moslashuv qoidasi edi. Qator endi kerak bo'lsa
    bir necha "satr"ga bo'linadi: 1-satr — rasm+nom, 2-satr — zaxira/narx/jami,
-   3-satr — tugmalar. Rasm ham endi matn balandligiga qarab cho'zilmaydi. */
-@media(max-width:640px){
+   3-satr — tugmalar. Rasm ham endi matn balandligiga qarab cho'zilmaydi.
+   kech143 (zip 171, jonli topilma N3 — 12.10 staging, planshet 768 px): chegara 640 → 1279 px. Bir qatorli ko'rinish ro'yxat kengligi ~1010 px dan kam bo'lsa sig'maydi (katakcha + rasm + qoldiq
+   110 + narx 82 + jami 92 + amallar ~400 px — hammasi siqilmaydi, faqat nom ustuni `.fp-main` siqiladi), 769 px dan keng ekranda
+   esa yon menyu 240 px oladi: 641–1279 px da partiya qatorida nom ustuni 0–44 px, «🔒 Band» belgisi harflab tik (154 px),
+   amallar qatordan 372 px gacha chiqib, sahifa yon tomonga surilardi (O'LCHANGAN, Chromium). */
+@media(max-width:1279px){
   .fp-row{flex-wrap:wrap;row-gap:10px}
   .fp-thumb{width:48px;height:48px;align-self:flex-start;font-size:18px}
   .fp-stock-col{flex-basis:100%;order:1;text-align:left;padding-left:58px}
@@ -1494,7 +1498,10 @@ function fpGuruhSotish(btn) {
     const it = fpItems.find(x => String(x.id) === checks[0].dataset.id);
     if (it) { openSellModal(it.id, it.name, it.quantity, it.unit, it.unit_price || 0, Number(it.reserved_quantity) || 0); return; }
   }
-  checks.forEach(c => { c.checked = true; });
+  // kech143 (zip 171, jonli kuzatuv 12.10): shu yerda belgilangani `data-guruh-avto` bilan — oyna sotmasdan yopilsa («Bekor qilish», ✕, Esc) belgi olib tashlanadi
+  // (`closeBatchSellModal`): tanlov oldingi holatiga qaytadi, qo'lda belgilanganlari qoladi. Ilgari yopiq guruhdagi (ko'rinmaydigan)
+  // partiyalar belgili qolib, «3 ta tanlandi» paneli turardi.
+  checks.forEach(c => { if (!c.checked) { c.checked = true; c.dataset.guruhAvto = '1'; } });
   onBatchCheckChange();
   openBatchSellModal();
 }
@@ -1577,6 +1584,11 @@ function openBatchSellModal() {
 
 function closeBatchSellModal() {
   document.getElementById('batchSellModal').style.display = 'none';
+  const avto = document.querySelectorAll('.fp-batch-check[data-guruh-avto]');
+  if (avto.length) {
+    avto.forEach(c => { c.checked = false; delete c.dataset.guruhAvto; });
+    onBatchCheckChange();
+  }
 }
 
 function batchOriginalTotal() {

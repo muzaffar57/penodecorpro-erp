@@ -74,6 +74,10 @@
       <button data-yopish class="btn btn-soft btn-icon btn-sm" onclick="closeHistoryModal()" title="Yopish" aria-label="Yopish">✕</button>
     </div>
 
+    {# kech143 (zip 171, jonli topilma N2 — 12.10 staging): sarlavhadan pastdagi HAMMA qism — bitta surish qutisi (boshqa oynalardagi «sarlavha + overflow-y:auto;flex:1» andozasi).
+       Ilgari faqat tarix ro'yxati surilardi: «+ Xarid qo'shish» formasi ochilganda «✓ Saqlash» oynadan va ekrandan pastga
+       chiqib qolardi (375×812 da y=1051, 756×921 da y=955) va unga yetib bo'lmasdi. #}
+    <div style="overflow-y:auto;flex:1">
     <div style="padding:14px 22px;background:var(--f-fdf8f0);border-bottom:1px solid var(--ch-f0e6d2)">
       <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
         <span style="color:var(--text3)">Jami nasiya</span><span style="font-weight:600" id="hist-credit">—</span>
@@ -176,14 +180,16 @@
 
         <div style="background:var(--f-f0f6fa);border-radius:7px;padding:10px;margin-bottom:10px">
           <div style="font-size:12px;font-weight:600;color:var(--blue);margin-bottom:6px">🚚 Transport (ixtiyoriy)</div>
-          <div style="display:flex;gap:8px">
-            <select id="ap-transport-payer" style="flex:1.2;border:1.5px solid var(--ch-dddddd);outline:none" onchange="apToggleTransport()" class="maydon">
+          {# kech143 (zip 171b — jonli sinov 13.10, 375×812, O'LCHANGAN): «Summasi» maydoni oyna qutisidan 522 px gacha chiqib ketardi
+             (maydonlar o'z eniga qisqarmasdi) — `min-width:0` va tor ekranda keyingi qatorga. #}
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <select id="ap-transport-payer" style="flex:1.2 1 160px;min-width:0;border:1.5px solid var(--ch-dddddd);outline:none" onchange="apToggleTransport()" class="maydon">
               <option value="none">Transport yo'q</option>
               <option value="supplier">Ta'minotchidan (bepul)</option>
               <option value="self">O'z hisobimdan</option>
             </select>
             <input type="text" id="ap-transport-cost" placeholder="Summasi" disabled oninput="formatPriceInput(this)"
-                   style="flex:1;border:1.5px solid var(--ch-dddddd);outline:none;background:var(--f-f5f5f5)" class="maydon">
+                   style="flex:1 1 110px;min-width:0;border:1.5px solid var(--ch-dddddd);outline:none;background:var(--f-f5f5f5)" class="maydon">
           </div>
           <div id="ap-transport-hint" style="font-size:12px;color:var(--text3);margin-top:5px"></div>
         </div>
@@ -192,13 +198,15 @@
       </div>
     </div>
 
-    <div style="padding:14px 22px;overflow-y:auto;flex:1">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+    <div style="padding:14px 22px">
+      {# kech143 (zip 171b — jonli sinov 13.10, 375×812, O'LCHANGAN): sana filtri (ikki sana + 🔍 + ✕) qatorga sig'masdi — «✕» 513 px
+         gacha (oyna 355 px), oyna ichida yon surilish. Endi tor ekranda sarlavha ustida, sanalar bir qatorda, tugmalar keyingisida. #}
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px">
         <span style="font-size:12px;font-weight:600;color:var(--text3)">📦 Xaridlar tarixi</span>
-        <div style="display:flex;gap:5px;align-items:center">
-          <input type="date" id="hist-from" style="border:1.5px solid var(--ch-dddddd);outline:none" class="maydon maydon-sm">
+        <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;justify-content:flex-end;flex:0 1 auto;min-width:0">
+          <input type="date" id="hist-from" style="flex:1 1 125px;min-width:0;border:1.5px solid var(--ch-dddddd);outline:none" class="maydon maydon-sm">
           <span style="font-size:12px;color:var(--text3)">—</span>
-          <input type="date" id="hist-to" style="border:1.5px solid var(--ch-dddddd);outline:none" class="maydon maydon-sm">
+          <input type="date" id="hist-to" style="flex:1 1 125px;min-width:0;border:1.5px solid var(--ch-dddddd);outline:none" class="maydon maydon-sm">
           <button class="mini-btn" onclick="applyHistoryFilter()" title="Filtrlash" aria-label="Filtrlash">🔍</button>
           <button class="mini-btn" onclick="clearHistoryFilter()" title="Tozalash" aria-label="Tozalash">✕</button>
         </div>
@@ -208,6 +216,7 @@
 
       <div style="font-size:12px;font-weight:600;color:var(--text3);margin:16px 0 8px">💰 To'lovlar tarixi</div>
       <div id="hist-payments"></div>
+    </div>
     </div>
   </div>
 </div>
