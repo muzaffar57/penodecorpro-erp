@@ -136,6 +136,10 @@ async function ishga(m, kod, chaqiruv) {
 }
 
 const BASE_YORDAM = funks(BASE, ['escapeHtml', 'sonKor', 'jsAttrEscape', 'matnRangi', 'tkMs', 'tkDate', 'tkSana']);
+// kech144 (zip 174, MOSLANDI): yozuvchi amallar endi base.html amal kaliti yordamchilari bilan — `amalYubor` (`X-Amal-Kaliti`,
+// natija noma'lum ajratiladi), `tugmaBand`, sabab — `amalSababi` (u `xatoSababi` / `yukSessiyaKor` ni chaqiradi)
+const AMAL_YORDAM = funks(BASE, ['xatoSababi', 'yukSessiyaKor', 'amalSababi', 'amalKalitiYangi', 'amalKaliti', 'amalKalitiTashla', 'amalYubor',
+  'amalNomalumMatn', 'amalTakrorIzoh', 'tugmaBand']);
 const FIN_YORDAM = funks(FINISHED, ['unitLabel', 'fpMiqdor', 'fpWidth2', 'fpMrpmi', 'fpSku', 'fmt', 'fpJarayondami',
   'fpKamChegara', 'fpPartiyaNomi', 'fpSavatNomi', 'fpGuruhKaliti', 'fpGuruhXulosa', 'fpGuruhla', 'fpGuruhKammi',
   'rowHtml', 'guruhHtml']);
@@ -301,8 +305,9 @@ async function sotishBolimi() {
   async function sotSina(qatorlar) {
     const e2 = { 'batch-master': element('none'), 'batch-agreed': element(''), 'batch-buyer': element(''), 'batch-paymethod': element('naqd') };
     const mm = muhit(e2, { _batchItems: { 1: { name: 'A' }, 2: { name: 'B' } }, closeBatchSellModal() {}, clearBatchSelection() {},
-      customConfirm: async () => false, xatoSababi: () => 'x', fmt: String }, {}, { '.batch-item-row': qatorlar });
-    const rr = await ishga(mm, ks.kod, 'submitBatchSell()');
+      customConfirm: async () => false, xatoSababi: () => 'x', fmt: String,
+      loadFp() {} }, {}, { '.batch-item-row': qatorlar });   // kech144 (zip 174, MOSLANDI): sotuvdan keyin ro'yxat yangilanadi
+    const rr = await ishga(mm, AMAL_YORDAM.kod + '\n' + ks.kod, 'submitBatchSell()');
     return Object.assign(mm, { xato: rr.xato });
   }
   m = await sotSina([qator(1, '', 10, '1 000'), qator(2, '2', 5, '1 500')]);
@@ -351,7 +356,7 @@ async function qaytarishBolimi() {
     el['return-save-btn'].style = {};
     const m = muhit(el, { currentOrderItems: [{ id: 11, name: 'D', order_qty_normalized: 10, delivery_unit: 'metr' }],
       isSavingReturn: false }, { 'input[name="f-reason"]:checked': { value: sabab } });
-    const r = await ishga(m, k.kod, 'saveReturn()');
+    const r = await ishga(m, AMAL_YORDAM.kod + '\n' + k.kod, 'saveReturn()');
     return Object.assign(m, { xato: r.xato, el });
   }
   // kech118 (zip 123 — egasi QARORI G5-04, MOSLANDI): «Yangi qaytarish» — FAQAT butun mahsulot; brak — BITTA «Brak yozish»

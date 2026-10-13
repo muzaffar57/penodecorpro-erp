@@ -885,8 +885,9 @@ with open(os.path.join(ROOT, "templates", "orders.html"), encoding="utf-8") as f
 check("K debts.html — nom maydoni maxlength=60", 'id="cat-label"' in debts
       and 'maxlength="60"' in debts.split('id="cat-label"')[1][:120])
 _snc = debts.split("async function saveNewCategory(){")[-1].split("\n}\n")[0]
-check("K debts.html — saveNewCategory `majburiyatKodi` va `serverSababi` ishlatadi",
-      "majburiyatKodi(label" in _snc and "await serverSababi(res" in _snc
+# kech144 (zip 174, MOSLANDI): rad sababi — `amalYubor` (base.html; sabab `amalSababi` dan — `n.xato`), amal kaliti bilan
+check("K debts.html — saveNewCategory `majburiyatKodi` va server sababi (`amalYubor` → `n.xato`) ishlatadi",
+      "majburiyatKodi(label" in _snc and "amalYubor(" in _snc and "n.xato" in _snc
       and "alert('Xato yuz berdi')" not in _snc, _snc[:200])
 check("K orders.html — o'chirish xatosida server sababi",
       "showMsg('❌ Xato yuz berdi', 'error')" not in orders

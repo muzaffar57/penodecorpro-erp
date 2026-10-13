@@ -127,7 +127,10 @@ function muhit(opts) {
     setTimeout: () => 0,
   };
   vm.createContext(ctx);
-  const yordam = ['escapeHtml', 'sonKor', 'birlikKor'].map((n) => olib(BASE, n)).filter(Boolean).join('\n');
+  // kech144 (zip 174, MOSLANDI): yozuvchi amallar — base.html amal kaliti yordamchilari (`amalYubor`, `tugmaBand`, `amalSababi`);
+  // `xatoSababi` — shu testning soxtasi (javob `{message}`) qoladi
+  const yordam = ['escapeHtml', 'sonKor', 'birlikKor', 'yukSessiyaKor', 'amalSababi', 'amalKalitiYangi', 'amalKaliti', 'amalKalitiTashla',
+    'amalYubor', 'amalNomalumMatn', 'amalTakrorIzoh', 'tugmaBand'].map((n) => olib(BASE, n)).filter(Boolean).join('\n');
   vm.runInContext(yordam, ctx);
   return { ctx, el, radiolar, qtyInp, sorovlar, xabarlar, yuklash };
 }
@@ -359,8 +362,10 @@ async function minusBolimi() {
   m.el['loss-qty'].value = '1';
   m.el['brak-cause'].value = 'boshqa';
   r = await ishga(m, 'brakSaqlash()');
+  // kech144 (zip 174, MOSLANDI): rad xabari — nima saqlanmagani bilan («❌ Brak saqlanmadi: <sabab>», sabab — `amalSababi`)
   tekshir("M6 server rad etsa — SABABI ko'rsatiladi, oyna ochiq qoladi",
-          !r.xato && m.xabarlar.some((x) => x.t === 'Omborda yetarli emas' && x.tur === 'error') && m.el.brakModal.style.display === 'flex',
+          !r.xato && m.xabarlar.some((x) => x.t === '❌ Brak saqlanmadi: Omborda yetarli emas' && x.tur === 'error')
+          && m.el.brakModal.style.display === 'flex',
           r.xato || qisqa(m.xabarlar));
 }
 
@@ -386,7 +391,10 @@ async function qaytarishBolimi() {
   };
   vm.createContext(ctx);
   let xato = null;
-  try { vm.runInContext(kod.join('\n'), ctx); await vm.runInContext('saveReturn()', ctx); vm.runInContext('updateReasonHint()', ctx); } catch (e) { xato = String(e.message || e); }
+  // kech144 (zip 174, MOSLANDI): saqlash — base.html amal kaliti yordamchilari bilan
+  const amalKod = ['xatoSababi', 'yukSessiyaKor', 'amalSababi', 'amalKalitiYangi', 'amalKaliti', 'amalKalitiTashla', 'amalYubor',
+    'amalNomalumMatn', 'amalTakrorIzoh', 'tugmaBand'].map((n) => olib(BASE, n)).filter(Boolean).join('\n');
+  try { vm.runInContext(amalKod + '\n' + kod.join('\n'), ctx); await vm.runInContext('saveReturn()', ctx); vm.runInContext('updateReasonHint()', ctx); } catch (e) { xato = String(e.message || e); }
   const t = (sorovlar[0] || {}).tana || {};
   tekshir("Q1 tana: reason «Ortiqcha», to_stock true, coating_applied false; brak_* kalitlari YO'Q (sahifada eski maydon bo'lsa ham)",
           !xato && sorovlar.length === 1 && t.reason === 'Ortiqcha' && t.to_stock === true && t.coating_applied === false

@@ -88,6 +88,9 @@ const BASE_FN = ['escapeHtml', 'xatoSababi', 'serverXatoSababi', 'sonKor', 'foiz
 // ham ishlatadi — BOR bo'lsa birga yuklanadi (eski shablonda yo'q — tekshirilmaydi, kod o'zgarmagan holda ishlaydi)
 const BASE_BOR = ['yukXato', 'yukOl', 'yukSabab', 'yukXatoMatn', 'yukNavbat', 'yukBlok', 'yukXatoKor', 'yukRoyxatXato', 'yukSessiyaKor',
   'amalSababi', 'avansYubor'];     // kech140 (zip 168, MOSLANDI): avans berish — `avansYubor` (409 tasdig'i, sabab — `amalSababi`)
+// kech144 (zip 174, MOSLANDI): yozuvchi amallar endi base.html amal kaliti yordamchilari bilan — `amalYubor` (`X-Amal-Kaliti`,
+// natija noma'lum ajratiladi), `tugmaBand`, sabab — `amalSababi` (u `xatoSababi` / `yukSessiyaKor` ni chaqiradi)
+BASE_BOR.push('amalKalitiYangi', 'amalKaliti', 'amalKalitiTashla', 'amalYubor', 'amalNomalumMatn', 'amalTakrorIzoh', 'tugmaBand');
 function kod(src, nomlar) {
   const qism = [];
   const yoq = [];
@@ -328,7 +331,8 @@ function korindimi(n, matn) {
     // kech140 (zip 168, MOSLANDI): `avansYubor` (base.html) — rad sababini `amalSababi` bilan o'qiydi
     // kech141 (zip 169, MOSLANDI): `deleteEmployee` — oyna; rad shoxi uning tasdig'ida (`ketishTasdiq`) — ikkalasi birga o'qiladi
     for (const n of nomlar) { const f = (olib(src, n) || '') + (n === 'deleteEmployee' ? (olib(src, 'ketishTasdiq') || '') : '');
-                              if (!/\b((server)?[xX]atoSababi|amalSababi|avansYubor)\(/.test(f)) yordamsiz.push(n); }
+    // kech144 (zip 174, MOSLANDI): `amalYubor` (base.html) — rad sababini `amalSababi` bilan o'qiydi (natija: `n.xato`)
+                              if (!/\b((server)?[xX]atoSababi|amalSababi|avansYubor|amalYubor)\(/.test(f)) yordamsiz.push(n); }
   }
   tekshir("S2 28 ta funksiyaning rad shoxi yagona yordamchi bilan (`xatoSababi` / `serverXatoSababi` / `amalSababi`)", !yordamsiz.length, yordamsiz);
   tekshir("S3 base.html: yordamchilar bitta ta'rif (takror yo'q)",

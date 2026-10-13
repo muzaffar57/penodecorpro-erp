@@ -132,6 +132,8 @@ function muhit(idlar, globallar, javoblar) {
       return javob(j.status, j.data);
     },
     showMsg: (t, tur) => { xabarlar.push({ t: String(t), tur }); },
+    // kech144 (zip 174, MOSLANDI): sotuvdan keyin oyna yopiladi, ro'yxat yangilanadi (sahifa yordamchilari — soxta)
+    closeSellModal: () => {}, loadFp: () => {},
     location: { reload: () => { chaqiruvlar.push('reload'); } },
     setTimeout: () => 0,
     window: { open: (u) => chaqiruvlar.push('open:' + u) },
@@ -149,12 +151,19 @@ async function ishga(m, kod, chaqiruv) {
   }
 }
 
-const BASE_YORDAM = funks(BASE, ['escapeHtml', 'sonKor', 'jsAttrEscape', 'matnRangi', 'tkMs', 'tkDate', 'tkSana', 'birlikKor']);
+// kech144 (zip 174, MOSLANDI): yozuvchi amallar endi base.html amal kaliti yordamchilari bilan — `amalYubor` (`X-Amal-Kaliti`,
+// natija noma'lum ajratiladi), `tugmaBand`, sabab — `amalSababi` (u `xatoSababi` / `yukSessiyaKor` ni chaqiradi)
+const AMAL_NOMLAR = ['xatoSababi', 'yukSessiyaKor', 'amalSababi', 'amalKalitiYangi', 'amalKaliti', 'amalKalitiTashla', 'amalYubor',
+  'amalNomalumMatn', 'amalTakrorIzoh', 'tugmaBand'];
+const BASE_YORDAM = funks(BASE, ['escapeHtml', 'sonKor', 'jsAttrEscape', 'matnRangi', 'tkMs', 'tkDate', 'tkSana', 'birlikKor']
+  .concat(AMAL_NOMLAR));
 
 // ══════════════════════════════════════════════════════════════
 async function sotishBolimi() {
   bolim('finished.html — A-O01: band qism sotilmaydi');
-  const fy = funks(FINISHED, ['unitLabel', 'fpMiqdor', 'fmt', 'parseNum', 'openSellModal', 'submitSell', 'updateSellTotal']);
+  // kech144 (zip 174, MOSLANDI): «Sotish» oynasi narxi — `narxKorinishi` (u `narxMatni` ni chaqiradi)
+  const fy = funks(FINISHED, ['unitLabel', 'fpMiqdor', 'fmt', 'parseNum', 'narxMatni', 'narxKorinishi', 'openSellModal', 'submitSell',
+    'updateSellTotal']);
   tekshir('F0 funksiyalar topildi (openSellModal, submitSell ...)', !fy.yoq.length && !BASE_YORDAM.yoq.length,
     qisqa(fy.yoq.concat(BASE_YORDAM.yoq)));
   const IDS = ['sell-modal-sub', 'sell-stock-info', 'sell-qty', 'sell-price', 'sell-buyer', 'sell-master', 'sell-paymethod',

@@ -100,6 +100,10 @@ function sana(src, nom) {
 // kech106: sahifa funksiyalari joriy oy / "bugun" ni base.html dagi Toshkent vaqti yordamchilaridan oladi
 // kech118 (B — U-05, MOSLANDI): son / birlik ko'rinishi base.html `sonKor` / `birlikKor` orqali — ro'yxatga qo'shildi
 const TK_FUNKS = ['tkMs', 'tkDate', 'tkSana', 'tkVaqt', 'tkSanaVaqt', 'tkToliq', 'tkISO', 'tkHozir', 'tkKunFarqi', 'sonKor', 'foizKor', 'birlikKor', 'matnRangi'];
+// kech144 (zip 174, MOSLANDI): yozuvchi amallar endi base.html amal kaliti yordamchilari bilan — `amalYubor` (`X-Amal-Kaliti`,
+// natija noma'lum ajratiladi), `tugmaBand`, sabab — `amalSababi` (u `xatoSababi` / `yukSessiyaKor` ni chaqiradi)
+TK_FUNKS.push(...['xatoSababi', 'yukSessiyaKor', 'amalSababi', 'amalKalitiYangi', 'amalKaliti', 'amalKalitiTashla', 'amalYubor',
+  'amalNomalumMatn', 'amalTakrorIzoh', 'tugmaBand']);
 const BASE_SRC = (() => { try { return fs.readFileSync(path.join(TDIR, 'base.html'), 'utf8'); } catch (e) { return ''; } })();
 function muhit(sahifa, qoshimcha) {
   const ctx = Object.assign({ console }, qoshimcha || {});
