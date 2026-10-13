@@ -688,7 +688,7 @@ check("H3 create_order: eski `SONI + 1 + urinish` formulasi YO'Q", _kod and ".co
 check("H4 takror-yuborish qaytishi raqam asosidan OLDIN (takrorda hisoblagich tegilmaydi)",
       tartibda(_kod, "_is_duplicate_submit = True", "return _recent_order", "buyurtma_raqam_asosi(db, _project, _prefiks)"))
 check("H5 hisoblagich OXIRIDA: TM olinishidan KEYIN, yakuniy commitdan OLDIN",
-      tartibda(_kod, "_take_finished_for_order(db, db_order)", "_project.oxirgi_buyurtma_seq = seq", "db.commit()\n"))
+      tartibda(_kod, "_take_finished_for_order(db, db_order", "_project.oxirgi_buyurtma_seq = seq", "db.commit()\n"))
 check("H6 band raqam oldindan tekshiriladi (`_buyurtma_raqami_bandmi`)", "_buyurtma_raqami_bandmi(db, _company_id" in _kod)
 check("H7 urinishlar tugasa 409 (500 EMAS)", "status_code=409" in _kod and "ajratib bo'lmadi" in _kod)
 check("H8 create_delivery: yuk raqami mavjudlarning eng kattasidan keyin (`/Y-(\\d+)$`)",

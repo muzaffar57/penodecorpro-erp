@@ -795,7 +795,9 @@ check("S2 qaytarish: detal birligi faqat sign > 0 da, tiklashda detal birligi og
 _ad = manba(crud._adjust_finished_diff)
 check("S3 tahrir farqi: detallar bo'yicha, birliklar teng bo'lsa avvalgi formula",
       tartibda(_ad, "detallar=None", "for _d56 in (detallar or []):", "if _D56 != 0.0:", "_tm_detal_olindi(_det",
-               "if _D56 == 0.0:", "cost_delta = -unit_cost * diff"))
+               # kech144 (zip 176, MOSLANDI — A-O10 d F1): `_ijobiy` = max(0, qoldiq − farq) − max(0, qoldiq); qoldiq 0 dan past
+               # bo'lmasa `-diff` ning o'zi (avvalgi formula AYNAN), minusdagi qism tannarxsiz
+               "if _D56 == 0.0:", "_ijobiy = max(0.0, cur_qty - diff) - max(0.0, cur_qty)", "cost_delta = unit_cost * _ijobiy"))
 _uf = manba(crud.update_order_full)
 check("S4 to'liq tahrir o'tishlarni beradi", tartibda(_uf, "_tm56 = []", "detallar=_tm56"))
 _ui = manba(crud.update_order_item)
