@@ -2082,6 +2082,12 @@ function selectOrder(id, el) {
   if (pR) pR.style.display = 'none';
   if (pR2) pR2.style.display = 'none';
 
+  // kech144 (zip 173, audit 2-to'lqin — O'LCHANGAN `work/k173/probe_buyurtma.py` V1 / V1b): oldingi buyurtmaning qarzi va
+  // yetkazish ma'lumoti yangi buyurtma yuklanguncha (yoki yuklanmasa) ko'rinib qolardi — «To'liq qarz» va kechirish tasdig'i
+  // A ning qarzidan hisoblanardi. Endi tanlashda darhol «—», qarz NOMA'LUM (`_joriyQarz` → null), yetkazish ro'yxati yo'q.
+  tolovPaneliniTozala();
+  dlvData = null;
+
   // Detallar
   loadOrderItems(id);
 
@@ -2149,13 +2155,27 @@ function mrpTayyorlikBelgisi(mr) {
   return `<span class="badge" style="background:var(--f-fef3c7);color:var(--m-b45309)" title="${escapeHtml(qism)}">⏳ MRP: kutilmoqda</span>`;
 }
 
+// kech144 (zip 173): tanlangan buyurtma bloklari uchun — javob hali SHU buyurtmaga tegishlimi (navbat + tanlov). A tanlanib,
+// darhol B tanlansa A ning kech kelgan javobi B ning paneliga yozilmaydi (O'LCHANGAN: probe V1b — A ning qarzi va detallari B da).
+function tanlovJoriy(nom, id) {
+  const navbat = yukNavbat(nom);
+  return () => navbat() && String(id) === String(selectedOrderId);
+}
+
 async function loadOrderItems(id) {
   const container = document.getElementById('od-items-container');
   container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:16px;color:var(--text3);font-size:14px">Yuklanmoqda...</div>`;
+  const joriy = tanlovJoriy('detallar', id);
   try {
-    const res = await fetch(`/api/orders/${id}`);
-    if (!res.ok) throw new Error('so\'rov xato');
-    const order = await res.json();
+    let order;
+    try {
+      order = await yukOl(`/api/orders/${id}`);
+    } catch (e) {
+      if (!joriy()) return;
+      container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:16px;color:var(--m-b91c1c);font-size:14px">${escapeHtml(yukXatoMatn('Detallar', e))}</div>`;
+      return;
+    }
+    if (!joriy()) return;
     const items = order.items || [];
 
     // 2026-09-17: Milestone 4 — Production/MRP tayyorlik belgisi.
@@ -2194,7 +2214,8 @@ async function loadOrderItems(id) {
       </div>`;
     }).join('');
   } catch (e) {
-    container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:16px;color:var(--text3);font-size:14px">Yuklab bo'lmadi — sahifani yangilang</div>`;
+    if (!joriy()) return;
+    container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:16px;color:var(--m-b91c1c);font-size:14px">${escapeHtml(yukXatoMatn('Detallar', yukXato('server')))}</div>`;
     console.error('Detallarni yuklashda xato:', e);
   }
 }
@@ -2204,23 +2225,34 @@ async function uploadItemImage(itemId, input) {
   if (!file) return;
   const fd = new FormData();
   fd.append('file', file);
+  // kech144 (zip 173, audit P2-11): server sababi ko'rsatiladi (ilgari faqat «Rasm yuklanmadi» / «Server xatosi»)
   try {
     const res = await fetch(`/api/order-items/${itemId}/image`, { method: 'POST', body: fd });
-    if (!res.ok) { showMsg('Rasm yuklanmadi', 'error'); return; }
+    if (!res.ok) { showMsg('❌ Rasm yuklanmadi: ' + await amalSababi(res), 'error'); return; }
     if (selectedOrderId) loadOrderItems(selectedOrderId);
   } catch (e) {
-    showMsg('Server xatosi', 'error');
+    showMsg('❌ Rasm yuklanmadi: ' + await amalSababi(e), 'error');
+  } finally {
+    if (input) input.value = '';
   }
 }
 
 async function loadOrderAttachments(orderId) {
   const grid = document.getElementById('attachGrid');
   if (!grid) return;
+  // kech144 (zip 173): oldingi buyurtma fayllari yangi buyurtma ostida qolmasin (✕ — boshqa buyurtma faylini o'chirardi)
+  grid.innerHTML = '';
+  const joriy = tanlovJoriy('fayllar', orderId);
   try {
-    const res = await fetch(`/api/orders/${orderId}/attachments`);
-    if (!res.ok) return;
-    const atts = await res.json();
-    grid.innerHTML = atts.map(a => {
+    let atts;
+    try {
+      atts = await yukOl(`/api/orders/${orderId}/attachments`);
+    } catch (e) {
+      if (joriy()) grid.innerHTML = `<div style="font-size:13px;color:var(--m-b91c1c)">${escapeHtml(yukXatoMatn('Fayllar', e))}</div>`;
+      return;
+    }
+    if (!joriy()) return;
+    grid.innerHTML = (Array.isArray(atts) ? atts : []).map(a => {
       const isImg = /\.(jpg|jpeg|png|webp)$/i.test(a.file_url);
       const isPdf = /\.pdf$/i.test(a.file_url);
       // kech32: mahalliy esc endi umumiy escapeHtml ga tayanadi (u ' ni ham escape qiladi) —
@@ -2256,32 +2288,58 @@ async function uploadOrderAttachment(input) {
   if (!file || !selectedOrderId) return;
   const fd = new FormData();
   fd.append('file', file);
+  // kech144 (zip 173, audit P2-11): server sababi; yuklash paytida boshqa buyurtma tanlansa — ro'yxat o'sha buyurtmaga chizilmaydi
+  const oid = selectedOrderId;
   try {
-    const res = await fetch(`/api/orders/${selectedOrderId}/attachments`, { method: 'POST', body: fd });
-    if (!res.ok) { showMsg('Fayl yuklanmadi', 'error'); return; }
-    loadOrderAttachments(selectedOrderId);
+    const res = await fetch(`/api/orders/${oid}/attachments`, { method: 'POST', body: fd });
+    if (!res.ok) { showMsg('❌ Fayl yuklanmadi: ' + await amalSababi(res), 'error'); return; }
+    if (String(oid) === String(selectedOrderId)) loadOrderAttachments(oid);
   } catch (e) {
-    showMsg('Server xatosi', 'error');
+    showMsg('❌ Fayl yuklanmadi: ' + await amalSababi(e), 'error');
+  } finally {
+    input.value = '';
   }
-  input.value = '';
 }
 
 async function deleteOrderAttachment(attId, orderId) {
   if (!await showConfirmModal("Fayl o'chirilsinmi?", {danger:true, okText:"O'chirish"})) return;
+  // kech144 (zip 173, audit P2-10): javob tekshirilmasdi — 403 / 404 / 5xx da ro'yxat yangilanar, fayl joyida, xabar YO'Q edi
+  const qayta = () => { if (String(orderId) === String(selectedOrderId)) loadOrderAttachments(orderId); };
+  let res;
   try {
-    await fetch(`/api/orders/attachments/${attId}`, { method: 'DELETE' });
-    loadOrderAttachments(orderId);
-  } catch (e) { showMsg('Server xatosi', 'error'); }
+    res = await fetch(`/api/orders/attachments/${attId}`, { method: 'DELETE' });
+  } catch (e) {
+    showMsg("❌ Natija noma'lum — " + await amalSababi(e) + " (fayllar ro'yxatini tekshiring)", 'error');
+    qayta();
+    return;
+  }
+  if (!res.ok) {
+    showMsg("❌ Fayl o'chirilmadi: " + await amalSababi(res), 'error');
+    if (res.status >= 500) qayta();
+    return;
+  }
+  showMsg("✓ Fayl o'chirildi", 'success');
+  qayta();
 }
 
 // ── YETKAZISH ─────────────────────────────────────────────
 let dlvData = null;
 
 async function loadDeliveries(orderId) {
+  const joriy = tanlovJoriy('yetkazish', orderId);
   try {
-    const res = await fetch(`/api/orders/${orderId}/delivery-status`);
-    if (!res.ok) return;
-    const d = await res.json();
+    let d;
+    try {
+      d = await yukOl(`/api/orders/${orderId}/delivery-status`);
+    } catch (e) {
+      if (!joriy()) return;
+      // kech144 (zip 173): yuklanmasa — sabab; topshirish tugmalari yopiq (`dlvData` yo'q — eski buyurtma ro'yxati ishlatilmaydi)
+      const _l = document.getElementById('dlvItemList');
+      if (_l) _l.innerHTML = `<div style="text-align:center;padding:14px;color:var(--m-b91c1c);font-size:14px">${escapeHtml(yukXatoMatn('Yetkazish holati', e))}</div>`;
+      ['btn-new-delivery', 'btn-quick-deliver'].forEach(i => { const b = document.getElementById(i); if (b) b.style.display = 'none'; });
+      return;
+    }
+    if (!joriy()) return;
     dlvData = d;
 
     // Progress
@@ -2626,15 +2684,20 @@ async function quickFullDelivery() {
   const pending = dlvData.items.filter(i => !i.is_done && i.remaining > 0);
   if (!pending.length) { showMsg('Hamma mahsulot allaqachon topshirilgan', 'success'); return; }
 
-  let currentDebt = 0;
+  // kech144 (zip 173, O'LCHANGAN probe V5): qarz yuklanmasa «✓ Qarzi yo'q (to'liq to'langan)» deyilardi (yolg'on 0) — endi sabab
+  let currentDebt = null, qarzXato = '';
   try {
-    const r = await fetch(`/api/orders/${selectedOrderId}`);
-    if (r.ok) { const o = await r.json(); currentDebt = o.debt_amount || 0; }
-  } catch(e) {}
+    const o = await yukOl(`/api/orders/${selectedOrderId}`);
+    currentDebt = Number(o.debt_amount) || 0;
+  } catch (e) {
+    qarzXato = yukXatoMatn('Mijoz qarzi', e);
+  }
 
   _fullDlvPending = pending;
   const summary = pending.map(i => `${escapeHtml(i.name)}: ${i.remaining} ${i.unit === 'metr' ? 'm' : 'ta'}`).join('<br>');
-  const debtHtml = currentDebt > 0
+  const debtHtml = currentDebt === null
+    ? `<div style="font-size:12px;color:var(--m-b91c1c);margin-bottom:6px;font-weight:600">${escapeHtml(qarzXato)}</div>`
+    : currentDebt > 0
     ? `<div style="font-size:12px;color:var(--m-dc2626);margin-bottom:6px;font-weight:600">⚠️ Mijozning joriy qarzi: ${formatNum(currentDebt)} so'm</div>`
     : `<div style="font-size:12px;color:var(--m-15803d);margin-bottom:6px;font-weight:600">✓ Qarzi yo'q (to'liq to'langan)</div>`;
 
@@ -2643,15 +2706,41 @@ async function quickFullDelivery() {
     <div>
       <label style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px">💰 Mijoz shu yuk uchun to'lov qildimi?</label>
       ${debtHtml}
-      <input type="text" id="fd-payment" placeholder="0" oninput="formatPriceInput(this)" style="width:100%;border:1.5px solid var(--ch-e2e8f0)" class="maydon">
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        <input type="text" id="fd-payment" placeholder="0" oninput="formatPriceInput(this)" style="flex:1 1 140px;min-width:0;border:1.5px solid var(--ch-e2e8f0)" class="maydon" aria-label="To'lov summasi">
+        <select id="fd-payment-method" style="flex:1 1 120px;min-width:0;border:1.5px solid var(--ch-e2e8f0)" class="maydon" aria-label="To'lov usuli">
+          <option value="naqd">Naqd</option>
+          <option value="plastik">Plastik</option>
+          <option value="o'tkazma">O'tkazma</option>
+        </select>
+      </div>
     </div>
     <div>
       <label style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px">🚚 Yetkazib berish (transport) xarajati bormi?</label>
       <div style="font-size:12px;color:var(--text3);margin-bottom:6px">Bo'lmasa bo'sh qoldiring</div>
-      <input type="text" id="fd-transport" placeholder="0" oninput="formatPriceInput(this)" style="width:100%;border:1.5px solid var(--ch-e2e8f0)" class="maydon">
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        <input type="text" id="fd-transport" placeholder="0" oninput="formatPriceInput(this)" style="flex:1 1 140px;min-width:0;border:1.5px solid var(--ch-e2e8f0)" class="maydon" aria-label="Transport summasi">
+        <select id="fd-transport-payer" style="flex:1 1 160px;min-width:0;border:1.5px solid var(--ch-e2e8f0)" class="maydon" aria-label="Transportni kim to'laydi">
+          <option value="none">Kim to'laydi? —</option>
+          <option value="client">Mijoz</option>
+          <option value="company">Kompaniya</option>
+          <option value="split">Teng bo'lingan (50/50)</option>
+        </select>
+      </div>
     </div>
+    <div id="fd-error" role="alert" style="display:none;padding:9px 12px;background:var(--f-fee2e2);border-radius:7px;font-size:14px;color:var(--m-b91c1c);white-space:pre-line;overflow-wrap:anywhere"></div>
   `;
   document.getElementById('fullDlvModalOverlay').style.display = 'flex';
+}
+
+// kech144 (zip 173): «Bir yo'la to'liq topshirish» oynasidagi xato — oyna ichida (yopilmaydi, kiritilganlar saqlanadi)
+function fdXato(matn) {
+  const e = document.getElementById('fd-error');
+  if (!e) { showMsg(matn, 'error'); return; }
+  e.textContent = matn;
+  e.style.display = matn ? 'block' : 'none';
+  // kichik ekranda oyna suriladi — xato ko'rinsin
+  if (matn && typeof e.scrollIntoView === 'function') e.scrollIntoView({block: 'nearest'});
 }
 
 function closeFullDlvModal() {
@@ -2693,8 +2782,15 @@ async function submitFullDlvModal() {
 
   const paymentAmount = parseNum(document.getElementById('fd-payment')?.value) || null;
   const transportCost = parseNum(document.getElementById('fd-transport')?.value) || 0;
-
-  closeFullDlvModal();
+  // kech144 (zip 173, egasi QARORI 13.10 «So'rasin»): to'lov usuli va transportni kim to'lagani — oynada (ilgari doim «naqd» va
+  // «kompaniya» yozilardi: mijoz transportni o'zi to'lasa ham kompaniya xarajati bo'lardi)
+  const paymentMethod = document.getElementById('fd-payment-method')?.value || 'naqd';
+  const transportPayer = document.getElementById('fd-transport-payer')?.value || 'none';
+  if (transportCost > 0 && transportPayer === 'none') {
+    fdXato("🚚 Transportni kim to'laganini tanlang (mijoz, kompaniya yoki 50/50)");
+    return;
+  }
+  fdXato('');
 
   const items = pending.map(i => ({ order_item_id: i.id, quantity: i.remaining }));
   const data = {
@@ -2704,32 +2800,42 @@ async function submitFullDlvModal() {
     notes: null,
     transport_carrier: null,
     transport_cost: transportCost,
-    transport_payer: transportCost > 0 ? 'company' : 'none',
+    transport_payer: transportCost > 0 ? transportPayer : 'none',
     payment_amount: paymentAmount,
-    payment_method: 'naqd'
+    payment_method: paymentMethod
   };
 
   _dlvYuborilmoqda = true;
   try {
     const res = await yetkazishYubor(data);
     if (!res) {
-      // 17g: ortiqcha to'lov tasdiqlanmadi — hech narsa saqlanmagan
-      showMsg('Yetkazish saqlanmadi — to\'lov summasini tekshirib qayta kiriting', 'error');
+      // 17g: ortiqcha to'lov tasdiqlanmadi — hech narsa saqlanmagan (oyna ochiq — summani tuzatish mumkin)
+      fdXato('Yetkazish saqlanmadi — to\'lov summasini tekshirib qayta kiriting');
       return;
     }
-    const r = await res.json();
-
     if (res.ok) {
-      openPdfSafe(`/api/deliveries/${r.delivery_id}/pdf`);
+      let r = {};
+      try { r = await res.json(); } catch (e) { r = {}; }
+      // kech144 (zip 173): oyna FAQAT muvaffaqiyatda yopiladi (ilgari so'rovdan OLDIN yopilardi — xatoda kiritilganlar yo'qolardi)
+      closeFullDlvModal();
+      if (r.delivery_id) openPdfSafe(`/api/deliveries/${r.delivery_id}/pdf`);
       loadDeliveries(selectedOrderId);
       showMsg('✅ Buyurtma to\'liq topshirildi! Yuk xati tayyor.', 'success');
       setTimeout(()=>location.reload(), 2500);
+    } else if (res.status >= 500) {
+      // kech144 (zip 173, audit P1-5): javob yo'qolgan bo'lishi mumkin — yuk xati saqlangan bo'lishi mumkin
+      fdXato("❌ Natija noma'lum — server javob bermadi. Yuk xatlari ro'yxati yangilandi — tekshiring (saqlangan bo'lsa qayta saqlamang)");
+      loadDeliveries(selectedOrderId);
     } else {
+      let r = null;
+      try { r = await res.clone().json(); } catch (e) { r = null; }
       const q = yetkazishXatoQismlari(r);
-      showMsg('❌ ' + q.xabar + (q.kamlar.length ? '\n' + q.kamlar.join('\n') : ''), 'error');
+      const sabab = (q.xabar && q.xabar !== 'Xato') ? q.xabar : await amalSababi(res);
+      fdXato('❌ Yetkazish saqlanmadi: ' + sabab + (q.kamlar.length ? '\n' + q.kamlar.join('\n') : ''));
     }
   } catch(e) {
-    showMsg('❌ Server xatosi', 'error');
+    fdXato("❌ Natija noma'lum — " + await amalSababi(e) + ". Yuk xatlari ro'yxatini tekshiring (saqlangan bo'lsa qayta saqlamang)");
+    loadDeliveries(selectedOrderId);
   } finally {
     _dlvYuborilmoqda = false;
   }
@@ -2788,12 +2894,15 @@ async function saveDelivery() {
     // 17g: ortiqcha to'lov tasdiqlanmadi — hech narsa saqlanmagan, oyna ochiq
     // qoladi (foydalanuvchi to'lov summasini tuzatishi mumkin)
     if (!res) return;
-    const r = await res.json();
+    // kech144 (zip 173, audit P1-5): JSON — `ok` tekshiruvidan keyin (502 HTML da istisno → «Server xatosi» edi)
+    let r = null;
+    try { r = await res.clone().json(); } catch (e) { r = null; }
 
     if (res.ok) {
+      r = r || {};
       closeDeliveryModal();
       // Yuk xati PDF ni ochamiz
-      openPdfSafe(`/api/deliveries/${r.delivery_id}/pdf`);
+      if (r.delivery_id) openPdfSafe(`/api/deliveries/${r.delivery_id}/pdf`);
       loadDeliveries(selectedOrderId);
 
       // kech103 (11-band): `r.payment_warning` tarmog'i olib tashlandi — server bu kalitni 17g dan beri bermaydi (o'lik).
@@ -2803,19 +2912,28 @@ async function saveDelivery() {
       } else {
         showMsg(`✓ ${r.delivery_number} saqlandi · Bajarilish: ${r.delivery_percent}%`, 'success');
       }
+    } else if (res.status >= 500) {
+      // kech144 (zip 173, audit P1-5): javob yo'qolgan bo'lishi mumkin — yuk xati saqlangan bo'lishi mumkin: ro'yxat yangilanadi
+      err.style.display = 'block';
+      err.textContent = "❌ Natija noma'lum — server javob bermadi. Yuk xatlari ro'yxati yangilandi — tekshiring (saqlangan bo'lsa qayta saqlamang)";
+      loadDeliveries(selectedOrderId);
     } else {
       // 17g: `shortages` ichida detal NOMI bor — foydalanuvchi kiritgan matn,
       // HTML belgilari bilan AYNAN saqlanadi (O'LCHANGAN: `<img src=x
       // onerror=...>` nomi bazaga tushadi). Shuning uchun `innerHTML` ga faqat
       // `escapeHtml` dan o'tgan matn yoziladi.
       const q = yetkazishXatoQismlari(r);
+      // kech144 (zip 173): sababsiz javob (ro'yxatli `detail`, 401, JSON emas) — `amalSababi`
+      const xabar = (q.xabar && q.xabar !== 'Xato') ? q.xabar : await amalSababi(res);
       err.style.display = 'block';
-      err.innerHTML = '❌ ' + escapeHtml(q.xabar) +
+      err.innerHTML = '❌ ' + escapeHtml(xabar) +
         (q.kamlar.length ? '<br>' + q.kamlar.map(escapeHtml).join('<br>') : '');
     }
   } catch(e) {
+    // kech144 (zip 173, audit P1-5): so'rov ketgan bo'lishi mumkin — natija noma'lum, ro'yxat yangilanadi
     err.style.display = 'block';
-    err.textContent = '❌ Server xatosi';
+    err.textContent = "❌ Natija noma'lum — " + await amalSababi(e) + ". Yuk xatlari ro'yxatini tekshiring (saqlangan bo'lsa qayta saqlamang)";
+    loadDeliveries(selectedOrderId);
   } finally {
     _dlvYuborilmoqda = false;
   }
@@ -2830,12 +2948,17 @@ async function saveDelivery() {
 // rad javobida server SABABI ko'rsatiladi (`yetkazishXatoQismlari`).
 // Ikkinchi so'rov ham rad etilsa — faqat xabar, qayta so'rash sikli YO'Q.
 async function deleteDelivery(id) {
+  if (deleteDelivery.band) return;
   if (!await showConfirmModal('Bu topshirishni o\'chirasizmi?\n\nMiqdorlar qoldiqqa qaytadi.', {danger:true, okText:"O'chirish"})) return;
+  // kech144 (zip 173, audit P2-9): 5xx / 401 / ro'yxatli `detail` — `amalSababi` (ilgari «❌ Xato»)
   const sabab = async (res) => {
+    if (res.status >= 500 || res.status === 401) return await amalSababi(res);
     let d = null;
-    try { d = await res.json(); } catch (e) { d = null; }
-    return yetkazishXatoQismlari(d).xabar;
+    try { d = await res.clone().json(); } catch (e) { d = null; }
+    const x = yetkazishXatoQismlari(d).xabar;
+    return (x && x !== 'Xato') ? x : await amalSababi(res);
   };
+  deleteDelivery.band = true;
   try {
     let res = await fetch(`/api/deliveries/${id}`, { method:'DELETE' });
     let tolovAmali = null;
@@ -2860,10 +2983,18 @@ async function deleteDelivery(id) {
       showMsg(tolovAmali === 'ochir' ? "✓ Yuk xati va unga bog'langan to'lov o'chirildi"
             : tolovAmali === 'qoldir' ? "✓ Yuk xati o'chirildi — to'lov saqlab qolindi"
             : '✓ O\'chirildi', 'success');
+    } else if (res.status >= 500) {
+      showMsg("❌ Natija noma'lum — server javob bermadi; yuk xatlari ro'yxati yangilandi, tekshiring", 'error');
+      loadDeliveries(selectedOrderId);
     } else {
-      showMsg('❌ ' + await sabab(res), 'error');
+      showMsg("❌ Yuk xati o'chirilmadi: " + await sabab(res), 'error');
     }
-  } catch(e) { showMsg('❌ Tarmoq xatosi', 'error'); }
+  } catch(e) {
+    showMsg("❌ Natija noma'lum — " + await amalSababi(e) + " (yuk xatlari ro'yxatini tekshiring)", 'error');
+    loadDeliveries(selectedOrderId);
+  } finally {
+    deleteDelivery.band = false;
+  }
 }
 
 // ── LOY ZAXIRASI ──────────────────────────────────────────
@@ -2901,30 +3032,45 @@ async function checkLoyStock() {
 // ── DRAFT ─────────────────────────────────────────────────
 async function activateDraft() {
   if (!selectedOrderId) return;
+  if (activateDraft.band) return;
   if (!await showConfirmModal('Buyurtmani jarayonga olasizmi?\n\nOmbordan xomashyo yechiladi.', {icon:'🚀', okText:'Jarayonga olish'})) return;
 
+  // kech144 (zip 173, audit P2-5): `res.json()` `ok` tekshiruvidan OLDIN edi — 502 da «Server xatosi», 403 / 404 (matnli
+  // `detail`) da «❌ Xato»; ikki bosish — ikkinchisi «Xato». Endi sabab va natija noma'lum holati.
+  const oid = selectedOrderId;
+  activateDraft.band = true;
   try {
-    const res = await fetch(`/api/orders/${selectedOrderId}/activate`, { method: 'POST' });
-    const d = await res.json();
+    let res;
+    try {
+      res = await fetch(`/api/orders/${oid}/activate`, { method: 'POST' });
+    } catch (e) {
+      showMsg("❌ Natija noma'lum — " + await amalSababi(e) + ' (sahifani yangilab buyurtma holatini tekshiring)', 'error');
+      return;
+    }
     if (res.ok) {
       showMsg('✓ Buyurtma jarayonga olindi!', 'success');
       setTimeout(()=>location.reload(), 1000);
-    } else {
-      const det = d.detail || {};
-      if (det.shortages && det.shortages.length) {
-        showMsg('❌ ' + det.message + '\n' + det.shortages.join('\n'), 'error');
-        const box = document.getElementById('resultBox');
-        if (box) {
-          box.innerHTML = `<b>❌ ${escapeHtml(det.message)}</b><br><br>` + det.shortages.map(x=>`• ${escapeHtml(x)}`).join('<br>');
-          box.className = 'result-box error';
-          box.style.display = 'block';
-        }
-      } else {
-        showMsg('❌ ' + (det.message || 'Xato'), 'error');
-      }
+      return;
     }
-  } catch(e) {
-    showMsg('❌ Server xatosi', 'error');
+    let d = null;
+    try { d = await res.clone().json(); } catch (e) { d = null; }
+    const det = (d && d.detail && typeof d.detail === 'object' && !Array.isArray(d.detail)) ? d.detail : {};
+    if (Array.isArray(det.shortages) && det.shortages.length) {
+      const sarlavha = String(det.message || "Omborda xomashyo yetishmayapti");
+      showMsg('❌ ' + sarlavha + '\n' + det.shortages.join('\n'), 'error');
+      const box = document.getElementById('resultBox');
+      if (box) {
+        box.innerHTML = `<b>❌ ${escapeHtml(sarlavha)}</b><br><br>` + det.shortages.map(x=>`• ${escapeHtml(x)}`).join('<br>');
+        box.className = 'result-box error';
+        box.style.display = 'block';
+      }
+    } else if (res.status >= 500) {
+      showMsg("❌ Natija noma'lum — server javob bermadi. Sahifani yangilab buyurtma holatini tekshiring", 'error');
+    } else {
+      showMsg('❌ Jarayonga olinmadi: ' + await amalSababi(res), 'error');
+    }
+  } finally {
+    activateDraft.band = false;
   }
 }
 
@@ -2932,11 +3078,32 @@ async function activateDraft() {
 const PAY_TYPE_LABEL = {'zaklat':'Zaklat','partial':'Qisman','final':'Yakuniy'};
 const PAY_METHOD_ICON = {'naqd':'💵','plastik':'💳',"o'tkazma":'🏦'};
 
+// kech144 (zip 173, audit 2-to'lqin — O'LCHANGAN probe V1): to'lov paneli — tanlashda va yuklanmasa qiymatlar «—», qarz NOMA'LUM
+// (`#pay-debt[data-qarz]` bo'sh → `_joriyQarz` null): to'lov / kechirish oldingi buyurtma qarzidan hisoblanmaydi.
+function tolovPaneliniTozala(sabab) {
+  ['pay-total', 'pay-agreed', 'pay-paid', 'pay-debt', 's-total'].forEach(i => { const e = document.getElementById(i); if (e) e.textContent = '—'; });
+  const pd = document.getElementById('pay-debt');
+  if (pd) pd.dataset.qarz = '';
+  ['pay-discount-row', 'pay-refund-row', 'pay-writeoff-row'].forEach(i => { const e = document.getElementById(i); if (e) e.style.display = 'none'; });
+  const b = document.getElementById('pay-status-badge');
+  if (b) b.innerHTML = '';
+  const l = document.getElementById('paymentList');
+  if (l) l.innerHTML = sabab
+    ? `<div style="text-align:center;padding:14px;color:var(--m-b91c1c);font-size:14px">${escapeHtml(sabab)}</div>`
+    : '<div style="text-align:center;padding:14px;color:var(--text3);font-size:14px">Yuklanmoqda...</div>';
+}
+
 async function loadPayments(orderId) {
+  const joriy = tanlovJoriy('tolovlar', orderId);
   try {
-    const res = await fetch(`/api/orders/${orderId}`);
-    if (!res.ok) return;
-    const order = await res.json();
+    let order;
+    try {
+      order = await yukOl(`/api/orders/${orderId}`);
+    } catch (e) {
+      if (joriy()) tolovPaneliniTozala(yukXatoMatn("To'lovlar", e));
+      return;
+    }
+    if (!joriy()) return;
 
     const total = order.total_amount || 0;
     const agreed = order.agreed_amount ?? total;  // kech42 K42-1: 0 — haqiqiy qiymat
@@ -3088,10 +3255,16 @@ async function editAgreedAmount() {
   if (!selectedOrderId) return;
   // kech141 (zip 169): oy nomlari (✏️ izohi) — funksiya ichida (JS sinovlari funksiyani alohida ajratib oladi — global yo'q)
   const MONTHS_UZ_TZ = ['', 'Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun', 'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr'];
+  // kech144 (zip 173, audit P2-8): GET yiqilsa ✏️ jim hech narsa qilmasdi — endi sabab; saqlash — o'sha buyurtmaga (oid)
+  const oid = selectedOrderId;
   try {
-    const r = await fetch(`/api/orders/${selectedOrderId}`);
-    if (!r.ok) return;
-    const o = await r.json();
+    let o;
+    try {
+      o = await yukOl(`/api/orders/${oid}`);
+    } catch (e) {
+      showMsg('❌ Kelishilgan summa oynasi ochilmadi: ' + yukSabab(e), 'error');
+      return;
+    }
     const total = o.total_amount || 0;
     const cur = o.agreed_amount ?? total;  // kech42 K42-1
 
@@ -3113,30 +3286,36 @@ async function editAgreedAmount() {
     const val = narxniOqi(v);
     if (!val || val <= 0) { showMsg('Noto\'g\'ri summa', 'error'); return; }
 
-    const res = await fetch(`/api/orders/${selectedOrderId}/agreed-amount`, {
-      method: 'PUT',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ agreed_amount: val })
-    });
+    let res;
+    try {
+      res = await fetch(`/api/orders/${oid}/agreed-amount`, {
+        method: 'PUT',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ agreed_amount: val })
+      });
+    } catch (e) {
+      showMsg("❌ Natija noma'lum — " + await amalSababi(e) + " (to'lovlar bo'limini yangilab tekshiring)", 'error');
+      if (String(oid) === String(selectedOrderId)) loadPayments(oid);
+      return;
+    }
     if (res.ok) {
-      const d = await res.json();
-      loadPayments(selectedOrderId);
+      let d = null;
+      try { d = await res.json(); } catch (e) { d = null; }
+      if (String(oid) === String(selectedOrderId)) loadPayments(oid);
+      if (!d) { showMsg('✓ Yangilandi!', 'success'); return; }
       // kech141 (zip 169, A-P05): «Tayyor» buyurtmada — qaysi oy hisobotiga yozilgani; to'lovdan kam bo'lsa — mijozga qaytarish
       let qosh = '';
       if (d.tuzatish && d.tuzatish.oy) qosh += ` · ${MONTHS_UZ_TZ[d.tuzatish.oy]} ${d.tuzatish.yil} hisobotiga yozildi`;
       if (Number(d.ortiqcha_tolov||0) > 0.5) qosh += ` · ↩ Mijozga ${formatNum(d.ortiqcha_tolov)} so'm qaytarish kerak`;
       showMsg(`✓ Yangilandi! Chegirma: ${sonKor(d.discount_percent, 2)}% · Qarz: ${formatNum(d.debt_amount)} so'm` + qosh, 'success');
     } else {
-      // 17e: server sababi — `detail` obyekt (`detail.message`) yoki matn.
-      let sabab = 'Xato';
-      try {
-        const e = await res.json();
-        if (e && e.detail && typeof e.detail.message === 'string') sabab = e.detail.message;
-        else if (e && typeof e.detail === 'string') sabab = e.detail;
-      } catch(_) {}
-      showMsg('❌ ' + sabab, 'error');
+      // 17e: server sababi — `detail` obyekt (`detail.message`) yoki matn; kech144 (zip 173): 5xx / ro'yxat / 401 — `amalSababi`
+      showMsg('❌ Kelishilgan summa saqlanmadi: ' + await amalSababi(res), 'error');
     }
-  } catch(e) { showMsg('Server xatosi', 'error'); }
+  } catch(e) {
+    console.error('editAgreedAmount:', e);
+    showMsg('❌ Kelishilgan summa saqlanmadi: ' + yukSabab(yukXato('server')), 'error');
+  }
 }
 
 function openPaymentForm() {
@@ -3154,27 +3333,34 @@ function closePaymentForm() {
 // yozadi); ko'rinish butun so'mda qoladi. Ilgari ko'rinish matnining raqamlaridan o'qilardi — 1 228 752.75 qarz
 // "1 228 753" bo'lib to'lanardi (0.25 ortiqcha; O'LCHANGAN `work/probe124.py` O5). `debt_amount` 0.5 so'mgacha
 // qoldiqni allaqachon 0 beradi (119-band), shuning uchun bu yerda qo'shimcha chegara yo'q.
+// kech144 (zip 173): qarz yuklanmagan (yoki boshqa buyurtma tanlanib, hali yuklanmagan) — NULL (ilgari matndan «0» / oldingi
+// buyurtma qarzi olinardi). Chaqiruvchilar null da to'xtaydi.
 function _joriyQarz() {
   const el = document.getElementById('pay-debt');
   if (el && el.dataset && el.dataset.qarz !== undefined && el.dataset.qarz !== '') {
     const q = Number(el.dataset.qarz);
     if (isFinite(q)) return q;
   }
-  return parseInt(((el && el.textContent) || '0').replace(/[^\d]/g, '')) || 0;
+  return null;
 }
 
 function fillFullDebt() {
   const debt = _joriyQarz();
+  if (debt === null) { showMsg("❌ Qarz hali yuklanmagan — buyurtmani qayta tanlang", 'error'); return; }
   if (debt <= 0) { showMsg("Qarz yo'q", 'success'); return; }
   document.getElementById('pf-amount').value = narxKorinishi(debt);
 }
 
 async function savePayment() {
   if (!selectedOrderId) return;
+  if (savePayment.band) return;        // kech144 (zip 173): ikki marta bosilsa / javob sekin kelsa ikkinchi so'rov ketmaydi
   const amount = parseNum(document.getElementById('pf-amount').value);
   if (!amount || amount <= 0) { showMsg('To\'lov summasini kiriting!', 'error'); return; }
+  // kech144 (zip 173): qarz noma'lum (yuklanmagan) — to'lov ham, kechirish ham hisoblanmaydi
+  if (_joriyQarz() === null) { showMsg("❌ To'lov saqlanmadi: buyurtma qarzi hali yuklanmagan — buyurtmani qayta tanlang", 'error'); return; }
 
   const writeOff = document.getElementById('pf-writeoff')?.checked || false;
+  let kechirKutilgan = 0;               // kech144 (zip 173, egasi qarori 13.10): server faqat shu summani kechiradi
 
   // kech115 (G3-02 — Qarzdorlar sahifasidagi xuddi shu belgi): «qolganini chegirma qilish» to'lovdan keyin qolgan BUTUN
   // qarzni kechiradi (`main._tolov_qoldigini_chegirmaga`, chegarasiz) — ilgari tasdiqsiz edi. Endi kechiriladigan summa
@@ -3182,6 +3368,7 @@ async function savePayment() {
   if (writeOff) {
     const joriy = _joriyQarz();
     const kechir = (Math.round(joriy * 100) - Math.round(amount * 100)) / 100;   // butun tiyinlarda
+    kechirKutilgan = Math.max(0, kechir);
     if (kechir > 0.5) {
       const ha = await showConfirmModal(
         `⚠️ ${formatNum(amount)} so'm to'lovdan keyin qolgan ${narxKorinishi(kechir)} so'm KECHIRILADI (chegirma) — mijozdan olinmaydi, foyda hisobotidan ayiriladi.\n\nDavom etasizmi?`,
@@ -3216,8 +3403,9 @@ async function savePayment() {
     confirm_overpay: overpayConfirmed
   };
 
+  savePayment.band = true;
   try {
-    const url = writeOff ? '/api/payments?write_off_remainder=true' : '/api/payments';
+    const url = writeOff ? '/api/payments?write_off_remainder=true&kechirish=' + encodeURIComponent(String(kechirKutilgan)) : '/api/payments';
     const yubor = () => fetch(url, {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
@@ -3255,12 +3443,25 @@ async function savePayment() {
         showMsg('✓ To\'lov qo\'shildi! Qarz: ' + formatNum(r.debt_amount) + ' so\'m', 'success');
       }
     } else {
-      // 17f: server yuborgan aniq SABAB ("'amount' juda katta", "Buyurtma
-      // topilmadi" va h.k.) — ilgari faqat umumiy "saqlashda xato" chiqardi.
-      showMsg('❌ ' + await tolovXatoSababi(res, 'To\'lovni saqlashda xato'), 'error');
+      // 17f: server yuborgan aniq SABAB. kech144 (zip 173): `amalSababi` (401 — kirish oynasi, 5xx — «server javob bermadi»);
+      // 409 `kechirish_ozgardi` — qarz o'zgargan: hech narsa saqlanmagan, panel qayta yuklanadi
+      let _det = null;
+      try { _det = (await res.clone().json()).detail; } catch (e) { _det = null; }
+      if (res.status >= 500) {
+        // server javob bermadi — to'lov yozilgan bo'lishi mumkin (javob yo'qolgan): ro'yxat yangilanadi; 8 s ichida qayta bosilsa
+        // server takror yozmaydi
+        showMsg("❌ Natija noma'lum — server javob bermadi. To'lovlar ro'yxati yangilandi — tekshiring", 'error');
+        loadPayments(selectedOrderId);
+      } else {
+        showMsg("❌ To'lov saqlanmadi: " + await amalSababi(res), 'error');
+        if (_det && _det.type === 'kechirish_ozgardi') loadPayments(selectedOrderId);
+      }
     }
   } catch(e) {
-    showMsg('❌ Server xatosi', 'error');
+    showMsg("❌ Natija noma'lum — " + await amalSababi(e) + ". To'lovlar ro'yxatini tekshiring", 'error');
+    loadPayments(selectedOrderId);
+  } finally {
+    savePayment.band = false;
   }
 }
 
@@ -3278,18 +3479,28 @@ async function tolovXatoSababi(res, standart) {
 }
 
 async function deletePayment(paymentId) {
+  if (deletePayment.band) return;      // kech144 (zip 173): ikki bosish — ikkinchisi «topilmadi» xatosini ko'rsatardi
   if (!await showConfirmModal("Bu to'lovni o'chirishni tasdiqlaysizmi?", {danger:true, okText:"O'chirish"})) return;
+  deletePayment.band = true;
   try {
     const res = await fetch(`/api/payments/${paymentId}`, { method: 'DELETE' });
     if (res.ok) {
       loadPayments(selectedOrderId);
       showMsg('✓ To\'lov o\'chirildi', 'success');
+    } else if (res.status >= 500 || res.status === 401) {
+      // kech144 (zip 173): 5xx — natija noma'lum (ro'yxat yangilanadi), 401 — kirish oynasi
+      showMsg((res.status === 401 ? "❌ To'lov o'chirilmadi: " : "❌ Natija noma'lum — ") + await amalSababi(res), 'error');
+      if (res.status >= 500) loadPayments(selectedOrderId);
     } else {
       // kech115 (G2-03 davomi): ilgari server rad etsa HECH NARSA ko'rsatilmasdi — to'lov o'chdi deb o'ylanardi
       showMsg('❌ ' + await tolovXatoSababi(res, "To'lov o'chirilmadi"), 'error');
     }
   } catch(e) {
-    showMsg("❌ Server bilan aloqa yo'q — to'lov o'chirilmadi", 'error');
+    // kech144 (zip 173): so'rov ketgan bo'lishi mumkin — «o'chirilmadi» EMAS
+    showMsg("❌ Server bilan aloqa yo'q — natija noma'lum, to'lovlar ro'yxatini tekshiring", 'error');
+    loadPayments(selectedOrderId);
+  } finally {
+    deletePayment.band = false;
   }
 }
 
@@ -3348,10 +3559,27 @@ function _tahrirBanneriTikla() {
   }
 }
 
+// kech144 (zip 173): buyurtma formasi ochilishining tasodifiy kaliti — server (`crud.create_order`) shu kalitli buyurtma bor bo'lsa
+// YANGISINI yaratmaydi (javob yo'qolib, «💾 Buyurtmani saqlash» qayta bosilsa — takror buyurtma va ombor yechimi yo'q).
+function yaratishKaliti() {
+  try { if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID().replace(/-/g, ''); }
+  catch (e) { /* eski brauzer — pastdagi */ }
+  let k = Date.now().toString(36);
+  while (k.length < 24) k += Math.random().toString(36).slice(2);
+  return k.replace(/[^A-Za-z0-9]/g, '').slice(0, 32);
+}
+
 function showNewForm() {
+  // kech144 (zip 173, audit 2-to'lqin — O'LCHANGAN `work/k173/probe_buyurtma.py` V6 / V2b): tahrirlangan buyurtma yopilib
+  // «+ Yangi buyurtma» bosilsa forma O'SHA buyurtmaning detallari, loyi (30 kg), kelishilgan summasi, loyihasi va retsepti bilan
+  // ochilardi («Yangi buyurtma» sarlavhasi bilan) — saqlansa uning nusxasi yaratilardi. Tahrir / taklif rejimidan chiqishda
+  // forma tozalanadi; yangi buyurtma qoralamasi (tahrir emas) — avvalgidek saqlanib qoladi.
+  const _tahrirdan173 = !!(editMode || currentEditOrderId);
   // kech126 (zip 148): taklif rejimi (Tez hisob / tahrir / rasmiylashtirish) ochiq bo'lsa — oddiy buyurtma formasiga qaytadi
   // (taklif maydonlari va detallari tozalanadi); «📝 Takliflar» ro'yxati yashiriladi
   if (typeof taklifRejiminiTozala === 'function') taklifRejiminiTozala(true);
+  if (_tahrirdan173 && typeof _tkFormaniTozala === 'function') _tkFormaniTozala();
+  window._yaratishKaliti = yaratishKaliti();
   // 2026-09-15: audit paytida topilgan kamchilik — loyihalar soni ko'payib
   // ketsa (SaaS'da bir necha o'nlab/yuzlab bo'lishi mumkin), oddiy
   // ochiladigan ro'yxatdan kerakli loyihani topish qiyinlashadi. Endi
@@ -3883,7 +4111,10 @@ function previewPendingImage(input) {
   img.src = url;
 }
 
+// kech144 (zip 173, audit P2-11): natija — yuklanmagan rasmlar ro'yxati (`{nom, sabab}`); ilgari xato faqat konsolga yozilar,
+// foydalanuvchi rasm saqlandi deb o'ylardi.
 async function uploadPendingItemImages(savedItems) {
+  const xatolar = [];
   const rows = Array.from(document.querySelectorAll('#items .detal'))
     .filter(row => row.querySelector('.i-name')?.value.trim());
   const sortedItems = [...savedItems].sort((a, b) => a.id - b.id);
@@ -3893,10 +4124,23 @@ async function uploadPendingItemImages(savedItems) {
     if (!file) continue;
     const fd = new FormData();
     fd.append('file', file);
+    const nom = String(sortedItems[i].name || rows[i].querySelector('.i-name')?.value || '').trim();
     try {
-      await fetch(`/api/order-items/${sortedItems[i].id}/image`, { method: 'POST', body: fd });
-    } catch (e) { console.error('Rasm yuklashda xato:', e); }
+      const r = await fetch(`/api/order-items/${sortedItems[i].id}/image`, { method: 'POST', body: fd });
+      if (!r.ok) xatolar.push({ nom, sabab: await amalSababi(r) });
+    } catch (e) {
+      xatolar.push({ nom, sabab: await amalSababi(e) });
+    }
   }
+  return xatolar;
+}
+
+// kech144 (zip 173): yuklanmagan rasmlar — bitta xabar matni (bo'sh ro'yxat — '')
+function rasmXatolariMatni(xatolar) {
+  if (!Array.isArray(xatolar) || !xatolar.length) return '';
+  const birinchi = xatolar[0];
+  return `⚠️ ${xatolar.length} ta rasm yuklanmadi` + (birinchi.nom ? ` («${birinchi.nom}»${xatolar.length > 1 ? ' va boshqalar' : ''})` : '')
+    + ': ' + birinchi.sabab + " — buyurtma ochilgach, detal rasmini qayta yuklang.";
 }
 
 function addItem() {
@@ -4219,12 +4463,21 @@ function selectTypeOpt(btn, value) {
 // Ko'p mahsulot turi bo'lsa ham interfeys chalkashmasligi uchun,
 // bittalab tugma o'rniga BITTA tugma + qidiruv ishlatiladi.
 let _mrpProductTypesCache = null;
+// kech144 (zip 173, audit P1-3 / P2-3): ro'yxat yuklanmasa — SABAB (ilgari har xatoda «Hali … mahsulot turi yaratilmagan» —
+// yolg'on, va bo'sh ro'yxat sahifa yangilanguncha keshda qolardi). Kesh faqat MUVAFFAQIYATDA.
+async function mrpTurlariniOl() {
+  if (_mrpProductTypesCache) return _mrpProductTypesCache;
+  const d = await yukOl('/api/production/product-types');
+  _mrpProductTypesCache = Array.isArray(d) ? d : [];
+  return _mrpProductTypesCache;
+}
 async function openMrpProductPicker(btn) {
   const row = btn.closest('.detal');
-  if (!_mrpProductTypesCache) {
-    try {
-      _mrpProductTypesCache = await fetch('/api/production/product-types').then(r => r.ok ? r.json() : []);
-    } catch(e) { _mrpProductTypesCache = []; }
+  try {
+    await mrpTurlariniOl();
+  } catch (e) {
+    showMsg('❌ ' + yukXatoMatn('MRP mahsulot turlari', e).replace(/^⚠️ /, ''), 'error');
+    return;
   }
   if (!_mrpProductTypesCache.length) {
     showMsg("Hali \"Ishlab chiqarish\" bo'limida faol mahsulot turi yaratilmagan. Avval o'sha yerda mahsulot turi yarating.", 'error');
@@ -5382,6 +5635,20 @@ function buyurtmaUmumiyKamchiliklar(items) {
     if (!nom && row.dataset.tegildi === '1') nomsiz.push({ yorliq: detalYorligi(row, idx), id: row.id });
   });
   nomsiz.forEach(x => issues.push({ text: `${x.yorliq} — nomi kiritilmagan (nomsiz detal saqlanmaydi)`, targetId: x.id }));
+  // kech144 (zip 173, audit P2-14): nomli detalda miqdor bo'sh yoki 0 — ilgari JIM 1 deb saqlanardi (narx va ombor ham 1 uchun)
+  document.querySelectorAll('.detal').forEach((row, idx) => {
+    const nom = (row.querySelector('.i-name')?.value || '').trim();
+    const qEl = row.querySelector('.i-q');
+    if (!nom || !qEl) return;
+    // Profil — miqdor maydoni yashirin (doim 1, uzunlik «.i-l» da): tekshirilmaydi
+    const qWrap = row.querySelector('.i-q-wrap');
+    if (qWrap && qWrap.style.display === 'none') return;
+    const q = parseFloat(qEl.value);
+    if (!(q > 0)) {
+      const yorliq = (row.querySelector('.i-q-label')?.textContent || 'Miqdor').trim();
+      issues.push({ text: `${detalYorligi(row, idx)} — «${yorliq}» kiritilmagan (0 dan katta bo'lsin)`, targetId: row.id });
+    }
+  });
   if (!(items || []).length && !nomsiz.length) issues.push({ text: "Kamida bitta detal qo'shing (nomi bilan)", targetId: 'items' });
   return issues;
 }
@@ -5542,6 +5809,11 @@ async function saveOrder(isDraft = false) {
     base_price: parseNum(document.getElementById('base_price')?.value || '0') || null,
     loy_kg: parseFloat(document.getElementById('loy_kg')?.value || '0') || null
   };
+  // kech144 (zip 173): forma kaliti — javob yo'qolib qayta bosilsa server o'sha buyurtmani qaytaradi (takror yaratilmaydi)
+  if (!_tkTaklif126) {
+    if (!window._yaratishKaliti) window._yaratishKaliti = yaratishKaliti();
+    data.yaratish_kaliti = window._yaratishKaliti;
+  }
 
   // kech126 (zip 148): taklif — `POST /api/takliflar` (tahrirda `PUT`), izoh bilan; rasmiylashtirish — quyidagi umumiy oqim
   if (_tkTaklif126 && typeof taklifniYubor === 'function') {
@@ -5554,6 +5826,9 @@ async function saveOrder(isDraft = false) {
 }
 
 async function submitOrderRequest(data, isDraft, zaklat, zaklatMethod, confirmShortage) {
+  // kech144 (zip 173): so'rov ketayotganda ikkinchi bosish e'tiborsiz
+  if (submitOrderRequest.band) return;
+  submitOrderRequest.band = true;
   try {
     const url = '/api/orders' + (confirmShortage ? '?confirm_shortage=true' : '');
     // kech126 (zip 148): taklifni rasmiylashtirish — o'sha oqim (409 yetishmovchilik oynasi, zaklat, rasmlar), manzil va tana —
@@ -5565,17 +5840,32 @@ async function submitOrderRequest(data, isDraft, zaklat, zaklatMethod, confirmSh
       const saved = await res.json();
       orderJustSubmitted = true;
       clearDraftLS();
-      if (saved.items && saved.items.length) {
-        await uploadPendingItemImages(saved.items);
+      // kech144 (zip 173): avval saqlangan (javobi yo'qolgan) buyurtma qaytdi — `X-Takror` (server, forma kaliti / 8 s)
+      const takror = res.headers && typeof res.headers.get === 'function' && res.headers.get('X-Takror') === '1';
+      let rasmOgoh = '';
+      if (saved.items && saved.items.length && !takror) {
+        rasmOgoh = rasmXatolariMatni(await uploadPendingItemImages(saved.items));
       }
       const loyKg = parseFloat(document.getElementById('loy_kg')?.value || 0);
       if (loyKg > 0) {
-        await fetch(`/api/orders/${saved.id}/coating-notify?loy_kg=${loyKg}`, {
-          method: 'POST'
-        });
+        // kech144 (zip 173): natija tekshiriladi (ilgari javobga qaralmasdi — ruxsat yo'q / xato bo'lsa qoplamachiga xabar jim ketmasdi)
+        try {
+          const cn = await fetch(`/api/orders/${saved.id}/coating-notify?loy_kg=${loyKg}`, { method: 'POST' });
+          if (!cn.ok) rasmOgoh = ('⚠️ Qoplamachiga xabar ketmadi: ' + await amalSababi(cn) + '\n' + rasmOgoh).trim();
+        } catch (e) {
+          rasmOgoh = ('⚠️ Qoplamachiga xabar ketmadi: ' + await amalSababi(e) + '\n' + rasmOgoh).trim();
+        }
+      }
+      if (zaklat > 0 && takror) {
+        // birinchi so'rovda zaklat yozilganmi — noma'lum: ikkinchi marta yozilmaydi, tekshirish so'raladi
+        showMsg("⚠️ Bu buyurtma avval saqlangan ekan — ochilmoqda. ZAKLATni «To'lovlar» bo'limida tekshiring (yo'q bo'lsa qo'lda kiriting).", 'error');
+        setTimeout(() => { window.location.href = '/orders?order=' + Number(saved.id); }, 3500);
+        return;
       }
       if (zaklat > 0) {
-        const zRes = await fetch('/api/payments', {
+        let zRes;
+        try {
+          zRes = await fetch('/api/payments', {
           method: 'POST',
           headers: {'Content-Type':'application/json'},
           body: JSON.stringify({
@@ -5586,30 +5876,47 @@ async function submitOrderRequest(data, isDraft, zaklat, zaklatMethod, confirmSh
             notes: 'Buyurtma yaratilganda'
           })
         });
-        if (!zRes.ok) {
-          const zErr = await zRes.json().catch(() => ({}));
-          showMsg('⚠️ Buyurtma yaratildi, lekin ZAKLAT saqlanmadi: ' + (zErr.detail?.message || zErr.detail || 'Server xatosi') + ' — "To\'lovlar" bo\'limidan qo\'lda kiriting!', 'error');
+        } catch (e) { zRes = e; }
+        if (!zRes || !zRes.ok) {
+          // kech144 (zip 173): sabab — `amalSababi` (internet uzilsa ham; buyurtmaning o'zi saqlangan, sahifa unga o'tadi)
+          showMsg('⚠️ Buyurtma yaratildi, lekin ZAKLAT saqlanmadi: ' + await amalSababi(zRes) + ' — "To\'lovlar" bo\'limidan tekshirib, kerak bo\'lsa qo\'lda kiriting!'
+                  + (rasmOgoh ? '\n' + rasmOgoh : ''), 'error');
           // kech120 (G2-13): sahifa YANGI buyurtma ochilgan holda yuklanadi (ilgari ro'yxatdan qaytadan qidirilardi)
           setTimeout(() => { window.location.href = '/orders?order=' + Number(saved.id); }, 3500);
           return;
         }
       }
-      showMsg(isDraft ? '\ud83d\udcdd Qoralama saqlandi! Ombordan xomashyo yechilmadi.' : '\u2713 Buyurtma yaratildi!', 'success');
+      if (rasmOgoh) {
+        // kech144 (zip 173, audit P2-11 / P2-12): buyurtma saqlangan, rasm(lar) yuklanmadi / qoplamachiga xabar ketmadi — xabar
+        // o'qilishi uchun sahifa kechroq o'tadi
+        showMsg((isDraft ? 'Qoralama saqlandi. ' : 'Buyurtma yaratildi. ') + rasmOgoh, 'error');
+        setTimeout(() => { window.location.href = '/orders?order=' + Number(saved.id); }, 4000);
+        return;
+      }
+      showMsg(takror ? 'ℹ️ Bu buyurtma avval saqlangan ekan — ochilmoqda (ikkinchisi yaratilmadi)'
+                     : (isDraft ? '\ud83d\udcdd Qoralama saqlandi! Ombordan xomashyo yechilmadi.' : '\u2713 Buyurtma yaratildi!'), 'success');
       setTimeout(() => { window.location.href = '/orders?order=' + Number(saved.id); }, 1000);     // kech120 (G2-13)
     } else if (res.status === 409) {
-      const e = await res.json();
-      if (e.detail && e.detail.type === 'stock_shortage_warning') {
+      let e = null;
+      try { e = await res.clone().json(); } catch (_) { e = null; }
+      if (e && e.detail && e.detail.type === 'stock_shortage_warning') {
+        submitOrderRequest.band = false;
         showStockShortageModal(e.detail.shortages, data, isDraft, zaklat, zaklatMethod);
       } else {
-        showMsg('\u274c ' + ((e.detail && e.detail.message) || 'Xato'), 'error');
+        showMsg('❌ Buyurtma saqlanmadi: ' + await amalSababi(res), 'error');
       }
+    } else if (res.status >= 500) {
+      // kech144 (zip 173, O'LCHANGAN probe V4): server saqlab ulgurgan bo'lishi mumkin (javob yo'qolgan) — «saqlanmadi» EMAS
+      showMsg("❌ Natija noma'lum — server javob bermadi. «💾 Buyurtmani saqlash» ni qayta bossangiz takror buyurtma yaratilmaydi "
+              + "(avval saqlangan bo'lsa — o'sha ochiladi).", 'error');
     } else {
-      // kech120 (zip 134 — G2-09): ilgari «Xato: {…}» (xom JSON) — endi server SABABI oddiy gap bilan (`xatoSababi`)
-      let e = null;
-      try { e = await res.json(); } catch (_) { e = null; }
-      showMsg('❌ ' + ((typeof xatoSababi === 'function') ? xatoSababi(e, 'Buyurtma saqlanmadi') : 'Buyurtma saqlanmadi'), 'error');
+      showMsg('❌ Buyurtma saqlanmadi: ' + await amalSababi(res), 'error');
     }
-  } catch(e) { showMsg('Server xatosi', 'error'); }
+  } catch(e) {
+    showMsg("❌ Natija noma'lum — " + await amalSababi(e) + ". «💾 Buyurtmani saqlash» ni qayta bossangiz takror buyurtma yaratilmaydi.", 'error');
+  } finally {
+    submitOrderRequest.band = false;
+  }
 }
 
 function showStockShortageModal(shortages, data, isDraft, zaklat, zaklatMethod) {
@@ -5754,13 +6061,14 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
       // ma'lumot bilan davom etadi).
       order = preloadedOrder;
     } else {
-      const ordRes = await fetch(`/api/orders/${editId}`);
-      if (!ordRes.ok) {
-        const err = await ordRes.json();
-        showMsg('❌ ' + ((typeof xatoSababi === 'function') ? xatoSababi(err, 'Server xatosi') : 'Server xatosi'), 'error');   // kech120 (zip 134 — G2-09)
+      // kech144 (zip 173): `yukOl` — 502 (HTML) da «Unexpected token» o'rniga sabab; forma «Yangi buyurtma» bo'lib ochiq qolmaydi
+      try {
+        order = await yukOl(`/api/orders/${editId}`);
+      } catch (e) {
+        hideNewForm();
+        showMsg('❌ Buyurtma ochilmadi: ' + yukSabab(e), 'error');
         return;
       }
-      order = await ordRes.json();
     }
     if (!order || !order.id) {
       showMsg('Buyurtma ma\'lumotlari topilmadi', 'error');
@@ -5829,7 +6137,9 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
     const basePriceEl = document.getElementById('base_price');
     // 124-band (kech95): tiyinli qiymat YAXLITLANMAYDI (O'LCHANGAN `work/probe124.py` O2: 1 200 000.50 → 1 200 001
     // bo'lib saqlanardi). Shu blokdagi hamma pul maydonlari — `narxKorinishi` (2 xonagacha, aynan).
-    if (basePriceEl && order.base_price) basePriceEl.value = narxKorinishi(order.base_price);
+    // kech144 (zip 173, audit P2-17): buyurtmada yo'q bo'lsa — maydon BO'SH (ilgari oldingi formaning narxi qolib, narxlar shu bilan
+    // qayta hisoblanardi; `_narxiNolgaTushgan` buni ushlamasdi — narx 0 emas, noto'g'ri)
+    if (basePriceEl) basePriceEl.value = order.base_price ? narxKorinishi(order.base_price) : '';
 
     // Har bir detalga forma qo'shamiz
     if (itemsToUse.length > 0) {
@@ -5838,10 +6148,18 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
       // uchun), shuning uchun ro'yxatni OLDINDAN, forEach boshlanishidan
       // avval, bir marta yuklab olamiz (har bir item uchun alohida kutish —
       // "await" — forEach ichida ishonchli ishlamaydi).
-      if (itemsToUse.some(it => (it.category || '') === 'mrp_product') && !_mrpProductTypesCache) {
+      // kech144 (zip 173, audit P1-3): ro'yxat yuklanmasa — tahrir / nusxa OCHILMAYDI (ilgari bo'sh ro'yxat bilan ochilib, saqlashda
+      // MRP detalining turi, qoplamasi va o'lchamlari o'chib ketardi)
+      if (itemsToUse.some(it => (it.category || '') === 'mrp_product')) {
         try {
-          _mrpProductTypesCache = await fetch('/api/production/product-types').then(r => r.ok ? r.json() : []);
-        } catch(e) { _mrpProductTypesCache = []; }
+          await mrpTurlariniOl();
+        } catch (e) {
+          editMode = false;
+          currentEditOrderId = null;
+          hideNewForm();
+          showMsg('❌ Buyurtma ochilmadi: ' + yukXatoMatn('MRP mahsulot turlari', e).replace(/^⚠️ /, ''), 'error');
+          return;
+        }
       }
       itemsToUse.forEach(item => {
         addItem();
@@ -5866,6 +6184,15 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
             row.dataset.mrpUnit = pt.unit;
             row.dataset.mrpSupportsCoating = pt.supports_coating ? '1' : '0';
             row.dataset.mrpCoatingMult = pt.coating_price_multiplier || '';
+          } else {
+            // kech144 (zip 173, audit P1-3): tur faol ro'yxatda yo'q (o'chirilgan) — saqlangan qiymatlar saqlanadi (ilgari saqlashda
+            // `product_type_id: null`, qoplama «yo'q», o'lchamlar bo'sh yozilardi)
+            row.dataset.mrpProductTypeId = item.product_type_id;
+            row.dataset.mrpInputTemplate = (Number(item.thickness) > 0) ? 'dimensional_3d'
+              : ((Number(item.width) > 0 || Number(item.length) > 0) ? 'area_2d' : 'quantity_only');
+            row.dataset.mrpUnit = item.unit || 'dona';
+            row.dataset.mrpSupportsCoating = item.is_coated ? '1' : '0';
+            row.dataset.mrpCoatingMult = '';
           }
         }
         // 77-band: korxonada o'chirilgan tur (eskirgan `blok`) — shu qatorga variant (aks holda '').
@@ -6126,6 +6453,8 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
       // xodim ularni (kerak bo'lsa) yangidan kiritadi. editMode/currentEditOrderId
       // showNewForm() tomonidan allaqachon to'g'ri (false/null) qilib qo'yilgan.
       window._dlvMap = {};
+      // kech144 (zip 173): «loy olib kelinmaydi» — oldingi formadagi loy ham qolmaydi (izoh bilan bir xil)
+      { const _l173 = document.getElementById('loy_kg'); if (_l173) _l173.value = ''; }
       document.getElementById('formTitle').textContent = `Yangi buyurtma (nusxa: ${order.order_number})`;
       showMsg(`📋 ${order.order_number} asosida nusxa olindi — miqdor/narxlarni tekshirib, saqlang`, 'success');
     } else if (isTaklif) {
@@ -6203,15 +6532,26 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
         }
       }
 
-      // Loy rejasi
-      try {
-        const lr = await fetch(`/api/orders/${editId}/planned-loy`);
-        if (lr.ok) {
-          const ld = await lr.json();
-          const loyEl = document.getElementById('loy_kg');
-          if (loyEl && ld.planned_loy) { loyEl.value = ld.planned_loy; checkLoyStock(); }
+      // Loy rejasi — kech144 (zip 173, O'LCHANGAN probe V2 / V2b): maydon HAR DOIM serverdagi qiymat bilan (0 — bo'sh); ilgari
+      // reja 0 bo'lsa maydonga tegilmasdi (oldingi buyurtmaning 30 kg i qolib, saqlashda shu buyurtmaga yozilardi), so'rov
+      // yiqilsa — bo'sh maydon bilan saqlash `loy_kg=0` yuborib, rejadagi loyni omborga qaytarardi. Endi yuklanmasa — tahrir ochilmaydi.
+      {
+        const loyEl = document.getElementById('loy_kg');
+        if (loyEl) loyEl.value = '';
+        let ld;
+        try {
+          ld = await yukOl(`/api/orders/${editId}/planned-loy`);
+        } catch (e) {
+          editMode = false;
+          currentEditOrderId = null;
+          hideNewForm();
+          showMsg('❌ Tahrirlash ochilmadi: loy rejasi yuklanmadi — ' + yukSabab(e), 'error');
+          return;
         }
-      } catch(e) {}
+        const _reja = Number(ld && ld.planned_loy) || 0;
+        if (loyEl) loyEl.value = _reja > 0 ? String(_reja) : '';
+        if (typeof checkLoyStock === 'function') checkLoyStock();
+      }
 
       // Zaklat maydonini yashiramiz (tahrirlashda to'lov "To'lovlar" bo'limidan qo'shiladi)
       const zWrap = document.getElementById('zaklat-field-wrap');
@@ -6246,7 +6586,8 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
     editInitialLoadDone = true;
 
   } catch(e) {
-    showMsg('Server xatosi: ' + e.message, 'error');
+    console.error('editSelected:', e);
+    showMsg('❌ Buyurtma ochilmadi: ' + yukSabab(yukXato('server')), 'error');
   }
 }
 
@@ -6445,6 +6786,9 @@ function _narxiNolgaTushgan(items) {
 }
 
 async function updateOrder(orderId) {
+  // kech144 (zip 173): tahrir oynasi hali to'liq yuklanmagan (loy rejasi, detallar) — saqlash bo'sh / eski qiymatlarni yubormasin
+  if (editMode && !editInitialLoadDone) { showMsg('⏳ Buyurtma hali yuklanmoqda — bir oz kuting', 'error'); return; }
+  if (updateOrder.band) return;
   const projId = parseInt(document.getElementById('project_id').value);
 
   // Topshirish cheklovini tekshiramiz
@@ -6510,15 +6854,17 @@ async function updateOrder(orderId) {
   };
 
   const url = `/api/orders/${orderId}?loy_kg=${loyKg}`;
-  console.log('Tahrirlash:', data);
 
+  updateOrder.band = true;
   try {
     const res = await fetch(url, {
       method: 'PUT',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify(data)
     });
-    const result = await res.json();
+    // kech144 (zip 173, audit 2-to'lqin P2-6): JSON emas javob (502 HTML) — «Unexpected token '<'» o'rniga sabab
+    let result = {};
+    try { result = await res.clone().json(); } catch (e) { result = {}; }
     const box = document.getElementById('resultBox');
 
     if (res.ok) {
@@ -6549,15 +6895,24 @@ async function updateOrder(orderId) {
         html += `<br><br>💰 Qarz: ${formatNum(result.debt_amount)} so'm`;
       }
       if (box) { box.innerHTML = html; box.className = 'result-box success'; box.style.display = 'block'; }
-      try {
-        const freshRes = await fetch(`/api/orders/${orderId}`);
-        if (freshRes.ok) {
-          const fresh = await freshRes.json();
-          if (fresh.items && fresh.items.length) await uploadPendingItemImages(fresh.items);
+      // kech144 (zip 173, audit P2-11): yangi tanlangan rasmlar — yuklanmasa sabab (ilgari jim)
+      let rasmOgoh = '';
+      const rasmBor = Array.from(document.querySelectorAll('#items .detal .i-pending-image')).some(f => f.files && f.files.length);
+      if (rasmBor) {
+        try {
+          const fresh = await yukOl(`/api/orders/${orderId}`);
+          if (fresh.items && fresh.items.length) rasmOgoh = rasmXatolariMatni(await uploadPendingItemImages(fresh.items));
+        } catch (e) {
+          rasmOgoh = '⚠️ Yangi rasm(lar) yuklanmadi: ' + yukSabab(e) + ' — detal rasmini qayta yuklang.';
         }
-      } catch (e) { console.error('Rasmlarni yuklashda xato:', e); }
-      showMsg('✓ Saqlandi!', 'success');
-      setTimeout(()=>location.reload(), 3000);
+      }
+      if (rasmOgoh) {
+        showMsg('✓ Saqlandi. ' + rasmOgoh, 'error');
+        setTimeout(()=>location.reload(), 5000);
+      } else {
+        showMsg('✓ Saqlandi!', 'success');
+        setTimeout(()=>location.reload(), 3000);
+      }
     } else if (res.status === 409 && result.detail && result.detail.type === 'stock_shortage_warning') {
       // Xomashyo yetishmayapti — "davom etasizmi?" so'raymiz (create bilan bir xil)
       const shortList = (result.detail.shortages || []).map(x => `• ${x}`).join('\n');
@@ -6578,19 +6933,22 @@ async function updateOrder(orderId) {
           showMsg('✓ Saqlandi (ombor manfiy bo\'ldi)!', 'success');
           setTimeout(()=>location.reload(), 1500);
         } else {
-          const e2 = await res2.json().catch(()=>({}));
-          showMsg('❌ ' + ((e2.detail && e2.detail.message) || 'Xato'), 'error');
+          showMsg("❌ O'zgarishlar saqlanmadi: " + await amalSababi(res2), 'error');
         }
       }
     } else {
-      const det = result.detail || {};
-      let html = '<b>❌ ' + escapeHtml(det.message || 'Xato') + '</b>';
+      // kech144 (zip 173): sabab — `amalSababi` (matnli `detail` — 403 / 404 / 422 ham; ilgari «❌ Xato»), yetishmovchiliklar ro'yxati
+      const det = (result.detail && typeof result.detail === 'object' && !Array.isArray(result.detail)) ? result.detail : {};
+      const sabab = await amalSababi(res);
+      let html = '<b>❌ ' + escapeHtml("O'zgarishlar saqlanmadi: " + sabab) + '</b>';
       if (det.shortages?.length) html += '<br><br>' + det.shortages.map(x=>`• ${escapeHtml(x)}`).join('<br>');
       if (box) { box.innerHTML = html; box.className = 'result-box error'; box.style.display = 'block'; }
-      showMsg('❌ ' + (det.message || 'Xato'), 'error');
+      showMsg("❌ O'zgarishlar saqlanmadi: " + sabab, 'error');
     }
   } catch(e) {
-    showMsg('Server xatosi: ' + e.message, 'error');
+    showMsg("❌ Natija noma'lum — " + await amalSababi(e), 'error');
+  } finally {
+    updateOrder.band = false;
   }
 }
 function showPromptModal(message, defaultValue = '', options = {}) {
@@ -6664,19 +7022,36 @@ function showConfirmModal(message, options = {}) {
 
 async function markReadySelected() {
   if (!selectedOrderId) return;
+  if (markReadySelected.band) return;
 
   // Rejalashtirilgan loy ma'lumotini oldindan yig'amiz
+  // kech144 (zip 173, audit P2-4): yuklanmasa reja 0 deb olinar — «Rejada …» yo'qolib, «Bo'sh qoldirsangiz faqat kesish
+  // hisoblanadi» (yolg'on) chiqardi, ikkalasi yiqilsa loy maydoni umuman yo'q edi. Endi — sabab, «Tasdiqlash» yopiq.
+  const oid = selectedOrderId;
   let planned = 0;
-  try {
-    const r = await fetch(`/api/orders/${selectedOrderId}/planned-loy`);
-    if (r.ok) { const d = await r.json(); planned = d.planned_loy || 0; }
-  } catch(e) {}
-
   let orderData = null;
+  let yukSababi = '';
+  markReadySelected.band = true;
   try {
-    const orderRes = await fetch(`/api/orders/${selectedOrderId}`);
-    if (orderRes.ok) orderData = await orderRes.json();
-  } catch(e) {}
+    const d = await yukOl(`/api/orders/${oid}/planned-loy`);
+    planned = Number(d && d.planned_loy) || 0;
+    orderData = await yukOl(`/api/orders/${oid}`);
+  } catch (e) {
+    yukSababi = yukSabab(e);
+  } finally {
+    markReadySelected.band = false;
+  }
+  if (String(oid) !== String(selectedOrderId)) return;   // shu orada boshqa buyurtma tanlandi
+  const _okRm = document.getElementById('readyModalOk');
+  if (yukSababi) {
+    _readyModalData = null;
+    document.getElementById('readyModalBody').innerHTML = '';
+    _tayyorXatosi("<b>❌ Buyurtma ma'lumoti yuklanmadi</b><br>" + escapeHtml(yukSababi) + "<br>Oynani yopib, «Tayyor» ni qayta bosing.");
+    if (_okRm) _okRm.disabled = true;
+    document.getElementById('readyModalOverlay').style.display = 'flex';
+    return;
+  }
+  if (_okRm) _okRm.disabled = false;
 
   // kech62 (K62-1): buyurtma loyini sarflovchi detal — backend `_buyurtma_loyi_detalimi` bilan
   // bir xil (MRP mahsuloti, "Loy sotish" va Tayyor mahsulotdan olingan detal — YO'Q).
@@ -6772,6 +7147,10 @@ async function submitReadyModal() {
       box.innerHTML = html; box.className = 'result-box success';
       box.style.display = 'block';
       setTimeout(()=>location.reload(), 6000);
+    } else if (res.status >= 500) {
+      // kech144 (zip 173, audit P2-15): server javob bermadi — saqlangan bo'lishi mumkin (Telegram / PDF saqlashdan KEYIN ishlaydi)
+      _tayyorXatosi("<b>❌ Natija noma'lum</b><br>Server javob bermadi — «Tayyor» saqlangan bo'lishi mumkin. Oynani yopib, sahifani yangilang va buyurtma holatini tekshiring.");
+      showMsg("❌ Natija noma'lum — server javob bermadi", 'error');
     } else {
       // kech115 (G2-03): rad — oyna OCHIQ qoladi, sabab oynada va xabarda
       let html = '<b>❌ «Tayyor» saqlanmadi</b><br>';
@@ -6780,15 +7159,16 @@ async function submitReadyModal() {
         html += result.detail.shortages.map(escapeHtml).join('<br>');
         qisqa = String(result.detail.shortages[0]);
       } else {
-        qisqa = xatoSababi(result, "«Tayyor» saqlanmadi");
+        qisqa = res.status === 401 ? await amalSababi(res) : xatoSababi(result, "«Tayyor» saqlanmadi");
         html += escapeHtml(qisqa);
       }
       _tayyorXatosi(html);
       showMsg('❌ ' + qisqa, 'error');
     }
   } catch(e) {
-    _tayyorXatosi("<b>❌ Server bilan aloqa yo'q</b><br>Internetni tekshirib, qayta bosing — «Tayyor» saqlanmadi.");
-    showMsg("❌ Server bilan aloqa yo'q", 'error');
+    // kech144 (zip 173, audit P2-15): so'rov ketgan bo'lishi mumkin — «saqlanmadi» EMAS
+    _tayyorXatosi("<b>❌ Server bilan aloqa yo'q</b><br>Natija noma'lum — internetni tekshiring, sahifani yangilab buyurtma holatini ko'ring (saqlangan bo'lsa qayta bosish shart emas).");
+    showMsg("❌ Server bilan aloqa yo'q — natija noma'lum", 'error');
   } finally {
     if (okBtn) { okBtn.disabled = false; okBtn.textContent = _okMatn || '✓ Tasdiqlash'; }
   }
@@ -6920,10 +7300,19 @@ async function deleteSelected() {
   // shoxi bilan AYNAN). Ilgari `hasDelivery` (`o.deliveries` — bu API da YO'Q) ga bog'langan edi: DOIM false,
   // so'rov HECH QACHON chiqmasdi (O'LCHANDI — `tools/test_tayyor_yuk.py` F11, `tools/test_ochirish_loy.py`).
   let loyReja = null;
+  if (deleteSelected.band) return;
+  // kech144 (zip 173, O'LCHANGAN probe V3): ma'lumot yuklanmasa tasdiq faqat «5 o'chirilsinmi?» edi — to'lov ham o'chishi, loy
+  // so'rovi va yakunlash haqida OGOHLANTIRISHSIZ o'chirilardi. Endi yuklanmasa o'chirilmaydi (sabab bilan).
+  let _o173;
   try {
-    const r = await fetch(`/api/orders/${selectedOrderId}`);
-    if (r.ok) {
-      const o = await r.json();
+    _o173 = await yukOl(`/api/orders/${selectedOrderId}`);
+  } catch (e) {
+    showMsg("❌ Buyurtma o'chirilmadi: ma'lumoti yuklanmadi — " + yukSabab(e), 'error');
+    return;
+  }
+  try {
+    {
+      const o = _o173;
       orderNum = o.order_number || selectedOrderId;
 
       // kech75 (93 / 94-band): matn SERVER rejasidan (`ochirish` — `api_delete_order` bilan yagona
@@ -6983,7 +7372,11 @@ async function deleteSelected() {
         }
       }
     }
-  } catch(e) {}
+  } catch(e) {
+    console.error('deleteSelected:', e);
+    showMsg("❌ Buyurtma o'chirilmadi: tasdiq matni tayyorlanmadi — sahifani yangilang", 'error');
+    return;
+  }
 
   if (!await showConfirmModal(`${orderNum} o'chirilsinmi?${info}`, {danger:true, okText:"O'chirish"})) return;
 
@@ -7010,9 +7403,17 @@ async function deleteSelected() {
     }
   }
 
+  deleteSelected.band = true;
   try {
     const res = await fetch(`/api/orders/${selectedOrderId}${actualLoyParam}`, { method:'DELETE' });
-    const d = await res.json();
+    if (!res.ok) {
+      // kech144 (zip 173): sabab — `amalSababi` (JSON emas / 401 ham); 5xx — javob yo'qolgan bo'lishi mumkin: natija noma'lum
+      if (res.status >= 500) showMsg("❌ Natija noma'lum — server javob bermadi. Sahifani yangilab buyurtma o'chganini tekshiring", 'error');
+      else showMsg("❌ Buyurtma o'chirilmadi: " + await amalSababi(res), 'error');
+      return;
+    }
+    let d = {};
+    try { d = await res.json(); } catch (e) { d = {}; }
     if (res.ok) {
       const box = document.getElementById('resultBox');
       // kech100 (93-band): topshirilgan qism yakunlandi — server xabari (summa, ortiqcha to'lov / qarz)
@@ -7036,15 +7437,13 @@ async function deleteSelected() {
       } else {
         location.reload();
       }
-    } else {
-      // 17d (2026-09-21): server sababi ko'rsatiladi (masalan "'actual_loy_kg'
-      // manfiy bo'lishi mumkin emas") — ilgari faqat "Xato yuz berdi".
-      const det = d && d.detail;
-      const sabab = (typeof det === 'string' && det) ? det
-                  : ((det && typeof det.message === 'string') ? det.message : 'Xato yuz berdi');
-      showMsg('❌ ' + sabab, 'error');
     }
-  } catch(e) { showMsg('Server xatosi', 'error'); }
+  } catch(e) {
+    // kech144 (zip 173): so'rov ketgan bo'lishi mumkin — «o'chirilmadi» EMAS
+    showMsg("❌ Natija noma'lum — " + await amalSababi(e) + ". Sahifani yangilab buyurtma o'chganini tekshiring", 'error');
+  } finally {
+    deleteSelected.band = false;
+  }
 }
 
 // ── Qidiruv ───────────────────────────────────────────────
