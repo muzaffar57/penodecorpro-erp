@@ -4570,7 +4570,14 @@ def api_restore_project(project_id: int, db: Session = Depends(get_db), current_
     if not auth.project_of_company(db, project_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
     who = current_user.full_name or current_user.username
-    if not crud.restore_project(db, project_id, performed_by=who):
+    # kech144 (zip 175, audit T2 — O'LCHANGAN fy_probe1 S6): savatda bo'lmagan loyiha — 409 (ilgari 200 va soxta «tiklandi» yozuvi);
+    # tiklash va jurnal BITTA tranzaksiyada, butunlay o'chirish bilan bir qulf (`crud.restore_project`).
+    try:
+        with crud.bitta_tranzaksiya(db):
+            _ok = crud.restore_project(db, project_id, performed_by=who)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    if not _ok:
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
     return {"status": "ok"}
 
@@ -4607,7 +4614,8 @@ def api_permanent_delete_project(project_id: int, db: Session = Depends(get_db),
 
 
 @app.post("/api/users")
-def api_create_user(data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_create_user(request: Request, response: Response, data: dict, db: Session = Depends(get_db),
+                    current_user=Depends(auth.admin_only)):
     # kech93 (8-band): xom JSON QAT'IY tekshiriladi (`crud._clean_val("UserCreate")`).
     # HAQIQIY PostgreSQL da O'LCHANGAN (`work/probe8.py`, `work/probe8b.py`): kalit
     # yo'q / `true` / son / NaN → 500; login 51 / ism 101 belgi → 500; bo'sh
@@ -4622,19 +4630,39 @@ def api_create_user(data: dict, db: Session = Depends(get_db), current_user=Depe
     role = UserRole(toza.get("role") or "manager")
     # M1: yangi foydalanuvchi ALBATTA joriy adminning korxonasiga tegishli.
     # kech118 (ROLLAR): `rol_id` — korxona roli (sahifa shuni yuboradi); berilmasa — `role` turining tayyor roli.
-    user = auth.create_user(db, toza["username"], toza["password"], role,
-                            toza.get("full_name", ""),
-                            company_id=auth.company_id_of(current_user), rol_id=toza.get("rol_id"))
-    return {"id": user.id, "username": user.username, "role": user.role.value, "rol_id": user.rol_id,
-            "rol_nomi": user.rol_nomi}
+    _cid175 = auth.company_id_of(current_user)
+
+    def _bajar():
+        user = auth.create_user(db, toza["username"], toza["password"], role,
+                                toza.get("full_name", ""),
+                                company_id=_cid175, rol_id=toza.get("rol_id"))
+        # kech144 (zip 175, audit X2 — O'LCHANGAN fy_probe2 S5: yaratish, yoqish / o'chirish, parol tiklash jurnalda 0 qator edi)
+        crud.log_activity(db, "created", "user", user.id, f"Foydalanuvchi «{user.username}»",
+                          performed_by=current_user.full_name or current_user.username,
+                          new_value=f"rol: {user.rol_nomi or user.role.value}", company_id=_cid175)
+        return {"id": user.id, "username": user.username, "role": user.role.value, "rol_id": user.rol_id,
+                "rol_nomi": user.rol_nomi}
+    # kech144 (zip 175, audit U4): amal kaliti — javob yo'qolib (502) qayta bosilsa «Bu username band» emas, birinchi javob
+    javob, _ = _amal_bajar(db, current_user, response, "foydalanuvchi_yaratish", _amal_kaliti(request), _bajar)
+    return javob
 
 
 @app.post("/api/users/{user_id}/toggle")
-def api_toggle_user(user_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    user = auth.toggle_user_active(db, user_id,
-                                   company_id=auth.company_id_of(current_user), bajaruvchi=current_user)
-    if not user:
-        raise HTTPException(status_code=404, detail="Topilmadi")
+def api_toggle_user(user_id: int, faol: Optional[bool] = None, db: Session = Depends(get_db),
+                    current_user=Depends(auth.admin_only)):
+    """Foydalanuvchini yoqish / o'chirish. kech144 (zip 175, audit U1 / X2): `faol` — MAQSAD holat (sahifa yuboradi; holat allaqachon
+    shunday — 409), o'zini va oxirgi faol Adminni o'chirmaydi, korxona bo'yicha qulf (ikki admin bir-birini bir vaqtda o'chirib,
+    korxona Adminsiz qolmasin), «Audit jurnali» ga yoziladi."""
+    _cid = auth.company_id_of(current_user)
+    with crud.bitta_tranzaksiya(db):
+        crud._pul_qulfi(db, 109, _cid)
+        db.expire_all()
+        user = auth.toggle_user_active(db, user_id, company_id=_cid, bajaruvchi=current_user, faol=faol)
+        if not user:
+            raise HTTPException(status_code=404, detail="Topilmadi")
+        crud.log_activity(db, "faollashtirildi" if user.is_active else "faolsizlantirildi", "user", user.id,
+                          f"Foydalanuvchi «{user.username}»", performed_by=current_user.full_name or current_user.username,
+                          company_id=_cid, commit=False)
     return {"is_active": user.is_active}
 
 
@@ -4673,6 +4701,18 @@ def api_change_password(user_id: int, data: dict, request: Request, db: Session 
                                 company_id=auth.company_id_of(current_user), saqlanadigan_token=_joriy,
                                 bajaruvchi=current_user):
         raise HTTPException(status_code=404, detail="Topilmadi")
+    # kech144 (zip 175, audit X2 — O'LCHANGAN fy_probe2 S5): parol tiklanishi / o'zgartirilishi «Audit jurnali» ga (ilgari izsiz —
+    # admin birovning parolini tiklab, uning nomidan kira olardi va hech qayerda ko'rinmasdi). Parolning o'zi YOZILMAYDI.
+    try:
+        from models import User as _U175
+        _u175 = db.query(_U175).filter(_U175.id == user_id,
+                                       _U175.company_id == auth.company_id_of(current_user)).first()
+        crud.log_activity(db, "parol_ozgartirildi" if user_id == current_user.id else "password_reset", "user", user_id,
+                          f"Foydalanuvchi «{getattr(_u175, 'username', user_id)}»",
+                          performed_by=current_user.full_name or current_user.username,
+                          company_id=auth.company_id_of(current_user))
+    except Exception as _e175:            # noqa: BLE001 — parol allaqachon almashgan; jurnal xatosi uni buzmaydi
+        print(f"⚠ Parol almashinuvi jurnalga yozilmadi: {_e175}")
     return {"status": "ok", "sessiyalar_yopildi": True}
 
 
@@ -10382,15 +10422,21 @@ def api_get_categories(db: Session = Depends(get_db),
 
 
 @app.put("/api/settings/categories")
-def api_set_categories(codes: str = Form(""), db: Session = Depends(get_db),
+def api_set_categories(codes: str = Form(""), bosh: str = Form(""), db: Session = Depends(get_db),
                        current_user=Depends(auth.ruxsat("sozlama", "tahrirlash"))):
     """Yoqilgan kategoriyalarni saqlaydi (vergul bilan ajratilgan).
 
     Bo'sh yuborilsa — barcha ixtiyoriy turlar o'chadi (faqat asosiy
     uchtasi qoladi). Asosiy turlar (profil, panel, donali)
-    har doim yoqiq va bu yerdan o'chirilmaydi."""
+    har doim yoqiq va bu yerdan o'chirilmaydi.
+
+    kech144 (zip 175, audit C1 — O'LCHANGAN fy_probe1 S1: «Sozlamalar: Tahrirlash» li, «Ko'rish» siz rol ro'yxat yuklanmagan sahifada
+    «Saqlash» bossa `codes=''` ketib Loy sotish va Blok O'CHARDI, ular buyurtma / ombor sahifalaridan yo'qolardi): hammasini o'chirish
+    faqat `bosh=1` bilan (sahifa uni faqat ro'yxat YUKLANGAN va hech biri belgilanmaganda yuboradi); aks holda bo'sh ro'yxat — 400."""
     ruxsat = {k for k, _ in IXTIYORIY_KATEGORIYALAR}
     tanlangan = [x.strip() for x in (codes or "").split(",") if x.strip() in ruxsat]
+    if not tanlangan and str(bosh or "").strip() != "1":
+        raise HTTPException(status_code=400, detail="Mahsulot turlari ro'yxati yuklanmagan — sahifani yangilang (hech narsa saqlanmadi)")
     _cid = auth.company_id_of(current_user)
     crud.set_setting(db, "enabled_categories", ",".join(tanlangan), company_id=_cid)
     _clear_category_cache(_cid)

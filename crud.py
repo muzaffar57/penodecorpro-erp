@@ -5464,6 +5464,10 @@ AUDIT_AMALLARI = {
     # kech143 (zip 171, A-X05 — egasi qarori 13.10): tannarx ruxsatisiz foydalanuvchi tayyor mahsulotni tannarxdan past narxda
     # sotdi (unga ogohlantirish chiqmaydi — tannarx oshkor bo'lmasin); `new_value` — miqdor × narx (tannarxsiz)
     "tannarxdan_past_sotuv": ("⚠️", "— tannarxdan past narxda sotildi", "Tannarxdan past sotuv"),
+    # kech144 (zip 175, audit X2): foydalanuvchini yoqish / o'chirish, o'z parolini o'zgartirish (parolni tiklash — «password_reset»)
+    "faollashtirildi": ("✅", "— yoqildi (kira oladi)", "Foydalanuvchi yoqildi / o'chirildi"),
+    "faolsizlantirildi": ("⛔", "— o'chirildi (kira olmaydi)", "Foydalanuvchi yoqildi / o'chirildi"),
+    "parol_ozgartirildi": ("🔑", "— o'z parolini o'zgartirdi", "Parol tiklandi"),
     # eski yozuvlar (zip 129 dan oldin shu nom bilan yozilishi mo'ljallangan, lekin NOT NULL sabab yozilmagan)
     "Zaxiradan tiklash": ("💾", "— zaxiradan tiklandi", "Zaxiradan tiklandi"),
 }
@@ -6277,7 +6281,12 @@ def delete_order(db: Session, order_id: int, soft: bool = False, performed_by: s
 def permanent_delete_order(db: Session, order_id: int, performed_by: str = None) -> bool:
     """YUMSHOQ o'chirilgan buyurtmani BAZADAN BUTUNLAY o'chiradi.
     Faqat is_deleted=True bo'lgan (allaqachon 'chiqindi qutisi'da turgan)
-    buyurtmalar uchun ishlaydi — himoya sifatida."""
+    buyurtmalar uchun ishlaydi — himoya sifatida.
+
+    kech144 (zip 175, audit T3): `restore_order` bilan BIR qulf (`_pul_qulfi` 101) va qulfdan keyin qayta o'qish — ikki oynada «Tiklash»
+    va «Butunlay o'chirish» bir vaqtda bosilsa, endigina tiklangan (ombordan qayta yechilgan) buyurtma o'chib ketmaydi."""
+    _pul_qulfi(db, 101, order_id)
+    db.expire_all()
     db_order = db.query(Order).filter(Order.id == order_id, Order.is_deleted.is_(True)).first()
     if not db_order:
         return False
@@ -6660,7 +6669,11 @@ def permanent_delete_project(db: Session, project_id: int, performed_by: str = N
     """YUMSHOQ o'chirilgan loyihani BAZADAN BUTUNLAY o'chiradi.
     Xavfsizlik uchun — agar loyihada HALI HAM buyurtmalar bo'lsa (hatto
     ular ham o'chirilgan bo'lsa ham) — avval ularni hal qilish so'raladi,
-    chunki loyiha o'chirilsa ular ham katta izsiz o'chib ketadi (cascade)."""
+    chunki loyiha o'chirilsa ular ham katta izsiz o'chib ketadi (cascade).
+
+    kech144 (zip 175, audit T4): `restore_project` bilan BIR qulf (`_pul_qulfi` 108), qulfdan keyin qayta o'qiladi."""
+    _pul_qulfi(db, 108, project_id)
+    db.expire_all()
     db_project = db.query(Project).filter(Project.id == project_id, Project.is_deleted.is_(True)).first()
     if not db_project:
         return False, "Loyiha topilmadi (avval yumshoq o'chirilgan bo'lishi kerak)"
@@ -6676,10 +6689,18 @@ def permanent_delete_project(db: Session, project_id: int, performed_by: str = N
 
 
 def restore_project(db: Session, project_id: int, performed_by: str = None) -> bool:
-    """O'chirilgan loyihani tiklaydi."""
+    """O'chirilgan loyihani tiklaydi.
+
+    kech144 (zip 175, audit T2 — O'LCHANGAN fy_probe1 S6): qulf (`_pul_qulfi` 108 — butunlay o'chirish bilan bir) va qulfdan keyin
+    qayta o'qish; loyiha savatda bo'lmasa (ikkinchi oyna allaqachon tiklagan) — `ValueError` (marshrut → 409), soxta «tiklandi»
+    yozuvi yo'q (ilgari 200 va har bosishda jurnalga yangi «tiklandi»)."""
+    _pul_qulfi(db, 108, project_id)
+    db.expire_all()
     db_project = db.query(Project).filter(Project.id == project_id).first()
     if not db_project:
         return False
+    if not db_project.is_deleted:
+        raise ValueError("Loyiha savatda emas — u allaqachon tiklangan (sahifani yangilang)")
     db_project.is_deleted = False
     db.commit()
     label = f"{db_project.project_number} — {db_project.project_name}"
