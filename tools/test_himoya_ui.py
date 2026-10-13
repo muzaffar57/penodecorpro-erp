@@ -6,6 +6,8 @@ topilmalari N2, N3, guruh «Sotish» bekor qilinishi.
 NIMA UCHUN KERAK (O'LCHANGAN — asl kod zip 170; yordamchi o'lchov `work/k171_tayyorgarlik/ui_agent/`, Chromium):
   N2  «Ta'minotchilar» → «Tarix» → «+ Xarid qo'shish»: forma oyna qutisidan (max-height 88vh, faqat tarix ro'yxati surilardi)
       tashqariga chiqib, «✓ Saqlash» ga HECH BIR kenglikda yetib bo'lmasdi (375×812: y≈1051; 756×921: y≈955; 1440×900: y≈922).
+      zip 171b (jonli sinov 13.10): o'sha oynada 375 / 320 px da «Summasi» maydoni 522 px gacha va sana filtri «🔍» / «✕» qutidan
+      tashqarida, oyna ichida yon surilish (N3 tekshiruvi).
   N3  «Tayyor mahsulotlar» — guruh ichidagi partiya qatori 641–1279 px da: nom ustuni `.fp-main` 0–44 px, «🔒 Band» belgisi
       harflab tik (154 px), amallar qatordan chiqib `.fp-page` yon tomonga surilardi.
   G   Guruh «Sotish» oynasi sotmasdan yopilsa («Bekor qilish», ✕, Esc) — yopiq guruhdagi partiyalar belgili qolib,
@@ -224,7 +226,7 @@ with sync_playwright() as pw:
     # ══════════════════════════════════════════════════════════════
     section("N. «Ta'minotchilar» → «Tarix» → «+ Xarid qo'shish» — «✓ Saqlash» ga yetib boriladi (N2)")
     # ══════════════════════════════════════════════════════════════
-    for w, h, mob in ((375, 812, True), (756, 921, False), (1440, 900, False), (812, 375, True)):
+    for w, h, mob in ((375, 812, True), (320, 640, True), (756, 921, False), (1440, 900, False), (812, 375, True)):
         ctx, pg = sahifa(br, w, h, mob)
         try:
             pg.goto(BASE + "/suppliers", wait_until="networkidle")
@@ -248,6 +250,15 @@ with sync_playwright() as pw:
                              " const h = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);"
                              " return !!h && !!h.closest('[data-yopish]'); }")
             check(f"N2 {w}×{h}: surilgandan keyin ham «✕» (yopish) joyida va bosiladi", _x)
+            _q = pg.evaluate("""() => { const box = document.getElementById('historyModal').firstElementChild.getBoundingClientRect();
+              const tash = [...document.querySelectorAll('#historyModal input, #historyModal select, #historyModal button')].filter(e => {
+                const r = e.getBoundingClientRect(); return r.width > 0 && (r.right > box.right + 0.5 || r.left < box.left - 0.5); })
+                .map(e => e.id || e.textContent.trim().slice(0, 4));
+              const sur = [...document.querySelectorAll('#historyModal *')].filter(e => e.scrollWidth > e.clientWidth + 1
+                && getComputedStyle(e).overflowX !== 'visible').length;
+              return {tash, sur}; }""")
+            check(f"N3 {w}×{h}: oynada hamma maydon / tugma quti ichida, yon surilish yo'q (asl 375 / 320: «Summasi» 522 px gacha, "
+                  f"sana filtri «🔍» / «✕» qutidan tashqarida)", not _q["tash"] and _q["sur"] == 0, _q)
         except Exception as e:             # noqa: BLE001
             check(f"N1 {w}×{h}: o'lchov", False, f"{type(e).__name__}: {e}")
         ctx.close()
