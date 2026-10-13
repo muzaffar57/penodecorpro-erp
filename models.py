@@ -900,6 +900,30 @@ class BuyurtmaTuzatish(Base):
     order = relationship("Order", back_populates="tuzatishlar")
 
 
+class AmalKaliti(Base):
+    """kech144 (zip 174, audit 2-to'lqin — O'LCHANGAN `k173_tayyorgarlik/agentlar/tayyor/probe_takror.py`: bir xil so'rov ikki marta
+    yuborilsa ikkita sotuv (ombor 10 → 6), ikkita brak (Moliya «yo'qotish» ikki marta), ikkita xarajat yozilardi — server himoyasi yo'q;
+    javob yo'qolib (502) qayta bosilsa ham). Sahifa har amal «o'rni» uchun tasodifiy kalit yuboradi (`X-Amal-Kaliti` sarlavhasi) va
+    uni aniq natijagacha saqlaydi; shu korxonada shu amal uchun shu kalit bor bo'lsa — amal QAYTA bajarilmaydi, birinchi javob qaytariladi (`takror: true`,
+    `X-Takror: 1`). Kalit qatori amal bilan BITTA tranzaksiyada va amaldan OLDIN yoziladi (noyoblik indeksi — parallel ikkinchi so'rov
+    birinchisi tugashini kutadi va takror deb topiladi); amal rad etilsa — kalit ham yozilmaydi. Yozuvchi yagona yo'l —
+    `crud.amal_kaliti_bilan`; eskilari — `crud.amal_kalitlari_tozala` (30 kun). Ustun nomlari NOYOB (`amal_turi`, `sorov_kaliti`,
+    `bajaruvchi`): tools/test_html_escape.py modeldagi har matn ustuni nomini «foydalanuvchi matni» deb oladi — `kalit` / `amal` / `kim`
+    shablonlarda oddiy o'zgaruvchi nomi sifatida bor."""
+    __tablename__ = "amal_kalitlari"
+    __table_args__ = (
+        UniqueConstraint("company_id", "amal_turi", "sorov_kaliti", name="uq_amal_kalitlari_company_amal_kalit"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    amal_turi = Column(String(40), nullable=False)          # 'sotuv', 'guruh_sotuv', 'brak', 'xarajat', 'qaytarish', …
+    sorov_kaliti = Column(String(64), nullable=False)       # sahifa yuborgan `X-Amal-Kaliti`
+    javob_json = Column(Text, nullable=True)                # birinchi (muvaffaqiyatli) javob — takrorda o'zi qaytariladi
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    bajaruvchi = Column(String(100), nullable=True)         # kim bajargani (foydalanuvchi ismi)
+
+
 class OrderGipsAdditive(Base):
     """Gips buyurtmasiga qo'shiladigan ixtiyoriy xomashyo (po'lat sim,
     fibra tola, serpiyanka, penoplast granula va h.k.) — erkin, Omborxonadan

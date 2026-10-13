@@ -8475,7 +8475,7 @@ def api_get_recurring_obligations(db: Session = Depends(get_db), current_user=De
 
 
 @app.post("/api/obligations/recurring")
-def api_set_recurring_obligation(category: Optional[str] = None, label: Optional[str] = None,
+def api_set_recurring_obligation(request: Request, response: Response, category: Optional[str] = None, label: Optional[str] = None,
                                    monthly_target: Optional[str] = None,
                                    icon: Optional[str] = "📦", due_day: Optional[str] = None,
                                    db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("qarz", "yaratish"))):
@@ -8484,14 +8484,21 @@ def api_set_recurring_obligation(category: Optional[str] = None, label: Optional
     ≤ 30, nom ≤ 60, belgi ≤ 10 belgi. Xato → 400 (`detail` MATN — `debts.html`
     uni ko'rsatadi), hech narsa yozilmaydi. Ildiz
     (`services.set_recurring_obligation`) ham shu qoidani chaqiradi."""
+    # kech144 (zip 174, audit 2-to'lqin #18): «+ Kategoriya» ikki marta bosilsa ikkita kategoriya (kod — `Date.now()`) va oylik maqsad
+    # «Biz qarzdormiz» da ikki marta; `X-Amal-Kaliti` — takror so'rov o'sha kategoriyani qaytaradi
+    kalit = _amal_kaliti(request)
     try:
         toza = crud._clean_majburiyat(category, label, monthly_target, icon=icon, due_day=due_day)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    return services.set_recurring_obligation(db, toza["category"], toza["label"],
-                                             toza["monthly_target"], icon=toza["icon"],
-                                             due_day=toza["due_day"],
-                                             company_id=auth.company_id_of(current_user))
+
+    def _bajar():
+        return services.set_recurring_obligation(db, toza["category"], toza["label"],
+                                                 toza["monthly_target"], icon=toza["icon"],
+                                                 due_day=toza["due_day"],
+                                                 company_id=auth.company_id_of(current_user))
+    javob, _ = _amal_bajar(db, current_user, response, "majburiyat_kategoriya", kalit, _bajar)
+    return javob
 
 
 @app.delete("/api/obligations/recurring/{obligation_id}")
@@ -8742,7 +8749,7 @@ def api_finance_history(months: int = 12, db: Session = Depends(get_db), current
 
 
 @app.post("/api/finance/transactions")
-def api_create_expense_transaction(data: dict = Body(...), db: Session = Depends(get_db),
+def api_create_expense_transaction(request: Request, response: Response, data: dict = Body(...), db: Session = Depends(get_db),
                                     current_user=Depends(auth.ruxsat("kunlik", "yaratish"))):
     # 17e (2026-09-22): xom JSON QAT'IY tekshiriladi (`crud._clean_val`).
     # O'LCHANGAN: `Infinity` summa 500 bersa ham yozuv SAQLANIB, Moliya
@@ -8750,13 +8757,20 @@ def api_create_expense_transaction(data: dict = Body(...), db: Session = Depends
     # kategoriya (PostgreSQL da 500), noto'g'ri yo'nalish, 1970-yil sanasi
     # qabul qilinardi. Xato → 400, `detail` MATN (`finance.html`,
     # `kunlik_xarajat.html` uni to'g'ridan-to'g'ri ko'rsatadi).
-    try:
-        toza = crud._clean_val("ExpenseTransaction", data)
-        tx = crud.create_expense_transaction(db, toza, performed_by=current_user.full_name or current_user.username, source="manual", company_id=auth.company_id_of(current_user))
-    except ValueError as e:
-        db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
-    return schemas.ExpenseTransactionRead.model_validate(tx)
+    # kech144 (zip 174, O'LCHANGAN probe_takror: bir xil xarajat ikki marta — 2 qator): `X-Amal-Kaliti` — takror so'rov ikkinchi
+    # xarajat yozmaydi (birinchi javob, `takror: true`)
+    kalit = _amal_kaliti(request)
+
+    def _bajar():
+        try:
+            toza = crud._clean_val("ExpenseTransaction", data)
+            tx = crud.create_expense_transaction(db, toza, performed_by=current_user.full_name or current_user.username, source="manual", company_id=auth.company_id_of(current_user))
+        except ValueError as e:
+            db.rollback()
+            raise HTTPException(status_code=400, detail=str(e))
+        return schemas.ExpenseTransactionRead.model_validate(tx).model_dump(mode="json")
+    javob, _ = _amal_bajar(db, current_user, response, "xarajat", kalit, _bajar)
+    return javob
 
 
 @app.get("/api/finance/transactions")
@@ -8986,6 +9000,60 @@ def api_tanlov_loyihalar(db: Session = Depends(get_db), current_user=Depends(aut
     return [{"id": r[0], "loyiha": r[1] or "", "mijoz": r[2] or "", "telefon": r[3] or ""} for r in rows]
 
 
+# ════ kech144 (zip 174, audit 2-to'lqin B#6 — EGASI QARORI 13.10 «Detal va miqdor», QAYTA SO'RALMAYDI) ════
+# O'LCHANGAN (`work/k173_tayyorgarlik/agentlar/tayyor/probe_rollar.py`, zip 173 kodi): standart «Omborchi» roli («Qaytarishlar» —
+# hamma amal, «Buyurtmalar» / «Loyihalar» ko'rish YO'Q) «Yangi qaytarish» da buyurtmani, «Brak yozish → Buyurtma detalida» da loyihani
+# tanlaganda detallar `/api/orders/{id}` va `/api/projects/{id}/items` dan so'ralardi — ikkalasi 403, sahifa esa «Bu buyurtmada detal
+# yo'q» / «Bu loyihada detal topilmadi» derdi: Omborchi butun qaytarishni ham, buyurtma detali brakini ham YOZA OLMASDI. Endi detallar
+# shu oynalarning o'z ruxsati («Qaytarishlar: Yaratish» — tanlov ro'yxatlari bilan bir xil) bilan beriladi: FAQAT detal nomi, miqdori,
+# birligi (egasi qarori: hodim narxni ko'rmaydi — qaytarish summasini server o'zi hisoblaydi, `crud.create_return_item`
+# `refund_amount` 0 bo'lsa). 1 birlik qaytarish narxi — faqat «Tannarx va foyda: Ko'rish» ruxsati borga (oynadagi narx maydoni ham
+# faqat shunda chiziladi). Buyurtma / loyiha — FAQAT shu korxonadan, o'chirilmagan, qoralama / bekor qilingan emas (tanlov ro'yxati
+# qoidasi) — aks holda 404.
+
+@app.get("/api/tanlov/buyurtmalar/{order_id}/detallar")
+def api_tanlov_buyurtma_detallari(order_id: int, db: Session = Depends(get_db),
+                                  current_user=Depends(auth.ruxsat("qaytarish", "yaratish"))):
+    """«Yangi qaytarish» — tanlangan buyurtmaning detallari (nom, miqdor, birlik; narx — faqat tannarx ruxsati bilan)."""
+    from models import Order as _O, OrderStatus as _OS
+    _cid = auth.company_id_of(current_user)
+    order = db.query(_O).filter(_O.id == order_id, _O.company_id == _cid, _O.is_deleted.isnot(True),
+                                _O.status.notin_([_OS.DRAFT, _OS.CANCELLED])).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+    _narx = bool(current_user.ruxsat("tannarx", "korish"))
+    _qkoef = crud.qaytarish_narx_koeffitsienti(db, order) if _narx else None
+    items = []
+    for i in order.items:
+        q = {"id": i.id, "name": i.name, "is_coated": bool(i.is_coated),
+             "order_qty_normalized": i.order_qty_normalized, "delivery_unit": i.delivery_unit}
+        if _narx:
+            q["refund_price_per_unit"] = crud.qaytarish_birlik_narxi(db, order, i, koef=_qkoef)
+        items.append(q)
+    return {"id": order.id, "raqam": order.order_number, "items": items}
+
+
+@app.get("/api/tanlov/loyihalar/{project_id}/detallar")
+def api_tanlov_loyiha_detallari(project_id: int, db: Session = Depends(get_db),
+                                current_user=Depends(auth.ruxsat("qaytarish", "yaratish"))):
+    """«Brak yozish → Buyurtma detalida» — tanlangan loyihaning ishdagi buyurtmalari detallari (narxsiz; `/api/projects/{id}/items`
+    bilan bir shakl)."""
+    from models import Order as _O, OrderStatus as _OS, Project as _P
+    _cid = auth.company_id_of(current_user)
+    if not db.query(_P.id).filter(_P.id == project_id, _P.company_id == _cid, _P.is_deleted.isnot(True)).first():
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+    orders = db.query(_O).filter(_O.project_id == project_id, _O.company_id == _cid, _O.is_deleted.isnot(True),
+                                 _O.status.notin_([_OS.DRAFT, _OS.CANCELLED])) \
+        .order_by(_O.created_at.desc(), _O.id.desc()).all()
+    items = []
+    for o in orders:
+        for i in o.items:
+            items.append({"order_id": o.id, "order_number": o.order_number, "item_id": i.id, "name": i.name,
+                          "category": i.category, "is_coated": bool(i.is_coated),
+                          "order_qty_normalized": i.order_qty_normalized, "delivery_unit": i.delivery_unit})
+    return {"items": items}
+
+
 @app.get("/api/projects/{project_id}/items")
 def api_get_project_items(project_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("loyiha", "korish"))):
     """Loyihadagi barcha buyurtmalar detallari — brak yozish uchun (narxsiz)."""
@@ -9017,7 +9085,8 @@ def api_get_project_items(project_id: int, db: Session = Depends(get_db), curren
 
 
 @app.post("/api/returns")
-def api_create_return(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("qaytarish", "yaratish"))):
+def api_create_return(request: Request, response: Response, data: dict = Body(...), db: Session = Depends(get_db),
+                      current_user=Depends(auth.ruxsat("qaytarish", "yaratish"))):
     # 17g (2026-09-22): xom JSON QAT'IY tekshiriladi (`crud._clean_val
     # ("Return")`), keyin sxemaga (berilmagan yoki `null` maydonlar — sxema
     # standarti: birlik "dona", summa 0, omborga qaytsin). HAQIQIY PostgreSQL da
@@ -9027,6 +9096,8 @@ def api_create_return(data: dict = Body(...), db: Session = Depends(get_db), cur
     # uzun nom / birlik — 500. `returns.html` (qaytarish va brak oynalari)
     # yuboradigan tanalar AYNAN shu qoidalarga mos. Xato → 400, `detail` MATN
     # (`returns.html`: `e.detail?.message || e.detail`).
+    # kech144 (zip 174): `X-Amal-Kaliti` — takror so'rov ikkinchi qaytarish / brak yozmaydi (birinchi javob, `takror: true`)
+    kalit = _amal_kaliti(request)
     # kech125 (zip 146 — EGASI QARORLARI 07.10 «Brak taqdiri»): brak yozilganda tanlangan taqdir — alohida kalit (o'z qoidalari
     # bilan `crud.brak_taqdir_tana` tekshiradi; qaytarish tanasi qoidalariga kirmaydi). Faqat «Brak» uchun (crud rad etadi).
     _taqdir = data.pop("taqdir", None) if isinstance(data, dict) else None
@@ -9052,17 +9123,20 @@ def api_create_return(data: dict = Body(...), db: Session = Depends(get_db), cur
             raise HTTPException(status_code=404, detail="Buyurtma detali topilmadi")
     # kech84 (103-band, O'LCHANGAN): qaytarish yozuvi, ombor (brak xomashyosi / tayyor mahsulot) va pul BITTA
     # tranzaksiyada — butun ish saqlanishidan oldin xato bo'lsa hech narsa yozilmaydi (qayta urinish — bir marta).
-    try:
-        with crud.bitta_tranzaksiya(db):
-            _qaytarish = crud.create_return_item(db, data, company_id=_cid, taqdir=_taqdir,
-                                                 performed_by=current_user.full_name or current_user.username)
-    except ValueError as e:
-        db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
-    # Javob shakli avvalgidek: blok oxiridagi saqlash obyektni eskirtiradi (expire), FastAPI esa ORM
-    # obyektini maydonlari bo'yicha o'qiydi — yangilanmasa javob bo'sh chiqardi.
-    db.refresh(_qaytarish)
-    return _qaytarish
+    def _bajar():
+        try:
+            with crud.bitta_tranzaksiya(db):
+                _qaytarish = crud.create_return_item(db, data, company_id=_cid, taqdir=_taqdir,
+                                                     performed_by=current_user.full_name or current_user.username)
+        except ValueError as e:
+            db.rollback()
+            raise HTTPException(status_code=400, detail=str(e))
+        # Javob shakli avvalgidek: blok oxiridagi saqlash obyektni eskirtiradi (expire), FastAPI esa ORM
+        # obyektini maydonlari bo'yicha o'qiydi — yangilanmasa javob bo'sh chiqardi.
+        db.refresh(_qaytarish)
+        return _jsonable_encoder(_qaytarish)
+    javob, _ = _amal_bajar(db, current_user, response, "qaytarish", kalit, _bajar)
+    return javob
 
 
 @app.get("/api/returns")
@@ -11033,6 +11107,27 @@ def _tana_400(model: str, data, sxema):
 BRAK_SABABI_XATO = "Brak sababini tanlang (ro'yxatdan)"
 
 
+def _amal_kaliti(request: Request):
+    """kech144 (zip 174): `X-Amal-Kaliti` sarlavhasi (`crud.amal_kaliti_toza`) — yo'q bo'lsa None, noto'g'ri — 400."""
+    try:
+        return crud.amal_kaliti_toza(request.headers.get("X-Amal-Kaliti"))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+def _amal_bajar(db, current_user, response, amal: str, kalit, bajar):
+    """kech144 (zip 174): `crud.amal_kaliti_bilan` — takrorda birinchi javob (`takror: true`, sarlavha `X-Takror: 1`), amal qayta
+    bajarilmaydi. Natija: (javob, takror)."""
+    javob, takror = crud.amal_kaliti_bilan(db, auth.company_id_of(current_user), amal, kalit, bajar,
+                                           kim=current_user.full_name or current_user.username)
+    if takror:
+        if response is not None:
+            response.headers["X-Takror"] = "1"
+        if isinstance(javob, dict):
+            javob = {**javob, "takror": True}
+    return javob, takror
+
+
 def _fp_tana(model: str, data, sxema):
     """17-band: tayyor mahsulot marshrutlari tanasi — xom JSON QAT'IY
     tekshiriladi (`crud._clean_val`), keyin sxemaga o'giriladi. Qoida
@@ -11046,21 +11141,27 @@ def _fp_tana(model: str, data, sxema):
 
 
 @app.post("/api/finished/loss")
-def api_record_finished_loss(data: dict = Body(...), db: Session = Depends(get_db),
+def api_record_finished_loss(request: Request, response: Response, data: dict = Body(...), db: Session = Depends(get_db),
                                current_user=Depends(auth.ruxsat("brak", "yaratish"))):
-    """Tayyor mahsulotdan brak/yo'qotish sababli miqdorni kamaytirish (o'chirish emas)."""
+    """Tayyor mahsulotdan brak/yo'qotish sababli miqdorni kamaytirish (o'chirish emas).
+    kech144 (zip 174): `X-Amal-Kaliti` — o'sha kalit bilan takror so'rov brakni IKKINCHI marta yozmaydi (`crud.amal_kaliti_bilan`)."""
+    kalit = _amal_kaliti(request)
     # kech125 (zip 146): brak taqdiri — alohida kalit (`crud.brak_taqdir_tana`)
     _taqdir = data.pop("taqdir", None) if isinstance(data, dict) else None
     data = _fp_tana("Loss", data, schemas.FinishedProductLossCreate)
     if not data.brak_sabab:     # kech118 (D-1, G5-20)
         raise HTTPException(status_code=400, detail={"success": False, "message": BRAK_SABABI_XATO})
     who = current_user.full_name or current_user.username
-    # kech125 (zip 146): yozuv va taqdir (TM, tuzatish xomashyosi) BITTA tranzaksiyada
-    with crud.bitta_tranzaksiya(db):
-        result = crud.record_finished_product_loss(db, data, created_by=who,
-                                                  company_id=auth.company_id_of(current_user), taqdir=_taqdir)
-        if not result["success"]:
-            raise HTTPException(status_code=400, detail=result)
+
+    def _bajar():
+        # kech125 (zip 146): yozuv va taqdir (TM, tuzatish xomashyosi) BITTA tranzaksiyada
+        with crud.bitta_tranzaksiya(db):
+            result = crud.record_finished_product_loss(db, data, created_by=who,
+                                                      company_id=auth.company_id_of(current_user), taqdir=_taqdir)
+            if not result["success"]:
+                raise HTTPException(status_code=400, detail=result)
+        return result
+    result, _ = _amal_bajar(db, current_user, response, "brak", kalit, _bajar)
     return result
 
 
@@ -11100,31 +11201,36 @@ def api_release_finished_product_reservation(fp_id: int, db: Session = Depends(g
 
 
 @app.post("/api/finished/production-brak")
-def api_finished_production_brak(data: dict = Body(...), db: Session = Depends(get_db),
+def api_finished_production_brak(request: Request, response: Response, data: dict = Body(...), db: Session = Depends(get_db),
                                    current_user=Depends(auth.ruxsat("brak", "yaratish"))):
     """Tayyor mahsulot ISHLAB CHIQARISH JARAYONIDA chiqqan brak — mahsulot
     soniga tegmaydi, faqat qo'shimcha xomashyo ombordan ayiriladi.
     Profil/Panel/Donali/Blok — `brak_qty` (mahsulot birligida) orqali,
     BARQAROR nisbatdan hisoblab."""
+    kalit = _amal_kaliti(request)      # kech144 (zip 174): takror so'rov brak xomashyosini IKKINCHI marta yechmaydi
     # kech125 (zip 146): brak taqdiri — alohida kalit (`crud.brak_taqdir_tana`)
     _taqdir = data.pop("taqdir", None) if isinstance(data, dict) else None
     data = _fp_tana("ProductionBrak", data, schemas.FinishedProductProductionBrakCreate)
     if not data.brak_sabab:     # kech118 (D-1, G5-20)
         raise HTTPException(status_code=400, detail={"success": False, "message": BRAK_SABABI_XATO})
     who = current_user.full_name or current_user.username
-    # kech84 (103-band, O'LCHANGAN): brak xomashyosi va yo'qotish yozuvi BITTA tranzaksiyada (xomashyo yechilgach
-    # xato bo'lsa yozuv yo'q, qayta urinish xomashyoni IKKI MARTA yechardi).
-    with crud.bitta_tranzaksiya(db):
-        result = crud.record_finished_product_production_brak(
-            db, data.finished_product_id, data.brak_qty, data.notes, created_by=who,
-            company_id=auth.company_id_of(current_user),
-            brak_bosqich=data.brak_bosqich,   # kech53 (13-band, 1-qadam)
-            brak_sabab=data.brak_sabab,               # kech56 (13-band, 7-qadam)
-            brak_javobgar_id=data.brak_javobgar_id,   # kech56 (13-band, 7-qadam)
-            taqdir=_taqdir,                           # kech125 (zip 146)
-        )
-        if not result["success"]:
-            raise HTTPException(status_code=400, detail=result)
+
+    def _bajar():
+        # kech84 (103-band, O'LCHANGAN): brak xomashyosi va yo'qotish yozuvi BITTA tranzaksiyada (xomashyo yechilgach
+        # xato bo'lsa yozuv yo'q, qayta urinish xomashyoni IKKI MARTA yechardi).
+        with crud.bitta_tranzaksiya(db):
+            result = crud.record_finished_product_production_brak(
+                db, data.finished_product_id, data.brak_qty, data.notes, created_by=who,
+                company_id=auth.company_id_of(current_user),
+                brak_bosqich=data.brak_bosqich,   # kech53 (13-band, 1-qadam)
+                brak_sabab=data.brak_sabab,               # kech56 (13-band, 7-qadam)
+                brak_javobgar_id=data.brak_javobgar_id,   # kech56 (13-band, 7-qadam)
+                taqdir=_taqdir,                           # kech125 (zip 146)
+            )
+            if not result["success"]:
+                raise HTTPException(status_code=400, detail=result)
+        return result
+    result, _ = _amal_bajar(db, current_user, response, "ishlab_chiqarish_braki", kalit, _bajar)
     return result
 
 
@@ -11193,34 +11299,51 @@ def _tannarxdan_past_sotuv_qayd(db: Session, background_tasks: BackgroundTasks, 
 
 
 @app.post("/api/finished/sell-batch")
-def api_sell_finished_products_batch(background_tasks: BackgroundTasks, data: dict = Body(...), db: Session = Depends(get_db),
+def api_sell_finished_products_batch(request: Request, response: Response, background_tasks: BackgroundTasks,
+                                       data: dict = Body(...), db: Session = Depends(get_db),
                                        current_user=Depends(auth.ruxsat("sotuv", "yaratish"))):
-    """Bir nechta turli tayyor mahsulotni, bitta xaridorga, bitta Yuk xati bilan sotish."""
+    """Bir nechta turli tayyor mahsulotni, bitta xaridorga, bitta Yuk xati bilan sotish.
+    kech144 (zip 174): `X-Amal-Kaliti` — takror so'rov IKKINCHI sotuv yozmaydi (birinchi javob, `takror: true`)."""
+    kalit = _amal_kaliti(request)
     data = _fp_tana("SaleBatch", data, schemas.FinishedProductSaleBatchCreate)
     who = current_user.full_name or current_user.username
-    result = crud.sell_finished_products_batch(db, data, created_by=who,
-                                              company_id=auth.company_id_of(current_user),
-                                              tannarx_korinadi=current_user.ruxsat("tannarx", "korish"))
-    if not result["success"]:
-        raise HTTPException(status_code=400, detail=result)
-    _tannarxdan_past_sotuv_qayd(db, background_tasks, result, who, auth.company_id_of(current_user),
-                                getattr(data, "buyer_name", None))
+
+    def _bajar():
+        result = crud.sell_finished_products_batch(db, data, created_by=who,
+                                                  company_id=auth.company_id_of(current_user),
+                                                  tannarx_korinadi=current_user.ruxsat("tannarx", "korish"))
+        if not result["success"]:
+            raise HTTPException(status_code=400, detail=result)
+        return result
+    result, takror = _amal_bajar(db, current_user, response, "guruh_sotuv", kalit, _bajar)
+    if not takror:
+        _tannarxdan_past_sotuv_qayd(db, background_tasks, result, who, auth.company_id_of(current_user),
+                                    getattr(data, "buyer_name", None))
     return result
 
 
 @app.post("/api/finished/sell")
-def api_sell_finished_product(background_tasks: BackgroundTasks, data: dict = Body(...), db: Session = Depends(get_db),
+def api_sell_finished_product(request: Request, response: Response, background_tasks: BackgroundTasks,
+                                data: dict = Body(...), db: Session = Depends(get_db),
                                 current_user=Depends(auth.ruxsat("sotuv", "yaratish"))):
-    """Tayyor mahsulotni to'g'ridan-to'g'ri sotish (buyurtma/Yuk xatisiz)."""
+    """Tayyor mahsulotni to'g'ridan-to'g'ri sotish (buyurtma/Yuk xatisiz).
+    kech144 (zip 174, O'LCHANGAN probe_takror: ikki marta bosish — 2 sotuv, ombor 10 → 6): `X-Amal-Kaliti` — takror so'rov
+    IKKINCHI sotuv yozmaydi (birinchi javob, `takror: true`); Telegram (tannarxdan past) ham qayta ketmaydi."""
+    kalit = _amal_kaliti(request)
     data = _fp_tana("Sale", data, schemas.FinishedProductSaleCreate)
     who = current_user.full_name or current_user.username
-    result = crud.sell_finished_product(db, data, created_by=who,
-                                       company_id=auth.company_id_of(current_user),
-                                       tannarx_korinadi=current_user.ruxsat("tannarx", "korish"))
-    if not result["success"]:
-        raise HTTPException(status_code=400, detail=result)
-    _tannarxdan_past_sotuv_qayd(db, background_tasks, result, who, auth.company_id_of(current_user),
-                                getattr(data, "buyer_name", None))
+
+    def _bajar():
+        result = crud.sell_finished_product(db, data, created_by=who,
+                                           company_id=auth.company_id_of(current_user),
+                                           tannarx_korinadi=current_user.ruxsat("tannarx", "korish"))
+        if not result["success"]:
+            raise HTTPException(status_code=400, detail=result)
+        return result
+    result, takror = _amal_bajar(db, current_user, response, "sotuv", kalit, _bajar)
+    if not takror:
+        _tannarxdan_past_sotuv_qayd(db, background_tasks, result, who, auth.company_id_of(current_user),
+                                    getattr(data, "buyer_name", None))
     return result
 
 
@@ -11251,17 +11374,26 @@ def api_get_finished_sales(year: Optional[int] = None, month: Optional[int] = No
 
 
 @app.post("/api/finished/produce")
-def api_produce(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("tayyor", "yaratish"))):
-    """Tayyor mahsulot ishlab chiqarish."""
+def api_produce(request: Request, response: Response, data: dict = Body(...), db: Session = Depends(get_db),
+                current_user=Depends(auth.ruxsat("tayyor", "yaratish"))):
+    """Tayyor mahsulot ishlab chiqarish.
+    kech144 (zip 174): `X-Amal-Kaliti` — takror so'rov ikkinchi partiya yaratmaydi, xomashyoni ikkinchi marta yechmaydi."""
+    kalit = _amal_kaliti(request)
     data = _fp_tana("Produce", data, schemas.ProduceCreate)
     who = current_user.full_name or current_user.username
-    # kech84 (103-band, O'LCHANGAN): xomashyo yechish va tayyor mahsulot yozuvi BITTA tranzaksiyada. Ilgari
-    # loy yechilgach xato bo'lsa mahsulot yozilmay, xomashyo yechilgan qolardi (qayta urinish — IKKI MARTA).
-    with crud.bitta_tranzaksiya(db):
-        result = crud.produce_finished_product(db, data, created_by=who,
-                                              company_id=auth.company_id_of(current_user))
-        if not result["success"]:
-            raise HTTPException(status_code=400, detail=result)
+
+    def _bajar():
+        # kech84 (103-band, O'LCHANGAN): xomashyo yechish va tayyor mahsulot yozuvi BITTA tranzaksiyada. Ilgari
+        # loy yechilgach xato bo'lsa mahsulot yozilmay, xomashyo yechilgan qolardi (qayta urinish — IKKI MARTA).
+        with crud.bitta_tranzaksiya(db):
+            result = crud.produce_finished_product(db, data, created_by=who,
+                                                  company_id=auth.company_id_of(current_user))
+            if not result["success"]:
+                raise HTTPException(status_code=400, detail=result)
+        return result
+    result, takror = _amal_bajar(db, current_user, response, "ishlab_chiqarish", kalit, _bajar)
+    if takror:
+        return result
 
     # Ombor ogohlantirishi
     low_items = crud.get_low_stock_items(db, company_id=auth.company_id_of(current_user))
@@ -11297,21 +11429,29 @@ def api_finished_profit(fp_id: int, db: Session = Depends(get_db), current_user=
 
 
 @app.post("/api/finished/{fp_id}/add")
-def api_add_production(fp_id: int, data: dict = Body(...),
+def api_add_production(request: Request, response: Response, fp_id: int, data: dict = Body(...),
                        db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("tayyor", "tahrirlash"))):
     """Tayyor mahsulotga miqdor qo'shish — xomashyo proporsional yechiladi."""
     # 17-band: begona / mavjud bo'lmagan ID — tana tekshiruvidan OLDIN 404
     # (aks holda yomon tana 400 berib, ID borligini oshkor qilardi).
     if not crud.get_finished_product(db, fp_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Topilmadi")
+    kalit = _amal_kaliti(request)      # kech144 (zip 174): takror so'rov miqdorni / xomashyoni ikkinchi marta o'zgartirmaydi
     data = _fp_tana("StockAdjust", data, schemas.StockAdjust)
-    # kech84 (103-band, O'LCHANGAN): xomashyo yechish va miqdor qo'shish BITTA tranzaksiyada (qayta urinish
-    # xomashyoni IKKI MARTA yechardi).
-    with crud.bitta_tranzaksiya(db):
-        result = crud.add_to_production(db, fp_id, data.quantity,
-                                        company_id=auth.company_id_of(current_user))
-        if not result["success"]:
-            raise HTTPException(status_code=400, detail=result)
+
+    def _bajar():
+        # kech84 (103-band, O'LCHANGAN): xomashyo yechish va miqdor qo'shish BITTA tranzaksiyada (qayta urinish
+        # xomashyoni IKKI MARTA yechardi).
+        with crud.bitta_tranzaksiya(db):
+            result = crud.add_to_production(db, fp_id, data.quantity,
+                                            company_id=auth.company_id_of(current_user))
+            if not result["success"]:
+                raise HTTPException(status_code=400, detail=result)
+        return result
+    # kalit amal turi tayyor mahsulot bo'yicha — boshqa mahsulotga o'sha kalit bilan qo'shish alohida amal
+    result, takror = _amal_bajar(db, current_user, response, f"miqdor_qoshish_{fp_id}"[:40], kalit, _bajar)
+    if takror:
+        return result
 
     # Ombor ogohlantirishi
     low_items = crud.get_low_stock_items(db, company_id=auth.company_id_of(current_user))

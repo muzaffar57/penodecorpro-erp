@@ -6102,6 +6102,117 @@ def bitta_tranzaksiya(db: Session):
     db.commit()
 
 
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# kech144 (zip 174, audit 2-to'lqin — O'LCHANGAN `k173_tayyorgarlik/agentlar/tayyor/probe_takror.py`): AMAL KALITI — bir xil so'rov
+# ikki marta yuborilsa (ikki marta bosish, javob yo'qolib qayta bosish) amal QAYTA bajarilmaydi. Sahifa har amal «o'rni» (qaysi amal,
+# qaysi mahsulot / detal) uchun tasodifiy kalit yuboradi (`X-Amal-Kaliti` sarlavhasi — `base.html amalYubor`) va uni ANIQ natijagacha
+# saqlaydi (natija noma'lum — tarmoq / 5xx — bo'lsa qayta bosish o'sha kalit bilan ketadi); kalit — korxona + amal ichida noyob
+# (`models.AmalKaliti`). Kalitsiz so'rov (API, eski sahifa) — avvalgidek. Jadval o'smasin: har `AMAL_KALITI_TOZALASH_HAR`-kalitda
+# `AMAL_KALITI_SAQLASH_KUN` kundan eskilari o'chiriladi (`amal_kalitlari_tozala`).
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+import json as _json174                              # noqa: E402
+import re as _re174                                  # noqa: E402
+
+_AMAL_KALITI_NAQSH = _re174.compile(r"^[A-Za-z0-9_-]{8,64}$")
+AMAL_KALITI_SAQLASH_KUN = 30
+AMAL_KALITI_TOZALASH_HAR = 500
+
+
+def amal_kaliti_toza(kalit):
+    """`X-Amal-Kaliti` sarlavhasi: yo'q / bo'sh — None; 8–64 lotin harf, raqam, `_`, `-` — o'zi; boshqasi — ValueError (400)."""
+    if kalit is None:
+        return None
+    k = str(kalit).strip()
+    if not k:
+        return None
+    if not _AMAL_KALITI_NAQSH.match(k):
+        raise ValueError("'X-Amal-Kaliti' noto'g'ri — 8–64 ta lotin harf, raqam, «_» yoki «-» bo'lsin")
+    return k
+
+
+def _amal_json_default(o):
+    from decimal import Decimal
+    if hasattr(o, "isoformat"):
+        return o.isoformat()
+    if isinstance(o, Decimal):
+        return float(o)
+    if hasattr(o, "value") and isinstance(getattr(o, "value"), (str, int, float)):
+        return o.value
+    return str(o)
+
+
+def amal_oldingi_javobi(db: Session, company_id, amal: str, kalit: str):
+    """Shu korxonada shu amal uchun shu kalit bilan bajarilgan amalning javobi (lug'at) — yoki None (bajarilmagan)."""
+    from models import AmalKaliti
+    r = db.query(AmalKaliti).filter(AmalKaliti.company_id == company_id, AmalKaliti.amal_turi == amal,
+                                    AmalKaliti.sorov_kaliti == kalit).first()
+    if r is None:
+        return None
+    try:
+        d = _json174.loads(r.javob_json) if r.javob_json else {}
+    except (TypeError, ValueError):
+        d = {}
+    return d if isinstance(d, dict) else {"natija": d}
+
+
+def amal_kalitlari_tozala(db: Session, company_id, kun: int = None) -> int:
+    """SHU korxonaning `kun` (standart `AMAL_KALITI_SAQLASH_KUN`) kundan eski amal kalitlarini o'chiradi (texnik jadval, javoblar
+    hech qayerda ko'rsatilmaydi). Korxona filtri — tenant qoidasi (`tools/tenant_lint.py`): boshqa korxona kalitlariga tegilmaydi,
+    ular o'z amallarida tozalanadi. Natija — o'chirilgan qatorlar soni. O'zi saqlaydi (`commit`)."""
+    from models import AmalKaliti
+    from datetime import timedelta as _td174
+    chegara = datetime.utcnow() - _td174(days=AMAL_KALITI_SAQLASH_KUN if kun is None else kun)
+    n = (db.query(AmalKaliti).filter(AmalKaliti.company_id == company_id, AmalKaliti.created_at < chegara)
+         .delete(synchronize_session=False))
+    db.commit()
+    return int(n or 0)
+
+
+def amal_kaliti_bilan(db: Session, company_id, amal: str, kalit, bajar, kim=None):
+    """`bajar()` — amalning o'zi (lug'at qaytaradi; rad etsa — istisno). Natija: (javob, takror).
+
+    Kalit yo'q — `bajar()` avvalgidek (o'z tranzaksiyasi bilan). Kalit bor: shu kalit bilan amal bajarilgan bo'lsa — uning javobi,
+    `takror=True` (amal QAYTA bajarilmaydi). Aks holda BITTA tranzaksiyada (`bitta_tranzaksiya`): avval kalit qatori (noyoblik
+    indeksi — parallel ikkinchi so'rov birinchisi tugashini kutadi), so'ng amal, so'ng javob qatorga yoziladi. Amal rad etilsa
+    (istisno) — kalit ham yozilmaydi (o'sha kalit bilan qayta urinish mumkin). Parallel so'rov noyoblik buzilishiga tushsa — birinchisining
+    javobi (`takror=True`)."""
+    from models import AmalKaliti
+    from sqlalchemy.exc import IntegrityError as _IE174
+    if not kalit:
+        return bajar(), False
+    oldingi = amal_oldingi_javobi(db, company_id, amal, kalit)
+    if oldingi is not None:
+        return oldingi, True
+    try:
+        with bitta_tranzaksiya(db):
+            qator = AmalKaliti(company_id=company_id, amal_turi=amal, sorov_kaliti=kalit, bajaruvchi=(str(kim)[:100] if kim else None))
+            db.add(qator)
+            db.flush()
+            _qid = qator.id
+            javob = bajar()
+            qator.javob_json = _json174.dumps(javob if javob is not None else {}, ensure_ascii=False, default=_amal_json_default)
+            db.flush()
+    except _IE174:
+        try:
+            db.rollback()
+        except Exception:                    # noqa: BLE001
+            pass
+        oldingi = amal_oldingi_javobi(db, company_id, amal, kalit)
+        if oldingi is not None:
+            return oldingi, True
+        raise
+    if _qid and _qid % AMAL_KALITI_TOZALASH_HAR == 0:
+        try:
+            amal_kalitlari_tozala(db, company_id)
+        except Exception as e:               # noqa: BLE001 — tozalash amalni buzmaydi (amal allaqachon saqlangan)
+            try:
+                db.rollback()
+            except Exception:                # noqa: BLE001
+                pass
+            print(f"⚠ Eski amal kalitlari tozalanmadi: {e}")
+    return javob, False
+
+
 def delete_order(db: Session, order_id: int, soft: bool = False, performed_by: str = None) -> bool:
     """Buyurtmani o'chirish.
     soft=True bo'lsa — bazadan o'chirilmaydi, faqat 'is_deleted' belgisi qo'yiladi.
@@ -8765,7 +8876,7 @@ def _reset_table_order():
         MasterGiftPeriodRedemption, GiftPeriodParticipant, GiftPeriodTier,
         GiftPeriod, Master, Project, Supplier, CashTransaction, ActivityLog,
         ErrorLog, LoginHistory, CompanySetting, RecurringObligation, Inventory,
-        Yonalish, BrakTaqdir, Taklif, HodimIshDavri, BuyurtmaTuzatish,
+        Yonalish, BrakTaqdir, Taklif, HodimIshDavri, BuyurtmaTuzatish, AmalKaliti,
     )
     return [
         ProductionOrder,
@@ -8795,6 +8906,8 @@ def _reset_table_order():
         Master, Project, Supplier,
         CashTransaction, ActivityLog, ErrorLog, LoginHistory,
         CompanySetting, RecurringObligation,
+        # kech144 (zip 174): amal kalitlari — faqat korxonaga ishora qiladi, ularga hech kim ishora qilmaydi
+        AmalKaliti,
     ]
 
 
