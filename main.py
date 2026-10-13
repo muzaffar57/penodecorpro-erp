@@ -3457,6 +3457,32 @@ def _migrate_ish_davrlari():
 
 _migrate_ish_davrlari()
 
+
+def _migrate_himoya143():
+    """kech143 (zip 171, AUDIT A-X09): bazadagi XOM sessiya tokenlari — SHA-256 xeshga (`auth.sessiya_tokenlarini_xeshla`;
+    cookie o'zgarmaydi — hech kim chiqib ketmaydi), eski tuzsiz SHA-256 parol / PIN xeshlari — bcrypt bilan o'ralgan
+    ko'rinishga (`auth.eski_xeshlarni_ora`; parol o'zgarmaydi). Har biri — alohida tranzaksiya; xato bo'lsa o'sha qism
+    o'zgarmaydi (keyingi ishga tushishda qayta), ilova ishlayveradi. Takror ishga tushish — o'zgarishsiz."""
+    from database import SessionLocal as _SL143
+    natija = {}
+    for nom, fn in (("sessiya", auth.sessiya_tokenlarini_xeshla), ("xesh", auth.eski_xeshlarni_ora)):
+        _d = _SL143()
+        try:
+            natija[nom] = fn(_d)
+            _d.commit()
+            if any(natija[nom].values()):
+                print(f"✓ Himoya (kech143) {nom}: {natija[nom]}")
+        except Exception as e:
+            _d.rollback()
+            natija[nom] = {"xato": str(e)[:200]}
+            print(f"⚠ Himoya (kech143) {nom} migratsiyasi o'tkazib yuborildi: {e}")
+        finally:
+            _d.close()
+    return natija
+
+
+_migrate_himoya143()
+
 # kech104 (K104-2): FastAPI ning o'rnatilgan API hujjatlari (/openapi.json, /docs, /redoc) login-siz
 # ochiq edi — butun API sxemasi (barcha marshrutlar, /api/system/* va /api/platform/* ham) har kimga ko'rinardi.
 # Ilova ularni ishlatmaydi (shablon / test havolasi yo'q) — o'chirildi. Marshrutlar xaritasi:
@@ -3546,6 +3572,89 @@ class _TannarxHimoyasi:
 
 
 app.add_middleware(_TannarxHimoyasi)
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# kech143 (zip 171, AUDIT A-X04 — O'LCHANGAN `work/audit/tasdiq/himoya/p_himoya.py` X04a–e, SQLite = PG): server so'rov QAYSI
+# saytdan kelganini tekshirmasdi — himoya faqat cookie ning `SameSite=Lax` i edi (Origin=evil + Sec-Fetch-Site=cross-site POST,
+# tanasiz DELETE — 200). `up.railway.app` — Public Suffix List da (staging va production — alohida «sayt»), shuning uchun bugun
+# boshqa saytdan POST ga cookie qo'shilmaydi; lekin bu brauzer siyosatiga va domenga bog'liq (o'z domeni / korxona
+# subdomenlari bo'lsa — qo'shni subdomen «same-site»). Endi har yozuvchi so'rov (POST / PUT / PATCH / DELETE) — Go 1.25
+# `http.CrossOriginProtection` qoidasi bilan:
+#   * `Sec-Fetch-Site` bor (zamonaviy brauzer) — faqat `same-origin` yoki `none` (foydalanuvchi o'zi ochgan) o'tadi;
+#   * yo'q bo'lsa — `Origin` xosti so'rovning `Host` sarlavhasiga TENG bo'lsa o'tadi (jonli o'lchov 13.10: Railway `Host` —
+#     ommaviy domen «web-sinov.up.railway.app»);
+#   * ikkalasi ham yo'q — brauzer emas (cron, Telegram, test mijozi) yoki eski brauzerning o'z saytidagi so'rovi — o'tadi.
+# Rad — 403 (API — JSON `detail`, sahifa — matn). Istisno — Telegram webhook (server-server; sir sarlavhasi bilan).
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+_MANBA_XAVFSIZ_USULLAR = frozenset({"GET", "HEAD", "OPTIONS", "TRACE"})
+MANBA_RAD_XABARI = ("So'rov boshqa saytdan keldi — xavfsizlik uchun rad etildi. Amalni dasturning o'z sahifasidan "
+                    "bajaring (sahifani yangilab qayta urining).")
+
+
+def _manba_istisnomi(yol: str) -> bool:
+    return yol == "/telegram/webhook" or yol.startswith("/telegram/webhook/")
+
+
+def manba_rad_sababi(usul: str, yol: str, sarlavhalar) -> Optional[str]:
+    """None — so'rov o'tadi; matn — rad sababi. `sarlavhalar` — kichik harfli nomlar bo'yicha `get` qiladigan lug'at."""
+    if str(usul or "").upper() in _MANBA_XAVFSIZ_USULLAR or _manba_istisnomi(str(yol or "")):
+        return None
+    sfs = (sarlavhalar.get("sec-fetch-site") or "").strip().lower()
+    if sfs:
+        return None if sfs in ("same-origin", "none") else f"sec-fetch-site={sfs}"
+    origin = (sarlavhalar.get("origin") or "").strip()
+    if not origin:
+        return None
+    from urllib.parse import urlsplit as _us143
+    try:
+        o_xost = _us143(origin).netloc.lower() if origin.lower() != "null" else ""
+    except ValueError:
+        o_xost = ""
+    xost = (sarlavhalar.get("host") or "").strip().lower()
+    if o_xost and xost and o_xost == xost:
+        return None
+    return f"origin={origin[:80]}"
+
+
+class _ManbaHimoyasi:
+    """kech143 (A-X04): boshqa saytdan kelgan yozuvchi so'rov — 403 (sof ASGI; yuqoridagi izoh)."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") != "http":
+            await self.app(scope, receive, send)
+            return
+        _sar = {}
+        for k, v in scope.get("headers") or []:
+            _sar.setdefault(k.decode("latin-1").lower(), v.decode("latin-1"))
+        sabab = manba_rad_sababi(scope.get("method", ""), scope.get("path", ""), _sar)
+        if sabab is None:
+            await self.app(scope, receive, send)
+            return
+        print(f"⚠ Boshqa saytdan so'rov rad etildi: {scope.get('method')} {scope.get('path')} ({sabab})")
+        if str(scope.get("path", "")).startswith("/api/"):
+            import json as _js143
+            tana = _js143.dumps({"detail": MANBA_RAD_XABARI}, ensure_ascii=False).encode("utf-8")
+            tur = b"application/json"
+        else:
+            tana = MANBA_RAD_XABARI.encode("utf-8")
+            tur = b"text/plain; charset=utf-8"
+        await send({"type": "http.response.start", "status": 403,
+                    "headers": [(b"content-type", tur), (b"content-length", str(len(tana)).encode()),
+                                (b"x-content-type-options", b"nosniff"), (b"x-frame-options", b"DENY")]})
+        await send({"type": "http.response.body", "body": tana})
+
+
+app.add_middleware(_ManbaHimoyasi)
+
+
+def boshqa_saytdan_otishmi(request) -> bool:
+    """kech143 (A-X04): GET bilan holat o'zgartiradigan yo'l (chiqish) boshqa saytdagi havoladan ochildimi
+    (`Sec-Fetch-Site` = cross-site / same-site). Sarlavha yo'q (eski brauzer, test mijozi) — yo'q deb olinadi."""
+    return (request.headers.get("sec-fetch-site") or "").strip().lower() in ("cross-site", "same-site")
 
 
 @app.exception_handler(Exception)
@@ -4243,6 +4352,11 @@ async def login_submit(request: Request, username: str = Form(...), password: st
 
 @app.get("/logout")
 async def logout(request: Request, db: Session = Depends(get_db)):
+    # kech143 (zip 171, A-X04 — O'LCHANGAN X04e): boshqa saytdagi havola (`<a href=…/logout>`, yuqori darajali o'tish —
+    # SameSite=Lax cookie yuboriladi) foydalanuvchini tizimdan chiqarib yuborardi. Endi bunday o'tishda chiqarilmaydi —
+    # bosh sahifaga; o'z sahifasidagi «Chiqish» (same-origin) va manzilni o'zi yozish (none) — avvalgidek.
+    if boshqa_saytdan_otishmi(request):
+        return RedirectResponse("/", status_code=302)
     token = request.cookies.get("session_token")
     if token:
         auth.delete_session(db, token)
@@ -5133,8 +5247,8 @@ def api_create_item(data: dict = Body(...), db: Session = Depends(get_db), curre
     except IntegrityError:
         # Parallel so'rov (tekshiruv va yozish orasida boshqasi shu nomni yaratgan) — 409, mavjud material bilan (ilgari 400).
         db.rollback()
-        _bor142 = db.query(Inventory).filter(Inventory.company_id == _cid,
-                                             Inventory.item_name == str(item.item_name or "").strip()).first()
+        # kech143 (N1): nom kaliti bo'yicha (harf / bo'shliq farqi — o'sha material)
+        _bor142 = next((m for m in crud.nomdosh_materiallar(db, _cid, item.item_name) if not m.is_deleted), None)
         if _bor142 is not None and not _bor142.is_deleted:
             raise HTTPException(status_code=409, detail=crud.material_nomi_band_detail(_bor142))
         raise HTTPException(
@@ -5817,11 +5931,28 @@ def _qr_svg(matn: str, olcham: int = 220) -> str:
 
 def _hodim_kirish_manzili(request: Request, manzil: str, kod: str) -> str:
     """`…/hodim?k=KOD` — sayt manzili brauzerdan (`location.origin`; faqat sxema + xost + port qabul qilinadi), bo'lmasa —
-    so'rovning o'zidan."""
-    from urllib.parse import quote as _q
+    so'rovning o'zidan.
+
+    kech143 (zip 171, AUDIT A-X06 — O'LCHANGAN `p_himoya.py` X06a / X06c): `manzil` ISTALGAN xostni qabul qilardi —
+    `/users/hodim-qr?manzil=https://evil.example` havolasini ochgan admin chop etgan QR hodimni begona saytga (korxona kodi
+    bilan) olib borardi. Endi `manzil` faqat xosti so'rovning `Host` sarlavhasiga teng bo'lsa olinadi (jonli staging 13.10:
+    `Host` = «web-sinov.up.railway.app», `request.base_url` sxemasi http — brauzerning https manzili afzal). Aks holda —
+    `Host` + sxema (`X-Forwarded-Proto` https bo'lsa https)."""
+    from urllib.parse import quote as _q, urlsplit as _us
     _m = (manzil or "").strip().rstrip("/")
-    if not _HODIM_MANZIL_RE.fullmatch(_m):
-        _m = str(request.base_url).rstrip("/")
+    _xost = (request.headers.get("host") or "").strip().lower()
+    _mos = False
+    if _HODIM_MANZIL_RE.fullmatch(_m):
+        try:
+            _mos = bool(_xost) and _us(_m).netloc.lower() == _xost
+        except ValueError:
+            _mos = False
+    if not _mos:
+        _sx = (request.headers.get("x-forwarded-proto") or "").split(",")[0].strip().lower()
+        if _xost and _re_hodim.fullmatch(r"[a-z0-9.-]+(:[0-9]{1,5})?", _xost):
+            _m = f"{'https' if _sx == 'https' else request.url.scheme}://{_xost}"
+        else:
+            _m = str(request.base_url).rstrip("/")
     return f"{_m}/hodim" + (f"?k={_q(kod)}" if kod else "")
 
 
@@ -5947,6 +6078,9 @@ def _hodim_qurilma_telegram(ism: str, hozirgi: Optional[str], yangi: str, compan
 
 @app.get("/hodim/logout")
 async def hodim_logout(request: Request, db: Session = Depends(get_db)):
+    # kech143 (zip 171, A-X04): boshqa saytdagi havola hodimni chiqarib yubormaydi (`logout` dagi kabi) — panelga
+    if boshqa_saytdan_otishmi(request):
+        return RedirectResponse("/hodim", status_code=302)
     token = request.cookies.get("emp_session_token")
     if token:
         auth.delete_employee_session(db, token)
@@ -6783,12 +6917,22 @@ def api_low_stock_alert(db: Session = Depends(get_db), current_user=Depends(auth
 # ═══════════════════════════════════════════════════════════════
 CRON_SECRET = os.environ.get("CRON_SECRET", "")
 
-@app.get("/api/cron/low-stock-check")
-def api_cron_low_stock_check(secret: str = "", db: Session = Depends(get_db)):
+
+def _cron_sirini_tekshir(request: Request, secret: str) -> None:
+    """kech143 (zip 171, AUDIT A-X09 — O'LCHANGAN `p_himoya.py` X09a–c): sir faqat manzil ichida (`?secret=`, proksi / xizmat
+    loglarida qoladi) va oddiy `!=` bilan solishtirilardi. Endi `X-Cron-Secret` sarlavhasi ham qabul qilinadi (cron-job.org
+    «Headers» bo'limi; manzildagisi ham ishlayveradi — mavjud sozlama buzilmaydi), solishtiruv — doimiy vaqtli."""
+    import hmac as _hm143
     if not CRON_SECRET:
         raise HTTPException(status_code=503, detail="CRON_SECRET Railway'da o'rnatilmagan")
-    if secret != CRON_SECRET:
+    _berilgan = (request.headers.get("x-cron-secret") or secret or "")
+    if not _hm143.compare_digest(_berilgan.encode("utf-8"), CRON_SECRET.encode("utf-8")):
         raise HTTPException(status_code=403, detail="Noto'g'ri maxfiy kalit")
+
+
+@app.get("/api/cron/low-stock-check")
+def api_cron_low_stock_check(request: Request, secret: str = "", db: Session = Depends(get_db)):
+    _cron_sirini_tekshir(request, secret)
     # 2026-09-19 — Faza 3: ilgari bu so'rov KORXONA FILTRISIZ edi, ya'ni
     # bitta ogohlantirish xabarida BARCHA korxonalarning materiallari
     # aralashib ketardi. Endi har bir korxona alohida ko'rib chiqiladi.
@@ -6850,11 +6994,8 @@ def api_cron_low_stock_check(secret: str = "", db: Session = Depends(get_db)):
 # tizimda ishlab turgan hech kimning sessiyasiga tegilmaydi.
 # ═══════════════════════════════════════════════════════════════
 @app.get("/api/cron/cleanup-sessions")
-def api_cron_cleanup_sessions(secret: str = "", db: Session = Depends(get_db)):
-    if not CRON_SECRET:
-        raise HTTPException(status_code=503, detail="CRON_SECRET Railway'da o'rnatilmagan")
-    if secret != CRON_SECRET:
-        raise HTTPException(status_code=403, detail="Noto'g'ri maxfiy kalit")
+def api_cron_cleanup_sessions(request: Request, secret: str = "", db: Session = Depends(get_db)):
+    _cron_sirini_tekshir(request, secret)
     result = auth.cleanup_expired_sessions(db)
     total = result["user_sessions"] + result["employee_sessions"]
     return {"cleaned": True, "message": f"{total} ta eski sessiya tozalandi", "detail": result}
@@ -10969,29 +11110,59 @@ def api_brak_tuzatish_materiallari(db: Session = Depends(get_db),
     return crud.brak_tuzatish_materiallari(db, auth.company_id_of(current_user))
 
 
+def _tannarxdan_past_sotuv_qayd(db: Session, background_tasks: BackgroundTasks, result: dict, who: str, company_id,
+                                xaridor=None) -> None:
+    """kech143 (zip 171, AUDIT A-X05 — EGASI QARORI 13.10 «Sotuv o'tadi, sizga xabar»): tannarx ruxsatisiz sotuvchining
+    tannarxdan past sotuvi — javobdan olib tashlanadi (sotuvchi «past edi» ni ham bilmasin), «Faoliyat jurnali» ga
+    `tannarxdan_past_sotuv` yozuvi va korxona Telegram chatiga xabar (fon vazifasi). Ikkalasida ham TANNARX YO'Q — faqat
+    mahsulot, miqdor, sotuv narxi va sotuvchi (jurnal / chatni kim ko'rishidan qat'i nazar sir oshkor bo'lmaydi)."""
+    _past = result.pop("tannarxdan_past", None)
+    if not _past:
+        return
+    _satrlar = [f"{p['nomi']}: {p['miqdor']:g} {p['birlik'] or ''} × {format(p['narx'], ',.0f').replace(',', ' ')} so'm"
+                for p in _past]
+    try:
+        for p, s in zip(_past, _satrlar):
+            crud.log_activity(db, "tannarxdan_past_sotuv", "finished_sale", result.get("sale_id") or 0, p["nomi"],
+                              performed_by=who, new_value=s + (f" · xaridor: {xaridor}" if xaridor else ""),
+                              company_id=company_id)
+    except Exception as e:                 # noqa: BLE001 — sotuv yozilgan; jurnal xatosi sotuvni buzmaydi
+        print(f"⚠ Tannarxdan past sotuv jurnalga yozilmadi: {e}")
+    _matn = ("⚠️ *Tannarxdan past narxda sotuv*\n\n" + "\n".join("• " + s for s in _satrlar)
+             + f"\n\n👤 Sotuvchi: {who}" + (f"\n🧾 Xaridor: {xaridor}" if xaridor else "")
+             + "\n\nTannarx va foyda — dasturning «Moliya» bo'limida.")
+    background_tasks.add_task(_send_telegram, _matn, company_id)
+
+
 @app.post("/api/finished/sell-batch")
-def api_sell_finished_products_batch(data: dict = Body(...), db: Session = Depends(get_db),
+def api_sell_finished_products_batch(background_tasks: BackgroundTasks, data: dict = Body(...), db: Session = Depends(get_db),
                                        current_user=Depends(auth.ruxsat("sotuv", "yaratish"))):
     """Bir nechta turli tayyor mahsulotni, bitta xaridorga, bitta Yuk xati bilan sotish."""
     data = _fp_tana("SaleBatch", data, schemas.FinishedProductSaleBatchCreate)
     who = current_user.full_name or current_user.username
     result = crud.sell_finished_products_batch(db, data, created_by=who,
-                                              company_id=auth.company_id_of(current_user))
+                                              company_id=auth.company_id_of(current_user),
+                                              tannarx_korinadi=current_user.ruxsat("tannarx", "korish"))
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
+    _tannarxdan_past_sotuv_qayd(db, background_tasks, result, who, auth.company_id_of(current_user),
+                                getattr(data, "buyer_name", None))
     return result
 
 
 @app.post("/api/finished/sell")
-def api_sell_finished_product(data: dict = Body(...), db: Session = Depends(get_db),
+def api_sell_finished_product(background_tasks: BackgroundTasks, data: dict = Body(...), db: Session = Depends(get_db),
                                 current_user=Depends(auth.ruxsat("sotuv", "yaratish"))):
     """Tayyor mahsulotni to'g'ridan-to'g'ri sotish (buyurtma/Yuk xatisiz)."""
     data = _fp_tana("Sale", data, schemas.FinishedProductSaleCreate)
     who = current_user.full_name or current_user.username
     result = crud.sell_finished_product(db, data, created_by=who,
-                                       company_id=auth.company_id_of(current_user))
+                                       company_id=auth.company_id_of(current_user),
+                                       tannarx_korinadi=current_user.ruxsat("tannarx", "korish"))
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
+    _tannarxdan_past_sotuv_qayd(db, background_tasks, result, who, auth.company_id_of(current_user),
+                                getattr(data, "buyer_name", None))
     return result
 
 
