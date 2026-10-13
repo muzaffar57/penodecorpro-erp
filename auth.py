@@ -732,21 +732,40 @@ def platforma_egasi_himoyasi(user, bajaruvchi) -> None:
         raise HTTPException(status_code=403, detail="Platforma egasining hisobini faqat uning o'zi o'zgartira oladi")
 
 
-def toggle_user_active(db: Session, user_id: int, company_id: int, bajaruvchi=None) -> Optional[User]:
+def toggle_user_active(db: Session, user_id: int, company_id: int, bajaruvchi=None, faol=None) -> Optional[User]:
     """Foydalanuvchini faollashtiradi yoki o'chiradi.
 
     2026-09-18 — M1: company_id shart. Ilgari faqat id bo'yicha qidirilardi,
     ya'ni A korxona admini B korxona adminini o'chirib qo'yishi mumkin edi.
 
     kech139 (zip 167): platforma egasi hisobi — faqat o'zi (A-X01); AUDIT A-X03 (O'LCHANGAN): o'chirilgan foydalanuvchining
-    sessiyalari qolardi — qayta faollashtirilsa ESKI kirish (cookie) yana ishlardi. Endi o'chirishda hamma sessiyalari o'chiriladi."""
+    sessiyalari qolardi — qayta faollashtirilsa ESKI kirish (cookie) yana ishlardi. Endi o'chirishda hamma sessiyalari o'chiriladi.
+
+    kech144 (zip 175, audit 2-to'lqin U1 — O'LCHANGAN fy_probe1 S3 / S4): ilgari holat faqat ALMASHTIRILARDI — boshqa admin (yoki boshqa
+    oyna) allaqachon o'chirgan foydalanuvchini eski sahifadagi «O'chir» tugmasi QAYTA YOQARDI; admin o'zini API orqali o'chira olardi.
+    `faol` (True / False) — sahifa ko'rsatgan holatdan MAQSAD: holat allaqachon shunday bo'lsa — 409 (sahifani yangilang); `faol=None`
+    (eski chaqiruv) — almashtirish. O'chirishda: o'zini — 400; korxonadagi oxirgi faol Adminni — 400 (`rol_biriktir` qoidasi)."""
     from models import UserSession
     user = db.query(User).filter(
         User.id == user_id, User.company_id == company_id).first()
     if not user:
         return None
     platforma_egasi_himoyasi(user, bajaruvchi)
-    user.is_active = not user.is_active
+    yangi = (not user.is_active) if faol is None else bool(faol)
+    if faol is not None and bool(user.is_active) == yangi:
+        raise HTTPException(status_code=409, detail={
+            "type": "holat_ozgargan", "is_active": bool(user.is_active),
+            "message": ("Foydalanuvchi allaqachon faol" if user.is_active else "Foydalanuvchi allaqachon o'chirilgan")
+                       + " (boshqa oyna yoki admin o'zgartirgan) — sahifani yangilang. Hech narsa o'zgarmadi."})
+    if not yangi:
+        if bajaruvchi is not None and user.id == bajaruvchi.id:
+            raise HTTPException(status_code=400, detail="O'zingizni o'chira olmaysiz")
+        if user.role == UserRole.ADMIN and user.is_active:
+            boshqa = (db.query(User).filter(User.company_id == company_id, User.role == UserRole.ADMIN,
+                                            User.is_active == True, User.id != user.id).count())   # noqa: E712
+            if not boshqa:
+                raise HTTPException(status_code=400, detail="Korxonada kamida bitta faol Admin qolishi kerak")
+    user.is_active = yangi
     if not user.is_active:
         db.query(UserSession).filter(UserSession.user_id == user.id).delete(synchronize_session=False)
     db.commit()
