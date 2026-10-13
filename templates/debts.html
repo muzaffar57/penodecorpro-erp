@@ -847,6 +847,13 @@ function payYozuv(){
 
 async function savePayment(){
   if (!selectedOrderId) return;
+  // kech144 (zip 173): ikki marta bosish — ikkinchisi kutadi (birinchi so'rov tugaguncha)
+  if (savePayment.band) return;
+  savePayment.band = true;
+  try { await savePaymentIchki(); } finally { savePayment.band = false; }
+}
+
+async function savePaymentIchki(){
   const amount = parseNum(document.getElementById('pay-amount').value);
   const writeOff = document.getElementById('pay-writeoff').checked;
   const notes = document.getElementById('pay-note').value;
@@ -878,21 +885,34 @@ async function savePayment(){
   // Endi `orders.html` dagi kabi tasdiq so'raladi va `confirm_overpay: true`
   // bilan qayta yuboriladi. Boshqa xatolarda server SABABI ko'rsatiladi.
   const tana = { order_id: parseInt(selectedOrderId), amount, payment_method: usul, notes: notes || null };
-  const yubor = () => fetch(`/api/payments?write_off_remainder=${writeOff}`, {
+  // kech144 (zip 173, egasi QARORI 13.10 «Faqat ko'rsatilgani»): oynada ko'rsatilgan kechiriladigan summa serverga ham boradi —
+  // shu orada qarz o'zgargan bo'lsa (to'lov o'chirilgan / qo'shilgan) server 409 `kechirish_ozgardi` qaytaradi, hech narsa saqlanmaydi
+  // (ilgari server to'lovdan keyin qolgan BUTUN qarzni kechirardi — oynada ko'rinmagan summa ham)
+  const url = `/api/payments?write_off_remainder=${writeOff}` + (writeOff ? `&kechirish=${encodeURIComponent(String(kechir))}` : '');
+  const yubor = () => fetch(url, {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify(tana)
   });
 
-  let res = await yubor();
-  if (res.status === 409) {
-    let d = null;
-    try { d = await res.clone().json(); } catch(e) {}
-    if (d && d.detail && d.detail.type === 'overpayment_warning') {
-      const ha = await customConfirm(String(d.detail.message || ''), {danger: true, okText: 'Ha, davom etaman'});
-      if (!ha) { msg.style.display = 'none'; return; }
-      tana.confirm_overpay = true;
-      res = await yubor();
+  let res;
+  try {
+    res = await yubor();
+    if (res.status === 409) {
+      let d = null;
+      try { d = await res.clone().json(); } catch(e) {}
+      if (d && d.detail && d.detail.type === 'overpayment_warning') {
+        const ha = await customConfirm(String(d.detail.message || ''), {danger: true, okText: 'Ha, davom etaman'});
+        if (!ha) { msg.style.display = 'none'; return; }
+        tana.confirm_overpay = true;
+        res = await yubor();
+      }
     }
+  } catch (e) {
+    // kech144 (zip 173): ilgari bu yerda hech narsa ko'rsatilmasdi (ushlanmagan xato) — to'lov yozildimi, noma'lum edi
+    msg.style.display = 'block';
+    msg.style.background = 'var(--f-fee2e2)'; msg.style.color = 'var(--m-dc2626)';
+    msg.textContent = "❌ Natija noma'lum — " + await amalSababi(e) + " (to'lovlar ro'yxatini tekshiring: to'lov yozilgan bo'lishi mumkin)";
+    return;
   }
 
   msg.style.display = 'block';
@@ -907,7 +927,15 @@ async function savePayment(){
     setTimeout(() => location.reload(), wo && wo.amount ? 3000 : 1300);
   } else {
     msg.style.background = 'var(--f-fee2e2)'; msg.style.color = 'var(--m-dc2626)';
-    msg.textContent = '❌ ' + await serverSababi(res, 'Xato yuz berdi');
+    let d = null;
+    try { d = await res.clone().json(); } catch (e) { d = null; }
+    if (d && d.detail && d.detail.type === 'kechirish_ozgardi') {
+      // kech144 (zip 173): sahifadagi qarz eskirgan — yangilash kerak (sahifa o'zi yangilanmaydi: xabarni o'qib olish uchun)
+      msg.textContent = '❌ ' + String(d.detail.message || "Qarz o'zgargan — hech narsa saqlanmadi")
+        + " Sahifani yangilang — qarz qayta o'qiladi.";
+      return;
+    }
+    msg.textContent = '❌ ' + (res.status >= 500 || res.status === 401 ? await amalSababi(res) : await serverSababi(res, 'Xato yuz berdi'));
   }
 }
 
