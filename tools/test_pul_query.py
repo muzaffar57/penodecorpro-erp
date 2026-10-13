@@ -796,7 +796,10 @@ def d_bolimi():
     check("D takroriy yuborish (8 s ichida) → ikkinchisi duplicate, faqat 1 yozuv",
           r1.status_code == 200 and r2.status_code == 200 and dup2 is True
           and soni(Payment) == n0 + 1, f"{r1.status_code} {r2.status_code} {matn(r2)[:120]}")
-    r = xom(C, "post", "/api/payments?write_off_remainder=true",
+    # kech144 (zip 173, egasi QARORI «Faqat ko'rsatilgani»): oynada ko'rsatilgan kechirish (qarz − to'lov) ham yuboriladi
+    _kq173 = C.get(f"/api/orders/{OW}").json()
+    _k173 = round(float(_kq173.get("debt_amount") or 0) - 99600, 2)
+    r = xom(C, "post", f"/api/payments?write_off_remainder=true&kechirish={_k173 if _k173 > 0.5 else 0}",
             '{"order_id": %d, "amount": 99600}' % OW)
     o = oxirgi(Order, id=OW)
     try:
@@ -1232,12 +1235,13 @@ def g_bolimi():
     orders = fayl("templates/orders.html")
     debts = fayl("templates/debts.html")
     sp_o = js_funksiya(orders, "savePayment")
-    sp_d = js_funksiya(debts, "savePayment")
+    sp_d = js_funksiya(debts, "savePaymentIchki")   # kech144 (zip 173, MOSLANDI): `savePayment` — band belgisi, mantiq shu yerda
     check("G orders.html savePayment: 409 overpayment_warning → tasdiq va confirm_overpay bilan qayta",
           tartibda(sp_o, "res.status === 409", "overpayment_warning", "showConfirmModal(",
                    "data.confirm_overpay = true", "yubor()"))
+    # kech144 (zip 173, MOSLANDI): sabab — base.html `amalSababi` (u `xatoSababi` bilan o'qiydi; 401 / 5xx / tarmoq ham)
     check("G orders.html savePayment: xatoda server sababi (eski umumiy matn yolg'iz emas)",
-          "tolovXatoSababi(res" in sp_o and bool(js_funksiya(orders, "tolovXatoSababi"))
+          "amalSababi(res" in sp_o and "amalSababi(e" in sp_o
           and "showMsg('❌ To\\'lovni saqlashda xato', 'error')" not in sp_o)
     check("G debts.html savePayment: 409 → customConfirm, confirm_overpay bilan qayta; xatoda serverSababi",
           tartibda(sp_d, "res.status === 409", "overpayment_warning", "customConfirm(",

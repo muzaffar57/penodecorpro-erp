@@ -622,8 +622,10 @@ _shart = False
 if _fa is not None:
     for _n in _ast.walk(_fa):
         # `if takror: return new_order` — Telegram / ombor ogohlantirishidan OLDIN darhol qaytish
+        # kech144 (zip 173, MOSLANDI): blok avval `X-Takror` sarlavhasini qo'yadi — OXIRGI amal `return`, ichida Telegram YO'Q
         if isinstance(_n, _ast.If) and isinstance(_n.test, _ast.Name) and _n.test.id == "takror" \
-                and _n.body and isinstance(_n.body[0], _ast.Return):
+                and _n.body and isinstance(_n.body[-1], _ast.Return) \
+                and not any(isinstance(_c, _ast.Call) and _nuqtali(_c) == "_send_telegram" for _b in _n.body for _c in _ast.walk(_b)):
             _qaytish = True
         # penoplast yechish sharti takrorni ham tekshiradi
         if isinstance(_n, _ast.If) and any(isinstance(_c, _ast.Call) and _nuqtali(_c) == "services.deduct_inventory_for_order"

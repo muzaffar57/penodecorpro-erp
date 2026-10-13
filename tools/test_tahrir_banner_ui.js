@@ -114,7 +114,8 @@ function muhit() {
   const kod = [
     'var editMode = false, currentEditOrderId = null, editDiscountPct = 0, editUserTouched = false, editInitialLoadDone = false;',
     'var selectedOrderId = null; function filterProjectSelect(){} function addItem(){} function saveOrder(){} function updateOrder(){}',
-    TOPSH || '', TIKLA || '', jinjasiz(SHOWNEW) || '',
+    // kech144 (zip 173, MOSLANDI): `showNewForm` forma kalitini `yaratishKaliti()` bilan oladi (takror buyurtmadan himoya)
+    TOPSH || '', TIKLA || '', jinjasiz(SHOWNEW) || '', olib(SRC, 'yaratishKaliti') || '',
     // editSelected qismlari — asl joyidagidek, bitta funksiya ichida (o'zgaruvchilar: _dlvHolat103, order)
     'function __tahrirQismi(_dlvHolat103, order) {', QISM_DLV || 'throw new Error("QISM_DLV topilmadi");',
     QISM_SARLAVHA || 'throw new Error("QISM_SARLAVHA topilmadi");', '}',

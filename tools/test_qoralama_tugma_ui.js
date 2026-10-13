@@ -100,7 +100,8 @@ function muhit() {
   const kod = [
     'var editMode = false, currentEditOrderId = null, editDiscountPct = 0, editUserTouched = false, editInitialLoadDone = false;',
     'var selectedOrderId = null; function filterProjectSelect(){} function addItem(){} function saveOrder(){} function updateOrder(){}',
-    TIKLA || 'function _tahrirBanneriTikla(){}', SHOWNEW || '',
+    // kech144 (zip 173, MOSLANDI): `showNewForm` forma kalitini `yaratishKaliti()` bilan oladi (takror buyurtmadan himoya)
+    TIKLA || 'function _tahrirBanneriTikla(){}', SHOWNEW || '', olib(SRC, 'yaratishKaliti') || '',
     'function __tahrirTugmalar(editId) {', QISM_TUGMA || 'throw new Error("QISM_TUGMA topilmadi");', '}',
   ].join('\n');
   const s = w.document.createElement('script');

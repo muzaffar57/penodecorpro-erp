@@ -831,8 +831,10 @@ check("H debts.html majburiyat to'lovi — xatoda server sababi (serverSababi)",
 check("H debts.html majburiyat to'lovi — faqat \"Xato yuz berdi\" emas",
       "else alert('Xato yuz berdi')" not in _qp)
 _ea = _funksiya(_orders, "async function editAgreedAmount")
-check("H orders.html kelishilgan summa — detail.message ko'rsatiladi",
-      tartibda(_ea, "/agreed-amount", "res.ok", "detail.message", "showMsg('❌ ' + sabab"),
+# kech144 (zip 173, MOSLANDI): sabab — base.html `amalSababi(res)` (`xatoSababi`: `detail` matn / `detail.message` / ro'yxat;
+# 401 / 5xx ham) — ilgari funksiya ichida `detail.message` qo'lda o'qilardi
+check("H orders.html kelishilgan summa — detail.message ko'rsatiladi (amalSababi orqali)",
+      tartibda(_ea, "/agreed-amount", "res.ok", "Kelishilgan summa saqlanmadi: ' + await amalSababi(res)"),
       _ea[:80])
 check("H orders.html kelishilgan summa — faqat '❌ Xato' emas",
       "showMsg('❌ Xato', 'error')" not in _ea)

@@ -163,9 +163,18 @@ _rr = req(C, "post", "/api/returns", json={"order_id": oA, "order_item_id": iA, 
 _rid = (js(_rr) or {}).get("id") if isinstance(js(_rr), dict) else None
 if _rid:
     req(C, "post", f"/api/returns/{_rid}/refund")
+def _kechirish173(oid, summa):
+    """kech144 (zip 173, egasi QARORI 13.10 «Faqat ko'rsatilgani»): oynada ko'rsatiladigan kechiriladigan summa — joriy qarz −
+    to'lov (butun tiyinlarda; 0,5 so'mdan kichigi — 0), `debts.html` `payKechiriladi` / `orders.html` `savePayment` bilan AYNAN."""
+    d = C.get(f"/api/orders/{oid}").json()
+    q = (round(float(d.get("debt_amount") or 0) * 100) - round(float(summa) * 100)) / 100
+    return q if q > 0.5 else 0
+
+
 # B — chegirma 10 % + kechirilgan 5 000 (loyiha 1)
 oB, iB, nB, _ = buyurtma(1, 50000, 20, kelishilgan=900000)
-req(C, "post", "/api/payments?write_off_remainder=true", json={"order_id": oB, "amount": 895000, "payment_method": "naqd"})
+req(C, "post", f"/api/payments?write_off_remainder=true&kechirish={_kechirish173(oB, 895000)}",   # kech144 (zip 173)
+    json={"order_id": oB, "amount": 895000, "payment_method": "naqd"})
 # C — ustama (loyiha 1): jami 1 000 000, kelishilgan 1 100 000
 oC, iC, nC, _ = buyurtma(1, 50000, 20, kelishilgan=1100000)
 # D — qoralama loyiha 2 da (loyiha qiymatiga KIRMAYDI)
@@ -292,10 +301,11 @@ M = r"const __m = el => el ? el.textContent.replace(/\s+/g, ' ').trim() : null; 
 HISOB = M + r"""return {jami: __k('pay-total'), cheg: __k('pay-discount-row'), cheg_nom: __k('pay-discount-label'),
   cheg_qiy: __k('pay-discount'), qayt: __k('pay-refund-row'), qayt_qiy: __k('pay-refund'), kech: __k('pay-writeoff-row'),
   kech_qiy: __k('pay-writeoff'), kel: __k('pay-agreed'), tol: __k('pay-paid'), qarz: __k('pay-debt')};"""
+# kech144 (zip 173, MOSLANDI): `loadPayments` faqat tanlangan buyurtmani chizadi — avval `selectedOrderId` (sahifada `selectOrder`)
 BUY = [
-    q("bA", amal=f"await loadPayments({oA});", natija=HISOB),
-    q("bB", amal=f"await loadPayments({oB});", natija=HISOB),
-    q("bC", amal=f"await loadPayments({oC});", natija=HISOB),
+    q("bA", amal=f"selectedOrderId = {oA}; await loadPayments({oA});", natija=HISOB),
+    q("bB", amal=f"selectedOrderId = {oB}; await loadPayments({oB});", natija=HISOB),
+    q("bC", amal=f"selectedOrderId = {oC}; await loadPayments({oC});", natija=HISOB),
 ]
 TK = f"const __y = {BUGUN.year}, __o = {BUGUN.month};"
 HIS = [

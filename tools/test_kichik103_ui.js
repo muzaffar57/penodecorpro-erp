@@ -122,7 +122,11 @@ async function ishga(m, kod, chaqiruv) {
 
 // kech118 (B — U-03 / U-05, MOSLANDI): sahifa funksiyalari base.html `sonKor` / `matnRangi` … ni ham chaqiradi — birga yuklanadi
 const ESC = (olib(BASE, 'escapeHtml') || 'function escapeHtml(s){return String(s);}') + '\n'
-  + ['sonKor', 'foizKor', 'birlikKor', 'matnRangi'].map(n => olib(BASE, n)).filter(Boolean).join('\n');
+  + ['sonKor', 'foizKor', 'birlikKor', 'matnRangi'].map(n => olib(BASE, n)).filter(Boolean).join('\n')
+  // kech144 (zip 173, MOSLANDI): yuklash / sabab yordamchilari (base.html) va `tanlovJoriy` (orders.html)
+  + '\n' + ['xatoSababi', 'yukXato', 'yukOl', 'yukSabab', 'yukXatoMatn', 'yukNavbat', 'yukSessiyaKor', 'amalSababi']
+    .map(n => olib(BASE, n)).filter(Boolean).join('\n')
+  + '\n' + (olib(ORDERS, 'tanlovJoriy') || '');
 
 (async () => {
   // ═══════════════════════════════════════════════════════════
@@ -230,7 +234,8 @@ const ESC = (olib(BASE, 'escapeHtml') || 'function escapeHtml(s){return String(s
   tekshir("C0 loadDeliveries topildi", !!LD);
   {
     const e = { 'dlv-pct-text': el(), 'dlv-pct-bar': el(), 'dlv-pct-badge': el(), dlvItemList: el() };
-    const m = muhit({ elementlar: e, javoblar: [javob(200, { delivery_percent: 70, is_fully_delivered: false, deliveries: [],
+    // kech144 (zip 173, MOSLANDI): `loadDeliveries` faqat tanlangan buyurtmani chizadi — `selectedOrderId: 1`
+    const m = muhit({ globallar: { selectedOrderId: 1 }, elementlar: e, javoblar: [javob(200, { delivery_percent: 70, is_fully_delivered: false, deliveries: [],
       items: [{ id: 1, name: 'K', unit: 'metr', ordered: 10, delivered: 7, remaining: 0, ortiqcha: 3, percent: 70, is_done: true },
               { id: 2, name: 'P', unit: 'metr', ordered: 5, delivered: 2, remaining: 3, ortiqcha: 0, percent: 40, is_done: false }] })] });
     const r = await ishga(m, ESC + '\nlet dlvData = null;\n' + LD, 'loadDeliveries(1)');
@@ -430,6 +435,8 @@ const ESC = (olib(BASE, 'escapeHtml') || 'function escapeHtml(s){return String(s
     const holat = { modal: [], yubor: [] };
     const m = muhit({ elementlar: e, qsa: { '.detal': [row] }, javobFn: async () => javob(200, { success: true }),
       globallar: { editMode: false, currentEditOrderId: null, DEFAULT_PENO_ID: null,
+                   // kech144 (zip 173, MOSLANDI): forma kaliti (takror buyurtma himoyasi) — `window._yaratishKaliti`
+                   window: { _yaratishKaliti: 'sinovkaliti0001' },
                    // kech115 (G2-07): narxli detal — narxsiz detal tasdig'i (alohida test — test_a115_ui.py N) bu testga aralashmasin
                    collectItems: () => [{ name: 'K', category: o.tur || 'profil', quantity: 1, unit_price: 100000, is_coated: o.qoplama !== false }],
                    showValidationModal: (x) => { holat.modal.push(x); },

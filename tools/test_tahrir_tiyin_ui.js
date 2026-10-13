@@ -121,7 +121,8 @@ function javob(status, tana) {
 bolim('S. Statik — to\'ldirish joylari narxKorinishi bilan');
 const O = SRC.orders;
 const S_BOR = [
-  ['orders asosiy narx', O, "basePriceEl.value = narxKorinishi(order.base_price)", 'formatNum(order.base_price)'],
+  // kech144 (zip 173, MOSLANDI — audit P2-17): buyurtmada «1 m³ asosiy narxi» yo'q bo'lsa maydon BO'SH (oldingi forma narxi qolmaydi)
+  ['orders asosiy narx', O, "basePriceEl.value = order.base_price ? narxKorinishi(order.base_price) : ''", 'formatNum(order.base_price)'],
   ['orders Donalik saqlangan narx', O, 'upEl.value = narxKorinishi(rawPrice)', 'formatNum(rawPrice)'],
   ['orders Blok narxi (notes)', O, 'bpEl.value = narxKorinishi(blokPrice)', 'formatNum(Math.round(blokPrice))'],
   ['orders Loy sotish narxi', O, "upEl2.value = narxKorinishi(parseFloat(item.unit_price || 0))",
@@ -187,8 +188,10 @@ try {
   e2['pay-debt'].dataset = {};
   const m2 = oMuhit(e2);
   m2.ctx.fillFullDebt();
-  tekshir('O1 data-qarz yo\'q (eski panel) → ko\'rinishdan: "1 228 753"', e2['pf-amount'].value === '1 228 753',
-          e2['pf-amount'].value);
+  // kech144 (zip 173, MOSLANDI — audit P1-1, O'LCHANGAN probe V1): `data-qarz` yo'q — qarz NOMA'LUM (panel yuklanmagan / oldingi
+  // buyurtmaniki): maydon tegilmaydi, sabab ko'rsatiladi (ilgari ko'rinishdagi matndan — boshqa buyurtma qarzi yozilishi mumkin edi)
+  tekshir('O1 data-qarz yo\'q → maydon tegilmaydi, «Qarz hali yuklanmagan» xabari', e2['pf-amount'].value === ''
+          && m2.xabar.some(x => x.tur === 'error' && x.t.includes('hali yuklanmagan')), jsn([e2['pf-amount'].value, m2.xabar]));
   const e3 = { 'pay-debt': el(''), 'pf-amount': el('x') };
   e3['pay-debt'].textContent = "0 so'm";
   e3['pay-debt'].dataset.qarz = '0';
@@ -216,6 +219,7 @@ async function tolovSina(summa, qarz) {
     setTimeout: () => 0, location: { reload() {} },
   });
   const yoq = yukla(m.ctx, O, ['tolovXatoSababi', 'savePayment'], 'orders');
+  yuklaBorlari(m.ctx, oqi('base'), YUK_YORDAM.concat(['amalSababi']));   // kech144 (zip 173, MOSLANDI): sabab — base.html
   await m.ctx.savePayment();
   return { sorov, tasdiqSoni, yoq: m.yoq.concat(yoq) };
 }
@@ -245,6 +249,8 @@ async function tolovSina(summa, qarz) {
       loadPayments: () => {},
     });
     const yoq = yukla(m.ctx, O, ['editAgreedAmount'], 'orders');
+    // kech144 (zip 173, MOSLANDI — audit P2-8): buyurtma `yukOl` bilan o'qiladi, sabab — `yukSabab` / `amalSababi` (base.html)
+    yuklaBorlari(m.ctx, oqi('base'), YUK_YORDAM.concat(['amalSababi']));
     await m.ctx.editAgreedAmount();
     return { sorov, standart, opts, xabar: m.xabar, yoq: m.yoq.concat(yoq) };
   }

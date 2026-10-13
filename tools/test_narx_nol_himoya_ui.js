@@ -152,6 +152,8 @@ async function yangila(itemsFn, javob) {
     // kech110 (K110-1): sahifaning yuqori darajadagi holati (`let editUserTouched = false;`) — `updateOrder` summani faqat
     // qo'lda yozilganda yuboradi; bu test summa yuborilishiga emas, 0-narx ogohlantirishiga qaraydi
     editUserTouched: false,
+    // kech144 (zip 173, MOSLANDI — audit P1-2): `updateOrder` tahrir to'liq yuklanmaguncha saqlamaydi — sahifa holati: yuklangan
+    editMode: true, editInitialLoadDone: true,
   });
   const qism = [NOL, UPDATE, FORMATNUM, UMUMIY].filter(Boolean).map(jinjasiz);
   if (!UPDATE) return { xato: 'updateOrder topilmadi', tasdiq, fetchlar };

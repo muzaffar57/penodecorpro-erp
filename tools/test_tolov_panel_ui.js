@@ -92,6 +92,10 @@ const K2 = konst(ORDERS, 'PAY_METHOD_ICON');
 // kech118 (B — U-05, MOSLANDI): chegirma foizi base.html `sonKor` bilan («10%»; avval «10.0%»)
 const BASE = require('fs').readFileSync(require('path').join(require('path').dirname(process.argv[2] || require('path').join(ROOT, 'templates', 'orders.html')), 'base.html'), 'utf8');
 const BY = ['sonKor', 'tkMs', 'tkDate', 'tkSana', 'tkVaqt', 'tkSanaVaqt', 'tkToliq'].map(n => olib(BASE, n)).filter(Boolean).join('\n');
+// kech144 (zip 173, MOSLANDI): `loadPayments` buyurtmani base.html `yukOl` bilan o'qiydi va javob TANLANGAN buyurtmaga tegishli
+// bo'lsagina chizadi (`tanlovJoriy` — orders.html, `yukNavbat` — base.html); yuklanmasa — `tolovPaneliniTozala`
+const YUK = ['xatoSababi', 'yukXato', 'yukOl', 'yukSabab', 'yukXatoMatn', 'yukNavbat', 'yukSessiyaKor'].map(n => olib(BASE, n))
+  .concat([olib(ORDERS, 'tanlovJoriy'), olib(ORDERS, 'tolovPaneliniTozala')]).filter(Boolean).join('\n');
 
 async function panel(order) {
   const el = {};
@@ -107,12 +111,13 @@ async function panel(order) {
     formatNum,
     escapeHtml: (s) => String(s),
     deletePayment: () => {},
+    selectedOrderId: 198,          // kech144 (zip 173, MOSLANDI): chizilayotgan buyurtma — tanlangan
   };
   vm.createContext(ctx);
   let xato = null;
   try {
     if (!FN) throw new Error('loadPayments topilmadi');
-    vm.runInContext([BY, K1 || '', K2 || '', FN].join('\n'), ctx);
+    vm.runInContext([BY, YUK, K1 || '', K2 || '', FN].join('\n'), ctx);
     await vm.runInContext('loadPayments(198)', ctx);
   } catch (e) {
     xato = String(e && e.message || e);

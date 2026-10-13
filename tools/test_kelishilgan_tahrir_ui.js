@@ -114,6 +114,8 @@ function muhit() {
     'window.__tanalar = []; window.fetch = async (url, o) => { window.__tanalar.push({url: String(url), body: o && o.body ? JSON.parse(o.body) : null}); return { ok: false, status: 400, json: async () => ({ detail: "sinov" }) }; };',
     ...FUNK.map(f => KOD[f] || ''),
     ...['sonKor', 'foizKor'].map(f => olib(BASE_SRC, f) || ''),
+    // kech144 (zip 173, MOSLANDI — audit P2-6): `updateOrder` rad sababini base.html `amalSababi` bilan o'qiydi
+    ...['xatoSababi', 'amalSababi', 'yukSessiyaKor', 'yukXato', 'yukOl', 'yukSabab'].map(f => olib(BASE_SRC, f) || ''),
     'function __yukla(order) { editMode = true; currentEditOrderId = order.id; var editId = order.id;',
     QISM_YUKLASH || 'throw new Error("QISM_YUKLASH topilmadi");',
     QISM_OXIR || 'throw new Error("QISM_OXIR topilmadi");',
