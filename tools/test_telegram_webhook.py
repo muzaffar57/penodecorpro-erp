@@ -620,7 +620,8 @@ section("H. Sahifalar va olib tashlangan marshrut")
 _uh = open(os.path.join(ROOT, "templates", "users.html"), encoding="utf-8").read()
 _lh = open(os.path.join(ROOT, "templates", "logs.html"), encoding="utf-8").read()
 check("H1 users.html: holat bloki (id=tg-holat) GET /api/system/telegram-webhook-info dan; ulashdan OLDIN tasdiq oynasi (sayt manzili)",
-      lambda: 'id="tg-holat"' in _uh and "fetch('/api/system/telegram-webhook-info')" in _uh
+      # kech144 (zip 175, MOSLANDI): holat endi `yukOl` bilan (502 HTML — sabab; `yukNavbat` — eski javob yangisini bosmaydi)
+      lambda: 'id="tg-holat"' in _uh and "yukOl('/api/system/telegram-webhook-info')" in _uh
       and _uh.index("customConfirm(\"Umumiy bot SHU saytga ulanadi") < _uh.index("fetch('/api/system/telegram-setup-webhook-security'"))
 _hp, _ha = CP.get("/users").text, CA.get("/users").text
 check("H2 holat bloki FAQAT platforma admini sahifasida", 'id="tg-holat"' in _hp and 'id="tg-holat"' not in _ha)

@@ -980,6 +980,11 @@ _fnlar.update({n: js_funksiya(_kpi, n) for n in ("saveMasterKpi", "submitOpenGif
 # (`{new_password}` / `{new_password, current_password}`), yuborish — `parolSaqlash` da.
 _fnlar.update({n: js_funksiya(_usr, n) for n in ("saveUser", "changePass", "changeMyPassword", "parolOynasi", "parolYopish",
                                                  "parolKozcha", "parolXato", "parolSaqlash")})
+# kech144 (zip 175, MOSLANDI): `saveUser` endi base.html amal kaliti yordamchilari bilan (`amalYubor` — `X-Amal-Kaliti`, natija
+# noma'lum ajratiladi; sabab — `amalSababi`, u `xatoSababi` / `yukSessiyaKor` ni chaqiradi) — ular ham shablondan olinadi
+_base175 = open(os.path.join(ROOT, "templates", "base.html"), encoding="utf-8").read()
+_fnlar.update({n: js_funksiya(_base175, n) for n in ("xatoSababi", "yukSessiyaKor", "amalSababi", "amalKalitiYangi", "amalKaliti",
+                                                     "amalKalitiTashla", "amalYubor", "amalNomalumMatn", "amalTakrorIzoh")})
 check("U0 hamma UI funksiyalari shablonlarda topildi", all(_fnlar.values()), [k for k, v in _fnlar.items() if not v])
 _fnlar["changeMyPassword"] = _fnlar["changeMyPassword"].replace("{{ current_user.id|int }}", "990001").replace(
     "{{ current_user.id }}", "990001")
