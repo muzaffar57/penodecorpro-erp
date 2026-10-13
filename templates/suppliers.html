@@ -74,6 +74,10 @@
       <button data-yopish class="btn btn-soft btn-icon btn-sm" onclick="closeHistoryModal()" title="Yopish" aria-label="Yopish">✕</button>
     </div>
 
+    {# kech143 (zip 171, jonli topilma N2 — 12.10 staging): sarlavhadan pastdagi HAMMA qism — bitta surish qutisi (boshqa oynalardagi «sarlavha + overflow-y:auto;flex:1» andozasi).
+       Ilgari faqat tarix ro'yxati surilardi: «+ Xarid qo'shish» formasi ochilganda «✓ Saqlash» oynadan va ekrandan pastga
+       chiqib qolardi (375×812 da y=1051, 756×921 da y=955) va unga yetib bo'lmasdi. #}
+    <div style="overflow-y:auto;flex:1">
     <div style="padding:14px 22px;background:var(--f-fdf8f0);border-bottom:1px solid var(--ch-f0e6d2)">
       <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
         <span style="color:var(--text3)">Jami nasiya</span><span style="font-weight:600" id="hist-credit">—</span>
@@ -192,7 +196,7 @@
       </div>
     </div>
 
-    <div style="padding:14px 22px;overflow-y:auto;flex:1">
+    <div style="padding:14px 22px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
         <span style="font-size:12px;font-weight:600;color:var(--text3)">📦 Xaridlar tarixi</span>
         <div style="display:flex;gap:5px;align-items:center">
@@ -208,6 +212,7 @@
 
       <div style="font-size:12px;font-weight:600;color:var(--text3);margin:16px 0 8px">💰 To'lovlar tarixi</div>
       <div id="hist-payments"></div>
+    </div>
     </div>
   </div>
 </div>

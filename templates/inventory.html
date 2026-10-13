@@ -328,6 +328,10 @@
       <div style="font-size:16px;font-weight:600"><i class="ti ti-receipt"></i> Xaridlar tarixi</div>
       <button data-yopish class="btn btn-soft btn-icon btn-sm" onclick="closePurchaseHistory()" title="Yopish" aria-label="Yopish">✕</button>
     </div>
+    {# kech143 (zip 171 — N2 bilan bir xil nuqson, O'LCHANGAN `work/k171/inv_tarix_probe.py`, Chromium): sarlavhadan pastdagi HAMMA qism
+       — bitta surish qutisi. Ilgari «material bo'yicha jami» qadalgan edi: bu oy 25 materialdan xarid bo'lsa u 691 px bo'lib, xaridlar
+       ro'yxatiga 0 px qolardi (1440×900 da ham) — ro'yxat umuman ko'rinmasdi. #}
+    <div style="overflow-y:auto;flex:1">
     <div style="padding:14px 22px;border-bottom:1px solid var(--border2);background:var(--bg)">
       <div style="display:flex;justify-content:space-between;font-size:13px">
         <span style="color:var(--text2)">Bu oy jami xarid</span>
@@ -336,8 +340,9 @@
       <div id="hist-by-material" style="margin-top:8px;font-size:13px;color:var(--text2);line-height:1.9"></div>
       <p class="yuk-xato ichki" id="xato-hist-stat" role="alert" hidden></p>
     </div>
-    <div style="padding:0 22px;overflow-y:auto;flex:1" id="hist-list">
+    <div style="padding:0 22px" id="hist-list">
       <div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>
+    </div>
     </div>
   </div>
 </div>
