@@ -414,21 +414,26 @@ async function brakLoyihalariniYukla() {
   const sel = document.getElementById('brak-project');
   if (!sel || _brakLoyihalar) return;
   sel.innerHTML = '<option value="">Yuklanmoqda…</option>';
+  // kech144 (zip 174, audit 2-to'lqin D): internet yo'q — ilgari inglizcha «Failed to fetch»; endi `yukOl` / `yukXatoMatn` sababi
   try {
-    const r = await fetch('/api/tanlov/loyihalar');
-    if (!r.ok) throw new Error(await serverXatoSababi(r, "Ro'yxatni yuklab bo'lmadi"));
-    const royxat = await r.json();
-    sel.innerHTML = '<option value="">— Loyiha tanlang —</option>' + royxat.map(p =>
+    const royxat = await yukOl('/api/tanlov/loyihalar');
+    const r2 = Array.isArray(royxat) ? royxat : [];
+    sel.innerHTML = '<option value="">— Loyiha tanlang —</option>' + r2.map(p =>
       `<option value="${Number(p.id)}" data-qidiruv="${escapeHtml(p.telefon || '')}">${escapeHtml(p.loyiha)} — ${escapeHtml(p.mijoz)}</option>`).join('');
-    _brakLoyihalar = royxat;
+    _brakLoyihalar = r2;
   } catch (e) {
-    sel.innerHTML = '<option value="">' + escapeHtml(e.message || "Ro'yxatni yuklab bo'lmadi") + '</option>';
+    sel.innerHTML = '<option value="">' + escapeHtml(yukXatoMatn("Loyihalar ro'yxati", (e && e.yukXato) ? e : yukXato('tarmoq'))) + '</option>';
   }
 }
 
+// kech144 (zip 174, audit 2-to'lqin B#6 — O'LCHANGAN probe_rollar, EGASI QARORI 13.10 «Detal va miqdor»): detallar — «Qaytarishlar:
+// Yaratish» ruxsati bilan (`api_tanlov_loyiha_detallari`; ilgari loyiha detallari marshruti — «Loyihalar: Ko'rish», Omborchiga
+// 403, sahifa esa «Bu loyihada detal topilmadi» derdi). C#12: loyiha A dan keyin tez B tanlansa A ning kech javobi B ostida chizilib,
+// brak A buyurtmasiga yozilardi — endi eski javob tashlanadi (`yukNavbat`). Xato — sabab bilan (`yukXatoMatn`).
 async function onBrakProjectChange(){
   const projectId = document.getElementById('brak-project').value;
   const list = document.getElementById('brakList');
+  const joriy = yukNavbat('brakLoyiha');
   if (!projectId) {
     list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">Avval loyiha tanlang</div>';
     brakItems = [];
@@ -439,8 +444,9 @@ async function onBrakProjectChange(){
   const _birlik = (u) => (typeof birlikQisqa === 'function') ? birlikQisqa(u) : ((typeof birlikKor === 'function') ? birlikKor(u) : (u || ''));
   const _miqdor = (x) => (typeof sonKor === 'function') ? sonKor(x, 3) : String(x);
   try {
-    const d = await fetch(`/api/projects/${projectId}/items`).then(r => r.json());
-    brakItems = d.items || [];
+    const d = await yukOl(`/api/tanlov/loyihalar/${encodeURIComponent(projectId)}/detallar`);
+    if (!joriy()) return;
+    brakItems = (d && Array.isArray(d.items)) ? d.items : [];
     if (!brakItems.length) {
       list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">Bu loyihada detal topilmadi</div>';
       return;
@@ -459,7 +465,10 @@ async function onBrakProjectChange(){
         <span style="font-size:13px;color:var(--text3);width:32px">${escapeHtml(_birlik(it.delivery_unit))}</span>
       </div>`).join('');
   } catch(e) {
-    list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--m-dc2626);font-size:13px">Yuklashda xato</div>';
+    if (!joriy()) return;
+    brakItems = [];
+    list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--m-dc2626);font-size:13px">' +
+      escapeHtml(yukXatoMatn('Detallar', (e && e.yukXato) ? e : yukXato('server'))) + '</div>';
   }
 }
 
@@ -526,11 +535,16 @@ async function saveBrakBatch(){
 
   // 17g (2026-09-22): rad etilgan qatorning server SABABI ko'rsatiladi, oyna ochiq qoladi; saqlanganlar miqdori tozalanadi
   // (qayta bosilsa ikki marta yozilmasin). Hisoblagich `try` dan TASHQARIDA (tarmoq uzilsa ham saqlanganlar soni ko'rinadi).
+  // kech144 (zip 174): har detal — o'z amal kaliti (`brakdetal_<detal>`): natijasi noma'lum (tarmoq / 5xx) qator miqdori
+  // TOZALANMAYDI va kaliti qoladi — qayta bosilsa server o'sha brakni ikkinchi marta yozmaydi. Natija noma'lumlar alohida aytiladi.
   let okCount = 0;
   const xatolar = [];
+  let nomalum = '';
+  let yuborilmadi = 0;
   try {
-    for (const { item, qty, el } of toSave) {
-      const res = await fetch('/api/returns', {
+    for (let i = 0; i < toSave.length; i++) {
+      const { item, qty, el } = toSave[i];
+      const n = await amalYubor('/api/returns', {
         method: 'POST', headers: {'Content-Type':'application/json'},
         body: JSON.stringify({
           order_id: item.order_id,
@@ -548,19 +562,28 @@ async function saveBrakBatch(){
           ...(javobgarId > 0 ? { brak_javobgar_id: javobgarId } : {}),
           ...(taqdirTana ? { taqdir: taqdirTana } : {})   // kech125 (zip 146)
         })
-      });
-      if (res.ok) {
+      }, 'brakdetal_' + item.item_id);
+      if (n.ok) {
         okCount++;
         if (el) el.value = '';
+      } else if (n.nomalum) {
+        nomalum = `${item.name}: ${n.xato}`;
+        yuborilmadi = toSave.length - i - 1;
+        break;
       } else {
-        xatolar.push(`${item.name}: ${await brakServerSababi(res)}`);
+        xatolar.push(`${item.name}: ${n.xato}`);
       }
     }
-    if (xatolar.length) {
-      if (okCount) brakSaqlanganBor = true;
+    if (xatolar.length || nomalum) {
+      // natijasi noma'lum qator ham saqlangan bo'lishi mumkin — oyna yopilganda sahifa yangilanadi (ro'yxatda ko'rinadi)
+      if (okCount || nomalum) brakSaqlanganBor = true;
+      const qismlar = [];
+      if (okCount) qismlar.push(`${okCount} ta saqlandi`);
+      if (xatolar.length) qismlar.push(`${xatolar.length} ta saqlanmadi — ` + xatolar.join('; '));
+      if (nomalum) qismlar.push("natijasi noma'lum — " + nomalum);
+      if (yuborilmadi) qismlar.push(`${yuborilmadi} ta yuborilmadi`);
       err.style.display = 'block';
-      err.textContent = '❌ ' + (okCount ? `${okCount} ta saqlandi, ` : '') +
-        `${xatolar.length} ta saqlanmadi — ` + xatolar.join('; ');
+      err.textContent = (nomalum ? '⚠️ ' : '❌ ') + qismlar.join(', ') + (nomalum ? '. Qayta bossangiz — ikki marta yozilmaydi.' : '');
       return;
     }
     closeBrakModal();
@@ -569,7 +592,8 @@ async function saveBrakBatch(){
   } catch(e) {
     if (okCount) brakSaqlanganBor = true;
     err.style.display='block';
-    err.textContent='❌ Server xatosi' + (okCount ? ` — ${okCount} ta saqlandi, qolganlari saqlanmadi` : '');
+    err.textContent = "❌ Kutilmagan xato (sahifani yangilab tekshiring)" + (okCount ? ` — ${okCount} ta saqlandi` : '');
+    console.error(e);
   } finally {
     isSavingBrak = false;
     if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
@@ -577,7 +601,12 @@ async function saveBrakBatch(){
 }
 
 // (B) / (C) tayyor mahsulot
+// kech144 (zip 174, audit 2-to'lqin B#2 — O'LCHANGAN probe_takror: bir xil brak ikki marta — 2 yozuv, ombor ikki marta kamaydi, Moliyada
+// «Tayyor mahsulot yo'qotishi» ikki marta): bir vaqtda bitta so'rov (tugma «Saqlanmoqda...»); amal kaliti — mahsulot bo'yicha
+// (`brak_<id>` / `ishbrak_<id>`): javob kelmay qolib qayta bosilsa server ikkinchi brak yozmaydi. Natija noma'lum (tarmoq / 502) —
+// «sahifani yangilab tekshiring» (ilgari «Server xatosi»); rad — server sababi (`amalSababi`).
 async function submitLoss() {
+  if (submitLoss.band) return;
   if (!_lossData) { showMsg('Tayyor mahsulotni tanlang', 'error'); return; }
   const qty = parseFloat(document.getElementById('loss-qty').value) || 0;
   if (qty <= 0) { showMsg('Miqdorni kiriting', 'error'); return; }
@@ -599,6 +628,7 @@ async function submitLoss() {
     return;
   }
   const taqdirQism = taqdirTana ? { taqdir: taqdirTana } : {};
+  const btn = document.getElementById('brak-save-btn');
   try {
     if (_lossMode === 'stock') {
       if (qty > _lossData.quantity + 0.001) { showMsg(`Omborda faqat ${(typeof sonKor === 'function') ? sonKor(_lossData.quantity, 3) : _lossData.quantity} ${(typeof birlikQisqa === 'function') ? birlikQisqa(_lossData.unit) : _lossData.unit} bor`, 'error'); return; }
@@ -614,57 +644,78 @@ async function submitLoss() {
           {okText: 'Ha, davom etish', danger: true});
         if (!ok) return;
       }
-      const res = await fetch('/api/finished/loss', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({
-          finished_product_id: _lossData.id,
-          quantity: qty,
-          reason: izoh,
-          ...lossBosqichTana(),   // kech53 (13-band, 1-qadam)
-          ...taqdirQism           // kech125 (zip 146)
-        })
-      });
-      const r = await res.json();
-      if (res.ok) {
+      if (submitLoss.band) return;
+      submitLoss.band = true;
+      tugmaBand(btn, true);
+      let n;
+      try {
+        n = await amalYubor('/api/finished/loss', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({
+            finished_product_id: _lossData.id,
+            quantity: qty,
+            reason: izoh,
+            ...lossBosqichTana(),   // kech53 (13-band, 1-qadam)
+            ...taqdirQism           // kech125 (zip 146)
+          })
+        }, 'brak_' + _lossData.id);
+      } finally { submitLoss.band = false; tugmaBand(btn, false); }
+      const r = n.javob || {};
+      if (n.ok) {
         closeBrakModal();
         // kech142 (zip 170, A-O08): band kamaygan bo'lsa — ogohlantirish xabarga qo'shiladi
         const _bk = Number(r.band_kamaydi) || 0;
         const _bandXabar = _bk > 0 ? ` ⚠️ Buyurtmaga band qism ${(typeof sonKor === 'function') ? sonKor(_bk, 3) : _bk} kamaydi — buyurtma uchun shuncha qayta ishlab chiqarish kerak.` : '';
         {% if current_user.ruxsat('tannarx', 'korish') %}
-        showMsg(`✓ Kamaytirildi! Tan narxi (${_fmt(r.cost_amount)} so'm) Moliyada «Tayyor mahsulot yo'qotishi» qatoriga qo'shildi` + _bandXabar, 'success');
+        showMsg(`✓ Kamaytirildi! Tan narxi (${_fmt(r.cost_amount)} so'm) Moliyada «Tayyor mahsulot yo'qotishi» qatoriga qo'shildi` + _bandXabar + amalTakrorIzoh(n.takror), 'success');
         {% else %}
-        showMsg(`✓ Kamaytirildi!` + _bandXabar, 'success');
+        showMsg(`✓ Kamaytirildi!` + _bandXabar + amalTakrorIzoh(n.takror), 'success');
         {% endif %}
         // kech120 (zip 133 — G5-13): Tayyor mahsulotlar sahifasida — faqat ro'yxat yangilanadi (xabar o'qiladi); boshqa sahifada — avvalgidek
         if (typeof loadFp === 'function') loadFp(); else setTimeout(() => location.reload(), 1500);
+      } else if (n.nomalum) {
+        showMsg(amalNomalumMatn('Brak', n.xato), 'error');
+        if (typeof loadFp === 'function') loadFp();
       } else {
-        showMsg(xatoSababi(r), 'error');
+        showMsg('❌ Brak saqlanmadi: ' + n.xato, 'error');
       }
     } else {
-      const res = await fetch('/api/finished/production-brak', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({
-          finished_product_id: _lossData.id,
-          brak_qty: qty,
-          notes: izoh,
-          ...lossBosqichTana(),   // kech53 (13-band, 1-qadam)
-          ...taqdirQism           // kech125 (zip 146)
-        })
-      });
-      const r = await res.json();
-      if (res.ok) {
+      if (submitLoss.band) return;
+      submitLoss.band = true;
+      tugmaBand(btn, true);
+      let n;
+      try {
+        n = await amalYubor('/api/finished/production-brak', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({
+            finished_product_id: _lossData.id,
+            brak_qty: qty,
+            notes: izoh,
+            ...lossBosqichTana(),   // kech53 (13-band, 1-qadam)
+            ...taqdirQism           // kech125 (zip 146)
+          })
+        }, 'ishbrak_' + _lossData.id);
+      } finally { submitLoss.band = false; tugmaBand(btn, false); }
+      const r = n.javob || {};
+      if (n.ok) {
         closeBrakModal();
-        showMsg(r.cost_amount === null ? `✓ Xomashyo ayirildi! (mahsulot soni o'zgarmadi)`
-                                       : `✓ Xomashyo ayirildi! Qo'shimcha xarajat: ${_fmt(r.cost_amount)} so'm (mahsulot soni o'zgarmadi)`, 'success');
+        showMsg((r.cost_amount === null ? `✓ Xomashyo ayirildi! (mahsulot soni o'zgarmadi)`
+                                        : `✓ Xomashyo ayirildi! Qo'shimcha xarajat: ${_fmt(r.cost_amount)} so'm (mahsulot soni o'zgarmadi)`) + amalTakrorIzoh(n.takror), 'success');
         if (typeof loadFp === 'function') loadFp(); else setTimeout(() => location.reload(), 1500);
+      } else if (n.nomalum) {
+        showMsg(amalNomalumMatn('Brak', n.xato), 'error');
+        if (typeof loadFp === 'function') loadFp();
       } else {
-        showMsg(xatoSababi(r), 'error');
+        showMsg('❌ Brak saqlanmadi: ' + n.xato, 'error');
       }
     }
   } catch(e) {
-    showMsg('Server xatosi', 'error');
+    submitLoss.band = false;
+    tugmaBand(btn, false);
+    console.error(e);
+    showMsg("❌ Kutilmagan xato — sahifani yangilab tekshiring", 'error');
   }
 }
 // ── BRAK TAQDIRI (kech125, zip 146 — EGASI QARORLARI 07.10, QAYTA SO'RALMAYDI) ───────────────────────────────────────────

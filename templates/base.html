@@ -463,6 +463,76 @@ async function amalSababi(x) {
   return "so'rov rad etildi (" + x.status + ')';
 }
 
+// ══ kech144 (zip 174) — AMAL KALITI (`X-Amal-Kaliti`): TAKROR SO'ROV IKKINCHI YOZUV YARATMAYDI. O'LCHANGAN
+// (work/k173_tayyorgarlik/agentlar/tayyor/probe_takror.py, zip 173 kodi): tayyor mahsulot sotuvi, guruh sotuv, brak, ishlab chiqarish
+// (braki), miqdor qo'shish, xarajat (Moliya, «Kunlik xarajat», Qarzdorlar «majburiyat to'lovi»), qaytarish, majburiyat kategoriyasi —
+// bir xil so'rov ikki marta (ikki marta bosish; javob kelmay qolib qayta bosish) → IKKI yozuv (ombor 10 → 6, Moliyada ikki marta).
+// Endi har amal «o'rni» (`slot` — masalan `'sotuv_12'`: qaysi amal, qaysi mahsulot / detal) uchun tasodifiy kalit so'rov sarlavhasida
+// yuboriladi; server shu kalit bilan bajarilgan amalni QAYTA bajarmaydi — birinchi javobni qaytaradi (`takror: true`, `X-Takror: 1`).
+// Kalit ANIQ natijagacha saqlanadi: muvaffaqiyat yoki server rad etdi (4xx — amal bajarilmagan) — kalit tashlanadi (keyingi amal —
+// yangi kalit); natija noma'lum (tarmoq uzildi, 5xx — deploy almashinuvi) — kalit QOLADI: qayta bosish o'sha kalit bilan ketadi,
+// birinchisi bajarilgan bo'lsa server ikkinchisini yozmaydi (sahifa yangilansa — yangi kalit).
+//  `amalKaliti(slot)` — o'rinning joriy kaliti (yo'q bo'lsa — yangi); `amalKalitiTashla(slot)`.
+//  `amalYubor(url, sozlama, slot)` — `fetch` + kalit. Natija: {ok, holat, nomalum, takror, javob, xato}: `ok` — bajarildi (`javob` —
+//    JSON tana yoki null; `takror` — avvalgi so'rov bajarilgan ekan, qayta yozilmadi); `nomalum` — natija noma'lum (tarmoq / 5xx);
+//    aks holda server rad etdi (4xx — `javob` JSON tana, masalan `detail.type`). `xato` — sabab (`amalSababi`).
+//  `amalNomalumMatn(nima, xato)` — «⚠️ Sotuv natijasi noma'lum: … Qayta bossangiz — ikki marta yozilmaydi.»
+//  `amalTakrorIzoh(takror)` — muvaffaqiyat xabariga qo'shimcha (takror bo'lsa).
+//  `tugmaBand(btn, band)` — tugma «Saqlanmoqda...» (ikki marta bosilmasin) / asl holiga.
+// Yordamchilar global `const` / `let` ishlatmaydi (JS sinovlari funksiyani shablondan ajratib oladi).
+function amalKalitiYangi() {
+  try { if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID().replace(/-/g, ''); }
+  catch (e) { /* eski brauzer — pastdagi */ }
+  let k = Date.now().toString(36);
+  while (k.length < 24) k += Math.random().toString(36).slice(2);
+  return k.replace(/[^A-Za-z0-9]/g, '').slice(0, 32);
+}
+function amalKaliti(slot) {
+  const h = amalKaliti.h || (amalKaliti.h = {});
+  const k = String(slot || '');
+  if (!h[k]) h[k] = amalKalitiYangi();
+  return h[k];
+}
+function amalKalitiTashla(slot) {
+  if (amalKaliti.h) delete amalKaliti.h[String(slot || '')];
+}
+async function amalYubor(url, sozlama, slot) {
+  const s = Object.assign({}, sozlama || {});
+  s.headers = Object.assign({}, s.headers || {});
+  if (slot) s.headers['X-Amal-Kaliti'] = amalKaliti(slot);
+  let res;
+  try { res = await fetch(url, s); }
+  catch (e) { return {ok: false, holat: 0, nomalum: true, takror: false, javob: null, xato: await amalSababi(e)}; }
+  let javob = null;
+  try { javob = await (typeof res.clone === 'function' ? res.clone() : res).json(); } catch (e) { javob = null; }
+  if (res.ok) {
+    if (slot) amalKalitiTashla(slot);
+    const sarlavha = (res.headers && typeof res.headers.get === 'function') ? res.headers.get('X-Takror') : null;
+    const takror = sarlavha === '1' || !!(javob && typeof javob === 'object' && javob.takror === true);
+    return {ok: true, holat: res.status, nomalum: false, takror: takror, javob: javob, xato: ''};
+  }
+  const nomalum = res.status >= 500;
+  if (!nomalum && slot) amalKalitiTashla(slot);
+  return {ok: false, holat: res.status, nomalum: nomalum, takror: false, javob: javob, xato: await amalSababi(res)};
+}
+function amalNomalumMatn(nima, xato) {
+  return '⚠️ ' + nima + " natijasi noma'lum: " + (xato || "server javob bermadi — sahifani yangilab tekshiring") +
+    '. Qayta bossangiz — ikki marta yozilmaydi.';
+}
+function amalTakrorIzoh(takror) {
+  return takror ? "\nℹ️ Bu amal avvalroq (javobi kelmay qolgan so'rovda) bajarilgan ekan — ikkinchi marta yozilmadi." : '';
+}
+function tugmaBand(btn, band) {
+  if (!btn) return;
+  if (band) {
+    if (btn.dataset.amalAsl === undefined) btn.dataset.amalAsl = btn.textContent;
+    btn.disabled = true; btn.style.opacity = '0.6'; btn.textContent = 'Saqlanmoqda...';
+  } else {
+    btn.disabled = false; btn.style.opacity = '';
+    if (btn.dataset.amalAsl !== undefined) { btn.textContent = btn.dataset.amalAsl; delete btn.dataset.amalAsl; }
+  }
+}
+
 // kech140 (zip 168, audit A-P09 — egasi QARORI 11.10): avans berish, «oylikni yopish», hodim so'rovini tasdiqlash — summa shu oy
 // oylikning qolganidan ko'p bo'lsa server 409 (`detail.type` = 'avans_oylikdan_ortiq', `detail.message` — qancha ko'p va keyingi oy
 // oyligidan ushlanishi) qaytaradi: oyna so'raydi, «Ha» — AYNAN o'sha so'rov `confirm_excess=true` bilan qayta. Natija:
