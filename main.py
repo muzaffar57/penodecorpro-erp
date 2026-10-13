@@ -4512,6 +4512,18 @@ def api_system_health_check(db: Session = Depends(get_db), current_user=Depends(
 
     if _platforma:
         result = crud.check_system_health(db, company_id=_cid)
+        # kech144 (zip 172, N4): baza tuzilishi (sxema) ↔ kod — FAQAT platforma administratori (butun baza, korxonaga
+        # bog'liq emas; jadval / ustun nomlari). Jonli farqlar + ishga tushishda nima kengaytirilgani (ustun izohidan —
+        # qayta ishga tushishdan keyin ham) + shu ishga tushishdagi xatolar.
+        try:
+            import database as _db144
+            _sx = _db144.sxema_farqlari(db.connection())
+            _sx["ishga_tushish"] = {"vaqt": _db144.SXEMA_ISHGA_TUSHISH.get("vaqt"),
+                                    "xatolar": list(_db144.SXEMA_ISHGA_TUSHISH.get("xatolar") or [])}
+            result["sxema"] = _sx
+        except Exception as _e144:          # noqa: BLE001 — sxema tekshiruvi qolgan tekshiruvlarni to'xtatmaydi
+            db.rollback()
+            result["sxema"] = {"tekshirildi": False, "xato": str(_e144)[:300]}
     else:
         result = {"total_checks": 0, "issues_found": 0, "issues": [],
                   "check_errors": [], "technical_hidden": True}
@@ -7267,7 +7279,9 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[str] = None,
     # saqlardi, penoplast esa keyin alohida yechilardi — orada xato bo'lsa buyurtma va yechilgan loy QOLARDI,
     # qayta urinish ikkinchi buyurtma yaratib loyni IKKI MARTA yechardi. Telegram — blokdan KEYIN.
     with crud.bitta_tranzaksiya(db):
-        new_order = crud.create_order(db, order, company_id=auth.company_id_of(current_user))
+        # kech144 (zip 172, N4): «Faoliyat jurnali» da kim yaratgani (ilgari bo'sh edi)
+        new_order = crud.create_order(db, order, company_id=auth.company_id_of(current_user),
+                                      performed_by=current_user.full_name or current_user.username)
         # kech84 (K84-1, O'LCHANGAN — `tools/test_atomik_103.py` T2, asl kod `2170432` da ham): `crud.create_order`
         # 8 s ichida AYNAN shunday tarkibli buyurtmani (ikki marta bosish, tarmoq takrori) YANGI yaratmay, MAVJUDINI
         # `_is_duplicate_submit` belgisi bilan qaytaradi — lekin bu yerda penoplast baribir yana yechilardi (bitta
@@ -7585,7 +7599,9 @@ def api_update_order(order_id: int, order: schemas.OrderCreate, loy_kg: Optional
     except ValueError as e:
         raise HTTPException(status_code=400, detail={"success": False, "message": str(e)})
     # kech103 (54-band): tahrirdan keyingi loy rejasi — qoplama retsepti tekshiruvi uchun (`crud.qoplama_retsepti_tekshir`)
-    result = crud.update_order_full(db, order_id, order, confirm_shortage=confirm_shortage, yangi_loy_kg=loy_kg)
+    # kech144 (zip 172, N4 — production jurnali 153 … 198: buyurtma tahririda «kim» bo'sh edi)
+    result = crud.update_order_full(db, order_id, order, confirm_shortage=confirm_shortage, yangi_loy_kg=loy_kg,
+                                    performed_by=current_user.full_name or current_user.username)
     if not result["success"]:
         # Xomashyo yetishmovchiligi — 409 (create bilan bir xil), frontend
         # "davom etasizmi?" oynasini ko'rsatib, confirm_shortage=true bilan
@@ -9428,7 +9444,7 @@ def api_activate_draft(order_id: int, db: Session = Depends(get_db), current_use
     # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
-    result = crud.activate_draft_order(db, order_id)
+    result = crud.activate_draft_order(db, order_id, performed_by=current_user.full_name or current_user.username)  # kech144: «kim»
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
     return result
