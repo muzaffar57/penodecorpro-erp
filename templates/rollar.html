@@ -267,6 +267,9 @@ let RL = null;            // /api/rollar javobi
 let rlTanlangan = null;   // tanlangan rol id
 let rlQoralama = null;    // {nom, tavsif, ruxsatlar: {band: Set}}
 let rlIflos = false;
+// kech144 (zip 175, audit R5 / R6): rol amali ketmoqda (saqlash, nusxa, boshlang'ich holat, o'chirish, foydalanuvchi roli) — ikkinchi
+// bosish e'tiborsiz, jadval / maydonlar qulf (saqlash paytidagi belgi javobdan keyingi qayta chizishda jim yo'qolardi)
+let rlAmalda = false;
 const rlYopiq = new Set();   // yig'ilgan bo'limlar (modul kodi)
 const RL_AMALLAR = ['korish', 'yaratish', 'tahrirlash', 'ochirish'];
 const RL_AMAL_NOMI = {korish: "Ko'rish", yaratish: 'Yaratish', tahrirlash: 'Tahrirlash', ochirish: "O'chirish"};
@@ -276,14 +279,56 @@ function rlIkon(r) { return r.admin ? 'ti-crown' : (r.tayyor ? 'ti-shield-check'
 function rlTuri(r) { return r.admin ? 'Hamma narsa' : (r.tayyor ? 'Tayyor rol' : "O'zingiz yaratgan"); }
 function rlKichik(s) { return String(s || '').toLocaleLowerCase('uz'); }
 
-async function rollarniYukla(tanlash) {
-  try {
-    const r = await fetch('/api/rollar');
-    if (!r.ok) { showMsg(await serverXatoSababi(r, "Rollar yuklanmadi"), 'error'); return; }
-    RL = await r.json();
-  } catch (e) { showMsg("Internet aloqasini tekshiring", 'error'); return; }
+// kech144 (zip 175, audit R1 / R7 — O'LCHANGAN fy_probe): birinchi yuklash xatosida ro'yxat va jadval abadiy «Yuklanmoqda…» qolardi
+// (faqat 4 soniyalik xabar). Har amaldan keyin chaqiriladi — eski javob kech kelib yangisini bosmasin (`yukNavbat`).
+// `jim` — xato xabarini chaqiruvchi o'zi ko'rsatadi. Natija: true — yangilandi, false — yo'q.
+async function rollarniYukla(tanlash, jim) {
+  const joriy = yukNavbat('rollar');
+  let d;
+  try { d = await yukOl('/api/rollar'); }
+  catch (x) {
+    if (!joriy()) return false;
+    const e = (x && x.yukXato) ? x : yukXato('server');
+    if (!(x && x.yukXato)) console.error('rollar:', x);
+    const matn = yukXatoMatn('Rollar', e);
+    if (!RL) {
+      yukRoyxatXato('rlRoyxat', matn);
+      document.getElementById('rlJadval').innerHTML = '<tr><td colspan="5"><div class="yuk-xato-qator">' + escapeHtml(matn) + '</div></td></tr>';
+    }
+    if (!jim) showMsg(matn, 'error');
+    return false;
+  }
+  if (!joriy()) return false;
+  RL = d;
   const id = tanlash || rlTanlangan;
-  rolniTanla(rlRol(id) ? id : (RL.rollar[0] || {}).id, true);
+  await rolniTanla(rlRol(id) ? id : (RL.rollar[0] || {}).id, true);
+  return true;
+}
+
+// Ro'yxatni yangilaydi, tanlangan roldagi SAQLANMAGAN o'zgarishlarni saqlab qoladi (foydalanuvchi roli o'zgarganda, natija noma'lumda)
+async function rlYuklaQoralamaSaqla(jim) {
+  const saqla = rlIflos ? {id: rlTanlangan, q: rlQoralama} : null;
+  const ok = await rollarniYukla(rlTanlangan, jim);
+  if (ok && saqla && saqla.id === rlTanlangan && rlRol(saqla.id)) { rlQoralama = saqla.q; rlIflos = true; hammasiniChiz(); }
+  return ok;
+}
+
+// Rol nomi korxonada yagona (server ham shunday solishtiradi: bo'shliqlar bitta, katta-kichik harf farqsiz)
+function rlNomliRol(nom) {
+  const q = rlKichik(String(nom || '').split(/\s+/).filter(Boolean).join(' '));
+  return (RL && RL.rollar || []).find(r => rlKichik(r.nom) === q) || null;
+}
+
+// Amal paytida: jadval belgilari, tezkor tugmalar, nom / tavsif, tugmalar — qulf; tugagach — hammasi qoidasi bilan qayta chiziladi
+function rlAmalBand(band) {
+  rlAmalda = !!band;
+  if (band) {
+    document.querySelectorAll('#rlJadval input, #rlTezkor input, #rlNom, #rlTavsif, #rlUserlar select, .rl-saqla-btn, .rl-bekor-btn, ' +
+                              '#rlNusxaBtn, #rlAndozaBtn, #rlOchirBtn, #rlUserQoshBtn').forEach(e => { e.disabled = true; });
+    return;
+  }
+  ['rlNusxaBtn', 'rlAndozaBtn', 'rlUserQoshBtn'].forEach(id => { const e = document.getElementById(id); if (e) e.disabled = false; });
+  if (rlRol(rlTanlangan) && rlQoralama) hammasiniChiz();
 }
 
 function royxatniChiz() {
@@ -302,6 +347,7 @@ function royxatniChiz() {
 }
 
 async function rolniTanla(id, majburiy) {
+  if (!majburiy && rlAmalda) return;
   if (!majburiy && id === rlTanlangan) return;
   if (!majburiy && rlIflos) {
     const ha = await customConfirm("Saqlanmagan o'zgarish", "Bu roldagi o'zgarishlar saqlanmagan. Saqlamasdan boshqa rolga o'tilsinmi?",
@@ -402,6 +448,7 @@ function modulniYigish(mi) {
 }
 
 function hammasiniOchYop() {
+  if (!RL) return;
   if (rlYopiq.size >= RL.katalog.length) rlYopiq.clear(); else RL.katalog.forEach(m => rlYopiq.add(m.kod));
   matritsaniChiz();
 }
@@ -450,6 +497,7 @@ function holatniYangila() {
 }
 
 function belgiOzgardi(cb) {
+  if (rlAmalda) { cb.checked = !cb.checked; return; }
   const b = cb.dataset.band, a = cb.dataset.amal;
   const s = rlQoralama.ruxsatlar[b] || (rlQoralama.ruxsatlar[b] = new Set());
   if (cb.checked) s.add(a); else s.delete(a);
@@ -462,6 +510,7 @@ function belgiOzgardi(cb) {
 }
 
 function modulniAlmashtir(i, yoq) {
+  if (rlAmalda) { tezkorniChiz(); return; }
   const m = RL.katalog[i];
   for (const b of m.bandlar) rlQoralama.ruxsatlar[b.kod] = new Set(yoq ? b.amallar : []);
   rlIflos = true;
@@ -471,13 +520,18 @@ function modulniAlmashtir(i, yoq) {
 }
 
 function maydonOzgardi() {
+  if (rlAmalda) {
+    document.getElementById('rlNom').value = rlQoralama.nom;
+    document.getElementById('rlTavsif').value = rlQoralama.tavsif;
+    return;
+  }
   rlQoralama.nom = document.getElementById('rlNom').value;
   rlQoralama.tavsif = document.getElementById('rlTavsif').value;
   rlIflos = true;
   holatniYangila();
 }
 
-function ozgarishniBekor() { rolniTanla(rlTanlangan, true); }
+function ozgarishniBekor() { if (rlAmalda) return; rolniTanla(rlTanlangan, true); }
 
 function qoralamaTanasi() {
   const rx = {};
@@ -485,24 +539,36 @@ function qoralamaTanasi() {
   return {nom: rlQoralama.nom, tavsif: rlQoralama.tavsif, ruxsatlar: rx};
 }
 
-let rlSaqlanmoqda = false;
+// kech144 (zip 175, audit R6): sabab — `amalSababi` (5xx / sessiya / tarmoq; ilgari faqat «Saqlanmadi» / «Internet aloqasini
+// tekshiring»); saqlash paytida jadval qulf (`rlAmalBand`) — o'sha paytda qo'yilgan belgi javobdan keyingi qayta chizishda jim yo'qolardi.
+// Saqlash — PUT (bir xil qiymatlar): qayta bosish ikkinchi o'zgarish yozmaydi.
 async function rolniSaqla() {
-  if (rlSaqlanmoqda || !rlIflos) return;
+  if (rlAmalda || !rlIflos) return;
   if (!rlQoralama.nom.trim()) { showMsg('Rol nomini yozing', 'error'); document.getElementById('rlNom').focus(); return; }
-  rlSaqlanmoqda = true;
-  document.querySelectorAll('.rl-saqla-btn').forEach(e => { e.disabled = true; });
+  const rolId = rlTanlangan;
+  rlAmalBand(true);
   try {
-    const r = await fetch(`/api/rollar/${rlTanlangan}`, {method: 'PUT', headers: {'Content-Type': 'application/json'},
-                                                          body: JSON.stringify(qoralamaTanasi())});
-    if (!r.ok) { showMsg(await serverXatoSababi(r, "Saqlanmadi"), 'error'); holatniYangila(); return; }
+    let r;
+    try {
+      r = await fetch(`/api/rollar/${rolId}`, {method: 'PUT', headers: {'Content-Type': 'application/json'},
+                                              body: JSON.stringify(qoralamaTanasi())});
+    } catch (e) { showMsg(amalNomalumMatn('Rolni saqlash', await amalSababi(e)), 'error'); return; }
+    if (!r.ok) {
+      const sabab = await amalSababi(r);
+      showMsg(r.status >= 500 ? amalNomalumMatn('Rolni saqlash', sabab) : '❌ Saqlanmadi: ' + sabab, 'error');
+      return;
+    }
     rlIflos = false;
     showMsg("✓ Rol saqlandi. Bu roldagi foydalanuvchilarga darhol ta'sir qiladi.", 'success');
-    await rollarniYukla(rlTanlangan);
-  } catch (e) { showMsg("Internet aloqasini tekshiring", 'error'); holatniYangila(); }
-  finally { rlSaqlanmoqda = false; }
+    await rollarniYukla(rolId);
+  } catch (e) { console.error(e); showMsg('❌ Saqlanmadi: ' + (e && e.message ? e.message : 'kutilmagan xato'), 'error'); }
+  finally { rlAmalBand(false); }
 }
 
-function yangiRol() {
+// kech144 (zip 175, audit R3): yaratilgan rol darhol tanlanadi — joriy roldagi saqlanmagan o'zgarishlar ilgari JIM tashlanardi
+async function yangiRol() {
+  if (rlAmalda) return;
+  if (rlIflos && !(await rlIflosTasdiq('Yangi rol yaratilsinmi'))) return;
   const s = document.getElementById('rlYAsos');
   s.innerHTML = `<option value="">Bo'sh — hech qanday ruxsat yo'q</option>` +
     (RL ? RL.rollar.filter(r => !r.admin).map(r => `<option value="${r.id}">${escapeHtml(r.nom)}</option>`).join('') : '');
@@ -513,81 +579,167 @@ function yangiRol() {
 }
 function yangiRolYop() { document.getElementById('rlYangiModal').style.display = 'none'; }
 
-async function rolYarat(nom, asosId, tavsif) {
-  const asos = asosId ? rlRol(asosId) : null;
-  const r = await fetch('/api/rollar', {method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({nom: nom, tavsif: tavsif || '', ruxsatlar: asos ? asos.ruxsatlar : {}})});
-  if (!r.ok) return {xato: await serverXatoSababi(r, "Rol yaratilmadi")};
-  return {rol: await r.json()};
+// kech144 (zip 175, audit R3): joriy roldagi saqlanmagan o'zgarishlar — tashlashdan oldin so'raladi. Natija: true — davom etish.
+async function rlIflosTasdiq(savol) {
+  const r = rlRol(rlTanlangan);
+  return await customConfirm("Saqlanmagan o'zgarish",
+    `«${r ? r.nom : ''}» roldagi o'zgarishlar saqlanmagan — davom etsangiz ular bekor bo'ladi. ${savol}?`,
+    {okText: 'Ha, davom etish', cancelText: 'Qolish'});
+}
+
+// kech144 (zip 175, audit R2): ruxsatlar POST ning O'ZIDA (Admin nusxasi ham) — ilgari Admin nusxasi bo'sh rol yaratib, ruxsatlarni
+// alohida PUT bilan yuborardi, natijasi tekshirilmasdi: muvaffaqiyatsiz bo'lsa «✓ Nusxa yaratildi», rol esa ruxsatsiz qolardi.
+// Natija: {rol} | {xato} (server rad etdi — rol yaratilmagan) | {nomalum: true, xato} (tarmoq / 5xx — yaratilgan-yaratilmagani noma'lum).
+async function rolYarat(nom, ruxsatlar, tavsif) {
+  let r;
+  try {
+    r = await fetch('/api/rollar', {method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({nom: nom, tavsif: tavsif || '', ruxsatlar: ruxsatlar || {}})});
+  } catch (e) { return {nomalum: true, xato: await amalSababi(e)}; }
+  if (r.status >= 500) return {nomalum: true, xato: await amalSababi(r)};
+  if (!r.ok) return {xato: await amalSababi(r)};
+  try { return {rol: await r.json()}; }
+  catch (e) { return {nomalum: true, xato: "server javobi o'qilmadi — sahifani yangilab tekshiring"}; }
+}
+
+// Natija noma'lum bo'lsa: rol nomi korxonada yagona — ro'yxatni qayta o'qib, shu nomli rol paydo bo'lganini tekshiramiz.
+// Natija: {rol} — yaratilgan ekan | {matn} — yaratilmagan yoki tekshirib bo'lmadi (foydalanuvchiga sabab).
+async function rlNomalumTekshir(nom, xato) {
+  const ok = await rlYuklaQoralamaSaqla(true);
+  const rol = ok ? rlNomliRol(nom) : null;
+  if (rol) return {rol: rol};
+  return {matn: "⚠️ Rol yaratish natijasi noma'lum: " + (xato || "server javob bermadi") + '. ' +
+    (ok ? "Ro'yxatda bu nomli rol yo'q — qayta bosing." : "Ro'yxat ham yuklanmadi — sahifani yangilab tekshiring.")};
 }
 
 let rlYaratilmoqda = false;
 async function yangiRolSaqla() {
-  if (rlYaratilmoqda) return;
+  if (rlYaratilmoqda || rlAmalda) return;
   const nom = document.getElementById('rlYNom').value.trim();
   const x = document.getElementById('rlYXato');
   if (!nom) { x.textContent = 'Rol nomini yozing'; x.style.display = 'block'; return; }
+  if (rlNomliRol(nom)) { x.textContent = `«${nom}» nomli rol bor — boshqa nom yozing`; x.style.display = 'block'; return; }
+  const asos = rlRol(parseInt(document.getElementById('rlYAsos').value) || null);
   rlYaratilmoqda = true;
   document.getElementById('rlYSaqla').disabled = true;
+  x.style.display = 'none';
   try {
-    const n = await rolYarat(nom, parseInt(document.getElementById('rlYAsos').value) || null);
-    if (n.xato) { x.textContent = n.xato; x.style.display = 'block'; return; }
+    const n = await rolYarat(nom, asos ? asos.ruxsatlar : {}, '');
+    let rol = n.rol, takror = false;
+    if (n.nomalum) {
+      const t = await rlNomalumTekshir(nom, n.xato);
+      if (!t.rol) { x.textContent = t.matn; x.style.display = 'block'; return; }
+      rol = t.rol; takror = true;
+    } else if (!rol) { x.textContent = '❌ Rol yaratilmadi: ' + n.xato; x.style.display = 'block'; return; }
     yangiRolYop();
     rlIflos = false;
-    showMsg('✓ Rol yaratildi — endi ruxsatlarini belgilang', 'success');
-    await rollarniYukla(n.rol.id);
-  } catch (e) { x.textContent = "Internet aloqasini tekshiring"; x.style.display = 'block'; }
+    showMsg('✓ Rol yaratildi — endi ruxsatlarini belgilang' + amalTakrorIzoh(takror), 'success');
+    await rollarniYukla(rol.id);
+  } catch (e) {
+    console.error(e);
+    x.textContent = '❌ Rol yaratilmadi: ' + (e && e.message ? e.message : 'kutilmagan xato'); x.style.display = 'block';
+  }
   finally { rlYaratilmoqda = false; document.getElementById('rlYSaqla').disabled = false; }
 }
 
 async function rolNusxa() {
+  if (rlAmalda) return;
   const r = rlRol(rlTanlangan);
   if (!r) return;
+  // R3: nusxa SAQLANGAN ruxsatlardan olinadi va darhol tanlanadi — saqlanmagan o'zgarishlar avval so'raladi
+  if (rlIflos && !(await rlIflosTasdiq("Nusxa saqlangan ruxsatlardan olinadi. Davom etilsinmi"))) return;
   const nom = await kiritishOyna("Nusxa — yangi rol nomi", {izoh: `«${r.nom}» ruxsatlari yangi rolga ko'chiriladi.`, qiymat: `${r.nom} (nusxa)`, okText: 'Yaratish'});
   if (nom === null) return;
-  if (!nom.trim()) { showMsg('Rol nomini yozing', 'error'); return; }
-  const n = await rolYarat(nom.trim(), r.admin ? null : r.id, r.admin ? '' : r.tavsif);
-  if (n.xato) { showMsg(n.xato, 'error'); return; }
-  if (r.admin) {   // Admin — ruxsatlar hammasi (yangi rol Admin emas, lekin hamma bo'limga ega bo'ladi)
-    await fetch(`/api/rollar/${n.rol.id}`, {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ruxsatlar: r.ruxsatlar})});
-  }
-  rlIflos = false;
-  showMsg('✓ Nusxa yaratildi', 'success');
-  await rollarniYukla(n.rol.id);
+  const toza = nom.trim();
+  if (!toza) { showMsg('Rol nomini yozing', 'error'); return; }
+  if (rlNomliRol(toza)) { showMsg(`❌ «${toza}» nomli rol bor — boshqa nom yozing`, 'error'); return; }
+  rlAmalBand(true);
+  try {
+    // Admin — ruxsatlar hammasi (yangi rol Admin emas, lekin hamma bo'limga ega bo'ladi); tavsifi ko'chirilmaydi
+    const n = await rolYarat(toza, r.ruxsatlar, r.admin ? '' : r.tavsif);
+    let rol = n.rol, takror = false;
+    if (n.nomalum) {
+      const t = await rlNomalumTekshir(toza, n.xato);
+      if (!t.rol) { showMsg(t.matn, 'error'); return; }
+      rol = t.rol; takror = true;
+    } else if (!rol) { showMsg('❌ Nusxa yaratilmadi: ' + n.xato, 'error'); return; }
+    rlIflos = false;
+    showMsg('✓ Nusxa yaratildi' + amalTakrorIzoh(takror), 'success');
+    await rollarniYukla(rol.id);
+  } catch (e) { console.error(e); showMsg('❌ Nusxa yaratilmadi: ' + (e && e.message ? e.message : 'kutilmagan xato'), 'error'); }
+  finally { rlAmalBand(false); }
 }
 
+// kech144 (zip 175, audit R5): band (ikkinchi bosish ikkinchi so'rov yubormaydi — ilgari ikkinchi DELETE «Rol topilmadi» chiqarardi),
+// sabab — `amalSababi` (5xx / tarmoq — «natija noma'lum»). Boshlang'ich holat — bir xil natija: qayta bosish xavfsiz.
 async function rolAndoza() {
+  if (rlAmalda) return;
   const r = rlRol(rlTanlangan);
   if (!r) return;
+  rlAmalBand(true);      // tasdiqdan OLDIN — tasdiq kutilayotganda ikkinchi chaqiruv o'tmaydi
   const ha = await customConfirm("Boshlang'ich holat", `«${r.nom}» ruxsatlari dastlabki (tayyor) holatiga qaytarilsinmi? Siz qilgan o'zgarishlar bekor bo'ladi.`,
                                  {okText: 'Qaytarish'});
-  if (!ha) return;
-  const res = await fetch(`/api/rollar/${r.id}/andoza`, {method: 'POST'});
-  if (!res.ok) { showMsg(await serverXatoSababi(res, "Bajarilmadi"), 'error'); return; }
-  rlIflos = false;
-  showMsg("✓ Boshlang'ich ruxsatlar tiklandi", 'success');
-  await rollarniYukla(r.id);
+  if (!ha) { rlAmalBand(false); return; }
+  try {
+    let res;
+    try { res = await fetch(`/api/rollar/${r.id}/andoza`, {method: 'POST'}); }
+    catch (e) { showMsg(amalNomalumMatn("Boshlang'ich holatga qaytarish", await amalSababi(e)), 'error'); return; }
+    if (!res.ok) {
+      const sabab = await amalSababi(res);
+      showMsg(res.status >= 500 ? amalNomalumMatn("Boshlang'ich holatga qaytarish", sabab) : '❌ Bajarilmadi: ' + sabab, 'error');
+      return;
+    }
+    rlIflos = false;
+    showMsg("✓ Boshlang'ich ruxsatlar tiklandi", 'success');
+    await rollarniYukla(r.id);
+  } catch (e) { console.error(e); showMsg('❌ Bajarilmadi: ' + (e && e.message ? e.message : 'kutilmagan xato'), 'error'); }
+  finally { rlAmalBand(false); }
 }
 
 async function rolOchir() {
+  if (rlAmalda) return;
   const r = rlRol(rlTanlangan);
   if (!r || !r.ochirish_mumkin) return;
+  rlAmalBand(true);      // tasdiqdan OLDIN — tasdiq kutilayotganda ikkinchi chaqiruv o'tmaydi (ikkinchi DELETE yo'q)
   const ha = await customConfirm("Rolni o'chirish", `«${r.nom}» roli o'chirilsinmi?`, {okText: "O'chirish", danger: true});
-  if (!ha) return;
-  const res = await fetch(`/api/rollar/${r.id}`, {method: 'DELETE'});
-  if (!res.ok) { showMsg(await serverXatoSababi(res, "O'chirilmadi"), 'error'); return; }
-  rlIflos = false;
-  showMsg("✓ Rol o'chirildi", 'success');
-  rlTanlangan = null;
-  await rollarniYukla();
+  if (!ha) { rlAmalBand(false); return; }
+  try {
+    let res;
+    try { res = await fetch(`/api/rollar/${r.id}`, {method: 'DELETE'}); }
+    catch (e) { showMsg(amalNomalumMatn("Rolni o'chirish", await amalSababi(e)), 'error'); return; }
+    // 404 — rol yo'q: avvalgi (javobi kelmay qolgan) so'rov yoki boshqa admin o'chirgan — ro'yxat yangilanadi
+    if (!res.ok && res.status !== 404) {
+      const sabab = await amalSababi(res);
+      showMsg(res.status >= 500 ? amalNomalumMatn("Rolni o'chirish", sabab) : "❌ O'chirilmadi: " + sabab, 'error');
+      return;
+    }
+    rlIflos = false;
+    showMsg(res.status === 404 ? `ℹ️ «${r.nom}» roli allaqachon o'chirilgan ekan — ro'yxat yangilandi` : "✓ Rol o'chirildi", 'success');
+    RL.rollar = RL.rollar.filter(x => x.id !== r.id);
+    rlTanlangan = null;
+    if (!(await rollarniYukla())) await rolniTanla((RL.rollar[0] || {}).id, true);
+  } catch (e) { console.error(e); showMsg("❌ O'chirilmadi: " + (e && e.message ? e.message : 'kutilmagan xato'), 'error'); }
+  finally { rlAmalBand(false); }
 }
 
+// kech144 (zip 175, audit R4): tarmoq xatosi ilgari ushlanmasdi (tanlov yangi rolni ko'rsatib qolardi, hech narsa o'zgarmagan).
+// Natija: null — o'zgardi (ro'yxat yangilandi) | matn — sabab. Natija noma'lum (tarmoq / 5xx) — ro'yxat qayta o'qiladi (haqiqiy holat).
+// Rol biriktirish — PUT (bir xil qiymat): qayta urinish xavfsiz.
 async function rolBiriktir(userId, rolId) {
-  const res = await fetch(`/api/users/${userId}/rol`, {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({rol_id: rolId})});
-  if (!res.ok) return await serverXatoSababi(res, "O'zgartirilmadi");
-  const saqla = rlIflos ? rlQoralama : null;
-  await rollarniYukla(rlTanlangan);
-  if (saqla) { rlQoralama = saqla; rlIflos = true; hammasiniChiz(); }
+  let res;
+  try {
+    res = await fetch(`/api/users/${userId}/rol`, {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({rol_id: rolId})});
+  } catch (e) {
+    const m = amalNomalumMatn("Rolni o'zgartirish", await amalSababi(e));
+    await rlYuklaQoralamaSaqla(true);
+    return m;
+  }
+  if (!res.ok) {
+    const sabab = await amalSababi(res);
+    if (res.status >= 500) { await rlYuklaQoralamaSaqla(true); return amalNomalumMatn("Rolni o'zgartirish", sabab); }
+    return "❌ Rol o'zgartirilmadi: " + sabab;
+  }
+  await rlYuklaQoralamaSaqla();
   return null;
 }
 
@@ -595,11 +747,16 @@ async function userRoliniOzgartir(userId, sel) {
   const u = RL.foydalanuvchilar.find(x => x.id === userId);
   const yangi = rlRol(parseInt(sel.value));
   if (!u || !yangi) return;
+  if (rlAmalda) { sel.value = u.rol_id; return; }
   const ha = await customConfirm("Rolni o'zgartirish", `«${u.full_name || u.username}» endi «${yangi.nom}» rolida ishlaydi. Tasdiqlaysizmi?`, {okText: "O'zgartirish"});
   if (!ha) { sel.value = u.rol_id; return; }
-  const xato = await rolBiriktir(userId, yangi.id);
-  if (xato) { showMsg(xato, 'error'); sel.value = u.rol_id; return; }
-  showMsg(`✓ Rol o'zgartirildi: ${yangi.nom}`, 'success');
+  rlAmalBand(true);
+  try {
+    const xato = await rolBiriktir(userId, yangi.id);
+    if (xato) { showMsg(xato, 'error'); return; }
+    showMsg(`✓ Rol o'zgartirildi: ${yangi.nom}`, 'success');
+  } catch (e) { console.error(e); showMsg("❌ Rol o'zgartirilmadi: " + (e && e.message ? e.message : 'kutilmagan xato'), 'error'); }
+  finally { rlAmalBand(false); }   // tanlovlar ro'yxatdagi (haqiqiy) rol bilan qayta chiziladi
 }
 
 function userQoshOch() {
@@ -619,19 +776,20 @@ function userQoshYop() { document.getElementById('rlUserModal').style.display = 
 
 let rlUmMoqda = false;
 async function userQoshSaqla() {
-  if (rlUmMoqda) return;
+  if (rlUmMoqda || rlAmalda) return;
   const r = rlRol(rlTanlangan);
   const uid = parseInt(document.getElementById('rlUmTanlov').value);
   if (!r || !uid) return;
   rlUmMoqda = true;
   document.getElementById('rlUmSaqla').disabled = true;
+  rlAmalBand(true);
   try {
     const xato = await rolBiriktir(uid, r.id);
     if (xato) { showMsg(xato, 'error'); return; }
     userQoshYop();
     showMsg(`✓ Foydalanuvchi «${r.nom}» rolga qo'shildi`, 'success');
-  } catch (e) { showMsg('Internet aloqasini tekshiring', 'error'); }
-  finally { rlUmMoqda = false; document.getElementById('rlUmSaqla').disabled = false; }
+  } catch (e) { console.error(e); showMsg("❌ Qo'shilmadi: " + (e && e.message ? e.message : 'kutilmagan xato'), 'error'); }
+  finally { rlUmMoqda = false; document.getElementById('rlUmSaqla').disabled = false; rlAmalBand(false); }
 }
 
 function yordamOch() { document.getElementById('rlYordamModal').style.display = 'flex'; }
