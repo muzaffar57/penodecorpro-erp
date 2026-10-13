@@ -208,7 +208,12 @@ check("N10 o'z nomi bilan (o'zgarmagan) + boshqa maydon → 200", r.status_code 
 r = so("A", "put", f"/api/inventory/{ID['akril']}", json={"min_stock": 4})
 check("N11 nomsiz tahrir → 200", r.status_code == 200, (r.status_code, r.text[:200]))
 r = so("A", "put", f"/api/inventory/{ID['bosh']}", json={"item_name": "mn akril"})
-check("N12 katta / kichik harf farqi — alohida nom (qoida o'zgarmagan) → 200", r.status_code == 200, (r.status_code, r.text[:200]))
+# kech143 (zip 171, jonli topilma N1 — MOSLANDI): nom taqqoslanishi endi KALIT bilan (harf / bo'shliq / apostrof farqi — o'sha nom;
+# `crud.material_nomi_kaliti`, yangi qoida `tools/test_audit_himoya.py` F bo'limida) — «mn akril» «MN Akril» bilan band → 400;
+# eski kodda (zip 170) — avvalgi kutilgan javob (alohida nom, 200).
+_YANGI143 = hasattr(crud, "material_nomi_kaliti")
+check("N12 katta / kichik harf farqi — " + ("o'sha nom (N1) → 400" if _YANGI143 else "alohida nom (qoida o'zgarmagan) → 200"),
+      r.status_code == (400 if _YANGI143 else 200), (r.status_code, r.text[:200]))
 
 section("Y. Yaratish — nom chetidagi bo'shliqlar")
 # kech142 (zip 170, A-O09 — MOSLANDI): shu nomli FAOL material endi qayta yozilmaydi — 409 + mavjud material id si (yangi qoida
@@ -245,6 +250,8 @@ check("J1 butun test davomida xato jurnaliga yangi yozuv YO'Q (500 yo'q)", jurna
 section("S. Statik")
 _ui = manba(crud, "update_item")
 check("S1 `crud.update_item` — nom bandligi yozishdan OLDIN tekshiriladi (yashirilgani ham)",
+      tartibda(_ui, 'if "item_name" in update_data', "nomdosh_materiallar(db, db_item.company_id", "istisno_id=db_item.id",
+               "raise ValueError", "setattr(db_item, field, value)") if _YANGI143 else
       tartibda(_ui, 'if "item_name" in update_data', "Inventory.company_id == db_item.company_id", "Inventory.id != db_item.id",
                "raise ValueError", "setattr(db_item, field, value)"))
 _ai = manba(crud, "add_item")

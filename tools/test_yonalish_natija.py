@@ -333,10 +333,16 @@ s.add_all([ExpenseTransaction(company_id=1, date=oy_sana(YIL, OY, 2), category="
            ExpenseTransaction(company_id=1, date=oy_sana(*OYLAR3[1], 6), category="boshqa", amount=45_000, **_kw)])
 s.commit()
 s.close()
+# kech143 (MOSLANDI — fikstura; kech141 qoidasi): zip 169 dan hodim KIRGAN oy oyligi kunlarga mutanosib (berilmasa — bugun kirgan).
+# Hodimlar bugun qo'shilsa B2 sanaga bog'liq bo'lib qolardi (13.10 da 1 000 000 × 19/31 = 612 903,23 va 400 000 × 19/31 = 245 161,29:
+# alohida yaxlitlangan yig'indi 858 064, Jami yaxlitlangani 858 065 — 1 so'm; 12.10 da tasodifan teng edi). Endi joriy oyning
+# 1-kunida kirgan — oylik butun, kutilgan qiymatlar o'zgarmagan.
+_kirgan143 = {"ishga_kirgan_sana": date(YIL, OY, 1).isoformat()} if "ishga_kirgan_sana" in getattr(
+    __import__("schemas").EmployeeCreate, "model_fields", {}) else {}
 _e1 = req(CA, "post", "/api/employees", json={"name": "YN Travertin hodimi", "pay_type": "fixed", "fixed_amount": 1_000_000,
-                                              "yonalish_id": TID})
+                                              "yonalish_id": TID, **_kirgan143})
 _e2 = req(CA, "post", "/api/employees", json={"name": "YN Umumiy hodim", "pay_type": "fixed", "fixed_amount": 400_000,
-                                              "yonalish_id": None})
+                                              "yonalish_id": None, **_kirgan143})
 E1, E2 = (js(_e1) or {}).get("id"), (js(_e2) or {}).get("id")
 
 

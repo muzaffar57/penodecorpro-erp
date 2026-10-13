@@ -2,8 +2,10 @@
  "read": [
   "auth.py:219 db.query(User) — korxona filtri yo'q (funksiya: ?) │ user = db.query(User).filter(",
   "auth.py:484 db.query(User) — korxona filtri yo'q (funksiya: _login_egasi) │ return (db.query(User).execution_options(skip_tenant_filter=True)",
-  "auth.py:754 db.query(EmployeeSession) — korxona filtri yo'q (funksiya: get_employee_session) │ entry = db.query(EmployeeSession).filter(EmployeeSession.token == token).first()",
-  "auth.py:766 db.query(EmployeeSession) — korxona filtri yo'q (funksiya: delete_employee_session) │ db.query(EmployeeSession).filter(EmployeeSession.token == token).delete()",
+  "auth.py:67 db.query(User) — korxona filtri yo'q (funksiya: eski_xeshlarni_ora) │ for u in db.query(User).filter(User.password_hash.isnot(None)).all():",
+  "auth.py:71 db.query(Employee) — korxona filtri yo'q (funksiya: eski_xeshlarni_ora) │ for e in db.query(Employee).filter(Employee.pin_hash.isnot(None)).all():",
+  "auth.py:832 db.query(EmployeeSession) — korxona filtri yo'q (funksiya: get_employee_session) │ entry = db.query(EmployeeSession).filter(EmployeeSession.token == token_xesh(token)).first()",
+  "auth.py:844 db.query(EmployeeSession) — korxona filtri yo'q (funksiya: delete_employee_session) │ db.query(EmployeeSession).filter(EmployeeSession.token == token_xesh(token)).delete()",
   "auth.py:824 db.query(Employee) — korxona filtri yo'q (funksiya: hodim_holati) │ employee = db.query(Employee).filter(",
   "crud.py:10382 db.query(OrderItem) — korxona filtri yo'q (funksiya: create_delivery) │ oi = db.query(OrderItem).filter(",
   "crud.py:10432 db.query(Delivery) — korxona filtri yo'q (funksiya: create_delivery) │ seq = db.query(Delivery).filter(Delivery.order_id == order.id).count() + 1",
