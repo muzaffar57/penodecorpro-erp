@@ -266,7 +266,7 @@ input[type=number]{-moz-appearance:textfield}
     </div>
     <div style="padding:16px 22px 20px;display:flex;gap:10px;border-top:1px solid var(--ch-f0f0f0)">
       <button data-yopish class="btn btn-outline" onclick="closeBatchSellModal()" style="flex:1">Bekor qilish</button>
-      <button class="btn btn-green" onclick="submitBatchSell()" style="flex:1">✓ Sotish</button>
+      <button class="btn btn-green" id="batch-sell-btn" onclick="submitBatchSell()" style="flex:1">✓ Sotish</button>
     </div>
   </div>
 </div>
@@ -316,7 +316,7 @@ input[type=number]{-moz-appearance:textfield}
     </div>
     <div style="padding:16px 22px 20px;display:flex;gap:10px;border-top:1px solid var(--ch-f0f0f0)">
       <button data-yopish class="btn btn-outline" onclick="closeSellModal()" style="flex:1">Bekor qilish</button>
-      <button class="btn btn-green" onclick="submitSell()" style="flex:1">✓ Sotish</button>
+      <button class="btn btn-green" id="sell-btn" onclick="submitSell()" style="flex:1">✓ Sotish</button>
     </div>
   </div>
 </div>
@@ -501,7 +501,7 @@ input[type=number]{-moz-appearance:textfield}
 
     <div style="padding:14px 22px 18px;border-top:1px solid var(--ch-f0f0f0);display:flex;gap:8px">
       <button data-yopish class="btn btn-outline" style="flex:1" onclick="closeProduceModal()">Bekor</button>
-      <button class="btn btn-gold" style="flex:2" onclick="saveProduce()">🏭 Ishlab chiqarish</button>
+      <button class="btn btn-gold" id="produce-btn" style="flex:2" onclick="saveProduce()">🏭 Ishlab chiqarish</button>
     </div>
   </div>
 
@@ -1460,26 +1460,31 @@ async function addProduction(id, qty, item) {
     `\n✅ Natija: ${sonKor(item.quantity + qty)} ${unitLabel(item.unit)}`;
 
   if (!(await customConfirm(`${item.name} — qo'shish`, txt))) return;
-
+  // kech144 (zip 174, audit 2-to'lqin B#3 — O'LCHANGAN kodda: himoya yo'q edi): bir vaqtda bitta so'rov; amal kaliti — mahsulot
+  // bo'yicha (`qoshish_<id>`): javob kelmay qolib qayta bosilsa server miqdorni / xomashyoni ikkinchi marta o'zgartirmaydi.
+  if (addProduction.band) return;
+  addProduction.band = true;
+  let n;
   try {
-    const res = await fetch(`/api/finished/${id}/add`, {
+    n = await amalYubor(`/api/finished/${id}/add`, {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({quantity: qty})
-    });
-    const r = await res.json();
-
-    if (res.ok) {
-      loadFp();
-      let msg = `✓ +${fpMiqdor(r.added_qty)} ${unitLabel(r.unit)} qo'shildi (jami ${fpMiqdor(r.new_qty)} ${unitLabel(r.unit)})`;
-      if (r.inventory_log?.length) msg += '\n\n📦 ' + r.inventory_log.join('\n');
-      showMsg(msg, 'success');
-    } else {
-      const d = (r.detail && typeof r.detail === 'object') ? r.detail : {};
-      showMsg('❌ ' + xatoSababi(r, 'Xato') +
-        (d.shortages?.length ? '\n' + d.shortages.join('\n') : ''), 'error');
-    }
-  } catch(e) { showMsg('❌ Server xatosi', 'error'); }
+    }, 'qoshish_' + id);
+  } finally { addProduction.band = false; }
+  if (n.ok) {
+    const r = n.javob || {};
+    loadFp();
+    let msg = `✓ +${fpMiqdor(r.added_qty)} ${unitLabel(r.unit)} qo'shildi (jami ${fpMiqdor(r.new_qty)} ${unitLabel(r.unit)})`;
+    if (r.inventory_log?.length) msg += '\n\n📦 ' + r.inventory_log.join('\n');
+    showMsg(msg + amalTakrorIzoh(n.takror), 'success');
+  } else if (n.nomalum) {
+    showMsg(amalNomalumMatn("Qo'shish", n.xato), 'error');
+    loadFp();
+  } else {
+    const d = (n.javob && n.javob.detail && typeof n.javob.detail === 'object') ? n.javob.detail : {};
+    showMsg("❌ Qo'shilmadi: " + n.xato + (d.shortages?.length ? '\n' + d.shortages.join('\n') : ''), 'error');
+  }
 }
 
 // kech118 (D-3, G5-04): «−» oynasi funksiyalari (openLossModal, setLossMode, submitLoss …) — templates/_brak_oyna.html
@@ -1679,8 +1684,15 @@ async function submitBatchSell(confirmBelowCost) {
     agreedAmount = agreedRaw;
   }
 
+  // kech144 (zip 174, audit 2-to'lqin B#1 — O'LCHANGAN probe_takror: ikki marta bosish — ikki sotuv, ikki PDF): bir vaqtda bitta
+  // so'rov (tugma «Saqlanmoqda...»); amal kaliti (`guruh_sotuv`) — javob kelmay qolib qayta bosilsa server ikkinchi sotuv yozmaydi.
+  if (submitBatchSell.band) return;
+  submitBatchSell.band = true;
+  const btn = document.getElementById('batch-sell-btn');
+  tugmaBand(btn, true);
+  let n;
   try {
-    const res = await fetch('/api/finished/sell-batch', {
+    n = await amalYubor('/api/finished/sell-batch', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({
@@ -1691,24 +1703,28 @@ async function submitBatchSell(confirmBelowCost) {
         master_id: batchMasterId,
         confirm_below_cost: !!confirmBelowCost
       })
-    });
-    const r = await res.json();
-    if (res.ok) {
-      closeBatchSellModal();
-      clearBatchSelection();
-      const discMsg = (r.discount_percent && r.discount_percent > 0) ? ` (${r.discount_percent}% chegirma bilan)` : '';
-      showMsg(`✓ ${r.sale_count} ta mahsulot sotildi! Kelishilgan: ${fmt(r.total_amount)} so'm${discMsg}`, 'success');
-      window.open(`/api/finished/sales/batch/${r.sale_group_id}/pdf`, '_blank');
-      // kech120 (zip 133 — F bosqichi 3-qism, audit G5-13): ilgari 1,5 s da sahifa QAYTA YUKLANARDI — xabar (summa, foyda) o'qib
-      // bo'lmasdi. Endi faqat ro'yxat va kartalar yangilanadi (`loadFp`), xabar o'z vaqtida turadi.
-      loadFp();
-    } else if (r.detail?.type === 'below_cost_warning') {
-      const ok = await customConfirm('Diqqat — zarar bilan sotuv', r.detail.message, {okText: 'Ha, davom etish', danger: true});
-      if (ok) await submitBatchSell(true);
-    } else {
-      showMsg(xatoSababi(r), 'error');
-    }
-  } catch(e) { showMsg('Server xatosi', 'error'); }
+    }, 'guruh_sotuv');
+  } finally { submitBatchSell.band = false; tugmaBand(btn, false); }
+  const rd = (n.javob && n.javob.detail && typeof n.javob.detail === 'object') ? n.javob.detail : null;
+  if (n.ok) {
+    const r = n.javob || {};
+    closeBatchSellModal();
+    clearBatchSelection();
+    const discMsg = (r.discount_percent && r.discount_percent > 0) ? ` (${r.discount_percent}% chegirma bilan)` : '';
+    showMsg(`✓ ${r.sale_count} ta mahsulot sotildi! Kelishilgan: ${fmt(r.total_amount)} so'm${discMsg}` + amalTakrorIzoh(n.takror), 'success');
+    if (r.sale_group_id) window.open(`/api/finished/sales/batch/${r.sale_group_id}/pdf`, '_blank');
+    // kech120 (zip 133 — F bosqichi 3-qism, audit G5-13): ilgari 1,5 s da sahifa QAYTA YUKLANARDI — xabar (summa, foyda) o'qib
+    // bo'lmasdi. Endi faqat ro'yxat va kartalar yangilanadi (`loadFp`), xabar o'z vaqtida turadi.
+    loadFp();
+  } else if (rd && rd.type === 'below_cost_warning') {
+    const ok = await customConfirm('Diqqat — zarar bilan sotuv', rd.message, {okText: 'Ha, davom etish', danger: true});
+    if (ok) await submitBatchSell(true);
+  } else if (n.nomalum) {
+    showMsg(amalNomalumMatn('Sotuv', n.xato), 'error');
+    loadFp();
+  } else {
+    showMsg('❌ Sotuv saqlanmadi: ' + n.xato, 'error');
+  }
 }
 
 let _sellData = null;
@@ -1724,7 +1740,8 @@ function openSellModal(id, name, quantity, unit, currentPrice, reserved) {
     : `Omborda: ${fpMiqdor(quantity)} ${unitLabel(unit)}`;   // kech120 (zip 133 — G5-07): ilgari «8 metr»
   document.getElementById('sell-qty').value = '';
   document.getElementById('sell-qty').max = band > 0 ? sotsa : quantity;
-  document.getElementById('sell-price').value = currentPrice ? fmt(currentPrice) : '';
+  // kech144 (zip 174, audit C#21): narx — `narxKorinishi` (tiyin saqlanadi; ilgari `fmt` — 12 500,50 → «12 501» bo'lib sotilardi)
+  document.getElementById('sell-price').value = currentPrice ? narxKorinishi(currentPrice) : '';
   document.getElementById('sell-buyer').value = '';
   document.getElementById('sell-master').value = '';
   document.getElementById('sell-paymethod').value = 'naqd';
@@ -1763,12 +1780,22 @@ async function submitSell(confirmBelowCost) {
   if (!sellMasterVal) { showMsg('Kim sotib olayotganini tanlang (usta yoki oddiy sotuv)', 'error'); return; }
   const sellMasterId = sellMasterVal === 'none' ? null : parseInt(sellMasterVal);
 
+  // kech144 (zip 174, audit 2-to'lqin B#1 — O'LCHANGAN probe_takror: bir xil so'rov ikki marta — 2 sotuv, ombor 10 → 6): bir vaqtda
+  // bitta so'rov (tugma «Saqlanmoqda...»); amal kaliti — mahsulot bo'yicha (`sotuv_<id>`): javob kelmay qolib (tarmoq, 502) qayta
+  // bosilsa server ikkinchi sotuv yozmaydi. Natija noma'lum — «sahifani yangilab tekshiring» (ilgari «Server xatosi» — qayta sotishga
+  // undardi); rad — server sababi (`amalSababi`).
+  if (submitSell.band) return;
+  submitSell.band = true;
+  const btn = document.getElementById('sell-btn');
+  tugmaBand(btn, true);
+  const sotuvId = _sellData.id;
+  let n;
   try {
-    const res = await fetch('/api/finished/sell', {
+    n = await amalYubor('/api/finished/sell', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({
-        finished_product_id: _sellData.id,
+        finished_product_id: sotuvId,
         quantity: qty,
         unit_price: price,
         buyer_name: document.getElementById('sell-buyer').value.trim() || null,
@@ -1776,27 +1803,31 @@ async function submitSell(confirmBelowCost) {
         master_id: sellMasterId,
         confirm_below_cost: !!confirmBelowCost
       })
-    });
-    const r = await res.json();
-    if (res.ok) {
-      closeSellModal();
-      {% if current_user.ruxsat('tannarx', 'korish') %}
-      showMsg(`✓ Sotildi! ${fmt(r.total_amount)} so'm (foyda: ${fmt(r.profit)} so'm)`, 'success');
-      {% else %}
-      showMsg(`✓ Sotildi! ${fmt(r.total_amount)} so'm`, 'success');
-      {% endif %}
-      // Har qanday mahsulot uchun — Yuk xati avtomatik ochiladi
-      if (r.sale_id) {
-        window.open(`/api/finished/sales/${r.sale_id}/pdf`, '_blank');
-      }
-      loadFp();   // kech120 (zip 133 — G5-13): sahifa qayta yuklanmaydi — xabar o'qiladi
-    } else if (r.detail?.type === 'below_cost_warning') {
-      const ok = await customConfirm('Diqqat — zarar bilan sotuv', r.detail.message, {okText: 'Ha, davom etish', danger: true});
-      if (ok) await submitSell(true);
-    } else {
-      showMsg(xatoSababi(r), 'error');
+    }, 'sotuv_' + sotuvId);
+  } finally { submitSell.band = false; tugmaBand(btn, false); }
+  const rd = (n.javob && n.javob.detail && typeof n.javob.detail === 'object') ? n.javob.detail : null;
+  if (n.ok) {
+    const r = n.javob || {};
+    closeSellModal();
+    {% if current_user.ruxsat('tannarx', 'korish') %}
+    showMsg(`✓ Sotildi! ${fmt(r.total_amount)} so'm (foyda: ${fmt(r.profit)} so'm)` + amalTakrorIzoh(n.takror), 'success');
+    {% else %}
+    showMsg(`✓ Sotildi! ${fmt(r.total_amount)} so'm` + amalTakrorIzoh(n.takror), 'success');
+    {% endif %}
+    // Har qanday mahsulot uchun — Yuk xati avtomatik ochiladi
+    if (r.sale_id) {
+      window.open(`/api/finished/sales/${r.sale_id}/pdf`, '_blank');
     }
-  } catch(e) { showMsg('Server xatosi', 'error'); }
+    loadFp();   // kech120 (zip 133 — G5-13): sahifa qayta yuklanmaydi — xabar o'qiladi
+  } else if (rd && rd.type === 'below_cost_warning') {
+    const ok = await customConfirm('Diqqat — zarar bilan sotuv', rd.message, {okText: 'Ha, davom etish', danger: true});
+    if (ok) await submitSell(true);
+  } else if (n.nomalum) {
+    showMsg(amalNomalumMatn('Sotuv', n.xato), 'error');
+    loadFp();
+  } else {
+    showMsg('❌ Sotuv saqlanmadi: ' + n.xato, 'error');
+  }
 }
 
 async function editPrice(id) {
@@ -2265,15 +2296,25 @@ async function saveProduce() {
     if (!ok) return;
   }
 
+  // kech144 (zip 174, audit 2-to'lqin B#3 — kodda himoya yo'q edi: ikki marta bosish — ikki partiya, penoplast / loy ikki marta
+  // yechilardi): bir vaqtda bitta so'rov (tugma «Saqlanmoqda...»); amal kaliti (`ishlab_chiqarish`) — javob kelmay qolib qayta bosilsa
+  // server ikkinchi partiya yaratmaydi. Natija noma'lum — «sahifani yangilab tekshiring»; rad — server sababi (`amalSababi`).
+  if (saveProduce.band) return;
+  saveProduce.band = true;
+  const btn = document.getElementById('produce-btn');
+  tugmaBand(btn, true);
+  let n;
   try {
-    const res = await fetch('/api/finished/produce', {
+    n = await amalYubor('/api/finished/produce', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify(data)
-    });
-    const r = await res.json();
+    }, 'ishlab_chiqarish');
+  } finally { saveProduce.band = false; tugmaBand(btn, false); }
+  {
+    const r = n.javob || {};
 
-    if (res.ok) {
+    if (n.ok) {
       closeProduceModal();
       loadFp();
       let msg = `⏳ ${r.name}: ${fpMiqdor(r.quantity)} ${unitLabel(r.unit)} — ishlab chiqarish boshlandi`;
@@ -2283,18 +2324,19 @@ async function saveProduce() {
       msg += `\n📈 Foyda: ${fmt(r.profit)} so'm (${r.margin}%)`;
       {% endif %}
       msg += '\n\n✓ Tayyor bo\'lganda "Sotuvga tayyor" tugmasini bosing';
-      showMsg(msg, 'success');
+      showMsg(msg + amalTakrorIzoh(n.takror), 'success');
+    } else if (n.nomalum) {
+      err.style.display = 'block';
+      err.textContent = amalNomalumMatn('Ishlab chiqarish', n.xato);
+      loadFp();
     } else {
       const d = (r.detail && typeof r.detail === 'object') ? r.detail : {};
       err.style.display = 'block';
       // 5.2d (C): server xabari va kamchiliklar (material NOMLARI — foydalanuvchi matni)
       // HTML sifatida emas, MATN sifatida chiqadi (orders.html saveDelivery U1 naqshi).
-      err.innerHTML = '❌ ' + escapeHtml(xatoSababi(r, 'Xato')) +
+      err.innerHTML = '❌ ' + escapeHtml(n.xato || xatoSababi(r, 'Xato')) +
         (d.shortages?.length ? '<br>' + d.shortages.map(escapeHtml).join('<br>') : '');
     }
-  } catch(e) {
-    err.style.display = 'block';
-    err.textContent = '❌ Server xatosi';
   }
 }
 

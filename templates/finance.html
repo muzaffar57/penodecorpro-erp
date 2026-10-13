@@ -1769,17 +1769,27 @@ async function saveTx(){
   const editingId = document.getElementById('tx-f-editing-id').value;
   const url = editingId ? `/api/finance/transactions/${editingId}` : '/api/finance/transactions';
   const method = editingId ? 'PUT' : 'POST';
+  // kech144 (zip 174, audit 2-to'lqin A — O'LCHANGAN probe_takror: bir xil xarajat ikki marta — 2 qator): bir vaqtda bitta so'rov;
+  // YANGI xarajat — amal kaliti (`xarajat_yangi`): javob kelmay qolib qayta bosilsa server ikkinchi qator yozmaydi (tahrir — PUT,
+  // takrori zararsiz). Natija noma'lum ajratiladi; rad — server sababi (`amalSababi`).
+  if (saveTx.band) return;
+  saveTx.band = true;
+  let n;
   try {
-    const res = await fetch(url, {
+    n = await amalYubor(url, {
       method, headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ date: date+'T00:00:00', category, amount, notes: document.getElementById('tx-f-notes').value || null, yonalish_id: document.getElementById('tx-f-prodtype').value ? Number(document.getElementById('tx-f-prodtype').value) : null })
-    });
-    if (res.ok) {
-      closeTxModal();
-      loadDailyTransactions();
-      if (currentData) loadReport({txSaqla: true});
-    } else { alert('❌ ' + await serverXatoSababi(res, 'Saqlanmadi')); }     // kech120 (G3-17): server sababi (xom JSON emas)
-  } catch(e) { alert('Server xatosi'); }
+    }, editingId ? '' : 'xarajat_yangi');
+  } finally { saveTx.band = false; }
+  if (n.ok) {
+    closeTxModal();
+    loadDailyTransactions();
+    if (currentData) loadReport({txSaqla: true});
+    if (n.takror) alert(amalTakrorIzoh(true).trim());
+  } else if (n.nomalum) {
+    alert(amalNomalumMatn('Xarajat', n.xato));
+    loadDailyTransactions();
+  } else { alert('❌ Saqlanmadi: ' + n.xato); }     // kech120 (G3-17): server sababi (xom JSON emas)
 }
 
 async function deleteTx(id){

@@ -442,7 +442,7 @@ html[data-theme="dark"] .dbt-wrap{--d-bg:var(--bg); --d-card:var(--white); --d-b
     <div class="form-group"><label>Har oy to'lanishi kerak (so'm)</label><input type="text" id="cat-target" placeholder="0" oninput="formatPriceInput(this)"></div>
     <div class="form-group"><label>Har oy nechinchi sanagacha</label><input type="number" id="cat-dueday" value="5" min="1" max="28"></div>
     <div style="display:flex;gap:8px;margin-top:14px">
-      <button class="btn btn-dark w-full" onclick="saveNewCategory()">Saqlash</button>
+      <button class="btn btn-dark w-full" id="cat-save-btn" onclick="saveNewCategory()">Saqlash</button>
       <button data-yopish class="btn btn-outline w-full" onclick="closeAddCategoryModal()">Bekor</button>
     </div>
   </div>
@@ -623,27 +623,41 @@ async function serverSababi(res, standart) {
   return sabab;
 }
 
+// kech144 (zip 174, audit 2-to'lqin C#18 — kodda: himoya yo'q, kod har bosishda `Date.now()` dan YANGI — ikki marta bosish IKKI
+// kategoriya, oylik maqsad «Biz qarzdormiz» da ikki marta sanalardi): bir vaqtda bitta so'rov (tugma «Saqlanmoqda...»); amal kaliti
+// (`kategoriya`) — javob kelmay qolib qayta bosilsa server ikkinchi kategoriya yaratmaydi. Natija noma'lum — «sahifani yangilab
+// tekshiring»; rad — server sababi (`amalSababi`).
 async function saveNewCategory(){
+  if (saveNewCategory.band) return;
   const label = document.getElementById('cat-label').value.trim();
   const target = parseNum(document.getElementById('cat-target').value);
   const dueDay = parseInt(document.getElementById('cat-dueday').value) || 5;
   const icon = document.getElementById('cat-icon').value.trim() || '📦';
   if (!label || !target) { alert("Nom va summani to'ldiring"); return; }
   const category = majburiyatKodi(label, Date.now());
+  saveNewCategory.band = true;
+  const btn = document.getElementById('cat-save-btn');
+  tugmaBand(btn, true);
+  let n;
   try {
-    const res = await fetch(`/api/obligations/recurring?category=${encodeURIComponent(category)}&label=${encodeURIComponent(label)}&monthly_target=${target}&icon=${encodeURIComponent(icon)}&due_day=${dueDay}`, {method:'POST'});
-    if (res.ok) location.reload();
-    else alert('❌ ' + await serverSababi(res, 'Xato yuz berdi'));
-  } catch(e) { alert('Server xatosi'); }
+    n = await amalYubor(`/api/obligations/recurring?category=${encodeURIComponent(category)}&label=${encodeURIComponent(label)}&monthly_target=${target}&icon=${encodeURIComponent(icon)}&due_day=${dueDay}`, {method:'POST'}, 'kategoriya');
+  } finally { saveNewCategory.band = false; tugmaBand(btn, false); }
+  if (n.ok) {
+    if (n.takror) await xabarOyna(amalTakrorIzoh(true).trim());
+    location.reload();
+  } else if (n.nomalum) alert(amalNomalumMatn('Kategoriya', n.xato));
+  else alert("❌ Kategoriya saqlanmadi: " + n.xato);
 }
 
+// kech144 (zip 174, audit 2-to'lqin C#19): rad sababi — `amalSababi` (ilgari har qanday rad — 403 ham — «Xato yuz berdi»; standart
+// «Moliyachi» ✕ ni ko'radi, server 403 beradi); internet yo'q — «sahifani yangilab tekshiring».
 async function deleteCategory(id, label){
   if (!(await customConfirm(`"${label}" kategoriyasini o'chirasizmi? (Tarix saqlanadi, faqat maqsad o'chadi)`))) return;
-  try {
-    const res = await fetch(`/api/obligations/recurring/${id}`, {method:'DELETE'});
-    if (res.ok) location.reload();
-    else alert('Xato yuz berdi');
-  } catch(e) { alert('Server xatosi'); }
+  let res;
+  try { res = await fetch(`/api/obligations/recurring/${id}`, {method:'DELETE'}); }
+  catch(e) { alert("❌ Kategoriya o'chirilmadi: " + await amalSababi(e)); return; }
+  if (res.ok) location.reload();
+  else alert("❌ Kategoriya o'chirilmadi: " + await amalSababi(res));
 }
 
 async function quickPayObligation(category, label, debt, year, month, monthLabel){
@@ -677,15 +691,24 @@ async function quickPayObligation(category, label, debt, year, month, monthLabel
                                    {danger: true, okText: 'Ha, yozilsin'});
     if (!ha) return;
   }
+  // kech144 (zip 174, audit 2-to'lqin B#4 — O'LCHANGAN probe_takror: bir xil xarajat ikki marta — 2 × 150 000): bir vaqtda bitta
+  // so'rov; amal kaliti — majburiyat va oy bo'yicha (`majburiyat_<kod>_<yil>_<oy>`): javob kelmay qolib (502, tarmoq) qayta bosilsa
+  // server ikkinchi xarajat yozmaydi. Ilgari 502 — «❌ Xato yuz berdi», tarmoq — «Server xatosi» (tekshirish so'ralmasdi).
+  if (quickPayObligation.band) return;
+  quickPayObligation.band = true;
+  let n;
   try {
-    const res = await fetch('/api/finance/transactions', {
+    n = await amalYubor('/api/finance/transactions', {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ date: payDate+'T00:00:00', category, amount, notes: "To'lov (Qarzdorlar sahifasidan)" })
-    });
-    if (res.ok) location.reload();
-    // 17e: server sababi (masalan: 'amount' musbat bo'lishi kerak).
-    else alert('❌ ' + await serverSababi(res, 'Xato yuz berdi'));
-  } catch(e) { alert('Server xatosi'); }
+    }, 'majburiyat_' + category + '_' + y + '_' + m);
+  } finally { quickPayObligation.band = false; }
+  if (n.ok) {
+    if (n.takror) await xabarOyna(amalTakrorIzoh(true).trim());
+    location.reload();
+  } else if (n.nomalum) alert(amalNomalumMatn("To'lov", n.xato));
+  // 17e: server sababi (masalan: 'amount' musbat bo'lishi kerak).
+  else alert("❌ To'lov yozilmadi: " + n.xato);
 }
 
 // kech120 (zip 131 — F bosqichi, audit G3-05): tarix — qator qaysi oy qarzini ko'rsatsa, O'SHA oy (ilgari doim joriy oy so'ralardi:

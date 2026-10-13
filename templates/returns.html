@@ -801,16 +801,16 @@ async function qaytarishBuyurtmalariniYukla() {
   const sel = document.getElementById('f-order');
   if (!sel || _qaytBuyurtmalar) return;
   sel.innerHTML = '<option value="">Yuklanmoqda…</option>';
+  // kech144 (zip 174, audit 2-to'lqin D): internet yo'q — ilgari inglizcha «Failed to fetch»; endi `yukOl` / `yukXatoMatn` sababi
   try {
-    const r = await fetch('/api/tanlov/buyurtmalar');
-    if (!r.ok) throw new Error(await serverXatoSababi(r, "Ro'yxatni yuklab bo'lmadi"));
-    const royxat = await r.json();
+    const javob = await yukOl('/api/tanlov/buyurtmalar');
+    const royxat = Array.isArray(javob) ? javob : [];
     sel.innerHTML = '<option value="">— Buyurtma tanlang —</option>' + royxat.map(o =>
       `<option value="${Number(o.id)}" data-qidiruv="${escapeHtml((o.telefon || '') + ' ' + (o.loyiha || ''))}">` +
       `${escapeHtml(o.raqam)} — ${escapeHtml(o.mijoz || '?')}${o.holat ? ' · ' + escapeHtml(o.holat) : ''}</option>`).join('');
     _qaytBuyurtmalar = royxat;
   } catch (e) {
-    sel.innerHTML = '<option value="">' + escapeHtml(e.message || "Ro'yxatni yuklab bo'lmadi") + '</option>';
+    sel.innerHTML = '<option value="">' + escapeHtml(yukXatoMatn("Buyurtmalar ro'yxati", (e && e.yukXato) ? e : yukXato('tarmoq'))) + '</option>';
   }
 }
 
@@ -930,9 +930,15 @@ function groupReturnsByOrder(){
 }
 groupReturnsByOrder();
 
+// kech144 (zip 174, audit 2-to'lqin B#6 — O'LCHANGAN probe_rollar, EGASI QARORI 13.10 «Detal va miqdor»): detallar — «Qaytarishlar:
+// Yaratish» ruxsati bilan (`api_tanlov_buyurtma_detallari`: nom, miqdor, birlik; 1 birlik narxi — faqat «Tannarx va foyda:
+// Ko'rish» ruxsati borga, summani server hisoblaydi). Ilgari buyurtma ma'lumoti («Buyurtmalar: Ko'rish») — Omborchiga 403, sahifa esa
+// «Bu buyurtmada detal yo'q» derdi. C#13: buyurtma A dan keyin tez B tanlansa A ning kech javobi B ostida qolardi — endi eski javob
+// tashlanadi (`yukNavbat`). Xato — sabab bilan (`yukXatoMatn`).
 async function onOrderChange(){
   const orderId = document.getElementById('f-order').value;
   const itemSel = document.getElementById('f-item');
+  const joriy = yukNavbat('qaytBuyurtma');
   itemSel.innerHTML = '<option value="">Yuklanmoqda...</option>';
   itemSel.disabled = true;
   currentOrderItems = [];
@@ -943,8 +949,9 @@ async function onOrderChange(){
   }
 
   try {
-    const order = await fetch(`/api/orders/${orderId}`).then(r => r.json());
-    currentOrderItems = order.items || [];
+    const order = await yukOl(`/api/tanlov/buyurtmalar/${encodeURIComponent(orderId)}/detallar`);
+    if (!joriy()) return;
+    currentOrderItems = (order && Array.isArray(order.items)) ? order.items : [];
     if (!currentOrderItems.length) {
       itemSel.innerHTML = '<option value="">Bu buyurtmada detal yo\'q</option>';
       return;
@@ -953,7 +960,9 @@ async function onOrderChange(){
       currentOrderItems.map(i => `<option value="${Number(i.id)}">${escapeHtml(i.name)} (${escapeHtml(sonKor(i.order_qty_normalized, 3))} ${escapeHtml(unitShortLabel(i.delivery_unit))})</option>`).join('');
     itemSel.disabled = false;
   } catch(e) {
-    itemSel.innerHTML = '<option value="">Xato yuz berdi</option>';
+    if (!joriy()) return;
+    currentOrderItems = [];
+    itemSel.innerHTML = '<option value="">' + escapeHtml(yukXatoMatn('Detallar', (e && e.yukXato) ? e : yukXato('server'))) + '</option>';
   }
 }
 
@@ -1125,8 +1134,10 @@ async function saveReturn(){
   const btn = document.getElementById('return-save-btn');
   if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
 
+  // kech144 (zip 174): amal kaliti — detal bo'yicha (`qaytarish_<detal>`): javob kelmay qolib qayta bosilsa server ikkinchi qaytarish
+  // yozmaydi (ombor ikki marta oshmaydi). Natija noma'lum (tarmoq / 502) — «sahifani yangilab tekshiring»; rad — server sababi.
   try {
-    const res = await fetch('/api/returns', {
+    const n = await amalYubor('/api/returns', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
         order_id: parseInt(orderId),
@@ -1140,11 +1151,11 @@ async function saveReturn(){
         notes: document.getElementById('f-notes').value || null,
         coating_applied: false
       })
-    });
+    }, 'qaytarish_' + itemId);
 
-    if (res.ok) {
-      let yangi = null;
-      try { yangi = await res.json(); } catch (e2) { yangi = null; }
+    if (n.ok) {
+      const yangi = (n.javob && typeof n.javob === 'object') ? n.javob : null;
+      if (n.takror) await xabarOyna(amalTakrorIzoh(true).trim(), { tur: 'ogoh' });
       // kech121 (zip 138 — G5-05): «Hozir hisob-kitob» — darhol (ro'yxatdagi tugma bilan bir marshrut); bo'lmasa sababi, qaytarish saqlangan
       if (pulTanlov === 'hozir' && yangi && yangi.id && Number(yangi.refund_amount) > 0) {
         try {
@@ -1172,14 +1183,17 @@ async function saveReturn(){
       }
       location.reload();
       return;
+    } else if (n.nomalum) {
+      err.style.display = 'block';
+      err.textContent = amalNomalumMatn('Qaytarish', n.xato);
     } else {
-      const e = await res.json();
-      err.style.display='block';
-      err.textContent = '❌ ' + (e.detail?.message || e.detail || 'Xato');
+      err.style.display = 'block';
+      err.textContent = '❌ Qaytarish saqlanmadi: ' + n.xato;
     }
   } catch(e) {
     err.style.display = 'block';
-    err.textContent = '❌ Server xatosi';
+    err.textContent = "❌ Kutilmagan xato — sahifani yangilab tekshiring";
+    console.error(e);
   } finally {
     isSavingReturn = false;
     if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }

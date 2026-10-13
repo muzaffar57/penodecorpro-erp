@@ -213,27 +213,34 @@ async function kxSave(){
   const btn = document.getElementById('kx-save-btn');
   btn.disabled = true; btn.style.opacity = '0.6'; btn.textContent = 'Saqlanmoqda...';
 
+  // kech144 (zip 174, audit 2-to'lqin A — O'LCHANGAN probe_takror: bir xil xarajat ikki marta — 2 qator): amal kaliti
+  // (`kunlik_xarajat`) — javob kelmay qolib (502, tarmoq) qayta bosilsa server ikkinchi qator yozmaydi; natija noma'lum ajratiladi.
   try {
-    const res = await fetch('/api/finance/transactions', {
+    const n = await amalYubor('/api/finance/transactions', {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ date: date + 'T00:00:00', category, amount, notes })
-    });
-    if (res.ok) {
+    }, 'kunlik_xarajat');
+    if (n.ok) {
       ok.style.display = 'block';
       // kech120 (G3-24): NIMA saqlangani ko'rinadi (ilgari faqat «Xarajat saqlandi!» — ikki marta bosilganmi, bilinmasdi)
       const sel = document.getElementById('kx-category');
       const toifa = sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex].textContent.replace(/\s*\(.*\)$/, '') : category;
-      ok.textContent = `✓ Saqlandi: ${narxKorinishi(amount)} so'm · ${toifa} · ${tkSana(date)}`;
+      ok.textContent = `✓ Saqlandi: ${narxKorinishi(amount)} so'm · ${toifa} · ${tkSana(date)}` + amalTakrorIzoh(n.takror);
       document.getElementById('kx-amount').value = '';
       document.getElementById('kx-notes').value = '';
       kxBugunYukla();      // kech121 (zip 138 — G3-24)
+    } else if (n.nomalum) {
+      err.style.display = 'block';
+      err.textContent = amalNomalumMatn('Xarajat', n.xato);
+      kxBugunYukla();
     } else {
       err.style.display = 'block';
-      err.textContent = '❌ ' + await serverXatoSababi(res, 'Xato yuz berdi');
+      err.textContent = '❌ Xarajat saqlanmadi: ' + n.xato;
     }
   } catch(e) {
     err.style.display = 'block';
-    err.textContent = "❌ Server bilan aloqa yo'q";
+    err.textContent = "❌ Kutilmagan xato — sahifani yangilab tekshiring";
+    console.error(e);
   } finally {
     kxSaving = false;
     btn.disabled = false; btn.style.opacity = ''; btn.textContent = 'Saqlash';
