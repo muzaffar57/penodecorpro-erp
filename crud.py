@@ -211,6 +211,43 @@ def material_nomi_band_detail(m) -> dict:
     }
 
 
+# kech143 (zip 171, jonli topilma N1 — 12.10 22:1x staging, O'LCHANGAN `work/audit/tasdiq/himoya/p_himoya.py` N1a–f, SQLite = PG):
+# material nomi taqqoslanishi AYNAN tenglik edi — «N1 Oq Mel», «n1 oq mel» (boshqa birlikda), «N1  Oq   Mel», «Bo'yoq» / «Boʻyoq»,
+# kirill «МЕЛ» / «мел» — har biri ALOHIDA material bo'lib yaratilar, boshqa material nomiga harf farqi bilan qayta nomlash ham
+# o'tardi (ombor, retsept, kirimda ikki «bir xil» material). Endi nom KALITI bilan: bo'shliqlar bittaga, apostrof turlari
+# (‘ ’ ʻ ʼ ` ´) bitta «'», harf katta-kichikligi farqsiz (`casefold` — kirill ham; SQLite `lower()` faqat lotin — shuning uchun
+# Python da). Bazadagi eski takrorlar (bo'lsa) o'zgartirilmaydi — yangi yaratish / qayta nomlash ularga ham uriladi.
+_APOSTROF_TURLARI = "\u2018\u2019\u02bb\u02bc`\u00b4"
+MATERIAL_NOMI_QULF_NS = 171        # `_pul_qulfi` fazosi: korxona bo'yicha material nomi (PG — bir vaqtda «Akril» va «akril»)
+
+
+def material_nomi_kaliti(nom) -> str:
+    """Material nomining taqqoslash kaliti (yuqoridagi qoida)."""
+    s = str(nom or "")
+    for ch in _APOSTROF_TURLARI:
+        s = s.replace(ch, "'")
+    return " ".join(s.split()).casefold()
+
+
+def nomdosh_materiallar(db: Session, company_id, nom, istisno_id: int = None) -> list:
+    """Shu korxonadagi nom KALITI mos materiallar (faol va yashirin) — id tartibida, AYNAN nomlisi birinchi."""
+    kalit = material_nomi_kaliti(nom)
+    q = db.query(Inventory.id, Inventory.item_name)
+    if company_id is not None:
+        q = q.filter(Inventory.company_id == company_id)
+    if istisno_id is not None:
+        q = q.filter(Inventory.id != istisno_id)
+    idlar = [i for i, n in q.order_by(Inventory.id).all() if material_nomi_kaliti(n) == kalit]
+    if not idlar:
+        return []
+    _toza = str(nom or "").strip()
+    q2 = db.query(Inventory).filter(Inventory.id.in_(idlar))
+    if company_id is not None:
+        q2 = q2.filter(Inventory.company_id == company_id)
+    qatorlar = {m.id: m for m in q2.all()}
+    return sorted((qatorlar[i] for i in idlar if i in qatorlar), key=lambda m: (m.item_name != _toza, m.id))
+
+
 def _birlik_ogirish_xatosi(unit, base_unit, conversion_factor):
     """kech142 (zip 170, A-O10 c — O'LCHANGAN kodda): materialning «mayda birligi» (`base_unit`, masalan «g») ombor birligidan
     (`unit`, masalan «qop») farq qilsa — o'girish koeffitsienti (`conversion_factor` > 0, 1 qop necha g) MAJBURIY.
@@ -278,20 +315,21 @@ def add_item(db: Session, item_data: InventoryCreate, company_id: int = None, pe
     # Nom korxona ichida YAGONA (`uq_inventory_company_item_name` — yashirilgan qator ham nomni band qiladi).
     _scope = (lambda q: q.filter(Inventory.company_id == company_id)) if company_id is not None else (lambda q: q)
 
-    existing_deleted = _scope(db.query(Inventory).filter(
-        Inventory.item_name == item_data.item_name,
-        Inventory.is_deleted.is_(True)
-    )).first()
-
-    if existing_deleted is None:
-        # kech142 (zip 170, A-O09): FAOL material — qayta yozilmaydi (409, sahifa uni ro'yxatdan tanlaydi). `isnot(True)` —
-        # eski NULL qatorlar ham ko'rinadigan material hisoblanadi (boshqa joylardagidek).
-        _faol = _scope(db.query(Inventory).filter(
-            Inventory.item_name == item_data.item_name,
-            Inventory.is_deleted.isnot(True)
-        )).first()
-        if _faol is not None:
-            raise MaterialNomiBand(material_nomi_band_detail(_faol))
+    # kech143 (zip 171, N1): nom KALITI bo'yicha (`nomdosh_materiallar`; harf / bo'shliq / apostrof farqi — bitta nom), PG da
+    # korxona bo'yicha qulf ostida (tekshiruv va yozish orasida boshqa so'rov «akril» ni yarata olmaydi).
+    _pul_qulfi(db, MATERIAL_NOMI_QULF_NS, company_id or 0)
+    _nomdosh = nomdosh_materiallar(db, company_id, item_data.item_name)
+    # kech142 (zip 170, A-O09): FAOL material — qayta yozilmaydi (409, sahifa uni ro'yxatdan tanlaydi). `isnot(True)` —
+    # eski NULL qatorlar ham ko'rinadigan material hisoblanadi (boshqa joylardagidek).
+    _faol = next((m for m in _nomdosh if m.is_deleted is not True), None)
+    if _faol is not None:
+        raise MaterialNomiBand(material_nomi_band_detail(_faol))
+    _yashirin = [m for m in _nomdosh if m.is_deleted is True]
+    # Yashirin nomdoshlardan — AYNAN shu birlik va turdagisi tiklanadi (aynan nomlisi birinchi); mosi yo'q bo'lsa — birinchisi
+    # (quyida 409 «material_nomi_yashirin», uning birligi bilan).
+    existing_deleted = next((m for m in _yashirin
+                             if str(item_data.unit or "").strip() == str(m.unit or "").strip()
+                             and bool(is_peno) == bool(m.is_penoplast)), None) or (_yashirin[0] if _yashirin else None)
 
     qty = float(item_data.stock_quantity or 0)
     price = float(item_data.price_per_unit or 0)
@@ -1523,16 +1561,16 @@ def update_item(db: Session, item_id: int, item_data: InventoryUpdate) -> Option
             raise ValueError("Material nomi kamida 2 belgi bo'lishi kerak")
         update_data["item_name"] = _yangi_nom
         if _yangi_nom != db_item.item_name:
-            _band = db.query(Inventory).filter(
-                Inventory.company_id == db_item.company_id,
-                Inventory.id != db_item.id,
-                Inventory.item_name == _yangi_nom
-            ).first()
+            # kech143 (zip 171, N1): nom KALITI bo'yicha (harf / bo'shliq / apostrof farqi — boshqa materialning nomi); o'z nomining
+            # yozilishini o'zgartirish («akril» → «Akril») — ruxsat. PG da korxona bo'yicha qulf (yaratish bilan bir fazo).
+            _pul_qulfi(db, MATERIAL_NOMI_QULF_NS, db_item.company_id or 0)
+            _band = next(iter(nomdosh_materiallar(db, db_item.company_id, _yangi_nom, istisno_id=db_item.id)), None)
             if _band is not None:
+                _x143 = "" if _band.item_name == _yangi_nom else f' («{_band.item_name}»)'
                 if _band.is_deleted:
-                    raise ValueError(f'"{_yangi_nom}" nomi avval o\'chirilgan (yashirilgan) materialda band — '
+                    raise ValueError(f'"{_yangi_nom}" nomi avval o\'chirilgan (yashirilgan) materialda band{_x143} — '
                                      f'boshqa nom tanlang')
-                raise ValueError(f'"{_yangi_nom}" nomli material allaqachon omborda mavjud — boshqa nom tanlang')
+                raise ValueError(f'"{_yangi_nom}" nomli material allaqachon omborda mavjud{_x143} — boshqa nom tanlang')
     # kech142 (zip 170, A-O10 c): mayda birlik — koeffitsient bilan (NATIJAVIY holat: koeffitsient o'chirilib mayda birlik
     # qolsa ham, oddiy materialga koeffitsientsiz mayda birlik berilsa ham — rad, hech narsa yozilmaydi). Faqat birlik /
     # mayda birlik / koeffitsient o'zgartirilganda — eski (koeffitsientsiz) materialning boshqa tahriri (nom, minimal qoldiq)
@@ -5234,15 +5272,24 @@ def log_login_attempt(db: Session, username: str, success: bool, ip_address: str
 
 
 def check_login_rate_limit(db: Session, username: str, ip_address: str = None,
-                            max_attempts: int = 5, window_minutes: int = 15, ip_max_attempts: int = 20) -> dict:
-    """Rate limit — oxirgi `window_minutes` daqiqada, shu username bo'yicha `max_attempts` YOKI shu IP manzildan
-    `ip_max_attempts` martadan ko'p MUVAFFAQIYATSIZ urinish bo'lgan bo'lsa, kirishni bloklaydi. Mavjud LoginHistory
+                            max_attempts: int = 5, window_minutes: int = 15, ip_max_attempts: int = 20,
+                            login_jami_max: int = 30, tanish_kun: int = 30) -> dict:
+    """Rate limit — oxirgi `window_minutes` daqiqadagi MUVAFFAQIYATSIZ urinishlar bo'yicha kirishni bloklaydi. Mavjud LoginHistory
     jadvalidan foydalanadi — yangi jadval kerak emas.
 
-    kech116 (U-01): IP chegarasi 5 → 20 (foydalanuvchi nomi — 5, o'zgarmadi). Sabab (O'LCHANGAN): bitta ofis / bitta
-    uyali operator NAT i ortidagi hamma xodim bitta IP da — bitta xodimning 5 xatosi butun ofisni 15 daqiqa kiritmay
-    qo'yardi (ilgari esa IP Railway proksisiniki edi — hamma korxonani). Parol terish hujumi baribir: bitta hisobga — 5,
-    bitta IP dan turli hisoblarga — 20 urinish.
+    kech116 (U-01): IP chegarasi 5 → 20. Sabab (O'LCHANGAN): bitta ofis / bitta uyali operator NAT i ortidagi hamma xodim bitta
+    IP da — bitta xodimning 5 xatosi butun ofisni 15 daqiqa kiritmay qo'yardi.
+
+    kech143 (zip 171, AUDIT A-X08 — O'LCHANGAN `work/audit/tasdiq/himoya/p_himoya.py` X08a / X09g, SQLite = PG): foydalanuvchi
+    nomi bo'yicha 5 xato HAMMA joydan kirishni yopardi — begona odam o'z kompyuteridan 5 marta noto'g'ri parol terib istalgan
+    hisobni (platforma egasini ham; hodim telefonini ham) 15 daqiqaga ishdan chiqarardi: egasi boshqa joydan TO'G'RI parol
+    bilan ham kira olmasdi. Endi:
+      * (login, IP) juftligi — 5 xato: shu IP dan shu hisobga (parol terish shu yerda to'xtaydi; asl qoida shu IP uchun);
+      * IP — 20 xato: shu IP dan istalgan hisoblarga (o'zgarmagan);
+      * login bo'yicha JAMI — `login_jami_max` (30) xato turli IP lardan (tarqoq parol terish): bloklanadi, LEKIN shu login shu
+        IP dan oxirgi `tanish_kun` (30) kunda MUVAFFAQIYATLI kirgan bo'lsa — yo'q (egasi o'z ofisi / uyidan kiraveradi).
+      * IP noma'lum (`ip_address` yo'q) — eski qoida: login bo'yicha 5.
+    Hodim kirishi (telefon raqami kaliti) — xuddi shu qoida.
 
     Qaytaradi: {"blocked": bool, "retry_after_minutes": int}"""
     from models import LoginHistory
@@ -5261,17 +5308,29 @@ def check_login_rate_limit(db: Session, username: str, ip_address: str = None,
         LoginHistory.success == False,
         LoginHistory.created_at >= cutoff
     )
-    # Username BO'YICHA yoki IP BO'YICHA — ikkalasidan qay biri ko'proq
-    # xavfli bo'lsa (masalan bitta IP'dan ko'p turli hisobga urinish, yoki
-    # bitta hisobga turli joydan urinish) — shuni hisobga olamiz.
     _uq = q.filter(LoginHistory.username == username)
     if _uname_cid is not None:
         _uq = _uq.filter(LoginHistory.company_id == _uname_cid)
-    by_username = _uq.count()
-    by_ip = q.filter(LoginHistory.ip_address == ip_address).count() if ip_address else 0
-
-    if by_username >= max_attempts or by_ip >= ip_max_attempts:
-        return {"blocked": True, "retry_after_minutes": window_minutes}
+    _blok = {"blocked": True, "retry_after_minutes": window_minutes}
+    if not ip_address:
+        if _uq.count() >= max_attempts:
+            return _blok
+        return {"blocked": False, "retry_after_minutes": 0}
+    if _uq.filter(LoginHistory.ip_address == ip_address).count() >= max_attempts:
+        return _blok
+    if q.filter(LoginHistory.ip_address == ip_address).count() >= ip_max_attempts:
+        return _blok
+    if _uq.count() >= login_jami_max:
+        _tq = db.query(LoginHistory.id).filter(
+            LoginHistory.success == True,
+            LoginHistory.username == username,
+            LoginHistory.ip_address == ip_address,
+            LoginHistory.created_at >= datetime.utcnow() - timedelta(days=tanish_kun),
+        )
+        if _uname_cid is not None:
+            _tq = _tq.filter(LoginHistory.company_id == _uname_cid)
+        if _tq.first() is None:
+            return _blok
     return {"blocked": False, "retry_after_minutes": 0}
 
 
@@ -5338,6 +5397,9 @@ AUDIT_AMALLARI = {
     "avans_olmadim": ("❗", "— admin yozgan avansga «Olmaganman» dedi", "Hodim avans javobi"),
     "avans_nizo_korildi": ("👁️", "— «Olmaganman» javobi ko'rib chiqildi", "Hodim avans javobi"),
     "avans_ochirildi": ("🗑️", "— avans yozuvi o'chirildi", "Hodim avansi"),
+    # kech143 (zip 171, A-X05 — egasi qarori 13.10): tannarx ruxsatisiz foydalanuvchi tayyor mahsulotni tannarxdan past narxda
+    # sotdi (unga ogohlantirish chiqmaydi — tannarx oshkor bo'lmasin); `new_value` — miqdor × narx (tannarxsiz)
+    "tannarxdan_past_sotuv": ("⚠️", "— tannarxdan past narxda sotildi", "Tannarxdan past sotuv"),
     # eski yozuvlar (zip 129 dan oldin shu nom bilan yozilishi mo'ljallangan, lekin NOT NULL sabab yozilmagan)
     "Zaxiradan tiklash": ("💾", "— zaxiradan tiklandi", "Zaxiradan tiklandi"),
 }
@@ -11643,10 +11705,16 @@ def _sotuv_ustasi_xatosi(db: Session, master_id, company_id):
 
 
 def sell_finished_products_batch(db: Session, data, created_by: str = None,
-                                company_id: int = None) -> dict:
+                                company_id: int = None, tannarx_korinadi: bool = True) -> dict:
     """Bir nechta turli tayyor mahsulotni, BITTA xaridorga, BITTA Yuk xati
     bilan sotadi ("savatcha"). Barchasi BITTA tranzaksiyada — birortasi
-    xato bersa, HECH BIRI saqlanmaydi (rollback)."""
+    xato bersa, HECH BIRI saqlanmaydi (rollback).
+
+    kech143 (zip 171, AUDIT A-X05 — EGASI QARORI 13.10 «Sotuv o'tadi, sizga xabar»): `tannarx_korinadi=False` (sotuvchida
+    «Tannarx va foyda» ruxsati yo'q) — tannarxdan past narx ogohlantirishi QAYTARILMAYDI (ilgari menejer narxni o'zgartirib
+    1 233 — «past», 1 234 — «yaxshi» dan aniq tannarxni bilib olardi — `p_himoya.py` X05a), sotuv o'tadi; past qatorlar
+    natijaning `tannarxdan_past` ro'yxatida (tannarxsiz: nom, miqdor, birlik, narx) — marshrut uni javobdan OLIB, jurnal va
+    Telegram xabarini yozadi."""
     import uuid
     from models import FinishedProduct, FinishedProductSale
 
@@ -11679,6 +11747,7 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None,
         # (hali DB'ga yozmaymiz — avval umumiy asl jamini bilishimiz kerak,
         #  chegirma koeffitsientini shundan hisoblaymiz.)
         prepared = []   # {fp, quantity, unit_price, original_total, cost_amount}
+        _tannarxdan_past = []   # kech143 (A-X05): ruxsatsiz sotuvchining tannarxdan past qatorlari (tannarxsiz)
         original_grand_total = 0.0
         for item in data.items:
             # M4: har bir mahsulot FAQAT joriy korxonadan. Boshqa
@@ -11728,8 +11797,13 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None,
             # sotuv narxi tan narxidan past bo'lsa, aniq tasdiqlash so'raladi.
             # kech125 (zip 146 — egasi qarori Q2): 2-nav mahsulot tannarxdan arzon sotilishi tabiiy — so'ralmaydi (farq sotuv
             # oyida zarar — sotuv tannarxi o'zgarmaydi)
-            if unit_cost > 0 and float(_narx2) < unit_cost and not getattr(data, "confirm_below_cost", False) \
-                    and getattr(fp, "brak_taqdir", None) != "ikkinchi_nav":
+            _past143 = (unit_cost > 0 and float(_narx2) < unit_cost
+                        and getattr(fp, "brak_taqdir", None) != "ikkinchi_nav")
+            if _past143 and not tannarx_korinadi:
+                # kech143 (A-X05): ruxsatsiz sotuvchiga — so'rovsiz (tasdiq belgisi yuborilgan bo'lsa ham yoziladi)
+                _tannarxdan_past.append({"nomi": fp.name, "miqdor": float(item.quantity), "birlik": fp.unit,
+                                         "narx": float(_narx2)})
+            elif _past143 and not getattr(data, "confirm_below_cost", False):
                 db.rollback()
                 return {
                     "success": False,
@@ -11817,7 +11891,7 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None,
         for s in sales:
             db.refresh(s)
 
-        return {
+        _nat = {
             "success": True,
             "sale_group_id": group_id,
             "sale_count": len(sales),
@@ -11826,16 +11900,21 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None,
             "total_amount": round(total_all),   # kelishilgan (chegirilgan) summa
             "profit": round(profit_all)
         }
+        if _tannarxdan_past:
+            _nat["tannarxdan_past"] = _tannarxdan_past       # kech143 (A-X05): marshrut javobdan oladi
+        return _nat
     except Exception as e:
         db.rollback()
         return {"success": False, "message": f"Xato yuz berdi: {str(e)}"}
 
 
 def sell_finished_product(db: Session, data, created_by: str = None,
-                         company_id: int = None) -> dict:
+                         company_id: int = None, tannarx_korinadi: bool = True) -> dict:
     """Tayyor mahsulotni to'g'ridan-to'g'ri sotadi (buyurtma/Yuk xatisiz).
     Qoldiqdan ayiradi, savdo yozuvini yaratadi. cost_amount — mahsulotning
-    o'z cost_price'iga proporsional (odatda G'isht kabi mahsulotlarda 0)."""
+    o'z cost_price'iga proporsional (odatda G'isht kabi mahsulotlarda 0).
+    kech143 (zip 171, A-X05): `tannarx_korinadi=False` — `sell_finished_products_batch` dagi qoida (ogohlantirishsiz, past
+    sotuv natijaning `tannarxdan_past` ro'yxatida)."""
     from models import FinishedProduct, FinishedProductSale
 
     # M4: mahsulot FAQAT joriy korxonadan (aks holda "topilmadi").
@@ -11893,8 +11972,14 @@ def sell_finished_product(db: Session, data, created_by: str = None,
     # bo'lmaydi" degan xabarni ko'radi.
     # kech125 (zip 146 — egasi qarori Q2): 2-nav mahsulot (brakdan) tannarxdan arzon sotilishi tabiiy — so'ralmaydi; farq
     # (tannarx − sotuv) sotuv oyida zarar (sotuv tannarxi — muzlagan `unit_cost_stable`)
-    if unit_cost > 0 and float(_sotuv_narx) < unit_cost and not getattr(data, "confirm_below_cost", False) \
-            and getattr(fp, "brak_taqdir", None) != "ikkinchi_nav":
+    _past143 = (unit_cost > 0 and float(_sotuv_narx) < unit_cost
+                and getattr(fp, "brak_taqdir", None) != "ikkinchi_nav")
+    _tannarxdan_past = []
+    if _past143 and not tannarx_korinadi:
+        # kech143 (A-X05): ruxsatsiz sotuvchiga — so'rovsiz (tasdiq belgisi yuborilgan bo'lsa ham yoziladi)
+        _tannarxdan_past.append({"nomi": fp.name, "miqdor": float(data.quantity), "birlik": fp.unit,
+                                 "narx": float(_sotuv_narx)})
+    elif _past143 and not getattr(data, "confirm_below_cost", False):
         return {
             "success": False,
             "type": "below_cost_warning",
@@ -11933,7 +12018,7 @@ def sell_finished_product(db: Session, data, created_by: str = None,
     db.add(sale)
     db.commit()
     db.refresh(sale)
-    return {
+    _nat = {
         "success": True,
         "sale_id": sale.id,
         "product_name": fp.name,
@@ -11944,6 +12029,9 @@ def sell_finished_product(db: Session, data, created_by: str = None,
         "band": float(fp.reserved_quantity or 0),
         "sotsa_boladi": _fp_bosh_qoldiq(fp),
     }
+    if _tannarxdan_past:
+        _nat["tannarxdan_past"] = _tannarxdan_past       # kech143 (A-X05): marshrut javobdan oladi
+    return _nat
 
 
 def produce_finished_product(db: Session, data: ProduceCreate, created_by: str = None,
@@ -14322,7 +14410,8 @@ def _hodim_sessiyalarini_yop(db: Session, emp, qoldir_hash: str = None, qoldir_t
     if qoldir_hash is not None:
         q = q.filter(_or159(_ES.qurilma_hash.is_(None), _ES.qurilma_hash != qoldir_hash))
     if qoldir_token is not None:
-        q = q.filter(_ES.token != qoldir_token)
+        import auth as _auth143
+        q = q.filter(_ES.token != _auth143.token_xesh(qoldir_token))      # kech143 (A-X09): bazada xesh
     q.delete(synchronize_session=False)
 
 

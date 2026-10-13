@@ -39,17 +39,63 @@ def _is_bcrypt_hash(hashed: str) -> bool:
     return hashed.startswith(("$2b$", "$2a$", "$2y$"))
 
 
+# kech143 (zip 171, AUDIT A-X09 — O'LCHANGAN `work/audit/tasdiq/himoya/p_himoya.py` X09e): eski (tuzsiz SHA-256) parol / PIN
+# xeshi faqat egasi KIRGANDA bcrypt ga o'tardi — kirmagan hisobning xeshi bazada tuzsiz qolardi (lug'at bilan tez ochiladi).
+# Endi ishga tushishda (`eski_xeshlarni_ora`) har bir eski xesh bcrypt bilan O'RALADI: `s$` + bcrypt(sha256_hex) — 62 belgi
+# (`employees.pin_hash` — VARCHAR(64); uzunroq belgi «sha256$» bilan 67 bo'lib, PG da RAD etildi — O'LCHANGAN). Parol
+# o'zgarmaydi, hech kim chiqib ketmaydi; kirishda oddiy bcrypt ga o'tadi (`verify_and_upgrade_password`,
+# `crud.authenticate_employee` — `_is_bcrypt_hash` emas → qayta xeshlanadi).
+ORALGAN_SHA256 = "s$"
+_ESKI_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+
+
+def eski_sha256mi(hashed) -> bool:
+    """Tuzsiz eski SHA-256 xesh (64 ta kichik o'n oltilik belgi)."""
+    return isinstance(hashed, str) and bool(_ESKI_SHA256_RE.match(hashed))
+
+
+def eski_xeshni_ora(hashed: str) -> str:
+    """Eski SHA-256 xeshni bcrypt bilan o'raydi (parolni bilmasdan)."""
+    return ORALGAN_SHA256 + bcrypt.hashpw(hashed.encode(), bcrypt.gensalt()).decode()
+
+
+def eski_xeshlarni_ora(db: Session) -> dict:
+    """Bazadagi eski SHA-256 parol (`users.password_hash`) va PIN (`employees.pin_hash`) xeshlarini o'raydi. Takror chaqirilsa —
+    o'zgarish yo'q (o'ralgani `s$` bilan boshlanadi). Commit — chaqiruvchida."""
+    from models import Employee
+    natija = {"users": 0, "employees": 0}
+    for u in db.query(User).filter(User.password_hash.isnot(None)).all():
+        if eski_sha256mi(u.password_hash):
+            u.password_hash = eski_xeshni_ora(u.password_hash)
+            natija["users"] += 1
+    for e in db.query(Employee).filter(Employee.pin_hash.isnot(None)).all():
+        if eski_sha256mi(e.pin_hash):
+            e.pin_hash = eski_xeshni_ora(e.pin_hash)
+            natija["employees"] += 1
+    return natija
+
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Kiritilgan parolni bazadagi hash bilan solishtiradi. ESKI (SHA-256)
     va YANGI (bcrypt) — ikkala formatni ham qo'llab-quvvatlaydi, shunda
-    hali eski formatda saqlangan foydalanuvchilar ham to'siqsiz kira oladi."""
+    hali eski formatda saqlangan foydalanuvchilar ham to'siqsiz kira oladi.
+    kech143 (zip 171, A-X09): o'ralgan eski xesh (`s$…`) ham; eski xesh solishtiruvi — doimiy vaqtli."""
+    import hmac as _hmac143
+    if not hashed_password:
+        return False
     if _is_bcrypt_hash(hashed_password):
         try:
             return bcrypt.checkpw(plain_password.encode(), hashed_password.encode())
         except ValueError:
             return False
+    _eski = hashlib.sha256(plain_password.encode()).hexdigest()
+    if hashed_password.startswith(ORALGAN_SHA256):
+        try:
+            return bcrypt.checkpw(_eski.encode(), hashed_password[len(ORALGAN_SHA256):].encode())
+        except ValueError:
+            return False
     # Eski format (SHA-256) — orqaga moslik uchun
-    return hashlib.sha256(plain_password.encode()).hexdigest() == hashed_password
+    return _hmac143.compare_digest(_eski, hashed_password)
 
 
 def verify_and_upgrade_password(db: Session, user, plain_password: str) -> bool:
@@ -154,12 +200,40 @@ def mijoz_ip(request) -> Optional[str]:
     return ulanish
 
 
+# kech143 (zip 171, AUDIT A-X09 — O'LCHANGAN `p_himoya.py` X09d): sessiya tokeni bazada XOM saqlanardi (cookie dagi qiymat
+# bilan AYNAN) — baza o'qilsa (nusxa, log, xato xabari) har bir faol sessiya parolsiz ishlatilardi. Endi bazada faqat SHA-256
+# xeshi (64 belgi); cookie o'zgarmaydi. Eski xom tokenlar (token_urlsafe(32) — 43 belgi) ishga tushishda xeshlanadi
+# (`sessiya_tokenlarini_xeshla`) — hech kim tizimdan chiqib ketmaydi. Hodim sessiyasi — xuddi shunday.
+def token_xesh(token) -> str:
+    """Sessiya tokenining bazadagi ko'rinishi (SHA-256, 64 ta o'n oltilik belgi)."""
+    return hashlib.sha256(str(token or "").encode("utf-8")).hexdigest()
+
+
+def sessiya_tokenlarini_xeshla(db: Session) -> dict:
+    """Bazadagi XOM sessiya tokenlarini xeshlaydi (uzunligi 64 emas — xom; xeshlangani 64). Takror chaqirilsa — o'zgarish yo'q.
+    Xeshi allaqachon bor xom qator (bo'lishi mumkin emas, lekin) — o'chiriladi. Commit — chaqiruvchida."""
+    from models import UserSession, EmployeeSession
+    from sqlalchemy import func as _f143
+    natija = {}
+    for nom, M in (("user_sessions", UserSession), ("employee_sessions", EmployeeSession)):
+        n = 0
+        for (eski,) in db.query(M.token).filter(_f143.length(M.token) != 64).all():
+            yangi = token_xesh(eski)
+            if db.query(M.token).filter(M.token == yangi).first() is not None:
+                db.query(M).filter(M.token == eski).delete(synchronize_session=False)
+            else:
+                db.query(M).filter(M.token == eski).update({M.token: yangi}, synchronize_session=False)
+            n += 1
+        natija[nom] = n
+    return natija
+
+
 def create_session(db: Session, user_id: int) -> str:
-    """Yangi sessiya token yaratadi va BAZAGA saqlaydi."""
+    """Yangi sessiya token yaratadi va BAZAGA (xeshini — kech143) saqlaydi. Qaytaradi — cookie uchun XOM token."""
     from models import UserSession
     token = secrets.token_urlsafe(32)
     entry = UserSession(
-        token=token, user_id=user_id,
+        token=token_xesh(token), user_id=user_id,
         expires_at=datetime.utcnow() + timedelta(hours=SESSION_HOURS)
     )
     db.add(entry)
@@ -170,7 +244,9 @@ def create_session(db: Session, user_id: int) -> str:
 def get_session(db: Session, token: str) -> Optional[dict]:
     """Token bo'yicha sessiyani BAZADAN qaytaradi. Muddati o'tgan bo'lsa o'chiradi."""
     from models import UserSession
-    entry = db.query(UserSession).filter(UserSession.token == token).first()
+    if not token:
+        return None
+    entry = db.query(UserSession).filter(UserSession.token == token_xesh(token)).first()
     if not entry:
         return None
     if entry.expires_at < datetime.utcnow():
@@ -183,7 +259,7 @@ def get_session(db: Session, token: str) -> Optional[dict]:
 def delete_session(db: Session, token: str):
     """Sessiyani bazadan o'chiradi (logout)."""
     from models import UserSession
-    db.query(UserSession).filter(UserSession.token == token).delete()
+    db.query(UserSession).filter(UserSession.token == token_xesh(token)).delete()
     db.commit()
 
 
@@ -704,7 +780,7 @@ def change_password(db: Session, user_id: int, new_password: str,
     user.password_hash = hash_password(new_password)
     _sq = db.query(UserSession).filter(UserSession.user_id == user.id)
     if saqlanadigan_token:
-        _sq = _sq.filter(UserSession.token != saqlanadigan_token)
+        _sq = _sq.filter(UserSession.token != token_xesh(saqlanadigan_token))      # kech143: bazada xesh
     _sq.delete(synchronize_session=False)
     db.commit()
     return True
@@ -740,7 +816,7 @@ def create_employee_session(db: Session, employee_id: int, qurilma_hash: Optiona
     from models import EmployeeSession
     token = secrets.token_urlsafe(32)
     entry = EmployeeSession(
-        token=token, employee_id=employee_id,
+        token=token_xesh(token), employee_id=employee_id,      # kech143 (A-X09): bazada xesh, cookie — xom
         expires_at=datetime.utcnow() + timedelta(hours=EMPLOYEE_SESSION_HOURS),
         qurilma_hash=qurilma_hash,
     )
@@ -751,7 +827,9 @@ def create_employee_session(db: Session, employee_id: int, qurilma_hash: Optiona
 
 def get_employee_session(db: Session, token: str) -> Optional[dict]:
     from models import EmployeeSession
-    entry = db.query(EmployeeSession).filter(EmployeeSession.token == token).first()
+    if not token:
+        return None
+    entry = db.query(EmployeeSession).filter(EmployeeSession.token == token_xesh(token)).first()
     if not entry:
         return None
     if entry.expires_at < datetime.utcnow():
@@ -763,7 +841,7 @@ def get_employee_session(db: Session, token: str) -> Optional[dict]:
 
 def delete_employee_session(db: Session, token: str):
     from models import EmployeeSession
-    db.query(EmployeeSession).filter(EmployeeSession.token == token).delete()
+    db.query(EmployeeSession).filter(EmployeeSession.token == token_xesh(token)).delete()
     db.commit()
 
 
