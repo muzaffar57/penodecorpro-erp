@@ -5210,7 +5210,56 @@ def log_activity(db: Session, action: str, entity_type: str, entity_id: int,
     )
     db.add(entry)
     if commit:
+        # kech144 (zip 172, N4 — O'LCHANGAN, production 12.10 11:47): ilgari amal o'zgarishlari va jurnal yozuvi BITTA
+        # `commit` da edi. Jurnal yozuvi bazaga sig'masa (production da `new_value` VARCHAR(255) edi) yoki ulanish uzilsa,
+        # 7 ta chaqiruvchi xatoni `except Exception: pass` bilan yutardi, `rollback` qilinmasdi — sessiya buzuq qolar,
+        # keyingi o'qishda PendingRollbackError → 500 (buyurtma tahriri: o'zgarish SAQLANGAN, foydalanuvchi esa xato
+        # ko'radi va qayta bosadi — buyurtma yaratishda TAKROR buyurtma xavfi). Endi: avval amalning O'Z o'zgarishlari
+        # (xatosi — chaqiruvchiniki, avvalgidek), keyin jurnal yozuvi alohida; u yozilmasa — amal saqlangan qoladi,
+        # sessiya toza, sabab «Xatoliklar» ga (`_jurnal_yozilmadi`). `crud.bitta_tranzaksiya` ichida (commit = flush) —
+        # PostgreSQL da SAVEPOINT (amalning tranzaksiyasi buzilmaydi); SQLite da savepoint yo'q — avvalgidek butun
+        # tranzaksiya bekor bo'ladi (hech narsa yarim saqlanmaydi).
+        yagona = "commit" in db.__dict__          # bitta_tranzaksiya: `db.commit` = `db.flush`
+        db.expunge(entry)
         db.commit()
+        try:
+            if yagona and db.get_bind().dialect.name == "postgresql":
+                with db.begin_nested():
+                    db.add(entry)
+                return
+            db.add(entry)
+            db.commit()
+        except Exception as e:                    # noqa: BLE001 — jurnal amalni buzmaydi; sabab «Xatoliklar» da
+            if yagona and db.get_bind().dialect.name != "postgresql":
+                raise
+            if not yagona:
+                db.rollback()
+            _jurnal_yozilmadi(db, e, action, entity_type, entity_id, entity_label, performed_by, company_id)
+
+
+def _jurnal_yozilmadi(db: Session, xato, action, entity_type, entity_id, entity_label, performed_by, company_id):
+    """kech144 (zip 172, N4): «Faoliyat jurnali» yozuvi saqlanmadi — sabab «Xatoliklar» ga ALOHIDA sessiyada (asosiy sessiya
+    tranzaksiyasiga tegmaydi). Bu yozuvning o'zi ham yiqilsa — faqat server logi (amal baribir saqlangan)."""
+    import re as _re144
+    # SQLAlchemy xato matnida so'rov qiymatlari bo'ladi («[parameters: …]») — server logiga ham yashirilgan holda (`log_error` naqshi)
+    matn = _re144.sub(r"\[parameters:.*?\]", "[parameters: YASHIRINGAN]",
+                      f"Faoliyat jurnaliga yozilmadi ({action} · {entity_type} #{entity_id}"
+                      f"{' · ' + str(entity_label) if entity_label else ''}) — amalning o'zi saqlandi: {xato}", flags=_re144.DOTALL)
+    print(f"⚠️ {matn[:500]}")
+    try:
+        from sqlalchemy.engine import Engine as _Engine144
+        bog = db.get_bind()
+        if not isinstance(bog, _Engine144):
+            return
+        from sqlalchemy.orm import Session as _Session144
+        from sqlalchemy import text as _text144
+        with _Session144(bind=bog) as _s:
+            if bog.dialect.name == "postgresql":
+                # asosiy tranzaksiya (bitta_tranzaksiya) hali ochiq — kutib qolmaslik uchun (qulf bo'lsa — tez voz kechadi)
+                _s.execute(_text144("SET LOCAL lock_timeout = '3s'"))
+            log_error(_s, matn, endpoint=f"log_activity:{action}", performed_by=performed_by, company_id=company_id)
+    except Exception as e2:                       # noqa: BLE001
+        print(f"⚠️ «Xatoliklar» ga ham yozilmadi: {e2}")
 
 
 # kech115 (G6-01): «O'chirilganlar» sahifasi jurnalidagi amallar — faqat o'chirish / tiklash / butunlay o'chirish.
