@@ -1036,7 +1036,9 @@ yo'li. PG da korxona bo'yicha qulf (`_pul_qulfi(MATERIAL_NOMI_QULF_NS = 171, kor
 (production 13.10: 9 material, takror 0).
 OYNALAR (N2, kech143 topilmasi): Ta'minotchilar «Tarix» (`suppliers.html #historyModal`) va Omborxona «Xaridlar tarixi»
 (`inventory.html #historyModal`) — sarlavhadan pastdagi HAMMA qism bitta surish qutisi (ilgari jami / forma qadalgan — «✓ Saqlash»
-va 25 materialli ro'yxat ko'rinmasdi). Tayyor mahsulotlar (N3): qator moslashuvi chegarasi 640 → 1279 px (yon menyu bilan ro'yxat
+va 25 materialli ro'yxat ko'rinmasdi); zip 171b (jonli sinov 13.10): «Tarix» oynasida transport va sana filtri qatorlari tor
+ekranda keyingi qatorga (`min-width:0`, `flex-wrap`; 375 px da «Summasi» 522 px gacha, «🔍» / «✕» qutidan tashqarida edi).
+Tayyor mahsulotlar (N3): qator moslashuvi chegarasi 640 → 1279 px (yon menyu bilan ro'yxat
 ~1010 px dan tor bo'lsa ustma-ust). Guruh «Sotish» oynasi sotmasdan yopilsa — guruh belgilagan partiyalar (`data-guruh-avto`)
 belgisi olinadi, qo'lda belgilanganlari qoladi.
 Test: `tools/test_audit_himoya.py`, `tools/test_himoya_ui.py`.
@@ -2772,12 +2774,13 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   menejer ogohlantirishsiz, jurnal + Telegram tannarxsiz, admin avvalgidek; C hodim QR; D kirish cheklovi — juftlik, IP 20, tarqoq
   30, tanish IP, hodim telefoni; E cron sarlavhasi, sessiya xeshi va migratsiyasi, eski xesh o'rami; F material nomi kaliti —
   harf / bo'shliq / apostrof / kirill, qayta nomlash, yashirin, eski takrorlar, PG poyga) — 111 (SQ / PG / `TENANT_FILTER=1`; zip 170
-  kodida 65 yiqiladi, qulamaydi); `tools/test_himoya_ui.py` (Chromium: N «+ Xarid qo'shish» «✓ Saqlash»; O Omborxona «Xaridlar
+  kodida 65 yiqiladi, qulamaydi); `tools/test_himoya_ui.py` (Chromium: N «+ Xarid qo'shish» «✓ Saqlash», oyna qatorlari 320 /
+  375 px (171b); O Omborxona «Xaridlar
   tarixi» 25 material; T partiya qatorlari 375–1440 px; G guruh «Sotish» bekor; M haqiqiy brauzerda o'z sahifasi / boshqa sayt
-  (localhost → 127.0.0.1); Q QR) — 31 (zip 170 kodida 21). MOSLANDI (eski va yangi kodda ham o'tadi): `test_e_hodim_kod.py` Q
+  (localhost → 127.0.0.1); Q QR) — 38 (zip 170 kodida 24). MOSLANDI (eski va yangi kodda ham o'tadi): `test_e_hodim_kod.py` Q
   (`Host` sarlavhasi sinov saytidagidek), `test_e_tarix.py` (fikstura: «O'chirildi» yozuvlari amallar ro'yxatiga bog'liq emas),
   `test_hodim_qurilma.py` C8 (urinishlar shu manzildan), `test_material_nom.py` N12 / S1 (`hasattr(crud, "material_nomi_kaliti")`).
-  Mutatsiyalar — `work/k171/mut171.py` (57).
+  Mutatsiyalar — `work/k171/mut171.py` (59).
 
 **Yangi o'zgarish tartibi:** (1) asl kodda nuqsonni o'lchash (probe — SQLite va PG); (2) tuzatish; (3) yangi test
 (asl kodga qarshi yiqiladi, QULAMAYDI); (4) mutatsiyalar; (5) `bash tools/hammasi.sh` (+ `TF=1`), PG testlari,
