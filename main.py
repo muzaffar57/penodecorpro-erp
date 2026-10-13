@@ -7219,7 +7219,8 @@ def api_coating_notify_with_loy(current_user=Depends(auth.ruxsat("buyurtma", "ya
 @app.post("/api/orders", response_model=schemas.OrderRead)
 def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[str] = None,
                       confirm_shortage: bool = False,
-                      db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "yaratish"))):
+                      db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "yaratish")),
+                      response: Response = None):
     # 2026-09-21 — TENANT (11-sizish): loyiha FAQAT joriy korxonadan.
     # Buyurtmaning korxonasi loyihadan olinadi — begona loyiha = begona
     # korxonada buyurtma va begona ombordan chiqim. Eng birinchi qator:
@@ -7292,6 +7293,10 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[str] = None,
         if not is_draft and not takror:
             services.deduct_inventory_for_order(db, new_order)
     if takror:
+        # kech144 (zip 173): sahifa bilsin — avval saqlangan buyurtma (forma kaliti / 8 s): zaklat qayta yozilmaydi, rasm qayta
+        # yuklanmaydi, foydalanuvchiga «avval saqlangan ekan» deyiladi
+        if response is not None:
+            response.headers["X-Takror"] = "1"
         return new_order
     low_items = crud.get_low_stock_items(db, company_id=auth.company_id_of(current_user)) if not is_draft else []
     if low_items:
@@ -9161,12 +9166,38 @@ def _tolov_qoldigini_chegirmaga(db: Session, order, kim: str = None):
     return None
 
 
+class _KechirishOzgardi(Exception):
+    """kech144 (zip 173, egasi QARORI 13.10 «Faqat ko'rsatilgani»): to'lovdan keyin qoladigan qarz foydalanuvchi oynada tasdiqlagan
+    kechirish summasidan farq qiladi (shu orada to'lov o'chirilgan / qo'shilgan, buyurtma tahrirlangan) — hech narsa saqlanmaydi."""
+
+    def __init__(self, qoladi, kutilgan):
+        super().__init__("kechirish summasi o'zgargan")
+        self.qoladi, self.kutilgan = qoladi, kutilgan
+
+
+def _somlar(v) -> str:
+    return f"{float(v or 0):,.0f}".replace(",", " ")
+
+
 @app.post("/api/payments")
-def api_create_payment(data: dict = Body(...), write_off_remainder: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("tolov", "yaratish"))):
+def api_create_payment(data: dict = Body(...), write_off_remainder: bool = False, kechirish: Optional[str] = None,
+                       db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("tolov", "yaratish"))):
     """Yangi to'lov qo'shish.
     write_off_remainder=true bo'lsa — to'lovdan keyin qolgan (kichik) qarz
     CHEGIRMA sifatida yozib yuboriladi (jami summadan ham ayiriladi —
-    shuning uchun FOYDA hisobotida ham to'g'ri, kamroq ko'rsatiladi)."""
+    shuning uchun FOYDA hisobotida ham to'g'ri, kamroq ko'rsatiladi).
+    kech144 (zip 173, egasi QARORI 13.10 «Faqat ko'rsatilgani»): `kechirish` — oynada tasdiqlangan kechiriladigan summa (SHART);
+    to'lovdan keyin qoladigan qarz undan 0,5 so'mdan ko'p farq qilsa — 409 `kechirish_ozgardi`, hech narsa saqlanmaydi (ilgari
+    saqlash paytidagi BUTUN qoldiq kechirilardi — oynada 500 000 ko'rsatilib, 800 000 kechirilishi mumkin edi)."""
+    _kechirish173 = None
+    if write_off_remainder:
+        try:
+            _kechirish173 = crud._query_son("kechirish", kechirish, bosh_mumkin=True, musbat=False, chegara=10_000_000_000)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        if _kechirish173 is None:
+            raise HTTPException(status_code=400, detail="Kechiriladigan summa ko'rsatilmagan — sahifani yangilab, qayta urinib ko'ring "
+                                                        "(hech narsa saqlanmadi)")
     # 17f (2026-09-22): xom JSON QAT'IY tekshiriladi (`crud._clean_val
     # ("Payment")`). HAQIQIY PostgreSQL da O'LCHANGAN: `Infinity` / `1e20` —
     # 500 (takror-tekshiruv so'rovida); `0.001` → 0 so'mlik to'lov; `true` →
@@ -9191,6 +9222,11 @@ def api_create_payment(data: dict = Body(...), write_off_remainder: bool = False
         with crud.bitta_tranzaksiya(db):
             payment = crud.create_payment(db, data, company_id=auth.company_id_of(current_user))
             order = crud.get_order(db, data.order_id, company_id=auth.company_id_of(current_user))
+            # kech144 (zip 173): faqat tasdiqlangan summa kechiriladi (takror yuborilgan so'rov — birinchisi allaqachon bajargan)
+            if write_off_remainder and order is not None and not getattr(payment, "_is_duplicate_submit", False):
+                _qoladi173 = float(order.debt_amount or 0)
+                if abs(_qoladi173 - _kechirish173) > 0.5 and (_qoladi173 > 0.5 or _kechirish173 > 0.5):
+                    raise _KechirishOzgardi(_qoladi173, _kechirish173)
             write_off_info = (_tolov_qoldigini_chegirmaga(db, order, kim=current_user.full_name or current_user.username)
                               if write_off_remainder else None)
     except crud.OverpaymentWarning as w:
@@ -9199,6 +9235,12 @@ def api_create_payment(data: dict = Body(...), write_off_remainder: bool = False
             "message": f"Kiritilgan summa ({w.amount:,.0f} so'm) qarzdan ({w.debt:,.0f} so'm) {w.excess:,.0f} so'mga ko'p. Shunday ham davom etasizmi?",
             "amount": w.amount, "debt": w.debt, "excess": w.excess
         })
+    except _KechirishOzgardi as k:
+        raise HTTPException(status_code=409, detail={
+            "type": "kechirish_ozgardi",
+            "message": (f"Qarz o'zgargan: to'lovdan keyin {_somlar(k.qoladi)} so'm qoladi, oynada esa {_somlar(k.kutilgan)} so'm "
+                        "kechirish tasdiqlangan edi. Hech narsa saqlanmadi — buyurtmani qayta ochib, qarzni tekshirib qayta yuboring."),
+            "qoladi": round(k.qoladi, 2), "kutilgan": round(k.kutilgan, 2)})
     except ValueError as e:
         status = 404 if "topilmadi" in str(e) else 400
         raise HTTPException(status_code=status, detail=str(e))

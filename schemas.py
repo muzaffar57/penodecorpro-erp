@@ -365,6 +365,8 @@ class OrderCreate(BaseModel):
     # `crud._UPD_SON_CHEGARA` bilan bir xil. Ildizda `crud._json_loy` ham bor.
     loy_kg: Optional[float] = Field(default=None, ge=0, le=1_000_000_000_000.0,
                                     allow_inf_nan=False, strict=True)
+    # kech144 (zip 173): buyurtma formasi ochilishidagi tasodifiy kalit (takror yaratishdan himoya — `crud.create_order`)
+    yaratish_kaliti: Optional[str] = Field(default=None, min_length=8, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
 
 
 class TaklifBuyurtma(OrderCreate):

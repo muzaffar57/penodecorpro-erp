@@ -142,7 +142,12 @@ def _retsept_farqi(db: Session, company_id: int, eski: dict, yangi: dict, unit: 
 
 
 @router.get("/product-types", response_model=list[schemas.ProductTypeRead])
-def list_product_types(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("mahsulot_turi", "korish"))):
+def list_product_types(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat_biri(
+        ("mahsulot_turi", "korish"), ("buyurtma", "yaratish"), ("buyurtma", "tahrirlash")))):
+    """kech144 (zip 173, audit P1-3 — O'LCHANGAN): faol mahsulot turlari (nomi, birligi, kiritish shakli, SOTUV narxi qoidasi).
+    Buyurtma yaratish / tahrirlash ruxsati ham yetadi — «MRP mahsuloti» detalini tanlash va tahrirda tiklash shu ro'yxatdan
+    (ilgari faqat «Mahsulot turlari: ko'rish»: tayyor «Menejer» rolida 403 → ro'yxat bo'sh, MRP buyurtmasini tahrirlash saqlashda
+    detal turini, qoplamasini va o'lchamlarini o'chirardi). Tannarx / ombor (`/product-types/xulosa`) — avvalgidek."""
     return db.query(ProductType).filter(
         ProductType.company_id == auth.company_id_of(current_user), ProductType.is_active == True
     ).order_by(ProductType.name).all()

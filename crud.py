@@ -2343,6 +2343,20 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None,
     except Exception:
         pass
 
+    # kech144 (zip 173, audit 2-to'lqin — O'LCHANGAN `work/k173/probe_buyurtma.py` V4: server buyurtmani saqlab, javob 502 bo'lsa
+    # sahifa «Buyurtma saqlanmadi» derdi, 9 s dan keyin qayta bosish IKKINCHI buyurtma yaratardi — 8 s chegarasi o'tgan): forma
+    # kaliti (`yaratish_kaliti`) bilan yaratilgan buyurtma bor bo'lsa — o'zi qaytariladi (vaqtdan qat'i nazar). Qulf ichida.
+    _kalit173 = getattr(order_data, "yaratish_kaliti", None) or None
+    if _kalit173:
+        _kk173 = company_id if company_id is not None else db.query(Project.company_id).filter(
+            Project.id == order_data.project_id).scalar()
+        # o'chirilgan buyurtma qaytarilmaydi (u holda — yangisi yaratiladi)
+        _bor173 = db.query(Order).filter(Order.company_id == _kk173, Order.yaratish_kaliti == _kalit173,
+                                         Order.is_deleted.isnot(True)).first()
+        if _bor173 is not None:
+            _bor173._is_duplicate_submit = True
+            return _bor173
+
     # QO'SHIMCHA XAVFSIZLIK QATLAMI (server tomonida): brauzerda tugmani
     # ikki marta bosishdan himoya allaqachon bor, lekin bu — faqat
     # ekranda, va sekin internet/tarmoq takrorlashi kabi holatlarda
@@ -2430,7 +2444,8 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None,
             deadline=getattr(order_data, 'deadline', None),
             notes=order_data.notes,
             total_amount=0,
-            kechirilgan_qarz=0     # kech110 (K110-1): yangi buyurtmada kechirilgan qarz yo'q (NULL — eski, to'ldirilmagan)
+            kechirilgan_qarz=0,    # kech110 (K110-1): yangi buyurtmada kechirilgan qarz yo'q (NULL — eski, to'ldirilmagan)
+            yaratish_kaliti=_kalit173,     # kech144 (zip 173): takror yaratishdan himoya kaliti
         )
         try:
             if _pg86:
