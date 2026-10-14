@@ -317,7 +317,15 @@ try:
     _d.commit()
 finally:
     _d.close()
-r = crud.add_to_production(SessionLocal(), MFP, 5.0, performed_by="t", company_id=1)
+# kech145 (zip 177, MOSLANDI — etalon d185 PG da O'LCHANGAN): `add_to_production` mahsulotni QULFLAYDI (zip 170, A-O08) va rad
+# javobida sessiyani yopmaydi (marshrutda sessiya so'rov oxirida yopiladi). Sinovdagi yopilmagan sessiya qulfni ushlab turar, keyingi
+# yozuv PG da cheksiz kutardi (SQLite da qulf yo'q — sezilmasdi). Sessiya endi `rollback` + `close`.
+_s5 = SessionLocal()
+try:
+    r = crud.add_to_production(_s5, MFP, 5.0, performed_by="t", company_id=1)
+finally:
+    _s5.rollback()
+    _s5.close()
 check("A5 product_type_id li TM (turkum profil) ham rad", r.get("success") is False and "Ishlab chiqarish"
       in str(r.get("message")), r)
 _d = SessionLocal()
@@ -437,8 +445,9 @@ _e = [x for x in _l if x.get("id") == EFP]
 check("F1 /api/finished produced_quantity beradi (100)", _e and taxminan(_e[0].get("produced_quantity"), 100), _e[:1])
 _h = open(os.path.join(ROOT, "templates", "finished.html"), encoding="utf-8").read()
 # kech120 (zip 133 — G5-02, MOSLANDI): «1» maydoni va «+» o'rniga «Yana ishlab chiqarish» tugmasi (miqdor — alohida oynada)
-check("F2 «Yana ishlab chiqarish» tugmasi MRP da chizilmaydi (shart tugmadan OLDIN)",
-      tartibda(_h, "${(i.category !== 'dynamic_bom' && !i.product_type_id) ? `",
+# kech145 (zip 177, audit C#20, MOSLANDI): sharti «Tayyor: Tahrirlash» ruxsati bilan ham (`mTahrir`)
+check("F2 «Yana ishlab chiqarish» tugmasi MRP da chizilmaydi (shart tugmadan OLDIN; ruxsatsiz rolga ham)",
+      tartibda(_h, "${(i.category !== 'dynamic_bom' && !i.product_type_id && mTahrir) ? `",
                'onclick="yanaIshlabChiqarish(${i.id})"'))
 check("F3 '+' oldindan ko'rish: jami / produced_quantity",
       "const bol = (item.produced_quantity > 0) ? item.produced_quantity : item.quantity;" in _h

@@ -1243,11 +1243,11 @@ def g_bolimi():
     check("G orders.html savePayment: xatoda server sababi (eski umumiy matn yolg'iz emas)",
           "amalSababi(res" in sp_o and "amalSababi(e" in sp_o
           and "showMsg('❌ To\\'lovni saqlashda xato', 'error')" not in sp_o)
-    check("G debts.html savePayment: 409 → customConfirm, confirm_overpay bilan qayta; xatoda serverSababi",
+    # kech144 (zip 177, MOSLANDI): rad sababi — base.html `amalSababi(res)`, natija noma'lum — `amalSababi(e)`
+    check("G debts.html savePayment: 409 → customConfirm, confirm_overpay bilan qayta; xatoda server sababi (`amalSababi`)",
           tartibda(sp_d, "res.status === 409", "overpayment_warning", "customConfirm(",
                    "confirm_overpay = true", "yubor()")
-          and "serverSababi(res" in sp_d and "'Xato yuz berdi';" not in sp_d.replace(
-              "serverSababi(res, 'Xato yuz berdi')", ""))
+          and "amalSababi(res)" in sp_d and "amalSababi(e)" in sp_d and "'Xato yuz berdi';" not in sp_d)
     tdir = os.path.join(ROOT, "templates")
     yozadi = []
     for f in sorted(os.listdir(tdir)):

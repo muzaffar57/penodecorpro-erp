@@ -376,8 +376,9 @@ async function debtsBolimi() {
           m.xato || m.msg.textContent);
 
   m = await dSina({}, [javob(422, { detail: [{ msg: 'x' }] })]);
-  tekshir('D 422 (ro\'yxat) → umumiy "Xato yuz berdi"',
-          !m.xato && m.msg.textContent === '❌ Xato yuz berdi', m.xato || m.msg.textContent);
+  // kech144 (zip 177, MOSLANDI — audit D): rad sababi — `amalSababi` (ro'yxatdagi xabar matni; ilgari umumiy «Xato yuz berdi»)
+  tekshir('D 422 (ro\'yxat) → ro\'yxatdagi xabar ("❌ x")',
+          !m.xato && m.msg.textContent === '❌ x', m.xato || m.msg.textContent);
 
   const OVER = { detail: { type: 'overpayment_warning', message: 'Qarzdan 50 000 so\'mga ko\'p. Shunday ham davom etasizmi?' } };
   m = await dSina({}, [javob(409, OVER), javob(200, { status: 'ok' })], true);

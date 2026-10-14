@@ -206,7 +206,8 @@ function korindimi(n, matn) {
   const KPI_YORD = ['parseNum', 'narxMatni', 'narxniOqi', 'narxKorinishi', 'fmt'];
   const INV_YORD = ['parseNum', 'narxMatni', 'narxniOqi', 'narxKorinishi', 'fmt'];
   // kech120 (zip 133 — G5-07, MOSLANDI): finished oynalari miqdor / birlikni sahifa yordamchilari bilan yozadi (`fpMiqdor`, `unitLabel`)
-  const FIN_YORD = ['parseNum', 'narxMatni', 'narxniOqi', 'narxKorinishi', 'fmt', 'fpMiqdor', 'unitLabel'];
+  // kech144 (zip 177, MOSLANDI — audit D): rasm / narx / o'chirish / band / «Sotuvga tayyor» xatosi — `fpAmalXato` (u `amalSababi` ni chaqiradi)
+  const FIN_YORD = ['parseNum', 'narxMatni', 'narxniOqi', 'narxKorinishi', 'fmt', 'fpMiqdor', 'unitLabel', 'fpAmalXato'];
   const HOLATLAR = [
     ['K1 kpi saveMasterKpi (usta KPI %)', KPI, 'saveMasterKpi', 'saveMasterKpi(5)', {elementlar: {'mk-5': el({value: '150'})},
       oldin: 'var inFlightMasterKpi = new Set();'}],
@@ -332,7 +333,8 @@ function korindimi(n, matn) {
     // kech141 (zip 169, MOSLANDI): `deleteEmployee` — oyna; rad shoxi uning tasdig'ida (`ketishTasdiq`) — ikkalasi birga o'qiladi
     for (const n of nomlar) { const f = (olib(src, n) || '') + (n === 'deleteEmployee' ? (olib(src, 'ketishTasdiq') || '') : '');
     // kech144 (zip 174, MOSLANDI): `amalYubor` (base.html) — rad sababini `amalSababi` bilan o'qiydi (natija: `n.xato`)
-                              if (!/\b((server)?[xX]atoSababi|amalSababi|avansYubor|amalYubor)\(/.test(f)) yordamsiz.push(n); }
+                              // kech144 (zip 177, MOSLANDI): `fpAmalXato` (finished.html) — sababni `amalSababi` bilan o'qiydi
+                              if (!/\b((server)?[xX]atoSababi|amalSababi|avansYubor|amalYubor|fpAmalXato)\(/.test(f)) yordamsiz.push(n); }
   }
   tekshir("S2 28 ta funksiyaning rad shoxi yagona yordamchi bilan (`xatoSababi` / `serverXatoSababi` / `amalSababi`)", !yordamsiz.length, yordamsiz);
   tekshir("S3 base.html: yordamchilar bitta ta'rif (takror yo'q)",

@@ -604,9 +604,10 @@ check("S2 ro'yxat: bitta GROUP BY (korxona — buyurtma orqali), IN yuklash, yak
       tartibda(_g, "_f131.sum(Payment.amount)", ".join(Order, Order.id == Payment.order_id)", "Order.company_id == company_id",
                ".group_by(Payment.order_id)", "_sil131(Order.payments)", "o.ortiqcha_tolov > 0"), "")
 _d = open(os.path.join(ROOT, "templates", "debts.html"), encoding="utf-8").read()
-check("S3 debts.html: bo'lim, tanlash, «Qaytarildi» — tasdiq, POST, server sababi; ?qaytarish=",
+# kech145 (zip 177, audit D, MOSLANDI): rad sababi — `amalSababi(res` (ilgari `serverSababi(res`)
+check("S3 debts.html: bo'lim, tanlash, «Qaytarildi» — tasdiq, POST, server sababi (`amalSababi`); ?qaytarish=",
       tartibda(_d, 'id="tab-refunds"', "function selectRefund(el)", "escapeHtml(d.orderNumber)", "async function saveRefund()",
-               "customConfirm(", "/refund-overpayment", "serverSababi(res", "get('qaytarish')")
+               "customConfirm(", "/refund-overpayment", "amalSababi(res", "get('qaytarish')")
       and "document.getElementById('tab-refunds').style.display" in _d, "")
 _oh2 = open(os.path.join(ROOT, "templates", "orders.html"), encoding="utf-8").read()
 check("S4 orders.html: to'lov paneli belgisi server maydonidan (ortiqcha_tolov), izoh surati EMAS",
