@@ -453,7 +453,10 @@ def _korxona_kunlik(db, c, kun, yubor):
             yuborildi = True
         except Exception as ex:                        # noqa: BLE001
             print(f"⚠ Obuna eslatmasi yuborilmadi ({c.name}): {ex}")
-    c.eslatma_holati = f"{e.isoformat()}:{bosqich}"
+    # kech144 (zip 178, audit T3): yuborilmagan eslatma «yuborildi» deb belgilanmaydi — keyingi kun qayta urinadi (ilgari belgilanib,
+    # o'sha bosqich umuman yuborilmay qolardi). `yubor` berilmagan (faqat baza) — avvalgidek belgilanadi.
+    if yuborildi or yubor is None:
+        c.eslatma_holati = f"{e.isoformat()}:{bosqich}"
     db.commit()
     out.append({"korxona": c.id, "amal": "eslatma", "bosqich": bosqich, "yuborildi": yuborildi, "matn": matn})
     return out

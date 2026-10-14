@@ -7,6 +7,7 @@ Bosqichma-bosqich topshirish uchun isbot hujjati.
 from company_brand import get_brand, company_id_of  # 2026-09-20: korxona brendi
 
 import io
+import re as _re_dp
 # kech106 (9 + 50-band B qismi): hujjatdagi HAMMA sana-vaqt — `database.tashkent_vaqt` (yagona manba). Ilgari bu
 # faylda alohida `UZB_TZ` formulasi bor edi (yuk xati / TM sotuvi — to'g'ri), hisob-kitob varaqasining "Davr" va
 # yuk qatorlari esa bazadagi UTC sanasini chiqarardi (Toshkent 00:00–05:00 dagi yuk — KECHAGI kun).
@@ -438,6 +439,13 @@ def generate_finished_sale_pdf(sale, db=None) -> bytes:
     return buf.getvalue()
 
 
+def _uzun_soz_bol(matn, n=60):
+    """kech144 (zip 178, audit P1): bo'shliqsiz `n` dan uzun «so'z» — `n` belgili bo'laklarga (bo'shliq bilan): abzats qatorga sig'adi
+    (aks holda chegaradan chiqib ketardi). Boshqa matn — o'zgarmaydi."""
+    s = "" if matn is None else str(matn)
+    return _re_dp.sub(r"\S{%d,}" % (n + 1), lambda m: " ".join(m.group(0)[i:i + n] for i in range(0, len(m.group(0)), n)), s)
+
+
 def generate_delivery_pdf(delivery, db=None) -> bytes:
     """Bitta yetkazish uchun nakladnoy PDF.
 
@@ -842,14 +850,11 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
     # ---- Izoh ----
     if delivery.notes:
         el.append(Spacer(1, sp(6)))
-        note = Table([[Paragraph(f"<b>Izoh:</b> {_x(delivery.notes)}", st_small)]], colWidths=[18*cm])
-        note.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, -1), LIGHT),
-            ('TOPPADDING', (0, 0), (-1, -1), 6),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-            ('LEFTPADDING', (0, 0), (-1, -1), 8),
-        ]))
-        el.append(note)
+        # kech144 (zip 178, audit P1 — O'LCHANGAN: ≥ 8 000 bosh harfli yoki bo'shliqsiz 9 000 belgili izoh — PDF 500 «Flowable <Table>
+        # too large on page 2»): bitta katakli jadval sahifalarga bo'linmasdi. Endi oddiy abzats (fon bilan) — sahifalarga bo'linadi;
+        # bo'shliqsiz juda uzun «so'z» 60 belgidan bo'laklanadi (qatorga sig'sin).
+        _izoh_st = ParagraphStyle('izoh', parent=st_small, backColor=LIGHT, borderPadding=6, leftIndent=2, rightIndent=2)
+        el.append(Paragraph(f"<b>Izoh:</b> {_x(_uzun_soz_bol(delivery.notes))}", _izoh_st))
 
     # ---- Imzo ----
     el.append(Spacer(1, sp(14)))
