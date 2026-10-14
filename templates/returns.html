@@ -218,13 +218,17 @@
          {% if loop.index0 < 20 %}style="animation-delay:{{ loop.index0 * 0.02 }}s"{% endif %}>
       <label class="ret-icon {{ 'defect' if is_defect else 'whole' }}" style="background:{{ 'var(--f-fee2e2)' if is_defect else 'var(--f-dcfce7)' }};color:{{ 'var(--m-991b1b)' if is_defect else 'var(--m-166534)' }}">
         {% if r.image_url %}
+        {# kech144 (zip 177, audit C#20): rasm qo'yish — «Qaytarishlar: Tahrirlash» ruxsati bilan (`POST /api/returns/{id}/image`); ruxsat
+           yo'q — rasm ko'rinadi (kattalashtirish), kamera / fayl tanlash yo'q (ilgari tanlansa 403) #}
+        {% set ret_rasm_mumkin = current_user.ruxsat('qaytarish', 'tahrirlash') %}
         <img src="{{ r.image_url|kichik_rasm }}" alt="" data-src="{{ r.image_url }}" onclick="event.preventDefault();event.stopPropagation();openReturnLightbox(this.dataset.src)">
-        <div class="cam-overlay" onclick="event.preventDefault();event.stopPropagation();document.getElementById('retimg-{{ r.id }}').click()"><i class="ti ti-camera"></i></div>
+        {% if ret_rasm_mumkin %}<div class="cam-overlay" onclick="event.preventDefault();event.stopPropagation();document.getElementById('retimg-{{ r.id }}').click()"><i class="ti ti-camera"></i></div>{% endif %}
         {% else %}
-        <i class="ti {{ 'ti-x' if is_defect else 'ti-recycle' }}" onclick="event.preventDefault();event.stopPropagation();document.getElementById('retimg-{{ r.id }}').click()"></i>
-        <div class="cam-overlay" onclick="event.preventDefault();event.stopPropagation();document.getElementById('retimg-{{ r.id }}').click()"><i class="ti ti-camera"></i></div>
+        {% set ret_rasm_mumkin = current_user.ruxsat('qaytarish', 'tahrirlash') %}
+        <i class="ti {{ 'ti-x' if is_defect else 'ti-recycle' }}"{% if ret_rasm_mumkin %} onclick="event.preventDefault();event.stopPropagation();document.getElementById('retimg-{{ r.id }}').click()"{% endif %}></i>
+        {% if ret_rasm_mumkin %}<div class="cam-overlay" onclick="event.preventDefault();event.stopPropagation();document.getElementById('retimg-{{ r.id }}').click()"><i class="ti ti-camera"></i></div>{% endif %}
         {% endif %}
-        <input type="file" id="retimg-{{ r.id }}" accept="image/*" onchange="uploadReturnImage({{ r.id }}, this)">
+        {% if current_user.ruxsat('qaytarish', 'tahrirlash') %}<input type="file" id="retimg-{{ r.id }}" accept="image/*" onchange="uploadReturnImage({{ r.id }}, this)">{% endif %}
       </label>
       <div class="ret-name" style="flex:1;min-width:0">
         <div style="font-weight:600;font-size:13px;color:var(--text)">{{ r.item_name }}</div>
@@ -268,7 +272,8 @@
       {% if is_defect and current_user.ruxsat('qaytarish', 'yaratish') %}<button class="mini-btn brak-taqdir-btn" type="button" onclick="taqdirOynaOch(this)" title="Brak taqdiri — Tashlandi / Tuzatildi / Kesildi / 2-nav" aria-label="Brak taqdirini o'zgartirish"
         data-turi="qaytarish" data-id="{{ r.id }}" data-manba="buyurtma" data-nomi="{{ r.item_name }}" data-miqdor="{{ r.quantity }}" data-birlik="{{ r.unit }}"
         data-joriy='{{ ((taqdirlar or {}).get(r.id) or {})|tojson }}'>🧩</button>{% endif %}
-      <button class="mini-btn" style="color:var(--m-dc2626);border-color:var(--ch-fadbd8)" onclick="deleteReturn({{ r.id }})" title="O'chirish" aria-label="O'chirish"><i class="ti ti-trash"></i></button>
+      {# kech144 (zip 177, audit C#20): «Qaytarishlar: O'chirish» ruxsati yo'q — 🗑 yo'q (ilgari bosilsa 403) #}
+      {% if current_user.ruxsat('qaytarish', 'ochirish') %}<button class="mini-btn" style="color:var(--m-dc2626);border-color:var(--ch-fadbd8)" onclick="deleteReturn({{ r.id }})" title="O'chirish" aria-label="O'chirish"><i class="ti ti-trash"></i></button>{% endif %}
     </div>
     {% endfor %}
     {% else %}
@@ -362,7 +367,8 @@
     <div class="form-group"><label>Izoh</label><input type="text" id="f-notes" placeholder="Masalan: kesish jarayonida sinib ketdi"></div>
     {# kech119 (C BOSQICH — telefon, audit G5-16): ilgari oynada rasm maydoni yo'q edi — faqat saqlangandan keyin ro'yxatdagi kichik
        belgini bosib (telefonda ko'rinmasdi). Rasm ixtiyoriy: qaytarish saqlangach shu yozuvga yuklanadi. #}
-    <div class="form-group"><label for="f-rasm">Rasm (ixtiyoriy)</label><input type="file" id="f-rasm" accept="image/*"></div>
+    {# kech144 (zip 177, audit C#20): rasm — `POST /api/returns/{id}/image` («Qaytarishlar: Tahrirlash»); ruxsat yo'q — maydon yo'q #}
+    {% if current_user.ruxsat('qaytarish', 'tahrirlash') %}<div class="form-group"><label for="f-rasm">Rasm (ixtiyoriy)</label><input type="file" id="f-rasm" accept="image/*"></div>{% endif %}
 
     <div id="add-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:var(--f-fee2e2);border-radius:7px;font-size:12px;color:var(--m-dc2626)"></div>
 
@@ -437,13 +443,19 @@ function toggleBrakTahlil(){
 
 // Sarlavhadagi belgi — sahifa ochilganda (yig'iq holatda ham) joriy oy ulushi va
 // me'yordan oshgani ko'rinadi.
+// kech144 (zip 177, audit D): yuklanmasa — belgi o'rnida qisqa «⚠️» (sababi — `title`), ilgari jim
 async function loadBrakTahlilBadge(){
   const b = document.getElementById('brakTahlilBadge');
   if (!b) return;
   try {
-    const r = await fetch('/api/reports/brak-tahlil?oylar=1');
-    if (!r.ok) return;
-    const d = await r.json();
+    let d;
+    try { d = await yukOl('/api/reports/brak-tahlil?oylar=1'); }
+    catch (e) {
+      b.textContent = '⚠️';
+      b.title = yukXatoMatn('Brak ulushi', (e && e.yukXato) ? e : yukXato('server'));
+      b.style.color = 'var(--m-b45309)';
+      return;
+    }
     const oy = document.getElementById('brak-tahlil-oy');
     if (oy && !oy.value) oy.value = brakTahlilOyMatn(d.yil, d.oy);
     if (d.brak_foizi === null || d.brak_foizi === undefined) { b.textContent = ''; return; }
@@ -461,21 +473,10 @@ async function loadBrakTahlil(){
   const t = oyEl ? /^(\d{4})-(\d{2})$/.exec(oyEl.value || '') : null;
   if (t) url += '&year=' + parseInt(t[1], 10) + '&month=' + parseInt(t[2], 10);
   content.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">Yuklanmoqda...</div>';
-  let d;
-  try {
-    const r = await fetch(url);
-    if (!r.ok) {
-      let sabab = 'Xato (' + r.status + ')';
-      try { const j = await r.json(); if (j && typeof j.detail === 'string' && j.detail) sabab = j.detail; } catch (e) {}
-      content.innerHTML = '<div style="color:var(--m-dc2626);padding:14px">❌ ' + escapeHtml(sabab) + '</div>';
-      return;
-    }
-    d = await r.json();
-  } catch (e) {
-    content.innerHTML = '<div style="color:var(--m-dc2626);padding:14px">❌ Tarmoq xatosi</div>';
-    return;
-  }
-  content.innerHTML = brakTahlilHtml(d);
+  // kech144 (zip 177, audit C#15): `yukBlok('brakTahlil')` — oy tez almashtirilsa eski oy javobi yangisini bosmaydi; sabab — `yukXatoMatn`
+  // (ilgari 502 da «Xato (502)», tarmoqda «Tarmoq xatosi»)
+  await yukBlok('brakTahlil', url, d => { content.innerHTML = brakTahlilHtml(d); },
+                e => yukRoyxatXato(content, yukXatoMatn('Brak tahlili', e)));
 }
 
 function brakTahlilHtml(d){
@@ -603,13 +604,22 @@ async function loadBrakSummary(){
   const end = document.getElementById('brak-sum-end').value;
   const content = document.getElementById('brakSummaryContent');
   content.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">Yuklanmoqda...</div>';
+  // kech144 (zip 177, audit C#14): `yukOl` + `yukNavbat('brakHisobot')` — 401 / 403 da yolg'on «… topilmadi», 5xx da «Xato yuz berdi»
+  // o'rniga sabab; davr tez almashtirilsa eski javob yangisini bosmaydi
+  const joriy = yukNavbat('brakHisobot');
   try {
     let url = '/api/reports/brak-materials';
     const params = [];
-    if (start) params.push(`start_date=${start}`);
-    if (end) params.push(`end_date=${end}`);
+    if (start) params.push(`start_date=${encodeURIComponent(start)}`);
+    if (end) params.push(`end_date=${encodeURIComponent(end)}`);
     if (params.length) url += '?' + params.join('&');
-    const data = await fetch(url).then(r => r.json());
+    let data;
+    try { data = await yukOl(url); }
+    catch (e) {
+      if (joriy()) yukRoyxatXato(content, yukXatoMatn('Brak hisoboti', (e && e.yukXato) ? e : yukXato('server')));
+      return;
+    }
+    if (!joriy()) return;
     if (!data.by_material || !data.by_material.length) {
       content.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">Bu davrda brak sababli sarflangan xomashyo topilmadi</div>';
       return;
@@ -670,7 +680,9 @@ async function loadBrakSummary(){
 
     content.innerHTML = html;
   } catch(e) {
-    content.innerHTML = '<div style="text-align:center;padding:20px;color:var(--m-dc2626);font-size:13px">Xato yuz berdi</div>';
+    // kech144 (zip 177, audit D): ilgari sababsiz «Xato yuz berdi»
+    console.error('brakHisobot:', e);
+    if (joriy()) yukRoyxatXato(content, "⚠️ Brak hisobotini ko'rsatib bo'lmadi — sahifani yangilang");
   }
 }
 
@@ -782,12 +794,16 @@ async function uploadReturnImage(id, input) {
   inFlightReturnImgUpload.add(id);
   const fd = new FormData();
   fd.append('file', file);
+  // kech144 (zip 177, audit D): sabab bilan (ilgari sababsiz «Rasm yuklanmadi», tarmoqda «Server xatosi»)
   try {
-    const res = await fetch(`/api/returns/${id}/image`, { method: 'POST', body: fd });
+    let res;
+    try { res = await fetch(`/api/returns/${id}/image`, { method: 'POST', body: fd }); }
+    catch (e) { alert('❌ Rasm yuklanmadi: ' + await amalSababi(e)); return; }
     if (res.ok) location.reload();
-    else alert('Rasm yuklanmadi');
-  } catch(e) { alert('Server xatosi'); } finally {
+    else alert('❌ Rasm yuklanmadi: ' + await amalSababi(res));
+  } finally {
     inFlightReturnImgUpload.delete(id);
+    try { input.value = ''; } catch (e) { /* o'sha faylni qayta tanlash mumkin bo'lsin */ }
   }
 }
 
@@ -1026,10 +1042,16 @@ function calcValue(){
 // qilmaydi" derdi (O'LCHANGAN: shunday edi — qayta kiritilsa ombor / pul ikki marta
 // hisoblanardi). Rad javobida server SABABI ko'rsatiladi (ilgari faqat "Xato").
 const inFlightDeleteReturn = new Set();
-function qaytarishXatoMatni(e) {
+// kech144 (zip 177, audit D): `holat` (ixtiyoriy) — javob holati: 401 / 5xx / sababsiz 403 — `amalSababi` bilan bir xil matn (ilgari
+// sababsiz javobda — 502 ham — «Xato»)
+function qaytarishXatoMatni(e, holat) {
+  if (holat === 401) { if (typeof yukSessiyaKor === 'function') yukSessiyaKor(); return 'kirish muddati tugagan, qayta kiring'; }
+  if (holat >= 500) return 'server javob bermadi — sahifani yangilab tekshiring';
   const d = e && e.detail;
   if (typeof d === 'string' && d) return d;
   if (d && typeof d === 'object' && d.message) return d.message;
+  if (holat === 403) return "bu amalga ruxsat yo'q";
+  if (holat) return "so'rov rad etildi (" + holat + ')';
   return 'Xato';
 }
 async function deleteReturn(id){
@@ -1051,16 +1073,15 @@ async function deleteReturn(id){
   inFlightDeleteReturn.add(id);
   try {
     let res;
+    // kech144 (zip 177, audit D): sabab — `amalSababi` (ilgari 502 da «❌ Xato»); natija noma'lum (tarmoq / 5xx) — tekshirish so'raladi
     try {
       res = await fetch(`/api/returns/${id}`, {method:'DELETE'});
     } catch (e) {
-      alert("❌ Tarmoq xatosi — sahifani yangilab, holatni tekshiring");
+      alert("⚠️ O'chirish natijasi noma'lum: " + await amalSababi(e));
       return;
     }
     if (res.ok) { location.reload(); return; }
-    let e = {};
-    try { e = await res.json(); } catch (_) {}
-    alert('❌ ' + qaytarishXatoMatni(e));
+    alert((res.status >= 500 ? "⚠️ O'chirish natijasi noma'lum: " : '❌ ') + await amalSababi(res));
   } finally {
     inFlightDeleteReturn.delete(id);
   }
@@ -1082,7 +1103,11 @@ async function toggleRefund(id, current){
   if (inFlightRefundToggle.has(id)) return; // Ikki marta bosishdan himoya
   inFlightRefundToggle.add(id);
   try {
-    const res = await fetch(`/api/returns/${id}/refund`, {method:'POST'});
+    // kech144 (zip 177, audit C#17): tarmoq uzilsa ham xabar (ilgari hech narsa), 5xx — natija noma'lum (server takrorni o'zi
+    // to'xtatadi — qayta bosish ikki marta hisoblamaydi), rad — `amalSababi`
+    let res;
+    try { res = await fetch(`/api/returns/${encodeURIComponent(id)}/refund`, {method:'POST'}); }
+    catch (e) { alert(amalNomalumMatn('Hisob-kitob', await amalSababi(e))); return; }
     if (res.ok) {
       let j = {};
       try { j = await res.json(); } catch (_) {}
@@ -1090,11 +1115,11 @@ async function toggleRefund(id, current){
       if (j && typeof j.xabar === 'string' && j.xabar) await xabarOyna('✓ ' + j.xabar);
       location.reload();
     }
+    else if (res.status >= 500) {
+      alert(amalNomalumMatn('Hisob-kitob', await amalSababi(res)));
+    }
     else {
-      // kech40: server sababi (ilgari faqat "Xato")
-      let e = {};
-      try { e = await res.json(); } catch (_) {}
-      alert('❌ ' + qaytarishXatoMatni(e));
+      alert('❌ Hisob-kitob qilinmadi: ' + await amalSababi(res));
     }
   } finally {
     inFlightRefundToggle.delete(id);
@@ -1163,7 +1188,7 @@ async function saveReturn(){
           let jj = {};
           try { jj = await rr.json(); } catch (e4) { jj = {}; }
           if (rr.ok) { if (jj && typeof jj.xabar === 'string' && jj.xabar) await xabarOyna('✓ Qaytarish saqlandi. ' + jj.xabar); }
-          else await xabarOyna("Qaytarish saqlandi, lekin hisob-kitob qilinmadi: " + qaytarishXatoMatni(jj) + ". Ro'yxatdagi «💰 Hisob-kitob qilish» tugmasidan qayta urinib ko'ring.", { tur: 'ogoh' });
+          else await xabarOyna("Qaytarish saqlandi, lekin hisob-kitob qilinmadi: " + qaytarishXatoMatni(jj, rr.status) + ". Ro'yxatdagi «💰 Hisob-kitob qilish» tugmasidan qayta urinib ko'ring.", { tur: 'ogoh' });
         } catch (e5) {
           await xabarOyna("Qaytarish saqlandi, lekin hisob-kitob qilinmadi (aloqa yo'q). Ro'yxatdagi «💰 Hisob-kitob qilish» tugmasidan qayta urinib ko'ring.", { tur: 'ogoh' });
         }
@@ -1174,12 +1199,19 @@ async function saveReturn(){
       const fayl = rasm && rasm.files ? rasm.files[0] : null;
       if (fayl) {
         let rasmOk = false;
+        let rasmSabab = '';
         if (yangi && yangi.id) {
           const fd = new FormData();
           fd.append('file', fayl);
-          try { const r2 = await fetch(`/api/returns/${yangi.id}/image`, { method: 'POST', body: fd }); rasmOk = r2.ok; } catch (e3) { rasmOk = false; }
+          // kech144 (zip 177, audit D): yuklanmasa — sabab (ilgari sababsiz)
+          try {
+            const r2 = await fetch(`/api/returns/${yangi.id}/image`, { method: 'POST', body: fd });
+            rasmOk = r2.ok;
+            if (!rasmOk) rasmSabab = await amalSababi(r2);
+          } catch (e3) { rasmOk = false; rasmSabab = await amalSababi(e3); }
         }
-        if (!rasmOk) await xabarOyna("Qaytarish saqlandi, lekin rasm yuklanmadi — ro'yxatdagi kamera belgisi orqali qayta yuklang", { tur: 'ogoh' });
+        if (!rasmOk) await xabarOyna("Qaytarish saqlandi, lekin rasm yuklanmadi" + (rasmSabab ? ' (' + rasmSabab + ')' : '') +
+          " — ro'yxatdagi kamera belgisi orqali qayta yuklang", { tur: 'ogoh' });
       }
       location.reload();
       return;
@@ -1215,7 +1247,8 @@ async function saveReturn(){
   } catch (e) { /* URL — muhim emas */ }
 })();
 
-fetch('/api/returns/stats').then(r=>r.json()).then(s=>{
+// kech144 (zip 177, audit C#7): `yukBlok('qaytStat')` — 401 / 500 da «undefined ta» / «0 so'm» o'rniga «—» va sabab (izohda); tarmoqda ham
+yukBlok('qaytStat', '/api/returns/stats', s => {
   document.getElementById('k-brak-month').textContent = s.brak_month_count + ' ta';
   document.getElementById('k-whole-month').textContent = s.whole_month_count + ' ta';
   document.getElementById('k-total').textContent = s.total_count + ' ta';
@@ -1230,7 +1263,12 @@ fetch('/api/returns/stats').then(r=>r.json()).then(s=>{
     const bv = document.getElementById('k-brak-value'); if (bv) bv.textContent = fmt(s.brak_month_value) + " so'm";
     const btv = document.getElementById('k-brak-total-value'); if (btv) btv.textContent = fmt(s.brak_total_value) + " so'm";
   }
-}).catch(()=>{});
+}, e => {
+  ['k-brak-month', 'k-whole-month', 'k-total', 'k-brak-value', 'k-brak-total-value'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.textContent = '—'; });
+  const bmi = document.getElementById('k-brak-month-izoh'); if (bmi) bmi.textContent = '';
+  const ti = document.getElementById('k-total-izoh'); if (ti) ti.textContent = yukXatoMatn('Statistika', e);
+});
 // kech56 (13-band, 7-qadam): brak tahlili sarlavhasidagi joriy oy ulushi (faqat admin).
 if (KORADI_HISOBOT) loadBrakTahlilBadge();
 </script>
