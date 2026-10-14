@@ -416,6 +416,12 @@ for fn in ast.walk(_tree):
             _total += 1
             if not any(k.arg == "company_id" for k in node.keywords):
                 _bad.append(f"{fn.name}:{node.lineno} {node.func.id}")
+        # kech145 (zip 178, MOSLANDI — audit T5): `_fonda(background_tasks, _send_telegram, …, company_id=…)` — javobdan KEYIN yuboriladi
+        elif (isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "_fonda"
+                and len(node.args) >= 2 and isinstance(node.args[1], ast.Name) and node.args[1].id in _TG):
+            _total += 1
+            if not any(k.arg == "company_id" for k in node.keywords):
+                _bad.append(f"{fn.name}:{node.lineno} _fonda({node.args[1].id})")
 check(f"current_user bor funksiyalardagi {_total} Telegram chaqiruvi — hammasida company_id=",
       _total >= 13 and not _bad, f"jami={_total} yo'q: {_bad}")
 _helpers = {"_send_delivery_pdf_to_customer": 0, "_send_telegram_to_qoplamachi": 0}

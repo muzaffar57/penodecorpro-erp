@@ -396,6 +396,9 @@ async function hodimBolimi() {
   // undan oldingi shablonda yo'q — topilganlari qo'shiladi)
   eh.kod += '\n' + funks(HODIM, ['tolovBelgisi', 'tolovQatorHtml', 'javobBlokHtml', 'javobKartaChiz', 'sorovOyNomi', 'sorovQatorHtml',
                                  'sorovXulosaMatni', 'tkHozir']).kod;
+  // kech144 (zip 178 — MOSLANDI, audit H1 / H2): yuklash xatosi sababi — `hodimYukSabab` / `hodimYukXatoHtml` (`serverSababi` — panelning
+  // o'zidagi), javobdan keyin ro'yxat yangilanmasa — `javobKartaYangilanmadi` (zip 177 va undan oldingi shablonda yo'q — topilganlari)
+  eh.kod += '\n' + funks(HODIM, ['serverSababi', 'hodimYukSabab', 'hodimYukXatoHtml', 'javobKartaYangilanmadi']).kod;
   let m = muhit({}, {});
   let r = await ishga(m, eh.kod, `oylikHtml({nomi: 'Oktabr 2026', joriy: true, hisoblangan: 3110000, olingan: 350002, qolgan: 2759998,
       bonus: 150000, bonus_sababi: '<b>Yaxshi</b>', kamaytirish: 40000, kamaytirish_sababi: '2 kun', tolovlar: [
@@ -424,7 +427,9 @@ async function hodimBolimi() {
   m = muhit({ 'oylik-list': ol }, {});
   m.javoblar.push({ status: 500, data: {} });
   r = await ishga(m, eh.kod, 'loadOylik()');
-  tekshir("H4 server xatosi — «Yuklashda xato» (bo'sh / yolg'on raqam emas)", !r.xato && String(ol.innerHTML).includes('Yuklashda xato'),
+  // kech144 (zip 178 — MOSLANDI, audit H1): «Yuklanmadi — server javob bermadi (500)» (ilgari sababsiz «Yuklashda xato»)
+  tekshir("H4 server xatosi — «Yuklanmadi — server javob bermadi (500)» (bo'sh / yolg'on raqam emas)",
+          !r.xato && String(ol.innerHTML).includes('Yuklanmadi — server javob bermadi (500)') && String(ol.innerHTML).includes('Qayta yuklash'),
           r.xato || qisqa(ol.innerHTML));
   const rl = element('');
   m = muhit({ 'req-list': rl }, {});
