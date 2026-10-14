@@ -494,7 +494,7 @@ if br:
 
         # R3: saqlanmagan o'zgarish + «Yangi rol» / «Nusxa» — avval so'raladi
         pg.evaluate(f"() => rolniTanla({ID['ROL_T']}, true)")
-        pg.click(f'.rl-cb[data-band="buyurtma"][data-amal="yaratish"]')
+        pg.click('.rl-cb[data-band="buyurtma"][data-amal="yaratish"]')
         pg.wait_for_timeout(200)
         pg.evaluate("() => { window.__tasdiq = []; window.__ha = false; }")
         baj(pg, "() => yangiRol()", 400)
@@ -528,7 +528,7 @@ if br:
         check("R6c saqlandi — belgilar yana ochiq, o'zgarish yo'q; bazada «Buyurtmalar: Yaratish»",
               _keyin == [False, False, False] and "yaratish" in (rol_ruxsat("FU175 Tahrir") or {}).get("buyurtma", []), (_keyin, rol_ruxsat("FU175 Tahrir")))
         # R6d: saqlash 502 — natija noma'lum
-        pg.click(f'.rl-cb[data-band="buyurtma"][data-amal="tahrirlash"]')
+        pg.click('.rl-cb[data-band="buyurtma"][data-amal="tahrirlash"]')
         pg.route(f"**/api/rollar/{ID['ROL_T']}", lambda r: r.fulfill(**SAHIFA_502) if r.request.method == "PUT" else r.continue_())
         pg.evaluate("() => { window.__msg = []; }")
         baj(pg, "() => rolniSaqla()", 700)

@@ -348,7 +348,9 @@ def bolim_statik():
     check("activate_draft_order: flush → qulf → expire_all → korxona filtrli qayta o'qish → holat → yechish → bitta commit",
           tartibda(ad, "db.flush()", "_pul_qulfi(db, 101, order.id)", "db.expire_all()",
                    "Order.company_id == _cid_q", "order = _oq.first()", "if order.status != OrderStatus.DRAFT:",
-                   "deduct_inventory_for_order(db, order, commit=False)", "_take_finished_for_order(db, order)",
+                   # kech144 (zip 176, MOSLANDI): TM olish — tasdiq belgisi bilan (A-O10 d: qulf ostida qayta tekshiruv)
+                   "deduct_inventory_for_order(db, order, commit=False)",
+                   "_take_finished_for_order(db, order, tasdiq=confirm_shortage)",
                    "db.commit()"), ad[:200])
     check("activate_draft_order: kod qatorlarida commit=False AYNAN 3, db.commit() AYNAN 1",
           ad.count("commit=False)") == 3 and ad.count("db.commit()") == 1,
