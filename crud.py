@@ -2279,7 +2279,7 @@ def _buyurtma_raqami_bandmi(db: Session, company_id, raqam) -> bool:
 
 
 def create_order(db: Session, order_data: OrderCreate, performed_by: str = None,
-                 company_id: int = None) -> Order:
+                 company_id: int = None, tm_tasdiq: bool = True) -> Order:
     """Yangi buyurtma + detallar qo'shadi.
 
     Mantiq:
@@ -2559,7 +2559,8 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None,
 
     # Tayyor mahsulotlardan yechamiz (qoralama bo'lmasa)
     if not is_draft:
-        _take_finished_for_order(db, db_order)
+        # kech144 (zip 176, A-O10 d F6): qulf ostida qayta tekshiruv — tasdiqsiz yetmaslik `TmKamError` (marshrut → 409)
+        _take_finished_for_order(db, db_order, tasdiq=tm_tasdiq)
 
         # kech82 (102-band): buyurtma loyi — zaxiradan / xomdan qancha olingani yoziladi
         with _services.loy_manba_rejimi(db, "ushla"):
@@ -2804,8 +2805,12 @@ def _tm_qaytgan_ortacha(fp, joriy: float, qoldiq: float, qaytdi: float, qiymat: 
         fp.unit_cost_stable = (joriy * _asos + qiymat) / (_asos + qaytdi)
 
 
-def _take_finished_for_order(db: Session, order, company_id: int = None) -> list:
+def _take_finished_for_order(db: Session, order, company_id: int = None, tasdiq: bool = True) -> list:
     """Buyurtmadagi tayyor mahsulot detallarini ombordan yechadi.
+
+    kech144 (zip 176, A-O10 d — egasi qarorlari 13.10): TM qatorlari qulflangach QAYTA tekshiriladi (`_tm_kerak_tekshir`, mahsulot
+    bo'yicha jami): band qismga tegsa yoki tayyor emas bo'lsa — `TmRadError`; band yo'q, yetmaydi va `tasdiq` yo'q — `TmKamError`
+    (parallel ikkinchi buyurtma ogohlantirishsiz minusga tushmaydi — F6). Minusdagi qoldiqdan olish tannarxni oshirmaydi (F2).
 
     M4 (2026-09-18) — TENANT: mahsulot buyurtmaning O'Z korxonasiga
     tegishli bo'lishi SHART. Boshqa korxonaniki bo'lsa — butun amal
@@ -2816,6 +2821,26 @@ def _take_finished_for_order(db: Session, order, company_id: int = None) -> list
     cid = company_id if company_id is not None else getattr(order, 'company_id', None)
     # kech64 (68-band): TM qatorlari o'qishdan OLDIN qulflanadi (`_fp_qulf`).
     _fp_qulf(db, [getattr(_it, 'finished_product_id', None) for _it in order.items], cid)
+    _kerak176 = {}
+    for _it in order.items:
+        _f176 = getattr(_it, 'finished_product_id', None)
+        _q176 = _fp_item_qty(_it) if _f176 else 0
+        if _f176 and _q176 > 0:
+            _kerak176[_f176] = _kerak176.get(_f176, 0.0) + _q176
+    _rad176, _kam176 = [], []
+    for _f176 in sorted(_kerak176):
+        _fp176 = _fp_for_tenant(db, _f176, cid)
+        if _fp176 is None:
+            continue
+        _r, _k = _tm_kerak_tekshir(_fp176, _kerak176[_f176])
+        if _r:
+            _rad176.append(_r)
+        if _k:
+            _kam176.append(_k)
+    if _rad176:
+        raise TmRadError("\n".join(_rad176))
+    if _kam176 and not tasdiq:
+        raise TmKamError(_kam176)
     for it in order.items:
         fpid = getattr(it, 'finished_product_id', None)
         if not fpid:
@@ -2831,7 +2856,8 @@ def _take_finished_for_order(db: Session, order, company_id: int = None) -> list
         # asosida — bular o'zgarmaydi), shunda take va return simmetrik bo'ladi
         # va qolgan qoldiqning foydasi to'g'ri qoladi.
         old_qty = float(fp.quantity or 0)
-        take = min(qty, old_qty)
+        # kech144 (zip 176, F2 — O'LCHANGAN: −5 qoldiqdan 3 m olish tannarxni 0 dan 5 000 ga OSHIRDI): faqat musbat qoldiqdan olinadi
+        take = max(0.0, min(qty, old_qty))
         unit_cost = _fp_stable_unit_cost(db, fp)
         if unit_cost > 0:
             fp.cost_price = max(0, float(fp.cost_price or 0) - (unit_cost * take))
@@ -2888,13 +2914,18 @@ def _return_finished_for_order(db: Session, order, sign: float = 1.0,
         # buyurtmaning 10 m i 89 818 ga olinib 102 380 bo'lib qaytdi (12 562 so'm "havodan"). TM o'rtachasi
         # og'irlikli qayta hisoblanadi; birlik farq qilmasa — avvalgi formula AYNAN.
         _c56 = _tm_detal_birligi(it) if sign > 0 else None
+        # kech144 (zip 176, A-O10 d F1 — O'LCHANGAN: 10 m dan 15 m buyurtma (−5), o'chirilsa 15 m × tannarx qaytib 10 m qoldiqda
+        # 15 000 so'm — 5 000 «havodan»): tannarx faqat MUSBAT qoldiq o'zgarishi bo'yicha (minusdagi qism tannarxsiz). Qoldiq 0 dan
+        # past bo'lmasa — `delta` ning o'zi (avvalgidek AYNAN).
+        _ijobiy = max(0.0, cur_qty + delta) - max(0.0, cur_qty)
         if _c56 is not None and unit_cost > 0 and abs(_c56 - unit_cost) > 1e-9:
-            fp.cost_price = max(0, float(fp.cost_price or 0) + (_c56 * delta))
-            _tm_qaytgan_ortacha(fp, unit_cost, cur_qty, delta, _c56 * delta)
+            fp.cost_price = max(0, float(fp.cost_price or 0) + (_c56 * _ijobiy))
+            if _ijobiy > 1e-9:
+                _tm_qaytgan_ortacha(fp, unit_cost, cur_qty, _ijobiy, _c56 * _ijobiy)
         elif unit_cost > 0:
-            fp.cost_price = max(0, float(fp.cost_price or 0) + (unit_cost * delta))
+            fp.cost_price = max(0, float(fp.cost_price or 0) + (unit_cost * _ijobiy))
         elif cur_qty > 0 and fp.cost_price:
-            fp.cost_price = float(fp.cost_price) + (float(fp.cost_price) / cur_qty * delta)
+            fp.cost_price = float(fp.cost_price) + (float(fp.cost_price) / cur_qty * _ijobiy)
         if sign < 0 and unit_cost > 0:
             # tiklash: qolgan qism QAYTA olinadi — TM ning shu paytdagi birligida; topshirilgan (va ortiqcha
             # qaytarilgan) qism detalning eski birligida qoladi.
@@ -2907,7 +2938,7 @@ def _return_finished_for_order(db: Session, order, sign: float = 1.0,
 
 
 def _adjust_finished_diff(db: Session, old_items, new_items,
-                          company_id: int = None, detallar=None) -> list:
+                          company_id: int = None, detallar=None, tasdiq: bool = True) -> list:
     """Tayyor mahsulot farqini to'g'rilaydi (buyurtma TAHRIRLANGANDA).
 
     MUHIM: avval bu yerda faqat `fp.quantity` to'g'rilanardi, `fp.cost_price`
@@ -2964,6 +2995,25 @@ def _adjust_finished_diff(db: Session, old_items, new_items,
 
     # kech64 (68-band): TM qatorlari o'qishdan OLDIN, id tartibida qulflanadi (`_fp_qulf`).
     _fp_qulf(db, set(old_g) | set(new_g), company_id)
+    # kech144 (zip 176, A-O10 d): OSHGAN qism qulf ostida tekshiriladi (`_tm_kerak_tekshir`) — band / tayyor emas — `TmRadError`,
+    # yetmaydi va tasdiqsiz — `TmKamError` (`update_order_full` → 409 «davom etasizmi?»).
+    _rad176, _kam176 = [], []
+    for _f176 in sorted(set(old_g) | set(new_g)):
+        _d176 = new_g.get(_f176, 0.0) - old_g.get(_f176, 0.0)
+        if _d176 <= 0.001:
+            continue
+        _fp176 = _fp_for_tenant(db, _f176, company_id)
+        if _fp176 is None:
+            continue
+        _r, _k = _tm_kerak_tekshir(_fp176, _d176)
+        if _r:
+            _rad176.append(_r)
+        if _k:
+            _kam176.append(_k)
+    if _rad176:
+        raise TmRadError("\n".join(_rad176))
+    if _kam176 and not tasdiq:
+        raise TmKamError(_kam176)
     for fpid in sorted(set(old_g) | set(new_g)):
         diff = new_g.get(fpid, 0.0) - old_g.get(fpid, 0.0)
         _q56 = _qaytadi.get(fpid) or []
@@ -2991,6 +3041,10 @@ def _adjust_finished_diff(db: Session, old_items, new_items,
                 if _cb is not None and _cb > 0 and abs(_cb - unit_cost) > 1e-9:
                     _D56 += _r * (_cb - unit_cost)
         _Y56 = unit_cost
+        # kech144 (zip 176, F1): qoldiq minusga tegsa (oldin yoki keyin) — detal birligi bo'yicha qayta baholash YO'Q (minusdagi qism
+        # tannarxsiz; pastdagi musbat qism qoidasi)
+        if cur_qty < -1e-9 or cur_qty - diff < -1e-9:
+            _D56 = 0.0
         if _D56 != 0.0:
             _asos56 = max(cur_qty, 0.0)
             _Y56 = ((unit_cost * _asos56 + unit_cost * _R56 + _D56) / (_asos56 + _R56)
@@ -3003,12 +3057,16 @@ def _adjust_finished_diff(db: Session, old_items, new_items,
         if abs(diff) < 0.001:
             continue
         if _D56 == 0.0:
-            cost_delta = -unit_cost * diff if unit_cost > 0 else (
-                -(float(fp.cost_price) / cur_qty * diff) if cur_qty > 0 and fp.cost_price else 0
+            # kech144 (zip 176, F1): tannarx faqat MUSBAT qoldiq o'zgarishi bo'yicha (qoldiq 0 dan past bo'lmasa — `-diff` AYNAN)
+            _ijobiy = max(0.0, cur_qty - diff) - max(0.0, cur_qty)
+            cost_delta = unit_cost * _ijobiy if unit_cost > 0 else (
+                (float(fp.cost_price) / cur_qty * _ijobiy) if cur_qty > 0 and fp.cost_price else 0
             )
             fp.cost_price = max(0, float(fp.cost_price or 0) + cost_delta)
         if diff > 0:
-            fp.quantity = max(0, cur_qty - diff)
+            # kech144 (zip 176, F1 — O'LCHANGAN: −5 dagi buyurtma 15 → 20 m tahrirlanganda qoldiq −10 o'rniga 0 ga QISILARDI, o'chirilganda
+            # 20 m qaytib qoldiq 10 o'rniga 20 bo'lardi): minus — egasi qarori («Minusga ruxsat bersin»), qisilmaydi
+            fp.quantity = cur_qty - diff
             log.append(f"🏭 {fp.name}: -{diff:g} {fp.unit}")
         else:
             fp.quantity = cur_qty + abs(diff)
@@ -3019,13 +3077,85 @@ def _adjust_finished_diff(db: Session, old_items, new_items,
     return log
 
 
+class TmRadError(ValueError):
+    """kech144 (zip 176, A-O10 d — EGASI QARORI 13.10 «Rad etsin»): buyurtma boshqa buyurtmaga BAND qilingan qismga yoki hali tayyor
+    bo'lmagan tayyor mahsulotga tegadi — tasdiq bilan ham o'tkazilmaydi (marshrut → 400). Matn — qatorlar (`\n`)."""
+
+
+class TmKamError(ValueError):
+    """kech144 (zip 176, A-O10 d — EGASI QARORI 13.10 «Minusga ruxsat bersin»): tayyor mahsulot omborda yetmaydi (band yo'q),
+    foydalanuvchi tasdiqlamagan — marshrut 409 «davom etasizmi?» (`shortages`); tasdiq bilan qoldiq minusga tushadi."""
+
+    def __init__(self, shortages):
+        self.shortages = list(shortages)
+        super().__init__("; ".join(self.shortages))
+
+
+def _tm_kerak_tekshir(fp, kerak: float):
+    """kech144 (zip 176, A-O10 d): bitta tayyor mahsulotdan buyurtmaga `kerak` miqdor. Natija (rad, kam) — har biri matn yoki None.
+    Bo'sh qoldiq (qoldiq − band, `_fp_bosh_qoldiq`) yetsa — (None, None). Yetmasa: band BOR — rad (band qism boshqa buyurtmaniki —
+    egasi qarori «Rad etsin»; minus ham band hisobidan bo'lmaydi); band yo'q — kam (egasi qarori «Minusga ruxsat bersin» — tasdiq
+    bilan). Hali tayyor emas (`_fp_tayyormi`, jarayonda) — rad (sotuv bilan bir qoida). Topilmadi — kam (avvalgidek ogohlantirish)."""
+    kerak = float(kerak or 0)
+    if kerak <= 1e-9:
+        return None, None
+    if fp is None:
+        return None, "Tayyor mahsulot topilmadi"
+    birlik = fp.unit or ""
+    if not _fp_tayyormi(fp):
+        return (f"🏭 {fp.name}: hali ishlab chiqarilmoqda (tayyor emas) — buyurtmaga olib bo'lmaydi; tayyor bo'lgach oling",
+                None)
+    q = float(fp.quantity or 0)
+    band = max(0.0, float(fp.reserved_quantity or 0))
+    bosh = _fp_bosh_qoldiq(fp)
+    if kerak <= bosh + 1e-3:
+        return None, None
+    if band > 1e-9:
+        return (f"🏭 {fp.name}: omborda {q:g} {birlik}, shundan {band:g} {birlik} boshqa buyurtmaga band — bo'sh {bosh:g} {birlik}, "
+                f"kerak {kerak:g} {birlik}. Band mahsulotga tegib bo'lmaydi: yetmaganini ishlab chiqaring yoki band buyurtmada "
+                f"«Bandni bekor qilish»", None)
+    return None, f"🏭 {fp.name}: omborda {q:g} {birlik}, kerak {kerak:g} {birlik}"
+
+
+def _tm_farq_tekshir(db: Session, old_items, new_items, company_id: int = None):
+    """kech144 (zip 176): buyurtma TAHRIRIDA tayyor mahsulot bo'yicha OSHGAN qism (`_adjust_finished_diff` guruhlashi bilan AYNAN —
+    profil — uzunlik, qolgani — soni) uchun (rad, kam) ro'yxatlari — o'zgarishdan OLDIN (qulf ostida yana `_adjust_finished_diff`)."""
+    def _g(items):
+        out = {}
+        for d in items:
+            fpid = d.get('finished_product_id') if isinstance(d, dict) else getattr(d, 'finished_product_id', None)
+            if not fpid:
+                continue
+            cat = ((d.get('category') if isinstance(d, dict) else d.category) or '').lower()
+            k = 'length' if cat == 'profil' else 'quantity'
+            out[fpid] = out.get(fpid, 0.0) + float((d.get(k) if isinstance(d, dict) else getattr(d, k, None)) or 0)
+        return out
+    eski, yangi = _g(old_items), _g(new_items)
+    rad, kam = [], []
+    for fpid in sorted(set(eski) | set(yangi)):
+        d = yangi.get(fpid, 0.0) - eski.get(fpid, 0.0)
+        if d <= 0.001:
+            continue
+        r, k = _tm_kerak_tekshir(get_finished_product(db, fpid, company_id), d)
+        if r:
+            rad.append(r)
+        if k:
+            kam.append(k)
+    return rad, kam
+
+
 def check_finished_for_order(db: Session, items, company_id: int = None) -> dict:
     """Tayyor mahsulot yetadimi — tekshiradi.
 
     M4 (2026-09-18) — TENANT: company_id berilsa, mahsulot faqat SHU
     korxonadan qidiriladi; boshqa korxonaniki bo'lsa "topilmadi" deb
-    hisoblanadi (uning qoldig'i O'QILMAYDI ham)."""
+    hisoblanadi (uning qoldig'i O'QILMAYDI ham).
+
+    kech144 (zip 176, A-O10 d — egasi qarorlari 13.10): bo'sh qoldiq (qoldiq − band) bo'yicha (`_tm_kerak_tekshir`). Natija:
+    `shortages` — yetmaydi (tasdiq bilan minus), `rad` — band qismga tegadi yoki tayyor emas (tasdiq bilan ham o'tmaydi),
+    `enough` — ikkalasi bo'sh."""
     shortages = []
+    rad = []
     need = {}
 
     for it in items:
@@ -3039,16 +3169,13 @@ def check_finished_for_order(db: Session, items, company_id: int = None) -> dict
         need[fpid] = need.get(fpid, 0.0) + qty
 
     for fpid, qty in need.items():
-        fp = get_finished_product(db, fpid, company_id)
-        if not fp:
-            shortages.append("Tayyor mahsulot topilmadi")
-            continue
-        if float(fp.quantity or 0) < qty - 0.001:
-            shortages.append(
-                f"🏭 {fp.name}: omborda {float(fp.quantity):g} {fp.unit}, kerak {qty:g} {fp.unit}"
-            )
+        _r, _k = _tm_kerak_tekshir(get_finished_product(db, fpid, company_id), qty)
+        if _r:
+            rad.append(_r)
+        if _k:
+            shortages.append(_k)
 
-    return {"enough": len(shortages) == 0, "shortages": shortages}
+    return {"enough": not shortages and not rad, "shortages": shortages, "rad": rad}
 
 
 def get_orders(db: Session, project_id: Optional[int] = None,
@@ -8339,8 +8466,12 @@ def get_debt_stats(db: Session, company_id: int = None) -> dict:
 # DRAFT — Qoralama buyurtmalar
 # ============================================================
 
-def activate_draft_order(db: Session, order_id: int, performed_by: str = None) -> dict:
-    """Qoralama buyurtmani jarayonga oladi — ombordan xomashyo yechiladi."""
+def activate_draft_order(db: Session, order_id: int, performed_by: str = None, confirm_shortage: bool = False) -> dict:
+    """Qoralama buyurtmani jarayonga oladi — ombordan xomashyo yechiladi.
+
+    kech144 (zip 176, A-O10 d F5 — O'LCHANGAN: 10 m qoldiq, 8 m qoralama, 5 m sotildi → faollashtirish 200, qoldiq −3, ogohlantirishsiz):
+    tayyor mahsulot ham tekshiriladi — band / tayyor emas — rad; yetmaydi — `stock_shortage_warning` (marshrut → 409), `confirm_shortage`
+    bilan minusga (egasi qarori)."""
     import services
 
     order = db.query(Order).filter(Order.id == order_id).first()
@@ -8388,6 +8519,16 @@ def activate_draft_order(db: Session, order_id: int, performed_by: str = None) -
             "message": "Xomashyo yetishmayapti!",
             "shortages": all_shortages
         }
+    # kech144 (zip 176, F5): tayyor mahsulot — band / tayyor emas — rad; yetmaydi — «davom etasizmi?» (tasdiq bilan minus)
+    _tm176 = check_finished_for_order(db, list(order.items), company_id=getattr(order, 'company_id', None))
+    if _tm176["rad"]:
+        db.rollback()
+        return {"success": False, "message": "Tayyor mahsulotni olib bo'lmaydi!", "shortages": _tm176["rad"]}
+    if _tm176["shortages"] and not confirm_shortage:
+        db.rollback()
+        return {"success": False, "type": "stock_shortage_warning",
+                "message": "Tayyor mahsulot omborda yetmaydi. Shunday ham davom etasizmi? (qoldiq minusga tushadi)",
+                "shortages": _tm176["shortages"]}
 
     # kech82 (102-band): qoralamadan hech narsa yechilmagan edi — loy manbasi kuzatuvi shu yerdan TO'LIQ
     # (migratsiyadan oldin yaratilgan qoralama ham).
@@ -8411,8 +8552,17 @@ def activate_draft_order(db: Session, order_id: int, performed_by: str = None) -
             loy_log = services.deduct_loy_ingredients(db, order, planned_loy, commit=False)
             log.extend(loy_log)
 
-    # Tayyor mahsulotlarni yechamiz
-    log.extend(_take_finished_for_order(db, order))
+    # Tayyor mahsulotlarni yechamiz (kech144, zip 176: qulf ostida qayta tekshiruv — orada sotilgan bo'lsa ham)
+    try:
+        log.extend(_take_finished_for_order(db, order, tasdiq=confirm_shortage))
+    except TmRadError as _e176:
+        db.rollback()
+        return {"success": False, "message": "Tayyor mahsulotni olib bo'lmaydi!", "shortages": str(_e176).split("\n")}
+    except TmKamError as _e176:
+        db.rollback()
+        return {"success": False, "type": "stock_shortage_warning",
+                "message": "Tayyor mahsulot omborda yetmaydi. Shunday ham davom etasizmi? (qoldiq minusga tushadi)",
+                "shortages": _e176.shortages}
 
     order.status = OrderStatus.IN_PROGRESS
     db.commit()
@@ -9599,6 +9749,13 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         _all_short = []
         if not check["enough"]:
             _all_short += list(check["shortages"])
+        # kech144 (zip 176, A-O10 d F1 / F3): tayyor mahsulot — OSHGAN qism (ilgari tahrirda tekshirilmasdi): band / tayyor emas —
+        # rad; yetmaydi — «davom etasizmi?» qatoriga
+        _tm_rad176, _tm_kam176 = _tm_farq_tekshir(db, old_snapshot, new_snapshot, company_id=order.company_id)
+        if _tm_rad176:
+            db.rollback()
+            return {"success": False, "message": "Tayyor mahsulotni olib bo'lmaydi!", "shortages": _tm_rad176}
+        _all_short += _tm_kam176
         # Yetishmovchilik bor-u, lekin foydalanuvchi hali tasdiqlamagan bo'lsa —
         # "davom etasizmi?" ogohlantirishini qaytaramiz (create bilan bir xil).
         # confirm_shortage=True bo'lsa — o'tkazib yuboramiz (ombor manfiy bo'ladi).
@@ -9970,9 +10127,18 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         inventory_log[:0] = _qr53_log
         # Tayyor mahsulot farqi
         # M4: farq faqat SHU buyurtmaning korxonasidagi mahsulotlarga qo'llanadi.
-        inventory_log.extend(_adjust_finished_diff(db, old_snapshot, new_snapshot,
-                                                   company_id=getattr(order, 'company_id', None),
-                                                   detallar=_tm56))
+        # kech144 (zip 176): qulf ostida qayta tekshiruv (orada sotilgan / band qilingan bo'lsa) — tahrir BUTUNLAY bekor
+        try:
+            inventory_log.extend(_adjust_finished_diff(db, old_snapshot, new_snapshot,
+                                                       company_id=getattr(order, 'company_id', None),
+                                                       detallar=_tm56, tasdiq=confirm_shortage))
+        except TmRadError as _e176:
+            db.rollback()
+            return {"success": False, "message": "Tayyor mahsulotni olib bo'lmaydi!", "shortages": str(_e176).split("\n")}
+        except TmKamError as _e176:
+            db.rollback()
+            return {"success": False, "type": "stock_shortage_warning",
+                    "message": "Omborda yetishmayotgan xomashyo bor. Shunday ham davom etasizmi?", "shortages": _e176.shortages}
 
         # "Loy sotish" — farq bo'yicha to'g'irlaymiz (recipe_id bo'yicha
         # jamlab, eski va yangi holatni solishtiramiz). Bu — avval BUTUNLAY
@@ -18056,7 +18222,9 @@ def taklif_ogohlantirishlari(db: Session, company_id: int, buyurtma) -> list:
         _f = check_finished_for_order(db, buyurtma.items, company_id=company_id)
         _l = _sv126.check_loy_ingredients_for_order(db, buyurtma.recipe_id, float(buyurtma.loy_kg or 0),
                                                     company_id=company_id, commit=False)
-        return list(_p.get("shortages", [])) + list(_f.get("shortages", [])) + list(_l.get("shortages", []))
+        # kech144 (zip 176): tayyor mahsulot «rad» (band / tayyor emas) ham — taklifda ogohlantirish
+        return (list(_p.get("shortages", [])) + list(_f.get("shortages", [])) + list(_f.get("rad", []))
+                + list(_l.get("shortages", [])))
     finally:
         db.rollback()
 
