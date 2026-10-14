@@ -855,11 +855,10 @@ function taqdirTanla(el) {
   taqdirPanelKorsat(p);
 }
 
+// kech144 (zip 177, audit D): `yukOl` — internet yo'q / 401 / 5xx da sabab (ilgari inglizcha «Failed to fetch» yoki «Yuklab bo'lmadi»)
 async function _tqMateriallarYukla() {
   if (_tqMateriallar) return _tqMateriallar;
-  const r = await fetch('/api/brak/tuzatish-materiallari');
-  if (!r.ok) throw new Error(await serverXatoSababi(r, "Xomashyo ro'yxatini yuklab bo'lmadi"));
-  _tqMateriallar = await r.json();
+  _tqMateriallar = await yukOl('/api/brak/tuzatish-materiallari');
   return _tqMateriallar;
 }
 
@@ -868,7 +867,8 @@ async function taqdirMaterialQosh(btn) {
   const joy = document.getElementById(p + '-tq-mat');
   if (!joy) return;
   let m;
-  try { m = await _tqMateriallarYukla(); } catch (e) { showMsg('❌ ' + (e.message || "Yuklab bo'lmadi"), 'error'); return; }
+  try { m = await _tqMateriallarYukla(); }
+  catch (e) { showMsg(yukXatoMatn("Xomashyo ro'yxati", (e && e.yukXato) ? e : yukXato('server')), 'error'); return; }
   const ret = (m.retseptlar || []).map(r => `<option value="r:${Number(r.id)}">🎨 ${escapeHtml(r.nomi)} (loy, kg)</option>`).join('');
   const mat = (m.materiallar || []).map(i => `<option value="m:${Number(i.id)}">${escapeHtml(i.nomi)}${i.birlik ? ' (' + escapeHtml(i.birlik) + ')' : ''}</option>`).join('');
   const qator = document.createElement('div');
@@ -972,9 +972,15 @@ async function taqdirSaqla() {
   _tqSaqlanmoqda = true;
   if (btn) btn.disabled = true;
   try {
-    const r = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(tana)});
-    if (!r.ok) { xato('❌ ' + await serverXatoSababi(r, 'Taqdir saqlanmadi')); return; }
-    const d = await r.json();
+    // kech144 (zip 177, audit D): rad — server sababi; natija noma'lum (tarmoq / 5xx) — «sahifani yangilab tekshiring» (ilgari «Server
+    // xatosi»); javob JSON bo'lmasa ham saqlangani ko'rsatiladi
+    let r;
+    try { r = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(tana)}); }
+    catch (e) { xato("⚠️ Taqdir natijasi noma'lum: " + await amalSababi(e)); return; }
+    if (!r.ok) { xato((r.status >= 500 ? "⚠️ Taqdir natijasi noma'lum: " : '❌ Taqdir saqlanmadi: ') + await amalSababi(r)); return; }
+    let d = {};
+    try { d = await r.json(); } catch (e) { d = {}; }
+    d = d || {};
     taqdirOynaYop();
     showMsg(`✓ Brak taqdiri: ${d.yorliq || BRAK_TAQDIR_YORLIQ[d.taqdir] || d.taqdir}`, 'success');
     if (typeof loadFp === 'function') loadFp();
@@ -982,7 +988,8 @@ async function taqdirSaqla() {
         && document.getElementById('brakTahlilBody').style.display === 'block') loadBrakTahlil();
     if (document.getElementById('retList')) setTimeout(() => location.reload(), 900);
   } catch (e) {
-    xato('❌ Server xatosi');
+    console.error(e);
+    xato("❌ Kutilmagan xato — sahifani yangilab tekshiring");
   } finally {
     _tqSaqlanmoqda = false;
     if (btn) btn.disabled = false;

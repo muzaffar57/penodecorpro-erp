@@ -6,7 +6,8 @@
 {% block topbar_actions %}
 {# kech118 (D-3, egasi QARORI G5-01 «Ikkalasi qoladi, nomi ajratiladi»): eski oyna — penoplast detal (plotnost, 1 m³ narxi, loy);
    boshqa mahsulot — «Ishlab chiqarish» bo'limida mahsulot tarkibi bo'yicha (havola) #}
-<button class="btn btn-dark" onclick="openProduceModal()" title="Penoplast detal (profil, panel, donali) — plotnost, 1 m³ narxi va loy bilan"><i class="ti ti-plus"></i> Penoplast detal</button>
+{# kech144 (zip 177, audit C#20): «Tayyor mahsulotlar: Yaratish» ruxsati yo'q — tugma yo'q (ilgari ko'rinardi, saqlashda 403) #}
+{% if current_user.ruxsat('tayyor', 'yaratish') %}<button class="btn btn-dark" onclick="openProduceModal()" title="Penoplast detal (profil, panel, donali) — plotnost, 1 m³ narxi va loy bilan"><i class="ti ti-plus"></i> Penoplast detal</button>{% endif %}
 {% if current_user.ruxsat('mahsulot_turi', 'korish') %}<a class="btn btn-outline" id="retseptBoyichaHavola" href="/production" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px" title="«Ishlab chiqarish» bo'limi — mahsulot tarkibi bo'yicha (karniz, travertin …)"><i class="ti ti-building-factory-2"></i> Retsept bo'yicha →</a>{% endif %}
 {% endblock %}
 
@@ -579,6 +580,12 @@ let fpItems = [];
 let loyCostPerKg = 0;
 // kech118 (D-1): «Kam» chegarasini yozish — «Tayyor mahsulotlar: Tahrirlash» ruxsati bilan (server ham tekshiradi)
 const TM_TAHRIR = {{ 'true' if current_user.ruxsat('tayyor', 'tahrirlash') else 'false' }};
+// kech144 (zip 177, audit C#20): qator tugmalari — har biri o'z marshruti ruxsati bilan (server `auth.ruxsat` — AYNAN): sotish / savatcha —
+// «Sotuv: Yaratish», brak — «Brak: Yaratish», o'chirish / bekor qilish — «Tayyor mahsulotlar: O'chirish». Ilgari hammaga ko'rinardi —
+// bosilsa 403 «ruxsat yo'q».
+const SOTUV_YARATISH = {{ 'true' if current_user.ruxsat('sotuv', 'yaratish') else 'false' }};
+const BRAK_YARATISH = {{ 'true' if current_user.ruxsat('brak', 'yaratish') else 'false' }};
+const TM_OCHIRISH = {{ 'true' if current_user.ruxsat('tayyor', 'ochirish') else 'false' }};
 // kech120 (zip 133 — F bosqichi 3-qism, audit G5-09): «Ishlab chiqarish» sahifasiga ruxsat (`mahsulot_turi: korish` — /production
 // marshruti bilan bir) — yo'q bo'lsa jarayondagi partiyada havola o'rniga yozuv (ilgari Menejer bossa — ruxsat yo'q sahifasi)
 var ISHLAB_KORADI = {{ 'true' if current_user.ruxsat('mahsulot_turi', 'korish') else 'false' }};
@@ -593,14 +600,26 @@ function toggleReturnedSection() {
   renderFp();
 }
 
+// kech144 (zip 177, audit C#11): `yukOl` + `yukNavbat('loyNarx')` — yuklanmasa sabab (`loadLoyCost.xato` — kalkulyator loy qatorida;
+// ilgari jim 0 va «retsept tanlanmagan», tannarx kam / foyda ko'p chiqardi), retsept tez almashtirilsa eski javob yangisini bosmaydi
 async function loadLoyCost(recipeId) {
-  try {
-    const url = recipeId ? `/api/loy-cost?recipe_id=${recipeId}` : '/api/loy-cost';
-    const d = await fetch(url).then(r => r.json());
-    loyCostPerKg = d.cost_per_kg || 0;   // «Tannarx» ruxsati yo'q — null → 0 (kalkulyatorda tannarx qatorlari yashirin)
-    loyRecipeName = d.recipe || '';
+  const joriy = yukNavbat('loyNarx');
+  const url = recipeId ? `/api/loy-cost?recipe_id=${encodeURIComponent(recipeId)}` : '/api/loy-cost';
+  let d;
+  try { d = await yukOl(url); }
+  catch (e) {
+    if (!joriy()) return;
+    loyCostPerKg = 0;
+    loyRecipeName = '';
+    loadLoyCost.xato = yukXatoMatn('Loy narxi', (e && e.yukXato) ? e : yukXato('server'));
     pCalc();
-  } catch(e) { loyCostPerKg = 0; }
+    return;
+  }
+  if (!joriy()) return;
+  loadLoyCost.xato = '';
+  loyCostPerKg = (d && d.cost_per_kg) || 0;   // «Tannarx» ruxsati yo'q — null → 0 (kalkulyatorda tannarx qatorlari yashirin)
+  loyRecipeName = (d && d.recipe) || '';
+  pCalc();
 }
 
 function fmt(n) {
@@ -813,17 +832,23 @@ function fpKategoriyaTugmalari() {
       `onclick="selectFpCategory(this, this.dataset.value)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">${escapeHtml(n)}</div>`).join('');
 }
 
+// kech144 (zip 177, audit C#9): `yukOl` + `yukNavbat('fp')` — rad / 403 / 401 / 5xx — sabab ro'yxat o'rnida (ilgari «Yuklashda xato»,
+// `fpItems` obyekt bo'lib qolardi); «Barchasini ko'rish» / amaldan keyingi yangilash poygasi — eski javob yangisini bosmaydi
 async function loadFp() {
-  try {
-    const res = await fetch('/api/finished' + (showAllFp ? '?show_all=true' : ''));
-    fpItems = await res.json();
-    fpKategoriyaTugmalari();
-    renderFp();
-    loadStats();
-    updateFpRangeBanner();
-  } catch(e) {
-    document.getElementById('fpList').innerHTML = '<div class="fp-empty">Yuklashda xato</div>';
+  const joriy = yukNavbat('fp');
+  let d;
+  try { d = await yukOl('/api/finished' + (showAllFp ? '?show_all=true' : '')); }
+  catch (e) {
+    if (!joriy()) return;
+    yukRoyxatXato('fpList', yukXatoMatn('Tayyor mahsulotlar', (e && e.yukXato) ? e : yukXato('server')));
+    return;
   }
+  if (!joriy()) return;
+  fpItems = Array.isArray(d) ? d : [];
+  fpKategoriyaTugmalari();
+  renderFp();
+  loadStats();
+  updateFpRangeBanner();
 }
 
 function toggleFpShowAll() {
@@ -860,10 +885,10 @@ function updateFpRangeBanner() {
   }
 }
 
+// kech144 (zip 177, audit C#8): `yukBlok('fpStats')` — rad / 5xx da yolg'on «0 so'm» / «Omborda 0» o'rniga «—» va sabab (izohda);
+// sotuvdan keyingi so'rov yiqilsa ESKI qiymat qolmaydi; eski javob yangisini bosmaydi
 async function loadStats() {
-  let s = null;
-  try { s = await fetch('/api/finished/stats').then(r => r.json()); } catch(e) {}
-  if (s) {
+  await yukBlok('fpStats', '/api/finished/stats', s => {
     // kech118 (ROLLAR 2-qism): «Tannarx va foyda» ruxsati yo'q — server null qaytaradi → «—»
     document.getElementById('v-total').textContent = s.total_value === null ? '—' : fmt(s.total_value) + " so'm";
     // kech114 (egasi QARORI): narxsiz (MRP) partiya ombor qiymatiga TANNARX bo'yicha qo'shiladi — izohda ko'rinadi.
@@ -872,7 +897,11 @@ async function loadStats() {
       ? (s.narxsiz_tannarx_qiymati === null ? `narxsiz ${s.narxsiz_soni} ta` : `narxsiz ${s.narxsiz_soni} ta — tannarx bo'yicha ${fmt(s.narxsiz_tannarx_qiymati)}`) : '';
     document.getElementById('k-total-qty').textContent = miqdorlarMatni(s.miqdorlar) || '0';
     document.getElementById('k-progress').textContent = miqdorlarMatni(s.jarayonda_miqdorlar) || '—';
-  }
+  }, e => {
+    ['v-total', 'k-total-qty', 'k-progress'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '—'; });
+    const iz = document.getElementById('v-total-izoh');
+    if (iz) iz.textContent = yukXatoMatn('Statistika', e);
+  });
 
   // Qo'shimcha KPI'lar — mavjud fpItems asosida, mijoz tomonida (ro'yxat bilan BIR XIL guruhlash)
   const guruhlar = fpGuruhla(fpItems.filter(i => i.source === 'produced'));
@@ -1024,7 +1053,7 @@ function guruhHtml(g) {
         <div class="fp-kul">${escapeHtml(qiymatIzoh)}</div>
       </div>
       <div class="fp-actions-wrap" style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-        ${g.sotsa > 0 ? `<button class="mini-btn" type="button" onclick="fpGuruhSotish(this)" title="Sotish — partiyalar savatchada, miqdorni o'zingiz yozasiz" aria-label="Sotish" style="color:var(--m-15803d);border-color:var(--ch-bbf7d0)"><i class="ti ti-cash"></i></button>` : ''}
+        ${(g.sotsa > 0 && ((typeof SOTUV_YARATISH === 'undefined') || SOTUV_YARATISH)) ? `<button class="mini-btn" type="button" onclick="fpGuruhSotish(this)" title="Sotish — partiyalar savatchada, miqdorni o'zingiz yozasiz" aria-label="Sotish" style="color:var(--m-15803d);border-color:var(--ch-bbf7d0)"><i class="ti ti-cash"></i></button>` : ''}
         ${TM_TAHRIR ? `<button class="mini-btn" type="button" onclick="fpKamChegaraYoz(${Number(i0.id)})" title="«Kam» chegarasi — eng kam qoldiq" aria-label="«Kam» chegarasini yozish"><i class="ti ti-bell"></i></button>` : ''}
         <button class="mini-btn fp-guruh-tugma" type="button" aria-expanded="${ochiq ? 'true' : 'false'}"
                 aria-label="Partiyalarni ochish yoki yig'ish" title="Partiyalar" onclick="fpGuruhAlmashtir(this)"><i class="ti ti-chevron-down"></i></button>
@@ -1042,6 +1071,13 @@ function fpKamChegara(i) {
   const ch = Number(i.kam_chegara);
   return i.kam_chegara !== null && i.kam_chegara !== undefined && ch > 0 ? ch : null;
 }
+// kech144 (zip 177, audit D): amal xatosi matni — rad (4xx): «❌ <rad>: sabab»; natija noma'lum (tarmoq / 5xx — bajarilgan bo'lishi
+// mumkin): «⚠️ <nima> natijasi noma'lum: sabab» (base.html `amalSababi` — 401 da kirish havolasi ham). Ilgari «Xato», «Server xatosi»,
+// 502 da «Server bilan aloqa yo'q», sababsiz «Rasm yuklanmadi».
+async function fpAmalXato(nima, rad, x) {
+  const nomalum = !x || typeof x.status !== 'number' || x.status >= 500;
+  return (nomalum ? '⚠️ ' + nima + " natijasi noma'lum: " : '❌ ' + rad + ': ') + await amalSababi(x);
+}
 async function fpKamChegaraYoz(id) {
   const item = fpItems.find(i => i.id === id);
   if (!item) return;
@@ -1054,12 +1090,13 @@ async function fpKamChegaraYoz(id) {
   const matn = String(v).trim();
   const val = matn === '' ? null : parseNum(matn);
   if (val !== null && !(val > 0)) { showMsg("❌ Chegara noto'g'ri: " + matn, 'error'); return; }
+  let res;
   try {
-    const res = await fetch(`/api/finished/${id}/kam-chegara`, {
+    res = await fetch(`/api/finished/${id}/kam-chegara`, {
       method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({chegara: val})});
-    if (res.ok) { loadFp(); showMsg(val === null ? "✓ «Kam» chegarasi olib tashlandi" : `✓ «Kam» chegarasi: ${fpMiqdor(val)} ${u}`, 'success'); }
-    else showMsg('❌ ' + await serverXatoSababi(res, 'Chegara saqlanmadi'), 'error');
-  } catch (e) { showMsg('Xato', 'error'); }
+  } catch (e) { showMsg(await fpAmalXato('«Kam» chegarasi', 'Chegara saqlanmadi', e), 'error'); return; }
+  if (res.ok) { loadFp(); showMsg(val === null ? "✓ «Kam» chegarasi olib tashlandi" : `✓ «Kam» chegarasi: ${fpMiqdor(val)} ${u}`, 'success'); }
+  else showMsg(await fpAmalXato('«Kam» chegarasi', 'Chegara saqlanmadi', res), 'error');
 }
 
 function toggleChip(name) {
@@ -1208,11 +1245,12 @@ async function uploadFpImage(id, input) {
   if (!file) return;
   const fd = new FormData();
   fd.append('file', file);
-  try {
-    const res = await fetch(`/api/finished/${id}/image`, { method: 'POST', body: fd });
-    if (res.ok) { loadFp(); }
-    else showMsg('Rasm yuklanmadi: ' + await serverXatoSababi(res, 'server rad etdi'), 'error');
-  } catch(e) { showMsg('Server xatosi', 'error'); }
+  let res;
+  try { res = await fetch(`/api/finished/${id}/image`, { method: 'POST', body: fd }); }
+  catch (e) { showMsg(await fpAmalXato('Rasm', 'Rasm yuklanmadi', e), 'error'); return; }
+  finally { try { input.value = ''; } catch (e) { /* o'sha faylni qayta tanlash mumkin bo'lsin */ } }
+  if (res.ok) { loadFp(); }
+  else showMsg(await fpAmalXato('Rasm', 'Rasm yuklanmadi', res), 'error');
 }
 
 function openLightbox(url) {
@@ -1268,43 +1306,51 @@ function rowHtml(i, partiyami) {
   const profitPct = null;  // «Tannarx va foyda» ruxsati yo'q — foyda ko'rinmaydi
   {% endif %}
 
+  // kech144 (zip 177, audit C#20): server rad etadigan tugmalar ko'rinmaydi — sotish / savatcha belgisi — «Sotuv: Yaratish», brak —
+  // «Brak: Yaratish», «Sotuvga tayyor» / narx / «Yana ishlab chiqarish» / bandni bekor qilish / rasm — «Tayyor mahsulotlar: Tahrirlash»,
+  // o'chirish / bekor qilish — «Tayyor mahsulotlar: O'chirish». Konstanta yo'q (funksiya alohida sinalsa) — avvalgidek ko'rinadi.
+  const mSotuv = (typeof SOTUV_YARATISH === 'undefined') || SOTUV_YARATISH;
+  const mBrak = (typeof BRAK_YARATISH === 'undefined') || BRAK_YARATISH;
+  const mTahrir = (typeof TM_TAHRIR === 'undefined') || TM_TAHRIR;
+  const mOchir = (typeof TM_OCHIRISH === 'undefined') || TM_OCHIRISH;
+
   const actionBtns = (mrpJarayon && (typeof ISHLAB_KORADI === 'undefined' || ISHLAB_KORADI)) ? `
     <a class="fp-mrp-havola" href="/production?po=${Number(i.ishlab_chiqarish_id) || ''}" title="Yakunlash yoki bekor qilish — «Ishlab chiqarish» bo'limida">Ishlab chiqarishda ochish →</a>
   ` : mrpJarayon ? `
     <span class="fp-mrp-yozuv" style="font-size:12px;color:var(--text3);white-space:normal;max-width:180px;line-height:1.35">Ishlab chiqarilmoqda — «Ishlab chiqarish» bo'limida yakunlanadi</span>
   ` : inProgress ? `
-    <button class="btn btn-dark btn-sm" style="white-space:nowrap"
+    ${mTahrir ? `<button class="btn btn-dark btn-sm" style="white-space:nowrap"
             onclick="markReady(${i.id})">✓ Sotuvga tayyor</button>
-    <button class="mini-btn" onclick="editPrice(${i.id})" title="Narxni o'zgartirish">✏️</button>
-    <button class="mini-btn" style="color:var(--m-dc2626);border-color:var(--ch-fadbd8)"
-            onclick="delFp(${i.id}, '${jsAttrEscape(i.source)}')" title="Bekor qilish">✕</button>
+    <button class="mini-btn" onclick="editPrice(${i.id})" title="Narxni o'zgartirish">✏️</button>` : ''}
+    ${mOchir ? `<button class="mini-btn" style="color:var(--m-dc2626);border-color:var(--ch-fadbd8)"
+            onclick="delFp(${i.id}, '${jsAttrEscape(i.source)}')" title="Bekor qilish">✕</button>` : ''}
   ` : `
-    <button class="fp-amal fp-amal-sotish" onclick="openSellModal(${i.id}, '${jsAttrEscape(i.name)}', ${i.quantity}, '${jsAttrEscape(i.unit)}', ${i.unit_price || 0}${bandQ > 0 ? ', ' + bandQ : ''})"${hammasiBand ? ` disabled title="Hammasi buyurtmaga band — sotish uchun avval «Bandni bekor qilish»"` : ` title="Sotish"`}><i class="ti ti-cash"></i><span>Sotish</span></button>
+    ${mSotuv ? `<button class="fp-amal fp-amal-sotish" onclick="openSellModal(${i.id}, '${jsAttrEscape(i.name)}', ${i.quantity}, '${jsAttrEscape(i.unit)}', ${i.unit_price || 0}${bandQ > 0 ? ', ' + bandQ : ''})"${hammasiBand ? ` disabled title="Hammasi buyurtmaga band — sotish uchun avval «Bandni bekor qilish»"` : ` title="Sotish"`}><i class="ti ti-cash"></i><span>Sotish</span></button>` : ''}
     ${i.source === 'produced' ? `
-    <button class="fp-amal fp-amal-brak" onclick="openLossModal(${i.id}, '${jsAttrEscape(i.name)}', ${i.quantity}, '${jsAttrEscape(i.unit)}', '${jsAttrEscape(i.category || '')}'${bandQ > 0 ? ', ' + bandQ : ''})"
-            title="Brak / yo'qotish — miqdor kamayadi, Moliyaga yoziladi"><i class="ti ti-alert-triangle"></i><span>Brak</span></button>
-    ${(i.category !== 'dynamic_bom' && !i.product_type_id) ? `
+    ${mBrak ? `<button class="fp-amal fp-amal-brak" onclick="openLossModal(${i.id}, '${jsAttrEscape(i.name)}', ${i.quantity}, '${jsAttrEscape(i.unit)}', '${jsAttrEscape(i.category || '')}'${bandQ > 0 ? ', ' + bandQ : ''})"
+            title="Brak / yo'qotish — miqdor kamayadi, Moliyaga yoziladi"><i class="ti ti-alert-triangle"></i><span>Brak</span></button>` : ''}
+    ${(i.category !== 'dynamic_bom' && !i.product_type_id && mTahrir) ? `
     <button class="fp-amal" onclick="yanaIshlabChiqarish(${i.id})"
             title="Yana ishlab chiqarish — xomashyo proporsional yechiladi"><i class="ti ti-plus"></i><span>Yana ishlab chiqarish</span></button>
     ` : ''}
     ` : ''}
     <button class="mini-btn fp-yana" onclick="toggleFpMore(event, ${i.id})" title="Yana amallar" aria-label="Yana amallar" aria-haspopup="true"><i class="ti ti-dots"></i></button>
     <div class="fp-more" id="fp-more-${i.id}" role="menu">
-      <button class="fp-more-band" role="menuitem" onclick="editPrice(${i.id})"><i class="ti ti-edit"></i><span>Narxni o'zgartirish</span></button>
-      ${i.source !== 'produced' ? `<button class="fp-more-band" role="menuitem" onclick="openLossModal(${i.id}, '${jsAttrEscape(i.name)}', ${i.quantity}, '${jsAttrEscape(i.unit)}', '${jsAttrEscape(i.category || '')}'${bandQ > 0 ? ', ' + bandQ : ''})" style="color:var(--m-b45309)"><i class="ti ti-alert-triangle"></i><span>Brak / yo'qotish</span></button>` : ''}
+      ${mTahrir ? `<button class="fp-more-band" role="menuitem" onclick="editPrice(${i.id})"><i class="ti ti-edit"></i><span>Narxni o'zgartirish</span></button>` : ''}
+      ${(i.source !== 'produced' && mBrak) ? `<button class="fp-more-band" role="menuitem" onclick="openLossModal(${i.id}, '${jsAttrEscape(i.name)}', ${i.quantity}, '${jsAttrEscape(i.unit)}', '${jsAttrEscape(i.category || '')}'${bandQ > 0 ? ', ' + bandQ : ''})" style="color:var(--m-b45309)"><i class="ti ti-alert-triangle"></i><span>Brak / yo'qotish</span></button>` : ''}
       <button class="fp-more-band" role="menuitem" onclick="openHistoryModal(${i.id})"><i class="ti ti-info-circle"></i><span>Ma'lumot</span></button>
       ${(TM_TAHRIR && i.source === 'produced' && !partiyami) ? `<button class="fp-more-band" role="menuitem" onclick="fpKamChegaraYoz(${i.id})" aria-label="«Kam» chegarasini yozish"><i class="ti ti-bell"></i><span>«Kam» chegarasi</span></button>` : ''}
-      ${i.reserved_quantity > 0 ? `<button class="fp-more-band" role="menuitem" onclick="releaseFpReservation(${i.id}, '${jsAttrEscape(i.name)}')" title="Band qilishni bekor qilib, umumiy sotuvga qaytarish" style="color:var(--m-b91c1c)"><i class="ti ti-lock-open"></i><span>Bandni bekor qilish</span></button>` : ''}
+      ${(i.reserved_quantity > 0 && mTahrir) ? `<button class="fp-more-band" role="menuitem" onclick="releaseFpReservation(${i.id}, '${jsAttrEscape(i.name)}')" title="Band qilishni bekor qilib, umumiy sotuvga qaytarish" style="color:var(--m-b91c1c)"><i class="ti ti-lock-open"></i><span>Bandni bekor qilish</span></button>` : ''}
       {% if current_user.ruxsat('tannarx', 'korish') %}
       <button class="fp-more-band" role="menuitem" onclick="openProfitModal(${i.id})" style="color:var(--gold-dark)"><i class="ti ti-report-money"></i><span>Foyda hisobi</span></button>
       {% endif %}
-      <button class="fp-more-band fp-more-xavfli" role="menuitem" onclick="delFp(${i.id}, '${jsAttrEscape(i.source)}')"><i class="ti ti-trash"></i><span>O'chirish</span></button>
+      ${mOchir ? `<button class="fp-more-band fp-more-xavfli" role="menuitem" onclick="delFp(${i.id}, '${jsAttrEscape(i.source)}')"><i class="ti ti-trash"></i><span>O'chirish</span></button>` : ''}
     </div>
   `;
 
   return `
   <div class="fp-row ${isRet ? 'returned' : ''} ${inProgress ? 'progress' : ''}" data-name="${escapeHtml(i.name.toLowerCase())}">
-    ${(!inProgress && !isRet) ? `<input type="checkbox" class="fp-batch-check" data-id="${i.id}" data-name="${escapeHtml(partiyami ? fpSavatNomi(i) : i.name)}" data-qty="${bandQ > 0 ? sotsaQ : i.quantity}"${hammasiBand ? ' disabled title="Hammasi buyurtmaga band"' : ''} data-unit="${escapeHtml(i.unit)}" data-price="${i.unit_price || 0}" onchange="onBatchCheckChange()" style="width:20px;height:20px;margin-right:10px;cursor:pointer;flex-shrink:0;accent-color:#16A34A;border:2px solid #94A3B8;border-radius:4px" onclick="event.stopPropagation()">` : `<div style="width:20px;margin-right:10px;flex-shrink:0"></div>`}
+    ${(!inProgress && !isRet && mSotuv) ? `<input type="checkbox" class="fp-batch-check" data-id="${i.id}" data-name="${escapeHtml(partiyami ? fpSavatNomi(i) : i.name)}" data-qty="${bandQ > 0 ? sotsaQ : i.quantity}"${hammasiBand ? ' disabled title="Hammasi buyurtmaga band"' : ''} data-unit="${escapeHtml(i.unit)}" data-price="${i.unit_price || 0}" onchange="onBatchCheckChange()" style="width:20px;height:20px;margin-right:10px;cursor:pointer;flex-shrink:0;accent-color:#16A34A;border:2px solid #94A3B8;border-radius:4px" onclick="event.stopPropagation()">` : `<div style="width:20px;margin-right:10px;flex-shrink:0"></div>`}
     <div class="fp-thumb" onclick="event.stopPropagation()">
       ${i.image_url
         ? `<img src="${escapeHtml(kichikRasm(i.image_url))}" alt="" onclick="event.preventDefault();event.stopPropagation();openLightbox('${jsAttrEscape(i.image_url)}')">`
@@ -1314,9 +1360,9 @@ function rowHtml(i, partiyami) {
             i.category==='dona' ? 'ti-circle' :
             i.category==='blok' ? 'ti-cube' :
             'ti-box'
-          }" onclick="document.getElementById('fpimg-${i.id}').click()"></i>`}
-      <div class="cam-overlay" onclick="document.getElementById('fpimg-${i.id}').click()"><i class="ti ti-camera-plus"></i></div>
-      <input type="file" id="fpimg-${i.id}" accept="image/*" onchange="uploadFpImage(${i.id}, this)">
+          }"${mTahrir ? ` onclick="document.getElementById('fpimg-${i.id}').click()"` : ''}></i>`}
+      ${mTahrir ? `<div class="cam-overlay" onclick="document.getElementById('fpimg-${i.id}').click()"><i class="ti ti-camera-plus"></i></div>
+      <input type="file" id="fpimg-${i.id}" accept="image/*" onchange="uploadFpImage(${i.id}, this)">` : ''}
     </div>
     <div class="fp-main">
       <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
@@ -1840,15 +1886,16 @@ async function editPrice(id) {
   // (ilgari Math.round — "OK" bosilsa tiyinli narx jimgina yaxlitlanardi).
   const val = narxniOqi(v);
   if (!(val > 0)) { showMsg("❌ Narx noto'g'ri: " + v, 'error'); return; }
+  let res;
   try {
-    const res = await fetch(`/api/finished/${id}`, {
+    res = await fetch(`/api/finished/${id}`, {
       method: 'PUT',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({unit_price: val})
     });
-    if (res.ok) { loadFp(); showMsg('✓ Narx yangilandi', 'success'); }
-    else showMsg('❌ ' + await serverXatoSababi(res, 'Narx saqlanmadi'), 'error');   // kech107 (10d): ilgari jim
-  } catch(e) { showMsg('Xato', 'error'); }
+  } catch (e) { showMsg(await fpAmalXato('Narx', 'Narx saqlanmadi', e), 'error'); return; }
+  if (res.ok) { loadFp(); showMsg('✓ Narx yangilandi', 'success'); }
+  else showMsg(await fpAmalXato('Narx', 'Narx saqlanmadi', res), 'error');   // kech107 (10d): ilgari jim
 }
 
 async function delFp(id, source) {
@@ -1865,15 +1912,15 @@ async function delFp(id, source) {
     if (!(await customConfirm(`${item.name} — o'chirish`, `${item.name} o'chirilsinmi?`, {danger: true, okText: "Ha, o'chirish"}))) return;
   }
 
-  try {
-    const res = await fetch(`/api/finished/${id}?return_to_stock=${back}`, {method:'DELETE'});
-    if (res.ok) { loadFp(); showMsg('✓ O\'chirildi', 'success'); }
-    else {
-      // kech40 (K40-1): rad javobida server SABABI (ilgari hech narsa ko'rsatilmasdi —
-      // tugma "ishlamaydigandek" edi; endi qoldig'i bor qaytgan mahsulot ham rad etiladi)
-      showMsg('❌ ' + await serverXatoSababi(res, 'Xato'), 'error');
-    }
-  } catch(e) { showMsg('Xato', 'error'); }
+  let res;
+  try { res = await fetch(`/api/finished/${id}?return_to_stock=${back}`, {method:'DELETE'}); }
+  catch (e) { showMsg(await fpAmalXato("O'chirish", "O'chirilmadi", e), 'error'); return; }
+  if (res.ok) { loadFp(); showMsg('✓ O\'chirildi', 'success'); }
+  else {
+    // kech40 (K40-1): rad javobida server SABABI (ilgari hech narsa ko'rsatilmasdi —
+    // tugma "ishlamaydigandek" edi; endi qoldig'i bor qaytgan mahsulot ham rad etiladi)
+    showMsg(await fpAmalXato("O'chirish", "O'chirilmadi", res), 'error');
+  }
 }
 
 // ── Ishlab chiqarish (buyurtma oynasidagi kabi) ───────────
@@ -2167,7 +2214,8 @@ function pCalc() {
   const loyLine = loyKg > 0 && !tannarxKoradi ? `<br>🧱 Loy: <b>${loyKg} kg</b>` : loyKg > 0
     ? (loyCostPerKg > 0
         ? `<br>🧱 Loy: <b>${loyKg} kg × ${fmt(loyCostPerKg)} = ${fmt(loyCost)} so'm</b>${loyRecipeName ? ` <span style="color:var(--text3)">(${escapeHtml(loyRecipeName)})</span>` : ''}`
-        : `<br>🧱 Loy: <b>${loyKg} kg</b> <span style="color:var(--m-b45309)">— retsept tanlanmagan</span>`)
+        : `<br>🧱 Loy: <b>${loyKg} kg</b> <span style="color:var(--m-b45309)">— ${escapeHtml(
+            (typeof loadLoyCost === 'function' && loadLoyCost.xato) ? loadLoyCost.xato : 'retsept tanlanmagan')}</span>`)
     : '';
 
   const costPerUnit = count > 0 ? cost / count : 0;
@@ -2344,18 +2392,15 @@ async function saveProduce() {
 async function releaseFpReservation(id, name) {
   if (!(await customConfirm(`${name} — band qilishni bekor qilish`,
         `Bu mahsulot boshqa buyurtmaga band qilingan edi. Ozod qilinsa, endi UMUMIY sotuvga chiqadi va istalgan mijozga sotilishi mumkin bo'ladi. Davom etasizmi?`))) return;
-  try {
-    const res = await fetch(`/api/finished/${id}/release-reservation`, { method: 'POST' });
-    const r = await res.json();
-    if (res.ok) {
-      loadFp();
-      showMsg(`✅ ${r.message || 'Ozod qilindi'}`, 'success');
-    } else {
-      showMsg('❌ ' + xatoSababi(r, 'Xato'), 'error');
-    }
-  } catch(e) {
-    showMsg('❌ Server bilan aloqa yo\'q', 'error');
-  }
+  // kech144 (zip 177, audit D): javob JSON bo'lmasa (502) — ilgari «Server bilan aloqa yo'q»; endi sabab (`fpAmalXato`)
+  let res;
+  try { res = await fetch(`/api/finished/${id}/release-reservation`, { method: 'POST' }); }
+  catch (e) { showMsg(await fpAmalXato('Band bekor qilish', 'Band bekor qilinmadi', e), 'error'); return; }
+  if (!res.ok) { showMsg(await fpAmalXato('Band bekor qilish', 'Band bekor qilinmadi', res), 'error'); return; }
+  let r = {};
+  try { r = await res.json(); } catch (e) { r = {}; }
+  loadFp();
+  showMsg(`✅ ${(r && r.message) || 'Ozod qilindi'}`, 'success');
 }
 
 async function markReady(id) {
@@ -2367,19 +2412,16 @@ async function markReady(id) {
 
   if (!(await customConfirm(`${item.name} — sotuvga tayyor`, txt))) return;
 
-  try {
-    const res = await fetch(`/api/finished/${id}/complete`, { method: 'POST' });
-    const r = await res.json();
-
-    if (res.ok) {
-      loadFp();
-      showMsg(`✅ ${r.name} — SOTUVGA TAYYOR! (${fpMiqdor(r.quantity)} ${unitLabel(r.unit)})`, 'success');
-    } else {
-      showMsg('❌ ' + xatoSababi(r, 'Xato'), 'error');
-    }
-  } catch(e) {
-    showMsg('❌ Server xatosi', 'error');
-  }
+  // kech144 (zip 177, audit D): javob JSON bo'lmasa (502) — ilgari «Server xatosi»; endi sabab (`fpAmalXato`)
+  let res;
+  try { res = await fetch(`/api/finished/${id}/complete`, { method: 'POST' }); }
+  catch (e) { showMsg(await fpAmalXato('«Sotuvga tayyor»', "Holat o'zgarmadi", e), 'error'); return; }
+  if (!res.ok) { showMsg(await fpAmalXato('«Sotuvga tayyor»', "Holat o'zgarmadi", res), 'error'); return; }
+  let r = null;
+  try { r = await res.json(); } catch (e) { r = null; }
+  const t = (r && typeof r === 'object') ? r : item;
+  loadFp();
+  showMsg(`✅ ${t.name} — SOTUVGA TAYYOR! (${fpMiqdor(t.quantity)} ${unitLabel(t.unit)})`, 'success');
 }
 
 // ── FOYDA ─────────────────────────────────────────────────
@@ -2387,9 +2429,12 @@ function closeProfitModal() {
   document.getElementById('profitModal').style.display = 'none';
 }
 
+// kech144 (zip 177, audit C#10): `yukOl` + `yukNavbat('foyda')` — yuklanmasa sabab (ilgari jim «Penoplast 0 so'm» va butun tannarx
+// «narx farqi» qatorida), A ochilib darhol B ochilsa A ning raqamlari B sarlavhasi ostiga tushmaydi
 async function openProfitModal(id) {
   const i = fpItems.find(x => x.id === id);
   if (!i) return;
+  const joriy = yukNavbat('foyda');
 
   document.getElementById('pm-sub').textContent = `${i.name} · ${fpMiqdor(i.quantity)} ${unitLabel(i.unit)}`;
   document.getElementById('profitModal').style.display = 'flex';
@@ -2416,17 +2461,25 @@ async function openProfitModal(id) {
   let loyCost = 0, loyPerKg = 0, recipeName = '', penoCost = 0;
   // kech61 (46-band): hajm / loy — QOLDIQ uchun (server `volume_m3` / `loy_kg`); javob kelmasa — jami.
   let qVol = i.volume_m3 || 0, qLoy = i.actual_loy_kg || 0;
-  try {
-    const d = await fetch(`/api/finished/${id}/profit`).then(r => r.json());
-    if (d.success) {
-      loyCost = d.loy_cost || 0;
-      loyPerKg = d.loy_cost_per_kg || 0;
-      recipeName = d.recipe || '';
-      penoCost = d.penoplast_cost || 0;
-      qVol = d.volume_m3 || 0;
-      qLoy = d.loy_kg || 0;
-    }
-  } catch(e) {}
+  let d;
+  try { d = await yukOl(`/api/finished/${encodeURIComponent(id)}/profit`); }
+  catch (e) {
+    if (!joriy()) return;
+    yukRoyxatXato('pm-body', yukXatoMatn('Foyda hisobi', (e && e.yukXato) ? e : yukXato('server')));
+    return;
+  }
+  if (!joriy()) return;
+  if (d && d.success) {
+    loyCost = d.loy_cost || 0;
+    loyPerKg = d.loy_cost_per_kg || 0;
+    recipeName = d.recipe || '';
+    penoCost = d.penoplast_cost || 0;
+    qVol = d.volume_m3 || 0;
+    qLoy = d.loy_kg || 0;
+  } else {
+    yukRoyxatXato('pm-body', yukXatoMatn('Foyda hisobi', yukXato('rad', 0, (d && d.message) || '')));
+    return;
+  }
   const qLoyTxt = Math.round(qLoy * 100) / 100;
 
   const w2 = fpWidth2(i);

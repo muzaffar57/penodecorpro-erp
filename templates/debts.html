@@ -212,7 +212,8 @@ html[data-theme="dark"] .dbt-wrap{--d-bg:var(--bg); --d-card:var(--white); --d-b
               Qolgan qarzni chegirma qilib yopish (kechirish)
             </label>
             <div id="pay-writeoff-izoh" style="display:none;margin-bottom:12px;padding:8px 10px;border-radius:8px;font-size:13px;line-height:1.45;background:var(--f-fef2f2);color:var(--m-b91c1c);border:1px solid var(--ch-fecaca)"></div>
-            <button class="btn btn-dark w-full" onclick="savePayment()">✓ To'lovni qabul qilish</button>
+            {# kech144 (zip 177, audit C#20): «To'lovlar: Yaratish» ruxsati yo'q — karta umuman ochilmaydi (`TOLOV_YARATISH`), tugma ham yo'q #}
+            {% if current_user.ruxsat('tolov', 'yaratish') %}<button class="btn btn-dark w-full" onclick="savePayment()">✓ To'lovni qabul qilish</button>{% endif %}
             <div id="pay-msg" style="display:none;margin-top:10px;padding:9px;border-radius:8px;font-size:13px"></div>
           </div>
         </div>
@@ -279,7 +280,7 @@ html[data-theme="dark"] .dbt-wrap{--d-bg:var(--bg); --d-card:var(--white); --d-b
               </select>
             </div>
             <div class="form-group"><label>Izoh (ixtiyoriy)</label><input type="text" id="ref-note" placeholder="..." maxlength="300"></div>
-            <button class="btn btn-dark w-full" onclick="saveRefund()">✓ Qaytarildi</button>
+            {% if current_user.ruxsat('tolov', 'yaratish') %}<button class="btn btn-dark w-full" onclick="saveRefund()">✓ Qaytarildi</button>{% endif %}
             <div id="ref-msg" style="display:none;margin-top:10px;padding:9px;border-radius:8px;font-size:13px"></div>
           </div>
         </div>
@@ -352,7 +353,8 @@ html[data-theme="dark"] .dbt-wrap{--d-bg:var(--bg); --d-card:var(--white); --d-b
                   </div>
                   <div style="font-weight:800;color:var(--m-dc2626);font-size:16px">{{ "{:,.0f}".format(e.qolgan).replace(",", " ") }}</div>
                 </div>
-                <button class="btn btn-outline btn-xs" style="margin-top:8px" data-qolgan="{{ e.qolgan }}" onclick="event.stopPropagation();closeEmployeeDebt(this.closest('.oblig-item').dataset.empId, this.closest('.oblig-item').dataset.empName, parseFloat(this.dataset.qolgan), this.closest('.oblig-item').dataset.year, this.closest('.oblig-item').dataset.month)">✓ To'liq to'landi deb belgilash</button>
+                {# kech144 (zip 177, audit C#20): `…/employee/{id}/close` — «Qarzlar: Tahrirlash» ruxsati bilan #}
+                {% if current_user.ruxsat('qarz', 'tahrirlash') %}<button class="btn btn-outline btn-xs" style="margin-top:8px" data-qolgan="{{ e.qolgan }}" onclick="event.stopPropagation();closeEmployeeDebt(this.closest('.oblig-item').dataset.empId, this.closest('.oblig-item').dataset.empName, parseFloat(this.dataset.qolgan), this.closest('.oblig-item').dataset.year, this.closest('.oblig-item').dataset.month)">✓ To'liq to'landi deb belgilash</button>{% endif %}
               </div>
             </div>
             {% endfor %}
@@ -384,7 +386,8 @@ html[data-theme="dark"] .dbt-wrap{--d-bg:var(--bg); --d-card:var(--white); --d-b
       <div class="dbt-card">
         <div style="padding:16px 18px;border-bottom:1px solid var(--ch-f3f4f6);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
           <span style="font-weight:700;font-size:16px">🏛️ Doimiy majburiyatlar</span>
-          <button class="btn btn-dark btn-md" onclick="openAddCategoryModal()">+ Yangi kategoriya</button>
+          {# kech144 (zip 177, audit C#20): `POST /api/obligations/recurring` — «Qarzlar: Yaratish» ruxsati bilan #}
+          {% if current_user.ruxsat('qarz', 'yaratish') %}<button class="btn btn-dark btn-md" onclick="openAddCategoryModal()">+ Yangi kategoriya</button>{% endif %}
         </div>
         <div style="padding:8px 18px 18px">
           {% if company_obligations.recurring %}
@@ -407,7 +410,8 @@ html[data-theme="dark"] .dbt-wrap{--d-bg:var(--bg); --d-card:var(--white); --d-b
                 </div>
               </div>
               <div class="dbt-progress-track"><div class="dbt-progress-fill" style="width:{{ (r.paid/r.target*100)|round if r.target>0 else 0 }}%;background:{{ status_color[r.status] }}"></div></div>
-              <button class="btn btn-outline btn-xs" style="margin-top:8px" data-debt="{{ r.debt }}" onclick="event.stopPropagation();const it=this.closest('.oblig-item');quickPayObligation(it.dataset.category, it.dataset.label, parseFloat(this.dataset.debt), it.dataset.year, it.dataset.month, it.dataset.monthLabel)">💰 To'lov qo'shish</button>
+              {# kech144 (zip 177, audit C#20): to'lov — `POST /api/finance/transactions` — «Kunlik xarajat: Yaratish» ruxsati bilan #}
+              {% if current_user.ruxsat('kunlik', 'yaratish') %}<button class="btn btn-outline btn-xs" style="margin-top:8px" data-debt="{{ r.debt }}" onclick="event.stopPropagation();const it=this.closest('.oblig-item');quickPayObligation(it.dataset.category, it.dataset.label, parseFloat(this.dataset.debt), it.dataset.year, it.dataset.month, it.dataset.monthLabel)">💰 To'lov qo'shish</button>{% endif %}
             </div>
             {% endfor %}
           {% else %}
@@ -420,7 +424,8 @@ html[data-theme="dark"] .dbt-wrap{--d-bg:var(--bg); --d-card:var(--white); --d-b
             {% for t in recurring_targets %}
             <span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;background:var(--d-bg);padding:4px 9px;border-radius:12px;margin:2px 4px 2px 0">
               {{ t.icon }} {{ t.label }}
-              <span data-id="{{ t.id }}" data-label="{{ t.label }}" onclick="deleteCategory(this.dataset.id, this.dataset.label)" style="cursor:pointer;color:var(--m-dc2626);margin-left:2px">✕</span>
+              {# kech144 (zip 177, audit C#20): `DELETE /api/obligations/recurring/{id}` — «Qarzlar: O'chirish» ruxsati bilan #}
+              {% if current_user.ruxsat('qarz', 'ochirish') %}<span data-id="{{ t.id }}" data-label="{{ t.label }}" onclick="deleteCategory(this.dataset.id, this.dataset.label)" style="cursor:pointer;color:var(--m-dc2626);margin-left:2px">✕</span>{% endif %}
             </span>
             {% endfor %}
           </div>
@@ -486,6 +491,9 @@ html[data-theme="dark"] .dbt-wrap{--d-bg:var(--bg); --d-card:var(--white); --d-b
 </script>
 
 <script>
+// kech144 (zip 177, audit C#20): «To'lovlar: Yaratish» ruxsati (`POST /api/payments`, `…/refund-overpayment` — server `auth.ruxsat`
+// bilan AYNAN) — yo'q bo'lsa to'lov / qaytarish kartalari ochilmaydi
+const TOLOV_YARATISH = {{ 'true' if current_user.ruxsat('tolov', 'yaratish') else 'false' }};
 function fmt(n){ return Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' '); }
 // ── 118-band (kech94): YAGONA son / narx kiritish qoidasi ──────────────────
 // parseNum / narxMatni / narxniOqi / narxKorinishi / formatPriceInput matni debts, finance,
@@ -728,10 +736,11 @@ async function openObligTimeline(category, label, year, month, monthLabel){
   document.getElementById('tl-sub').textContent = oy.sarlavha;
   document.getElementById('tl-list').innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>';
   document.getElementById('timelineModal').style.display = 'flex';
-  try {
-    const rows = await fetch(`/api/obligations/timeline?category=${encodeURIComponent(category)}&year=${oy.y}&month=${oy.m}`).then(r=>r.json());
-    renderTimeline(rows);
-  } catch(e) { document.getElementById('tl-list').innerHTML = '<div style="text-align:center;padding:20px;color:var(--m-dc2626)">Xato yuz berdi</div>'; }
+  // kech144 (zip 177, audit C#16): `yukBlok('tl')` — 4xx / 5xx da yolg'on «Bu oyda to'lov yo'q» o'rniga sabab; A yopilib B ochilsa A ning
+  // kech kelgan qatorlari B ro'yxatiga tushmaydi
+  await yukBlok('tl', `/api/obligations/timeline?category=${encodeURIComponent(category)}&year=${oy.y}&month=${oy.m}`,
+                rows => renderTimeline(Array.isArray(rows) ? rows : []),
+                e => yukRoyxatXato('tl-list', yukXatoMatn("To'lovlar tarixi", e)));
 }
 
 async function openEmpTimeline(empId, name, year, month, monthLabel){
@@ -741,10 +750,9 @@ async function openEmpTimeline(empId, name, year, month, monthLabel){
   document.getElementById('tl-sub').textContent = oy.sarlavha + ' (avans + yakuniy to\'lovlar)';
   document.getElementById('tl-list').innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>';
   document.getElementById('timelineModal').style.display = 'flex';
-  try {
-    const rows = await fetch(`/api/obligations/employee/${empId}/timeline?year=${oy.y}&month=${oy.m}`).then(r=>r.json());
-    renderTimeline(rows);
-  } catch(e) { document.getElementById('tl-list').innerHTML = '<div style="text-align:center;padding:20px;color:var(--m-dc2626)">Xato yuz berdi</div>'; }
+  await yukBlok('tl', `/api/obligations/employee/${encodeURIComponent(empId)}/timeline?year=${oy.y}&month=${oy.m}`,     // kech144 (zip 177, C#16)
+                rows => renderTimeline(Array.isArray(rows) ? rows : []),
+                e => yukRoyxatXato('tl-list', yukXatoMatn("To'lovlar tarixi", e)));
 }
 
 function renderTimeline(rows){
@@ -820,7 +828,8 @@ function selectOrderDebt(el, surish){
       ? '<div style="margin-top:12px;font-size:12px;color:var(--m-dc2626);text-align:center">Buyurtma o\'chirilgan (topshirilgan qismi hisobotda) — qarz undirilishi kerak</div><a href="/trash" style="display:block;margin-top:6px;text-align:center;font-size:13px;color:var(--gold-dark);text-decoration:none">O\'chirilganlar sahifasida ochish →</a>'
       : `<a href="/orders?order=${encodeURIComponent(d.id)}" style="display:block;margin-top:12px;text-align:center;font-size:13px;color:var(--gold-dark);text-decoration:none">Buyurtmalar sahifasida ochish →</a>`}`;
 
-  document.getElementById('payCard').style.display = 'block';
+  // kech144 (zip 177, audit C#20): «To'lovlar: Yaratish» ruxsati yo'q — to'lov kartasi ochilmaydi (ilgari to'ldirilib, 403 berardi)
+  document.getElementById('payCard').style.display = ((typeof TOLOV_YARATISH === 'undefined') || TOLOV_YARATISH) ? 'block' : 'none';
   // kech115 (G3-01, O'LCHANGAN — audit: robot tugmani BIR marta bosganda to'lov haqiqatan yozildi, kassa +380 000):
   // summa endi o'zi yozilmaydi — xodim mijoz bergan summani yozadi yoki «Butun qarz» ni bosadi (124-band: aniq qarz,
   // `narxKorinishi` — tiyingacha); saqlashdan oldin tasdiq (`savePayment`).
@@ -958,7 +967,8 @@ async function savePaymentIchki(){
         + " Sahifani yangilang — qarz qayta o'qiladi.";
       return;
     }
-    msg.textContent = '❌ ' + (res.status >= 500 || res.status === 401 ? await amalSababi(res) : await serverSababi(res, 'Xato yuz berdi'));
+    // kech144 (zip 177, audit D): rad sababi — `amalSababi` (422 — maydon sababi, sababsiz 403 — «ruxsat yo'q»; ilgari «Xato yuz berdi»)
+    msg.textContent = '❌ ' + await amalSababi(res);
   }
 }
 
@@ -983,7 +993,7 @@ function selectRefund(el){
     <div class="dbt-sum-row" style="border-top:2px solid #F97316;padding-top:10px;margin-top:4px">
       <span style="font-weight:700">QAYTARISH KERAK:</span><span style="font-weight:800;font-size:16px;color:var(--m-c2410c)">${escapeHtml(narxKorinishi(ort))} so'm</span>
     </div>`;
-  document.getElementById('refundCard').style.display = 'block';
+  document.getElementById('refundCard').style.display = ((typeof TOLOV_YARATISH === 'undefined') || TOLOV_YARATISH) ? 'block' : 'none';
   // Aniq (tiyinli) summa — butun ortiqcha; qisman qaytarish uchun o'zgartirish mumkin
   document.getElementById('ref-amount').value = narxKorinishi(ort);
   document.getElementById('ref-method').value = 'naqd';
@@ -1007,26 +1017,37 @@ async function saveRefund(){
                                  {okText: 'Ha, qaytarildi'});
   if (!ha) return;
   _refundYuborilmoqda = true;
+  // kech144 (zip 177, audit D): rad — server sababi (`amalSababi`; ilgari «Xato yuz berdi»), natija noma'lum (tarmoq / 5xx) — «sahifani
+  // yangilab tekshiring» (ilgari 502 ham «Server bilan aloqa yo'q»); javob JSON bo'lmasa ham muvaffaqiyat ko'rsatiladi. Muvaffaqiyatdan
+  // keyin sahifa yangilanguncha tugma qayta ishlamaydi (ilgari bayroq 1,3 s oldin bo'shardi — ikkinchi bosishda yana «✓ qaytarildi»).
+  let bajarildi = false;
+  const xatoKor = (t) => {
+    msg.style.display = 'block'; msg.style.background = 'var(--f-fee2e2)'; msg.style.color = 'var(--m-dc2626)';
+    msg.textContent = t;
+  };
   try {
-    const res = await fetch(`/api/orders/${encodeURIComponent(selectedRefundId)}/refund-overpayment`, {
-      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(tana)
-    });
+    let res;
+    try {
+      res = await fetch(`/api/orders/${encodeURIComponent(selectedRefundId)}/refund-overpayment`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(tana)
+      });
+    } catch (e) { xatoKor("⚠️ Natija noma'lum: " + await amalSababi(e)); return; }
     msg.style.display = 'block';
     if (res.ok) {
-      const d = await res.json();
+      bajarildi = true;
+      let d = null;
+      try { d = await res.json(); } catch (e) { d = null; }
       msg.style.background = 'var(--f-dcfce7)'; msg.style.color = 'var(--m-166534)';
-      msg.textContent = `✓ ${narxKorinishi(d.qaytarildi)} so'm qaytarildi deb yozildi` +
-        (Number(d.ortiqcha_qoldi) > 0 ? ` — yana ${narxKorinishi(d.ortiqcha_qoldi)} so'm qaytarish kerak` : '');
+      msg.textContent = (d && d.qaytarildi !== undefined && d.qaytarildi !== null)
+        ? `✓ ${narxKorinishi(d.qaytarildi)} so'm qaytarildi deb yozildi` +
+          (Number(d.ortiqcha_qoldi) > 0 ? ` — yana ${narxKorinishi(d.ortiqcha_qoldi)} so'm qaytarish kerak` : '')
+        : `✓ ${narxKorinishi(amount)} so'm qaytarildi deb yozildi`;
       setTimeout(() => location.reload(), 1300);
     } else {
-      msg.style.background = 'var(--f-fee2e2)'; msg.style.color = 'var(--m-dc2626)';
-      msg.textContent = '❌ ' + await serverSababi(res, 'Xato yuz berdi');
+      xatoKor((res.status >= 500 ? "⚠️ Natija noma'lum: " : '❌ ') + await amalSababi(res));
     }
-  } catch (e) {
-    msg.style.display = 'block'; msg.style.background = 'var(--f-fee2e2)'; msg.style.color = 'var(--m-dc2626)';
-    msg.textContent = '❌ Server bilan aloqa yo\'q';
   } finally {
-    _refundYuborilmoqda = false;
+    if (!bajarildi) _refundYuborilmoqda = false;
   }
 }
 
