@@ -324,14 +324,17 @@ if PW_BOR:
         _yol = re.compile(r".*/api/hodim/oylik\?oy=.*")
         xav(pg.route, _yol, lambda r: r.fulfill(status=500, content_type="application/json", body='{"detail":"x"}'))
         xav(pg.click, "#oylik-list details[data-oy] >> nth=2 >> summary")
-        kut(pg, "(() => { const d = document.querySelectorAll('#oylik-list details[data-oy]')[2]; return d && d.innerText.includes('Yuklashda xato'); })()")
+        # kech144 (zip 178 — MOSLANDI, audit H1): xato — sabab bilan («Yuklanmadi — server javob bermadi (500)»; ilgari «Yuklashda xato»)
+        kut(pg, "(() => { const d = document.querySelectorAll('#oylik-list details[data-oy]')[2]; return d && d.innerText.includes('Yuklanmadi'); })()")
         _x = yopiqlar(pg)
         xav(pg.unroute, _yol)
         xav(pg.click, "#oylik-list details[data-oy] >> nth=2 >> .oy-qayta")
         kut(pg, "(() => { const d = document.querySelectorAll('#oylik-list details[data-oy]')[2]; return d && d.dataset.yuklandi === '1'; })()")
         _y = yopiqlar(pg)
-        check("U4 server xatosi — «Yuklashda xato» + «🔄 Qayta yuklash» tugmasi; tugma bosilsa — qayta so'raladi va chiziladi («Qolgan 11 000 000 so'm»)",
-              isinstance(_x, list) and len(_x) == 5 and "Yuklashda xato" in _x[3].get("ichi", "") and "Qayta yuklash" in _x[3].get("ichi", "")
+        check("U4 server xatosi — «Yuklanmadi — server javob bermadi (500)» + «🔄 Qayta yuklash» tugmasi; tugma bosilsa — qayta so'raladi va "
+              "chiziladi («Qolgan 11 000 000 so'm»)",
+              isinstance(_x, list) and len(_x) == 5 and "Yuklanmadi — server javob bermadi (500)" in _x[3].get("ichi", "")
+              and "Qayta yuklash" in _x[3].get("ichi", "")
               and isinstance(_y, list) and len(_y) == 5 and _y[3].get("xulosa") == "Qolgan 11 000 000 so'm", (_x[3:4] if isinstance(_x, list) else _x,
                                                                                                           _y[3:4] if isinstance(_y, list) else _y))
 

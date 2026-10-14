@@ -563,6 +563,10 @@ def _chaqiruvlar(tugunlar):
         for n in _ast.walk(t):
             if isinstance(n, _ast.Call):
                 s.add(_nuqtali(n))
+                # kech145 (zip 178, MOSLANDI): `_fonda(background_tasks, fn, ...)` — `fn` javobdan KEYIN (fon vazifasi) chaqiriladi;
+                # chaqiruv joyi — shu qator (blokdan tashqarida bo'lishi shu yerda tekshiriladi)
+                if _nuqtali(n) == "_fonda" and len(n.args) >= 2 and isinstance(n.args[1], (_ast.Name, _ast.Attribute)):
+                    s.add(_nuqtali(_ast.Call(func=n.args[1], args=[], keywords=[])))
     return s
 
 
@@ -577,8 +581,9 @@ def _raise_ichida(bloklar):
 STATIK = [
     # (belgi, endpoint, blok ICHIDA bo'lishi shart, blokdan TASHQARIDA bo'lishi shart, rad (raise) blok ichida)
     ("A", "api_create_order", ["crud.create_order", "services.deduct_inventory_for_order"], ["_send_telegram"], False),
+    # kech145 (zip 178, MOSLANDI — audit T5): yuk xati PDF mijozga `_yuk_xati_fonda` orqali (fon vazifasi, o'z sessiyasi) — pastda HD2
     ("D", "api_mark_order_ready", ["services.complete_order"],
-     ["_send_telegram", "_send_telegram_to", "_send_delivery_pdf_to_customer", "crud.get_order"], True),
+     ["_send_telegram", "_send_telegram_to", "_yuk_xati_fonda", "crud.get_order"], True),
     ("E", "api_update_loy", ["crud.update_order_loy"], [], True),
     ("F", "api_purchase_stock", ["crud.purchase_stock", "crud.create_transport_expense", "crud.create_supplier_payment"],
      ["_send_telegram", "crud.get_suppliers_with_debt"], True),
@@ -606,6 +611,13 @@ for (_b, _fn, _ich, _tash, _rad) in STATIK:
     if _rad:
         check(f"H{_b} {_fn}: rad javobi (raise HTTPException) blok ICHIDA — yozilgani bekor bo'ladi",
               _raise_ichida(_bl))
+
+
+# kech145 (zip 178, MOSLANDI): HD2 — `_yuk_xati_fonda` yuk xatini mijozga yuboradi, o'z sessiyasi bilan (so'rov sessiyasi yopilgan)
+_fy = _funksiya("_yuk_xati_fonda")
+_fy_ch = _chaqiruvlar([_fy]) if _fy is not None else set()
+check("HD2 _yuk_xati_fonda: `_send_delivery_pdf_to_customer(` va o'z sessiyasi (`SessionLocal(`) bor",
+      "_send_delivery_pdf_to_customer" in _fy_ch and "SessionLocal" in _fy_ch, sorted(_fy_ch)[:12])
 
 
 # K84-1 — takror yuborilgan buyurtma: `crud.create_order` belgisi (`_is_duplicate_submit`) endpointda tekshiriladi

@@ -1613,7 +1613,7 @@ def _t_statik():
         rsrc = f"ISTISNO {e}"
     check("T9 marshrut: takror javob Telegram / nakladnoy yuborishdan OLDIN qaytadi",
           tartibda(rsrc, 'if not result["success"]', 'if result.get("duplicate"):',
-                   "return result", "_send_telegram("), "tartib buzilgan")
+                   "return result", "_fonda(background_tasks, _send_telegram"), "tartib buzilgan")   # kech144 (zip 178, MOSLANDI): fon
     usul = getattr(crud, "_YETKAZISH_USULI", None)
     check("T9 to'lov usuli jadvali yagona (yozuv va imzo bir xil)",
           isinstance(usul, dict) and set(usul) == {"naqd", "plastik", "o'tkazma"}
