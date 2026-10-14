@@ -226,6 +226,37 @@ def _tg_post_message(token, chat_id, text, reply_markup=None):
         return urllib.request.urlopen(req, timeout=5)
 
 
+TG_BOLAK = 4000
+
+
+def _tg_bolaklar(text, chegara=TG_BOLAK):
+    """kech144 (zip 178, audit T2 — O'LCHANGAN: 160 materialli «Ombor hisoboti» 7 104 belgi): Telegram bitta xabarda 4096 belgigacha
+    qabul qiladi — uzunroq matn 400 bilan rad etilardi (`_tg_post_message` uni «Markdown xatosi» deb bezaksiz qayta yuborardi, u ham
+    rad etilardi) va xabar jimgina yo'qolardi («bot sozlanmagan» deyilardi). Endi matn QATORLAR bo'yicha ≤ `chegara` belgili
+    bo'laklarga bo'linadi (qatorning o'zi uzun bo'lsa — belgilar bo'yicha); qisqa matn — o'zi (bitta bo'lak)."""
+    s = "" if text is None else str(text)
+    if len(s) <= chegara:
+        return [s]
+    out, joriy = [], None
+    for q in s.split("\n"):
+        while len(q) > chegara:
+            if joriy is not None:
+                out.append(joriy)
+                joriy = None
+            out.append(q[:chegara])
+            q = q[chegara:]
+        if joriy is None:
+            joriy = q
+        elif len(joriy) + 1 + len(q) <= chegara:
+            joriy += "\n" + q
+        else:
+            out.append(joriy)
+            joriy = q
+    if joriy is not None and joriy.strip():
+        out.append(joriy)
+    return [b for b in out if b.strip()] or [s[:chegara]]
+
+
 def _send_telegram(text: str, company_id=None):
     """kech120 (zip 132 — audit G4-07): natija — True (kamida bitta chatga ketdi) yoki False (token / chat yo'q yoki hammasi xato).
     Ilgari hech narsa qaytarmasdi va «SMS» tugmalari Telegram sozlanmagan korxonada ham «yuborildi» derdi. Chaqiruvchi faqat
@@ -254,7 +285,9 @@ def _send_telegram(text: str, company_id=None):
     _ketdi = False
     for chat_id in chat_ids:
         try:
-            _tg_post_message(token, chat_id, text)
+            # kech144 (zip 178, audit T2): uzun matn — bo'laklab (≤ 4000 belgi); chat «yetdi» — HAMMA bo'lak ketganda
+            for _bolak in _tg_bolaklar(text):
+                _tg_post_message(token, chat_id, _bolak)
             print(f"✓ Telegram xabar yuborildi ({chat_id})")
             _ketdi = True
         except Exception as e:
@@ -275,7 +308,8 @@ def _send_telegram_to(chat_id: str, text: str, company_id=None):
         print("⚠ Telegram tokeni yo'q")
         return
     try:
-        _tg_post_message(token, chat_id, text)
+        for _bolak in _tg_bolaklar(text):         # kech144 (zip 178, audit T2)
+            _tg_post_message(token, chat_id, _bolak)
         print(f"✓ Telegram xabar yuborildi: {chat_id}")
     except Exception as e:
         print(f"⚠ Mijozga Telegram xabar yuborilmadi: {e}")
@@ -582,6 +616,24 @@ def _master_bot_keyboard(db, master=None) -> dict:
     else:
         rows = [[{"text": "💰 Bonuslarim"}, {"text": "🪪 Mening ID raqamim"}]]
     return {"keyboard": rows, "resize_keyboard": True, "persistent": True}
+
+
+def _fonda(background_tasks, fn, *a, **k):
+    """kech144 (zip 178, audit T5): `fn` — javobdan KEYIN (FastAPI fon vazifasi). Marshrut funksiyasi to'g'ridan-to'g'ri chaqirilsa
+    (`background_tasks` yo'q — sinovlar) — darhol (avvalgidek)."""
+    if background_tasks is None:
+        return fn(*a, **k)
+    background_tasks.add_task(fn, *a, **k)
+
+
+def _yuk_xati_fonda(delivery_id: int):
+    """kech144 (zip 178, audit T5): Yuk xati PDF / matni mijoz va ustaga — JAVOBDAN KEYIN (fon vazifasi). So'rov sessiyasi bu paytda
+    yopilgan — o'z sessiyasi ochiladi. Xatolar `_send_delivery_pdf_to_customer` ning o'zida ushlanadi (jurnalga)."""
+    _fdb = SessionLocal()
+    try:
+        _send_delivery_pdf_to_customer(_fdb, delivery_id)
+    finally:
+        _fdb.close()
 
 
 def _send_delivery_pdf_to_customer(db, delivery_id: int):
@@ -3693,6 +3745,8 @@ async def global_error_logger(request: Request, exc: Exception):
             log_db.close()
     except Exception:
         pass  # Log yozishning o'zi xato bersa — asosiy oqimni to'xtatmaymiz
+    if _pdf_sahifa_sorovimi(request):          # kech144 (zip 178, audit P2): PDF havolasi — o'zbekcha sahifa
+        return _pdf_xato_sahifasi(request, 500)
     return JSONResponse(status_code=500, content={"detail": "Serverda kutilmagan xato yuz berdi"})
 
 
@@ -3725,6 +3779,8 @@ async def tenant_mismatch_handler(request: Request, exc: _TenantMismatchError):
 
 
 from starlette.exceptions import HTTPException as _StarletteHTTPException
+# kech144 (zip 178, audit T1): `async` marshrut ichidagi sinxron ish (Telegram `urlopen`, baza) — ip ichida (butun server to'xtamaydi)
+from starlette.concurrency import run_in_threadpool as _ip_ichida
 
 
 @app.exception_handler(_StarletteHTTPException)
@@ -3744,6 +3800,12 @@ async def custom_http_exception_handler(request: Request, exc: _StarletteHTTPExc
         _r = RedirectResponse(url=f"/login?b={_blok}", status_code=302)
         _r.delete_cookie("session_token")
         return _r
+    # kech144 (zip 178, audit P2): PDF havolasi (yangi oynada ochilgan) — xato xom JSON emas: sessiya tugagan — kirish sahifasi,
+    # boshqasi — o'zbekcha sahifa (ilgari 401 / 404 / 500 da `{"detail": …}` matni)
+    if exc.status_code >= 400 and _pdf_sahifa_sorovimi(request):
+        if exc.status_code == 401:
+            return RedirectResponse(url="/login", status_code=302)
+        return _pdf_xato_sahifasi(request, exc.status_code, exc.detail if isinstance(exc.detail, str) else None)
     if exc.status_code == 401 and not request.url.path.startswith("/api/"):
         return RedirectResponse(url="/login", status_code=302)
     # kech118 (B bosqichi — audit U-11, O'LCHANGAN: `/bunday-sahifa-yoq` → oq sahifada faqat {"detail":"Not Found"};
@@ -3754,6 +3816,55 @@ async def custom_http_exception_handler(request: Request, exc: _StarletteHTTPExc
         return _xato_sahifasi(request, exc.status_code, exc.detail if isinstance(exc.detail, str) else None)
     # Boshqa barcha holatlar uchun — FastAPI'ning standart javobi bilan bir xil
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail}, headers=exc.headers)
+
+
+PDF_XATO_MATNI = ("Hujjat (PDF) tayyorlanmadi — xato «Xatoliklar» jurnaliga yozildi. Qayta urinib ko'ring; takrorlansa — "
+                  "administratorga ayting.")
+
+
+def _pdf_xato(db, e, endpoint=None, company_id=None):
+    """kech144 (zip 178, audit P2): PDF tayyorlanmadi — sabab «Xatoliklar» jurnaliga (stek bilan), foydalanuvchiga o'zbekcha matn
+    (ilgari `PDF xato: <Python inglizcha xatosi>` — masalan «Flowable <Table@0x…> too large on page 2»). Qaytaradi: HTTPException
+    (500) — chaqiruvchi `raise` qiladi (except bloki ICHIDA chaqiriladi — stek shu yerdan olinadi)."""
+    import traceback as _tb_pdf
+    print("PDF XATO:\n", _tb_pdf.format_exc())
+    try:
+        db.rollback()
+    except Exception:
+        pass
+    try:
+        crud.log_error(db, f"PDF tayyorlanmadi: {e}", stack_trace=_tb_pdf.format_exc(), endpoint=endpoint, company_id=company_id)
+    except Exception:
+        pass
+    return HTTPException(status_code=500, detail=PDF_XATO_MATNI)
+
+
+def _pdf_sahifa_sorovimi(request: Request) -> bool:
+    """kech144 (zip 178, audit P2): PDF havolasi brauzerda (yangi oynada) ochilmoqda — GET / HEAD, `/api/…pdf` yo'li, `Accept` da
+    text/html. Sahifa ichidagi `fetch` (Accept: */*) — avvalgidek JSON."""
+    if request.method not in ("GET", "HEAD"):
+        return False
+    _yol = (request.url.path or "").lower().rstrip("/")
+    return _yol.startswith("/api/") and _yol.endswith("pdf") and "text/html" in (request.headers.get("accept") or "").lower()
+
+
+def _pdf_xato_sahifasi(request: Request, kod: int, izoh: str = None):
+    """kech144 (zip 178, audit P2): PDF ochilmadi — o'zbekcha sahifa (`xato_sahifa.html`; «Orqaga» / «Bosh sahifaga»). Holat kodi
+    saqlanadi. 500 — umumiy matn (Python xatosi ko'rsatilmaydi)."""
+    izoh = (izoh or "").strip() if isinstance(izoh, str) else ""
+    if kod == 404:
+        sarlavha, matn = ("Hujjat topilmadi",
+                          izoh or "Bu hujjat (buyurtma, yuk xati, sotuv yoki taklif) o'chirilgan yoki manzil noto'g'ri.")
+    elif kod == 403:
+        sarlavha, matn = ("Bu hujjatga ruxsatingiz yo'q",
+                          izoh or "Sizning rolingiz bu hujjatni ochishga ruxsat bermaydi. Kerak bo'lsa, korxona administratoriga "
+                                  "murojaat qiling.")
+    elif kod >= 500:
+        sarlavha, matn = "Hujjat tayyorlanmadi", PDF_XATO_MATNI
+    else:
+        sarlavha, matn = "Hujjat ochilmadi", izoh or "So'rov noto'g'ri — sahifani yangilab, qayta urinib ko'ring."
+    return templates.TemplateResponse(
+        request, "xato_sahifa.html", {"kod": kod, "sarlavha": sarlavha, "matn": matn, "bosh": "/"}, status_code=kod)
 
 
 def _html_sahifa_sorovimi(request: Request) -> bool:
@@ -4313,7 +4424,8 @@ async def login_page(request: Request, b: str = "", db: Session = Depends(get_db
 
 
 @app.post("/login")
-async def login_submit(request: Request, username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
+# kech144 (zip 178, audit H4): `def` (ilgari `async def`) — parol tekshiruvi (bcrypt) FastAPI ipida, butun server to'xtamaydi
+def login_submit(request: Request, username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
     from models import User
     username = username.strip()
     ip = auth.mijoz_ip(request)     # kech116 (U-01): haqiqiy mijoz manzili (Railway proksisi emas)
@@ -6053,7 +6165,8 @@ async def hodim_login_page(request: Request, b: str = "", k: str = "", db: Sessi
 
 
 @app.post("/hodim/login")
-async def hodim_login_submit(request: Request, background_tasks: BackgroundTasks, phone: str = Form(...),
+# kech144 (zip 178, audit H4): `def` (ilgari `async def`) — PIN tekshiruvi (bcrypt) FastAPI ipida
+def hodim_login_submit(request: Request, background_tasks: BackgroundTasks, phone: str = Form(...),
                               pin: str = Form(...), korxona: str = Form(""), qurilma_model: str = Form(""),
                               db: Session = Depends(get_db)):
     """kech133 (zip 159 — egasi QARORLARI 09.10): to'g'ri telefon + PIN dan keyin TELEFON tekshiriladi — brauzer kaliti
@@ -7424,9 +7537,8 @@ def api_taklif_pdf(taklif_id: int, db: Session = Depends(get_db), current_user=D
         raise HTTPException(status_code=404, detail="Taklif topilmadi")
     try:
         pdf_bytes = pdf_service.generate_taklif(t, db)
-    except Exception as e:  # noqa: BLE001 — sabab foydalanuvchiga (buyurtma PDF i kabi)
-        crud.log_error(db, f"Taklif PDF xato: {e}", endpoint="api_taklif_pdf")
-        raise HTTPException(status_code=500, detail=f"PDF xato: {str(e)}")
+    except Exception as e:  # noqa: BLE001 — kech144 (zip 178, audit P2): sabab jurnalga, foydalanuvchiga o'zbekcha matn
+        raise _pdf_xato(db, e, "api_taklif_pdf", auth.company_id_of(current_user))
     filename = f"taklif_{t.raqam}.pdf"
     return Response(content=pdf_bytes, media_type="application/pdf", headers={"Content-Disposition": f'inline; filename="{filename}"'})
 
@@ -7797,7 +7909,8 @@ def api_coating_notify(order_id: int, loy_kg: Optional[str] = None, db: Session 
 
 @app.post("/api/orders/{order_id}/ready")
 def api_mark_order_ready(order_id: int, loy_kg: Optional[str] = None,
-                          db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "tahrirlash"))):
+                          db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "tahrirlash")),
+                          background_tasks: BackgroundTasks = None):
     # ⚠ 2026-09-21, IDOR testi bilan topildi (tools/test_idor.py):
     # M2 qo'riqchisi TUSHIB QOLGAN edi. Pastdagi `crud.get_order(...)`
     # korxona bo'yicha cheklangan, LEKIN u faqat Telegram xabari uchun —
@@ -7834,7 +7947,8 @@ def api_mark_order_ready(order_id: int, loy_kg: Optional[str] = None,
                 f"🧱 Ishlatilgan loy: *{int(loy_kg)} kg*\n\n"
                 f"⏰ {_t_vaqt().strftime('%d.%m.%Y %H:%M')}"
             )
-            _send_telegram(msg, company_id=auth.company_id_of(current_user))
+            # kech144 (zip 178, audit T5): Telegram — javobdan KEYIN (fon vazifasi)
+            _fonda(background_tasks, _send_telegram, msg, company_id=auth.company_id_of(current_user))
         if order.project and order.project.notes:
             notes = order.project.notes or ''
             tg_id = None
@@ -7871,7 +7985,8 @@ def api_mark_order_ready(order_id: int, loy_kg: Optional[str] = None,
                         f"Buyurtmangizni olishingiz mumkin!\n"
                         f"⏰ {_t_vaqt().strftime('%d.%m.%Y %H:%M')}"
                     )
-                _send_telegram_to(tg_id, client_msg, company_id=auth.company_id_of(current_user))
+                _fonda(background_tasks, _send_telegram_to, tg_id, client_msg,
+                       company_id=auth.company_id_of(current_user))      # kech144 (zip 178, T5)
 
     # Agar "Tayyor" belgilashda BUTUN mahsulot avtomatik bir yo'la
     # topshirilgan (yetkazilgan) deb belgilangan bo'lsa — o'sha yetkazish
@@ -7879,7 +7994,7 @@ def api_mark_order_ready(order_id: int, loy_kg: Optional[str] = None,
     # Yuk xati PDF'ini mijozga (agar tg_id bo'lsa) yuboramiz.
     auto_delivery = result.get("auto_delivery")
     if isinstance(auto_delivery, dict) and auto_delivery.get("delivery_id"):
-        _send_delivery_pdf_to_customer(db, auto_delivery["delivery_id"])
+        _fonda(background_tasks, _yuk_xati_fonda, auto_delivery["delivery_id"])        # kech144 (zip 178, T5)
     return result
 
 
@@ -8762,6 +8877,8 @@ def api_finance_report_pdf(year: int, month: int, db: Session = Depends(get_db),
     from fastapi.responses import Response
     import finance_pdf
 
+    _yonalish_davri(year, month, None, None)     # kech144 (zip 178, audit P3): `month=13` — 400 (ilgari 500)
+
     report = services.get_monthly_report(db, year, month,
                                         company_id=auth.company_id_of(current_user))
 
@@ -8993,7 +9110,7 @@ def api_order_pdf(order_id: int, db: Session = Depends(get_db), current_user=Dep
     except Exception as e:
         err = traceback.format_exc()
         print("PDF XATO:\n", err)
-        raise HTTPException(status_code=500, detail=f"PDF xato: {str(e)}")
+        raise _pdf_xato(db, e, None, auth.company_id_of(current_user))     # kech144 (zip 178, audit P2)
     filename = f"buyurtma_hisobi_{order.order_number}.pdf"   # kech118 (D-1, G6-11): ilgari nakladnoy_...
     return Response(content=pdf_bytes, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
@@ -11665,7 +11782,8 @@ def api_toggle_order_pin(order_id: int, db: Session = Depends(get_db), current_u
 
 
 @app.post("/api/deliveries")
-def api_create_delivery(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("yetkazish", "yaratish"))):
+def api_create_delivery(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("yetkazish", "yaratish")),
+                        background_tasks: BackgroundTasks = None):
     """Yangi yetkazish."""
     # 17g (2026-09-22): xom JSON QAT'IY tekshiriladi (`crud._clean_val
     # ("Delivery")`), keyin sxemaga (`null` maydonlar — sxema standarti).
@@ -11721,8 +11839,10 @@ def api_create_delivery(data: dict = Body(...), db: Session = Depends(get_db), c
             + ("\n✅ *Buyurtma to'liq topshirildi!*" if result["is_fully_delivered"] else "")
             + f"\n⏰ {_t_vaqt().strftime('%d.%m.%Y %H:%M')}"
         )
-        _send_telegram(msg, company_id=auth.company_id_of(current_user))
-        _send_delivery_pdf_to_customer(db, result["delivery_id"])
+        # kech144 (zip 178, audit T5): Telegram (xabar 5 s gacha, PDF 30 s gacha har oluvchiga) — javobdan KEYIN (fon vazifasi).
+        # Ilgari javob 75 s gacha kechikardi — xodim sahifani yangilab qayta yuborsa, ikkinchi qisman yetkazish yozilardi.
+        _fonda(background_tasks, _send_telegram, msg, company_id=auth.company_id_of(current_user))
+        _fonda(background_tasks, _yuk_xati_fonda, result["delivery_id"])
 
     return result
 
@@ -11747,7 +11867,7 @@ def api_finished_sale_batch_pdf(group_id: str, db: Session = Depends(get_db), cu
         pdf_bytes = delivery_pdf.generate_finished_sale_batch_pdf(sales, group_id, db)
     except Exception as e:
         print("Sotuv guruhi PDF XATO:\n", traceback.format_exc())
-        raise HTTPException(status_code=500, detail=f"PDF xato: {str(e)}")
+        raise _pdf_xato(db, e, None, auth.company_id_of(current_user))     # kech144 (zip 178, audit P2)
 
     filename = f"sotuv_cheki_{group_id}.pdf"   # kech118 (D-1, G6-11): ilgari yuk_xati_sotuv_...
     return Response(content=pdf_bytes, media_type="application/pdf",
@@ -11773,7 +11893,7 @@ def api_finished_sale_pdf(sale_id: int, db: Session = Depends(get_db), current_u
         pdf_bytes = delivery_pdf.generate_finished_sale_pdf(sale, db)
     except Exception as e:
         print("Sotuv PDF XATO:\n", traceback.format_exc())
-        raise HTTPException(status_code=500, detail=f"PDF xato: {str(e)}")
+        raise _pdf_xato(db, e, None, auth.company_id_of(current_user))     # kech144 (zip 178, audit P2)
 
     filename = f"sotuv_cheki_{sale.id}.pdf"   # kech118 (D-1, G6-11): ilgari yuk_xati_sotuv_...
     return Response(content=pdf_bytes, media_type="application/pdf",
@@ -11794,7 +11914,7 @@ def api_delivery_pdf(delivery_id: int, db: Session = Depends(get_db), current_us
         pdf_bytes = delivery_pdf.generate_delivery_pdf(d, db)
     except Exception as e:
         print("Yetkazish PDF XATO:\n", traceback.format_exc())
-        raise HTTPException(status_code=500, detail=f"PDF xato: {str(e)}")
+        raise _pdf_xato(db, e, None, auth.company_id_of(current_user))     # kech144 (zip 178, audit P2)
 
     filename = f"yuk_xati_{d.delivery_number.replace('/', '_')}.pdf"      # kech118 (D-1, G6-11)
     return Response(content=pdf_bytes, media_type="application/pdf",
@@ -11834,7 +11954,7 @@ def api_summary_pdf(order_id: int, ids: str = "", db: Session = Depends(get_db),
         pdf_bytes = _delivery_pdf.generate_summary_pdf(order, deliveries, db)
     except Exception as e:
         print("Hisob-kitob PDF XATO:\n", _tb.format_exc())
-        raise HTTPException(status_code=500, detail=f"PDF xato: {str(e)}")
+        raise _pdf_xato(db, e, None, auth.company_id_of(current_user))     # kech144 (zip 178, audit P2)
 
     filename = f"hisob-kitob_{order.order_number.replace('/', '_')}.pdf"
     return Response(content=pdf_bytes, media_type="application/pdf",
@@ -11914,7 +12034,7 @@ def api_project_yuk_jamlama_pdf(project_id: int, ids: str = "", db: Session = De
         pdf_bytes = _delivery_pdf.generate_yuk_jamlanma_pdf(prj, jamlanma, db)
     except Exception as e:
         print("Yuk xatlari jamlanmasi PDF XATO:\n", _tb.format_exc())
-        raise HTTPException(status_code=500, detail=f"PDF xato: {str(e)}")
+        raise _pdf_xato(db, e, None, auth.company_id_of(current_user))     # kech144 (zip 178, audit P2)
 
     import re as _re_fn144
     # fayl nomi sarlavhada — faqat lotin harf / raqam / «-» / «_» (loyiha raqami tizimniki, lekin sarlavha latin-1 bo'lishi shart)
@@ -12413,6 +12533,11 @@ def _usta_boti_javobi(data, token, korxona_id=None):
             # korxona boti — o'sha korxona).
             _wh_cid = (getattr(master, "company_id", None) if master else None) or egasi_cid
             _wh_nom = _tg_brand(db, _wh_cid)[0]
+        except Exception as e:                    # noqa: BLE001
+            # kech144 (zip 178, audit T7): baza xatosi — ilgari 500 (Telegram xabarni qayta-qayta yuborardi); endi uzr va 200
+            print(f"⚠ Usta boti /start xatosi: {_tg_toza(e, token)}")
+            _tg_javob(token, chat_id, "⚠️ Xatolik yuz berdi. Iltimos qayta urinib ko'ring.")
+            return {"ok": True}
         finally:
             db.close()
         welcome_msg = ("Assalomu alaykum! 👋\n\n"
@@ -12543,7 +12668,8 @@ async def telegram_webhook(request: Request):
         data = await request.json()
     except Exception:
         return {"ok": True}
-    return _usta_boti_javobi(data, os.environ.get("TELEGRAM_BOT_TOKEN", ""), korxona_id=None)
+    # kech144 (zip 178, audit T1 — O'LCHANGAN: Telegram 2 s kechiksa boshqa so'rovlar ham 1,7 s kutardi): javob — ip ichida
+    return await _ip_ichida(_usta_boti_javobi, data, os.environ.get("TELEGRAM_BOT_TOKEN", ""), korxona_id=None)
 
 
 @app.post("/telegram/webhook/{company_id}")
@@ -12553,12 +12679,15 @@ async def telegram_korxona_webhook(company_id: int, request: Request):
     Telegram har xabarga ulashda berilgan sirni (`X-Telegram-Bot-Api-Secret-Token`) qo'shadi; sir — shu korxonaning sozlamasida
     (`TG_KORXONA_SIR`). Sir yo'q (bot ulanmagan), token yo'q, korxona yo'q yoki sir mos emas (boshqa korxonaniki ham) — 403, hech
     narsa o'qilmaydi va yuborilmaydi. Usta, nom, bonus, sovg'a — FAQAT shu korxona; javob shu korxona tokeni bilan."""
-    db = SessionLocal()
-    try:
-        token = (crud.get_setting(db, "telegram_bot_token", "", company_id=company_id) or "").strip()
-        sir = (crud.get_setting(db, TG_KORXONA_SIR, "", company_id=company_id) or "").strip()
-    finally:
-        db.close()
+    # kech144 (zip 178, audit T1): sozlamani o'qish va javob — ip ichida (sinxron baza / Telegram serverni to'xtatmaydi)
+    def _sozlama():
+        db = SessionLocal()
+        try:
+            return ((crud.get_setting(db, "telegram_bot_token", "", company_id=company_id) or "").strip(),
+                    (crud.get_setting(db, TG_KORXONA_SIR, "", company_id=company_id) or "").strip())
+        finally:
+            db.close()
+    token, sir = await _ip_ichida(_sozlama)
     kelgan = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
     if not token or not sir or not _hmac_tg.compare_digest(kelgan.encode("utf-8"), sir.encode("utf-8")):
         raise HTTPException(status_code=403, detail="Noto'g'ri imzo")
@@ -12566,7 +12695,7 @@ async def telegram_korxona_webhook(company_id: int, request: Request):
         data = await request.json()
     except Exception:
         return {"ok": True}
-    return _usta_boti_javobi(data, token, korxona_id=company_id)
+    return await _ip_ichida(_usta_boti_javobi, data, token, korxona_id=company_id)
 
 
 # ============================================================
@@ -12607,6 +12736,11 @@ def run_daily_backup():
         # yuboriladi, 49 MB dan oshganda esa fayl o'rniga xabar ketadi.
         _mb = len(content) / (1024 * 1024)
         if _mb >= 49:
+            # kech144 (zip 178, audit T4): zaxira yuborilmadi — «Xatoliklar» jurnalida ham (platforma xatosi)
+            try:
+                crud.log_error(db, f"Kunlik zaxira yuborilmadi — fayl {_mb:.1f} MB (Telegram chegarasi 50 MB)", endpoint="run_daily_backup")
+            except Exception:
+                pass
             _send_telegram(
                 f"⛔ *Kunlik zaxira YUBORILMADI*\n\nFayl hajmi {_mb:.1f} MB — "
                 f"Telegram chegarasi (50 MB) dan oshdi.\n\n"
@@ -12627,9 +12761,19 @@ def run_daily_backup():
         caption = f"🗄 Kunlik avtomatik zaxira nusxa\n📅 {_t_vaqt().strftime('%d.%m.%Y')}\n📊 Jami {total_rows} ta yozuv"
 
         for chat_id in chat_ids:
-            _send_telegram_document(chat_id, content, filename, caption)
+            # kech144 (zip 178, audit T4): yuborilmasa — ilgari faqat konsolga; endi «Xatoliklar» jurnaliga (platforma xatosi)
+            if not _send_telegram_document(chat_id, content, filename, caption):
+                try:
+                    crud.log_error(db, f"Kunlik zaxira Telegramga yuborilmadi ({chat_id}) — {filename}", endpoint="run_daily_backup")
+                except Exception as _lx:
+                    print(f"⚠ Zaxira xatosini jurnalga yozib bo'lmadi: {_lx}")
     except Exception as e:
         print(f"⚠ Kunlik backup xatosi: {e}")
+        try:
+            db.rollback()
+            crud.log_error(db, f"Kunlik zaxira xatosi: {e}", endpoint="run_daily_backup")
+        except Exception:
+            pass
     finally:
         db.close()
 
@@ -12640,7 +12784,12 @@ def obuna_kunlik_ish():
     bloklanganda (har bosqich bir marta). Kirish baribir HAR SO'ROVDA tekshiriladi — bu ish o'tkazib yuborilsa ham."""
     db = SessionLocal()
     try:
-        natija = _obuna.kunlik_tekshiruv(db, yubor=_send_telegram)
+        # kech144 (zip 178, audit T3): `_send_telegram` False qaytarsa (token / chat yo'q, Telegram rad etdi) — xato: eslatma
+        # «yuborildi» deb belgilanmaydi, keyingi kun qayta urinadi (ilgari belgilanib, umuman yuborilmay qolardi)
+        def _obuna_yubor(matn):
+            if _send_telegram(matn) is False:
+                raise RuntimeError("Telegram xabari yuborilmadi (bot / chat sozlanmagan yoki Telegram javob bermadi)")
+        natija = _obuna.kunlik_tekshiruv(db, yubor=_obuna_yubor)
         if natija:
             print(f"✓ Obuna tekshiruvi: {len(natija)} ta amal")
     except Exception as e:
