@@ -59,7 +59,8 @@
         band = true;
         fetch('/api/hodim/qurilma-holati', {cache: 'no-store', credentials: 'same-origin'}).then(function (r) {
           if (r.status === 401) { location.href = '/hodim/login'; return null; }
-          if (!r.ok) throw new Error(String(r.status));
+          // kech144 (zip 178, audit H3): server xatosi internet uzilishi deb ko'rsatilmaydi
+          if (!r.ok) { var x = new Error(String(r.status)); x.holat = r.status; throw x; }
           return r.json();
         }).then(function (d) {
           if (!d) return;
@@ -67,9 +68,12 @@
           sanoq += 1;
           el.className = 'h-holat';
           el.textContent = '⏳ Ruxsat kutilmoqda… (' + sanoq + '-tekshiruv)';
-        }).catch(function () {
+        }).catch(function (x) {
           el.className = 'h-holat xato';
-          el.textContent = "⚠️ Internet aloqasi yo'q — qayta urinilmoqda…";
+          var h = x && x.holat;
+          el.textContent = !h ? "⚠️ Internet aloqasi yo'q — qayta urinilmoqda…"
+            : (h >= 500 ? '⚠️ Server javob bermadi (' + h + ') — qayta urinilmoqda…'
+                        : "⚠️ So'rov rad etildi (" + h + ') — qayta urinilmoqda…');
         }).then(function () { band = false; });
       }
       setInterval(function () { if (!document.hidden) tekshir(); }, 4000);
