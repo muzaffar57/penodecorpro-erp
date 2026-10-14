@@ -301,6 +301,37 @@ input[type=number]{-moz-appearance:textfield}
 {% endblock %}
 
 {% block content %}
+{# kech144 (zip 179, audit P2-16): ruxsat yo'q amallar ko'rinmaydi — `!important` (JS `style.display` ham ochmaydi; element DOM da
+   qoladi — JS `null` bilan yiqilmaydi). Har qoida — o'sha amal marshrutining ruxsati (server baribir tekshiradi). #}
+<style id="ruxsatYashir">
+{% if not current_user.ruxsat('buyurtma', 'yaratish') %}
+[onclick^="showNewForm("], #btn-duplicate { display: none !important; }
+{% endif %}
+{% if not current_user.ruxsat('buyurtma', 'tahrirlash') %}
+#btn-ready, #btn-edit, #btn-edit-izoh, #btn-pin, .pin-toggle-btn, [onclick^="activateDraft("], [onclick^="editAgreedAmount("] { display: none !important; }
+{% endif %}
+{% if not current_user.ruxsat('buyurtma', 'ochirish') %}
+#btn-delete, .yb-ochir-chiziq { display: none !important; }
+{% endif %}
+{% if not current_user.ruxsat('yetkazish', 'yaratish') %}
+#btn-new-delivery, #btn-quick-deliver { display: none !important; }
+{% endif %}
+{% if not current_user.ruxsat('yetkazish', 'ochirish') %}
+[onclick^="deleteDelivery("] { display: none !important; }
+{% endif %}
+{% if not current_user.ruxsat('tolov', 'yaratish') %}
+#btn-add-payment { display: none !important; }
+{% endif %}
+{% if not current_user.ruxsat('tolov', 'ochirish') %}
+[onclick^="deletePayment("] { display: none !important; }
+{% endif %}
+{% if not current_user.ruxsat('buyurtma_fayl', 'yaratish') %}
+#ordPageWrap .dropzone { display: none !important; }
+{% endif %}
+{% if not current_user.ruxsat('buyurtma_fayl', 'ochirish') %}
+[onclick^="deleteOrderAttachment("] { display: none !important; }
+{% endif %}
+</style>
 <div style="padding:12px;height:calc(100vh - 58px);overflow-y:auto" id="ordPageWrap">
 <div class="ord-layout">
 
@@ -1406,6 +1437,12 @@ function checkForDraftOnLoad() {
     if (typeof royxatParamdanOch === 'function' && royxatParamdanOch(params)) return;
     // kech126 (zip 148): «/orders?takliflar=1» / «/orders?tez_hisob=1»
     if (typeof takliflarParamdanOch === 'function' && takliflarParamdanOch(params)) return;
+    // kech144 (zip 179, audit P2-16): yaratish ruxsati yo'q — yangi buyurtma formasi ochilmaydi
+    if ((params.get('yangi') === '1' || params.get('new_for_project')) && typeof BUYURTMA_YARATISH !== 'undefined' && !BUYURTMA_YARATISH) {
+      showMsg("Yangi buyurtma ochib bo'lmaydi — «Buyurtmalar: Yaratish» ruxsati kerak", 'error');
+      history.replaceState(null, '', window.location.pathname);
+      return;
+    }
     // «/orders?yangi=1» — Bosh sahifadagi «+ Yangi buyurtma» amali: yangi buyurtma formasi
     if (params.get('yangi') === '1') {
       showNewForm();
@@ -1464,6 +1501,9 @@ const PENOPLASTS = [
   {% endfor %}
 ];
 const DEFAULT_PENO_ID = {{ default_penoplast_id if default_penoplast_id else 'null' }};
+// kech144 (zip 179, audit P2-16): «Buyurtmalar: Yaratish» ruxsati — `?yangi=1` / `?new_for_project=` havolalari shu bilan (ruxsat yo'q —
+// forma ochilmaydi; ilgari to'ldirilib, saqlashda 403)
+const BUYURTMA_YARATISH = {{ 'true' if current_user.ruxsat('buyurtma', 'yaratish') else 'false' }};
 
 const RECIPES_LIST = [
   {% for r in recipes %}
