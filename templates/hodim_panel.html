@@ -405,11 +405,29 @@ function sorovXulosaMatni(qs) {
   const tasdiq = qs.filter(r => r.status === 'confirmed' && !r.avans_ochirildi).reduce((a, r) => a + (Number(r.amount) || 0), 0);
   return `${qs.length} ta so'rov · ${fmt(tasdiq)} so'm tasdiqlangan`;
 }
+// kech144 (zip 178, audit H1): yuklash xatosi SABABI — sessiya tugagan (401: 14 kun, admin «uzish», PIN tiklash) — `/hodim` ga (server
+// kirish / PIN / kutish sahifasini o'zi tanlaydi; qayta yuklash abadiy yiqilmaydi); boshqa — sabab (ilgari faqat «Yuklashda xato»).
+// Qaytaradi: matn yoki null (sahifa almashmoqda). `res` — fetch javobi yoki null (tarmoq).
+async function hodimYukSabab(res) {
+  if (res && res.status === 401) { location.href = '/hodim'; return null; }
+  if (!res || typeof res.status !== 'number') return "internet aloqasi yo'q";
+  if (res.status >= 500) return 'server javob bermadi (' + res.status + ')';
+  return await serverSababi(res, "so'rov rad etildi (" + res.status + ')');
+}
+function hodimYukXatoHtml(sabab, qayta) {
+  return '<div class="empty">Yuklanmadi — ' + escapeHtml(sabab) + '<br><button type="button" class="oy-qayta" onclick="' + qayta
+    + '">🔄 Qayta yuklash</button></div>';
+}
 async function loadMyRequests(){
   const list = document.getElementById('req-list');
+  let res = null;
+  try { res = await fetch('/api/hodim/my-requests'); } catch (e) { res = null; }
+  if (!res || !res.ok) {
+    const sabab = await hodimYukSabab(res);
+    if (sabab !== null) list.innerHTML = hodimYukXatoHtml(sabab, 'loadMyRequests()');
+    return;
+  }
   try {
-    const res = await fetch('/api/hodim/my-requests');
-    if (!res.ok) throw new Error(String(res.status));
     const rows = await res.json();
     if (!Array.isArray(rows)) throw new Error('format');
     if (!rows.length) { list.innerHTML = '<div class="empty">Hali so\'rov yubormagansiz</div>'; return; }
@@ -435,7 +453,7 @@ async function loadMyRequests(){
     });
     list.innerHTML = html;
   } catch(e) {
-    list.innerHTML = '<div class="empty">Yuklashda xato<br><button type="button" class="oy-qayta" onclick="loadMyRequests()">🔄 Qayta yuklash</button></div>';
+    list.innerHTML = hodimYukXatoHtml("javob o'qilmadi — sahifani yangilang", 'loadMyRequests()');
   }
 }
 loadMyRequests();
@@ -596,8 +614,14 @@ async function oyniYukla(dt) {
   const xul = dt.querySelector('.oy-xulosa');
   ichi.innerHTML = '<div class="empty">Yuklanmoqda...</div>';
   try {
-    const res = await fetch('/api/hodim/oylik?oy=' + encodeURIComponent(dt.dataset.oy));
-    if (!res.ok) throw new Error(String(res.status));
+    // kech144 (zip 178, audit H1): xato — sabab (401 — `/hodim`)
+    let res = null;
+    try { res = await fetch('/api/hodim/oylik?oy=' + encodeURIComponent(dt.dataset.oy)); } catch (e) { res = null; }
+    if (!res || !res.ok) {
+      const sabab = await hodimYukSabab(res);
+      if (sabab !== null) ichi.innerHTML = hodimYukXatoHtml(sabab, "oyniYukla(this.closest('details'))");
+      return;
+    }
     const d = await res.json();
     const o = ((d && d.oylar) || [])[0];
     if (o) {
@@ -610,17 +634,37 @@ async function oyniYukla(dt) {
     dt.dataset.yuklandi = '1';
   } catch (e) {
     // kech133: qayta urinish — tugma bilan (hodim «yopib, qayta ochish» kerakligini bilmasligi mumkin)
-    ichi.innerHTML = '<div class="empty">Yuklashda xato<br><button type="button" class="oy-qayta" '
-      + 'onclick="oyniYukla(this.closest(\'details\'))">🔄 Qayta yuklash</button></div>';
+    ichi.innerHTML = hodimYukXatoHtml("javob o'qilmadi — sahifani yangilang", "oyniYukla(this.closest('details'))");
   } finally {
     dt.dataset.yuklanmoqda = '';
   }
 }
+// kech144 (zip 178, audit H2): javob saqlangach ro'yxat yangilanmasa — javob xabari qoladi, kutilayotgan to'lovlar «hammasiga javob
+// berdingiz» deb yo'qolmaydi: ro'yxat o'rnida sabab va «🔄» (ilgari `javobKartaChiz([])`)
+function javobKartaYangilanmadi(sabab) {
+  const karta = document.getElementById('javob-karta');
+  const list = document.getElementById('javob-list');
+  const msg = document.getElementById('javob-msg');
+  if (!karta || !list || !msg) return;
+  const xabar = javobKartaChiz.xabar || null;
+  if (xabar) { msg.className = 'h-msg ' + xabar.tur; msg.textContent = xabar.matn; }
+  karta.style.display = '';
+  list.innerHTML = '<div class="empty">Ro\'yxat yangilanmadi — ' + escapeHtml(sabab)
+    + '<br><button type="button" class="oy-qayta" onclick="loadOylik()">🔄 Qayta yuklash</button></div>';
+}
 async function loadOylik() {
   const el = document.getElementById('oylik-list');
+  let res = null;
+  try { res = await fetch('/api/hodim/oylik'); } catch (e) { res = null; }
+  if (!res || !res.ok) {
+    // kech144 (zip 178, audit H1): sabab (401 — `/hodim`)
+    const sabab = await hodimYukSabab(res);
+    if (sabab === null) return;
+    el.innerHTML = hodimYukXatoHtml(sabab, 'loadOylik()');
+    if (javobKartaChiz.xabar) javobKartaYangilanmadi(sabab);
+    return;
+  }
   try {
-    const res = await fetch('/api/hodim/oylik');
-    if (!res.ok) throw new Error(String(res.status));
     const d = await res.json();
     const oylar = (d && d.oylar) || [];
     const boshqa = (d && d.boshqa_oylar) || [];
@@ -631,8 +675,8 @@ async function loadOylik() {
     javobKartaChiz(Array.isArray(d && d.javob_kutilmoqda) ? d.javob_kutilmoqda : []);
   } catch (e) {
     // kech134: qayta urinish tugmasi (ilgari faqat «Yuklashda xato» — sahifani qayta ochish kerak edi)
-    el.innerHTML = '<div class="empty">Yuklashda xato<br><button type="button" class="oy-qayta" onclick="loadOylik()">🔄 Qayta yuklash</button></div>';
-    if (javobKartaChiz.xabar) javobKartaChiz([]);
+    el.innerHTML = hodimYukXatoHtml("javob o'qilmadi — sahifani yangilang", 'loadOylik()');
+    if (javobKartaChiz.xabar) javobKartaYangilanmadi("javob o'qilmadi");
   }
 }
 loadOylik();
