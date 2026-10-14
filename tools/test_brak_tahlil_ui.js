@@ -48,6 +48,10 @@ const BASE = oqi(process.argv[5] || path.join(ROOT, 'templates', 'base.html'));
 const AMAL_KOD = ['xatoSababi', 'yukSessiyaKor', 'amalSababi', 'amalKalitiYangi', 'amalKaliti', 'amalKalitiTashla', 'amalYubor',
   'amalNomalumMatn', 'amalTakrorIzoh', 'tugmaBand']
   .map((n) => olib(BASE, n)).filter(Boolean).join('\n');
+// kech144 (zip 177, MOSLANDI — audit C#15 / D): brak tahlili va belgisi — base.html yuklash yordamchilari (`yukBlok`, `yukOl` …);
+// `escapeHtml` — shu testning soxtasi qoladi (yuklanmaydi)
+const YUK_KOD = ['xatoSababi', 'yukXato', 'yukOl', 'yukSabab', 'yukXatoMatn', 'yukNavbat', 'yukBlok', 'yukRoyxatXato', 'yukSessiyaKor']
+  .map((n) => olib(BASE, n)).filter(Boolean).join('\n');
 
 let OK = 0, FAIL = 0;
 const FAILED = [];
@@ -429,7 +433,7 @@ async function tahlilBolimi() {
       fetch: async (u) => { urllar.push(String(u)); return fetchFn(); },
       brakTahlilHtml: () => 'CHIZILDI', escapeHtml: (s) => String(s).replace(/</g, '&lt;'),
     });
-    const r = lt ? await ishga(m, lt, 'loadBrakTahlil()') : { xato: 'topilmadi' };
+    const r = lt ? await ishga(m, YUK_KOD + '\n' + lt, 'loadBrakTahlil()') : { xato: 'topilmadi' };
     return { xato: r.xato, urllar, html: el.brakTahlilContent.innerHTML };
   };
   let y = await yuklash('2026-09', () => javob(200, {}));
@@ -439,11 +443,17 @@ async function tahlilBolimi() {
   y = await yuklash('', () => javob(200, {}));
   tekshir("T8b oy tanlanmagan → faqat oylar=6 (server joriy oyni oladi)",
           !y.xato && y.urllar[0] === '/api/reports/brak-tahlil?oylar=6', y.xato || qisqa(y));
+  // kech144 (zip 177, MOSLANDI — audit C#15): rad sababi `yukOl` qoidasi bilan — 4xx (400) — serverning sababi (escape bilan), 403 —
+  // «ko'rish ruxsati yo'q», tarmoq — «internet aloqasi yo'q» (ilgari «Xato (502)» / «Tarmoq xatosi»)
+  y = await yuklash('2026-09', () => javob(400, { detail: '<i>Sana noto\'g\'ri</i>' }));
+  tekshir("T9 rad (400) → server sababi escape bilan, natija chizilmaydi",
+          !y.xato && y.html.includes('&lt;i>Sana') && y.html.includes('Brak tahlili yuklanmadi') && !y.html.includes('CHIZILDI'),
+          y.xato || qisqa(y));
   y = await yuklash('2026-09', () => javob(403, { detail: '<i>Ruxsat yo\'q</i>' }));
-  tekshir("T9 rad (403) → server sababi escape bilan, natija chizilmaydi",
-          !y.xato && y.html.includes('&lt;i>Ruxsat') && !y.html.includes('CHIZILDI'), y.xato || qisqa(y));
+  tekshir("T9c rad (403) → «ko'rish ruxsati yo'q», natija chizilmaydi",
+          !y.xato && y.html.includes("ko'rish ruxsati yo'q") && !y.html.includes('CHIZILDI'), y.xato || qisqa(y));
   y = await yuklash('2026-09', () => { throw new Error('uzildi'); });
-  tekshir("T9b tarmoq xatosi → 'Tarmoq xatosi', yiqilmaydi", !y.xato && y.html.includes('Tarmoq xatosi'), y.xato || qisqa(y));
+  tekshir("T9b tarmoq xatosi → «internet aloqasi yo'q», yiqilmaydi", !y.xato && y.html.includes("internet aloqasi yo'q"), y.xato || qisqa(y));
 
   // loadBrakTahlilBadge — sarlavhadagi belgi
   const lb = olib(RETURNS, 'loadBrakTahlilBadge');
@@ -452,7 +462,8 @@ async function tahlilBolimi() {
     el.brakTahlilBadge.style = {};
     const m = muhit(el, {}, {}, { fetch: async () => javob(200, d) });
     // kech118 (B — U-05, MOSLANDI): `brakFoizMatn` base.html `sonKor` ni chaqiradi
-    const kod = [olib(BASE, 'sonKor'), olib(RETURNS, 'brakTahlilOyMatn'), olib(RETURNS, 'brakFoizMatn'), lb];
+    // kech144 (zip 177, MOSLANDI — audit D): belgi `yukOl` bilan yuklanadi (yuklanmasa — «⚠️» va sabab)
+    const kod = [olib(BASE, 'sonKor'), olib(RETURNS, 'brakTahlilOyMatn'), olib(RETURNS, 'brakFoizMatn'), lb, YUK_KOD];
     const r = kod.every(Boolean) ? await ishga(m, kod.join('\n'), 'loadBrakTahlilBadge()') : { xato: 'topilmadi' };
     return { xato: r.xato, el };
   };

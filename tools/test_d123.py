@@ -214,8 +214,10 @@ check("N2 bo'sh ombor maslahati: «+ Penoplast detal» va «Retsept bo'yicha» (
       "<b>+ Penoplast detal</b> tugmasi; boshqa mahsulot — <b>Retsept bo\\'yicha</b>" in FIN
       and "Ishlab chiqarish</b> tugmasini bosing" not in FIN)
 _k4, _h4 = sahifa(_kl["Faqat brak yozuvchi"], "/finished")
-check("N3 «Mahsulot turlari: Ko'rish» ruxsati yo'q — «Retsept bo'yicha» havolasi YO'Q (sahifa ochilmasdi)",
-      _k4 == 200 and "retseptBoyichaHavola" not in _h4 and "> Penoplast detal</button>" in _h4, _k4)
+# kech144 (zip 177, audit C#20, MOSLANDI): «+ Penoplast detal» — `tayyor: yaratish` bilan (bu rolda yo'q — tugma ham yo'q)
+check("N3 «Mahsulot turlari: Ko'rish» ruxsati yo'q — «Retsept bo'yicha» havolasi YO'Q (sahifa ochilmasdi); «Tayyor: Yaratish» yo'q — "
+      "«+ Penoplast detal» ham YO'Q",
+      _k4 == 200 and "retseptBoyichaHavola" not in _h4 and "> Penoplast detal</button>" not in _h4, _k4)
 _kb, BOSH = sahifa(CA, "/")
 check("N4 menyu: «Loy retseptlari» (eski «Retseptlar» YO'Q)",
       _kb == 200 and '<span class="n-txt">Loy retseptlari</span>' in BOSH and '<span class="n-txt">Retseptlar</span>' not in BOSH)

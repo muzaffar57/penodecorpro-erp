@@ -107,7 +107,10 @@ function muhit(opts) {
   };
   vm.createContext(sb);
   const kodlar = [];
-  for (const [src, nom] of [[BASE, 'xatoSababi'], [BASE, 'serverXatoSababi'],
+  // kech144 (zip 177, MOSLANDI — audit C#17 / D): rad sababi — base.html `amalSababi` (u `yukSessiyaKor` ni chaqiradi), natija noma'lum —
+  // `amalNomalumMatn`; finished.html `fpAmalXato`
+  for (const [src, nom] of [[BASE, 'xatoSababi'], [BASE, 'serverXatoSababi'], [BASE, 'yukSessiyaKor'], [BASE, 'amalSababi'],
+                           [BASE, 'amalNomalumMatn'], [FINISHED, 'fpAmalXato'],
                            [RETURNS, 'qaytarishXatoMatni'], [RETURNS, 'deleteReturn'],
                            [RETURNS, 'toggleRefund'], [FINISHED, 'delFp']]) {
     const k = olib(src, nom);
@@ -191,18 +194,24 @@ async function main() {
   {
     const { sb, yozuv } = muhit({ qatorlar: { 5: {} }, javob: { status: 500 } });
     await chaqir(sb, 'deleteReturn', 5);
-    tekshir("R7 500 (JSON emas) → '❌ Xato'", qisqa(yozuv.alert) === qisqa(['❌ Xato']), qisqa(yozuv.alert));
+    // kech144 (zip 177, MOSLANDI — audit D): 5xx — natija noma'lum (o'chgan bo'lishi mumkin) — tekshirish so'raladi (ilgari «❌ Xato»)
+    tekshir("R7 500 (JSON emas) → «⚠️ O'chirish natijasi noma'lum: server javob bermadi …»",
+      yozuv.alert.length === 1 && yozuv.alert[0].startsWith("⚠️ O'chirish natijasi noma'lum: ") && yozuv.alert[0].includes('server javob bermadi'),
+      qisqa(yozuv.alert));
   }
   {
     const { sb, yozuv } = muhit({ qatorlar: { 5: {} }, javob: { status: 422, body: { detail: [{ msg: 'x' }] } } });
     await chaqir(sb, 'deleteReturn', 5);
-    tekshir("R8 422 (massiv detail) → '❌ Xato' (JSON massiv matnga aylanmaydi)", qisqa(yozuv.alert) === qisqa(['❌ Xato']), qisqa(yozuv.alert));
+    // kech144 (zip 177, MOSLANDI — audit D): `amalSababi` → `xatoSababi` — ro'yxatdagi xabar matni (ilgari umumiy «❌ Xato»)
+    tekshir("R8 422 (massiv detail) → ro'yxatdagi xabar ('❌ x'), JSON massiv xom matn bo'lib chiqmaydi", qisqa(yozuv.alert) === qisqa(['❌ x']), qisqa(yozuv.alert));
   }
   {
     const { sb, yozuv } = muhit({ qatorlar: { 5: {} }, javob: 'TARMOQ' });
     const n = await chaqir(sb, 'deleteReturn', 5);
     tekshir("R9 tarmoq xatosi → xabar, istisno yo'q, yangilanmadi",
-      n === 'ok' && yozuv.alert.length === 1 && yozuv.alert[0].includes('Tarmoq xatosi') && yozuv.reload === 0, qisqa([n, yozuv]));
+      // kech144 (zip 177, MOSLANDI — audit D): «⚠️ O'chirish natijasi noma'lum: internet aloqasi yo'q — sahifani yangilab tekshiring»
+      n === 'ok' && yozuv.alert.length === 1 && yozuv.alert[0].includes("natijasi noma'lum") && yozuv.alert[0].includes("internet aloqasi yo'q")
+      && yozuv.reload === 0, qisqa([n, yozuv]));
   }
   {
     let ochil;
@@ -238,7 +247,8 @@ async function main() {
   {
     const { sb, yozuv } = muhit({ javob: { status: 404, body: { detail: 'Qaytarish topilmadi' } } });
     await chaqir(sb, 'toggleRefund', 5, false);
-    tekshir("T4 404 → server sababi", qisqa(yozuv.alert) === qisqa(['❌ Qaytarish topilmadi']), qisqa(yozuv.alert));
+    // kech144 (zip 177, MOSLANDI — audit C#17): «❌ Hisob-kitob qilinmadi: <sabab>»
+    tekshir("T4 404 → server sababi", qisqa(yozuv.alert) === qisqa(['❌ Hisob-kitob qilinmadi: Qaytarish topilmadi']), qisqa(yozuv.alert));
   }
   // kech44 (29-band): muvaffaqiyat xabari (`j.xabar`, 24-band — "qarzdan chegirildi" / "naqd qaytarildi")
   // foydalanuvchiga sahifa yangilanishidan OLDIN ko'rsatiladi; xabar yo'q / buzuq javobda — jim yangilanadi.
@@ -289,18 +299,22 @@ async function main() {
     const n = await chaqir(sb, 'delFp', 7, 'returned');
     tekshir("F1 qaytgan mahsulot: tasdiq → DELETE /api/finished/7",
       yozuv.fetch.length === 1 && yozuv.fetch[0][0].startsWith('/api/finished/7') && yozuv.fetch[0][1] === 'DELETE', qisqa([n, yozuv.fetch]));
-    tekshir("F1 400 → showMsg('❌ ' + sabab, 'error')", qisqa(yozuv.showMsg) === qisqa([['❌ ' + fsabab, 'error']]), qisqa(yozuv.showMsg));
+    // kech144 (zip 177, MOSLANDI — audit D): `fpAmalXato` — «❌ O'chirilmadi: <sabab>»
+    tekshir("F1 400 → showMsg('❌ O\'chirilmadi: ' + sabab, 'error')", qisqa(yozuv.showMsg) === qisqa([["❌ O'chirilmadi: " + fsabab, 'error']]), qisqa(yozuv.showMsg));
     tekshir("F1 400 → ro'yxat qayta yuklanmadi", yozuv.loadFp === 0, yozuv.loadFp);
   }
   {
     const { sb, yozuv } = muhit({ javob: { status: 400, body: { detail: { message: 'Obyekt' } } } });
     await chaqir(sb, 'delFp', 7, 'returned');
-    tekshir("F2 400 (obyekt) → detail.message", qisqa(yozuv.showMsg) === qisqa([['❌ Obyekt', 'error']]), qisqa(yozuv.showMsg));
+    tekshir("F2 400 (obyekt) → detail.message", qisqa(yozuv.showMsg) === qisqa([["❌ O'chirilmadi: Obyekt", 'error']]), qisqa(yozuv.showMsg));
   }
   {
     const { sb, yozuv } = muhit({ javob: { status: 500 } });
     await chaqir(sb, 'delFp', 7, 'returned');
-    tekshir("F3 500 (JSON emas) → '❌ Xato'", qisqa(yozuv.showMsg) === qisqa([['❌ Xato', 'error']]), qisqa(yozuv.showMsg));
+    // kech144 (zip 177, MOSLANDI — audit D): 5xx — natija noma'lum (ilgari «❌ Xato»)
+    tekshir("F3 500 (JSON emas) → «⚠️ O'chirish natijasi noma'lum: server javob bermadi …»",
+      yozuv.showMsg.length === 1 && yozuv.showMsg[0][0].startsWith("⚠️ O'chirish natijasi noma'lum: ")
+      && yozuv.showMsg[0][0].includes('server javob bermadi') && yozuv.showMsg[0][1] === 'error', qisqa(yozuv.showMsg));
   }
   {
     const { sb, yozuv } = muhit({ javob: { status: 200, body: { status: 'ok' } } });
