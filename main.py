@@ -8516,8 +8516,15 @@ def api_reports_brak_materials(start_date: Optional[str] = None, end_date: Optio
     """Brak sabab sarflangan xomashyo — nomi, miqdori, tan narxi bo'yicha qiymati."""
     from datetime import datetime as dt
     from database import TASHKENT_OFFSET
-    sd = (dt.strptime(start_date, "%Y-%m-%d") - TASHKENT_OFFSET) if start_date else None
-    ed = (dt.strptime(end_date, "%Y-%m-%d") - TASHKENT_OFFSET + timedelta(days=1)) if end_date else None
+
+    # kech144 (zip 177, audit «Brak hisoboti»): noto'g'ri sana — 400 va sabab (ilgari `strptime` xatosi 500 — «server javob bermadi»)
+    def _sana(qiymat, nomi):
+        try:
+            return dt.strptime(qiymat, "%Y-%m-%d")
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail=f"{nomi} noto'g'ri: «{str(qiymat)[:20]}» — YYYY-MM-DD ko'rinishida yozing")
+    sd = (_sana(start_date, "Boshlanish sanasi") - TASHKENT_OFFSET) if start_date else None
+    ed = (_sana(end_date, "Tugash sanasi") - TASHKENT_OFFSET + timedelta(days=1)) if end_date else None
     return crud.get_brak_material_summary(db, start_date=sd, end_date=ed, company_id=auth.company_id_of(current_user))
 
 
