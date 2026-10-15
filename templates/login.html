@@ -213,7 +213,8 @@
       <form method="POST" action="/login">
         <div class="field">
           <label>Foydalanuvchi nomi</label>
-          <input type="text" name="username"
+          {# kech146 (zip 183, audit J7): ≤ 100 (server ham kesadi — PostgreSQL da uzun login 500 berardi) #}
+          <input type="text" name="username" maxlength="100"
                  placeholder="admin" required autocomplete="username"
                  value="{{ username or '' }}">
         </div>
