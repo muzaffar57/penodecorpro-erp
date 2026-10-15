@@ -60,6 +60,7 @@
 .pt-son.bosh{color:var(--text3);font-weight:600}
 .pt-son.band{color:var(--m-1d4ed8)}
 .pt-son.jarayon{color:var(--m-92400e)}
+.pt-minus{font-size:12px;font-weight:600;color:var(--m-b91c1c);margin-top:2px;line-height:1.35;white-space:normal}   /* kech145 (zip 182, N5) */
 .pt-amallar{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}   /* kech120 (zip 133 — G5-06): «Turni tahrirlash» / o'chirish qo'shildi — tor ekranda o'raladi */
 .pt-amallar .btn,.pt-retsept-amal .btn{white-space:nowrap}
 @container turlar (max-width:860px){
@@ -949,7 +950,7 @@ async function loadProductTypes(){
         <div class="pt-badges">${pt.yonalish_id ? `<span class="pt-chip pt-chip-yon">🧭 ${escapeHtml(pt.yonalish_nom || '')}</span>` : '<span class="pt-chip pt-chip-ogoh">Yo\'nalish belgilanmagan</span>'}${pt.supports_coating ? `<span class="pt-chip pt-chip-oltin">Qoplama mumkin · ×${escapeHtml(sonKorinish(pt.coating_price_multiplier))}</span>` : ''}</div>
       </td>
       <td class="pt-c-retsept">${retseptlar}</td>
-      <td class="o pt-c-ombor" data-yorliq="Omborda">${turSoni(pt.omborda, pt, '')}</td>
+      <td class="o pt-c-ombor" data-yorliq="Omborda">${turSoni(pt.omborda, pt, '')}${(Number(pt.minusda) || 0) > 0 ? `<div class="pt-minus">minusda ${escapeHtml(birlikMatni(Number(pt.minusda), pt.unit))} — ishlab chiqarish kerak</div>` : ''}</td>
       <td class="o pt-c-jarayon" data-yorliq="Jarayonda">${turSoni(pt.jarayonda, pt, 'jarayon')}</td>
       <td class="o pt-c-band" data-yorliq="Band">${turSoni(pt.band, pt, 'band')}</td>
       <td class="pt-c-amal"><div class="pt-amallar">${PT_YARATISH ? `<button class="btn btn-outline btn-sm" onclick="openBomModal(${pt.id})">+ Tarkib</button>` : ''}${PT_TAHRIR ? `<button class="btn btn-outline btn-sm" data-id="${pt.id}" data-yonalish="${pt.yonalish_id || ''}" data-nom="${escapeHtml(pt.name)}" onclick="openTurYonalish(this)">${pt.yonalish_id ? "Yo'nalish" : "Yo'nalish tanlash"}</button>` : ''}${PT_TAHRIR ? `<button class="btn btn-outline btn-sm pt-tahrir" onclick="openProductTypeEdit(${Number(pt.id)})" title="Nomi, birligi, narx usuli, qoplama, izoh">Turni tahrirlash</button>` : ''}${PT_OCHIRISH ? `<button class="btn btn-outline btn-sm pt-ochir" style="color:var(--m-dc2626);border-color:var(--ch-fca5a5)" onclick="deleteProductType(${Number(pt.id)})" title="Turni o'chirish (eski tarix saqlanadi)" aria-label="Turni o'chirish"><i class="ti ti-trash"></i></button>` : ''}</div></td>
