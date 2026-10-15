@@ -153,8 +153,9 @@ async function ishga(m, kod, chaqiruv) {
 
 // kech144 (zip 174, MOSLANDI): yozuvchi amallar endi base.html amal kaliti yordamchilari bilan — `amalYubor` (`X-Amal-Kaliti`,
 // natija noma'lum ajratiladi), `tugmaBand`, sabab — `amalSababi` (u `xatoSababi` / `yukSessiyaKor` ni chaqiradi)
+// kech144 (zip 181, MOSLANDI): `poOyna` — `yukNavbat('po-oyna')` (kech kelgan javob boshqa ishlab chiqarish oynasiga tushmaydi)
 const AMAL_NOMLAR = ['xatoSababi', 'yukSessiyaKor', 'amalSababi', 'amalKalitiYangi', 'amalKaliti', 'amalKalitiTashla', 'amalYubor',
-  'amalNomalumMatn', 'amalTakrorIzoh', 'tugmaBand'];
+  'amalNomalumMatn', 'amalTakrorIzoh', 'tugmaBand', 'yukNavbat'];
 const BASE_YORDAM = funks(BASE, ['escapeHtml', 'sonKor', 'jsAttrEscape', 'matnRangi', 'tkMs', 'tkDate', 'tkSana', 'birlikKor']
   .concat(AMAL_NOMLAR));
 
