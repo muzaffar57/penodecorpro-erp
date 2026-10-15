@@ -19,6 +19,19 @@
 {% endblock %}
 
 {% block content %}
+{# kech144 (zip 180, audit C3): ruxsat yo'q amallar ko'rinmaydi — `!important` (JS `style.display` ham ochmaydi; element DOM da qoladi).
+   Har qoida — o'sha amal marshrutining ruxsati (server baribir tekshiradi). #}
+<style id="ruxsatYashir">
+{% if not current_user.ruxsat('taminotchi', 'yaratish') %}[onclick^="openSupplierModal("] { display: none !important; }{% endif %}
+{% if not current_user.ruxsat('taminotchi', 'tahrirlash') %}[onclick*="editSupplier("] { display: none !important; }{% endif %}
+{% if not current_user.ruxsat('taminotchi', 'ochirish') %}[onclick*="deleteSupplier("] { display: none !important; }{% endif %}
+{% if not current_user.ruxsat('taminotchi_tolov', 'yaratish') %}#supplier-pay-save-btn, #pay-amount { display: none !important; }{% endif %}
+{% if not current_user.ruxsat('taminotchi_tolov', 'ochirish') %}[onclick^="deletePayment("] { display: none !important; }{% endif %}
+{% if not current_user.ruxsat('kirim', 'yaratish') %}[onclick^="openAddPurchase("], #addPurchaseForm { display: none !important; }{% endif %}
+{% if not current_user.ruxsat('kirim', 'tahrirlash') %}[onclick^="editPurchase("] { display: none !important; }{% endif %}
+{% if not current_user.ruxsat('kirim', 'ochirish') %}[onclick^="deletePurchase("] { display: none !important; }{% endif %}
+{% if not current_user.ruxsat('material', 'yaratish') %}[onclick^="apToggleNewItem("] { display: none !important; }{% endif %}
+</style>
 <div class="erp-content">
 
   <div class="kpi-grid mb-16" style="grid-template-columns:repeat(3,1fr)">
@@ -57,7 +70,7 @@
     <div class="form-group"><label>Izoh</label><input type="text" id="s-notes" placeholder="..."></div>
     <div id="sup-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:var(--f-fee2e2);border-radius:7px;font-size:12px;color:var(--m-dc2626)"></div>
     <div style="display:flex;gap:8px;margin-top:4px">
-      <button class="btn btn-dark w-full" onclick="saveSupplier()">Saqlash</button>
+      <button class="btn btn-dark w-full" id="sup-save-btn" onclick="saveSupplier()">Saqlash</button>
       <button data-yopish class="btn btn-outline w-full" onclick="closeSupplierModal()">Bekor</button>
     </div>
   </div>
@@ -383,10 +396,15 @@ function showMsg(t, type){
 let suppliers = [];
 let currentSupplierId = null;
 let editingSupplierId = null;
+// kech144 (zip 180, audit C3): qator bosilsa Kirim sahifasi — faqat «Xomashyo kirimi: Yaratish» bilan (sahifa shu ruxsatni so'raydi;
+// ilgari ruxsatsizga «ruxsat yo'q» sahifasi ochilardi) — aks holda tarix oynasi
+const KIRIM_YARATISH = {{ 'true' if current_user.ruxsat('kirim', 'yaratish') else 'false' }};
 
+// kech144 (zip 180, audit C1): `yukBlok` — 401 / 5xx / tarmoqda KPI «—», ro'yxat o'rnida sabab (ilgari `reduce` xatosi — konsolga,
+// ro'yxat abadiy «Yuklanmoqda...»); eski javob yangisini bosmaydi
 async function loadSuppliers(){
-  try{
-    suppliers = await fetch('/api/suppliers').then(r=>r.json());
+  await yukBlok('taminotchilar', '/api/suppliers', d => {
+    suppliers = Array.isArray(d) ? d : [];
     const totalDebt = suppliers.reduce((s,x)=>s+x.debt,0);
     const debtCount = suppliers.filter(x=>x.debt>0).length;
 
@@ -394,8 +412,12 @@ async function loadSuppliers(){
     document.getElementById('k-supplier-count').textContent = debtCount + ' ta';
     document.getElementById('k-total-count').textContent = suppliers.length + ' ta';
 
-    renderSupplierList(suppliers);
-  }catch(e){console.error(e);}
+    const q = document.getElementById('sup-search') ? document.getElementById('sup-search').value : '';
+    if (q && q.trim()) filterSuppliers(q); else renderSupplierList(suppliers);
+  }, e => {
+    ['k-total-debt', 'k-supplier-count', 'k-total-count'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '—'; });
+    yukRoyxatXato('supList', yukXatoMatn("Ta'minotchilar ro'yxati", e));
+  });
 }
 
 function daysAgoText(iso) {
@@ -409,17 +431,18 @@ function daysAgoText(iso) {
   return tkSana(iso);
 }
 
-function renderSupplierList(list){
+function renderSupplierList(list, qidiruv){
   const box = document.getElementById('supList');
   if (!list.length){
-    box.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)">Topilmadi</div>';
+    // kech144 (zip 180, audit C1): qidiruvsiz bo'sh ro'yxat — «Hali ta'minotchi yo'q» (ilgari ham «Topilmadi»)
+    box.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)">' + (qidiruv ? 'Topilmadi' : "Hali ta'minotchi yo'q") + '</div>';
     return;
   }
 
   // kech120 (zip 132 — G4-04): qatorda «Tarix» (🕓) — xaridlar va TO'LOVLAR tarixi (to'lovni ko'rish / bekor qilish); ilgari bu oynaga
   // hech qayerdan kirilmasdi (qator bosilsa — Kirim sahifasi)
   box.innerHTML = list.map(s => `
-    <div class="sup-row" onclick="location.href='/suppliers/receive?supplier_id=${s.id}'">
+    <div class="sup-row" onclick="${((typeof KIRIM_YARATISH === 'undefined') || KIRIM_YARATISH) ? `location.href='/suppliers/receive?supplier_id=${s.id}'` : `openHistory(${s.id})`}">
       <div style="flex:1;min-width:0">
         <div class="sup-name">${escapeHtml(s.name)}</div>
         <div class="sup-meta">
@@ -443,7 +466,7 @@ function filterSuppliers(q){
   if (!query) { renderSupplierList(suppliers); return; }
   renderSupplierList(suppliers.filter(s =>
     s.name.toLowerCase().includes(query) || (s.phone||'').includes(query)
-  ));
+  ), true);
 }
 
 function openSupplierModal(){
@@ -479,13 +502,29 @@ async function saveSupplier(){
     notes: document.getElementById('s-notes').value.trim() || null
   };
 
-  try{
+  // kech144 (zip 180, audit A4 / D1): bir vaqtda bitta so'rov (tugma «Saqlanmoqda...»); yangi ta'minotchi — `X-Amal-Kaliti` (javobi
+  // yo'qolgan so'rovni qayta yuborish ikkinchi ta'minotchi yaratmaydi); rad — server sababi (ilgari doim «❌ Xato yuz berdi»), natija
+  // noma'lum — tekshirish so'raladi
+  if (saveSupplier.band) return;
+  saveSupplier.band = true;
+  const btn = document.getElementById('sup-save-btn');
+  tugmaBand(btn, true);
+  let n;
+  try {
     const url = editingSupplierId ? `/api/suppliers/${editingSupplierId}` : '/api/suppliers';
     const method = editingSupplierId ? 'PUT' : 'POST';
-    const res = await fetch(url, { method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(data) });
-    if (res.ok){ closeSupplierModal(); loadSuppliers(); }
-    else { err.style.display='block'; err.textContent='❌ Xato yuz berdi'; }
-  }catch(e){ err.style.display='block'; err.textContent='❌ Server xatosi'; }
+    // kech146 (zip 180, review 1 — №6): kalit o'rni — yangi ta'minotchi NOMI bilan (bo'shliq, katta-kichik harf e'tiborsiz): natijasi
+    // noma'lum «A» dan keyin «C» kiritilsa — yangi kalit (ilgari server «A» javobini qaytarardi, «C» jimgina yaratilmasdi)
+    n = await amalYubor(url, { method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(data) },
+                        editingSupplierId ? null : 'taminotchi_yangi_' + name.replace(/\s+/g, ' ').toLowerCase());
+  } finally { saveSupplier.band = false; tugmaBand(btn, false); }
+  if (n.ok) {
+    closeSupplierModal(); loadSuppliers();
+    if (n.takror) showMsg("✓ Ta'minotchi «" + ((n.javob && n.javob.name) || name) + "» saqlandi" + amalTakrorIzoh(true), 'success');
+    return;
+  }
+  err.style.display = 'block';
+  err.textContent = n.nomalum ? amalNomalumMatn("Ta'minotchi", n.xato) : "❌ Saqlanmadi: " + n.xato;
 }
 
 // 21-band (2026-09-21): server yuborgan SABABNI o'qish — `detail` matn
@@ -494,6 +533,11 @@ async function saveSupplier(){
 // xatoda faqat "❌ Xato" derdi, ya'ni "Bu yetkazib beruvchida … qarz bor"
 // kabi aniq sabablarni foydalanuvchi KO'RMASDI.
 async function serverSababi(res, standart) {
+  // kech144 (zip 180, audit D1): 401 / 5xx / tarmoq — `amalSababi` bilan bir xil matn («kirish muddati tugagan», «server javob bermadi —
+  // sahifani yangilab tekshiring»; ilgari «Xato»)
+  if ((!res || typeof res.status !== 'number' || res.status === 401 || res.status >= 500) && typeof amalSababi === 'function') {
+    return await amalSababi(res);
+  }
   let sabab = standart || 'Xato';
   try {
     const d = await res.json();
@@ -507,30 +551,37 @@ async function deleteSupplier(id, debt){
   const s = suppliers.find(x => x.id === id);
   const name = s ? s.name : "Bu ta'minotchi";
 
+  // kech144 (zip 180, egasi QARORI 14.10 «Yashirilsin»): tarixi bor ta'minotchi ro'yxatdan YASHIRILADI — xaridlar, to'lovlar va Kassa
+  // o'zgarmaydi (ilgari to'lovlari o'chib, Kassa qoldig'i shuncha ko'payardi); xabar — server javobiga qarab
+  const _natija180 = async (res) => {
+    let j = null;
+    try { j = await res.json(); } catch (e) { j = null; }
+    showMsg(j && j.yashirildi ? "✓ Ro'yxatdan yashirildi — xaridlar, to'lovlar va Kassa tarixi saqlandi" : '✓ O\'chirildi', 'success');
+  };
   if (debt > 0) {
     const ok = await customConfirm(
       `${name} — ${fmt(debt)} so'm QARZ bor!\n\n` +
-      `Baribir o'chirilsinmi? Qarz tarixi ham butunlay yo'qoladi, ` +
-      `bu amalni ORQAGA QAYTARIB BO'LMAYDI.`,
+      `Baribir o'chirilsinmi? Ta'minotchi ro'yxatdan YASHIRILADI: xaridlar, to'lovlar va qarz tarixi saqlanadi, ` +
+      `Kassa o'zgarmaydi. Qarz ro'yxatlarda ko'rinmay qoladi.`,
       {danger:true, okText:"Baribir o'chirish"}
     );
     if (!ok) return;
 
     try {
       const res = await fetch(`/api/suppliers/${id}?force=true`, { method: 'DELETE' });
-      if (res.ok) { showMsg('✓ O\'chirildi', 'success'); loadSuppliers(); }
+      if (res.ok) { await _natija180(res); loadSuppliers(); }
       else showMsg('❌ ' + (await serverSababi(res)), 'error');
-    } catch(e) { showMsg('❌ Server xatosi', 'error'); }
+    } catch(e) { showMsg("⚠️ O'chirish natijasi noma'lum: " + await amalSababi(e), 'error'); }   // kech144 (zip 180, D1)
     return;
   }
 
-  if (!(await customConfirm(`${name} o'chirilsinmi?\n\nXaridlar tarixi Omborxonada saqlanib qoladi, faqat bu ta'minotchiga bog'lanmaydi.`))) return;
+  if (!(await customConfirm(`${name} o'chirilsinmi?\n\nTarixi (xarid yoki to'lov) bo'lsa — ro'yxatdan yashiriladi: xaridlar, to'lovlar va Kassa o'zgarmaydi.`))) return;
 
   try {
     const res = await fetch(`/api/suppliers/${id}`, { method: 'DELETE' });
-    if (res.ok) { showMsg('✓ O\'chirildi', 'success'); loadSuppliers(); }
+    if (res.ok) { await _natija180(res); loadSuppliers(); }
     else showMsg('❌ ' + (await serverSababi(res)), 'error');
-  } catch(e) { showMsg('❌ Server xatosi', 'error'); }
+  } catch(e) { showMsg("⚠️ O'chirish natijasi noma'lum: " + await amalSababi(e), 'error'); }   // kech144 (zip 180, D1)
 }
 
 let invItems = [];
@@ -538,14 +589,16 @@ let invItems = [];
 async function loadInvItemsForAp() {
   if (invItems.length) return;
   const sel = document.getElementById('ap-item');
+  // kech144 (zip 180, audit D1): `yukOl` — sabab o'zbekcha («ko'rish ruxsati yo'q», «internet aloqasi yo'q», «server javob bermadi»; ilgari
+  // «❌ Xato (status: 403)», internet uzilsa inglizcha «Failed to fetch»)
   try {
-    const res = await fetch('/api/inventory');
-    if (!res.ok) {
-      sel.innerHTML = `<option value="">❌ Xato (status: ${res.status}) — Omborxonani yuklab bo'lmadi</option>`;
-      console.error('Inventory fetch failed:', res.status, await res.text().catch(()=>''));
+    let _r180;
+    try { _r180 = await yukOl('/api/inventory'); }
+    catch (e) {
+      sel.innerHTML = '<option value="">' + escapeHtml(yukXatoMatn("Materiallar ro'yxati", (e && e.yukXato) ? e : yukXato('server'))) + '</option>';
       return;
     }
-    invItems = await res.json();
+    invItems = Array.isArray(_r180) ? _r180 : [];
 
     if (!invItems.length) {
       sel.innerHTML = '<option value="">⚠️ Omborxonada hech qanday xomashyo yo\'q</option>';
@@ -574,7 +627,7 @@ async function loadInvItemsForAp() {
 
     apOnItemChange();
   } catch(e) {
-    sel.innerHTML = `<option value="">❌ Tarmoq xatosi: ${escapeHtml(e.message)}</option>`;
+    sel.innerHTML = '<option value="">' + escapeHtml("⚠️ Materiallar ro'yxatini ko'rsatib bo'lmadi — sahifani yangilang") + '</option>';
     console.error('loadInvItemsForAp xatosi:', e);
   }
 }
@@ -704,7 +757,15 @@ function openAddPurchase() {
   const form = document.getElementById('addPurchaseForm');
   const show = form.style.display === 'none';
   form.style.display = show ? 'block' : 'none';
+  // kech146 (zip 180, review 1 — №2): saqlashda qisman xato bo'lib savatda QOLGAN qatorlar (shu ta'minotchiniki) — tozalanmaydi (ilgari
+  // «savatda qoldi» deyilardi-yu, «+ Xarid qo'shish» bosilganda savat bo'shatilardi); boshqa ta'minotchi yoki yangi ochilish — avvalgidek
+  if (show && apBasket.length && saveAddPurchase.qoldi === currentSupplierId) {
+    renderApBasket();
+    loadInvItemsForAp();
+    return;
+  }
   if (show) {
+    saveAddPurchase.qoldi = null;
     apBasket = [];
     renderApBasket();
     loadInvItemsForAp().then(() => apOnItemChange());
@@ -877,6 +938,11 @@ async function saveAddPurchase() {
     if (!volumePerUnit) { showMsg('❌ Penoplast uchun 1 blok necha m³ ekanini kiriting', 'error'); return; }
   }
 
+  // kech144 (zip 180, audit C1): tarix yuklanmagan (yoki boshqa ta'minotchiniki) — xarid yozilmaydi (to'lov / qarz qaysi ta'minotchiga
+  // ketishi ko'rinib turmaydi)
+  if (openHistory.yuklandi !== currentSupplierId) { showMsg("❌ Ta'minotchi ma'lumoti yuklanmagan — oynani yopib, qayta oching", 'error'); return; }
+  if (saveAddPurchase.band) return;
+  saveAddPurchase.band = true;
   let totalPaid = 0, totalDebt = 0, hadError = false;
   document.getElementById('ap-save-btn').disabled = true;
 
@@ -897,11 +963,35 @@ async function saveAddPurchase() {
     qoldiqT -= q;
   }
 
+  // kech144 (zip 180, audit A2): har qator — `amalYubor` (kalit qator mazmuni bo'yicha: javobi yo'qolgan qatorni qayta saqlash ikkinchi
+  // xarid yozmaydi). Saqlanganlar savatdan olinadi; saqlanmaganlari (sababi bilan) savatda QOLADI — ilgari savat tozalanib, faqat «Ba'zi
+  // materiallar saqlanmadi» deyilardi va qayta kiritish saqlanganlarini ikki marta yozardi.
+  const qolganlar = [], xatolar = [];
+  let nomalumBor = false, saqlanganTolov = 0;
+  // kech146 (zip 180, review 1 — №2, NOMZOD): bir xil qatorlar (material, miqdor, narx) — har biri O'Z kaliti: qator nechanchi nusxa
+  // ekani (`nusxa`) birinchi saqlashda qatorga yoziladi va qayta saqlashda o'zgarmaydi (natijasi noma'lum qator o'sha kalit bilan qayta
+  // ketadi). Ilgari ikki bir xil qator bitta kalitni bo'lishardi: birinchisining natijasi noma'lum bo'lsa ikkinchisi uning javobini
+  // olib, «saqlandi» deyilardi-yu, yozilmasdi.
+  const _nusxalar = {};
+  const _mazmun = (l) => [l.itemId, l.qty, l.price].join('_');
+  lines.forEach(l => { if (Number.isInteger(l.nusxa)) (_nusxalar[_mazmun(l)] = _nusxalar[_mazmun(l)] || []).push(l.nusxa); });
+  lines.forEach(l => {
+    if (Number.isInteger(l.nusxa)) return;
+    const band = (_nusxalar[_mazmun(l)] = _nusxalar[_mazmun(l)] || []);
+    let k = 0;
+    while (band.includes(k)) k++;
+    l.nusxa = k;
+    band.push(k);
+  });
   for (let li = 0; li < lines.length; li++) {
     const line = lines[li];
     const linePaid = ulushT[li] / 100;
+    // kalit o'rni — qator MAZMUNI (ta'minotchi, material, miqdor, narx): to'lov ulushi qayta taqsimlansa ham natijasi noma'lum qatorni qayta
+    // saqlash o'sha kalit bilan ketadi (server birinchi javobni qaytaradi — ikkinchi xarid yo'q)
+    const slot = ['xarid', currentSupplierId, line.itemId, line.qty, line.price, line.nusxa].join('_');
+    let n;
     try {
-      const res = await fetch(`/api/inventory/${line.itemId}/purchase`, {
+      n = await amalYubor(`/api/inventory/${line.itemId}/purchase`, {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
         body: JSON.stringify({
@@ -914,26 +1004,58 @@ async function saveAddPurchase() {
           transport_cost: line === lines[0] ? transportCost : 0,
           volume_per_unit: volumePerUnit
         })
-      });
-      if (res.ok) {
-        const r = await res.json();
-        totalPaid += r.paid_now || 0;
-        totalDebt += r.debt_remains || 0;
-      } else { hadError = true; }
-    } catch(e) { hadError = true; }
+      }, slot);
+    } catch (e) { n = {ok: false, nomalum: true, xato: await amalSababi(e)}; }
+    if (n.ok) {
+      const r = n.javob || {};
+      totalPaid += r.paid_now || 0;
+      totalDebt += r.debt_remains || 0;
+      saqlanganTolov += linePaid;
+      if (li === 0) {
+        // kech146 (zip 180, review 1 — №2): transport 1-qator bilan yuboriladi — u yozildi: maydonlar tozalanadi (qolgan qatorlarni
+        // qayta saqlash IKKINCHI transport xarajatini yozmaydi)
+        const _tp = document.getElementById('ap-transport-payer'), _tc = document.getElementById('ap-transport-cost');
+        if (_tp) _tp.value = 'none';
+        if (_tc) _tc.value = '';
+        if (typeof apToggleTransport === 'function') apToggleTransport();
+      }
+    } else {
+      hadError = true;
+      if (n.nomalum) nomalumBor = true;
+      qolganlar.push(line);
+      xatolar.push('• ' + line.itemName + ': ' + (n.nomalum ? "natija noma'lum — " : '') + n.xato);
+    }
   }
 
   document.getElementById('ap-save-btn').disabled = false;
+  saveAddPurchase.band = false;
 
   if (hadError) {
-    showMsg('⚠️ Ba\'zi materiallar saqlanmadi — qaytadan tekshiring', 'error');
-  } else {
-    let msg = `✓ ${lines.length} ta material xaridi yozildi\n💰 To'landi: ${narxKorinishi(pulYigindi([totalPaid]))} so'm`;
-    if (totalDebt > 0.005) msg += `\n🔴 Qarz: ${narxKorinishi(pulYigindi([totalDebt]))} so'm`;
-    showMsg(msg, 'success');
+    // saqlanmaganlar savatda qoladi; joriy forma qatori (savatga qo'shilmagan bo'lsa) ham savatga o'tadi — maydonlar tozalanadi;
+    // «Hozir to'langan» — saqlanmaganlarga qolgan summa
+    apBasket = qolganlar;
+    ['ap-item', 'ap-qty', 'ap-price'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    const paidEl = document.getElementById('ap-paid-now');
+    if (paidEl) paidEl.value = String(Math.max(0, Math.round((paidNow - saqlanganTolov) * 100) / 100));
+    renderApBasket();
+    const saqlandi = lines.length - qolganlar.length;
+    showMsg((saqlandi ? `✓ ${saqlandi} ta material saqlandi.\n` : '') + `❌ ${qolganlar.length} tasi saqlanmadi (savatda qoldi):\n`
+      + xatolar.join('\n') + (nomalumBor ? "\nNatija noma'lum qatorlarni qayta saqlasangiz — ikki marta yozilmaydi." : ''), 'error');
+    // kech146 (zip 180, review 1 — №2): forma OCHIQ qoladi (`openHistory` uni yashiradi — darhol qayta ko'rsatiladi; ilgari yopilib,
+    // qayta ochish savatni tozalardi), savat shu ta'minotchiga bog'lanadi (`openAddPurchase` uni tozalamaydi)
+    saveAddPurchase.qoldi = currentSupplierId;
+    openHistory(currentSupplierId, true);
+    const _forma = document.getElementById('addPurchaseForm');
+    if (_forma) _forma.style.display = 'block';
+    loadSuppliers();
+    return;
   }
+  let msg = `✓ ${lines.length} ta material xaridi yozildi\n💰 To'landi: ${narxKorinishi(pulYigindi([totalPaid]))} so'm`;
+  if (totalDebt > 0.005) msg += `\n🔴 Qarz: ${narxKorinishi(pulYigindi([totalDebt]))} so'm`;
+  showMsg(msg, 'success');
 
   apBasket = [];
+  saveAddPurchase.qoldi = null;
   invItems = [];
   document.getElementById('addPurchaseForm').style.display = 'none';
   openHistory(currentSupplierId);
@@ -942,8 +1064,19 @@ async function saveAddPurchase() {
 
 let historyCurrentPage = 1;
 
+// kech144 (zip 180, audit C1): `yukNavbat('tarix')` — tez almashtirilsa / sahifalansa eski javob yangisini bosmaydi; ochilganda maydonlar
+// «—» ga (ilgari xatoda OLDINGI ta'minotchi nomi, qarzi va ro'yxati qolib, «💰 To'lov qilish» YANGI ta'minotchiga to'lardi); xatoda sabab
+// va to'lov / xarid tugmalari berk (`openHistory.yuklandi` — muvaffaqiyatli yuklangan ta'minotchi)
 async function openHistory(id, keepFilter, page){
   currentSupplierId = id;
+  openHistory.yuklandi = null;
+  const joriy = yukNavbat('tarix');
+  ['hist-name', 'hist-phone', 'hist-credit', 'hist-paid', 'hist-debt'].forEach(k => { const el = document.getElementById(k); if (el) el.textContent = '—'; });
+  ['hist-purchases', 'hist-payments'].forEach(k => {
+    const el = document.getElementById(k);
+    if (el) el.innerHTML = '<div style="text-align:center;padding:14px;color:var(--text3);font-size:12px">Yuklanmoqda...</div>'; });
+  const _payBtn = document.getElementById('supplier-pay-save-btn');
+  if (_payBtn) _payBtn.disabled = true;
   document.getElementById('historyModal').style.display = 'flex';
   document.getElementById('pay-amount').value = '';
   document.getElementById('addPurchaseForm').style.display = 'none';
@@ -959,8 +1092,17 @@ async function openHistory(id, keepFilter, page){
   if (from) url += `&start_date=${from}`;
   if (to) url += `&end_date=${to}`;
 
+  let d;
+  try { d = await yukOl(url); }
+  catch (e) {
+    if (!joriy()) return;
+    const sabab = yukXatoMatn("Ta'minotchi tarixi", (e && e.yukXato) ? e : yukXato('server'));
+    yukRoyxatXato('hist-purchases', sabab);
+    const pa0 = document.getElementById('hist-payments'); if (pa0) pa0.innerHTML = '';
+    return;
+  }
+  if (!joriy()) return;
   try{
-    const d = await fetch(url).then(r=>r.json());
     document.getElementById('hist-name').textContent = d.name;
     document.getElementById('hist-phone').textContent = d.phone || '—';
     document.getElementById('hist-credit').textContent = fmt(d.total_credit) + " so'm";
@@ -1034,7 +1176,12 @@ async function openHistory(id, keepFilter, page){
         </div>`;
       }).join('');
     }
-  }catch(e){console.error(e);}
+    openHistory.yuklandi = id;
+    if (_payBtn) _payBtn.disabled = false;
+  }catch(e){
+    console.error(e);
+    yukRoyxatXato('hist-purchases', "⚠️ Ta'minotchi tarixini ko'rsatib bo'lmadi — sahifani yangilang");
+  }
 }
 function closeHistoryModal(){ document.getElementById('historyModal').style.display='none'; }
 
@@ -1093,30 +1240,46 @@ async function editPurchase(id, qty, price, isCredit) {
   if (inFlightPurchaseEdit.has(id)) return; // Ikki marta bosishdan himoya
   inFlightPurchaseEdit.add(id);
   try {
-    const res = await fetch(`/api/inventory/purchases/${id}`, {
-      method: 'PUT',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ quantity: newQty, price_per_unit: newPrice })
-    });
+    // kech144 (zip 180, egasi QARORI «Har safar so'rasin», audit B4): yangi summa to'langan puldan past — server 409
+    // `purchase_payment_excess`: ortiqchasi to'lovdan ayirilsinmi yoki ta'minotchida avans bo'lib qolsinmi — so'ng `?tolov=` bilan
+    let tolov = null, res = null;
+    for (let urinish = 0; urinish < 2; urinish++) {
+      res = await fetch(`/api/inventory/purchases/${id}` + (tolov ? `?tolov=${tolov}` : ''), {
+        method: 'PUT',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ quantity: newQty, price_per_unit: newPrice })
+      });
+      if (res.status !== 409 || tolov) break;
+      let d = null;
+      try { d = await (typeof res.clone === 'function' ? res.clone() : res).json(); } catch (e) { d = null; }
+      const det = d && d.detail;
+      if (!det || det.type !== 'purchase_payment_excess') break;
+      const t = await customConfirm('Xaridni tahrirlash', String(det.message || ''),
+        {okText: "Ortiqchasini to'lovdan ayirish", altText: "Ta'minotchida avans qolsin", cancelText: 'Bekor'});
+      if (t === true) tolov = 'ochirish';
+      else if (t === 'alt') tolov = 'avans';
+      else return;
+    }
     if (res.ok) {
-      showMsg('✓ Yangilandi', 'success');
+      showMsg('✓ Yangilandi' + (tolov === 'avans' ? " — ortiqcha to'lov ta'minotchida avans bo'lib qoldi"
+                                : (tolov === 'ochirish' ? " — ortiqchasi to'lovdan ayirildi" : '')), 'success');
       openHistory(currentSupplierId, true);
       loadSuppliers();
     } else {
       // 21-band: server sababini ko'rsatamiz (`serverSababi`).
       showMsg('❌ ' + (await serverSababi(res)), 'error');
     }
-  } catch(e) { showMsg('❌ Server xatosi', 'error'); } finally {
+  } catch(e) { showMsg("⚠️ Tahrir natijasi noma'lum: " + await amalSababi(e), 'error'); } finally {   // kech144 (zip 180, D1)
     inFlightPurchaseEdit.delete(id);
   }
 }
 
-async function deletePurchase(id) {
+async function deletePurchase(id, tolov) {
   // 20-band (2026-09-21): ilgari bu oyna "ombordagi joriy miqdor AVTOMATIK
   // o'zgarmaydi" deb ogohlantirardi — bu NOTO'G'RI edi: server xarid
   // miqdorini ombordan AYIRADI (Omborxona sahifasidagi oyna to'g'ri
   // yozardi). Endi ikkala sahifa bir xil haqiqatni aytadi.
-  if (!(await customConfirm(
+  if (!tolov && !(await customConfirm(
     "Bu xarid yozuvi o'chirilsinmi?\n\n" +
     "⚠️ Xarid miqdori OMBORDAN AYIRILADI va qarz hisobi qayta hisoblanadi. " +
     "Agar bu xomashyo allaqachon ishlatilgan bo'lsa, qoldiq manfiyga tushishi " +
@@ -1124,18 +1287,35 @@ async function deletePurchase(id) {
     {danger:true}
   ))) return;
 
+  if (deletePurchase.band) return;      // kech144 (zip 180, audit B3): ikki marta bosish — bitta so'rov
+  deletePurchase.band = true;
+  // kech144 (zip 180, egasi QARORI «Har safar so'rasin», audit B5): «hoziroq to'langan» to'lovi bor — server 409 `purchase_has_payment`:
+  // «To'lovni ham o'chirish» / «Ta'minotchida avans qolsin» / «Bekor» (Kirim hujjatini bekor qilish oynasi bilan bir xil)
+  let tanlov = null;
   try {
-    const res = await fetch(`/api/inventory/purchases/${id}`, { method: 'DELETE' });
+    const res = await fetch(`/api/inventory/purchases/${id}` + (tolov ? `?tolov=${tolov}` : ''), { method: 'DELETE' });
     if (res.ok) {
-      showMsg('✓ O\'chirildi', 'success');
+      showMsg(tolov === 'avans' ? "✓ O'chirildi — to'lov ta'minotchida avans bo'lib qoldi" : '✓ O\'chirildi', 'success');
       openHistory(currentSupplierId, true);
       loadSuppliers();
     } else {
-      // 20-band: server sababini ko'rsatamiz (21-band da `serverSababi`
-      // yordamchisiga ko'chirildi — xulq AYNAN bir xil).
-      showMsg('❌ ' + (await serverSababi(res)), 'error');
+      let det = null;
+      if (res.status === 409 && !tolov) {
+        try { const d = await (typeof res.clone === 'function' ? res.clone() : res).json(); det = d && d.detail; } catch (e) { det = null; }
+      }
+      if (det && det.type === 'purchase_has_payment') {
+        const t = await customConfirm("Xaridni o'chirish", String(det.message || ''),
+          {danger: true, okText: "To'lovni ham o'chirish", altText: "Ta'minotchida avans qolsin", cancelText: 'Bekor'});
+        tanlov = t === true ? 'ochirish' : (t === 'alt' ? 'avans' : null);
+      } else {
+        // 20-band: server sababini ko'rsatamiz (21-band da `serverSababi`
+        // yordamchisiga ko'chirildi — xulq AYNAN bir xil).
+        showMsg('❌ ' + (await serverSababi(res)), 'error');
+      }
     }
-  } catch(e) { showMsg('❌ Server xatosi', 'error'); }
+  } catch(e) { showMsg("⚠️ O'chirish natijasi noma'lum: " + await amalSababi(e), 'error'); }   // kech144 (zip 180, D1)
+  finally { deletePurchase.band = false; }
+  if (tanlov) await deletePurchase(id, tanlov);
 }
 
 let isSavingSupplierPayment = false;
@@ -1159,33 +1339,48 @@ async function savePayment(confirmOverpay = false){
     setSupplierPayBtnSaving(true);
   }
 
+  // kech144 (zip 180, audit A3 / C1): to'lov — `X-Amal-Kaliti` (javobi yo'qolgan to'lovni qayta yuborish ikkinchi to'lov yozmaydi; ilgari
+  // 8 s dan keyin — yozardi); natija noma'lum — tekshirish so'raladi (ilgari «❌ Server xatosi» / «❌ Xato»); tarix yuklanmagan — to'lov yo'q
+  if (openHistory.yuklandi !== currentSupplierId) {
+    isSavingSupplierPayment = false; setSupplierPayBtnSaving(false);
+    showMsg("❌ Ta'minotchi ma'lumoti yuklanmagan — oynani yopib, qayta oching", 'error');
+    return;
+  }
   try{
-    const res = await fetch(`/api/suppliers/${currentSupplierId}/payment`, {
+    const n = await amalYubor(`/api/suppliers/${currentSupplierId}/payment`, {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ supplier_id: currentSupplierId, amount, confirm_overpay: confirmOverpay })
-    });
-    if (res.ok){
-      showMsg(`✓ ${fmt(amount)} so'm to'lov qilindi`, 'success');
+    }, 'tolov_ta_' + currentSupplierId + '_' + Math.round(amount * 100));   // kech146 (zip 180, review 1): summa bilan — boshqa summa yutilmaydi
+    if (n.ok){
+      showMsg(`✓ ${fmt(amount)} so'm to'lov qilindi` + amalTakrorIzoh(n.takror), 'success');
       openHistory(currentSupplierId);
       loadSuppliers();
-    } else if (res.status === 409) {
-      const e = await res.json();
+    } else if (n.holat === 409) {
+      const e = n.javob || {};
       if (e.detail?.type === 'overpayment_warning' && await customConfirm('⚠️ ' + e.detail.message)) {
         await savePayment(true);
         return;
       }
-    } else showMsg('❌ ' + (await serverSababi(res)), 'error');
-  }catch(e){ showMsg('❌ Server xatosi', 'error'); } finally {
+    } else if (n.nomalum) showMsg(amalNomalumMatn("To'lov", n.xato), 'error');
+    else showMsg("❌ To'lov yozilmadi: " + n.xato, 'error');
+  } finally {
     isSavingSupplierPayment = false; setSupplierPayBtnSaving(false);
   }
 }
 
 async function deletePayment(id){
   if (!(await customConfirm("O'chirilsinmi? Qarz qayta oshadi.", {danger: true}))) return;
-  const res = await fetch(`/api/suppliers/payments/${id}`, {method:'DELETE'});
+  // kech144 (zip 180, audit D1): internet uzilsa — ilgari jim (istisno); 5xx — natija noma'lum; ikki marta bosish — bitta so'rov
+  if (deletePayment.band) return;
+  deletePayment.band = true;
+  let res;
+  try { res = await fetch(`/api/suppliers/payments/${id}`, {method:'DELETE'}); }
+  catch (e) { showMsg("⚠️ O'chirish natijasi noma'lum: " + await amalSababi(e), 'error'); return; }
+  finally { deletePayment.band = false; }
   if (res.ok){ openHistory(currentSupplierId); loadSuppliers(); }
   // kech120 (G4-04): rad etilsa — sababi (ilgari jim)
-  else if (typeof showMsg === 'function') showMsg('❌ ' + ((typeof serverXatoSababi === 'function') ? await serverXatoSababi(res, "O'chirilmadi") : "O'chirilmadi"), 'error');
+  else if (typeof showMsg === 'function') showMsg((res.status >= 500 ? "⚠️ O'chirish natijasi noma'lum: " : '❌ ')
+    + ((typeof amalSababi === 'function') ? await amalSababi(res) : "O'chirilmadi"), 'error');
 }
 
 loadSuppliers();

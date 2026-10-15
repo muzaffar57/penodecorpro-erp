@@ -1146,7 +1146,13 @@ async function deletePurchase(id, name, qty) {
       let d = null;
       try { d = await res.json(); } catch (e) { d = null; }
       const det = d && d.detail;
-      if (det && det.type === 'receipt_line_locked' && det.receipt_id) {
+      // kech144 (zip 180, egasi QARORI «Har safar so'rasin», audit B5): «hoziroq to'langan» to'lovi bor xarid
+      if (det && det.type === 'purchase_has_payment') {
+        const t = await customConfirm(`"${name}" xaridini bekor qilish`, String(det.message || ''),
+          {danger: true, okText: "To'lovni ham o'chirish", altText: "Ta'minotchida avans qolsin", cancelText: 'Bekor'});
+        const tanlov = t === true ? 'ochirish' : (t === 'alt' ? 'avans' : null);
+        if (tanlov) await xaridniTolovBilanBekorQil(id, tanlov);
+      } else if (det && det.type === 'receipt_line_locked' && det.receipt_id) {
         const ha = await customConfirm(String(det.message || ''), {okText: 'Kirim hujjatini bekor qilish', cancelText: 'Yopish'});
         if (ha && typeof kirimHujjatiniBekorQil === 'function') await kirimHujjatiniBekorQil(det.receipt_id);
       } else {
@@ -1156,6 +1162,20 @@ async function deletePurchase(id, name, qty) {
       invToast('❌ Xarid bekor qilinmadi: ' + await amalSababi(res));
     }
   } catch(e) { invToast('❌ Xarid bekor qilinmadi: ' + await amalSababi(e)); }
+}
+// kech144 (zip 180, egasi QARORI 14.10 «Har safar so'rasin»): to'lov tanlovi bilan xaridni bekor qilish (`?tolov=ochirish|avans`)
+async function xaridniTolovBilanBekorQil(id, tolov) {
+  try {
+    const res = await fetch(`/api/inventory/purchases/${id}?tolov=${encodeURIComponent(tolov)}`, { method: 'DELETE' });
+    if (res.ok) {
+      invToast(tolov === 'avans' ? "✓ Xarid bekor qilindi — to'lov ta'minotchida avans bo'lib qoldi."
+                                 : "✓ Xarid bekor qilindi — to'lovi ham o'chirildi.");
+      openPurchaseHistory();
+      setTimeout(() => location.reload(), 600);
+    } else {
+      invToast('❌ Xarid bekor qilinmadi: ' + await amalSababi(res));
+    }
+  } catch (e) { invToast("⚠️ Bekor qilish natijasi noma'lum: " + await amalSababi(e)); }
 }
 function closePurchaseHistory() { document.getElementById('historyModal').style.display = 'none'; }
 
