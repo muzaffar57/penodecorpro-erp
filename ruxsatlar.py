@@ -541,6 +541,9 @@ NARX_YOLLAR = {
     "/api/inventory/purchase-trend": ("months[].total",),
     "/api/penoplasts": ("items[].price_per_unit",),
     "/api/loy-cost": ("breakdown[].price",),
+    # kech144 (zip 180, audit C5): xarid / kirim javobidagi materialning o'rtacha narxi (sahifa ko'rsatmaydi — JSON da ham yashirin)
+    "/api/inventory/{item_id}/purchase": ("old_price", "new_price"),
+    "/api/inventory/receipt": ("results[].old_price", "results[].new_price"),
 }
 
 # Migratsiya belgisi (korxona sozlamasi): shu korxona rollari yangi band bilan bir marta ko'rib chiqilgan — admin keyin

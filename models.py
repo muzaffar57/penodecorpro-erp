@@ -1975,6 +1975,10 @@ class SupplierPayment(Base):
     paid_at = Column(DateTime, default=datetime.utcnow)
     paid_by = Column(String(100), nullable=True)
     notes = Column(Text, nullable=True)
+    # kech144 (zip 180, egasi QARORI 14.10 «Har safar so'rasin»): yakka xarid bilan BIRGA yozilgan «hoziroq to'langan» to'lov — o'sha
+    # xarid (`inventory_purchases.id`). Xarid o'chirilsa / summasi to'langanidan pastga tushirilsa — egasidan so'raladi
+    # (`crud.xarid_tolovlari`). FK yo'q (mavjud bazaga `sync_missing_columns` oddiy ustun qo'shadi) — xarid o'chganda bog'lanish kodda uziladi.
+    purchase_id = Column(Integer, nullable=True)
 
     def __repr__(self):
         return f"<SupplierPayment {self.amount}>"

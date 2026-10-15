@@ -5491,7 +5491,8 @@ def api_update_inventory_item(item_id: int, data: dict = Body(...), db: Session 
 
 @app.post("/api/inventory/receipt")
 def api_create_inventory_receipt(data: dict = Body(...), db: Session = Depends(get_db),
-                                  current_user=Depends(auth.ruxsat("kirim", "yaratish"))):
+                                  current_user=Depends(auth.ruxsat("kirim", "yaratish")),
+                                  request: Request = None, response: Response = None):
     """Ombor Kirim hujjati — bir nechta mahsulotni, qo'shimcha xarajatlar
     (Transport/Tushirish/Yuklash/Boshqa) bilan birga, BITTA yagona
     tranzaksiyada saqlaydi. Xato bo'lsa — hech narsa saqlanmaydi (rollback).
@@ -5531,9 +5532,13 @@ def api_create_inventory_receipt(data: dict = Body(...), db: Session = Depends(g
     _paid_now = min(float(data.paid_now), float(_jami))
     # kech84 (103-band): kirim hujjati butun endpoint bo'yicha BITTA tranzaksiyada (ichki saqlashlar ham shu
     # tranzaksiyaga tushadi) — ish tugashidan oldingi har qanday xato hech narsa qoldirmaydi.
-    try:
+    # kech144 (zip 180, audit A1 — O'LCHANGAN kodda: 502 / javob yo'qolgandan keyin qayta bosish IKKINCHI kirim yozardi — ombor ikki
+    # baravar, qarz va kassa ikki marta): `X-Amal-Kaliti` — o'sha kalit bilan takror so'rov birinchi javobni qaytaradi (`takror: true`).
+    kalit = _amal_kaliti(request) if request is not None else None
+
+    def _bajar():
         with crud.bitta_tranzaksiya(db):
-            result = crud.create_inventory_receipt(
+            return crud.create_inventory_receipt(
                 db,
                 items=[it.model_dump() for it in data.items],
                 transport_cost=data.transport_cost, tushirish_cost=data.tushirish_cost,
@@ -5547,7 +5552,9 @@ def api_create_inventory_receipt(data: dict = Body(...), db: Session = Depends(g
                 # kech115 (G4-03): formadagi sana va to'lov muddati (ilgari yuborilmasdi / saqlanmasdi)
                 receipt_date=data.receipt_date, payment_due_date=data.payment_due_date
             )
-        return result
+    try:
+        javob, _ = _amal_bajar(db, current_user, response, "kirim", kalit, _bajar)
+        return javob
     except (HTTPException, _TenantMismatchError):
         # 12-sizish: bular o'z holati bilan chiqsin (404 / 409) — pastdagi
         # umumiy `except` ularni 500 ga aylantirib, begona yozuv haqidagi
@@ -5556,11 +5563,25 @@ def api_create_inventory_receipt(data: dict = Body(...), db: Session = Depends(g
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Kirim saqlashda xato: {str(e)}")
+        # kech144 (zip 180, audit D1): ilgari `Kirim saqlashda xato: <Python / SQL xatosi>` (inglizcha) — endi sabab jurnalga (stek
+        # bilan), foydalanuvchiga o'zbekcha matn; hech narsa saqlanmagan (tranzaksiya bekor)
+        import traceback as _tb180
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        try:
+            crud.log_error(db, f"Kirim saqlanmadi: {e}", stack_trace=_tb180.format_exc(), endpoint="api_create_inventory_receipt",
+                           company_id=_cid)
+        except Exception:
+            pass
+        raise HTTPException(status_code=500, detail="Kirim saqlanmadi — server xatosi (sababi «Xatoliklar» jurnalida). "
+                                                    "Hech narsa yozilmadi — qayta urinib ko'ring")
 
 
 @app.post("/api/inventory/{item_id}/purchase")
-def api_purchase_stock(item_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kirim", "yaratish"))):
+def api_purchase_stock(item_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kirim", "yaratish")),
+                       request: Request = None, response: Response = None):
     """Ombor kirimi — xarid narxi bilan. O'rtacha vaznli narx hisoblanadi.
     paid_now > 0 bo'lsa — bir vaqtning o'zida xarid HAM yoziladi, HAM to'lov qilinadi,
     qolgan qismi avtomatik qarz sifatida qoladi.
@@ -5619,48 +5640,72 @@ def api_purchase_stock(item_id: int, data: dict = Body(...), db: Session = Depen
     # kech84 (103-band, O'LCHANGAN): kirim (ombor + xarid yozuvi), transport xarajati va hoziroq to'lov BITTA
     # tranzaksiyada. Ilgari kirim o'zi saqlanardi — transport / ta'minotchi to'lovidan oldin xato bo'lsa kirim
     # QOLARDI, qayta urinish omborni, xaridni va transportni IKKI MARTA yozardi. Telegram — blokdan KEYIN.
-    with crud.bitta_tranzaksiya(db):
-        result = crud.purchase_stock(db, item_id, data.quantity, data.price_per_unit,
-                                      purchased_by=who, notes=data.notes,
-                                      supplier_id=data.supplier_id, is_credit=is_credit,
-                                      volume_per_unit=data.volume_per_unit,
-                                      payment_due_date=data.payment_due_date,
-                                      is_opening_stock=data.is_opening_stock)
-        if not result:
-            raise HTTPException(status_code=404, detail="Xomashyo topilmadi")
+    # kech144 (zip 180, audit A2): `X-Amal-Kaliti` — javobi yo'qolgan xaridni qayta yuborish IKKINCHI xarid yozmaydi (birinchi javob,
+    # Telegram qayta yuborilmaydi)
+    kalit = _amal_kaliti(request) if request is not None else None
+    _tg180 = {}
 
-        item = result["item"]
+    def _bajar():
+        with crud.bitta_tranzaksiya(db):
+            result = crud.purchase_stock(db, item_id, data.quantity, data.price_per_unit,
+                                          purchased_by=who, notes=data.notes,
+                                          supplier_id=data.supplier_id, is_credit=is_credit,
+                                          volume_per_unit=data.volume_per_unit,
+                                          payment_due_date=data.payment_due_date,
+                                          is_opening_stock=data.is_opening_stock)
+            if not result:
+                raise HTTPException(status_code=404, detail="Xomashyo topilmadi")
 
-        # Transport — "O'z hisobimdan" tanlansa xarajat sifatida yoziladi
-        if data.transport_payer == "self" and data.transport_cost > 0:
-            crud.create_transport_expense(
-                db,
-                schemas.TransportExpenseCreate(
-                    amount=data.transport_cost,
-                    materials_note=item.item_name,
-                    notes=f"{item.item_name} xaridi bilan birga"
-                ),
-                created_by=who, company_id=auth.company_id_of(current_user)
-            )
+            item = result["item"]
 
-        # Hoziroq to'langan summa bo'lsa — darhol to'lov sifatida yoziladi (qarzdan ayiriladi)
-        if is_credit and data.supplier_id and paid_now > 0:
-            # 17g: `ichki=True` — xarid allaqachon saqlangan; takror-yuborish
-            # himoyasi (ta'minotchi + summa + 8 s) va ortiqcha to'lov ogohlantirishi
-            # bu to'lovni yutib yubormasin / xariddan keyin 500 bermasin (sababi
-            # `crud.create_supplier_payment` izohida; kech23 da O'LCHANGAN).
-            crud.create_supplier_payment(
-                db,
-                schemas.SupplierPaymentCreate(
-                    supplier_id=data.supplier_id,
-                    amount=paid_now,
-                    notes=f"{item.item_name} xaridi bilan bir vaqtda to'langan"
-                ),
-                paid_by=who, company_id=auth.company_id_of(current_user), ichki=True
-            )
+            # Transport — "O'z hisobimdan" tanlansa xarajat sifatida yoziladi
+            if data.transport_payer == "self" and data.transport_cost > 0:
+                crud.create_transport_expense(
+                    db,
+                    schemas.TransportExpenseCreate(
+                        amount=data.transport_cost,
+                        materials_note=item.item_name,
+                        notes=f"{item.item_name} xaridi bilan birga"
+                    ),
+                    created_by=who, company_id=auth.company_id_of(current_user)
+                )
 
-    # Nasiya bo'lsa — kompaniya qarzi oshgani haqida ogohlantirish
-    if is_credit and data.supplier_id:
+            # Hoziroq to'langan summa bo'lsa — darhol to'lov sifatida yoziladi (qarzdan ayiriladi)
+            if is_credit and data.supplier_id and paid_now > 0:
+                # 17g: `ichki=True` — xarid allaqachon saqlangan; takror-yuborish
+                # himoyasi (ta'minotchi + summa + 8 s) va ortiqcha to'lov ogohlantirishi
+                # bu to'lovni yutib yubormasin / xariddan keyin 500 bermasin (sababi
+                # `crud.create_supplier_payment` izohida; kech23 da O'LCHANGAN).
+                crud.create_supplier_payment(
+                    db,
+                    schemas.SupplierPaymentCreate(
+                        supplier_id=data.supplier_id,
+                        amount=paid_now,
+                        notes=f"{item.item_name} xaridi bilan bir vaqtda to'langan"
+                    ),
+                    paid_by=who, company_id=auth.company_id_of(current_user), ichki=True,
+                    purchase_id=result["purchase"].id      # kech144 (zip 180): xarid o'chirilsa — egasidan so'raladi
+                )
+            _tg180.update(item_name=item.item_name, unit=item.unit)
+            return {
+                "status": "ok",
+                "item_name": item.item_name,
+                "new_quantity": float(item.stock_quantity),
+                "old_price": result["old_price"],
+                "new_price": result["new_price"],
+                "purchase_total": result["purchase_total"],
+                "paid_now": paid_now,
+                "debt_remains": debt_remains,
+                "price_changed": abs(result["old_price"] - result["new_price"]) > 0.01,
+                "old_volume": result["old_volume"],
+                "new_volume": result["new_volume"],
+                "volume_changed": result["volume_changed"]
+            }
+
+    javob, takror = _amal_bajar(db, current_user, response, "xarid", kalit, _bajar)
+
+    # Nasiya bo'lsa — kompaniya qarzi oshgani haqida ogohlantirish (takror so'rovda — qayta yuborilmaydi)
+    if is_credit and data.supplier_id and not takror:
         supplier = crud.get_supplier(db, data.supplier_id)
         if supplier:
             debt_info = crud.get_supplier_debt(db, data.supplier_id, company_id=auth.company_id_of(current_user))
@@ -5668,7 +5713,7 @@ def api_purchase_stock(item_id: int, data: dict = Body(...), db: Session = Depen
             paid_line = f"✅ Hoziroq to'landi: {fmt_money(paid_now)} so'm\n" if paid_now > 0 else ""
             msg = (
                 f"🚚 *Nasiya xarid qilindi*\n\n"
-                f"📦 {item.item_name}: {data.quantity:g} {item.unit} × {fmt_money(data.price_per_unit)}\n"
+                f"📦 {_tg180.get('item_name')}: {data.quantity:g} {_tg180.get('unit') or ''} × {fmt_money(data.price_per_unit)}\n"
                 f"💰 Jami summasi: {fmt_money(total_amount)} so'm\n"
                 f"{paid_line}"
                 f"\n🏪 Ta'minotchi: *{supplier.name}*\n"
@@ -5678,20 +5723,7 @@ def api_purchase_stock(item_id: int, data: dict = Body(...), db: Session = Depen
             )
             _send_telegram(msg, company_id=auth.company_id_of(current_user))
 
-    return {
-        "status": "ok",
-        "item_name": item.item_name,
-        "new_quantity": float(item.stock_quantity),
-        "old_price": result["old_price"],
-        "new_price": result["new_price"],
-        "purchase_total": result["purchase_total"],
-        "paid_now": paid_now,
-        "debt_remains": debt_remains,
-        "price_changed": abs(result["old_price"] - result["new_price"]) > 0.01,
-        "old_volume": result["old_volume"],
-        "new_volume": result["new_volume"],
-        "volume_changed": result["volume_changed"]
-    }
+    return javob
 
 
 @app.get("/api/inventory/purchases")
@@ -6700,17 +6732,25 @@ async def supplier_receive_page(request: Request, db: Session = Depends(get_db),
 
 
 @app.post("/api/suppliers")
-def api_create_supplier(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("taminotchi", "yaratish"))):
+def api_create_supplier(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("taminotchi", "yaratish")),
+                        request: Request = None, response: Response = None):
     # M8/F1a: ta'minotchi joriy adminning korxonasiga biriktiriladi.
     # 15-band: xom JSON qat'iy tekshiriladi (bo'shliqdan iborat nom, uzun
     # telefon) — 400, hech narsa yozilmaydi.
-    try:
+    # kech144 (zip 180, audit A4): `X-Amal-Kaliti` — ikki marta bosish / qayta yuborish ikkinchi ta'minotchi yaratmaydi
+    kalit = _amal_kaliti(request) if request is not None else None
+
+    def _bajar():
         sup_data = schemas.SupplierCreate(**crud._clean_create("Supplier", data))
         s = crud.create_supplier(db, sup_data, company_id=auth.company_id_of(current_user))
+        # kech146 (zip 180, review 1 — №6): nom ham — takror (`X-Takror`) javobda sahifa BIRINCHI so'rovdagi nomni ko'rsatadi
+        return {"status": "ok", "id": s.id, "name": s.name}
+    try:
+        javob, _ = _amal_bajar(db, current_user, response, "taminotchi", kalit, _bajar)
     except ValueError as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
-    return {"status": "ok", "id": s.id}
+    return javob
 
 
 @app.get("/api/suppliers")
@@ -6744,12 +6784,13 @@ def api_delete_supplier(supplier_id: int, force: bool = False, db: Session = Dep
     result = crud.delete_supplier(db, supplier_id, force=force)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
-    return {"status": "ok"}
+    # kech144 (zip 180, egasi QARORI «Yashirilsin»): tarixi bor — yashirildi (xaridlar, to'lovlar, Kassa o'zgarmadi)
+    return {"status": "ok", "yashirildi": bool(result.get("yashirildi"))}
 
 
 @app.get("/api/suppliers/{supplier_id}/history")
 def api_supplier_history(supplier_id: int, start_date: Optional[str] = None, end_date: Optional[str] = None,
-                         page: int = 1, page_size: int = 20,
+                         page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100),     # kech144 (zip 180, C7): 0 — 500 edi
                          db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("taminotchi", "korish"))):
     """Yetkazib beruvchi tarixi. start_date/end_date — YYYY-MM-DD formatida (ixtiyoriy).
     page/page_size — xaridlar ro'yxati sahifalanadi (standart: 20 tadan)."""
@@ -6764,8 +6805,14 @@ def api_supplier_history(supplier_id: int, start_date: Optional[str] = None, end
     # taqvimi bo'yicha ("bugun 2026-09-01" deganda, u albatta Toshkent
     # kunini nazarda tutadi). Bazadagi vaqtlar esa UTC'da saqlanadi,
     # shuning uchun solishtirishdan oldin -5 soat siljitiladi.
-    sd = (dt.strptime(start_date, "%Y-%m-%d") - TASHKENT_OFFSET) if start_date else None
-    ed = (dt.strptime(end_date, "%Y-%m-%d") - TASHKENT_OFFSET) if end_date else None
+    # kech144 (zip 180, audit C7): noto'g'ri sana — 400 va sabab (ilgari `strptime` xatosi 500)
+    def _sana(qiymat, nomi):
+        try:
+            return dt.strptime(qiymat, "%Y-%m-%d")
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail=f"{nomi} noto'g'ri: «{str(qiymat)[:20]}» — YYYY-MM-DD ko'rinishida yozing")
+    sd = (_sana(start_date, "Boshlanish sanasi") - TASHKENT_OFFSET) if start_date else None
+    ed = (_sana(end_date, "Tugash sanasi") - TASHKENT_OFFSET) if end_date else None
 
     history = crud.get_supplier_history(db, supplier_id, start_date=sd, end_date=ed,
                                          page=page, page_size=page_size,
@@ -6774,7 +6821,8 @@ def api_supplier_history(supplier_id: int, start_date: Optional[str] = None, end
 
 
 @app.put("/api/inventory/purchases/{purchase_id}")
-def api_update_purchase(purchase_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kirim", "tahrirlash"))):
+def api_update_purchase(purchase_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kirim", "tahrirlash")),
+                        tolov: Optional[str] = None):
     """Xarid yozuvini tahrirlash.
 
     21-band (2026-09-21): MIQDOR o'zgartirilsa — farqi OMBORGA ham
@@ -6793,8 +6841,13 @@ def api_update_purchase(purchase_id: int, data: dict = Body(...), db: Session = 
     # Tana tekshiruvidan OLDIN — begona/yo'q id uchun oracle bo'lmasin.
     if not auth.purchase_of_company(db, purchase_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Xarid topilmadi")
+    # kech144 (zip 180, egasi QARORI «Har safar so'rasin», audit B4): summa to'langanidan pastga tushsa — 409 `purchase_payment_excess`
+    # (hech narsa o'zgarmaydi), UI so'raydi va `?tolov=ochirish|avans` bilan qayta yuboradi
     try:
-        updated = crud.update_purchase(db, purchase_id, data, company_id=auth.company_id_of(current_user))
+        updated = crud.update_purchase(db, purchase_id, data, company_id=auth.company_id_of(current_user), tolov=tolov)
+    except crud.XaridTolovTanloviKerak as e:
+        db.rollback()
+        raise HTTPException(status_code=409, detail={"type": e.tur, "message": e.xabar, "summa": e.summa})
     except ValueError as e:
         # 21-band: ildiz qat'iy tekshiruvi (noma'lum maydon, cheksizlik,
         # bool, sig'im, izoh turi). Hech narsa yozilmagan bo'ladi.
@@ -6806,7 +6859,8 @@ def api_update_purchase(purchase_id: int, data: dict = Body(...), db: Session = 
 
 
 @app.delete("/api/inventory/purchases/{purchase_id}")
-def api_delete_purchase(purchase_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kirim", "ochirish"))):
+def api_delete_purchase(purchase_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kirim", "ochirish")),
+                        tolov: Optional[str] = None):
     """Xarid yozuvini o'chirish — ham OMBORdan miqdorni qaytaradi, ham pul oqimidan olib tashlaydi (to'liq bekor qilish)."""
     # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.purchase_of_company(db, purchase_id, auth.company_id_of(current_user)):
@@ -6817,14 +6871,18 @@ def api_delete_purchase(purchase_id: int, db: Session = Depends(get_db), current
     # (409 `receipt_line_locked`) — butun hujjat bekor qilinadi (`kirim_hujjatini_bekor_qilish`: to'lov bo'yicha savol bilan).
     # To'lovsiz, xarajatsiz hujjatning YAGONA qatori — butun hujjat bekor qilinadi (o'sha funksiya: ombor, o'rtacha narx, jurnal —
     # yakka xarid o'chirish bilan AYNAN; bo'sh hujjat qatori qolmaydi, audit yoziladi). To'lovsiz, xarajatsiz ko'p qatorli — avvalgidek.
-    from models import InventoryPurchase as _IP132, InventoryReceipt as _IR132
+    from models import InventoryPurchase as _IP132
     _cid132 = auth.company_id_of(current_user)
     _p132 = db.query(_IP132).join(Inventory, Inventory.id == _IP132.inventory_id).filter(
         _IP132.id == purchase_id, Inventory.company_id == _cid132).first()
     if _p132 is not None and _p132.receipt_id:
-        _r132 = db.query(_IR132).filter(_IR132.id == _p132.receipt_id, _IR132.company_id == _cid132).first()
+        # kech146 (zip 180, mustaqil tekshiruv — ESKI xato, O'LCHANGAN HAQIQIY PG 16): qaror hujjat QULFI ostida (`crud._kirim_qulf` —
+        # bekor qilish va qator tahriri bilan bir qulf; xaridlar qulf ostida qayta o'qiladi; qulf so'rov oxirigacha turadi —
+        # `crud.delete_purchase` uni shu tranzaksiyada qayta oladi). Ilgari qulfsiz o'qilardi: ikki qatorli to'lovsiz Kirimning ikkala
+        # qatori parallel o'chirilsa ikkalasi ham «yagona emas» deb qatorni o'chirib, qatorsiz BO'SH hujjat qoldirardi.
+        _r132 = crud._kirim_qulf(db, _p132.receipt_id, _cid132)
         if _r132 is not None:
-            _q132 = crud._kirim_hujjati_qismlari(db, _r132)
+            _q132 = crud._kirim_hujjati_qismlari(db, _r132, xarid_qulf=True)
             _sabab = []
             if _q132["tolovlar"]:
                 _sabab.append("hujjat bilan ta'minotchiga " + services.son_korinish(sum(float(t.amount or 0) for t in _q132["tolovlar"]), 2)
@@ -6844,7 +6902,17 @@ def api_delete_purchase(purchase_id: int, db: Session = Depends(get_db), current
                     if _n132 is None:
                         raise HTTPException(status_code=404, detail="Topilmadi")
                 return {"status": "ok", "receipt_cancelled": _r132.id}
-    if not crud.delete_purchase(db, purchase_id, company_id=auth.company_id_of(current_user)):
+    # kech144 (zip 180, egasi QARORI «Har safar so'rasin», audit B5): «hoziroq to'langan» to'lovi bor — 409 `purchase_has_payment`
+    # (hech narsa o'zgarmaydi), UI so'raydi va `?tolov=ochirish|avans` bilan qayta yuboradi
+    try:
+        _ochdi180 = crud.delete_purchase(db, purchase_id, company_id=auth.company_id_of(current_user), tolov=tolov)
+    except crud.XaridTolovTanloviKerak as e:
+        db.rollback()
+        raise HTTPException(status_code=409, detail={"type": e.tur, "message": e.xabar, "summa": e.summa})
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    if not _ochdi180:
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok"}
 
@@ -6881,7 +6949,8 @@ def api_receipt_cancel(receipt_id: int, tolov: Optional[str] = None, db: Session
 
 
 @app.post("/api/suppliers/{supplier_id}/payment")
-def api_supplier_payment(supplier_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("taminotchi_tolov", "yaratish"))):
+def api_supplier_payment(supplier_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("taminotchi_tolov", "yaratish")),
+                         request: Request = None, response: Response = None):
     # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     # Egalik tekshiruvi TANA tekshiruvidan OLDIN — begona id uchun oracle yo'q.
     if not auth.supplier_of_company(db, supplier_id, auth.company_id_of(current_user)):
@@ -6897,19 +6966,29 @@ def api_supplier_payment(supplier_id: int, data: dict = Body(...), db: Session =
         raise HTTPException(status_code=400, detail=str(e))
     toza["supplier_id"] = supplier_id
     data = schemas.SupplierPaymentCreate(**toza)
+    # kech144 (zip 180, audit A3 / B9): `X-Amal-Kaliti` — javobi yo'qolgan to'lovni qayta yuborish IKKINCHI to'lov yozmaydi (ilgari
+    # 8 s dan keyin — yozardi). Kalit bilan kelgan so'rovda «8 s ichida bir xil summa» oynasi qo'llanmaydi: kalit aniq ajratadi, oyna esa
+    # haqiqiy ikkinchi to'lovni (masalan xarid bilan birga to'langan summaga teng eski qarz to'lovini) jimgina yutardi.
+    kalit = _amal_kaliti(request) if request is not None else None
+
+    def _bajar():
+        p = crud.create_supplier_payment(db, data, paid_by=who, company_id=auth.company_id_of(current_user), oyna=(kalit is None))
+        debt_info = crud.get_supplier_debt(db, supplier_id, company_id=auth.company_id_of(current_user))
+        return {"status": "ok", "payment_id": p.id, **debt_info}
     try:
-        p = crud.create_supplier_payment(db, data, paid_by=who, company_id=auth.company_id_of(current_user))
+        javob, _ = _amal_bajar(db, current_user, response, "taminotchi_tolov", kalit, _bajar)
     except ValueError as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
     except crud.OverpaymentWarning as w:
+        # kech144 (zip 180, audit D1): ming ajratgichi — bo'shliq («5 000 000», ilgari «5,000,000»)
         raise HTTPException(status_code=409, detail={
             "type": "overpayment_warning",
-            "message": f"Kiritilgan summa ({w.amount:,.0f} so'm) qarzdan ({w.debt:,.0f} so'm) {w.excess:,.0f} so'mga ko'p. Shunday ham davom etasizmi?",
+            "message": (f"Kiritilgan summa ({fmt_money(w.amount)} so'm) qarzdan ({fmt_money(w.debt)} so'm) {fmt_money(w.excess)} "
+                        f"so'mga ko'p. Shunday ham davom etasizmi?"),
             "amount": w.amount, "debt": w.debt, "excess": w.excess
         })
-    debt_info = crud.get_supplier_debt(db, supplier_id, company_id=auth.company_id_of(current_user))
-    return {"status": "ok", "payment_id": p.id, **debt_info}
+    return javob
 
 
 @app.delete("/api/suppliers/payments/{payment_id}")
