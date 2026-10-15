@@ -675,6 +675,7 @@ def yonalish_yangila(db: Session, yonalish_id: int, company_id: int, data: dict,
     if y is None:
         return None
     eski = f"{y.nom}{' (yashirin)' if y.yashirin else ''}"
+    _eski183 = (y.nom, bool(y.yashirin))       # kech146 (zip 183, J5): qiymatlar (matn emas) solishtiriladi — mustaqil tekshiruv R2
     if "nom" in data:
         toza = _yonalish_nomi_toza(data["nom"])
         if _yonalish_nomi_bandmi(db, company_id, toza, istisno_id=y.id):
@@ -690,6 +691,11 @@ def yonalish_yangila(db: Session, yonalish_id: int, company_id: int, data: dict,
             raise ValueError(f"«{y.nom}» nomli boshqa yo'nalish ko'rinib turibdi — avval nomini o'zgartiring")
         y.yashirin = data["yashirin"]
     yangi = f"{y.nom}{' (yashirin)' if y.yashirin else ''}"
+    if (y.nom, bool(y.yashirin)) == _eski183:
+        # kech146 (zip 183, audit J5 — O'LCHANGAN): o'zgarishsiz saqlash (yoki ikki marta bosish) jurnalga soxta «tahrirlandi» yozardi
+        # (matn «Q (yashirin)» nomli ko'rinadigan yo'nalish bilan adashmasin — qiymatlar solishtiriladi)
+        db.rollback()
+        return y
     log_activity(db, "updated", "yonalish", y.id, f"Yo'nalish «{y.nom}»", kim, old_value=eski, new_value=yangi,
                  company_id=company_id, commit=False)
     db.commit()
@@ -5867,16 +5873,15 @@ def _company_of_username(db: Session, username: str):
     u = db.query(User).filter(User.username == username).first()
     if u is not None:
         return getattr(u, "company_id", None)
-    # 2026-09-20: xodimlar telefon raqami bilan kiradi (`/hodim/login`),
-    # ya'ni bu yerga username emas, TELEFON keladi. Uni ham tekshiramiz —
-    # aks holda xodimning kirish tarixi hech bir korxonaga bog'lanmay
-    # qolardi. Telefon `(company_id, phone)` bo'yicha yagona.
-    e = db.query(Employee).filter(Employee.phone == username).first()
-    return getattr(e, "company_id", None) if e else None
+    # kech146 (zip 183, audit J1 — O'LCHANGAN SQLite = PG): hodim telefoni bo'yicha TAXMIN QILINMAYDI. Ilgari `Employee.phone == kalit`
+    # (birinchisi, HAMMA korxonalar) — telefon «+998 …» ko'rinishida saqlangan bo'lsa topilmasdi (hodim kirishlari «Kirish tarixi» da
+    # yo'q), boshqa korxonada shu raqamli hodim / login bo'lsa yozuv O'SHA korxonaga tushardi (begona hodimning telefoni, IP si). Hodim
+    # yo'llari (`/hodim/login`, `/api/hodim/pin`) korxonani o'zlari aniq beradi.
+    return None
 
 
 def log_login_attempt(db: Session, username: str, success: bool, ip_address: str = None,
-                      user_agent: str = None, company_id: int = None):
+                      user_agent: str = None, company_id: int = None, aniqla: bool = True):
     """Tizimga kirish urinishini yozib boradi (muvaffaqiyatli yoki muvaffaqiyatsiz).
 
     M7 — TENANT: korxona foydalanuvchi NOMIDAN aniqlanadi (yuqoridagi
@@ -5884,7 +5889,8 @@ def log_login_attempt(db: Session, username: str, success: bool, ip_address: str
     yozuv korxonasiz qoladi — u hech bir tenantning ro'yxatida
     ko'rinmaydi, faqat IP bo'yicha rate-limit uchun ishlatiladi."""
     from models import LoginHistory
-    if company_id is None:
+    # kech146 (zip 183, J1): `aniqla=False` — korxona noma'lum (masalan hodim kirishida korxona kodi topilmadi) va TAXMIN QILINMAYDI.
+    if company_id is None and aniqla:
         company_id = _company_of_username(db, username)
     entry = LoginHistory(company_id=company_id, username=username, success=success,
                          ip_address=ip_address, user_agent=user_agent)
@@ -5894,7 +5900,8 @@ def log_login_attempt(db: Session, username: str, success: bool, ip_address: str
 
 def check_login_rate_limit(db: Session, username: str, ip_address: str = None,
                             max_attempts: int = 5, window_minutes: int = 15, ip_max_attempts: int = 20,
-                            login_jami_max: int = 30, tanish_kun: int = 30) -> dict:
+                            login_jami_max: int = 30, tanish_kun: int = 30, company_id: int = None,
+                            aniqla: bool = True) -> dict:
     """Rate limit — oxirgi `window_minutes` daqiqadagi MUVAFFAQIYATSIZ urinishlar bo'yicha kirishni bloklaydi. Mavjud LoginHistory
     jadvalidan foydalanadi — yangi jadval kerak emas.
 
@@ -5924,7 +5931,8 @@ def check_login_rate_limit(db: Session, username: str, ip_address: str = None,
     # (lokal sinovda tasdiqlangan — korxonalararo DoS).
     # IP bo'yicha himoya ATAYLAB global qoladi: bitta IP dan turli
     # korxonalarga urinish ham xuddi shunday hujum.
-    _uname_cid = _company_of_username(db, username)
+    # kech146 (zip 183, J1): hodim yo'llari korxonani o'zi beradi (`company_id`) — yozuv bilan BIR xil korxona bo'yicha sanaladi
+    _uname_cid = company_id if company_id is not None else (_company_of_username(db, username) if aniqla else None)
     q = db.query(LoginHistory).filter(
         LoginHistory.success == False,
         LoginHistory.created_at >= cutoff
@@ -6055,9 +6063,11 @@ def audit_amal_guruhlari():
 def _jurnal_sanasi(matn):
     """'YYYY-MM-DD' → datetime (Toshkent kuni boshi) yoki None (bo'sh / noto'g'ri — filtr qo'llanmaydi)."""
     try:
-        return datetime.strptime((matn or "").strip(), "%Y-%m-%d")
+        _s = datetime.strptime((matn or "").strip(), "%Y-%m-%d")
     except ValueError:
         return None
+    # kech146 (zip 183, audit J6 — O'LCHANGAN): 01.01.0001 → `_d - TASHKENT_OFFSET` OverflowError → 500 (JSON, «Xatoliklar» ga stek)
+    return _s if 1900 <= _s.year <= 2100 else None
 
 
 def _jurnal_sana_oraligi(q, ustun, sana_dan, sana_gacha):
@@ -6095,16 +6105,49 @@ JURNAL_LIKE_ESCAPE = "!"           # LIKE ichidagi `%` / `_` ni oddiy belgi qila
 
 def _jurnal_matn_qolipi(matn):
     """Qidiruv matni → LIKE qolipi (`%` va `_` — oddiy belgi sifatida)."""
-    _t = (matn or "").strip()[:100]
+    _t = (matn or "").replace("\x00", "").strip()[:100]      # kech146 (J6): NUL — PostgreSQL 500
     if not _t:
         return None, ""
     _e = JURNAL_LIKE_ESCAPE
     return "%" + _t.replace(_e, _e + _e).replace("%", _e + "%").replace("_", _e + "_") + "%", _t
 
 
+# kech146 (zip 183, audit J2 — O'LCHANGAN SQLite = PG; egasi qarori kech118 «Tannarx — ruxsati yo'q bo'lsa HAMMA joyda «—»»):
+# tannarx yozadigan jurnal yozuvlari — (amal, obyekt turi) va matndagi tannarx qismlari. «Tannarx va foyda» ruxsatisiz foydalanuvchiga
+# sahifada «—» (`jurnal_tannarx_yashir`), qidiruv bu yozuvlarning QIYMATLARIDA ishlamaydi (yashirin son orqali topilmasin).
+TANNARX_JURNAL_TURLARI = (("produced", "production_order"), ("produced", "finished_product"), ("delete", "finished_product_loss"))
+_TANNARX_JURNAL_QOLIPLARI = (
+    # ishlab chiqarish yakuni: «… — tannarx 1 234 so'm (xomashyo …, qo'shimcha …); Boshlashdagi taxmin … so'm, farq ±… so'm»
+    # (mustaqil tekshiruv R7: manfiy son ham — ilova orqali bo'lmaydi, lekin niqob shunga bog'liq bo'lmasin)
+    (r"tannarx [−-]?[0-9 .,]+ so'm \(xomashyo [^)]*\)", "tannarx —"),
+    (r"; Boshlashdagi taxmin [−-]?[0-9 .,]+ so'm, farq [+−-][0-9 .,]+ so'm", "; Boshlashdagi taxmin —"),
+    # qo'lda ishlab chiqarish: «50 metr, tan narxi: 225 000 so'm» (zip 183 gacha vergulsiz ham)
+    (r"tan narxi: [−-]?[0-9 .,]+ so'm", "tan narxi: —"),
+    # brak bekori: «Brak bekor qilindi: … — 3 dona (450 000 so'm)»
+    (r"\([−-]?[0-9 .,]+ so'm\)", "(—)"),
+)
+
+
+def jurnal_tannarx_yashir(a):
+    """kech146 (zip 183, J2): ActivityLog → sahifa uchun nusxa (atributlar o'sha), tannarx yozuvi bo'lsa tannarx qismlari «—».
+    ORM obyekti O'ZGARTIRILMAYDI (sessiya uni bazaga yozib qo'ymasin)."""
+    import re as _re183
+    from types import SimpleNamespace as _NS183
+    _t = {k: getattr(a, k, None) for k in ("id", "action", "entity_type", "entity_id", "entity_label", "performed_by",
+                                           "old_value", "new_value", "created_at", "company_id")}
+    if (_t["action"], _t["entity_type"]) in TANNARX_JURNAL_TURLARI:
+        for _k in ("entity_label", "old_value", "new_value"):
+            _v = _t[_k]
+            if _v:
+                for _q, _y in _TANNARX_JURNAL_QOLIPLARI:
+                    _v = _re183.sub(_q, _y, _v)
+                _t[_k] = _v
+    return _NS183(**_t)
+
+
 def audit_jurnali_sahifasi(db: Session, company_id: int, sana_dan: str = None, sana_gacha: str = None,
                            kim: str = None, amal: str = None, matn: str = None, sahifa=1,
-                           hajm: int = JURNAL_SAHIFA_HAJMI) -> dict:
+                           hajm: int = JURNAL_SAHIFA_HAJMI, tannarx_yashirin: bool = False) -> dict:
     """«Audit jurnali» — FAQAT shu korxona; filtrlar: Toshkent sanasi oralig'i, kim (aynan), amal guruhi
     (`audit_amal_guruhlari` kaliti), matn (yozuv nomi, eski / yangi qiymat, kim ichida — katta-kichik harf farqsiz).
     Qaytaradi: `_jurnal_sahifalash` + toza filtr qiymatlari («filtr») va «Foydalanuvchi» ro'yxati («kimlar»)."""
@@ -6112,7 +6155,7 @@ def audit_jurnali_sahifasi(db: Session, company_id: int, sana_dan: str = None, s
     from sqlalchemy import or_ as _or
     q = db.query(ActivityLog).filter(ActivityLog.company_id == company_id)
     q, _d, _g = _jurnal_sana_oraligi(q, ActivityLog.created_at, sana_dan, sana_gacha)
-    _kim = (kim or "").strip()
+    _kim = (kim or "").replace("\x00", "").strip()     # kech146 (J6): NUL — PostgreSQL 500
     if _kim:
         q = q.filter(ActivityLog.performed_by == _kim)
     _amal = ""
@@ -6124,10 +6167,17 @@ def audit_jurnali_sahifasi(db: Session, company_id: int, sana_dan: str = None, s
     _qolip, _matn = _jurnal_matn_qolipi(matn)
     if _qolip:
         _e = JURNAL_LIKE_ESCAPE
-        q = q.filter(_or(ActivityLog.entity_label.ilike(_qolip, escape=_e),
-                         ActivityLog.old_value.ilike(_qolip, escape=_e),
-                         ActivityLog.new_value.ilike(_qolip, escape=_e),
-                         ActivityLog.performed_by.ilike(_qolip, escape=_e)))
+        _qiymat183 = _or(ActivityLog.old_value.ilike(_qolip, escape=_e), ActivityLog.new_value.ilike(_qolip, escape=_e))
+        _nom183 = ActivityLog.entity_label.ilike(_qolip, escape=_e)
+        if tannarx_yashirin:
+            # kech146 (J2): tannarx yozuvlari — qiymatlari va nomi (brak bekorida summa nomda) bo'yicha qidirilmaydi
+            from sqlalchemy import and_ as _and183, not_ as _not183
+            _tannarx183 = _or(*[_and183(ActivityLog.action == _a, ActivityLog.entity_type == _t)
+                                for _a, _t in TANNARX_JURNAL_TURLARI])
+            _qiymat183 = _and183(_qiymat183, _not183(_tannarx183))
+            _nom183 = _and183(_nom183, _not183(_and183(ActivityLog.action == "delete",
+                                                       ActivityLog.entity_type == "finished_product_loss")))
+        q = q.filter(_or(_nom183, _qiymat183, ActivityLog.performed_by.ilike(_qolip, escape=_e)))
     natija = _jurnal_sahifalash(q, ActivityLog.created_at, ActivityLog.id, sahifa, hajm)
     natija["filtr"] = {"dan": _d, "gacha": _g, "kim": _kim, "amal": _amal, "matn": _matn}
     natija["kimlar"] = [r[0] for r in db.query(ActivityLog.performed_by).filter(
@@ -6144,7 +6194,7 @@ def kirish_tarixi_sahifasi(db: Session, company_id: int, sana_dan: str = None, s
     from models import LoginHistory
     q = db.query(LoginHistory).filter(LoginHistory.company_id == company_id)
     q, _d, _g = _jurnal_sana_oraligi(q, LoginHistory.created_at, sana_dan, sana_gacha)
-    _kim = (kim or "").strip()
+    _kim = (kim or "").replace("\x00", "").strip()     # kech146 (J6): NUL — PostgreSQL 500
     if _kim:
         q = q.filter(LoginHistory.username == _kim)
     _nt = natija_turi if natija_turi in ("ok", "xato") else ""
@@ -6361,8 +6411,18 @@ def check_system_health(db: Session, company_id: int = None) -> dict:
         try:
             _tenant_sql = tenant_clause if company_id is not None else ""
             _params = {"cid": company_id} if company_id is not None else {}
+            # kech146 (zip 183, audit J14): platforma skani (`company_id=None` — HAMMA korxonalar) — har muammo o'z korxonasi bilan
+            # (jadval nomi — yuqoridagi HARDCODED ro'yxatdan; ota jadval orqali bog'langan ikki jadvalda — ota jadvaldan)
+            if company_id is not None:
+                _kor_sql = "NULL"
+            elif tenant_clause == _DIRECT:
+                _kor_sql = "company_id"
+            elif tenant_clause == _VIA_ORDER:
+                _kor_sql = f"(SELECT o.company_id FROM orders o WHERE o.id = {table}.order_id)"
+            else:
+                _kor_sql = f"(SELECT e.company_id FROM employees e WHERE e.id = {table}.employee_id)"
             rows = db.execute(text(
-                f"SELECT id, {label_col}, {column} FROM {table} "
+                f"SELECT id, {label_col}, {column}, {_kor_sql} FROM {table} "
                 f"WHERE {column} IS NOT NULL AND {column} NOT IN ({placeholders})"
                 f"{_tenant_sql}"
             ), _params).fetchall()
@@ -6370,13 +6430,25 @@ def check_system_health(db: Session, company_id: int = None) -> dict:
                 issues.append({
                     "table": table, "column": column, "id": r[0],
                     "label": str(r[1]), "bad_value": str(r[2]),
-                    "valid_names": valid_names,
+                    "valid_names": valid_names, "company_id": r[3],
                 })
         except Exception as e:
             # Jadval/ustun hali mavjud bo'lmasligi mumkin (eski deploy) —
             # tekshiruvni to'xtatmasdan davom etamiz.
             db.rollback()
             check_errors.append({"table": table, "column": column, "error": str(e)})
+
+    if company_id is None and issues:
+        # kech146 (zip 183, J14): korxona nomi (platforma administratori qaysi mijozda muammo borligini ko'rsin)
+        try:
+            from production_models import Company as _Co183
+            _nomlar183 = {c.id: c.name for c in db.query(_Co183.id, _Co183.name).all()}
+        except Exception:
+            db.rollback()
+            _nomlar183 = {}
+        for _i in issues:
+            _k = _i.get("company_id")
+            _i["company"] = (_nomlar183.get(_k) or f"korxona #{_k}") if _k is not None else "korxonasiz"
 
     return {
         "checked_at": _dt.utcnow().isoformat(),
@@ -13086,7 +13158,7 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
     # AUDIT: ishlab chiqarish qayd etiladi
     try:
         log_activity(db, "produced", "finished_product", fp.id, fp.name, created_by,
-                      new_value=f"{float(fp.quantity):g} {fp.unit}, tan narxi: {round(total_cost):,} so'm".replace(',', ' '),
+                      new_value=f"{float(fp.quantity):g} {fp.unit}, tan narxi: {audit_son(round(total_cost))} so'm",   # kech146 (J13): vergul qoldi
                       company_id=getattr(fp, 'company_id', None))
     except Exception:
         pass

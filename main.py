@@ -4447,7 +4447,9 @@ async def login_page(request: Request, b: str = "", db: Session = Depends(get_db
 # kech144 (zip 178, audit H4): `def` (ilgari `async def`) — parol tekshiruvi (bcrypt) FastAPI ipida, butun server to'xtamaydi
 def login_submit(request: Request, username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
     from models import User
-    username = username.strip()
+    # kech146 (zip 183, audit J7 — O'LCHANGAN PG): login 100 belgidan uzun — `LoginHistory.username` VARCHAR(100) → 500 (JSON);
+    # hisob nomlari ≤ 100 — kesilgan qiymat bilan oddiy «Login yoki parol noto'g'ri!»
+    username = username.replace("\x00", "").strip()[:100]       # mustaqil tekshiruv R6: NUL — PostgreSQL 500
     ip = auth.mijoz_ip(request)     # kech116 (U-01): haqiqiy mijoz manzili (Railway proksisi emas)
     ua = request.headers.get("user-agent", "")[:250]
 
@@ -4575,11 +4577,21 @@ async def logs_page(request: Request, db: Session = Depends(get_db), current_use
     # sahifalash SERVERDA (oddiy GET forma va havolalar — sahifa JS siz ham ishlaydi). Har bo'lim parametrlari o'z
     # prefiksi bilan (`k_` — kirish, `a_` — audit): bir bo'limni filtrlash ikkinchisini tashlab yubormaydi.
     _p = request.query_params
-    kirish = crud.kirish_tarixi_sahifasi(db, _cid, sana_dan=_p.get("k_dan"), sana_gacha=_p.get("k_gacha"),
-                                         kim=_p.get("k_kim"), natija_turi=_p.get("k_natija"), sahifa=_p.get("k_sahifa"))
-    audit = crud.audit_jurnali_sahifasi(db, _cid, sana_dan=_p.get("a_dan"), sana_gacha=_p.get("a_gacha"),
-                                        kim=_p.get("a_kim"), amal=_p.get("a_amal"), matn=_p.get("a_q"),
-                                        sahifa=_p.get("a_sahifa"))
+    # kech146 (zip 183, audit J2): «Tannarx va foyda» ruxsatisiz — tannarx yozuvlari «—», qidiruv ularning qiymatlarida emas
+    _tannarx_yoq183 = not current_user.ruxsat("tannarx", "korish")
+    if _soz137:
+        # kech146 (zip 183, audit J12): «Sozlamalar» sahifasi jurnallarni ko'rsatmaydi — so'rovlar yurmaydi, HTML da yozuvlar yo'q
+        _bosh183 = {"yozuvlar": [], "jami": 0, "sahifa": 1, "sahifalar": 1, "kimlar": [], "boshi": 0, "oxiri": 0,
+                    "filtr": {"dan": "", "gacha": "", "kim": "", "amal": "", "matn": "", "natija": ""}}
+        kirish, audit = dict(_bosh183), dict(_bosh183, filtr=dict(_bosh183["filtr"]))
+    else:
+        kirish = crud.kirish_tarixi_sahifasi(db, _cid, sana_dan=_p.get("k_dan"), sana_gacha=_p.get("k_gacha"),
+                                             kim=_p.get("k_kim"), natija_turi=_p.get("k_natija"), sahifa=_p.get("k_sahifa"))
+        audit = crud.audit_jurnali_sahifasi(db, _cid, sana_dan=_p.get("a_dan"), sana_gacha=_p.get("a_gacha"),
+                                            kim=_p.get("a_kim"), amal=_p.get("a_amal"), matn=_p.get("a_q"),
+                                            sahifa=_p.get("a_sahifa"), tannarx_yashirin=_tannarx_yoq183)
+    if _tannarx_yoq183:
+        audit["yozuvlar"] = [crud.jurnal_tannarx_yashir(_a) for _a in audit["yozuvlar"]]
     login_history = kirish["yozuvlar"]
     activity_log = audit["yozuvlar"]
 
@@ -4643,7 +4655,9 @@ def api_system_health_check(db: Session = Depends(get_db), current_user=Depends(
     moliyaviy = crud.check_financial_consistency(db, company_id=_cid)
 
     if _platforma:
-        result = crud.check_system_health(db, company_id=_cid)
+        # kech146 (zip 183, audit J14): platforma administratori — HAMMA korxonalar (ilgari faqat o'z korxonasi; sahifa matni
+        # «barcha muhim ma'lumot turlari» deydi, sxema qismi ham global)
+        result = crud.check_system_health(db, company_id=None)
         # kech144 (zip 172, N4): baza tuzilishi (sxema) ↔ kod — FAQAT platforma administratori (butun baza, korxonaga
         # bog'liq emas; jadval / ustun nomlari). Jonli farqlar + ishga tushishda nima kengaytirilgani (ustun izohidan —
         # qayta ishga tushishdan keyin ham) + shu ishga tushishdagi xatolar.
@@ -4657,8 +4671,10 @@ def api_system_health_check(db: Session = Depends(get_db), current_user=Depends(
             db.rollback()
             result["sxema"] = {"tekshirildi": False, "xato": str(_e144)[:300]}
     else:
+        # kech146 (zip 183, audit J3): `checked_at` — sahifa «Tekshirilgan sana:» ni bo'sh ko'rsatardi
+        from datetime import datetime as _dt183
         result = {"total_checks": 0, "issues_found": 0, "issues": [],
-                  "check_errors": [], "technical_hidden": True}
+                  "check_errors": [], "technical_hidden": True, "checked_at": _dt183.utcnow().isoformat()}
     result["financial"] = moliyaviy
     result["is_platform_admin"] = _platforma
 
@@ -4670,6 +4686,10 @@ def api_system_health_check(db: Session = Depends(get_db), current_user=Depends(
     # `stats` — ishga tushgandan beri: nechta ORM so'rovga filtr
     # qo'llangan / kontekst bo'lmagani uchun o'tkazib yuborilgan.
     # `filtered` 0 bo'lib turishi filtr AMALDA ishlamayotganini bildiradi.
+    # kech146 (zip 183, audit J8): faqat platforma administratoriga — korxona adminiga platforma himoya to'ri holati (o'chiqmi)
+    # va hisoblagichlari kerak emas (hujumchiga ma'lumot)
+    if not _platforma:
+        return result
     try:
         import tenant_context as _tc
         result["tenant_filter"] = {
@@ -6260,21 +6280,34 @@ def hodim_login_submit(request: Request, background_tasks: BackgroundTasks, phon
     o'sha raqam); urinishlar hisobi ham shu kalit bilan (ko'rinishini o'zgartirib cheklovdan qochib bo'lmaydi)."""
     ip = auth.mijoz_ip(request)     # kech116 (U-01): haqiqiy mijoz manzili (Railway proksisi emas)
     ua = request.headers.get("user-agent", "")[:250]
-    _tel_kalit = crud.telefon_kaliti(phone) or (phone or "").strip()
+    # kech146 (zip 183, J7 + mustaqil tekshiruv R1 / R6): kalit — faqat raqamlar (≤ 100, VARCHAR(100)). Raqamsiz yoki 7 tadan kam raqamli
+    # «telefon» — ERKIN MATN korxona «Kirish tarixi» ga yozilmasin (kodni bilgan begona odam admin sahifasiga «parolni … ga yuboring»
+    # yozardi): belgilangan yozuv, korxonasiz. NUL — PostgreSQL 500.
+    phone = (phone or "").replace("\x00", "")
+    korxona = (korxona or "").replace("\x00", "")
+    _tel_kalit = crud.telefon_kaliti(phone)[:100]
+    _tel_yaroqli183 = len(_tel_kalit) >= 7
+    if not _tel_yaroqli183:
+        _tel_kalit = "(noto'g'ri telefon)"
 
-    rl = crud.check_login_rate_limit(db, _tel_kalit, ip)
+    # M1 (CRITICAL): korxona kontekstisiz kirishga yo'l yo'q.
+    # Mijoz yuborgan kod QIDIRUV KALITI, unga ishonilmaydi — korxona
+    # bazadan topiladi. Bitta korxonali o'rnatmada kod bo'sh bo'lishi mumkin.
+    # kech146 (zip 183, audit J1 — O'LCHANGAN SQLite = PG): korxona AVVAL aniqlanadi — urinishlar cheklovi ham, «Kirish tarixi» yozuvi
+    # ham SHU korxona bilan (ilgari korxona telefon raqamidan taxmin qilinardi: «+998 …» ko'rinishidagi raqam — hech qayerga, boshqa
+    # korxonada shu raqam bo'lsa — o'sha korxonaga). Kod topilmasa — korxonasiz (taxminsiz).
+    _korxona = crud.resolve_company_by_code(db, korxona)
+    _kcid183 = _korxona.id if _korxona else None
+
+    rl = crud.check_login_rate_limit(db, _tel_kalit, ip, company_id=(_kcid183 if _tel_yaroqli183 else None), aniqla=False)
     if rl["blocked"]:
         return templates.TemplateResponse(request, "hodim_login.html", {
             "error": f"Juda ko'p noto'g'ri urinish. {rl['retry_after_minutes']} daqiqadan so'ng qayta urining.",
             "kod": (korxona or "").strip()[:30], "telefon": (phone or "").strip()[:20]
         })
 
-    # M1 (CRITICAL): korxona kontekstisiz kirishga yo'l yo'q.
-    # Mijoz yuborgan kod QIDIRUV KALITI, unga ishonilmaydi — korxona
-    # bazadan topiladi. Bitta korxonali o'rnatmada kod bo'sh bo'lishi mumkin.
-    _korxona = crud.resolve_company_by_code(db, korxona)
     if not _korxona:
-        crud.log_login_attempt(db, _tel_kalit, success=False, ip_address=ip, user_agent=ua)
+        crud.log_login_attempt(db, _tel_kalit, success=False, ip_address=ip, user_agent=ua, aniqla=False)
         return templates.TemplateResponse(request, "hodim_login.html", {
             "error": "Korxona kodi topilmadi. Kodni administratordan so'rang.", "kod": (korxona or "").strip()[:30],
             "telefon": (phone or "").strip()[:20]
@@ -6282,7 +6315,8 @@ def hodim_login_submit(request: Request, background_tasks: BackgroundTasks, phon
 
     emp = crud.authenticate_employee(db, phone, pin, company_id=_korxona.id)
     if not emp:
-        crud.log_login_attempt(db, _tel_kalit, success=False, ip_address=ip, user_agent=ua)
+        crud.log_login_attempt(db, _tel_kalit, success=False, ip_address=ip, user_agent=ua,
+                               company_id=(_korxona.id if _tel_yaroqli183 else None), aniqla=False)
         # kech120 (zip 137 — F bosqichi 5-qism, audit G6-20): telefon saqlanadi (faqat PIN qayta yoziladi), keyin nima qilish
         return templates.TemplateResponse(request, "hodim_login.html", {
             "error": "Telefon yoki PIN noto'g'ri! PIN ni unutgan bo'lsangiz — korxona administratoridan so'rang.",
@@ -6296,7 +6330,7 @@ def hodim_login_submit(request: Request, background_tasks: BackgroundTasks, phon
     if _rad:
         return templates.TemplateResponse(request, "hodim_login.html", {"error": None, "bloklangan": _rad[0]})
 
-    crud.log_login_attempt(db, _tel_kalit, success=True, ip_address=ip, user_agent=ua)
+    crud.log_login_attempt(db, _tel_kalit, success=True, ip_address=ip, user_agent=ua, company_id=_korxona.id)
     _kalit = auth.qurilma_kaliti(request) or auth.yangi_qurilma_kaliti()
     _qh = auth.qurilma_hash_ol(_kalit)
     if emp.qurilma_hash != _qh:
@@ -6394,10 +6428,11 @@ def api_hodim_pin(request: Request, data: dict = Body(default=None), db: Session
             or not all(isinstance(v, str) for v in data.values()):
         raise HTTPException(status_code=400, detail="Ma'lumot noto'g'ri")
     majburiy = _h["holat"] == auth.HOLAT_PIN
-    _tel_kalit = crud.telefon_kaliti(emp.phone) or (emp.phone or "")
+    _tel_kalit = (crud.telefon_kaliti(emp.phone) or (emp.phone or ""))[:100]
     ip = auth.mijoz_ip(request)
     if not majburiy:
-        rl = crud.check_login_rate_limit(db, _tel_kalit, ip)
+        # kech146 (zip 183, J1): hodim korxonasi — aniq (kirish yozuvlari bilan bir hisob)
+        rl = crud.check_login_rate_limit(db, _tel_kalit, ip, company_id=emp.company_id, aniqla=False)
         if rl["blocked"]:
             raise HTTPException(status_code=429, detail=f"Juda ko'p noto'g'ri urinish. {rl['retry_after_minutes']} daqiqadan "
                                                         f"so'ng qayta urining.")
@@ -6407,7 +6442,7 @@ def api_hodim_pin(request: Request, data: dict = Body(default=None), db: Session
     except PermissionError as e:
         db.rollback()
         crud.log_login_attempt(db, _tel_kalit, success=False, ip_address=ip,
-                               user_agent=request.headers.get("user-agent", "")[:250])
+                               user_agent=request.headers.get("user-agent", "")[:250], company_id=emp.company_id)
         raise HTTPException(status_code=400, detail=str(e))
     except ValueError as e:
         db.rollback()
@@ -10667,6 +10702,9 @@ def api_set_company(name: str = Form(...), slogan: str = Form(None),
     row = db.query(_Co).filter(_Co.id == cid).first()
     if not row:
         raise HTTPException(status_code=404, detail="Korxona topilmadi")
+    # kech146 (zip 183, audit J9): o'zgarishlar «Audit jurnali» ga (ilgari korxona nomi / telefoni o'zgarsa iz qolmasdi)
+    _eski183 = {"Nomi": row.name or "", "Shior": row.slogan or "", "Telefon": row.phone or "", "Manzil": row.address or "",
+                "Telegram salom shiori": _tg_tagline(db, cid) or ""}     # sahifa ko'rsatadigan qiymat (mustaqil tekshiruv R3)
     row.name = nom
     # 2026-09-20 — MUHIM: bo'sh maydon "tozalash" degani.
     # Ilgari `if qiymat is None: continue` yozilgan edi, lekin FastAPI
@@ -10692,9 +10730,24 @@ def api_set_company(name: str = Form(...), slogan: str = Form(None),
         raise HTTPException(status_code=400,
                             detail=f"'Telegram salom shiori' juda uzun ({TG_TAGLINE_MAX} belgidan ko'p)")
     crud.set_setting(db, TG_TAGLINE_KEY, _tl, company_id=cid)
+    _yangi183 = {"Nomi": nom, "Shior": row.slogan or "", "Telefon": row.phone or "", "Manzil": row.address or "",
+                 "Telegram salom shiori": _tl}
+    _sozlama_jurnali(db, current_user, cid, "Korxona ma'lumotlari",
+                     [f"{k}: «{_eski183[k]}» → «{_yangi183[k]}»" for k in _yangi183 if _eski183[k] != _yangi183[k]])
     db.commit()
     _clear_company_name_cache(cid)
     return {"status": "ok", "name": nom}
+
+
+def _sozlama_jurnali(db, current_user, cid, nima: str, farqlar: list) -> None:
+    """kech146 (zip 183, audit J9): sozlama o'zgarishi — «Audit jurnali» ga BITTA yozuv (faqat haqiqatan o'zgarganda). Sozlama
+    o'zi (`set_setting`) allaqachon saqlangan — jurnal `commit=True` bilan (kech144 N4 himoyasi: jurnal yozilmasa sozlama saqlangan
+    qoladi, sessiya toza, sabab «Xatoliklar» ga). Token kabi sir — matnga yozilmaydi (chaqiruvchi faqat oxirgi 4 belgini beradi)."""
+    if not farqlar:
+        return
+    crud.log_activity(db, "updated", "company_settings", cid, "Sozlamalar — " + nima,
+                      current_user.full_name or current_user.username,
+                      new_value=crud.audit_farq_matni(farqlar), company_id=cid)
 
 
 @app.get("/api/settings/categories")
@@ -10724,7 +10777,17 @@ def api_set_categories(codes: str = Form(""), bosh: str = Form(""), db: Session 
     if not tanlangan and str(bosh or "").strip() != "1":
         raise HTTPException(status_code=400, detail="Mahsulot turlari ro'yxati yuklanmagan — sahifani yangilang (hech narsa saqlanmadi)")
     _cid = auth.company_id_of(current_user)
+    # kech146 (zip 183, audit J9): yoqilgan / o'chirilgan mahsulot turlari «Audit jurnali» ga
+    _nomlar183 = dict(IXTIYORIY_KATEGORIYALAR)
+    _xom183 = crud.get_setting(db, "enabled_categories", None, company_id=_cid)
+    # hech qachon sozlanmagan — hammasi yoqiq edi (`enabled_categories_of` bilan bir qoida, eskirganlardan tashqari)
+    _eski183 = ({k for k in ruxsat if k not in _ESKIRGAN_KATEGORIYALAR} if _xom183 is None
+                else {x.strip() for x in _xom183.split(",") if x.strip() in ruxsat})
     crud.set_setting(db, "enabled_categories", ",".join(tanlangan), company_id=_cid)
+    _sozlama_jurnali(db, current_user, _cid, "Mahsulot turlari",
+                     [f"yoqildi: {_nomlar183.get(k, k)}" for k in tanlangan if k not in _eski183]
+                     + [f"o'chirildi: {_nomlar183.get(k, k)}" for k in sorted(_eski183) if k not in tanlangan])
+    db.commit()
     _clear_category_cache(_cid)
     return {"status": "ok", "enabled": tanlangan}
 
@@ -10851,7 +10914,10 @@ async def api_upload_company_logo(file: UploadFile = File(...),
                     _os.remove(eski)
                 except OSError:
                     pass
+    _eski_logo183 = row.logo_path
     row.logo_path = f"static/uploads/logos/{nom}"
+    _sozlama_jurnali(db, current_user, cid, "Korxona logotipi",
+                     ["yangi logotip yuklandi" + (" (avvalgisi almashtirildi)" if _eski_logo183 else "")])   # kech146 (J9)
     db.commit()
     return {"status": "ok", "logo_path": row.logo_path}
 
@@ -10933,16 +10999,38 @@ def api_set_telegram_bot(token: str = Form(""), chat_id: str = Form(""),
     javobda `bot_uzildi: true` va xabar."""
     cid = auth.company_id_of(current_user)
     _eski = (crud.get_setting(db, "telegram_bot_token", "", company_id=cid) or "").strip()
+    _eski_chat183 = (crud.get_setting(db, "telegram_chat_id", "", company_id=cid) or "").strip()
     t = (token or "").strip()
+    c = (chat_id or "").strip()
+    # kech146 (zip 183, audit J10 — O'LCHANGAN): «salom» kabi token saqlanib «✓ O'z boti sozlangan» ko'rinardi, xabarlar jimgina
+    # ketmasdi; chat maydoniga istalgan matn. Endi HECH NARSA saqlanmasdan oldin tekshiriladi (ulash bilan bir qolip).
+    if t and t != "-" and not _TG_TOKEN_NAQSH.match(t):
+        raise HTTPException(status_code=400, detail=("Bot tokeni noto'g'ri ko'rinishda. @BotFather bergan tokenni to'liq nusxalab "
+                                                     "qayta saqlang (masalan 123456789:AAH… — raqamlar, «:», keyin 35 belgi)."))
+    if c and c != "-":
+        # mustaqil tekshiruv R4: ochiq kanal nomi (@kanal) ham — Telegram qabul qiladi; bo'sh bo'laklar (oxiridagi vergul) tashlanadi;
+        # raqam — faqat 0-9 (`\d` boshqa yozuvlardagi raqamlarni ham olardi)
+        _qismlar183 = [x.strip() for x in c.split(",") if x.strip()]
+        if len(_qismlar183) > 20 or not all(_re_tg.fullmatch(r"-?[0-9]{1,20}|@[A-Za-z][A-Za-z0-9_]{3,31}", x) for x in _qismlar183):
+            raise HTTPException(status_code=400, detail=("Chat ID noto'g'ri — raqamlar (guruh uchun boshida «-») yoki ochiq kanal nomi "
+                                                         "(@kanal), bir nechtasi vergul bilan (20 tagacha). Masalan: -1001234567890"))
+        c = ",".join(_qismlar183)
     if t == "-":
         crud.set_setting(db, "telegram_bot_token", "", company_id=cid)
     elif t:
         crud.set_setting(db, "telegram_bot_token", t, company_id=cid)
-    c = (chat_id or "").strip()
     if c == "-":
         crud.set_setting(db, "telegram_chat_id", "", company_id=cid)
     elif c:
         crud.set_setting(db, "telegram_chat_id", c, company_id=cid)
+    # kech146 (zip 183, audit J9): token (faqat oxirgi 4 belgi) / chat o'zgarishi — «Audit jurnali» ga
+    _yangi_t183 = (crud.get_setting(db, "telegram_bot_token", "", company_id=cid) or "").strip()
+    _yangi_c183 = (crud.get_setting(db, "telegram_chat_id", "", company_id=cid) or "").strip()
+    _sozlama_jurnali(db, current_user, cid, "Telegram bot",
+                     ([("bot tokeni o'chirildi" if not _yangi_t183 else f"bot tokeni almashtirildi (…{_yangi_t183[-4:]})")]
+                      if _yangi_t183 != _eski else [])
+                     + ([f"chat ID: «{_eski_chat183}» → «{_yangi_c183}»"] if _yangi_c183 != _eski_chat183 else []))
+    db.commit()
     natija = {"status": "ok"}
     _yangi = (crud.get_setting(db, "telegram_bot_token", "", company_id=cid) or "").strip()
     if _eski and _yangi != _eski and (crud.get_setting(db, TG_KORXONA_SIR, "", company_id=cid) or ""):
