@@ -2659,7 +2659,7 @@ def get_finished_product(db: Session, fp_id: int, company_id: int = None,
         q = q.filter(FinishedProduct.company_id == company_id)
     if lock:
         db.flush()
-        return q.populate_existing().with_for_update().first()
+        return q.populate_existing().with_for_update(key_share=True).first()
     return q.first()
 
 
@@ -2698,7 +2698,13 @@ def _fp_qulf(db: Session, fp_ids, company_id: int = None) -> None:
     - Id tartibi — ikki tranzaksiya bir nechta TM ni turli tartibda qulflab, bir-birini
       kutib qolmasin.
     - Korxona filtri bilan (M4); korxona noma'lum bo'lsa qulflanmaydi (eski chaqiruv —
-      xulq avvalgidek)."""
+      xulq avvalgidek).
+    - kech145 (zip 182, O'LCHANGAN — HAQIQIY PG, `tools/test_tm_minus182.py` P1, ikki BOSHQA loyiha): qulf `FOR NO KEY UPDATE`
+      (`key_share=True`). Detal yozilganda (`order_items.finished_product_id` tashqi kaliti) PG tayyor mahsulot qatoriga KEY SHARE
+      qulfini qo'yadi; oddiy `FOR UPDATE` u bilan to'qnashadi — ikki parallel buyurtma (yoki buyurtma va sotuv) bir-birining KEY SHARE
+      qulfini kutib qolardi (40P01 «deadlock detected», biri 500). NO KEY UPDATE o'zaro (va UPDATE bilan) baribir bir-birini kutadi —
+      qulfning maqsadi o'zgarmaydi; tayyor mahsulot qatorining boshqa qulflari ham shunday (`get_finished_product(lock)`,
+      `_mrp_band_tmlar`, `_mrp_tmlar_idlar`, brak bekori, qaytgan mahsulot)."""
     if company_id is None:
         return
     ids = sorted({int(i) for i in (fp_ids or []) if i})
@@ -2708,7 +2714,7 @@ def _fp_qulf(db: Session, fp_ids, company_id: int = None) -> None:
     for _i in ids:
         db.query(FinishedProduct).filter(
             FinishedProduct.id == _i, FinishedProduct.company_id == company_id
-        ).populate_existing().with_for_update().first()
+        ).populate_existing().with_for_update(key_share=True).first()
 
 
 def _fp_item_qty(item) -> float:
@@ -2811,6 +2817,333 @@ def _tm_qaytgan_ortacha(fp, joriy: float, qoldiq: float, qaytdi: float, qiymat: 
         fp.unit_cost_stable = (joriy * _asos + qiymat) / (_asos + qaytdi)
 
 
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# kech145 (zip 182, N5 — EGASI QARORLARI 14.10 05:3x, QAYTA SO'RALMAYDI): MINUSDAGI TAYYOR MAHSULOT.
+# O'LCHANGAN (staging, 14.10 05:0x — FP 83 −5 m; agent hisoboti `work/k182_tayyorgarlik/agent_minus/HISOBOT.md`): minus partiya
+# «Tugagan» deb yashirinardi, o'chirilsa buyurtma qarzi JIM yo'qolardi, 90 kundan keyin ro'yxatdan tushardi, boshqa partiyada bo'sh
+# qoldiq bo'lsa ham minus turaverardi. Qarorlar: (1) minus «Avtomatik yopilsin» — shu mahsulotning bo'sh qoldig'i paydo bo'lishi bilan;
+# (2) minus bor guruhda bo'sh qoldiq «ushlansin» (sotilmaydi — minusni yopadi); (3) Telegram — «Darhol xabar»; (4) yuk xati —
+# «Faqat bor» (jismonan bor miqdordan ko'p emas).
+# GURUH — finished.html `fpGuruhKaliti` bilan AYNAN (manba, tur, MRP turi, nom, birlik, qoplama, eni, qalinligi, width2): sahifada bitta
+# qator / guruh bo'lib ko'ringan partiyalar — bitta mahsulot.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+def tm_guruh_kaliti(fp) -> tuple:
+    """kech145 (zip 182): tayyor mahsulot GURUH kaliti = (manba, brak taqdiri, `models.tm_kam_kaliti`) — «Kam» chegarasi bilan bir
+    mahsulot (turkum, MRP turi, nom, birlik, qoplama, o'lcham) va sahifadagi guruh (`finished.html` `fpGuruhKaliti` — manba ham
+    kalitda). Brakdan chiqqan partiya (2-nav, kesilgan, tuzatilgan — `brak_taqdir`) boshqa mahsulot: oddiy partiya minusini yopmaydi
+    (`_taqdir_tm_yarat` ham ularni birlashtirmaydi; kech145 tekshiruvi topdi)."""
+    from models import tm_kam_kaliti as _tkk182
+    return (str(getattr(fp.source, 'value', fp.source) or ''), getattr(fp, 'brak_taqdir', None) or '', _tkk182(fp))
+
+
+def _tm_guruh_azolari(db: Session, fp) -> list:
+    """`fp` guruhidagi TAYYOR (`_fp_tayyormi`) partiyalar — o'zi ham (tayyor bo'lsa), id tartibida, faqat `fp` ning korxonasidan."""
+    if fp is None:
+        return []
+    _cid = getattr(fp, 'company_id', None)
+    # turkum va MRP turi — kalitning aniq ustunlari (so'rovni toraytiradi; qolgani — kalit bilan Pythonda)
+    _q = db.query(FinishedProduct).filter(FinishedProduct.source == fp.source, FinishedProduct.category == fp.category,
+                                          FinishedProduct.product_type_id == fp.product_type_id)
+    if _cid is not None:
+        _q = _q.filter(FinishedProduct.company_id == _cid)
+    _k = tm_guruh_kaliti(fp)
+    return [x for x in _q.order_by(FinishedProduct.id).all() if _fp_tayyormi(x) and tm_guruh_kaliti(x) == _k]
+
+
+def _fp_qulf_guruh(db: Session, fp_ids, company_id: int = None) -> None:
+    """kech145 (zip 182): `fp_ids` va ularning GURUHDOSHLARI birga, id tartibida qulflanadi (`_fp_qulf`). Muvozanat guruhdoshga
+    yozadi — faqat buyurtma partiyasini qulflab, keyin guruhdoshni olsak, ikki amal qulflarni teskari tartibda olib bir-birini
+    kutib qolishi mumkin edi."""
+    if company_id is None:
+        return
+    _ids = set()
+    for _i in sorted({int(x) for x in (fp_ids or []) if x}):
+        _fp = db.query(FinishedProduct).filter(FinishedProduct.id == _i, FinishedProduct.company_id == company_id).first()
+        if _fp is None:
+            continue
+        _ids.add(_i)
+        _ids.update(x.id for x in _tm_guruh_azolari(db, _fp))
+    _fp_qulf(db, _ids, company_id)
+
+
+def _tm_band(fp) -> float:
+    return max(0.0, float(fp.reserved_quantity or 0))
+
+
+def _tm_qarz(fp) -> float:
+    """Partiya qarzi (minus): max(0, −qoldiq) — buyurtmalarga berilgan, hali ishlab chiqarilmagan miqdor."""
+    return max(0.0, -float(fp.quantity or 0))
+
+
+def _tm_birlik_tannarx(db: Session, fp) -> float:
+    """Ko'chirish uchun 1 birlik tannarx: barqaror tannarx (`_fp_stable_unit_cost`), bo'lmasa — o'rtacha (musbat qoldiqda)."""
+    _u = _fp_stable_unit_cost(db, fp)
+    if _u > 0:
+        return float(_u)
+    _q = float(fp.quantity or 0)
+    return (float(fp.cost_price or 0) / _q) if (_q > 1e-9 and fp.cost_price) else 0.0
+
+
+def _tm_kochir(db: Session, manba, nishon, t: float) -> float:
+    """kech145 (zip 182): bir guruhdagi `manba` partiyadan `nishon` ga `t` birlik ko'chiradi (qoldiq va tannarx). Manbadan tannarx
+    birlik tannarxi bo'yicha chiqadi; nishonga faqat MUSBAT qismi bilan kiradi (minusni yopgan qism — buyurtmaga ketgan, ombordan
+    chiqqan; zip 176 F1 qoidasi), birlik o'rtachasi `_tm_qaytgan_ortacha`. Ko'chgan tannarxni qaytaradi."""
+    t = float(t)
+    if t <= 1e-9:
+        return 0.0
+    _u = _tm_birlik_tannarx(db, manba)
+    _qiymat = min(max(0.0, float(manba.cost_price or 0)), _u * t) if _u > 0 else 0.0
+    manba.quantity = float(manba.quantity or 0) - t
+    manba.cost_price = max(0.0, float(manba.cost_price or 0) - _qiymat)
+    _eski = float(nishon.quantity or 0)
+    _ijobiy = max(0.0, _eski + t) - max(0.0, _eski)
+    if _ijobiy > 1e-9:
+        _ulush = _qiymat * _ijobiy / t
+        _joriy = _tm_birlik_tannarx(db, nishon)
+        nishon.cost_price = max(0.0, float(nishon.cost_price or 0)) + _ulush
+        _tm_qaytgan_ortacha(nishon, _joriy, _eski, _ijobiy, _ulush)
+    nishon.quantity = _eski + t
+    return _qiymat
+
+
+def _tm_toldir(db: Session, nishon, kerak: float, azolar, performed_by: str = None, sabab: str = "minus yopildi") -> list:
+    """kech145 (zip 182): `nishon` ga guruhdoshlarning BO'SH qoldig'idan (qoldiq − band; band hech qachon olinmaydi) `kerak` gacha
+    ko'chiradi — avval eski donor (id). Har ko'chirish — «Faoliyat jurnali» (`tm_minus_yopildi`, amal bilan bir tranzaksiyada)."""
+    log = []
+    for _d in azolar:
+        if _d is nishon or _d.id == nishon.id:
+            continue
+        if kerak <= 1e-6:
+            break
+        _bor = float(_d.quantity or 0) - _tm_band(_d)
+        if _bor <= 1e-6:
+            continue
+        _t = min(kerak, _bor)
+        _eski_n = float(nishon.quantity or 0)
+        _qiymat_k = _tm_kochir(db, _d, nishon, _t)
+        if _eski_n < -1e-9:
+            # minusni yopgan qism — donor tannarxida (shu amal detallarining birligi `_tm_qarz_birligi` da qayta baholanadi)
+            db.info.setdefault('tm_yopish_182', []).append((nishon.id, min(_t, -_eski_n), _qiymat_k * min(_t, -_eski_n) / _t))
+        kerak -= _t
+        log.append(f"🏭 {nishon.name}: FP-{int(_d.id):04d} dan {_t:g} {nishon.unit} → FP-{int(nishon.id):04d} "
+                   f"({_eski_n:g} → {float(nishon.quantity or 0):g} {nishon.unit}, {sabab})")
+        log_activity(db, "tm_minus_yopildi", "finished_product", nishon.id, nishon.name, performed_by,
+                     old_value=f"FP-{int(nishon.id):04d}: {_eski_n:g} {nishon.unit}",
+                     new_value=f"{float(nishon.quantity or 0):g} {nishon.unit} (FP-{int(_d.id):04d} dan {_t:g}; {sabab})",
+                     company_id=getattr(nishon, 'company_id', None), commit=False)
+    return log
+
+
+def _tm_guruh_muvozanat(db: Session, fp, performed_by: str = None) -> list:
+    """kech145 (zip 182 — egasi qarorlari «Avtomatik yopilsin», «ushlansin»): `fp` guruhida MINUSDAGI partiyalar bo'lsa —
+    guruhdoshlarning BO'SH qoldig'idan (qoldiq − band) yopiladi: avval eski minus (id), avval eski donor (id). Faqat minus (qoldiq < 0):
+    eski «band qoldiqdan katta» yozuvlar to'ldirilmaydi (kech145 tez182: test_audit_ombor1 A12 — yangi MRP partiyasini eski band
+    yutib yuborardi; buni egasi qaror qilmagan). Qatorlar chaqiruvchida qulflangan bo'lishi kerak (`_fp_qulf_guruh`). Jurnal matnlari."""
+    _azolar = _tm_guruh_azolari(db, fp)
+    if len(_azolar) < 2:
+        return []
+    log = []
+    for _n in [x for x in _azolar if _tm_qarz(x) > 1e-6]:
+        log.extend(_tm_toldir(db, _n, _tm_qarz(_n), _azolar, performed_by))
+    if log:
+        db.flush()
+    return log
+
+
+def _tm_band_toldir(db: Session, oldin: dict, performed_by: str = None) -> list:
+    """kech145 (zip 182): SHU amal (buyurtma olishi / tahriri) band qilingan partiyadan band qismigacha olgan bo'lsa (oldindan tekshiruv
+    guruhdoshlar bo'shini hisobga olib ruxsat bergan — `_tm_qoshni_boshlar`) — band kamomadining SHU amalda paydo bo'lgan qismi
+    guruhdoshlarning bo'sh qoldig'idan to'ldiriladi. `oldin` = {id: (partiya, amaldan oldingi qoldiq)}. Eski kamomadga tegilmaydi."""
+    log = []
+    for _fp, _q0 in oldin.values():
+        _b = _tm_band(_fp)
+        if _b <= 1e-9:
+            continue
+        _ortgan = max(0.0, _b - float(_fp.quantity or 0)) - max(0.0, _b - float(_q0))
+        if _ortgan > 1e-6:
+            log.extend(_tm_toldir(db, _fp, _ortgan, _tm_guruh_azolari(db, _fp), performed_by, sabab="band to'ldirildi"))
+    if log:
+        db.flush()
+    return log
+
+
+def _tm_qarz_birligi(db: Session, oldin: dict, olganlar: dict) -> None:
+    """kech145 (zip 182, mustaqil tekshiruv P1-2 — O'LCHANGAN: A 10 m × 1 000, B 20 m × 1 500; A dan 15 m buyurtma — 5 m B dan
+    ko'chdi, detal birligi 1 000 qoldi; buyurtma o'chirilsa guruh tannarxi 40 000 → 37 500, narxlar teskari bo'lsa 35 000 → 37 500 —
+    «havodan»): SHU amal (olish / tahrir / tiklash) partiyani minusga tushirgan va muvozanat bu minusni guruhdosh partiyadan yopgan
+    bo'lsa — yopilgan birliklar donor tannarxida: shu amal detallarining `fp_unit_cost` i og'irlikli qayta baholanadi (buyurtma
+    tannarxi va keyingi qaytish shu birlikda). Amaldan OLDINGI qarz birinchi yopiladi (uning detallari kuzatilmaydi — o'zgarmaydi).
+    `oldin` = {fp_id: (partiya, amaldan oldingi qoldiq)}; `olganlar` = {fp_id: [(detal, qarzga olingan miqdor, olingan birlik,
+    detal ushlagan jami)]}. `db.info['tm_yopish_182']` — muvozanat yozgan (nishon, miqdor, donor tannarxi); o'qilgach tozalanadi."""
+    _yop = db.info.pop('tm_yopish_182', None) or []
+    _jami = {}
+    for _nid, _t, _q in _yop:
+        _a = _jami.setdefault(_nid, [0.0, 0.0])
+        _a[0] += float(_t)
+        _a[1] += float(_q)
+    for _fid, (_t_sum, _q_sum) in _jami.items():
+        _qatorlar = olganlar.get(_fid) or []
+        if not _qatorlar or _t_sum <= 1e-9 or _fid not in oldin:
+            continue
+        _qol = _t_sum - max(0.0, -float(oldin[_fid][1]))
+        if _qol <= 1e-9:
+            continue
+        _u = _q_sum / _t_sum
+        for _det, _qarz, _u_rec, _Q in _qatorlar:
+            if _qol <= 1e-9:
+                break
+            _c = min(float(_qarz), _qol)
+            if _c <= 1e-9:
+                continue
+            _qol -= _c
+            _eski = _tm_detal_birligi(_det)
+            if _eski is None or _u_rec is None or float(_u_rec) <= 0 or float(_Q) <= 1e-9:
+                continue                      # birligi yozilmagan (eski / tannarxsiz) detal — avvalgi qoida
+            _det.fp_unit_cost = max(0.0, (_eski * float(_Q) - float(_u_rec) * _c + _u * _c) / float(_Q))
+
+
+def _tm_muvozanat_idlar(db: Session, fp_ids, company_id: int = None, performed_by: str = None) -> list:
+    """`fp_ids` ning har bir guruhi uchun bir marta `_tm_guruh_muvozanat` (bir guruh ikki marta emas)."""
+    log, _korilgan = [], set()
+    for _i in sorted({int(x) for x in (fp_ids or []) if x}):
+        _q = db.query(FinishedProduct).filter(FinishedProduct.id == _i)
+        if company_id is not None:
+            _q = _q.filter(FinishedProduct.company_id == company_id)
+        _fp = _q.first()
+        if _fp is None:
+            continue
+        _k = (getattr(_fp, 'company_id', None), tm_guruh_kaliti(_fp))
+        if _k in _korilgan:
+            continue
+        _korilgan.add(_k)
+        log.extend(_tm_guruh_muvozanat(db, _fp, performed_by=performed_by))
+    return log
+
+
+def _tm_muvozanat_kerak_bolsa(db: Session, fp_ids, company_id: int = None, performed_by: str = None) -> list:
+    """kech145 (zip 182): `fp_ids` guruhlarida kamomad (minus / band qoldiqdan katta) BO'LSAGINA — guruh id tartibida qulflanib,
+    muvozanat. Material / buyurtma qulflaridan keyin chaqiriladigan yo'llar (MRP band bekor, brak bekor) odatiy holatda TM
+    qulfini olmasin (qulf tartibi teskari bo'lib qotib qolish xavfi faqat kamdan-kam minus holatida qoladi)."""
+    _ids = sorted({int(x) for x in (fp_ids or []) if x})
+    _kerak = []
+    for _i in _ids:
+        _q = db.query(FinishedProduct).filter(FinishedProduct.id == _i)
+        if company_id is not None:
+            _q = _q.filter(FinishedProduct.company_id == company_id)
+        _fp = _q.first()
+        if _fp is not None and any(_tm_qarz(_x) > 1e-6 for _x in _tm_guruh_azolari(db, _fp)):
+            _kerak.append(_fp)
+    if not _kerak:
+        return []
+    db.flush()
+    # kech145 (tekshiruv 2-bosqich): hamma guruhlar BIR o'tishda, id tartibida qulflanadi (ilgari guruh-guruh — tartib buzilardi)
+    _cid_k = getattr(_kerak[0], 'company_id', None)
+    _fp_qulf_guruh(db, [_fp.id for _fp in _kerak], _cid_k)
+    log = []
+    for _fp in _kerak:
+        log.extend(_tm_guruh_muvozanat(db, _fp, performed_by=performed_by))
+    return log
+
+
+def _tm_guruh_qarzi(db: Session, fp) -> float:
+    """Guruhdagi BOSHQA tayyor partiyalarning minusi yig'indisi (qarz) — sotuvni «ushlash» (egasi qarori) uchun himoya qatlami."""
+    return sum(max(0.0, -float(x.quantity or 0)) for x in _tm_guruh_azolari(db, fp) if x.id != fp.id)
+
+
+def _tm_yetkazish_kami(db: Session, valid_items, company_id: int = None) -> list:
+    """kech145 (zip 182 — egasi qarori «Faqat bor»): yuk xati qatorlari [(detal, miqdor)] — tayyor mahsulotdan olingan detallar
+    partiya bo'yicha jamlanadi; partiya MINUSDA bo'lsa jismonan bor = qoldiq + shu partiyadan olingan (o'chirilmagan, qoralama
+    bo'lmagan) buyurtmalar detallarining hali topshirilmagan qismi. So'ralgan jami undan ko'p bo'lsa — rad matni (ro'yxat).
+    Qoldiq 0 yoki musbat partiya — tekshirilmaydi (avvalgidek)."""
+    _jami = {}
+    for _oi, _qty in valid_items:
+        _f = getattr(_oi, 'finished_product_id', None)
+        if _f:
+            _jami[_f] = _jami.get(_f, 0.0) + float(_qty or 0)
+    if not _jami:
+        return []
+    _fp_qulf(db, list(_jami), company_id)
+    out = []
+    for _f, _so in sorted(_jami.items()):
+        _fq = db.query(FinishedProduct).filter(FinishedProduct.id == _f)
+        if company_id is not None:
+            _fq = _fq.filter(FinishedProduct.company_id == company_id)
+        _fp = _fq.first()
+        if _fp is None or not _fp_tayyormi(_fp):
+            continue
+        _q = float(_fp.quantity or 0)
+        if _q >= -1e-6:
+            continue
+        _dq = db.query(OrderItem).join(Order, Order.id == OrderItem.order_id).filter(
+            OrderItem.finished_product_id == _f, Order.is_deleted.isnot(True), Order.status != OrderStatus.DRAFT)
+        if company_id is not None:
+            _dq = _dq.filter(Order.company_id == company_id)
+        _jismoniy = _q + sum(float(_d.remaining_qty or 0) for _d in _dq.all())
+        if _so > _jismoniy + 1e-3:
+            out.append(f"{_fp.name}: {_so:g} {_fp.unit} berilmoqchi, lekin omborda jismonan {max(0.0, _jismoniy):g} {_fp.unit} bor — "
+                       f"{-_q:g} {_fp.unit} hali ishlab chiqarilmagan (minusda). Avval ishlab chiqaring — shu mahsulotning yangi "
+                       f"partiyasi minusni avtomatik yopadi")
+    return out
+
+
+def _tm_minus_rad_xabari(fp, amal: str) -> str:
+    """kech145 (zip 182): minusdagi tayyor mahsulot bilan bo'lmaydigan amal (sotish, brak, o'chirish) rad matni — manfiy «Omborda faqat
+    -5 m bor» o'rniga."""
+    _q = float(fp.quantity or 0)
+    return (f"{fp.name}: qoldiq minusda ({_q:g} {fp.unit} — {-_q:g} {fp.unit} buyurtmalarga qarz, hali ishlab chiqarilmagan) — "
+            f"{amal} bo'lmaydi. Avval ishlab chiqaring: «Yana ishlab chiqarish» yoki shu mahsulotning yangi partiyasi minusni "
+            f"avtomatik yopadi")
+
+
+def _tm_ushlangan_xabari(fp, bosh: float, qarz: float, soralgan: float) -> str:
+    """kech145 (zip 182 — egasi qarori «ushlansin»): guruhda boshqa partiya minusda — bo'sh qoldiqdan qarz ushlanadi."""
+    return (f"{fp.name}: shu mahsulotning boshqa partiyasi minusda ({qarz:g} {fp.unit} buyurtmaga qarz) — bo'sh qoldiq avval "
+            f"qarzni yopadi: sotsa bo'ladi faqat {max(0.0, bosh - qarz):g} {fp.unit}, {float(soralgan):g} sota olmaysiz")
+
+
+def _tm_minus_qayd(db: Session, fp, oldin: float, raqam: str = None) -> None:
+    """kech145 (zip 182 — egasi qarori «Darhol xabar»): amal oxirida partiya minusda va minus CHUQURLASHGAN bo'lsa — Telegram xabari
+    uchun sessiyaga yoziladi (`db.info['tm_minus_182']`); marshrut muvaffaqiyatli saqlagach yuboradi (`main._tm_minus_xabari`)."""
+    _q = float(fp.quantity or 0)
+    if _q < -1e-6 and _q < float(oldin) - 1e-6:
+        db.info.setdefault('tm_minus_182', []).append(
+            {"id": int(fp.id), "nom": fp.name, "qoldiq": _q, "birlik": fp.unit or '', "raqam": raqam,
+             "company_id": getattr(fp, 'company_id', None)})
+
+
+def _tm_qoshni_boshlar(db: Session, kerak: dict, olish) -> dict:
+    """kech145 (zip 182): buyurtma (yoki tahrir oshgan qismi) `kerak` = {fp_id: miqdor} uchun — har partiyaga guruhdoshlaridan
+    qancha bo'sh qoldiq yetkazilishi mumkin (muvozanat keyin ko'chiradi). Bir guruhda buyurtmaning bir nechta partiyasi bo'lsa —
+    guruh bo'yicha bitta hovuz (o'z ortig'i + buyurtmada yo'q guruhdoshlar bo'shi), kamomad id tartibida to'ldiriladi. Guruhdoshsiz
+    partiya — 0 (zip 176 xulqi va matnlari AYNAN)."""
+    _fps = {}
+    for _fid in kerak:
+        _fp = olish(_fid)
+        if _fp is not None and _fp_tayyormi(_fp):
+            _fps[_fid] = _fp
+    _guruhlar = {}
+    for _fid, _fp in _fps.items():
+        _guruhlar.setdefault((getattr(_fp, 'company_id', None), tm_guruh_kaliti(_fp)), []).append(_fid)
+    natija = {}
+    for _a, _ids in _guruhlar.items():
+        _ids = sorted(_ids)
+        _azolar = _tm_guruh_azolari(db, _fps[_ids[0]])
+        _hovuz = sum(max(0.0, float(x.quantity or 0) - _tm_band(x)) for x in _azolar if x.id not in _ids)
+        for _fid in _ids:
+            _hovuz += max(0.0, _fp_bosh_qoldiq(_fps[_fid]) - float(kerak[_fid]))
+        # guruhdagi MAVJUD minus avval yopiladi (muvozanat eski minusdan boshlaydi) — hovuzdan ayiriladi (kech145 tekshiruvi: aks holda
+        # «yetadi» deyilib, buyurtma ogohlantirishsiz minusga tushardi); eski «band > qoldiq» to'ldirilmaydi — hovuzga ta'siri yo'q
+        _hovuz = max(0.0, _hovuz - sum(_tm_qarz(x) for x in _azolar))
+        # kech145 (tekshiruv 2-bosqich P1-1 / P2-3 — O'LCHANGAN): avval BAND partiyalarga (ular yetmasa RAD — minusga tushib bo'lmaydi),
+        # so'ng qolganlariga id tartibida; ilgari id tartibida — B(0) < A(10, band 8) < C(5) da A rad etilardi, haqiqiy taqsimot bor edi
+        for _fid in sorted(_ids, key=lambda _f: (0 if _tm_band(_fps[_f]) > 1e-9 else 1, _f)):
+            _kam = max(0.0, float(kerak[_fid]) - _fp_bosh_qoldiq(_fps[_fid]))
+            _ber = min(_kam, _hovuz)
+            _hovuz -= _ber
+            natija[_fid] = _ber
+    return natija
+
+
 def _take_finished_for_order(db: Session, order, company_id: int = None, tasdiq: bool = True) -> list:
     """Buyurtmadagi tayyor mahsulot detallarini ombordan yechadi.
 
@@ -2825,20 +3158,27 @@ def _take_finished_for_order(db: Session, order, company_id: int = None, tasdiq:
     qoldig'ini yechishiga olib kelardi."""
     log = []
     cid = company_id if company_id is not None else getattr(order, 'company_id', None)
+    # kech145 (zip 182): guruhdoshlar ham BIRGA, id tartibida qulflanadi (muvozanat ularga yozadi)
+    _fp_qulf_guruh(db, [getattr(_it, 'finished_product_id', None) for _it in order.items], cid)
     # kech64 (68-band): TM qatorlari o'qishdan OLDIN qulflanadi (`_fp_qulf`).
     _fp_qulf(db, [getattr(_it, 'finished_product_id', None) for _it in order.items], cid)
+    # kech145 (zip 182, tekshiruv topilmasi): avval guruh muvozanati — eski minus bilan bo'sh qoldiq bir vaqtda turgan bo'lsa (masalan
+    # deploydan oldingi holat), tekshiruv yolg'on «yetadi» demasin; amal rad etilsa — `rollback` bilan bekor bo'ladi
+    log.extend(_tm_muvozanat_idlar(db, [getattr(_it, 'finished_product_id', None) for _it in order.items], cid))
     _kerak176 = {}
     for _it in order.items:
         _f176 = getattr(_it, 'finished_product_id', None)
         _q176 = _fp_item_qty(_it) if _f176 else 0
         if _f176 and _q176 > 0:
             _kerak176[_f176] = _kerak176.get(_f176, 0.0) + _q176
+    # kech145 (zip 182): guruhdoshlarning bo'sh qoldig'i ham hisobga olinadi (yetsa — ogohlantirishsiz, muvozanat ko'chiradi)
+    _qoshni182 = _tm_qoshni_boshlar(db, _kerak176, lambda _f: _fp_for_tenant(db, _f, cid))
     _rad176, _kam176 = [], []
     for _f176 in sorted(_kerak176):
         _fp176 = _fp_for_tenant(db, _f176, cid)
         if _fp176 is None:
             continue
-        _r, _k = _tm_kerak_tekshir(_fp176, _kerak176[_f176])
+        _r, _k = _tm_kerak_tekshir(_fp176, _kerak176[_f176], qoshni_bosh=_qoshni182.get(_f176, 0.0))
         if _r:
             _rad176.append(_r)
         if _k:
@@ -2847,6 +3187,8 @@ def _take_finished_for_order(db: Session, order, company_id: int = None, tasdiq:
         raise TmRadError("\n".join(_rad176))
     if _kam176 and not tasdiq:
         raise TmKamError(_kam176)
+    _oldin182 = {}
+    _olgan182 = {}
     for it in order.items:
         fpid = getattr(it, 'finished_product_id', None)
         if not fpid:
@@ -2857,6 +3199,7 @@ def _take_finished_for_order(db: Session, order, company_id: int = None, tasdiq:
         fp = _fp_for_tenant(db, fpid, cid)
         if not fp:
             continue
+        _oldin182.setdefault(fp.id, (fp, float(fp.quantity or 0)))
         # MUHIM: quantity kamayganda, cost_price ham kamayishi shart. Buni
         # BARQAROR "1 birlik tan narxi"dan hisoblaymiz (unit_volume/unit_loy
         # asosida — bular o'zgarmaydi), shunda take va return simmetrik bo'ladi
@@ -2874,9 +3217,21 @@ def _take_finished_for_order(db: Session, order, company_id: int = None, tasdiq:
             # orqaga moslik (unit ma'lumot yo'q bo'lsa)
             fp.cost_price = float(fp.cost_price) - (float(fp.cost_price) / old_qty * take)
         fp.quantity = old_qty - qty
+        if qty - take > 1e-9:
+            _olgan182.setdefault(fp.id, []).append((it, qty - take, unit_cost if unit_cost > 0 else None, qty))
         log.append(f"🏭 {fp.name}: -{qty:g} {fp.unit} (tayyor mahsulotdan)")
     if log:
         db.flush()
+    # kech145 (zip 182 — egasi qarorlari): avval SHU amal yaratgan band kamomadi (oldindan tekshiruv guruh bo'shini avval band
+    # partiyalarga bergan — tekshiruv 2-bosqich P1-1), so'ng minus guruhdoshlarning bo'sh qoldig'idan yopiladi (yopilgan birliklar —
+    # donor tannarxida, `_tm_qarz_birligi`); qolgan minus — Telegram xabari uchun
+    if _oldin182:
+        log.extend(_tm_band_toldir(db, _oldin182))
+        db.info.pop('tm_yopish_182', None)
+        log.extend(_tm_muvozanat_idlar(db, list(_oldin182), cid))
+        _tm_qarz_birligi(db, _oldin182, _olgan182)
+        for _fp182, _q182 in _oldin182.values():
+            _tm_minus_qayd(db, _fp182, _q182, getattr(order, 'order_number', None))
     return log
 
 
@@ -2896,8 +3251,12 @@ def _return_finished_for_order(db: Session, order, sign: float = 1.0,
     verb = "qaytarildi" if sign > 0 else "qayta yechildi"
     # M4 (2026-09-18) — TENANT: _take bilan AYNAN bir xil qoida.
     cid = company_id if company_id is not None else getattr(order, 'company_id', None)
+    # kech145 (zip 182): guruhdoshlar ham BIRGA, id tartibida qulflanadi (muvozanat ularga yozadi)
+    _fp_qulf_guruh(db, [getattr(_it, 'finished_product_id', None) for _it in order.items], cid)
     # kech64 (68-band): TM qatorlari o'qishdan OLDIN qulflanadi (`_fp_qulf`).
     _fp_qulf(db, [getattr(_it, 'finished_product_id', None) for _it in order.items], cid)
+    _oldin182 = {}
+    _olgan182 = {}
     for it in order.items:
         fpid = getattr(it, 'finished_product_id', None)
         if not fpid:
@@ -2908,6 +3267,7 @@ def _return_finished_for_order(db: Session, order, sign: float = 1.0,
         fp = _fp_for_tenant(db, fpid, cid)
         if not fp:
             continue
+        _oldin182.setdefault(fp.id, (fp, float(fp.quantity or 0)))
         delta = qty * sign
         # cost_price BARQAROR birlik tan narxidan to'g'rilanadi — _take bilan
         # AYNAN SIMMETRIK (unit_volume/unit_loy asosida, o'zgarmas). Shuning
@@ -2936,15 +3296,33 @@ def _return_finished_for_order(db: Session, order, sign: float = 1.0,
             # tiklash: qolgan qism QAYTA olinadi — TM ning shu paytdagi birligida; topshirilgan (va ortiqcha
             # qaytarilgan) qism detalning eski birligida qoladi.
             _tm_detal_olindi(it, qty, unit_cost, max(float(it.order_qty_normalized or 0) - qty, 0.0))
+        if sign < 0:
+            # kech145 (zip 182): tiklashda qarzga qayta olingan qism — muvozanat yopsa birligi qayta baholanadi (`_tm_qarz_birligi`)
+            _qarz_t = max(0.0, -(cur_qty + delta)) - max(0.0, -cur_qty)
+            if _qarz_t > 1e-9:
+                _olgan182.setdefault(fp.id, []).append(
+                    (it, _qarz_t, unit_cost if unit_cost > 0 else None,
+                     max(float(it.order_qty_normalized or 0), qty)))
         fp.quantity = cur_qty + delta
         log.append(f"🏭 {fp.name}: {delta:+.2f} {fp.unit} {verb}")
     if log:
         db.flush()
+    # kech145 (zip 182 — egasi qarorlari): qaytgan qoldiq guruhdagi minusni yopadi; tiklashda (sign < 0) qolgan minus — Telegram uchun
+    if _oldin182:
+        # tiklashda (sign < 0) band qismigacha qayta olingan bo'lsa — avval guruhdosh bo'shidan (qaytarishda kamomad oshmaydi — bo'sh
+        # amal), so'ng minus; tiklashda qarzga olingan qism yopilsa — birligi qayta baholanadi
+        log.extend(_tm_band_toldir(db, _oldin182))
+        db.info.pop('tm_yopish_182', None)
+        log.extend(_tm_muvozanat_idlar(db, list(_oldin182), cid))
+        _tm_qarz_birligi(db, _oldin182, _olgan182)
+        if sign < 0:
+            for _fp182, _q182 in _oldin182.values():
+                _tm_minus_qayd(db, _fp182, _q182, getattr(order, 'order_number', None))
     return log
 
 
 def _adjust_finished_diff(db: Session, old_items, new_items,
-                          company_id: int = None, detallar=None, tasdiq: bool = True) -> list:
+                          company_id: int = None, detallar=None, tasdiq: bool = True, buyurtma_raqami: str = None) -> list:
     """Tayyor mahsulot farqini to'g'rilaydi (buyurtma TAHRIRLANGANDA).
 
     MUHIM: avval bu yerda faqat `fp.quantity` to'g'rilanardi, `fp.cost_price`
@@ -2999,11 +3377,20 @@ def _adjust_finished_diff(db: Session, old_items, new_items,
             if _nf and _nq > 1e-9:
                 _olinadi.setdefault(_nf, []).append((_d56.get("detal"), _nq, 0.0))
 
+    # kech145 (zip 182): guruhdoshlar ham BIRGA, id tartibida qulflanadi (muvozanat ularga yozadi)
+    _fp_qulf_guruh(db, set(old_g) | set(new_g), company_id)
     # kech64 (68-band): TM qatorlari o'qishdan OLDIN, id tartibida qulflanadi (`_fp_qulf`).
     _fp_qulf(db, set(old_g) | set(new_g), company_id)
+    # kech145 (zip 182, tekshiruv topilmasi): avval guruh muvozanati (eski minus + bo'sh qoldiq bir vaqtda — tekshiruv yolg'on «yetadi»
+    # demasin); tahrir rad etilsa — `rollback` bilan bekor bo'ladi
+    log.extend(_tm_muvozanat_idlar(db, set(old_g) | set(new_g), company_id))
     # kech144 (zip 176, A-O10 d): OSHGAN qism qulf ostida tekshiriladi (`_tm_kerak_tekshir`) — band / tayyor emas — `TmRadError`,
     # yetmaydi va tasdiqsiz — `TmKamError` (`update_order_full` → 409 «davom etasizmi?»).
     _rad176, _kam176 = [], []
+    # kech145 (zip 182): guruhdoshlar bo'shi (`_tm_qoshni_boshlar`) — oshgan qismlar uchun
+    _oshgan182 = {_f: new_g.get(_f, 0.0) - old_g.get(_f, 0.0) for _f in set(old_g) | set(new_g)
+                  if new_g.get(_f, 0.0) - old_g.get(_f, 0.0) > 0.001}
+    _qoshni182 = _tm_qoshni_boshlar(db, _oshgan182, lambda _f: _fp_for_tenant(db, _f, company_id))
     for _f176 in sorted(set(old_g) | set(new_g)):
         _d176 = new_g.get(_f176, 0.0) - old_g.get(_f176, 0.0)
         if _d176 <= 0.001:
@@ -3011,7 +3398,7 @@ def _adjust_finished_diff(db: Session, old_items, new_items,
         _fp176 = _fp_for_tenant(db, _f176, company_id)
         if _fp176 is None:
             continue
-        _r, _k = _tm_kerak_tekshir(_fp176, _d176)
+        _r, _k = _tm_kerak_tekshir(_fp176, _d176, qoshni_bosh=_qoshni182.get(_f176, 0.0))
         if _r:
             _rad176.append(_r)
         if _k:
@@ -3020,6 +3407,8 @@ def _adjust_finished_diff(db: Session, old_items, new_items,
         raise TmRadError("\n".join(_rad176))
     if _kam176 and not tasdiq:
         raise TmKamError(_kam176)
+    _oldin182 = {}
+    _olgan182 = {}
     for fpid in sorted(set(old_g) | set(new_g)):
         diff = new_g.get(fpid, 0.0) - old_g.get(fpid, 0.0)
         _q56 = _qaytadi.get(fpid) or []
@@ -3074,12 +3463,31 @@ def _adjust_finished_diff(db: Session, old_items, new_items,
             # 20 m qaytib qoldiq 10 o'rniga 20 bo'lardi): minus — egasi qarori («Minusga ruxsat bersin»), qisilmaydi
             fp.quantity = cur_qty - diff
             log.append(f"🏭 {fp.name}: -{diff:g} {fp.unit}")
+            # kech145 (zip 182): shu tahrir yaratgan qarz — oshgan detallarga (oxirgisidan); muvozanat yopsa birligi qayta baholanadi
+            _yangi_qarz = max(0.0, -(cur_qty - diff)) - max(0.0, -cur_qty)
+            for _det, _t, _ush in reversed(_o56):
+                if _yangi_qarz <= 1e-9:
+                    break
+                _c = min(float(_t), _yangi_qarz)
+                _yangi_qarz -= _c
+                _olgan182.setdefault(fp.id, []).append((_det, _c, _Y56 if _Y56 > 0 else None, float(_ush) + float(_t)))
         else:
             fp.quantity = cur_qty + abs(diff)
             log.append(f"🏭 {fp.name}: +{abs(diff):g} {fp.unit} qaytdi")
+        _oldin182[fp.id] = (fp, cur_qty)
 
     if log:
         db.flush()
+    # kech145 (zip 182 — egasi qarorlari): kamomad guruhdoshlarning bo'sh qoldig'idan yopiladi (qaytgan qism boshqa partiya minusini
+    # ham yopadi); qolgan / chuqurlashgan minus — Telegram xabari uchun
+    if _oldin182:
+        # avval shu tahrir yaratgan band kamomadi, so'ng minus (tekshiruv 2-bosqich P1-1); yopilgan qarz birligi — `_tm_qarz_birligi`
+        log.extend(_tm_band_toldir(db, _oldin182))
+        db.info.pop('tm_yopish_182', None)
+        log.extend(_tm_muvozanat_idlar(db, list(_oldin182), company_id))
+        _tm_qarz_birligi(db, _oldin182, _olgan182)
+        for _fp182, _q182 in _oldin182.values():
+            _tm_minus_qayd(db, _fp182, _q182, buyurtma_raqami)
     return log
 
 
@@ -3097,11 +3505,13 @@ class TmKamError(ValueError):
         super().__init__("; ".join(self.shortages))
 
 
-def _tm_kerak_tekshir(fp, kerak: float):
+def _tm_kerak_tekshir(fp, kerak: float, qoshni_bosh: float = 0.0):
     """kech144 (zip 176, A-O10 d): bitta tayyor mahsulotdan buyurtmaga `kerak` miqdor. Natija (rad, kam) — har biri matn yoki None.
     Bo'sh qoldiq (qoldiq − band, `_fp_bosh_qoldiq`) yetsa — (None, None). Yetmasa: band BOR — rad (band qism boshqa buyurtmaniki —
     egasi qarori «Rad etsin»; minus ham band hisobidan bo'lmaydi); band yo'q — kam (egasi qarori «Minusga ruxsat bersin» — tasdiq
-    bilan). Hali tayyor emas (`_fp_tayyormi`, jarayonda) — rad (sotuv bilan bir qoida). Topilmadi — kam (avvalgidek ogohlantirish)."""
+    bilan). Hali tayyor emas (`_fp_tayyormi`, jarayonda) — rad (sotuv bilan bir qoida). Topilmadi — kam (avvalgidek ogohlantirish).
+    kech145 (zip 182): `qoshni_bosh` — shu mahsulotning boshqa partiyalaridan yetkaziladigan bo'sh qoldiq (`_tm_qoshni_boshlar`;
+    muvozanat ko'chiradi): o'zi + qo'shni yetsa — ogohlantirishsiz; matnlarga qo'shni qismi izoh bo'lib qo'shiladi (0 — AYNAN avvalgidek)."""
     kerak = float(kerak or 0)
     if kerak <= 1e-9:
         return None, None
@@ -3114,13 +3524,16 @@ def _tm_kerak_tekshir(fp, kerak: float):
     q = float(fp.quantity or 0)
     band = max(0.0, float(fp.reserved_quantity or 0))
     bosh = _fp_bosh_qoldiq(fp)
-    if kerak <= bosh + 1e-3:
+    qoshni = max(0.0, float(qoshni_bosh or 0))
+    if kerak <= bosh + qoshni + 1e-3:
         return None, None
+    _izoh182 = (f" (shu mahsulotning boshqa partiyalaridan yana {qoshni:g} {birlik} olinadi — yetmagani "
+                f"{kerak - bosh - qoshni:g} {birlik})") if qoshni > 1e-9 else ""
     if band > 1e-9:
         return (f"🏭 {fp.name}: omborda {q:g} {birlik}, shundan {band:g} {birlik} boshqa buyurtmaga band — bo'sh {bosh:g} {birlik}, "
-                f"kerak {kerak:g} {birlik}. Band mahsulotga tegib bo'lmaydi: yetmaganini ishlab chiqaring yoki band buyurtmada "
+                f"kerak {kerak:g} {birlik}{_izoh182}. Band mahsulotga tegib bo'lmaydi: yetmaganini ishlab chiqaring yoki band buyurtmada "
                 f"«Bandni bekor qilish»", None)
-    return None, f"🏭 {fp.name}: omborda {q:g} {birlik}, kerak {kerak:g} {birlik}"
+    return None, f"🏭 {fp.name}: omborda {q:g} {birlik}, kerak {kerak:g} {birlik}{_izoh182}"
 
 
 def _tm_farq_tekshir(db: Session, old_items, new_items, company_id: int = None):
@@ -3138,11 +3551,15 @@ def _tm_farq_tekshir(db: Session, old_items, new_items, company_id: int = None):
         return out
     eski, yangi = _g(old_items), _g(new_items)
     rad, kam = [], []
+    # kech145 (zip 182): oshgan qismlar uchun guruhdoshlar bo'shi (`_tm_qoshni_boshlar`)
+    _oshgan182 = {f: yangi.get(f, 0.0) - eski.get(f, 0.0) for f in set(eski) | set(yangi)
+                  if yangi.get(f, 0.0) - eski.get(f, 0.0) > 0.001}
+    _qoshni182 = _tm_qoshni_boshlar(db, _oshgan182, lambda _f: get_finished_product(db, _f, company_id))
     for fpid in sorted(set(eski) | set(yangi)):
         d = yangi.get(fpid, 0.0) - eski.get(fpid, 0.0)
         if d <= 0.001:
             continue
-        r, k = _tm_kerak_tekshir(get_finished_product(db, fpid, company_id), d)
+        r, k = _tm_kerak_tekshir(get_finished_product(db, fpid, company_id), d, qoshni_bosh=_qoshni182.get(fpid, 0.0))
         if r:
             rad.append(r)
         if k:
@@ -3174,8 +3591,10 @@ def check_finished_for_order(db: Session, items, company_id: int = None) -> dict
             continue
         need[fpid] = need.get(fpid, 0.0) + qty
 
+    # kech145 (zip 182): guruhdoshlar bo'shi (`_tm_qoshni_boshlar`) — yetsa ogohlantirish yo'q (muvozanat ko'chiradi)
+    _qoshni182 = _tm_qoshni_boshlar(db, need, lambda _f: get_finished_product(db, _f, company_id))
     for fpid, qty in need.items():
-        _r, _k = _tm_kerak_tekshir(get_finished_product(db, fpid, company_id), qty)
+        _r, _k = _tm_kerak_tekshir(get_finished_product(db, fpid, company_id), qty, qoshni_bosh=_qoshni182.get(fpid, 0.0))
         if _r:
             rad.append(_r)
         if _k:
@@ -5109,6 +5528,10 @@ def update_order_item(db: Session, item_id: int, item_data: dict,
         db_item = _q.first()
         if not db_item:
             return None
+        # kech145 (zip 182, mustaqil tekshiruv 2-bosqich P2-4): tayyor mahsulot guruhi XOMASHYODAN OLDIN qulflanadi — buyurtma yaratish
+        # va «Yana ishlab chiqarish» avval guruhni, so'ng xomashyoni qulflaydi; teskari tartib (xomashyo → guruh) guruhdosh partiyalarda
+        # bir-birini kutib qolardi (PG 40P01). Qayta qulflash bo'sh amal.
+        _fp_qulf_guruh(db, [db_item.finished_product_id, (item_data or {}).get('finished_product_id')], db_item.company_id)
 
     order = db_item.order
     # MUHIM (2026-09 audit): o'chirilgan buyurtmaning detalini tahrirlab
@@ -5235,7 +5658,8 @@ def update_order_item(db: Session, item_id: int, item_data: dict,
                 if ((_s.get("category") or '').lower()) == 'profil':
                     return float(_s.get("length") or 0)
                 return float(_s.get("quantity") or 0)
-            _adjust_finished_diff(db, old_snap, new_snap, company_id=db_item.company_id, detallar=[{
+            _adjust_finished_diff(db, old_snap, new_snap, company_id=db_item.company_id,
+                                  buyurtma_raqami=getattr(getattr(db_item, 'order', None), 'order_number', None), detallar=[{
                 "detal": db_item, "eski_tm": old_snap[0].get("finished_product_id"),
                 "eski_miqdor": _snap_miqdor(old_snap[0]), "eski_birlik": _tm_detal_birligi(db_item),
                 "yangi_tm": db_item.finished_product_id, "yangi_miqdor": _snap_miqdor(new_snap[0])}])
@@ -5601,6 +6025,9 @@ AUDIT_AMALLARI = {
     "faollashtirildi": ("✅", "— yoqildi (kira oladi)", "Foydalanuvchi yoqildi / o'chirildi"),
     "faolsizlantirildi": ("⛔", "— o'chirildi (kira olmaydi)", "Foydalanuvchi yoqildi / o'chirildi"),
     "parol_ozgartirildi": ("🔑", "— o'z parolini o'zgartirdi", "Parol tiklandi"),
+    # kech145 (zip 182, N5 — egasi qarori «Avtomatik yopilsin»): shu mahsulotning boshqa partiyasidan minus (yoki band kamomadi)
+    # yopildi — `old_value` / `new_value` da partiyalar va miqdor
+    "tm_minus_yopildi": ("🔁", "— minus yopildi (boshqa partiyadan ko'chirildi)", "Tayyor mahsulot minusi yopildi"),
     # eski yozuvlar (zip 129 dan oldin shu nom bilan yozilishi mo'ljallangan, lekin NOT NULL sabab yozilmagan)
     "Zaxiradan tiklash": ("💾", "— zaxiradan tiklandi", "Zaxiradan tiklandi"),
 }
@@ -6195,6 +6622,9 @@ def _auto_release_mrp_reservations(db: Session, order_item_ids, performed_by: st
                 new_value="band emas — bog'langan buyurtma/detal o'chirilgani uchun avtomatik ozod qilindi"))
         fp.reserved_quantity = 0.0
         fp.reserved_for_order_item_id = None
+    # kech145 (zip 182 — egasi qarori «ushlansin»): ozod bo'lgan qoldiq shu mahsulotning minusini yopadi (kamomad bo'lsagina)
+    if fps:
+        _tm_muvozanat_kerak_bolsa(db, [fp.id for fp in fps], None, performed_by=performed_by)
 
 
 @contextlib.contextmanager
@@ -6477,6 +6907,9 @@ def restore_order(db: Session, order_id: int, performed_by: str = None) -> bool:
             return False
         if not db_order.is_deleted:
             raise ValueError("Buyurtma savatda emas — u allaqachon tiklangan")
+        # kech145 (zip 182, mustaqil tekshiruv 2-bosqich P2-4): tayyor mahsulot guruhi XOMASHYODAN OLDIN qulflanadi (buyurtma yaratish
+        # va «Yana ishlab chiqarish» bilan bir tartib — guruh, so'ng xomashyo; teskarisi PG 40P01 berardi)
+        _fp_qulf_guruh(db, [getattr(_it, 'finished_product_id', None) for _it in db_order.items], _cid_r)
         # kech100 (93-band): o'chirishda topshirilgan qismi bilan YAKUNLANGAN buyurtma — AVVAL yakunlash bekor qilinadi
         # (detallar / summalar / holat / loy o'chirishdan OLDINGI holatga), so'ng odatdagi tiklash: qolgan qism
         # xomashyosi qayta yechiladi — natija kech100 dan oldingi tiklash bilan AYNAN (`tools/test_ochirish_yopish.py`).
@@ -6682,6 +7115,15 @@ def delete_order_item(db: Session, item_id: int, company_id: int = None) -> bool
         }]
         services.adjust_inventory_diff(db, old_snap, [], order_id=db_item.order_id,
                                        company_id=db_item.company_id, commit=False)
+        # kech145 (zip 182, tekshiruv topilmasi — ESKI xato, `DELETE /api/order-items/{id}`): tayyor mahsulotdan olingan detal
+        # o'chirilganda mahsulot omborga QAYTMASDI (xomashyo qaytardi, TM yo'q — qoldiq yo'qolar, minus bo'lsa «egasiz qarz» qolardi).
+        # To'liq tahrir bilan BITTA yo'l (`_adjust_finished_diff` — tannarx detal birligida, guruh muvozanati).
+        if db_item.finished_product_id:
+            _adjust_finished_diff(db, old_snap, [], company_id=db_item.company_id,
+                                  buyurtma_raqami=getattr(order, 'order_number', None), detallar=[{
+                                      "detal": db_item, "eski_tm": db_item.finished_product_id,
+                                      "eski_miqdor": _fp_item_qty(db_item), "eski_birlik": _tm_detal_birligi(db_item),
+                                      "yangi_tm": None, "yangi_miqdor": 0.0}])
 
     # 2026-09-17: shu detalga Production/MRP orqali band qilingan tayyor
     # mahsulot bo'lsa — avtomatik ozod qilamiz (aks holda, detal
@@ -7351,13 +7793,18 @@ def create_return_item(db: Session, data: ReturnItemCreate,
                     _ozod_yoz.append([_fp_oz.id, round(_q_oz, 6)])
                     print(f"✓ MRP band → erkin qoldiq: {_fp_oz.name} {_q_oz:g} {_fp_oz.unit}")
                 item.mrp_ozod = _json_oz.dumps(_ozod_yoz)
+                # kech145 (zip 182, mustaqil tekshiruv 2-bosqich P2-6): bo'shagan qoldiq shu (MRP) guruhdagi minusni yopadi
+                db.flush()
+                if _mrp_ozod_reja:
+                    _tm_muvozanat_kerak_bolsa(db, [_fp_oz.id for _fp_oz, _ in _mrp_ozod_reja],
+                                              getattr(_mrp_ozod_reja[0][0], 'company_id', None), performed_by=performed_by)
             fp = None
             if _ombor_miqdor > 1e-9:
                 fp = add_returned_to_stock(
                     db, oi, _ombor_miqdor, reason_enum.value,
                     order_id=data.order_id,
                     notes=f"{data.notes or ''}".strip() or None,
-                    commit=False, natija=_ombor
+                    commit=False, natija=_ombor, performed_by=performed_by     # kech145 (zip 182): «Faoliyat jurnali» da kim
                 )
             if fp:
                 item.finished_product_id = fp.id
@@ -8509,6 +8956,10 @@ def activate_draft_order(db: Session, order_id: int, performed_by: str = None, c
     if not order:
         db.rollback()
         return {"success": False, "message": "Buyurtma topilmadi"}
+    # kech145 (zip 182, mustaqil tekshiruv 2-bosqich P2-4): tayyor mahsulot guruhi XOMASHYODAN OLDIN qulflanadi — buyurtma yaratish
+    # va «Yana ishlab chiqarish» avval guruhni, so'ng xomashyoni qulflaydi; teskari tartib (xomashyo → guruh) guruhdosh partiyalarda
+    # bir-birini kutib qolardi (PG 40P01). Qayta qulflash bo'sh amal.
+    _fp_qulf_guruh(db, [getattr(_it, 'finished_product_id', None) for _it in order.items], _cid_q)
 
     if order.status != OrderStatus.DRAFT:
         db.rollback()
@@ -9661,6 +10112,11 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
     order = db.query(Order).filter(Order.id == order_id, Order.company_id == _cid_q).first()
     if not order:
         return {"success": False, "message": "Buyurtma topilmadi"}
+    # kech145 (zip 182, mustaqil tekshiruv 2-bosqich P2-4): tayyor mahsulot guruhi XOMASHYODAN OLDIN qulflanadi — buyurtma yaratish
+    # va «Yana ishlab chiqarish» avval guruhni, so'ng xomashyoni qulflaydi; teskari tartib (xomashyo → guruh) guruhdosh partiyalarda
+    # bir-birini kutib qolardi (PG 40P01). Qayta qulflash bo'sh amal.
+    _fp_qulf_guruh(db, [getattr(_it, 'finished_product_id', None) for _it in order.items]
+                   + [getattr(_nd, 'finished_product_id', None) for _nd in (getattr(order_data, 'items', None) or [])], _cid_q)
 
     if order.status == OrderStatus.READY:
         return {"success": False, "message": "Tayyor buyurtmani tahrirlab bo'lmaydi"}
@@ -10146,7 +10602,8 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         try:
             inventory_log.extend(_adjust_finished_diff(db, old_snapshot, new_snapshot,
                                                        company_id=getattr(order, 'company_id', None),
-                                                       detallar=_tm56, tasdiq=confirm_shortage))
+                                                       detallar=_tm56, tasdiq=confirm_shortage,
+                                                       buyurtma_raqami=getattr(order, 'order_number', None)))
         except TmRadError as _e176:
             db.rollback()
             return {"success": False, "message": "Tayyor mahsulotni olib bo'lmaydi!", "shortages": str(_e176).split("\n")}
@@ -10308,7 +10765,7 @@ def _mrp_band_tmlar(db: Session, order_item, company_id: int = None, lock: bool 
     q = q.order_by(FinishedProduct.id)
     if lock:
         db.flush()
-        q = q.with_for_update().populate_existing()
+        q = q.with_for_update(key_share=True).populate_existing()
     return q.all()
 
 
@@ -10323,7 +10780,7 @@ def _mrp_tmlar_idlar(db: Session, idlar, company_id: int = None) -> list:
     if company_id is not None:
         q = q.filter(FinishedProduct.company_id == company_id)
     db.flush()
-    return q.order_by(FinishedProduct.id).with_for_update().populate_existing().all()
+    return q.order_by(FinishedProduct.id).with_for_update(key_share=True).populate_existing().all()
 
 
 def _mrp_tayyor_qoldiq(db: Session, order_item, company_id: int = None, lock: bool = True) -> float:
@@ -10572,6 +11029,10 @@ def _mrp_deliver_stock(db: Session, order_item, qty: float,
             if unit_cost > 0:
                 fp.cost_price = float(fp.cost_price or 0) + unit_cost * miqdor
             log.append(f"🏭 {fp.name}: +{miqdor:g} {fp.unit} ({_qayer})")
+        # kech145 (zip 182, tekshiruv topilmasi): erkin qoldiqqa qaytgani shu mahsulotning minusini yopadi
+        if reja:
+            db.flush()
+            log.extend(_tm_muvozanat_kerak_bolsa(db, [fp.id for fp, _ in reja], company_id))
     if log:
         db.flush()
     return log
@@ -10864,6 +11325,12 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
         return {"success": False, "message": "Qoldiqdan ko'p berib bo'lmaydi!", "shortages": errors}
     if mrp_kam:
         return {"success": False, "message": "Ishlab chiqarilganidan ko'p berib bo'lmaydi!", "shortages": mrp_kam}
+    # kech145 (zip 182 — egasi qarori «Faqat bor»): minusdagi tayyor mahsulotdan olingan detal — jismonan bor miqdordan ko'p
+    # topshirilmaydi (qolgani ishlab chiqarilgach; yangi partiya minusni avtomatik yopadi)
+    tm_kam = _tm_yetkazish_kami(db, valid_items, getattr(order, 'company_id', None))
+    if tm_kam:
+        return {"success": False, "message": "Tayyor mahsulot minusda — jismonan bor miqdordan ko'p berib bo'lmaydi!",
+                "shortages": tm_kam}
 
     if not valid_items:
         return {"success": False, "message": "Yetkazish uchun miqdor kiritilmagan"}
@@ -11542,18 +12009,23 @@ def release_finished_product_reservation(db: Session, fp_id: int, performed_by: 
     fp = get_finished_product(db, fp_id, company_id)   # M4: faqat shu korxonadan
     if not fp:
         return {"success": False, "message": "Tayyor mahsulot topilmadi"}
+    # kech145 (zip 182): guruh (guruhdoshlar ham) id tartibida qulflanadi va qiymatlar bazadan qayta o'qiladi — ozod bo'lgan
+    # qoldiq shu mahsulotning minusini yopadi (egasi qarori «ushlansin»)
+    _fp_qulf_guruh(db, [fp.id], getattr(fp, 'company_id', None))
     if not fp.reserved_for_order_item_id and not fp.reserved_quantity:
+        db.rollback()
         return {"success": False, "message": "Bu mahsulot hech kimga band qilinmagan"}
     old_reserved = fp.reserved_quantity
     old_order_item_id = fp.reserved_for_order_item_id
     fp.reserved_quantity = 0.0
     fp.reserved_for_order_item_id = None
+    _muv182 = _tm_guruh_muvozanat(db, fp, performed_by=performed_by)
     log_activity(db, "release_reservation", "finished_product", fp.id,
                  entity_label=fp.name, performed_by=performed_by,
                  company_id=getattr(fp, 'company_id', None),
                  old_value=f"band: {old_reserved} (detal #{old_order_item_id})", new_value="band emas — umumiy sotuvda")
     db.commit()
-    return {"success": True, "message": f"{fp.name} endi umumiy sotuv uchun ochiq"}
+    return {"success": True, "message": f"{fp.name} endi umumiy sotuv uchun ochiq", "minus_yopildi": _muv182}
 
 
 def record_finished_product_loss(db: Session, data, created_by: str = None,
@@ -11580,6 +12052,8 @@ def record_finished_product_loss(db: Session, data, created_by: str = None,
 
     available = float(fp.quantity or 0)
     if data.quantity > available + 0.001:
+        if available < -1e-9:       # kech145 (zip 182): manfiy «Omborda faqat -5» o'rniga
+            return {"success": False, "message": _tm_minus_rad_xabari(fp, "omborda brak qilib")}
         return {"success": False, "message": f"Omborda faqat {available:g} {fp.unit} bor, {data.quantity:g} kamaytira olmaysiz"}
     # kech56 (13-band, 7-qadam): javobgar hodim — shu korxonaning hodimi (yozuvdan OLDIN)
     try:
@@ -11751,10 +12225,15 @@ def delete_finished_product_loss(db: Session, loss_id: int, company_id: int = No
             fpq = fpq.filter(FinishedProduct.company_id == company_id)
         # kech142 (A-O04 / A-O08): qulf + bazadan qayta yuklash (avval flush — taqdir bekori yozgan o'zgarish yo'qolmasin)
         db.flush()
-        fp = fpq.populate_existing().with_for_update().first()
+        fp = fpq.populate_existing().with_for_update(key_share=True).first()
         if fp:
+            _eski182 = float(fp.quantity or 0)
             fp.quantity = float(fp.quantity or 0) + qty
             fp.cost_price = float(fp.cost_price or 0) + cost
+            # kech145 (zip 182, F1 qoidasi — agent hisoboti 5.1): qoldiq minusda edi — qaytgan qismning minusni yopgan bo'lagi
+            # buyurtmaga ketgan, tannarxi faqat MUSBAT qismga (qoldiq 0 dan past bo'lmasa — avvalgidek AYNAN)
+            if _eski182 < -1e-9 and qty > 1e-9:
+                fp.cost_price = max(0.0, float(fp.cost_price) - cost) + cost * (max(0.0, _eski182 + qty) / qty)
             tiklandi = True
             # kech142 (zip 170, A-O08): brakda kamaygan band qaytadi — faqat buyurtma detaliga HALI kerak bo'lsa
             # (`mrp_detal_kerak`; shu orada qayta ishlab chiqarilgan bo'lsa — kerak 0, qaytgan mahsulot bo'sh qoldiq bo'ladi).
@@ -11773,6 +12252,8 @@ def delete_finished_product_loss(db: Session, loss_id: int, company_id: int = No
                                  company_id=getattr(fp, 'company_id', None), commit=False)
                 else:
                     _band_tiklandi = 0.0
+            # kech145 (zip 182 — egasi qarori «Avtomatik yopilsin»): qaytgan qoldiq shu mahsulotning minusini yopadi
+            _tm_muvozanat_kerak_bolsa(db, [fp.id], company_id, performed_by=performed_by)
 
     db.delete(loss)
     try:
@@ -12150,7 +12631,14 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None,
                 db.rollback()
                 if float(fp.reserved_quantity or 0) > 1e-9:
                     return {"success": False, "message": _fp_band_xabari(fp, _jami_qty)}
+                if float(fp.quantity or 0) < -1e-9:     # kech145 (zip 182)
+                    return {"success": False, "message": _tm_minus_rad_xabari(fp, "sotib")}
                 return {"success": False, "message": f"{fp.name}: sotish mumkin faqat {available:g} {fp.unit} bor, {_jami_qty:g} sota olmaysiz"}
+            # kech145 (zip 182 — egasi qarori «ushlansin»): guruhdagi boshqa partiya minusda — qarz ushlanadi (himoya qatlami)
+            _qarz182 = _tm_guruh_qarzi(db, fp)
+            if _qarz182 > 1e-9 and _jami_qty > max(0.0, available - _qarz182) + 0.001:
+                db.rollback()
+                return {"success": False, "message": _tm_ushlangan_xabari(fp, available, _qarz182, _jami_qty)}
             _savatda[fp.id] = _jami_qty
 
             # kech91 (7-band, O'LCHANGAN — `work/probe7.py`, SQLite + HAQIQIY PG): narx va jami ALOHIDA yaxlitlanardi
@@ -12316,7 +12804,14 @@ def sell_finished_product(db: Session, data, created_by: str = None,
     if data.quantity > _fp_bosh_qoldiq(fp) + 0.001:
         if float(fp.reserved_quantity or 0) > 1e-9:
             return {"success": False, "message": _fp_band_xabari(fp, data.quantity)}
+        if available < -1e-9:       # kech145 (zip 182): manfiy «Omborda faqat -5» o'rniga
+            return {"success": False, "message": _tm_minus_rad_xabari(fp, "sotib")}
         return {"success": False, "message": f"Omborda faqat {available:g} {fp.unit} bor, {data.quantity:g} sota olmaysiz"}
+    # kech145 (zip 182 — egasi qarori «ushlansin»): guruhdagi boshqa partiya minusda bo'lsa — bo'sh qoldiq qarzni yopishga ushlanadi
+    # (himoya qatlami: odatda muvozanat qarzni oldinroq yopgan bo'ladi)
+    _qarz182 = _tm_guruh_qarzi(db, fp)
+    if _qarz182 > 1e-9 and data.quantity > max(0.0, _fp_bosh_qoldiq(fp) - _qarz182) + 0.001:
+        return {"success": False, "message": _tm_ushlangan_xabari(fp, _fp_bosh_qoldiq(fp), _qarz182, data.quantity)}
 
     _usta_xato = _sotuv_ustasi_xatosi(db, getattr(data, "master_id", None),
                                       company_id if company_id is not None else fp.company_id)
@@ -12616,7 +13111,7 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
 
 
 def complete_production(db: Session, fp_id: int, actual_loy_kg: float = 0,
-                       company_id: int = None) -> dict:
+                       company_id: int = None, performed_by: str = None) -> dict:
     """Ishlab chiqarishni yakunlaydi — mahsulot sotuvga tayyor.
     Xomashyo allaqachon yechilgan, bu faqat status o'zgartirish."""
     from models import ProductionStatus
@@ -12635,6 +13130,14 @@ def complete_production(db: Session, fp_id: int, actual_loy_kg: float = 0,
     if _mrp_tm_mi(fp):
         return {"success": False, "message": _MRP_JARAYON_XABAR}
 
+    # kech145 (zip 182, tekshiruv S-b): guruh (shu partiya + tayyor guruhdoshlari) YOZISHDAN OLDIN id tartibida qulflanadi — ilgari
+    # partiya avval yozilib (flush), keyin guruh qulflanardi: kichik id li guruhdoshni boshqa amal ushlab tursa, ikkalasi bir-birini
+    # kutib qolishi mumkin edi (PG 40P01). Qulfdan keyin qiymatlar bazadan qayta o'qilgan — holat qayta tekshiriladi.
+    _cid182 = getattr(fp, 'company_id', None)
+    _fp_qulf_guruh(db, [fp.id], _cid182)
+    if fp.production_status == ProductionStatus.READY:
+        return {"success": False, "message": "Bu mahsulot allaqachon tayyor"}
+
     fp.production_status = ProductionStatus.READY
     fp.finished_production_at = datetime.utcnow()
     # MUHIM: hodim oyligi hisoblanadigan ASL miqdorni shu yerda "muzlatib"
@@ -12642,6 +13145,10 @@ def complete_production(db: Session, fp_id: int, actual_loy_kg: float = 0,
     # `quantity` kamaysa ham, hodimning haqi O'ZGARMASLIGI kerak (chunki u
     # ishni ALLAQACHON bajargan).
     fp.produced_quantity = fp.quantity
+    # kech145 (zip 182 — egasi qarori «Avtomatik yopilsin»): yangi tayyor partiya shu mahsulotning minusini (va band kamomadini)
+    # yopadi — guruh yuqorida (yozishdan oldin) qulflangan
+    db.flush()
+    _muv182 = _tm_guruh_muvozanat(db, fp, performed_by=performed_by)
 
     db.commit()
     db.refresh(fp)
@@ -12667,7 +13174,8 @@ def complete_production(db: Session, fp_id: int, actual_loy_kg: float = 0,
         "cost_per_unit": round(cost_per_unit),
         "revenue": round(revenue),
         "profit": round(profit),
-        "margin": round(margin, 1)
+        "margin": round(margin, 1),
+        "minus_yopildi": _muv182,
     }
 
 
@@ -12733,9 +13241,12 @@ def get_finished_products_for_main_page(db: Session, days: int = 90, show_all: b
         return base.order_by(FinishedProduct.source, FinishedProduct.name, FinishedProduct.id).all()
 
     cutoff = datetime.utcnow() - timedelta(days=days)
+    # kech145 (zip 182, N5 — agent hisoboti 2-topilma): minusdagi (buyurtmalarga qarz) partiya ham — 90 kundan eski bo'lsa ham
+    # ro'yxatdan tushmaydi (ilgari faqat «Barchasini ko'rish» da ko'rinardi)
     return base.filter(
         (FinishedProduct.created_at >= cutoff) |
         (FinishedProduct.quantity > 0) |
+        (FinishedProduct.quantity < -1e-6) |      # kech145 (zip 182): minus — chegara −1e-6 (kasr qoldig'i −2e-16 emas)
         (FinishedProduct.production_status == ProductionStatus.IN_PROGRESS)
     ).order_by(FinishedProduct.source, FinishedProduct.name, FinishedProduct.id).all()
 
@@ -12867,6 +13378,9 @@ def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = Fal
     # Qoldiq bor bo'lsa — o'chirishga ruxsat bermaymiz
     if float(fp.quantity or 0) > 0.001:
         return False  # chaqiruvchi (API) buni foydalanuvchiga tushuntiradi
+    # kech145 (zip 182, N5): minusdagi (buyurtmalarga qarz) mahsulot ham o'chirilmaydi — qarz jim yo'qolardi
+    if float(fp.quantity or 0) < -1e-6:      # chegara HAMMA joyda −1e-6 (tekshiruv 2-bosqich P3)
+        return False
 
     # MUHIM: bu mahsulotga bog'liq SOTUV yozuvlari (finished_product_sales)
     # bo'lishi mumkin. Ularni to'g'ridan-to'g'ri o'chirsak — moliyaviy tarix
@@ -12918,7 +13432,8 @@ def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = Fal
 
 def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
                           order_id: int = None, notes: str = None,
-                          commit: bool = True, natija: dict = None) -> Optional[FinishedProduct]:
+                          commit: bool = True, natija: dict = None,
+                          performed_by: str = None) -> Optional[FinishedProduct]:
     """Buyurtmadan qaytgan detalni tayyor mahsulotlar omboriga qo'shadi.
     Sotuv narxi (unit_price) — buyurtmadagi narx (o'zgarmaydi).
     Tan narxi (cost_price) — asl xomashyo qiymatidan hisoblanadi (avval
@@ -12995,7 +13510,7 @@ def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
     # kech40 (22-band): qator QULFLANADI — sotuv / kamaytirish / qaytarishni
     # o'chirish ham `FOR UPDATE` bilan o'qiydi; qulfsiz o'qib-yozish parallel
     # sotuvning kamaytirishini ustidan yozib yuborardi (yo'qolgan yangilanish).
-    existing = _rq.with_for_update().first()
+    existing = _rq.with_for_update(key_share=True).first()
 
     if existing:
         # kech59 (47-band): qaytgan qismning muzlagan tannarxi mavjud qoldiq bilan og'irlikli o'rtacha
@@ -13004,12 +13519,18 @@ def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
         _eski_b59 = _fp_stable_unit_cost(db, existing)
         if _eski_b59 <= 0 and _eski_q59 > 0 and existing.cost_price:
             _eski_b59 = float(existing.cost_price) / _eski_q59
+        # kech145 (zip 182, F1 qoidasi — agent hisoboti 5.1): qoldiq minusda bo'lsa qaytgan qismning minusni yopgan bo'lagi
+        # buyurtmaga ketgan — tannarx faqat MUSBAT qismga (qoldiq 0 dan past bo'lmasa — avvalgidek AYNAN)
+        _ij182 = max(0.0, _eski_q59 + quantity) - max(0.0, _eski_q59)
+        _qiymat182 = new_cost_price if _eski_q59 >= 0 else (new_cost_price * _ij182 / quantity)
         if _eski_q59 + quantity > 0:
-            existing.unit_cost_stable = (_eski_b59 * _eski_q59 + new_cost_price) / (_eski_q59 + quantity)
+            existing.unit_cost_stable = (_eski_b59 * max(0.0, _eski_q59) + _qiymat182) / (max(0.0, _eski_q59) + _ij182)
         existing.quantity = float(existing.quantity or 0) + quantity
         existing.produced_quantity = float(existing.produced_quantity or 0) + quantity
-        existing.cost_price = float(existing.cost_price or 0) + new_cost_price
+        existing.cost_price = float(existing.cost_price or 0) + _qiymat182
         existing.volume_m3 = float(existing.volume_m3 or 0) + new_volume
+        # kech145 (zip 182): qaytgan qoldiq shu (qaytgan) guruhdagi minusni yopadi
+        _tm_muvozanat_kerak_bolsa(db, [existing.id], getattr(existing, 'company_id', None), performed_by=performed_by)
         # Agar mavjud yozuvda hali rasm bo'lmasa — asl detal rasmini olamiz
         if not existing.image_url and order_item.image_url:
             existing.image_url = order_item.image_url
@@ -13053,6 +13574,10 @@ def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
         production_status=_PS_ret.READY,
     )
     db.add(fp)
+    # kech145 (zip 182, tekshiruv topilmasi): yangi qaytgan partiya (narxi boshqa bo'lsa yangi qator) shu (qaytgan) guruhdagi minusni
+    # yopadi
+    db.flush()
+    _tm_muvozanat_kerak_bolsa(db, [fp.id], _ret_cid, performed_by=performed_by)
     if commit:
         db.commit()
     else:
@@ -13171,7 +13696,26 @@ def get_finished_stats(db: Session, company_id: int = None) -> dict:
         "narxsiz_soni": len(narxsiz_tayyor),
         "miqdorlar": _miqdorlar(tayyor),
         "jarayonda_miqdorlar": _miqdorlar(in_progress),
+        # kech145 (zip 182, N5): minusdagi (buyurtmalarga qarz — ishlab chiqarish kerak) tayyor partiyalar — yuqoridagi kalitlar
+        # o'zgarmaydi (ular faqat musbat qoldiq), qarz alohida: soni va har birlik bo'yicha miqdori (musbat son — qarz)
+        **_tm_minus_xulosa(db, company_id),
     }
+
+
+def _tm_minus_xulosa(db: Session, company_id: int = None) -> dict:
+    """kech145 (zip 182, N5): minusdagi tayyor partiyalar — `minus_soni` va `minus_miqdorlar` ([{birlik, miqdor}], miqdor — qarz,
+    musbat son, katta → kichik)."""
+    _mq = db.query(FinishedProduct).filter(FinishedProduct.quantity < -1e-6)
+    if company_id is not None:
+        _mq = _mq.filter(FinishedProduct.company_id == company_id)
+    _minus = [i for i in _mq.all() if _fp_tayyormi(i)]
+    _jami = {}
+    for i in _minus:
+        _b = (i.unit or "").strip() or "dona"
+        _jami[_b] = _jami.get(_b, 0.0) - float(i.quantity or 0)
+    return {"minus_soni": len(_minus),
+            "minus_miqdorlar": [{"birlik": b, "miqdor": round(m, 4)}
+                                for b, m in sorted(_jami.items(), key=lambda x: (-x[1], x[0]))]}
 
 
 def _fp_ombor_qiymati(fp) -> float:
@@ -13179,7 +13723,8 @@ def _fp_ombor_qiymati(fp) -> float:
     yo'q bo'lsa (MRP — narx sotishda yoziladi) — qoldiqning tannarxi (`cost_price` — qoldiq bilan birga kamayadi)."""
     narx = float(fp.unit_price or 0)
     if narx > 0:
-        return float(fp.quantity or 0) * narx
+        # kech145 (zip 182, N5): minusdagi qoldiqning ombor qiymati yo'q (manfiy emas — 0; qarz alohida ko'rsatiladi)
+        return max(0.0, float(fp.quantity or 0)) * narx
     return max(0.0, float(fp.cost_price or 0))
 
 
@@ -13219,6 +13764,10 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
     # o'qiladi. Ilgari qulfsiz o'qilardi (marshrut ham 404 uchun oldin yuklaydi) va oxirida mutlaq qiymat yozilardi
     # (`fp.quantity = base_qty + add_qty`) — parallel sotuv / brak YO'QOLARDI (sotuv 5 ∥ «Yana ishlab chiqarish» 2,
     # 100 → 102, to'g'risi 97). Qulf tartibi: tayyor mahsulot → material (sotuv, brak, buyurtma bilan bir xil).
+    # kech145 (zip 182): avval guruh (guruhdoshlar ham) id tartibida qulflanadi — qo'shilgan miqdor guruhdagi minusni yopadi
+    _fp182 = get_finished_product(db, fp_id, company_id)
+    if _fp182 is not None:
+        _fp_qulf_guruh(db, [_fp182.id], getattr(_fp182, 'company_id', None))
     fp = get_finished_product(db, fp_id, company_id, lock=True)   # M4: faqat shu korxonadan
     if not fp:
         return {"success": False, "message": "Topilmadi"}
@@ -13377,12 +13926,19 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
     fp.volume_m3 = float(fp.volume_m3 or 0) + add_volume
     fp.actual_loy_kg = float(fp.actual_loy_kg or 0) + add_loy
     fp.planned_loy_kg = float(fp.planned_loy_kg or 0) + add_loy
-    fp.cost_price = float(fp.cost_price or 0) + peno_cost + loy_cost
+    # kech145 (zip 182, F1 qoidasi — agent hisoboti 5.1, O'LCHANGAN `tools/test_tm_minus182.py` Q): qoldiq minusda bo'lsa yangi
+    # partiyaning minusni yopgan qismi buyurtmaga ketgan — tannarxi omborda qolmaydi (ilgari −5 + 5 da 0 m li qatorda tannarx qolar,
+    # −5 + 8 da 3 m 8 m tannarxini ko'tarardi). Qoldiq 0 dan past bo'lmasa — avvalgidek AYNAN.
+    _ijobiy182 = max(0.0, base_qty + add_qty) - max(0.0, base_qty)
+    _yangi182 = (peno_cost + loy_cost) * (_ijobiy182 / add_qty) if add_qty > 0 else 0.0
+    fp.cost_price = max(0.0, float(fp.cost_price or 0)) + _yangi182
     # kech59 (47-band): yangi partiya SHU paytdagi narxda — qoldiq bilan og'irlikli o'rtacha
     # (omborda turgan eski qism eski narxda qoladi, butun mahsulot joriy narxga o'tmaydi).
-    _jami_qty59 = base_qty + add_qty
+    _jami_qty59 = max(0.0, base_qty) + _ijobiy182
     if _jami_qty59 > 0:
-        fp.unit_cost_stable = (_eski_birlik59 * base_qty + peno_cost + loy_cost) / _jami_qty59
+        fp.unit_cost_stable = (_eski_birlik59 * max(0.0, base_qty) + _yangi182) / _jami_qty59
+    # kech145 (zip 182 — egasi qarori «Avtomatik yopilsin»): guruhdagi boshqa partiya minusda bo'lsa — yopiladi
+    _muv182 = _tm_guruh_muvozanat(db, fp, performed_by=performed_by)
 
     db.commit()
     db.refresh(fp)
@@ -13405,7 +13961,8 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
         "add_volume": round(add_volume, 4),
         "add_loy": round(add_loy, 1),
         "add_cost": round(peno_cost + loy_cost),
-        "inventory_log": log
+        "inventory_log": log,
+        "minus_yopildi": _muv182,
     }
 
 
@@ -13468,6 +14025,10 @@ def get_finished_profit(db: Session, fp_id: int, company_id: int = None) -> dict
 
     qty = float(fp.quantity or 0)
     unit_price = float(fp.unit_price or 0)
+    # kech145 (zip 182, N5): minusdagi qoldiq (buyurtmalarga qarz) — sotuv qiymati / foyda yo'q (ilgari «-5 × 20 000 = -100 000»,
+    # «FOYDA -100 000»); qarz alohida kalit (`minusda`, `qarz`). Qoldiq 0 dan past bo'lmasa — AYNAN avvalgidek.
+    _qarz182 = max(0.0, -qty)
+    qty = max(0.0, qty)
     revenue = qty * unit_price
     total_cost = float(fp.cost_price or 0)
 
@@ -13519,7 +14080,7 @@ def get_finished_profit(db: Session, fp_id: int, company_id: int = None) -> dict
         "success": True,
         "id": fp.id,
         "name": fp.name,
-        "quantity": qty,
+        "quantity": float(fp.quantity or 0),
         "unit": fp.unit,
         "unit_price": unit_price,
         "revenue": round(revenue),
@@ -13539,6 +14100,8 @@ def get_finished_profit(db: Session, fp_id: int, company_id: int = None) -> dict
         "jami_loy_kg": jami_loy,
         "source": fp.source.value,
         "production_status": fp.production_status.value if fp.production_status else None,
+        "minusda": _qarz182 > 1e-9,
+        "qarz": round(_qarz182, 4),
     }
 
 
@@ -17938,6 +18501,7 @@ def _taqdir_tm_yarat(db: Session, *, manba, yozuv, asl, taqdir: str, nomi, miqdo
     fp.notes = f"Brak yozuvidan ({_TAQDIR_MANBA_YORLIQ.get(manba, manba)})"
     db.add(fp)
     db.flush()
+    _tm_muvozanat_kerak_bolsa(db, [fp.id], company_id)      # kech145 (zip 182): shu (brakdan) guruhdagi minus bo'lsa
     return fp
 
 
@@ -18093,8 +18657,15 @@ def _taqdir_qolla(db: Session, *, turi: str, yozuv, manba: str, toza: dict, comp
                     if yozuv.finished_product_id else None
                 if fp is None:
                     raise ValueError("Mahsulot o'chirilgan — tuzatilgan qismni unga qaytarib bo'lmaydi")
+                _eski182 = float(fp.quantity or 0)
                 fp.quantity = float(fp.quantity or 0) + q_brak
                 fp.cost_price = _pul2(float(fp.cost_price or 0) + float(yozuv.cost_amount or 0))
+                # kech145 (zip 182, F1 — tekshiruv topilmasi): qoldiq minusda edi — tuzatilgan qismning minusni yopgan bo'lagi buyurtmaga
+                # ketgan, tannarx faqat MUSBAT qismga; qolgani guruhdagi minusni ham yopadi
+                if _eski182 < -1e-9 and q_brak > 1e-9:
+                    fp.cost_price = _pul2(max(0.0, float(fp.cost_price) - float(yozuv.cost_amount or 0))
+                                          + float(yozuv.cost_amount or 0) * (max(0.0, _eski182 + q_brak) / q_brak))
+                _tm_muvozanat_kerak_bolsa(db, [fp.id], company_id)
                 qator.tm_id, qator.tm_miqdor = fp.id, q_brak
                 qator.tm_tannarx, qator.tm_yangi = _pul2(float(yozuv.cost_amount or 0)), False
                 jurnal.append(f"tuzatildi — o'sha mahsulotga qaytdi: {fp.name} +{_miqdor_matn(q_brak)} {fp.unit}")

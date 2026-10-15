@@ -626,6 +626,26 @@ def _fonda(background_tasks, fn, *a, **k):
     background_tasks.add_task(fn, *a, **k)
 
 
+def _tm_minus_xabari(db, company_id):
+    """kech145 (zip 182, N5 — EGASI QARORI 14.10 «Darhol xabar»): amal (buyurtma yaratish / tahrir / jarayonga olish / tiklash) tayyor
+    mahsulotni minusga tushirgan yoki minusni chuqurlashtirgan bo'lsa (`crud._tm_minus_qayd` → `db.info['tm_minus_182']`) — saqlangach
+    korxona botiga BITTA xabar (partiya bo'yicha oxirgi holat). Xatosi amalni buzmaydi (`_send_telegram` o'zi ushlaydi)."""
+    _yozuvlar = db.info.pop('tm_minus_182', None) or []
+    _oxirgi = {}
+    for _x in _yozuvlar:
+        if company_id is not None and _x.get("company_id") not in (None, company_id):
+            continue
+        _oxirgi[_x["id"]] = _x
+    if not _oxirgi:
+        return None
+    _qatorlar = [f"🔴 {_x['nom']}: {_x['qoldiq']:g} {_x['birlik']} (buyurtmalarga {-_x['qoldiq']:g} {_x['birlik']} qarz"
+                 + (f", {_x['raqam']}" if _x.get("raqam") else "") + ")" for _x in _oxirgi.values()]
+    msg = ("⚠️ *Tayyor mahsulot minusda — ishlab chiqarish kerak!*\n\n" + "\n".join(_qatorlar)
+           + "\n\nYetmagan qismini ishlab chiqaring — shu mahsulotning yangi partiyasi minusni avtomatik yopadi. "
+           + "Minus yopilmaguncha yuk xatida faqat omborda bor miqdor topshiriladi.\n\n" + _tg_footer(db, company_id))
+    return _send_telegram(msg, company_id=company_id)
+
+
 def _yuk_xati_fonda(delivery_id: int):
     """kech144 (zip 178, audit T5): Yuk xati PDF / matni mijoz va ustaga — JAVOBDAN KEYIN (fon vazifasi). So'rov sessiyasi bu paytda
     yopilgan — o'z sessiyasi ochiladi. Xatolar `_send_delivery_pdf_to_customer` ning o'zida ushlanadi (jurnalga)."""
@@ -4667,12 +4687,14 @@ def api_restore_order(order_id: int, db: Session = Depends(get_db), current_user
     if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     who = current_user.full_name or current_user.username
+    db.info.pop('tm_minus_182', None)    # kech145 (zip 182): minus xabarlari — faqat shu so'rovniki
     try:
         _tiklandi = crud.restore_order(db, order_id, performed_by=who)
     except ValueError as e:     # kech140 (zip 168, A-P08): savatda emas (allaqachon tiklangan) — 409, hech narsa o'zgarmadi
         raise HTTPException(status_code=409, detail=str(e))
     if not _tiklandi:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+    _tm_minus_xabari(db, auth.company_id_of(current_user))     # kech145 (zip 182 — egasi qarori «Darhol xabar»)
     return {"status": "ok"}
 
 
@@ -4700,6 +4722,7 @@ def api_restore_project(project_id: int, db: Session = Depends(get_db), current_
             "type": "project_has_deleted_orders", "soni": len(_savat181), "raqamlar": _raq181,
             "message": (f"Savatda shu loyihaning {len(_savat181)} ta buyurtmasi bor ({', '.join(_raq181[:5])}"
                         f"{', …' if len(_raq181) > 5 else ''}) — ular ham tiklansinmi?")})
+    db.info.pop('tm_minus_182', None)    # kech145 (zip 182): minus xabarlari — faqat shu so'rovniki
     _soni146 = 0
     try:
         with crud.bitta_tranzaksiya(db):
@@ -4718,6 +4741,7 @@ def api_restore_project(project_id: int, db: Session = Depends(get_db), current_
         raise HTTPException(status_code=409, detail=str(e))
     if not _ok:
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+    _tm_minus_xabari(db, _cid181)     # kech145 (zip 182 — egasi qarori «Darhol xabar»)
     # kech146 (review181 N1): haqiqatan tiklangan buyurtmalar soni (shu orada butunlay o'chirilgani sanalmaydi)
     return {"status": "ok", "tiklangan_buyurtmalar": _soni146}
 
@@ -7487,6 +7511,7 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[str] = None,
     # yetishmovchilik tekshiruvlari ham begona loyiha uchun ishlamasin.
     if not auth.project_of_company(db, order.project_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+    db.info.pop('tm_minus_182', None)    # kech145 (zip 182): minus xabarlari — faqat shu so'rovniki
     # 17d (2026-09-21): loy miqdori QAT'IY (egalikdan KEYIN, hech narsadan
     # OLDIN). O'LCHANGAN ikki muammo:
     #   1) so'rov qatoridagi `loy_kg` (`inf`, `-5`, `1_0`) tekshiruvsiz;
@@ -7586,6 +7611,7 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[str] = None,
             lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f}, yetishmaydi: {deficit:.1f})")
         msg = f"⚠️ *Ombor ogohlantirishlari!*\n\n*{new_order.order_number}* buyurtmadan keyin:\n\n━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines) + f"\n━━━━━━━━━━━━━━━━━━━\n\nZudlik bilan buyurtma bering! 🚨\n\n" + _tg_footer(db, auth.company_id_of(current_user))
         _send_telegram(msg, company_id=auth.company_id_of(current_user))
+    _tm_minus_xabari(db, auth.company_id_of(current_user))     # kech145 (zip 182 — egasi qarori «Darhol xabar»)
     return new_order
 
 
@@ -7881,6 +7907,7 @@ def api_update_order(order_id: int, order: schemas.OrderCreate, loy_kg: Optional
         raise HTTPException(status_code=400, detail={"success": False, "message": str(e)})
     # kech103 (54-band): tahrirdan keyingi loy rejasi — qoplama retsepti tekshiruvi uchun (`crud.qoplama_retsepti_tekshir`)
     # kech144 (zip 172, N4 — production jurnali 153 … 198: buyurtma tahririda «kim» bo'sh edi)
+    db.info.pop('tm_minus_182', None)    # kech145 (zip 182): minus xabarlari — faqat shu so'rovniki
     result = crud.update_order_full(db, order_id, order, confirm_shortage=confirm_shortage, yangi_loy_kg=loy_kg,
                                     performed_by=current_user.full_name or current_user.username)
     if not result["success"]:
@@ -7915,6 +7942,7 @@ def api_update_order(order_id: int, order: schemas.OrderCreate, loy_kg: Optional
                + "━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines)
                + "\n━━━━━━━━━━━━━━━━━━━\n\nZudlik bilan buyurtma bering! 🚨\n\n" + _tg_footer(db, auth.company_id_of(current_user)))
         _send_telegram(msg, company_id=auth.company_id_of(current_user))
+    _tm_minus_xabari(db, auth.company_id_of(current_user))     # kech145 (zip 182 — egasi qarori «Darhol xabar»)
 
     return result
 @app.put("/api/orders/{order_id}/loy")
@@ -8404,6 +8432,7 @@ def api_update_order_item(item_id: int, data: dict, db: Session = Depends(get_db
     # 2026-09-21 (13-sizish): crud faqat ruxsat etilgan maydonlarni qabul
     # qiladi; noto'g'ri kalit/qiymat va "topshirilgandan kam" — ValueError
     # → 400. Begona `penoplast_id` — crud ichidan HTTPException 404.
+    db.info.pop('tm_minus_182', None)    # kech145 (zip 182): minus xabarlari — faqat shu so'rovniki
     try:
         updated = crud.update_order_item(db, item_id, data, company_id=auth.company_id_of(current_user))
     except ValueError as e:
@@ -8411,6 +8440,7 @@ def api_update_order_item(item_id: int, data: dict, db: Session = Depends(get_db
         raise HTTPException(status_code=400, detail=str(e))
     if not updated:
         raise HTTPException(status_code=404, detail="Detal topilmadi")
+    _tm_minus_xabari(db, auth.company_id_of(current_user))     # kech145 (zip 182 — egasi qarori «Darhol xabar»)
     return {"status": "ok"}
 
 
@@ -9851,12 +9881,14 @@ def api_activate_draft(order_id: int, confirm_shortage: bool = False, db: Sessio
     # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+    db.info.pop('tm_minus_182', None)    # kech145 (zip 182): minus xabarlari — faqat shu so'rovniki
     result = crud.activate_draft_order(db, order_id, performed_by=current_user.full_name or current_user.username,  # kech144: «kim»
                                        confirm_shortage=bool(confirm_shortage))
     if not result["success"]:
         if result.get("type") == "stock_shortage_warning":
             raise HTTPException(status_code=409, detail=result)
         raise HTTPException(status_code=400, detail=result)
+    _tm_minus_xabari(db, auth.company_id_of(current_user))     # kech145 (zip 182 — egasi qarori «Darhol xabar»)
     return result
 
 
@@ -11270,7 +11302,8 @@ def api_get_finished(source: Optional[str] = None, only_available: bool = False,
         "image_url": fp.image_url,
         "reserved_quantity": float(fp.reserved_quantity or 0),
         "reserved_for_order_item_id": fp.reserved_for_order_item_id,
-        "total_value": round(float(fp.quantity or 0) * float(fp.unit_price or 0)),
+        # kech145 (zip 182, N5): minusdagi qoldiq qiymati 0 (ilgari «-100 000 jami»)
+        "total_value": round(max(0.0, float(fp.quantity or 0)) * float(fp.unit_price or 0)),
         # kech114: ombordagi qiymat — narx bo'lmasa tannarx bo'yicha (egasi QARORI; `crud._fp_ombor_qiymati`)
         "ombor_qiymati": round(crud._fp_ombor_qiymati(fp), 2),
         "ishlab_chiqarish_id": _po_raqam.get(fp.id),
@@ -11713,7 +11746,9 @@ def api_produce(request: Request, response: Response, data: dict = Body(...), db
 @app.post("/api/finished/{fp_id}/complete")
 def api_complete_production(fp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("tayyor", "tahrirlash"))):
     """Mahsulotni 'Tayyor' deb belgilash — sotuvga tayyor."""
-    result = crud.complete_production(db, fp_id, company_id=auth.company_id_of(current_user))
+    # kech145 (zip 182): minus yopilsa «Faoliyat jurnali» da kim bajargani
+    result = crud.complete_production(db, fp_id, company_id=auth.company_id_of(current_user),
+                                      performed_by=current_user.full_name or current_user.username)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
     return result
@@ -11744,6 +11779,7 @@ def api_add_production(request: Request, response: Response, fp_id: int, data: d
         # xomashyoni IKKI MARTA yechardi).
         with crud.bitta_tranzaksiya(db):
             result = crud.add_to_production(db, fp_id, data.quantity,
+                                            performed_by=current_user.full_name or current_user.username,   # kech145 (zip 182): jurnalda kim
                                             company_id=auth.company_id_of(current_user))
             if not result["success"]:
                 raise HTTPException(status_code=400, detail=result)
@@ -11844,6 +11880,9 @@ def api_delete_finished(fp_id: int, return_to_stock: bool = False,
                    f"o'chirib bo'lmaydi. Avval to'liq soting yoki \"Kamaytirish (brak)\" "
                    f"orqali nolga tushiring, keyin o'chiring."
         )
+    # kech145 (zip 182, N5 — O'LCHANGAN: −5 dagi mahsulot o'char, buyurtma detallari bog'i uzilib qarz JIM yo'qolardi): minusda — rad
+    if crud._fp_tayyormi(fp) and float(fp.quantity or 0) < -1e-6:      # chegara HAMMA joyda −1e-6
+        raise HTTPException(status_code=400, detail=crud._tm_minus_rad_xabari(fp, "o'chirib"))
     # kech84 (103-band, O'LCHANGAN): loy / penoplast qaytarish va mahsulotni o'chirish BITTA tranzaksiyada.
     # Ilgari loy qaytgach xato bo'lsa mahsulot o'chmay qolardi — qayta urinish loyni IKKI MARTA qaytarardi
     # (ombor soxta ko'payardi).

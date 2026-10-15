@@ -1223,6 +1223,13 @@ def complete_production_order(db: Session, po_id: int, company_id: int, performe
                     fp.unit_cost_stable = float(total_cost) / _q_produced
                 fp.production_status = FPStatus.READY
                 fp.finished_production_at = datetime.utcnow()
+                # kech145 (zip 182 — egasi qarori «Avtomatik yopilsin»): yangi tayyor partiya (bandsiz qismi) shu mahsulotning
+                # minusini yopadi; guruh id tartibida qulflanadi; ko'chirishlar «Faoliyat jurnali» da (shu tranzaksiyada)
+                # (qulf faqat guruhda kamomad bo'lsa — material qulflaridan keyin TM qulfi odatiy yo'lda olinmasin)
+                db.flush()
+                if any(crud._tm_qarz(_x) > 1e-6 for _x in crud._tm_guruh_azolari(db, fp)):
+                    crud._fp_qulf_guruh(db, [fp.id], company_id)
+                    crud._tm_guruh_muvozanat(db, fp, performed_by=performed_by)
 
         # kech110 (2c): Faoliyat jurnali — yakunlash (xomashyo yechilishi) bilan BITTA tranzaksiyada
         _pt110 = db.query(ProductType).filter(
@@ -1787,15 +1794,24 @@ def turlar_xulosasi(db: Session, company_id: int) -> list:
         BOM.company_id == company_id, BOM.is_active == True, BOM.product_type_id.in_(idlar)  # noqa: E712
     ).order_by(BOM.id).all()
     ombor = {}
-    for pt_id, miqdor, band in db.query(
-            FinishedProduct.product_type_id, func.sum(FinishedProduct.quantity),
-            func.sum(FinishedProduct.reserved_quantity)).filter(
+    # kech145 (zip 182, N5): minusdagi tayyor partiyalar (buyurtmalarga qarz — ishlab chiqarish kerak) — SHU so'rovda (shartli yig'indi;
+    # alohida so'rov so'rovlar sonini oshirardi — `tools/test_tayyor_guruh.py` X8, saboq zip 181); «Omborda» va band — faqat musbat qoldiq
+    from sqlalchemy import case as _case182
+    _musbat = FinishedProduct.quantity > 0
+    minusda = {}
+    for pt_id, miqdor, band, minus in db.query(
+            FinishedProduct.product_type_id,
+            func.sum(_case182((_musbat, FinishedProduct.quantity), else_=0.0)),
+            func.sum(_case182((_musbat, FinishedProduct.reserved_quantity), else_=0.0)),
+            func.sum(_case182((FinishedProduct.quantity < -1e-6, FinishedProduct.quantity), else_=0.0))).filter(
             FinishedProduct.company_id == company_id, FinishedProduct.product_type_id.in_(idlar),
-            FinishedProduct.quantity > 0,
+            or_(_musbat, FinishedProduct.quantity < -1e-6),
             or_(FinishedProduct.source == StockSource.RETURNED,
                 FinishedProduct.production_status == FPStatus.READY)).group_by(
             FinishedProduct.product_type_id).all():
         ombor[pt_id] = (float(miqdor or 0), float(band or 0))
+        if float(minus or 0) < -1e-6:
+            minusda[pt_id] = -float(minus or 0)
     jarayonda = {pt_id: float(miqdor or 0) for pt_id, miqdor in db.query(
         ProductionOrder.product_type_id, func.sum(ProductionOrder.quantity)).filter(
         ProductionOrder.company_id == company_id, ProductionOrder.product_type_id.in_(idlar),
@@ -1844,6 +1860,7 @@ def turlar_xulosasi(db: Session, company_id: int) -> list:
             "created_at": t.created_at.isoformat() if t.created_at else None,
             "notes": t.notes,
             "omborda": round(miqdor, 4),
+            "minusda": round(minusda.get(t.id, 0.0), 4),
             "band": round(band, 4),
             "jarayonda": round(jarayonda.get(t.id, 0.0), 4),
             "retseptlar": tur_retseptlari.get(t.id, []),
