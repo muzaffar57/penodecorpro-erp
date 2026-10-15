@@ -298,6 +298,11 @@
 {% endblock %}
 
 {% block content %}
+{# kech144 (zip 181, audit C2): «Yangi ishlab chiqarish» oynasidagi «Boshlash» — «Ishlab chiqarish: Tahrirlash» bilan (server `/start` shu
+   ruxsatni so'raydi; ilgari faqat yaratish ruxsatli rol qoralama yaratib, 403 olardi). Element DOM da qoladi (JS `disabled` qiladi). #}
+<style id="ruxsatYashir">
+{% if not current_user.ruxsat('ishlab_buyurtma', 'tahrirlash') %}#po-boshlash-btn { display: none !important; }{% endif %}
+</style>
 {# kech139 (zip 167, egasi 11.10 17:19 «pastga tushmayapti»): `.erp-main` — overflow:hidden, sahifa o'z skroll konteyneriga muhtoj
    (`.erp-content`: flex:1, min-height:0, overflow-y:auto). Ilgari bu o'ram oddiy blok edi — telefonda (va past ekranda) sahifa
    pastga SURILMASDI (O'LCHANGAN: sinov saytida 375×812). #}
@@ -424,7 +429,7 @@
     <div class="mf-group"><label for="pt-f-notes">Izoh (ixtiyoriy)</label><textarea id="pt-f-notes" rows="2"></textarea></div>
     <div class="mf-xato" id="pt-xato" role="alert"></div>
     <div style="display:flex;gap:8px;margin-top:16px">
-      <button class="btn btn-dark w-full" onclick="saveProductType()">Saqlash</button>
+      <button class="btn btn-dark w-full" id="pt-saqla-btn" onclick="saveProductType()">Saqlash</button>
       <button data-yopish class="btn btn-outline w-full" onclick="closeModal('pt-modal')">Bekor</button>
     </div>
   </div>
@@ -488,10 +493,10 @@
 
     <div class="mf-group" style="margin-top:14px"><label for="bom-f-notes">Izoh (ixtiyoriy)</label><textarea id="bom-f-notes" rows="2"></textarea></div>
     <div class="modal-tugmalar">
-      <div class="izoh">Narx — ombordagi hozirgi o'rtacha narx. Isrof miqdorga qo'shiladi: 1 kg + 10 % = 1,1 kg. Tarkib o'zgarsa, boshlangan ishlab chiqarishlar eski narxda qoladi.</div>
+      <div class="izoh">Narx — ombordagi hozirgi o'rtacha narx. Isrof miqdorga qo'shiladi: 1 kg + 10 % = 1,1 kg. Tarkib o'zgarsa, boshlangan ishlab chiqarishlar eski tarkib (miqdor) bilan qoladi; narx — yakunlash kunidagi.</div>
       <div class="tugmalar">
         <button data-yopish class="btn btn-outline" onclick="closeModal('bom-modal')">Bekor</button>
-        <button class="btn btn-dark" onclick="saveBom()">Saqlash</button>
+        <button class="btn btn-dark" id="bom-saqla-btn" onclick="saveBom()">Saqlash</button>
       </div>
     </div>
   </div>
@@ -539,7 +544,7 @@
     <div id="po-reja"></div>
     <div class="mf-group" style="margin-top:12px"><label for="po-f-notes">Izoh (ixtiyoriy)</label><input type="text" id="po-f-notes"></div>
     <div class="modal-tugmalar">
-      <div class="izoh">«Boshlash» — xomashyo tekshiriladi va tarkib narxi shu kunda qotadi. Ombordan yechish — «Yakunlash» da.</div>
+      <div class="izoh">«Boshlash» — xomashyo tekshiriladi. Ombordan yechish va tannarx — «Yakunlash» da (o'sha kungi narx bilan).</div>
       <div class="tugmalar">
         <button data-yopish class="btn btn-outline" onclick="closeModal('po-modal')">Bekor</button>
         <button class="btn btn-outline" id="po-qoralama-btn" onclick="poQoralamaSaqla()">Qoralama sifatida saqlash</button>
@@ -611,6 +616,9 @@ var PT_OCHIRISH = {{ 'true' if current_user.ruxsat('mahsulot_turi', 'ochirish') 
 var PO_YARATISH = {{ 'true' if current_user.ruxsat('ishlab_buyurtma', 'yaratish') else 'false' }};
 // kech135 (zip 161): «Ishlab chiqarish buyurtmalari: Ko'rish» — yo'q bo'lsa «Ishlab chiqarish» yorlig'i va ro'yxati yo'q (so'rov ham yuborilmaydi)
 var PO_KORISH = {{ 'true' if current_user.ruxsat('ishlab_buyurtma', 'korish') else 'false' }};
+// kech144 (zip 181, audit C2): «Boshlash» / «Yakunlash» — `/start`, `/complete` (tahrirlash); «Ishlab chiqarishni bekor qilish» — `/cancel`
+var PO_TAHRIR = {{ 'true' if current_user.ruxsat('ishlab_buyurtma', 'tahrirlash') else 'false' }};
+var PO_OCHIRISH = {{ 'true' if current_user.ruxsat('ishlab_buyurtma', 'ochirish') else 'false' }};
 const HOLAT_NOMI = {draft: 'Qoralama', in_progress: 'Jarayonda', completed: 'Yakunlandi', cancelled: 'Bekor qilindi'};
 const HOLAT_CHIP = [['hammasi', 'Hammasi'], ['draft', 'Qoralama'], ['in_progress', 'Jarayonda'],
                     ['completed', 'Yakunlandi'], ['cancelled', 'Bekor qilingan']];
@@ -627,7 +635,11 @@ function switchProdTab(tab){
   return Promise.resolve();
 }
 
-function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+function closeModal(id){
+  document.getElementById(id).classList.remove('open');
+  // kech144 (zip 181, audit C1): oyna yopildi — yo'ldagi reja javobi uni qayta to'ldirmaydi
+  if (id === 'snapshot-modal' && typeof yukNavbat === 'function') yukNavbat('po-oyna');
+}
 function openModalEl(id){ document.getElementById(id).classList.add('open'); }
 
 // kech135 (zip 161 — egasi QARORI 09.10, O'LCHANGAN work/k161/olchov161.py): tarkib oynasining material tanlovi `/api/material-royxati`
@@ -825,14 +837,24 @@ async function saveProductType(){
     yonalish_id: Number(yonalish),
   };
   const tahrirId = (document.getElementById('pt-f-id') || {}).value || '';
-  const res = await fetch('/api/production/product-types' + (tahrirId ? '/' + encodeURIComponent(tahrirId) : ''),
-                          {method: tahrirId ? 'PUT' : 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
-  if (res.ok) {
+  // kech144 (zip 181, audit A1 / D1 / D2): bir vaqtda bitta so'rov; yangi tur — `X-Amal-Kaliti` (qayta yuborish ikkinchi tur yaratmaydi);
+  // natija noma'lum (tarmoq / 5xx) — tekshirish so'raladi (ilgari «Mahsulot turi saqlanmadi» — saqlangan bo'lishi mumkin edi)
+  if (saveProductType.band) return;
+  saveProductType.band = true;
+  const _btn = document.getElementById('pt-saqla-btn');
+  tugmaBand(_btn, true);
+  let n;
+  try {
+    n = await amalYubor('/api/production/product-types' + (tahrirId ? '/' + encodeURIComponent(tahrirId) : ''),
+                        {method: tahrirId ? 'PUT' : 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)},
+                        tahrirId ? null : 'pt_yangi_' + JSON.stringify(body));   // kech146 (review181 F3): o'rin — so'rov tanasi bilan
+  } finally { saveProductType.band = false; tugmaBand(_btn, false); }
+  if (n.ok) {
     closeModal('pt-modal');
-    if (tahrirId) showMsg('Mahsulot turi saqlandi', 'success');
+    if (tahrirId || n.takror) showMsg('Mahsulot turi saqlandi' + amalTakrorIzoh(n.takror), 'success');
     loadProductTypes();
   } else {
-    const sabab = await serverXatoSababi(res, 'Mahsulot turi saqlanmadi');
+    const sabab = n.nomalum ? amalNomalumMatn('Mahsulot turi', n.xato) : n.xato;
     if (typeof ptXato === 'function') ptXato(sabab); else showMsg(sabab, 'error');
   }
 }
@@ -844,9 +866,10 @@ async function deleteProductType(id){
   const ish = pt.ishlatilishi_matni ? `\n\nTur ishlatilgan: ${pt.ishlatilishi_matni} — ular o'zgarmaydi (tarix saqlanadi).` : '';
   if (!(await customConfirm(`«${pt.name}» mahsulot turini o'chirasizmi?\n\nYangi buyurtma va ishlab chiqarishda tanlanmaydi.${ish}`,
       {danger: true, okText: "Ha, o'chirilsin", cancelText: "Yo'q"}))) return;
-  const res = await fetch('/api/production/product-types/' + encodeURIComponent(id), {method: 'DELETE'});
-  if (res.ok) { showMsg(`«${pt.name}» o'chirildi`, 'success'); loadProductTypes(); }
-  else showMsg(await serverXatoSababi(res, "O'chirilmadi"), 'error');
+  // kech144 (zip 181, audit D1 / D2): internet uzilsa — ilgari jim; 5xx — «natijasi noma'lum» (ilgari «O'chirilmadi»)
+  const n = await amalYubor('/api/production/product-types/' + encodeURIComponent(id), {method: 'DELETE'});
+  if (n.ok) { showMsg(`«${pt.name}» o'chirildi`, 'success'); loadProductTypes(); }
+  else { showMsg(n.nomalum ? amalNomalumMatn("O'chirish", n.xato) : n.xato, 'error'); if (n.nomalum) loadProductTypes(); }
 }
 
 function narxUsuliMatni(pt) {
@@ -874,10 +897,24 @@ function turSoni(x, pt, sinf) {
 
 // kech114 (egasi QARORI «5B — Jadval»): bitta so'rov — GET /api/production/product-types/xulosa (tur maydonlari +
 // omborda / band / jarayonda + har retseptning 1 birlik taxminiy tannarxi; ilgari har tur uchun alohida /boms so'rovi).
+// kech144 (zip 181, audit C4 / D1): `yukOl` — xatoda sabab ro'yxat o'rnida (ilgari 500 / 502 da bo'sh korxonaning «4 qadam» oynasi va
+// «Avval mahsulot turini qo'shing», internet uzilsa — abadiy «Yuklanmoqda...»); eski javob yangisini bosmaydi
+let ptXatoMatn = '';
 async function loadProductTypes(){
-  const res = await fetch('/api/production/product-types/xulosa');
-  productTypesCache = res.ok ? await res.json() : [];
+  const joriy = yukNavbat('pt-royxat');
   const wrap = document.getElementById('pt-list');
+  let _d181;
+  try { _d181 = await yukOl('/api/production/product-types/xulosa'); }
+  catch (e) {
+    if (!joriy()) return;
+    ptXatoMatn = yukXatoMatn('Mahsulot turlari', (e && e.yukXato) ? e : yukXato('server'));
+    productTypesCache = [];
+    yukRoyxatXato(wrap, ptXatoMatn);
+    return;
+  }
+  if (!joriy()) return;
+  ptXatoMatn = '';
+  productTypesCache = Array.isArray(_d181) ? _d181 : [];
   if (!productTypesCache.length) {
     // kech120 (zip 133 — F bosqichi 3-qism, audit G5-22): ilgari faqat «Hali mahsulot turi qo'shilmagan» — tartib hech qayerda yozilmagan
     wrap.innerHTML = `<div class="pt-bosh">
@@ -901,8 +938,8 @@ async function loadProductTypes(){
           ${(b.narxsiz || []).length ? `<div class="pt-retsept-ogoh">Narxi yo'q: ${escapeHtml(b.narxsiz.join(', '))}</div>` : ''}
         </div>
         <div class="pt-retsept-amal">
-          <button class="btn btn-outline btn-sm" onclick="openBomModal(${pt.id}, ${b.id})">Tahrirlash</button>
-          <button class="btn btn-outline btn-sm" style="color:var(--m-dc2626);border-color:var(--ch-fca5a5)" onclick="deactivateBom(${b.id})" title="Tarkibni yashirish (eski ishlab chiqarishlarga ta'sir qilmaydi)" aria-label="Tarkibni yashirish"><i class="ti ti-trash"></i></button>
+          ${PT_TAHRIR ? `<button class="btn btn-outline btn-sm" onclick="openBomModal(${pt.id}, ${b.id})">Tahrirlash</button>` : ''}
+          ${PT_OCHIRISH ? `<button class="btn btn-outline btn-sm" style="color:var(--m-dc2626);border-color:var(--ch-fca5a5)" onclick="deactivateBom(${b.id})" title="Tarkibni yashirish (eski ishlab chiqarishlarga ta'sir qilmaydi)" aria-label="Tarkibni yashirish"><i class="ti ti-trash"></i></button>` : ''}
         </div>
       </div>`).join('') || '<div class="bom-item-mini">Hali tarkib yo\'q</div>';
     return `<tr>
@@ -915,7 +952,7 @@ async function loadProductTypes(){
       <td class="o pt-c-ombor" data-yorliq="Omborda">${turSoni(pt.omborda, pt, '')}</td>
       <td class="o pt-c-jarayon" data-yorliq="Jarayonda">${turSoni(pt.jarayonda, pt, 'jarayon')}</td>
       <td class="o pt-c-band" data-yorliq="Band">${turSoni(pt.band, pt, 'band')}</td>
-      <td class="pt-c-amal"><div class="pt-amallar"><button class="btn btn-outline btn-sm" onclick="openBomModal(${pt.id})">+ Tarkib</button><button class="btn btn-outline btn-sm" data-id="${pt.id}" data-yonalish="${pt.yonalish_id || ''}" data-nom="${escapeHtml(pt.name)}" onclick="openTurYonalish(this)">${pt.yonalish_id ? "Yo'nalish" : "Yo'nalish tanlash"}</button>${PT_TAHRIR ? `<button class="btn btn-outline btn-sm pt-tahrir" onclick="openProductTypeEdit(${Number(pt.id)})" title="Nomi, birligi, narx usuli, qoplama, izoh">Turni tahrirlash</button>` : ''}${PT_OCHIRISH ? `<button class="btn btn-outline btn-sm pt-ochir" style="color:var(--m-dc2626);border-color:var(--ch-fca5a5)" onclick="deleteProductType(${Number(pt.id)})" title="Turni o'chirish (eski tarix saqlanadi)" aria-label="Turni o'chirish"><i class="ti ti-trash"></i></button>` : ''}</div></td>
+      <td class="pt-c-amal"><div class="pt-amallar">${PT_YARATISH ? `<button class="btn btn-outline btn-sm" onclick="openBomModal(${pt.id})">+ Tarkib</button>` : ''}${PT_TAHRIR ? `<button class="btn btn-outline btn-sm" data-id="${pt.id}" data-yonalish="${pt.yonalish_id || ''}" data-nom="${escapeHtml(pt.name)}" onclick="openTurYonalish(this)">${pt.yonalish_id ? "Yo'nalish" : "Yo'nalish tanlash"}</button>` : ''}${PT_TAHRIR ? `<button class="btn btn-outline btn-sm pt-tahrir" onclick="openProductTypeEdit(${Number(pt.id)})" title="Nomi, birligi, narx usuli, qoplama, izoh">Turni tahrirlash</button>` : ''}${PT_OCHIRISH ? `<button class="btn btn-outline btn-sm pt-ochir" style="color:var(--m-dc2626);border-color:var(--ch-fca5a5)" onclick="deleteProductType(${Number(pt.id)})" title="Turni o'chirish (eski tarix saqlanadi)" aria-label="Turni o'chirish"><i class="ti ti-trash"></i></button>` : ''}</div></td>
     </tr>`;
   }).join('');
   wrap.innerHTML = `<table class="pt-jadval"><thead><tr><th>Mahsulot turi</th><th>Mahsulot tarkibi va 1 birlik taxminiy tannarxi</th><th class="o">Omborda</th><th class="o">Jarayonda</th><th class="o">Band</th><th></th></tr></thead><tbody>${qatorlar}</tbody></table>`;
@@ -934,11 +971,12 @@ async function saveTurYonalish() {
   if (!y) { showMsg("Yo'nalishni tanlang", 'error'); return; }
   const btn = document.getElementById('pty-saqla');
   btn.disabled = true;
+  // kech144 (zip 181, audit D1 / D2): internet uzilsa — ilgari jim (tugma ham band qolmasdi, xabar yo'q)
   try {
-    const res = await fetch('/api/production/product-types/' + id, {method: 'PATCH', headers: {'Content-Type': 'application/json'},
-                                                                      body: JSON.stringify({yonalish_id: Number(y)})});
-    if (res.ok) { closeModal('pty-modal'); showMsg("Yo'nalish saqlandi", 'success'); loadProductTypes(); }
-    else { showMsg(await serverXatoSababi(res, "Yo'nalish saqlanmadi"), 'error'); }
+    const n = await amalYubor('/api/production/product-types/' + id, {method: 'PATCH', headers: {'Content-Type': 'application/json'},
+                                                                         body: JSON.stringify({yonalish_id: Number(y)})});
+    if (n.ok) { closeModal('pty-modal'); showMsg("Yo'nalish saqlandi", 'success'); loadProductTypes(); }
+    else { showMsg(n.nomalum ? amalNomalumMatn("Yo'nalish", n.xato) : n.xato, 'error'); }
   } finally { btn.disabled = false; }
 }
 
@@ -1104,11 +1142,29 @@ function updateBomItemUnitHint(selectEl){
 
 async function deactivateBom(bomId){
   if (!(await customConfirm('Bu tarkibni yashirasizmi? Eski ishlab chiqarishlarga ta\'sir qilmaydi, faqat yangi ishlab chiqarishda tanlab bo\'lmay qoladi.'))) return;
-  const res = await fetch(`/api/production/boms/${bomId}`, {method:'DELETE'});
-  if (res.ok) loadProductTypes(); else showMsg(await serverXatoSababi(res, 'Tarkib yashirilmadi'), 'error');
+  // kech144 (zip 181, audit D1 / D2): internet uzilsa — ilgari jim; 5xx — «natijasi noma'lum»
+  const n = await amalYubor(`/api/production/boms/${bomId}`, {method:'DELETE'});
+  if (n.ok) loadProductTypes();
+  else { showMsg(n.nomalum ? amalNomalumMatn('Tarkibni yashirish', n.xato) : n.xato, 'error'); if (n.nomalum) loadProductTypes(); }
 }
 
+// kech144 (zip 181, audit B1 — O'LCHANGAN kodda): ilgari qatorlar so'rovdan OLDIN tozalanib, javobdan keyin QO'SHILARDI — ikki marta
+// «Tahrirlash» (yoki A ning «Tahrirlash» i, so'ng B ning «+ Tarkib» i) → 8 qator / boshqa turning tarkibi; «Saqlash» — har xomashyo ikki
+// baravar sarflanardi. Endi: avval javob (`yukNavbat('bom-oyna')` — eskisi tashlanadi), so'ng oyna bir martada to'ldiriladi.
 async function openBomModal(productTypeId, bomId){
+  const joriy = yukNavbat('bom-oyna');
+  let bom = null;
+  if (bomId) {
+    let boms;
+    try { boms = await yukOl(`/api/production/product-types/${productTypeId}/boms`); }
+    catch (e) {
+      if (joriy()) showMsg(yukXatoMatn('Mahsulot tarkibi', (e && e.yukXato) ? e : yukXato('server')), 'error');
+      return;
+    }
+    if (!joriy()) return;
+    bom = (Array.isArray(boms) ? boms : []).find(b => b.id === bomId) || null;
+    if (!bom) { showMsg('Mahsulot tarkibi topilmadi', 'error'); return; }
+  }
   document.getElementById('bom-f-product-type-id').value = productTypeId;
   document.getElementById('bom-f-editing-id').value = bomId || '';
   document.getElementById('bom-items-wrap').innerHTML = '';
@@ -1120,10 +1176,7 @@ async function openBomModal(productTypeId, bomId){
   document.getElementById('bom-batch-birlik').textContent = bomBirlik;
   retseptHisobiChiz(null, {tartib: []});
 
-  if (bomId) {
-    const boms = await fetch(`/api/production/product-types/${productTypeId}/boms`).then(r => r.ok ? r.json() : []);
-    const bom = boms.find(b => b.id === bomId);
-    if (!bom) { showMsg('Mahsulot tarkibi topilmadi', 'error'); return; }
+  if (bom) {
     document.getElementById('bom-modal-title').textContent = `Mahsulot tarkibi — ${pt ? pt.name : ''} «${bom.variant_name}»`;
     document.getElementById('bom-f-variant').value = bom.variant_name;
     document.getElementById('bom-f-batch').value = bom.batch_quantity;
@@ -1197,8 +1250,21 @@ async function saveBom(){
   };
   const url = editingId ? `/api/production/boms/${editingId}` : '/api/production/boms';
   const method = editingId ? 'PUT' : 'POST';
-  const res = await fetch(url, {method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
-  if (res.ok) { closeModal('bom-modal'); loadProductTypes(); } else { showMsg(await serverXatoSababi(res, 'Tarkib saqlanmadi'), 'error'); }
+  // kech144 (zip 181, audit A1 / D1 / D2): bir vaqtda bitta so'rov; yangi tarkib — `X-Amal-Kaliti`; natija noma'lum — tekshirish so'raladi
+  if (saveBom.band) return;
+  saveBom.band = true;
+  const _btn = document.getElementById('bom-saqla-btn');
+  tugmaBand(_btn, true);
+  let n;
+  try {
+    n = await amalYubor(url, {method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)},
+                        editingId ? null : 'bom_' + productTypeId + '_' + JSON.stringify(body));   // kech146 (review181 F3): tana bilan
+  } finally { saveBom.band = false; tugmaBand(_btn, false); }
+  if (n.ok) {
+    closeModal('bom-modal');
+    if (n.takror) showMsg('Mahsulot tarkibi saqlandi' + amalTakrorIzoh(true), 'success');
+    loadProductTypes();
+  } else showMsg(n.nomalum ? amalNomalumMatn('Mahsulot tarkibi', n.xato) : n.xato, 'error');
 }
 
 let retseptHisobiTaymer = null;
@@ -1215,17 +1281,18 @@ async function retseptHisobi() {
   const partiya = partiyaMatn === '' ? 1 : sonOqi(partiyaMatn);
   const q = retseptQatorlari(false);
   if (!ptId || !(partiya > 0) || !q.items.length) { retseptHisobiChiz(null, q); return; }
-  let natija = null;
+  // kech144 (zip 181, audit C6): rad / xato sababi oynada (ilgari hamma narx «—», xabarsiz — masalan o'chirilgan material)
+  let natija = null, sabab = '';
   try {
     const res = await fetch('/api/production/boms/preview', {method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({product_type_id: ptId, variant_name: 'Hisob', batch_quantity: partiya, notes: null, items: q.items})});
-    natija = res.ok ? await res.json() : null;
-  } catch (e) { natija = null; }
+    if (res.ok) natija = await res.json(); else sabab = await amalSababi(res);
+  } catch (e) { natija = null; sabab = "internet aloqasi yo'q"; }
   if (navbat !== retseptHisobiNavbat) return;          // eskirgan javob — yangisi yo'lda
-  retseptHisobiChiz(natija, q);
+  retseptHisobiChiz(natija, q, sabab);
 }
 
-function retseptHisobiChiz(natija, q) {
+function retseptHisobiChiz(natija, q, sabab) {
   const rows = Array.from(document.getElementById('bom-items-wrap').children);
   rows.forEach((row, i) => {
     const k = (q && q.tartib) ? q.tartib.indexOf(i) : -1;
@@ -1236,7 +1303,9 @@ function retseptHisobiChiz(natija, q) {
     summaEl.textContent = pulKorinish(l.summa);
     const miq = (l.unit !== l.stock_unit) ? l.ombor_miqdor : l.samarali;
     const birlik = (l.unit !== l.stock_unit) ? l.stock_unit : l.unit;
-    izohEl.textContent = Number(l.narx) > 0 ? `${miqdorKorinish(miq)} ${birlik} × ${sonKorinish(l.narx, 0)}` : 'narxi kiritilmagan';
+    // kech144 (zip 181, audit C3): narx yashirin (null — «Xomashyo narxlari» ruxsati yo'q) — miqdorning o'zi (ilgari «narxi kiritilmagan»)
+    izohEl.textContent = (l.narx === null || l.narx === undefined) ? `${miqdorKorinish(miq)} ${birlik}`
+      : (Number(l.narx) > 0 ? `${miqdorKorinish(miq)} ${birlik} × ${sonKorinish(l.narx, 0)}` : 'narxi kiritilmagan');
   });
   const birlik = bomBirlik || 'birlik';
   document.getElementById('bom-jami-sarlavha').textContent = `1 ${birlik} taxminiy tannarxi`;
@@ -1246,7 +1315,7 @@ function retseptHisobiChiz(natija, q) {
     document.getElementById('bom-jami-doim').textContent = '—';
     document.getElementById('bom-jami-birlik').textContent = '—';
     qoplamaQuti.style.display = 'none';
-    ogoh.textContent = '';
+    ogoh.textContent = sabab ? "⚠️ Taxminiy tannarx hisoblanmadi: " + sabab : '';
     return;
   }
   document.getElementById('bom-jami-doim').textContent = pulKorinish(natija.doim.jami);
@@ -1272,6 +1341,8 @@ function retseptHisobiChiz(natija, q) {
 // ============================================================
 
 function openProductionOrderModal(){
+  // kech144 (zip 181, audit C4): turlar ro'yxati yuklanmagan — sababi (ilgari «Avval mahsulot turini qo'shing» — tur bor edi)
+  if (ptXatoMatn) { xabarOyna(ptXatoMatn, {tur: 'ogoh'}); return; }
   // kech120 (zip 133 — G5-22): tur yo'q — oyna bo'sh ro'yxat bilan ochilardi, sababi aytilmasdi
   if (!productTypesCache.length) {
     xabarOyna("Avval mahsulot turini qo'shing («Yangi mahsulot turi»), so'ng uning tarkibini («+ Tarkib») — keyin ishlab chiqarish mumkin.", {tur: 'ogoh'});
@@ -1317,8 +1388,21 @@ async function onProductTypeChangeForPO(){
   const bomSel = document.getElementById('po-f-bom');
   const pt = productTypesCache.find(p => String(p.id) === String(ptId));
   document.getElementById('po-f-birlik').textContent = pt ? birlikYoz(pt.unit) : 'birlik';
+  // kech144 (zip 181, audit C4 / C5): xatoda sabab (ilgari «Bu mahsulot uchun retsept yo'q»); A→B tez almashtirilsa A retseptlari B ga tushmaydi
+  const joriy = yukNavbat('po-retsept');
   if (!ptId) { bomSel.innerHTML = '<option value="">— Avval mahsulot tanlang —</option>'; window.__poBoms = []; renderOptionalBomItems(); poRejaRejala(); return; }
-  const boms = await fetch(`/api/production/product-types/${ptId}/boms`).then(r => r.ok ? r.json() : []);
+  let boms;
+  try { boms = await yukOl(`/api/production/product-types/${ptId}/boms`); }
+  catch (e) {
+    if (!joriy()) return;
+    bomSel.innerHTML = '<option value="">' + escapeHtml(yukXatoMatn('Retseptlar', (e && e.yukXato) ? e : yukXato('server'))) + '</option>';
+    window.__poBoms = [];
+    renderOptionalBomItems();
+    poRejaRejala();
+    return;
+  }
+  if (!joriy()) return;
+  boms = Array.isArray(boms) ? boms : [];
   bomSel.innerHTML = boms.map(b => `<option value="${b.id}">${escapeHtml(b.variant_name)} — ${escapeHtml(miqdorKorinish(b.batch_quantity))} ${escapeHtml(pt ? birlikYoz(pt.unit) : '')} uchun, ${b.items.length} ta material</option>`).join('') || '<option value="">Bu mahsulot uchun retsept yo\'q</option>';
   // 11.0-band: retseptning ixtiyoriy qatorlari katakcha qilib ko'rsatiladi.
   window.__poBoms = boms;
@@ -1335,6 +1419,9 @@ async function loadEligibleOrderItemsForPO(){
   const ptId = document.getElementById('po-f-product-type').value;
   const sel = document.getElementById('po-f-source-order-item');
   const hint = document.getElementById('po-source-order-hint');
+  // kech144 (zip 181, audit C4 / C5): xatoda sabab (ilgari «kutilayotgan buyurtma yo'q», internet uzilsa — abadiy «Yuklanmoqda...»);
+  // eskirgan ro'yxat yangisini bosmaydi (ilgari «Bu detal '…' uchun emas»)
+  const joriy = yukNavbat('po-detal');
   if (!ptId) {
     sel.innerHTML = '<option value="">— Avval mahsulot turini tanlang —</option>';
     hint.textContent = '';
@@ -1342,7 +1429,16 @@ async function loadEligibleOrderItemsForPO(){
   }
   sel.innerHTML = '<option value="">— Yuklanmoqda... —</option>';
   window.__poSourceItemCoated = false;   // ro'yxat yangilandi — hali detal tanlanmagan
-  const items = await fetch(`/api/production/mrp-order-items?product_type_id=${ptId}`).then(r => r.ok ? r.json() : []);
+  let items;
+  try { items = await yukOl(`/api/production/mrp-order-items?product_type_id=${ptId}`); }
+  catch (e) {
+    if (!joriy()) return;
+    sel.innerHTML = '<option value="">' + escapeHtml(yukXatoMatn('Buyurtma detallari', (e && e.yukXato) ? e : yukXato('server'))) + '</option>';
+    hint.textContent = '';
+    return;
+  }
+  if (!joriy()) return;
+  items = Array.isArray(items) ? items : [];
   if (!items.length) {
     sel.innerHTML = '<option value="">— Bu mahsulot uchun kutilayotgan buyurtma yo\'q —</option>';
     hint.textContent = "Hech bir buyurtmada shu mahsulot turi hali to'liq ta'minlanmagan holda yo'q.";
@@ -1363,7 +1459,8 @@ async function loadEligibleOrderItemsForPO(){
     if (remaining) {
       hint.textContent = `Yana ${miqdorKorinish(remaining)} ${birlik} kerak — miqdor maydoniga shuni yozishingiz mumkin.`;
       const qEl = document.getElementById('po-f-quantity');
-      if (qEl && !qEl.value) qEl.value = remaining;
+      // kech144 (zip 181, audit B2): «3.0999999999999996» emas — «3.1»
+      if (qEl && !qEl.value) qEl.value = String(+Number(remaining).toFixed(6));
     } else {
       hint.textContent = '';
     }
@@ -1380,6 +1477,10 @@ function renderOptionalBomItems(){
   const bomId = parseInt(document.getElementById('po-f-bom').value) || 0;
   const bom = (window.__poBoms || []).find(b => b.id === bomId);
   const items = ((bom && bom.items) || []).filter(i => i.is_optional);
+  // kech144 (zip 181, audit C7): foydalanuvchi belgilagan (avtomatik emas) qatorlar qayta chizilganda belgili qoladi (ilgari manba / detal
+  // almashsa belgi jimgina olinib, ishlab chiqarish ixtiyoriy tarkibsiz yaratilardi)
+  const oldingiBelgi = new Set(Array.from(list.querySelectorAll('.po-opt')).filter(c => c.checked && c.dataset.avto !== '1')
+    .map(c => String(c.dataset.id)));
   if (!items.length) { wrap.style.display = 'none'; list.innerHTML = ''; hint.textContent = ''; return; }
 
   const buyurtmadan = document.getElementById('po-f-source-type').value === 'customer_order';
@@ -1391,7 +1492,7 @@ function renderOptionalBomItems(){
   list.innerHTML = items.map(i => {
     const qoplama = !!i.is_coating;
     const avto = buyurtmadan && qoplama;
-    const belgi = avto ? detalQoplamali : false;
+    const belgi = avto ? detalQoplamali : oldingiBelgi.has(String(i.id));
     const qoshimcha = i.fixed_cost_per_unit ? ` · + ${sonKorinish(i.fixed_cost_per_unit)} so'm har 1 ${birlik} ga` : '';
     return `<label class="po-opt-yorliq">
       <input type="checkbox" class="po-opt" data-id="${i.id}" data-avto="${avto ? '1' : ''}" style="width:18px;height:18px"
@@ -1560,10 +1661,15 @@ async function saveProductionOrder(){
       .filter(c => c.checked).map(c => parseInt(c.dataset.id)),
     notes: document.getElementById('po-f-notes').value || null,
   };
-  const res = await fetch('/api/production/orders', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
-  let data = {};
-  try { data = await res.json(); } catch (e) { data = {}; }
-  if (!res.ok) { showMsg(xatoSababi(data, 'Ishlab chiqarish saqlanmadi'), 'error'); return null; }
+  // kech144 (zip 181, audit A2 / D1 / D2): `X-Amal-Kaliti` — 502 / javob yo'qolgandan keyin qayta bosish ikkinchi ishlab chiqarish
+  // yaratmaydi; natija noma'lum — tekshirish so'raladi (ilgari «Ishlab chiqarish saqlanmadi» — saqlangan bo'lishi mumkin edi)
+  // kech146 (zip 181, review181 F3 — O'LCHANGAN): kalit o'rni — so'rov TANASI bilan (tur, tarkib, miqdor, manba, izoh): natijasi noma'lum
+  // ishlab chiqarishdan keyin BOSHQASI kiritilsa — yangi kalit (ilgari server birinchisining javobini qaytarardi: yangisi yaratilmay,
+  // «Boshlash» eskisini boshlardi); o'sha tana qayta yuborilsa — o'sha kalit (ikkinchi yozuv yo'q)
+  const n = await amalYubor('/api/production/orders', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)},
+                            'po_yangi_' + JSON.stringify(body));
+  if (!n.ok) { showMsg(n.nomalum ? amalNomalumMatn('Ishlab chiqarish', n.xato) : n.xato, 'error'); return null; }
+  const data = n.javob || {};
   return data.production_order || {};
 }
 
@@ -1586,16 +1692,20 @@ async function poYaratibBoshla() {
   try {
     const po = await saveProductionOrder();
     if (!po || !po.id) return;
-    const res = await fetch(`/api/production/orders/${po.id}/start`, {method: 'POST'});
-    let data = {};
-    try { data = await res.json(); } catch (e) { data = {}; }
+    // kech144 (zip 181, audit A2 / D2): «Boshlash» — kalit bilan; natija noma'lum bo'lsa ilgari «boshlanmadi: xomashyo yetmadi» (yolg'on —
+    // boshlangan bo'lishi mumkin edi) va «Boshlash» oynasi ochilardi — endi ro'yxatdagi holatga qarab
+    const n = await amalYubor(`/api/production/orders/${po.id}/start`, {method: 'POST'}, 'po_boshlash_' + po.id);
     closeModal('po-modal');
     await switchProdTab('orders');
-    if (res.ok) {
-      showMsg(`Ishlab chiqarish boshlandi — №${po.id}`, 'success');
+    if (n.ok) {
+      showMsg(`Ishlab chiqarish boshlandi — №${po.id}` + amalTakrorIzoh(n.takror), 'success');
+    } else if (n.nomalum) {
+      showMsg(`№${po.id} saqlandi. ` + amalNomalumMatn('Boshlash', n.xato), 'error');
+      const _p181 = poRoyxat.find(p => p.id === po.id);
+      if (_p181 && _p181.status === 'draft') poOyna(po.id, 'boshlash');
     } else {
       // Yaratildi, lekin boshlanmadi (masalan xomashyoni shu orada boshqa amal olgan) — qoralama bo'lib qoladi.
-      showMsg(`№${po.id} qoralama bo'lib saqlandi, boshlanmadi: ${xatoSababi(data, 'xomashyo yetmadi')}`, 'error');
+      showMsg(`№${po.id} qoralama bo'lib saqlandi, boshlanmadi: ${n.xato}`, 'error');
       poOyna(po.id, 'boshlash');
     }
   } finally { poSaqlanmoqda = false; }
@@ -1628,14 +1738,20 @@ let poXato = '';
 async function loadProductionOrders(){
   if (!PO_KORISH) return;
   const davr = document.getElementById('po-davr').value || 'hammasi';
+  // kech144 (zip 181, audit C5): «Davr» tez almashtirilsa eski davr javobi yangisini bosmaydi
+  const joriy = yukNavbat('po-royxat');
+  let _r181 = [], _x181 = '';
   try {
     const res = await fetch('/api/production/orders?oy=' + encodeURIComponent(davr));
-    if (res.ok) { poRoyxat = await res.json(); poXato = ''; }
-    else { poRoyxat = []; poXato = await serverXatoSababi(res, "Ishlab chiqarishlar ro'yxati yuklanmadi"); }
+    if (res.ok) { _r181 = await res.json(); _x181 = ''; }
+    else { _r181 = []; _x181 = await serverXatoSababi(res, "Ishlab chiqarishlar ro'yxati yuklanmadi"); }
   } catch (e) {
-    poRoyxat = [];
-    poXato = "Server bilan aloqa yo'q — ishlab chiqarishlar ro'yxati yuklanmadi";
+    _r181 = [];
+    _x181 = "Server bilan aloqa yo'q — ishlab chiqarishlar ro'yxati yuklanmadi";
   }
+  if (!joriy()) return;
+  poRoyxat = Array.isArray(_r181) ? _r181 : [];
+  poXato = _x181;
   poMahsulotTanloviniQur();
   poChiz();
 }
@@ -1704,10 +1820,12 @@ function poQatorHtml(po) {
     tannarx = `<div>≈ ${escapeHtml(pulKorinish(po.taxminiy_tannarx))}</div>${miqdor > 0 ? `<div class="po-kichik">${escapeHtml(pulKorinish(po.taxminiy_tannarx / miqdor) + ' / ' + birlikYoz(birlik))}</div>` : ''}`;
   }
   let amal = '';
+  // kech144 (zip 181, audit C2): «Boshlash» / «Yakunlash» — «Ishlab chiqarish: Tahrirlash» bilan (ilgari ko'rish roli ham ko'rardi — 403)
+  const poTahrir = typeof PO_TAHRIR === 'undefined' || PO_TAHRIR;
   if (po.status === 'draft') {
-    amal = `<button class="btn btn-dark btn-sm" onclick="doStart(${po.id})">Boshlash</button><button class="btn btn-outline btn-sm po-uch" onclick="poBatafsil(${po.id})" aria-label="Batafsil va bekor qilish" title="Batafsil va bekor qilish">···</button>`;
+    amal = `${poTahrir ? `<button class="btn btn-dark btn-sm" onclick="doStart(${po.id})">Boshlash</button>` : ''}<button class="btn btn-outline btn-sm po-uch" onclick="poBatafsil(${po.id})" aria-label="Batafsil va bekor qilish" title="Batafsil va bekor qilish">···</button>`;
   } else if (po.status === 'in_progress') {
-    amal = `<button class="btn btn-dark btn-sm" onclick="doComplete(${po.id})">Yakunlash</button><button class="btn btn-outline btn-sm po-uch" onclick="poBatafsil(${po.id})" aria-label="Batafsil va bekor qilish" title="Batafsil va bekor qilish">···</button>`;
+    amal = `${poTahrir ? `<button class="btn btn-dark btn-sm" onclick="doComplete(${po.id})">Yakunlash</button>` : ''}<button class="btn btn-outline btn-sm po-uch" onclick="poBatafsil(${po.id})" aria-label="Batafsil va bekor qilish" title="Batafsil va bekor qilish">···</button>`;
   } else {
     amal = `<button class="btn btn-outline btn-sm" data-snap="${escapeHtml(JSON.stringify(po.recipe_snapshot || []))}" data-status="${escapeHtml(po.status)}" onclick="showSnapshot(JSON.parse(this.dataset.snap), this.dataset.status, ${po.id})">Batafsil</button>`;
   }
@@ -1728,8 +1846,9 @@ function poChiz() {
   const saralangan = poSaralanganlar();
   const son = {hammasi: saralangan.length, draft: 0, in_progress: 0, completed: 0, cancelled: 0};
   saralangan.forEach(po => { if (son[po.status] !== undefined) son[po.status] += 1; });
+  // kech144 (zip 181, audit C4): ro'yxat yuklanmagan — sonlar «—» (ilgari «· 0» va xulosada «0 ta yakunlandi — 0 so'm»)
   document.getElementById('po-holat-chiplar').innerHTML = HOLAT_CHIP.map(([kalit, nom]) =>
-    `<button type="button" class="po-chip chip${poHolatTanlov === kalit ? ' faol' : ''}" aria-pressed="${poHolatTanlov === kalit ? 'true' : 'false'}" onclick="poHolatTanla('${kalit}')">${escapeHtml(nom)} · ${son[kalit]}</button>`).join('');
+    `<button type="button" class="po-chip chip${poHolatTanlov === kalit ? ' faol' : ''}" aria-pressed="${poHolatTanlov === kalit ? 'true' : 'false'}" onclick="poHolatTanla('${kalit}')">${escapeHtml(nom)} · ${poXato ? '—' : son[kalit]}</button>`).join('');
   const poSoni = document.getElementById('po-soni');   // kech135 (zip 161): ruxsatsiz rolda yorliq (va hisoblagich) yo'q
   if (poSoni) poSoni.textContent = poRoyxat.length ? String(poRoyxat.length) : '';
   const qatorlar = saralangan.filter(po => poHolatTanlov === 'hammasi' || po.status === poHolatTanlov);
@@ -1739,6 +1858,10 @@ function poChiz() {
     : `<tr class="po-bosh"><td colspan="8" style="text-align:center;padding:24px;color:var(--text3);overflow-wrap:anywhere">${poXato ? escapeHtml(poXato) : (poRoyxat.length ? 'Tanlangan saralashda ishlab chiqarish yo\'q' : 'Hali ishlab chiqarish yo\'q')}</td></tr>`;
   const davrSel = document.getElementById('po-davr');
   const davrNomi = davrSel.selectedOptions[0] ? davrSel.selectedOptions[0].textContent : '';
+  if (poXato) {
+    document.getElementById('po-xulosa').innerHTML = `<div>${escapeHtml(davrNomi)}: <b>—</b> (ro'yxat yuklanmadi)</div>`;
+    return;
+  }
   const yakun = saralangan.filter(po => po.status === 'completed');
   // kech118 (ROLLAR 2-qism): tannarx yashirin (null) — jami ham «—»
   const jami = yakun.some(po => po.total_cost === null) ? null : yakun.reduce((s, po) => s + (Number(po.total_cost) || 0), 0);
@@ -1746,7 +1869,7 @@ function poChiz() {
     <div>${escapeHtml(davrNomi)}: <b>${yakun.length} ta yakunlandi</b> — jami tannarx <b>${escapeHtml(pulKorinish(jami))}</b></div>
     <div>Jarayonda: <b>${son.in_progress}</b></div>
     <div>Qoralama: <b>${son.draft}</b></div>
-    <div style="color:var(--text2)">«≈» — taxminiy (hali yakunlanmagan, narx — qoralamada ombordagi hozirgi, jarayondagida boshlangan kundagi)</div>`;
+    <div style="color:var(--text2)">«≈» — taxminiy (hali yakunlanmagan, ombordagi hozirgi narx bilan; yakuniy tannarx — yakunlash kunidagi narx bilan)</div>`;
 }
 
 // ============================================================
@@ -1760,8 +1883,9 @@ function poSarlavha(po) {
 function vaqtKartalariHtml(po) {
   const kim = po.created_by ? `<div>${escapeHtml(po.created_by)}</div>` : '';
   const k1 = `<div class="vaqt-karta"><div>Yaratildi</div> <b>${escapeHtml(tkSanaVaqtRu(po.created_at))}</b> ${kim}</div>`;
+  // kech144 (zip 181, egasi QARORI «Yakunlash narxi + farq»): narx endi Boshlashda qotmaydi — tannarx yakunlash kunidagi narx bilan
   const k2 = po.started_at
-    ? `<div class="vaqt-karta"><div>Boshlandi (narx qotdi)</div> <b>${escapeHtml(tkSanaVaqtRu(po.started_at))}</b> <div>xomashyo tekshirildi</div></div>`
+    ? `<div class="vaqt-karta"><div>Boshlandi</div> <b>${escapeHtml(tkSanaVaqtRu(po.started_at))}</b> <div>xomashyo tekshirildi</div></div>`
     : '<div class="vaqt-karta bosh"><div>Boshlanmagan</div> <b>—</b></div>';
   let k3 = '<div class="vaqt-karta bosh"><div>Yakunlanmagan</div> <b>—</b></div>';
   if (po.completed_at) k3 = `<div class="vaqt-karta yashil"><div>Yakunlandi</div> <b>${escapeHtml(tkSanaVaqtRu(po.completed_at))}</b> <div>xomashyo ombordan yechildi</div></div>`;
@@ -1781,6 +1905,13 @@ function poManbaMatni(po) {
     po.manba_ochirilgan ? "buyurtma o'chirilgan" : ''].filter(Boolean).join(' · ');
 }
 
+// kech144 (zip 181, egasi QARORI «Yakunlash narxi + farq»): «Boshlashdagi taxmin 30 000 so'm — yakunlashda 15 000 so'm qimmat (xomashyo narxi oshdi)»
+function tannarxFarqiMatni(boshlash, farq) {
+  const f = Number(farq) || 0;
+  return `Boshlashdagi taxmin ${pulKorinish(boshlash)} — yakunlash kunidagi narx bilan ${pulKorinish(Math.abs(f))} `
+    + (f > 0 ? "qimmat (xomashyo narxi oshdi)" : "arzon (xomashyo narxi tushdi)");
+}
+
 function poBatafsil(poId) { poOyna(poId, 'batafsil'); }
 function doStart(poId) { poOyna(poId, 'boshlash'); }
 function doComplete(poId) { poOyna(poId, 'yakunlash'); }
@@ -1789,6 +1920,9 @@ async function poOyna(poId, rejim) {
   // Qoralama / jarayondagi ishlab chiqarish oynasi: reja (serverdan) + amallar. rejim: 'batafsil' | 'boshlash' | 'yakunlash'.
   const po = poRoyxat.find(p => p.id === poId);
   if (!po) { showMsg("Ishlab chiqarish topilmadi — ro'yxatni yangilang", 'error'); return; }
+  // kech144 (zip 181, audit C1): oyna boshqa ishlab chiqarish uchun qayta ochilsa / yopilsa — bu so'rov javobi tashlanadi (ilgari №5 ning
+  // kech javobi №7 oynasiga tushib, «Yakunlash» №5 ni yakunlardi)
+  const joriy = yukNavbat('po-oyna');
   const sarlavha = rejim === 'boshlash' ? 'Boshlash — ' : rejim === 'yakunlash' ? 'Yakunlash — ' : '';
   document.getElementById('snapshot-modal-title').textContent = sarlavha + poSarlavha(po);
   document.getElementById('snapshot-warnings').innerHTML = '';
@@ -1804,13 +1938,18 @@ async function poOyna(poId, rejim) {
       if (res.ok) reja = j; else xato = xatoSababi(j, 'Reja hisoblanmadi');
     } catch (e) { xato = "Server bilan aloqa yo'q"; }
   }
+  if (!joriy()) return;
   const birlik = po.birlik || '';
   const yechish = po.status === 'in_progress';
   let tana = `<div style="font-size:13px;color:var(--m-4b5563);margin-bottom:10px">${escapeHtml(poManbaMatni(po))}${po.retsept_nomi ? ' · «' + escapeHtml(po.retsept_nomi) + '» tarkibi' : ''}</div>` + vaqtKartalariHtml(po);
   if (reja) {
     tana += `<div class="xm-quti"><div class="xm-bosh">${yechish ? 'Yakunlashda ombordan yechiladi' : 'Xomashyo — omborda yetadimi?'} <span>${escapeHtml(birlikMatni(reja.miqdor, birlik))} uchun</span></div>${rejaJadvaliHtml(reja, yechish)}</div>`;
     tana += rejaOgohHtml(reja, birlik, false);
-    tana += `<div class="tannarx-quti"><div>${yechish ? 'Tannarx (boshlangan kundagi narx bilan)' : 'Taxminiy tannarx (ombordagi hozirgi narx bilan)'}</div> <div class="o"><b>${escapeHtml(pulKorinish(reja.tannarx))}</b> ${reja.bir_birlik !== null && reja.bir_birlik !== undefined ? `1 ${escapeHtml(birlikYoz(birlik))} — ${escapeHtml(pulKorinish(reja.bir_birlik))}` : ''}</div></div>`;
+    tana += `<div class="tannarx-quti"><div>${yechish ? 'Tannarx (bugungi — yakunlash kunidagi narx bilan)' : 'Taxminiy tannarx (ombordagi hozirgi narx bilan)'}</div> <div class="o"><b>${escapeHtml(pulKorinish(reja.tannarx))}</b> ${reja.bir_birlik !== null && reja.bir_birlik !== undefined ? `1 ${escapeHtml(birlikYoz(birlik))} — ${escapeHtml(pulKorinish(reja.bir_birlik))}` : ''}</div></div>`;
+    // kech144 (zip 181, egasi QARORI «Yakunlash narxi + farq»): Boshlashdagi taxmindan farqi (tannarx yashirin bo'lsa — yo'q)
+    if (yechish && reja.tannarx_farqi !== null && reja.tannarx_farqi !== undefined && Math.abs(Number(reja.tannarx_farqi)) >= 1) {
+      tana += `<div class="ogoh sariq po-farq"><i class="ti ti-info-circle"></i><div>${escapeHtml(tannarxFarqiMatni(reja.boshlash_tannarx, reja.tannarx_farqi))}</div></div>`;
+    }
   } else if (xato) {
     tana += `<div class="ogoh qizil"><i class="ti ti-alert-triangle"></i><div>${escapeHtml(xato)}</div></div>`;
   }
@@ -1820,14 +1959,18 @@ async function poOyna(poId, rejim) {
   // tasdiqda «Ha, bekor qilinsin» / «Yo'q, qaytish».
   // kech142 (zip 170, A-O03): «bekor qilish» — faqat qoralama / jarayondagi ishlab chiqarishda (yakunlangan / bekor qilinganda
   // server baribir rad etadi — tugma ko'rinib turmasin).
-  const bekorTugma = (po.status === 'draft' || po.status === 'in_progress')
+  // kech144 (zip 181, audit C2): bekor qilish — «Ishlab chiqarish: O'chirish», Boshlash / Yakunlash — «Tahrirlash» bilan
+  const poOchir = typeof PO_OCHIRISH === 'undefined' || PO_OCHIRISH;
+  const poTahrir = typeof PO_TAHRIR === 'undefined' || PO_TAHRIR;
+  const bekorTugma = (poOchir && po.status === 'draft' || poOchir && po.status === 'in_progress')
     ? `<button class="btn btn-outline po-bekor-tugma" style="color:var(--m-b91c1c);border-color:var(--ch-f3c7c7);margin-right:auto" onclick="doCancel(${poId})">Ishlab chiqarishni bekor qilish</button>`
     : '';
   let asosiy = '';
-  if (po.status === 'draft') asosiy = `<button class="btn btn-dark" id="po-oyna-amal" onclick="poBoshlashTasdiq(${poId})"${reja && reja.mumkin ? '' : ' disabled'}>Boshlash</button>`;
-  if (po.status === 'in_progress') asosiy = `<button class="btn btn-dark" id="po-oyna-amal" onclick="poYakunlashTasdiq(${poId})"${reja && reja.mumkin ? '' : ' disabled'}>Yakunlash</button>`;
+  if (!poTahrir) asosiy = '';
+  else if (po.status === 'draft') asosiy = `<button class="btn btn-dark" id="po-oyna-amal" onclick="poBoshlashTasdiq(${poId})"${reja && reja.mumkin ? '' : ' disabled'}>Boshlash</button>`;
+  else if (po.status === 'in_progress') asosiy = `<button class="btn btn-dark" id="po-oyna-amal" onclick="poYakunlashTasdiq(${poId})"${reja && reja.mumkin ? '' : ' disabled'}>Yakunlash</button>`;
   const izoh = po.status === 'draft'
-    ? '«Boshlash» — xomashyo tekshiriladi, tarkib narxi shu kunda qotadi, tayyor mahsulot yozuvi «ishlab chiqarilmoqda» bo\'lib paydo bo\'ladi.'
+    ? '«Boshlash» — xomashyo tekshiriladi, tayyor mahsulot yozuvi «ishlab chiqarilmoqda» bo\'lib paydo bo\'ladi. Tannarx — yakunlash kunidagi xomashyo narxi bilan.'
     : 'Yakunlashda xomashyo ombordan yechiladi va mahsulot «Tayyor mahsulotlar» ga tushadi. Yakunlangan ishlab chiqarishni bekor qilib bo\'lmaydi.';
   document.getElementById('snapshot-tugmalar').innerHTML = `<div class="izoh">${escapeHtml(izoh)}</div><div class="tugmalar">${bekorTugma}<button class="btn btn-outline" onclick="closeModal('snapshot-modal')">Yopish</button>${asosiy}</div>`;
 }
@@ -1838,17 +1981,18 @@ async function poBoshlashTasdiq(poId) {
   poAmalda = true;
   const btn = document.getElementById('po-oyna-amal');
   if (btn) btn.disabled = true;
+  // kech144 (zip 181, audit A2 / D1 / D2): kalit bilan (javobi yo'qolgan «Boshlash» ni qayta bosish — birinchi javob); natija noma'lum —
+  // tekshirish so'raladi (ilgari internet uzilsa — jim, tugma berk; 502 — «Boshlanmadi»)
   try {
-    const res = await fetch(`/api/production/orders/${poId}/start`, {method: 'POST'});
-    let data = {};
-    try { data = await res.json(); } catch (e) { data = {}; }
-    if (res.ok) {
+    const n = await amalYubor(`/api/production/orders/${poId}/start`, {method: 'POST'}, 'po_boshlash_' + poId);
+    const data = n.javob || {};
+    if (n.ok) {
       closeModal('snapshot-modal');
       const ogoh = (data.stock_warnings || []).length ? ' (manfiy qoldiq bilan)' : '';
-      showMsg(`Ishlab chiqarish boshlandi — №${poId}${ogoh}`, 'success');
+      showMsg(`Ishlab chiqarish boshlandi — №${poId}${ogoh}` + amalTakrorIzoh(n.takror), 'success');
       await loadProductionOrders();
     } else {
-      showMsg(xatoSababi(data, 'Boshlanmadi'), 'error');
+      showMsg(n.nomalum ? amalNomalumMatn('Boshlash', n.xato) : n.xato, 'error');
       await loadProductionOrders();
       // kech142 (zip 170, A-O03): boshqa oynada / qurilmada shu orada boshlangan yoki bekor qilingan bo'lsa — oyna yopiladi
       // (ilgari eski holatdagi oyna qayta ochilardi).
@@ -1863,16 +2007,15 @@ async function poYakunlashTasdiq(poId) {
   poAmalda = true;
   const btn = document.getElementById('po-oyna-amal');
   if (btn) btn.disabled = true;
+  // kech144 (zip 181, audit A2 / D1 / D2): kalit bilan; natija noma'lum — «xomashyo yechildimi?» savoliga javob: ro'yxatdagi holat
   try {
-    const res = await fetch(`/api/production/orders/${poId}/complete`, {method: 'POST'});
-    let data = {};
-    try { data = await res.json(); } catch (e) { data = {}; }
-    if (res.ok) {
+    const n = await amalYubor(`/api/production/orders/${poId}/complete`, {method: 'POST'}, 'po_yakunlash_' + poId);
+    if (n.ok) {
       closeModal('snapshot-modal');
-      showMsg(`Yakunlandi — №${poId}: mahsulot «Tayyor mahsulotlar» ga tushdi`, 'success');
+      showMsg(`Yakunlandi — №${poId}: mahsulot «Tayyor mahsulotlar» ga tushdi` + amalTakrorIzoh(n.takror), 'success');
       await loadProductionOrders();
     } else {
-      showMsg(xatoSababi(data, 'Yakunlanmadi'), 'error');
+      showMsg(n.nomalum ? amalNomalumMatn('Yakunlash', n.xato) : n.xato, 'error');
       await loadProductionOrders();
       // kech142 (zip 170, A-O03): shu orada boshqa joyda yakunlangan / bekor qilingan bo'lsa — oyna yopiladi.
       const _p142 = poRoyxat.find(p => p.id === poId);
@@ -1885,14 +2028,16 @@ async function doCancel(poId){
   const po = (typeof poRoyxat !== 'undefined' ? poRoyxat : []).find(p => p.id === poId);
   if (!(await customConfirm(`№${poId}${po && po.mahsulot_nomi ? ' — ' + po.mahsulot_nomi : ''}: ishlab chiqarishni bekor qilasizmi?`,
       {danger: true, okText: 'Ha, bekor qilinsin', cancelText: "Yo'q, qaytish"}))) return;
-  const res = await fetch(`/api/production/orders/${poId}/cancel`, {method:'POST'});
-  if (res.ok) { closeModal('snapshot-modal'); showMsg(`№${poId} bekor qilindi`, 'success'); loadProductionOrders(); }
-  else { showMsg(await serverXatoSababi(res, 'Bekor qilinmadi'), 'error'); }
+  // kech144 (zip 181, audit A2 / D1 / D2): kalit bilan; natija noma'lum — ro'yxat yangilanadi (holat ko'rinadi)
+  const n = await amalYubor(`/api/production/orders/${poId}/cancel`, {method:'POST'}, 'po_bekor_' + poId);
+  if (n.ok) { closeModal('snapshot-modal'); showMsg(`№${poId} bekor qilindi` + amalTakrorIzoh(n.takror), 'success'); loadProductionOrders(); }
+  else { showMsg(n.nomalum ? amalNomalumMatn('Bekor qilish', n.xato) : n.xato, 'error'); if (n.nomalum) loadProductionOrders(); }
 }
 
 function showSnapshot(snapshot, status, poId){
   // Yakunlangan / bekor qilingan ishlab chiqarish — QOTGAN surat (o'sha kundagi narx) va yakuniy tannarx.
   const po = poRoyxat.find(p => p.id === poId) || null;
+  if (typeof yukNavbat === 'function') yukNavbat('po-oyna');     // kech144 (zip 181, audit C1): yo'ldagi reja javobi bu oynani bosmaydi
   const birlik = po ? (po.birlik || '') : '';
   document.getElementById('snapshot-modal-title').textContent = po ? poSarlavha(po) : 'Tarkib surati';
   document.getElementById('snapshot-warnings').innerHTML = '';
@@ -1906,7 +2051,7 @@ function showSnapshot(snapshot, status, poId){
       <td class="o" data-yorliq="Tarkib bo'yicha">${escapeHtml(birlikMatni(line.base_quantity, line.unit))}</td>
       <td class="o" data-yorliq="Isrof">${escapeHtml(sonKorinish(line.scrap_factor_percent))} %</td>
       <td class="o" data-yorliq="${escapeHtml(sarlavhaSarf)}">${sarflandi}</td>
-      <td class="o" data-yorliq="Narx (o'sha kuni)">${line.included ? escapeHtml(pulKorinish(line.unit_price_at_time) + ' / ' + (line.stock_unit || line.unit || '')) : '—'}</td>
+      <td class="o" data-yorliq="Narx (o'sha kuni)">${line.included && line.unit_price_at_time !== null && line.unit_price_at_time !== undefined ? escapeHtml(pulKorinish(line.unit_price_at_time) + ' / ' + (line.stock_unit || line.unit || '')) : '—'}</td>
       <td class="o" data-yorliq="Summa">${line.included ? escapeHtml(pulKorinish(line.line_cost)) : '—'}</td>
     </tr>`;
   }).join('');
@@ -1916,11 +2061,19 @@ function showSnapshot(snapshot, status, poId){
     : `<div class="xm-quti"><div class="xm-bosh-joy">${status === 'cancelled' ? 'Boshlanmasdan bekor qilingan — xomashyo ishlatilmagan' : "Ma'lumot yo'q"}</div></div>`;
   if (po && status === 'completed') {
     const miqdor = Number(po.quantity) || 0;
+    // kech144 (zip 181, egasi QARORI «Yakunlash narxi + farq»): suratda Boshlashdagi xomashyo summasi bo'lsa — farqi
+    const _bq181 = (snapshot || []).filter(l => l && l.included);
+    const _bosh181 = _bq181.some(l => l.boshlash_summa !== null && l.boshlash_summa !== undefined)
+      ? _bq181.reduce((s, l) => s + (Number(l.boshlash_summa !== null && l.boshlash_summa !== undefined ? l.boshlash_summa : l.line_cost) || 0), 0)
+      : null;
+    const _farq181 = (_bosh181 !== null && po.total_material_cost !== null && po.total_material_cost !== undefined)
+      ? Number(po.total_material_cost) - _bosh181 : null;
     tana += `<div class="bt-jami"><div>
+      ${_farq181 !== null && Math.abs(_farq181) >= 1 ? `<div class="q po-farq"><span>Xomashyo — Boshlashdagi taxmin</span><span>${escapeHtml(pulKorinish(_bosh181))} (${_farq181 > 0 ? '+' : '−'}${escapeHtml(pulKorinish(Math.abs(_farq181)))})</span></div>` : ''}
       <div class="q"><span>Xomashyo</span><span>${escapeHtml(pulKorinish(po.total_material_cost))}</span></div>
       <div class="q"><span>Qo'shimcha xarajat</span><span>${escapeHtml(pulKorinish(po.total_extra_cost))}</span></div>
       <div class="q katta"><span>Tannarx</span><span>${escapeHtml(pulKorinish(po.total_cost))}</span></div>
-      ${miqdor > 0 ? `<div class="q"><span>1 ${escapeHtml(birlik)} tannarxi</span><span>${escapeHtml(pulKorinish(po.total_cost === null ? null : po.total_cost / miqdor))}</span></div>` : ''}
+      ${miqdor > 0 ? `<div class="q"><span>1 ${escapeHtml(birlikYoz(birlik))} tannarxi</span><span>${escapeHtml(pulKorinish(po.total_cost === null ? null : po.total_cost / miqdor))}</span></div>` : ''}
     </div></div>`;
   }
   document.getElementById('snapshot-list').innerHTML = tana;
