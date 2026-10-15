@@ -504,7 +504,8 @@ B_FIN = [
 ]
 B_DSH = [q("bd", natija=r"""const _yk = document.getElementById('yonKarta'); return {karta: _yk ? _yk.style.display : null};""")]
 B_REP = [q("bh", natija=r"""return {bolim: document.getElementById('yonDinamika').style.display};""")]
-SAHIFALAR_A = [{"yol": "/logs", "qadamlar": SOZ}, {"yol": "/production", "qadamlar": PROD}, {"yol": "/kpi", "qadamlar": KPI},
+# kech146 (zip 183, audit J12 — MOSLANDI): sozlama bloklari (yo'nalishlar ham) endi faqat `/sozlamalar` da yuklanadi
+SAHIFALAR_A = [{"yol": "/sozlamalar", "qadamlar": SOZ}, {"yol": "/production", "qadamlar": PROD}, {"yol": "/kpi", "qadamlar": KPI},
                {"yol": "/finance", "qadamlar": FIN}, {"yol": "/suppliers/receive", "qadamlar": RCV},
                {"yol": "/dashboard", "qadamlar": DSH}, {"yol": "/reports", "qadamlar": REPS}]
 SAHIFALAR_B = [{"yol": "/finance", "qadamlar": B_FIN}, {"yol": "/dashboard", "qadamlar": B_DSH},
