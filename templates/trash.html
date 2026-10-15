@@ -151,6 +151,19 @@ async function restoreItem(type, id, btn, qs) {
       btn.textContent = '✅ Tiklandi';
       setTimeout(() => location.reload(), 700);
       return true;
+    }
+    // kech144 (zip 181, egasi QARORI 14.10 «So'rasin»): loyihaning savatda buyurtmalari bor — ular ham tiklansinmi?
+    let det = null;
+    if (res.status === 409 && type === 'project' && !qs) {
+      try { const d = await (typeof res.clone === 'function' ? res.clone() : res).json(); det = d && d.detail; } catch (e) { det = null; }
+    }
+    if (det && det.type === 'project_has_deleted_orders') {
+      btn.disabled = false; btn.textContent = '↩️ Tiklash';
+      const t = await customConfirm('Loyihani tiklash', String(det.message || ''),
+        {okText: 'Ha, buyurtmalari ham', altText: 'Faqat loyiha', cancelText: 'Bekor'});
+      if (t === true) return restoreItem(type, id, btn, 'buyurtmalar=ha');
+      if (t === 'alt') return restoreItem(type, id, btn, 'buyurtmalar=yoq');
+      return false;
     } else {
       // kech140 (zip 168): sabab — umumiy `amalSababi` (masalan «Buyurtma savatda emas — u allaqachon tiklangan»)
       xabarOyna('❌ Tiklanmadi: ' + await amalSababi(res));
