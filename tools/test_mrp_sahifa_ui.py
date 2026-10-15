@@ -655,7 +655,8 @@ check("O5 «Yakunlash» — qator «Yakunlandi», haqiqiy tannarx 51 475 so'm, x
       and "Tayyor mahsulotlar" in _r["msg"][0], _r)
 _r = n("batafsil")
 check("O6 «Batafsil» (yakunlangan): vaqt chizig'i, ustunlar, qoplama «ishlatilmadi — qoplamasiz», xomashyo / qo'shimcha / tannarx / 1 m²",
-      lambda: all(x in _r["matn"] for x in ("Yaratildi", "Boshlandi (narx qotdi)", "Yakunlandi", "xomashyo ombordan yechildi",
+      # kech144 (zip 181, MOSLANDI — egasi QARORI «Yakunlash narxi + farq»): narx Boshlashda qotmaydi — «Boshlandi»
+      lambda: all(x in _r["matn"] for x in ("Yaratildi", "Boshlandi", "Yakunlandi", "xomashyo ombordan yechildi",
                                             "ishlatilmadi — qoplamasiz", "30 885 so'm", "1 m² tannarxi", "10 295 so'm"))
       and _r["jadval_bosh"] == ["Material", "Tarkib bo'yicha", "Isrof", "Sarflandi", "Narx (o'sha kuni)", "Summa"]
       and any("MRU Kley" in x and "3,3 kg" in x and "3 150 so'm / kg" in x and "10 395 so'm" in x for x in _r["jadval"])

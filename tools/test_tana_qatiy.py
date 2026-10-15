@@ -688,7 +688,8 @@ for lbl, tana, raw in _g_rad:
     r = xom(C, "post", "/api/production/boms", raw) if raw else req(C, "post", "/api/production/boms", json=tana)
     rad400(f"G1 {lbl} → 400 (matn), retsept yaratilmadi", r, h0, retseptlar())
 d = detail(req(C, "post", "/api/production/boms", json=dict(BOM0, variant_name="g28", items=[dict(IT0), dict(IT0, inventory_id=INVBID)])))
-check("G2 begona material — qaysi qator ekani aytiladi, 'topilmadi' (oracle yo'q)", d == "'items' 2-qator: material topilmadi", d)
+# kech144 (zip 181, MOSLANDI — audit D3): maydon nomi o'zbekcha («Tarkib»; ilgari «'items'»)
+check("G2 begona material — qaysi qator ekani aytiladi, 'topilmadi' (oracle yo'q)", d == "Tarkib 2-qator: material topilmadi", d)
 h0 = retseptlar()
 r = req(C, "post", "/api/production/boms", json=dict(BOM0, variant_name="   "))
 check("G3 faqat bo'shliqli nom → 'Standart' deb hisoblanadi (bor — takror 400), '' nomli retsept YO'Q",
@@ -983,8 +984,10 @@ _fnlar.update({n: js_funksiya(_usr, n) for n in ("saveUser", "changePass", "chan
 # kech144 (zip 175, MOSLANDI): `saveUser` endi base.html amal kaliti yordamchilari bilan (`amalYubor` — `X-Amal-Kaliti`, natija
 # noma'lum ajratiladi; sabab — `amalSababi`, u `xatoSababi` / `yukSessiyaKor` ni chaqiradi) — ular ham shablondan olinadi
 _base175 = open(os.path.join(ROOT, "templates", "base.html"), encoding="utf-8").read()
+# kech144 (zip 181, MOSLANDI): `saveProductType` / `saveBom` — «Saqlash» `tugmaBand` bilan band (audit A1)
 _fnlar.update({n: js_funksiya(_base175, n) for n in ("xatoSababi", "yukSessiyaKor", "amalSababi", "amalKalitiYangi", "amalKaliti",
-                                                     "amalKalitiTashla", "amalYubor", "amalNomalumMatn", "amalTakrorIzoh")})
+                                                     "amalKalitiTashla", "amalYubor", "amalNomalumMatn", "amalTakrorIzoh",
+                                                     "tugmaBand")})
 check("U0 hamma UI funksiyalari shablonlarda topildi", all(_fnlar.values()), [k for k, v in _fnlar.items() if not v])
 _fnlar["changeMyPassword"] = _fnlar["changeMyPassword"].replace("{{ current_user.id|int }}", "990001").replace(
     "{{ current_user.id }}", "990001")
