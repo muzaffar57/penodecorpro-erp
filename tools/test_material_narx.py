@@ -224,9 +224,10 @@ check("K2 tayyor rollar: Admin / Omborchi / Moliyachi — bor; Menejer — yo'q 
       and "material_narx" in _tr["moliyachi"]["ruxsatlar"] and "material_narx" not in _tr["menejer"]["ruxsatlar"]
       and "xomashyo narxlari" in _tr["menejer"]["tavsif"], {k: v["ruxsatlar"].get("material_narx") for k, v in _tr.items()})
 _yoq = sorted(set(NARX_YOLLAR) - API_YOLLAR)
-check("K3 NARX_YOLLAR dagi har marshrut — haqiqiy GET API marshruti, kamida 7 ta",
+# kech144 (zip 180, MOSLANDI — audit C5): NARX_YOLLAR da POST javoblari ham bor (xarid / kirim javobidagi o'rtacha narx)
+check("K3 NARX_YOLLAR dagi har marshrut — haqiqiy GET yoki POST API marshruti, kamida 7 ta",
       len(NARX_YOLLAR) >= 7 and not _yoq
-      and all(any(r.path == p and "GET" in r.methods for r in API) for p in NARX_YOLLAR), (_yoq, len(NARX_YOLLAR)))
+      and all(any(r.path == p and ("GET" in r.methods or "POST" in r.methods) for r in API) for p in NARX_YOLLAR), (_yoq, len(NARX_YOLLAR)))
 check("K4 har yo'l yozuvi o'qiladi", all(y and all(RX._yol_qismlari(y)) for ys in NARX_YOLLAR.values() for y in ys))
 _mw = [m.cls.__name__ for m in main.app.user_middleware]
 _msrc = open(os.path.join(ROOT, "main.py"), encoding="utf-8").read()

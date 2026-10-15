@@ -302,7 +302,9 @@ function qator(elementlar, dataset) {
                 'ap-item': el(''), 'ap-transport-payer': el('none'), 'ap-transport-cost': el(''), 'ap-volume': el(''),
                 'addPurchaseForm': el('') };
     const tanalar = [];
-    const ctx = kontekst(Object.assign({ document: hujjat(e), showMsg: () => {}, openHistory: () => {}, loadSuppliers: () => {},
+    // kech144 (zip 180, MOSLANDI): `saveAddPurchase` faqat tarixi yuklangan (joriy) ta'minotchiga yozadi (`openHistory.yuklandi`, audit C1)
+    const ctx = kontekst(Object.assign({ document: hujjat(e), showMsg: () => {}, openHistory: Object.assign(() => {}, { yuklandi: 5 }),
+                                         loadSuppliers: () => {},
       fetch: async (u, o) => {
         const t = JSON.parse(o.body); tanalar.push(t);
         const jami = buyurtmaJamiPy(t.quantity, t.price_per_unit);

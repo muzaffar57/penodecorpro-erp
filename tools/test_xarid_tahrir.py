@@ -552,21 +552,24 @@ RC_ID = RC.id
 r = req("delete", f"/api/suppliers/{S_ID}")
 check("F2 xaridli+harakatli+hujjatli ta'minotchi o'chdi → 200 (ilgari 500)",
       r.status_code == 200, f"{r.status_code} {r.text[:200]}")
+_f2j = r.json() if r.status_code == 200 else {}
 db.rollback()
 db.expire_all()
-check("F3 ta'minotchi bazadan yo'qoldi",
-      db.query(Supplier).filter(Supplier.id == S_ID).first() is None)
-check("F4 InventoryMovement.supplier_id NULL qilindi (o'chirilmadi)",
+# kech144 (zip 180, MOSLANDI — egasi QARORI 14.10 «Yashirilsin»): tarixi bor ta'minotchi YASHIRILADI — bog'lanishlar va to'lovlar
+# saqlanadi (Kassa, o'tgan oylar pul oqimi o'zgarmaydi); ilgari bog'lanish uzilib, to'lovlar o'chardi
+_f3s = db.query(Supplier).filter(Supplier.id == S_ID).first()
+check("F3 ta'minotchi YASHIRILDI (bazada bor, `is_active` False, javobda `yashirildi`)",
+      _f3s is not None and _f3s.is_active is False and _f2j.get("yashirildi") is True, _f2j)
+check("F4 InventoryMovement bog'lanishi SAQLANDI (o'chirilmadi, uzilmadi)",
       db.query(InventoryMovement).filter(
-          InventoryMovement.supplier_id == S_ID).count() == 0
+          InventoryMovement.supplier_id == S_ID).count() == mv_bor
       and harakatlar(M_ID) >= 1,
       f"qolgan={db.query(InventoryMovement).filter(InventoryMovement.supplier_id == S_ID).count()}")
-check("F5 InventoryReceipt.supplier_id NULL qilindi (hujjat qoldi)",
+check("F5 InventoryReceipt bog'lanishi saqlandi (hujjat qoldi)",
       db.query(InventoryReceipt).filter(InventoryReceipt.id == RC_ID).first() is not None
-      and db.query(InventoryReceipt).filter(
-          InventoryReceipt.supplier_id == S_ID).count() == 0)
-check("F6 xarid tarixi qoldi, faqat bog'lanish uzildi",
-      xarid(XS) is not None and xarid(XS).supplier_id is None,
+      and db.query(InventoryReceipt).filter(InventoryReceipt.id == RC_ID).first().supplier_id == S_ID)
+check("F6 xarid tarixi qoldi, ta'minotchiga bog'langan",
+      xarid(XS) is not None and xarid(XS).supplier_id == S_ID,
       f"{(xarid(XS).supplier_id if xarid(XS) else 'yozuv yo_q')}")
 check("F7 ombor qoldig'i o'chirishdan o'zgarmadi (5)", yaqin(qoldiq(M_ID), 5.0),
       f"qoldiq={qoldiq(M_ID)}")
@@ -613,12 +616,14 @@ check("F14 to'lovli + harakatli ta'minotchi force bilan o'chdi → 200",
       r.status_code == 200, f"{r.status_code} {r.text[:200]}")
 db.rollback()
 db.expire_all()
-check("F15 to'lov yozuvlari o'chdi, harakat NULL qilindi (FK buzilmadi)",
+# kech144 (zip 180, MOSLANDI — egasi QARORI «Yashirilsin»): to'lovlar va harakatlar SAQLANADI (Kassa o'zgarmaydi), ta'minotchi yashirin
+check("F15 to'lov yozuvlari va harakat bog'lanishi SAQLANDI (Kassa o'zgarmaydi), ta'minotchi yashirin",
       db.query(SupplierPayment).filter(
-          SupplierPayment.supplier_id == S2_ID).count() == 0
+          SupplierPayment.supplier_id == S2_ID).count() == tolov_soni
       and db.query(InventoryMovement).filter(
-          InventoryMovement.supplier_id == S2_ID).count() == 0
-      and db.query(Supplier).filter(Supplier.id == S2_ID).first() is None)
+          InventoryMovement.supplier_id == S2_ID).count() == mv_b
+      and db.query(Supplier).filter(Supplier.id == S2_ID).first() is not None
+      and db.query(Supplier).filter(Supplier.id == S2_ID).first().is_active is False)
 
 # Toza (xaridsiz) ta'minotchi — avvalgidek ishlaydi
 r = req("delete", f"/api/suppliers/{S4_ID}")
@@ -697,8 +702,12 @@ check("H1 suppliers.html: \"TA'SIR QILMAYDI\" yolg'on ogohlantirishi YO'Q",
       "TA'SIR QILMAYDI" not in SUPP)
 check("H2 suppliers.html: \"qo'lda tuzating\" maslahati YO'Q",
       "qo'lda tuzating" not in SUPP)
-check("H3 suppliers.html: `serverSababi` yordamchisi bor va 5 joyda ishlatiladi",
-      "async function serverSababi(" in SUPP and SUPP.count("serverSababi(res)") >= 5,
+# kech144 (zip 180, MOSLANDI — audit A4): `saveSupplier` endi `amalYubor` (`X-Amal-Kaliti`; sabab — `amalSababi`, «n.xato») — qolgan
+# 4 tugma `serverSababi(res)`
+_SS180 = SUPP[SUPP.find("async function saveSupplier("):][:3200]
+check("H3 suppliers.html: `serverSababi` yordamchisi bor, 4 joyda ishlatiladi, `saveSupplier` — `amalYubor` (sabab bilan)",
+      "async function serverSababi(" in SUPP and SUPP.count("serverSababi(res)") >= 4
+      and "async function saveSupplier(" in SUPP and "amalYubor(" in _SS180 and "n.xato" in _SS180,
       f"soni={SUPP.count('serverSababi(res)')}")
 check("H4 suppliers.html: qotib qolgan \"Xato\" matni YO'Q (server sababi ko'rsatiladi)",
       "showMsg('❌ Xato', 'error')" not in SUPP)

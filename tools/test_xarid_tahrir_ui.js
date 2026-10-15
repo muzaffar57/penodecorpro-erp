@@ -107,6 +107,21 @@ function muhitYarat(javob, promptlar, tasdiq) {
   return { ctx, sorovlar, xabarlar, tasdiqMatnlari, chaqiruvlar };
 }
 
+// kech144 (zip 180): base.html dan funksiya ajratib olish (`olib` bilan bir xil qoida)
+const BASE180 = fs.readFileSync(path.join(path.dirname(__dirname), 'templates', 'base.html'), 'utf8');
+function olibBase180(nom) {
+  const re = new RegExp('(async\\s+)?function\\s+' + nom + '\\s*\\(');
+  const m = re.exec(BASE180);
+  if (!m) return null;
+  let d = 0;
+  const j = BASE180.indexOf('{', m.index + m[0].length);
+  for (let k = j; k >= 0 && k < BASE180.length; k++) {
+    if (BASE180[k] === '{') d++;
+    else if (BASE180[k] === '}') { d--; if (d === 0) return BASE180.slice(m.index, k + 1); }
+  }
+  return null;
+}
+
 /** `editPurchase(id, qty, price, isCredit)` ni ishga tushiradi. */
 async function tahrirla(javob, promptlar, tasdiq = true,
                         args = '55, 3, 1000, false') {
@@ -119,6 +134,12 @@ async function tahrirla(javob, promptlar, tasdiq = true,
   try {
     vm.runInContext('const inFlightPurchaseEdit = new Set();', m.ctx);
     vm.runInContext(yordamchi, m.ctx);
+    // kech144 (zip 180, MOSLANDI): base.html `amalSababi` (tarmoq / 5xx sababi; sahifada doim bor)
+    for (const nom of ['xatoSababi', 'yukSessiyaKor', 'amalSababi']) {
+      const y = olibBase180(nom);
+      if (!y) return { xato: 'base.html: ' + nom + ' topilmadi' };
+      vm.runInContext(y, m.ctx);
+    }
     // 118-band (kech94): editPurchase sahifaning YAGONA son / narx o'qish
     // yordamchilarini ishlatadi (parseNum, narxniOqi, narxKorinishi) — ular ham
     // HTML dan o'qiladi (asl faylda faqat parseNum bor — zarari yo'q).
@@ -257,8 +278,9 @@ async function main() {
           !r.xato && /Xarid topilmadi/.test(r.m.xabarlar[0].t),
           JSON.stringify(r.m && r.m.xabarlar));
   r = await tahrirla(j500jsonemas, ['10', '1000']);
-  tekshir('D5 JSON emas → umumiy "Xato" (qulamaydi)',
-          !r.xato && r.m.xabarlar.length === 1 && /Xato/.test(r.m.xabarlar[0].t),
+  // kech144 (zip 180, MOSLANDI — audit D1): 5xx — «server javob bermadi — sahifani yangilab tekshiring» (ilgari «Xato»)
+  tekshir('D5 JSON emas (500) → «server javob bermadi» (qulamaydi)',
+          !r.xato && r.m.xabarlar.length === 1 && /server javob bermadi/.test(r.m.xabarlar[0].t),
           JSON.stringify(r.m && r.m.xabarlar));
   r = await tahrirla(j422royxat, ['10', '1000']);
   tekshir('D6 422 ro\'yxat → umumiy "Xato" ([object Object] EMAS)',
@@ -271,9 +293,10 @@ async function main() {
           && !/❌\s*$/.test(r.m.xabarlar[0].t),
           JSON.stringify(r.m && r.m.xabarlar));
   r = await tahrirla('otadi', ['10', '1000']);
-  tekshir('D8 tarmoq xatosi → "Server xatosi" va qulamaydi',
+  // kech144 (zip 180, MOSLANDI — audit D1): tarmoq — «Tahrir natijasi noma'lum: internet aloqasi yo'q» (ilgari «Server xatosi»)
+  tekshir("D8 tarmoq xatosi → «natijasi noma'lum: internet aloqasi yo'q» va qulamaydi",
           !r.xato && r.m.xabarlar.length === 1
-          && /Server xatosi/.test(r.m.xabarlar[0].t),
+          && /natijasi noma'lum/.test(r.m.xabarlar[0].t) && /internet aloqasi yo'q/.test(r.m.xabarlar[0].t),
           JSON.stringify(r.m && r.m.xabarlar));
 
   bolim('E. serverSababi yordamchisi — yakka');
@@ -293,8 +316,11 @@ async function main() {
   bolim('F. Statik — sahifadagi boshqa tugmalar ham sababni ko\'rsatadi');
   tekshir("F1 qotib qolgan \"❌ Xato'\" matni YO'Q",
           !SRC.includes("showMsg('❌ Xato', 'error')"));
-  tekshir('F2 serverSababi kamida 5 joyda ishlatiladi',
-          (SRC.match(/serverSababi\(res\)/g) || []).length >= 5,
+  // kech144 (zip 180, MOSLANDI — audit A4): `saveSupplier` endi `amalYubor` (`X-Amal-Kaliti`; sabab — `amalSababi`), qolgan 4 tugma
+  // — `serverSababi(res)`
+  tekshir('F2 serverSababi kamida 4 joyda + saveSupplier amalYubor (sabab bilan)',
+          (SRC.match(/serverSababi\(res\)/g) || []).length >= 4
+          && /async function saveSupplier[\s\S]{0,2400}amalYubor\([\s\S]{0,800}n\.xato/.test(SRC),
           String((SRC.match(/serverSababi\(res\)/g) || []).length));
   tekshir('F3 deleteSupplier ham serverSababi ishlatadi',
           /deleteSupplier[\s\S]{0,1600}serverSababi\(res\)/.test(SRC));
