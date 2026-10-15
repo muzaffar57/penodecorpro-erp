@@ -34,6 +34,8 @@ const vm = require('vm');
 const ROOT = path.dirname(__dirname);
 const HTML_YOLI = process.argv[2] || path.join(ROOT, 'templates', 'suppliers.html');
 const SRC = fs.readFileSync(HTML_YOLI, 'utf8');
+// kech144 (zip 180, MOSLANDI): base.html yordamchilari (`amalSababi` — tarmoq / 5xx sababi; sahifada doim bor)
+const BASE_SRC = fs.readFileSync(path.join(ROOT, 'templates', 'base.html'), 'utf8');
 
 let OK = 0, FAIL = 0;
 const FAILED = [];
@@ -46,6 +48,20 @@ function tekshir(label, shart, izoh) {
   }
 }
 function bolim(t) { console.log(`\n${'='.repeat(66)}\n${t}\n${'='.repeat(66)}`); }
+
+// kech144 (zip 180): boshqa fayldan (base.html) ajratib olish — `olib` bilan bir xil qoida
+function olibDan(src, nom) {
+  const re = new RegExp('(async\\s+)?function\\s+' + nom + '\\s*\\(');
+  const m = re.exec(src);
+  if (!m) return null;
+  let d = 0;
+  const j = src.indexOf('{', m.index + m[0].length);
+  for (let k = j; k >= 0 && k < src.length; k++) {
+    if (src[k] === '{') d++;
+    else if (src[k] === '}') { d--; if (d === 0) return src.slice(m.index, k + 1); }
+  }
+  return null;
+}
 
 // Funksiyani HTML dan nomi bo'yicha ajratib olish (`async` bilan).
 function olib(nom) {
@@ -98,6 +114,11 @@ async function ishlat(javob, tasdiq = true) {
   if (!yordamchi) return { xato: 'serverSababi topilmadi' };
   try {
     vm.runInContext(yordamchi, m.ctx);
+    for (const nom of ['xatoSababi', 'yukSessiyaKor', 'amalSababi']) {
+      const y = olibDan(BASE_SRC, nom);
+      if (!y) return { xato: 'base.html: ' + nom + ' topilmadi' };
+      vm.runInContext(y, m.ctx);
+    }
     vm.runInContext(f, m.ctx);
   } catch (e) { return { xato: 'sintaksis: ' + e.message }; }
   try { await vm.runInContext('deletePurchase(55)', m.ctx); }
@@ -148,10 +169,12 @@ async function main() {
   const holatlar = [
     ['D1 404 matn sababi', j404matn, '❌ Xarid topilmadi'],
     ['D2 400 detail.message', j400obyekt, '❌ Obyekt sababi'],
-    ['D3 500 JSON emas → umumiy', j500jsonemas, '❌ Xato'],
+    // kech144 (zip 180, MOSLANDI — audit D1): 5xx — natija noma'lum bo'lishi mumkin, tekshirish so'raladi (ilgari «❌ Xato»)
+    ['D3 500 JSON emas → «server javob bermadi»', j500jsonemas, '❌ server javob bermadi — sahifani yangilab tekshiring'],
     ['D4 422 ro\'yxat → umumiy', j422royxat, '❌ Xato'],
     ['D5 bo\'sh detail → umumiy', j400bosh, '❌ Xato'],
-    ['D6 tarmoq xatosi', 'otadi', '❌ Server xatosi'],
+    // kech144 (zip 180, MOSLANDI — audit D1): tarmoq — «natijasi noma'lum» (ilgari «❌ Server xatosi» — server xatosi emas)
+    ['D6 tarmoq xatosi', 'otadi', "⚠️ O'chirish natijasi noma'lum: internet aloqasi yo'q — sahifani yangilab tekshiring"],
   ];
   for (const [nom, jv, kutil] of holatlar) {
     r = await ishlat(jv);

@@ -404,7 +404,8 @@ check("S1 api_purchase_stock: boshlang'ich ombor → ta'minotchisiz → ta'minot
 check("S2 api_purchase_stock: tanadagi is_credit ishlatilmaydi", "data.is_credit" not in _ap, "")
 _up = manba(crud, "update_purchase")
 check("S3 update_purchase: nasiya to'sig'i yozuvdan OLDIN (ta'minotchisiz yoki boshlang'ich)",
-      tartibda(_up, "p = _purchase_of_company(", "if toza.get(\"is_credit\") is True and (not p.supplier_id or p.is_opening_stock):",
+      # kech144 (zip 180, MOSLANDI — audit B2): xarid QULF ostida o'qiladi (`_purchase_qulf`; ilgari `_purchase_of_company`)
+      tartibda(_up, "p = _purchase_qulf(", "if toza.get(\"is_credit\") is True and (not p.supplier_id or p.is_opening_stock):",
                "raise ValueError(", "eski_qty = float(p.quantity or 0)", "p.is_credit = toza[\"is_credit\"]"), "")
 
 print("\n" + "=" * 66)

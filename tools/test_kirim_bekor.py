@@ -476,7 +476,8 @@ _c = fayl("crud.py")
 check("J1 xarid yozuvida `narx_oldin` / `narx_keyin` (yaratishda)",
       tartibda(_c, "def _purchase_stock_no_commit(", "narx_oldin=round(old_price, 2)", "narx_keyin=round(float(db_item.price_per_unit or 0), 2)"), "")
 _i = _c.find("def delete_purchase(")
-check("J2 `delete_purchase` narxni `_xarid_narxini_qaytar` bilan", "_xarid_narxini_qaytar(inv.price_per_unit, p)" in _c[_i:_i + 4000], "")
+# kech146 (zip 180, review 1, MOSLANDI): funksiya TANASI ichida (ilgari boshidan 4 000 belgi — qulf tartibi qatorlari qo'shildi)
+check("J2 `delete_purchase` narxni `_xarid_narxini_qaytar` bilan", _i >= 0 and "_xarid_narxini_qaytar(inv.price_per_unit, p)" in _c[_i:_c.find("\ndef ", _i + 10)], "")
 _i = _c.find("def kirim_hujjatini_bekor_qilish(")
 _fn = _c[_i:_c.find("\ndef ", _i + 10)] if _i >= 0 else ""
 check("J3 bekor qilish: tanlov tekshiruvi HECH NARSA o'zgartirilishidan OLDIN, oxirgi qatordan boshlab",

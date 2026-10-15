@@ -715,7 +715,9 @@ for x in _A_FAOL[:12]:
     k = kutilgan(x.id)
     for cid in (1, None):
         g = crud.get_supplier_debt(_s, x.id, company_id=cid)
-        if g != {kk: k[kk] for kk in ("total_credit", "total_paid", "debt", "purchase_count")}:
+        # kech144 (zip 180, audit B7): javobda `total_purchases` / `paid_cash` ham bor — qarz qoidasi 4 kalitda
+        if {kk: g.get(kk) for kk in ("total_credit", "total_paid", "debt", "purchase_count")} != \
+                {kk: k[kk] for kk in ("total_credit", "total_paid", "debt", "purchase_count")}:
             _yomon.append((x.name, cid, g))
     h = js(req(CA, "get", f"/api/suppliers/{x.id}/history")) or {}
     if {kk: h.get(kk) for kk in ("total_credit", "total_paid", "debt", "purchase_count")} != \
@@ -724,7 +726,10 @@ for x in _A_FAOL[:12]:
 g2 = crud.get_supplier_debt(_s, ID["S_ORD"], company_id=2)
 _s.close()
 check("B13 get_supplier_debt (korxona bilan / korxonasiz) va tarix sahifasi — ro'yxat bilan bir qoida", not _yomon, _yomon[:3])
-check("B14 get_supplier_debt begona korxona bilan — nol", g2 == {"total_credit": 0, "total_paid": 0, "debt": 0, "purchase_count": 0}, g2)
+check("B14 get_supplier_debt begona korxona bilan — nol",
+      {kk: g2.get(kk) for kk in ("total_credit", "total_paid", "debt", "purchase_count")}
+      == {"total_credit": 0, "total_paid": 0, "debt": 0, "purchase_count": 0}
+      and all(not v for v in g2.values()), g2)
 
 
 def kutilgan_muddat(cid):
@@ -753,13 +758,15 @@ def kutilgan_muddat(cid):
         s.close()
 
 
-_due = js(req(CA, "get", "/api/suppliers/due-dates")) or []
-_kdue = kutilgan_muddat(1)
-check(f"B15 to'lov muddatlari (A) mustaqil hisob bilan AYNAN ({len(_kdue)} ta)", _due == _kdue and _kdue,
+# kech146 (zip 180, review 1 — №7, MOSLANDI): yashirilgan (nofaol) ta'minotchi muddatlarda endi YO'Q (`test_taminot180.py` X5) —
+# B15 / B16 uni (QN1 INACT) solishtirishdan chiqaradi, qolgani AYNAN (asl va yangi kodda)
+_due = [x for x in (js(req(CA, "get", "/api/suppliers/due-dates")) or []) if x.get("supplier_name") != "QN1 INACT"]
+_kdue = [x for x in kutilgan_muddat(1) if x.get("supplier_name") != "QN1 INACT"]
+check(f"B15 to'lov muddatlari (A) mustaqil hisob bilan AYNAN ({len(_kdue)} ta; nofaol — `test_taminot180.py` X5)", _due == _kdue and _kdue,
       (_due[:3], _kdue[:3]))
 _dn = {x["supplier_name"] for x in _due}
-check("B16 muddatlar: DUE2 (to'langan), DUE3 (qoldiq 0.40) YO'Q; DUE4 (0.60 → 1), DUE1 (o'tgan), DUE5, nofaol INACT BOR",
-      "QN1 DUE2" not in _dn and "QN1 DUE3" not in _dn and {"QN1 DUE1", "QN1 DUE4", "QN1 DUE5", "QN1 INACT"} <= _dn
+check("B16 muddatlar: DUE2 (to'langan), DUE3 (qoldiq 0.40) YO'Q; DUE4 (0.60 → 1), DUE1 (o'tgan), DUE5 BOR",
+      "QN1 DUE2" not in _dn and "QN1 DUE3" not in _dn and {"QN1 DUE1", "QN1 DUE4", "QN1 DUE5"} <= _dn
       and next((x["debt"] for x in _due if x["supplier_name"] == "QN1 DUE4"), None) == 1, sorted(_dn))
 _dueb = js(req(CB, "get", "/api/suppliers/due-dates")) or []
 check("B17 muddatlar (B) — faqat B ta'minotchisi", [x["supplier_name"] for x in _dueb] == ["QN1 DUEB"] and _dueb == kutilgan_muddat(2),

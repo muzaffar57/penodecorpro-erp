@@ -125,7 +125,11 @@ for (const nom of ['apToggleNewItem', 'apYangiPenoplastmi', 'apNewItemCategoryCh
                    'apOnItemChange', 'apAddToBasket', 'saveAddPurchase']) {
   F[nom] = olib(SUP, nom);
 }
-const KOD = Object.values(F).filter(Boolean).join('\n');
+// kech144 (zip 180, MOSLANDI): `saveAddPurchase` har qatorni `amalYubor` bilan yuboradi (`X-Amal-Kaliti`, audit A2) — base.html amal
+// yordamchilari ham yuklanadi (sahifada doim bor)
+const AMAL180 = ['xatoSababi', 'yukSessiyaKor', 'amalSababi', 'amalKalitiYangi', 'amalKaliti', 'amalKalitiTashla', 'amalYubor']
+  .map(n => olib(BASE, n)).filter(Boolean).join('\n');
+const KOD = Object.values(F).filter(Boolean).join('\n') + '\n' + AMAL180;
 
 function supElementlar(o) {
   const e = {
@@ -154,8 +158,9 @@ function supMuhit(o) {
   let keyingiId = 500;
   const m = muhit({
     elementlar: e,
+    // kech144 (zip 180, MOSLANDI): `openHistory.yuklandi` — tarixi yuklangan ta'minotchi (audit C1: boshqasiga xarid yozilmaydi)
     globallar: { apCreatingNewItem: !!o.yangi, invItems: (o.invItems || []).slice(), apBasket: (o.savat || []).slice(),
-                 currentSupplierId: 7 },
+                 currentSupplierId: 7, openHistory: Object.assign(() => {}, { yuklandi: 7 }) },
     javobFn: async (url, opts, tana) => {
       if (url === '/api/inventory' && opts && opts.method === 'POST') {
         const id = ++keyingiId;
