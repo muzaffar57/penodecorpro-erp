@@ -256,8 +256,8 @@ def core_detal(iid, **qiymat):
 KIRDI = [0.0]
 
 
-def ishlab(uzunlik):
-    r = req(C, "post", "/api/finished/produce", json={"name": "TD TM profil", "category": "profil", "width": 20,
+def ishlab(uzunlik, nom="TD TM profil"):
+    r = req(C, "post", "/api/finished/produce", json={"name": nom, "category": "profil", "width": 20,
                                                        "thickness": 10, "length": uzunlik, "is_coated": True,
                                                        "penoplast_id": ID["PENO"], "unit_price": 0,
                                                        "loy_kg": uzunlik / 2, "recipe_id": ID["R1"]})
@@ -726,7 +726,8 @@ check("L9 balans — NULL davridagi (avvalgi qoida) siljish AYNAN shu ikki detal
 section("V. Manfiy qoldiq (ortiqcha sotilgan TM) — qaytgan qism o'rtachasi faqat o'zidan")
 # ══════════════════════════════════════════════════════════════
 narx(1)
-TV = ishlab(5)
+# kech145 (zip 182, MOSLANDI): alohida mahsulot — «TD TM profil» guruhdoshlari minusni o'zi yopardi (egasi qarori «Avtomatik yopilsin»)
+TV = ishlab(5, nom="TD V profil")
 Yv = tm(TV)[2]
 s, OV, IV, _, _ = buyurtma(TV, 8)
 check("V0 5 m li TM dan 8 m (tasdiq bilan) — qoldiq −3, detal birligi = o'rtacha", s == 200 and tm(TV)[0] == -3.0

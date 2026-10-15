@@ -300,7 +300,7 @@ def _kuzatuvchi(conn, cursor, statement, parameters, context, executemany):
     if getattr(_tl, "kuzat", False) and "FROM finished_products" in st and "finished_products.id =" in st:
         _KUZAT.append((st, _birinchi_param(parameters)))
     if (getattr(_tl, "qulf_sekin", False) and not getattr(_tl, "qulf_bir", False)
-            and "FOR UPDATE" in st and "finished_products" in st):
+            and ("FOR UPDATE" in st or "FOR NO KEY UPDATE" in st) and "finished_products" in st):
         _tl.qulf_bir = True
         time.sleep(0.4)
 
@@ -314,9 +314,10 @@ event.listen(engine, "after_cursor_execute", _kuzatuvchi)
 def bolim_statik():
     section("1. Statik: _fp_qulf va uning chaqiruv joylari, 6-qadam commit=False")
     q = kod(manba(crud, "_fp_qulf"))
-    check("_fp_qulf: korxona yo'q → chiqish → sorted → flush → korxona filtri → populate_existing → FOR UPDATE",
+    # kech145 (zip 182, MOSLANDI): FOR NO KEY UPDATE (`key_share=True`) — detal yozuvining tashqi kalit qulfi bilan to'qnashmaydi
+    check("_fp_qulf: korxona yo'q → chiqish → sorted → flush → korxona filtri → populate_existing → FOR NO KEY UPDATE",
           tartibda(q, "if company_id is None:", "sorted(", "db.flush()", "FinishedProduct.company_id == company_id",
-                   ".populate_existing()", ".with_for_update()"), q[:200])
+                   ".populate_existing()", ".with_for_update(key_share=True)"), q[:200])
     t = kod(manba(crud, "_take_finished_for_order"))
     check("_take_finished_for_order: _fp_qulf TM o'qilishidan (_fp_for_tenant) OLDIN",
           tartibda(t, "_fp_qulf(db, ", "for it in order.items:", "fp = _fp_for_tenant(db, fpid, cid)"))
@@ -417,7 +418,7 @@ def bolim_birlik():
         ids = [p for _, p in _KUZAT]
         check("id lar TARTIBDA, takror / bo'sh id siz: [A, B]", ids == [A, B], f"{ids} A={A} B={B}")
         if PG_URL:
-            check("PG: har so'rov FOR UPDATE", bool(_KUZAT) and all("FOR UPDATE" in st for st, _ in _KUZAT),
+            check("PG: har so'rov FOR UPDATE", bool(_KUZAT) and all(("FOR UPDATE" in st or "FOR NO KEY UPDATE" in st) for st, _ in _KUZAT),
                   str([st[-60:] for st, _ in _KUZAT]))
     finally:
         s.rollback()

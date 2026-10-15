@@ -702,8 +702,9 @@ check("S1 sell_finished_product: tekshiruv `_fp_bosh_qoldiq(fp)` bilan (qulfdan 
                "if data.quantity > _fp_bosh_qoldiq(fp) + 0.001:"))
 _mg = manba(crud.get_finished_product)
 _mg = _mg.split('"""')[-1] if _mg.count('"""') >= 2 else _mg
-check("S1b get_finished_product(lock=True): flush, so'ng populate_existing + FOR UPDATE",
-      tartibda(_mg, "if lock:", "db.flush()", "populate_existing().with_for_update()"))
+# kech145 (zip 182, MOSLANDI): FOR NO KEY UPDATE (`key_share=True`) — tashqi kalit KEY SHARE bilan to'qnashmaydi
+check("S1b get_finished_product(lock=True): flush, so'ng populate_existing + FOR NO KEY UPDATE",
+      tartibda(_mg, "if lock:", "db.flush()", "populate_existing().with_for_update(key_share=True)"))
 _mb = manba(crud.sell_finished_products_batch)
 check("S2 sell_finished_products_batch: `_fp_bosh_qoldiq` va eski yozuv tannarxi JAMI qoldiqqa bo'linadi",
       "available = _fp_bosh_qoldiq(fp)" in _mb and "unit_cost = float(fp.cost_price or 0) / _jami_qoldiq142" in _mb)
@@ -721,7 +722,8 @@ check("S6 /reduce marshruti: ruxsat «brak / yaratish», sabab majburiy, bitta t
       'auth.ruxsat("brak", "yaratish")' in _mx and "BRAK_SABABI_XATO" in _mx and "bitta_tranzaksiya" in _mx)
 _md = manba(crud.delete_finished_product_loss)
 check("S7 delete_finished_product_loss: buyurtma detali qatori TM dan OLDIN qulflanadi (detal → TM)",
-      tartibda(_md, "OrderItem", "with_for_update()", "FinishedProduct.id == loss.finished_product_id", "with_for_update()"))
+      tartibda(_md, "OrderItem", "with_for_update()", "FinishedProduct.id == loss.finished_product_id",
+               "with_for_update(key_share=True)"))      # kech145 (zip 182, MOSLANDI): TM — FOR NO KEY UPDATE
 
 section("X — umumiy")
 check("X1 butun yurishda 5xx javob yo'q", not SERVER_500, SERVER_500[:5])
