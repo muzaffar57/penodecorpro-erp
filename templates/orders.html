@@ -6447,6 +6447,9 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
               // mumkin edi.
               const used = (item.category === 'profil') ? (item.length||0) : (item.quantity||0);
               row.dataset.fpMax = (isDup || isTaklif) ? fp.quantity : (fp.quantity + used);   // kech126: taklifda ham ombor tegilmagan
+              // kech145 (zip 182, N5 — agent hisoboti 3): qoldiq minusda (buyurtmalarga qarz) — limit minusdan hisoblanmaydi: tahrirda o'z
+              // ulushi (ilgari −5 + 15 = 10 — o'zgarmagan 15 m qizil bo'lardi), nusxa / taklifda 0; ko'pi — server «davom etasizmi?» so'raydi
+              if (fp.quantity < -1e-6) row.dataset.fpMax = (isDup || isTaklif) ? 0 : used;
               // 75-band: 'edit' rejimida narx SAQLANGAN narxda qoladi (yuqorida
               // o'rnatildi) — bu fetch faqat qoldiq (fpMax) uchun. 'duplicate'
               // (nusxa — YANGI sotuv) rejimida esa tayyor mahsulotning JORIY narxi,
@@ -6467,7 +6470,10 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
                 }
               }
               const tg = document.getElementById('fptag-' + row.id);
-              if (tg) tg.firstChild.textContent = `🏭 Tayyor mahsulotdan · ${fp.quantity} ${fpUnitLabel(fp.unit)} bor `;
+              // kech145 (zip 182, N5): minusda — «minusda N — ishlab chiqarish kerak» (ilgari «-5 m bor»)
+              if (tg) tg.firstChild.textContent = fp.quantity < -1e-6
+                ? `🏭 Tayyor mahsulotdan · minusda ${-fp.quantity} ${fpUnitLabel(fp.unit)} — ishlab chiqarish kerak `
+                : `🏭 Tayyor mahsulotdan · ${fp.quantity} ${fpUnitLabel(fp.unit)} bor `;
               // fpMax va fpPrice o'rnatildi — narx/tekshiruvni qayta hisoblaymiz
               calculateItem(row);
               checkFpLimit(row);

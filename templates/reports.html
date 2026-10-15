@@ -1210,7 +1210,8 @@ async function loadProductsReport(joriy) {
   setTable([
     ["Nomi", i => escapeHtml(i.name)],
     ["Manba", i => i.source === 'produced' ? 'Ishlab chiqarilgan' : 'Qaytgan'],
-    ["Qoldiq", i => `${i.quantity} ${escapeHtml(i.unit)}`],
+    // kech145 (zip 182, N5): minusdagi qoldiq — belgisi bilan (buyurtmalarga qarz); qiymati server bo'yicha 0 (ilgari «-100 000 so'm»)
+    ["Qoldiq", i => `${i.quantity} ${escapeHtml(i.unit)}${(Number(i.quantity) || 0) < -1e-6 ? ' (minusda — ishlab chiqarish kerak)' : ''}`],
     ["Sotuv narxi", i => fmt(i.unit_price) + " so'm"],
     ["Jami qiymat", i => fmt(i.total_value) + " so'm"],
   ], items);
