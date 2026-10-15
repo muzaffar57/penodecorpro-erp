@@ -119,6 +119,12 @@ html[data-theme="dark"] .rcv-quickpay button{background:var(--f-eceae6);color:va
 {% endblock %}
 
 {% block content %}
+{# kech144 (zip 180, audit C3): ruxsat yo'q amallar ko'rinmaydi — `!important` (element DOM da qoladi). Server baribir tekshiradi. #}
+<style id="ruxsatYashir">
+{% if not current_user.ruxsat('taminotchi', 'yaratish') %}[onclick^="openNewSupplier("] { display: none !important; }{% endif %}
+{% if not current_user.ruxsat('taminotchi_tolov', 'yaratish') %}.rcv-quickpay { display: none !important; }{% endif %}
+{% if not current_user.ruxsat('material', 'yaratish') %}[onclick^="apToggleNewItem("] { display: none !important; }{% endif %}
+</style>
 <div class="rcv-wrap">
   <div class="rcv-grid">
 
@@ -568,10 +574,20 @@ let prodTypeChosen = false; // Yo'nalish («Umumiy» yoki korxona yo'nalishi —
 
 // ── QORALAMA (localStorage) — sahifadan tasodifan chiqib qolsa,
 // kiritilgan mahsulotlar/qiymatlar yo'qolmasin, qayta kirganda tiklansin ──
-const RCV_DRAFT_KEY = 'pdp_receive_draft_v1';
+// kech144 (zip 180, audit C4): kalit — korxona va foydalanuvchi bo'yicha (bir kompyuterda boshqa korxona / xodim materiallari va narxlari
+// ko'rinmaydi; ilgari umumiy `pdp_receive_draft_v1`)
+const RCV_DRAFT_KEY = 'pdp_receive_draft_v1_{{ current_user.company_id or 0 }}_{{ current_user.id }}';
+// kech144 (zip 180, audit C2): «Ta'minotchilar: Ko'rish» ruxsati (ta'minotchi tarixi va xarid qilingan materiallar so'rovlari)
+const TAMINOTCHI_KORISH = {{ 'true' if current_user.ruxsat('taminotchi', 'korish') else 'false' }};
 
 function saveDraft(){
   try {
+    // kech144 (zip 180, audit C4): savat bo'sh — boshqa ta'minotchining saqlangan qoralamasi ustidan yozilmaydi
+    if (!apBasket.length) {
+      let eski = null;
+      try { eski = JSON.parse(localStorage.getItem(RCV_DRAFT_KEY) || 'null'); } catch (e) { eski = null; }
+      if (eski && eski.basket && eski.basket.length && eski.supplierId && String(eski.supplierId) !== String(currentSupplierId)) return;
+    }
     const draft = {
       supplierId: currentSupplierId,
       docNum: document.getElementById('r-docnum')?.value || '',
@@ -596,9 +612,35 @@ function clearDraft(){
 }
 
 function restoreDraft(){
+  // kech146 (zip 180, review 1 — NOMZOD): eski UMUMIY kalitdagi (`pdp_receive_draft_v1`, zip 180 gacha) qoralama — yangi (korxona +
+  // foydalanuvchi) kalitda qoralama yo'q va uning ta'minotchisi SHU korxona ro'yxatida bo'lsa yangi kalitga ko'chiriladi; eski kalit har
+  // holda o'chiriladi (ilgari qoralama yo'qolardi, narxli umumiy yozuv esa brauzerda qolardi). Boshqa korxonaniki — ko'chirilmaydi.
+  try {
+    const _eskiKalit = 'pdp_receive_draft_v1';
+    const _eskiMatn = localStorage.getItem(_eskiKalit);
+    if (_eskiMatn !== null && RCV_DRAFT_KEY !== _eskiKalit) {
+      let _yangi = null, _eski = null;
+      try { _yangi = JSON.parse(localStorage.getItem(RCV_DRAFT_KEY) || 'null'); } catch (e) { _yangi = null; }
+      try { _eski = JSON.parse(_eskiMatn); } catch (e) { _eski = null; }
+      const _sel = document.getElementById('r-supplier');
+      const _bizniki = !!(_eski && _eski.supplierId && _sel && [..._sel.options].some(o => o.value && String(o.value) === String(_eski.supplierId)));
+      if (!(_yangi && _yangi.basket && _yangi.basket.length) && _eski && _eski.basket && _eski.basket.length && _bizniki) {
+        localStorage.setItem(RCV_DRAFT_KEY, _eskiMatn);
+      }
+      localStorage.removeItem(_eskiKalit);
+    }
+  } catch (e) { /* localStorage yo'q — qoralamasiz */ }
   let draft;
   try { draft = JSON.parse(localStorage.getItem(RCV_DRAFT_KEY) || 'null'); } catch(e) { draft = null; }
   if (!draft || !draft.basket || !draft.basket.length) return;
+  // kech144 (zip 180, audit C4): URL dagi ta'minotchi qoralamadagidan boshqa — savat unga ko'chirilmaydi (qoralama saqlanib turadi)
+  const _urlSid = new URLSearchParams(window.location.search).get('supplier_id');
+  if (_urlSid && draft.supplierId && String(_urlSid) !== String(draft.supplierId)) {
+    showMsg("ℹ️ Boshqa ta'minotchi uchun tugallanmagan kirim saqlangan (" + draft.basket.length
+      + " ta material) — bu ta'minotchiga ko'chirilmadi. Uni davom ettirish uchun «Ta'minotchidan kirim» sahifasini ta'minotchi"
+      + " tanlamasdan oching (bu yerda material qo'shilsa — o'sha qoralama o'rniga yoziladi)", 'info');
+    return;
+  }
 
   if (draft.supplierId) {
     const sel = document.getElementById('r-supplier');
@@ -636,17 +678,35 @@ async function onSupplierChange(){
   applySupplierMaterialFilter(currentSupplierId);
 }
 
+// kech144 (zip 180, audit C2): `yukBlok('kirim_tarix')` — xatoda statistika «—» va sabab jadvalda (ilgari 401 / 403 / 404 da «0 so'm» va
+// oldingi ta'minotchi qatorlari, 502 da — oldingi ta'minotchi raqamlari); A→B tez almashtirilsa A ning kech javobi B ni bosmaydi
 async function loadHistoryForSupplier(page){
   if (!currentSupplierId) { showMsg("Avval ta'minotchini tanlang"); return; }
+  const tbody0 = document.getElementById('rcv-history-body');
+  if (typeof TAMINOTCHI_KORISH !== 'undefined' && !TAMINOTCHI_KORISH) {
+    ['sup-credit', 'sup-paid', 'sup-debt'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '—'; });
+    if (tbody0) tbody0.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--r-text3)">${escapeHtml(
+      "Ta'minotchi tarixi va qarzi — «Ta'minotchilar: Ko'rish» ruxsati bilan ko'rinadi")}</td></tr>`;
+    return;
+  }
   const from = document.getElementById('hist-from').value;
   const to = document.getElementById('hist-to').value;
   let url = `/api/suppliers/${currentSupplierId}/history?page=${page||1}&page_size=8`;
-  if (from) url += `&start_date=${from}`;
-  if (to) url += `&end_date=${to}`;
-  const d = await fetch(url).then(r=>r.json());
-
-  document.getElementById('sup-credit').textContent = fmt(d.total_credit)+" so'm";
-  document.getElementById('sup-paid').textContent = fmt(d.total_paid)+" so'm";
+  if (from) url += `&start_date=${encodeURIComponent(from)}`;
+  if (to) url += `&end_date=${encodeURIComponent(to)}`;
+  ['sup-credit', 'sup-paid', 'sup-debt'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '…'; });
+  await yukBlok('kirim_tarix', url, d => loadHistoryForSupplier.chiz(d), e => {
+    ['sup-credit', 'sup-paid', 'sup-debt'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '—'; });
+    if (tbody0) tbody0.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--r-danger)">${escapeHtml(
+      yukXatoMatn("Ta'minotchi tarixi", e))}</td></tr>`;
+    const pag0 = document.getElementById('rcv-history-pagination'); if (pag0) pag0.innerHTML = '';
+  });
+}
+loadHistoryForSupplier.chiz = function (d) {
+  // kech144 (zip 180, audit B7): «Jami xarid» — hamma xarid (naqd ham; ilgari faqat nasiya); «To'langan» — to'lovlar + naqd xaridlar
+  // (Jami xarid − To'langan = Qarz)
+  document.getElementById('sup-credit').textContent = fmt(d.total_purchases != null ? d.total_purchases : d.total_credit)+" so'm";
+  document.getElementById('sup-paid').textContent = fmt((Number(d.total_paid) || 0) + (Number(d.paid_cash) || 0))+" so'm";
   document.getElementById('sup-debt').textContent = fmt(d.debt)+" so'm";
 
   const tbody = document.getElementById('rcv-history-body');
@@ -659,9 +719,11 @@ async function loadHistoryForSupplier(page){
       const zebraBg = idx % 2 === 0 ? 'transparent' : 'var(--r-bg)';
       // kech120 (zip 132 — G4-16): kirim hujjati qatori — hujjat bilan to'langan holati; hujjatsiz eski xarid — `is_credit`
       const holat = p.kirimda_tolangan || (p.is_credit ? 'nasiya' : 'tolangan');
-      const holatMatn = {tolangan: "To'langan", qisman: 'Qisman', nasiya: 'Nasiya'}[holat] || '—';
-      const holatRang = holat === 'tolangan' ? 'var(--m-15803d)' : 'var(--m-b45309)';
-      const holatIzoh = p.receipt_id ? `Kirim #${p.receipt_id} — kirim paytida ${holat === 'tolangan' ? "to'liq to'langan" : (holat === 'qisman' ? "qisman to'langan" : "to'lanmagan")}` : '';
+      // kech144 (zip 180, audit B8): boshlang'ich (mavjud) ombor qatori — «Boshlang'ich» (ilgari «Nasiya»)
+      const holatMatn = {tolangan: "To'langan", qisman: 'Qisman', nasiya: 'Nasiya', boshlangich: "Boshlang'ich"}[holat] || '—';
+      const holatRang = holat === 'tolangan' ? 'var(--m-15803d)' : (holat === 'boshlangich' ? 'var(--r-text3)' : 'var(--m-b45309)');
+      const holatIzoh = holat === 'boshlangich' ? "Boshlang'ich (mavjud) ombor — ta'minotchiga qarz emas"
+        : (p.receipt_id ? `Kirim #${p.receipt_id} — kirim paytida ${holat === 'tolangan' ? "to'liq to'langan" : (holat === 'qisman' ? "qisman to'langan" : "to'lanmagan")}` : '');
       return `<tr style="background:${zebraBg}">
         <td style="font-weight:600;color:var(--r-text)">${tkSana(p.purchased_at)}</td>
         <td style="font-weight:600;color:var(--r-text)">${escapeHtml(p.item_name)}${p.receipt_id ? ` <span style="color:var(--r-text3);font-size:12px;font-weight:500">· Kirim #${p.receipt_id}</span>` : ''}</td>
@@ -681,7 +743,7 @@ async function loadHistoryForSupplier(page){
       <span style="font-size:12px;color:var(--r-text3);padding:0 8px;line-height:30px">${pg.page} / ${pg.total_pages}</span>
       <button class="rcv-icon-btn" ${pg.page>=pg.total_pages?'disabled':''} onclick="loadHistoryForSupplier(${pg.page+1})">›</button>`;
   }
-}
+};
 
 let isSavingSupplierQuickPay = false;
 async function quickPaySupplier(confirmOverpay = false){
@@ -700,22 +762,25 @@ async function quickPaySupplier(confirmOverpay = false){
     if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = '...'; }
   }
 
+  // kech144 (zip 180, audit A3 / D1): `X-Amal-Kaliti` (javobi yo'qolgan to'lovni qayta yuborish ikkinchi to'lov yozmaydi), natija noma'lum
+  // — tekshirish so'raladi (ilgari internet uzilsa — jim, 502 — «Xato yuz berdi»), rad — server sababi
   try {
-    const res = await fetch(`/api/suppliers/${currentSupplierId}/payment`, {
+    const n = await amalYubor(`/api/suppliers/${currentSupplierId}/payment`, {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ supplier_id: currentSupplierId, amount, confirm_overpay: confirmOverpay })
-    });
-    if (res.ok) {
-      showMsg("✓ To'lov qabul qilindi", 'success');
+    }, 'tolov_ta_' + currentSupplierId + '_' + Math.round(amount * 100));   // kech146 (zip 180, review 1): summa bilan — boshqa summa yutilmaydi
+    if (n.ok) {
+      showMsg("✓ To'lov qabul qilindi" + amalTakrorIzoh(n.takror), 'success');
       document.getElementById('sup-quickpay-amount').value = '';
       loadHistoryForSupplier();
-    } else if (res.status === 409) {
-      const e = await res.json();
+    } else if (n.holat === 409) {
+      const e = n.javob || {};
       if (e.detail?.type === 'overpayment_warning' && await customConfirm('⚠️ ' + e.detail.message)) {
         await quickPaySupplier(true);
         return;
       }
-    } else showMsg('❌ ' + ((typeof serverXatoSababi === 'function') ? await serverXatoSababi(res, 'Xato yuz berdi') : 'Xato yuz berdi'), 'error');
+    } else if (n.nomalum) showMsg(amalNomalumMatn("To'lov", n.xato), 'error');
+    else showMsg("❌ To'lov yozilmadi: " + n.xato, 'error');
   } finally {
     isSavingSupplierQuickPay = false;
     if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
@@ -732,21 +797,32 @@ async function saveNewSupplier(){
   const btn = document.getElementById('new-supplier-save-btn');
   if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
   const phone = document.getElementById('ns-phone').value.trim();
+  // kech144 (zip 180, audit A4 / D1): `X-Amal-Kaliti` — qayta yuborish ikkinchi ta'minotchi yaratmaydi; xato — sabab (ilgari «Xato yuz
+  // berdi», internet uzilsa — jim)
+  // kech146 (zip 180, review 1 — №6): kalit o'rni — NOM bilan (bo'shliq, katta-kichik harf e'tiborsiz; natijasi noma'lum «A» dan keyin
+  // «C» — yangi kalit); javobdagi nom — serverniki (takror javobda BIRINCHI so'rovdagi ta'minotchi — ilgari ro'yxatda «C» ko'rinib, kirim
+  // «A» ga yozilardi), takror bo'lsa izoh
   try {
-    const res = await fetch('/api/suppliers', {
+    const n = await amalYubor('/api/suppliers', {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ name, phone: phone || null })
-    });
-    if (res.ok) {
-      const d = await res.json();
+    }, 'taminotchi_yangi_' + name.replace(/\s+/g, ' ').toLowerCase());
+    if (!n.ok) {
+      showMsg(n.nomalum ? amalNomalumMatn("Ta'minotchi", n.xato) : "❌ Ta'minotchi saqlanmadi: " + n.xato, 'error');
+      return;
+    }
+    {
+      const d = n.javob || {};
+      const nom = d.name ? String(d.name) : name;
       const sel = document.getElementById('r-supplier');
-      const opt = document.createElement('option');
-      opt.value = d.id; opt.textContent = name;
-      sel.appendChild(opt);
+      let opt = [...sel.options].find(o => o.value && String(o.value) === String(d.id));
+      if (!opt) { opt = document.createElement('option'); opt.value = d.id; sel.appendChild(opt); }
+      opt.textContent = nom;
       sel.value = d.id;
       document.getElementById('newSupplierModal').style.display = 'none';
       onSupplierChange();
-    } else showMsg('Xato yuz berdi', 'error');
+      if (n.takror) showMsg("✓ Ta'minotchi «" + nom + "» tanlandi" + amalTakrorIzoh(true), 'success');
+    }
   } finally {
     isSavingNewSupplier = false;
     if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
@@ -760,14 +836,16 @@ let supplierFilterActive = false;
 async function loadInvItemsForAp() {
   if (invItems.length) { renderInvDropdown(); return; }
   const sel = document.getElementById('ap-item');
+  // kech144 (zip 180, audit D1): `yukOl` — sabab (ilgari «❌ Xato (403)», internet uzilsa inglizcha «Failed to fetch»)
   try {
-    const res = await fetch('/api/inventory');
-    if (!res.ok) { sel.innerHTML = `<option value="">❌ Xato (${res.status})</option>`; return; }
-    invItems = await res.json();
+    let _r180;
+    try { _r180 = await yukOl('/api/inventory'); }
+    catch (e) { sel.innerHTML = '<option value="">' + escapeHtml(yukXatoMatn("Materiallar ro'yxati", (e && e.yukXato) ? e : yukXato('server'))) + '</option>'; return; }
+    invItems = Array.isArray(_r180) ? _r180 : [];
     if (!invItems.length) { sel.innerHTML = '<option value="">⚠️ Omborxonada hech narsa yo\'q</option>'; return; }
     renderInvDropdown();
     apOnItemChange();
-  } catch(e) { sel.innerHTML = `<option value="">❌ ${escapeHtml(e.message)}</option>`; }
+  } catch(e) { console.error(e); sel.innerHTML = '<option value="">' + escapeHtml("⚠️ Materiallar ro'yxatini ko'rsatib bo'lmadi — sahifani yangilang") + '</option>'; }
 }
 
 function renderInvDropdown(){
@@ -810,12 +888,16 @@ function showAllMaterials(){
 }
 
 async function applySupplierMaterialFilter(supplierId){
+  // kech144 (zip 180, audit C2): `yukNavbat('sup_filtr')` — A→B tez almashtirilsa A ning kech javobi B ro'yxatini A materiallariga
+  // qisqartirmaydi; ruxsat yo'q / xato — filtrsiz (hammasi)
+  const joriy = yukNavbat('sup_filtr');
   supplierFilterIds = null;
   supplierFilterActive = false;
-  if (!supplierId) { renderInvDropdown(); return; }
+  if (!supplierId || (typeof TAMINOTCHI_KORISH !== 'undefined' && !TAMINOTCHI_KORISH)) { renderInvDropdown(); return; }
   try {
-    const items = await fetch(`/api/suppliers/${supplierId}/purchased-items`).then(r=>r.json());
-    if (items && items.length) {
+    const items = await yukOl(`/api/suppliers/${supplierId}/purchased-items`);
+    if (!joriy()) return;
+    if (Array.isArray(items) && items.length) {
       supplierFilterIds = new Set(items.map(i => i.id));
       supplierFilterActive = true;
     }
@@ -835,7 +917,8 @@ function apOnItemChange(){
 function apCalc(){
   const qty = parseFloat(document.getElementById('ap-qty').value)||0;
   const price = parseNum(document.getElementById('ap-price').value)||0;
-  document.getElementById('ap-total').value = (qty*price>0) ? fmt(qty*price)+" so'm" : '—';
+  // kech144 (zip 180, audit C6): server qoidasi (`buyurtmaJami` — savatdagi bilan bir xil; ilgari `qty × narx` butun so'mga)
+  document.getElementById('ap-total').value = (qty*price>0) ? narxKorinishi(buyurtmaJami(qty, price).jami)+" so'm" : '—';
 }
 document.getElementById('ap-qty').addEventListener('input', apCalc);
 document.getElementById('ap-price').addEventListener('input', apCalc);
@@ -1123,6 +1206,19 @@ async function submitReceive(){
 
   if (!apBasket.length) { showMsg('❌ Kamida bitta material qo\'shing', 'error'); return; }
 
+  // kech144 (zip 180, audit B6): «Hozir to'langan» materiallar jamisidan ko'p bo'lmasin (qo'shimcha xarajatlar ta'minotchi qarziga kirmaydi;
+  // ilgari server ortig'ini jimgina tashlardi — xulosada ko'rinardi, hech qayerga yozilmasdi)
+  {
+    const _boshlangich = document.getElementById('ap-opening-stock')?.checked || false;
+    const _tolov = parseNum(document.getElementById('ap-paid-now').value) || 0;
+    const _jami = pulYigindi(apBasket.map(l => l.total));
+    if (!_boshlangich && _tolov > _jami + 0.005) {
+      showMsg("❌ Hozir to'langan summa (" + narxKorinishi(_tolov) + " so'm) materiallar jamisidan (" + narxKorinishi(_jami)
+        + " so'm) ko'p bo'lishi mumkin emas", 'error');
+      return;
+    }
+  }
+
   if (receiptDate !== bugunISO) {
     const ok = await customConfirm("Kirim sanasi — " + sanaKorinishi(receiptDate) + " (bugun emas). Xarid, qo'shimcha xarajatlar va to'lov shu kunga yoziladi. Davom etilsinmi?");
     if (!ok) return;
@@ -1162,20 +1258,24 @@ async function submitReceive(){
     payment_due_date: isOpeningStock ? null : dueDate
   };
 
+  // kech144 (zip 180, audit A1 — kodda tasdiqlangan: 502 / javob yo'qolsa «❌ Xato: Kirim saqlanmadi» derdi — server saqlagan bo'lishi
+  // mumkin, savat turgani uchun qayta bosish IKKINCHI kirim yozardi: ombor ikki baravar, qarz va kassa ikki marta): `X-Amal-Kaliti` —
+  // o'sha kalit bilan qayta yuborish birinchi javobni qaytaradi; natija noma'lum — savat va kalit qoladi, tekshirish so'raladi
   let resultData;
+  let kirimTakror = false;
   try {
-    const res = await fetch('/api/inventory/receipt', {
+    const n = await amalYubor('/api/inventory/receipt', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify(payload)
-    });
-    if (!res.ok) {
-      const e = await res.json().catch(()=>({}));
-      showMsg('❌ Xato: ' + (e.detail || "Kirim saqlanmadi"), 'error');
+    }, 'kirim_' + currentSupplierId);
+    if (!n.ok) {
+      showMsg(n.nomalum ? amalNomalumMatn('Kirim', n.xato) : '❌ Kirim saqlanmadi: ' + n.xato, 'error');
       return;
     }
-    resultData = await res.json();
+    resultData = n.javob || {};
+    kirimTakror = !!n.takror;
   } catch(e) {
-    showMsg('❌ Server bilan aloqa yo\'q', 'error');
+    showMsg(amalNomalumMatn('Kirim', await amalSababi(e)), 'error');
     return;
   } finally {
     isSubmittingReceive = false;
@@ -1188,7 +1288,7 @@ async function submitReceive(){
   const totalPaid = isOpeningStock ? 0 : Math.min(paidNowTotal, productsJami);
   const totalDebt = isOpeningStock ? 0 : Math.max(0, pulYigindi([productsJami, -paidNowTotal]));
 
-  showMsg(`✓ Kirim saqlandi! To'landi: ${narxKorinishi(totalPaid)} so'm${totalDebt>0.005?`, Qarz: ${narxKorinishi(totalDebt)} so'm`:''}`, 'success');
+  showMsg(`✓ Kirim saqlandi! To'landi: ${narxKorinishi(totalPaid)} so'm${totalDebt>0.005?`, Qarz: ${narxKorinishi(totalDebt)} so'm`:''}` + amalTakrorIzoh(kirimTakror), 'success');
   apBasket = []; invItems = [];
   clearDraft();
   renderBasket();
