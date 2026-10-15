@@ -282,6 +282,9 @@ def set_product_type_yonalish(pt_id: int, data: dict = Body(...), db: Session = 
         raise HTTPException(status_code=400, detail=str(e))
     _nomlar = crud.yonalish_nomlari(db, _cid)
     _eski = _nomlar.get(pt.yonalish_id, "Belgilanmagan") if pt.yonalish_id else "Belgilanmagan"
+    if _yid == pt.yonalish_id:
+        # kech146 (zip 183, audit J5): o'sha yo'nalish qayta tanlandi — jurnalga soxta «tahrirlandi» yozilmaydi
+        return pt
     pt.yonalish_id = _yid
     crud.log_activity(db, "updated", "product_type", pt.id, f"Mahsulot turi «{pt.name}»", _kim(current_user),
                       old_value=f"yo'nalish: {_eski}", new_value=f"yo'nalish: {_nomlar.get(_yid, '')}",
