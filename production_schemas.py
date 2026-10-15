@@ -214,6 +214,10 @@ class ProductionOrderSnapshotLine(BaseModel):
     # ajratib ko'rsatsin. Eski suratda yo'q — None.
     is_coating: Optional[bool] = None
     bom_item_id: Optional[int] = None
+    # kech144 (zip 181, egasi QARORI 14.10 «Yakunlash narxi + farq»): yakunlangan suratda narx — yakunlash kunidagi, Boshlashdagisi shu
+    # yerda (farq «Batafsil» da ko'rsatiladi). Yakunlanmagan / eski suratda — None.
+    boshlash_narxi: Optional[float] = None
+    boshlash_summa: Optional[float] = None
 
 
 class ProductionOrderRead(BaseModel):

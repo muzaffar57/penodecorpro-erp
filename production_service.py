@@ -204,6 +204,43 @@ def _compute_bom_line(bom_item: BOMItem, production_quantity: float, batch_quant
     }
 
 
+def _bugungi_narx_qatorlari(qatorlar: list, inv_map: dict) -> list:
+    """kech144 (zip 181, egasi QARORI 14.10 «Yakunlash narxi + farq»): jarayondagi ishlab chiqarish suratining NUSXASI — har kiritilgan
+    qatorga BUGUNGI (yakunlash kunidagi) ombor o'rtacha narxi: `unit_price_at_time` / `line_cost` yangilanadi, boshlangandagisi
+    `boshlash_narxi` / `boshlash_summa` ga ko'chadi (allaqachon bo'lsa — tegilmaydi). Material topilmasa (o'chirilgan) yoki bugungi
+    narxi yo'q (0) — boshlangandagi narx qoladi. Miqdorlar o'zgarmaydi. Asl ro'yxat o'zgarmaydi."""
+    yangi = []
+    for l in qatorlar or []:
+        if not isinstance(l, dict):
+            yangi.append(l)
+            continue
+        l2 = dict(l)
+        if l2.get("included"):
+            l2.setdefault("boshlash_narxi", l.get("unit_price_at_time"))
+            l2.setdefault("boshlash_summa", l.get("line_cost"))
+            inv = inv_map.get(l.get("inventory_id")) if inv_map else None
+            narx = float(inv.price_per_unit or 0) if inv is not None else 0.0
+            if narx > 0:
+                try:
+                    kerak = float(l.get("total_quantity_needed_stock_unit", l.get("total_quantity_needed")) or 0)
+                except (TypeError, ValueError):
+                    kerak = 0.0
+                l2["unit_price_at_time"] = narx
+                l2["line_cost"] = kerak * narx
+        yangi.append(l2)
+    return yangi
+
+
+def _boshlash_tannarxi(db: Session, po, qatorlar: list, company_id: int, bom=None) -> float:
+    """Boshlash kunidagi taxminiy tannarx (surat `boshlash_summa` / eski suratda `line_cost` + qo'shimcha xarajat) — yakunlashdagi
+    farqni ko'rsatish uchun."""
+    m = 0.0
+    for l in qatorlar or []:
+        if isinstance(l, dict) and l.get("included"):
+            m += float((l.get("boshlash_summa") if l.get("boshlash_summa") is not None else l.get("line_cost")) or 0)
+    return m + _qoshimcha_xarajat(db, po, qatorlar, m, company_id, bom=bom)
+
+
 def _surat_qatorlari(bom, quantity, tanlangan_ids) -> list:
     """Retsept suratining qatorlari — kech113 da `start_production_order` dan AJRATILDI: boshlash va ishlab
     chiqarish rejasi (`ishlab_chiqarish_rejasi`, `mavjud_ishlab_chiqarish_rejasi` — yangi ishlab chiqarish oynasi
@@ -1106,6 +1143,8 @@ def complete_production_order(db: Session, po_id: int, company_id: int, performe
                 # mahsulot tannarxidan jimgina tushib qolardi (foizli qo'shimcha xarajat ham kichik asosdan). Endi
                 # ombordan yechilmaydi (material yo'q), lekin tannarxga boshlangan kundagi narx bilan KIRADI va jurnalda
                 # ko'rinadi. Reja (`_reja_hisobi`, YAKUNLASH) ham shu qoida bilan.
+                line.setdefault("boshlash_narxi", line.get("unit_price_at_time"))     # kech144 (zip 181): narx — boshlangandagi
+                line.setdefault("boshlash_summa", line.get("line_cost"))
                 total_material_cost += float(line.get("line_cost") or 0)
                 _ochirilgan142.append(str(line.get("item_name") or f"#{line.get('inventory_id')}"))
                 continue
@@ -1131,7 +1170,15 @@ def complete_production_order(db: Session, po_id: int, company_id: int, performe
                 reason=f"Ishlab chiqarish buyurtmasi #{po.id} yakunlandi",
                 performed_by=performed_by,
             )
-            total_material_cost += line["line_cost"]
+            # kech144 (zip 181, egasi QARORI 14.10 «Yakunlash narxi + farq»): tannarxga — YAKUNLASH kunidagi ombor o'rtacha narxi (xomashyo
+            # ombordan shu narx bilan chiqadi — ombor qiymati qancha kamaysa, mahsulotga shuncha yoziladi); narx yo'q (0) — boshlangandagi
+            line.setdefault("boshlash_narxi", line.get("unit_price_at_time"))
+            line.setdefault("boshlash_summa", line.get("line_cost"))
+            _narx181 = float(inv.price_per_unit or 0)
+            if _narx181 > 0:
+                line["unit_price_at_time"] = _narx181
+                line["line_cost"] = float(needed) * _narx181
+            total_material_cost += float(line.get("line_cost") or 0)
 
         # Qo'shimcha xarajatlar (fixed_cost_per_unit, percentage_cost) — kech94
         # (122-band): SURATdan va faqat kiritilgan qatorlardan (ilgari izoh
@@ -1140,6 +1187,9 @@ def complete_production_order(db: Session, po_id: int, company_id: int, performe
         total_extra_cost = _qoshimcha_xarajat(db, po, snapshot, total_material_cost, company_id)
 
         total_cost = total_material_cost + total_extra_cost
+        # kech144 (zip 181): surat — yakunlash narxi bilan (boshlangandagisi `boshlash_*`); Boshlashdagi taxmin — jurnal uchun
+        po.recipe_snapshot_json = json.dumps(snapshot, ensure_ascii=False)
+        _boshlash181 = _boshlash_tannarxi(db, po, snapshot, company_id)
 
         # kech93 (K93-2): oxirgi yozuvchi — tannarx bazaga sig'masa, ayirilgan
         # xomashyo ham bekor (rollback), buyurtma "jarayonda" qoladi.
@@ -1180,6 +1230,9 @@ def complete_production_order(db: Session, po_id: int, company_id: int, performe
         _po_jurnal(db, po, "produced", performed_by,
                    new_value=(f"{_son110(po.quantity)} {_pt110.unit if _pt110 else ''} — tannarx {_son110(total_cost)} so'm "
                               f"(xomashyo {_son110(total_material_cost)}, qo'shimcha {_son110(total_extra_cost)})"
+                              + (f"; Boshlashdagi taxmin {_son110(_boshlash181)} so'm, farq "
+                                 f"{'+' if total_cost >= _boshlash181 else '−'}{_son110(abs(total_cost - _boshlash181))} so'm"
+                                 if abs(total_cost - _boshlash181) >= 0.5 else "")
                               + (f"; ombordan yechilmadi (material o'chirilgan): {', '.join(_ochirilgan142)}"
                                  if _ochirilgan142 else "")),
                    product_type=_pt110)
@@ -1380,6 +1433,7 @@ def _reja_hisobi(db: Session, company_id: int, qatorlar: list, miqdor, bom_id, r
             "kerak_retsept": l.get("total_quantity_needed"),
             "narx": l.get("unit_price_at_time"),
             "summa": float(l.get("line_cost") or 0),
+            "boshlash_narxi": l.get("boshlash_narxi"),            # kech144 (zip 181): jarayondagi — boshlangan kundagi narx
             "omborda": None,
             "oldingi": 0.0,
             "band": band_miqdor,
@@ -1542,7 +1596,18 @@ def mavjud_ishlab_chiqarish_rejasi(db: Session, po_id: int, company_id: int) -> 
         if not isinstance(qatorlar, list) or not qatorlar:
             return {"success": False, "kod": 409,
                     "message": "Mahsulot tarkibi surati topilmadi — bu buyurtma to'g'ri boshlanmagan bo'lishi mumkin"}
-        reja = _reja_hisobi(db, company_id, qatorlar, po.quantity, po.bom_id, REJA_YAKUNLASH, istisno_po_id=po.id)
+        # kech144 (zip 181, egasi QARORI «Yakunlash narxi + farq»): reja — BUGUNGI narx bilan (yakunlash shu narxni yozadi), Boshlashdagi
+        # taxmin va farqi alohida
+        from models import Inventory as _Inv181
+        _idlar181 = sorted({l.get("inventory_id") for l in qatorlar
+                            if isinstance(l, dict) and l.get("included") and l.get("inventory_id") is not None})
+        _inv181 = {i.id: i for i in db.query(_Inv181).filter(
+            _Inv181.company_id == company_id, _Inv181.id.in_(_idlar181)).all()} if _idlar181 else {}
+        _bugun181 = _bugungi_narx_qatorlari(qatorlar, _inv181)
+        reja = _reja_hisobi(db, company_id, _bugun181, po.quantity, po.bom_id, REJA_YAKUNLASH, istisno_po_id=po.id,
+                            inv_map=_inv181)
+        reja["boshlash_tannarx"] = _boshlash_tannarxi(db, po, qatorlar, company_id)
+        reja["tannarx_farqi"] = float(reja["tannarx"]) - float(reja["boshlash_tannarx"])
         _tm_xato = _yakunlash_tm_xatosi(db, po, company_id)       # kech114 (K114-1) — yakunlash bilan bir qoida
         if _tm_xato:
             xatolar.append(_tm_xato)
@@ -1827,6 +1892,18 @@ def royxat_qoshimchalari(db: Session, company_id: int, rows: list) -> dict:
             detallar[oi_id] = {"nomi": oi_nomi, "qoplamali": bool(oi_qoplamali)}
 
     qoralamalar = [po for po in rows if po.status == ProductionOrderStatus.DRAFT.value and po.bom_id in retseptlar]
+    # kech144 (zip 181, egasi QARORI «Yakunlash narxi + farq»): jarayondagilarning surat materiallari (bugungi narx) — qoralamalarniki
+    # bilan BITTA so'rovda (so'rovlar soni qator soniga bog'liq emas)
+    _jidlar181 = set()
+    for po in rows:
+        if po.status == ProductionOrderStatus.IN_PROGRESS.value and po.recipe_snapshot_json:
+            try:
+                _s181 = json.loads(po.recipe_snapshot_json)
+            except (TypeError, ValueError):
+                _s181 = []
+            if isinstance(_s181, list):
+                _jidlar181 |= {l.get("inventory_id") for l in _s181
+                               if isinstance(l, dict) and l.get("included") and l.get("inventory_id") is not None}
     band = _jarayondagi_band(db, company_id) if qoralamalar else {}
     inv_map, allow_negative = {}, False
     reja_qatorlari = {}
@@ -1840,12 +1917,16 @@ def royxat_qoshimchalari(db: Session, company_id: int, rows: list) -> dict:
             qoralama_tanlovi[po.id] = tanlangan
             reja_qatorlari[po.id] = _surat_qatorlari(retseptlar[po.bom_id], po.quantity, tanlangan)
         inv_idlar = sorted({l.get("inventory_id") for q in reja_qatorlari.values() for l in q
-                            if l.get("included") and l.get("inventory_id") is not None})
+                            if l.get("included") and l.get("inventory_id") is not None} | _jidlar181)
         if inv_idlar:
             inv_map = {i.id: i for i in db.query(Inventory).filter(
                 Inventory.company_id == company_id, Inventory.id.in_(inv_idlar)).all()}
         company = _get_company(db, company_id)
         allow_negative = bool(company.allow_negative_stock) if company else False
+    elif _jidlar181:
+        inv_map = {i.id: i for i in db.query(Inventory).filter(
+            Inventory.company_id == company_id, Inventory.id.in_(sorted(_jidlar181))).all()}
+    jarayon_inv181 = inv_map
 
     for po in rows:
         pt = turlar.get(po.product_type_id)
@@ -1893,6 +1974,8 @@ def royxat_qoshimchalari(db: Session, company_id: int, rows: list) -> dict:
             except (TypeError, ValueError):
                 surat = []
             if isinstance(surat, list):
+                # kech144 (zip 181, egasi QARORI «Yakunlash narxi + farq»): taxmin — BUGUNGI narx bilan (yakunlash shuni yozadi)
+                surat = _bugungi_narx_qatorlari(surat, jarayon_inv181)
                 m = sum(float(l.get("line_cost") or 0) for l in surat if isinstance(l, dict) and l.get("included"))
                 q["taxminiy_tannarx"] = m + _qoshimcha_xarajat(db, po, surat, m, company_id, bom=bom)
         natija[po.id] = q

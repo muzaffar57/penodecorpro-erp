@@ -6842,6 +6842,15 @@ def restore_project(db: Session, project_id: int, performed_by: str = None) -> b
     return True
 
 
+def loyiha_savatdagi_buyurtmalari(db: Session, project_id: int, company_id: int = None) -> list:
+    """kech144 (zip 181, egasi QARORI 14.10 «So'rasin»): loyihaning savatdagi (yumshoq o'chirilgan) buyurtmalari — [(id, raqam), …],
+    eskisidan boshlab."""
+    _q = db.query(Order.id, Order.order_number).filter(Order.project_id == project_id, Order.is_deleted.is_(True))
+    if company_id is not None:
+        _q = _q.filter(Order.company_id == company_id)
+    return [(i, r) for i, r in _q.order_by(Order.id).all()]
+
+
 def get_deleted_projects(db: Session, company_id: int = None) -> List[Project]:
     """O'chirilgan (lekin hali bazada saqlanayotgan) loyihalar."""
     _q = db.query(Project).filter(Project.is_deleted.is_(True))
