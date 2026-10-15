@@ -1429,6 +1429,12 @@ def create_inventory_receipt(db: Session, items: list, transport_cost: float = 0
 
         created_results = []
         purchase_ids = []
+        # kech146 (zip 180, mustaqil tekshiruv — ESKI xato, O'LCHANGAN HAQIQIY PG 16): hujjat materiallari id TARTIBIDA oldindan
+        # qulflanadi (har qator keyin o'z qulfini qayta oladi — `_purchase_stock_no_commit`). Ilgari qator tartibida qulflanardi: bir xil
+        # ikki materialli ikki Kirim (qatorlari teskari tartibda) parallel yaratilsa — deadlock 40P01, biri 500 «Kirim saqlanmadi».
+        # Bekor qilish (`kirim_hujjatini_bekor_qilish`) ham shu tartibda qulflaydi.
+        for _iid146 in sorted({int(it["inventory_id"]) for it in items if it.get("inventory_id")}):
+            get_item_locked(db, _iid146, company_id)
         for it in items:
             base_value = float(it["quantity"]) * float(it["price_per_unit"])
             extra_share = 0.0
@@ -16097,7 +16103,11 @@ def update_supplier(db: Session, supplier_id: int, data: SupplierUpdate) -> Opti
 def delete_supplier(db: Session, supplier_id: int, force: bool = False) -> dict:
     """Yetkazib beruvchini o'chiradi.
     Qarzi bo'lsa force=True bo'lmaguncha o'chirmaydi (xato qaytaradi).
-    force=True bo'lsa — tarixi (xaridlar, to'lovlar) bilan birga butunlay o'chadi."""
+
+    kech144 (zip 180, egasi QARORI 14.10 «Yashirilsin»; QAYTA SO'RALMAYDI): TARIXI bor (xarid, to'lov, ombor harakati yoki kirim
+    hujjati) ta'minotchi — YASHIRILADI (`is_active = False`): ro'yxatlardan yo'qoladi, xaridlar, to'lovlar, Kassa va o'tgan oylar pul
+    oqimi O'ZGARMAYDI (`{"success": True, "yashirildi": True}`). Ilgari hamma to'lovlari o'chib, Kassa qoldig'i shuncha ko'payardi,
+    nasiya xaridlari esa hech kimning qarzi bo'lmay qolardi. Tarixsiz ta'minotchi — avvalgidek butunlay o'chadi (`yashirildi: False`)."""
     s = get_supplier(db, supplier_id)
     if not s:
         return {"success": False, "message": "Topilmadi"}
@@ -16130,6 +16140,13 @@ def delete_supplier(db: Session, supplier_id: int, force: bool = False) -> dict:
     # (`tools/test_tamin_ochirish.py` `PRAGMA foreign_keys=ON` bilan
     # ishlaydi va shu yo'lni qulflaydi).
     from models import InventoryMovement, InventoryReceipt
+    # kech144 (zip 180, egasi QARORI «Yashirilsin»): tarix bor — yashiriladi, HECH NARSA uzilmaydi va o'chmaydi
+    _tarix_bor = any(db.query(_m.id).filter(_m.supplier_id == supplier_id).first() is not None
+                     for _m in (InventoryPurchase, SupplierPayment, InventoryMovement, InventoryReceipt))
+    if _tarix_bor:
+        s.is_active = False
+        db.commit()
+        return {"success": True, "yashirildi": True}
     db.query(InventoryPurchase).filter(InventoryPurchase.supplier_id == supplier_id).update(
         {"supplier_id": None}
     )
@@ -16143,7 +16160,7 @@ def delete_supplier(db: Session, supplier_id: int, force: bool = False) -> dict:
 
     db.delete(s)
     db.commit()
-    return {"success": True}
+    return {"success": True, "yashirildi": False}
 
 
 def _som_butun_int(v) -> int:
@@ -16243,10 +16260,22 @@ def get_supplier_debt(db: Session, supplier_id: int, company_id: int = None) -> 
         _sup = db.query(Supplier).filter(
             Supplier.id == supplier_id, Supplier.company_id == company_id).first()
         if not _sup:
-            return {"total_credit": 0, "total_paid": 0, "debt": 0, "purchase_count": 0}
+            return {"total_credit": 0, "total_paid": 0, "debt": 0, "purchase_count": 0, "total_purchases": 0, "paid_cash": 0}
 
     _t = _taminotchi_toplami(db, [supplier_id], company_id=company_id, faqat_nasiya=True)[supplier_id]
-    return _taminotchi_qarz_korinishi(_t)
+    natija = _taminotchi_qarz_korinishi(_t)
+    # kech144 (zip 180, audit B7): «Jami xarid» — HAMMA xarid (nasiya + naqd — darhol to'liq to'langan; boshlang'ich ombor — xarid
+    # emas). Ilgari Kirim sahifasi «Jami xarid» deb faqat nasiyani ko'rsatardi. Qarz qoidasi o'zgarmaydi (`debt` — nasiya − to'lovlar).
+    from decimal import Decimal
+    _nq = db.query(InventoryPurchase.total_amount).filter(
+        InventoryPurchase.supplier_id == supplier_id, InventoryPurchase.is_credit.isnot(True),
+        InventoryPurchase.is_opening_stock.isnot(True))
+    if company_id is not None:
+        _nq = _nq.join(Supplier, Supplier.id == InventoryPurchase.supplier_id).filter(Supplier.company_id == company_id)
+    _naqd = sum((Decimal(str(_x if _x is not None else 0)) for (_x,) in _nq.all()), Decimal("0"))
+    natija["total_purchases"] = _som_butun_int(_t["kredit"] + _naqd)
+    natija["paid_cash"] = _som_butun_int(_naqd)
+    return natija
 
 
 def get_supplier_payment_due_dates(db: Session, company_id: int = None) -> List[dict]:
@@ -16279,7 +16308,8 @@ def get_supplier_payment_due_dates(db: Session, company_id: int = None) -> List[
     _toplam = _taminotchi_toplami(db, _sids, company_id=company_id, faqat_nasiya=True)
     _suppliers = {}
     for _i in range(0, len(_sids), 500):
-        _sq = db.query(Supplier).filter(Supplier.id.in_(_sids[_i:_i + 500]))
+        # kech146 (zip 180, review 1 — №7): yashirilgan («Yashirilsin») ta'minotchi ogohlantirishda yo'q (ro'yxat va `debt-total` bilan bir)
+        _sq = db.query(Supplier).filter(Supplier.id.in_(_sids[_i:_i + 500]), Supplier.is_active.isnot(False))
         if company_id is not None:
             _sq = _sq.filter(Supplier.company_id == company_id)
         for _x in _sq.all():
@@ -16330,6 +16360,154 @@ def get_suppliers_with_debt(db: Session, company_id: int = None) -> List[dict]:
         })
     result.sort(key=lambda x: x["debt"], reverse=True)
     return result
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# kech144 (zip 180) — EGASI QARORI 14.10 «Har safar so'rasin» (Kirim hujjatini bekor qilish qoidasi bilan bir xil): «hoziroq
+# to'langan» summasi bor xarid o'chirilsa yoki summasi to'langan pulidan pastga tushirilsa — to'lov bilan nima qilish egasidan
+# so'raladi. Tanlov: `ochirish` — to'lov (ortiqchasi) o'chadi; `avans` — qoladi (ta'minotchida avans).
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+XARID_TOLOV_TANLOV = ("ochirish", "avans")
+XARID_TOLOV_IZOH = " xaridi bilan bir vaqtda to'langan"     # `main.api_purchase_stock` ichki to'lov izohi: «<material>…»
+# kech146 (zip 180, review 1 — №5, O'LCHANGAN): eski (bog'lanmagan) to'lov — xarid bilan BIR so'rovda, xariddan KEYIN yoziladi
+# (`main.api_purchase_stock`: avval xarid, keyin to'lov; ikkalasining vaqti — yozilish payti, `datetime.utcnow`; repo_dev188 da ham
+# shunday): xarid vaqtidan `XARID_TOLOV_OYNA_OLDIN` s oldin … `XARID_TOLOV_OYNA_KEYIN` s keyin. Ilgari ± 120 s edi — 90 s oldin
+# o'chirilgan BOSHQA xaridning to'lovi «hoziroq to'lovi» yo'q xaridga bog'lanib, uni o'chirish / arzonlashtirishda so'ralardi va
+# «To'lovni ham o'chirish» o'sha begona to'lovni o'chirardi (Kassa +200 000).
+XARID_TOLOV_OYNA_OLDIN = 1
+XARID_TOLOV_OYNA_KEYIN = 10
+# kech146 (zip 180, review 1 — №3): qulf ostida qayta o'qilgan xaridning Kirim hujjati qulfdan oldingi o'qishdagidan boshqa (amalda
+# bo'lmaydi — `receipt_id` faqat yaratishda yoziladi) — hech narsa o'zgartirilmaydi
+XARID_OZGARDI = "Xarid hozirgina o'zgartirildi — sahifani yangilab, qayta urinib ko'ring"
+
+
+class XaridTolovTanloviKerak(Exception):
+    """kech144 (zip 180): xaridning to'lovi bor, tanlov berilmagan — marshrut 409 (`tur`: `purchase_has_payment` — o'chirish,
+    `purchase_payment_excess` — summa to'langanidan past), UI egasidan so'raydi. Hech narsa o'zgarmagan bo'ladi."""
+
+    def __init__(self, summa: float, xabar: str, tur: str = "purchase_has_payment"):
+        super().__init__(xabar)
+        self.summa = summa
+        self.xabar = xabar
+        self.tur = tur
+
+
+def xarid_tolovlari(db: Session, p, company_id: int = None, qulf: bool = False) -> list:
+    """Yakka xarid bilan BIRGA yozilgan «hoziroq to'langan» ta'minotchi to'lovlari (Kirim hujjati qatori — [] : hujjat to'lovi
+    `_kirim_tolovlari` da). Yangi — `SupplierPayment.purchase_id`; eski (ustungacha) — shu ta'minotchi, izoh AYNAN
+    «<material> xaridi bilan bir vaqtda to'langan», vaqti xariddan `XARID_TOLOV_OYNA_OLDIN` s oldin … `XARID_TOLOV_OYNA_KEYIN` s keyin,
+    summasi xarid (joriy) jamisidan yarim so'mdan (`QARZ_BARDOSH`) ortiq emas; faqat BIR ma'noli bo'lsa (nomzod — bitta va shu to'lov
+    shu ta'minotchidan shu materialning boshqa xaridiga ham to'g'ri kelmaydi). Aks holda [] (avvalgidek — so'ralmaydi).
+    kech146 (zip 180, review 1): `qulf=True` — to'lovlar `FOR UPDATE OF supplier_payments` + bazadan QAYTA o'qiladi (`populate_existing`;
+    avval `flush`). Yagona qulf tartibi: Kirim hujjati → xarid → material → TO'LOVLAR (chaqiruvchi material qulfidan KEYIN chaqiradi)."""
+    from datetime import timedelta as _td180
+    if p is None or not p.supplier_id or getattr(p, "receipt_id", None):
+        return []
+
+    def _qulfla(q):
+        if not qulf:
+            return q
+        db.flush()
+        return q.populate_existing().with_for_update(of=SupplierPayment)
+    # TENANT: to'lov va xarid — ota (ta'minotchi) orqali shu korxona bilan (`tools/tenant_lint.py`)
+    _bq = db.query(SupplierPayment).filter(SupplierPayment.purchase_id == p.id,
+                                           SupplierPayment.supplier_id == p.supplier_id)
+    if company_id is not None:
+        _bq = _bq.join(Supplier, Supplier.id == SupplierPayment.supplier_id).filter(Supplier.company_id == company_id)
+    bog = _qulfla(_bq.order_by(SupplierPayment.id)).all()
+    if bog or p.purchased_at is None or not p.item_name:
+        return bog
+    _nq = db.query(SupplierPayment).filter(
+        SupplierPayment.supplier_id == p.supplier_id, SupplierPayment.purchase_id.is_(None),
+        SupplierPayment.notes == f"{p.item_name}{XARID_TOLOV_IZOH}",
+        SupplierPayment.paid_at >= p.purchased_at - _td180(seconds=XARID_TOLOV_OYNA_OLDIN),
+        SupplierPayment.paid_at <= p.purchased_at + _td180(seconds=XARID_TOLOV_OYNA_KEYIN))
+    if company_id is not None:
+        _nq = _nq.join(Supplier, Supplier.id == SupplierPayment.supplier_id).filter(Supplier.company_id == company_id)
+    nomzod = _qulfla(_nq.order_by(SupplierPayment.id)).all()
+    # kech146 (zip 180, etalon d189 — O'LCHANGAN HAQIQIY PG 16): summa sharti Python da — SQL da parametr ustun turi Numeric(12, 2) bilan
+    # bog'lanib, chegaradagi jami (9 999 999 999.95 + 0.5) 10^10 dan oshardi: 22003 «numeric field overflow» → tahrir / o'chirish 500
+    from decimal import Decimal as _D146
+    _chegara146 = _D146(str(p.total_amount if p.total_amount is not None else 0)) + _D146(str(QARZ_BARDOSH))
+    nomzod = [t for t in nomzod if _D146(str(t.amount if t.amount is not None else 0)) <= _chegara146]
+    if len(nomzod) != 1:
+        return []
+    # shu to'lov boshqa xaridning ham «hoziroq to'lovi» bo'lishi mumkinmi (o'sha xarid to'lovdan 10 s oldin … 1 s keyin yozilgan)
+    _tv = nomzod[0].paid_at
+    _xq = db.query(InventoryPurchase.id).filter(
+        InventoryPurchase.supplier_id == p.supplier_id, InventoryPurchase.item_name == p.item_name, InventoryPurchase.id != p.id,
+        InventoryPurchase.purchased_at >= _tv - _td180(seconds=XARID_TOLOV_OYNA_KEYIN),
+        InventoryPurchase.purchased_at <= _tv + _td180(seconds=XARID_TOLOV_OYNA_OLDIN))
+    if company_id is not None:
+        _xq = _xq.join(Supplier, Supplier.id == InventoryPurchase.supplier_id).filter(Supplier.company_id == company_id)
+    qoshni = _xq.first()
+    return [] if qoshni is not None else nomzod
+
+
+def _tolovni_kamaytir(db: Session, tolovlar, kamaytirish: float) -> float:
+    """To'lovlar yig'indisini `kamaytirish` qadar kamaytiradi — OXIRGI to'lovdan boshlab (0 ga tushgani o'chadi). Natija — haqiqatan
+    ayirilgan summa (tiyinda)."""
+    qoldi = pul_tiyin(float(kamaytirish or 0))
+    for t in sorted(tolovlar, key=lambda x: x.id, reverse=True):
+        if qoldi <= 0.005:
+            break
+        summa = pul_tiyin(float(t.amount or 0))
+        if summa <= qoldi + 0.005:
+            qoldi = pul_tiyin(qoldi - summa)
+            db.delete(t)
+        else:
+            t.amount = pul_tiyin(summa - qoldi)
+            qoldi = 0.0
+    return pul_tiyin(float(kamaytirish or 0) - qoldi)
+
+
+def _som(x) -> str:
+    """«1 234 567.5» → «1 234 568» (xabar uchun; ming ajratgichi — bo'shliq).
+    kech146 (zip 180, review 1 — №1): butun so'mga 0.5 YUQORIGA (`_som_butun_int` — pul UI `fmt` / `Math.round` bilan bir qoida); ilgari
+    Python `round` (banker yaxlitlashi): 0.5 → «0», 2.5 → «2» («ortiqcha 0 so'm» deb so'ralardi)."""
+    try:
+        return f"{_som_butun_int(float(x)):,}".replace(",", " ")
+    except (TypeError, ValueError, ArithmeticError):
+        return "0"
+
+
+def _purchase_qulf(db: Session, purchase_id: int, company_id: int = None):
+    """kech144 (zip 180, audit B2 / B3): xarid qatori QULF ostida, bazadan QAYTA o'qilgan holda (`with_for_update` + `populate_existing`;
+    PostgreSQL — parallel ikkinchi tahrir / o'chirish birinchisi tugashini kutadi va YANGI qiymatni ko'radi, o'chirilgan bo'lsa — None).
+    Ilgari xarid qulfsiz o'qilib, miqdor farqi ESKI qiymatdan hisoblanardi: parallel 10→12 va 10→15 tahrirlari omborga +2 va +5 qo'shardi
+    (xarid 15 — ombor +7), ikki o'chirish omborni ikki marta kamaytirardi. Material qulfi (`get_item_locked` / `inventory_qulf`) — shundan KEYIN
+    (tartib: xarid → material)."""
+    q = db.query(InventoryPurchase).filter(InventoryPurchase.id == purchase_id)
+    if company_id is not None:
+        q = q.join(Inventory, Inventory.id == InventoryPurchase.inventory_id).filter(
+            Inventory.company_id == company_id)
+    return q.populate_existing().with_for_update(of=InventoryPurchase).first()
+
+
+def _xarid_hujjat_id(db: Session, purchase_id: int, company_id: int = None):
+    """kech146 (zip 180, review 1 — №3): xaridning Kirim hujjati (`receipt_id`) — QULFSIZ, faqat qulf TARTIBINI tanlash uchun (hujjat
+    qulfi xariddan OLDIN olinadi). Xarid qulf ostida qayta o'qilgach `receipt_id` shu bilan solishtiriladi."""
+    q = db.query(InventoryPurchase.receipt_id).filter(InventoryPurchase.id == purchase_id)
+    if company_id is not None:
+        q = q.join(Inventory, Inventory.id == InventoryPurchase.inventory_id).filter(
+            Inventory.company_id == company_id)
+    r = q.first()
+    return r[0] if r is not None else None
+
+
+def _kirim_qulf(db: Session, receipt_id, company_id: int = None):
+    """kech146 (zip 180, review 1 — №3, №4; O'LCHANGAN HAQIQIY PG 16): Kirim hujjati qatori `SELECT … FOR UPDATE` (bekor qilish —
+    `kirim_hujjatini_bekor_qilish` — bilan BIR xil qulf) + bazadan qayta o'qish. Bir hujjatning qator tahrirlari, qatorini o'chirish va
+    bekor qilinishi navbat bilan bajariladi. YAGONA qulf tartibi: hujjat → xarid → material → to'lovlar. Topilmasa (bekor qilingan,
+    begona korxona) — None."""
+    from models import InventoryReceipt as _IR146
+    if not receipt_id:
+        return None
+    db.flush()
+    q = db.query(_IR146).filter(_IR146.id == receipt_id)
+    if company_id is not None:
+        q = q.filter(_IR146.company_id == company_id)
+    return q.populate_existing().with_for_update().first()
 
 
 def _purchase_of_company(db: Session, purchase_id: int, company_id: int = None):
@@ -16417,7 +16595,7 @@ def _clean_xarid_tahrir(data) -> dict:
 
 
 def update_purchase(db: Session, purchase_id: int, data: dict,
-                   company_id: int = None) -> Optional[InventoryPurchase]:
+                   company_id: int = None, tolov: str = None) -> Optional[InventoryPurchase]:
     """Xarid yozuvini tahrirlaydi.
 
     21-band (2026-09-21, O'LCHANGAN — lokal `work/probe20d.py`): ilgari bu
@@ -16458,9 +16636,21 @@ def update_purchase(db: Session, purchase_id: int, data: dict,
     #    qat'iy tekshiriladi (ValueError → 400).
     toza = _clean_xarid_tahrir(data)
 
-    p = _purchase_of_company(db, purchase_id, company_id)    # M6
+    # kech146 (zip 180, review 1 — №3, №4; O'LCHANGAN HAQIQIY PG 16): YAGONA qulf tartibi — Kirim hujjati → xarid → material → to'lovlar.
+    # Kirim hujjati qatori — AVVAL hujjat qatori qulflanadi (`_kirim_qulf`, bekor qilish bilan bir xil qulf). Ilgari faqat xarid
+    # qulflanardi: hujjatning ikki qatori parallel `?tolov=ochirish` bilan tahrirlansa hujjat to'lovi eski qiymatdan hisoblanib bitta
+    # kamaytirish YO'QOLARDI (100 000 + 100 000, to'langan 200 000; ikkalasi 50 000 ga → to'lov 150 000, to'g'risi 100 000 — 50 000
+    # yashirin avans), tahrir bilan parallel bekor qilish esa omborda yo'q materialni qoldirardi (10 → 15 || bekor: xarid yo'q, ombor 5).
+    _rid146 = _xarid_hujjat_id(db, purchase_id, company_id)
+    _rc146 = _kirim_qulf(db, _rid146, company_id) if _rid146 else None
+    p = _purchase_qulf(db, purchase_id, company_id)    # M6; kech144 (zip 180, B2): qulf ostida qayta o'qiladi
     if not p:
         return None
+    if (getattr(p, "receipt_id", None) or None) != (_rid146 or None):
+        raise ValueError(XARID_OZGARDI)
+    # hujjatning boshqa qatorlari (ortiqcha to'lov hisobi uchun) — material qulfidan OLDIN, qulf ostida qayta o'qiladi
+    _xaridlar146 = (_kirim_xaridlari(db, _rc146, qulf=True)
+                    if _rc146 is not None and p.supplier_id and not p.is_opening_stock else [])
 
     # kech100 (109-band, O'LCHANGAN — `work/probe109.py` T1): nasiya FAQAT ta'minotchili, boshlang'ich ombor bo'lmagan
     # xaridda (yaratish va Ombor Kirim hujjati qoidasi). Ilgari ta'minotchisiz naqd xarid tahrirda nasiyaga o'tkazilsa
@@ -16476,6 +16666,13 @@ def update_purchase(db: Session, purchase_id: int, data: dict,
             and bool(toza["is_credit"]) != bool(p.is_credit)):
         raise ValueError("Kirim hujjati qatorining to'lov turi (nasiya / naqd) o'zgartirilmaydi — "
                          "to'lov «Ta'minotchilar» sahifasida yoziladi")
+    # kech146 (zip 180, review 1 — NOMZOD, O'LCHANGAN): «hoziroq to'langan» to'lovi bor NASIYA xarid naqdga o'tkazilmaydi — ilgari
+    # (faqat API; sahifa `is_credit` yubormaydi) 1 000 000 lik xarid (400 000 to'langan) naqdga o'tsa Kassa 400 000 to'lovni ham,
+    # 1 000 000 naqd xaridni ham sanardi. Hech narsa o'zgartirilmasdan OLDIN.
+    if (toza.get("is_credit") is False and p.is_credit and not getattr(p, "receipt_id", None)
+            and xarid_tolovlari(db, p, company_id=company_id)):
+        raise ValueError("Bu nasiya xarid bilan ta'minotchiga «hoziroq to'langan» summa yozilgan — xaridni naqdga o'tkazib bo'lmaydi "
+                         "(to'lov Kassada ikki marta hisoblanardi). Kerak bo'lsa xaridni o'chirib, to'g'risini qayta kiriting")
 
     eski_qty = float(p.quantity or 0)
 
@@ -16491,6 +16688,55 @@ def update_purchase(db: Session, purchase_id: int, data: dict,
             _xarid_narx_jami(_yangi_qty, _yangi_narx)[1] > _ORDER_ITEM_MAX_MONEY:
         raise ValueError("'quantity' × 'price_per_unit' juda katta "
                          "(jami summa sig'imdan oshdi)")
+
+    # kech144 (zip 180, egasi QARORI 14.10 «Har safar so'rasin», audit B4): summa TO'LANGAN puldan pastga tushsa — ortiqchasi bilan
+    # nima qilish so'raladi (hech narsa o'zgartirilmasdan OLDIN). Yakka xarid — o'z «hoziroq to'langan» to'lovi; Kirim hujjati qatori —
+    # hujjat to'lovi (hujjatning nasiya qatorlari jamisi bilan). Ilgari ortiqcha jimgina yashirin avans bo'lib, ta'minotchining boshqa
+    # xaridi qarzini kamaytirardi (Kirim #5: 100 kg × 3 000, to'langan 300 000; 100 → 50 kg — 150 000 «avans»).
+    if tolov is not None and tolov not in XARID_TOLOV_TANLOV:
+        raise ValueError("To'lov tanlovi noto'g'ri — 'ochirish' yoki 'avans'")
+    # kech146 (zip 180, review 1 — №3): material — to'lovlardan OLDIN qulflanadi (yagona tartib: hujjat → xarid → material → to'lovlar)
+    _inv146, _inv146_bor = None, False
+    if p.inventory_id and abs(float(_yangi_qty) - eski_qty) > 1e-9:
+        _inv146, _inv146_bor = get_item_locked(db, p.inventory_id, company_id), True
+    _yangi_jami180 = _xarid_narx_jami(_yangi_qty, _yangi_narx)[1]
+    # kech146 (zip 180, review 1 — №1, O'LCHANGAN): so'raladi faqat SHU tahrir yaratadigan ortiqcha:
+    #     delta = max(0, to'langan − yangi jami) − max(0, to'langan − joriy jami)
+    # yarim so'mdan (`QARZ_BARDOSH`) ko'p bo'lsa; `ochirish` — to'lovdan AYNAN `delta` ayiriladi, `avans` — to'lov o'zgarmaydi. Ilgari
+    # ortiqcha har safar «hamma to'lov − yangi jami» edi: «avans qolsin» tanlangan xaridning keyingi HAR tahriri (faqat izoh ham, summani
+    # OSHIRISH ham) yana so'rardi va «ochirish» egasi saqlab qo'ygan avansni o'chirardi (10 × 100 000, to'langan 400 000: 3 ga — «avans»;
+    # 3 → 3.5 — «ochirish»: to'lov 350 000, avansdan 50 000 yo'qoldi, Kassa +50 000); Kirim hujjatining BOSHQA qatori har tahrirda
+    # so'rardi; eski (yarim so'mlik yaxlitlash ortiqchasi bor) yozuv har saqlashda «ortiqcha 0 so'm» deb so'rardi.
+    _tolovlar180, _eski_jami180, _yangi_jami_h180, _joy180 = [], 0.0, _yangi_jami180, ""
+    if getattr(p, "receipt_id", None):
+        if _rc146 is not None and p.supplier_id and not p.is_opening_stock:
+            _tolovlar180 = _kirim_tolovlari(db, _rc146, qulf=True)
+            if _tolovlar180:
+                _boshqa180 = [float(x.total_amount or 0) for x in _xaridlar146
+                              if x.id != p.id and x.supplier_id and not x.is_opening_stock]
+                _eski_jami180 = pul_tiyin_yigindi(_boshqa180 + [float(p.total_amount or 0)])
+                _yangi_jami_h180 = pul_tiyin_yigindi(_boshqa180 + [_yangi_jami180])
+                _joy180 = f"Kirim #{_rc146.id} bilan"
+    else:
+        _tolovlar180 = xarid_tolovlari(db, p, company_id=company_id, qulf=True)
+        if _tolovlar180:
+            _eski_jami180 = pul_tiyin(float(p.total_amount or 0))
+            _joy180 = "Bu xarid bilan"
+    if _tolovlar180:
+        _tolangan180 = pul_tiyin_yigindi(float(t.amount or 0) for t in _tolovlar180)
+        _eski_ort180 = max(0.0, pul_tiyin(_tolangan180 - _eski_jami180))
+        _ortiqcha180 = pul_tiyin(max(0.0, pul_tiyin(_tolangan180 - _yangi_jami_h180)) - _eski_ort180)
+        if _ortiqcha180 > QARZ_BARDOSH:
+            if tolov is None:
+                raise XaridTolovTanloviKerak(
+                    _ortiqcha180,
+                    f"{_joy180} ta'minotchiga {_som(_tolangan180)} so'm to'langan, yangi summa {_som(_yangi_jami_h180)} so'm — "
+                    + (f"bu tahrirdan ortiqcha {_som(_ortiqcha180)} so'm (avvalgi {_som(_eski_ort180)} so'm avans o'zgarmaydi). "
+                       if _eski_ort180 > QARZ_BARDOSH else f"ortiqcha {_som(_ortiqcha180)} so'm. ")
+                    + "Ortiqchasi to'lovdan ayirilsinmi yoki ta'minotchida avans bo'lib qolsinmi?",
+                    tur="purchase_payment_excess")
+            if tolov == "ochirish":
+                _tolovni_kamaytir(db, _tolovlar180, _ortiqcha180)
 
     # 2) Yozuvning o'zi
     if "quantity" in toza:
@@ -16513,7 +16759,8 @@ def update_purchase(db: Session, purchase_id: int, data: dict,
         # QAT'IY filtr + qator qulfi (19-band `update_stock` bilan bir xil).
         # `_purchase_of_company` allaqachon materialni korxona bo'yicha
         # tekshirgan — bu ikkilamchi himoya.
-        inv = get_item_locked(db, p.inventory_id, company_id)
+        # kech146 (zip 180, review 1): material yuqorida — to'lovlardan OLDIN — qulflangan (yagona tartib)
+        inv = _inv146 if _inv146_bor else get_item_locked(db, p.inventory_id, company_id)
         if inv:
             joriy = float(inv.stock_quantity or 0)
             yangi = joriy + farq
@@ -16559,7 +16806,7 @@ def _xarid_narxini_qaytar(joriy_narx: float, p) -> tuple:
 
 
 def delete_purchase(db: Session, purchase_id: int, reverse_stock: bool = True,
-                   company_id: int = None) -> bool:
+                   company_id: int = None, tolov: str = None) -> bool:
     """Xarid yozuvini o'chiradi.
     reverse_stock=True (standart) bo'lsa — bu xaridda qo'shilgan miqdorni
     ombordan ham QAYTARIB oladi (ya'ni to'liq bekor qiladi — ham pul oqimi,
@@ -16567,14 +16814,43 @@ def delete_purchase(db: Session, purchase_id: int, reverse_stock: bool = True,
     tuzatmoqchi bo'lganda kerak.
 
     kech107 (10f): o'rtacha narx ham qaytadi — `_xarid_narxini_qaytar` (shartlari o'sha yerda)."""
-    p = _purchase_of_company(db, purchase_id, company_id)    # M6
+    # kech146 (zip 180, review 1 — №3, №4): Kirim hujjati qatori — AVVAL hujjat qatori qulflanadi (yagona tartib: hujjat → xarid →
+    # material → to'lovlar; `update_purchase` izohi)
+    _rid146 = _xarid_hujjat_id(db, purchase_id, company_id)
+    if _rid146:
+        _kirim_qulf(db, _rid146, company_id)
+    p = _purchase_qulf(db, purchase_id, company_id)    # M6; kech144 (zip 180, B3): qulf ostida — ikkinchi o'chirish yo'qni ko'radi
     if not p:
         return False
+    if (getattr(p, "receipt_id", None) or None) != (_rid146 or None):
+        raise ValueError(XARID_OZGARDI)
+
+    # kech144 (zip 180, egasi QARORI 14.10 «Har safar so'rasin», audit B5): «hoziroq to'langan» to'lovi bor xarid — tanlovsiz
+    # o'chirilmaydi (hech narsa o'zgartirilmasdan OLDIN); `ochirish` — to'lov ham o'chadi, `avans` — ta'minotchida qoladi. Ilgari to'lov
+    # jimgina qolib, ta'minotchining boshqa qarzi kamayardi (1 000 000 xarid, 400 000 to'langan → o'chirilsa qarz −1 000 000, Kassa −400 000).
+    if tolov is not None and tolov not in XARID_TOLOV_TANLOV:
+        raise ValueError("To'lov tanlovi noto'g'ri — 'ochirish' yoki 'avans'")
+    # kech146 (zip 180, review 1 — №3): material — to'lovlardan OLDIN qulflanadi (yagona tartib), to'lovlar — qulf ostida qayta o'qiladi
+    _inv146 = inventory_qulf(db, p.inventory_id, company_id) if (reverse_stock and p.inventory_id and p.quantity) else None
+    _tolovlar180 = xarid_tolovlari(db, p, company_id=company_id, qulf=True)
+    if _tolovlar180:
+        _summa180 = pul_tiyin_yigindi(float(t.amount or 0) for t in _tolovlar180)
+        if tolov is None:
+            raise XaridTolovTanloviKerak(
+                _summa180,
+                f"Bu xarid bilan ta'minotchiga {_som(_summa180)} so'm darhol to'langan. To'lovni ham o'chirasizmi yoki ta'minotchida "
+                f"avans bo'lib qolsinmi?")
+        for t in _tolovlar180:
+            if tolov == "ochirish":
+                db.delete(t)
+            else:
+                t.purchase_id = None
+                t.notes = f"Avans (bekor qilingan xarid #{p.id}: {(t.notes or '').strip()})"
 
     if reverse_stock and p.inventory_id and p.quantity:
         # kech142 (zip 170, A-O04): qulf + bazadan qayta yuklash (`inventory_qulf`); material — shu korxonadan
-        # (xarid yuqorida material orqali tekshirilgan — ikkinchi to'siq).
-        inv = inventory_qulf(db, p.inventory_id, company_id)
+        # (xarid yuqorida material orqali tekshirilgan — ikkinchi to'siq). kech146 (zip 180, review 1): qulf yuqorida — to'lovlardan OLDIN.
+        inv = _inv146
         if inv:
             # MUHIM (2026-09 audit): agar shu xariddan kelgan xomashyoning
             # bir qismi ALLAQACHON ishlab chiqarishda ishlatilgan bo'lsa
@@ -16627,16 +16903,48 @@ class KirimTolovTanloviKerak(Exception):
         self.xabar = xabar
 
 
-def _kirim_hujjati_qismlari(db: Session, receipt) -> dict:
+def _kirim_xaridlari(db: Session, receipt, qulf: bool = False) -> list:
+    """kech146 (zip 180, review 1): Kirim hujjati xaridlari (`receipt_id`; hujjat korxonasidan — ota (material) orqali), id tartibida.
+    `qulf=True` — `FOR UPDATE OF inventory_purchases` + bazadan QAYTA o'qish (`populate_existing`; avval `flush`; material qatori
+    qulflanmaydi — u keyin, `get_item_locked` bilan)."""
+    q = db.query(InventoryPurchase).join(Inventory, Inventory.id == InventoryPurchase.inventory_id).filter(
+        InventoryPurchase.receipt_id == receipt.id, Inventory.company_id == receipt.company_id
+    ).order_by(InventoryPurchase.id)
+    if qulf:
+        db.flush()
+        q = q.populate_existing().with_for_update(of=InventoryPurchase)
+    return q.all()
+
+
+def _kirim_tolovlari(db: Session, receipt, qulf: bool = False) -> list:
+    """kech146 (zip 180, review 1): Kirim hujjatining «Kirim to'lovi — #N» ta'minotchi to'lovlari (hujjat korxonasidan — ota
+    (ta'minotchi) orqali; "#1" "#12" ni tutmaydi). `qulf=True` — `FOR UPDATE OF supplier_payments` + `populate_existing` (avval `flush`;
+    ta'minotchi qatori qulflanmaydi). Yagona qulf tartibida — material qulflaridan KEYIN chaqiriladi."""
+    import re as _re146
+    if not receipt.supplier_id:
+        return []
+    _tn = _re146.compile(r"^Kirim to'lovi — #" + str(receipt.id) + r"(?!\d)")
+    q = db.query(SupplierPayment).join(Supplier, Supplier.id == SupplierPayment.supplier_id).filter(
+        SupplierPayment.supplier_id == receipt.supplier_id,
+        Supplier.company_id == receipt.company_id,
+        SupplierPayment.notes.like(f"Kirim to'lovi — #{receipt.id}%"),
+    ).order_by(SupplierPayment.id)
+    if qulf:
+        db.flush()
+        q = q.populate_existing().with_for_update(of=SupplierPayment)
+    return [t for t in q.all() if _tn.match(t.notes or "")]
+
+
+def _kirim_hujjati_qismlari(db: Session, receipt, xarid_qulf: bool = False) -> dict:
     """kech107 (10f) — kirim hujjati yozgan HAMMA narsa: xaridlar (`receipt_id`), qo'shimcha xarajatlar (Moliya —
     manba "inventory_receipt" / "kirim_tannarx", tur `KIRIM_XARAJAT_TURLARI`, izohida AYNAN "Kirim #N" —
     `_migrate_kirim_tannarx_manba` bilan bir qoida; "#1" "#12" ni tutmaydi) va "Kirim to'lovi — #N" ta'minotchi
-    to'lovi. Hammasi hujjat korxonasidan (xarid / to'lov — ota orqali)."""
+    to'lovi. Hammasi hujjat korxonasidan (xarid / to'lov — ota orqali).
+    kech146 (zip 180, review 1): `xarid_qulf=True` — xaridlar qulf ostida qayta o'qiladi (`_kirim_xaridlari`); to'lovlar — qulfsiz
+    (ular material qulflaridan KEYIN qulflanadi — `_kirim_tolovlari(qulf=True)`)."""
     import re as _re107
     from models import ExpenseTransaction as _ET107, KIRIM_TANNARX_MANBA as _KTM107
-    xaridlar = db.query(InventoryPurchase).join(Inventory, Inventory.id == InventoryPurchase.inventory_id).filter(
-        InventoryPurchase.receipt_id == receipt.id, Inventory.company_id == receipt.company_id
-    ).order_by(InventoryPurchase.id).all()
+    xaridlar = _kirim_xaridlari(db, receipt, qulf=xarid_qulf)
     _naqsh = _re107.compile(r"Kirim #(\d+)(?!\d)")
     xarajatlar = [t for t in db.query(_ET107).filter(
         _ET107.company_id == receipt.company_id,
@@ -16644,15 +16952,15 @@ def _kirim_hujjati_qismlari(db: Session, receipt) -> dict:
         _ET107.category.in_(KIRIM_XARAJAT_TURLARI),
         _ET107.notes.like(f"%Kirim #{receipt.id}%"),
     ).order_by(_ET107.id).all() if any(int(_m) == receipt.id for _m in _naqsh.findall(t.notes or ""))]
-    tolovlar = []
-    if receipt.supplier_id:
-        _tn = _re107.compile(r"^Kirim to'lovi — #" + str(receipt.id) + r"(?!\d)")
-        tolovlar = [t for t in db.query(SupplierPayment).join(Supplier, Supplier.id == SupplierPayment.supplier_id).filter(
-            SupplierPayment.supplier_id == receipt.supplier_id,
-            Supplier.company_id == receipt.company_id,
-            SupplierPayment.notes.like(f"Kirim to'lovi — #{receipt.id}%"),
-        ).order_by(SupplierPayment.id).all() if _tn.match(t.notes or "")]
+    tolovlar = _kirim_tolovlari(db, receipt)
     return {"xaridlar": xaridlar, "xarajatlar": xarajatlar, "tolovlar": tolovlar}
+
+
+def _kirim_tolov_savoli(receipt_id, tolov_jami) -> str:
+    """Kirim hujjatini bekor qilishda to'lov bo'yicha savol (`KirimTolovTanloviKerak`). kech146 (zip 180, review 1): summa — `_som`
+    (0.5 YUQORIGA; ilgari `:,.0f` — banker yaxlitlashi)."""
+    return (f"Kirim #{receipt_id} bilan ta'minotchiga {_som(tolov_jami)} so'm to'langan. "
+            "To'lovni ham o'chirasizmi yoki ta'minotchida avans bo'lib qolsinmi?")
 
 
 def kirim_hujjatini_bekor_qilish(db: Session, receipt_id: int, company_id: int = None, tolov: str = None,
@@ -16677,16 +16985,22 @@ def kirim_hujjatini_bekor_qilish(db: Session, receipt_id: int, company_id: int =
     receipt = _rq.first()
     if receipt is None:
         return None
-    qism = _kirim_hujjati_qismlari(db, receipt)
+    # kech146 (zip 180, review 1 — №4, O'LCHANGAN HAQIQIY PG 16): hujjat qulfidan keyin xarid qatorlari ham QULF ostida, bazadan QAYTA
+    # o'qiladi — ilgari qulfsiz o'qilib, parallel tahrir (10 → 15) dan oldingi ESKI miqdor ayirilardi: xarid ham, hujjat ham yo'q, ombor 5
+    # (to'g'risi 0). Tahrir endi shu hujjat qulfini AVVAL oladi — ikkalasi navbat bilan.
+    qism = _kirim_hujjati_qismlari(db, receipt, xarid_qulf=not faqat_hisob)
     tolov_jami = pul_tiyin_yigindi(float(t.amount or 0) for t in qism["tolovlar"])
     if tolov is not None and tolov not in KIRIM_BEKOR_TOLOV:
         raise ValueError("To'lov tanlovi noto'g'ri — 'ochirish' yoki 'avans'")
     if not faqat_hisob and qism["tolovlar"] and tolov is None:
-        raise KirimTolovTanloviKerak(
-            tolov_jami,
-            f"Kirim #{receipt.id} bilan ta'minotchiga {tolov_jami:,.0f} so'm to'langan. "
-            "To'lovni ham o'chirasizmi yoki ta'minotchida avans bo'lib qolsinmi?".replace(",", " "))
+        raise KirimTolovTanloviKerak(tolov_jami, _kirim_tolov_savoli(receipt.id, tolov_jami))
 
+    if not faqat_hisob:
+        # kech146 (zip 180, review 1 — №3, O'LCHANGAN HAQIQIY PG 16): hujjat materiallari — id TARTIBIDA oldindan qulflanadi (pastdagi
+        # qator bo'yicha qulf o'sha qatorni qayta o'qiydi). Ilgari faqat qatorlar teskari tartibida qulflanardi: bir xil ikki materialli
+        # ikki hujjat (qatorlari teskari tartibda) parallel bekor qilinsa — deadlock (40P01), biri 500 (3 / 3 marta)
+        for _iid146 in sorted({x.inventory_id for x in qism["xaridlar"] if x.inventory_id}):
+            get_item_locked(db, _iid146, receipt.company_id)
     holat = {}          # inventory_id -> [qoldiq, narx] — bir material ikki qatorda bo'lsa ketma-ket
     materiallar = []
     for p in reversed(qism["xaridlar"]):
@@ -16728,6 +17042,13 @@ def kirim_hujjatini_bekor_qilish(db: Session, receipt_id: int, company_id: int =
             inv.price_per_unit = yangi_narx
             db.delete(p)
     materiallar.reverse()
+    if not faqat_hisob:
+        # kech146 (zip 180, review 1 — №3): to'lovlar — material qulflaridan KEYIN (yagona tartib: hujjat → xarid → material →
+        # to'lovlar), qulf ostida qayta o'qiladi (shu orada qo'lda o'chirilgani qayta o'chirilmaydi / avansga aylantirilmaydi)
+        qism["tolovlar"] = _kirim_tolovlari(db, receipt, qulf=True)
+        tolov_jami = pul_tiyin_yigindi(float(t.amount or 0) for t in qism["tolovlar"])
+        if qism["tolovlar"] and tolov is None:
+            raise KirimTolovTanloviKerak(tolov_jami, _kirim_tolov_savoli(receipt.id, tolov_jami))
 
     xarajatlar = [{"id": t.id, "turi": t.category, "summa": float(t.amount or 0), "izoh": t.notes}
                   for t in qism["xarajatlar"]]
@@ -16767,7 +17088,8 @@ def kirim_hujjatini_bekor_qilish(db: Session, receipt_id: int, company_id: int =
 
 
 def create_supplier_payment(db: Session, data: SupplierPaymentCreate, paid_by: str = None,
-                            company_id: int = None, ichki: bool = False) -> SupplierPayment:
+                            company_id: int = None, ichki: bool = False, oyna: bool = True,
+                            purchase_id: int = None) -> SupplierPayment:
     """Yetkazib beruvchiga to'lov — bir nechta xaridni birdaniga yopishi mumkin.
 
     `ichki=True` (17g, 2026-09-22) — xarid marshruti (`POST /api/inventory/
@@ -16805,11 +17127,17 @@ def create_supplier_payment(db: Session, data: SupplierPaymentCreate, paid_by: s
         # SHU FUNKSIYANING BOSHIDA tekshirilgan (mos kelmasa 404), shuning
         # uchun bu supplier_id faqat shu korxonaniki bo'lishi mumkin.
         from datetime import timedelta as _td_sp
+        from sqlalchemy import or_ as _or_sp
         _summa_sp = round(float(data.amount or 0), 2)
-        _oldingi_sp = db.query(SupplierPayment).filter(
+        # kech144 (zip 180, audit B9): xarid / kirim bilan BIRGA yozilgan to'lov («… xaridi bilan bir vaqtda to'langan», «Kirim to'lovi —
+        # #…») «takror» deb olinmaydi — ilgari undan keyin 8 s ichida o'sha summada eski qarz to'lansa, 200 «to'lov qilindi» derdi-yu,
+        # hech narsa yozmasdi. `oyna=False` — so'rov `X-Amal-Kaliti` bilan (kalit takrorni aniq ajratadi) — oyna umuman qo'llanmaydi.
+        _oldingi_sp = None if not oyna else db.query(SupplierPayment).filter(
             SupplierPayment.supplier_id == data.supplier_id,
             SupplierPayment.amount == _summa_sp,
             SupplierPayment.paid_at >= datetime.utcnow() - _td_sp(seconds=PUL_TAKROR_SONIYA),
+            _or_sp(SupplierPayment.notes.is_(None),
+                   ~(SupplierPayment.notes.like("%xaridi bilan bir vaqtda to%") | SupplierPayment.notes.like("Kirim to%lovi — #%"))),
         ).order_by(SupplierPayment.paid_at.desc()).first()
         if _oldingi_sp is not None:
             _oldingi_sp._is_duplicate_submit = True
@@ -16832,7 +17160,8 @@ def create_supplier_payment(db: Session, data: SupplierPaymentCreate, paid_by: s
         supplier_id=data.supplier_id,
         amount=data.amount,
         paid_by=paid_by,
-        notes=data.notes
+        notes=data.notes,
+        purchase_id=purchase_id,        # kech144 (zip 180): yakka xarid bilan birga to'langan — o'sha xarid (`xarid_tolovlari`)
     )
     db.add(p)
     db.commit()
@@ -17992,7 +18321,7 @@ def get_supplier_history(db: Session, supplier_id: int, start_date=None, end_dat
     if company_id is not None:
         if not db.query(Supplier).filter(
                 Supplier.id == supplier_id, Supplier.company_id == company_id).first():
-            return {"total_credit": 0, "total_paid": 0, "debt": 0, "purchase_count": 0,
+            return {"total_credit": 0, "total_paid": 0, "debt": 0, "purchase_count": 0, "total_purchases": 0, "paid_cash": 0,
                     "purchases": [], "payments": [],
                     "pagination": {"page": 1, "page_size": page_size,
                                    "total_count": 0, "total_pages": 1}}
@@ -18008,7 +18337,9 @@ def get_supplier_history(db: Session, supplier_id: int, start_date=None, end_dat
     total_pages = max(1, (total_count + page_size - 1) // page_size)
     page = max(1, min(page, total_pages))
 
-    purchases = q.order_by(InventoryPurchase.purchased_at.desc()) \
+    # kech144 (zip 180, audit C7): bir kirim hujjatining qatorlari bir xil vaqtli — `id` bo'yicha qat'iy tartib (PostgreSQL da sahifalar
+    # orasida takrorlanmaydi / tushib qolmaydi)
+    purchases = q.order_by(InventoryPurchase.purchased_at.desc(), InventoryPurchase.id.desc()) \
                  .offset((page - 1) * page_size).limit(page_size).all()
 
     payments = db.query(SupplierPayment).filter(
@@ -18027,9 +18358,12 @@ def get_supplier_history(db: Session, supplier_id: int, start_date=None, end_dat
     _hujjat = {}
     if _rids:
         # TENANT: hujjat jami — FAQAT shu korxona materiallari (ota orqali; `tenant_lint`)
+        # kech144 (zip 180, audit B8): boshlang'ich ombor qatorlari hujjat jamisiga kirmaydi (ular uchun to'lov yo'q — ilgari hujjat
+        # «Qisman» / «Nasiya» ko'rinardi)
         _jq132 = db.query(InventoryPurchase.receipt_id, _f132.sum(InventoryPurchase.total_amount)).join(
             Inventory, Inventory.id == InventoryPurchase.inventory_id).filter(
-            InventoryPurchase.receipt_id.in_(_rids), InventoryPurchase.supplier_id == supplier_id)
+            InventoryPurchase.receipt_id.in_(_rids), InventoryPurchase.supplier_id == supplier_id,
+            InventoryPurchase.is_opening_stock.isnot(True))
         if company_id is not None:
             _jq132 = _jq132.filter(Inventory.company_id == company_id)
         for _rid, _jami in _jq132.group_by(InventoryPurchase.receipt_id).all():
@@ -18041,6 +18375,9 @@ def get_supplier_history(db: Session, supplier_id: int, start_date=None, end_dat
                 _hujjat[int(_m.group(1))]["tolangan"] += float(pay.amount or 0)
 
     def _kirim_holati(p):
+        # kech144 (zip 180, audit B8): boshlang'ich (mavjud) ombor — ta'minotchiga qarz emas, «Nasiya» emas
+        if p.is_opening_stock:
+            return "boshlangich"
         h = _hujjat.get(p.receipt_id) if p.receipt_id else None
         if not h:
             return None
