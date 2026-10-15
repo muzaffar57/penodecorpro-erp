@@ -358,6 +358,8 @@ TANNARX_KALITLAR = frozenset({
     "narxsiz_tannarx_qiymati", "tannarx_jami", "tannarx_buyurtmalar", "tannarx_tm", "qaytarish_tannarx", "fp_sales_tannarx",
     # kech141 (zip 169, A-P05): «Tayyor» buyurtma narx tuzatishining tannarx (usta haqi) farqi
     "tuzatish_tannarx",
+    # kech144 (zip 181, egasi QARORI «Yakunlash narxi + farq»): ishlab chiqarishning Boshlashdagi taxmini va farqi
+    "boshlash_summa", "boshlash_tannarx", "tannarx_farqi",
     "ishlab_chiqarish_xarajat", "brak_xarajat", "fp_loss_xarajat", "brak_total_value", "brak_month_value",
     # kech121 (zip 138 — G5-23): brak ulushi asosining tarkibi
     "buyurtmalar_tannarxi", "omborga_ishlab_tannarxi",
@@ -544,6 +546,17 @@ NARX_YOLLAR = {
     # kech144 (zip 180, audit C5): xarid / kirim javobidagi materialning o'rtacha narxi (sahifa ko'rsatmaydi — JSON da ham yashirin)
     "/api/inventory/{item_id}/purchase": ("old_price", "new_price"),
     "/api/inventory/receipt": ("results[].old_price", "results[].new_price"),
+    # kech144 (zip 181, audit C3): «Ishlab chiqarish» — retsept / reja qatorlaridagi xomashyo narxi va tarkib suratidagi «Narx (o'sha
+    # kuni)» (ilgari «Menejer» va «Mahsulot tarkibi: Ko'rish» li rol «0,5 kg × 85 000» ko'rardi). Tannarx qismlari — TANNARX_YOLLAR.
+    "/api/production/boms/preview": ("qatorlar[].narx",),
+    "/api/production/orders/preview": ("qatorlar[].narx",),
+    "/api/production/orders/{po_id}/preview": ("qatorlar[].narx", "qatorlar[].boshlash_narxi"),
+    "/api/production/orders": ("[].recipe_snapshot[].unit_price_at_time", "production_order.recipe_snapshot[].unit_price_at_time",
+                               "[].recipe_snapshot[].boshlash_narxi", "production_order.recipe_snapshot[].boshlash_narxi"),
+    "/api/production/orders/{po_id}/start": ("production_order.recipe_snapshot[].unit_price_at_time",),
+    "/api/production/orders/{po_id}/complete": ("production_order.recipe_snapshot[].unit_price_at_time",
+                                                "production_order.recipe_snapshot[].boshlash_narxi"),
+    "/api/production/orders/{po_id}/cancel": ("production_order.recipe_snapshot[].unit_price_at_time",),
 }
 
 # Migratsiya belgisi (korxona sozlamasi): shu korxona rollari yangi band bilan bir marta ko'rib chiqilgan — admin keyin

@@ -13,7 +13,9 @@ korxonasi" degan haqiqiy mantiq keladi.
 
 from typing import List, Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+import re as _re181
+
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, Response
 from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
@@ -37,15 +39,35 @@ router = APIRouter(prefix="/api/production", tags=["production"])
 DEFAULT_COMPANY_ID = 1
 
 
+# kech144 (zip 181, audit D3): server xabaridagi maydon nomi — sahifadagi yorliq bilan (ilgari «'quantity' juda katta», «'items' 2-qator»
+# — inglizcha kalit; «Miqdor» maydoniga 99 999 999 999 yozilsa shunday chiqardi)
+MAYDON_NOMI = {
+    "name": "Nomi", "unit": "O'lchov birligi", "input_template": "Kiritish shakli", "pricing_formula": "Narx usuli",
+    "fixed_unit_price": "Qat'iy narx", "supports_coating": "Qoplama", "coating_price_multiplier": "Qoplama koeffitsiyenti",
+    "notes": "Izoh", "yonalish_id": "Yo'nalish", "inventory_id": "Material", "component_type": "Tarkib turi", "quantity": "Miqdor",
+    "scrap_factor_percent": "Isrof", "is_optional": "Ixtiyoriy", "is_coating": "Qoplama qatori",
+    "fixed_cost_per_unit": "Qo'shimcha xarajat", "percentage_cost": "Ustama foizi", "product_type_id": "Mahsulot turi",
+    "variant_name": "Tarkib nomi", "batch_quantity": "Tarkib necha birlik uchun", "items": "Tarkib", "bom_id": "Tarkib (retsept)",
+    "source_type": "Kim uchun", "source_order_id": "Buyurtma", "source_order_item_id": "Buyurtma detali",
+    "selected_optional_bom_item_ids": "Ixtiyoriy tarkiblar",
+}
+
+
+def _maydon_nomlari(matn) -> str:
+    """«'quantity' juda katta» → «Miqdor juda katta» (faqat MAYDON_NOMI dagi kalitlar; boshqasi o'zgarmaydi)."""
+    return _re181.sub(r"'(\w+)'", lambda m: MAYDON_NOMI.get(m.group(1), m.group(0)), str(matn))
+
+
 def _tana(model: str, data, sxema):
     """kech93 (8-band): xom JSON QAT'IY tekshiriladi (`crud._clean_val`), keyin
     sxemaga o'giriladi (sxema ham strict — ikkinchi to'siq). Qoida buzilsa 400 va
     `detail` — MATN: `production.html` `'Xato: ' + e.detail` ni ko'rsatadi
-    (sxemaning 422 ro'yxati "Xato: [object Object]" bo'lib chiqardi)."""
+    (sxemaning 422 ro'yxati "Xato: [object Object]" bo'lib chiqardi).
+    kech144 (zip 181, D3): maydon nomlari — o'zbekcha (`_maydon_nomlari`)."""
     try:
         toza = crud._clean_val(model, data)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=_maydon_nomlari(e))
     return sxema(**toza)
 
 
@@ -63,12 +85,38 @@ def _retsept_materiallari(db: Session, items, company_id: int) -> None:
     for i, it in enumerate(items):
         if it.inventory_id not in bor:
             raise HTTPException(status_code=400,
-                                detail=f"'items' {i + 1}-qator: material topilmadi")
+                                detail=f"Tarkib {i + 1}-qator: material topilmadi")     # kech144 (zip 181, D3): ilgari «'items'»
 
 
 # ============================================================
 # MAHSULOT TURLARI (ProductType)
 # ============================================================
+
+# kech144 (zip 181, audit A1 / A2): AMAL KALITI (`X-Amal-Kaliti`, zip 174 — `crud.amal_kaliti_bilan`; main.py dagi `_amal_kaliti` /
+# `_amal_bajar` ning shu moduldagi nusxasi — main.py ni import qilib bo'lmaydi). Takrorda birinchi javob (`takror: true`, `X-Takror: 1`).
+# Nom tekshiruvi qulfi (`crud._pul_qulfi`, PostgreSQL) — fazolar: mahsulot turi nomi (korxona), tarkib nomi (mahsulot turi).
+TUR_NOMI_QULF_NS = 181
+TARKIB_NOMI_QULF_NS = 182
+
+
+def _amal_kaliti(request) -> Optional[str]:
+    if request is None:
+        return None
+    try:
+        return crud.amal_kaliti_toza(request.headers.get("X-Amal-Kaliti"))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+def _amal_bajar(db: Session, current_user, response, amal: str, kalit, bajar):
+    javob, takror = crud.amal_kaliti_bilan(db, auth.company_id_of(current_user), amal, kalit, bajar, kim=_kim(current_user))
+    if takror:
+        if response is not None:
+            response.headers["X-Takror"] = "1"
+        if isinstance(javob, dict):
+            javob = {**javob, "takror": True}
+    return javob, takror
+
 
 def _kim(current_user) -> str:
     return current_user.full_name or current_user.username
@@ -162,44 +210,53 @@ def product_types_summary(db: Session = Depends(get_db), current_user=Depends(au
 
 
 @router.post("/product-types", response_model=schemas.ProductTypeRead)
-def create_product_type(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("mahsulot_turi", "yaratish"))):
+def create_product_type(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("mahsulot_turi", "yaratish")),
+                        request: Request = None, response: Response = None):
     # kech93 (8-band): tana QAT'IY (`_tana`), sabab — `crud._val_rules()["ProductType"]` izohida.
     data = _tana("ProductType", data, schemas.ProductTypeCreate)
     _cid = auth.company_id_of(current_user)
-    # QO'SHILDI 2026-09-20 — nom TAKRORLANMASIN.
-    # Ilgari hech qanday shart yo'q edi: bitta korxona aynan bir xil
-    # nomli ikkita tur yaratishi mumkin edi va ishlab chiqarish
-    # oynasidagi ro'yxatda ular bir xil ko'rinardi — operator qaysi
-    # biri qaysiligini ajrata olmasdi.
-    # Faqat FAOL turlar tekshiriladi: nofaol qilingan (o'chirilgan)
-    # turning nomini qayta ishlatish mumkin bo'lib qolsin.
-    _nom = (data.name or "").strip()
-    _bor = db.query(ProductType).filter(
-        ProductType.company_id == _cid,
-        ProductType.is_active == True,
-        func.lower(func.trim(ProductType.name)) == _nom.lower(),
-    ).first()
-    if _bor:
-        raise HTTPException(
-            status_code=400,
-            detail=f"'{_nom}' nomli mahsulot turi allaqachon bor. Boshqa nom tanlang.")
-    _payload = data.model_dump()
-    _payload["name"] = _nom
-    # kech117 (A2): yo'nalish FAQAT shu korxonaniki va ko'rinadigan (begona / yo'q — "topilmadi", oracle yo'q)
-    if _payload.get("yonalish_id") is not None:
-        try:
-            _payload["yonalish_id"], _ = crud.yonalish_tanlovi(db, _cid, _payload["yonalish_id"])
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
-    pt = ProductType(company_id=_cid, **_payload)
-    db.add(pt)
-    db.flush()
-    # kech110 (2c): Faoliyat jurnali — amal bilan BITTA tranzaksiyada
-    crud.log_activity(db, "created", "product_type", pt.id, f"Mahsulot turi «{pt.name}»", _kim(current_user),
-                      new_value=f"birlik: {pt.unit}", company_id=_cid, commit=False)
-    db.commit()
-    db.refresh(pt)
-    return pt
+    # kech144 (zip 181, audit A1): `X-Amal-Kaliti` — ikki marta bosish / qayta yuborish ikkinchi tur yaratmaydi; nom tekshiruvi — korxona
+    # qulfi ostida (parallel ikki bir xil nom — ikkinchisi «allaqachon bor»)
+    kalit = _amal_kaliti(request)
+
+    def _bajar():
+        crud._pul_qulfi(db, TUR_NOMI_QULF_NS, _cid)
+        # QO'SHILDI 2026-09-20 — nom TAKRORLANMASIN.
+        # Ilgari hech qanday shart yo'q edi: bitta korxona aynan bir xil
+        # nomli ikkita tur yaratishi mumkin edi va ishlab chiqarish
+        # oynasidagi ro'yxatda ular bir xil ko'rinardi — operator qaysi
+        # biri qaysiligini ajrata olmasdi.
+        # Faqat FAOL turlar tekshiriladi: nofaol qilingan (o'chirilgan)
+        # turning nomini qayta ishlatish mumkin bo'lib qolsin.
+        _nom = (data.name or "").strip()
+        _bor = db.query(ProductType).filter(
+            ProductType.company_id == _cid,
+            ProductType.is_active == True,
+            func.lower(func.trim(ProductType.name)) == _nom.lower(),
+        ).first()
+        if _bor:
+            raise HTTPException(
+                status_code=400,
+                detail=f"'{_nom}' nomli mahsulot turi allaqachon bor. Boshqa nom tanlang.")
+        _payload = data.model_dump()
+        _payload["name"] = _nom
+        # kech117 (A2): yo'nalish FAQAT shu korxonaniki va ko'rinadigan (begona / yo'q — "topilmadi", oracle yo'q)
+        if _payload.get("yonalish_id") is not None:
+            try:
+                _payload["yonalish_id"], _ = crud.yonalish_tanlovi(db, _cid, _payload["yonalish_id"])
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+        pt = ProductType(company_id=_cid, **_payload)
+        db.add(pt)
+        db.flush()
+        # kech110 (2c): Faoliyat jurnali — amal bilan BITTA tranzaksiyada
+        crud.log_activity(db, "created", "product_type", pt.id, f"Mahsulot turi «{pt.name}»", _kim(current_user),
+                          new_value=f"birlik: {pt.unit}", company_id=_cid, commit=False)
+        db.commit()
+        db.refresh(pt)
+        return schemas.ProductTypeRead.model_validate(pt).model_dump(mode="json")
+    javob, _ = _amal_bajar(db, current_user, response, "mahsulot_turi", kalit, _bajar)
+    return javob
 
 
 @router.patch("/product-types/{pt_id}", response_model=schemas.ProductTypeRead)
@@ -253,6 +310,9 @@ def update_product_type(pt_id: int, data: dict = Body(...), db: Session = Depend
                                       ProductType.is_active == True).first()  # noqa: E712
     if not pt:
         raise HTTPException(status_code=404, detail="Mahsulot turi topilmadi")
+    # kech146 (zip 181, review181 F4 — ESKI, O'LCHANGAN HAQIQIY PG 16): nom tekshiruvi — yaratishdagi korxona qulfi ostida (ilgari faqat
+    # yaratishda edi: nomini «RV X» ga o'zgartirish ∥ «RV X» yaratish — ikkita faol «RV X»)
+    crud._pul_qulfi(db, TUR_NOMI_QULF_NS, _cid)
     _nom = (data.name or "").strip()
     _unit = (data.unit or "").strip()
     _bor = db.query(ProductType.id).filter(
@@ -353,48 +413,56 @@ def list_boms_for_product(pt_id: int, db: Session = Depends(get_db), current_use
 
 
 @router.post("/boms", response_model=schemas.BOMRead)
-def create_bom(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("mahsulot_turi", "yaratish"))):
+def create_bom(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("mahsulot_turi", "yaratish")),
+               request: Request = None, response: Response = None):
     # kech93 (8-band): tana QAT'IY (`_tana`), materiallar — shu korxonadan.
     data = _tana("BOM", data, schemas.BOMCreate)
     pt = db.query(ProductType).filter(ProductType.id == data.product_type_id, ProductType.company_id == auth.company_id_of(current_user)).first()
     if not pt:
         raise HTTPException(status_code=404, detail="Mahsulot turi topilmadi")
     _retsept_materiallari(db, data.items, auth.company_id_of(current_user))
-    # QO'SHILDI 2026-09-20 — variant nomi ham TAKRORLANMASIN (yuqoridagi
-    # bilan bir xil sabab: ro'yxatda ikkita "Standart" ajralmaydi).
-    # kech93: faqat bo'shliqli nom ham "Standart" (ilgari '' saqlanardi).
-    _vnom = (data.variant_name or "").strip() or "Standart"
-    _bor = db.query(BOM).filter(
-        BOM.product_type_id == pt.id,
-        BOM.company_id == auth.company_id_of(current_user),
-        BOM.is_active == True,
-        func.lower(func.trim(BOM.variant_name)) == _vnom.lower(),
-    ).first()
-    if _bor:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Bu mahsulotda '{_vnom}' nomli tarkib allaqachon bor. Boshqa nom tanlang.")
-    bom = BOM(
-        company_id=auth.company_id_of(current_user),
-        product_type_id=pt.id,
-        variant_name=_vnom,
-        batch_quantity=data.batch_quantity,
-        notes=data.notes,
-    )
-    db.add(bom)
-    db.flush()
-    for item_data in data.items:
-        # Qoida #6 (Multi-tenancy): BOMItem endi to'g'ridan-to'g'ri
-        # company_id'ga ega — ota-BOM orqali bilvosita emas.
-        db.add(BOMItem(bom_id=bom.id, company_id=auth.company_id_of(current_user), **item_data.model_dump()))
-    db.flush()
-    db.refresh(bom)
-    # kech110 (2c): Faoliyat jurnali — amal bilan BITTA tranzaksiyada
-    crud.log_activity(db, "created", "bom", bom.id, f"Retsept «{bom.variant_name}» — {pt.name}", _kim(current_user),
-                      new_value=_retsept_xulosa(bom, pt.unit), company_id=bom.company_id, commit=False)
-    db.commit()
-    db.refresh(bom)
-    return bom
+    # kech144 (zip 181, audit A1): `X-Amal-Kaliti` — ikki marta bosish ikkinchi tarkib yaratmaydi; nom tekshiruvi — mahsulot turi qulfi ostida
+    kalit = _amal_kaliti(request)
+
+    def _bajar():
+        crud._pul_qulfi(db, TARKIB_NOMI_QULF_NS, pt.id)
+        # QO'SHILDI 2026-09-20 — variant nomi ham TAKRORLANMASIN (yuqoridagi
+        # bilan bir xil sabab: ro'yxatda ikkita "Standart" ajralmaydi).
+        # kech93: faqat bo'shliqli nom ham "Standart" (ilgari '' saqlanardi).
+        _vnom = (data.variant_name or "").strip() or "Standart"
+        _bor = db.query(BOM).filter(
+            BOM.product_type_id == pt.id,
+            BOM.company_id == auth.company_id_of(current_user),
+            BOM.is_active == True,
+            func.lower(func.trim(BOM.variant_name)) == _vnom.lower(),
+        ).first()
+        if _bor:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Bu mahsulotda '{_vnom}' nomli tarkib allaqachon bor. Boshqa nom tanlang.")
+        bom = BOM(
+            company_id=auth.company_id_of(current_user),
+            product_type_id=pt.id,
+            variant_name=_vnom,
+            batch_quantity=data.batch_quantity,
+            notes=data.notes,
+        )
+        db.add(bom)
+        db.flush()
+        for item_data in data.items:
+            # Qoida #6 (Multi-tenancy): BOMItem endi to'g'ridan-to'g'ri
+            # company_id'ga ega — ota-BOM orqali bilvosita emas.
+            db.add(BOMItem(bom_id=bom.id, company_id=auth.company_id_of(current_user), **item_data.model_dump()))
+        db.flush()
+        db.refresh(bom)
+        # kech110 (2c): Faoliyat jurnali — amal bilan BITTA tranzaksiyada
+        crud.log_activity(db, "created", "bom", bom.id, f"Retsept «{bom.variant_name}» — {pt.name}", _kim(current_user),
+                          new_value=_retsept_xulosa(bom, pt.unit), company_id=bom.company_id, commit=False)
+        db.commit()
+        db.refresh(bom)
+        return schemas.BOMRead.model_validate(bom).model_dump(mode="json")
+    javob, _ = _amal_bajar(db, current_user, response, "tarkib", kalit, _bajar)
+    return javob
 
 
 @router.post("/boms/preview")
@@ -419,6 +487,12 @@ def update_bom(bom_id: int, data: dict = Body(...), db: Session = Depends(get_db
     o'zining recipe_snapshot_json'idan foydalanadi, JORIY BOM'ni emas."""
     # kech93 (8-band): tana QAT'IY (`_tana`), materiallar — shu korxonadan.
     data = _tana("BOM", data, schemas.BOMCreate)
+    # kech146 (zip 181, review181 F4 — ESKI, O'LCHANGAN HAQIQIY PG 16): tarkib nomi tekshiruvi — yaratishdagi mahsulot turi qulfi
+    # ostida (ilgari faqat yaratishda: «Boshqa» → «Standart» ∥ «Standart» yaratish — ikkita faol «Standart»). Tartib — yaratish bilan
+    # bir: AVVAL nom qulfi, keyin tarkib qatori (mahsulot turi tahrirda o'zgarmaydi — qulfsiz o'qiladi)
+    _pt146 = db.query(BOM.product_type_id).filter(BOM.id == bom_id, BOM.company_id == auth.company_id_of(current_user)).first()
+    if _pt146 is not None and _pt146[0] is not None:
+        crud._pul_qulfi(db, TARKIB_NOMI_QULF_NS, _pt146[0])
     # kech142 (zip 170, A-O02): retsept qatori QULFLANADI va qayta o'qiladi — ikki parallel saqlash navbat bilan
     # (ikkinchisi birinchisining qatorlarini ko'radi; ilgari PG da qatorlar IKKI baravar bo'lib qolishi mumkin edi).
     bom = db.query(BOM).filter(BOM.id == bom_id, BOM.company_id == auth.company_id_of(current_user)
@@ -576,17 +650,25 @@ def list_mrp_order_items_pending(product_type_id: int = None, db: Session = Depe
 
 
 @router.post("/orders")
-def create_order(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("ishlab_buyurtma", "yaratish"))):
+def create_order(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("ishlab_buyurtma", "yaratish")),
+                 request: Request = None, response: Response = None):
     # kech93 (8-band): tana QAT'IY (`_tana`); manba bog'lanishlari — servisda (K93-1).
     data = _tana("ProductionOrder", data, schemas.ProductionOrderCreate)
-    result = service.create_production_order(db, auth.company_id_of(current_user), data, created_by=current_user.full_name or current_user.username)
-    if not result["success"]:
-        raise HTTPException(status_code=400, detail=result["message"])
-    return {"success": True, "production_order": _serialize_po(result["production_order"])}
+    # kech144 (zip 181, audit A2): `X-Amal-Kaliti` — 502 / javob yo'qolgandan keyin qayta bosish IKKINCHI ishlab chiqarish yaratmaydi
+    kalit = _amal_kaliti(request)
+
+    def _bajar():
+        result = service.create_production_order(db, auth.company_id_of(current_user), data, created_by=current_user.full_name or current_user.username)
+        if not result["success"]:
+            raise HTTPException(status_code=400, detail=result["message"])
+        return {"success": True, "production_order": _serialize_po(result["production_order"])}
+    javob, _ = _amal_bajar(db, current_user, response, "ishlab_yaratish", kalit, _bajar)
+    return javob
 
 
 @router.post("/orders/{po_id}/start")
-def start_order(po_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("ishlab_buyurtma", "tahrirlash"))):
+def start_order(po_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("ishlab_buyurtma", "tahrirlash")),
+                request: Request = None, response: Response = None):
     # ESLATMA (qoida #4): "Guardrails" talabida qattiq bloklashda HTTP 400
     # so'ralgan edi; bu yerda ATAYLAB 409 (Conflict) qoldirildi — chunki bu
     # "so'rov noto'g'ri tuzilgan" (400 ning ma'nosi) emas, balki "so'rov
@@ -595,30 +677,49 @@ def start_order(po_id: int, db: Session = Depends(get_db), current_user=Depends(
     # qaytaradi). Ikkalasi BIR XIL endpoint ichida bo'lgani uchun, ikkitasi
     # ham 409 bo'lishi frontend uchun izchil. Agar 400'ni qat'iy xohlasangiz
     # — shu qatordagi status_code'ni almashtirish yetarli.
-    result = service.start_production_order(db, po_id, auth.company_id_of(current_user), performed_by=current_user.full_name or current_user.username)
-    if not result["success"]:
-        raise HTTPException(status_code=409, detail={"message": result["message"], "stock_issues": result.get("stock_issues", [])})
-    return {
-        "success": True,
-        "production_order": _serialize_po(result["production_order"]),
-        "stock_warnings": result.get("stock_warnings", []),
-    }
+    # kech144 (zip 181, audit A2): `X-Amal-Kaliti` — javobi yo'qolgan «Boshlash» ni qayta bosish birinchi javobni oladi (ilgari 409
+    # «allaqachon boshlangan» — boshlangan-u, ekranda xato)
+    kalit = _amal_kaliti(request)
+
+    def _bajar():
+        result = service.start_production_order(db, po_id, auth.company_id_of(current_user), performed_by=current_user.full_name or current_user.username)
+        if not result["success"]:
+            raise HTTPException(status_code=409, detail={"message": result["message"], "stock_issues": result.get("stock_issues", [])})
+        return {
+            "success": True,
+            "production_order": _serialize_po(result["production_order"]),
+            "stock_warnings": result.get("stock_warnings", []),
+        }
+    javob, _ = _amal_bajar(db, current_user, response, "ishlab_boshlash", kalit, _bajar)
+    return javob
 
 
 @router.post("/orders/{po_id}/complete")
-def complete_order(po_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("ishlab_buyurtma", "tahrirlash"))):
-    result = service.complete_production_order(db, po_id, auth.company_id_of(current_user), performed_by=current_user.full_name or current_user.username)
-    if not result["success"]:
-        raise HTTPException(status_code=409, detail=result["message"])
-    return {"success": True, "production_order": _serialize_po(result["production_order"])}
+def complete_order(po_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("ishlab_buyurtma", "tahrirlash")),
+                   request: Request = None, response: Response = None):
+    kalit = _amal_kaliti(request)      # kech144 (zip 181, audit A2)
+
+    def _bajar():
+        result = service.complete_production_order(db, po_id, auth.company_id_of(current_user), performed_by=current_user.full_name or current_user.username)
+        if not result["success"]:
+            raise HTTPException(status_code=409, detail=result["message"])
+        return {"success": True, "production_order": _serialize_po(result["production_order"])}
+    javob, _ = _amal_bajar(db, current_user, response, "ishlab_yakunlash", kalit, _bajar)
+    return javob
 
 
 @router.post("/orders/{po_id}/cancel")
-def cancel_order(po_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("ishlab_buyurtma", "ochirish"))):
-    result = service.cancel_production_order(db, po_id, auth.company_id_of(current_user), performed_by=current_user.full_name or current_user.username)
-    if not result["success"]:
-        raise HTTPException(status_code=409, detail=result["message"])
-    return {"success": True, "production_order": _serialize_po(result["production_order"])}
+def cancel_order(po_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("ishlab_buyurtma", "ochirish")),
+                 request: Request = None, response: Response = None):
+    kalit = _amal_kaliti(request)      # kech144 (zip 181, audit A2)
+
+    def _bajar():
+        result = service.cancel_production_order(db, po_id, auth.company_id_of(current_user), performed_by=current_user.full_name or current_user.username)
+        if not result["success"]:
+            raise HTTPException(status_code=409, detail=result["message"])
+        return {"success": True, "production_order": _serialize_po(result["production_order"])}
+    javob, _ = _amal_bajar(db, current_user, response, "ishlab_bekor", kalit, _bajar)
+    return javob
 
 
 # ============================================================

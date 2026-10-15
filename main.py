@@ -4677,21 +4677,49 @@ def api_restore_order(order_id: int, db: Session = Depends(get_db), current_user
 
 
 @app.post("/api/projects/{project_id}/restore")
-def api_restore_project(project_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("savat", "tahrirlash"))):
+def api_restore_project(project_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("savat", "tahrirlash")),
+                        buyurtmalar: Optional[str] = None):
     # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.project_of_company(db, project_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
     who = current_user.full_name or current_user.username
     # kech144 (zip 175, audit T2 — O'LCHANGAN fy_probe1 S6): savatda bo'lmagan loyiha — 409 (ilgari 200 va soxta «tiklandi» yozuvi);
     # tiklash va jurnal BITTA tranzaksiyada, butunlay o'chirish bilan bir qulf (`crud.restore_project`).
+    # kech144 (zip 181, egasi QARORI 14.10 «So'rasin»): loyihaning savatda buyurtmalari bo'lsa — tanlovsiz tiklanmaydi (409
+    # `project_has_deleted_orders`, hech narsa o'zgarmaydi); `buyurtmalar=ha` — ular ham (bitta tranzaksiyada, har biri `restore_order`
+    # qoidasi bilan), `buyurtmalar=yoq` — faqat loyiha
+    if buyurtmalar is not None and buyurtmalar not in ("ha", "yoq"):
+        raise HTTPException(status_code=400, detail="'buyurtmalar' — 'ha' yoki 'yoq'")
+    _cid181 = auth.company_id_of(current_user)
+    from models import Project as _Prj181
+    _loy181 = db.query(_Prj181).filter(_Prj181.id == project_id, _Prj181.company_id == _cid181).first()
+    _savat181 = crud.loyiha_savatdagi_buyurtmalari(db, project_id, _cid181) if (_loy181 is not None and _loy181.is_deleted) else []
+    if _savat181 and buyurtmalar is None:
+        _raq181 = [r or f"#{i}" for i, r in _savat181]
+        raise HTTPException(status_code=409, detail={
+            "type": "project_has_deleted_orders", "soni": len(_savat181), "raqamlar": _raq181,
+            "message": (f"Savatda shu loyihaning {len(_savat181)} ta buyurtmasi bor ({', '.join(_raq181[:5])}"
+                        f"{', …' if len(_raq181) > 5 else ''}) — ular ham tiklansinmi?")})
+    _soni146 = 0
     try:
         with crud.bitta_tranzaksiya(db):
+            if buyurtmalar == "ha":
+                # kech146 (zip 181, review181 F2 — O'LCHANGAN HAQIQIY PG 16): buyurtma qulflari (101, id TARTIBIDA) loyiha qulfidan
+                # (108 + loyiha qatori) OLDIN — alohida buyurtma tiklash (`restore_order`: 101 → loyiha qatori) bilan bir tartib. Ilgari
+                # teskari edi: ikkalasi bir vaqtda — deadlock 40P01, biri 500 «Serverda kutilmagan xato»
+                for _oid146 in sorted(_i for _i, _ in _savat181):
+                    crud._pul_qulfi(db, 101, _oid146)
             _ok = crud.restore_project(db, project_id, performed_by=who)
+            if _ok and buyurtmalar == "ha":
+                for _oid181, _ in _savat181:
+                    if crud.restore_order(db, _oid181, performed_by=who):
+                        _soni146 += 1
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
     if not _ok:
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
-    return {"status": "ok"}
+    # kech146 (review181 N1): haqiqatan tiklangan buyurtmalar soni (shu orada butunlay o'chirilgani sanalmaydi)
+    return {"status": "ok", "tiklangan_buyurtmalar": _soni146}
 
 
 @app.delete("/api/orders/{order_id}/permanent")
