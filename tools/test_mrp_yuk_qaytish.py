@@ -661,9 +661,9 @@ else:
 section("H. Statik tartib")
 # ══════════════════════════════════════════════════════════════
 _bt = manba(crud, "_mrp_band_tmlar")
-check("H1 band TM lar id TARTIBIDA, FOR UPDATE + populate_existing, oldin flush",
+check("H1 band TM lar id TARTIBIDA, FOR NO KEY UPDATE + populate_existing, oldin flush",      # kech145 (zip 182, MOSLANDI)
       tartibda(_bt, "q = q.order_by(FinishedProduct.id)", "db.flush()",
-               "q = q.with_for_update().populate_existing()"), _bt[:200])
+               "q = q.with_for_update(key_share=True).populate_existing()"), _bt[:200])
 _ds = manba(crud, "_mrp_deliver_stock")
 check("H2 olishda faqat TAYYOR TM; olingan natija ga yoziladi",
       tartibda(_ds, "if sign > 0:", "if not _fp_tayyormi(fp):", "olindi.append([fp.id, round(olinadi, 6)])",
@@ -681,7 +681,8 @@ check("H5 create_delivery: MRP tayyor tekshiruvi valid_items dan OLDIN, rad yozu
 _ti = manba(crud, "_mrp_tmlar_idlar")
 check("H9 yozilgan id bo'yicha qidirish ham KORXONA bilan cheklangan, id tartibida, qulf bilan",
       tartibda(_ti, "FinishedProduct.id.in_(idlar)", "q = q.filter(FinishedProduct.company_id == company_id)",
-               "db.flush()", "q.order_by(FinishedProduct.id).with_for_update().populate_existing()"), _ti[:200])
+               "db.flush()", "q.order_by(FinishedProduct.id).with_for_update(key_share=True).populate_existing()"),   # kech145 (zip 182)
+      _ti[:200])
 _dd = manba(crud, "delete_delivery")
 check("H6 delete_delivery: olingan=_mrp_olingan_oqi(di)", "olingan=_mrp_olingan_oqi(di))" in _dd)
 _co = manba(services, "complete_order")
