@@ -477,7 +477,14 @@ check("E8 C da token yo'q → 400 «Avval bot tokenini», so'rov YO'Q", r.status
 for _tk, _k, _kut, _st in (("123 / deleteWebhook?x", "E9", "noto'g'ri ko'rinishda", 400),
                            (UMUMIY_TOKEN, "E10", "umumiy boti", 400),
                            (B_TOKEN, "E11", "boshqa korxonaning", 409)):
-    CC.put("/api/settings/telegram-bot", data={"token": _tk})
+    _rp183 = CC.put("/api/settings/telegram-bot", data={"token": _tk})
+    if _k == "E9":
+        # kech146 (zip 183, audit J10 — MOSLANDI): noto'g'ri ko'rinishdagi token endi SAQLANMAYDI (400). «Botni ulash» ning o'z
+        # tekshiruvi (zip 183 gacha saqlangan eski token uchun) — token bazaga to'g'ridan yozilib sinaladi.
+        check("E9a noto'g'ri ko'rinishdagi token saqlanmaydi → 400", _rp183.status_code == 400, (_rp183.status_code, _rp183.text[:160]))
+        _s183 = SessionLocal()
+        crud.set_setting(_s183, "telegram_bot_token", _tk, company_id=3)
+        _s183.close()
     chaq_tozala()
     r = CC.post(ULASH)
     check(f"{_k} C tokeni: {_kut} → {_st}, Telegram'ga so'rov YO'Q, token javobda YO'Q",

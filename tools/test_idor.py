@@ -378,6 +378,24 @@ section("5. OPERATSION O'QISH: filtr holati to'g'ri ko'rsatiladimi")
 _hc = client.get("/api/system/health-check")
 check(f"GET /api/system/health-check \u2192 {_hc.status_code}",
       _hc.status_code == 200, "o'qish ishlamadi")
+# kech146 (zip 183, audit J8 — MOSLANDI): filtr holati endi FAQAT platforma administratoriga — korxona admini uchun bu ma'lumot
+# keraksiz, hujumchiga esa filtr o'chiqligini aytadi. B admini javobida kalit YO'Q; holat o'qishi (asl qulf) — platforma
+# administratori bilan (alohida korxona — boshqa bo'limlarning A / B hisoblariga ta'sir qilmasin).
+check("B admini javobida `tenant_filter` YO'Q (faqat platforma administratoriga)",
+      _hc.status_code == 200 and "tenant_filter" not in _hc.json(),
+      list(_hc.json().keys()) if _hc.status_code == 200 else _hc.status_code)
+if not db.query(Company).filter(Company.id == 3).first():
+    db.add(Company(id=3, name="IDOR Platforma"))
+    db.commit()
+with contextlib.redirect_stdout(_quiet):
+    _plat = auth.create_user(db, "IDOR_plat", "Parol123!", UserRole.ADMIN, "IDOR platforma", company_id=3)
+_plat.is_platform_admin = True
+db.commit()
+_pc = TestClient(main.app, base_url="https://testserver")
+_pc.post("/login", data={"username": "IDOR_plat", "password": "Parol123!"}, follow_redirects=False)
+_hc = _pc.get("/api/system/health-check")
+check(f"GET /api/system/health-check (platforma administratori) \u2192 {_hc.status_code}",
+      _hc.status_code == 200, "o'qish ishlamadi")
 if _hc.status_code == 200:
     _tf = _hc.json().get("tenant_filter") or {}
     check(f"tenant_filter.enabled == {_tc.ENABLED}",
