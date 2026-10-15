@@ -47,11 +47,11 @@
         <label class="field-label">Korxona kodi</label>
         {# kech120 (zip 130 — G6-07): QR / havoladan kelgan kod (`?k=`) o'zi yoziladi #}
         {# kech120 (zip 137 — G6-20): namuna qisqa (telefonda «… bo'sh qo…» kesilardi) #}
-        <input class="field-input" type="text" name="korxona" value="{{ kod or '' }}" placeholder="Admindan so'rang" autocomplete="organization" autocapitalize="characters">
+        <input class="field-input" type="text" name="korxona" value="{{ kod or '' }}" placeholder="Admindan so'rang" autocomplete="organization" autocapitalize="characters" maxlength="30">
 
         <label class="field-label">Telefon raqami</label>
         {# kech120 (zip 137 — G6-20): xatoda telefon saqlanadi (ilgari qayta yozish kerak edi) — faqat PIN tozalanadi #}
-        <input class="field-input" type="tel" name="phone" value="{{ telefon or '' }}" placeholder="+998 90 123 45 67" required {% if not telefon %}autofocus{% endif %}>
+        <input class="field-input" type="tel" name="phone" value="{{ telefon or '' }}" placeholder="+998 90 123 45 67" maxlength="30" required {% if not telefon %}autofocus{% endif %}>
 
         <label class="field-label">PIN kod (4 xonali)</label>
         <input class="field-input pin-input" type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="••••" required {% if telefon %}autofocus{% endif %}>

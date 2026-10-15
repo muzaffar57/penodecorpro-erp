@@ -62,13 +62,14 @@
   </div>
 
   <!-- KIRISH TARIXI — kech120 (zip 129 — G6-23): filtr (sana, foydalanuvchi, natija) va sahifalash serverda -->
-  <div id="tab-login" class="card">
+  {# kech146 (zip 183, audit J12): `/sozlamalar` da bu karta ko'rinmaydi (ilgari JS ishlaguncha «Kirish urinishlari» ko'rinib turardi) #}
+  <div id="tab-login" class="card"{% if sozlamalar_sahifasi %} style="display:none"{% endif %}>
     <div class="card-head"><h3>🔑 Kirish urinishlari <span class="jr-son" id="kirishSoni">({{ kirish.jami|son }} ta{% if kirish.filtrlangan %} — filtr bo'yicha{% endif %})</span></h3></div>
     <form class="jr-filtr" method="get" action="/logs" id="kirishFiltr">
       {% for k, v in request.query_params.multi_items() %}{% if k.startswith('a_') and v %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{% endfor %}
       <input type="hidden" name="tab" value="login">
-      <label>Sanadan <input type="date" name="k_dan" value="{{ kirish.filtr.dan }}"></label>
-      <label>Sanagacha <input type="date" name="k_gacha" value="{{ kirish.filtr.gacha }}"></label>
+      <label>Sanadan <input type="date" name="k_dan" value="{{ kirish.filtr.dan }}" min="2020-01-01" max="2100-12-31"></label>
+      <label>Sanagacha <input type="date" name="k_gacha" value="{{ kirish.filtr.gacha }}" min="2020-01-01" max="2100-12-31"></label>
       <label>Foydalanuvchi
         <select name="k_kim">
           <option value="">Hammasi</option>
@@ -123,15 +124,23 @@
       <div style="text-align:center;padding:30px;color:var(--text3);font-size:13px">Hech qanday xatolik qayd etilmagan ✅</div>
       {% endif %}
       {% for e in error_logs %}
-      <div class="err-row" onclick="toggleErrDetail(this)" style="padding:12px 18px;border-bottom:1px solid var(--border2);cursor:pointer">
+      {# kech146 (zip 183, audit J4 — O'LCHANGAN): ~25 joy stek yozmaydi, `_jurnal_yozilmadi` kabi xabarlarda sabab 200 belgidan keyin
+         — ilgari kesilgan va «bosib to'liq ko'ring» hech narsa ochmasdi. Endi: uzun xabar yoki stek bo'lsa — bosilganda TO'LIQ xabar va
+         stek; aks holda izoh ham, bosish ham yo'q. N2: uzun so'z (masalan funksiya nomi) qatorni yonga surmaydi. #}
+      {% set _xabar = e.error_message or '' %}
+      {% set _uzun = _xabar|length > 200 %}
+      {% set _toliq = _uzun or e.stack_trace %}
+      <div class="err-row"{% if _toliq %} onclick="toggleErrDetail(this)"{% endif %} style="padding:12px 18px;border-bottom:1px solid var(--border2){% if _toliq %};cursor:pointer{% endif %}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
-          <div style="font-size:13px;color:var(--m-dc2626);font-weight:600">{{ e.error_message[:200] }}</div>
+          <div class="err-xabar" style="font-size:13px;color:var(--m-dc2626);font-weight:600;min-width:0;overflow-wrap:anywhere">{{ _xabar[:200] }}{% if _uzun %}…{% endif %}</div>
           {# kech106: ErrorLog.created_at — ALLAQACHON Toshkent vaqti (models._uzb_now) — |toshkent filtri QO'LLANMAYDI #}
           <div style="font-size:12px;color:var(--text3);white-space:nowrap;flex-shrink:0">{{ e.created_at.strftime('%d.%m.%Y %H:%M') if e.created_at else '' }}</div>
         </div>
-        <div style="font-size:12px;color:var(--text3);margin-top:4px">{{ e.method or '' }} {{ e.endpoint or '' }} {% if e.performed_by %}· {{ e.performed_by }}{% endif %} <span style="color:var(--f-primary,#B9783F)">— bosib to'liq ko'ring ▾</span></div>
-        {% if e.stack_trace %}
-        <pre class="err-detail" style="display:none;margin-top:10px;padding:12px;background:#1F2937;color:#E5E7EB;border-radius:8px;font-size:12px;white-space:pre-wrap;word-break:break-word;max-height:400px;overflow-y:auto">{{ e.stack_trace }}</pre>
+        <div class="err-manzil" style="font-size:12px;color:var(--text3);margin-top:4px;min-width:0;overflow-wrap:anywhere">{{ e.method or '' }} {{ e.endpoint or '' }} {% if e.performed_by %}· {{ e.performed_by }}{% endif %}{% if _toliq %} <span style="color:var(--f-primary,#B9783F)">— bosib to'liq ko'ring ▾</span>{% endif %}</div>
+        {% if _toliq %}
+        <pre class="err-detail" style="display:none;margin-top:10px;padding:12px;background:#1F2937;color:#E5E7EB;border-radius:8px;font-size:12px;white-space:pre-wrap;word-break:break-word;max-height:400px;overflow-y:auto">{% if _uzun %}{{ _xabar }}{% if e.stack_trace %}
+
+{% endif %}{% endif %}{{ e.stack_trace or '' }}</pre>
         {% endif %}
       </div>
       {% endfor %}
@@ -155,8 +164,8 @@
     <form class="jr-filtr" method="get" action="/logs" id="auditFiltr">
       {% for k, v in request.query_params.multi_items() %}{% if k.startswith('k_') and v %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{% endfor %}
       <input type="hidden" name="tab" value="activity">
-      <label>Sanadan <input type="date" name="a_dan" value="{{ audit.filtr.dan }}"></label>
-      <label>Sanagacha <input type="date" name="a_gacha" value="{{ audit.filtr.gacha }}"></label>
+      <label>Sanadan <input type="date" name="a_dan" value="{{ audit.filtr.dan }}" min="2020-01-01" max="2100-12-31"></label>
+      <label>Sanagacha <input type="date" name="a_gacha" value="{{ audit.filtr.gacha }}" min="2020-01-01" max="2100-12-31"></label>
       <label>Kim
         <select name="a_kim">
           <option value="">Hammasi</option>
@@ -203,7 +212,9 @@
         {% if _farq %}
         <div class="jr-farq"><b>O'zgardi:</b> {{ _farq }}</div>
         {% elif a.action == 'updated' and a.old_value and a.old_value == _yangi %}
-        <div class="jr-farq" style="color:var(--text3)">{{ _yangi }} — qisqa tavsif o'zgarmagan (bu eski yozuvda tafsilot saqlanmagan)</div>
+        {# kech146 (zip 183, audit J5): «eski yozuv» deyilmaydi — o'zgarishsiz saqlash endi jurnalga yozilmaydi, qolgan bunday qatorlar —
+           tafsilot saqlanmagan yozuvlar #}
+        <div class="jr-farq" style="color:var(--text3)">{{ _yangi }} — qisqa tavsif o'zgarmagan (bu yozuvda tafsilot saqlanmagan)</div>
         {% endif %}
       </div>
       {% endfor %}
@@ -247,38 +258,38 @@
     <div style="padding:18px;border-bottom:1px solid var(--border2)">
       <div style="font-size:13px;font-weight:700;margin-bottom:6px">🏢 Korxona nomi</div>
       <div style="font-size:13px;color:var(--text3);line-height:1.6;margin-bottom:12px">
-        Bu nom chap paneldа va hujjatlarda ko'rinadi.
+        Bu nom menyuda va hujjatlarda ko'rinadi.
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
-        <div>
+        <div style="min-width:0;max-width:100%">
           <label style="display:block;font-size:12px;color:var(--text3);margin-bottom:4px">Nomi</label>
           <input type="text" id="co-name" class="input-field" maxlength="200"
-                 style="width:280px" placeholder="Korxona nomi">
+                 style="width:280px;max-width:100%" placeholder="Korxona nomi">
         </div>
-        <div>
+        <div style="min-width:0;max-width:100%">
           <label style="display:block;font-size:12px;color:var(--text3);margin-bottom:4px">Shiori</label>
           <input type="text" id="co-slogan" class="input-field" maxlength="150"
-                 style="width:220px" placeholder="Fasad bezaklari">
+                 style="width:220px;max-width:100%" placeholder="Fasad bezaklari">
         </div>
-        <div>
+        <div style="min-width:0;max-width:100%">
           <label style="display:block;font-size:12px;color:var(--text3);margin-bottom:4px">Telegram: ustaga salom shiori</label>
           <input type="text" id="co-tg-tagline" class="input-field" maxlength="150"
-                 style="width:280px" placeholder="bo'sh qoldirilsa — chiqmaydi">
+                 style="width:280px;max-width:100%" placeholder="bo'sh qoldirilsa — chiqmaydi">
           {# kech132 (zip 156): qaysi «nom» ekani aniq — `main._tg_signature`: «🏗 *Nom* — Shior» (ilgari «nom yonida» — joylashuv so'zi) #}
           <div style="font-size:12px;color:var(--text3);margin-top:3px">
             Yangi usta qo'shilganda bot salom xabarining oxirida chiqadi: «🏗 Korxona nomi — shior»</div>
         </div>
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
-        <div>
+        <div style="min-width:0;max-width:100%">
           <label style="display:block;font-size:12px;color:var(--text3);margin-bottom:4px">Telefon</label>
           <input type="text" id="co-phone" class="input-field" maxlength="60"
-                 style="width:200px" placeholder="+998 90 123 45 67">
+                 style="width:200px;max-width:100%" placeholder="+998 90 123 45 67">
         </div>
-        <div>
+        <div style="min-width:0;max-width:100%">
           <label style="display:block;font-size:12px;color:var(--text3);margin-bottom:4px">Manzil</label>
           <input type="text" id="co-address" class="input-field" maxlength="200"
-                 style="width:220px" placeholder="Andijon">
+                 style="width:220px;max-width:100%" placeholder="Andijon">
         </div>
         {# kech144 (zip 175, audit C2): ma'lumot yuklanmaguncha yopiq (bo'sh maydonlar saqlanib slogan / telefon / manzil o'chmasin) #}
         {% if _soz_tahrir %}<button class="btn btn-dark btn-sm" id="co-save-btn" onclick="saveCompany()" disabled>Saqlash</button>{% endif %}
@@ -291,11 +302,15 @@
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <img id="co-logo-preview" src="" alt="" style="display:none;height:40px;border-radius:6px;border:1px solid var(--border2)">
           {# kech120 (zip 137 — G6-22): brauzerning inglizcha «Choose File / No file chosen» o'rniga o'zbekcha tugma va fayl nomi #}
+          {# kech146 (zip 183, audit J11): «Fayl tanlash» — faqat «Logotipni yuklash» tugmasi bor bo'lsa (ilgari ruxsatsiz rolda ham
+             chizilardi, yonida yuklash tugmasi yo'q edi) #}
+          {% if _soz_tahrir %}
           <input type="file" id="co-logo-file" accept="image/png,image/jpeg,image/webp" style="display:none"
                  onchange="document.getElementById('co-logo-nomi').textContent = this.files && this.files[0] ? this.files[0].name : 'Fayl tanlanmagan'">
           <label for="co-logo-file" class="btn btn-outline btn-sm" style="cursor:pointer">Fayl tanlash</label>
-          <span id="co-logo-nomi" style="font-size:13px;color:var(--text3)">Fayl tanlanmagan</span>
-          {% if _soz_tahrir %}<button class="btn btn-soft btn-sm" id="co-logo-btn" onclick="uploadLogo()">Logotipni yuklash</button>{% endif %}
+          <span id="co-logo-nomi" style="font-size:13px;color:var(--text3);min-width:0;overflow-wrap:anywhere">Fayl tanlanmagan</span>
+          <button class="btn btn-soft btn-sm" id="co-logo-btn" onclick="uploadLogo()">Logotipni yuklash</button>
+          {% endif %}
           <span id="co-logo-status" style="font-size:13px"></span>
         </div>
       </div>
@@ -329,9 +344,9 @@
       <div id="yon-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">Yuklanmoqda…</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
         {% if current_user.ruxsat('sozlama', 'yaratish') %}
-        <div>
+        <div style="min-width:0;max-width:100%">
           <label for="yon-yangi" style="display:block;font-size:12px;color:var(--text3);margin-bottom:4px">Yangi yo'nalish</label>
-          <input type="text" id="yon-yangi" class="input-field" maxlength="60" style="width:260px"
+          <input type="text" id="yon-yangi" class="input-field" maxlength="60" style="width:260px;max-width:100%"
                  placeholder="Masalan: Metall konstruksiya">
         </div>
         <button class="btn btn-dark btn-sm" id="yon-qosh-btn" onclick="yonQosh()">+ Qo'shish</button>
@@ -357,15 +372,18 @@
         Shundan keyin usta botda o'z bonusi va sovg'alarini ko'radi.
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">
-        <div>
+        <div style="min-width:0;max-width:100%">
           <label style="display:block;font-size:12px;color:var(--text3);margin-bottom:4px">Bot tokeni</label>
           <input type="text" id="tg-token" class="input-field maydon" placeholder="o'zgartirmaslik uchun bo'sh qoldiring"
-                 style="width:280px;font-family:monospace">
+                 maxlength="100" autocomplete="off" style="width:280px;max-width:100%;font-family:monospace">
         </div>
-        <div>
+        <div style="min-width:0;max-width:100%">
           <label style="display:block;font-size:12px;color:var(--text3);margin-bottom:4px">Chat ID (vergul bilan)</label>
           <input type="text" id="tg-chat" class="input-field maydon" placeholder="123456789,987654321"
-                 style="width:220px;font-family:monospace">
+                 maxlength="440" style="width:220px;max-width:100%;font-family:monospace">
+          {# kech146 (zip 183, audit J10): bo'shatilsa — o'chiriladi (ilgari «✓ Saqlandi» deyilib ID lar qaytib kelardi); izoh — faqat
+             saqlay oladigan rolga (mustaqil tekshiruv R9) #}
+          {% if _soz_tahrir %}<div style="font-size:12px;color:var(--text3);margin-top:3px">Bo'shatib saqlansa — chat ID lar o'chiriladi</div>{% endif %}
         </div>
         {% if _soz_tahrir %}
         <button class="btn btn-dark btn-sm" id="tg-save-btn" onclick="saveTgBot()">Saqlash</button>
@@ -575,6 +593,8 @@ async function saveCategories() {
 
 // kech144 (zip 175, audit C3 — O'LCHANGAN: `r.ok` tekshirilmasdi — 403 / 401 JSON da bot sozlangan bo'lsa ham qizil «Sozlanmagan —
 // Telegram xabarlari YUBORILMAYDI» chiqardi): `yukOl`; yuklanmasa — sabab, holat taxmin qilinmaydi.
+// kech146 (zip 183, audit J10): serverdan kelgan chat ID (bo'sh emasmi) — maydon bo'shatilsa «o'chirish» deb yuboriladi
+let TG_CHAT_YUKLANGAN = false;
 async function loadTgBot() {
   const el = document.getElementById('tg-status');
   let d;
@@ -586,10 +606,13 @@ async function loadTgBot() {
     return;
   }
   try {
+    // kech146 (zip 183, audit J10 + mustaqil tekshiruv R5): chat ID — bot sozlanmagan bo'lsa ham ko'rsatiladi (ilgari maydon bo'sh
+    // ko'rinib, saqlangan ID lar yashirin qolardi — keyin token qo'yilsa jimgina qayta ishlardi)
+    document.getElementById('tg-chat').value = d.chat_id || '';
+    TG_CHAT_YUKLANGAN = !!(d.chat_id || '').trim();
     if (d.configured) {
       el.innerHTML = '<span style="color:var(--green,#0a0)">✓ O\'z boti sozlangan</span> ' +
                      '<span style="color:var(--text3)">(token ' + escapeHtml(d.token_hint || '') + ')</span>';
-      document.getElementById('tg-chat').value = d.chat_id || '';
     } else {
       el.innerHTML = d.uses_system_bot
         ? '<span style="color:var(--text3)">Sozlanmagan — tizimning umumiy boti ishlatiladi</span>'
@@ -649,7 +672,9 @@ async function saveTgBot() {
   if (btn && btn.disabled) return;
   const fd = new FormData();
   fd.append('token', document.getElementById('tg-token').value.trim());
-  fd.append('chat_id', document.getElementById('tg-chat').value.trim());
+  // kech146 (zip 183, audit J10): yuklanganda chat ID bor edi, endi maydon bo'sh — o'chirish («-»; server bo'shni «o'zgartirmaslik» deb oladi)
+  const _chat = document.getElementById('tg-chat').value.trim();
+  fd.append('chat_id', (!_chat && TG_CHAT_YUKLANGAN) ? '-' : _chat);
   const st = document.getElementById('tg-status');
   if (btn) btn.disabled = true;
   let r;
@@ -717,23 +742,25 @@ function yonQatori(y) {
   // bo'lmasa — avvalgidek hammasi)
   const _yt = (typeof YON_TAHRIR === 'undefined') ? true : YON_TAHRIR;
   const _yo = (typeof YON_OCHIR === 'undefined') ? true : YON_OCHIR;
+  // kech146 (zip 183, audit J11): «O'chirish» ruxsati bor, «Tahrirlash» yo'q — ishlatilmagan yo'nalish uchun «O'chirish» tugmasi qoladi
+  // (server `sozlama:ochirish` bilan ruxsat beradi; ilgari bu rolda tugma umuman yo'q edi)
+  const _ochTugma = (!y.asosiy && !ishlatilgan && _yo)
+    ? '<button class="btn btn-danger btn-sm yon-ochir" data-id="' + y.id + '" data-bosqich="0" onclick="yonOchir(this)">O\'chirish</button>' : '';
   if (!_yt) {
     return '<div class="yon-qator" data-id="' + y.id + '" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap' +
-           (y.yashirin ? ';opacity:.65' : '') + '"><span style="width:220px;font-weight:600">' + escapeHtml(y.nom) + '</span>' + belgilar + '</div>';
+           (y.yashirin ? ';opacity:.65' : '') + '"><span style="width:220px;max-width:100%;font-weight:600;overflow-wrap:anywhere">' +
+           escapeHtml(y.nom) + '</span>' + belgilar + _ochTugma + '</div>';
   }
   let tugmalar = '<button class="btn btn-soft btn-sm" data-id="' + y.id + '" onclick="yonNomSaqla(this)">Nomini saqlash</button>';
   if (!y.asosiy) {
     tugmalar += '<button class="btn btn-soft btn-sm" data-id="' + y.id +
                 '" data-yashirin="' + (y.yashirin ? '0' : '1') + '" onclick="yonYashir(this)">' +
                 (y.yashirin ? "Ko'rsatish" : 'Yashirish') + '</button>';
-    if (!ishlatilgan && _yo) {
-      tugmalar += '<button class="btn btn-danger btn-sm yon-ochir" data-id="' + y.id +
-                  '" data-bosqich="0" onclick="yonOchir(this)">O\'chirish</button>';
-    }
+    tugmalar += _ochTugma;
   }
   return '<div class="yon-qator" data-id="' + y.id + '" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap' +
          (y.yashirin ? ';opacity:.65' : '') + '">' +
-         '<input type="text" class="input-field yon-nom" maxlength="60" style="width:220px" value="' + escapeHtml(y.nom) +
+         '<input type="text" class="input-field yon-nom" maxlength="60" style="width:220px;max-width:100%" value="' + escapeHtml(y.nom) +
          '" aria-label="Yo\'nalish nomi">' + belgilar + tugmalar + '</div>';
 }
 // kech144 (zip 175, audit C12): eski javob yangisini bosmaydi (`yukNavbat`), xato — sabab (5xx / tarmoq ham)
@@ -773,16 +800,25 @@ async function yonQosh() {
     if (await yonSorov('/api/yonalishlar', 'POST', {nom})) { inp.value = ''; yonHolat("✓ Qo'shildi"); yonYukla(); }
   } finally { btn.disabled = false; }
 }
+// kech146 (zip 183, audit J5): so'rov ketayotganda tugma yopiq — ikkinchi bosish ikkinchi so'rov (va jurnal yozuvi) bermaydi
 async function yonNomSaqla(btn) {
+  if (btn.disabled) return;
   const qator = btn.closest('.yon-qator');
   const nom = (qator.querySelector('.yon-nom').value || '').trim();
   if (!nom) { yonHolat("Yo'nalish nomini kiriting", true); return; }
-  if (await yonSorov('/api/yonalishlar/' + btn.dataset.id, 'PUT', {nom})) { yonHolat('✓ Saqlandi'); yonYukla(); }
+  btn.disabled = true;
+  try {
+    if (await yonSorov('/api/yonalishlar/' + btn.dataset.id, 'PUT', {nom})) { yonHolat('✓ Saqlandi'); yonYukla(); }
+  } finally { if (btn.isConnected) btn.disabled = false; }
 }
 async function yonYashir(btn) {
-  if (await yonSorov('/api/yonalishlar/' + btn.dataset.id, 'PUT', {yashirin: btn.dataset.yashirin === '1'})) {
-    yonHolat('✓ Saqlandi'); yonYukla();
-  }
+  if (btn.disabled) return;
+  btn.disabled = true;
+  try {
+    if (await yonSorov('/api/yonalishlar/' + btn.dataset.id, 'PUT', {yashirin: btn.dataset.yashirin === '1'})) {
+      yonHolat('✓ Saqlandi'); yonYukla();
+    }
+  } finally { if (btn.isConnected) btn.disabled = false; }
 }
 async function yonOchir(btn) {
   // kech144 (zip 175, audit C12): o'chirish so'rovi yuborilgan — keyingi tez bosishlar hech narsa qilmaydi (ikkinchi DELETE yo'q;
@@ -804,7 +840,9 @@ async function yonOchir(btn) {
 // kech144 (zip 175, audit C8): yo'nalish tugmalari ruxsati (server: tahrirlash / o'chirish)
 const YON_TAHRIR = {{ 'true' if current_user.ruxsat('sozlama', 'tahrirlash') else 'false' }};
 const YON_OCHIR = {{ 'true' if current_user.ruxsat('sozlama', 'ochirish') else 'false' }};
-document.addEventListener('DOMContentLoaded', () => { loadTgBot(); loadCompany(); loadCategories(); yonYukla(); });
+// kech146 (zip 183, audit J12): sozlama bloklari faqat `/sozlamalar` da — `/logs` da ular ko'rinmaydi (ilgari har ochilishda 4 ta so'rov,
+// faqat jurnal ruxsatli rolda ikkitasi 403, `?hammasi=true` asosiy yo'nalishni yaratishi ham mumkin edi)
+{% if sozlamalar_sahifasi %}document.addEventListener('DOMContentLoaded', () => { loadTgBot(); loadCompany(); loadCategories(); yonYukla(); });{% endif %}
 // kech120 (zip 129): server tanlagan yorliq (`?tab=` — filtr / sahifa havolasidan keyin shu yorliq ochiq qoladi)
 {% if yorliq != 'login' %}document.addEventListener('DOMContentLoaded', () => { if (document.getElementById('tab-{{ yorliq }}')) switchLogTab('{{ yorliq }}'); });{% endif %}
 
@@ -846,7 +884,8 @@ async function runHealthCheck() {
       </div>`;
       d.issues.forEach(issue => {
         html += `<div style="border:1px solid var(--border2);border-radius:10px;padding:14px 16px;margin-bottom:10px">
-          <div style="font-size:13px;font-weight:600;color:var(--text)">${issue.label ? escapeHtml(issue.label) : ('#' + issue.id)} <span style="color:var(--text3);font-weight:400">(${issue.table}.${issue.column})</span></div>
+          <div style="font-size:13px;font-weight:600;color:var(--text);overflow-wrap:anywhere">${issue.label ? escapeHtml(issue.label) : ('#' + issue.id)} <span style="color:var(--text3);font-weight:400">(${issue.table}.${issue.column})</span></div>
+          ${issue.company ? `<div class="health-korxona" style="font-size:12px;color:var(--text2);margin-top:2px">🏢 ${escapeHtml(issue.company)}</div>` : ''}
           <div style="font-size:13px;color:var(--m-dc2626);margin-top:4px">Noto'g'ri qiymat: <code style="background:var(--f-fef2f2);padding:2px 6px;border-radius:4px">${escapeHtml(issue.bad_value)}</code></div>
           <div style="font-size:12px;color:var(--text3);margin-top:4px">To'g'ri qiymatlar: ${issue.valid_names.join(', ')}</div>
         </div>`;
