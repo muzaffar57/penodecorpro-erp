@@ -602,7 +602,8 @@ _ob = [e.get("detail") for e in ((JAVOB["/api/obligations/status"][3] or {}).get
 _dtt = _dtt + [d for d in _ob if d != (_dtt[0] if _dtt else None)] if _ob else _dtt
 check("A13 «Foydadan foiz» hodim izohi: Hammasida «Foyda <son> × 5%», Tannarxsizda «Foyda — × 5%»; qarzdorlik "
       "(`/api/obligations/status`) ham",
-      _dh and re.match(r"^Foyda [-−]?\d[\d ]* × 5(\.0)?%$", _dh[0]) and len(_dtt) == 1
+      # kech147 (zip 188 — MOSLANGAN): ming ajratgich — bo'linmas bo'shliq (`son_korinish`), foiz «5%» (ilgari «5.0%»)
+      _dh and re.match(r"^Foyda [-−]?\d[\d \u00a0]* × 5(\.0)?%$", _dh[0]) and len(_dtt) == 1
       and re.fullmatch(r"Foyda — × 5(\.0)?%", _dtt[0] or ""), (_dh, _dtt))
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
