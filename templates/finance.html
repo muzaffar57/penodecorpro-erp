@@ -69,12 +69,12 @@ html[data-theme="dark"]{
 .fin-hero-value{ font-size:32px; font-weight:800; color:var(--f-text); margin-top:6px; letter-spacing:-.02em; line-height:1.15; }
 /* kech147 (zip 186, O'LCHANGAN: katta summa karta chetida qirqilardi — 375 × 548 da «2 505 141 69…», 667 × 375 da (4 ustun, 32 px) «1 644 00…»,
    «646 858…»; kartaning `overflow:hidden` i raqamni kesib qo'yardi): summa sig'masa keyingi qatorga o'tadi (hech qachon kesilmaydi),
-   900 px gacha ikki ustun, telefonda shrift kichikroq; 320 px da (karta ichi 113 px — izohlar 4–5 satr) bitta ustun */
+   900 px gacha ikki ustun, telefonda shrift kichikroq (o'lchamlar — U-13 shkalasidan: 24 / 18 px; etalon d195 — test_u13 S7 / D2: 26 / 22 /
+   20 px shkalada yo'q edi); 320 px da (karta ichi 113 px — izohlar 4–5 satr) bitta ustun */
 .fin-hero-card{ min-width:0; }
 .fin-hero-value{ overflow-wrap:anywhere; }
-@media (max-width:900px){ .fin-hero-grid{ grid-template-columns:1fr 1fr; gap:12px; } .fin-hero-value{ font-size:26px; } }
-@media (max-width:400px){ .fin-hero-value{ font-size:20px !important; } }
-@media (max-width:340px){ .fin-hero-grid{ grid-template-columns:1fr !important; } .fin-hero-value{ font-size:22px !important; } }
+@media (max-width:900px){ .fin-hero-grid{ grid-template-columns:1fr 1fr; gap:12px; } .fin-hero-value{ font-size:24px; } }
+@media (max-width:340px){ .fin-hero-grid{ grid-template-columns:1fr !important; } .fin-hero-value{ font-size:24px !important; } }
 .fin-hero-sub{ font-size:13px; color:var(--f-text3); margin-top:6px; display:flex; align-items:center; gap:5px; }
 /* kech138 (zip 164): blok yuklanmadi — kartadagi kichik izoh qizil; qora kassa kartasida sabab yorug' qizil (≥ 4.5:1) */
 .fin-hero-sub.yuk-qizil{ color:var(--m-b91c1c); }
@@ -294,7 +294,7 @@ html[data-theme="dark"]{
   /* Bugungi holat — 4 karta -> 2x2 */
   .fin-hero-grid{ grid-template-columns:1fr 1fr; gap:10px; }
   .fin-hero-card{ padding:16px 14px; }
-  .fin-hero-value{ font-size:22px; }
+  .fin-hero-value{ font-size:18px; }
   .fin-hero-icon{ width:34px; height:34px; margin-bottom:10px; font-size:16px; }
 
   /* Oylik hisobot mini-KPI — 6 karta -> 2 ustun */
