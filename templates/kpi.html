@@ -30,6 +30,12 @@
   .kpi-two{grid-template-columns:1fr}
   .kpi-grid[style*="repeat("]{grid-template-columns:repeat(2,minmax(0,1fr)) !important}
 }
+/* kech147 (zip 187, O'LCHANGAN 320 × 460: ikki ustunli kartada ikona yonida matn 70–72 px — «Joriy oy, bonus va kamaytirish bilan»
+   4 satr, «129 155 072 so'm» 3 satr): tor telefonda ikona matn ustida, matn kartaning butun enida */
+@media (max-width: 380px) {
+  .kpi-grid > .kpi-card[style*="display:flex"]{flex-direction:column;align-items:stretch !important;gap:8px !important}
+  .kpi-grid > .kpi-card[style*="display:flex"] > .kpi-ikon{align-self:flex-start}
+}
 /* kech147 (zip 186 — egasining production skrinshoti 16.10 14:28; O'LCHANGAN 375 × 548: «Hodimlar oylik hisob-kitobi» jadvali o'rami
    309 / 700 px — «+ Bonus», «− Kamaytirish», «Avans olingan», «Qolgan to'lov» birinchi ekranda YO'Q (surish kerakligini hech narsa
    bildirmaydi), «Tafsilot» 81 px ustunda 12 satr — bitta hodim qatori 250 px; 667 × 375 da ham 81 px). Telefonda (≤ 768 px, yotiq ham)

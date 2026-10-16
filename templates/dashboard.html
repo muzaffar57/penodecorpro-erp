@@ -43,6 +43,11 @@
   .majburiyat-qator{flex-wrap:wrap;row-gap:4px}
   .majburiyat-chap{flex:1 1 170px}
   .majburiyat-ong{margin-left:auto}
+  /* kech147 (zip 187, O'LCHANGAN 320 × 460: qarzdor buyurtma qatorida mijoz / loyiha 113 px — 5 satr): sig'masa summa keyingi qatorga,
+     o'ngga o'tadi (majburiyatlar qatori kabi) */
+  .dash-qarz-qator{flex-wrap:wrap;row-gap:4px}
+  .dash-qarz-chap{flex:1 1 170px !important;overflow-wrap:anywhere}
+  .dash-qarz-ong{margin-left:auto}
 }
 .chart-wrap{position:relative;height:220px}
 
@@ -868,10 +873,10 @@ function buildDebtList(debts){
     const s=ST[d.payment_status]||ST['unpaid'];
     const pct=d.agreed_amount>0?(d.paid_amount/d.agreed_amount*100).toFixed(0):0;
     return `
-    <div style="display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid var(--ch-f5f5f5)">
-      <div style="flex:1;min-width:0">
-        <div style="display:flex;align-items:center;gap:6px">
-          <span style="font-size:13px;font-weight:600;color:var(--m-1a1a1a)">${d.order_number}</span>
+    <div class="dash-qarz-qator" style="display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid var(--ch-f5f5f5)">
+      <div class="dash-qarz-chap" style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <span style="font-size:13px;font-weight:600;color:var(--m-1a1a1a)">${escapeHtml(d.order_number)}</span>
           <span style="font-size:12px;color:${matnRangi(s[2])};font-weight:600">${s[0]} ${s[1]}</span>
           ${d.is_overdue?'<span style="font-size:12px;background:var(--f-fee2e2);color:var(--m-dc2626);padding:2px 6px;border-radius:8px;font-weight:600">'+d.days_passed+' kun</span>':''}
           ${d.is_deleted?'<span class="qarz-ochirilgan" style="font-size:12px;color:var(--m-dc2626);font-weight:600">o\'chirilgan</span>':''}
@@ -881,7 +886,7 @@ function buildDebtList(debts){
           <div style="height:100%;width:${pct}%;background:${s[2]};border-radius:2px"></div>
         </div>
       </div>
-      <div style="text-align:right;flex-shrink:0">
+      <div class="dash-qarz-ong" style="text-align:right;flex-shrink:0">
         <div style="font-size:13px;font-weight:700;color:var(--m-dc2626)">${fmt(d.debt_amount)} so'm</div>
         <div style="font-size:12px;color:var(--text3);margin-top:1px">${fmt(d.paid_amount)} / ${fmt(d.agreed_amount)}</div>
       </div>
