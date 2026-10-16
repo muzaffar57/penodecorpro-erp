@@ -466,11 +466,11 @@ input[type=number]{-moz-appearance:textfield}
                 {% elif o.status.value == 'delivered' %}<span class="badge badge-delivered" style="font-size:12px" title="«Tayyor» deb belgilanmagan — oylik hisobotga kirmaydi">📦 Yetkazildi</span>
                 {% else %}<span class="badge badge-progress" style="font-size:12px">Jarayonda</span>{% endif %}
               </div>
-              <div class="ord-date">{{ o.created_at|toshkent('%d.%m.%Y') }} · {{ "{:,.0f}".format(o.kelishilgan_summa).replace(",", " ") }} so'm</div>
+              <div class="ord-date">{{ o.created_at|toshkent('%d.%m.%Y') }} · {{ (o.kelishilgan_summa)|son(0) }} so'm</div>
               {# kech100 (131-band): mijozga qaytarilishi kerak bo'lgan ortiqcha to'lov — DOIMIY belgi #}
               {% set ort131 = o.ortiqcha_tolov %}
               {% if ort131 > 0 %}
-              <div class="ort-qaytarish" style="margin-top:3px;font-size:12px;color:var(--m-c2410c);font-weight:700">↩ Qaytarish kerak: {{ ("{:,.2f}" if (ort131 % 1) else "{:,.0f}").format(ort131).replace(",", " ") }} so'm</div>
+              <div class="ort-qaytarish" style="margin-top:3px;font-size:12px;color:var(--m-c2410c);font-weight:700">↩ Qaytarish kerak: {{ (ort131)|son }} so'm</div>
               {% endif %}
               {% if urgency == 'overdue' %}
               <div class="deadline-pulse" style="margin-top:3px;font-size:12px;color:var(--m-dc2626);font-weight:700">🔴 Muddati o'tgan!</div>
@@ -492,7 +492,7 @@ input[type=number]{-moz-appearance:textfield}
               {% endif %}
               {% if debt > 0 %}
               <div style="margin-top:3px;font-size:12px;color:var(--m-dc2626);font-weight:600">
-                🔴 Qarz: {{ "{:,.0f}".format(debt).replace(",", " ") }} so'm
+                🔴 Qarz: {{ (debt)|son(0) }} so'm
               </div>
               {% elif o.payment_status and o.payment_status.value == 'paid' %}
               <div style="margin-top:3px;font-size:12px;color:var(--m-15803d);font-weight:600">
@@ -7573,7 +7573,7 @@ function renderPinnedOrders(rows) {
           </div>
           ${badge}
         </div>
-        <div class="ord-date">${escapeHtml(o.client_name)} · ${formatNum(amount)} so'm${o.deadline ? ' · ⏰ ' + o.deadline : ''}</div>
+        <div class="ord-date">${escapeHtml(o.client_name)} · ${sonKor(amount, 0)} so'm${o.deadline ? ' · ⏰ ' + o.deadline : ''}</div>
         ${urgencyText}
       </div>`;
   }).join('');

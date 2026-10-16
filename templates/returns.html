@@ -116,7 +116,8 @@
      bekor qilardi va miqdor / holat / joy nishonlari nom bilan bir qatorga sig'ib, «2 ta» nom ustiga tushardi): nom — rasm yonidagi butun
      qolgan kenglik, qolganlari keyingi qator(lar)da */
   .ret-name{ order:1; flex:1 1 calc(100% - 54px) !important; min-width:0 !important; overflow-wrap:anywhere; }
-  .mini-btn{ order:99; flex-shrink:0; margin-left:auto; }
+  /* kech147 (zip 189): faqat qaytarish kartasidagi tugmalar (Brak tahlili jadvalidagi 🧩 ga tegmaydi) */
+  .ret-row > .mini-btn{ order:99; flex-shrink:0; margin-left:auto; }
   .ret-qty, .ret-status, .ret-dest, .ret-money, .ret-date{
     order:3;
     min-width:0 !important;
@@ -270,9 +271,9 @@
       {% if current_user.ruxsat('tannarx', 'korish') %}
       <div class="ret-money" style="text-align:right;min-width:110px">
         <div style="font-size:13px;font-weight:600;color:{{ 'var(--m-dc2626)' if is_defect else '#22C55E' }}">
-          {% if r.refund_amount > 0 %}{{ "{:,.0f}".format(r.refund_amount).replace(",", " ") }} so'm{% else %}—{% endif %}
+          {% if r.refund_amount > 0 %}{{ (r.refund_amount)|son(0) }} so'm{% else %}—{% endif %}
         </div>
-        {% if is_defect and (brak_zarar or {}).get(r.id) is not none %}<div class="brak-zarar" title="Taqdirdan keyingi haqiqiy zarar (xomashyo − tayyor mahsulotga o'tgan qism + tuzatish)">zarar: {{ "{:,.0f}".format((brak_zarar or {}).get(r.id)).replace(",", " ") }} so'm</div>{% endif %}
+        {% if is_defect and (brak_zarar or {}).get(r.id) is not none %}<div class="brak-zarar" title="Taqdirdan keyingi haqiqiy zarar (xomashyo − tayyor mahsulotga o'tgan qism + tuzatish)">zarar: {{ ((brak_zarar or {}).get(r.id))|son(0) }} so'm</div>{% endif %}
         {# kech120 (zip 133 — F bosqichi 3-qism, audit G5-05 texnik qismi): ilgari «Pul kutilmoqda» — bosiladigan YOZUV (kim kimdan kutadi
            noaniq, tugma ekani bilinmasdi). Endi aniq TUGMA «Hisob-kitob qilish» (faqat «qaytarish: tahrirlash» ruxsatida), qilingach —
            «✓ Hisob-kitob qilingan» (bosilmaydi — orqaga qaytarilmaydi). #}
