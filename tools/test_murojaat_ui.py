@@ -472,6 +472,10 @@ if PW_BOR:
             qoyib_yubor()
             kut(pe, "[...document.querySelectorAll('#mpXabarlar img')].every(i => i.complete && i.naturalWidth > 0)", 15000)
             kut(pe, "false", 600)                                   # `load` ishlovchilari
+            # kech147 (d193 da og'ir yukda yiqilgan — scrollTop 44: `load` ishlovchilari 600 ms da ulgurmagan): «pastda» sharti
+            # 5 s gacha KUTILADI. Kod oynani pastga surmasa (nuqson) — 5 s dan keyin ham pastda emas, tekshiruv baribir yiqiladi.
+            kut(pe, "(() => { const xs = document.getElementById('mpXabarlar'); return !!xs && xs.scrollHeight > xs.clientHeight + 100"
+                    " && xs.scrollHeight - xs.clientHeight - xs.scrollTop < 24; })()", 5000)
             _o2 = ev(pe, _OYNA)
         check("B7a rasmlar yuklanguncha — xabarlar chizildi, rasmlar hali kelmagan (kechikish takrorlandi)",
               isinstance(_o1, dict) and _o1.get("n") == 3 and _o1.get("rasmlar") and not any(_o1.get("rasmlar")), _o1)
