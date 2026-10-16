@@ -340,7 +340,8 @@ if br:
     try:
         PG.goto(B + "/users", wait_until="networkidle")
         PG.click("text=QR kodni ko'rsatish")
-        PG.wait_for_function("() => document.getElementById('hodimQrKod').textContent !== '—' && document.getElementById('hodimQrImg').complete", timeout=6000)
+        # kech146 (zip 184): sahifa yuklash paytida `…` qo'yadi — u ham kutiladi (og'ir yukda `…` da o'lchab yiqilardi)
+        PG.wait_for_function("() => !['—', '…'].includes(document.getElementById('hodimQrKod').textContent) && document.getElementById('hodimQrImg').complete", timeout=15000)
     except Exception as ex:                # noqa: BLE001
         AMAL_XATO.append(("users qr", str(ex)[:160]))
     _u = jsq(PG, """() => { const i = document.getElementById('hodimQrImg'); return {src: i.getAttribute('src'), w: i.naturalWidth,
