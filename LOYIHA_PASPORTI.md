@@ -3343,7 +3343,7 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   (`root` ichida X / T / K / M), sahifaning tikka o'ramlari yon tomonga surilmaydi, hujjat eni; 21 holat (K1 … K14) + qo'shimcha
   shartlar (KPI karta, tugmalar 0,99, avans izohi ≥ 150 px, ustma-ust yo'q, xom kasr yo'q, `.proj-page` / `.bi-wrap` toshmaydi);
   S1 … S16 — klasslar / qoidalar, kesh versiyasi; `T186_FAQAT` — mutatsiya yurishlari uchun)
-  — 567 (zip 185 kodida 131 yiqiladi, qulamaydi). MOSLANGAN (0): yo'q.
+  — 567 (zip 185 kodida 131 yiqiladi, qulamaydi). MOSLANGAN (1): `test_naqd_kassa.py`.
   Mutatsiyalar — `work/k186/mut186.py` (27: 4 tasi — guruh ichidagi bitta qoida olinadi, qolgan qoidalar o'zi yetadi (sinov sezmaydi); ularning «b» varianti — guruh to'liq olinsa yiqiladi).
 
 **Yangi o'zgarish tartibi:** (1) asl kodda nuqsonni o'lchash (probe — SQLite va PG); (2) tuzatish; (3) yangi test
