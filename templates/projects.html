@@ -94,8 +94,16 @@
 /* U-13 (kech123): bo'lim tablari — umumiy `.tab` (style.css; Hisobotlar, Qarzdorlar bilan bir ko'rinish); telefonda tasma yon tomonga suriladi */
 .tab-bar{display:flex;gap:6px;margin-bottom:16px;overflow-x:auto;flex-shrink:0;padding-bottom:2px}
 .tab-bar .tab{flex-shrink:0}
+/* kech147 (zip 187, O'LCHANGAN 375 × 548: 9 bo'limdan 6 tasi («Moliya», «To'lovlar», «Mahsulotlar», «Xomashyo», «Tarix», «Izohlar») ekrandan
+   tashqarida edi — tasmani surish kerakligini hech narsa bildirmasdi; 667 × 375 da 3 tasi): telefon / planshetda bo'limlar qatorga sig'masa
+   keyingi qatorga o'tadi (Hisobotlar, Qarzdorlar bo'limlari kabi) — hammasi birinchi ekranda */
+@media (max-width:900px){ #tabBar.tab-bar{flex-wrap:wrap;overflow-x:visible;row-gap:6px} }
 .tab-content{flex:1;overflow-y:auto}
-.info-row{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border2);font-size:13px}
+.info-row{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--border2);font-size:13px}
+/* kech147 (zip 187, O'LCHANGAN 320 × 460: «Asosiy» bo'limida yorliq qiymatga yopishib qolardi — «MijozAndijon Fasad Dekor …»): yorliq
+   qisqarmaydi, uzun qiymat o'ngda o'raladi */
+.info-row > span:first-child{flex-shrink:0}
+.info-row > span:last-child{min-width:0;text-align:right;overflow-wrap:anywhere}
 .info-row:last-child{border-bottom:none}
 .qa-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px}
 .timeline-item{display:flex;gap:12px;padding-bottom:16px;position:relative}

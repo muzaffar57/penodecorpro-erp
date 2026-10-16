@@ -39,6 +39,9 @@ html[data-theme="dark"] .rcv-wrap{--r-bg:var(--bg); --r-card:var(--white); --r-b
 .rcv-field input[type=checkbox],.rcv-field input[type=radio]{width:auto;min-height:0;padding:0}
 .rcv-field textarea{width:100%;padding:10px 12px;border:1px solid var(--r-border);border-radius:var(--r-btn);font-size:var(--fs-maydon);line-height:20px;outline:none;resize:vertical;min-height:80px}
 .rcv-row{display:grid;gap:14px;margin-bottom:14px}
+/* kech147 (zip 187, O'LCHANGAN 375 × 548: uzun nomli ta'minotchi tanlanganda tanlagich matni (nowrap) ustunni 639 px ga kengaytirardi —
+   sahifa yon tomonga surilib, «+ Yangi», «Hujjat raqami», «Sana» ekrandan tashqarida): katak mazmun bilan kengaymaydi */
+.rcv-row > *{min-width:0}
 .rcv-row-3{grid-template-columns:1fr 1fr 1fr}
 .rcv-row-2{grid-template-columns:1fr 1fr}
 .rcv-row-4{grid-template-columns:repeat(4,1fr)}
@@ -64,6 +67,16 @@ html[data-theme="dark"] .rcv-btn-dark{background:var(--f-eceae6);color:var(--m-1
 .rcv-stat-box{background:var(--r-bg);border-radius:11px;padding:14px 16px}
 .rcv-stat-label{font-size:12px;color:var(--r-text3);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
 .rcv-stat-value{font-size:18px;font-weight:800;color:var(--r-text);margin-top:4px}
+/* kech147 (zip 187, O'LCHANGAN 360 × 560: tanlangan ta'minotchining katta summalari («1 244 443 800 so'm» — raqam guruhlari bo'linmas
+   bo'shliq bilan) ikki ustunli to'rni 337 px ga kengaytirib, kirim sahifasi 370 px — «💰 To'lov» qirqilardi): katak mazmun bilan
+   kengaymaydi; ≤ 420 px da «Jami xarid / To'langan / Qarz» — bitta ustunda, yorliq chapda, summa o'ngda */
+.rcv-stat-grid > *{min-width:0}
+.rcv-stat-value{overflow-wrap:anywhere}
+@media(max-width:420px){
+  .rcv-stat-grid{grid-template-columns:1fr}
+  .rcv-stat-box{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:10px 14px}
+  .rcv-stat-value{margin-top:0;text-align:right}
+}
 .rcv-quickpay{background:var(--r-bg);border-radius:11px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
 .rcv-quickpay input{min-width:0;min-height:var(--h-sm);border:1px solid var(--r-border);border-radius:var(--r-btn);padding:0 10px;font-size:var(--fs-maydon-sm);outline:none}
 .rcv-quickpay button{display:inline-flex;align-items:center;justify-content:center;min-height:var(--h-sm);border-radius:var(--r-btn);border:none;background:#222222;color:#fff;font-size:13px;line-height:18px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;padding:0 12px}
@@ -261,7 +274,7 @@ html[data-theme="dark"] .rcv-quickpay button{background:var(--f-eceae6);color:va
         <div class="rcv-card-body">
           <div class="rcv-card-title" style="margin-bottom:6px">Materiallar ro'yxati</div>
           <div class="rcv-table-wrap">
-          <table class="rcv-table">
+          <table class="rcv-table telefon-karta">
             <thead><tr><th>№</th><th>Material nomi</th><th>Miqdor</th><th>1 birlik narxi</th><th style="text-align:right">Summa</th><th></th></tr></thead>
             <tbody id="rcv-basket-body"><tr><td colspan="6" style="text-align:center;padding:24px;color:var(--r-text3)">Hali material qo'shilmagan</td></tr></tbody>
           </table>
@@ -362,7 +375,7 @@ html[data-theme="dark"] .rcv-quickpay button{background:var(--f-eceae6);color:va
             </div>
           </div>
           <div class="rcv-table-wrap">
-          <table class="rcv-table">
+          <table class="rcv-table telefon-karta">
             <thead><tr><th>Sana</th><th>Material</th><th>Miqdor</th><th style="text-align:right">1 birlik narxi</th><th style="text-align:right">Summa</th><th style="text-align:right">Holati</th></tr></thead>
             <tbody id="rcv-history-body"><tr><td colspan="6" style="text-align:center;padding:24px;color:var(--r-text3)">Ta'minotchi tanlang</td></tr></tbody>
           </table>
@@ -726,12 +739,12 @@ loadHistoryForSupplier.chiz = function (d) {
       const holatIzoh = holat === 'boshlangich' ? "Boshlang'ich (mavjud) ombor — ta'minotchiga qarz emas"
         : (p.receipt_id ? `Kirim #${p.receipt_id} — kirim paytida ${holat === 'tolangan' ? "to'liq to'langan" : (holat === 'qisman' ? "qisman to'langan" : "to'lanmagan")}` : '');
       return `<tr style="background:${zebraBg}">
-        <td style="font-weight:600;color:var(--r-text)">${tkSana(p.purchased_at)}</td>
-        <td style="font-weight:600;color:var(--r-text)">${escapeHtml(p.item_name)}${p.receipt_id ? ` <span style="color:var(--r-text3);font-size:12px;font-weight:500">· Kirim #${p.receipt_id}</span>` : ''}</td>
-        <td style="font-weight:600">${p.quantity} ${escapeHtml(p.unit)}</td>
-        <td style="text-align:right;font-weight:600;color:var(--r-text2)">${fmt(unitPrice)} so'm</td>
-        <td style="text-align:right;font-weight:800;color:var(--r-text)">${fmt(p.total_amount)} so'm</td>
-        <td class="kirim-holat" data-holat="${holat}" title="${escapeHtml(holatIzoh)}" style="text-align:right;font-size:12px;font-weight:700;color:${holatRang}">${holatMatn}</td>
+        <td data-label="Sana" style="font-weight:600;color:var(--r-text)">${tkSana(p.purchased_at)}</td>
+        <td data-label="Material" style="font-weight:600;color:var(--r-text)">${escapeHtml(p.item_name)}${p.receipt_id ? ` <span style="color:var(--r-text3);font-size:12px;font-weight:500">· Kirim #${p.receipt_id}</span>` : ''}</td>
+        <td data-label="Miqdor" style="font-weight:600">${p.quantity} ${escapeHtml(p.unit)}</td>
+        <td data-label="1 birlik narxi" style="text-align:right;font-weight:600;color:var(--r-text2)">${fmt(unitPrice)} so'm</td>
+        <td data-label="Summa" style="text-align:right;font-weight:800;color:var(--r-text)">${fmt(p.total_amount)} so'm</td>
+        <td data-label="Holati" class="kirim-holat" data-holat="${holat}" title="${escapeHtml(holatIzoh)}" style="text-align:right;font-size:12px;font-weight:700;color:${holatRang}">${holatMatn}</td>
       </tr>`;
     }).join('');
   }
@@ -1072,12 +1085,12 @@ function renderBasket(){
   } else {
     tbody.innerHTML = apBasket.map((b,i)=>`
       <tr>
-        <td>${i+1}</td>
-        <td style="font-weight:600;color:var(--r-text)">${escapeHtml(b.itemName)}${b.isPenoplast?' <span style="color:var(--gold-dark);font-size:12px">(Penoplast)</span>':''}</td>
-        <td>${b.qty} ${escapeHtml(b.unit)}</td>
-        <td>${narxKorinishi(b.price)} so'm</td>
-        <td style="text-align:right;font-weight:700">${narxKorinishi(b.total)} so'm</td>
-        <td style="text-align:right"><button class="rcv-icon-btn" onclick="apRemoveFromBasket(${i})"><i class="ti ti-trash"></i></button></td>
+        <td data-label="№">${i+1}</td>
+        <td data-label="Material nomi" style="font-weight:600;color:var(--r-text)">${escapeHtml(b.itemName)}${b.isPenoplast?' <span style="color:var(--gold-dark);font-size:12px">(Penoplast)</span>':''}</td>
+        <td data-label="Miqdor">${b.qty} ${escapeHtml(b.unit)}</td>
+        <td data-label="1 birlik narxi">${narxKorinishi(b.price)} so'm</td>
+        <td data-label="Summa" style="text-align:right;font-weight:700">${narxKorinishi(b.total)} so'm</td>
+        <td data-label="" style="text-align:right"><button class="rcv-icon-btn" onclick="apRemoveFromBasket(${i})" title="Ro'yxatdan olib tashlash" aria-label="Ro'yxatdan olib tashlash"><i class="ti ti-trash"></i></button></td>
       </tr>`).join('');
   }
   const total = pulYigindi(apBasket.map(b => b.total));

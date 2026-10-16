@@ -56,6 +56,13 @@
 .pt-retsept-tannarx b{color:var(--text)}
 .pt-retsept-ogoh{font-size:12px;color:var(--m-92400e);margin-top:2px}
 .pt-retsept-amal{display:flex;gap:6px;flex-shrink:0}
+/* kech147 (zip 187, O'LCHANGAN 320 × 460: tarkib nomi «Tahrirlash» / 🗑 bilan bir qatorda 117 px — 5 satr): sig'masa tugmalar keyingi
+   qatorga, o'ngga o'tadi */
+@media (max-width:600px){
+  .pt-retsept{flex-wrap:wrap;row-gap:6px}
+  .pt-retsept > div:first-child{flex:1 1 160px;min-width:0;overflow-wrap:anywhere}
+  .pt-retsept-amal{margin-left:auto}
+}
 .pt-son{font-size:14px;font-weight:700}
 .pt-son.bosh{color:var(--text3);font-weight:600}
 .pt-son.band{color:var(--m-1d4ed8)}

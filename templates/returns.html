@@ -32,6 +32,19 @@
   .ret-stat-tasma::-webkit-scrollbar{display:none}
   .ret-stat-tasma > .stat-card{flex:0 0 46%;scroll-snap-align:start}
 }
+/* kech147 (zip 187, O'LCHANGAN 320 × 460: karta yorlig'i 68 px — «Qaytarish va brak yozuvlari — hamma vaqt» 5 satr): tor telefonda karta
+   kengroq — bittasi to'liq, keyingisining cheti ko'rinadi (Tayyor mahsulotlar tasmasi bilan bir qoida) */
+@media(max-width:420px){ .ret-stat-tasma > .stat-card{flex:0 0 62%} }
+/* kech147 (zip 187, O'LCHANGAN 320 × 460: «Brak tahlili» va «Brak hisoboti» 4 ustunli jadvallarida nom 87–98 px ustunda 4–6 satr): telefonda
+   har qator — nom butun kenglikda, raqamlar ostida o'z nomi bilan (sig'ganicha bir qatorda) */
+@media (max-width:600px){
+  table.brak-jadval > thead{display:none}
+  table.brak-jadval, table.brak-jadval > tbody{display:block;width:100%}
+  table.brak-jadval > tbody > tr{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 14px;padding:8px 0}
+  table.brak-jadval > tbody > tr > td{display:block;padding:0 !important;text-align:left !important}
+  table.brak-jadval > tbody > tr > td:first-child{flex:1 1 100%;overflow-wrap:anywhere}
+  table.brak-jadval > tbody > tr > td:not(:first-child)::before{content:attr(data-label) ": ";color:var(--text3);font-size:12px;font-weight:600}
+}
 .ret-group-header{
   display:flex;align-items:center;gap:10px;padding:12px 14px;margin-bottom:8px;
   background:var(--bg);border:1px solid var(--border);border-radius:12px;
@@ -521,15 +534,15 @@ function brakTahlilHtml(d){
 
   const guruh = (nom, arr) => {
     if (!arr || !arr.length) return sarlavha(nom) + bosh;
-    return sarlavha(nom) + `<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:18px">
+    return sarlavha(nom) + `<table class="brak-jadval" style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:18px">
       <thead><tr style="border-bottom:2px solid var(--ch-eeeeee);text-align:left;color:var(--text3);font-size:12px;text-transform:uppercase">
         <th style="${th}">Nomi</th><th style="${th};text-align:right">Soni</th>
         <th style="${th};text-align:right">Qiymati</th><th style="${th};text-align:right">Ulushi</th></tr></thead>
       <tbody>${arr.map(x => `<tr style="border-bottom:1px solid var(--ch-f5f5f5)">
         <td style="${td};font-weight:600">${escapeHtml(x.nomi)}</td>
-        <td style="${td};text-align:right">${Number(x.soni) || 0}</td>
-        <td style="${td};text-align:right;font-weight:700;color:var(--m-dc2626)">${somYoq(x.qiymat, fmt)}</td>
-        <td style="${td};text-align:right">${escapeHtml(brakFoizMatn(x.ulush))}</td></tr>`).join('')}</tbody></table>`;
+        <td data-label="Soni" style="${td};text-align:right">${Number(x.soni) || 0}</td>
+        <td data-label="Qiymati" style="${td};text-align:right;font-weight:700;color:var(--m-dc2626)">${somYoq(x.qiymat, fmt)}</td>
+        <td data-label="Ulushi" style="${td};text-align:right">${escapeHtml(brakFoizMatn(x.ulush))}</td></tr>`).join('')}</tbody></table>`;
   };
   html += guruh('🧭 Bosqich bo\'yicha', d.bosqichlar);
   html += guruh('❓ Sabab bo\'yicha', d.sabablar);
@@ -538,46 +551,46 @@ function brakTahlilHtml(d){
 
   const top = d.top_detallar || [];
   html += sarlavha('🔝 Eng ko\'p brak — 5 ta mahsulot / detal');
-  html += !top.length ? bosh : `<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:18px">
+  html += !top.length ? bosh : `<table class="brak-jadval" style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:18px">
       <thead><tr style="border-bottom:2px solid var(--ch-eeeeee);text-align:left;color:var(--text3);font-size:12px;text-transform:uppercase">
         <th style="${th}">Nomi</th><th style="${th};text-align:right">Miqdor</th><th style="${th};text-align:right">Soni</th>
         <th style="${th};text-align:right">Qiymati</th></tr></thead>
       <tbody>${top.map(x => `<tr style="border-bottom:1px solid var(--ch-f5f5f5)">
         <td style="${td};font-weight:600">${escapeHtml(x.nomi)}</td>
-        <td style="${td};text-align:right">${Number(x.miqdor) || 0} ${escapeHtml(x.birlik || '')}</td>
-        <td style="${td};text-align:right">${Number(x.soni) || 0}</td>
-        <td style="${td};text-align:right;font-weight:700;color:var(--m-dc2626)">${somYoq(x.qiymat, fmt)}</td></tr>`).join('')}</tbody></table>`;
+        <td data-label="Miqdor" style="${td};text-align:right">${Number(x.miqdor) || 0} ${escapeHtml(x.birlik || '')}</td>
+        <td data-label="Soni" style="${td};text-align:right">${Number(x.soni) || 0}</td>
+        <td data-label="Qiymati" style="${td};text-align:right;font-weight:700;color:var(--m-dc2626)">${somYoq(x.qiymat, fmt)}</td></tr>`).join('')}</tbody></table>`;
 
   const tr = d.trend || [];
   html += sarlavha('📈 Oylar bo\'yicha brak ulushi');
-  html += !tr.length ? bosh : `<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:18px">
+  html += !tr.length ? bosh : `<table class="brak-jadval" style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:18px">
       <thead><tr style="border-bottom:2px solid var(--ch-eeeeee);text-align:left;color:var(--text3);font-size:12px;text-transform:uppercase">
         <th style="${th}">Oy</th><th style="${th};text-align:right">Brak</th><th style="${th};text-align:right">Ishlab chiqarish</th>
         <th style="${th};text-align:right">Ulushi</th></tr></thead>
       <tbody>${tr.map(x => `<tr class="brak-trend-qator" style="border-bottom:1px solid var(--ch-f5f5f5)">
         <td style="${td}">${escapeHtml(oyNomi(x.yil, x.oy))}</td>
-        <td style="${td};text-align:right">${somYoq(x.brak_xarajat, fmt)}</td>
-        <td style="${td};text-align:right">${somYoq(x.ishlab_chiqarish_xarajat, fmt)}</td>
-        <td style="${td};text-align:right;font-weight:700;color:${x.meyordan_oshdi ? 'var(--m-dc2626)' : 'var(--m-334155)'}">${x.meyordan_oshdi ? '⚠️ ' : ''}${escapeHtml(brakFoizMatn(x.brak_foizi))}</td></tr>`).join('')}</tbody></table>`;
+        <td data-label="Brak" style="${td};text-align:right">${somYoq(x.brak_xarajat, fmt)}</td>
+        <td data-label="Ishlab chiqarish" style="${td};text-align:right">${somYoq(x.ishlab_chiqarish_xarajat, fmt)}</td>
+        <td data-label="Ulushi" style="${td};text-align:right;font-weight:700;color:${x.meyordan_oshdi ? 'var(--m-dc2626)' : 'var(--m-334155)'}">${x.meyordan_oshdi ? '⚠️ ' : ''}${escapeHtml(brakFoizMatn(x.brak_foizi))}</td></tr>`).join('')}</tbody></table>`;
 
   const yq = d.yoqotishlar || [];
   html += sarlavha('📦 Tayyor mahsulot yo\'qotishlari va ishlab chiqarish braki');
-  html += !yq.length ? bosh : `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:8px">
+  html += !yq.length ? bosh : `<div style="overflow-x:auto"><table class="telefon-karta brak-yoqotish-jadval" style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:8px">
       <thead><tr style="border-bottom:2px solid var(--ch-eeeeee);text-align:left;color:var(--text3);font-size:12px;text-transform:uppercase">
         <th style="${th}">Sana</th><th style="${th}">Mahsulot</th><th style="${th};text-align:right">Miqdor</th>
         <th style="${th}">Turi</th><th style="${th}">Bosqich</th><th style="${th}">Sabab</th><th style="${th}">Javobgar</th>
         <th style="${th};text-align:right">Qiymati</th><th style="${th}">Yozgan</th><th style="${th}">Taqdiri</th></tr></thead>
       <tbody>${yq.map(x => `<tr class="brak-yoqotish-qator" style="border-bottom:1px solid var(--ch-f5f5f5)">
-        <td style="${td};white-space:nowrap">${escapeHtml(tkISO(x.sana))}</td>
-        <td style="${td};font-weight:600">${escapeHtml(x.nomi)}</td>
-        <td style="${td};text-align:right">${Number(x.miqdor) || 0} ${escapeHtml(x.birlik || '')}</td>
-        <td style="${td}">${escapeHtml(x.turi)}</td>
-        <td style="${td}">${escapeHtml(x.bosqich || '—')}</td>
-        <td style="${td}">${escapeHtml(x.sabab || '—')}</td>
-        <td style="${td}">${escapeHtml(x.javobgar || '—')}</td>
-        <td style="${td};text-align:right;font-weight:700;color:var(--m-dc2626)">${somYoq(x.qiymat, fmt)}</td>
-        <td style="${td}">${escapeHtml(x.yozgan || '')}</td>
-        <td style="${td};white-space:nowrap">${escapeHtml(x.taqdir_yorliq || 'Tashlandi')}${KORADI_BRAK_YARATISH ? ` <button type="button" class="mini-btn brak-taqdir-btn" onclick="taqdirOynaOch(this)" title="Brak taqdirini o'zgartirish" aria-label="Brak taqdirini o'zgartirish"
+        <td data-label="Sana" style="${td};white-space:nowrap">${escapeHtml(tkISO(x.sana))}</td>
+        <td data-label="Mahsulot" style="${td};font-weight:600">${escapeHtml(x.nomi)}</td>
+        <td data-label="Miqdor" style="${td};text-align:right">${Number(x.miqdor) || 0} ${escapeHtml(x.birlik || '')}</td>
+        <td data-label="Turi" style="${td}">${escapeHtml(x.turi)}</td>
+        <td data-label="Bosqich" style="${td}">${escapeHtml(x.bosqich || '—')}</td>
+        <td data-label="Sabab" style="${td}">${escapeHtml(x.sabab || '—')}</td>
+        <td data-label="Javobgar" style="${td}">${escapeHtml(x.javobgar || '—')}</td>
+        <td data-label="Qiymati" style="${td};text-align:right;font-weight:700;color:var(--m-dc2626)">${somYoq(x.qiymat, fmt)}</td>
+        <td data-label="Yozgan" style="${td}">${escapeHtml(x.yozgan || '')}</td>
+        <td data-label="Taqdiri" style="${td};white-space:nowrap">${escapeHtml(x.taqdir_yorliq || 'Tashlandi')}${KORADI_BRAK_YARATISH ? ` <button type="button" class="mini-btn brak-taqdir-btn" onclick="taqdirOynaOch(this)" title="Brak taqdirini o'zgartirish" aria-label="Brak taqdirini o'zgartirish"
           data-turi="yoqotish" data-id="${Number(x.id)}" data-manba="${escapeHtml(x.manba || 'ombor')}" data-nomi="${escapeHtml(x.nomi || '')}" data-miqdor="${Number(x.miqdor) || 0}" data-birlik="${escapeHtml(x.birlik || '')}" data-joriy="${escapeHtml(JSON.stringify(x.taqdir_tafsilot || {}))}">🧩</button>` : ''}</td></tr>`).join('')}</tbody></table></div>`;
   return html;
 }
@@ -645,7 +658,7 @@ async function loadBrakSummary(){
       </div>
 
       <div style="font-size:13px;font-weight:700;color:var(--m-555555);margin-bottom:8px">📊 Material bo'yicha jami</div>
-      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:20px">
+      <table class="brak-jadval" style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:20px">
         <thead><tr style="border-bottom:2px solid var(--ch-eeeeee);text-align:left;color:var(--text3);font-size:12px;text-transform:uppercase">
           <th style="padding:8px 6px">Xomashyo</th>
           <th style="padding:8px 6px;text-align:right">Miqdor</th>
@@ -656,9 +669,9 @@ async function loadBrakSummary(){
           ${data.by_material.map(it => `
             <tr style="border-bottom:1px solid var(--ch-f5f5f5)">
               <td style="padding:9px 6px;font-weight:600">${escapeHtml(it.item_name)}</td>
-              <td style="padding:9px 6px;text-align:right">${it.taqdir ? '—' : `${it.quantity} ${escapeHtml(it.unit || '')}`}</td>
-              <td style="padding:9px 6px;text-align:right;color:var(--m-c2410c);font-weight:600">${it.m3 ? it.m3 + ' m³' : '—'}</td>
-              <td style="padding:9px 6px;text-align:right;font-weight:700;color:var(--m-dc2626)">${somYoq(it.value, fmt)}</td>
+              <td data-label="Miqdor" style="padding:9px 6px;text-align:right">${it.taqdir ? '—' : `${it.quantity} ${escapeHtml(it.unit || '')}`}</td>
+              <td data-label="m³" style="padding:9px 6px;text-align:right;color:var(--m-c2410c);font-weight:600">${it.m3 ? it.m3 + ' m³' : '—'}</td>
+              <td data-label="Qiymati" style="padding:9px 6px;text-align:right;font-weight:700;color:var(--m-dc2626)">${somYoq(it.value, fmt)}</td>
             </tr>`).join('')}
         </tbody>
       </table>`;
