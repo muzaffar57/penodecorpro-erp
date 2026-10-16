@@ -107,6 +107,9 @@
 .fin-stat{border-radius:12px;padding:14px}
 .fin-stat-head{display:flex;align-items:center;gap:7px;margin-bottom:6px;font-size:12px;font-weight:600}
 .fin-stat-val{font-size:18px;font-weight:800}
+/* kech147 (zip 186, O'LCHANGAN 320 × 460: ikkinchi ustundagi kartalar 6 px chiqib, loyiha sahifasi yon tomonga surilardi) */
+.fin-grid > *{min-width:0}
+.fin-stat-val{overflow-wrap:anywhere}
 .fin-budget{background:var(--bg)}
 .fin-budget .fin-stat-head{color:var(--text3)}
 .fin-budget .fin-stat-val{color:var(--text)}
@@ -119,6 +122,13 @@
 
 .zebra-list{border-radius:12px;overflow:hidden;border:1px solid var(--border2)}
 .zebra-row{display:flex;align-items:center;gap:12px;padding:10px 12px}
+/* kech147 (zip 186, O'LCHANGAN 375 × 548: «Xomashyo» qatorida miqdor (nowrap) nomga 49 px qoldirardi — nom 6 satr): telefonda nom ikon
+   yonidagi butun kenglikda, miqdor keyingi qatorda o'ngda */
+@media (max-width:600px){
+  .zebra-qiymatli{flex-wrap:wrap;row-gap:4px}
+  .zebra-qiymatli > .zebra-matn{flex:1 1 calc(100% - 46px) !important;overflow-wrap:anywhere}
+  .zebra-qiymatli > .zebra-val{margin-left:auto}
+}
 .zebra-row:nth-child(even){background:var(--bg)}
 .zebra-row:not(:last-child){border-bottom:1px solid var(--border2)}
 .zebra-icon{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px}
@@ -955,13 +965,13 @@ async function renderProducts(d) {
         </div>
         <div class="prod-acc-body${gi===0?' open':''}">
           <div class="zebra-list zebra-list-flat">${g.items.map(i => `
-            <div class="zebra-row">
+            <div class="zebra-row zebra-qiymatli">
               <div class="zebra-icon zi-neutral"><i class="ti ${CAT_ICON[(i.category||'').toLowerCase()] || 'ti-package'}"></i></div>
-              <div style="flex:1;min-width:0">
+              <div class="zebra-matn" style="flex:1;min-width:0">
                 <div class="zebra-title">${escapeHtml(i.name)}</div>
                 <div class="zebra-sub">${escapeHtml(i.category||'')}${i.is_coated?' · qoplamali':''}</div>
               </div>
-              <span class="zebra-val" style="color:var(--text2)">${i.order_qty_normalized} ${escapeHtml(i.delivery_unit||'')}</span>
+              <span class="zebra-val" style="color:var(--text2)">${sonKor(i.order_qty_normalized, 3)} ${escapeHtml(i.delivery_unit||'')}</span>
             </div>`).join('')}</div>
         </div>
       </div>`).join('')}</div>`;
@@ -1002,13 +1012,13 @@ async function renderMaterials(d) {
         </div>
         <div class="prod-acc-body${gi===0?' open':''}">
           <div class="zebra-list zebra-list-flat">${g.items.map(m => `
-            <div class="zebra-row">
+            <div class="zebra-row zebra-qiymatli">
               <div class="zebra-icon zi-out"><i class="ti ti-package-export"></i></div>
-              <div style="flex:1;min-width:0">
+              <div class="zebra-matn" style="flex:1;min-width:0">
                 <div class="zebra-title">${escapeHtml(m.item_name)}</div>
                 <div class="zebra-sub">${tkSana(m.created_at)} · ${escapeHtml(m.reason||'')}</div>
               </div>
-              <span class="zebra-val" style="color:var(--m-dc2626)">−${m.quantity} ${escapeHtml(m.unit||'')}</span>
+              <span class="zebra-val" style="color:var(--m-dc2626)">−${sonKor(m.quantity, 3)} ${escapeHtml(m.unit||'')}</span>
             </div>`).join('')}</div>
         </div>
       </div>`).join('')}</div>`;

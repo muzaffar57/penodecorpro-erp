@@ -99,7 +99,10 @@
     padding:12px;
   }
   .ret-icon{ width:44px; height:44px; align-self:flex-start; font-size:18px; }
-  .ret-name{ order:1; flex:1 1 auto; min-width:0 !important; }
+  /* kech147 (zip 186, O'LCHANGAN 375 × 548: nom ustuni 5 px, 15 satr; 667 × 375 da 20–27 px — kartadagi inline `flex:1` (asos 0) bu qoidani
+     bekor qilardi va miqdor / holat / joy nishonlari nom bilan bir qatorga sig'ib, «2 ta» nom ustiga tushardi): nom — rasm yonidagi butun
+     qolgan kenglik, qolganlari keyingi qator(lar)da */
+  .ret-name{ order:1; flex:1 1 calc(100% - 54px) !important; min-width:0 !important; overflow-wrap:anywhere; }
   .mini-btn{ order:99; flex-shrink:0; margin-left:auto; }
   .ret-qty, .ret-status, .ret-dest, .ret-money, .ret-date{
     order:3;

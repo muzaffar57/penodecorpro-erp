@@ -3,6 +3,22 @@
 {% block page_title %}O'chirilganlar{% endblock %}
 {% block page_sub %}Inson xatosidan himoya — o'chirilgan buyurtma va loyihalarni tiklash{% endblock %}
 
+{% block head %}
+<style>
+/* kech147 (zip 186, O'LCHANGAN 375 × 548: o'chirilgan hodim qatorida ikki tugma (≈ 240 px, siqilmaydi) nomga 44 px qoldirardi — nom 7 satr,
+   «Raximjonov» «Tiklash» tugmasi ostida qolardi; jurnal qatorida «kim · qachon» (nowrap) amal matnini 72 px ga siqardi): telefonda nom va
+   ma'lumot — butun qator, tugmalar / «kim · qachon» — keyingi qatorda */
+@media (max-width:600px){
+  .savat-qator{flex-wrap:wrap;row-gap:8px}
+  .savat-qator > div:first-child{flex:1 1 100%;overflow-wrap:anywhere}
+  .savat-qator > div:last-child{margin-left:auto}
+  .savat-jurnal-qator{flex-wrap:wrap;row-gap:2px}
+  .savat-jurnal-qator > div:first-child{flex:1 1 100%;min-width:0;overflow-wrap:anywhere}
+  .savat-jurnal-qator > div:last-child{white-space:normal !important}
+}
+</style>
+{% endblock %}
+
 {% block content %}
 {# kech139 (zip 167, egasi 11.10 17:19 «pastga tushmayapti»): `.erp-main` — overflow:hidden, sahifa o'z skroll konteyneriga muhtoj
    (`.erp-content`: flex:1, min-height:0, overflow-y:auto). Ilgari bu o'ram oddiy blok edi — telefonda (va past ekranda) sahifa
@@ -23,7 +39,7 @@
       <div style="text-align:center;padding:30px;color:var(--text3);font-size:13px">O'chirilgan loyiha yo'q</div>
       {% endif %}
       {% for p in deleted_projects %}
-      <div id="row-project-{{ p.id }}" style="display:flex;justify-content:space-between;align-items:center;padding:13px 18px;border-bottom:1px solid var(--border2);gap:10px">
+      <div id="row-project-{{ p.id }}" class="savat-qator" style="display:flex;justify-content:space-between;align-items:center;padding:13px 18px;border-bottom:1px solid var(--border2);gap:10px">
         <div style="min-width:0">
           <div style="font-weight:700;font-size:14px">{{ p.project_number }} — {{ p.project_name }}</div>
           <div style="font-size:13px;color:var(--text3);margin-top:2px">{{ p.client_name }} · {{ p.client_phone or '' }}</div>
@@ -47,7 +63,7 @@
       <div style="text-align:center;padding:30px;color:var(--text3);font-size:13px">O'chirilgan buyurtma yo'q</div>
       {% endif %}
       {% for o in deleted_orders %}
-      <div id="row-order-{{ o.id }}" style="display:flex;justify-content:space-between;align-items:center;padding:13px 18px;border-bottom:1px solid var(--border2);gap:10px">
+      <div id="row-order-{{ o.id }}" class="savat-qator" style="display:flex;justify-content:space-between;align-items:center;padding:13px 18px;border-bottom:1px solid var(--border2);gap:10px">
         <div style="min-width:0">
           <div style="font-weight:700;font-size:14px">{{ o.order_number }}</div>
           <div style="font-size:13px;color:var(--text3);margin-top:2px">{{ o.project.client_name if o.project else '—' }} · {{ o.total_amount|round|int }} so'm</div>
@@ -73,7 +89,7 @@
       {% for emp in deleted_employees %}
       {# kech141 (zip 169, A-P02): ishdan ketgan sana (ish davridan) — tiklash oynasi «Ishga qaytgan sana» uchun #}
       {% set _ks = (ketgan_sanalar or {}).get(emp.id) %}
-      <div id="row-employee-{{ emp.id }}" style="display:flex;justify-content:space-between;align-items:center;padding:13px 18px;border-bottom:1px solid var(--border2);gap:10px">
+      <div id="row-employee-{{ emp.id }}" class="savat-qator" style="display:flex;justify-content:space-between;align-items:center;padding:13px 18px;border-bottom:1px solid var(--border2);gap:10px">
         <div style="min-width:0">
           <div style="font-weight:700;font-size:14px">{{ emp.name }}</div>
           <div style="font-size:13px;color:var(--text3);margin-top:2px">{{ emp.position or '—' }}{% if emp.phone %} · {{ emp.phone }}{% endif %}{% if _ks %} · ishdan ketgan {{ _ks.strftime('%d.%m.%Y') }}{% endif %}</div>
@@ -97,7 +113,7 @@
       <div style="text-align:center;padding:30px;color:var(--text3);font-size:13px">Hali hech qanday amal yo'q</div>
       {% endif %}
       {% for a in activity_log %}
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 18px;border-bottom:1px solid var(--border2)">
+      <div class="savat-jurnal-qator" style="display:flex;justify-content:space-between;align-items:center;padding:10px 18px;border-bottom:1px solid var(--border2)">
         <div style="font-size:13px">
           {# kech115 (G6-01): har amal O'Z nomi bilan — ilgari «o'chirildi» / «tiklandi» dan boshqa hammasi «butunlay o'chirildi» edi #}
           {% if a.action == 'deleted' %}🗑️{% elif a.action == 'restored' %}↩️{% elif a.action == 'permanently_deleted' %}❌{% else %}📝{% endif %}

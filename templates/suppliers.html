@@ -13,6 +13,16 @@
 .sup-row:hover{background:var(--f-fafaf8)}
 .sup-name{font-size:13px;font-weight:600;color:var(--text)}
 .sup-meta{font-size:12px;color:var(--text3);margin-top:2px}
+/* kech147 (zip 186, O'LCHANGAN 375 × 548: qarz summasi (min-width 120 px) va 3 tugma qatorda nomga 30 px qoldirardi — nom 8 satr, «244 443 800
+   so'm» telefon raqami ustiga tushardi; 320 px da sarlavhadagi 180 px qidiruv maydoni kartadan chiqib qirqilardi): telefonda nom va ma'lumot
+   — butun qator, summa va tugmalar — keyingi qatorda (summa sig'masa o'zi ikki qatorga bo'linadi, tugmalar joyida qoladi) */
+@media (max-width:600px){
+  .sup-row{flex-wrap:wrap;row-gap:8px;column-gap:8px}
+  .sup-row > .sup-asosiy{flex:1 1 100% !important}
+  .sup-row > .sup-qarz{flex:1 1 0;min-width:0 !important;text-align:left !important;overflow-wrap:anywhere}
+  .sup-row > .mini-btn{flex-shrink:0}
+  #sup-search{flex:1 1 140px;width:auto !important;min-width:0}
+}
 .mini-btn{width:var(--h-sm);height:var(--h-sm);border-radius:var(--r-btn);border:1.5px solid var(--ch-e5e5e5);background:var(--white);font-size:13px;color:var(--m-555555);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .mini-btn:hover{background:var(--dark);color:#fff;border-color:var(--dark)}
 /* kech146 (zip 184, oynalar P3-6 — 320 px: ta'minotchi tarixidagi xarid nomi 70 px, «✕» qatordan 9 px tashqarida): qator o'raladi */
@@ -450,14 +460,14 @@ function renderSupplierList(list, qidiruv){
   // hech qayerdan kirilmasdi (qator bosilsa — Kirim sahifasi)
   box.innerHTML = list.map(s => `
     <div class="sup-row" onclick="${((typeof KIRIM_YARATISH === 'undefined') || KIRIM_YARATISH) ? `location.href='/suppliers/receive?supplier_id=${s.id}'` : `openHistory(${s.id})`}">
-      <div style="flex:1;min-width:0">
+      <div class="sup-asosiy" style="flex:1;min-width:0">
         <div class="sup-name">${escapeHtml(s.name)}</div>
         <div class="sup-meta">
           ${escapeHtml(s.phone || '—')} · Oxirgi xarid: ${daysAgoText(s.last_purchase_at)}
           ${s.month_count > 0 ? ` · Bu oy: ${s.month_count} ta / ${fmt(s.month_total)} so'm` : ''}
         </div>
       </div>
-      <div style="text-align:right;min-width:120px">
+      <div class="sup-qarz" style="text-align:right;min-width:120px">
         ${s.debt > 0
           ? `<div style="font-size:14px;font-weight:700;color:var(--m-dc2626)">${fmt(s.debt)} so'm</div><div style="font-size:12px;color:var(--text3)">qarz</div>`
           : `<div style="font-size:12px;font-weight:600;color:var(--m-15803d)">✓ Qarzi yo'q</div>`}

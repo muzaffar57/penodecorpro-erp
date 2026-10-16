@@ -36,6 +36,13 @@ html[data-theme="dark"] .dbt-wrap{--d-bg:var(--bg); --d-card:var(--white); --d-b
 .dbt-item-name{font-size:13px;font-weight:700;color:var(--d-text)}
 .dbt-item-sub{font-size:12px;color:var(--d-text3);margin-top:2px}
 .dbt-item-amount{font-size:16px;font-weight:800;color:var(--d-danger);white-space:nowrap}
+/* kech147 (zip 186, O'LCHANGAN 320 × 460: summa (nowrap) karta chetida qirqilardi, nom va loyiha 63–107 px ustunda 4–6 satr): telefonda summa
+   nom bilan sig'masa keyingi qatorga o'ngga o'tadi */
+@media (max-width:600px){
+  .dbt-item-body > div:first-child{flex-wrap:wrap;column-gap:8px}
+  .dbt-item-body > div:first-child > div:first-child{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
+  .dbt-item-body > div:first-child > .dbt-item-amount{margin-left:auto}
+}
 /* kech120 (G3-07): mijoz guruhi (sarlavha — jami qarz; bosilsa buyurtmalari ochiladi), qidiruv / filtr paneli */
 .dbt-asbob{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--ch-f3f4f6)}
 .dbt-asbob input[type=search]{flex:1 1 200px;min-width:0;min-height:var(--h-sm);padding:0 10px;border:1px solid var(--d-border);border-radius:var(--r-btn);font-size:var(--fs-maydon-sm);line-height:18px;font-family:inherit;background:var(--white);color:var(--text)}

@@ -16,10 +16,51 @@
 .mk-meta{font-size:13px;color:var(--text3);margin-top:2px}
 .mk-inp{width:64px;min-height:var(--h-sm);padding:0 6px;text-align:center;border:1.5px solid var(--ch-e5e5e5);border-radius:var(--r-btn);font-size:var(--fs-maydon-sm);font-weight:600;outline:none}
 .mk-inp:focus{border-color:#B9783F}
+/* kech147 (zip 186, O'LCHANGAN 667 × 375 — telefon yotiq): raqam kartalari shablondagi `repeat(5,1fr)` bilan 5 ustunda qolib, sahifani
+   952 px ga kengaytirardi (butun kontent yon tomonga surilardi; style.css dagi 768 px qoidasini inline uslub bekor qiladi). Endi 641–768 px
+   da ustunlar sig'ganicha (har biri kamida 150 px), ≤ 640 px da — 2 ustun (pastdagi qoida). Ustalar / hodimlar ikki ustuni (`.kpi-two`) ham
+   768 px gacha bitta ustun — 667 px da usta kartasining ✏️ / 🚫 / KPI tugmalari va saralash tanlagichi karta chetidan qirqilardi. */
+@media (max-width: 768px) {
+  .kpi-two{grid-template-columns:1fr}
+  .kpi-grid[style*="repeat("]{grid-template-columns:repeat(auto-fit,minmax(150px,1fr)) !important}
+  .kpi-grid > *{min-width:0}
+  .kpi-grid .kpi-val{overflow-wrap:anywhere}
+}
 @media (max-width: 640px) {
   .kpi-two{grid-template-columns:1fr}
   .kpi-grid[style*="repeat("]{grid-template-columns:repeat(2,minmax(0,1fr)) !important}
 }
+/* kech147 (zip 186 — egasining production skrinshoti 16.10 14:28; O'LCHANGAN 375 × 548: «Hodimlar oylik hisob-kitobi» jadvali o'rami
+   309 / 700 px — «+ Bonus», «− Kamaytirish», «Avans olingan», «Qolgan to'lov» birinchi ekranda YO'Q (surish kerakligini hech narsa
+   bildirmaydi), «Tafsilot» 81 px ustunda 12 satr — bitta hodim qatori 250 px; 667 × 375 da ham 81 px). Telefonda (≤ 768 px, yotiq ham)
+   har hodim — KARTA: ism va tafsilot butun kenglikda, «Asosiy hisob» / «Avans olingan» / «Qolgan to'lov» — nomi va qiymati bir qatorda,
+   «+ Bonus» / «− Kamaytirish» pastda yonma-yon; ochilgan avans tafsiloti — karta ostida. Kompyuterda jadval o'zgarmaydi. */
+@media (max-width: 768px) {
+  .oylik-jadval-orama{overflow-x:visible !important}
+  .oylik-jadval, .oylik-jadval > tbody{display:block;width:100%}
+  .oylik-jadval > thead{display:none}
+  .oylik-jadval > tbody > tr.oylik-qator{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px 10px;padding:12px;margin-bottom:10px;
+    border:1px solid var(--border2) !important;border-radius:12px}
+  .oylik-jadval > tbody > tr.oylik-qator > td{padding:0 !important;min-width:0;text-align:left !important}
+  .oylik-qator > .oq-hodim, .oylik-qator > .oq-tafsilot{grid-column:1 / -1}
+  .oylik-qator > .oq-tafsilot{overflow-wrap:anywhere}
+  .oylik-qator > td[data-label]{grid-column:1 / -1;display:flex;justify-content:flex-end;align-items:baseline;gap:6px;text-align:right !important}
+  .oylik-qator > td[data-label]::before{content:attr(data-label);margin-right:auto;padding-right:4px;color:var(--text3);font-size:12px;font-weight:600;text-align:left;flex-shrink:0}
+  .oylik-qator > .oq-hodim{order:1}
+  .oylik-qator > .oq-tafsilot{order:2}
+  .oylik-qator > .oq-asosiy{order:3}
+  .oylik-qator > .oq-avans{order:4}
+  .oylik-qator > .oq-qolgan{order:5}
+  .oylik-qator > .oq-bonus{order:6}
+  .oylik-qator > .oq-kamay{order:7}
+  .oylik-qator > .oq-bonus .btn, .oylik-qator > .oq-kamay .btn{width:100%;min-height:36px}
+  .oylik-jadval > tbody > tr.oylik-avans-qator{display:block;margin:-6px 0 10px;border-radius:10px;overflow:hidden}
+  .oylik-jadval > tbody > tr.oylik-avans-qator > td{display:block;padding:0 !important}
+}
+/* kech147 (zip 186): oylik hisob-kitobdagi avans tafsiloti qatori — izoh uzun bo'lsa summa keyingi qatorga o'tadi (izoh siqilmaydi) */
+.oylik-avans-band{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:2px 10px;padding:4px 0;font-size:13px;color:var(--m-92400e)}
+.oylik-avans-band > span:first-child{flex:1 1 180px;min-width:0;overflow-wrap:anywhere}
+.oylik-avans-band > span:last-child{margin-left:auto;font-weight:600;white-space:nowrap}
 /* kech119 (C BOSQICH — telefon, audit G6-15, O'LCHANGAN work/k125/telefon.py: 390 px da usta kartasidagi ✏️ / 🚫, hodim
    qatoridagi holat va 4 tugma ekrandan chiqardi (408..623 px), «Qolgan jami» — faqat «2», sarlavha so'zma-so'z, sovg'a davri
    oynasida «Savdo summasi» kesilgan): telefonda karta / qator IKKI qatorga — ism va izoh birinchi qatorda to'liq, raqamlar
@@ -1787,8 +1828,8 @@ async function loadEmpMonthlyReport() {
     // kech139 (zip 167, production skrinshoti 11.10): «Jami» qatorida bonus / kamaytirish 0 bo'lsa «+0 so'm» / «-0 so'm» chiqardi —
     // ishora endi faqat summa > 0 bo'lsa («Avans jami» naqshi).
     box.innerHTML = `
-      <div style="overflow-x:auto">
-        <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <div class="oylik-jadval-orama" style="overflow-x:auto">
+        <table class="oylik-jadval" style="width:100%;border-collapse:collapse;font-size:13px">
           <thead>
             <tr style="border-bottom:2px solid var(--border2);text-align:left;color:var(--text3)">
               <th style="padding:10px 6px"><i class="ti ti-user" style="vertical-align:-2px;margin-right:4px"></i>Hodim</th>
@@ -1802,32 +1843,32 @@ async function loadEmpMonthlyReport() {
           </thead>
           <tbody>
             ${list.map((e,i) => `
-              <tr style="border-bottom:${e.avans > 0 ? 'none' : '1px solid var(--border2)'};cursor:${e.avans > 0 ? 'pointer' : 'default'};background:${i % 2 === 0 ? 'var(--white)' : 'var(--bg)'}"
+              <tr class="oylik-qator" style="border-bottom:${e.avans > 0 ? 'none' : '1px solid var(--border2)'};cursor:${e.avans > 0 ? 'pointer' : 'default'};background:${i % 2 === 0 ? 'var(--white)' : 'var(--bg)'}"
                   ${e.avans > 0 ? `onclick="toggleEmpAdvanceDetail(${e.employee_id}, ${i}, ${year}, ${month})"` : ''}>
-                <td style="padding:12px 6px">
+                <td class="oq-hodim" style="padding:12px 6px">
                   <div style="display:flex;align-items:center;gap:9px">
                     <div style="width:30px;height:30px;border-radius:50%;background:var(--gold-tint);color:var(--gold-dark);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0">${(e.name||'?')[0].toUpperCase()}</div>
                     <span style="min-width:0"><span style="font-weight:700;color:var(--text)">${escapeHtml(e.name)}</span>${e.ishda === false ? `<span class="hodim-ketgan-belgi" style="display:block;font-size:12px;color:var(--text3);font-weight:500">ishdan ketgan${e.ketgan_sana ? ' ' + escapeHtml(String(e.ketgan_sana).split('-').reverse().join('.')) : ''}</span>` : ''}</span>
                   </div>
                 </td>
-                <td style="padding:12px 6px;color:var(--text3);font-size:12px">${escapeHtml(e.detail)}</td>
-                <td style="padding:12px 6px;text-align:right;font-weight:600;color:var(--gold-dark)">${fmt(e.amount + (e.adjustment||0) - (e.bonus||0))} so'm</td>
-                <td style="padding:12px 6px;text-align:center">
+                <td class="oq-tafsilot" style="padding:12px 6px;color:var(--text3);font-size:12px">${escapeHtml(e.detail)}</td>
+                <td class="oq-asosiy" data-label="Asosiy hisob" style="padding:12px 6px;text-align:right;font-weight:600;color:var(--gold-dark)">${fmt(e.amount + (e.adjustment||0) - (e.bonus||0))} so'm</td>
+                <td class="oq-bonus" style="padding:12px 6px;text-align:center">
                   <button type="button" onclick="event.stopPropagation();editEmpBonus(${e.employee_id}, '${jsAttrEscape(e.name)}', ${year}, ${month}, ${e.bonus||0}, '${jsAttrEscape(e.bonus_reason||'')}')"
                         class="btn btn-outline btn-sm" style="white-space:nowrap;border-color:${e.bonus ? 'var(--ch-dcfce7)' : 'var(--border)'};background:${e.bonus ? 'var(--f-f0fdf4)' : 'var(--white)'};color:${e.bonus ? 'var(--m-15803d)' : 'var(--text2)'}">
                     ${e.bonus ? '+'+fmt(e.bonus)+" so'm" : '+ Bonus'}
                   </button>
                 </td>
-                <td style="padding:12px 6px;text-align:center">
+                <td class="oq-kamay" style="padding:12px 6px;text-align:center">
                   <button type="button" onclick="event.stopPropagation();editEmpAdjustment(${e.employee_id}, '${jsAttrEscape(e.name)}', ${year}, ${month}, ${e.adjustment||0}, '${jsAttrEscape(e.adjustment_reason||'')}')"
                         class="btn btn-outline btn-sm" style="white-space:nowrap;border-color:${e.adjustment ? 'var(--ch-fee2e2)' : 'var(--border)'};background:${e.adjustment ? 'var(--f-fef2f2)' : 'var(--white)'};color:${e.adjustment ? 'var(--m-b91c1c)' : 'var(--text2)'}">
                     ${e.adjustment ? '-'+fmt(e.adjustment)+" so'm" : '− Kamaytirish'}
                   </button>
                 </td>
-                <td style="padding:12px 6px;text-align:right;color:var(--m-b45309)">${e.avans > 0 ? '-'+fmt(e.avans)+" so'm " + `<span id="emp-adv-arrow-${i}" style="font-size:12px">▼</span>` : '—'}</td>
-                <td style="padding:12px 6px;text-align:right;font-weight:700;color:${e.qolgan >= 0 ? 'var(--m-15803d)' : 'var(--m-dc2626)'}">${fmt(e.qolgan)} so'm</td>
+                <td class="oq-avans" data-label="Avans olingan" style="padding:12px 6px;text-align:right;color:var(--m-b45309)">${e.avans > 0 ? '-'+fmt(e.avans)+" so'm " + `<span id="emp-adv-arrow-${i}" style="font-size:12px">▼</span>` : '—'}</td>
+                <td class="oq-qolgan" data-label="Qolgan to'lov" style="padding:12px 6px;text-align:right;font-weight:700;color:${e.qolgan >= 0 ? 'var(--m-15803d)' : 'var(--m-dc2626)'}">${fmt(e.qolgan)} so'm</td>
               </tr>
-              ${e.avans > 0 ? `<tr id="emp-adv-row-${i}" style="display:none;border-bottom:1px solid var(--border2);background:${i % 2 === 0 ? 'var(--white)' : 'var(--bg)'}"><td colspan="7" style="padding:0"><div id="emp-adv-detail-${i}" style="background:var(--f-fffbeb);padding:8px 16px"></div></td></tr>` : ''}
+              ${e.avans > 0 ? `<tr id="emp-adv-row-${i}" class="oylik-avans-qator" style="display:none;border-bottom:1px solid var(--border2);background:${i % 2 === 0 ? 'var(--white)' : 'var(--bg)'}"><td colspan="7" style="padding:0"><div id="emp-adv-detail-${i}" style="background:var(--f-fffbeb);padding:8px 16px"></div></td></tr>` : ''}
             `).join('')}
           </tbody>
         </table>
@@ -1942,7 +1983,8 @@ async function toggleEmpAdvanceDetail(empId, idx, year, month) {
     return;
   }
 
-  row.style.display = 'table-row';
+  // kech147 (zip 186): '' — kompyuterda jadval qatori, telefonda (karta ko'rinishi) blok; ilgari 'table-row' karta tartibini buzardi
+  row.style.display = '';
   if (arrow) arrow.textContent = '▲';
 
   const cacheKey = `${empId}-${year}-${month}`;
@@ -1959,9 +2001,9 @@ async function toggleEmpAdvanceDetail(empId, idx, year, month) {
     const d = await yukOl(`/api/employees/${empId}/advances?year=${year}&month=${month}`);
     if (!d || !Array.isArray(d.advances)) throw yukXato('server');
     const html = d.advances.map(a => `
-      <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:var(--m-92400e)">
+      <div class="oylik-avans-band">
         <span>${tkSana(a.date)} ${a.notes ? '— '+escapeHtml(a.notes) : ''}${avansManbaHtml(a)}</span>
-        <span style="font-weight:600;white-space:nowrap">${fmt(a.amount)} so'm</span>
+        <span>${fmt(a.amount)} so'm</span>
       </div>`).join('');
     detailBox.innerHTML = html;
     empAdvCache[cacheKey] = html;
