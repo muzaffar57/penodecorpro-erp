@@ -25,6 +25,9 @@
    oynasida «Savdo summasi» kesilgan): telefonda karta / qator IKKI qatorga — ism va izoh birinchi qatorda to'liq, raqamlar
    va tugmalar ikkinchi qatorda; jami — 2 ustun, «Qolgan jami» butun kenglikda. */
 .kpi-two > *{min-width:0}
+/* kech146 (zip 184, oynalar P3-9): oynadagi alohida matn-tugmalar (✏ sovg'a bosqichi, «📜 To'lov tarixini ko'rish») telefonda 16–20 px
+   — barmoq bilan bosish nishoni kamida 36 px */
+@media (max-width:768px){ #giftPeriodModal .btn-link,#empModal .btn-link{min-height:36px;display:inline-flex;align-items:center}}
 @media (max-width: 600px) {
   .mk-card, .emp-row{flex-wrap:wrap;row-gap:10px;padding:12px !important}
   .mk-asosiy, .emp-asosiy{flex:1 1 calc(100% - 90px) !important}
@@ -38,6 +41,8 @@
   .kpi-oylik-jami > div:first-child, .kpi-oylik-jami > div:last-child{grid-column:1 / -1}
   .sovga-daraja{flex-wrap:wrap}
   .sovga-daraja .sovga-summa{width:auto !important;flex:1 1 140px;min-width:0}
+  /* kech146 (zip 184, oynalar P3-2 — 320 px: «Sovg'a nomi» maydoni oynadan 24 px chiqib, oyna yonga surilardi): nom — butun qator */
+  .sovga-daraja > input:first-child{flex:1 1 100% !important;min-width:0}
   /* «Ehson foizi» qatori 360 px da «Saqlash» ekrandan 19 px chiqardi (O'LCHANGAN): sarlavha birinchi qatorda, maydon va
      tugma — ikkinchisida */
   .kpi-ehson-qator{flex-wrap:wrap;row-gap:10px}
@@ -447,7 +452,9 @@
 
 <!-- ══ AVANS BERISH MODALI ══ -->
 <div id="advanceModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:var(--white);border-radius:14px;padding:24px;width:420px;max-width:100%">
+  {# kech146 (zip 184, oynalar P2-2 — O'LCHANGAN: shu oydagi avanslar ro'yxati bilan oyna o'sadi — 320 px da 1 ta avansdan, 375 px da 2 tadan
+     «Sana», «Summa» va «Yopish» ekrandan chiqardi, surilmasdi): quti ekran balandligigacha va suriladi #}
+  <div style="background:var(--white);border-radius:14px;padding:24px;width:420px;max-width:100%;max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);overflow-y:auto;box-sizing:border-box">
     <div style="font-size:16px;font-weight:600;margin-bottom:4px">💰 Avans berish — <span id="adv-emp-name" style="color:var(--m-b45309)"></span></div>
     <div style="font-size:13px;color:var(--text3);margin-bottom:16px">Bu summa oy oxirida hisoblangan oylikdan avtomatik ayriladi. Hodim panelga kira olsa — «Ha, oldim» deb tasdiqlaydi.</div>
     {# kech134 (zip 160): shu hodimning «Olmaganman» degan avanslari (amallar bilan) #}
@@ -472,7 +479,8 @@
 
 <!-- ══ PANEL KIRISHI (TELEFON+PIN) MODALI ══ -->
 <div id="panelAccessModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:var(--white);border-radius:14px;padding:24px;width:400px;max-width:100%">
+  {# kech146 (zip 184, oynalar P2-5 — 320 px: 716 px — sarlavha va «Saqlash» / «Bekor» ekrandan chiqardi): quti ekran balandligigacha #}
+  <div style="background:var(--white);border-radius:14px;padding:24px;width:400px;max-width:100%;max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);overflow-y:auto;box-sizing:border-box">
     <div style="font-size:16px;font-weight:600;margin-bottom:4px">🔑 Panel kirishi — <span id="pa-emp-name" style="color:var(--gold-dark)"></span></div>
     <div style="font-size:13px;color:var(--text3);margin-bottom:10px">Xodim shu telefon+PIN bilan <b>/hodim</b> sahifasiga kirib, o'zi avans yozib qo'ya oladi</div>
     {# kech120 (zip 130 — G6-07): korxona KODI — ikkinchi korxona ulangandan keyin hodim kirishida SHART (ilgari hech qayerda ko'rinmasdi) #}

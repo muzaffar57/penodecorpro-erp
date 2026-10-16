@@ -1462,10 +1462,12 @@ function kichikRasm(url) {
      Ixtiyoriy 2-argument: {okText, cancelText, danger:true} (danger — qizil
      tugma, o'chirish kabi qaytarib bo'lmaydigan amallar uchun). ══ -->
 <div id="ccModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:var(--white);border-radius:14px;width:420px;max-width:100%;padding:24px;box-shadow:var(--shadow-card)">
-    <div id="ccModalTitle" style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px;display:none"></div>
-    <div id="ccModalMessage" style="font-size:14px;color:var(--text2);line-height:1.6;white-space:pre-wrap;margin-bottom:18px"></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
+  {# kech146 (zip 184, oynalar P2-9 — O'LCHANGAN 320 × 640: uzun savol (sovg'a davrini yopish, 8 usta) 665 px — sarlavha va tugmalar
+     ekrandan chiqardi, hech narsa surilmasdi): quti ekran balandligigacha, MATN suriladi, tugmalar doim ko'rinadi #}
+  <div style="background:var(--white);border-radius:14px;width:420px;max-width:100%;padding:24px;box-shadow:var(--shadow-card);max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);display:flex;flex-direction:column;box-sizing:border-box">
+    <div id="ccModalTitle" style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px;display:none;flex-shrink:0"></div>
+    <div id="ccModalMessage" style="font-size:14px;color:var(--text2);line-height:1.6;white-space:pre-wrap;margin-bottom:18px;overflow-y:auto;min-height:0;flex:0 1 auto"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0">
       <button id="ccModalCancel" data-yopish class="btn btn-outline" style="flex:1">Bekor</button>
       <button id="ccModalAlt" class="btn btn-outline" style="flex:1;display:none"></button>
       <button id="ccModalOk" class="btn btn-gold" style="flex:1">Tasdiqlash</button>

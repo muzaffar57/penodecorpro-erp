@@ -53,12 +53,13 @@ async function checkPendingAdvanceRequests(){
     const fmt = n => Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' ');
     list.innerHTML = rows.map(r => `
       <div id="adv-row-${r.id}" style="border:1px solid var(--ch-eeeeee);border-radius:10px;padding:14px;margin-bottom:10px">
-        <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px">
-          <div>
+        {# kech146 (zip 184, oynalar P3-7 — 320 px: ism ustuni 94 px): qator o'raladi — ism kamida 200 px, summa keyingi qatorda o'ngda #}
+        <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:start;gap:6px;margin-bottom:8px">
+          <div style="flex:1 1 200px;min-width:0;overflow-wrap:anywhere">
             <div style="font-weight:700;font-size:14px">${escapeHtml(r.employee_name)}</div>
             <div style="font-size:13px;color:var(--text3);margin-top:2px">${tkSana(r.requested_date)} kuni oldim deb yozgan</div>
           </div>
-          <div style="font-weight:800;font-size:16px;color:var(--m-b45309)">${fmt(r.amount)} so'm</div>
+          <div style="font-weight:800;font-size:16px;color:var(--m-b45309);white-space:nowrap;margin-left:auto">${fmt(r.amount)} so'm</div>
         </div>
         ${r.notes ? `<div style="font-size:13px;color:var(--text3);margin-bottom:10px;overflow-wrap:anywhere">💬 ${escapeHtml(r.notes)}</div>` : ''}
         <div style="display:flex;flex-wrap:wrap;gap:8px">
@@ -199,12 +200,13 @@ async function checkAvansNizolar(){
   const fmt = n => Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' ');
   document.getElementById('avansNizoList').innerHTML = rows.map(r => `
       <div class="nizo-qator" id="nizo-row-${Number(r.id)}" style="border:1px solid var(--ch-fadbd8);border-radius:10px;padding:14px;margin-bottom:10px">
-        <div style="display:flex;justify-content:space-between;align-items:start;gap:10px">
-          <div style="min-width:0;overflow-wrap:anywhere">
+        {# kech146 (zip 184, oynalar P3-7 — 320 px: ism ustuni 56 px, so'zlar harfma-harf bo'linib qator 316 px): qator o'raladi #}
+        <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:start;gap:6px 10px">
+          <div style="flex:1 1 200px;min-width:0;overflow-wrap:anywhere">
             <div style="font-weight:700;font-size:14px">${escapeHtml(r.employee_name)}${r.position ? ` <span style="font-weight:500;color:var(--text3);font-size:13px">${escapeHtml(r.position)}</span>` : ''}</div>
             <div style="font-size:13px;color:var(--text3);margin-top:2px">${tkSana(r.date)} · yozgan: ${r.given_by ? escapeHtml(r.given_by) : '—'}</div>
           </div>
-          <div style="font-weight:800;font-size:16px;color:var(--m-dc2626);white-space:nowrap">${fmt(r.amount)} so'm</div>
+          <div style="font-weight:800;font-size:16px;color:var(--m-dc2626);white-space:nowrap;margin-left:auto">${fmt(r.amount)} so'm</div>
         </div>
         ${r.notes ? `<div style="font-size:13px;color:var(--text3);margin-top:6px;overflow-wrap:anywhere">💬 ${escapeHtml(r.notes)}</div>` : ''}
         <div style="font-size:13px;color:var(--m-dc2626);font-weight:600;margin-top:6px">❗ «Olmaganman» dedi — ${tkSanaVaqt(r.javob_vaqti)}</div>

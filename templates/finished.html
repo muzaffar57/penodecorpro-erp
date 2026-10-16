@@ -22,6 +22,13 @@
 #prodModal .dgrp-title{font-size:12px;font-weight:800;color:var(--gold-dark);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
 #prodModal .dgrp .form-group{background:var(--white);margin-bottom:0!important}
 #prodModal .dgrp-row{display:grid;gap:12px}
+/* kech146 (zip 184, oynalar P2-3 — O'LCHANGAN: 320 px da «Bo'yi», «Eni», «1 m³ narxi» maydonlarining yozuv joyi 0 px — terilgan son
+   ko'rinmasdi; 375 / 390 px da ham 12–39 px): telefonda bir ustun, maydon siqilishi mumkin (o'z mazmunidan kengaymaydi) */
+#prodModal .dgrp-row > .form-group{min-width:0}
+#prodModal .unit-input-wrap input,#prodModal .unit-input-wrap select{min-width:0}
+@media (max-width:480px){ #prodModal .dgrp-row{grid-template-columns:1fr !important}}
+/* kech146 (zip 184, oynalar P3-3 — 320 px: savatcha «1 birlik narxi» «25 000» o'rniga «25 00»): narx — alohida qatorda */
+@media (max-width:480px){.batch-maydonlar{flex-wrap:wrap}.batch-maydonlar > .batch-narx-ustun{flex:1 1 100% !important}}
 .fp-filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 .fp-page{
   flex:1;
@@ -1643,7 +1650,7 @@ function openBatchSellModal() {
     return `
       <div class="batch-item-row" data-id="${id}" style="border:1px solid var(--ch-e2e8f0);border-radius:10px;padding:10px 12px">
         <div style="font-weight:600;font-size:14px;color:var(--text);margin-bottom:8px">${escapeHtml(it.name)}</div>
-        <div style="display:flex;gap:8px;align-items:flex-end">
+        <div class="batch-maydonlar" style="display:flex;gap:8px;align-items:flex-end">
           <div style="flex:1">
             <div style="font-size:12px;color:var(--text3);margin-bottom:3px">Kerakli miqdor</div>
             <input type="number" class="batch-qty" value="" placeholder="0" max="${it.maxQty}" min="0" step="any" data-max="${it.maxQty}" data-unit="${escapeHtml(unitLabel(it.unit))}"
@@ -1654,7 +1661,7 @@ function openBatchSellModal() {
             <div style="font-size:12px;color:var(--m-15803d);margin-bottom:3px;font-weight:600">Qoladi</div>
             <div class="batch-remain" style="width:100%;min-height:var(--h-btn);display:flex;align-items:center;justify-content:center;padding:0 10px;border:1.5px solid var(--ch-bbf7d0);border-radius:8px;font-size:14px;font-weight:700;color:var(--m-15803d);background:var(--f-f0fdf4);box-sizing:border-box;text-align:center">${escapeHtml(fpMiqdor(it.maxQty))} ${escapeHtml(unitLabel(it.unit))}</div>
           </div>
-          <div style="flex:1">
+          <div class="batch-narx-ustun" style="flex:1">
             <div style="font-size:12px;color:var(--text3);margin-bottom:3px">1 birlik narxi</div>
             <input type="text" class="batch-price" value="${narxKorinishi(it.price)}" oninput="formatPriceInput(this);updateBatchTotal()"
                    style="width:100%;border:1.5px solid var(--ch-e2e8f0)">

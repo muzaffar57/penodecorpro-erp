@@ -94,6 +94,9 @@
 .mv-badge.out{background:var(--f-fee2e2);color:var(--m-991b1b)}
 .mv-order-row{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border:1px solid var(--border2);border-radius:12px;margin-bottom:8px;cursor:pointer;transition:background .15s;background:var(--white)}
 .mv-order-row:hover{background:var(--gold-tint)}
+/* kech146 (zip 184, oynalar P3-5 — 320 px: «Xaridlar tarixi» / «Ombor harakatlari» chap ustuni 65–82 px, qator 387–472 px baland):
+   telefonda nom — butun qator, soni — keyingi qatorda */
+@media (max-width:480px){.mv-order-row{flex-wrap:wrap;row-gap:8px}.mv-order-row > div:first-child{flex:1 1 100%;min-width:0}}
 .mv-order-num{font-weight:700;color:var(--gold-dark);font-size:14px}
 .mv-order-meta{font-size:13px;color:var(--text3);margin-top:3px}
 .mv-order-count{font-size:13px;background:var(--bg);padding:4px 10px;border-radius:20px;color:var(--text2);font-weight:600;white-space:nowrap;flex-shrink:0;margin-left:10px}

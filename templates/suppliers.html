@@ -15,6 +15,12 @@
 .sup-meta{font-size:12px;color:var(--text3);margin-top:2px}
 .mini-btn{width:var(--h-sm);height:var(--h-sm);border-radius:var(--r-btn);border:1.5px solid var(--ch-e5e5e5);background:var(--white);font-size:13px;color:var(--m-555555);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .mini-btn:hover{background:var(--dark);color:#fff;border-color:var(--dark)}
+/* kech146 (zip 184, oynalar P3-6 — 320 px: ta'minotchi tarixidagi xarid nomi 70 px, «✕» qatordan 9 px tashqarida): qator o'raladi */
+.sup-xarid-qator{flex-wrap:wrap;row-gap:6px}
+.sup-xarid-qator > div:first-child{flex:1 1 160px;min-width:0;overflow-wrap:anywhere}
+.sup-xarid-qator > div:last-child{margin-left:auto}
+/* kech146 (zip 184, oynalar P3-9): «← Ro'yxatdan tanlayman», «To'liq to'lash» — telefonda bosish nishoni kamida 36 px */
+@media (max-width:768px){ #historyModal .btn-link{min-height:36px;display:inline-flex;align-items:center}}
 </style>
 {% endblock %}
 
@@ -1131,7 +1137,7 @@ async function openHistory(id, keepFilter, page){
         const rows = g.items.map(p => {
           const ds = tkSana(p.purchased_at);
           return `
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--ch-f5f5f5)">
+          <div class="sup-xarid-qator" style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--ch-f5f5f5)">
             <div>
               <div style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(p.item_name)} ${p.is_credit ? '<span style="color:var(--m-b45309);font-size:12px">(nasiya)</span>' : ''}</div>
               <div style="font-size:12px;color:var(--text3)">${p.quantity} ${escapeHtml(p.unit||'')} × ${fmt(p.price_per_unit)} · ${ds}</div>

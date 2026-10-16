@@ -72,7 +72,10 @@
 .recp-picker-panel{position:absolute;top:0;left:0;right:0;background:var(--white);border:1px solid var(--border2);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.14);z-index:50;max-height:340px;display:flex;flex-direction:column}
 .recp-picker-search{display:flex;align-items:center;gap:8px;padding:6px 12px;border-bottom:1px solid var(--border2);flex-shrink:0}
 .recp-picker-search i{color:var(--text3);font-size:16px}
-.recp-picker-search input{flex:1;min-height:var(--h-sm);border:none;outline:none;font-size:var(--fs-maydon-sm);color:var(--text)}
+.recp-picker-search input{flex:1;min-width:0;min-height:var(--h-sm);border:none;outline:none;font-size:var(--fs-maydon-sm);color:var(--text)}
+/* kech146 (zip 184, oynalar P2-8 / P3-1 — O'LCHANGAN 320 px: «Material qo'shish» tugmasi oynadan 24 px chiqib, tanlagich ochilganda oyna
+   yonga 23 px surilgan holda ochilardi («ETSEPT NOMI»); qidiruv maydoni o'z kengligidan kichraymasdi): sarlavha qatori o'raladi */
+@media (max-width:600px){.recp-section-head{flex-wrap:wrap;gap:8px}}
 .recp-picker-list{overflow-y:auto;padding:8px}
 .recp-picker-cat{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:9px 8px 5px}
 .recp-picker-item{display:flex;align-items:center;gap:10px;padding:8px;border-radius:8px;cursor:pointer;font-size:13px;color:var(--text)}
