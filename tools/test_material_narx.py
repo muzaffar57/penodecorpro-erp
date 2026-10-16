@@ -454,7 +454,8 @@ section("H. Sahifalar")
 
 def sahifa(kim, url):
     x = C[kim].get(url)
-    return x.status_code, x.text
+    # kech147 (zip 189 — MOSLANGAN): server summasi `|son(0)` — bo'linmas bo'shliq; sir son «13 579» ikkala ko'rinishda ham topilsin
+    return x.status_code, x.text.replace("\u00a0", " ")
 
 
 _sm, _tm = sahifa("mn_menejer", "/inventory")

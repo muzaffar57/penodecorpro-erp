@@ -694,7 +694,8 @@ check("H2 Menejer (tayyor rol) — /finished da `TANNARX_KORADI = false`",
       _rm.status_code == 200 and "const TANNARX_KORADI = false;" in _rm.text, _rm.status_code)
 _rp_a, _rp_t = CA.get("/recipes").text, CT.get("/recipes").text
 _kg = js(CA.get(f"/api/loy-cost?recipe_id={REC_ID}")) or {}
-_kgm = f"{float(_kg.get('cost_per_kg') or 0):,.0f}".replace(",", " ") + " so'm"
+# kech147 (zip 189 — MOSLANGAN): retsept sahifasi summasi `|son(0)` — ming ajratgich bo'linmas bo'shliq
+_kgm = f"{float(_kg.get('cost_per_kg') or 0):,.0f}".replace(",", "\u00a0") + " so'm"
 check("H3 Retseptlar: 1 kg tannarxi — Admin da son, Tannarxsizda «—» (son yo'q)",
       _kgm in _rp_a and _kgm not in _rp_t and 'class="rec-stat-val">—<' in _rp_t, (_kgm, _kg))
 _da, _dt2 = CA.get("/debts"), CT.get("/debts")
