@@ -377,7 +377,8 @@ html[data-theme="dark"] .rcv-quickpay button{background:var(--f-eceae6);color:va
 
 <!-- Yangi ta'minotchi modali -->
 <div id="newSupplierModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:1000;align-items:center;justify-content:center">
-  <div style="background:var(--white);border-radius:16px;padding:24px;width:380px;max-width:100%">
+  {# kech147 (zip 185): quti ekran balandligigacha, ichi suriladi — telefon brauzer paneli / yotiq ekranda kesilmaydi (bugun sig'adi, zaxirasi kam — O'LCHANGAN 375 × 548, 360 × 560, 320 × 460) #}
+  <div style="background:var(--white);border-radius:16px;padding:24px;width:380px;max-width:100%;max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);overflow-y:auto;box-sizing:border-box">
     <div style="font-size:16px;font-weight:700;margin-bottom:16px">+ Yangi ta'minotchi</div>
     <div class="rcv-field" style="margin-bottom:12px"><label>Nomi</label><input type="text" id="ns-name" placeholder="Masalan: Qurilish kimyosi do'koni"></div>
     <div class="rcv-field" style="margin-bottom:16px"><label>Telefon</label><input type="text" id="ns-phone" placeholder="+998..."></div>

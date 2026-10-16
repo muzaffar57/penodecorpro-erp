@@ -69,7 +69,8 @@
 
 <!-- ══ YETKAZIB BERUVCHI QO'SHISH/TAHRIRLASH ══ -->
 <div id="supplierModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:var(--white);border-radius:14px;padding:24px;width:420px;max-width:100%">
+  {# kech147 (zip 185): quti ekran balandligigacha, ichi suriladi — telefon brauzer paneli / yotiq ekranda kesilmaydi (bugun sig'adi, zaxirasi kam — O'LCHANGAN 375 × 548, 360 × 560, 320 × 460) #}
+  <div style="background:var(--white);border-radius:14px;padding:24px;width:420px;max-width:100%;max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);overflow-y:auto;box-sizing:border-box">
     <div style="font-size:16px;font-weight:600;margin-bottom:18px" id="sup-modal-title">+ Yangi ta'minotchi</div>
     <div class="form-group"><label>Nomi</label><input type="text" id="s-name" placeholder="Masalan: Qurilish bozori, 12-do'kon"></div>
     <div class="form-group"><label>Telefon</label><input type="text" id="s-phone" placeholder="+998901234567"></div>
@@ -1169,14 +1170,15 @@ async function openHistory(id, keepFilter, page){
     } else {
       pa.innerHTML = d.payments.map(p => {
         const ds = tkSana(p.paid_at);
+        // kech147 (zip 185): to'lov qatori ham o'raladi (320 px da izoh ustuni 89 px, 6 qator edi — O'LCHANGAN 320 × 460); summa bo'linmaydi
         return `
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--ch-f5f5f5)">
+        <div class="sup-xarid-qator" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--ch-f5f5f5)">
           <div>
             <div style="font-size:13px;color:var(--text)">${ds}${p.paid_by ? ' · '+escapeHtml(p.paid_by) : ''}</div>
             ${p.notes ? `<div style="font-size:12px;color:var(--text3)">${escapeHtml(p.notes)}</div>` : ''}
           </div>
           <div style="display:flex;align-items:center;gap:8px">
-            <div style="font-size:13px;font-weight:700;color:var(--m-15803d)">+${fmt(p.amount)} so'm</div>
+            <div style="font-size:13px;font-weight:700;color:var(--m-15803d);white-space:nowrap">+${fmt(p.amount)} so'm</div>
             <button class="mini-btn" style="color:var(--m-dc2626);border-color:var(--ch-fadbd8)" onclick="deletePayment(${p.id})">✕</button>
           </div>
         </div>`;

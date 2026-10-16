@@ -440,7 +440,8 @@ html[data-theme="dark"] .dbt-wrap{--d-bg:var(--bg); --d-card:var(--white); --d-b
 
 <!-- Yangi kategoriya qo'shish modali -->
 <div id="addCategoryModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:1000;align-items:center;justify-content:center">
-  <div style="background:var(--white);border-radius:16px;padding:24px;width:380px;max-width:100%">
+  {# kech147 (zip 185): quti ekran balandligigacha, ichi suriladi — telefon brauzer paneli / yotiq ekranda kesilmaydi (bugun sig'adi, zaxirasi kam — O'LCHANGAN 375 × 548, 360 × 560, 320 × 460) #}
+  <div style="background:var(--white);border-radius:16px;padding:24px;width:380px;max-width:100%;max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);overflow-y:auto;box-sizing:border-box">
     <div style="font-size:16px;font-weight:700;margin-bottom:16px">+ Yangi doimiy majburiyat</div>
     <div class="form-group"><label>Belgi (emoji, ixtiyoriy)</label><input type="text" id="cat-icon" placeholder="📦" maxlength="2" style="width:60px"></div>
     <div class="form-group"><label>Nomi</label><input type="text" id="cat-label" placeholder="Masalan: Kommunal xizmatlar" maxlength="60"></div>
