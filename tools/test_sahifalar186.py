@@ -137,7 +137,7 @@ check("S10 Moliya xarajat tafsiloti — guruh sarlavhasi / qator / `fin-exp-ichk
       _F.count('class="fin-exp-ichki"') == 2 and 'class="fin-naqd-mat"' in _F and "(${sonKor(m.quantity, 3)}" in _F
       and ".fin-exp-group-head{ flex-wrap:wrap; row-gap:4px; }" in _F)
 check("S11 Rollar ro'yxati telefonda to'r (yon tomonga suriladigan tasma emas)",
-      ".rl-royxat{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}" in oqi("templates/rollar.html")
+      ".rl-royxat{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}" in oqi("templates/rollar.html")   # zip 187: 140 → 160 px
       and ".rl-royxat{flex-direction:row;overflow-x:auto" not in oqi("templates/rollar.html"))
 check("S12 Ishlab chiqarish filtri — yorliq / tanlagich `min-width:0` (uzun nom kontentni kengaytirmaydi)",
       ".po-saralash label{min-width:0;max-width:100%}" in oqi("templates/production.html"))
