@@ -49,6 +49,10 @@ html[data-theme="dark"] .bi-wrap{
 
 /* ── KPI kartalar (2-qator) ── */
 .bi-kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+/* kech147 (zip 186, O'LCHANGAN 320 × 460: ikkinchi ustundagi raqam kartalari («997 ming so'm», «-1364,6 mln so'm») va grafik ustuni o'z
+   matni / grafik eni bo'yicha kengayib, hisobot 358 px — ekrandan chiqardi): katak ustundan kengaymaydi, raqam sig'masa bo'linadi */
+.bi-kpi-grid > *, .bi-charts-grid > *{min-width:0}
+.bi-kpi-value{overflow-wrap:anywhere}
 @media(max-width:900px){.bi-kpi-grid{grid-template-columns:repeat(2,1fr)}}
 .bi-kpi-tenglama{margin-top:10px;font-size:13px;color:var(--b-text3);text-align:right}
 .bi-kpi-tenglama b{color:var(--b-text2);font-weight:700}

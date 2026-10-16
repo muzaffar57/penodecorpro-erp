@@ -67,6 +67,14 @@ html[data-theme="dark"]{
 }
 .fin-hero-label{ font-size:13px; font-weight:600; color:var(--f-text3); text-transform:uppercase; letter-spacing:.04em; }
 .fin-hero-value{ font-size:32px; font-weight:800; color:var(--f-text); margin-top:6px; letter-spacing:-.02em; line-height:1.15; }
+/* kech147 (zip 186, O'LCHANGAN: katta summa karta chetida qirqilardi — 375 × 548 da «2 505 141 69…», 667 × 375 da (4 ustun, 32 px) «1 644 00…»,
+   «646 858…»; kartaning `overflow:hidden` i raqamni kesib qo'yardi): summa sig'masa keyingi qatorga o'tadi (hech qachon kesilmaydi),
+   900 px gacha ikki ustun, telefonda shrift kichikroq (o'lchamlar — U-13 shkalasidan: 24 / 18 px; etalon d195 — test_u13 S7 / D2: 26 / 22 /
+   20 px shkalada yo'q edi); 320 px da (karta ichi 113 px — izohlar 4–5 satr) bitta ustun */
+.fin-hero-card{ min-width:0; }
+.fin-hero-value{ overflow-wrap:anywhere; }
+@media (max-width:900px){ .fin-hero-grid{ grid-template-columns:1fr 1fr; gap:12px; } .fin-hero-value{ font-size:24px; } }
+@media (max-width:340px){ .fin-hero-grid{ grid-template-columns:1fr !important; } .fin-hero-value{ font-size:24px !important; } }
 .fin-hero-sub{ font-size:13px; color:var(--f-text3); margin-top:6px; display:flex; align-items:center; gap:5px; }
 /* kech138 (zip 164): blok yuklanmadi — kartadagi kichik izoh qizil; qora kassa kartasida sabab yorug' qizil (≥ 4.5:1) */
 .fin-hero-sub.yuk-qizil{ color:var(--m-b91c1c); }
@@ -142,6 +150,23 @@ html[data-theme="dark"]{
 .fin-exp-group-dot{ width:5px; height:5px; border-radius:50%; background:var(--f-text3); flex-shrink:0; }
 .fin-exp-group-row-name{ color:var(--f-text2); flex:1; }
 .fin-exp-group-row-val{ font-weight:700; color:var(--f-danger); white-space:nowrap; }
+/* kech147 (zip 186, O'LCHANGAN 320 × 460: guruh sarlavhasi «DOIMIY VA QO'SHIMCHA XARAJATLAR» summa yonida 33 px — har satrda 2–4 harf;
+   360 px da 2 ta tor blok; «Hodimlar» / «Usta KPI» qatorida summa (nowrap) karta chetidan chiqib qirqilardi): telefonda summa sig'masa
+   keyingi qatorga o'ngga o'tadi — nom siqilmaydi, summa qirqilmaydi */
+@media (max-width:600px){
+  .fin-exp-group-head{ flex-wrap:wrap; row-gap:4px; }
+  .fin-exp-group-head > .fin-exp-group-title{ flex:1 1 calc(100% - 42px); }
+  .fin-exp-group-head > .fin-exp-group-total{ margin-left:auto; }
+  .fin-exp-group-row{ flex-wrap:wrap; row-gap:2px; }
+  .fin-exp-group-row > .fin-exp-group-row-name{ flex:1 1 calc(100% - 15px); min-width:0; overflow-wrap:anywhere; }
+  .fin-exp-group-row > .fin-exp-group-row-val{ margin-left:auto; }
+  .fin-exp-ichki{ flex-wrap:wrap; row-gap:2px; column-gap:10px; }
+  .fin-exp-ichki > span:first-child{ flex:1 1 auto; min-width:0; overflow-wrap:anywhere; }
+  .fin-exp-ichki > .fin-exp-group-row-val{ margin-left:auto; }
+  .fin-naqd-mat{ flex-wrap:wrap; column-gap:10px; }
+  .fin-naqd-mat > span:first-child{ flex:1 1 auto; min-width:0; overflow-wrap:anywhere; }
+  .fin-naqd-mat > span:last-child{ margin-left:auto; white-space:nowrap; }
+}
 
 /* ── Jadval (premium) ── */
 .fin-table-wrap{ overflow-x:auto; border-radius:var(--f-radius); }
@@ -149,6 +174,8 @@ html[data-theme="dark"]{
 /* kech119 (C — telefon, G3-19, O'LCHANGAN: 390 px da «Qarzlar va majburiyatlar» 4 qutisi bir qatorda (har biri ~72 px, «Arenda /
    Soliq / Kommunal» 376..518 px — ekrandan tashqarida), tranzaksiyalar jadvali 720 px): telefonda qutilar 2 × 2, jadval — kartalar */
 #debt-summary-grid > *{ min-width:0; }
+/* kech147 (zip 186, O'LCHANGAN 320 × 460: «🏛️ Arenda/Soliq/Kommunal» yozuvi quti chetida qirqilardi) */
+#debt-summary-grid .dg-box > div{ overflow-wrap:anywhere; }
 /* xarajat guruhi sarlavhasi: uzun nom summani ekrandan surib chiqarardi (360 px, kengroq shrift — O'LCHANGAN) — nom torayadi */
 .fin-exp-group-head > .fin-exp-group-title{ min-width:0; overflow-wrap:break-word; }
 @media (max-width:640px){
@@ -267,7 +294,7 @@ html[data-theme="dark"]{
   /* Bugungi holat — 4 karta -> 2x2 */
   .fin-hero-grid{ grid-template-columns:1fr 1fr; gap:10px; }
   .fin-hero-card{ padding:16px 14px; }
-  .fin-hero-value{ font-size:24px; }
+  .fin-hero-value{ font-size:18px; }
   .fin-hero-icon{ width:34px; height:34px; margin-bottom:10px; font-size:16px; }
 
   /* Oylik hisobot mini-KPI — 6 karta -> 2 ustun */
@@ -1371,8 +1398,8 @@ function buildCashSection(d){
     box.style.display = 'block';
     box.innerHTML = '<div style="font-weight:600;color:var(--f-text2);margin-bottom:4px">Material bo\'yicha:</div>' +
       d.xomashyo_by_material.map(m =>
-        `<div style="display:flex;justify-content:space-between;padding:2px 0">
-          <span>${escapeHtml(m.name)} (${m.quantity}${m.unit ? ' ' + escapeHtml(m.unit) : ''})</span>
+        `<div class="fin-naqd-mat" style="display:flex;justify-content:space-between;padding:2px 0">
+          <span>${escapeHtml(m.name)} (${sonKor(m.quantity, 3)}${m.unit ? ' ' + escapeHtml(m.unit) : ''})</span>
           <span style="font-weight:600">${fmtFull(m.total)} so'm</span>
         </div>`).join('');
   } else {
@@ -1433,7 +1460,7 @@ function buildExpDetail(d){
   if (d.usta_kpi_breakdown && d.usta_kpi_breakdown.length) {
     const rowsHtml = d.usta_kpi_breakdown.map(b =>
       `<div class="fin-exp-group-row" style="flex-direction:column;align-items:stretch;gap:3px">
-        <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="fin-exp-ichki" style="display:flex;justify-content:space-between;align-items:center">
           <span style="font-weight:700;color:var(--f-text);font-size:13px">${escapeHtml(b.master_name)}</span>
           <span class="fin-exp-group-row-val">${fmtFull(b.kpi_amount)} so'm</span>
         </div>
@@ -1451,7 +1478,7 @@ function buildExpDetail(d){
       const paidBadge = isPaid ? '<span style="font-size:12px;font-weight:700;color:var(--m-15803d);background:var(--f-f0fdf4);padding:1px 7px;border-radius:10px;margin-left:6px;white-space:nowrap">✓ To\'landi</span>' : '';
       const posBadge = b.position ? `<span style="font-size:12px;font-weight:600;color:var(--f-text3);background:var(--f-bg);padding:1px 8px;border-radius:10px;margin-left:6px">${escapeHtml(b.position)}</span>` : '';
       return `<div class="fin-exp-group-row" style="flex-direction:column;align-items:stretch;gap:3px">
-        <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="fin-exp-ichki" style="display:flex;justify-content:space-between;align-items:center">
           <span style="font-weight:700;color:var(--f-text);font-size:13px">${escapeHtml(b.name)}${posBadge}${paidBadge}</span>
           <span class="fin-exp-group-row-val">${fmtFull(b.amount)} so'm</span>
         </div>

@@ -109,8 +109,11 @@
 @media (max-width:1180px){ .rl-grid{grid-template-columns:230px minmax(0,1fr)} .rl-ong{grid-column:1 / -1} }
 @media (max-width:768px){
   .rl-grid{grid-template-columns:minmax(0,1fr)}
-  .rl-royxat{flex-direction:row;overflow-x:auto;-webkit-overflow-scrolling:touch}
-  .rl-item{min-width:170px}
+  /* kech147 (zip 186, O'LCHANGAN 375 × 548: rollar tasmasi 341 / 718 px — 4 roldan 2 tasi ekran tashqarisida, surish kerakligini hech
+     narsa bildirmasdi): telefonda HAMMA rol ko'rinadi — to'r (har ustun kamida 140 px: 375 px da ikki, 320 px da bitta ustun) */
+  .rl-royxat{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
+  .rl-item{min-width:0}
+  .rl-item .rl-nom, .rl-item .rl-izoh{overflow-wrap:anywhere}
   .rl-matritsa th{font-size:12px;padding:8px 2px}
   .rl-matritsa th span{display:none}
   .rl-matritsa th:first-child,.rl-matritsa td:first-child{padding-left:10px}

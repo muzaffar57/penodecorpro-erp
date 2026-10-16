@@ -29,6 +29,13 @@
 .prod-name{font-size:14px;font-weight:600;color:var(--text)}
 .prod-meta{font-size:13px;color:var(--text3);margin-top:2px}
 .prod-total{font-size:16px;font-weight:700;color:var(--gold-dark);white-space:nowrap}
+/* kech147 (zip 186, O'LCHANGAN: tanlangan buyurtmaning detal qatorida summa (nowrap, 138 px) nomga 375 px da 95 px, 320 px da 40 px qoldirardi —
+   nom 8 / 15 satr): telefonda nom rasm yonidagi butun kenglikda, summa keyingi qatorda o'ngda */
+@media (max-width:600px){
+  .prod-row{flex-wrap:wrap;row-gap:6px}
+  .prod-row > .prod-info{flex:1 1 calc(100% - 52px);overflow-wrap:anywhere}
+  .prod-row > .prod-total{margin-left:auto}
+}
 .attach-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:8px;margin-top:10px}
 .attach-thumb{width:100%;border-radius:8px;overflow:hidden;background:var(--bg);border:1px solid var(--border);position:relative;display:flex;flex-direction:column}
 .attach-prev{width:100%;aspect-ratio:1;overflow:hidden;position:relative;background:var(--bg)}
