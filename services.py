@@ -7717,28 +7717,36 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
 
         elif c_pay_type == PayType.PERCENT_SALES:
             amount = daromad * float(c_percent or 0) / 100
-            detail = f"Sotuv {fmt_num(daromad)} × {c_percent}%"
+            # kech147 (zip 188): hodim oyligi tafsilotida HAMMA son — `son_korinish` (bo'linmas bo'shliq: «1 674 000» qator oxirida
+            # bo'linmaydi; foiz «2.0%» emas «2%»)
+            detail = f"Sotuv {son_korinish(daromad, 0)} × {son_korinish(c_percent)}%"
 
         elif c_pay_type == PayType.PERCENT_PROFIT:
             amount = max(0, sof_foyda_before) * float(c_percent or 0) / 100
-            detail = f"Foyda {fmt_num(sof_foyda_before)} × {c_percent}%"
+            detail = f"Foyda {son_korinish(sof_foyda_before, 0)} × {son_korinish(c_percent)}%"
 
         elif c_pay_type == PayType.PER_UNIT:
             qty = unit_map.get(c_unit_type, 0)
             amount = qty * float(c_unit_rate or 0)
-            detail = f"{qty:g} {c_unit_type} × {fmt_num(c_unit_rate)}"
+            # kech147 (zip 188): miqdor va stavka — yagona son ko'rinishi («1 234,5 blok × 12 500»; ilgari «1234.5 blok × 12 500»,
+            # kasrli stavka yaxlitlanardi — «3 000,5» → «3 001»)
+            detail = f"{son_korinish(qty)} {c_unit_type} × {son_korinish(c_unit_rate)}"
 
         elif c_pay_type == PayType.FIXED_PLUS_COATING:
             base = float(c_fixed or 0)
             rate = float(c_unit_rate or 1000)
             bonus = jami_qoplama_birlik * rate
             amount = base + bonus
-            detail = f"Oylik {fmt_num(base)} + {jami_qoplama_birlik:g} metr/dona × {fmt_num(rate)} = {fmt_num(bonus)}"
+            # kech147 (zip 188 — production skrinshoti 16.10 21:57: «Oylik 1 500 000 + 1081.02 metr/dona × 1 000 = 1 081 020» — miqdor nuqtali,
+            # ajratgichsiz; «= 1 081 020» butun oylikka o'xshardi (aslida qoplama qismi); raqam qator oxirida «1 | 081 020» bo'linardi): son
+            # ko'rinishi — `son_korinish` (bo'linmas bo'shliq, vergul), qoplama qismi QAVSDA: «Oylik 1 500 000 + (1 081,02 metr/dona × 1 000 =
+            # 1 081 020)»; jami — «Asosiy hisob» ustunida
+            detail = f"Oylik {son_korinish(base, 0)} + ({son_korinish(jami_qoplama_birlik)} metr/dona × {son_korinish(rate)} = {son_korinish(bonus, 0)})"
 
         # Ixtiyoriy qo'shimcha doimiy oylik — istalgan to'lov turiga qo'shiladi
         if c_extra_monthly:
             amount += float(c_extra_monthly)
-            extra_txt = f"qo'shimcha oylik {fmt_num(c_extra_monthly)}"
+            extra_txt = f"qo'shimcha oylik {son_korinish(c_extra_monthly, 0)}"""   # kech147 (zip 188): bo'linmas bo'shliq
             detail = f"{detail} + {extra_txt}" if detail else extra_txt
 
         # kech141 (zip 169, A-P02 — egasi QARORLARI): oyning bir qismida ishlagan (kirgan / ketgan / qaytgan) — oylik ISHLAGAN
@@ -7766,13 +7774,13 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
                 adjustment = float(adj.reduction_amount)
                 adjustment_reason = adj.reason
                 amount = max(0, amount - adjustment)
-                adj_txt = f"− {fmt_num(adjustment)} (kamaytirish{': ' + adjustment_reason if adjustment_reason else ''})"
+                adj_txt = f"− {son_korinish(adjustment, 0)} (kamaytirish{': ' + adjustment_reason if adjustment_reason else ''})"
                 detail = f"{detail} {adj_txt}" if detail else adj_txt
             if float(adj.bonus_amount or 0) > 0:
                 bonus = float(adj.bonus_amount)
                 bonus_reason_val = adj.bonus_reason
                 amount = amount + bonus
-                bonus_txt = f"+ {fmt_num(bonus)} (bonus{': ' + bonus_reason_val if bonus_reason_val else ''})"
+                bonus_txt = f"+ {son_korinish(bonus, 0)} (bonus{': ' + bonus_reason_val if bonus_reason_val else ''})"
                 detail = f"{detail} {bonus_txt}" if detail else bonus_txt
 
         # MUHIM: avval faqat "amount > 0" bo'lsa ro'yxatga qo'shilardi —
@@ -7941,13 +7949,6 @@ def get_employee_advances_list(db: Session, employee_id: int, year: int, month: 
         _tashkent_oyida(EmployeeAdvance.date, year, month)
     ).order_by(EmployeeAdvance.date.desc(), EmployeeAdvance.id.desc()).all()
     return [_crud_av160.avans_dict(r, hodim_uchun=hodim_uchun) for r in rows]
-
-
-def fmt_num(n):
-    try:
-        return f"{n:,.0f}".replace(",", " ")
-    except (TypeError, ValueError):
-        return "0"
 
 
 def get_order_item_unit_cost(db: Session, order, item, include_coating: bool = True,
