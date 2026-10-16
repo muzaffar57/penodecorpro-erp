@@ -810,7 +810,9 @@ textarea.maydon { padding: 10px 12px; min-height: 80px; }
   table.telefon-karta > thead { display: none; }
   table.telefon-karta > tbody > tr { border: 1px solid var(--border); border-radius: 12px; padding: 8px 12px; margin-bottom: 10px; background: var(--white); }
   table.telefon-karta > tbody > tr > td { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 0 !important; border: none !important; text-align: right !important; min-width: 0; overflow-wrap: anywhere; }
-  table.telefon-karta > tbody > tr > td::before { content: attr(data-label); color: var(--text3); font-size: 12px; font-weight: 600; text-align: left; flex-shrink: 0; max-width: 45%; }
+  /* kech147 (zip 189): `margin-right:auto` — katakda bir nechta tugun bo'lsa (holat nuqtasi + qoldiq, «Tashlandi» + 🧩) ular BIRGA o'ngda;
+     ilgari `space-between` birinchisini kartaning o'rtasiga qo'yardi (O'LCHANGAN: nuqta 165–172 px, qiymat 256–320 px) */
+  table.telefon-karta > tbody > tr > td::before { content: attr(data-label); color: var(--text3); font-size: 12px; font-weight: 600; text-align: left; flex-shrink: 0; max-width: 45%; margin-right: auto; }
   table.telefon-karta > tbody > tr > td[data-label=""]::before, table.telefon-karta > tbody > tr > td:not([data-label])::before { content: none; }
   table.telefon-karta > tbody > tr > td[data-label=""], table.telefon-karta > tbody > tr > td:not([data-label]) { justify-content: flex-end; flex-wrap: wrap; }
   table.telefon-karta > tbody > tr > td[colspan] { justify-content: center; text-align: center !important; }
@@ -828,7 +830,9 @@ textarea.maydon { padding: 10px 12px; min-height: 80px; }
   table.telefon-karta > thead { display: none; }
   table.telefon-karta > tbody > tr { border: 1px solid var(--border); border-radius: 12px; padding: 8px 12px; margin-bottom: 10px; background: var(--white); }
   table.telefon-karta > tbody > tr > td { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 0 !important; border: none !important; text-align: right !important; min-width: 0; overflow-wrap: anywhere; }
-  table.telefon-karta > tbody > tr > td::before { content: attr(data-label); color: var(--text3); font-size: 12px; font-weight: 600; text-align: left; flex-shrink: 0; max-width: 45%; }
+  /* kech147 (zip 189): `margin-right:auto` — katakda bir nechta tugun bo'lsa (holat nuqtasi + qoldiq, «Tashlandi» + 🧩) ular BIRGA o'ngda;
+     ilgari `space-between` birinchisini kartaning o'rtasiga qo'yardi (O'LCHANGAN: nuqta 165–172 px, qiymat 256–320 px) */
+  table.telefon-karta > tbody > tr > td::before { content: attr(data-label); color: var(--text3); font-size: 12px; font-weight: 600; text-align: left; flex-shrink: 0; max-width: 45%; margin-right: auto; }
   table.telefon-karta > tbody > tr > td[data-label=""]::before, table.telefon-karta > tbody > tr > td:not([data-label])::before { content: none; }
   table.telefon-karta > tbody > tr > td[data-label=""], table.telefon-karta > tbody > tr > td:not([data-label]) { justify-content: flex-end; flex-wrap: wrap; }
   table.telefon-karta > tbody > tr > td[colspan] { justify-content: center; text-align: center !important; }
