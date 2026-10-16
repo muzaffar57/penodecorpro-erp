@@ -295,6 +295,20 @@ def _tk_yordamchilar():
     return src[i:k + 2] if k > 0 else ""
 
 
+def _son_yordamchi():
+    """kech147 (zip 186 — MOSLANGAN): templates/base.html dagi `sonKor` (son ko'rinishi; kassa materiali miqdori — `sonKor(m.quantity, 3)`)."""
+    try:
+        with open(os.path.join(ROOT, "templates", "base.html"), encoding="utf-8") as f:
+            src = f.read()
+    except Exception:                      # noqa: BLE001
+        return ""
+    i = src.find("function sonKor(")
+    if i < 0:
+        return ""
+    k = src.find("\n}\n", i)
+    return src[i:k + 2] if k > 0 else ""
+
+
 def js_yurgiz(fn_src, data):
     if not _NODE or not fn_src:
         return {"xato": "node yoki funksiya yo'q"}
@@ -306,7 +320,7 @@ def js_yurgiz(fn_src, data):
     with open(fd, "w", encoding="utf-8") as f:
         json.dump(data, f)
     with open(fy, "w", encoding="utf-8") as f:
-        f.write(_tk_yordamchilar())
+        f.write(_tk_yordamchilar() + "\n" + _son_yordamchi())
     try:
         out = subprocess.run([_NODE, _JS_YURGIZ, fs, fd, fy], capture_output=True, text=True, timeout=60).stdout
     except Exception as e:                 # noqa: BLE001
