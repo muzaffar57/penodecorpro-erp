@@ -814,6 +814,24 @@ textarea.maydon { padding: 10px 12px; min-height: 80px; }
   table.telefon-karta > tbody > tr > td[data-label=""]::before, table.telefon-karta > tbody > tr > td:not([data-label])::before { content: none; }
   table.telefon-karta > tbody > tr > td[data-label=""], table.telefon-karta > tbody > tr > td:not([data-label]) { justify-content: flex-end; flex-wrap: wrap; }
   table.telefon-karta > tbody > tr > td[colspan] { justify-content: center; text-align: center !important; }
+  /* kech147 (zip 186, O'LCHANGAN 320 × 460: «Ta'minotchilar ro'yxati» sarlavhasidagi 180 px qidiruv maydoni, O'chirilganlar jurnali
+     sarlavhasidagi «Barcha amallar — Tizim jurnallari →» havolasi kartadan chiqib qirqilardi yoki sarlavhani 96 px ga siqardi): karta
+     sarlavhasi sig'masa ikkinchi qatorga o'tadi */
+  .card-head { flex-wrap: wrap; row-gap: 6px; column-gap: 10px; }
+}
+/* kech147 (zip 186, O'LCHANGAN 667 × 375 — telefon YOTIQ: Moliya tranzaksiyalari 633 / 840 px va Foydalanuvchilar 633 / 752 px jadvali yon
+   tomonga surilardi, ✎ / 🗑 / «Parol» tugmalari birinchi ekranda yo'q, nom ustunlari 109–118 px da 4–10 satr): `telefon-karta` jadvallari
+   yotiq telefonda ham KARTA (≤ 950 px eni VA ≤ 500 px bo'yi — planshet / kompyuterga ta'sir qilmaydi) */
+@media (max-width: 950px) and (max-height: 500px) {
+  table.telefon-karta, table.telefon-karta > tbody, table.telefon-karta > tbody > tr, table.telefon-karta > tbody > tr > td { display: block; width: 100%; }
+  table.telefon-karta { min-width: 0 !important; }
+  table.telefon-karta > thead { display: none; }
+  table.telefon-karta > tbody > tr { border: 1px solid var(--border); border-radius: 12px; padding: 8px 12px; margin-bottom: 10px; background: var(--white); }
+  table.telefon-karta > tbody > tr > td { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 0 !important; border: none !important; text-align: right !important; min-width: 0; overflow-wrap: anywhere; }
+  table.telefon-karta > tbody > tr > td::before { content: attr(data-label); color: var(--text3); font-size: 12px; font-weight: 600; text-align: left; flex-shrink: 0; max-width: 45%; }
+  table.telefon-karta > tbody > tr > td[data-label=""]::before, table.telefon-karta > tbody > tr > td:not([data-label])::before { content: none; }
+  table.telefon-karta > tbody > tr > td[data-label=""], table.telefon-karta > tbody > tr > td:not([data-label]) { justify-content: flex-end; flex-wrap: wrap; }
+  table.telefon-karta > tbody > tr > td[colspan] { justify-content: center; text-align: center !important; }
 }
 
 /* ============================================================
