@@ -209,7 +209,8 @@
 
 <!-- Yangi rol oynasi -->
 <div id="rlYangiModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:16px">
-  <div style="background:var(--white);border-radius:14px;padding:22px 24px;width:420px;max-width:100%">
+  {# kech147 (zip 185): quti ekran balandligigacha, ichi suriladi — telefon brauzer paneli / yotiq ekranda kesilmaydi (bugun sig'adi, zaxirasi kam — O'LCHANGAN 375 × 548, 360 × 560, 320 × 460) #}
+  <div style="background:var(--white);border-radius:14px;padding:22px 24px;width:420px;max-width:100%;max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);overflow-y:auto;box-sizing:border-box">
     <div style="font-size:16px;font-weight:600;margin-bottom:14px;color:var(--text)">+ Yangi rol yaratish</div>
     <div class="form-group"><label for="rlYNom">Nom *</label>
       <input type="text" id="rlYNom" maxlength="60" placeholder="Masalan: Sotuv menejeri" onkeydown="if(event.key==='Enter')yangiRolSaqla()"></div>
@@ -225,7 +226,8 @@
 
 <!-- Foydalanuvchi qo'shish oynasi -->
 <div id="rlUserModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:16px">
-  <div style="background:var(--white);border-radius:14px;padding:22px 24px;width:420px;max-width:100%">
+  {# kech147 (zip 185): quti ekran balandligigacha, ichi suriladi — telefon brauzer paneli / yotiq ekranda kesilmaydi (bugun sig'adi, zaxirasi kam — O'LCHANGAN 375 × 548, 360 × 560, 320 × 460) #}
+  <div style="background:var(--white);border-radius:14px;padding:22px 24px;width:420px;max-width:100%;max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);overflow-y:auto;box-sizing:border-box">
     <div style="font-size:16px;font-weight:600;margin-bottom:6px;color:var(--text)" id="rlUmSarlavha">Foydalanuvchi qo'shish</div>
     <div style="font-size:13px;color:var(--text2);margin-bottom:14px">Tanlangan foydalanuvchi shu rolga o'tadi — ruxsatlari darhol o'zgaradi.
       Yangi login yaratish — <a href="/users" style="color:var(--gold-dark);font-weight:600">«Foydalanuvchilar»</a> sahifasida.</div>

@@ -112,7 +112,8 @@
 
 <!-- Modal -->
 <div id="addModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
-  <div style="background:var(--white);border-radius:14px;padding:24px;width:420px;max-width:100%">
+  {# kech147 (zip 185): quti ekran balandligigacha, ichi suriladi — telefon brauzer paneli / yotiq ekranda kesilmaydi (bugun sig'adi, zaxirasi kam — O'LCHANGAN 375 × 548, 360 × 560, 320 × 460) #}
+  <div style="background:var(--white);border-radius:14px;padding:24px;width:420px;max-width:100%;max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);overflow-y:auto;box-sizing:border-box">
     <div style="font-size:16px;font-weight:600;margin-bottom:18px">+ Yangi foydalanuvchi</div>
     <div class="form-row">
       <div class="form-group" style="margin:0"><label>Login</label><input type="text" id="f-username" placeholder="menejer1" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
@@ -138,7 +139,8 @@
      o'z parolida uch ketma-ket oyna): parol — dasturning o'z oynasida, yashirin maydonlar (ko'zcha bilan ko'rsatish),
      yangi va takror BITTA oynada. Saqlangach o'sha odamning boshqa qurilmalardagi kirishlari yopiladi (server). -->
 <div id="parolModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:16px" onkeydown="if(event.key==='Escape')parolYopish()">
-  <div style="background:var(--white);border-radius:14px;padding:24px;width:420px;max-width:100%">
+  {# kech147 (zip 185): quti ekran balandligigacha, ichi suriladi — telefon brauzer paneli / yotiq ekranda kesilmaydi (bugun sig'adi, zaxirasi kam — O'LCHANGAN 375 × 548, 360 × 560, 320 × 460) #}
+  <div style="background:var(--white);border-radius:14px;padding:24px;width:420px;max-width:100%;max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);overflow-y:auto;box-sizing:border-box">
     <div style="font-size:16px;font-weight:600;margin-bottom:6px" id="parol-sarlavha">🔑 Parolni o'zgartirish</div>
     <div style="font-size:13px;color:var(--text3);margin-bottom:16px" id="parol-izoh"></div>
     <div class="form-group" id="parol-eski-qator" style="display:none">
@@ -246,7 +248,8 @@
 
 <!-- ══ XODIM QR KOD MODALI ══ -->
 <div id="hodimQrModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:var(--white);border-radius:16px;padding:28px;width:360px;max-width:100%;text-align:center">
+  {# kech147 (zip 185, oynalar 2-qism — O'LCHANGAN telefon brauzer paneli bilan: 320 × 460 da 29 px tepa / past kesilardi): quti ekran balandligigacha, ichi suriladi #}
+  <div style="background:var(--white);border-radius:16px;padding:28px;width:360px;max-width:100%;text-align:center;max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);overflow-y:auto;box-sizing:border-box">
     <div style="font-size:16px;font-weight:700;margin-bottom:6px">📱 Xodim paneliga kirish</div>
     <div style="font-size:13px;color:var(--text3);margin-bottom:18px">Telefon kamerasi bilan skanerlang</div>
     {# kech120 (zip 130 — G6-07): QR SERVERDA (ichida korxona kodi — kirish sahifasi uni o'zi to'ldiradi); ilgari begona sayt rasmi #}

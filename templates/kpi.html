@@ -28,6 +28,22 @@
 /* kech146 (zip 184, oynalar P3-9): oynadagi alohida matn-tugmalar (✏ sovg'a bosqichi, «📜 To'lov tarixini ko'rish») telefonda 16–20 px
    — barmoq bilan bosish nishoni kamida 36 px */
 @media (max-width:768px){ #giftPeriodModal .btn-link,#empModal .btn-link{min-height:36px;display:inline-flex;align-items:center}}
+/* kech147 (zip 185): «Panel kirishi» dagi «QR kod (chop etish) →» — telefonda bosish nishoni kamida 36 px (360 px da 16 px edi) */
+@media (max-width:768px){ #pa-qr-havola{display:inline-flex;align-items:center;min-height:36px}}
+/* kech147 (zip 185): sovg'a davri ustalar jadvali — telefonda usta nomi 94–104 px ustunda 9–12 qatorga bo'linardi (O'LCHANGAN 375 × 548,
+   360 × 560, 320 × 460): har usta — karta: nom butun qator, «Joriy savdo» va «Berildi ✓» keyingi qatorda, bosqichlar alohida qatorda.
+   `!important` — katakning o'z `padding` uslubi qoidadan ustun */
+@media (max-width:600px){
+  .sovga-jadval, .sovga-jadval tbody{display:block}
+  .sovga-jadval thead{display:none}
+  .sovga-jadval tr{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;padding:9px 0}
+  .sovga-jadval td{padding:0 !important}
+  .sovga-jadval td:nth-child(1){flex:1 1 100%;min-width:0;overflow-wrap:anywhere}
+  .sovga-jadval td:nth-child(2)::before{content:"Joriy savdo: ";color:var(--text3);font-weight:400}
+  .sovga-jadval td:nth-child(3){flex:1 1 100%;order:3}
+  .sovga-jadval td:nth-child(4){margin-left:auto}
+  .sovga-jadval td[colspan]{flex:1 1 100%}
+}
 @media (max-width: 600px) {
   .mk-card, .emp-row{flex-wrap:wrap;row-gap:10px;padding:12px !important}
   .mk-asosiy, .emp-asosiy{flex:1 1 calc(100% - 90px) !important}
@@ -284,7 +300,8 @@
 
 <!-- ══ USTA QO'SHISH/TAHRIRLASH MODALI ══ -->
 <div id="masterModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:var(--white);border-radius:14px;padding:24px;width:420px;max-width:100%">
+  {# kech147 (zip 185, oynalar 2-qism — O'LCHANGAN telefon brauzer paneli bilan: 375 × 548 da 14 px, 320 × 460 da 58 px tepa / past kesilardi — «Saqlash» ga yetib bo'lmasdi): quti ekran balandligigacha, ichi suriladi #}
+  <div style="background:var(--white);border-radius:14px;padding:24px;width:420px;max-width:100%;max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);overflow-y:auto;box-sizing:border-box">
     <div style="font-size:16px;font-weight:600;margin-bottom:18px" id="master-modal-title">+ Yangi usta</div>
 
     <div class="modal-section-label">Asosiy ma'lumot</div>
@@ -509,7 +526,8 @@
 
 <!-- ══ KAMAYTIRISH / BONUS — yagona, moslashuvchan oyna (native prompt() o'rniga) ══ -->
 <div id="arModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1100;align-items:center;justify-content:center;padding:20px">
-  <div style="background:var(--white);border-radius:14px;width:400px;max-width:100%;padding:22px">
+  {# kech147 (zip 185): quti ekran balandligigacha, ichi suriladi — telefon brauzer paneli / yotiq ekranda kesilmaydi (bugun sig'adi, zaxirasi kam — O'LCHANGAN 375 × 548, 360 × 560, 320 × 460) #}
+  <div style="background:var(--white);border-radius:14px;width:400px;max-width:100%;padding:22px;max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);overflow-y:auto;box-sizing:border-box">
     <div id="arModal-icon" style="width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:10px">💰</div>
     <div id="arModal-title" style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:2px"></div>
     <div id="arModal-help" style="font-size:13px;color:var(--text3);line-height:1.5;margin-bottom:16px"></div>
@@ -530,7 +548,8 @@
 
 {# kech141 (zip 169, A-P02 — egasi QARORI 11.10 «Sanani o'zim tanlayman»): hodimni o'chirish = ishdan ketish; sana — oldindan bugun #}
 <div id="empKetishModal" role="dialog" aria-modal="true" aria-labelledby="ek-sarlavha" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1100;align-items:center;justify-content:center;padding:20px">
-  <div style="background:var(--white);border-radius:14px;width:420px;max-width:100%;padding:22px">
+  {# kech147 (zip 185): quti ekran balandligigacha, ichi suriladi — telefon brauzer paneli / yotiq ekranda kesilmaydi (bugun sig'adi, zaxirasi kam — O'LCHANGAN 375 × 548, 360 × 560, 320 × 460) #}
+  <div style="background:var(--white);border-radius:14px;width:420px;max-width:100%;padding:22px;max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);overflow-y:auto;box-sizing:border-box">
     <div id="ek-sarlavha" style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:4px"></div>
     <div style="font-size:13px;color:var(--text3);line-height:1.5;margin-bottom:14px">Ma'lumot yo'qolmaydi — «O'chirilganlar» bo'limidan keyin tiklash mumkin.</div>
     <label for="ek-sana" style="font-size:12px;font-weight:600;color:var(--text2)">Ishdan ketgan sana</label>
@@ -1277,10 +1296,12 @@ async function loadAdvanceHistory(empId) {
     list.innerHTML = '<div style="color:var(--text3);font-size:13px;text-align:center;padding:8px">Bu oy hali avans berilmagan</div>';
     return;
   }
+  // kech147 (zip 185, N1 — staging jonli sinovida O'LCHANGAN 320 × 640: izohli avansda sana + izoh ustuni 97 px, qator 205 px — 8 qatorga
+  // bo'linardi; summa va «✕» 130 px): qator o'raladi — matn kamida 180 px, sig'masa summa va «✕» keyingi qatorda o'ngda
   list.innerHTML = d.advances.map(a => `
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--ch-f0f0f0);font-size:13px">
-      <span style="min-width:0;overflow-wrap:anywhere">${tkSana(a.date)} ${a.notes ? '— '+escapeHtml(a.notes) : ''}${avansManbaHtml(a)}</span>
-      <span style="display:flex;align-items:center;gap:6px">
+    <div class="avans-qator" style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:4px 8px;padding:6px 0;border-bottom:1px solid var(--ch-f0f0f0);font-size:13px">
+      <span style="flex:1 1 180px;min-width:0;overflow-wrap:anywhere">${tkSana(a.date)} ${a.notes ? '— '+escapeHtml(a.notes) : ''}${avansManbaHtml(a)}</span>
+      <span style="display:flex;align-items:center;gap:6px;margin-left:auto">
         <b style="white-space:nowrap">${fmt(a.amount)} so'm</b>
         <button class="btn btn-danger btn-icon btn-sm" onclick="deleteAdvance(${a.id})" title="Avansni o'chirish" aria-label="Avansni o'chirish">✕</button>
       </span>
@@ -2264,7 +2285,7 @@ async function renderGiftPeriodActive(box, data) {
     ${addMasterControl}
     <div id="tierChipsRow" style="margin-bottom:14px">${renderTierChipsHtml()}</div>
     <div style="overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <table class="sovga-jadval" style="width:100%;border-collapse:collapse;font-size:13px">
         <thead><tr style="text-align:left;color:var(--text3);font-size:12px;text-transform:uppercase;letter-spacing:.3px">
           <th style="padding:6px">Usta</th><th style="padding:6px">Joriy savdo</th><th style="padding:6px">Bosqichlar</th><th></th>
         </tr></thead>

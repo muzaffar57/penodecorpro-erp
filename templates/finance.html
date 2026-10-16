@@ -626,7 +626,8 @@ html[data-theme="dark"]{
 
 <!-- Xarajat qo'shish modali -->
 <div id="txModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:1000;align-items:center;justify-content:center;backdrop-filter:blur(2px)">
-  <div style="background:var(--white);border-radius:16px;padding:26px;width:400px;max-width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25)">
+  {# kech147 (zip 185, oynalar 2-qism — O'LCHANGAN telefon brauzer paneli bilan: 375 × 548 da 6 px, 320 × 460 da 50 px kesilardi — «Saqlash» yarmi ko'rinardi): quti ekran balandligigacha, ichi suriladi #}
+  <div style="background:var(--white);border-radius:16px;padding:26px;width:400px;max-width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25);max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);overflow-y:auto;box-sizing:border-box">
     <div id="tx-modal-title" style="font-size:16px;font-weight:700;margin-bottom:18px;color:var(--f-text,#111827)">+ Yangi xarajat tranzaksiyasi</div>
     <input type="hidden" id="tx-f-editing-id" value="">
     <div class="form-group"><label>Sana</label><input type="date" id="tx-f-date"></div>
@@ -661,7 +662,8 @@ html[data-theme="dark"]{
 
 <!-- ═══ KASSA TRANZAKSIYA MODALI ═══ -->
 <div id="cashTxModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:var(--white);border-radius:14px;padding:24px;width:400px;max-width:100%">
+  {# kech147 (zip 185): quti ekran balandligigacha, ichi suriladi — telefon brauzer paneli / yotiq ekranda kesilmaydi (bugun sig'adi, zaxirasi kam — O'LCHANGAN 375 × 548, 360 × 560, 320 × 460) #}
+  <div style="background:var(--white);border-radius:14px;padding:24px;width:400px;max-width:100%;max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);overflow-y:auto;box-sizing:border-box">
     <div id="cashTxTitle" style="font-size:16px;font-weight:700;margin-bottom:4px">—</div>
     <div id="cashTxHint" style="font-size:13px;color:var(--text3);margin-bottom:16px"></div>
     <div id="ehsonFetchBtnWrap" style="display:none;margin-bottom:14px">

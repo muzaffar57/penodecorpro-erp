@@ -114,7 +114,8 @@
 
 {# kech141 (zip 169, A-P02): hodimni tiklash — ishga qaytdimi (qaytgan sanadan) yoki xato o'chirilgan edi (ish uzilmagan) #}
 <div id="hodimTiklashModal" role="dialog" aria-modal="true" aria-labelledby="ht-sarlavha" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1100;align-items:center;justify-content:center;padding:20px">
-  <div style="background:var(--white);border-radius:14px;width:440px;max-width:100%;padding:22px">
+  {# kech147 (zip 185): quti ekran balandligigacha, ichi suriladi — telefon brauzer paneli / yotiq ekranda kesilmaydi (bugun sig'adi, zaxirasi kam — O'LCHANGAN 375 × 548, 360 × 560, 320 × 460) #}
+  <div style="background:var(--white);border-radius:14px;width:440px;max-width:100%;padding:22px;max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);overflow-y:auto;box-sizing:border-box">
     <div id="ht-sarlavha" style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:4px"></div>
     <div id="ht-ketgan" style="font-size:13px;color:var(--text3);line-height:1.5;margin-bottom:12px"></div>
     <label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;margin-bottom:8px;cursor:pointer">

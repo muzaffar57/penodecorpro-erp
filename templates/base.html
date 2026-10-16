@@ -612,8 +612,9 @@ function _xoElement() {
   m.setAttribute('aria-describedby', 'xoMatn');
   m.style.cssText = 'display:none;position:fixed;inset:0;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);' +
     'z-index:3100;align-items:center;justify-content:center;padding:20px';
+  // kech147 (zip 185): matn 60vh gacha suriladi; quti ham ekran balandligigacha (yotiq telefonda 375 px — matn + tugma sig'masdi)
   m.innerHTML = '<div style="background:var(--white,#fff);border-radius:14px;width:440px;max-width:100%;padding:22px 24px;' +
-    'box-shadow:0 20px 60px rgba(0,0,0,.25)">' +
+    'box-shadow:0 20px 60px rgba(0,0,0,.25);max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);overflow-y:auto;box-sizing:border-box">' +
     '<div id="xoSarlavha" style="font-size:16px;font-weight:700;margin-bottom:8px;color:var(--text,#222)"></div>' +
     '<div id="xoMatn" style="font-size:14px;color:var(--text,#222);line-height:1.6;white-space:pre-wrap;word-break:break-word;' +
     'max-height:60vh;overflow:auto;margin-bottom:18px"></div>' +
@@ -683,8 +684,9 @@ function kiritishOyna(sarlavha, opts) {
       m.setAttribute('aria-labelledby', 'kiSarlavha');
       m.style.cssText = 'display:none;position:fixed;inset:0;top:0;left:0;right:0;bottom:0;background:rgba(17,24,39,.5);' +
         'z-index:3050;align-items:center;justify-content:center;padding:20px';
+      // kech147 (zip 185): quti ekran balandligigacha, ichi suriladi (telefon brauzer paneli / yotiq ekran)
       m.innerHTML = '<div style="background:var(--white,#fff);border-radius:14px;padding:22px 24px;width:400px;max-width:100%;' +
-        'box-shadow:0 20px 60px rgba(0,0,0,.25)">' +
+        'box-shadow:0 20px 60px rgba(0,0,0,.25);max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);overflow-y:auto;box-sizing:border-box">' +
         '<div id="kiSarlavha" style="font-size:16px;font-weight:700;color:var(--text,#222);margin-bottom:6px;white-space:pre-wrap"></div>' +
         '<div id="kiIzoh" style="font-size:13px;color:var(--text2,#6B7280);margin-bottom:12px;white-space:pre-wrap"></div>' +
         '<input id="kiMaydon" class="maydon" type="text" autocomplete="off" style="width:100%;font-weight:600">' +
