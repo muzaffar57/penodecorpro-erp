@@ -39,7 +39,8 @@ _OY_QISQA = ("Yan", "Fev", "Mar", "Apr", "May", "Iyun", "Iyul", "Avg", "Sen", "O
 
 def _son_uz(x) -> str:
     # `:g` ko'rinishi (ortiqcha nolsiz), kasr — vergul: -156.4 → «-156,4», 12.0 → «12»
-    return f"{x:g}".replace(".", ",")
+    # kech152 (zip 193): `son_korinish(x, 4)` — `:g` 1e6 dan katta foizni «1e+06», 1000 dan kattasini ajratgichsiz («1234,5 %») yozardi
+    return son_korinish(x, 4)
 
 
 def son_korinish(qiymat, kasr=2) -> str:
@@ -452,8 +453,8 @@ def get_business_alerts(db: Session, company_id: int = None) -> list:
         _q = float(item.stock_quantity or 0)
         alerts.append({
             "level": "red",
-            "text": (f"Omborda {item.item_name} tugadi ({_q:g} {item.unit})" if _q <= 0
-                     else f"Omborda {item.item_name} kamaymoqda ({_q:g} {item.unit} qoldi)")
+            "text": (f"Omborda {item.item_name} tugadi ({son_korinish(_q, 3)} {item.unit})" if _q <= 0
+                     else f"Omborda {item.item_name} kamaymoqda ({son_korinish(_q, 3)} {item.unit} qoldi)")
         })
 
     # 2) Muddati o'tgan qarzdorlar (30+ kun oldin yaratilgan, hali qarzi bor)
@@ -1190,7 +1191,7 @@ def get_today_tasks(db: Session, company_id: int = None) -> List[Dict]:
     for item in low_stock[:_n]:
         # kech108 (K108-2): qoldiq ≤ 0 — "tugagan"
         _hol = "tugagan" if item.get("tugagan") else "kam qolgan"
-        tasks.append({"icon": "⚠️", "text": f"{item['item_name']} {_hol} ({item['stock_quantity']:g} {item['unit']})",
+        tasks.append({"icon": "⚠️", "text": f"{item['item_name']} {_hol} ({son_korinish(item['stock_quantity'], 3)} {item['unit']})",
                       "href": "/inventory?kam=1"})
     if len(low_stock) > _n:
         tasks.append({"icon": "⚠️", "text": f"yana {len(low_stock) - _n} ta material kam qolgan", "href": "/inventory?kam=1"})
@@ -1465,7 +1466,7 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
                             # kech80 (88-band): shart YAGONA yordamchida — buyurtmadagi «MRP: tayyor» belgisi ham
                             # aynan shu shart bilan (`crud.mrp_topshirish_holati`).
                             if not _crud_qulf.mrp_tayyor_yetadimi(_kerak, _tayyor):
-                                _mrp_kam.append(f"{_it.name}: kerak {_kerak:g}, tayyor {_tayyor:g}")
+                                _mrp_kam.append(f"{_it.name}: kerak {son_korinish(_kerak, 3)}, tayyor {son_korinish(_tayyor, 3)}")
                 if _mrp_kam:
                     return {"success": False,
                             "message": ("MRP mahsuloti hali to'liq ishlab chiqarilmagan — avval ishlab "
@@ -1518,7 +1519,7 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
                         "actual": actual_loy,
                         "diff": round(diff, 1),
                         "action": "qoshimcha",
-                        "message": f"Rejadan {diff:.1f} kg ko'p ketdi — xomashyo ayirildi"
+                        "message": f"Rejadan {son_korinish(diff, 3)} kg ko'p ketdi — xomashyo ayirildi"
                     }
                 elif diff < -0.01:
                     extra = abs(diff)
@@ -1534,7 +1535,8 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
                             "actual": actual_loy,
                             "diff": round(diff, 1),
                             "action": "ortdi",
-                            "message": f"Qisman yakunlandi — {extra:.1f} kg uchun XOM XOMASHYO (aralashtirilmagan) o'z joyiga qaytdi"
+                            "message": (f"Qisman yakunlandi — {son_korinish(extra, 3)} kg uchun XOM XOMASHYO (aralashtirilmagan) o'z "
+                                        f"joyiga qaytdi")
                         }
                     else:
                         # To'liq yakunlangan — haqiqatan aralashtirilgan, tayyor loy sifatida saqlanadi
@@ -1546,7 +1548,7 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
                             "actual": actual_loy,
                             "diff": round(diff, 1),
                             "action": "ortdi",
-                            "message": f"{extra:.1f} kg loy ortdi — omborga (Tayyor loy) qo'shildi"
+                            "message": f"{son_korinish(extra, 3)} kg loy ortdi — omborga (Tayyor loy) qo'shildi"
                         }
                 else:
                     result["loy_info"] = {
@@ -5821,8 +5823,8 @@ def check_inventory_for_order(db: Session, order_data, company_id: int = None) -
         blocks_needed = vol / vol_per_unit
         if float(p.stock_quantity) < blocks_needed:
             shortages.append(
-                f"{p.item_name}: kerak {blocks_needed:.1f} blok, "
-                f"qoldi {float(p.stock_quantity):.1f} blok"
+                f"{p.item_name}: kerak {son_korinish(blocks_needed, 3)} blok, "
+                f"qoldi {son_korinish(float(p.stock_quantity), 3)} blok"
             )
 
     return {
@@ -5857,7 +5859,7 @@ def deduct_inventory_for_order(db: Session, order, commit: bool = True) -> list:
         # deb tasdiqlagan bo'lsa, ombor MANFIY ko'rsatishi kerak (haqiqiy
         # tanqislik miqdorini yashirmaslik uchun — bu ataylab qilingan).
         p.stock_quantity = float(p.stock_quantity) - blocks_needed
-        log.append(f"{p.item_name}: -{blocks_needed:.2f} blok")
+        log.append(f"{p.item_name}: -{son_korinish(blocks_needed, 3)} blok")
         # MUHIM: avval bu yerda "Ombor harakatlari" jurnaliga UMUMAN
         # yozilmasdi — faqat vaqtinchalik xabar uchun ishlatilardi. Endi
         # boshqa materiallar (Gips, Bazalt va h.k.) bilan bir xilda, haqiqiy
@@ -6343,7 +6345,7 @@ def add_loy_to_stock(db: Session, recipe, kg: float, order=None) -> str:
                                       else "Ortgan loy tayyor loy zaxirasiga"),
         order_id=None, company_id=getattr(stock, 'company_id', None))
     db.commit()
-    msg = f"{stock.item_name}: +{kg:.1f} kg (ortdi)"
+    msg = f"{stock.item_name}: +{son_korinish(kg, 3)} kg (ortdi)"
     print(f"✓ {msg}")
     return msg
 
@@ -6391,7 +6393,7 @@ def take_loy_from_stock(db: Session, recipe, kg_needed: float, order=None, reaso
         db.commit()
     else:
         db.flush()
-    msg = f"{stock.item_name}: -{taken:.1f} kg (zaxiradan)"
+    msg = f"{stock.item_name}: -{son_korinish(taken, 3)} kg (zaxiradan)"
     print(f"✓ {msg}")
     return taken, kg_needed - taken, msg
 
@@ -6624,9 +6626,9 @@ def _mrp_brakini_yech(db, order_item, order, brak_qty: float, coating_applied: b
         inv.stock_quantity = float(inv.stock_quantity or 0) - kerak
         _crud_mb.log_movement(
             db, inv.id, inv.item_name, movement_type="out", quantity=kerak, unit=inv.unit,
-            reason=_crud_mb._jurnal_sabab(f"Brak — {order_item.name} (MRP, {brak_qty:g} birlik)"),
+            reason=_crud_mb._jurnal_sabab(f"Brak — {order_item.name} (MRP, {son_korinish(brak_qty, 3)} birlik)"),
             order_id=order.id if order else None, company_id=getattr(inv, 'company_id', None))
-        log.append(f"{inv.item_name}: -{kerak:g} {inv.unit} (brak — MRP)")
+        log.append(f"{inv.item_name}: -{son_korinish(kerak, 3)} {inv.unit} (brak — MRP)")
     db.commit()
     return log
 
@@ -6679,7 +6681,7 @@ def deduct_raw_material_for_brak(db: Session, order_item, order, brak_qty: float
                 db.add(InventoryMovement(
                     inventory_id=p.id, item_name=p.item_name, movement_type="out",
                     quantity=blocks, unit=p.unit,
-                    reason=f"Brak — {order_item.name} ({brak_qty:g} birlik)",
+                    reason=f"Brak — {order_item.name} ({son_korinish(brak_qty, 3)} birlik)",
                     order_id=order.id if order else None,
                     # kech45 (13-band): brak yozuviga bog'lam (o'chirishda qaytadi)
                     return_item_id=db.info.get("_brak_qaytarish_id"),
@@ -6688,7 +6690,7 @@ def deduct_raw_material_for_brak(db: Session, order_item, order, brak_qty: float
                     # kech52 (13-band, 3-qadam): brak belgisi — hisobot matnga qaramaydi
                     is_brak=True
                 ))
-                log.append(f"{p.item_name}: -{blocks:.3f} blok (brak uchun)")
+                log.append(f"{p.item_name}: -{son_korinish(blocks, 3)} blok (brak uchun)")
 
     if coating_applied and order_item.is_coated and order:
         # kech54 (41-band): 1 birlik loyi — qoplama narxi ulushi bo'yicha (`_brak_loyi_birlikka`)
@@ -6700,7 +6702,7 @@ def deduct_raw_material_for_brak(db: Session, order_item, order, brak_qty: float
                 # (`resolve_recipe(order=...)`), detalning o'z `recipe_id` sidan EMAS.
                 loy_log = deduct_loy_ingredients(
                     db, order, brak_loy_kg, recipe_id=None,
-                    reason_override=f"Brak — {order_item.name} (qoplama, {brak_qty:g} birlik)"
+                    reason_override=f"Brak — {order_item.name} (qoplama, {son_korinish(brak_qty, 3)} birlik)"
                 )
                 log.extend([f"{l} (brak — qoplama)" for l in loy_log])
 
@@ -6745,8 +6747,8 @@ def check_loy_ingredients_for_order(db: Session, order_recipe_id: int, loy_kg: f
                                               Inventory.company_id == recipe.company_id).first()
         if inv_item and float(inv_item.stock_quantity or 0) < needed_kg:
             shortages.append(
-                f"{inv_item.item_name} (loy uchun): kerak {needed_kg:.2f} {inv_item.unit}, "
-                f"qoldi {float(inv_item.stock_quantity or 0):.2f} {inv_item.unit}"
+                f"{inv_item.item_name} (loy uchun): kerak {son_korinish(needed_kg, 3)} {inv_item.unit}, "
+                f"qoldi {son_korinish(float(inv_item.stock_quantity or 0), 3)} {inv_item.unit}"
             )
 
     return {"enough": len(shortages) == 0, "shortages": shortages}
@@ -7041,12 +7043,13 @@ def deduct_loy_ingredients(db: Session, order, loy_kg: float, use_stock: bool = 
             current = float(inv_item.stock_quantity or 0)
             new_qty = current - needed_kg
             inv_item.stock_quantity = new_qty
-            log.append(f"{inv_item.item_name}: -{needed_kg:.2f} {inv_item.unit}")
+            log.append(f"{inv_item.item_name}: -{son_korinish(needed_kg, 3)} {inv_item.unit}")
             if new_qty < -0.001:
                 # Shu ayirishning omborda YO'Q qismi (qoldiq oldindan
                 # manfiy bo'lsa — butun ayirish).
                 shortage = min(needed_kg, -new_qty)
-                log.append(f"⚠️ {inv_item.item_name}: omborda YETARLI EMAS EDI — {shortage:.2f} {inv_item.unit} yetishmovchilik; qoldiq manfiy: {new_qty:.2f} {inv_item.unit}, keyingi kirimda qoplanadi")
+                log.append(f"⚠️ {inv_item.item_name}: omborda YETARLI EMAS EDI — {son_korinish(shortage, 3)} {inv_item.unit} yetishmovchilik; "
+                           f"qoldiq manfiy: {son_korinish(new_qty, 3)} {inv_item.unit}, keyingi kirimda qoplanadi")
                 print(f"⚠ {inv_item.item_name}: YETISHMOVCHILIK {shortage:.2f} {inv_item.unit}, qoldiq {new_qty:.2f}")
             print(f"✓ {inv_item.item_name}: -{needed_kg:.2f} ayirildi")
             import crud as _crud
@@ -7105,7 +7108,7 @@ def return_loy_ingredients(db: Session, order, loy_kg: float, recipe_id: int = N
         _zx = get_or_create_loy_stock(db, recipe, commit=False)
         if _zx is not None:
             _zx.stock_quantity = float(_zx.stock_quantity or 0) + _lm_zaxiraga
-            log.append(f"{_zx.item_name}: +{_lm_zaxiraga:.2f} kg tayyor loy zaxirasiga qaytarildi")
+            log.append(f"{_zx.item_name}: +{son_korinish(_lm_zaxiraga, 3)} kg tayyor loy zaxirasiga qaytarildi")
             import crud as _crud_lm
             _crud_lm.log_movement(
                 db, _zx.id, _zx.item_name, movement_type="in",
@@ -7139,7 +7142,7 @@ def return_loy_ingredients(db: Session, order, loy_kg: float, recipe_id: int = N
         ))
         if inv_item:
             inv_item.stock_quantity = float(inv_item.stock_quantity) + needed_kg
-            log.append(f"{inv_item.item_name}: +{needed_kg:.2f} qaytarildi")
+            log.append(f"{inv_item.item_name}: +{son_korinish(needed_kg, 3)} qaytarildi")
             import crud as _crud
             _crud.log_movement(
                 db, inv_item.id, inv_item.item_name, movement_type="in",
@@ -7240,7 +7243,7 @@ def adjust_inventory_diff(db: Session, old_items, new_items, order_id: int = Non
             # bilan bir xil qoida (tanqislik yashirilmaydi, manfiy "qarz"
             # keyingi kirimda qoplanadi). Jurnalga ham to'liq `blocks` yoziladi.
             p.stock_quantity = float(p.stock_quantity) - blocks
-            log.append(f"{p.item_name}: -{blocks:.2f} blok (qo'shildi)")
+            log.append(f"{p.item_name}: -{son_korinish(blocks, 3)} blok (qo'shildi)")
             # MUHIM: bu harakat AVVAL "Ombor harakatlari" jurnaliga yozilmasdi
             # — shuning uchun buyurtma tahrirlanganda Penoplast o'zgarishi
             # "yashirin" qolib, faqat oxirgi raqamda ko'rinib turardi.
@@ -7248,7 +7251,7 @@ def adjust_inventory_diff(db: Session, old_items, new_items, order_id: int = Non
                                 reason="Buyurtma tahrirlandi — qo'shimcha detal", order_id=order_id)
         else:
             p.stock_quantity = float(p.stock_quantity) + abs(blocks)
-            log.append(f"{p.item_name}: +{abs(blocks):.2f} blok (qaytdi)")
+            log.append(f"{p.item_name}: +{son_korinish(abs(blocks), 3)} blok (qaytdi)")
             _crud.log_movement(db, pid, p.item_name, "in", abs(blocks), unit="blok",
                                 reason="Buyurtma tahrirlandi — detal kamaytirildi/o'chirildi", order_id=order_id)
 
@@ -7281,8 +7284,8 @@ def check_inventory_diff(db: Session, old_items, new_items, company_id: int = No
         blocks = diff / vol_per_unit
         if float(p.stock_quantity) < blocks:
             shortages.append(
-                f"{p.item_name}: qo'shimcha {blocks:.1f} blok kerak, "
-                f"qoldi {float(p.stock_quantity):.1f} blok"
+                f"{p.item_name}: qo'shimcha {son_korinish(blocks, 3)} blok kerak, "
+                f"qoldi {son_korinish(float(p.stock_quantity), 3)} blok"
             )
 
     return {"enough": len(shortages) == 0, "shortages": shortages}

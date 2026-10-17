@@ -485,9 +485,9 @@ def mrp_detal_kerak(db: Session, order_item) -> dict:
 
 def _mrp_kerak_izoh(k: dict) -> str:
     """kech72 (85-band): rad xabaridagi qavs ichi — nima uchun kam qolgani."""
-    qism = [f"allaqachon {k['band']:g} band qilingan"]
+    qism = [f"allaqachon {_miqdor_matn(k['band'])} band qilingan"]
     if k["topshirilgan"] > 0.0001:
-        qism.append(f"{k['topshirilgan']:g} topshirilgan")
+        qism.append(f"{_miqdor_matn(k['topshirilgan'])} topshirilgan")
     if k["ombordan"]:
         qism.append("detal buyurtma yaratilganda ombordagi tayyor mahsulotdan olingan")
     return ", ".join(qism)
@@ -737,8 +737,8 @@ def _yaratish_tekshiruvi(db: Session, company_id: int, data) -> dict:
         t["qolgan"] = remaining
         t["kerak_izoh"] = _mrp_kerak_izoh(_k)
         if data.quantity > remaining + 0.0001:
-            t["xato"] = (f"Bu buyurtma-detali uchun endi faqat {remaining:g} {product_type.unit} kerak "
-                         f"({_mrp_kerak_izoh(_k)}) — {data.quantity:g} ko'p")
+            t["xato"] = (f"Bu buyurtma-detali uchun endi faqat {_miqdor_matn(remaining)} {product_type.unit} kerak "
+                         f"({_mrp_kerak_izoh(_k)}) — {_miqdor_matn(data.quantity)} ko'p")
             return t
         t["source_order_id"] = order_item.order_id
         t["buyurtma_raqami"] = getattr(getattr(order_item, "order", None), "order_number", None)
@@ -940,7 +940,9 @@ def start_production_order(db: Session, po_id: int, company_id: int, performed_b
                     db.rollback()
                     return {
                         "success": False,
-                        "message": f"Bu buyurtma-detali uchun endi faqat {remaining:g} kerak ({_mrp_kerak_izoh(_k)}) — boshqa ishlab chiqarish buyurtmasi band qilib ulgurgan yoki detal topshirilgan. {po.quantity:g} band qilib bo'lmaydi.",
+                        "message": (f"Bu buyurtma-detali uchun endi faqat {_miqdor_matn(remaining)} kerak ({_mrp_kerak_izoh(_k)}) — "
+                                    f"boshqa ishlab chiqarish buyurtmasi band qilib ulgurgan yoki detal topshirilgan. "
+                                    f"{_miqdor_matn(po.quantity)} band qilib bo'lmaydi."),
                     }
             else:
                 # kech93 (K93-1): detal SHU korxonada topilmadi (begona yoki
@@ -1584,9 +1586,9 @@ def mavjud_ishlab_chiqarish_rejasi(db: Session, po_id: int, company_id: int) -> 
                     _k = mrp_detal_kerak(db, oi)
                     remaining = max(0.0, _k["kerak"])
                     if float(po.quantity or 0) > remaining + 0.0001:
-                        xatolar.append(f"Bu buyurtma-detali uchun endi faqat {remaining:g} kerak ({_mrp_kerak_izoh(_k)}) — "
+                        xatolar.append(f"Bu buyurtma-detali uchun endi faqat {_miqdor_matn(remaining)} kerak ({_mrp_kerak_izoh(_k)}) — "
                                        f"boshqa ishlab chiqarish buyurtmasi band qilib ulgurgan yoki detal topshirilgan. "
-                                       f"{float(po.quantity or 0):g} band qilib bo'lmaydi.")
+                                       f"{_miqdor_matn(float(po.quantity or 0))} band qilib bo'lmaydi.")
         reja["retsept"] = bom.variant_name
         reja["partiya"] = bom.batch_quantity
     elif po.status == ProductionOrderStatus.IN_PROGRESS.value:

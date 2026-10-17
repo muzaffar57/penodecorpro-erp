@@ -638,7 +638,8 @@ def _tm_minus_xabari(db, company_id):
         _oxirgi[_x["id"]] = _x
     if not _oxirgi:
         return None
-    _qatorlar = [f"🔴 {_x['nom']}: {_x['qoldiq']:g} {_x['birlik']} (buyurtmalarga {-_x['qoldiq']:g} {_x['birlik']} qarz"
+    _qatorlar = [f"🔴 {_x['nom']}: {crud.xabar_son(_x['qoldiq'], 3)} {_x['birlik']} (buyurtmalarga {crud.xabar_son(-_x['qoldiq'], 3)} "
+                 f"{_x['birlik']} qarz"
                  + (f", {_x['raqam']}" if _x.get("raqam") else "") + ")" for _x in _oxirgi.values()]
     msg = ("⚠️ *Tayyor mahsulot minusda — ishlab chiqarish kerak!*\n\n" + "\n".join(_qatorlar)
            + "\n\nYetmagan qismini ishlab chiqaring — shu mahsulotning yangi partiyasi minusni avtomatik yopadi. "
@@ -713,7 +714,7 @@ def _send_delivery_pdf_to_customer(db, delivery_id: int):
         lines = []
         for di in d.items:
             nm = di.order_item.name if di.order_item else "—"
-            lines.append(f"• {nm}: {di.quantity:g} {di.unit}")
+            lines.append(f"• {nm}: {crud.xabar_son(di.quantity, 3)} {di.unit}")
 
         # PDF — BIR MARTA generatsiya qilinadi, ikkala qabul qiluvchiga ham
         # (kerak bo'lsa) shu bitta fayl yuboriladi (ortiqcha ish qilinmaydi).
@@ -7224,9 +7225,9 @@ def api_full_stock_report(db: Session = Depends(get_db), current_user=Depends(au
         # belgilanmagan material TUGASA ham "KAM QOLGANLAR" da (ilgari `min_q > 0` SHART edi).
         if crud.kam_qoldiqmi(item):
             emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
-            kam.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit}" + (" — tugagan" if qty <= 0 else ""))
+            kam.append(f"{emoji} {item.item_name}: {crud.xabar_son(qty, 3)} {item.unit}" + (" — tugagan" if qty <= 0 else ""))
         else:
-            yetarli.append(f"✅ {item.item_name}: {qty:.1f} {item.unit}")
+            yetarli.append(f"✅ {item.item_name}: {crud.xabar_son(qty, 3)} {item.unit}")
     now = _t_vaqt().strftime("%d.%m.%Y %H:%M")
     msg = f"📋 *Ombor hisoboti*\n_{now}_\n\n"
     if kam:
@@ -7249,7 +7250,8 @@ def api_low_stock_alert(db: Session = Depends(get_db), current_user=Depends(auth
         min_q = float(item.min_stock or 0)   # kech108 (K108-2): NULL min — 0
         deficit = min_q - qty
         emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
-        lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f}, yetishmaydi: {deficit:.1f})")
+        lines.append(f"{emoji} {item.item_name}: {crud.xabar_son(qty, 3)} {item.unit} qoldi (min: {crud.xabar_son(min_q, 3)}, "
+                     f"yetishmaydi: {crud.xabar_son(deficit, 3)})")
     msg = f"⚠️ *Ombor ogohlantirishlari!*\n\n━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines) + f"\n━━━━━━━━━━━━━━━━━━━\n\nZudlik bilan buyurtma bering! 🚨\n\n" + _tg_footer(db, auth.company_id_of(current_user))
     if _send_telegram(msg, company_id=auth.company_id_of(current_user)) is False:       # kech120 (G4-07)
         return {"sent": False, "message": TELEGRAM_YUBORILMADI_XABARI}
@@ -7315,8 +7317,8 @@ def api_cron_low_stock_check(request: Request, secret: str = "", db: Session = D
             min_q = float(item.min_stock or 0)   # kech108 (K108-2): NULL min — 0
             deficit = min_q - qty
             emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
-            _satr = (f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi "
-                     f"(min: {min_q:.0f}, yetishmaydi: {deficit:.1f})")
+            _satr = (f"{emoji} {item.item_name}: {crud.xabar_son(qty, 3)} {item.unit} qoldi "
+                     f"(min: {crud.xabar_son(min_q, 3)}, yetishmaydi: {crud.xabar_son(deficit, 3)})")
             _all_lines.append(_satr)
             _per_company[_cid].append(_satr)
     if not _sent_any:
@@ -7660,7 +7662,8 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[str] = None,
             min_q = float(item.min_stock or 0)   # kech108 (K108-2): NULL min — 0
             deficit = min_q - qty
             emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
-            lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f}, yetishmaydi: {deficit:.1f})")
+            lines.append(f"{emoji} {item.item_name}: {crud.xabar_son(qty, 3)} {item.unit} qoldi (min: {crud.xabar_son(min_q, 3)}, "
+                     f"yetishmaydi: {crud.xabar_son(deficit, 3)})")
         msg = f"⚠️ *Ombor ogohlantirishlari!*\n\n*{new_order.order_number}* buyurtmadan keyin:\n\n━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines) + f"\n━━━━━━━━━━━━━━━━━━━\n\nZudlik bilan buyurtma bering! 🚨\n\n" + _tg_footer(db, auth.company_id_of(current_user))
         _send_telegram(msg, company_id=auth.company_id_of(current_user))
     _tm_minus_xabari(db, auth.company_id_of(current_user))     # kech145 (zip 182 — egasi qarori «Darhol xabar»)
@@ -7988,7 +7991,7 @@ def api_update_order(order_id: int, order: schemas.OrderCreate, loy_kg: Optional
             qty = float(item.stock_quantity)
             min_q = float(item.min_stock or 0)   # kech108 (K108-2): NULL min — 0
             emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
-            lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f})")
+            lines.append(f"{emoji} {item.item_name}: {crud.xabar_son(qty, 3)} {item.unit} qoldi (min: {crud.xabar_son(min_q, 3)})")
         ord_obj = crud.get_order(db, order_id, company_id=auth.company_id_of(current_user))
         msg = (f"⚠️ *Ombor ogohlantirishlari!*\n\n*{ord_obj.order_number}* tahrirlangandan keyin:\n\n"
                + "━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines)
@@ -8080,7 +8083,7 @@ def api_coating_notify(order_id: int, loy_kg: Optional[str] = None, db: Session 
                 _tg_title(db, auth.company_id_of(current_user), "Yangi buyurtma") + "\n\n"
                 f"📋 Buyurtma: *{order.order_number}*\n"
                 f"👤 Mijoz: {order.project.client_name if order.project else '—'}\n"
-                f"🧱 Loy tayyorlang: *{int(loy_kg)} kg*\n\n"
+                f"🧱 Loy tayyorlang: *{crud.xabar_son(loy_kg, 3)} kg*\n\n"
                 f"⏰ {_t_vaqt().strftime('%d.%m.%Y %H:%M')}"
             )
             _send_telegram(msg, company_id=auth.company_id_of(current_user))
@@ -8131,7 +8134,7 @@ def api_mark_order_ready(order_id: int, loy_kg: Optional[str] = None,
                 _tg_title(db, auth.company_id_of(current_user), "Buyurtma tayyor") + "\n\n"
                 f"📋 Buyurtma: *{order.order_number}*\n"
                 f"👤 Mijoz: {order.project.client_name if order.project else '—'}\n"
-                f"🧱 Ishlatilgan loy: *{int(loy_kg)} kg*\n\n"
+                f"🧱 Ishlatilgan loy: *{crud.xabar_son(loy_kg, 3)} kg*\n\n"
                 f"⏰ {_t_vaqt().strftime('%d.%m.%Y %H:%M')}"
             )
             # kech144 (zip 178, audit T5): Telegram — javobdan KEYIN (fon vazifasi)
@@ -11455,8 +11458,8 @@ def api_tm_kam_chegara(fp_id: int, data: dict = Body(...), db: Session = Depends
     db.commit()
     if eski != yangi:
         crud.log_activity(db, "updated", "finished_product", fp.id, f"{fp.name} — «Kam» chegarasi", who,
-                          old_value="—" if eski is None else f"{eski:g} {fp.unit or ''}".strip(),
-                          new_value="—" if yangi is None else f"{yangi:g} {fp.unit or ''}".strip(),
+                          old_value="—" if eski is None else f"{crud.audit_son(eski, 3)} {fp.unit or ''}".strip(),   # kech152 (zip 193)
+                          new_value="—" if yangi is None else f"{crud.audit_son(yangi, 3)} {fp.unit or ''}".strip(),
                           company_id=_cid)
     return {"id": fp.id, "kam_chegara": yangi}
 
@@ -11843,7 +11846,7 @@ def api_produce(request: Request, response: Response, data: dict = Body(...), db
             qty = float(item.stock_quantity)
             min_q = float(item.min_stock or 0)   # kech108 (K108-2): NULL min — 0
             emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
-            lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f})")
+            lines.append(f"{emoji} {item.item_name}: {crud.xabar_son(qty, 3)} {item.unit} qoldi (min: {crud.xabar_son(min_q, 3)})")
         msg = ("⚠️ *Ombor ogohlantirishlari!*\n\nTayyor mahsulot ishlab chiqarilgandan keyin:\n\n"
                + "━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines)
                + "\n━━━━━━━━━━━━━━━━━━━\n\n" + _tg_footer(db, auth.company_id_of(current_user)))
@@ -11904,7 +11907,7 @@ def api_add_production(request: Request, response: Response, fp_id: int, data: d
             qty = float(item.stock_quantity)
             min_q = float(item.min_stock or 0)   # kech108 (K108-2): NULL min — 0
             emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
-            lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f})")
+            lines.append(f"{emoji} {item.item_name}: {crud.xabar_son(qty, 3)} {item.unit} qoldi (min: {crud.xabar_son(min_q, 3)})")
         msg = ("⚠️ *Ombor ogohlantirishlari!*\n\n"
                + "━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines)
                + "\n━━━━━━━━━━━━━━━━━━━\n\n" + _tg_footer(db, auth.company_id_of(current_user)))
@@ -11983,7 +11986,7 @@ def api_delete_finished(fp_id: int, return_to_stock: bool = False,
     if crud._fp_tayyormi(fp) and float(fp.quantity or 0) > 0.001:
         raise HTTPException(
             status_code=400,
-            detail=f"Bu mahsulotda hali {float(fp.quantity):g} {fp.unit} qoldiq bor — "
+            detail=f"Bu mahsulotda hali {crud.xabar_son(fp.quantity, 3)} {fp.unit} qoldiq bor — "
                    f"o'chirib bo'lmaydi. Avval to'liq soting yoki \"Kamaytirish (brak)\" "
                    f"orqali nolga tushiring, keyin o'chiring."
         )
@@ -12082,7 +12085,7 @@ def api_create_delivery(data: dict = Body(...), db: Session = Depends(get_db), c
         lines = []
         for di in d.items:
             nm = di.order_item.name if di.order_item else "—"
-            lines.append(f"• {nm}: {di.quantity:g} {di.unit}")
+            lines.append(f"• {nm}: {crud.xabar_son(di.quantity, 3)} {di.unit}")
         client = d.order.project.client_name if d.order.project else "—"
         msg = (
             f"📦 *Mahsulot topshirildi*\n\n"
@@ -12992,11 +12995,12 @@ def run_daily_backup():
         if _mb >= 49:
             # kech144 (zip 178, audit T4): zaxira yuborilmadi — «Xatoliklar» jurnalida ham (platforma xatosi)
             try:
-                crud.log_error(db, f"Kunlik zaxira yuborilmadi — fayl {_mb:.1f} MB (Telegram chegarasi 50 MB)", endpoint="run_daily_backup")
+                crud.log_error(db, f"Kunlik zaxira yuborilmadi — fayl {crud.xabar_son(_mb, 1)} MB (Telegram chegarasi 50 MB)",
+                               endpoint="run_daily_backup")
             except Exception:
                 pass
             _send_telegram(
-                f"⛔ *Kunlik zaxira YUBORILMADI*\n\nFayl hajmi {_mb:.1f} MB — "
+                f"⛔ *Kunlik zaxira YUBORILMADI*\n\nFayl hajmi {crud.xabar_son(_mb, 1)} MB — "
                 f"Telegram chegarasi (50 MB) dan oshdi.\n\n"
                 f"Zaxirani qo'lda yuklab oling: /api/system/backup\n"
                 f"Uzoq muddatli yechim kerak (masalan bulutli saqlash).")
@@ -13004,7 +13008,7 @@ def run_daily_backup():
             return
         if _mb >= 40:
             _send_telegram(
-                f"⚠️ *Zaxira hajmi ogohlantirishi*\n\nBugungi zaxira {_mb:.1f} MB.\n"
+                f"⚠️ *Zaxira hajmi ogohlantirishi*\n\nBugungi zaxira {crud.xabar_son(_mb, 1)} MB.\n"
                 f"Telegram chegarasi 50 MB. Yaqinlashyapti — boshqa saqlash "
                 f"usulini rejalashtirish vaqti keldi.")
         # kech106 (9 + 50-band B qismi): fayl nomi va xabardagi sana — Toshkent kuni (zaxira 23:30 Toshkentda
