@@ -1062,11 +1062,11 @@ def update_stock(db: Session, item_id: int, quantity_change: float, performed_by
         if -qc > mavjud + 1e-9:
             if current < 0:
                 raise ValueError(
-                    f"{db_item.item_name}: qoldiq manfiy ({current:g} {db_item.unit}) — "
+                    f"{db_item.item_name}: qoldiq manfiy ({_miqdor_matn(current)} {db_item.unit}) — "
                     f"chiqim qilib bo'lmaydi, avval kirim qiling")
             raise ValueError(
-                f"{db_item.item_name}: omborda {current:g} {db_item.unit} bor — "
-                f"{-qc:g} {db_item.unit} chiqim qilib bo'lmaydi")
+                f"{db_item.item_name}: omborda {_miqdor_matn(current)} {db_item.unit} bor — "
+                f"{_miqdor_matn(-qc)} {db_item.unit} chiqim qilib bo'lmaydi")
     new_qty = current + qc
     if -1e-9 < new_qty < 0:
         new_qty = 0.0
@@ -1610,7 +1610,7 @@ class MaterialQoldiqBor(ValueError):
 def material_qoldiq_xabari(m) -> str:
     """kech142 (zip 170): qoldig'i bor materialni o'chirish rad xabari (server va sahifa — bir xil ma'no)."""
     q = float(m.stock_quantity or 0)
-    _q = f"{q:.4f}".rstrip("0").rstrip(".")
+    _q = _miqdor_matn(q)   # kech152 (zip 193): sahifadagi `sonKor(qoldiq, 3)` bilan bir ko'rinish (ilgari «1234.5»)
     if q < 0:
         return (f"«{m.item_name}» qoldig'i manfiy ({_q} {m.unit or ''}) — o'chirishdan oldin «Kirim (tuzatish)» bilan "
                 f"qoldiqni 0 qiling (tuzatish ombor harakatlarida ko'rinadi)")
@@ -2931,11 +2931,12 @@ def _tm_toldir(db: Session, nishon, kerak: float, azolar, performed_by: str = No
             # minusni yopgan qism — donor tannarxida (shu amal detallarining birligi `_tm_qarz_birligi` da qayta baholanadi)
             db.info.setdefault('tm_yopish_182', []).append((nishon.id, min(_t, -_eski_n), _qiymat_k * min(_t, -_eski_n) / _t))
         kerak -= _t
-        log.append(f"🏭 {nishon.name}: FP-{int(_d.id):04d} dan {_t:g} {nishon.unit} → FP-{int(nishon.id):04d} "
-                   f"({_eski_n:g} → {float(nishon.quantity or 0):g} {nishon.unit}, {sabab})")
+        log.append(f"🏭 {nishon.name}: FP-{int(_d.id):04d} dan {_miqdor_matn(_t)} {nishon.unit} → FP-{int(nishon.id):04d} "
+                   f"({_miqdor_matn(_eski_n)} → {_miqdor_matn(float(nishon.quantity or 0))} {nishon.unit}, {sabab})")   # kech152 (zip 193)
         log_activity(db, "tm_minus_yopildi", "finished_product", nishon.id, nishon.name, performed_by,
-                     old_value=f"FP-{int(nishon.id):04d}: {_eski_n:g} {nishon.unit}",
-                     new_value=f"{float(nishon.quantity or 0):g} {nishon.unit} (FP-{int(_d.id):04d} dan {_t:g}; {sabab})",
+                     old_value=f"FP-{int(nishon.id):04d}: {_miqdor_jurnal(_eski_n)} {nishon.unit}",
+                     new_value=(f"{_miqdor_jurnal(float(nishon.quantity or 0))} {nishon.unit} (FP-{int(_d.id):04d} dan "
+                                f"{_miqdor_jurnal(_t)}; {sabab})"),
                      company_id=getattr(nishon, 'company_id', None), commit=False)
     return log
 
@@ -3086,8 +3087,9 @@ def _tm_yetkazish_kami(db: Session, valid_items, company_id: int = None) -> list
             _dq = _dq.filter(Order.company_id == company_id)
         _jismoniy = _q + sum(float(_d.remaining_qty or 0) for _d in _dq.all())
         if _so > _jismoniy + 1e-3:
-            out.append(f"{_fp.name}: {_so:g} {_fp.unit} berilmoqchi, lekin omborda jismonan {max(0.0, _jismoniy):g} {_fp.unit} bor — "
-                       f"{-_q:g} {_fp.unit} hali ishlab chiqarilmagan (minusda). Avval ishlab chiqaring — shu mahsulotning yangi "
+            out.append(f"{_fp.name}: {_miqdor_matn(_so)} {_fp.unit} berilmoqchi, lekin omborda jismonan {_miqdor_matn(max(0.0, _jismoniy))} "
+                       f"{_fp.unit} bor — {_miqdor_matn(-_q)} {_fp.unit} hali ishlab chiqarilmagan (minusda). Avval ishlab chiqaring — "
+                       f"shu mahsulotning yangi "
                        f"partiyasi minusni avtomatik yopadi")
     return out
 
@@ -3096,15 +3098,17 @@ def _tm_minus_rad_xabari(fp, amal: str) -> str:
     """kech145 (zip 182): minusdagi tayyor mahsulot bilan bo'lmaydigan amal (sotish, brak, o'chirish) rad matni — manfiy «Omborda faqat
     -5 m bor» o'rniga."""
     _q = float(fp.quantity or 0)
-    return (f"{fp.name}: qoldiq minusda ({_q:g} {fp.unit} — {-_q:g} {fp.unit} buyurtmalarga qarz, hali ishlab chiqarilmagan) — "
+    return (f"{fp.name}: qoldiq minusda ({_miqdor_matn(_q)} {fp.unit} — {_miqdor_matn(-_q)} {fp.unit} buyurtmalarga qarz, hali ishlab "
+            f"chiqarilmagan) — "
             f"{amal} bo'lmaydi. Avval ishlab chiqaring: «Yana ishlab chiqarish» yoki shu mahsulotning yangi partiyasi minusni "
             f"avtomatik yopadi")
 
 
 def _tm_ushlangan_xabari(fp, bosh: float, qarz: float, soralgan: float) -> str:
     """kech145 (zip 182 — egasi qarori «ushlansin»): guruhda boshqa partiya minusda — bo'sh qoldiqdan qarz ushlanadi."""
-    return (f"{fp.name}: shu mahsulotning boshqa partiyasi minusda ({qarz:g} {fp.unit} buyurtmaga qarz) — bo'sh qoldiq avval "
-            f"qarzni yopadi: sotsa bo'ladi faqat {max(0.0, bosh - qarz):g} {fp.unit}, {float(soralgan):g} sota olmaysiz")
+    return (f"{fp.name}: shu mahsulotning boshqa partiyasi minusda ({_miqdor_matn(qarz)} {fp.unit} buyurtmaga qarz) — bo'sh qoldiq "
+            f"avval qarzni yopadi: sotsa bo'ladi faqat {_miqdor_matn(max(0.0, bosh - qarz))} {fp.unit}, {_miqdor_matn(float(soralgan))} "
+            f"sota olmaysiz")
 
 
 def _tm_minus_qayd(db: Session, fp, oldin: float, raqam: str = None) -> None:
@@ -3225,7 +3229,7 @@ def _take_finished_for_order(db: Session, order, company_id: int = None, tasdiq:
         fp.quantity = old_qty - qty
         if qty - take > 1e-9:
             _olgan182.setdefault(fp.id, []).append((it, qty - take, unit_cost if unit_cost > 0 else None, qty))
-        log.append(f"🏭 {fp.name}: -{qty:g} {fp.unit} (tayyor mahsulotdan)")
+        log.append(f"🏭 {fp.name}: -{_miqdor_matn(qty)} {fp.unit} (tayyor mahsulotdan)")
     if log:
         db.flush()
     # kech145 (zip 182 — egasi qarorlari): avval SHU amal yaratgan band kamomadi (oldindan tekshiruv guruh bo'shini avval band
@@ -3468,7 +3472,7 @@ def _adjust_finished_diff(db: Session, old_items, new_items,
             # kech144 (zip 176, F1 — O'LCHANGAN: −5 dagi buyurtma 15 → 20 m tahrirlanganda qoldiq −10 o'rniga 0 ga QISILARDI, o'chirilganda
             # 20 m qaytib qoldiq 10 o'rniga 20 bo'lardi): minus — egasi qarori («Minusga ruxsat bersin»), qisilmaydi
             fp.quantity = cur_qty - diff
-            log.append(f"🏭 {fp.name}: -{diff:g} {fp.unit}")
+            log.append(f"🏭 {fp.name}: -{_miqdor_matn(diff)} {fp.unit}")
             # kech145 (zip 182): shu tahrir yaratgan qarz — oshgan detallarga (oxirgisidan); muvozanat yopsa birligi qayta baholanadi
             _yangi_qarz = max(0.0, -(cur_qty - diff)) - max(0.0, -cur_qty)
             for _det, _t, _ush in reversed(_o56):
@@ -3479,7 +3483,7 @@ def _adjust_finished_diff(db: Session, old_items, new_items,
                 _olgan182.setdefault(fp.id, []).append((_det, _c, _Y56 if _Y56 > 0 else None, float(_ush) + float(_t)))
         else:
             fp.quantity = cur_qty + abs(diff)
-            log.append(f"🏭 {fp.name}: +{abs(diff):g} {fp.unit} qaytdi")
+            log.append(f"🏭 {fp.name}: +{_miqdor_matn(abs(diff))} {fp.unit} qaytdi")
         _oldin182[fp.id] = (fp, cur_qty)
 
     if log:
@@ -3533,13 +3537,13 @@ def _tm_kerak_tekshir(fp, kerak: float, qoshni_bosh: float = 0.0):
     qoshni = max(0.0, float(qoshni_bosh or 0))
     if kerak <= bosh + qoshni + 1e-3:
         return None, None
-    _izoh182 = (f" (shu mahsulotning boshqa partiyalaridan yana {qoshni:g} {birlik} olinadi — yetmagani "
-                f"{kerak - bosh - qoshni:g} {birlik})") if qoshni > 1e-9 else ""
+    _izoh182 = (f" (shu mahsulotning boshqa partiyalaridan yana {_miqdor_matn(qoshni)} {birlik} olinadi — yetmagani "
+                f"{_miqdor_matn(kerak - bosh - qoshni)} {birlik})") if qoshni > 1e-9 else ""
     if band > 1e-9:
-        return (f"🏭 {fp.name}: omborda {q:g} {birlik}, shundan {band:g} {birlik} boshqa buyurtmaga band — bo'sh {bosh:g} {birlik}, "
-                f"kerak {kerak:g} {birlik}{_izoh182}. Band mahsulotga tegib bo'lmaydi: yetmaganini ishlab chiqaring yoki band buyurtmada "
-                f"«Bandni bekor qilish»", None)
-    return None, f"🏭 {fp.name}: omborda {q:g} {birlik}, kerak {kerak:g} {birlik}{_izoh182}"
+        return (f"🏭 {fp.name}: omborda {_miqdor_matn(q)} {birlik}, shundan {_miqdor_matn(band)} {birlik} boshqa buyurtmaga band — "
+                f"bo'sh {_miqdor_matn(bosh)} {birlik}, kerak {_miqdor_matn(kerak)} {birlik}{_izoh182}. Band mahsulotga tegib bo'lmaydi: "
+                f"yetmaganini ishlab chiqaring yoki band buyurtmada «Bandni bekor qilish»", None)
+    return None, f"🏭 {fp.name}: omborda {_miqdor_matn(q)} {birlik}, kerak {_miqdor_matn(kerak)} {birlik}{_izoh182}"
 
 
 def _tm_farq_tekshir(db: Session, old_items, new_items, company_id: int = None):
@@ -5401,8 +5405,9 @@ def _fp_band_xabari(fp, soralgan: float) -> str:
     """kech142 (zip 170, A-O01): band sababli sotuv rad xabari — bitta va savatcha sotuvi uchun BIR matn (manfiy son
     yo'q: band qoldiqdan katta eski yozuvda ham «faqat 0»)."""
     band = max(0.0, float(fp.reserved_quantity or 0))
-    return (f"{fp.name}: omborda {float(fp.quantity or 0):g} {fp.unit}, shundan {band:g} {fp.unit} buyurtmaga band — "
-            f"sotsa bo'ladi faqat {_fp_bosh_qoldiq(fp):g} {fp.unit}, {float(soralgan):g} sota olmaysiz. Band mahsulotni "
+    return (f"{fp.name}: omborda {_miqdor_matn(float(fp.quantity or 0))} {fp.unit}, shundan {_miqdor_matn(band)} {fp.unit} "
+            f"buyurtmaga band — sotsa bo'ladi faqat {_miqdor_matn(_fp_bosh_qoldiq(fp))} {fp.unit}, {_miqdor_matn(float(soralgan))} "
+            f"sota olmaysiz. Band mahsulotni "
             f"sotish uchun avval «Bandni bekor qilish»")
 
 
@@ -5418,9 +5423,9 @@ def _fp_band_qoldiqqa_moslash(db: Session, fp, performed_by: str = None) -> floa
         return 0.0
     fp.reserved_quantity = q
     log_activity(db, "updated", "finished_product", fp.id, fp.name, performed_by,
-                 old_value=f"band: {band:g}",
-                 new_value=(f"band: {q:g} — brak / yo'qotish; buyurtma detali #{fp.reserved_for_order_item_id} uchun "
-                            f"yana {band - q:g} {fp.unit or ''} ishlab chiqarish kerak").replace("  ", " "),
+                 old_value=f"band: {_miqdor_jurnal(band)}",   # kech152 (zip 193)
+                 new_value=(f"band: {_miqdor_jurnal(q)} — brak / yo'qotish; buyurtma detali #{fp.reserved_for_order_item_id} uchun "
+                            f"yana {_miqdor_jurnal(band - q)} {fp.unit or ''} ishlab chiqarish kerak").replace("  ", " "),
                  company_id=getattr(fp, 'company_id', None), commit=False)
     return band - q
 
@@ -7380,9 +7385,18 @@ from schemas import ReturnItemCreate
 
 def _miqdor_matn(x) -> str:
     """Miqdor xabar uchun: 3 xonagacha, ortiqcha nolsiz (6.0 -> '6',
-    3.3333 -> '3.333'). `:g` katta sonni 1.2e+06 qilib yuborardi."""
-    s = f"{float(x):.3f}".rstrip("0").rstrip(".")
-    return "0" if s in ("", "-0") else s
+    3.3333 -> '3,333'). `:g` katta sonni 1.2e+06 qilib yuborardi.
+    kech152 (zip 193 — egasi tanlovi 17.10 «Xabarlardagi miqdorlar», O'LCHANGAN `work/k193/skan193.py`): foydalanuvchi KO'RADIGAN matn
+    (xato / ogohlantirish / tasdiq oynasi, Telegram, ombor harakati sababi, javobdagi «Ombor to'g'rilandi» ro'yxati) dagi MIQDOR —
+    `xabar_son(x, 3)`: ming ajratgich — bo'linmas bo'shliq, kasr — vergul (sahifadagi `sonKor(x, 3)` bilan bir ko'rinish) — «1 234,5»,
+    «3,333». Ilgari «1234.5» (nuqta, ajratgichsiz). Yaxlitlash o'zgarmagan (`:.3f`). «Faoliyat jurnali» yozuvi — `_miqdor_jurnal`."""
+    return xabar_son(x, 3)
+
+
+def _miqdor_jurnal(x) -> str:
+    """kech152 (zip 193): «Faoliyat jurnali» (ActivityLog) matnidagi miqdor — `audit_son(x, 3)`: `_miqdor_matn` bilan BIR qoida, faqat ming
+    ajratgich ODDIY bo'shliq (jurnal «Qidiruv» i oddiy bo'shliq bilan yoziladi — «1 234,5»)."""
+    return audit_son(x, 3)
 
 
 def _som_butun(v) -> float:
@@ -7482,7 +7496,7 @@ def buyurtma_hisob_qatorlari(db: Session, order, qaytarish: float = None, mijoz_
     if NF < 0:
         qatorlar.append({"kalit": "ustama", "nom": "Ustama", "summa": -NF, "ishora": "+"})
     if max(NF, 0) + K_ch > 0:
-        _ch_nomi = f"Chegirma ({chegirma_foiz:g}%)" if (chegirma_foiz and not K_ch) else "Chegirma"
+        _ch_nomi = f"Chegirma ({xabar_son(chegirma_foiz, 2)}%)" if (chegirma_foiz and not K_ch) else "Chegirma"   # kech152 (zip 193): «33,33%»
         qatorlar.append({"kalit": "chegirma", "nom": _ch_nomi, "summa": max(NF, 0) + K_ch, "ishora": "-"})
     if Q:
         qatorlar.append({"kalit": "qaytarish", "nom": "Qaytarish (qaytgan mahsulot)", "summa": Q, "ishora": "-"})
@@ -7662,8 +7676,8 @@ def create_return_item(db: Session, data: ReturnItemCreate,
     # Xabar UI dagi bilan bir xil.
     _buyurtmada = float(order_item.order_qty_normalized or 0)
     if float(data.quantity) > _buyurtmada + 0.001:
-        raise ValueError(f"Buyurtmada {_buyurtmada:g} {order_item.delivery_unit} bor, "
-                         f"{float(data.quantity):g} qaytarib bo'lmaydi")
+        raise ValueError(f"Buyurtmada {_miqdor_matn(_buyurtmada)} {order_item.delivery_unit} bor, "
+                         f"{_miqdor_matn(float(data.quantity))} qaytarib bo'lmaydi")
 
     # kech39 (5-bo'lim 3-band): omborga QAYTADIGAN sabablar (brakdan boshqa
     # hammasi; `to_stock=false` ham — mahsulot mijozdan baribir qaytgan) bo'yicha
@@ -8009,7 +8023,7 @@ def mark_refunded(db: Session, return_id: int, refunded_by: str = None,
                 amount=-_naqd,
                 payment_type=PaymentType.PARTIAL,
                 received_by=refunded_by,
-                notes=f"Qaytarilgan mahsulot uchun pul qaytarildi: {item.item_name} ({item.quantity} {item.unit})"
+                notes=f"Qaytarilgan mahsulot uchun pul qaytarildi: {item.item_name} ({_miqdor_matn(item.quantity or 0)} {item.unit})"
             )
             db.add(payment)
             db.flush()
@@ -8232,10 +8246,10 @@ def delete_return_item(db: Session, return_id: int, company_id: int = None,
                 ).populate_existing().with_for_update().first()
             if _inv is not None:
                 _inv.stock_quantity = float(_inv.stock_quantity or 0) + float(_h.quantity or 0)
-                _xom.append(f"{_inv.item_name} +{_miqdor_matn(float(_h.quantity or 0))} {_inv.unit or ''}".rstrip())
+                _xom.append(f"{_inv.item_name} +{_miqdor_jurnal(float(_h.quantity or 0))} {_inv.unit or ''}".rstrip())
             db.delete(_h)
 
-    _qator = (f"{item.item_name} · {_miqdor_matn(item.quantity or 0)} {item.unit or ''} · "
+    _qator = (f"{item.item_name} · {_miqdor_jurnal(item.quantity or 0)} {item.unit or ''} · "   # kech152 (zip 193): jurnal — oddiy bo'shliq
               f"{item.reason.value if item.reason else '-'}")
     if _xom:
         _qator += " · brak xomashyosi omborga qaytdi: " + "; ".join(_xom)
@@ -8243,12 +8257,12 @@ def delete_return_item(db: Session, return_id: int, company_id: int = None,
         _qator += " · brak taqdiri bekor: " + "; ".join(_taqdir_jurnal)
     if _ozod_reja:
         _qator += " · MRP bandi tiklandi: " + "; ".join(
-            f"{_f.name} +{_miqdor_matn(_q)} {_f.unit or ''}".rstrip() for _f, _q in _ozod_reja)
+            f"{_f.name} +{_miqdor_jurnal(_q)} {_f.unit or ''}".rstrip() for _f, _q in _ozod_reja)
     if _ozod_ozodlar:
         _qator += " · band ozod qilingan — erkin qoldiqda qoldi: " + "; ".join(
-            f"{_f.name} {_miqdor_matn(_q)} {_f.unit or ''}".rstrip() for _f, _q in _ozod_ozodlar)
+            f"{_f.name} {_miqdor_jurnal(_q)} {_f.unit or ''}".rstrip() for _f, _q in _ozod_ozodlar)
     if fp is not None:
-        _qator += f" · ombordan olindi: {_miqdor_matn(_sq)} {fp.unit} ({fp.name})"
+        _qator += f" · ombordan olindi: {_miqdor_jurnal(_sq)} {fp.unit} ({fp.name})"
     if pul_orqaga:
         _qator += f" · pul qaytarish bekor qilindi: {audit_son(_summa, 0)} so'm (to'lov yozuvi: {_tolov_soni})"   # kech151 (zip 192)
     db.add(ActivityLog(
@@ -10362,8 +10376,8 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
                 _ortiqcha_xato63 = True
                 delivery_errors.append(
                     f"«{oi.name}» — {_miqdor_matn(_ortiqcha_f)} {oi.delivery_unit} omborga ortiqcha "
-                    f"qaytarilgan" + (f", {delivered:g} {oi.delivery_unit} topshirilgan" if delivered > 0.001 else "")
-                    + f" — {_new_f:g} qilib bo'lmaydi (kamida {_miqdor_matn(_kamida_f)})")
+                    f"qaytarilgan" + (f", {_miqdor_matn(delivered)} {oi.delivery_unit} topshirilgan" if delivered > 0.001 else "")
+                    + f" — {_miqdor_matn(_new_f)} qilib bo'lmaydi (kamida {_miqdor_matn(_kamida_f)})")
                 continue
         if delivered <= 0.001:
             continue          # topshirilmagan — hech qanday cheklov yo'q
@@ -10371,15 +10385,15 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         nd = matched.get(oi.id)
         if nd is None:
             delivery_errors.append(
-                f"«{oi.name}» — {delivered:g} {oi.delivery_unit} topshirilgan, o'chirib bo'lmaydi"
+                f"«{oi.name}» — {_miqdor_matn(delivered)} {oi.delivery_unit} topshirilgan, o'chirib bo'lmaydi"
             )
             continue
 
         new_qty = _qty_of(nd)
         if new_qty < delivered - 0.001:
             delivery_errors.append(
-                f"«{oi.name}» — {delivered:g} {oi.delivery_unit} topshirilgan, "
-                f"{new_qty:g} qilib bo'lmaydi (kamida {delivered:g})"
+                f"«{oi.name}» — {_miqdor_matn(delivered)} {oi.delivery_unit} topshirilgan, "
+                f"{_miqdor_matn(new_qty)} qilib bo'lmaydi (kamida {_miqdor_matn(delivered)})"
             )
 
     if delivery_errors:
@@ -11044,7 +11058,7 @@ def _mrp_deliver_stock(db: Session, order_item, qty: float,
             fp.reserved_quantity = max(0.0, float(fp.reserved_quantity or 0) - olinadi)
             if unit_cost > 0:
                 fp.cost_price = max(0.0, float(fp.cost_price or 0) - unit_cost * olinadi)
-            log.append(f"🏭 {fp.name}: -{olinadi:g} {fp.unit} (yuk xati bo'yicha)")
+            log.append(f"🏭 {fp.name}: -{_miqdor_matn(olinadi)} {fp.unit} (yuk xati bo'yicha)")
             olindi.append([fp.id, round(olinadi, 6)])
             qoldi -= olinadi
             # MUHIM: `reserved_for_order_item_id` TOZALANMAYDI, garchi
@@ -11068,7 +11082,7 @@ def _mrp_deliver_stock(db: Session, order_item, qty: float,
             for fid, miqdor in olingan:
                 fp = boyicha.get(fid)
                 if fp is None:
-                    log.append(f"⚠ Tayyor mahsulot #{fid} topilmadi — {miqdor:g} qaytarilmadi")
+                    log.append(f"⚠ Tayyor mahsulot #{fid} topilmadi — {_miqdor_matn(miqdor)} qaytarilmadi")
                     continue
                 if miqdor > 1e-9:
                     reja.append((fp, float(miqdor)))
@@ -11088,7 +11102,7 @@ def _mrp_deliver_stock(db: Session, order_item, qty: float,
                     reja.append((fp, miqdor))
                     qoldi -= miqdor
             if qoldi > 1e-9:
-                log.append(f"⚠ {qoldi:g} ishlab chiqarilganidan ortiq topshirilgan edi — omborga qaytarilmadi")
+                log.append(f"⚠ {_miqdor_matn(qoldi)} ishlab chiqarilganidan ortiq topshirilgan edi — omborga qaytarilmadi")
         for fp, miqdor in reja:
             unit_cost = _fp_stable_unit_cost(db, fp)
             fp.quantity = float(fp.quantity or 0) + miqdor
@@ -11100,7 +11114,7 @@ def _mrp_deliver_stock(db: Session, order_item, qty: float,
                 _qayer = "yuk xati bekor qilindi; band ozod qilingan — erkin qoldiqqa"
             if unit_cost > 0:
                 fp.cost_price = float(fp.cost_price or 0) + unit_cost * miqdor
-            log.append(f"🏭 {fp.name}: +{miqdor:g} {fp.unit} ({_qayer})")
+            log.append(f"🏭 {fp.name}: +{_miqdor_matn(miqdor)} {fp.unit} ({_qayer})")
         # kech145 (zip 182, tekshiruv topilmasi): erkin qoldiqqa qaytgani shu mahsulotning minusini yopadi
         if reja:
             db.flush()
@@ -11375,8 +11389,8 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
         remaining = oi.remaining_qty
         if di.quantity > remaining + 0.001:
             errors.append(
-                f"{oi.name}: {di.quantity:g} {oi.delivery_unit} berilmoqchi, "
-                f"lekin qoldi {remaining:g} {oi.delivery_unit}"
+                f"{oi.name}: {_miqdor_matn(di.quantity)} {oi.delivery_unit} berilmoqchi, "
+                f"lekin qoldi {_miqdor_matn(remaining)} {oi.delivery_unit}"
             )
             continue
         # kech70 (FOYDALANUVCHI QARORI "Taqiqlansin", K70-1): MRP detali faqat ishlab chiqarilgan
@@ -11387,8 +11401,8 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
             _tayyor = _mrp_tayyor_qoldiq(db, oi, order.company_id)
             if di.quantity > _tayyor + 0.001:
                 mrp_kam.append(
-                    f"{oi.name}: {di.quantity:g} {oi.delivery_unit} berilmoqchi, lekin tayyor "
-                    f"(ishlab chiqarilgan) {_tayyor:g} {oi.delivery_unit} — avval ishlab chiqarishni yakunlang"
+                    f"{oi.name}: {_miqdor_matn(di.quantity)} {oi.delivery_unit} berilmoqchi, lekin tayyor "
+                    f"(ishlab chiqarilgan) {_miqdor_matn(_tayyor)} {oi.delivery_unit} — avval ishlab chiqarishni yakunlang"
                 )
                 continue
         valid_items.append((oi, di.quantity))
@@ -12126,7 +12140,8 @@ def record_finished_product_loss(db: Session, data, created_by: str = None,
     if data.quantity > available + 0.001:
         if available < -1e-9:       # kech145 (zip 182): manfiy «Omborda faqat -5» o'rniga
             return {"success": False, "message": _tm_minus_rad_xabari(fp, "omborda brak qilib")}
-        return {"success": False, "message": f"Omborda faqat {available:g} {fp.unit} bor, {data.quantity:g} kamaytira olmaysiz"}
+        return {"success": False, "message": (f"Omborda faqat {_miqdor_matn(available)} {fp.unit} bor, {_miqdor_matn(data.quantity)} "
+                                              f"kamaytira olmaysiz")}
     # kech56 (13-band, 7-qadam): javobgar hodim — shu korxonaning hodimi (yozuvdan OLDIN)
     try:
         _brak_javobgar_tekshir(db, getattr(data, 'brak_javobgar_id', None),
@@ -12318,8 +12333,8 @@ def delete_finished_product_loss(db: Session, loss_id: int, company_id: int = No
                     _eski_band142 = float(fp.reserved_quantity or 0)
                     fp.reserved_quantity = _eski_band142 + _band_tiklandi
                     log_activity(db, "updated", "finished_product", fp.id, fp.name, performed_by,
-                                 old_value=f"band: {_eski_band142:g}",
-                                 new_value=(f"band: {float(fp.reserved_quantity):g} — brak bekor qilindi, buyurtma "
+                                 old_value=f"band: {_miqdor_jurnal(_eski_band142)}",   # kech152 (zip 193)
+                                 new_value=(f"band: {_miqdor_jurnal(float(fp.reserved_quantity))} — brak bekor qilindi, buyurtma "
                                             f"detali #{_detal142.id} uchun qayta band"),
                                  company_id=getattr(fp, 'company_id', None), commit=False)
                 else:
@@ -12368,10 +12383,11 @@ def _ishlab_chiqarish_braki_xomashyo(db: Session, fp, brak_qty, penoplast_vol_ne
         vol_per_unit = float(p.volume_per_unit or 1.0)
         blocks = penoplast_vol_needed / vol_per_unit
         if float(p.stock_quantity) < blocks:
-            return {"success": False, "message": f"Penoplast yetishmayapti! Kerak: {blocks:.2f} blok, omborda: {float(p.stock_quantity):.2f} blok"}
+            return {"success": False, "message": (f"Penoplast yetishmayapti! Kerak: {_miqdor_matn(blocks)} blok, "
+                                                  f"omborda: {_miqdor_matn(float(p.stock_quantity))} blok")}
         p.stock_quantity = float(p.stock_quantity) - blocks
         peno_cost = blocks * float(p.price_per_unit or 0)
-        log.append(f"{p.item_name}: -{blocks:.2f} blok")
+        log.append(f"{p.item_name}: -{_miqdor_matn(blocks)} blok")
         # MUHIM (2026-09 audit): oldin bu yerda log_movement() chaqirilmagan
         # edi — Penoplast kamayishi ombor tarixida (InventoryMovement)
         # umuman ko'rinmas edi, va "Brak xarajati" hisobotiga (Returns
@@ -12381,7 +12397,7 @@ def _ishlab_chiqarish_braki_xomashyo(db: Session, fp, brak_qty, penoplast_vol_ne
         log_movement(
             db, p.id, p.item_name, movement_type="out",
             quantity=blocks, unit=p.unit,
-            reason=_jurnal_sabab(f"Brak (ishlab chiqarish) — {fp.name} ({brak_qty:g} birlik)")
+            reason=_jurnal_sabab(f"Brak (ishlab chiqarish) — {fp.name} ({_miqdor_matn(brak_qty)} birlik)")
         )
 
     # 2) Loy — QO'SHIMCHA ayiriladi (agar qoplama bo'lsa), xuddi shu
@@ -12417,7 +12433,7 @@ def _ishlab_chiqarish_braki_xomashyo(db: Session, fp, brak_qty, penoplast_vol_ne
             # chiqarish braki: ...") bu naqshga to'g'ri kelmagani uchun,
             # shu yo'l orqali yozilgan loy sarfi "Brak xarajati" hisobotidan
             # butunlay tashqarida qolar edi.
-            reason_override=_jurnal_sabab(f"Brak (ishlab chiqarish) — {fp.name} (qoplama, {brak_qty:g} birlik)")
+            reason_override=_jurnal_sabab(f"Brak (ishlab chiqarish) — {fp.name} (qoplama, {_miqdor_matn(brak_qty)} birlik)")
         ))
 
     return {"success": True, "peno_cost": peno_cost, "loy_cost": loy_cost}
@@ -12435,8 +12451,8 @@ def _mrp_ishlab_chiqarish_braki_xomashyo(db: Session, fp, brak_qty, qatorlar, lo
         log_movement(
             db, inv.id, inv.item_name, movement_type="out",
             quantity=kerak, unit=inv.unit,
-            reason=_jurnal_sabab(f"Brak (ishlab chiqarish) — {fp.name} ({brak_qty:g} birlik)"))
-        log.append(f"{inv.item_name}: -{kerak:g} {inv.unit}")
+            reason=_jurnal_sabab(f"Brak (ishlab chiqarish) — {fp.name} ({_miqdor_matn(brak_qty)} birlik)"))
+        log.append(f"{inv.item_name}: -{_miqdor_matn(kerak)} {inv.unit}")
     return {"success": True, "peno_cost": 0.0, "loy_cost": 0.0, "xomashyo_cost": xomashyo_cost}
 
 
@@ -12527,8 +12543,8 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
                 return {"success": False, "message": f"Xomashyo ombordan topilmadi (ID {_inv_id})"}
             if float(_inv.stock_quantity or 0) < _kerak:
                 return {"success": False,
-                        "message": (f"{_inv.item_name} yetishmayapti! Kerak: {_kerak:.2f} {_inv.unit}, "
-                                    f"omborda: {float(_inv.stock_quantity or 0):.2f} {_inv.unit}")}
+                        "message": (f"{_inv.item_name} yetishmayapti! Kerak: {_miqdor_matn(_kerak)} {_inv.unit}, "
+                                    f"omborda: {_miqdor_matn(float(_inv.stock_quantity or 0))} {_inv.unit}")}
             _mrp_qatorlar.append((_inv, _kerak))
         if not _mrp_qatorlar:
             return {"success": False, "message": ("Bu mahsulotning ishlab chiqarish tarkibi surati topilmadi "
@@ -12705,7 +12721,8 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None,
                     return {"success": False, "message": _fp_band_xabari(fp, _jami_qty)}
                 if float(fp.quantity or 0) < -1e-9:     # kech145 (zip 182)
                     return {"success": False, "message": _tm_minus_rad_xabari(fp, "sotib")}
-                return {"success": False, "message": f"{fp.name}: sotish mumkin faqat {available:g} {fp.unit} bor, {_jami_qty:g} sota olmaysiz"}
+                return {"success": False, "message": (f"{fp.name}: sotish mumkin faqat {_miqdor_matn(available)} {fp.unit} bor, "
+                                                      f"{_miqdor_matn(_jami_qty)} sota olmaysiz")}
             # kech145 (zip 182 — egasi qarori «ushlansin»): guruhdagi boshqa partiya minusda — qarz ushlanadi (himoya qatlami)
             _qarz182 = _tm_guruh_qarzi(db, fp)
             if _qarz182 > 1e-9 and _jami_qty > max(0.0, available - _qarz182) + 0.001:
@@ -12878,7 +12895,8 @@ def sell_finished_product(db: Session, data, created_by: str = None,
             return {"success": False, "message": _fp_band_xabari(fp, data.quantity)}
         if available < -1e-9:       # kech145 (zip 182): manfiy «Omborda faqat -5» o'rniga
             return {"success": False, "message": _tm_minus_rad_xabari(fp, "sotib")}
-        return {"success": False, "message": f"Omborda faqat {available:g} {fp.unit} bor, {data.quantity:g} sota olmaysiz"}
+        return {"success": False, "message": (f"Omborda faqat {_miqdor_matn(available)} {fp.unit} bor, {_miqdor_matn(data.quantity)} "
+                                              f"sota olmaysiz")}
     # kech145 (zip 182 — egasi qarori «ushlansin»): guruhdagi boshqa partiya minusda bo'lsa — bo'sh qoldiq qarzni yopishga ushlanadi
     # (himoya qatlami: odatda muvozanat qarzni oldinroq yopgan bo'ladi)
     _qarz182 = _tm_guruh_qarzi(db, fp)
@@ -13053,7 +13071,7 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
             blocks = volume / vol_per_unit
             if float(p.stock_quantity) < blocks:
                 shortages.append(
-                    f"{p.item_name}: kerak {blocks:.1f} blok, qoldi {float(p.stock_quantity):.1f} blok"
+                    f"{p.item_name}: kerak {_miqdor_matn(blocks)} blok, qoldi {_miqdor_matn(float(p.stock_quantity))} blok"
                 )
     if shortages:
         return {"success": False, "message": "Xomashyo yetishmayapti!", "shortages": shortages}
@@ -13073,7 +13091,7 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
             # (jurnalga esa to'liq `blocks` yoziladi).
             p.stock_quantity = float(p.stock_quantity) - blocks
             peno_cost = blocks * float(p.price_per_unit or 0)
-            log.append(f"{p.item_name}: -{blocks:.2f} blok")
+            log.append(f"{p.item_name}: -{_miqdor_matn(blocks)} blok")
             # MUHIM: avval bu yerda Ombor harakati (log_movement) UMUMAN
             # yozilmasdi — Penoplast sarfi Omborxonaning "Harakatlar
             # tarixi"da butunlay ko'rinmas edi. Endi, boshqa xomashyolar
@@ -13927,7 +13945,7 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
             blocks = add_volume / vol_per_unit
             if float(p.stock_quantity) < blocks:
                 shortages.append(
-                    f"{p.item_name}: kerak {blocks:.2f} blok, qoldi {float(p.stock_quantity):.2f} blok"
+                    f"{p.item_name}: kerak {_miqdor_matn(blocks)} blok, qoldi {_miqdor_matn(float(p.stock_quantity))} blok"
                 )
     if shortages:
         return {"success": False, "message": "Xomashyo yetishmayapti!", "shortages": shortages}
@@ -13948,11 +13966,11 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
             # (`produce` va brak yo'llari esa yozardi).
             p.stock_quantity = float(p.stock_quantity) - blocks
             peno_cost = blocks * float(p.price_per_unit or 0)
-            log.append(f"{p.item_name}: -{blocks:.2f} blok")
+            log.append(f"{p.item_name}: -{_miqdor_matn(blocks)} blok")
             log_movement(
                 db, p.id, p.item_name, movement_type="out", quantity=blocks,
                 unit=p.unit,
-                reason=_jurnal_sabab(f"Ishlab chiqarish (+{add_qty:g}): {fp.name}")
+                reason=_jurnal_sabab(f"Ishlab chiqarish (+{_miqdor_matn(add_qty)}): {fp.name}")
             )
 
     # 2) Loy
@@ -13982,7 +14000,7 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
         fake = _FakeOrder(recipe.id if recipe else None, _add_cid)
         log.extend(services.deduct_loy_ingredients(
             db, fake, add_loy, use_stock=False, company_id=_add_cid,
-            reason_override=f"Ishlab chiqarish: {fp.name} (+{add_qty:g} {fp.unit}, loy)"
+            reason_override=f"Ishlab chiqarish: {fp.name} (+{_miqdor_matn(add_qty)} {fp.unit}, loy)"
         ))
 
     # 3) Mahsulotni yangilaymiz
@@ -14017,14 +14035,14 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
 
     try:
         log_activity(db, "produced", "finished_product", fp.id, fp.name, performed_by,
-                      new_value=f"+{add_qty:g} {fp.unit} qo'shildi, jami: {float(fp.quantity):g} {fp.unit}",
+                      new_value=f"+{_miqdor_jurnal(add_qty)} {fp.unit} qo'shildi, jami: {_miqdor_jurnal(float(fp.quantity))} {fp.unit}",
                       company_id=getattr(fp, 'company_id', None))
     except Exception:
         pass
 
     return {
         "success": True,
-        "message": f"+{add_qty:g} {fp.unit} qo'shildi",
+        "message": f"+{_miqdor_matn(add_qty)} {fp.unit} qo'shildi",
         "product_id": fp.id,
         "name": fp.name,
         "added_qty": add_qty,
@@ -14066,7 +14084,7 @@ def reduce_production(db: Session, fp_id: int, reduce_qty: float, reason: str = 
     fp = get_finished_product(db, fp_id, company_id)
     _birlik = fp.unit if fp is not None else ""
     natija.update({
-        "message": f"-{float(data.quantity):g} {_birlik} chiqarildi (brak)",
+        "message": f"-{_miqdor_matn(float(data.quantity))} {_birlik} chiqarildi (brak)",
         "product_id": fp_id,
         "name": fp.name if fp is not None else None,
         "new_qty": float(fp.quantity or 0) if fp is not None else 0.0,
@@ -17420,8 +17438,8 @@ def update_purchase(db: Session, purchase_id: int, data: dict,
                     supplier_id=p.supplier_id,
                     reason=_jurnal_sabab(
                         f"Xarid tahrirlandi — #{purchase_id}: "
-                        f"{eski_qty:g} → {float(p.quantity):g} {inv.unit or ''}".rstrip() +
-                        (f" ⚠️ qoldiq manfiy: {yangi:g} {inv.unit or ''} — keyingi kirimda qoplanadi"
+                        f"{_miqdor_matn(eski_qty)} → {_miqdor_matn(float(p.quantity))} {inv.unit or ''}".rstrip() +
+                        (f" ⚠️ qoldiq manfiy: {_miqdor_matn(yangi)} {inv.unit or ''} — keyingi kirimda qoplanadi"
                          if yangi < 0 else "")))
             except Exception:
                 pass
@@ -17523,7 +17541,7 @@ def delete_purchase(db: Session, purchase_id: int, reverse_stock: bool = True,
                              quantity=float(p.quantity), unit=inv.unit,
                              reason=_jurnal_sabab(
                                  f"Xarid o'chirildi (bekor qilindi) — #{purchase_id}" +
-                                 (f" ⚠️ qoldiq manfiy: {new_qty:g} {inv.unit or ''} — keyingi kirimda qoplanadi"
+                                 (f" ⚠️ qoldiq manfiy: {_miqdor_matn(new_qty)} {inv.unit or ''} — keyingi kirimda qoplanadi"
                                   if new_qty < 0 else "")))
             except Exception:
                 pass
@@ -17679,7 +17697,7 @@ def kirim_hujjatini_bekor_qilish(db: Session, receipt_id: int, company_id: int =
                              supplier_id=p.supplier_id, performed_by=performed_by, company_id=receipt.company_id,
                              reason=_jurnal_sabab(
                                  f"Kirim #{receipt.id} bekor qilindi — xarid #{p.id}" +
-                                 (f" ⚠️ qoldiq manfiy: {yangi_qoldiq:g} {inv.unit or ''} — keyingi kirimda qoplanadi"
+                                 (f" ⚠️ qoldiq manfiy: {_miqdor_matn(yangi_qoldiq)} {inv.unit or ''} — keyingi kirimda qoplanadi"
                                   if yangi_qoldiq < 0 else "")))
             except Exception:
                 pass
@@ -18498,7 +18516,7 @@ def _taqdir_teskari(db: Session, harakat, sabab: str, taqdir_id, company_id, kim
                      miqdor=harakat.quantity, unit=harakat.unit, unit_cost=harakat.unit_cost, sabab=sabab,
                      order_id=harakat.order_id, company_id=company_id, return_item_id=harakat.return_item_id,
                      fp_loss_id=harakat.fp_loss_id, taqdir_id=taqdir_id, kim=kim)
-    return f"{harakat.item_name} {'+' if tur == 'in' else '−'}{_miqdor_matn(float(harakat.quantity or 0))} {harakat.unit or ''}".rstrip()
+    return f"{harakat.item_name} {'+' if tur == 'in' else '−'}{_miqdor_jurnal(float(harakat.quantity or 0))} {harakat.unit or ''}".rstrip()
 
 
 def _taqdir_tm_manbasi(db: Session, manba: str, yozuv, company_id):
@@ -18654,7 +18672,7 @@ def _taqdir_bekor_qil(db: Session, qator, vaqt, kim, company_id, harakatlar: boo
         if qator.tm_yangi:
             _p = float(fp.produced_quantity or 0) - _miq
             fp.produced_quantity = 0.0 if _p < 1e-9 else _p
-        jurnal.append(f"TM dan olindi: {fp.name} −{_miqdor_matn(_miq)} {fp.unit}")
+        jurnal.append(f"TM dan olindi: {fp.name} −{_miqdor_jurnal(_miq)} {fp.unit}")
         db.flush()
         if qator.tm_yangi and _taqdir_tm_ochirilsinmi(db, fp, company_id):
             db.delete(fp)
@@ -18707,7 +18725,7 @@ def _taqdir_qolla(db: Session, *, turi: str, yozuv, manba: str, toza: dict, comp
                                  miqdor=m["miqdor"], unit=inv.unit, unit_cost=float(inv.price_per_unit or 0),
                                  sabab=f"Brak tuzatish — {nom}", order_id=_order_id, company_id=company_id,
                                  taqdir_id=qator.id, kim=kim, **_bog)
-                jurnal.append(f"tuzatish: {inv.item_name} −{_miqdor_matn(m['miqdor'])} {inv.unit or ''}".rstrip())
+                jurnal.append(f"tuzatish: {inv.item_name} −{_miqdor_jurnal(m['miqdor'])} {inv.unit or ''}".rstrip())
             else:
                 import services as _svc125
                 _flag = "_brak_qaytarish_id" if turi == "qaytarish" else "_brak_yoqotish_id"
@@ -18722,7 +18740,8 @@ def _taqdir_qolla(db: Session, *, turi: str, yozuv, manba: str, toza: dict, comp
                 finally:
                     db.info.pop(_flag, None)
                     db.info.pop("_brak_taqdir_id", None)
-                jurnal.append(f"tuzatish: loy {_miqdor_matn(m['miqdor'])} kg" + (f" ({'; '.join(_log)})" if _log else ""))
+                jurnal.append(f"tuzatish: loy {_miqdor_jurnal(m['miqdor'])} kg"
+                              + (f" ({'; '.join(_log)})".replace("\u00a0", " ") if _log else ""))   # kech152 (zip 193): jurnal — oddiy bo'shliq
         # 2) tuzatilgan detal qayerga
         if toza.get("joy") == "joyiga":
             if manba == "ombor":
@@ -18741,7 +18760,7 @@ def _taqdir_qolla(db: Session, *, turi: str, yozuv, manba: str, toza: dict, comp
                 _tm_muvozanat_kerak_bolsa(db, [fp.id], company_id)
                 qator.tm_id, qator.tm_miqdor = fp.id, q_brak
                 qator.tm_tannarx, qator.tm_yangi = _pul2(float(yozuv.cost_amount or 0)), False
-                jurnal.append(f"tuzatildi — o'sha mahsulotga qaytdi: {fp.name} +{_miqdor_matn(q_brak)} {fp.unit}")
+                jurnal.append(f"tuzatildi — o'sha mahsulotga qaytdi: {fp.name} +{_miqdor_jurnal(q_brak)} {fp.unit}")
             else:
                 asl_h = _taqdir_asl_harakatlari(db, manba, yozuv, company_id)
                 if not asl_h:
@@ -18756,20 +18775,20 @@ def _taqdir_qolla(db: Session, *, turi: str, yozuv, manba: str, toza: dict, comp
                                   birlik=birlik, tannarx=asl_qiymat, narx=narx, company_id=company_id, kim=kim)
             qator.tm_id, qator.tm_miqdor, qator.tm_tannarx, qator.tm_yangi = fp.id, q_brak, _pul2(fp.cost_price), True
             qator.narx = _pul2(narx)
-            jurnal.append(f"tuzatildi — omborga: {fp.name} +{_miqdor_matn(q_brak)} {fp.unit}")
+            jurnal.append(f"tuzatildi — omborga: {fp.name} +{_miqdor_jurnal(q_brak)} {fp.unit}")
     elif t == "kesildi":
         ulush = (asl_qiymat * float(toza["ishlatildi"]) / q_brak) if q_brak > 0 else 0.0
         fp = _taqdir_tm_yarat(db, manba=manba, yozuv=yozuv, asl=asl, taqdir=t, nomi=toza["nomi"], miqdor=toza["miqdor"],
                               birlik=toza["birlik"], tannarx=ulush, narx=toza.get("narx") or 0.0,
                               eni=toza.get("eni"), qalinligi=toza.get("qalinligi"), company_id=company_id, kim=kim)
         qator.tm_id, qator.tm_miqdor, qator.tm_tannarx, qator.tm_yangi = fp.id, float(toza["miqdor"]), _pul2(fp.cost_price), True
-        jurnal.append(f"kesildi: {fp.name} +{_miqdor_matn(toza['miqdor'])} {fp.unit} "
-                      f"(brakdan {_miqdor_matn(toza['ishlatildi'])} {birlik or ''} ishlatildi)")
+        jurnal.append(f"kesildi: {fp.name} +{_miqdor_jurnal(toza['miqdor'])} {fp.unit} "
+                      f"(brakdan {_miqdor_jurnal(toza['ishlatildi'])} {birlik or ''} ishlatildi)")
     elif t == "ikkinchi_nav":
         fp = _taqdir_tm_yarat(db, manba=manba, yozuv=yozuv, asl=asl, taqdir=t, nomi=None, miqdor=q_brak, birlik=birlik,
                               tannarx=asl_qiymat, narx=toza["narx"], company_id=company_id, kim=kim)
         qator.tm_id, qator.tm_miqdor, qator.tm_tannarx, qator.tm_yangi = fp.id, q_brak, _pul2(fp.cost_price), True
-        jurnal.append(f"2-nav: {fp.name} +{_miqdor_matn(q_brak)} {fp.unit} (narx {_miqdor_matn(toza['narx'])})")
+        jurnal.append(f"2-nav: {fp.name} +{_miqdor_jurnal(q_brak)} {fp.unit} (narx {audit_son(toza['narx'], 2)})")
     db.flush()
     return qator, jurnal
 
