@@ -208,7 +208,10 @@ check("S4 `murojaat.matn_tekshir` — qator oxirlari «\\n» ga (uzunlik tekshir
       and MJPY.find('t = t.replace("\\r\\n", "\\n")') < MJPY.find("if len(t) > MATN_MAX:"))
 check("S5 platforma yozishma oynasi: `mpPastga` — rasm `load` da (foydalanuvchi tepaga aylantirmagan bo'lsa) eng pastga",
       "function mpPastga(xs)" in PL and "mpPastga(document.getElementById('mpXabarlar'));" in PL
-      and "im.addEventListener('load', function () { if (pastda) xs.scrollTop = xs.scrollHeight; }, {once: true});" in PL
+      # kech147 (zip 189 — MOSLANGAN): `mpPastga` poygasi tuzatildi — pastga surish `pastgaSur()` (dastur surgan joy eslab qolinadi;
+      # aniq sahnalar — `tools/test_murojaat_poyga189.py`)
+      and "im.addEventListener('load', function () { if (pastda) pastgaSur(); }, {once: true});" in PL
+      and "function pastgaSur() { xs.scrollTop = xs.scrollHeight; dastur = xs.scrollTop; }" in PL
       and "xs.addEventListener('scroll'," in PL)
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
