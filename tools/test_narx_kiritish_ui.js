@@ -104,6 +104,8 @@ const TK_FUNKS = ['tkMs', 'tkDate', 'tkSana', 'tkVaqt', 'tkSanaVaqt', 'tkToliq',
 // natija noma'lum ajratiladi), `tugmaBand`, sabab — `amalSababi` (u `xatoSababi` / `yukSessiyaKor` ni chaqiradi)
 TK_FUNKS.push(...['xatoSababi', 'yukSessiyaKor', 'amalSababi', 'amalKalitiYangi', 'amalKaliti', 'amalKalitiTashla', 'amalYubor',
   'amalNomalumMatn', 'amalTakrorIzoh', 'tugmaBand']);
+// kech150 (zip 190, MOSLANDI): pul MATNI (tasdiq, xabar) — base.html `pulKor` (eski shablonda yo'q — o'tkazib yuboriladi)
+TK_FUNKS.push('pulKor');
 const BASE_SRC = (() => { try { return fs.readFileSync(path.join(TDIR, 'base.html'), 'utf8'); } catch (e) { return ''; } })();
 function muhit(sahifa, qoshimcha) {
   const ctx = Object.assign({ console }, qoshimcha || {});

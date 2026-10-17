@@ -282,6 +282,8 @@ vm.createContext(ctxC);
 for (const nom of ['parseNum', 'narxMatni', 'narxKorinishi', '_onlikQism', '_tiyinHalfUp', 'buyurtmaJami', 'tiyinga', 'unitLabel', 'pCalc'])
   vm.runInContext(olib(FINISHED, nom), ctxC, { filename: `finished.html:${nom}` });
 vm.runInContext(olib(T('base.html'), 'sonKor'), ctxC, { filename: 'base.html:sonKor' });   // kech118 (U-05, MOSLANDI)
+// kech150 (zip 190, MOSLANDI): xulosadagi pul matni — base.html `pulKor` (bor bo'lsa; eski shablonda pCalc uni chaqirmaydi)
+if (/function pulKor\(/.test(T('base.html'))) vm.runInContext(olib(T('base.html'), 'pulKor'), ctxC, { filename: 'base.html:pulKor' });
 
 function pIshlat(qiymatlar) {
   for (const k of Object.keys(pMaydon)) delete pMaydon[k];

@@ -472,7 +472,7 @@ if PW_BOR and OID and OID2:
         pg.wait_for_timeout(1500)
         _msg = ev(pg, "() => window.__msg")
         check(f"B2 xabar: «{OYLAR[M]} {Y} hisobotiga yozildi» va «↩ Mijozga 100 000 so'm qaytarish kerak»",
-              isinstance(_msg, list) and any(f"{OYLAR[M]} {Y} hisobotiga yozildi" in x and "Mijozga 100 000 so'm qaytarish kerak" in x
+              isinstance(_msg, list) and any(f"{OYLAR[M]} {Y} hisobotiga yozildi" in x and "Mijozga 100 000 so'm qaytarish kerak" in x.replace("\xa0", " ")   # kech150 (zip 190, MOSLANDI)
                                              for x in _msg), _msg)
         check("B3 sahifada JS xatosi yo'q", not pg.__xato, pg.__xato)
         pg.close()

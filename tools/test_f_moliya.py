@@ -442,9 +442,11 @@ if br:
                                 return (!!o && o.style.display !== 'none' && o.textContent.trim() !== '') || (!!e && e.style.display !== 'none'); }""")
         _post = [json.loads(x[2] or "{}") for x in SOROV if x[0] == "POST" and x[1] == "/api/finance/transactions"]
         _ok = pg.evaluate("() => document.getElementById('kx-success').textContent")
+        # kech150 (zip 190, MOSLANDI): pul MATNI — base.html `pulKor` (kasr — vergul); eski shablonda `narxKorinishi` (nuqta). Son o'zgarmagan
+        _KASR190 = "," if "function pulKor(" in open(os.path.join(ROOT, "templates", "base.html"), encoding="utf-8").read() else "."
         check("B14 «Xarajat qo'shish»: summa umumiy qoida bilan («150 000,50» → 150 000.5), saqlangach — summa, toifa, sana",
               _v == "150 000,50" and len(_post) == 1 and _post[0].get("amount") == 150000.5
-              and _ok.replace("\xa0", " ") == f"✓ Saqlandi: 150 000.5 so'm · Tushlik · {BUGUN.strftime('%d.%m.%Y')}", (_v, _post, _ok))
+              and _ok.replace("\xa0", " ") == f"✓ Saqlandi: 150 000{_KASR190}5 so'm · Tushlik · {BUGUN.strftime('%d.%m.%Y')}", (_v, _post, _ok))
         pg.fill("#kx-date", f"{O_YIL}-{O_OY:02d}-10")
         pg.fill("#kx-amount", "5000")
         del SOROV[:]

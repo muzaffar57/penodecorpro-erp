@@ -117,6 +117,8 @@ function kontekst(qo) {
   vm.createContext(ctx);
   // kech118 (B — U-05, MOSLANDI): ko'rinadigan son / hajm — base.html `sonKor` … (hisobga ta'sir qilmaydi)
   yukla(ctx, BASE_SRC, ['sonKor', 'foizKor', 'birlikKor', 'matnRangi'], 'base.html');
+  // kech150 (zip 190, MOSLANDI): pul MATNI (jami, savat, xulosa) — base.html `pulKor` (eski shablonda yo'q — o'tkazib yuboriladi)
+  yukla(ctx, BASE_SRC, ['pulKor'], 'base.html');
   // kech144 (zip 174, MOSLANDI): yozuvchi amallar endi base.html amal kaliti yordamchilari bilan — `amalYubor` (`X-Amal-Kaliti`,
   // natija noma'lum ajratiladi), `tugmaBand`, sabab — `amalSababi` (u `xatoSababi` / `yukSessiyaKor` ni chaqiradi)
   yukla(ctx, BASE_SRC, ['xatoSababi', 'yukSessiyaKor', 'amalSababi', 'amalKalitiYangi', 'amalKaliti', 'amalKalitiTashla', 'amalYubor',
@@ -124,6 +126,9 @@ function kontekst(qo) {
   return ctx;
 }
 const BASE_SRC = oqi('base');
+// kech150 (zip 190, MOSLANDI): matndagi pul — `pulKor` (bo'linmas bo'shliq, vergul) bo'lsa shu ko'rinishda kutiladi; son o'zgarmagan
+const PUL190 = /function pulKor\(/.test(BASE_SRC);
+const pk190 = (t) => PUL190 ? t.replace(/(\d) (\d)/g, '$1\u00a0$2').replace(/(\d)\.(\d)/g, '$1,$2') : t;
 function qator(elementlar, dataset) {
   return { dataset: dataset || {}, querySelector: (s) => (Object.prototype.hasOwnProperty.call(elementlar, s) ? elementlar[s] : null),
            querySelectorAll: () => [], closest: () => null };
@@ -261,7 +266,7 @@ function qator(elementlar, dataset) {
             jsn({ up: e['p-up'].value, yoq }));
     tekshir('F7 hisob: 1 birlik narxi 1 516.67, jami 1 516.67 × 6 = 9 100.02 (orders.html bilan AYNAN)',
             c.perUnitPrice === 1516.67 && c.price === 9100.02, jsn({ pu: c.perUnitPrice, p: c.price }));
-    tekshir('F8 xulosa oynasi "1 dona narxi: 1 516.67"', String(e['p-calc'].innerHTML).indexOf('1 516.67 so\'m') >= 0,
+    tekshir('F8 xulosa oynasi "1 dona narxi: 1 516.67"', String(e['p-calc'].innerHTML).indexOf(pk190('1 516.67 so\'m')) >= 0,
             String(e['p-calc'].innerHTML).slice(0, 200));
     const e2 = donaEl(true);
     const k2 = finKontekst(e2, { PENOS: [{ id: 9, name: 'P', vol: 1, price: 500000 }] });
@@ -341,7 +346,7 @@ function qator(elementlar, dataset) {
     tekshir('P1 bitta qator 7 × 1 000,07: "To\'liq to\'lash" → "7000.49" (asl: "7000")', e['ap-paid-now'].value === '7000.49',
             jsn({ v: e['ap-paid-now'].value, yoq }));
     tekshir('P2 oyna: "✓ To\'liq to\'landi", Jami "7 000.49"', e['ap-debt-hint'].innerHTML.indexOf("To'liq to'landi") >= 0
-            && e['ap-total'].textContent.indexOf('7 000.49') >= 0, jsn([e['ap-debt-hint'].innerHTML, e['ap-total'].textContent]));
+            && e['ap-total'].textContent.indexOf(pk190('7 000.49')) >= 0, jsn([e['ap-debt-hint'].innerHTML, e['ap-total'].textContent]));
   } catch (x) { tekshir('P1 apFillFullPaid ishga tushdi', false, x.message); }
   try {
     const { ctx, e, tanalar } = supKontekst();
@@ -376,7 +381,7 @@ function qator(elementlar, dataset) {
     e['ap-qty'].value = '1.5'; e['ap-price'].value = '0,03';
     ctx.apFillFullPaid();
     tekshir('P14 savat 0.05 + joriy 1.5 × 0,03 (0.05): "To\'liq to\'lash" → "0.1"', e['ap-paid-now'].value === '0.1', e['ap-paid-now'].value);
-    tekshir('P16 joriy qator "Jami: 0.05" (server qoidasi; xom 0.045 → "0.04" ko\'rinardi)', e['ap-total'].textContent === "Jami: 0.05 so'm",
+    tekshir('P16 joriy qator "Jami: 0.05" (server qoidasi; xom 0.045 → "0.04" ko\'rinardi)', e['ap-total'].textContent === pk190("Jami: 0.05 so'm"),
             e['ap-total'].textContent);
     await ctx.saveAddPurchase();
     tekshir('P15 saqlash: har qatorga 0.05 (joriy qator ham server qoidasi bilan)', jsn(tanalar.map(t => t.paid_now)) === jsn([0.05, 0.05]),
@@ -460,7 +465,7 @@ function qator(elementlar, dataset) {
     e['ap-cost-transport'].value = '20 000';
     ctx.updateSummary();
     tekshir('R1 100 000 + transport 20 000, to\'lovsiz: "Qarzga qoladi" 100 000 (asl: 120 000), "Umumiy summa" 120 000',
-            e['sum-debt'].textContent === "100 000 so'm" && e['sum-grand'].textContent === "120 000 so'm",
+            e['sum-debt'].textContent === pk190("100 000 so'm") && e['sum-grand'].textContent === pk190("120 000 so'm"),
             jsn({ d: e['sum-debt'].textContent, g: e['sum-grand'].textContent, yoq }));
     ctx.apPayFull();
     tekshir('R2 "To\'liq to\'lash" → "100 000" (asl: "120 000" — transport ta\'minotchiga to\'lanardi)',
@@ -474,7 +479,7 @@ function qator(elementlar, dataset) {
             e['ap-paid-now'].value);
     await ctx.submitReceive();
     tekshir('R5 yuborilgan paid_now 7 000.49', tanalar.length === 1 && tanalar[0].paid_now === 7000.49, jsn(tanalar.map(t => t.paid_now)));
-    tekshir('R6 xabar: "To\'landi: 7 000.49", qarz YO\'Q', xabar.some(m => m.indexOf("To'landi: 7 000.49") >= 0 && m.indexOf('Qarz') < 0),
+    tekshir('R6 xabar: "To\'landi: 7 000.49", qarz YO\'Q', xabar.some(m => m.indexOf(pk190("To'landi: 7 000.49")) >= 0 && m.indexOf('Qarz') < 0),
             jsn(xabar));
   } catch (x) { tekshir('R4–R6 submitReceive (tiyin) ishga tushdi', false, x.message); }
   try {
@@ -484,7 +489,7 @@ function qator(elementlar, dataset) {
     tekshir('R7 50 000 to\'lov, transport 20 000: yuborilgan paid_now 50 000, transport_cost 20 000',
             tanalar.length === 1 && tanalar[0].paid_now === 50000 && tanalar[0].transport_cost === 20000, jsn(tanalar));
     tekshir('R8 xabar: "Qarz: 50 000" (asl: 70 000 — transport qarzga qo\'shilardi)',
-            xabar.some(m => m.indexOf('Qarz: 50 000') >= 0), jsn(xabar));
+            xabar.some(m => m.indexOf(pk190('Qarz: 50 000')) >= 0), jsn(xabar));
   } catch (x) { tekshir('R7–R8 submitReceive (qisman) ishga tushdi', false, x.message); }
   try {
     const { ctx, e, tanalar, xabar } = rcvKontekst([]);
@@ -507,7 +512,7 @@ function qator(elementlar, dataset) {
     await ctx.submitReceive();
     tekshir('R10 yuborishdagi joriy qator ham server qoidasi (2.5 × 0,03 → 0.08; to\'lov 0.13, xabar "To\'landi: 0.13", qarz yo\'q)',
             tanalar.length === 1 && tanalar[0].items.length === 2 && tanalar[0].paid_now === 0.13
-            && xabar.some(m => m.indexOf("To'landi: 0.13 so'm") >= 0 && m.indexOf('Qarz') < 0), jsn({ tanalar, xabar }));
+            && xabar.some(m => m.indexOf(pk190("To'landi: 0.13 so'm")) >= 0 && m.indexOf('Qarz') < 0), jsn({ tanalar, xabar }));
   } catch (x) { tekshir('R9–R10 kasrli miqdor ishga tushdi', false, x.message); }
 
   console.log('\n' + '='.repeat(66));
