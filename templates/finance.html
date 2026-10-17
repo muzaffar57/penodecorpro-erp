@@ -894,7 +894,7 @@ async function saveCashTx(){
   const amount = raw * cfg.sign;  // usta_kpi/ehson -> manfiy, boshlangich -> musbat
   const notes = document.getElementById('cashtx-notes').value || null;
   // kech120 (G3-15): saqlashdan oldin tasdiq; boshlang'ich balans avval kiritilgan bo'lsa — ogohlantirish
-  let savol = `Kassaga ${cfg.sign > 0 ? '+' : '−'}${narxKorinishi(raw)} so'm yozilsinmi?\n(${cfg.title.replace(/^[+−]\s*/, '')})`;
+  let savol = `Kassaga ${cfg.sign > 0 ? '+' : '−'}${pulKor(raw)} so'm yozilsinmi?\n(${cfg.title.replace(/^[+−]\s*/, '')})`;
   if (currentCashTxCategory === 'boshlangich' && boshlangichKiritilgan === true) {
     savol += "\n\n⚠️ Boshlang'ich balans AVVAL kiritilgan — yana kiritsangiz, ikkalasi qo'shiladi. Xato bo'lsa, eskisini «Kassa qo'lda kiritilgan tarix» ro'yxatidan o'chiring.";
   }

@@ -485,7 +485,7 @@ input[type=number]{-moz-appearance:textfield}
                 <div style="flex:1;height:3px;background:var(--f-f0f0f0);border-radius:2px;overflow:hidden">
                   <div style="height:100%;width:{{ dpct }}%;background:#1D4ED8;border-radius:2px"></div>
                 </div>
-                <span style="font-size:12px;color:var(--m-1d4ed8);font-weight:600">📦 {{ dpct }}%</span>
+                <span style="font-size:12px;color:var(--m-1d4ed8);font-weight:600">📦 {{ dpct|son(1) }}%</span>
               </div>
               {% elif dpct >= 100 %}
               <div style="margin-top:5px;font-size:12px;color:var(--m-1d4ed8);font-weight:600">📦 To'liq topshirildi</div>
@@ -1619,9 +1619,12 @@ function updatePenoWarn(row) {
 // kech120 (zip 133 — G5-07): umumiy qoida (`birlikQisqa`, base.html) — ilgari qop / kg / litr ham «ta» edi
 function fpUnitLabel(u) { return (typeof birlikQisqa === 'function') ? birlikQisqa(u) : (u === 'metr' ? 'm' : (u === 'kvadrat' ? 'm²' : (u || 'dona'))); }
 
+// kech150 (zip 190, O'LCHANGAN `work/k190/olchov190.py`): ming ajratgich — BO'LINMAS bo'shliq (`sonKor` / `|son` bilan bir qoida). Ilgari
+// oddiy bo'shliq edi — 320 px da «Mijozning joriy qarzi: 246 873 | 519 so'm», «Standartdan ortiq: +1 229 667 | 840 so'm» ikki qatorga
+// bo'linardi. Son o'zi o'zgarmadi (butun so'm, bo'sh / son emas — «0»); o'qiydigan joylar (`parseNum`, `\s`) bo'linmas bo'shliqni oladi.
 function formatNum(num) {
   if (!num || isNaN(num)) return '0';
-  return Math.round(num).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return Math.round(num).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0');
 }
 // ── 118-band (kech94): YAGONA son / narx kiritish qoidasi ──────────────────
 // parseNum / narxMatni / narxniOqi / narxKorinishi / formatPriceInput matni debts, finance,
@@ -2409,14 +2412,14 @@ async function loadDeliveries(orderId) {
 
     // Progress
     const pct = d.delivery_percent || 0;
-    document.getElementById('dlv-pct-text').textContent = pct + '%';
+    document.getElementById('dlv-pct-text').textContent = foizKor(pct, 1);
     document.getElementById('dlv-pct-bar').style.width = pct + '%';
 
     const badge = document.getElementById('dlv-pct-badge');
     if (d.is_fully_delivered) {
       badge.innerHTML = '<span style="background:var(--f-dcfce7);color:var(--m-1e7e34);padding:3px 10px;border-radius:12px">✅ To\'liq topshirildi</span>';
     } else if (pct > 0) {
-      badge.innerHTML = `<span style="background:var(--f-fef3c7);color:var(--m-92400e);padding:3px 10px;border-radius:12px">🟡 ${pct}%</span>`;
+      badge.innerHTML = `<span style="background:var(--f-fef3c7);color:var(--m-92400e);padding:3px 10px;border-radius:12px">🟡 ${foizKor(pct, 1)}</span>`;
     } else {
       badge.innerHTML = '<span style="background:var(--f-f5f5f5);color:var(--text3);padding:3px 10px;border-radius:12px">Topshirilmagan</span>';
     }
@@ -2976,7 +2979,7 @@ async function saveDelivery() {
         showMsg('✅ Buyurtma to\'liq topshirildi! Yuk xati tayyor.', 'success');
         setTimeout(()=>location.reload(), 2500);
       } else {
-        showMsg(`✓ ${r.delivery_number} saqlandi · Bajarilish: ${r.delivery_percent}%`, 'success');
+        showMsg(`✓ ${r.delivery_number} saqlandi · Bajarilish: ${foizKor(r.delivery_percent, 1)}`, 'success');
       }
     } else if (res.status >= 500) {
       // kech144 (zip 173, audit P1-5): javob yo'qolgan bo'lishi mumkin — yuk xati saqlangan bo'lishi mumkin: ro'yxat yangilanadi
@@ -3287,7 +3290,7 @@ async function loadPayments(orderId) {
     // ortiqcha to'lov / kamaytirilgan kelishilgan summada YO'Q, qaytarilgandan keyin ham qolardi (O'LCHANDI, probe131).
     const ortiqcha131 = Number(order.ortiqcha_tolov) || 0;
     if (ortiqcha131 > 0) {
-      badgeHtml += `<div style="background:var(--f-fff7ed);border:1.5px solid #F97316;color:var(--m-c2410c);padding:8px 12px;border-radius:9px;font-size:13px;font-weight:700;margin-bottom:8px">↩ Mijozga ${escapeHtml(narxKorinishi(ortiqcha131))} so'm QAYTARILISHI kerak (ortiqcha to'langan) · <a href="/debts?qaytarish=${encodeURIComponent(String(order.id))}" style="color:var(--m-c2410c)">Qaytarildi deb yozish →</a></div>`;
+      badgeHtml += `<div style="background:var(--f-fff7ed);border:1.5px solid #F97316;color:var(--m-c2410c);padding:8px 12px;border-radius:9px;font-size:13px;font-weight:700;margin-bottom:8px">↩ Mijozga ${escapeHtml(pulKor(ortiqcha131))} so'm QAYTARILISHI kerak (ortiqcha to'langan) · <a href="/debts?qaytarish=${encodeURIComponent(String(order.id))}" style="color:var(--m-c2410c)">Qaytarildi deb yozish →</a></div>`;
     }
     if (st === 'paid') {
       badgeHtml += '<span style="background:var(--f-dcfce7);color:var(--m-1e7e34);padding:5px 14px;border-radius:20px;font-size:14px;font-weight:600">✅ To\'liq to\'langan — Arxivda</span>';
@@ -3452,7 +3455,7 @@ async function savePayment() {
     kechirKutilgan = Math.max(0, kechir);
     if (kechir > 0.5) {
       const ha = await showConfirmModal(
-        `⚠️ ${formatNum(amount)} so'm to'lovdan keyin qolgan ${narxKorinishi(kechir)} so'm KECHIRILADI (chegirma) — mijozdan olinmaydi, foyda hisobotidan ayiriladi.\n\nDavom etasizmi?`,
+        `⚠️ ${formatNum(amount)} so'm to'lovdan keyin qolgan ${pulKor(kechir)} so'm KECHIRILADI (chegirma) — mijozdan olinmaydi, foyda hisobotidan ayiriladi.\n\nDavom etasizmi?`,
         {danger:true, okText:'Ha, kechirish'}
       );
       if (!ha) return;
@@ -3622,7 +3625,7 @@ function _tahrirBanneriTopshirish(dd) {
   eb.style.borderColor = 'var(--ch-fde68a)';
   const foiz = Number((dd && dd.delivery_percent) || 0);
   t.innerHTML = `
-    <div style="font-size:13px;font-weight:600;color:var(--m-92400e)">📦 Bu buyurtmada mahsulot topshirila boshlagan (${Number.isFinite(foiz) ? foiz : 0}%)</div>
+    <div style="font-size:13px;font-weight:600;color:var(--m-92400e)">📦 Bu buyurtmada mahsulot topshirila boshlagan (${foizKor(Number.isFinite(foiz) ? foiz : 0, 1)})</div>
     <div style="font-size:13px;color:var(--m-999977);margin-top:3px">Topshirilgan (va omborga ortiqcha qaytarilgan) miqdordan kam qilib bo'lmaydi. Yangi detal qo'shish yoki miqdorni oshirish mumkin.</div>`;
   t.style.display = 'block';
 }
@@ -3940,7 +3943,7 @@ function tkNatijaKorsat(t, ogoh, tahrir) {
   if (!o) return;
   _tkEl('tkNatijaSarlavha').textContent = `Taklif ${t.raqam} ${tahrir ? 'yangilandi' : 'saqlandi'}`;
   _tkEl('tkNatijaMatn').innerHTML = `Mijoz: <b>${escapeHtml(t.mijoz)}</b>${t.telefon ? ' · ' + escapeHtml(t.telefon) : ''}<br>`
-    + `To'lov summasi: <b>${narxKorinishi(t.kelishilgan)} so'm</b> · narxlar <b>${escapeHtml(tkSana(t.amal_muddati))}</b> gacha amal qiladi`;
+    + `To'lov summasi: <b>${pulKor(t.kelishilgan)} so'm</b> · narxlar <b>${escapeHtml(tkSana(t.amal_muddati))}</b> gacha amal qiladi`;
   const og = _tkEl('tkNatijaOgoh');
   if (ogoh && ogoh.length) {
     og.innerHTML = `<div style="font-size:13px;font-weight:700;color:var(--m-b45309);margin-bottom:6px">⚠️ Omborda yetmaydi (buyurtma rasmiylashtirilganda kerak bo'ladi):</div>`
@@ -4081,7 +4084,7 @@ function takliflarChiz(d) {
       } else if (t.holat === 'bekor') {
         muddat = `Bekor qilindi: ${escapeHtml(tkSanaVaqt(t.bekor_vaqti))}${t.bekor_qilgan ? ' · ' + escapeHtml(t.bekor_qilgan) : ''}`;
       }
-      const chegirma = Math.abs(Number(t.jami) - Number(t.kelishilgan)) > 0.005 ? `<div class="tk-meta">jami ${narxKorinishi(t.jami)}</div>` : '';
+      const chegirma = Math.abs(Number(t.jami) - Number(t.kelishilgan)) > 0.005 ? `<div class="tk-meta">jami ${pulKor(t.jami)}</div>` : '';
       let amallar = `<a class="btn btn-outline btn-sm" href="/api/takliflar/${id}/pdf" target="_blank" rel="noopener">📄 PDF</a>`;
       if (t.holat === 'yangi' && yarat) {
         amallar += `<button type="button" class="btn btn-green btn-sm" onclick="taklifRasmiy(${id})">✅ Rasmiylashtirish</button>`
@@ -4099,7 +4102,7 @@ function takliflarChiz(d) {
           ${t.izoh ? `<div class="tk-meta">📝 ${escapeHtml(t.izoh)}</div>` : ''}
           <div class="tk-meta">${muddat}</div>
         </div>
-        <div class="tk-summa">${narxKorinishi(t.kelishilgan)} so'm${chegirma}</div>
+        <div class="tk-summa">${pulKor(t.kelishilgan)} so'm${chegirma}</div>
         <div class="tk-amallar">${amallar}</div>
       </div>`;
     }).join('');
@@ -5681,7 +5684,7 @@ function reapplyDiscount() {
     } else {
       matn = `🔄 Ustama <b>+${sonKor((p0 - editJami0) / editJami0 * 100, 2)}%</b> saqlandi — kelishilgan summa avtomatik qayta hisoblandi.`;
     }
-    if (editKech > 0.005) matn += ` Kechirilgan qarz <b>${narxKorinishi(editKech)} so'm</b> ayirildi.`;
+    if (editKech > 0.005) matn += ` Kechirilgan qarz <b>${pulKor(editKech)} so'm</b> ayirildi.`;
     hint.style.display = 'block';
     hint.innerHTML = matn + " Kerak bo'lsa qo'lda o'zgartiring.";
   }
@@ -6601,7 +6604,7 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
         _eslatma110.push(`💡 Bu buyurtmada <b>+${sonKor((_p0110 - editJami0) / editJami0 * 100, 2)}%</b> ustama bor. Detallar o'zgarsa — kelishilgan summa shu foiz bo'yicha avtomatik qayta hisoblanadi.`);
       }
       if (editKech > 0.005) {
-        _eslatma110.push(`💡 To'lovda kechirilgan qarz: <b>${narxKorinishi(editKech)} so'm</b> — detallar o'zgarsa ham so'mda saqlanadi.`);
+        _eslatma110.push(`💡 To'lovda kechirilgan qarz: <b>${pulKor(editKech)} so'm</b> — detallar o'zgarsa ham so'mda saqlanadi.`);
       }
       if (_eslatma110.length) {
         const hint = document.getElementById('discount-auto-hint');
@@ -6966,9 +6969,9 @@ async function updateOrder(orderId) {
         if (Math.abs(pc.new_total - pc.old_total) > 1) {
           html += `<br><br>💵 Jami: ${formatNum(pc.old_total)} → <b>${formatNum(pc.new_total)} so'm</b>`;
           if (pc.new_discount_pct > 0) {
-            html += `<br>📉 Chegirma: <b>${sonKor(pc.new_discount_pct, 2)}%</b> → Kelishilgan: <b>${narxKorinishi(result.agreed_amount)} so'm</b>`;
+            html += `<br>📉 Chegirma: <b>${sonKor(pc.new_discount_pct, 2)}%</b> → Kelishilgan: <b>${pulKor(result.agreed_amount)} so'm</b>`;
           } else if (Math.abs(Number(result.agreed_amount) - Number(pc.new_total)) > 0.005) {
-            html += `<br>🤝 Kelishilgan: <b>${narxKorinishi(result.agreed_amount)} so'm</b>`;
+            html += `<br>🤝 Kelishilgan: <b>${pulKor(result.agreed_amount)} so'm</b>`;
           }
         }
       }
@@ -6976,7 +6979,7 @@ async function updateOrder(orderId) {
         html += `<br><br>🧱 Loy rejasi: ${result.loy_changed.old} kg → ${result.loy_changed.new} kg`;
       }
       if (result.delivery_percent !== undefined && result.delivery_percent > 0) {
-        html += `<br><br>📦 Topshirish: <b>${result.delivery_percent}%</b>`;
+        html += `<br><br>📦 Topshirish: <b>${foizKor(result.delivery_percent, 1)}</b>`;
       }
       if (result.debt_amount > 0) {
         html += `<br><br>💰 Qarz: ${formatNum(result.debt_amount)} so'm`;
@@ -7419,7 +7422,7 @@ async function deleteSelected() {
         const qatorlar = [];
         if (o.status === 'ready') qatorlar.push('⚠️ Buyurtma TAYYOR deb belgilangan.');
         else if (o.status === 'delivered') qatorlar.push('⚠️ Buyurtma to\'liq YETKAZILGAN — mahsulot mijozda («Tayyor» deb belgilanmagan).');
-        else if (oc.yuk_bor) qatorlar.push(`📦 Mahsulot qisman topshirilgan (${o.delivery_percent || 0}%).`);
+        else if (oc.yuk_bor) qatorlar.push(`📦 Mahsulot qisman topshirilgan (${foizKor(o.delivery_percent || 0, 1)}).`);
         if (!oc.xomashyo_qaytadi) qatorlar.push('   Xomashyo omborga QAYTARILMAYDI!');
         else if (oc.qisman && oc.yuk_bor) qatorlar.push(`   ♻️ Faqat QOLGAN (${(100-(o.delivery_percent||0)).toFixed(0)}%) qism uchun xomashyo omborga qaytadi — topshirilgan qism (mijozda) tegilmaydi.`);
         else if (oc.qisman) qatorlar.push('   ♻️ Faqat QOLGAN qism uchun xomashyo omborga qaytadi — omborga qaytarilgan (ortiqcha) qism tayyor mahsulotlar omborida qoladi.');
