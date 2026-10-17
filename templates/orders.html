@@ -1784,11 +1784,17 @@ function searchFinished(input) {
   if (q.length < 2) { box.style.display = 'none'; return; }
 
   fpSearchTimer = setTimeout(async () => {
+    // kech152 (zip 194, O'LCHANGAN probe V4): ikki so'rov teskari kelsa ESKI («ka» — keng) javob yangisini («karniz») bosardi, maydon
+    // tozalangandan keyin ham tavsiya ochilardi. Endi oxirgi so'rov, maydon hali SHU matnda va mahsulot tanlanmagan bo'lsa chiziladi.
+    const joriy = yukNavbat('fpTavsiya');
+    const amalda = () => joriy() && input.value.trim() === q && !row.dataset.fpId;
     try {
       let url = `/api/finished/search?q=${encodeURIComponent(q)}`;
       const res = await fetch(url);
+      if (!amalda()) return;
       if (!res.ok) return;
       const d = await res.json();
+      if (!amalda()) return;
       const items = d.items || [];
 
       if (!items.length) { box.style.display = 'none'; return; }
@@ -2171,21 +2177,27 @@ function selectOrder(id, el) {
   // kech119 (C — telefon, G2-21): bitta ustunda — xulosa va amallarga suriladi
   if (typeof tanlanganXulosagaSur === 'function') tanlanganXulosagaSur();   // yordamchisiz ajratib olinsa ham ishlasin
 
-  // Ombor ogohlantirishlari
-  fetch('/api/warnings/low-stock').then(r=>r.json()).then(d=>{
+  // Ombor ogohlantirishlari — kech152 (zip 194, O'LCHANGAN probe V3): javob tekshirilmasdi (`r.ok`), miqdor 2 xonali edi («2 815,14 kg»;
+  // omborxonada va server xabarlarida — «2 815,138 kg»). Ro'yxat umumiy (buyurtmaga bog'liq emas): oxirgi javob chiziladi, xatoda karta
+  // yashiriladi (avvalgidek — ikkinchi darajali ogohlantirish).
+  yukBlok('kamQoldiq', '/api/warnings/low-stock', d => {
     const ac = document.getElementById('alertCard');
     const ab = document.getElementById('alertBody');
-    if (d.warnings && d.warnings.length) {
+    if (!ac || !ab) return;
+    if (d && d.warnings && d.warnings.length) {
       ac.style.display = 'block';
       ab.innerHTML = d.warnings.slice(0,3).map(w=>`
         <div style="display:flex;justify-content:space-between;font-size:14px;padding:5px 0;border-bottom:1px solid var(--ch-f5f5f5)">
           <span style="color:var(--m-555555)">${escapeHtml(w.item_name)}</span>
-          <span style="color:var(--m-dc2626);font-weight:500">${sonKor(parseFloat(w.stock_quantity)||0, 2)} ${escapeHtml(w.unit)}</span>
+          <span style="color:var(--m-dc2626);font-weight:500">${sonKor(parseFloat(w.stock_quantity)||0, 3)} ${escapeHtml(w.unit)}</span>
         </div>`).join('');
     } else {
       ac.style.display = 'none';
     }
-  }).catch(()=>{});
+  }, () => {
+    const ac = document.getElementById('alertCard');
+    if (ac) ac.style.display = 'none';
+  });
 }
 
 const ITEM_TYPE_ICON = {profil: 'ti-ruler-2', panel: 'ti-square', dona: 'ti-box', blok: 'ti-cube'};
@@ -2637,7 +2649,11 @@ function openDeliveryModal() {
   if (debtEl) {
     debtEl.textContent = 'Yuklanmoqda...';
     debtEl.style.color = 'var(--m-696d78)';
+    // kech152 (zip 194, O'LCHANGAN probe V12): A oynasi yopilib, B oynasi ochilgach A ning javobi kelsa — B oynasida A ning qarzi
+    // («707 777 so'm», B — 120 000) ko'rinardi. Endi faqat SHU buyurtmaning oxirgi so'rovi yoziladi.
+    const qarzJoriy = tanlovJoriy('dlvQarz', selectedOrderId);
     fetch(`/api/orders/${selectedOrderId}`).then(r => r.ok ? r.json() : null).then(o => {
+      if (!qarzJoriy()) return;
       if (!o) { debtEl.textContent = ''; return; }
       const debt = o.debt_amount || 0;
       if (debt > 0) {
@@ -2647,7 +2663,7 @@ function openDeliveryModal() {
         debtEl.textContent = '✓ Qarzi yo\'q (to\'liq to\'langan)';
         debtEl.style.color = 'var(--m-15803d)';
       }
-    }).catch(() => { debtEl.textContent = ''; });
+    }).catch(() => { if (qarzJoriy()) debtEl.textContent = ''; });
   }
 
   document.getElementById('dlvForm').innerHTML = dlvData.items.map(it => {
@@ -2754,13 +2770,17 @@ async function quickFullDelivery() {
   if (!pending.length) { showMsg('Hamma mahsulot allaqachon topshirilgan', 'success'); return; }
 
   // kech144 (zip 173, O'LCHANGAN probe V5): qarz yuklanmasa «✓ Qarzi yo'q (to'liq to'langan)» deyilardi (yolg'on 0) — endi sabab
+  // kech152 (zip 194, O'LCHANGAN probe V9): qarz yuklanguncha boshqa buyurtma tanlansa — A ning oynasi (A detali, A qarzi) B ustida
+  // ochilar, yuborish `order_id` B + A detali bilan ketib «bu detal shu buyurtmada topilmadi» deb rad etilardi. Endi oyna ochilmaydi.
+  const oid = selectedOrderId;
   let currentDebt = null, qarzXato = '';
   try {
-    const o = await yukOl(`/api/orders/${selectedOrderId}`);
+    const o = await yukOl(`/api/orders/${oid}`);
     currentDebt = Number(o.debt_amount) || 0;
   } catch (e) {
     qarzXato = yukXatoMatn('Mijoz qarzi', e);
   }
+  if (String(oid) !== String(selectedOrderId)) return;
 
   _fullDlvPending = pending;
   const summary = pending.map(i => `${escapeHtml(i.name)}: ${i.remaining} ${i.unit === 'metr' ? 'm' : 'ta'}`).join('<br>');
@@ -3069,7 +3089,11 @@ async function deleteDelivery(id) {
 // ── LOY ZAXIRASI ──────────────────────────────────────────
 let loyStockCache = null;
 
+// kech152 (zip 194, O'LCHANGAN probe V5): retsept / loy miqdori tez o'zgarsa ESKI retsept javobi yangisini bosardi («Omborda tayyor
+// loy yo'q» — tanlangan retseptda 50 kg bo'lsa ham); loy miqdori xom son edi («12.5 kg», «1234.5 kg»). Endi oxirgi so'rov chiziladi
+// (loy 0 qilinsa — kutilayotgan javob ham), miqdorlar — `sonKor(x, 3)` (sahifaning son qoidasi).
 async function checkLoyStock() {
+  const joriy = yukNavbat('loyZaxira');
   const el = document.getElementById('loy-stock-info');
   const kg = parseFloat(document.getElementById('loy_kg')?.value) || 0;
   if (!el) return;
@@ -3080,22 +3104,24 @@ async function checkLoyStock() {
   try {
     const url = recipeId ? `/api/loy-stock?recipe_id=${recipeId}` : '/api/loy-stock';
     const res = await fetch(url);
+    if (!joriy()) return;
     if (!res.ok) { el.style.display = 'none'; return; }
     const d = await res.json();
+    if (!joriy()) return;
     const stock = d.stock_kg || 0;
 
     el.style.display = 'block';
     if (stock <= 0) {
       el.style.background = 'var(--f-f5f5f5)'; el.style.color = 'var(--m-888888)';
-      el.innerHTML = `Omborda tayyor loy yo'q — ${kg} kg uchun xomashyo ayiriladi`;
+      el.innerHTML = `Omborda tayyor loy yo'q — ${sonKor(kg, 3)} kg uchun xomashyo ayiriladi`;
     } else if (stock >= kg) {
       el.style.background = 'var(--f-dcfce7)'; el.style.color = 'var(--m-1e7e34)';
-      el.innerHTML = `🟢 Omborda <b>${sonKor(stock, 1)} kg</b> tayyor loy bor — hammasi zaxiradan olinadi, xomashyo ayirilmaydi`;
+      el.innerHTML = `🟢 Omborda <b>${sonKor(stock, 3)} kg</b> tayyor loy bor — hammasi zaxiradan olinadi, xomashyo ayirilmaydi`;
     } else {
       el.style.background = 'var(--f-fef3c7)'; el.style.color = 'var(--m-92400e)';
-      el.innerHTML = `🟡 Omborda <b>${sonKor(stock, 1)} kg</b> tayyor loy bor — qolgan <b>${sonKor(kg - stock, 1)} kg</b> uchun xomashyo ayiriladi`;
+      el.innerHTML = `🟡 Omborda <b>${sonKor(stock, 3)} kg</b> tayyor loy bor — qolgan <b>${sonKor(kg - stock, 3)} kg</b> uchun xomashyo ayiriladi`;
     }
-  } catch(e) { el.style.display = 'none'; }
+  } catch(e) { if (joriy()) el.style.display = 'none'; }
 }
 
 // ── DRAFT ─────────────────────────────────────────────────
@@ -3346,9 +3372,13 @@ async function editAgreedAmount() {
     try {
       o = await yukOl(`/api/orders/${oid}`);
     } catch (e) {
+      if (String(oid) !== String(selectedOrderId)) return;
       showMsg('❌ Kelishilgan summa oynasi ochilmadi: ' + yukSabab(e), 'error');
       return;
     }
+    // kech152 (zip 194, O'LCHANGAN probe V8): yuklanguncha boshqa buyurtma tanlansa — oyna A ning summalari bilan B ustida ochilib,
+    // saqlash A ga ketardi (oynada buyurtma nomi yo'q — foydalanuvchi B ni o'zgartiryapman deb o'ylaydi). Endi oyna ochilmaydi.
+    if (String(oid) !== String(selectedOrderId)) return;
     const total = o.total_amount || 0;
     const cur = o.agreed_amount ?? total;  // kech42 K42-1
 
@@ -3702,6 +3732,8 @@ function showNewForm() {
   document.querySelectorAll('.ord-item').forEach(i => i.classList.remove('active'));
   selectedOrderId = null;
   if (document.getElementById('items').children.length === 0) addItem();
+  // kech152 (zip 194): forma qayta ochildi — yuklanayotgan tahrir (`editSelected`) eskirdi
+  if (typeof yukNavbat === 'function') yukNavbat('forma');
 }
 // kech119 (C BOSQICH — telefon, G2-21): bitta ustunli (≤ 900 px) ko'rinishda yangi forma ochiqligi — `.ord-layout.yangi-forma`
 // (o'ng panel — hisob-kitob — formadan KEYIN; tanlangan buyurtmada esa xulosa va amallar tafsilotdan OLDIN).
@@ -3729,6 +3761,8 @@ function hideNewForm() {
   const livePanel = document.getElementById('liveTotal');
   if (livePanel) livePanel.style.display = 'none';
   statPanellari(false);
+  // kech152 (zip 194): forma yopildi (boshqa buyurtma tanlandi va h.k.) — yuklanayotgan tahrir (`editSelected`) eskirdi
+  if (typeof yukNavbat === 'function') yukNavbat('forma');
 }
 
 // ══ kech126 (zip 148 — EGASI QARORLARI 07.10 «TEZ HISOB / TAKLIF», QAYTA SO'RALMAYDI) ══════════════════════════════════════
@@ -4024,7 +4058,10 @@ function takliflarFiltr(f) {
 
 function takliflarSahifa(n) { _tkSahifa = n; takliflarYukla(); }
 
+// kech152 (zip 194, O'LCHANGAN probe V6): filtr / qidiruv / sahifa tez almashtirilsa ESKI javob ro'yxatni bosardi («Bekor qilingan»
+// filtri faol, ro'yxatda — «Hammasi» javobi). Endi oxirgi so'rov chiziladi (`yukNavbat`).
 async function takliflarYukla() {
+  const joriy = yukNavbat('takliflar');
   const q = ((_tkEl('tkQidiruv') || {}).value || '').trim();
   const p = new URLSearchParams({ filtr: _tkFiltr, sahifa: String(_tkSahifa) });
   if (q) p.set('q', q);
@@ -4033,12 +4070,14 @@ async function takliflarYukla() {
     const res = await fetch('/api/takliflar?' + p.toString());
     let d = null;
     try { d = await res.json(); } catch (e) { d = null; }
+    if (!joriy()) return;
     if (!res.ok || !d) {
       if (box) box.innerHTML = `<div class="tk-bosh-holat">❌ ${escapeHtml((typeof xatoSababi === 'function') ? xatoSababi(d, "Takliflar yuklanmadi") : "Takliflar yuklanmadi")}</div>`;
       return;
     }
     takliflarChiz(d);
   } catch (e) {
+    if (!joriy()) return;
     if (box) box.innerHTML = `<div class="tk-bosh-holat">❌ Server bilan aloqa yo'q — takliflar yuklanmadi</div>`;
   }
 }
@@ -6024,14 +6063,18 @@ function showStockShortageModal(shortages, data, isDraft, zaklat, zaklatMethod) 
 // ── Tahrirlash ────────────────────────────────────────────
 async function duplicateSelected() {
   if (!selectedOrderId) return;
+  // kech152 (zip 194, O'LCHANGAN probe V10): yuklanguncha boshqa buyurtma tanlansa — A ning «Nusxa olish» oynasi B ustida ochilardi
+  const oid = selectedOrderId;
   try {
-    const res = await fetch(`/api/orders/${selectedOrderId}`);
+    const res = await fetch(`/api/orders/${oid}`);
+    if (String(oid) !== String(selectedOrderId)) return;
     if (!res.ok) {
       const err = await res.json();
       showMsg('❌ ' + ((typeof xatoSababi === 'function') ? xatoSababi(err, 'Server xatosi') : 'Server xatosi'), 'error');   // kech120 (zip 134 — G2-09)
       return;
     }
     const order = await res.json();
+    if (String(oid) !== String(selectedOrderId)) return;
     if (!order || !order.items || !order.items.length) {
       showMsg('Bu buyurtmada detal topilmadi', 'error');
       return;
@@ -6136,6 +6179,10 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
   showNewForm();
   document.getElementById('items').innerHTML = '';
   itemCount = 0;
+  // kech152 (zip 194, O'LCHANGAN probe V11): yuklanguncha boshqa buyurtma tanlansa (forma yopiladi) yoki «+ Yangi buyurtma» bosilsa —
+  // yashirin forma A bilan to'ldirilar (`currentEditOrderId` = A), «✏️ A tahrirlash rejimida» B ekranida chiqardi. Endi har kutishdan
+  // keyin forma hali SHU tahrirnikimi tekshiriladi (`showNewForm` / `hideNewForm` navbatni oshiradi).
+  const formaJoriy = yukNavbat('forma');
 
   try {
     let order;
@@ -6149,10 +6196,12 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
       try {
         order = await yukOl(`/api/orders/${editId}`);
       } catch (e) {
+        if (!formaJoriy()) return;
         hideNewForm();
         showMsg('❌ Buyurtma ochilmadi: ' + yukSabab(e), 'error');
         return;
       }
+      if (!formaJoriy()) return;
     }
     if (!order || !order.id) {
       showMsg('Buyurtma ma\'lumotlari topilmadi', 'error');
@@ -6179,6 +6228,7 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
           });
         }
       } catch (e) {}
+      if (!formaJoriy()) return;
     }
 
     // "Nusxa olish" tanlov oynasida belgilab qo'yilgan bo'lsa — faqat
@@ -6238,12 +6288,14 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
         try {
           await mrpTurlariniOl();
         } catch (e) {
+          if (!formaJoriy()) return;
           editMode = false;
           currentEditOrderId = null;
           hideNewForm();
           showMsg('❌ Buyurtma ochilmadi: ' + yukXatoMatn('MRP mahsulot turlari', e).replace(/^⚠️ /, ''), 'error');
           return;
         }
+        if (!formaJoriy()) return;
       }
       itemsToUse.forEach(item => {
         addItem();
@@ -6632,12 +6684,16 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
         try {
           ld = await yukOl(`/api/orders/${editId}/planned-loy`);
         } catch (e) {
+          if (!formaJoriy()) return;
           editMode = false;
           currentEditOrderId = null;
           hideNewForm();
           showMsg('❌ Tahrirlash ochilmadi: loy rejasi yuklanmadi — ' + yukSabab(e), 'error');
           return;
         }
+        // forma yopilgan / qayta ochilgan: tahrir holati (`editMode`, `currentEditOrderId`) — forma «✕ Yopish» bilan yopilgandagi kabi
+        // qoladi (`showNewForm` tozalaydi); bu yerda tozalanmaydi — shu orada boshlangan YANGI tahrirniki bo'lishi mumkin
+        if (!formaJoriy()) return;
         const _reja = Number(ld && ld.planned_loy) || 0;
         if (loyEl) loyEl.value = _reja > 0 ? String(_reja) : '';
         if (typeof checkLoyStock === 'function') checkLoyStock();
@@ -7265,11 +7321,23 @@ async function submitReadyModal() {
 }
 
 // ── Foyda hisoblash ───────────────────────────────────────
+// kech152 (zip 194 — egasi tanlovi 17.10 «Buyurtmalarni tez almashtirish»; O'LCHANGAN `work/k194/probe194.py` V1): A da «Foyda
+// hisoblash» bosilib, javob kelguncha B tanlansa — B ning xulosasiga A ning «Sotuv narxi / Tan narxi / Foyda» si yozilar va A ning
+// «Foyda tahlili» oynasi B ustida ochilardi; 500 / 401 — jim, internet uzilsa — ushlanmagan xato. Endi javob faqat SHU buyurtma hali
+// tanlangan bo'lsa chiziladi (`tanlovJoriy`), xato — sabab bilan (401 — «kirish muddati tugagan» + sahifa boshidagi havola).
 async function loadProfit() {
   if (!selectedOrderId) return;
-  const res = await fetch(`/api/orders/${selectedOrderId}/profit`);
-  if (!res.ok) return;
-  const d = await res.json();
+  const oid = selectedOrderId;
+  const joriy = tanlovJoriy('foyda', oid);
+  let d;
+  try {
+    d = await yukOl(`/api/orders/${oid}/profit`);
+  } catch (e) {
+    if (!joriy()) return;
+    showMsg('❌ Foyda hisoblanmadi: ' + yukSabab(e), 'error');
+    return;
+  }
+  if (!joriy()) return;
 
   // Asosiy ko'rsatkichlar
   const pR = document.getElementById('profitRow');
@@ -7391,19 +7459,25 @@ async function deleteSelected() {
   // so'rov HECH QACHON chiqmasdi (O'LCHANDI — `tools/test_tayyor_yuk.py` F11, `tools/test_ochirish_loy.py`).
   let loyReja = null;
   if (deleteSelected.band) return;
+  // kech152 (zip 194 — O'LCHANGAN `work/k194/probe194.py` V7): A da «O'chirish» bosilib, ma'lumot yuklanguncha B tanlansa — tasdiq oynasi
+  // A niki («ORD-001-1 o'chirilsinmi? … 70 000 so'm to'lov ham … o'chadi»), «O'chirish» esa `selectedOrderId` ni — B ni O'CHIRARDI.
+  // Endi hammasi boshlangan buyurtma (`oid`) bilan; shu orada boshqa buyurtma tanlansa — tasdiq oynasi ochilmaydi, hech narsa o'chmaydi.
+  const oid = selectedOrderId;
   // kech144 (zip 173, O'LCHANGAN probe V3): ma'lumot yuklanmasa tasdiq faqat «5 o'chirilsinmi?» edi — to'lov ham o'chishi, loy
   // so'rovi va yakunlash haqida OGOHLANTIRISHSIZ o'chirilardi. Endi yuklanmasa o'chirilmaydi (sabab bilan).
   let _o173;
   try {
-    _o173 = await yukOl(`/api/orders/${selectedOrderId}`);
+    _o173 = await yukOl(`/api/orders/${oid}`);
   } catch (e) {
+    if (String(oid) !== String(selectedOrderId)) return;
     showMsg("❌ Buyurtma o'chirilmadi: ma'lumoti yuklanmadi — " + yukSabab(e), 'error');
     return;
   }
+  if (String(oid) !== String(selectedOrderId)) return;   // shu orada boshqa buyurtma tanlandi — o'chirilmaydi
   try {
     {
       const o = _o173;
-      orderNum = o.order_number || selectedOrderId;
+      orderNum = o.order_number || oid;
 
       // kech75 (93 / 94-band): matn SERVER rejasidan (`ochirish` — `api_delete_order` bilan yagona
       // manba). Ilgari delivered / qisman topshirilgan uchun "hisobotlarda saqlanib qoladi" derdi
@@ -7493,9 +7567,10 @@ async function deleteSelected() {
     }
   }
 
+  if (String(oid) !== String(selectedOrderId)) return;   // kech152 (zip 194): tasdiq paytida tanlov o'zgargan bo'lsa — o'chirilmaydi
   deleteSelected.band = true;
   try {
-    const res = await fetch(`/api/orders/${selectedOrderId}${actualLoyParam}`, { method:'DELETE' });
+    const res = await fetch(`/api/orders/${oid}${actualLoyParam}`, { method:'DELETE' });
     if (!res.ok) {
       // kech144 (zip 173): sabab — `amalSababi` (JSON emas / 401 ham); 5xx — javob yo'qolgan bo'lishi mumkin: natija noma'lum
       if (res.status >= 500) showMsg("❌ Natija noma'lum — server javob bermadi. Sahifani yangilab buyurtma o'chganini tekshiring", 'error');
@@ -7538,11 +7613,25 @@ async function deleteSelected() {
 
 // ── Qidiruv ───────────────────────────────────────────────
 // ── "📌 Pin qilingan" (2026-09-13) ─────────────────────────
+// kech152 (zip 194, O'LCHANGAN probe V2c / V2d): ikki tez almashtirishdan keyin ESKI ro'yxat javobi kech kelsa yangisini bosardi (D pin
+// qilingan, bo'lim yashirin); xato (401 / 500) — bo'lim jimgina yashirinardi (pin qilinganlar «yo'qolgan» ko'rinardi). Endi oxirgi
+// so'rov chiziladi (`yukNavbat`), xato — bo'limda sabab bilan.
 async function loadPinnedOrders() {
+  const joriy = yukNavbat('pinlar');
+  let rows;
   try {
-    const rows = await fetch('/api/orders/pinned').then(r => r.json());
-    renderPinnedOrders(rows);
-  } catch(e) {}
+    rows = await yukOl('/api/orders/pinned');
+  } catch (e) {
+    if (!joriy()) return;
+    const section = document.getElementById('pinnedOrdersSection');
+    const countEl = document.getElementById('pinnedCount');
+    if (section) section.style.display = 'block';
+    if (countEl) countEl.textContent = '?';
+    yukRoyxatXato('pinnedOrdersList', yukXatoMatn('Ustuvor buyurtmalar', e));
+    return;
+  }
+  if (!joriy()) return;
+  renderPinnedOrders(Array.isArray(rows) ? rows : []);
 }
 
 function renderPinnedOrders(rows) {
@@ -7582,11 +7671,31 @@ function renderPinnedOrders(rows) {
   }).join('');
 }
 
+// kech152 (zip 194, O'LCHANGAN probe V2 / V2b): tugmani ikki marta tez bosish — ikki so'rov (server har birida almashtiradi: pin,
+// keyin pindan olish — natija bosilmaganday); xato (500 / internet) — jim. Endi shu buyurtma uchun so'rov ketayotganda keyingi bosish
+// e'tiborsiz, xato — sabab bilan; natija noma'lum bo'lsa (internet / 5xx) «Ustuvor buyurtmalar» ro'yxati serverdan qayta o'qiladi.
 async function toggleOrderPin(id, btnEl) {
+  const band = toggleOrderPin.band || (toggleOrderPin.band = {});
+  const k = String(id);
+  if (band[k]) return;
+  band[k] = true;
   try {
-    const res = await fetch(`/api/orders/${id}/pin`, { method: 'POST' });
-    if (!res.ok) return;
-    const r = await res.json();
+    let res;
+    try {
+      res = await fetch(`/api/orders/${id}/pin`, { method: 'POST' });
+    } catch (e) {
+      showMsg("❌ Pin o'zgarmadi: " + await amalSababi(e), 'error');
+      loadPinnedOrders();
+      return;
+    }
+    if (!res.ok) {
+      showMsg("❌ Pin o'zgarmadi: " + await amalSababi(res), 'error');
+      if (res.status >= 500) loadPinnedOrders();
+      return;
+    }
+    let r = null;
+    try { r = await res.json(); } catch (e) { r = null; }
+    if (!r) { loadPinnedOrders(); return; }
     document.querySelectorAll(`.ord-item[data-order-id="${id}"] .pin-toggle-btn`).forEach(b => {
       b.style.opacity = r.is_pinned ? '1' : '0.28';
       b.title = r.is_pinned ? 'Pindan olish' : 'Pin qilish';
@@ -7594,7 +7703,9 @@ async function toggleOrderPin(id, btnEl) {
     document.querySelectorAll(`.ord-item[data-order-id="${id}"]`).forEach(el => el.dataset.pinned = r.is_pinned ? 'true' : 'false');
     if (String(selectedOrderId) === String(id)) updatePinButtonUI(r.is_pinned);
     loadPinnedOrders();
-  } catch(e) {}
+  } finally {
+    delete band[k];
+  }
 }
 
 function updatePinButtonUI(isPinned) {
