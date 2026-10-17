@@ -80,8 +80,9 @@ def _tannarx_sigimi_xatosi(total_cost, quantity):
     dan kengroq, shuning uchun alohida tekshirilmaydi (jamidan katta emas)."""
     t = float(total_cost or 0)
     if not math.isfinite(t) or round(t, 2) > _TANNARX_MAX:
-        return (f"Ishlab chiqarish tannarxi juda katta ({t:,.2f} so'm) — tizim "
-                f"sig'imidan ({_TANNARX_MAX:,.2f} so'm) oshadi. Miqdorni kamaytiring "
+        import services as _sv192                  # kech151 (zip 192): ilgari «(12,345,678,901.23 so'm)»
+        return (f"Ishlab chiqarish tannarxi juda katta ({_sv192.son_korinish(t, 2)} so'm) — tizim "
+                f"sig'imidan ({_sv192.son_korinish(_TANNARX_MAX, 2)} so'm) oshadi. Miqdorni kamaytiring "
                 f"yoki retseptni tekshiring.")
     q = float(quantity or 0)
     if q > 0 and round(t / q, 4) > _BIRLIK_TANNARX_MAX:
@@ -429,10 +430,8 @@ def _miqdor_matn(x) -> str:
         return str(x)
     if not math.isfinite(x):
         return str(x)
-    s = f"{abs(x):,.4f}".rstrip("0").rstrip(".")
-    butun, _, kasr = s.partition(".")
-    matn = butun.replace(",", " ") + ("," + kasr if kasr else "")
-    return ("-" + matn) if (x < 0 and matn != "0") else matn
+    import services as _sv192                      # kech151 (zip 192): ming ajratgich — bo'linmas bo'shliq (ilgari oddiy)
+    return _sv192.son_korinish(x, 4)
 
 
 # ============================================================
@@ -619,14 +618,9 @@ _PO_HOLAT_NOMI = {"draft": "qoralama", "in_progress": "jarayonda", "completed": 
 
 
 def _son110(x) -> str:
-    """Miqdor / summa jurnal matni uchun: 12.5 → "12.5", 1200000 → "1 200 000"."""
-    try:
-        x = float(x or 0)
-    except (TypeError, ValueError):
-        return str(x)
-    if abs(x - round(x)) < 1e-9:
-        return f"{int(round(x)):,}".replace(",", " ")
-    return f"{x:,.2f}".rstrip("0").rstrip(".").replace(",", " ")
+    """Miqdor / summa jurnal matni uchun: 12.5 → "12,5", 1200000 → "1 200 000" (kech151, zip 192: `crud.audit_son` — kasr VERGUL;
+    ilgari «1 234.56» — nuqtali kasr)."""
+    return crud.audit_son(x, 2)
 
 
 def _po_jurnal(db: Session, po, action: str, performed_by: str = None, new_value: str = None,
