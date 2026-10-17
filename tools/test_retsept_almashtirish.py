@@ -309,8 +309,10 @@ check("A6 detal retsepti R2, loy rejasi 30 (o'zgarmadi)", hA.get("detal_retsept"
 _j = jurnal(_r)
 check("A7 jurnal boshida almashtirish qatori (ikkala retsept nomi, 30 kg)",
       _j and "almashtirildi" in _j[0] and "RA63 R1" in _j[0] and "RA63 R2" in _j[0] and "30 kg" in _j[0], _j[:3])
-check("A8 jurnalda qaytarish va yechish qatorlari", any("Kley" in x and "+18.00" in x for x in _j)
-      and any("Qum" in x and "-30.00" in x for x in _j), _j)
+# kech152 (zip 193, MOSLANDI): ro'yxatdagi miqdor — `services.son_korinish(x, 3)` (ortiqcha nolsiz); eski kodda (zip 192) — `.2f`
+_y193 = hasattr(crud, "_miqdor_jurnal")
+check("A8 jurnalda qaytarish va yechish qatorlari", any("Kley" in x and ("+18 " if _y193 else "+18.00") in x for x in _j)
+      and any("Qum" in x and ("-30 " if _y193 else "-30.00") in x for x in _j), _j)
 _h = harakatlar(oA)
 check("A9 harakat: R1 ingredientlari 'in', sababi 'qoplama retsepti almashtirildi', order_id bilan",
       ("KLEY", "in", 18.0) in [x[:3] for x in _h] and ("AKR", "in", 12.0) in [x[:3] for x in _h]

@@ -266,8 +266,9 @@ check("C1 asosiy narx 1 000 000, qoldiq 0.5 blok, kerak 0.34 → 200 (asl: 409 \
       r.status_code == 200, (r.status_code, r.text[:200]))
 qoldiq_qoy(0.3)
 oid2, iid2, r = yarat(dona(10000, 34), base_price=1000000)
+# kech152 (zip 193, MOSLANDI): yetishmovchilik xabaridagi miqdor — kasr vergul; eski kodda (zip 192) — «0.3»
 check("C2 qoldiq 0.3 blok, kerak 0.34 → 409 ogohlantirish (haqiqiy yetishmovchilik)",
-      r.status_code == 409 and "0.3 blok" in r.text, (r.status_code, r.text[:200]))
+      r.status_code == 409 and ("0,3 blok" if hasattr(crud, "_miqdor_jurnal") else "0.3 blok") in r.text, (r.status_code, r.text[:200]))
 qoldiq_qoy(0.5)
 oid3, iid3, r = yarat(dona(10000, 34, price_per_m3=1000000))
 check("C3 o'z \"1 m³ narxi\" bilan (nazorat) → 200", r.status_code == 200, (r.status_code, r.text[:200]))
