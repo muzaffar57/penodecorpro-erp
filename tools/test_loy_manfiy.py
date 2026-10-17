@@ -239,10 +239,13 @@ check("A1 sement 10 − 20 = −10 (0 da to'xtamadi)", yaqin(qoldiq(S_ID), -10.0
       f"qoldiq={qoldiq(S_ID)}")
 check("A2 mel 1000 − 20 = 980 (yetarli material o'zgarishsiz mantiq)",
       yaqin(qoldiq(M_ID), 980.0), f"qoldiq={qoldiq(M_ID)}")
-check("A3 jurnalda 'qoldiq manfiy: -10.00 kg'", "qoldiq manfiy: -10.00 kg" in matn, matn)
+# kech152 (zip 193, MOSLANDI): ro'yxatdagi miqdor — `services.son_korinish(x, 3)` (ortiqcha nolsiz, kasr vergul); eski kodda (zip 192) — `.2f`
+_y193 = hasattr(crud, "_miqdor_jurnal")
+_q193 = (lambda yangi, eski: yangi if _y193 else eski)
+check("A3 jurnalda 'qoldiq manfiy: -10 kg'", _q193("qoldiq manfiy: -10 kg", "qoldiq manfiy: -10.00 kg") in matn, matn)
 check("A4 jurnalda 'keyingi kirimda qoplanadi'", "keyingi kirimda qoplanadi" in matn, matn)
-check("A5 yetishmovchilik miqdori 10.00 (shu ayirishning yo'q qismi)",
-      "EDI — 10.00 kg yetishmovchilik" in matn, matn)
+check("A5 yetishmovchilik miqdori 10 (shu ayirishning yo'q qismi)",
+      _q193("EDI — 10 kg yetishmovchilik", "EDI — 10.00 kg yetishmovchilik") in matn, matn)
 check("A6 eski matn ('manfiyga o'tkazilmadi') YO'Q", "manfiyga o'tkazilmadi" not in matn, matn)
 check("A7 mel uchun ogohlantirish YO'Q", "LM_MEL: omborda" not in matn, matn)
 hm = oxirgi_harakat(S_ID)
@@ -257,8 +260,9 @@ with contextlib.redirect_stdout(_quiet):
                                           recipe_id=R_ID, company_id=1)
 matn = "\n".join(log)
 check("A9 manfiydan yana: −10 − 5 = −15", yaqin(qoldiq(S_ID), -15.0), f"qoldiq={qoldiq(S_ID)}")
-check("A10 yetishmovchilik = shu ayirish (5.00), qoldiq −15.00",
-      "EDI — 5.00 kg yetishmovchilik" in matn and "qoldiq manfiy: -15.00 kg" in matn, matn)
+check("A10 yetishmovchilik = shu ayirish (5), qoldiq −15",
+      _q193("EDI — 5 kg yetishmovchilik", "EDI — 5.00 kg yetishmovchilik") in matn
+      and _q193("qoldiq manfiy: -15 kg", "qoldiq manfiy: -15.00 kg") in matn, matn)
 
 # Aynan 0 ga tushadi — ogohlantirish yo'q
 qoy(S_ID, 5.0)
@@ -341,8 +345,8 @@ with contextlib.redirect_stdout(_quiet):
 check("D1 manfiy qoldiqda yetishmovchilik aniqlanadi",
       lchk.get("enough") is False and any("LM_SEMENT" in s for s in lchk.get("shortages", [])),
       str(lchk))
-check("D2 xabarda manfiy qoldiq ko'rinadi ('qoldi -5.00')",
-      any("qoldi -5.00" in s for s in lchk.get("shortages", [])), str(lchk))
+check("D2 xabarda manfiy qoldiq ko'rinadi ('qoldi -5')",
+      any(_q193("qoldi -5 kg", "qoldi -5.00") in s for s in lchk.get("shortages", [])), str(lchk))
 
 # ══════════════════════════════════════════════════════════════
 section("E. Manfiy qoldiq bilan sahifa/API lar")

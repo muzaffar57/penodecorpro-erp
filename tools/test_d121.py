@@ -346,8 +346,10 @@ try:
         ActivityLog.entity_type == "finished_product", ActivityLog.action == "updated").all()]
 finally:
     _d.close()
-check("K4 bazada BITTA yozuv (korxona 1, 12.5, kim yozgani); jurnalda ikkala o'zgarish (— → 20 metr, 20 metr → 12.5 metr)",
-      _yoz == [(1, 12.5, "D Admin")] and (KA1, "—", "20 metr", "D Admin") in _log and (KA2, "20 metr", "12.5 metr", "D Admin") in _log,
+# kech152 (zip 193, MOSLANDI): jurnal miqdori — `crud.audit_son(x, 3)` (kasr vergul); eski kodda (zip 192) — `:g` («12.5»)
+_m193 = "12,5 metr" if hasattr(crud, "_miqdor_jurnal") else "12.5 metr"
+check("K4 bazada BITTA yozuv (korxona 1, 12.5, kim yozgani); jurnalda ikkala o'zgarish (— → 20 metr, 20 metr → 12,5 metr)",
+      _yoz == [(1, 12.5, "D Admin")] and (KA1, "—", "20 metr", "D Admin") in _log and (KA2, "20 metr", _m193, "D Admin") in _log,
       (_yoz, _log))
 for _nomi, _tana in (("matn", {"chegara": "5"}), ("manfiy", {"chegara": -1}), ("bool", {"chegara": True}),
                      ("juda katta", {"chegara": 1e12}), ("ortiqcha kalit", {"chegara": 5, "x": 1}), ("bo'sh tana", {}),
