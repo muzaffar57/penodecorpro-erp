@@ -684,7 +684,8 @@ _main_src = fayl("main.py")
 _main_kod = re.sub(r"#.*", "", _main_src)
 check("N5 server matnlari: ombor harakati «Ta'minotchi: …», «Bu ta'minotchida … qarz bor», «Ta'minotchi topilmadi», Telegram "
       "«🏪 Ta'minotchi», «Shu ta'minotchiga qarz»; moliya PDF «TA'MINOTCHIGA QARZ»",
-      'reason=f"Ta\'minotchi: {supplier_name}"' in _crud_src and "Bu ta'minotchida {debt_info" in _crud_src
+      'reason=f"Ta\'minotchi: {supplier_name}"' in _crud_src
+      and ("Bu ta'minotchida {debt_info" in _crud_src or "Bu ta'minotchida {xabar_son(debt_info" in _crud_src)   # kech151 (zip 192)
       and 'detail="Ta\'minotchi topilmadi"' in _crud_src and "🏪 Ta'minotchi: *{supplier.name}*" in _main_src
       and "Shu ta'minotchiga qarz" in _main_src and "TA'MINOTCHIGA QARZ" in fayl("finance_pdf.py")
       and "YETKAZUVCHIGA" not in fayl("finance_pdf.py"))

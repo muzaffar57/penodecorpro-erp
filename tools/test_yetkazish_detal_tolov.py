@@ -493,8 +493,12 @@ def bolim_12():
           and det.get("payments") == [{"id": pid, "amount": 50000.0}]
           and det.get("delivery_number") == raqam, det)
     m = str(det.get("message") or "")
+    # kech151 (zip 192, MOSLANDI): xabardagi summa — `crud.xabar_son` (bo'linmas bo'shliq), jurnalda — `audit_son` (oddiy bo'shliq);
+    # eski kodda — «50,000». Qobiliyat bo'yicha kutilgan ko'rinish, son o'zgarmagan.
+    _x192 = hasattr(crud, "xabar_son")
+    _s192 = ("50\u00a0000 so'm", "50 000 so'm") if _x192 else ("50,000 so'm", "50,000 so'm")
     check("12a xabar: yuk raqami, summa, ikkala tugma nomi",
-          raqam and raqam in m and "50,000 so'm" in m and "To'lovni ham o'chirish" in m
+          raqam and raqam in m and _s192[0] in m and "To'lovni ham o'chirish" in m
           and "To'lovni saqlab qolish" in m, m)
     check("12a hech narsa o'zgarmadi (yuk, to'lov, qarz, loyiha)",
           holat(O) == h0 and _yuk_bormi(did) and _tolov(pid) is not None
@@ -514,7 +518,7 @@ def bolim_12():
           (lp0, _loyiha_tolangan()))
     au = _audit(pid, "deleted")
     check("12b audit izi: to'lov o'chirilgani (summa, yuk raqami, korxona 1)",
-          len(au) == 1 and "50,000 so'm" in au[0][0] and raqam in au[0][0] and au[0][2] == 1, au)
+          len(au) == 1 and _s192[1] in au[0][0] and raqam in au[0][0] and au[0][2] == 1, au)
 
     # 12c — ?tolov=qoldir → yuk o'chadi, to'lov oddiy to'lov bo'lib qoladi
     O, i1, did, raqam = _yuk_tolov_bilan(summa=60000)
@@ -585,7 +589,7 @@ def bolim_12():
     det = det if isinstance(det, dict) else {}
     check("12g ikki to'lov → 409, ikkalasi ro'yxatda, jami 50 000, xabarda \"2 ta to'lov\"",
           r.status_code == 409 and [x.get("id") for x in det.get("payments") or []] == ids
-          and det.get("total") == 50000 and "2 ta to'lov (jami 50,000 so'm)" in str(det.get("message")),
+          and det.get("total") == 50000 and f"2 ta to'lov (jami {_s192[0]})" in str(det.get("message")),
           (r.status_code, det))
     r = req(C, "delete", f"/api/deliveries/{did}?tolov=ochir")
     check("12g ?tolov=ochir → ikkala to'lov ham o'chdi",

@@ -420,7 +420,8 @@ def bolim_b():
     check("B3 manfiy to'lov qaytarishga bog'langan, loyiha −100 000, javob naqd 100 000",
           [t[2] for t in h["manfiy"]] == [rid] and taxminan(h["loyiha"], l0 - 100_000)
           and taxminan(j.get("naqd_qaytarildi") if isinstance(j, dict) else None, 100_000)
-          and "300 000 so'mga kamaydi; mijozga 100 000 so'm naqd" in str((j or {}).get("xabar")), (h, l0, j))
+          and ("300 000 so'mga kamaydi; mijozga 100 000 so'm naqd".replace(" 000", "\u00a0000") if hasattr(crud, "xabar_son")
+               else "300 000 so'mga kamaydi; mijozga 100 000 so'm naqd") in str((j or {}).get("xabar")), (h, l0, j))   # kech151 (zip 192)
     b3 = (oid, rid)
 
     oid, iid, nom = buyurtma(tolangan=500_000)

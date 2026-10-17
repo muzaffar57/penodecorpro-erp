@@ -205,8 +205,9 @@ check("K3 oynada 50 000, aslida 70 000 qoladi → 409 `kechirish_ozgardi` (qolad
       r.status_code == 409 and isinstance(d, dict) and d.get("type") == "kechirish_ozgardi"
       and abs(float(d.get("qoladi", 0)) - 70_000) < 0.01 and abs(float(d.get("kutilgan", 0)) - 50_000) < 0.01
       and h["tolovlar"] == [] and h["kelishilgan"] == 100_000 and "[WRITEOFF:" not in h["izoh"], (r.status_code, r.text[:400], h))
+_B192 = "\u00a0" if hasattr(main.crud, "xabar_son") else " "      # kech151 (zip 192, MOSLANDI): xabar — bo'linmas bo'shliq
 check("K3b xabar oddiy gap: ikkala summa ajratgich bilan, «Hech narsa saqlanmadi»",
-      isinstance(d, dict) and "70 000" in str(d.get("message")) and "50 000" in str(d.get("message"))
+      isinstance(d, dict) and f"70{_B192}000" in str(d.get("message")) and f"50{_B192}000" in str(d.get("message"))
       and "Hech narsa saqlanmadi" in str(d.get("message")), d)
 
 r = tolov(o1, 30_000, write_off=True, kechirish="70000.3")

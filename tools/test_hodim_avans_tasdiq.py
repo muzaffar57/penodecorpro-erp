@@ -355,7 +355,8 @@ _b3 = HU.post(f"/api/hodim/avans/{AV3}/javob", json={"javob": "olmadim"})
 _a = avans_ol(AV3) or {}
 check("B3 «olmadim» — 200; adminga Telegram xabari (ism, summa, yozgan — 1-korxona chatiga); jurnalda «avans_olmadim»",
       _b3.status_code == 200 and _a.get("hodim_javobi") == "olmadim" and "ogohlantirish" not in js(_b3)
-      and len(_tg) == 1 and "Ulug'bek" in _tg[0][0] and "300 000" in _tg[0][0] and "HA admin" in _tg[0][0]
+      and len(_tg) == 1 and "Ulug'bek" in _tg[0][0] and "HA admin" in _tg[0][0]
+      and ("300\u00a0000" if hasattr(crud, "xabar_son") else "300 000") in _tg[0][0]   # kech151 (zip 192, MOSLANDI): bo'linmas bo'shliq
       and _tg[0][1] == 1 and faoliyat(EU, "avans_olmadim") == 1, (_b3.status_code, js(_b3), _tg))
 _tg.clear()
 _b4 = HU.post(f"/api/hodim/avans/{AV3}/javob", json={"javob": "olmadim"})

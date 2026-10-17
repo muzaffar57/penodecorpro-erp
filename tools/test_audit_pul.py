@@ -276,7 +276,8 @@ check("V3 oylikdan ko'p avans (qolgan 2 000 000, avans 10 000 000) — 409 `avan
       _r4.status_code == 409 and _d4.get("type") == "avans_oylikdan_ortiq" and round(_d4.get("excess", 0)) == 8_000_000
       and len(avanslar(E1)) == _n0 + 1, [_r4.status_code, _r4.text[:300], avanslar(E1)])
 check("V3b xabar — qancha ko'p va keyingi oy oyligidan ushlanishi",
-      "8 000 000" in str(_d4.get("message")) and "keyingi oy" in str(_d4.get("message")), _d4.get("message"))
+      ("8\u00a0000\u00a0000" if hasattr(crud, "xabar_son") else "8 000 000") in str(_d4.get("message"))   # kech151 (zip 192, MOSLANDI)
+      and "keyingi oy" in str(_d4.get("message")), _d4.get("message"))
 _r5 = C.post(f"/api/employees/{E1}/advance?amount=10000000&notes=katta&adv_date={HOZIR_T.isoformat()}&confirm_excess=true")
 _av5 = [a for a in avanslar(E1) if a[3] == "katta"]
 check("V4 tasdiq bilan — yozildi, `keyingi_oyga` = 8 000 000 (ortiqchasi keyingi oy hisobiga)",

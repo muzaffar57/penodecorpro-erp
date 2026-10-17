@@ -500,7 +500,8 @@ def a_bolimi():
                 saqlangan = oqi()
             if not yaxshi:
                 check(f"A {nom} {v} → 400 (sabab '0.01'), holat o'zgarmagan",
-                      r.status_code == 400 and "0.01" in matn(r) and holat() == h0,
+                      r.status_code == 400 and ("0,01" if (tayyor == "tier" and hasattr(crud, "xabar_son")) else "0.01") in matn(r)
+                      and holat() == h0,   # kech151 (zip 192, MOSLANDI): sovg'a bosqichi xabari — `xabar_son` («0,01»)
                       f"{r.status_code} {matn(r)[:160]}")
             else:
                 check(f"A {nom} {v} → 200, saqlangan {0.01 if v < 0.01 else v:.2f}",
