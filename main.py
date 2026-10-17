@@ -3767,6 +3767,14 @@ async def global_error_logger(request: Request, exc: Exception):
         pass  # Log yozishning o'zi xato bersa — asosiy oqimni to'xtatmaymiz
     if _pdf_sahifa_sorovimi(request):          # kech144 (zip 178, audit P2): PDF havolasi — o'zbekcha sahifa
         return _pdf_xato_sahifasi(request, 500)
+    # kech150 (zip 191, N4 — O'LCHANGAN `work/k191/probe191.py`): brauzer SAHIFA so'ragan (GET / HEAD, Accept: text/html, `/api/` /
+    # `/static/` emas) — o'zbekcha sahifa (holat kodi 500 saqlanadi). Ilgari xom JSON «{"detail": …}» ko'rinardi. Sahifani chizishning
+    # o'zi xato bersa — avvalgidek JSON.
+    if _html_sahifa_sorovimi(request):
+        try:
+            return _xato_sahifasi(request, 500)
+        except Exception:                  # noqa: BLE001
+            pass
     return JSONResponse(status_code=500, content={"detail": "Serverda kutilmagan xato yuz berdi"})
 
 
@@ -3900,12 +3908,19 @@ def _html_sahifa_sorovimi(request: Request) -> bool:
 def _xato_sahifasi(request: Request, kod: int, izoh: str = None):
     """kech118 (U-11): 404 / 403 uchun o'zbekcha sahifa (`templates/xato_sahifa.html` — `base.html` siz: sessiya bo'lmasa
     ham ochiladi). Hodim paneli yo'llarida «bosh sahifa» — `/hodim`. kech118 (ROLLAR): 403 — rad sababi (qaysi bo'lim /
-    amal ruxsati yo'qligi) berilsa, shu matn ko'rsatiladi."""
+    amal ruxsati yo'qligi) berilsa, shu matn ko'rsatiladi. kech150 (zip 191, N4): 500 — sahifa so'rovidagi kutilmagan xato
+    (`global_error_logger`; Python xatosi ko'rsatilmaydi)."""
     _hodim = (request.url.path or "").startswith("/hodim")
     if kod == 403:
         sarlavha, matn = ("Bu bo'limga ruxsatingiz yo'q",
                           (izoh or "").strip() or "Sizning rolingiz bu sahifani ochishga ruxsat bermaydi. "
                           "Kerak bo'lsa, korxona administratoriga murojaat qiling.")
+    elif kod >= 500:
+        # kech150 (zip 191, N4): sahifa ochilayotganda kutilmagan xato — Python xatosi KO'RSATILMAYDI (u «Tizim jurnallari → Xatoliklar»
+        # ga yozilgan)
+        sarlavha, matn = ("Sahifa ochilmadi",
+                          "Serverda kutilmagan xato yuz berdi. Sahifani yangilab ko'ring; takrorlansa — xato tizim jurnaliga yozildi, "
+                          "administratorga ayting.")
     else:
         sarlavha, matn = ("Bunday sahifa yo'q",
                           "Manzil noto'g'ri yozilgan yoki sahifa olib tashlangan.")

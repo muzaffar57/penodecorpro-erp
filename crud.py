@@ -6466,7 +6466,11 @@ def check_financial_consistency(db: Session, company_id: int = None) -> dict:
     ENUM tekshiruvidan FARQLI — bu yerda HISOB-KITOB (formula) natijalari
     solishtiriladi, ruxsat etilgan qiymatlar ro'yxati emas."""
     from datetime import datetime as _dt2
-    from models import Order, OrderItem, Payment, Inventory, InventoryPurchase
+    from models import Order, OrderItem, Inventory, InventoryPurchase   # kech150 (zip 191): `Payment` — faqat 9-tekshiruvda edi
+    # kech150 (zip 191, O'LCHANGAN `work/k191/probe191.py`): matndagi son — YAGONA qoida (`services.son_korinish`: bo'linmas bo'shliq, kasr —
+    # vergul, ortiqcha nolsiz) va birlik (`birlik_korinish`). Ilgari «3,703,701 so'm» (vergul — ming ajratgich), «-13.00 kg», «3.00».
+    import services as _sv191
+    _son = _sv191.son_korinish
 
     issues = []
 
@@ -6496,7 +6500,7 @@ def check_financial_consistency(db: Session, company_id: int = None) -> dict:
             issues.append({
                 "type": "order_total_mismatch",
                 "label": f"Buyurtma {o.order_number}",
-                "detail": f"Jami summa: {total:,.0f} so'm, lekin detallar yig'indisi: {items_sum:,.0f} so'm",
+                "detail": f"Jami summa: {_son(total, 0)} so'm, lekin detallar yig'indisi: {_son(items_sum, 0)} so'm",
                 "diff": round(diff, 2),
             })
 
@@ -6518,7 +6522,7 @@ def check_financial_consistency(db: Session, company_id: int = None) -> dict:
             issues.append({
                 "type": "debt_mismatch",
                 "label": f"Buyurtma {o.order_number}",
-                "detail": f"Yozilgan qarz: {debt:,.0f} so'm, lekin kutilgan (kelishilgan−to'langan): {expected_debt:,.0f} so'm",
+                "detail": f"Yozilgan qarz: {_son(debt, 0)} so'm, lekin kutilgan (kelishilgan−to'langan): {_son(expected_debt, 0)} so'm",
                 "diff": round(diff, 2),
             })
 
@@ -6530,7 +6534,7 @@ def check_financial_consistency(db: Session, company_id: int = None) -> dict:
         issues.append({
             "type": "negative_stock",
             "label": inv.item_name,
-            "detail": f"Ombor qoldig'i manfiy: {float(inv.stock_quantity):,.2f} {inv.unit}",
+            "detail": f"Ombor qoldig'i manfiy: {_son(float(inv.stock_quantity), 2)} {_sv191.birlik_korinish(inv.unit)}",
             "diff": abs(float(inv.stock_quantity)),
         })
 
@@ -6547,20 +6551,24 @@ def check_financial_consistency(db: Session, company_id: int = None) -> dict:
             issues.append({
                 "type": "purchase_total_mismatch",
                 "label": p.item_name,
-                "detail": f"Yozilgan summa: {actual:,.0f} so'm, lekin miqdor×narx: {expected:,.0f} so'm",
+                "detail": f"Yozilgan summa: {_son(actual, 0)} so'm, lekin miqdor×narx: {_son(expected, 0)} so'm",
                 "diff": round(diff, 2),
             })
 
     # 5) order_items notes'ida takroriy texnik belgi bormi? (masalan
     # 2026-08-17'da ORD-026-2'da topilgan [TERMO:...] ikki marta yozilish
     # holati kabi)
-    for it in _oic(db.query(OrderItem)).all():
+    # kech150 (zip 191, O'LCHANGAN — F1 / F2): faqat savatda BO'LMAGAN buyurtmalar (1, 2, 8-tekshiruvlar bilan bir qoida — o'chirilgan
+    # buyurtmani egasi ro'yxatda topa olmaydi); yorliqda buyurtma RAQAMI (ilgari ichki id «buyurtma #57»); tartib — detal id (birlashtirilgan
+    # so'rovda baza tartibi kafolatlanmaydi)
+    for it in _oic(db.query(OrderItem)).join(Order, Order.id == OrderItem.order_id).filter(
+            Order.is_deleted.is_(False)).options(_sil_fc(OrderItem.order)).order_by(OrderItem.id).all():
         notes = it.notes or ""
         for marker in ["[GISHT:"]:
             if notes.count(marker) > 1:
                 issues.append({
                     "type": "duplicate_note_marker",
-                    "label": f"{it.name} (buyurtma #{it.order_id})",
+                    "label": f"{it.name} ({it.order.order_number})",
                     "detail": f"'{marker}' belgisi {notes.count(marker)} marta takrorlangan",
                     "diff": notes.count(marker),
                 })
@@ -6568,15 +6576,17 @@ def check_financial_consistency(db: Session, company_id: int = None) -> dict:
     # 6) Yetkazib berilgan miqdor, buyurtma qilingandan ko'pmi? (turkumga
     # qarab TO'G'RI maydonni solishtiramiz — "profil" uchun "length",
     # qolganlari uchun "quantity")
-    for it in _oic(db.query(OrderItem)).options(_sil_fc(OrderItem.deliveries)).all():
+    for it in _oic(db.query(OrderItem)).join(Order, Order.id == OrderItem.order_id).filter(
+            Order.is_deleted.is_(False)).options(_sil_fc(OrderItem.deliveries), _sil_fc(OrderItem.order)).order_by(OrderItem.id).all():
         cat = (it.category or '').lower()
         ordered = float(it.length or 0) if cat == 'profil' else float(it.quantity or 0)
         delivered = sum(float(di.quantity or 0) for di in (it.deliveries or []))
         if delivered > ordered + 0.01:
+            _b191 = _sv191.birlik_korinish(it.delivery_unit)
             issues.append({
                 "type": "over_delivery",
-                "label": f"{it.name} (buyurtma #{it.order_id})",
-                "detail": f"Buyurtma qilingan: {ordered:.2f}, lekin topshirilgan: {delivered:.2f}",
+                "label": f"{it.name} ({it.order.order_number})",
+                "detail": f"Buyurtma qilingan: {_son(ordered, 2)} {_b191}, lekin topshirilgan: {_son(delivered, 2)} {_b191}",
                 "diff": round(delivered - ordered, 2),
             })
 
@@ -6595,35 +6605,10 @@ def check_financial_consistency(db: Session, company_id: int = None) -> dict:
                     "diff": 0,
                 })
 
-    # 9) Egasiz to'lovlar (mavjud bo'lmagan buyurtmaga bog'langan)
-    order_ids_set = {o.id for o in _oc(db.query(Order.id)).all()}
-    _payq = db.query(Payment)
-    if company_id is not None:      # ota (buyurtma) orqali
-        _payq = _payq.join(Order, Order.id == Payment.order_id).filter(
-            Order.company_id == company_id)
-    for p in _payq.all():
-        if p.order_id and p.order_id not in order_ids_set:
-            issues.append({
-                "type": "orphaned_payment",
-                "label": f"To'lov #{p.id}",
-                "detail": f"Mavjud bo'lmagan buyurtma (#{p.order_id})ga bog'langan — {float(p.amount or 0):,.0f} so'm",
-                "diff": float(p.amount or 0),
-            })
-
-    # 10) Egasiz yetkazishlar (mavjud bo'lmagan buyurtmaga bog'langan)
-    from models import Delivery
-    _delq = db.query(Delivery)
-    if company_id is not None:      # ota (buyurtma) orqali
-        _delq = _delq.join(Order, Order.id == Delivery.order_id).filter(
-            Order.company_id == company_id)
-    for d in _delq.all():
-        if d.order_id and d.order_id not in order_ids_set:
-            issues.append({
-                "type": "orphaned_delivery",
-                "label": f"Yetkazish #{d.id}",
-                "detail": f"Mavjud bo'lmagan buyurtma (#{d.order_id})ga bog'langan",
-                "diff": 0,
-            })
+    # kech150 (zip 191, O'LCHANGAN — F4): 9 / 10 («Egasiz to'lov / yetkazish» — mavjud bo'lmagan buyurtmaga bog'langan yozuv) OLIB
+    # TASHLANDI: sahifa bu tekshiruvni doim korxona bilan chaqiradi, to'lov / yetkazish esa korxonaga FAQAT buyurtma orqali bog'lanadi —
+    # egasiz yozuv hech qaysi korxonaga tushmaydi (tekshiruv hech qachon ishlamasdi); PostgreSQL da bunday yozuvni tashqi kalit (FK) o'zi
+    # rad etadi.
 
     return {
         "checked_at": _dt2.utcnow().isoformat(),
