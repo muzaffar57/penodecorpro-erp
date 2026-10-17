@@ -225,6 +225,10 @@ async function foydaBolimi() {
   const qolgan = yukla(ctx, BASE, BASE_YORDAM).concat(yukla(ctx, ORDERS, ['formatNum', 'loadProfit']));
   tekshir('O0b kerakli funksiyalar topildi', !qolgan.length, qisqa(qolgan));
   if (qolgan.length) return;
+  // kech152 (zip 194, MOSLANDI): `loadProfit` — javob faqat o'sha buyurtma hali tanlangan bo'lsa (`tanlovJoriy`, orders.html), so'rov —
+  // `yukOl` / `yukSabab` (base.html) bilan; bo'lsa birga yuklanadi (eski shablonda yo'q — kod o'zgarmagan holda ishlaydi)
+  yuklaBorlari(ctx, BASE, YUK_YORDAM);
+  yuklaBorlari(ctx, ORDERS, ['tanlovJoriy']);
   await vm.runInContext('loadProfit()', ctx);
   const h = B(modal ? modal.innerHTML : '');
   tekshir("O1 qaytgan mahsulot: «+37 010 so'm» yashil (ilgari «−-37 010» — ikki minus)",
