@@ -127,7 +127,8 @@ for (const nom of ['apToggleNewItem', 'apYangiPenoplastmi', 'apNewItemCategoryCh
 }
 // kech144 (zip 180, MOSLANDI): `saveAddPurchase` har qatorni `amalYubor` bilan yuboradi (`X-Amal-Kaliti`, audit A2) — base.html amal
 // yordamchilari ham yuklanadi (sahifada doim bor)
-const AMAL180 = ['xatoSababi', 'yukSessiyaKor', 'amalSababi', 'amalKalitiYangi', 'amalKaliti', 'amalKalitiTashla', 'amalYubor']
+// kech150 (zip 190, MOSLANDI): savat qatori — base.html `pulKor` / `sonKor` (eski shablonda `pulKor` yo'q — o'tkazib yuboriladi)
+const AMAL180 = ['xatoSababi', 'yukSessiyaKor', 'amalSababi', 'amalKalitiYangi', 'amalKaliti', 'amalKalitiTashla', 'amalYubor', 'sonKor', 'pulKor']
   .map(n => olib(BASE, n)).filter(Boolean).join('\n');
 const KOD = Object.values(F).filter(Boolean).join('\n') + '\n' + AMAL180;
 

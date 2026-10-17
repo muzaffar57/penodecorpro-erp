@@ -154,7 +154,9 @@ const O_FN = O_NOMLAR.map((n) => olib(ORDERS, n));
 // kech144 (zip 173): base.html yordamchilari (sabab — `amalSababi` → `xatoSababi`; 401 — `yukSessiyaKor`)
 const B_NOMLAR = ['xatoSababi', 'amalSababi'];
 const B_FN = B_NOMLAR.map((n) => olib(BASE, n));
-const B_KOD = B_FN.filter(Boolean).join('\n') + '\nfunction yukSessiyaKor() {}';
+// kech150 (zip 190, MOSLANDI): tasdiq / xabardagi pul matni — base.html `pulKor` (eski shablonda yo'q — bo'sh; «topildi» ro'yxatiga
+// kirmaydi)
+const B_KOD = B_FN.filter(Boolean).join('\n') + '\nfunction yukSessiyaKor() {}' + '\n' + (olib(BASE, 'pulKor') || '');
 const O_KOD = O_FN.filter(Boolean).join('\n') + '\n' + B_KOD;
 
 function oElementlar(o) {

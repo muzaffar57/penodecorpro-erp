@@ -468,7 +468,7 @@ if br:
         pg.wait_for_timeout(1500)
         _t = pg.evaluate("() => window.__tasdiq")
         check("V3b nazorat: ma'lumot bor — tasdiqda to'lov ogohlantirishi (70 000 … AVTOMATIK o'chadi)",
-              len(_t) == 1 and "AVTOMATIK" in _t[0] and "70 000" in _t[0], _t)
+              len(_t) == 1 and "AVTOMATIK" in _t[0] and "70 000" in _t[0].replace("\xa0", " "), _t)   # kech150 (zip 190, MOSLANDI)
     except Exception as _e:                # noqa: BLE001
         check("V3! ssenariy", False, f"{type(_e).__name__}: {_e}")
     finally:

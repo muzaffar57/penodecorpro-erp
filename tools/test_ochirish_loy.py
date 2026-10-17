@@ -522,7 +522,8 @@ def _base_funk(nom):
     return ""
 
 
-FUNK = "\n".join(_base_funk(n) for n in ("xatoSababi", "yukXato", "yukOl", "yukSabab", "yukSessiyaKor", "amalSababi")) + "\n" + FUNK
+# kech150 (zip 190, MOSLANDI): tasdiq matnidagi topshirish foizi — base.html `foizKor` (`sonKor`)
+FUNK = "\n".join(_base_funk(n) for n in ("xatoSababi", "yukXato", "yukOl", "yukSabab", "yukSessiyaKor", "amalSababi", "sonKor", "foizKor")) + "\n" + FUNK
 
 NODE_UI = r"""
 const fs = require("fs"); const vm = require("vm");

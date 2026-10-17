@@ -114,6 +114,8 @@ function muhit() {
     'window.__tanalar = []; window.fetch = async (url, o) => { window.__tanalar.push({url: String(url), body: o && o.body ? JSON.parse(o.body) : null}); return { ok: false, status: 400, json: async () => ({ detail: "sinov" }) }; };',
     ...FUNK.map(f => KOD[f] || ''),
     ...['sonKor', 'foizKor'].map(f => olib(BASE_SRC, f) || ''),
+    // kech150 (zip 190, MOSLANDI): eslatmadagi pul matni — base.html `pulKor` (eski shablonda yo'q — bo'sh)
+    olib(BASE_SRC, 'pulKor') || '',
     // kech144 (zip 173, MOSLANDI — audit P2-6): `updateOrder` rad sababini base.html `amalSababi` bilan o'qiydi
     ...['xatoSababi', 'amalSababi', 'yukSessiyaKor', 'yukXato', 'yukOl', 'yukSabab'].map(f => olib(BASE_SRC, f) || ''),
     'function __yukla(order) { editMode = true; currentEditOrderId = order.id; var editId = order.id;',
@@ -145,8 +147,11 @@ function ochir(w, nom) {
 function holat(w) {
   const h = w.document.getElementById('discount-auto-hint');
   const di = w.document.getElementById('discount_info');
-  return { fp: w.document.getElementById('final_price').value, hint: h.style.display === 'none' ? '' : h.textContent,
-           info: di.style.display === 'none' ? '' : di.textContent };
+  // kech150 (zip 190, MOSLANDI): eslatma summalari bo'linmas bo'shliq bilan (`formatNum` / `pulKor`) — matn tekshiruvi bo'shliq turidan
+  // qat'i nazar (maydon qiymati `fp` — o'zgarmagan)
+  const _b = (t) => String(t).replace(/\u00a0/g, ' ');
+  return { fp: w.document.getElementById('final_price').value, hint: _b(h.style.display === 'none' ? '' : h.textContent),
+           info: _b(di.style.display === 'none' ? '' : di.textContent) };
 }
 // Buyurtma yuklanadi (A 300 000 + B 100 000 = 400 000 — yoki berilgan qatorlar), `order` — `/api/orders/{id}` shakli
 function tahrirda(order, qatorlar) {

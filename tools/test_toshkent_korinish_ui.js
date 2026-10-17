@@ -118,6 +118,8 @@ async function ichki() {
   // natija noma'lum ajratiladi), `tugmaBand`, sabab — `amalSababi` (u `xatoSababi` / `yukSessiyaKor` ni chaqiradi)
   YUK_NOMLAR.push('amalSababi', 'amalKalitiYangi', 'amalKaliti', 'amalKalitiTashla', 'amalYubor', 'amalNomalumMatn', 'amalTakrorIzoh',
     'tugmaBand');
+  // kech150 (zip 190, MOSLANDI): pul MATNI — base.html `pulKor` (eski shablonda yo'q — o'tkazib yuboriladi; H1 ro'yxatiga kirmaydi)
+  YUK_NOMLAR.push('pulKor');
   const YORDAMCHI = yordamchilar(BASE) + '\n' + YUK_NOMLAR.map(n => olib(BASE, n)).filter(Boolean).join('\n');   // base.html ni kengaytiradigan sahifalar
   const HOD_YORDAMCHI = yordamchilar(HOD);     // hodim_panel.html — O'Z nusxasi (base.html ga bog'lanmagan)
 

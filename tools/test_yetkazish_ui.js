@@ -213,7 +213,8 @@ async function chaqir(m, chaqiruv) {
 const O_NOMLAR = ['parseNum', 'yetkazishXatoQismlari', 'yetkazishYubor', 'saveDelivery', 'submitFullDlvModal', 'fdXato'];
 const O_FN = O_NOMLAR.map((n) => olib(ORDERS, n));
 const ESC = olib(BASE, 'escapeHtml');
-const B_FN = ['xatoSababi', 'amalSababi', 'yukSessiyaKor'].map((n) => olib(BASE, n));
+// kech150 (zip 190, MOSLANDI): xabardagi topshirish foizi — base.html `foizKor` (`sonKor`)
+const B_FN = ['xatoSababi', 'amalSababi', 'yukSessiyaKor', 'sonKor', 'foizKor'].map((n) => olib(BASE, n));
 const O_KOD = [ESC].concat(O_FN).concat(B_FN).filter(Boolean).join('\n');
 
 const OVER_XABAR = "Kiritilgan summa (1,500,000 so'm) qarzdan (1,000,000 so'm) 500,000 so'mga ko'p. Shunday ham davom etasizmi?";

@@ -26,6 +26,9 @@ const path = require('path');
 const ROOT = path.dirname(__dirname);
 let SRC = '';
 try { SRC = fs.readFileSync(path.join(ROOT, 'templates', 'orders.html'), 'utf8'); } catch (e) { SRC = ''; }
+// kech150 (zip 190, MOSLANDI): banner foizi base.html `foizKor` (`sonKor`) bilan — «85,7%» (eski shablonda — xom son «85.7%»)
+let BASE190 = '';
+try { BASE190 = fs.readFileSync(path.join(ROOT, 'templates', 'base.html'), 'utf8'); } catch (e) { BASE190 = ''; }
 
 let OK = 0, FAIL = 0;
 const FAILED = [];
@@ -116,6 +119,7 @@ function muhit() {
     'var selectedOrderId = null; function filterProjectSelect(){} function addItem(){} function saveOrder(){} function updateOrder(){}',
     // kech144 (zip 173, MOSLANDI): `showNewForm` forma kalitini `yaratishKaliti()` bilan oladi (takror buyurtmadan himoya)
     TOPSH || '', TIKLA || '', jinjasiz(SHOWNEW) || '', olib(SRC, 'yaratishKaliti') || '',
+    olib(BASE190, 'sonKor') || '', olib(BASE190, 'foizKor') || '',   // kech150 (zip 190, MOSLANDI)
     // editSelected qismlari — asl joyidagidek, bitta funksiya ichida (o'zgaruvchilar: _dlvHolat103, order)
     'function __tahrirQismi(_dlvHolat103, order) {', QISM_DLV || 'throw new Error("QISM_DLV topilmadi");',
     QISM_SARLAVHA || 'throw new Error("QISM_SARLAVHA topilmadi");', '}',
@@ -163,7 +167,7 @@ if (JSDOM && BANNER && SHOWNEW) {
           x1 === null, x1);
   tekshir('D2 banner raqami saqlanadi: editOrderNum = ORD-051-1, sarlavha «Buyurtmani tahrirlash»',
           h1.raqam_bor && h1.raqam === 'ORD-051-1' && h1.sarlavha === 'Buyurtmani tahrirlash', h1);
-  tekshir('D3 topshirish ogohlantirishi ko\'rinadi (85.7 %) va banner sariq', /topshirila boshlagan \(85\.7%\)/.test(h1.banner_matn || '')
+  tekshir('D3 topshirish ogohlantirishi ko\'rinadi (85.7 %) va banner sariq', /topshirila boshlagan \(85[.,]7%\)/.test(h1.banner_matn || '')
           && /rgb\(254, 243, 199\)|#FEF3C7|var\(--f-fef3c7\)/i.test(h1.fon || ''), h1);   // kech118 (zip 122, MOSLANDI): fon ro'yxatdan ham
   const x2 = tahrir(m, null, 'ORD-037-1', {});
   const h2 = holat(m.w);

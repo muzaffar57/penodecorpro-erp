@@ -394,6 +394,8 @@ if PW_BOR:
                 ls: (function () { try { return localStorage.getItem(ORDER_DRAFT_LS_KEY); } catch (e) { return 'xato'; } })(),
                 forma: getComputedStyle(document.getElementById('newOrderForm')).display, rejim: taklifRejim})""")
             _db = tk_hammasi()
+            # kech150 (zip 190, MOSLANDI): natija / ro'yxat / forma jamidagi summa bo'linmas bo'shliq bilan (`pulKor`, `formatNum`) —
+            # tekshiruv bo'shliq turidan qat'i nazar (B4, B5, B6, B7)
             check("B4 saqlash — `POST /api/takliflar`: mijoz, telefon, buyurtma (loyihasiz, `is_draft` siz, izoh — `notes`, usta, "
                   "kelishilgan summa, detal); natija oynasi «Taklif T-0001 saqlandi», PDF havolasi; forma yopildi, rejim tozalandi",
                   tb.get("mijoz") == "Ali Valiyev" and tb.get("telefon") == "+998 90 111 22 33"
@@ -401,7 +403,7 @@ if PW_BOR:
                   and (tb.get("buyurtma") or {}).get("notes") == "Yetkazib berish alohida"
                   and (tb.get("buyurtma") or {}).get("master_id") == P["usta"] and (tb.get("buyurtma") or {}).get("agreed_amount") == 110000
                   and len((tb.get("buyurtma") or {}).get("items") or []) == 1
-                  and isinstance(q4, dict) and q4.get("sar") == "Taklif T-0001 saqlandi" and "110 000" in q4.get("mat", "")
+                  and isinstance(q4, dict) and q4.get("sar") == "Taklif T-0001 saqlandi" and "110 000" in q4.get("mat", "").replace("\xa0", " ")
                   and q4.get("pdf") == f"/api/takliflar/{_db[0][0] if _db else 0}/pdf" and q4.get("forma") == "none"
                   and q4.get("rejim") is None and len(_db) == 1, (tb, q4, _db))
             check("B4b buyurtma qoralamasi (localStorage) — taklif rejimida YOZILMAYDI; sahifadan chiqishda ham (pagehide)",
@@ -423,7 +425,7 @@ if PW_BOR:
             check("B5 «📝 Takliflar» ro'yxati: T-0001, «Amalda», mijoz, telefon, summa 110 000, izoh, muddat; tugmalar — PDF, "
                   "Rasmiylashtirish, Tahrirlash, Bekor qilish; chap tugmada son 1",
                   isinstance(q5, dict) and q5.get("panel") == "block" and "T-0001" in q5.get("qator", "") and "Amalda" in q5.get("qator", "")
-                  and "Ali Valiyev" in q5.get("qator", "") and "110 000 so'm" in q5.get("qator", "")
+                  and "Ali Valiyev" in q5.get("qator", "") and "110 000 so'm" in q5.get("qator", "").replace("\xa0", " ")
                   and "Yetkazib berish alohida" in q5.get("qator", "") and "gacha amal qiladi" in q5.get("qator", "")
                   and q5.get("tugmalar") == ["📄 PDF", "✅ Rasmiylashtirish", "✏️ Tahrirlash", "⛔ Bekor qilish"]
                   and q5.get("son") == "1" and q5.get("sonKor") != "none", q5)
@@ -447,7 +449,7 @@ if PW_BOR:
                   and q6.get("t") == "+998 90 111 22 33" and q6.get("iz") == "Yetkazib berish alohida" and q6.get("bp") == "1 200 000"
                   and q6.get("fp") == "110 000" and q6.get("us") == str(P["usta"]) and q6.get("nom") == "UI Karniz 20x10"
                   and q6.get("tur") == "profil" and q6.get("h") == "20" and q6.get("w") == "10" and q6.get("l") == "10"
-                  and q6.get("jami") == "120 000 so'm" and q6.get("loyiha") == "none" and not q6.get("msgs") and not NULL_SOROV,
+                  and (q6.get("jami") or "").replace("\xa0", " ") == "120 000 so'm" and q6.get("loyiha") == "none" and not q6.get("msgs") and not NULL_SOROV,
                   (q6, NULL_SOROV))
             yoz(pg, "#items .detal .i-l", "15")
             yoz(pg, "#final_price", "")
@@ -483,7 +485,7 @@ if PW_BOR:
                   and "Yangi loyiha — Ali Valiyev (+998 90 111 22 33)" in q7.get("opt", "") and q7.get("yangi") != "none"
                   and q7.get("nom") == "Ali Valiyev" and q7.get("loyiha") != "none" and q7.get("mijoz") == "none"
                   and q7.get("yulduz") != "none" and q7.get("zaklat") != "none" and q7.get("qoralama") != "none"
-                  and q7.get("tugma") == "✅ Buyurtmani rasmiylashtirish" and q7.get("jami") == "180 000 so'm" and q7.get("yangiYoq") is True
+                  and q7.get("tugma") == "✅ Buyurtmani rasmiylashtirish" and (q7.get("jami") or "").replace("\xa0", " ") == "180 000 so'm" and q7.get("yangiYoq") is True
                   and not NULL_SOROV, (q7, NULL_SOROV))
             q7d = ev(pg, PANEL_JS)
             check("B7d rasmiylashtirishda hisob paneli — oddiy buyurtmadagidek: «Buyurtma hisob-kitobi», «Zaklat» va «Qolgan qarz» ko'rinadi",
