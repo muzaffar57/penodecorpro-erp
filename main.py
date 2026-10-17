@@ -53,9 +53,9 @@ TELEGRAM_COATING_ID = "8461987934"
 TELEGRAM_WEBHOOK_SECRET = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "")
 
 def fmt_money(n) -> str:
-    """1234567.5 -> '1 234 568'"""
+    """1234567.5 -> '1 234 568' (kech151, zip 192: `services.son_korinish` — ming ajratgich bo'linmas bo'shliq; ilgari oddiy)"""
     try:
-        return f"{round(float(n)):,}".replace(",", " ")
+        return services.son_korinish(round(float(n)), 0)
     except (TypeError, ValueError):
         return "0"
 
@@ -3417,13 +3417,14 @@ def _migrate_ord066_loy_xatosi(korxona_id=None, raqam=None, eski_kg=None, yangi_
             _eski_q = float(_inv.stock_quantity or 0)
             _inv.stock_quantity = float(_bal or 0)
             _qoldiq.append((_inv.item_name, _eski_q, float(_bal or 0), _inv.unit or ""))
-        _matn = "; ".join(f"{n}: {a:,.2f} → {b:,.2f} {u}".replace(",", " ") for n, a, b, u in _qoldiq)
+        # kech151 (zip 192): jurnal soni — `crud.audit_son` (ilgari «1 234.56 kg» — nuqtali kasr)
+        _matn = "; ".join(f"{n}: {crud.audit_son(a, 2)} → {crud.audit_son(b, 2)} {u}" for n, a, b, u in _qoldiq)
         crud.log_activity(_d, "loy_tuzatish", "order", _o.id, entity_label=raqam, performed_by="Tizim (tuzatish)",
-                          old_value=f"Loy rejasi {eski_kg:,.0f} kg".replace(",", " "),
-                          new_value=(f"Loy rejasi {yangi_kg:,.0f} kg (xato tuzatildi); ".replace(",", " ") + _matn)[:1000],
+                          old_value=f"Loy rejasi {crud.audit_son(eski_kg, 0)} kg",
+                          new_value=(f"Loy rejasi {crud.audit_son(yangi_kg, 0)} kg (xato tuzatildi); " + _matn)[:1000],
                           company_id=korxona_id, commit=False)
         _d.commit()
-        print(f"✓ {raqam} loy xatosi tuzatildi: {eski_kg:,.0f} → {yangi_kg:,.0f} kg; {_matn}".replace(",", " "))
+        print(f"✓ {raqam} loy xatosi tuzatildi: {crud.audit_son(eski_kg, 0)} → {crud.audit_son(yangi_kg, 0)} kg; {_matn}")
         return {"holat": "tuzatildi", "harakatlar": len(_loy), "qoldiq": _qoldiq}
     except Exception as e:
         _d.rollback()
@@ -5800,7 +5801,8 @@ def api_purchase_stock(item_id: int, data: dict = Body(...), db: Session = Depen
             paid_line = f"✅ Hoziroq to'landi: {fmt_money(paid_now)} so'm\n" if paid_now > 0 else ""
             msg = (
                 f"🚚 *Nasiya xarid qilindi*\n\n"
-                f"📦 {_tg180.get('item_name')}: {data.quantity:g} {_tg180.get('unit') or ''} × {fmt_money(data.price_per_unit)}\n"
+                f"📦 {_tg180.get('item_name')}: {services.son_korinish(data.quantity, 4)} {_tg180.get('unit') or ''} × "   # kech151
+                f"{fmt_money(data.price_per_unit)}\n"
                 f"💰 Jami summasi: {fmt_money(total_amount)} so'm\n"
                 f"{paid_line}"
                 f"\n🏪 Ta'minotchi: *{supplier.name}*\n"
@@ -6532,7 +6534,7 @@ def _avans_olmadim_telegram(ism: str, summa: float, sana, kim: Optional[str], co
     """kech134 (zip 160 — egasi QARORI «C»): hodim admin yozgan avansga «Olmaganman» dedi — korxona Telegram chatiga (fon vazifasi:
     hodim sahifasi kutmaydi; xabar ketmasa ham ogohlantirish dasturda — Bosh sahifa / Dashboard oynasi va KPI qatori)."""
     try:
-        _s = f"{float(summa or 0):,.0f}".replace(",", " ")
+        _s = services.son_korinish(float(summa or 0), 0)     # kech151 (zip 192): ilgari oddiy bo'shliq
         _k = _t_vaqt(sana).strftime("%d.%m.%Y") if sana else "—"
         _matn = (f"❗ *Hodim avansni olmaganini aytdi*\n\n👷 {ism}\n💰 {_s} so'm ({_k})\n"
                  + (f"Yozgan: {kim}\n" if kim else "")
@@ -9538,7 +9540,7 @@ def api_mark_refunded(return_id: int, db: Session = Depends(get_db), current_use
     # Sonlar alohida (minglik ajratgich — bo'shliq); ilgari butun matnga `.replace(",", " ")`
     # qo'llanib, gapdagi vergul ham yo'qolardi (JONLI kech42: "chegirildi  naqd").
     def _som(v):
-        return f"{v:,.0f}".replace(",", " ")
+        return services.son_korinish(v, 0)        # kech151 (zip 192): ilgari oddiy bo'shliq
     if naqd >= 0.01:
         xabar = (f"Kelishilgan summa {_som(kam)} so'mga kamaydi; mijozga {_som(naqd)} so'm naqd "
                  f"qaytarilgan deb yozildi (u ortiqcha to'lagan qism).")
@@ -9603,7 +9605,8 @@ def _tolov_qoldigini_chegirmaga(db: Session, order, kim: str = None):
         db.refresh(order)
         return {
             "amount": round(remaining),
-            "message": f"Qolgan {remaining:.0f} so'm chegirmaga qo'shildi (foyda hisobotida ham to'g'ri ayiriladi)"
+            "message": (f"Qolgan {services.son_korinish(remaining, 0)} so'm chegirmaga qo'shildi "   # kech151 (zip 192)
+                        "(foyda hisobotida ham to'g'ri ayiriladi)")
         }
     return None
 
@@ -9618,7 +9621,7 @@ class _KechirishOzgardi(Exception):
 
 
 def _somlar(v) -> str:
-    return f"{float(v or 0):,.0f}".replace(",", " ")
+    return services.son_korinish(float(v or 0), 0)        # kech151 (zip 192): ilgari oddiy bo'shliq
 
 
 @app.post("/api/payments")
@@ -9674,7 +9677,8 @@ def api_create_payment(data: dict = Body(...), write_off_remainder: bool = False
     except crud.OverpaymentWarning as w:
         raise HTTPException(status_code=409, detail={
             "type": "overpayment_warning",
-            "message": f"Kiritilgan summa ({w.amount:,.0f} so'm) qarzdan ({w.debt:,.0f} so'm) {w.excess:,.0f} so'mga ko'p. Shunday ham davom etasizmi?",
+            "message": (f"Kiritilgan summa ({fmt_money(w.amount)} so'm) qarzdan ({fmt_money(w.debt)} so'm) {fmt_money(w.excess)} "
+                        "so'mga ko'p. Shunday ham davom etasizmi?"),   # kech151 (zip 192): ilgari «(1,500,000 so'm)»
             "amount": w.amount, "debt": w.debt, "excess": w.excess
         })
     except _KechirishOzgardi as k:
@@ -11719,7 +11723,7 @@ def _tannarxdan_past_sotuv_qayd(db: Session, background_tasks: BackgroundTasks, 
     _past = result.pop("tannarxdan_past", None)
     if not _past:
         return
-    _satrlar = [f"{p['nomi']}: {p['miqdor']:g} {p['birlik'] or ''} × {format(p['narx'], ',.0f').replace(',', ' ')} so'm"
+    _satrlar = [f"{p['nomi']}: {crud.audit_son(p['miqdor'])} {p['birlik'] or ''} × {crud.audit_son(p['narx'], 0)} so'm"   # kech151
                 for p in _past]
     try:
         for p, s in zip(_past, _satrlar):
@@ -12057,7 +12061,8 @@ def api_create_delivery(data: dict = Body(...), db: Session = Depends(get_db), c
         db.rollback()
         raise HTTPException(status_code=409, detail={
             "type": "overpayment_warning",
-            "message": f"Kiritilgan summa ({w.amount:,.0f} so'm) qarzdan ({w.debt:,.0f} so'm) {w.excess:,.0f} so'mga ko'p. Shunday ham davom etasizmi?",
+            "message": (f"Kiritilgan summa ({fmt_money(w.amount)} so'm) qarzdan ({fmt_money(w.debt)} so'm) {fmt_money(w.excess)} "
+                        "so'mga ko'p. Shunday ham davom etasizmi?"),   # kech151 (zip 192): ilgari «(1,500,000 so'm)»
             "amount": w.amount, "debt": w.debt, "excess": w.excess
         })
     except ValueError as e:
@@ -12826,7 +12831,7 @@ def _usta_boti_javobi(data, token, korxona_id=None):
                 info = crud.get_master_yearly_cashback(
                     db, master.id, current_year,
                     company_id=getattr(master, "company_id", None))
-                reply = f"💰 *Sizning {current_year}-yil keshbegingiz*\n\n👤 {master.name}\n\n🎁 *Hisoblangan keshbek: {int(info['jami_bonus']):,} so'm*\n\n" + _tg_footer(db, getattr(master, "company_id", None) or egasi_cid, bold=False)
+                reply = f"💰 *Sizning {current_year}-yil keshbegingiz*\n\n👤 {master.name}\n\n🎁 *Hisoblangan keshbek: {services.son_korinish(int(info['jami_bonus']), 0)} so'm*\n\n" + _tg_footer(db, getattr(master, "company_id", None) or egasi_cid, bold=False)
         except Exception as e:
             reply = "⚠️ Xatolik yuz berdi. Iltimos qayta urinib ko'ring."
         finally:

@@ -26,7 +26,7 @@ class OverpaymentWarning(Exception):
         self.amount = amount
         self.debt = debt
         self.excess = excess
-        super().__init__(f"Ortiqcha to'lov: {excess:,.0f} so'm qarzdan ko'p")
+        super().__init__(f"Ortiqcha to'lov: {xabar_son(excess)} so'm qarzdan ko'p")   # kech151 (zip 192): ilgari «500,000»
 
 
 # ============================================================
@@ -1347,7 +1347,7 @@ def kirim_takror_qator(db: Session, items: list, company_id: int = None):
             raise ValueError(
                 f"{i + 1}-qator {korilgan[kalit] + 1}-qator bilan AYNAN bir xil"
                 + (f" («{_nom}», " if _nom else " (")
-                + f"{_miq:g} × {_narx2:,.2f}".replace(",", " ").replace(".00", "")
+                + f"{xabar_son(_miq, 4)} × {xabar_son(_narx2, 2)}"      # kech151 (zip 192): ilgari «12 500.5», «1e+06»
                 + ") — takror kiritilgan bo'lishi mumkin. Bittasini o'chiring; ikki partiya bo'lsa miqdorini "
                   "bitta qatorga birlashtiring")
         korilgan[kalit] = i
@@ -2619,7 +2619,7 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None,
     try:
         log_activity(
             db, "created", "order", db_order.id, db_order.order_number, performed_by,
-            new_value=f"Jami: {float(db_order.total_amount or 0):,.0f} so'm, {len(db_order.items)} ta detal".replace(',', ' '),
+            new_value=f"Jami: {audit_son(db_order.total_amount, 0)} so'm, {len(db_order.items)} ta detal",   # kech151 (zip 192)
             company_id=getattr(db_order, 'company_id', None)
         )
     except Exception:
@@ -6216,15 +6216,27 @@ AUDIT_FARQ_BELGI = "\nO'zgardi: "
 AUDIT_FARQ_CHEGARA = 12           # bitta yozuvdagi o'zgarishlar ro'yxati (qolgani — «yana N ta o'zgarish»)
 
 
-def audit_son(x) -> str:
-    """Jurnal matni uchun son: 1200000 → «1 200 000», 12.5 → «12,5» (kasr — vergul, U-05)."""
+def audit_son(x, kasr=3) -> str:
+    """Jurnal matni uchun son: 1200000 → «1 200 000», 12.5 → «12,5» (kasr — vergul, U-05).
+    kech151 (zip 192): `services.son_korinish` bilan BIR qoida (ortiqcha nolsiz, ko'pi bilan `kasr` xona; kasr 0 — `:,.0f` bilan AYNAN
+    yaxlitlash), faqat ming ajratgich — ODDIY bo'shliq: «Faoliyat jurnali» qidiruvida foydalanuvchi oddiy bo'shliq yozadi («1 500 000»),
+    tannarx niqobi (`_TANNARX_JURNAL_QOLIPLARI` — `[0-9 .,]`) shunga tayanadi. Son emas — matnning o'zi; cheksiz / NaN — «—» (ilgari
+    `round` yiqilardi). Foydalanuvchi KO'RADIGAN xabar — `xabar_son`."""
     try:
         x = float(x or 0)
     except (TypeError, ValueError):
         return str(x)
-    if abs(x - round(x)) < 1e-9:
-        return f"{int(round(x)):,}".replace(",", " ")
-    return f"{x:,.3f}".rstrip("0").rstrip(".").replace(",", " ").replace(".", ",")
+    import services as _sv192
+    return _sv192.son_korinish(x, kasr).replace("\u00a0", " ")
+
+
+def xabar_son(x, kasr=0) -> str:
+    """kech151 (zip 192 — egasi tanlovi 17.10 «Xabarlardagi summalar», O'LCHANGAN `work/k192/skan192.py`): foydalanuvchi KO'RADIGAN
+    xabar (xato / ogohlantirish / tasdiq oynasi, Telegram) dagi son — `services.son_korinish` (ming ajratgich — bo'linmas bo'shliq,
+    kasr — vergul, ortiqcha nolsiz, ko'pi bilan `kasr` xona; kasr 0 — `:,.0f` bilan AYNAN yaxlitlash). Ilgari «1,500,000 so'm» (vergul —
+    ming ajratgich), «1500000 so'm», «12 500.5». «Faoliyat jurnali» yozuvi — `audit_son` (oddiy bo'shliq)."""
+    import services as _sv192
+    return _sv192.son_korinish(x, kasr)
 
 
 def audit_farq_matni(farqlar) -> str:
@@ -7754,14 +7766,14 @@ def create_return_item(db: Session, data: ReturnItemCreate,
         if _birlik is not None:
             _qiymat = _som_butun(_birlik * _mq)
             if refund_amount > _birlik * _mq + 0.5 * _mq + 0.5:
-                raise ValueError(f"Qaytariladigan summa ({refund_amount:,.0f} so'm) bu detal qismining "
-                                 f"kelishilgan qiymatidan ({_qiymat:,.0f} so'm = {_miqdor_matn(_mq)} × "
-                                 f"{_birlik:,.2f} so'm) katta bo'lishi mumkin emas")
+                raise ValueError(f"Qaytariladigan summa ({xabar_son(refund_amount)} so'm) bu detal qismining "    # kech151 (zip 192)
+                                 f"kelishilgan qiymatidan ({xabar_son(_qiymat)} so'm = {xabar_son(_mq, 3)} × "
+                                 f"{xabar_son(_birlik, 2)} so'm) katta bo'lishi mumkin emas")
         else:
             _qiymat = max(_o.kelishilgan_summa, float(_o.total_amount or 0))
             if refund_amount > _qiymat + 0.5 * _mq + 0.5:
-                raise ValueError(f"Qaytariladigan summa ({refund_amount:,.0f} so'm) buyurtma "
-                                 f"qiymatidan ({_qiymat:,.0f} so'm) katta bo'lishi mumkin emas")
+                raise ValueError(f"Qaytariladigan summa ({xabar_son(refund_amount)} so'm) buyurtma "    # kech151 (zip 192)
+                                 f"qiymatidan ({xabar_son(_qiymat)} so'm) katta bo'lishi mumkin emas")
     if refund_amount <= 0 and order_item:
         if reason_enum == ReturnReason.DEFECT:
             # Brak — tan narx (xomashyo qiymati)
@@ -8095,7 +8107,7 @@ def delete_return_item(db: Session, return_id: int, company_id: int = None,
     pul_orqaga = bool(item.is_refunded) and _summa > 0 and order is not None
     if pul_orqaga and item.refunded_at is None:
         raise ValueError(
-            f"Bu qaytarish uchun mijozga {_summa:,.0f} so'm qaytarilgani tizim yangilanishidan "
+            f"Bu qaytarish uchun mijozga {xabar_son(_summa)} so'm qaytarilgani tizim yangilanishidan "    # kech151 (zip 192)
             f"OLDIN belgilangan — qaysi to'lov yozuvi ekani saqlanmagan, shuning uchun pulni "
             f"avtomatik bekor qilib bo'lmaydi va qaytarish o'chirilmadi")
 
@@ -8238,7 +8250,7 @@ def delete_return_item(db: Session, return_id: int, company_id: int = None,
     if fp is not None:
         _qator += f" · ombordan olindi: {_miqdor_matn(_sq)} {fp.unit} ({fp.name})"
     if pul_orqaga:
-        _qator += f" · pul qaytarish bekor qilindi: {_summa:,.0f} so'm (to'lov yozuvi: {_tolov_soni})"
+        _qator += f" · pul qaytarish bekor qilindi: {audit_son(_summa, 0)} so'm (to'lov yozuvi: {_tolov_soni})"   # kech151 (zip 192)
     db.add(ActivityLog(
         company_id=_cid, action="deleted", entity_type="return", entity_id=item.id,
         entity_label=(f"Buyurtma {order.order_number}" if order is not None else "Qaytarish"),
@@ -8477,8 +8489,8 @@ def _tolov_chegarasi(order, summa: float, confirm_overpay: bool) -> None:
     order_total = float(order.total_amount or 0)
     if order_total > 0 and float(summa) > order_total * 3:
         raise ValueError(
-            f"Kiritilgan summa ({summa:,.0f}) buyurtma qiymatidan "
-            f"({order_total:,.0f}) juda katta — xato bo'lishi mumkin. "
+            f"Kiritilgan summa ({xabar_son(summa)} so'm) buyurtma qiymatidan "    # kech151 (zip 192): ilgari «(15,000,000)»
+            f"({xabar_son(order_total)} so'm) juda katta — xato bo'lishi mumkin. "
             f"Iltimos, summani tekshirib qayta kiriting."
         )
     current_debt = order.debt_amount
@@ -8683,7 +8695,8 @@ def ortiqcha_tolovni_qaytar(db: Session, order_id: int, summa: float = None, usu
     if summa is None:
         summa = _pul2(ortiqcha)
     if summa > ortiqcha + 0.005:
-        raise ValueError(f"Qaytariladigan summa ({summa:,.2f} so'm) ortiqcha to'lovdan ({ortiqcha:,.2f} so'm) ko'p")
+        raise ValueError(f"Qaytariladigan summa ({xabar_son(summa, 2)} so'm) ortiqcha to'lovdan ({xabar_son(ortiqcha, 2)} so'm) "
+                         "ko'p")   # kech151 (zip 192): ilgari «(1,500,000.50 so'm)»
     p = Payment(
         order_id=order.id,
         amount=-summa,
@@ -8698,7 +8711,8 @@ def ortiqcha_tolovni_qaytar(db: Session, order_id: int, summa: float = None, usu
     _update_order_payment_status(db, order)
     _loyiha_tolangan_yangila(db, order.project)
     log_activity(db, "refunded", "order", order.id, order.order_number, kim,
-                 new_value=f"Ortiqcha to'lov mijozga qaytarildi: {summa:,.2f} so'm", company_id=order.company_id)
+                 new_value=f"Ortiqcha to'lov mijozga qaytarildi: {audit_son(summa, 2)} so'm",   # kech151 (zip 192)
+                 company_id=order.company_id)
     db.commit()
     return p, order
 
@@ -8723,7 +8737,7 @@ def _tolov_audit_matni(payment) -> str:
     qilgan, qachon, izoh). kech38: `delete_payment` va `delete_delivery`
     (yuk bilan birga to'lovni o'chirish — 12-band) uchun YAGONA manba."""
     return (
-        f"{payment.amount:,.0f} so'm · {payment.payment_type.value if payment.payment_type else '-'} · "
+        f"{audit_son(payment.amount, 0)} so'm · {payment.payment_type.value if payment.payment_type else '-'} · "   # kech151 (zip 192)
         f"{payment.payment_method.value if payment.payment_method else '-'} · "
         f"qabul qilgan: {payment.received_by or '-'} · "
         f"sana: {_tashkent_vaqt(payment.paid_at).strftime('%Y-%m-%d %H:%M') if payment.paid_at else '-'}"   # kech106: Toshkent
@@ -9264,13 +9278,14 @@ def _yopish_natijasi(order, fin: dict, eski_kelishilgan: float, toliq: bool) -> 
     natija["toliq_topshirilgan"] = bool(toliq)
     natija["ortiqcha"] = ortiqcha_tolov_qiymati(natija.get("paid") or 0, natija.get("new_agreed") or 0)
     natija["qarz"] = float(natija.get("debt") or 0)
-    msg = (f"Topshirilgan qism YAKUNLANDI («Tayyor» kabi): buyurtma summasi {eski_kelishilgan:,.0f} → "
-           f"{float(natija.get('new_agreed') or 0):,.0f} so'm — daromad, tannarx va usta KPI oylik / yillik hisobotda qoladi.")
+    # kech151 (zip 192): summalar — `xabar_son` (ilgari «3,703,701 → 2,469,134»)
+    msg = (f"Topshirilgan qism YAKUNLANDI («Tayyor» kabi): buyurtma summasi {xabar_son(eski_kelishilgan)} → "
+           f"{xabar_son(natija.get('new_agreed') or 0)} so'm — daromad, tannarx va usta KPI oylik / yillik hisobotda qoladi.")
     if natija["ortiqcha"] > 0:
-        msg += (f" ⚠️ Mijoz {natija['ortiqcha']:,.0f} so'm ORTIQCHA to'lagan — pulni QAYTARISH kerak "
+        msg += (f" ⚠️ Mijoz {xabar_son(natija['ortiqcha'])} so'm ORTIQCHA to'lagan — pulni QAYTARISH kerak "
                 f"(Qarzdorlar → «Mijozga qaytarish kerak»).")
     elif natija["qarz"] > 0:
-        msg += f" Mijoz qarzi: {natija['qarz']:,.0f} so'm."
+        msg += f" Mijoz qarzi: {xabar_son(natija['qarz'])} so'm."
     natija["message"] = msg
     return natija
 
@@ -10197,7 +10212,7 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         return {"success": False, "message": str(_e54)}
 
     # AUDIT uchun — tahrirlashdan OLDINGI qisqa holatni saqlab qo'yamiz
-    _audit_before = f"Jami: {float(order.total_amount or 0):,.0f} so'm, {len(order.items)} ta detal".replace(',', ' ')
+    _audit_before = f"Jami: {audit_son(order.total_amount, 0)} so'm, {len(order.items)} ta detal"   # kech151 (zip 192)
     # kech120 (zip 129 — G6-23): nima o'zgarganini yozish uchun — tahrirdan OLDINGI holat (oddiy qiymatlar)
     try:
         _audit_eski = _buyurtma_audit_holati(order)
@@ -10712,7 +10727,7 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
     # topish uchun butun zaxira faylini qo'lda tahlil qilishga to'g'ri
     # kelgan edi (Termopanel belgisi yo'qolishi, va h.k.).
     try:
-        _audit_after = f"Jami: {float(order.total_amount or 0):,.0f} so'm, {len(order.items)} ta detal".replace(',', ' ')
+        _audit_after = f"Jami: {audit_son(order.total_amount, 0)} so'm, {len(order.items)} ta detal"   # kech151 (zip 192)
         if _qr53_matn:
             _audit_after += f"; {_qr53_matn}"
         if _audit_eski is not None:
@@ -11650,7 +11665,7 @@ class YukToloviBor(Exception):
         self.raqam = raqam
         self.tolovlar = list(tolovlar)              # [(payment_id, summa)]
         self.jami = round(sum(s for _, s in self.tolovlar), 2)
-        jm = f"{self.jami:,.0f}"
+        jm = xabar_son(self.jami)                   # kech151 (zip 192): ilgari «1,500,000»
         nechta = (f"{jm} so'm to'lov" if len(self.tolovlar) == 1
                   else f"{len(self.tolovlar)} ta to'lov (jami {jm} so'm)")
         super().__init__(
@@ -12315,8 +12330,8 @@ def delete_finished_product_loss(db: Session, loss_id: int, company_id: int = No
     db.delete(loss)
     try:
         log_activity(db, "delete", "finished_product_loss", loss_id,
-                     f"Brak bekor qilindi: {nomi} — {qty:g} {loss.unit or ''} "
-                     f"({cost:,.0f} so'm)"
+                     f"Brak bekor qilindi: {nomi} — {audit_son(qty)} {loss.unit or ''} "    # kech151 (zip 192)
+                     f"({audit_son(cost, 0)} so'm)"
                      + (" · ombor tiklandi" if tiklandi else " · mahsulot o'chirilgan")
                      + (" · brak taqdiri bekor: " + "; ".join(_taqdir_jurnal) if _taqdir_jurnal else ""),
                      performed_by=performed_by, company_id=company_id)
@@ -12733,7 +12748,7 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None,
                     "success": False,
                     "type": "below_cost_warning",
                     "message": (
-                        f"{fp.name}: kiritilgan narx (1 {fp.unit} uchun {item.unit_price:,.0f} so'm) juda past — "
+                        f"{fp.name}: kiritilgan narx (1 {fp.unit} uchun {xabar_son(item.unit_price)} so'm) juda past — "
                         f"bu narxda sotib bo'lmaydi. Shunday ham davom etasizmi?"
                     )
                 }
@@ -12915,7 +12930,7 @@ def sell_finished_product(db: Session, data, created_by: str = None,
             "success": False,
             "type": "below_cost_warning",
             "message": (
-                f"Kiritilgan narx (1 {fp.unit} uchun {data.unit_price:,.0f} so'm) juda past — "
+                f"Kiritilgan narx (1 {fp.unit} uchun {xabar_son(data.unit_price)} so'm) juda past — "
                 f"bu narxda sotib bo'lmaydi. Shunday ham davom etasizmi?"
             )
         }
@@ -13143,7 +13158,7 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
     # AUDIT: ishlab chiqarish qayd etiladi
     try:
         log_activity(db, "produced", "finished_product", fp.id, fp.name, created_by,
-                      new_value=f"{float(fp.quantity):g} {fp.unit}, tan narxi: {audit_son(round(total_cost))} so'm",   # kech146 (J13): vergul qoldi
+                      new_value=f"{audit_son(fp.quantity)} {fp.unit}, tan narxi: {audit_son(round(total_cost))} so'm",   # kech146 (J13) / kech151
                       company_id=getattr(fp, 'company_id', None))
     except Exception:
         pass
@@ -14544,7 +14559,7 @@ class AvansOylikdanOrtiq(Exception):
         self.qolgan, self.summa, self.ortiqcha, self.yil, self.oy = qolgan, summa, ortiqcha, yil, oy
         ky, km = (yil + 1, 1) if oy == 12 else (yil, oy + 1)
         from services import _HODIM_OY_NOMI as _on
-        _f = lambda x: f"{round(float(x)):,}".replace(",", " ")
+        _f = lambda x: xabar_son(round(float(x)))     # kech151 (zip 192): ilgari oddiy bo'shliq
         self.message = (f"{_on[oy]} {yil} uchun oylikdan qolgani {_f(max(qolgan, 0))} so'm, kiritilgan summa {_f(summa)} so'm — "
                         f"{_f(ortiqcha)} so'mga ko'p. Davom etsangiz, ortiqcha {_f(ortiqcha)} so'm keyingi oy ({_on[km]} {ky}) "
                         f"oyligidan ushlanadi; ungacha hodim korxonaga qarzdor bo'lib ko'rinadi.")
@@ -14684,7 +14699,7 @@ def avans_dict(adv, *, hodim_uchun: bool = False) -> dict:
 
 def _avans_jurnal_nomi(emp, adv) -> str:
     """Jurnal yozuvi nomi: «Ism: 205 000 so'm (02.10.2026)» — sana Toshkent bo'yicha."""
-    _s = f"{float(adv.amount or 0):,.0f}".replace(",", " ")
+    _s = audit_son(adv.amount, 0)                   # kech151 (zip 192)
     _k = _tashkent_date(adv.date).strftime("%d.%m.%Y") if adv.date else "—"
     return f"{emp.name if emp else '—'}: {_s} so'm ({_k})"[:200]
 
@@ -16411,7 +16426,7 @@ def update_gift_period_tier(db: Session, tier_id: int, gift_name: str, threshold
     # 17f (2026-09-22) — HAQIQIY PostgreSQL da O'LCHANGAN: `0.001` → 0.00 so'mlik
     # bosqich (200); 101+ belgili nom → String(100) → 500.
     if round(amt, 2) < _PUL_ENG_KAM:
-        return {"success": False, "message": f"Summa kamida {_PUL_ENG_KAM} so'm bo'lishi kerak "
+        return {"success": False, "message": f"Summa kamida {xabar_son(_PUL_ENG_KAM, 2)} so'm bo'lishi kerak "   # kech151: «0,01»
                                              "(1 tiyindan kichik summa bazada 0 ga aylanadi)"}
     if len(name) > _SOVGA_NOM_MAX:
         return {"success": False, "message": f"Sovg'a nomi juda uzun ({_SOVGA_NOM_MAX} belgidan ko'p)"}
@@ -16443,7 +16458,8 @@ def redeem_gift_period_tier(db: Session, master_id: int, tier_id: int, performed
     sales = _gift_period_sales_since(db, master_id, checkpoint, None, company_id=_cid)
     if sales < float(tier.threshold_amount) - 0.01:
         return {"success": False,
-                "message": f"Usta hali bu bosqichga yetmagan (kerak: {tier.threshold_amount:,.0f}, mavjud: {sales:,.0f})"}
+                "message": (f"Usta hali bu bosqichga yetmagan (kerak: {xabar_son(tier.threshold_amount)} so'm, "   # kech151 (zip 192)
+                            f"mavjud: {xabar_son(sales)} so'm)")}
     db.add(MasterGiftPeriodRedemption(
         period_id=period.id, master_id=master_id, tier_id=tier.id,
         gift_name=tier.gift_name, sales_amount=sales, kind="gift", redeemed_by=performed_by,
@@ -16745,7 +16761,7 @@ def delete_supplier(db: Session, supplier_id: int, force: bool = False) -> dict:
     if debt_info["debt"] > 0 and not force:
         return {
             "success": False,
-            "message": f"Bu ta'minotchida {debt_info['debt']:,.0f} so'm qarz bor".replace(",", " "),
+            "message": f"Bu ta'minotchida {xabar_son(debt_info['debt'])} so'm qarz bor",   # kech151 (zip 192)
             "has_debt": True,
             "debt": debt_info["debt"]
         }
@@ -17095,7 +17111,7 @@ def _som(x) -> str:
     kech146 (zip 180, review 1 — №1): butun so'mga 0.5 YUQORIGA (`_som_butun_int` — pul UI `fmt` / `Math.round` bilan bir qoida); ilgari
     Python `round` (banker yaxlitlashi): 0.5 → «0», 2.5 → «2» («ortiqcha 0 so'm» deb so'ralardi)."""
     try:
-        return f"{_som_butun_int(float(x)):,}".replace(",", " ")
+        return xabar_son(_som_butun_int(float(x)))      # kech151 (zip 192): ilgari oddiy bo'shliq
     except (TypeError, ValueError, ArithmeticError):
         return "0"
 
@@ -17710,9 +17726,9 @@ def kirim_hujjatini_bekor_qilish(db: Session, receipt_id: int, company_id: int =
     log_activity(db, "deleted", "inventory_receipt", receipt_id,
                  entity_label=f"Kirim hujjati #{receipt_id}" + (f" ({receipt.document_number})" if receipt.document_number else ""),
                  performed_by=performed_by, company_id=receipt.company_id,
-                 new_value=(f"{len(materiallar)} ta material, qo'shimcha xarajat {natija['xarajatlar_jami']:,.0f} so'm"
-                            + (f", to'lov {tolov_jami:,.0f} so'm — " + ("o'chirildi" if tolov == "ochirish" else "avans")
-                               if qism["tolovlar"] else "")).replace(",", " "))
+                 new_value=(f"{len(materiallar)} ta material, qo'shimcha xarajat {audit_son(natija['xarajatlar_jami'], 0)} so'm"
+                            + (f", to'lov {audit_son(tolov_jami, 0)} so'm — " + ("o'chirildi" if tolov == "ochirish" else "avans")
+                               if qism["tolovlar"] else "")))     # kech151 (zip 192)
     return natija
 
 
@@ -19247,8 +19263,8 @@ def _taklif_yorligi(t) -> str:
 
 
 def _taklif_jami_matni(jami, kelishilgan) -> str:
-    _j = f"{float(jami or 0):,.0f}".replace(",", " ")
-    _k = f"{float(kelishilgan or 0):,.0f}".replace(",", " ")
+    _j = audit_son(jami, 0)                         # kech151 (zip 192)
+    _k = audit_son(kelishilgan, 0)
     return f"Jami: {_j} so'm" + (f", kelishilgan: {_k} so'm" if abs(float(jami or 0) - float(kelishilgan or 0)) > 0.005 else "")
 
 

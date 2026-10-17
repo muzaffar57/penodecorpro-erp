@@ -558,7 +558,7 @@ def get_business_health(db: Session, company_id: int = None) -> dict:
     # Moliya, Dashboard bilan BITTA qoida). Kirim ≥ chiqim — yashil; chiqim ko'p, lekin kassada pul bor — sariq (masalan
     # katta xomashyo xaridi oyi); chiqim ko'p va kassa ham manfiy — qizil; harakat yo'q — kulrang.
     _po = get_pul_oqimi(db, now.year, now.month, company_id=company_id)
-    _po_farq = f"{abs(float(_po['balans'])):,.0f}".replace(",", " ") + " so'm"
+    _po_farq = son_korinish(abs(float(_po['balans'])), 0) + " so'm"   # kech151 (zip 192): ilgari oddiy bo'shliq
     if not _po.get("harakat_bor"):
         pul_status, pul_sabab = "gray", "Bu oy pul harakati hali yo'q"
     elif float(_po["balans"]) >= 0:
@@ -1633,11 +1633,13 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
                 # Buyurtma miqdori/summasi — HAQIQATDA berilgan miqdorga tushiriladi
                 fin = _crud.finalize_partial_order_quantities(db, order)
                 result["finalized"] = fin
-                msg = f"Buyurtma summasi {fin['old_total']:.0f} → {fin['new_total']:.0f} so'mga tushirildi (haqiqatda berilgan miqdorga mos)."
+                # kech151 (zip 192): summalar — `son_korinish` (ilgari ajratgichsiz «3703701 → 2469134»)
+                msg = (f"Buyurtma summasi {son_korinish(fin['old_total'], 0)} → {son_korinish(fin['new_total'], 0)} so'mga "
+                       "tushirildi (haqiqatda berilgan miqdorga mos).")
                 if fin["overpaid"]:
-                    msg += f" ⚠️ Mijoz {fin['overpaid']:.0f} so'm ortiqcha to'lagan — QAYTARILISHI kerak!"
+                    msg += f" ⚠️ Mijoz {son_korinish(fin['overpaid'], 0)} so'm ortiqcha to'lagan — QAYTARILISHI kerak!"
                 elif fin["debt"] > 0:
-                    msg += f" Qarz qoldi: {fin['debt']:.0f} so'm."
+                    msg += f" Qarz qoldi: {son_korinish(fin['debt'], 0)} so'm."
                 else:
                     msg += " To'lov to'liq yopilgan."
                 result["finalized"]["message"] = msg
@@ -4698,7 +4700,7 @@ def _yon_oy_aniq(db: Session, year: int, month: int, company_id, x: "_YonXarita"
             k = qoldiq_kalit or _YON_BELGILANMAGAN
             taqsim[k] = taqsim.get(k, 0.0) + farq
             if qoldiq_kalit is None:
-                izohlar.append(f"{nom}: {round(farq, 2)} so'm yo'nalishga bog'lanmadi")
+                izohlar.append(f"{nom}: {son_korinish(farq, 2)} so'm yo'nalishga bog'lanmadi")   # kech151 (zip 192): ilgari «1234.5»
         return taqsim
 
     # ── 1. BUYURTMALAR: daromad va tannarx (yakunlangan paytdagi holat) ──
