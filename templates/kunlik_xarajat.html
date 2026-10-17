@@ -162,7 +162,7 @@ async function kxBugunYukla() {
     el.innerHTML = rows.map(x => `
       <div class="kx-qator" data-id="${Number(x.id)}" style="display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--border2)">
         <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:600">${escapeHtml(narxKorinishi(x.amount))} so'm · ${escapeHtml(KX_TOIFA[x.category] || x.category)}</div>
+          <div style="font-size:13px;font-weight:600">${escapeHtml(pulKor(x.amount))} so'm · ${escapeHtml(KX_TOIFA[x.category] || x.category)}</div>
           <div style="font-size:12px;color:var(--text3)">${escapeHtml(tkSana(x.date))} · kiritildi ${escapeHtml(tkVaqt(x.created_at))}${x.notes ? ' · ' + escapeHtml(x.notes) : ''}</div>
         </div>
         <button type="button" class="btn btn-danger btn-sm"
@@ -225,7 +225,7 @@ async function kxSave(){
       // kech120 (G3-24): NIMA saqlangani ko'rinadi (ilgari faqat «Xarajat saqlandi!» — ikki marta bosilganmi, bilinmasdi)
       const sel = document.getElementById('kx-category');
       const toifa = sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex].textContent.replace(/\s*\(.*\)$/, '') : category;
-      ok.textContent = `✓ Saqlandi: ${narxKorinishi(amount)} so'm · ${toifa} · ${tkSana(date)}` + amalTakrorIzoh(n.takror);
+      ok.textContent = `✓ Saqlandi: ${pulKor(amount)} so'm · ${toifa} · ${tkSana(date)}` + amalTakrorIzoh(n.takror);
       document.getElementById('kx-amount').value = '';
       document.getElementById('kx-notes').value = '';
       kxBugunYukla();      // kech121 (zip 138 — G3-24)

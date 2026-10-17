@@ -706,7 +706,7 @@ async function quickPayObligation(category, label, debt, year, month, monthLabel
   // kech120 (zip 131 — F bosqichi, audit G3-04): oynada QAYSI oy qarzi va qaysi SANAGA yozilishi ko'rinadi (o'tgan oy — 28-sana
   // qoidasi ilgari aytilmasdi); qarzdan ko'p summa — alohida tasdiq (ilgari jim qabul qilinardi).
   const oyMatn = String(monthLabel || '').replace(' (joriy)', '') || (y + '-' + String(m).padStart(2, '0'));
-  const izoh = `${oyMatn} ${y} · qarz ${narxKorinishi(debt)} so'm\n${tkSana(payDate)} sanasiga yoziladi` +
+  const izoh = `${oyMatn} ${y} · qarz ${pulKor(debt)} so'm\n${tkSana(payDate)} sanasiga yoziladi` +
     (isCurrentMonth ? '' : ' (o\'tgan oy qarzi — o\'sha oy hisobotiga)');
   // kech118 (B — U-07): brauzerning xom prompt() oynasi o'rniga dastur oynasi (base.html `kiritishOyna`)
   const amountStr = await kiritishOyna(`${label} uchun qancha to'landi?`, {qiymat: narxKorinishi(debt), izoh, inputmode: 'decimal', okText: "To'lovni yozish"});
@@ -716,7 +716,7 @@ async function quickPayObligation(category, label, debt, year, month, monthLabel
   const amount = narxniOqi(amountStr);
   if (!(amount > 0)) { alert("Summa noto'g'ri: " + amountStr); return; }
   if (Number(debt) > 0 && amount - Number(debt) > 0.004) {      // tiyindan katta farq (yaxlitlashsiz — 118-band)
-    const ha = await customConfirm(`${narxKorinishi(amount)} so'm — ${oyMatn} qarzidan (${narxKorinishi(debt)} so'm) ko'p. Baribir shu summa yozilsinmi?`,
+    const ha = await customConfirm(`${pulKor(amount)} so'm — ${oyMatn} qarzidan (${pulKor(debt)} so'm) ko'p. Baribir shu summa yozilsinmi?`,
                                    {danger: true, okText: 'Ha, yozilsin'});
     if (!ha) return;
   }
@@ -891,7 +891,7 @@ function payYozuv(){
   izoh.style.display = 'block';
   if (k > 0) {
     const foiz = selectedDebt.debt > 0 ? Math.round(k / selectedDebt.debt * 1000) / 10 : 0;
-    izoh.textContent = "Kechiriladi: " + narxKorinishi(k) + " so'm (qarzning " + String(foiz).replace('.', ',')
+    izoh.textContent = "Kechiriladi: " + pulKor(k) + " so'm (qarzning " + String(foiz).replace('.', ',')
       + " %) — mijozdan olinmaydi, foyda hisobotidan ayiriladi.";
   } else {
     izoh.textContent = "Kechiriladigan summa yo'q — to'lov qarzni to'liq yopadi.";
@@ -925,9 +925,9 @@ async function savePaymentIchki(){
   const usulEl = document.getElementById('pay-method');
   const usul = usulEl ? (usulEl.value || 'naqd') : 'naqd';
   const usulNomi = (usulEl && usulEl.selectedIndex >= 0) ? usulEl.options[usulEl.selectedIndex].textContent.toLowerCase() : 'naqd';
-  let savol = (sd.client ? sd.client + " · " : "") + (sd.orderNumber || "") + ": " + narxKorinishi(amount)
+  let savol = (sd.client ? sd.client + " · " : "") + (sd.orderNumber || "") + ": " + pulKor(amount)
     + " so'm (" + usulNomi + ") to'lov qabul qilinsinmi?";
-  if (kechir > 0) savol += "\n\n⚠️ Qolgan " + narxKorinishi(kechir) + " so'm KECHIRILADI (chegirma) — mijozdan olinmaydi.";
+  if (kechir > 0) savol += "\n\n⚠️ Qolgan " + pulKor(kechir) + " so'm KECHIRILADI (chegirma) — mijozdan olinmaydi.";
   const tasdiq = await customConfirm(savol, {danger: kechir > 0, okText: kechir > 0 ? "Ha, qabul qilib kechirish" : "Ha, qabul qilish"});
   if (!tasdiq) { msg.style.display = 'none'; return; }
 
@@ -975,8 +975,8 @@ async function savePaymentIchki(){
     try { j = await res.json(); } catch(e) {}
     msg.style.background = 'var(--f-dcfce7)'; msg.style.color = 'var(--m-166534)';
     const wo = j && j.write_off;
-    msg.textContent = `✓ ${narxKorinishi(amount)} so'm qabul qilindi!`
-      + (wo && wo.amount ? ` Qolgan ${narxKorinishi(wo.amount)} so'm chegirma qilib kechirildi.` : '');
+    msg.textContent = `✓ ${pulKor(amount)} so'm qabul qilindi!`
+      + (wo && wo.amount ? ` Qolgan ${pulKor(wo.amount)} so'm chegirma qilib kechirildi.` : '');
     setTimeout(() => location.reload(), wo && wo.amount ? 3000 : 1300);
   } else {
     msg.style.background = 'var(--f-fee2e2)'; msg.style.color = 'var(--m-dc2626)';
@@ -1009,10 +1009,10 @@ function selectRefund(el){
     <div class="dbt-sum-row"><span style="color:var(--text3)">Buyurtma</span><span style="font-weight:600">${escapeHtml(d.orderNumber)}${d.deleted === 'true' ? ' <span style="color:var(--m-dc2626)">(o\'chirilgan)</span>' : ''}</span></div>
     <div class="dbt-sum-row"><span style="color:var(--text3)">Loyiha</span><span>${escapeHtml(d.project)}</span></div>
     <div class="dbt-sum-row"><span style="color:var(--text3)">Telefon</span><span>${escapeHtml(d.phone)}</span></div>
-    <div class="dbt-sum-row"><span style="color:var(--text3)">Kelishilgan summa</span><span style="font-weight:600">${escapeHtml(narxKorinishi(agreed))} so'm</span></div>
-    <div class="dbt-sum-row"><span style="color:var(--text3)">To'langan</span><span style="font-weight:600;color:var(--m-15803d)">${escapeHtml(narxKorinishi(paid))} so'm</span></div>
+    <div class="dbt-sum-row"><span style="color:var(--text3)">Kelishilgan summa</span><span style="font-weight:600">${escapeHtml(pulKor(agreed))} so'm</span></div>
+    <div class="dbt-sum-row"><span style="color:var(--text3)">To'langan</span><span style="font-weight:600;color:var(--m-15803d)">${escapeHtml(pulKor(paid))} so'm</span></div>
     <div class="dbt-sum-row" style="border-top:2px solid #F97316;padding-top:10px;margin-top:4px">
-      <span style="font-weight:700">QAYTARISH KERAK:</span><span style="font-weight:800;font-size:16px;color:var(--m-c2410c)">${escapeHtml(narxKorinishi(ort))} so'm</span>
+      <span style="font-weight:700">QAYTARISH KERAK:</span><span style="font-weight:800;font-size:16px;color:var(--m-c2410c)">${escapeHtml(pulKor(ort))} so'm</span>
     </div>`;
   document.getElementById('refundCard').style.display = ((typeof TOLOV_YARATISH === 'undefined') || TOLOV_YARATISH) ? 'block' : 'none';
   // Aniq (tiyinli) summa — butun ortiqcha; qisman qaytarish uchun o'zgartirish mumkin
@@ -1034,7 +1034,7 @@ async function saveRefund(){
   }
   const tana = { amount, payment_method: document.getElementById('ref-method').value,
                  notes: document.getElementById('ref-note').value || null };
-  const ha = await customConfirm(`Mijozga ${narxKorinishi(amount)} so'm qaytarildi deb yozilsinmi? (kassadan chiqim)`,
+  const ha = await customConfirm(`Mijozga ${pulKor(amount)} so'm qaytarildi deb yozilsinmi? (kassadan chiqim)`,
                                  {okText: 'Ha, qaytarildi'});
   if (!ha) return;
   _refundYuborilmoqda = true;
@@ -1060,9 +1060,9 @@ async function saveRefund(){
       try { d = await res.json(); } catch (e) { d = null; }
       msg.style.background = 'var(--f-dcfce7)'; msg.style.color = 'var(--m-166534)';
       msg.textContent = (d && d.qaytarildi !== undefined && d.qaytarildi !== null)
-        ? `✓ ${narxKorinishi(d.qaytarildi)} so'm qaytarildi deb yozildi` +
-          (Number(d.ortiqcha_qoldi) > 0 ? ` — yana ${narxKorinishi(d.ortiqcha_qoldi)} so'm qaytarish kerak` : '')
-        : `✓ ${narxKorinishi(amount)} so'm qaytarildi deb yozildi`;
+        ? `✓ ${pulKor(d.qaytarildi)} so'm qaytarildi deb yozildi` +
+          (Number(d.ortiqcha_qoldi) > 0 ? ` — yana ${pulKor(d.ortiqcha_qoldi)} so'm qaytarish kerak` : '')
+        : `✓ ${pulKor(amount)} so'm qaytarildi deb yozildi`;
       setTimeout(() => location.reload(), 1300);
     } else {
       xatoKor((res.status >= 500 ? "⚠️ Natija noma'lum: " : '❌ ') + await amalSababi(res));

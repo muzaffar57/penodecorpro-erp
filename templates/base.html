@@ -290,6 +290,17 @@ function foizKor(x, kasr) {
   const s = sonKor(x, (kasr === undefined || kasr === null) ? 1 : kasr);
   return s === '—' ? s : s + '%';
 }
+// kech150 (zip 190, O'LCHANGAN `work/k190/olchov190.py`): pul MATNI (xabar, tasdiq oynasi, ro'yxat, jami) — kiritish maydoni qoidasi
+// (`narxKorinishi`: 2 xonagacha, YAXLITLANMAYDI; manfiy / son emas — «0») bilan AYNAN bir son, lekin ko'rinish qoidasida: ming ajratgich —
+// bo'linmas bo'shliq, kasr — vergul («15 432 093,75»). Ilgari matnda ham `narxKorinishi` edi — oddiy bo'shliq va nuqta: telefonda
+// «15 432 | 093.75 so'm» ikki qatorga bo'linardi (kirim ro'yxati, ta'minotchi xaridi savati). Maydon QIYMATI — `narxKorinishi` (o'zgarmaydi).
+function pulKor(n) {
+  const x = Number(n);
+  const s = (isFinite(x) ? x : 0).toFixed(2).replace(/\.?0+$/, '');
+  if (s.indexOf('-') >= 0) return '0';
+  const q = s.split('.');
+  return q[0].replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0') + (q.length > 1 ? ',' + q[1] : '');
+}
 // kech118 (U-03): holat rangi chiziq / nuqta (fon) uchun yorqin, YOZUV uchun — to'q tusi (oq fonda ≥ 4.5:1)
 // `fon` — yozuv och RANGLI fon (holat rangining och tusi: #FEF2F2, #F0FDF4 …) ustida: undan ham to'qroq tus (≥ 5:1)
 function matnRangi(c, fon) {

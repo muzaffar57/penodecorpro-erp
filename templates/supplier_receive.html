@@ -771,7 +771,7 @@ async function quickPaySupplier(confirmOverpay = false){
     // kech120 (zip 132 — F bosqichi 2-qism, audit G4-04): to'lov tasdiqsiz yozilardi — endi kimga, qancha
     const sel = document.getElementById('r-supplier');
     const nom = (sel && sel.selectedIndex >= 0) ? sel.options[sel.selectedIndex].textContent.trim() : "ta'minotchi";
-    if (!(await customConfirm(`${nom}: ${narxKorinishi(amount)} so'm eski qarz to'lovi yozilsinmi?`, {okText: "Ha, to'landi"}))) return;
+    if (!(await customConfirm(`${nom}: ${pulKor(amount)} so'm eski qarz to'lovi yozilsinmi?`, {okText: "Ha, to'landi"}))) return;
     isSavingSupplierQuickPay = true;
     if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = '...'; }
   }
@@ -1060,7 +1060,7 @@ function apQatorniSavatga(itemId, item, qty, price){
   const takror = apTakrorQator(itemId, qty, price, volumePerUnit);
   if (takror >= 0) {
     showMsg("❌ Bu qator ro'yxatda allaqachon bor (" + (takror + 1) + "-qator: " + (item ? item.item_name : '?') + ", "
-      + qty + " × " + narxKorinishi(price) + " so'm). Ikki partiya bo'lsa — miqdorini birlashtiring.", 'error');
+      + qty + " × " + pulKor(price) + " so'm). Ikki partiya bo'lsa — miqdorini birlashtiring.", 'error');
     return false;
   }
   // 125-band (kech96): qator jamisi — server qoidasi bilan (`crud._xarid_narx_jami`, bazaga yoziladigan AYNAN summa)
@@ -1087,15 +1087,15 @@ function renderBasket(){
       <tr>
         <td data-label="№">${i+1}</td>
         <td data-label="Material nomi" style="font-weight:600;color:var(--r-text)">${escapeHtml(b.itemName)}${b.isPenoplast?' <span style="color:var(--gold-dark);font-size:12px">(Penoplast)</span>':''}</td>
-        <td data-label="Miqdor">${b.qty} ${escapeHtml(b.unit)}</td>
-        <td data-label="1 birlik narxi">${narxKorinishi(b.price)} so'm</td>
-        <td data-label="Summa" style="text-align:right;font-weight:700">${narxKorinishi(b.total)} so'm</td>
+        <td data-label="Miqdor">${sonKor(b.qty, 4)} ${escapeHtml(b.unit)}</td>
+        <td data-label="1 birlik narxi">${pulKor(b.price)} so'm</td>
+        <td data-label="Summa" style="text-align:right;font-weight:700">${pulKor(b.total)} so'm</td>
         <td data-label="" style="text-align:right"><button class="rcv-icon-btn" onclick="apRemoveFromBasket(${i})" title="Ro'yxatdan olib tashlash" aria-label="Ro'yxatdan olib tashlash"><i class="ti ti-trash"></i></button></td>
       </tr>`).join('');
   }
   const total = pulYigindi(apBasket.map(b => b.total));
   document.getElementById('rcv-pos-count').textContent = apBasket.length;
-  document.getElementById('rcv-pos-total').textContent = narxKorinishi(total)+" so'm";
+  document.getElementById('rcv-pos-total').textContent = pulKor(total)+" so'm";
   updateSummary();
   saveDraft();
 }
@@ -1130,11 +1130,11 @@ function updateSummary(){
   const paid = opening ? 0 : (parseNum(document.getElementById('ap-paid-now').value)||0);
   const debt = opening ? 0 : Math.max(0, pulYigindi([productsTotal, -paid]));
 
-  document.getElementById('sum-products').textContent = narxKorinishi(productsTotal)+" so'm";
-  document.getElementById('sum-transport').textContent = narxKorinishi(extraTotal)+" so'm";
-  document.getElementById('sum-grand').textContent = narxKorinishi(grand)+" so'm";
-  document.getElementById('sum-paid').textContent = narxKorinishi(paid)+" so'm";
-  document.getElementById('sum-debt').textContent = narxKorinishi(debt)+" so'm";
+  document.getElementById('sum-products').textContent = pulKor(productsTotal)+" so'm";
+  document.getElementById('sum-transport').textContent = pulKor(extraTotal)+" so'm";
+  document.getElementById('sum-grand').textContent = pulKor(grand)+" so'm";
+  document.getElementById('sum-paid').textContent = pulKor(paid)+" so'm";
+  document.getElementById('sum-debt').textContent = pulKor(debt)+" so'm";
   const ow = document.getElementById('sum-opening-warn');
   if (ow) ow.style.display = opening ? 'block' : 'none';
   const dw = document.getElementById('sum-date-warn');
@@ -1227,7 +1227,7 @@ async function submitReceive(){
     const _tolov = parseNum(document.getElementById('ap-paid-now').value) || 0;
     const _jami = pulYigindi(apBasket.map(l => l.total));
     if (!_boshlangich && _tolov > _jami + 0.005) {
-      showMsg("❌ Hozir to'langan summa (" + narxKorinishi(_tolov) + " so'm) materiallar jamisidan (" + narxKorinishi(_jami)
+      showMsg("❌ Hozir to'langan summa (" + pulKor(_tolov) + " so'm) materiallar jamisidan (" + pulKor(_jami)
         + " so'm) ko'p bo'lishi mumkin emas", 'error');
       return;
     }
@@ -1302,7 +1302,7 @@ async function submitReceive(){
   const totalPaid = isOpeningStock ? 0 : Math.min(paidNowTotal, productsJami);
   const totalDebt = isOpeningStock ? 0 : Math.max(0, pulYigindi([productsJami, -paidNowTotal]));
 
-  showMsg(`✓ Kirim saqlandi! To'landi: ${narxKorinishi(totalPaid)} so'm${totalDebt>0.005?`, Qarz: ${narxKorinishi(totalDebt)} so'm`:''}` + amalTakrorIzoh(kirimTakror), 'success');
+  showMsg(`✓ Kirim saqlandi! To'landi: ${pulKor(totalPaid)} so'm${totalDebt>0.005?`, Qarz: ${pulKor(totalDebt)} so'm`:''}` + amalTakrorIzoh(kirimTakror), 'success');
   apBasket = []; invItems = [];
   clearDraft();
   renderBasket();

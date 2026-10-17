@@ -2272,7 +2272,7 @@ function pCalc() {
 
   box.innerHTML = `
     📦 Hajm: <b>${sonKor(volume_total, 4)} m³</b>${p ? ` · ${escapeHtml(p.name)}: <b>${sonKor(blocks, 2)} blok</b>${tannarxKoradi ? ` = ${fmt(penoCost)} so'm` : ''}` : ''}${volLockLine}${loyLine}<br>
-    💵 1 ${escapeHtml(unitLabel(unit))} narxi: <b style="color:var(--gold-dark)">${narxKorinishi(perUnitPrice)} so'm</b>${inputPrice ? ` <span style="color:var(--text3)">(kiritilgan: ${narxKorinishi(inputPrice)})</span>` : ''}<br>
+    💵 1 ${escapeHtml(unitLabel(unit))} narxi: <b style="color:var(--gold-dark)">${pulKor(perUnitPrice)} so'm</b>${inputPrice ? ` <span style="color:var(--text3)">(kiritilgan: ${pulKor(inputPrice)})</span>` : ''}<br>
     ${tannarxKoradi ? `<div style="margin:6px 0;padding:6px 0;border-top:1px dashed var(--ch-dddddd);border-bottom:1px dashed var(--ch-dddddd)">
       💰 Tan narxi: <b style="color:var(--m-dc2626)">${fmt(cost)} so'm</b>
       <span style="color:var(--text3)">(1 ${escapeHtml(unitLabel(unit))} = ${fmt(costPerUnit)})</span><br>
