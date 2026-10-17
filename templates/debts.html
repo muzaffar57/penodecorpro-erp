@@ -95,14 +95,14 @@ html[data-theme="dark"] .dbt-wrap{--d-bg:var(--bg); --d-card:var(--white); --d-b
       <div class="dbt-summary-icon" style="background:var(--f-fef2f2);color:var(--m-dc2626)"><i class="ti ti-arrow-down-left"></i></div>
       <div>
         <div class="dbt-summary-label">Bizga qarzdorlar (mijozlar)</div>
-        <div class="dbt-summary-value">{{ "{:,.0f}".format(total_customer_debt).replace(",", " ") }} so'm</div>
+        <div class="dbt-summary-value">{{ (total_customer_debt)|son(0) }} so'm</div>
       </div>
     </div>
     <div class="dbt-summary-card">
       <div class="dbt-summary-icon" style="background:var(--f-fffbeb);color:var(--m-b45309)"><i class="ti ti-arrow-up-right"></i></div>
       <div>
         <div class="dbt-summary-label">Biz qarzdormiz (ta'minotchilar)</div>
-        <div class="dbt-summary-value">{{ "{:,.0f}".format(total_supplier_debt).replace(",", " ") }} so'm</div>
+        <div class="dbt-summary-value">{{ (total_supplier_debt)|son(0) }} so'm</div>
       </div>
     </div>
   </div>
@@ -111,7 +111,7 @@ html[data-theme="dark"] .dbt-wrap{--d-bg:var(--bg); --d-card:var(--white); --d-b
   {% if ortiqcha_royxat %}
   <div id="qaytarish-banner" style="background:var(--f-fff7ed);border:1.5px solid #F97316;color:var(--m-9a3412);border-radius:12px;padding:12px 16px;margin:-8px 0 18px;font-size:13px;font-weight:600;cursor:pointer" onclick="switchTab('refunds')">
     ↩ {{ ortiqcha_royxat|length }} ta buyurtma bo'yicha mijozlarga
-    {{ ("{:,.2f}" if (total_ortiqcha % 1) else "{:,.0f}").format(total_ortiqcha).replace(",", " ") }} so'm QAYTARILISHI kerak (ortiqcha to'langan) — «Mijozga qaytarish» bo'limi
+    {{ (total_ortiqcha)|son }} so'm QAYTARILISHI kerak (ortiqcha to'langan) — «Mijozga qaytarish» bo'limi
   </div>
   {% endif %}
 
@@ -155,7 +155,7 @@ html[data-theme="dark"] .dbt-wrap{--d-bg:var(--bg); --d-card:var(--white); --d-b
                       <div class="dbt-item-name">{{ g.nom }}</div>
                       <div class="dbt-item-sub">{{ g.buyurtmalar|length }} ta buyurtma{% if g.telefon %} · <a class="dbt-tel" href="tel:{{ g.telefon }}" onclick="event.stopPropagation()">📞 {{ g.telefon }}</a>{% endif %}{% if g.muddati_otgan %} · <span class="qarz-muddat">{{ g.muddati_otgan }} tasi muddati o'tgan</span>{% endif %}</div>
                     </div>
-                    <div class="dbt-item-amount">{{ ("{:,.2f}" if (g.jami % 1) else "{:,.0f}").format(g.jami).replace(",", " ") }} so'm</div>
+                    <div class="dbt-item-amount">{{ (g.jami)|son }} so'm</div>
                   </div>
                 </div>
               </div>
@@ -181,7 +181,7 @@ html[data-theme="dark"] .dbt-wrap{--d-bg:var(--bg); --d-card:var(--white); --d-b
                     <div class="dbt-item-name">{{ o.order_number }}</div>
                     <div class="dbt-item-sub">{{ o.project.project_name }}{% if o.qarz_muddati_otgan %} · <span class="qarz-muddat">muddati o'tgan ({{ o.deadline|toshkent('%d.%m.%Y') }})</span>{% endif %}{% if o.is_deleted %} · <span class="qarz-ochirilgan" style="color:var(--m-dc2626)">o'chirilgan</span>{% endif %}</div>
                   </div>
-                  <div class="dbt-item-amount">{{ "{:,.0f}".format(o.debt_amount).replace(",", " ") }} so'm</div>
+                  <div class="dbt-item-amount">{{ (o.debt_amount)|son(0) }} so'm</div>
                 </div>
                 <div class="dbt-progress-track"><div class="dbt-progress-fill" style="width:{{ paid_pct|round }}%"></div></div>
               </div>
@@ -266,7 +266,7 @@ html[data-theme="dark"] .dbt-wrap{--d-bg:var(--bg); --d-card:var(--white); --d-b
                     <div class="dbt-item-name">{{ o.project.client_name if o.project else '—' }}</div>
                     <div class="dbt-item-sub">{{ o.order_number }} · {{ o.project.project_name if o.project else '—' }}{% if o.is_deleted %} · <span style="color:var(--m-dc2626)">o'chirilgan</span>{% endif %}</div>
                   </div>
-                  <div class="dbt-item-amount" style="color:var(--m-c2410c)">↩ {{ ("{:,.2f}" if (ort % 1) else "{:,.0f}").format(ort).replace(",", " ") }} so'm</div>
+                  <div class="dbt-item-amount" style="color:var(--m-c2410c)">↩ {{ (ort)|son }} so'm</div>
                 </div>
               </div>
             </div>
@@ -327,7 +327,7 @@ html[data-theme="dark"] .dbt-wrap{--d-bg:var(--bg); --d-card:var(--white); --d-b
                     <div class="dbt-item-name">{{ s.name }}</div>
                     <div class="dbt-item-sub">{{ s.phone or '—' }} · {{ s.purchase_count }} ta xarid</div>
                   </div>
-                  <div class="dbt-item-amount" style="color:var(--m-b45309)">{{ "{:,.0f}".format(s.debt).replace(",", " ") }} so'm</div>
+                  <div class="dbt-item-amount" style="color:var(--m-b45309)">{{ (s.debt)|son(0) }} so'm</div>
                 </div>
                 <div class="dbt-progress-track"><div class="dbt-progress-fill" style="width:{{ spaid_pct|round }}%;background:var(--f-f59e0b)"></div></div>
               </div>
@@ -371,7 +371,7 @@ html[data-theme="dark"] .dbt-wrap{--d-bg:var(--bg); --d-card:var(--white); --d-b
                     {# kech141 (zip 169, A-P02): ishdan ketgan hodim — belgi (o'tgan oy oyligi / qarzi qoladi) #}{% if e.ishda is defined and not e.ishda %}<span class="hodim-ketgan-belgi" style="font-size:12px;font-weight:600;color:var(--d-text2);background:var(--ch-f3f4f6);padding:2px 8px;border-radius:6px;margin-left:6px;white-space:nowrap">ishdan ketgan{% if e.ketgan_sana %} {{ e.ketgan_sana[8:10] }}.{{ e.ketgan_sana[5:7] }}.{{ e.ketgan_sana[0:4] }}{% endif %}</span>{% endif %}
                     <div style="font-size:12px;color:var(--d-text3);margin-top:2px">{{ e.detail if current_user.ruxsat('tannarx', 'korish') else e.detail|foyda_yashir }} — jami {{ e.amount|son(0) }}, avans {{ e.avans|son(0) }}</div>
                   </div>
-                  <div class="oblig-summa" style="font-weight:800;color:var(--m-dc2626);font-size:16px">{{ "{:,.0f}".format(e.qolgan).replace(",", " ") }}</div>
+                  <div class="oblig-summa" style="font-weight:800;color:var(--m-dc2626);font-size:16px">{{ (e.qolgan)|son(0) }}</div>
                 </div>
                 {# kech144 (zip 177, audit C#20): `…/employee/{id}/close` — «Qarzlar: Tahrirlash» ruxsati bilan #}
                 {% if current_user.ruxsat('qarz', 'tahrirlash') %}<button class="btn btn-outline btn-xs" style="margin-top:8px" data-qolgan="{{ e.qolgan }}" onclick="event.stopPropagation();closeEmployeeDebt(this.closest('.oblig-item').dataset.empId, this.closest('.oblig-item').dataset.empName, parseFloat(this.dataset.qolgan), this.closest('.oblig-item').dataset.year, this.closest('.oblig-item').dataset.month)">✓ To'liq to'landi deb belgilash</button>{% endif %}
@@ -392,9 +392,9 @@ html[data-theme="dark"] .dbt-wrap{--d-bg:var(--bg); --d-card:var(--white); --d-b
                   <span style="font-weight:700;font-size:13px">{{ e.name }}</span>
                   <span style="font-size:12px;font-weight:700;color:var(--m-b45309);background:var(--f-fffbeb);padding:2px 8px;border-radius:6px;margin-left:6px">{{ e.month_label }}</span>
                   {# kech141 (zip 169, A-P02): ishdan ketgan hodim — belgi (o'tgan oy oyligi / qarzi qoladi) #}{% if e.ishda is defined and not e.ishda %}<span class="hodim-ketgan-belgi" style="font-size:12px;font-weight:600;color:var(--d-text2);background:var(--ch-f3f4f6);padding:2px 8px;border-radius:6px;margin-left:6px;white-space:nowrap">ishdan ketgan{% if e.ketgan_sana %} {{ e.ketgan_sana[8:10] }}.{{ e.ketgan_sana[5:7] }}.{{ e.ketgan_sana[0:4] }}{% endif %}</span>{% endif %}
-                  <div style="font-size:12px;color:var(--d-text3);margin-top:2px">oylik {{ "{:,.0f}".format(e.amount).replace(",", " ") }}, olgan {{ "{:,.0f}".format(e.avans).replace(",", " ") }}</div>
+                  <div style="font-size:12px;color:var(--d-text3);margin-top:2px">oylik {{ (e.amount)|son(0) }}, olgan {{ (e.avans)|son(0) }}</div>
                 </div>
-                <div style="font-weight:800;color:var(--m-b45309);font-size:16px;white-space:nowrap">{{ "{:,.0f}".format(e.qarz).replace(",", " ") }}</div>
+                <div style="font-weight:800;color:var(--m-b45309);font-size:16px;white-space:nowrap">{{ (e.qarz)|son(0) }}</div>
               </div>
               {% endfor %}
             </div>
@@ -422,10 +422,10 @@ html[data-theme="dark"] .dbt-wrap{--d-bg:var(--bg); --d-card:var(--white); --d-b
                     <span style="font-weight:600;font-size:13px">{{ r.icon }} {{ r.label }}</span>
                     <span style="font-size:12px;font-weight:700;color:{{ status_color[r.status] }};background:{{ status_color[r.status] }}1A;padding:2px 8px;border-radius:6px">{{ r.month_label }}</span>
                   </div>
-                  <div style="font-size:12px;color:var(--d-text3);margin-top:2px">Maqsad: {{ "{:,.0f}".format(r.target).replace(",", " ") }} · To'langan: {{ "{:,.0f}".format(r.paid).replace(",", " ") }} · Har oy {{ r.due_day }}-sanagacha</div>
+                  <div style="font-size:12px;color:var(--d-text3);margin-top:2px">Maqsad: {{ (r.target)|son(0) }} · To'langan: {{ (r.paid)|son(0) }} · Har oy {{ r.due_day }}-sanagacha</div>
                 </div>
                 <div class="oblig-summa" style="text-align:right">
-                  <div style="font-weight:800;color:{{ status_color[r.status] }};font-size:16px">{{ "{:,.0f}".format(r.debt).replace(",", " ") }}</div>
+                  <div style="font-weight:800;color:{{ status_color[r.status] }};font-size:16px">{{ (r.debt)|son(0) }}</div>
                   <div style="font-size:12px;color:{{ status_color[r.status] }};font-weight:600">{{ status_label[r.status] }}</div>
                 </div>
               </div>

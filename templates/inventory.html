@@ -259,7 +259,7 @@
       <div><span class="stat-badge {{ st }}">{{ st_label }}</span></div>
       <div class="mat-col-updated" style="font-size:13px;color:var(--text3)">
         {% if current_user.narx_koradi() %}
-        <span id="price-{{ item.id }}">{{ "{:,.0f}".format(item.price_per_unit).replace(",", " ") if item.price_per_unit else "—" }} so'm</span>
+        <span id="price-{{ item.id }}">{{ (item.price_per_unit)|son(0) if item.price_per_unit else "—" }} so'm</span>
         {% if current_user.ruxsat('material', 'tahrirlash') %}<button class="btn btn-outline btn-icon btn-sm" onclick="editPrice({{ item.id }}, {{ item.price_per_unit or 0 }})" title="Narxni tuzatish" aria-label="Narxni tuzatish" style="margin-left:4px"><i class="ti ti-edit"></i></button>{% endif %}
         {% else %}
         <span style="color:var(--text3)">—</span>

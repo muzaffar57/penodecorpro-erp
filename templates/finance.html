@@ -495,9 +495,11 @@ html[data-theme="dark"]{
             <div style="font-size:12px;margin-top:4px;color:var(--m-b91c1c)" id="dg-recurring-n">—</div>
           </div>
         </div>
-        <div style="margin-top:14px;padding-top:14px;border-top:1px dashed var(--ch-e5e1d8);display:flex;justify-content:space-between;align-items:center">
-          <span style="font-size:13px;font-weight:700;color:var(--m-333333)">Sof holat (bizga qarz − bizdan qarz)</span>
-          <span style="font-size:18px;font-weight:800" id="dg-net">—</span>
+        {# kech147 (zip 189 — production skrinshoti 16.10 23:24, O'LCHANGAN 384 px): yorliq (2 qator) va qiymat orasida 0 px edi — «bizdan
+           + 33,9 mln» yopishgan. Endi oraliq 12 px, sig'masa qiymat keyingi qatorda o'ngda, qiymat bo'linmaydi #}
+        <div class="dg-sof" style="margin-top:14px;padding-top:14px;border-top:1px dashed var(--ch-e5e1d8);display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:4px 12px">
+          <span style="font-size:13px;font-weight:700;color:var(--m-333333);min-width:0">Sof holat (bizga qarz − bizdan qarz)</span>
+          <span style="font-size:18px;font-weight:800;white-space:nowrap;margin-left:auto" id="dg-net">—</span>
         </div>
       </div>
     </div>

@@ -726,14 +726,23 @@ function mpKontekstHtml(d) {
 // kech128 (zip 152 — staging jonli sinovi 08.10, O'LCHANDI): yozishma oynasi (420 px) rasmlar yuklanishidan OLDIN pastga aylantirilardi —
 // rasmlar keyin yuklanib balandlik oshgach eng yangi xabar pastda yashirinib qolardi (3 xabar, 2 rasm: oyna boshida, 578 / 420 px).
 // Endi har rasm yuklanganda — foydalanuvchi o'zi yuqoriga aylantirmagan bo'lsa — yana eng yangi xabarga.
+// kech147 (zip 189): dastur o'zi surgan joy (`dastur`) eslab qolinadi — shu joydagi `scroll` hodisasi foydalanuvchi surishi EMAS. Ilgari
+// dastur surgandan keyingi `scroll` hodisasi (keyingi kadrda) rasm o'lchami joylashgandan KEYIN kelsa `pastda = false` bo'lib qolardi
+// (scrollHeight o'sgan, scrollTop eski) va rasm yuklanganda eng yangi xabarga surilmasdi (og'ir yukda / sekin telefonda).
 function mpPastga(xs) {
   if (!xs) return;
   var pastda = true;
-  xs.scrollTop = xs.scrollHeight;
-  xs.addEventListener('scroll', function () { pastda = xs.scrollHeight - xs.clientHeight - xs.scrollTop < 24; });
+  var dastur = null;
+  function pastgaSur() { xs.scrollTop = xs.scrollHeight; dastur = xs.scrollTop; }
+  pastgaSur();
+  xs.addEventListener('scroll', function () {
+    if (dastur !== null && Math.abs(xs.scrollTop - dastur) <= 1) return;
+    dastur = null;
+    pastda = xs.scrollHeight - xs.clientHeight - xs.scrollTop < 24;
+  });
   xs.querySelectorAll('img').forEach(function (im) {
     if (im.complete) return;
-    im.addEventListener('load', function () { if (pastda) xs.scrollTop = xs.scrollHeight; }, {once: true});
+    im.addEventListener('load', function () { if (pastda) pastgaSur(); }, {once: true});
   });
 }
 
