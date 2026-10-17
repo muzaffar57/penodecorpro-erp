@@ -523,6 +523,13 @@ def _eski_izchillik(db, company_id):
     """ASL (zip 90) `check_financial_consistency` 1, 2, 6, 8-tekshiruvlari — buyurtma / detal boshiga ALOHIDA so'rovlar
     (mustaqil nusxa; kmut97a N31 / N32 — mazmun mutatsiyalari "ASL yo'l" bilan ko'rinmasdi)."""
     from models import OrderStatus as _OS
+    # kech150 (zip 191, MOSLANDI): tekshiruv matndagi sonni YAGONA qoida bilan yozadimi (`services.son_korinish` — bo'linmas bo'shliq,
+    # kasr — vergul) va 6-tekshiruvda savatdagi buyurtmani chiqarib, yorliqqa buyurtma RAQAMINI qo'yadimi — qobiliyat. Eski kodda —
+    # avvalgi matn («1,234 so'm», «3.00») va avvalgi qoida.
+    _Y191 = "son_korinish" in inspect.getsource(crud.check_financial_consistency)
+
+    def _pul191(x):
+        return services.son_korinish(x, 0) if _Y191 else f"{x:,.0f}"
     iss = []
     oq = db.query(Order).filter(Order.is_deleted.is_(False))
     if company_id is not None:
@@ -535,7 +542,7 @@ def _eski_izchillik(db, company_id):
         diff = abs(items_sum - total)
         if diff > 1:
             iss.append({"type": "order_total_mismatch", "label": f"Buyurtma {o.order_number}",
-                        "detail": f"Jami summa: {total:,.0f} so'm, lekin detallar yig'indisi: {items_sum:,.0f} so'm",
+                        "detail": f"Jami summa: {_pul191(total)} so'm, lekin detallar yig'indisi: {_pul191(items_sum)} so'm",
                         "diff": round(diff, 2)})
     for o in orders:
         pays = db.query(Payment).filter(Payment.order_id == o.id).all()
@@ -549,17 +556,29 @@ def _eski_izchillik(db, company_id):
         diff = abs(debt - expected_debt)
         if diff > 1:
             iss.append({"type": "debt_mismatch", "label": f"Buyurtma {o.order_number}",
-                        "detail": f"Yozilgan qarz: {debt:,.0f} so'm, lekin kutilgan (kelishilgan−to'langan): {expected_debt:,.0f} so'm",
+                        "detail": f"Yozilgan qarz: {_pul191(debt)} so'm, lekin kutilgan (kelishilgan−to'langan): {_pul191(expected_debt)} so'm",
                         "diff": round(diff, 2)})
     iq = db.query(OrderItem)
     if company_id is not None:
         iq = iq.filter(OrderItem.company_id == company_id)
+    if _Y191:                                  # kech150 (zip 191, MOSLANDI): tartib — detal id
+        iq = iq.order_by(OrderItem.id)
     for it in iq.all():
+        _o191 = db.query(Order).filter(Order.id == it.order_id).first() if _Y191 else None
+        if _Y191 and (_o191 is None or _o191.is_deleted is not False):    # savatdagi buyurtma — 1, 2, 8 bilan bir qoida
+            continue
         cat = (it.category or '').lower()
         ordered = float(it.length or 0) if cat == 'profil' else float(it.quantity or 0)
         delivered = sum(float(di.quantity or 0) for di in
                         db.query(DeliveryItem).filter(DeliveryItem.order_item_id == it.id).all())
         if delivered > ordered + 0.01:
+            if _Y191:
+                _b191 = services.birlik_korinish(it.delivery_unit)
+                iss.append({"type": "over_delivery", "label": f"{it.name} ({_o191.order_number})",
+                            "detail": f"Buyurtma qilingan: {services.son_korinish(ordered, 2)} {_b191}, "
+                                      f"lekin topshirilgan: {services.son_korinish(delivered, 2)} {_b191}",
+                            "diff": round(delivered - ordered, 2)})
+                continue
             iss.append({"type": "over_delivery", "label": f"{it.name} (buyurtma #{it.order_id})",
                         "detail": f"Buyurtma qilingan: {ordered:.2f}, lekin topshirilgan: {delivered:.2f}",
                         "diff": round(delivered - ordered, 2)})
