@@ -364,7 +364,10 @@ def sogliq(cid=1):
 
 hs = sogliq(1)
 _ps = (hs.get("sabablar") or {}).get("pul_oqimi", "")
-_farq = f"{abs(float(po.get('balans') or 0)):,.0f}".replace(",", " ")
+# kech151 (zip 192, MOSLANDI): sabab matnidagi summa — `services.son_korinish` (bo'linmas bo'shliq); eski kodda — oddiy bo'shliq
+import inspect as _ins192                          # noqa: E402
+_B192 = "\u00a0" if "son_korinish(abs(" in _ins192.getsource(services.get_business_health) else " "
+_farq = f"{abs(float(po.get('balans') or 0)):,.0f}".replace(",", _B192)
 check(f"S1 shu oy chiqim kirimdan ko'p, kassada pul bor → «orange», sabab «… {_farq} so'm ko'p (kassada pul bor)» "
       f"(asl: sof foyda ishorasi)", float(po.get("balans") or 0) < 0 and hs.get("pul_oqimi") == "orange"
       and _ps == f"Bu oy chiqim kirimdan {_farq} so'm ko'p (kassada pul bor)", (hs.get("pul_oqimi"), _ps, po.get("balans")))
@@ -389,8 +392,8 @@ _hl = [sogliq_soxta(13400000, 0), sogliq_soxta(0, -5), sogliq_soxta(-1000, -1), 
 check("S2 kirim ≥ chiqim — «green» («Bu oy kirim chiqimdan 13 400 000 so'm ko'p»); 0 — ham yashil; chiqim ko'p va kassa "
       "manfiy — «red»; harakat yo'q — «gray» («Bu oy pul harakati hali yo'q»)",
       [x.get("pul_oqimi") for x in _hl] == ["green", "green", "red", "gray"]
-      and (_hl[0].get("sabablar") or {}).get("pul_oqimi") == "Bu oy kirim chiqimdan 13 400 000 so'm ko'p"
-      and (_hl[2].get("sabablar") or {}).get("pul_oqimi") == "Bu oy chiqim kirimdan 1 000 so'm ko'p, kassa ham manfiy"
+      and (_hl[0].get("sabablar") or {}).get("pul_oqimi") == f"Bu oy kirim chiqimdan 13{_B192}400{_B192}000 so'm ko'p"
+      and (_hl[2].get("sabablar") or {}).get("pul_oqimi") == f"Bu oy chiqim kirimdan 1{_B192}000 so'm ko'p, kassa ham manfiy"
       and (_hl[3].get("sabablar") or {}).get("pul_oqimi") == "Bu oy pul harakati hali yo'q",
       [(x.get("pul_oqimi"), (x.get("sabablar") or {}).get("pul_oqimi")) for x in _hl])
 check("S3 bo'sh korxona (3) — «gray» (harakat yo'q)", sogliq(3).get("pul_oqimi") == "gray"

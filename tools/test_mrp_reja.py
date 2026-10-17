@@ -772,7 +772,8 @@ check("X6 mijoz buyurtmasiga, detal tanlanmagan — «… buyurtma detalini tanl
       detail(_r) == "Mijoz buyurtmasi asosida ishlab chiqarish uchun buyurtma detalini tanlang", detail(_r))
 _fn = getattr(production_service, "_miqdor_matn", None)
 check("X7 miqdor ko'rinishi: 44.00000000000001 → 44, 1234.5 → 1 234,5, 0.0125 → 0,0125, 3.3000000000000003 → 3,3",
-      lambda: [_fn(x) for x in (44.00000000000001, 1234.5, 0.0125, 3.3000000000000003, -2.5)] == ["44", "1 234,5", "0,0125", "3,3", "-2,5"],
+      lambda: [_fn(x) for x in (44.00000000000001, 1234.5, 0.0125, 3.3000000000000003, -2.5)] == [
+          "44", ("1\u00a0234,5" if hasattr(production_service.crud, "xabar_son") else "1 234,5"), "0,0125", "3,3", "-2,5"],   # kech151
       [_fn(x) for x in (44.00000000000001, 1234.5, 0.0125)] if _fn else None)
 
 # ══════════════════════════════════════════════════════════════

@@ -588,7 +588,8 @@ _f2 = (j.get("new") or "").split("\nO'zgardi: ")[-1]
 check("D3 retsept: nom, partiya (2,5), izoh, chiqindi %, material olib tashlandi / qo'shildi — HAMMASI ro'yxatda",
       r.status_code == 200 and all(x in _f2 for x in ("nomi: «Standart» → «Kuchli»", "partiya: 1 → 2,5 m²", "izoh o'zgardi",
                                                      "ETR Kley: chiqindi 0 → 5 %", "− ETR Tosh", "+ ETR Penoplast 0,5 blok"))
-      and "«Kuchli»" in (j.get("new") or "") and "partiya 2.5" in (j.get("new") or ""), (r.status_code, _f2))
+      and "«Kuchli»" in (j.get("new") or "")
+      and ("partiya 2,5" if hasattr(crud, "xabar_son") else "partiya 2.5") in (j.get("new") or ""), (r.status_code, _f2))   # kech151
 r = C.put(f"/api/production/boms/{BOM}", json={"product_type_id": PT, "variant_name": "Kuchli", "batch_quantity": 2.5,
                                                "notes": "yangi izoh",
                                                "items": [{"inventory_id": KLEY, "quantity": 4, "scrap_factor_percent": 5},

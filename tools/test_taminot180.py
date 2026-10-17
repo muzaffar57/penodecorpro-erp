@@ -273,8 +273,10 @@ check("S7 (B9) xarid bilan birga to'langan 400 dan keyin 8 s ichida ESKI qarzga 
       _r7.status_code == 200 and _r7b.status_code == 200 and len(tolovlar(SB)) == _t0 + 2, (js(_r7b), tolovlar(SB)))
 _r8 = tolov(C, SB, 5000000)
 _m8 = str((js(_r8).get("detail") or {}).get("message") if isinstance(js(_r8).get("detail"), dict) else js(_r8).get("detail"))
+# kech151 (zip 192, MOSLANDI): xabardagi summa — `crud.xabar_son` (BO'LINMAS bo'shliq); eski kodda — oddiy bo'shliq
+_B192 = "\u00a0" if hasattr(crud, "xabar_son") else " "
 check("S8 (D1) ortiqcha to'lov ogohlantirishi — ming ajratgichi bo'shliq («5 000 000»; ilgari «5,000,000»)",
-      _r8.status_code == 409 and "5 000 000" in _m8 and "5,000,000" not in _m8, (_r8.status_code, _m8))
+      _r8.status_code == 409 and f"5{_B192}000{_B192}000" in _m8 and "5,000,000" not in _m8, (_r8.status_code, _m8))
 
 _h = {
     "page_size=0": C.get(f"/api/suppliers/{SA}/history?page=1&page_size=0").status_code,
@@ -481,7 +483,7 @@ _rx1c = C.put(f"/api/inventory/purchases/{_x1}", json={"quantity": 2.5, "price_p
 _dx1c = _det(_rx1c)
 check("X1b (№1) keyin 3.5 → 2.5: 409, summa — faqat SHU tahrir ortiqchasi 100 000 (ilgari 150 000), «avvalgi 50 000 so'm avans "
       "o'zgarmaydi»", _rx1c.status_code == 409 and float(_dx1c.get("summa") or 0) == 100000
-      and "avvalgi 50 000 so'm avans o'zgarmaydi" in str(_dx1c.get("message")), (_rx1c.status_code, _dx1c))
+      and f"avvalgi 50{_B192}000 so'm avans o'zgarmaydi" in str(_dx1c.get("message")), (_rx1c.status_code, _dx1c))
 _rx1d = C.put(f"/api/inventory/purchases/{_x1}?tolov=ochirish", json={"quantity": 2.5, "price_per_unit": 100000})
 check("X1c (№1) `ochirish` — to'lovdan AYNAN 100 000 ayirildi: 300 000 (egasi qoldirgan 50 000 avans saqlandi; ilgari 250 000)",
       _rx1d.status_code == 200 and tolovlar(XS1) == [300000.0], (_rx1d.status_code, tolovlar(XS1)))
@@ -506,7 +508,7 @@ check("X2c (№1) `ochirish` — hujjat to'lovi 190 000 (A ning 50 000 avansi sa
 _som146 = getattr(crud, "_som", None)      # zip 179 da yo'q — sinov qulamaydi, X3 yiqiladi
 _sm = ([_som146(x) for x in (0.5, 2.5, 1234567.5, 1234567.49, None)] if _som146 else ["_som yo'q"])
 check("X3 (№1) `_som` — butun so'mga 0.5 YUQORIGA (pul UI `fmt` bilan bir): 0.5 → «1», 2.5 → «3» (ilgari Python `round`: «0», «2»)",
-      _sm == ["1", "3", "1 234 568", "1 234 567", "0"], _sm)
+      _sm == ["1", "3", f"1{_B192}234{_B192}568", f"1{_B192}234{_B192}567", "0"], _sm)
 XS3, XM3 = taminotchi("T180 X Gamma"), material("T180 X Sement")
 xarid(C, XM3, XS3, 3, 1000, paid_now=2000)
 _x3 = _xid(XM3, XS3)
