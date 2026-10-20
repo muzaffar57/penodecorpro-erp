@@ -252,8 +252,12 @@ check("A5 tannarx: B dan 5 m ulushi chiqdi (B = 20 m tannarxining 15/20), A da 0
       abs(tm(FB)[1] - round(_b_tannarx * 15 / 20, 2)) <= 0.02 and tm(FA)[1] == 0.0, (_b_tannarx, tm(FA), tm(FB)))
 check("A6 «Faoliyat jurnali» — `tm_minus_yopildi` (A partiyasi)", jurnal("tm_minus_yopildi", FA) == 1, jurnal("tm_minus_yopildi", FA))
 A.delete(f"/api/orders/{OA}")
-check("A7 buyurtma o'chirildi — 15 m A ga qaytdi (A 15, B 15 — jami 30 = 10 + 20), A tannarxi 15 × 1 000",
-      tm(FA) == (15.0, 15000.0, 0.0) and tm(FB)[0] == 15.0, (tm(FA), tm(FB)))
+# kech153 (zip 196 — egasi qarori «Haqiqiy tannarx», MOSLANDI): 5 m qarz B narxida yopilgan — buyurtma tannarxi va qaytgan qism shu narxda
+_a7 = 10 * 1000 + 5 * _b_tannarx / 20
+check("A7 buyurtma o'chirildi — 15 m A ga qaytdi (A 15, B 15 — jami 30 = 10 + 20); A tannarxi 10 × 1 000 + 5 m B narxida (qarzni yopgan "
+      "mahsulot narxi — kech153), guruh tannarxi saqlandi (10 000 + B)",
+      tm(FA)[0] == 15.0 and abs(tm(FA)[1] - _a7) <= 0.05 and tm(FA)[2] == 0.0 and tm(FB)[0] == 15.0
+      and abs(tm(FA)[1] + tm(FB)[1] - (10000 + _b_tannarx)) <= 0.05, (tm(FA), tm(FB), _a7, _b_tannarx))
 check("A8 «Tayyor mahsulot minusi yopildi» amali jurnal nomlarida (`crud.AUDIT_AMALLARI`)",
       "tm_minus_yopildi" in crud.AUDIT_AMALLARI)
 

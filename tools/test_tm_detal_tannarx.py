@@ -737,9 +737,12 @@ check("V1 +10 m (narx x2) 200", qosh(TV, 10) == 200)
 s, OW, IW, _, _ = buyurtma(TV, 12)
 check("V2 yana 12 m — qoldiq −5", s == 200 and tm(TV)[0] == -5.0, (s, tm(TV)))
 check("V3 o'rtacha endi boshqa (birlik farq qiladi)", abs((tm(TV)[2] or 0) - Yv) > 1, (tm(TV), Yv))
+# kech153 (zip 196 — egasi qarori «Haqiqiy tannarx», MOSLANDI): OV ning 3 m qarzini «+» (narx x2) yopgan — OV detali birligi shu narxga
+# tuzatilgan; qaytgan qism o'rtachasi — OV detalining o'chirishdan OLDINGI birligi (eski kodda = Yv)
+_bv = birlik(IV)
 r = req(C, "delete", f"/api/orders/{OV}")
-check("V4 8 m qaytdi — qoldiq 3, o'rtacha = qaytgan qism birligi (manfiy qoldiq og'irlik emas)",
-      r.status_code == 200 and tm(TV)[0] == 3.0 and taxminan(tm(TV)[2], Yv, 0.0001), (r.status_code, tm(TV), Yv))
+check("V4 8 m qaytdi — qoldiq 3, o'rtacha = qaytgan qism (detal) birligi (manfiy qoldiq og'irlik emas)",
+      r.status_code == 200 and tm(TV)[0] == 3.0 and _bv is not None and taxminan(tm(TV)[2], _bv, 0.0001), (r.status_code, tm(TV), _bv, Yv))
 
 # ══════════════════════════════════════════════════════════════
 section("M. Korxona — begona TM ga bog'langan detal (Core bilan buzilgan havola)")
