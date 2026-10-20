@@ -1183,6 +1183,11 @@ let isSubmittingReceive = false;
 async function submitReceive(){
   if (!currentSupplierId) { showMsg("❌ Ta'minotchini tanlang", 'error'); return; }
   if (isSubmittingReceive) return; // Ikki marta bosishdan himoya
+  // kech152 (zip 195 — egasi tanlovi 20.10 «Boshqa sahifalarda ham»; O'LCHANGAN `work/k195/probe195.py` S5): oxirgi qatorda YANGI material
+  // yaratilayotganda (so'rov kutilmoqda) ta'minotchi A dan B ga almashtirilsa, kirim (xarid, ta'minotchi qarzi, to'lov) B ga yozilardi —
+  // `supplier_id` kutishdan KEYIN o'qilardi. Endi bosilgandagi ta'minotchi eslab qolinadi; kutish paytida o'zgargan bo'lsa — kirim
+  // yuborilmaydi (savat joyida), foydalanuvchi tekshirib qayta bosadi.
+  const kirimTaminotchi = currentSupplierId;
 
   // Yo'nalish («Umumiy» yoki korxona yo'nalishi — kech117) ONGLI ravishda tanlanmagan bo'lsa —
   // endi bu MAJBURIY: davom etishga umuman ruxsat berilmaydi. ("Umumiy"ning
@@ -1238,6 +1243,10 @@ async function submitReceive(){
     if (!ok) return;
   }
 
+  if (String(currentSupplierId) !== String(kirimTaminotchi)) {
+    showMsg("❌ Ta'minotchi o'zgartirildi — kirim yuborilmadi. Ta'minotchini tekshirib, «Saqlash» ni qayta bosing", 'error');
+    return;
+  }
   if (isSubmittingReceive) return; // Ikki marta bosishdan himoya (yuqoridagi await/confirm paytida ham bosilgan bo'lishi mumkin)
   isSubmittingReceive = true;
   const submitBtn = document.getElementById('receive-submit-btn');
@@ -1258,7 +1267,7 @@ async function submitReceive(){
       inventory_id: line.itemId, quantity: line.qty, price_per_unit: line.price,
       volume_per_unit: line.volumePerUnit || null, is_opening_stock: isOpeningStock
     })),
-    supplier_id: currentSupplierId,
+    supplier_id: kirimTaminotchi,
     document_number: docNum || null,
     paid_now: isOpeningStock ? 0 : paidNowTotal,
     transport_cost: ec.transport, tushirish_cost: ec.tushirish,
@@ -1281,7 +1290,7 @@ async function submitReceive(){
     const n = await amalYubor('/api/inventory/receipt', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify(payload)
-    }, 'kirim_' + currentSupplierId);
+    }, 'kirim_' + kirimTaminotchi);
     if (!n.ok) {
       showMsg(n.nomalum ? amalNomalumMatn('Kirim', n.xato) : '❌ Kirim saqlanmadi: ' + n.xato, 'error');
       return;

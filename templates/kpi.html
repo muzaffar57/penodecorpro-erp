@@ -1562,9 +1562,14 @@ function closeCompHistoryModal() {
 
 async function loadCompHistory(empId) {
   const list = document.getElementById('ch-list');
+  // kech152 (zip 195, O'LCHANGAN probe195 S2): A ning oynasi yopilib B niki ochilgach A ning kech javobi B oynasiga yozilardi. Endi oxirgi
+  // so'rov va oyna hali SHU hodimniki (`editingEmpId`) bo'lsa chiziladi.
+  const joriy = yukNavbat('chTarix');
+  const amalda = () => joriy() && String(editingEmpId) === String(empId);
   try {
     // kech138 (zip 165): xato JSON — «Tarix topilmadi» (yolg'on) / JS xatosi edi; endi sabab
     const rows = await yukOl(`/api/employees/${empId}/compensation-history`);
+    if (!amalda()) return;
     if (!Array.isArray(rows)) throw yukXato('server');
     if (!rows.length) {
       list.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3);font-size:13px">Tarix topilmadi</div>';
@@ -1587,6 +1592,7 @@ async function loadCompHistory(empId) {
         </div>`;
     }).join('');
   } catch (x) {
+    if (!amalda()) return;
     yukRoyxatXato(list, yukXatoMatn("To'lov tarixi", (x && x.yukXato) ? x : yukXato('server')));
   }
 }
