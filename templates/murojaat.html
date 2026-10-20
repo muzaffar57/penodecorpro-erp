@@ -146,10 +146,15 @@ function mjMenyuSoni() {                     // o'qilmagan javoblar soni (menyud
 }
 
 async function mjOch(id) {
+  // kech152 (zip 195, O'LCHANGAN probe195 S1): A ochilayotganda B bosilsa, A ning kech javobi B ni bosardi (ochiq — A, oxirgi bosilgan — B;
+  // «Yuborish» — A ga). Endi oxirgi bosilgani chiziladi (`yukNavbat` — platforma `mpOch` kabi), eskisining xatosi ham ko'rsatilmaydi.
+  var joriy = yukNavbat('mj-och');
   try {
     var r = await fetch('/api/murojaatlar/' + encodeURIComponent(id));
-    if (!r.ok) { showMsg(await serverXatoSababi(r, "Murojaatni ochib bo'lmadi"), 'error'); return; }
+    if (!joriy()) return;
+    if (!r.ok) { var sabab = await serverXatoSababi(r, "Murojaatni ochib bo'lmadi"); if (joriy()) showMsg(sabab, 'error'); return; }
     var d = await r.json();
+    if (!joriy()) return;
     MJ.ochiq = d.id;
     var q = MJ.royxat.find(function (x) { return x.id === d.id; });
     if (q) { q.yangi_javob = false; q.holat = d.holat; q.holat_nomi = d.holat_nomi; }
@@ -164,7 +169,7 @@ async function mjOch(id) {
     var k = document.getElementById('mjYozishma');
     k.hidden = false;
     k.scrollIntoView({block: 'start', behavior: 'smooth'});
-  } catch (e) { showMsg('Internet aloqasini tekshiring', 'error'); }
+  } catch (e) { if (joriy()) showMsg('Internet aloqasini tekshiring', 'error'); }
 }
 
 async function mjYubor() {

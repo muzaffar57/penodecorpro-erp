@@ -597,14 +597,19 @@ async function saveCategories() {
 let TG_CHAT_YUKLANGAN = false;
 async function loadTgBot() {
   const el = document.getElementById('tg-status');
+  // kech152 (zip 195, O'LCHANGAN probe195 S4 — jurnal to'lqini N3): sahifa ochilgandagi so'rov saqlashdan keyingisidan kech kelsa chat ID
+  // maydoniga ESKI qiymat yozilardi (keyin «Saqlash» — eski ID). Endi oxirgi so'rov chiziladi (`yukNavbat`).
+  const joriy = yukNavbat('tgBot');
   let d;
   try { d = await yukOl('/api/settings/telegram-bot'); }
   catch (e) {
+    if (!joriy()) return;
     if (el) el.innerHTML = '<span style="color:var(--m-b91c1c)">' + escapeHtml(yukXatoMatn('Bot holati', (e && e.yukXato) ? e : yukXato('server'))) + '</span>';
     const ub = document.getElementById('tg-ulash-btn');
     if (ub) ub.style.display = 'none';
     return;
   }
+  if (!joriy()) return;
   try {
     // kech146 (zip 183, audit J10 + mustaqil tekshiruv R5): chat ID — bot sozlanmagan bo'lsa ham ko'rsatiladi (ilgari maydon bo'sh
     // ko'rinib, saqlangan ID lar yashirin qolardi — keyin token qo'yilsa jimgina qayta ishlardi)
