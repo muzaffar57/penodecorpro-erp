@@ -668,7 +668,8 @@ if PW_BOR and ZANJIR_JS:
             OYNA = [("/kpi-detail", "() => { openMasterDetail(document.querySelector('.mk-tugmalar').dataset.id, 'Namuna Usta'); }",
                      "md-list", "Buyurtmalar bo'yicha KPI"),
                     ("/advances", "() => { openAdvanceModal(1, 'Namuna Hodim'); }", "adv-history", "Bu oy avanslari"),
-                    ("/compensation-history", "() => { loadCompHistory(1); }", "ch-list", "To'lov tarixi")]
+                    # kech152 (zip 195, MOSLANDI): tarix faqat oyna SHU hodimniki bo'lsa chiziladi — haqiqiy sahifadagi kabi tanlangan hodim
+                    ("/compensation-history", "() => { editingEmpId = 1; loadCompHistory(1); }", "ch-list", "To'lov tarixi")]
             for qism, kod, quti, nima in OYNA:
                 for tur in ("502_html", "500_json"):
                     pg = sahifa(CTX["kl_a"])
