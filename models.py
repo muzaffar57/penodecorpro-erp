@@ -995,6 +995,11 @@ class OrderItem(Base):
     # NULL — yozilmagan (tannarxsiz TM yoki eski yozuv; `main._migrate_tm_detal_tannarx` deploy paytida to'ldiradi):
     # avvalgi qoida (TM ning joriy birlik tannarxi).
     fp_unit_cost = Column(Numeric(14, 4), nullable=True)
+    # kech153 (zip 196 — EGASI QARORI 21.10 «Haqiqiy tannarx»; O'LCHANGAN `work/k196/probe196.py` D1 … D4): detal tayyor mahsulotdan
+    # QARZGA olgan (partiya minusga tushgan — hali ishlab chiqarilmagan) va hali yopilmagan miqdor (`crud._tm_qarz_yoz`). Qarz keyin
+    # boshqa narxdagi haqiqiy mahsulot bilan yopilsa — detal tannarxi (`fp_unit_cost`) yopgan mahsulot narxiga tuzatiladi
+    # (`crud._tm_qarz_yopildi`; «Tayyor» / o'chirilgan buyurtmada — o'zgarmaydi). NULL / 0 — qarz yo'q.
+    fp_qarz = Column(Float, nullable=True)
 
     unit_price = Column(Numeric(12, 2), default=0)
     total_price = Column(Numeric(12, 2), default=0)

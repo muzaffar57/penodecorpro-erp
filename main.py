@@ -2619,6 +2619,76 @@ def _migrate_tm_detal_tannarx():
 _migrate_tm_detal_tannarx()
 
 
+def _migrate_tm_qarz196():
+    """kech153 (zip 196 — EGASI QARORI 21.10 «Haqiqiy tannarx») — IDEMPOTENT, PostgreSQL va SQLite.
+
+    `order_items.fp_qarz` — detal tayyor mahsulotdan QARZGA olgan (partiya minusga tushgan, hali yopilmagan) miqdor; qarz keyin boshqa narxdagi
+    haqiqiy mahsulot bilan yopilsa detal tannarxi shu narxga tuzatiladi (`crud._tm_qarz_yopildi`). Ustun odatda
+    `database.sync_missing_columns()` bilan qo'shiladi; yo'q bo'lsa shu yerda. BIR MARTALIK to'ldirish (belgisi — ustunda birorta ham
+    qiymat yo'qligi; yangi kod har qarzni yozadi): deploy paytida MINUSDAGI tayyor partiyaning qarzi bog'langan detallarga — oxirgi
+    olgandan boshlab (id kamayishi), faol buyurtmalarning (`crud._tm_qarz_aktiv`) hali topshirilmagan qismigacha; partiya birligi
+    muzlamagan bo'lsa — joriy birlikda muzlaydi (qarz shu birlikda yozilgan). Hech bir raqam (qoldiq, tannarx, buyurtma foydasi)
+    o'zgarmaydi — faqat qarz yozuvi."""
+    from sqlalchemy import text, inspect as _insp
+    from database import engine, SessionLocal as _SL196
+    from models import OrderItem as _OI196, Order as _O196, FinishedProduct as _FP196
+    try:
+        _i = _insp(engine)
+        if "order_items" not in set(_i.get_table_names()):
+            return
+        if "fp_qarz" not in {c["name"] for c in _i.get_columns("order_items")}:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE order_items ADD COLUMN fp_qarz FLOAT"))
+            print("✓ order_items.fp_qarz qo'shildi")
+    except Exception as e:
+        print(f"⚠ order_items.fp_qarz ustuni tekshiruvi o'tkazib yuborildi: {e}")
+        return
+    _d = _SL196()
+    try:
+        if _d.query(_OI196.id).filter(_OI196.fp_qarz.isnot(None)).first() is not None:
+            return
+        _n = 0
+        for _f in _d.query(_FP196).filter(_FP196.quantity < -1e-6).order_by(_FP196.id).all():
+            if not crud._fp_tayyormi(_f):
+                continue
+            _qarz = -float(_f.quantity or 0)
+            _q = (_d.query(_OI196, _O196).join(_O196, _O196.id == _OI196.order_id)
+                  .filter(_OI196.finished_product_id == _f.id, _OI196.company_id == _f.company_id,
+                          _O196.company_id == _f.company_id)
+                  .order_by(_OI196.id.desc()).all())
+            _b = None
+            for _it, _o in _q:
+                if _qarz <= 1e-9:
+                    break
+                if not crud._tm_qarz_aktiv(_o):
+                    continue
+                _x = min(_qarz, float(_it.remaining_qty or 0), crud._fp_item_qty(_it))
+                if _x <= 1e-9:
+                    continue
+                _it.fp_qarz = _x
+                _qarz -= _x
+                _n += 1
+                if _b is None:
+                    _b = crud._tm_detal_birligi(_it)       # qarz shu (oxirgi olgan) detal birligida yozilgan
+            if not _f.unit_cost_stable:
+                _b = _b or crud._fp_stable_unit_cost(_d, _f)
+                if _b and _b > 0:
+                    _f.unit_cost_stable = _b
+        if _n:
+            _d.commit()
+            print(f"✓ Tayyor mahsulot minusi — qarzga olgan detallar yozildi: {_n} ta")
+        else:
+            _d.rollback()
+    except Exception as e:
+        _d.rollback()
+        print(f"⚠ Tayyor mahsulot qarzi migratsiyasi o'tkazib yuborildi: {e}")
+    finally:
+        _d.close()
+
+
+_migrate_tm_qarz196()
+
+
 def _migrate_ortiqcha_qaytarish():
     """kech60 (57-band, K59-3) — IDEMPOTENT, PostgreSQL va SQLite.
 
