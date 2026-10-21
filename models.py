@@ -1255,6 +1255,11 @@ class ReturnItem(Base):
     stock_qty = Column(Float, nullable=True)
     stock_cost = Column(Numeric(12, 2), nullable=True)
     stock_volume_m3 = Column(Float, nullable=True)
+    # kech153 (zip 197 — egasi qarori 21.10 «Ruxsat, hisob to'g'ri»): shu qaytarish omborga qo'shgan mahsulot (yoki MRP bandidan bo'shagan
+    # qoldiq) qaysi buyurtma detallari QARZINI (minus) qancha / qanday narxda yopgani — JSON ro'yxat `[nishon, donor, detal, miqdor, yopgan
+    # birlik, qarz birligi, detal tannarxi tuzatmasi]` (`crud._tm_qarz_yopildi` yozadi). Qaytarish o'chirilsa AVVAL shu yopilishlar teskari
+    # (`crud._tm_yopish_qaytar`). NULL — hech narsa yopmagan yoki shu yangilanishdan oldingi yozuv (avvalgidek).
+    minus_yopdi = Column(Text, nullable=True)
     #  * FOYDALANUVCHI QARORI (kech40, B): pul qaytarilgan qaytarish o'chirilsa —
     #    kelishilgan summa tiklanadi va manfiy to'lov o'chadi. `refunded_at` —
     #    "pul qaytdi" YANGI kod bilan bosilganining belgisi (manfiy to'lov
@@ -2176,6 +2181,11 @@ class FinishedProduct(Base):
     # — mahsulotning o'zi YO'QOLMAYDI, faqat yana umumiy sotuvga qaytadi.
     reserved_quantity = Column(Float, default=0.0)
     reserved_for_order_item_id = Column(Integer, ForeignKey("order_items.id"), nullable=True, index=True)
+    # kech153 (zip 197 — egasi qarori «Ruxsat, hisob to'g'ri»; mustaqil tekshiruv F1): partiyadan CHIQIM hisoblagichi — har tranzaksiya
+    # yakunida qoldiqning SOF kamayishi qo'shiladi (buyurtmaga olish, sotuv, brak, guruhdoshga ko'chish …; `_tm_chiqim_yoz`). Minusni yopgan
+    # hodisa yozuvida saqlanadi — bekorda oshgan bo'lsa hodisa bilan kelgan mahsulot boshqalarga ketgan bo'lishi mumkin (rad). STANDARTSIZ
+    # (NULL = 0).
+    chiqim_jami = Column(Float, nullable=True)
     # kech125 (zip 146 — EGASI QARORLARI 07.10 «Brak taqdiri»): mahsulot BRAKDAN paydo bo'lgan — `crud.BRAK_TAQDIRLARI` kodi:
     # 'tuzatildi' (tuzatilib omborga), 'kesildi' (kesib olingan kichik detal), 'ikkinchi_nav' (2-nav, arzon sotiladi). NULL —
     # oddiy mahsulot. Bunday mahsulot boshqasi bilan BIRLASHTIRILMAYDI (`add_returned_to_stock`), taqdir bekor qilinganda
@@ -2318,6 +2328,9 @@ class BrakTaqdir(Base):
     tm_tannarx = Column(Numeric(12, 2), nullable=True)
     tm_yangi = Column(Boolean, nullable=True)
     narx = Column(Numeric(12, 2), nullable=True)        # TM sotuv narxi (1 birlik) — 2-nav (egasi qarori Q1), kesilgan detal
+    # kech153 (zip 197 — egasi qarori «Ruxsat, hisob to'g'ri»): shu taqdir tayyor mahsulotga qo'shgani qaysi buyurtma detallari QARZINI
+    # yopgani (JSON — `ReturnItem.minus_yopdi` bilan bir format); taqdir bekor qilinsa avval shu yopilishlar teskari. NULL — yopmagan / eski.
+    minus_yopdi = Column(Text, nullable=True)
     yaratilgan = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
     yaratgan = Column(String(100), nullable=True)
     bekor_vaqti = Column(DateTime, nullable=True, index=True)
@@ -3003,6 +3016,56 @@ def _check_refs(session, obj, own_cid):
                 f"({ref_cid}) tegishli, yozuvning o'zi esa {own_cid} ga. "
                 f"Korxonalar orasida bog'lanish yaratib bo'lmaydi."
             )
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# kech153 (zip 197 — egasi qarori «Ruxsat, hisob to'g'ri»; mustaqil tekshiruv `work/k197/review197/HISOBOT.md` F1): tayyor mahsulot
+# partiyasidan CHIQIM hisoblagichi (`FinishedProduct.chiqim_jami`). Qoldiq birinchi marta o'zgarganda tranzaksiya boshidagi qiymati eslab
+# qolinadi (`session.info[TM_Q0_KALIT]` — {id: (qiymat, obyekt)}); eng tashqi tranzaksiya yakunida (`before_commit`) SOF kamayish
+# hisoblagichga qo'shiladi
+# (bir tranzaksiyada olib-qaytarilgan — 0). Yozuvchi kod o'zgarmaydi: har yo'l (buyurtma, sotuv, brak, ko'chish) avtomatik.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+TM_Q0_KALIT = "tm_q0_197"
+
+
+@event.listens_for(FinishedProduct.quantity, "set", active_history=True)
+def _tm_q0_eslab(target, value, oldvalue, initiator):
+    from sqlalchemy.orm import object_session as _os197
+    from sqlalchemy.orm.base import NO_VALUE as _NV197
+    _s = _os197(target)
+    if _s is None or oldvalue is _NV197 or getattr(target, 'id', None) is None:
+        return
+    try:
+        _q0 = float(oldvalue or 0)
+    except (TypeError, ValueError):
+        return
+    # qiymat + obyektning o'zi (identity map zaif havola tutadi — flush dan keyin obyekt yo'qolmasin)
+    _s.info.setdefault(TM_Q0_KALIT, {}).setdefault(int(target.id), (_q0, target))
+
+
+@event.listens_for(SASession, "before_commit")
+def _tm_chiqim_yoz(session):
+    if session.in_nested_transaction():
+        return
+    _m = session.info.get(TM_Q0_KALIT)
+    if not _m:
+        return
+    for _id, (_q0, _o) in list(_m.items()):
+        if _o is None or _o in session.deleted or _o not in session:
+            continue
+        try:
+            _sof = float(_o.quantity or 0) - float(_q0)
+        except (TypeError, ValueError):
+            continue
+        if _sof < -1e-9:
+            _o.chiqim_jami = float(_o.chiqim_jami or 0) - _sof
+    _m.clear()
+
+
+@event.listens_for(SASession, "after_transaction_end")
+def _tm_q0_tozala(session, transaction):
+    if transaction.parent is None:
+        session.info.pop(TM_Q0_KALIT, None)
 
 
 @event.listens_for(SASession, "before_flush")

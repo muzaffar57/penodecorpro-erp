@@ -2689,6 +2689,32 @@ def _migrate_tm_qarz196():
 _migrate_tm_qarz196()
 
 
+def _migrate_minus_yopdi197():
+    """kech153 (zip 197 — EGASI QARORI 21.10 «Ruxsat, hisob to'g'ri») — IDEMPOTENT, PostgreSQL va SQLite.
+
+    `return_items.minus_yopdi`, `brak_taqdirlari.minus_yopdi` — hodisa (qaytgan mahsulot, brak taqdiri) qaysi buyurtma detallari qarzini
+    yopgani (JSON; bekor qilinsa teskari — `crud._tm_yopish_qaytar`); `finished_products.chiqim_jami` — partiyadan chiqim hisoblagichi
+    (`models._tm_chiqim_yoz`). Ustunlar odatda `database.sync_missing_columns()` bilan qo'shiladi;
+    yo'q bo'lsa shu yerda. TO'LDIRILMAYDI: deploydan oldingi hodisa nimani yopgani yozilmagan — uning bekori avvalgidek."""
+    from sqlalchemy import text, inspect as _insp
+    from database import engine
+    for _jadval, _ustun, _tur in (("return_items", "minus_yopdi", "TEXT"), ("brak_taqdirlari", "minus_yopdi", "TEXT"),
+                                  ("finished_products", "chiqim_jami", "FLOAT")):
+        try:
+            _i = _insp(engine)
+            if _jadval not in set(_i.get_table_names()):
+                continue
+            if _ustun not in {c["name"] for c in _i.get_columns(_jadval)}:
+                with engine.begin() as conn:
+                    conn.execute(text(f"ALTER TABLE {_jadval} ADD COLUMN {_ustun} {_tur}"))
+                print(f"✓ {_jadval}.{_ustun} qo'shildi")
+        except Exception as e:
+            print(f"⚠ {_jadval}.{_ustun} ustuni tekshiruvi o'tkazib yuborildi: {e}")
+
+
+_migrate_minus_yopdi197()
+
+
 def _migrate_ortiqcha_qaytarish():
     """kech60 (57-band, K59-3) — IDEMPOTENT, PostgreSQL va SQLite.
 
