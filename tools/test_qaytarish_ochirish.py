@@ -958,9 +958,10 @@ def bolim_statik():
     check("S1 create_return_item: add_returned_to_stock(..., commit=False, natija=...)",
           tartibda(cr, "add_returned_to_stock(", "commit=False", "natija=") and "item.stock_qty" in cr)
     ad = _fn_src("crud.py", "add_returned_to_stock")
-    # kech145 (zip 182, MOSLANDI): FOR NO KEY UPDATE (`key_share=True`)
-    check("S2 add_returned_to_stock: mavjud mahsulot qatori FOR NO KEY UPDATE bilan o'qiladi",
-          "existing = _rq.with_for_update(key_share=True).first()" in ad)
+    # kech145 (zip 182, MOSLANDI): FOR NO KEY UPDATE (`key_share=True`); kech153 (zip 197, MOSLANDI): + `populate_existing` (guruh qulfi
+    # oldidan qulfsiz o'qilgan qator bazadan yangilanadi)
+    check("S2 add_returned_to_stock: mavjud mahsulot qatori FOR NO KEY UPDATE bilan (bazadan qayta yuklab) o'qiladi",
+          "existing = _rq.populate_existing().with_for_update(key_share=True).first()" in ad)
     check("S2 add_returned_to_stock: yangi mahsulot READY", "production_status=_PS_ret.READY" in ad)
     dr = _fn_src("crud.py", "delete_return_item")
     check("S3 delete_return_item: flush → qulf (101) → expire_all → qayta o'qish",
