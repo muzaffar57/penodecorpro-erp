@@ -755,6 +755,18 @@ def create_production_order(db: Session, company_id: int, data, created_by: str 
     _t = _yaratish_tekshiruvi(db, company_id, data)
     if _t["xato"]:
         return {"success": False, "message": _t["xato"]}
+    # kech155 (zip 198 — mustaqil tekshiruv v3 N4 / R27, R27b, R27c, O'LCHANGAN HAQIQIY PG, ESKI xato): mijoz buyurtmasi detaliga
+    # ishlab chiqarish — buyurtma qulfi (101) ostida QAYTA tekshiriladi (detal / buyurtma o'chirish va to'liq tahrir bilan bir navbat).
+    # Ilgari tekshiruv qulfsiz edi: parallel detal / buyurtma o'chirish tashqi kalit xatosi (23503) bilan 500 berardi, to'liq tahrir esa
+    # faol bog'lam tekshiruvidan KEYIN yaratilgan qoralamani detalsiz qoldirardi (ketma-ket bajarilganda ikkalasidan biri rad etiladi).
+    _oi198r = _t.get("order_item")
+    if _oi198r is not None and getattr(_oi198r, "order_id", None) is not None:
+        db.flush()
+        crud._pul_qulfi(db, 101, _oi198r.order_id)
+        db.expire_all()
+        _t = _yaratish_tekshiruvi(db, company_id, data)
+        if _t["xato"]:
+            return {"success": False, "message": _t["xato"]}
     product_type, bom = _t["product_type"], _t["bom"]
     source_order_id = _t["source_order_id"]
     _buyurtma_raqami110 = _t["buyurtma_raqami"]

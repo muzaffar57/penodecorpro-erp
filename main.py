@@ -8429,6 +8429,16 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[str] = None, db: Ses
     # `actual_loy_kg` (qoplama tannarxi — «Tayyor» dagi kabi). None — loy shoxi ishlamadi (yakunlash o'zi hisoblaydi).
     _loy_ishlatilgan100 = None
     with crud.bitta_tranzaksiya(db):
+        # kech154 / kech155 (zip 198 — mustaqil tekshiruvlar v2 R16, v3 N2; O'LCHANGAN HAQIQIY PG): shu buyurtmaga bog'langan ishlab
+        # chiqarish buyurtmalari (id tartibida) — tayyor mahsulot / xomashyodan OLDIN, «Boshlash» / «Yakunlash» / «Bekor qilish» bilan bir
+        # tartib (ishlab chiqarish buyurtmasi → xomashyo → partiya). Pastdagi oldindan qulf (`_buyurtma_tm_oldindan_qulf`) MRP band
+        # partiyani ishlab chiqarish buyurtmasi yangilanishidan OLDIN oladi — bu qulfsiz «Yakunlash» bilan 3 / 3 urinishda 40P01 (R16, R22b);
+        # ilgari ham guruhda minus (R16m) yoki loyli buyurtmada (R29) 3 / 3, «Bekor qilish» bilan StaleDataError 500 (R20).
+        from production_models import ProductionOrder as _PO198
+        _poq198 = db.query(_PO198.id).filter(_PO198.source_order_id == order.id)
+        if getattr(order, 'company_id', None) is not None:
+            _poq198 = _poq198.filter(_PO198.company_id == order.company_id)
+        _poq198.order_by(_PO198.id).with_for_update().all()
         if can_return and not order.stock_returned:
             # kech82 (102-band): o'chirish yozuvi (tiklash uchun) yangidan
             services.loy_manba_ochirish_boshla(order)
@@ -8439,6 +8449,9 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[str] = None, db: Ses
                 # Hech narsa topshirilmagan — hammasi qaytadi
                 log.extend(services.return_inventory_for_order(db, order))
 
+            # kech154 (zip 198 — mustaqil tekshiruv R3 / R4, O'LCHANGAN HAQIQIY PG: 3 / 3 urinishda 40P01, o'chirish 500): ombor detallari
+            # partiyalari (guruhi bilan) va MRP band partiyalar — BITTA o'tishda, id tartibida, loydan OLDIN (`crud._buyurtma_tm_oldindan_qulf`)
+            crud._buyurtma_tm_oldindan_qulf(db, order)
             # Tayyor mahsulotlar qaytadi — hech narsa topshirilmagan bo'lsa TO'LIQ,
             # QISMAN topshirilgan bo'lsa faqat QOLGAN (topshirilmagan) qismi
             # (_return_finished_for_order o'zi item.remaining_qty orqali farqni

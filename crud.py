@@ -2872,6 +2872,52 @@ def _fp_qulf_guruh(db: Session, fp_ids, company_id: int = None) -> None:
     _fp_qulf(db, _ids, company_id)
 
 
+def _tm_oldindan_qulf(db: Session, fp_ids, company_id: int = None, toliq=()) -> None:
+    """kech154 (zip 198 — pasport 7-bo'lim OCHIQ (2); O'LCHANGAN `work/k198/probe198.py`, `probe198b.py`, HAQIQIY PG): partiyani
+    YOZISHDAN yoki bitta-bitta qulflashdan OLDIN — `fp_ids` va (guruhida MINUS bo'lsa) ularning tayyor guruhdoshlari, `toliq` dagilar esa
+    guruhi bilan DOIM (chaqiruvchi keyin ularni `_fp_qulf_guruh` bilan qulflaydi) — BITTA o'tishda, id tartibida (`_fp_qulf`:
+    `FOR NO KEY UPDATE`, avval flush, bazadan qayta yuklash). Keyingi qulflar (partiya, `_tm_muvozanat_kerak_bolsa` — guruh) o'sha
+    qatorlarni qayta so'raydi — kutmaydi. Ilgari partiya avval yozilib / qulflanib, so'ng guruh qulflanardi — guruhni id tartibida
+    qulflaydigan amal (shu guruhdan buyurtma) bilan bir-birini kutib qolardi (40P01, biri 500, ma'lumot buzilmaydi).
+    Guruhda minus bo'lmasa — faqat `fp_ids` (odatiy yo'l avvalgidek: guruhdosh qulflanmaydi; muvozanat ham guruhni olmaydi). Minus shu
+    tekshiruvdan KEYIN paydo bo'lsa (uni yaratgan tranzaksiya yakunlangan — qulfi bo'shagan), keyingi muvozanat guruhni o'zi qulflaydi —
+    teskari tartib faqat yana bir parallel amal o'sha guruhni ushlab turgan bo'lsagina (kamdan-kam). Korxona noma'lum — qulflanmaydi
+    (eski chaqiruv — `_fp_qulf` kabi)."""
+    if company_id is None:
+        return
+    _toliq = {int(x) for x in (toliq or []) if x}
+    _ids = set()
+    for _i in sorted({int(x) for x in (fp_ids or []) if x} | _toliq):
+        _fp = db.query(FinishedProduct).filter(FinishedProduct.id == _i, FinishedProduct.company_id == company_id).first()
+        if _fp is None:
+            continue
+        _ids.add(_i)
+        _az = _tm_guruh_azolari(db, _fp)
+        if _i in _toliq or any(_tm_qarz(_x) > 1e-6 for _x in _az):
+            _ids.update(_x.id for _x in _az)
+    _fp_qulf(db, _ids, company_id)
+
+
+def _buyurtma_tm_oldindan_qulf(db: Session, order, company_id: int = None) -> None:
+    """kech154 (zip 198 — mustaqil tekshiruv R3 / R4, «Tayyor» R9; O'LCHANGAN HAQIQIY PG, 3 / 3 urinishda 40P01): buyurtma
+    o'chirilishi va «Tayyor» (qisman) — tayyor mahsulot qaytishidan OLDIN: ombordan olingan detallar partiyalari GURUHI bilan
+    (`_return_finished_for_order` ularni guruhi bilan qulflaydi) va detallarga MRP band partiyalar (guruhida minus bo'lsa guruhdoshlari
+    bilan — `_auto_release_mrp_reservations`) BITTA o'tishda, id tartibida (`_tm_oldindan_qulf`). Ilgari ikki o'tish (avval ombor
+    detallari guruhlari, keyin MRP partiyalari) — ikkala guruhdan detali bor buyurtma yaratish bilan bir-birini kutardi; loy qaytishi esa
+    MRP partiyasidan oldin edi (buyurtma yaratish: guruh → loy). Chaqiruv joyi — penoplast qaytishidan KEYIN (buyurtma yaratish penoplastni
+    detal yozuvidagi tashqi kalit bilan guruhdan oldin kutadi), loy qaytishidan OLDIN."""
+    cid = company_id if company_id is not None else getattr(order, 'company_id', None)
+    if cid is None:
+        return
+    _ombor = {int(_it.finished_product_id) for _it in order.items if getattr(_it, 'finished_product_id', None)}
+    _det = [int(_it.id) for _it in order.items if getattr(_it, 'id', None)]
+    _mrp = set()
+    if _det:
+        _mrp = {int(_i) for (_i,) in db.query(FinishedProduct.id).filter(FinishedProduct.reserved_for_order_item_id.in_(_det),
+                                                                            FinishedProduct.company_id == cid).all()}
+    _tm_oldindan_qulf(db, _mrp, cid, toliq=_ombor)
+
+
 def _tm_band(fp) -> float:
     return max(0.0, float(fp.reserved_quantity or 0))
 
@@ -3500,7 +3546,10 @@ def _tm_muvozanat_idlar(db: Session, fp_ids, company_id: int = None, performed_b
 def _tm_muvozanat_kerak_bolsa(db: Session, fp_ids, company_id: int = None, performed_by: str = None) -> list:
     """kech145 (zip 182): `fp_ids` guruhlarida kamomad (minus / band qoldiqdan katta) BO'LSAGINA — guruh id tartibida qulflanib,
     muvozanat. Material / buyurtma qulflaridan keyin chaqiriladigan yo'llar (MRP band bekor, brak bekor) odatiy holatda TM
-    qulfini olmasin (qulf tartibi teskari bo'lib qotib qolish xavfi faqat kamdan-kam minus holatida qoladi)."""
+    qulfini olmasin (qulf tartibi teskari bo'lib qotib qolish xavfi faqat kamdan-kam minus holatida qoladi).
+    kech154 (zip 198): brak bekori, MRP band ozod qilish (`_auto_release_mrp_reservations`), buyurtma o'chirilishi / «Tayyor» (qisman) va
+    yuk xatini o'chirish partiyani yozishdan OLDIN guruhni (minus bo'lsa) qulflaydi (`_tm_oldindan_qulf`) — bu yerdagi qulf ular uchun
+    qayta so'rov (kutmaydi)."""
     _ids = sorted({int(x) for x in (fp_ids or []) if x})
     _kerak = []
     for _i in _ids:
@@ -7198,6 +7247,14 @@ def _auto_release_mrp_reservations(db: Session, order_item_ids, performed_by: st
             _fq109 = _fq109.filter(_or109(FinishedProduct.company_id == _cid109,
                                           FinishedProduct.company_id.is_(None)))
         fps.extend(_fq109.order_by(FinishedProduct.id).all())
+    # kech154 (zip 198, O'LCHANGAN probe198 S2 — HAQIQIY PG: 3 / 3 urinishda 40P01, buyurtma o'chirish 500): band partiyalar
+    # YOZILISHIDAN OLDIN — guruhida minus bo'lsa guruhdoshlari bilan, id tartibida (`_tm_oldindan_qulf`; ilgari partiya yozilib, keyin
+    # muvozanat guruhni qulflardi — guruhdan olayotgan buyurtma teskari tartibda). Korxona bo'yicha (begona TM lar ro'yxatda yo'q).
+    _kq198 = {}
+    for fp in fps:
+        _kq198.setdefault(getattr(fp, 'company_id', None), []).append(fp.id)
+    for _c198 in sorted(_kq198, key=lambda c: (c is None, c or 0)):
+        _tm_oldindan_qulf(db, _kq198[_c198], _c198)
     for fp in fps:
         if fp.reserved_quantity:
             # kech41 (14-band): `log_activity` O'ZI `commit` qiladi — yuqoridagi
@@ -7639,6 +7696,18 @@ def delete_order_item(db: Session, item_id: int, company_id: int = None) -> bool
         db_item = _iq.first()
         if not db_item:
             return False
+    # kech155 (zip 198 — O'LCHANGAN `work/k198/probe198c.py` va mustaqil tekshiruv v3, HAQIQIY PG): shu detalga bog'langan ishlab
+    # chiqarish buyurtmalari (id tartibida) — buyurtma qulfidan keyin, xomashyo va tayyor mahsulotdan OLDIN (`api_delete_order` dagi
+    # kabi; «Boshlash» / «Yakunlash» / «Bekor qilish»: ishlab chiqarish buyurtmasi → xomashyo → partiya / detal). MRP band ozod qilishdagi
+    # oldindan qulf (`_auto_release_mrp_reservations`) partiyani ishlab chiqarish buyurtmasi yangilanishidan OLDIN oladi — bu qulfsiz
+    # «Yakunlash» bilan 3 / 3 urinishda 40P01 (R17, R22); ilgari ham guruhda minus bo'lsa (R17m) 3 / 3, «Bekor qilish» bilan
+    # StaleDataError 500 (R19), 2-ishlab chiqarishni «Boshlash» bilan tashqi kalit 500 (R21). (To'liq tahrirda bunday detal — faol
+    # bog'lam — rad etiladi: `_mrp_faol_boglamlar`.)
+    from production_models import ProductionOrder as _PO198d
+    _poq198d = db.query(_PO198d.id).filter(_PO198d.source_order_item_id == db_item.id)
+    if getattr(db_item, 'company_id', None) is not None:
+        _poq198d = _poq198d.filter(_PO198d.company_id == db_item.company_id)
+    _poq198d.order_by(_PO198d.id).with_for_update().all()
 
     # kech141 (zip 169, audit A-P05): «Tayyor» buyurtma detali o'chirilmaydi (yopilgan oy daromadi hodisasiz o'zgarardi) —
     # sabab bilan 400 (topshirilgan detal tekshiruvidan OLDIN: aks holda «Detal topilmadi» — noto'g'ri sabab)
@@ -11937,6 +12006,27 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
                 }
 
     # Tekshirish: qoldiqdan ko'p berilmasin
+    # kech154 (zip 198, O'LCHANGAN probe198 S4 — HAQIQIY PG: 3 / 3 urinishda 40P01, yuk xati 500): yukdagi tayyor mahsulot
+    # qatorlari — MRP detallariga band partiyalar (qulfsiz o'qiladi) va ombordan olingan detallar partiyalari — BITTA o'tishda, id
+    # tartibida (`_fp_qulf`). Ilgari ikki o'tishda: avval MRP partiyalari (detal tartibida, quyida `_mrp_tayyor_qoldiq`), keyin tekshiruv
+    # qatorlari (`_tm_yetkazish_kami`) — guruhni id tartibida qulflaydigan buyurtma bilan bir-birini kutib qolardi. Guruh qulflanmaydi:
+    # yuk xati yaratish muvozanat qilmaydi (mustaqil tekshiruv F6 / F7 — guruhni qo'shish faqat qulf va so'rovni ko'paytirardi). Keyingi
+    # qulflar (o'sha qatorlar) kutmaydi; hisob va tekshiruvlar — avvalgidek.
+    _oldin198 = set()
+    for di in data.items:
+        if di.quantity <= 0:
+            continue
+        _q198 = db.query(OrderItem).filter(OrderItem.id == di.order_item_id, OrderItem.order_id == order.id)
+        if getattr(order, 'company_id', None) is not None:
+            _q198 = _q198.filter(OrderItem.company_id == order.company_id)
+        _oi198 = _q198.first()
+        if _oi198 is None:
+            continue
+        if _mrp_yetkazish_detalimi(_oi198):
+            _oldin198.update(_x.id for _x in _mrp_band_tmlar(db, _oi198, order.company_id, lock=False))
+        elif getattr(_oi198, 'finished_product_id', None):
+            _oldin198.add(int(_oi198.finished_product_id))
+    _fp_qulf(db, _oldin198, getattr(order, 'company_id', None))
     errors = []
     mrp_kam = []
     valid_items = []
@@ -12373,6 +12463,22 @@ def delete_delivery(db: Session, delivery_id: int, company_id: int = None,
     # QAYTADI — chiqarish bilan AYNAN simmetrik (barqaror 1 birlik tan
     # narxi ishlatilgani uchun summa ham aynan tiklanadi).
     _cid = order.company_id
+    # kech154 (zip 198 — mustaqil tekshiruv R6, O'LCHANGAN HAQIQIY PG: 3 / 3 urinishda 40P01, yuk xatini o'chirish 500): qaytadigan MRP
+    # partiyalari (yozilgani — `mrp_olingan`, eski yozuvda — detal bandidagilar) va guruhida minus bo'lsa guruhdoshlari — YOZISHDAN OLDIN,
+    # bitta o'tishda, id tartibida (`_tm_oldindan_qulf`; ilgari partiya yozilib, keyin muvozanat guruhni qulflardi)
+    _oldin198 = set()
+    for di in list(d.items or []):
+        _ol198 = _mrp_olingan_oqi(di)
+        if _ol198 is not None:
+            _oldin198.update(int(_r198[0]) for _r198 in _ol198)
+            continue
+        _q198 = db.query(OrderItem).filter(OrderItem.id == di.order_item_id)
+        if _cid is not None:
+            _q198 = _q198.filter(OrderItem.company_id == _cid)
+        _oi198 = _q198.first()
+        if _oi198 is not None:
+            _oldin198.update(_x.id for _x in _mrp_band_tmlar(db, _oi198, _cid, lock=False))
+    _tm_oldindan_qulf(db, _oldin198, _cid)
     for di in list(d.items or []):
         _oi = db.query(OrderItem).filter(OrderItem.id == di.order_item_id).first()
         if _oi:
@@ -12845,6 +12951,25 @@ def delete_finished_product_loss(db: Session, loss_id: int, company_id: int = No
     cost = float(loss.cost_amount or 0)
     nomi = loss.product_name
     tiklandi = False
+    # kech154 (zip 198, O'LCHANGAN probe198 S1 va mustaqil tekshiruv R1 / R13 — HAQIQIY PG: 3 / 3 urinishda 40P01, brak bekori 500):
+    # partiya (va guruhida minus bo'lsa guruhi), faol taqdir partiyasi va taqdir minusni yopgan bo'lsa yozuvdagi partiyalar GURUHI bilan
+    # (`_tm_yopish_reja` ularni guruhi bilan qulflaydi) — taqdir bekori va tiklashdan OLDIN, bitta o'tishda, id tartibida
+    # (`_tm_oldindan_qulf`). Ilgari taqdir bekori / tiklash partiyani qulflab yozardi, keyin muvozanat guruhni qulflardi — guruhdan
+    # olayotgan buyurtma teskari tartibda. Buyurtma detali qulfi (`_detal142`) — avvalgi joyida, taqdir xomashyosidan KEYIN («Boshlash»:
+    # xomashyo → detal; yuk xati: partiya → detal — mustaqil tekshiruv R12 / R14).
+    _cid198 = company_id if company_id is not None else getattr(loss, 'company_id', None)
+    _faol198 = _taqdir_faol(db, "yoqotish", loss.id, _cid198)
+    _toliq198 = set()
+    if _faol198 is not None and not (not _faol198.tm_yangi and _faol198.tm_id is not None
+                                     and _faol198.tm_id == loss.finished_product_id):
+        # `brak_taqdir_ochir` dagi «bir partiya» sharti — aks holda (qattiq) bekor rejasi yozuvdagi partiyalarni guruhi bilan qulflaydi
+        _y198 = _tm_yopish_oqi(getattr(_faol198, 'minus_yopdi', None))
+        _toliq198.update(int(_x) for _x in (_y198.get("ch") or {}))
+        for _e198 in _y198.get("y") or []:
+            _toliq198.add(int(_e198[0]))
+            if _e198[1] is not None:
+                _toliq198.add(int(_e198[1]))
+    _tm_oldindan_qulf(db, [loss.finished_product_id, getattr(_faol198, 'tm_id', None)], _cid198, toliq=_toliq198)
     # kech125 (zip 146 — brak taqdiri): avval taqdir bekor (TM dan qo'shilgani olinadi — sotilgan bo'lsa rad, hech narsa
     # o'zgarmaydi; tuzatish xomashyosi omborga qaytadi; taqdir qatorlari o'chadi), so'ng avvalgi tiklash.
     try:
