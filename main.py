@@ -618,11 +618,35 @@ def _master_bot_keyboard(db, master=None) -> dict:
     return {"keyboard": rows, "resize_keyboard": True, "persistent": True}
 
 
-def _fonda(background_tasks, fn, *a, **k):
+def _sessiyani_yop(db):
+    """kech154 (zip 201 — mustaqil tekshiruv F1 / F6, O'LCHANGAN): so'rov sessiyasini fon vazifalaridan OLDIN yopadi — ulanish hovuzga
+    qaytadi (`get_db` ning keyingi `close()` i hech narsa qilmaydi). Xatosi boshqa fon vazifalarini to'xtatmasin (Starlette birinchi
+    yiqilgan vazifadan keyingilarini bajarmaydi)."""
+    try:
+        db.close()
+    except Exception as e:                       # noqa: BLE001
+        print(f"⚠ So'rov sessiyasi yopilmadi: {e}")
+
+
+def _fonda(background_tasks, fn, *a, sessiya=None, **k):
     """kech144 (zip 178, audit T5): `fn` — javobdan KEYIN (FastAPI fon vazifasi). Marshrut funksiyasi to'g'ridan-to'g'ri chaqirilsa
-    (`background_tasks` yo'q — sinovlar) — darhol (avvalgidek)."""
+    (`background_tasks` yo'q — sinovlar) — darhol (avvalgidek).
+    kech154 (zip 201, mustaqil tekshiruv F1 — O'LCHANGAN `work/k202/review202/`): FastAPI 0.141 da `get_db` fon vazifalaridan KEYIN
+    yopiladi — so'rov sessiyasi Telegram yuborilguncha ulanishni ushlab turardi. `sessiya` (so'rov `db` si) berilsa — navbatning
+    BOSHIGA uni yopish qo'shiladi (bir marta). Fon vazifasi bazaga TEGMASIN: matn so'rov ichida tayyorlanadi; `fn._fonda_tayyorla`
+    bo'lsa (`_tm_minus_xabari`) — u so'rov ichida chaqiriladi va (yuboruvchi, args, kwargs) yoki None (yuboradigan narsa yo'q) beradi."""
     if background_tasks is None:
         return fn(*a, **k)
+    _tay = getattr(fn, "_fonda_tayyorla", None)
+    if _tay is not None:
+        _r = _tay(*a, **k)
+        if _r is None:
+            return None
+        fn, a, k = _r
+    if sessiya is not None and not getattr(background_tasks, "_sessiya_yopiladi", False):
+        from starlette.background import BackgroundTask as _BT201
+        background_tasks.tasks.insert(0, _BT201(_sessiyani_yop, sessiya))
+        background_tasks._sessiya_yopiladi = True
     background_tasks.add_task(fn, *a, **k)
 
 
@@ -630,6 +654,15 @@ def _tm_minus_xabari(db, company_id):
     """kech145 (zip 182, N5 — EGASI QARORI 14.10 «Darhol xabar»): amal (buyurtma yaratish / tahrir / jarayonga olish / tiklash) tayyor
     mahsulotni minusga tushirgan yoki minusni chuqurlashtirgan bo'lsa (`crud._tm_minus_qayd` → `db.info['tm_minus_182']`) — saqlangach
     korxona botiga BITTA xabar (partiya bo'yicha oxirgi holat). Xatosi amalni buzmaydi (`_send_telegram` o'zi ushlaydi)."""
+    msg = _tm_minus_matni(db, company_id)
+    if not msg:
+        return None
+    return _send_telegram(msg, company_id=company_id)
+
+
+def _tm_minus_matni(db, company_id):
+    """kech154 (zip 201, mustaqil tekshiruv F1): `_tm_minus_xabari` matni — so'rov ichida (`db.info` dan olinadi, imzo — bazadan);
+    yuboradigan narsa yo'q bo'lsa None."""
     _yozuvlar = db.info.pop('tm_minus_182', None) or []
     _oxirgi = {}
     for _x in _yozuvlar:
@@ -644,7 +677,16 @@ def _tm_minus_xabari(db, company_id):
     msg = ("⚠️ *Tayyor mahsulot minusda — ishlab chiqarish kerak!*\n\n" + "\n".join(_qatorlar)
            + "\n\nYetmagan qismini ishlab chiqaring — shu mahsulotning yangi partiyasi minusni avtomatik yopadi. "
            + "Minus yopilmaguncha yuk xatida faqat omborda bor miqdor topshiriladi.\n\n" + _tg_footer(db, company_id))
-    return _send_telegram(msg, company_id=company_id)
+    return msg
+
+
+def _tm_minus_fonda_tayyorla(db, company_id):
+    """`_fonda` uchun (so'rov ichida): (yuboruvchi, args, kwargs) yoki None."""
+    msg = _tm_minus_matni(db, company_id)
+    return (_send_telegram, (msg,), {"company_id": company_id}) if msg else None
+
+
+_tm_minus_xabari._fonda_tayyorla = _tm_minus_fonda_tayyorla
 
 
 def _yuk_xati_fonda(delivery_id: int):
@@ -4897,7 +4939,8 @@ def api_system_health_check(db: Session = Depends(get_db), current_user=Depends(
 
 
 @app.post("/api/orders/{order_id}/restore")
-def api_restore_order(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("savat", "tahrirlash"))):
+def api_restore_order(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("savat", "tahrirlash")),
+                      background_tasks: BackgroundTasks = None):
     # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
@@ -4909,13 +4952,13 @@ def api_restore_order(order_id: int, db: Session = Depends(get_db), current_user
         raise HTTPException(status_code=409, detail=str(e))
     if not _tiklandi:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
-    _tm_minus_xabari(db, auth.company_id_of(current_user))     # kech145 (zip 182 — egasi qarori «Darhol xabar»)
+    _fonda(background_tasks, _tm_minus_xabari, db, auth.company_id_of(current_user), sessiya=db)     # kech145 (zip 182 — «Darhol xabar»)  # kech154 (zip 201): xabar javobdan KEYIN — fon vazifasi (xodim Telegramni kutmaydi)
     return {"status": "ok"}
 
 
 @app.post("/api/projects/{project_id}/restore")
 def api_restore_project(project_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("savat", "tahrirlash")),
-                        buyurtmalar: Optional[str] = None):
+                        buyurtmalar: Optional[str] = None, background_tasks: BackgroundTasks = None):
     # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.project_of_company(db, project_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
@@ -4956,7 +4999,7 @@ def api_restore_project(project_id: int, db: Session = Depends(get_db), current_
         raise HTTPException(status_code=409, detail=str(e))
     if not _ok:
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
-    _tm_minus_xabari(db, _cid181)     # kech145 (zip 182 — egasi qarori «Darhol xabar»)
+    _fonda(background_tasks, _tm_minus_xabari, db, _cid181, sessiya=db)     # kech145 (zip 182 — «Darhol xabar»)  # kech154 (zip 201): xabar javobdan KEYIN — fon vazifasi (xodim Telegramni kutmaydi)
     # kech146 (review181 N1): haqiqatan tiklangan buyurtmalar soni (shu orada butunlay o'chirilgani sanalmaydi)
     return {"status": "ok", "tiklangan_buyurtmalar": _soni146}
 
@@ -5570,7 +5613,8 @@ async def orders_page(request: Request, show_all: bool = False, db: Session = De
 
 
 @app.post("/api/masters", response_model=schemas.MasterRead)
-def api_create_master(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("usta", "yaratish"))):
+def api_create_master(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("usta", "yaratish")),
+                      background_tasks: BackgroundTasks = None):
     # 15-band: xom JSON qat'iy tekshiriladi (pydantic `true` → 1.0, "5" → 5
     # kabi JIM o'girardi; NaN → 500) — qoida buzilsa 400, hech narsa yozilmaydi.
     try:
@@ -5600,7 +5644,7 @@ def api_create_master(data: dict = Body(...), db: Session = Depends(get_db), cur
             f"Ishlaringizda rivoj va baraka tilaymiz! 🌟\n\n"
             + _tg_signature(db, auth.company_id_of(current_user))
         )
-        _send_telegram_to(str(tg_id).strip(), msg, company_id=auth.company_id_of(current_user))
+        _fonda(background_tasks, _send_telegram_to, str(tg_id).strip(), msg, company_id=auth.company_id_of(current_user), sessiya=db)  # kech154 (zip 201): xabar javobdan KEYIN — fon vazifasi (xodim Telegramni kutmaydi)
     return new_master
 
 
@@ -5848,7 +5892,7 @@ def api_create_inventory_receipt(data: dict = Body(...), db: Session = Depends(g
 
 @app.post("/api/inventory/{item_id}/purchase")
 def api_purchase_stock(item_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kirim", "yaratish")),
-                       request: Request = None, response: Response = None):
+                       request: Request = None, response: Response = None, background_tasks: BackgroundTasks = None):
     """Ombor kirimi — xarid narxi bilan. O'rtacha vaznli narx hisoblanadi.
     paid_now > 0 bo'lsa — bir vaqtning o'zida xarid HAM yoziladi, HAM to'lov qilinadi,
     qolgan qismi avtomatik qarz sifatida qoladi.
@@ -5989,7 +6033,7 @@ def api_purchase_stock(item_id: int, data: dict = Body(...), db: Session = Depen
                 f"📊 Jami barcha qarz: {fmt_money(all_debt)} so'm\n\n"
                 + _tg_footer(db, auth.company_id_of(current_user), tail=who)
             )
-            _send_telegram(msg, company_id=auth.company_id_of(current_user))
+            _fonda(background_tasks, _send_telegram, msg, company_id=auth.company_id_of(current_user), sessiya=db)  # kech154 (zip 201): xabar javobdan KEYIN — fon vazifasi (xodim Telegramni kutmaydi)
 
     return javob
 
@@ -6532,7 +6576,7 @@ def hodim_login_submit(request: Request, background_tasks: BackgroundTasks, phon
     if emp.qurilma_hash != _qh:
         _nomi = crud.qurilma_nomi_yasash(ua, qurilma_model)
         if crud.hodim_qurilma_sorovi(db, emp, _qh, _nomi):
-            background_tasks.add_task(_hodim_qurilma_telegram, emp.name, emp.qurilma_nomi, _nomi, emp.company_id)
+            _fonda(background_tasks, _hodim_qurilma_telegram, emp.name, emp.qurilma_nomi, _nomi, emp.company_id, sessiya=db)
     token = auth.create_employee_session(db, emp.id, qurilma_hash=_qh)
     response = RedirectResponse("/hodim", status_code=302)
     response.set_cookie(key="emp_session_token", value=token, httponly=True,
@@ -6741,9 +6785,9 @@ def api_hodim_avans_javob(advance_id: int, background_tasks: BackgroundTasks, da
     except crud.AvansJavobZiddiyati as e:
         raise HTTPException(status_code=409, detail=str(e))
     if natija.pop("ogohlantirish", False):
-        background_tasks.add_task(_avans_olmadim_telegram, emp.name, natija["amount"],
-                                  datetime.fromisoformat(natija["date"]) if natija.get("date") else None,
-                                  natija.get("given_by"), emp.company_id)
+        _fonda(background_tasks, _avans_olmadim_telegram, emp.name, natija["amount"],
+               datetime.fromisoformat(natija["date"]) if natija.get("date") else None,
+               natija.get("given_by"), emp.company_id, sessiya=db)
     return natija
 
 
@@ -7847,8 +7891,8 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[str] = None,
         # (`api_taklif_rasmiylashtir`) bu funksiyani `bitta_tranzaksiya` ICHIDA chaqiradi — ilgari Telegram COMMIT dan OLDIN, korxona
         # xomashyo navbati, loyiha va xomashyo qulflari ostida yuborilardi (boshqa amallar 2,6 s kutardi; tranzaksiya qaytsa — yolg'on
         # ogohlantirish). Marshrut funksiyasi to'g'ridan-to'g'ri chaqirilsa (`background_tasks` yo'q) — darhol, avvalgidek.
-        _fonda(background_tasks, _send_telegram, msg, company_id=auth.company_id_of(current_user))
-    _fonda(background_tasks, _tm_minus_xabari, db, auth.company_id_of(current_user))     # kech145 (zip 182 — «Darhol xabar»)
+        _fonda(background_tasks, _send_telegram, msg, company_id=auth.company_id_of(current_user), sessiya=db)
+    _fonda(background_tasks, _tm_minus_xabari, db, auth.company_id_of(current_user), sessiya=db)     # kech145 (zip 182 — «Darhol xabar»)
     return new_order
 
 
@@ -8131,7 +8175,8 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
 @app.put("/api/orders/{order_id}")
 def api_update_order(order_id: int, order: schemas.OrderCreate, loy_kg: Optional[str] = None,
                      confirm_shortage: bool = False,
-                     db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "tahrirlash"))):
+                     db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "tahrirlash")),
+                     background_tasks: BackgroundTasks = None):
     """Buyurtmani tahrirlash — ombor faqat FARQ bo'yicha to'g'rilanadi."""
     # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
@@ -8180,8 +8225,8 @@ def api_update_order(order_id: int, order: schemas.OrderCreate, loy_kg: Optional
         msg = (f"⚠️ *Ombor ogohlantirishlari!*\n\n*{ord_obj.order_number}* tahrirlangandan keyin:\n\n"
                + "━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines)
                + "\n━━━━━━━━━━━━━━━━━━━\n\nZudlik bilan buyurtma bering! 🚨\n\n" + _tg_footer(db, auth.company_id_of(current_user)))
-        _send_telegram(msg, company_id=auth.company_id_of(current_user))
-    _tm_minus_xabari(db, auth.company_id_of(current_user))     # kech145 (zip 182 — egasi qarori «Darhol xabar»)
+        _fonda(background_tasks, _send_telegram, msg, company_id=auth.company_id_of(current_user), sessiya=db)  # kech154 (zip 201): xabar javobdan KEYIN — fon vazifasi (xodim Telegramni kutmaydi)
+    _fonda(background_tasks, _tm_minus_xabari, db, auth.company_id_of(current_user), sessiya=db)     # kech145 (zip 182 — «Darhol xabar»)  # kech154 (zip 201): xabar javobdan KEYIN — fon vazifasi (xodim Telegramni kutmaydi)
 
     return result
 @app.put("/api/orders/{order_id}/loy")
@@ -8235,7 +8280,8 @@ def _send_telegram_to_qoplamachi(text: str, company_id=None):
 
 
 @app.post("/api/orders/{order_id}/coating-notify")
-def api_coating_notify(order_id: int, loy_kg: Optional[str] = None, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "tahrirlash"))):
+def api_coating_notify(order_id: int, loy_kg: Optional[str] = None, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "tahrirlash")),
+                       background_tasks: BackgroundTasks = None):
     """Rejalashtirilgan loy: xomashyoni ayiradi + qoplamachiga xabar."""
     order = crud.get_order(db, order_id, company_id=auth.company_id_of(current_user))
     if not order:
@@ -8270,8 +8316,8 @@ def api_coating_notify(order_id: int, loy_kg: Optional[str] = None, db: Session 
                 f"🧱 Loy tayyorlang: *{crud.xabar_son(loy_kg, 3)} kg*\n\n"
                 f"⏰ {_t_vaqt().strftime('%d.%m.%Y %H:%M')}"
             )
-            _send_telegram(msg, company_id=auth.company_id_of(current_user))
-            _send_telegram_to_qoplamachi(msg, company_id=auth.company_id_of(current_user))
+            _fonda(background_tasks, _send_telegram, msg, company_id=auth.company_id_of(current_user), sessiya=db)  # kech154 (zip 201): xabar javobdan KEYIN — fon vazifasi (xodim Telegramni kutmaydi)
+            _fonda(background_tasks, _send_telegram_to_qoplamachi, msg, company_id=auth.company_id_of(current_user), sessiya=db)
 
     # "Loy sotish" turidagi detallar — MUHIM: bu yerda ENDI ayirilmaydi!
     # Sababi: create_order() (buyurtma yaratilganda) — bu ishni ALLAQACHON
@@ -8322,7 +8368,7 @@ def api_mark_order_ready(order_id: int, loy_kg: Optional[str] = None,
                 f"⏰ {_t_vaqt().strftime('%d.%m.%Y %H:%M')}"
             )
             # kech144 (zip 178, audit T5): Telegram — javobdan KEYIN (fon vazifasi)
-            _fonda(background_tasks, _send_telegram, msg, company_id=auth.company_id_of(current_user))
+            _fonda(background_tasks, _send_telegram, msg, company_id=auth.company_id_of(current_user), sessiya=db)
         if order.project and order.project.notes:
             notes = order.project.notes or ''
             tg_id = None
@@ -8360,7 +8406,7 @@ def api_mark_order_ready(order_id: int, loy_kg: Optional[str] = None,
                         f"⏰ {_t_vaqt().strftime('%d.%m.%Y %H:%M')}"
                     )
                 _fonda(background_tasks, _send_telegram_to, tg_id, client_msg,
-                       company_id=auth.company_id_of(current_user))      # kech144 (zip 178, T5)
+                       company_id=auth.company_id_of(current_user), sessiya=db)      # kech144 (zip 178, T5)
 
     # Agar "Tayyor" belgilashda BUTUN mahsulot avtomatik bir yo'la
     # topshirilgan (yetkazilgan) deb belgilangan bo'lsa — o'sha yetkazish
@@ -8368,7 +8414,7 @@ def api_mark_order_ready(order_id: int, loy_kg: Optional[str] = None,
     # Yuk xati PDF'ini mijozga (agar tg_id bo'lsa) yuboramiz.
     auto_delivery = result.get("auto_delivery")
     if isinstance(auto_delivery, dict) and auto_delivery.get("delivery_id"):
-        _fonda(background_tasks, _yuk_xati_fonda, auto_delivery["delivery_id"])        # kech144 (zip 178, T5)
+        _fonda(background_tasks, _yuk_xati_fonda, auto_delivery["delivery_id"], sessiya=db)        # kech144 (zip 178, T5)
     return result
 
 
@@ -8680,7 +8726,8 @@ def api_delete_order_item(item_id: int, db: Session = Depends(get_db), current_u
 
 
 @app.put("/api/order-items/{item_id}")
-def api_update_order_item(item_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "tahrirlash"))):
+def api_update_order_item(item_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "tahrirlash")),
+                          background_tasks: BackgroundTasks = None):
     # 2026-09-21 (13-sizish): crud faqat ruxsat etilgan maydonlarni qabul
     # qiladi; noto'g'ri kalit/qiymat va "topshirilgandan kam" — ValueError
     # → 400. Begona `penoplast_id` — crud ichidan HTTPException 404.
@@ -8692,7 +8739,7 @@ def api_update_order_item(item_id: int, data: dict, db: Session = Depends(get_db
         raise HTTPException(status_code=400, detail=str(e))
     if not updated:
         raise HTTPException(status_code=404, detail="Detal topilmadi")
-    _tm_minus_xabari(db, auth.company_id_of(current_user))     # kech145 (zip 182 — egasi qarori «Darhol xabar»)
+    _fonda(background_tasks, _tm_minus_xabari, db, auth.company_id_of(current_user), sessiya=db)     # kech145 (zip 182 — «Darhol xabar»)  # kech154 (zip 201): xabar javobdan KEYIN — fon vazifasi (xodim Telegramni kutmaydi)
     return {"status": "ok"}
 
 
@@ -10128,7 +10175,7 @@ def api_set_default_penoplast(item_id: int, db: Session = Depends(get_db), curre
 
 @app.post("/api/orders/{order_id}/activate")
 def api_activate_draft(order_id: int, confirm_shortage: bool = False, db: Session = Depends(get_db),
-                       current_user=Depends(auth.ruxsat("buyurtma", "tahrirlash"))):
+                       current_user=Depends(auth.ruxsat("buyurtma", "tahrirlash")), background_tasks: BackgroundTasks = None):
     """Qoralamani jarayonga olish — ombordan xomashyo yechiladi.
     kech144 (zip 176, A-O10 d F5): tayyor mahsulot yetmasa — 409 «davom etasizmi?» (`confirm_shortage=true` bilan minusga — egasi
     qarori); band / tayyor emas — 400."""
@@ -10142,7 +10189,7 @@ def api_activate_draft(order_id: int, confirm_shortage: bool = False, db: Sessio
         if result.get("type") == "stock_shortage_warning":
             raise HTTPException(status_code=409, detail=result)
         raise HTTPException(status_code=400, detail=result)
-    _tm_minus_xabari(db, auth.company_id_of(current_user))     # kech145 (zip 182 — egasi qarori «Darhol xabar»)
+    _fonda(background_tasks, _tm_minus_xabari, db, auth.company_id_of(current_user), sessiya=db)     # kech145 (zip 182 — «Darhol xabar»)  # kech154 (zip 201): xabar javobdan KEYIN — fon vazifasi (xodim Telegramni kutmaydi)
     return result
 
 
@@ -10611,7 +10658,7 @@ def api_murojaatlar(db: Session = Depends(get_db), current_user=Depends(auth.adm
 @app.post("/api/murojaatlar")
 def api_murojaat_yarat(request: Request, turi: str = Form(...), matn: str = Form(...), sahifa: Optional[str] = Form(None),
                        ekran: Optional[str] = Form(None), file: Optional[UploadFile] = File(None),
-                       db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+                       db: Session = Depends(get_db), current_user=Depends(auth.admin_only), background_tasks: BackgroundTasks = None):
     """Yangi murojaat (birinchi xabari bilan; ixtiyoriy rasm). Dastur kontekst qo'shadi; platforma egasiga Telegram."""
     _mj_platforma_emas(current_user)
     cid = auth.company_id_of(current_user)
@@ -10633,8 +10680,8 @@ def api_murojaat_yarat(request: Request, turi: str = Form(...), matn: str = Form
         _mj_rasm_ochir(rasm)
         raise
     m_id, m_turi, m_sahifa = m.id, m.turi, m.kelgan_sahifa
-    _mj_telegram(_mj.telegram_yangi(m_id, m_turi, _mj.korxona_nomi(db, cid), _mj.muallif_nomi(current_user),
-                                    current_user.username, m_sahifa, toza, rasm_bor=bool(rasm)))
+    _fonda(background_tasks, _mj_telegram, _mj.telegram_yangi(m_id, m_turi, _mj.korxona_nomi(db, cid), _mj.muallif_nomi(current_user),
+                                    current_user.username, m_sahifa, toza, rasm_bor=bool(rasm)), sessiya=db)
     return {"status": "ok", "id": m_id}
 
 
@@ -10650,7 +10697,7 @@ def api_murojaat_yozishmasi(murojaat_id: int, db: Session = Depends(get_db), cur
 
 @app.post("/api/murojaatlar/{murojaat_id}/xabar")
 def api_murojaat_xabar(murojaat_id: int, matn: str = Form(...), file: Optional[UploadFile] = File(None),
-                       db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+                       db: Session = Depends(get_db), current_user=Depends(auth.admin_only), background_tasks: BackgroundTasks = None):
     """Mijozning qo'shimcha xabari (yopilmagan murojaatga) — murojaat yana «Yangi»; platforma egasiga Telegram."""
     _mj_platforma_emas(current_user)
     cid = auth.company_id_of(current_user)
@@ -10670,8 +10717,8 @@ def api_murojaat_xabar(murojaat_id: int, matn: str = Form(...), file: Optional[U
         db.rollback()
         _mj_rasm_ochir(rasm)
         raise
-    _mj_telegram(_mj.telegram_qoshimcha(murojaat_id, _mj.korxona_nomi(db, cid), _mj.muallif_nomi(current_user), toza,
-                                        rasm_bor=bool(rasm)))
+    _fonda(background_tasks, _mj_telegram, _mj.telegram_qoshimcha(murojaat_id, _mj.korxona_nomi(db, cid), _mj.muallif_nomi(current_user), toza,
+                                        rasm_bor=bool(rasm)), sessiya=db)
     return {"status": "ok"}
 
 
@@ -11935,7 +11982,7 @@ def _tannarxdan_past_sotuv_qayd(db: Session, background_tasks: BackgroundTasks, 
     _matn = ("⚠️ *Tannarxdan past narxda sotuv*\n\n" + "\n".join("• " + s for s in _satrlar)
              + f"\n\n👤 Sotuvchi: {who}" + (f"\n🧾 Xaridor: {xaridor}" if xaridor else "")
              + "\n\nTannarx va foyda — dasturning «Moliya» bo'limida.")
-    background_tasks.add_task(_send_telegram, _matn, company_id)
+    _fonda(background_tasks, _send_telegram, _matn, company_id, sessiya=db)
 
 
 @app.post("/api/finished/sell-batch")
@@ -12015,7 +12062,7 @@ def api_get_finished_sales(year: Optional[int] = None, month: Optional[int] = No
 
 @app.post("/api/finished/produce")
 def api_produce(request: Request, response: Response, data: dict = Body(...), db: Session = Depends(get_db),
-                current_user=Depends(auth.ruxsat("tayyor", "yaratish"))):
+                current_user=Depends(auth.ruxsat("tayyor", "yaratish")), background_tasks: BackgroundTasks = None):
     """Tayyor mahsulot ishlab chiqarish.
     kech144 (zip 174): `X-Amal-Kaliti` — takror so'rov ikkinchi partiya yaratmaydi, xomashyoni ikkinchi marta yechmaydi."""
     kalit = _amal_kaliti(request)
@@ -12047,7 +12094,7 @@ def api_produce(request: Request, response: Response, data: dict = Body(...), db
         msg = ("⚠️ *Ombor ogohlantirishlari!*\n\nTayyor mahsulot ishlab chiqarilgandan keyin:\n\n"
                + "━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines)
                + "\n━━━━━━━━━━━━━━━━━━━\n\n" + _tg_footer(db, auth.company_id_of(current_user)))
-        _send_telegram(msg, company_id=auth.company_id_of(current_user))
+        _fonda(background_tasks, _send_telegram, msg, company_id=auth.company_id_of(current_user), sessiya=db)  # kech154 (zip 201): xabar javobdan KEYIN — fon vazifasi (xodim Telegramni kutmaydi)
 
     return result
 @app.post("/api/finished/{fp_id}/complete")
@@ -12072,7 +12119,7 @@ def api_finished_profit(fp_id: int, db: Session = Depends(get_db), current_user=
 
 @app.post("/api/finished/{fp_id}/add")
 def api_add_production(request: Request, response: Response, fp_id: int, data: dict = Body(...),
-                       db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("tayyor", "tahrirlash"))):
+                       db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("tayyor", "tahrirlash")), background_tasks: BackgroundTasks = None):
     """Tayyor mahsulotga miqdor qo'shish — xomashyo proporsional yechiladi."""
     # 17-band: begona / mavjud bo'lmagan ID — tana tekshiruvidan OLDIN 404
     # (aks holda yomon tana 400 berib, ID borligini oshkor qilardi).
@@ -12108,7 +12155,7 @@ def api_add_production(request: Request, response: Response, fp_id: int, data: d
         msg = ("⚠️ *Ombor ogohlantirishlari!*\n\n"
                + "━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines)
                + "\n━━━━━━━━━━━━━━━━━━━\n\n" + _tg_footer(db, auth.company_id_of(current_user)))
-        _send_telegram(msg, company_id=auth.company_id_of(current_user))
+        _fonda(background_tasks, _send_telegram, msg, company_id=auth.company_id_of(current_user), sessiya=db)  # kech154 (zip 201): xabar javobdan KEYIN — fon vazifasi (xodim Telegramni kutmaydi)
 
     return result
 
@@ -12295,8 +12342,8 @@ def api_create_delivery(data: dict = Body(...), db: Session = Depends(get_db), c
         )
         # kech144 (zip 178, audit T5): Telegram (xabar 5 s gacha, PDF 30 s gacha har oluvchiga) — javobdan KEYIN (fon vazifasi).
         # Ilgari javob 75 s gacha kechikardi — xodim sahifani yangilab qayta yuborsa, ikkinchi qisman yetkazish yozilardi.
-        _fonda(background_tasks, _send_telegram, msg, company_id=auth.company_id_of(current_user))
-        _fonda(background_tasks, _yuk_xati_fonda, result["delivery_id"])
+        _fonda(background_tasks, _send_telegram, msg, company_id=auth.company_id_of(current_user), sessiya=db)
+        _fonda(background_tasks, _yuk_xati_fonda, result["delivery_id"], sessiya=db)
 
     return result
 
