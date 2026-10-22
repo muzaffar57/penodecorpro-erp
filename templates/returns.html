@@ -14,7 +14,8 @@
 .ret-filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 .ret-filters input,.ret-filters select{min-height:var(--h-sm);padding:0 10px;border:1px solid var(--border);border-radius:var(--r-btn);font-size:var(--fs-maydon-sm);outline:none}
 .ret-filters input:focus,.ret-filters select:focus{border-color:var(--gold)}
-.ret-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--white);margin-bottom:8px;transition:box-shadow .15s;opacity:0;animation:rIn .3s ease forwards}
+/* kech154 (zip 204 «Qaytarishlar ixcham», egasi tanlovi 22.10): qator past — 8 px chekka, kamida 58 px (ilgari 12 px, 62–103 px) */
+.ret-row{display:flex;align-items:center;gap:12px;padding:8px 12px;min-height:58px;box-sizing:border-box;border:1px solid var(--border);border-radius:12px;background:var(--white);margin-bottom:8px;transition:box-shadow .15s;opacity:0;animation:rIn .3s ease forwards}
 @keyframes rIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 /* kech120 (zip 130 — E bosqichi 6-qism, O'LCHANGAN work/k132/trace2.py — telefon, CPU 4× sekin): ro'yxatning HAR qatori ochilishda
    «paydo bo'lish» animatsiyasi bilan chizilardi — ko'p qaytarishda sahifa ~0,7 s davomida qayta-qayta bo'yaladi (asosiy oqim 1,6–2,3 s →
@@ -46,7 +47,7 @@
   table.brak-jadval > tbody > tr > td:not(:first-child)::before{content:attr(data-label) ": ";color:var(--text3);font-size:12px;font-weight:600}
 }
 .ret-group-header{
-  display:flex;align-items:center;gap:10px;padding:12px 14px;margin-bottom:8px;
+  display:flex;align-items:center;gap:10px;padding:12px 14px;margin-bottom:8px;min-height:58px;box-sizing:border-box;
   background:var(--bg);border:1px solid var(--border);border-radius:12px;
   cursor:pointer;user-select:none;transition:background .12s;
 }
@@ -68,7 +69,16 @@
 }
 .ret-group-body{display:none;padding-left:6px;border-left:2px solid var(--border2);margin-left:8px;margin-bottom:10px}
 .ret-group-body.open{display:block}
-.ret-icon{width:70px;align-self:stretch;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;position:relative;overflow:hidden;cursor:pointer}
+/* kech154 (zip 204): yig'ma qatorda mahsulot nomi va «💰 Hisob-kitob kutilmoqda» belgisi (tafsilot yopiq bo'lsa ham ko'rinsin) */
+.ret-group-header .g-nom{font-size:13px;font-weight:600;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ret-group-header .g-kutil{font-size:12px;font-weight:700;color:var(--m-92400e);background:var(--f-fef3c7);padding:2px 9px;border-radius:999px;white-space:nowrap}
+/* tafsilot: brak bosqichi / sababi / javobgari — nom ostida BIR satrda (ilgari holat ustunida 3–4 qator); summa va hisob-kitob yonma-yon */
+.ret-brak-satr{display:flex;flex-wrap:wrap;gap:0 10px;margin-top:2px;font-size:12px;line-height:18px;color:var(--m-991b1b)}
+.ret-brak-satr > div + div::before{content:"·";margin-right:10px;color:var(--text3)}
+.ret-brak-satr .brak-javobgar{color:var(--m-64748b)}
+.ret-money{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.ret-money .brak-zarar{margin-top:0}
+.ret-icon{width:42px;height:42px;align-self:center;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;position:relative;overflow:hidden;cursor:pointer}
 .ret-icon img{width:100%;height:100%;object-fit:cover}
 .ret-icon input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 .ret-icon .cam-overlay{position:absolute;right:2px;bottom:2px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;color:#fff;font-size:12px;cursor:pointer;z-index:2}
@@ -231,7 +241,7 @@
     <div class="ret-row{% if loop.index0 >= 20 %} anim-yoq{% endif %}" id="row-{{ r.id }}" data-reason="{{ r.reason.value }}" data-refund="{{ 'yes' if r.is_refunded else 'no' }}" data-stock="{{ (r.stock_qty|son(3) ~ ' ' ~ (r.unit|birlik)) if r.stock_qty else '' }}" data-mrp="{{ (r.mrp_ozod_miqdor|son(3) ~ ' ' ~ (r.unit|birlik)) if r.mrp_ozod_miqdor else '' }}"
          data-order="{{ r.order.order_number if r.order else '' }}"
          data-mijoz="{{ r.order.project.client_name if r.order and r.order.project else '' }}" data-sana="{{ r.returned_at|toshkent('%d.%m.%Y') }}"{% if current_user.ruxsat('tannarx', 'korish') %} data-summa="{{ (r.refund_amount or 0)|float }}"{% endif %}
-         data-search="{{ (r.order.order_number if r.order else '') ~ ' ' ~ (r.order.project.client_name if r.order and r.order.project else '') ~ ' ' ~ r.item_name }}"
+         data-search="{{ (r.order.order_number if r.order else '') ~ ' ' ~ (r.order.project.client_name if r.order and r.order.project else '') ~ ' ' ~ r.item_name }}" data-nom="{{ r.item_name }}"
          {% if loop.index0 < 20 %}style="animation-delay:{{ loop.index0 * 0.02 }}s"{% endif %}>
       <label class="ret-icon {{ 'defect' if is_defect else 'whole' }}" style="background:{{ 'var(--f-fee2e2)' if is_defect else 'var(--f-dcfce7)' }};color:{{ 'var(--m-991b1b)' if is_defect else 'var(--m-166534)' }}">
         {% if r.image_url %}
@@ -253,13 +263,19 @@
           {{ r.order.order_number if r.order else '—' }} · {{ r.order.project.client_name if r.order and r.order.project else '—' }}
           {% if r.notes %} · {{ r.notes }}{% endif %}
         </div>
+        {# kech154 (zip 204): brak bosqichi / sababi / javobgari — nom ostida bir satrda (ilgari holat ustunida 3–4 qator — qator balandlashardi) #}
+        {% if is_defect and (r.brak_bosqich or r.brak_sabab or r.brak_javobgar_id) %}<div class="ret-brak-satr">
+          {%- if r.brak_bosqich %}<div class="brak-bosqich">{{ (brak_bosqichlari or {}).get(r.brak_bosqich, r.brak_bosqich) }}</div>{% endif -%}
+          {%- if r.brak_sabab %}<div class="brak-sabab">{{ (brak_sabablari or {}).get(r.brak_sabab, r.brak_sabab) }}</div>{% endif -%}
+          {%- if r.brak_javobgar_id %}<div class="brak-javobgar">👤 {{ (hodim_nomlari or {}).get(r.brak_javobgar_id, "O'chirilgan hodim") }}</div>{% endif -%}
+        </div>{% endif %}
       </div>
       <div class="ret-qty" style="text-align:center;min-width:70px">
         {# kech120 (zip 133 — G5-08): ilgari «2.0 metr» (xom son, birlik to'liq) — endi «2 m» (son va birlik qoidasi) #}
         <div style="font-size:13px;font-weight:600">{{ r.quantity|son(3) }} {{ r.unit|birlik }}</div>
       </div>
       <div class="ret-status" style="min-width:100px;text-align:center">
-        {% if is_defect %}<span class="badge badge-danger">🔴 Brak</span>{% if r.brak_bosqich %}<div class="brak-bosqich" style="font-size:12px;color:var(--m-991b1b);margin-top:4px">{{ (brak_bosqichlari or {}).get(r.brak_bosqich, r.brak_bosqich) }}</div>{% endif %}{% if r.brak_sabab %}<div class="brak-sabab" style="font-size:12px;color:var(--m-991b1b);margin-top:2px">{{ (brak_sabablari or {}).get(r.brak_sabab, r.brak_sabab) }}</div>{% endif %}{% if r.brak_javobgar_id %}<div class="brak-javobgar" style="font-size:12px;color:var(--m-64748b);margin-top:2px">👤 {{ (hodim_nomlari or {}).get(r.brak_javobgar_id, "O'chirilgan hodim") }}</div>{% endif %}{% else %}<span class="badge badge-ready">🟢 Butun</span>{% endif %}
+        {% if is_defect %}<span class="badge badge-danger">🔴 Brak</span>{% else %}<span class="badge badge-ready">🟢 Butun</span>{% endif %}
       </div>
       <div class="ret-dest" style="min-width:130px;text-align:center">
         {# kech125 (zip 146 — EGASI QARORLARI 07.10): brak taqdiri — yo'q bo'lsa «Chiqindiga ketdi» (Tashlandi, avvalgidek) #}
@@ -901,13 +917,16 @@ function filterTable(){
 // davom etaveradi (chunki .ret-row elementlarining o'zi o'zgarmaydi).
 // kech120 (zip 133 — F bosqichi 3-qism, audit G5-17, O'LCHANGAN work/f3/probe_qayt.py): ilgari HAR buyurtma yopiq guruh edi (odatda
 // 1 ta yozuv bilan), sarlavhada faqat «ORD-001-2 · 1 ta», qidiruvdan keyin ham guruh yopiq qolardi; buyurtma raqami sarlavhaga
-// escape siz yozilardi. Endi: bitta yozuvli buyurtma GURUHLANMAYDI (qator darhol ko'rinadi); guruh sarlavhasida — mijoz, butun /
-// brak soni, summa («Tannarx va foyda» ruxsati bilan) va oxirgi sana; qidiruv / filtr natijasi bor guruh O'ZI ochiladi
-// (`filterTable`); hamma matn — `escapeHtml`; sarlavha klaviatura bilan ham ochiladi (Enter / probel).
+// escape siz yozilardi. Guruh sarlavhasida — mijoz, butun / brak soni, summa («Tannarx va foyda» ruxsati bilan) va oxirgi sana;
+// qidiruv / filtr natijasi bor guruh O'ZI ochiladi (`filterTable`); hamma matn — `escapeHtml`; sarlavha klaviatura bilan ham ochiladi
+// (Enter / probel). kech154 (zip 204 «Qaytarishlar ixcham», EGASI TANLOVI 22.10 «Hammasi yig'ma»): kech120 da bitta yozuvli buyurtma
+// guruhlanmasdi — har biri katta karta (62–103 px, telefonda 4–5 qavat; O'LCHANGAN `work/k203/ekran204.py`). Endi HAR buyurtma — yig'ma
+// qator; sarlavhada mahsulot nomi (bir nechta bo'lsa «… va yana N ta») va «💰 Hisob-kitob kutilmoqda» (hisob-kitob qilinmagan butun
+// qaytarish bor bo'lsa — tafsilot yopiq bo'lsa ham ko'rinsin).
 function groupReturnsByOrder(){
   const list = document.getElementById('retList');
   const rows = Array.from(list.querySelectorAll(':scope > .ret-row'));
-  if (rows.length < 2) return; // 0-1 qator uchun guruhlashga hojat yo'q
+  if (!rows.length) return;
 
   const groups = new Map(); // order raqami -> [qatorlar]
   rows.forEach(row=>{
@@ -919,7 +938,6 @@ function groupReturnsByOrder(){
   let gi = 0;
   groups.forEach((groupRows, orderKey)=>{
     gi++;
-    if (groupRows.length < 2) return;      // bitta yozuv — guruhsiz, qator o'z joyida
     const bodyId = `retgroup-body-${gi}`;
     const header = document.createElement('div');
     header.className = 'ret-group-header';
@@ -934,9 +952,14 @@ function groupReturnsByOrder(){
     const summaBor = groupRows.some(r => r.dataset.summa !== undefined);
     const summa = groupRows.reduce((a, r) => a + (Number(r.dataset.summa) || 0), 0);
     const xulosa = [butun ? `🟢 ${butun} butun` : '', brak ? `🔴 ${brak} brak` : ''].filter(Boolean).join(' · ');
+    const nomlar = groupRows.map(r => r.dataset.nom || '').filter(Boolean);
+    const nom = nomlar.length > 1 ? `${nomlar[0]} va yana ${nomlar.length - 1} ta` : (nomlar[0] || '');
+    const kutil = groupRows.some(r => r.querySelector('.refund-btn, .refund-no'));
     header.innerHTML = `<i class="ti ti-chevron-right chev"></i><span class="g-title">${escapeHtml(orderKey)}</span>` +
       (mijoz ? `<span class="g-mijoz">${escapeHtml(mijoz)}</span>` : '') +
+      (nom ? `<span class="g-nom">${escapeHtml(nom)}</span>` : '') +
       `<span class="g-xulosa">${escapeHtml(xulosa)}</span>` +
+      (kutil ? `<span class="g-kutil">💰 Hisob-kitob kutilmoqda</span>` : '') +
       ((summaBor && summa > 0) ? `<span class="g-summa">${escapeHtml(fmt(summa))} so'm</span>` : '') +
       (sana ? `<span class="g-sana">${escapeHtml(sana)}</span>` : '') +
       `<span class="g-count">${groupRows.length} ta</span>`;
