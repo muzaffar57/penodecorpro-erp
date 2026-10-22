@@ -531,11 +531,15 @@ check("D6 /api/reports/alerts: muddati o'tgan qarzdor FAQAT haqiqiy (E1) — '1 
       _qal == ["1 ta qarzdorning muddati 30 kundan oshgan"], _qal)
 _pg = req(C, "get", "/orders")
 _tokensiz = lambda s: re.sub(r"var\(--(?:f|m|ch|doim)-([0-9a-f]{6})\)", lambda m: "#" + m.group(1).upper(), s)   # noqa: E731
-_m = re.search(r'<div class="ord-item" style="([^"]*)"\s+id="oi-' + str(O_C12) + r'"', _pg.text or "")
-check("D7 /orders: to'liq topshirilgan + to'langan (C12, qoldiq 0.40) qatori YASHIL, qizil EMAS",
-      # kech118 (zip 122 — tungi rejim, MOSLANDI): fon umumiy ranglar ro'yxatidan (var(--f-f0fdf4) = #F0FDF4 yorug' rejimda)
-      _pg.status_code == 200 and _m is not None and "#F0FDF4" in _tokensiz(_m.group(1)) and "#FEF2F2" not in _tokensiz(_m.group(1)),
-      (_pg.status_code, _m.group(1) if _m else None))
+# kech154 (zip 203 «Buyurtmalar ko'rinishi», MOSLANDI): qator foni (yashil / pushti) olib tashlandi — inline fon tanlangan qatorning
+# uslubini bosib ketardi; to'lov holati endi klass (`oi-tolangan` / `oi-qarzli`) va belgi («✓ To'langan» / «Qarz: …»)
+_m = re.search(r'<div class="(ord-item[^"]*)"\s+id="oi-' + str(O_C12) + r'"', _pg.text or "")
+_qb = (_pg.text or "")[_m.start():] if _m else ""
+_qb = _qb[:_qb.find('class="ord-item', 20)] if _qb.find('class="ord-item', 20) > 0 else _qb[:4000]
+check("D7 /orders: to'liq topshirilgan + to'langan (C12, qoldiq 0.40) qatori TO'LANGAN («✓ To'langan»), qarzli EMAS",
+      _pg.status_code == 200 and _m is not None and "oi-tolangan" in _m.group(1) and "oi-qarzli" not in _m.group(1)
+      and "✓ To'langan" in _qb and "Qarz:" not in _qb and "#FEF2F2" not in _tokensiz(_qb),
+      (_pg.status_code, _m.group(1) if _m else None, _qb[:300]))
 _dp = req(C, "get", "/debts")
 check("D8 /debts sahifasi 200 (qarzdorlar)", _dp.status_code == 200, _dp.status_code)
 

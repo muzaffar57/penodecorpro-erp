@@ -105,7 +105,9 @@ TORAYTIRISH = [
     ("finished_products", "gips_additives_json", "VARCHAR(255)", "TEXT"),
     ("orders", "loy_manba_json", "VARCHAR(255)", "TEXT"), ("orders", "ochirish_yopish_json", "VARCHAR(255)", "TEXT"),
     ("return_items", "mrp_ozod", "VARCHAR(255)", "TEXT"),
-    ("activity_logs", "entity_label", "VARCHAR(60)", "VARCHAR(200)"), ("orders", "agreed_amount", "NUMERIC(10,2)", "NUMERIC(12,2)"),
+    # kech154 (zip 202, V5): jurnal sarlavhasi — Text (production da VARCHAR(200)); VARCHAR → VARCHAR namunasi — murojaat sahifasi
+    ("activity_logs", "entity_label", "VARCHAR(200)", "TEXT"), ("murojaatlar", "kelgan_sahifa", "VARCHAR(60)", "VARCHAR(200)"),
+    ("orders", "agreed_amount", "NUMERIC(10,2)", "NUMERIC(12,2)"),
 ]
 QOLDA = ("finished_products", "production_status")
 # «Qo'lda» xabarlari (avtomatik tuzatilmaydi): kodda ixtiyoriy — bazada NOT NULL; kodda yo'q — bazada majburiy, standartsiz
@@ -130,7 +132,7 @@ with contextlib.redirect_stdout(_bosh_chiqish):
     import crud                                    # noqa: E402
     import database                                # noqa: E402
 from database import SessionLocal                  # noqa: E402
-from models import UserRole, User, ActivityLog, ErrorLog, Order    # noqa: E402
+from models import UserRole, User, ActivityLog, ErrorLog, Order, Murojaat    # noqa: E402
 from fastapi.testclient import TestClient          # noqa: E402
 
 BOSH = _bosh_chiqish.getvalue()
@@ -239,9 +241,12 @@ check(f"A1 HAR model ustuni ({_jami_a} ta): `_sql_type_for_column` = dialekt kom
 _nv = ActivityLog.__table__.c.new_value
 check("A2 `activity_logs.new_value` (Text) → «TEXT» (asl: «VARCHAR(255)» — production 12.10 11:47 xatosining ildizi)",
       xav(lambda: database._sql_type_for_column(_nv)) == "TEXT", xav(lambda: database._sql_type_for_column(_nv)))
-_el = ActivityLog.__table__.c.entity_label
-check("A3 `activity_logs.entity_label` String(200) → «VARCHAR(200)»", xav(lambda: database._sql_type_for_column(_el)) == "VARCHAR(200)",
+_el = Murojaat.__table__.c.kelgan_sahifa
+check("A3 `murojaatlar.kelgan_sahifa` String(200) → «VARCHAR(200)»", xav(lambda: database._sql_type_for_column(_el)) == "VARCHAR(200)",
       xav(lambda: database._sql_type_for_column(_el)))
+_el4 = ActivityLog.__table__.c.entity_label
+check("A4 `activity_logs.entity_label` (kech154, zip 202 — Text) → «TEXT»", xav(lambda: database._sql_type_for_column(_el4)) == "TEXT",
+      xav(lambda: database._sql_type_for_column(_el4)))
 
 # ══════════════════════════════════════════════════════════════
 section("C. Ishga tushishda sxema kengaytirish (PG: production kabi toraytirilgan baza)")
@@ -250,8 +255,8 @@ _holat = getattr(database, "SXEMA_ISHGA_TUSHISH", None) or {}
 if PG_URL:
     _turlar = {(_t, _u): pg_tur_matn(ustun_turi(_t, _u)) for _t, _u, _, _ in TORAYTIRISH}
     _yomon = {k: v for k, v in _turlar.items() if v != dict(((t, u), kk) for t, u, _, kk in TORAYTIRISH)[k]}
-    check("C1 11 ta toraytirilgan ustun ishga tushishda kengaytirildi (9 × VARCHAR(255) → TEXT, VARCHAR(60) → VARCHAR(200), "
-          "NUMERIC(10,2) → NUMERIC(12,2)) — asl kod tegmaydi", not _yomon, _yomon)
+    check("C1 12 ta toraytirilgan ustun ishga tushishda kengaytirildi (9 × VARCHAR(255) → TEXT, jurnal sarlavhasi VARCHAR(200) → "
+          "TEXT, VARCHAR(60) → VARCHAR(200), NUMERIC(10,2) → NUMERIC(12,2)) — asl kod tegmaydi", not _yomon, _yomon)
     _q = ustun_turi(*QOLDA)
     with database.engine.connect() as _c:
         _nn = _c.execute(text("SELECT column_name, is_nullable FROM information_schema.columns WHERE table_schema = current_schema() "
@@ -263,21 +268,23 @@ if PG_URL:
     check("C3 har kengaytirilgan ustunga izoh: «sxema_kengaytirildi <vaqt>: VARCHAR(255) -> TEXT» (qayta ishga tushishdan keyin ham "
           "«Tizim salomatligi» da ko'rinadi)",
           all(isinstance(v, str) and v.startswith("sxema_kengaytirildi ") and "VARCHAR(255) -> TEXT" in v
-              for (t, u), v in _izohlar.items() if (t, u) not in (("activity_logs", "entity_label"), ("orders", "agreed_amount")))
-          and "VARCHAR(60) -> VARCHAR(200)" in (_izohlar.get(("activity_logs", "entity_label")) or "")
+              for (t, u), v in _izohlar.items()
+              if (t, u) not in (("activity_logs", "entity_label"), ("murojaatlar", "kelgan_sahifa"), ("orders", "agreed_amount")))
+          and "VARCHAR(200) -> TEXT" in (_izohlar.get(("activity_logs", "entity_label")) or "")
+          and "VARCHAR(60) -> VARCHAR(200)" in (_izohlar.get(("murojaatlar", "kelgan_sahifa")) or "")
           and "NUMERIC(10,2) -> NUMERIC(12,2)" in (_izohlar.get(("orders", "agreed_amount")) or ""), _izohlar)
-    check("C4 `SXEMA_ISHGA_TUSHISH`: 11 ta kengaytirildi, xato 0, qo'lda ≥ 1; server logida «Baza tuzilishi kengaytirildi»",
-          len(_holat.get("kengaytirildi") or []) == 11 and not _holat.get("xatolar") and (_holat.get("qolda") or 0) >= 1
-          and BOSH.count("Baza tuzilishi kengaytirildi") == 11, (_holat, BOSH.count("Baza tuzilishi kengaytirildi")))
+    check("C4 `SXEMA_ISHGA_TUSHISH`: 12 ta kengaytirildi, xato 0, qo'lda ≥ 1; server logida «Baza tuzilishi kengaytirildi»",
+          len(_holat.get("kengaytirildi") or []) == 12 and not _holat.get("xatolar") and (_holat.get("qolda") or 0) >= 1
+          and BOSH.count("Baza tuzilishi kengaytirildi") == 12, (_holat, BOSH.count("Baza tuzilishi kengaytirildi")))
     _f = xav(lambda: database.sxema_farqlari(), {}) or {}
     _ff = _f.get("farqlar") or []
     _ffm = {(x["jadval"], x["ustun"]): x for x in _ff}
     check("C5 `sxema_farqlari`: qolgan farqlar — faqat 3 ta «qo'lda» (ENUM ← VARCHAR(20); NOT NULL — kodda ixtiyoriy; kodda yo'q "
-          "majburiy ustun), kengaytiriladigan 0; kengaytirilgan — 11 ta (oldin / keyin / vaqt)",
+          "majburiy ustun), kengaytiriladigan 0; kengaytirilgan — 12 ta (oldin / keyin / vaqt)",
           sorted((x["jadval"], x["ustun"], x["tur"]) for x in _ff) == sorted([(*QOLDA, "qolda"), (*QOLDA_NN, "qolda"), (*QOLDA_ORTIQ, "qolda")])
           and _ffm.get(QOLDA, {}).get("bazada") == "VARCHAR(20)" and _ffm.get(QOLDA, {}).get("kodda") == "ENUM productionstatus"
           and _ffm.get(QOLDA_NN, {}).get("bazada") == "NOT NULL" and _ffm.get(QOLDA_ORTIQ, {}).get("kodda") == "yo'q"
-          and len(_f.get("kengaytirilgan") or []) == 11
+          and len(_f.get("kengaytirilgan") or []) == 12
           and all(x.get("oldin") and x.get("keyin") and x.get("vaqt") for x in _f.get("kengaytirilgan") or []), _f)
     _n2 = xav(lambda: database.sxema_kengaytir(), {}) or {}
     check("C6 takror ishga tushish — hech narsa o'zgarmaydi (IDEMPOTENT)", _n2.get("kengaytirildi") == [] and not _n2.get("xatolar")
@@ -354,8 +361,9 @@ except Exception as _e:                    # noqa: BLE001
     _b = f"{type(_e).__name__}: {_e}"
 if PG_URL:
     _kut_b = {("activity_logs", "old_value"): "TEXT", ("orders", "ochirish_yopish_json"): "TEXT",
-              ("activity_logs", "entity_label"): "VARCHAR(200)", ("orders", "agreed_amount"): "NUMERIC(12,2)"}
-    check("B1 qo'shilgan Text → TEXT, String(200) → VARCHAR(200), Numeric(12,2) → NUMERIC(12,2) (asl: Text → VARCHAR(255))",
+              ("activity_logs", "entity_label"): "TEXT", ("orders", "agreed_amount"): "NUMERIC(12,2)"}
+    check("B1 qo'shilgan Text → TEXT (jurnal sarlavhasi ham — kech154, zip 202), Numeric(12,2) → NUMERIC(12,2) (asl: Text → "
+          "VARCHAR(255))",
           isinstance(_b, dict) and all(pg_tur_matn(_b.get(k)) == v for k, v in _kut_b.items()), _b)
     _ps = _b.get(("finished_products", "production_status")) if isinstance(_b, dict) else None
     check("B2 qo'shilgan ENUM — `productionstatus` turi (bazada yo'q edi — yaratildi), standarti «IN_PROGRESS» (asl: VARCHAR(11), "
@@ -365,7 +373,7 @@ else:
     _kut_b = {}
     for _t, _u in B_USTUNLAR:
         _kut_b[(_t, _u)] = database.Base.metadata.tables[_t].c[_u].type.compile(dialect=database.engine.dialect).upper()
-    check("B1 qo'shilgan ustunlar turi = `create_all` turi (TEXT, VARCHAR(200), NUMERIC(12, 2), VARCHAR(11)) (asl: Text → VARCHAR(255))",
+    check("B1 qo'shilgan ustunlar turi = `create_all` turi (TEXT, NUMERIC(12, 2), VARCHAR(11)) (asl: Text → VARCHAR(255))",
           isinstance(_b, dict) and all((_b.get(k) or ("?",))[0] == v for k, v in _kut_b.items()), (_b, _kut_b))
     _ps = _b.get(("finished_products", "production_status")) if isinstance(_b, dict) else None
     check("B2 qo'shilgan ENUM standarti — «'IN_PROGRESS'» (saqlanadigan qiymat; asl: standartsiz)", _ps and _ps[1] == "'IN_PROGRESS'", _ps)

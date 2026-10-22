@@ -230,10 +230,14 @@ check("S1 `pdf_service._logo_olcham` bor; RLImage o'lchami undan (qat'iy `width=
       callable(getattr(pdf_service, "_logo_olcham", None)) and "RLImage(logo_path, width=32*mm, height=18*mm)" not in _ps
       and "RLImage(logo_path, width=_lo[0], height=_lo[1])" in _ps)
 _mn = fayl("main.py")
-_lg = _mn[_mn.find("async def api_upload_company_logo"):][:4000]
+_lg = _mn[_mn.find("async def api_upload_company_logo"):]
+_lg = _lg[:_lg.find("\n@app.")]
+# kech154 (zip 202): rasm ishlovi `_logo_saqlashga` da (ip hovuzida — mustaqil tekshiruv F5); marshrut uni diskka yozishdan OLDIN chaqiradi
+_lh = _mn[_mn.find("def _logo_saqlashga("):]
+_lh = _lh[:_lh.find("\ndef ")]
 check("S2 logotip yuklashda to'liq o'qish (`_rasm_ochish`) — diskka yozishdan OLDIN; burilgan bo'lsa to'g'rilab saqlanadi",
-      "_rasm_ochish(data" in _lg and _lg.find("_rasm_ochish(data") < _lg.find("with open(_os.path.join(papka, nom), \"wb\")")
-      and "_burildi" in _lg)
+      "_rasm_ochish(data" in _lh and "_burildi" in _lh and "_logo_saqlashga, data)" in _lg
+      and -1 < _lg.find("_logo_saqlashga, data)") < _lg.find("with open(_os.path.join(papka, nom), \"wb\")"))
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 section("N. Nisbat — PDF dagi logotip")

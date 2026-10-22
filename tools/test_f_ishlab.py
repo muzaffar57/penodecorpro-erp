@@ -135,9 +135,11 @@ check("S1 birlik qoidasi BITTA: `services.birlik_korinish` (Jinja `|birlik`), `b
       and "function birlikYoz(birlik)" in PROD and "typeof birlikQisqa === 'function') ? birlikQisqa(u)" in BRAK
       and "elif cat == 'mrp_product':" in PDF and "{{ r.quantity|son(3) }} {{ r.unit|birlik }}" in RET
       and "LEGACY = { metr: 'm', kvadrat: 'm²', dona: 'ta'" not in FIN)
-check("S2 Qaytarishlar: bitta yozuvli buyurtma guruhlanmaydi, sarlavha escape, qidiruvda o'zi ochiladi; «Hisob-kitob qilish» TUGMA; "
-      "«Qiymati» — umumiy pul qoidasi; telefon tasmasi; bo'sh holat — rolga qarab",
-      "if (groupRows.length < 2) return;" in RET and "${escapeHtml(orderKey)}" in RET and "h._ochYop(true)" in RET
+# kech154 (zip 204 «Qaytarishlar ixcham», egasi tanlovi «Hammasi yig'ma», MOSLANDI): bitta yozuvli buyurtma ham yig'ma qator (sarlavhada
+# mahsulot nomi) — kech120 dagi «guruhlanmaydi» qoidasi o'rniga
+check("S2 Qaytarishlar: HAR buyurtma yig'ma qator (bitta yozuvli ham — sarlavhada mahsulot nomi), sarlavha escape, qidiruvda o'zi ochiladi; "
+      "«Hisob-kitob qilish» TUGMA; «Qiymati» — umumiy pul qoidasi; telefon tasmasi; bo'sh holat — rolga qarab",
+      "if (groupRows.length < 2) return;" not in RET and '<span class="g-nom">${escapeHtml(nom)}</span>' in RET and "${escapeHtml(orderKey)}" in RET and "h._ochYop(true)" in RET
       and "💰 Hisob-kitob qilish" in RET and 'else "Pul kutilmoqda"' not in RET and 'oninput="formatPriceInput(this)"' in RET
       and 'id="f-value" placeholder="0" min="0"' not in RET and "ret-stat-tasma" in RET
       and "<span style=\"font-size:12.5px\">(Brak yozuvlari yuqoridagi bo'limda ko'rinadi)</span>" not in RET)
@@ -526,10 +528,16 @@ if br:
         _sar = {x["m"].split(" ")[0]: x for x in _g["sarlavha"]}
         _g1 = next((x for x in _g["sarlavha"] if x["m"].startswith(f"FI-{_n}-1 ")), {})
         _gx = next((x for x in _g["sarlavha"] if "FI-<b>" in x["m"]), {})
-        check("B1 bitta yozuvli buyurtmalar guruhlanmaydi (qator darhol ko'rinadi); 2+ yozuvli — guruh: mijoz, «2 butun · 1 brak», summa, "
-              "sana, «3 ta»", len(_g["sarlavha"]) == 2 and set(_g["yakka"]) == {f"FI-{_n}-3", _o.get("order_number")}
+        # kech154 (zip 204, MOSLANDI): bitta yozuvli buyurtma ham yig'ma qator — sarlavhada mahsulot nomi, «1 ta»
+        check("B1 HAR buyurtma yig'ma qator (yopiq): 2+ yozuvli — mijoz, «2 butun · 1 brak», summa, sana, «3 ta»; bitta yozuvli — mahsulot "
+              "nomi, «🔴 1 brak» / hisob-kitob kutilmoqda, «1 ta»; ochiq turgan yakka qator yo'q",
+              len(_g["sarlavha"]) == 4 and not _g["yakka"] and not any(x.get("ochiq") for x in _g["sarlavha"])
               and "Aziz Karimov" in _g1.get("m", "") and "🟢 2 butun · 🔴 1 brak" in _g1.get("m", "") and "200 000 so'm" in nb(_g1.get("m", ""))
-              and re.search(r"\d\d\.\d\d\.\d{4}", _g1.get("m", "")) and _g1.get("m", "").endswith("3 ta") and not _g1.get("ochiq"), _g)
+              and re.search(r"\d\d\.\d\d\.\d{4}", _g1.get("m", "")) and _g1.get("m", "").endswith("3 ta") and not _g1.get("ochiq")
+              and any(x["m"].startswith(f"FI-{_n}-3 ") and "Panel P-3" in x["m"] and "🔴 1 brak" in x["m"] and x["m"].endswith("1 ta")
+                      for x in _g["sarlavha"])
+              and any(x["m"].startswith(f"{_o.get('order_number')} ") and "💰 Hisob-kitob kutilmoqda" in x["m"] and x["m"].endswith("1 ta")
+                      for x in _g["sarlavha"]), _g)
         check("B2 HTML belgili buyurtma raqami sarlavhada MATN bo'lib chiqadi (`<b>` teg yasalmaydi)", _gx and not _gx["b"]
               and f"FI-<b>{_n}</b>" in _gx["m"], _gx)
         check("B3 kartalar: «Brak — bu oy 3 ta ro'yxatda 2 · ishlab chiqarishda 1», «Butun qaytgan — bu oy 5 ta», «… hamma vaqt 7 ta butun 5 · brak 2»",
@@ -545,7 +553,7 @@ if br:
         pg.wait_for_timeout(200)
         _q2 = pg.evaluate("() => [...document.querySelectorAll('.ret-group-header')].map(h => h.classList.contains('open'))")
         check("B4 qidiruv «Karniz» — topilgan guruh O'ZI ochiladi (3 qator ko'rinadi); tozalansa — yana yopiladi",
-              [x[0] for x in _q1] == [f"FI-{_n}-1"] and _q1[0][1] is True and _q1[0][2] == "true" and _q1r == 3 and _q2 == [False, False],
+              [x[0] for x in _q1] == [f"FI-{_n}-1"] and _q1[0][1] is True and _q1[0][2] == "true" and _q1r == 3 and _q2 == [False] * 4,   # kech154 (zip 204): 4 yig'ma qator
               (_q1, _q1r, _q2))
         pg.evaluate(f"() => {{ const h = [...document.querySelectorAll('.ret-group-header')].find(x => x.innerText.startsWith('FI-{_n}-1')); h.focus(); }}")
         pg.keyboard.press("Enter")

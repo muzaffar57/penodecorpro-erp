@@ -741,9 +741,11 @@ if PW_BOR and ZANJIR_JS:
             section("P1. Platforma — hammasi yuklandi")
             pg = ochiq_pl()
             P_ASL = ev(pg, PL_SNAP) or {}
-            check("P1a raqamlar (2 mijoz korxona, 1 bloklangan), kartochkalar (B, C), saralash sanoqlari, murojaatlar (2 yangi), xatolar; "
-                  "telefon maydoni to'ldirilgan va ochiq; sabab yozuvlari yashirin; «Yuklanmoqda» yo'q",
-                  "Mijozkorxonalar2" in bs(tt(P_ASL, "raq")) and "Bloklangan1" in bs(tt(P_ASL, "raq"))
+            # kech154 (zip 206 «Platforma — jadval»): tepadagi 7 ta raqam-karta o'rniga — «Bugun: N kirish · N xato»; korxona sanoqlari —
+            # saralash tugmalarida (2 mijoz korxona, 1 bloklangan)
+            check("P1a raqamlar («Bugun: N kirish · N xato»), kartochkalar (B, C), saralash sanoqlari (2 mijoz korxona, 1 bloklangan), "
+                  "murojaatlar (2 yangi), xatolar; telefon maydoni to'ldirilgan va ochiq; sabab yozuvlari yashirin; «Yuklanmoqda» yo'q",
+                  re.fullmatch(r"Bugun: \d+ kirish · \d+ xato", tt(P_ASL, "raq") or "") and "Bloklangan · 1" in P_ASL.get("chip", [])
                   and "Mijoz Korxona B" in (tt(P_ASL, "kart") or "") and "Mijoz Korxona C" in (tt(P_ASL, "kart") or "")
                   and P_ASL.get("chip", [""])[0] == "Hammasi · 2" and P_ASL.get("mpson") == ["2", "0", "0"]
                   and "OP166" in (tt(P_ASL, "mp") or "") and tt(P_ASL, "xt")
@@ -753,7 +755,7 @@ if PW_BOR and ZANJIR_JS:
                    P_ASL.get("yuklanmoqda"), pg.__xato[:1]))
             pg.close()
 
-        RAQ_BOSH = "Mijoz korxonalar — Faol — Sinov davrida — Muddati yaqin — Bloklangan — Bugun kirishlar — Bugun xatolar —"
+        RAQ_BOSH = "Bugun: — kirish · — xato"      # kech154 (zip 206): yuklanmagan — «—» (yolg'on «0» emas)
         if bolim("P2"):
             section("P2. Platforma — 4 so'rov × 5 xato: o'sha blokda sabab, qolgani o'z qiymatida")
             for yol in ("/api/platform/companies", "/api/platform/summary", "/api/platform/errors", "/api/platform/murojaatlar"):

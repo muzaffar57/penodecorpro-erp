@@ -274,7 +274,8 @@ holat("taminotchilar", "K2", "/suppliers", "await uxla(800);", None, izoh="butun
              "() => [...document.querySelectorAll('.sup-row')].filter(r => r.offsetParent).map(r => { const a = r.querySelector('.sup-asosiy, div'); const q = r.children[1];"
              " const A = a.getBoundingClientRect(), Q = q.getBoundingClientRect(); return !(Q.left < A.right - 1 && Q.right > A.left + 1 && Q.top < A.bottom - 1 && Q.bottom > A.top + 1); })",
              lambda v, w, h: isinstance(v, list) and len(v) >= 2 and all(v))])
-holat("qaytarishlar", "K3", "/returns", "await uxla(500);", "#retList",
+# kech154 (zip 204 «Qaytarishlar ixcham», MOSLANDI): har buyurtma yig'ma qator — tafsilot qatorlari ochilib o'lchanadi
+holat("qaytarishlar", "K3", "/returns", "await uxla(500); document.querySelectorAll('#retList > .ret-group-header').forEach(h => h._ochYop && h._ochYop(true)); await uxla(300);", "#retList",
       qosh=[("nom ustuni qator enining kamida yarmi",
              "() => [...document.querySelectorAll('#retList .ret-row')].filter(r => r.offsetParent).map(r => Math.round(r.querySelector('.ret-name').getBoundingClientRect().width / r.clientWidth * 100) / 100)",
              lambda v, w, h: isinstance(v, list) and len(v) >= 2 and min(v) >= 0.5)])

@@ -550,7 +550,7 @@ check("C3 /logs: xato jurnali (allaqachon Toshkentda yozilgan) — 01.10.2026 01
       "TK xato jurnali" in _h and "01.10.2026 06:30" not in _h, sanalar(_h))
 _st, _h = sahifa("/orders")
 check("C4 /orders: buyurtma sanasi 01.10.2026 (data-date va ro'yxat)", _st == 200
-      and f'data-date="{T_SANA}"' in _h and f'<div class="ord-date">{T_SANA}' in _h
+      and f'data-date="{T_SANA}"' in _h and f'<div class="ord-date"><span class="oi-sana">{T_SANA}</span>' in _h   # kech154 (zip 203, MOSLANDI)
       and f'data-date="{UTC_SANA}"' not in _h, [_st, re.findall(r'data-date="[^"]*"', _h)[:4]])
 _st, _h = sahifa("/projects")
 check("C5 /projects: boshlanish 01.10.2026 / 2026-10-01 (filtr), muddat 05.10.2026 (kalendar kuni o'zgarmaydi)",

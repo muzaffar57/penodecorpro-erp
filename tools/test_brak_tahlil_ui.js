@@ -246,8 +246,9 @@ async function brakBolimi() {
           && sw[1].includes('{% for h in (brak_hodimlari or []) %}<option value="{{ h.id }}">{{ h.name }}')
           && (sw[1].match(/<option/g) || []).length === 2,
           sw ? qisqa(sw[1]) : 'topilmadi');
-  const qator = RETURNS.slice(RETURNS.indexOf('{% if is_defect %}<span class="badge badge-danger">'),
-                              RETURNS.indexOf('<span class="badge badge-ready">'));
+  // kech154 (zip 204 «Qaytarishlar ixcham», MOSLANDI): brak tafsiloti nom ostidagi satrda (`.ret-brak-satr`) — holat belgisidan OLDIN
+  const qator = RETURNS.slice(RETURNS.indexOf('<div class="ret-brak-satr">'),
+                              RETURNS.indexOf('{% if is_defect %}<span class="badge badge-danger">'));
   tekshir("R8 ro'yxat qatori: brak tarmog'ida sabab yorlig'i (lug'atdan) va javobgar ismi (hodim_nomlari dan)",
           qator.includes('<div class="brak-sabab"') && qator.includes('(brak_sabablari or {}).get(r.brak_sabab, r.brak_sabab)')
           && qator.includes('<div class="brak-javobgar"') && qator.includes('(hodim_nomlari or {}).get(r.brak_javobgar_id'),

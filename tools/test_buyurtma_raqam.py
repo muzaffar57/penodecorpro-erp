@@ -254,8 +254,10 @@ def _kuzat(*a, **k):
     db = a[0] if a else k.get("db")
     try:
         if db.bind.dialect.name == "postgresql":
+            # kech155 (zip 199): xomashyo navbati `pg_advisory_xact_lock(199, korxona)` (classid 199, objsubid 2) sanalmaydi — bu
+            # tekshiruv loyiha raqam qulfi (`pg_advisory_xact_lock(loyiha)`) haqida
             QULF.append(int(db.execute(T("SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' "
-                                         "AND pid = pg_backend_pid()")).scalar()))
+                                         "AND pid = pg_backend_pid() AND NOT (classid = 199 AND objsubid = 2)")).scalar()))
     except Exception:                      # noqa: BLE001
         QULF.append(-1)
     return _asl_deduct(*a, **k)

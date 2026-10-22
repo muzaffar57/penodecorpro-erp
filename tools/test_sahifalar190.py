@@ -128,7 +128,8 @@ for _f in _KUT:
                 _yomon.append(f"{_f}:{_i}: {_q.strip()[:100]}")
 check("S4 qolgan `narxKorinishi(` hammasi kiritish maydoni qiymatiga yoziladi (`.value =` / `value=\"${` / `qiymat:` / kiritish oynasi argumenti)",
       not _yomon, _yomon[:6])
-_FOIZ = ["📦 {{ dpct|son(1) }}%", "textContent = foizKor(pct, 1);", "🟡 ${foizKor(pct, 1)}</span>", "Bajarilish: ${foizKor(r.delivery_percent, 1)}`",
+# kech154 (zip 203 «Buyurtmalar ko'rinishi», MOSLANDI): ro'yxat qatorida foiz — belgida mini chiziqdan keyin (📦 belgisisiz)
+_FOIZ = ["</i></span>{{ dpct|son(1) }}%</span>", "textContent = foizKor(pct, 1);", "🟡 ${foizKor(pct, 1)}</span>", "Bajarilish: ${foizKor(r.delivery_percent, 1)}`",
          "boshlagan (${foizKor(Number.isFinite(foiz) ? foiz : 0, 1)})", "Topshirish: <b>${foizKor(result.delivery_percent, 1)}</b>",
          "qisman topshirilgan (${foizKor(o.delivery_percent || 0, 1)})."]
 _ESKI_FOIZ = ["📦 {{ dpct }}%", "textContent = pct + '%';", "🟡 ${pct}%", "Bajarilish: ${r.delivery_percent}%", "foiz : 0}%)",

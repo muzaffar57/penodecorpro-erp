@@ -228,8 +228,17 @@ def pdf_matn(bayt):
     return satrlar
 
 
-def jadval(satrlar):
-    """"Xarajatlar tafsiloti" jadvali: [(nom, summa)] va JAMI XARAJAT."""
+def _guruh_nomi(q):
+    """kech154 (zip 205 — oylik hisobot GURUHLANGAN, egasi tanlovi «B · Ixcham 2 sahifa», MOSLANDI): tafsilotdagi guruh sarlavhasi
+    («Boshqa xarajatlar · 5,1%» va guruh summasi) — guruh nomi; oddiy qator — None."""
+    import finance_pdf as _fp205
+    n = re.sub(r"\s+·\s+[−-]?[\d,]+%$", "", q)
+    return n if n in {g for _k, g in _fp205.XARAJAT_GURUHLARI} | {_fp205._FARQ_GURUHI} else None
+
+
+def jadval(satrlar, guruhlar=None):
+    """"Xarajatlar tafsiloti" jadvali: [(nom, summa)] va JAMI XARAJAT. kech154 (zip 205, MOSLANDI): guruh sarlavhasi — jadval qatori
+    EMAS (qatorlar yig'indisi = JAMI); `guruhlar` berilsa — {guruh: [(nom, summa)]} to'ldiriladi."""
     try:
         i = next(k for k, q in enumerate(satrlar) if q.startswith("Xarajatlar tafsiloti"))
         j = next(k for k in range(i, len(satrlar)) if satrlar[k] == "JAMI XARAJAT")
@@ -238,13 +247,23 @@ def jadval(satrlar):
     qatorlar = []
     q = satrlar[i + 1:j]
     k = 0
+    guruh = None
     while k < len(q):
         m = re.fullmatch(r"(-?[\d ]+) so'm", q[k + 1]) if k + 1 < len(q) else None
         if m and q[k] not in ("Xarajat nomi", "Summa"):
-            qatorlar.append((q[k], int(m.group(1).replace(" ", ""))))
+            g = _guruh_nomi(q[k])
+            if g is not None:
+                guruh = g
+                if guruhlar is not None:
+                    guruhlar.setdefault(g, [])
+            else:
+                qatorlar.append((q[k], int(m.group(1).replace(" ", ""))))
+                if guruhlar is not None and guruh is not None:
+                    guruhlar[guruh].append(qatorlar[-1])
             k += 2
         else:
             k += 1
+
     jm = re.fullmatch(r"(-?[\d ]+) so'm", satrlar[j + 1]) if j + 1 < len(satrlar) else None
     return qatorlar, (int(jm.group(1).replace(" ", "")) if jm else None)
 
@@ -326,7 +345,9 @@ try:
     SATRLAR = pdf_matn(_rp.content) if _rp.status_code == 200 else []
 except Exception as e:                     # noqa: BLE001
     SATRLAR = [f"{type(e).__name__}: {e}"]
-QATOR, JAMI = jadval(SATRLAR)
+# kech154 (zip 205, MOSLANDI): guruhlar — {guruh: [(nom, summa)]}
+GURUH = {}
+QATOR, JAMI = jadval(SATRLAR, GURUH)
 NOMLAR = [n for n, _ in QATOR]
 QD = {}
 for _n, _v in QATOR:
@@ -366,23 +387,31 @@ check("A6 kirim hujjati xarajati NOMI bilan (\"Kirim hujjati — transport\" 700
 check("A7 tannarxga qo'shilgan kirim xarajati (tushirish 200, yuklash 100, boshqa 50, transport 500) ro'yxatda YO'Q",
       not [n for n in NOMLAR if "tushirish" in n.lower() or "yuklash" in n.lower() or n == "Kirim hujjati — boshqa xarajat"]
       and QD.get("Kirim hujjati — transport") == 700, [n for n in NOMLAR if "irim" in n])
-_boshqa = {n: v for n, v in QD.items() if n.startswith("Boshqa — ")}
-check("A8 \"Boshqa\" izohlar bo'yicha: Tozalik 120 000, Texnik ko'rik 80 000, Izohsiz 30 000, Mayda 205 000 (205 ta — "
-      "200 cheklovisiz); yig'indi = hisobot, qoldiq qatori yo'q",
-      _boshqa.get("Boshqa — Tozalik") == 120_000 and _boshqa.get("Boshqa — Texnik ko'rik") == 80_000
-      and _boshqa.get("Boshqa — Izohsiz") == 30_000 and _boshqa.get("Boshqa — Mayda") == 205_000
-      and "Boshqa — boshqa yozuvlar" not in _boshqa and sum(_boshqa.values()) == round(float(QX.get("boshqa", -1))),
+# kech154 (zip 205 — oylik hisobot GURUHLANGAN, MOSLANDI): «Boshqa» izohlari «Boshqa xarajatlar» guruhida izoh nomi bilan (ilgari
+# «Boshqa — Tozalik»); guruhda erkin turkumlar (Reklama, internet, «a<b>c») ham bor — izohlar yig'indisi = «Boshqa» turkumi
+_IZOHLAR = ("Tozalik", "Texnik ko'rik", "Izohsiz", "Mayda")
+_boshqa = dict(GURUH.get("Boshqa xarajatlar", []))
+check("A8 \"Boshqa\" izohlar bo'yicha («Boshqa xarajatlar» guruhida): Tozalik 120 000, Texnik ko'rik 80 000, Izohsiz 30 000, "
+      "Mayda 205 000 (205 ta — 200 cheklovisiz); yig'indi = hisobot, qoldiq qatori yo'q",
+      _boshqa.get("Tozalik") == 120_000 and _boshqa.get("Texnik ko'rik") == 80_000
+      and _boshqa.get("Izohsiz") == 30_000 and _boshqa.get("Mayda") == 205_000
+      and "Boshqa — boshqa yozuvlar" not in _boshqa
+      and sum(_boshqa[n] for n in _IZOHLAR if n in _boshqa) == round(float(QX.get("boshqa", -1))),
       [_boshqa, QX.get("boshqa")])
-check("A9 boshqa turkumlar: Reklama 250 000, \"Kutilmagan xarajat — Zapchast\" 60 000, erkin \"internet\" 90 000, "
+
+# kech154 (zip 205, MOSLANDI): «Kutilmagan xarajat» izohi — «Kutilmagan xarajatlar» guruhida izoh nomi bilan (ilgari «Kutilmagan xarajat — Zapchast»)
+check("A9 boshqa turkumlar: Reklama 250 000, «Kutilmagan xarajatlar» guruhida \"Zapchast\" 60 000, erkin \"internet\" 90 000, "
       "\"a<b>c\" 15 000 — matn AYNAN (belgilash sifatida o'qilmadi)",
-      QD.get("Reklama") == 250_000 and QD.get("Kutilmagan xarajat — Zapchast") == 60_000 and QD.get("internet") == 90_000
+      QD.get("Reklama") == 250_000 and dict(GURUH.get("Kutilmagan xarajatlar", [])).get("Zapchast") == 60_000
+      and QD.get("internet") == 90_000
       and {re.sub(r"\s+", "", n): v for n, v in QD.items()}.get("a<b>c") == 15_000,   # ReportLab "<" / ">" ni alohida bo'lak chizadi
-      {k: QD.get(k) for k in ("Reklama", "Kutilmagan xarajat — Zapchast", "internet")} | {"a<b>c": [n for n in NOMLAR if "b" in n and "c" in n][:3]})
+      {k: QD.get(k) for k in ("Reklama", "Zapchast", "internet")} | {"a<b>c": [n for n in NOMLAR if "b" in n and "c" in n][:3]})
 check("A10 usta KPI, hodim, Ehson, ishlab chiqarish qatorlari hisobot qiymatlari bilan",
       QD.get("Ehson (xayriya)") == round(float(REP.get("ehson_xarajat", -1)))
       and QD.get("Ishlab chiqarish xarajati (xomashyo tan narxi)") == round(float(REP.get("ishlab_chiqarish_xarajat", -1)))
       and any(n.startswith("Usta KPI — MT Usta") for n in NOMLAR) and any(n.startswith("MT Hodim") for n in NOMLAR),
       [n for n in NOMLAR if n.startswith(("Usta", "MT", "Ehson", "Ishlab"))])
+
 
 # A11 — tranzaksiyalar to'liq berilmasa (masalan boshqa chaqiruvchi cheklab bersa): izohli qatorlar + QOLDIQ qatori, yig'indi = JAMI
 try:
@@ -398,8 +427,9 @@ try:
 except Exception as e:                     # noqa: BLE001
     _q11, _j11 = [(f"{type(e).__name__}: {e}", 0)], None
 _d11 = dict(_q11)
-check("A11 tranzaksiyalar qisman berilsa: \"Boshqa — Tozalik\" 120 000 + \"Boshqa — boshqa yozuvlar\" (qoldiq), yig'indi = JAMI",
-      _d11.get("Boshqa — Tozalik") == 120_000
+# kech154 (zip 205, MOSLANDI): izohli qator — izoh nomi bilan («Boshqa xarajatlar» guruhida), qoldiq — «Boshqa — boshqa yozuvlar» (o'sha)
+check("A11 tranzaksiyalar qisman berilsa: \"Tozalik\" 120 000 + \"Boshqa — boshqa yozuvlar\" (qoldiq), yig'indi = JAMI",
+      _d11.get("Tozalik") == 120_000
       and _d11.get("Boshqa — boshqa yozuvlar") == round(float(QX.get("boshqa", 0))) - 120_000
       and _j11 is not None and abs(sum(v for _, v in _q11) - _j11) <= 1, [_q11, _j11])
 

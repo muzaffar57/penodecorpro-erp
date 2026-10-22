@@ -1020,6 +1020,10 @@ check("E5 Moliya PDF (G6-09): JAMI DAROMAD − JAMI XARAJAT = SOF FOYDA (butun s
 
 
 def _jadval_qatorlari(bosh, oxir):
+    """kech154 (zip 205 — oylik hisobot GURUHLANGAN, MOSLANDI): xarajatlar tafsilotidagi guruh sarlavhasi («Boshqa xarajatlar · 5,1%» va
+    guruh summasi) — jadval qatori EMAS (qatorlar yig'indisi = JAMI)."""
+    import finance_pdf as _fp205
+    _guruhlar = {g for _k, g in _fp205.XARAJAT_GURUHLARI} | {_fp205._FARQ_GURUHI}
     try:
         i = FS.index(bosh)
         j = next(k for k in range(i, len(FS)) if FS[k] == oxir)
@@ -1029,14 +1033,15 @@ def _jadval_qatorlari(bosh, oxir):
     while k < len(q):
         v = son(q[k + 1]) if k + 1 < len(q) else None
         if v is not None and q[k] not in ("Xarajat nomi", "Summa", "Daromad manbai"):
-            natija.append((q[k], v))
+            if re.sub(r"\s+·\s+[−-]?[\d,]+%$", "", q[k]) not in _guruhlar:
+                natija.append((q[k], v))
             k += 2
         else:
             k += 1
     return natija, son(FS[j + 1]) if j + 1 < len(FS) else None
 
 
-_xq, _xj = _jadval_qatorlari("Xarajatlar tafsiloti (nomma-nom)", "JAMI XARAJAT")
+_xq, _xj = _jadval_qatorlari("Xarajatlar tafsiloti", "JAMI XARAJAT")
 _dq, _dj = _jadval_qatorlari("Daromad tarkibi", "JAMI DAROMAD")
 check("E6 Moliya PDF: xarajat qatorlari yig'indisi = JAMI XARAJAT; «Tayyor mahsulot sotuvi tannarxi» 150 000 qatori bor; "
       "daromad tarkibi (buyurtmalar + TM sotuvi 500 000) yig'indisi = JAMI DAROMAD",

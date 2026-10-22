@@ -166,9 +166,11 @@ function matnlar(w, sel) { return [...w.document.querySelectorAll(sel)].map(e =>
   tekshir('K1 4 ta mijoz kartochkasi (platforma egasi korxonasi yo\'q)', kartalar.length === 4 && !karta(w, 1),
     kartalar.map(k => k.dataset.korxona));
   tekshir('K2 egasi korxonasi izohda nomi bilan', w.document.getElementById('plEgaIzoh').textContent.includes('PenodecorPro'));
-  tekshir('K3 raqamlar: mijoz 4, bugun kirishlar 7, bugun xatolar 2', () => {
+  // kech154 (zip 206 «Platforma — jadval», MOSLANDI): tepadagi raqam-kartalar o'rniga «Bugun: N kirish · N xato» (saralash yonida);
+  // mijozlar soni — «Hammasi · 4» tugmasida (F1)
+  tekshir('K3 raqamlar: bugun kirishlar 7, bugun xatolar 2 — «Bugun: 7 kirish · 2 xato»; mijoz 4 — «Hammasi · 4»', () => {
     const t = w.document.getElementById('plRaqamlar').textContent;
-    return t.includes('Mijoz korxonalar4') && t.includes('Bugun kirishlar7') && t.includes('Bugun xatolar2');
+    return t === 'Bugun: 7 kirish · 2 xato' && w.document.querySelector('[data-filtr="hammasi"]').textContent === 'Hammasi · 4';
   }, w.document.getElementById('plRaqamlar').textContent);
   const a = karta(w, 2), b = karta(w, 3), g = karta(w, 4), d = karta(w, 5);
   tekshir('K4 Alfa: «Faol», «Obuna 30.10.2026 gacha», «20 kun qoldi», chiziq 50 % (20 / 40 kunlik davr)', () =>
@@ -176,9 +178,10 @@ function matnlar(w, sel) { return [...w.document.querySelectorAll(sel)].map(e =>
     && a.querySelector('.pl-bar > div').style.width === '50%', a && a.textContent);
   tekshir('K4b yaratilgan sana — Toshkent kuni (UTC 2026-08-13T20:30 → «14.08.2026 dan»)', () =>
     a.textContent.includes('14.08.2026 dan') && !a.textContent.includes('2026-08-13'), a && a.querySelector('.pl-kod').textContent);
-  tekshir('K5 Beta: «Muddati yaqin» + «Sinov», «Sinov davri 13.10.2026 gacha», sariq ramka, «Muddatni uzaytirish» qora',
+  // kech154 (zip 206, MOSLANDI): tugma «Uzaytirish» (to'liq nomi — `title`), qator — sariq fon
+  tekshir('K5 Beta: «Muddati yaqin» + «Sinov», «Sinov davri 13.10.2026 gacha», sariq qator, «Uzaytirish» (title «Muddatni uzaytirish») qora',
     () => b.classList.contains('yaqin') && b.textContent.includes('Sinov davri 13.10.2026 gacha') && b.textContent.includes('Sinov')
-      && tugma(b, 'Muddatni uzaytirish').classList.contains('qora'), b && b.textContent);
+      && tugma(b, 'Uzaytirish').classList.contains('qora') && tugma(b, 'Uzaytirish').title === 'Muddatni uzaytirish', b && b.textContent);
   tekshir('K6 Gamma: «Muddati o\'tdi», «Tugadi — 3 kundan keyin yopiladi», «Hali kirmagan»', () =>
     g.textContent.includes("Muddati o'tdi") && g.textContent.includes('Tugadi — 3 kundan keyin yopiladi')
     && g.textContent.includes('Hali kirmagan'), g && g.textContent);
@@ -248,7 +251,7 @@ function matnlar(w, sel) { return [...w.document.querySelectorAll(sel)].map(e =>
   ({w} = muhit());
   await kut(80);
   n0 = w.__sorov.length;
-  tugma(karta(w, 3), 'Muddatni uzaytirish').click();
+  tugma(karta(w, 3), 'Uzaytirish').click();      // kech154 (zip 206, MOSLANDI): «Uzaytirish»
   await kut(60);
   let ks = w.__sorov.slice(n0).filter(x => x.method === 'POST');
   tekshir('U1 ochilishda oldindan ko\'rish: POST …/3/extend korish=1, oy=1', ks.length === 1 && ks[0].url === '/api/platform/companies/3/extend'
@@ -295,7 +298,7 @@ function matnlar(w, sel) { return [...w.document.querySelectorAll(sel)].map(e =>
   tekshir('U7 qo\'lda bloklangan — extend, KEYIN unblock', ks.length === 2 && /\/extend$/.test(ks[0].url) && /\/5\/unblock$/.test(ks[1].url), ks);
   ({w} = muhit({javob: {'POST /api/platform/companies/2/extend': [400, {detail: 'Sana bugundan oldin bo\'lmasin'}]}}));
   await kut(80);
-  tugma(karta(w, 2), 'Muddatni uzaytirish').click();
+  tugma(karta(w, 2), 'Uzaytirish').click();      // kech154 (zip 206, MOSLANDI): «Uzaytirish»
   await kut(60);
   tekshir('U8 oldindan ko\'rish rad etilsa — sabab ko\'rinadi', w.document.getElementById('uzKorish').textContent === "Sana bugundan oldin bo'lmasin");
 
