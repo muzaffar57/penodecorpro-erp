@@ -535,7 +535,7 @@ def get_item_locked(db: Session, item_id: int, company_id: int = None) -> Option
     return inventory_qulf(db, item_id, company_id)
 
 
-def inventory_qulf_sorov(db: Session, q):
+def inventory_qulf_sorov(db: Session, q, ochirish: bool = False):
     """kech142 (zip 170, A-O04 — O'LCHANGAN HAQIQIY PG `work/audit/tasdiq/ombor/p_o04b.py` S6): material (Inventory)
     qatorini `SELECT … FOR UPDATE` bilan qulflaydi VA qiymatlarini bazadan QAYTA yuklaydi (`populate_existing`).
 
@@ -545,20 +545,28 @@ def inventory_qulf_sorov(db: Session, q):
     kirim YO'QOLARDI (penoplast 119.95 + 10 kirim − 0.05 → 119.9, to'g'risi 129.85; qoldiq ≠ Σ harakat).
     - Avval `flush` — sessiyadagi yozilmagan o'zgarish `populate_existing` da yo'qolmasin (`SessionLocal` autoflush=False;
       `_fp_qulf` naqshi).
-    - `q` — `db.query(Inventory)…` (chaqiruvchining filtrlari bilan: id, korxona); natija — bitta qator yoki None."""
+    - `q` — `db.query(Inventory)…` (chaqiruvchining filtrlari bilan: id, korxona); natija — bitta qator yoki None.
+    - kech155 (zip 199 — O'LCHANGAN HAQIQIY PG R7 / R10 / R11, 3 / 3 urinishda 40P01): qulf `FOR NO KEY UPDATE` (`key_share=True`;
+      `_fp_qulf` kech145 naqshi). Detal / harakat yozilganda PG xomashyo qatoriga tashqi kalit KEY SHARE qulfini qo'yadi; oddiy
+      `FOR UPDATE` u bilan to'qnashardi — buyurtma tahriri (guruh → penoplast) ∥ buyurtma yaratish (penoplast KEY SHARE → guruh)
+      va taqdirli brak bekori (partiya → penoplast) ∥ buyurtma bir-birini kutib qolardi (biri 500). NO KEY UPDATE o'zaro (va UPDATE
+      bilan) baribir bir-birini kutadi — qoldiqni o'zgartirish navbati o'zgarmaydi. `ochirish=True` — qatorni O'CHIRADIGAN joy
+      (`delete_item`): oddiy `FOR UPDATE` (yangi tashqi kalit bog'lanishini ham to'xtatadi)."""
     db.flush()
-    return q.populate_existing().with_for_update().first()
+    if ochirish:
+        return q.populate_existing().with_for_update().first()
+    return q.populate_existing().with_for_update(key_share=True).first()
 
 
-def inventory_qulf(db: Session, item_id, company_id: int = None) -> Optional[Inventory]:
+def inventory_qulf(db: Session, item_id, company_id: int = None, ochirish: bool = False) -> Optional[Inventory]:
     """kech142 (zip 170, A-O04): id (va korxona) bo'yicha material qatori — QULFLANGAN va bazadan QAYTA yuklangan
-    (`inventory_qulf_sorov`). id bo'sh bo'lsa — None (so'rov yuborilmaydi)."""
+    (`inventory_qulf_sorov`; kech155 — `FOR NO KEY UPDATE`, `ochirish=True` — `FOR UPDATE`). id bo'sh bo'lsa — None."""
     if not item_id:
         return None
     q = db.query(Inventory).filter(Inventory.id == item_id)
     if company_id is not None:
         q = q.filter(Inventory.company_id == company_id)
-    return inventory_qulf_sorov(db, q)
+    return inventory_qulf_sorov(db, q, ochirish=ochirish)
 
 
 # ============================================================
@@ -1631,7 +1639,7 @@ def delete_item(db: Session, item_id: int) -> dict:
     ko'rinadi), so'ng o'chiriladi. Qoldiq QULF ostida o'qiladi (parallel kirim bilan poyga bo'lmasin)."""
     from sqlalchemy.exc import IntegrityError, ProgrammingError
 
-    db_item = inventory_qulf(db, item_id)
+    db_item = inventory_qulf(db, item_id, ochirish=True)     # kech155 (zip 199): qator o'chiriladi — `FOR UPDATE`
     if not db_item:
         return {"success": False, "message": "Xomashyo topilmadi"}
 
@@ -1667,7 +1675,7 @@ def delete_item(db: Session, item_id: int) -> dict:
         db.rollback()
         # kech142 (zip 170): rollback qulfni bo'shatdi — qator QAYTA qulflanib, qoldiq yana tekshiriladi (shu orada kirim
         # qilingan bo'lsa — qoldiqli material yashirilmasin).
-        db_item = inventory_qulf(db, item_id)
+        db_item = inventory_qulf(db, item_id, ochirish=True)
         if not db_item:
             return {"success": False, "message": "Xomashyo topilmadi"}
         if abs(float(db_item.stock_quantity or 0)) > 1e-9:
@@ -2872,6 +2880,52 @@ def _fp_qulf_guruh(db: Session, fp_ids, company_id: int = None) -> None:
     _fp_qulf(db, _ids, company_id)
 
 
+def _tm_oldindan_qulf(db: Session, fp_ids, company_id: int = None, toliq=()) -> None:
+    """kech154 (zip 198 — pasport 7-bo'lim OCHIQ (2); O'LCHANGAN `work/k198/probe198.py`, `probe198b.py`, HAQIQIY PG): partiyani
+    YOZISHDAN yoki bitta-bitta qulflashdan OLDIN — `fp_ids` va (guruhida MINUS bo'lsa) ularning tayyor guruhdoshlari, `toliq` dagilar esa
+    guruhi bilan DOIM (chaqiruvchi keyin ularni `_fp_qulf_guruh` bilan qulflaydi) — BITTA o'tishda, id tartibida (`_fp_qulf`:
+    `FOR NO KEY UPDATE`, avval flush, bazadan qayta yuklash). Keyingi qulflar (partiya, `_tm_muvozanat_kerak_bolsa` — guruh) o'sha
+    qatorlarni qayta so'raydi — kutmaydi. Ilgari partiya avval yozilib / qulflanib, so'ng guruh qulflanardi — guruhni id tartibida
+    qulflaydigan amal (shu guruhdan buyurtma) bilan bir-birini kutib qolardi (40P01, biri 500, ma'lumot buzilmaydi).
+    Guruhda minus bo'lmasa — faqat `fp_ids` (odatiy yo'l avvalgidek: guruhdosh qulflanmaydi; muvozanat ham guruhni olmaydi). Minus shu
+    tekshiruvdan KEYIN paydo bo'lsa (uni yaratgan tranzaksiya yakunlangan — qulfi bo'shagan), keyingi muvozanat guruhni o'zi qulflaydi —
+    teskari tartib faqat yana bir parallel amal o'sha guruhni ushlab turgan bo'lsagina (kamdan-kam). Korxona noma'lum — qulflanmaydi
+    (eski chaqiruv — `_fp_qulf` kabi)."""
+    if company_id is None:
+        return
+    _toliq = {int(x) for x in (toliq or []) if x}
+    _ids = set()
+    for _i in sorted({int(x) for x in (fp_ids or []) if x} | _toliq):
+        _fp = db.query(FinishedProduct).filter(FinishedProduct.id == _i, FinishedProduct.company_id == company_id).first()
+        if _fp is None:
+            continue
+        _ids.add(_i)
+        _az = _tm_guruh_azolari(db, _fp)
+        if _i in _toliq or any(_tm_qarz(_x) > 1e-6 for _x in _az):
+            _ids.update(_x.id for _x in _az)
+    _fp_qulf(db, _ids, company_id)
+
+
+def _buyurtma_tm_oldindan_qulf(db: Session, order, company_id: int = None) -> None:
+    """kech154 (zip 198 — mustaqil tekshiruv R3 / R4, «Tayyor» R9; O'LCHANGAN HAQIQIY PG, 3 / 3 urinishda 40P01): buyurtma
+    o'chirilishi va «Tayyor» (qisman) — tayyor mahsulot qaytishidan OLDIN: ombordan olingan detallar partiyalari GURUHI bilan
+    (`_return_finished_for_order` ularni guruhi bilan qulflaydi) va detallarga MRP band partiyalar (guruhida minus bo'lsa guruhdoshlari
+    bilan — `_auto_release_mrp_reservations`) BITTA o'tishda, id tartibida (`_tm_oldindan_qulf`). Ilgari ikki o'tish (avval ombor
+    detallari guruhlari, keyin MRP partiyalari) — ikkala guruhdan detali bor buyurtma yaratish bilan bir-birini kutardi; loy qaytishi esa
+    MRP partiyasidan oldin edi (buyurtma yaratish: guruh → loy). Chaqiruv joyi — penoplast qaytishidan KEYIN (buyurtma yaratish penoplastni
+    detal yozuvidagi tashqi kalit bilan guruhdan oldin kutadi), loy qaytishidan OLDIN."""
+    cid = company_id if company_id is not None else getattr(order, 'company_id', None)
+    if cid is None:
+        return
+    _ombor = {int(_it.finished_product_id) for _it in order.items if getattr(_it, 'finished_product_id', None)}
+    _det = [int(_it.id) for _it in order.items if getattr(_it, 'id', None)]
+    _mrp = set()
+    if _det:
+        _mrp = {int(_i) for (_i,) in db.query(FinishedProduct.id).filter(FinishedProduct.reserved_for_order_item_id.in_(_det),
+                                                                            FinishedProduct.company_id == cid).all()}
+    _tm_oldindan_qulf(db, _mrp, cid, toliq=_ombor)
+
+
 def _tm_band(fp) -> float:
     return max(0.0, float(fp.reserved_quantity or 0))
 
@@ -3500,7 +3554,10 @@ def _tm_muvozanat_idlar(db: Session, fp_ids, company_id: int = None, performed_b
 def _tm_muvozanat_kerak_bolsa(db: Session, fp_ids, company_id: int = None, performed_by: str = None) -> list:
     """kech145 (zip 182): `fp_ids` guruhlarida kamomad (minus / band qoldiqdan katta) BO'LSAGINA — guruh id tartibida qulflanib,
     muvozanat. Material / buyurtma qulflaridan keyin chaqiriladigan yo'llar (MRP band bekor, brak bekor) odatiy holatda TM
-    qulfini olmasin (qulf tartibi teskari bo'lib qotib qolish xavfi faqat kamdan-kam minus holatida qoladi)."""
+    qulfini olmasin (qulf tartibi teskari bo'lib qotib qolish xavfi faqat kamdan-kam minus holatida qoladi).
+    kech154 (zip 198): brak bekori, MRP band ozod qilish (`_auto_release_mrp_reservations`), buyurtma o'chirilishi / «Tayyor» (qisman) va
+    yuk xatini o'chirish partiyani yozishdan OLDIN guruhni (minus bo'lsa) qulflaydi (`_tm_oldindan_qulf`) — bu yerdagi qulf ular uchun
+    qayta so'rov (kutmaydi)."""
     _ids = sorted({int(x) for x in (fp_ids or []) if x})
     _kerak = []
     for _i in _ids:
@@ -5256,6 +5313,32 @@ def hodim_nomlari(db, company_id=None) -> dict:
     if company_id is not None:
         _q = _q.filter(Employee.company_id == company_id)
     return {i: n for i, n in _q.all()}
+
+
+def majburiyat_nomlari(db, company_id=None) -> dict:
+    """kech154 (zip 205): {doimiy majburiyat turkumi (kod): nomi}. «Biz qarzdormiz» da yaratilgan turkum kodi — nom + vaqt
+    (`debts.html` `majburiyatKodi`, masalan «bosh_offic_arenda_8477»); oylik moliya PDF i va Moliya sahifasidagi «Doimiy va qo'shimcha
+    xarajatlar» uni XOM KOD bilan ko'rsatardi (xarajatlar ro'yxati — kech120, G3-18 dan beri nomi bilan)."""
+    from models import RecurringObligation as _RO205
+    _q = db.query(_RO205.category, _RO205.label)
+    if company_id is not None:
+        _q = _q.filter(_RO205.company_id == company_id)
+    return {c: n for c, n in _q.all() if c and n}
+
+
+import re as _re205                                  # noqa: E402
+_MAJBURIYAT_KODI205 = _re205.compile(r"^([0-9a-zа-яёʻʼ_]+?)_\d{4}$")
+
+
+def majburiyat_kodidan_nom(kod):
+    """kech154 (zip 205, mustaqil tekshiruv): «Biz qarzdormiz» dan O'CHIRILGAN majburiyat turkumi — kodi xarajat tarixida qoladi, nomi
+    yo'q. Kod `debts.html` `majburiyatKodi` dan: nomning kichik harfli asosi (lotin / kirill, qolgan belgilar «_») + «_» + 4 raqam
+    («bosh_offic_arenda_8477» → «Bosh offic arenda»). Shunday kod bo'lmasa — None."""
+    m = _MAJBURIYAT_KODI205.match(kod or "")
+    if not m:
+        return None
+    asos = " ".join(m.group(1).replace("_", " ").split())
+    return (asos[:1].upper() + asos[1:]) if asos else None
 # 17g — yetkazish transporti kim hisobidan (`models.Delivery.company_transport_cost`
 # / `client_transport_cost` AYNAN shu to'rttasini taniydi; `orders.html`
 # `dlv-transport-payer` tanlovi ham shular). O'LCHANGAN: noma'lum qiymat
@@ -7198,6 +7281,14 @@ def _auto_release_mrp_reservations(db: Session, order_item_ids, performed_by: st
             _fq109 = _fq109.filter(_or109(FinishedProduct.company_id == _cid109,
                                           FinishedProduct.company_id.is_(None)))
         fps.extend(_fq109.order_by(FinishedProduct.id).all())
+    # kech154 (zip 198, O'LCHANGAN probe198 S2 — HAQIQIY PG: 3 / 3 urinishda 40P01, buyurtma o'chirish 500): band partiyalar
+    # YOZILISHIDAN OLDIN — guruhida minus bo'lsa guruhdoshlari bilan, id tartibida (`_tm_oldindan_qulf`; ilgari partiya yozilib, keyin
+    # muvozanat guruhni qulflardi — guruhdan olayotgan buyurtma teskari tartibda). Korxona bo'yicha (begona TM lar ro'yxatda yo'q).
+    _kq198 = {}
+    for fp in fps:
+        _kq198.setdefault(getattr(fp, 'company_id', None), []).append(fp.id)
+    for _c198 in sorted(_kq198, key=lambda c: (c is None, c or 0)):
+        _tm_oldindan_qulf(db, _kq198[_c198], _c198)
     for fp in fps:
         if fp.reserved_quantity:
             # kech41 (14-band): `log_activity` O'ZI `commit` qiladi — yuqoridagi
@@ -7639,6 +7730,18 @@ def delete_order_item(db: Session, item_id: int, company_id: int = None) -> bool
         db_item = _iq.first()
         if not db_item:
             return False
+    # kech155 (zip 198 — O'LCHANGAN `work/k198/probe198c.py` va mustaqil tekshiruv v3, HAQIQIY PG): shu detalga bog'langan ishlab
+    # chiqarish buyurtmalari (id tartibida) — buyurtma qulfidan keyin, xomashyo va tayyor mahsulotdan OLDIN (`api_delete_order` dagi
+    # kabi; «Boshlash» / «Yakunlash» / «Bekor qilish»: ishlab chiqarish buyurtmasi → xomashyo → partiya / detal). MRP band ozod qilishdagi
+    # oldindan qulf (`_auto_release_mrp_reservations`) partiyani ishlab chiqarish buyurtmasi yangilanishidan OLDIN oladi — bu qulfsiz
+    # «Yakunlash» bilan 3 / 3 urinishda 40P01 (R17, R22); ilgari ham guruhda minus bo'lsa (R17m) 3 / 3, «Bekor qilish» bilan
+    # StaleDataError 500 (R19), 2-ishlab chiqarishni «Boshlash» bilan tashqi kalit 500 (R21). (To'liq tahrirda bunday detal — faol
+    # bog'lam — rad etiladi: `_mrp_faol_boglamlar`.)
+    from production_models import ProductionOrder as _PO198d
+    _poq198d = db.query(_PO198d.id).filter(_PO198d.source_order_item_id == db_item.id)
+    if getattr(db_item, 'company_id', None) is not None:
+        _poq198d = _poq198d.filter(_PO198d.company_id == db_item.company_id)
+    _poq198d.order_by(_PO198d.id).with_for_update().all()
 
     # kech141 (zip 169, audit A-P05): «Tayyor» buyurtma detali o'chirilmaydi (yopilgan oy daromadi hodisasiz o'zgarardi) —
     # sabab bilan 400 (topshirilgan detal tekshiruvidan OLDIN: aks holda «Detal topilmadi» — noto'g'ri sabab)
@@ -8791,7 +8894,7 @@ def delete_return_item(db: Session, return_id: int, company_id: int = None,
                 _inv = db.query(Inventory).filter(
                     Inventory.id == _h.inventory_id,
                     Inventory.company_id == _cid,
-                ).populate_existing().with_for_update().first()
+                ).populate_existing().with_for_update(key_share=True).first()     # kech155 (zip 199): FOR NO KEY UPDATE
             if _inv is not None:
                 _inv.stock_quantity = float(_inv.stock_quantity or 0) + float(_h.quantity or 0)
                 _xom.append(f"{_inv.item_name} +{_miqdor_jurnal(float(_h.quantity or 0))} {_inv.unit or ''}".rstrip())
@@ -9037,6 +9140,150 @@ def _pul_qulfi(db: Session, ns: int, kalit) -> None:
                        {"ns": ns, "k": int(kalit)})
     except Exception:
         pass
+
+
+# kech155 (zip 199 — O'LCHANGAN HAQIQIY PG, `work/k199/probe199.py` va statik audit `work/k199/AUDIT_QULF.md`): XOMASHYO NAVBATI.
+# Xomashyo (Inventory) qatorlarini qulflaydigan yo'llar ularni HAR XIL tartibda oladi (detal tartibi, retsept tarkibi, BOM qatori,
+# penoplast ↔ loy xomashyosi ↔ «Tayyor loy», tayyor mahsulot guruhidan oldin / keyin) — zip 198 kodida bir vaqtdagi ikki amal 3 / 3
+# urinishda 40P01 (biri 500): buyurtma yaratish ∥ qoralamani faollashtirish / qoplamali brak / ikki zichlikli buyurtma / «Tayyor» qisman /
+# MRP «Yakunlash»; buyurtmani o'chirish ∥ qoralamani faollashtirish; xomashyo qulfi `FOR NO KEY UPDATE` bo'lgach yana: yaratish ∥
+# ishlab chiqarish / «+» / buyurtmani o'chirish. Har yo'lni bitta tartibga keltirish (hamma xomashyoni oldindan id tartibida) — o'nlab
+# yo'lda murakkab va xato qilish oson. YECHIM (texnik — Claude): xomashyoga tegadigan amal (marshrutlar ro'yxati —
+# `main._XOMASHYO_MARSHRUTLARI`) tranzaksiyasining BIRINCHI qulfi — korxona bo'yicha `pg_advisory_xact_lock(199, korxona)`: shunday
+# amallar bir korxonada NAVBAT bilan bajariladi (har biri millisekundlar), bir-birini kutib qolish (40P01) imkonsiz — navbatni kutayotgan
+# tranzaksiya hali hech narsa ushlamagan. Navbatsiz amallar (to'lov, yuk xati ro'yxati, o'qish) xomashyoni qulflamaydi — ular bilan
+# halqa bo'lmaydi.
+# So'rovning 1-tranzaksiyasida navbat DARHOL (ilova bog'liqligi `main._xomashyo_navbati_marshrut`). So'rov ichida commit / rollback dan
+# keyingi tranzaksiyada — DANGASA: birinchi qulflovchi / yozuvchi bayonotdan OLDIN (`_xomashyo_navbati_bayonotda`, shu ulanishda).
+# Mustaqil tekshiruv 199 F1 / F6 va O'LCHANGAN test_taminot180 P4 / P6 / P8 / P9 (`work/kech154_holat.md`): navbat commit dan keyingi
+# har tranzaksiya BOSHIDA qayta olinganda (1-variant) javob o'qishi / Telegram / fon vazifalari paytida ham navbat USHLANARDI
+# (korxonaning boshqa amallari 2,6–5,6 s kutardi) va A ning javob o'qishi B ning BUTUN tranzaksiyasini kutib, B o'chirgan xaridni
+# yangilay olmay 500 berardi («Could not refresh instance»). Faqat o'qiydigan bayonot qator qulfi qo'ymaydi — 40P01 jihatidan
+# navbatsiz xavfsiz. LEKIN keyingi tranzaksiyada o'qilgan qiymatdan keyin YOZILSA (o'qish → hisob → yozish), o'qishdan OLDIN o'sha
+# qatorni qulflang (`with_for_update(...).populate_existing()` — tasniflagich uni ko'rib, navbatni undan oldin oladi): mustaqil
+# tekshiruv v3 G2 — `update_order_loy` eski loy rejasini navbatsiz o'qib, ikki parallel tahrirda 5 kg ortiqcha yechardi.
+# SAVEPOINT ham navbat sababi (G3): keyingi tranzaksiyaning birinchi qulfi SAVEPOINT ichida olinib, savepoint qaytarilsa PG navbatni
+# bo'shatardi, belgi esa «olingan» qolardi — navbat SAVEPOINT dan OLDIN, tashqi darajada olinadi.
+import re as _re199                                 # noqa: E402
+XOMASHYO_NAVBATI_NS = 199
+_XN_ULANISH = "_kech155_xn"           # Connection.info: [korxona, navbat olindimi] — joriy (tashqi) tranzaksiya; yakunda tozalanadi
+_XN_QULF_RE = _re199.compile(r"\bFOR\s+(?:NO\s+KEY\s+UPDATE|UPDATE|KEY\s+SHARE|SHARE)\b|\bpg_(?:try_)?advisory", _re199.I)
+_XN_YOZUV_RE = _re199.compile(r"\b(?:INSERT|UPDATE|DELETE|MERGE|TRUNCATE)\b", _re199.I)
+_XN_OQISH = frozenset({"SELECT", "VALUES", "TABLE", "SHOW", "EXPLAIN", "PRAGMA"})
+_XN_BOSHQARUV = frozenset({"RELEASE", "ROLLBACK", "COMMIT", "BEGIN", "END", "SET", "RESET"})
+
+
+def _xn_birinchi_soz(statement) -> str:
+    """kech155 (zip 199): bayonotning birinchi kalit so'zi (bosh bo'shliq, `--` / `/* */` izohlar va ochiq qavslardan keyin), katta
+    harfda; topilmasa — bo'sh satr."""
+    _s = statement or ""
+    _i, _n = 0, len(_s)
+    while _i < _n:
+        if _s[_i].isspace() or _s[_i] == "(":
+            _i += 1
+        elif _s.startswith("--", _i):
+            _j = _s.find("\n", _i)
+            _i = _n if _j < 0 else _j + 1
+        elif _s.startswith("/*", _i):
+            _j = _s.find("*/", _i + 2)
+            _i = _n if _j < 0 else _j + 2
+        else:
+            break
+    _m = _re199.match(r"[A-Za-z_]+", _s[_i:])
+    return _m.group(0).upper() if _m else ""
+
+
+def xomashyo_navbati_bayonotimi(statement) -> bool:
+    """kech155 (zip 199): bayonot qator / advisory qulf qo'yadimi, yozadimi yoki SAVEPOINT ochadimi — navbat undan OLDIN kerak:
+    `FOR [NO KEY] UPDATE` / `FOR [KEY] SHARE` / `pg_[try_]advisory…` istalgan joyida; birinchi kalit so'z (izoh, qavs, bo'shliqdan
+    keyin) SELECT / VALUES / TABLE / SHOW / EXPLAIN / PRAGMA — o'qish; WITH — faqat ichida INSERT / UPDATE / DELETE / MERGE / TRUNCATE
+    bo'lsa; RELEASE / ROLLBACK / COMMIT / BEGIN / END / SET / RESET — tranzaksiya boshqaruvi; qolgani (INSERT / UPDATE / DELETE /
+    SAVEPOINT / noma'lum) — HA (shubhada navbat biroz oldinroq olinadi — xavfsiz tomoni)."""
+    _s = statement or ""
+    if _XN_QULF_RE.search(_s):
+        return True
+    _b = _xn_birinchi_soz(_s)
+    if _b == "WITH":
+        return bool(_XN_YOZUV_RE.search(_s))
+    return not (_b in _XN_OQISH or _b in _XN_BOSHQARUV)
+
+
+def xomashyo_navbati(db: Session, company_id) -> None:
+    """kech155 (zip 199): shu sessiya (so'rov) korxonaning XOMASHYO NAVBATIDA — hozirgi tranzaksiyada DARHOL; keyingilarida birinchi
+    qulflovchi / yozuvchi bayonotdan OLDIN (`_xomashyo_navbati_tranzaksiyada`, `_xomashyo_navbati_bayonotda`). Faqat PostgreSQL;
+    korxona noma'lum bo'lsa — hech narsa. Navbat xatosi YUTILMAYDI (asl sababi ko'rinsin)."""
+    if company_id is None:
+        return
+    _cid = int(company_id)
+    db.info["xomashyo_navbati"] = _cid
+    if db.get_bind().dialect.name != "postgresql":
+        return
+    db.connection().info[_XN_ULANISH] = [_cid, True]
+    from sqlalchemy import text as _t
+    db.execute(_t("SELECT pg_advisory_xact_lock(:ns, :k)"), {"ns": XOMASHYO_NAVBATI_NS, "k": _cid})
+
+
+def _xomashyo_navbati_tranzaksiyada(session, transaction, connection) -> None:
+    """kech155 (zip 199): `after_begin` — navbat belgili sessiyaning YANGI tashqi tranzaksiyasi: navbat hali OLINMAGAN (ulanishga
+    belgi). SAVEPOINT (ichki tranzaksiya) — belgi tashqi tranzaksiyaniki (o'zgarmaydi); navbat hali olinmagan bo'lsa u SAVEPOINT
+    bayonotidan OLDIN tashqi darajada olinadi (`xomashyo_navbati_bayonotimi` — SAVEPOINT ham sabab)."""
+    if getattr(transaction, "nested", False):
+        return
+    _cid = session.info.get("xomashyo_navbati")
+    if _cid is None:
+        return
+    if connection.dialect.name == "postgresql":
+        connection.info[_XN_ULANISH] = [int(_cid), False]
+
+
+def _xomashyo_navbati_bayonotda(conn, cursor, statement, parameters, context, executemany) -> None:
+    """kech155 (zip 199): `before_cursor_execute` — navbat belgili tranzaksiyaning BIRINCHI qulflovchi / yozuvchi / SAVEPOINT
+    bayonotidan OLDIN xomashyo navbati (shu ulanishning o'z kursorida). Undan oldingi bayonotlar faqat o'qigan (qator qulfisiz) — navbatni
+    kutish halqa hosil qilmaydi. Belgi FAQAT muvaffaqiyatdan keyin «olingan»; xato yutilmaydi — SQLAlchemy `DBAPIError` turida
+    (`before_cursor_execute` SQLAlchemy ning DBAPI xatolarini o'raydigan blokidan TASHQARIDA chaqiriladi — mustaqil tekshiruv v3 G4)."""
+    try:
+        _h = conn.info.get(_XN_ULANISH)
+    except Exception:
+        return
+    if not _h or _h[1] or not xomashyo_navbati_bayonotimi(statement):
+        return
+    _sql = "SELECT pg_advisory_xact_lock(%d, %d)" % (XOMASHYO_NAVBATI_NS, int(_h[0]))
+    try:
+        cursor.execute(_sql)
+    except Exception as _e:
+        _dbapi = getattr(conn.dialect, "loaded_dbapi", None)
+        if _dbapi is not None and isinstance(_e, _dbapi.Error):
+            from sqlalchemy import exc as _exc199
+            raise _exc199.DBAPIError.instance(_sql, None, _e, _dbapi.Error, dialect=conn.dialect) from _e
+        raise
+    _h[1] = True
+
+
+def _xomashyo_navbati_yakun(conn) -> None:
+    """kech155 (zip 199): tranzaksiya yakuni (commit / rollback) — ulanish belgisi olinadi (navbat PG da o'zi bo'shaydi)."""
+    try:
+        conn.info.pop(_XN_ULANISH, None)
+    except Exception:
+        pass
+
+
+def _xomashyo_navbati_qaytdi(dbapi_connection, connection_record) -> None:
+    """kech155 (zip 199): ulanish hovuzga qaytdi — belgi olinadi."""
+    try:
+        connection_record.info.pop(_XN_ULANISH, None)
+    except Exception:
+        pass
+
+
+from sqlalchemy import event as _event199          # noqa: E402
+from sqlalchemy.engine import Engine as _Engine199  # noqa: E402
+from sqlalchemy.pool import Pool as _Pool199        # noqa: E402
+from database import SessionLocal as _SL199         # noqa: E402
+_event199.listen(_SL199, "after_begin", _xomashyo_navbati_tranzaksiyada)
+_event199.listen(_Engine199, "before_cursor_execute", _xomashyo_navbati_bayonotda)
+_event199.listen(_Engine199, "commit", _xomashyo_navbati_yakun)
+_event199.listen(_Engine199, "rollback", _xomashyo_navbati_yakun)
+_event199.listen(_Pool199, "checkin", _xomashyo_navbati_qaytdi)
 
 
 def _tolov_chegarasi(order, summa: float, confirm_overpay: bool) -> None:
@@ -11357,6 +11604,17 @@ def update_order_loy(db: Session, order_id: int, new_loy: float) -> dict:
     except ValueError as _e54:
         return {"success": False, "message": str(_e54)}
 
+    # kech155 (zip 199 — mustaqil tekshiruv v3 G2, O'LCHANGAN HAQIQIY PG `work/k199/review199/s3/loy_poyga.py`): tekshiruvlardan KEYIN
+    # buyurtma qatori QULFLANIB bazadan QAYTA o'qiladi. `api_update_order` da bu qadam tahrir commit qilingandan KEYINGI tranzaksiyada —
+    # xomashyo navbati dangasa (birinchi qulflovchi bayonotdan oldin); ilgari eski reja (`old_loy`) navbatsiz va qulfsiz o'qilib, ikki
+    # parallel loy tahriri (10 → 20 va 10 → 15) xomashyodan 15 kg yechardi (ketma-ket — 5 yoki 10; zip 198 kodida ham). Qulf — NO KEY
+    # (qator o'chirilmaydi; to'lov / detal yozuvlarining tashqi kalit KEY SHARE i bilan to'qnashmaydi). Tekshiruvdan keyin — rad etilgan
+    # so'rov (400) navbat va qulfni ushlamaydi.
+    _qulfli = db.query(Order).filter(Order.id == order_id, Order.company_id == order.company_id).populate_existing() \
+        .with_for_update(key_share=True).first()      # identity map — o'sha `order` obyekti, bazadan yangilangan
+    if not _qulfli:
+        return {"success": False, "message": "Buyurtma topilmadi"}
+    order = _qulfli
     old_loy = services._get_planned_loy(order)
 
     log = []
@@ -11937,6 +12195,27 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
                 }
 
     # Tekshirish: qoldiqdan ko'p berilmasin
+    # kech154 (zip 198, O'LCHANGAN probe198 S4 — HAQIQIY PG: 3 / 3 urinishda 40P01, yuk xati 500): yukdagi tayyor mahsulot
+    # qatorlari — MRP detallariga band partiyalar (qulfsiz o'qiladi) va ombordan olingan detallar partiyalari — BITTA o'tishda, id
+    # tartibida (`_fp_qulf`). Ilgari ikki o'tishda: avval MRP partiyalari (detal tartibida, quyida `_mrp_tayyor_qoldiq`), keyin tekshiruv
+    # qatorlari (`_tm_yetkazish_kami`) — guruhni id tartibida qulflaydigan buyurtma bilan bir-birini kutib qolardi. Guruh qulflanmaydi:
+    # yuk xati yaratish muvozanat qilmaydi (mustaqil tekshiruv F6 / F7 — guruhni qo'shish faqat qulf va so'rovni ko'paytirardi). Keyingi
+    # qulflar (o'sha qatorlar) kutmaydi; hisob va tekshiruvlar — avvalgidek.
+    _oldin198 = set()
+    for di in data.items:
+        if di.quantity <= 0:
+            continue
+        _q198 = db.query(OrderItem).filter(OrderItem.id == di.order_item_id, OrderItem.order_id == order.id)
+        if getattr(order, 'company_id', None) is not None:
+            _q198 = _q198.filter(OrderItem.company_id == order.company_id)
+        _oi198 = _q198.first()
+        if _oi198 is None:
+            continue
+        if _mrp_yetkazish_detalimi(_oi198):
+            _oldin198.update(_x.id for _x in _mrp_band_tmlar(db, _oi198, order.company_id, lock=False))
+        elif getattr(_oi198, 'finished_product_id', None):
+            _oldin198.add(int(_oi198.finished_product_id))
+    _fp_qulf(db, _oldin198, getattr(order, 'company_id', None))
     errors = []
     mrp_kam = []
     valid_items = []
@@ -12373,6 +12652,22 @@ def delete_delivery(db: Session, delivery_id: int, company_id: int = None,
     # QAYTADI — chiqarish bilan AYNAN simmetrik (barqaror 1 birlik tan
     # narxi ishlatilgani uchun summa ham aynan tiklanadi).
     _cid = order.company_id
+    # kech154 (zip 198 — mustaqil tekshiruv R6, O'LCHANGAN HAQIQIY PG: 3 / 3 urinishda 40P01, yuk xatini o'chirish 500): qaytadigan MRP
+    # partiyalari (yozilgani — `mrp_olingan`, eski yozuvda — detal bandidagilar) va guruhida minus bo'lsa guruhdoshlari — YOZISHDAN OLDIN,
+    # bitta o'tishda, id tartibida (`_tm_oldindan_qulf`; ilgari partiya yozilib, keyin muvozanat guruhni qulflardi)
+    _oldin198 = set()
+    for di in list(d.items or []):
+        _ol198 = _mrp_olingan_oqi(di)
+        if _ol198 is not None:
+            _oldin198.update(int(_r198[0]) for _r198 in _ol198)
+            continue
+        _q198 = db.query(OrderItem).filter(OrderItem.id == di.order_item_id)
+        if _cid is not None:
+            _q198 = _q198.filter(OrderItem.company_id == _cid)
+        _oi198 = _q198.first()
+        if _oi198 is not None:
+            _oldin198.update(_x.id for _x in _mrp_band_tmlar(db, _oi198, _cid, lock=False))
+    _tm_oldindan_qulf(db, _oldin198, _cid)
     for di in list(d.items or []):
         _oi = db.query(OrderItem).filter(OrderItem.id == di.order_item_id).first()
         if _oi:
@@ -12845,6 +13140,25 @@ def delete_finished_product_loss(db: Session, loss_id: int, company_id: int = No
     cost = float(loss.cost_amount or 0)
     nomi = loss.product_name
     tiklandi = False
+    # kech154 (zip 198, O'LCHANGAN probe198 S1 va mustaqil tekshiruv R1 / R13 — HAQIQIY PG: 3 / 3 urinishda 40P01, brak bekori 500):
+    # partiya (va guruhida minus bo'lsa guruhi), faol taqdir partiyasi va taqdir minusni yopgan bo'lsa yozuvdagi partiyalar GURUHI bilan
+    # (`_tm_yopish_reja` ularni guruhi bilan qulflaydi) — taqdir bekori va tiklashdan OLDIN, bitta o'tishda, id tartibida
+    # (`_tm_oldindan_qulf`). Ilgari taqdir bekori / tiklash partiyani qulflab yozardi, keyin muvozanat guruhni qulflardi — guruhdan
+    # olayotgan buyurtma teskari tartibda. Buyurtma detali qulfi (`_detal142`) — avvalgi joyida, taqdir xomashyosidan KEYIN («Boshlash»:
+    # xomashyo → detal; yuk xati: partiya → detal — mustaqil tekshiruv R12 / R14).
+    _cid198 = company_id if company_id is not None else getattr(loss, 'company_id', None)
+    _faol198 = _taqdir_faol(db, "yoqotish", loss.id, _cid198)
+    _toliq198 = set()
+    if _faol198 is not None and not (not _faol198.tm_yangi and _faol198.tm_id is not None
+                                     and _faol198.tm_id == loss.finished_product_id):
+        # `brak_taqdir_ochir` dagi «bir partiya» sharti — aks holda (qattiq) bekor rejasi yozuvdagi partiyalarni guruhi bilan qulflaydi
+        _y198 = _tm_yopish_oqi(getattr(_faol198, 'minus_yopdi', None))
+        _toliq198.update(int(_x) for _x in (_y198.get("ch") or {}))
+        for _e198 in _y198.get("y") or []:
+            _toliq198.add(int(_e198[0]))
+            if _e198[1] is not None:
+                _toliq198.add(int(_e198[1]))
+    _tm_oldindan_qulf(db, [loss.finished_product_id, getattr(_faol198, 'tm_id', None)], _cid198, toliq=_toliq198)
     # kech125 (zip 146 — brak taqdiri): avval taqdir bekor (TM dan qo'shilgani olinadi — sotilgan bo'lsa rad, hech narsa
     # o'zgarmaydi; tuzatish xomashyosi omborga qaytadi; taqdir qatorlari o'chadi), so'ng avvalgi tiklash.
     try:

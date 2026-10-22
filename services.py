@@ -1605,6 +1605,15 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
             # degani. Qolgan (topshirilmagan) qism uchun xomashyo omborga qaytadi.
             # (Hali hech narsa topshirilmagan — oddiy holat — bunga tegilmaydi.)
             if is_partial_completion:
+                # kech155 (zip 198 — mustaqil tekshiruv v3 N1 / R28, O'LCHANGAN HAQIQIY PG: asl 0 / 3, P6 bilan 3 / 3 urinishda 40P01,
+                # «Tayyor» 500): shu buyurtmaga bog'langan ishlab chiqarish buyurtmalari (id tartibida) — penoplast, tayyor mahsulot va
+                # «Loy sotish» xomashyosidan OLDIN (`main.api_delete_order` dagi kabi). Pastdagi oldindan qulf (P6) MRP band partiyani
+                # «Loy sotish» xomashyosidan oldin oladi; «Yakunlash» esa ishlab chiqarish buyurtmasi → xomashyo → partiya.
+                from production_models import ProductionOrder as _PO198t
+                _poq198t = db.query(_PO198t.id).filter(_PO198t.source_order_id == order.id)
+                if getattr(order, 'company_id', None) is not None:
+                    _poq198t = _poq198t.filter(_PO198t.company_id == order.company_id)
+                _poq198t.order_by(_PO198t.id).with_for_update().all()
                 partial_log = return_inventory_for_order_partial(
                     db, order, sabab=f"Buyurtma {order.order_number} «Tayyor» (qisman) — qolgan qism penoplasti qaytdi")
                 # kech100 (K100-1 / K100-2 / K100-3a — O'LCHANGAN `work/probe_k100_mrp.py`, asl SQLite = PG; 93-band oracle
@@ -1615,6 +1624,10 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
                 # (`_return_finished_for_order` — `remaining_qty`), "Loy sotish" retsepti bo'yicha qolgan kg (buyurtma loyi
                 # manbasi — "ushla", yuqoridagi ortgan loy kabi), MRP bandi ozod (`_auto_release_mrp_reservations`). Buyurtma
                 # miqdori pastda topshirilganga tushiriladi — qaytgan qism tannarxga kirmaydi (ikki marta hisob yo'q).
+                # kech154 (zip 198, O'LCHANGAN probe198b R9 — HAQIQIY PG: 3 / 3 urinishda 40P01, «Tayyor» 500): ombor detallari
+                # partiyalari (guruhi bilan) va MRP band partiyalar (pastda ozod qilinadi) — BITTA o'tishda, id tartibida
+                # (`crud._buyurtma_tm_oldindan_qulf`; ilgari ikki o'tish — ikkala guruhdan detali bor buyurtma yaratish bilan)
+                _crud._buyurtma_tm_oldindan_qulf(db, order)
                 partial_log.extend(_crud._return_finished_for_order(db, order))
                 with loy_manba_rejimi(db, "ushla"):
                     for _it100 in order.items:
