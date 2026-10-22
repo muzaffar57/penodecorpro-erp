@@ -929,9 +929,14 @@ async function loadStats() {
   const today = tkISO();
   const todayProduced = fpItems.filter(i => i.source === 'produced' && i.created_at && tkISO(i.created_at) === today).length;
 
-  document.getElementById('k-types').textContent = guruhlar.length + ' ta';
+  // kech154 (zip 200 — egasi tanlovi «Mahsulotlar kartochkasi»; O'LCHANGAN asosiy sayt 22.10 00:18: omborda 2 ta qaytgan mahsulot,
+  // karta «0 ta / 0 partiya» edi): ro'yxatdagi kabi — ishlab chiqarilgan mahsulotlar guruhlari + qaytgan mahsulotlar (ro'yxatda har biri
+  // alohida qator); izoh — ishlab chiqarilgan partiyalar, qaytgan bo'lsa « · N qaytgan».
+  const qaytganlar = fpItems.filter(i => i.source === 'returned').length;
+  document.getElementById('k-types').textContent = (guruhlar.length + qaytganlar) + ' ta';
   const kp = document.getElementById('k-partiya');
-  if (kp) kp.textContent = fpItems.filter(i => i.source === 'produced').length + ' partiya';
+  if (kp) kp.textContent = fpItems.filter(i => i.source === 'produced').length + ' partiya'
+    + (qaytganlar ? ' · ' + qaytganlar + ' qaytgan' : '');
   document.getElementById('k-low').textContent = lowCount + ' ta';
   document.getElementById('k-today-produced').textContent = todayProduced + ' partiya';   // kech118 (D-1, G5-11): partiyalar sanaladi
 }
