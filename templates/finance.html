@@ -1431,7 +1431,8 @@ function buildExpDetail(d){
     {n:'Arenda',v:x.arenda},{n:'Elektr',v:x.elektr},{n:'Tushlik',v:x.tushlik},{n:'Soliqlar',v:x.soliqlar},
     ...Object.keys(KIRIM_NOMI).map(k => ({n:KIRIM_NOMI[k], v:qx[k]||0})),
     ...Object.keys(qx).filter(k => !(k in KIRIM_NOMI)).sort((a, b) => (qx[b]||0) - (qx[a]||0))
-      .map(k => ({n:escapeHtml(QX_NOMI[k] || k), v:qx[k]||0})),
+      // kech154 (zip 205): doimiy majburiyat turkumi — «Biz qarzdormiz» dagi nomi (ilgari xom kod «bosh_offic_arenda_8477»)
+      .map(k => ({n:escapeHtml((d.qoshimcha_nomlari || {})[k] || QX_NOMI[k] || k), v:qx[k]||0})),
   ].filter(r=>r.v>0);
   const el=document.getElementById('expDetail');
   // kech107 (49-band yonida, O'LCHANGAN — tools/test_brak_bitta_raqam_ui.js): faqat brak / tayyor mahsulot yo'qotishi /
