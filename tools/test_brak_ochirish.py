@@ -564,9 +564,10 @@ try:
     check("S3 services penoplast harakati ham bog'lanadi", 'return_item_id=db.info.get("_brak_qaytarish_id")' in dd, "")
     dl = csrc[csrc.find("def delete_return_item"):]
     dl = dl[:dl.find("\ndef ", 10)]
-    check("S4 delete_return_item: xomashyo qaytarish — korxona filtri va FOR UPDATE, yozuv o'chirilishidan OLDIN",
+    check("S4 delete_return_item: xomashyo qaytarish — korxona filtri va FOR NO KEY UPDATE (kech155, zip 199), yozuv o'chirilishidan "
+          "OLDIN",
           tartibda(dl, "_IM4.return_item_id == item.id", "_IM4.company_id == _cid", "Inventory.company_id == _cid",
-                   ".with_for_update()", "db.delete(_h)", "db.delete(item)"), "")
+                   ".with_for_update(key_share=True)", "db.delete(_h)", "db.delete(item)"), "")
     check("S5 delete_return_item BITTA commit", dl.count("db.commit()") == 1, dl.count("db.commit()"))
 except Exception as e:                     # noqa: BLE001
     check("S bo'limi QULAMADI", False, f"{type(e).__name__}: {e}")
