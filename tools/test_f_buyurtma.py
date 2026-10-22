@@ -123,8 +123,9 @@ check("S1 Buyurtmalar: bitta kamchiliklar ro'yxati (`buyurtmaUmumiyKamchiliklar`
       and "showMsg('Loyiha tanlang!'" not in ORD and 'style="border-color:var(--gold)" aria-describedby="loy_kg_izoh"' not in ORD
       and ORD.count('<span class="majburiy"') >= 3 and "«Uzunlik» (m) bo'yicha hisoblanadi" in ORD
       and "const umumiy134 = buyurtmaUmumiyKamchiliklar(items);" in ORD and "const issues = buyurtmaUmumiyKamchiliklar(items);" in ORD)
+# kech154 (zip 203 «Buyurtmalar ko'rinishi», MOSLANDI): loyiha qarzi — qizil belgi (rang belgining o'zida, emoji yo'q)
 check("S2 Buyurtmalar: loyiha qarzi `|qisqa_summa` (har loyihada), bitta hisob-kitob paneli, amallar tepada, detallar ochiq, bo'sh holat, "
-      "«+ Yangi loyiha yaratish…», yuklash joyi", "🔴 Qarz: {{ g.debt|qisqa_summa }}" in ORD and "{% if g.orders|length > 1 %}" not in ORD
+      "«+ Yangi loyiha yaratish…», yuklash joyi", ">Qarz: {{ g.debt|qisqa_summa }}</div>" in ORD and "{% if g.orders|length > 1 %}" not in ORD
       and ORD.count('id="liveStats"') == 1 and 'id="liveTotal" style="display:none;border-left' not in ORD and "#sumBody > .yb-amallar{order:-1" in ORD
       and 'style="padding:12px;display:none" id="odBody"' not in ORD and "Hali loyiha yo'q" in ORD and 'value="__yangi"' in ORD
       and ".dropzone{display:block;" in ORD and 'id="btn-edit-izoh"' in ORD)
@@ -216,8 +217,9 @@ section("R. Server chizgan Buyurtmalar ro'yxati")
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 _h = C.get("/orders").text
 _qarz = [nb(x) for x in re.findall(r'<div class="proj-debt"[^>]*>(.*?)</div>', _h)]
-check("R1 loyiha qarzi — «🔴 Qarz: 384 ming» (bitta buyurtmali loyihada ham; ilgari «🔴 0 mln» va faqat 2+ buyurtmada)",
-      "🔴 Qarz: 384 ming" in _qarz and not any("mln" in q and q.startswith("🔴 0") for q in _qarz), _qarz)
+# kech154 (zip 203 «Buyurtmalar ko'rinishi», MOSLANDI): loyiha qarzi — qizil belgi (rang belgining o'zida, emoji yo'q)
+check("R1 loyiha qarzi — «Qarz: 384 ming» (bitta buyurtmali loyihada ham; ilgari «🔴 0 mln» va faqat 2+ buyurtmada)",
+      "Qarz: 384 ming" in _qarz and not any("mln" in q and ("Qarz: 0 " in q or q.startswith("🔴 0")) for q in _qarz), _qarz)
 _hb = CB.get("/orders").text
 check("R2 bo'sh korxona Buyurtmalar: «Hali loyiha yo'q», «avval loyiha qo'shing», «+ Loyiha yaratish» → /projects?yangi=1",
       "Hali loyiha yo'q" in _hb and "avval loyiha qo'shing" in _hb and 'href="/projects?yangi=1"' in _hb, None)

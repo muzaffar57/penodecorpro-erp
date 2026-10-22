@@ -119,8 +119,9 @@ check("S6 Ombor narxi, Buyurtmalar (kelishilgan summa, qaytarish, qarz), Retsept
 check("S7 Qaytarishlar — telefonda `margin-left:auto` FAQAT qaytarish kartasidagi tugmalarga (`.ret-row > .mini-btn`; Brak tahlili 🧩 ga tegmaydi)",
       "  .ret-row > .mini-btn{ order:99; flex-shrink:0; margin-left:auto; }" in oqi("templates/returns.html")
       and "\n  .mini-btn{ order:99; flex-shrink:0; margin-left:auto; }" not in oqi("templates/returns.html"))
+# kech154 (zip 203 «Buyurtmalar ko'rinishi», MOSLANDI): ustuvor qator — summa o'z joyida (`.oi-summa`), muddat — alohida belgi
 check("S8 Buyurtmalar ro'yxati (brauzer chizadi) — summa `sonKor(amount, 0)` (bo'linmas bo'shliq)",
-      "· ${sonKor(amount, 0)} so'm${o.deadline ?" in oqi("templates/orders.html") and "· ${formatNum(amount)} so'm${o.deadline ?" not in oqi("templates/orders.html"))
+      "<span class=\"oi-summa\">${sonKor(amount, 0)} so'm</span>" in oqi("templates/orders.html") and "${formatNum(amount)} so'm</span>" not in oqi("templates/orders.html"))
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
