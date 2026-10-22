@@ -32,18 +32,153 @@ def _x(qiymat):
 # (standart logotip nisbati 1,78 uchun yozilgan) — kvadrat logotip 1,78 marta, tik (1 : 2) — 3,6 marta cho'zilardi (O'LCHANGAN,
 # `tools/test_logo_pdf.py`). Standart logotip (998 × 561) — AYNAN 32 × 18 mm (nisbat farqi 1 % dan kam — qutining o'zi).
 LOGO_QUTI_MM = (32, 18)
+# kech154 (zip 202, N5 — O'LCHANGAN `work/k202/probe202_n5.py`): sodda grafikali logotip 2 MB ichida juda katta bo'ladi (10300 × 5793 —
+# 262 KB) va har PDF da IKKI marta to'liq o'qilardi (`_logo_olcham` va ReportLab): 60 MP — 4,7–4,9 s, +521…863 MB xotira. Endi yuklashda
+# `main.LOGO_TOMON` gacha kichraytiriladi. Avval yuklangan katta logotip (fayl o'zgarmaydi) — kichraytirilgan nusxa: jarayon keshida
+# (LRU) va DISKDA (`uploads/_kichik/logo_pdf/` — qayta ishga tushgandan keyin ham o'qilmaydi; mustaqil tekshiruv F3: aks holda har
+# ishga tushishdan keyingi birinchi PDF ~0,7 GB, bir vaqtda ikkitasi — 1,4 GB); bitta faylni bir vaqtda faqat BITTA ip o'qiydi.
+# Kalit — yo'l + o'zgarish vaqti + hajm (yangi yuklash — yangi kalit). 1000 px — 32 mm qutida ~790 dpi.
+import threading as _threading202
+from collections import OrderedDict as _OrderedDict202
+LOGO_TOMON = 1000
+_LOGO_KESH = _OrderedDict202()
+_LOGO_KESH_CHEGARA = 64
+_LOGO_QULF = _threading202.Lock()
+_LOGO_FAYL_QULFLARI = {}
+
+
+def _logo_disk_joyi(kalit):
+    """Diskdagi kichraytirilgan nusxa: (papka, nom boshi) yoki None — faqat `…/uploads/logos/` dagi logotip (doimiy saqlash joyi).
+    Nom — asl nom + o'zgarish vaqti + hajm + asl o'lcham + tomon: `company_1_<mtime>_<hajm>_<eni>x<bo'yi>_1000.png`."""
+    import os as _os
+    d = _os.path.dirname(kalit[0])
+    if _os.path.basename(d) != "logos" or _os.path.basename(_os.path.dirname(d)) != "uploads":
+        return None
+    nom = _os.path.splitext(_os.path.basename(kalit[0]))[0]
+    return _os.path.join(_os.path.dirname(d), "_kichik", "logo_pdf"), f"{nom}_{kalit[1]}_{kalit[2]}_"
+
+
+def _logo_diskdan(kalit):
+    """(eni_px, bo'yi_px, kichik_png_bayt) — diskdagi nusxadan, yo'q / o'qilmasa — None."""
+    import os as _os
+    import re as _re202
+    joy = _logo_disk_joyi(kalit)
+    if joy is None or not _os.path.isdir(joy[0]):
+        return None
+    for f in sorted(_os.listdir(joy[0])):
+        m = _re202.fullmatch(_re202.escape(joy[1]) + r"(\d+)x(\d+)_" + str(LOGO_TOMON) + r"\.png", f)
+        if not m:
+            continue
+        try:
+            with open(_os.path.join(joy[0], f), "rb") as fh:
+                b = fh.read()
+            from PIL import Image as _PilImage
+            with _PilImage.open(io.BytesIO(b)) as _k:
+                _k.load()
+            return int(m.group(1)), int(m.group(2)), b
+        except Exception:
+            return None
+    return None
+
+
+def _logo_diskka(kalit, w, h, b):
+    """Kichraytirilgan nusxani diskka yozadi (vaqtinchalik fayl + `os.replace`; shu logotipning eski nusxalari o'chiriladi). Xatosi —
+    jim (nusxa faqat keshda qoladi)."""
+    import os as _os
+    joy = _logo_disk_joyi(kalit)
+    if joy is None:
+        return
+    try:
+        _os.makedirs(joy[0], exist_ok=True)
+        nom = f"{joy[1]}{w}x{h}_{LOGO_TOMON}.png"
+        vaqt = _os.path.join(joy[0], nom + f".{_os.getpid()}.{_threading202.get_ident()}.tmp")
+        with open(vaqt, "wb") as fh:
+            fh.write(b)
+        _os.replace(vaqt, _os.path.join(joy[0], nom))
+        import re as _re202
+        _asl = _re202.escape(_os.path.splitext(_os.path.basename(kalit[0]))[0]) + r"_\d+_\d+_\d+x\d+_\d+\.png"
+        for f in _os.listdir(joy[0]):
+            if f != nom and _re202.fullmatch(_asl, f):
+                try:
+                    _os.remove(_os.path.join(joy[0], f))
+                except OSError:
+                    pass
+    except Exception:
+        pass
+
+
+def _logo_hisobla(yol, kalit):
+    """(eni_px, bo'yi_px, kichik_png_bayt yoki None) yoki None — fayl TO'LIQ o'qilmasa. Katta tomoni `LOGO_TOMON` dan oshsa —
+    kichraytirilgan PNG nusxa (shaffoflik saqlanadi; JPEG «draft» bilan kichik masshtabda o'qiladi) — diskka ham yoziladi."""
+    try:
+        from PIL import Image as _PilImage
+        with _PilImage.open(yol) as _im:
+            w, h = _im.size
+            if not w or not h:
+                return None
+            if max(w, h) <= LOGO_TOMON:
+                _im.load()
+                return w, h, None
+            if _im.format == "JPEG":
+                _k = LOGO_TOMON / float(max(w, h))
+                _im.draft("RGB", (max(1, int(w * _k)), max(1, int(h * _k))))
+            _im.load()
+            _shaffof = _im.mode in ("RGBA", "LA", "PA") or "transparency" in _im.info
+            if _im.mode in ("I;16", "I;16B", "I;16L", "I;16N", "I", "F"):
+                _n = _im.convert("I").point(lambda v: v * (1 / 256)).convert("L")
+            else:
+                _n = _im.convert("RGBA" if _shaffof else "RGB")
+            _n.thumbnail((LOGO_TOMON, LOGO_TOMON), resample=1)       # 1 = LANCZOS
+            _b = io.BytesIO()
+            _n.save(_b, "PNG", optimize=True)
+    except Exception:
+        return None
+    _logo_diskka(kalit, w, h, _b.getvalue())
+    return w, h, _b.getvalue()
+
+
+def _logo_tayyorla(yol):
+    """(eni_px, bo'yi_px, kichik_png_bayt yoki None) yoki None — fayl TO'LIQ o'qilmasa. Tartib: jarayon keshi (LRU) → diskdagi
+    nusxa → asl faylni o'qish (bitta faylni bir vaqtda faqat bitta ip). Buzilgan fayl natijasi (None) ham keshda."""
+    import os as _os
+    try:
+        _st = _os.stat(yol)
+        kalit = (_os.path.abspath(yol), _st.st_mtime_ns, _st.st_size)
+    except OSError:
+        return None
+    with _LOGO_QULF:
+        if kalit in _LOGO_KESH:
+            _LOGO_KESH.move_to_end(kalit)
+            return _LOGO_KESH[kalit]
+        _q = _LOGO_FAYL_QULFLARI.setdefault(kalit[0], _threading202.Lock())
+    with _q:
+        with _LOGO_QULF:
+            if kalit in _LOGO_KESH:
+                return _LOGO_KESH[kalit]
+        natija = _logo_diskdan(kalit)
+        if natija is None:
+            natija = _logo_hisobla(yol, kalit)
+        with _LOGO_QULF:
+            _LOGO_KESH[kalit] = natija
+            while len(_LOGO_KESH) > _LOGO_KESH_CHEGARA:
+                _LOGO_KESH.popitem(last=False)
+    return natija
+
+
+def _logo_kichik(yol):
+    """Katta logotipning kichraytirilgan PNG baytlari (keshdan) yoki None — logotip o'z holicha chiziladi."""
+    _t = _logo_tayyorla(yol)
+    return _t[2] if _t else None
 
 
 def _logo_olcham(yol):
     """(eni, bo'yi) — PDF birligida (nuqta), logotip qutiga nisbati bilan sig'diriladi; fayl TO'LIQ o'qilmasa — None (PDF yiqilmasin:
-    logotip o'rniga korxona nomi chiqadi; ilgari buzilgan logotip HAR «Buyurtma hisobi» / «Taklif» PDF ini 500 qilardi)."""
-    try:
-        from PIL import Image as _PilImage
-        with _PilImage.open(yol) as _im:
-            _im.load()
-            w, h = _im.size
-    except Exception:
+    logotip o'rniga korxona nomi chiqadi; ilgari buzilgan logotip HAR «Buyurtma hisobi» / «Taklif» PDF ini 500 qilardi).
+    kech154 (zip 202, N5): o'lcham `_logo_tayyorla` dan (kesh — katta logotip har PDF da qayta o'qilmaydi)."""
+    _t = _logo_tayyorla(yol)
+    if not _t:
         return None
+    w, h = _t[0], _t[1]
     if not w or not h:
         return None
     qe, qb = LOGO_QUTI_MM[0] * mm, LOGO_QUTI_MM[1] * mm
@@ -192,6 +327,10 @@ def generate_nakladnoy(order, db=None, taklif=None) -> bytes:
         # MUHIM (2026-08-29): endi haqiqiy shaffof fonli PNG ishlatiladi
         # (nisbati 1.779) — shu nisbatga mos o'lcham berilmasa, logotip
         # cho'zilib/torayib, buzilib ko'rinardi.
+        # kech154 (zip 202, N5): avval yuklangan katta logotip — kichraytirilgan nusxa (keshdan; fayl o'zgarmaydi)
+        _kichik202 = _logo_kichik(logo_path)
+        if _kichik202 is not None:
+            logo_path = io.BytesIO(_kichik202)
         logo_img = RLImage(logo_path, width=_lo[0], height=_lo[1])
         logo_img.hAlign = 'LEFT'
         header_left = [

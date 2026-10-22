@@ -11130,7 +11130,9 @@ async def api_upload_company_logo(file: UploadFile = File(...),
                                   current_user=Depends(auth.ruxsat("sozlama", "tahrirlash"))):
     """Korxona logotipini yuklaydi (hujjatlarda ishlatiladi).
 
-    Faqat rasm, 2 MB gacha. Fayl `static/uploads/logos/company_<id>.<kengaytma>`
+    Faqat rasm, 2 MB gacha; katta tomoni `LOGO_TOMON` (1000 px) dan oshsa — kichraytirib saqlanadi, PNG / WEBP — 16 MP gacha;
+    format va kengaytma — haqiqiy rasmdan (kech154, zip 202 — `_logo_saqlashga`).
+    Fayl `static/uploads/logos/company_<id>.<kengaytma>`
     nomi bilan saqlanadi — ya'ni har korxonaning o'z fayli bor va
     bir-birining ustiga yozilmaydi."""
     import os as _os
@@ -11150,19 +11152,15 @@ async def api_upload_company_logo(file: UploadFile = File(...),
     # hisobi» / «Taklif» PDF i 500 edi — O'LCHANGAN). Boshqa rasm joylaridan farqi: logotip PDF ga chiziladi (ular — faqat <img>).
     # EXIF yo'nalishli rasm (telefonda olingan) — to'g'rilab saqlanadi: brauzer EXIF ni hisobga oladi, ReportLab — YO'Q (PDF da
     # logotip yonboshlab chiqardi). Yo'nalishsiz rasm — ASLICHA (baytlari o'zgarmaydi).
-    _ochildi = _rasm_ochish(data, 10 ** 9)
-    if _ochildi is None:
-        raise HTTPException(status_code=400, detail=LOGO_OQILMADI_XABARI)
-    _im_logo, _burildi = _ochildi
-    if _burildi:
-        data = _rasm_bayt(_im_logo, {"image/png": "PNG", "image/jpeg": "JPEG", "image/webp": "WEBP"}[file.content_type], 92)
+    # kech154 (zip 202): o'qish, burish, kichraytirish, format — `_logo_saqlashga` (IP HOVUZIDA — hodisalar sikli bloklanmaydi)
+    data, kengaytma = await _ip_ichida(_logo_saqlashga, data)
 
     cid = auth.company_id_of(current_user)
     # kech111: logotip boshqa yuklangan fayllar bilan BIR joyda — `static/uploads/logos/` (himoyalangan marshrut,
     # doimiy saqlash joyi bitta papka). Eski `static/logos/…` yo'llari o'zgarmaydi (qayta yuklanganda ko'chadi).
     papka = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "static", "uploads", "logos")
     _os.makedirs(papka, exist_ok=True)
-    kengaytma = RUXSAT[file.content_type]
+    # kech154 (zip 202, mustaqil tekshiruv F2): kengaytma — haqiqiy rasm formatidan (`_logo_saqlashga`), brauzer aytgan turdan emas
     nom = f"company_{cid}{kengaytma}"
     with open(_os.path.join(papka, nom), "wb") as f:
         f.write(data)
@@ -12645,6 +12643,59 @@ RASM_KICHIK_TOMON = 360          # piksel — ro'yxat katagi 40–70 px, telefon
 RASM_SIFAT = 85
 RASM_KICHIK_SIFAT = 80
 RASM_PIKSEL_CHEGARA = 60_000_000  # bundan katta rasm (piksel) — ishlov berilmaydi (xotira himoyasi)
+# kech154 (zip 202, N5): korxona logotipi — katta tomoni shundan oshsa kichraytirib saqlanadi (`pdf_service.LOGO_TOMON` bilan BIR XIL —
+# test S2; PDF qutisi 32 × 18 mm, 1000 px — ~790 dpi; menyudagi logotip ham kichik fayl bo'ladi)
+LOGO_TOMON = 1000
+# PNG / WEBP logotip kichik masshtabda o'qib bo'lmaydi (JPEG — «draft» bilan bo'ladi): to'liq o'qiladi va kichraytirishda Pillow
+# shaffof rasmning yana bir to'liq nusxasini yasaydi (O'LCHANGAN: 60 MP — +480 MB). Shundan katta PNG / WEBP logotip qabul qilinmaydi
+# (16 MP — eng ko'pi ~130 MB, bir marta, yuklashda).
+LOGO_PIKSEL_CHEGARA = 16_000_000
+LOGO_KATTA_XABARI = ("Logotip juda katta ({eni} × {boyi} piksel) — 4000 × 4000 piksel (16 megapiksel) dan kichik PNG yoki WEBP "
+                     "rasm tanlang yoki JPG yuklang (hujjatda logotip 32 × 18 mm joy oladi)")
+_LOGO_KENGAYTMA = {"PNG": ".png", "JPEG": ".jpg", "WEBP": ".webp"}
+
+
+def _logo_saqlashga(data: bytes):
+    """kech154 (zip 202): korxona logotipi baytlari → (saqlanadigan baytlar, kengaytma); xato — HTTPException (400). Marshrut uni IP
+    HOVUZIDA chaqiradi (mustaqil tekshiruv F5: rasm ishlovi hodisalar siklida butun serverni to'xtatardi).
+    * TO'LIQ o'qiladi (kech129, zip 153: imzoli, ichi buzilgan PNG — keyin har PDF 500 edi) — `_rasm_ochish(data, …)`;
+    * EXIF yo'nalishli rasm (`_burildi`) — to'g'rilab saqlanadi (ReportLab EXIF ni hisobga olmaydi); yo'nalishsiz va kichik — ASLICHA;
+    * N5 (O'LCHANGAN `work/k202/probe202_n5.py`): katta tomoni `LOGO_TOMON` dan oshsa — kichraytiriladi; PNG / WEBP 16 MP dan katta —
+      qabul qilinmaydi (o'lchami fayl boshidan, o'qishdan OLDIN; JPEG «draft» dan keyin rasm allaqachon kichik — qaror asl o'lchamdan);
+    * format va kengaytma — HAQIQIY rasmdan (`rasm_imzosi`), brauzer aytgan turdan EMAS (mustaqil tekshiruv F2 — O'LCHANGAN: «.jpg»
+      nomli shaffof PNG qora fonli JPEG bo'lib saqlanardi, «.png» nomli CMYK JPEG — 500); shaffof rasm JPEG ga yozilmaydi; palitrali
+      / kulrang+alfa — RGBA; 16 bitli kulrang — 8 bitga (aks holda oq bo'lib ko'rinardi)."""
+    import io as _io202
+    _imzo = rasm_imzosi(data)
+    _Im202, _ = _pillow()
+    _ol = None
+    if _Im202 is not None:
+        try:
+            _ol = _Im202.open(_io202.BytesIO(data)).size
+        except Exception:
+            _ol = None
+    if _ol and _imzo != "JPEG" and _ol[0] * _ol[1] > LOGO_PIKSEL_CHEGARA:
+        raise HTTPException(status_code=400, detail=LOGO_KATTA_XABARI.format(eni=_ol[0], boyi=_ol[1]))
+    _ochildi = _rasm_ochish(data, LOGO_TOMON)
+    if _ochildi is None:
+        raise HTTPException(status_code=400, detail=LOGO_OQILMADI_XABARI)
+    _im, _burildi = _ochildi
+    _katta = max(_ol or _im.size) > LOGO_TOMON
+    _fmt = _imzo if _imzo in _LOGO_KENGAYTMA else "PNG"
+    if not (_burildi or _katta):
+        return data, _LOGO_KENGAYTMA[_fmt]
+    _shaffof = _im.mode in ("RGBA", "LA", "PA") or "transparency" in _im.info
+    if _im.mode in ("I;16", "I;16B", "I;16L", "I;16N", "I", "F"):
+        _im = _im.convert("I").point(lambda v: v * (1 / 256)).convert("L")
+    elif _shaffof:
+        _im = _im.convert("RGBA")
+    elif _im.mode in ("P", "1"):
+        _im = _im.convert("RGB")
+    if _katta:
+        _im.thumbnail((LOGO_TOMON, LOGO_TOMON), resample=1)       # 1 = LANCZOS
+    if _fmt == "JPEG" and _im.mode in ("RGBA", "LA", "PA"):
+        _fmt = "PNG"
+    return _rasm_bayt(_im, _fmt, 92), _LOGO_KENGAYTMA[_fmt]
 RASM_KICHIK_PAPKA = "_kichik"
 _RASM_FORMATI = {".jpg": "JPEG", ".jpeg": "JPEG", ".png": "PNG", ".webp": "WEBP"}
 

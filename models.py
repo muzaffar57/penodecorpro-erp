@@ -1739,7 +1739,11 @@ class ActivityLog(Base):
     action = Column(String(30), nullable=False)          # "deleted" / "restored" / "created" / "updated" / va h.k.
     entity_type = Column(String(30), nullable=False)      # "order" / "project" / va h.k.
     entity_id = Column(Integer, nullable=False)
-    entity_label = Column(String(200), nullable=True)     # masalan "ORD-001-1" yoki "PRJ-001 — Hovli fasad"
+    # kech154 (zip 202, V5 — O'LCHANGAN `work/k202/probe202_v5.py`, PG): VARCHAR(200) edi — uzun nomli mahsulot brakining bekori
+    # («Brak bekor qilindi: <150 belgili nom> — … · ombor tiklandi», taqdir bekori matni bilan yana uzun) sig'masdi: «Faoliyat
+    # jurnali» yozuvi YO'QOLARDI (faqat «Xatoliklar» da). Endi Text (old_value / new_value kabi); production bazasini ishga
+    # tushishda `database.sxema_kengaytir` kengaytiradi (VARCHAR(200) → TEXT — jadval qayta yozilmaydi, yozuvlar o'zgarmaydi).
+    entity_label = Column(Text, nullable=True)            # masalan "ORD-001-1" yoki "PRJ-001 — Hovli fasad"
     old_value = Column(Text, nullable=True)                # o'zgargan maydon(lar)ning eski qiymati (matn/JSON)
     new_value = Column(Text, nullable=True)                # yangi qiymati
     performed_by = Column(String(100), nullable=True)
