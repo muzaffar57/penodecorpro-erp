@@ -353,8 +353,12 @@ for _i, (_nom, _url, _par, _kalit) in enumerate(PDFLAR, 1):
     check(f"A{_i} {_nom}: 200" + (f", matnda AYNAN: {', '.join(MATN[k] for k in _kalit[:4])}{'…' if len(_kalit) > 4 else ''}"
                                    if _kalit else ""),
           _st == 200 and not _yoq, [_st, "yo'q: " + repr(_yoq), _sl[:3]])
-_mo = _ixcham("\n".join(SATR["moliya_oylik"][1]))
-check("A8 moliya: xarajat izohi \"x<y\" (Boshqa — x<y) AYNAN", _ixcham("Boshqa — x<y") in _mo, [q for q in SATR["moliya_oylik"][1] if "x" in q][:4])
+# kech154 (zip 205 — oylik hisobot GURUHLANGAN, MOSLANDI): «Boshqa» izohi «Boshqa xarajatlar» guruhida o'z qatori (ilgari «Boshqa — x<y»)
+_mo = [_ixcham(q) for q in SATR["moliya_oylik"][1]]
+_i8 = _mo.index("x<y") if "x<y" in _mo else -1
+_g8 = next((i for i, q in enumerate(_mo) if re.fullmatch(r"Boshqaxarajatlar·[\d,]+%", q)), -1)
+check("A8 moliya: xarajat izohi \"x<y\" — «Boshqa xarajatlar» guruhida o'z qatori, AYNAN", 0 <= _g8 < _i8,
+      [_g8, _i8, [q for q in SATR["moliya_oylik"][1] if "x" in q][:4]])
 
 # ════════════════════════════════════════════════════════════════════════════════════════════════════════════
 section("B. Katta sarlavha — korxona nomi (K106-4)")

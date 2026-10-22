@@ -656,12 +656,26 @@ def _keyingi(satrlar, yorliq):
 
 _KARTA = ("JAMI XARAJAT", "SOF FOYDA", "RENTABELLIK")
 _QATOR = ("Ishlab chiqarish xarajati (xomashyo tan narxi)", "Tayyor mahsulot sotuvi tannarxi",
-          "Tayyor mahsulot yo'qotishi (omborda)", "SOF FOYDA (barcha xarajat va brak ayirilgandan keyin)")
-check("F7 Tannarxsiz PDF: kartalar (JAMI XARAJAT, SOF FOYDA, RENTABELLIK), tannarx / yo'qotish qatorlari va yakuniy SOF FOYDA — "
-      "aynan «—» (0 ham, son ham emas); yakuniy rentabellik «— rentabellik»; Admin kartalarida — son",
-      all(_keyingi(st, y) == "\u2014" for y in _KARTA + _QATOR) and "\u2014 rentabellik" in st
-      and all(_keyingi(sa, y) not in (None, "\u2014") for y in _KARTA),
-      ({y: _keyingi(st, y) for y in _KARTA + _QATOR}, {y: _keyingi(sa, y) for y in _KARTA}))
+          "Tayyor mahsulot yo'qotishi (omborda)")
+
+
+def _yakun(satrlar):
+    """kech154 (zip 205 — oylik hisobot yangi ko'rinishi, MOSLANDI): hujjat oxiridagi «JAMI DAROMAD − JAMI XARAJAT = SOF FOYDA ·
+    RENTABELLIK» qatori (4 sarlavha, keyin daromad, «−», xarajat, «=», sof foyda, rentabellik) — {sarlavha: qiymat}."""
+    try:
+        i = len(satrlar) - 1 - satrlar[::-1].index("RENTABELLIK")
+    except ValueError:
+        return {}
+    q = satrlar[i + 1:i + 7]
+    return dict(zip(("JAMI DAROMAD", "−", "JAMI XARAJAT", "=", "SOF FOYDA", "RENTABELLIK"), q)) if len(q) == 6 else {}
+
+
+_yt, _ya = _yakun(st), _yakun(sa)
+check("F7 Tannarxsiz PDF: kartalar (JAMI XARAJAT, SOF FOYDA, RENTABELLIK), tannarx / yo'qotish qatorlari va yakuniy JAMI XARAJAT / "
+      "SOF FOYDA / RENTABELLIK — aynan «—» (0 ham, son ham emas); Admin kartalarida va yakunida — son",
+      all(_keyingi(st, y) == "—" for y in _KARTA + _QATOR) and all(_yt.get(y) == "—" for y in _KARTA)
+      and all(_keyingi(sa, y) not in (None, "—") for y in _KARTA) and all(_ya.get(y) not in (None, "—") for y in _KARTA),
+      ({y: _keyingi(st, y) for y in _KARTA + _QATOR}, _yt, {y: _keyingi(sa, y) for y in _KARTA}, _ya))
 check("F4 Tannarxsiz PDF: daromad va boshqa xarajatlar summasi ko'rinadi",
       any(som_matn(_rep["daromad"]) in x for x in st), st[:30])
 ya = CA.get(f"/api/finance/split-profit-pdf?{_q}")

@@ -464,7 +464,7 @@ finally:
 def _pdf_qatorlar(m):
     """"Xarajatlar tafsiloti" jadvali: [(nom, summa)] — nom va "N so'm" ketma-ket Paragraph lar."""
     try:
-        i = m.index("Xarajatlar tafsiloti (nomma-nom)")
+        i = m.index("Xarajatlar tafsiloti")      # kech154 (zip 205, MOSLANDI): sarlavha (guruh sarlavhasi summasi «<b>…</b>» — qator emas)
     except ValueError:
         return []
     q, k = [], i + 1
