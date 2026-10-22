@@ -4,7 +4,11 @@
 {% block page_sub %}Mijoz va loyiha kartasi — pul xulosasi va buyurtmalari (buyurtma ustida ish — «Buyurtmalar» sahifasida){% endblock %}
 
 {% block topbar_actions %}
+{# kech154 (zip 202): har tugma o'z ruxsati bilan — server `POST /api/projects` uchun «Loyihalar: Yaratish» talab qiladi (ilgari
+   «Ko'rish» li maxsus rolda ham ko'rinib, bosilsa 403) #}
+{% if current_user.ruxsat('loyiha', 'yaratish') %}
 <button class="btn btn-dark" onclick="showAddModal()"><i class="ti ti-plus"></i> Yangi loyiha</button>
+{% endif %}
 {% endblock %}
 
 {% block head %}
@@ -222,6 +226,9 @@
   <div class="proj-layout">
     <div class="proj-list" id="projList">
       {% if projects %}
+      {# kech154 (zip 202): loyiha rasmini yuklash — server `loyiha_korsatkich: tahrirlash` talab qiladi; ruxsatsizga kamera va fayl
+         tanlash yo'q (rasm bo'lsa — faqat ko'rish) #}
+      {% set _rasm_yuklaydi = current_user.ruxsat('loyiha_korsatkich', 'tahrirlash') %}
       {% for p in projects %}
       {# kech116 (G2-01, QAROR «Loyiha qiymati — buyurtmalardan»): foiz, qiymat, to'langan, qarz — buyurtmalardan
          (`crud.loyiha_pul_hisobi`); ilgari qo'lda yoziladigan «Byudjet» dan edi (odatda 0 — «0% to'langan») #}
@@ -245,14 +252,18 @@
            data-orders="{{ p.orders_count }}"
            data-notes="{{ p.notes or '' }}"
            data-image="{{ p.image_url or '' }}">
-        <label class="proj-thumb" onclick="event.stopPropagation()">
+        <label class="proj-thumb" onclick="event.stopPropagation()"{% if not _rasm_yuklaydi and not p.image_url %} style="cursor:default"{% endif %}>
           {% if p.image_url %}
           <img src="{{ p.image_url|kichik_rasm }}" alt="" data-src="{{ p.image_url }}" onclick="event.preventDefault();event.stopPropagation();openProjLightbox(this.dataset.src)">
-          {% else %}
+          {% elif _rasm_yuklaydi %}
           <i class="ti ti-building-skyscraper" onclick="event.preventDefault();event.stopPropagation();document.getElementById('pimg-{{ p.id }}').click()"></i>
+          {% else %}
+          <i class="ti ti-building-skyscraper"></i>
           {% endif %}
+          {% if _rasm_yuklaydi %}
           <div class="proj-thumb-cam" onclick="event.preventDefault();event.stopPropagation();document.getElementById('pimg-{{ p.id }}').click()"><i class="ti ti-camera"></i></div>
           <input type="file" id="pimg-{{ p.id }}" accept="image/*" onchange="uploadProjImage({{ p.id }}, this)">
+          {% endif %}
         </label>
         <div class="proj-card-body">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
@@ -678,6 +689,10 @@ function bolimSababi(nima, x) {
   return `<div class="yuk-xato-qator">${escapeHtml(yukXatoMatn(nima, (x && x.yukXato) ? x : yukXato('server')))}</div>`;
 }
 
+// kech154 (zip 202): loyiha amallari — o'z ruxsati bilan (server: `PUT /api/projects/{id}` — «Loyihalar: Tahrirlash», «Yakunlash» ham
+// shu; `DELETE` — «Loyihalar: O'chirish»). Ilgari «Ko'rish» li maxsus rolda ham chizilib, bosilsa 403 edi.
+const LOYIHA_TAHRIRLAYDI = {{ 'true' if current_user.ruxsat('loyiha', 'tahrirlash') else 'false' }};
+const LOYIHA_OCHIRADI = {{ 'true' if current_user.ruxsat('loyiha', 'ochirish') else 'false' }};
 function renderAsosiy(d) {
   bolimNavbati();
   // 17c (2026-09-21): loyihaga to'g'ridan-to'g'ri "💰 To'lov qo'shish"
@@ -692,12 +707,12 @@ function renderAsosiy(d) {
     <div class="info-row"><span style="color:var(--text3)">Boshlangan</span><span>${escapeHtml(d.start)}</span></div>
     <div class="info-row"><span style="color:var(--text3)">Muddat</span><span>${escapeHtml(d.deadline)}</span></div>
     <div class="qa-row">
-      <button class="btn btn-outline btn-sm" onclick="openEditModal()"><i class="ti ti-edit"></i> Tahrirlash</button>
+      ${LOYIHA_TAHRIRLAYDI ? `<button class="btn btn-outline btn-sm" onclick="openEditModal()"><i class="ti ti-edit"></i> Tahrirlash</button>` : ''}
       ${bolimBor('orders') ? `<button class="btn btn-outline btn-sm" onclick="switchTab('orders')"><i class="ti ti-arrow-right"></i> Buyurtmalari</button>` : ''}
       ${bolimBor('payments') ? `<button class="btn btn-outline btn-sm" onclick="switchTab('payments')"><i class="ti ti-cash"></i> To'lovlarni ko'rish</button>` : ''}
       ${bolimBor('products') ? `<button class="btn btn-outline btn-sm" onclick="switchTab('products')"><i class="ti ti-list"></i> Mahsulotlar ro'yxati</button>` : ''}
-      <button class="btn btn-green btn-sm" id="proj-complete-btn" onclick="markProjectComplete()"><i class="ti ti-check"></i> Yakunlash</button>
-      <button class="btn btn-danger btn-sm" onclick="deleteProj()">O'chirish</button>
+      ${LOYIHA_TAHRIRLAYDI ? `<button class="btn btn-green btn-sm" id="proj-complete-btn" onclick="markProjectComplete()"><i class="ti ti-check"></i> Yakunlash</button>` : ''}
+      ${LOYIHA_OCHIRADI ? `<button class="btn btn-danger btn-sm" onclick="deleteProj()">O'chirish</button>` : ''}
     </div>`;
 }
 
@@ -1199,6 +1214,8 @@ async function markProjectComplete() {
 
 function showAddModal(){document.getElementById('addModal').style.display='flex';}
 // kech120 (zip 134 — G2-22): «/projects?yangi=1» (Buyurtma formasidan / bo'sh Buyurtmalar sahifasidan) — yangi loyiha oynasi ochiladi
+// kech154 (zip 202, mustaqil tekshiruv F4): faqat «Loyihalar: Yaratish» bilan (eski xatcho'p / tarixdan ochilsa — forma 403 berardi)
+{% if current_user.ruxsat('loyiha', 'yaratish') %}
 (function () {
   try {
     const p = new URLSearchParams(window.location.search);
@@ -1207,6 +1224,7 @@ function showAddModal(){document.getElementById('addModal').style.display='flex'
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => showAddModal()); else showAddModal();
   } catch (e) { /* URL — muhim emas */ }
 })();
+{% endif %}
 function closeModal(){
   document.getElementById('addModal').style.display='none';
 }
