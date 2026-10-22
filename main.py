@@ -9255,8 +9255,15 @@ async def kunlik_xarajat_page(request: Request, db: Session = Depends(get_db), c
 def api_finance_report(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("moliya", "korish"))):
     # M4: hisobotning tayyor mahsulot qismi joriy korxona bilan cheklanadi
     # (qolgan qismlari M6 da ko'riladi).
-    return services.get_monthly_report(db, year, month,
-                                       company_id=auth.company_id_of(current_user))
+    hisobot = services.get_monthly_report(db, year, month,
+                                          company_id=auth.company_id_of(current_user))
+    # kech154 (zip 205): «Doimiy va qo'shimcha xarajatlar» — doimiy majburiyat turkumi xom kod bilan («bosh_offic_arenda_8477») chiqardi;
+    # `qoshimcha_nomlari` — shu oydagi qo'shimcha turkumlarning «Biz qarzdormiz» dagi nomi (raqamlar o'sha)
+    _nomlar = crud.majburiyat_nomlari(db, auth.company_id_of(current_user))
+    # o'chirilgan majburiyat turkumi (nomi yo'q) — kodidan (`crud.majburiyat_kodidan_nom`)
+    hisobot["qoshimcha_nomlari"] = {k: _nomlar.get(k) or crud.majburiyat_kodidan_nom(k) for k in (hisobot.get("qoshimcha_xarajatlar") or {})
+                                    if _nomlar.get(k) or crud.majburiyat_kodidan_nom(k)}
+    return hisobot
 
 
 @app.get("/api/finance/debt-summary")
@@ -9336,9 +9343,19 @@ def api_finance_report_pdf(year: int, month: int, db: Session = Depends(get_db),
             if isinstance(_m, dict) and "value" in _m:
                 _m["value"] = None
 
+    # kech154 (zip 205, EGASI «Ha, qo'shilsin» — 22.10): oldingi oy bilan solishtirish — o'sha `get_monthly_report` (o'sha tozalash bilan);
+    # o'sha oyda hech narsa bo'lmagan bo'lsa (korxonaning birinchi oyi) — solishtirish chiqmaydi
+    _o_yil, _o_oy = (year - 1, 12) if month == 1 else (year, month - 1)
+    oldingi_report = services.get_monthly_report(db, _o_yil, _o_oy, company_id=auth.company_id_of(current_user))
+    if tannarx_yoq:
+        _rx118.tannarx_tozala(oldingi_report, "/api/finance/report")
+    majburiyat = crud.majburiyat_nomlari(db, auth.company_id_of(current_user))
+    oldingi = finance_pdf.oldingi_oy_xulosasi(oldingi_report, majburiyat)
+
     pdf_bytes = finance_pdf.generate_finance_report_pdf(
         report, expense_transactions, brak_by_material, year, month, debt_summary,
-        db=db, company_id=auth.company_id_of(current_user), tannarx_yoq=tannarx_yoq
+        db=db, company_id=auth.company_id_of(current_user), tannarx_yoq=tannarx_yoq,
+        oldingi=oldingi, majburiyat_nomlari=majburiyat
     )
     filename = f"moliyaviy_hisobot_{year}_{month:02d}.pdf"
     return Response(content=pdf_bytes, media_type="application/pdf",

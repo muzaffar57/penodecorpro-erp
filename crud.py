@@ -5313,6 +5313,32 @@ def hodim_nomlari(db, company_id=None) -> dict:
     if company_id is not None:
         _q = _q.filter(Employee.company_id == company_id)
     return {i: n for i, n in _q.all()}
+
+
+def majburiyat_nomlari(db, company_id=None) -> dict:
+    """kech154 (zip 205): {doimiy majburiyat turkumi (kod): nomi}. «Biz qarzdormiz» da yaratilgan turkum kodi — nom + vaqt
+    (`debts.html` `majburiyatKodi`, masalan «bosh_offic_arenda_8477»); oylik moliya PDF i va Moliya sahifasidagi «Doimiy va qo'shimcha
+    xarajatlar» uni XOM KOD bilan ko'rsatardi (xarajatlar ro'yxati — kech120, G3-18 dan beri nomi bilan)."""
+    from models import RecurringObligation as _RO205
+    _q = db.query(_RO205.category, _RO205.label)
+    if company_id is not None:
+        _q = _q.filter(_RO205.company_id == company_id)
+    return {c: n for c, n in _q.all() if c and n}
+
+
+import re as _re205                                  # noqa: E402
+_MAJBURIYAT_KODI205 = _re205.compile(r"^([0-9a-zа-яёʻʼ_]+?)_\d{4}$")
+
+
+def majburiyat_kodidan_nom(kod):
+    """kech154 (zip 205, mustaqil tekshiruv): «Biz qarzdormiz» dan O'CHIRILGAN majburiyat turkumi — kodi xarajat tarixida qoladi, nomi
+    yo'q. Kod `debts.html` `majburiyatKodi` dan: nomning kichik harfli asosi (lotin / kirill, qolgan belgilar «_») + «_» + 4 raqam
+    («bosh_offic_arenda_8477» → «Bosh offic arenda»). Shunday kod bo'lmasa — None."""
+    m = _MAJBURIYAT_KODI205.match(kod or "")
+    if not m:
+        return None
+    asos = " ".join(m.group(1).replace("_", " ").split())
+    return (asos[:1].upper() + asos[1:]) if asos else None
 # 17g — yetkazish transporti kim hisobidan (`models.Delivery.company_transport_cost`
 # / `client_transport_cost` AYNAN shu to'rttasini taniydi; `orders.html`
 # `dlv-transport-payer` tanlovi ham shular). O'LCHANGAN: noma'lum qiymat
