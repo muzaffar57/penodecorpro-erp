@@ -11,10 +11,9 @@
   /* kech139 (zip 167): `.pl-wrap` endi skroll konteyneri (`erp-content`, balandligi cheklangan) — bolalari siqilmasin (overflow:hidden
      li kartalar `min-height:auto` siz qisqarib, ustma-ust tushardi — test_murojaat_ui B7c da topildi) */
   .pl-wrap > *{flex-shrink:0}
-  .pl-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
-  .pl-stat{background:var(--white);border:1px solid var(--border);border-radius:var(--radius-card);padding:12px 14px}
-  .pl-stat .l{font-size:12px;color:var(--text2)}
-  .pl-stat .n{font-size:18px;font-weight:700;color:var(--text);margin-top:2px}
+  /* kech154 (zip 206 «Platforma — jadval», egasi tanlovi 22.10): tepadagi 7 ta raqam-karta o'rniga — saralash tugmalari yonida bitta satr */
+  .pl-bugun{font-size:13px;color:var(--text2);white-space:nowrap}
+  .pl-bugun b{color:var(--text);font-weight:700}
   .pl-head{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:space-between}
   .pl-chips{display:flex;gap:8px;flex-wrap:wrap}
   .pl-chip{box-sizing:border-box;min-height:var(--h-sm);padding:0 12px;border:1px solid var(--border);border-radius:999px;background:var(--white);
@@ -26,37 +25,49 @@
   .pl-search{display:flex;align-items:center;gap:8px;box-sizing:border-box;min-height:var(--h-btn);padding:0 12px;border:1px solid var(--border);
              border-radius:var(--r-btn);background:var(--white);width:240px;max-width:100%}
   .pl-search input{border:0;outline:none;font-size:var(--fs-maydon);line-height:20px;width:100%;background:transparent;color:var(--text)}
-  .pl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:14px}
-  @media (max-width:560px){.pl-grid{grid-template-columns:1fr}}
-  .pl-card{background:var(--white);border:1px solid var(--border);border-radius:13px;padding:18px;display:flex;
-           flex-direction:column;gap:14px}
-  .pl-card.yaqin{border-color:var(--ch-f5d98b)}
-  .pl-card.otgan{border-color:var(--ch-f3c7c7)}
-  .pl-card.bloklangan{background:var(--f-fbf5f5);border-color:var(--ch-f3c7c7)}
-  html[data-theme="dark"] .pl-card.bloklangan{background:#2A1E22}
-  .pl-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
-  .pl-nom{font-size:16px;font-weight:700;color:var(--text);word-break:break-word}
-  .pl-kod{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text2)}
-  .pl-badge{font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;white-space:nowrap;display:inline-flex;gap:6px;align-items:center}
+  /* kech154 (zip 206): har korxona — BITTA qator; ustunlar qat'iy kenglikda (har qator alohida grid — sarlavha bilan bir chiziqda bo'lsin).
+     Eng kam kenglik: 170 + 120 + 170 + 52 + 66 + 104 + 312 + 6 × 12 + 28 = 1094 px — ro'yxat torroq bo'lsa `@container plroyxat` (pastda) */
+  .pl-grid{background:var(--white);border:1px solid var(--border);border-radius:var(--radius-card);overflow:hidden;
+           container-type:inline-size;container-name:plroyxat}
+  .pl-grid > .pl-izoh{padding:16px 14px}
+  .pl-jbosh,.pl-card{display:grid;grid-template-columns:minmax(170px,1fr) 120px minmax(170px,1fr) 52px 66px 104px 312px;column-gap:12px;
+           align-items:center}
+  .pl-jbosh{padding:9px 14px;background:var(--bg);border-bottom:1px solid var(--border);font-size:12px;font-weight:700;color:var(--text2)}
+  .pl-jbosh .ong{text-align:right}
+  .pl-card{position:relative;box-sizing:border-box;min-height:56px;padding:9px 14px;border-bottom:1px solid var(--border2);background:var(--white)}
+  .pl-card:last-child{border-bottom:0}
+  .pl-card.yaqin{background:var(--f-fffbeb)}
+  .pl-card.otgan{background:var(--f-fbf5f5)}
+  .pl-card.bloklangan{background:var(--f-fbf5f5)}
+  html[data-theme="dark"] .pl-card.otgan,html[data-theme="dark"] .pl-card.bloklangan{background:#2A1E22}
+  .pl-top{display:contents}
+  .pl-top > div:first-child{min-width:0}
+  .pl-holat{display:flex;gap:4px;flex-wrap:wrap}
+  .pl-nom{font-size:14px;font-weight:700;color:var(--text);word-break:break-word}
+  .pl-kod{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pl-badge{font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap;display:inline-flex;gap:6px;align-items:center}
   .pl-b-faol{background:var(--f-dcfce7);color:var(--m-166534)}
   .pl-b-yaqin{background:var(--f-fef3c7);color:var(--m-78350f)}
   .pl-b-otgan{background:var(--f-fee2e2);color:var(--m-991b1b)}
   .pl-b-bloklangan{background:var(--f-fee2e2);color:var(--m-991b1b)}
   .pl-b-muddatsiz{background:var(--bg);color:var(--text2)}
   .pl-b-sinov{background:var(--f-e0e7ff);color:var(--m-3730a3)}
-  .pl-muddat{display:flex;justify-content:space-between;font-size:13px;gap:10px}
+  .pl-muddat{display:flex;flex-direction:column;font-size:12px;gap:2px}
   .pl-muddat .chap{color:var(--text2)}
-  .pl-bar{height:8px;background:var(--border2);border-radius:999px;overflow:hidden}
-  .pl-bar > div{height:8px;border-radius:999px}
-  .pl-raqam{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
-  .pl-raqam .l{font-size:12px;color:var(--text2)}
-  .pl-raqam .n{font-size:16px;font-weight:700;color:var(--text)}
-  .pl-raqam .n.kichik{font-size:14px;font-weight:600}
-  .pl-blok{font-size:13px;color:var(--m-7f1d1d);line-height:1.5;background:var(--white);border:1px solid var(--ch-f3c7c7);border-radius:10px;padding:10px 12px}
+  .pl-bar{height:5px;background:var(--border2);border-radius:999px;overflow:hidden}
+  .pl-bar > div{height:5px;border-radius:999px}
+  .pl-raqam{display:contents}
+  .pl-raqam .l{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+  .pl-jami{font-size:12px;font-weight:500;color:var(--text2)}
+  .pl-raqam .n{font-size:14px;font-weight:600;color:var(--text)}
+  .pl-raqam .n.kichik{font-size:13px;font-weight:500}
+  .pl-blok{font-size:12px;color:var(--m-7f1d1d);line-height:1.35;background:var(--white);border:1px solid var(--ch-f3c7c7);border-radius:8px;padding:4px 8px}
+  .pl-blok-qosh{display:none}
   html[data-theme="dark"] .pl-blok{color:#FCA5A5}
-  .pl-btns{display:flex;gap:8px;flex-wrap:wrap}
+  .pl-btns{display:flex;gap:6px;flex-wrap:nowrap;justify-content:flex-end}
   .pl-btn{box-sizing:border-box;min-height:var(--h-btn);padding:0 14px;border-radius:var(--r-btn);font-size:14px;line-height:20px;font-weight:600;
           cursor:pointer;border:1px solid var(--border);background:var(--white);color:var(--text)}
+  .pl-card .pl-btn{min-height:var(--h-sm);padding:0 10px;font-size:13px;white-space:nowrap}
   .pl-btn.qora{background:var(--dark);color:#fff;border-color:var(--dark)}
   .pl-btn.qizil{border-color:var(--ch-f3c7c7);color:var(--m-991b1b)}
   .pl-btn.yashil{background:#166534;color:#fff;border-color:#166534}
@@ -64,6 +75,24 @@
   /* kech139 (zip 166): yopiq tugma / maydon (masalan «Aloqa telefoni» yuklanguncha) — ko'rinib tursin (`.btn:disabled` bilan bir) */
   .pl-btn:disabled{opacity:.55;cursor:not-allowed}
   .pl-izoh{font-size:13px;color:var(--text2);line-height:1.6}
+  /* ro'yxat 1094 px dan tor (ekran ~1101–1361 px, chap menyu bilan): o'sha ustunlar, «Amallar» — qator ostida (ustun kesilmasin) */
+  @container plroyxat (max-width:1093.98px){
+    .pl-jbosh,.pl-card{grid-template-columns:minmax(140px,1fr) 120px minmax(150px,1fr) 48px 60px 96px}
+    .pl-jbosh .ong{display:none}
+    .pl-card{row-gap:8px}
+    .pl-btns{grid-column:1 / -1;flex-wrap:wrap;justify-content:flex-start}
+  }
+  /* ro'yxat 760 px dan tor (planshet, telefon): ixcham kartochka — sarlavha satri yo'q, raqamlar nomi bilan, to'liq blok izohi */
+  @container plroyxat (max-width:759.98px){
+    .pl-jbosh{display:none}
+    .pl-card{display:flex;flex-direction:column;align-items:stretch;gap:8px;padding:12px 14px}
+    .pl-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+    .pl-raqam{display:flex;flex-wrap:wrap;gap:4px 14px}
+    .pl-raqam > div{display:flex;gap:5px;align-items:baseline}
+    .pl-raqam .l{position:static;width:auto;height:auto;margin:0;overflow:visible;clip:auto;white-space:normal;font-size:12px;color:var(--text2)}
+    .pl-jami{display:none}
+    .pl-blok-qosh{display:inline}
+  }
   .pl-bottom{display:grid;grid-template-columns:minmax(260px,1fr) minmax(320px,2fr);gap:14px;align-items:start}
   @media (max-width:900px){.pl-bottom{grid-template-columns:1fr}}
   .pl-field label{display:block;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:5px}
@@ -123,9 +152,6 @@
    pastga SURILMASDI (O'LCHANGAN: sinov saytida 375×812). #}
 <div class="pl-wrap erp-content">
 
-  <div class="pl-stats" id="plRaqamlar" aria-live="polite">
-    <div class="pl-stat"><div class="l">Yuklanmoqda…</div><div class="n">—</div></div>
-  </div>
   <p class="yuk-xato" id="xato-pl-raqam" role="alert" hidden></p>
 
   <div class="pl-head">
@@ -136,6 +162,7 @@
       <button type="button" class="pl-chip chip" data-filtr="bloklangan">Bloklangan</button>
       <button type="button" class="pl-chip chip" data-filtr="sinov">Sinov davri</button>
     </div>
+    <span class="pl-bugun" id="plRaqamlar" aria-live="polite">Bugun: <b>—</b> kirish · <b>—</b> xato</span>
     <div class="pl-tools">
       <label class="pl-search">
         <i class="ti ti-search" style="font-size:16px;color:var(--text2)" aria-hidden="true"></i>
@@ -169,7 +196,7 @@
 
   <div class="pl-grid" id="plKartalar"><div class="pl-izoh">Yuklanmoqda…</div></div>
   <div class="pl-izoh" id="plPastIzoh">
-    Chiziq — obuna davrining qolgan qismi. Muddatga 7 kun qolganda kartochka sariq bo'ladi va Telegram'ga eslatma
+    Chiziq — obuna davrining qolgan qismi. Muddatga 7 kun qolganda qator sariq bo'ladi va Telegram'ga eslatma
     ketadi; muddat tugagach 3 kun imtiyoz, so'ng kirish avtomatik yopiladi (ma'lumot o'chmaydi).
     <span id="plEgaIzoh"></span>
   </div>
@@ -302,9 +329,11 @@ function plKarta(r) {
   var blok = '';
   if (h.bloklangan) {
     var qachon = h.bloklangan_at ? tkSana(h.bloklangan_at, 'ru-RU') + ' dan bloklangan' : 'Bloklangan';
-    blok = '<div class="pl-blok">' + escapeHtml(qachon) + ' · sabab: <b>' + escapeHtml(h.sabab || '—') + '</b>' +
-      (h.obuna_tugash ? ' · obuna ' + plSana(h.obuna_tugash) + ' da tugagan' : '') +
-      (r.blok_izoh ? '<br>Izoh: ' + escapeHtml(r.blok_izoh) : '') + '. Ma\'lumoti saqlangan.</div>';
+    var _toliq = qachon + ' · sabab: ' + (h.sabab || '—') + (h.obuna_tugash ? ' · obuna ' + plSana(h.obuna_tugash) + ' da tugagan' : '') +
+      (r.blok_izoh ? ' · izoh: ' + r.blok_izoh : '') + '. Ma\'lumoti saqlangan.';
+    blok = '<div class="pl-blok" title="' + escapeHtml(_toliq) + '">' + escapeHtml(qachon) + ' · sabab: <b>' + escapeHtml(h.sabab || '—') + '</b>' +
+      '<span class="pl-blok-qosh">' + (h.obuna_tugash ? ' · obuna ' + plSana(h.obuna_tugash) + ' da tugagan' : '') +
+      (r.blok_izoh ? '<br>Izoh: ' + escapeHtml(r.blok_izoh) : '') + '. Ma\'lumoti saqlangan.</span></div>';
   }
   var id = escapeHtml(r.id);
   var tugmalar;
@@ -314,20 +343,22 @@ function plKarta(r) {
       '<button type="button" class="pl-btn shaffof" data-amal="parol" data-id="' + id + '">Parolni tiklash</button>';
   } else {
     var sariq = (h.bosqich === 'yaqin' || h.bosqich === 'otgan');
-    tugmalar = '<button type="button" class="pl-btn' + (sariq ? ' qora' : '') + '" data-amal="uzaytir" data-id="' + id + '">Muddatni uzaytirish</button>' +
+    tugmalar = '<button type="button" class="pl-btn' + (sariq ? ' qora' : '') + '" data-amal="uzaytir" data-id="' + id + '" title="Muddatni uzaytirish">Uzaytirish</button>' +
       '<button type="button" class="pl-btn qizil" data-amal="blokla" data-id="' + id + '">Bloklash</button>' +
       '<button type="button" class="pl-btn shaffof" data-amal="parol" data-id="' + id + '">Parolni tiklash</button>';
   }
   var dan = r.created_at ? ' · ' + escapeHtml(tkSana(r.created_at, 'ru-RU')) + ' dan' : '';   // Toshkent kuni (UTC emas)
   return '<section class="pl-card ' + escapeHtml(h.bosqich || '') + '" aria-label="' + escapeHtml(r.name || '') + '" data-korxona="' + id + '">' +
     '<div class="pl-top"><div><div class="pl-nom">' + escapeHtml(r.name || '') + '</div>' +
-    '<div class="pl-kod">' + escapeHtml(r.code || '—') + dan + '</div></div><div>' + plBadge(h) + '</div></div>' +
+    '<div class="pl-kod" title="' + escapeHtml(r.code || '—') + dan + '">' + escapeHtml(r.code || '—') + dan + '</div></div>' +
+    '<div class="pl-holat">' + plBadge(h) + '</div></div>' +
     (h.bloklangan ? blok : plMuddat(h)) +
     '<div class="pl-raqam">' +
-    '<div><div class="l">Foydalanuvchi</div><div class="n">' + plSon(r.users) + '</div></div>' +
-    '<div><div class="l">' + (h.bloklangan ? 'Buyurtma (jami)' : 'Buyurtma (shu oy)') + '</div><div class="n">' +
-      plSon(h.bloklangan ? r.buyurtma_jami : r.buyurtma_shu_oy) + '</div></div>' +
-    '<div><div class="l">Oxirgi kirish</div><div class="n kichik"' + (kirish.ogoh ? ' style="color:var(--m-92400e)"' : '') + '>' +
+    '<div><div class="l">Foydalanuvchi:</div><div class="n">' + plSon(r.users) + '</div></div>' +
+    '<div><div class="l">' + (h.bloklangan ? 'Buyurtma (jami):' : 'Buyurtma (shu oy):') + '</div><div class="n">' +
+      plSon(h.bloklangan ? r.buyurtma_jami : r.buyurtma_shu_oy) + (h.bloklangan ? ' <span class="pl-jami" aria-hidden="true">jami</span>' : '') +
+      '</div></div>' +
+    '<div><div class="l">Oxirgi kirish:</div><div class="n kichik"' + (kirish.ogoh ? ' style="color:var(--m-92400e)"' : '') + '>' +
       escapeHtml(kirish.matn) + '</div></div></div>' +
     '<div class="pl-btns">' + tugmalar + '</div></section>';
 }
@@ -364,7 +395,8 @@ function plChizish() {
   });
   var ko = mijoz.filter(plFiltrgaMos);
   var el = document.getElementById('plKartalar');
-  el.innerHTML = ko.length ? ko.map(plKarta).join('')
+  el.innerHTML = ko.length ? '<div class="pl-jbosh" aria-hidden="true"><span>Korxona</span><span>Holat</span><span>Obuna</span><span>Foydal.</span>' +
+      '<span>Buyurtma</span><span>Oxirgi kirish</span><span class="ong">Amallar</span></div>' + ko.map(plKarta).join('')
     : '<div class="pl-izoh">' + (mijoz.length ? 'Tanlovga mos korxona yo\'q.' : 'Hali mijoz korxona yo\'q — «+ Yangi korxona» bilan qo\'shing.') + '</div>';
   document.getElementById('plEgaIzoh').textContent = ega.length
     ? 'O\'z korxonangiz (' + ega.map(function (r) { return r.name; }).join(', ') + ') bu ro\'yxatda ko\'rinmaydi — u muddatsiz va bloklanmaydi.'
@@ -381,11 +413,9 @@ function plChizish() {
 function plRaqamlarChiz() {
   var bor = !!PL.raqam;                     // yuklanmagan — «—» (yolg'on «0» emas)
   var r = PL.raqam || {};
-  var q = [['Mijoz korxonalar', r.jami], ['Faol', r.faol], ['Sinov davrida', r.sinov], ['Muddati yaqin', r.muddati_yaqin],
-           ['Bloklangan', r.bloklangan], ['Bugun kirishlar', r.bugun_kirish], ['Bugun xatolar', r.bugun_xato]];
-  document.getElementById('plRaqamlar').innerHTML = q.map(function (x) {
-    return '<div class="pl-stat"><div class="l">' + escapeHtml(x[0]) + '</div><div class="n">' + (bor ? plSon(x[1]) : '—') + '</div></div>';
-  }).join('');
+  // kech154 (zip 206): korxonalar sanoqlari — saralash tugmalarida (ro'yxatdan); bu yerda — bugungi kirish va xatolar
+  document.getElementById('plRaqamlar').innerHTML = 'Bugun: <b>' + (bor ? plSon(r.bugun_kirish) : '—') + '</b> kirish · <b>' +
+    (bor ? plSon(r.bugun_xato) : '—') + '</b> xato';
 }
 
 function plTelefonQoy(v) {                  // joriy telefon yuklandi — maydon va «Saqlash» ochiladi
