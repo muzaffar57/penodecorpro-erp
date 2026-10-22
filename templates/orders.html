@@ -59,20 +59,25 @@
 .fp-tag{display:inline-flex;align-items:center;gap:5px;background:var(--f-fdf8f0);border:1.5px solid #B9783F;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:600;color:var(--gold-dark);margin-left:8px}
 .fp-tag button{background:none;border:none;color:var(--m-dc2626);cursor:pointer;font-size:12px;padding:0;line-height:1}
 
-/* Loyiha guruhlari */
-.proj-group{border-bottom:1px solid var(--ch-f0f0f0)}
-.proj-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 16px;cursor:pointer;transition:background .15s;user-select:none}
-.proj-head:hover{background:var(--f-fafaf8)}
-.proj-group.open .proj-head{background:var(--f-fdf8f0)}
+/* Loyiha guruhlari — kech154 (zip 203 «Buyurtmalar ko'rinishi», egasi tanlovi 22.10): «papka» sarlavhasi (kulrang chiziq), ichida
+   buyurtma qatorlari; muddat — chap ichki chiziq (`data-urgency`; ilgari inline `border-left`), qarz / to'langan / muddat — belgi */
+.proj-group{border-bottom:none}
+.proj-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;transition:background .15s;user-select:none;
+  background:var(--bg);border-top:1px solid var(--border)}
+.proj-head:hover, .proj-group.open .proj-head{background:var(--bg)}
+.proj-group[data-urgency="overdue"] > .proj-head{box-shadow:inset 3px 0 0 var(--m-dc2626)}
+.proj-group[data-urgency="today"] > .proj-head, .proj-group[data-urgency="tomorrow"] > .proj-head{box-shadow:inset 3px 0 0 var(--f-f59e0b)}
 .proj-arrow{font-size:12px;color:var(--text3);transition:transform .2s;flex-shrink:0;width:10px}
 .proj-group.open .proj-arrow{transform:rotate(90deg);color:var(--gold-dark)}
-.proj-name{font-size:14px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.proj-client{font-size:13px;color:var(--text3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.proj-name{font-size:14px;font-weight:800;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.proj-client{font-size:13px;color:var(--text2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .proj-count{font-size:12px;color:var(--text3);font-weight:600;white-space:nowrap}
-.proj-debt{font-size:12px;color:var(--m-dc2626);font-weight:700;margin-top:3px;white-space:nowrap}
-.proj-paid{font-size:12px;color:var(--m-15803d);font-weight:700;margin-top:3px;white-space:nowrap}
-.proj-body{background:var(--f-fcfcfb);border-top:1px solid var(--ch-f5f5f5)}
-.proj-body .ord-item{padding-left:24px}
+.proj-debt, .proj-paid, .pg-belgi{display:inline-block;margin-top:4px;padding:0 8px;border-radius:999px;line-height:20px;font-size:12px;font-weight:700;white-space:nowrap}
+.proj-debt, .pg-belgi.qizil{background:var(--f-fee2e2);color:var(--m-b91c1c)}
+.proj-paid{background:var(--f-dcfce7);color:var(--m-15803d)}
+.pg-belgi.sariq{background:var(--f-fef3c7);color:var(--m-92400e)}
+.proj-body{background:var(--f-fcfcfb);border-top:1px solid var(--border2)}
+.proj-body .ord-item{padding-left:16px}
 .proj-body .ord-item:last-child{border-bottom:none}
 .step-btn2{width:var(--h-btn);height:var(--h-btn);border-radius:var(--r-btn);border:1.5px solid var(--ch-e5e5e5);background:var(--white);font-size:18px;font-weight:700;color:var(--m-555555);cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;flex-shrink:0;transition:all .15s}
 .step-btn2:hover{background:var(--dark);color:#fff;border-color:var(--dark)}
@@ -90,16 +95,72 @@
 .foyda-qator{flex-wrap:wrap;row-gap:4px}
 .foyda-qator > .foyda-summa{margin-left:auto}
 .foyda-pastki{flex-wrap:wrap}
-.ord-item{padding:15px 16px;border-bottom:1.5px solid var(--ch-e8e3dd);cursor:pointer;transition:background .15s}
-/* kech120 (G2-13): holat filtri tugmalari — tor ekranda keyingi qatorga o'raladi (yon tomonga surilmaydi) */
-.ord-filtr{display:flex;flex-wrap:wrap;gap:5px;padding:7px 12px;border-bottom:1px solid var(--border2);flex-shrink:0}
-/* U-13 (kech123): holat filtri — umumiy `.chip` (style.css); bu yerda faqat son rangi */
-.ord-f[data-f="otgan"] .f-son{color:var(--m-dc2626)}
-.ord-f .f-son{font-weight:700;margin-left:1px}
-.ord-item:hover{background:var(--f-fafaf8)}
-.ord-item.active{background:var(--f-fdf8f0);border-left:3px solid #B9783F}
-.ord-num{font-size:13px;font-weight:700;color:var(--gold-dark)}
-.ord-date{font-size:13px;color:var(--text3)}
+/* kech154 (zip 203): buyurtma qatori — bir xil tuzilma (1: raqam + holat; 2: sana + summa; 3: belgilar). Holat rangi — klass / `data-*`
+   (ilgari INLINE fon / chap chegara tanlangan qatorning uslubini bosib ketardi — O'LCHANGAN `work/k203/olchov203.py`) */
+.ord-item{position:relative;padding:11px 14px 11px 12px;border-bottom:1px solid var(--border2);cursor:pointer;transition:background .15s, box-shadow .15s}
+.ord-item:hover{background:var(--bg)}
+.ord-item[data-urgency="overdue"]{box-shadow:inset 3px 0 0 var(--m-dc2626)}
+.ord-item[data-urgency="today"], .ord-item[data-urgency="tomorrow"]{box-shadow:inset 3px 0 0 var(--f-f59e0b)}
+/* holat filtri (kech120 G2-13; U-13 — umumiy `.chip`: yumaloq, 13 px, 36 px) — kech154 (zip 203, egasi tanlovi «F1 · Teng kataklar»):
+   2 ustun, hamma tugma bir xil; nom chapda, son o'ngda rangli belgida (qizil — muddati o'tgan va qarz, sariq — bugun; tanlangan — oltin) */
+/* ustunlar `auto auto`: joy yetsa — har tugma yozuvi bir qatorda (kompyuter 1440: 120 / 148 px); tor ustunda (901–1150 px — ro'yxat 260 px,
+   telefon 320 px) uzun nom ikki qatorga o'raladi — ilgari `1fr 1fr` da 260 px ustunda tugmalar 19 px chiqib, kesilardi (O'LCHANGAN
+   `work/k203/olchov203_filtr.py`) */
+.ord-filtr{display:grid;grid-template-columns:auto auto;gap:6px;padding:10px 12px;border-bottom:1px solid var(--border2);flex-shrink:0}
+.ord-filtr .ord-f{justify-content:space-between;width:100%;min-width:0;min-height:36px;padding:0 10px 0 12px;white-space:normal;
+  text-align:left;line-height:1.2}
+.ord-f .f-son{flex-shrink:0;min-width:24px;margin-left:0;padding:0 7px;border-radius:999px;line-height:20px;text-align:center;font-weight:700;
+  white-space:nowrap;background:var(--bg);color:var(--text)}
+.ord-f[data-f="otgan"] .f-son, .ord-f[data-f="qarz"] .f-son{background:var(--f-fee2e2);color:var(--m-b91c1c)}
+.ord-f[data-f="bugun"] .f-son{background:var(--f-fef3c7);color:var(--m-92400e)}
+.ord-filtr .ord-f.active{border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold)}
+.ord-filtr .ord-f.active .f-son{background:var(--gold-btn);color:#fff}
+/* TANLANGAN (ochiq) buyurtma — egasi tanlovi «1 · Qalin ramka + OCHIQ»: 3 px oltin ramka, och oltin fon, tepada «▶ OCHIQ» yorlig'i
+   (rangni farqlamaydigan odam ham yozuvdan biladi), o'ng chetda ko'rsatkich (buyurtma o'ngda ochilgan); muddat chizig'i — ramka bilan */
+.ord-item.active{background:var(--gold-tint);box-shadow:inset 0 0 0 3px var(--gold);padding-top:24px}
+.ord-item.active[data-urgency="overdue"]{box-shadow:inset 7px 0 0 var(--m-dc2626), inset 0 0 0 3px var(--gold)}
+.ord-item.active[data-urgency="today"], .ord-item.active[data-urgency="tomorrow"]{box-shadow:inset 7px 0 0 var(--f-f59e0b), inset 0 0 0 3px var(--gold)}
+.ord-item.active::before{content:"▶ OCHIQ";position:absolute;left:3px;top:3px;padding:0 9px 0 8px;border-bottom-right-radius:8px;font-size:12px;
+  font-weight:800;letter-spacing:.4px;line-height:17px;color:#fff;background:var(--gold-btn)}
+.ord-item.active[data-urgency="overdue"]::before, .ord-item.active[data-urgency="today"]::before, .ord-item.active[data-urgency="tomorrow"]::before{left:7px}
+.ord-item.active::after{content:"";position:absolute;right:0;top:50%;transform:translateY(-50%);border-top:9px solid transparent;
+  border-bottom:9px solid transparent;border-right:9px solid var(--gold)}
+.ord-item.active .ord-num{color:var(--gold-dark)}
+.oi-bosh{display:flex;align-items:center;gap:6px;min-width:0}
+.ord-num{flex:1;min-width:0;font-size:14px;font-weight:800;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.oi-holat{flex-shrink:0;display:inline-flex;align-items:center}
+.ord-date{display:flex;justify-content:space-between;gap:10px;margin-top:2px;padding-left:38px;font-size:13px;color:var(--text2)}
+.oi-sana{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.oi-summa{font-weight:700;color:var(--text);white-space:nowrap}
+.oi-belgilar{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px;padding-left:38px}
+.oi-belgilar:empty{display:none}
+.oi-belgi, .oi-belgilar .ort-qaytarish{display:inline-flex;align-items:center;gap:6px;padding:0 8px;border-radius:999px;font-size:12px;font-weight:700;line-height:20px;white-space:nowrap}
+.oi-belgi.qizil{background:var(--m-dc2626);color:#fff}
+.oi-belgi.qarz{background:var(--f-fee2e2);color:var(--m-b91c1c)}
+.oi-belgi.sariq{background:var(--f-fef3c7);color:var(--m-92400e)}
+.oi-belgi.yashil{background:var(--f-dcfce7);color:var(--m-15803d)}
+.oi-belgi.kok{background:var(--f-dbeafe);color:var(--m-1d4ed8)}
+.oi-belgi.kulrang{background:var(--bg);color:var(--text2);font-weight:600}
+.oi-belgilar .ort-qaytarish{background:var(--f-fff7ed);color:var(--m-c2410c)}
+.oi-mini{display:inline-block;width:34px;height:4px;border-radius:2px;background:var(--white);overflow:hidden}
+.oi-mini > i{display:block;height:100%;background:var(--m-1d4ed8)}
+/* ro'yxat bo'lim sarlavhalari (Ustuvor, So'nggi 90 kun / Barchasi) — bir xil ingichka chiziq */
+.ro-bolim{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 14px;background:var(--bg);border-top:1px solid var(--border);
+  border-bottom:1px solid var(--border);font-size:12px;font-weight:700;color:var(--text2);flex-shrink:0}
+.ro-bolim.ogoh{background:var(--f-fffbeb);color:var(--m-92400e)}
+.ro-bolim a{white-space:nowrap}
+.ro-son{font-weight:800;color:var(--gold-dark)}
+/* ochilgan buyurtma sarlavhasi (o'rta ustun tepasida; kompyuterda surilganda ham tepada qoladi — `top:-12px`: `#ordPageWrap` ning
+   12 px ichki chekkasi bilan ekran tepasiga tegib turadi, ustida surilayotgan mazmun ko'rinmaydi; O'LCHANGAN: `top:0` da 12 px oraliq) */
+.od-sarlavha{position:sticky;top:-12px;z-index:6;display:flex;align-items:center;gap:14px;padding:14px 18px;margin-bottom:12px;background:var(--white);
+  border:1px solid var(--border);border-left:5px solid var(--gold);border-radius:14px;box-shadow:var(--shadow-card)}
+.ods-ikon{width:42px;height:42px;border-radius:12px;background:var(--gold-tint);color:var(--gold-dark);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0}
+.ods-matn{min-width:0;flex:1}
+.ods-yuqori{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ods-raqam{font-size:24px;font-weight:800;color:var(--text);letter-spacing:.2px;line-height:1.2}
+.ods-pastki{font-size:14px;color:var(--text2);margin-top:2px;overflow-wrap:anywhere}
+/* xulosa kartasi sarlavhasi: kompyuterda «Buyurtma xulosasi» (raqam o'rtadagi sarlavhada), telefonda — katta raqam, loyiha · mijoz */
+.sum-raqam, .sum-nom{display:none}
 .mid-panel{display:flex;flex-direction:column;gap:10px}
 .right-panel{display:flex;flex-direction:column;gap:10px}
 .right-panel::-webkit-scrollbar{width:6px}
@@ -317,6 +378,24 @@ input[type=number]{-moz-appearance:textfield}
   .tk-summa, .tk-summa .tk-meta{text-align:left}
   .tk-amallar .btn{flex:1 1 140px}
 }
+/* kech154 (zip 203): kompyuterda (tor ro'yxat ustuni) belgilar chap chetdan — bir qatorga ko'proq sig'adi */
+@media (min-width:901px){
+  .oi-belgilar{padding-left:6px}
+}
+/* telefon (bitta ustun): birinchi xulosa kartasi ko'rinadi — sarlavhasida katta raqam va loyiha · mijoz; o'rtadagi sarlavha joyida;
+   ro'yxatdagi o'ng chet ko'rsatkichi kerak emas */
+@media (max-width:900px){
+  .od-sarlavha{position:static}
+  #sumCard{border-top:4px solid var(--gold)}
+  #sumCard .sum-sarlavha-matn{display:none}
+  #sumCard .sum-raqam{display:block;font-size:18px;font-weight:800;color:var(--text)}
+  #sumCard .sum-nom{display:block;font-size:13px;font-weight:500;color:var(--text2);margin-top:2px}
+  .ord-item.active::after{display:none}
+}
+@media (prefers-reduced-motion:no-preference){
+  @keyframes odsYonish{0%{box-shadow:0 0 0 4px var(--gold);background:var(--gold-tint)}100%{box-shadow:var(--shadow-card)}}
+  .od-sarlavha.ochildi, #sumCard.ochildi{animation:odsYonish 1.1s ease-out}
+}
 </style>
 {% endblock %}
 
@@ -374,16 +453,16 @@ input[type=number]{-moz-appearance:textfield}
       <button type="button" class="ord-f chip" data-f="tugagan" aria-pressed="false" onclick="royxatFiltrla('tugagan')">Tugagan <span class="f-son"></span></button>
     </div>
     <div id="pinnedOrdersSection" style="display:none;flex-shrink:0;border-bottom:1px solid var(--border2)">
-      <div style="padding:7px 14px;background:var(--gold-tint);font-size:12px;font-weight:700;color:var(--gold-dark)">⭐ Ustuvor buyurtmalar (<span id="pinnedCount">0</span> ta)</div>
+      <div class="ro-bolim"><span>⭐ Ustuvor buyurtmalar</span><span class="ro-son"><span id="pinnedCount">0</span> ta</span></div>
       <div id="pinnedOrdersList"></div>
     </div>
     {% if not show_all %}
-    <div style="padding:7px 14px;background:var(--f-f8f2eb);font-size:12px;color:var(--gold-dark);display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
-      <span>📅 So'nggi 90 kunlik (+ tugallanmaganlar)</span>
+    <div class="ro-bolim">
+      <span>📅 So'nggi 90 kun + tugallanmaganlar</span>
       <a href="/orders?show_all=true" style="color:var(--gold-dark);font-weight:600;text-decoration:none">Barchasini ko'rish →</a>
     </div>
     {% else %}
-    <div style="padding:7px 14px;background:var(--f-fffbeb);font-size:12px;color:var(--m-92400e);display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+    <div class="ro-bolim ogoh">
       <span>⚠️ Barcha buyurtmalar ko'rsatilmoqda (sekinroq bo'lishi mumkin)</span>
       <a href="/orders" style="color:var(--m-b45309);font-weight:600;text-decoration:none">← Qisqartirish</a>
     </div>
@@ -397,8 +476,7 @@ input[type=number]{-moz-appearance:textfield}
         {% set tomorrow_n = g.orders|selectattr('deadline_urgency', 'equalto', 'tomorrow')|list|length %}
         {% set g_urgency = 'overdue' if overdue_n > 0 else ('today' if today_n > 0 else ('tomorrow' if tomorrow_n > 0 else 'normal')) %}
         {% set g_urgent_count = overdue_n if overdue_n > 0 else (today_n if today_n > 0 else tomorrow_n) %}
-        <div class="proj-group" data-project-id="{{ g.project_id }}"
-             style="{{ 'border-left:3px solid #DC2626' if g_urgency == 'overdue' else ('border-left:3px solid #F59E0B' if g_urgency in ('today', 'tomorrow') else '') }}">
+        <div class="proj-group" data-project-id="{{ g.project_id }}" data-urgency="{{ g_urgency }}">
           <!-- Loyiha sarlavhasi -->
           <div class="proj-head" onclick="toggleProject({{ g.project_id }})">
             <div style="display:flex;align-items:center;gap:7px;min-width:0">
@@ -408,11 +486,11 @@ input[type=number]{-moz-appearance:textfield}
                 <div class="proj-name" title="{{ g.project_name }}">{{ g.project_name }}</div>
                 <div class="proj-client" title="{{ g.client_name }}">{{ g.client_name }}</div>
                 {% if g_urgency == 'overdue' %}
-                <div style="font-size:12px;color:var(--m-dc2626);font-weight:700;margin-top:2px">🔴 Muddati o'tgan!{% if g_urgent_count > 1 %} ({{ g_urgent_count }} ta buyurtma){% endif %}</div>
+                <div class="pg-belgi qizil">Muddati o'tgan{% if g_urgent_count > 1 %} · {{ g_urgent_count }} ta buyurtma{% endif %}</div>
                 {% elif g_urgency == 'today' %}
-                <div style="font-size:12px;color:var(--m-b45309);font-weight:700;margin-top:2px">⏰ Bugun muddati!{% if g_urgent_count > 1 %} ({{ g_urgent_count }} ta buyurtma){% endif %}</div>
+                <div class="pg-belgi sariq">Bugun muddati{% if g_urgent_count > 1 %} · {{ g_urgent_count }} ta buyurtma{% endif %}</div>
                 {% elif g_urgency == 'tomorrow' %}
-                <div style="font-size:12px;color:var(--m-b45309);font-weight:700;margin-top:2px">⏰ Ertaga muddati{% if g_urgent_count > 1 %} ({{ g_urgent_count }} ta buyurtma){% endif %}</div>
+                <div class="pg-belgi sariq">Ertaga muddati{% if g_urgent_count > 1 %} · {{ g_urgent_count }} ta buyurtma{% endif %}</div>
                 {% endif %}
               </div>
             </div>
@@ -423,9 +501,9 @@ input[type=number]{-moz-appearance:textfield}
               {# kech120 (zip 134 — F bosqichi 4-qism, audit G2-14): ilgari qarz butun MILLIONGA yaxlitlanib, nomsiz («🔴 0 mln» — 384 000 qarz)
                  va faqat 2+ buyurtmali loyihada edi. Endi «Qarz: 384 ming» (`|qisqa_summa` — brauzerdagi `qisqaSumma` bilan bir qoida), har loyihada. #}
               {% if g.debt > 0 %}
-              <div class="proj-debt" title="Loyiha qarzi (barcha buyurtmalari): {{ g.debt|son(2) }} so'm">🔴 Qarz: {{ g.debt|qisqa_summa }}</div>
+              <div class="proj-debt" title="Loyiha qarzi (barcha buyurtmalari): {{ g.debt|son(2) }} so'm">Qarz: {{ g.debt|qisqa_summa }}</div>
               {% elif g.total > 0 %}
-              <div class="proj-paid">✅ To'langan</div>
+              <div class="proj-paid">✓ To'langan</div>
               {% endif %}
             </div>
           </div>
@@ -435,10 +513,13 @@ input[type=number]{-moz-appearance:textfield}
           {% for o in g.orders %}
             {% set debt = o.debt_amount %}
             {% set is_finished = o.status.value in ('ready', 'delivered') %}
-            {% set row_bg = 'background:var(--f-f0fdf4)' if (is_finished and debt <= 0) else ('background:var(--f-fef2f2)' if (is_finished and debt > 0) else '') %}
             {% set urgency = o.deadline_urgency %}
-            {% set urgency_border = 'border-left:3px solid #DC2626' if urgency == 'overdue' else ('border-left:3px solid #F59E0B' if urgency in ('today', 'tomorrow') else '') %}
-            <div class="ord-item" style="{{ row_bg }};{{ urgency_border }}"
+            {% set ort131 = o.ortiqcha_tolov %}
+            {% set dpct = o.delivery_percent %}
+            {# kech154 (zip 203 «Buyurtmalar ko'rinishi»): holat — klass / `data-urgency` (CSS chizadi). Ilgari fon va chap chegara INLINE edi —
+               tanlangan qatorning `.active` uslubini bosib ketardi (O'LCHANGAN `work/k203/olchov203.py`). `oi-tolangan` / `oi-qarzli` — tugagan
+               buyurtmaning to'lov holati belgisi (ilgari yashil / pushti fon; endi «✓ To'langan» / «Qarz» belgisi ko'rsatadi) #}
+            <div class="ord-item{{ ' oi-tolangan' if (is_finished and debt <= 0) else '' }}{{ ' oi-qarzli' if (is_finished and debt > 0) else '' }}"
                  id="oi-{{ o.id }}" onclick="selectOrder({{ o.id }}, this)"
                  data-num="{{ o.order_number }}"
                  data-client="{{ o.project.client_name if o.project else '—' }}"
@@ -454,51 +535,30 @@ input[type=number]{-moz-appearance:textfield}
                  data-qarz="{{ '1' if debt > 0 else '0' }}"
                  data-phone="{{ (o.project.client_phone or '') if o.project else '' }}"
                  data-items="{{ o.items|map(attribute='name')|select|join(' · ') }}">
-              <div style="display:flex;justify-content:space-between;align-items:center">
-                <div style="display:flex;align-items:center;gap:6px;min-width:0">
-                  <button class="pin-toggle-btn btn btn-ghost btn-icon btn-sm" onclick="event.stopPropagation(); toggleOrderPin({{ o.id }}, this)"
-                          title="{{ 'Pindan olish' if o.is_pinned else 'Pin qilish' }}" aria-label="{{ 'Pindan olish' if o.is_pinned else 'Pin qilish' }}"
-                          style="opacity:{{ '1' if o.is_pinned else '0.28' }}">📌</button>
-                  <div class="ord-num">{{ o.order_number }}</div>
-                </div>
-                {% if o.status.value == 'draft' %}<span class="badge" style="font-size:12px;background:var(--f-f0f0f0);color:var(--m-666666)">📝 Qoralama</span>
-                {% elif o.status.value == 'ready' %}<span class="badge badge-ready" style="font-size:12px">✓ Tayyor</span>
-                {% elif o.status.value == 'delivered' %}<span class="badge badge-delivered" style="font-size:12px" title="«Tayyor» deb belgilanmagan — oylik hisobotga kirmaydi">📦 Yetkazildi</span>
-                {% else %}<span class="badge badge-progress" style="font-size:12px">Jarayonda</span>{% endif %}
+              <div class="oi-bosh">
+                <button class="pin-toggle-btn btn btn-ghost btn-icon btn-sm" onclick="event.stopPropagation(); toggleOrderPin({{ o.id }}, this)"
+                        title="{{ 'Pindan olish' if o.is_pinned else 'Pin qilish' }}" aria-label="{{ 'Pindan olish' if o.is_pinned else 'Pin qilish' }}"
+                        style="opacity:{{ '1' if o.is_pinned else '0.28' }}">📌</button>
+                <div class="ord-num">{{ o.order_number }}</div>
+                <span class="oi-holat">
+                {%- if o.status.value == 'draft' %}<span class="badge" style="font-size:12px;background:var(--f-f0f0f0);color:var(--m-666666)">📝 Qoralama</span>
+                {%- elif o.status.value == 'ready' %}<span class="badge badge-ready" style="font-size:12px">✓ Tayyor</span>
+                {%- elif o.status.value == 'delivered' %}<span class="badge badge-delivered" style="font-size:12px" title="«Tayyor» deb belgilanmagan — oylik hisobotga kirmaydi">📦 Yetkazildi</span>
+                {%- else %}<span class="badge badge-progress" style="font-size:12px">Jarayonda</span>{% endif -%}
+                </span>
               </div>
-              <div class="ord-date">{{ o.created_at|toshkent('%d.%m.%Y') }} · {{ (o.kelishilgan_summa)|son(0) }} so'm</div>
-              {# kech100 (131-band): mijozga qaytarilishi kerak bo'lgan ortiqcha to'lov — DOIMIY belgi #}
-              {% set ort131 = o.ortiqcha_tolov %}
-              {% if ort131 > 0 %}
-              <div class="ort-qaytarish" style="margin-top:3px;font-size:12px;color:var(--m-c2410c);font-weight:700">↩ Qaytarish kerak: {{ (ort131)|son }} so'm</div>
-              {% endif %}
-              {% if urgency == 'overdue' %}
-              <div class="deadline-pulse" style="margin-top:3px;font-size:12px;color:var(--m-dc2626);font-weight:700">🔴 Muddati o'tgan!</div>
-              {% elif urgency == 'today' %}
-              <div class="deadline-pulse" style="margin-top:3px;font-size:12px;color:var(--m-b45309);font-weight:700">⏰ Bugun muddati!</div>
-              {% elif urgency == 'tomorrow' %}
-              <div style="margin-top:3px;font-size:12px;color:var(--m-b45309);font-weight:700">⏰ Ertaga muddati</div>
-              {% endif %}
-              {% set dpct = o.delivery_percent %}
-              {% if dpct > 0 and dpct < 100 %}
-              <div style="margin-top:5px;display:flex;align-items:center;gap:5px">
-                <div style="flex:1;height:3px;background:var(--f-f0f0f0);border-radius:2px;overflow:hidden">
-                  <div style="height:100%;width:{{ dpct }}%;background:#1D4ED8;border-radius:2px"></div>
-                </div>
-                <span style="font-size:12px;color:var(--m-1d4ed8);font-weight:600">📦 {{ dpct|son(1) }}%</span>
+              <div class="ord-date"><span class="oi-sana">{{ o.created_at|toshkent('%d.%m.%Y') }}</span><span class="oi-summa">{{ (o.kelishilgan_summa)|son(0) }} so'm</span></div>
+              {# belgilar: muddat, qarz / to'langan, topshirish, mijozga qaytarish (kech100, 131-band — DOIMIY belgi) #}
+              <div class="oi-belgilar">
+                {%- if urgency == 'overdue' %}<span class="oi-belgi qizil">Muddati o'tgan</span>
+                {%- elif urgency == 'today' %}<span class="oi-belgi sariq">Bugun muddati</span>
+                {%- elif urgency == 'tomorrow' %}<span class="oi-belgi sariq">Ertaga muddati</span>{% endif -%}
+                {%- if debt > 0 %}<span class="oi-belgi qarz">Qarz: {{ (debt)|son(0) }} so'm</span>
+                {%- elif o.payment_status and o.payment_status.value == 'paid' %}<span class="oi-belgi yashil">✓ To'langan</span>{% endif -%}
+                {%- if dpct > 0 and dpct < 100 %}<span class="oi-belgi kok" title="Topshirildi"><span class="oi-mini"><i style="width:{{ dpct }}%"></i></span>{{ dpct|son(1) }}%</span>
+                {%- elif dpct >= 100 %}<span class="oi-belgi kok">To'liq topshirildi</span>{% endif -%}
+                {%- if ort131 > 0 %}<div class="ort-qaytarish">↩ Qaytarish kerak: {{ (ort131)|son }} so'm</div>{% endif -%}
               </div>
-              {% elif dpct >= 100 %}
-              <div style="margin-top:5px;font-size:12px;color:var(--m-1d4ed8);font-weight:600">📦 To'liq topshirildi</div>
-              {% endif %}
-              {% if debt > 0 %}
-              <div style="margin-top:3px;font-size:12px;color:var(--m-dc2626);font-weight:600">
-                🔴 Qarz: {{ (debt)|son(0) }} so'm
-              </div>
-              {% elif o.payment_status and o.payment_status.value == 'paid' %}
-              <div style="margin-top:3px;font-size:12px;color:var(--m-15803d);font-weight:600">
-                ✅ To'liq to'langan
-              </div>
-              {% endif %}
             </div>
           {% endfor %}
           </div>
@@ -771,6 +831,34 @@ input[type=number]{-moz-appearance:textfield}
         </div>
       </div>
 
+      <!-- kech154 (zip 203): OCHILGAN BUYURTMA SARLAVHASI — qaysi buyurtma ochiq ekani darhol ko'rinsin (`ochilganSarlavha` to'ldiradi) -->
+      <div id="odSarlavha" class="od-sarlavha" role="status" aria-live="polite">
+        <div class="ods-ikon" aria-hidden="true"><i class="ti ti-file-invoice"></i></div>
+        <div class="ods-matn">
+          <div class="ods-yuqori"><span class="ods-raqam" id="ods-raqam">—</span><span id="ods-holat"></span></div>
+          <div class="ods-pastki" id="ods-nom">—</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head" style="cursor:pointer" onclick="toggleSection('odBody', 'od-toggle-ic')">
+          <h3><span class="ico-badge blue"><i class="ti ti-list-details"></i></span> Buyurtma tarkibi</h3>
+          <div style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">
+            <span id="od-status"></span>
+            <span id="od-mrp-readiness"></span>
+            <button class="btn btn-outline btn-icon btn-sm" onclick="toggleSection('odBody','od-toggle-ic')" title="Yig'ish/yoyish" aria-label="Yig'ish/yoyish">
+              <i class="ti ti-chevron-down" id="od-toggle-ic" style="transition:transform .2s"></i>
+            </button>
+          </div>
+        </div>
+        {# kech120 (zip 134 — G2-12): buyurtma tarkibi (detallar) OCHIQ holda ochiladi — nima buyurtma qilingani darhol ko'rinadi #}
+        <div style="padding:12px" id="odBody">
+          <div id="od-items-container">
+            <!-- Detallar bu yerda -->
+          </div>
+        </div>
+      </div>
+
       <!-- YETKAZISH BO'LIMI -->
       <div class="card" style="margin-top:12px">
         <div class="card-head" style="cursor:pointer" onclick="toggleSection('dlvBody', 'dlv-toggle-ic')">
@@ -808,25 +896,6 @@ input[type=number]{-moz-appearance:textfield}
             <span id="dlv-hist-count" style="font-size:13px;color:var(--text3)"></span>
           </div>
           <div id="dlvHistory"></div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-head" style="cursor:pointer" onclick="toggleSection('odBody', 'od-toggle-ic')">
-          <h3 id="od-num">—</h3>
-          <div style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">
-            <span id="od-status"></span>
-            <span id="od-mrp-readiness"></span>
-            <button class="btn btn-outline btn-icon btn-sm" onclick="toggleSection('odBody','od-toggle-ic')" title="Yig'ish/yoyish" aria-label="Yig'ish/yoyish">
-              <i class="ti ti-chevron-down" id="od-toggle-ic" style="transition:transform .2s"></i>
-            </button>
-          </div>
-        </div>
-        {# kech120 (zip 134 — G2-12): buyurtma tarkibi (detallar) OCHIQ holda ochiladi — nima buyurtma qilingani darhol ko'rinadi #}
-        <div style="padding:12px" id="odBody">
-          <div id="od-items-container">
-            <!-- Detallar bu yerda -->
-          </div>
         </div>
       </div>
 
@@ -921,7 +990,8 @@ input[type=number]{-moz-appearance:textfield}
     <!-- Tanlangan buyurtma xulosasi -->
     <div class="card" id="sumCard" style="display:none">
       <div class="card-head" style="cursor:pointer" onclick="toggleSection('sumBody','sum-toggle-ic')">
-        <h3><span class="ico-badge blue"><i class="ti ti-clipboard-list"></i></span> Buyurtma xulosasi</h3>
+        <h3><span class="ico-badge blue"><i class="ti ti-clipboard-list"></i></span> <span class="sum-sarlavha-matn">Buyurtma xulosasi</span>
+          <span class="sum-sarlavha-blok"><span class="sum-raqam" id="sumRaqam"></span><span class="sum-nom" id="sumNom"></span></span></h3>
         <button class="btn btn-outline btn-icon btn-sm" onclick="toggleSection('sumBody','sum-toggle-ic')" title="Yig'ish/yoyish" aria-label="Yig'ish/yoyish">
           <i class="ti ti-chevron-down" id="sum-toggle-ic" style="font-size:14px;transition:transform .2s"></i>
         </button>
@@ -2071,6 +2141,23 @@ function toggleProject(pid) {
   if (typeof ordHolatSaqla === 'function') ordHolatSaqla();
 }
 
+// kech154 (zip 203 «Buyurtmalar ko'rinishi»): ochilgan buyurtma sarlavhasi — faqat ko'rinish (qiymatlar qatorning `data-*` idan)
+function ochilganSarlavha(d, holatHtml) {
+  const q = (i) => document.getElementById(i);
+  if (q('ods-raqam')) q('ods-raqam').textContent = d.num || '—';
+  if (q('ods-holat')) q('ods-holat').innerHTML = holatHtml || '';
+  if (q('ods-nom')) q('ods-nom').textContent = [d.project, d.client, d.phone].filter(x => x && x !== '—').join(' · ') || '—';
+  if (q('sumRaqam')) q('sumRaqam').textContent = d.num || '';
+  if (q('sumNom')) q('sumNom').textContent = [d.project, d.client].filter(x => x && x !== '—').join(' · ');
+  ['odSarlavha', 'sumCard'].forEach(i => {
+    const e = q(i);
+    if (!e) return;
+    e.classList.remove('ochildi');
+    void e.offsetWidth;                // yonish animatsiyasi har tanlashda qaytadan
+    e.classList.add('ochildi');
+  });
+}
+
 function openProject(pid) {
   const g = document.querySelector(`.proj-group[data-project-id="${pid}"]`);
   const body = document.getElementById('pb-' + pid);
@@ -2089,6 +2176,8 @@ function selectOrder(id, el) {
 
   document.querySelectorAll('.ord-item').forEach(i => i.classList.remove('active'));
   el.classList.add('active');
+  // kech154 (zip 203): shu buyurtmaning ikkinchi nusxasi (ustuvor ro'yxat / loyiha ichida) ham tanlangan ko'rinadi
+  document.querySelectorAll(`.ord-item[data-order-id="${id}"]`).forEach(i => i.classList.add('active'));
   selectedOrderId = id;
   if (typeof ordHolatSaqla === 'function') ordHolatSaqla();     // kech120 (G2-13): qayta yuklanganda tiklanadi
   const d = el.dataset;
@@ -2130,7 +2219,8 @@ function selectOrder(id, el) {
   // Draft banner
   document.getElementById('draftBanner').style.display = isDraft ? 'block' : 'none';
 
-  document.getElementById('od-num').textContent = d.num + ' · ' + d.client;
+  // kech154 (zip 203): ochilgan buyurtma sarlavhasi (o'rtada) va xulosa sarlavhasidagi raqam; bir lahza yonib, ochilgani sezilsin
+  if (typeof ochilganSarlavha === 'function') ochilganSarlavha(d, statusEl.innerHTML);
 
   // Amallar tugmalari
   document.getElementById('btn-ready').style.display  = (isReady || isDraft) ? 'none' : 'block';
@@ -7647,26 +7737,24 @@ function renderPinnedOrders(rows) {
       : o.status === 'delivered' ? '<span class="badge badge-delivered" style="font-size:12px" title="«Tayyor» deb belgilanmagan — oylik hisobotga kirmaydi">📦 Yetkazildi</span>'
       : '<span class="badge badge-progress" style="font-size:12px">Jarayonda</span>';
     const amount = (o.agreed_amount ?? o.total_amount) || 0;  // kech42 K42-1
-    const urgencyBorder = o.deadline_urgency === 'overdue' ? 'border-left:3px solid #DC2626'
-      : (o.deadline_urgency === 'today' || o.deadline_urgency === 'tomorrow') ? 'border-left:3px solid #F59E0B' : '';
-    const urgencyText = o.deadline_urgency === 'overdue' ? '<div class="deadline-pulse" style="margin-top:3px;font-size:12px;color:var(--m-dc2626);font-weight:700">🔴 Muddati o\'tgan!</div>'
-      : o.deadline_urgency === 'today' ? '<div class="deadline-pulse" style="margin-top:3px;font-size:12px;color:var(--m-b45309);font-weight:700">⏰ Bugun muddati!</div>'
-      : o.deadline_urgency === 'tomorrow' ? '<div style="margin-top:3px;font-size:12px;color:var(--m-b45309);font-weight:700">⏰ Ertaga muddati</div>' : '';
+    // kech154 (zip 203): ro'yxat qatori bilan bir xil tuzilma; muddat — `data-urgency` (CSS chizadi, tanlov uslubini bosib ketmaydi)
+    const urg = ['overdue', 'today', 'tomorrow'].includes(o.deadline_urgency) ? o.deadline_urgency : 'normal';
+    const urgencyText = urg === 'overdue' ? '<span class="oi-belgi qizil">Muddati o\'tgan</span>'
+      : urg === 'today' ? '<span class="oi-belgi sariq">Bugun muddati</span>'
+      : urg === 'tomorrow' ? '<span class="oi-belgi sariq">Ertaga muddati</span>' : '';
     return `
-      <div class="ord-item" id="oi-${o.id}" onclick="selectOrder(${o.id}, this)" style="${urgencyBorder}"
+      <div class="ord-item" id="oi-${o.id}" onclick="selectOrder(${o.id}, this)"
            data-num="${o.order_number}" data-client="${escapeHtml(o.client_name)}" data-project="${escapeHtml(o.project_name)}"
            data-status="${o.status}" data-total="${o.total_amount}" data-master="${escapeHtml(o.master_name)}"
-           data-date="${o.created_at}" data-project-id="${o.project_id}" data-order-id="${o.id}" data-pinned="true">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <div style="display:flex;align-items:center;gap:6px;min-width:0">
-            <button class="pin-toggle-btn btn btn-ghost btn-icon btn-sm" onclick="event.stopPropagation(); toggleOrderPin(${o.id}, this)" title="Pindan olish" aria-label="Pindan olish"
-                    style="opacity:1">📌</button>
-            <div class="ord-num">${o.order_number}</div>
-          </div>
-          ${badge}
+           data-date="${o.created_at}" data-project-id="${o.project_id}" data-order-id="${o.id}" data-pinned="true" data-urgency="${urg}">
+        <div class="oi-bosh">
+          <button class="pin-toggle-btn btn btn-ghost btn-icon btn-sm" onclick="event.stopPropagation(); toggleOrderPin(${o.id}, this)" title="Pindan olish" aria-label="Pindan olish"
+                  style="opacity:1">📌</button>
+          <div class="ord-num">${o.order_number}</div>
+          <span class="oi-holat">${badge}</span>
         </div>
-        <div class="ord-date">${escapeHtml(o.client_name)} · ${sonKor(amount, 0)} so'm${o.deadline ? ' · ⏰ ' + o.deadline : ''}</div>
-        ${urgencyText}
+        <div class="ord-date"><span class="oi-sana">${escapeHtml(o.client_name)}</span><span class="oi-summa">${sonKor(amount, 0)} so'm</span></div>
+        <div class="oi-belgilar">${urgencyText}${o.deadline ? '<span class="oi-belgi kulrang">Muddat: ' + escapeHtml(o.deadline) + '</span>' : ''}</div>
       </div>`;
   }).join('');
 }
