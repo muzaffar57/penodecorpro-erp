@@ -3657,7 +3657,89 @@ _migrate_himoya143()
 # ochiq edi — butun API sxemasi (barcha marshrutlar, /api/system/* va /api/platform/* ham) har kimga ko'rinardi.
 # Ilova ularni ishlatmaydi (shablon / test havolasi yo'q) — o'chirildi. Marshrutlar xaritasi:
 # LOYIHA_PASPORTI.md (tools/pasport_xarita.py).
+# kech155 (zip 199 — XOMASHYO NAVBATI, `crud.xomashyo_navbati`): xomashyo (Inventory) qatorini qulflaydigan yoki yangilaydigan
+# marshrutlar — `work/k199/marshrut_xarita.py` (chaqiruv grafi, nom bo'yicha, ortig'i bilan) chiqargan ro'yxat; mustaqil tekshiruv 199
+# F5 — xomashyoga yetmaydigan va navbat ostida uzoq ishlaydigan 5 tasi chiqarildi (qoplama xabari — 2 Telegram; avans / qarz yopish /
+# avans so'rovini tasdiqlash / sovg'a davri — oylik hisobot). Yangi shunday marshrut qo'shilsa — shu ro'yxatga ham (test
+# `tools/test_tm_qulf199.py`: K6 ro'yxatdagi har marshrut ilovada bor, K8 chaqiruv grafi ⊆ ro'yxat ∪ istisnolar).
+_XOMASHYO_MARSHRUTLARI = frozenset({
+    ("main", "api_activate_draft"),
+    ("main", "api_add_production"),
+    ("main", "api_complete_production"),
+    ("main", "api_create_delivery"),
+    ("main", "api_create_inventory_receipt"),
+    ("main", "api_create_item"),
+    ("main", "api_create_order"),
+    ("main", "api_create_return"),
+    ("main", "api_delete_delivery"),
+    ("main", "api_delete_finished"),
+    ("main", "api_delete_finished_loss"),
+    ("main", "api_delete_item"),
+    ("main", "api_delete_order"),
+    ("main", "api_delete_order_item"),
+    ("main", "api_delete_purchase"),
+    ("main", "api_delete_return"),
+    ("main", "api_finished_loss_taqdir"),
+    ("main", "api_finished_production_brak"),
+    ("main", "api_mark_order_ready"),
+    ("main", "api_produce"),
+    ("main", "api_purchase_stock"),
+    ("main", "api_receipt_cancel"),
+    ("main", "api_record_finished_loss"),
+    ("main", "api_reduce_production"),
+    ("main", "api_release_finished_product_reservation"),
+    ("main", "api_restore_order"),
+    ("main", "api_restore_project"),
+    ("main", "api_return_brak_taqdir"),
+    ("main", "api_sell_finished_product"),
+    ("main", "api_sell_finished_products_batch"),
+    ("main", "api_set_default_penoplast"),
+    ("main", "api_taklif_rasmiylashtir"),
+    ("main", "api_taklif_tahrir"),
+    ("main", "api_taklif_yarat"),
+    ("main", "api_update_finished"),
+    ("main", "api_update_inventory_item"),
+    ("main", "api_update_loy"),
+    ("main", "api_update_min_stock"),
+    ("main", "api_update_order"),
+    ("main", "api_update_order_item"),
+    ("main", "api_update_price"),
+    ("main", "api_update_purchase"),
+    ("main", "api_update_stock"),
+    ("production_routes", "complete_order"),
+    ("production_routes", "create_order"),
+    ("production_routes", "start_order"),
+})
+
+
+def _navbat_korxonasi(request: Request, db: Session):
+    """kech155 (zip 199, mustaqil tekshiruv 199 F2): sessiya cookie → foydalanuvchi korxonasi — FAQAT o'qish. `auth.get_current_user`
+    yon ta'sirlari (muddati o'tgan sessiyani o'chirish, bloklangan korxonada sessiyani yopish + 403) — marshrutning o'z qorovulida
+    avvalgidek (ilgari bu yerda 403 yutilib, qorovul sessiyani topmay 401 «tizimga kiring» berardi). Topilmasa — None."""
+    _tok = request.cookies.get("session_token")
+    if not _tok:
+        return None
+    from models import UserSession as _US199, User as _U199
+    _s = db.query(_US199.user_id, _US199.expires_at).filter(_US199.token == auth.token_xesh(_tok)).first()
+    if _s is None or _s.expires_at < datetime.utcnow():
+        return None
+    return db.query(_U199.company_id).filter(_U199.id == _s.user_id, _U199.is_active == True).scalar()   # noqa: E712
+
+
+def _xomashyo_navbati_marshrut(request: Request, db: Session = Depends(get_db)):
+    """kech155 (zip 199): ro'yxatdagi marshrut — korxonaning xomashyo navbati, so'rov tranzaksiyasining BIRINCHI qulfi (ilova
+    darajasidagi bog'liqlik marshrut bog'liqliklaridan OLDIN yechiladi; korxonani aniqlash — oddiy o'qish, qulfsiz va yon ta'sirsiz).
+    Kirmagan / korxonasiz foydalanuvchi — navbatsiz (marshrutning o'z qorovuli rad etadi)."""
+    _ep = request.scope.get("endpoint")
+    if _ep is None or (getattr(_ep, "__module__", ""), getattr(_ep, "__name__", "")) not in _XOMASHYO_MARSHRUTLARI:
+        return
+    _cid = _navbat_korxonasi(request, db)
+    if _cid is not None:
+        crud.xomashyo_navbati(db, _cid)
+
+
 app = FastAPI(title="PenoDecorPro ERP", description="Ishlab chiqarish boshqaruv tizimi", version="1.0.0", debug=False,
+              dependencies=[Depends(_xomashyo_navbati_marshrut)],
               docs_url=None, redoc_url=None, openapi_url=None)
 
 # 2026-09-16: yangi, dinamik Production/MRP moduli — /api/production/... yo'llari
@@ -7654,7 +7736,7 @@ def api_coating_notify_with_loy(current_user=Depends(auth.ruxsat("buyurtma", "ya
 def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[str] = None,
                       confirm_shortage: bool = False,
                       db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "yaratish")),
-                      response: Response = None):
+                      response: Response = None, background_tasks: BackgroundTasks = None):
     # 2026-09-21 — TENANT (11-sizish): loyiha FAQAT joriy korxonadan.
     # Buyurtmaning korxonasi loyihadan olinadi — begona loyiha = begona
     # korxonada buyurtma va begona ombordan chiqim. Eng birinchi qator:
@@ -7761,8 +7843,12 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[str] = None,
             lines.append(f"{emoji} {item.item_name}: {crud.xabar_son(qty, 3)} {item.unit} qoldi (min: {crud.xabar_son(min_q, 3)}, "
                      f"yetishmaydi: {crud.xabar_son(deficit, 3)})")
         msg = f"⚠️ *Ombor ogohlantirishlari!*\n\n*{new_order.order_number}* buyurtmadan keyin:\n\n━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines) + f"\n━━━━━━━━━━━━━━━━━━━\n\nZudlik bilan buyurtma bering! 🚨\n\n" + _tg_footer(db, auth.company_id_of(current_user))
-        _send_telegram(msg, company_id=auth.company_id_of(current_user))
-    _tm_minus_xabari(db, auth.company_id_of(current_user))     # kech145 (zip 182 — egasi qarori «Darhol xabar»)
+        # kech155 (zip 199 — mustaqil tekshiruv v3 G1, O'LCHANGAN): xabarlar javobdan KEYIN (fon vazifasi). Taklifni rasmiylashtirish
+        # (`api_taklif_rasmiylashtir`) bu funksiyani `bitta_tranzaksiya` ICHIDA chaqiradi — ilgari Telegram COMMIT dan OLDIN, korxona
+        # xomashyo navbati, loyiha va xomashyo qulflari ostida yuborilardi (boshqa amallar 2,6 s kutardi; tranzaksiya qaytsa — yolg'on
+        # ogohlantirish). Marshrut funksiyasi to'g'ridan-to'g'ri chaqirilsa (`background_tasks` yo'q) — darhol, avvalgidek.
+        _fonda(background_tasks, _send_telegram, msg, company_id=auth.company_id_of(current_user))
+    _fonda(background_tasks, _tm_minus_xabari, db, auth.company_id_of(current_user))     # kech145 (zip 182 — «Darhol xabar»)
     return new_order
 
 
@@ -7857,7 +7943,8 @@ def api_taklif_bekor(taklif_id: int, db: Session = Depends(get_db), current_user
 
 @app.post("/api/takliflar/{taklif_id}/rasmiylashtir", response_model=schemas.OrderRead)
 def api_taklif_rasmiylashtir(taklif_id: int, data: schemas.TaklifRasmiylashtir, confirm_shortage: bool = False,
-                             db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "yaratish"))):
+                             db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "yaratish")),
+                             background_tasks: BackgroundTasks = None):
     """Mijoz «olaman» dedi — taklif BITTA tranzaksiyada buyurtmaga aylanadi (egasi qarori 1): mavjud loyiha (`loyiha_id`) yoki
     taklifdagi ism / telefon bilan YANGI loyiha (`yangi_loyiha`, «Loyihalar: Yaratish» ruxsati bilan) + buyurtma.
 
@@ -7899,7 +7986,8 @@ def api_taklif_rasmiylashtir(taklif_id: int, data: schemas.TaklifRasmiylashtir, 
             else:
                 _pid = data.loyiha_id
             order = schemas.OrderCreate(**{**data.buyurtma.model_dump(), "project_id": _pid})
-            new_order = api_create_order(order, None, confirm_shortage, db, current_user)
+            # kech155 (zip 199 — mustaqil tekshiruv v3 G1): xabarlar fon vazifasi — `bitta_tranzaksiya` commit qilingach, navbatsiz
+            new_order = api_create_order(order, None, confirm_shortage, db, current_user, background_tasks=background_tasks)
             if _loyiha is None:
                 _loyiha = new_order.project
             crud.taklif_rasmiylashtirildi(db, t, new_order, performed_by=who, loyiha=_loyiha)

@@ -535,7 +535,7 @@ def get_item_locked(db: Session, item_id: int, company_id: int = None) -> Option
     return inventory_qulf(db, item_id, company_id)
 
 
-def inventory_qulf_sorov(db: Session, q):
+def inventory_qulf_sorov(db: Session, q, ochirish: bool = False):
     """kech142 (zip 170, A-O04 — O'LCHANGAN HAQIQIY PG `work/audit/tasdiq/ombor/p_o04b.py` S6): material (Inventory)
     qatorini `SELECT … FOR UPDATE` bilan qulflaydi VA qiymatlarini bazadan QAYTA yuklaydi (`populate_existing`).
 
@@ -545,20 +545,28 @@ def inventory_qulf_sorov(db: Session, q):
     kirim YO'QOLARDI (penoplast 119.95 + 10 kirim − 0.05 → 119.9, to'g'risi 129.85; qoldiq ≠ Σ harakat).
     - Avval `flush` — sessiyadagi yozilmagan o'zgarish `populate_existing` da yo'qolmasin (`SessionLocal` autoflush=False;
       `_fp_qulf` naqshi).
-    - `q` — `db.query(Inventory)…` (chaqiruvchining filtrlari bilan: id, korxona); natija — bitta qator yoki None."""
+    - `q` — `db.query(Inventory)…` (chaqiruvchining filtrlari bilan: id, korxona); natija — bitta qator yoki None.
+    - kech155 (zip 199 — O'LCHANGAN HAQIQIY PG R7 / R10 / R11, 3 / 3 urinishda 40P01): qulf `FOR NO KEY UPDATE` (`key_share=True`;
+      `_fp_qulf` kech145 naqshi). Detal / harakat yozilganda PG xomashyo qatoriga tashqi kalit KEY SHARE qulfini qo'yadi; oddiy
+      `FOR UPDATE` u bilan to'qnashardi — buyurtma tahriri (guruh → penoplast) ∥ buyurtma yaratish (penoplast KEY SHARE → guruh)
+      va taqdirli brak bekori (partiya → penoplast) ∥ buyurtma bir-birini kutib qolardi (biri 500). NO KEY UPDATE o'zaro (va UPDATE
+      bilan) baribir bir-birini kutadi — qoldiqni o'zgartirish navbati o'zgarmaydi. `ochirish=True` — qatorni O'CHIRADIGAN joy
+      (`delete_item`): oddiy `FOR UPDATE` (yangi tashqi kalit bog'lanishini ham to'xtatadi)."""
     db.flush()
-    return q.populate_existing().with_for_update().first()
+    if ochirish:
+        return q.populate_existing().with_for_update().first()
+    return q.populate_existing().with_for_update(key_share=True).first()
 
 
-def inventory_qulf(db: Session, item_id, company_id: int = None) -> Optional[Inventory]:
+def inventory_qulf(db: Session, item_id, company_id: int = None, ochirish: bool = False) -> Optional[Inventory]:
     """kech142 (zip 170, A-O04): id (va korxona) bo'yicha material qatori — QULFLANGAN va bazadan QAYTA yuklangan
-    (`inventory_qulf_sorov`). id bo'sh bo'lsa — None (so'rov yuborilmaydi)."""
+    (`inventory_qulf_sorov`; kech155 — `FOR NO KEY UPDATE`, `ochirish=True` — `FOR UPDATE`). id bo'sh bo'lsa — None."""
     if not item_id:
         return None
     q = db.query(Inventory).filter(Inventory.id == item_id)
     if company_id is not None:
         q = q.filter(Inventory.company_id == company_id)
-    return inventory_qulf_sorov(db, q)
+    return inventory_qulf_sorov(db, q, ochirish=ochirish)
 
 
 # ============================================================
@@ -1631,7 +1639,7 @@ def delete_item(db: Session, item_id: int) -> dict:
     ko'rinadi), so'ng o'chiriladi. Qoldiq QULF ostida o'qiladi (parallel kirim bilan poyga bo'lmasin)."""
     from sqlalchemy.exc import IntegrityError, ProgrammingError
 
-    db_item = inventory_qulf(db, item_id)
+    db_item = inventory_qulf(db, item_id, ochirish=True)     # kech155 (zip 199): qator o'chiriladi — `FOR UPDATE`
     if not db_item:
         return {"success": False, "message": "Xomashyo topilmadi"}
 
@@ -1667,7 +1675,7 @@ def delete_item(db: Session, item_id: int) -> dict:
         db.rollback()
         # kech142 (zip 170): rollback qulfni bo'shatdi — qator QAYTA qulflanib, qoldiq yana tekshiriladi (shu orada kirim
         # qilingan bo'lsa — qoldiqli material yashirilmasin).
-        db_item = inventory_qulf(db, item_id)
+        db_item = inventory_qulf(db, item_id, ochirish=True)
         if not db_item:
             return {"success": False, "message": "Xomashyo topilmadi"}
         if abs(float(db_item.stock_quantity or 0)) > 1e-9:
@@ -8860,7 +8868,7 @@ def delete_return_item(db: Session, return_id: int, company_id: int = None,
                 _inv = db.query(Inventory).filter(
                     Inventory.id == _h.inventory_id,
                     Inventory.company_id == _cid,
-                ).populate_existing().with_for_update().first()
+                ).populate_existing().with_for_update(key_share=True).first()     # kech155 (zip 199): FOR NO KEY UPDATE
             if _inv is not None:
                 _inv.stock_quantity = float(_inv.stock_quantity or 0) + float(_h.quantity or 0)
                 _xom.append(f"{_inv.item_name} +{_miqdor_jurnal(float(_h.quantity or 0))} {_inv.unit or ''}".rstrip())
@@ -9106,6 +9114,150 @@ def _pul_qulfi(db: Session, ns: int, kalit) -> None:
                        {"ns": ns, "k": int(kalit)})
     except Exception:
         pass
+
+
+# kech155 (zip 199 — O'LCHANGAN HAQIQIY PG, `work/k199/probe199.py` va statik audit `work/k199/AUDIT_QULF.md`): XOMASHYO NAVBATI.
+# Xomashyo (Inventory) qatorlarini qulflaydigan yo'llar ularni HAR XIL tartibda oladi (detal tartibi, retsept tarkibi, BOM qatori,
+# penoplast ↔ loy xomashyosi ↔ «Tayyor loy», tayyor mahsulot guruhidan oldin / keyin) — zip 198 kodida bir vaqtdagi ikki amal 3 / 3
+# urinishda 40P01 (biri 500): buyurtma yaratish ∥ qoralamani faollashtirish / qoplamali brak / ikki zichlikli buyurtma / «Tayyor» qisman /
+# MRP «Yakunlash»; buyurtmani o'chirish ∥ qoralamani faollashtirish; xomashyo qulfi `FOR NO KEY UPDATE` bo'lgach yana: yaratish ∥
+# ishlab chiqarish / «+» / buyurtmani o'chirish. Har yo'lni bitta tartibga keltirish (hamma xomashyoni oldindan id tartibida) — o'nlab
+# yo'lda murakkab va xato qilish oson. YECHIM (texnik — Claude): xomashyoga tegadigan amal (marshrutlar ro'yxati —
+# `main._XOMASHYO_MARSHRUTLARI`) tranzaksiyasining BIRINCHI qulfi — korxona bo'yicha `pg_advisory_xact_lock(199, korxona)`: shunday
+# amallar bir korxonada NAVBAT bilan bajariladi (har biri millisekundlar), bir-birini kutib qolish (40P01) imkonsiz — navbatni kutayotgan
+# tranzaksiya hali hech narsa ushlamagan. Navbatsiz amallar (to'lov, yuk xati ro'yxati, o'qish) xomashyoni qulflamaydi — ular bilan
+# halqa bo'lmaydi.
+# So'rovning 1-tranzaksiyasida navbat DARHOL (ilova bog'liqligi `main._xomashyo_navbati_marshrut`). So'rov ichida commit / rollback dan
+# keyingi tranzaksiyada — DANGASA: birinchi qulflovchi / yozuvchi bayonotdan OLDIN (`_xomashyo_navbati_bayonotda`, shu ulanishda).
+# Mustaqil tekshiruv 199 F1 / F6 va O'LCHANGAN test_taminot180 P4 / P6 / P8 / P9 (`work/kech154_holat.md`): navbat commit dan keyingi
+# har tranzaksiya BOSHIDA qayta olinganda (1-variant) javob o'qishi / Telegram / fon vazifalari paytida ham navbat USHLANARDI
+# (korxonaning boshqa amallari 2,6–5,6 s kutardi) va A ning javob o'qishi B ning BUTUN tranzaksiyasini kutib, B o'chirgan xaridni
+# yangilay olmay 500 berardi («Could not refresh instance»). Faqat o'qiydigan bayonot qator qulfi qo'ymaydi — 40P01 jihatidan
+# navbatsiz xavfsiz. LEKIN keyingi tranzaksiyada o'qilgan qiymatdan keyin YOZILSA (o'qish → hisob → yozish), o'qishdan OLDIN o'sha
+# qatorni qulflang (`with_for_update(...).populate_existing()` — tasniflagich uni ko'rib, navbatni undan oldin oladi): mustaqil
+# tekshiruv v3 G2 — `update_order_loy` eski loy rejasini navbatsiz o'qib, ikki parallel tahrirda 5 kg ortiqcha yechardi.
+# SAVEPOINT ham navbat sababi (G3): keyingi tranzaksiyaning birinchi qulfi SAVEPOINT ichida olinib, savepoint qaytarilsa PG navbatni
+# bo'shatardi, belgi esa «olingan» qolardi — navbat SAVEPOINT dan OLDIN, tashqi darajada olinadi.
+import re as _re199                                 # noqa: E402
+XOMASHYO_NAVBATI_NS = 199
+_XN_ULANISH = "_kech155_xn"           # Connection.info: [korxona, navbat olindimi] — joriy (tashqi) tranzaksiya; yakunda tozalanadi
+_XN_QULF_RE = _re199.compile(r"\bFOR\s+(?:NO\s+KEY\s+UPDATE|UPDATE|KEY\s+SHARE|SHARE)\b|\bpg_(?:try_)?advisory", _re199.I)
+_XN_YOZUV_RE = _re199.compile(r"\b(?:INSERT|UPDATE|DELETE|MERGE|TRUNCATE)\b", _re199.I)
+_XN_OQISH = frozenset({"SELECT", "VALUES", "TABLE", "SHOW", "EXPLAIN", "PRAGMA"})
+_XN_BOSHQARUV = frozenset({"RELEASE", "ROLLBACK", "COMMIT", "BEGIN", "END", "SET", "RESET"})
+
+
+def _xn_birinchi_soz(statement) -> str:
+    """kech155 (zip 199): bayonotning birinchi kalit so'zi (bosh bo'shliq, `--` / `/* */` izohlar va ochiq qavslardan keyin), katta
+    harfda; topilmasa — bo'sh satr."""
+    _s = statement or ""
+    _i, _n = 0, len(_s)
+    while _i < _n:
+        if _s[_i].isspace() or _s[_i] == "(":
+            _i += 1
+        elif _s.startswith("--", _i):
+            _j = _s.find("\n", _i)
+            _i = _n if _j < 0 else _j + 1
+        elif _s.startswith("/*", _i):
+            _j = _s.find("*/", _i + 2)
+            _i = _n if _j < 0 else _j + 2
+        else:
+            break
+    _m = _re199.match(r"[A-Za-z_]+", _s[_i:])
+    return _m.group(0).upper() if _m else ""
+
+
+def xomashyo_navbati_bayonotimi(statement) -> bool:
+    """kech155 (zip 199): bayonot qator / advisory qulf qo'yadimi, yozadimi yoki SAVEPOINT ochadimi — navbat undan OLDIN kerak:
+    `FOR [NO KEY] UPDATE` / `FOR [KEY] SHARE` / `pg_[try_]advisory…` istalgan joyida; birinchi kalit so'z (izoh, qavs, bo'shliqdan
+    keyin) SELECT / VALUES / TABLE / SHOW / EXPLAIN / PRAGMA — o'qish; WITH — faqat ichida INSERT / UPDATE / DELETE / MERGE / TRUNCATE
+    bo'lsa; RELEASE / ROLLBACK / COMMIT / BEGIN / END / SET / RESET — tranzaksiya boshqaruvi; qolgani (INSERT / UPDATE / DELETE /
+    SAVEPOINT / noma'lum) — HA (shubhada navbat biroz oldinroq olinadi — xavfsiz tomoni)."""
+    _s = statement or ""
+    if _XN_QULF_RE.search(_s):
+        return True
+    _b = _xn_birinchi_soz(_s)
+    if _b == "WITH":
+        return bool(_XN_YOZUV_RE.search(_s))
+    return not (_b in _XN_OQISH or _b in _XN_BOSHQARUV)
+
+
+def xomashyo_navbati(db: Session, company_id) -> None:
+    """kech155 (zip 199): shu sessiya (so'rov) korxonaning XOMASHYO NAVBATIDA — hozirgi tranzaksiyada DARHOL; keyingilarida birinchi
+    qulflovchi / yozuvchi bayonotdan OLDIN (`_xomashyo_navbati_tranzaksiyada`, `_xomashyo_navbati_bayonotda`). Faqat PostgreSQL;
+    korxona noma'lum bo'lsa — hech narsa. Navbat xatosi YUTILMAYDI (asl sababi ko'rinsin)."""
+    if company_id is None:
+        return
+    _cid = int(company_id)
+    db.info["xomashyo_navbati"] = _cid
+    if db.get_bind().dialect.name != "postgresql":
+        return
+    db.connection().info[_XN_ULANISH] = [_cid, True]
+    from sqlalchemy import text as _t
+    db.execute(_t("SELECT pg_advisory_xact_lock(:ns, :k)"), {"ns": XOMASHYO_NAVBATI_NS, "k": _cid})
+
+
+def _xomashyo_navbati_tranzaksiyada(session, transaction, connection) -> None:
+    """kech155 (zip 199): `after_begin` — navbat belgili sessiyaning YANGI tashqi tranzaksiyasi: navbat hali OLINMAGAN (ulanishga
+    belgi). SAVEPOINT (ichki tranzaksiya) — belgi tashqi tranzaksiyaniki (o'zgarmaydi); navbat hali olinmagan bo'lsa u SAVEPOINT
+    bayonotidan OLDIN tashqi darajada olinadi (`xomashyo_navbati_bayonotimi` — SAVEPOINT ham sabab)."""
+    if getattr(transaction, "nested", False):
+        return
+    _cid = session.info.get("xomashyo_navbati")
+    if _cid is None:
+        return
+    if connection.dialect.name == "postgresql":
+        connection.info[_XN_ULANISH] = [int(_cid), False]
+
+
+def _xomashyo_navbati_bayonotda(conn, cursor, statement, parameters, context, executemany) -> None:
+    """kech155 (zip 199): `before_cursor_execute` — navbat belgili tranzaksiyaning BIRINCHI qulflovchi / yozuvchi / SAVEPOINT
+    bayonotidan OLDIN xomashyo navbati (shu ulanishning o'z kursorida). Undan oldingi bayonotlar faqat o'qigan (qator qulfisiz) — navbatni
+    kutish halqa hosil qilmaydi. Belgi FAQAT muvaffaqiyatdan keyin «olingan»; xato yutilmaydi — SQLAlchemy `DBAPIError` turida
+    (`before_cursor_execute` SQLAlchemy ning DBAPI xatolarini o'raydigan blokidan TASHQARIDA chaqiriladi — mustaqil tekshiruv v3 G4)."""
+    try:
+        _h = conn.info.get(_XN_ULANISH)
+    except Exception:
+        return
+    if not _h or _h[1] or not xomashyo_navbati_bayonotimi(statement):
+        return
+    _sql = "SELECT pg_advisory_xact_lock(%d, %d)" % (XOMASHYO_NAVBATI_NS, int(_h[0]))
+    try:
+        cursor.execute(_sql)
+    except Exception as _e:
+        _dbapi = getattr(conn.dialect, "loaded_dbapi", None)
+        if _dbapi is not None and isinstance(_e, _dbapi.Error):
+            from sqlalchemy import exc as _exc199
+            raise _exc199.DBAPIError.instance(_sql, None, _e, _dbapi.Error, dialect=conn.dialect) from _e
+        raise
+    _h[1] = True
+
+
+def _xomashyo_navbati_yakun(conn) -> None:
+    """kech155 (zip 199): tranzaksiya yakuni (commit / rollback) — ulanish belgisi olinadi (navbat PG da o'zi bo'shaydi)."""
+    try:
+        conn.info.pop(_XN_ULANISH, None)
+    except Exception:
+        pass
+
+
+def _xomashyo_navbati_qaytdi(dbapi_connection, connection_record) -> None:
+    """kech155 (zip 199): ulanish hovuzga qaytdi — belgi olinadi."""
+    try:
+        connection_record.info.pop(_XN_ULANISH, None)
+    except Exception:
+        pass
+
+
+from sqlalchemy import event as _event199          # noqa: E402
+from sqlalchemy.engine import Engine as _Engine199  # noqa: E402
+from sqlalchemy.pool import Pool as _Pool199        # noqa: E402
+from database import SessionLocal as _SL199         # noqa: E402
+_event199.listen(_SL199, "after_begin", _xomashyo_navbati_tranzaksiyada)
+_event199.listen(_Engine199, "before_cursor_execute", _xomashyo_navbati_bayonotda)
+_event199.listen(_Engine199, "commit", _xomashyo_navbati_yakun)
+_event199.listen(_Engine199, "rollback", _xomashyo_navbati_yakun)
+_event199.listen(_Pool199, "checkin", _xomashyo_navbati_qaytdi)
 
 
 def _tolov_chegarasi(order, summa: float, confirm_overpay: bool) -> None:
@@ -11426,6 +11578,17 @@ def update_order_loy(db: Session, order_id: int, new_loy: float) -> dict:
     except ValueError as _e54:
         return {"success": False, "message": str(_e54)}
 
+    # kech155 (zip 199 — mustaqil tekshiruv v3 G2, O'LCHANGAN HAQIQIY PG `work/k199/review199/s3/loy_poyga.py`): tekshiruvlardan KEYIN
+    # buyurtma qatori QULFLANIB bazadan QAYTA o'qiladi. `api_update_order` da bu qadam tahrir commit qilingandan KEYINGI tranzaksiyada —
+    # xomashyo navbati dangasa (birinchi qulflovchi bayonotdan oldin); ilgari eski reja (`old_loy`) navbatsiz va qulfsiz o'qilib, ikki
+    # parallel loy tahriri (10 → 20 va 10 → 15) xomashyodan 15 kg yechardi (ketma-ket — 5 yoki 10; zip 198 kodida ham). Qulf — NO KEY
+    # (qator o'chirilmaydi; to'lov / detal yozuvlarining tashqi kalit KEY SHARE i bilan to'qnashmaydi). Tekshiruvdan keyin — rad etilgan
+    # so'rov (400) navbat va qulfni ushlamaydi.
+    _qulfli = db.query(Order).filter(Order.id == order_id, Order.company_id == order.company_id).populate_existing() \
+        .with_for_update(key_share=True).first()      # identity map — o'sha `order` obyekti, bazadan yangilangan
+    if not _qulfli:
+        return {"success": False, "message": "Buyurtma topilmadi"}
+    order = _qulfli
     old_loy = services._get_planned_loy(order)
 
     log = []

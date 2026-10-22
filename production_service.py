@@ -1136,6 +1136,11 @@ def complete_production_order(db: Session, po_id: int, company_id: int, performe
 
         total_material_cost = 0.0
         _ochirilgan142 = []
+        # kech155 (zip 199 — O'LCHANGAN HAQIQIY PG R2 / R5, 3 / 3 urinishda 40P01, «Yakunlash» 500): yangi partiya guruhi (minus bo'lsa
+        # guruhdoshlari bilan, id tartibida — `_tm_oldindan_qulf`) XOMASHYODAN OLDIN — loyiha qoidasi «guruh → xomashyo» (buyurtma
+        # yaratish / tahriri / loy). Ilgari xomashyo qulflanib, keyin partiya yozilib, oxirida muvozanat guruhni qulflardi.
+        if po.finished_product_id:
+            crud._tm_oldindan_qulf(db, [po.finished_product_id], company_id)
         for line in snapshot:
             if not line.get("included"):
                 continue  # Tanlanmagan ixtiyoriy komponent — o'tkazib yuboriladi
