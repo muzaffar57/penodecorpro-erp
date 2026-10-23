@@ -527,6 +527,8 @@
     <div class="form-group"><label>Sana</label><input type="date" id="adv-date"></div>
     <div class="form-group"><label>Summa (so'm)</label><input type="text" id="adv-amount" placeholder="0" oninput="formatPriceInput(this)"></div>
     <div class="form-group"><label>Izoh (ixtiyoriy)</label><input type="text" id="adv-notes" placeholder="Masalan: bayram sovg'asi uchun"></div>
+    {# kech155 (zip 210): pul qaysi hisobdan berildi #}
+    <div class="form-group"><label>Qaysi hisobdan berildi</label><div id="adv-hisob" data-hisob-tanlov></div></div>
     <button class="btn btn-dark w-full" id="adv-save-btn" onclick="saveAdvance()">+ Avans qo'shish</button>
 
     <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--ch-eeeeee)">
@@ -1104,6 +1106,7 @@ function openAdvanceModal(empId, empName) {
   document.getElementById('adv-amount').value = '';
   document.getElementById('adv-notes').value = '';
   document.getElementById('adv-date').value = tkISO();     // kech106: bugun — Toshkent (ilgari UTC sanasi)
+  hisobTanla('adv-hisob', 'naqd');                         // kech155 (zip 210)
   document.getElementById('advanceModal').style.display = 'flex';
   loadAdvanceHistory(empId);
 }
@@ -1367,7 +1370,8 @@ async function saveAdvance() {
     const notes = document.getElementById('adv-notes').value.trim();
     const dateVal = document.getElementById('adv-date').value;
     // kech140 (zip 168, A-P09): oylikdan ko'p bo'lsa so'raladi (`avansYubor`); takror yuborish (8 s) — server bitta yozadi
-    const r = await avansYubor(`/api/employees/${advanceEmpId}/advance?amount=${amount}&notes=${encodeURIComponent(notes)}&adv_date=${dateVal}`);
+    const r = await avansYubor(`/api/employees/${advanceEmpId}/advance?amount=${amount}&notes=${encodeURIComponent(notes)}&adv_date=${dateVal}` +
+                               `&hisob=${encodeURIComponent(hisobQiymat('adv-hisob'))}`);      // kech155 (zip 210)
     if (r.ok) {
       document.getElementById('adv-amount').value = '';
       document.getElementById('adv-notes').value = '';

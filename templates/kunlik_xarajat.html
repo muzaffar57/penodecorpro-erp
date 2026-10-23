@@ -37,6 +37,12 @@
       <input type="text" id="kx-notes" placeholder="masalan: 5 kishiga tushlik">
     </div>
 
+    {# kech155 (zip 210): pul qaysi hisobdan to'landi #}
+    <div class="form-group">
+      <label>Qaysi hisobdan to'landi</label>
+      <div id="kx-hisob" data-hisob-tanlov></div>
+    </div>
+
     <div id="kx-error" style="display:none;margin-bottom:12px;padding:10px 12px;background:var(--f-fee2e2);border-radius:8px;font-size:13px;color:var(--m-dc2626)"></div>
     <div id="kx-success" style="display:none;margin-bottom:12px;padding:10px 12px;background:var(--f-f0fdf4);border-radius:8px;font-size:13px;color:var(--m-166534)"></div>
 
@@ -218,7 +224,7 @@ async function kxSave(){
   try {
     const n = await amalYubor('/api/finance/transactions', {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ date: date + 'T00:00:00', category, amount, notes })
+      body: JSON.stringify({ date: date + 'T00:00:00', category, amount, notes, hisob: hisobQiymat('kx-hisob') })
     }, 'kunlik_xarajat');
     if (n.ok) {
       ok.style.display = 'block';

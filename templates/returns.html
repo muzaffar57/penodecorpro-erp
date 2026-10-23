@@ -394,6 +394,9 @@
         <input type="radio" name="f-pul" value="keyin" style="margin-top:3px">
         <span><b>Keyinroq</b><br><span style="color:var(--text3)">Ro'yxatdagi «💰 Hisob-kitob qilish» tugmasi bilan.</span></span>
       </label>
+      {# kech155 (zip 210): «Hozir» da mijozga pul qaytarilsa (ortiqcha to'lagan qismi) — qaysi pul hisobidan #}
+      <div style="font-size:12px;color:var(--text3);margin:8px 0 6px">Mijozga pul qaytarilsa — qaysi hisobdan</div>
+      <div id="f-pul-hisob" data-hisob-tanlov></div>
     </div>
     {% endif %}
 
@@ -1128,6 +1131,9 @@ async function deleteReturn(id){
 }
 
 const inFlightRefundToggle = new Set();
+// kech155 (zip 210): pul hisobi turi → mijoz to'lovi usuli (server shu usuldan hisobni aniqlaydi)
+function qaytarishUsuli(turi) { return ({naqd: 'naqd', karta: 'plastik', bank: "o'tkazma"})[turi] || 'naqd'; }
+
 async function toggleRefund(id, current){
   if (current) return; // Faqat "kutilmoqda" -> "qaytdi" tomon, orqaga qaytarilmaydi
   // kech42 (24-band): to'lanmagan pul qaytarilmaydi — summa qarzdan chegiriladi,
@@ -1136,17 +1142,19 @@ async function toggleRefund(id, current){
   const row = document.getElementById('row-' + id);
   const buyurtma = (row && row.dataset.order) || '';
   const summa = row && row.dataset.summa !== undefined ? Number(row.dataset.summa) || 0 : 0;
-  if (!(await customConfirm((buyurtma ? buyurtma + ': ' : '') + (summa > 0 ? fmt(summa) + " so'm — q" : 'Q') +
+  // kech155 (zip 210): tasdiq bilan birga — mijozga pul qaytarilsa (ortiqcha to'lagan qismi) qaysi hisobdan
+  const _hisob210 = await hisobSora((buyurtma ? buyurtma + ': ' : '') + (summa > 0 ? fmt(summa) + " so'm — q" : 'Q') +
       "aytgan mahsulot summasi buyurtmaning kelishilgan summasidan chegiriladi.\n" +
       "Mijoz ortiqcha to'lagan bo'lsa — faqat o'sha qismi naqd qaytarilgan deb yoziladi.\n\nDavom etasizmi?",
-      {okText: 'Ha, hisob-kitob qilinsin', cancelText: 'Yopish'}))) return;
+      {okText: 'Ha, hisob-kitob qilinsin', cancelText: 'Yopish', hisobYorliq: 'Mijozga pul qaytarilsa — qaysi hisobdan'});
+  if (!_hisob210) return;
   if (inFlightRefundToggle.has(id)) return; // Ikki marta bosishdan himoya
   inFlightRefundToggle.add(id);
   try {
     // kech144 (zip 177, audit C#17): tarmoq uzilsa ham xabar (ilgari hech narsa), 5xx — natija noma'lum (server takrorni o'zi
     // to'xtatadi — qayta bosish ikki marta hisoblamaydi), rad — `amalSababi`
     let res;
-    try { res = await fetch(`/api/returns/${encodeURIComponent(id)}/refund`, {method:'POST'}); }
+    try { res = await fetch(`/api/returns/${encodeURIComponent(id)}/refund?payment_method=${encodeURIComponent(qaytarishUsuli(_hisob210))}`, {method:'POST'}); }
     catch (e) { alert(amalNomalumMatn('Hisob-kitob', await amalSababi(e))); return; }
     if (res.ok) {
       let j = {};
@@ -1224,7 +1232,7 @@ async function saveReturn(){
       // kech121 (zip 138 — G5-05): «Hozir hisob-kitob» — darhol (ro'yxatdagi tugma bilan bir marshrut); bo'lmasa sababi, qaytarish saqlangan
       if (pulTanlov === 'hozir' && yangi && yangi.id && Number(yangi.refund_amount) > 0) {
         try {
-          const rr = await fetch(`/api/returns/${Number(yangi.id)}/refund`, {method: 'POST'});
+          const rr = await fetch(`/api/returns/${Number(yangi.id)}/refund?payment_method=${encodeURIComponent(qaytarishUsuli(hisobQiymat('f-pul-hisob')))}`, {method: 'POST'});
           let jj = {};
           try { jj = await rr.json(); } catch (e4) { jj = {}; }
           if (rr.ok) { if (jj && typeof jj.xabar === 'string' && jj.xabar) await xabarOyna('✓ Qaytarish saqlandi. ' + jj.xabar); }

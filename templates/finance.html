@@ -323,6 +323,78 @@ html[data-theme="dark"]{
   /* Kassa balansi tugmalari — mobil uchun to'liq kenglikda, pastma-past */
   .fin-section > div[style*="linear-gradient"] .btn{ width:100%; text-align:center; }
 }
+
+/* ══ kech155 (zip 210 «Naqd / Bank / Karta» — egasi tasdiqlagan ko'rinish 23.10, `work/k210/ekran/`): kassa kartasi ══ */
+.hb-karta{background:linear-gradient(135deg,#0F172A 0%,#1E293B 100%);border-radius:16px;padding:22px 26px 18px;color:#fff;
+  position:relative;overflow:hidden;border:1px solid rgba(255,255,255,.06)}
+.hb-karta:before{content:"";position:absolute;right:-120px;top:-160px;width:420px;height:420px;border-radius:50%;
+  background:radial-gradient(circle,rgba(37,99,235,.35) 0%,rgba(37,99,235,0) 70%);pointer-events:none}
+.hb-yuqori{display:flex;justify-content:space-between;align-items:center;gap:22px;flex-wrap:wrap;position:relative}
+.hb-jami{display:flex;align-items:center;gap:16px;min-width:0}
+.hb-katta-ikon{width:56px;height:56px;border-radius:14px;background:rgba(37,99,235,.22);border:1px solid rgba(147,197,253,.25);
+  display:flex;align-items:center;justify-content:center;color:#93C5FD;flex:0 0 auto}
+.hb-katta-ikon i{font-size:24px}
+.hb-yorliq{font-size:12px;color:#CBD5E1;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.hb-summa-q{display:flex;align-items:center;gap:12px;margin-top:4px}
+/* U-13 yozuv shkalasi (12 / 13 / 14 / 16 / 18 / 24 / 32 px; O'LCHANGAN test_u13) */
+.hb-summa{font-size:32px;font-weight:800;letter-spacing:-.01em;white-space:nowrap}
+/* «›» — `.btn .btn-icon .btn-sm` (o'lcham, burchak — umumiy klassdan; bu yerda faqat qorong'i kartadagi rangi) */
+.hb-ochish{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.14);color:#fff}
+.hb-ochish:hover{background:rgba(255,255,255,.14)}
+.hb-ochish i{transition:transform .15s}
+.hb-ochish[aria-expanded="true"] i{transform:rotate(90deg)}
+.hb-izoh{font-size:13px;color:#CBD5E1;margin-top:2px}
+.hb-hisoblar{display:grid;grid-template-columns:repeat(3,minmax(170px,1fr));gap:10px;flex:1 1 560px;max-width:640px}
+.hb-hisoblar[hidden]{display:none}
+/* hisob kartasi — bosiladigan KARTA (`role="button"`, kamida 60 px; tugma emas — U-13 qoidasi kartaga tegmaydi) */
+.hb-hisob{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);
+  border-radius:12px;padding:12px;cursor:pointer;min-width:0;color:#fff;font-family:inherit;text-align:left;min-height:62px;box-sizing:border-box}
+.hb-hisob:hover{background:rgba(255,255,255,.10)}
+.hb-hisob:focus-visible{outline:2px solid var(--doim-93c5fd);outline-offset:2px}
+.hb-hi{width:36px;height:36px;border-radius:10px;background:rgba(37,99,235,.25);color:#BFDBFE;display:flex;align-items:center;
+  justify-content:center;flex:0 0 auto}
+.hb-hi i{font-size:18px}
+.hb-hn{font-size:13px;color:#CBD5E1;font-weight:600}
+.hb-hs{font-size:16px;font-weight:800;white-space:nowrap;margin-top:1px}
+.hb-hs.manfiy{color:var(--m-f87171)}
+.hb-ogoh{margin-top:12px;background:rgba(251,191,36,.14);border:1px solid rgba(251,191,36,.5);border-radius:10px;padding:10px 12px;
+  font-size:13px;color:#FDE68A;line-height:1.5;max-width:640px;position:relative}
+.hb-tugmalar{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.10);position:relative}
+.hb-tugmalar .btn{background:rgba(255,255,255,.08);border:1px solid #4B5563;color:#fff}
+.hb-tugmalar .btn.hb-asosiy{background:#2563EB;border-color:#2563EB}
+.hb-tugmalar .btn[hidden]{display:none}
+@media (max-width:760px){
+  .hb-karta{padding:18px 16px 14px}
+  .hb-summa{font-size:24px}
+  .hb-katta-ikon{width:46px;height:46px}
+  .hb-katta-ikon i{font-size:18px}
+  .hb-yorliq{font-size:12px}
+  .hb-hisoblar{grid-template-columns:1fr;flex-basis:100%;max-width:none;gap:8px}
+  .hb-hisob{padding:10px 12px}
+  .hb-hisob .hb-hs{margin-left:auto}
+  .hb-hisob>div{display:flex;align-items:center;justify-content:space-between;flex:1;gap:8px}
+  .hb-tugmalar{display:grid;grid-template-columns:1fr 1fr}
+  .hb-tugmalar .btn{font-size:13px;padding-left:6px;padding-right:6px;width:100%}
+  .hb-tugmalar .btn.hb-asosiy{grid-column:1 / -1}
+  .hb-summa-q{flex-wrap:wrap;row-gap:6px}
+}
+/* tor telefon (≤ 420 px, O'LCHANGAN test_c_telefon: 360 px da «⚠️ -17 755 000 so'm» va «›» ekrandan chiqardi) — katta belgi yashirin */
+@media (max-width:420px){
+  .hb-katta-ikon{display:none}
+  .hb-summa{font-size:24px}
+}
+.hb-oldindan{background:var(--gold-tint);border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.6;color:var(--text2);margin-bottom:12px}
+.hb-oldindan b{color:var(--text)}
+.hb-ozg{display:flex;justify-content:space-between;gap:8px}
+.hb-ozg span:last-child{white-space:nowrap}
+.hb-tarix-q{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--f-border);font-size:13px}
+.hb-tarix-q:last-child{border-bottom:none}
+/* qoldiq oynasi qatori — maydon ustuni torayadi (review210 №4, O'LCHANGAN: 320 / 360 / 375 px da maydon 252 px dan toraymay oyna
+   gorizontal surilardi — sarlavha, yorliqlar va «Saqlash» kesilardi) */
+.hb-qoldiq-q{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 10px;align-items:center;margin-bottom:10px}
+.hb-qoldiq-q input{min-width:0;width:100%;box-sizing:border-box}
+.hb-qoldiq-q label{font-weight:600;font-size:13px;display:flex;align-items:center;gap:6px}
+.hb-qoldiq-q small{grid-column:1 / -1;color:var(--text3);font-size:12px}
 </style>
 {% endblock %}
 
@@ -334,29 +406,43 @@ html[data-theme="dark"]{
   <!-- ═══ 0-QATOR: KASSA + BANK (hozir qancha pul bor — naqd, karta, bank; kech118 D-1, G3-14 — egasi QARORI) ═══ -->
   {# kech138 (zip 164, O'LCHANGAN): kassa so'rovlari «Kassa: Ko'rish» ruxsatini so'raydi — ruxsatsiz rolga blok chizilmaydi va so'ralmaydi #}
   {% if current_user.ruxsat('kassa', 'korish') %}
+  {# kech155 (zip 210 «Naqd / Bank / Karta» — egasi so'rovi 23.10 15:56, tasdiqlangan ko'rinish `work/k210/ekran/`): jami + hisob kartalari
+     (Naqd pul / Bank / Karta — bosilsa o'sha hisob tarixi) + tugmalar. Qoldiq kiritilmaguncha — avvalgi umumiy hisob va ogohlantirish. #}
   <div class="fin-section">
-    <div style="background:linear-gradient(135deg,#111827,#1F2937);border-radius:16px;padding:22px 26px;color:#fff;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px">
-      <div>
-        <div style="font-size:13px;color:#CBD5E1;font-weight:600;text-transform:uppercase;letter-spacing:.04em">💰 Kassa + bank — hozir qancha pul bor</div>
-        <div id="cash-balance-val" style="font-size:32px;font-weight:800;margin-top:6px">—</div>
-        <p class="yuk-xato qora-fonda" id="xato-kassa" hidden></p>
-        <div style="font-size:13px;color:#CBD5E1;margin-top:4px">naqd, karta va bank o'tkazmasi — hammasi birga</div>
-        <div id="cash-boshlangich-yoq" hidden style="margin-top:10px;background:rgba(251,191,36,.14);border:1px solid rgba(251,191,36,.5);border-radius:10px;padding:10px 12px;font-size:13px;color:#FDE68A;line-height:1.5;max-width:560px">
-          ⚠️ Boshlang'ich balans kiritilmagan — dasturni ishlata boshlagan kundagi pulingiz hisobda yo'q, shuning uchun summa noto'g'ri (masalan manfiy) chiqishi mumkin.
-          {% if current_user.ruxsat('kassa', 'yaratish') %}<button type="button" class="btn btn-gold" style="margin-top:8px;display:block" onclick="openCashTxModal('boshlangich')">Boshlang'ich balansni kiritish</button>{% endif %}
+    <div class="hb-karta" id="kassa-karta">
+      <div class="hb-yuqori">
+        <div class="hb-jami">
+          <div class="hb-katta-ikon"><i class="ti ti-wallet"></i></div>
+          <div style="min-width:0">
+            <div class="hb-yorliq">Kassa + bank — hozir qancha pul bor</div>
+            <div class="hb-summa-q">
+              <div id="cash-balance-val" class="hb-summa">—</div>
+              <button type="button" class="btn btn-icon btn-sm hb-ochish" id="kassa-tarix-btn" onclick="toggleCashTxHistory()" aria-expanded="false"
+                      title="Qo'lda kiritilganlar tarixi" aria-label="Qo'lda kiritilganlar tarixi"><i class="ti ti-chevron-right"></i></button>
+            </div>
+            <p class="yuk-xato qora-fonda" id="xato-kassa" hidden></p>
+            <div class="hb-izoh">naqd, karta va bank o'tkazmasi — hammasi birga</div>
+          </div>
         </div>
+        <div class="hb-hisoblar" id="hisob-kartalari" hidden></div>
+      </div>
+      <div id="cash-boshlangich-yoq" class="hb-ogoh" hidden>
+        ⚠️ Naqd / Bank / Karta qoldig'i hali kiritilmagan — hozir qaysi hisobda qancha pul borligini bir marta kiriting (kassadagi naqdni
+        sanang, bank va karta qoldig'ini ilovadan ko'ring). Shundan keyin «Kassa + bank» siz sanagan puldan, har hisob alohida hisoblanadi.
+        {% if current_user.ruxsat('kassa', 'yaratish') %}<button type="button" class="btn btn-gold" style="margin-top:8px;display:block" onclick="openQoldiqModal()">Boshlang'ich qoldiqni kiritish</button>{% endif %}
       </div>
       {% if current_user.ruxsat('kassa', 'yaratish') %}
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-outline" style="background:rgba(255,255,255,.08);border-color:#4B5563;color:#fff" onclick="openCashTxModal('boshlangich')">+ Boshlang'ich balans</button>
-        <button class="btn btn-outline" style="background:rgba(255,255,255,.08);border-color:#4B5563;color:#fff" onclick="openCashTxModal('usta_kpi')">− Usta KPI to'landi</button>
-        <button class="btn btn-outline" style="background:rgba(255,255,255,.08);border-color:#4B5563;color:#fff" onclick="openCashTxModal('ehson')">− Ehson to'landi</button>
+      <div class="hb-tugmalar">
+        <button type="button" class="btn hb-asosiy" id="otkazma-btn" hidden onclick="openOtkazmaModal()"><i class="ti ti-arrows-exchange"></i> Hisoblar orasida o'tkazish</button>
+        <button type="button" class="btn" onclick="openQoldiqModal()">+ Boshlang'ich qoldiq</button>
+        <button type="button" class="btn" onclick="openCashTxModal('usta_kpi')">− Usta KPI to'landi</button>
+        <button type="button" class="btn" onclick="openCashTxModal('ehson')">− Ehson to'landi</button>
       </div>
       {% endif %}
     </div>
     <div id="cashTxHistoryWrap" style="margin-top:6px">
       <div style="cursor:pointer;font-size:13px;color:var(--f-text3);padding:6px 4px" onclick="toggleCashTxHistory()">
-        <span id="cashTxHistoryToggleIcon">▸</span> Kassa qo'lda kiritilgan tarix (Boshlang'ich, Usta KPI, Ehson)
+        <span id="cashTxHistoryToggleIcon">▸</span> Qo'lda kiritilganlar tarixi (qoldiq, o'tkazish, Usta KPI, Ehson)
       </div>
       <div id="cashTxHistoryList" style="display:none;background:var(--f-card);border:1px solid var(--f-border);border-radius:10px;padding:4px 14px"></div>
     </div>
@@ -682,6 +768,8 @@ html[data-theme="dark"]{
       </select>
     </div>
     <div class="form-group"><label>Summa (so'm)</label><input type="text" id="tx-f-amount" placeholder="0" oninput="formatPriceInput(this)"></div>
+    {# kech155 (zip 210): qaysi pul hisobidan to'landi #}
+    <div class="form-group"><label>Qaysi hisobdan to'landi</label><div id="tx-f-hisob" data-hisob-tanlov></div></div>
     <div class="form-group">
       <label>Yo'nalish <span style="font-weight:400;color:var(--text3);font-size:12px">— ixtiyoriy, hisobotda ajratib ko'rish uchun</span></label>
       {# kech117 (A2): korxona yo'nalishlari (Sozlamalar); «Umumiy» — umumiy xarajat (daromad ulushida bo'linadi) #}
@@ -711,11 +799,59 @@ html[data-theme="dark"]{
     </div>
     <div class="form-group"><label>Summasi (so'm)</label><input type="text" inputmode="numeric" id="cashtx-amount" placeholder="0" oninput="formatPriceInput(this)"></div>
     <div class="form-group"><label>Izoh (ixtiyoriy)</label><input type="text" id="cashtx-notes" placeholder="masalan: hodimga 500 000 avans berildi"></div>
+    {# kech155 (zip 210): qaysi pul hisobidan to'landi (qoldig'i bilan) #}
+    <div class="form-group" id="cashtx-hisob-joy"><label>Qaysi hisobdan to'landi?</label><div id="cashtx-hisob"></div></div>
     <div id="cashtx-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:var(--f-fee2e2);border-radius:7px;font-size:12px;color:var(--m-dc2626)"></div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-gold" onclick="saveCashTx()" style="flex:1">Saqlash</button>
       <button data-yopish class="btn btn-outline" onclick="document.getElementById('cashTxModal').style.display='none'" style="flex:1">Bekor</button>
     </div>
+  </div>
+</div>
+
+<!-- ═══ kech155 (zip 210 «Naqd / Bank / Karta»): QOLDIQ (boshlang'ich / qayta sanash) ═══ -->
+<div id="qoldiqModal" role="dialog" aria-modal="true" aria-labelledby="qoldiqSarlavha" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--white);border-radius:14px;padding:24px;width:440px;max-width:100%;max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);overflow-y:auto;box-sizing:border-box">
+    <div id="qoldiqSarlavha" style="font-size:16px;font-weight:700;margin-bottom:4px">+ Boshlang'ich qoldiq</div>
+    <div id="qoldiqIzoh" style="font-size:13px;color:var(--text3);margin-bottom:14px"></div>
+    <div id="qoldiqQatorlar"></div>
+    <div id="qoldiqOldindan" class="hb-oldindan"></div>
+    <div class="form-group"><label>Izoh (ixtiyoriy)</label><input type="text" id="qoldiq-izoh" maxlength="300" placeholder="masalan: kassa sanaldi"></div>
+    <div id="qoldiq-xato" style="display:none;margin-bottom:10px;padding:9px 12px;background:var(--f-fee2e2);border-radius:7px;font-size:12px;color:var(--m-dc2626)"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-gold" id="qoldiq-saqla" onclick="saveQoldiq()" style="flex:1">Saqlash</button>
+      <button data-yopish class="btn btn-outline" onclick="document.getElementById('qoldiqModal').style.display='none'" style="flex:1">Bekor</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ kech155 (zip 210): HISOBLAR ORASIDA O'TKAZISH ═══ -->
+<div id="otkazmaModal" role="dialog" aria-modal="true" aria-labelledby="otkSarlavha" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--white);border-radius:14px;padding:24px;width:420px;max-width:100%;max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);overflow-y:auto;box-sizing:border-box">
+    <div id="otkSarlavha" style="font-size:16px;font-weight:700;margin-bottom:4px"><i class="ti ti-arrows-exchange"></i> Hisoblar orasida o'tkazish</div>
+    <div style="font-size:13px;color:var(--text3);margin-bottom:16px">Masalan: bankdan naqd yechib oldingiz yoki naqdni kartaga tashladingiz. Jami pul o'zgarmaydi — faqat qaysi hisobda turgani.</div>
+    <div class="form-group"><label>Qayerdan</label><div id="otk-dan"></div></div>
+    <div class="form-group"><label>Qayerga</label><div id="otk-ga"></div></div>
+    <div class="form-group"><label>Summasi (so'm)</label><input type="text" inputmode="decimal" id="otk-summa" placeholder="0" autocomplete="off" oninput="formatPriceInput(this); otkOldindan()"></div>
+    <div class="form-group"><label>Izoh (ixtiyoriy)</label><input type="text" id="otk-izoh" maxlength="300" placeholder="masalan: bankdan naqd yechildi"></div>
+    <div id="otkOldindan" class="hb-oldindan"></div>
+    <div id="otk-xato" style="display:none;margin-bottom:10px;padding:9px 12px;background:var(--f-fee2e2);border-radius:7px;font-size:12px;color:var(--m-dc2626)"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-gold" id="otk-saqla" onclick="saveOtkazma()" style="flex:1">O'tkazish</button>
+      <button data-yopish class="btn btn-outline" onclick="document.getElementById('otkazmaModal').style.display='none'" style="flex:1">Bekor</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ kech155 (zip 210): HISOB TARIXI ═══ -->
+<div id="hisobTarixModal" role="dialog" aria-modal="true" aria-labelledby="htSarlavha" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--white);border-radius:14px;padding:22px 24px;width:560px;max-width:100%;max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);overflow-y:auto;box-sizing:border-box">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px">
+      <div id="htSarlavha" style="font-size:16px;font-weight:700">—</div>
+      <button data-yopish type="button" class="btn btn-outline" onclick="document.getElementById('hisobTarixModal').style.display='none'" aria-label="Yopish">✕</button>
+    </div>
+    <div id="htXulosa" class="hb-oldindan" style="display:none"></div>
+    <div id="htRoyxat"></div>
   </div>
 </div>
 {% endblock %}
@@ -753,28 +889,69 @@ const fmtCash = n => Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' ');
 // kech138 (zip 164, O'LCHANGAN — work/k164/olchov164.py, zip 163 kodi): xato JSON (500 / 401 / 403) «0 so'm» bo'lib chizilardi
 // (haqiqiy qoldiq −17 755 000), 502 / tarmoq — «—» va sababsiz. Endi `yukBlok`: xato — «—» va kartada sabab (`#xato-kassa`).
 // «Kassa: Ko'rish» ruxsati yo'q — karta chizilmaydi va so'ralmaydi.
+// ══ kech155 (zip 210 «Naqd / Bank / Karta» — egasi so'rovi 23.10 15:56, tasdiqlangan ko'rinish `work/k210/ekran/`): pul hisoblari.
+// `/api/finance/cash-balance` — jami va `hisoblar` (har hisob qoldig'i); qoldiq kiritilmaguncha (`hisoblar_boshlangan` false) — avvalgi
+// umumiy hisob va «Boshlang'ich qoldiqni kiritish» ogohlantirishi. Hisob kartasi bosilsa — o'sha hisob tarixi.
+var HISOB_HOLAT = null;
+const HISOB_IKON = {naqd: 'ti-cash', bank: 'ti-building-bank', karta: 'ti-credit-card'};
+function hisobTuriBoyicha(turi) {
+  return (HISOB_HOLAT && Array.isArray(HISOB_HOLAT.hisoblar)) ? HISOB_HOLAT.hisoblar.find(h => h.turi === turi) || null : null;
+}
+function hisobBalanslari() {
+  const b = {};
+  ((HISOB_HOLAT && HISOB_HOLAT.hisoblar) || []).forEach(h => {
+    if (h.balans !== null && h.balans !== undefined && !(h.turi in b)) b[h.turi] = h.balans;
+  });
+  return b;
+}
+
+// kech138 (zip 164, O'LCHANGAN — work/k164/olchov164.py, zip 163 kodi): xato JSON (500 / 401 / 403) «0 so'm» bo'lib chizilardi
+// (haqiqiy qoldiq −17 755 000), 502 / tarmoq — «—» va sababsiz. Endi `yukBlok`: xato — «—» va kartada sabab (`#xato-kassa`).
+// «Kassa: Ko'rish» ruxsati yo'q — karta chizilmaydi va so'ralmaydi.
 async function loadCashBalance(){
   const el = document.getElementById('cash-balance-val');
   if (!el) return null;
   return yukBlok('kassa', '/api/finance/cash-balance', d => {
     if (!d || typeof d.balance !== 'number') throw yukXato('server');
+    HISOB_HOLAT = d;
     const isNegative = d.balance < 0;
-    // 2026-09-13: avval manfiy balans juda yumshoq (#FCA5A5) rangda edi —
-    // bu raqam butun ilovadagi eng jiddiy ko'rsatkichlardan biri bo'lgani
-    // uchun, endi ilovaning standart "xavfli" rangida (--red) va ⚠️
-    // belgisi bilan chiqadi.
-    el.textContent = (isNegative ? '⚠️ ' : '') + fmtCash(d.balance) + " so'm";
+    // 2026-09-13: manfiy balans — ilovaning standart "xavfli" rangida (--red) va ⚠️ belgisi bilan.
+    // kech155 (zip 210, review210 №5): hisoblar qoldig'i bilan — tiyin ham ko'rinadi (yig'indi kartalar bilan AYNAN)
+    el.textContent = (isNegative ? '⚠️ ' : '') + (d.hisoblar_boshlangan === true ? _hisobSom(d.balance) : fmtCash(d.balance)) + " so'm";
     el.style.color = isNegative ? 'var(--m-f87171)' : '#fff';   // kech118 (U-03): qorong'i kartada o'qiladigan qizil
-    // kech118 (D-1, G3-14): boshlang'ich balans kiritilmagan — ogohlantirish va tugma
+    const boshlangan = d.hisoblar_boshlangan === true;
+    // kech155 (zip 210): hisoblar qoldig'i kiritilmagan — ogohlantirish va tugma (ilgari — eski «boshlang'ich balans»)
+    // (kalit yo'q — eski server javobi: ogohlantirish chiqmaydi, ilgarigidek)
     const bosh = document.getElementById('cash-boshlangich-yoq');
-    if (bosh) bosh.hidden = d.boshlangich_kiritilgan !== false;
+    if (bosh) bosh.hidden = d.hisoblar_boshlangan !== false;
+    const kartalar = document.getElementById('hisob-kartalari');
+    if (kartalar) {
+      kartalar.hidden = !boshlangan;
+      kartalar.innerHTML = boshlangan ? (d.hisoblar || []).map(h => {
+        const m = Number(h.balans || 0) < 0;
+        // bosiladigan karta (klaviaturada ham — Enter / bo'shliq)
+        return `<div class="hb-hisob" role="button" tabindex="0" data-hisob-id="${Number(h.id)}" onclick="openHisobTarix(${Number(h.id)})"
+                  onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openHisobTarix(${Number(h.id)}); }"
+                  title="${escapeHtml(h.nomi)} — tarix" aria-label="${escapeHtml(h.nomi)}: ${_hisobSom(h.balans)} so'm — tarix">
+          <span class="hb-hi"><i class="ti ${HISOB_IKON[h.turi] || 'ti-wallet'}"></i></span>
+          <div><div class="hb-hn">${escapeHtml(h.nomi)}</div><div class="hb-hs${m ? ' manfiy' : ''}">${m ? '⚠️ ' : ''}${_hisobSom(h.balans)} so'm</div></div>
+        </div>`;
+      }).join('') : '';
+    }
+    const otk = document.getElementById('otkazma-btn');
+    if (otk) otk.hidden = !boshlangan;
     if (typeof boshlangichKiritilgan !== 'undefined') boshlangichKiritilgan = d.boshlangich_kiritilgan;   // kech120 (G3-15)
     yukXatoKor('xato-kassa', '');
   }, e => {
+    HISOB_HOLAT = null;
     el.textContent = '—';
     el.style.color = '#fff';
     const bosh = document.getElementById('cash-boshlangich-yoq');
     if (bosh) bosh.hidden = true;
+    const kartalar = document.getElementById('hisob-kartalari');
+    if (kartalar) { kartalar.hidden = true; kartalar.innerHTML = ''; }
+    const otk = document.getElementById('otkazma-btn');
+    if (otk) otk.hidden = true;
     yukXatoKor('xato-kassa', yukXatoMatn("Kassa qoldig'i", e));
   });
 }
@@ -790,34 +967,64 @@ async function toggleCashTxHistory(){
   const opening = list.style.display === 'none';
   list.style.display = opening ? 'block' : 'none';
   icon.textContent = opening ? '▾' : '▸';
+  const tb = document.getElementById('kassa-tarix-btn');
+  if (tb) tb.setAttribute('aria-expanded', opening ? 'true' : 'false');
   if (opening) await loadCashTxHistory();
 }
 
 // kech138 (zip 164, O'LCHANGAN): xato JSON — «Hali qo'lda kiritilgan yozuv yo'q» (yozuvlar bor edi); tarmoq / 502 — «Yuklashda
 // xato» (sababsiz). Endi `yukBlok` — sabab ro'yxat ichida.
+// kech155 (zip 210): qo'lda kiritilganlar — kassa yozuvlari (Usta KPI, Ehson, eski boshlang'ich balans) + hisob qoldiqlari + o'tkazishlar,
+// vaqt bo'yicha bitta ro'yxatda (har biri o'z o'chirish yo'li bilan).
 async function loadCashTxHistory(){
   const list = document.getElementById('cashTxHistoryList');
+  let qolda = {qoldiqlar: [], otkazmalar: []};
+  try {
+    const r2 = await fetch('/api/finance/hisoblar/qolda');
+    const j = r2.ok ? await r2.json() : null;
+    if (j && typeof j === 'object') qolda = j;
+  } catch (e) { /* qoldiq / o'tkazish ro'yxati — ixtiyoriy qism (kassa yozuvlari baribir chiziladi) */ }
   return yukBlok('kassa_tarix', '/api/finance/cash-transactions', rows => {
     if (!Array.isArray(rows)) throw yukXato('server');
-    if (!rows.length) {
+    const labels = {boshlangich: "Boshlang'ich balans (eski)", usta_kpi: "Usta KPI to'landi", ehson: "Ehson to'landi"};
+    const hisobNomlari = {};
+    (((typeof HISOB_HOLAT !== 'undefined') && HISOB_HOLAT && HISOB_HOLAT.hisoblar) || []).forEach(h => { hisobNomlari[h.id] = h.nomi; });
+    const qatorlar = [];
+    rows.forEach(r => qatorlar.push({
+      vaqt: r.created_at, nom: labels[r.category] || r.category, summa: r.amount,
+      tafsil: [r.hisob_id ? hisobNomlari[r.hisob_id] : (r.category !== 'boshlangich' ? 'Naqd pul' : ''), r.performed_by, r.notes].filter(Boolean),
+      ochir: `<button type="button" class="fin-row-action kassa-ochir" title="O'chirish" aria-label="O'chirish" data-id="${r.id}"
+               data-nom="${escapeHtml(labels[r.category] || r.category)}" data-summa="${r.amount}" onclick="deleteCashTx(this)"><i class="ti ti-trash"></i></button>`
+    }));
+    (qolda.qoldiqlar || []).forEach(q => qatorlar.push({
+      vaqt: q.vaqt, nom: `Qoldiq — ${q.hisob}`, summa: q.summa, qoldiq: true,
+      tafsil: [q.dastur_summa !== null && q.dastur_summa !== undefined ? `dasturda: ${_hisobSom(q.dastur_summa)} so'm, farq: ${q.summa - q.dastur_summa > 0 ? '+' : ''}${_hisobSom(q.summa - q.dastur_summa)} so'm` : "boshlang'ich", q.kim, q.izoh].filter(Boolean),
+      ochir: `<button type="button" class="fin-row-action kassa-ochir" title="O'chirish" aria-label="O'chirish" data-id="${q.id}"
+               data-nom="Qoldiq — ${escapeHtml(q.hisob)}" data-summa="${q.summa}" onclick="deleteQoldiq(this)"><i class="ti ti-trash"></i></button>`
+    }));
+    (qolda.otkazmalar || []).forEach(o => qatorlar.push({
+      vaqt: o.vaqt, nom: `O'tkazish: ${o.dan} → ${o.ga}`, summa: o.summa, otkazma: true,
+      tafsil: [o.kim, o.izoh].filter(Boolean),
+      ochir: `<button type="button" class="fin-row-action kassa-ochir" title="O'chirish" aria-label="O'chirish" data-id="${o.id}"
+               data-nom="O'tkazish: ${escapeHtml(o.dan)} → ${escapeHtml(o.ga)}" data-summa="${o.summa}" onclick="deleteOtkazma(this)"><i class="ti ti-trash"></i></button>`
+    }));
+    if (!qatorlar.length) {
       list.innerHTML = '<div style="padding:12px 0;color:var(--f-text3);font-size:13px">Hali qo\'lda kiritilgan yozuv yo\'q</div>';
       return;
     }
-    const labels = {boshlangich: "Boshlang'ich balans", usta_kpi: "Usta KPI to'landi", ehson: "Ehson to'landi"};
-    list.innerHTML = rows.map(r => {
-      const dt = r.created_at ? tkSana(r.created_at, 'ru-RU') : '—';
-      const sign = r.amount >= 0 ? '+' : '';
-      const color = r.amount >= 0 ? '#22C55E' : '#EF4444';
-      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--f-border);font-size:13px">
-        <div>
-          <div style="font-weight:600">${escapeHtml(labels[r.category] || r.category)}</div>
-          <div style="color:var(--f-text3);font-size:12px;margin-top:2px">${dt}${r.performed_by ? ' · ' + escapeHtml(r.performed_by) : ''}${r.notes ? ' · ' + escapeHtml(r.notes) : ''}</div>
+    qatorlar.sort((a, b) => String(b.vaqt || '').localeCompare(String(a.vaqt || '')));
+    list.innerHTML = qatorlar.map(q => {
+      const dt = q.vaqt ? tkSanaVaqt(q.vaqt) : '—';
+      const rang = q.qoldiq || q.otkazma ? 'var(--gold-dark)' : (q.summa >= 0 ? '#22C55E' : '#EF4444');
+      const belgi = q.qoldiq || q.otkazma ? '' : (q.summa >= 0 ? '+' : '');
+      return `<div class="hb-tarix-q">
+        <div style="min-width:0">
+          <div style="font-weight:600">${escapeHtml(q.nom)}</div>
+          <div style="color:var(--f-text3);font-size:12px;margin-top:2px">${dt}${q.tafsil.length ? ' · ' + q.tafsil.map(x => escapeHtml(String(x))).join(' · ') : ''}</div>
         </div>
         <div style="display:flex;align-items:center;gap:8px">
-          <div style="font-weight:700;color:${matnRangi(color)};white-space:nowrap">${sign}${fmtFull(r.amount)} so'm</div>
-          ${(typeof KASSA_OCHIRISH !== 'undefined' && KASSA_OCHIRISH) ? `<button type="button" class="fin-row-action kassa-ochir" title="O'chirish" aria-label="O'chirish"
-              data-id="${r.id}" data-nom="${escapeHtml(labels[r.category] || r.category)}" data-summa="${r.amount}"
-              onclick="deleteCashTx(this)"><i class="ti ti-trash"></i></button>` : ''}
+          <div style="font-weight:700;color:${matnRangi(rang)};white-space:nowrap">${belgi}${_hisobSom(q.summa)} so'm</div>
+          ${(typeof KASSA_OCHIRISH !== 'undefined' && KASSA_OCHIRISH) ? q.ochir : ''}
         </div>
       </div>`;
     }).join('');
@@ -826,8 +1033,8 @@ async function loadCashTxHistory(){
 
 const CASH_TX_LABELS = {
   boshlangich: { title: "+ Boshlang'ich balans kiritish", hint: "Tizimni ishlata boshlaganingizda, hozir kassada/qo'lda qancha pul borligini bir marta kiriting.", sign: 1, notesPh: "masalan: Kassadagi naqd pul" },
-  usta_kpi: { title: "− Usta KPI to'landi", hint: "Ustaga yillik KPI sovg'asini QO'LDA to'lab bo'lgach, shu yerga summani kiriting — kassadan ayiriladi.", sign: -1, notesPh: "masalan: ustaga yillik KPI sovg'asi" },
-  ehson: { title: "− Ehson to'landi", hint: "Ehson summasini haqiqatda berib bo'lgach, shu yerga kiriting — kassadan ayiriladi.", sign: -1, notesPh: "masalan: Mahalla masjidiga ehson" },
+  usta_kpi: { title: "− Usta KPI to'landi", hint: "Ustaga yillik KPI sovg'asini QO'LDA to'lab bo'lgach, shu yerga summani kiriting — tanlangan hisobdan ayiriladi (sof foyda o'zgarmaydi — u KPI ni har oy o'zi hisobga oladi).", sign: -1, notesPh: "masalan: Tojiddin akaga yillik KPI sovg'asi" },
+  ehson: { title: "− Ehson to'landi", hint: "Ehson summasini haqiqatda berib bo'lgach, shu yerga kiriting — tanlangan hisobdan ayiriladi (sof foyda o'zgarmaydi — u Ehsonni har oy o'zi hisobga oladi).", sign: -1, notesPh: "masalan: Mahalla masjidiga ehson" },
 };
 let currentCashTxCategory = null;
 
@@ -841,6 +1048,10 @@ function openCashTxModal(category){
   document.getElementById('cashtx-notes').placeholder = cfg.notesPh || '';
   document.getElementById('cashtx-error').style.display = 'none';
   document.getElementById('ehsonFetchBtnWrap').style.display = (category === 'ehson') ? 'block' : 'none';
+  // kech155 (zip 210): qaysi hisobdan (Usta KPI / Ehson) — hisoblar qoldig'i bilan
+  const hJoy = document.getElementById('cashtx-hisob-joy');
+  if (hJoy) hJoy.style.display = (category === 'boshlangich') ? 'none' : 'block';
+  hisobTanlovChiz('cashtx-hisob', {qiymat: 'naqd', balans: (HISOB_HOLAT && HISOB_HOLAT.hisoblar_boshlangan) ? hisobBalanslari() : null});
   document.getElementById('cashTxModal').style.display = 'flex';
 }
 
@@ -880,7 +1091,33 @@ async function deleteCashTx(btn){
   try {
     const res = await fetch(`/api/finance/cash-transactions/${encodeURIComponent(d.id)}`, {method: 'DELETE'});
     if (!res.ok) { alert('❌ ' + await serverXatoSababi(res, "O'chirilmadi")); return; }
-    loadCashBalance();
+    await loadCashBalance();
+    await loadCashTxHistory();
+  } catch (e) { alert("Server bilan aloqa yo'q"); }
+}
+
+// kech155 (zip 210): qoldiq / o'tkazishni o'chirish (xato kiritilgan bo'lsa) — hisob qoldig'i qayta hisoblanadi
+async function deleteQoldiq(btn){
+  const d = btn.dataset;
+  const ha = await customConfirm(`«${d.nom}» ${_hisobSom(Number(d.summa) || 0)} so'm yozuvi o'chirilsinmi?\nHisob oldingi qoldig'iga qaytadi ` +
+                                 `(oldingisi bo'lmasa — «Kassa + bank» avvalgi umumiy hisobga).`, {danger: true, okText: "Ha, o'chirilsin"});
+  if (!ha) return;
+  try {
+    const res = await fetch(`/api/finance/hisoblar/qoldiq/${encodeURIComponent(d.id)}`, {method: 'DELETE'});
+    if (!res.ok) { alert('❌ ' + await serverXatoSababi(res, "O'chirilmadi")); return; }
+    await loadCashBalance();
+    await loadCashTxHistory();
+  } catch (e) { alert("Server bilan aloqa yo'q"); }
+}
+async function deleteOtkazma(btn){
+  const d = btn.dataset;
+  const ha = await customConfirm(`«${d.nom}» ${_hisobSom(Number(d.summa) || 0)} so'm o'tkazishi o'chirilsinmi?\nIkkala hisob qoldig'i qayta hisoblanadi.`,
+                                 {danger: true, okText: "Ha, o'chirilsin"});
+  if (!ha) return;
+  try {
+    const res = await fetch(`/api/finance/hisoblar/otkazma/${encodeURIComponent(d.id)}`, {method: 'DELETE'});
+    if (!res.ok) { alert('❌ ' + await serverXatoSababi(res, "O'chirilmadi")); return; }
+    await loadCashBalance();
     await loadCashTxHistory();
   } catch (e) { alert("Server bilan aloqa yo'q"); }
 }
@@ -893,8 +1130,9 @@ async function saveCashTx(){
   const cfg = CASH_TX_LABELS[currentCashTxCategory];
   const amount = raw * cfg.sign;  // usta_kpi/ehson -> manfiy, boshlangich -> musbat
   const notes = document.getElementById('cashtx-notes').value || null;
+  const hisob = currentCashTxCategory === 'boshlangich' ? null : hisobQiymat('cashtx-hisob');     // kech155 (zip 210)
   // kech120 (G3-15): saqlashdan oldin tasdiq; boshlang'ich balans avval kiritilgan bo'lsa — ogohlantirish
-  let savol = `Kassaga ${cfg.sign > 0 ? '+' : '−'}${pulKor(raw)} so'm yozilsinmi?\n(${cfg.title.replace(/^[+−]\s*/, '')})`;
+  let savol = `Kassaga ${cfg.sign > 0 ? '+' : '−'}${pulKor(raw)} so'm yozilsinmi?\n(${cfg.title.replace(/^[+−]\s*/, '')}${hisob ? ' · ' + hisobNomi(hisob) : ''})`;
   if (currentCashTxCategory === 'boshlangich' && boshlangichKiritilgan === true) {
     savol += "\n\n⚠️ Boshlang'ich balans AVVAL kiritilgan — yana kiritsangiz, ikkalasi qo'shiladi. Xato bo'lsa, eskisini «Kassa qo'lda kiritilgan tarix» ro'yxatidan o'chiring.";
   }
@@ -904,24 +1142,201 @@ async function saveCashTx(){
   fd.append('category', currentCashTxCategory);
   fd.append('amount', amount);
   if (notes) fd.append('notes', notes);
+  if (hisob) fd.append('hisob', hisob);
 
   try {
     const res = await fetch('/api/finance/cash-transaction', { method: 'POST', body: fd });
     if (res.ok) {
       document.getElementById('cashTxModal').style.display = 'none';
-      loadCashBalance();
+      await loadCashBalance();
       if (document.getElementById('cashTxHistoryList').style.display !== 'none') {
         await loadCashTxHistory();
       }
     } else {
-      const e = await res.json();
-      err.textContent = '❌ ' + (e.detail || 'Xato');
+      err.textContent = '❌ ' + await serverXatoSababi(res, 'Xato');
       err.style.display = 'block';
     }
   } catch(e) {
     err.textContent = "❌ Server bilan aloqa yo'q";
     err.style.display = 'block';
   }
+}
+
+// ── kech155 (zip 210): QOLDIQ — birinchi marta hamma hisob (boshlang'ich), keyin — qayta sanash (bo'sh qolgan hisob o'zgarmaydi)
+function openQoldiqModal(){
+  const d = HISOB_HOLAT || {};
+  const hisoblar = d.hisoblar || [];
+  if (!hisoblar.length) { alert("Hisoblar yuklanmadi — sahifani yangilab qayta urinib ko'ring"); return; }
+  const boshlangan = d.hisoblar_boshlangan === true;
+  document.getElementById('qoldiqSarlavha').textContent = boshlangan ? "Qoldiqni sanash" : "+ Boshlang'ich qoldiq";
+  document.getElementById('qoldiqIzoh').textContent = boshlangan
+    ? "Hozir hisobda HAQIQATDA qancha pul bor? Faqat sanagan hisobingizni kiriting — bo'sh qolgani o'zgarmaydi. Dastur hisobi bilan farq jurnalga yoziladi."
+    : "Hozir har bir hisobda HAQIQATDA qancha pul bor? Kassadagi naqdni sanang, bank va karta qoldig'ini ilovadan ko'ring (pul bo'lmasa — 0). Shu paytdan keyingi kirim-chiqimlar shu summalarga qo'shiladi.";
+  document.getElementById('qoldiqQatorlar').innerHTML = hisoblar.map(h => `
+    <div class="hb-qoldiq-q">
+      <label for="qoldiq-${Number(h.id)}"><i class="ti ${HISOB_IKON[h.turi] || 'ti-wallet'}"></i> ${escapeHtml(h.nomi)}</label>
+      <input type="text" class="maydon" inputmode="decimal" id="qoldiq-${Number(h.id)}" data-hisob-id="${Number(h.id)}" autocomplete="off"
+             placeholder="${boshlangan ? "o'zgarmaydi" : '0'}" oninput="formatPriceInput(this); qoldiqOldindan()">
+      ${boshlangan && h.balans !== null && h.balans !== undefined ? `<small>Dasturda hozir: ${_hisobSom(h.balans)} so'm</small>` : ''}
+    </div>`).join('');
+  document.getElementById('qoldiq-izoh').value = '';
+  document.getElementById('qoldiq-xato').style.display = 'none';
+  qoldiqOldindan();
+  document.getElementById('qoldiqModal').style.display = 'flex';
+  setTimeout(() => { const f = document.querySelector('#qoldiqQatorlar input'); if (f) f.focus(); }, 0);
+}
+function qoldiqOldindan(){
+  const d = HISOB_HOLAT || {};
+  const boshlangan = d.hisoblar_boshlangan === true;
+  let jami = 0;
+  (d.hisoblar || []).forEach(h => {
+    const inp = document.getElementById('qoldiq-' + h.id);
+    const v = inp ? inp.value.trim() : '';
+    if (v !== '') jami += parseNum(v) || 0;
+    else if (boshlangan && h.balans !== null && h.balans !== undefined) jami += Number(h.balans) || 0;
+  });
+  const el = document.getElementById('qoldiqOldindan');
+  el.innerHTML = boshlangan
+    ? `<div class="hb-ozg"><span>Yangi «Kassa + bank»:</span><span><b>${_hisobSom(jami)} so'm</b></span></div>` +
+      `<div class="hb-ozg"><span>Hozir dasturda:</span><span>${_hisobSom(d.balance || 0)} so'm</span></div>`
+    : `<div class="hb-ozg"><span>Siz kiritgan jami:</span><span><b>${_hisobSom(jami)} so'm</b></span></div>` +
+      `<div class="hb-ozg"><span>Dastur hozirgacha hisoblagan «Kassa + bank»:</span><span>${_hisobSom(d.eski_balans || 0)} so'm</span></div>`;
+}
+async function saveQoldiq(){
+  const d = HISOB_HOLAT || {};
+  const boshlangan = d.hisoblar_boshlangan === true;
+  const err = document.getElementById('qoldiq-xato');
+  const xato = (m) => { err.textContent = m; err.style.display = 'block'; };
+  const qoldiqlar = [];
+  for (const h of (d.hisoblar || [])) {
+    const raw = (document.getElementById('qoldiq-' + h.id) || {}).value || '';
+    if (raw.trim() === '') {
+      if (!boshlangan) return xato(`«${h.nomi}» qoldig'ini kiriting (pul bo'lmasa — 0)`);
+      continue;
+    }
+    if (!/\d/.test(raw)) return xato(`«${h.nomi}»: summa noto'g'ri`);
+    const v = parseNum(raw);
+    if (!(v >= 0)) return xato(`«${h.nomi}»: summa manfiy bo'lmasin`);
+    qoldiqlar.push({hisob_id: Number(h.id), summa: v});
+  }
+  if (!qoldiqlar.length) return xato("Kamida bitta hisob qoldig'ini kiriting");
+  err.style.display = 'none';
+  const matn = qoldiqlar.map(q => {
+    const h = (d.hisoblar || []).find(x => Number(x.id) === q.hisob_id);
+    return `${h ? h.nomi : '?'}: ${_hisobSom(q.summa)} so'm`;
+  }).join('\n');
+  if (!(await customConfirm(`Qoldiq shunday yozilsinmi?\n${matn}`, {okText: 'Ha, yozilsin'}))) return;
+  const btn = document.getElementById('qoldiq-saqla');
+  if (btn.disabled) return;
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/finance/hisoblar/qoldiq', {method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({qoldiqlar, izoh: document.getElementById('qoldiq-izoh').value.trim() || null})});
+    if (!res.ok) return xato('❌ ' + await serverXatoSababi(res, 'Saqlanmadi'));
+    document.getElementById('qoldiqModal').style.display = 'none';
+    await loadCashBalance();
+    if (document.getElementById('cashTxHistoryList').style.display !== 'none') await loadCashTxHistory();
+  } catch (e) { xato("❌ Server bilan aloqa yo'q"); }
+  finally { btn.disabled = false; }
+}
+
+// ── kech155 (zip 210): HISOBLAR ORASIDA O'TKAZISH — jami o'zgarmaydi
+function openOtkazmaModal(){
+  if (!(HISOB_HOLAT && HISOB_HOLAT.hisoblar_boshlangan)) { alert("Avval hisoblar qoldig'ini kiriting («+ Boshlang'ich qoldiq»)"); return; }
+  const b = hisobBalanslari();
+  hisobTanlovChiz('otk-dan', {qiymat: 'bank', balans: b});
+  hisobTanlovChiz('otk-ga', {qiymat: 'naqd', balans: b});
+  document.getElementById('otk-dan').onchange = otkOldindan;
+  document.getElementById('otk-ga').onchange = otkOldindan;
+  document.getElementById('otk-summa').value = '';
+  document.getElementById('otk-izoh').value = '';
+  document.getElementById('otk-xato').style.display = 'none';
+  otkOldindan();
+  document.getElementById('otkazmaModal').style.display = 'flex';
+}
+function otkOldindan(){
+  const dan = hisobTuriBoyicha(hisobQiymat('otk-dan')), ga = hisobTuriBoyicha(hisobQiymat('otk-ga'));
+  const s = parseNum(document.getElementById('otk-summa').value) || 0;
+  const el = document.getElementById('otkOldindan');
+  if (!dan || !ga) { el.innerHTML = ''; return; }
+  if (dan.id === ga.id) { el.innerHTML = `<span style="color:var(--m-dc2626)">Qayerdan va qayerga — har xil hisob tanlang</span>`; return; }
+  const db = Number(dan.balans) || 0, gb = Number(ga.balans) || 0;
+  el.innerHTML = `<div class="hb-ozg"><span>${escapeHtml(dan.nomi)}:</span><span>${_hisobSom(db)} → <b>${_hisobSom(db - s)} so'm</b></span></div>` +
+    `<div class="hb-ozg"><span>${escapeHtml(ga.nomi)}:</span><span>${_hisobSom(gb)} → <b>${_hisobSom(gb + s)} so'm</b></span></div>` +
+    `<div class="hb-ozg"><span>Jami:</span><span><b>${_hisobSom(HISOB_HOLAT.balance)} so'm</b> (o'zgarmaydi)</span></div>` +
+    (s > db ? `<div style="color:var(--m-dc2626);margin-top:4px">⚠️ ${escapeHtml(dan.nomi)} qoldig'idan ko'p</div>` : '');
+}
+async function saveOtkazma(){
+  const dan = hisobTuriBoyicha(hisobQiymat('otk-dan')), ga = hisobTuriBoyicha(hisobQiymat('otk-ga'));
+  const err = document.getElementById('otk-xato');
+  const xato = (m) => { err.textContent = m; err.style.display = 'block'; };
+  const s = parseNum(document.getElementById('otk-summa').value) || 0;
+  if (!dan || !ga) return xato("Hisoblar yuklanmadi — sahifani yangilang");
+  if (dan.id === ga.id) return xato("Qayerdan va qayerga — har xil hisob tanlang");
+  if (!(s > 0)) return xato("Summani to'g'ri kiriting");
+  err.style.display = 'none';
+  if (!(await customConfirm(`${dan.nomi} → ${ga.nomi}: ${_hisobSom(s)} so'm o'tkazilsinmi?`, {okText: "Ha, o'tkazilsin"}))) return;
+  const btn = document.getElementById('otk-saqla');
+  if (btn.disabled) return;
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/finance/hisoblar/otkazma', {method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({dan_hisob_id: Number(dan.id), ga_hisob_id: Number(ga.id), summa: s,
+                            izoh: document.getElementById('otk-izoh').value.trim() || null})});
+    if (!res.ok) return xato('❌ ' + await serverXatoSababi(res, "O'tkazilmadi"));
+    let j = {};
+    try { j = await res.json(); } catch (e) { j = {}; }
+    document.getElementById('otkazmaModal').style.display = 'none';
+    await loadCashBalance();
+    if (document.getElementById('cashTxHistoryList').style.display !== 'none') await loadCashTxHistory();
+    if (j && j.duplicate) await xabarOyna(amalTakrorIzoh(true).trim());
+  } catch (e) { xato("❌ Server bilan aloqa yo'q"); }
+  finally { btn.disabled = false; }
+}
+
+// ── kech155 (zip 210): HISOB TARIXI — eng oxirgi qoldiqdan beri har harakat va undan keyingi qoldiq (yangisi tepada)
+async function openHisobTarix(id){
+  const m = document.getElementById('hisobTarixModal');
+  const sar = document.getElementById('htSarlavha'), xul = document.getElementById('htXulosa'), roy = document.getElementById('htRoyxat');
+  sar.textContent = 'Yuklanmoqda…';
+  xul.innerHTML = '';
+  xul.style.display = 'none';
+  roy.innerHTML = '';
+  m.style.display = 'flex';
+  let d;
+  try {
+    const res = await fetch(`/api/finance/hisoblar/${encodeURIComponent(id)}/tarix`);
+    if (!res.ok) throw new Error(await serverXatoSababi(res, 'Yuklanmadi'));
+    d = await res.json();
+  } catch (e) {
+    sar.textContent = 'Tarix yuklanmadi';
+    roy.innerHTML = `<div style="color:var(--m-dc2626);font-size:13px">❌ ${escapeHtml(String((e && e.message) || e))}</div>`;
+    return;
+  }
+  sar.textContent = `${d.hisob.nomi} — tarix`;
+  if (!d.boshlangan) {
+    roy.innerHTML = `<div style="color:var(--f-text3);font-size:13px">Bu hisobning qoldig'i hali kiritilmagan.</div>`;
+    return;
+  }
+  const q = d.qoldiq;
+  xul.style.display = 'block';
+  xul.innerHTML = `<div class="hb-ozg"><span>Hozir:</span><span><b>${_hisobSom(d.balans)} so'm</b></span></div>` +
+    `<div class="hb-ozg"><span>Qoldiq kiritilgan (${tkSanaVaqt(q.vaqt)}):</span><span>${_hisobSom(q.summa)} so'm</span></div>` +
+    `<div class="hb-ozg"><span>Shundan beri harakatlar:</span><span>${d.jami_soni} ta</span></div>`;
+  if (!d.harakatlar.length) {
+    roy.innerHTML = `<div style="color:var(--f-text3);font-size:13px;padding:8px 0">Qoldiq kiritilgandan beri bu hisobda harakat yo'q.</div>`;
+    return;
+  }
+  // kirim — yashil, chiqim — qizil (yozuv rangi `matnRangi` — oq / tungi fonda o'qiladigan tus; kassa tarixi bilan bir qoida)
+  const hisobSummaRangi = (x) => { const rang = x >= 0 ? '#22C55E' : '#EF4444'; return matnRangi(rang); };
+  roy.innerHTML = d.harakatlar.map(r => `<div class="hb-tarix-q">
+      <div style="min-width:0">
+        <div style="font-weight:600">${escapeHtml(r.matn)}</div>
+        <div style="color:var(--f-text3);font-size:12px;margin-top:2px">${r.faqat_sana ? tkSana(r.vaqt) : tkSanaVaqt(r.vaqt)} · qoldiq: ${_hisobSom(r.qoldiq)} so'm</div>
+      </div>
+      <div style="font-weight:700;white-space:nowrap;color:${hisobSummaRangi(r.summa)}">${r.summa >= 0 ? '+' : ''}${_hisobSom(r.summa)} so'm</div>
+    </div>`).join('') +
+    (d.jami_soni > d.harakatlar.length ? `<div style="color:var(--f-text3);font-size:12px;padding:8px 0">… yana ${d.jami_soni - d.harakatlar.length} ta eski harakat</div>` : '');
 }
 
 loadCashBalance();
@@ -1704,13 +2119,13 @@ async function loadDailyTransactions(){
         <td data-label="Summa" style="font-weight:700;color:${t.source === 'kirim_tannarx' ? 'var(--f-text3)' : 'var(--f-danger)'}">${fmtFull(t.amount)} so'm</td>
         <td data-label="Izoh" style="color:var(--f-text3)">${t.notes ? escapeHtml(t.notes) : '—'}</td>
         <td data-label="Kim" style="color:var(--f-text3)">${t.created_by ? escapeHtml(t.created_by) : '—'}</td>
-        <td data-label="Manba" style="color:var(--f-text3);font-size:13px">${escapeHtml(SOURCE_LABELS[t.source] || t.source)}</td>
+        <td data-label="Manba" style="color:var(--f-text3);font-size:13px">${escapeHtml(SOURCE_LABELS[t.source] || t.source)}${t.hisob_turi ? ' · ' + escapeHtml(hisobNomi(t.hisob_turi)) : ''}</td>
         <td data-label="" class="no-print" style="text-align:right;white-space:nowrap">
           ${kirimdan
             ? `<span class="tx-kirim-qulf" title="Kirim hujjatiga tegishli — o'zgartirish uchun Omborxonada hujjatni bekor qiling" style="font-size:12px;color:var(--f-text3)">🔒 Kirim hujjati</span>`
             : `<button class="fin-row-action" title="Tahrirlash" aria-label="Tahrirlash"
                   data-tx-id="${t.id}" data-tx-date="${t.date}" data-tx-category="${escapeHtml(t.category)}"
-                  data-tx-amount="${t.amount}" data-tx-notes="${escapeHtml(t.notes||'')}" data-tx-yonalish="${t.yonalish_id || ''}"
+                  data-tx-amount="${t.amount}" data-tx-notes="${escapeHtml(t.notes||'')}" data-tx-yonalish="${t.yonalish_id || ''}" data-tx-hisob="${escapeHtml(t.hisob_turi || 'naqd')}"
                   data-tx-nom="${escapeHtml(t.category_label || CAT_LABELS[t.category] || t.category)}"
                   onclick="editTxFromRow(this)"><i class="ti ti-edit"></i></button>
           <button class="fin-row-action" onclick="deleteTx(${t.id})" title="O'chirish" aria-label="O'chirish"><i class="ti ti-trash"></i></button>`}
@@ -1751,6 +2166,7 @@ function openTxModal(){
   document.getElementById('tx-f-notes').value = '';
   txYonalishVarianti('');
   document.getElementById('tx-f-prodtype').value = '';
+  hisobTanla('tx-f-hisob', 'naqd');                    // kech155 (zip 210)
   document.getElementById('txModal').style.display = 'flex';
 }
 // kech117 (A2): tahrirlanayotgan xarajatning yo'nalishi yashirilgan bo'lsa — tanlovga vaqtincha qo'shiladi (boshqa maydonni
@@ -1773,7 +2189,7 @@ function closeTxModal(){ document.getElementById('txModal').style.display = 'non
 // holda, va saqlashda POST o'rniga PUT so'rovi yuboriladi.
 function editTxFromRow(btn){
   const d = btn.dataset;
-  editTx(d.txId, d.txDate, d.txCategory, parseFloat(d.txAmount) || 0, d.txNotes, d.txYonalish, d.txNom);
+  editTx(d.txId, d.txDate, d.txCategory, parseFloat(d.txAmount) || 0, d.txNotes, d.txYonalish, d.txNom, d.txHisob);
 }
 // kech120 (zip 131 — G3-17): tahrirlanayotgan xarajat toifasi ro'yxatda bo'lmasa (masalan majburiyat toifasi) — tanlovga vaqtincha
 // qo'shiladi; ilgari tanlov bo'sh qolib, saqlash «'category' bo'sh bo'lishi mumkin emas» deb rad etilardi.
@@ -1786,7 +2202,7 @@ function txToifaVarianti(kod, nom){
   sel.appendChild(o);
 }
 
-function editTx(id, dateIso, category, amount, notes, yonalishId, toifaNomi){
+function editTx(id, dateIso, category, amount, notes, yonalishId, toifaNomi, hisobTuri){
   document.getElementById('tx-f-editing-id').value = id;
   document.getElementById('tx-modal-title').textContent = "✏️ Xarajatni tahrirlash";
   // kech106: tungi (Toshkent 00:00–05:00) xarajat — Toshkent kuni; ilgari UTC sanasi — saqlansa O'TGAN kunga ko'chardi
@@ -1798,6 +2214,7 @@ function editTx(id, dateIso, category, amount, notes, yonalishId, toifaNomi){
   document.getElementById('tx-f-notes').value = notes || '';
   txYonalishVarianti(yonalishId || '');
   document.getElementById('tx-f-prodtype').value = yonalishId || '';
+  hisobTanla('tx-f-hisob', hisobTuri || 'naqd');      // kech155 (zip 210): joriy hisobi
   document.getElementById('txModal').style.display = 'flex';
 }
 
@@ -1819,7 +2236,7 @@ async function saveTx(){
   try {
     n = await amalYubor(url, {
       method, headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ date: date+'T00:00:00', category, amount, notes: document.getElementById('tx-f-notes').value || null, yonalish_id: document.getElementById('tx-f-prodtype').value ? Number(document.getElementById('tx-f-prodtype').value) : null })
+      body: JSON.stringify({ date: date+'T00:00:00', category, amount, notes: document.getElementById('tx-f-notes').value || null, yonalish_id: document.getElementById('tx-f-prodtype').value ? Number(document.getElementById('tx-f-prodtype').value) : null, hisob: hisobQiymat('tx-f-hisob') })
     }, editingId ? '' : 'xarajat_yangi');
   } finally { saveTx.band = false; }
   if (n.ok) {
