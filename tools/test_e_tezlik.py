@@ -158,11 +158,14 @@ check("S7 Bosh sahifa — `/api/orders?limit=5` (hammasi emas); API `limit` (1�
 check("S8 login.html: fon — `login-bg.jpg` (hamma brauzer) + `image-set` WebP; `login-bg.png` endi so'ralmaydi (faqat izohda)",
       "url('/static/login-bg.jpg')" in LOGIN and "image-set(url('/static/login-bg.webp') type('image/webp')" in LOGIN
       and "url('/static/login-bg.png')" not in LOGIN)
-# kech155 (zip 211d — egasi so'rovi 24.10, MOSLANDI): platformaning keng logotipi menyu tepasini to'liq egallaydi — og'ir asl fayl
-# (`logo_transparent.png`, 676 KB) emas, menyu nusxasi `logo_menyu.webp` (480 × 270, WebP, ≤ 60 KB); yumaloq 128 px nusxa endi ishlatilmaydi
-check("S9 base.html: chap panel logotipi — `logo_menyu.webp` (≤ 60 KB), asl og'ir fayl to'g'ridan-to'g'ri emas",
-      "'/static/logo_menyu.webp'" in BASE and 'src="/static/logo_transparent.png"' not in BASE and 'src="/static/logo_round.jpg"' not in BASE
-      and os.path.getsize(os.path.join(ROOT, "static/logo_menyu.webp")) <= 60 * 1024)
+# kech155 (zip 211d / 211e — egasi so'rovi 24.10, MOSLANDI): logotip menyu tepasini to'liq egallaydi — platformaniki og'ir asl fayl
+# (`logo_transparent.png`, 676 KB) emas, menyu nusxasi `logo_menyu.webp` (egasining tiniq logotipidan, 524 × 420, WebP, ≤ 40 KB) —
+# `main.company_logo_menyu` orqali; yumaloq 128 px nusxa endi ishlatilmaydi
+_MN211 = open(os.path.join(ROOT, "main.py"), encoding="utf-8").read()
+check("S9 base.html: chap panel logotipi — `company_logo_menyu` (platformaniki — `logo_menyu.webp`, ≤ 40 KB), asl og'ir fayl to'g'ridan-to'g'ri emas",
+      "company_logo_menyu(_logo)" in BASE and '"static/logo_menyu.webp" if yol == PLATFORMA_LOGOTIPI' in _MN211
+      and 'src="/static/logo_transparent.png"' not in BASE and 'src="/static/logo_round.jpg"' not in BASE
+      and os.path.getsize(os.path.join(ROOT, "static/logo_menyu.webp")) <= 40 * 1024)
 _rasm = {}
 try:
     from PIL import Image, ImageChops, ImageStat
@@ -945,9 +948,9 @@ if PG is not None:
           [_fon, _rasm_sor])
     _lg = jsq(PG, """async () => { await new Promise(r => setTimeout(r, 300)); const i = document.querySelector('.s-logo img');
                          return i ? {src: i.getAttribute('src'), w: i.naturalWidth, h: i.naturalHeight} : null; }""")
-    # kech155 (zip 211d, MOSLANDI): menyu logotipi — keng, 480 × 270 (to'rtburchak joyni to'liq egallaydi)
-    check("K9 chap panel logotipi — `logo_menyu.webp` 480 × 270 (yuklandi)", _lg and _lg.get("src") == "/static/logo_menyu.webp" and _lg.get("w") == 480
-          and _lg.get("h") == 270, _lg)
+    # kech155 (zip 211d / 211e, MOSLANDI): menyu logotipi — egasining tiniq logotipidan, 524 × 420 (to'rtburchak joyni to'liq egallaydi)
+    check("K9 chap panel logotipi — `logo_menyu.webp` 524 × 420 (yuklandi)", _lg and _lg.get("src") == "/static/logo_menyu.webp" and _lg.get("w") == 524
+          and _lg.get("h") == 420, _lg)
 
     # K120-1: taqqoslash kartalari — eng uzun matnlar bilan, 360–1440 px
     KARTA_JS = r"""async () => {

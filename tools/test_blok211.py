@@ -1058,14 +1058,22 @@ else:
           check("U24 qoplama tugmasi koeffitsient bilan: buyurtma «Bor (×2,5)», tayyor mahsulot «Bor (×3)» (ilgari doim «×2»)",
                 _ky == "Bor (×2,5)" and _kf == "Bor (×3)", (_ky, _kf))
           ctxw.close()
-          # egasi so'rovi (24.10 02:35): menyu tepasidagi logotip — joyni to'liq egallaydi (yumaloq 42 px emas), «nom / ERP» matni shart emas
+          # egasi so'rovi (24.10 02:35): menyu tepasidagi logotip — joyni to'liq egallaydi (yumaloq 42 px emas), «nom / ERP» matni shart emas;
+          # 24.10 03:02 — egasining tiniq logotipi (kvadrat fayl, atrofida shaffof bo'sh joy): HAR QANDAY logotip — mazmuni taglikni egallaydi
           LOGO_JS = """() => { const b = document.querySelector('.s-logo'); const p = b.querySelector('.s-logo-plita'); const i = b.querySelector('img');
-              const r = e => e ? e.getBoundingClientRect() : null; const ri = r(i), rp = r(p);
-              return {plita: !!p, src: i ? i.getAttribute('src') : null, alt: i ? i.getAttribute('alt') : null, nw: i ? i.naturalWidth : 0,
-                      w: ri ? Math.round(ri.width) : 0, h: ri ? Math.round(ri.height) : 0, pw: rp ? Math.round(rp.width) : 0,
-                      ph: rp ? Math.round(rp.height) : 0, fon: p ? getComputedStyle(p).backgroundColor : null,
-                      nom: b.querySelector('.logo-name') ? b.querySelector('.logo-name').textContent.trim() : null,
-                      kv: b.querySelector('.s-logo-kvadrat') ? Math.round(r(b.querySelector('.s-logo-kvadrat')).width) : 0}; }"""
+              const k = b.querySelector('.s-logo-kesim'); const r = e => e ? e.getBoundingClientRect() : null; const ri = r(i), rp = r(p), rk = r(k);
+              return {plita: !!p, kesim: !!k, src: i ? i.getAttribute('src') : null, alt: i ? i.getAttribute('alt') : null,
+                      nw: i ? i.naturalWidth : 0, nh: i ? i.naturalHeight : 0, iw: ri ? ri.width : 0, ih: ri ? ri.height : 0,
+                      il: ri ? ri.left : 0, it: ri ? ri.top : 0, kw: rk ? rk.width : 0, kh: rk ? rk.height : 0, kl: rk ? rk.left : 0,
+                      kt: rk ? rk.top : 0, kr: rk ? rk.right : 0, pw: rp ? Math.round(rp.width) : 0, ph: rp ? Math.round(rp.height) : 0,
+                      pr: rp ? rp.right : 0, fon: p ? getComputedStyle(p).backgroundColor : null,
+                      nom: b.querySelector('.logo-name') ? b.querySelector('.logo-name').textContent.trim() : null}; }"""
+
+          def _mazmun211(_l, x0, y0, x1, y1):
+              """rasmning (x0, y0)–(x1, y1) qismi ekranda qayerda: (chap, tepa, o'ng, past) — piksel"""
+              _m = (_l["iw"] / _l["nw"]) if _l.get("nw") else 0
+              return (_l["il"] + x0 * _m, _l["it"] + y0 * _m, _l["il"] + x1 * _m, _l["it"] + y1 * _m)
+
           _s = SessionLocal()                     # egasining korxonasi — platformaning o'z logotipi (eng eski korxona migratsiyasi kabi)
           _s.get(Company, 1).logo_path = "static/logo_transparent.png"
           _s.commit()
@@ -1077,21 +1085,37 @@ else:
           pgl.evaluate("() => document.documentElement.setAttribute('data-theme', 'dark')")
           _laq = pgl.evaluate(LOGO_JS)
           ctxl.close()
-          check("U25 keng logotip (platformaniki) — menyu tepasini to'liq egallaydi: `logo_menyu.webp` 480 px, taglik ≥ 190 × 90, rasm ≥ 140 × 70 "
-                "(ilgari 42 × 42 doira); «nom / ERP» matni yo'q (nomi — alt); tungi rejimda ham oq taglik",
-                _la["plita"] and _la["src"] == "/static/logo_menyu.webp" and _la["nw"] == 480 and _la["pw"] >= 190 and _la["ph"] >= 90
-                and _la["w"] >= 140 and _la["h"] >= 70 and _la["nom"] is None and bool(_la["alt"])
-                and _la["fon"] == "rgb(255, 255, 255)" and _laq["fon"] == "rgb(255, 255, 255)", (_la, _laq))
+          ctxl, pgl = kontekst("k211_a", 390, 844)
+          pgl.goto(BASE + "/", wait_until="networkidle")
+          pgl.wait_for_timeout(300)
+          _lam = pgl.evaluate(LOGO_JS)
+          ctxl.close()
+          check("U25 platforma logotipi (egasining TINIQ logotipidan) — menyu tepasini to'liq egallaydi: `logo_menyu.webp` 524 × 420, mazmun "
+                "≈ 175 × 140 (ilgari 42 × 42 doira), taglik ≥ 190 × 150; «nom / ERP» matni yo'q (nomi — alt); tungi rejimda ham oq taglik; "
+                "telefonda (390 px) taglikdan chiqmaydi",
+                _la["plita"] and _la["kesim"] and _la["src"] == "/static/logo_menyu.webp" and _la["nw"] == 524 and _la["nh"] == 420
+                and 170 <= _la["kw"] <= 181 and 135 <= _la["kh"] <= 141 and _la["pw"] >= 190 and _la["ph"] >= 150
+                and _la["nom"] is None and bool(_la["alt"]) and _la["fon"] == "rgb(255, 255, 255)" and _laq["fon"] == "rgb(255, 255, 255)"
+                and _lam["plita"] and _lam["kesim"] and _lam["kr"] <= _lam["pr"] + 0.5 and _lam["kw"] >= 170,
+                (_la, _laq["fon"], _lam))
           ctxl, pgl = kontekst("k211_c", 1440, 900)
           pgl.goto(BASE + "/", wait_until="networkidle")
           _lc = pgl.evaluate(LOGO_JS)
           import struct as _st211
           import zlib as _zl211
 
-          def _png211(w, h):
-              _raw = b"".join(b"\x00" + b"\x1f\x5a\x9c" * w for _ in range(h))
+          def _png211(w, h, quti=None):
+              """PNG: quti yo'q — butun rasm ko'k (RGB); quti (x0, y0, x1, y1) — shaffof fon (RGBA), faqat qutida to'q sariq"""
               _ch = lambda t, d: _st211.pack(">I", len(d)) + t + d + _st211.pack(">I", _zl211.crc32(t + d) & 0xffffffff)
-              return (b"\x89PNG\r\n\x1a\n" + _ch(b"IHDR", _st211.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
+              if quti is None:
+                  _raw = b"".join(b"\x00" + b"\x1f\x5a\x9c" * w for _ in range(h))
+                  _tur = 2
+              else:
+                  x0, y0, x1, y1 = quti
+                  _raw = b"".join(b"\x00" + b"".join((b"\xf0\x7a\x1e\xff" if (x0 <= x < x1 and y0 <= y < y1) else b"\x00\x00\x00\x00")
+                                                      for x in range(w)) for y in range(h))
+                  _tur = 6
+              return (b"\x89PNG\r\n\x1a\n" + _ch(b"IHDR", _st211.pack(">IIBBBBB", w, h, 8, _tur, 0, 0, 0))
                       + _ch(b"IDAT", _zl211.compress(_raw)) + _ch(b"IEND", b""))
           _up = C.post("/api/settings/company/logo", files={"file": ("belgi.png", _png211(200, 200), "image/png")})
           pgl.goto(BASE + "/", wait_until="networkidle")
@@ -1099,13 +1123,74 @@ else:
           _up2 = C.post("/api/settings/company/logo", files={"file": ("keng.png", _png211(400, 150), "image/png")})
           pgl.goto(BASE + "/", wait_until="networkidle")
           _lw2 = pgl.evaluate(LOGO_JS)
-          ctxl.close()
-          check("U26 logotipsiz korxona — avvalgidek harf + nom («K211 Blok korxona»); KVADRAT logotip (faqat belgi) — 56 px va yonida nomi qoladi",
-                not _lc["plita"] and _lc["nom"] == "K211 Blok korxona" and _up.status_code == 200 and not _lk["plita"]
-                and _lk["kv"] == 56 and _lk["nom"] == "K211 Blok korxona", (_lc, _up.status_code, _up.text[:200], _lk))
-          check("U27 boshqa korxona yuklagan KENG logotip (400 × 150) — o'zi menyu tepasini egallaydi, nom matni yo'q",
+          check("U26 logotipsiz korxona — avvalgidek harf + nom («K211 Blok korxona»); KVADRAT logotip (faqat belgi, 200 × 200) — ham "
+                "taglikni egallaydi: 140 × 140 (211d da 56 px va yonida nom edi), nom matni yo'q",
+                not _lc["plita"] and _lc["nom"] == "K211 Blok korxona" and _up.status_code == 200 and _lk["plita"] and _lk["kesim"]
+                and abs(_lk["kw"] - 140) <= 1 and abs(_lk["kh"] - 140) <= 1 and _lk["nom"] is None, (_lc, _up.status_code, _up.text[:200], _lk))
+          check("U27 boshqa korxona yuklagan KENG logotip (400 × 150) — o'zi menyu tepasini egallaydi (180 × 67,5), nom matni yo'q",
                 _up2.status_code == 200 and _lw2["plita"] and (_lw2["src"] or "").startswith("/static/uploads/logos/company_3")
-                and _lw2["nom"] is None and _lw2["w"] >= 140, (_up2.status_code, _lw2))
+                and _lw2["nom"] is None and abs(_lw2["kw"] - 180) <= 1 and abs(_lw2["kh"] - 67.5) <= 1, (_up2.status_code, _lw2))
+          # egasining logotipi kabi: kvadrat fayl (400 × 400), mazmuni (320 × 240) o'rtada, atrofi SHAFFOF — bo'sh joy kesiladi
+          _up3 = C.post("/api/settings/company/logo", files={"file": ("tiniq.png", _png211(400, 400, (40, 80, 360, 320)), "image/png")})
+          pgl.goto(BASE + "/", wait_until="networkidle")
+          _lt = pgl.evaluate(LOGO_JS)
+          _mz = _mazmun211(_lt, 40, 80, 360, 320)
+          _lp3 = ((_up3.json() if _up3.status_code == 200 else {}) or {}).get("logo_path") or ""
+          _fn_m = getattr(main, "company_logo_menyu", None)
+          _dm = _fn_m(_lp3) if (_fn_m and _lp3) else None
+          _pl_asl = getattr(main, "_pillow", None)
+          _yoq_pillow = None
+          if _fn_m and _pl_asl and hasattr(main, "_LOGO_MENYU_KESH"):
+              main._LOGO_MENYU_KESH.clear()
+              main._pillow = lambda: (None, None)
+              try:
+                  _yoq_pillow = _fn_m(_lp3)
+              finally:
+                  main._pillow = _pl_asl
+                  main._LOGO_MENYU_KESH.clear()
+          # kichik logotip (60 × 40) o'z o'lchamidan kattalashtirilmaydi (xira bo'lmasin) — 60 px
+          _kich = os.path.join(os.path.dirname(os.path.abspath(main.__file__)), "static", "uploads", "logos", "_sinov211_kichik.png")
+          os.makedirs(os.path.dirname(_kich), exist_ok=True)
+          with open(_kich, "wb") as _fk:
+              _fk.write(_png211(60, 40))
+          _dk = _fn_m("static/uploads/logos/_sinov211_kichik.png") if _fn_m else None
+          os.remove(_kich)
+          ctxl.close()
+          check("U28 egasining logotipi kabi KVADRAT fayl, atrofi SHAFFOF (400 × 400, mazmuni 320 × 240) — bo'sh joy kesiladi: mazmun "
+                "taglikni egallaydi (oyna 180 × 136,4, mazmun ≥ 95 % i; rasmning o'zi kengroq — chetlari ko'rinmaydi); hisob: chegara "
+                "(35, 75)–(365, 325) (1,5 % zaxira); Pillow bo'lmasa — rasm butunicha; kichik logotip (60 × 40) kattalashtirilmaydi",
+                _up3.status_code == 200 and _lt["plita"] and _lt["kesim"] and abs(_lt["kw"] - 180) <= 1 and abs(_lt["kh"] - 136.36) <= 1
+                and _mz[0] >= _lt["kl"] - 0.5 and _mz[2] <= _lt["kl"] + _lt["kw"] + 0.5 and _mz[1] >= _lt["kt"] - 0.5
+                and _mz[3] <= _lt["kt"] + _lt["kh"] + 0.5 and (_mz[2] - _mz[0]) >= 0.95 * _lt["kw"] and (_mz[3] - _mz[1]) >= 0.95 * _lt["kh"]
+                and _lt["iw"] > _lt["kw"] + 30
+                and _dm == {"src": "/" + _lp3, "eni": 180.0, "nisbat": 75.7576, "rasm": 121.2121, "chap": 10.6061, "tepa": 30.0}
+                and _yoq_pillow == {"src": "/" + _lp3} and (_dk or {}).get("eni") == 60.0, (_up3.status_code, _lt, _mz, _dm, _yoq_pillow, _dk))
+          # sinov saytida `static/uploads` har yangilanishda tozalanadi: platforma egasining (eng eski korxona) yuklagan fayli yo'q —
+          # platforma logotipi (ilgari harf + nom); boshqa korxonaniki yo'q — harf + nom (platforma logotipi BERILMAYDI)
+          _s = SessionLocal()
+          _s.get(Company, 1).logo_path = "static/uploads/logos/company_1_yoq211.png"
+          _s.commit()
+          _s.close()
+          _tola3 = os.path.join(os.path.dirname(os.path.abspath(main.__file__)), _lp3) if _lp3 else ""
+          if _tola3 and os.path.isfile(_tola3):
+              os.remove(_tola3)
+          ctxl, pgl = kontekst("k211_a", 1440, 900)
+          pgl.goto(BASE + "/", wait_until="networkidle")
+          _ly1 = pgl.evaluate(LOGO_JS)
+          ctxl.close()
+          ctxl, pgl = kontekst("k211_c", 1440, 900)
+          pgl.goto(BASE + "/", wait_until="networkidle")
+          _ly3 = pgl.evaluate(LOGO_JS)
+          ctxl.close()
+          check("U29 yuklangan fayli yo'qolgan (sinov saytida — har yangilanishda): platforma egasida — platforma logotipi (`logo_menyu.webp`); "
+                "boshqa korxonada — harf + nom (platforma logotipi berilmaydi)",
+                _ly1["plita"] and _ly1["src"] == "/static/logo_menyu.webp" and main.company_logo_of(1) == "static/logo_transparent.png"
+                and not _ly3["plita"] and _ly3["src"] is None and _ly3["nom"] == "K211 Blok korxona" and main.company_logo_of(3) is None
+                and not os.path.isfile(_tola3 or "/yoq"), (_ly1, _ly3))
+          _s = SessionLocal()
+          _s.get(Company, 1).logo_path = "static/logo_transparent.png"
+          _s.commit()
+          _s.close()
           br.close()
     try:
         _ui()
