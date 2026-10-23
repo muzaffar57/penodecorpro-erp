@@ -21,23 +21,37 @@
 :root {
   --sidebar-w: 240px;
   --topbar-h: 58px;
-  --gold: #B9783F;
-  --gold-dark: #8F5B2A;      /* kech118 (U-03): matn uchun — oq / och fonda ≥ 4.8:1 (ilgari #A86B36 — 3.9–4.4) */
-  --gold-btn: #9A6231;       /* kech118 (U-03): OQ yozuvli oltin tugma / belgi foni — 5.0:1 (--gold #B9783F bilan 3.6:1) */
-  --gold-tint: #F8F2EB;
-  --gold-hover: #8F5B2A;     /* kech118 (zip 122): oltin tugma ustiga kelinganda (oq yozuvli FON) — ikkala rejimda bir xil */
-  --dark: #181B22;
-  --dark2: #23262E;
-  --dark3: #2D3038;
-  --bg: #F8F8F6;
+  /* kech155 (zip 208 — EGASI TANLOVI «B · Toza ko'k», 23.10): aksent ko'k. Belgi NOMLARI («gold») ataylab o'sha — 200+ joyda
+     ishlatiladi; qiymati — ko'k. Ilgari: #B9783F / #8F5B2A / #9A6231 / #F8F2EB, fon #F8F8F6, chegaralar #E8E3DD / #F0ECE6 (iliq) */
+  --gold: #2563EB;           /* aksent (ramka, belgi, ikonka) — oq fonda 5.2:1 */
+  --gold-dark: #1D4ED8;      /* aksent MATN — oq / och ko'k fonda ≥ 5.6:1 */
+  --gold-btn: #2563EB;       /* OQ yozuvli tugma / belgi foni — 5.2:1 */
+  --gold-tint: #EEF4FF;      /* och ko'k fon (tanlangan, faol) */
+  --gold-hover: #1D4ED8;     /* tugma ustiga kelinganda (oq yozuvli FON) — ikkala rejimda bir xil */
+  --dark: #1E293B;
+  --dark2: #2A3649;
+  --dark3: #334155;
+  --bg: #F4F6FA;
   --white: #ffffff;
-  --border: #E8E3DD;
-  --border2: #F0ECE6;
-  --border-strong: #CFC5B8;  /* kech120 (zip 134 — G2-23): 5 shablon ishlatardi, hech qayerda aniqlanmagan edi (ramka chizilmasdi) */
-  --placeholder: #A1A4AD;    /* kech120 (zip 134 — G2-08): namuna matni — yorliqdan (--text3) och, qiymatdan aniq farqli */
-  --text: #222222;
-  --text2: #5B6170;          /* kech118 (U-03): ≥ 5.8:1 hamma och fonda (ilgari #6B7280 — oltin fonda 4.35) */
-  --text3: #696D78;          /* kech118 (U-03): ≥ 4.4:1 (ilgari #9A9DA6 — 2.4–2.7; audit: 208 joy) */
+  --border: #E2E7EF;
+  --border2: #EDF0F5;
+  --border-strong: #C5CEDC;  /* kech120 (zip 134 — G2-23): 5 shablon ishlatardi, hech qayerda aniqlanmagan edi (ramka chizilmasdi) */
+  --placeholder: #98A1B0;    /* kech120 (zip 134 — G2-08): namuna matni — yorliqdan (--text3) och, qiymatdan aniq farqli */
+  --text: #1A1F2B;
+  --text2: #4A5366;          /* ≥ 6:1 hamma och fonda */
+  --text3: #5B6476;          /* ≥ 5:1 hamma och fonda (ilgari #696D78) */
+  /* chap menyu (kech155, zip 208): yorug' rejimda OQ, tungi rejimda qorong'i (pastda) */
+  --menu-fon: #FFFFFF;
+  --menu-chiziq: #E2E7EF;
+  --menu-ichki: #EDF0F5;
+  --menu-nom: #1A1F2B;
+  --menu-matn: #2B3038;
+  --menu-sust: #5B6476;
+  --menu-hover: #F1F4F9;
+  --menu-faol-fon: #EEF4FF;
+  --menu-faol-chegara: #C9D9FA;
+  --menu-faol-matn: #1D4ED8;
+  --menu-skroll: #CBD5E1;
   --green: #22C55E;
   --red: #EF4444;
   --blue: #3B82F6;
@@ -52,8 +66,20 @@
    o'zgarmaydi, shuning uchun BARCHA sahifalarga avtomatik ta'sir qiladi.
    ============================================================ */
 html[data-theme="dark"] {
-  --gold-dark: #D09A63;      /* kech118 (zip 122): oltin MATN — qorong'i kartada 6.6:1 (#8F5B2A — 2.8) */
-  --gold-tint: #2E2418;
+  --gold: #3B82F6;           /* kech155 (zip 208): ko'k aksent — qorong'i kartada ≥ 4.5:1 */
+  --gold-dark: #93B4F5;      /* ko'k MATN — qorong'i kartada ≥ 7:1 (ilgari oltin #D09A63) */
+  --gold-tint: #1A2741;
+  --menu-fon: #181B22;
+  --menu-chiziq: #2D3038;
+  --menu-ichki: #2D3038;
+  --menu-nom: #FFFFFF;
+  --menu-matn: #E5E5E0;
+  --menu-sust: #9198A3;
+  --menu-hover: #23262E;
+  --menu-faol-fon: rgba(59,130,246,0.16);
+  --menu-faol-chegara: rgba(59,130,246,0.32);
+  --menu-faol-matn: #93B4F5;
+  --menu-skroll: #333333;
   --bg: #16181F;
   --white: #1E212A;
   --border: #34384A;
@@ -86,8 +112,8 @@ html[data-theme="dark"] .btn-dark { background: var(--doim-eceae6); color: var(-
 html[data-theme="dark"] .btn-dark:hover { background: var(--doim-d6d3cd); }
 html[data-theme="dark"] .btn-dark[style*="background"] { color: #fff; }
 html[data-theme="dark"] .stat-card.emph { background: #2A2E3A; }
-.stat-card.emph .emph-havola { color: var(--gold); }
-html[data-theme="dark"] .stat-card.emph .emph-havola { color: var(--m-d09a63); }
+.stat-card.emph .emph-havola { color: var(--doim-93c5fd); }   /* kech155 (zip 208): qorong'i kartada 8,1:1 */
+html[data-theme="dark"] .stat-card.emph .emph-havola { color: var(--gold-dark); }
 /* tugmaning brauzer standart rangi (qora) qorong'i fonda ko'rinmasdi — o'z rangi yozilmagan tugmalar matn rangini oladi
    (`:where` — o'ziga xoslik 0: sinf / ichki uslubdagi rang ustun) */
 :where(html[data-theme="dark"]) button { color: var(--text); background-color: #2A2E3A; border-color: var(--border); }
@@ -114,7 +140,8 @@ body {
    SIDEBAR
    ============================================================ */
 .sidebar {
-  background: var(--dark);
+  background: var(--menu-fon);
+  border-right: 1px solid var(--menu-chiziq);
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -124,29 +151,29 @@ body {
 }
 
 .sidebar::-webkit-scrollbar { width: 3px; }
-.sidebar::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+.sidebar::-webkit-scrollbar-thumb { background: var(--menu-skroll); border-radius: 2px; }
 
 .s-logo {
   padding: 22px 20px 16px;
-  border-bottom: 1px solid var(--dark3);
+  border-bottom: 1px solid var(--menu-ichki);
   flex-shrink: 0;
 }
 .s-logo .logo-name {
   font-size: 18px;
   font-weight: 600;
-  color: #fff;   /* kech118 (zip 122): qorong'i menyuda — har ikkala rejimda oq (var(--white) tungi rejimda qorong'i edi) */
+  color: var(--menu-nom);   /* kech155 (zip 208): yorug' rejimda oq menyuda to'q, tungi rejimda — oq */
   letter-spacing: -.3px;
 }
 .s-logo .logo-name span { color: var(--gold); }
 .s-logo .logo-ver {
   font-size: 12px;
-  color: var(--m-8a8f9c);
+  color: var(--menu-sust);
   margin-top: 3px;
 }
 
 .s-user {
   padding: 14px 20px;
-  border-bottom: 1px solid var(--dark3);
+  border-bottom: 1px solid var(--menu-ichki);
   display: flex;
   align-items: center;
   gap: 12px;
@@ -154,20 +181,20 @@ body {
 }
 .s-user .u-avatar {
   width: 34px; height: 34px;
-  background: var(--gold);
+  background: var(--gold-btn);   /* kech155 (zip 208): oq yozuv — 5,2:1 ikkala rejimda (tungi --gold #3B82F6 da 3,7 bo'lardi) */
   border-radius: 9px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 14px; font-weight: 600; color: var(--dark);
+  font-size: 14px; font-weight: 600; color: #fff;
   flex-shrink: 0;
 }
-.s-user .u-name { font-size: 13px; font-weight: 700; color: #fff; }
-.s-user .u-role { font-size: 12px; color: var(--m-9198a3); margin-top: 2px; font-weight: 600; }
+.s-user .u-name { font-size: 13px; font-weight: 700; color: var(--menu-nom); }
+.s-user .u-role { font-size: 12px; color: var(--menu-sust); margin-top: 2px; font-weight: 600; }
 
 .s-nav { padding: 12px 0; flex: 1; }
 
 .nav-label {
   font-size: 12px;
-  color: var(--m-8a8d96);
+  color: var(--menu-sust);
   text-transform: uppercase;
   letter-spacing: .5px;
   padding: 10px 20px 4px;
@@ -186,19 +213,19 @@ body {
   text-decoration: none;
   border: 1px solid transparent;
 }
-.nav-item:hover { background: var(--dark2); }
+.nav-item:hover { background: var(--menu-hover); }
 .nav-item.active {
-  background: rgba(185,120,63,0.16);
-  border-color: rgba(185,120,63,0.30);
+  background: var(--menu-faol-fon);
+  border-color: var(--menu-faol-chegara);
 }
-.nav-item .n-ico { font-size: 16px; width: 20px; text-align: center; color: var(--m-9198a3); }
-.nav-item .n-txt { font-size: 13px; color: #E5E5E0; flex: 1; font-weight: 800; letter-spacing: .1px; }
-.nav-item.active .n-txt { color: var(--m-d09a63); font-weight: 800; }   /* kech118 (U-03): qorong'i menyuda 5.7:1 (ilgari 3.9) */
+.nav-item .n-ico { font-size: 16px; width: 20px; text-align: center; color: var(--menu-sust); }
+.nav-item .n-txt { font-size: 13px; color: var(--menu-matn); flex: 1; font-weight: 800; letter-spacing: .1px; }
+.nav-item.active .n-txt { color: var(--menu-faol-matn); font-weight: 800; }   /* kech155 (zip 208): oq menyuda 5.9:1, tungi — 7:1 */
 .nav-item.active .n-ico { color: var(--gold); }
 .nav-item .n-badge {
   font-size: 12px;
-  background: var(--gold);
-  color: var(--dark);
+  background: var(--gold-btn);
+  color: #fff;
   padding: 2px 7px;
   border-radius: 10px;
   font-weight: 600;
@@ -206,7 +233,7 @@ body {
 
 .s-bottom {
   padding: 12px 20px;
-  border-top: 1px solid var(--dark3);
+  border-top: 1px solid var(--menu-ichki);
   flex-shrink: 0;
 }
 .s-logout {
@@ -215,14 +242,14 @@ body {
   gap: 8px;
   font-size: 12px;
   font-weight: 600;
-  color: var(--m-9198a3);
+  color: var(--menu-sust);
   cursor: pointer;
   padding: 8px 10px;
   border-radius: 8px;
   text-decoration: none;
   transition: all .15s;
 }
-.s-logout:hover { background: var(--dark2); color: var(--red); }
+.s-logout:hover { background: var(--menu-hover); color: var(--m-b91c1c); }
 
 /* ============================================================
    MAIN AREA
@@ -352,7 +379,7 @@ body {
   background: var(--white); color: var(--text2); font-family: inherit; font-size: 13px; line-height: 18px; font-weight: 600;
   white-space: nowrap; cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
 .chip:hover { border-color: var(--border-strong); color: var(--text); }
-.chip.active, .chip[aria-pressed="true"] { background: var(--gold-tint); border-color: var(--ch-d9b48c); color: var(--gold-dark); }
+.chip.active, .chip[aria-pressed="true"] { background: var(--gold-tint); border-color: var(--gold); color: var(--gold-dark); }
 
 /* TABLAR — sahifa ichidagi bo'limlar (bitta tanlangan); o'rta o'lcham */
 .tablar { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -437,7 +464,7 @@ textarea.maydon { padding: 10px 12px; min-height: 80px; }
   color: var(--text2);
   border-bottom: 1px solid var(--ch-f8f8f8);
 }
-.erp-table tr:hover td { background: var(--f-fafaf8); }
+.erp-table tr:hover td { background: var(--f-f8fafc); }
 .erp-table tr:last-child td { border-bottom: none; }
 
 /* ============================================================
@@ -513,9 +540,9 @@ textarea.maydon { padding: 10px 12px; min-height: 80px; }
 .unit-input-wrap:focus-within{border-color:var(--gold);background:var(--white)}
 .unit-input-wrap input,.unit-input-wrap select{border:none!important;outline:none;min-height:0;padding:0 12px;font-size:var(--fs-maydon);line-height:20px;color:var(--text);width:100%;background:transparent!important}
 .unit-input-wrap .unit-suffix{display:flex;align-items:center;padding:0 13px;background:var(--gold-tint);color:var(--gold-dark);font-size:13px;font-weight:700;white-space:nowrap;flex-shrink:0}
-.detal-result{margin-top:16px;padding:16px;background:var(--f-f5f3ef);border-radius:12px;display:flex;gap:22px;flex-wrap:wrap;align-items:center}
+.detal-result{margin-top:16px;padding:16px;background:var(--f-f1f5f9);border-radius:12px;display:flex;gap:22px;flex-wrap:wrap;align-items:center}
 .result-cards{display:flex;gap:14px;flex-wrap:wrap;width:100%}
-.result-card{background:var(--white);border-radius:10px;border:1px solid var(--ch-e5e1d8);padding:12px 14px;flex:1;min-width:150px}
+.result-card{background:var(--white);border-radius:10px;border:1px solid var(--ch-e2e8f0);padding:12px 14px;flex:1;min-width:150px}
 .result-card label{font-size:12px;font-weight:700;color:var(--gold-dark);display:flex;align-items:center;gap:4px;margin-bottom:8px;text-transform:none}
 .dval-box{display:flex;align-items:stretch;min-height:var(--h-btn);box-sizing:border-box;border:1px solid var(--border);border-radius:var(--r-btn);overflow:hidden;background:var(--white)}
 .dval-box input{border:none;outline:none;padding:9px 12px;font-size:16px;color:var(--m-222222);width:100%;background:transparent;font-weight:600}
@@ -642,7 +669,7 @@ textarea.maydon { padding: 10px 12px; min-height: 80px; }
 }
 .stat-card.emph .stat-label { color: var(--m-999999); }
 .stat-card.emph .stat-val { color: #fff; }
-.stat-card.emph .stat-icon { background: rgba(185,120,63,.18); color: var(--gold); }
+.stat-card.emph .stat-icon { background: rgba(59,130,246,.22); color: var(--doim-93c5fd); }
 
 /* ============================================================
    GAUGE (ishlab chiqarish holati)
