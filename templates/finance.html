@@ -1175,7 +1175,7 @@ function openQoldiqModal(){
   document.getElementById('qoldiqQatorlar').innerHTML = hisoblar.map(h => `
     <div class="hb-qoldiq-q">
       <label for="qoldiq-${Number(h.id)}"><i class="ti ${HISOB_IKON[h.turi] || 'ti-wallet'}"></i> ${escapeHtml(h.nomi)}</label>
-      <input type="text" inputmode="decimal" id="qoldiq-${Number(h.id)}" data-hisob-id="${Number(h.id)}" autocomplete="off"
+      <input type="text" class="maydon" inputmode="decimal" id="qoldiq-${Number(h.id)}" data-hisob-id="${Number(h.id)}" autocomplete="off"
              placeholder="${boshlangan ? "o'zgarmaydi" : '0'}" oninput="formatPriceInput(this); qoldiqOldindan()">
       ${boshlangan && h.balans !== null && h.balans !== undefined ? `<small>Dasturda hozir: ${_hisobSom(h.balans)} so'm</small>` : ''}
     </div>`).join('');
