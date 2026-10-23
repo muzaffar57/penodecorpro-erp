@@ -458,7 +458,7 @@ _od = A.delete(f"/api/finance/hisoblar/otkazma/{js(_o1).get('id')}")
 _odB = B.delete(f"/api/finance/hisoblar/otkazma/{js(_o1).get('id')}")
 check("T3 o'tkazish o'chirildi — Bank +300 000, Naqd −300 000 (qaytdi); B korxonadan — 404; jurnalda «O'tkazish: Bank → Naqd pul»",
       _od.status_code == 200 and _odB.status_code == 404 and teng(farq(oldin, bal()), {"bank": 300_000, "naqd": -300_000})
-      and [x[0] for x in jurnal("pul_otkazmasi")] == ["create", "delete"]
+      and [x[0] for x in jurnal("pul_otkazmasi")] == ["created", "deleted"]
       and all("Bank → Naqd pul" in (x[1] or "") for x in jurnal("pul_otkazmasi")),
       (_od.status_code, _odB.status_code, farq(oldin, bal()), jurnal("pul_otkazmasi")))
 _o3 = A.post("/api/finance/hisoblar/otkazma", json={"dan_hisob_id": HID["naqd"], "ga_hisob_id": HID["karta"], "summa": 25_000})
@@ -525,8 +525,8 @@ oldin = bal()
 _rd = A.delete(f"/api/finance/hisoblar/qoldiq/{_qid_n}")
 _rdB = B.delete(f"/api/finance/hisoblar/qoldiq/{_qid_n}")
 _b2 = bal()
-check("R3 sanash o'chirildi — «Naqd pul» birinchi qoldiqqa qaytdi (777 000 dan farqli), B dan — 404; jurnal «delete»",
-      lambda: _rd.status_code == 200 and _rdB.status_code == 404 and abs(_b2["naqd"] - 777_000) > 1 and jurnal("pul_hisobi")[-1][0] == "delete",
+check("R3 sanash o'chirildi — «Naqd pul» birinchi qoldiqqa qaytdi (777 000 dan farqli), B dan — 404; jurnal «deleted» (o'zbekcha nomli tur)",
+      lambda: _rd.status_code == 200 and _rdB.status_code == 404 and abs(_b2["naqd"] - 777_000) > 1 and jurnal("pul_hisobi")[-1][0] == "deleted",
       (_rd.status_code, _rdB.status_code, _b2))
 # review210 №1 (YUQORI): o'tgan oy oyligini yopish / o'tgan oy majburiyatini to'lash — sana hisobot oyi (28-kun), pul HOZIR
 _ot = TK.replace(day=1) - datetime.timedelta(days=1)            # o'tgan oyning oxirgi kuni
