@@ -385,13 +385,15 @@ if PW_BOR and all(O.values()):
         ctx.close()
         br.close()
 
-    OLTIN, OLTIN_OCH = (185.0, 120.0, 63.0), (248.0, 242.0, 235.0)
+    # kech155 (zip 208 — «Toza ko'k», MOSLANDI): aksent #B9783F → #2563EB, och fon #F8F2EB → #EEF4FF (o'zgaruvchi NOMLARI eski — mazmuni «aksent» / «och aksent fon»)
+    OLTIN, OLTIN_OCH = (37.0, 99.0, 235.0), (238.0, 244.0, 255.0)
+    OLTIN_TUNGI = (59.0, 130.0, 246.0)        # kech155 (zip 208 — «Toza ko'k», MOSLANDI): tungi rejimda aksent #3B82F6 (ilgari yorug' bilan bir xil #B9783F edi)
 
     def tanlangan_aniq(v):
         """oldin — yorliq yo'q, fon och oltin emas; keyin — 3 px oltin ramka, och oltin fon, «▶ OCHIQ», raqam to'q oltin"""
         o, k = (v or {}).get("oldin") or {}, (v or {}).get("keyin") or {}
         return (o.get("yorliq") in ("none", "normal") and rgb(o.get("fon")) != OLTIN_OCH and k.get("faol")
-                and rgb(k.get("fon")) == OLTIN_OCH and "rgb(185, 120, 63) 0px 0px 0px 3px inset" in (k.get("soya") or "")
+                and rgb(k.get("fon")) == OLTIN_OCH and "rgb(37, 99, 235) 0px 0px 0px 3px inset" in (k.get("soya") or "")
                 and k.get("yorliq") == '"▶ OCHIQ"' and not re.search(r"background|border-left", k.get("inline") or ""))
 
     _kor = NAT.get("korinish") or {}
@@ -442,7 +444,7 @@ if PW_BOR and all(O.values()):
     check("D5b filtrlash avvalgidek: «Muddati o'tgan» — faqat 2 muddati o'tgan buyurtma; tanlangan tugma oltin ramkali, soni oltin fonda; "
           "«Hammasi» — 6",
           NAT.get("filtr_otgan") == sorted([O["otgan"], O["pin"]]) and NAT.get("filtr_hammasi") == sorted(O.values())
-          and _fa.get("faol") and "rgb(185, 120, 63)" in (_fa.get("soya") or "") and rgb(_fa.get("son_fon")) == (154.0, 98.0, 49.0),
+          and _fa.get("faol") and "rgb(37, 99, 235)" in (_fa.get("soya") or "") and rgb(_fa.get("son_fon")) == (37.0, 99.0, 235.0),   # kech155 (zip 208 — «Toza ko'k», MOSLANDI)
           (NAT.get("filtr_otgan"), NAT.get("filtr_hammasi"), _fa))
     _dq = INFO["otgan"].get("debt_amount")
     _bel = {k: (_q.get(k) or {}).get("belgilar") or [] for k in O}
@@ -469,8 +471,8 @@ if PW_BOR and all(O.values()):
     check("D8 tungi rejim: «▶ OCHIQ» yozuvi ≥ 4,5:1, oltin ramka kartaga nisbatan ≥ 3:1, raqam fonda ≥ 4,5:1",
           _tg.get("tema") == "dark" and _tg.get("yorliq") == '"▶ OCHIQ"'
           and kontrast(rgb(_tg.get("yorliq_rang")), rgb(_tg.get("yorliq_fon"))) >= 4.5
-          and kontrast(OLTIN, rgb(_tg.get("karta"))) >= 3 and kontrast(rgb(_tg.get("raqam_rang")), rgb(_tg.get("fon"))) >= 4.5,
-          (_tg, kontrast(rgb(_tg.get("yorliq_rang")), rgb(_tg.get("yorliq_fon"))), kontrast(OLTIN, rgb(_tg.get("karta"))),
+          and kontrast(OLTIN_TUNGI, rgb(_tg.get("karta"))) >= 3 and kontrast(rgb(_tg.get("raqam_rang")), rgb(_tg.get("fon"))) >= 4.5,
+          (_tg, kontrast(rgb(_tg.get("yorliq_rang")), rgb(_tg.get("yorliq_fon"))), kontrast(OLTIN_TUNGI, rgb(_tg.get("karta"))),
            kontrast(rgb(_tg.get("raqam_rang")), rgb(_tg.get("fon")))))
     _ko = ((_kor.get("otgan") or {}).get("keyin")) or {}
     check("D8b yorug' rejim: «▶ OCHIQ» ≥ 4,5:1, raqam och oltin fonda ≥ 4,5:1, oltin ramka oq kartaga nisbatan ≥ 3:1",

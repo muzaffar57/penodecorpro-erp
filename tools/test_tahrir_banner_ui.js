@@ -188,9 +188,11 @@ if (JSDOM && BANNER) {
   tekshir('Y1 _tahrirBanneriTopshirish mavjud; foiz — faqat son (matn in\'ektsiyasi → 0 %, <img> YO\'Q)',
           !!TOPSH && xato === null && t && !t.querySelector('img') && /\(0%\)/.test(t.textContent), { xato, html: t ? t.innerHTML : null });
   try { w._tahrirBanneriTikla(); } catch (e) { xato = String(e.message || e); }
-  tekshir('Y2 _tahrirBanneriTikla: ogohlantirish bo\'sh va yashirin, rang asl (#F8F2EB / #E8D5C0), editOrderNum joyida',
+  // kech155 (zip 208 — «Toza ko'k», MOSLANDI): asl rang — och aksent fon `--gold-tint` (ilgari `--f-f8f2eb` / #F8F2EB), chegara `--ch-dbeafe` (ilgari #E8D5C0)
+  tekshir('Y2 _tahrirBanneriTikla: ogohlantirish bo\'sh va yashirin, rang asl (--gold-tint / --ch-dbeafe — markupdagi bilan bir xil), editOrderNum joyida',
           !!TIKLA && xato === null && t && t.innerHTML === '' && t.style.display === 'none'
-          && /248, 242, 235|F8F2EB/i.test(w.document.getElementById('editBanner').style.background)
+          && /gold-tint|238, 244, 255|EEF4FF/i.test(w.document.getElementById('editBanner').style.background)
+          && /ch-dbeafe|219, 234, 254|DBEAFE/i.test(w.document.getElementById('editBanner').style.borderColor)
           && !!w.document.getElementById('editOrderNum'), { xato });
   tekshir('Y3 banner markup: editOrderNum va editBannerTopshirish — editBanner ICHIDA',
           !!w.document.querySelector('#editBanner #editOrderNum') && !!w.document.querySelector('#editBanner #editBannerTopshirish'));

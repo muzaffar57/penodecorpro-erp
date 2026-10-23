@@ -187,21 +187,31 @@ check("S6b sahifalarning o'z ranglar to'plami (Moliya --f-*, Hisobotlar --b-*, Q
       "tuslari oq fonda ≥ 4.5:1 (asl: --x-text3 #9CA3AF 2.5, --x-success #22C55E 2.3, --x-warning #F59E0B 2.2)", not _toplam, _toplam)
 
 
+def ildiz_rang(nom):
+    # kech155 (zip 208 — «Toza ko'k», MOSLANDI): style.css :root dagi belgi qiymati (yorug' rejim) — masalan `--menu-faol-fon`
+    m = re.search(r":root\s*\{[^}]*?--" + re.escape(nom) + r":\s*(#[0-9A-Fa-f]{6})", CSS)
+    return m.group(1).upper() if m else None
+
+
 def klass_rang(sel, xos):
     # kech118 (zip 122 — tungi rejim, MOSLANDI): rang umumiy ro'yxatdan ham (var(--m-15803d) — yorug' rejimda #15803D)
-    m = re.search(re.escape(sel) + r"\s*\{[^}]*?" + xos + r":\s*(#[0-9A-Fa-f]{6}|var\(--(?:f|m|ch|doim)-[0-9a-f]{6}\))", CSS)
+    # kech155 (zip 208 — «Toza ko'k», MOSLANDI): chap menyu ranglari — `--menu-*` belgilari (yorug' rejimda menyu oq)
+    m = re.search(re.escape(sel) + r"\s*\{[^}]*?" + xos + r":\s*(#[0-9A-Fa-f]{6}|var\(--(?:f|m|ch|doim)-[0-9a-f]{6}\)|var\(--menu-[\w-]+\))", CSS)
     if not m:
         return None
+    if m.group(1).startswith("var(--menu-"):
+        return ildiz_rang(m.group(1)[6:-1])
     return m.group(1) if m.group(1).startswith("#") else "#" + m.group(1)[-7:-1].upper()
 
 
 _kl = {"text-green": klass_rang(".text-green", "color"), "text-red": klass_rang(".text-red", "color"),
        "btn-green": klass_rang(".btn-green", "background"), "btn-red": klass_rang(".btn-red", "background"),
        "nav-active": klass_rang(".nav-item.active .n-txt", "color")}
-check("S6c yashil / qizil matn ≥ 4.5:1, yashil / qizil tugmada oq yozuv ≥ 4.5:1, menyudagi faol band (qorong'i fon #322A27) ≥ 4.5:1",
-      all(_kl.values()) and kontrast(_kl["text-green"], "#ffffff") >= 4.5 and kontrast(_kl["text-red"], "#ffffff") >= 4.5
+_menyu_faol_fon = ildiz_rang("menu-faol-fon")          # kech155 (zip 208 — «Toza ko'k», MOSLANDI): oq menyuda faol band foni (ilgari qorong'i menyuda #322A27)
+check("S6c yashil / qizil matn ≥ 4.5:1, yashil / qizil tugmada oq yozuv ≥ 4.5:1, menyudagi faol band (och ko'k fon `--menu-faol-fon`) ≥ 4.5:1",
+      all(_kl.values()) and _menyu_faol_fon and kontrast(_kl["text-green"], "#ffffff") >= 4.5 and kontrast(_kl["text-red"], "#ffffff") >= 4.5
       and kontrast("#ffffff", _kl["btn-green"]) >= 4.5 and kontrast("#ffffff", _kl["btn-red"]) >= 4.5
-      and kontrast(_kl["nav-active"], "#322A27") >= 4.5, _kl)
+      and kontrast(_kl["nav-active"], _menyu_faol_fon) >= 4.5, (_kl, _menyu_faol_fon))
 _b, _h = TPL.get("base.html", ""), TPL.get("hodim_panel.html", "")
 _tk = lambda s: s[s.find("function tkMs("): s.find("function tkHozir(")]          # noqa: E731
 check("S7 Toshkent vaqti yordamchilari base.html va hodim_panel.html da AYNAN bir xil", _tk(_b) and _tk(_b) == _tk(_h),
@@ -214,10 +224,10 @@ _oq_oltin = []
 for _fn, _src in list(TPL.items()) + [("style.css", CSS)]:
     for _m in re.finditer(r"background(?:-color)?:\s*(?:var\(--gold\)|#B9783F|#b9783f)\s*;[^\"'}]{0,40}?(?<![-\w])color:\s*(?:#fff\b|#ffffff|var\(--white\))", _src):
         _oq_oltin.append((_fn, _src.count("\n", 0, _m.start()) + 1))
-check("S9b oq yozuvli oltin fon YO'Q (asl #B9783F — 3.6:1); `--gold-btn` oq yozuv bilan ≥ 4.5:1; Moliya / Kirim / Hisobotlar / "
-      "Qarzdorlar `--*-primary` oq va och oltin fonda ≥ 4.5:1",
+check("S9b oq yozuvli aksent (`--gold`) fon YO'Q (asl #B9783F — 3.6:1; tungi #3B82F6 — 3.7:1); `--gold-btn` oq yozuv bilan ≥ 4.5:1; "
+      "Moliya / Kirim / Hisobotlar / Qarzdorlar `--*-primary` oq va och aksent fonda ≥ 4.5:1",   # kech155 (zip 208 — «Toza ko'k», MOSLANDI): och fon #F8F2EB → #EEF4FF
       not _oq_oltin and _gb and kontrast("#ffffff", _gb.group(1)) >= 4.5
-      and all(m and kontrast(m.group(1), "#ffffff") >= 4.5 and kontrast(m.group(1), "#F8F2EB") >= 4.5 for m in _pr.values()),
+      and all(m and kontrast(m.group(1), "#ffffff") >= 4.5 and kontrast(m.group(1), "#EEF4FF") >= 4.5 for m in _pr.values()),
       (_oq_oltin[:6], _gb and _gb.group(1), {k: m and m.group(1) for k, m in _pr.items()}))
 check("S8 base.html: `sonKor`, `foizKor`, `birlikKor` bor; `qisqaSumma` — vergul", "function sonKor(" in _b and "function foizKor(" in _b
       and "function birlikKor(" in _b and ".toFixed(1).replace('.', ',') + ' mln'" in _b, "")
