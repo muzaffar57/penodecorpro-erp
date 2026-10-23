@@ -653,6 +653,65 @@ check("S7 70 m shu oyda, 30 m keyingi oyda topshirildi (2,5 blok): shu oyga +1,7
       (_d7a.status_code, _d7b.status_code, _d7b.text[:150], _o7, _o7k))
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+section("L. Hujjat logotipi (egasi QARORI 24.10 03:45: PDF da ham tiniq logotip, lekin kattalashmasin)")
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+import hashlib as _hl211
+import company_brand as _cb211
+_LT = os.path.join(os.path.dirname(os.path.abspath(main.__file__)), "static", "logo_transparent.png")
+try:
+    from PIL import Image as _PI211
+    with _PI211.open(_LT) as _im211:
+        _lt_ol, _lt_mode = _im211.size, _im211.mode
+except Exception as _e:                    # noqa: BLE001
+    _lt_ol, _lt_mode = None, f"{type(_e).__name__}"
+_lt_md5 = _hl211.md5(open(_LT, "rb").read()).hexdigest() if os.path.isfile(_LT) else None
+check("L1 platforma logotipi (`static/logo_transparent.png`) — egasining TINIQ logotipi: 1000 × 798, shaffof (RGBA), md5 62cea8c5…",
+      _lt_ol == (1000, 798) and _lt_mode == "RGBA" and _lt_md5 == "62cea8c5f2cecfa5af944ef513243603", (_lt_ol, _lt_mode, _lt_md5))
+
+
+def _pdf_rasm211(c, oid):
+    """«Buyurtma hisobi» PDF i: (holat, birinchi sahifadagi rasmlar [(eni_mm, bo'yi_mm)]) — o'qib bo'lmasa, xato matni"""
+    r = c.get(f"/api/orders/{oid}/pdf")
+    try:
+        import pdfplumber
+        with pdfplumber.open(io.BytesIO(r.content)) as p:
+            return r.status_code, [(round(i["width"] * 25.4 / 72, 2), round(i["height"] * 25.4 / 72, 2)) for i in p.pages[0].images]
+    except Exception as e:                 # noqa: BLE001
+        return r.status_code, f"{type(e).__name__}: {e}"[:200]
+
+
+_s = SessionLocal()
+_s.get(Company, 1).logo_path = "static/logo_transparent.png"
+_s.commit()
+_s.close()
+_st1, _r1 = _pdf_rasm211(A, O1)
+check("L2 «Buyurtma hisobi» PDF da platforma logotipi KATTALASHMAGAN: bo'yi 18 mm (avvalgidek), eni 22,6 mm (avval 32) — 32 × 18 mm qutida",
+      _st1 == 200 and isinstance(_r1, list) and len(_r1) >= 1 and abs(_r1[0][1] - 18) < 0.06 and abs(_r1[0][0] - 18 * 1000 / 798) < 0.06,
+      (_st1, _r1))
+# sinov saytida `static/uploads` har yangilanishda tozalanadi — yuklangan fayli yo'qolgan korxona
+_s = SessionLocal()
+_s.get(Company, 1).logo_path = "static/uploads/logos/company_1_yoq211.png"
+_s.get(Company, 3).logo_path = "static/uploads/logos/company_3_yoq211.png"
+_s.commit()
+_b1 = _cb211.get_brand(_s, 1)
+_b3 = _cb211.get_brand(_s, 3)
+_s.close()
+_st2, _r2 = _pdf_rasm211(A, O1)
+_g1 = js(A.get("/api/settings/company"))
+_g3 = js(C.get("/api/settings/company"))
+check("L3 yuklangan fayli yo'qolgan (sinov saytida — har yangilanishda): platforma egasining PDF ida — platforma logotipi (18 mm), "
+      "Sozlamalar ko'rinishi — platforma logotipi; boshqa korxonada — logotipsiz (begona logotip berilmaydi), Sozlamalarda ko'rinmaydi",
+      (_b1.get("logo") or "").endswith(os.path.join("static", "logo_transparent.png")) and _b3.get("logo") is None
+      and _st2 == 200 and isinstance(_r2, list) and len(_r2) >= 1 and abs(_r2[0][1] - 18) < 0.06
+      and _g1.get("logo_korinish") == "static/logo_transparent.png" and _g1.get("logo_path") == "static/uploads/logos/company_1_yoq211.png"
+      and "logo_korinish" in _g3 and _g3.get("logo_korinish") is None, (_b1.get("logo"), _b3.get("logo"), _st2, _r2, _g1.get("logo_korinish"), _g3))
+_s = SessionLocal()
+_s.get(Company, 1).logo_path = "static/logo_transparent.png"
+_s.get(Company, 3).logo_path = None
+_s.commit()
+_s.close()
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 section("U. HAQIQIY brauzer")
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 if PG_URL:
@@ -1187,6 +1246,23 @@ else:
                 _ly1["plita"] and _ly1["src"] == "/static/logo_menyu.webp" and main.company_logo_of(1) == "static/logo_transparent.png"
                 and not _ly3["plita"] and _ly3["src"] is None and _ly3["nom"] == "K211 Blok korxona" and main.company_logo_of(3) is None
                 and not os.path.isfile(_tola3 or "/yoq"), (_ly1, _ly3))
+          # Sozlamalar → «Korxona nomi» dagi logotip ko'rinishi (211e jonli sinovida — o'chgan fayl, singan rasm edi)
+          _SZ_JS = """() => { const i = document.getElementById('co-logo-preview'); return i ? {src: i.getAttribute('src'),
+              korinadi: getComputedStyle(i).display !== 'none', nw: i.naturalWidth} : null; }"""
+          ctxl, pgl = kontekst("k211_a", 1440, 900)
+          pgl.goto(BASE + "/sozlamalar", wait_until="networkidle")
+          pgl.wait_for_timeout(500)
+          _sz1 = pgl.evaluate(_SZ_JS)
+          ctxl.close()
+          ctxl, pgl = kontekst("k211_c", 1440, 900)
+          pgl.goto(BASE + "/sozlamalar", wait_until="networkidle")
+          pgl.wait_for_timeout(500)
+          _sz3 = pgl.evaluate(_SZ_JS)
+          ctxl.close()
+          check("U30 Sozlamalar → «Korxona nomi» logotip ko'rinishi: platforma egasining yo'qolgan fayli o'rniga platforma logotipi (singan "
+                "rasm emas, 1000 px yuklandi); boshqa korxonaning yo'qolgan fayli — ko'rsatilmaydi",
+                bool(_sz1) and (_sz1["src"] or "").startswith("/static/logo_transparent.png?v=") and _sz1["korinadi"] and _sz1["nw"] == 1000
+                and bool(_sz3) and not _sz3["korinadi"], (_sz1, _sz3))
           _s = SessionLocal()
           _s.get(Company, 1).logo_path = "static/logo_transparent.png"
           _s.commit()
