@@ -804,6 +804,8 @@ def create_expense_transaction(db: Session, data, performed_by: Optional[str] = 
                                  data.get("production_type", _YON_YOQ))
     if _yid is _YON_YOQ:
         _yid, _pt = None, None
+    # kech155 (zip 210): qaysi pul hisobidan (berilmasa — «Naqd pul»; noto'g'ri — ValueError, hech narsa yozilmaydi)
+    _hid210 = pul_hisobi_id(db, company_id, hisob=data.get("hisob"))
     # M6 — TENANT: company_id ANIQ beriladi (ota-FK yo'q, DEFAULT 1 ga tushmasin).
     tx = ExpenseTransaction(
         company_id=company_id,
@@ -815,6 +817,9 @@ def create_expense_transaction(db: Session, data, performed_by: Optional[str] = 
         source=source,
         production_type=_pt,
         yonalish_id=_yid,
+        hisob_id=_hid210,
+        # kech155 (zip 210, review210 №1): sana hisobot oyi, pul HOZIR — hisob qoldig'i shu payt bilan (`services._pul_keyin`)
+        pul_vaqti=(datetime.utcnow() if data.get("pul_hozir") else None),
     )
     db.add(tx)
     db.commit()
@@ -841,6 +846,10 @@ def update_expense_transaction(db: Session, tx_id: int, data,
     tx = _q.first()
     if not tx:
         return None
+    # kech155 (zip 210): hisob yuborilsa — o'zgaradi (avval tekshiriladi: noto'g'ri — ValueError, hech narsa o'zgarmaydi)
+    _hid210 = pul_hisobi_id(db, tx.company_id, hisob=data["hisob"]) if data.get("hisob") else None
+    if _hid210 is not None:
+        tx.hisob_id = _hid210
     if "date" in data and data["date"]:
         tx.date = data["date"]
     if "category" in data and data["category"]:
@@ -1119,7 +1128,7 @@ def purchase_stock(db: Session, item_id: int, quantity: float, price_per_unit: f
                    purchased_by: str = None, notes: str = None,
                    supplier_id: int = None, is_credit: bool = False,
                    volume_per_unit: float = None, payment_due_date: str = None,
-                   is_opening_stock: bool = False, extra_cost_per_unit: float = 0.0):
+                   is_opening_stock: bool = False, extra_cost_per_unit: float = 0.0, hisob_id: int = None):
     """Ombor kirimi — xarid narxi bilan (DARHOL commit qiladi — ORQAGA MOSLIK
     uchun saqlangan, hozirgi barcha eski chaqiruvchilar shu funksiyani
     ishlatadi). Ko'p mahsulotli, BITTA tranzaksiya kerak bo'lgan hollarda
@@ -1128,7 +1137,7 @@ def purchase_stock(db: Session, item_id: int, quantity: float, price_per_unit: f
     result = _purchase_stock_no_commit(
         db, item_id, quantity, price_per_unit, purchased_by, notes,
         supplier_id, is_credit, volume_per_unit, payment_due_date,
-        is_opening_stock, extra_cost_per_unit
+        is_opening_stock, extra_cost_per_unit, hisob_id=hisob_id
     )
     if result is None:
         return None
@@ -1144,7 +1153,7 @@ def _purchase_stock_no_commit(db: Session, item_id: int, quantity: float, price_
                    supplier_id: int = None, is_credit: bool = False,
                    volume_per_unit: float = None, payment_due_date: str = None,
                    is_opening_stock: bool = False, extra_cost_per_unit: float = 0.0,
-                   company_id: int = None, sana: datetime = None):
+                   company_id: int = None, sana: datetime = None, hisob_id: int = None):
     """Ombor kirimi — xarid narxi bilan. COMMIT QILMAYDI (chaqiruvchi
     o'zi, barcha ishlar tugagach, bitta marta commit qilishi kerak).
     O'rtacha vaznli narx hisoblanadi (eski qoldiq qayta baholanmaydi):
@@ -1247,6 +1256,8 @@ def _purchase_stock_no_commit(db: Session, item_id: int, quantity: float, price_
         payment_due_date=due_date_parsed,
         is_opening_stock=is_opening_stock,
         extra_cost_per_unit=round(extra_cost_per_unit or 0.0, 4),
+        # kech155 (zip 210): faqat naqd (nasiyasiz) xaridda — pul qaysi hisobdan (nasiya / boshlang'ich ombor — pul chiqmaydi)
+        hisob_id=(hisob_id if not is_credit and not is_opening_stock else None),
         # kech107 (10f): bekor qilishda narxni AYNAN qaytarish uchun (NULL narx — 0, tizim uni 0 deb hisoblaydi).
         narx_oldin=round(old_price, 2),
         narx_keyin=round(float(db_item.price_per_unit or 0), 2)
@@ -1368,7 +1379,7 @@ def create_inventory_receipt(db: Session, items: list, transport_cost: float = 0
                               paid_now: float = 0.0, notes: str = None, created_by: str = None,
                               production_type: str = None, company_id: int = None,
                               receipt_date: str = None, payment_due_date: str = None,
-                              yonalish_id=_YON_YOQ) -> dict:
+                              yonalish_id=_YON_YOQ, hisob=None) -> dict:
     """Ombor Kirim hujjati — bir nechta mahsulotni, qo'shimcha xarajatlar
     (Transport, Tushirish/Grushchik, Yuklash, Boshqa) bilan birga, BITTA
     yagona tranzaksiya sifatida saqlaydi. Xato bo'lsa — HAMMASI (barcha
@@ -1410,6 +1421,8 @@ def create_inventory_receipt(db: Session, items: list, transport_cost: float = 0
     # kech115: HECH NARSA yozilishidan OLDIN — sana chegaralari va takror qator (ValueError → marshrutda 400).
     _kirim_vaqti, _muddat = kirim_sanalari(receipt_date, payment_due_date)
     kirim_takror_qator(db, items, company_id=company_id)
+    # kech155 (zip 210): hoziroq to'lov / qo'shimcha xarajatlar / naqd qator qaysi pul hisobidan (noto'g'ri — ValueError, yozuvsiz)
+    _hid210 = pul_hisobi_id(db, company_id, hisob=hisob)
 
     try:
         # M8/F1: `InventoryReceipt`ning yagona ota-FK si (`supplier_id`)
@@ -1473,6 +1486,7 @@ def create_inventory_receipt(db: Session, items: list, transport_cost: float = 0
                 extra_cost_per_unit=extra_per_unit,
                 company_id=company_id,
                 sana=_kirim_vaqti,
+                hisob_id=_hid210,
             )
             if result is None:
                 raise ValueError(f"Material topilmadi (id={it['inventory_id']})")
@@ -1521,7 +1535,8 @@ def create_inventory_receipt(db: Session, items: list, transport_cost: float = 0
                     notes=f"{label} — Kirim #{receipt.id}" + (f" ({document_number})" if document_number else ""),
                     created_by=created_by,
                     source=(KIRIM_TANNARX_MANBA if _tannarxga else "inventory_receipt"),
-                    production_type=_pt_k, yonalish_id=_yid_k
+                    production_type=_pt_k, yonalish_id=_yid_k,
+                    hisob_id=_hid210,                       # kech155 (zip 210)
                 )
                 db.add(tx)
 
@@ -1531,7 +1546,7 @@ def create_inventory_receipt(db: Session, items: list, transport_cost: float = 0
             from models import SupplierPayment
             payment_created = SupplierPayment(
                 supplier_id=supplier_id, amount=float(paid_now),
-                paid_by=created_by,
+                paid_by=created_by, hisob_id=_hid210,       # kech155 (zip 210)
                 notes=f"Kirim to'lovi — #{receipt.id}" + (f" ({document_number})" if document_number else "")
             )
             if _kirim_vaqti is not None:      # kech115 (G4-03): to'lov kirim kunida
@@ -5239,6 +5254,8 @@ _ISHLAB_CHIQARISH_TURI = {"umumiy": "umumiy", "penoplast": "penoplast",
 # sotuvining `_TOLOV_USULI` (naqd/karta/bank) — BOSHQA ro'yxat.
 _TOLOV_TURI = {"zaklat": "zaklat", "partial": "partial", "final": "final"}
 _TOLOV_USULI_MIJOZ = {"naqd": "naqd", "plastik": "plastik", "o'tkazma": "o'tkazma"}
+# kech155 (zip 210): chiqim formalaridagi «Qaysi hisobdan» — pul hisobi turi (`pul_hisobi_aniqla`; shu turdagi birinchi faol hisob)
+_PUL_HISOB_TANLOV = {"naqd": "naqd", "bank": "bank", "karta": "karta"}
 # 17g (2026-09-22) — qaytarish sababi: `models.ReturnReason` qiymatlari
 # (`returns.html` AYNAN "Ortiqcha" / "Brak" yuboradi). HAQIQIY PostgreSQL da
 # O'LCHANGAN: noma'lum sabab (`"xyz"`) JIMGINA "Brak" ga aylanardi — ya'ni
@@ -5520,6 +5537,8 @@ def _val_rules():
             "volume_per_unit": ("son", True, True, son),
             "payment_due_date": ("sana", True),
             "is_opening_stock": ("bool", False),
+            # kech155 (zip 210): pul qaysi hisobdan (naqd xarid / hoziroq to'lov / o'z hisobimdan transport)
+            "hisob": ("tanlov", True, _PUL_HISOB_TANLOV),
         },
         "ReceiptItem": {
             "inventory_id": ("id", False),
@@ -5549,6 +5568,8 @@ def _val_rules():
             # `kirim_sanalari`).
             "receipt_date": ("sana", True),
             "payment_due_date": ("sana", True),
+            # kech155 (zip 210): hoziroq to'lov va qo'shimcha xarajatlar qaysi hisobdan
+            "hisob": ("tanlov", True, _PUL_HISOB_TANLOV),
         },
         "RecipeIngredient": {
             "inventory_id": ("id", False),
@@ -5563,6 +5584,7 @@ def _val_rules():
             "amount": ("son", False, True, money),
             "notes": ("matn", False, matn),
             "confirm_overpay": ("bool", False),
+            "hisob": ("tanlov", True, _PUL_HISOB_TANLOV),        # kech155 (zip 210)
         },
         "RecipeBody": {
             "name": ("matn", True, 100),
@@ -5588,6 +5610,9 @@ def _val_rules():
             "production_type": ("tanlov", True, _ISHLAB_CHIQARISH_TURI),
             # kech117 (A2): korxona yo'nalishi (`models.Yonalish`); NULL — «Umumiy». Korxonasi — `yonalish_tanlovi`.
             "yonalish_id": ("id", True),
+            "hisob": ("tanlov", True, _PUL_HISOB_TANLOV),        # kech155 (zip 210): qaysi hisobdan to'landi
+            # kech155 (zip 210, review210 №1): pul HOZIR to'landi, sana esa hisobot oyi (Qarzdorlar — o'tgan oy majburiyati 28-kunga)
+            "pul_hozir": ("bool", True),
         },
         # 17e: buyurtmaning kelishilgan summasi (`orders.html`
         # `editAgreedAmount` — faqat shu bitta kalit). MUSBAT: 0 ikki xil
@@ -5609,6 +5634,7 @@ def _val_rules():
             "production_type": ("tanlov", True, _ISHLAB_CHIQARISH_TURI),
             # kech117 (A2): korxona yo'nalishi (`models.Yonalish`); NULL — «Umumiy». Korxonasi — `yonalish_tanlovi`.
             "yonalish_id": ("id", True),
+            "hisob": ("tanlov", True, _PUL_HISOB_TANLOV),        # kech155 (zip 210)
         },
         # Mijoz to'lovi (`POST /api/payments`) — `orders.html` (to'lov oynasi
         # va zaklat), `debts.html` (qarzni yopish) AYNAN shu kalitlarni
@@ -5687,6 +5713,8 @@ def _val_rules():
             "payment_amount": ("son", True, False, money),
             "payment_method": ("tanlov", True, _TOLOV_USULI_MIJOZ),
             "confirm_overpay": ("bool", False),
+            # kech155 (zip 210): korxona to'laydigan transport ulushi qaysi hisobdan (to'lovchi company / split bo'lsa)
+            "transport_hisob": ("tanlov", True, _PUL_HISOB_TANLOV),
         },
         "DeliveryItem": {
             "order_item_id": ("id", False),
@@ -6286,7 +6314,7 @@ def update_order_item(db: Session, item_id: int, item_data: dict,
 
 
 def record_cash_transaction(db: Session, category: str, amount: float, notes: str = None,
-                           performed_by: str = None, company_id: int = None):
+                           performed_by: str = None, company_id: int = None, hisob=None):
     """Kassaga qo'lda ta'sir qiladigan yozuv qo'shadi (boshlang'ich balans,
     Usta KPI to'landi, Ehson to'landi). amount — musbat (kirim) yoki
     manfiy (chiqim) bo'lishi mumkin."""
@@ -6294,8 +6322,10 @@ def record_cash_transaction(db: Session, category: str, amount: float, notes: st
     # M6 (2026-09-18) — TENANT: `CashTransaction`da ota-FK yo'q, shuning
     # uchun `_tenant_guard` uni to'ldira olmaydi — company_id ANIQ
     # berilmasa yozuv bazadagi vaqtinchalik DEFAULT 1 ga tushib qolardi.
+    # kech155 (zip 210): qaysi pul hisobidan (Usta KPI / Ehson); boshlang'ich balans — hisobsiz (harakat emas)
+    _hid210 = None if category == "boshlangich" else pul_hisobi_id(db, company_id, hisob=hisob)
     tx = CashTransaction(company_id=company_id, category=category, amount=amount,
-                         notes=notes, performed_by=performed_by)
+                         notes=notes, performed_by=performed_by, hisob_id=_hid210)
     db.add(tx)
     db.commit()
     return tx
@@ -6330,6 +6360,253 @@ def delete_cash_transaction(db: Session, tx_id: int, company_id: int = None) -> 
     if not tx:
         return False
     db.delete(tx)
+    db.commit()
+    return True
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# kech155 (zip 210 «Naqd / Bank / Karta» — egasi so'rovi 23.10 15:56, ko'rinish tasdig'i 16:1x, `work/k210/ekran/`): PUL HISOBLARI.
+# Kirim (mijoz to'lovi, tayyor sotuv) — to'lov USULIDAN (naqd → «Naqd pul», plastik / karta → «Karta», o'tkazma / bank → «Bank»);
+# chiqim — formadagi «Qaysi hisobdan» (`hisob` — turi yoki id), berilmasa «Naqd pul». Qoldiq — `services.pul_hisob_balanslari`.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+_USUL_HISOB_TURI = {"naqd": "naqd", "cash": "naqd", "plastik": "karta", "karta": "karta", "card": "karta",
+                    "o'tkazma": "bank", "bank": "bank", "transfer": "bank"}
+PUL_HISOB_CHEGARA = 999_999_999_999.99          # bitta summa / qoldiq yuqori chegarasi (Numeric(14, 2))
+
+
+def pul_hisoblari(db: Session, company_id: int, faqat_faol: bool = True) -> list:
+    '''Korxona pul hisoblari (`tartib`, `id`). Bitta ham yo'q bo'lsa — standart uchtasi («Naqd pul», «Bank», «Karta») yaratiladi
+    (faqat `flush`; `commit` — chaqiruvchida). PostgreSQL da parallel yaratish `uq_pul_hisoblari_company_nomi` bilan to'siladi —
+    savepoint ichida urinib, band bo'lsa mavjudlari olinadi (`standart_yonalish` naqshi).'''
+    from models import PulHisobi, PUL_HISOB_STANDART
+    from sqlalchemy.exc import IntegrityError as _IE210
+    if company_id is None:
+        return []
+    rows = (db.query(PulHisobi).filter(PulHisobi.company_id == company_id)
+            .order_by(PulHisobi.tartib, PulHisobi.id).all())
+    if not rows:
+        yangi = [PulHisobi(company_id=company_id, nomi=_n, turi=_t, tartib=_k, faol=True) for _n, _t, _k in PUL_HISOB_STANDART]
+        if db.bind.dialect.name == "postgresql":
+            try:
+                with db.begin_nested():
+                    db.add_all(yangi)
+                    db.flush()
+            except _IE210:
+                pass
+        else:
+            db.add_all(yangi)
+            db.flush()
+        rows = (db.query(PulHisobi).filter(PulHisobi.company_id == company_id)
+                .order_by(PulHisobi.tartib, PulHisobi.id).all())
+    return [h for h in rows if h.faol is not False] if faqat_faol else rows
+
+
+def pul_hisobi_aniqla(db: Session, company_id: int, hisob=None, hisob_id=None, usul=None, standart: str = "naqd"):
+    '''Pul yozuvi qaysi hisobga: `hisob` (turi — naqd / bank / karta, yoki raqam — id) yoki `hisob_id` (SHU korxonaning faol hisobi) →
+    `usul` (to'lov usuli: naqd / plastik / o'tkazma / karta / bank) → `standart` turi; turdan — shu turdagi birinchi faol hisob.
+    Noto'g'ri / begona / nofaol hisob — `ValueError` (o'zbekcha, hech narsa yozilmaydi). Korxona noma'lum (`company_id` None) — None
+    (yozuv NULL qoladi; qoldiq hisobida usuldan / «Naqd pul» ga).'''
+    if company_id is None:
+        return None
+    royxat = pul_hisoblari(db, company_id)
+    if hisob is not None and not isinstance(hisob, bool) and str(hisob).strip() != "":
+        _h = str(hisob).strip().lower()
+        if _h.isdigit():
+            if hisob_id is None:
+                hisob_id = int(_h)
+        elif _h in _USUL_HISOB_TURI:
+            _tur = _USUL_HISOB_TURI[_h]
+            for h in royxat:
+                if h.turi == _tur:
+                    return h
+            raise ValueError(f"«{hisob}» turidagi faol pul hisobi yo'q")
+        else:
+            raise ValueError(f"Pul hisobi noto'g'ri: «{hisob}» (naqd, bank yoki karta bo'lishi kerak)")
+    elif isinstance(hisob, bool):
+        raise ValueError("Pul hisobi noto'g'ri")
+    if hisob_id is not None:
+        if isinstance(hisob_id, bool):
+            raise ValueError("Pul hisobi noto'g'ri")
+        try:
+            _id = int(hisob_id)
+        except (TypeError, ValueError):
+            raise ValueError("Pul hisobi noto'g'ri")
+        for h in royxat:
+            if h.id == _id:
+                return h
+        raise ValueError("Pul hisobi topilmadi (yoki faol emas)")
+    _uv = getattr(usul, "value", usul)
+    _tur = _USUL_HISOB_TURI.get(str(_uv).strip().lower()) if _uv is not None else None
+    _tur = _tur or standart
+    for h in royxat:
+        if h.turi == _tur:
+            return h
+    return royxat[0] if royxat else None
+
+
+def pul_hisobi_id(db: Session, company_id: int, **kw):
+    '''`pul_hisobi_aniqla` — faqat id (korxona noma'lum — None).'''
+    h = pul_hisobi_aniqla(db, company_id, **kw)
+    return h.id if h is not None else None
+
+
+def _pul_summa210(qiymat, nom: str, nol_mumkin: bool) -> float:
+    '''Qoldiq / o'tkazish summasi — chekli son, tiyingacha, [0 yoki 0,01 … PUL_HISOB_CHEGARA]; aks holda `ValueError`.'''
+    import math as _m210
+    if isinstance(qiymat, bool) or qiymat is None:
+        raise ValueError(f"{nom}: summa kiritilmagan")
+    try:
+        x = float(qiymat)
+    except (TypeError, ValueError):
+        raise ValueError(f"{nom}: summa son bo'lishi kerak")
+    if not _m210.isfinite(x):
+        raise ValueError(f"{nom}: summa noto'g'ri")
+    if abs(round(x, 2) - x) > 1e-9:
+        raise ValueError(f"{nom}: summa tiyingacha (ko'pi bilan 2 xona) bo'lishi kerak")
+    if x < 0:
+        raise ValueError(f"{nom}: summa manfiy bo'lmasin")
+    if x == 0 and not nol_mumkin:
+        raise ValueError(f"{nom}: summa musbat bo'lishi kerak")
+    if x > PUL_HISOB_CHEGARA:
+        raise ValueError(f"{nom}: summa juda katta")
+    return round(x, 2)
+
+
+def pul_qoldiq_kirit(db: Session, company_id: int, qoldiqlar, izoh: str = None, performed_by: str = None) -> list:
+    '''Hisob(lar)ning HAQIQIY qoldig'i — HOZIRGI holat («hozir qancha bor»); `qoldiqlar` — [(hisob_id, summa), …]. Birinchi marta —
+    qoldig'i hali yo'q HAMMA faol hisob birga (aks holda ValueError: bitta hisobning qoldig'i bilan «Kassa + bank» yarim bo'lardi).
+    Qayta (sanash) — istalgan hisob(lar). `dastur_summa` — shu payt dastur hisoblagan qoldiq (farq jurnalga). Har hisobga jurnal yozuvi —
+    amal bilan BITTA tranzaksiyada. Takror (`PUL_TAKROR_SONIYA` ichida o'sha hisoblar va summalar) — mavjud yozuvlar. `commit` — shu yerda.'''
+    from models import PulHisobiQoldiq
+    import services as _sv210
+    if company_id is None:
+        raise ValueError("Korxona aniqlanmadi")
+    if not isinstance(qoldiqlar, (list, tuple)) or not qoldiqlar:
+        raise ValueError("Kamida bitta hisob qoldig'i kiritilsin")
+    if izoh is not None:
+        izoh = str(izoh).strip()[:300] or None
+    royxat = {h.id: h for h in pul_hisoblari(db, company_id)}
+    _pul_qulfi(db, 211, company_id)
+    _bor = {hid for (hid,) in db.query(PulHisobiQoldiq.hisob_id).filter(PulHisobiQoldiq.company_id == company_id).distinct().all()}
+    kirdi = {}
+    for el in qoldiqlar:
+        try:
+            _hid, _summa = el
+        except (TypeError, ValueError):
+            raise ValueError("Qoldiq qatori noto'g'ri")
+        h = pul_hisobi_aniqla(db, company_id, hisob_id=_hid)
+        if h.id in kirdi:
+            raise ValueError(f"«{h.nomi}» ikki marta kiritildi")
+        kirdi[h.id] = _pul_summa210(_summa, h.nomi, nol_mumkin=True)
+    # takror yuborish (ikki oyna / ikki bosish / tarmoq qaytarishi — review210 №6, PG da O'LCHANGAN: ikki parallel birinchi so'rov 6 qator
+    # va 3 ta «farq 0» jurnal yozuvi): `PUL_TAKROR_SONIYA` ichida AYNAN shu hisoblarga AYNAN shu summalar yozilgan bo'lsa — yangi qator
+    # yo'q, o'shalar qaytadi (`_is_duplicate_submit`). Qulf (211) ostida — ikkinchi so'rov birinchisi saqlangach o'qiydi.
+    from datetime import timedelta as _td210q
+    _yaqin = {}
+    for _q in (db.query(PulHisobiQoldiq).filter(PulHisobiQoldiq.company_id == company_id,
+                                                PulHisobiQoldiq.vaqt >= datetime.utcnow() - _td210q(seconds=PUL_TAKROR_SONIYA))
+               .order_by(PulHisobiQoldiq.vaqt.desc(), PulHisobiQoldiq.id.desc()).all()):
+        _yaqin.setdefault(_q.hisob_id, _q)
+    if all(hid in _yaqin and abs(float(_yaqin[hid].summa) - summa) < 0.005 for hid, summa in kirdi.items()):
+        _takror = [_yaqin[hid] for hid in kirdi]
+        db.commit()          # qulf bo'shaydi (hech narsa yozilmagan; birinchi so'rovda yaratilgan standart hisoblar saqlanadi)
+        for _q in _takror:
+            _q._is_duplicate_submit = True
+        return _takror
+    _yoq = [h for hid, h in royxat.items() if hid not in _bor and hid not in kirdi]
+    if _yoq:
+        raise ValueError("Birinchi marta hamma hisob qoldig'i birga kiritiladi: " + ", ".join(h.nomi for h in _yoq) + " — kiritilmadi")
+    _hozir = _sv210.pul_hisob_balanslari(db, company_id)
+    _dastur = {x["id"]: x["balans"] for x in _hozir["hisoblar"] if x.get("balans") is not None}
+    _vaqt = datetime.utcnow()
+    yangi = []
+    for hid, summa in kirdi.items():
+        q = PulHisobiQoldiq(company_id=company_id, hisob_id=hid, vaqt=_vaqt, summa=summa,
+                            dastur_summa=(_dastur.get(hid) if hid in _bor else None), izoh=izoh, performed_by=performed_by)
+        db.add(q)
+        yangi.append(q)
+    db.flush()
+    for q in yangi:
+        h = royxat[q.hisob_id]
+        if q.dastur_summa is None:
+            _m = f"boshlang'ich qoldiq: {audit_son(q.summa, 2)} so'm"
+        else:
+            _f = round(float(q.summa) - float(q.dastur_summa), 2)
+            _m = (f"qoldiq sanaldi: {audit_son(q.summa, 2)} so'm · dasturda: {audit_son(q.dastur_summa, 2)} so'm · farq: "
+                  f"{'+' if _f > 0 else ''}{audit_son(_f, 2)} so'm")
+        log_activity(db, "create", "pul_hisobi", q.id,
+                     entity_label=f"{h.nomi} — qoldiq ({_tashkent_vaqt(q.vaqt).strftime('%d.%m.%Y %H:%M')})",
+                     performed_by=performed_by, new_value=_m + (f" · izoh: {izoh}" if izoh else ""),
+                     company_id=company_id, commit=False)
+    db.commit()
+    return yangi
+
+
+def pul_qoldiq_ochir(db: Session, company_id: int, qoldiq_id: int, performed_by: str = None) -> bool:
+    '''Xato kiritilgan qoldiqni o'chiradi (shu korxonaniki bo'lmasa — False → 404). Hisob oldingi qoldig'iga qaytadi (yo'q bo'lsa —
+    «Kassa + bank» avvalgi umumiy hisobga). Jurnal — amal bilan bitta tranzaksiyada.'''
+    from models import PulHisobiQoldiq, PulHisobi
+    q = (db.query(PulHisobiQoldiq).filter(PulHisobiQoldiq.id == qoldiq_id, PulHisobiQoldiq.company_id == company_id).first()
+         if company_id is not None else None)
+    if q is None:
+        return False
+    h = db.query(PulHisobi).filter(PulHisobi.id == q.hisob_id, PulHisobi.company_id == company_id).first()
+    log_activity(db, "delete", "pul_hisobi", q.id,
+                 entity_label=f"{h.nomi if h else '?'} — qoldiq ({_tashkent_vaqt(q.vaqt).strftime('%d.%m.%Y %H:%M') if q.vaqt else '-'})",
+                 performed_by=performed_by, old_value=f"{audit_son(q.summa, 2)} so'm", company_id=company_id, commit=False)
+    db.delete(q)
+    db.commit()
+    return True
+
+
+def pul_otkazma_yoz(db: Session, company_id: int, dan_hisob_id, ga_hisob_id, summa, izoh: str = None,
+                    performed_by: str = None):
+    '''Hisoblar orasida o'tkazish (bankdan naqd yechish va h.k.): ikkala hisob SHU korxonaning faol hisobi, har xil; summa > 0.
+    Takror yuborish (o'sha juftlik va summa `PUL_TAKROR_SONIYA` ichida) — mavjud yozuv qaytadi (`_is_duplicate_submit`). Jurnal — bitta
+    tranzaksiyada. `commit` — shu yerda.'''
+    from datetime import timedelta as _td210
+    from models import PulOtkazmasi
+    if company_id is None:
+        raise ValueError("Korxona aniqlanmadi")
+    dan = pul_hisobi_aniqla(db, company_id, hisob_id=dan_hisob_id)
+    ga = pul_hisobi_aniqla(db, company_id, hisob_id=ga_hisob_id)
+    if dan.id == ga.id:
+        raise ValueError("Qayerdan va qayerga — har xil hisob bo'lishi kerak")
+    _s = _pul_summa210(summa, "O'tkazish", nol_mumkin=False)
+    if izoh is not None:
+        izoh = str(izoh).strip()[:300] or None
+    _pul_qulfi(db, 210, company_id)
+    _old = (db.query(PulOtkazmasi).filter(PulOtkazmasi.company_id == company_id, PulOtkazmasi.dan_hisob_id == dan.id,
+                                          PulOtkazmasi.ga_hisob_id == ga.id, PulOtkazmasi.summa == _s,
+                                          PulOtkazmasi.created_at >= datetime.utcnow() - _td210(seconds=PUL_TAKROR_SONIYA))
+            .order_by(PulOtkazmasi.id.desc()).first())
+    if _old is not None:
+        _old._is_duplicate_submit = True
+        return _old
+    o = PulOtkazmasi(company_id=company_id, dan_hisob_id=dan.id, ga_hisob_id=ga.id, summa=_s, sana=datetime.utcnow(),
+                     izoh=izoh, performed_by=performed_by)
+    db.add(o)
+    db.flush()
+    log_activity(db, "create", "pul_otkazmasi", o.id, entity_label=f"O'tkazish: {dan.nomi} → {ga.nomi}",
+                 performed_by=performed_by, new_value=f"{audit_son(_s, 2)} so'm" + (f" · izoh: {izoh}" if izoh else ""),
+                 company_id=company_id, commit=False)
+    db.commit()
+    return o
+
+
+def pul_otkazma_ochir(db: Session, company_id: int, otkazma_id: int, performed_by: str = None) -> bool:
+    '''O'tkazishni o'chiradi (shu korxonaniki bo'lmasa — False → 404); jurnal — bitta tranzaksiyada.'''
+    from models import PulOtkazmasi, PulHisobi
+    o = (db.query(PulOtkazmasi).filter(PulOtkazmasi.id == otkazma_id, PulOtkazmasi.company_id == company_id).first()
+         if company_id is not None else None)
+    if o is None:
+        return False
+    _n = {h.id: h.nomi for h in db.query(PulHisobi).filter(PulHisobi.company_id == company_id).all()}
+    log_activity(db, "delete", "pul_otkazmasi", o.id,
+                 entity_label=f"O'tkazish: {_n.get(o.dan_hisob_id, '?')} → {_n.get(o.ga_hisob_id, '?')}",
+                 performed_by=performed_by, old_value=f"{audit_son(o.summa, 2)} so'm" + (f" · izoh: {o.izoh}" if o.izoh else ""),
+                 company_id=company_id, commit=False)
+    db.delete(o)
     db.commit()
     return True
 
@@ -8585,7 +8862,7 @@ def get_return_items_for_main_page(db: Session, days: int = 90, show_all: bool =
 
 
 def mark_refunded(db: Session, return_id: int, refunded_by: str = None,
-                  company_id: int = None) -> Optional[ReturnItem]:
+                  company_id: int = None, usul: str = None) -> Optional[ReturnItem]:
     """Qaytarishni 'pul qaytarildi' deb belgilaydi VA buni moliyaga to'g'ri
     ta'sir qiladigan qilib yozadi:
 
@@ -8661,11 +8938,15 @@ def mark_refunded(db: Session, return_id: int, refunded_by: str = None,
         _tolangan = sum(float(p.amount or 0) for p in (order.payments or []))
         _naqd = _pul2(min(refund_amount, max(0.0, _tolangan - _yangi)))
         if _naqd >= 0.01:
+            # kech155 (zip 210): pul qaysi usulda / hisobdan qaytarildi (berilmasa — naqd, «Naqd pul»)
+            _usul210 = _pay_enum(PaymentMethod, usul, PaymentMethod.CASH) if usul else PaymentMethod.CASH
             payment = Payment(
                 order_id=order.id,
                 return_item_id=item.id,
                 amount=-_naqd,
                 payment_type=PaymentType.PARTIAL,
+                payment_method=_usul210,
+                hisob_id=pul_hisobi_id(db, order.company_id, usul=_usul210),
                 received_by=refunded_by,
                 notes=f"Qaytarilgan mahsulot uchun pul qaytarildi: {item.item_name} ({_miqdor_matn(item.quantity or 0)} {item.unit})"
             )
@@ -9426,7 +9707,9 @@ def create_payment(db: Session, payment_data: PaymentCreate,
         payment_type=p_type,
         payment_method=p_method,
         received_by=payment_data.received_by,
-        notes=payment_data.notes
+        notes=payment_data.notes,
+        # kech155 (zip 210): pul qaysi hisobga — usuldan (naqd → «Naqd pul», plastik → «Karta», o'tkazma → «Bank»)
+        hisob_id=pul_hisobi_id(db, order.company_id, usul=p_method),
     )
     db.add(db_payment)
     db.flush()
@@ -9537,6 +9820,7 @@ def ortiqcha_tolovni_qaytar(db: Session, order_id: int, summa: float = None, usu
         payment_method=_pay_enum(PaymentMethod, usul, PaymentMethod.CASH),
         received_by=kim,
         notes=(ORTIQCHA_QAYTARISH_BELGI + (f": {izoh}" if izoh else "")),
+        hisob_id=pul_hisobi_id(db, order.company_id, usul=_pay_enum(PaymentMethod, usul, PaymentMethod.CASH)),   # kech155 (zip 210)
     )
     db.add(p)
     db.flush()
@@ -10467,6 +10751,7 @@ def _reset_table_order():
         GiftPeriod, Master, Project, Supplier, CashTransaction, ActivityLog,
         ErrorLog, LoginHistory, CompanySetting, RecurringObligation, Inventory,
         Yonalish, BrakTaqdir, Taklif, HodimIshDavri, BuyurtmaTuzatish, AmalKaliti,
+        PulHisobi, PulHisobiQoldiq, PulOtkazmasi,
     )
     return [
         ProductionOrder,
@@ -10494,7 +10779,11 @@ def _reset_table_order():
         MasterGiftRedemption, MasterGift,
         MasterGiftPeriodRedemption, GiftPeriodParticipant, GiftPeriodTier, GiftPeriod,
         Master, Project, Supplier,
-        CashTransaction, ActivityLog, ErrorLog, LoginHistory,
+        CashTransaction,
+        # kech155 (zip 210): pul hisoblari — ularga ishora qiluvchilardan (to'lov, sotuv, xarid, xarajat, transport, avans, yuk xati,
+        # kassa yozuvi, qoldiq, o'tkazish) KEYIN o'chiriladi, tiklashda ulardan OLDIN qo'shiladi.
+        PulOtkazmasi, PulHisobiQoldiq, PulHisobi,
+        ActivityLog, ErrorLog, LoginHistory,
         CompanySetting, RecurringObligation,
         # kech144 (zip 174): amal kalitlari — faqat korxonaga ishora qiladi, ularga hech kim ishora qilmaydi
         AmalKaliti,
@@ -12368,6 +12657,11 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
         seq = int(_yh86) + 1
     delivery_number = f"{order.order_number}/Y-{seq}"
 
+    # kech155 (zip 210): korxona to'laydigan transport ulushi qaysi pul hisobidan (faqat to'lovchi company / split va narx > 0;
+    # noto'g'ri — ValueError, yozuvsiz)
+    _tp210 = getattr(data, 'transport_payer', 'none') or 'none'
+    _thid210 = (pul_hisobi_id(db, order.company_id, hisob=getattr(data, 'transport_hisob', None))
+                if _tp210 in ("company", "split") and float(getattr(data, 'transport_cost', 0) or 0) > 0 else None)
     db_delivery = Delivery(
         order_id=order.id,
         delivery_number=delivery_number,
@@ -12376,7 +12670,8 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
         notes=data.notes,
         transport_carrier=getattr(data, 'transport_carrier', None),
         transport_cost=getattr(data, 'transport_cost', 0) or 0,
-        transport_payer=getattr(data, 'transport_payer', 'none') or 'none'
+        transport_payer=_tp210,
+        transport_hisob_id=_thid210,
     )
     db.add(db_delivery)
     db.flush()
@@ -12457,7 +12752,8 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
             payment_type=PaymentType.PARTIAL,
             payment_method=pay_method,
             received_by=data.received_by,
-            notes=f"{delivery_number} yuki uchun to'lov"
+            notes=f"{delivery_number} yuki uchun to'lov",
+            hisob_id=pul_hisobi_id(db, order.company_id, usul=pay_method),      # kech155 (zip 210): usuldan
         ))
         # MUHIM TUZATISH: avval bu yerda to'lov yozilgandan keyin
         # buyurtmaning "To'lov holati" (payment_status) UMUMAN qayta
@@ -13810,6 +14106,7 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None,
                 group_discount_percent=discount_percent,
                 buyer_name=data.buyer_name,
                 payment_method=data.payment_method,
+                hisob_id=pul_hisobi_id(db, getattr(fp, 'company_id', None), usul=data.payment_method),   # kech155 (zip 210)
                 notes=data.notes,
                 created_by=created_by,
                 sale_group_id=group_id,
@@ -13952,6 +14249,7 @@ def sell_finished_product(db: Session, data, created_by: str = None,
         cost_amount=cost_amount,
         buyer_name=data.buyer_name,
         payment_method=data.payment_method,
+        hisob_id=pul_hisobi_id(db, getattr(fp, 'company_id', None), usul=data.payment_method),   # kech155 (zip 210)
         notes=data.notes,
         created_by=created_by,
         master_id=getattr(data, 'master_id', None)
@@ -15358,6 +15656,8 @@ def create_transport_expense(db: Session, data: TransportExpenseCreate, created_
     # ichki chaqiruvchi (xarid marshrutidagi "o'z hisobimdan" transport) va
     # boshqa chaqiruvchilar uchun. `data` — lug'at, pydantic yoki oddiy obyekt.
     toza = _clean_val("TransportExpense", _val_dump(data, "TransportExpense"))
+    # kech155 (zip 210): qaysi pul hisobidan (berilmasa — «Naqd pul»)
+    _hid210 = pul_hisobi_id(db, company_id, hisob=toza.get("hisob"))
     # kech117 (A2): yo'nalish — YAGONA qoida (`yonalish_tanlovi`); hech biri yuborilmasa — «Umumiy».
     _yid, _pt = yonalish_tanlovi(db, company_id, toza.get("yonalish_id", _YON_YOQ),
                                  toza.get("production_type", _YON_YOQ))
@@ -15372,6 +15672,7 @@ def create_transport_expense(db: Session, data: TransportExpenseCreate, created_
         notes=toza.get("notes"),
         production_type=_pt,
         yonalish_id=_yid,
+        hisob_id=_hid210,
     )
     db.add(exp)
     db.commit()
@@ -15648,7 +15949,10 @@ def _avans_takrori(db: Session, employee_id: int, company_id: int, summa: float,
 
 
 def create_employee_advance(db: Session, employee_id: int, amount: float, notes: str = None,
-                              given_by: str = None, adv_date=None, confirm_excess: bool = False):
+                              given_by: str = None, adv_date=None, confirm_excess: bool = False, hisob=None,
+                              pul_vaqti=None):
+    # kech155 (zip 210): `hisob` — qaysi pul hisobidan; `pul_vaqti` — pul HAQIQATDA berilgan payt (sana hisobot oyi bo'lganda —
+    # `services.close_employee_debt`; review210 №1), boshqa hollarda None
     """Hodimga avans (oldindan pul) berilganini qayd etadi.
     adv_date — agar berilsa, aynan shu sana bilan yoziladi (masalan
     avans kechroq kiritilgan, lekin haqiqatda boshqa kunda berilgan bo'lsa).
@@ -15671,6 +15975,8 @@ def create_employee_advance(db: Session, employee_id: int, amount: float, notes:
     # oylikdan ko'p summa (10 000 000) jimgina qabul qilinardi. Endi: hodim qulfi (107 — hodim so'rovi bilan bir fazo) → qayta o'qish →
     # takror (8 s, bir xil summa / izoh / sana / manba — mavjudi qaytadi, `_takror`) → oylikdan ortiqmi (tasdiqsiz — 409).
     _cid_e = emp.company_id
+    # kech155 (zip 210): qaysi pul hisobidan berildi (berilmasa — «Naqd pul»; noto'g'ri — ValueError, yozuvsiz)
+    _hid210 = pul_hisobi_id(db, _cid_e, hisob=hisob)
     _pul_qulfi(db, 107, employee_id)
     db.expire_all()
     emp = db.query(Employee).filter(Employee.id == employee_id, Employee.company_id == _cid_e).first()
@@ -15686,7 +15992,7 @@ def create_employee_advance(db: Session, employee_id: int, amount: float, notes:
                           notes=toza["notes"], given_by=given_by,
                           avans_manba=AVANS_MANBA_ADMIN,
                           hodim_javobi=JAVOB_KUTILMOQDA if hodim_panelga_kiradimi(emp) else None,
-                          created_at=datetime.utcnow(), keyingi_oyga=_keyingi)
+                          created_at=datetime.utcnow(), keyingi_oyga=_keyingi, hisob_id=_hid210, pul_vaqti=pul_vaqti)
     if toza["adv_date"]:
         adv.date = toza["adv_date"]
     db.add(adv)
@@ -16631,7 +16937,7 @@ def _advance_request_of_company(db: Session, request_id: int, company_id: int = 
 
 
 def confirm_advance_request(db: Session, request_id: int, confirmed_by: str,
-                            company_id: int = None, confirm_excess: bool = False) -> Optional[dict]:
+                            company_id: int = None, confirm_excess: bool = False, hisob=None) -> Optional[dict]:
     """Admin tasdiqlaydi — shu bilan HAQIQIY EmployeeAdvance yozuvi yaratiladi
     (Moliya/Hisobotga to'g'ridan-to'g'ri ta'sir qiladigan).
 
@@ -16650,7 +16956,9 @@ def confirm_advance_request(db: Session, request_id: int, confirmed_by: str,
     _emp = _emp_q.first()
     try:
         _keyingi = _avans_ortiqchasi(db, _emp, float(req.amount or 0), req.requested_date, confirm_excess) if _emp else None
-    except AvansOylikdanOrtiq:
+        # kech155 (zip 210): qaysi pul hisobidan berildi (berilmasa — «Naqd pul»; noto'g'ri — ValueError, so'rov o'zgarmaydi)
+        _hid210 = pul_hisobi_id(db, _emp.company_id if _emp else company_id, hisob=hisob)
+    except (AvansOylikdanOrtiq, ValueError):
         db.rollback()       # qulf bo'shatiladi, so'rov o'zgarmaydi
         raise
 
@@ -16660,7 +16968,7 @@ def confirm_advance_request(db: Session, request_id: int, confirmed_by: str,
         notes=(req.notes or "") + HODIM_SOROV_IZOH_QOSHIMCHA,
         given_by=confirmed_by,
         avans_manba=AVANS_MANBA_HODIM, hodim_javobi=None,
-        created_at=datetime.utcnow(), keyingi_oyga=_keyingi,
+        created_at=datetime.utcnow(), keyingi_oyga=_keyingi, hisob_id=_hid210,
     )
     db.add(advance)
     db.flush()
@@ -18803,6 +19111,8 @@ def create_supplier_payment(db: Session, data: SupplierPaymentCreate, paid_by: s
     # hamda qarzdorlar sahifalarini buzardi), `true` (→ 1 so'm), `"5000"`
     # matni va sig'imdan katta summani o'tkazib yuborardi (O'LCHANGAN).
     _clean_val("SupplierPayment", _val_dump(data, "SupplierPayment"))
+    # kech155 (zip 210): qaysi pul hisobidan (berilmasa — «Naqd pul»; noto'g'ri — ValueError, yozuvsiz)
+    _hid210 = pul_hisobi_id(db, company_id, hisob=getattr(data, "hisob", None))
     # M6 — TENANT: to'lov faqat SHU korxona ta'minotchisiga yozilishi mumkin.
     if company_id is not None:
         if not db.query(Supplier).filter(
@@ -18852,6 +19162,7 @@ def create_supplier_payment(db: Session, data: SupplierPaymentCreate, paid_by: s
         paid_by=paid_by,
         notes=data.notes,
         purchase_id=purchase_id,        # kech144 (zip 180): yakka xarid bilan birga to'langan — o'sha xarid (`xarid_tolovlari`)
+        hisob_id=_hid210,               # kech155 (zip 210)
     )
     db.add(p)
     db.commit()
