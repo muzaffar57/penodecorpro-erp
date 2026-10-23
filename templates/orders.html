@@ -285,6 +285,8 @@
 .detal.blok-qator .dgrp-flex-row{flex-wrap:wrap}
 .detal.blok-qator .dgrp-flex-row > .i-dims-box{flex:1 1 240px !important;min-width:0}
 .detal.blok-qator .dgrp-flex-row > .i-qty-box{flex:3 1 440px !important;min-width:0}
+.detal.blok-qator .yb-qoplama-qator{grid-template-columns:repeat(auto-fit,minmax(170px,1fr)) !important}
+.detal.blok-qator .yb-qoplama-qator > .dif{min-width:0}
 /* Ichki qo'shimcha detal qatoridagi Qoplama — asosiy detalning
    coat-toggle/coat-opt bilan bir xil rang mantig'i, faqat qator ichiga
    sig'adigan kichikroq o'lchamda (ko'rinish, formulaga tegilmagan). */
@@ -371,6 +373,7 @@ input[type=number]{-moz-appearance:textfield}
   .dgrp-flex-row{flex-direction:column}
   /* kech155 (zip 211): telefonda qutilar ustun bo'ylab — blok qatoridagi flex-basis balandlikka aylanmasin */
   .detal.blok-qator .dgrp-flex-row > .i-dims-box, .detal.blok-qator .dgrp-flex-row > .i-qty-box{flex:none !important}
+  .detal.blok-qator .yb-qoplama-qator{grid-template-columns:1fr !important}
   .dgrp-row{grid-template-columns:repeat(2,minmax(0,1fr)) !important}
   .dgrp-row.yb-qoplama-qator{grid-template-columns:1fr !important}
   .dgrp{padding:12px}
