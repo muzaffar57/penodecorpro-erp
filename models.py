@@ -1387,6 +1387,8 @@ class InventoryPurchase(Base):
     is_credit = Column(Boolean, default=False)
     category = Column(String(50), nullable=True)  # Xarid vaqtidagi kategoriya (tarix uchun saqlanadi)
     is_opening_stock = Column(Boolean, default=False)  # Boshlang'ich (mavjud) ombor — kassa balansiga TA'SIR QILMAYDI
+    # kech155 (zip 210): naqd (nasiyasiz) xarid puli qaysi hisobdan; NULL — eski yozuv («Naqd pul»)
+    hisob_id = Column(Integer, ForeignKey("pul_hisoblari.id"), nullable=True, index=True)
 
     # Ombor Kirim hujjati (qo'shimcha xarajatlar bilan) — ixtiyoriy bog'lanish.
     # Eski (bu funksiyadan oldingi) yozuvlarda bu — NULL bo'ladi, va tizim
@@ -1679,6 +1681,72 @@ class CashTransaction(Base):
     notes = Column(Text, nullable=True)
     performed_by = Column(String(100), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    # kech155 (zip 210): qaysi pul hisobidan (Usta KPI / Ehson to'landi). NULL — zip 210 dan oldingi yozuv («Naqd pul» ga hisoblanadi).
+    hisob_id = Column(Integer, ForeignKey("pul_hisoblari.id"), nullable=True, index=True)
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# kech155 (zip 210 «Naqd / Bank / Karta» — egasi so'rovi 23.10 15:56, ko'rinish tasdig'i 16:1x): PUL HISOBLARI.
+# «Kassa + bank» endi hisoblar bo'yicha: har pul harakati yozuvida `hisob_id` (NULL — zip 210 dan oldingi: mijoz to'lovi / tayyor
+# sotuv — usulidan, qolgani «Naqd pul» ga). Qoldiq SAQLANMAYDI — `services.pul_hisob_balanslari` har safar hisoblaydi: hisobning eng
+# oxirgi QOLDIG'I (egasi sanab kiritgan, `PulHisobiQoldiq`) + undan KEYINGI harakatlar (`services._pul_keyin`).
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+PUL_HISOB_TURLARI = ("naqd", "bank", "karta")
+# standart hisoblar: (nomi, turi, tartib) — har korxonada (startup / yangi korxona / birinchi so'rov)
+PUL_HISOB_STANDART = (("Naqd pul", "naqd", 1), ("Bank", "bank", 2), ("Karta", "karta", 3))
+
+
+class PulHisobi(Base):
+    '''kech155 (zip 210): korxonaning PUL HISOBI — «Naqd pul», «Bank», «Karta» (`turi` — naqd / bank / karta). Keyin yana karta yoki
+    bank qo'shilishi mumkin (jadval shunga); hozir tanlovlar turi bo'yicha — shu turdagi birinchi faol hisob.'''
+    __tablename__ = "pul_hisoblari"
+    __table_args__ = (
+        UniqueConstraint("company_id", "nomi", name="uq_pul_hisoblari_company_nomi"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    nomi = Column(String(60), nullable=False)
+    turi = Column(String(10), nullable=False)            # 'naqd' / 'bank' / 'karta'
+    tartib = Column(Integer, default=0, nullable=True)
+    faol = Column(Boolean, default=True, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<PulHisobi {self.nomi} ({self.turi})>"
+
+
+class PulHisobiQoldiq(Base):
+    '''kech155 (zip 210): hisobning HAQIQIY qoldig'i — egasi sanab / ilovadan ko'rib kiritgan, `vaqt` (kiritilgan payt, UTC) dagi holat.
+    Hisob qoldig'i = eng oxirgi (`vaqt`, `id`) yozuv + undan KEYINGI harakatlar (`services._pul_keyin` — faqat sanasi bor yozuv o'sha
+    kuni bo'lsa — yozilgan vaqti bo'yicha). `dastur_summa` — kiritilgan paytda dastur hisoblagan qoldiq (farq / jurnal; birinchida NULL).'''
+    __tablename__ = "pul_hisobi_qoldiqlari"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    hisob_id = Column(Integer, ForeignKey("pul_hisoblari.id"), nullable=False, index=True)
+    vaqt = Column(DateTime, nullable=False, default=datetime.utcnow)
+    summa = Column(Numeric(14, 2), nullable=False)
+    dastur_summa = Column(Numeric(14, 2), nullable=True)
+    izoh = Column(Text, nullable=True)
+    performed_by = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class PulOtkazmasi(Base):
+    '''kech155 (zip 210): hisoblar orasida o'tkazish (bankdan naqd yechish, naqdni kartaga va h.k.) — `dan_hisob_id` dan chiqim,
+    `ga_hisob_id` ga kirim; korxona jami puli va «Pul oqimi» o'zgarmaydi.'''
+    __tablename__ = "pul_otkazmalari"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    dan_hisob_id = Column(Integer, ForeignKey("pul_hisoblari.id"), nullable=False, index=True)
+    ga_hisob_id = Column(Integer, ForeignKey("pul_hisoblari.id"), nullable=False, index=True)
+    summa = Column(Numeric(14, 2), nullable=False)
+    sana = Column(DateTime, default=datetime.utcnow)
+    izoh = Column(Text, nullable=True)
+    performed_by = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class CompanySetting(Base):
@@ -1901,6 +1969,11 @@ class EmployeeAdvance(Base):
     # qismi — u KEYINGI oy oyligi hisobiga o'tadi (pul bir marta, `date` kuni berilgan — kassa o'zgarmaydi; faqat qaysi oy oyligidan
     # ayirilishi). NULL / 0 — butun summa `date` oyi hisobida (avvalgidek). Hisob — `services.calculate_monthly_employee_pay`.
     keyingi_oyga = Column(Numeric(12, 2), nullable=True)
+    # kech155 (zip 210): avans / oylik qaysi hisobdan berildi; NULL — eski yozuv («Naqd pul»)
+    hisob_id = Column(Integer, ForeignKey("pul_hisoblari.id"), nullable=True, index=True)
+    # kech155 (zip 210, review210 №1): pul HAQIQATDA qachon berilgan — sana hisobot oyi bo'lganda («oylikni yopish»: o'tgan oy uchun —
+    # o'sha oyning 28-kuni, joriy oy 29–31-kunlari — 28-kun; pul esa HOZIR beriladi). NULL — pul `date` kuni berilgan.
+    pul_vaqti = Column(DateTime, nullable=True)
 
     employee = relationship("Employee", backref="advances")
 
@@ -1993,6 +2066,8 @@ class SupplierPayment(Base):
     # xarid (`inventory_purchases.id`). Xarid o'chirilsa / summasi to'langanidan pastga tushirilsa — egasidan so'raladi
     # (`crud.xarid_tolovlari`). FK yo'q (mavjud bazaga `sync_missing_columns` oddiy ustun qo'shadi) — xarid o'chganda bog'lanish kodda uziladi.
     purchase_id = Column(Integer, nullable=True)
+    # kech155 (zip 210): qaysi hisobdan to'landi; NULL — eski yozuv («Naqd pul»)
+    hisob_id = Column(Integer, ForeignKey("pul_hisoblari.id"), nullable=True, index=True)
 
     def __repr__(self):
         return f"<SupplierPayment {self.amount}>"
@@ -2017,6 +2092,8 @@ class TransportExpense(Base):
     amount = Column(Numeric(12, 2), nullable=False)
     materials_note = Column(String(255), nullable=True)   # "Akril, Kroshka, Mel uchun"
     expense_date = Column(DateTime, default=datetime.utcnow)
+    # kech155 (zip 210): qaysi hisobdan to'landi; NULL — eski yozuv («Naqd pul»)
+    hisob_id = Column(Integer, ForeignKey("pul_hisoblari.id"), nullable=True, index=True)
     created_by = Column(String(100), nullable=True)
     notes = Column(Text, nullable=True)
     production_type = Column(String(20), nullable=True)  # umumiy / penoplast / gips
@@ -2243,6 +2320,8 @@ class FinishedProductSale(Base):
     sold_at = Column(DateTime, default=datetime.utcnow)
     buyer_name = Column(String(150), nullable=True)
     payment_method = Column(String(20), default="naqd")
+    # kech155 (zip 210): pul qaysi hisobga tushdi (usuldan: naqd / karta / bank); NULL — eski yozuv
+    hisob_id = Column(Integer, ForeignKey("pul_hisoblari.id"), nullable=True, index=True)
     notes = Column(Text, nullable=True)
     created_by = Column(String(100), nullable=True)
     sale_group_id = Column(String(40), nullable=True, index=True)  # Bir nechta mahsulot BITTA Yuk xati bilan sotilganda, ularni birlashtiradi
@@ -2462,6 +2541,8 @@ class Delivery(Base):
     transport_carrier = Column(String(150), nullable=True)     # "ABC Transport" / "Mijoz o'zi"
     transport_cost = Column(Numeric(12, 2), default=0)
     transport_payer = Column(String(20), default="none")       # none / client / company / split
+    # kech155 (zip 210): korxona to'lagan transport ulushi qaysi pul hisobidan; NULL — eski yozuv / ulush yo'q («Naqd pul»)
+    transport_hisob_id = Column(Integer, ForeignKey("pul_hisoblari.id"), nullable=True, index=True)
 
     @property
     def company_transport_cost(self):
@@ -2542,6 +2623,8 @@ class Payment(Base):
     amount = Column(Numeric(12, 2), nullable=False)
     payment_type = Column(Enum(PaymentType), default=PaymentType.PARTIAL, nullable=False)
     payment_method = Column(Enum(PaymentMethod), default=PaymentMethod.CASH, nullable=False)
+    # kech155 (zip 210): pul qaysi hisobga tushdi (usuldan: naqd → «Naqd pul», plastik → «Karta», o'tkazma → «Bank»); NULL — eski yozuv
+    hisob_id = Column(Integer, ForeignKey("pul_hisoblari.id"), nullable=True, index=True)
 
     paid_at = Column(DateTime, default=datetime.utcnow)
     received_by = Column(String(100), nullable=True)   # Kim qabul qildi
@@ -2666,6 +2749,11 @@ class ExpenseTransaction(Base):
     # daromad ulushiga qarab bo'linadi). `production_type` — ESKI matn belgisi, faqat migratsiya o'qiydi
     # (`main._migrate_yonalishlar`: 'penoplast' → asosiy yo'nalish); hisob `yonalish_id` dan.
     yonalish_id = Column(Integer, ForeignKey("yonalishlar.id"), nullable=True, index=True)
+    # kech155 (zip 210): qaysi pul hisobidan to'landi; NULL — eski yozuv («Naqd pul»)
+    hisob_id = Column(Integer, ForeignKey("pul_hisoblari.id"), nullable=True, index=True)
+    # kech155 (zip 210, mustaqil tekshiruv review210 №1): pul HAQIQATDA qachon to'langan — sana hisobot oyi bo'lganda (Qarzdorlar:
+    # o'tgan oy majburiyati — o'sha oyning 28-kuniga yoziladi, pul esa HOZIR to'lanadi). NULL — pul `date` kuni to'langan.
+    pul_vaqti = Column(DateTime, nullable=True)
 
     def __repr__(self):
         return f"<ExpenseTransaction {self.category}: {self.amount}>"
@@ -2856,7 +2944,9 @@ _TENANT_REFS = {
                    ("brak_javobgar_id", "Employee")],
     # kech40 (22-band): pul qaytarish to'lovi — qaysi qaytarishniki (begona
     # korxona qaytarishiga bog'langan to'lov yozishdayoq rad etiladi)
-    "Payment": [("return_item_id", "ReturnItem")],
+    "Payment": [("return_item_id", "ReturnItem"),
+                # kech155 (zip 210): pul qaysi hisobga — o'z korxonasining hisobi
+                ("hisob_id", "PulHisobi")],
     # Yetkazish qatori — qaysi detalga
     "DeliveryItem": [("order_item_id", "OrderItem")],
     # Ombor harakati — qaysi material/buyurtma/ta'minotchiga
@@ -2873,13 +2963,14 @@ _TENANT_REFS = {
     # materialini ko'rsatib, ishlab chiqarishda O'SHA omborni kamaytirardi.
     "BOMItem": [("inventory_id", "Inventory")],
     # Xarid — qaysi material va qaysi ta'minotchidan
-    "InventoryPurchase": [("inventory_id", "Inventory"), ("supplier_id", "Supplier")],
+    "InventoryPurchase": [("inventory_id", "Inventory"), ("supplier_id", "Supplier"),
+                          ("hisob_id", "PulHisobi")],          # kech155 (zip 210)
     # Ombor kirimi — qaysi ta'minotchidan
     "InventoryReceipt": [("supplier_id", "Supplier"),
                          # kech117 (A2): kirim yo'nalishi — o'z korxonasiniki
                          ("yonalish_id", "Yonalish")],
     # Ta'minotchiga to'lov
-    "SupplierPayment": [("supplier_id", "Supplier")],
+    "SupplierPayment": [("supplier_id", "Supplier"), ("hisob_id", "PulHisobi")],      # kech155 (zip 210): + hisob
     # Tayyor mahsulot — qaysi buyurtma/retsept/materialga
     "FinishedProduct": [("from_order_id", "Order"), ("recipe_id", "Recipe"),
                         ("penoplast_id", "Inventory"),
@@ -2900,7 +2991,8 @@ _TENANT_REFS = {
                         ("product_type_id", "ProductType"), ("bom_id", "BOM")],
     # Sotuv/brak — qaysi mahsulot/ustaga
     "FinishedProductSale": [("finished_product_id", "FinishedProduct"),
-                            ("master_id", "Master")],
+                            ("master_id", "Master"),
+                            ("hisob_id", "PulHisobi")],          # kech155 (zip 210)
     "FinishedProductLoss": [("finished_product_id", "FinishedProduct"),
                             # kech56 (13-band, 7-qadam): javobgar hodim
                             ("brak_javobgar_id", "Employee")],
@@ -2927,18 +3019,26 @@ _TENANT_REFS = {
                                     ("tier_id", "GiftPeriodTier")],
     "MasterGiftRedemption":        [("master_id", "Master"),
                                     ("gift_id", "MasterGift")],
-    "EmployeeAdvance":             [("employee_id", "Employee")],
+    "EmployeeAdvance":             [("employee_id", "Employee"), ("hisob_id", "PulHisobi")],
     "EmployeeCompensationHistory": [("employee_id", "Employee")],
     "EmployeeMonthlyAdjustment":   [("employee_id", "Employee")],
     "AdvanceRequest":              [("employee_id", "Employee")],
     "EmployeeSession":             [("employee_id", "Employee")],
 
+    # --- kech155 (zip 210 — pul hisoblari) --- pul yozuvi / qoldiq / o'tkazish FAQAT o'z korxonasining hisobiga (aks holda A ning
+    # to'lovi B ning «Bank» qoldig'iga qo'shilardi)
+    # (to'lov, tayyor sotuv, xarid, ta'minotchiga to'lov — o'z yozuvlarida, pastda)
+    "CashTransaction":             [("hisob_id", "PulHisobi")],
+    "Delivery":                    [("transport_hisob_id", "PulHisobi")],
+    "PulHisobiQoldiq":             [("hisob_id", "PulHisobi")],
+    "PulOtkazmasi":                [("dan_hisob_id", "PulHisobi"), ("ga_hisob_id", "PulHisobi")],
+
     # --- kech117 (A2 — yo'nalishlar bo'yicha moliya) ---
     # Hodim, xarajat, transport va MRP mahsulot turi — FAQAT o'z korxonasining yo'nalishiga. Aks holda A ning xarajati
     # B ning yo'nalishiga yozilib, B ning yo'nalishlar hisobotida (va A ning sof foydasi bo'linishida) chiqardi.
     "Employee":                    [("yonalish_id", "Yonalish")],
-    "ExpenseTransaction":          [("yonalish_id", "Yonalish")],
-    "TransportExpense":            [("yonalish_id", "Yonalish")],
+    "ExpenseTransaction":          [("yonalish_id", "Yonalish"), ("hisob_id", "PulHisobi")],
+    "TransportExpense":            [("yonalish_id", "Yonalish"), ("hisob_id", "PulHisobi")],
     "ProductType":                 [("yonalish_id", "Yonalish")],
 }
 

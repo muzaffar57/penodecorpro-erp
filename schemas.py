@@ -127,6 +127,8 @@ class StockPurchase(BaseModel):
     paid_now: float = Field(default=0, ge=0, description="Xarid vaqtida hoziroq to'langan summa")
     transport_cost: float = Field(default=0, ge=0)
     transport_payer: str = Field(default="none", description="none/self/supplier")
+    # kech155 (zip 210): pul qaysi hisobdan (naqd xarid / hoziroq to'lov / o'z hisobimdan transport); berilmasa — «Naqd pul»
+    hisob: Optional[Literal["naqd", "bank", "karta"]] = None
     volume_per_unit: Optional[float] = Field(default=None, gt=0, description="Penoplast uchun: 1 blok necha m³")
     payment_due_date: Optional[str] = Field(default=None, description="Qarzni qachongacha to'lash kerak (YYYY-MM-DD)")
     is_opening_stock: bool = Field(default=False, description="Boshlang'ich (tizimni ishlata boshlashda mavjud) ombor — kassa balansiga ta'sir qilmasin")
@@ -168,6 +170,8 @@ class InventoryReceiptCreate(BaseModel):
     # sana bilan yozilardi, qarz muddati hech qayerda saqlanmasdi). YYYY-MM-DD; bo'sh — bugun / muddatsiz.
     receipt_date: Optional[str] = Field(default=None, description="Kirim sanasi (YYYY-MM-DD, Toshkent kalendari)")
     payment_due_date: Optional[str] = Field(default=None, description="Ta'minotchi qarzini to'lash muddati (YYYY-MM-DD)")
+    # kech155 (zip 210): hoziroq to'lov va qo'shimcha xarajatlar qaysi hisobdan; berilmasa — «Naqd pul»
+    hisob: Optional[Literal["naqd", "bank", "karta"]] = None
 
 
 class SupplierUpdate(BaseModel):
@@ -181,6 +185,7 @@ class SupplierPaymentCreate(BaseModel):
     supplier_id: int
     amount: float = Field(..., gt=0)
     notes: Optional[str] = None
+    hisob: Optional[Literal["naqd", "bank", "karta"]] = None      # kech155 (zip 210): qaysi hisobdan; berilmasa — «Naqd pul»
     confirm_overpay: bool = Field(default=False, description="Qarzdan ko'p to'lov kiritilsa, aniq tasdiqlash uchun")
 
 
@@ -444,6 +449,9 @@ class ExpenseTransactionCreate(BaseModel):
     Ilgari faqat `ge=0` bor edi: `Infinity` SAQLANIB Moliya tarixini buzardi."""
     date: Optional[datetime] = None
     category: str = Field(..., min_length=1, max_length=30)
+    hisob: Optional[Literal["naqd", "bank", "karta"]] = None      # kech155 (zip 210): qaysi hisobdan; berilmasa — «Naqd pul»
+    # kech155 (zip 210, review210 №1): pul HOZIR to'landi (sana — hisobot oyi: Qarzdorlar, o'tgan oy majburiyati) — `pul_vaqti`
+    pul_hozir: Optional[bool] = None
     amount: float = Field(..., gt=0, le=9_999_999_999.99, allow_inf_nan=False, strict=True)
     notes: Optional[str] = Field(default=None, max_length=10_000)
     production_type: Optional[Literal["umumiy", "penoplast", "gips"]] = Field(
@@ -465,6 +473,9 @@ class ExpenseTransactionRead(BaseModel):
     yonalish_id: Optional[int] = None
     # kech120 (zip 131 — G3-18): doimiy majburiyat toifasi (`ijara_4821` kabi kod) — o'qiladigan nomi (ro'yxat uchun; yo'q — None)
     category_label: Optional[str] = None
+    # kech155 (zip 210): qaysi pul hisobidan (`hisob_turi` — naqd / bank / karta; eski yozuv — naqd)
+    hisob_id: Optional[int] = None
+    hisob_turi: Optional[str] = None
     model_config = {"from_attributes": True}
 
 
@@ -692,6 +703,8 @@ class DeliveryCreate(BaseModel):
                                   strict=True)
     transport_payer: Literal["none", "client", "company", "split"] = Field(
         default="none", description="none/client/company/split")
+    # kech155 (zip 210): korxona to'laydigan transport ulushi qaysi hisobdan; berilmasa — «Naqd pul»
+    transport_hisob: Optional[Literal["naqd", "bank", "karta"]] = None
     payment_amount: Optional[float] = Field(default=None, ge=0, le=9_999_999_999.99,
                                             allow_inf_nan=False, strict=True,
                                             description="Shu yukka bog'liq to'lov (ixtiyoriy)")
@@ -804,6 +817,7 @@ class TransportExpenseCreate(BaseModel):
     da 500, `true` → 1 so'm, `"5"` matni, ro'yxatdan tashqari tur o'tardi."""
     amount: float = Field(..., gt=0, le=9_999_999_999.99, allow_inf_nan=False, strict=True)
     materials_note: Optional[str] = Field(default=None, max_length=255)
+    hisob: Optional[Literal["naqd", "bank", "karta"]] = None      # kech155 (zip 210): qaysi hisobdan; berilmasa — «Naqd pul»
     notes: Optional[str] = Field(default=None, max_length=10_000)
     production_type: Optional[Literal["umumiy", "penoplast", "gips"]] = Field(
         default=None, description="umumiy / penoplast / gips")

@@ -3132,6 +3132,98 @@ def _migrate_yonalishlar():
 
 _migrate_yonalishlar()
 
+
+# kech155 (zip 210 «Naqd / Bank / Karta»): pul yozuvlaridagi hisob ustunlari (9 jadval; yetkazishda — `transport_hisob_id`)
+_PUL_HISOB_USTUNLARI = (("payments", "hisob_id"), ("finished_product_sales", "hisob_id"), ("inventory_purchases", "hisob_id"),
+                        ("supplier_payments", "hisob_id"), ("expense_transactions", "hisob_id"), ("transport_expenses", "hisob_id"),
+                        ("employee_advances", "hisob_id"), ("cash_transactions", "hisob_id"), ("deliveries", "transport_hisob_id"))
+# pul HAQIQATDA qachon to'langan (sana — hisobot oyi bo'lganda; review210 №1): xarajat va avans / oylik
+_PUL_VAQT_USTUNLARI = (("expense_transactions", "pul_vaqti"), ("employee_advances", "pul_vaqti"))
+
+
+def _migrate_pul_hisoblari():
+    '''kech155 (zip 210 «Naqd / Bank / Karta») — IDEMPOTENT, PG va SQLite (`_migrate_yonalishlar` naqshi).
+
+    * `pul_hisoblari`, `pul_hisobi_qoldiqlari`, `pul_otkazmalari` — `init_database()` (`create_all`); hisob ustunlari va `pul_vaqti` —
+      `database.sync_missing_columns()` (NULL; eski yozuvlar usuldan / «Naqd pul» ga hisoblanadi), yo'q bo'lsa shu yerda. Indeks —
+      ikkala bazada; PostgreSQL da chet el kaliti (sync qo'shmaydi; yetim qiymat bo'lsa — QO'YILMAYDI, faqat xabar).
+    * Har korxonada standart hisoblar («Naqd pul», «Bank», «Karta») — yo'q bo'lsa yaratiladi. Qoldiq — egasi o'zi kiritadi (Moliya).'''
+    from sqlalchemy import text, inspect as _insp
+    from database import engine, SessionLocal as _SL210
+    from production_models import Company as _Co210
+    from models import PulHisobi as _PH210
+    try:
+        _i = _insp(engine)
+        _jadvallar = set(_i.get_table_names())
+        if "pul_hisoblari" not in _jadvallar:
+            print("⚠ pul_hisoblari jadvali yo'q — migratsiya o'tkazib yuborildi")
+            return
+        for _j, _u in _PUL_HISOB_USTUNLARI:
+            if _j not in _jadvallar:
+                continue
+            if _u not in {c["name"] for c in _i.get_columns(_j)}:
+                with engine.connect() as conn:
+                    conn.execute(text(f"ALTER TABLE {_j} ADD COLUMN {_u} INTEGER"))
+                    conn.commit()
+                print(f"✓ {_j}.{_u} qo'shildi")
+        for _j, _u in _PUL_VAQT_USTUNLARI:
+            if _j in _jadvallar and _u not in {c["name"] for c in _i.get_columns(_j)}:
+                with engine.connect() as conn:
+                    conn.execute(text(f"ALTER TABLE {_j} ADD COLUMN {_u} TIMESTAMP"))
+                    conn.commit()
+                print(f"✓ {_j}.{_u} qo'shildi")
+        with engine.connect() as conn:
+            for _j, _u in _PUL_HISOB_USTUNLARI:
+                if _j in _jadvallar:
+                    conn.execute(text(f"CREATE INDEX IF NOT EXISTS ix_{_j}_{_u} ON {_j} ({_u})"))
+            conn.commit()
+        if engine.dialect.name == "postgresql":
+            with engine.connect() as conn:
+                for _j, _u in _PUL_HISOB_USTUNLARI:
+                    if _j not in _jadvallar:
+                        continue
+                    _kalit = f"{_j}_{_u}_fkey"
+                    if conn.execute(text(
+                            "SELECT 1 FROM pg_constraint c JOIN pg_class t ON t.oid = c.conrelid "
+                            "WHERE t.relname = :j AND c.contype = 'f' AND c.conname = :k"),
+                            {"j": _j, "k": _kalit}).first():
+                        continue
+                    _yetim = conn.execute(text(
+                        f"SELECT COUNT(*) FROM {_j} x LEFT JOIN pul_hisoblari h ON h.id = x.{_u} "
+                        f"WHERE x.{_u} IS NOT NULL AND h.id IS NULL")).scalar() or 0
+                    if _yetim:
+                        print(f"⚠ {_j}.{_u}: {_yetim} ta yetim qiymat — chet el kaliti QO'YILMADI")
+                        continue
+                    try:
+                        conn.execute(text(f"ALTER TABLE {_j} ADD CONSTRAINT {_kalit} "
+                                          f"FOREIGN KEY ({_u}) REFERENCES pul_hisoblari(id)"))
+                        conn.commit()
+                        print(f"✓ {_kalit} chet el kaliti qo'shildi")
+                    except Exception as _fe:
+                        conn.rollback()
+                        print(f"⚠ {_kalit} qo'shilmadi: {_fe}")
+    except Exception as e:
+        print(f"⚠ pul hisoblari ustunlari tekshiruvi o'tkazib yuborildi: {e}")
+        return
+    _d = _SL210()
+    try:
+        _yangi = 0
+        for (_cid,) in _d.query(_Co210.id).order_by(_Co210.id).all():
+            if _d.query(_PH210.id).filter(_PH210.company_id == _cid).first() is None:
+                crud.pul_hisoblari(_d, _cid)
+                _yangi += 1
+        _d.commit()
+        if _yangi:
+            print(f"✓ standart pul hisoblari («Naqd pul», «Bank», «Karta») yaratildi: {_yangi} ta korxona")
+    except Exception as e:
+        _d.rollback()
+        print(f"⚠ standart pul hisoblari yaratilmadi: {e}")
+    finally:
+        _d.close()
+
+
+_migrate_pul_hisoblari()
+
 from database import SessionLocal
 _db = SessionLocal()
 try:
@@ -5861,7 +5953,8 @@ def api_create_inventory_receipt(data: dict = Body(...), db: Session = Depends(g
                 yonalish_id=(data.yonalish_id if "yonalish_id" in data.model_fields_set else crud._YON_YOQ),
                 company_id=auth.company_id_of(current_user),
                 # kech115 (G4-03): formadagi sana va to'lov muddati (ilgari yuborilmasdi / saqlanmasdi)
-                receipt_date=data.receipt_date, payment_due_date=data.payment_due_date
+                receipt_date=data.receipt_date, payment_due_date=data.payment_due_date,
+                hisob=data.hisob,                           # kech155 (zip 210): qaysi pul hisobidan
             )
     try:
         javob, _ = _amal_bajar(db, current_user, response, "kirim", kalit, _bajar)
@@ -5920,6 +6013,11 @@ def api_purchase_stock(item_id: int, data: dict = Body(...), db: Session = Depen
     if data.supplier_id and not crud.get_supplier(db, data.supplier_id, company_id=_cid):
         raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
     who = current_user.full_name or current_user.username
+    # kech155 (zip 210): pul qaysi hisobdan (naqd xarid, o'z hisobimdan transport, hoziroq to'lov — bittasi); berilmasa «Naqd pul»
+    try:
+        _hid210 = crud.pul_hisobi_id(db, _cid, hisob=data.hisob)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     # 17g (2026-09-22): jami — bazaga yoziladigan AYNAN shu summa
     # (`crud._xarid_narx_jami`: narx 2 xonaga yaxlitlanib, jami shu narxdan).
@@ -5963,7 +6061,7 @@ def api_purchase_stock(item_id: int, data: dict = Body(...), db: Session = Depen
                                           supplier_id=data.supplier_id, is_credit=is_credit,
                                           volume_per_unit=data.volume_per_unit,
                                           payment_due_date=data.payment_due_date,
-                                          is_opening_stock=data.is_opening_stock)
+                                          is_opening_stock=data.is_opening_stock, hisob_id=_hid210)
             if not result:
                 raise HTTPException(status_code=404, detail="Xomashyo topilmadi")
 
@@ -5976,7 +6074,8 @@ def api_purchase_stock(item_id: int, data: dict = Body(...), db: Session = Depen
                     schemas.TransportExpenseCreate(
                         amount=data.transport_cost,
                         materials_note=item.item_name,
-                        notes=f"{item.item_name} xaridi bilan birga"
+                        notes=f"{item.item_name} xaridi bilan birga",
+                        hisob=data.hisob,                   # kech155 (zip 210)
                     ),
                     created_by=who, company_id=auth.company_id_of(current_user)
                 )
@@ -5992,7 +6091,8 @@ def api_purchase_stock(item_id: int, data: dict = Body(...), db: Session = Depen
                     schemas.SupplierPaymentCreate(
                         supplier_id=data.supplier_id,
                         amount=paid_now,
-                        notes=f"{item.item_name} xaridi bilan bir vaqtda to'langan"
+                        notes=f"{item.item_name} xaridi bilan bir vaqtda to'langan",
+                        hisob=data.hisob,                   # kech155 (zip 210)
                     ),
                     paid_by=who, company_id=auth.company_id_of(current_user), ichki=True,
                     purchase_id=result["purchase"].id      # kech144 (zip 180): xarid o'chirilsa — egasidan so'raladi
@@ -6174,6 +6274,7 @@ def api_create_employee_advance(employee_id: int, amount: Optional[str] = None,
                                   notes: Optional[str] = None,
                                   adv_date: Optional[str] = None,
                                   confirm_excess: bool = False,
+                                  hisob: Optional[str] = None,
                                   db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("hodim", "tahrirlash"))):
     """Hodimga avans (oldindan pul) berilganini qayd etadi.
     adv_date — YYYY-MM-DD formatida, ixtiyoriy (berilmasa yoki bo'sh — bugungi sana).
@@ -6188,7 +6289,8 @@ def api_create_employee_advance(employee_id: int, amount: Optional[str] = None,
         toza = crud._clean_avans(amount, notes, adv_date)
         adv = crud.create_employee_advance(db, employee_id, toza["amount"], toza["notes"],
                                             given_by=current_user.full_name or current_user.username,
-                                            adv_date=toza["adv_date"], confirm_excess=confirm_excess)
+                                            adv_date=toza["adv_date"], confirm_excess=confirm_excess,
+                                            hisob=hisob)          # kech155 (zip 210): qaysi pul hisobidan (naqd / bank / karta)
     except crud.AvansOylikdanOrtiq as e:     # kech140 (zip 168, A-P09): oylikdan ko'p — UI so'raydi, «Ha» bilan qayta
         db.rollback()
         raise HTTPException(status_code=409, detail=e.javob())
@@ -6865,12 +6967,16 @@ def api_pending_advance_requests(db: Session = Depends(get_db), current_user=Dep
 
 
 @app.post("/api/admin/advance-requests/{request_id}/confirm")
-def api_confirm_advance_request(request_id: int, confirm_excess: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("avans_sorov", "tahrirlash"))):
+def api_confirm_advance_request(request_id: int, confirm_excess: bool = False, hisob: Optional[str] = None,
+                                db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("avans_sorov", "tahrirlash"))):
     try:
         result = crud.confirm_advance_request(db, request_id, current_user.full_name or current_user.username,
-                                             company_id=auth.company_id_of(current_user), confirm_excess=confirm_excess)
+                                             company_id=auth.company_id_of(current_user), confirm_excess=confirm_excess,
+                                             hisob=hisob)          # kech155 (zip 210): qaysi pul hisobidan
     except crud.AvansOylikdanOrtiq as e:     # kech140 (zip 168, A-P09): oylikdan ko'p — admin «Ha» bilan qayta
         raise HTTPException(status_code=409, detail=e.javob())
+    except ValueError as e:                  # kech155 (zip 210): noto'g'ri hisob — so'rov o'zgarmaydi
+        raise HTTPException(status_code=400, detail=str(e))
     if not result:
         raise HTTPException(status_code=404, detail="So'rov topilmadi yoki allaqachon ko'rib chiqilgan")
     return result
@@ -9154,7 +9260,7 @@ def api_employee_obligation_timeline(employee_id: int, year: int, month: int, db
 
 @app.post("/api/obligations/employee/{employee_id}/close")
 def api_close_employee_debt(employee_id: int, year: Optional[str] = None, month: Optional[str] = None,
-                              amount: Optional[str] = None, confirm_excess: bool = False,
+                              amount: Optional[str] = None, confirm_excess: bool = False, hisob: Optional[str] = None,
                               db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("qarz", "tahrirlash"))):
     # M5: xodim FAQAT joriy korxonadan (aks holda 404).
     if not auth.employee_of_company(db, employee_id, auth.company_id_of(current_user)):
@@ -9166,7 +9272,8 @@ def api_close_employee_debt(employee_id: int, year: Optional[str] = None, month:
     try:
         toza = crud._clean_oylik_yopish(year, month, amount)
         return services.close_employee_debt(db, employee_id, toza["year"], toza["month"],
-                                            toza["amount"], paid_by=who, confirm_excess=confirm_excess)
+                                            toza["amount"], paid_by=who, confirm_excess=confirm_excess,
+                                            hisob=hisob)          # kech155 (zip 210)
     except crud.AvansOylikdanOrtiq as e:     # kech140 (zip 168, A-P09)
         db.rollback()
         raise HTTPException(status_code=409, detail=e.javob())
@@ -9178,8 +9285,11 @@ def api_close_employee_debt(employee_id: int, year: Optional[str] = None, month:
 @app.get("/api/finance/cash-balance")
 def api_get_cash_balance(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kassa", "korish"))):
     """Kassa + bank balansi — kompaniyada hozir haqiqatda qancha pul bor (naqd, karta, bank — bitta; kech118 G3-14).
-    `boshlangich_kiritilgan` — boshlang'ich balans yozilganmi (yo'q bo'lsa Moliya kartasi ogohlantiradi)."""
-    return services.get_cash_balance(db, company_id=auth.company_id_of(current_user))
+    `boshlangich_kiritilgan` — boshlang'ich balans yozilganmi (yo'q bo'lsa Moliya kartasi ogohlantiradi).
+    kech155 (zip 210): `hisoblar` (Naqd pul / Bank / Karta qoldig'i), `hisoblar_boshlangan`, `eski_balans`."""
+    _natija = services.get_cash_balance(db, company_id=auth.company_id_of(current_user))
+    db.commit()          # kech155 (zip 210): korxonaning birinchi so'rovida yaratilgan standart pul hisoblari saqlansin
+    return _natija
 
 
 @app.get("/api/finance/pul-oqimi")
@@ -9218,7 +9328,8 @@ def api_get_cash_transactions(db: Session = Depends(get_db), current_user=Depend
     return [{
         "id": r.id, "category": r.category, "amount": float(r.amount),
         "notes": r.notes, "performed_by": r.performed_by,
-        "created_at": r.created_at.isoformat() if r.created_at else None
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+        "hisob_id": r.hisob_id,                 # kech155 (zip 210): qaysi pul hisobidan (NULL — eski: «Naqd pul»)
     } for r in rows]
 
 
@@ -9237,16 +9348,175 @@ def api_delete_cash_transaction(tx_id: int, db: Session = Depends(get_db),
 
 @app.post("/api/finance/cash-transaction")
 def api_record_cash_transaction(category: str = Form(...), amount: float = Form(...),
-                                 notes: str = Form(None), db: Session = Depends(get_db),
+                                 notes: str = Form(None), hisob: str = Form(None), db: Session = Depends(get_db),
                                  current_user=Depends(auth.ruxsat("kassa", "yaratish"))):
     """Kassaga qo'lda yozuv qo'shadi — faqat Admin.
-    category: 'boshlangich' (musbat) / 'usta_kpi' (manfiy) / 'ehson' (manfiy)."""
+    category: 'boshlangich' (musbat) / 'usta_kpi' (manfiy) / 'ehson' (manfiy).
+    kech155 (zip 210): `hisob` — qaysi pul hisobidan (naqd / bank / karta yoki id; berilmasa «Naqd pul»). Hisoblar qoldig'i kiritilgach
+    eski «boshlang'ich balans» — rad (u «Kassa + bank» ga endi ta'sir qilmaydi — «+ Boshlang'ich qoldiq» dan)."""
     if category not in ("boshlangich", "usta_kpi", "ehson"):
         raise HTTPException(status_code=400, detail="Noto'g'ri kategoriya")
+    # kech155 (zip 210, mustaqil tekshiruv review210 №7): Usta KPI / Ehson — CHIQIM (sahifa manfiy summa yuboradi); musbat summa endi
+    # tanlangan hisobni OSHIRARDI (ilgari ham jim qabul qilinardi) — rad
+    if category in ("usta_kpi", "ehson") and not (amount < 0):
+        raise HTTPException(status_code=400, detail="Usta KPI / Ehson to'lovi — chiqim: summa manfiy bo'lishi kerak")
     who = current_user.full_name or current_user.username
-    tx = crud.record_cash_transaction(db, category, amount, notes=notes, performed_by=who, company_id=auth.company_id_of(current_user))
+    _cid210 = auth.company_id_of(current_user)
+    if category == "boshlangich" and services.pul_hisob_balanslari(db, _cid210)["boshlangan"]:
+        raise HTTPException(status_code=400, detail="Naqd / Bank / Karta qoldig'i allaqachon kiritilgan — qoldiqni «+ Boshlang'ich qoldiq» "
+                                                    "oynasidan kiriting (har hisob alohida)")
+    try:
+        tx = crud.record_cash_transaction(db, category, amount, notes=notes, performed_by=who, company_id=_cid210, hisob=hisob)
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     balance = services.get_cash_balance(db, company_id=auth.company_id_of(current_user))
-    return {"status": "ok", "transaction_id": tx.id, "new_balance": balance["balance"]}
+    # kech155 (zip 210): takror yuborish (8 s ichida o'sha yozuv) — yangi yozuv yo'q, `duplicate: true`
+    return {"status": "ok", "transaction_id": tx.id, "new_balance": balance["balance"],
+            "duplicate": bool(getattr(tx, "_is_duplicate_submit", False))}
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# kech155 (zip 210 «Naqd / Bank / Karta»): pul hisoblari — qoldiq, o'tkazish, tarix
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+def _pul_qoldiq_tanasi(data):
+    '''`POST /api/finance/hisoblar/qoldiq` tanasi — QAT'IY (xato → `ValueError`, 400): `qoldiqlar` — [{hisob_id: butun son, summa: son},
+    …] (1…20; HOZIRGI haqiqiy qoldiq), `izoh` — ixtiyoriy matn (300 belgigacha). Boshqa maydon — rad.'''
+    if not isinstance(data, dict):
+        raise ValueError("So'rov tanasi obyekt bo'lishi kerak")
+    _begona = sorted(set(data) - {"qoldiqlar", "izoh"})
+    if _begona:
+        raise ValueError(f"Noma'lum maydon: {', '.join(map(str, _begona))}")
+    qq = data.get("qoldiqlar")
+    if not isinstance(qq, list) or not (1 <= len(qq) <= 20):
+        raise ValueError("'qoldiqlar' — 1 tadan 20 tagacha qator")
+    natija = []
+    for el in qq:
+        if not isinstance(el, dict) or set(el) != {"hisob_id", "summa"}:
+            raise ValueError("Har qoldiq qatori: {hisob_id, summa}")
+        _h, _m = el["hisob_id"], el["summa"]
+        if isinstance(_h, bool) or not isinstance(_h, int):
+            raise ValueError("'hisob_id' butun son bo'lishi kerak")
+        if isinstance(_m, bool) or not isinstance(_m, (int, float)):
+            raise ValueError("'summa' son bo'lishi kerak")
+        natija.append((_h, _m))
+    izoh = data.get("izoh")
+    if izoh is not None and not isinstance(izoh, str):
+        raise ValueError("'izoh' matn bo'lishi kerak")
+    if isinstance(izoh, str) and len(izoh.strip()) > 300:
+        raise ValueError("'izoh' 300 belgidan oshmasin")
+    return natija, izoh
+
+
+def _pul_otkazma_tanasi(data):
+    '''`POST /api/finance/hisoblar/otkazma` tanasi — QAT'IY: `dan_hisob_id`, `ga_hisob_id` (butun son), `summa` (son), `izoh` (ixtiyoriy).'''
+    if not isinstance(data, dict):
+        raise ValueError("So'rov tanasi obyekt bo'lishi kerak")
+    _begona = sorted(set(data) - {"dan_hisob_id", "ga_hisob_id", "summa", "izoh"})
+    if _begona:
+        raise ValueError(f"Noma'lum maydon: {', '.join(map(str, _begona))}")
+    for _k in ("dan_hisob_id", "ga_hisob_id"):
+        if isinstance(data.get(_k), bool) or not isinstance(data.get(_k), int):
+            raise ValueError(f"'{_k}' butun son bo'lishi kerak")
+    if isinstance(data.get("summa"), bool) or not isinstance(data.get("summa"), (int, float)):
+        raise ValueError("'summa' son bo'lishi kerak")
+    izoh = data.get("izoh")
+    if izoh is not None and not isinstance(izoh, str):
+        raise ValueError("'izoh' matn bo'lishi kerak")
+    if isinstance(izoh, str) and len(izoh.strip()) > 300:
+        raise ValueError("'izoh' 300 belgidan oshmasin")
+    return data["dan_hisob_id"], data["ga_hisob_id"], data["summa"], izoh
+
+
+@app.get("/api/finance/hisoblar")
+def api_pul_hisoblari(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kassa", "korish"))):
+    '''Pul hisoblari va qoldig'i: {boshlangan, hisoblar: [{id, nomi, turi, balans, qoldiq_id, qoldiq_vaqt, qoldiq_summa}], jami}.'''
+    _natija = services.pul_hisob_balanslari(db, auth.company_id_of(current_user))
+    db.commit()          # birinchi so'rovda yaratilgan standart hisoblar saqlansin
+    return _natija
+
+
+@app.post("/api/finance/hisoblar/qoldiq")
+def api_pul_qoldiq(data: Optional[dict] = Body(default=None), db: Session = Depends(get_db),
+                   current_user=Depends(auth.ruxsat("kassa", "yaratish"))):
+    '''Hisob(lar)ning HAQIQIY qoldig'i (HOZIRGI holat): birinchi marta — hamma hisob birga; keyin — qayta sanash. Takroriy yuborish —
+    `duplicate: true`, yangi yozuv yo'q.'''
+    try:
+        qq, izoh = _pul_qoldiq_tanasi(data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    _cid = auth.company_id_of(current_user)
+    try:
+        _yozildi = crud.pul_qoldiq_kirit(db, _cid, qq, izoh=izoh, performed_by=current_user.full_name or current_user.username)
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    _natija = services.pul_hisob_balanslari(db, _cid)
+    _natija["duplicate"] = any(getattr(q, "_is_duplicate_submit", False) for q in _yozildi)
+    return _natija
+
+
+@app.delete("/api/finance/hisoblar/qoldiq/{qoldiq_id}")
+def api_pul_qoldiq_ochir(qoldiq_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kassa", "ochirish"))):
+    '''Xato kiritilgan qoldiqni o'chiradi (hisob oldingi qoldig'iga qaytadi). Begona / yo'q — 404.'''
+    _cid = auth.company_id_of(current_user)
+    if not crud.pul_qoldiq_ochir(db, _cid, qoldiq_id, performed_by=current_user.full_name or current_user.username):
+        raise HTTPException(status_code=404, detail="Qoldiq yozuvi topilmadi")
+    return services.pul_hisob_balanslari(db, _cid)
+
+
+@app.post("/api/finance/hisoblar/otkazma")
+def api_pul_otkazma(data: Optional[dict] = Body(default=None), db: Session = Depends(get_db),
+                    current_user=Depends(auth.ruxsat("kassa", "yaratish"))):
+    '''Hisoblar orasida o'tkazish (jami o'zgarmaydi). Takroriy yuborish — `duplicate: true`, yangi yozuv yo'q.'''
+    try:
+        dan, ga, summa, izoh = _pul_otkazma_tanasi(data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    _cid = auth.company_id_of(current_user)
+    try:
+        o = crud.pul_otkazma_yoz(db, _cid, dan, ga, summa, izoh=izoh, performed_by=current_user.full_name or current_user.username)
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"status": "ok", "id": o.id, "duplicate": bool(getattr(o, "_is_duplicate_submit", False)),
+            "hisoblar": services.pul_hisob_balanslari(db, _cid)}
+
+
+@app.delete("/api/finance/hisoblar/otkazma/{otkazma_id}")
+def api_pul_otkazma_ochir(otkazma_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kassa", "ochirish"))):
+    '''O'tkazishni o'chiradi. Begona / yo'q — 404.'''
+    _cid = auth.company_id_of(current_user)
+    if not crud.pul_otkazma_ochir(db, _cid, otkazma_id, performed_by=current_user.full_name or current_user.username):
+        raise HTTPException(status_code=404, detail="O'tkazish topilmadi")
+    return services.pul_hisob_balanslari(db, _cid)
+
+
+@app.get("/api/finance/hisoblar/qolda")
+def api_pul_qolda(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kassa", "korish"))):
+    '''Qo'lda kiritilganlar: qoldiqlar va o'tkazishlar (yangisi tepada, 100 tagacha) — hisob nomi bilan.'''
+    from models import PulHisobiQoldiq as _Q210, PulOtkazmasi as _O210, PulHisobi as _H210
+    _cid = auth.company_id_of(current_user)
+    _n = {h.id: h.nomi for h in db.query(_H210).filter(_H210.company_id == _cid).all()}
+    _qq = (db.query(_Q210).filter(_Q210.company_id == _cid).order_by(_Q210.vaqt.desc(), _Q210.id.desc()).limit(100).all())
+    _oo = (db.query(_O210).filter(_O210.company_id == _cid).order_by(_O210.created_at.desc(), _O210.id.desc()).limit(100).all())
+    return {
+        "qoldiqlar": [{"id": q.id, "hisob": _n.get(q.hisob_id, "?"), "summa": float(q.summa),
+                       "dastur_summa": (float(q.dastur_summa) if q.dastur_summa is not None else None), "izoh": q.izoh,
+                       "kim": q.performed_by, "vaqt": q.vaqt.isoformat() if q.vaqt else None} for q in _qq],
+        "otkazmalar": [{"id": o.id, "dan": _n.get(o.dan_hisob_id, "?"), "ga": _n.get(o.ga_hisob_id, "?"), "summa": float(o.summa),
+                        "izoh": o.izoh, "kim": o.performed_by, "vaqt": o.sana.isoformat() if o.sana else None} for o in _oo],
+    }
+
+
+@app.get("/api/finance/hisoblar/{hisob_id}/tarix")
+def api_pul_hisobi_tarixi(hisob_id: int, limit: int = 300, db: Session = Depends(get_db),
+                          current_user=Depends(auth.ruxsat("kassa", "korish"))):
+    '''Bitta hisobning tarixi — eng oxirgi qoldiqdan beri har harakat (yangisi tepada) va har biridan keyingi qoldiq.'''
+    try:
+        return services.pul_hisobi_tarixi(db, auth.company_id_of(current_user), hisob_id, limit=limit)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @app.get("/finance", response_class=HTMLResponse)
@@ -9432,10 +9702,13 @@ def api_list_expense_transactions(year: Optional[int] = None, month: Optional[in
     from models import RecurringObligation as _RO131
     _nomlar = dict(db.query(_RO131.category, _RO131.label)
                    .filter(_RO131.company_id == auth.company_id_of(current_user)).all())
+    # kech155 (zip 210): hisob turi (ro'yxatda nomi, tahrirda joriy tanlov); NULL (eski yozuv) — «Naqd pul»
+    _turlar210 = {h.id: h.turi for h in crud.pul_hisoblari(db, auth.company_id_of(current_user), faqat_faol=False)}
     natija = []
     for r in rows:
         _d = schemas.ExpenseTransactionRead.model_validate(r)
         _d.category_label = _nomlar.get(r.category)
+        _d.hisob_turi = _turlar210.get(r.hisob_id) or "naqd"
         natija.append(_d)
     return natija
 
@@ -9795,7 +10068,12 @@ def api_return_stats(db: Session = Depends(get_db), current_user=Depends(auth.ru
 
 
 @app.post("/api/returns/{return_id}/refund")
-def api_mark_refunded(return_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("qaytarish", "tahrirlash"))):
+def api_mark_refunded(return_id: int, payment_method: Optional[str] = None, db: Session = Depends(get_db),
+                      current_user=Depends(auth.ruxsat("qaytarish", "tahrirlash"))):
+    # kech155 (zip 210): `payment_method` — pul qanday qaytarildi (naqd / plastik / o'tkazma → «Naqd pul» / «Karta» / «Bank»);
+    # berilmasa — naqd (avvalgidek). Noto'g'ri — 400.
+    if payment_method is not None and payment_method not in ("naqd", "plastik", "o'tkazma"):
+        raise HTTPException(status_code=400, detail="'payment_method' — naqd, plastik yoki o'tkazma")
     # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.return_of_company(db, return_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Qaytarish topilmadi")
@@ -9804,7 +10082,7 @@ def api_mark_refunded(return_id: int, db: Session = Depends(get_db), current_use
     # (qarzdan chegirildimi, naqd qancha) — UI shuni ko'rsatadi.
     try:
         item = crud.mark_refunded(db, return_id, refunded_by=who,
-                                  company_id=auth.company_id_of(current_user))
+                                  company_id=auth.company_id_of(current_user), usul=payment_method)
     except ValueError as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
@@ -10855,6 +11133,7 @@ def api_platform_create_company(name: str = Form(...), admin_username: str = For
         db.flush()                      # id kerak
         # kech117 (A2): har korxonada ASOSIY yo'nalish («Penoplast») — korxona bilan BIR tranzaksiyada
         crud.standart_yonalish(db, korxona.id)
+        crud.pul_hisoblari(db, korxona.id)          # kech155 (zip 210): «Naqd pul», «Bank», «Karta»
         auth.create_user(db, login, parol, _UR.ADMIN,
                          (admin_full_name or nom).strip(),
                          company_id=korxona.id)

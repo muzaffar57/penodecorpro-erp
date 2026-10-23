@@ -914,7 +914,7 @@ def hodim_oy_qoldigi(db: Session, employee_id: int, company_id: int, year: int, 
 
 
 def close_employee_debt(db: Session, employee_id: int, year: int, month: int, amount: float, paid_by: str = None,
-                        confirm_excess: bool = False) -> dict:
+                        confirm_excess: bool = False, hisob=None) -> dict:
     """Hodimning shu oydagi qolgan qarzini to'lash — mavjud, sinalgan
     EmployeeAdvance mexanizmining o'zidan foydalanadi (avans va yakuniy
     to'lov — matematik jihatdan bir xil narsa: ikkalasi ham hisoblangan
@@ -924,8 +924,12 @@ def close_employee_debt(db: Session, employee_id: int, year: int, month: int, am
     _bugun_t = _tashkent_date()   # kech105 (9 + 50-band): joriy oy / kun — Toshkent kalendari
     adv_date = datetime(year, month, min(28, _bugun_t.day) if (year, month) == (_bugun_t.year, _bugun_t.month) else 28)
     # kech140 (zip 168, A-P09): takror (8 s) — mavjud yozuv; qolgandan ko'p — `AvansOylikdanOrtiq` (marshrut → 409)
+    # kech155 (zip 210, mustaqil tekshiruv review210 №1 — O'LCHANGAN): sana — hisobot oyi (o'tgan oy — 28-kun), pul esa HOZIR
+    # beriladi — hisob qoldig'i uchun `pul_vaqti` (ilgari qoldiq kiritilgach o'tgan oy oyligini yopish hisobdan AYRILMASDI)
     adv = _crud.create_employee_advance(db, employee_id, amount, notes="Oy oxiri — qolgan oylik to'landi",
-                                         given_by=paid_by, adv_date=adv_date, confirm_excess=confirm_excess)
+                                         given_by=paid_by, adv_date=adv_date, confirm_excess=confirm_excess,
+                                         hisob=hisob,          # kech155 (zip 210): qaysi pul hisobidan
+                                         pul_vaqti=datetime.utcnow())
     return {"success": adv is not None, "duplicate": bool(getattr(adv, "_takror", False))}
 
 
@@ -5230,6 +5234,240 @@ def _kassa_qismlari(db: Session, company_id: int = None, boshi=None, oxiri=None)
     }
 
 
+# kech155 (zip 210): xarajat turkumlari nomi (Moliya `CAT_LABELS` bilan bir xil) — hisob tarixi matni uchun
+_PUL_XARAJAT_NOMI = {"arenda": "Arenda", "elektr": "Elektr", "tushlik": "Tushlik", "soliqlar": "Soliqlar", "reklama": "Reklama",
+                     "kutilmagan": "Kutilmagan xarajat", "boshqa": "Boshqa", "transport_kirim": "Transport (kirim)",
+                     "tushirish_kirim": "Tushirish (Grushchik)", "yuklash_kirim": "Yuklash", "kirim_boshqa": "Boshqa xarajat (kirim)"}
+_PUL_KASSA_NOMI = {"usta_kpi": "Usta KPI to'landi", "ehson": "Ehson to'landi"}
+
+
+def _pul_izoh210(x, n: int = 60) -> str:
+    x = " ".join(str(x or "").split())
+    return (x[:n - 1] + "…") if len(x) > n else x
+
+
+def _pul_hisob_harakatlari(db: Session, company_id: int, boshi, gacha=None) -> list:
+    '''kech155 (zip 210): korxonaning [boshi, gacha) (UTC, naive; `gacha` None — cheksiz) davridagi HAR pul harakati — {vaqt, hisob_id,
+    summa (+ kirim / − chiqim), tur, matn, kalit, faqat_sana}. Qoidalar `_kassa_qismlari` bilan BIR: mijoz to'lovi (qaytarilgan pul —
+    manfiy), tayyor mahsulot sotuvi, naqd xarid (nasiya va boshlang'ich ombor — YO'Q), ta'minotchiga to'lov, xarajat, kirish transporti,
+    yetkazishning korxona ulushi, hodimga avans / oylik, kassaga qo'lda (Usta KPI, Ehson; «boshlang'ich balans» — EMAS) va hisoblar
+    orasida o'tkazish (ikki qator). Eski oylik shakl (`MonthlyExpense`) — hisoblarga KIRMAYDI (zip 210 dan oldingi oylar). `hisob_id`
+    NULL (zip 210 dan oldingi yozuv) — to'lov / sotuv usulidan, qolgani «Naqd pul» ga. Xarajat va avans / oylikda `pul_vaqti` bor
+    bo'lsa (sana — hisobot oyi, pul HOZIR: Qarzdorlar o'tgan oy majburiyati, «oylikni yopish»; review210 №1) — harakat vaqti o'sha
+    (aniq payt, `faqat_sana` emas). `yozilgan` — dasturga kiritilgan payt (xarajat, avans — `created_at`; hodim so'rovidan avans —
+    so'rov yuborilgan payt `AdvanceRequest.submitted_at`, review210 №2). Faqat o'qiydi.'''
+    import crud as _crud210
+    from sqlalchemy import and_ as _and210, or_ as _or210
+    from models import (Payment, FinishedProductSale, InventoryPurchase, SupplierPayment, Supplier, ExpenseTransaction,
+                        TransportExpense, Delivery, EmployeeAdvance, Employee, CashTransaction, PulOtkazmasi, AdvanceRequest)
+    hisoblar = _crud210.pul_hisoblari(db, company_id, faqat_faol=False)
+    if not hisoblar:
+        return []
+    _turi_id = {}
+    for h in hisoblar:
+        if h.faol is not False:
+            _turi_id.setdefault(h.turi, h.id)
+    _nomi = {h.id: h.nomi for h in hisoblar}
+    _naqd = _turi_id.get("naqd") or hisoblar[0].id
+
+    def _usuldan(u):
+        _uv = getattr(u, "value", u)
+        return _turi_id.get(_crud210._USUL_HISOB_TURI.get(str(_uv or "naqd").strip().lower(), "naqd")) or _naqd
+
+    def _d(q, ustun):
+        q = q.filter(ustun >= boshi)
+        if gacha is not None:
+            q = q.filter(ustun < gacha)
+        return q
+
+    def _dv(q, ustun, pul_ustun):
+        '''`_d` — `pul_vaqti` bor qatorda pul vaqti bo'yicha (sanasi hisobot oyi), yo'q bo'lsa `ustun` (sana) bo'yicha.'''
+        _sana, _pul = ustun >= boshi, pul_ustun >= boshi
+        if gacha is not None:
+            _sana, _pul = _and210(_sana, ustun < gacha), _and210(_pul, pul_ustun < gacha)
+        return q.filter(_or210(_and210(pul_ustun.is_(None), _sana), _and210(pul_ustun.isnot(None), _pul)))
+
+    out = []
+
+    def qosh(vaqt, hid, summa, tur, matn, kalit, yozilgan=None, aniq=False):
+        if vaqt is None:
+            return
+        out.append({"vaqt": vaqt, "hisob_id": hid, "summa": round(float(summa or 0), 2), "tur": tur, "matn": matn,
+                    "kalit": kalit,
+                    "faqat_sana": (not aniq) and (vaqt.hour, vaqt.minute, vaqt.second, vaqt.microsecond) == (0, 0, 0, 0),
+                    "yozilgan": yozilgan})
+
+    # mijoz to'lovlari (qaytarilgan pul — manfiy to'lov)
+    for _id, _hid, _u, _s, _v, _on in _d(db.query(Payment.id, Payment.hisob_id, Payment.payment_method, Payment.amount, Payment.paid_at,
+                                                  Order.order_number).join(Order, Order.id == Payment.order_id)
+                                         .filter(Order.company_id == company_id), Payment.paid_at).all():
+        _s = float(_s or 0)
+        qosh(_v, _hid or _usuldan(_u), _s, "tolov",
+             (f"Mijoz to'lovi — {_on}" if _s >= 0 else f"Mijozga qaytarilgan pul — {_on}"), f"p{_id}")
+    # tayyor mahsulot sotuvi
+    for _id, _hid, _u, _s, _v, _x in _d(db.query(FinishedProductSale.id, FinishedProductSale.hisob_id, FinishedProductSale.payment_method,
+                                                 FinishedProductSale.total_amount, FinishedProductSale.sold_at,
+                                                 FinishedProductSale.buyer_name)
+                                        .filter(FinishedProductSale.company_id == company_id), FinishedProductSale.sold_at).all():
+        qosh(_v, _hid or _usuldan(_u), _s, "sotuv", "Tayyor mahsulot sotuvi" + (f" — {_pul_izoh210(_x, 40)}" if _x else ""), f"s{_id}")
+    # naqd xarid (nasiyasiz, boshlang'ich ombor emas)
+    for _id, _hid, _s, _v, _n in _d(db.query(InventoryPurchase.id, InventoryPurchase.hisob_id, InventoryPurchase.total_amount,
+                                             InventoryPurchase.purchased_at, InventoryPurchase.item_name)
+                                    .join(Inventory, Inventory.id == InventoryPurchase.inventory_id)
+                                    .filter(Inventory.company_id == company_id, InventoryPurchase.is_credit == False,   # noqa: E712
+                                            InventoryPurchase.is_opening_stock.isnot(True)), InventoryPurchase.purchased_at).all():
+        qosh(_v, _hid or _naqd, -float(_s or 0), "xarid", f"Xomashyo xaridi — {_pul_izoh210(_n, 40)}", f"x{_id}")
+    # ta'minotchiga to'lov
+    for _id, _hid, _s, _v, _n in _d(db.query(SupplierPayment.id, SupplierPayment.hisob_id, SupplierPayment.amount, SupplierPayment.paid_at,
+                                             Supplier.name).join(Supplier, Supplier.id == SupplierPayment.supplier_id)
+                                    .filter(Supplier.company_id == company_id), SupplierPayment.paid_at).all():
+        qosh(_v, _hid or _naqd, -float(_s or 0), "taminotchi", f"Ta'minotchiga to'lov — {_pul_izoh210(_n, 40)}", f"t{_id}")
+    # xarajatlar (hamma manba — `_kassa_qismlari` dek); `pul_vaqti` bor — pul o'sha payt to'langan (sanasi hisobot oyi)
+    _mnom = _crud210.majburiyat_nomlari(db, company_id)
+    for _id, _hid, _s, _v, _k, _iz, _yz, _pv in _dv(db.query(ExpenseTransaction.id, ExpenseTransaction.hisob_id, ExpenseTransaction.amount,
+                                                             ExpenseTransaction.date, ExpenseTransaction.category, ExpenseTransaction.notes,
+                                                             ExpenseTransaction.created_at, ExpenseTransaction.pul_vaqti)
+                                                    .filter(ExpenseTransaction.company_id == company_id), ExpenseTransaction.date,
+                                                    ExpenseTransaction.pul_vaqti).all():
+        _nom = _PUL_XARAJAT_NOMI.get(_k) or _mnom.get(_k) or _crud210.majburiyat_kodidan_nom(_k) or (_k or "xarajat")
+        qosh(_pv or _v, _hid or _naqd, -float(_s or 0), "xarajat", f"Xarajat — {_nom}" + (f" ({_pul_izoh210(_iz)})" if _iz else ""),
+             f"e{_id}", yozilgan=_yz, aniq=_pv is not None)
+    # kirish transporti
+    for _id, _hid, _s, _v, _iz in _d(db.query(TransportExpense.id, TransportExpense.hisob_id, TransportExpense.amount,
+                                              TransportExpense.expense_date, TransportExpense.materials_note)
+                                     .filter(TransportExpense.company_id == company_id), TransportExpense.expense_date).all():
+        qosh(_v, _hid or _naqd, -float(_s or 0), "transport", "Kirish transporti" + (f" — {_pul_izoh210(_iz, 40)}" if _iz else ""), f"r{_id}")
+    # yetkazishning korxona ulushi (`Delivery.company_transport_cost` bilan AYNAN bir qoida)
+    for _id, _hid, _c, _p, _v, _dn in _d(db.query(Delivery.id, Delivery.transport_hisob_id, Delivery.transport_cost,
+                                                  Delivery.transport_payer, Delivery.delivered_at, Delivery.delivery_number)
+                                         .join(Order, Order.id == Delivery.order_id)
+                                         .filter(Order.company_id == company_id, Delivery.transport_cost > 0), Delivery.delivered_at).all():
+        _k = float(_c or 0)
+        _ul = _k if _p == "company" else (round(_k / 2) if _p == "split" else 0.0)
+        if _ul:
+            qosh(_v, _hid or _naqd, -_ul, "yetkazish", ("Yetkazish transporti — " + _dn) if _dn else "Yetkazish transporti", f"d{_id}")
+    # hodimga avans / oylik; `pul_vaqti` bor — pul o'sha payt berilgan («oylikni yopish» — sanasi hisobot oyi); hodim so'rovidan avans —
+    # yozilgan payt = so'rov yuborilgan payt (hodim pulni olib, keyin yozadi; tasdiq — undan keyin, review210 №2)
+    _korildi = set()
+    for _id, _hid, _s, _v, _n, _yz, _pv, _sub in _dv(db.query(EmployeeAdvance.id, EmployeeAdvance.hisob_id, EmployeeAdvance.amount,
+                                                              EmployeeAdvance.date, Employee.name, EmployeeAdvance.created_at,
+                                                              EmployeeAdvance.pul_vaqti, AdvanceRequest.submitted_at)
+                                                     .join(Employee, Employee.id == EmployeeAdvance.employee_id)
+                                                     .outerjoin(AdvanceRequest, AdvanceRequest.avans_id == EmployeeAdvance.id)
+                                                     .filter(Employee.company_id == company_id), EmployeeAdvance.date,
+                                                     EmployeeAdvance.pul_vaqti).order_by(EmployeeAdvance.id).all():
+        if _id in _korildi:          # bir avansga bir nechta so'rov bog'langan bo'lsa ham — bitta harakat
+            continue
+        _korildi.add(_id)
+        qosh(_pv or _v, _hid or _naqd, -float(_s or 0), "hodim", f"Hodimga avans / oylik — {_pul_izoh210(_n, 40)}", f"h{_id}",
+             yozilgan=_sub or _yz, aniq=_pv is not None)
+    # kassaga qo'lda (Usta KPI, Ehson; boshlang'ich balans — harakat emas)
+    for _id, _hid, _s, _v, _k, _iz in _d(db.query(CashTransaction.id, CashTransaction.hisob_id, CashTransaction.amount,
+                                                  CashTransaction.created_at, CashTransaction.category, CashTransaction.notes)
+                                         .filter(CashTransaction.company_id == company_id, CashTransaction.category != "boshlangich"),
+                                         CashTransaction.created_at).all():
+        qosh(_v, _hid or _naqd, _s, "kassa", _PUL_KASSA_NOMI.get(_k, _k or "Kassa") + (f" — {_pul_izoh210(_iz)}" if _iz else ""), f"k{_id}")
+    # hisoblar orasida o'tkazish
+    for _id, _dan, _ga, _s, _v, _iz in _d(db.query(PulOtkazmasi.id, PulOtkazmasi.dan_hisob_id, PulOtkazmasi.ga_hisob_id, PulOtkazmasi.summa,
+                                                   PulOtkazmasi.sana, PulOtkazmasi.izoh)
+                                          .filter(PulOtkazmasi.company_id == company_id), PulOtkazmasi.sana).all():
+        _m = f"O'tkazish: {_nomi.get(_dan, '?')} → {_nomi.get(_ga, '?')}" + (f" ({_pul_izoh210(_iz)})" if _iz else "")
+        qosh(_v, _dan, -float(_s or 0), "otkazma", _m, f"o{_id}-")
+        qosh(_v, _ga, float(_s or 0), "otkazma", _m, f"o{_id}+")
+    return out
+
+
+def _pul_keyin(r, T) -> bool:
+    '''kech155 (zip 210): harakat qoldiq paytidan (`T`, UTC) KEYINmi — qoldiq o'sha paytdagi HAQIQIY pul (oldingisi unda bor).
+    * Aniq vaqtli harakat (to'lov, sotuv, bugungi kirim, o'tkazish, `pul_vaqti` li xarajat / oylik) — o'z vaqti bo'yicha.
+    * Faqat SANASI kiritiladigan yozuv (00:00 — xarajat, avans, orqaga sanali kirim hujjati): boshqa kun — sanasi bo'yicha (o'tgan kunga
+      kiritilgan xarajat — pul sanashdan OLDIN ketgan); qoldiq kuni — dasturga YOZILGAN payt bo'yicha (`yozilgan`). Yozilgan payti
+      yo'q (orqaga sanali kirim hujjatining xarid qatori va to'lovi) — KEYIN: bunday yozuv faqat o'sha kundan KEYIN kiritiladi (o'sha
+      kunning o'zida kiritilgan kirim aniq vaqt bilan yoziladi — `crud.kirim_sanalari`), hujjatning qo'shimcha xarajatlari ham
+      (`created_at`) KEYIN — bitta hujjat bitta hukm (review210 №3; ilgari natija qoldiq soatiga bog'liq edi).'''
+    if r["faqat_sana"]:
+        _d, _dT = _tashkent_date(r["vaqt"]), _tashkent_date(T)
+        if _d != _dT:
+            return _d > _dT
+        _yz = r.get("yozilgan")
+        return _yz > T if _yz is not None else True
+    return r["vaqt"] > T
+
+
+def pul_hisob_balanslari(db: Session, company_id: int) -> dict:
+    '''kech155 (zip 210): korxona pul hisoblari qoldig'i — har faol hisob: eng oxirgi QOLDIQ (egasi kiritgan, o'sha paytdagi haqiqiy pul)
+    + undan KEYINGI harakatlar (`_pul_keyin`). `boshlangan` — HAMMA faol hisobning qoldig'i bor (shundagina «Kassa + bank» = `jami`).
+    Qiymatlar — tiyingacha. Faqat o'qiydi (standart hisoblar yo'q bo'lsa — `crud.pul_hisoblari` yaratadi, flush).'''
+    import crud as _crud210
+    from models import PulHisobiQoldiq
+    hisoblar = _crud210.pul_hisoblari(db, company_id) if company_id is not None else []
+    if not hisoblar:
+        return {"boshlangan": False, "hisoblar": [], "jami": None}
+    _qq = (db.query(PulHisobiQoldiq).filter(PulHisobiQoldiq.company_id == company_id)
+           .order_by(PulHisobiQoldiq.vaqt.desc(), PulHisobiQoldiq.id.desc()).all())
+    oxirgi = {}
+    for q in _qq:
+        oxirgi.setdefault(q.hisob_id, q)
+    yig = {hid: 0.0 for hid in oxirgi}
+    if oxirgi:
+        _boshi = min(_tashkent_kun_oraligi(_tashkent_date(q.vaqt))[0] for q in oxirgi.values())
+        for r in _pul_hisob_harakatlari(db, company_id, _boshi):
+            q = oxirgi.get(r["hisob_id"])
+            if q is not None and _pul_keyin(r, q.vaqt):
+                yig[q.hisob_id] += r["summa"]
+    natija = []
+    for h in hisoblar:
+        q = oxirgi.get(h.id)
+        natija.append({
+            "id": h.id, "nomi": h.nomi, "turi": h.turi,
+            "balans": (round(float(q.summa) + yig[h.id], 2) if q is not None else None),
+            "qoldiq_id": q.id if q is not None else None,
+            "qoldiq_vaqt": q.vaqt.isoformat() if q is not None else None,
+            "qoldiq_summa": round(float(q.summa), 2) if q is not None else None,
+        })
+    boshlangan = all(x["balans"] is not None for x in natija)
+    return {"boshlangan": boshlangan, "hisoblar": natija,
+            "jami": round(sum(x["balans"] for x in natija), 2) if boshlangan else None}
+
+
+def pul_hisobi_tarixi(db: Session, company_id: int, hisob_id: int, limit: int = 300) -> dict:
+    '''kech155 (zip 210): bitta hisobning tarixi — eng oxirgi qoldiqdan beri har harakat (yangisi tepada) va har biridan keyingi qoldiq;
+    hisob noto'g'ri / begona — `ValueError`. Qoldiq kiritilmagan bo'lsa — `boshlangan` False, harakatlar bo'sh.'''
+    import crud as _crud210
+    from models import PulHisobiQoldiq
+    h = _crud210.pul_hisobi_aniqla(db, company_id, hisob_id=hisob_id)
+    if h is None:
+        raise ValueError("Pul hisobi topilmadi")
+    _qq = (db.query(PulHisobiQoldiq).filter(PulHisobiQoldiq.company_id == company_id, PulHisobiQoldiq.hisob_id == h.id)
+           .order_by(PulHisobiQoldiq.vaqt.desc(), PulHisobiQoldiq.id.desc()).all())
+    _hisob = {"id": h.id, "nomi": h.nomi, "turi": h.turi}
+    if not _qq:
+        return {"hisob": _hisob, "boshlangan": False, "qoldiq": None, "balans": None, "harakatlar": [], "jami_soni": 0,
+                "qoldiqlar": []}
+    q = _qq[0]
+    boshi = _tashkent_kun_oraligi(_tashkent_date(q.vaqt))[0]
+    rows = [r for r in _pul_hisob_harakatlari(db, company_id, boshi) if r["hisob_id"] == h.id and _pul_keyin(r, q.vaqt)]
+    # tartib: qoldiq kunidagi faqat sanali qator — yozilgan payti bilan (yo'q bo'lsa — qoldiq payti: u qoldiqdan KEYIN, `_pul_keyin`)
+    rows.sort(key=lambda r: ((r.get("yozilgan") or q.vaqt) if r["faqat_sana"] and _tashkent_date(r["vaqt"]) == _tashkent_date(q.vaqt)
+                             else r["vaqt"], r["kalit"]))
+    joriy = round(float(q.summa), 2)
+    for r in rows:
+        joriy = round(joriy + r["summa"], 2)
+        r["qoldiq"] = joriy
+        r["vaqt"] = r["vaqt"].isoformat()
+        r.pop("hisob_id", None)
+        r.pop("yozilgan", None)
+    rows.reverse()
+    _l = max(1, min(int(limit or 300), 2000))
+    return {"hisob": _hisob, "boshlangan": True, "balans": joriy, "jami_soni": len(rows), "harakatlar": rows[:_l],
+            "qoldiq": {"id": q.id, "vaqt": q.vaqt.isoformat(), "summa": round(float(q.summa), 2),
+                       "dastur_summa": (round(float(q.dastur_summa), 2) if q.dastur_summa is not None else None),
+                       "izoh": q.izoh, "kim": q.performed_by},
+            "qoldiqlar": [{"id": x.id, "vaqt": x.vaqt.isoformat(), "summa": round(float(x.summa), 2),
+                           "dastur_summa": (round(float(x.dastur_summa), 2) if x.dastur_summa is not None else None),
+                           "izoh": x.izoh, "kim": x.performed_by} for x in _qq[:50]]}
+
+
 def get_cash_balance(db: Session, company_id: int = None) -> dict:
     """Kassa + bank balansi — kompaniyada HOZIR haqiqatda qancha pul bor (naqd, karta va bank o'tkazmasi — hammasi bitta;
     kech118 D-1, G3-14 — egasi QARORI «Bitta: Kassa + bank»).
@@ -5269,9 +5507,20 @@ def get_cash_balance(db: Session, company_id: int = None) -> dict:
                    chiqim_yetkazish_transport)
 
     balance = jami_kirim - jami_chiqim + qolda_jami
+    # kech155 (zip 210 «Naqd / Bank / Karta»): har hisobning qoldig'i kiritilgan bo'lsa — «Kassa + bank» = hisoblar yig'indisi (egasi
+    # sanagan qoldiq + keyingi harakatlar); kiritilmaguncha — avvalgi umumiy hisob (`eski_balans` — har doim, qoldiq oynasida solishtirish uchun).
+    _hb210 = pul_hisob_balanslari(db, company_id) if company_id is not None else {"boshlangan": False, "hisoblar": [], "jami": None}
+    eski_balans = balance
+    if _hb210["boshlangan"]:
+        balance = _hb210["jami"]
+        boshlangich_kiritilgan = True
 
     return {
-        "balance": round(balance),
+        # hisoblar bilan — tiyin ham (kartalar yig'indisi bilan AYNAN; review210 №5); avvalgi umumiy hisob — butun so'm (o'zgarmagan)
+        "balance": (round(balance, 2) if _hb210["boshlangan"] else round(balance)),
+        "eski_balans": round(eski_balans),
+        "hisoblar_boshlangan": bool(_hb210["boshlangan"]),
+        "hisoblar": _hb210["hisoblar"],
         "kirim_tolov": round(kirim_tolov),
         "kirim_tayyor_sotuv": round(kirim_tayyor_sotuv),
         "chiqim_xomashyo_naqd": round(chiqim_xomashyo_naqd),
