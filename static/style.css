@@ -170,11 +170,11 @@ body {
   color: var(--menu-sust);
   margin-top: 3px;
 }
-/* kech155 (zip 211d — egasi so'rovi 24.10): keng logotip — menyu tepasidagi to'rtburchak joyni to'liq egallaydi (yumaloq 42 px emas);
-   oq taglik — tungi rejimda ham shaffof logotipning to'q yozuvi ko'rinadi (yorug' rejimda menyu ham oq — taglik sezilmaydi) */
+/* kech155 (zip 211d / 211e — egasi so'rovi 24.10): logotip — menyu tepasidagi to'rtburchak joyni to'liq egallaydi (yumaloq 42 px emas);
+   oq taglik — tungi rejimda ham shaffof logotipning to'q yozuvi ko'rinadi (yorug' rejimda menyu ham oq — taglik sezilmaydi).
+   Taglik ichi 180 px (`.s-logo` 20 px + 8 px chekinish); logotip mazmuni 180 × 140 gacha (`main.LOGO_MENYU_ENI / _BOYI`) */
 .s-logo-plita {
-  height: 112px;
-  padding: 6px 8px;
+  padding: 8px;
   box-sizing: border-box;
   background: #fff;
   border-radius: 12px;
@@ -182,20 +182,23 @@ body {
   align-items: center;
   justify-content: center;
 }
+/* mazmun o'lchamidagi oyna — atrofidagi bo'sh joy ko'rinmaydi (bo'yi ichidagi `padding-top` foizidan — eniga mutanosib) */
+.s-logo-kesim {
+  position: relative;
+  overflow: hidden;
+  max-width: 100%;
+}
 .s-logo-rasm {
+  position: absolute;
+  display: block;
+  max-width: none;
+  height: auto;
+}
+.s-logo-oddiy {
   display: block;
   max-width: 100%;
-  max-height: 100%;
+  max-height: 140px;
   object-fit: contain;
-}
-/* kvadrat logotip (faqat belgi) — kattaroq, yonida korxona nomi */
-.s-logo-kvadrat {
-  width: 56px;
-  height: 56px;
-  border-radius: 10px;
-  object-fit: contain;
-  background: #fff;
-  flex-shrink: 0;
 }
 
 .s-user {
