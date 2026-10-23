@@ -15,7 +15,7 @@
 .mk-name{font-size:13px;font-weight:600;color:var(--text)}
 .mk-meta{font-size:13px;color:var(--text3);margin-top:2px}
 .mk-inp{width:64px;min-height:var(--h-sm);padding:0 6px;text-align:center;border:1.5px solid var(--ch-e5e5e5);border-radius:var(--r-btn);font-size:var(--fs-maydon-sm);font-weight:600;outline:none}
-.mk-inp:focus{border-color:#B9783F}
+.mk-inp:focus{border-color:var(--gold)}
 /* kech147 (zip 186, O'LCHANGAN 667 × 375 — telefon yotiq): raqam kartalari shablondagi `repeat(5,1fr)` bilan 5 ustunda qolib, sahifani
    952 px ga kengaytirardi (butun kontent yon tomonga surilardi; style.css dagi 768 px qoidasini inline uslub bekor qiladi). Endi 641–768 px
    da ustunlar sig'ganicha (har biri kamida 150 px), ≤ 640 px da — 2 ustun (pastdagi qoida). Ustalar / hodimlar ikki ustuni (`.kpi-two`) ham
@@ -137,7 +137,7 @@
 /* Yo'nalish — tugma tanlovi (dropdown o'rniga, majburiy). kech117 (A2): variantlar — «Umumiy» + korxona yo'nalishlari
    (Sozlamalar), ko'p bo'lsa keyingi qatorga o'tadi. */
 .dir-toggle{display:flex;flex-wrap:wrap;box-sizing:border-box;border:1.5px solid var(--border);border-radius:var(--r-btn);overflow:hidden;min-height:var(--h-btn)}
-.dir-opt{flex:1 1 auto;display:flex;align-items:center;justify-content:center;gap:6px;min-height:calc(var(--h-btn) - 3px);padding:0 12px;font-size:13px;font-weight:700;cursor:pointer;color:var(--text3);background:var(--f-fafaf8);transition:all .15s}
+.dir-opt{flex:1 1 auto;display:flex;align-items:center;justify-content:center;gap:6px;min-height:calc(var(--h-btn) - 3px);padding:0 12px;font-size:13px;font-weight:700;cursor:pointer;color:var(--text3);background:var(--f-f8fafc);transition:all .15s}
 .dir-opt:not(:last-child){border-right:1px solid var(--border)}
 .dir-opt:hover{color:var(--text2)}
 .dir-opt.active{background:var(--f-dbeafe);color:var(--m-1e40af)}
@@ -148,7 +148,7 @@
 .modal-section-label{font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin:20px 0 9px}
 .modal-section-label:first-of-type{margin-top:0}
 .modal-section-label .modal-hint{font-weight:400;text-transform:none;letter-spacing:0;color:var(--text3);font-size:12px}
-.modal-field-box{background:var(--f-fafaf8);border:1px solid var(--border2);border-radius:12px;padding:14px}
+.modal-field-box{background:var(--f-f8fafc);border:1px solid var(--border2);border-radius:12px;padding:14px}
 .modal-field-box .form-group:last-child{margin-bottom:0}
 .modal-field-box .form-row:last-child{margin-bottom:0}
 
@@ -234,7 +234,7 @@
         </div>
       </div>
       <div class="card-body" style="padding-top:0">
-        <div style="background:var(--f-fdf8f0);border:1px solid var(--ch-f0e6d2);border-radius:8px;padding:9px 11px;margin-bottom:10px;font-size:13px;color:var(--gold-dark);line-height:1.6">
+        <div style="background:var(--f-eff6ff);border:1px solid var(--ch-dbeafe);border-radius:8px;padding:9px 11px;margin-bottom:10px;font-size:13px;color:var(--gold-dark);line-height:1.6">
           💡 KPI% × yillik <b>sof foyda</b> = yil oxiri sovg'a (sotuv summasidan emas). Har oy tegishli ulushi avtomatik xarajat sifatida yoziladi.
         </div>
         <div class="mk-filters">
@@ -264,7 +264,7 @@
     <div class="card">
       <div class="card-head"><h3>👷 Hodimlar (moslashuvchan to'lov)</h3></div>
       <div class="card-body" style="padding-top:0">
-        <div style="background:var(--f-fdf8f0);border:1px solid var(--ch-f0e6d2);border-radius:8px;padding:9px 11px;margin-bottom:10px;font-size:13px;color:var(--gold-dark);line-height:1.6">
+        <div style="background:var(--f-eff6ff);border:1px solid var(--ch-dbeafe);border-radius:8px;padding:9px 11px;margin-bottom:10px;font-size:13px;color:var(--gold-dark);line-height:1.6">
           💡 Har hodimga alohida to'lov turi belgilanadi. Oylik hisob-kitobda avtomatik hisoblanib, Moliya bo'limidagi xarajatga qo'shiladi.
         </div>
         <div id="empList">
@@ -649,7 +649,7 @@ const PAY_LABELS = {
 };
 const PAY_COLORS = {
   fixed: '#0EA5E9', percent_sales: '#22C55E', percent_profit: '#8E44AD', per_unit: '#F59E0B',
-  fixed_plus_coating: '#B9783F'
+  fixed_plus_coating: '#2563EB'
 };
 
 // kech120 (zip 136 — F bosqichi 5-qism, audit G6-14): ishora — qiymatga qarab (ilgari doim «+», manfiyda «+-1 026»)
@@ -1063,7 +1063,7 @@ async function loadEmployees(holatsiz) {
         <div class="emp-holat" id="emp-status-${e.id}" style="flex-shrink:0"></div>
         <div class="emp-tugmalar" style="display:flex;gap:4px;flex-shrink:0">
           <button class="mini-btn" style="color:var(--m-b45309);border-color:var(--ch-fde68a)" data-id="${e.id}" data-name="${escapeHtml(e.name||'')}" onclick="openAdvanceModal(this.dataset.id, this.dataset.name)" title="Avans berish" aria-label="Avans berish">💰</button>
-          <button class="btn btn-gold-outline btn-sm" style="background:var(--f-f8f2eb)" data-id="${e.id}" data-name="${escapeHtml(e.name||'')}" data-phone="${escapeHtml(e.phone||'')}" onclick="openPanelAccessModal(this.dataset.id, this.dataset.name, this.dataset.phone)" title="Xodim o'z telefonidan kirishi uchun">🔑 Kirish</button>
+          <button class="btn btn-gold-outline btn-sm" style="background:var(--gold-tint)" data-id="${e.id}" data-name="${escapeHtml(e.name||'')}" data-phone="${escapeHtml(e.phone||'')}" onclick="openPanelAccessModal(this.dataset.id, this.dataset.name, this.dataset.phone)" title="Xodim o'z telefonidan kirishi uchun">🔑 Kirish</button>
           <button class="mini-btn" onclick="editEmployee(${e.id})" title="Tahrirlash" aria-label="Tahrirlash">✏️</button>
           <button class="mini-btn" style="color:var(--m-dc2626);border-color:var(--ch-fadbd8)" onclick="deleteEmployee(${e.id})" title="O'chirish" aria-label="O'chirish">✕</button>
         </div>
@@ -1893,7 +1893,7 @@ async function loadEmpMonthlyReport() {
         </div>
         <div style="text-align:center">
           <div style="font-size:12px;color:var(--text3);margin-bottom:2px">Kamaytirish jami</div>
-          <div style="font-weight:700;color:var(--m-dc2626)">${(() => { const k = list.reduce((s,e)=>s+(e.adjustment||0),0); return (k > 0 ? '-' : '') + fmt(k); })()} so'm</div>
+          <div style="font-weight:700;color:var(--m-b91c1c)">${(() => { const k = list.reduce((s,e)=>s+(e.adjustment||0),0); return (k > 0 ? '-' : '') + fmt(k); })()} so'm</div>
         </div>
         <div style="text-align:center">
           <div style="font-size:12px;color:var(--text3);margin-bottom:2px">Avans jami</div>

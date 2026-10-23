@@ -59,7 +59,8 @@
     // kech118 (zip 122 — tungi rejim): grafik sozlamasidagi yorug' rejim ranglari (to'r chiziqlari, o'q yozuvlari, afsona,
     // och ustun, doira bo'laklari orasidagi oq chegara) tungi rejimda qorong'i karta uchun mos tusga almashtiriladi.
     const _TUNGI_GRAFIK = {'#f0ece6': '#2E3240', '#f0f1f3': '#2E3240', '#f0f0f0': '#2E3240', '#9ca3af': '#A3A6B0',
-                           '#4b5563': '#C9CBD2', '#6b7280': '#A3A6B0', '#f8f2eb': '#5A4630', '#fff': '#1E212A', '#ffffff': '#1E212A'};
+                           '#4b5563': '#C9CBD2', '#6b7280': '#A3A6B0', '#f8f2eb': '#5A4630', '#fff': '#1E212A', '#ffffff': '#1E212A',
+                           '#2563eb': '#3B82F6'};   // kech155 (zip 208): ko'k ustun qorong'i kartada 4,4:1 (#2563EB — 3,1)
     function _tungimi() { return document.documentElement.getAttribute('data-theme') === 'dark'; }
     function _tungiMoslash(o, chuqur) {
       if (!o || typeof o !== 'object' || chuqur > 8) return;
@@ -930,7 +931,7 @@ function kichikRasm(url) {
   .tb-amallar:empty{display:none}
   .tb-kop-wrap{display:none;position:relative}
   #tbKop{width:var(--h-md);height:var(--h-md);border-radius:var(--r-btn);border:1px solid var(--border);background:var(--white);color:var(--text2);font-size:14px;font-weight:800;letter-spacing:1px;cursor:pointer}
-  #tbKop[aria-expanded="true"]{border-color:var(--ch-d9b48c);background:var(--gold-tint);color:var(--gold-dark)}
+  #tbKop[aria-expanded="true"]{border-color:var(--ch-bfdbfe);background:var(--gold-tint);color:var(--gold-dark)}
   #tbKopMenyu{position:absolute;top:44px;right:0;min-width:210px;background:var(--white);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-card);padding:6px;z-index:1000;display:flex;flex-direction:column}
   #tbKopMenyu[hidden]{display:none}
   #tbKopMenyu button{height:var(--h-btn);text-align:left;padding:0 12px;border:0;border-radius:8px;background:transparent;color:var(--text);font-size:14px;font-weight:600;cursor:pointer}

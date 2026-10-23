@@ -18,7 +18,7 @@
    ishlatiladi va u yerlarga bu ta'sir qilishi kerak emas. */
 #prodModal .form-group{background:var(--f-f3f4f6);border-radius:12px;padding:12px 14px;margin-bottom:14px!important}
 #prodModal .form-group input,#prodModal .form-group select,#prodModal .form-group textarea{background:var(--white)}
-#prodModal .dgrp{background:var(--f-f5f3ef);border-radius:14px;padding:14px 16px;margin-bottom:14px}
+#prodModal .dgrp{background:var(--f-f1f5f9);border-radius:14px;padding:14px 16px;margin-bottom:14px}
 #prodModal .dgrp-title{font-size:12px;font-weight:800;color:var(--gold-dark);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
 #prodModal .dgrp .form-group{background:var(--white);margin-bottom:0!important}
 #prodModal .dgrp-row{display:grid;gap:12px}
@@ -42,7 +42,7 @@
 .batch-qty,.batch-price{box-sizing:border-box;min-height:var(--h-btn);padding:0 10px;border-radius:var(--r-btn);font-size:var(--fs-maydon);line-height:20px}
 .fp-filters input:not([type=checkbox]):focus,.fp-filters select:focus{border-color:var(--gold)}
 /* U-13 (kech123): filtr — umumiy `.chip` (yoqilgani — oltin, boshqa filtrlar bilan bir ko'rinish) */
-.fp-chip.on{background:var(--gold-tint);border-color:var(--ch-d9b48c);color:var(--gold-dark)}
+.fp-chip.on{background:var(--gold-tint);border-color:var(--gold);color:var(--gold-dark)}
 /* Kategoriya filtri — tugma-chip guruhi (dropdown o'rniga) */
 .fp-cat-toggle{display:flex;flex-wrap:wrap;gap:6px}
 .fp-cat-opt{
@@ -51,7 +51,7 @@
   cursor:pointer;transition:all .15s;display:flex;align-items:center;white-space:nowrap;
 }
 .fp-cat-opt:hover{border-color:var(--gold);color:var(--gold-dark)}
-.fp-cat-opt.active{background:var(--gold-tint);border-color:var(--ch-d9b48c);color:var(--gold-dark)}
+.fp-cat-opt.active{background:var(--gold-tint);border-color:var(--gold);color:var(--gold-dark)}
 .fp-row{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--white);margin-bottom:8px;transition:box-shadow .15s,border-color .15s;opacity:0;animation:fpIn .3s ease forwards}
 @keyframes fpIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 .fp-row:hover{box-shadow:var(--shadow-card);border-color:var(--border-strong)}
@@ -129,7 +129,7 @@
 @media(max-width:768px){
 }
 .fp-inp{width:76px;min-height:var(--h-sm);text-align:center;border:1.5px solid var(--ch-e5e5e5);border-radius:var(--r-btn);font-size:var(--fs-maydon-sm);font-weight:600;outline:none}
-.fp-inp:focus{border-color:#B9783F}
+.fp-inp:focus{border-color:var(--gold)}
 .fp-mini-bar{width:70px;height:5px;background:var(--border2);border-radius:3px;overflow:hidden;margin-top:4px}
 .fp-mini-fill{height:100%;border-radius:3px}
 .fp-stock-col{min-width:110px}
@@ -138,8 +138,8 @@
    bosilsa partiyalari (har biri o'z amallari bilan) ochiladi. Bitta partiyali mahsulot — oddiy qator (avvalgidek). */
 .fp-guruh{margin-bottom:8px}
 .fp-guruh>.fp-guruh-bosh{margin-bottom:0}
-.fp-guruh.ochiq>.fp-guruh-bosh{border-color:var(--ch-d9b48c);border-radius:12px 12px 0 0}
-.fp-guruh-ichi{border:1px solid var(--ch-d9b48c);border-top:0;border-radius:0 0 12px 12px;background:var(--f-fcfbf9);padding:8px 8px 2px}
+.fp-guruh.ochiq>.fp-guruh-bosh{border-color:var(--ch-bfdbfe);border-radius:12px 12px 0 0}
+.fp-guruh-ichi{border:1px solid var(--ch-bfdbfe);border-top:0;border-radius:0 0 12px 12px;background:var(--f-f8fafc);padding:8px 8px 2px}
 .fp-guruh-ichi[hidden]{display:none}
 .fp-guruh-ichi .fp-row{margin-bottom:6px}
 .fp-guruh-tugma{font-size:16px}
@@ -151,7 +151,7 @@
 .fp-mrp-havola:hover{border-color:var(--gold);color:var(--gold-dark)}
 .fp-yashirin{font-size:13px;color:var(--text3);padding:6px 2px 10px}
 .fp-tugagan{display:inline-flex;align-items:center;gap:7px}
-.fp-tugagan input{width:16px;height:16px;accent-color:#B9783F;margin:0}
+.fp-tugagan input{width:16px;height:16px;accent-color:var(--gold);margin:0}
 .stat-izoh{font-size:12px;color:var(--text3);margin-top:4px;line-height:1.35}
 .stat-val.kichik{font-size:16px;line-height:1.35}
 /* kech145 (zip 182, N5): minusdagi partiya izohlari — kichik qizil matn (`--m-b91c1c` — kontrast), tor ekranda qatorga o'raladi */
@@ -160,7 +160,7 @@
 .fp-sec-line{flex:1;height:1px}
 /* Qoplama — Yo'q/Bor tugmasi */
 .coat-toggle{display:flex;border:1px solid var(--border2);border-radius:var(--r-btn);overflow:hidden;height:var(--h-btn);box-sizing:border-box}
-.coat-opt{flex:1;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;cursor:pointer;color:var(--text3);background:var(--f-fafaf8);transition:all .15s}
+.coat-opt{flex:1;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;cursor:pointer;color:var(--text3);background:var(--f-f8fafc);transition:all .15s}
 .coat-opt.coat-no.active{background:var(--f-fca5a5);color:var(--m-7f1d1d)}
 .coat-opt.coat-yes.active{background:var(--f-86efac);color:var(--m-14532d)}
 /* Tur — tugma-chip guruhi (dropdown o'rniga) */
@@ -376,7 +376,7 @@ input[type=number]{-moz-appearance:textfield}
     </div>
 
     <div style="padding:16px 22px;overflow-y:auto;flex:1">
-      <div class="form-group" style="background:var(--f-f3e4cc);border:2px solid #A86B36">
+      <div class="form-group" style="background:var(--f-dbeafe);border:2px solid var(--gold)">
         <label style="color:var(--gold-dark)">Mahsulot nomi</label>
         <input type="text" id="p-name" placeholder="Masalan: Karniz 20 sm M-06">
       </div>
@@ -472,7 +472,7 @@ input[type=number]{-moz-appearance:textfield}
           </div>
           <div class="form-group" style="margin:0">
             <label>1 m³ narxi</label>
-            <div class="unit-input-wrap" style="border-color:#B9783F">
+            <div class="unit-input-wrap" style="border-color:var(--gold)">
               <input type="text" id="p-m3" placeholder="Masalan: 1 200 000" oninput="formatPriceInput(this);pCalc()">
               <span class="unit-suffix">so'm</span>
             </div>
@@ -494,14 +494,14 @@ input[type=number]{-moz-appearance:textfield}
         </div>
       </div>
 
-      <div style="background:var(--f-f8f5ef);border-radius:9px;padding:11px 14px;margin:6px 0 12px;font-size:12px;line-height:1.8" id="p-calc">
+      <div style="background:var(--f-f8fafc);border-radius:9px;padding:11px 14px;margin:6px 0 12px;font-size:12px;line-height:1.8" id="p-calc">
         O'lchamlarni kiriting
       </div>
 
       <div class="form-group">
         <label>Sotuv narxi (1 <span id="p-unit-label">metr</span> uchun)</label>
         <input type="text" id="p-price" placeholder="0" oninput="formatPriceInput(this);pCalc()"
-               style="border-color:#B9783F;font-weight:600">
+               style="border-color:var(--gold);font-weight:600">
         <div style="font-size:12px;color:var(--text3);margin-top:4px">Bo'sh qolsa — hisoblangan narx olinadi</div>
       </div>
 
@@ -893,7 +893,7 @@ function updateFpRangeBanner() {
     el.style.background = 'var(--f-fffbeb)'; el.style.color = 'var(--m-92400e)';
     el.innerHTML = `<span>⚠️ Barcha yozuvlar ko'rsatilmoqda</span><span style="color:var(--m-b45309);font-weight:600;cursor:pointer" onclick="toggleFpShowAll()">← Qisqartirish</span>`;
   } else {
-    el.style.background = 'var(--f-f8f2eb)'; el.style.color = 'var(--m-8f5b2a)';
+    el.style.background = 'var(--gold-tint)'; el.style.color = 'var(--gold-dark)';
     el.innerHTML = `<span>📅 So'nggi 90 kunlik (+ ombordagi va jarayondagilar)</span><span style="color:var(--gold-dark);font-weight:600;cursor:pointer" onclick="toggleFpShowAll()">Barchasini ko'rish →</span>`;
   }
 }
@@ -1197,7 +1197,7 @@ function renderFp() {
   if (groups.length) {
     html += `<div class="fp-sec">
       <span class="fp-sec-label" style="color:var(--gold-dark)">🏭 OMBORDA</span>
-      <div class="fp-sec-line" style="background:linear-gradient(90deg,var(--f-e5dfd3),transparent)"></div>
+      <div class="fp-sec-line" style="background:linear-gradient(90deg,var(--f-f1f5f9),transparent)"></div>
     </div>` + groups.map(guruhHtml).join('');
   }
   if (yashirin > 0) {
@@ -1419,7 +1419,7 @@ function rowHtml(i, partiyami) {
         ${inProgress ? '<span class="fp-badge" style="background:var(--f-fef3c7);color:var(--m-92400e)">⏳ ISHLAB CHIQARILMOQDA</span>' : ''}
         ${isRet && !i.brak_taqdir ? '<span class="fp-badge" style="background:var(--f-dcfce7);color:var(--m-1e7e34)">♻️ QAYTGAN</span>' : ''}
         ${i.brak_taqdir === 'ikkinchi_nav' ? '<span class="fp-badge fp-2nav" style="background:var(--f-fef3c7);color:var(--m-92400e)" title="Brakdan — arzon sotiladi (tannarxdan past sotilsa farq sotilgan oyda zarar)">🏷️ 2-NAV</span>' : ''}
-        ${i.brak_taqdir === 'kesildi' ? '<span class="fp-badge" style="background:var(--f-f8f2eb);color:var(--gold-dark)" title="Brak detaldan kesib olingan — ulush tannarx bilan">✂️ KESILGAN</span>' : ''}
+        ${i.brak_taqdir === 'kesildi' ? '<span class="fp-badge" style="background:var(--gold-tint);color:var(--gold-dark)" title="Brak detaldan kesib olingan — ulush tannarx bilan">✂️ KESILGAN</span>' : ''}
         ${i.brak_taqdir === 'tuzatildi' ? '<span class="fp-badge" style="background:var(--f-dcfce7);color:var(--m-1e7e34)" title="Brak detal tuzatilgan — asl narxi bilan">🔧 TUZATILGAN</span>' : ''}
         ${i.reserved_quantity > 0 ? `<span class="fp-badge" style="background:var(--f-fee2e2);color:var(--m-b91c1c)" title="Bu miqdor umumiy sotuvdan ajratilgan — faqat shu buyurtma uchun">🔒 Band: ${i.reserved_quantity} ${escapeHtml(unitLabel(i.unit))}</span>` : ''}
       </div>
@@ -2551,7 +2551,7 @@ async function openProfitModal(id) {
     ${Math.abs(narxFarqi62) >= 1 ? row('↕ Narx farqi (qatorlar joriy narxda, tan narxi ishlab chiqarilgan paytda)', fmt(narxFarqi62) + " so'm", '#777') : ''}`;
 
   document.getElementById('pm-body').innerHTML = `
-    <div style="background:var(--f-fafaf8);border-radius:9px;padding:11px 14px;margin-bottom:14px;font-size:12px;color:var(--m-666666);line-height:1.8">
+    <div style="background:var(--f-f8fafc);border-radius:9px;padding:11px 14px;margin-bottom:14px;font-size:12px;color:var(--m-666666);line-height:1.8">
       📐 ${dims} · ${i.is_coated ? 'qoplamali' : 'qoplamasiz'}
       ${mrp66 ? '' : `<br>📦 Hajm (qoldiq): <b>${sonKor(qVol, 4)} m³</b>`}
       ${qLoy > 0 ? `· 🧱 Loy: <b>${qLoyTxt} kg</b>${recipeName ? ` (${escapeHtml(recipeName)})` : ''}` : ''}
@@ -2576,7 +2576,7 @@ async function openProfitModal(id) {
       Sotuv narxi hali yozilmagan — narx sotishda yoziladi, foyda sotilganda hisoblanadi.</div>`}
 
     ${i.quantity > 0 ? `
-    <div style="margin-top:14px;padding:10px 12px;background:var(--f-f8f5ef);border-radius:8px;font-size:12px;color:var(--m-666666)">
+    <div style="margin-top:14px;padding:10px 12px;background:var(--f-f8fafc);border-radius:8px;font-size:12px;color:var(--m-666666)">
       💡 1 ${escapeHtml(unitLabel(i.unit))} tan narxi: <b>${fmt(totalCost / i.quantity)} so'm</b>${narxBorPm ? ` ·
       Foyda: <b style="color:var(--m-15803d)">${fmt(profit / i.quantity)} so'm</b>` : ''}
     </div>` : ''}`;
