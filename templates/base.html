@@ -1071,27 +1071,32 @@ function kichikRasm(url) {
   <aside class="sidebar">
     <div class="s-logo">
       {# 2026-09-20: chap paneldagi logotip ham korxonanikidan olinadi. Korxona o'z logotipini yuklamagan bo'lsa — umumiy belgi.
-         kech155 (zip 211d — egasi so'rovi 24.10): KENG logotip (nomi ichida) — tepadagi to'rtburchak joyni TO'LIQ egallaydi, «nom /
-         ERP» matni yo'q (nomi — `alt` / `title`); KVADRAT logotip — 56 px va yonida nomi; logotipsiz — harf + nom (avvalgidek).
-         Platformaning keng logotipi (998 × 561, 676 KB) — menyu uchun `static/logo_menyu.webp` (480 × 270, WebP). #}
+         kech155 (zip 211d / 211e — egasi so'rovi 24.10): logotip tepadagi to'rtburchak OQ taglikni TO'LIQ egallaydi (yumaloq 42 px emas),
+         «nom / ERP» matni yo'q (nomi — `alt` / `title`). Atrofidagi bo'sh (shaffof / oq) joy kesiladi — `company_logo_menyu`: mazmun
+         o'lchamidagi oyna (`.s-logo-kesim`, bo'yi — `padding-top` foizi), rasm unga foizlarda joylanadi (hamma brauzerda). Pillow yo'q —
+         rasm butunicha (`.s-logo-oddiy`). Platforma logotipi — `static/logo_menyu.webp`. Logotipsiz / o'qilmaydi — harf + nom. #}
       {% set _logo = company_logo_of(current_user.company_id) if current_user else None %}
       {% set _kn = company_name_of(current_user.company_id) if current_user else None %}
-      {% if _logo and company_logo_keng(_logo) %}
+      {% set _lm = company_logo_menyu(_logo) if _logo else None %}
+      {% if _lm %}
       <div class="s-logo-plita" title="{{ _kn or 'PenodecorPro' }}">
-        <img class="s-logo-rasm" src="{{ '/static/logo_menyu.webp' if _logo == 'static/logo_transparent.png' else '/' ~ _logo }}"
-             alt="{{ _kn or 'PenodecorPro' }}">
+        {% if _lm.eni %}
+        <div class="s-logo-kesim" style="width:{{ _lm.eni }}px">
+          <div style="padding-top:{{ _lm.nisbat }}%"></div>
+          <img class="s-logo-rasm" src="{{ _lm.src }}" alt="{{ _kn or 'PenodecorPro' }}"
+               style="width:{{ _lm.rasm }}%;left:-{{ _lm.chap }}%;top:-{{ _lm.tepa }}%">
+        </div>
+        {% else %}
+        <img class="s-logo-oddiy" src="{{ _lm.src }}" alt="{{ _kn or 'PenodecorPro' }}">
+        {% endif %}
       </div>
       {% else %}
       <div style="display:flex;align-items:center;gap:10px">
-        {% if _logo %}
-        <img class="s-logo-kvadrat" src="/{{ _logo }}" alt="">
-        {% else %}
         <div style="width:42px;height:42px;border-radius:50%;flex-shrink:0;background:var(--bg);
                     display:flex;align-items:center;justify-content:center;font-weight:700;
                     color:var(--text3);font-size:18px">
-          {{ (company_name_of(current_user.company_id) or 'P')[0]|upper if current_user else 'P' }}
+          {{ (_kn or 'P')[0]|upper if current_user else 'P' }}
         </div>
-        {% endif %}
         <div>
           {# Faza 5: korxona nomi bazadan olinadi. Ilgari "PenoDecorPro ·
              Andijon" qattiq yozilgan edi — ikkinchi mijoz o'z ERP sida
