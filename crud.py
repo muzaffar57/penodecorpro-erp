@@ -7111,7 +7111,10 @@ def check_financial_consistency(db: Session, company_id: int = None) -> dict:
         _sil_fc(Order.items), _sil_fc(Order.payments)).all()
     for o in orders:
         items = list(o.items or [])
-        items_sum = sum(float(it.unit_price or 0) * float(it.quantity or 1) for it in items)
+        # kech155 (zip 207, O'LCHANGAN — sinov sayti ORD-067-4): miqdori 0 detal (qisman «Tayyor» — topshirilmagan qism,
+        # `finalize_partial_order_quantities`, jami 0) — 0; ilgari `or 1` uni 1 deb olib yolg'on «order_total_mismatch» berardi (jami
+        # 20 000 = detallar, tekshiruv 120 000 derdi). Miqdor yo'q (NULL) — 1 (avvalgidek; ustun standarti 1).
+        items_sum = sum(float(it.unit_price or 0) * (1.0 if it.quantity is None else float(it.quantity)) for it in items)
         total = float(o.total_amount or 0)
         diff = abs(items_sum - total)
         if diff > 1:
