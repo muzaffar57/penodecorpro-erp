@@ -221,9 +221,9 @@ html[data-theme="dark"] .dbt-wrap{--d-bg:var(--bg); --d-card:var(--white); --d-b
             {# kech120 (zip 131 — F bosqichi, audit G3-03): to'lov usuli tanlanmasdi — har to'lov «naqd» bo'lib yozilardi #}
             <div class="form-group"><label for="pay-method">To'lov usuli</label>
               <select id="pay-method">
-                <option value="naqd">Naqd</option>
-                <option value="plastik">Plastik</option>
-                <option value="o'tkazma">O'tkazma</option>
+                <option value="naqd">💵 Naqd pul</option>
+                <option value="plastik">💳 Karta (plastik)</option>
+                <option value="o'tkazma">🏦 Bank (o'tkazma)</option>
               </select>
             </div>
             <div class="form-group"><label>Izoh (ixtiyoriy)</label><input type="text" id="pay-note" placeholder="..."></div>
@@ -294,9 +294,9 @@ html[data-theme="dark"] .dbt-wrap{--d-bg:var(--bg); --d-card:var(--white); --d-b
             <div class="form-group"><label>Qaytarilgan summa (so'm)</label><input type="text" id="ref-amount" placeholder="0" oninput="formatPriceInput(this)"></div>
             <div class="form-group"><label>Qaysi usulda qaytarildi</label>
               <select id="ref-method">
-                <option value="naqd">Naqd</option>
-                <option value="plastik">Plastik</option>
-                <option value="o'tkazma">O'tkazma</option>
+                <option value="naqd">💵 Naqd pul</option>
+                <option value="plastik">💳 Karta (plastik)</option>
+                <option value="o'tkazma">🏦 Bank (o'tkazma)</option>
               </select>
             </div>
             <div class="form-group"><label>Izoh (ixtiyoriy)</label><input type="text" id="ref-note" placeholder="..." maxlength="300"></div>
@@ -709,8 +709,11 @@ async function quickPayObligation(category, label, debt, year, month, monthLabel
   const izoh = `${oyMatn} ${y} · qarz ${pulKor(debt)} so'm\n${tkSana(payDate)} sanasiga yoziladi` +
     (isCurrentMonth ? '' : ' (o\'tgan oy qarzi — o\'sha oy hisobotiga)');
   // kech118 (B — U-07): brauzerning xom prompt() oynasi o'rniga dastur oynasi (base.html `kiritishOyna`)
-  const amountStr = await kiritishOyna(`${label} uchun qancha to'landi?`, {qiymat: narxKorinishi(debt), izoh, inputmode: 'decimal', okText: "To'lovni yozish"});
+  // kech155 (zip 210): summa bilan birga — qaysi hisobdan to'landi (`kiritishOyna` → {qiymat, hisob})
+  const _kiritildi = await kiritishOyna(`${label} uchun qancha to'landi?`, {qiymat: narxKorinishi(debt), izoh, inputmode: 'decimal', okText: "To'lovni yozish", hisob: true});
+  const amountStr = (typeof _kiritildi === 'string') ? _kiritildi : (_kiritildi && _kiritildi.qiymat);
   if (!amountStr) return;
+  const hisob = (_kiritildi && typeof _kiritildi === 'object' && _kiritildi.hisob) || 'naqd';
   // 118-band: pul matni yagona qoida bilan o'qiladi ("1.500.000", "1 500,5");
   // noto'g'ri / manfiy / 0 summa — ANIQ rad (ilgari jimgina qaytardi yoki 10x / 100x).
   const amount = narxniOqi(amountStr);
@@ -729,7 +732,8 @@ async function quickPayObligation(category, label, debt, year, month, monthLabel
   try {
     n = await amalYubor('/api/finance/transactions', {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ date: payDate+'T00:00:00', category, amount, notes: "To'lov (Qarzdorlar sahifasidan)" })
+      // kech155 (zip 210, review210 №1): sana — hisobot oyi (o'tgan oy — 28-kun), pul esa HOZIR to'lanadi (`pul_hozir`)
+      body: JSON.stringify({ date: payDate+'T00:00:00', category, amount, notes: "To'lov (Qarzdorlar sahifasidan)", hisob, pul_hozir: true })
     }, 'majburiyat_' + category + '_' + y + '_' + m);
   } finally { quickPayObligation.band = false; }
   if (n.ok) {
@@ -789,7 +793,9 @@ function renderTimeline(rows){
 function closeTimelineModal(){ document.getElementById('timelineModal').style.display = 'none'; }
 
 async function closeEmployeeDebt(empId, name, amount, year, month){
-  if (!(await customConfirm(`${name} ga ${fmt(amount)} so'm to'liq to'landi deb belgilaysizmi?`))) return;
+  // kech155 (zip 210): tasdiq bilan birga — pul qaysi hisobdan to'landi
+  const hisob = await hisobSora(`${name} ga ${fmt(amount)} so'm to'liq to'landi deb belgilaysizmi?`, {okText: "Ha, to'landi"});
+  if (!hisob) return;
   // MUHIM: "hozirgi sana" emas, balki bu qarz AYNAN qaysi oyga tegishli
   // bo'lsa — o'sha yil/oyni yuboramiz (aks holda, kechikkan to'lov,
   // noto'g'ri — hozirgi — oy hisobotiga yozilib qolardi).
@@ -797,7 +803,7 @@ async function closeEmployeeDebt(empId, name, amount, year, month){
   const y = year || tk.yil;
   const m = month || tk.oy;
   // kech140 (zip 168, A-P09): qolgandan ko'p bo'lsa so'raladi (`avansYubor`); rad sababi — `amalSababi` (ilgari «Xato yuz berdi»)
-  const r = await avansYubor(`/api/obligations/employee/${empId}/close?year=${y}&month=${m}&amount=${amount}`);
+  const r = await avansYubor(`/api/obligations/employee/${empId}/close?year=${y}&month=${m}&amount=${amount}&hisob=${encodeURIComponent(hisob)}`);
   if (r.ok) location.reload();
   else if (!r.bekor) xabarOyna('❌ Oylik to\'lovi yozilmadi: ' + r.xato);
 }

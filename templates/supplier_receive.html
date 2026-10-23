@@ -301,6 +301,10 @@ html[data-theme="dark"] .rcv-quickpay button{background:var(--f-f1f5f9);color:va
                 <button type="button" class="btn btn-gold-outline" onclick="apPayFull()" style="flex-shrink:0;white-space:nowrap">To'liq to'lash</button>
               </div>
             </div>
+            {# kech155 (zip 210): hoziroq to'lov va qo'shimcha xarajatlar qaysi pul hisobidan #}
+            <div class="rcv-field"><label>Qaysi hisobdan to'lanadi <span style="font-weight:400;color:var(--r-text3)">(hoziroq to'lov va qo'shimcha xarajatlar)</span></label>
+              <div id="ap-hisob" data-hisob-tanlov></div>
+            </div>
             <div class="rcv-field"><label>Izoh</label><input type="text" id="ap-notes" placeholder="Masalan: Naqd pul bilan to'landi"></div>
           </div>
 
@@ -771,7 +775,10 @@ async function quickPaySupplier(confirmOverpay = false){
     // kech120 (zip 132 — F bosqichi 2-qism, audit G4-04): to'lov tasdiqsiz yozilardi — endi kimga, qancha
     const sel = document.getElementById('r-supplier');
     const nom = (sel && sel.selectedIndex >= 0) ? sel.options[sel.selectedIndex].textContent.trim() : "ta'minotchi";
-    if (!(await customConfirm(`${nom}: ${pulKor(amount)} so'm eski qarz to'lovi yozilsinmi?`, {okText: "Ha, to'landi"}))) return;
+    // kech155 (zip 210): tasdiq bilan birga — qaysi pul hisobidan to'landi
+    const hisob = await hisobSora(`${nom}: ${pulKor(amount)} so'm eski qarz to'lovi yozilsinmi?`, {okText: "Ha, to'landi"});
+    if (!hisob) return;
+    quickPaySupplier.hisob = hisob;
     isSavingSupplierQuickPay = true;
     if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = '...'; }
   }
@@ -781,7 +788,7 @@ async function quickPaySupplier(confirmOverpay = false){
   try {
     const n = await amalYubor(`/api/suppliers/${currentSupplierId}/payment`, {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ supplier_id: currentSupplierId, amount, confirm_overpay: confirmOverpay })
+      body: JSON.stringify({ supplier_id: currentSupplierId, amount, confirm_overpay: confirmOverpay, hisob: quickPaySupplier.hisob || 'naqd' })
     }, 'tolov_ta_' + currentSupplierId + '_' + Math.round(amount * 100));   // kech146 (zip 180, review 1): summa bilan — boshqa summa yutilmaydi
     if (n.ok) {
       showMsg("✓ To'lov qabul qilindi" + amalTakrorIzoh(n.takror), 'success');
@@ -1270,6 +1277,7 @@ async function submitReceive(){
     supplier_id: kirimTaminotchi,
     document_number: docNum || null,
     paid_now: isOpeningStock ? 0 : paidNowTotal,
+    hisob: hisobQiymat('ap-hisob'),                   // kech155 (zip 210)
     transport_cost: ec.transport, tushirish_cost: ec.tushirish,
     yuklash_cost: ec.yuklash, boshqa_cost: ec.boshqa,
     add_to_cost: addToCost,
@@ -1316,6 +1324,7 @@ async function submitReceive(){
   clearDraft();
   renderBasket();
   document.getElementById('ap-paid-now').value = '';
+  hisobTanla('ap-hisob', 'naqd');                     // kech155 (zip 210)
   document.getElementById('ap-cost-transport').value = '';
   document.getElementById('ap-cost-tushirish').value = '';
   document.getElementById('ap-cost-yuklash').value = '';

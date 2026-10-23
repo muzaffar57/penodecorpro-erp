@@ -123,6 +123,8 @@
     <div style="padding:12px 22px;border-bottom:1px solid var(--ch-f0f0f0);display:flex;flex-wrap:wrap;gap:8px">
       <input type="text" id="pay-amount" placeholder="To'lov summasi" oninput="formatPriceInput(this)" style="flex:1 1 160px;min-width:0;border:1.5px solid var(--ch-dddddd);outline:none" class="maydon">
       <button class="btn btn-dark" id="supplier-pay-save-btn" style="white-space:nowrap" onclick="savePayment()">💰 To'lov qilish</button>
+      {# kech155 (zip 210): qaysi pul hisobidan to'lanadi #}
+      <div id="pay-hisob" data-hisob-tanlov style="flex:1 1 100%"></div>
     </div>
 
     <div style="padding:12px 22px;border-bottom:1px solid var(--ch-f0f0f0)">
@@ -206,6 +208,9 @@
                  style="width:100%;border:1.5px solid var(--ch-dbeafe);outline:none;margin-top:4px" class="maydon">
           <div style="font-size:12px;color:var(--text3);margin-top:4px">Bo'sh qoldirsangiz — hammasi nasiya (qarz) bo'ladi. To'liq summani yozsangiz — qarzsiz.</div>
           <div id="ap-debt-hint" style="font-size:12px;font-weight:600;margin-top:6px"></div>
+          {# kech155 (zip 210): hoziroq to'lov (va «O'z hisobimdan» transport) qaysi pul hisobidan #}
+          <div style="font-size:12px;font-weight:600;color:var(--gold-dark);margin:10px 0 6px">Qaysi hisobdan to'lanadi</div>
+          <div id="ap-hisob" data-hisob-tanlov></div>
         </div>
 
         <div style="background:var(--f-f0f6fa);border-radius:7px;padding:10px;margin-bottom:10px">
@@ -795,6 +800,7 @@ function openAddPurchase() {
     document.getElementById('ap-transport-cost').value = '';
     document.getElementById('ap-transport-cost').disabled = true;
     document.getElementById('ap-transport-hint').textContent = '';
+    hisobTanla('ap-hisob', 'naqd');                  // kech155 (zip 210)
   }
 }
 
@@ -1019,7 +1025,8 @@ async function saveAddPurchase() {
           notes: lines.length > 1 ? "Bir vaqtda ko'p material xaridi" : "Ta'minotchilar sahifasidan qo'shildi",
           transport_payer: line === lines[0] ? transportPayer : 'none',
           transport_cost: line === lines[0] ? transportCost : 0,
-          volume_per_unit: volumePerUnit
+          volume_per_unit: volumePerUnit,
+          hisob: hisobQiymat('ap-hisob')                // kech155 (zip 210)
         })
       }, slot);
     } catch (e) { n = {ok: false, nomalum: true, xato: await amalSababi(e)}; }
@@ -1096,6 +1103,7 @@ async function openHistory(id, keepFilter, page){
   if (_payBtn) _payBtn.disabled = true;
   document.getElementById('historyModal').style.display = 'flex';
   document.getElementById('pay-amount').value = '';
+  hisobTanla('pay-hisob', 'naqd');                    // kech155 (zip 210)
   document.getElementById('addPurchaseForm').style.display = 'none';
   if (!keepFilter) {
     document.getElementById('hist-from').value = '';
@@ -1367,7 +1375,7 @@ async function savePayment(confirmOverpay = false){
   try{
     const n = await amalYubor(`/api/suppliers/${currentSupplierId}/payment`, {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ supplier_id: currentSupplierId, amount, confirm_overpay: confirmOverpay })
+      body: JSON.stringify({ supplier_id: currentSupplierId, amount, confirm_overpay: confirmOverpay, hisob: hisobQiymat('pay-hisob') })
     }, 'tolov_ta_' + currentSupplierId + '_' + Math.round(amount * 100));   // kech146 (zip 180, review 1): summa bilan — boshqa summa yutilmaydi
     if (n.ok){
       showMsg(`✓ ${fmt(amount)} so'm to'lov qilindi` + amalTakrorIzoh(n.takror), 'success');

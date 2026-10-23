@@ -831,9 +831,9 @@ input[type=number]{-moz-appearance:textfield}
               <div class="form-group" style="margin:0">
                 <label style="font-size:12px;color:var(--m-6b7280);text-transform:uppercase;font-weight:700;letter-spacing:.3px;margin-bottom:6px;display:block">To'lov usuli</label>
                 <select id="zaklat_method" style="width:100%;border:1.5px solid var(--ch-dddddd);outline:none" class="maydon">
-                  <option value="naqd">💵 Naqd</option>
-                  <option value="plastik">💳 Plastik</option>
-                  <option value="o'tkazma">🏦 O'tkazma</option>
+                  <option value="naqd">💵 Naqd pul</option>
+                  <option value="plastik">💳 Karta (plastik)</option>
+                  <option value="o'tkazma">🏦 Bank (o'tkazma)</option>
                 </select>
               </div>
               <div></div>
@@ -980,9 +980,9 @@ input[type=number]{-moz-appearance:textfield}
               <div style="flex:1">
                 <div style="font-size:13px;color:var(--text3);margin-bottom:3px">Usuli</div>
                 <select id="pf-method" style="width:100%;border:1.5px solid var(--ch-dddddd);outline:none" class="maydon">
-                  <option value="naqd">💵 Naqd</option>
-                  <option value="plastik">💳 Plastik</option>
-                  <option value="o'tkazma">🏦 O'tkazma</option>
+                  <option value="naqd">💵 Naqd pul</option>
+                  <option value="plastik">💳 Karta (plastik)</option>
+                  <option value="o'tkazma">🏦 Bank (o'tkazma)</option>
                 </select>
               </div>
             </div>
@@ -1314,9 +1314,9 @@ input[type=number]{-moz-appearance:textfield}
           <div style="flex:1">
             <div style="font-size:13px;color:var(--text3);margin-bottom:4px">To'lov usuli</div>
             <select id="dlv-payment-method" style="width:100%;border:1.5px solid var(--ch-dddddd);outline:none" class="maydon">
-              <option value="naqd">Naqd</option>
-              <option value="plastik">Plastik</option>
-              <option value="o'tkazma">O'tkazma</option>
+              <option value="naqd">💵 Naqd pul</option>
+              <option value="plastik">💳 Karta (plastik)</option>
+              <option value="o'tkazma">🏦 Bank (o'tkazma)</option>
             </select>
           </div>
         </div>
@@ -1346,6 +1346,11 @@ input[type=number]{-moz-appearance:textfield}
           <option value="split">Teng bo'lingan (50/50)</option>
         </select>
         <div id="dlv-payer-hint" style="font-size:13px;color:var(--text3);margin-top:6px"></div>
+        {# kech155 (zip 210): kompaniya to'laydigan ulush qaysi pul hisobidan (faqat «Kompaniya» / «50/50» va summa bor bo'lsa) #}
+        <div id="dlv-transport-hisob-joy" style="display:none;margin-top:8px">
+          <div style="font-size:13px;color:var(--text3);margin-bottom:4px">Kompaniya ulushi qaysi hisobdan to'lanadi</div>
+          <div id="dlv-transport-hisob" data-hisob-tanlov></div>
+        </div>
       </div>
 
       <div id="dlv-error" style="display:none;margin-top:10px;padding:9px 12px;background:var(--f-fee2e2);border-radius:7px;font-size:14px;color:var(--m-dc2626)"></div>
@@ -2822,6 +2827,8 @@ function openDeliveryModal() {
   document.getElementById('dlv-transport-carrier').value = '';
   document.getElementById('dlv-transport-cost').value = '';
   document.getElementById('dlv-transport-payer').value = 'none';
+  if (typeof hisobTanla === 'function') hisobTanla('dlv-transport-hisob', 'naqd');      // kech155 (zip 210)
+  { const _hj = document.getElementById('dlv-transport-hisob-joy'); if (_hj) _hj.style.display = 'none'; }
   document.getElementById('dlv-payer-hint').textContent = '';
   document.getElementById('dlv-error').style.display = 'none';
   document.getElementById('dlvModal').style.display = 'flex';
@@ -2831,6 +2838,9 @@ function dlvUpdatePayerHint() {
   const cost = parseNum(document.getElementById('dlv-transport-cost').value);
   const payer = document.getElementById('dlv-transport-payer').value;
   const hint = document.getElementById('dlv-payer-hint');
+  // kech155 (zip 210): kompaniya ulushi bo'lsa — «qaysi hisobdan» tanlovi ko'rinadi
+  const hJoy = document.getElementById('dlv-transport-hisob-joy');
+  if (hJoy) hJoy.style.display = (cost > 0 && (payer === 'company' || payer === 'split')) ? 'block' : 'none';
   if (!cost || payer === 'none') { hint.textContent = ''; return; }
 
   if (payer === 'client') {
@@ -2920,9 +2930,9 @@ async function quickFullDelivery() {
       <div style="display:flex;flex-wrap:wrap;gap:8px">
         <input type="text" id="fd-payment" placeholder="0" oninput="formatPriceInput(this)" style="flex:1 1 140px;min-width:0;border:1.5px solid var(--ch-e2e8f0)" class="maydon" aria-label="To'lov summasi">
         <select id="fd-payment-method" style="flex:1 1 120px;min-width:0;border:1.5px solid var(--ch-e2e8f0)" class="maydon" aria-label="To'lov usuli">
-          <option value="naqd">Naqd</option>
-          <option value="plastik">Plastik</option>
-          <option value="o'tkazma">O'tkazma</option>
+          <option value="naqd">💵 Naqd pul</option>
+          <option value="plastik">💳 Karta (plastik)</option>
+          <option value="o'tkazma">🏦 Bank (o'tkazma)</option>
         </select>
       </div>
     </div>
@@ -2930,18 +2940,32 @@ async function quickFullDelivery() {
       <label style="font-size:13px;font-weight:600;color:var(--m-334155);display:block;margin-bottom:6px">🚚 Yetkazib berish (transport) xarajati bormi?</label>
       <div style="font-size:12px;color:var(--text3);margin-bottom:6px">Bo'lmasa bo'sh qoldiring</div>
       <div style="display:flex;flex-wrap:wrap;gap:8px">
-        <input type="text" id="fd-transport" placeholder="0" oninput="formatPriceInput(this)" style="flex:1 1 140px;min-width:0;border:1.5px solid var(--ch-e2e8f0)" class="maydon" aria-label="Transport summasi">
-        <select id="fd-transport-payer" style="flex:1 1 160px;min-width:0;border:1.5px solid var(--ch-e2e8f0)" class="maydon" aria-label="Transportni kim to'laydi">
+        <input type="text" id="fd-transport" placeholder="0" oninput="formatPriceInput(this); fdHisobKorsat()" style="flex:1 1 140px;min-width:0;border:1.5px solid var(--ch-e2e8f0)" class="maydon" aria-label="Transport summasi">
+        <select id="fd-transport-payer" onchange="fdHisobKorsat()" style="flex:1 1 160px;min-width:0;border:1.5px solid var(--ch-e2e8f0)" class="maydon" aria-label="Transportni kim to'laydi">
           <option value="none">Kim to'laydi? —</option>
           <option value="client">Mijoz</option>
           <option value="company">Kompaniya</option>
           <option value="split">Teng bo'lingan (50/50)</option>
         </select>
       </div>
+      <div id="fd-transport-hisob-joy" style="display:none;margin-top:8px">
+        <div style="font-size:12px;color:var(--text3);margin-bottom:6px">Kompaniya ulushi qaysi hisobdan to'lanadi</div>
+        <div id="fd-transport-hisob"></div>
+      </div>
     </div>
     <div id="fd-error" role="alert" style="display:none;padding:9px 12px;background:var(--f-fee2e2);border-radius:7px;font-size:14px;color:var(--m-b91c1c);white-space:pre-line;overflow-wrap:anywhere"></div>
   `;
   document.getElementById('fullDlvModalOverlay').style.display = 'flex';
+  hisobTanlovChiz('fd-transport-hisob', {qiymat: 'naqd'});      // kech155 (zip 210)
+}
+
+// kech155 (zip 210): «bir yo'la to'liq topshirish» — transport kompaniya ulushi bo'lsa «qaysi hisobdan» ko'rinadi
+function fdHisobKorsat() {
+  const joy = document.getElementById('fd-transport-hisob-joy');
+  if (!joy) return;
+  const narx = parseNum(document.getElementById('fd-transport')?.value) || 0;
+  const kim = document.getElementById('fd-transport-payer')?.value || 'none';
+  joy.style.display = (narx > 0 && (kim === 'company' || kim === 'split')) ? 'block' : 'none';
 }
 
 // kech144 (zip 173): «Bir yo'la to'liq topshirish» oynasidagi xato — oyna ichida (yopilmaydi, kiritilganlar saqlanadi)
@@ -3012,6 +3036,7 @@ async function submitFullDlvModal() {
     transport_carrier: null,
     transport_cost: transportCost,
     transport_payer: transportCost > 0 ? transportPayer : 'none',
+    transport_hisob: hisobQiymat('fd-transport-hisob'),      // kech155 (zip 210)
     payment_amount: paymentAmount,
     payment_method: paymentMethod
   };
@@ -3096,7 +3121,8 @@ async function saveDelivery() {
     payment_method: document.getElementById('dlv-payment-method').value || 'naqd',
     transport_carrier: sanitizeToLatin(document.getElementById('dlv-transport-carrier').value.trim()) || null,
     transport_cost: parseNum(document.getElementById('dlv-transport-cost').value),
-    transport_payer: document.getElementById('dlv-transport-payer').value || 'none'
+    transport_payer: document.getElementById('dlv-transport-payer').value || 'none',
+    transport_hisob: hisobQiymat('dlv-transport-hisob')      // kech155 (zip 210): kompaniya ulushi qaysi hisobdan
   };
 
   _dlvYuborilmoqda = true;

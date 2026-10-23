@@ -549,6 +549,81 @@ function tugmaBand(btn, band) {
 // oylikning qolganidan ko'p bo'lsa server 409 (`detail.type` = 'avans_oylikdan_ortiq', `detail.message` — qancha ko'p va keyingi oy
 // oyligidan ushlanishi) qaytaradi: oyna so'raydi, «Ha» — AYNAN o'sha so'rov `confirm_excess=true` bilan qayta. Natija:
 // {ok, javob} | {ok: false, bekor: true} (foydalanuvchi «Bekor») | {ok: false, holat, xato} (sabab — `amalSababi`).
+// ══ kech155 (zip 210 «Naqd / Bank / Karta» — egasi tasdig'i 23.10): «QAYSI HISOBDAN» TANLOVI — hamma pul formalarida bir xil.
+// `<div id="…" data-hisob-tanlov></div>` (sahifa yuklanganda o'zi chiziladi) yoki `hisobTanlovChiz(el, {qiymat, balans})`;
+// qiymat — `hisobQiymat(el)` ('naqd' / 'bank' / 'karta'; standart — 'naqd'). Server shu turdagi hisobga yozadi.
+// `hisobSora(...)` — formasiz amal (oylikni yopish, avans so'rovini tasdiqlash, eski qarz to'lovi, qaytarish) uchun: dasturning tasdiq
+// oynasi (`customConfirm`, `opts.hisob`) + tanlov; tanlangan tur yoki null.
+var PUL_HISOBLAR = [{turi: 'naqd', nomi: 'Naqd pul', ikon: 'ti-cash'}, {turi: 'bank', nomi: 'Bank', ikon: 'ti-building-bank'},
+                    {turi: 'karta', nomi: 'Karta', ikon: 'ti-credit-card'}];
+// pul hisobi summasi — tiyin bilan (2 xonagacha, yaxlitlanmaydi — `pulKor` qoidasi), manfiy — «-» bilan (review210 №5: ilgari butun
+// so'mga yaxlitlanardi — 2 000 000,50 → «2 000 001», kartalar yig'indisi jamidan farq qilardi)
+function _hisobSom(n) { const x = Number(n) || 0; return (x < 0 ? '-' : '') + pulKor(Math.abs(x)); }
+function hisobTanlovChiz(el, opts) {
+  if (typeof el === 'string') el = document.getElementById(el);
+  if (!el) return null;
+  opts = opts || {};
+  var joriy = opts.qiymat || el.dataset.qiymat || 'naqd';
+  if (!PUL_HISOBLAR.some(function (h) { return h.turi === joriy; })) joriy = 'naqd';
+  el.classList.add('hisob-tanlov');
+  el.setAttribute('role', 'radiogroup');
+  if (!el.getAttribute('aria-label')) el.setAttribute('aria-label', 'Qaysi hisobdan');
+  var bal = opts.balans || null;
+  el._hisobBalans = bal;          // tanlov o'zgarsa — qoldiq qatori yangilanadi (`_hisobQoldiqYoz`)
+  el.innerHTML = '<div class="segment hisob-seg">' + PUL_HISOBLAR.map(function (h) {
+    var b = bal && bal[h.turi] !== undefined && bal[h.turi] !== null ? ' title="' + h.nomi + ': ' + _hisobSom(bal[h.turi]) + ' so\'m"' : '';
+    return '<button type="button" role="radio" data-turi="' + h.turi + '" aria-checked="' + (h.turi === joriy) + '" class="' +
+      (h.turi === joriy ? 'on' : '') + '"' + b + '><i class="ti ' + h.ikon + '"></i><span>' + h.nomi + '</span></button>';
+  }).join('') + '</div>' + (bal ? '<div class="hisob-seg-qoldiq" aria-live="polite"></div>' : '');
+  el.dataset.qiymat = joriy;
+  Array.prototype.forEach.call(el.querySelectorAll('button'), function (b) {
+    b.onclick = function () { hisobTanla(el, b.dataset.turi); };
+  });
+  _hisobQoldiqYoz(el);
+  return el;
+}
+// tanlangan hisob qoldig'i (tanlov ostida; `balans` berilmagan bo'lsa — qator yo'q)
+function _hisobQoldiqYoz(el) {
+  var q = el && el.querySelector ? el.querySelector('.hisob-seg-qoldiq') : null;
+  if (!q) return;
+  var bal = el._hisobBalans || {}, t = el.dataset.qiymat;
+  q.innerHTML = (bal[t] !== undefined && bal[t] !== null) ? hisobNomi(t) + " qoldig'i: <b>" + _hisobSom(bal[t]) + " so'm</b>" : '';
+}
+function hisobTanla(el, turi) {
+  if (typeof el === 'string') el = document.getElementById(el);
+  if (!el) return;
+  if (!el.querySelector('button')) hisobTanlovChiz(el, {qiymat: turi});
+  Array.prototype.forEach.call(el.querySelectorAll('button'), function (b) {
+    var on = b.dataset.turi === turi;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-checked', on ? 'true' : 'false');
+  });
+  el.dataset.qiymat = turi;
+  _hisobQoldiqYoz(el);
+  try { el.dispatchEvent(new Event('change', {bubbles: true})); } catch (e) {}
+}
+function hisobQiymat(el) {
+  if (typeof el === 'string') el = document.getElementById(el);
+  if (!el) return 'naqd';
+  if (!el.querySelector('button')) hisobTanlovChiz(el);
+  return el.dataset.qiymat || 'naqd';
+}
+function hisobNomi(turi) {
+  var h = PUL_HISOBLAR.filter(function (x) { return x.turi === turi; })[0];
+  return h ? h.nomi : (turi || '');
+}
+document.addEventListener('DOMContentLoaded', function () {
+  Array.prototype.forEach.call(document.querySelectorAll('[data-hisob-tanlov]'), function (el) { hisobTanlovChiz(el); });
+});
+// `hisobSora` — `customConfirm` bilan AYNAN bir chaqiruv (savol / sarlavha + matn, {okText, cancelText, danger}) + «Qaysi hisobdan»
+// tanlovi (`hisobYorliq` — yorliq matni, `qiymat` — boshlang'ich tanlov): «Ha» — tanlangan tur, aks holda null.
+async function hisobSora(a, b, c) {
+  var ok;
+  if (typeof b === 'string') ok = await customConfirm(a, b, Object.assign({}, c || {}, {hisob: true}));
+  else ok = await customConfirm(a, Object.assign({}, b || {}, {hisob: true}));
+  return ok === true ? hisobQiymat('ccModalHisobTanlov') : null;
+}
+
 async function avansYubor(url) {
   let res;
   try { res = await fetch(url, {method: 'POST'}); } catch (e) { return {ok: false, holat: 0, xato: await amalSababi(e)}; }
@@ -702,6 +777,8 @@ function kiritishOyna(sarlavha, opts) {
         '<div id="kiSarlavha" style="font-size:16px;font-weight:700;color:var(--text,#222);margin-bottom:6px;white-space:pre-wrap"></div>' +
         '<div id="kiIzoh" style="font-size:13px;color:var(--text2,#6B7280);margin-bottom:12px;white-space:pre-wrap"></div>' +
         '<input id="kiMaydon" class="maydon" type="text" autocomplete="off" style="width:100%;font-weight:600">' +
+        '<div id="kiHisobJoy" style="display:none;margin-top:12px"><label style="display:block;font-size:12px;font-weight:600;' +
+        'color:var(--text2);margin-bottom:6px">Qaysi hisobdan to\'landi?</label><div id="kiHisob"></div></div>' +
         '<div style="display:flex;gap:8px;margin-top:16px">' +
         '<button type="button" id="kiBekor" class="btn btn-outline" data-yopish style="flex:1">Bekor</button>' +
         '<button type="button" id="kiOk" class="btn btn-gold" style="flex:1">Tasdiqlash</button></div></div>';
@@ -717,6 +794,12 @@ function kiritishOyna(sarlavha, opts) {
     maydon.setAttribute('aria-label', sarlavha || '');
     maydon.value = (opts.qiymat === undefined || opts.qiymat === null) ? '' : String(opts.qiymat);
     ok.textContent = opts.okText || 'Tasdiqlash';
+    // kech155 (zip 210): `opts.hisob` — «Qaysi hisobdan» tanlovi ham (natija — {qiymat, hisob}; bekor — null)
+    var hJoy = m.querySelector('#kiHisobJoy');
+    if (hJoy) {
+      hJoy.style.display = opts.hisob ? 'block' : 'none';
+      if (opts.hisob) hisobTanlovChiz(m.querySelector('#kiHisob'), {qiymat: (typeof opts.hisob === 'string' ? opts.hisob : 'naqd')});
+    }
     var oldingi = document.activeElement;
     function tugat(v) {
       if (_kiJoriy !== tugat) return;
@@ -726,7 +809,7 @@ function kiritishOyna(sarlavha, opts) {
       resolve(v);
     }
     _kiJoriy = tugat;
-    ok.onclick = function () { tugat(maydon.value); };
+    ok.onclick = function () { tugat(opts.hisob ? {qiymat: maydon.value, hisob: hisobQiymat(m.querySelector('#kiHisob'))} : maydon.value); };
     bekor.onclick = function () { tugat(null); };
     maydon.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); ok.click(); } };
     m.style.display = 'flex';
@@ -924,6 +1007,22 @@ function kichikRasm(url) {
   <link rel="stylesheet" href="/static/style.css?v={{ static_version }}">
   <link rel="stylesheet" href="/static/ranglar.css?v={{ static_version }}">
   <style>
+  /* kech155 (zip 210 «Naqd / Bank / Karta»): «Qaysi hisobdan» tanlovi (`hisobTanlovChiz`) — BO'LAKLI TANLOV (`.segment`, U-13 yagona
+     ko'rinish: balandligi `.btn` dek — 40 / 44 px, burchak 8 px, yozuv 13 px; bo'laklar alohida tugma emas): Naqd pul / Bank / Karta,
+     tanlangani ko'k; ostida — tanlangan hisob qoldig'i (faqat Moliya oynalarida, `balans` berilsa). Hamma pul formalarida bir xil.
+     (O'LCHANGAN test_u13: ilgari uch alohida tugma 54,6 px / burchak 10 px — yagona qoidadan tashqari edi.) */
+  .hisob-seg{display:flex;height:var(--h-btn);box-sizing:border-box;border:1.5px solid var(--border);border-radius:var(--r-btn);
+    overflow:hidden;background:var(--white);font-size:13px}
+  .hisob-seg button{flex:1 1 0;min-width:0;border:0;border-left:1px solid var(--border);background:transparent;color:var(--text2);
+    font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;padding:0 6px;display:flex;align-items:center;justify-content:center;gap:5px}
+  .hisob-seg button:first-child{border-left:0}
+  .hisob-seg button i{font-size:16px;flex:0 0 auto}
+  .hisob-seg button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .hisob-seg button.on{background:var(--gold);color:#fff}
+  .hisob-seg button:focus-visible{outline:2px solid var(--gold);outline-offset:-3px}
+  .hisob-seg-qoldiq{font-size:12px;color:var(--text3);margin-top:5px}
+  .hisob-seg-qoldiq b{color:var(--text2)}
+  @media (max-width:360px){ .hisob-seg button i{display:none} }
   /* kech114 (egasi QARORI «6A — Bir qator + tugmalar»): telefonda yuqori panel 103–191 px edi (sarlavha, tungi rejim /
      qo'ng'iroqcha / Кирилл va sahifa tugmalari alohida qatorlarda — `work/k114/olchov114.py`). Endi: 1-qator — menyu,
      sarlavha, obuna belgisi, qo'ng'iroqcha, «···» (tungi rejim, Кирилл); 2-qator — sahifa tugmalari yonma-yon, teng. */
@@ -1481,6 +1580,11 @@ function kichikRasm(url) {
   <div style="background:var(--white);border-radius:14px;width:420px;max-width:100%;padding:24px;box-shadow:var(--shadow-card);max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);display:flex;flex-direction:column;box-sizing:border-box">
     <div id="ccModalTitle" style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px;display:none;flex-shrink:0"></div>
     <div id="ccModalMessage" style="font-size:14px;color:var(--text2);line-height:1.6;white-space:pre-wrap;margin-bottom:18px;overflow-y:auto;min-height:0;flex:0 1 auto"></div>
+    {# kech155 (zip 210): `customConfirm(…, {hisob: true})` / `hisobSora` — pul qaysi hisobdan #}
+    <div id="ccModalHisob" style="display:none;margin:-6px 0 16px;flex-shrink:0">
+      <div id="ccModalHisobYorliq" style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px">Qaysi hisobdan to'landi?</div>
+      <div id="ccModalHisobTanlov"></div>
+    </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0">
       <button id="ccModalCancel" data-yopish class="btn btn-outline" style="flex:1">Bekor</button>
       <button id="ccModalAlt" class="btn btn-outline" style="flex:1;display:none"></button>
@@ -1506,6 +1610,15 @@ function customConfirm(a, b, c) {
     if (title) { titleEl.textContent = title; titleEl.style.display = 'block'; }
     else { titleEl.style.display = 'none'; }
     msgEl.textContent = message;
+    // kech155 (zip 210): `opts.hisob` — «Qaysi hisobdan» tanlovi (natija — `hisobQiymat('ccModalHisobTanlov')`; `hisobSora`)
+    var hisobJoy = document.getElementById('ccModalHisob');
+    if (hisobJoy) {
+      hisobJoy.style.display = opts.hisob ? 'block' : 'none';
+      if (opts.hisob) {
+        document.getElementById('ccModalHisobYorliq').textContent = opts.hisobYorliq || "Qaysi hisobdan to'landi?";
+        hisobTanlovChiz('ccModalHisobTanlov', {qiymat: opts.qiymat || 'naqd'});
+      }
+    }
     okBtn.textContent = opts.okText || 'Tasdiqlash';
     okBtn.className = 'btn ' + (opts.danger ? 'btn-red' : 'btn-gold');
     okBtn.style.flex = '1';

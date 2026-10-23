@@ -83,8 +83,12 @@ async function confirmAdvReq(id){
   if (row && row.dataset.band === '1') return;
   if (row) row.dataset.band = '1';
   advTugmalar(id, false);
+  // kech155 (zip 210): pul qaysi hisobdan berildi (tasdiq bilan birga)
+  const hisob = await hisobSora("Avans so'rovini tasdiqlaysizmi?", "Pul hodimga berilgan bo'lsa — qaysi hisobdan berilganini tanlang.",
+                                {okText: 'Tasdiqlash', hisobYorliq: 'Qaysi hisobdan berildi?'});
+  if (!hisob) { if (row) row.dataset.band = ''; advTugmalar(id, true); return; }
   // kech140 (zip 168, A-P09): so'ralgan avans oylikdan ko'p bo'lsa — so'raladi (`avansYubor`, «Ha» — ortiqchasi keyingi oydan)
-  const r = await avansYubor(`/api/admin/advance-requests/${id}/confirm`);
+  const r = await avansYubor(`/api/admin/advance-requests/${id}/confirm?hisob=${encodeURIComponent(hisob)}`);
   if (r.ok) { removeAdvRow(id); return; }
   if (!r.bekor) {
     await xabarOyna('❌ Tasdiqlanmadi: ' + r.xato);
