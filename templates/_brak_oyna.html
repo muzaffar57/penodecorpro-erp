@@ -24,7 +24,7 @@
 @media(max-width:520px){.brk-tq .brk-taqdirlar{grid-template-columns:1fr}}
 .brk-tq label.brk-taqdir{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;cursor:pointer;background:var(--white);text-transform:none;letter-spacing:0;font-size:inherit;font-weight:400;color:inherit;margin-bottom:0}
 .brk-tq label.brk-taqdir input{width:16px;height:16px;margin-top:2px;flex-shrink:0}
-.brk-tq label.brk-taqdir.tanlangan{border-color:var(--gold);background:var(--f-f8f2eb)}
+.brk-tq label.brk-taqdir.tanlangan{border-color:var(--gold);background:var(--gold-tint)}
 .brk-tq label.brk-tq-joy{display:flex;align-items:flex-start;gap:8px;text-transform:none;letter-spacing:0;font-size:13px;font-weight:400;color:var(--text);margin:6px 0;cursor:pointer}
 .brk-tq label.brk-tq-joy input{width:16px;height:16px;margin-top:1px;flex-shrink:0}
 .brk-tq-panel{margin-top:10px;padding:10px 12px;border:1px dashed var(--border);border-radius:10px;background:var(--bg)}
@@ -110,7 +110,7 @@
           Mahsulot <b>o'chirilmaydi</b> — faqat miqdori kamayadi (sinib / buzilib, endi sotib bo'lmaydigan qismi). Tan narxi Moliyada
           <b>«Tayyor mahsulot yo'qotishi» qatoriga</b> qo'shiladi.
         </div>
-        <div id="loss-info-production" class="brk-info" style="display:none;background:var(--f-f8f2eb);color:var(--gold-dark)">
+        <div id="loss-info-production" class="brk-info" style="display:none;background:var(--gold-tint);color:var(--gold-dark)">
           <b>Mahsulot soni o'zgarmaydi</b> (baribir to'liq miqdorni topshirasiz) — qayta tayyorlashga sarflangan <b>qo'shimcha
           xomashyo</b> ombordan yechiladi va Moliyada xarajat bo'ladi.
         </div>
@@ -186,7 +186,7 @@
       <button type="button" data-yopish class="btn btn-soft btn-icon btn-sm" onclick="taqdirOynaYop()" title="Yopish" aria-label="Yopish">✕</button>
     </div>
     <div style="padding:14px 22px;overflow-y:auto;flex:1">
-      <div class="brk-info" style="background:var(--f-f8f2eb);color:var(--text2);margin-bottom:12px">O'zgarish shu oyning hisobotiga yoziladi — o'tgan oy hisoboti o'zgarmaydi.</div>
+      <div class="brk-info" style="background:var(--gold-tint);color:var(--text2);margin-bottom:12px">O'zgarish shu oyning hisobotiga yoziladi — o'tgan oy hisoboti o'zgarmaydi.</div>
       <div id="taqdir-forma"></div>
       <div id="taqdir-error" style="display:none;margin-top:10px;padding:9px 12px;background:var(--f-fee2e2);border-radius:7px;font-size:13px;color:var(--m-b91c1c)"></div>
     </div>
@@ -272,7 +272,7 @@ function _brakTugma() {
   const btn = _brakEl('brak-save-btn');
   if (!btn) return;
   if (_brakManba === 'ombor') { btn.textContent = '⚠️ Kamaytirish (brak)'; btn.style.background = '#B45309'; }
-  else if (_brakManba === 'ishlab') { btn.textContent = '🏭 Xomashyoni ayirish (brak)'; btn.style.background = '#9A6231'; }
+  else if (_brakManba === 'ishlab') { btn.textContent = '🏭 Xomashyoni ayirish (brak)'; btn.style.background = '#2563EB'; }
   else { btn.textContent = '🔴 Brak sifatida saqlash'; btn.style.background = '#DC2626'; }   // oq yozuv ≥ 4.5:1
 }
 

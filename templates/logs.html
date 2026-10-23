@@ -136,7 +136,7 @@
           {# kech106: ErrorLog.created_at — ALLAQACHON Toshkent vaqti (models._uzb_now) — |toshkent filtri QO'LLANMAYDI #}
           <div style="font-size:12px;color:var(--text3);white-space:nowrap;flex-shrink:0">{{ e.created_at.strftime('%d.%m.%Y %H:%M') if e.created_at else '' }}</div>
         </div>
-        <div class="err-manzil" style="font-size:12px;color:var(--text3);margin-top:4px;min-width:0;overflow-wrap:anywhere">{{ e.method or '' }} {{ e.endpoint or '' }} {% if e.performed_by %}· {{ e.performed_by }}{% endif %}{% if _toliq %} <span style="color:var(--f-primary,#B9783F)">— bosib to'liq ko'ring ▾</span>{% endif %}</div>
+        <div class="err-manzil" style="font-size:12px;color:var(--text3);margin-top:4px;min-width:0;overflow-wrap:anywhere">{{ e.method or '' }} {{ e.endpoint or '' }} {% if e.performed_by %}· {{ e.performed_by }}{% endif %}{% if _toliq %} <span style="color:var(--gold-dark)">— bosib to'liq ko'ring ▾</span>{% endif %}</div>
         {% if _toliq %}
         <pre class="err-detail" style="display:none;margin-top:10px;padding:12px;background:#1F2937;color:#E5E7EB;border-radius:8px;font-size:12px;white-space:pre-wrap;word-break:break-word;max-height:400px;overflow-y:auto">{% if _uzun %}{{ _xabar }}{% if e.stack_trace %}
 

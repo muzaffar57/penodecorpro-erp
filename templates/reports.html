@@ -7,19 +7,19 @@
 <style>
 @keyframes bi-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .bi-wrap{
-  --b-bg:#F8F8F6; --b-card:#FFFFFF; --b-border:#E8E3DD;
-  --b-primary:#9A6231; --b-primary-tint:#F8F2EB;
+  --b-bg:#F4F6FA; --b-card:#FFFFFF; --b-border:#E2E7EF;
+  --b-primary:#2563EB; --b-primary-tint:#EEF4FF;
   --b-success:#15803D; --b-success-tint:#F0FDF4;
   --b-warning:#B45309; --b-warning-tint:#FFFBEB;
   --b-danger:#DC2626; --b-danger-tint:#FEF2F2;
-  --b-text:#222222; --b-text2:#5B6170; --b-text3:#696D78;
+  --b-text:#1A1F2B; --b-text2:#4A5366; --b-text3:#5B6476;
   --b-radius:14px; --b-shadow:0 1px 2px rgba(24,27,34,.04),0 4px 16px rgba(24,27,34,.06);
   --b-shadow-hover:0 4px 8px rgba(24,27,34,.06),0 12px 28px rgba(24,27,34,.10);
   background:var(--b-bg); padding:16px; height:calc(100vh - 58px); overflow-y:auto; font-variant-numeric:tabular-nums;
 }
 /* kech118 (zip 122 — tungi rejim to'liq): sahifa o'zgaruvchilari tungi rejimda umumiy ranglarga (ish maydoni qorayadi, matn o'qiladi) */
 html[data-theme="dark"] .bi-wrap{
-  --b-bg:var(--bg); --b-card:var(--white); --b-border:var(--border); --b-primary:#D09A63; --b-primary-tint:var(--gold-tint); --b-success:#4ADE80; --b-success-tint:var(--f-f0fdf4); --b-warning:#FBBF24; --b-warning-tint:var(--f-fffbeb); --b-danger:#F87171; --b-danger-tint:var(--f-fef2f2); --b-text:var(--text); --b-text2:var(--text2); --b-text3:var(--text3);
+  --b-bg:var(--bg); --b-card:var(--white); --b-border:var(--border); --b-primary:#93B4F5; --b-primary-tint:var(--gold-tint); --b-success:#4ADE80; --b-success-tint:var(--f-f0fdf4); --b-warning:#FBBF24; --b-warning-tint:var(--f-fffbeb); --b-danger:#F87171; --b-danger-tint:var(--f-fef2f2); --b-text:var(--text); --b-text2:var(--text2); --b-text3:var(--text3);
   --b-shadow:var(--shadow-card); --b-shadow-hover:0 4px 8px rgba(0,0,0,.4),0 12px 28px rgba(0,0,0,.35);
 }
 .bi-wrap *{box-sizing:border-box}
@@ -31,7 +31,7 @@ html[data-theme="dark"] .bi-wrap{
 .bi-fade{opacity:0;animation:biFade .45s ease forwards}
 
 /* ── AI Summary ── */
-.bi-summary{background:linear-gradient(135deg,var(--f-f8f2eb),var(--f-fbf7f2));border:1px solid var(--ch-e8d5c0);border-radius:var(--b-radius);padding:18px 22px;margin-bottom:24px;display:flex;gap:14px;align-items:flex-start}
+.bi-summary{background:linear-gradient(135deg,var(--gold-tint),var(--f-f8fafc));border:1px solid var(--ch-dbeafe);border-radius:var(--b-radius);padding:18px 22px;margin-bottom:24px;display:flex;gap:14px;align-items:flex-start}
 .bi-summary-icon{width:38px;height:38px;border-radius:10px;background:var(--white);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;box-shadow:var(--b-shadow)}
 .bi-summary-title{font-size:13px;font-weight:700;color:var(--gold-dark);margin-bottom:6px}
 .bi-summary-list{font-size:13px;color:var(--m-374151);line-height:1.9}
@@ -263,7 +263,7 @@ html[data-theme="dark"] .bi-wrap{
       <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:var(--f-f3e8ff);color:var(--m-8e44ad)"><i class="ti ti-clipboard-list"></i></div><div class="bi-kpi-label">Buyurtmalar</div><div class="bi-kpi-value" id="kpi-buyurtma">—</div><div class="bi-kpi-change" style="color:var(--b-text3)">shu davrda</div></div>
       {% endif %}
       {% if R_MOLIYA %}
-      <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:var(--f-f8f2eb);color:var(--gold-dark)"><i class="ti ti-percentage"></i></div><div class="bi-kpi-label">Rentabellik</div><div class="bi-kpi-value" id="kpi-foiz">—</div><div class="bi-kpi-change" id="kpi-foiz-ch"></div></div>
+      <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:var(--gold-tint);color:var(--gold-dark)"><i class="ti ti-percentage"></i></div><div class="bi-kpi-label">Rentabellik</div><div class="bi-kpi-value" id="kpi-foiz">—</div><div class="bi-kpi-change" id="kpi-foiz-ch"></div></div>
       {% endif %}
     </div>
     {% if R_MOLIYA %}<div class="bi-kpi-tenglama" id="kpi-tenglama"></div>{% endif %}
@@ -669,7 +669,7 @@ async function loadCharts(){
     data: {
       labels: hist.map(h => MONTH_NAMES[h.month]+" '"+String(h.year).slice(2)),
       datasets: [
-        { type:'bar', label:'Daromad', data:hist.map(h=>h.daromad), backgroundColor:'#B9783F', borderRadius:5, maxBarThickness:26 },
+        { type:'bar', label:'Daromad', data:hist.map(h=>h.daromad), backgroundColor:'#2563EB', borderRadius:5, maxBarThickness:26 },
         { type:'bar', label:'Xarajat', data:hist.map(h=>h.jami_xarajat), backgroundColor:'#FCA5A5', borderRadius:5, maxBarThickness:26 },
         // kech118 (ROLLAR 2-qism): sof foyda yashirin (null) — chiziq chizilmaydi
         ...(hist.some(h => h.sof_foyda !== null) ? [{ type:'line', label:'Sof foyda', data:hist.map(h=>h.sof_foyda), borderColor:'#16A34A', backgroundColor:'#16A34A', tension:.3, borderWidth:3, pointRadius:4, pointHoverRadius:6, pointBackgroundColor:'#fff', pointBorderColor:'#16A34A', pointBorderWidth:2.5, fill:false }] : []),
@@ -703,7 +703,7 @@ async function loadCharts(){
   });
   const _yonBolim = document.getElementById('yonDinamika');
   if (_yonBolim) _yonBolim.style.display = (_yonKop && !grafikYoq) ? '' : 'none';
-  const _YR = ['rgba(185,120,63,.75)', 'rgba(30,64,175,.75)', 'rgba(22,163,74,.75)', 'rgba(147,51,234,.75)',
+  const _YR = ['rgba(37,99,235,.75)', 'rgba(234,88,12,.75)', 'rgba(22,163,74,.75)', 'rgba(147,51,234,.75)',
                'rgba(219,39,119,.75)', 'rgba(8,145,178,.75)', 'rgba(202,138,4,.75)', 'rgba(100,116,139,.75)'];
   if (_yonKop && !grafikYoq) window._ptTrendC = new Chart(document.getElementById('prodTypeTrendChart'), {
     type: 'bar',
@@ -743,7 +743,7 @@ async function loadCharts(){
     // kech116 (G1-02): doira — xarajatning TO'LIQ tarkibi (`xarajat_tarkibi`: doimiy, qo'shimcha, transport, brak, tayyor
     // mahsulot yo'qotishi, usta bonusi, ehson, hodimlar) — markazdagi «Jami» = «Xarajat» kartasi (ilgari transport va brak
     // yo'q edi: doira 3.1 mln, karta 3.3 mln)
-    const RANG = {doimiy:'#B9783F', qoshimcha:'#8E44AD', transport:'#0EA5E9', brak:'#EF4444', tm_yoqotish:'#F97316',
+    const RANG = {doimiy:'#2563EB', qoshimcha:'#8E44AD', transport:'#0EA5E9', brak:'#EF4444', tm_yoqotish:'#F97316',
                   usta_kpi:'#F59E0B', ehson:'#16A34A', hodimlar:'#22C55E'};
     let entries;
     if (Array.isArray(cur.xarajat_tarkibi)) {
@@ -753,7 +753,7 @@ async function loadCharts(){
       const doimiy = (x.arenda||0) + (x.elektr||0) + (x.tushlik||0) + (x.soliqlar||0);
       const qoshimcha = Object.values(cur.qoshimcha_xarajatlar || {}).reduce((a,b)=>a+b, 0);
       entries = [
-        ['Doimiy xarajatlar', doimiy, '#B9783F'],
+        ['Doimiy xarajatlar', doimiy, '#2563EB'],
         ["Usta bonusi", cur.usta_kpi_xarajat || 0, '#F59E0B'],
         ['Ehson', cur.ehson_xarajat || 0, '#16A34A'],
         ['Hodimlar oyligi', cur.hodimlar_moslashuvchan_xarajat || 0, '#22C55E'],
@@ -807,7 +807,7 @@ async function loadCashFlowBars(){
   el.innerHTML = `
     <div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13px;color:var(--b-text2);font-weight:600">Kirim (olingan pul)</span><span style="font-weight:700;color:var(--b-success)" id="fb-kirim-summa">${fmt(kirim)} so'm</span></div><div class="bi-flow-track"><div class="bi-flow-fill" id="fb-kirim" style="background:var(--b-success)"></div></div><div id="fb-kirim-tarkib" style="margin-top:6px">${tarkib(po.kirim_qatorlar)}</div></div>
     <div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13px;color:var(--b-text2);font-weight:600">Chiqim (to'langan pul)</span><span style="font-weight:700;color:var(--b-danger)" id="fb-chiqim-summa">${fmt(chiqim)} so'm</span></div><div class="bi-flow-track"><div class="bi-flow-fill" id="fb-chiqim" style="background:var(--b-danger)"></div></div><div id="fb-chiqim-tarkib" style="margin-top:6px">${tarkib(po.chiqim_qatorlar)}</div></div>
-    <div style="text-align:center;padding:12px;border-radius:10px;background:${balans>=0?'var(--b-primary-tint)':'var(--b-warning-tint)'}"><span style="font-size:13px;font-weight:600;color:${balans>=0?'var(--m-8f5b2a)':'var(--m-92400e)'}">Balans: </span><span style="font-size:16px;font-weight:800;color:${balans>=0?'var(--m-8f5b2a)':'var(--m-92400e)'}" id="fb-balans">${fmt(balans)} so'm</span></div>`;
+    <div style="text-align:center;padding:12px;border-radius:10px;background:${balans>=0?'var(--b-primary-tint)':'var(--b-warning-tint)'}"><span style="font-size:13px;font-weight:600;color:${balans>=0?'var(--gold-dark)':'var(--m-92400e)'}">Balans: </span><span style="font-size:16px;font-weight:800;color:${balans>=0?'var(--gold-dark)':'var(--m-92400e)'}" id="fb-balans">${fmt(balans)} so'm</span></div>`;
   requestAnimationFrame(()=>setTimeout(()=>{
     const k = document.getElementById('fb-kirim'), c = document.getElementById('fb-chiqim');
     if (k) k.style.width = (kirim/maxV*100)+'%';
@@ -939,7 +939,7 @@ async function loadForecast(){
         <div class="bi-forecast-item">
           <div style="font-size:12px;color:var(--b-text3);font-weight:600;text-transform:uppercase">Hozirgacha</div>
           <div style="font-size:24px;font-weight:800;color:var(--b-text);margin-top:6px">${fmt(fc.current_daromad)} so'm</div>
-          <div class="bi-forecast-bar-track"><div class="bi-forecast-bar-fill" style="width:${pct}%;background:#B9783F"></div></div>
+          <div class="bi-forecast-bar-track"><div class="bi-forecast-bar-fill" style="width:${pct}%;background:var(--gold)"></div></div>
         </div>
       </div>`;
   }, e => yukRoyxatXato(el, yukXatoMatn('Oy oxirigacha taxmin', e)));

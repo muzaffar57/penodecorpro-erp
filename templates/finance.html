@@ -9,19 +9,19 @@
    MOLIYA — DIZAYN TOKENLARI
    ============================================================ */
 :root{
-  --f-bg:#F8F8F6; --f-card:#FFFFFF; --f-border:#E8E3DD;
-  --f-primary:#9A6231; --f-primary-tint:#F8F2EB;   /* kech118 (U-03): matn / oq yozuvli tugma foni ≥ 4.5:1 (#B9783F — 3.2–3.6) */
+  --f-bg:#F4F6FA; --f-card:#FFFFFF; --f-border:#E2E7EF;
+  --f-primary:#2563EB; --f-primary-tint:#EEF4FF;   /* kech155 (zip 208 — «Toza ko'k»): matn / oq yozuvli tugma foni 5.2:1 */
   --f-success:#15803D; --f-success-tint:#F0FDF4;
   --f-warning:#B45309; --f-warning-tint:#FFFBEB;
   --f-danger:#DC2626; --f-danger-tint:#FEF2F2;
-  --f-text:#222222; --f-text2:#5B6170; --f-text3:#696D78;
+  --f-text:#1A1F2B; --f-text2:#4A5366; --f-text3:#5B6476;
   --f-radius:14px; --f-radius-sm:10px;
   --f-shadow:0 1px 2px rgba(24,27,34,.04), 0 4px 16px rgba(24,27,34,.06);
   --f-shadow-hover:0 4px 8px rgba(24,27,34,.06), 0 12px 28px rgba(24,27,34,.10);
 }
 /* kech118 (zip 122 — tungi rejim to'liq): sahifa o'zgaruvchilari tungi rejimda umumiy ranglarga (ish maydoni qorayadi, matn o'qiladi) */
 html[data-theme="dark"]{
-  --f-bg:var(--bg); --f-card:var(--white); --f-border:var(--border); --f-primary:#D09A63; --f-primary-tint:var(--gold-tint); --f-success:#4ADE80; --f-success-tint:var(--f-f0fdf4); --f-warning:#FBBF24; --f-warning-tint:var(--f-fffbeb); --f-danger:#F87171; --f-danger-tint:var(--f-fef2f2); --f-text:var(--text); --f-text2:var(--text2); --f-text3:var(--text3);
+  --f-bg:var(--bg); --f-card:var(--white); --f-border:var(--border); --f-primary:#93B4F5; --f-primary-tint:var(--gold-tint); --f-success:#4ADE80; --f-success-tint:var(--f-f0fdf4); --f-warning:#FBBF24; --f-warning-tint:var(--f-fffbeb); --f-danger:#F87171; --f-danger-tint:var(--f-fef2f2); --f-text:var(--text); --f-text2:var(--text2); --f-text3:var(--text3);
   --f-shadow:var(--shadow-card); --f-shadow-hover:0 4px 8px rgba(0,0,0,.4), 0 12px 28px rgba(0,0,0,.35);
 }
 .fin-wrap{
@@ -118,7 +118,7 @@ html[data-theme="dark"]{
 .fin-analytics-grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
 @media(max-width:900px){ .fin-analytics-grid{ grid-template-columns:1fr; } }
 .fin-info-note{
-  background:var(--f-primary-tint); border:1px solid var(--ch-e8d5c0); border-radius:10px;
+  background:var(--f-primary-tint); border:1px solid var(--ch-dbeafe); border-radius:10px;
   padding:11px 14px; font-size:13px; color:var(--gold-dark); line-height:1.6; margin-bottom:14px;
 }
 .fin-exp-row{ display:flex; justify-content:space-between; align-items:center; padding:9px 0; border-bottom:1px solid var(--f-border); font-size:13px; }
@@ -241,14 +241,14 @@ html[data-theme="dark"]{
 .yon-asosiy > div{ min-width:0; }   /* grid bolasi jadval kengligiga cho'zilmasin (telefonda gorizontal toshish) */
 .yon-jadval-quti{ overflow-x:auto; border:1px solid var(--f-border); border-radius:12px; }
 .yon-jadval{ width:100%; border-collapse:collapse; font-size:13px; }
-.yon-jadval th{ text-align:right; padding:10px 12px; white-space:nowrap; background:var(--f-faf7f2); font-weight:700; color:var(--f-text); border-bottom:1px solid var(--f-border); }
+.yon-jadval th{ text-align:right; padding:10px 12px; white-space:nowrap; background:var(--f-f8fafc); font-weight:700; color:var(--f-text); border-bottom:1px solid var(--f-border); }
 .yon-jadval th:first-child{ text-align:left; }
-.yon-jadval th.yon-jami, .yon-jadval td.yon-jami{ background:var(--f-f0ebe0); }
+.yon-jadval th.yon-jami, .yon-jadval td.yon-jami{ background:var(--f-f1f5f9); }
 .yon-jadval td{ padding:7px 12px; text-align:right; white-space:nowrap; border-bottom:1px solid var(--f-border); color:var(--f-text); }
 .yon-jadval td:first-child{ text-align:left; white-space:normal; }
 /* telefonda jadval yonga suriladi — ko'rsatkich nomi ustuni joyida qoladi */
 .yon-jadval th:first-child, .yon-jadval td:first-child{ position:sticky; left:0; z-index:1; background:var(--white); min-width:150px; }
-.yon-jadval th:first-child{ background:var(--f-faf7f2); }
+.yon-jadval th:first-child{ background:var(--f-f8fafc); }
 .yon-jadval tr.yon-blok td{ font-weight:700; }
 .yon-jadval tr.yon-blok td:first-child{ text-transform:uppercase; letter-spacing:.02em; }
 .yon-jadval tr.yon-daromad td{ background:var(--f-f0fdf4); }
@@ -256,12 +256,12 @@ html[data-theme="dark"]{
 .yon-jadval tr.yon-oylik td{ background:var(--f-eff6ff); }
 .yon-jadval tr.yon-xarajat td{ background:var(--f-fffbeb); }
 .yon-jadval tr.yon-daromad td.yon-jami, .yon-jadval tr.yon-tannarx td.yon-jami, .yon-jadval tr.yon-oylik td.yon-jami,
-.yon-jadval tr.yon-xarajat td.yon-jami{ background:var(--f-ede6d8); }
+.yon-jadval tr.yon-xarajat td.yon-jami{ background:var(--f-e6f1fb); }
 .yon-jadval tr.yon-qism td{ font-size:13px; color:var(--f-text2); }
 .yon-jadval tr.yon-qism td:first-child{ padding-left:26px; }
 .yon-jadval tr.yon-umumiy td:first-child{ font-style:italic; }
-.yon-jadval tr.yon-natija td{ font-weight:800; font-size:16px; border-top:2px solid var(--f-text); background:var(--f-faf7f2); }
-.yon-jadval tr.yon-natija td.yon-jami{ background:var(--f-ede6d8); }
+.yon-jadval tr.yon-natija td{ font-weight:800; font-size:16px; border-top:2px solid var(--f-text); background:var(--f-f8fafc); }
+.yon-jadval tr.yon-natija td.yon-jami{ background:var(--f-e6f1fb); }
 .yon-jadval tr.yon-ren td{ font-size:13px; font-weight:600; }
 .yon-jadval td.yon-yoq{ color:var(--f-text3); }
 .yon-yon{ display:flex; flex-direction:column; gap:14px; }
@@ -278,7 +278,7 @@ html[data-theme="dark"]{
 .yon-ren-qator{ display:grid; grid-template-columns:minmax(0, 1fr) 70px; gap:4px 10px; align-items:center; margin-bottom:10px; font-size:13px; }
 .yon-ren-nom{ color:var(--f-text); font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .yon-ren-foiz{ text-align:right; font-weight:700; }
-.yon-ren-chiziq{ grid-column:1 / -1; height:8px; background:var(--f-f1eee8); border-radius:4px; overflow:hidden; }
+.yon-ren-chiziq{ grid-column:1 / -1; height:8px; background:var(--f-f1f5f9); border-radius:4px; overflow:hidden; }
 .yon-ren-chiziq > div{ height:100%; border-radius:4px; }
 .yon-izoh ul{ margin:0; padding-left:18px; font-size:13px; color:var(--f-text2); line-height:1.55; }
 @media(max-width:1100px){ .yon-asosiy{ grid-template-columns:minmax(0, 1fr); } .yon-kartalar{ grid-template-columns:repeat(2, minmax(0, 1fr)); } }
@@ -497,7 +497,7 @@ html[data-theme="dark"]{
         </div>
         {# kech147 (zip 189 — production skrinshoti 16.10 23:24, O'LCHANGAN 384 px): yorliq (2 qator) va qiymat orasida 0 px edi — «bizdan
            + 33,9 mln» yopishgan. Endi oraliq 12 px, sig'masa qiymat keyingi qatorda o'ngda, qiymat bo'linmaydi #}
-        <div class="dg-sof" style="margin-top:14px;padding-top:14px;border-top:1px dashed var(--ch-e5e1d8);display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:4px 12px">
+        <div class="dg-sof" style="margin-top:14px;padding-top:14px;border-top:1px dashed var(--ch-e2e8f0);display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:4px 12px">
           <span style="font-size:13px;font-weight:700;color:var(--m-333333);min-width:0">Sof holat (bizga qarz − bizdan qarz)</span>
           <span style="font-size:18px;font-weight:800;white-space:nowrap;margin-left:auto" id="dg-net">—</span>
         </div>
@@ -1585,7 +1585,7 @@ function buildExpDetail(d){
 // ── DAROMAD TAQSIMOTI — kech117 (A2): YO'NALISHLAR bo'yicha (`yonalishlar_daromadi`), markazida jami summa; daromadli
 // yo'nalish bittadan kam bo'lsa karta yashirin (ilgari «Penoplast va boshqa / Gips») ──
 let revDonutInst = null;
-const YON_RANGLAR = ['#B9783F', '#1E40AF', '#16A34A', '#9333EA', '#DB2777', '#0891B2', '#CA8A04', '#64748B'];
+const YON_RANGLAR = ['#2563EB', '#EA580C', '#16A34A', '#9333EA', '#DB2777', '#0891B2', '#CA8A04', '#64748B'];
 function buildRevDonut(d){
   const wrap = document.getElementById('revDonutWrap');
   const emptyEl = document.getElementById('revDonutEmpty');
