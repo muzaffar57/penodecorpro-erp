@@ -22,8 +22,8 @@
  * BO'LIMLAR
  * ---------
  *   S — statik: yordamchilar 4 sahifada AYNAN matn, eski yaxlitlash naqshlari yo'q.
- *   O — orders.html HAQIQIY funksiyalari: onBlokPriceInput / recalcBlokPrice, onMrpPriceInput / recalcMrpPrice.
- *   F — finished.html: recalcBlokPrice, setPCoating (K96-1), pCalc (Donalik), saveProduce (yuboriladigan narx).
+ *   O — orders.html HAQIQIY funksiyalari: blokNarxiQatorda / blokKoef / onCoatToggle (zip 211), onMrpPriceInput / recalcMrpPrice.
+ *   F — finished.html: setPCoating (K96-1), pCalc (Blok — zip 211, Donalik), saveProduce (yuboriladigan narx).
  *   P — suppliers.html: apFillFullPaid, apCalc, apAddToBasket, saveAddPurchase (to'lov taqsimoti — tiyinda aniq).
  *   R — supplier_receive.html: updateSummary, apPayFull, submitReceive (tana va xabar).
  *
@@ -162,44 +162,47 @@ function qator(elementlar, dataset) {
   tekshir('S3 supplier_receive apPayFull qo\'shimcha xarajatlarni QO\'SHMAYDI', !!payFull && payFull.indexOf('apGetExtraCosts') < 0
           && payFull.indexOf('transport') < 0, payFull.slice(0, 120));
   const setPC = olib(SRC.finished, 'setPCoating') || '';
-  tekshir('S4 finished setPCoating Blokda recalcBlokPrice ni chaqiradi (K96-1)',
-          setPC.indexOf("'blok'") >= 0 && setPC.indexOf('recalcBlokPrice()') >= 0, setPC.slice(0, 160));
+  // kech155 (zip 211 «Blok hisoblash», MOSLANDI — egasi QARORI): «1 blok narxi» QOPLAMASIZ — qoplama almashtirilganda maydon qayta
+  // yozilmaydi, koeffitsient pCalc formulasida (K96-1 himoyasi: qoplamasiz mahsulot qoplamali narxda saqlanmaydi — F5 / F6)
+  tekshir('S4 finished setPCoating «1 blok narxi» maydoniga tegmaydi (zip 211 — qoplamasiz), pCalc ni chaqiradi',
+          !!setPC && setPC.indexOf('p-blokprice') < 0 && setPC.indexOf('recalcBlokPrice') < 0 && setPC.indexOf('pCalc()') >= 0,
+          setPC.slice(0, 160));
 
   // ════════════════════════════════════════════════════════════════════════════
   bolim('O. orders.html — blok / MRP standarti');
   try {
+    // kech155 (zip 211 «Blok hisoblash», MOSLANDI — egasi QARORI): «1 blok narxi» QOPLAMASIZ — `recalcBlokPrice` / `onBlokPriceInput` /
+    // `dataset.blokBase` yo'q, koeffitsient formulada (`blokKoef`). Himoya qoidasi o'sha: tiyinli narx yaxlitlanmaydi, tahrirda tiklangan
+    // aniq narx (yarim tiyin) yo'qolmaydi, qoplama almashtirilsa — qayta hisob (calculateItem).
     let hisob = 0;
-    const ctx = kontekst({ calculateItem: () => { hisob++; } });
-    const yoq = yukla(ctx, SRC.orders, NARX118.concat(YORDAM, ['formatNum', 'recalcBlokPrice', 'onBlokPriceInput',
+    const bbp = el('');
+    const ctx = kontekst({ calculateItem: () => { hisob++; }, document: hujjat({ blok_base_price: bbp }) });
+    const yoq = yukla(ctx, SRC.orders, NARX118.concat(YORDAM, ['formatNum', 'blokNarxiQatorda', 'blokKoef', 'onCoatToggle',
       'recalcMrpPrice', 'onMrpPriceInput']), 'orders');
     const bp = el(''), c = el('true'), mult = el('2');
-    const r = qator({ '.i-blokprice': bp, '.i-c': c, '.i-blokmult': mult }, {});
+    const r = qator({ '.i-blokprice': bp, '.i-c': c, '.i-blokmult': mult, '.i-type': el('blok') }, {});
     bp.value = '1 500 000,75';
-    ctx.onBlokPriceInput(r);
-    tekshir('O1 blok: qoplamali 1 500 000,75 yozildi → asos 750 000.375', Number(r.dataset.blokBase) === 750000.375,
-            jsn({ base: r.dataset.blokBase, yoq }));
-    c.value = 'false'; ctx.recalcBlokPrice(r);
-    tekshir('O2 blok: qoplama Yo\'q → "750 000.38" (asl: "750 000")', bp.value === '750 000.38', bp.value);
-    c.value = 'true'; ctx.recalcBlokPrice(r);
-    tekshir('O3 blok: qoplama Bor qayta → "1 500 000.75" — yozilgan qiymat qaytdi (asl: "1 500 001")',
-            bp.value === '1 500 000.75', bp.value);
-    c.value = 'false'; bp.value = '1 000 000,50'; ctx.onBlokPriceInput(r);
-    mult.value = '2.5'; c.value = 'true'; ctx.recalcBlokPrice(r);
-    tekshir('O4 blok: 1 000 000,50 × 2.5 → "2 500 001.25" (asl: "2 500 001")', bp.value === '2 500 001.25', bp.value);
-    c.value = 'false'; bp.value = '1 000 000,25'; ctx.onBlokPriceInput(r);
-    c.value = 'true'; ctx.recalcBlokPrice(r);
-    tekshir('O5 blok: aniq yarim tiyin 1 000 000.25 × 2.5 = 2 500 000.625 → "2 500 000.63" (HALF_UP)',
-            bp.value === '2 500 000.63', bp.value);
-    mult.value = '3'; bp.value = '1 000,01'; ctx.onBlokPriceInput(r);
-    c.value = 'false'; ctx.recalcBlokPrice(r);
-    const yoqQiymat = bp.value;
-    c.value = 'true'; ctx.recalcBlokPrice(r);
-    tekshir('O6 blok: float shovqini (1 000,01 / 3 × 3) → Yo\'q "333.34", Bor "1 000.01"',
-            yoqQiymat === '333.34' && bp.value === '1 000.01', jsn([yoqQiymat, bp.value]));
-    mult.value = '2'; c.value = 'false'; bp.value = '1 000 000'; ctx.onBlokPriceInput(r);
-    c.value = 'true'; ctx.recalcBlokPrice(r);
-    tekshir('O7 blok: butun narx 1 000 000 × 2 → "2 000 000" (kasrsiz)', bp.value === '2 000 000', bp.value);
-    tekshir('O8 blok: har qayta hisobdan keyin calculateItem chaqirildi', hisob >= 8, String(hisob));
+    tekshir('O1 blok: o\'z «1 blok narxi» 1 500 000,75 → 1 500 000.75 (tiyin saqlanadi)', ctx.blokNarxiQatorda(r) === 1500000.75,
+            jsn({ v: ctx.blokNarxiQatorda(r), yoq }));
+    ctx.onCoatToggle(r);
+    c.value = 'false'; ctx.onCoatToggle(r);
+    tekshir('O2 blok: qoplama Bor / Yo\'q — maydon O\'ZGARMAYDI (qoplamasiz narx), har safar calculateItem',
+            bp.value === '1 500 000,75' && hisob === 2, jsn([bp.value, hisob]));
+    bp.value = ''; bbp.value = '1 000 000,50';
+    tekshir('O3 blok: o\'z narxi bo\'sh → buyurtmaning «1 blok asosiy narxi» 1 000 000.50', ctx.blokNarxiQatorda(r) === 1000000.5,
+            String(ctx.blokNarxiQatorda(r)));
+    r.dataset.blokNarxAniq = '750000.625'; bp.value = ctx.narxKorinishi(750000.625);
+    tekshir('O4 blok: tahrirda tiklangan aniq narx 750 000.625 (maydonda "' + bp.value + '") — aniq narx ishlatiladi',
+            bp.value === '750 000.63' && ctx.blokNarxiQatorda(r) === 750000.625, jsn([bp.value, ctx.blokNarxiQatorda(r)]));
+    bp.value = '750 000,64';
+    tekshir('O5 blok: maydon o\'zgartirilsa — yozilgani 750 000.64 (eski aniq narx emas)', ctx.blokNarxiQatorda(r) === 750000.64,
+            String(ctx.blokNarxiQatorda(r)));
+    const kk = [];
+    for (const v of ['2', '2.5', '', '0', '-1', 'abc']) { mult.value = v; kk.push(ctx.blokKoef(r)); }
+    tekshir('O6 blok koeffitsienti: "2" → 2, "2.5" → 2.5, bo\'sh / 0 / manfiy / matn → 2 (standart)',
+            jsn(kk) === jsn([2, 2.5, 2, 2, 2, 2]), jsn(kk));
+    const kq = qator({ '.i-blokprice': el(''), '.i-c': el('false') }, {});
+    tekshir('O7 blok: koeffitsient maydoni yo\'q qator → 2', ctx.blokKoef(kq) === 2, String(ctx.blokKoef(kq)));
 
     const up = el(''), c2 = el('true');
     const m = qator({ '.i-unitprice': up, '.i-c': c2 }, { mrpCoatingMult: '2.5' });
@@ -223,33 +226,49 @@ function qator(elementlar, dataset) {
                                          loadFp: () => {}, showMsg: () => {} }, qo || {}));
     // kech120 (zip 133 — G5, MOSLANDI): pCalc birlik nomini `unitLabel` bilan yozadi — u ham yuklanadi
     // kech144 (zip 174, MOSLANDI): muvaffaqiyat xabari miqdorni `fpMiqdor` bilan yozadi — u ham yuklanadi
-    const yoq = yukla(ctx, SRC.finished, NARX118.concat(YORDAM, ['fmt', 'fpMiqdor', 'recalcBlokPrice', 'onBlokPriceInput', 'setPCoating',
+    // kech155 (zip 211, MOSLANDI): `recalcBlokPrice` / `onBlokPriceInput` yo'q («1 blok narxi» qoplamasiz) — blok birligi `pBlokBirligi`
+    // va `P_BLOK_TM_BIRLIK` (pCalc) yuklanadi
+    const yoq = yukla(ctx, SRC.finished, NARX118.concat(YORDAM, ['fmt', 'fpMiqdor', 'pBlokBirligi', 'setPCoating',
       'unitLabel', 'pCalc', 'saveProduce']), 'finished');
+    const _pbt = /const P_BLOK_TM_BIRLIK = \{[^}]*\};/.exec(SRC.finished);
+    if (_pbt) vm.runInContext(_pbt[0].replace(/^const /, 'var '), ctx, { filename: 'finished:P_BLOK_TM_BIRLIK' }); else yoq.push('P_BLOK_TM_BIRLIK');
     return { ctx, yoq };
   }
   try {
+    // kech155 (zip 211 «Blok hisoblash», MOSLANDI): K96-1 (qoplama almashtirilganda «1 blok narxi» qayta hisoblanmasdi) — endi maydon
+    // QOPLAMASIZ, qayta yozilmaydi; qoplama / koeffitsient — pCalc formulasida (himoya: qoplamasiz mahsulot qoplamali narxda saqlanmaydi)
     const e = { 'p-blokprice': el(''), 'p-coated': el('true'), 'p-blokmult': el('2'), 'p-type': el('blok') };
     const { ctx, yoq } = finKontekst(e);
+    const aslPCalc = ctx.pCalc;
     let pc = 0;
     ctx.pCalc = () => { pc++; };
-    e['p-blokprice'].value = '1 500 000,75'; ctx.onBlokPriceInput();
+    e['p-blokprice'].value = '1 500 000,75';
     ctx.setPCoating(el(''), false);
-    const yoqQ = e['p-blokprice'].value;
-    tekshir('F1 K96-1: Blok, qoplama Yo\'q (setPCoating) → narx qayta hisoblandi "750 000.38" (asl: o\'zgarmas "1 500 000,75")',
-            yoqQ === '750 000.38', jsn({ yoqQ, yoq }));
+    tekshir('F1 K96-1: Blok, qoplama Yo\'q (setPCoating) → «1 blok narxi» maydoni O\'ZGARMAYDI (qoplamasiz), pCalc chaqirildi',
+            e['p-blokprice'].value === '1 500 000,75' && e['p-coated'].value === 'false' && pc === 1,
+            jsn({ v: e['p-blokprice'].value, pc, yoq }));
     ctx.setPCoating(el(''), true);
-    tekshir('F2 K96-1: Blok, qoplama Bor → "1 500 000.75"', e['p-blokprice'].value === '1 500 000.75', e['p-blokprice'].value);
+    tekshir('F2 K96-1: Blok, qoplama Bor → maydon o\'zgarmaydi, qoplama "true"',
+            e['p-blokprice'].value === '1 500 000,75' && e['p-coated'].value === 'true', jsn([e['p-blokprice'].value, e['p-coated'].value]));
     tekshir('F3 setPCoating → pCalc chaqirildi (har safar)', pc >= 2, String(pc));
     e['p-type'].value = 'profil'; e['p-blokprice'].value = 'X';
     const pc0 = pc;
     ctx.setPCoating(el(''), false);
     tekshir('F4 Profilda setPCoating blok narxiga TEGMAYDI, pCalc chaqiriladi', e['p-blokprice'].value === 'X' && pc === pc0 + 1,
             jsn([e['p-blokprice'].value, pc - pc0]));
-    e['p-type'].value = 'blok'; e['p-coated'].value = 'false'; e['p-blokmult'].value = '2.5';
-    e['p-blokprice'].value = '1 000 000,50'; ctx.onBlokPriceInput();
-    e['p-coated'].value = 'true'; ctx.recalcBlokPrice();
-    tekshir('F5 recalcBlokPrice: 1 000 000,50 × 2.5 → "2 500 001.25" (asl: "2 500 001")',
-            e['p-blokprice'].value === '2 500 001.25', e['p-blokprice'].value);
+    // F5 / F6 — HAQIQIY pCalc: qoplamali blok narxi koeffitsient bilan, tiyin yaxlitlanmaydi (asl recalcBlokPrice: "2 500 001.25")
+    ctx.pCalc = aslPCalc;
+    Object.assign(e, { 'p-type': el('blok'), 'p-coated': el('true'), 'p-blokmult': el('2.5'), 'p-blokprice': el('1 000 000,50'),
+                       'p-h': el(''), 'p-w': el(''), 'p-t': el(''), 'p-l': el('1'), 'p-q': el('3'), 'p-m3': el(''), 'p-calc': el(''),
+                       'p-peno': el(''), 'p-loy': el(''), 'p-price': el('') });
+    ctx.pCalc();
+    const pcB = Object.assign({}, ctx._pCalc || {});
+    tekshir('F5 pCalc blok: 1 000 000,50 ÷ 1 × 2.5 (qoplama Bor) → 1 birlik 2 500 001.25, 3 m → 7 500 003.75 (tiyin yaxlitlanmaydi)',
+            pcB.perUnitPrice === 2500001.25 && pcB.price === 7500003.75 && pcB.unit === 'metr', jsn(pcB));
+    e['p-coated'].value = 'false';
+    ctx.pCalc();
+    tekshir('F6 pCalc blok: qoplama Yo\'q → 1 birlik 1 000 000.50 (koeffitsient qo\'llanmaydi)',
+            (ctx._pCalc || {}).perUnitPrice === 1000000.5, jsn(ctx._pCalc));
   } catch (x) { tekshir('F blok funksiyalari ishga tushdi', false, x.message); }
 
   function donaEl(qoplama) {

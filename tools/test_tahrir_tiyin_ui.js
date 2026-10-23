@@ -124,7 +124,8 @@ const S_BOR = [
   // kech144 (zip 173, MOSLANDI — audit P2-17): buyurtmada «1 m³ asosiy narxi» yo'q bo'lsa maydon BO'SH (oldingi forma narxi qolmaydi)
   ['orders asosiy narx', O, "basePriceEl.value = order.base_price ? narxKorinishi(order.base_price) : ''", 'formatNum(order.base_price)'],
   ['orders Donalik saqlangan narx', O, 'upEl.value = narxKorinishi(rawPrice)', 'formatNum(rawPrice)'],
-  ['orders Blok narxi (notes)', O, 'bpEl.value = narxKorinishi(blokPrice)', 'formatNum(Math.round(blokPrice))'],
+  // kech155 (zip 211 «Blok hisoblash», MOSLANDI): o'z «1 blok narxi» — ustundan (eski yozuv — notes dan), bo'sh bo'lsa maydon bo'sh
+  ['orders Blok narxi (ustun / notes)', O, "bpEl.value = oz ? narxKorinishi(oz) : ''", 'formatNum(Math.round(blokPrice))'],
   ['orders Loy sotish narxi', O, "upEl2.value = narxKorinishi(parseFloat(item.unit_price || 0))",
    "upEl2.value = formatNum("],
   ['orders MRP narxi', O, "upEl3.value = narxKorinishi(parseFloat(item.unit_price || 0))", "upEl3.value = formatNum("],
@@ -296,7 +297,9 @@ async function tolovSina(summa, qarz) {
       updateDetalSummary() {}, sanitizeToLatin: (x) => x,
     };
     vm.createContext(ctx);
+    // kech155 (zip 211, MOSLANDI): blok — birlik (`blokBirlikKodi` / `blokBirligi`), narx (`blokNarxiQatorda`), koeffitsient (`blokKoef`)
     const yoq = yukla(ctx, O, YORDAMCHI.concat(['formatNum', '_onlikQism', '_tiyinHalfUp', 'buyurtmaJami',
+                                                 'blokBirlikKodi', 'blokBirligi', 'blokNarxiQatorda', 'blokKoef',
                                                  'calcSubDetailRow', 'calculateItem', 'collectItems']), 'orders');
     return { ctx, yoq };
   }

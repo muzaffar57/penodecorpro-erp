@@ -325,7 +325,9 @@ const kut = ms => new Promise(r => setTimeout(r, ms));
       out.bor_keyin = sinab(() => B ? B(row, "blok") : "YOQ");
       sel().value = "blok"; out.qiymat = sel().value;
       const bt = row.querySelector('.type-opt[data-value="blok"]');
-      out.orni_blok = bt ? (bt.previousElementSibling === seplar[0]) : "tugma yoq";
+      // kech155 (zip 211, MOSLANDI): hamma tur yashirilishi mumkin — shablondagi o'rin yo'q; tugma qator OXIRIDA, o'z ajratgichi bilan
+      out.orni_blok = bt ? (bt === tg.lastElementChild && !!bt.previousElementSibling
+                            && bt.previousElementSibling.classList.contains("tur-sep") && !seplar.includes(bt.previousElementSibling)) : "tugma yoq";
       out.tugma_matn = bt ? bt.textContent : null;
       out.tugma_sarlavha = bt ? bt.title : null;
       out.nomalum = sinab(() => T ? [T(row, "gips"), T(row, ""), T(row, null), T(row, "toString"), T(row, "__proto__"), T(null, "blok")] : "YOQ");
@@ -339,7 +341,8 @@ const kut = ms => new Promise(r => setTimeout(r, ms));
                       row.querySelector(".i-blokprice-wrap") ? row.querySelector(".i-blokprice-wrap").style.display : "yoq"];
       out.loy = sinab(() => T ? T(row, "loy_sotish") : "YOQ");
       const lt = row.querySelector('.type-opt[data-value="loy_sotish"]');
-      out.orni_loy = lt ? (lt.previousElementSibling === seplar[1]) : "tugma yoq";
+      out.orni_loy = lt ? (lt === tg.lastElementChild && !!lt.previousElementSibling
+                           && lt.previousElementSibling.classList.contains("tur-sep") && !seplar.includes(lt.previousElementSibling)) : "tugma yoq";
       out.loy_opts = opts();
       out.loy_tugma = tugmalar();
       // yangi qator — oldingi qator (blok) turi o'tmasligi kerak
@@ -528,9 +531,10 @@ check("A5 ikkinchi chaqiruv takror QO'SHMAYDI (variant 1, tugma 1)",
       and (rA.get("t2_tugma") or []).count("blok") == 1, [rA.get("t2"), rA.get("t2_opts"), rA.get("t2_tugma")])
 check("A6 qo'shilgandan keyin turVariantiBor(row, 'blok') -> true", rA.get("bor_keyin") is True, rA.get("bor_keyin"))
 check("A7 `.i-type` qiymati 'blok' qoladi ('' EMAS)", rA.get("qiymat") == "blok", rA.get("qiymat"))
-check("A8 blok tugmasi shablondagi o'rnida — 1-ajratgichdan keyin", rA.get("orni_blok") is True, rA.get("orni_blok"))
+# kech155 (zip 211 — egasi QARORI «hamma tur yashirilsa bo'ladi», MOSLANDI): shablondagi o'rin yo'q — qator oxirida, o'z ajratgichi bilan
+check("A8 blok tugmasi qator oxirida — o'z ajratgichi bilan (zip 211)", rA.get("orni_blok") is True, rA.get("orni_blok"))
 check("A9 tugma matni va izohi (o'chirilgan tur — faqat shu detal)",
-      rA.get("tugma_matn") == "🧊 Blok (butun narxda)" and "o'chirilgan" in str(rA.get("tugma_sarlavha")),
+      rA.get("tugma_matn") == "🧊 Blok" and "o'chirilgan" in str(rA.get("tugma_sarlavha")),   # kech155 (zip 211): nomi «🧊 Blok»
       [rA.get("tugma_matn"), rA.get("tugma_sarlavha")])
 check("A10 noma'lum / bo'sh / prototip kalit / null qator -> false, variant QO'SHILMAYDI",
       rA.get("nomalum") == [False, False, False, False, False, False]
@@ -543,7 +547,7 @@ check("A12 profil tugmasi bosilsa -> profil, faqat profil faol",
 check("A13 qo'shilgan blok tugmasi BOSILADI -> blok, faqat blok faol, blok maydonlari ko'rinadi",
       (rA.get("bos_blok") or [None])[0] == "blok" and (rA.get("bos_blok") or [None, None])[1] == ["blok"]
       and (rA.get("bos_blok") or [None, None, "none"])[2] != "none", rA.get("bos_blok"))
-check("A14 loy_sotish ham qo'shiladi (variant 1, tugma 2-ajratgichdan keyin)",
+check("A14 loy_sotish ham qo'shiladi (variant 1, tugma qator oxirida — o'z ajratgichi bilan, zip 211)",
       rA.get("loy") is True and (rA.get("loy_opts") or []).count("loy_sotish") == 1 and rA.get("orni_loy") is True,
       [rA.get("loy"), rA.get("loy_opts"), rA.get("orni_loy")])
 check("A15 yangi qator: oldingi (blok) qator turi O'TMAYDI — profil, faol profil",

@@ -476,7 +476,11 @@ check("F2 400 sababi — «ro'yxati yuklanmagan … hech narsa saqlanmadi»", "y
 r = A.put("/api/settings/categories", data={"codes": ""})
 check("F3 admin ham `bosh` siz bo'sh ro'yxat — 400", r.status_code == 400 and yoqilgan() == _oldin, (r.status_code, r.text[:200]))
 r = A.put("/api/settings/categories", data={"codes": "", "bosh": "1"})
-check("F4 `bosh=1` — hammasi ataylab o'chirildi (200)", r.status_code == 200 and not any(yoqilgan().values()), (r.status_code, yoqilgan()))
+# kech155 (zip 211 — egasi QARORI «kamida bittasi yoqiq»): eski sahifa (faqat ixtiyoriy turlar) `bosh=1` — Loy sotish / Blok o'chadi,
+# Profil / Panel / Donali / MRP (eski sahifada ko'rinmaydi) holati saqlanadi
+check("F4 `bosh=1` — ixtiyoriylar ataylab o'chirildi (200), asosiy turlar saqlandi (zip 211)",
+      r.status_code == 200 and not yoqilgan().get("loy_sotish") and not yoqilgan().get("blok")
+      and all(yoqilgan().get(k) for k in ("profil", "panel", "dona", "mrp_product")), (r.status_code, yoqilgan()))
 r = A.put("/api/settings/categories", data={"codes": "noma_lum_tur", "bosh": "0"})
 check("F5 faqat noma'lum kodlar (`bosh` yo'q) — 400 (bo'sh ro'yxat deb olinmaydi)", r.status_code == 400, (r.status_code, r.text[:200]))
 r = A.put("/api/settings/categories", data={"codes": _hammasi})

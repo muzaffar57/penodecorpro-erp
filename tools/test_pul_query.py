@@ -1193,9 +1193,9 @@ def g_bolimi():
           all(k in vr for k in ("TransportExpense", "Payment", "GiftTier", "GiftPeriodOpen"))
           and set(vr.get("Payment", {})) == {"order_id", "amount", "payment_type", "payment_method",
                                              "received_by", "notes", "confirm_overpay"}
-          # kech117 (A2): + `yonalish_id` (transport xarajatining korxona yo'nalishi)
+          # kech117 (A2): + `yonalish_id` (transport xarajatining korxona yo'nalishi); kech155 (zip 210): + `hisob` (qaysi hisobdan)
           and set(vr.get("TransportExpense", {})) == {"amount", "materials_note", "notes",
-                                                      "production_type", "yonalish_id"},
+                                                      "production_type", "yonalish_id", "hisob"},
           [list(vr)[-6:], sorted(vr.get("TransportExpense", {}))])
     tt = getattr(crud, "_TOLOV_TURI", {})
     tu = getattr(crud, "_TOLOV_USULI_MIJOZ", {})
