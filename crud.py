@@ -6324,6 +6324,22 @@ def record_cash_transaction(db: Session, category: str, amount: float, notes: st
     # berilmasa yozuv bazadagi vaqtinchalik DEFAULT 1 ga tushib qolardi.
     # kech155 (zip 210): qaysi pul hisobidan (Usta KPI / Ehson); boshlang'ich balans — hisobsiz (harakat emas)
     _hid210 = None if category == "boshlangich" else pul_hisobi_id(db, company_id, hisob=hisob)
+    # kech155 (zip 210, sinov saytida JONLI TOPILDI 23.10 20:22): BITTA bosishdan («− Usta KPI to'landi»; brauzer BITTA so'rov yuborgan —
+    # `performance` yozuvi, 4,8 s) IKKITA yozuv 4 s farq bilan — javob kechikkanda so'rov serverga ikkinchi marta yetgan (yangilanish
+    # paytida proksi). Takror: `PUL_TAKROR_SONIYA` ichida AYNAN shu tur, summa, hisob va izoh — yangi yozuv YO'Q, mavjudi qaytadi
+    # (`_is_duplicate_submit`; o'tkazish va qoldiqdagi qoida). Qulf (212) ostida — ikkinchi so'rov birinchisi saqlangach o'qiydi.
+    from datetime import timedelta as _td210k
+    _pul_qulfi(db, 212, company_id)
+    _q210 = db.query(CashTransaction).filter(CashTransaction.company_id == company_id, CashTransaction.category == category,
+                                             CashTransaction.amount == amount,
+                                             CashTransaction.created_at >= datetime.utcnow() - _td210k(seconds=PUL_TAKROR_SONIYA))
+    _q210 = _q210.filter(CashTransaction.hisob_id.is_(None) if _hid210 is None else CashTransaction.hisob_id == _hid210)
+    _q210 = _q210.filter(CashTransaction.notes.is_(None) if notes is None else CashTransaction.notes == notes)
+    _old210 = _q210.order_by(CashTransaction.id.desc()).first()
+    if _old210 is not None:
+        db.commit()          # qulf bo'shaydi (hech narsa yozilmagan)
+        _old210._is_duplicate_submit = True
+        return _old210
     tx = CashTransaction(company_id=company_id, category=category, amount=amount,
                          notes=notes, performed_by=performed_by, hisob_id=_hid210)
     db.add(tx)

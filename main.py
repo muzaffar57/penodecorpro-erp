@@ -9371,7 +9371,9 @@ def api_record_cash_transaction(category: str = Form(...), amount: float = Form(
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
     balance = services.get_cash_balance(db, company_id=auth.company_id_of(current_user))
-    return {"status": "ok", "transaction_id": tx.id, "new_balance": balance["balance"]}
+    # kech155 (zip 210): takror yuborish (8 s ichida o'sha yozuv) — yangi yozuv yo'q, `duplicate: true`
+    return {"status": "ok", "transaction_id": tx.id, "new_balance": balance["balance"],
+            "duplicate": bool(getattr(tx, "_is_duplicate_submit", False))}
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════

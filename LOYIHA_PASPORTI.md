@@ -383,7 +383,9 @@ hisobdan AYRILMASDI). `boshlangan` — HAMMA faol hisobning qoldig'i bor: shunda
 `balance`) = hisoblar yig'indisi, aks holda avvalgi umumiy formula (`eski_balans` — har doim; javobda `hisoblar`,
 `hisoblar_boshlangan`). Birinchi qoldiq — hamma hisob BIRGA (`crud.pul_qoldiq_kirit`, aks holda 400 — yarim «Kassa + bank»
 bo'lardi); qayta sanash — istalgan hisob (farq jurnalda: «qoldiq sanaldi: … · dasturda: … · farq: …»); takror (8 s ichida o'sha
-hisoblar va summalar) — yangi yozuv yo'q, `duplicate: true`; hisoblar boshlangach eski
+hisoblar va summalar) — yangi yozuv yo'q, `duplicate: true` (Usta KPI / Ehson — `crud.record_cash_transaction` ham: 8 s ichida o'sha
+tur, summa, hisob, izoh — qulf 212; sinov saytida JONLI TOPILGAN 23.10 20:22 — bitta bosishdan ikki yozuv, javob kechikkanda so'rov
+serverga ikkinchi marta yetgan); hisoblar boshlangach eski
 «boshlang'ich balans» — 400. O'tkazish (`crud.pul_otkazma_yoz`) — ikkala hisob o'zgaradi, jami — yo'q; takror (`PUL_TAKROR_SONIYA`)
 — mavjud yozuv (`duplicate`). Qulf (`crud._pul_qulfi`): qoldiq — 211, o'tkazish — 210 (korxona bo'yicha). Jurnal — amal bilan BITTA
 tranzaksiyada (`pul_hisobi`, `pul_otkazmasi`). API: `GET /api/finance/hisoblar`, `POST …/hisoblar/qoldiq` {qoldiqlar: [{hisob_id,
@@ -4220,14 +4222,14 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   (`hisob_id` NULL) yozuvlar; noto'g'ri hisob — 400, yozuvsiz; T — o'tkazish (jami o'zgarmaydi, takror — bitta, o'chirish qaytaradi);
   R — qayta sanash (`dastur_summa`, farq jurnalda, o'chirilsa — oldingisiga; sanashdan oldin ketgan sanali xarajat sanalmaydi, qoldiq
   kuni — yozilgan vaqti bo'yicha; o'tgan oy oyligini yopish va Qarzdorlar o'tgan oy arendasi — `pul_vaqti` bilan AYIRILADI; hodim so'rovi
-  sanashdan oldin yozilgan — ayirilmaydi; `_pul_keyin` birlik tekshiruvi; qoldiq takrori — `duplicate`); I — qoldiqdan keyingi
+  sanashdan oldin yozilgan — ayirilmaydi; `_pul_keyin` birlik tekshiruvi; qoldiq va Usta KPI takrori — `duplicate`); I — qoldiqdan keyingi
   o'zgarishlar yig'indisi = bugungi «Pul oqimi», tarix qoldig'i = balans;
   X — korxonalar ajralgan, model qo'riqchisi, qoldiq kunidagi orqaga sanali kirim hujjati — butunligicha; Z — zaxira → tiklash AYNAN;
   U — HAQIQIY brauzer: Moliya kartasi (ogohlantirish, qoldiq oynasi → 3 karta), o'tkazish, hisob tarixi, Usta KPI / xarajat oynasi
   tanlovi (bo'lakli, 40 px / 8 px, ostida qoldiq), boshqa sahifalarda tanlov, `hisobSora`, telefon 390 px, tungi rejim, tor telefon
   320 / 360 / 375 px qoldiq oynasi, tiyinli qoldiq)
-  — SQ / TF1 / PG 60 / 60 / 47 o'tdi, 0 yiqildi (zip 209 kodida 46 yiqiladi, qulamaydi).
-  Mutatsiyalar — `work/k210/mut210.py` (35: hammasi OK — DEV (SQ / TF1 / PG 60 / 60 / 47 — 0), ASL (SQ 46 — H1 H1b H2 H3 H3b H4 H5 H6 H7, I1 I2 I3, P1 P1b P2 … P13 P11b, R1 R1b R2 R3 R4 R5 R5b R6 R7, T1 … T4, U0, X1 … X4, Z1; kutilgan to'plam AYNAN, qulamaydi), 31 mutatsiya (qoldiq «kun boshi» semantikasi, to'lov yozuvida hisob yo'q, eski yozuv usuldan emas, xarajat / tahrir / naqd xarid / kirim xarajatlari / ta'minotchiga to'lov / kirish transporti / admin avansi / so'rov tasdig'i / yetkazish transporti / Usta KPI — hisobsiz, o'tkazish teskari, yarim birinchi qoldiq, kassa API, «Kassa + bank» eski formula, model qo'riqchisi yo'q, tiklash tartibi, tarix tartibi, Moliya kartalari ko'rinmaydi, tanlov doim «naqd»; mustaqil tekshiruvdan: «oylikni yopish» pul vaqtisiz, `pul_hozir` e'tiborsiz, pul vaqti davr filtrida yo'q, so'rov vaqti o'rniga tasdiq vaqti, yozilgan payti yo'q faqat sanali — oldin, qoldiq takrori, Usta KPI musbat, tor telefon oynasi, tiyin sahifada / serverda yo'q) — har biri kutilgan tekshiruvlarda yiqiladi; `work/natija/k210/m/`, `m2/`).
+  — SQ / TF1 / PG 61 / 61 / 48 o'tdi, 0 yiqildi (zip 209 kodida 47 yiqiladi, qulamaydi).
+  Mutatsiyalar — `work/k210/mut210.py` (36: hammasi OK — DEV (SQ / TF1 / PG 61 / 61 / 48 — 0), ASL (SQ 47 — H1 H1b H2 H3 H3b H4 H5 H6 H7, I1 I2 I3, P1 P1b P2 … P13 P11b P11c, R1 R1b R2 R3 R4 R5 R5b R6 R7, T1 … T4, U0, X1 … X4, Z1; kutilgan to'plam AYNAN, qulamaydi), 32 mutatsiya (qoldiq «kun boshi» semantikasi, to'lov yozuvida hisob yo'q, eski yozuv usuldan emas, xarajat / tahrir / naqd xarid / kirim xarajatlari / ta'minotchiga to'lov / kirish transporti / admin avansi / so'rov tasdig'i / yetkazish transporti / Usta KPI — hisobsiz, o'tkazish teskari, yarim birinchi qoldiq, kassa API, «Kassa + bank» eski formula, model qo'riqchisi yo'q, tiklash tartibi, tarix tartibi, Moliya kartalari ko'rinmaydi, tanlov doim «naqd»; mustaqil tekshiruvdan: «oylikni yopish» pul vaqtisiz, `pul_hozir` e'tiborsiz, pul vaqti davr filtrida yo'q, so'rov vaqti o'rniga tasdiq vaqti, yozilgan payti yo'q faqat sanali — oldin, qoldiq takrori, Usta KPI musbat, tor telefon oynasi, tiyin sahifada / serverda yo'q; sinov saytida jonli topilgan: kassa yozuvi takrori) — har biri kutilgan tekshiruvlarda yiqiladi; `work/natija/k210/m/`, `m2/`, `m3/`, `m4/`).
   Mustaqil tekshiruv `work/k210/review210/HISOBOT.md` (SQLite / PG / TF1; har pul yo'li — yaratish / tahrir / o'chirish / bekor qilish
   — to'g'ri hisob va ishora bilan, NULL hisob qolmaydi, hisoblar o'zgarishi = «Pul oqimi», korxonalar ajralgan, PG da parallel yozuv —
   500 / deadlock yo'q, zip 209 bazasida migratsiya, zaxira / tiklash / zavod holati) topgan 7 topilma — HAMMASI tuzatildi: №1 YUQORI
@@ -4243,7 +4245,10 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   `test_ombor_turkum_ui`, `test_qaytarish_ochirish_ui`, `test_standart_tiyin_ui`, `test_tahrir_tiyin_ui`, `test_toshkent_korinish_ui`
   (kassa tarixi — `tkSanaVaqt`, `_hisobSom`), `test_yetkazish_ui`, `test_d121_ui` / `test_d121` («Boshlang'ich qoldiqni kiritish»,
   `hisoblar_boshlangan`), `test_g_qaror`, `test_sahifa_yuklash_ui` (ogohlantirish — kassa blokining o'zi), `test_xarajat_query`
-  (+ `hisob`, `pul_hozir`), `test_tayyor_ui177` (ushlash naqshi `…/refund*`).
+  (+ `hisob`, `pul_hozir`), `test_tayyor_ui177` (ushlash naqshi `…/refund*`), `test_rollar` (7 yangi marshrut — kassa ruxsatlari).
+  Sinov saytida jonli sinov (staging 345a7d1, 23.10 20:2x): qoldiq → 3 karta (tiyin bilan), o'tkazish, Usta KPI (Karta), o'tgan oy
+  arendasi (`pul_hozir`) va oyligini yopish — Bank dan, avans — Karta dan, hisob tarixi, 360 px — hammasi to'g'ri; topilgani: Usta KPI
+  takrori (yuqorida) va qoldiq maydoni umumiy uslubsiz (`.maydon` qo'shildi) — tuzatildi.
 
 **Yangi o'zgarish tartibi:** (1) asl kodda nuqsonni o'lchash (probe — SQLite va PG); (2) tuzatish; (3) yangi test
 (asl kodga qarshi yiqiladi, QULAMAYDI); (4) mutatsiyalar; (5) `bash tools/hammasi.sh` (+ `TF=1`), PG testlari,
