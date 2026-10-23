@@ -482,8 +482,10 @@ async function loadCompany(faqatLogo) {
     if (sb) sb.disabled = false;
     }
     const img = document.getElementById('co-logo-preview');
-    if (d.logo_path) {
-      img.src = '/' + d.logo_path + '?v=' + Date.now();
+    // kech155 (zip 211f): ko'rinadigan logotip (`logo_korinish` — menyudagi bilan bir xil; fayli yo'q — ko'rsatilmaydi); eski server — `logo_path`
+    const _lk211 = d.logo_korinish !== undefined ? d.logo_korinish : d.logo_path;
+    if (_lk211) {
+      img.src = '/' + _lk211 + '?v=' + Date.now();
       img.style.display = 'inline-block';
     } else {
       img.style.display = 'none';
