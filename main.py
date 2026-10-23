@@ -4333,49 +4333,109 @@ def _clear_company_name_cache(company_id=None):
         _company_name_cache.pop(company_id, None)
 
 
-_LOGO_KENG_KESH = {}
+# kech155 (zip 211e — egasi so'rovi 24.10): menyu tepasidagi oq taglikda logotip MAZMUNI (atrofidagi shaffof / oq bo'sh joysiz) shu
+# o'lchamgacha kattalashtiriladi (CSS piksel; taglik ichi 180 px). Rasm o'z o'lchamidan kattalashtirilmaydi (kichik rasm xira bo'lmasin).
+LOGO_MENYU_ENI = 180
+LOGO_MENYU_BOYI = 140
+# bundan katta (piksel) eski logotipning chegarasi aniqlanmaydi — butun rasm (sahifa ochilishi sekinlashmasin; yangi logotiplar yuklashda
+# `LOGO_TOMON` gacha kichraytiriladi — kech154, zip 202)
+LOGO_MENYU_TAHLIL_CHEGARA = 4_000_000
+# rangi oqdan shundan ko'p farq qiladigan nuqta — mazmun (shaffof qism oq fonga qo'yilib baholanadi: yumshoq soya, deyarli oq — bo'sh joy)
+LOGO_MENYU_OQ_FARQ = 24
+_LOGO_MENYU_KESH = {}
+PLATFORMA_LOGOTIPI = "static/logo_transparent.png"
 
 
-def company_logo_keng(yol) -> bool:
-    """kech155 (zip 211d — egasi so'rovi 24.10): logotip KENGmi (eni / bo'yi ≥ 1,3 — odatda korxona nomi ichida) — menyu tepasida
-    to'liq joyni egallaydi, nom matni yo'q; kvadrat (faqat belgi) — yonida nomi qoladi. Fayl o'lchami (yo'l + o'zgargan vaqti) bo'yicha
-    keshlanadi (har sahifada rasm qayta ochilmaydi); o'qib bo'lmasa — kvadrat deb olinadi (nomi ko'rinib turadi)."""
-    if str(yol or "") == "static/logo_transparent.png":
-        return True                     # platformaning o'z logotipi — 998 × 561 (menyu uchun `static/logo_menyu.webp`)
+def _logo_mazmun_chegarasi(tola):
+    """kech155 (zip 211e): (eni, bo'yi, chap, tepa, mazmun eni, mazmun bo'yi) — rasm o'lchami va atrofidagi bo'sh (shaffof yoki oq) joysiz
+    qismi (chetiga mazmunning 1,5 % i qo'shiladi — yumshoq soya kesilmasin); bo'sh rasm — butunicha; o'qib bo'lmasa — None; Pillow yo'q —
+    False (rasm kesilmay ko'rsatiladi)."""
+    _Img, _ = _pillow()
+    if _Img is None:
+        return False
+    from PIL import ImageChops as _Chops
+    with _Img.open(tola) as _r:
+        _w, _h = _r.size
+        if not _w or not _h:
+            return None
+        if _w * _h > LOGO_MENYU_TAHLIL_CHEGARA:
+            return (_w, _h, 0, 0, _w, _h)
+        _im = _r.convert("RGBA")
+    _oq = _Img.new("RGBA", _im.size, (255, 255, 255, 255))
+    _oq.alpha_composite(_im)
+    _fark = _Chops.difference(_oq.convert("RGB"), _Img.new("RGB", _im.size, (255, 255, 255)))
+    _q, _y, _k = _fark.split()
+    _bbox = _Chops.lighter(_Chops.lighter(_q, _y), _k).point(lambda v: 255 if v > LOGO_MENYU_OQ_FARQ else 0).getbbox()
+    if not _bbox:
+        return (_w, _h, 0, 0, _w, _h)
+    _z = int(round(max(_bbox[2] - _bbox[0], _bbox[3] - _bbox[1]) * 0.015))
+    _x0, _y0 = max(0, _bbox[0] - _z), max(0, _bbox[1] - _z)
+    _x1, _y1 = min(_w, _bbox[2] + _z), min(_h, _bbox[3] + _z)
+    return (_w, _h, _x0, _y0, _x1 - _x0, _y1 - _y0)
+
+
+def company_logo_menyu(yol):
+    """kech155 (zip 211e — egasi so'rovi 24.10): menyu tepasidagi logotip — {src, eni (px), nisbat (bo'yi / eni, %), rasm (rasm eni —
+    mazmun eniga nisbatan, %), chap, tepa (mazmun boshi, %)}: logotip MAZMUNI oq taglikni to'liq egallaydi (eni 180 gacha, bo'yi 140
+    gacha, o'z o'lchamidan katta emas). Platforma logotipi — menyu nusxasi `static/logo_menyu.webp`. Pillow yo'q — faqat {src} (butunicha);
+    fayl yo'q / o'qilmaydi — None (harf + nom). Chegara fayl yo'li, o'zgargan vaqti va hajmi bo'yicha keshlanadi (har sahifada rasm
+    ochilmaydi)."""
+    yol = str(yol or "").strip()
+    if not yol:
+        return None
     try:
         import os as _os
-        tola = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), str(yol or ""))
-        kalit = (tola, _os.path.getmtime(tola))
-        if kalit not in _LOGO_KENG_KESH:
-            _Img, _ = _pillow()
-            if _Img is None:
-                return False
-            with _Img.open(tola) as _r:
-                _w, _h = _r.size
-            _LOGO_KENG_KESH[kalit] = bool(_h) and (_w / _h) >= 1.3
-        return _LOGO_KENG_KESH[kalit]
+        nisbiy = "static/logo_menyu.webp" if yol == PLATFORMA_LOGOTIPI else yol
+        tola = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), nisbiy)
+        _st = _os.stat(tola)
+        kalit = (tola, _st.st_mtime_ns, _st.st_size)        # qayta yuklangan logotip (nomi bir xil) — yangi kalit
+        if kalit not in _LOGO_MENYU_KESH:
+            if len(_LOGO_MENYU_KESH) > 512:
+                _LOGO_MENYU_KESH.clear()
+            _LOGO_MENYU_KESH[kalit] = _logo_mazmun_chegarasi(tola)
+        ch = _LOGO_MENYU_KESH[kalit]
     except Exception:
-        return False
+        return None
+    if ch is None:
+        return None
+    if ch is False:
+        return {"src": "/" + nisbiy}
+    _w, _h, _x, _y, _mw, _mh = ch
+    eni = min(LOGO_MENYU_ENI, LOGO_MENYU_BOYI * _mw / _mh, _mw)
+    return {"src": "/" + nisbiy, "eni": round(eni, 1), "nisbat": round(_mh / _mw * 100, 4), "rasm": round(_w / _mw * 100, 4),
+            "chap": round(_x / _mw * 100, 4), "tepa": round(_y / _mh * 100, 4)}
 
 
 def company_logo_of(company_id):
-    """Korxona logotipining yo'li (interfeys uchun). Yo'q bo'lsa None."""
+    """Korxona logotipining yo'li (interfeys uchun). Yo'q bo'lsa None.
+    kech155 (zip 211e): platforma egasi (ENG ESKI korxona — ishga tushishdagi migratsiya unga platforma logotipini beradi) yuklagan fayli
+    diskda yo'q bo'lsa (sinov saytida `static/uploads` har yangilanishda tozalanadi) — platforma logotipi (ilgari harf + nom chiqardi).
+    Boshqa korxonaga platforma logotipi BERILMAYDI (`company_brand` dagi qoida — yangi mijozda boshqa korxona logotipi chiqmasin)."""
     if company_id is None:
         return None
     try:
         import os as _os
         from database import SessionLocal as _SL
         from production_models import Company as _Co
+        from sqlalchemy import func as _fn211
+        _asos = _os.path.dirname(_os.path.abspath(__file__))
+        eng_eski = None
         _d = _SL()
         try:
             row = _d.query(_Co).filter(_Co.id == company_id).first()
             yol = (getattr(row, "logo_path", None) or "").strip() if row else ""
+            if yol and yol != PLATFORMA_LOGOTIPI and not _os.path.exists(_os.path.join(_asos, yol)):
+                eng_eski = _d.query(_fn211.min(_Co.id)).scalar()
         finally:
             _d.close()
         if not yol:
             return None
-        tola = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), yol)
-        return yol if _os.path.exists(tola) else None
+        tola = _os.path.join(_asos, yol)
+        if _os.path.exists(tola):
+            return yol
+        if eng_eski is not None and eng_eski == company_id and _os.path.exists(_os.path.join(_asos, PLATFORMA_LOGOTIPI)):
+            return PLATFORMA_LOGOTIPI
+        return None
     except Exception:
         return None
 
@@ -4515,7 +4575,7 @@ def yoqilgan_turlar(company_id=None):
 
 
 templates.env.globals["company_logo_of"] = company_logo_of
-templates.env.globals["company_logo_keng"] = company_logo_keng      # kech155 (zip 211d)
+templates.env.globals["company_logo_menyu"] = company_logo_menyu      # kech155 (zip 211e)
 
 
 def _obuna_banneri(user):

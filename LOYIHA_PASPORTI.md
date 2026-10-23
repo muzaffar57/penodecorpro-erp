@@ -4310,10 +4310,12 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   (birlik qulf), Blok yashirin korxonada mavjud blok detal, 1440 px ekranda maydonlar kengligi (shu jumladan «1 blok narxi»), qoplama
   tugmasida koeffitsient; S — hodim «Birlik bo'yicha — blok» oyligi: yuk xatisiz 0, topshirilgan ulush aniq (1,125 blok), qisman
   «Tayyor» dan keyin o'zgarmaydi, Tayyor mahsulotlar — «Sotuvga tayyor» da, chegaradan oldingisi qayta qo'shilmaydi, keyingi oyda
-  topshirilgan qism o'z oyida; menyu logotipi (keng — to'liq joy, kvadrat — nom bilan, logotipsiz — harf),
+  topshirilgan qism o'z oyida; menyu logotipi (platformaniki — tiniq `logo_menyu.webp`; keng ham, kvadrat ham — taglikni egallaydi,
+  atrofidagi shaffof bo'sh joy kesiladi, kichigi kattalashtirilmaydi; yo'qolgan fayl — platforma egasida platforma logotipi, boshqada
+  harf + nom; logotipsiz — harf),
   JS xatosi yo'q)
-  — SQ / TF1 / PG 85 / 85 / 54 o'tdi, 0 yiqildi (zip 210 kodida 44 yiqiladi, qulamaydi).
-  Mutatsiyalar — `work/k211/mut211.py` (63: hammasi OK — DEV (SQ / TF1 / PG 85 / 85 / 54 — 0), ASL (SQ 56 — 44 yiqiladi: K1 K1b K2 K2b K3 K4b K5 K5b K6 K6b K7 K8 K9, B1 B2 B3 B4 B8 B9 B12b B13 B15 B17 B18 B19 B20 B21 B22 B22b, R1 R2 R4 R6 R7 R9 R12 R13, S2 S3 S4 S5 S6 S7, U0; kutilgan to'plam AYNAN, qulamaydi), 59 mutatsiya (birlik «ta» tanilmaydi, yetkazish doim metr, tayyor mahsulot birligi formadan, boshqa turda blok qiymatlari qoladi, «1 blok asosiy narxi» yaratish / tahrir / taklif / qoralamada saqlanmaydi, tahrirda blok ustunlari yangilanmaydi, topshirilgan detal birligi o'zgaradi, TM birligi doim metr, ishlab chiqarishda birlik — noma'lum maydon, sxemada ixtiyoriy birlik, eski sahifa asosiy turlarni o'chiradi, hamma tur o'chiriladi, asosiy turlar yashirilmaydi, yangi korxona ro'yxatsiz, usta stavkasida «ta» yo'q, oy chegarasi yo'q, PDF doim «m», m² «dona» ga, buzilgan sozlama — hamma tur yashirin; forma: koeffitsient doim 2, asosiy narx ishlatilmaydi, birlik yuborilmaydi / tiklanmaydi, eski qoplamali yozuv ÷ 2 siz, Profil doim ko'rinadi, topshirilgan detal birligi qulfsiz, «1 blokdan chiqadigan» shartsiz, Sozlamalar hech biri belgilanmasa ham yuboradi, TM birligi yuborilmaydi / mahsulotdan olinmaydi, yashirin Profil detali varianti yo'q, asosiy narx yashirin, TM qatlami, yorliq doim metr; mustaqil tekshiruvdan (№1–№13): qisman «Tayyor» blok soni, qaytgan mahsulot birligi, ikki bosqichli moslash, birliksiz tana, samarali birlik, jurnal, oktyabr m², loy koeffitsienti, aniq narx, MRP tanlanmagan, yetkazish birligi, eski kalitdagi ixtiyoriy turlar; sinov saytida jonli topilgan: tor ekranda blok qatori, qoplama tugmasida koeffitsient — buyurtma va tayyor mahsulot, «1 blok narxi» ustuni; hodim blok oyligi: Tayyor mahsulot ishga qo'yilganda, chegaradan oldingisi qayta, tafsilot 2 xona, yuk xati oyi e'tiborsiz; menyu logotipi: platforma logotipi / yuklangan keng logotip keng deb tanilmaydi) — har biri kutilgan tekshiruvlarda yiqiladi; `work/natija/k211/m/`, `m2/`, `m7/`, `m8/` (yakuniy KASHF), `t5/` (TASDIQ)).
+  — SQ / TF1 / PG 87 / 87 / 54 o'tdi, 0 yiqildi (zip 210 kodida 44 yiqiladi, qulamaydi).
+  Mutatsiyalar — `work/k211/mut211.py` (67: hammasi OK — DEV (SQ / TF1 / PG 87 / 87 / 54 — 0), ASL (SQ 56 — 44 yiqiladi: K1 K1b K2 K2b K3 K4b K5 K5b K6 K6b K7 K8 K9, B1 B2 B3 B4 B8 B9 B12b B13 B15 B17 B18 B19 B20 B21 B22 B22b, R1 R2 R4 R6 R7 R9 R12 R13, S2 S3 S4 S5 S6 S7, U0; kutilgan to'plam AYNAN, qulamaydi), 63 mutatsiya (birlik «ta» tanilmaydi, yetkazish doim metr, tayyor mahsulot birligi formadan, boshqa turda blok qiymatlari qoladi, «1 blok asosiy narxi» yaratish / tahrir / taklif / qoralamada saqlanmaydi, tahrirda blok ustunlari yangilanmaydi, topshirilgan detal birligi o'zgaradi, TM birligi doim metr, ishlab chiqarishda birlik — noma'lum maydon, sxemada ixtiyoriy birlik, eski sahifa asosiy turlarni o'chiradi, hamma tur o'chiriladi, asosiy turlar yashirilmaydi, yangi korxona ro'yxatsiz, usta stavkasida «ta» yo'q, oy chegarasi yo'q, PDF doim «m», m² «dona» ga, buzilgan sozlama — hamma tur yashirin; forma: koeffitsient doim 2, asosiy narx ishlatilmaydi, birlik yuborilmaydi / tiklanmaydi, eski qoplamali yozuv ÷ 2 siz, Profil doim ko'rinadi, topshirilgan detal birligi qulfsiz, «1 blokdan chiqadigan» shartsiz, Sozlamalar hech biri belgilanmasa ham yuboradi, TM birligi yuborilmaydi / mahsulotdan olinmaydi, yashirin Profil detali varianti yo'q, asosiy narx yashirin, TM qatlami, yorliq doim metr; mustaqil tekshiruvdan (№1–№13): qisman «Tayyor» blok soni, qaytgan mahsulot birligi, ikki bosqichli moslash, birliksiz tana, samarali birlik, jurnal, oktyabr m², loy koeffitsienti, aniq narx, MRP tanlanmagan, yetkazish birligi, eski kalitdagi ixtiyoriy turlar; sinov saytida jonli topilgan: tor ekranda blok qatori, qoplama tugmasida koeffitsient — buyurtma va tayyor mahsulot, «1 blok narxi» ustuni; hodim blok oyligi: Tayyor mahsulot ishga qo'yilganda, chegaradan oldingisi qayta, tafsilot 2 xona, yuk xati oyi e'tiborsiz; menyu logotipi (egasining tiniq logotipi): platforma logotipi menyu nusxasisiz, atrofidagi bo'sh joy kesilmaydi, faqat keng logotip taglikni egallaydi (211d qoidasi — kvadrat kichik), kichik logotip kattalashadi, platforma egasining yo'qolgan fayli — harf, yo'qolgan fayl o'rniga platforma logotipi har korxonaga) — har biri kutilgan tekshiruvlarda yiqiladi; `work/natija/k211/m/`, `m2/`, `m7/`, `m8/`, `m9/` (yakuniy KASHF), `t6/` (TASDIQ)).
   Mustaqil tekshiruv `work/k211/review211/HISOBOT.md` (SQLite / PG / TF1 / brauzer; hisob, ombor, birlik hamma joyda, eski ma'lumot,
   sozlama API, yashirin tur, topshirilgan detal, migratsiya, xavfsizlik, telefon) topgan 13 topilma — HAMMASI tuzatildi: №1 YUQORI
   (qisman «Tayyor» — blok detalining blok soni kamaytirilmasdi: tan narxi va usta «blok» stavkasi oshardi; zip 210 da ham bor edi),
@@ -4339,10 +4341,15 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   «Tayyor mahsulotlar» bloki — egasi QARORI bo'yicha «Sotuvga tayyor» bo'lgan oyda (`services.TM_BLOK_TAYYOR_HISOBI_BOSHI` — 2026-10;
   ilgari ishga qo'yilgan zahoti), chegaradan oldin ishga qo'yilgani qayta qo'shilmaydi; 70 % shu oyda, 30 % keyingi oyda topshirilsa — har oy o'z ulushi
   (S7). Mutatsiya M54–M57.
-  Egasi so'rovi (24.10 02:35): menyu tepasidagi logotip — yumaloq 42 px emas, joyni to'liq egallasin, «nom / ERP» matni shart emas.
-  KENG logotip (eni / bo'yi ≥ 1,3 — `main.company_logo_keng`, o'lcham keshlanadi) — 112 px balandlikdagi oq taglikda to'liq (tungi
-  rejimda ham ko'rinadi), nom matni yo'q (nomi — `alt` / `title`); KVADRAT logotip — 56 px, yonida nomi; logotipsiz — harf + nom.
-  Platforma logotipi menyu uchun `static/logo_menyu.webp` (480 × 270, ~46 KB; asl 676 KB). Sinovda U25–U27, mutatsiya M58 / M59.
+  Egasi so'rovi (24.10 02:35): menyu tepasidagi logotip — yumaloq 42 px emas, joyni to'liq egallasin, «nom / ERP» matni shart emas;
+  03:02 — egasi o'zining TINIQ logotipini yubordi (1254 × 1254, kvadrat, atrofida shaffof bo'sh joy; sinov saytida yuklagani yangilanishda
+  o'chgan). HAR QANDAY logotip oq taglikni egallaydi (tungi rejimda ham oq): atrofidagi bo'sh (shaffof / oq) joy kesiladi —
+  `main.company_logo_menyu` (mazmun chegarasi + 1,5 % zaxira, fayl yo'li / vaqti / hajmi bo'yicha keshlanadi; CSS — mazmun o'lchamidagi
+  oyna, rasm foizlarda), mazmun 180 × 140 gacha, o'z o'lchamidan kattalashtirilmaydi; nom matni yo'q (nomi — `alt` / `title`); 211d dagi
+  «nisbat ≥ 1,3 — keng» qoidasi egasining kvadrat faylini 56 px ko'rsatardi — olib tashlandi. Platforma logotipi menyu uchun — egasining
+  tiniq logotipidan `static/logo_menyu.webp` (mazmun bo'yicha kesilgan, 524 × 420, ~25 KB; asl 676 KB `logo_transparent.png` — PDF
+  uchun, o'zgarmagan). Platforma egasi (eng eski korxona) yuklagan fayli diskda yo'q — platforma logotipi (ilgari harf + nom), boshqa
+  korxonaga berilmaydi. Sinovda U25–U29 (`test_e_tezlik` S9 / K9 moslandi), mutatsiya M58–M63.
   ESKI testlar egasining yangi qarorlariga MOSLANDI (`work/k211/moslash211.py`; himoya qoidasi o'zgarmagan): `test_foydalanuvchi175`
   F4 (eski sahifa `bosh=1` — faqat ixtiyoriylar o'chadi), `test_foydalanuvchi_ui175` C1c (hammasini o'chirib saqlash — yuborilmaydi),
   `test_ochirilgan_tur` A8 / A9 / A14 (yashirin tur tugmasi qator OXIRIDA, o'z ajratgichi bilan — hamma tur yashirilishi mumkin;
@@ -4368,8 +4375,9 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   haqida m² uchun alohida stavka — kerak bo'lsa egasi aytadi (hozircha m² — faqat «blok» stavkasida).
 - (2026-10-24, kech155) Hodim «Birlik bo'yicha — blok» oyligi: buyurtmada — faqat TOPSHIRILGAN yuk ulushi (kesilgan blok aniq, kasr
   bilan); «Tayyor mahsulotlar» da ishlab chiqarilgan blok — «Sotuvga tayyor» bo'lganda (egasi tanlovi; ilgari ishga qo'yilgan zahoti).
-- (2026-10-24, kech155) Menyu tepasidagi logotip — joyni to'liq egallaydi, «nom / ERP» matni yo'q (logotipda bor); kvadrat logotipli
-  korxonada nomi yonida qoladi (egasi so'rovi).
+- (2026-10-24, kech155) Menyu tepasidagi logotip — joyni to'liq egallaydi, «nom / ERP» matni yo'q (logotipda bor) — egasi so'rovi;
+  platforma logotipi — egasi yuborgan TINIQ logotipdan (`static/logo_menyu.webp`; sinov saytida yuklangan fayllar har yangilanishda
+  o'chadi — shuning uchun dasturning o'zida). Har qanday shakldagi logotip (kvadrat ham) taglikni egallaydi.
 
 
 Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q holat uchun.
