@@ -7466,7 +7466,7 @@ def amal_kaliti_bilan(db: Session, company_id, amal: str, kalit, bajar, kim=None
     return javob, False
 
 
-def delete_order(db: Session, order_id: int, soft: bool = False, performed_by: str = None) -> bool:
+def delete_order(db: Session, order_id: int, soft: bool = False, performed_by: str = None, jurnal_matni: str = None) -> bool:
     """Buyurtmani o'chirish.
     soft=True bo'lsa — bazadan o'chirilmaydi, faqat 'is_deleted' belgisi qo'yiladi.
     Shu tufayli buyurtma "Buyurtmalar" ro'yxatidan yo'qoladi, lekin usta KPI'si
@@ -7484,6 +7484,9 @@ def delete_order(db: Session, order_id: int, soft: bool = False, performed_by: s
         db_order.is_deleted = True
         db.commit()
         log_activity(db, "deleted", "order", order_id, order_num, performed_by,
+                     # kech155 (zip 209): `jurnal_matni` — marshrut yakunlashdan (`ochirishda_topshirilganni_yopish`) OLDIN olgan matn
+                     new_value=((jurnal_matni + " · «O'chirilganlar» da — tiklash mumkin") if jurnal_matni
+                                else _buyurtma_ochirish_matni(db_order, qayerga="«O'chirilganlar» da — tiklash mumkin")),
                      company_id=getattr(db_order, 'company_id', None))
     else:
         # MUHIM: "Ombor harakatlari jurnali" (InventoryMovement) — bu buyurtmaga
@@ -7514,6 +7517,13 @@ def delete_order(db: Session, order_id: int, soft: bool = False, performed_by: s
         # Bu yerga faqat HECH NARSA topshirilmagan buyurtmalar keladi (soft=False),
         # shuning uchun unga bog'liq to'lovlar ham — haqiqiy xizmat ko'rsatilmagani
         # sabab — buyurtma bilan BIRGA, avtomatik o'chiriladi.
+        # kech155 (zip 209 — ORD-068, O'LCHANGAN `work/dublikat/`): ilgari bu to'lovlar JIM o'chardi (jurnalda iz yo'q — o'chgan pulni
+        # keyin topib bo'lmasdi). Endi har biri `delete_payment` dagi matn bilan, o'chirish bilan BITTA tranzaksiyada.
+        # TENANT: `Payment` da korxona ustuni yo'q — OTA (buyurtma) orqali (`delete_delivery` naqshi)
+        _tolovlar209 = db.query(Payment).join(Order, Order.id == Payment.order_id).filter(
+            Payment.order_id == order_id, Order.company_id == db_order.company_id).order_by(Payment.id).all()
+        _matn209 = _buyurtma_ochirish_matni(db_order, _tolovlar209, qayerga="butunlay (savatga tushmaydi — hech narsa topshirilmagan)")
+        _tolovlarni_jurnalga(db, db_order, _tolovlar209, performed_by, sabab="buyurtma bilan birga o'chirildi")
         db.query(Payment).filter(Payment.order_id == order_id).delete()
         # kech126 (zip 148): shu buyurtma rasmiylashtirilgan taklif — bog'lam uziladi (raqami ro'yxatda «o'chirilgan» bo'lib qoladi)
         taklif_buyurtmasini_uz(db, order_id, getattr(db_order, 'company_id', None))
@@ -7522,7 +7532,7 @@ def delete_order(db: Session, order_id: int, soft: bool = False, performed_by: s
         # 17c: o'chgan to'lovlar loyiha "To'langan" summasidan ham chiqadi.
         _loyiha_tolangan_yangila(db, _prj_do)
         db.commit()
-        log_activity(db, "deleted", "order", order_id, order_num, performed_by,
+        log_activity(db, "deleted", "order", order_id, order_num, performed_by, new_value=_matn209,   # kech155 (zip 209)
                      company_id=getattr(db_order, 'company_id', None))
     return True
 
@@ -7540,8 +7550,14 @@ def permanent_delete_order(db: Session, order_id: int, performed_by: str = None)
     if not db_order:
         return False
     order_num = db_order.order_number
-    from models import InventoryMovement, FinishedProduct
+    from models import InventoryMovement, FinishedProduct, Payment as _Payment209
     from production_models import ProductionOrder
+    # kech155 (zip 209 — ORD-068): buyurtma bilan birga (cascade) o'chadigan to'lovlar — har biri jurnalga (ilgari jim o'chardi)
+    # TENANT: `Payment` da korxona ustuni yo'q — OTA (buyurtma) orqali (`delete_delivery` naqshi)
+    _tolovlar209 = db.query(_Payment209).join(Order, Order.id == _Payment209.order_id).filter(
+        _Payment209.order_id == order_id, Order.company_id == db_order.company_id).order_by(_Payment209.id).all()
+    _matn209 = _buyurtma_ochirish_matni(db_order, _tolovlar209, qayerga="«O'chirilganlar» dan butunlay o'chirildi")
+    _tolovlarni_jurnalga(db, db_order, _tolovlar209, performed_by, sabab="buyurtma savatdan butunlay o'chirilgani bilan birga")
     db.query(ProductionOrder).filter(ProductionOrder.source_order_id == order_id).update(
         {"source_order_id": None, "source_order_item_id": None}
     )
@@ -7555,7 +7571,7 @@ def permanent_delete_order(db: Session, order_id: int, performed_by: str = None)
     # loyiha "To'langan" summasi qayta hisoblanadi.
     _loyiha_tolangan_yangila(db, _prj_pd)
     db.commit()
-    log_activity(db, "permanently_deleted", "order", order_id, order_num, performed_by,
+    log_activity(db, "permanently_deleted", "order", order_id, order_num, performed_by, new_value=_matn209,   # kech155 (zip 209)
                  company_id=getattr(db_order, 'company_id', None))
     return True
 
@@ -9560,6 +9576,54 @@ def _tolov_audit_matni(payment) -> str:
         f"sana: {_tashkent_vaqt(payment.paid_at).strftime('%Y-%m-%d %H:%M') if payment.paid_at else '-'}"   # kech106: Toshkent
         + (f" · izoh: {payment.notes}" if payment.notes else "")
     )
+
+
+JURNAL_DETAL_CHEGARA = 12          # kech155 (zip 209): o'chirish yozuvida nomi bilan ko'rsatiladigan detallar soni (qolgani — «… yana N ta»)
+
+
+def _detal_jurnal_matni(it) -> str:
+    """kech155 (zip 209): bitta detal — «Nomi — miqdor birlik» (miqdor — buyurtmadagi, `_miqdor_jurnal`; birlik — `birlik_korinish`)."""
+    from services import birlik_korinish as _bk209
+    try:
+        _m = _miqdor_jurnal(it.order_qty_normalized)
+    except Exception:              # noqa: BLE001 — jurnal matni amalni to'xtatmasin
+        _m = "?"
+    return f"{(getattr(it, 'name', None) or '').strip() or 'nomsiz'} — {_m} {_bk209(getattr(it, 'delivery_unit', None))}"
+
+
+def _detallar_jurnal_matni(items) -> str:
+    """kech155 (zip 209): detallar ro'yxati jurnal uchun — «A — 40 m; B — 10 dona» (ko'pi bilan `JURNAL_DETAL_CHEGARA` ta)."""
+    _r = [_detal_jurnal_matni(it) for it in (items or [])]
+    if len(_r) > JURNAL_DETAL_CHEGARA:
+        return "; ".join(_r[:JURNAL_DETAL_CHEGARA]) + f"; … yana {len(_r) - JURNAL_DETAL_CHEGARA} ta"
+    return "; ".join(_r)
+
+
+def _buyurtma_ochirish_matni(order, tolovlar=None, qayerga: str = "") -> str:
+    """kech155 (zip 209 — ORD-068): buyurtma o'chirilganda jurnalga NIMA o'chgani — jami, detallar, to'lovlar va qayerga ketgani.
+    Ilgari yozuvda faqat raqam bor edi (egasi ORD-068-2 ning «2 ta detal» i nima ekanini bila olmadi)."""
+    _items = list(getattr(order, 'items', None) or [])
+    _m = f"Jami: {audit_son(order.total_amount, 0)} so'm, {len(_items)} ta detal"
+    if _items:
+        _m += f" ({_detallar_jurnal_matni(_items)})"
+    if tolovlar is not None:
+        if tolovlar:
+            _m += (f" · to'lovlar: {len(tolovlar)} ta, {audit_son(sum(float(p.amount or 0) for p in tolovlar), 0)} so'm — "
+                   f"buyurtma bilan birga o'chirildi (har biri alohida yozuvda)")
+        else:
+            _m += " · to'lov yo'q"
+    if qayerga:
+        _m += f" · {qayerga}"
+    return _m
+
+
+def _tolovlarni_jurnalga(db: Session, order, tolovlar, performed_by: str = None, sabab: str = "") -> None:
+    """kech155 (zip 209 — ORD-068): buyurtma bilan birga o'chadigan har to'lov — `delete_payment` dagi AYNAN matn bilan, amal bilan
+    BITTA tranzaksiyada (`commit=False`; amal bekor bo'lsa — yozuv ham). Ilgari bu to'lovlar jurnalsiz o'chardi."""
+    for _p in tolovlar or []:
+        log_activity(db, "deleted", "payment", _p.id, entity_label=f"Buyurtma {order.order_number}", performed_by=performed_by,
+                     new_value=_tolov_audit_matni(_p) + (f" · {sabab}" if sabab else ""),
+                     company_id=getattr(order, 'company_id', None), commit=False)
 
 
 def delete_payment(db: Session, payment_id: int, performed_by: str = None,
@@ -12677,6 +12741,26 @@ def delete_delivery(db: Session, delivery_id: int, company_id: int = None,
             _mrp_deliver_stock(db, _oi, float(di.quantity or 0),
                                company_id=_cid, sign=-1.0,
                                olingan=_mrp_olingan_oqi(di))
+    # kech155 (zip 209 — ORD-068, O'LCHANGAN): yuk xatini o'chirish jurnalga yozilmasdi (faqat bog'langan to'lov) — kim, qachon, qaysi
+    # yuk xatini (nima topshirilgan edi) o'chirgani iz qoldirmasdi. Endi yuk xatining o'zi — o'chirish bilan BITTA tranzaksiyada.
+    from services import birlik_korinish as _bk209
+    _yd209 = []
+    for di in list(d.items or []):
+        _oi209 = di.order_item
+        _yd209.append(f"{((_oi209.name if _oi209 is not None else None) or '').strip() or 'detal'} — {_miqdor_jurnal(float(di.quantity or 0))} "
+                      f"{_bk209(di.unit or (_oi209.delivery_unit if _oi209 is not None else None))}")
+    if len(_yd209) > JURNAL_DETAL_CHEGARA:          # review209 T2: buyurtma yozuvi bilan bir chegara
+        _yd209 = _yd209[:JURNAL_DETAL_CHEGARA] + [f"… yana {len(_yd209) - JURNAL_DETAL_CHEGARA} ta"]
+    _ym209 = (f"topshirilgan: {_tashkent_vaqt(d.delivered_at).strftime('%Y-%m-%d %H:%M') if d.delivered_at else '-'} · "
+              f"topshirdi: {d.delivered_by or '-'} · qabul qildi: {d.received_by or '-'} · detallar: {'; '.join(_yd209) or '-'}")
+    if float(d.transport_cost or 0) > 0:
+        _ym209 += f" · transport: {d.transport_carrier or '-'}, {audit_son(d.transport_cost, 0)} so'm"
+    if tolovlar:
+        _ym209 += (f" · to'lov: {_ochirildi} ta o'chirildi" if tolov == "ochir"
+                   else f" · to'lov: {_saqlandi} ta buyurtmada saqlab qolindi")
+    db.add(ActivityLog(company_id=order.company_id, action="deleted", entity_type="delivery", entity_id=d.id,
+                       entity_label=f"Buyurtma {order.order_number} — yuk xati {d.delivery_number}",
+                       performed_by=performed_by, new_value=_ym209))
     db.delete(d)
     db.flush()
 
@@ -17035,6 +17119,9 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
             "yearly_sales": round(yearly_sales),
             "yearly_profit": round(yearly_profit),
             "orders_count": len(orders),
+            # kech155 (zip 209 — egasi savoli 23.10): «Tayyor mahsulotlar» dan buyurtmasiz sotilib shu ustaga biriktirilgan sotuvlar soni —
+            # ular «Sotuv» / «Foyda» ga kiradi, `orders_count` ga emas («0 ta» bo'lsa ham summa bor edi — chalg'itardi)
+            "sales_count": len(fp_sales_by_master.get(m.id, [])),
             "gift_amount": round(gift),
             "sovga_otkazma": round(_otkazma),       # kech140 (zip 168): sovg'a davridan keshbekka o'tgan qism
             "last_order_date": _oxirgi.isoformat() if _oxirgi is not None else None

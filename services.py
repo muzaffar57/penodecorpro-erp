@@ -5904,10 +5904,23 @@ class _ProratedItem:
         self.price_per_m3 = real_item.price_per_m3
         self.finished_product_id = real_item.finished_product_id
         self.recipe_id = real_item.recipe_id
+        # kech155 (zip 209 — review207 M3, O'LCHANGAN): o'lchamsiz «Donali» (eni / qalinligi / «1 metrdan nechta» bo'sh) hajmi narx-nisbat
+        # yo'lidan (`_item_volume_m3`: birlik narxi ÷ 1 m³ narxi × miqdor; 1 m³ narxi bo'sh bo'lsa — buyurtmaning asosiy narxi, keyin
+        # korxona penoplasti). Bu maydonlar yo'q edi — qisman topshirilgan bunday buyurtmani «Tayyor» qilish va o'chirish 500 berardi
+        # (`AttributeError: … 'unit_price'`). Narx — BIRLIK narxi (ulushga ko'paytirilmaydi; ulush miqdorda).
+        self.unit_price = getattr(real_item, 'unit_price', None)
+        self.unit_price_for_volume = getattr(real_item, 'unit_price_for_volume', None)
+        self.order = getattr(real_item, 'order', None)
+        self.company_id = getattr(real_item, 'company_id', None)
         cat = (real_item.category or '').lower()
         if cat == 'profil':
             self.length = float(real_item.length or 0) * fraction
             self.quantity = float(real_item.quantity or 1)
+        elif cat == 'blok':
+            # kech155 (zip 209 — review209 T4, O'LCHANGAN; zip 208 da ham): blok hajmi `length` (ishlatilgan blok soni) dan — u ham ulushda
+            # (ilgari qisman topshirilgan blok detalining HAMMA bloki qaytardi)
+            self.length = float(real_item.length or 0) * fraction
+            self.quantity = float(real_item.quantity or 0) * fraction
         else:
             self.length = real_item.length
             self.quantity = float(real_item.quantity or 0) * fraction
