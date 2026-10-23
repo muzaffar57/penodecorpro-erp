@@ -76,9 +76,39 @@
 .proj-debt, .pg-belgi.qizil{background:var(--f-fee2e2);color:var(--m-b91c1c)}
 .proj-paid{background:var(--f-dcfce7);color:var(--m-15803d)}
 .pg-belgi.sariq{background:var(--f-fef3c7);color:var(--m-92400e)}
+.proj-head .pg-belgi{max-width:100%;overflow:hidden;text-overflow:ellipsis;vertical-align:top}
+.proj-faol{color:var(--m-b45309)}
 .proj-body{background:var(--f-fcfcfb);border-top:1px solid var(--border2)}
 .proj-body .ord-item{padding-left:16px}
 .proj-body .ord-item:last-child{border-bottom:none}
+/* kech155 (zip 207 «Loyiha papkasi» — EGASI so'rovi 23.10 03:57 va o'z maketi «Oltin papka», rangi yumshatilgan): OCHIQ loyiha — och qum
+   «papka» (chap tepada quloq, yumaloq, atrofida bo'shliq), ichidagi buyurtmalar — OQ kartochka, tanlangani — zip 203 uslubi (och oltin fon,
+   3 px oltin ramka, «▶ OCHIQ») + oltin chegara. O'LCHANGAN (zip 206): ochiq sarlavha foni yopiq bilan AYNAN, tana oqdan farqsiz edi. Yopiq
+   guruh — o'zgarmaydi. Ranglar — umumiy belgilar (tungi rejimda o'zi almashadi). */
+.proj-group.open{position:relative;margin:20px 8px 12px;background:var(--f-f3eee0);border:1px solid var(--ch-e5dfd3);
+  border-radius:4px 12px 12px 12px;box-shadow:var(--shadow-card)}
+.proj-group.open::before{content:"";position:absolute;left:-1px;top:-11px;width:104px;height:11px;background:var(--f-ede6d8);
+  border:1px solid var(--ch-e5dfd3);border-bottom:0;border-radius:9px 9px 0 0}
+.proj-group.open > .proj-head, .proj-group.open > .proj-head:hover{background:var(--f-ede6d8);border-top:0;border-radius:0 11px 0 0}
+.proj-group.open .proj-name{color:var(--gold-dark)}
+.proj-group.open > .proj-body{background:transparent;border-top:1px solid var(--ch-e5dfd3);padding:2px 8px 8px}
+.proj-group.open > .proj-body .ord-item, .proj-group.open > .proj-body .ord-item:last-child{background:var(--white);
+  border:1px solid var(--ch-e5dfd3);border-radius:10px;margin-top:6px;padding-left:12px}
+.proj-group.open > .proj-body .ord-item:hover{background:var(--f-fcfbf9)}
+.proj-group.open > .proj-body .ord-item.active{background:var(--gold-tint);border-color:var(--gold)}
+.proj-group.open > .proj-body .ord-item.active::before{border-top-left-radius:7px}
+.proj-group.open + .proj-group > .proj-head{border-top-color:transparent}
+.proj-group.open .proj-count{color:var(--text2)}
+.proj-group.open .proj-faol{color:var(--m-92400e)}
+@media (min-width:901px) and (max-width:1150px){
+  .proj-group.open{margin-left:3px;margin-right:3px}
+  .proj-group.open > .proj-body{padding-left:4px;padding-right:4px}
+  .proj-group.open > .proj-body .ord-item, .proj-group.open > .proj-body .ord-item:last-child{padding-left:8px;padding-right:10px}
+  .proj-group.open .oi-bosh{flex-wrap:wrap}
+  .proj-group.open .ord-num{flex:1 0 auto}
+  .proj-group.open .ord-date{flex-wrap:wrap;row-gap:0}
+  .proj-group.open .oi-sana{flex:1 0 auto}
+}
 .step-btn2{width:var(--h-btn);height:var(--h-btn);border-radius:var(--r-btn);border:1.5px solid var(--ch-e5e5e5);background:var(--white);font-size:18px;font-weight:700;color:var(--m-555555);cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;flex-shrink:0;transition:all .15s}
 .step-btn2:hover{background:var(--dark);color:#fff;border-color:var(--dark)}
 .dlv-inp:focus{border-color:#B9783F !important}
@@ -132,17 +162,19 @@
 .ord-date{display:flex;justify-content:space-between;gap:10px;margin-top:2px;padding-left:38px;font-size:13px;color:var(--text2)}
 .oi-sana{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .oi-summa{font-weight:700;color:var(--text);white-space:nowrap}
-.oi-belgilar{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px;padding-left:38px}
+.oi-belgilar{display:flex;flex-wrap:wrap;gap:3px 12px;margin-top:5px;padding-left:38px}
 .oi-belgilar:empty{display:none}
-.oi-belgi, .oi-belgilar .ort-qaytarish{display:inline-flex;align-items:center;gap:6px;padding:0 8px;border-radius:999px;font-size:12px;font-weight:700;line-height:20px;white-space:nowrap}
-.oi-belgi.qizil{background:var(--m-dc2626);color:#fff}
-.oi-belgi.qarz{background:var(--f-fee2e2);color:var(--m-b91c1c)}
-.oi-belgi.sariq{background:var(--f-fef3c7);color:var(--m-92400e)}
-.oi-belgi.yashil{background:var(--f-dcfce7);color:var(--m-15803d)}
-.oi-belgi.kok{background:var(--f-dbeafe);color:var(--m-1d4ed8)}
-.oi-belgi.kulrang{background:var(--bg);color:var(--text2);font-weight:600}
-.oi-belgilar .ort-qaytarish{background:var(--f-fff7ed);color:var(--m-c2410c)}
-.oi-mini{display:inline-block;width:34px;height:4px;border-radius:2px;background:var(--white);overflow:hidden}
+/* kech155 (zip 207 — EGASI: «qizil fonli „Muddati o'tgan“ va katta qarz yozuvi qo'pol, chalg'itadi — fonsiz, ixcham»): qator belgilari —
+   rangli MATN (fon / chekka yo'q); loyiha sarlavhasidagi belgilar (`.pg-belgi`, `.proj-debt`, `.proj-paid`) — o'sha */
+.oi-belgi, .oi-belgilar .ort-qaytarish{display:inline-flex;align-items:center;gap:6px;padding:0;font-size:12px;font-weight:700;line-height:18px;white-space:nowrap}
+.oi-belgi.qizil{color:var(--m-b91c1c)}
+.oi-belgi.qarz{color:var(--m-b91c1c);font-weight:600}
+.oi-belgi.sariq{color:var(--m-92400e)}
+.oi-belgi.yashil{color:var(--m-15803d)}
+.oi-belgi.kok{color:var(--m-1d4ed8);font-weight:600}
+.oi-belgi.kulrang{color:var(--text2);font-weight:600}
+.oi-belgilar .ort-qaytarish{color:var(--m-c2410c);white-space:normal}
+.oi-mini{display:inline-block;width:34px;height:4px;border-radius:2px;background:var(--f-dbeafe);overflow:hidden}
 .oi-mini > i{display:block;height:100%;background:var(--m-1d4ed8)}
 /* ro'yxat bo'lim sarlavhalari (Ustuvor, So'nggi 90 kun / Barchasi) — bir xil ingichka chiziq */
 .ro-bolim{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 14px;background:var(--bg);border-top:1px solid var(--border);
@@ -496,7 +528,7 @@ input[type=number]{-moz-appearance:textfield}
             </div>
             <div style="text-align:right;flex-shrink:0">
               <div class="proj-count">
-                {{ g.orders|length }} ta{% if g.active %} · <span style="color:var(--m-b45309)">{{ g.active }} faol</span>{% endif %}
+                {{ g.orders|length }} ta{% if g.active %} · <span class="proj-faol">{{ g.active }} faol</span>{% endif %}
               </div>
               {# kech120 (zip 134 — F bosqichi 4-qism, audit G2-14): ilgari qarz butun MILLIONGA yaxlitlanib, nomsiz («🔴 0 mln» — 384 000 qarz)
                  va faqat 2+ buyurtmali loyihada edi. Endi «Qarz: 384 ming» (`|qisqa_summa` — brauzerdagi `qisqaSumma` bilan bir qoida), har loyihada. #}
