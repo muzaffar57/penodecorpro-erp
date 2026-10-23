@@ -936,6 +936,28 @@ else:
                 "🧊 Blok" not in hb["turlar"] and hb["variantlar"] == ["profil", "panel", "dona", "loy_sotish", "mrp_product"] and hb["kubAsosiy"]
                 and not hb["blokAsosiy"], hb)
           ctxa.close()
+          # sinov saytida jonli sinov (24.10) topgani: 1440 px ekranda blok detal maydonlari 24 px ga tushardi (yozilgan son ko'rinmasdi);
+          # qoplama tugmasi doim «Bor (×2)» edi (koeffitsient 2,5 bo'lsa ham)
+          ctxw, pgw = kontekst("k211_c", 1440, 900)
+          pgw.goto(BASE + "/orders", wait_until="networkidle")
+          pgw.evaluate("() => { localStorage.clear(); showNewForm(); }")
+          pgw.wait_for_timeout(300)
+          _lw = pgw.evaluate("""() => { const r = document.querySelector('#items .detal'); const w = s => Math.round(r.querySelector(s).getBoundingClientRect().width);
+              const rw = r.getBoundingClientRect(); const qutilar = [...r.querySelectorAll('.dgrp-flex-row > .dgrp')].filter(b => b.offsetParent)
+                .map(b => b.getBoundingClientRect());
+              return {q: w('.i-q'), l: w('.i-l'), h: w('.i-h'), t: w('.i-t'), sigadi: qutilar.length === 2 && qutilar.every(b => b.right <= rw.right + 1),
+                      oyna: Math.round(rw.width)}; }""")
+          check("U23 1440 px ekran: blok detal maydonlari o'qiladigan kenglikda (≥ 60 px), «O'lcham» / «Miqdor va narx» qatordan chiqmaydi",
+                min(_lw["q"], _lw["l"], _lw["h"], _lw["t"]) >= 60 and _lw["sigadi"], _lw)
+          _ky = pgw.evaluate("""() => { const r = document.querySelector('#items .detal'); r.querySelector('.coat-yes').click();
+              const k = r.querySelector('.i-blokmult'); k.value = '2.5'; k.dispatchEvent(new Event('input', {bubbles: true}));
+              return r.querySelector('.coat-yes').textContent; }""")
+          pgw.goto(BASE + "/finished", wait_until="networkidle")
+          _kf = pgw.evaluate("""() => { openProduceModal(); const k = document.getElementById('p-blokmult'); k.value = '3';
+              k.dispatchEvent(new Event('input', {bubbles: true})); return document.querySelector('#p-coat-toggle .coat-yes').textContent; }""")
+          check("U24 qoplama tugmasi koeffitsient bilan: buyurtma «Bor (×2,5)», tayyor mahsulot «Bor (×3)» (ilgari doim «×2»)",
+                _ky == "Bor (×2,5)" and _kf == "Bor (×3)", (_ky, _kf))
+          ctxw.close()
           br.close()
     try:
         _ui()
