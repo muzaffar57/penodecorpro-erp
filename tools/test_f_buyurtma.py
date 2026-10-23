@@ -297,10 +297,10 @@ if br:
                     yangi: [...document.getElementById('project_id').options].map(o => o.textContent).filter(t => t.includes('Yangi loyiha')),
                     panel: (document.querySelector('#liveStats h3') || {}).textContent || '', ichida: !!document.querySelector('#liveStats #liveTotal'),
                     paneller: document.querySelectorAll('#liveTotal.card').length}; }""")
-        check("B1 yangi forma: namuna «Masalan: Karniz M-06» och kulrang (rgb(161, 164, 173) — qiymat rangidan farqli), loy maydoni oltin "
-              "ramkasiz, loyiha ro'yxatida «+ Yangi loyiha yaratish…», BITTA «Buyurtma hisob-kitobi» paneli",
-              _ph["ph"] == "Masalan: Karniz M-06" and _ph["rang"] == "rgb(161, 164, 173)" and _ph["rang"] != _ph["qiymat"]
-              and _ph["loy"] != "rgb(185, 120, 63)" and _ph["yangi"] == ["+ Yangi loyiha yaratish…"] and "Buyurtma hisob-kitobi" in _ph["panel"]
+        check("B1 yangi forma: namuna «Masalan: Karniz M-06» och kulrang (rgb(152, 161, 176) — qiymat rangidan farqli), loy maydoni aksent "
+              "ramkasiz, loyiha ro'yxatida «+ Yangi loyiha yaratish…», BITTA «Buyurtma hisob-kitobi» paneli",   # kech155 (zip 208 — «Toza ko'k», MOSLANDI): #A1A4AD → #98A1B0, aksent #2563EB
+              _ph["ph"] == "Masalan: Karniz M-06" and _ph["rang"] == "rgb(152, 161, 176)" and _ph["rang"] != _ph["qiymat"]
+              and _ph["loy"] != "rgb(37, 99, 235)" and _ph["yangi"] == ["+ Yangi loyiha yaratish…"] and "Buyurtma hisob-kitobi" in _ph["panel"]
               and _ph["ichida"] and _ph["paneller"] == 0, _ph)
         _pr = pg.evaluate("() => (document.querySelector('.detal .type-confirm-text') || {}).textContent || ''")
         pg.evaluate("() => { const r = document.querySelector('.detal'); selectTypeOpt(r.querySelector('.type-opt[data-value=profil]'), 'profil'); }")
@@ -364,8 +364,8 @@ if br:
               and _ok["detallar"] != "none", _ok)
         _dz = pg.evaluate("""() => { const d = document.querySelector('.dropzone'); const s = getComputedStyle(d);
             return {disp: s.display, uslub: s.borderTopStyle, rang: s.borderTopColor, belgi: !!d.querySelector('.ti-upload')}; }""")
-        check("B9 fayl yuklash joyi — blok, uzuq chiziqli ramka (`--border-strong` — rgb(207, 197, 184)), yuklash belgisi",
-              _dz == {"disp": "block", "uslub": "dashed", "rang": "rgb(207, 197, 184)", "belgi": True}, _dz)
+        check("B9 fayl yuklash joyi — blok, uzuq chiziqli ramka (`--border-strong` — rgb(197, 206, 220)), yuklash belgisi",   # kech155 (zip 208 — «Toza ko'k», MOSLANDI): #CFC5B8 → #C5CEDC
+              _dz == {"disp": "block", "uslub": "dashed", "rang": "rgb(197, 206, 220)", "belgi": True}, _dz)
         # Loyihalar
         pg.goto(B + "/projects", wait_until="networkidle")
         pg.wait_for_timeout(800)

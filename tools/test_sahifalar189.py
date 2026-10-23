@@ -89,7 +89,7 @@ section("S. Statik: qoidalar shablonda / style.css da")
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 _FN = oqi("templates/finance.html")
 check("S1 Moliya «Sof holat» — yorliq va qiymat orasida joy (`gap`), sig'masa qiymat keyingi qatorda o'ngda, qiymat bo'linmaydi",
-      '<div class="dg-sof" style="margin-top:14px;padding-top:14px;border-top:1px dashed var(--ch-e5e1d8);display:flex;flex-wrap:wrap;'
+      '<div class="dg-sof" style="margin-top:14px;padding-top:14px;border-top:1px dashed var(--ch-e2e8f0);display:flex;flex-wrap:wrap;'   # kech155 (zip 208 — «Toza ko'k», MOSLANDI)
       'justify-content:space-between;align-items:center;gap:4px 12px">' in _FN
       and '<span style="font-size:18px;font-weight:800;white-space:nowrap;margin-left:auto" id="dg-net">—</span>' in _FN)
 _CSS = oqi("static/style.css")
