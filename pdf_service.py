@@ -445,7 +445,11 @@ def generate_nakladnoy(order, db=None, taklif=None) -> bytes:
 
     def get_unit(item):
         cat = (item.category or '').lower()
-        if cat in ('profil', 'panel', 'blok'): return 'm'
+        if cat in ('profil', 'panel'): return 'm'
+        elif cat == 'blok':
+            # kech155 (zip 211): blok — o'z birligida (m / dona / m²); taklifda ham (`blok_birlik` — tana qiymati)
+            from models import blok_birlik_kodi as _bbk211, BLOK_YETKAZISH_BIRLIGI as _byb211
+            return _bk136(_byb211[_bbk211(getattr(item, 'blok_birlik', None))])
         elif cat == 'termopanel': return 'm²'
         elif cat == 'dona': return 'dona'
         elif cat == 'loy_sotish': return 'kg'
@@ -700,7 +704,7 @@ def generate_taklif(t, db=None) -> bytes:
             name=str(_d.get("name") or ""), category=_d.get("category"), is_coated=bool(_d.get("is_coated")),
             length=_d.get("length"), quantity=_d.get("quantity"), width=_d.get("width"), thickness=_d.get("thickness"),
             unit_price=_d.get("unit_price"), total_price=_d.get("total_price"), delivery_unit=None,
-            gips_unit=_d.get("gips_unit"),
+            gips_unit=_d.get("gips_unit"), blok_birlik=_d.get("blok_birlik"),      # kech155 (zip 211)
         ))
     _jami, _kel = float(_sh["total_amount"] or 0), float(_sh["kelishilgan"] or 0)
     # summa qatorlari — buyurtma hujjati qoidasi: to'lov 0, qarz = kelishilgan (qatorlari hujjatda ko'rsatilmaydi)

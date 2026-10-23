@@ -328,6 +328,12 @@ class OrderItemCreate(BaseModel):
     recipe_id: Optional[int] = None
     # GIPS uchun — tanlangan birlik (metr/dona/m2)
     gips_unit: Optional[str] = None
+    # kech155 (zip 211 — egasi QARORLARI 23.10 «Blok hisoblash»): «Blok» detali — birlik, «1 blokdan chiqadigan» (shu birlikda), O'Z
+    # «1 blok narxi» (qoplamasiz; berilmasa — buyurtmaning «1 blok asosiy narxi»), qoplama koeffitsienti. Boshqa turlarda e'tiborsiz.
+    blok_birlik: Optional[Literal["metr", "dona", "m2"]] = None
+    blok_chiqishi: Optional[float] = Field(default=None, ge=0, le=1_000_000_000, allow_inf_nan=False)
+    blok_narxi: Optional[float] = Field(default=None, ge=0, le=9_999_999_999.99, allow_inf_nan=False)
+    blok_koef: Optional[float] = Field(default=None, ge=0, le=100, allow_inf_nan=False)
     # 2026-09-16: Production/MRP'dagi dinamik mahsulot turi tanlangan
     # bo'lsa (category='mrp_product')
     product_type_id: Optional[int] = None
@@ -364,6 +370,8 @@ class OrderCreate(BaseModel):
     planned_gips_kg: Optional[float] = None
     gips_additives: List[GipsAdditiveInput] = []
     base_price: Optional[float] = Field(default=None, le=9_999_999_999.99)
+    # kech155 (zip 211): «1 blok asosiy narxi» (qoplamasiz) — o'z narxi yozilmagan blok detallar uchun (forma shu bilan hisoblaydi)
+    blok_base_price: Optional[float] = Field(default=None, ge=0, le=9_999_999_999.99, allow_inf_nan=False)
     # 17d (2026-09-21): rejalashtirilgan loy (kg). QAT'IY: faqat JSON son
     # (`true` / `"5"` — yo'q, ilgari 1 va 5 kg ga o'girilardi), chekli
     # (`Infinity` loy xomashyosini −∞ qilardi), manfiy emas, chegara
@@ -437,6 +445,10 @@ class OrderItemRead(BaseModel):
     image_url: Optional[str] = None
     notes: Optional[str] = None
     gips_unit: Optional[str] = None
+    blok_birlik: Optional[str] = None           # kech155 (zip 211)
+    blok_chiqishi: Optional[float] = None
+    blok_narxi: Optional[float] = None
+    blok_koef: Optional[float] = None
     product_type_id: Optional[int] = None
     sub_details: List[OrderItemSubDetailRead] = Field(default_factory=list)
     model_config = {"from_attributes": True}
@@ -623,6 +635,8 @@ class ProduceCreate(BaseModel):
     loy_kg: float = Field(default=0, ge=0)
     recipe_id: Optional[int] = None
     notes: Optional[str] = None
+    # kech155 (zip 211): «Blok» mahsuloti birligi (metr / dona / m2) — tayyor mahsulot shu birlikda saqlanadi (boshqa turda e'tiborsiz)
+    blok_birlik: Optional[Literal["metr", "dona", "m2"]] = None
 
 
 class FinishedProductRead(BaseModel):

@@ -3712,6 +3712,14 @@ def _monthly_category_amount(db: Session, year: int, month: int, category: str, 
 #       (egasi qo'lda to'lagan) yangi oylarda ham qayta hisoblanmaydi.
 # «Tayyor mahsulotlar» da ishlab chiqarilgan mahsulot — avvalgidek (tayyor bo'lganda).
 YUK_XATI_HISOBI_BOSHI = (2026, 10)
+# kech155 (zip 211): «Tayyor mahsulotlar» da ishlab chiqarilgan BLOK mahsuloti usta hisobida o'z birligida (metr / dona; m² — metr /
+# dona stavkasiga kirmaydi) — shu oydan; undan oldingi oylar — avvalgidek (hammasi «dona»), o'tgan hisob o'zgarmaydi.
+BLOK_BIRLIK_HISOBI_BOSHI = (2026, 11)
+
+
+def _blok_birlik_kodi211(qiymat) -> str:
+    from models import blok_birlik_kodi as _bbk
+    return _bbk(qiymat)
 
 
 def _qoplama_birliklari(item) -> dict:
@@ -3736,7 +3744,13 @@ def _qoplama_birliklari(item) -> dict:
     if category in ["profil", "karniz"]:
         r["metr"] += float(item.length or 0) * float(item.quantity or 1)
     elif category == "blok":
-        r["metr"] += float(item.quantity or 0)
+        # kech155 (zip 211): blok — o'z birligida: metr → metr, dona (ta) → dona, m² → yo'q (metr / dona stavkasi emas; «blok»
+        # stavkasiga ishlatilgan blok soni alohida kiradi). Eski yozuv — metr (avvalgidek).
+        _bb211 = getattr(item, 'blok_birlik_kodi', 'metr')
+        if _bb211 == "dona":
+            r["dona"] += float(item.quantity or 0)
+        elif _bb211 == "metr":
+            r["metr"] += float(item.quantity or 0)
     elif category == "panel":
         r["panel"] += float(item.quantity or 0)
     elif category == "dona":
@@ -3987,8 +4001,12 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
             elif category == "blok":
                 # Blok — "necha metr kerak" item.quantity'da saqlanadi
                 # (Profilga o'xshab, lekin uzunlik emas, to'g'ridan-to'g'ri
-                # miqdor maydonida)
-                jami_metr += float(item.quantity or 0)
+                # miqdor maydonida). kech155 (zip 211): o'z birligida — `_qoplama_birliklari` bilan bir qoida (dona → dona, m² → yo'q).
+                _bb211 = getattr(item, 'blok_birlik_kodi', 'metr')
+                if _bb211 == "dona":
+                    jami_dona += float(item.quantity or 0)
+                elif _bb211 == "metr":
+                    jami_metr += float(item.quantity or 0)
 
             elif category == "panel":
                 # MUHIM: Panelda "Miqdor" maydonining o'zi — METR ma'nosini
@@ -4074,6 +4092,15 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
             jami_metr += qty
         elif cat == "panel":
             jami_panel_metr += qty
+        elif cat == "blok" and ((int(year), int(month)) >= BLOK_BIRLIK_HISOBI_BOSHI or _blok_birlik_kodi211(fp.unit) == "m2"):
+            # kech155 (zip 211): blok mahsuloti — o'z birligida (metr → metr, dona → dona, m² → yo'q). O'tgan oylar hisobi o'zgarmasin
+            # (ilgari blok mahsuloti metrda bo'lsa ham «dona» ga tushardi) — `BLOK_BIRLIK_HISOBI_BOSHI` dan; m² (zip 211 dan oldin
+            # bo'lmagan) — har qanday oyda (review211 №12).
+            _bb211 = _blok_birlik_kodi211(fp.unit)
+            if _bb211 == "metr":
+                jami_metr += qty
+            elif _bb211 == "dona":
+                jami_dona += qty
         else:
             jami_dona += qty
 
@@ -6733,10 +6760,15 @@ def _buyurtma_loyi_detalimi(oi) -> bool:
 def _qoplama_narxi(oi) -> float:
     """Detal narxining QOPLAMA uchun olingan qismi (so'm) — 41-band qarori."""
     ulush = 1.0 - 1.0 / QOPLAMA_NARX_KOEF
+    # kech155 (zip 211 — review211 №13): blok detal — o'z qoplama koeffitsienti bilan (NULL — 2; 1 dan kichik / teng — qoplama qismi 0)
+    _ulush_asosiy = ulush
+    if (getattr(oi, 'category', None) or '').lower() == 'blok':
+        _k211 = float(getattr(oi, 'blok_koef', None) or QOPLAMA_NARX_KOEF)
+        _ulush_asosiy = max(0.0, 1.0 - 1.0 / _k211) if _k211 > 0 else 0.0
     subs = list(getattr(oi, 'sub_details', None) or [])
     sub_jami = sum(max(0.0, float(getattr(s, 'total_price', 0) or 0)) for s in subs)
     asosiy = max(0.0, float(getattr(oi, 'total_price', 0) or 0) - sub_jami)
-    q = asosiy * ulush if getattr(oi, 'is_coated', False) else 0.0
+    q = asosiy * _ulush_asosiy if getattr(oi, 'is_coated', False) else 0.0
     for s in subs:
         if getattr(s, 'is_coated', False):
             q += max(0.0, float(getattr(s, 'total_price', 0) or 0)) * ulush

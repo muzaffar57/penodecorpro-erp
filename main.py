@@ -1049,12 +1049,23 @@ def _migrate_payment_columns():
             migrations.append("ALTER TABLE order_items ADD COLUMN finished_product_id INTEGER")
         if 'unit_price_for_volume' not in oi_cols:
             migrations.append("ALTER TABLE order_items ADD COLUMN unit_price_for_volume NUMERIC(12,2)")
+        # kech155 (zip 211): «Blok» detali — birlik, chiqishi, o'z blok narxi, qoplama koeffitsienti (NULL — eski yozuv: metr / notes)
+        if 'blok_birlik' not in oi_cols:
+            migrations.append("ALTER TABLE order_items ADD COLUMN blok_birlik VARCHAR(10)")
+        if 'blok_chiqishi' not in oi_cols:
+            migrations.append("ALTER TABLE order_items ADD COLUMN blok_chiqishi FLOAT")
+        if 'blok_narxi' not in oi_cols:
+            migrations.append("ALTER TABLE order_items ADD COLUMN blok_narxi NUMERIC(12,2)")
+        if 'blok_koef' not in oi_cols:
+            migrations.append("ALTER TABLE order_items ADD COLUMN blok_koef FLOAT")
 
         ord_cols = [c['name'] for c in inspector.get_columns('orders')]
         if 'actual_loy_kg' not in ord_cols:
             migrations.append("ALTER TABLE orders ADD COLUMN actual_loy_kg FLOAT")
         if 'base_price' not in ord_cols:
             migrations.append("ALTER TABLE orders ADD COLUMN base_price NUMERIC(12,2)")
+        if 'blok_base_price' not in ord_cols:      # kech155 (zip 211): «1 blok asosiy narxi»
+            migrations.append("ALTER TABLE orders ADD COLUMN blok_base_price NUMERIC(12,2)")
         if 'planned_loy_kg' not in ord_cols:
             migrations.append("ALTER TABLE orders ADD COLUMN planned_loy_kg FLOAT")
         # kech77 (95-band, K77-1): o'chirishda qo'llangan loy — tiklash uni AYNAN teskari qiladi
@@ -4362,14 +4373,29 @@ IXTIYORIY_KATEGORIYALAR = [
     # 11.2b (2026-09-20): `gips` ham xuddi shunday BUTUNLAY olib
     # tashlandi — kerak bo'lsa MRP dan o'z retsepti bilan yaratiladi.
     ("loy_sotish", "🪣 Loy sotish"),
-    # Bosqich 3, 11.1-band (2026-09-20) — `blok` ESKIRGAN turkumga o'tdi.
-    # Endi uning o'rniga MRP dan o'z mahsulot turingizni yaratasiz:
-    # retseptda "1 metr uchun necha blok penoplast" deb yozasiz, qoplama
-    # koeffitsiyentini ham o'zingiz belgilaysiz. Eski `blok` kodi
-    # O'CHIRILMADI — mavjud yozuvlar avvalgidek ko'rinadi va hisoblanadi.
-    ("blok", "🧊 Blok (eskirgan — MRP dan foydalaning)"),
+    # Bosqich 3, 11.1-band (2026-09-20) — `blok` ESKIRGAN turkumga o'tgan edi: hech qachon sozlanmagan korxonada standart O'CHIQ (bu
+    # qoida SAQLANADI — eski korxonada hech narsa o'zgarmaydi). kech155 (zip 211 — egasi QARORI 23.10 «Blok hisoblash»): Blok yana TO'LIQ
+    # tur — detal birligi m / ta / m², o'z «1 blok narxi» yoki buyurtmaning asosiy blok narxi, qoplama koeffitsienti, plotnost.
+    ("blok", "🧊 Blok"),
 ]
+# zip 211 gacha yashirib bo'lmaydigan (har doim yoqiq) turlar — eski sozlama qoidasi uchun
 _ASOSIY_KATEGORIYALAR = ["profil", "panel", "dona"]
+
+# kech155 (zip 211 — egasi QARORLARI 23.10 21:3x–21:54): HAMMA mahsulot turi yashirilsa bo'ladi (Profil / Panel / Donali / MRP ham) —
+# boshqa usulda hisoblaydigan korxona (masalan faqat Blok) o'zi ishlatmaydiganini ko'rmasin; kamida bittasi yoqiq. Sozlama —
+# `mahsulot_turlari` (to'liq ro'yxat). U yo'q bo'lsa (zip 211 dan keyin saqlanmagan korxona) — ESKI qoida AYNAN: asosiy uchtasi va MRP
+# doim yoqiq + `enabled_categories` dagi ixtiyoriylar. Ya'ni mavjud korxonada sozlama saqlanmaguncha hech narsa o'zgarmaydi.
+MAHSULOT_TURLARI = [
+    ("profil", "📏 Profil"),
+    ("panel", "🔲 Panel"),
+    ("dona", "⭐ Donali"),
+    ("blok", "🧊 Blok"),
+    ("loy_sotish", "🪣 Loy sotish"),
+    ("mrp_product", "🏭 MRP mahsuloti"),
+]
+_DOIM_TURLAR_ESKI = tuple(_ASOSIY_KATEGORIYALAR) + ("mrp_product",)
+# Yangi korxona (egasi QARORI «Profil, Panel, Donali»; MRP — avvalgidek ko'rinadi): Blok va Loy sotish yashirin
+YANGI_KORXONA_TURLARI = ("profil", "panel", "dona", "mrp_product")
 
 # Hech qachon sozlanmagan korxonada ixtiyoriy turlarning HAMMASI yoqiq
 # bo'ladi (eski xatti-harakat saqlanadi). Lekin ESKIRGAN turlar bundan
@@ -4389,50 +4415,78 @@ def _clear_category_cache(company_id=None):
         _kategoriya_cache.pop(company_id, None)
 
 
+def _eski_ixtiyoriy_turlar(xom):
+    """zip 211 gacha qoida — `enabled_categories` satri (faqat ixtiyoriy turlar): None (hech qachon sozlanmagan) — hammasi yoqiq
+    (eski xatti-harakat), ESKIRGANlardan tashqari (11.1-band)."""
+    if xom is None:
+        return {k for k, _ in IXTIYORIY_KATEGORIYALAR
+                if k not in _ESKIRGAN_KATEGORIYALAR}
+    # ⚠ 2026-09-21: sozlama satri — bu ESKI MATN, bazada yillab
+    # o'zgarmay yotishi mumkin. Undagi so'z hali MAVJUD turkummi,
+    # tekshirilishi SHART. Aks holda 11.2a/11.2b da butunlay olib
+    # tashlangan `termopanel` / `gips` eski satrdan qaytib kelardi,
+    # admin esa ularni sozlamalar sahifasida KO'RMASDI ham (ro'yxatda
+    # yo'q), ya'ni O'CHIRA OLMASDI. Endi noma'lum so'z jimgina
+    # e'tiborsiz qoldiriladi — sozlama o'zi-o'zidan tozalanadi.
+    _malum = {k for k, _ in IXTIYORIY_KATEGORIYALAR}
+    return {x.strip() for x in xom.split(",") if x.strip() in _malum}
+
+
+def turlar_sozlamadan(xom_yangi, xom_eski):
+    """kech155 (zip 211): ikki sozlama satridan yoqilgan turlar to'plami. Asosiy turlar (Profil / Panel / Donali / MRP) —
+    `mahsulot_turlari` dan (yo'q bo'lsa — doim yoqiq, eski qoida); ixtiyoriylar (Blok, Loy sotish) — doim `enabled_categories` dan
+    (zip 211 API ikkalasini bir xil yozadi; review211 №11 — zip 210 ga qaytilgan davrda eski sahifada yoqilgan Blok / Loy sotish
+    zip 211 ga qaytganda yo'qolmasin). Natija bo'sh (buzilgan qiymat) — eski qoida (hamma tur yashirinib qolmaydi)."""
+    _ixt = _eski_ixtiyoriy_turlar(xom_eski)
+    if xom_yangi is not None:
+        _kodlar = {x.strip() for x in str(xom_yangi).split(",") if x.strip()}
+        # faqat noma'lum so'zlar (buzilgan qiymat) — yo'q deb olinadi; haqiqiy ro'yxatda asosiy tur bo'lmasligi mumkin (faqat Blok)
+        if _kodlar & {k for k, _ in MAHSULOT_TURLARI}:
+            natija = (_kodlar & set(_DOIM_TURLAR_ESKI)) | _ixt
+            if natija:
+                return natija
+    return set(_DOIM_TURLAR_ESKI) | _ixt
+
+
+def _turlar_bazadan(db, company_id):
+    """Korxonaning yoqilgan turlari — shu sessiyadan (keshsiz; API saqlashda eski holat uchun)."""
+    return turlar_sozlamadan(crud.get_setting(db, "mahsulot_turlari", None, company_id=company_id),
+                             crud.get_setting(db, "enabled_categories", None, company_id=company_id))
+
+
 def enabled_categories_of(company_id):
-    """Korxonada yoqilgan ixtiyoriy kategoriyalar to'plami.
+    """Korxonada yoqilgan mahsulot turlari to'plami (kech155 zip 211 — hamma 6 tur; `turlar_sozlamadan`).
 
     Bitta sahifa renderida bu funksiya 10+ marta chaqiriladi, shuning
     uchun natija keshda saqlanadi; sozlama o'zgarganda kesh tozalanadi.
     """
     if company_id is None:
-        return {k for k, _ in IXTIYORIY_KATEGORIYALAR
-                if k not in _ESKIRGAN_KATEGORIYALAR}
+        return turlar_sozlamadan(None, None)
     if company_id in _kategoriya_cache:
         return _kategoriya_cache[company_id]
     try:
         from database import SessionLocal as _SL
         _d = _SL()
         try:
-            xom = crud.get_setting(_d, "enabled_categories", None, company_id=company_id)
+            natija = _turlar_bazadan(_d, company_id)
         finally:
             _d.close()
     except Exception:
-        xom = None
-    if xom is None:
-        # Hech qachon sozlanmagan — hammasi yoqiq (eski xatti-harakat),
-        # ESKIRGANlardan tashqari (11.1-band).
-        natija = {k for k, _ in IXTIYORIY_KATEGORIYALAR
-                  if k not in _ESKIRGAN_KATEGORIYALAR}
-    else:
-        # ⚠ 2026-09-21: sozlama satri — bu ESKI MATN, bazada yillab
-        # o'zgarmay yotishi mumkin. Undagi so'z hali MAVJUD turkummi,
-        # tekshirilishi SHART. Aks holda 11.2a/11.2b da butunlay olib
-        # tashlangan `termopanel` / `gips` eski satrdan qaytib kelardi,
-        # admin esa ularni sozlamalar sahifasida KO'RMASDI ham (ro'yxatda
-        # yo'q), ya'ni O'CHIRA OLMASDI. Endi noma'lum so'z jimgina
-        # e'tiborsiz qoldiriladi — sozlama o'zi-o'zidan tozalanadi.
-        _malum = {k for k, _ in IXTIYORIY_KATEGORIYALAR}
-        natija = {x.strip() for x in xom.split(",") if x.strip() in _malum}
+        natija = turlar_sozlamadan(None, None)
     _kategoriya_cache[company_id] = natija
     return natija
 
 
 def cat_on(code, company_id=None):
-    """Shablonlar uchun: shu kategoriya ko'rsatilsinmi?"""
-    if code in _ASOSIY_KATEGORIYALAR:
-        return True
+    """Shablonlar uchun: shu mahsulot turi ko'rsatilsinmi? (ro'yxatda yo'q / olib tashlangan tur — yo'q)"""
     return code in enabled_categories_of(company_id)
+
+
+def yoqilgan_turlar(company_id=None):
+    """kech155 (zip 211): yoqilgan mahsulot turlari `MAHSULOT_TURLARI` tartibida (shablonlar — yangi detal / tayyor mahsulot
+    birinchisi bilan ochiladi)."""
+    _y = enabled_categories_of(company_id)
+    return [k for k, _ in MAHSULOT_TURLARI if k in _y]
 
 
 templates.env.globals["company_logo_of"] = company_logo_of
@@ -4478,6 +4532,7 @@ def _murojaat_soni(user):
 
 templates.env.globals["murojaat_soni"] = _murojaat_soni
 templates.env.globals["cat_on"] = cat_on
+templates.env.globals["yoqilgan_turlar"] = yoqilgan_turlar       # kech155 (zip 211)
 
 
 def _yonalishlar_royxati_shablon(company_id):
@@ -8210,6 +8265,8 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
         "created_at": order.created_at.isoformat() if order.created_at else None,
         "deadline": order.deadline.isoformat() if order.deadline else None,
         "base_price": float(order.base_price) if order.base_price is not None else None,
+        # kech155 (zip 211): «1 blok asosiy narxi»
+        "blok_base_price": float(order.blok_base_price) if getattr(order, 'blok_base_price', None) is not None else None,
         "closed_at": order.closed_at.isoformat() if order.closed_at else None,
         # 2026-09-17: Milestone 4 — Production/MRP tayyorlik ko'rsatkichi
         # (Order.status'ga umuman tegishli emas — faqat ko'rsatish uchun).
@@ -8233,6 +8290,11 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
             "penoplast_name": i.penoplast.item_name if i.penoplast else None,
             "price_per_m3": float(i.price_per_m3) if i.price_per_m3 else None,
             "notes": i.notes,
+            # kech155 (zip 211): blok detali — birlik (NULL — eski yozuv, metr), chiqishi, o'z blok narxi (qoplamasiz), koeffitsient
+            "blok_birlik": getattr(i, 'blok_birlik', None),
+            "blok_chiqishi": getattr(i, 'blok_chiqishi', None),
+            "blok_narxi": float(i.blok_narxi) if getattr(i, 'blok_narxi', None) is not None else None,
+            "blok_koef": getattr(i, 'blok_koef', None),
             "recipe_id": i.recipe_id,
             "finished_product_id": i.finished_product_id,
             "product_type_id": getattr(i, 'product_type_id', None),
@@ -11148,8 +11210,10 @@ def api_platform_create_company(name: str = Form(...), admin_username: str = For
     # Yangi korxonada ixtiyoriy turlar (blok, loy) O'CHIQ —
     # mijoz kerak bo'lsa sozlamalardan yoqadi. Aks holda u birinchi kuni
     # o'zi ishlab chiqarmaydigan turlarni ko'rib chalkashardi.
+    # kech155 (zip 211 — egasi QARORI «Profil, Panel, Donali»): to'liq ro'yxat (`mahsulot_turlari`) — Profil, Panel, Donali, MRP.
     try:
         crud.set_setting(db, "enabled_categories", "", company_id=korxona.id)
+        crud.set_setting(db, "mahsulot_turlari", ",".join(YANGI_KORXONA_TURLARI), company_id=korxona.id)
         _clear_category_cache(korxona.id)
     except Exception:
         pass
@@ -11326,15 +11390,15 @@ def _sozlama_jurnali(db, current_user, cid, nima: str, farqlar: list) -> None:
 @app.get("/api/settings/categories")
 def api_get_categories(db: Session = Depends(get_db),
                        current_user=Depends(auth.ruxsat("sozlama", "korish"))):
-    """Ixtiyoriy kategoriyalar va ularning holati."""
+    """Mahsulot turlari va ularning holati (kech155 zip 211 — hamma 6 tur)."""
     cid = auth.company_id_of(current_user)
     yoqilgan = enabled_categories_of(cid)
     return {"categories": [{"code": k, "label": v, "enabled": k in yoqilgan}
-                           for k, v in IXTIYORIY_KATEGORIYALAR]}
+                           for k, v in MAHSULOT_TURLARI]}
 
 
 @app.put("/api/settings/categories")
-def api_set_categories(codes: str = Form(""), bosh: str = Form(""), db: Session = Depends(get_db),
+def api_set_categories(codes: str = Form(""), bosh: str = Form(""), v: str = Form(""), db: Session = Depends(get_db),
                        current_user=Depends(auth.ruxsat("sozlama", "tahrirlash"))):
     """Yoqilgan kategoriyalarni saqlaydi (vergul bilan ajratilgan).
 
@@ -11344,25 +11408,35 @@ def api_set_categories(codes: str = Form(""), bosh: str = Form(""), db: Session 
 
     kech144 (zip 175, audit C1 — O'LCHANGAN fy_probe1 S1: «Sozlamalar: Tahrirlash» li, «Ko'rish» siz rol ro'yxat yuklanmagan sahifada
     «Saqlash» bossa `codes=''` ketib Loy sotish va Blok O'CHARDI, ular buyurtma / ombor sahifalaridan yo'qolardi): hammasini o'chirish
-    faqat `bosh=1` bilan (sahifa uni faqat ro'yxat YUKLANGAN va hech biri belgilanmaganda yuboradi); aks holda bo'sh ro'yxat — 400."""
+    faqat `bosh=1` bilan (sahifa uni faqat ro'yxat YUKLANGAN va hech biri belgilanmaganda yuboradi); aks holda bo'sh ro'yxat — 400.
+
+    kech155 (zip 211 — egasi QARORLARI 23.10): HAMMA tur (Profil / Panel / Donali / MRP ham) yashirilsa bo'ladi. `v=2` (yangi sahifa)
+    yoki ro'yxatda asosiy tur (profil / panel / dona / mrp_product) bor — kelgan ro'yxat TO'LIQ holat; aks holda (eski sahifa — faqat
+    Loy sotish va Blok ni biladi) — faqat o'sha ikkisi o'zgaradi, qolganlari saqlanadi. Natijada KAMIDA BITTA tur yoqiq bo'lishi shart
+    (aks holda 400, hech narsa saqlanmaydi). Saqlanadi: `mahsulot_turlari` (to'liq) + eski `enabled_categories` (ixtiyoriy qismi)."""
+    _malum211 = [k for k, _ in MAHSULOT_TURLARI]
     ruxsat = {k for k, _ in IXTIYORIY_KATEGORIYALAR}
-    tanlangan = [x.strip() for x in (codes or "").split(",") if x.strip() in ruxsat]
+    _kodlar211 = [x.strip() for x in (codes or "").split(",") if x.strip()]
+    _v2 = str(v or "").strip() == "2" or any(k in _kodlar211 for k in _DOIM_TURLAR_ESKI)
+    tanlangan = [k for k in _malum211 if k in _kodlar211 and (_v2 or k in ruxsat)]
     if not tanlangan and str(bosh or "").strip() != "1":
         raise HTTPException(status_code=400, detail="Mahsulot turlari ro'yxati yuklanmagan — sahifani yangilang (hech narsa saqlanmadi)")
     _cid = auth.company_id_of(current_user)
     # kech146 (zip 183, audit J9): yoqilgan / o'chirilgan mahsulot turlari «Audit jurnali» ga
-    _nomlar183 = dict(IXTIYORIY_KATEGORIYALAR)
-    _xom183 = crud.get_setting(db, "enabled_categories", None, company_id=_cid)
-    # hech qachon sozlanmagan — hammasi yoqiq edi (`enabled_categories_of` bilan bir qoida, eskirganlardan tashqari)
-    _eski183 = ({k for k in ruxsat if k not in _ESKIRGAN_KATEGORIYALAR} if _xom183 is None
-                else {x.strip() for x in _xom183.split(",") if x.strip() in ruxsat})
-    crud.set_setting(db, "enabled_categories", ",".join(tanlangan), company_id=_cid)
+    _nomlar183 = dict(MAHSULOT_TURLARI)
+    _eski183 = _turlar_bazadan(db, _cid)      # saqlashdan oldingi holat (`enabled_categories_of` bilan bir qoida)
+    _yangi211 = set(tanlangan) if _v2 else ({k for k in _eski183 if k not in ruxsat} | set(tanlangan))
+    if not _yangi211:
+        raise HTTPException(status_code=400, detail="Kamida bitta mahsulot turi yoqiq bo'lishi kerak — hech narsa saqlanmadi")
+    _tartib211 = [k for k in _malum211 if k in _yangi211]
+    crud.set_setting(db, "mahsulot_turlari", ",".join(_tartib211), company_id=_cid)
+    crud.set_setting(db, "enabled_categories", ",".join(k for k in _tartib211 if k in ruxsat), company_id=_cid)
     _sozlama_jurnali(db, current_user, _cid, "Mahsulot turlari",
-                     [f"yoqildi: {_nomlar183.get(k, k)}" for k in tanlangan if k not in _eski183]
-                     + [f"o'chirildi: {_nomlar183.get(k, k)}" for k in sorted(_eski183) if k not in tanlangan])
+                     [f"yoqildi: {_nomlar183.get(k, k)}" for k in _tartib211 if k not in _eski183]
+                     + [f"o'chirildi: {_nomlar183.get(k, k)}" for k in _malum211 if k in _eski183 and k not in _yangi211])
     db.commit()
     _clear_category_cache(_cid)
-    return {"status": "ok", "enabled": tanlangan}
+    return {"status": "ok", "enabled": _tartib211}
 
 
 # ============================================================

@@ -2213,6 +2213,30 @@ def _loyiha_tolangan_yangila(db: Session, project) -> None:
 # ORDER CRUD
 # ============================================================
 
+def _blok_ustunlari(db: Session, item_data, company_id=None) -> dict:
+    """kech155 (zip 211 — egasi QARORLARI 23.10 «Blok hisoblash»): detalning blok ustunlari (`OrderItem` ga yoziladi). Blok emas — hammasi
+    None (boshqa turga o'tgan detalda eski blok qiymati qolmaydi). Blok — forma yuborgani; tayyor mahsulotdan olingan blok detal birligi
+    MAHSULOTNING o'z birligidan (forma boshqa yuborsa ham — «50 ta» mahsulot «50 m» bo'lib qolmasin; mahsulot shu korxonadan)."""
+    from models import blok_birlik_kodi as _bbk211, FinishedProduct as _FP211
+    _bosh = {"blok_birlik": None, "blok_chiqishi": None, "blok_narxi": None, "blok_koef": None}
+    if (getattr(item_data, 'category', None) or '').lower() != 'blok':
+        return _bosh
+    _birlik = getattr(item_data, 'blok_birlik', None)
+    _fp_id = getattr(item_data, 'finished_product_id', None)
+    if _fp_id:
+        _q = db.query(_FP211.unit).filter(_FP211.id == _fp_id)
+        if company_id is not None:
+            _q = _q.filter(_FP211.company_id == company_id)
+        _u = _q.first()
+        if _u is not None:
+            _birlik = _bbk211(_u[0])
+    _koef = getattr(item_data, 'blok_koef', None)
+    return {"blok_birlik": _bbk211(_birlik) if _birlik else None,
+            "blok_chiqishi": getattr(item_data, 'blok_chiqishi', None),
+            "blok_narxi": _pul2_bosh(getattr(item_data, 'blok_narxi', None)),
+            "blok_koef": (float(_koef) if _koef else None)}
+
+
 def _detal_turi_tekshir(items):
     """77-band (kech68) — detal turi (kategoriya) BO'SH satr bo'lsa: ValueError (aniq sabab).
 
@@ -2536,7 +2560,8 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None,
             unit_price_for_volume=_pul2_bosh(getattr(item_data, 'unit_price_for_volume', None)),
             product_type_id=getattr(item_data, 'product_type_id', None),
             total_price=item_total,
-            notes=item_data.notes
+            notes=item_data.notes,
+            **_blok_ustunlari(db, item_data, _company_id)      # kech155 (zip 211)
         )
         db.add(db_item)
 
@@ -2573,6 +2598,7 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None,
     # Kelishilgan summa — boshida jami summaga teng (chegirmasiz). 117-band: bazadagidek 2 xonaga.
     db_order.agreed_amount = _pul2(getattr(order_data, 'agreed_amount', None) or total_amount)
     db_order.base_price = getattr(order_data, 'base_price', None)
+    db_order.blok_base_price = _pul2_bosh(getattr(order_data, 'blok_base_price', None))   # kech155 (zip 211)
     if total_amount > 0 and float(db_order.agreed_amount) < total_amount:
         db_order.discount_percent = round((total_amount - float(db_order.agreed_amount)) / total_amount * 100, 2)
 
@@ -5451,6 +5477,8 @@ def _val_rules():
             "loy_kg": ("son", False, False, son),
             "recipe_id": ("id", True),
             "notes": ("matn", False, matn),
+            # kech155 (zip 211): blok mahsuloti birligi
+            "blok_birlik": ("tanlov", True, {"metr": "metr", "dona": "dona", "m2": "m2"}),
         },
         "StockAdjust": {
             "quantity": ("son", False, True, son),
@@ -7159,7 +7187,8 @@ def _buyurtma_audit_holati(order) -> dict:
         _d = _detal.setdefault(_kalit, {"miqdor": 0.0, "summa": 0.0, "birlik": None, "manba": set()})
         _d["miqdor"] += float(_i.quantity or 0)
         _d["summa"] += float(_i.total_price or 0)
-        _d["birlik"] = _d["birlik"] or (_i.gips_unit or None)
+        _d["birlik"] = _d["birlik"] or (_i.gips_unit or None) or (
+            _i.delivery_unit if (_i.category or "").lower() == "blok" else None)   # kech155 (zip 211): blok — o'z birligida
         _d["manba"].add((_i.penoplast_id, _i.finished_product_id))
     return {"jami": float(order.total_amount or 0),
             "kelishilgan": float(order.agreed_amount) if order.agreed_amount is not None else None,
@@ -7196,6 +7225,9 @@ def _buyurtma_audit_farqi(db: Session, company_id: int, eski: dict, yangi: dict)
             _f.append(f"{_nom(_k)}: {audit_son(_a['summa'])} → {audit_son(_b['summa'])} so'm")
         if _a["manba"] != _b["manba"]:
             _f.append(f"{_nom(_k)}: xomashyo / mahsulot almashtirildi")
+        # kech155 (zip 211 — review211 №9): blok detal o'lchov birligi (m / dona / m²) o'zgardi
+        if (_a.get("birlik") or None) != (_b.get("birlik") or None):
+            _f.append(f"{_nom(_k)}: birlik {_bir(_a)} → {_bir(_b)}")
     if abs(eski["jami"] - yangi["jami"]) > 0.004:
         _f.append(f"jami: {audit_son(eski['jami'])} → {audit_son(yangi['jami'])} so'm")
     if (eski["kelishilgan"] is None) != (yangi["kelishilgan"] is None) or (
@@ -10351,6 +10383,11 @@ def finalize_partial_order_quantities(db: Session, order, faqat_hisob: bool = Fa
             if not faqat_hisob:
                 item.quantity = delivered
                 item.unit_price, item.total_price = _narx100, _jami100
+                # kech155 (zip 211 — mustaqil tekshiruv review211 №1, O'LCHANGAN; zip 210 da ham bor edi): blokda `length` —
+                # ishlatilgan blok soni (miqdorga mutanosib): 100 m dan 40 m topshirilsa 2,5 emas 1,0 blok qoladi (tan narxi, usta
+                # «blok» stavkasi, keyingi qaytarish / brak hajmi shundan; ombor qaytishi — yuqorida, avvalgidek)
+                if cat == 'blok':
+                    item.length = float(item.length or 0) * fraction
         _yangi_jami[item.id] = float(_jami100)
 
     new_total_amount = round(sum(_yangi_jami.get(i.id, float(i.total_price or 0)) for i in order.items), 2)
@@ -11515,21 +11552,56 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
     matched = {}       # old_item.id -> new_item_data
     used_new = set()
 
-    for oi in old_items:
-        key = ((oi.name or '').strip().lower(), (oi.category or '').lower())
-        for idx, nd in enumerate(order_data.items):
-            if idx in used_new:
+    # kech155 (zip 211 — review211 №4, O'LCHANGAN): bir xil nomli ikki BLOK detal (birliklari har xil — biri topshirilgan) — forma
+    # detallarni teskari tartibda yuboradi, (nom, tur) bo'yicha birinchisi olinsa «m²» detal «ta» ma'lumoti bilan solishtirilib,
+    # o'zgarishsiz tahrir ham 400 bo'lardi. Endi 1-bosqich — (nom, tur, birlik) (birlik ikkala tomonda ham ma'lum blok detalda),
+    # 2-bosqich — qolganlari (nom, tur) bo'yicha (blok bo'lmagan detallar uchun natija avvalgidek AYNAN).
+    def _oi_birlik211(_o):
+        return _o.blok_birlik_kodi if (_o.category or '').lower() == 'blok' else None
+
+    def _nd_birlik211(_n):
+        if (_n.category or '').lower() != 'blok' or 'blok_birlik' not in (getattr(_n, 'model_fields_set', None) or set()):
+            return None
+        return _bbk211t(_blok_ustunlari(db, _n, getattr(order, 'company_id', None))["blok_birlik"])
+
+    from models import blok_birlik_kodi as _bbk211t
+    for _bosqich211 in (1, 2):
+        for oi in old_items:
+            if oi.id in matched:
                 continue
-            nkey = ((nd.name or '').strip().lower(), (nd.category or '').lower())
-            if key == nkey:
+            key = ((oi.name or '').strip().lower(), (oi.category or '').lower())
+            for idx, nd in enumerate(order_data.items):
+                if idx in used_new:
+                    continue
+                nkey = ((nd.name or '').strip().lower(), (nd.category or '').lower())
+                if key != nkey:
+                    continue
+                if _bosqich211 == 1:
+                    _ob211, _nb211 = _oi_birlik211(oi), _nd_birlik211(nd)
+                    if _ob211 is None or _nb211 is None or _ob211 != _nb211:
+                        continue
                 matched[oi.id] = nd
                 used_new.add(idx)
                 break
 
     # Tekshiramiz
     _ortiqcha_xato63 = False       # kech103 (63-band): sabab omborga ortiqcha qaytarilgan qism bo'lsa — sarlavha shuni aytadi
+    _birlik_xato211 = 0            # kech155 (zip 211): blok detal birligi o'zgartirilgani (topshirilgan / ortiqcha qaytarilgan)
     for oi in old_items:
         delivered = oi.delivered_qty
+        # kech155 (zip 211): topshirilgan yoki omborga ortiqcha qaytarilgan BLOK detalning o'lchov birligi o'zgarmaydi (m ↔ ta ↔ m² —
+        # topshirilgan miqdor boshqa birlikda bo'lib qolardi)
+        if (oi.category or '').lower() == 'blok' and (delivered > 0.001 or oi.ortiqcha_qty > 0.001):
+            _nd211 = matched.get(oi.id)
+            # review211 №7: SAMARALI birlik (`_blok_ustunlari` — tayyor mahsulotdan olingan bo'lsa mahsulotniki); №6: tanada birlik
+            # maydoni umuman yo'q (eski sahifa / API) — detal birligi saqlanadi, tekshirilmaydi
+            if (_nd211 is not None and _nd_birlik211(_nd211) is not None
+                    and _nd_birlik211(_nd211) != oi.blok_birlik_kodi):
+                _birlik_xato211 += 1
+                delivery_errors.append(
+                    f"«{oi.name}» — {_miqdor_matn(delivered + oi.ortiqcha_qty)} {oi.delivery_unit} topshirilgan / omborga qaytarilgan, "
+                    f"o'lchov birligini o'zgartirib bo'lmaydi")
+                continue
         # kech60 (57-band, K59-3): omborga ortiqcha qo'yilgan qism ham chiqqan — undan kam
         # qilib / o'chirib bo'lmaydi. O'LCHANGAN (asl kod): 10 m dan 5 m omborga qo'yilib
         # 10 -> 3 m qilinsa penoplast 7 m uchun qaytardi VA 5 m tayyor mahsulot qolardi.
@@ -11572,7 +11644,8 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         return {
             "success": False,
             # kech103 (63-band): ilgari sabab ORTIQCHA bo'lganda ham "Topshirilgan miqdordan …" derdi (izoh qatori to'g'ri edi)
-            "message": ("Topshirilgan va omborga ortiqcha qaytarilgan miqdordan kam qilib bo'lmaydi!" if _ortiqcha_xato63
+            "message": ("Topshirilgan detalning o'lchov birligini o'zgartirib bo'lmaydi!" if _birlik_xato211 == len(delivery_errors)
+                        else "Topshirilgan va omborga ortiqcha qaytarilgan miqdordan kam qilib bo'lmaydi!" if _ortiqcha_xato63
                         else "Topshirilgan miqdordan kam qilib bo'lmaydi!"),
             "shortages": delivery_errors
         }
@@ -11650,6 +11723,12 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         oi.product_type_id = getattr(nd, 'product_type_id', None)
         oi.total_price = item_total
         oi.notes = nd.notes
+        # kech155 (zip 211); review211 №6: blok detal, tanada `blok_birlik` maydoni YO'Q (zip 211 dan oldin ochilgan sahifa / eski API)
+        # — ustunlar saqlanadi (ilgari «ta» detal jimgina «metr» ga aylanardi); boshqa holatda — tanadagi qiymatlar
+        if not ((oi.category or '').lower() == 'blok'
+                and 'blok_birlik' not in (getattr(nd, 'model_fields_set', None) or set())):
+            for _k211, _v211 in _blok_ustunlari(db, nd, getattr(order, 'company_id', None)).items():
+                setattr(oi, _k211, _v211)
         if _tm56_eski[0] or oi.finished_product_id:
             _tm56.append({"detal": oi, "eski_tm": _tm56_eski[0], "eski_miqdor": _tm56_eski[1],
                           "eski_birlik": _tm56_eski[2], "yangi_tm": oi.finished_product_id,
@@ -11700,7 +11779,8 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
             unit_price_for_volume=_pul2_bosh(getattr(nd, 'unit_price_for_volume', None)),
             product_type_id=getattr(nd, 'product_type_id', None),
             total_price=item_total,
-            notes=_new_item_notes
+            notes=_new_item_notes,
+            **_blok_ustunlari(db, nd, getattr(order, 'company_id', None))      # kech155 (zip 211)
         )
         import services as _svc_sub2
         _sub_bp2 = float(getattr(nd, 'price_per_m3', None) or getattr(order_data, 'base_price', None) or 0)
@@ -11737,6 +11817,7 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
     _kechirilgan = order.kechirilgan
     order.total_amount = total_amount
     order.base_price = getattr(order_data, 'base_price', None)
+    order.blok_base_price = _pul2_bosh(getattr(order_data, 'blok_base_price', None))   # kech155 (zip 211)
 
     agreed = getattr(order_data, 'agreed_amount', None)
 
@@ -13324,11 +13405,15 @@ from models import FinishedProduct, StockSource
 from schemas import ProduceCreate
 
 
-def _fp_unit(category: str) -> str:
-    """Profil, panel va blok — metr, termopanel — kvadrat, qolgani — dona."""
+def _fp_unit(category: str, blok_birlik=None) -> str:
+    """Profil va panel — metr, blok — o'z birligida (metr / dona / m²; kech155 zip 211 — buyurtma detali `delivery_unit` bilan bir
+    qoida, berilmasa — metr), termopanel — kvadrat, qolgani — dona."""
     cat = (category or '').lower()
-    if cat in ('profil', 'panel', 'blok'):
+    if cat in ('profil', 'panel'):
         return 'metr'
+    if cat == 'blok':
+        from models import blok_birlik_kodi as _bbk211, BLOK_YETKAZISH_BIRLIGI as _byb211
+        return _byb211[_bbk211(blok_birlik)]
     if cat == 'termopanel':
         return 'kvadrat'
     return 'dona'
@@ -14426,7 +14511,7 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
     total_cost = peno_cost + loy_cost
 
     # Har safar YANGI yozuv — birlashtirmaymiz (loy sarfi har birida boshqacha)
-    unit = _fp_unit(data.category)
+    unit = _fp_unit(data.category, getattr(data, 'blok_birlik', None))
     fp = FinishedProduct(
         company_id=company_id,          # M4: tenant ANIQ beriladi
         name=data.name.strip(),
@@ -14899,6 +14984,8 @@ def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
         FinishedProduct.thickness == order_item.thickness,
         FinishedProduct.is_coated == order_item.is_coated,
         FinishedProduct.unit_price == unit_p,
+        # kech155 (zip 211 — review211 №2): birlik ham bir xil bo'lsin (blok detal m / dona / m²: «10 m² + 5 ta = 15 m²» bo'lardi)
+        FinishedProduct.unit == unit,
         # kech125 (zip 146): brakdan paydo bo'lgan partiya (2-nav, kesilgan, tuzatilgan) — boshqasi bilan birlashtirilmaydi
         # (taqdir bekor qilinganda AYNAN o'sha partiyadan olinadi; 2-nav — alohida mahsulot)
         FinishedProduct.brak_taqdir.is_(None),
@@ -20898,7 +20985,8 @@ def taklif_buyurtma_shakli(t) -> dict:
     return {
         "id": t.id, "order_number": t.raqam, "project_id": None,
         "master_id": _tana.get("master_id"), "deadline": _tana.get("deadline"),
-        "base_price": _tana.get("base_price"), "agreed_amount": _tana.get("agreed_amount"),
+        "base_price": _tana.get("base_price"), "blok_base_price": _tana.get("blok_base_price"),   # kech155 (zip 211)
+        "agreed_amount": _tana.get("agreed_amount"),
         "total_amount": _h["jami"], "kelishilgan": _h["kelishilgan"],
         "qoplama_retsept_id": _tana.get("recipe_id"), "recipe_id": _tana.get("recipe_id"),
         "loy_kg": _tana.get("loy_kg"), "notes": _tana.get("notes"), "order_type": _tana.get("order_type") or "product",
