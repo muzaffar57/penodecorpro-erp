@@ -570,11 +570,8 @@ function hisobTanlovChiz(el, opts) {
   if (!el.getAttribute('aria-label')) el.setAttribute('aria-label', 'Qaysi hisobdan');
   var bal = opts.balans || null;
   el._hisobBalans = bal;          // tanlov o'zgarsa — qoldiq qatori yangilanadi (`_hisobQoldiqYoz`)
-  el.innerHTML = '<div class="segment hisob-seg">' + PUL_HISOBLAR.map(function (h) {
-    var b = bal && bal[h.turi] !== undefined && bal[h.turi] !== null ? ' title="' + h.nomi + ': ' + _hisobSom(bal[h.turi]) + ' so\'m"' : '';
-    return '<button type="button" role="radio" data-turi="' + h.turi + '" aria-checked="' + (h.turi === joriy) + '" class="' +
-      (h.turi === joriy ? 'on' : '') + '"' + b + '><i class="ti ' + h.ikon + '"></i><span>' + h.nomi + '</span></button>';
-  }).join('') + '</div>' + (bal ? '<div class="hisob-seg-qoldiq" aria-live="polite"></div>' : '');
+  el.innerHTML = '<div class="segment hisob-seg">' + PUL_HISOBLAR.map(h => _hisobTugmaHtml(h, joriy, bal)).join('') + '</div>' +
+    (bal ? '<div class="hisob-seg-qoldiq" aria-live="polite"></div>' : '');
   el.dataset.qiymat = joriy;
   Array.prototype.forEach.call(el.querySelectorAll('button'), function (b) {
     b.onclick = function () { hisobTanla(el, b.dataset.turi); };
@@ -582,12 +579,19 @@ function hisobTanlovChiz(el, opts) {
   _hisobQoldiqYoz(el);
   return el;
 }
+// bitta bo'lak (tugma) — hamma qiymat `escapeHtml` dan (o'zgarmas ro'yxat bo'lsa ham — yagona qoida, test_html_escape)
+function _hisobTugmaHtml(h, joriy, bal) {
+  var b = bal && bal[h.turi] !== undefined && bal[h.turi] !== null ? ' title="' + escapeHtml(h.nomi + ': ' + _hisobSom(bal[h.turi]) + " so'm") + '"' : '';
+  return '<button type="button" role="radio" data-turi="' + escapeHtml(h.turi) + '" aria-checked="' + escapeHtml(String(h.turi === joriy)) +
+    '" class="' + (h.turi === joriy ? 'on' : '') + '"' + b + '><i class="ti ' + escapeHtml(h.ikon) + '"></i><span>' + escapeHtml(h.nomi) +
+    '</span></button>';
+}
 // tanlangan hisob qoldig'i (tanlov ostida; `balans` berilmagan bo'lsa — qator yo'q)
 function _hisobQoldiqYoz(el) {
   var q = el && el.querySelector ? el.querySelector('.hisob-seg-qoldiq') : null;
   if (!q) return;
   var bal = el._hisobBalans || {}, t = el.dataset.qiymat;
-  q.innerHTML = (bal[t] !== undefined && bal[t] !== null) ? hisobNomi(t) + " qoldig'i: <b>" + _hisobSom(bal[t]) + " so'm</b>" : '';
+  q.innerHTML = (bal[t] !== undefined && bal[t] !== null) ? escapeHtml(hisobNomi(t)) + " qoldig'i: <b>" + escapeHtml(_hisobSom(bal[t])) + " so'm</b>" : '';
 }
 function hisobTanla(el, turi) {
   if (typeof el === 'string') el = document.getElementById(el);
@@ -1018,7 +1022,7 @@ function kichikRasm(url) {
   .hisob-seg button:first-child{border-left:0}
   .hisob-seg button i{font-size:16px;flex:0 0 auto}
   .hisob-seg button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .hisob-seg button.on{background:var(--gold);color:#fff}
+  .hisob-seg button.on{background:var(--gold-btn);color:#fff}   /* oq yozuv — `--gold-btn` (≥ 4.5:1, tungi ham) */
   .hisob-seg button:focus-visible{outline:2px solid var(--gold);outline-offset:-3px}
   .hisob-seg-qoldiq{font-size:12px;color:var(--text3);margin-top:5px}
   .hisob-seg-qoldiq b{color:var(--text2)}

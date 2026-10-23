@@ -350,13 +350,13 @@ html[data-theme="dark"]{
 .hb-hisob{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);
   border-radius:12px;padding:12px;cursor:pointer;min-width:0;color:#fff;font-family:inherit;text-align:left;min-height:62px;box-sizing:border-box}
 .hb-hisob:hover{background:rgba(255,255,255,.10)}
-.hb-hisob:focus-visible{outline:2px solid #93C5FD;outline-offset:2px}
+.hb-hisob:focus-visible{outline:2px solid var(--doim-93c5fd);outline-offset:2px}
 .hb-hi{width:36px;height:36px;border-radius:10px;background:rgba(37,99,235,.25);color:#BFDBFE;display:flex;align-items:center;
   justify-content:center;flex:0 0 auto}
 .hb-hi i{font-size:18px}
 .hb-hn{font-size:13px;color:#CBD5E1;font-weight:600}
 .hb-hs{font-size:16px;font-weight:800;white-space:nowrap;margin-top:1px}
-.hb-hs.manfiy{color:#F87171}
+.hb-hs.manfiy{color:var(--m-f87171)}
 .hb-ogoh{margin-top:12px;background:rgba(251,191,36,.14);border:1px solid rgba(251,191,36,.5);border-radius:10px;padding:10px 12px;
   font-size:13px;color:#FDE68A;line-height:1.5;max-width:640px;position:relative}
 .hb-tugmalar{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.10);position:relative}
@@ -1327,12 +1327,14 @@ async function openHisobTarix(id){
     roy.innerHTML = `<div style="color:var(--f-text3);font-size:13px;padding:8px 0">Qoldiq kiritilgandan beri bu hisobda harakat yo'q.</div>`;
     return;
   }
+  // kirim — yashil, chiqim — qizil (yozuv rangi `matnRangi` — oq / tungi fonda o'qiladigan tus; kassa tarixi bilan bir qoida)
+  const hisobSummaRangi = (x) => { const rang = x >= 0 ? '#22C55E' : '#EF4444'; return matnRangi(rang); };
   roy.innerHTML = d.harakatlar.map(r => `<div class="hb-tarix-q">
       <div style="min-width:0">
         <div style="font-weight:600">${escapeHtml(r.matn)}</div>
         <div style="color:var(--f-text3);font-size:12px;margin-top:2px">${r.faqat_sana ? tkSana(r.vaqt) : tkSanaVaqt(r.vaqt)} · qoldiq: ${_hisobSom(r.qoldiq)} so'm</div>
       </div>
-      <div style="font-weight:700;white-space:nowrap;color:${matnRangi(r.summa >= 0 ? '#22C55E' : '#EF4444')}">${r.summa >= 0 ? '+' : ''}${_hisobSom(r.summa)} so'm</div>
+      <div style="font-weight:700;white-space:nowrap;color:${hisobSummaRangi(r.summa)}">${r.summa >= 0 ? '+' : ''}${_hisobSom(r.summa)} so'm</div>
     </div>`).join('') +
     (d.jami_soni > d.harakatlar.length ? `<div style="color:var(--f-text3);font-size:12px;padding:8px 0">… yana ${d.jami_soni - d.harakatlar.length} ta eski harakat</div>` : '');
 }
