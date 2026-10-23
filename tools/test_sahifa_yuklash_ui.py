@@ -232,7 +232,8 @@ _DG = ["dg-customer", "dg-customer-n", "dg-supplier", "dg-supplier-n", "dg-emplo
        "dg-net"]
 # so'rov → blok: «—» bo'ladigan idlar, sabab yozuvi (id, nima), boshqa kutilgan holat; `ozgaradi` — solishtirilmaydigan idlar
 M_BLOK = {
-    "/api/finance/cash-balance": {"chiziq": ["cash-balance-val"], "sabab": ("xato-kassa", "Kassa qoldig'i")},
+    # kech155 (zip 210 «Naqd / Bank / Karta», MOSLANDI): ogohlantirish («Naqd / Bank / Karta qoldig'i hali kiritilmagan») — kassa blokining o'zi: javob kelmasa yashiriladi
+    "/api/finance/cash-balance": {"chiziq": ["cash-balance-val"], "sabab": ("xato-kassa", "Kassa qoldig'i"), "yashirin": ["cash-boshlangich-yoq"]},
     "/api/finance/daily": {"chiziq": ["hero-savdo", "hero-savdo-sub", "hero-xarajat", "hero-foyda", "hero-tannarx-sub", "d-material-list",
                                       "d-transport-total", "d-other-list"], "sabab": ("xato-bugun", "Bugungi holat")},
     "/api/finance/pul-oqimi": {"chiziq": ["hero-oqim"], "izoh": ("hero-oqim-sub", "Pul oqimi")},
@@ -573,9 +574,12 @@ if PW_BOR and ZANJIR_JS:
                   "yashirin", not any(v(M_ASL, i) for i in M_XATO_IDLAR) and v(M_ASL, "finReport") and v(M_ASL, "hisobotTahlil")
                   and v(M_ASL, "yonBolim") and v(M_ASL, "yonMazmun") and not v(M_ASL, "emptyState"),
                   [(i, v(M_ASL, i)) for i in M_XATO_IDLAR + ["finReport", "hisobotTahlil", "yonBolim", "emptyState"]])
-            check("M1c xarajatlar ro'yxati (Transport (kirim) 150 000 so'm) va kassa ogohlantirishi yashirin (boshlang'ich kiritilgan)",
+            # kech155 (zip 210 «Naqd / Bank / Karta», MOSLANDI): eski «boshlang'ich balans» kiritilgan bo'lsa ham Naqd / Bank / Karta qoldig'i hali yo'q — ogohlantirish KO'RINADI
+            check("M1c xarajatlar ro'yxati (Transport (kirim) 150 000 so'm); kassa ogohlantirishi «Naqd / Bank / Karta qoldig'i hali "
+                  "kiritilmagan» ko'rinadi (hisoblar qoldig'i kiritilmagan)",
                   "Transport (kirim)" in (t(M_ASL, "tx-body") or "") and "150 000 so'm" in (t(M_ASL, "tx-body") or "")
-                  and not v(M_ASL, "cash-boshlangich-yoq"), t(M_ASL, "tx-body"))
+                  and v(M_ASL, "cash-boshlangich-yoq")
+                  and "Naqd / Bank / Karta qoldig'i hali kiritilmagan" in (t(M_ASL, "cash-boshlangich-yoq") or ""), t(M_ASL, "tx-body"))
             check("M1d «Yuklanmoqda...», «undefined», «NaN» yo'q; JS xatosi yo'q", not M_ASL.get("yuklanmoqda") and not M_ASL.get("notogri")
                   and not pg.__xato, (M_ASL.get("yuklanmoqda"), M_ASL.get("notogri"), pg.__xato))
             _yollar = [urlparse(x.split(" ", 1)[1]).path for x in pg.__sorov if x.startswith("GET ")]

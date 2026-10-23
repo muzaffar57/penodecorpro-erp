@@ -132,6 +132,8 @@ async function sinov(o) {
     xabarOyna: async (t) => { xabarlar.push(String(t)); },
     promptAmountReason: async () => ({ amount: 1000, reason: 'KB' }),
     confirmDeleteFp: async () => 'keep',
+    // kech155 (zip 210 «Naqd / Bank / Karta», MOSLANDI): «qaysi hisobdan» — base.html tanlovi (soxta DOMda chizilmaydi — standart 'naqd')
+    hisobQiymat: () => 'naqd', hisobTanla() {}, hisobTanlovChiz: () => null,
   };
   for (const n of ['loadMasterKpi', 'loadAllMastersFull', 'renderInactiveMasters', 'loadAdvanceHistory', 'loadEmployees',
                    'loadEmpMonthlyReport', 'loadGiftPeriod', 'openPurchaseHistory', 'loadFp', 'closeLossModal',

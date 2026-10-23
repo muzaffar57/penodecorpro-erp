@@ -496,7 +496,8 @@ if br:
         _ri = _s.query(ReturnItem).filter(ReturnItem.order_id == ID["order"]).order_by(ReturnItem.id.desc()).first()
         _s.close()
         check("B4 «Hozir hisob-kitob qilinsin» — qaytarish saqlanadi va DARHOL hisob-kitob (`…/refund`), yozuv «hisob-kitob qilingan»",
-              [u for _, u in _rp1][:1] == ["/api/returns"] and any(u == f"/api/returns/{_ri.id}/refund" for _, u in _rp1)
+              # kech155 (zip 210 «Naqd / Bank / Karta», MOSLANDI): formadagi «qaysi hisobdan» (standart «Naqd pul») — `?payment_method=naqd`
+              [u for _, u in _rp1][:1] == ["/api/returns"] and any(u == f"/api/returns/{_ri.id}/refund?payment_method=naqd" for _, u in _rp1)
               and _ri.is_refunded is True, (_rp1, _ri and (_ri.id, _ri.is_refunded, _ri.refund_amount)))
         pg.evaluate("() => toggleBrakTahlil()")
         pg.wait_for_function("() => document.querySelector('.brak-asos')")

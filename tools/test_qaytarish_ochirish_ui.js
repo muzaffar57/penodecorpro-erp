@@ -88,6 +88,8 @@ function muhit(opts) {
     xabarOyna: async (m) => { yozuv.alert.push(String(m)); },
     customConfirm: async (...a) => { yozuv.confirm.push(a); return o.tasdiq; },
     confirmDeleteFp: async () => 'delete',
+    // kech155 (zip 210 «Naqd / Bank / Karta», MOSLANDI): «qaysi hisobdan» — base.html tanlovi (soxta DOMda chizilmaydi — standart 'naqd')
+    hisobQiymat: () => 'naqd', hisobTanla() {}, hisobTanlovChiz: () => null,
     showMsg: (m, t) => { yozuv.showMsg.push([String(m), t]); },
     loadFp: () => { yozuv.loadFp++; },
     fpItems: [{ id: 7, name: 'QO mahsulot', volume_m3: 0.5, source: 'returned' }],
@@ -112,7 +114,9 @@ function muhit(opts) {
   for (const [src, nom] of [[BASE, 'xatoSababi'], [BASE, 'serverXatoSababi'], [BASE, 'yukSessiyaKor'], [BASE, 'amalSababi'],
                            [BASE, 'amalNomalumMatn'], [FINISHED, 'fpAmalXato'],
                            [RETURNS, 'qaytarishXatoMatni'], [RETURNS, 'deleteReturn'],
-                           [RETURNS, 'toggleRefund'], [FINISHED, 'delFp']]) {
+                           [RETURNS, 'toggleRefund'], [FINISHED, 'delFp'],
+                           // kech155 (zip 210 «Naqd / Bank / Karta», MOSLANDI): tasdiq — base.html `hisobSora` (u `customConfirm` ni chaqiradi), usul — `qaytarishUsuli`
+                           [BASE, 'hisobSora'], [RETURNS, 'qaytarishUsuli']]) {
     const k = olib(src, nom);
     if (k) kodlar.push(k + `\nglobalThis.${nom} = ${nom};`);
   }
@@ -241,8 +245,9 @@ async function main() {
   {
     const { sb, yozuv } = muhit({ javob: { status: 200, body: {} } });
     await chaqir(sb, 'toggleRefund', 5, false);
-    tekshir("T3 200 → POST /api/returns/5/refund, yangilandi",
-      qisqa(yozuv.fetch) === qisqa([['/api/returns/5/refund', 'POST']]) && yozuv.reload === 1, qisqa(yozuv));
+    // kech155 (zip 210 «Naqd / Bank / Karta», MOSLANDI): tasdiq oynasida tanlangan hisob (standart «Naqd pul») — `?payment_method=naqd`
+    tekshir("T3 200 → POST /api/returns/5/refund?payment_method=naqd, yangilandi",
+      qisqa(yozuv.fetch) === qisqa([['/api/returns/5/refund?payment_method=naqd', 'POST']]) && yozuv.reload === 1, qisqa(yozuv));
   }
   {
     const { sb, yozuv } = muhit({ javob: { status: 404, body: { detail: 'Qaytarish topilmadi' } } });

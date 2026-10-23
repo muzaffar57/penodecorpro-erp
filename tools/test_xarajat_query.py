@@ -738,9 +738,11 @@ except Exception as e:
 _et = _vr.get("ExpenseTransaction", {}) if isinstance(_vr, dict) else {}
 _oa = _vr.get("OrderAgreed", {}) if isinstance(_vr, dict) else {}
 # kech117 (A2): + `yonalish_id` (korxona yo'nalishi; `production_type` — eski mijozlar uchun qoldi)
-check("H qoidalar — ExpenseTransaction AYNAN 6 kalit (kech117: + yonalish_id)",
-      sorted(_et) == ["amount", "category", "date", "notes", "production_type", "yonalish_id"]
-      and _et.get("yonalish_id") == ("id", True), [sorted(_et), _et.get("yonalish_id")])
+# kech155 (zip 210 «Naqd / Bank / Karta», MOSLANDI): + `hisob` (qaysi hisobdan to'landi — naqd / bank / karta), + `pul_hozir` (sana hisobot oyi, pul HOZIR — Qarzdorlar)
+check("H qoidalar — ExpenseTransaction AYNAN 8 kalit (kech117: + yonalish_id; kech155 zip 210: + hisob, + pul_hozir)",
+      sorted(_et) == ["amount", "category", "date", "hisob", "notes", "production_type", "pul_hozir", "yonalish_id"]
+      and _et.get("yonalish_id") == ("id", True) and _et.get("pul_hozir") == ("bool", True)
+      and (_et.get("hisob") or ("",))[0] == "tanlov", [sorted(_et), _et.get("yonalish_id"), _et.get("pul_hozir"), _et.get("hisob")])
 check("H qoidalar — amount musbat, sig'im chegarasi",
       _et.get("amount") == ("son", False, True, getattr(crud, "_ORDER_ITEM_MAX_MONEY", None)),
       _et.get("amount"))

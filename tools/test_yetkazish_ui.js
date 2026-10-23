@@ -177,6 +177,8 @@ function muhit(o) {
     sanitizeToLatin: (t) => t,
     formatNum: (n) => String(n),
     fmt: (n) => String(n),
+    // kech155 (zip 210 «Naqd / Bank / Karta», MOSLANDI): «qaysi hisobdan» — base.html tanlovi (soxta DOMda chizilmaydi — standart 'naqd')
+    hisobQiymat: () => 'naqd', hisobTanla() {}, hisobTanlovChiz: () => null,
   }, o.globallar || {});
   vm.createContext(ctx);
   return {
@@ -345,7 +347,7 @@ async function sSina(o, javoblar, tasdiq = true) {
 
 const S_MIN = { order_id: 55, items: [{ order_item_id: 701, quantity: 2.5 }], received_by: null, notes: null,
                 payment_amount: null, payment_method: 'naqd', transport_carrier: null, transport_cost: 0,
-                transport_payer: 'none' };
+                transport_payer: 'none', transport_hisob: 'naqd' };   // kech155 (zip 210 «Naqd / Bank / Karta», MOSLANDI): transport qaysi hisobdan
 
 async function saveDeliveryBolimi() {
   bolim('orders.html — saveDelivery ("Yetkazish" oynasi)');
@@ -369,7 +371,7 @@ async function saveDeliveryBolimi() {
           !m.xato && m.sorovlar.length === 1 && JSON.stringify(m.sorovlar[0].tana) === JSON.stringify({
             order_id: 55, items: [{ order_item_id: 701, quantity: 3 }, { order_item_id: 703, quantity: 1.5 }],
             received_by: 'Vali', notes: 'QY izoh', payment_amount: 100000, payment_method: 'plastik',
-            transport_carrier: 'Ali', transport_cost: 50000, transport_payer: 'split' }),
+            transport_carrier: 'Ali', transport_cost: 50000, transport_payer: 'split', transport_hisob: 'naqd' }),   // kech155 (zip 210 «Naqd / Bank / Karta», MOSLANDI)
           m.xato || qisqa(m.sorovlar));
 
   m = await sSina({}, [javob(200, OK_QISMAN)]);
@@ -523,6 +525,7 @@ async function fSina(o, javoblar, tasdiq = true) {
 
 const F_TANA = { order_id: 55, items: [{ order_item_id: 701, quantity: 4.5 }, { order_item_id: 702, quantity: 3.33 }],
                  received_by: null, notes: null, transport_carrier: null, transport_cost: 0, transport_payer: 'none',
+                 transport_hisob: 'naqd',   // kech155 (zip 210 «Naqd / Bank / Karta», MOSLANDI): transport qaysi hisobdan
                  payment_amount: null, payment_method: 'naqd' };
 
 async function submitFullBolimi() {

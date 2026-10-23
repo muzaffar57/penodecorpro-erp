@@ -399,7 +399,9 @@ async function tolovSina(summa, qarz) {
     const ctx = { console, Math, Number, String, JSON, isFinite, parseFloat, parseInt, Object, Array,
                   document: hujjat(e), setTimeout: () => 0,
                   fetch: async () => javob(200, { ehson_xarajat: 1234.56 }),
-                  fmtFull: (n) => Number(Math.round(n || 0)).toLocaleString('ru-RU') };
+                  fmtFull: (n) => Number(Math.round(n || 0)).toLocaleString('ru-RU'),
+                  // kech155 (zip 210 «Naqd / Bank / Karta», MOSLANDI): «qaysi hisobdan» — base.html tanlovi (soxta DOMda chizilmaydi — standart 'naqd')
+                  hisobQiymat: () => 'naqd', hisobTanla() {}, hisobTanlovChiz: () => null, };
     vm.createContext(ctx);
     yuklaBorlari(ctx, oqi('base'), YUK_YORDAM);
     const yoq = yukla(ctx, oqi('base'), TK_FUNKS, 'base')

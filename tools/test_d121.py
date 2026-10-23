@@ -632,14 +632,15 @@ finally:
 check("Q3 boshqa turdagi qo'lda yozuv (Usta KPI) — boshlang'ich hisoblanmaydi",
       (js(CB.get("/api/finance/cash-balance")) or {}).get("boshlangich_kiritilgan") is False)
 _fh = CA.get("/finance")
+# kech155 (zip 210 «Naqd / Bank / Karta», MOSLANDI): tugma — «Boshlang'ich qoldiqni kiritish» (Naqd / Bank / Karta qoldig'i), ogohlantirish sharti — `hisoblar_boshlangan`
 check("Q4 Moliya kartasi: «Kassa + bank — hozir qancha pul bor», «naqd, karta va bank»; ogohlantirish bloki va «Boshlang'ich "
-      "balansni kiritish» tugmasi; eski «hozir qancha naqd pul bor» YO'Q",
+      "qoldiqni kiritish» tugmasi; eski «hozir qancha naqd pul bor» YO'Q",
       _fh.status_code == 200 and "Kassa + bank — hozir qancha pul bor" in _fh.text and "naqd, karta va bank" in _fh.text
-      and 'id="cash-boshlangich-yoq"' in _fh.text and "Boshlang'ich balansni kiritish</button>" in _fh.text
-      and "hozir qancha naqd pul bor" not in _fh.text and "d.boshlangich_kiritilgan !== false" in _fh.text, _fh.status_code)
+      and 'id="cash-boshlangich-yoq"' in _fh.text and "Boshlang'ich qoldiqni kiritish</button>" in _fh.text
+      and "hozir qancha naqd pul bor" not in _fh.text and "d.hisoblar_boshlangan !== false" in _fh.text, _fh.status_code)
 _fm = CF.get("/finance")
 check("Q5 Moliyachi (kassa yaratish yo'q?) — sahifa 200; tugma ruxsatga bog'liq",
-      _fm.status_code == 200 and (("Boshlang'ich balansni kiritish</button>" in _fm.text)
+      _fm.status_code == 200 and (("Boshlang'ich qoldiqni kiritish</button>" in _fm.text)   # kech155 (zip 210 «Naqd / Bank / Karta», MOSLANDI)
                                   == bool(RX.TAYYOR_ROLLAR["moliyachi"]["ruxsatlar"].get("kassa") and "yaratish" in
                                           RX.TAYYOR_ROLLAR["moliyachi"]["ruxsatlar"]["kassa"])), _fm.status_code)
 check("Q6 nom hamma joyda: Hisobotlar KPI «Kassa + bank», Rollar katalogi «Kassa + bank»",

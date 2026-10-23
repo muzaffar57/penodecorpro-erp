@@ -112,7 +112,9 @@ function javob(status, tana) {
 function kontekst(qo) {
   const ctx = Object.assign({ console, Math, Number, String, JSON, isFinite, parseFloat, parseInt, Object, Array,
                               BigInt, Promise, setTimeout: () => 0,
-                              escapeHtml: (x) => String(x == null ? '' : x) }, qo || {});
+                              escapeHtml: (x) => String(x == null ? '' : x),
+                              // kech155 (zip 210 «Naqd / Bank / Karta», MOSLANDI): «qaysi hisobdan» — base.html tanlovi (soxta DOMda chizilmaydi — standart 'naqd')
+                              hisobQiymat: () => 'naqd', hisobTanla() {}, hisobTanlovChiz: () => null, }, qo || {});
   ctx.window = ctx;
   vm.createContext(ctx);
   // kech118 (B — U-05, MOSLANDI): ko'rinadigan son / hajm — base.html `sonKor` … (hisobga ta'sir qilmaydi)
