@@ -78,6 +78,19 @@ def get_brand(db, company_id=None) -> dict:
     # (tizim hujjatlari) ishlatiladi.
     logo_abs = None
     kandidatlar = [logo] if company_id is not None else [DEFAULT_LOGO]
+    # kech155 (zip 211f): platforma egasi (ENG ESKI korxona — ishga tushishdagi migratsiya unga platforma logotipini beradi) yuklagan
+    # fayli diskda yo'q bo'lsa (sinov saytida `static/uploads` har yangilanishda tozalanadi) — platforma logotipi (menyudagi
+    # `main.company_logo_of` bilan bir xil). Boshqa korxonaga — HECH QACHON (yuqoridagi qoida: begona logotip chiqmasin).
+    if company_id is not None and logo and db is not None:
+        _y211 = logo if os.path.isabs(logo) else os.path.join(os.path.dirname(os.path.abspath(__file__)), logo)
+        if not os.path.exists(_y211):
+            try:
+                from sqlalchemy import func as _fn211
+                from production_models import Company as _Co211
+                if db.query(_fn211.min(_Co211.id)).scalar() == company_id:
+                    kandidatlar.append(DEFAULT_LOGO)
+            except Exception:
+                pass
     for kandidat in kandidatlar:
         if not kandidat:
             continue

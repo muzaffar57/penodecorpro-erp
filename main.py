@@ -11400,6 +11400,9 @@ def api_get_company(db: Session = Depends(get_db),
             "phone": (getattr(row, "phone", None) if row else None),
             "address": (getattr(row, "address", None) if row else None),
             "logo_path": (getattr(row, "logo_path", None) if row else None),
+            # kech155 (zip 211f): ko'rinadigan logotip (menyudagi bilan bir xil — `company_logo_of`): fayli yo'q — None, platforma
+            # egasining yo'qolgan fayli — platforma logotipi; Sozlamalardagi ko'rinish shundan (o'chgan fayl — singan rasm emas)
+            "logo_korinish": (company_logo_of(cid) if row else None),
             # amaldagi qiymat (sozlama yoki shior) — interfeys shuni
             # ko'rsatadi, saqlanganda xabar o'zgarmay qoladi
             "tg_tagline": _tg_tagline(db, cid) if row else ""}
