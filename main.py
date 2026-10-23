@@ -4333,6 +4333,31 @@ def _clear_company_name_cache(company_id=None):
         _company_name_cache.pop(company_id, None)
 
 
+_LOGO_KENG_KESH = {}
+
+
+def company_logo_keng(yol) -> bool:
+    """kech155 (zip 211d — egasi so'rovi 24.10): logotip KENGmi (eni / bo'yi ≥ 1,3 — odatda korxona nomi ichida) — menyu tepasida
+    to'liq joyni egallaydi, nom matni yo'q; kvadrat (faqat belgi) — yonida nomi qoladi. Fayl o'lchami (yo'l + o'zgargan vaqti) bo'yicha
+    keshlanadi (har sahifada rasm qayta ochilmaydi); o'qib bo'lmasa — kvadrat deb olinadi (nomi ko'rinib turadi)."""
+    if str(yol or "") == "static/logo_transparent.png":
+        return True                     # platformaning o'z logotipi — 998 × 561 (menyu uchun `static/logo_menyu.webp`)
+    try:
+        import os as _os
+        tola = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), str(yol or ""))
+        kalit = (tola, _os.path.getmtime(tola))
+        if kalit not in _LOGO_KENG_KESH:
+            _Img, _ = _pillow()
+            if _Img is None:
+                return False
+            with _Img.open(tola) as _r:
+                _w, _h = _r.size
+            _LOGO_KENG_KESH[kalit] = bool(_h) and (_w / _h) >= 1.3
+        return _LOGO_KENG_KESH[kalit]
+    except Exception:
+        return False
+
+
 def company_logo_of(company_id):
     """Korxona logotipining yo'li (interfeys uchun). Yo'q bo'lsa None."""
     if company_id is None:
@@ -4490,6 +4515,7 @@ def yoqilgan_turlar(company_id=None):
 
 
 templates.env.globals["company_logo_of"] = company_logo_of
+templates.env.globals["company_logo_keng"] = company_logo_keng      # kech155 (zip 211d)
 
 
 def _obuna_banneri(user):

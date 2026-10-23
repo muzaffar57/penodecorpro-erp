@@ -3715,6 +3715,10 @@ YUK_XATI_HISOBI_BOSHI = (2026, 10)
 # kech155 (zip 211): «Tayyor mahsulotlar» da ishlab chiqarilgan BLOK mahsuloti usta hisobida o'z birligida (metr / dona; m² — metr /
 # dona stavkasiga kirmaydi) — shu oydan; undan oldingi oylar — avvalgidek (hammasi «dona»), o'tgan hisob o'zgarmaydi.
 BLOK_BIRLIK_HISOBI_BOSHI = (2026, 11)
+# kech155 (zip 211 — egasi QARORI 24.10 01:2x «Sotuvga tayyor bo'lganda»): hodim «Birlik bo'yicha — blok» to'lovida «Tayyor mahsulotlar» da
+# ishlab chiqarilgan mahsulot bloki — «Sotuvga tayyor» bo'lgan oyda (ilgari ishga QO'YILGAN oyda, tayyor bo'lmasa ham). Shu oydan;
+# undan oldin ishga qo'yilgani — eski qoida bilan o'z oyida hisoblangan (qayta hisoblanmaydi), oldingi oylar hisoboti o'zgarmaydi.
+TM_BLOK_TAYYOR_HISOBI_BOSHI = (2026, 10)
 
 
 def _blok_birlik_kodi211(qiymat) -> str:
@@ -4142,11 +4146,24 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     # M4 (2026-09-18) — TENANT: hisobotning TAYYOR MAHSULOT qismi.
     # ESLATMA: bu funksiyaning qolgan so'rovlari hali tenant bilan
     # cheklanmagan — ular M6 (moliya/hisobotlar) bosqichida ko'riladi.
-    _fpm = db.query(FinishedProduct).filter(
-        FinishedProduct.source == StockSource.PRODUCED,
-        FinishedProduct.created_at >= fp_start,
-        FinishedProduct.created_at < fp_end
-    )
+    if (int(year), int(month)) >= TM_BLOK_TAYYOR_HISOBI_BOSHI:
+        # kech155 (zip 211 — egasi QARORI): «Sotuvga tayyor» bo'lgan oyda (`finished_production_at`; eski yozuvda bo'sh — `created_at`);
+        # chegaradan oldin ishga qo'yilgani — o'z oyida (eski qoida) hisoblangan, bu yerda qayta qo'shilmaydi
+        _tb211 = _tashkent_oy_oraligi(*TM_BLOK_TAYYOR_HISOBI_BOSHI)[0]
+        _ts211 = func.coalesce(FinishedProduct.finished_production_at, FinishedProduct.created_at)
+        _fpm = db.query(FinishedProduct).filter(
+            FinishedProduct.source == StockSource.PRODUCED,
+            FinishedProduct.production_status == ProductionStatus.READY,
+            _ts211 >= fp_start,
+            _ts211 < fp_end,
+            FinishedProduct.created_at >= _tb211
+        )
+    else:
+        _fpm = db.query(FinishedProduct).filter(
+            FinishedProduct.source == StockSource.PRODUCED,
+            FinishedProduct.created_at >= fp_start,
+            FinishedProduct.created_at < fp_end
+        )
     if company_id is not None:
         _fpm = _fpm.filter(FinishedProduct.company_id == company_id)
     finished_this_month = _fpm.all()
@@ -8042,7 +8059,8 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
             amount = qty * float(c_unit_rate or 0)
             # kech147 (zip 188): miqdor va stavka — yagona son ko'rinishi («1 234,5 blok × 12 500»; ilgari «1234.5 blok × 12 500»,
             # kasrli stavka yaxlitlanardi — «3 000,5» → «3 001»)
-            detail = f"{son_korinish(qty)} {c_unit_type} × {son_korinish(c_unit_rate)}"
+            # kech155 (zip 211 — egasi savoli 24.10): miqdor 3 xonagacha (kesilgan blok «1,125 blok × 100 000» — ilgari «1,12», summa 112 500)
+            detail = f"{son_korinish(qty, 3)} {c_unit_type} × {son_korinish(c_unit_rate)}"
 
         elif c_pay_type == PayType.FIXED_PLUS_COATING:
             base = float(c_fixed or 0)
