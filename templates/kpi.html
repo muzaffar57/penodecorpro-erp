@@ -740,7 +740,7 @@ function renderMasterKpiList() {
       <div class="mk-asosiy" style="flex:1;min-width:0">
         <div class="mk-name" style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">${escapeHtml(m.name)} ${topBadge}</div>
         <div class="mk-meta">
-          Sotuv: ${fmt(m.yearly_sales)} · Foyda: <b style="color:var(--m-8e44ad)">${m.yearly_profit === null ? '—' : fmt(m.yearly_profit)}</b> · ${m.orders_count} ta
+          Sotuv: ${fmt(m.yearly_sales)} · Foyda: <b style="color:var(--m-8e44ad)">${m.yearly_profit === null ? '—' : fmt(m.yearly_profit)}</b> · ${m.orders_count} ta buyurtma${(m.sales_count || 0) > 0 ? ` · ${m.sales_count} ta sotuv` : ''}
           ${m.region ? `<span class="mk-region"> · <i class="ti ti-map-pin"></i> ${escapeHtml(m.region)}</span>` : ''}
         </div>
       </div>
