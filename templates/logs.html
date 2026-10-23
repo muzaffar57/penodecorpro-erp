@@ -319,9 +319,9 @@
     <div style="padding:18px;border-bottom:1px solid var(--border2)">
       <div style="font-size:13px;font-weight:700;margin-bottom:6px">📦 Mahsulot turlari</div>
       <div style="font-size:13px;color:var(--text3);line-height:1.6;margin-bottom:12px">
-        Korxonangiz ishlab chiqarmaydigan turlarni o'chirib qo'ying — ular buyurtma va
-        ombor sahifalarida ko'rinmaydi. Asosiy turlar (Profil, Panel, Donali) har doim yoqiq; Blok — eskirgan, ixtiyoriy
-        (yangi mahsulotlar — «Ishlab chiqarish» bo'limida).
+        Korxonangiz ishlatmaydigan turlarni o'chirib qo'ying — ular buyurtma va tayyor mahsulot oynalarida ko'rinmaydi
+        (shu turdagi eski buyurtmalar baribir ochiladi va tahrirlanadi). Kamida bitta tur yoqiq bo'lishi kerak.
+        Masalan blokda hisoblaydigan korxona: Profil, Panel, Donali — o'chiq, Blok — yoqiq.
       </div>
       <div id="cat-list" style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:12px;font-size:13px">
         Yuklanmoqda…
@@ -566,17 +566,22 @@ async function loadCategories() {
 }
 
 async function saveCategories() {
-  // kech144 (zip 175, audit C1): ro'yxat yuklanmagan bo'lsa saqlanmaydi; hammasi o'chirilsa — `bosh=1` (server bo'sh ro'yxatni faqat
-  // shu belgi bilan qabul qiladi); sabab — `amalSababi` (ilgari «Xato»)
+  // kech144 (zip 175, audit C1): ro'yxat yuklanmagan bo'lsa saqlanmaydi; sabab — `amalSababi` (ilgari «Xato»)
+  // kech155 (zip 211 — egasi QARORLARI 23.10): HAMMA tur (Profil / Panel / Donali / MRP ham) — `v=2` (ro'yxat to'liq holat); hech biri
+  // belgilanmasa — saqlanmaydi (kamida bitta tur yoqiq; server ham rad etadi)
   const sb = document.getElementById('cat-save-btn');
   if (sb && sb.disabled) return;
   if (!document.querySelector('.cat-cb')) return;      // ro'yxat chizilmagan — «hammasini o'chirish» deb yuborilmaydi
   const kodlar = [...document.querySelectorAll('.cat-cb')]
     .filter(c => c.checked).map(c => c.value).join(',');
+  const el = document.getElementById('cat-status');
+  if (!kodlar) {
+    if (el) el.innerHTML = '<span style="color:var(--m-b91c1c)">' + escapeHtml("❌ Kamida bitta mahsulot turi yoqiq bo'lishi kerak") + '</span>';
+    return;
+  }
   const fd = new FormData();
   fd.append('codes', kodlar);
-  if (!kodlar) fd.append('bosh', '1');
-  const el = document.getElementById('cat-status');
+  fd.append('v', '2');
   if (sb) sb.disabled = true;
   try {
     let r;
