@@ -4239,6 +4239,10 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   Bog'liq to'plamlar (`run/r210.sh`, 53) va `tools/test_u13.py` (U-13 yagona ko'rinish) topgani: «Qaysi hisobdan» tanlovi uch alohida
   tugma (54,6 px, burchak 10 px) — bo'lakli tanlovga (`.segment`) o'tkazildi; Moliya kartasida yozuv o'lchamlari shkalaga, «›» —
   `.btn-icon.btn-sm`, hisob kartasi — `role="button"` karta.
+  To'liq to'plam (etalon d219, 1-yurish) topgani — tuzatildi: `test_b118_korinish` (tanlangan bo'lak oq yozuvi `--gold-btn` fonda — tungi
+  rejimda `--gold` 3,7:1 edi), `test_d122` (Moliya kartasidagi xom rang — `--doim-93c5fd` / `--m-f87171`; tarix summasi rangi
+  `matnRangi`), `test_e_tarix` (jurnal turi `created` / `deleted` — o'zbekcha nom ro'yxatida), `test_html_escape` (tanlov tugmasi —
+  `_hisobTugmaHtml`, hamma qiymat `escapeHtml`).
   ESKI testlar yangi «qaysi hisobdan» tanloviga MOSLANDI (`work/k210/moslash210.py`; mazmun o'zgarmagan): soxta (DOM siz)
   muhitlarda `hisobQiymat` — standart 'naqd', `hisobSora` — base.html dagi AYNAN funksiya; kutilgan tana / manzil — yangi maydon bilan
   (`transport_hisob`, `&hisob=naqd`, `?payment_method=naqd`): `test_avans_yubor_ui`, `test_xato_sababi_ui`, `test_kichik103_ui`,

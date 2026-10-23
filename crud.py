@@ -6550,7 +6550,7 @@ def pul_qoldiq_kirit(db: Session, company_id: int, qoldiqlar, izoh: str = None, 
             _f = round(float(q.summa) - float(q.dastur_summa), 2)
             _m = (f"qoldiq sanaldi: {audit_son(q.summa, 2)} so'm · dasturda: {audit_son(q.dastur_summa, 2)} so'm · farq: "
                   f"{'+' if _f > 0 else ''}{audit_son(_f, 2)} so'm")
-        log_activity(db, "create", "pul_hisobi", q.id,
+        log_activity(db, "created", "pul_hisobi", q.id,
                      entity_label=f"{h.nomi} — qoldiq ({_tashkent_vaqt(q.vaqt).strftime('%d.%m.%Y %H:%M')})",
                      performed_by=performed_by, new_value=_m + (f" · izoh: {izoh}" if izoh else ""),
                      company_id=company_id, commit=False)
@@ -6567,7 +6567,7 @@ def pul_qoldiq_ochir(db: Session, company_id: int, qoldiq_id: int, performed_by:
     if q is None:
         return False
     h = db.query(PulHisobi).filter(PulHisobi.id == q.hisob_id, PulHisobi.company_id == company_id).first()
-    log_activity(db, "delete", "pul_hisobi", q.id,
+    log_activity(db, "deleted", "pul_hisobi", q.id,
                  entity_label=f"{h.nomi if h else '?'} — qoldiq ({_tashkent_vaqt(q.vaqt).strftime('%d.%m.%Y %H:%M') if q.vaqt else '-'})",
                  performed_by=performed_by, old_value=f"{audit_son(q.summa, 2)} so'm", company_id=company_id, commit=False)
     db.delete(q)
@@ -6603,7 +6603,7 @@ def pul_otkazma_yoz(db: Session, company_id: int, dan_hisob_id, ga_hisob_id, sum
                      izoh=izoh, performed_by=performed_by)
     db.add(o)
     db.flush()
-    log_activity(db, "create", "pul_otkazmasi", o.id, entity_label=f"O'tkazish: {dan.nomi} → {ga.nomi}",
+    log_activity(db, "created", "pul_otkazmasi", o.id, entity_label=f"O'tkazish: {dan.nomi} → {ga.nomi}",
                  performed_by=performed_by, new_value=f"{audit_son(_s, 2)} so'm" + (f" · izoh: {izoh}" if izoh else ""),
                  company_id=company_id, commit=False)
     db.commit()
@@ -6618,7 +6618,7 @@ def pul_otkazma_ochir(db: Session, company_id: int, otkazma_id: int, performed_b
     if o is None:
         return False
     _n = {h.id: h.nomi for h in db.query(PulHisobi).filter(PulHisobi.company_id == company_id).all()}
-    log_activity(db, "delete", "pul_otkazmasi", o.id,
+    log_activity(db, "deleted", "pul_otkazmasi", o.id,
                  entity_label=f"O'tkazish: {_n.get(o.dan_hisob_id, '?')} → {_n.get(o.ga_hisob_id, '?')}",
                  performed_by=performed_by, old_value=f"{audit_son(o.summa, 2)} so'm" + (f" · izoh: {o.izoh}" if o.izoh else ""),
                  company_id=company_id, commit=False)
