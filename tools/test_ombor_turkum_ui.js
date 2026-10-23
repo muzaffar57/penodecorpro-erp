@@ -106,6 +106,8 @@ function muhit(o) {
     loadSuppliers: () => {},
     sanitizeToLatin: (t) => t,
     round2: (n) => Math.round(n * 100) / 100,
+    // kech155 (zip 210 «Naqd / Bank / Karta», MOSLANDI): «qaysi hisobdan» — base.html tanlovi (soxta DOMda chizilmaydi — standart 'naqd')
+    hisobQiymat: () => 'naqd', hisobTanla() {}, hisobTanlovChiz: () => null,
   }, o.globallar || {});
   vm.createContext(ctx);
   return { ctx, sorovlar, xabarlar };

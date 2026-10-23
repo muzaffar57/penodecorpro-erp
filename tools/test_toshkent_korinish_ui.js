@@ -120,6 +120,8 @@ async function ichki() {
     'tugmaBand');
   // kech150 (zip 190, MOSLANDI): pul MATNI — base.html `pulKor` (eski shablonda yo'q — o'tkazib yuboriladi; H1 ro'yxatiga kirmaydi)
   YUK_NOMLAR.push('pulKor');
+  // kech155 (zip 210 «Naqd / Bank / Karta», MOSLANDI): pul hisobi / kassa tarixi summasi — base.html `_hisobSom` (tiyin bilan)
+  YUK_NOMLAR.push('_hisobSom');
   const YORDAMCHI = yordamchilar(BASE) + '\n' + YUK_NOMLAR.map(n => olib(BASE, n)).filter(Boolean).join('\n');   // base.html ni kengaytiradigan sahifalar
   const HOD_YORDAMCHI = yordamchilar(HOD);     // hodim_panel.html — O'Z nusxasi (base.html ga bog'lanmagan)
 
@@ -146,6 +148,8 @@ async function ichki() {
       kiritishOyna: async () => (o.prompt === undefined ? null : o.prompt), xabarOyna: async (m) => { ctx.__alert = String(m); },
       location: { reload() { ctx.__reload = true; }, href: '' },
       showMsg() {}, customConfirm: async () => true, showConfirmModal: async () => true,
+      // kech155 (zip 210 «Naqd / Bank / Karta», MOSLANDI): «qaysi hisobdan» — base.html tanlovi (soxta DOMda chizilmaydi — standart 'naqd')
+      hisobQiymat: () => 'naqd', hisobTanla() {}, hisobTanlovChiz: () => null,
       document: {
         getElementById(id) { if (!(id in ELS)) ELS[id] = element(id); return ELS[id]; },
         querySelector() { return null; }, querySelectorAll() { return []; }, createElement() { return element('?'); },
@@ -527,7 +531,7 @@ function statik() {
     'dashboard.html': ['tkSana(due.due_date)', 'tkSana(r.requested_date)'],
     'hodim_panel.html': ["getElementById('f-date').value = tkISO()", 'tkSana(r.requested_date)'],
     'returns.html': ['tkISO(x.sana)'],
-    'finance.html': ["tkSana(r.created_at, 'ru-RU')", 'tkSana(t.date)', 'tkISO(dateIso)'],
+    'finance.html': ['tkSanaVaqt(q.vaqt)', 'tkSana(t.date)', 'tkISO(dateIso)'],   // kech155 (zip 210 «Naqd / Bank / Karta», MOSLANDI): kassa tarixi — sana + vaqt
     'logs.html': ['tkToliq(d.checked_at)'],
     'finished.html': ['tkToliq(item.created_at)', 'tkISO(i.created_at)'],
   };

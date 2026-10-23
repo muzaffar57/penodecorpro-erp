@@ -107,6 +107,8 @@ function muhit(o) {
     parseNum: (v) => parseFloat(String(v).replace(/\s/g, '')) || 0,
     sanitizeToLatin: (t) => t,
     renderDeliveryHistory: () => {},
+    // kech155 (zip 210 «Naqd / Bank / Karta», MOSLANDI): «qaysi hisobdan» — base.html tanlovi (soxta DOMda chizilmaydi — standart 'naqd')
+    hisobQiymat: () => 'naqd', hisobTanla() {}, hisobTanlovChiz: () => null,
   }, o.globallar || {});
   vm.createContext(ctx);
   return { ctx, sorovlar, xabarlar, tasdiqlar };

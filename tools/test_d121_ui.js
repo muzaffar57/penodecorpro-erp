@@ -479,15 +479,17 @@ async function adminBolimi() {
   tekshir('Q0 loadCashBalance topildi', !kc.yoq.length);
   // kech138 (zip 164, MOSLANDI): `loadCashBalance` endi base.html dagi umumiy yuklash yordamchilari (`yukBlok`, `yukOl`, `yukXatoKor` …)
   // bilan ishlaydi — ular bo'lsa birga yuklanadi (eski shablonda yo'q — kod o'zgarmagan holda ishlaydi)
+  // kech155 (zip 210 «Naqd / Bank / Karta», MOSLANDI): hisoblar boshlangach jami tiyin bilan — base.html `pulKor` / `_hisobSom`
   const YUK = ['xatoSababi', 'escapeHtml', 'yukXato', 'yukOl', 'yukSabab', 'yukXatoMatn', 'yukNavbat', 'yukBlok', 'yukXatoKor',
-    'yukRoyxatXato', 'yukSessiyaKor'].map((n) => jinja(olib(BASE, n)) || '').join('\n');
+    'yukRoyxatXato', 'yukSessiyaKor', 'pulKor', '_hisobSom'].map((n) => jinja(olib(BASE, n)) || '').join('\n');
   kc.kod = YUK + '\n' + kc.kod;
   for (const [nomi, qiy, kut] of [["kiritilmagan", false, false], ['kiritilgan', true, true], ['eski server (kalit yo\'q)', undefined, true]]) {
     const ogoh = element(''); ogoh.hidden = !kut;
     const val = element(''); val.style = {};
     const m2 = muhit({ 'cash-balance-val': val, 'cash-boshlangich-yoq': ogoh }, { fmtCash: (n) => String(n) });
     const d = { balance: -5 };
-    if (qiy !== undefined) d.boshlangich_kiritilgan = qiy;
+    // kech155 (zip 210 «Naqd / Bank / Karta», MOSLANDI): ogohlantirish endi Naqd / Bank / Karta qoldig'i kiritilganiga qaraydi (`hisoblar_boshlangan`)
+    if (qiy !== undefined) { d.boshlangich_kiritilgan = qiy; d.hisoblar_boshlangan = qiy; }
     m2.javoblar.push({ status: 200, data: d });
     const r = await ishga(m2, kc.kod, 'loadCashBalance()');
     tekshir(`Q1 boshlang'ich balans ${nomi} → ogohlantirish ${kut ? 'YASHIRIN' : "KO'RINADI"}`, !r.xato && ogoh.hidden === kut,

@@ -83,6 +83,8 @@ function muhit(o) {
     customConfirm: async (a, b) => { tasdiqlar.push([a, b]); return haRoy ? !!haRoy.shift() : (o.ha === undefined ? true : !!o.ha); },
     yukSessiyaKor() {}, loadAdvanceHistory() {}, loadEmployees() {}, removeAdvRow: (id) => xabarlar.push('[removeAdvRow ' + id + ']'),
     advTugmalar() {}, tkHozir: () => ({ yil: 2026, oy: 10, kun: 11 }),
+    // kech155 (zip 210 «Naqd / Bank / Karta», MOSLANDI): «qaysi hisobdan» — base.html tanlovi (soxta DOMda chizilmaydi — standart 'naqd')
+    hisobQiymat: () => 'naqd', hisobTanla() {}, hisobTanlovChiz: () => null,
   };
   vm.createContext(ctx);
   return { ctx, elementlar, xabarlar, sorovlar, tasdiqlar };
@@ -93,7 +95,8 @@ function yukla(m, src, nomlar) {
   for (const nm of nomlar || []) { if (!(nm in m.ctx) && !yoq.includes(nm)) yoq.push(nm); }
   return yoq;
 }
-const BASE_FN = ['escapeHtml', 'xatoSababi', 'serverXatoSababi', 'amalSababi', 'avansYubor'];
+// kech155 (zip 210 «Naqd / Bank / Karta», MOSLANDI): formasiz pul amali (oylikni yopish, so'rov tasdig'i) — base.html `hisobSora` (u `customConfirm` ni chaqiradi)
+const BASE_FN = ['escapeHtml', 'xatoSababi', 'serverXatoSababi', 'amalSababi', 'avansYubor', 'hisobSora'];
 
 (async () => {
   bolim('A — base.html `avansYubor`');
@@ -143,6 +146,7 @@ const BASE_FN = ['escapeHtml', 'xatoSababi', 'serverXatoSababi', 'amalSababi', '
       await m.ctx.saveAdvance();
       tekshir("K1 oylikdan ko'p avans — so'raldi va `confirm_excess=true` bilan qayta yuborildi, maydon tozalandi",
               m.tasdiqlar.length === 1 && m.sorovlar.length === 2 && m.sorovlar[1].url.endsWith('&confirm_excess=true')
+              && m.sorovlar[0].url.includes('&hisob=naqd')     // kech155 (zip 210 «Naqd / Bank / Karta», MOSLANDI): qaysi hisobdan berildi
               && m.elementlar['adv-amount'].value === '', { s: m.sorovlar, x: m.xabarlar });
       const m2 = muhit({ elementlar: { 'adv-amount': el({ value: '100000' }), 'adv-date': el({ value: '2026-10-11' }), 'adv-notes': el({ value: '' }),
                                        'adv-save-btn': el() }, javobFn: () => javob(400, { detail: "'adv_date' YYYY-MM-DD ko'rinishidagi haqiqiy sana bo'lishi kerak" }) });
@@ -206,6 +210,7 @@ const BASE_FN = ['escapeHtml', 'xatoSababi', 'serverXatoSababi', 'amalSababi', '
       await m.ctx.closeEmployeeDebt(3, 'H', 50000000, 2026, 10);
       tekshir("D1 qolgandan ko'p — ikkinchi oyna (oylikdan ko'p) va `confirm_excess=true` bilan qayta, sahifa yangilandi",
               m.tasdiqlar.length === 2 && m.sorovlar.length === 2 && m.sorovlar[1].url.endsWith('&confirm_excess=true')
+              && m.sorovlar[0].url.includes('&hisob=naqd')     // kech155 (zip 210 «Naqd / Bank / Karta», MOSLANDI): tasdiq oynasida tanlangan hisob
               && m.xabarlar.includes('[reload]'), { s: m.sorovlar, t: m.tasdiqlar, x: m.xabarlar });
       const m2 = muhit({ javobFn: () => javob(400, { detail: "'month' 1–12 bo'lishi kerak" }) });
       yukla(m2, [[BASE, BASE_FN], [DEBTS, ['fmt', 'closeEmployeeDebt']]]);
@@ -222,7 +227,8 @@ const BASE_FN = ['escapeHtml', 'xatoSababi', 'serverXatoSababi', 'amalSababi', '
     if (!yoq.length) {
       await m.ctx.confirmAdvReq(7);
       tekshir("H1 oylikdan ko'p so'rov — so'raldi, `?confirm_excess=true` bilan tasdiqlandi, qator olib tashlandi",
-              m.sorovlar.length === 2 && m.sorovlar[1].url === '/api/admin/advance-requests/7/confirm?confirm_excess=true'
+              // kech155 (zip 210 «Naqd / Bank / Karta», MOSLANDI): tasdiq oynasida tanlangan hisob — `?hisob=naqd`, ortiqchasi — `&confirm_excess=true`
+              m.sorovlar.length === 2 && m.sorovlar[1].url === '/api/admin/advance-requests/7/confirm?hisob=naqd&confirm_excess=true'
               && m.xabarlar.includes('[removeAdvRow 7]'), { s: m.sorovlar, x: m.xabarlar });
       const m2 = muhit({ javobFn: () => javob(404, { detail: "So'rov topilmadi yoki allaqachon ko'rib chiqilgan" }) });
       yukla(m2, [[BASE, BASE_FN], [HO, ['confirmAdvReq']]]);

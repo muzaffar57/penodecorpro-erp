@@ -597,19 +597,20 @@ if br:
               len(_u.ushlangan) == 1 and _ch == ["yangi"], (len(_u.ushlangan), _ch))
         pg.unroute("**/api/reports/brak-tahlil?oylar=6*")
 
-        pg.route(f"**/api/returns/{ID['RQ']}/refund", lambda r: r.abort())
+        # kech155 (zip 210 «Naqd / Bank / Karta», MOSLANDI): manzilda `?payment_method=…` (tasdiq oynasida tanlangan hisob) — naqsh oxirida «*»
+        pg.route(f"**/api/returns/{ID['RQ']}/refund*", lambda r: r.abort())
         baj(pg, f"() => toggleRefund({ID['RQ']}, false)", 900)
         _m = msg_matn(pg)
         check("C6 (C#17) «Hisob-kitob qilish» — internet uzilsa «⚠️ Hisob-kitob natijasi noma'lum: internet aloqasi yo'q» (ilgari "
               "hech narsa)", "Hisob-kitob natijasi noma'lum" in _m and UZILISH in _m, _m)
-        pg.unroute(f"**/api/returns/{ID['RQ']}/refund")
+        pg.unroute(f"**/api/returns/{ID['RQ']}/refund*")
         msg_tozala(pg)
-        pg.route(f"**/api/returns/{ID['RQ']}/refund", lambda r: r.fulfill(**SAHIFA_502))
+        pg.route(f"**/api/returns/{ID['RQ']}/refund*", lambda r: r.fulfill(**SAHIFA_502))
         baj(pg, f"() => toggleRefund({ID['RQ']}, false)", 900)
         _m = msg_matn(pg)
         check("C7 (C#17) «Hisob-kitob qilish» 502 — natija noma'lum, qayta bosish ikki marta hisoblamaydi (ilgari «❌ Xato»)",
               "Hisob-kitob natijasi noma'lum" in _m and SERVER in _m, _m)
-        pg.unroute(f"**/api/returns/{ID['RQ']}/refund")
+        pg.unroute(f"**/api/returns/{ID['RQ']}/refund*")
         msg_tozala(pg)
 
         pg.route(f"**/api/returns/{ID['RQ']}", lambda r: r.fulfill(**SAHIFA_502))

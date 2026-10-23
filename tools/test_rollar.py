@@ -451,6 +451,11 @@ YANGI_MARSHRUTLAR = {
     # kech144 (zip 174 — egasi QARORI 13.10 «Detal va miqdor», MOSLANDI): «Yangi qaytarish» / «Brak yozish → Buyurtma detalida» detallari —
     # tanlov ro'yxatlari bilan bir ruxsat («Qaytarishlar: Yaratish»; tayyor rollarda Admin, Menejer, Omborchi)
     "GET /api/tanlov/buyurtmalar/{order_id}/detallar": "AMW", "GET /api/tanlov/loyihalar/{project_id}/detallar": "AMW",
+    # kech155 (zip 210 «Naqd / Bank / Karta», MOSLANDI): pul hisoblari — «Kassa: Ko'rish» (qoldiqlar, qo'lda kiritilganlar, hisob tarixi — `cash-balance` bilan bir rollar),
+    # «Kassa: Yaratish» (qoldiq, o'tkazish — `cash-transaction` dek), «Kassa: O'chirish» (qoldiq / o'tkazishni o'chirish)
+    "GET /api/finance/hisoblar": "AF", "GET /api/finance/hisoblar/qolda": "AF", "GET /api/finance/hisoblar/{hisob_id}/tarix": "AF",
+    "POST /api/finance/hisoblar/qoldiq": "A", "POST /api/finance/hisoblar/otkazma": "A",
+    "DELETE /api/finance/hisoblar/qoldiq/{qoldiq_id}": "A", "DELETE /api/finance/hisoblar/otkazma/{otkazma_id}": "A",
 }
 # ATAYLAB o'zgarishlar (rol, marshrut) → yangi holat (True — ochiq). Sababi: tayyor rollar sahifa bo'yicha izchil.
 FARQLAR = {
