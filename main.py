@@ -8538,6 +8538,11 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[str] = None, db: Ses
     order = crud.get_order(db, order_id, company_id=auth.company_id_of(current_user))
     if not order:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+    # kech155 (zip 209 — review209 T5, O'LCHANGAN SQLite / PG): savatdagi buyurtmani QAYTA o'chirish 200 qaytarib jurnalga ikkinchi
+    # «o'chirildi» yozardi (parallel ikki o'chirish — ikkalasi 200). Qulf ostida qayta o'qilgan holat bo'yicha — 409, hech narsa o'zgarmaydi.
+    if order.is_deleted:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Buyurtma allaqachon o'chirilgan — u «O'chirilganlar» da (tiklash yoki butunlay o'chirish o'sha yerda)")
 
     log = []
     order_num = order.order_number
@@ -8691,8 +8696,13 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[str] = None, db: Ses
         # «Tayyor» bilan AYNAN bir qoida bilan YAKUNLANADI (`crud.ochirishda_topshirilganni_yopish`: miqdor / summa
         # topshirilganga, loy, READY, `completed_at` — hozir); ombor ishi yuqorida (o'zgarmagan). Tiklash — AYNAN qaytaradi.
         yopish = None
+        _jurnal_matni209 = None
         if crud.ochirishda_yopiladimi(order):
+            # kech155 (zip 209 — review209 T1, O'LCHANGAN): jurnal matni yakunlashdan OLDINGI holatdan (keyin «Jami» — faqat topshirilgan
+            # qism, qolgan detal «0» bo'lardi) + yakunlangan summa
+            _jurnal_matni209 = crud._buyurtma_ochirish_matni(order)
             yopish = crud.ochirishda_topshirilganni_yopish(db, order, loy_ishlatilgan=_loy_ishlatilgan100)
+            _jurnal_matni209 += f" · topshirilgan qismi bilan yakunlandi: {crud.audit_son(order.total_amount, 0)} so'm"
 
         # MUHIM: yuqorida yaratilgan yangi "ombor harakati" yozuvlari (masalan
         # Loy qaytarilgani) hali bazaga yozilmagan (faqat xotirada) bo'lishi
@@ -8700,7 +8710,8 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[str] = None, db: Ses
         # so'rovidan OLDIN, bazaga yozib qo'yamiz — aks holda FK xatosi chiqadi.
         db.flush()
 
-        if not crud.delete_order(db, order_id, soft=should_soft_delete, performed_by=(current_user.full_name or current_user.username)):
+        if not crud.delete_order(db, order_id, soft=should_soft_delete, performed_by=(current_user.full_name or current_user.username),
+                                 jurnal_matni=_jurnal_matni209):
             raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
 
     if log:
