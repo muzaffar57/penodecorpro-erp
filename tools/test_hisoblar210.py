@@ -388,6 +388,17 @@ _u3 = A.post("/api/finance/cash-transaction", data={"category": "usta_kpi", "amo
 _u4 = A.post("/api/finance/cash-transaction", data={"category": "ehson", "amount": 0})
 check("P11b «Usta KPI / Ehson» — chiqim: musbat yoki 0 summa — 400, hisob o'zgarmaydi (review210 №7 — ilgari Bank +5 000 bo'lardi)",
       _u3.status_code == 400 and _u4.status_code == 400 and teng(farq(oldin, bal()), {}), (_u3.status_code, _u3.text[:200], _u4.status_code))
+# sinov saytida JONLI TOPILGAN (23.10 20:22): bitta bosishdan ikki yozuv (javob kechikkanda so'rov serverga ikkinchi marta yetgan)
+oldin = bal()
+_u5 = A.post("/api/finance/cash-transaction", data={"category": "usta_kpi", "amount": -777, "notes": "K210 takror", "hisob": "karta"})
+_u6 = A.post("/api/finance/cash-transaction", data={"category": "usta_kpi", "amount": -777, "notes": "K210 takror", "hisob": "karta"})
+_ct2 = js(A.get("/api/finance/cash-transactions"))
+check("P11c «Usta KPI to'landi» takror yuborildi (8 s ichida, o'sha summa / hisob / izoh) — ikkinchisi `duplicate: true`, yozuv BITTA, "
+      "Karta −777 (bir marta)",
+      _u5.status_code == 200 and _u6.status_code == 200 and js(_u5).get("duplicate") is False and js(_u6).get("duplicate") is True
+      and js(_u5).get("transaction_id") == js(_u6).get("transaction_id")
+      and sum(1 for x in (_ct2 if isinstance(_ct2, list) else []) if x.get("notes") == "K210 takror") == 1
+      and teng(farq(oldin, bal()), {"karta": -777}), (_u5.text[:150], _u6.text[:150], farq(oldin, bal())))
 # qaytarish «pul qaytdi» (usul) — ortiqcha to'langan buyurtma
 O2 = buyurtma(100_000)
 O2ID = O2.get("id")
