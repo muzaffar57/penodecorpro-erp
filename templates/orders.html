@@ -280,6 +280,11 @@
 .blokunit-toggle{display:flex;border:1px solid var(--ch-e2e8f0);border-radius:var(--r-btn);overflow:hidden;height:var(--h-btn)}
 .blokunit-opt{flex:1;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;cursor:pointer;color:var(--text3);background:var(--f-f8fafc);transition:all .15s}
 .blokunit-opt.active{background:var(--gold-btn);color:#fff}
+/* kech155 (zip 211 — jonli sinov 24.10, O'LCHANGAN): blok detalida «O'lcham (ixtiyoriy)» va «Miqdor va narx» yonma-yon sig'maydi (1440 px
+   ekranda maydonlar 24 px ga tushib, yozilgan son ko'rinmasdi) — tor joyda «Miqdor va narx» keyingi qatorga o'tadi, keng ekranda yonma-yon */
+.detal.blok-qator .dgrp-flex-row{flex-wrap:wrap}
+.detal.blok-qator .dgrp-flex-row > .i-dims-box{flex:1 1 240px !important;min-width:0}
+.detal.blok-qator .dgrp-flex-row > .i-qty-box{flex:3 1 440px !important;min-width:0}
 /* Ichki qo'shimcha detal qatoridagi Qoplama — asosiy detalning
    coat-toggle/coat-opt bilan bir xil rang mantig'i, faqat qator ichiga
    sig'adigan kichikroq o'lchamda (ko'rinish, formulaga tegilmagan). */
@@ -364,6 +369,8 @@ input[type=number]{-moz-appearance:textfield}
   .yb-forma-ong{border-left:none !important;padding-left:0 !important;border-top:1px solid var(--border2);padding-top:14px}
   .detal-grid{grid-template-columns:1fr}
   .dgrp-flex-row{flex-direction:column}
+  /* kech155 (zip 211): telefonda qutilar ustun bo'ylab — blok qatoridagi flex-basis balandlikka aylanmasin */
+  .detal.blok-qator .dgrp-flex-row > .i-dims-box, .detal.blok-qator .dgrp-flex-row > .i-qty-box{flex:none !important}
   .dgrp-row{grid-template-columns:repeat(2,minmax(0,1fr)) !important}
   .dgrp-row.yb-qoplama-qator{grid-template-columns:1fr !important}
   .dgrp{padding:12px}
@@ -4702,6 +4709,16 @@ function blokKoef(row) {
   return (k > 0) ? k : 2;
 }
 
+// kech155 (zip 211 — jonli sinov 24.10): qoplama tugmasi yozuvi — blok detalida haqiqiy koeffitsient («Bor (×2,5)»), qolgan turlarda «Bor (×2)»
+// (ilgari blokda koeffitsient 2,5 bo'lsa ham «×2» yozilardi — narx esa ×2,5 bilan hisoblanardi)
+function qoplamaYorligi(row) {
+  const el = row ? row.querySelector('.coat-yes') : null;
+  if (!el) return;
+  const k = (row.querySelector('.i-type')?.value === 'blok' && !row.dataset.fpId) ? blokKoef(row) : 2;
+  const matn = `Bor (×${(typeof sonKor === 'function') ? sonKor(k) : k})`;
+  if (el.textContent !== matn) el.textContent = matn;
+}
+
 // «1 m³ asosiy narxi» / «1 blok asosiy narxi» — tur korxonada yoqiq YOKI formada shu turdagi detal bor bo'lsa ko'rinadi
 function asosiyNarxlarKorinishi() {
   const turlar = Array.from(document.querySelectorAll('#items .detal .i-type')).map(s => s.value);
@@ -5191,6 +5208,7 @@ function toggleFields(row) {
   // kech155 (zip 211): blok birligi tanlovi — faqat Blokda; boshqa turda narx guruhidagi «1 blok narxi» ham yashirin (yuqoridagi
   // shoxlar `bpW` ni yashiradi — bu yerda qo'shimcha kafolat: tartib o'zgarsa ham)
   if (buW) buW.style.display = (type === 'blok') ? 'block' : 'none';
+  row.classList.toggle('blok-qator', type === 'blok');    // jonli sinov (24.10): tor ekranda qutilar ustma-ust (CSS)
   if (bpW && type !== 'blok') bpW.style.display = 'none';
   if (coatPenoGrp) {
     const bpHidden = !bpW || bpW.style.display === 'none';
@@ -5463,6 +5481,8 @@ function calculateItem(row) {
   checkDeliveredLimit(row);
   // Tayyor mahsulot chegarasi
   checkFpLimit(row);
+  // kech155 (zip 211 — jonli sinov): qoplama tugmasi yozuvi koeffitsient bilan (blok)
+  if (typeof qoplamaYorligi === 'function') qoplamaYorligi(row);
 
   let volume_total = 0, price = 0, perMeterPrice = 0;
 

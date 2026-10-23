@@ -2166,6 +2166,14 @@ function pCalc() {
   const l = parseFloat(document.getElementById('p-l').value) || 0;
   const qty = parseFloat(document.getElementById('p-q').value) || 1;
   const isCoated = document.getElementById('p-coated').value === 'true';
+  // kech155 (zip 211 — jonli sinov 24.10): qoplama tugmasi yozuvi — blokda haqiqiy koeffitsient («Bor (×2,5)»), boshqa turda «Bor (×2)»
+  const _tg211 = document.getElementById('p-coat-toggle');
+  const _cy211 = (_tg211 && typeof _tg211.querySelector === 'function') ? _tg211.querySelector('.coat-yes') : null;
+  if (_cy211) {
+    const _k211 = parseFloat((document.getElementById('p-blokmult') || {}).value);
+    const _kk211 = (type === 'blok' && _k211 > 0) ? _k211 : 2;
+    _cy211.textContent = `Bor (×${(typeof sonKor === 'function') ? sonKor(_kk211) : _kk211})`;
+  }
   const basePrice = parseNum(document.getElementById('p-m3').value);
   const box = document.getElementById('p-calc');
 
