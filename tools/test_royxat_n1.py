@@ -537,7 +537,8 @@ def _eski_izchillik(db, company_id):
     orders = oq.all()
     for o in orders:
         items = db.query(OrderItem).filter(OrderItem.order_id == o.id).all()
-        items_sum = sum(float(it.unit_price or 0) * float(it.quantity or 1) for it in items)
+        # kech155 (zip 209 — MOSLANDI, review207 eslatmasi): `check_financial_consistency` ning zip 207 qoidasi — miqdor 0 → 0, NULL → 1
+        items_sum = sum(float(it.unit_price or 0) * (1.0 if it.quantity is None else float(it.quantity)) for it in items)
         total = float(o.total_amount or 0)
         diff = abs(items_sum - total)
         if diff > 1:
