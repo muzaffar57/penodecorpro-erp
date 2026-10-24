@@ -2825,6 +2825,32 @@ def davr_qaytarishlari(db: Session, boshi, oxiri, company_id: int = None, master
     return natija
 
 
+def _detal_miqdori(item) -> float:
+    """kech156 (zip 212 — egasi tanlovi «Qisman buyurtma foydasi», O'LCHANGAN `work/k212/probe212.py`): detal miqdori HISOB uchun.
+    Miqdor yo'q (NULL — eski yozuv, ustun standarti 1) — 1 (avvalgidek); 0 — 0. Miqdor 0 bo'ladigan yagona yo'l — qisman «Tayyor» /
+    o'chirishda umuman berilmagan detal (`crud.finalize_partial_order_quantities`: miqdor topshirilganga, jami 0) — ilgari `quantity or 1`
+    uni 1 deb olardi: tannarx, kesilgan blok, qoplamachi bonusi berilmagan 1 dona bilan (panel 75 000 ↔ 60 000, dona 30 000 ↔ 20 000).
+    `crud.check_financial_consistency` (zip 207) qoidasi bilan BIR XIL."""
+    _q = getattr(item, 'quantity', None)
+    if _q is None:
+        return 1.0
+    _q = float(_q)
+    if _q == 0 and QISMAN_MIQDOR0_BOSHI is not None:
+        # review212 №1 (O'LCHANGAN): YOPILGAN (hisoboti berilgan, oyligi to'langan) oylar o'zgarmaydi — chegaradan OLDIN yakunlangan
+        # buyurtmaning miqdori 0 detali — eski qoida (1 dona): sentabr tannarxi / sof foydasi / usta KPI / kesilgan blok asl kod bilan
+        # AYNAN; o'sha oyning eski tsikli (`jami_dona`) ham shu qoidada — bir oyda ikki qoida yo'q. Ochiq oy — to'g'ri qoida (0).
+        _o = getattr(item, 'order', None)
+        _t = getattr(_o, 'completed_at', None) if _o is not None else None
+        if _t is not None and _t < _tashkent_oy_oraligi(*QISMAN_MIQDOR0_BOSHI)[0]:
+            return 1.0
+    return _q
+
+
+# kech156 (zip 212 — review212 №1): shu oydan (Toshkent) boshlab yakunlangan buyurtmalarda miqdori 0 detal — 0; undan oldingilari —
+# eski qoida (1), yopilgan oylar hisoboti o'zgarmaydi. None — chegara yo'q (hammasi 0).
+QISMAN_MIQDOR0_BOSHI = (2026, 10)
+
+
 def calculate_order_profit(db: Session, order_id: int, company_id: int = None, holat_vaqti=None) -> Dict:
     """
     Buyurtma uchun tan narxi va foyda hisoblaydi.
@@ -2899,7 +2925,8 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None, h
         if getattr(item, 'finished_product_id', None):
             continue
         cat = (item.category or '').lower()
-        qty = float(item.quantity or 1)
+        # kech156 (zip 212): miqdor 0 (qisman «Tayyor» da berilmagan) — 0; NULL — 1 (`_detal_miqdori`)
+        qty = _detal_miqdori(item)
         vol = 0.0
 
         if cat == 'profil':
@@ -3758,7 +3785,8 @@ def _qoplama_birliklari(item) -> dict:
     elif category == "panel":
         r["panel"] += float(item.quantity or 0)
     elif category == "dona":
-        r["dona"] += float(item.quantity or 1)
+        # kech156 (zip 212): umuman berilmagan (miqdor 0) — 0; ilgari `or 1` — yopilgan oyga 1 dona (bonus 5 000 ↔ 4 000)
+        r["dona"] += _detal_miqdori(item)
     return r
 
 
@@ -3770,7 +3798,9 @@ def _yuk_xati_ulushlari(db, year: int, month: int, yopilganlar, company_id: int 
       * yopilishdan OLDINGI yuk xatlari vaqt tartibida yig'iladi (avvalgi oylarnikilari ham — chegara uchun); shu oydagisi qo'shiladi;
         asosiy detal — berilgan ÷ detalning JORIY miqdori (yig'indi miqdordan oshmaydi): «Tayyor» qisman yopilganda miqdor
         topshirilganga qisqaradi, hajm / metr ham shunga mutanosib — o'tgan oylar o'zgarmaydi; ichki detal — yuk PAYTIDAGI ulush
-        (`DeliveryItem.ulush`; eski yozuvda NULL — joriy miqdordan), yig'indi 1 dan oshmaydi;
+        (`DeliveryItem.ulush`; eski yozuvda NULL — joriy miqdordan), yig'indi 1 dan oshmaydi; kech156 (zip 212): qisman yakunlashda ichki
+        detal ham topshirilgan ulushga qisqaradi, yuk ulushi esa QOLGAN detalga nisbatan qayta yoziladi (`crud._qisman_ichki_detallar`) —
+        yuk oyi o'zgarmaydi, yopilgan oyga berilmagan qismning ichki bo'lagi yozilmaydi;
       * buyurtma shu oyda yopilgan bo'lsa — qolgan ulush (1 − yopilishgacha topshirilgan, sanasidan qat'i nazar);
       * yopilgandan KEYINGI yuk xati — hisoblanmaydi (yopilganda 100 % yozilgan).
     So'rovlar buyurtma / detal soniga bog'liq emas (IN bo'laklari); detallar va ichki detallar — `_hk_tayyorla` bilan oldindan."""
@@ -5913,6 +5943,14 @@ def _sub_details_volume_m3(item) -> float:
     formulasi bilan, lekin PARENT bilan bir xil xomashyo hisobiga."""
     total = 0.0
     for sub in (getattr(item, 'sub_details', None) or []):
+        # kech156 (zip 212 — review212 №3, O'LCHANGAN): qisman yakunlashda UMUMAN berilmagan karnizning ichki PANEL bo'lagi — miqdor 0
+        # va saqlangan hajm 0 (`crud._qisman_ichki_detallar`); `_calc_dim_volume_price` `quantity or 1` uni 1 dona deb olardi (tannarx
+        # 57 500 ↔ 50 000, kesilgan blok +0,015). Yaratilganda miqdori 0 bo'lgan (eski) bo'lak — saqlangan hajmi 1 dona bilan (0 emas),
+        # ombordan ham shuncha yechilgan — avvalgidek.
+        if (not isinstance(sub, dict) and (getattr(sub, 'category', None) or 'profil').lower() == 'panel'
+                and getattr(sub, 'quantity', None) is not None and float(sub.quantity) == 0
+                and float(getattr(sub, 'volume_m3', 0) or 0) == 0):
+            continue
         vol, _ = _calc_dim_volume_price(
             _sub_detail_field(sub, 'category', 'profil'),
             _sub_detail_field(sub, 'width'),
@@ -5944,7 +5982,9 @@ def _item_volume_m3(db, item, default_penoplast=None, penoplast_narxi=None, comp
         return 0.0
 
     cat = (item.category or '').lower()
-    qty = float(item.quantity or 1)
+    # kech156 (zip 212): miqdor 0 (qisman «Tayyor» / o'chirishda umuman berilmagan) — hajm 0; NULL — 1 (`_detal_miqdori`). Ombordan
+    # yechish / qaytarishda miqdor 0 detal bo'lmaydi (yaratishda `gt=0`; qolgan qism — `_ProratedItem`, ulush bilan).
+    qty = _detal_miqdori(item)
 
     if cat == 'profil':
         vol = 0.0
@@ -6187,8 +6227,11 @@ def deduct_inventory_for_order(db: Session, order, commit: bool = True) -> list:
 class _ProratedItem:
     """Buyurtma detalining faqat 'qolgan (topshirilmagan) qismi'ni ifodalovchi
     vaqtinchalik obyekt — mavjud hajm hisoblash funksiyalarini o'zgartirmasdan
-    qayta ishlatish uchun."""
-    def __init__(self, real_item, fraction):
+    qayta ishlatish uchun.
+
+    kech156 (zip 212): `eski212=True` — o'lchamli Donali `length` i ulushga ko'paytirilmaydi (zip 212 dan OLDINGI qoida): faqat zip 212
+    dan oldin o'chirilgan (surati v1 / v2) buyurtma TIKLANGANDA — o'chirishda aynan shu qoida bilan qaytgan miqdor qayta yechilsin."""
+    def __init__(self, real_item, fraction, eski212=False):
         self.category = real_item.category
         self.width = real_item.width
         self.thickness = real_item.thickness
@@ -6213,6 +6256,12 @@ class _ProratedItem:
             # kech155 (zip 209 — review209 T4, O'LCHANGAN; zip 208 da ham): blok hajmi `length` (ishlatilgan blok soni) dan — u ham ulushda
             # (ilgari qisman topshirilgan blok detalining HAMMA bloki qaytardi)
             self.length = float(real_item.length or 0) * fraction
+            self.quantity = float(real_item.quantity or 0) * fraction
+        elif (cat == 'dona' and not eski212 and real_item.width and real_item.thickness and real_item.length):
+            # kech156 (zip 212 — O'LCHANGAN `work/k212/probe212.py`): o'lchamli «Donali» hajmi `length` (JAMI metr ekvivalenti — miqdor ÷
+            # «1 metrdan nechta») dan — u ham ulushda. Ilgari `length` to'liq qolardi: 10 donadan 4 tasi topshirilib «Tayyor» / o'chirish —
+            # 6 emas, 10 donalik xomashyo omborga qaytardi (ombor sarfi 0,08 ↔ 0,16 m³)
+            self.length = float(real_item.length) * fraction
             self.quantity = float(real_item.quantity or 0) * fraction
         else:
             self.length = real_item.length
@@ -6284,7 +6333,7 @@ def _penoplast_qaytish_harakati(db: Session, p, blocks: float, order, sabab: str
     db.flush()
 
 
-def return_inventory_for_order_partial(db: Session, order, sign: float = 1.0, sabab: str = None) -> list:
+def return_inventory_for_order_partial(db: Session, order, sign: float = 1.0, sabab: str = None, eski212: bool = False) -> list:
     """Qisman topshirilgan buyurtma bekor qilinganda/o'chirilganda —
     FAQAT hali topshirilmagan (mijozga berilmagan) qismi uchun xomashyoni
     omborga qaytaradi. Topshirib bo'lingan qism — mijozda, qaytmaydi.
@@ -6292,14 +6341,17 @@ def return_inventory_for_order_partial(db: Session, order, sign: float = 1.0, sa
 
     kech142 (zip 170, A-O05 b): har o'zgarish ombor harakati bilan (`_penoplast_qaytish_harakati`); `sabab` — jurnal matni
     (berilmasa: «Buyurtma … o'chirildi — penoplast qaytdi (qolgan qism)» / «… tiklandi — … qayta yechildi (qolgan qism)»;
-    «Tayyor» (qisman) o'z matnini beradi)."""
+    «Tayyor» (qisman) o'z matnini beradi).
+
+    kech156 (zip 212): `eski212=True` — o'lchamli Donali zip 212 dan oldingi qoida bilan (`_ProratedItem`) — FAQAT tiklashda, buyurtma
+    zip 212 dan oldin o'chirilgan bo'lsa (`crud.restore_order`: o'chirish surati v1 / v2)."""
 
     log = []
     undelivered = get_undelivered_items(order)
     if not undelivered:
         return log
 
-    prorated_items = [_ProratedItem(item, fraction) for item, fraction, _, _ in undelivered]
+    prorated_items = [_ProratedItem(item, fraction, eski212=eski212) for item, fraction, _, _ in undelivered]
     verb = "qaytarildi" if sign > 0 else "qayta yechildi"
     _nr = getattr(order, 'order_number', None) or f"#{getattr(order, 'id', '?')}"
     if sabab is None:
@@ -7188,6 +7240,9 @@ def loy_manba_ochirish_boshla(order):
         return
     d = loy_manba_ol(order) or {}
     d["o"] = {}
+    # kech156 (zip 212 — review212 №2): qolgan qism penoplasti zip 212 qoidasi bilan (o'lchamli Donali `length` ulushda) qaytadi — belgi;
+    # tiklash shu belgisiz (zip 212 dan oldin o'chirilgan) buyurtmani eski qoida bilan qayta yechadi (`crud.restore_order`)
+    d["op212"] = 1
     _loy_manba_saqla(order, d)
 
 
@@ -7199,7 +7254,14 @@ def loy_manba_ochirish_tozala(order):
     if d is None:
         return
     d.pop("o", None)
+    d.pop("op212", None)
     _loy_manba_saqla(order, d)
+
+
+def ochirish_ombori212mi(order) -> bool:
+    """kech156 (zip 212 — review212 №2): o'chirishda qolgan qism penoplasti zip 212 qoidasi bilan qaytganmi (belgi `op212`)."""
+    d = loy_manba_ol(order) if (order is not None and hasattr(order, "loy_manba_json")) else None
+    return bool(d and d.get("op212"))
 
 
 def _loy_manba_tiklash_zaxira_kg(order, kalit, kg):

@@ -7543,6 +7543,12 @@ def check_financial_consistency(db: Session, company_id: int = None) -> dict:
     # yuklangan — qayta so'ralmaydi (kmut97a N24: alohida yuklash — ekvivalent).
     for o in _oc(db.query(Order).filter(Order.is_deleted.is_(False), Order.status != OrderStatus.DRAFT)).all():
         for it in (o.items or []):
+            # kech156 (zip 212 — O'LCHANGAN `work/k212/probe212.py`): qisman «Tayyor» qilingan buyurtmada umuman berilmagan detal yakunda
+            # olib tashlanadi (miqdor / uzunlik 0, jami 0 — `finalize_partial_order_quantities`; karnizda narx ham 0 bo'ladi) — bu
+            # unutilgan narx EMAS; ilgari «narxi 0 — unutilib qolgan bo'lishi mumkin» deb ko'rsatardi
+            if (o.status == OrderStatus.READY and float(it.order_qty_normalized or 0) <= 0
+                    and float(it.total_price or 0) == 0):
+                continue
             if float(it.unit_price or 0) <= 0:
                 issues.append({
                     "type": "zero_price_item",
@@ -7901,6 +7907,19 @@ def permanent_delete_order(db: Session, order_id: int, performed_by: str = None)
     return True
 
 
+def _ochirish_surati_eskimi212(order) -> bool:
+    """kech156 (zip 212): o'chirish surati (`ochirish_yopish_json`) zip 212 dan OLDINGI (v1 / v2)mi — o'shanda o'lchamli Donali qolgan
+    qismi `length` to'liq bilan qaytgan (`services._ProratedItem(eski212=True)`). Surat yo'q (yakunlanmagan o'chirish) yoki v3 — yo'q."""
+    import json as _json212
+    raw = getattr(order, "ochirish_yopish_json", None)
+    if not raw:
+        return False
+    try:
+        return int(_json212.loads(raw).get("v") or 1) < 3
+    except Exception:                                  # noqa: BLE001
+        return False
+
+
 def restore_order(db: Session, order_id: int, performed_by: str = None) -> bool:
     """O'chirilgan (yumshoq) buyurtmani tiklaydi.
 
@@ -7940,6 +7959,11 @@ def restore_order(db: Session, order_id: int, performed_by: str = None) -> bool:
         # kech100 (93-band): o'chirishda topshirilgan qismi bilan YAKUNLANGAN buyurtma — AVVAL yakunlash bekor qilinadi
         # (detallar / summalar / holat / loy o'chirishdan OLDINGI holatga), so'ng odatdagi tiklash: qolgan qism
         # xomashyosi qayta yechiladi — natija kech100 dan oldingi tiklash bilan AYNAN (`tools/test_ochirish_yopish.py`).
+        # kech156 (zip 212): o'chirish surati versiyasi — v1 / v2 (zip 212 dan OLDIN o'chirilgan) bo'lsa qolgan qism xomashyosi eski qoida
+        # bilan qayta yechiladi (o'lchamli Donali — `length` to'liq; o'chirishda aynan shuncha qaytgan) — ombor siljimaydi
+        # review212 №2 (O'LCHANGAN): surat yo'q (yakunlanmagan o'chirish — yuk xatisiz, faqat «Ortiqcha» omborga qo'yilgan) ham — o'chirish
+        # belgisi (`services.ochirish_ombori212mi`) bo'lmasa zip 212 dan OLDIN o'chirilgan (ilgari +0,28 qaytib, tiklashda 0,20 yechilardi)
+        _eski212 = _ochirish_surati_eskimi212(db_order) or not services.ochirish_ombori212mi(db_order)
         ochirish_yopishini_bekor_qil(db, db_order)
         if db_order.stock_returned:
             # kech60 (57-band): "qisman chiqqan" sharti — `services.buyurtmadan_qisman_chiqqan` (pastda)
@@ -7950,7 +7974,7 @@ def restore_order(db: Session, order_id: int, performed_by: str = None) -> bool:
                 # shart — topshirilgan YOKI omborga ortiqcha qo'yilgan qism bo'lsa, faqat qolgan qism.
                 if services.buyurtmadan_qisman_chiqqan(db_order):
                     # Qisman topshirilgan / omborga qo'yilgan edi — faqat qolgan qism qayta yechiladi
-                    services.return_inventory_for_order_partial(db, db_order, sign=-1.0)
+                    services.return_inventory_for_order_partial(db, db_order, sign=-1.0, eski212=_eski212)
                 else:
                     # Hech narsa topshirilmagan edi — hammasi qayta yechiladi
                     services.return_inventory_for_order(db, db_order, sign=-1.0)
@@ -10336,6 +10360,31 @@ def activate_draft_order(db: Session, order_id: int, performed_by: str = None, c
 # ============================================================
 # BUYURTMANI TAHRIRLASH (ombor farq bo'yicha to'g'rilanadi)
 # ============================================================
+def _qisman_ichki_detallar(item, fraction: float) -> None:
+    """kech156 (zip 212 — O'LCHANGAN `work/k212/probe212.py`): qisman yakunlashda detalning ICHKI qo'shimcha detallari (karniz ichidagi
+    profil / panel bo'lak) ham topshirilgan ulushga — `services._ProratedItem` (ombor qaytishi) qoidasi AYNAN: profil bo'lak — uzunlik,
+    panel bo'lak — miqdor; saqlangan hajm / narx (audit) ham ulushda. Ilgari ichki detal to'liq qolardi: 10 m dan 4 m topshirilgan karnizda
+    tannarx 82 500 ↔ 75 000, qoplamachi bonusi va «metr» hodim oyligi 10 000 ↔ 4 000 (xomashyosi esa omborga ulushda qaytgan).
+
+    Ichki detal oylik hisobida yuk PAYTIDAGI ulush (`DeliveryItem.ulush` — boshqa joyda ishlatilmaydi) bilan sanaladi; detal qisqargach u
+    QOLGAN detalga nisbatan qayta hisoblanadi (ulush ÷ `fraction`): yuk oyi AYNAN (ulush × ichki birlik o'zgarmaydi), yopilgan oyga
+    qo'shimcha 0 — asosiy detal qoidasi AYNAN (`services._yuk_xati_ulushlari`). `fraction` 0 bo'lsa yuk yo'q — ulush tegilmaydi."""
+    _subs = list(getattr(item, 'sub_details', None) or [])
+    if not _subs:
+        return
+    for _sd in _subs:
+        if (_sd.category or 'profil').lower() == 'profil':
+            _sd.length = float(_sd.length or 0) * fraction
+        else:
+            _sd.quantity = float(_sd.quantity or 0) * fraction
+        _sd.volume_m3 = float(_sd.volume_m3 or 0) * fraction
+        _sd.total_price = _pul2(float(_sd.total_price or 0) * fraction)
+    if fraction > 0:
+        for _di in (getattr(item, 'deliveries', None) or []):
+            if _di.ulush is not None:
+                _di.ulush = float(_di.ulush) / fraction
+
+
 def finalize_partial_order_quantities(db: Session, order, faqat_hisob: bool = False) -> dict:
     """Buyurtma QISMAN topshirilgan holatda yakunlanganda —
     har bir detalning miqdorini (va narxini) HAQIQATDA berilgan
@@ -10388,6 +10437,12 @@ def finalize_partial_order_quantities(db: Session, order, faqat_hisob: bool = Fa
                 # «blok» stavkasi, keyingi qaytarish / brak hajmi shundan; ombor qaytishi — yuqorida, avvalgidek)
                 if cat == 'blok':
                     item.length = float(item.length or 0) * fraction
+                # kech156 (zip 212 — O'LCHANGAN `work/k212/probe212.py`): o'lchamli «Donali» — `length` JAMI metr ekvivalenti (miqdor ÷
+                # «1 metrdan nechta»), hajm / tannarx shundan — u ham ulushda (10 donadan 4 tasi topshirilsa tannarx 140 000 ↔ 80 000)
+                elif cat == 'dona' and item.width and item.thickness and item.length:
+                    item.length = float(item.length) * fraction
+        if not faqat_hisob:
+            _qisman_ichki_detallar(item, fraction)
         _yangi_jami[item.id] = float(_jami100)
 
     new_total_amount = round(sum(_yangi_jami.get(i.id, float(i.total_price or 0)) for i in order.items), 2)
@@ -10547,7 +10602,9 @@ def ochirishda_topshirilganni_yopish(db: Session, order, loy_ishlatilgan: float 
     order.ochirish_yopish_json = _json.dumps({
         # kech140 (zip 168, audit A-P01): v2 — o'chirish paytidagi pul qaytarish kamaytirishi va kechirilgan qarz ham
         # (tiklashda kelishilgan summa ular bilan JORIY holatdan qayta hisoblanadi — `ochirish_yopishini_bekor_qil`)
-        "v": 2,
+        # kech156 (zip 212): v3 — detallar bilan ICHKI detallar (uzunlik / miqdor / hajm / narx) va yuk ulushlari ham (yakunlash ularni
+        # ham ulushga keltiradi — `_qisman_ichki_detallar`); v3 — o'chirishda ombor qaytishi zip 212 qoidasi bilan (`crud.restore_order`)
+        "v": 3,
         "pul_qaytarish": _pul_matn100(pul_qaytarish_kamaytirgan(db, order)),
         "kechirilgan": _pul_matn100(order.kechirilgan),
         "status": order.status.value if order.status else None,
@@ -10560,7 +10617,10 @@ def ochirishda_topshirilganni_yopish(db: Session, order, loy_ishlatilgan: float 
         "is_archived": bool(order.is_archived),
         "closed_at": order.closed_at.isoformat() if order.closed_at else None,
         "items": [{"id": i.id, "quantity": i.quantity, "length": i.length,
-                   "unit_price": _pul_matn100(i.unit_price), "total_price": _pul_matn100(i.total_price)}
+                   "unit_price": _pul_matn100(i.unit_price), "total_price": _pul_matn100(i.total_price),
+                   "sub": [{"id": _s.id, "length": _s.length, "quantity": _s.quantity, "volume_m3": _s.volume_m3,
+                            "total_price": _pul_matn100(_s.total_price)} for _s in (i.sub_details or [])],
+                   "ulush": [{"id": _d.id, "u": _d.ulush} for _d in (i.deliveries or [])]}
                   for i in order.items],
     }, ensure_ascii=False)
     if toliq:
@@ -10596,6 +10656,24 @@ def ochirish_yopishini_bekor_qil(db: Session, order) -> bool:
         it.length = s.get("length")
         it.unit_price = _pul_ol100(s.get("unit_price"))
         it.total_price = _pul_ol100(s.get("total_price"))
+        # kech156 (zip 212): v3 — ichki detallar va yuk ulushlari ham o'chirishdan OLDINGI holatga (v1 / v2 suratda kalit yo'q — ular
+        # o'shanda yakunlashda o'zgarmagan)
+        if "sub" in s:
+            _sd_by212 = {_sd.id: _sd for _sd in (it.sub_details or [])}
+            for _ss in s.get("sub") or []:
+                _sd = _sd_by212.get(_ss.get("id"))
+                if _sd is None:
+                    continue
+                _sd.length = _ss.get("length")
+                _sd.quantity = _ss.get("quantity")
+                _sd.volume_m3 = _ss.get("volume_m3")
+                _sd.total_price = _pul_ol100(_ss.get("total_price"))
+        if "ulush" in s:
+            _di_by212 = {_d.id: _d for _d in (it.deliveries or [])}
+            for _su in s.get("ulush") or []:
+                _d = _di_by212.get(_su.get("id"))
+                if _d is not None:
+                    _d.ulush = _su.get("u")
     order.total_amount = _pul_ol100(snap.get("total_amount"))
     order.agreed_amount = _pul_ol100(snap.get("agreed_amount"))
     # kech140 (zip 168, audit A-P01 — O'LCHANGAN `work/audit/tasdiq/pul/probe_p01.py`): ilgari kelishilgan summa o'chirish

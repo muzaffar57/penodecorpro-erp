@@ -2625,8 +2625,9 @@ class DeliveryItem(Base):
     mrp_olingan = Column(Text, nullable=True)
     # kech123 (zip 143 — EGASI QARORI 06.10: qoplamachi / «har birlik uchun» hodim haqi YUK XATLARI bo'yicha): shu yukda detalning
     # QANCHA ULUSHI topshirilgani (berilgan miqdor ÷ detalning yuk paytidagi miqdori). Detal «Tayyor» qilinganda qisman
-    # topshirilgan bo'lsa miqdori topshirilganga qisqaradi (`finalize_partial_order_quantities`), ichki qo'shimcha detallar esa
-    # qisqarmaydi — ularning haqi o'tgan oylar o'zgarmasligi uchun yuk PAYTIDAGI ulushdan olinadi. Eski yozuvlarda NULL —
+    # topshirilgan bo'lsa miqdori topshirilganga qisqaradi (`finalize_partial_order_quantities`); kech156 (zip 212) dan ichki qo'shimcha
+    # detallar ham qisqaradi va shu ustun QOLGAN detalga nisbatan qayta yoziladi (ulush ÷ qolgan ulush — `crud._qisman_ichki_detallar`):
+    # ichki detal haqi yuk PAYTIDAGI ulushdan — o'tgan oylar o'zgarmaydi. Faqat ichki detal hisobida ishlatiladi. Eski yozuvlarda NULL —
     # standart qiymat ataylab BERILMAYDI (kech52 saboqi); NULL bo'lsa hisob detalning joriy miqdoridan.
     ulush = Column(Float, nullable=True)
 
