@@ -423,6 +423,11 @@ if yF:
 H1 = toza_hisob()
 check("F1 asosiy 60 m + ichki (2 m × 10 = 20 m) × 0,6 = 12 m — noyabr 72 000 (buyurtma ochiq)",
       stF == 200 and yaqin(farq(H0, H1, (2026, 11), "qop"), 72000), (stF, farq(H0, H1, (2026, 11), "qop")))
+# kech156 (zip 212): ichki detal hajmi «Tayyor» dan OLDIN (qisman yakunlashda u topshirilgan 0,6 ulushga qisqaradi)
+_s = SessionLocal()
+_itF0 = _s.query(OrderItem).filter(OrderItem.id == (iF[0] if iF else -1)).first()
+_vF_ichki0 = services._sub_details_volume_m3(_itF0) if _itF0 is not None else 0
+_s.close()
 _stF, _ = tayyor(oF) if oF else (0, None)
 if oF:
     sana_yopish(oF, kun(2026, 12, 15))
@@ -430,20 +435,21 @@ H2 = toza_hisob()
 _s = SessionLocal()
 _lF = _s.query(OrderItem.length).filter(OrderItem.id == (iF[0] if iF else -1)).scalar()
 _s.close()
-check("F2 dekabrda qisman «Tayyor» (asosiy uzunlik 100 → 60): noyabr AYNAN 72 000 (o'zgarmadi); dekabr — ichki detal qolgani 0,4 × 20 = "
-      "8 m (8 000); jami asosiy 60 + ichki 20",
+check("F2 dekabrda qisman «Tayyor» (asosiy uzunlik 100 → 60): noyabr AYNAN 72 000 (o'zgarmadi); dekabr — 0 (kech156, zip 212: "
+      "berilmagan 40 m ning ichki bo'lagi ham ishlab chiqarilmagan — ichki detal 20 → 12 m); jami asosiy 60 + ichki 12",
       _stF == 200 and yaqin(_lF, 60, 1e-9) and yaqin(farq(H0, H2, (2026, 11), "qop"), 72000)
-      and yaqin(farq(H0, H2, (2026, 12), "qop"), 8000),
+      and yaqin(farq(H0, H2, (2026, 12), "qop"), 0, 0.01),
       (_stF, _lF, {ym: farq(H0, H2, ym, "qop") for ym in ((2026, 11), (2026, 12))}))
 _s = SessionLocal()
 _itF = _s.query(OrderItem).filter(OrderItem.id == (iF[0] if iF else -1)).first()
 _vF_ichki = services._sub_details_volume_m3(_itF) if _itF is not None else 0
 _vF = 0.20 * 0.15 / 2 * 60
 _s.close()
-check("F3 kesuvchi: noyabr (asosiy 60 m hajmi + ichki hajm × 0,6) × 20 000, dekabr — ichki hajm × 0,4 × 20 000",
-      yaqin(farq(H0, H2, (2026, 11), "kes"), round((_vF + _vF_ichki * 0.6) * 20000), 1.01)
-      and yaqin(farq(H0, H2, (2026, 12), "kes"), round(_vF_ichki * 0.4 * 20000), 1.01),
-      ({ym: farq(H0, H2, ym, "kes") for ym in ((2026, 11), (2026, 12))}, _vF, _vF_ichki))
+check("F3 kesuvchi: noyabr (asosiy 60 m hajmi + ichki hajm × 0,6) × 20 000, dekabr — 0 (kech156, zip 212: ichki detal hajmi «Tayyor» "
+      "da 0,6 ulushga qisqaradi)",
+      yaqin(farq(H0, H2, (2026, 11), "kes"), round((_vF + _vF_ichki0 * 0.6) * 20000), 1.01)
+      and yaqin(farq(H0, H2, (2026, 12), "kes"), 0, 1.01) and yaqin(_vF_ichki, _vF_ichki0 * 0.6, 1e-9),
+      ({ym: farq(H0, H2, ym, "kes") for ym in ((2026, 11), (2026, 12))}, _vF, _vF_ichki0, _vF_ichki))
 
 # ── G. Qoplamasiz detal ─────────────────────────────────────────────────────────────────────────────────────────
 section("G. Qoplamasiz detal — qoplamachiga yo'q, kesilgan blokka bor")
@@ -598,8 +604,9 @@ _stM, _ = tayyor(oM) if oM else (0, None)
 if oM:
     sana_yopish(oM, kun(2026, 12, 10))
 H1 = toza_hisob()
-check("M3 eski (to'ldirilgan) yuk xatli buyurtma dekabrda qisman «Tayyor»: noyabr O'ZGARMAYDI, dekabr — ichki qolgani 0,4 × 20 = 8 000",
-      _stM == 200 and yaqin(farq(H0, H1, (2026, 11), "qop"), 0, 0.01) and yaqin(farq(H0, H1, (2026, 12), "qop"), 8000),
+check("M3 eski (to'ldirilgan) yuk xatli buyurtma dekabrda qisman «Tayyor»: noyabr O'ZGARMAYDI, dekabr — 0 (kech156, zip 212: berilmagan "
+      "qismning ichki bo'lagi yozilmaydi)",
+      _stM == 200 and yaqin(farq(H0, H1, (2026, 11), "qop"), 0, 0.01) and yaqin(farq(H0, H1, (2026, 12), "qop"), 0, 0.01),
       (_stM, {ym: farq(H0, H1, ym, "qop") for ym in ((2026, 11), (2026, 12))}))
 
 # ── U. «Hodimlar» oynasi (brauzer) ───────────────────────────────────────────────────────────────────────────────
