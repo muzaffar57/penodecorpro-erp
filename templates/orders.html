@@ -276,6 +276,17 @@
 .coat-opt{flex:1;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;cursor:pointer;color:var(--text3);background:var(--f-f8fafc);transition:all .15s}
 .coat-opt.coat-no.active{background:var(--f-fca5a5);color:var(--m-7f1d1d)}
 .coat-opt.coat-yes.active{background:var(--f-86efac);color:var(--m-14532d)}
+/* kech155 (zip 211): blok detal birligi (m / ta / m²) — qoplama tugmasi o'lchamida, tanlangani — oltin fon, oq yozuv (U-13 bo'lakli tanlov) */
+.blokunit-toggle{display:flex;border:1px solid var(--ch-e2e8f0);border-radius:var(--r-btn);overflow:hidden;height:var(--h-btn)}
+.blokunit-opt{flex:1;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;cursor:pointer;color:var(--text3);background:var(--f-f8fafc);transition:all .15s}
+.blokunit-opt.active{background:var(--gold-btn);color:#fff}
+/* kech155 (zip 211 — jonli sinov 24.10, O'LCHANGAN): blok detalida «O'lcham (ixtiyoriy)» va «Miqdor va narx» yonma-yon sig'maydi (1440 px
+   ekranda maydonlar 24 px ga tushib, yozilgan son ko'rinmasdi) — tor joyda «Miqdor va narx» keyingi qatorga o'tadi, keng ekranda yonma-yon */
+.detal.blok-qator .dgrp-flex-row{flex-wrap:wrap}
+.detal.blok-qator .dgrp-flex-row > .i-dims-box{flex:1 1 240px !important;min-width:0}
+.detal.blok-qator .dgrp-flex-row > .i-qty-box{flex:3 1 440px !important;min-width:0}
+.detal.blok-qator .yb-qoplama-qator{grid-template-columns:repeat(auto-fit,minmax(170px,1fr)) !important}
+.detal.blok-qator .yb-qoplama-qator > .dif{min-width:0}
 /* Ichki qo'shimcha detal qatoridagi Qoplama — asosiy detalning
    coat-toggle/coat-opt bilan bir xil rang mantig'i, faqat qator ichiga
    sig'adigan kichikroq o'lchamda (ko'rinish, formulaga tegilmagan). */
@@ -360,6 +371,9 @@ input[type=number]{-moz-appearance:textfield}
   .yb-forma-ong{border-left:none !important;padding-left:0 !important;border-top:1px solid var(--border2);padding-top:14px}
   .detal-grid{grid-template-columns:1fr}
   .dgrp-flex-row{flex-direction:column}
+  /* kech155 (zip 211): telefonda qutilar ustun bo'ylab — blok qatoridagi flex-basis balandlikka aylanmasin */
+  .detal.blok-qator .dgrp-flex-row > .i-dims-box, .detal.blok-qator .dgrp-flex-row > .i-qty-box{flex:none !important}
+  .detal.blok-qator .yb-qoplama-qator{grid-template-columns:1fr !important}
   .dgrp-row{grid-template-columns:repeat(2,minmax(0,1fr)) !important}
   .dgrp-row.yb-qoplama-qator{grid-template-columns:1fr !important}
   .dgrp{padding:12px}
@@ -780,9 +794,19 @@ input[type=number]{-moz-appearance:textfield}
           <!-- Narx va ishlab chiqarish -->
           <div class="yb-forma-ong" style="border-left:1px solid var(--border2);padding-left:16px">
             <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:12px">Narx va ishlab chiqarish</div>
-            <div class="form-group" style="margin-bottom:12px">
+            {# kech155 (zip 211 — egasi QARORLARI 23.10 «Blok hisoblash»): «1 m³ asosiy narxi» — Profil / Panel / Donali dan biri yoqiq
+               bo'lsa; «1 blok asosiy narxi» (qoplamasiz; o'z «1 blok narxi» yozilmagan blok detallar shundan) — Blok yoqiq bo'lsa. Yashirilgani
+               ham DOMda (eski buyurtma qiymati tiklanadi, hisobda ishlatiladi); formada shu turdagi detal bo'lsa — ko'rinadi
+               (`asosiyNarxlarKorinishi`). #}
+            {% set _cid211n = current_user.company_id %}
+            <div class="form-group" id="base_price_wrap" data-yoqiq="{{ '1' if (cat_on('profil', _cid211n) or cat_on('panel', _cid211n) or cat_on('dona', _cid211n)) else '0' }}" style="margin-bottom:12px{% if not (cat_on('profil', _cid211n) or cat_on('panel', _cid211n) or cat_on('dona', _cid211n)) %};display:none{% endif %}">
               <label>1 m³ asosiy narxi (so'm)</label>
               <input type="text" id="base_price" placeholder="Masalan: 1 200 000" oninput="formatPriceInput(this);recalcAll()">
+            </div>
+            <div class="form-group" id="blok_base_price_wrap" data-yoqiq="{{ '1' if cat_on('blok', _cid211n) else '0' }}" style="margin-bottom:12px{% if not cat_on('blok', _cid211n) %};display:none{% endif %}">
+              <label for="blok_base_price">1 blok asosiy narxi (so'm)</label>
+              <input type="text" id="blok_base_price" placeholder="Masalan: 600 000" oninput="formatPriceInput(this);recalcAll()" aria-describedby="blok_base_izoh">
+              <div id="blok_base_izoh" style="font-size:12px;color:var(--text3);margin-top:5px">Qoplamasiz. Detalda o'z «1 blok narxi» yozilsa — o'sha olinadi</div>
             </div>
             <div class="form-group" style="margin:0">
               <label for="loy_kg">Loy miqdori (kg)</label>
@@ -1461,6 +1485,7 @@ function saveDraftLS() {
       deadline_input: document.getElementById('deadline_input')?.value || '',
       recipe_id: document.getElementById('recipe_id')?.value || '',
       base_price: document.getElementById('base_price')?.value || '',
+      blok_base_price: document.getElementById('blok_base_price')?.value || '',   // kech155 (zip 211)
       loy_kg: document.getElementById('loy_kg')?.value || '',
       rows
     };
@@ -1480,6 +1505,7 @@ async function restoreDraftLS(draft) {
   if (draft.deadline_input) { const el = document.getElementById('deadline_input'); if (el) el.value = draft.deadline_input; }
   if (draft.recipe_id) { const el = document.getElementById('recipe_id'); if (el) el.value = draft.recipe_id; }
   if (draft.base_price) { const el = document.getElementById('base_price'); if (el) el.value = draft.base_price; }
+  if (draft.blok_base_price) { const el = document.getElementById('blok_base_price'); if (el) el.value = draft.blok_base_price; }
   if (draft.loy_kg) { const el = document.getElementById('loy_kg'); if (el) el.value = draft.loy_kg; }
 
   // Avval, addItem() orqali yaratilgan bo'sh qatorni tozalaymiz
@@ -1515,6 +1541,12 @@ async function restoreDraftLS(draft) {
       rowData._subDetails.forEach(sd => addSubDetailRow(row, sd));
     }
     syncCoatingUI(row, row.querySelector('.i-c')?.value === 'true');
+    // kech155 (zip 211): blok birligi tiklandi — tugmalar va yorliqlar shu birlikda
+    if (row.querySelector('.i-type')?.value === 'blok') {
+      syncBlokUnitUI(row);
+      toggleFields(row);
+      updateTypeConfirmText(row, 'blok');
+    }
     calculateItem(row);
   });
 
@@ -1920,7 +1952,7 @@ function searchFinished(input) {
             </div>
             <div style="text-align:right;flex-shrink:0">
               <div style="font-size:14px;font-weight:700;color:var(--m-15803d)">${sonKor(i.quantity)} ${escapeHtml(birlikKor(i.unit))}</div>
-              <div style="font-size:12px;color:var(--gold-dark)">${formatNum(i.unit_price)}/${i.unit==='metr'?'m':'ta'}</div>
+              <div style="font-size:12px;color:var(--gold-dark)">${formatNum(i.unit_price)}/${escapeHtml(yetkazishBirligi(i.unit, false))}</div>
             </div>
           </div>
         </div>`).join('');
@@ -1961,12 +1993,19 @@ function pickFinished(el, fpId) {
     turVariantiniTaminla(row, effectiveType);
     typeEl.value = effectiveType;
     row.querySelectorAll('.type-opt').forEach(o => o.classList.toggle('active', o.dataset.value === effectiveType));
+    // kech155 (zip 211): blok mahsuloti — birlik MAHSULOTNIKI (m / dona / m²; o'zgartirib bo'lmaydi)
+    if (effectiveType === 'blok') {
+      const buEl = row.querySelector('.i-blokunit');
+      if (buEl) buEl.value = blokBirlikKodi(fp.unit);
+      syncBlokUnitUI(row);
+      row.querySelectorAll('.blokunit-opt').forEach(b => { b.style.pointerEvents = 'none'; b.style.opacity = '.6'; });
+    }
     toggleFields(row);
     updateTypeConfirmText(row, effectiveType);
   }
   if (fp.width) row.querySelector('.i-h').value = fp.width;
   if (fp.thickness) {
-    const t = (fp.category === 'panel') ? row.querySelector('.i-t') : row.querySelector('.i-w');
+    const t = (fp.category === 'panel' || effectiveType === 'blok') ? row.querySelector('.i-t') : row.querySelector('.i-w');
     if (t) t.value = fp.thickness;
   }
   // Panel — kenglik notes da: width2=100
@@ -1985,9 +2024,9 @@ function pickFinished(el, fpId) {
   // MUHIM: "necha metr" qaysi maydonda saqlanishi TURGA qarab FARQ qiladi —
   // Profilda ".i-l" (Uzunlik), Panelda esa ".i-q" (u yerda "Uzunlik (m)"
   // deb nomlanadi). Buni chalkashtirmaslik uchun aniq ajratamiz.
-  if (fp.unit === 'metr' && (effectiveType === 'panel' || effectiveType === 'blok')) {
+  if (fp.unit === 'metr' && effectiveType === 'panel') {
     row.querySelector('.i-q').value = '';
-  } else if (fp.unit === 'metr') {
+  } else if (fp.unit === 'metr' && effectiveType !== 'blok') {
     row.querySelector('.i-l').value = '';
   } else {
     // Donalik, Panel/Blok (dona asosida) — barchasi ".i-q" dan
@@ -2057,13 +2096,8 @@ function pickFinished(el, fpId) {
     const qEl = row.querySelector(qtyFieldSel);
     if (qEl) { qEl.disabled = false; qEl.style.opacity = ''; qEl.title = ''; }
   }
-  // Blokning o'z narx maydonini ("1 blok narxi") — ENDI BLOKLANMAYDI.
-  // Sotuv narxini joriy buyurtma narxiga moslashtirish uchun ochiq
-  // qoldiramiz (tan narxi/xomashyo hisobiga bu SIRA TA'SIR QILMAYDI).
-  if (effectiveType === 'blok') {
-    const bpEl = row.querySelector('.i-blokprice');
-    if (bpEl) { bpEl.disabled = false; bpEl.style.opacity = ''; bpEl.title = ''; }
-  }
+  // kech155 (zip 211): blok mahsulotining sotuv narxi — «1 … narxi» maydonida (yuqorida mahsulot narxi yozildi; joriy buyurtmaga
+  // moslab o'zgartirsa bo'ladi — tan narxi / xomashyo hisobiga ta'siri yo'q). «1 blok narxi», chiqishi, koeffitsient — yashirin.
   // Qoplama tugmalari (Ha/Yo'q ko'rinishidagi tugmalar) ham bloklanadi
   row.querySelectorAll('.coat-opt').forEach(b => {
     b.style.pointerEvents = 'none';
@@ -2073,8 +2107,8 @@ function pickFinished(el, fpId) {
   const box = row.querySelector('.fp-suggest');
   if (box) box.style.display = 'none';
 
-  // Fokus miqdorga
-  const qEl = fp.unit === 'metr' ? row.querySelector('.i-l') : row.querySelector('.i-q');
+  // Fokus miqdorga (kech155 zip 211: faqat profilda «Uzunlik», qolganida — «Miqdor» / «Necha … kerak»)
+  const qEl = effectiveType === 'profil' ? row.querySelector('.i-l') : row.querySelector('.i-q');
   if (qEl) qEl.focus();
 
   calculateItem(row);
@@ -2106,6 +2140,12 @@ function clearFinished(rowId) {
     b.style.pointerEvents = '';
     b.style.opacity = '';
   });
+  // kech155 (zip 211): blok — birlik yana tanlanadi, chiqishi / blok narxi / koeffitsient qaytadi
+  row.querySelectorAll('.blokunit-opt').forEach(b => {
+    b.style.pointerEvents = '';
+    b.style.opacity = '';
+  });
+  if (row.querySelector('.i-type')?.value === 'blok') toggleFields(row);
 
   calculateItem(row);
 }
@@ -2333,7 +2373,12 @@ function itemParamsText(item) {
   const cat = (item.category || '').toLowerCase();
   if (cat === 'profil') return `${item.width || 0}×${item.thickness || 0} sm · ${item.length || 0} m`;
   if (cat === 'panel') return `${item.width || 0}×${item.thickness || 0} sm`;
-  if (cat === 'blok') return `${item.quantity || 0} m kerak`;
+  if (cat === 'blok') {
+    // kech155 (zip 211): o'z birligida, o'lcham bo'lsa — oldidan
+    const bq = BLOK_BIRLIK_QISQA[blokBirlikKodi(item.blok_birlik)];
+    const olcham = (item.width && item.thickness) ? `${item.width}×${item.thickness} sm · ` : '';
+    return `${olcham}${item.quantity || 0} ${bq} kerak`;
+  }
   return `${item.quantity || 0} dona`;
 }
 
@@ -2634,7 +2679,7 @@ function renderDeliveryHistory(showAll) {
   {
       hist.innerHTML = shown.map(dl => {
         const ds = tkSanaVaqt(dl.delivered_at);
-        const items = dl.items.map(i => `${escapeHtml(i.item_name)}: <b>${sonKor(i.quantity)}${i.unit==='metr'?'m':' ta'}</b>`).join(' · ');
+        const items = dl.items.map(i => `${escapeHtml(i.item_name)}: <b>${sonKor(i.quantity)}${escapeHtml(yetkazishBirligi(i.unit))}</b>`).join(' · ');
         return `
         <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--ch-f0f0f0);gap:8px">
           <div style="flex:1;min-width:0">
@@ -2699,7 +2744,7 @@ function openSummaryModal() {
   document.getElementById('sumList').innerHTML = sorted.map(d => {
     const ds = tkSana(d.delivered_at);
     const items = d.items.map(i =>
-      `${escapeHtml(i.item_name)} — ${sonKor(i.quantity)}${i.unit==='metr'?'m':' ta'}`).join(' · ');
+      `${escapeHtml(i.item_name)} — ${sonKor(i.quantity)}${escapeHtml(yetkazishBirligi(i.unit))}`).join(' · ');
     return `
     <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--ch-f5f5f5);cursor:pointer">
       <input type="checkbox" class="sum-chk" value="${d.id}" data-sum="${d.total_sum || 0}"
@@ -2915,7 +2960,7 @@ async function quickFullDelivery() {
   if (String(oid) !== String(selectedOrderId)) return;
 
   _fullDlvPending = pending;
-  const summary = pending.map(i => `${escapeHtml(i.name)}: ${i.remaining} ${i.unit === 'metr' ? 'm' : 'ta'}`).join('<br>');
+  const summary = pending.map(i => `${escapeHtml(i.name)}: ${i.remaining}${escapeHtml(yetkazishBirligi(i.unit))}`).join('<br>');
   const debtHtml = currentDebt === null
     ? `<div style="font-size:12px;color:var(--m-b91c1c);margin-bottom:6px;font-weight:600">${escapeHtml(qarzXato)}</div>`
     : currentDebt > 0
@@ -3940,7 +3985,7 @@ function _tkFormaniTozala() {
   const items = _tkEl('items');
   if (items) items.innerHTML = '';
   itemCount = 0;
-  ['base_price', 'loy_kg', 'final_price', 'zaklat_amount', 'deadline_input', 'tk_mijoz', 'tk_telefon', 'tk_izoh', 'tk_loyiha_nomi']
+  ['base_price', 'blok_base_price', 'loy_kg', 'final_price', 'zaklat_amount', 'deadline_input', 'tk_mijoz', 'tk_telefon', 'tk_izoh', 'tk_loyiha_nomi']
     .forEach(id => { const e = _tkEl(id); if (e) e.value = ''; });
   ['recipe_id', 'master_id', 'project_id'].forEach(id => { const e = _tkEl(id); if (e) e.value = ''; });
   ['discount-auto-hint', 'discount_info', 'debt_info', 'loy-stock-info'].forEach(id => _tkKorsat(_tkEl(id), false));
@@ -4449,31 +4494,31 @@ function addItem() {
       <div class="dif dif-tur" style="grid-column:1/-1">
         <label>Tur</label>
         <div class="type-toggle" data-for="i-type">
-          <div class="tur-group">
-            <div class="type-opt active" data-value="profil" onclick="selectTypeOpt(this,'profil')">📏 Profil</div>
-            <div class="type-opt" data-value="panel" onclick="selectTypeOpt(this,'panel')">🔲 Panel</div>
-            <div class="type-opt" data-value="dona" onclick="selectTypeOpt(this,'dona')">⭐ Donali</div>
-          </div>
-          <div class="tur-sep"></div>
-{% if cat_on('blok', current_user.company_id) %}          <div class="type-opt" data-value="blok" onclick="selectTypeOpt(this,'blok')">🧊 Blok (butun narxda)</div>{% endif %}
-          <div class="tur-sep"></div>
-{% if cat_on('loy_sotish', current_user.company_id) %}          <div class="type-opt" data-value="loy_sotish" onclick="selectTypeOpt(this,'loy_sotish')">🪣 Loy sotish (tayyor holda)</div>{% endif %}
-          <div class="tur-sep"></div>
-          <div class="type-opt" data-value="mrp_product" onclick="openMrpProductPicker(this)">🏭 MRP Mahsuloti</div>
+{# kech155 (zip 211 — egasi QARORLARI 23.10): HAMMA tur korxona sozlamasiga bo'ysunadi (Profil / Panel / Donali / MRP ham); yashirin turdagi
+   MAVJUD detal — `turVariantiniTaminla` (faqat shu qatorga). Ajratgich — faqat chizilgan tugmalar orasida, birinchi tugma — tanlangan. #}
+{% set _cid211 = current_user.company_id %}{% set _tg211 = namespace(bor=false) %}
+{% if cat_on('profil', _cid211) or cat_on('panel', _cid211) or cat_on('dona', _cid211) %}          <div class="tur-group">
+{% if cat_on('profil', _cid211) %}            <div class="type-opt{% if not _tg211.bor %} active{% endif %}" data-value="profil" onclick="selectTypeOpt(this,'profil')">📏 Profil</div>{% set _tg211.bor = true %}{% endif %}
+{% if cat_on('panel', _cid211) %}            <div class="type-opt{% if not _tg211.bor %} active{% endif %}" data-value="panel" onclick="selectTypeOpt(this,'panel')">🔲 Panel</div>{% set _tg211.bor = true %}{% endif %}
+{% if cat_on('dona', _cid211) %}            <div class="type-opt{% if not _tg211.bor %} active{% endif %}" data-value="dona" onclick="selectTypeOpt(this,'dona')">⭐ Donali</div>{% set _tg211.bor = true %}{% endif %}
+          </div>{% endif %}
+{% if cat_on('blok', _cid211) %}{% if _tg211.bor %}          <div class="tur-sep"></div>{% endif %}          <div class="type-opt{% if not _tg211.bor %} active{% endif %}" data-value="blok" onclick="selectTypeOpt(this,'blok')">🧊 Blok</div>{% set _tg211.bor = true %}{% endif %}
+{% if cat_on('loy_sotish', _cid211) %}{% if _tg211.bor %}          <div class="tur-sep"></div>{% endif %}          <div class="type-opt{% if not _tg211.bor %} active{% endif %}" data-value="loy_sotish" onclick="selectTypeOpt(this,'loy_sotish')">🪣 Loy sotish (tayyor holda)</div>{% set _tg211.bor = true %}{% endif %}
+{% if cat_on('mrp_product', _cid211) %}{% if _tg211.bor %}          <div class="tur-sep"></div>{% endif %}          <div class="type-opt{% if not _tg211.bor %} active{% endif %}" data-value="mrp_product" onclick="openMrpProductPicker(this)">🏭 MRP Mahsuloti</div>{% set _tg211.bor = true %}{% endif %}
         </div>
         <div class="type-confirm-text"></div>
         <select class="i-type" style="display:none" onchange="toggleFields(this.closest('.detal'));calculateItem(this.closest('.detal'))">
-          <option value="profil">Profil</option>
-          <option value="panel">Panel</option>
-          <option value="dona">Donali</option>
-{% if cat_on('blok', current_user.company_id) %}          <option value="blok">Blok (butun narxda)</option>{% endif %}
-{% if cat_on('loy_sotish', current_user.company_id) %}          <option value="loy_sotish">🪣 Loy sotish (tayyor holda)</option>{% endif %}
-          <option value="mrp_product">🏭 MRP Mahsuloti</option>
+{% if cat_on('profil', _cid211) %}          <option value="profil">Profil</option>{% endif %}
+{% if cat_on('panel', _cid211) %}          <option value="panel">Panel</option>{% endif %}
+{% if cat_on('dona', _cid211) %}          <option value="dona">Donali</option>{% endif %}
+{% if cat_on('blok', _cid211) %}          <option value="blok">Blok</option>{% endif %}
+{% if cat_on('loy_sotish', _cid211) %}          <option value="loy_sotish">🪣 Loy sotish (tayyor holda)</option>{% endif %}
+{% if cat_on('mrp_product', _cid211) %}          <option value="mrp_product">🏭 MRP Mahsuloti</option>{% endif %}
         </select>
       </div>
       <div class="dgrp-flex-row" style="display:flex;gap:12px;align-items:stretch;grid-column:1/-1">
         <div class="dgrp i-dims-box" style="flex:2;margin-bottom:0">
-          <div class="dgrp-title">📐 O'lcham</div>
+          <div class="dgrp-title i-dims-title">📐 O'lcham</div>
           <div class="dgrp-row" style="grid-template-columns:repeat(4,1fr)">
             <div class="dif i-h-wrap"><label class="i-h-label">Eni</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-h" step="0.1" oninput="clampNonNegative(this);calculateItem(this.closest('.detal'))"><span class="unit-suffix">sm</span></div></div>
             <div class="dif i-w-wrap"><label class="i-w-label">Kengligi</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-w" step="0.1" oninput="clampNonNegative(this);calculateItem(this.closest('.detal'))"><span class="unit-suffix">sm</span></div></div>
@@ -4484,12 +4529,20 @@ function addItem() {
         <div class="dgrp i-qty-box" style="flex:3;margin-bottom:0">
           <div class="dgrp-title">🧮 Miqdor va narx</div>
           <div class="dgrp-row" style="grid-template-columns:repeat(3,1fr)">
+            <div class="dif i-blokunit-wrap" style="display:none"><label>O'lchov birligi</label>
+              <div class="blokunit-toggle" role="group" aria-label="Blok detal birligi">
+                <div class="blokunit-opt active" data-value="metr" onclick="setBlokUnit(this,'metr')">m</div>
+                <div class="blokunit-opt" data-value="dona" onclick="setBlokUnit(this,'dona')">ta</div>
+                {# kech155 (zip 211h — egasi QARORI 24.10): «m²» — faqat avval m² da saqlangan detalda ko'rinadi (`syncBlokUnitUI`) #}
+                <div class="blokunit-opt" data-value="m2" onclick="setBlokUnit(this,'m2')" style="display:none">m²</div>
+              </div>
+              <select class="i-blokunit" style="display:none"><option value="metr" selected>m</option><option value="dona">ta</option><option value="m2">m²</option></select>
+            </div>
             <div class="dif i-donayield-wrap" style="display:none"><label>1 metrdan nechta</label><div class="unit-input-wrap"><input type="number" placeholder="Masalan: 5" class="i-donayield" step="0.1" min="0.01" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">dona</span></div></div>
-            <div class="dif i-l-wrap"><label class="i-l-label">Uzunlik</label><div class="unit-input-wrap"><input type="number" placeholder="" value="0" class="i-l" step="0.1" oninput="clampNonNegative(this);calculateItem(this.closest('.detal'))"><span class="unit-suffix">m</span></div></div>
+            <div class="dif i-l-wrap"><label class="i-l-label">Uzunlik</label><div class="unit-input-wrap"><input type="number" placeholder="" value="0" class="i-l" step="0.1" oninput="clampNonNegative(this);calculateItem(this.closest('.detal'))"><span class="unit-suffix i-l-suffix">m</span></div></div>
             <div class="dif i-q-wrap"><label class="i-q-label">Miqdor</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-q" value="1" min="0" step="0.5" oninput="clampNonNegative(this);calculateItem(this.closest('.detal'))"><span class="unit-suffix i-q-suffix">dona</span></div></div>
             <div class="dif i-unitprice-wrap" style="display:none"><label class="i-unitprice-label">1 dona narxi</label><div class="unit-input-wrap"><input type="text" placeholder="" class="i-unitprice" oninput="formatPriceInput(this);onUnitPriceInput(this.closest('.detal'))"><span class="unit-suffix">so'm</span></div></div>
-            <div class="dif i-blokprice-wrap" style="display:none"><label>1 blok narxi (tayyor)</label><div class="unit-input-wrap"><input type="text" placeholder="Masalan: 1 500 000" class="i-blokprice" oninput="formatPriceInput(this);onBlokPriceInput(this.closest('.detal'))"><span class="unit-suffix">so'm</span></div></div>
-            <div class="dif i-blokmult-wrap" style="display:none"><label>Qoplama koeffitsienti</label><div class="unit-input-wrap"><input type="number" value="2" placeholder="Masalan: 2" class="i-blokmult" step="0.1" min="1" oninput="recalcBlokPrice(this.closest('.detal'))"></div></div>
+            <div class="dif i-blokmult-wrap" style="display:none"><label>Qoplama koeffitsienti</label><div class="unit-input-wrap"><input type="number" value="2" placeholder="Masalan: 2" class="i-blokmult" step="0.1" min="1" oninput="calculateItem(this.closest('.detal'))"></div></div>
           </div>
         </div>
       </div>
@@ -4530,6 +4583,13 @@ function addItem() {
               <span class="unit-suffix">so'm</span>
             </div>
           </div>
+          <div class="dif i-blokprice-wrap" style="display:none"><label>1 blok narxi</label>
+            <div class="unit-input-wrap" style="border-color:var(--gold)">
+              <input type="text" class="i-blokprice" placeholder="asosiy" title="Qoplamasiz. Bo'sh qolsa — buyurtmaning «1 blok asosiy narxi»"
+                     oninput="formatPriceInput(this);calculateItem(this.closest('.detal'))">
+              <span class="unit-suffix">so'm</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -4553,7 +4613,6 @@ function addItem() {
     </div>`;
   const container = document.getElementById('items');
   container.prepend(div);
-  div.dataset.blokBase = '';   // Blok tanlanganda "1 blok narxi" kiritilganda o'zi to'ldiriladi
 
   // Oxirgi qo'shilgan detalning turini "eslab qolamiz" — yangi qator
   // avtomatik o'sha turdan boshlanadi (ketma-ket bir xil tur yozishda qulay).
@@ -4589,31 +4648,94 @@ function addItem() {
   calculateItem(div);
 }
 
-function recalcBlokPrice(row) {
-  // Asosiy (qoplamasiz) narxdan — qoplama holati va koeffitsientga qarab
-  // yakuniy "1 blok narxi"ni jonli qayta hisoblaydi.
-  const bpEl = row.querySelector('.i-blokprice');
-  if (!bpEl) return;
-  const isCoated = row.querySelector('.i-c')?.value === 'true';
-  const mult = parseFloat(row.querySelector('.i-blokmult')?.value) || 2;
-  const base = parseFloat(row.dataset.blokBase) || 0;
-  if (base > 0) {
-    // 125-band (kech96, O'LCHANGAN `work/probe125.py` B1 / B2): butun so'mga yaxlitlanardi — yozilgan qoplamali
-    // 1 500 000,75 → Yo'q (750 000) → Bor (1 500 001); 1 000 000,50 × 2.5 → 2 500 001. Endi 2 xona (server narxi).
-    bpEl.value = narxKorinishi(tiyinga(isCoated ? base * mult : base));
+// ── kech155 (zip 211 — egasi QARORLARI 23.10 «Blok hisoblash») — BLOK detali ─────────────────────────────────────────
+// Kub turlari kabi butun jarayon, faqat narx asosi «1 blok»: birlik (m / ta / m²), «1 blokdan chiqadigan» (xodim yozadi), «Necha …
+// kerak», «1 blok narxi» — QOPLAMASIZ (bo'sh — buyurtmaning «1 blok asosiy narxi»), qoplama «Bor» — × koeffitsient (standart 2).
+// 1 birlik narxi = blok narxi ÷ chiqishi × (qoplama ? koeffitsient : 1); jami = 1 birlik × kerak; ombordan = kerak ÷ chiqishi blok.
+// (Ilgari «1 blok narxi (tayyor)» maydoni QOPLAMALI narxni ko'rsatar, asos `dataset.blokBase` da yashirin turardi.)
+const BLOK_BIRLIK_QISQA = {metr: 'm', dona: 'ta', m2: 'm²'};
+
+// Har qanday yozuv (forma — metr / dona / m2; tayyor mahsulot — metr / dona / m² / kvadrat; bo'sh — eski yozuv) → birlik kodi
+function blokBirlikKodi(u) {
+  const s = String(u || '').trim().toLowerCase();
+  if (s === 'dona' || s === 'ta') return 'dona';
+  if (s === 'm2' || s === 'm²' || s === 'kvadrat') return 'm2';
+  return 'metr';
+}
+
+// review211 №3 / №5: yetkazish oynalari va tavsiya — avvalgi ko'rinish (metr — «m» bo'shliqsiz, dona — « ta»), qolgani o'z birligida
+// (m² / kg / MRP birligi — `birlikQisqa`)
+function yetkazishBirligi(u, boshliq = true) {
+  const s = String(u || '').trim().toLowerCase();
+  if (s === 'metr' || s === 'm') return 'm';
+  const b = (!s || s === 'dona' || s === 'ta') ? 'ta' : ((typeof birlikQisqa === 'function') ? birlikQisqa(s) : s);
+  return (boshliq ? ' ' : '') + b;
+}
+
+function blokBirligi(row) {
+  return blokBirlikKodi(row ? row.querySelector('.i-blokunit')?.value : '');
+}
+
+function syncBlokUnitUI(row) {
+  const v = blokBirligi(row);
+  // kech155 (zip 211h — egasi QARORI 24.10 «soddalashtirish»): yangi blok detalida «m²» tanlanmaydi (faqat m / ta); avval m² da
+  // saqlangan detal (tahrir, qoralama, taklifdan, tayyor mahsulotdan) — o'z birligida ko'rinadi va shu qatorda m² ga qaytsa bo'ladi
+  if (v === 'm2') row.dataset.blokM2 = '1';
+  row.querySelectorAll('.blokunit-opt').forEach(o => {
+    o.classList.toggle('active', o.dataset.value === v);
+    if (o.dataset.value === 'm2') o.style.display = (row.dataset.blokM2 === '1') ? '' : 'none';
+  });
+}
+
+function setBlokUnit(el, v) {
+  const row = el.closest('.detal');
+  if (!row || row.dataset.fpId) return;    // tayyor mahsulotdan — birlik mahsulotning o'ziniki
+  // topshirilgan / omborga ortiqcha qaytarilgan detal — birligi o'zgarmaydi (server ham rad etadi: topshirilgan miqdor boshqa birlikda
+  // bo'lib qolardi)
+  if (blokBirlikKodi(v) !== blokBirligi(row) && (parseFloat(row.dataset.delivered || 0) > 0 || parseFloat(row.dataset.ortiqcha || 0) > 0)) {
+    showMsg("❌ Topshirilgan detalning o'lchov birligini o'zgartirib bo'lmaydi", 'error');
+    return;
   }
+  const sel = row.querySelector('.i-blokunit');
+  if (sel) sel.value = blokBirlikKodi(v);
+  syncBlokUnitUI(row);
+  toggleFields(row);
+  updateTypeConfirmText(row, 'blok');
   calculateItem(row);
 }
 
-function onBlokPriceInput(row) {
-  // Xodim narxni qo'lda yozganda — buni "asos" sifatida saqlab qo'yamiz,
-  // shunda koeffitsient yoki qoplama keyin o'zgarsa ham izchil hisoblanadi.
-  const bpEl = row.querySelector('.i-blokprice');
-  const isCoated = row.querySelector('.i-c')?.value === 'true';
-  const mult = parseFloat(row.querySelector('.i-blokmult')?.value) || 2;
-  const typed = parseNum(bpEl.value) || 0;
-  row.dataset.blokBase = isCoated ? (typed / mult) : typed;
-  calculateItem(row);
+// Detal uchun 1 blok narxi (QOPLAMASIZ): o'zi yozilgan bo'lsa — o'zi (tahrirda tiklangan aniq qiymat — maydon ko'rinishi bilan teng
+// bo'lsa), aks holda buyurtmaning «1 blok asosiy narxi»
+function blokNarxiQatorda(row) {
+  let oz = parseNum(row.querySelector('.i-blokprice')?.value || '') || 0;
+  const aniq = parseFloat(row.dataset.blokNarxAniq);
+  if (oz > 0 && aniq > 0 && narxKorinishi(aniq) === narxKorinishi(oz)) oz = aniq;   // review211 №8: 1 000,01 ÷ 2 = 500,005 → «500»
+  if (oz > 0) return oz;
+  return parseNum(document.getElementById('blok_base_price')?.value || '') || 0;
+}
+
+function blokKoef(row) {
+  const k = parseFloat(row.querySelector('.i-blokmult')?.value);
+  return (k > 0) ? k : 2;
+}
+
+// kech155 (zip 211 — jonli sinov 24.10): qoplama tugmasi yozuvi — blok detalida haqiqiy koeffitsient («Bor (×2,5)»), qolgan turlarda «Bor (×2)»
+// (ilgari blokda koeffitsient 2,5 bo'lsa ham «×2» yozilardi — narx esa ×2,5 bilan hisoblanardi)
+function qoplamaYorligi(row) {
+  const el = row ? row.querySelector('.coat-yes') : null;
+  if (!el) return;
+  const k = (row.querySelector('.i-type')?.value === 'blok' && !row.dataset.fpId) ? blokKoef(row) : 2;
+  const matn = `Bor (×${(typeof sonKor === 'function') ? sonKor(k) : k})`;
+  if (el.textContent !== matn) el.textContent = matn;
+}
+
+// «1 m³ asosiy narxi» / «1 blok asosiy narxi» — tur korxonada yoqiq YOKI formada shu turdagi detal bor bo'lsa ko'rinadi
+function asosiyNarxlarKorinishi() {
+  const turlar = Array.from(document.querySelectorAll('#items .detal .i-type')).map(s => s.value);
+  const kub = document.getElementById('base_price_wrap');
+  if (kub) kub.style.display = (kub.dataset.yoqiq === '1' || turlar.some(t => t === 'profil' || t === 'panel' || t === 'dona')) ? '' : 'none';
+  const blok = document.getElementById('blok_base_price_wrap');
+  if (blok) blok.style.display = (blok.dataset.yoqiq === '1' || turlar.includes('blok')) ? '' : 'none';
 }
 
 function syncCoatingUI(row, isCoated) {
@@ -4677,10 +4799,15 @@ function updateTypeConfirmText(row, type) {
 // penoplast 0.5 blok SOXTA omborga qaytdi.
 // Endi SHU qatorga variant va tugma qo'shiladi — "mavjud yozuvlar avvalgidek ko'rinadi va
 // hisoblanadi" (main.py, 11.1-band). Boshqa qatorlarga va yangi detal tanloviga QO'SHILMAYDI.
-// `sep` — shablondagi o'rni: shu tartib raqamli `.tur-sep` dan keyin (blok 1-, loy 2-ajratgichdan keyin).
+// kech155 (zip 211 — egasi QARORLARI 23.10): HAMMA tur yashirilsa bo'ladi (Profil / Panel / Donali / MRP ham) — qoida hammasiga;
+// tugma tur tugmalari OXIRIGA (ajratgich bilan) qo'shiladi (tartib korxona sozlamasiga bog'liq — raqamli ajratgich joyi yo'q).
 const TUR_QATOR_VARIANTLARI = {
-  blok:       { variant: 'Blok (butun narxda)',          tugma: '🧊 Blok (butun narxda)',          sep: 0 },
-  loy_sotish: { variant: '🪣 Loy sotish (tayyor holda)', tugma: '🪣 Loy sotish (tayyor holda)', sep: 1 },
+  profil:      { variant: 'Profil',                      tugma: '📏 Profil' },
+  panel:       { variant: 'Panel',                       tugma: '🔲 Panel' },
+  dona:        { variant: 'Donali',                      tugma: '⭐ Donali' },
+  blok:        { variant: 'Blok',                        tugma: '🧊 Blok' },
+  loy_sotish:  { variant: '🪣 Loy sotish (tayyor holda)', tugma: '🪣 Loy sotish (tayyor holda)' },
+  mrp_product: { variant: '🏭 MRP Mahsuloti',            tugma: '🏭 MRP Mahsuloti', mrp: true },
 };
 
 // Qatorning yashirin `.i-type` tanlovida shu tur varianti bormi.
@@ -4710,10 +4837,13 @@ function turVariantiniTaminla(row, cat) {
     b.dataset.value = cat;
     b.textContent = t.tugma;
     b.title = "Bu tur korxona sozlamasida o'chirilgan — faqat shu mavjud detal uchun ko'rsatilmoqda";
-    b.onclick = function () { selectTypeOpt(b, cat); };
-    const seplar = Array.from(tg.children).filter(c => c.classList.contains('tur-sep'));
-    const ref = seplar[t.sep] || null;
-    if (ref) tg.insertBefore(b, ref.nextSibling); else tg.appendChild(b);
+    b.onclick = t.mrp ? function () { openMrpProductPicker(b); } : function () { selectTypeOpt(b, cat); };
+    if (tg.querySelector('.type-opt')) {
+      const sep = document.createElement('div');
+      sep.className = 'tur-sep';
+      tg.appendChild(sep);
+    }
+    tg.appendChild(b);
   }
   return true;
 }
@@ -4723,6 +4853,11 @@ function selectTypeOpt(btn, value) {
   row.querySelectorAll('.type-opt').forEach(o => o.classList.remove('active'));
   btn.classList.add('active');
   const sel = row.querySelector('.i-type');
+  // kech155 (zip 211h — egasi QARORI 24.10): blokda Eni / Qalinlik yo'q — boshqa turdan blokka o'tilganda avval yozilgani tozalanadi
+  // (yashirin qiymat blok detalining yozuvi bo'lib saqlanmasin)
+  if (value === 'blok' && sel.value !== 'blok') {
+    ['.i-h', '.i-t'].forEach(c => { const el = row.querySelector(c); if (el) el.value = ''; });
+  }
   sel.value = value;
   toggleFields(row);
   updateTypeConfirmText(row, value);
@@ -4834,9 +4969,13 @@ function updateDetalSummary(row) {
   const price = priceEl ? priceEl.value : '';
 
   let dim = '';
-  if (type === 'dona' || type === 'blok') {
+  if (type === 'dona') {
     const q = row.querySelector('.i-q')?.value;
     if (q) dim = `${q} dona`;
+  } else if (type === 'blok') {
+    // kech155 (zip 211): blok — o'z birligida (ilgari doim «dona» deyilardi, miqdor metrda bo'lsa ham)
+    const q = row.querySelector('.i-q')?.value;
+    if (q) dim = `${q} ${BLOK_BIRLIK_QISQA[blokBirligi(row)]}`;
   } else if (type === 'loy_sotish') {
     const q = row.querySelector('.i-q')?.value;
     if (q) dim = `${q} kg`;
@@ -4867,10 +5006,7 @@ function onUnitPriceInput(row) {
 
 function onCoatToggle(row) {
   const type = row.querySelector('.i-type')?.value;
-  if (type === 'blok') {
-    recalcBlokPrice(row);
-    return;
-  }
+  // kech155 (zip 211): blokda «1 blok narxi» — qoplamasiz; koeffitsient `calculateItem` da qo'llanadi (alohida qayta yozish yo'q)
   if (type === 'mrp_product') {
     recalcMrpPrice(row);
     return;
@@ -4918,6 +5054,7 @@ function toggleFields(row) {
   const upW = row.querySelector('.i-unitprice-wrap');
   const bpW = row.querySelector('.i-blokprice-wrap');
   const bmW = row.querySelector('.i-blokmult-wrap');
+  const buW = row.querySelector('.i-blokunit-wrap');      // kech155 (zip 211): blok detal birligi
   const m3Field = row.querySelector('.i-m3price')?.closest('.dif');
   const coatField = row.querySelector('.i-c')?.closest('.dif');
   const penoField = row.querySelector('.i-peno')?.closest('.dif');
@@ -4948,6 +5085,11 @@ function toggleFields(row) {
       // Donalik, Blok va boshqa barcha turlar — asl (standart) joyiga
       qtyRow.appendChild(lW);
       qtyRow.appendChild(qW);
+      // kech155 (zip 211): blokda — birlik, chiqishi, kerak, so'ng «1 … narxi» (tayyor mahsulotdan) va koeffitsient
+      if (type === 'blok') {
+        if (upW) qtyRow.appendChild(upW);
+        if (bmW) qtyRow.appendChild(bmW);
+      }
     }
   }
 
@@ -4991,16 +5133,23 @@ function toggleFields(row) {
     const lEl = row.querySelector('.i-l'); if(lEl) lEl.value = '0';
     const wEl0 = row.querySelector('.i-w'); if (wEl0 && row.dataset.lastType !== 'panel') wEl0.value = '';
   } else if (type === 'blok') {
+    // kech155 (zip 211 — egasi QARORLARI 23.10 «Blok hisoblash»): kub turlari kabi — o'lcham (Eni, Qalinligi — IXTIYORIY, faqat yozuv
+    // uchun: yuk xati, sex; narxga ta'siri yo'q), birlik (m / ta / m²), «1 blokdan chiqadigan …», «Necha … kerak», qoplama
+    // (+ koeffitsient), plotnost, «1 blok narxi» (bo'sh — asosiy). Tayyor mahsulotdan — «1 … narxi» (mahsulot narxi), xomashyo yo'q.
+    const tmBlok = !!row.dataset.fpId;
+    // kech155 (zip 211h — egasi QARORI 24.10 «soddalashtirish»): Eni / Qalinlik YO'Q — «1 blokdan chiqadigan» va «Necha … kerak» yetarli
+    // (o'lcham narxga ham, omborga ham ta'sir qilmasdi). Uchala o'lcham yashirin — «O'lcham» guruhi o'zi yashiriladi (pastdagi qoida);
+    // avval saqlangan blok detalining o'lchami maydonda qoladi (tahrirda o'zgarishsiz saqlanadi)
     hW.style.display = 'none'; wW.style.display = 'none';
     tW.style.display = 'none';
-    lW.style.display = 'block';   // 1 blokdan chiqadigan metr
-    qW.style.display = 'block';   // Necha metr kerak
-    if (upW) upW.style.display = 'none';
-    if (bpW) bpW.style.display = 'block';
-    if (bmW) bmW.style.display = 'block';
+    lW.style.display = tmBlok ? 'none' : 'block';   // 1 blokdan chiqadigan …
+    qW.style.display = 'block';                     // Necha … kerak
+    if (upW) upW.style.display = tmBlok ? 'block' : 'none';
+    if (bpW) bpW.style.display = tmBlok ? 'none' : 'block';
+    if (bmW) bmW.style.display = tmBlok ? 'none' : 'block';
     if (m3Field) m3Field.style.display = 'none';   // blok narxi to'g'ridan-to'g'ri, m³ orqali hisoblanmaydi
-    if (coatField) coatField.style.display = '';   // qoplamali/qoplamasiz — "Qoplama koeffitsienti" (i-blokmult) orqali narxni haqiqatan ham ko'paytiradi (recalcBlokPrice() ga qarang)
-    ['i-h','i-w','i-t'].forEach(c => { const el = row.querySelector('.'+c); if(el) el.value=''; });
+    if (coatField) coatField.style.display = '';
+    const wElB = row.querySelector('.i-w'); if (wElB) wElB.value = '';
   } else if (type === 'loy_sotish') {
     hW.style.display = 'none'; wW.style.display = 'none';
     tW.style.display = 'none'; lW.style.display = 'none';
@@ -5074,6 +5223,16 @@ function toggleFields(row) {
     dimsBox.style.display = (hHidden && wHidden && tHidden) ? 'none' : '';
   }
 
+  // kech155 (zip 211): blok birligi tanlovi — faqat Blokda; boshqa turda narx guruhidagi «1 blok narxi» ham yashirin (yuqoridagi
+  // shoxlar `bpW` ni yashiradi — bu yerda qo'shimcha kafolat: tartib o'zgarsa ham)
+  if (buW) buW.style.display = (type === 'blok') ? 'block' : 'none';
+  row.classList.toggle('blok-qator', type === 'blok');    // jonli sinov (24.10): tor ekranda qutilar ustma-ust (CSS)
+  if (bpW && type !== 'blok') bpW.style.display = 'none';
+  if (coatPenoGrp) {
+    const bpHidden = !bpW || bpW.style.display === 'none';
+    if (!bpHidden) coatPenoGrp.style.display = '';
+  }
+
   // "Miqdor va narx" qutisi ham, xuddi shunday — agar ICHIDAGI barcha
   // maydonlar (Profilda bo'lgani kabi, hammasi "O'lcham"ga ko'chib
   // ketgan bo'lsa) yashiringan bo'lsa, qutining o'zini yashiramiz.
@@ -5094,28 +5253,33 @@ function toggleFields(row) {
     volCard.style.display = (type === 'loy_sotish') ? 'none' : '';
   }
 
-  // Miqdor maydonining nomi va birligi: panel — metr, blok — kerakli metr, dona — dona
+  // Miqdor maydonining nomi va birligi: panel — metr, blok — kerakli miqdor o'z birligida (kech155 zip 211: m / ta / m²), dona — dona
   const qLabel = row.querySelector('.i-q-label');
   const qSuffix = row.querySelector('.i-q-suffix');
   const mrpUnit = row.dataset.mrpUnit || 'dona';
+  const blokQ = BLOK_BIRLIK_QISQA[blokBirligi(row)];
   if (qLabel) {
-    qLabel.textContent = (type === 'panel') ? 'Uzunlik' : (type === 'blok') ? "Necha metr kerak" : (type === 'loy_sotish') ? "Necha kg" : (type === 'mrp_product') ? 'Miqdor' : 'Miqdor';
+    qLabel.textContent = (type === 'panel') ? 'Uzunlik' : (type === 'blok') ? `Necha ${blokQ} kerak` : (type === 'loy_sotish') ? "Necha kg" : (type === 'mrp_product') ? 'Miqdor' : 'Miqdor';
   }
   if (qSuffix) {
-    qSuffix.textContent = (type === 'panel' || type === 'blok') ? 'm' : (type === 'loy_sotish') ? 'kg' : (type === 'mrp_product') ? mrpUnit : 'dona';
+    qSuffix.textContent = (type === 'panel') ? 'm' : (type === 'blok') ? blokQ : (type === 'loy_sotish') ? 'kg' : (type === 'mrp_product') ? mrpUnit : 'dona';
   }
   const lLabel = row.querySelector('.i-l-label');
   if (lLabel) {
-    lLabel.textContent = (type === 'blok') ? "1 blokdan chiqadigan metr" : 'Uzunlik';
+    lLabel.textContent = (type === 'blok') ? `1 blokdan chiqadigan ${blokQ}` : 'Uzunlik';
   }
+  const lSuffix = row.querySelector('.i-l-suffix');
+  if (lSuffix) lSuffix.textContent = (type === 'blok') ? blokQ : 'm';
   const upLabel = row.querySelector('.i-unitprice-label');
   if (upLabel) {
-    upLabel.textContent = (type === 'loy_sotish') ? "1 kg narxi" : (type === 'mrp_product') ? `1 ${mrpUnit} narxi` : "1 dona narxi";
+    upLabel.textContent = (type === 'loy_sotish') ? "1 kg narxi" : (type === 'mrp_product') ? `1 ${mrpUnit} narxi` : (type === 'blok') ? `1 ${blokQ} narxi` : "1 dona narxi";
   }
   const permLabel = row.querySelector('.i-perm-label');
   if (permLabel) {
-    permLabel.textContent = (type === 'loy_sotish') ? "1 kg narxi" : (type === 'mrp_product') ? `1 ${mrpUnit} narxi` : "1 metr narxi";
+    permLabel.textContent = (type === 'loy_sotish') ? "1 kg narxi" : (type === 'mrp_product') ? `1 ${mrpUnit} narxi` : (type === 'blok') ? `1 ${blokQ} narxi` : "1 metr narxi";
   }
+  const dimsTitle = row.querySelector('.i-dims-title');
+  if (dimsTitle) dimsTitle.textContent = (type === 'blok') ? "📐 O'lcham (ixtiyoriy — yozuv uchun)" : "📐 O'lcham";
   // "Eni" -> "Bo'yi", "Kengligi" -> "Qalinligi" — FAQAT Profil va Donalikda
   // (Panelda "Kengligi" maydoni endi butunlay yashirilgan — yuqoridagi
   // toggleFields() ga qarang — shuning uchun Panelga TEGILMAYDI).
@@ -5125,6 +5289,7 @@ function toggleFields(row) {
   if (hLabel) hLabel.textContent = useAltNames ? "Bo'yi" : "Eni";
   if (wLabel) wLabel.textContent = useAltNames ? "Qalinligi" : "Kengligi";
   row.dataset.lastType = type;
+  asosiyNarxlarKorinishi();      // kech155 (zip 211): asosiy narx maydonlari — formadagi turlarga qarab
 
   // MUHIM: "O'lcham" qutisidagi ustunlar soni, DOIM "4" bo'lib qolsa —
   // Donalik kabi, atigi 2 ta maydoni bor turlarda, ular tor bo'lib,
@@ -5334,6 +5499,8 @@ function calculateItem(row) {
   checkDeliveredLimit(row);
   // Tayyor mahsulot chegarasi
   checkFpLimit(row);
+  // kech155 (zip 211 — jonli sinov): qoplama tugmasi yozuvi koeffitsient bilan (blok)
+  if (typeof qoplamaYorligi === 'function') qoplamaYorligi(row);
 
   let volume_total = 0, price = 0, perMeterPrice = 0;
 
@@ -5483,35 +5650,27 @@ function calculateItem(row) {
     row.querySelector('.i-vol').value = volume_total.toFixed(4);
     }
   } else if (type === 'blok') {
-    if (row.dataset.fpId && row.dataset.fpPrice) {
-      // MUHIM: agar "1 blok narxi" maydoni blokdan chiqarilgan bo'lsa
-      // (joriy buyurtma narxiga moslashtirish uchun) — narx SHU YERDA,
-      // jonli, xuddi oddiy Blok formulasi bilan qayta hisoblanadi.
-      // Aks holda (hali blokланган holatda) — mahsulotning o'z, tayyor
-      // narxi to'g'ridan-to'g'ri ishlatiladi (eski xatti-harakat).
-      const bpElFp = row.querySelector('.i-blokprice');
-      let fpPrice3 = parseFloat(row.dataset.fpPrice) || 0;
-      if (bpElFp && !bpElFp.disabled) {
-        const blokPriceFp = parseNum(bpElFp.value) || 0;
-        const chiqadiFp = l;
-        if (chiqadiFp > 0 && blokPriceFp > 0) {
-          fpPrice3 = blokPriceFp / chiqadiFp;
-          row.dataset.fpPrice = fpPrice3.toString();
-        }
-      }
-      perMeterPrice = fpPrice3;
-      price = fpPrice3 * qty;   // qty — "Necha metr kerak" (.i-q dan)
+    if (row.dataset.fpId) {
+      // kech155 (zip 211): tayyor mahsulotdan — «1 … narxi» maydoni (mahsulot narxi; o'zgartirsa bo'ladi — Donalik TM bilan bir qoida:
+      // maydon yaxlit ko'rinishi saqlangan aniq narx bilan teng bo'lsa — aniq narx), miqdor — «Necha … kerak»; xomashyo hisoblanmaydi
+      const upElB = row.querySelector('.i-unitprice');
+      let tmNarx = upElB ? (parseNum(upElB.value) || 0) : (parseFloat(row.dataset.fpPrice) || 0);
+      const tmAniq = parseFloat(row.dataset.unitprice);
+      if (tmAniq && Math.round(tmAniq * 100) === Math.round(tmNarx * 100)) tmNarx = tmAniq;
+      row.dataset.unitprice = tmNarx;
+      perMeterPrice = tmNarx;
+      price = tmNarx * qty;
+      row.dataset.blokKerak = 0;
       volume_total = 0;
       row.querySelector('.i-vol').value = '0 (tayyor mahsulotdan)';
     } else {
-    // l = "1 blokdan chiqadigan metr" (taxminan), qty = "necha metr kerak".
-    // Tizim o'zi: kerak bo'lgan blok sonini (yuqoriga yaxlitlab) va 1 metr narxini hisoblaydi.
-    const bpEl = row.querySelector('.i-blokprice');
-    const blokPrice = bpEl ? parseNum(bpEl.value) || 0 : 0;
-    const chiqadiPerBlok = l;         // "1 blokdan chiqadigan metr" — i-l maydonidan
-    const kerakMetr = qty;            // "Necha metr kerak" — i-q maydonidan
+    // kech155 (zip 211): l — «1 blokdan chiqadigan …» (xodim yozadi), qty — «Necha … kerak» (o'z birligida: m / ta / m²).
+    // 1 birlik narxi = 1 blok narxi (qoplamasiz; o'zi yoki asosiy) ÷ chiqishi × (qoplama ? koeffitsient : 1).
+    const blokPrice = blokNarxiQatorda(row);
+    const chiqadiPerBlok = l;
+    const kerakMetr = qty;
 
-    perMeterPrice = chiqadiPerBlok > 0 ? (blokPrice / chiqadiPerBlok) : 0;   // 1 metr narxi
+    perMeterPrice = chiqadiPerBlok > 0 ? (blokPrice / chiqadiPerBlok) * (isCoated ? blokKoef(row) : 1) : 0;   // 1 birlik narxi
     price = perMeterPrice * kerakMetr;   // Mijozdan olinadigan jami summa
 
     const blokKerak = chiqadiPerBlok > 0 ? (kerakMetr / chiqadiPerBlok) : 0;   // Omborga — aniq kasr son (yaxlitlanmaydi)
@@ -5608,8 +5767,9 @@ function updateLiveStats() {
       // o'zi necha metr berishi, ya'ni ISHLAB CHIQARISH normasi), ".i-q"
       // esa — "Necha metr KERAK" (haqiqiy buyurtma miqdori). Statistikada
       // haqiqiy kerakli metr (.i-q) hisoblanishi kerak, normasi (.i-l) emas.
+      // kech155 (zip 211): faqat metrdagi blok detal (ta / m² — metr emas)
       const qEl = row.querySelector('.i-q');
-      if (qEl) totalLength += parseFloat(qEl.value || 0);
+      if (qEl && blokBirligi(row) === 'metr') totalLength += parseFloat(qEl.value || 0);
     } else {
       const lEl = row.querySelector('.i-l');
       if (lEl) totalLength += parseFloat(lEl.value || 0);
@@ -5649,6 +5809,7 @@ function getNamedTotal() {
 }
 
 function updateTotal() {
+  asosiyNarxlarKorinishi();      // kech155 (zip 211): detal qo'shilgan / o'chirilgan / turi o'zgargan — asosiy narx maydonlari
   let total = 0;
   const rows = document.querySelectorAll('.detal');
   const livePanel = document.getElementById('liveTotal');
@@ -5695,11 +5856,15 @@ function updateTotal() {
       if (q > 0 && perm > 0)
         qtyText = `${sonKor(q)}m × ${sonKor(perm)} so'm`;
     } else if (type === 'blok') {
+      // kech155 (zip 211): o'z birligida («30m × …», «50 ta × …», «12 m² × …»); tayyor mahsulotdan — blok soni yo'q
       const kerakMetr = parseFloat(row.querySelector('.i-q')?.value || 0);
       const chiqadiPerBlok = parseFloat(row.querySelector('.i-l')?.value || 0);
       const blokKerak = chiqadiPerBlok > 0 ? (kerakMetr / chiqadiPerBlok) : 0;
+      const bq = BLOK_BIRLIK_QISQA[blokBirligi(row)];
+      const bqMiqdor = `${sonKor(kerakMetr)}${bq === 'm' ? 'm' : ' ' + bq}`;
       if (kerakMetr > 0 && perm > 0)
-        qtyText = `${sonKor(blokKerak, 2)} blok → ${sonKor(kerakMetr)}m × ${sonKor(perm)} so'm/m`;
+        qtyText = row.dataset.fpId ? `${bqMiqdor} × ${sonKor(perm)} so'm`
+          : `${sonKor(blokKerak, 2)} blok → ${bqMiqdor} × ${sonKor(perm)} so'm/${bq}`;
     } else {
       const q = parseFloat(row.querySelector('.i-q')?.value || 1);
       const up = parseNum(row.querySelector('.i-unitprice')?.value || 0);
@@ -5920,6 +6085,21 @@ function buyurtmaUmumiyKamchiliklar(items) {
       issues.push({ text: `${detalYorligi(row, idx)} — «${yorliq}» kiritilmagan (0 dan katta bo'lsin)`, targetId: row.id });
     }
   });
+  // kech155 (zip 211 — review211 №10): MRP turidagi nomli qator, mahsulot turi tanlanmagan — ishlab chiqarishga bog'lanmasdi
+  document.querySelectorAll('.detal').forEach((row, idx) => {
+    const nom = (row.querySelector('.i-name')?.value || '').trim();
+    if (!nom || row.querySelector('.i-type')?.value !== 'mrp_product' || row.dataset.mrpProductTypeId) return;
+    issues.push({ text: `${detalYorligi(row, idx)} — MRP mahsuloti tanlanmagan («🏭 MRP Mahsuloti» tugmasini bosib turini tanlang)`, targetId: row.id });
+  });
+  // kech155 (zip 211): blok detal (tayyor mahsulotdan emas) — «1 blokdan chiqadigan …» bo'sh yoki 0 bo'lsa narx va ombor hisoblanmaydi
+  document.querySelectorAll('.detal').forEach((row, idx) => {
+    const nom = (row.querySelector('.i-name')?.value || '').trim();
+    if (!nom || row.querySelector('.i-type')?.value !== 'blok' || row.dataset.fpId) return;
+    if (!(parseFloat(row.querySelector('.i-l')?.value) > 0)) {
+      const yorliq = (row.querySelector('.i-l-label')?.textContent || '1 blokdan chiqadigan').trim();
+      issues.push({ text: `${detalYorligi(row, idx)} — «${yorliq}» kiritilmagan (0 dan katta bo'lsin)`, targetId: row.id });
+    }
+  });
   if (!(items || []).length && !nomsiz.length) issues.push({ text: "Kamida bitta detal qo'shing (nomi bilan)", targetId: 'items' });
   return issues;
 }
@@ -6036,6 +6216,22 @@ async function saveOrder(isDraft = false) {
       targetId: rowsMissingPrice[0].rowId
     });
   }
+  // kech155 (zip 211): blok detal — asosiydan boshqa plotnost tanlangan, lekin o'z «1 blok narxi» yozilmagan (tayyor mahsulotdan emas)
+  const blokNarxsiz = [];
+  document.querySelectorAll('.detal').forEach((row, idx) => {
+    if (row.querySelector('.i-type')?.value !== 'blok' || row.dataset.fpId) return;
+    const pid = parseInt(row.querySelector('.i-peno')?.value);
+    const oz = parseNum(row.querySelector('.i-blokprice')?.value || '');
+    if (pid && DEFAULT_PENO_ID && pid !== DEFAULT_PENO_ID && !oz) {
+      blokNarxsiz.push({ rowId: row.id, yorliq: detalYorligi(row, idx) });
+    }
+  });
+  if (blokNarxsiz.length) {
+    issues.push({
+      text: `${blokNarxsiz.map(r => r.yorliq).join(', ')}: boshqa plotnost tanlangan, lekin 1 blok narxi yozilmagan`,
+      targetId: blokNarxsiz[0].rowId
+    });
+  }
 
   // MUHIM: "Loy sotish" qatorida retsept tanlanmagan bo'lsa — xomashyo
   // ombordan HECH QACHON ayirilmaydi (buni ilgari aniq bir holatda topgan
@@ -6078,6 +6274,7 @@ async function saveOrder(isDraft = false) {
     is_draft: isDraft,
     items,
     base_price: parseNum(document.getElementById('base_price')?.value || '0') || null,
+    blok_base_price: parseNum(document.getElementById('blok_base_price')?.value || '0') || null,   // kech155 (zip 211)
     loy_kg: parseFloat(document.getElementById('loy_kg')?.value || '0') || null
   };
   // kech144 (zip 173): forma kaliti — javob yo'qolib qayta bosilsa server o'sha buyurtmani qaytaradi (takror yaratilmaydi)
@@ -6422,6 +6619,9 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
     // kech144 (zip 173, audit P2-17): buyurtmada yo'q bo'lsa — maydon BO'SH (ilgari oldingi formaning narxi qolib, narxlar shu bilan
     // qayta hisoblanardi; `_narxiNolgaTushgan` buni ushlamasdi — narx 0 emas, noto'g'ri)
     if (basePriceEl) basePriceEl.value = order.base_price ? narxKorinishi(order.base_price) : '';
+    // kech155 (zip 211): «1 blok asosiy narxi» — xuddi shu qoida
+    const blokBasePriceEl = document.getElementById('blok_base_price');
+    if (blokBasePriceEl) blokBasePriceEl.value = order.blok_base_price ? narxKorinishi(order.blok_base_price) : '';
 
     // Har bir detalga forma qo'shamiz
     if (itemsToUse.length > 0) {
@@ -6538,29 +6738,47 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
           row.querySelector('.i-t').value = item.thickness || 0;
           row.querySelector('.i-q').value = item.quantity || 1;
         } else if (cat === 'blok') {
-          row.querySelector('.i-q').value = item.quantity || 0;   // Necha metr kerak
+          // kech155 (zip 211): birlik, chiqishi, o'z blok narxi (QOPLAMASIZ), koeffitsient — ustunlardan. zip 211 dan oldingi yozuv
+          // (`blok_birlik` bo'sh): metr, chiqishi — `notes` dagi `blok_yield`, narx — `notes` dagi YAKUNIY blok narxi (qoplamali bo'lsa
+          // ÷ koeffitsient 2), u ham yo'q bo'lsa — saqlangan 1 metr narxi × chiqishi; eski narx detalning O'Z narxi bo'lib qoladi
+          // (asosiy narx bo'sh bo'lsa ham summa o'zgarmaydi).
+          const buEl = row.querySelector('.i-blokunit');
+          if (buEl) buEl.value = blokBirlikKodi(item.blok_birlik);
+          syncBlokUnitUI(row);
+          toggleFields(row);
+          updateTypeConfirmText(row, cat);
+          row.querySelector('.i-q').value = item.quantity || 0;   // Necha … kerak
+          if (item.width) row.querySelector('.i-h').value = item.width;
+          if (item.thickness) row.querySelector('.i-t').value = item.thickness;
 
-          // "1 blokdan chiqadigan metr"ni notes dan tiklaymiz (blok_yield=...)
           const ym = (item.notes || '').match(/blok_yield=([\d.]+)/);
-          const chiqadiPerBlok = ym ? parseFloat(ym[1]) : 0;
+          const chiqadiPerBlok = (item.blok_chiqishi !== null && item.blok_chiqishi !== undefined)
+            ? (parseFloat(item.blok_chiqishi) || 0) : (ym ? parseFloat(ym[1]) : 0);
           row.querySelector('.i-l').value = chiqadiPerBlok || '';
+          const koef = (parseFloat(item.blok_koef) > 0) ? parseFloat(item.blok_koef) : 2;
+          const kEl = row.querySelector('.i-blokmult');
+          if (kEl) kEl.value = koef;
 
           const bpEl = row.querySelector('.i-blokprice');
-          if (bpEl) {
-            // Blok narxini notes dan tiklaymiz (blok_narxi=...), bo'lmasa taxminiy hisoblaymiz
-            let blokPrice = 0;
-            const m = (item.notes || '').match(/blok_narxi=([\d.]+)/);
-            if (m) {
-              blokPrice = parseFloat(m[1]);
-            } else if (chiqadiPerBlok > 0) {
-              blokPrice = parseFloat(item.unit_price || 0) * chiqadiPerBlok;
+          if (bpEl && !item.finished_product_id) {
+            let oz = null;
+            if (item.blok_birlik) {
+              oz = (item.blok_narxi !== null && item.blok_narxi !== undefined) ? (parseFloat(item.blok_narxi) || null) : null;
+            } else {
+              const m = (item.notes || '').match(/blok_narxi=([\d.]+)/);
+              const yakuniy = m ? parseFloat(m[1]) : (chiqadiPerBlok > 0 ? parseFloat(item.unit_price || 0) * chiqadiPerBlok : 0);
+              oz = (yakuniy > 0) ? (item.is_coated ? yakuniy / koef : yakuniy) : null;
             }
-            bpEl.value = narxKorinishi(blokPrice);
-
-            // Asosiy (qoplamasiz) narxni joriy qoplama holatidan kelib chiqib hisoblaymiz
-            const isCoated = item.is_coated;
-            const mult = parseFloat(row.querySelector('.i-blokmult')?.value) || 2;
-            row.dataset.blokBase = isCoated ? (blokPrice / mult) : blokPrice;
+            bpEl.value = oz ? narxKorinishi(oz) : '';
+            // aniq qiymat (eski qoplamali yozuv: 1 500 001,25 ÷ 2 = 750 000,625 — maydonda 750 000,63) — hisob shundan (`blokNarxiQatorda`)
+            if (oz) row.dataset.blokNarxAniq = String(oz);
+          }
+          if (item.finished_product_id) {
+            // tayyor mahsulotdan — «1 … narxi» saqlangan narxda (fetch keyin qoldiqni oladi; nusxada — joriy narx)
+            const upB = row.querySelector('.i-unitprice');
+            const rawB = parseFloat(item.unit_price || 0) || 0;
+            if (upB) upB.value = narxKorinishi(rawB);
+            row.dataset.unitprice = rawB;
           }
           if (item.penoplast_id) {
             const peEl = row.querySelector('.i-peno');
@@ -6638,7 +6856,12 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
         // Tayyor mahsulotdan olingan bo'lsa
         if (item.finished_product_id) {
           row.dataset.fpId = item.finished_product_id;
-          row.dataset.fpUnit = (item.category === 'profil') ? 'metr' : 'dona';
+          // kech155 (zip 211): blok — mahsulot birligida (m / dona / m²)
+          row.dataset.fpUnit = (item.category === 'profil') ? 'metr' : (item.category === 'blok' ? (item.delivery_unit || 'metr') : 'dona');
+          if (item.category === 'blok') {
+            toggleFields(row);
+            row.querySelectorAll('.blokunit-opt').forEach(b => { b.style.pointerEvents = 'none'; b.style.opacity = '.6'; });
+          }
           const badge2 = row.querySelector('.detal-badge');
           if (badge2) {
             badge2.insertAdjacentHTML('afterend',
@@ -6690,7 +6913,7 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
               // qoida (nusxa yoki saqlangan narx aniqlanmagan -> JORIY narx) shu maydonga ham.
               // Oldin nusxada Donalik TM eski (saqlangan) narxda, profil / panel / blok esa
               // joriy narxda qolardi. 'edit' rejimida saqlangan narx o'zgarmaydi (75-band).
-              if ((isDup || _tmSaqlangan === null) && cat === 'dona') {
+              if ((isDup || _tmSaqlangan === null) && (cat === 'dona' || cat === 'blok')) {   // kech155 (zip 211): blok ham
                 const upTm = row.querySelector('.i-unitprice');
                 if (upTm) {
                   const fpNarxTm = parseFloat(fp.unit_price) || 0;
@@ -6960,25 +7183,24 @@ function collectItems() {
                    penoplast_id: penoId, price_per_m3: (fpId ? null : m3price), finished_product_id: fpId,
                    notes: donaYield > 0 ? `dona_yield=${donaYield}` : null });
     } else if (type === 'blok') {
-      let perMetr, blokKerak, blokPrice, chiqadiPerBlok, kerakMetr;
-      if (row.dataset.fpId && row.dataset.fpPrice) {
-        // "Tayyor mahsulotdan" — to'g'ridan-to'g'ri, tayyor narxdan
-        kerakMetr = qty;
-        perMetr = parseFloat(row.dataset.fpPrice) || 0;
-        blokKerak = 0;  // ombordan blok sifatida ayirilmaydi — bu allaqachon tayyor
-        blokPrice = 0; chiqadiPerBlok = 0;
-      } else {
-        const bpEl = row.querySelector('.i-blokprice');
-        blokPrice = bpEl ? parseNum(bpEl.value) || 0 : 0;
-        chiqadiPerBlok = l;         // "1 blokdan chiqadigan metr" — i-l dan
-        kerakMetr = qty;            // "Necha metr kerak" — i-q dan
-        perMetr = chiqadiPerBlok > 0 ? (blokPrice / chiqadiPerBlok) : 0;
-        blokKerak = chiqadiPerBlok > 0 ? (kerakMetr / chiqadiPerBlok) : 0;
+      // kech155 (zip 211): birlik, chiqishi, O'Z blok narxi (qoplamasiz; bo'sh — null: buyurtmaning «1 blok asosiy narxi»),
+      // koeffitsient; o'lcham (Eni, Qalinligi) — yozuv uchun. 1 birlik narxi — `calculateItem` hisoblagani (`row.dataset.birlik`).
+      // `notes` — eski shakl (zip 211 dan oldingi kod ham o'qiy oladi): YAKUNIY blok narxi va chiqishi.
+      const birlik = blokBirligi(row);
+      let blokKerak = 0, chiqadiPerBlok = 0, ozNarx = null, koef = null, yakuniyBlok = 0;
+      if (!row.dataset.fpId) {
+        chiqadiPerBlok = l;          // «1 blokdan chiqadigan …» — i-l dan
+        const ozMaydon = parseNum(row.querySelector('.i-blokprice')?.value || '') || 0;
+        ozNarx = ozMaydon > 0 ? blokNarxiQatorda(row) : null;
+        koef = blokKoef(row);
+        yakuniyBlok = blokNarxiQatorda(row) * (isCoated ? koef : 1);
+        blokKerak = chiqadiPerBlok > 0 ? (qty / chiqadiPerBlok) : 0;   // ombordan — aniq kasr son
       }
-      items.push({ name, category: 'blok', width: null, thickness: null, length: blokKerak,
-                   quantity: kerakMetr, unit_price: perMetr, is_coated: isCoated,
+      items.push({ name, category: 'blok', width: h || null, thickness: t || null, length: blokKerak,
+                   quantity: qty, unit_price: unitPrice, is_coated: isCoated,
                    penoplast_id: penoId, price_per_m3: null, finished_product_id: fpId,
-                   notes: `blok_narxi=${blokPrice},blok_yield=${chiqadiPerBlok}` });
+                   blok_birlik: birlik, blok_chiqishi: chiqadiPerBlok || null, blok_narxi: ozNarx, blok_koef: koef,
+                   notes: `blok_narxi=${yakuniyBlok},blok_yield=${chiqadiPerBlok}` });
     } else if (type === 'loy_sotish') {
       const unitP = parseNum(row.querySelector('.i-unitprice')?.value) || 0;
       const recipeId = parseInt(row.dataset.loysaleRecipeId) || null;
@@ -7144,6 +7366,7 @@ async function updateOrder(orderId) {
     deadline: document.getElementById('deadline_input')?.value || null,
     items,
     base_price: parseNum(document.getElementById('base_price')?.value || '0') || null,
+    blok_base_price: parseNum(document.getElementById('blok_base_price')?.value || '0') || null,   // kech155 (zip 211)
     loy_kg: parseFloat(document.getElementById('loy_kg')?.value || '0') || null
   };
 

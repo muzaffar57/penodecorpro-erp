@@ -1070,41 +1070,42 @@ function kichikRasm(url) {
   {# ── SIDEBAR ── #}
   <aside class="sidebar">
     <div class="s-logo">
-      <div style="display:flex;align-items:center;gap:10px">
-        {# 2026-09-20: chap paneldagi logotip ham korxonanikidan olinadi.
-           Korxona o'z logotipini yuklamagan bo'lsa — umumiy belgi. #}
-        {% set _logo = company_logo_of(current_user.company_id) if current_user else None %}
-        {# 2026-09-20 — MUHIM: chap paneldagi joy KVADRAT (42×42).
-           `logo_transparent.png` esa KENG (nisbat 1.78) — uni doira ichiga
-           `cover` bilan tiqqanda kesilib, xiralashib ko'rinadi. Shuning
-           uchun platformaning o'z logotipi uchun kvadrat variant
-           (`logo_round.jpg`) ishlatiladi; mijoz yuklagan logotip esa
-           istalgan shaklda bo'lishi mumkin — u `contain` bilan, to'liq
-           ko'rinadigan qilib, yumaloq burchakli ramkada chiziladi. #}
-        {% if _logo == 'static/logo_transparent.png' %}
-        {# kech120 (E, U-10): 42 px joy uchun 1024 × 1024 (91 KB) o'rniga 128 × 128 (retina 3× gacha aniq) #}
-        <img src="/static/logo_round_128.jpg" alt=""
-             style="width:42px;height:42px;border-radius:50%;object-fit:cover;flex-shrink:0">
-        {% elif _logo %}
-        <img src="/{{ _logo }}" alt=""
-             style="width:42px;height:42px;border-radius:9px;object-fit:contain;
-                    background:var(--white,#fff);flex-shrink:0">
+      {# 2026-09-20: chap paneldagi logotip ham korxonanikidan olinadi. Korxona o'z logotipini yuklamagan bo'lsa — umumiy belgi.
+         kech155 (zip 211d / 211e — egasi so'rovi 24.10): logotip tepadagi to'rtburchak OQ taglikni TO'LIQ egallaydi (yumaloq 42 px emas),
+         «nom / ERP» matni yo'q (nomi — `alt` / `title`). Atrofidagi bo'sh (shaffof / oq) joy kesiladi — `company_logo_menyu`: mazmun
+         o'lchamidagi oyna (`.s-logo-kesim`, bo'yi — `padding-top` foizi), rasm unga foizlarda joylanadi (hamma brauzerda). Pillow yo'q —
+         rasm butunicha (`.s-logo-oddiy`). Platforma logotipi — `static/logo_menyu.webp`. Logotipsiz / o'qilmaydi — harf + nom. #}
+      {% set _logo = company_logo_of(current_user.company_id) if current_user else None %}
+      {% set _kn = company_name_of(current_user.company_id) if current_user else None %}
+      {% set _lm = company_logo_menyu(_logo) if _logo else None %}
+      {% if _lm %}
+      <div class="s-logo-plita" title="{{ _kn or 'PenodecorPro' }}">
+        {% if _lm.eni %}
+        <div class="s-logo-kesim" style="width:{{ _lm.eni }}px">
+          <div style="padding-top:{{ _lm.nisbat }}%"></div>
+          <img class="s-logo-rasm" src="{{ _lm.src }}" alt="{{ _kn or 'PenodecorPro' }}"
+               style="width:{{ _lm.rasm }}%;left:-{{ _lm.chap }}%;top:-{{ _lm.tepa }}%">
+        </div>
         {% else %}
+        <img class="s-logo-oddiy" src="{{ _lm.src }}" alt="{{ _kn or 'PenodecorPro' }}">
+        {% endif %}
+      </div>
+      {% else %}
+      <div style="display:flex;align-items:center;gap:10px">
         <div style="width:42px;height:42px;border-radius:50%;flex-shrink:0;background:var(--bg);
                     display:flex;align-items:center;justify-content:center;font-weight:700;
                     color:var(--text3);font-size:18px">
-          {{ (company_name_of(current_user.company_id) or 'P')[0]|upper if current_user else 'P' }}
+          {{ (_kn or 'P')[0]|upper if current_user else 'P' }}
         </div>
-        {% endif %}
         <div>
           {# Faza 5: korxona nomi bazadan olinadi. Ilgari "PenoDecorPro ·
              Andijon" qattiq yozilgan edi — ikkinchi mijoz o'z ERP sida
              boshqa korxonaning nomini ko'rib turardi. #}
-          {% set _kn = company_name_of(current_user.company_id) if current_user else None %}
           <div class="logo-name">{{ _kn or 'PenodecorPro' }}</div>
           <div class="logo-ver">ERP</div>
         </div>
       </div>
+      {% endif %}
     </div>
 
     <div class="s-user">
