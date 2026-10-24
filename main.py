@@ -5746,6 +5746,24 @@ def api_project_topshirish(project_id: int, db: Session = Depends(get_db), curre
     return {"jami": len(orders), "topshirilgan": sum(1 for o in orders if float(o.delivery_percent or 0) >= 100)}
 
 
+from fastapi import Path as _Path213                 # noqa: E402
+
+
+@app.get("/api/projects/{project_id}/berilgan-detallar")
+def api_project_berilgan_detallar(project_id: int = _Path213(..., ge=1, le=2_147_483_647),
+                                  istisno: Optional[int] = Query(None, ge=1, le=2_147_483_647), db: Session = Depends(get_db),
+                                  current_user=Depends(auth.ruxsat("buyurtma", "korish"))):
+    """kech156 (zip 213 — egasi tanlovlari 24.10 «Bu takror emasmi?» → «Qatorda eslatma» → «Ochiq buyurtma ham»; ORD-068): loyihaning
+    boshqa buyurtmalarida yuk xati bilan berilgan va ochiq buyurtmada hali berilmagan detallar (`crud.loyiha_berilgan_detallar`) —
+    buyurtma oynasi detal nomi ostidagi eslatma uchun. `istisno` — tahrirlanayotgan buyurtma (o'zi sanalmaydi). Faqat o'qish, narxsiz;
+    loyiha faqat joriy korxonadan (aks holda 404). Id lar — int4 chegarasida (PostgreSQL da kattasi 500 berardi — endi 422;
+    review213 №7)."""
+    _cid = auth.company_id_of(current_user)
+    if not auth.project_of_company(db, project_id, _cid):
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+    return {"detallar": crud.loyiha_berilgan_detallar(db, project_id, _cid, istisno_order_id=istisno)}
+
+
 @app.get("/api/projects/dashboard-stats")
 def api_projects_dashboard_stats(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("loyiha_korsatkich", "korish"))):
     return crud.get_projects_dashboard_stats(db, company_id=auth.company_id_of(current_user))
