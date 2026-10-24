@@ -2432,9 +2432,37 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None,
         Order.created_at >= _recent_cutoff
     ).order_by(Order.created_at.desc()).first()
     if _recent_order:
-        _new_sig = sorted([(i.name, i.category, round(float(i.quantity or 0), 4)) for i in order_data.items])
-        _old_sig = sorted([(it.name, it.category, round(float(it.quantity or 0), 4)) for it in _recent_order.items])
-        if _new_sig and _new_sig == _old_sig:
+        # kech157 (zip 215b — JONLI sinovda topilgan eski nuqson): imzo — detalning HAMMA ma'noli maydonlari, saqlanganidek. Ilgari faqat
+        # (nom, tur, miqdor): bir loyihada 8 s ichida «Karniz» 72 m dan keyin «Karniz» 40 m (profil, miqdor 1) yaratilmay, birinchisi qaytardi
+        # (sinov sayti, 25.10); mustaqil tekshiruv (review215b №1) — qoplama, plotnost (penoplast), narx, tayyor mahsulot, mahsulot turi,
+        # retsept, ichki bo'laklar boshqa bo'lsa ham, qoralamadan keyin haqiqiy buyurtma ham shunday edi. Son — chekli bo'lsa yaxlitlangan,
+        # aks holda matn (NaN != NaN — review215b №2); narx — `_buyurtma_narx_jami` bilan (saqlanadigan ko'rinish); retsept — detalniki yoki
+        # buyurtmaniki (saqlanishidek). Blok ustunlari (`_blok_ustunlari` saqlashda qayta hisoblaydi) — imzoda yo'q. AYNAN bir xil tana (ikki
+        # marta bosish / tarmoq takrori) — avvalgidek bitta buyurtma; sahifada bundan oldin forma kaliti (`yaratish_kaliti`, zip 173) ham bor.
+        import math as _m215b
+
+        def _s215b(v, n=4):
+            try:
+                v = float(v or 0)
+            except (TypeError, ValueError):
+                return repr(v)
+            return round(v, n) if _m215b.isfinite(v) else repr(v)
+
+        def _ichki215b(x):
+            return tuple(sorted([((sd.name or None), sd.category, _s215b(sd.width), _s215b(sd.thickness), _s215b(sd.length),
+                                  _s215b(sd.quantity), bool(sd.is_coated)) for sd in (getattr(x, "sub_details", None) or [])], key=repr))
+
+        def _imzo215b(x, yangi):
+            _narx = _buyurtma_narx_jami(x.quantity, x.unit_price)[0] if yangi else x.unit_price
+            _ret = ((getattr(x, "recipe_id", None) or order_data.recipe_id) if yangi else x.recipe_id) or None
+            return (x.name, x.category, _s215b(x.quantity), _s215b(getattr(x, "width", None)), _s215b(getattr(x, "thickness", None)),
+                    _s215b(getattr(x, "length", None)), bool(x.is_coated), getattr(x, "penoplast_id", None) or None,
+                    getattr(x, "finished_product_id", None) or None, getattr(x, "product_type_id", None) or None, _ret, _s215b(_narx, 2),
+                    _ichki215b(x))
+        _new_sig = sorted([_imzo215b(i, True) for i in order_data.items], key=repr)
+        _old_sig = sorted([_imzo215b(it, False) for it in _recent_order.items], key=repr)
+        _qoralama_mos = bool(getattr(order_data, "is_draft", False)) == (_recent_order.status == OrderStatus.DRAFT)
+        if _new_sig and _new_sig == _old_sig and _qoralama_mos:
             _recent_order._is_duplicate_submit = True  # main.py shu belgini tekshirib, qayta ombor yechishning oldini oladi
             return _recent_order
 

@@ -294,20 +294,22 @@ class OrderItemSubDetailCreate(BaseModel):
     chiqmaydi — hajmi/narxi parentga qo'shib hisoblanadi."""
     name: Optional[str] = None
     category: str = Field(..., description="profil yoki panel")
-    width: Optional[float] = None
-    thickness: Optional[float] = None
-    length: Optional[float] = None
-    quantity: Optional[float] = Field(default=1.0)
+    # kech157 (zip 215b — review215b №4): NaN / cheksiz — 422 (PG da penoplast qoldig'i NaN bo'lardi)
+    width: Optional[float] = Field(default=None, allow_inf_nan=False)
+    thickness: Optional[float] = Field(default=None, allow_inf_nan=False)
+    length: Optional[float] = Field(default=None, allow_inf_nan=False)
+    quantity: Optional[float] = Field(default=1.0, allow_inf_nan=False)
     is_coated: bool = False
 
 
 class OrderItemCreate(BaseModel):
     name: str = Field(..., min_length=2)
     category: Optional[str] = None
-    width: Optional[float] = None
-    thickness: Optional[float] = None
-    length: Optional[float] = None
-    quantity: float = Field(default=1.0, gt=0)
+    # kech157 (zip 215b — review215b №4): NaN / cheksiz — 422 (HAQIQIY PG da `"width": "nan"` bilan buyurtma 200, penoplast qoldig'i NaN)
+    width: Optional[float] = Field(default=None, allow_inf_nan=False)
+    thickness: Optional[float] = Field(default=None, allow_inf_nan=False)
+    length: Optional[float] = Field(default=None, allow_inf_nan=False)
+    quantity: float = Field(default=1.0, gt=0, allow_inf_nan=False)
     is_coated: bool = True
     # 2026-09-17 (audit topilmasi — haqiqiy xato): juda katta son (masalan
     # 999999999999) bazadagi Numeric(12,2) ustunining sig'imidan oshib,
