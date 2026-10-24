@@ -432,7 +432,12 @@ def buzilishlar(src, tizim):
         if not (isinstance(t, ast.Call) and getattr(t.func, "id", None) == "Paragraph" and t.args):
             continue
         a0 = t.args[0]
-        if isinstance(a0, ast.Constant) or (isinstance(a0, ast.Call) and getattr(a0.func, "id", None) == "_x"):
+        # kech155 (zip 211g, MOSLANDI): `_sarlavha_osti(brand)` — har qatori `_x(…)` bilan (C2b); `_x(…).replace("\\n", "<br/>")` —
+        # ekranlangan matnga faqat qator ajratgich qo'shadi
+        if isinstance(a0, ast.Constant) or (isinstance(a0, ast.Call) and getattr(a0.func, "id", None) in ("_x", "_sarlavha_osti")):
+            continue
+        if (isinstance(a0, ast.Call) and getattr(a0.func, "attr", None) == "replace" and isinstance(a0.func.value, ast.Call)
+                and getattr(a0.func.value.func, "id", None) == "_x" and [getattr(x, "value", None) for x in a0.args] == ["\n", "<br/>"]):
             continue
         if isinstance(a0, ast.JoinedStr):
             for v in a0.values:
@@ -459,6 +464,10 @@ def buzilishlar(src, tizim):
 
 
 _c2b = {m: buzilishlar(fayl(m), TIZIM[m]) for m in PDF_MODULLAR}
+# kech155 (zip 211g, MOSLANDI): sarlavha osti yordamchisi — har qatorni `_x(…)` bilan ekranlaydi (yuk xati / sotuv cheki / yakuniy hisob /
+# jamlanma va moliya hisoboti)
+_sarlavha_osti_ok = all('return "<br/>".join(_x(q) for q in _q)' in fayl(m) for m in ("delivery_pdf.py", "finance_pdf.py"))
+check("C2b `_sarlavha_osti` — har qator `_x(…)` bilan ekranlanadi (delivery_pdf, finance_pdf)", _sarlavha_osti_ok)
 check("C2 PDF modullari: `Paragraph` ga foydalanuvchi matni faqat `_x(…)` orqali (qolgani — o'zgarmas / son / sana / tizim ro'yxati)",
       not any(_c2b.values()), {m: v[:6] for m, v in _c2b.items() if v})
 _parts = re.findall(r"parts\.append\((f?\"[^\n]*)\)", fayl("delivery_pdf.py"))
