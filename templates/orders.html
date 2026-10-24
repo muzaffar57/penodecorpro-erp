@@ -4562,13 +4562,18 @@ async function takrorQatori(row) {
 }
 // bitta yozuv (egasi tanlovi «Ochiq buyurtma ham»): «ORD-064-3 — 72 m berilgan (19.10)», «ORD-064-4 — 72 m (hali berilmagan)»,
 // qisman — «ORD-064-2 — 30 m berilgan (20.10), 10 m hali berilmagan»; son, birlik, sana — bo'linmas bo'shliq bilan (telefonda «30 / m»
-// bo'lib ikki qatorga ajralmasin)
+// bo'lib ikki qatorga ajralmasin). kech157 (zip 215 — egasi tanlovlari 25.10 «Qaytgan miqdor eslatmada», «Brak alohida»): mijoz qaytargan /
+// brak bo'lsa — «ORD-064-3 — 72 m berilgan (19.10), 10 m qaytgan, 8 m brak»; ochiq buyurtmada — «…, 10 m qaytgan, 10 m hali berilmagan»,
+// berilmagan — «ORD-064-4 — 72 m (hali berilmagan), 3 m brak»; ko'rinishi «0» ga yaxlitlangan son yozilmaydi (review215 №2); eski server
+// (`qaytgan` / `brak` yo'q) — avvalgidek
 function takrorYozuv(d) {
   const n = '\u00a0';
   const ber = Number(d.berilgan) > 0 ? `${d.berilgan_matn}${n}${d.birlik}${n}berilgan` + (d.sana_matn ? `${n}(${d.sana_matn})` : '') : '';
-  if (!d.ochiq) return `${d.buyurtma} —${n}${ber}`;
-  if (!ber) return `${d.buyurtma} —${n}${d.qolgan_matn}${n}${d.birlik}${n}(hali${n}berilmagan)`;
-  return `${d.buyurtma} —${n}${ber}, ${d.qolgan_matn}${n}${d.birlik}${n}hali${n}berilmagan`;
+  const qay = (ber && Number(d.qaytgan) > 0 && d.qaytgan_matn && d.qaytgan_matn !== '0') ? `, ${d.qaytgan_matn}${n}${d.birlik}${n}qaytgan` : '';
+  const brk = (Number(d.brak) > 0 && d.brak_matn && d.brak_matn !== '0') ? `, ${d.brak_matn}${n}${d.birlik}${n}brak` : '';
+  if (!d.ochiq) return `${d.buyurtma} —${n}${ber}${qay}${brk}`;
+  if (!ber) return `${d.buyurtma} —${n}${d.qolgan_matn}${n}${d.birlik}${n}(hali${n}berilmagan)${brk}`;
+  return `${d.buyurtma} —${n}${ber}${qay}${brk}, ${d.qolgan_matn}${n}${d.birlik}${n}hali${n}berilmagan`;
 }
 // yig'ilgan (collapsed) qator — nom ostidagi yozuv yashirin; xulosa qatorida «ℹ️ loyihada bor» belgisi (`updateDetalSummary`)
 function _takrorBelgi(row, bor) {
