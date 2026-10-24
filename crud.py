@@ -10541,7 +10541,8 @@ def loyiha_berilgan_detallar(db: Session, project_id: int, company_id: int, isti
     (1) YUK XATI bilan berilgan (har qanday holatdagi buyurtmada); (2) OCHIQ (jarayondagi — `services.FAOL_HOLATLAR`) buyurtmada hali
     berilmagan qismi bor (`order_qty_normalized` − berilgan − omborga qo'yilgan ortiqcha — `OrderItem.remaining_qty` qoidasi). Har yozuv —
     buyurtma + nom kaliti (`detal_nomi_kaliti`) + birlik bo'yicha bitta (bir buyurtmadagi bir xil nomli detallar jamlanadi): nomi, buyurtma
-    raqami, berilgan jami, oxirgi yuk sanasi (Toshkent), hali berilmagan qolgan, `ochiq` (qolgan > 0). Tartib — ochiqlari birinchi (yangisi
+    raqami, berilgan jami, oxirgi yuk sanasi (Toshkent), hali berilmagan qolgan, `ochiq` (qolgan > 0), mijoz QAYTARGAN qism (`qaytgan` —
+    kech157, zip 215: brakdan boshqa qaytarishlarning topshirilgandan olingan qismi, berilgandan ko'p emas) va shu detalga yozilgan brak (`brak`). Tartib — ochiqlari birinchi (yangisi
     birinchi), keyin oxirgi yuk sanasi bo'yicha eng yangisi. Narx / summa / mijoz YO'Q. Faqat o'qish."""
     from models import Order, OrderItem, OrderStatus, Delivery, DeliveryItem
     from sqlalchemy import func as _f213
@@ -10581,15 +10582,32 @@ def loyiha_berilgan_detallar(db: Session, project_id: int, company_id: int, isti
             _qol = max(float(it.order_qty_normalized or 0) - _miq - float(it.ortiqcha_qty or 0), 0.0)
         if _miq <= 1e-9 and _qol <= 1e-9:
             continue
+        # kech157 (zip 215 — egasi tanlovi 25.10 «Qaytgan miqdor eslatmada»; review213 №5): mijoz QAYTARGAN qism — brakdan boshqa qaytarish
+        # yozuvlarida TOPSHIRILGANDAN olingani (`quantity − ortiqcha_miqdor`, `_qaytarish_ortiqcha_qismi` qoidasi; omborga qo'yilgan ortiqcha —
+        # berilmagan qism, u `_qol` dan allaqachon ayirilgan); berilgandan ko'p emas. BRAK — alohida (egasi tanlovi 25.10 «Brak alohida»:
+        # mijozda — yetkazishda / o'rnatishda — singan detal ham «Brak yozish» bilan yoziladi; qayerda chiqqani yozuvda yo'q — shu detalga
+        # yozilgan HAMMA brak, cheklovsiz — takroriy brak bo'ladi). `Order.returns` — oldindan yuklangan (qo'shimcha so'rov yo'q).
+        _qayt = 0.0
+        _brak = 0.0
+        for _r in (_o.returns or []):
+            if _r.order_item_id != it.id:
+                continue
+            if _r.reason == ReturnReason.DEFECT:
+                _brak += max(float(_r.quantity or 0), 0.0)
+            elif _miq > 1e-9:
+                _qayt += max(float(_r.quantity or 0) - float(_r.ortiqcha_miqdor or 0), 0.0)
+        _qayt = min(_qayt, _miq)
         _k = detal_nomi_kaliti(it.name)
         _b = _sv213.birlik_korinish(it.delivery_unit)
         _j = _jam.get((_o.id, _k, _b))
         if _j is None:
             _jam[(_o.id, _k, _b)] = {"kalit": _k, "nomi": it.name, "order_id": _o.id, "buyurtma": _o.order_number, "berilgan": _miq,
-                                     "qolgan": _qol, "birlik": _b, "_t": _t, "_yaratilgan": _o.created_at}
+                                     "qolgan": _qol, "qaytgan": _qayt, "brak": _brak, "birlik": _b, "_t": _t, "_yaratilgan": _o.created_at}
         else:
             _j["berilgan"] += _miq
             _j["qolgan"] += _qol
+            _j["qaytgan"] += _qayt
+            _j["brak"] += _brak
             if _t is not None and (_j["_t"] is None or _t > _j["_t"]):
                 _j["_t"] = _t
     natija = []
@@ -10599,6 +10617,10 @@ def loyiha_berilgan_detallar(db: Session, project_id: int, company_id: int, isti
         d["berilgan_matn"] = _sv213.son_korinish(d["berilgan"], 2)
         d["qolgan"] = round(d["qolgan"], 6)
         d["qolgan_matn"] = _sv213.son_korinish(d["qolgan"], 2)
+        d["qaytgan"] = round(d["qaytgan"], 6)                                  # kech157 (zip 215)
+        d["qaytgan_matn"] = _sv213.son_korinish(d["qaytgan"], 2)
+        d["brak"] = round(d["brak"], 6)
+        d["brak_matn"] = _sv213.son_korinish(d["brak"], 2)
         d["ochiq"] = d["qolgan"] > 1e-6
         d["sana"] = _tv.date().isoformat() if _tv else None
         d["sana_matn"] = (_tv.strftime("%d.%m") if _tv.year == _bugun.year else _tv.strftime("%d.%m.%Y")) if _tv else ""
