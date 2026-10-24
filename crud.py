@@ -10521,6 +10521,98 @@ def finalize_partial_order_quantities(db: Session, order, faqat_hisob: bool = Fa
 # "topshirilgan ulush" formulasi qo'shilmaydi (yagona manba). Yakunlashdan OLDINGI holat `ochirish_yopish_json` da —
 # tiklash AYNAN qaytaradi (kech100 dan oldingi tiklash bilan bir xil natija).
 
+import re as _re213                                  # noqa: E402
+
+
+def detal_nomi_kaliti(nom) -> str:
+    """kech156 (zip 213 «Bu takror emasmi?»): detal NOMINI solishtirish kaliti — kichik harf, apostrof turlari bitta (ʻ ʼ ’ ‘ ` ´ → '),
+    ketma-ket bo'shliqlar bitta, chetlari kesilgan. Brauzerdagi AYNAN nusxasi — `orders.html` `takrorKalit` (u avval Kirillni Lotinga
+    o'giradi — `sanitizeToLatin`; saqlangan nomlar ham shu bilan Lotinda)."""
+    s = str(nom or "").lower()
+    s = _re213.sub("[\u02bb\u02bc\u2019\u2018`\u00b4]", "'", s)
+    return _re213.sub(r"\s+", " ", s).strip()
+
+
+def loyiha_berilgan_detallar(db: Session, project_id: int, company_id: int, istisno_order_id: int = None) -> list:
+    """kech156 (zip 213 — egasi tanlovlari 24.10: «Bu takror emasmi?» → «Qatorda eslatma» → «Ochiq buyurtma ham»; ORD-068): loyihaning
+    BOSHQA buyurtmalaridagi detallar — buyurtma oynasi detal nomi ostida «ℹ️ Bu loyihada: ORD-064-4 — 72 m (hali berilmagan) · ORD-064-3 —
+    72 m berilgan (19.10)» deb ko'rsatadi (bloklamaydi — haqiqiy ma'lumotda qayta buyurtmalar ko'p: 51 loyihadan 9 tasida). Buyurtma — shu
+    korxonaning, o'chirilmagan, qoralama / bekor emas; `istisno_order_id` — tahrirlanayotgan buyurtma (o'zi sanalmaydi). Ikki xil detal:
+    (1) YUK XATI bilan berilgan (har qanday holatdagi buyurtmada); (2) OCHIQ (jarayondagi — `services.FAOL_HOLATLAR`) buyurtmada hali
+    berilmagan qismi bor (`order_qty_normalized` − berilgan − omborga qo'yilgan ortiqcha — `OrderItem.remaining_qty` qoidasi). Har yozuv —
+    buyurtma + nom kaliti (`detal_nomi_kaliti`) + birlik bo'yicha bitta (bir buyurtmadagi bir xil nomli detallar jamlanadi): nomi, buyurtma
+    raqami, berilgan jami, oxirgi yuk sanasi (Toshkent), hali berilmagan qolgan, `ochiq` (qolgan > 0). Tartib — ochiqlari birinchi (yangisi
+    birinchi), keyin oxirgi yuk sanasi bo'yicha eng yangisi. Narx / summa / mijoz YO'Q. Faqat o'qish."""
+    from models import Order, OrderItem, OrderStatus, Delivery, DeliveryItem
+    from sqlalchemy import func as _f213
+    from sqlalchemy.orm import joinedload as _jl213, selectinload as _sl213
+    import services as _sv213
+    _q = (db.query(DeliveryItem.order_item_id, _f213.sum(DeliveryItem.quantity), _f213.max(Delivery.delivered_at))
+          .join(Delivery, Delivery.id == DeliveryItem.delivery_id)
+          .join(Order, Order.id == Delivery.order_id)
+          .filter(Order.project_id == project_id, Order.company_id == company_id, Order.is_deleted.isnot(True),
+                  Order.status.notin_([OrderStatus.DRAFT, OrderStatus.CANCELLED])))
+    if istisno_order_id:
+        _q = _q.filter(Order.id != istisno_order_id)
+    _yuk = {iid: (float(q or 0), t) for iid, q, t in _q.group_by(DeliveryItem.order_item_id).all()}
+    _yuk = {k: v for k, v in _yuk.items() if v[0] > 1e-9}
+    # ochiq (jarayondagi) buyurtmalar detallari — hali berilmagan qismi bo'lishi mumkin (egasi tanlovi «Ochiq buyurtma ham»)
+    _oq = (db.query(OrderItem.id).join(Order, Order.id == OrderItem.order_id)
+           .filter(Order.project_id == project_id, Order.company_id == company_id, Order.is_deleted.isnot(True),
+                   Order.status.in_(list(_sv213.FAOL_HOLATLAR))))
+    if istisno_order_id:
+        _oq = _oq.filter(Order.id != istisno_order_id)
+    _ochiq_id = {r[0] for r in _oq.all()}
+    _idlar = set(_yuk) | _ochiq_id
+    if not _idlar:
+        return []
+    # buyurtma raqami, (MRP mahsuloti) birligi, ortiqcha (buyurtma qaytarishlari) — bir necha so'rovda (har detal uchun alohida emas)
+    _iq = (db.query(OrderItem).options(_jl213(OrderItem.order).selectinload(Order.returns), _sl213(OrderItem.product_type))
+           .filter(OrderItem.id.in_(list(_idlar)), OrderItem.company_id == company_id).order_by(OrderItem.id))
+    _bugun = _tashkent_date()
+    # bitta buyurtmada bir xil nomli (va birlikli) detallar — BITTA yozuv (aks holda «ORD-9 — 10 m · ORD-9 — 7 m» ko'rinadigan 3 joydan
+    # 2 tasini egallardi — review213 №6)
+    _jam = {}
+    for it in _iq.all():
+        _o = it.order
+        _miq, _t = _yuk.get(it.id, (0.0, None))
+        _qol = 0.0
+        if it.id in _ochiq_id:
+            _qol = max(float(it.order_qty_normalized or 0) - _miq - float(it.ortiqcha_qty or 0), 0.0)
+        if _miq <= 1e-9 and _qol <= 1e-9:
+            continue
+        _k = detal_nomi_kaliti(it.name)
+        _b = _sv213.birlik_korinish(it.delivery_unit)
+        _j = _jam.get((_o.id, _k, _b))
+        if _j is None:
+            _jam[(_o.id, _k, _b)] = {"kalit": _k, "nomi": it.name, "order_id": _o.id, "buyurtma": _o.order_number, "berilgan": _miq,
+                                     "qolgan": _qol, "birlik": _b, "_t": _t, "_yaratilgan": _o.created_at}
+        else:
+            _j["berilgan"] += _miq
+            _j["qolgan"] += _qol
+            if _t is not None and (_j["_t"] is None or _t > _j["_t"]):
+                _j["_t"] = _t
+    natija = []
+    for d in _jam.values():
+        _tv = _tashkent_vaqt(d["_t"]) if d["_t"] is not None else None
+        d["berilgan"] = round(d["berilgan"], 6)
+        d["berilgan_matn"] = _sv213.son_korinish(d["berilgan"], 2)
+        d["qolgan"] = round(d["qolgan"], 6)
+        d["qolgan_matn"] = _sv213.son_korinish(d["qolgan"], 2)
+        d["ochiq"] = d["qolgan"] > 1e-6
+        d["sana"] = _tv.date().isoformat() if _tv else None
+        d["sana_matn"] = (_tv.strftime("%d.%m") if _tv.year == _bugun.year else _tv.strftime("%d.%m.%Y")) if _tv else ""
+        # tartib vaqti: ochiq — buyurtma yaratilgan yoki oxirgi yuk (kechrog'i); yopiq — oxirgi yuk
+        _v = [x for x in ((d["_t"], d["_yaratilgan"]) if d["ochiq"] else (d["_t"],)) if x is not None]
+        d["_v"] = max(_v) if _v else None
+        natija.append(d)
+    natija.sort(key=lambda d: (d["ochiq"], d["_v"] is not None, d["_v"] or datetime.min, d["order_id"]), reverse=True)
+    for d in natija:
+        for _x in ("_t", "_v", "_yaratilgan"):
+            d.pop(_x, None)
+    return natija
+
+
 def ochirishda_yumshoqmi(order) -> bool:
     """kech103 (5-bo'lim 59-band, FOYDALANUVCHI QARORI "Tarix saqlansin"): buyurtma o'chirilganda YUMSHOQ o'chiriladimi
     (`is_deleted` belgisi — buyurtma, uning to'lovlari va qaytarish yozuvlari bazada qoladi, «O'chirilganlar» dan
