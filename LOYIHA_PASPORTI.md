@@ -4379,6 +4379,11 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   qabul qiladi (eski yozuvlar, hujjatlar o'zgarishsiz). «Tayyor mahsulotlar» → «Penoplast detal» (blok) — xuddi shunday. Narx va ombor
   hisobi o'zgarmaydi. Sinovda U2, U5, U7–U9, U16, U23 moslandi, U32 yangi; mutatsiya M80–M86. Shu bosqichda topilgan: `test_tm_dona_narx`
   D4 — zip 211 dagi TM blok qatori («blok ham») uchun moslanmagan edi (staging 211g da ham yiqilardi) — `moslash211` da.
+  Etalon d220 (211h daraxti) topgani — ESKI testlar zip 211 o'zgarishlariga moslandi (`moslash211`, faqat test fayllari; himoya qoidalari
+  o'zgarmagan): `test_oylik_tafsilot188` S2 (tafsilot miqdori 3 xonagacha — «1,125 blok»), `test_pdf_matn` C2 (sarlavha osti 2 qator —
+  `_sarlavha_osti` / `_x(…).replace("\n", "<br/>")` xavfsiz deb tanildi + C2b: yordamchi har qatorni `_x` bilan ekranlaydi),
+  `test_sahifalar190` S3 / S4 (`narxKorinishi(` soni: buyurtmalar 16 → 19, tayyor mahsulotlar 4 → 3; review211 №8 dagi ko'rinishlarni
+  solishtirish — matnga chiqmaydi), `test_toshkent_korinish_ui.js` T15 (sinov muhitiga `yetkazishBirligi` ham yuklanadi — review211 №3 / №5).
   ESKI testlar egasining yangi qarorlariga MOSLANDI (`work/k211/moslash211.py`; himoya qoidasi o'zgarmagan): `test_foydalanuvchi175`
   F4 (eski sahifa `bosh=1` — faqat ixtiyoriylar o'chadi), `test_foydalanuvchi_ui175` C1c (hammasini o'chirib saqlash — yuborilmaydi),
   `test_ochirilgan_tur` A8 / A9 / A14 (yashirin tur tugmasi qator OXIRIDA, o'z ajratgichi bilan — hamma tur yashirilishi mumkin;
