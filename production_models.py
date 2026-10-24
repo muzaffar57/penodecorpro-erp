@@ -164,6 +164,10 @@ class Company(Base):
     # korxonada hech narsa o'zgarmaydi.
     slogan = Column(String(150), nullable=True)      # "Fasad bezaklari"
     phone = Column(String(60), nullable=True)        # "+998 97 999 57 57"
+    # kech155 (zip 211g — egasi QARORI 24.10): yana 2 ta telefon (jami 3 ta) — HAMMA hujjatlarda 1-raqam bilan birga
+    # (`company_brand.get_brand` → `telefonlar`); bo'sh — chiqmaydi
+    phone2 = Column(String(60), nullable=True)
+    phone3 = Column(String(60), nullable=True)
     address = Column(String(200), nullable=True)     # "Andijon"
     logo_path = Column(String(255), nullable=True)   # "static/uploads/logos/company_1.png" (kech111 dan; eskisi "static/logos/…")
 

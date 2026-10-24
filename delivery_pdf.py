@@ -25,6 +25,15 @@ def _x(qiymat):
     return _xml_escape("" if qiymat is None else str(qiymat))
 
 
+def _sarlavha_osti(brand):
+    """kech155 (zip 211g — egasi QARORI 24.10): sarlavha ostidagi qator(lar) — `company_brand.get_brand` → `subtitle_qatorlar` (bitta
+    telefon — avvalgidek bitta qator; 2–3 telefon — keyingi qatorda «Tel: …»), XAVFSIZ (`_x`), qatorlar `<br/>` bilan."""
+    _q = brand.get("subtitle_qatorlar")
+    if _q is None:
+        _q = [brand.get("subtitle") or ""]
+    return "<br/>".join(_x(q) for q in _q)
+
+
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
@@ -157,7 +166,7 @@ def generate_finished_sale_batch_pdf(sales: list, group_id: str, db=None) -> byt
     header = Table([[
         Paragraph(_x(_brand["name"].upper()), st_title),   # kech106 (K106-4): ilgari qattiq "PENODECORPRO" — boshqa korxonada ham
     ], [
-        Paragraph(_x(_brand["subtitle"]), st_sub),
+        Paragraph(_sarlavha_osti(_brand), st_sub),
     ]], colWidths=[18*cm])
     header.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), DARK),
@@ -332,7 +341,7 @@ def generate_finished_sale_pdf(sale, db=None) -> bytes:
     header = Table([[
         Paragraph(_x(_brand["name"].upper()), st_title),   # kech106 (K106-4): ilgari qattiq "PENODECORPRO" — boshqa korxonada ham
     ], [
-        Paragraph(_x(_brand["subtitle"]), st_sub),
+        Paragraph(_sarlavha_osti(_brand), st_sub),
     ]], colWidths=[18*cm])
     header.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), DARK),
@@ -521,7 +530,7 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
     header = Table([[
         Paragraph(_x(_brand["name"].upper()), st_title),   # kech106 (K106-4): ilgari qattiq "PENODECORPRO" — boshqa korxonada ham
     ], [
-        Paragraph(_x(_brand["subtitle"]), st_sub),
+        Paragraph(_sarlavha_osti(_brand), st_sub),
     ]], colWidths=[18*cm])
     header.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), DARK),
@@ -927,7 +936,7 @@ def generate_summary_pdf(order, deliveries, db=None) -> bytes:
     # ---- Sarlavha ----
     header = Table([
         [Paragraph(_x(_brand["name"].upper()), st_title)],   # kech106 (K106-4): ilgari qattiq "PENODECORPRO"
-        [Paragraph(_x(_brand["subtitle"]), st_sub)],
+        [Paragraph(_sarlavha_osti(_brand), st_sub)],
     ], colWidths=[18.2*cm])
     header.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), DARK),
@@ -1195,7 +1204,7 @@ def generate_yuk_jamlanma_pdf(project, jamlanma, db=None) -> bytes:
     # ---- Sarlavha (korxona) ----
     header = Table([
         [Paragraph(_x(_brand["name"].upper()), st_title)],
-        [Paragraph(_x(_brand["subtitle"]), st_sub)],
+        [Paragraph(_sarlavha_osti(_brand), st_sub)],
     ], colWidths=[18.2*cm])
     header.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), DARK),

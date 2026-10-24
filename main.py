@@ -1049,12 +1049,23 @@ def _migrate_payment_columns():
             migrations.append("ALTER TABLE order_items ADD COLUMN finished_product_id INTEGER")
         if 'unit_price_for_volume' not in oi_cols:
             migrations.append("ALTER TABLE order_items ADD COLUMN unit_price_for_volume NUMERIC(12,2)")
+        # kech155 (zip 211): «Blok» detali — birlik, chiqishi, o'z blok narxi, qoplama koeffitsienti (NULL — eski yozuv: metr / notes)
+        if 'blok_birlik' not in oi_cols:
+            migrations.append("ALTER TABLE order_items ADD COLUMN blok_birlik VARCHAR(10)")
+        if 'blok_chiqishi' not in oi_cols:
+            migrations.append("ALTER TABLE order_items ADD COLUMN blok_chiqishi FLOAT")
+        if 'blok_narxi' not in oi_cols:
+            migrations.append("ALTER TABLE order_items ADD COLUMN blok_narxi NUMERIC(12,2)")
+        if 'blok_koef' not in oi_cols:
+            migrations.append("ALTER TABLE order_items ADD COLUMN blok_koef FLOAT")
 
         ord_cols = [c['name'] for c in inspector.get_columns('orders')]
         if 'actual_loy_kg' not in ord_cols:
             migrations.append("ALTER TABLE orders ADD COLUMN actual_loy_kg FLOAT")
         if 'base_price' not in ord_cols:
             migrations.append("ALTER TABLE orders ADD COLUMN base_price NUMERIC(12,2)")
+        if 'blok_base_price' not in ord_cols:      # kech155 (zip 211): «1 blok asosiy narxi»
+            migrations.append("ALTER TABLE orders ADD COLUMN blok_base_price NUMERIC(12,2)")
         if 'planned_loy_kg' not in ord_cols:
             migrations.append("ALTER TABLE orders ADD COLUMN planned_loy_kg FLOAT")
         # kech77 (95-band, K77-1): o'chirishda qo'llangan loy — tiklash uni AYNAN teskari qiladi
@@ -1642,8 +1653,11 @@ def _migrate_faza3_columns():
             # o'zi ham platforma amallariga kira olmadi. Endi solishtirish
             # harf registriga bog'liq emas.
             # --- Korxona brendi: slogan, phone, address, logo_path ---
+            # kech155 (zip 211g): `phone2`, `phone3` — 3 tagacha telefon (bo'sh; mavjud korxonada hech narsa o'zgarmaydi)
             for _ust, _tur in (("slogan", "VARCHAR(150)"),
                                ("phone", "VARCHAR(60)"),
+                               ("phone2", "VARCHAR(60)"),
+                               ("phone3", "VARCHAR(60)"),
                                ("address", "VARCHAR(200)"),
                                ("logo_path", "VARCHAR(255)")):
                 if not has_col("companies", _ust):
@@ -4322,24 +4336,109 @@ def _clear_company_name_cache(company_id=None):
         _company_name_cache.pop(company_id, None)
 
 
+# kech155 (zip 211e — egasi so'rovi 24.10): menyu tepasidagi oq taglikda logotip MAZMUNI (atrofidagi shaffof / oq bo'sh joysiz) shu
+# o'lchamgacha kattalashtiriladi (CSS piksel; taglik ichi 180 px). Rasm o'z o'lchamidan kattalashtirilmaydi (kichik rasm xira bo'lmasin).
+LOGO_MENYU_ENI = 180
+LOGO_MENYU_BOYI = 140
+# bundan katta (piksel) eski logotipning chegarasi aniqlanmaydi — butun rasm (sahifa ochilishi sekinlashmasin; yangi logotiplar yuklashda
+# `LOGO_TOMON` gacha kichraytiriladi — kech154, zip 202)
+LOGO_MENYU_TAHLIL_CHEGARA = 4_000_000
+# rangi oqdan shundan ko'p farq qiladigan nuqta — mazmun (shaffof qism oq fonga qo'yilib baholanadi: yumshoq soya, deyarli oq — bo'sh joy)
+LOGO_MENYU_OQ_FARQ = 24
+_LOGO_MENYU_KESH = {}
+PLATFORMA_LOGOTIPI = "static/logo_transparent.png"
+
+
+def _logo_mazmun_chegarasi(tola):
+    """kech155 (zip 211e): (eni, bo'yi, chap, tepa, mazmun eni, mazmun bo'yi) — rasm o'lchami va atrofidagi bo'sh (shaffof yoki oq) joysiz
+    qismi (chetiga mazmunning 1,5 % i qo'shiladi — yumshoq soya kesilmasin); bo'sh rasm — butunicha; o'qib bo'lmasa — None; Pillow yo'q —
+    False (rasm kesilmay ko'rsatiladi)."""
+    _Img, _ = _pillow()
+    if _Img is None:
+        return False
+    from PIL import ImageChops as _Chops
+    with _Img.open(tola) as _r:
+        _w, _h = _r.size
+        if not _w or not _h:
+            return None
+        if _w * _h > LOGO_MENYU_TAHLIL_CHEGARA:
+            return (_w, _h, 0, 0, _w, _h)
+        _im = _r.convert("RGBA")
+    _oq = _Img.new("RGBA", _im.size, (255, 255, 255, 255))
+    _oq.alpha_composite(_im)
+    _fark = _Chops.difference(_oq.convert("RGB"), _Img.new("RGB", _im.size, (255, 255, 255)))
+    _q, _y, _k = _fark.split()
+    _bbox = _Chops.lighter(_Chops.lighter(_q, _y), _k).point(lambda v: 255 if v > LOGO_MENYU_OQ_FARQ else 0).getbbox()
+    if not _bbox:
+        return (_w, _h, 0, 0, _w, _h)
+    _z = int(round(max(_bbox[2] - _bbox[0], _bbox[3] - _bbox[1]) * 0.015))
+    _x0, _y0 = max(0, _bbox[0] - _z), max(0, _bbox[1] - _z)
+    _x1, _y1 = min(_w, _bbox[2] + _z), min(_h, _bbox[3] + _z)
+    return (_w, _h, _x0, _y0, _x1 - _x0, _y1 - _y0)
+
+
+def company_logo_menyu(yol):
+    """kech155 (zip 211e — egasi so'rovi 24.10): menyu tepasidagi logotip — {src, eni (px), nisbat (bo'yi / eni, %), rasm (rasm eni —
+    mazmun eniga nisbatan, %), chap, tepa (mazmun boshi, %)}: logotip MAZMUNI oq taglikni to'liq egallaydi (eni 180 gacha, bo'yi 140
+    gacha, o'z o'lchamidan katta emas). Platforma logotipi — menyu nusxasi `static/logo_menyu.webp`. Pillow yo'q — faqat {src} (butunicha);
+    fayl yo'q / o'qilmaydi — None (harf + nom). Chegara fayl yo'li, o'zgargan vaqti va hajmi bo'yicha keshlanadi (har sahifada rasm
+    ochilmaydi)."""
+    yol = str(yol or "").strip()
+    if not yol:
+        return None
+    try:
+        import os as _os
+        nisbiy = "static/logo_menyu.webp" if yol == PLATFORMA_LOGOTIPI else yol
+        tola = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), nisbiy)
+        _st = _os.stat(tola)
+        kalit = (tola, _st.st_mtime_ns, _st.st_size)        # qayta yuklangan logotip (nomi bir xil) — yangi kalit
+        if kalit not in _LOGO_MENYU_KESH:
+            if len(_LOGO_MENYU_KESH) > 512:
+                _LOGO_MENYU_KESH.clear()
+            _LOGO_MENYU_KESH[kalit] = _logo_mazmun_chegarasi(tola)
+        ch = _LOGO_MENYU_KESH[kalit]
+    except Exception:
+        return None
+    if ch is None:
+        return None
+    if ch is False:
+        return {"src": "/" + nisbiy}
+    _w, _h, _x, _y, _mw, _mh = ch
+    eni = min(LOGO_MENYU_ENI, LOGO_MENYU_BOYI * _mw / _mh, _mw)
+    return {"src": "/" + nisbiy, "eni": round(eni, 1), "nisbat": round(_mh / _mw * 100, 4), "rasm": round(_w / _mw * 100, 4),
+            "chap": round(_x / _mw * 100, 4), "tepa": round(_y / _mh * 100, 4)}
+
+
 def company_logo_of(company_id):
-    """Korxona logotipining yo'li (interfeys uchun). Yo'q bo'lsa None."""
+    """Korxona logotipining yo'li (interfeys uchun). Yo'q bo'lsa None.
+    kech155 (zip 211e): platforma egasi (ENG ESKI korxona — ishga tushishdagi migratsiya unga platforma logotipini beradi) yuklagan fayli
+    diskda yo'q bo'lsa (sinov saytida `static/uploads` har yangilanishda tozalanadi) — platforma logotipi (ilgari harf + nom chiqardi).
+    Boshqa korxonaga platforma logotipi BERILMAYDI (`company_brand` dagi qoida — yangi mijozda boshqa korxona logotipi chiqmasin)."""
     if company_id is None:
         return None
     try:
         import os as _os
         from database import SessionLocal as _SL
         from production_models import Company as _Co
+        from sqlalchemy import func as _fn211
+        _asos = _os.path.dirname(_os.path.abspath(__file__))
+        eng_eski = None
         _d = _SL()
         try:
             row = _d.query(_Co).filter(_Co.id == company_id).first()
             yol = (getattr(row, "logo_path", None) or "").strip() if row else ""
+            if yol and yol != PLATFORMA_LOGOTIPI and not _os.path.exists(_os.path.join(_asos, yol)):
+                eng_eski = _d.query(_fn211.min(_Co.id)).scalar()
         finally:
             _d.close()
         if not yol:
             return None
-        tola = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), yol)
-        return yol if _os.path.exists(tola) else None
+        tola = _os.path.join(_asos, yol)
+        if _os.path.exists(tola):
+            return yol
+        if eng_eski is not None and eng_eski == company_id and _os.path.exists(_os.path.join(_asos, PLATFORMA_LOGOTIPI)):
+            return PLATFORMA_LOGOTIPI
+        return None
     except Exception:
         return None
 
@@ -4362,14 +4461,29 @@ IXTIYORIY_KATEGORIYALAR = [
     # 11.2b (2026-09-20): `gips` ham xuddi shunday BUTUNLAY olib
     # tashlandi — kerak bo'lsa MRP dan o'z retsepti bilan yaratiladi.
     ("loy_sotish", "🪣 Loy sotish"),
-    # Bosqich 3, 11.1-band (2026-09-20) — `blok` ESKIRGAN turkumga o'tdi.
-    # Endi uning o'rniga MRP dan o'z mahsulot turingizni yaratasiz:
-    # retseptda "1 metr uchun necha blok penoplast" deb yozasiz, qoplama
-    # koeffitsiyentini ham o'zingiz belgilaysiz. Eski `blok` kodi
-    # O'CHIRILMADI — mavjud yozuvlar avvalgidek ko'rinadi va hisoblanadi.
-    ("blok", "🧊 Blok (eskirgan — MRP dan foydalaning)"),
+    # Bosqich 3, 11.1-band (2026-09-20) — `blok` ESKIRGAN turkumga o'tgan edi: hech qachon sozlanmagan korxonada standart O'CHIQ (bu
+    # qoida SAQLANADI — eski korxonada hech narsa o'zgarmaydi). kech155 (zip 211 — egasi QARORI 23.10 «Blok hisoblash»): Blok yana TO'LIQ
+    # tur — detal birligi m / ta / m², o'z «1 blok narxi» yoki buyurtmaning asosiy blok narxi, qoplama koeffitsienti, plotnost.
+    ("blok", "🧊 Blok"),
 ]
+# zip 211 gacha yashirib bo'lmaydigan (har doim yoqiq) turlar — eski sozlama qoidasi uchun
 _ASOSIY_KATEGORIYALAR = ["profil", "panel", "dona"]
+
+# kech155 (zip 211 — egasi QARORLARI 23.10 21:3x–21:54): HAMMA mahsulot turi yashirilsa bo'ladi (Profil / Panel / Donali / MRP ham) —
+# boshqa usulda hisoblaydigan korxona (masalan faqat Blok) o'zi ishlatmaydiganini ko'rmasin; kamida bittasi yoqiq. Sozlama —
+# `mahsulot_turlari` (to'liq ro'yxat). U yo'q bo'lsa (zip 211 dan keyin saqlanmagan korxona) — ESKI qoida AYNAN: asosiy uchtasi va MRP
+# doim yoqiq + `enabled_categories` dagi ixtiyoriylar. Ya'ni mavjud korxonada sozlama saqlanmaguncha hech narsa o'zgarmaydi.
+MAHSULOT_TURLARI = [
+    ("profil", "📏 Profil"),
+    ("panel", "🔲 Panel"),
+    ("dona", "⭐ Donali"),
+    ("blok", "🧊 Blok"),
+    ("loy_sotish", "🪣 Loy sotish"),
+    ("mrp_product", "🏭 MRP mahsuloti"),
+]
+_DOIM_TURLAR_ESKI = tuple(_ASOSIY_KATEGORIYALAR) + ("mrp_product",)
+# Yangi korxona (egasi QARORI «Profil, Panel, Donali»; MRP — avvalgidek ko'rinadi): Blok va Loy sotish yashirin
+YANGI_KORXONA_TURLARI = ("profil", "panel", "dona", "mrp_product")
 
 # Hech qachon sozlanmagan korxonada ixtiyoriy turlarning HAMMASI yoqiq
 # bo'ladi (eski xatti-harakat saqlanadi). Lekin ESKIRGAN turlar bundan
@@ -4389,53 +4503,82 @@ def _clear_category_cache(company_id=None):
         _kategoriya_cache.pop(company_id, None)
 
 
+def _eski_ixtiyoriy_turlar(xom):
+    """zip 211 gacha qoida — `enabled_categories` satri (faqat ixtiyoriy turlar): None (hech qachon sozlanmagan) — hammasi yoqiq
+    (eski xatti-harakat), ESKIRGANlardan tashqari (11.1-band)."""
+    if xom is None:
+        return {k for k, _ in IXTIYORIY_KATEGORIYALAR
+                if k not in _ESKIRGAN_KATEGORIYALAR}
+    # ⚠ 2026-09-21: sozlama satri — bu ESKI MATN, bazada yillab
+    # o'zgarmay yotishi mumkin. Undagi so'z hali MAVJUD turkummi,
+    # tekshirilishi SHART. Aks holda 11.2a/11.2b da butunlay olib
+    # tashlangan `termopanel` / `gips` eski satrdan qaytib kelardi,
+    # admin esa ularni sozlamalar sahifasida KO'RMASDI ham (ro'yxatda
+    # yo'q), ya'ni O'CHIRA OLMASDI. Endi noma'lum so'z jimgina
+    # e'tiborsiz qoldiriladi — sozlama o'zi-o'zidan tozalanadi.
+    _malum = {k for k, _ in IXTIYORIY_KATEGORIYALAR}
+    return {x.strip() for x in xom.split(",") if x.strip() in _malum}
+
+
+def turlar_sozlamadan(xom_yangi, xom_eski):
+    """kech155 (zip 211): ikki sozlama satridan yoqilgan turlar to'plami. Asosiy turlar (Profil / Panel / Donali / MRP) —
+    `mahsulot_turlari` dan (yo'q bo'lsa — doim yoqiq, eski qoida); ixtiyoriylar (Blok, Loy sotish) — doim `enabled_categories` dan
+    (zip 211 API ikkalasini bir xil yozadi; review211 №11 — zip 210 ga qaytilgan davrda eski sahifada yoqilgan Blok / Loy sotish
+    zip 211 ga qaytganda yo'qolmasin). Natija bo'sh (buzilgan qiymat) — eski qoida (hamma tur yashirinib qolmaydi)."""
+    _ixt = _eski_ixtiyoriy_turlar(xom_eski)
+    if xom_yangi is not None:
+        _kodlar = {x.strip() for x in str(xom_yangi).split(",") if x.strip()}
+        # faqat noma'lum so'zlar (buzilgan qiymat) — yo'q deb olinadi; haqiqiy ro'yxatda asosiy tur bo'lmasligi mumkin (faqat Blok)
+        if _kodlar & {k for k, _ in MAHSULOT_TURLARI}:
+            natija = (_kodlar & set(_DOIM_TURLAR_ESKI)) | _ixt
+            if natija:
+                return natija
+    return set(_DOIM_TURLAR_ESKI) | _ixt
+
+
+def _turlar_bazadan(db, company_id):
+    """Korxonaning yoqilgan turlari — shu sessiyadan (keshsiz; API saqlashda eski holat uchun)."""
+    return turlar_sozlamadan(crud.get_setting(db, "mahsulot_turlari", None, company_id=company_id),
+                             crud.get_setting(db, "enabled_categories", None, company_id=company_id))
+
+
 def enabled_categories_of(company_id):
-    """Korxonada yoqilgan ixtiyoriy kategoriyalar to'plami.
+    """Korxonada yoqilgan mahsulot turlari to'plami (kech155 zip 211 — hamma 6 tur; `turlar_sozlamadan`).
 
     Bitta sahifa renderida bu funksiya 10+ marta chaqiriladi, shuning
     uchun natija keshda saqlanadi; sozlama o'zgarganda kesh tozalanadi.
     """
     if company_id is None:
-        return {k for k, _ in IXTIYORIY_KATEGORIYALAR
-                if k not in _ESKIRGAN_KATEGORIYALAR}
+        return turlar_sozlamadan(None, None)
     if company_id in _kategoriya_cache:
         return _kategoriya_cache[company_id]
     try:
         from database import SessionLocal as _SL
         _d = _SL()
         try:
-            xom = crud.get_setting(_d, "enabled_categories", None, company_id=company_id)
+            natija = _turlar_bazadan(_d, company_id)
         finally:
             _d.close()
     except Exception:
-        xom = None
-    if xom is None:
-        # Hech qachon sozlanmagan — hammasi yoqiq (eski xatti-harakat),
-        # ESKIRGANlardan tashqari (11.1-band).
-        natija = {k for k, _ in IXTIYORIY_KATEGORIYALAR
-                  if k not in _ESKIRGAN_KATEGORIYALAR}
-    else:
-        # ⚠ 2026-09-21: sozlama satri — bu ESKI MATN, bazada yillab
-        # o'zgarmay yotishi mumkin. Undagi so'z hali MAVJUD turkummi,
-        # tekshirilishi SHART. Aks holda 11.2a/11.2b da butunlay olib
-        # tashlangan `termopanel` / `gips` eski satrdan qaytib kelardi,
-        # admin esa ularni sozlamalar sahifasida KO'RMASDI ham (ro'yxatda
-        # yo'q), ya'ni O'CHIRA OLMASDI. Endi noma'lum so'z jimgina
-        # e'tiborsiz qoldiriladi — sozlama o'zi-o'zidan tozalanadi.
-        _malum = {k for k, _ in IXTIYORIY_KATEGORIYALAR}
-        natija = {x.strip() for x in xom.split(",") if x.strip() in _malum}
+        natija = turlar_sozlamadan(None, None)
     _kategoriya_cache[company_id] = natija
     return natija
 
 
 def cat_on(code, company_id=None):
-    """Shablonlar uchun: shu kategoriya ko'rsatilsinmi?"""
-    if code in _ASOSIY_KATEGORIYALAR:
-        return True
+    """Shablonlar uchun: shu mahsulot turi ko'rsatilsinmi? (ro'yxatda yo'q / olib tashlangan tur — yo'q)"""
     return code in enabled_categories_of(company_id)
 
 
+def yoqilgan_turlar(company_id=None):
+    """kech155 (zip 211): yoqilgan mahsulot turlari `MAHSULOT_TURLARI` tartibida (shablonlar — yangi detal / tayyor mahsulot
+    birinchisi bilan ochiladi)."""
+    _y = enabled_categories_of(company_id)
+    return [k for k, _ in MAHSULOT_TURLARI if k in _y]
+
+
 templates.env.globals["company_logo_of"] = company_logo_of
+templates.env.globals["company_logo_menyu"] = company_logo_menyu      # kech155 (zip 211e)
 
 
 def _obuna_banneri(user):
@@ -4478,6 +4621,7 @@ def _murojaat_soni(user):
 
 templates.env.globals["murojaat_soni"] = _murojaat_soni
 templates.env.globals["cat_on"] = cat_on
+templates.env.globals["yoqilgan_turlar"] = yoqilgan_turlar       # kech155 (zip 211)
 
 
 def _yonalishlar_royxati_shablon(company_id):
@@ -8210,6 +8354,8 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
         "created_at": order.created_at.isoformat() if order.created_at else None,
         "deadline": order.deadline.isoformat() if order.deadline else None,
         "base_price": float(order.base_price) if order.base_price is not None else None,
+        # kech155 (zip 211): «1 blok asosiy narxi»
+        "blok_base_price": float(order.blok_base_price) if getattr(order, 'blok_base_price', None) is not None else None,
         "closed_at": order.closed_at.isoformat() if order.closed_at else None,
         # 2026-09-17: Milestone 4 — Production/MRP tayyorlik ko'rsatkichi
         # (Order.status'ga umuman tegishli emas — faqat ko'rsatish uchun).
@@ -8233,6 +8379,11 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
             "penoplast_name": i.penoplast.item_name if i.penoplast else None,
             "price_per_m3": float(i.price_per_m3) if i.price_per_m3 else None,
             "notes": i.notes,
+            # kech155 (zip 211): blok detali — birlik (NULL — eski yozuv, metr), chiqishi, o'z blok narxi (qoplamasiz), koeffitsient
+            "blok_birlik": getattr(i, 'blok_birlik', None),
+            "blok_chiqishi": getattr(i, 'blok_chiqishi', None),
+            "blok_narxi": float(i.blok_narxi) if getattr(i, 'blok_narxi', None) is not None else None,
+            "blok_koef": getattr(i, 'blok_koef', None),
             "recipe_id": i.recipe_id,
             "finished_product_id": i.finished_product_id,
             "product_type_id": getattr(i, 'product_type_id', None),
@@ -11148,8 +11299,10 @@ def api_platform_create_company(name: str = Form(...), admin_username: str = For
     # Yangi korxonada ixtiyoriy turlar (blok, loy) O'CHIQ —
     # mijoz kerak bo'lsa sozlamalardan yoqadi. Aks holda u birinchi kuni
     # o'zi ishlab chiqarmaydigan turlarni ko'rib chalkashardi.
+    # kech155 (zip 211 — egasi QARORI «Profil, Panel, Donali»): to'liq ro'yxat (`mahsulot_turlari`) — Profil, Panel, Donali, MRP.
     try:
         crud.set_setting(db, "enabled_categories", "", company_id=korxona.id)
+        crud.set_setting(db, "mahsulot_turlari", ",".join(YANGI_KORXONA_TURLARI), company_id=korxona.id)
         _clear_category_cache(korxona.id)
     except Exception:
         pass
@@ -11248,8 +11401,14 @@ def api_get_company(db: Session = Depends(get_db),
             "code": (row.code if row else None),
             "slogan": (getattr(row, "slogan", None) if row else None),
             "phone": (getattr(row, "phone", None) if row else None),
+            # kech155 (zip 211g): 2- va 3-telefon (hamma hujjatlarda 1-raqam bilan birga)
+            "phone2": (getattr(row, "phone2", None) if row else None),
+            "phone3": (getattr(row, "phone3", None) if row else None),
             "address": (getattr(row, "address", None) if row else None),
             "logo_path": (getattr(row, "logo_path", None) if row else None),
+            # kech155 (zip 211f): ko'rinadigan logotip (menyudagi bilan bir xil — `company_logo_of`): fayli yo'q — None, platforma
+            # egasining yo'qolgan fayli — platforma logotipi; Sozlamalardagi ko'rinish shundan (o'chgan fayl — singan rasm emas)
+            "logo_korinish": (company_logo_of(cid) if row else None),
             # amaldagi qiymat (sozlama yoki shior) — interfeys shuni
             # ko'rsatadi, saqlanganda xabar o'zgarmay qoladi
             "tg_tagline": _tg_tagline(db, cid) if row else ""}
@@ -11259,6 +11418,7 @@ def api_get_company(db: Session = Depends(get_db),
 def api_set_company(name: str = Form(...), slogan: str = Form(None),
                     phone: str = Form(None), address: str = Form(None),
                     tg_tagline: str = Form(None),
+                    phone2: str = Form(None), phone3: str = Form(None), tel_v: str = Form(None),
                     db: Session = Depends(get_db),
                     current_user=Depends(auth.ruxsat("sozlama", "tahrirlash"))):
     """Korxona brendi: nomi, shiori, telefoni, manzili.
@@ -11278,6 +11438,11 @@ def api_set_company(name: str = Form(...), slogan: str = Form(None),
     # kech146 (zip 183, audit J9): o'zgarishlar «Audit jurnali» ga (ilgari korxona nomi / telefoni o'zgarsa iz qolmasdi)
     _eski183 = {"Nomi": row.name or "", "Shior": row.slogan or "", "Telefon": row.phone or "", "Manzil": row.address or "",
                 "Telegram salom shiori": _tg_tagline(db, cid) or ""}     # sahifa ko'rsatadigan qiymat (mustaqil tekshiruv R3)
+    # kech155 (zip 211g — egasi QARORI 24.10): 2- va 3-telefon — faqat ularni biladigan sahifa (`tel_v=2`) yuborganda o'rnatiladi (bo'sh —
+    # tozalaydi); eski ochiq sahifa / skript ularni yubormaydi — FastAPI bo'sh va yo'q maydonni ajratmaydi, shuning uchun belgi bilan
+    _tel211 = (tel_v or "").strip() == "2"
+    _eski183["Telefon 2"] = getattr(row, "phone2", None) or ""
+    _eski183["Telefon 3"] = getattr(row, "phone3", None) or ""
     row.name = nom
     # 2026-09-20 — MUHIM: bo'sh maydon "tozalash" degani.
     # Ilgari `if qiymat is None: continue` yozilgan edi, lekin FastAPI
@@ -11293,6 +11458,12 @@ def api_set_company(name: str = Form(...), slogan: str = Form(None),
             raise HTTPException(status_code=400,
                                 detail=f"'{maydon}' juda uzun ({chegara} belgidan ko'p)")
         setattr(row, maydon, v or None)
+    if _tel211:
+        for maydon, qiymat, nomi in (("phone2", phone2, "Telefon 2"), ("phone3", phone3, "Telefon 3")):
+            v = (qiymat or "").strip()
+            if len(v) > 60:
+                raise HTTPException(status_code=400, detail=f"'{nomi}' juda uzun (60 belgidan ko'p)")
+            setattr(row, maydon, v or None)
     # Ustaga salomdagi shior (2026-09-21). Interfeys uni DOIM yuboradi;
     # bo'sh — "shior qatori chiqmasin". Maydonni umuman bilmaydigan eski
     # chaqiruvchi (masalan skript) uchun — `None` kelsa ham bo'sh
@@ -11304,7 +11475,8 @@ def api_set_company(name: str = Form(...), slogan: str = Form(None),
                             detail=f"'Telegram salom shiori' juda uzun ({TG_TAGLINE_MAX} belgidan ko'p)")
     crud.set_setting(db, TG_TAGLINE_KEY, _tl, company_id=cid)
     _yangi183 = {"Nomi": nom, "Shior": row.slogan or "", "Telefon": row.phone or "", "Manzil": row.address or "",
-                 "Telegram salom shiori": _tl}
+                 "Telegram salom shiori": _tl, "Telefon 2": getattr(row, "phone2", None) or "",
+                 "Telefon 3": getattr(row, "phone3", None) or ""}
     _sozlama_jurnali(db, current_user, cid, "Korxona ma'lumotlari",
                      [f"{k}: «{_eski183[k]}» → «{_yangi183[k]}»" for k in _yangi183 if _eski183[k] != _yangi183[k]])
     db.commit()
@@ -11326,15 +11498,15 @@ def _sozlama_jurnali(db, current_user, cid, nima: str, farqlar: list) -> None:
 @app.get("/api/settings/categories")
 def api_get_categories(db: Session = Depends(get_db),
                        current_user=Depends(auth.ruxsat("sozlama", "korish"))):
-    """Ixtiyoriy kategoriyalar va ularning holati."""
+    """Mahsulot turlari va ularning holati (kech155 zip 211 — hamma 6 tur)."""
     cid = auth.company_id_of(current_user)
     yoqilgan = enabled_categories_of(cid)
     return {"categories": [{"code": k, "label": v, "enabled": k in yoqilgan}
-                           for k, v in IXTIYORIY_KATEGORIYALAR]}
+                           for k, v in MAHSULOT_TURLARI]}
 
 
 @app.put("/api/settings/categories")
-def api_set_categories(codes: str = Form(""), bosh: str = Form(""), db: Session = Depends(get_db),
+def api_set_categories(codes: str = Form(""), bosh: str = Form(""), v: str = Form(""), db: Session = Depends(get_db),
                        current_user=Depends(auth.ruxsat("sozlama", "tahrirlash"))):
     """Yoqilgan kategoriyalarni saqlaydi (vergul bilan ajratilgan).
 
@@ -11344,25 +11516,35 @@ def api_set_categories(codes: str = Form(""), bosh: str = Form(""), db: Session 
 
     kech144 (zip 175, audit C1 — O'LCHANGAN fy_probe1 S1: «Sozlamalar: Tahrirlash» li, «Ko'rish» siz rol ro'yxat yuklanmagan sahifada
     «Saqlash» bossa `codes=''` ketib Loy sotish va Blok O'CHARDI, ular buyurtma / ombor sahifalaridan yo'qolardi): hammasini o'chirish
-    faqat `bosh=1` bilan (sahifa uni faqat ro'yxat YUKLANGAN va hech biri belgilanmaganda yuboradi); aks holda bo'sh ro'yxat — 400."""
+    faqat `bosh=1` bilan (sahifa uni faqat ro'yxat YUKLANGAN va hech biri belgilanmaganda yuboradi); aks holda bo'sh ro'yxat — 400.
+
+    kech155 (zip 211 — egasi QARORLARI 23.10): HAMMA tur (Profil / Panel / Donali / MRP ham) yashirilsa bo'ladi. `v=2` (yangi sahifa)
+    yoki ro'yxatda asosiy tur (profil / panel / dona / mrp_product) bor — kelgan ro'yxat TO'LIQ holat; aks holda (eski sahifa — faqat
+    Loy sotish va Blok ni biladi) — faqat o'sha ikkisi o'zgaradi, qolganlari saqlanadi. Natijada KAMIDA BITTA tur yoqiq bo'lishi shart
+    (aks holda 400, hech narsa saqlanmaydi). Saqlanadi: `mahsulot_turlari` (to'liq) + eski `enabled_categories` (ixtiyoriy qismi)."""
+    _malum211 = [k for k, _ in MAHSULOT_TURLARI]
     ruxsat = {k for k, _ in IXTIYORIY_KATEGORIYALAR}
-    tanlangan = [x.strip() for x in (codes or "").split(",") if x.strip() in ruxsat]
+    _kodlar211 = [x.strip() for x in (codes or "").split(",") if x.strip()]
+    _v2 = str(v or "").strip() == "2" or any(k in _kodlar211 for k in _DOIM_TURLAR_ESKI)
+    tanlangan = [k for k in _malum211 if k in _kodlar211 and (_v2 or k in ruxsat)]
     if not tanlangan and str(bosh or "").strip() != "1":
         raise HTTPException(status_code=400, detail="Mahsulot turlari ro'yxati yuklanmagan — sahifani yangilang (hech narsa saqlanmadi)")
     _cid = auth.company_id_of(current_user)
     # kech146 (zip 183, audit J9): yoqilgan / o'chirilgan mahsulot turlari «Audit jurnali» ga
-    _nomlar183 = dict(IXTIYORIY_KATEGORIYALAR)
-    _xom183 = crud.get_setting(db, "enabled_categories", None, company_id=_cid)
-    # hech qachon sozlanmagan — hammasi yoqiq edi (`enabled_categories_of` bilan bir qoida, eskirganlardan tashqari)
-    _eski183 = ({k for k in ruxsat if k not in _ESKIRGAN_KATEGORIYALAR} if _xom183 is None
-                else {x.strip() for x in _xom183.split(",") if x.strip() in ruxsat})
-    crud.set_setting(db, "enabled_categories", ",".join(tanlangan), company_id=_cid)
+    _nomlar183 = dict(MAHSULOT_TURLARI)
+    _eski183 = _turlar_bazadan(db, _cid)      # saqlashdan oldingi holat (`enabled_categories_of` bilan bir qoida)
+    _yangi211 = set(tanlangan) if _v2 else ({k for k in _eski183 if k not in ruxsat} | set(tanlangan))
+    if not _yangi211:
+        raise HTTPException(status_code=400, detail="Kamida bitta mahsulot turi yoqiq bo'lishi kerak — hech narsa saqlanmadi")
+    _tartib211 = [k for k in _malum211 if k in _yangi211]
+    crud.set_setting(db, "mahsulot_turlari", ",".join(_tartib211), company_id=_cid)
+    crud.set_setting(db, "enabled_categories", ",".join(k for k in _tartib211 if k in ruxsat), company_id=_cid)
     _sozlama_jurnali(db, current_user, _cid, "Mahsulot turlari",
-                     [f"yoqildi: {_nomlar183.get(k, k)}" for k in tanlangan if k not in _eski183]
-                     + [f"o'chirildi: {_nomlar183.get(k, k)}" for k in sorted(_eski183) if k not in tanlangan])
+                     [f"yoqildi: {_nomlar183.get(k, k)}" for k in _tartib211 if k not in _eski183]
+                     + [f"o'chirildi: {_nomlar183.get(k, k)}" for k in _malum211 if k in _eski183 and k not in _yangi211])
     db.commit()
     _clear_category_cache(_cid)
-    return {"status": "ok", "enabled": tanlangan}
+    return {"status": "ok", "enabled": _tartib211}
 
 
 # ============================================================

@@ -31,6 +31,7 @@ def get_brand(db, company_id=None) -> dict:
     shart emas. Baza o'qilmasa ham zaxira qiymatlar bilan ishlaydi.
     """
     nom = slogan = manzil = telefon = logo = None
+    telefon2 = telefon3 = None                      # kech155 (zip 211g): 2- va 3-telefon
     if db is not None and company_id is not None:
         try:
             from production_models import Company
@@ -41,6 +42,8 @@ def get_brand(db, company_id=None) -> dict:
                 manzil = (getattr(c, "address", None) or "").strip() or None
                 telefon = (getattr(c, "phone", None) or "").strip() or None
                 logo = (getattr(c, "logo_path", None) or "").strip() or None
+                telefon2 = (getattr(c, "phone2", None) or "").strip() or None
+                telefon3 = (getattr(c, "phone3", None) or "").strip() or None
         except Exception:
             pass
 
@@ -78,6 +81,19 @@ def get_brand(db, company_id=None) -> dict:
     # (tizim hujjatlari) ishlatiladi.
     logo_abs = None
     kandidatlar = [logo] if company_id is not None else [DEFAULT_LOGO]
+    # kech155 (zip 211f): platforma egasi (ENG ESKI korxona — ishga tushishdagi migratsiya unga platforma logotipini beradi) yuklagan
+    # fayli diskda yo'q bo'lsa (sinov saytida `static/uploads` har yangilanishda tozalanadi) — platforma logotipi (menyudagi
+    # `main.company_logo_of` bilan bir xil). Boshqa korxonaga — HECH QACHON (yuqoridagi qoida: begona logotip chiqmasin).
+    if company_id is not None and logo and db is not None:
+        _y211 = logo if os.path.isabs(logo) else os.path.join(os.path.dirname(os.path.abspath(__file__)), logo)
+        if not os.path.exists(_y211):
+            try:
+                from sqlalchemy import func as _fn211
+                from production_models import Company as _Co211
+                if db.query(_fn211.min(_Co211.id)).scalar() == company_id:
+                    kandidatlar.append(DEFAULT_LOGO)
+            except Exception:
+                pass
     for kandidat in kandidatlar:
         if not kandidat:
             continue
@@ -87,11 +103,23 @@ def get_brand(db, company_id=None) -> dict:
             logo_abs = yol
             break
 
-    # Sarlavha ostidagi bitta qator: "Fasad bezaklari · Andijon · +998 ..."
-    qismlar = [x for x in (slogan, manzil, telefon) if x]
+    # kech155 (zip 211g — egasi QARORI 24.10 04:09): 3 tagacha telefon — HAMMA hujjatlarda. Bitta bo'lsa — hujjat AYNAN avvalgidek
+    # (sarlavha ostida bitta qator: "Fasad bezaklari · Andijon · +998 ..."); 2–3 ta bo'lsa — ikkinchi qatorda "Tel: 1 · 2 · 3" (raqam
+    # ichidagi bo'shliqlar U+00A0 — qator raqam o'rtasida bo'linmaydi). `subtitle` — hammasi bitta qatorda (eski chaqiruvchilar uchun).
+    telefonlar = [t for t in (telefon, telefon2, telefon3) if t]
+    if len(telefonlar) <= 1:
+        qismlar = [x for x in (slogan, manzil, (telefonlar[0] if telefonlar else "")) if x]
+        subtitle_qatorlar = ["  ·  ".join(qismlar)]
+        tel_qatori = ""
+    else:
+        qismlar = [x for x in [slogan, manzil] + telefonlar if x]
+        tel_qatori = "Tel: " + "  ·  ".join(t.replace(" ", "\u00a0") for t in telefonlar)
+        _bosh = "  ·  ".join(x for x in (slogan, manzil) if x)
+        subtitle_qatorlar = ([_bosh] if _bosh else []) + [tel_qatori]
     return {"name": nom, "slogan": slogan, "address": manzil,
             "phone": telefon, "logo": logo_abs,
-            "subtitle": "  ·  ".join(qismlar)}
+            "subtitle": "  ·  ".join(qismlar),
+            "telefonlar": telefonlar, "tel_qatori": tel_qatori, "subtitle_qatorlar": subtitle_qatorlar}
 
 
 def company_id_of(obj, db=None):

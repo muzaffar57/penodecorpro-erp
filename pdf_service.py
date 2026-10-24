@@ -317,7 +317,14 @@ def generate_nakladnoy(order, db=None, taklif=None) -> bytes:
     # 2026-09-20: nakladnoyda TELEFON ham chiqadi — u mijozga
     # beriladigan hujjat va savol chiqsa qaerga murojaat qilishni
     # bilishi kerak. Manzil va telefon bitta qatorda, joy tejash uchun.
-    _kontakt = "  ·  ".join([x for x in (_brand["address"], _brand["phone"]) if x])
+    # kech155 (zip 211g — egasi QARORI 24.10): 3 tagacha telefon — bitta bo'lsa avvalgidek (manzil · telefon bir qatorda), 2–3 ta bo'lsa
+    # manzil va keyingi qatorda «Tel: 1 · 2 · 3» (`get_brand` → `tel_qatori`; raqam ichida qator bo'linmaydi)
+    if _brand.get("tel_qatori"):
+        _kontakt = "\n".join([x for x in (_brand["address"], _brand["tel_qatori"]) if x])
+    else:
+        _tels211 = _brand.get("telefonlar")
+        _tel1 = (_tels211[0] if _tels211 else "") if _tels211 is not None else _brand["phone"]
+        _kontakt = "  ·  ".join([x for x in (_brand["address"], _tel1) if x])
 
     logo_path = _brand["logo"]
     # kech129 (zip 153): o'lcham — fayl nisbatidan (`_logo_olcham`); fayl o'qilmasa — logotipsiz sarlavha (korxona nomi)
@@ -336,13 +343,13 @@ def generate_nakladnoy(order, db=None, taklif=None) -> bytes:
         header_left = [
             logo_img,
             Paragraph(_x(_brand["slogan"]), st["company_sub"]),
-            Paragraph(_x(_kontakt), st["company_sub"]),
+            Paragraph(_x(_kontakt).replace("\n", "<br/>"), st["company_sub"]),
         ]
     else:
         header_left = [
             Paragraph(_x(_brand["name"]), st["company"]),
             Paragraph(_x(_brand["slogan"]), st["company_sub"]),
-            Paragraph(_x(_kontakt), st["company_sub"]),
+            Paragraph(_x(_kontakt).replace("\n", "<br/>"), st["company_sub"]),
         ]
     # Bo'sh qatorlarni olib tashlaymiz (maydon to'ldirilmagan bo'lsa,
     # hujjatda bo'sh joy qolib ketmasin).
@@ -445,7 +452,11 @@ def generate_nakladnoy(order, db=None, taklif=None) -> bytes:
 
     def get_unit(item):
         cat = (item.category or '').lower()
-        if cat in ('profil', 'panel', 'blok'): return 'm'
+        if cat in ('profil', 'panel'): return 'm'
+        elif cat == 'blok':
+            # kech155 (zip 211): blok — o'z birligida (m / dona / m²); taklifda ham (`blok_birlik` — tana qiymati)
+            from models import blok_birlik_kodi as _bbk211, BLOK_YETKAZISH_BIRLIGI as _byb211
+            return _bk136(_byb211[_bbk211(getattr(item, 'blok_birlik', None))])
         elif cat == 'termopanel': return 'm²'
         elif cat == 'dona': return 'dona'
         elif cat == 'loy_sotish': return 'kg'
@@ -700,7 +711,7 @@ def generate_taklif(t, db=None) -> bytes:
             name=str(_d.get("name") or ""), category=_d.get("category"), is_coated=bool(_d.get("is_coated")),
             length=_d.get("length"), quantity=_d.get("quantity"), width=_d.get("width"), thickness=_d.get("thickness"),
             unit_price=_d.get("unit_price"), total_price=_d.get("total_price"), delivery_unit=None,
-            gips_unit=_d.get("gips_unit"),
+            gips_unit=_d.get("gips_unit"), blok_birlik=_d.get("blok_birlik"),      # kech155 (zip 211)
         ))
     _jami, _kel = float(_sh["total_amount"] or 0), float(_sh["kelishilgan"] or 0)
     # summa qatorlari — buyurtma hujjati qoidasi: to'lov 0, qarz = kelishilgan (qatorlari hujjatda ko'rsatilmaydi)

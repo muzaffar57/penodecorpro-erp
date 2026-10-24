@@ -84,6 +84,25 @@ def ortiqcha_tolov_qiymati(tolangan, kelishilgan) -> float:
     return q if q > QARZ_BARDOSH else 0.0
 
 
+# kech155 (zip 211 — egasi QARORLARI 23.10 «Blok hisoblash»): «Blok» detalining o'lchov birligi — metr / dona (ta) / m2 (m²). Saqlangan
+# qiymat (`order_items.blok_birlik`, tayyor mahsulot birligi `metr` / `dona` / `m²` / `kvadrat`, forma `ta` / `m²`) shu uchtasidan biriga;
+# bo'sh / noma'lum (zip 211 dan oldingi blok yozuvi) — metr (avvalgi qoida AYNAN).
+BLOK_BIRLIKLARI = ("metr", "dona", "m2")
+
+
+def blok_birlik_kodi(qiymat) -> str:
+    s = str(qiymat or "").strip().lower()
+    if s in ("dona", "ta"):
+        return "dona"
+    if s in ("m2", "m\u00b2", "kvadrat"):
+        return "m2"
+    return "metr"
+
+
+# zip 211: blok birligi → yetkazish birligi (`OrderItem.delivery_unit`, tayyor mahsulot `unit`, yuk xati)
+BLOK_YETKAZISH_BIRLIGI = {"metr": "metr", "dona": "dona", "m2": "m\u00b2"}
+
+
 # ============================================================
 # ENUM lar
 # ============================================================
@@ -773,6 +792,8 @@ class Order(Base):
     qoplama_retsept_id = Column(Integer, ForeignKey("recipes.id", ondelete="SET NULL"),
                                 nullable=True, index=True)
     base_price = Column(Numeric(12, 2), nullable=True)  # "1 m³ asosiy narxi" — hodim kiritgan, tahrirlashda tiklanishi uchun
+    # kech155 (zip 211): «1 blok asosiy narxi» (qoplamasiz) — o'z «1 blok narxi» yozilmagan blok detallar shundan; tahrirda tiklanadi
+    blok_base_price = Column(Numeric(12, 2), nullable=True)
     gips_inventory_id = Column(Integer, ForeignKey("inventory.id"), nullable=True)  # Aniq qaysi Gips xomashyosi ishlatilgani
 
     # kech97 (114-band, O'LCHANGAN — kech90 `probe90_tartib`): ORDER BY siz PostgreSQL ro'yxat tartibi so'rov
@@ -971,6 +992,14 @@ class OrderItem(Base):
     length = Column(Float, nullable=True)
     quantity = Column(Float, default=1.0)
     gips_unit = Column(String(10), nullable=True)  # GIPS uchun: metr / dona / m2 (foydalanuvchi tanlaydi)
+    # kech155 (zip 211 — egasi QARORLARI 23.10 «Blok hisoblash»): «Blok» detali — o'lchov birligi (`BLOK_BIRLIKLARI`; NULL — zip 211 dan
+    # oldingi yozuv, metr), «1 blokdan chiqadigan» (shu birlikda; xodim yozadi), detalning O'Z «1 blok narxi» (QOPLAMASIZ; NULL —
+    # buyurtmaning «1 blok asosiy narxi» `orders.blok_base_price`), qoplama koeffitsienti (NULL — 2). Avvalgidek: `quantity` — kerakli
+    # miqdor (shu birlikda), `length` — ishlatilgan blok soni (ombordan shuncha yechiladi), `unit_price` — 1 birlik YAKUNIY narxi.
+    blok_birlik = Column(String(10), nullable=True)
+    blok_chiqishi = Column(Float, nullable=True)
+    blok_narxi = Column(Numeric(12, 2), nullable=True)
+    blok_koef = Column(Float, nullable=True)
 
     is_coated = Column(Boolean, default=True)
     recipe_id = Column(Integer, ForeignKey("recipes.id"), nullable=True, index=True)
@@ -1054,14 +1083,19 @@ class OrderItem(Base):
 
     @property
     def order_qty_normalized(self):
-        """Buyurtmadagi miqdor — profil uzunlik, panel metr, blok CHIQQAN metr,
+        """Buyurtmadagi miqdor — profil uzunlik, panel metr, blok CHIQQAN miqdor (o'z birligida — m / dona / m²; zip 211),
         termopanel kvadrat metr, dona dona."""
         cat = (self.category or '').lower()
         if cat == 'profil':
             return float(self.length or 0)
         if cat == 'blok':
-            return float(self.quantity or 0)   # Blokdan chiqqan metr — mijozga shu yetkaziladi
+            return float(self.quantity or 0)   # Blokdan chiqqan miqdor — mijozga shu yetkaziladi
         return float(self.quantity or 0)
+
+    @property
+    def blok_birlik_kodi(self):
+        """kech155 (zip 211): blok detal birligi — 'metr' / 'dona' / 'm2' (eski yozuv — 'metr')."""
+        return blok_birlik_kodi(self.blok_birlik)
 
     @property
     def delivery_unit(self):
@@ -1070,8 +1104,11 @@ class OrderItem(Base):
         loy sotish — kg, MRP mahsuloti — o'z mahsulot turining birligi,
         qolgani donada."""
         cat = (self.category or '').lower()
-        if cat in ('profil', 'panel', 'blok'):
+        if cat in ('profil', 'panel'):
             return 'metr'
+        if cat == 'blok':
+            # kech155 (zip 211): blok — o'z birligida (metr / dona / m²; eski yozuv — metr)
+            return BLOK_YETKAZISH_BIRLIGI[self.blok_birlik_kodi]
         if cat == 'termopanel':
             return 'm²'
         if cat == 'gips':
