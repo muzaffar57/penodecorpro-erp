@@ -712,6 +712,100 @@ _s.commit()
 _s.close()
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+section("T. 3 tagacha telefon (egasi QARORI 24.10 04:09: Sozlamalardan — HAMMA hujjatlarda)")
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+from models import Delivery as _Dlv211     # noqa: E402
+
+
+def _pdf_matn211(c, url):
+    """PDF ning hamma sahifalari matni (U+00A0 — oddiy bo'shliq); (holat, matn)"""
+    r = c.get(url)
+    try:
+        import pdfplumber
+        with pdfplumber.open(io.BytesIO(r.content)) as p:
+            return r.status_code, " ".join((pg.extract_text() or "") for pg in p.pages).replace(" ", " ")
+    except Exception as e:                 # noqa: BLE001
+        return r.status_code, f"XATO {type(e).__name__}: {e}"[:200]
+
+
+TEL1, TEL2, TEL3 = "+998 97 999 57 57", "+998 90 123 45 67", "+998 91 765 43 21"
+_g0 = js(A.get("/api/settings/company"))
+_asosiy211 = {"name": _g0.get("name") or "PenodecorPro", "slogan": "Fasad bezaklari", "phone": TEL1, "address": "Andijon", "tg_tagline": ""}
+_rs1 = A.put("/api/settings/company", data=dict(_asosiy211, phone2=TEL2, phone3=TEL3, tel_v="2"))
+_g1 = js(A.get("/api/settings/company"))
+_s = SessionLocal()
+_jt = [(a.new_value or "") for a in _s.query(ActivityLog).filter(ActivityLog.company_id == 1, ActivityLog.entity_type == "company_settings")
+       .order_by(ActivityLog.id.desc()).limit(1).all()]
+_s.close()
+check("T1 Sozlamalar: «Telefon 2», «Telefon 3» saqlanadi va qaytadi (avval yo'q — bo'sh); o'zgarish «Audit jurnali» da",
+      "phone2" in _g0 and _g0.get("phone2") is None and _g0.get("phone3") is None and _rs1.status_code == 200
+      and _g1.get("phone") == TEL1 and _g1.get("phone2") == TEL2 and _g1.get("phone3") == TEL3
+      and bool(_jt) and f"Telefon 2: «» → «{TEL2}»" in _jt[0] and f"Telefon 3: «» → «{TEL3}»" in _jt[0], (_g0, _rs1.status_code, _g1, _jt))
+# eski ochiq sahifa / skript — yangi maydonlarni bilmaydi (`tel_v` siz): 2- va 3-telefon O'ZGARMAYDI
+_rs2 = A.put("/api/settings/company", data=dict(_asosiy211))
+_g2 = js(A.get("/api/settings/company"))
+_rs3 = A.put("/api/settings/company", data=dict(_asosiy211, phone2="9" * 61, phone3=TEL3, tel_v="2"))
+_g3 = js(A.get("/api/settings/company"))
+check("T2 `tel_v` siz so'rov (eski sahifa) 2- va 3-telefonni o'chirmaydi; 60 belgidan uzun — 400, hech narsa o'zgarmaydi",
+      _rs2.status_code == 200 and _g2.get("phone2") == TEL2 and _g2.get("phone3") == TEL3 and _rs3.status_code == 400
+      and "Telefon 2" in _rs3.text and _g3.get("phone2") == TEL2, (_rs2.status_code, _g2, _rs3.status_code, _rs3.text[:200], _g3))
+_s = SessionLocal()
+_bt1 = _cb211.get_brand(_s, 1)
+_bt3 = _cb211.get_brand(_s, 3)
+_s.close()
+_nb = lambda x: x.replace(" ", " ")
+check("T3 hujjat brendi: 3 ta telefon; sarlavha ostida 2 qator — «Fasad bezaklari · Andijon» va «Tel: 1 · 2 · 3» (raqam ichida qator "
+      "bo'linmaydi — U+00A0); boshqa korxonaga bu raqamlar o'tmaydi",
+      _bt1.get("telefonlar") == [TEL1, TEL2, TEL3]
+      and _bt1.get("subtitle_qatorlar") == ["Fasad bezaklari  ·  Andijon", f"Tel: {_nb(TEL1)}  ·  {_nb(TEL2)}  ·  {_nb(TEL3)}"]
+      and _bt1.get("phone") == TEL1 and _bt3.get("telefonlar") == [] and TEL2 not in str(_bt3), (_bt1, _bt3))
+_s = SessionLocal()
+_dv = _s.query(_Dlv211).join(Order, Order.id == _Dlv211.order_id).filter(Order.company_id == 1).order_by(_Dlv211.id).first()
+_dv_id, _dv_ord = (_dv.id, _dv.order_id) if _dv is not None else (None, None)
+_s.close()
+_hujjatlar = {"yuk xati": f"/api/deliveries/{_dv_id}/pdf", "buyurtma hisobi": f"/api/orders/{O1}/pdf", "taklif": f"/api/takliflar/{_tid}/pdf",
+              "yakuniy hisob": f"/api/orders/{_dv_ord}/summary-pdf", "yuk xatlari jamlanmasi": f"/api/projects/{ID['P1']}/yuk-xatlari/jamlama-pdf",
+              "moliya hisoboti": f"/api/finance/report-pdf?year={datetime.date.today().year}&month={datetime.date.today().month}"}
+_hm = {k: _pdf_matn211(A, u) for k, u in _hujjatlar.items()}
+_hy = {k: (v[0], [x for x in (TEL1, TEL2, TEL3, "Tel:") if x not in v[1]]) for k, v in _hm.items()}
+check("T4 HAMMA hujjatlarda 3 ta telefon («Tel: …»): yuk xati, buyurtma hisobi, taklif, yakuniy hisob, yuk xatlari jamlanmasi, moliya hisoboti",
+      _dv_id is not None and all(v[0] == 200 and not v[1] for v in _hy.values()), _hy)
+# bitta telefon — hujjat AYNAN avvalgidek (bitta qator, «Tel:» yo'q)
+_rs4 = A.put("/api/settings/company", data=dict(_asosiy211, phone2="", phone3="", tel_v="2"))
+_s = SessionLocal()
+_bt1b = _cb211.get_brand(_s, 1)
+_s.close()
+_hb = {k: _pdf_matn211(A, _hujjatlar[k]) for k in ("yuk xati", "buyurtma hisobi")}
+check("T5 faqat bitta telefon — avvalgidek: «Fasad bezaklari · Andijon · +998 97 999 57 57» bitta qatorda, «Tel:» yo'q (bo'sh maydon "
+      "`tel_v=2` bilan — tozalanadi)",
+      _rs4.status_code == 200 and _bt1b.get("telefonlar") == [TEL1]
+      and _bt1b.get("subtitle_qatorlar") == [f"Fasad bezaklari  ·  Andijon  ·  {TEL1}"] and _bt1b.get("subtitle") == f"Fasad bezaklari  ·  Andijon  ·  {TEL1}"
+      and all(v[0] == 200 and TEL1 in v[1] and "Tel:" not in v[1] and TEL2 not in v[1] for v in _hb.values()),
+      (_rs4.status_code, _bt1b, {k: (v[0], v[1][:300]) for k, v in _hb.items()}))
+check("T6 sarlavha osti — barcha hujjat turlarida yagona yordamchi (`_sarlavha_osti`: yuk xati, sotuv cheki, guruh cheki, yakuniy hisob, "
+      "jamlanma — 5 joy; moliya hisoboti — 1), eski bitta qatorli chaqiruv qolmagan",
+      open(os.path.join(ROOT, "delivery_pdf.py"), encoding="utf-8").read().count("Paragraph(_sarlavha_osti(_brand), st_sub)") == 5
+      and 'Paragraph(_x(_brand["subtitle"])' not in open(os.path.join(ROOT, "delivery_pdf.py"), encoding="utf-8").read()
+      and "Paragraph(_sarlavha_osti(_brand), _ps('s', fontSize=8, textColor=GOLD))" in open(os.path.join(ROOT, "finance_pdf.py"), encoding="utf-8").read())
+A.put("/api/settings/company", data=dict(_asosiy211, phone=_g0.get("phone") or "", slogan=_g0.get("slogan") or "",
+                                          address=_g0.get("address") or "", phone2="", phone3="", tel_v="2"))
+if PG_URL:
+    # ishga tushish migratsiyasi (faqat PostgreSQL — asosiy va sinov sayti): eski baza (ustunlarsiz) — `phone2`, `phone3` qo'shiladi
+    from database import engine as _eng211
+    with _eng211.connect() as _c211:
+        _c211.execute(text("ALTER TABLE companies DROP COLUMN IF EXISTS phone2"))
+        _c211.execute(text("ALTER TABLE companies DROP COLUMN IF EXISTS phone3"))
+        _c211.commit()
+    with contextlib.redirect_stdout(io.StringIO()):
+        main._migrate_faza3_columns()
+    with _eng211.connect() as _c211:
+        _ust211 = {r[0] for r in _c211.execute(text("SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' "
+                                                     "AND table_name = 'companies'"))}
+    _g7 = js(A.get("/api/settings/company"))
+    check("T7 [PG] eski baza (ustunlarsiz) — ishga tushishda `companies.phone2`, `phone3` qo'shiladi; Sozlamalar ishlaydi",
+          {"phone2", "phone3"} <= _ust211 and "phone2" in _g7 and _g7.get("phone2") is None, (sorted(_ust211), _g7))
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 section("U. HAQIQIY brauzer")
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 if PG_URL:
@@ -1267,11 +1361,50 @@ else:
           _s.get(Company, 1).logo_path = "static/logo_transparent.png"
           _s.commit()
           _s.close()
+          # egasi QARORI (24.10 04:09): Sozlamalarda 3 ta telefon — kiritiladi, saqlanadi (sahifa qayta ochilganda joyida), telefonda sig'adi
+          ctxl, pgl = kontekst("k211_a", 1440, 900)
+          pgl.goto(BASE + "/sozlamalar", wait_until="networkidle")
+          pgl.wait_for_timeout(500)
+          _tb = pgl.evaluate("""() => ['co-phone', 'co-phone2', 'co-phone3'].map(i => { const e = document.getElementById(i);
+              return e ? {qiymat: e.value, korinadi: e.offsetParent !== null} : null; })""")
+          pgl.fill("#co-phone2", "+998 90 123 45 67")
+          pgl.fill("#co-phone3", "+998 91 765 43 21")
+          pgl.click("#co-save-btn")
+          pgl.wait_for_timeout(1600)
+          pgl.wait_for_load_state("networkidle")
+          pgl.wait_for_timeout(500)
+          _ts = pgl.evaluate("() => ['co-phone2', 'co-phone3'].map(i => document.getElementById(i).value)")
+          ctxl.close()
+          ctxl, pgl = kontekst("k211_a", 390, 844)
+          pgl.goto(BASE + "/sozlamalar", wait_until="networkidle")
+          pgl.wait_for_timeout(500)
+          _tm = pgl.evaluate("""() => ({kenglik: document.documentElement.scrollWidth, oyna: innerWidth,
+              sigadi: ['co-phone', 'co-phone2', 'co-phone3'].every(i => { const r = document.getElementById(i).getBoundingClientRect();
+                  return r.width > 100 && r.right <= innerWidth + 0.5; })})""")
+          ctxl.close()
+          _gs = js(A.get("/api/settings/company"))
+          check("U31 Sozlamalar → «Korxona nomi»: «Telefon», «Telefon 2», «Telefon 3» maydonlari; 2- va 3-raqam kiritilib «Saqlash» — sahifa "
+                "qayta ochilganda joyida (serverda ham); telefonda (390 px) maydonlar ekranga sig'adi",
+                bool(_tb) and all(x and x["korinadi"] for x in _tb) and _ts == ["+998 90 123 45 67", "+998 91 765 43 21"]
+                and _gs.get("phone2") == "+998 90 123 45 67" and _gs.get("phone3") == "+998 91 765 43 21"
+                and _tm["sigadi"] and _tm["kenglik"] <= _tm["oyna"], (_tb, _ts, _gs, _tm))
+          A.put("/api/settings/company", data={"name": _gs.get("name") or "PenodecorPro", "slogan": _gs.get("slogan") or "",
+                                               "phone": _gs.get("phone") or "", "address": _gs.get("address") or "", "tg_tagline": "",
+                                               "phone2": "", "phone3": "", "tel_v": "2"})
           br.close()
+    # logotip tekshiruvlari (U26–U29) korxona 3 ning `static/uploads/logos/company_3.*` faylini yuklaydi / o'chiradi: shu daraxtda
+    # parallel yurgan boshqa nusxasi (etalonda SQLite va TENANT_FILTER=1 birga) bilan to'qnashmasin — brauzer bo'limi navbat bilan
+    import fcntl as _fc211
+    import hashlib as _hq211
+    _qulf211 = open(os.path.join("/tmp", "test_blok211_" + _hq211.md5(ROOT.encode()).hexdigest()[:12] + ".lock"), "w")
+    _fc211.flock(_qulf211, _fc211.LOCK_EX)
     try:
         _ui()
     except Exception as _e:                 # noqa: BLE001
         check("U0 brauzer bo'limi xatosiz yakunlandi", False, f"{type(_e).__name__}: {str(_e)[:400]}")
+    finally:
+        _fc211.flock(_qulf211, _fc211.LOCK_UN)
+        _qulf211.close()
     check("U22 sahifa JS xatosi yo'q", not XATOLAR, XATOLAR[:5])
     _srv.should_exit = True
 
