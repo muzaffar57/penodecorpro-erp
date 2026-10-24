@@ -13,7 +13,8 @@ NIMA UCHUN KERAK (O'LCHANGAN — kech129, egasi yangi logotip yuklamoqchi, 08.10
 TALAB (har biri o'lchanadi):
   S  statik: `pdf_service._logo_olcham` bor; RLImage o'lchami undan; logotip yuklashda `_rasm_ochish` (to'liq o'qish) tekshiruvi;
   N  nisbat: kvadrat / tik / keng / WEBP logotip — PDF dagi rasm nisbati = fayl nisbati (±2 %), 32 × 18 mm qutiga sig'adi, bir
-     tomoni qutiga teng; standart logotip (`static/logo_transparent.png`) — AYNAN 32 × 18 mm (o'zgarmagan); taklif PDF i ham;
+     tomoni qutiga teng; standart logotip (`static/logo_transparent.png` — kech155, zip 211f: egasining tiniq logotipi, 1000 × 798) —
+     bo'yi AYNAN 18 mm, eni 22,6 mm (32 × 18 qutidan chiqmaydi — kattalashmagan); taklif PDF i ham;
   E  EXIF: 600 × 200, yo'nalish 6 — saqlangan fayl to'g'rilangan (200 × 600), PDF da tik (bo'yi > eni);
   B  buzilgan: imzoli, ichi buzilgan PNG — 400, fayl yozilmadi, korxona logotipi o'zgarmadi; diskdagi logotip buzilsa ham (eski
      yozuv) — «Buyurtma hisobi» va «Taklif» PDF lari 200, logotip o'rniga korxona NOMI.
@@ -267,8 +268,11 @@ s.commit()
 s.close()
 _st, _pb = pdf()
 _ol = pdf_rasmlari(_pb)
-check("N6 standart logotip (`static/logo_transparent.png`, 998 × 561) — AYNAN 32 × 18 mm (o'zgarmagan)",
-      _st == 200 and _ol and abs(_ol[0][0] - 32) < 0.06 and abs(_ol[0][1] - 18) < 0.06, (_st, _ol))
+# kech155 (zip 211f — egasi QARORI 24.10, MOSLANDI): standart logotip — egasining tiniq logotipi (1000 × 798, nisbat 1,25); quti
+# o'zgarmagan (32 × 18 mm): bo'yi avvalgidek 18 mm, eni 22,6 mm (avval 998 × 561 — 32 × 18) — egasi «kattalashmasin» dedi
+check("N6 standart logotip (`static/logo_transparent.png` — egasining tiniq logotipi, 1000 × 798) — bo'yi AYNAN 18 mm, eni 22,6 mm "
+      "(32 × 18 mm qutidan chiqmaydi — kattalashmagan)",
+      _st == 200 and _ol and abs(_ol[0][0] - 18 * 1000 / 798) < 0.06 and abs(_ol[0][1] - 18) < 0.06 and _ol[0][0] <= 32, (_st, _ol))
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 section("E. EXIF yo'nalishi")

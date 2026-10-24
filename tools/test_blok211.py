@@ -1,0 +1,1455 @@
+#!/usr/bin/env python3
+"""
+test_blok211.py — kech155 (zip 211 «Blok hisoblash» — egasi so'rovi 23.10 21:36, kelishuv 21:3x–21:54).
+
+NIMA UCHUN KERAK
+  Boshqa korxona kub (Profil / Panel / Donali) ishlatmaydi — BLOK da hisoblaydi. Blok detali kub kabi butun jarayonda ishlaydi: birlik
+  m / ta / m², «1 blokdan chiqadigan» (xodim yozadi), «Necha … kerak», «1 blok narxi» — QOPLAMASIZ (detalda yozilsa — o'ziniki, yozilmasa —
+  buyurtmaning «1 blok asosiy narxi»), qoplama — koeffitsient (standart 2), plotnost — ombordan qaysi blok. Sozlamalarda HAMMA tur
+  (Profil, Panel, Donali, Blok, Loy sotish, MRP) yashirilsa bo'ladi, kamida bittasi yoqiq.
+BO'LIMLAR
+  K — turlar sozlamasi: sozlanmagan korxona (eski qoida AYNAN), `v=2` to'liq ro'yxat, eski sahifa (faqat ixtiyoriylar), kamida bitta,
+      jurnal, eski kalit (orqaga qaytish uchun), yangi korxona standarti, korxonalar ajralgan.
+  B — server: blok detal ustunlari (birlik / chiqishi / o'z narxi / koeffitsient), «1 blok asosiy narxi», ombor (blok soni), birlik
+      (`delivery_unit`, PDF, jurnal), tahrir, topshirilgan detal birligi o'zgarmaydi, tayyor mahsulot (ishlab chiqarish birligi, buyurtmada
+      birlik — mahsulotniki), tana qat'iy (noma'lum birlik / chegara — 422 / 400), taklif, usta birliklari, tayyor mahsulot hisobi (oy chegarasi).
+  U — HAQIQIY brauzer (Playwright): faqat Blok yoqiq korxona — tur tugmalari, asosiy narx maydonlari, blok hisobi (m / ta / m², o'z narxi,
+      asosiy, koeffitsient), saqlash → server, tahrirda tiklanish (o'zgarishsiz saqlash — summa o'zgarmaydi), eski (zip 211 dan oldingi) blok
+      yozuvi, yashirin turdagi mavjud detal, Sozlamalar sahifasi (6 tur, hammasini o'chirib bo'lmaydi), Tayyor mahsulotlar (blok ishlab
+      chiqarish, buyurtmaga olish), qoralama, telefon (390 px), JS xatosi yo'q.
+REJIMLAR: SQLite (odatiy); `TENANT_FILTER=1`; `PG_URL=postgresql://postgres@127.0.0.1:5432` — PostgreSQL (U bo'limi faqat SQLite / TF1 da).
+Asl kodga (zip 210) qarshi QULAMAYDI — yiqiladi.
+ISHLATISH: python3 tools/test_blok211.py
+"""
+import os
+import io
+import sys
+import time
+import tempfile
+import datetime
+import contextlib
+
+ROOT = os.environ.get("REPO") or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+os.chdir(ROOT)
+
+TF = os.environ.get("TENANT_FILTER") == "1"
+PG_URL = (os.environ.get("PG_URL") or "").rstrip("/")
+PG_BAZA = "blok211_test"
+_T = tempfile.mkdtemp(prefix="k211_")
+if PG_URL:
+    from sqlalchemy import create_engine as _ce, text as _tx
+    _adm = _ce(PG_URL.replace("postgresql://", "postgresql+pg8000://", 1) + "/postgres", isolation_level="AUTOCOMMIT")
+    with _adm.connect() as _c:
+        _c.execute(_tx(f"DROP DATABASE IF EXISTS {PG_BAZA} WITH (FORCE)"))
+        _c.execute(_tx(f"CREATE DATABASE {PG_BAZA}"))
+    _adm.dispose()
+    os.environ["DATABASE_URL"] = f"{PG_URL}/{PG_BAZA}"
+else:
+    os.environ["DATABASE_URL"] = f"sqlite:///{os.path.join(_T, 'k211.db')}"
+for _k in ("TELEGRAM_BOT_TOKEN", "BACKUP_TELEGRAM_CHAT_ID"):
+    os.environ.pop(_k, None)
+
+YORLIQ = ("[PG] " if PG_URL else "") + ("[TF1] " if TF else "")
+OK = FAIL = 0
+FAILED = []
+
+
+def check(label, cond, detail=""):
+    global OK, FAIL
+    label = YORLIQ + label
+    try:
+        cond = bool(cond() if callable(cond) else cond)
+    except Exception as e:                 # noqa: BLE001
+        cond = False
+        detail = f"{type(e).__name__}: {e} | {detail}"
+    if cond:
+        OK += 1
+        print(f"  ✓ {label}")
+    else:
+        FAIL += 1
+        FAILED.append(label)
+        print(f"  ✗ {label}   {str(detail)[:900]}")
+
+
+def section(t):
+    print(f"\n--- {t} ---")
+
+
+def yaqin(a, b, eps=0.005):
+    try:
+        return abs(float(a) - float(b)) <= eps
+    except (TypeError, ValueError):
+        return False
+
+
+_MIG = io.StringIO()
+with contextlib.redirect_stdout(_MIG):
+    import main                                    # noqa: E402
+    import auth                                    # noqa: E402
+    import services                                # noqa: E402
+from database import SessionLocal                  # noqa: E402
+from models import (UserRole, Inventory, Project, FinishedProduct, StockSource, ProductionStatus, OrderItem, Order,  # noqa: E402
+                    ActivityLog, CompanySetting, User, OrderType, OrderStatus, DeliveryItem, Recipe)
+from production_models import Company              # noqa: E402
+from fastapi.testclient import TestClient          # noqa: E402
+from sqlalchemy import text                        # noqa: E402
+
+PAROL = "Parol123!"
+s = SessionLocal()
+for _cid, _nom in ((2, "K211 B korxona"), (3, "K211 Blok korxona")):
+    if not s.get(Company, _cid):
+        s.add(Company(id=_cid, name=_nom))
+s.commit()
+with contextlib.redirect_stdout(io.StringIO()):
+    auth.create_user(s, "k211_a", PAROL, UserRole.ADMIN, "K211 Admin", company_id=1)
+    auth.create_user(s, "k211_b", PAROL, UserRole.ADMIN, "K211 B Admin", company_id=2)
+    auth.create_user(s, "k211_c", PAROL, UserRole.ADMIN, "K211 Blok Admin", company_id=3)
+    auth.create_user(s, "k211_plat", PAROL, UserRole.ADMIN, "K211 Platforma", company_id=1)
+_pu = s.query(User).filter(User.username == "k211_plat").first()
+_pu.is_platform_admin = True
+PENO = Inventory(company_id=1, item_name="K211 Penoplast 15", unit="blok", stock_quantity=1_000, price_per_unit=500_000,
+                 volume_per_unit=2.0, is_penoplast=True, is_default_penoplast=True, category="Penoplast")
+PENO2 = Inventory(company_id=1, item_name="K211 Penoplast 25", unit="blok", stock_quantity=1_000, price_per_unit=800_000,
+                  volume_per_unit=2.0, is_penoplast=True, is_default_penoplast=False, category="Penoplast")
+PENO_C = Inventory(company_id=3, item_name="C Penoplast 15", unit="blok", stock_quantity=500, price_per_unit=450_000,
+                   volume_per_unit=2.0, is_penoplast=True, is_default_penoplast=True, category="Penoplast")
+P1 = Project(company_id=1, client_name="Sardor K211", project_name="Andijon K211", client_phone="+998901112211", total_budget=0, total_paid=0)
+PC = Project(company_id=3, client_name="Demo mijoz", project_name="Demo loyiha", client_phone="+998901112212", total_budget=0, total_paid=0)
+s.add_all([PENO, PENO2, PENO_C, P1, PC])
+s.commit()
+ID = {"PENO": PENO.id, "PENO2": PENO2.id, "PENO_C": PENO_C.id, "P1": P1.id, "PC": PC.id}
+s.close()
+
+
+def mijoz(login):
+    c = TestClient(main.app, base_url="https://testserver", raise_server_exceptions=False)
+    c.post("/login", data={"username": login, "password": PAROL}, follow_redirects=False)
+    return c
+
+
+A = mijoz("k211_a")
+B = mijoz("k211_b")
+C = mijoz("k211_c")
+
+
+def js(r):
+    try:
+        return r.json()
+    except Exception:                   # noqa: BLE001
+        return {}
+
+
+def turlar(c=A):
+    return {x["code"]: x["enabled"] for x in (js(c.get("/api/settings/categories")).get("categories") or [])}
+
+
+def sozlama(cid, kalit):
+    _s = SessionLocal()
+    try:
+        r = _s.query(CompanySetting).filter(CompanySetting.company_id == cid, CompanySetting.key == kalit).first()
+        return None if r is None else r.value
+    finally:
+        _s.close()
+
+
+def stok(pid):
+    _s = SessionLocal()
+    try:
+        return float(_s.get(Inventory, pid).stock_quantity)
+    finally:
+        _s.close()
+
+
+def blok(nom, birlik, chiqishi, kerak, oz=None, asosiy=600_000, koef=2.0, qoplama=False, peno=None, fp=None, eni=None, qalin=None):
+    """Forma (`collectItems`) yuboradigan blok detal — 1 birlik narxi formadagi formula bilan."""
+    bn = oz if oz else asosiy
+    birlik_narxi = (bn / chiqishi) * (koef if qoplama else 1) if chiqishi else 0
+    return {"name": nom, "category": "blok", "width": eni, "thickness": qalin, "length": (kerak / chiqishi) if chiqishi else 0,
+            "quantity": kerak, "unit_price": birlik_narxi, "is_coated": qoplama, "penoplast_id": peno, "price_per_m3": None,
+            "finished_product_id": fp, "blok_birlik": birlik, "blok_chiqishi": chiqishi, "blok_narxi": oz, "blok_koef": koef,
+            "notes": f"blok_narxi={bn * (koef if qoplama else 1)},blok_yield={chiqishi}"}
+
+
+def buyurtma(items, pid=None, **kw):
+    b = {"project_id": pid or ID["P1"], "order_type": "product", "items": items,
+         "deadline": (datetime.date.today() + datetime.timedelta(days=10)).isoformat() + "T00:00:00"}
+    b.update(kw)
+    return b
+
+
+def detallar(c, oid):
+    return js(c.get(f"/api/orders/{oid}"))
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+section("K. Mahsulot turlari sozlamasi")
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+_k0 = turlar(A)
+check("K1 GET — 6 tur (Profil, Panel, Donali, Blok, Loy sotish, MRP); sozlanmagan korxona — eski qoida AYNAN (Blok yashirin, qolgani yoqiq)",
+      list(_k0) == ["profil", "panel", "dona", "blok", "loy_sotish", "mrp_product"]
+      and _k0 == {"profil": True, "panel": True, "dona": True, "blok": False, "loy_sotish": True, "mrp_product": True}, _k0)
+_kl = [x["label"] for x in (js(A.get("/api/settings/categories")).get("categories") or [])]
+check("K1b nomlar: «🧊 Blok» (endi «eskirgan» yozuvi yo'q)", "🧊 Blok" in _kl and not any("eskirgan" in x for x in _kl), _kl)
+_r = C.put("/api/settings/categories", data={"codes": "blok", "v": "2"})
+check("K2 `v=2` faqat Blok — 200, yoqilgani faqat Blok; `cat_on` — Profil / Panel / Donali / MRP yo'q",
+      _r.status_code == 200 and turlar(C) == {"profil": False, "panel": False, "dona": False, "blok": True, "loy_sotish": False,
+                                              "mrp_product": False}
+      and not main.cat_on("profil", 3) and main.cat_on("blok", 3) and not main.cat_on("mrp_product", 3), (_r.status_code, turlar(C)))
+check("K2b saqlandi: `mahsulot_turlari` = «blok», eski `enabled_categories` = «blok» (orqaga qaytilsa ham Blok yoqiq qoladi)",
+      sozlama(3, "mahsulot_turlari") == "blok" and sozlama(3, "enabled_categories") == "blok",
+      (sozlama(3, "mahsulot_turlari"), sozlama(3, "enabled_categories")))
+_r = C.put("/api/settings/categories", data={"codes": "", "bosh": "1", "v": "2"})
+check("K3 hammasini o'chirish (`bosh=1`, `v=2`) — 400 «Kamida bitta», hech narsa o'zgarmadi",
+      _r.status_code == 400 and "Kamida bitta" in _r.text and turlar(C)["blok"] and sozlama(3, "mahsulot_turlari") == "blok",
+      (_r.status_code, _r.text[:200]))
+_r = C.put("/api/settings/categories", data={"codes": "", "v": "2"})
+check("K4 bo'sh ro'yxat `bosh` siz — 400 «yuklanmagan» (ilgarigi C1 qoidasi)", _r.status_code == 400 and "yuklanmagan" in _r.text,
+      (_r.status_code, _r.text[:200]))
+_r = C.put("/api/settings/categories", data={"codes": "noma_lum,gips", "v": "2"})
+check("K4b faqat noma'lum / olib tashlangan kodlar — 400, o'zgarmadi", _r.status_code == 400 and sozlama(3, "mahsulot_turlari") == "blok",
+      (_r.status_code, _r.text[:200]))
+# eski sahifa (zip 211 dan oldingi, faqat Loy sotish / Blok ni biladi) — asosiy turlar holati saqlanadi
+_r = A.put("/api/settings/categories", data={"codes": "loy_sotish,blok"})
+check("K5 eski sahifa (`v` yo'q, faqat ixtiyoriy kodlar) — Profil / Panel / Donali / MRP holati SAQLANDI, Blok yoqildi",
+      _r.status_code == 200 and turlar(A) == {"profil": True, "panel": True, "dona": True, "blok": True, "loy_sotish": True,
+                                              "mrp_product": True}, (_r.status_code, turlar(A)))
+_r = A.put("/api/settings/categories", data={"codes": "", "bosh": "1"})
+check("K5b eski sahifa «hammasini o'chirish» (`bosh=1`) — faqat Loy sotish / Blok o'chdi, asosiylar yoqiq (natija bo'sh emas — 200)",
+      _r.status_code == 200 and turlar(A) == {"profil": True, "panel": True, "dona": True, "blok": False, "loy_sotish": False,
+                                              "mrp_product": True}, (_r.status_code, turlar(A)))
+_r = A.put("/api/settings/categories", data={"codes": "dona,blok,loy_sotish", "v": "2"})
+_s = SessionLocal()
+_jur = [(a.new_value or "") for a in _s.query(ActivityLog).filter(ActivityLog.company_id == 1, ActivityLog.entity_type == "company_settings")
+        .order_by(ActivityLog.id.desc()).limit(1).all()]
+_s.close()
+check("K6 jurnal: «yoqildi: 🧊 Blok», «yoqildi: 🪣 Loy sotish», «o'chirildi: 📏 Profil / 🔲 Panel / 🏭 MRP mahsuloti» — bitta yozuvda",
+      _r.status_code == 200 and _jur and all(x in _jur[0] for x in ("yoqildi: 🧊 Blok", "yoqildi: 🪣 Loy sotish", "o'chirildi: 📏 Profil",
+                                                                     "o'chirildi: 🔲 Panel", "o'chirildi: 🏭 MRP mahsuloti"))
+      and "Donali" not in _jur[0], _jur)
+check("K6b kodlarda asosiy tur bor (`v` siz ham) — to'liq ro'yxat deb olinadi",
+      (A.put("/api/settings/categories", data={"codes": "profil,panel"}).status_code == 200
+       and turlar(A) == {"profil": True, "panel": True, "dona": False, "blok": False, "loy_sotish": False, "mrp_product": False}), turlar(A))
+A.put("/api/settings/categories", data={"codes": "profil,panel,dona,blok,loy_sotish,mrp_product", "v": "2"})
+check("K7 korxonalar ajralgan: B (sozlanmagan) — eski qoida (Blok yashirin), C — faqat Blok",
+      turlar(B) == {"profil": True, "panel": True, "dona": True, "blok": False, "loy_sotish": True, "mrp_product": True}
+      and turlar(C)["blok"] and not turlar(C)["profil"], (turlar(B), turlar(C)))
+s = SessionLocal()
+if PG_URL:
+    s.execute(text("SELECT setval(pg_get_serial_sequence('companies', 'id'), (SELECT MAX(id) FROM companies))"))
+    s.commit()
+s.close()
+CP = mijoz("k211_plat")
+_rk = CP.post("/api/platform/companies", data={"name": "K211 Yangi korxona", "admin_username": "k211_yangi"})
+_yk = ((js(_rk) or {}).get("company") or {}).get("id")
+check("K8 platformadan yangi korxona — Profil, Panel, Donali, MRP yoqiq; Blok, Loy sotish yashirin (egasi QARORI)",
+      _rk.status_code == 200 and _yk and sozlama(_yk, "mahsulot_turlari") == "profil,panel,dona,mrp_product"
+      and getattr(main, "yoqilgan_turlar", lambda _c: None)(_yk) == ["profil", "panel", "dona", "mrp_product"],
+      (_rk.status_code, _rk.text[:200], _yk and sozlama(_yk, "mahsulot_turlari")))
+_ts211 = getattr(main, "turlar_sozlamadan", None)      # asl kodda (zip 210) yo'q — sinov yiqiladi, qulamaydi
+check("K9 `turlar_sozlamadan`: buzilgan yangi qiymat (faqat noma'lum so'z) — eski qoidaga (yashirib yuborilmaydi); faqat Blok — o'zi; "
+      "ixtiyoriylar — eski kalitdan (zip 210 ga qaytib eski sahifada yoqilgan Blok / Loy sotish saqlanadi — review211 №11)",
+      _ts211 is not None
+      and _ts211("gips,termopanel", None) == {"profil", "panel", "dona", "mrp_product", "loy_sotish"}
+      and _ts211("blok", "blok") == {"blok"} and _ts211(None, "") == {"profil", "panel", "dona", "mrp_product"}
+      and _ts211("profil,panel,dona,mrp_product", "loy_sotish,blok") == {"profil", "panel", "dona", "mrp_product", "loy_sotish", "blok"}
+      and _ts211("blok", "") == {"profil", "panel", "dona", "mrp_product"}, "turlar_sozlamadan yo'q" if _ts211 is None else "")
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+section("B. Server — blok detal")
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+_st0 = stok(ID["PENO"])
+_items = [blok("B1 rozetka", "dona", 200, 50, peno=ID["PENO"], eni=12, qalin=3),
+          blok("B1 plita", "m2", 25, 30, oz=500_000, peno=ID["PENO"]),
+          blok("B1 karniz", "metr", 40, 100, peno=ID["PENO"])]
+_r = A.post("/api/orders", json=buyurtma(_items, blok_base_price=600_000))
+O1 = js(_r).get("id")
+_d = detallar(A, O1) if O1 else {}
+_it = {x["name"]: x for x in (_d.get("items") or [])}
+check("B1 yaratildi — 200; «1 blok asosiy narxi» saqlandi va javobda (600 000)",
+      _r.status_code == 200 and O1 and yaqin(_d.get("blok_base_price"), 600_000), (_r.status_code, _r.text[:300]))
+check("B2 ta: 1 blokdan 200 ta, 50 ta (asosiy 600 000) → 1 ta 3 000, jami 150 000, blok 0,25; birlik — dona; o'lcham 12×3 saqlandi",
+      _it.get("B1 rozetka", {}).get("blok_birlik") == "dona" and yaqin(_it["B1 rozetka"].get("blok_chiqishi"), 200)
+      and _it["B1 rozetka"].get("blok_narxi") is None and yaqin(_it["B1 rozetka"]["unit_price"], 3000)
+      and yaqin(_it["B1 rozetka"]["total_price"], 150_000) and yaqin(_it["B1 rozetka"]["length"], 0.25, 1e-9)
+      and _it["B1 rozetka"]["delivery_unit"] == "dona" and _it["B1 rozetka"]["width"] == 12 and _it["B1 rozetka"]["thickness"] == 3,
+      _it.get("B1 rozetka"))
+check("B3 m²: o'z blok narxi 500 000, 1 blokdan 25 m², 30 m² → 1 m² 20 000, jami 600 000, birlik «m²», o'z narxi saqlandi",
+      _it.get("B1 plita", {}).get("blok_birlik") == "m2" and yaqin(_it["B1 plita"].get("blok_narxi"), 500_000)
+      and yaqin(_it["B1 plita"]["unit_price"], 20_000) and yaqin(_it["B1 plita"]["total_price"], 600_000)
+      and _it["B1 plita"]["delivery_unit"] == "m²", _it.get("B1 plita"))
+check("B4 m: 1 blokdan 40 m, 100 m → 1 m 15 000, jami 1 500 000, birlik metr; koeffitsient 2 saqlandi",
+      _it.get("B1 karniz", {}).get("blok_birlik") == "metr" and yaqin(_it["B1 karniz"]["unit_price"], 15_000)
+      and yaqin(_it["B1 karniz"]["total_price"], 1_500_000) and _it["B1 karniz"]["delivery_unit"] == "metr"
+      and yaqin(_it["B1 karniz"].get("blok_koef"), 2), _it.get("B1 karniz"))
+check("B5 ombordan blok soni ayirildi: 0,25 + 1,2 + 2,5 = 3,95 blok", yaqin(_st0 - stok(ID["PENO"]), 3.95, 1e-6), (_st0, stok(ID["PENO"])))
+check("B6 buyurtma jami = 150 000 + 600 000 + 1 500 000", yaqin(_d.get("total_amount"), 2_250_000), _d.get("total_amount"))
+_s = SessionLocal()
+_oi = _s.query(OrderItem).filter(OrderItem.order_id == O1).all()
+_pr = services.calculate_order_profit(_s, O1, company_id=1) if O1 else {}
+_s.close()
+check("B7 tan narxi — ishlatilgan blok × blok narxi: 3,95 × 500 000 = 1 975 000",
+      yaqin(_pr.get("tan_narxi"), 3.95 * 500_000, 1), _pr.get("tan_narxi"))
+# PDF birligi
+try:
+    import pdf_service
+    _s = SessionLocal()
+    _o = _s.get(Order, O1)
+    _pdf = pdf_service.generate_nakladnoy(_o, _s)
+    _s.close()
+    from pypdf import PdfReader
+    _txt = "".join(p.extract_text() or "" for p in PdfReader(io.BytesIO(_pdf)).pages)
+    check("B8 buyurtma PDF: birliklar «dona», «m²», «m» (ilgari blok doim «m»)",
+          "m²" in _txt and "dona" in _txt and "B1 rozetka" in _txt, _txt[:600])
+except ImportError:
+    check("B8 buyurtma PDF (pypdf yo'q — o'tkazildi)", True)
+except Exception as _e:                    # noqa: BLE001
+    check("B8 buyurtma PDF", False, f"{type(_e).__name__}: {_e}")
+
+# Tahrir: birlik / o'z narxi o'zgaradi; boshqa turga o'tsa blok ustunlari tozalanadi
+_items2 = [blok("B1 rozetka", "m2", 20, 10, oz=400_000, peno=ID["PENO"]),
+           blok("B1 plita", "m2", 25, 30, oz=500_000, peno=ID["PENO"]),
+           {"name": "B1 karniz", "category": "profil", "width": 10, "thickness": 10, "length": 5, "quantity": 1, "unit_price": 12_500,
+            "is_coated": False, "penoplast_id": ID["PENO"], "notes": "blok_narxi=600000,blok_yield=40",
+            # eskirgan blok qiymatlari (noto'g'ri mijoz yuborgan) — profilda saqlanmasligi kerak
+            "blok_birlik": "dona", "blok_chiqishi": 40, "blok_narxi": 600000, "blok_koef": 2}]
+_r = A.put(f"/api/orders/{O1}", json=buyurtma(_items2, blok_base_price=650_000))
+_d = detallar(A, O1)
+_it = {x["name"]: x for x in (_d.get("items") or [])}
+check("B9 tahrir: rozetka — m², o'z narxi 400 000, chiqishi 20; asosiy narx 650 000",
+      _r.status_code == 200 and _it.get("B1 rozetka", {}).get("blok_birlik") == "m2" and yaqin(_it["B1 rozetka"].get("blok_narxi"), 400_000)
+      and yaqin(_it["B1 rozetka"].get("blok_chiqishi"), 20) and yaqin(_d.get("blok_base_price"), 650_000), (_r.status_code, _r.text[:300]))
+check("B10 tahrir: blokdan profilga o'tgan detal — blok ustunlari TOZALANDI (tana blok qiymatlarini yuborsa ham)",
+      _it.get("B1 karniz", {}).get("category") == "profil" and _it["B1 karniz"].get("blok_birlik") is None
+      and _it["B1 karniz"].get("blok_chiqishi") is None and _it["B1 karniz"].get("blok_koef") is None
+      and _it["B1 karniz"]["delivery_unit"] == "metr", _it.get("B1 karniz"))
+check("B11 ombor farqi: rozetka 0,25 → 0,5 blok, karniz 2,5 blok → profil hajmi (0,0025 m³ = 0,00125 blok)",
+      yaqin(_st0 - stok(ID["PENO"]), 0.5 + 1.2 + (0.1 * 0.1 * 5 / 2) / 2.0, 1e-6), (_st0, stok(ID["PENO"])))
+
+# Topshirilgan blok detal birligi o'zgarmaydi
+_r = A.post("/api/orders", json=buyurtma([blok("B12 plita", "m2", 25, 40, peno=ID["PENO"])], blok_base_price=600_000))
+O2 = js(_r).get("id")
+_oi2 = (detallar(A, O2).get("items") or [{}])[0]
+_rd = A.post("/api/deliveries", json={"order_id": O2, "items": [{"order_item_id": _oi2.get("id"), "quantity": 10.0}]})
+check("B12 yuk xati: 10 m² topshirildi (yuk xati birligi «m²»)", _rd.status_code == 200, (_rd.status_code, _rd.text[:300]))
+_s = SessionLocal()
+_dun = [d.unit for d in _s.query(DeliveryItem).filter(DeliveryItem.order_item_id == _oi2.get("id")).all()]
+_s.close()
+check("B12b yuk xati qatori birligi — «m²»", _dun == ["m²"], _dun)
+_r = A.put(f"/api/orders/{O2}", json=buyurtma([blok("B12 plita", "dona", 25, 40, peno=ID["PENO"])], blok_base_price=600_000))
+check("B13 topshirilgan blok detal birligini o'zgartirish (m² → ta) — rad, sabab «o'lchov birligini o'zgartirib bo'lmaydi»",
+      _r.status_code in (400, 409) and "birligini o'zgartirib bo'lmaydi" in _r.text
+      and (detallar(A, O2).get("items") or [{}])[0].get("blok_birlik") == "m2", (_r.status_code, _r.text[:300]))
+_r = A.put(f"/api/orders/{O2}", json=buyurtma([blok("B12 plita", "m2", 25, 45, peno=ID["PENO"])], blok_base_price=600_000))
+check("B14 o'sha birlikda miqdorni oshirish — 200", _r.status_code == 200 and yaqin((detallar(A, O2).get("items") or [{}])[0].get("quantity"), 45),
+      (_r.status_code, _r.text[:300]))
+
+# Tana qat'iy
+_r1 = A.post("/api/orders", json=buyurtma([dict(blok("B15", "metr", 40, 10, peno=ID["PENO"]), blok_birlik="kg")]))
+_r2 = A.post("/api/orders", json=buyurtma([dict(blok("B15", "metr", 40, 10, peno=ID["PENO"]), blok_koef=1000)]))
+_r3 = A.post("/api/orders", json=buyurtma([dict(blok("B15", "metr", 40, 10, peno=ID["PENO"]), blok_chiqishi=-1)]))
+_r4 = A.post("/api/orders", json=buyurtma([blok("B15", "metr", 40, 10, peno=ID["PENO"])], blok_base_price=-5))
+check("B15 noma'lum birlik / koeffitsient 1000 / manfiy chiqishi / manfiy asosiy narx — 422, hech narsa yozilmadi",
+      [_r1.status_code, _r2.status_code, _r3.status_code, _r4.status_code] == [422, 422, 422, 422],
+      [_r1.status_code, _r2.status_code, _r3.status_code, _r4.status_code])
+
+# Eski (zip 211 dan oldingi) API mijozi — blok maydonlarisiz: metr, avvalgidek
+_r = A.post("/api/orders", json=buyurtma([{"name": "B16 eski blok", "category": "blok", "length": 0.5, "quantity": 20, "unit_price": 25_000,
+                                           "is_coated": False, "penoplast_id": ID["PENO"], "notes": "blok_narxi=1000000,blok_yield=40"}]))
+_e = (detallar(A, js(_r).get("id")).get("items") or [{}])[0] if _r.status_code == 200 else {}
+check("B16 blok maydonlarisiz (eski sahifa / API) — birlik bo'sh, yetkazish birligi metr, summa avvalgidek",
+      _r.status_code == 200 and _e.get("blok_birlik") is None and _e.get("delivery_unit") == "metr" and yaqin(_e.get("total_price"), 500_000),
+      (_r.status_code, _e))
+
+# Tayyor mahsulot: ishlab chiqarish birligi
+_st1 = stok(ID["PENO"])
+_rp = A.post("/api/finished/produce", json={"name": "B17 TM rozetka", "category": "blok", "width": 12, "thickness": 3, "length": 0.5,
+                                            "quantity": 100, "is_coated": False, "penoplast_id": ID["PENO"], "unit_price": 3500, "loy_kg": 0,
+                                            "blok_birlik": "dona"})
+FPB = js(_rp).get("product_id")
+check("B17 TM blok (ta): birlik «dona», 100 dona, ombordan 0,5 blok", _rp.status_code == 200 and js(_rp).get("unit") == "dona"
+      and yaqin(_st1 - stok(ID["PENO"]), 0.5, 1e-9), (_rp.status_code, _rp.text[:300]))
+_rp2 = A.post("/api/finished/produce", json={"name": "B17 TM plita", "category": "blok", "length": 1, "quantity": 25, "is_coated": False,
+                                             "penoplast_id": ID["PENO"], "unit_price": 20000, "loy_kg": 0, "blok_birlik": "m2"})
+_rp3 = A.post("/api/finished/produce", json={"name": "B17 TM karniz", "category": "blok", "length": 1, "quantity": 40, "is_coated": False,
+                                             "penoplast_id": ID["PENO"], "unit_price": 15000, "loy_kg": 0})
+_rp4 = A.post("/api/finished/produce", json={"name": "B17 yomon", "category": "blok", "length": 1, "quantity": 4, "is_coated": False,
+                                             "penoplast_id": ID["PENO"], "unit_price": 1, "loy_kg": 0, "blok_birlik": "kg"})
+check("B18 TM blok m² — «m²»; birliksiz (eski sahifa) — «metr»; noma'lum birlik — 400",
+      js(_rp2).get("unit") == "m²" and js(_rp3).get("unit") == "metr" and _rp4.status_code in (400, 422),
+      (js(_rp2).get("unit"), js(_rp3).get("unit"), _rp4.status_code, _rp4.text[:200]))
+_s = SessionLocal()
+_fp = _s.get(FinishedProduct, FPB) if FPB else None     # asl kodda (zip 210) `blok_birlik` — noma'lum maydon: mahsulot yo'q
+if _fp is not None:
+    _fp.production_status = ProductionStatus.READY
+    _s.commit()
+_s.close()
+# buyurtmada tayyor mahsulotdan — birlik MAHSULOTNIKI (forma boshqa yuborsa ham)
+_tm = blok("B19 TM rozetka", "m2", 0, 20, peno=None, fp=FPB)
+_tm.update({"unit_price": 3500, "length": 0, "blok_chiqishi": None, "blok_narxi": None, "blok_koef": None, "notes": None})
+_r = A.post("/api/orders", json=buyurtma([_tm]))
+_t = (detallar(A, js(_r).get("id")).get("items") or [{}])[0] if _r.status_code == 200 else {}
+check("B19 tayyor mahsulotdan blok — birlik mahsulotniki («dona», forma «m2» yuborsa ham), 20 × 3 500 = 70 000",
+      _r.status_code == 200 and _t.get("blok_birlik") == "dona" and _t.get("delivery_unit") == "dona" and yaqin(_t.get("total_price"), 70_000),
+      (_r.status_code, _r.text[:300], _t))
+
+# Usta birliklari (qoplamachi / birlik stavkasi)
+_qb = services._qoplama_birliklari
+
+
+def _OI211(**k):
+    """Sinov detali (bazaga yozilmaydi); asl kodda (zip 210) blok ustunlari yo'q — ular tashlanadi (sinov yiqiladi, qulamaydi)."""
+    for _k in [x for x in k if x.startswith("blok_")]:
+        if not hasattr(OrderItem, _k):
+            k.pop(_k)
+    return OrderItem(**k)
+
+
+check("B20 usta birliklari: qoplamali blok m — metr, ta — dona, m² — hech biri; eski (birliksiz) — metr; qoplamasiz — yo'q",
+      _qb(_OI211(category="blok", quantity=30, is_coated=True, blok_birlik="metr"))["metr"] == 30
+      and _qb(_OI211(category="blok", quantity=50, is_coated=True, blok_birlik="dona"))["dona"] == 50
+      and _qb(_OI211(category="blok", quantity=50, is_coated=True, blok_birlik="dona"))["metr"] == 0
+      and sum(_qb(_OI211(category="blok", quantity=12, is_coated=True, blok_birlik="m2")).values()) == 0
+      and _qb(_OI211(category="blok", quantity=7, is_coated=True))["metr"] == 7
+      and sum(_qb(_OI211(category="blok", quantity=7, is_coated=False, blok_birlik="dona")).values()) == 0)
+
+
+def _oylik(y, m):
+    _s = SessionLocal()
+    try:
+        r = services.get_monthly_report(_s, y, m, company_id=1)
+        return float(r.get("jami_metr") or 0), float(r.get("jami_dona") or 0)
+    finally:
+        _s.close()
+
+
+_kn0 = _oylik(2026, 11)
+_ko0 = _oylik(2026, 10)
+_s = SessionLocal()
+for _nom, _u, _q, _sana in (("B21 nov m", "metr", 40, datetime.datetime(2026, 11, 10, 8)), ("B21 nov ta", "dona", 7, datetime.datetime(2026, 11, 12, 8)),
+                            ("B21 nov m2", "m²", 5, datetime.datetime(2026, 11, 13, 8)), ("B21 okt m", "metr", 3, datetime.datetime(2026, 10, 10, 8))):
+    _s.add(FinishedProduct(company_id=1, name=_nom, category="blok", quantity=_q, produced_quantity=_q, unit=_u, unit_price=1000, cost_price=0,
+                           source=StockSource.PRODUCED, production_status=ProductionStatus.READY, is_coated=True,
+                           created_at=_sana, finished_production_at=_sana))
+_s.commit()
+_s.close()
+_kn1 = _oylik(2026, 11)
+_ko1 = _oylik(2026, 10)
+check("B21 «Tayyor mahsulotlar» blok (qoplamali) usta hisobi — noyabrdan o'z birligida: +40 m, +7 dona, m² — yo'q; oktyabr — avvalgidek "
+      "(3 m «dona» ga — o'tgan hisob o'zgarmaydi)",
+      yaqin(_kn1[0] - _kn0[0], 40) and yaqin(_kn1[1] - _kn0[1], 7) and yaqin(_ko1[0] - _ko0[0], 0) and yaqin(_ko1[1] - _ko0[1], 3),
+      (_kn0, _kn1, _ko0, _ko1))
+
+# Taklif: «1 blok asosiy narxi» va blok maydonlari
+_rt = A.post("/api/takliflar", json={"mijoz": "Taklif mijoz", "buyurtma": buyurtma([blok("B22 taklif", "dona", 100, 30, peno=ID["PENO"])],
+                                                                                   blok_base_price=700_000)})
+_tid = ((js(_rt).get("taklif") or {}).get("id"))
+_tg = js(A.get(f"/api/takliflar/{_tid}")) if _tid else {}
+check("B22 taklif: «1 blok asosiy narxi» va detal birligi qaytadi (rasmiylashtirishda forma shundan to'ladi)",
+      _rt.status_code == 200 and yaqin(_tg.get("blok_base_price"), 700_000) and (_tg.get("items") or [{}])[0].get("blok_birlik") == "dona",
+      (_rt.status_code, _rt.text[:300], _tg.get("blok_base_price")))
+_rpdf = A.get(f"/api/takliflar/{_tid}/pdf") if _tid else None
+try:
+    from pypdf import PdfReader
+    _tt = "".join(p.extract_text() or "" for p in PdfReader(io.BytesIO(_rpdf.content)).pages) if _rpdf is not None and _rpdf.status_code == 200 else ""
+    check("B22b taklif PDF — blok detal birligi «dona»", "dona" in _tt and "B22 taklif" in _tt, _tt[:400])
+except ImportError:
+    check("B22b taklif PDF (pypdf yo'q — o'tkazildi)", True)
+
+check("B23 blok maydonlari boshqa korxonaga sizmaydi: B korxona A ning buyurtmasini ko'rmaydi (404)",
+      B.get(f"/api/orders/{O1}").status_code == 404)
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+section("R. Mustaqil tekshiruv (review211) tuzatishlari")
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# №1: qisman «Tayyor» — blok soni ham topshirilgan ulushga (tan narxi)
+_r = A.post("/api/orders", json=buyurtma([blok("R1 karniz", "metr", 40, 100, peno=ID["PENO"])], blok_base_price=600_000))
+OR1 = js(_r).get("id")
+_ir1 = (detallar(A, OR1).get("items") or [{}])[0]
+_d1 = A.post("/api/deliveries", json={"order_id": OR1, "items": [{"order_item_id": _ir1.get("id"), "quantity": 40.0}]})
+_st_r1 = stok(ID["PENO"])
+_t1 = A.post(f"/api/orders/{OR1}/ready")
+_s = SessionLocal()
+_oi_r1 = _s.get(OrderItem, _ir1.get("id")) if _ir1.get("id") else None
+_l_r1 = float(_oi_r1.length or 0) if _oi_r1 is not None else None
+_pr_r1 = services.calculate_order_profit(_s, OR1, company_id=1) if OR1 else {}
+_s.close()
+check("R1 qisman «Tayyor» (100 m dan 40 m): omborga 1,5 blok qaytdi, detal blok soni 1,0 (ilgari 2,5 qolardi), tan narxi 1 × 500 000",
+      _d1.status_code == 200 and _t1.status_code == 200 and yaqin(stok(ID["PENO"]) - _st_r1, 1.5, 1e-9) and yaqin(_l_r1, 1.0, 1e-9)
+      and yaqin(_pr_r1.get("tan_narxi"), 500_000, 1), (_d1.status_code, _t1.status_code, _t1.text[:200], _l_r1, _pr_r1.get("tan_narxi")))
+# №2: qaytgan blok mahsuloti boshqa birlikdagi partiyaga birlashmaydi
+_ra = A.post("/api/orders", json=buyurtma([blok("R2 plita", "m2", 25, 30, oz=500_000, peno=ID["PENO"])]))
+_rb = A.post("/api/orders", json=buyurtma([blok("R2 plita", "dona", 25, 40, oz=500_000, peno=ID["PENO"])]))
+_ia = (detallar(A, js(_ra).get("id")).get("items") or [{}])[0]
+_ib = (detallar(A, js(_rb).get("id")).get("items") or [{}])[0]
+for _o, _i in ((js(_ra).get("id"), _ia), (js(_rb).get("id"), _ib)):
+    A.post("/api/deliveries", json={"order_id": _o, "items": [{"order_item_id": _i.get("id"), "quantity": 20.0}]})
+_q1 = A.post("/api/returns", json={"order_id": js(_ra).get("id"), "order_item_id": _ia.get("id"), "item_name": "R2 plita", "quantity": 10,
+                                   "unit": "m²", "reason": "Mijoz iltimosi", "to_stock": True})
+_q2 = A.post("/api/returns", json={"order_id": js(_rb).get("id"), "order_item_id": _ib.get("id"), "item_name": "R2 plita", "quantity": 5,
+                                   "unit": "dona", "reason": "Mijoz iltimosi", "to_stock": True})
+_s = SessionLocal()
+_qf = sorted((f.unit, float(f.quantity)) for f in _s.query(FinishedProduct).filter(FinishedProduct.company_id == 1,
+                                                                                    FinishedProduct.name == "R2 plita").all())
+_s.close()
+check("R2 qaytgan blok mahsuloti: 10 m² va 5 dona — ALOHIDA partiyalar (ilgari «15 m²» bo'lib birlashardi)",
+      _q1.status_code == 200 and _q2.status_code == 200 and _qf == [("dona", 5.0), ("m²", 10.0)], (_q1.status_code, _q1.text[:200], _qf))
+# №4: bir xil nomli ikki blok detal (biri topshirilgan, birliklari har xil) — o'zgarishsiz tahrir (forma tartibi teskari) — 200
+_r = A.post("/api/orders", json=buyurtma([blok("R4 plita", "m2", 25, 30, peno=ID["PENO"]), blok("R4 plita", "dona", 100, 40, peno=ID["PENO"])],
+                                         blok_base_price=600_000))
+OR4 = js(_r).get("id")
+_i4 = {x.get("blok_birlik"): x for x in (detallar(A, OR4).get("items") or [])}
+A.post("/api/deliveries", json={"order_id": OR4, "items": [{"order_item_id": _i4.get("m2", {}).get("id"), "quantity": 10.0}]})
+_u4 = A.put(f"/api/orders/{OR4}", json=buyurtma([blok("R4 plita", "dona", 100, 40, peno=ID["PENO"]), blok("R4 plita", "m2", 25, 30, peno=ID["PENO"])],
+                                                blok_base_price=600_000))
+_i4b = {x["id"]: x for x in (detallar(A, OR4).get("items") or [])}
+check("R4 bir xil nomli blok detallar (m² — topshirilgan, ta) teskari tartibda o'zgarishsiz — 200, har biri o'z birligida qoldi",
+      _u4.status_code == 200 and _i4b.get(_i4.get("m2", {}).get("id"), {}).get("blok_birlik") == "m2"
+      and _i4b.get(_i4.get("dona", {}).get("id"), {}).get("blok_birlik") == "dona", (_u4.status_code, _u4.text[:300]))
+# №6: tanada blok maydonlari yo'q (eski sahifa / API) — mavjud blok detal birligi saqlanadi
+_r = A.post("/api/orders", json=buyurtma([blok("R6 rozetka", "dona", 200, 50, peno=ID["PENO"])], blok_base_price=600_000))
+OR6 = js(_r).get("id")
+_eski6 = {k: v for k, v in blok("R6 rozetka", "dona", 200, 50, peno=ID["PENO"]).items() if not k.startswith("blok_")}
+_u6 = A.put(f"/api/orders/{OR6}", json=buyurtma([_eski6]))
+_i6 = (detallar(A, OR6).get("items") or [{}])[0]
+check("R6 eski sahifa tanasi (blok maydonlarisiz) — «ta» detal «ta» qoldi (ilgari jimgina «metr» ga aylanardi), chiqishi saqlandi",
+      _u6.status_code == 200 and _i6.get("blok_birlik") == "dona" and _i6.get("delivery_unit") == "dona" and yaqin(_i6.get("blok_chiqishi"), 200),
+      (_u6.status_code, _i6))
+# №7: topshirilgan detal birligini tayyor mahsulot orqali o'zgartirib bo'lmaydi (samarali birlik)
+_r = A.post("/api/orders", json=buyurtma([blok("R7 plita", "m2", 25, 30, peno=ID["PENO"])], blok_base_price=600_000))
+OR7 = js(_r).get("id")
+_i7 = (detallar(A, OR7).get("items") or [{}])[0]
+A.post("/api/deliveries", json={"order_id": OR7, "items": [{"order_item_id": _i7.get("id"), "quantity": 10.0}]})
+_tm7 = blok("R7 plita", "m2", 0, 30, fp=FPB)
+_tm7.update({"unit_price": 3500, "length": 0, "blok_chiqishi": None, "blok_narxi": None, "blok_koef": None, "notes": None})
+_u7 = A.put(f"/api/orders/{OR7}", json=buyurtma([_tm7]))
+check("R7 tanada «m2», lekin «dona» tayyor mahsulot — samarali birlik «dona» ≠ topshirilgan «m²» — rad, detal m² qoldi",
+      _u7.status_code in (400, 409) and "birligini o'zgartirib bo'lmaydi" in _u7.text
+      and (detallar(A, OR7).get("items") or [{}])[0].get("blok_birlik") == "m2", (_u7.status_code, _u7.text[:300]))
+# №9: birlik o'zgarishi jurnalda
+_r = A.post("/api/orders", json=buyurtma([blok("R9 plita", "m2", 25, 30, peno=ID["PENO"])], blok_base_price=600_000))
+OR9 = js(_r).get("id")
+A.put(f"/api/orders/{OR9}", json=buyurtma([blok("R9 plita", "dona", 25, 30, peno=ID["PENO"])], blok_base_price=600_000))
+_s = SessionLocal()
+_j9 = [(a.new_value or "") for a in _s.query(ActivityLog).filter(ActivityLog.company_id == 1, ActivityLog.entity_type == "order",
+                                                                 ActivityLog.entity_id == OR9).order_by(ActivityLog.id.desc()).limit(1).all()]
+_s.close()
+check("R9 birlik m² → ta — «Faoliyat jurnali» da «birlik m² → dona» (ilgari «O'zgardi: hech narsa»)",
+      _j9 and "birlik m² → dona" in _j9[0], _j9)
+# №12 / №13
+_s = SessionLocal()
+_ko2 = _oylik(2026, 10)
+_s.add(FinishedProduct(company_id=1, name="R12 okt m2", category="blok", quantity=25, produced_quantity=25, unit="m²", unit_price=1000, cost_price=0,
+                       source=StockSource.PRODUCED, production_status=ProductionStatus.READY, is_coated=True,
+                       created_at=datetime.datetime(2026, 10, 11, 8), finished_production_at=datetime.datetime(2026, 10, 11, 8)))
+_s.commit()
+_s.close()
+_ko3 = _oylik(2026, 10)
+check("R12 oktyabrda ishlab chiqarilgan m² blok mahsuloti — metr / dona ga kirmaydi (m² zip 211 dan oldin yo'q edi)",
+      yaqin(_ko3[0] - _ko2[0], 0) and yaqin(_ko3[1] - _ko2[1], 0), (_ko2, _ko3))
+_qn = services._qoplama_narxi
+check("R13 loy taqsimoti — blok qoplama ulushi o'z koeffitsientidan: koef 3 — 300 000 × 2/3 = 200 000; koef yo'q — 2 (150 000); "
+      "profil — avvalgidek 2", yaqin(_qn(_OI211(category="blok", is_coated=True, total_price=300_000, blok_koef=3)), 200_000, 0.01)
+      and yaqin(_qn(_OI211(category="blok", is_coated=True, total_price=300_000)), 150_000, 0.01)
+      and yaqin(_qn(_OI211(category="profil", is_coated=True, total_price=100_000, blok_koef=3)), 50_000, 0.01))
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+section("S. Hodim «Birlik bo'yicha — blok» oyligi (egasi savoli 24.10: kesilgan blok aniq, faqat topshirilgan yuk)")
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+from models import Employee                       # noqa: E402
+_s = SessionLocal()
+PENO_B = Inventory(company_id=2, item_name="B Penoplast 15", unit="blok", stock_quantity=500, price_per_unit=500_000, volume_per_unit=2.0,
+                   is_penoplast=True, is_default_penoplast=True, category="Penoplast")
+PB = Project(company_id=2, client_name="B mijoz", project_name="B loyiha", client_phone="+998901112213", total_budget=0, total_paid=0)
+_s.add_all([PENO_B, PB])
+_s.commit()
+ID["PENO_B"], ID["PB"] = PENO_B.id, PB.id
+_s.close()
+_SB = services._tashkent_date()
+SY, SM = _SB.year, _SB.month
+_re = B.post("/api/employees", json={"name": "S Blokchi", "pay_type": "per_unit", "per_unit_rate": 100000, "per_unit_type": "blok"})
+SE = js(_re).get("id")
+if SE:
+    _s = SessionLocal()
+    _s.get(Employee, SE).hire_date = datetime.datetime(SY, SM, 1) - datetime.timedelta(hours=5)     # oyning boshidan — to'liq oy
+    _s.commit()
+    _s.close()
+
+
+def _soylik(y=None, m=None):
+    """B korxona: (hodim oyligi, tafsilot, jami_blok) — `get_monthly_report` (Moliya / Hisobotlar bilan bir manba)."""
+    _s = SessionLocal()
+    try:
+        _rp = services.get_monthly_report(_s, y or SY, m or SM, company_id=2)
+    finally:
+        _s.close()
+    _h = [b for b in (_rp.get("hodimlar_breakdown") or []) if b.get("name") == "S Blokchi"]
+    _h = _h[0] if _h else {}
+    return float(_h.get("amount") or 0), str(_h.get("detail") or "").replace("\u00a0", " "), _rp.get("jami_blok")
+
+
+_r = B.post("/api/orders", json=buyurtma([blok("S karniz", "metr", 40, 100, peno=ID["PENO_B"]), blok("S rozetka", "dona", 200, 50, peno=ID["PENO_B"]),
+                                          blok("S plita", "m2", 25, 30, peno=ID["PENO_B"])], pid=ID["PB"], blok_base_price=600_000))
+OS = js(_r).get("id")
+_is = {x.get("name"): x for x in (detallar(B, OS).get("items") or [])} if OS else {}
+_o1 = _soylik()
+check("S1 hodim (1 blok = 100 000) — buyurtma yaratildi (ombordan 3,95 blok), yuk xati YO'Q — oylik 0 (faqat topshirilgan yuk)",
+      _re.status_code in (200, 201) and OS and _o1[0] == 0, (_re.status_code, _r.status_code, _o1))
+_d = B.post("/api/deliveries", json={"order_id": OS, "items": [{"order_item_id": _is.get("S karniz", {}).get("id"), "quantity": 40.0},
+                                                               {"order_item_id": _is.get("S rozetka", {}).get("id"), "quantity": 25.0}]})
+_o2 = _soylik()
+check("S2 yuk xati: karniz 40 m (100 m dan — 2,5 blokning 40 % = 1 blok), rozetka 25 ta (0,25 blokning yarmi = 0,125) — oylik AYNAN "
+      "112 500, tafsilot «1,125 blok × 100 000» (ilgari «1,12»)",
+      _d.status_code == 200 and yaqin(_o2[0], 112_500, 0.001) and _o2[1] == "1,125 blok × 100 000", (_d.status_code, _o2))
+_t = B.post(f"/api/orders/{OS}/ready")
+_o3 = _soylik()
+check("S3 qisman «Tayyor» (qolgani omborga qaytdi) — oylik o'zgarmadi (112 500): topshirilmagan qism hisoblanmaydi",
+      _t.status_code == 200 and yaqin(_o3[0], 112_500, 0.001), (_t.status_code, _t.text[:200], _o3))
+_rp = B.post("/api/finished/produce", json={"name": "S TM rozetka", "category": "blok", "length": 0.5, "quantity": 100, "is_coated": False,
+                                           "penoplast_id": ID["PENO_B"], "unit_price": 3500, "loy_kg": 0, "blok_birlik": "dona"})
+_sf = js(_rp).get("product_id")
+_o4 = _soylik()
+check("S4 Tayyor mahsulotlar: 100 ta ishga qo'yildi (0,5 blok) — hali JARAYONDA, oylikka QO'SHILMAYDI (egasi QARORI; ilgari +50 000)",
+      _rp.status_code == 200 and yaqin(_o4[0], 112_500, 0.001), (_rp.status_code, _o4))
+_rc = B.post(f"/api/finished/{_sf}/complete") if _sf else None
+_o5 = _soylik()
+check("S5 «Sotuvga tayyor» — shu oyda +0,5 blok: 162 500 («1,625 blok × 100 000»)",
+      _rc is not None and _rc.status_code == 200 and yaqin(_o5[0], 162_500, 0.001) and _o5[1] == "1,625 blok × 100 000",
+      (None if _rc is None else _rc.status_code, _o5))
+# chegaradan (2026-10) OLDIN ishga qo'yilgan, shu oyda tayyor bo'lgan — eski qoida bilan o'z oyida hisoblangan, qayta qo'shilmaydi
+_s = SessionLocal()
+_s.add(FinishedProduct(company_id=2, name="S eski TM", category="blok", quantity=10, produced_quantity=10, unit="dona", unit_price=1000,
+                       cost_price=0, source=StockSource.PRODUCED, production_status=ProductionStatus.READY, is_coated=False,
+                       penoplast_id=ID["PENO_B"], volume_m3=2.0, created_at=datetime.datetime(2026, 9, 15, 8),
+                       finished_production_at=datetime.datetime(SY, SM, 2, 8)))
+_s.commit()
+_s.close()
+_o6 = _soylik()
+_o6s = _soylik(2026, 9)
+check("S6 sentyabrda ishga qo'yilib shu oyda tayyor bo'lgan (1 blok) — shu oyga QAYTA qo'shilmaydi (162 500), sentyabr hisobida — o'z oyida",
+      yaqin(_o6[0], 162_500, 0.001) and yaqin(_o6s[2], 1.0, 0.001), (_o6, _o6s))
+# egasi savoli (24.10 01:31): buyurtmaning 70 % i shu oyda, 30 % i keyingi oyda topshirilsa — har oyda faqat o'sha oyda topshirilgan ulush
+from models import Delivery                      # noqa: E402
+_r7 = B.post("/api/orders", json=buyurtma([blok("S7 karniz", "metr", 40, 100, peno=ID["PENO_B"])], pid=ID["PB"], blok_base_price=600_000))
+O7 = js(_r7).get("id")
+_i7 = (detallar(B, O7).get("items") or [{}])[0] if O7 else {}
+_d7a = B.post("/api/deliveries", json={"order_id": O7, "items": [{"order_item_id": _i7.get("id"), "quantity": 70.0}]})
+_d7b = B.post("/api/deliveries", json={"order_id": O7, "items": [{"order_item_id": _i7.get("id"), "quantity": 30.0}]})
+_KY, _KM = (SY + 1, 1) if SM == 12 else (SY, SM + 1)
+_s = SessionLocal()
+_y7 = _s.get(Delivery, js(_d7b).get("delivery_id") or js(_d7b).get("id")) if (js(_d7b).get("delivery_id") or js(_d7b).get("id")) else None
+if _y7 is not None:
+    _y7.delivered_at = datetime.datetime(_KY, _KM, 3, 8)          # 2-yuk — keyingi oyda (Toshkent 13:00)
+    _o7o = _s.get(Order, O7)
+    if _o7o is not None and _o7o.completed_at is not None:       # to'liq topshirilib yopilgan bo'lsa — yopilishi ham o'sha paytda
+        _o7o.completed_at = datetime.datetime(_KY, _KM, 3, 8)
+    _s.commit()
+_s.close()
+_o7 = _soylik()
+_o7k = _soylik(_KY, _KM)
+check("S7 70 m shu oyda, 30 m keyingi oyda topshirildi (2,5 blok): shu oyga +1,75 blok (162 500 + 175 000 = 337 500), keyingi oyga 0,75 blok "
+      "(75 000) — har oy faqat o'zida topshirilgan ulush",
+      _d7a.status_code == 200 and _y7 is not None and yaqin(_o7[0], 337_500, 0.001) and yaqin(_o7k[0], 75_000, 0.001),
+      (_d7a.status_code, _d7b.status_code, _d7b.text[:150], _o7, _o7k))
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+section("L. Hujjat logotipi (egasi QARORI 24.10 03:45: PDF da ham tiniq logotip, lekin kattalashmasin)")
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+import hashlib as _hl211
+import company_brand as _cb211
+_LT = os.path.join(os.path.dirname(os.path.abspath(main.__file__)), "static", "logo_transparent.png")
+try:
+    from PIL import Image as _PI211
+    with _PI211.open(_LT) as _im211:
+        _lt_ol, _lt_mode = _im211.size, _im211.mode
+except Exception as _e:                    # noqa: BLE001
+    _lt_ol, _lt_mode = None, f"{type(_e).__name__}"
+_lt_md5 = _hl211.md5(open(_LT, "rb").read()).hexdigest() if os.path.isfile(_LT) else None
+check("L1 platforma logotipi (`static/logo_transparent.png`) — egasining TINIQ logotipi: 1000 × 798, shaffof (RGBA), md5 62cea8c5…",
+      _lt_ol == (1000, 798) and _lt_mode == "RGBA" and _lt_md5 == "62cea8c5f2cecfa5af944ef513243603", (_lt_ol, _lt_mode, _lt_md5))
+
+
+def _pdf_rasm211(c, oid):
+    """«Buyurtma hisobi» PDF i: (holat, birinchi sahifadagi rasmlar [(eni_mm, bo'yi_mm)]) — o'qib bo'lmasa, xato matni"""
+    r = c.get(f"/api/orders/{oid}/pdf")
+    try:
+        import pdfplumber
+        with pdfplumber.open(io.BytesIO(r.content)) as p:
+            return r.status_code, [(round(i["width"] * 25.4 / 72, 2), round(i["height"] * 25.4 / 72, 2)) for i in p.pages[0].images]
+    except Exception as e:                 # noqa: BLE001
+        return r.status_code, f"{type(e).__name__}: {e}"[:200]
+
+
+_s = SessionLocal()
+_s.get(Company, 1).logo_path = "static/logo_transparent.png"
+_s.commit()
+_s.close()
+_st1, _r1 = _pdf_rasm211(A, O1)
+check("L2 «Buyurtma hisobi» PDF da platforma logotipi KATTALASHMAGAN: bo'yi 18 mm (avvalgidek), eni 22,6 mm (avval 32) — 32 × 18 mm qutida",
+      _st1 == 200 and isinstance(_r1, list) and len(_r1) >= 1 and abs(_r1[0][1] - 18) < 0.06 and abs(_r1[0][0] - 18 * 1000 / 798) < 0.06,
+      (_st1, _r1))
+# sinov saytida `static/uploads` har yangilanishda tozalanadi — yuklangan fayli yo'qolgan korxona
+_s = SessionLocal()
+_s.get(Company, 1).logo_path = "static/uploads/logos/company_1_yoq211.png"
+_s.get(Company, 3).logo_path = "static/uploads/logos/company_3_yoq211.png"
+_s.commit()
+_b1 = _cb211.get_brand(_s, 1)
+_b3 = _cb211.get_brand(_s, 3)
+_s.close()
+_st2, _r2 = _pdf_rasm211(A, O1)
+_g1 = js(A.get("/api/settings/company"))
+_g3 = js(C.get("/api/settings/company"))
+check("L3 yuklangan fayli yo'qolgan (sinov saytida — har yangilanishda): platforma egasining PDF ida — platforma logotipi (18 mm), "
+      "Sozlamalar ko'rinishi — platforma logotipi; boshqa korxonada — logotipsiz (begona logotip berilmaydi), Sozlamalarda ko'rinmaydi",
+      (_b1.get("logo") or "").endswith(os.path.join("static", "logo_transparent.png")) and _b3.get("logo") is None
+      and _st2 == 200 and isinstance(_r2, list) and len(_r2) >= 1 and abs(_r2[0][1] - 18) < 0.06
+      and _g1.get("logo_korinish") == "static/logo_transparent.png" and _g1.get("logo_path") == "static/uploads/logos/company_1_yoq211.png"
+      and "logo_korinish" in _g3 and _g3.get("logo_korinish") is None, (_b1.get("logo"), _b3.get("logo"), _st2, _r2, _g1.get("logo_korinish"), _g3))
+_s = SessionLocal()
+_s.get(Company, 1).logo_path = "static/logo_transparent.png"
+_s.get(Company, 3).logo_path = None
+_s.commit()
+_s.close()
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+section("T. 3 tagacha telefon (egasi QARORI 24.10 04:09: Sozlamalardan — HAMMA hujjatlarda)")
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+from models import Delivery as _Dlv211     # noqa: E402
+
+
+def _pdf_matn211(c, url):
+    """PDF ning hamma sahifalari matni (U+00A0 — oddiy bo'shliq); (holat, matn)"""
+    r = c.get(url)
+    try:
+        import pdfplumber
+        with pdfplumber.open(io.BytesIO(r.content)) as p:
+            return r.status_code, " ".join((pg.extract_text() or "") for pg in p.pages).replace(" ", " ")
+    except Exception as e:                 # noqa: BLE001
+        return r.status_code, f"XATO {type(e).__name__}: {e}"[:200]
+
+
+TEL1, TEL2, TEL3 = "+998 97 999 57 57", "+998 90 123 45 67", "+998 91 765 43 21"
+_g0 = js(A.get("/api/settings/company"))
+_asosiy211 = {"name": _g0.get("name") or "PenodecorPro", "slogan": "Fasad bezaklari", "phone": TEL1, "address": "Andijon", "tg_tagline": ""}
+_rs1 = A.put("/api/settings/company", data=dict(_asosiy211, phone2=TEL2, phone3=TEL3, tel_v="2"))
+_g1 = js(A.get("/api/settings/company"))
+_s = SessionLocal()
+_jt = [(a.new_value or "") for a in _s.query(ActivityLog).filter(ActivityLog.company_id == 1, ActivityLog.entity_type == "company_settings")
+       .order_by(ActivityLog.id.desc()).limit(1).all()]
+_s.close()
+check("T1 Sozlamalar: «Telefon 2», «Telefon 3» saqlanadi va qaytadi (avval yo'q — bo'sh); o'zgarish «Audit jurnali» da",
+      "phone2" in _g0 and _g0.get("phone2") is None and _g0.get("phone3") is None and _rs1.status_code == 200
+      and _g1.get("phone") == TEL1 and _g1.get("phone2") == TEL2 and _g1.get("phone3") == TEL3
+      and bool(_jt) and f"Telefon 2: «» → «{TEL2}»" in _jt[0] and f"Telefon 3: «» → «{TEL3}»" in _jt[0], (_g0, _rs1.status_code, _g1, _jt))
+# eski ochiq sahifa / skript — yangi maydonlarni bilmaydi (`tel_v` siz): 2- va 3-telefon O'ZGARMAYDI
+_rs2 = A.put("/api/settings/company", data=dict(_asosiy211))
+_g2 = js(A.get("/api/settings/company"))
+_rs3 = A.put("/api/settings/company", data=dict(_asosiy211, phone2="9" * 61, phone3=TEL3, tel_v="2"))
+_g3 = js(A.get("/api/settings/company"))
+check("T2 `tel_v` siz so'rov (eski sahifa) 2- va 3-telefonni o'chirmaydi; 60 belgidan uzun — 400, hech narsa o'zgarmaydi",
+      _rs2.status_code == 200 and _g2.get("phone2") == TEL2 and _g2.get("phone3") == TEL3 and _rs3.status_code == 400
+      and "Telefon 2" in _rs3.text and _g3.get("phone2") == TEL2, (_rs2.status_code, _g2, _rs3.status_code, _rs3.text[:200], _g3))
+_s = SessionLocal()
+_bt1 = _cb211.get_brand(_s, 1)
+_bt3 = _cb211.get_brand(_s, 3)
+_s.close()
+_nb = lambda x: x.replace(" ", " ")
+check("T3 hujjat brendi: 3 ta telefon; sarlavha ostida 2 qator — «Fasad bezaklari · Andijon» va «Tel: 1 · 2 · 3» (raqam ichida qator "
+      "bo'linmaydi — U+00A0); boshqa korxonaga bu raqamlar o'tmaydi",
+      _bt1.get("telefonlar") == [TEL1, TEL2, TEL3]
+      and _bt1.get("subtitle_qatorlar") == ["Fasad bezaklari  ·  Andijon", f"Tel: {_nb(TEL1)}  ·  {_nb(TEL2)}  ·  {_nb(TEL3)}"]
+      and _bt1.get("phone") == TEL1 and _bt3.get("telefonlar") == [] and TEL2 not in str(_bt3), (_bt1, _bt3))
+_s = SessionLocal()
+_dv = _s.query(_Dlv211).join(Order, Order.id == _Dlv211.order_id).filter(Order.company_id == 1).order_by(_Dlv211.id).first()
+_dv_id, _dv_ord = (_dv.id, _dv.order_id) if _dv is not None else (None, None)
+_s.close()
+_hujjatlar = {"yuk xati": f"/api/deliveries/{_dv_id}/pdf", "buyurtma hisobi": f"/api/orders/{O1}/pdf", "taklif": f"/api/takliflar/{_tid}/pdf",
+              "yakuniy hisob": f"/api/orders/{_dv_ord}/summary-pdf", "yuk xatlari jamlanmasi": f"/api/projects/{ID['P1']}/yuk-xatlari/jamlama-pdf",
+              "moliya hisoboti": f"/api/finance/report-pdf?year={datetime.date.today().year}&month={datetime.date.today().month}"}
+_hm = {k: _pdf_matn211(A, u) for k, u in _hujjatlar.items()}
+_hy = {k: (v[0], [x for x in (TEL1, TEL2, TEL3, "Tel:") if x not in v[1]]) for k, v in _hm.items()}
+check("T4 HAMMA hujjatlarda 3 ta telefon («Tel: …»): yuk xati, buyurtma hisobi, taklif, yakuniy hisob, yuk xatlari jamlanmasi, moliya hisoboti",
+      _dv_id is not None and all(v[0] == 200 and not v[1] for v in _hy.values()), _hy)
+# bitta telefon — hujjat AYNAN avvalgidek (bitta qator, «Tel:» yo'q)
+_rs4 = A.put("/api/settings/company", data=dict(_asosiy211, phone2="", phone3="", tel_v="2"))
+_s = SessionLocal()
+_bt1b = _cb211.get_brand(_s, 1)
+_s.close()
+_hb = {k: _pdf_matn211(A, _hujjatlar[k]) for k in ("yuk xati", "buyurtma hisobi")}
+check("T5 faqat bitta telefon — avvalgidek: «Fasad bezaklari · Andijon · +998 97 999 57 57» bitta qatorda, «Tel:» yo'q (bo'sh maydon "
+      "`tel_v=2` bilan — tozalanadi)",
+      _rs4.status_code == 200 and _bt1b.get("telefonlar") == [TEL1]
+      and _bt1b.get("subtitle_qatorlar") == [f"Fasad bezaklari  ·  Andijon  ·  {TEL1}"] and _bt1b.get("subtitle") == f"Fasad bezaklari  ·  Andijon  ·  {TEL1}"
+      and all(v[0] == 200 and TEL1 in v[1] and "Tel:" not in v[1] and TEL2 not in v[1] for v in _hb.values()),
+      (_rs4.status_code, _bt1b, {k: (v[0], v[1][:300]) for k, v in _hb.items()}))
+check("T6 sarlavha osti — barcha hujjat turlarida yagona yordamchi (`_sarlavha_osti`: yuk xati, sotuv cheki, guruh cheki, yakuniy hisob, "
+      "jamlanma — 5 joy; moliya hisoboti — 1), eski bitta qatorli chaqiruv qolmagan",
+      open(os.path.join(ROOT, "delivery_pdf.py"), encoding="utf-8").read().count("Paragraph(_sarlavha_osti(_brand), st_sub)") == 5
+      and 'Paragraph(_x(_brand["subtitle"])' not in open(os.path.join(ROOT, "delivery_pdf.py"), encoding="utf-8").read()
+      and "Paragraph(_sarlavha_osti(_brand), _ps('s', fontSize=8, textColor=GOLD))" in open(os.path.join(ROOT, "finance_pdf.py"), encoding="utf-8").read())
+A.put("/api/settings/company", data=dict(_asosiy211, phone=_g0.get("phone") or "", slogan=_g0.get("slogan") or "",
+                                          address=_g0.get("address") or "", phone2="", phone3="", tel_v="2"))
+if PG_URL:
+    # ishga tushish migratsiyasi (faqat PostgreSQL — asosiy va sinov sayti): eski baza (ustunlarsiz) — `phone2`, `phone3` qo'shiladi
+    from database import engine as _eng211
+    with _eng211.connect() as _c211:
+        _c211.execute(text("ALTER TABLE companies DROP COLUMN IF EXISTS phone2"))
+        _c211.execute(text("ALTER TABLE companies DROP COLUMN IF EXISTS phone3"))
+        _c211.commit()
+    with contextlib.redirect_stdout(io.StringIO()):
+        main._migrate_faza3_columns()
+    with _eng211.connect() as _c211:
+        _ust211 = {r[0] for r in _c211.execute(text("SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' "
+                                                     "AND table_name = 'companies'"))}
+    _g7 = js(A.get("/api/settings/company"))
+    check("T7 [PG] eski baza (ustunlarsiz) — ishga tushishda `companies.phone2`, `phone3` qo'shiladi; Sozlamalar ishlaydi",
+          {"phone2", "phone3"} <= _ust211 and "phone2" in _g7 and _g7.get("phone2") is None, (sorted(_ust211), _g7))
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+section("U. HAQIQIY brauzer")
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+if PG_URL:
+    print("  (PG rejimida UI bo'limi o'tkazib yuboriladi — SQLite / TF1 da)")
+else:
+    import glob
+    import socket
+    import threading
+    import uvicorn
+    from playwright.sync_api import sync_playwright
+    _sk = socket.socket()
+    _sk.bind(("127.0.0.1", 0))
+    PORT = _sk.getsockname()[1]
+    _sk.close()
+    _srv = uvicorn.Server(uvicorn.Config(main.app, host="127.0.0.1", port=PORT, log_level="error", lifespan="off"))
+    threading.Thread(target=_srv.run, daemon=True).start()
+    while not _srv.started:
+        time.sleep(0.1)
+    BASE = f"http://127.0.0.1:{PORT}"
+    _exe = sorted(glob.glob("/opt/pw-browsers/chromium-*/chrome-linux/chrome"))
+    XATOLAR = []
+    # eski (zip 211 dan oldingi) qoplamali blok yozuvi — C korxonada (ustunlar bo'sh, narx `notes` da: yakuniy 1 500 001 / 40 m)
+    _s = SessionLocal()
+    _rc = Recipe(company_id=3, name="C qoplama retsepti")       # qoplamali buyurtma tahriri retseptsiz saqlanmaydi (54-band)
+    _s.add(_rc)
+    _s.flush()
+    _eo = Order(company_id=3, order_number="ORD-ESKI-1", project_id=ID["PC"], order_type=OrderType.PRODUCT, total_amount=750_000.6,
+                agreed_amount=750_000.6, status=OrderStatus.IN_PROGRESS, deadline=datetime.datetime(2026, 12, 1),
+                qoplama_retsept_id=_rc.id)
+    _s.add(_eo)
+    _s.flush()
+    _s.add(OrderItem(company_id=3, order_id=_eo.id, name="Eski qoplamali blok", category="blok", length=0.5, quantity=20,
+                     unit_price=37500.03, total_price=750_000.6, is_coated=True, penoplast_id=ID["PENO_C"], recipe_id=_rc.id,
+                     notes="blok_narxi=1500001.25,blok_yield=40"))
+    _s.commit()
+    ID["ESKI"] = _eo.id
+    _po = Order(company_id=3, order_number="ORD-PROFIL-1", project_id=ID["PC"], order_type=OrderType.PRODUCT, total_amount=50_000,
+                agreed_amount=50_000, status=OrderStatus.IN_PROGRESS, deadline=datetime.datetime(2026, 12, 1), base_price=1_000_000)
+    _s.add(_po)
+    _s.flush()
+    _s.add(OrderItem(company_id=3, order_id=_po.id, name="Eski profil", category="profil", width=10, thickness=10, length=10, quantity=1,
+                     unit_price=50_000, total_price=50_000, is_coated=False, penoplast_id=ID["PENO_C"]))
+    _s.commit()
+    ID["PROFIL_C"] = _po.id
+    _eo2 = Order(company_id=3, order_number="ORD-ESKI-2", project_id=ID["PC"], order_type=OrderType.PRODUCT, total_amount=50_001,
+                 agreed_amount=50_001, status=OrderStatus.IN_PROGRESS, deadline=datetime.datetime(2026, 12, 1), qoplama_retsept_id=_rc.id)
+    _s.add(_eo2)
+    _s.flush()
+    _s.add(OrderItem(company_id=3, order_id=_eo2.id, name="Eski yarim tiyin blok", category="blok", length=50, quantity=100,
+                     unit_price=500.01, total_price=50_001, is_coated=True, penoplast_id=ID["PENO_C"], recipe_id=_rc.id,
+                     notes="blok_narxi=1000.01,blok_yield=2"))
+    _s.commit()
+    ID["ESKI2"] = _eo2.id
+    _s.close()
+
+    def _ui():
+      with sync_playwright() as pw:
+          br = pw.chromium.launch(executable_path=_exe[-1] if _exe else None)
+
+          def kontekst(login, w=1440, h=900):
+              ctx = br.new_context(viewport={"width": w, "height": h}, timezone_id="Asia/Tashkent")
+              ctx.route("**/*", lambda r: r.fulfill(status=204, body="") if not r.request.url.startswith(BASE) else r.continue_())
+              pg = ctx.new_page()
+              pg.set_default_timeout(10000)
+              pg.on("pageerror", lambda e: XATOLAR.append(str(e)[:200]))
+              pg.on("dialog", lambda d: d.accept())
+              pg.goto(BASE + "/login")
+              pg.fill("input[name=username]", login)
+              pg.fill("input[name=password]", PAROL)
+              pg.press("input[name=password]", "Enter")
+              pg.wait_for_load_state("networkidle")
+              return ctx, pg
+
+          def qator_holati(pg):
+              return pg.evaluate("""() => { const r = document.querySelector('#items .detal'); const v = s => r.querySelector(s);
+                  const korinadi = s => { const e = s.startsWith('#') ? document.querySelector(s) : v(s); return !!e && e.offsetParent !== null; };
+                  return {tur: v('.i-type').value, turlar: [...r.querySelectorAll('.type-opt')].map(o => o.textContent.trim()),
+                    variantlar: [...v('.i-type').options].map(o => o.value), birlik: v('.i-blokunit').value,
+                    faol: [...r.querySelectorAll('.blokunit-opt.active')].map(o => o.textContent.trim()),
+                    lYorliq: v('.i-l-label').textContent, qYorliq: v('.i-q-label').textContent, permYorliq: v('.i-perm-label').textContent,
+                    perm: v('.i-perm').value, jami: v('.i-price').value, hajm: v('.i-vol').value,
+                    blokNarx: korinadi('.i-blokprice'), m3: korinadi('.i-m3price'), koef: korinadi('.i-blokmult'), birlikTanlov: korinadi('.blokunit-toggle'),
+                    eni: korinadi('.i-h'), qalin: korinadi('.i-t'), chiqishi: korinadi('.i-l'), upNarx: korinadi('.i-unitprice'),
+                    m2Tugma: korinadi('.blokunit-opt[data-value="m2"]'), olcham: korinadi('.i-dims-box'),
+                    kubAsosiy: korinadi('#base_price'), blokAsosiy: korinadi('#blok_base_price')}; }""")
+
+          def tasdiqla(pg, marta=3):
+              # `updateOrder` va boshqalar tasdiq oynasini (`showConfirmModal` — #genericConfirmOk) kutadi: so'rov ketishi uchun bosiladi
+              for _ in range(marta):
+                  pg.wait_for_timeout(500)
+                  if not pg.evaluate("() => { const b = document.getElementById('genericConfirmOk'); if (b && b.offsetParent !== null) { b.click(); return true; } return false; }"):
+                      break
+
+          def yoz(pg, sel, qiymat):
+              pg.evaluate("""([sel, q]) => { const r = document.querySelector('#items .detal'); const e = sel.startsWith('#') ? document.querySelector(sel)
+                  : r.querySelector(sel); e.value = q; e.dispatchEvent(new Event('input', {bubbles: true})); }""", [sel, qiymat])
+              pg.wait_for_timeout(60)
+
+          ctx, pg = kontekst("k211_c")
+          pg.goto(BASE + "/orders", wait_until="networkidle")
+          pg.evaluate("() => { showNewForm(); }")
+          pg.wait_for_timeout(400)
+          h0 = qator_holati(pg)
+          check("U1 faqat Blok yoqiq korxona: tur tugmasi faqat «🧊 Blok», tanlovda faqat blok; yangi detal — Blok; «1 m³ asosiy narxi» yo'q, "
+                "«1 blok asosiy narxi» bor",
+                h0["turlar"] == ["🧊 Blok"] and h0["variantlar"] == ["blok"] and h0["tur"] == "blok" and not h0["kubAsosiy"] and h0["blokAsosiy"], h0)
+          # egasi QARORI (24.10 06:04 — soddalashtirish): Eni / Qalinlik («O'lcham» guruhi) va «m²» yo'q — chiqishi va kerak yetarli
+          check("U2 blok detal maydonlari: birlik tanlovi (m tanlangan; faqat m / ta — «m²» yo'q), Eni / Qalinlik YO'Q («O'lcham» guruhi "
+                "yashirin — egasi QARORI 24.10), chiqishi, «1 blok narxi», koeffitsient; «1 m³ narxi» yo'q",
+                h0["birlikTanlov"] and h0["faol"] == ["m"] and not h0["m2Tugma"] and not h0["eni"] and not h0["qalin"] and not h0["olcham"]
+                and h0["chiqishi"] and h0["blokNarx"] and h0["koef"] and not h0["m3"] and h0["lYorliq"] == "1 blokdan chiqadigan m", h0)
+          yoz(pg, ".i-name", "Rozetka R-1")
+          pg.evaluate("() => document.querySelector('#items .detal .blokunit-opt[data-value=\"dona\"]').click()")
+          yoz(pg, "#blok_base_price", "600 000")
+          yoz(pg, ".i-l", "200")
+          yoz(pg, ".i-q", "50")
+          h1 = qator_holati(pg)
+          bosh = lambda x: str(x).replace(" ", " ").replace(" ", " ")   # noqa: E731
+          check("U3 ta: yorliqlar «1 blokdan chiqadigan ta» / «Necha ta kerak» / «1 ta narxi»; 600 000 ÷ 200 = 3 000, × 50 = 150 000; "
+                "hajm 0,25 blok", h1["birlik"] == "dona" and h1["faol"] == ["ta"] and h1["lYorliq"] == "1 blokdan chiqadigan ta"
+                and h1["qYorliq"] == "Necha ta kerak" and h1["permYorliq"] == "1 ta narxi" and bosh(h1["perm"]) == "3 000"
+                and bosh(h1["jami"]) == "150 000" and "0,25 blok" in bosh(h1["hajm"]), h1)
+          pg.evaluate("() => document.querySelector('#items .detal .coat-yes').click()")
+          pg.wait_for_timeout(80)
+          h2 = qator_holati(pg)
+          yoz(pg, ".i-blokmult", "1.5")
+          h3 = qator_holati(pg)
+          yoz(pg, ".i-blokprice", "500 000")
+          h4 = qator_holati(pg)
+          check("U4 qoplama «Bor» — ×2 (300 000); koeffitsient 1,5 — 225 000; o'z blok narxi 500 000 (asosiydan ustun) — 2 500 × 1,5 = 3 750, "
+                "jami 187 500", bosh(h2["jami"]) == "300 000" and bosh(h3["jami"]) == "225 000" and bosh(h4["perm"]) == "3 750"
+                and bosh(h4["jami"]) == "187 500", [h2["jami"], h3["jami"], h4["perm"], h4["jami"]])
+          pg.evaluate("() => document.querySelector('#items .detal .coat-no').click()")
+          yoz(pg, ".i-blokprice", "")
+          _m2y = qator_holati(pg)["m2Tugma"]
+          # avval m² da saqlangan detal — tahrirda tiklanganidek (birlik maydoni + `syncBlokUnitUI` + `toggleFields`)
+          pg.evaluate("""() => { const r = document.querySelector('#items .detal'); r.querySelector('.i-blokunit').value = 'm2';
+              syncBlokUnitUI(r); toggleFields(r); calculateItem(r); }""")
+          yoz(pg, ".i-l", "25")
+          yoz(pg, ".i-q", "30")
+          h5 = qator_holati(pg)
+          check("U5 yangi detalda «m²» tugmasi yo'q (egasi QARORI 24.10); avval m² da saqlangan detal — o'z birligida («m²» ko'rinadi): "
+                "«1 blokdan chiqadigan m²», «Necha m² kerak», «1 m² narxi»; asosiy 600 000 ÷ 25 = 24 000, × 30 = 720 000",
+                not _m2y and h5["m2Tugma"] and h5["faol"] == ["m²"]
+                and h5["lYorliq"] == "1 blokdan chiqadigan m²" and h5["qYorliq"] == "Necha m² kerak" and h5["permYorliq"] == "1 m² narxi"
+                and bosh(h5["perm"]) == "24 000" and bosh(h5["jami"]) == "720 000", (_m2y, h5))
+          pg.evaluate("() => document.querySelector('#items .detal .blokunit-opt[data-value=\"dona\"]').click()")
+          yoz(pg, ".i-l", "200")
+          yoz(pg, ".i-q", "50")
+          yoz(pg, ".i-blokprice", "500 000")
+          pg.evaluate(f"() => {{ document.getElementById('project_id').value = '{ID['PC']}'; document.getElementById('deadline_input').value = '2026-12-01'; }}")
+          # «1 blokdan chiqadigan» bo'sh — saqlanmaydi
+          yoz(pg, ".i-l", "")
+          pg.evaluate("() => { saveOrder(); }")
+          pg.wait_for_timeout(700)
+          _val = pg.evaluate("() => { const m = document.getElementById('validationModal'); return m && m.style.display === 'flex' ? m.textContent : ''; }")
+          check("U6 «1 blokdan chiqadigan ta» bo'sh — saqlanmaydi (kamchiliklar oynasi shu sabab bilan)", "1 blokdan chiqadigan ta" in _val, _val[:300])
+          pg.evaluate("() => closeValidationModal()")
+          yoz(pg, ".i-l", "200")
+          _oldin = {o["id"] for o in (js(C.get("/api/orders")) or [])}
+          pg.evaluate("() => { saveOrder(); }")
+          tasdiqla(pg)
+          pg.wait_for_timeout(1500)
+          _yangi = [o for o in (js(C.get("/api/orders")) or []) if o["id"] not in _oldin]
+          OU = _yangi[0]["id"] if _yangi else None
+          _du = detallar(C, OU) if OU else {}
+          _iu = (_du.get("items") or [{}])[0]
+          check("U7 saqlandi: birlik dona, chiqishi 200, o'z blok narxi 500 000, koeffitsient 1,5 (qoplamasiz), o'lcham yozilmaydi (Eni / "
+                "Qalinlik yo'q), 1 ta 2 500, jami 125 000; asosiy narx 600 000",
+                _iu.get("blok_birlik") == "dona" and yaqin(_iu.get("blok_chiqishi"), 200) and yaqin(_iu.get("blok_narxi"), 500_000)
+                and yaqin(_iu.get("blok_koef"), 1.5) and not _iu.get("width") and not _iu.get("thickness")
+                and yaqin(_iu.get("unit_price"), 2500) and yaqin(_iu.get("total_price"), 125_000) and yaqin(_du.get("blok_base_price"), 600_000)
+                and yaqin(_iu.get("length"), 0.25, 1e-9), (_du.get("blok_base_price"), _iu))
+          if OU:
+              # avval (soddalashtirishdan oldin) o'lcham bilan saqlangan blok detal — tahrirda o'lcham o'zgarmasligi kerak
+              _s = SessionLocal()
+              _oiu = _s.query(OrderItem).filter(OrderItem.order_id == OU).first()
+              if _oiu is not None:
+                  _oiu.width, _oiu.thickness = 12, 3
+                  _s.commit()
+              _s.close()
+              pg.goto(f"{BASE}/orders?order={OU}", wait_until="networkidle")
+              pg.wait_for_timeout(700)
+              pg.evaluate("() => { editSelected(); }")
+              pg.wait_for_timeout(1300)
+              h6 = qator_holati(pg)
+              _maydon = pg.evaluate("""() => { const r = document.querySelector('#items .detal');
+                  return {l: r.querySelector('.i-l').value, q: r.querySelector('.i-q').value, bp: r.querySelector('.i-blokprice').value,
+                          k: r.querySelector('.i-blokmult').value, h: r.querySelector('.i-h').value, t: r.querySelector('.i-t').value,
+                          asosiy: document.getElementById('blok_base_price').value}; }""")
+              check("U8 tahrirda tiklandi: «ta» tanlangan, chiqishi 200, kerak 50, o'z narxi 500 000, koeffitsient 1,5, asosiy 600 000; "
+                    "jami 125 000; avval saqlangan o'lcham (12 / 3) — yashirin maydonda turadi (Eni / Qalinlik ko'rinmaydi)",
+                    h6["faol"] == ["ta"] and not h6["eni"] and not h6["qalin"] and _maydon["l"] == "200" and _maydon["q"] == "50" and bosh(_maydon["bp"]) == "500 000"
+                    and _maydon["k"] == "1.5" and _maydon["h"] == "12" and _maydon["t"] == "3" and bosh(_maydon["asosiy"]) == "600 000"
+                    and bosh(h6["jami"]) == "125 000", (h6, _maydon))
+              # birlik m ↔ ta almashtirilib qaytarilsa ham (forma qayta chiziladi — `toggleFields`) avvalgi o'lcham o'chmasin
+              pg.evaluate("""() => { const r = document.querySelector('#items .detal');
+                  r.querySelector('.blokunit-opt[data-value="metr"]').click(); r.querySelector('.blokunit-opt[data-value="dona"]').click(); }""")
+              pg.wait_for_timeout(200)
+              pg.evaluate(f"() => {{ updateOrder({OU}); }}")
+              tasdiqla(pg)
+              pg.wait_for_timeout(1500)
+              _du2 = detallar(C, OU)
+              check("U9 o'zgarishsiz saqlash (birlik m ↔ ta almashtirilib qaytarilgandan keyin ham) — summa va blok maydonlari o'zgarmadi, "
+                    "avval saqlangan o'lcham (12 / 3) o'chmadi",
+                    yaqin(_du2.get("total_amount"), 125_000) and (_du2.get("items") or [{}])[0].get("blok_birlik") == "dona"
+                    and (_du2.get("items") or [{}])[0].get("width") == 12 and (_du2.get("items") or [{}])[0].get("thickness") == 3,
+                    (_du2.get("total_amount"), (_du2.get("items") or [{}])[0]))
+          # eski qoplamali yozuv
+          pg.goto(f"{BASE}/orders?order={ID['ESKI']}", wait_until="networkidle")
+          pg.wait_for_timeout(700)
+          pg.evaluate("() => { editSelected(); }")
+          pg.wait_for_timeout(1300)
+          h7 = qator_holati(pg)
+          _m7 = pg.evaluate("""() => { const r = document.querySelector('#items .detal');
+              return {l: r.querySelector('.i-l').value, bp: r.querySelector('.i-blokprice').value, k: r.querySelector('.i-blokmult').value}; }""")
+          check("U10 eski (zip 211 dan oldingi) qoplamali blok: metr, chiqishi 40, o'z narxi = 1 500 001,25 ÷ 2 = 750 000,63 (maydonda), "
+                "koeffitsient 2; 1 m narxi o'zgarmadi (37 500,03)",
+                h7["faol"] == ["m"] and _m7["l"] == "40" and bosh(_m7["bp"]) == "750 000.63" and _m7["k"] == "2"
+                and bosh(h7["perm"]) in ("37 500", "37 500,03"), (h7, _m7))
+          pg.evaluate(f"() => {{ updateOrder({ID['ESKI']}); }}")
+          tasdiqla(pg)
+          pg.wait_for_timeout(1500)
+          _de = detallar(C, ID["ESKI"])
+          _ie = (_de.get("items") or [{}])[0]
+          check("U11 eski yozuvni o'zgarishsiz saqlash — 1 m narxi (37 500,03) va jami O'ZGARMADI, endi ustunlar to'ldirildi (metr, 40, koef 2)",
+                yaqin(_ie.get("unit_price"), 37500.03, 0.0001) and yaqin(_ie.get("total_price"), 750_000.6, 0.0001)
+                and _ie.get("blok_birlik") == "metr" and yaqin(_ie.get("blok_chiqishi"), 40) and yaqin(_ie.get("blok_koef"), 2), _ie)
+          # review211 №8: eski qoplamali yozuv — yarim tiyinli blok narxi (1 000,01 ÷ 2 = 500,005)
+          pg.goto(f"{BASE}/orders?order={ID['ESKI2']}", wait_until="networkidle")
+          pg.wait_for_timeout(700)
+          pg.evaluate("() => { editSelected(); }")
+          pg.wait_for_timeout(1300)
+          pg.evaluate(f"() => {{ updateOrder({ID['ESKI2']}); }}")
+          tasdiqla(pg)
+          pg.wait_for_timeout(1500)
+          _ie2 = (detallar(C, ID["ESKI2"]).get("items") or [{}])[0]
+          check("U11c eski qoplamali yozuv (1 000,01 / 2 m, 100 m) o'zgarishsiz saqlandi — 1 m 500,01, jami 50 001 (ilgari 500,00 / 50 000)",
+                yaqin(_ie2.get("unit_price"), 500.01, 0.0001) and yaqin(_ie2.get("total_price"), 50_001, 0.0001) and _ie2.get("blok_birlik") == "metr",
+                _ie2)
+          _yb = pg.evaluate("() => [yetkazishBirligi('metr'), yetkazishBirligi('dona'), yetkazishBirligi('m²'), yetkazishBirligi('kg'), "
+                            "yetkazishBirligi('m²', false), yetkazishBirligi('')]")
+          check("U11d yetkazish oynalari / tavsiya birligi (review211 №3 / №5): metr «m», dona « ta», m² « m²», kg « kg»",
+                _yb == ["m", " ta", " m²", " kg", "m²", " ta"], _yb)
+          # yashirin (Profil) turdagi mavjud detal — shu qatorga tugma; «1 m³ asosiy narxi» ko'rinadi, narx o'zgarmaydi
+          pg.goto(f"{BASE}/orders?order={ID['PROFIL_C']}", wait_until="networkidle")
+          pg.wait_for_timeout(700)
+          pg.evaluate("() => { editSelected(); }")
+          pg.wait_for_timeout(1300)
+          hp = qator_holati(pg)
+          check("U11b faqat Blok korxonada mavjud PROFIL detal: shu qatorga «📏 Profil» tugmasi va varianti, «1 m³ asosiy narxi» ko'rinadi, "
+                "jami 50 000 (o'zgarmadi)", "📏 Profil" in hp["turlar"] and "profil" in hp["variantlar"] and hp["tur"] == "profil"
+                and hp["kubAsosiy"] and bosh(hp["jami"]) == "50 000", hp)
+          # telefon
+          ctxt, pgt = kontekst("k211_c", 390, 844)
+          pgt.goto(BASE + "/orders", wait_until="networkidle")
+          pgt.evaluate("() => { showNewForm(); }")
+          pgt.wait_for_timeout(400)
+          _sur = pgt.evaluate("() => document.documentElement.scrollWidth - document.documentElement.clientWidth")
+          _tl = pgt.evaluate("""() => { const t = document.querySelector('#items .detal .blokunit-toggle').getBoundingClientRect();
+              return {w: t.width, right: t.right, vw: window.innerWidth}; }""")
+          check("U12 telefon 390 px: gorizontal surilish yo'q, birlik tanlovi ekranda", _sur <= 0 and _tl["right"] <= _tl["vw"] and _tl["w"] > 100,
+                (_sur, _tl))
+          ctxt.close()
+          # qoralama: blok asosiy narxi va birlik tiklanadi
+          pg.goto(BASE + "/orders", wait_until="networkidle")
+          pg.evaluate("() => { localStorage.clear(); showNewForm(); }")
+          pg.wait_for_timeout(300)
+          yoz(pg, ".i-name", "Qoralama plita")
+          pg.evaluate("() => document.querySelector('#items .detal .blokunit-opt[data-value=\"m2\"]').click()")
+          yoz(pg, "#blok_base_price", "550 000")
+          yoz(pg, ".i-l", "22")
+          yoz(pg, ".i-q", "11")
+          pg.evaluate(f"() => {{ document.getElementById('project_id').value = '{ID['PC']}'; saveDraftLS(); }}")
+          pg.wait_for_timeout(200)
+          _dr = pg.evaluate("() => localStorage.getItem(ORDER_DRAFT_LS_KEY)")
+          # sahifa yangidan ochilgandek: forma yopiladi va «1 blok asosiy narxi» maydoni bo'shatiladi — qiymat FAQAT qoralamadan tiklanishi kerak
+          pg.evaluate("() => { hideNewForm(); const b = document.getElementById('blok_base_price'); if (b) b.value = ''; }")
+          pg.evaluate("(d) => { restoreDraftLS(JSON.parse(d)); }", _dr)
+          pg.wait_for_timeout(500)
+          h8 = qator_holati(pg)
+          _ab = pg.evaluate("() => document.getElementById('blok_base_price').value")
+          check("U13 qoralama: «1 blok asosiy narxi» 550 000, birlik m², yorliqlar m², 550 000 ÷ 22 × 11 = 275 000",
+                bosh(_ab) == "550 000" and h8["faol"] == ["m²"] and h8["qYorliq"] == "Necha m² kerak" and bosh(h8["jami"]) == "275 000", (_ab, h8))
+          # Sozlamalar sahifasi
+          pg.goto(BASE + "/sozlamalar", wait_until="networkidle")
+          pg.wait_for_timeout(600)
+          _cb = pg.evaluate("() => [...document.querySelectorAll('.cat-cb')].map(c => [c.value, c.checked])")
+          PUTLAR = []
+          pg.on("request", lambda q: PUTLAR.append(q.post_data or "") if (q.method == "PUT" and "/api/settings/categories" in q.url) else None)
+          pg.evaluate("() => { document.querySelectorAll('.cat-cb').forEach(c => c.checked = false); saveCategories(); }")
+          pg.wait_for_timeout(500)
+          _xab = pg.evaluate("() => document.getElementById('cat-status').textContent")
+          check("U14 Sozlamalar: 6 tur (faqat Blok belgilangan); hammasini o'chirib «Saqlash» — so'rov YUBORILMAYDI, «Kamida bitta …» xabari",
+                [x[0] for x in _cb] == ["profil", "panel", "dona", "blok", "loy_sotish", "mrp_product"] and [x[0] for x in _cb if x[1]] == ["blok"]
+                and not PUTLAR and "Kamida bitta" in _xab, (_cb, PUTLAR, _xab))
+          pg.evaluate("() => { document.querySelectorAll('.cat-cb').forEach(c => c.checked = ['blok', 'loy_sotish'].includes(c.value)); saveCategories(); }")
+          pg.wait_for_timeout(1500)
+          check("U15 «Blok, Loy sotish» saqlandi (`v=2` bilan) — server holati shu", PUTLAR and "v" in PUTLAR[-1]
+                and turlar(C) == {"profil": False, "panel": False, "dona": False, "blok": True, "loy_sotish": True, "mrp_product": False},
+                (PUTLAR[-1:], turlar(C)))
+          C.put("/api/settings/categories", data={"codes": "blok", "v": "2"})
+          # Tayyor mahsulotlar — blok ishlab chiqarish
+          pg.goto(BASE + "/finished", wait_until="networkidle")
+          pg.wait_for_timeout(500)
+          pg.evaluate("() => openProduceModal()")
+          pg.wait_for_timeout(300)
+          _tm = pg.evaluate("""() => ({turlar: [...document.querySelectorAll('#p-type-toggle .type-opt')].map(o => o.textContent.trim()),
+              tur: document.getElementById('p-type').value, birlik: document.getElementById('p-blokunit-wrap').offsetParent !== null,
+              m3: document.getElementById('p-m3').offsetParent !== null,
+              m2: document.querySelector('#p-blokunit-toggle .blokunit-opt[data-value="m2"]').offsetParent !== null,
+              eni: document.getElementById('p-h-wrap').offsetParent !== null, qalin: document.getElementById('p-t-wrap').offsetParent !== null})""")
+          check("U16 Tayyor mahsulotlar oynasi: tur faqat «🧊 Blok», birlik tanlovi bor (m / ta — «m²» yo'q), Eni / Qalinligi yo'q (egasi "
+                "QARORI 24.10), «1 m³ narxi» yo'q", _tm["turlar"] == ["🧊 Blok"]
+                and _tm["tur"] == "blok" and _tm["birlik"] and not _tm["m2"] and not _tm["eni"] and not _tm["qalin"] and not _tm["m3"], _tm)
+          pg.evaluate("""() => { const f = (id, v) => { const e = document.getElementById(id); e.value = v; e.dispatchEvent(new Event('input', {bubbles: true})); };
+              f('p-name', 'TM Rozetka C'); setPBlokUnit('dona'); f('p-l', '200'); f('p-q', '100'); f('p-blokprice', '450 000');
+              setPCoating(document.querySelector('#p-coat-toggle .coat-no'), false); }""")
+          pg.wait_for_timeout(200)
+          _pc = pg.evaluate("() => ({c: window._pCalc, lbl: document.getElementById('p-l-label').textContent, q: document.getElementById('p-q-label').textContent, u: document.getElementById('p-unit-label').textContent})")
+          _stc0 = stok(ID["PENO_C"])
+          pg.evaluate("() => { saveProduce(); }")
+          pg.wait_for_timeout(1500)
+          _s = SessionLocal()
+          _tmc = _s.query(FinishedProduct).filter(FinishedProduct.company_id == 3, FinishedProduct.name == "TM Rozetka C").first()
+          _tmc_d = None if _tmc is None else (_tmc.unit, float(_tmc.quantity), float(_tmc.unit_price), _tmc.id)
+          if _tmc is not None:
+              _tmc.production_status = ProductionStatus.READY
+              _s.commit()
+          _s.close()
+          check("U17 TM blok (ta): yorliqlar ta, 450 000 ÷ 200 = 2 250 so'm/ta; saqlandi — birlik «dona», 100, narx 2 250, ombordan 0,5 blok",
+                _pc["lbl"] == "1 blokdan chiqadigan ta" and _pc["q"] == "Necha ta kerak" and _pc["u"] == "dona"
+                and yaqin((_pc["c"] or {}).get("perUnitPrice"), 2250) and _tmc_d and _tmc_d[:3] == ("dona", 100.0, 2250.0)
+                and yaqin(_stc0 - stok(ID["PENO_C"]), 0.5, 1e-9), (_pc, _tmc_d, _stc0, stok(ID["PENO_C"])))
+          # buyurtmaga tayyor mahsulotdan
+          if _tmc_d:
+              pg.goto(BASE + "/orders", wait_until="networkidle")
+              pg.evaluate("() => { localStorage.clear(); showNewForm(); }")
+              pg.wait_for_timeout(300)
+              _fpj = js(C.get("/api/finished"))
+              _fpo = [f for f in (_fpj if isinstance(_fpj, list) else []) if f.get("id") == _tmc_d[3]]
+              if _fpo:
+                  pg.evaluate("""(fp) => { const r = document.querySelector('#items .detal'); const el = document.createElement('div');
+                      el.dataset.fp = JSON.stringify(fp); r.appendChild(el); pickFinished(el); }""", _fpo[0])
+                  pg.wait_for_timeout(300)
+                  yoz(pg, ".i-q", "30")
+                  h9 = qator_holati(pg)
+                  _lock = pg.evaluate("() => { const r = document.querySelector('#items .detal'); const before = r.querySelector('.i-blokunit').value; "
+                                      "r.querySelector('.blokunit-opt[data-value=\"m2\"]').click(); return [before, r.querySelector('.i-blokunit').value]; }")
+                  check("U18 buyurtmaga TM blok: birlik «ta» (mahsulotniki, o'zgarmaydi), «1 ta narxi» = 2 250 ko'rinadi, chiqishi / blok narxi "
+                        "yashirin; 30 × 2 250 = 67 500",
+                        h9["faol"] == ["ta"] and h9["upNarx"] and not h9["chiqishi"] and not h9["blokNarx"] and bosh(h9["jami"]) == "67 500"
+                        and _lock == ["dona", "dona"], (h9, _lock))
+              else:
+                  check("U18 buyurtmaga TM blok (mahsulot ro'yxatda)", False, _fpj)
+          # review211 №10: faqat MRP yoqiq korxona — mahsulot turi tanlanmagan MRP qatori saqlanmaydi
+          # oldingi (U18 — TM blok) forma qoralamasi sahifadan chiqishda saqlanib, keyingi ochilishda JIM tiklanadi (77-band — mo'ljallangan)
+          # — toza forma uchun shu sahifaning qoralama saqlovchisi o'chiriladi
+          pg.evaluate("() => { if (typeof saveDraftLS === 'function') { window.removeEventListener('pagehide', saveDraftLS); "
+                      "window.removeEventListener('beforeunload', saveDraftLS); } localStorage.clear(); }")
+          _rm = C.put("/api/settings/categories", data={"codes": "mrp_product", "v": "2"})
+          pg.goto(BASE + "/orders", wait_until="networkidle")
+          pg.evaluate("() => { localStorage.clear(); showNewForm(); }")
+          pg.wait_for_timeout(300)
+          yoz(pg, ".i-name", "MRP tanlanmagan")
+          yoz(pg, ".i-unitprice", "120 000")
+          pg.evaluate(f"() => {{ document.getElementById('project_id').value = '{ID['PC']}'; document.getElementById('deadline_input').value = '2026-12-01'; saveOrder(); }}")
+          pg.wait_for_timeout(700)
+          _vm = pg.evaluate("() => { const m = document.getElementById('validationModal'); return m && m.style.display === 'flex' ? m.textContent : ''; }")
+          _vd = pg.evaluate("""() => { const r = document.querySelector('#items .detal'); let k = null;
+              try { k = buyurtmaUmumiyKamchiliklar(collectItems()).map(x => x.text); } catch (e) { k = 'XATO ' + e.message; }
+              return {tur: r && r.querySelector('.i-type').value, nom: r && r.querySelector('.i-name').value, pt: r && r.dataset.mrpProductTypeId,
+                      kamchilik: k, edit: typeof editMode !== 'undefined' ? editMode : null, msg: (document.getElementById('msg') || {}).textContent,
+                      variant: r ? [...r.querySelectorAll('.i-type option')].map(o => o.value) : null,
+                      tugma: r ? [...r.querySelectorAll('.type-opt')].map(o => o.dataset.value) : null,
+                      qatorlar: document.querySelectorAll('#items .detal').length}; }""")
+          _vd["put"] = (_rm.status_code, _rm.text[:200], turlar(C))
+          check("U18b faqat MRP yoqiq korxona: qatorda faqat MRP turi; mahsulot turi tanlanmagan MRP qatori — saqlanmaydi («MRP mahsuloti "
+                "tanlanmagan»)",
+                "MRP mahsuloti tanlanmagan" in _vm and _vd.get("variant") == ["mrp_product"] and _vd.get("tugma") == ["mrp_product"],
+                (_vm[:300], _vd))
+          pg.evaluate("() => closeValidationModal()")
+          C.put("/api/settings/categories", data={"codes": "blok", "v": "2"})
+          ctx.close()
+          # A korxona (Blok yashirin) — mavjud blok detalli buyurtma
+          A.put("/api/settings/categories", data={"codes": "profil,panel,dona,loy_sotish,mrp_product", "v": "2"})
+          ctxa, pga = kontekst("k211_a")
+          pga.goto(f"{BASE}/orders?order={O2}", wait_until="networkidle")
+          pga.wait_for_timeout(700)
+          pga.evaluate("() => { editSelected(); }")
+          pga.wait_for_timeout(1300)
+          ha = qator_holati(pga)
+          check("U19 Blok yashirin korxonada mavjud blok detal: shu qatorga «🧊 Blok» tugmasi va varianti qo'shildi, birlik m² (topshirilgan — "
+                "o'zgarmaydi), «1 blok asosiy narxi» maydoni ko'rinadi",
+                "🧊 Blok" in ha["turlar"] and "blok" in ha["variantlar"] and ha["tur"] == "blok" and ha["faol"] == ["m²"] and ha["blokAsosiy"], ha)
+          _ch = pga.evaluate("() => { const r = document.querySelector('#items .detal'); r.querySelector('.blokunit-opt[data-value=\"metr\"]').click(); "
+                             "return r.querySelector('.i-blokunit').value; }")
+          check("U20 topshirilgan blok detal birligini UI da o'zgartirib bo'lmaydi (m² qoldi)", _ch == "m2", _ch)
+          pga.evaluate("() => { hideNewForm(); showNewForm(); }")
+          pga.wait_for_timeout(300)
+          hb = qator_holati(pga)
+          check("U21 o'sha korxonada YANGI detal — Blok yo'q (Profil, Panel, Donali, Loy sotish, MRP); «1 blok asosiy narxi» yashirin",
+                "🧊 Blok" not in hb["turlar"] and hb["variantlar"] == ["profil", "panel", "dona", "loy_sotish", "mrp_product"] and hb["kubAsosiy"]
+                and not hb["blokAsosiy"], hb)
+          ctxa.close()
+          # sinov saytida jonli sinov (24.10) topgani: 1440 px ekranda blok detal maydonlari 24 px ga tushardi (yozilgan son ko'rinmasdi);
+          # qoplama tugmasi doim «Bor (×2)» edi (koeffitsient 2,5 bo'lsa ham)
+          ctxw, pgw = kontekst("k211_c", 1440, 900)
+          pgw.goto(BASE + "/orders", wait_until="networkidle")
+          pgw.evaluate("() => { localStorage.clear(); showNewForm(); }")
+          pgw.wait_for_timeout(300)
+          _lw = pgw.evaluate("""() => { const r = document.querySelector('#items .detal'); const w = s => Math.round(r.querySelector(s).getBoundingClientRect().width);
+              const rw = r.getBoundingClientRect(); const qutilar = [...r.querySelectorAll('.dgrp-flex-row > .dgrp')].filter(b => b.offsetParent)
+                .map(b => b.getBoundingClientRect());
+              return {q: w('.i-q'), l: w('.i-l'), bp: w('.i-blokprice'), sigadi: qutilar.length === 1 && qutilar.every(b => b.right <= rw.right + 1),
+                      olcham: r.querySelector('.i-dims-box').offsetParent !== null, oyna: Math.round(rw.width)}; }""")
+          check("U23 1440 px ekran: blok detal maydonlari (kerak, chiqishi, «1 blok narxi») o'qiladigan kenglikda (≥ 60 px), «Miqdor va narx» "
+                "qatordan chiqmaydi; «O'lcham» guruhi yo'q (egasi QARORI 24.10)",
+                min(_lw["q"], _lw["l"], _lw["bp"]) >= 60 and _lw["sigadi"] and not _lw["olcham"], _lw)
+          _ky = pgw.evaluate("""() => { const r = document.querySelector('#items .detal'); r.querySelector('.coat-yes').click();
+              const k = r.querySelector('.i-blokmult'); k.value = '2.5'; k.dispatchEvent(new Event('input', {bubbles: true}));
+              return r.querySelector('.coat-yes').textContent; }""")
+          pgw.goto(BASE + "/finished", wait_until="networkidle")
+          _kf = pgw.evaluate("""() => { openProduceModal(); const k = document.getElementById('p-blokmult'); k.value = '3';
+              k.dispatchEvent(new Event('input', {bubbles: true})); return document.querySelector('#p-coat-toggle .coat-yes').textContent; }""")
+          check("U24 qoplama tugmasi koeffitsient bilan: buyurtma «Bor (×2,5)», tayyor mahsulot «Bor (×3)» (ilgari doim «×2»)",
+                _ky == "Bor (×2,5)" and _kf == "Bor (×3)", (_ky, _kf))
+          ctxw.close()
+          # egasi so'rovi (24.10 02:35): menyu tepasidagi logotip — joyni to'liq egallaydi (yumaloq 42 px emas), «nom / ERP» matni shart emas;
+          # 24.10 03:02 — egasining tiniq logotipi (kvadrat fayl, atrofida shaffof bo'sh joy): HAR QANDAY logotip — mazmuni taglikni egallaydi
+          LOGO_JS = """() => { const b = document.querySelector('.s-logo'); const p = b.querySelector('.s-logo-plita'); const i = b.querySelector('img');
+              const k = b.querySelector('.s-logo-kesim'); const r = e => e ? e.getBoundingClientRect() : null; const ri = r(i), rp = r(p), rk = r(k);
+              return {plita: !!p, kesim: !!k, src: i ? i.getAttribute('src') : null, alt: i ? i.getAttribute('alt') : null,
+                      nw: i ? i.naturalWidth : 0, nh: i ? i.naturalHeight : 0, iw: ri ? ri.width : 0, ih: ri ? ri.height : 0,
+                      il: ri ? ri.left : 0, it: ri ? ri.top : 0, kw: rk ? rk.width : 0, kh: rk ? rk.height : 0, kl: rk ? rk.left : 0,
+                      kt: rk ? rk.top : 0, kr: rk ? rk.right : 0, pw: rp ? Math.round(rp.width) : 0, ph: rp ? Math.round(rp.height) : 0,
+                      pr: rp ? rp.right : 0, fon: p ? getComputedStyle(p).backgroundColor : null,
+                      nom: b.querySelector('.logo-name') ? b.querySelector('.logo-name').textContent.trim() : null}; }"""
+
+          def _mazmun211(_l, x0, y0, x1, y1):
+              """rasmning (x0, y0)–(x1, y1) qismi ekranda qayerda: (chap, tepa, o'ng, past) — piksel"""
+              _m = (_l["iw"] / _l["nw"]) if _l.get("nw") else 0
+              return (_l["il"] + x0 * _m, _l["it"] + y0 * _m, _l["il"] + x1 * _m, _l["it"] + y1 * _m)
+
+          _s = SessionLocal()                     # egasining korxonasi — platformaning o'z logotipi (eng eski korxona migratsiyasi kabi)
+          _s.get(Company, 1).logo_path = "static/logo_transparent.png"
+          _s.commit()
+          _s.close()
+          ctxl, pgl = kontekst("k211_a", 1440, 900)
+          pgl.goto(BASE + "/", wait_until="networkidle")
+          pgl.wait_for_timeout(300)
+          _la = pgl.evaluate(LOGO_JS)
+          pgl.evaluate("() => document.documentElement.setAttribute('data-theme', 'dark')")
+          _laq = pgl.evaluate(LOGO_JS)
+          ctxl.close()
+          ctxl, pgl = kontekst("k211_a", 390, 844)
+          pgl.goto(BASE + "/", wait_until="networkidle")
+          pgl.wait_for_timeout(300)
+          _lam = pgl.evaluate(LOGO_JS)
+          ctxl.close()
+          check("U25 platforma logotipi (egasining TINIQ logotipidan) — menyu tepasini to'liq egallaydi: `logo_menyu.webp` 524 × 420, mazmun "
+                "≈ 175 × 140 (ilgari 42 × 42 doira), taglik ≥ 190 × 150; «nom / ERP» matni yo'q (nomi — alt); tungi rejimda ham oq taglik; "
+                "telefonda (390 px) taglikdan chiqmaydi",
+                _la["plita"] and _la["kesim"] and _la["src"] == "/static/logo_menyu.webp" and _la["nw"] == 524 and _la["nh"] == 420
+                and 170 <= _la["kw"] <= 181 and 135 <= _la["kh"] <= 141 and _la["pw"] >= 190 and _la["ph"] >= 150
+                and _la["nom"] is None and bool(_la["alt"]) and _la["fon"] == "rgb(255, 255, 255)" and _laq["fon"] == "rgb(255, 255, 255)"
+                and _lam["plita"] and _lam["kesim"] and _lam["kr"] <= _lam["pr"] + 0.5 and _lam["kw"] >= 170,
+                (_la, _laq["fon"], _lam))
+          ctxl, pgl = kontekst("k211_c", 1440, 900)
+          pgl.goto(BASE + "/", wait_until="networkidle")
+          _lc = pgl.evaluate(LOGO_JS)
+          import struct as _st211
+          import zlib as _zl211
+
+          def _png211(w, h, quti=None):
+              """PNG: quti yo'q — butun rasm ko'k (RGB); quti (x0, y0, x1, y1) — shaffof fon (RGBA), faqat qutida to'q sariq"""
+              _ch = lambda t, d: _st211.pack(">I", len(d)) + t + d + _st211.pack(">I", _zl211.crc32(t + d) & 0xffffffff)
+              if quti is None:
+                  _raw = b"".join(b"\x00" + b"\x1f\x5a\x9c" * w for _ in range(h))
+                  _tur = 2
+              else:
+                  x0, y0, x1, y1 = quti
+                  _raw = b"".join(b"\x00" + b"".join((b"\xf0\x7a\x1e\xff" if (x0 <= x < x1 and y0 <= y < y1) else b"\x00\x00\x00\x00")
+                                                      for x in range(w)) for y in range(h))
+                  _tur = 6
+              return (b"\x89PNG\r\n\x1a\n" + _ch(b"IHDR", _st211.pack(">IIBBBBB", w, h, 8, _tur, 0, 0, 0))
+                      + _ch(b"IDAT", _zl211.compress(_raw)) + _ch(b"IEND", b""))
+          _up = C.post("/api/settings/company/logo", files={"file": ("belgi.png", _png211(200, 200), "image/png")})
+          pgl.goto(BASE + "/", wait_until="networkidle")
+          _lk = pgl.evaluate(LOGO_JS)
+          _up2 = C.post("/api/settings/company/logo", files={"file": ("keng.png", _png211(400, 150), "image/png")})
+          pgl.goto(BASE + "/", wait_until="networkidle")
+          _lw2 = pgl.evaluate(LOGO_JS)
+          check("U26 logotipsiz korxona — avvalgidek harf + nom («K211 Blok korxona»); KVADRAT logotip (faqat belgi, 200 × 200) — ham "
+                "taglikni egallaydi: 140 × 140 (211d da 56 px va yonida nom edi), nom matni yo'q",
+                not _lc["plita"] and _lc["nom"] == "K211 Blok korxona" and _up.status_code == 200 and _lk["plita"] and _lk["kesim"]
+                and abs(_lk["kw"] - 140) <= 1 and abs(_lk["kh"] - 140) <= 1 and _lk["nom"] is None, (_lc, _up.status_code, _up.text[:200], _lk))
+          check("U27 boshqa korxona yuklagan KENG logotip (400 × 150) — o'zi menyu tepasini egallaydi (180 × 67,5), nom matni yo'q",
+                _up2.status_code == 200 and _lw2["plita"] and (_lw2["src"] or "").startswith("/static/uploads/logos/company_3")
+                and _lw2["nom"] is None and abs(_lw2["kw"] - 180) <= 1 and abs(_lw2["kh"] - 67.5) <= 1, (_up2.status_code, _lw2))
+          # egasining logotipi kabi: kvadrat fayl (400 × 400), mazmuni (320 × 240) o'rtada, atrofi SHAFFOF — bo'sh joy kesiladi
+          _up3 = C.post("/api/settings/company/logo", files={"file": ("tiniq.png", _png211(400, 400, (40, 80, 360, 320)), "image/png")})
+          pgl.goto(BASE + "/", wait_until="networkidle")
+          _lt = pgl.evaluate(LOGO_JS)
+          _mz = _mazmun211(_lt, 40, 80, 360, 320)
+          _lp3 = ((_up3.json() if _up3.status_code == 200 else {}) or {}).get("logo_path") or ""
+          _fn_m = getattr(main, "company_logo_menyu", None)
+          _dm = _fn_m(_lp3) if (_fn_m and _lp3) else None
+          _pl_asl = getattr(main, "_pillow", None)
+          _yoq_pillow = None
+          if _fn_m and _pl_asl and hasattr(main, "_LOGO_MENYU_KESH"):
+              main._LOGO_MENYU_KESH.clear()
+              main._pillow = lambda: (None, None)
+              try:
+                  _yoq_pillow = _fn_m(_lp3)
+              finally:
+                  main._pillow = _pl_asl
+                  main._LOGO_MENYU_KESH.clear()
+          # kichik logotip (60 × 40) o'z o'lchamidan kattalashtirilmaydi (xira bo'lmasin) — 60 px
+          _kich = os.path.join(os.path.dirname(os.path.abspath(main.__file__)), "static", "uploads", "logos", "_sinov211_kichik.png")
+          os.makedirs(os.path.dirname(_kich), exist_ok=True)
+          with open(_kich, "wb") as _fk:
+              _fk.write(_png211(60, 40))
+          _dk = _fn_m("static/uploads/logos/_sinov211_kichik.png") if _fn_m else None
+          os.remove(_kich)
+          ctxl.close()
+          check("U28 egasining logotipi kabi KVADRAT fayl, atrofi SHAFFOF (400 × 400, mazmuni 320 × 240) — bo'sh joy kesiladi: mazmun "
+                "taglikni egallaydi (oyna 180 × 136,4, mazmun ≥ 95 % i; rasmning o'zi kengroq — chetlari ko'rinmaydi); hisob: chegara "
+                "(35, 75)–(365, 325) (1,5 % zaxira); Pillow bo'lmasa — rasm butunicha; kichik logotip (60 × 40) kattalashtirilmaydi",
+                _up3.status_code == 200 and _lt["plita"] and _lt["kesim"] and abs(_lt["kw"] - 180) <= 1 and abs(_lt["kh"] - 136.36) <= 1
+                and _mz[0] >= _lt["kl"] - 0.5 and _mz[2] <= _lt["kl"] + _lt["kw"] + 0.5 and _mz[1] >= _lt["kt"] - 0.5
+                and _mz[3] <= _lt["kt"] + _lt["kh"] + 0.5 and (_mz[2] - _mz[0]) >= 0.95 * _lt["kw"] and (_mz[3] - _mz[1]) >= 0.95 * _lt["kh"]
+                and _lt["iw"] > _lt["kw"] + 30
+                and _dm == {"src": "/" + _lp3, "eni": 180.0, "nisbat": 75.7576, "rasm": 121.2121, "chap": 10.6061, "tepa": 30.0}
+                and _yoq_pillow == {"src": "/" + _lp3} and (_dk or {}).get("eni") == 60.0, (_up3.status_code, _lt, _mz, _dm, _yoq_pillow, _dk))
+          # sinov saytida `static/uploads` har yangilanishda tozalanadi: platforma egasining (eng eski korxona) yuklagan fayli yo'q —
+          # platforma logotipi (ilgari harf + nom); boshqa korxonaniki yo'q — harf + nom (platforma logotipi BERILMAYDI)
+          _s = SessionLocal()
+          _s.get(Company, 1).logo_path = "static/uploads/logos/company_1_yoq211.png"
+          _s.commit()
+          _s.close()
+          _tola3 = os.path.join(os.path.dirname(os.path.abspath(main.__file__)), _lp3) if _lp3 else ""
+          if _tola3 and os.path.isfile(_tola3):
+              os.remove(_tola3)
+          ctxl, pgl = kontekst("k211_a", 1440, 900)
+          pgl.goto(BASE + "/", wait_until="networkidle")
+          _ly1 = pgl.evaluate(LOGO_JS)
+          ctxl.close()
+          ctxl, pgl = kontekst("k211_c", 1440, 900)
+          pgl.goto(BASE + "/", wait_until="networkidle")
+          _ly3 = pgl.evaluate(LOGO_JS)
+          ctxl.close()
+          check("U29 yuklangan fayli yo'qolgan (sinov saytida — har yangilanishda): platforma egasida — platforma logotipi (`logo_menyu.webp`); "
+                "boshqa korxonada — harf + nom (platforma logotipi berilmaydi)",
+                _ly1["plita"] and _ly1["src"] == "/static/logo_menyu.webp" and main.company_logo_of(1) == "static/logo_transparent.png"
+                and not _ly3["plita"] and _ly3["src"] is None and _ly3["nom"] == "K211 Blok korxona" and main.company_logo_of(3) is None
+                and not os.path.isfile(_tola3 or "/yoq"), (_ly1, _ly3))
+          # Sozlamalar → «Korxona nomi» dagi logotip ko'rinishi (211e jonli sinovida — o'chgan fayl, singan rasm edi)
+          _SZ_JS = """() => { const i = document.getElementById('co-logo-preview'); return i ? {src: i.getAttribute('src'),
+              korinadi: getComputedStyle(i).display !== 'none', nw: i.naturalWidth} : null; }"""
+          ctxl, pgl = kontekst("k211_a", 1440, 900)
+          pgl.goto(BASE + "/sozlamalar", wait_until="networkidle")
+          pgl.wait_for_timeout(500)
+          _sz1 = pgl.evaluate(_SZ_JS)
+          ctxl.close()
+          ctxl, pgl = kontekst("k211_c", 1440, 900)
+          pgl.goto(BASE + "/sozlamalar", wait_until="networkidle")
+          pgl.wait_for_timeout(500)
+          _sz3 = pgl.evaluate(_SZ_JS)
+          ctxl.close()
+          check("U30 Sozlamalar → «Korxona nomi» logotip ko'rinishi: platforma egasining yo'qolgan fayli o'rniga platforma logotipi (singan "
+                "rasm emas, 1000 px yuklandi); boshqa korxonaning yo'qolgan fayli — ko'rsatilmaydi",
+                bool(_sz1) and (_sz1["src"] or "").startswith("/static/logo_transparent.png?v=") and _sz1["korinadi"] and _sz1["nw"] == 1000
+                and bool(_sz3) and not _sz3["korinadi"], (_sz1, _sz3))
+          _s = SessionLocal()
+          _s.get(Company, 1).logo_path = "static/logo_transparent.png"
+          _s.commit()
+          _s.close()
+          # egasi QARORI (24.10 06:04): Profildan Blokka o'tilganda Profilda yozilgan o'lcham blok detaliga yashirin yozuv bo'lib qolmaydi
+          C.put("/api/settings/categories", data={"codes": "profil,blok", "v": "2"})
+          ctxp, pgp = kontekst("k211_c", 1440, 900)
+          pgp.goto(BASE + "/orders", wait_until="networkidle")
+          pgp.evaluate("() => { localStorage.clear(); showNewForm(); }")
+          pgp.wait_for_timeout(400)
+          _o32 = pgp.evaluate("""() => { const r = document.querySelector('#items .detal'); const tur0 = r.querySelector('.i-type').value;
+              r.querySelector('.i-h').value = '12'; r.querySelector('.i-t').value = '3';
+              selectTypeOpt(r.querySelector('.type-opt[data-value="blok"]'), 'blok');
+              return {tur0, tur: r.querySelector('.i-type').value, h: r.querySelector('.i-h').value, t: r.querySelector('.i-t').value,
+                      olcham: r.querySelector('.i-dims-box').offsetParent !== null}; }""")
+          ctxp.close()
+          C.put("/api/settings/categories", data={"codes": "blok", "v": "2"})
+          check("U32 Profildan Blokka o'tilganda Profilda yozilgan o'lcham tozalanadi (blok detalida Eni / Qalinlik yo'q — yashirin yozuv "
+                "bo'lib saqlanmaydi)", _o32["tur0"] == "profil" and _o32["tur"] == "blok" and _o32["h"] == "" and _o32["t"] == ""
+                and not _o32["olcham"], _o32)
+          # egasi QARORI (24.10 04:09): Sozlamalarda 3 ta telefon — kiritiladi, saqlanadi (sahifa qayta ochilganda joyida), telefonda sig'adi
+          ctxl, pgl = kontekst("k211_a", 1440, 900)
+          pgl.goto(BASE + "/sozlamalar", wait_until="networkidle")
+          pgl.wait_for_timeout(500)
+          _tb = pgl.evaluate("""() => ['co-phone', 'co-phone2', 'co-phone3'].map(i => { const e = document.getElementById(i);
+              return e ? {qiymat: e.value, korinadi: e.offsetParent !== null} : null; })""")
+          pgl.fill("#co-phone2", "+998 90 123 45 67")
+          pgl.fill("#co-phone3", "+998 91 765 43 21")
+          pgl.click("#co-save-btn")
+          pgl.wait_for_timeout(1600)
+          pgl.wait_for_load_state("networkidle")
+          pgl.wait_for_timeout(500)
+          _ts = pgl.evaluate("() => ['co-phone2', 'co-phone3'].map(i => document.getElementById(i).value)")
+          ctxl.close()
+          ctxl, pgl = kontekst("k211_a", 390, 844)
+          pgl.goto(BASE + "/sozlamalar", wait_until="networkidle")
+          pgl.wait_for_timeout(500)
+          _tm = pgl.evaluate("""() => ({kenglik: document.documentElement.scrollWidth, oyna: innerWidth,
+              sigadi: ['co-phone', 'co-phone2', 'co-phone3'].every(i => { const r = document.getElementById(i).getBoundingClientRect();
+                  return r.width > 100 && r.right <= innerWidth + 0.5; })})""")
+          ctxl.close()
+          _gs = js(A.get("/api/settings/company"))
+          check("U31 Sozlamalar → «Korxona nomi»: «Telefon», «Telefon 2», «Telefon 3» maydonlari; 2- va 3-raqam kiritilib «Saqlash» — sahifa "
+                "qayta ochilganda joyida (serverda ham); telefonda (390 px) maydonlar ekranga sig'adi",
+                bool(_tb) and all(x and x["korinadi"] for x in _tb) and _ts == ["+998 90 123 45 67", "+998 91 765 43 21"]
+                and _gs.get("phone2") == "+998 90 123 45 67" and _gs.get("phone3") == "+998 91 765 43 21"
+                and _tm["sigadi"] and _tm["kenglik"] <= _tm["oyna"], (_tb, _ts, _gs, _tm))
+          A.put("/api/settings/company", data={"name": _gs.get("name") or "PenodecorPro", "slogan": _gs.get("slogan") or "",
+                                               "phone": _gs.get("phone") or "", "address": _gs.get("address") or "", "tg_tagline": "",
+                                               "phone2": "", "phone3": "", "tel_v": "2"})
+          br.close()
+    # logotip tekshiruvlari (U26–U29) korxona 3 ning `static/uploads/logos/company_3.*` faylini yuklaydi / o'chiradi: shu daraxtda
+    # parallel yurgan boshqa nusxasi (etalonda SQLite va TENANT_FILTER=1 birga) bilan to'qnashmasin — brauzer bo'limi navbat bilan
+    import fcntl as _fc211
+    import hashlib as _hq211
+    _qulf211 = open(os.path.join("/tmp", "test_blok211_" + _hq211.md5(ROOT.encode()).hexdigest()[:12] + ".lock"), "w")
+    _fc211.flock(_qulf211, _fc211.LOCK_EX)
+    try:
+        _ui()
+    except Exception as _e:                 # noqa: BLE001
+        check("U0 brauzer bo'limi xatosiz yakunlandi", False, f"{type(_e).__name__}: {str(_e)[:400]}")
+    finally:
+        _fc211.flock(_qulf211, _fc211.LOCK_UN)
+        _qulf211.close()
+    check("U22 sahifa JS xatosi yo'q", not XATOLAR, XATOLAR[:5])
+    _srv.should_exit = True
+
+print(f"\nNATIJA:  o'tdi = {OK}   yiqildi = {FAIL}   jami = {OK + FAIL}")
+if FAILED:
+    print("YIQILGANLAR:")
+    for f in FAILED:
+        print("  -", f)
+sys.exit(1 if FAIL else 0)

@@ -127,8 +127,10 @@ vm.createContext(ctxA);
 // kech95 (117-band): calculateItem qator jamisini server qoidasi bilan hisoblaydi (`buyurtmaJami` va
 // uning yordamchilari), Donalik narx maydoni `narxKorinishi` bilan to'ldiriladi (124-band) — ular ham
 // shablondan JONLI o'qiladi (topilmasa — test yiqiladi).
+// kech155 (zip 211 «Blok hisoblash», MOSLANDI): blok 1 birlik narxi — `blokNarxiQatorda` (o'z «1 blok narxi» / buyurtmaning «1 blok
+// asosiy narxi») va `blokKoef` (qoplama koeffitsienti) — ular ham shablondan JONLI o'qiladi
 for (const nom of ['parseNum', 'narxMatni', 'narxKorinishi', 'formatNum', '_onlikQism', '_tiyinHalfUp',
-                   'buyurtmaJami', 'calcSubDetailRow', 'calculateItem'])
+                   'buyurtmaJami', 'calcSubDetailRow', 'blokNarxiQatorda', 'blokKoef', 'calculateItem'])
   vm.runInContext(olib(ORDERS, nom), ctxA, { filename: `orders.html:${nom}` });
 // kech118 (B — U-05, MOSLANDI): ko'rinadigan hajm / son — base.html `sonKor` (hisobga ta'sir qilmaydi)
 vm.runInContext(olib(T('base.html'), 'sonKor'), ctxA, { filename: 'base.html:sonKor' });
@@ -207,6 +209,17 @@ for (const [blokNarx, chiqim, kerak] of [[800000, 2.5, 30], [600000, 3, 10],
   check(`A blok ${blokNarx}so'm, 1 blokdan ${chiqim}m, ${kerak}m kerak — hajm`,
         r.hajm, (kerak / chiqim) * 0.9);
 }
+// kech155 (zip 211, MOSLANDI — egasi QARORI «qoplama — koeffitsient, o'zgartirsa bo'ladi»): «1 blok narxi» QOPLAMASIZ, qoplama «Bor» —
+// 1 birlik = blok narxi ÷ chiqishi × koeffitsient (bo'sh — standart 2); ombordan (hajm) qoplamaga bog'liq emas
+for (const [blokNarx, chiqim, kerak, koef] of [[800000, 2.5, 30, ''], [600000, 3, 10, '2.5']]) {
+  const r = ishlat({ 'i-type': 'blok', 'i-h': 0, 'i-w': 0, 'i-t': 0,
+                     'i-l': chiqim, 'i-q': kerak, 'i-c': 'true', 'i-blokmult': koef,
+                     'i-blokprice': String(blokNarx), 'i-peno': '1' });
+  check(`A blok qoplamali (koeffitsient ${koef || '2 — standart'}) ${blokNarx}so'm / ${chiqim}m x ${kerak}m — narx`,
+        r.narx, etalonJami(kerak, (blokNarx / chiqim) * (Number(koef) || 2)));
+  check(`A blok qoplamali ${blokNarx}so'm / ${chiqim}m x ${kerak}m — hajm (qoplamaga bog'liq emas)`,
+        r.hajm, (kerak / chiqim) * 0.9);
+}
 
 // A7. Oddiy turkumlar — miqdor x birlik narxi, penoplast hajmi 0
 // `termopanel` 2026-09-20 (11.2a) da, `gips` esa 11.2b da butunlay olib
@@ -279,8 +292,12 @@ vm.createContext(ctxC);
 // orders.html bilan AYNAN qoida), xulosa oynasi `narxKorinishi` — ular ham finished.html dan yuklanadi.
 // kech120 (zip 133 — G5, MOSLANDI): pCalc birlik nomini umumiy qoida bilan yozadi (`unitLabel` — finished.html; base.html siz
 // o'z zaxira qoidasi) — u ham yuklanadi
-for (const nom of ['parseNum', 'narxMatni', 'narxKorinishi', '_onlikQism', '_tiyinHalfUp', 'buyurtmaJami', 'tiyinga', 'unitLabel', 'pCalc'])
+// kech155 (zip 211, MOSLANDI): blok mahsuloti birligi — `pBlokBirligi` va `P_BLOK_TM_BIRLIK` (shablondan JONLI; topilmasa — istisno)
+for (const nom of ['parseNum', 'narxMatni', 'narxKorinishi', '_onlikQism', '_tiyinHalfUp', 'buyurtmaJami', 'tiyinga', 'unitLabel',
+                   'pBlokBirligi', 'pCalc'])
   vm.runInContext(olib(FINISHED, nom), ctxC, { filename: `finished.html:${nom}` });
+vm.runInContext(/const P_BLOK_TM_BIRLIK = \{[^}]*\};/.exec(FINISHED)[0].replace(/^const /, 'var '), ctxC,
+                { filename: 'finished.html:P_BLOK_TM_BIRLIK' });
 vm.runInContext(olib(T('base.html'), 'sonKor'), ctxC, { filename: 'base.html:sonKor' });   // kech118 (U-05, MOSLANDI)
 // kech150 (zip 190, MOSLANDI): xulosadagi pul matni — base.html `pulKor` (bor bo'lsa; eski shablonda pCalc uni chaqirmaydi)
 if (/function pulKor\(/.test(T('base.html'))) vm.runInContext(olib(T('base.html'), 'pulKor'), ctxC, { filename: 'base.html:pulKor' });
@@ -336,6 +353,19 @@ for (const [blokNarx, chiqim, kerak] of [[800000, 2.5, 30], [600000, 3, 10]]) {
   check(`C pCalc blok ${blokNarx}so'm / ${chiqim}m x ${kerak}m — etalon narx`,
         p.price, (blokNarx / chiqim) * kerak);
   check(`C pCalc blok ${blokNarx}so'm / ${chiqim}m x ${kerak}m — orders.html bilan BIR XIL`,
+        p.price, o.narx);
+}
+// kech155 (zip 211, MOSLANDI): qoplamali blok — koeffitsient (o'zgartirilgan ham) ikkala oynada BIR XIL
+for (const [blokNarx, chiqim, kerak, koef] of [[800000, 2.5, 30, '2'], [600000, 3, 10, '2.5']]) {
+  const p = pIshlat({ 'p-type': 'blok', 'p-h': 0, 'p-w': 0, 'p-t': 0,
+                      'p-l': chiqim, 'p-q': kerak, 'p-coated': 'true', 'p-blokmult': koef,
+                      'p-blokprice': String(blokNarx), 'p-peno': '1' });
+  const o = ishlat({ 'i-type': 'blok', 'i-h': 0, 'i-w': 0, 'i-t': 0,
+                     'i-l': chiqim, 'i-q': kerak, 'i-c': 'true', 'i-blokmult': koef,
+                     'i-blokprice': String(blokNarx), 'i-peno': '1' });
+  check(`C pCalc blok qoplamali x${koef} ${blokNarx}so'm / ${chiqim}m x ${kerak}m — etalon narx`,
+        p.price, (blokNarx / chiqim) * Number(koef) * kerak);
+  check(`C pCalc blok qoplamali x${koef} ${blokNarx}so'm / ${chiqim}m x ${kerak}m — orders.html bilan BIR XIL`,
         p.price, o.narx);
 }
 

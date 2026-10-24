@@ -351,7 +351,8 @@ async function ichki() {
     const dlv = { order_number: 'ORD-1', client_name: 'M', status: 'in_progress',
                   deliveries: [{ id: 3, delivery_number: 'ORD-1/Y-1', short_number: 'Y-1', delivered_at: LAHZA, total_sum: 100,
                                  items: [{ item_name: 'Detal', quantity: 1, unit: 'metr' }] }] };
-    const m = muhit({ qoshimcha: fnlar(ORD, PUL.concat(['openSummaryModal', 'renderDeliveryHistory'])) + '\n'
+    // kech155 (zip 211, MOSLANDI): yuk xati qatori birligi — `yetkazishBirligi` (review211 №3 / №5)
+    const m = muhit({ qoshimcha: fnlar(ORD, PUL.concat(['openSummaryModal', 'renderDeliveryHistory', 'yetkazishBirligi'])) + '\n'
                                  + soz(ORD, 'DLV_HISTORY_LIMIT') + '\nvar dlvHistoryExpanded = false; function updateSumTotal() {}\n'
                                  + `var dlvData = ${JSON.stringify(dlv)};` });
     await yurgiz(m, `openSummaryModal(); renderDeliveryHistory(true);`);

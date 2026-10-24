@@ -627,8 +627,10 @@ if br:
         pg.evaluate("() => document.querySelectorAll('.cat-cb').forEach(c => { c.checked = false; })")
         baj(pg, "() => saveCategories()", 600)
         _put = sorovlar("/api/settings/categories", "PUT")[-1:]
-        check("C1c yuklangan ro'yxatda hammasi olib tashlansa — `bosh=1` bilan saqlanadi (ataylab hammasini o'chirish ishlaydi)",
-              _put and 'name="bosh"' in (_put[0][2] or "") and not any(kategoriyalar().values()), (_put, kategoriyalar()))
+        # kech155 (zip 211 — egasi QARORI «kamida bittasi yoqiq»): hammasi olib tashlansa — so'rov KETMAYDI, «Kamida bitta …», o'zgarmadi
+        check("C1c yuklangan ro'yxatda hammasi olib tashlansa — saqlanmaydi (kamida bitta tur yoqiq, zip 211), turlar o'zgarmadi",
+              len(sorovlar("/api/settings/categories", "PUT")) == nC and "Kamida bitta" in (matn(pg, "#cat-status") or "")
+              and kategoriyalar() == _oldin, (_put, matn(pg, "#cat-status"), kategoriyalar()))
         C.put("/api/settings/categories", data={"codes": _cats})
 
         # C2: korxona ma'lumoti yuklanmadi — Saqlash yopiq

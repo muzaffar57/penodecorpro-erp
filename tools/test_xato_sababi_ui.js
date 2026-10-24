@@ -209,7 +209,8 @@ function korindimi(n, matn) {
   const INV_YORD = ['parseNum', 'narxMatni', 'narxniOqi', 'narxKorinishi', 'fmt'];
   // kech120 (zip 133 — G5-07, MOSLANDI): finished oynalari miqdor / birlikni sahifa yordamchilari bilan yozadi (`fpMiqdor`, `unitLabel`)
   // kech144 (zip 177, MOSLANDI — audit D): rasm / narx / o'chirish / band / «Sotuvga tayyor» xatosi — `fpAmalXato` (u `amalSababi` ni chaqiradi)
-  const FIN_YORD = ['parseNum', 'narxMatni', 'narxniOqi', 'narxKorinishi', 'fmt', 'fpMiqdor', 'unitLabel', 'fpAmalXato'];
+  // kech155 (zip 211, MOSLANDI): blok mahsuloti birligi — `pBlokBirligi` (saveProduce `blok_birlik` yuboradi)
+  const FIN_YORD = ['parseNum', 'narxMatni', 'narxniOqi', 'narxKorinishi', 'fmt', 'fpMiqdor', 'unitLabel', 'fpAmalXato', 'pBlokBirligi'];
   const HOLATLAR = [
     ['K1 kpi saveMasterKpi (usta KPI %)', KPI, 'saveMasterKpi', 'saveMasterKpi(5)', {elementlar: {'mk-5': el({value: '150'})},
       oldin: 'var inFlightMasterKpi = new Set();'}],
@@ -264,7 +265,8 @@ function korindimi(n, matn) {
     ['F10 finished markReady («Sotuvga tayyor»)', FIN, 'markReady', 'markReady(3)', {oldin: "var fpItems = [{id: 3, name: 'TM', unit: 'dona', quantity: 2}];"}],
     ['F11 finished saveProduce (ishlab chiqarish — blok)', FIN, 'saveProduce', 'saveProduce()', {elementlar: {'p-name': el({value: 'TM blok'}),
       'p-type': el({value: 'blok'}), 'p-price': el({value: '1000'}), 'p-coated': el({value: 'false'}), 'p-peno': el({value: '3'}),
-      'p-q': el({value: '2'})}, globallar: {window: {_pCalc: {count: 1, perUnitPrice: 1000}, _blokKerak: 1, open() {}}}}],
+      // kech155 (zip 211 «Blok hisoblash», MOSLANDI): «1 blokdan chiqadigan …» SHART (bo'sh — so'rov ketmaydi), birlik — `pBlokBirligi`
+      'p-q': el({value: '2'}), 'p-l': el({value: '2'})}, globallar: {window: {_pCalc: {count: 1, perUnitPrice: 1000}, _blokKerak: 1, open() {}}}}],
   ];
   bolim("K / I / F — MATN sabab ekranga chiqadi (asl: \"Xato yuz berdi\" / \"Xato\" / hech narsa)");
   for (const [nom, src, fn, chaqiruv, o] of HOLATLAR) {

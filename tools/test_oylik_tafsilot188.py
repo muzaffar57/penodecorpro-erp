@@ -77,7 +77,8 @@ check("S1 «Oylik + qoplama»: oylik / miqdor / stavka / natija — `son_korinis
       'detail = f"Oylik {son_korinish(base, 0)} + ({son_korinish(jami_qoplama_birlik)} metr/dona × {son_korinish(rate)} = {son_korinish(bonus, 0)})"' in _S
       and "{jami_qoplama_birlik:g}" not in _S)
 check("S2 «Birlik uchun»: miqdor va stavka — `son_korinish` (`{qty:g}` yo'q)",
-      'detail = f"{son_korinish(qty)} {c_unit_type} × {son_korinish(c_unit_rate)}"' in _S and 'f"{qty:g} {c_unit_type}' not in _S)
+      # kech155 (zip 211c, MOSLANDI): kesilgan blok aniq — miqdor 3 xonagacha («1,125 blok × 100 000»)
+      'detail = f"{son_korinish(qty, 3)} {c_unit_type} × {son_korinish(c_unit_rate)}"' in _S and 'f"{qty:g} {c_unit_type}' not in _S)
 check("S3 sotuv / foyda foizi: summa — `son_korinish(…, 0)`, foiz — `son_korinish` («2.0%» emas)",
       'detail = f"Sotuv {son_korinish(daromad, 0)} × {son_korinish(c_percent)}%"' in _S
       and 'detail = f"Foyda {son_korinish(sof_foyda_before, 0)} × {son_korinish(c_percent)}%"' in _S)

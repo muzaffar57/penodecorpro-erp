@@ -428,6 +428,9 @@ check("F0 fikstura: MRP turi, retsept, ishlab chiqarish (yakunlandi + qoralama),
       [PT_ID, BOM_ID, PO_YAKUN, PO_QORALAMA, REC_ID, _st1.status_code, _st1.text[:200], _co1.status_code, _co1.text[:200],
        _sell_h.status_code, _sell_h.text[:200], _loss_h.status_code, _loss_h.text[:200]])
 
+# kech155 (zip 210 «Naqd / Bank / Karta», MOSLANDI): hisob tarixi marshruti — korxonaning HAQIQIY hisobi (ro'yxat birinchi so'rovda
+# standart hisoblarni yaratadi); topilmasa — yo'q id (404)
+_hisob210 = ((js(CA.get("/api/finance/hisoblar")) or {}).get("hisoblar") or [{}])[0].get("id") or 999999
 BUGUN = tashkent_date()
 ID = {"order_id": 999999, "project_id": 999999, "fp_id": IDS["fp_narxsiz"], "item_id": IDS["mat"],
       "supplier_id": IDS["sup"], "po_id": PO_QORALAMA, "pt_id": PT_ID, "master_id": 999999, "employee_id": 999999,
@@ -436,7 +439,9 @@ ID = {"order_id": 999999, "project_id": 999999, "fp_id": IDS["fp_narxsiz"], "ite
       # kech126 (zip 148 — «Tez hisob / Taklif», MOSLANDI): taklif tafsiloti (yo'q taklif — 404; taklifda tannarx yo'q)
       "taklif_id": 999999,
       # kech127 (zip 151 — «Murojaat», MOSLANDI): murojaat yozishmasi (yo'q — 404; tannarx yo'q)
-      "murojaat_id": 999999}
+      "murojaat_id": 999999,
+      # kech155 (zip 210, MOSLANDI): pul hisobi tarixi (tannarx yo'q — «Hammasi» = «Tannarxsiz»)
+      "hisob_id": _hisob210}
 SORAV = {"year": BUGUN.year, "month": BUGUN.month, "category": "arenda", "product_type_id": PT_ID, "bom_id": BOM_ID,
          "quantity": 4}
 TASHQARI = ("/cron", "/system", "/platform", "/hodim/", "telegram", "pdf", "/export", "backup")

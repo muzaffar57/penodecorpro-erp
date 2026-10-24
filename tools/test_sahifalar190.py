@@ -108,7 +108,8 @@ check("S2 Buyurtmalar `formatNum` — ming ajratgich bo'linmas bo'shliq (son o'z
   return Math.round(num).toString().replace(/\\B(?=(\\d{3})+(?!\\d))/g, '\\u00a0');
 }""" in _ORD and "(?!\\d))/g, ' ');\n}" not in _ORD.split("function formatNum(num)")[1][:200])
 # `narxKorinishi(` — faqat kiritish maydoni QIYMATIDA (`.value =`, `value="${…}"`, `kiritishOyna` `qiymat`); matnda — `pulKor(`
-_KUT = {"debts.html": (3, 15), "finance.html": (2, 1), "finished.html": (4, 2), "kunlik_xarajat.html": (0, 2), "orders.html": (16, 9),
+# kech155 (zip 211, MOSLANDI): orders.html 16 → 19 (blok maydonlari va review211 №8 solishtiruvi), finished.html 4 → 3
+_KUT = {"debts.html": (3, 15), "finance.html": (2, 1), "finished.html": (3, 2), "kunlik_xarajat.html": (0, 2), "orders.html": (19, 9),
         "supplier_receive.html": (2, 14), "suppliers.html": (1, 8)}
 _SON = {}
 for _f, (_nk, _pk) in _KUT.items():
@@ -123,6 +124,9 @@ for _f in _KUT:
         for _m in re.finditer(r"narxKorinishi\(", _q):
             _old = _q[:_m.start()]
             if "function narxKorinishi(" in _q or "return narxMatni(" in _q:
+                continue
+            # kech155 (zip 211, MOSLANDI — review211 №8): ikki ko'rinishni solishtirish (maydondagi narx o'zgarmaganmi) — matnga chiqmaydi
+            if "narxKorinishi(aniq) === narxKorinishi(oz)" in _q:
                 continue
             if not (re.search(r"\.value\s*=", _old) or _old.endswith('value="${') or _old.rstrip().endswith("qiymat:") or not _old.strip()):
                 _yomon.append(f"{_f}:{_i}: {_q.strip()[:100]}")
