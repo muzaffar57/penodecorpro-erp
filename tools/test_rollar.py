@@ -456,6 +456,9 @@ YANGI_MARSHRUTLAR = {
     "GET /api/finance/hisoblar": "AF", "GET /api/finance/hisoblar/qolda": "AF", "GET /api/finance/hisoblar/{hisob_id}/tarix": "AF",
     "POST /api/finance/hisoblar/qoldiq": "A", "POST /api/finance/hisoblar/otkazma": "A",
     "DELETE /api/finance/hisoblar/qoldiq/{qoldiq_id}": "A", "DELETE /api/finance/hisoblar/otkazma/{otkazma_id}": "A",
+    # kech157 (zip 215c — etalon d222 topdi): zip 213 «Bu takror emasmi?» — loyihaning berilgan / ochiq detallari, «Buyurtmalar: Ko'rish»
+    # (`GET /api/orders` bilan bir xil harflar)
+    "GET /api/projects/{project_id}/berilgan-detallar": "AM",
 }
 # ATAYLAB o'zgarishlar (rol, marshrut) → yangi holat (True — ochiq). Sababi: tayyor rollar sahifa bo'yicha izchil.
 FARQLAR = {
