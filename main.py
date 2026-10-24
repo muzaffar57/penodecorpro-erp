@@ -1653,8 +1653,11 @@ def _migrate_faza3_columns():
             # o'zi ham platforma amallariga kira olmadi. Endi solishtirish
             # harf registriga bog'liq emas.
             # --- Korxona brendi: slogan, phone, address, logo_path ---
+            # kech155 (zip 211g): `phone2`, `phone3` — 3 tagacha telefon (bo'sh; mavjud korxonada hech narsa o'zgarmaydi)
             for _ust, _tur in (("slogan", "VARCHAR(150)"),
                                ("phone", "VARCHAR(60)"),
+                               ("phone2", "VARCHAR(60)"),
+                               ("phone3", "VARCHAR(60)"),
                                ("address", "VARCHAR(200)"),
                                ("logo_path", "VARCHAR(255)")):
                 if not has_col("companies", _ust):
@@ -11398,6 +11401,9 @@ def api_get_company(db: Session = Depends(get_db),
             "code": (row.code if row else None),
             "slogan": (getattr(row, "slogan", None) if row else None),
             "phone": (getattr(row, "phone", None) if row else None),
+            # kech155 (zip 211g): 2- va 3-telefon (hamma hujjatlarda 1-raqam bilan birga)
+            "phone2": (getattr(row, "phone2", None) if row else None),
+            "phone3": (getattr(row, "phone3", None) if row else None),
             "address": (getattr(row, "address", None) if row else None),
             "logo_path": (getattr(row, "logo_path", None) if row else None),
             # kech155 (zip 211f): ko'rinadigan logotip (menyudagi bilan bir xil — `company_logo_of`): fayli yo'q — None, platforma
@@ -11412,6 +11418,7 @@ def api_get_company(db: Session = Depends(get_db),
 def api_set_company(name: str = Form(...), slogan: str = Form(None),
                     phone: str = Form(None), address: str = Form(None),
                     tg_tagline: str = Form(None),
+                    phone2: str = Form(None), phone3: str = Form(None), tel_v: str = Form(None),
                     db: Session = Depends(get_db),
                     current_user=Depends(auth.ruxsat("sozlama", "tahrirlash"))):
     """Korxona brendi: nomi, shiori, telefoni, manzili.
@@ -11431,6 +11438,11 @@ def api_set_company(name: str = Form(...), slogan: str = Form(None),
     # kech146 (zip 183, audit J9): o'zgarishlar «Audit jurnali» ga (ilgari korxona nomi / telefoni o'zgarsa iz qolmasdi)
     _eski183 = {"Nomi": row.name or "", "Shior": row.slogan or "", "Telefon": row.phone or "", "Manzil": row.address or "",
                 "Telegram salom shiori": _tg_tagline(db, cid) or ""}     # sahifa ko'rsatadigan qiymat (mustaqil tekshiruv R3)
+    # kech155 (zip 211g — egasi QARORI 24.10): 2- va 3-telefon — faqat ularni biladigan sahifa (`tel_v=2`) yuborganda o'rnatiladi (bo'sh —
+    # tozalaydi); eski ochiq sahifa / skript ularni yubormaydi — FastAPI bo'sh va yo'q maydonni ajratmaydi, shuning uchun belgi bilan
+    _tel211 = (tel_v or "").strip() == "2"
+    _eski183["Telefon 2"] = getattr(row, "phone2", None) or ""
+    _eski183["Telefon 3"] = getattr(row, "phone3", None) or ""
     row.name = nom
     # 2026-09-20 — MUHIM: bo'sh maydon "tozalash" degani.
     # Ilgari `if qiymat is None: continue` yozilgan edi, lekin FastAPI
@@ -11446,6 +11458,12 @@ def api_set_company(name: str = Form(...), slogan: str = Form(None),
             raise HTTPException(status_code=400,
                                 detail=f"'{maydon}' juda uzun ({chegara} belgidan ko'p)")
         setattr(row, maydon, v or None)
+    if _tel211:
+        for maydon, qiymat, nomi in (("phone2", phone2, "Telefon 2"), ("phone3", phone3, "Telefon 3")):
+            v = (qiymat or "").strip()
+            if len(v) > 60:
+                raise HTTPException(status_code=400, detail=f"'{nomi}' juda uzun (60 belgidan ko'p)")
+            setattr(row, maydon, v or None)
     # Ustaga salomdagi shior (2026-09-21). Interfeys uni DOIM yuboradi;
     # bo'sh — "shior qatori chiqmasin". Maydonni umuman bilmaydigan eski
     # chaqiruvchi (masalan skript) uchun — `None` kelsa ham bo'sh
@@ -11457,7 +11475,8 @@ def api_set_company(name: str = Form(...), slogan: str = Form(None),
                             detail=f"'Telegram salom shiori' juda uzun ({TG_TAGLINE_MAX} belgidan ko'p)")
     crud.set_setting(db, TG_TAGLINE_KEY, _tl, company_id=cid)
     _yangi183 = {"Nomi": nom, "Shior": row.slogan or "", "Telefon": row.phone or "", "Manzil": row.address or "",
-                 "Telegram salom shiori": _tl}
+                 "Telegram salom shiori": _tl, "Telefon 2": getattr(row, "phone2", None) or "",
+                 "Telefon 3": getattr(row, "phone3", None) or ""}
     _sozlama_jurnali(db, current_user, cid, "Korxona ma'lumotlari",
                      [f"{k}: «{_eski183[k]}» → «{_yangi183[k]}»" for k in _yangi183 if _eski183[k] != _yangi183[k]])
     db.commit()

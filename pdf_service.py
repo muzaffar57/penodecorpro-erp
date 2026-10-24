@@ -317,7 +317,14 @@ def generate_nakladnoy(order, db=None, taklif=None) -> bytes:
     # 2026-09-20: nakladnoyda TELEFON ham chiqadi — u mijozga
     # beriladigan hujjat va savol chiqsa qaerga murojaat qilishni
     # bilishi kerak. Manzil va telefon bitta qatorda, joy tejash uchun.
-    _kontakt = "  ·  ".join([x for x in (_brand["address"], _brand["phone"]) if x])
+    # kech155 (zip 211g — egasi QARORI 24.10): 3 tagacha telefon — bitta bo'lsa avvalgidek (manzil · telefon bir qatorda), 2–3 ta bo'lsa
+    # manzil va keyingi qatorda «Tel: 1 · 2 · 3» (`get_brand` → `tel_qatori`; raqam ichida qator bo'linmaydi)
+    if _brand.get("tel_qatori"):
+        _kontakt = "\n".join([x for x in (_brand["address"], _brand["tel_qatori"]) if x])
+    else:
+        _tels211 = _brand.get("telefonlar")
+        _tel1 = (_tels211[0] if _tels211 else "") if _tels211 is not None else _brand["phone"]
+        _kontakt = "  ·  ".join([x for x in (_brand["address"], _tel1) if x])
 
     logo_path = _brand["logo"]
     # kech129 (zip 153): o'lcham — fayl nisbatidan (`_logo_olcham`); fayl o'qilmasa — logotipsiz sarlavha (korxona nomi)
@@ -336,13 +343,13 @@ def generate_nakladnoy(order, db=None, taklif=None) -> bytes:
         header_left = [
             logo_img,
             Paragraph(_x(_brand["slogan"]), st["company_sub"]),
-            Paragraph(_x(_kontakt), st["company_sub"]),
+            Paragraph(_x(_kontakt).replace("\n", "<br/>"), st["company_sub"]),
         ]
     else:
         header_left = [
             Paragraph(_x(_brand["name"]), st["company"]),
             Paragraph(_x(_brand["slogan"]), st["company_sub"]),
-            Paragraph(_x(_kontakt), st["company_sub"]),
+            Paragraph(_x(_kontakt).replace("\n", "<br/>"), st["company_sub"]),
         ]
     # Bo'sh qatorlarni olib tashlaymiz (maydon to'ldirilmagan bo'lsa,
     # hujjatda bo'sh joy qolib ketmasin).
