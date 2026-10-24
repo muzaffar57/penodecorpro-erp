@@ -889,6 +889,7 @@ else:
                     perm: v('.i-perm').value, jami: v('.i-price').value, hajm: v('.i-vol').value,
                     blokNarx: korinadi('.i-blokprice'), m3: korinadi('.i-m3price'), koef: korinadi('.i-blokmult'), birlikTanlov: korinadi('.blokunit-toggle'),
                     eni: korinadi('.i-h'), qalin: korinadi('.i-t'), chiqishi: korinadi('.i-l'), upNarx: korinadi('.i-unitprice'),
+                    m2Tugma: korinadi('.blokunit-opt[data-value="m2"]'), olcham: korinadi('.i-dims-box'),
                     kubAsosiy: korinadi('#base_price'), blokAsosiy: korinadi('#blok_base_price')}; }""")
 
           def tasdiqla(pg, marta=3):
@@ -911,9 +912,11 @@ else:
           check("U1 faqat Blok yoqiq korxona: tur tugmasi faqat «🧊 Blok», tanlovda faqat blok; yangi detal — Blok; «1 m³ asosiy narxi» yo'q, "
                 "«1 blok asosiy narxi» bor",
                 h0["turlar"] == ["🧊 Blok"] and h0["variantlar"] == ["blok"] and h0["tur"] == "blok" and not h0["kubAsosiy"] and h0["blokAsosiy"], h0)
-          check("U2 blok detal maydonlari: birlik tanlovi (m tanlangan), Eni / Qalinligi (ixtiyoriy), chiqishi, «1 blok narxi», koeffitsient; "
-                "«1 m³ narxi» yo'q", h0["birlikTanlov"] and h0["faol"] == ["m"] and h0["eni"] and h0["qalin"] and h0["chiqishi"]
-                and h0["blokNarx"] and h0["koef"] and not h0["m3"] and h0["lYorliq"] == "1 blokdan chiqadigan m", h0)
+          # egasi QARORI (24.10 06:04 — soddalashtirish): Eni / Qalinlik («O'lcham» guruhi) va «m²» yo'q — chiqishi va kerak yetarli
+          check("U2 blok detal maydonlari: birlik tanlovi (m tanlangan; faqat m / ta — «m²» yo'q), Eni / Qalinlik YO'Q («O'lcham» guruhi "
+                "yashirin — egasi QARORI 24.10), chiqishi, «1 blok narxi», koeffitsient; «1 m³ narxi» yo'q",
+                h0["birlikTanlov"] and h0["faol"] == ["m"] and not h0["m2Tugma"] and not h0["eni"] and not h0["qalin"] and not h0["olcham"]
+                and h0["chiqishi"] and h0["blokNarx"] and h0["koef"] and not h0["m3"] and h0["lYorliq"] == "1 blokdan chiqadigan m", h0)
           yoz(pg, ".i-name", "Rozetka R-1")
           pg.evaluate("() => document.querySelector('#items .detal .blokunit-opt[data-value=\"dona\"]').click()")
           yoz(pg, "#blok_base_price", "600 000")
@@ -937,19 +940,22 @@ else:
                 and bosh(h4["jami"]) == "187 500", [h2["jami"], h3["jami"], h4["perm"], h4["jami"]])
           pg.evaluate("() => document.querySelector('#items .detal .coat-no').click()")
           yoz(pg, ".i-blokprice", "")
-          pg.evaluate("() => document.querySelector('#items .detal .blokunit-opt[data-value=\"m2\"]').click()")
+          _m2y = qator_holati(pg)["m2Tugma"]
+          # avval m² da saqlangan detal — tahrirda tiklanganidek (birlik maydoni + `syncBlokUnitUI` + `toggleFields`)
+          pg.evaluate("""() => { const r = document.querySelector('#items .detal'); r.querySelector('.i-blokunit').value = 'm2';
+              syncBlokUnitUI(r); toggleFields(r); calculateItem(r); }""")
           yoz(pg, ".i-l", "25")
           yoz(pg, ".i-q", "30")
           h5 = qator_holati(pg)
-          check("U5 m²: «1 blokdan chiqadigan m²», «Necha m² kerak», «1 m² narxi»; asosiy 600 000 ÷ 25 = 24 000, × 30 = 720 000",
-                h5["lYorliq"] == "1 blokdan chiqadigan m²" and h5["qYorliq"] == "Necha m² kerak" and h5["permYorliq"] == "1 m² narxi"
-                and bosh(h5["perm"]) == "24 000" and bosh(h5["jami"]) == "720 000", h5)
+          check("U5 yangi detalda «m²» tugmasi yo'q (egasi QARORI 24.10); avval m² da saqlangan detal — o'z birligida («m²» ko'rinadi): "
+                "«1 blokdan chiqadigan m²», «Necha m² kerak», «1 m² narxi»; asosiy 600 000 ÷ 25 = 24 000, × 30 = 720 000",
+                not _m2y and h5["m2Tugma"] and h5["faol"] == ["m²"]
+                and h5["lYorliq"] == "1 blokdan chiqadigan m²" and h5["qYorliq"] == "Necha m² kerak" and h5["permYorliq"] == "1 m² narxi"
+                and bosh(h5["perm"]) == "24 000" and bosh(h5["jami"]) == "720 000", (_m2y, h5))
           pg.evaluate("() => document.querySelector('#items .detal .blokunit-opt[data-value=\"dona\"]').click()")
           yoz(pg, ".i-l", "200")
           yoz(pg, ".i-q", "50")
           yoz(pg, ".i-blokprice", "500 000")
-          yoz(pg, ".i-h", "12")
-          yoz(pg, ".i-t", "3")
           pg.evaluate(f"() => {{ document.getElementById('project_id').value = '{ID['PC']}'; document.getElementById('deadline_input').value = '2026-12-01'; }}")
           # «1 blokdan chiqadigan» bo'sh — saqlanmaydi
           yoz(pg, ".i-l", "")
@@ -967,13 +973,20 @@ else:
           OU = _yangi[0]["id"] if _yangi else None
           _du = detallar(C, OU) if OU else {}
           _iu = (_du.get("items") or [{}])[0]
-          check("U7 saqlandi: birlik dona, chiqishi 200, o'z blok narxi 500 000, koeffitsient 1,5 (qoplamasiz), o'lcham 12×3, 1 ta 2 500, "
-                "jami 125 000; asosiy narx 600 000",
+          check("U7 saqlandi: birlik dona, chiqishi 200, o'z blok narxi 500 000, koeffitsient 1,5 (qoplamasiz), o'lcham yozilmaydi (Eni / "
+                "Qalinlik yo'q), 1 ta 2 500, jami 125 000; asosiy narx 600 000",
                 _iu.get("blok_birlik") == "dona" and yaqin(_iu.get("blok_chiqishi"), 200) and yaqin(_iu.get("blok_narxi"), 500_000)
-                and yaqin(_iu.get("blok_koef"), 1.5) and _iu.get("width") == 12 and _iu.get("thickness") == 3
+                and yaqin(_iu.get("blok_koef"), 1.5) and not _iu.get("width") and not _iu.get("thickness")
                 and yaqin(_iu.get("unit_price"), 2500) and yaqin(_iu.get("total_price"), 125_000) and yaqin(_du.get("blok_base_price"), 600_000)
                 and yaqin(_iu.get("length"), 0.25, 1e-9), (_du.get("blok_base_price"), _iu))
           if OU:
+              # avval (soddalashtirishdan oldin) o'lcham bilan saqlangan blok detal — tahrirda o'lcham o'zgarmasligi kerak
+              _s = SessionLocal()
+              _oiu = _s.query(OrderItem).filter(OrderItem.order_id == OU).first()
+              if _oiu is not None:
+                  _oiu.width, _oiu.thickness = 12, 3
+                  _s.commit()
+              _s.close()
               pg.goto(f"{BASE}/orders?order={OU}", wait_until="networkidle")
               pg.wait_for_timeout(700)
               pg.evaluate("() => { editSelected(); }")
@@ -983,17 +996,24 @@ else:
                   return {l: r.querySelector('.i-l').value, q: r.querySelector('.i-q').value, bp: r.querySelector('.i-blokprice').value,
                           k: r.querySelector('.i-blokmult').value, h: r.querySelector('.i-h').value, t: r.querySelector('.i-t').value,
                           asosiy: document.getElementById('blok_base_price').value}; }""")
-              check("U8 tahrirda tiklandi: «ta» tanlangan, chiqishi 200, kerak 50, o'z narxi 500 000, koeffitsient 1,5, o'lcham 12 / 3, "
-                    "asosiy 600 000; jami 125 000",
-                    h6["faol"] == ["ta"] and _maydon["l"] == "200" and _maydon["q"] == "50" and bosh(_maydon["bp"]) == "500 000"
+              check("U8 tahrirda tiklandi: «ta» tanlangan, chiqishi 200, kerak 50, o'z narxi 500 000, koeffitsient 1,5, asosiy 600 000; "
+                    "jami 125 000; avval saqlangan o'lcham (12 / 3) — yashirin maydonda turadi (Eni / Qalinlik ko'rinmaydi)",
+                    h6["faol"] == ["ta"] and not h6["eni"] and not h6["qalin"] and _maydon["l"] == "200" and _maydon["q"] == "50" and bosh(_maydon["bp"]) == "500 000"
                     and _maydon["k"] == "1.5" and _maydon["h"] == "12" and _maydon["t"] == "3" and bosh(_maydon["asosiy"]) == "600 000"
                     and bosh(h6["jami"]) == "125 000", (h6, _maydon))
+              # birlik m ↔ ta almashtirilib qaytarilsa ham (forma qayta chiziladi — `toggleFields`) avvalgi o'lcham o'chmasin
+              pg.evaluate("""() => { const r = document.querySelector('#items .detal');
+                  r.querySelector('.blokunit-opt[data-value="metr"]').click(); r.querySelector('.blokunit-opt[data-value="dona"]').click(); }""")
+              pg.wait_for_timeout(200)
               pg.evaluate(f"() => {{ updateOrder({OU}); }}")
               tasdiqla(pg)
               pg.wait_for_timeout(1500)
               _du2 = detallar(C, OU)
-              check("U9 o'zgarishsiz saqlash — summa va blok maydonlari o'zgarmadi", yaqin(_du2.get("total_amount"), 125_000)
-                    and (_du2.get("items") or [{}])[0].get("blok_birlik") == "dona", (_du2.get("total_amount"), (_du2.get("items") or [{}])[0]))
+              check("U9 o'zgarishsiz saqlash (birlik m ↔ ta almashtirilib qaytarilgandan keyin ham) — summa va blok maydonlari o'zgarmadi, "
+                    "avval saqlangan o'lcham (12 / 3) o'chmadi",
+                    yaqin(_du2.get("total_amount"), 125_000) and (_du2.get("items") or [{}])[0].get("blok_birlik") == "dona"
+                    and (_du2.get("items") or [{}])[0].get("width") == 12 and (_du2.get("items") or [{}])[0].get("thickness") == 3,
+                    (_du2.get("total_amount"), (_du2.get("items") or [{}])[0]))
           # eski qoplamali yozuv
           pg.goto(f"{BASE}/orders?order={ID['ESKI']}", wait_until="networkidle")
           pg.wait_for_timeout(700)
@@ -1095,9 +1115,12 @@ else:
           pg.wait_for_timeout(300)
           _tm = pg.evaluate("""() => ({turlar: [...document.querySelectorAll('#p-type-toggle .type-opt')].map(o => o.textContent.trim()),
               tur: document.getElementById('p-type').value, birlik: document.getElementById('p-blokunit-wrap').offsetParent !== null,
-              m3: document.getElementById('p-m3').offsetParent !== null})""")
-          check("U16 Tayyor mahsulotlar oynasi: tur faqat «🧊 Blok», birlik tanlovi bor, «1 m³ narxi» yo'q", _tm["turlar"] == ["🧊 Blok"]
-                and _tm["tur"] == "blok" and _tm["birlik"] and not _tm["m3"], _tm)
+              m3: document.getElementById('p-m3').offsetParent !== null,
+              m2: document.querySelector('#p-blokunit-toggle .blokunit-opt[data-value="m2"]').offsetParent !== null,
+              eni: document.getElementById('p-h-wrap').offsetParent !== null, qalin: document.getElementById('p-t-wrap').offsetParent !== null})""")
+          check("U16 Tayyor mahsulotlar oynasi: tur faqat «🧊 Blok», birlik tanlovi bor (m / ta — «m²» yo'q), Eni / Qalinligi yo'q (egasi "
+                "QARORI 24.10), «1 m³ narxi» yo'q", _tm["turlar"] == ["🧊 Blok"]
+                and _tm["tur"] == "blok" and _tm["birlik"] and not _tm["m2"] and not _tm["eni"] and not _tm["qalin"] and not _tm["m3"], _tm)
           pg.evaluate("""() => { const f = (id, v) => { const e = document.getElementById(id); e.value = v; e.dispatchEvent(new Event('input', {bubbles: true})); };
               f('p-name', 'TM Rozetka C'); setPBlokUnit('dona'); f('p-l', '200'); f('p-q', '100'); f('p-blokprice', '450 000');
               setPCoating(document.querySelector('#p-coat-toggle .coat-no'), false); }""")
@@ -1197,11 +1220,11 @@ else:
           _lw = pgw.evaluate("""() => { const r = document.querySelector('#items .detal'); const w = s => Math.round(r.querySelector(s).getBoundingClientRect().width);
               const rw = r.getBoundingClientRect(); const qutilar = [...r.querySelectorAll('.dgrp-flex-row > .dgrp')].filter(b => b.offsetParent)
                 .map(b => b.getBoundingClientRect());
-              return {q: w('.i-q'), l: w('.i-l'), h: w('.i-h'), t: w('.i-t'), bp: w('.i-blokprice'), sigadi: qutilar.length === 2 && qutilar.every(b => b.right <= rw.right + 1),
-                      oyna: Math.round(rw.width)}; }""")
-          check("U23 1440 px ekran: blok detal maydonlari (kerak, chiqishi, Eni, Qalinlik, «1 blok narxi») o'qiladigan kenglikda (≥ 60 px), "
-                "«O'lcham» / «Miqdor va narx» qatordan chiqmaydi",
-                min(_lw["q"], _lw["l"], _lw["h"], _lw["t"], _lw["bp"]) >= 60 and _lw["sigadi"], _lw)
+              return {q: w('.i-q'), l: w('.i-l'), bp: w('.i-blokprice'), sigadi: qutilar.length === 1 && qutilar.every(b => b.right <= rw.right + 1),
+                      olcham: r.querySelector('.i-dims-box').offsetParent !== null, oyna: Math.round(rw.width)}; }""")
+          check("U23 1440 px ekran: blok detal maydonlari (kerak, chiqishi, «1 blok narxi») o'qiladigan kenglikda (≥ 60 px), «Miqdor va narx» "
+                "qatordan chiqmaydi; «O'lcham» guruhi yo'q (egasi QARORI 24.10)",
+                min(_lw["q"], _lw["l"], _lw["bp"]) >= 60 and _lw["sigadi"] and not _lw["olcham"], _lw)
           _ky = pgw.evaluate("""() => { const r = document.querySelector('#items .detal'); r.querySelector('.coat-yes').click();
               const k = r.querySelector('.i-blokmult'); k.value = '2.5'; k.dispatchEvent(new Event('input', {bubbles: true}));
               return r.querySelector('.coat-yes').textContent; }""")
@@ -1361,6 +1384,22 @@ else:
           _s.get(Company, 1).logo_path = "static/logo_transparent.png"
           _s.commit()
           _s.close()
+          # egasi QARORI (24.10 06:04): Profildan Blokka o'tilganda Profilda yozilgan o'lcham blok detaliga yashirin yozuv bo'lib qolmaydi
+          C.put("/api/settings/categories", data={"codes": "profil,blok", "v": "2"})
+          ctxp, pgp = kontekst("k211_c", 1440, 900)
+          pgp.goto(BASE + "/orders", wait_until="networkidle")
+          pgp.evaluate("() => { localStorage.clear(); showNewForm(); }")
+          pgp.wait_for_timeout(400)
+          _o32 = pgp.evaluate("""() => { const r = document.querySelector('#items .detal'); const tur0 = r.querySelector('.i-type').value;
+              r.querySelector('.i-h').value = '12'; r.querySelector('.i-t').value = '3';
+              selectTypeOpt(r.querySelector('.type-opt[data-value="blok"]'), 'blok');
+              return {tur0, tur: r.querySelector('.i-type').value, h: r.querySelector('.i-h').value, t: r.querySelector('.i-t').value,
+                      olcham: r.querySelector('.i-dims-box').offsetParent !== null}; }""")
+          ctxp.close()
+          C.put("/api/settings/categories", data={"codes": "blok", "v": "2"})
+          check("U32 Profildan Blokka o'tilganda Profilda yozilgan o'lcham tozalanadi (blok detalida Eni / Qalinlik yo'q — yashirin yozuv "
+                "bo'lib saqlanmaydi)", _o32["tur0"] == "profil" and _o32["tur"] == "blok" and _o32["h"] == "" and _o32["t"] == ""
+                and not _o32["olcham"], _o32)
           # egasi QARORI (24.10 04:09): Sozlamalarda 3 ta telefon — kiritiladi, saqlanadi (sahifa qayta ochilganda joyida), telefonda sig'adi
           ctxl, pgl = kontekst("k211_a", 1440, 900)
           pgl.goto(BASE + "/sozlamalar", wait_until="networkidle")

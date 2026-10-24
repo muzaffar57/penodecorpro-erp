@@ -577,7 +577,8 @@ _yaxlit = [x for x in PF.splitlines() if "up.value = Math.round(" in x]
 check("D3 pickFinished da `up.value = Math.round(...)` kod qatori YO'Q", not _yaxlit, _yaxlit)
 check("D4 editSelected fetch ichida: fpPrice qoidasi, so'ng Donalik maydoni, so'ng calculateItem",
       tartibda(ES, "fetch(`/api/finished`)", "if (isDup || _tmSaqlangan === null) row.dataset.fpPrice = fp.unit_price;",
-               "if ((isDup || _tmSaqlangan === null) && cat === 'dona') {", "upTm.value = narxKorinishi(fpNarxTm);",
+               # kech155 (zip 211, MOSLANDI): qoida blok tayyor mahsulotiga ham (`(cat === 'dona' || cat === 'blok')`)
+               "if ((isDup || _tmSaqlangan === null) && (cat === 'dona' || cat === 'blok')) {", "upTm.value = narxKorinishi(fpNarxTm);",
                "row.dataset.unitprice = fpNarxTm;", "calculateItem(row);", "checkFpLimit(row);"))
 
 try:
