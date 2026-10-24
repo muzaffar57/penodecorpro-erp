@@ -286,6 +286,17 @@
           <input type="text" id="co-phone" class="input-field" maxlength="60"
                  style="width:200px;max-width:100%" placeholder="+998 90 123 45 67">
         </div>
+        {# kech155 (zip 211g — egasi QARORI 24.10): 3 tagacha telefon — hamma hujjatlarda (yuk xati, buyurtma hisobi, taklif, sotuv cheki) #}
+        <div style="min-width:0;max-width:100%">
+          <label style="display:block;font-size:12px;color:var(--text3);margin-bottom:4px">Telefon 2</label>
+          <input type="text" id="co-phone2" class="input-field" maxlength="60"
+                 style="width:200px;max-width:100%" placeholder="ixtiyoriy">
+        </div>
+        <div style="min-width:0;max-width:100%">
+          <label style="display:block;font-size:12px;color:var(--text3);margin-bottom:4px">Telefon 3</label>
+          <input type="text" id="co-phone3" class="input-field" maxlength="60"
+                 style="width:200px;max-width:100%" placeholder="ixtiyoriy">
+        </div>
         <div style="min-width:0;max-width:100%">
           <label style="display:block;font-size:12px;color:var(--text3);margin-bottom:4px">Manzil</label>
           <input type="text" id="co-address" class="input-field" maxlength="200"
@@ -476,6 +487,8 @@ async function loadCompany(faqatLogo) {
     document.getElementById('co-name').value = d.name || '';
     document.getElementById('co-slogan').value = d.slogan || '';
     document.getElementById('co-phone').value = d.phone || '';
+    document.getElementById('co-phone2').value = d.phone2 || '';      // kech155 (zip 211g)
+    document.getElementById('co-phone3').value = d.phone3 || '';
     document.getElementById('co-address').value = d.address || '';
     document.getElementById('co-tg-tagline').value = d.tg_tagline || '';
     const sb = document.getElementById('co-save-btn');
@@ -531,6 +544,10 @@ async function saveCompany() {
   fd.append('name', nom);
   fd.append('slogan', document.getElementById('co-slogan').value.trim());
   fd.append('phone', document.getElementById('co-phone').value.trim());
+  // kech155 (zip 211g): 2- va 3-telefon; `tel_v=2` — server ularni shu sahifa bilgani uchun o'rnatadi (eski sahifa o'chirib yubormasin)
+  fd.append('phone2', document.getElementById('co-phone2').value.trim());
+  fd.append('phone3', document.getElementById('co-phone3').value.trim());
+  fd.append('tel_v', '2');
   fd.append('address', document.getElementById('co-address').value.trim());
   fd.append('tg_tagline', document.getElementById('co-tg-tagline').value.trim());
   // kech144 (zip 175, audit C6): internet uzilsa ham xabar; 5xx — natija noma'lum; rad — sabab (`amalSababi`)
