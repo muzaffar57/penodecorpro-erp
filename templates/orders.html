@@ -289,6 +289,37 @@
 .detal.blok-qator .dgrp-flex-row > .i-qty-box{flex:3 1 440px !important;min-width:0}
 .detal.blok-qator .yb-qoplama-qator{grid-template-columns:repeat(auto-fit,minmax(170px,1fr)) !important}
 .detal.blok-qator .yb-qoplama-qator > .dif{min-width:0}
+/* kech156 (zip 214 — egasi tanlovi 24.10 «1 m³ narxi kengroq»; O'LCHANGAN `work/k214/probe214.py`, haqiqiy Chromium): detal maydonlari
+   qat'iy ustunlarda edi — joy yetmasa 0 px gacha siqilardi («1 m³ narxi» yozish joyi 1440 px da 2 px, 1366 / 1280 px da 0; Donali turida
+   1440 px da Bo'yi, Qalinlik, «1 metrdan nechta», «1 dona narxi», Miqdor — 0 px; «1 dona / 1 kg narxi» telefonda ham sig'masdi). Endi har
+   maydon o'z eng kichik kengligida (son — 140 px (O'lcham) / 160 px (Miqdor — «dona», «kg» birligi kengroq), narx — 220 px), joy yetmasa KEYINGI QATORGA o'tadi; keng ekranda — avvalgidek bir qatorda.
+   O'lcham qatorining JS bergan ustun soni (`gridTemplateColumns`) flex da ishlatilmaydi — kerak ham emas (ko'rinadigan maydonlar o'zi
+   bo'linadi). */
+.i-dims-box > .dgrp-row, .i-qty-box > .dgrp-row, .dgrp-row.yb-qoplama-qator{display:flex;flex-wrap:wrap;align-items:flex-end}
+.i-dims-box > .dgrp-row > .dif{flex:1 1 140px;min-width:0}
+.i-qty-box > .dgrp-row > .dif{flex:1 1 160px;min-width:0}
+.i-qty-box > .dgrp-row > .i-unitprice-wrap, .yb-qoplama-qator > .i-m3price-wrap, .yb-qoplama-qator > .i-blokprice-wrap{flex:1 1 220px;min-width:0}
+.yb-qoplama-qator > .i-coat-wrap{flex:1 1 150px;min-width:0}
+.yb-qoplama-qator > .i-peno-wrap{flex:2 1 260px;min-width:0}
+.detal-result .result-card{flex:1 1 200px}
+/* «Loy turi (retsept)» (Loy sotish) — detal setkasining 1/4 qismida edi (1440 px da tanlov yozuvi 61 px, 1280 px da 40) — butun qatorda */
+.detal-grid > .i-loysale-recipe-wrap{grid-column:1/-1}
+@media (min-width:901px){
+  /* «O'lcham» va «Miqdor va narx» qutilari — tor ustunda ustma-ust (blok detalida zip 211 dan beri shunday — o'z qoidasi ustun) */
+  .dgrp-flex-row{flex-wrap:wrap}
+  .dgrp-flex-row > .i-dims-box{flex:2 1 260px !important;min-width:0}
+  .dgrp-flex-row > .i-qty-box{flex:3 1 320px !important;min-width:0}
+}
+@media (min-width:901px) and (max-width:1150px){
+  /* yangi buyurtma / tahrir ochiq: o'ng panel (hisob-kitob) formadan KEYIN — forma ustuni ~110–200 px edi (Nomi 0–86 px) */
+  .ord-layout.yangi-forma{grid-template-columns:260px minmax(0,1fr)}
+  .ord-layout.yangi-forma > .right-panel{grid-column:2}
+}
+@media (min-width:1151px) and (max-width:1365px){
+  /* yangi buyurtma / tahrir ochiq: ro'yxat 300 → 260 px, o'ng panel 280 → 240 px — forma 283 → 363 px (1151 px), 412 → 492 px (1280 px);
+     review214 №1 */
+  .ord-layout.yangi-forma{grid-template-columns:260px minmax(0,1fr) 240px}
+}
 /* Ichki qo'shimcha detal qatoridagi Qoplama — asosiy detalning
    coat-toggle/coat-opt bilan bir xil rang mantig'i, faqat qator ichiga
    sig'adigan kichikroq o'lchamda (ko'rinish, formulaga tegilmagan). */
@@ -4650,7 +4681,7 @@ function addItem() {
       <div class="dgrp" style="grid-column:1/-1">
         <div class="dgrp-title">🎨 Qoplama, plotnost va narx</div>
         <div class="dgrp-row yb-qoplama-qator" style="grid-template-columns:1fr 2fr 1fr">
-          <div class="dif"><label>Qoplama</label>
+          <div class="dif i-coat-wrap"><label>Qoplama</label>
             <div class="coat-toggle segment" role="group" aria-label="Qoplama">
               <div class="coat-opt coat-no active" onclick="setCoating(this, false)">Yo'q</div>
               <div class="coat-opt coat-yes" onclick="setCoating(this, true)">Bor (×2)</div>
@@ -4660,7 +4691,7 @@ function addItem() {
               <option value="true">Ha</option>
             </select>
           </div>
-          <div class="dif"><label>Plotnost</label>
+          <div class="dif i-peno-wrap"><label>Plotnost</label>
             <div class="unit-input-wrap">
               <select class="i-peno" onchange="onPenoChange(this.closest('.detal'))">
                 ${PENO_OPTIONS}
@@ -4668,7 +4699,7 @@ function addItem() {
               <span class="unit-suffix i-peno-display"></span>
             </div>
           </div>
-          <div class="dif"><label>1 m³ narxi</label>
+          <div class="dif i-m3price-wrap"><label>1 m³ narxi</label>
             <div class="unit-input-wrap" style="border-color:var(--gold)">
               <input type="text" class="i-m3price" placeholder="asosiy"
                      oninput="formatPriceInput(this);calculateItem(this.closest('.detal'))">
