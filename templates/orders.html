@@ -209,6 +209,8 @@
 .detal.collapsed .detal-chevron{transform:rotate(-90deg)}
 .detal-summary{display:none;align-items:center;gap:8px;font-size:13px;color:var(--text2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .detal.collapsed .detal-summary{display:flex}
+.detal-summary .takror-belgi{color:var(--gold-dark);font-weight:600;white-space:nowrap;flex-shrink:0}
+@media (max-width:900px){.detal-summary .takror-belgi .tb-matn{display:none}}
 .detal-summary b{color:var(--text);font-weight:600}
 .detal-summary .val{color:var(--m-15803d);font-weight:700;white-space:nowrap}
 .detal-badge{font-size:13px;font-weight:700;color:var(--gold-dark);background:var(--gold-tint);padding:6px 14px;border-radius:8px;border:1px solid var(--ch-dbeafe);flex-shrink:0}
@@ -1557,6 +1559,8 @@ async function restoreDraftLS(draft) {
     updateDetalSummary(r);
     if (idx > 0) r.classList.add('collapsed');
   });
+  // kech156 (zip 213): tiklangan detallar uchun «avval berilgan» eslatmasi
+  if (typeof takrorHammasi === 'function') takrorHammasi();
 
   updateTotal();
   updateLiveStats();
@@ -1983,6 +1987,7 @@ function pickFinished(el, fpId) {
 
   // Maydonlarni to'ldiramiz
   row.querySelector('.i-name').value = fp.name;
+  if (typeof takrorQatori === 'function') takrorQatori(row);   // kech156 (zip 213): nom dasturdan — «avval berilgan» eslatmasi
   const typeEl = row.querySelector('.i-type');
   // Forma faqat profil/panel/dona/blok turlarini biladi — boshqa (masalan
   // xavfsiz tarzda "dona" rejimida ko'rsatiladi (miqdor + narx maydoni bilan).
@@ -3817,6 +3822,8 @@ async function deletePayment(paymentId) {
 // onchange va h.k.) o'zgarmaydi — faqat mos kelmagan <option>lar
 // vaqtincha yashiriladi.
 async function loyihaTanlovi(sel) {
+  // kech156 (zip 213): boshqa loyiha — «avval berilgan» eslatmalari shu loyiha bo'yicha
+  if (typeof takrorHammasi === 'function') takrorHammasi();
   // kech126 (zip 148): rasmiylashtirishda yangi loyiha nomi maydoni; «+ Yangi loyiha yaratish…» o'rniga taklifdagi mijoz uchun loyiha
   if (typeof tkLoyihaTanlovi === 'function' && tkLoyihaTanlovi(sel)) return;
   if (!sel || sel.value !== '__yangi') return;
@@ -3877,6 +3884,8 @@ function yaratishKaliti() {
 }
 
 function showNewForm() {
+  // kech156 (zip 213): «avval berilgan» ma'lumoti har ochilishda yangidan (oraliqda yuk xati yozilgan bo'lishi mumkin)
+  if (typeof takrorTozala === 'function') takrorTozala();
   // kech144 (zip 173, audit 2-to'lqin — O'LCHANGAN `work/k173/probe_buyurtma.py` V6 / V2b): tahrirlangan buyurtma yopilib
   // «+ Yangi buyurtma» bosilsa forma O'SHA buyurtmaning detallari, loyi (30 kg), kelishilgan summasi, loyihasi va retsepti bilan
   // ochilardi («Yangi buyurtma» sarlavhasi bilan) — saqlansa uning nusxasi yaratilardi. Tahrir / taklif rejimidan chiqishda
@@ -3925,6 +3934,8 @@ function showNewForm() {
   document.querySelectorAll('.ord-item').forEach(i => i.classList.remove('active'));
   selectedOrderId = null;
   if (document.getElementById('items').children.length === 0) addItem();
+  // kech156 (zip 213): saqlanib qolgan qatorlar — «avval berilgan» eslatmasi yangi ma'lumot bilan (review213 №3)
+  if (typeof takrorHammasi === 'function') takrorHammasi();
   // kech152 (zip 194): forma qayta ochildi — yuklanayotgan tahrir (`editSelected`) eskirdi
   if (typeof yukNavbat === 'function') yukNavbat('forma');
 }
@@ -4459,6 +4470,86 @@ function rasmXatolariMatni(xatolar) {
     + ': ' + birinchi.sabab + " — buyurtma ochilgach, detal rasmini qayta yuklang.";
 }
 
+// kech156 (zip 213 — egasi tanlovlari 24.10 «Bu takror emasmi?» → «Qatorda eslatma» → «Ochiq buyurtma ham»; ORD-068 — bitta karniz ikki
+// buyurtmada): detal nomi yozilganda shu LOYIHANING boshqa buyurtmalarida xuddi shu nomli detal YUK XATI bilan berilgan yoki OCHIQ
+// buyurtmada hali berilmagan bo'lsa qator ostida «ℹ️ Bu loyihada: ORD-064-4 — 72 m (hali berilmagan) · ORD-064-3 — 72 m berilgan
+// (19.10)» (bloklamaydi). Ma'lumot — `GET /api/projects/{id}/berilgan-detallar` (loyiha bo'yicha bir marta;
+// tahrirda tahrirlanayotgan buyurtma `istisno`). Kalit — server `crud.detal_nomi_kaliti` bilan AYNAN (Kirill — avval Lotinga).
+var TAKROR = window.TAKROR || {pid: null, istisno: null, data: null, va: null};
+window.TAKROR = TAKROR;
+function takrorKalit(s) {
+  let t = String(s == null ? '' : s);
+  if (typeof sanitizeToLatin === 'function') { try { t = sanitizeToLatin(t); } catch (e) {} }
+  return t.toLowerCase().replace(/[\u02bb\u02bc\u2019\u2018`\u00b4]/g, "'").replace(/\s+/g, ' ').trim();
+}
+function _takrorJoriy() {
+  const pid = parseInt((document.getElementById('project_id') || {}).value);
+  return {pid: Number.isFinite(pid) && pid > 0 ? pid : null,
+          istisno: (typeof editMode !== 'undefined' && editMode && typeof currentEditOrderId !== 'undefined' && currentEditOrderId) ? currentEditOrderId : null};
+}
+function takrorTarixi() {
+  const j = _takrorJoriy();
+  if (!j.pid) return Promise.resolve(null);
+  if (TAKROR.va && TAKROR.pid === j.pid && TAKROR.istisno === j.istisno) return TAKROR.va;
+  TAKROR.pid = j.pid; TAKROR.istisno = j.istisno; TAKROR.data = null;
+  const url = '/api/projects/' + j.pid + '/berilgan-detallar' + (j.istisno ? ('?istisno=' + j.istisno) : '');
+  const va = fetch(url).then(r => (r.ok ? r.json() : null)).then(d => {
+    const ro = (d && Array.isArray(d.detallar)) ? d.detallar : null;
+    if (TAKROR.va === va) {
+      TAKROR.data = ro;
+      if (ro === null) TAKROR.va = null;      // xato (500 / tarmoq) keshda qolmaydi — keyingi harfda qayta so'raladi (review213 №4)
+    }
+    return ro;
+  }).catch(() => { if (TAKROR.va === va) TAKROR.va = null; return null; });
+  TAKROR.va = va;
+  return va;
+}
+function takrorTozala() { TAKROR.va = null; TAKROR.data = null; TAKROR.pid = null; TAKROR.istisno = null; }
+async function takrorQatori(row) {
+  if (!row) return;
+  const el = row.querySelector('.i-takror');
+  const inp = row.querySelector('.i-name');
+  if (!el || !inp) return;
+  const kalit = takrorKalit(inp.value);
+  const j = _takrorJoriy();
+  if (!kalit || !j.pid) { el.style.display = 'none'; el.textContent = ''; _takrorBelgi(row, false); return; }
+  const data = await takrorTarixi();
+  // kutish orasida nom / loyiha / tahrir o'zgargan bo'lsa — eski javob yozilmaydi (keyingi chaqiruv yozadi)
+  const j2 = _takrorJoriy();
+  if (takrorKalit(inp.value) !== kalit || j2.pid !== j.pid || j2.istisno !== j.istisno) return;
+  // solishtirish — serverdagi NOMNING o'zidan shu kalit bilan (eski Kirill yozuvlar ham Lotinga o'girilib mos keladi)
+  const mos = (data || []).filter(d => d && takrorKalit(d.nomi) === kalit);
+  if (!mos.length) { el.style.display = 'none'; el.textContent = ''; _takrorBelgi(row, false); return; }
+  el.textContent = '';
+  const b = document.createElement('b');
+  b.textContent = 'ℹ️ Bu loyihada: ';
+  el.appendChild(b);
+  const qism = mos.slice(0, 3).map(takrorYozuv);
+  el.appendChild(document.createTextNode(qism.join(' · ') + (mos.length > 3 ? ` · … yana ${mos.length - 3} ta` : '')));
+  el.style.display = 'block';
+  _takrorBelgi(row, true);
+}
+// bitta yozuv (egasi tanlovi «Ochiq buyurtma ham»): «ORD-064-3 — 72 m berilgan (19.10)», «ORD-064-4 — 72 m (hali berilmagan)»,
+// qisman — «ORD-064-2 — 30 m berilgan (20.10), 10 m hali berilmagan»; son, birlik, sana — bo'linmas bo'shliq bilan (telefonda «30 / m»
+// bo'lib ikki qatorga ajralmasin)
+function takrorYozuv(d) {
+  const n = '\u00a0';
+  const ber = Number(d.berilgan) > 0 ? `${d.berilgan_matn}${n}${d.birlik}${n}berilgan` + (d.sana_matn ? `${n}(${d.sana_matn})` : '') : '';
+  if (!d.ochiq) return `${d.buyurtma} —${n}${ber}`;
+  if (!ber) return `${d.buyurtma} —${n}${d.qolgan_matn}${n}${d.birlik}${n}(hali${n}berilmagan)`;
+  return `${d.buyurtma} —${n}${ber}, ${d.qolgan_matn}${n}${d.birlik}${n}hali${n}berilmagan`;
+}
+// yig'ilgan (collapsed) qator — nom ostidagi yozuv yashirin; xulosa qatorida «ℹ️ loyihada bor» belgisi (`updateDetalSummary`)
+function _takrorBelgi(row, bor) {
+  const oldin = row.dataset.takror === '1';
+  if (bor === oldin) return;
+  if (bor) row.dataset.takror = '1'; else delete row.dataset.takror;
+  if (typeof updateDetalSummary === 'function') updateDetalSummary(row);
+}
+function takrorHammasi() {
+  document.querySelectorAll('#items .detal').forEach(r => { takrorQatori(r); });
+}
+
 function addItem() {
   itemCount++;
   const div = document.createElement('div');
@@ -4488,8 +4579,9 @@ function addItem() {
       <div class="dif" style="grid-column:1/-1;position:relative;background:var(--f-dbeafe);border:2px solid var(--gold)">
         <label style="color:var(--gold-dark)">Nomi <span class="majburiy" title="Majburiy">*</span></label>
         <input placeholder="Masalan: Karniz M-06" class="i-name" autocomplete="off"
-               oninput="searchFinished(this);updateTotal();updateLiveStats();updateDetalSummary(this.closest('.detal'))" onblur="hideFpSuggest(this)">
+               oninput="searchFinished(this);updateTotal();updateLiveStats();updateDetalSummary(this.closest('.detal'));takrorQatori(this.closest('.detal'))" onblur="hideFpSuggest(this)">
         <div class="fp-suggest" style="display:none"></div>
+        <div class="i-takror" role="status" style="display:none;margin-top:6px;font-size:12px;line-height:1.45;color:var(--gold-dark);overflow-wrap:anywhere"></div>
       </div>
       <div class="dif dif-tur" style="grid-column:1/-1">
         <label>Tur</label>
@@ -4943,6 +5035,7 @@ function selectMrpProduct(row, pt) {
   }
   const nameEl = row.querySelector('.i-name');
   if (nameEl && !nameEl.value.trim()) nameEl.value = pt.name;
+  if (typeof takrorQatori === 'function') takrorQatori(row);   // kech156 (zip 213): nom dasturdan — «avval berilgan» eslatmasi
   selectTypeOpt(btn, 'mrp_product');
   const confirmEl = row.querySelector('.type-confirm-text');
   if (confirmEl) confirmEl.textContent = `✓ "${pt.name}" tanlandi — ${pt.unit} bo'yicha, oddiy narx x miqdor bilan hisoblanadi`;
@@ -4988,6 +5081,9 @@ function updateDetalSummary(row) {
   if (name) parts.push(`<b>${escapeHtml(name)}</b>`); else parts.push('<span style="color:var(--text3)">(nomsiz)</span>');
   if (dim) parts.push(escapeHtml(dim));
   if (price && parseFloat(price.replace(/\s/g,'')) > 0) parts.push(`<span class="val">${escapeHtml(price)} so'm</span>`);
+  // kech156 (zip 213): «loyihada bor» belgisi — BIRINCHI (telefonda xulosa maydoni ~80–110 px, nomdan keyingisi kesilardi — review213
+  // №1); tor ekranda faqat «ℹ️» (`.tb-matn` yashirinadi, CSS); matn doimiy (foydalanuvchi ma'lumoti yo'q)
+  if (row.dataset.takror === '1') parts.unshift('<span class="takror-belgi" title="Bu loyihada avval berilgan yoki ochiq buyurtmada bor">ℹ️<span class="tb-matn"> loyihada bor</span></span>');
 
   summaryEl.innerHTML = parts.join(' <span style="color:var(--border)">·</span> ');
 }
@@ -7101,6 +7197,8 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
       if (_h110) _h110.dataset.yuklash = _h110.style.display === 'none' ? '' : _h110.innerHTML;
     }
     editInitialLoadDone = true;
+    // kech156 (zip 213): yuklangan detallar uchun «avval berilgan» eslatmasi (tahrirda — shu buyurtmaning o'zi sanalmaydi)
+    if (typeof takrorHammasi === 'function') takrorHammasi();
 
   } catch(e) {
     console.error('editSelected:', e);
