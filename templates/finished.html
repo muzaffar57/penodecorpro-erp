@@ -416,7 +416,8 @@ input[type=number]{-moz-appearance:textfield}
             <div class="blokunit-toggle" id="p-blokunit-toggle" role="group" aria-label="Blok mahsuloti birligi">
               <div class="blokunit-opt active" data-value="metr" onclick="setPBlokUnit('metr')">m</div>
               <div class="blokunit-opt" data-value="dona" onclick="setPBlokUnit('dona')">ta</div>
-              <div class="blokunit-opt" data-value="m2" onclick="setPBlokUnit('m2')">m²</div>
+              {# kech155 (zip 211h — egasi QARORI 24.10): yangi blok mahsulotida «m²» yo'q (faqat m / ta) #}
+              <div class="blokunit-opt" data-value="m2" onclick="setPBlokUnit('m2')" style="display:none">m²</div>
             </div>
             <select id="p-blokunit" style="display:none"><option value="metr" selected>m</option><option value="dona">ta</option><option value="m2">m²</option></select>
           </div>
@@ -2114,8 +2115,10 @@ function pToggle() {
     // kech155 (zip 211): o'lcham (Eni, Qalinligi) — ixtiyoriy, faqat yozuv uchun; birlik, chiqishi, kerak, blok narxi (qoplamasiz),
     // koeffitsient; «1 m³ narxi» yo'q
     const bq = P_BLOK_QISQA[pBlokBirligi()];
-    hW.style.display = 'block'; wW.style.display = 'none';
-    tW.style.display = 'block';
+    // kech155 (zip 211h — egasi QARORI 24.10 «soddalashtirish»): Eni / Qalinligi yo'q (buyurtma oynasidagi kabi) — yozilgani tozalanadi
+    hW.style.display = 'none'; wW.style.display = 'none';
+    tW.style.display = 'none';
+    ['p-h', 'p-t'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
     lW.style.display = 'block';   // 1 blokdan chiqadigan …
     qW.style.display = 'block';   // Necha … kerak
     upW.style.display = 'none';

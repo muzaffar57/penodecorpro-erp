@@ -4533,7 +4533,8 @@ function addItem() {
               <div class="blokunit-toggle" role="group" aria-label="Blok detal birligi">
                 <div class="blokunit-opt active" data-value="metr" onclick="setBlokUnit(this,'metr')">m</div>
                 <div class="blokunit-opt" data-value="dona" onclick="setBlokUnit(this,'dona')">ta</div>
-                <div class="blokunit-opt" data-value="m2" onclick="setBlokUnit(this,'m2')">m²</div>
+                {# kech155 (zip 211h — egasi QARORI 24.10): «m²» — faqat avval m² da saqlangan detalda ko'rinadi (`syncBlokUnitUI`) #}
+                <div class="blokunit-opt" data-value="m2" onclick="setBlokUnit(this,'m2')" style="display:none">m²</div>
               </div>
               <select class="i-blokunit" style="display:none"><option value="metr" selected>m</option><option value="dona">ta</option><option value="m2">m²</option></select>
             </div>
@@ -4677,7 +4678,13 @@ function blokBirligi(row) {
 
 function syncBlokUnitUI(row) {
   const v = blokBirligi(row);
-  row.querySelectorAll('.blokunit-opt').forEach(o => o.classList.toggle('active', o.dataset.value === v));
+  // kech155 (zip 211h — egasi QARORI 24.10 «soddalashtirish»): yangi blok detalida «m²» tanlanmaydi (faqat m / ta); avval m² da
+  // saqlangan detal (tahrir, qoralama, taklifdan, tayyor mahsulotdan) — o'z birligida ko'rinadi va shu qatorda m² ga qaytsa bo'ladi
+  if (v === 'm2') row.dataset.blokM2 = '1';
+  row.querySelectorAll('.blokunit-opt').forEach(o => {
+    o.classList.toggle('active', o.dataset.value === v);
+    if (o.dataset.value === 'm2') o.style.display = (row.dataset.blokM2 === '1') ? '' : 'none';
+  });
 }
 
 function setBlokUnit(el, v) {
@@ -4846,6 +4853,11 @@ function selectTypeOpt(btn, value) {
   row.querySelectorAll('.type-opt').forEach(o => o.classList.remove('active'));
   btn.classList.add('active');
   const sel = row.querySelector('.i-type');
+  // kech155 (zip 211h — egasi QARORI 24.10): blokda Eni / Qalinlik yo'q — boshqa turdan blokka o'tilganda avval yozilgani tozalanadi
+  // (yashirin qiymat blok detalining yozuvi bo'lib saqlanmasin)
+  if (value === 'blok' && sel.value !== 'blok') {
+    ['.i-h', '.i-t'].forEach(c => { const el = row.querySelector(c); if (el) el.value = ''; });
+  }
   sel.value = value;
   toggleFields(row);
   updateTypeConfirmText(row, value);
@@ -5125,8 +5137,11 @@ function toggleFields(row) {
     // uchun: yuk xati, sex; narxga ta'siri yo'q), birlik (m / ta / m²), «1 blokdan chiqadigan …», «Necha … kerak», qoplama
     // (+ koeffitsient), plotnost, «1 blok narxi» (bo'sh — asosiy). Tayyor mahsulotdan — «1 … narxi» (mahsulot narxi), xomashyo yo'q.
     const tmBlok = !!row.dataset.fpId;
-    hW.style.display = 'block'; wW.style.display = 'none';
-    tW.style.display = 'block';
+    // kech155 (zip 211h — egasi QARORI 24.10 «soddalashtirish»): Eni / Qalinlik YO'Q — «1 blokdan chiqadigan» va «Necha … kerak» yetarli
+    // (o'lcham narxga ham, omborga ham ta'sir qilmasdi). Uchala o'lcham yashirin — «O'lcham» guruhi o'zi yashiriladi (pastdagi qoida);
+    // avval saqlangan blok detalining o'lchami maydonda qoladi (tahrirda o'zgarishsiz saqlanadi)
+    hW.style.display = 'none'; wW.style.display = 'none';
+    tW.style.display = 'none';
     lW.style.display = tmBlok ? 'none' : 'block';   // 1 blokdan chiqadigan …
     qW.style.display = 'block';                     // Necha … kerak
     if (upW) upW.style.display = tmBlok ? 'block' : 'none';
