@@ -319,9 +319,11 @@ class OrderItemCreate(BaseModel):
     # "Donali" turi uchun — hajmni hisoblashda ISHLATILADIGAN (qulflangan)
     # narx, unit_price'dan farq qilishi mumkin (agar sotuv narxi keyinroq
     # o'zgartirilgan bo'lsa). Berilmasa — unit_price'ning o'zi ishlatiladi.
-    unit_price_for_volume: Optional[float] = Field(default=None, le=9_999_999_999.99)
+    # kech157 (zip 216 — O'LCHANGAN): faqat yuqori chegara edi — «-Infinity» buyurtmada 500, taklifda tanaga yozilib taklifni ochish 500;
+    # manfiy son ham qabul qilinardi. Endi 0 … chegara, NaN / cheksiz — 422.
+    unit_price_for_volume: Optional[float] = Field(default=None, ge=0, le=9_999_999_999.99, allow_inf_nan=False)
     penoplast_id: Optional[int] = None
-    price_per_m3: Optional[float] = Field(default=None, le=9_999_999_999.99)
+    price_per_m3: Optional[float] = Field(default=None, ge=0, le=9_999_999_999.99, allow_inf_nan=False)
     finished_product_id: Optional[int] = None
     image_url: Optional[str] = None
     notes: Optional[str] = None
@@ -348,7 +350,7 @@ class GipsAdditiveInput(BaseModel):
     """Gips buyurtmasiga qo'shiladigan ixtiyoriy xomashyo — erkin,
     Omborxonadan istalgan material tanlanadi (qattiq ro'yxat emas)."""
     inventory_id: int
-    planned_qty: float = Field(..., gt=0)
+    planned_qty: float = Field(..., gt=0, allow_inf_nan=False)     # kech157 (zip 216): ∞ qabul qilinardi
 
 
 class GipsAdditiveActual(BaseModel):
@@ -369,9 +371,10 @@ class OrderCreate(BaseModel):
     notes: Optional[str] = None
     # GIPS — asosiy xomashyo (taxminiy) va ixtiyoriy qo'shimchalar
     gips_inventory_id: Optional[int] = None
-    planned_gips_kg: Optional[float] = None
+    # kech157 (zip 216 — O'LCHANGAN): NaN / cheksiz gips kg qabul qilinardi (taklif tanasiga yozilardi), asosiy narx «-Infinity» — 500
+    planned_gips_kg: Optional[float] = Field(default=None, ge=0, allow_inf_nan=False)
     gips_additives: List[GipsAdditiveInput] = []
-    base_price: Optional[float] = Field(default=None, le=9_999_999_999.99)
+    base_price: Optional[float] = Field(default=None, ge=0, le=9_999_999_999.99, allow_inf_nan=False)
     # kech155 (zip 211): «1 blok asosiy narxi» (qoplamasiz) — o'z narxi yozilmagan blok detallar uchun (forma shu bilan hisoblaydi)
     blok_base_price: Optional[float] = Field(default=None, ge=0, le=9_999_999_999.99, allow_inf_nan=False)
     # 17d (2026-09-21): rejalashtirilgan loy (kg). QAT'IY: faqat JSON son
