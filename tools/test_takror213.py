@@ -395,8 +395,11 @@ D = (j or {}).get("detallar") if isinstance(j, dict) else None
 D = D if isinstance(D, list) else []
 KALITLAR = {"kalit", "nomi", "order_id", "buyurtma", "berilgan", "berilgan_matn", "birlik", "sana", "sana_matn", "qolgan", "qolgan_matn",
             "ochiq"}
-check("A1 200; har yozuv — AYNAN 12 maydon (narx / summa / mijoz YO'Q)",
-      st == 200 and D and all(set(d) == KALITLAR for d in D), (st, D[:2]))
+# kech157 (zip 215): «qaytgan», «qaytgan_matn», «brak», «brak_matn» (MOSLASH: zip 213 kodida 12, zip 215 dan 16 maydon)
+check("A1 200; har yozuv — AYNAN 12 maydon (zip 215 dan 16: + qaytgan, qaytgan_matn, brak, brak_matn) (narx / summa / mijoz YO'Q)",
+      st == 200 and D and (all(set(d) == KALITLAR for d in D)
+                           or all(set(d) == KALITLAR | {"qaytgan", "qaytgan_matn", "brak", "brak_matn"} for d in D)),
+      (st, D[:2]))
 _kar = [d for d in D if d.get("kalit") == "karniz m-06"]
 _byo = {d.get("order_id"): d for d in _kar}
 
