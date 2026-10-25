@@ -7189,7 +7189,10 @@ def api_get_ehson_percent(db: Session = Depends(get_db), current_user=Depends(au
 @app.put("/api/settings/ehson-percent")
 def api_set_ehson_percent(percent: float = Form(...), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("sozlama", "tahrirlash"))):
     """Ehson foizini belgilaydi — faqat Admin o'zgartira oladi."""
-    if percent < 0 or percent > 100:
+    # kech157 (zip 216 — O'LCHANGAN, HAQIQIY PG): «nan» `percent < 0 or percent > 100` dan o'tib `'nan'` bo'lib saqlanardi (keyin ehson foizi,
+    # Moliya tarixi — 500, oylik ehson / sof foyda — NaN). Son bo'lmagan / cheksiz — 400.
+    import math as _m216e
+    if not _m216e.isfinite(percent) or percent < 0 or percent > 100:
         raise HTTPException(status_code=400, detail="Foiz 0 dan 100 gacha bo'lishi kerak")
     crud.set_setting(db, "ehson_percent", str(percent), company_id=auth.company_id_of(current_user))
     return {"status": "ok", "ehson_percent": percent}
@@ -9525,6 +9528,11 @@ def api_record_cash_transaction(category: str = Form(...), amount: float = Form(
     eski «boshlang'ich balans» — rad (u «Kassa + bank» ga endi ta'sir qilmaydi — «+ Boshlang'ich qoldiq» dan)."""
     if category not in ("boshlangich", "usta_kpi", "ehson"):
         raise HTTPException(status_code=400, detail="Noto'g'ri kategoriya")
+    # kech157 (zip 216 — O'LCHANGAN, HAQIQIY PG): «nan» summa 500 bersa ham `cash_transactions.amount = NaN` yozilardi (keyin kassa qoldig'i,
+    # pul oqimi, kassa ro'yxati — 500); «inf» / «-inf» — 500. Son bo'lmagan / cheksiz — 400, hech narsa yozilmaydi.
+    import math as _m216
+    if not _m216.isfinite(amount):
+        raise HTTPException(status_code=400, detail="Summa son bo'lishi kerak")
     # kech155 (zip 210, mustaqil tekshiruv review210 №7): Usta KPI / Ehson — CHIQIM (sahifa manfiy summa yuboradi); musbat summa endi
     # tanlangan hisobni OSHIRARDI (ilgari ham jim qabul qilinardi) — rad
     if category in ("usta_kpi", "ehson") and not (amount < 0):

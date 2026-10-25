@@ -1260,7 +1260,10 @@ def _purchase_stock_no_commit(db: Session, item_id: int, quantity: float, price_
         hisob_id=(hisob_id if not is_credit and not is_opening_stock else None),
         # kech107 (10f): bekor qilishda narxni AYNAN qaytarish uchun (NULL narx — 0, tizim uni 0 deb hisoblaydi).
         narx_oldin=round(old_price, 2),
-        narx_keyin=round(float(db_item.price_per_unit or 0), 2)
+        narx_keyin=round(float(db_item.price_per_unit or 0), 2),
+        # kech157 (zip 217): penoplast «1 blok necha m³» — bekor qilishda AYNAN qaytarish uchun (boshqa material — NULL)
+        hajm_oldin=(round(old_volume, 6) if db_item.is_penoplast else None),
+        hajm_keyin=(round(float(db_item.volume_per_unit or 1.0), 6) if db_item.is_penoplast else None)
     )
     # kech115 (G4-03): kirim hujjatida tanlangan o'tgan sana (`kirim_sanalari`) — xarid shu kunga yoziladi (oylik
     # hisobotdagi xomashyo xaridi `purchased_at` bo'yicha). Berilmasa — hozir (ustun standarti).
@@ -2432,9 +2435,37 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None,
         Order.created_at >= _recent_cutoff
     ).order_by(Order.created_at.desc()).first()
     if _recent_order:
-        _new_sig = sorted([(i.name, i.category, round(float(i.quantity or 0), 4)) for i in order_data.items])
-        _old_sig = sorted([(it.name, it.category, round(float(it.quantity or 0), 4)) for it in _recent_order.items])
-        if _new_sig and _new_sig == _old_sig:
+        # kech157 (zip 215b — JONLI sinovda topilgan eski nuqson): imzo — detalning HAMMA ma'noli maydonlari, saqlanganidek. Ilgari faqat
+        # (nom, tur, miqdor): bir loyihada 8 s ichida «Karniz» 72 m dan keyin «Karniz» 40 m (profil, miqdor 1) yaratilmay, birinchisi qaytardi
+        # (sinov sayti, 25.10); mustaqil tekshiruv (review215b №1) — qoplama, plotnost (penoplast), narx, tayyor mahsulot, mahsulot turi,
+        # retsept, ichki bo'laklar boshqa bo'lsa ham, qoralamadan keyin haqiqiy buyurtma ham shunday edi. Son — chekli bo'lsa yaxlitlangan,
+        # aks holda matn (NaN != NaN — review215b №2); narx — `_buyurtma_narx_jami` bilan (saqlanadigan ko'rinish); retsept — detalniki yoki
+        # buyurtmaniki (saqlanishidek). Blok ustunlari (`_blok_ustunlari` saqlashda qayta hisoblaydi) — imzoda yo'q. AYNAN bir xil tana (ikki
+        # marta bosish / tarmoq takrori) — avvalgidek bitta buyurtma; sahifada bundan oldin forma kaliti (`yaratish_kaliti`, zip 173) ham bor.
+        import math as _m215b
+
+        def _s215b(v, n=4):
+            try:
+                v = float(v or 0)
+            except (TypeError, ValueError):
+                return repr(v)
+            return round(v, n) if _m215b.isfinite(v) else repr(v)
+
+        def _ichki215b(x):
+            return tuple(sorted([((sd.name or None), sd.category, _s215b(sd.width), _s215b(sd.thickness), _s215b(sd.length),
+                                  _s215b(sd.quantity), bool(sd.is_coated)) for sd in (getattr(x, "sub_details", None) or [])], key=repr))
+
+        def _imzo215b(x, yangi):
+            _narx = _buyurtma_narx_jami(x.quantity, x.unit_price)[0] if yangi else x.unit_price
+            _ret = ((getattr(x, "recipe_id", None) or order_data.recipe_id) if yangi else x.recipe_id) or None
+            return (x.name, x.category, _s215b(x.quantity), _s215b(getattr(x, "width", None)), _s215b(getattr(x, "thickness", None)),
+                    _s215b(getattr(x, "length", None)), bool(x.is_coated), getattr(x, "penoplast_id", None) or None,
+                    getattr(x, "finished_product_id", None) or None, getattr(x, "product_type_id", None) or None, _ret, _s215b(_narx, 2),
+                    _ichki215b(x))
+        _new_sig = sorted([_imzo215b(i, True) for i in order_data.items], key=repr)
+        _old_sig = sorted([_imzo215b(it, False) for it in _recent_order.items], key=repr)
+        _qoralama_mos = bool(getattr(order_data, "is_draft", False)) == (_recent_order.status == OrderStatus.DRAFT)
+        if _new_sig and _new_sig == _old_sig and _qoralama_mos:
             _recent_order._is_duplicate_submit = True  # main.py shu belgini tekshirib, qayta ombor yechishning oldini oladi
             return _recent_order
 
@@ -10541,7 +10572,8 @@ def loyiha_berilgan_detallar(db: Session, project_id: int, company_id: int, isti
     (1) YUK XATI bilan berilgan (har qanday holatdagi buyurtmada); (2) OCHIQ (jarayondagi — `services.FAOL_HOLATLAR`) buyurtmada hali
     berilmagan qismi bor (`order_qty_normalized` − berilgan − omborga qo'yilgan ortiqcha — `OrderItem.remaining_qty` qoidasi). Har yozuv —
     buyurtma + nom kaliti (`detal_nomi_kaliti`) + birlik bo'yicha bitta (bir buyurtmadagi bir xil nomli detallar jamlanadi): nomi, buyurtma
-    raqami, berilgan jami, oxirgi yuk sanasi (Toshkent), hali berilmagan qolgan, `ochiq` (qolgan > 0). Tartib — ochiqlari birinchi (yangisi
+    raqami, berilgan jami, oxirgi yuk sanasi (Toshkent), hali berilmagan qolgan, `ochiq` (qolgan > 0), mijoz QAYTARGAN qism (`qaytgan` —
+    kech157, zip 215: brakdan boshqa qaytarishlarning topshirilgandan olingan qismi, berilgandan ko'p emas) va shu detalga yozilgan brak (`brak`). Tartib — ochiqlari birinchi (yangisi
     birinchi), keyin oxirgi yuk sanasi bo'yicha eng yangisi. Narx / summa / mijoz YO'Q. Faqat o'qish."""
     from models import Order, OrderItem, OrderStatus, Delivery, DeliveryItem
     from sqlalchemy import func as _f213
@@ -10581,15 +10613,32 @@ def loyiha_berilgan_detallar(db: Session, project_id: int, company_id: int, isti
             _qol = max(float(it.order_qty_normalized or 0) - _miq - float(it.ortiqcha_qty or 0), 0.0)
         if _miq <= 1e-9 and _qol <= 1e-9:
             continue
+        # kech157 (zip 215 — egasi tanlovi 25.10 «Qaytgan miqdor eslatmada»; review213 №5): mijoz QAYTARGAN qism — brakdan boshqa qaytarish
+        # yozuvlarida TOPSHIRILGANDAN olingani (`quantity − ortiqcha_miqdor`, `_qaytarish_ortiqcha_qismi` qoidasi; omborga qo'yilgan ortiqcha —
+        # berilmagan qism, u `_qol` dan allaqachon ayirilgan); berilgandan ko'p emas. BRAK — alohida (egasi tanlovi 25.10 «Brak alohida»:
+        # mijozda — yetkazishda / o'rnatishda — singan detal ham «Brak yozish» bilan yoziladi; qayerda chiqqani yozuvda yo'q — shu detalga
+        # yozilgan HAMMA brak, cheklovsiz — takroriy brak bo'ladi). `Order.returns` — oldindan yuklangan (qo'shimcha so'rov yo'q).
+        _qayt = 0.0
+        _brak = 0.0
+        for _r in (_o.returns or []):
+            if _r.order_item_id != it.id:
+                continue
+            if _r.reason == ReturnReason.DEFECT:
+                _brak += max(float(_r.quantity or 0), 0.0)
+            elif _miq > 1e-9:
+                _qayt += max(float(_r.quantity or 0) - float(_r.ortiqcha_miqdor or 0), 0.0)
+        _qayt = min(_qayt, _miq)
         _k = detal_nomi_kaliti(it.name)
         _b = _sv213.birlik_korinish(it.delivery_unit)
         _j = _jam.get((_o.id, _k, _b))
         if _j is None:
             _jam[(_o.id, _k, _b)] = {"kalit": _k, "nomi": it.name, "order_id": _o.id, "buyurtma": _o.order_number, "berilgan": _miq,
-                                     "qolgan": _qol, "birlik": _b, "_t": _t, "_yaratilgan": _o.created_at}
+                                     "qolgan": _qol, "qaytgan": _qayt, "brak": _brak, "birlik": _b, "_t": _t, "_yaratilgan": _o.created_at}
         else:
             _j["berilgan"] += _miq
             _j["qolgan"] += _qol
+            _j["qaytgan"] += _qayt
+            _j["brak"] += _brak
             if _t is not None and (_j["_t"] is None or _t > _j["_t"]):
                 _j["_t"] = _t
     natija = []
@@ -10599,6 +10648,10 @@ def loyiha_berilgan_detallar(db: Session, project_id: int, company_id: int, isti
         d["berilgan_matn"] = _sv213.son_korinish(d["berilgan"], 2)
         d["qolgan"] = round(d["qolgan"], 6)
         d["qolgan_matn"] = _sv213.son_korinish(d["qolgan"], 2)
+        d["qaytgan"] = round(d["qaytgan"], 6)                                  # kech157 (zip 215)
+        d["qaytgan_matn"] = _sv213.son_korinish(d["qaytgan"], 2)
+        d["brak"] = round(d["brak"], 6)
+        d["brak_matn"] = _sv213.son_korinish(d["brak"], 2)
         d["ochiq"] = d["qolgan"] > 1e-6
         d["sana"] = _tv.date().isoformat() if _tv else None
         d["sana_matn"] = (_tv.strftime("%d.%m") if _tv.year == _bugun.year else _tv.strftime("%d.%m.%Y")) if _tv else ""
@@ -19076,6 +19129,19 @@ def _xarid_narxini_qaytar(joriy_narx: float, p) -> tuple:
     return round(float(p.narx_oldin), 2), True
 
 
+def _xarid_hajmini_qaytar(joriy_hajm, p) -> tuple:
+    """kech157 (zip 217 — egasi tanlovi «Kirim bekori — blok hajmi»): xarid bekor qilinganda penoplastning «1 blok necha m³» — narx qoidasi
+    (`_xarid_narxini_qaytar`) bilan AYNAN: material hajmi hali `hajm_keyin` ga teng bo'lsa (orada boshqa kirim / qo'lda o'zgartirish
+    bo'lmagan) — `hajm_oldin`; aks holda yoki eski (NULL) xaridda — tegilmaydi. O'LCHANGAN (`work/k217/probe217.py`): ilgari 10 × 1,0 + 10 × 1,4
+    → 1,2 m³, xarid o'chirilgach 1,2 da qolardi (1 m³ narxi −16,7 %). Qaytaradi: (yangi hajm, qaytdimi)."""
+    joriy = joriy_hajm
+    if p is None or getattr(p, "hajm_oldin", None) is None or getattr(p, "hajm_keyin", None) is None:
+        return joriy, False
+    if joriy is None or abs(float(joriy) - float(p.hajm_keyin)) > 1e-6:
+        return joriy, False
+    return round(float(p.hajm_oldin), 6), True
+
+
 def delete_purchase(db: Session, purchase_id: int, reverse_stock: bool = True,
                    company_id: int = None, tolov: str = None) -> bool:
     """Xarid yozuvini o'chiradi.
@@ -19144,6 +19210,9 @@ def delete_purchase(db: Session, purchase_id: int, reverse_stock: bool = True,
             inv.stock_quantity = new_qty
             # kech107 (10f): o'rtacha narx "xarid bo'lmagandek" (shart bajarilmasa — tegilmaydi).
             inv.price_per_unit = _xarid_narxini_qaytar(inv.price_per_unit, p)[0]
+            # kech157 (zip 217): penoplast «1 blok necha m³» ham — o'sha qoida
+            if inv.is_penoplast:
+                inv.volume_per_unit = _xarid_hajmini_qaytar(inv.volume_per_unit, p)[0]
             try:
                 log_movement(db, inv.id, inv.item_name, movement_type="out",
                              quantity=float(p.quantity), unit=inv.unit,
@@ -19287,16 +19356,19 @@ def kirim_hujjatini_bekor_qilish(db: Session, receipt_id: int, company_id: int =
             if not faqat_hisob:
                 db.delete(p)
             continue
-        qoldiq, narx = holat.get(inv.id, (float(inv.stock_quantity or 0), float(inv.price_per_unit or 0)))
+        qoldiq, narx, hajm = holat.get(inv.id, (float(inv.stock_quantity or 0), float(inv.price_per_unit or 0), inv.volume_per_unit))
         yangi_narx, qaytdi = _xarid_narxini_qaytar(narx, p)
+        # kech157 (zip 217): penoplast «1 blok necha m³» — narx bilan bir qoida (bir material ikki qatorda — ketma-ket)
+        yangi_hajm, hajm_qaytdi = _xarid_hajmini_qaytar(hajm, p) if inv.is_penoplast else (hajm, False)
         yangi_qoldiq = qoldiq - miqdor
         if -1e-9 < yangi_qoldiq < 0:
             yangi_qoldiq = 0.0      # suzuvchi nuqta qoldig'i (19 / 20-band bilan bir xil)
-        holat[inv.id] = (yangi_qoldiq, yangi_narx)
+        holat[inv.id] = (yangi_qoldiq, yangi_narx, yangi_hajm)
         materiallar.append({
             "purchase_id": p.id, "inventory_id": inv.id, "nomi": inv.item_name, "miqdor": miqdor,
             "birlik": inv.unit, "joriy_qoldiq": qoldiq, "yangi_qoldiq": yangi_qoldiq,
             "joriy_narx": narx, "yangi_narx": yangi_narx, "narx_qaytdi": qaytdi,
+            "joriy_hajm": hajm, "yangi_hajm": yangi_hajm, "hajm_qaytdi": hajm_qaytdi,
             "xarid_narxi": float(p.price_per_unit or 0), "summa": float(p.total_amount or 0),
         })
         if not faqat_hisob:
@@ -19311,6 +19383,8 @@ def kirim_hujjatini_bekor_qilish(db: Session, receipt_id: int, company_id: int =
                 pass
             inv.stock_quantity = yangi_qoldiq
             inv.price_per_unit = yangi_narx
+            if inv.is_penoplast and yangi_hajm is not None:
+                inv.volume_per_unit = yangi_hajm      # kech157 (zip 217)
             db.delete(p)
     materiallar.reverse()
     if not faqat_hisob:

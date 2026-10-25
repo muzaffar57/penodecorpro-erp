@@ -1441,6 +1441,11 @@ class InventoryPurchase(Base):
     # (kech107 dan oldingi) xaridlarda NULL — narx tegilmaydi (avvalgi xulq).
     narx_oldin = Column(Numeric(12, 2), nullable=True)
     narx_keyin = Column(Numeric(12, 2), nullable=True)
+    # kech157 (zip 217 — egasi tanlovi «Kirim bekori — blok hajmi»): PENOPLAST xaridi «1 blok necha m³» ni qanday o'zgartirgani — `hajm_oldin`
+    # / `hajm_keyin` (narx qoidasi bilan AYNAN): bekor qilinganda hajm hali `hajm_keyin` bo'lsa — `hajm_oldin` ga qaytadi
+    # (`crud._xarid_hajmini_qaytar`). Penoplast bo'lmagan va eski (zip 217 dan oldingi) xaridda — NULL (hajm tegilmaydi). `default=` YO'Q.
+    hajm_oldin = Column(Float, nullable=True)
+    hajm_keyin = Column(Float, nullable=True)
 
     def __repr__(self):
         return f"<InventoryPurchase {self.item_name} {self.quantity}>"
