@@ -356,6 +356,12 @@ def add_item(db: Session, item_data: InventoryCreate, company_id: int = None, pe
             _bx = _birlik_ogirish_xatosi(e.unit, _bu, _cf)
             if _bx:
                 raise ValueError(_bx)
+            # kech158 (zip 218, review218 №4 — O'LCHANGAN PG: retsept qatori «500 g» → «500 kg» bo'lardi): `update_item` qoidasi bilan bir
+            _rb0, _rb1 = _retsept_birligi218(e.unit, e.base_unit, e.conversion_factor), _retsept_birligi218(e.unit, _bu, _cf)
+            if _rb0 != _rb1 and material_ishlatilganmi(db, e, jadvallar=("bom_items",)):
+                raise ValueError(f"«{e.item_name}» ishlab chiqarish retseptlarida ishlatilgan — retsept birligi «{_rb0}» dan «{_rb1}» ga "
+                                 f"o'zgarib, retseptdagi miqdorlar «{_rb1}» deb o'qilib ketadi. Mayda birlik va koeffitsientni avvalgidek "
+                                 f"qoldiring yoki boshqa nom bilan yangi material yarating")
         _eski_qty = float(e.stock_quantity or 0)
         _eski_narx = float(e.price_per_unit or 0)
         _eski_hajm = float(e.volume_per_unit or 1.0)
@@ -1575,6 +1581,65 @@ def create_inventory_receipt(db: Session, items: list, transport_cost: float = 0
         raise
 
 
+def material_ishlatilganmi(db: Session, item, jadvallar=None) -> bool:
+    """kech158 (zip 218 — egasi tanlovi 26.10 «1 va 2 ni tuzatish»): material ISHLATILGANmi — qoldig'i 0 emas yoki `inventory.id` ga
+    bog'langan biror jadvalda (ombor harakati, xarid, kirim hujjati qatori, loy retsepti, ishlab chiqarish retsepti (BOM), buyurtma detali
+    plotnosti, tayyor mahsulot, qaytarish …) yozuv bor. Jadvallar ro'yxati qo'lda emas — `models.Base.metadata` dagi tashqi kalitlardan
+    (yangi jadval o'zi qo'shiladi; `delete_item` ning «tarixi bor — yashiriladi» qoidasi bilan bir ma'no). `jadvallar` — faqat shu nomli
+    jadvallar (masalan `("bom_items",)`), qoldiq hisobga olinmaydi."""
+    from sqlalchemy import select as _sel218, literal as _lit218
+    from models import Base as _Base218
+    try:
+        import importlib as _il218
+        _il218.import_module("production_models")     # retsept (BOM) jadvallari metadata da bo'lsin
+    except ImportError:          # pragma: no cover
+        pass
+    if jadvallar is None and abs(float(item.stock_quantity or 0)) > 1e-9:
+        return True
+    if jadvallar is None and _surat_ishlatadimi218(db, item):
+        return True
+    for _t in list(_Base218.metadata.tables.values()):     # tartib kerak emas (`sorted_tables` — tsikl ogohlantirishi beradi)
+        if _t.name == Inventory.__tablename__ or (jadvallar is not None and _t.name not in jadvallar):
+            continue
+        for _fk in _t.foreign_keys:
+            if _fk.column.table.name != Inventory.__tablename__ or _fk.column.name != "id":
+                continue
+            if db.execute(_sel218(_lit218(1)).select_from(_t).where(_fk.parent == item.id).limit(1)).first() is not None:
+                return True
+    return False
+
+
+def _surat_ishlatadimi218(db: Session, item) -> bool:
+    """kech158 (zip 218, review218 №6): boshlangan (IN_PROGRESS) ishlab chiqarish buyurtmasining retsept SURATIDA (`recipe_snapshot_json`
+    — qatorlar ro'yxati, har birida `inventory_id`) shu material bormi. Retsept qatori keyin o'chirilgan bo'lsa ham «Yakunlash» suratdagi
+    miqdorni OMBOR birligida yechadi — birlik o'zgarsa ma'nosi buziladi. Boshqa holatlar: DRAFT — surat yo'q, COMPLETED — ombor harakati bor."""
+    import json as _json218
+    try:
+        import importlib as _il218s
+        _pm218 = _il218s.import_module("production_models")
+    except ImportError:          # pragma: no cover
+        return False
+    _PO = _pm218.ProductionOrder
+    _q = db.query(_PO.recipe_snapshot_json).filter(_PO.company_id == item.company_id,
+                                                   _PO.status == _pm218.ProductionOrderStatus.IN_PROGRESS.value,
+                                                   _PO.recipe_snapshot_json.isnot(None))
+    for (_js,) in _q:
+        try:
+            _qatorlar = _json218.loads(_js or "[]")
+        except (TypeError, ValueError):
+            continue
+        for _l in (_qatorlar if isinstance(_qatorlar, list) else []):
+            if isinstance(_l, dict) and str(_l.get("inventory_id")) == str(item.id):
+                return True
+    return False
+
+
+def _retsept_birligi218(unit, base_unit, conversion_factor) -> str:
+    """kech158 (zip 218): ishlab chiqarish retseptidagi (BOM) miqdor qaysi birlikda o'qiladi — `production_models.BOMItem.unit` va
+    `production_service._compute_bom_line` bilan BIR qoida: mayda birlik VA koeffitsient bo'lsa — mayda birlik, aks holda ombor birligi."""
+    return str((base_unit if (base_unit and conversion_factor) else unit) or "").strip()
+
+
 def update_item(db: Session, item_id: int, item_data: InventoryUpdate) -> Optional[Inventory]:
     """Xomashyo ma'lumotlarini yangilaydi."""
     db_item = get_item(db, item_id)
@@ -1620,6 +1685,44 @@ def update_item(db: Session, item_id: int, item_data: InventoryUpdate) -> Option
                                      else db_item.conversion_factor)
         if _bx:
             raise ValueError(_bx)
+    # kech158 (zip 218 — egasi tanlovi 26.10 «1 va 2 ni tuzatish (Tavsiya)»; O'LCHANGAN `work/k218/probe218a.py`, SQLite = PG): tarixi bor
+    # materialda birlik / tur jimgina o'zgarardi — 50 kg kirim, 10 kg chiqim qilingan «Akril» «litr» qilinsa qoldiq «40 litr», tarix «kg»;
+    # oddiy material penoplastga (va aksincha) aylanardi. Endi ISHLATILGAN materialda (`material_ishlatilganmi`) — 400, hech narsa yozilmaydi;
+    # retseptda (BOM) bo'lsa retsept birligi ham o'zgarmaydi (koeffitsient sonini tuzatish — ruxsat). Tarixsiz material — avvalgidek.
+    if any(k in update_data for k in ("unit", "is_penoplast", "base_unit", "conversion_factor")):
+        # review218 №5 (O'LCHANGAN PG, kechiktirish bilan): `create_bom` navbatsiz — oddiy `FOR UPDATE` uning KEY SHARE qulfini kutadi /
+        # to'xtatadi; rad etilsa marshrut `rollback` qiladi (qulf darhol bo'shaydi)
+        db_item = inventory_qulf(db, db_item.id, ochirish=True) or db_item
+    _eski_birlik = str(db_item.unit or "").strip()
+    _yangi_birlik = str(update_data["unit"]).strip() if update_data.get("unit") is not None else _eski_birlik
+    _birlik_ozgardi = _yangi_birlik != _eski_birlik
+    if update_data.get("unit") is not None:
+        if _birlik_ozgardi:
+            update_data["unit"] = _yangi_birlik     # chetdagi bo'shliqlarsiz (nom kabi)
+        else:
+            update_data.pop("unit")                 # faqat bo'shliq farqi — o'zgarish emas, yozilmaydi (« kg » tarixdagi «kg» dan farq qilmasin)
+    _tur_ozgardi = "is_penoplast" in update_data and bool(update_data["is_penoplast"]) != bool(db_item.is_penoplast)
+    _ish218 = None
+    if _birlik_ozgardi or _tur_ozgardi:
+        _ish218 = material_ishlatilganmi(db, db_item)
+    if _ish218 and _birlik_ozgardi:
+        raise ValueError(f"«{db_item.item_name}» allaqachon ishlatilgan (qoldiq, kirim / chiqim, retsept yoki buyurtma yozuvlari bor) — "
+                         f"birligini «{_eski_birlik}» dan «{_yangi_birlik}» ga o'zgartirib bo'lmaydi: eski yozuvlardagi miqdorlar "
+                         f"«{_eski_birlik}» da. Boshqa birlik kerak bo'lsa — yangi material yarating")
+    if _ish218 and _tur_ozgardi:
+        _qayer = "penoplastni oddiy materialga" if db_item.is_penoplast else "oddiy materialni penoplastga (plotnost)"
+        raise ValueError(f"«{db_item.item_name}» allaqachon ishlatilgan (qoldiq, kirim / chiqim, retsept yoki buyurtma yozuvlari bor) — "
+                         f"{_qayer} aylantirib bo'lmaydi: eski yozuvlar shu turga bog'langan. Kerak bo'lsa — yangi material yarating")
+    if any(k in update_data for k in ("unit", "base_unit", "conversion_factor")):
+        _rb_eski = _retsept_birligi218(db_item.unit, db_item.base_unit, db_item.conversion_factor)
+        _rb_yangi = _retsept_birligi218(update_data["unit"] if "unit" in update_data else db_item.unit,
+                                        update_data["base_unit"] if "base_unit" in update_data else db_item.base_unit,
+                                        update_data["conversion_factor"] if "conversion_factor" in update_data
+                                        else db_item.conversion_factor)
+        if _rb_eski != _rb_yangi and material_ishlatilganmi(db, db_item, jadvallar=("bom_items",)):
+            raise ValueError(f"«{db_item.item_name}» ishlab chiqarish retseptlarida ishlatilgan — retsept birligi «{_rb_eski}» dan "
+                             f"«{_rb_yangi}» ga o'zgarib, retseptdagi miqdorlar «{_rb_yangi}» deb o'qilib ketadi. Avval retseptlardagi "
+                             f"qatorlarni o'zgartiring yoki yangi material yarating")
     for field, value in update_data.items():
         setattr(db_item, field, value)
     db.commit()
