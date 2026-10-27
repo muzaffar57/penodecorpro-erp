@@ -5577,7 +5577,7 @@ function addSubDetailRow(detalRow, prefill) {
       </select>
     </div>
     <div style="flex:2;min-width:120px;font-size:12px;color:var(--m-666666)" class="sd-info">≈ 0 so'm, 0 m³</div>
-    <button type="button" class="btn btn-danger btn-icon btn-sm" title="Ichki detalni olib tashlash" aria-label="Ichki detalni olib tashlash" onclick="this.closest('.subdetail-row').remove();calculateItem(this.closest('.detal'))">✕</button>
+    <button type="button" class="btn btn-danger btn-icon btn-sm" title="Ichki detalni olib tashlash" aria-label="Ichki detalni olib tashlash" onclick="const _d = this.closest('.detal'); this.closest('.subdetail-row').remove(); calculateItem(_d)">✕</button>
   `;
   list.appendChild(sub);
 
