@@ -4582,7 +4582,11 @@ function rasmXatolariMatni(xatolar) {
 // buyurtmada hali berilmagan bo'lsa qator ostida «ℹ️ Bu loyihada: ORD-064-4 — 72 m (hali berilmagan) · ORD-064-3 — 72 m berilgan
 // (19.10)» (bloklamaydi). Ma'lumot — `GET /api/projects/{id}/berilgan-detallar` (loyiha bo'yicha bir marta;
 // tahrirda tahrirlanayotgan buyurtma `istisno`). Kalit — server `crud.detal_nomi_kaliti` bilan AYNAN (Kirill — avval Lotinga).
-var TAKROR = window.TAKROR || {pid: null, istisno: null, data: null, va: null};
+// kech159 (zip 219 — egasi tanlovi 27.10 «Kichik qoldiqlar (Tavsiya)»; O'LCHANGAN `work/k219/probe219b.py`): forma OCHIQ turganda boshqa
+// xodim shu loyihaga yozgan buyurtma / yuk xati eslatmada ko'rinmasdi (ma'lumot forma ochilganda BIR marta olinardi). Endi ma'lumot
+// `TAKROR_MUDDAT_MS` (15 s) dan eski bo'lsa — keyingi nom yozilishida qayta so'raladi (javob farq qilsa HAMMA qatorlar qayta chiziladi),
+// sahifaga qaytilganda (boshqa oyna / ilova / yorliqdan) — forma ochiq bo'lsa darhol. `vaqt` — javob kelgan payt (0 — hali yo'q).
+var TAKROR = window.TAKROR || {pid: null, istisno: null, data: null, va: null, vaqt: 0};
 window.TAKROR = TAKROR;
 function takrorKalit(s) {
   let t = String(s == null ? '' : s);
@@ -4597,21 +4601,41 @@ function _takrorJoriy() {
 function takrorTarixi() {
   const j = _takrorJoriy();
   if (!j.pid) return Promise.resolve(null);
-  if (TAKROR.va && TAKROR.pid === j.pid && TAKROR.istisno === j.istisno) return TAKROR.va;
-  TAKROR.pid = j.pid; TAKROR.istisno = j.istisno; TAKROR.data = null;
+  const _shu219 = !!TAKROR.va && TAKROR.pid === j.pid && TAKROR.istisno === j.istisno;
+  if (_shu219 && !_takrorEskirdi()) return TAKROR.va;
+  // kech159 (zip 219): eskirgan — qayta; oldingi javob yangisi bilan solishtiriladi (undefined — yangi loyiha / birinchi so'rov)
+  const _eski219 = _shu219 ? TAKROR.data : undefined;
+  TAKROR.pid = j.pid; TAKROR.istisno = j.istisno; TAKROR.data = null; TAKROR.vaqt = 0;
+  // review219 №3: yangilash so'rovi yiqilsa (tarmoq / 500) — oldingi to'g'ri ma'lumot joyida qoladi (eslatmalar o'chmaydi), eskirgan
+  // hisoblanadi (keyingi harfda / qaytilganda yana so'raladi); birinchi so'rov yiqilsa — keshda qolmaydi (review213 №4)
+  const _xato219 = () => {
+    if (TAKROR.va !== va) return null;
+    if (Array.isArray(_eski219)) { TAKROR.data = _eski219; TAKROR.va = Promise.resolve(_eski219); TAKROR.vaqt = 1; return _eski219; }
+    TAKROR.va = null;
+    return null;
+  };
   const url = '/api/projects/' + j.pid + '/berilgan-detallar' + (j.istisno ? ('?istisno=' + j.istisno) : '');
   const va = fetch(url).then(r => (r.ok ? r.json() : null)).then(d => {
     const ro = (d && Array.isArray(d.detallar)) ? d.detallar : null;
     if (TAKROR.va === va) {
+      if (ro === null) return _xato219();      // xato (500 / tarmoq) — `_xato219` (review213 №4, review219 №3)
       TAKROR.data = ro;
-      if (ro === null) TAKROR.va = null;      // xato (500 / tarmoq) keshda qolmaydi — keyingi harfda qayta so'raladi (review213 №4)
+      TAKROR.vaqt = Date.now();
+      // kech159 (zip 219): yangilangan ma'lumot oldingisidan farq qilsa — boshqa qatorlar ham (ular qayta yozilmagan)
+      if (_eski219 !== undefined && JSON.stringify(_eski219) !== JSON.stringify(ro)) setTimeout(takrorHammasi, 0);
     }
     return ro;
-  }).catch(() => { if (TAKROR.va === va) TAKROR.va = null; return null; });
+  }).catch(() => _xato219());
   TAKROR.va = va;
   return va;
 }
-function takrorTozala() { TAKROR.va = null; TAKROR.data = null; TAKROR.pid = null; TAKROR.istisno = null; }
+function takrorTozala() { TAKROR.va = null; TAKROR.data = null; TAKROR.pid = null; TAKROR.istisno = null; TAKROR.vaqt = 0; }
+// kech159 (zip 219): eslatma ma'lumotining yashash muddati (ms; sinovda `window.TAKROR_MUDDAT_MS` bilan qisqartiriladi)
+function _takrorMuddat() {
+  const m = Number(window.TAKROR_MUDDAT_MS);
+  return Number.isFinite(m) && m >= 0 ? m : 15000;
+}
+function _takrorEskirdi() { return !!TAKROR.vaqt && (Date.now() - TAKROR.vaqt) > _takrorMuddat(); }
 async function takrorQatori(row) {
   if (!row) return;
   const el = row.querySelector('.i-takror');
@@ -4660,6 +4684,19 @@ function _takrorBelgi(row, bor) {
 }
 function takrorHammasi() {
   document.querySelectorAll('#items .detal').forEach(r => { takrorQatori(r); });
+}
+// kech159 (zip 219): boshqa oyna / ilova / yorliqdan qaytilganda — forma ochiq va ma'lumot eskirgan bo'lsa eslatmalar yangilanadi (nomsiz
+// qatorlar so'rov yubormaydi)
+function takrorQaytaKorinish() {
+  if (document.visibilityState === 'hidden' || !_takrorEskirdi()) return;
+  const f = document.getElementById('newOrderForm');
+  if (!f || getComputedStyle(f).display === 'none') return;
+  takrorHammasi();
+}
+if (!window.__takror219) {
+  window.__takror219 = true;
+  document.addEventListener('visibilitychange', takrorQaytaKorinish);
+  window.addEventListener('focus', takrorQaytaKorinish);
 }
 
 function addItem() {
