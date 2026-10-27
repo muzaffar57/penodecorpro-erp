@@ -3853,6 +3853,7 @@ _XOMASHYO_MARSHRUTLARI = frozenset({
     ("main", "api_update_order_item"),
     ("main", "api_update_price"),
     ("main", "api_update_purchase"),
+    ("main", "api_update_recipe"),                 # kech159 (zip 219, review219 №1): retsept nomi bilan zaxira qatori ham
     ("main", "api_update_stock"),
     ("production_routes", "complete_order"),
     ("production_routes", "create_order"),
@@ -7898,6 +7899,10 @@ def api_create_recipe(recipe: dict = Body(...), db: Session = Depends(get_db), c
     kech133 (zip 157): takror nom — 409 va tushunarli sabab (ilgari 500); bir vaqtdagi ikki so'rov (tekshiruvdan keyin bazaning o'zi
     rad etsa) — ham 409."""
     recipe = _tana_400("RecipeBody", recipe, schemas.RecipeCreate)
+    # kech159 (zip 219, L7 — O'LCHANGAN PG: 95 belgili retsept — buyurtma 500): «Tayyor loy (<nom>)» 100 belgiga sig'sin
+    _ux219 = crud.retsept_nomi_uzunlik_xatosi(recipe.name)
+    if _ux219:
+        raise HTTPException(status_code=400, detail=_ux219)
     # M8/F1a: retsept joriy adminning korxonasiga biriktiriladi.
     _cid = auth.company_id_of(current_user)
     if _retsept_nomi_band(db, recipe.name, _cid):
@@ -7926,8 +7931,16 @@ def api_update_recipe(recipe_id: int, data: dict = Body(...), db: Session = Depe
     _cid = auth.company_id_of(current_user)
     if _retsept_nomi_band(db, data.name, _cid, recipe_id):
         raise HTTPException(status_code=409, detail=_retsept_nomi_band_matni(data.name))
+    # kech159 (zip 219, L7 / L6): nom uzunligi (zaxira nomi 100 belgiga sig'sin); retsept nomi o'zgarsa ortgan loy zaxirasi ham o'tadi —
+    # yangi nom omborda band bo'lsa 409 (hech narsa o'zgarmaydi)
+    _ux219 = crud.retsept_nomi_uzunlik_xatosi(data.name)
+    if _ux219:
+        raise HTTPException(status_code=400, detail=_ux219)
     try:
         recipe = crud.update_recipe(db, recipe_id, data, company_id=_cid)
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(e))
     except IntegrityError:
         db.rollback()
         if _retsept_nomi_band(db, data.name, _cid, recipe_id):

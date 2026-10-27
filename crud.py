@@ -229,6 +229,82 @@ def material_nomi_kaliti(nom) -> str:
     return " ".join(s.split()).casefold()
 
 
+# kech159 (zip 219 — egasi tanlovi 27.10 «Kichik qoldiqlar (Tavsiya)»; O'LCHANGAN `work/k219/probe219.py`, SQLite = PG): «Tayyor loy (…)» —
+# dastur o'zi yaratadigan ortgan loy zaxirasi (`services.get_or_create_loy_stock`: `f"Tayyor loy ({retsept})"`), hamma joyda shu NOM
+# bilan taniladi (kam qoldiq, Omborxona, hisobotlar). Ilgari oddiy material shu nomni olishi mumkin edi — «qop» material loy zaxirasi
+# bo'lib, kg loy qo'shilib ketdi, «kam qoldi» ogohlantirishi yo'qoldi. Endi nom KALITI shu bilan boshlansa — band (yaratish / qayta
+# nomlash 400); mavjud retseptning zaxirasi — nomi, birligi, turi o'zgarmaydi; retsept nomi o'zgarsa zaxira ham o'tadi.
+LOY_ZAXIRA_PREFIKS = "Tayyor loy ("                         # = `services.TAYYOR_LOY_PREFIKS` (test T1 tengligini tekshiradi)
+# «Tayyor loy (<retsept>)» `inventory.item_name` (VARCHAR(100)) ga sig'sin: 100 − 12 − 1 = 87 (ilgari 88+ belgili retsept PG da 500 berardi)
+RETSEPT_NOMI_MAX = 100 - len(LOY_ZAXIRA_PREFIKS) - len(")")
+LOY_ZAXIRA_NOMI_XATO = ("«Tayyor loy (…)» bilan boshlanadigan nom ortgan loy zaxirasi uchun band — dastur uni retsept nomi bilan o'zi "
+                        "yaratadi. Materialga boshqa nom bering")
+
+
+_KORINMAS219 = dict.fromkeys(map(ord, "\u200b\u200c\u200d\u2060\ufeff\u00ad"))      # ko'rinmas belgilar (review219 №9)
+
+
+def loy_zaxira_nomimi(nom) -> bool:
+    """kech159 (zip 219): nom (KALITI — harf / bo'shliq / apostrof farqsiz, ko'rinmas belgilarsiz) «Tayyor loy (» bilan boshlanadimi."""
+    return material_nomi_kaliti(str(nom or "").translate(_KORINMAS219)).startswith(material_nomi_kaliti(LOY_ZAXIRA_PREFIKS))
+
+
+def loy_zaxirasi_retsepti(db: Session, item):
+    """kech159 (zip 219): material shu korxonadagi MAVJUD retseptning ortgan loy zaxirasimi (nomi AYNAN «Tayyor loy (<retsept nomi>)» —
+    `services.get_or_create_loy_stock` shu nom bilan topadi; birligi kg, oddiy material — zaxira shakli) — o'sha retsept, aks holda None.
+    review219 №4: shakli boshqa (masalan «qop») eski qator — zaxira emas (prefiksiz nomga qayta nomlab tuzatib olish mumkin)."""
+    from models import Recipe as _Rec219
+    nom = str(getattr(item, "item_name", "") or "")
+    if not (nom.startswith(LOY_ZAXIRA_PREFIKS) and nom.endswith(")")):
+        return None
+    if str(getattr(item, "unit", "") or "").strip().casefold() != "kg" or getattr(item, "is_penoplast", False):
+        return None
+    q = db.query(_Rec219).filter(_Rec219.name == nom[len(LOY_ZAXIRA_PREFIKS):-1])
+    if getattr(item, "company_id", None) is not None:
+        q = q.filter(_Rec219.company_id == item.company_id)
+    return q.order_by(_Rec219.id).first()
+
+
+def retsept_nomi_uzunlik_xatosi(nom):
+    """kech159 (zip 219, L7): retsept nomi `RETSEPT_NOMI_MAX` dan uzun bo'lsa — xato matni, aks holda None."""
+    n = len(str(nom or "").strip())
+    if n > RETSEPT_NOMI_MAX:
+        return (f"Retsept nomi juda uzun ({n} belgi) — ko'pi bilan {RETSEPT_NOMI_MAX} belgi yozing (ombordagi «Tayyor loy (…)» zaxira "
+                f"nomi shundan tuziladi)")
+    return None
+
+
+def retsept_loy_zaxirasi(db: Session, recipe, nom=None, qulf: bool = False):
+    """kech159 (zip 219): retseptning ortgan loy zaxirasi (`nom` — boshqa nom bilan; berilmasa retseptning joriy nomi) yoki None.
+    `qulf` — qator `FOR UPDATE` (qayta nomlash)."""
+    _rn = nom if nom is not None else (recipe.name.value if hasattr(recipe.name, 'value') else str(recipe.name or ""))
+    q = db.query(Inventory).filter(Inventory.item_name == f"{LOY_ZAXIRA_PREFIKS}{_rn})")
+    if getattr(recipe, "company_id", None) is not None:
+        q = q.filter(Inventory.company_id == recipe.company_id)
+    q = q.order_by(Inventory.id)
+    return inventory_qulf_sorov(db, q) if qulf else q.first()
+
+
+def retsept_zaxira_nomi_xatosi(db: Session, recipe, yangi_nom):
+    """kech159 (zip 219, L6): retsept `yangi_nom` ga o'zgartirilsa uning ortgan loy zaxirasi «Tayyor loy (<yangi>)» ga o'tadi — shu nom
+    (KALITI) omborda BOSHQA materialda (yashiringani ham) band bo'lsa xato matni (409), aks holda None. Zaxirasi yo'q retsept — None."""
+    _eski = recipe.name.value if hasattr(recipe.name, 'value') else str(recipe.name or "")
+    _yangi = str(yangi_nom or "").strip()
+    if _yangi == _eski:
+        return None
+    _zx = retsept_loy_zaxirasi(db, recipe)
+    if _zx is None:
+        return None
+    _band = next(iter(nomdosh_materiallar(db, recipe.company_id, f"{LOY_ZAXIRA_PREFIKS}{_yangi})", istisno_id=_zx.id)), None)
+    if _band is None:
+        return None
+    if _band.is_deleted:      # review219 №7: yashirin material Omborxonada ko'rinmaydi va o'chirib bo'lmaydi — faqat boshqa nom
+        return (f"«{_band.item_name}» nomi avval o'chirilgan (yashirilgan) materialda band — «{_zx.item_name}» ortgan loy zaxirasi yangi "
+                f"nomga o'tolmaydi. Retseptga boshqa nom bering")
+    return (f"Omborda «{_band.item_name}» nomli material bor — «{_zx.item_name}» ortgan loy zaxirasi yangi nomga o'tolmaydi. Retseptga "
+            f"boshqa nom bering (yoki o'sha materialni Omborxonada boshqa nomga o'zgartiring)")
+
+
 def nomdosh_materiallar(db: Session, company_id, nom, istisno_id: int = None) -> list:
     """Shu korxonadagi nom KALITI mos materiallar (faol va yashirin) — id tartibida, AYNAN nomlisi birinchi."""
     kalit = material_nomi_kaliti(nom)
@@ -301,6 +377,9 @@ def add_item(db: Session, item_data: InventoryCreate, company_id: int = None, pe
     _toza_nom = str(item_data.item_name or "").strip()
     if _toza_nom != item_data.item_name:
         item_data = item_data.model_copy(update={"item_name": _toza_nom})
+    # kech159 (zip 219, L1 / L2): «Tayyor loy (…)» — ortgan loy zaxirasiga band (dastur o'zi yaratadi), hech narsa yozilmaydi
+    if loy_zaxira_nomimi(_toza_nom):
+        raise ValueError(LOY_ZAXIRA_NOMI_XATO)
     is_peno = getattr(item_data, 'is_penoplast', False)
     # kech105 (K105-3, O'LCHANGAN — work/probe105.py): turkum ANIQ "Penoplast", `is_penoplast` esa umuman
     # YUBORILMAGAN bo'lsa (Ta'minotchilar sahifasi shunday yuborardi) — bu penoplast (plotnost). Ilgari
@@ -1664,6 +1743,14 @@ def update_item(db: Session, item_id: int, item_data: InventoryUpdate) -> Option
             raise ValueError("Material nomi kamida 2 belgi bo'lishi kerak")
         update_data["item_name"] = _yangi_nom
         if _yangi_nom != db_item.item_name:
+            # kech159 (zip 219, L4 / L3): mavjud retseptning ortgan loy zaxirasi — nomi retsept nomidan (o'zgartirilsa zaxira retseptdan
+            # uziladi, retsept yangi bo'sh zaxira yaratadi); boshqa material «Tayyor loy (…)» nomini olmaydi
+            _r219 = loy_zaxirasi_retsepti(db, db_item)
+            if _r219 is not None:
+                raise ValueError(f"«{db_item.item_name}» — «{_r219.name}» retseptining ortgan loy zaxirasi: nomi retsept nomidan olinadi, "
+                                 f"uni o'zgartirib bo'lmaydi (retsept nomi «Loy retseptlari» da o'zgartirilsa — zaxira nomi o'zi o'zgaradi)")
+            if loy_zaxira_nomimi(_yangi_nom):
+                raise ValueError(LOY_ZAXIRA_NOMI_XATO)
             # kech143 (zip 171, N1): nom KALITI bo'yicha (harf / bo'shliq / apostrof farqi — boshqa materialning nomi); o'z nomining
             # yozilishini o'zgartirish («akril» → «Akril») — ruxsat. PG da korxona bo'yicha qulf (yaratish bilan bir fazo).
             _pul_qulfi(db, MATERIAL_NOMI_QULF_NS, db_item.company_id or 0)
@@ -1689,6 +1776,12 @@ def update_item(db: Session, item_id: int, item_data: InventoryUpdate) -> Option
     # materialda birlik / tur jimgina o'zgarardi — 50 kg kirim, 10 kg chiqim qilingan «Akril» «litr» qilinsa qoldiq «40 litr», tarix «kg»;
     # oddiy material penoplastga (va aksincha) aylanardi. Endi ISHLATILGAN materialda (`material_ishlatilganmi`) — 400, hech narsa yozilmaydi;
     # retseptda (BOM) bo'lsa retsept birligi ham o'zgarmaydi (koeffitsient sonini tuzatish — ruxsat). Tarixsiz material — avvalgidek.
+    # kech159 (zip 219): retseptning ortgan loy zaxirasi — har doim kg va oddiy material (`get_or_create_loy_stock`; ortgan loy kg da
+    # qo'shiladi, buyurtma kg da oladi) — tarixi bo'lmasa ham birligi / turi o'zgarmaydi
+    if (("unit" in update_data and update_data["unit"] is not None
+         and str(update_data["unit"]).strip() != str(db_item.unit or "").strip())
+            or update_data.get("is_penoplast") is True) and loy_zaxirasi_retsepti(db, db_item) is not None:
+        raise ValueError(f"«{db_item.item_name}» — ortgan loy zaxirasi: birligi «{db_item.unit}» va turi (oddiy material) o'zgarmaydi")
     if any(k in update_data for k in ("unit", "is_penoplast", "base_unit", "conversion_factor")):
         # review218 №5 (O'LCHANGAN PG, kechiktirish bilan): `create_bom` navbatsiz — oddiy `FOR UPDATE` uning KEY SHARE qulfini kutadi /
         # to'xtatadi; rad etilsa marshrut `rollback` qiladi (qulf darhol bo'shaydi)
@@ -1975,7 +2068,18 @@ def update_recipe(db: Session, recipe_id: int, recipe_data: RecipeCreate,
             db, [ing.inventory_id for ing in recipe_data.ingredients],
             db_recipe.company_id)
 
+    # kech159 (zip 219, L6 — O'LCHANGAN: eski zaxira 9 kg eski nomda qolib, retsept yangi bo'sh zaxira yaratardi): nom o'zgarsa ortgan loy
+    # zaxirasi ham «Tayyor loy (<yangi>)» ga o'tadi (harakatlar tarixi id bilan — o'sha qator); yangi nom omborda band — rad (marshrut 409)
+    _eski_nom219 = db_recipe.name.value if hasattr(db_recipe.name, 'value') else str(db_recipe.name or "")
+    _zx219 = None
+    if recipe_data.name.strip() != _eski_nom219:
+        _x219 = retsept_zaxira_nomi_xatosi(db, db_recipe, recipe_data.name)
+        if _x219:
+            raise ValueError(_x219)
+        _zx219 = retsept_loy_zaxirasi(db, db_recipe, qulf=True)
     db_recipe.name = recipe_data.name.strip()
+    if _zx219 is not None:
+        _zx219.item_name = f"{LOY_ZAXIRA_PREFIKS}{db_recipe.name})"
     db_recipe.batch_size_kg = recipe_data.batch_size_kg
     db_recipe.notes = recipe_data.notes
     db_recipe.updated_at = datetime.utcnow()

@@ -6707,6 +6707,9 @@ def add_loy_to_stock(db: Session, recipe, kg: float, order=None) -> str:
     stock = get_or_create_loy_stock(db, recipe)
     if not stock:
         return ""
+    # kech159 (zip 219, L8 — O'LCHANGAN PG): o'chirilgan (tarixi bor — YASHIRILGAN) zaxiraga qo'shilgan loy Omborxonada ko'rinmasdi
+    if stock.is_deleted:
+        stock.is_deleted = False
     stock.stock_quantity = float(stock.stock_quantity or 0) + kg
     import crud as _crud_al
     _nr = (getattr(order, 'order_number', None) or f"#{getattr(order, 'id', '?')}") if order is not None else None
@@ -7493,6 +7496,8 @@ def return_loy_ingredients(db: Session, order, loy_kg: float, recipe_id: int = N
     if _lm_zaxiraga > _LM_EPS:
         _zx = get_or_create_loy_stock(db, recipe, commit=False)
         if _zx is not None:
+            if _zx.is_deleted:                   # kech159 (zip 219, L8): yashirin zaxira — ko'rinadigan bo'ladi
+                _zx.is_deleted = False
             _zx.stock_quantity = float(_zx.stock_quantity or 0) + _lm_zaxiraga
             log.append(f"{_zx.item_name}: +{son_korinish(_lm_zaxiraga, 3)} kg tayyor loy zaxirasiga qaytarildi")
             import crud as _crud_lm
