@@ -301,6 +301,10 @@
 .i-qty-box > .dgrp-row > .i-unitprice-wrap, .yb-qoplama-qator > .i-m3price-wrap, .yb-qoplama-qator > .i-blokprice-wrap{flex:1 1 220px;min-width:0}
 .yb-qoplama-qator > .i-coat-wrap{flex:1 1 150px;min-width:0}
 .yb-qoplama-qator > .i-peno-wrap{flex:2 1 260px;min-width:0}
+/* kech158 (zip 218): tanlangan plotnost nomi tanlovga sig'masa — ostida to'liq nomi (`penoToliqYangila`) */
+.i-peno-toliq{margin-top:4px;font-size:12px;line-height:16px;color:var(--m-475569);overflow-wrap:anywhere}
+.i-peno-toliq[hidden]{display:none}
+.dgrp-row.yb-qoplama-qator:has(> .i-peno-wrap > .i-peno-toliq:not([hidden])){align-items:flex-start}
 .detal-result .result-card{flex:1 1 200px}
 /* «Loy turi (retsept)» (Loy sotish) — detal setkasining 1/4 qismida edi (1440 px da tanlov yozuvi 61 px, 1280 px da 40) — butun qatorda */
 .detal-grid > .i-loysale-recipe-wrap{grid-column:1/-1}
@@ -1580,7 +1584,8 @@ async function restoreDraftLS(draft) {
       toggleFields(row);
       updateTypeConfirmText(row, 'blok');
     }
-    calculateItem(row);
+    // kech158 (zip 218, review218 №3): plotnost yorlig'i va to'liq nom (onPenoChange — hisobni ham qiladi)
+    if (typeof onPenoChange === 'function') onPenoChange(row); else calculateItem(row);
   });
 
   // Barcha detallar tiklangach — birinchisidan (eng tepadagi) tashqari
@@ -1723,9 +1728,79 @@ if (!PENOPLASTS.length) {
 
 function shortPenoName(fullName) {
   if (!fullName) return '';
-  // "Penoplast 14P" -> "14P" (oxirgi so'zni olamiz, qisqa, sodda ko'rinish uchun)
-  const parts = fullName.trim().split(/\s+/);
-  return parts[parts.length - 1];
+  // "Penoplast 14P" -> "14P". kech158 (zip 218 — egasi tanlovi 26.10; O'LCHANGAN `work/k218/probe218.py`): ilgari OXIRGI so'z edi —
+  // «Penoplast 35 zich (fasad uchun)» → «uchun)», «PSB-S 25 F fasad 1x1x2 m (Toshkent)» → «(Toshkent)». Endi birinchi RAQAMLI so'z (plotnost:
+  // «35», «25»), raqamli so'z bo'lmasa — oxirgisi; chetdagi tinish belgilarisiz, 10 belgidan uzuni qisqartiriladi (tanlov joyini yemasin).
+  // Avval PLOTNOSTGA o'xshagan so'z (raqam + 2 tagacha harf: «14P», «35», «14П») — «K218 …», «1x1x2» kabi so'zlar undan keyin.
+  const parts = String(fullName).trim().split(/\s+/).map(s => s.replace(/^[()\[\],;:.«»"']+|[()\[\],;:.«»"']+$/g, '')).filter(Boolean);
+  if (!parts.length) return '';
+  const zich = parts.find(s => /^\d+[A-Za-z\u0400-\u04FF]{0,2}$/.test(s));
+  const raqamli = zich || parts.find(s => /\d/.test(s));
+  const q = raqamli || parts[parts.length - 1];
+  return q.length > 10 ? q.slice(0, 9) + '…' : q;
+}
+
+// kech158 (zip 218 — egasi tanlovi 26.10 «1 va 2 ni tuzatish (Tavsiya)»; O'LCHANGAN `work/k218/probe218.py`, haqiqiy Chromium): tanlangan
+// plotnost nomi tanlovga SIG'MASA (320 px telefonda «Penoplast 14P (1…», Kirill 901 / 1151 px, uzun nomlar — hamma kenglikda) — tanlov ostida
+// TO'LIQ nomi. O'lchov — tanlovning o'z shrifti bilan (`measureText`); Chromium tanlov o'qi va ichki chekka — 24 px (`work/k218/strelka.py`:
+// matn ko'rinadigan joy = clientWidth − padding − ~21 px; chegarada ortiqcha ko'rsatish zararsiz, yashirish — zarar).
+const PENO_STRELKA = 24;
+function penoToliqYangila(row) {
+  const sel = row && row.querySelector ? row.querySelector('.i-peno') : null;
+  const cap = row && row.querySelector ? row.querySelector('.i-peno-toliq') : null;
+  if (!sel || !cap) return;
+  const opt = sel.options && sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex] : null;
+  const matn = opt ? String(opt.textContent || '').trim() : '';
+  let sigmaydi = false;
+  if (matn && sel.offsetParent !== null && sel.clientWidth > 0) {
+    const cs = getComputedStyle(sel);
+    let c = penoToliqYangila._c;
+    if (!c) {
+      const kanva = document.createElement('canvas');
+      c = penoToliqYangila._c = (kanva && kanva.getContext) ? kanva.getContext('2d') : null;
+    }
+    if (c) {
+      c.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+      const joy = sel.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0) - PENO_STRELKA;
+      sigmaydi = c.measureText(matn).width > joy;
+    }
+  }
+  const p = sigmaydi ? PENOPLASTS.find(x => String(x.id) === String(sel.value)) : null;
+  // Matn — Lotin manbadan (Kirill rejimida sahifaning umumiy o'giruvchisi o'zi o'giradi; Kirill matnni qayta saqlab qo'ymaslik uchun)
+  const yangi = sigmaydi ? (p ? `${p.name}${p.isDefault ? ' ⭐' : ''} (${p.stock.toFixed(0)})` : matn) : '';
+  if (cap.dataset.manba !== yangi) {
+    cap.dataset.manba = yangi;
+    cap.textContent = yangi;
+  }
+  cap.hidden = !sigmaydi;
+}
+function penoToliqHammasi() {
+  document.querySelectorAll('#items .detal').forEach(r => penoToliqYangila(r));
+}
+// Bitta kuzatuvchi (har qatorga yangi tinglovchi emas — kech136 qoidasi); ajratilgan (o'chirilgan) qator kuzatuvdan chiqariladi.
+function penoKuzat(row) {
+  const sel = row && row.querySelector ? row.querySelector('.i-peno') : null;
+  if (!sel) return;
+  if (typeof ResizeObserver === 'function') {
+    if (!penoKuzat._ro) {
+      penoKuzat._ro = new ResizeObserver(yozuvlar => yozuvlar.forEach(y => {
+        if (!y.target.isConnected) { penoKuzat._ro.unobserve(y.target); return; }
+        const r = y.target.closest('.detal');
+        if (r) penoToliqYangila(r);
+      }));
+    }
+    penoKuzat._ro.observe(sel);
+  } else if (!penoKuzat._oyna) {
+    penoKuzat._oyna = true;
+    window.addEventListener('resize', penoToliqHammasi);
+  }
+}
+// Lotin / Kirill almashganda variant matni (kengligi) o'zgaradi — tugmaning o'z ishlovchisidan (`toggleScript`) KEYIN qayta o'lchanadi
+// (yuqori panel tugmasi `#script-toggle-btn` va telefonda «···» menyusidagi `#tbKopYozuv` — review218 №1)
+if (typeof document !== 'undefined' && document.addEventListener) {
+  document.addEventListener('click', e => {
+    if (e.target && e.target.closest && e.target.closest('#script-toggle-btn, #tbKopYozuv')) setTimeout(penoToliqHammasi, 0);
+  });
 }
 
 function onPenoChange(row) {
@@ -1736,6 +1811,7 @@ function onPenoChange(row) {
     const p = PENOPLASTS.find(x => x.id === parseInt(sel.value));
     disp.textContent = p ? shortPenoName(p.name) : '';
   }
+  if (typeof penoToliqYangila === 'function') penoToliqYangila(row);   // kech158 (zip 218)
   calculateItem(row);
 }
 
@@ -4703,6 +4779,7 @@ function addItem() {
               </select>
               <span class="unit-suffix i-peno-display"></span>
             </div>
+            <div class="i-peno-toliq" hidden></div>
           </div>
           <div class="dif i-m3price-wrap"><label>1 m³ narxi</label>
             <div class="unit-input-wrap" style="border-color:var(--gold)">
@@ -4772,6 +4849,7 @@ function addItem() {
 
   toggleFields(div);
   updateTypeConfirmText(div, div.querySelector('.i-type').value);
+  if (typeof penoKuzat === 'function') penoKuzat(div);   // kech158 (zip 218): o'lcham o'zgarsa — to'liq nom qatori qayta o'lchanadi
   onPenoChange(div);
   calculateItem(div);
 }
@@ -5470,7 +5548,7 @@ function addSubDetailRow(detalRow, prefill) {
     <div style="flex:2;min-width:110px"><label style="font-size:12px;color:var(--m-475569)">Nomi (ixtiyoriy)</label>
       <input type="text" class="sd-name maydon maydon-sm" placeholder="Masalan: Rebristo detal" style="width:100%;border:1px solid var(--ch-dddddd)">
     </div>
-    <div style="flex:1;min-width:90px"><label style="font-size:12px;color:var(--m-475569)">Turi</label>
+    <div style="flex:1;min-width:130px"><label style="font-size:12px;color:var(--m-475569)">Turi</label>
       <select class="sd-type maydon maydon-sm" style="width:100%;border:1px solid var(--ch-dddddd)" onchange="onSubDetailTypeChange(this)">
         <option value="profil">📏 Profil</option>
         <option value="panel">🔲 Panel</option>
@@ -5499,7 +5577,7 @@ function addSubDetailRow(detalRow, prefill) {
       </select>
     </div>
     <div style="flex:2;min-width:120px;font-size:12px;color:var(--m-666666)" class="sd-info">≈ 0 so'm, 0 m³</div>
-    <button type="button" class="btn btn-danger btn-icon btn-sm" title="Ichki detalni olib tashlash" aria-label="Ichki detalni olib tashlash" onclick="this.closest('.subdetail-row').remove();calculateItem(this.closest('.detal'))">✕</button>
+    <button type="button" class="btn btn-danger btn-icon btn-sm" title="Ichki detalni olib tashlash" aria-label="Ichki detalni olib tashlash" onclick="const _d = this.closest('.detal'); this.closest('.subdetail-row').remove(); calculateItem(_d)">✕</button>
   `;
   list.appendChild(sub);
 
@@ -7073,6 +7151,7 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
           const pRestored = PENOPLASTS.find(x => x.id === parseInt(penoEl.value));
           penoDisp.textContent = pRestored ? shortPenoName(pRestored.name) : '';
         }
+        if (typeof penoToliqYangila === 'function') penoToliqYangila(row);   // kech158 (zip 218)
 
         // 1 m³ narxi
         const m3El = row.querySelector('.i-m3price');
