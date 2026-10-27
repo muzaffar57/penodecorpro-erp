@@ -121,6 +121,10 @@ check("S4 (review218) telefon menyusidagi «Кирилл» (`#tbKopYozuv`) ham t
       and "db_item = inventory_qulf(db, db_item.id, ochirish=True) or db_item" in _ui_tana
       and "def _surat_ishlatadimi218(db: Session, item) -> bool:" in CRUD_SRC)
 
+check("S5 (jonli sinov, eski nuqson) ichki detal «✕» — `.detal` qator OLIB TASHLASHDAN OLDIN olinadi",
+      """onclick="const _d = this.closest('.detal'); this.closest('.subdetail-row').remove(); calculateItem(_d)">✕</button>""" in ORD
+      and "remove();calculateItem(this.closest('.detal'))" not in ORD)
+
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 # tayyorgarlik
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
@@ -527,6 +531,26 @@ else:
             xav(pg.wait_for_timeout, 400)
             NAT["kirill_keyin"] = xav(pg.evaluate, HOLAT, standart={})
             ctx.close()
+            # U12 — ichki qo'shimcha detal «✕»: narx darhol qayta hisoblanadi, JS xatosi yo'q (asl: 125 000 qolardi, «reading 'querySelector'»)
+            ctx, pg = sahifa(br, 1366, 900, False)
+            _xato12 = len(XATO)
+            xav(pg.evaluate, "() => showNewForm()")
+            xav(pg.wait_for_timeout, 300)
+            NAT["x_oldin"] = xav(pg.evaluate, r"""() => { const r = document.querySelector('#items .detal');
+                const bp = document.getElementById('base_price'); bp.value = '1 000 000'; bp.dispatchEvent(new Event('input'));
+                const t = r.querySelector('.type-opt[data-value="profil"]'); if (t) t.click();
+                const v = (c, x) => { const e = r.querySelector(c); e.value = x; e.dispatchEvent(new Event('input')); };
+                v('.i-name', 'K218 Karniz'); v('.i-h', '20'); v('.i-w', '10'); v('.i-l', '10');
+                const a = r.querySelector('.i-price').value; addSubDetailRow(r); const sub = r.querySelector('.subdetail-row');
+                const sv = (c, x) => { const e = sub.querySelector(c); e.value = x; e.dispatchEvent(new Event('input')); };
+                sv('.sd-w', '10'); sv('.sd-t', '5'); sv('.sd-l', '10');
+                return {ichkisiz: a, ichki_bilan: r.querySelector('.i-price').value}; }""", standart={})
+            xav(pg.click, "#items .detal .subdetail-row button.btn-danger")
+            xav(pg.wait_for_timeout, 300)
+            NAT["x_keyin"] = xav(pg.evaluate, "() => document.querySelector('#items .detal .i-price').value", standart=None)
+            NAT["x_xato"] = XATO[_xato12:]
+            del XATO[_xato12:]
+            ctx.close()
             # U11 — 1440 px: to'liq nom chiqqanda Plotnost tanlovi Qoplama tugmalari bilan bir balandlikda (review218 №2: 20 px yuqorida edi)
             ctx, pg = sahifa(br, 1440, 900, False)
             xav(pg.evaluate, "() => showNewForm()")
@@ -639,6 +663,13 @@ else:
               "to'liq nom chiqadi (review218 №1: chiqmasdi)",
               to.get("toliq") is None and tk.get("toliq") and "Пенопласт" in str(tk.get("toliq")) and tk.get("yorliq") == "25",
               (NAT.get("tel_tayyor"), to, tk))
+        _ns = lambda x: str(x).replace("\u00a0", " ") if x is not None else None      # noqa: E731  — ming ajratgich bo'linmas bo'shliq
+        xo = {k: _ns(v) for k, v in (NAT.get("x_oldin") or {}).items()}
+        NAT["x_keyin"] = _ns(NAT.get("x_keyin"))
+        check("U12 ichki qo'shimcha detal «✕» bosilganda narx darhol ichki detalsiz holatga qaytadi (100 000), JS xatosi yo'q (asl: 125 000 "
+              "qolib, saqlansa shu narx yozilardi)",
+              xo.get("ichkisiz") == "100 000" and xo.get("ichki_bilan") == "125 000" and NAT.get("x_keyin") == "100 000"
+              and not NAT.get("x_xato"), (xo, NAT.get("x_keyin"), NAT.get("x_xato")))
         te = NAT.get("tekis") or {}
         check("U11 1440 px: to'liq nom chiqqanda Plotnost tanlovi Qoplama tugmalari bilan bir balandlikda (±2 px; asl farq 20 px)",
               te.get("toliq") is True and te.get("bir_qator") and abs((te.get("peno") or 0) - (te.get("qoplama") or 999)) <= 2, te)
