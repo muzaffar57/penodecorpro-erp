@@ -11995,7 +11995,32 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         return _bbk211t(_blok_ustunlari(db, _n, getattr(order, 'company_id', None))["blok_birlik"])
 
     from models import blok_birlik_kodi as _bbk211t
-    for _bosqich211 in (1, 2):
+    # kech159 (zip 220 — O'LCHANGAN `work/k220/probe220.py` TESKARI, `ui220.py`): forma detallarni saqlangan tartibga TESKARI yuboradi — bir xil
+    # nomli ikki detal (nom + tur bo'yicha birinchisi) almashib, o'zgarishsiz saqlash 400 berardi, oshirilganda topshirilgan tarix (qoplama,
+    # plotnost, hodim haqi) boshqa detalga o'tardi. 0-bosqich — detal RAQAMI (`nd.id`: shu buyurtmaning detali, nomi va turi o'sha — raqam faqat
+    # NOMDOSHLARNI ajratadi; nomi o'zgargan detal avvalgidek: o'chirib yangisi (topshirilgan bo'lsa 400, MRP bog'lami — 400), review220 №1 / №2), «x» — xususiyatlar (plotnost, qoplama, tayyor mahsulot, eni, qalinligi; blokda — birlik ham) bo'yicha (raqam yubormaydigan eski
+    # ochiq sahifa uchun; blok birligi bosqichidan OLDIN — birligi bir xil nomdosh blok detallar ham almashmasin).
+    _eski_id220 = {oi.id: oi for oi in old_items}
+    for idx, nd in enumerate(order_data.items):
+        _nid220 = getattr(nd, 'id', None)
+        _oi220 = _eski_id220.get(_nid220) if _nid220 else None
+        if (_oi220 is None or _oi220.id in matched
+                or (_oi220.category or '').lower() != (nd.category or '').lower()
+                or (_oi220.name or '').strip().lower() != (nd.name or '').strip().lower()):
+            continue
+        matched[_oi220.id] = nd
+        used_new.add(idx)
+
+    def _xus220(o):
+        def _s(v):
+            try:
+                return None if v is None else round(float(v), 4)
+            except (TypeError, ValueError):
+                return None
+        return (getattr(o, 'penoplast_id', None) or None, bool(getattr(o, 'is_coated', False)),
+                getattr(o, 'finished_product_id', None) or None, _s(getattr(o, 'width', None)), _s(getattr(o, 'thickness', None)))
+
+    for _bosqich211 in ("x", 1, 2):
         for oi in old_items:
             if oi.id in matched:
                 continue
@@ -12006,6 +12031,12 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
                 nkey = ((nd.name or '').strip().lower(), (nd.category or '').lower())
                 if key != nkey:
                     continue
+                if _bosqich211 == "x":
+                    if _xus220(oi) != _xus220(nd):
+                        continue
+                    _ob220, _nb220 = _oi_birlik211(oi), _nd_birlik211(nd)      # blok — birlik ham (ikkala tomonda ma'lum bo'lsa)
+                    if _ob220 is not None and _nb220 is not None and _ob220 != _nb220:
+                        continue
                 if _bosqich211 == 1:
                     _ob211, _nb211 = _oi_birlik211(oi), _nd_birlik211(nd)
                     if _ob211 is None or _nb211 is None or _ob211 != _nb211:
@@ -21179,7 +21210,8 @@ def taklif_ogohlantirishlari(db: Session, company_id: int, buyurtma) -> list:
 def _taklif_tana_json(buyurtma) -> str:
     """Saqlanadigan buyurtma tanasi (JSON): `project_id` va `is_draft` siz — ular rasmiylashtirishda tanlanadi."""
     import json as _js126
-    _d = buyurtma.model_dump(mode="json", exclude={"project_id", "is_draft"})
+    # kech159 (zip 220, review220 №6): detal raqami (tahrir uchun) — taklifda ma'nosiz, saqlanmaydi
+    _d = buyurtma.model_dump(mode="json", exclude={"project_id": True, "is_draft": True, "items": {"__all__": {"id"}}})
     return _js126.dumps(_d, ensure_ascii=False)
 
 
