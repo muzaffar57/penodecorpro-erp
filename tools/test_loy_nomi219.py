@@ -28,7 +28,6 @@ import io
 import re
 import sys
 import glob
-import json
 import time
 import socket
 import datetime
@@ -100,7 +99,7 @@ with contextlib.redirect_stdout(io.StringIO()):
     import crud                                    # noqa: E402
     import services                                # noqa: E402
 from database import SessionLocal                  # noqa: E402
-from models import (UserRole, Inventory, InventoryMovement, Project, Recipe, RecipeIngredient, Master, Order)   # noqa: E402
+from models import (UserRole, Inventory, InventoryMovement, Project, Recipe, RecipeIngredient, Master)   # noqa: E402
 from fastapi.testclient import TestClient          # noqa: E402
 
 with contextlib.redirect_stdout(io.StringIO()):
