@@ -1080,8 +1080,22 @@ check_eq("J0 jonli ma'lumot — detallar soni",
          len(jonli["malumot"]["order_items"]), 75)
 
 jami_sotuv = jami_tan = 0.0
+# kech159 (zip 221): «Tayyor» bo'lmagan, haqiqiy loysiz, rejali buyurtmada «Foyda tahlili» qoplamani REJA bo'yicha (taxminiy) qo'shadi —
+# 2026-09-20 dagi jonli qiymat eski qoidada (qoplamasiz). MUSTAQIL: reja kg × retsept 1 kg narxi (json dagi ingredient narxlari; jonli
+# bazada ombor harakati yo'q — joriy narx). O'LCHANGAN: ORD-038-1 800 kg → +1 876 515,81, ORD-045-1 380 kg → +891 345,01 (1 kg 2 345,64). Soddalashtirilgan (review221 2-3): o'chirilgan,
+# izohdagi (`planned_loy=`) reja, muzlagan narx holatlari hisobga olinmagan — shu ikki buyurtmada ular YO'Q (to'liq qoida —
+# `tools/test_reja_loy_foyda221.py`).
+_jm221 = jonli["malumot"]
+_jinv221 = {i[0]: i for i in _jm221["inventory"]}
+_loy_1kg221 = sum(kg / float(_jm221["recipe"][2]) * float(_jinv221[i][2]) for _r, i, kg in _jm221["recipe_ingredients"])
+_jonli_buy221 = {o["order_number"]: o for o in _jm221["orders"]}
 for nom in sorted(jet):
     sotuv, tan, foyda = jet[nom]
+    _o221 = _jonli_buy221.get(nom)
+    if (_o221 and _o221["status"] != "ready" and _o221["actual_loy_kg"] is None
+            and float(_o221["planned_loy_kg"] or 0) > 0):
+        tan += float(_o221["planned_loy_kg"]) * _loy_1kg221
+        foyda -= float(_o221["planned_loy_kg"]) * _loy_1kg221
     r = services.calculate_order_profit(jdb, jord[nom].id, company_id=JCID)
     check(f"J {nom} — sotuv narxi", r["sotuv_narxi"], sotuv, atol=0.01)
     check(f"J {nom} — tan narxi", r["tan_narxi"], tan, atol=0.01)
@@ -1092,7 +1106,9 @@ for nom in sorted(jet):
 check("J jami sotuv narxi (22 buyurtma)", jami_sotuv,
       sum(v[0] for v in jet.values()), atol=0.01)
 check("J jami tan narxi (22 buyurtma)", jami_tan,
-      sum(v[1] for v in jet.values()), atol=0.01)
+      sum(v[1] for v in jet.values()) + sum(float(o["planned_loy_kg"]) * _loy_1kg221 for o in _jm221["orders"]   # kech159 (zip 221)
+                                            if o["status"] != "ready" and o["actual_loy_kg"] is None and float(o["planned_loy_kg"] or 0) > 0),
+      atol=0.01)
 
 # "ready" buyurtmalar foydasi — sentabr moliya hisobotidagi
 # `buyurtmalar_foydasi` bilan AYNAN bir xil bo'lishi jonli tasdiqlangan.
