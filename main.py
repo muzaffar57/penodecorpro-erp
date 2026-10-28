@@ -1068,6 +1068,9 @@ def _migrate_payment_columns():
             migrations.append("ALTER TABLE orders ADD COLUMN blok_base_price NUMERIC(12,2)")
         if 'planned_loy_kg' not in ord_cols:
             migrations.append("ALTER TABLE orders ADD COLUMN planned_loy_kg FLOAT")
+        # kech159 (zip 221): «Tayyor» oldidagi taxminiy qoplama (izohdagi reja → haqiqiy pul farqi uchun)
+        if 'reja_qoplama_tannarxi' not in ord_cols:
+            migrations.append("ALTER TABLE orders ADD COLUMN reja_qoplama_tannarxi FLOAT")
         # kech77 (95-band, K77-1): o'chirishda qo'llangan loy — tiklash uni AYNAN teskari qiladi
         if 'ochirishda_loy_kg' not in ord_cols:
             migrations.append("ALTER TABLE orders ADD COLUMN ochirishda_loy_kg FLOAT")
@@ -8586,6 +8589,10 @@ def api_coating_notify(order_id: int, loy_kg: Optional[str] = None, db: Session 
         raise HTTPException(status_code=400, detail=str(e))
 
     inventory_log = []
+
+    # kech159 (zip 221, review221 2-2): «Tayyor» buyurtmaning rejasi o'zgarmaydi (foyda izohi: reja → haqiqiy farqi va taxmin surati)
+    if loy_kg > 0 and order.status == OrderStatus.READY:
+        raise HTTPException(status_code=409, detail="«Tayyor» buyurtmaning loy rejasini o'zgartirib bo'lmaydi — haqiqiy loy «Tayyor» da yozilgan")
 
     if loy_kg > 0:
         # Rejani notes ga yozamiz

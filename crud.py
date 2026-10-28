@@ -12529,6 +12529,9 @@ def update_order_loy(db: Session, order_id: int, new_loy: float) -> dict:
     if not _qulfli:
         return {"success": False, "message": "Buyurtma topilmadi"}
     order = _qulfli
+    if order.status == OrderStatus.READY:
+        # kech159 (zip 221, review221 2-2): haqiqiy loy «Tayyor» da yozilgan — reja (va ombor) endi o'zgarmaydi
+        return {"success": False, "message": "«Tayyor» buyurtmaning loy rejasini o'zgartirib bo'lmaydi — haqiqiy loy «Tayyor» da yozilgan"}
     old_loy = services._get_planned_loy(order)
 
     log = []

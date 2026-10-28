@@ -785,6 +785,9 @@ class Order(Base):
     actual_gips_kg = Column(Float, nullable=True)
     actual_loy_kg = Column(Float, nullable=True)  # Haqiqiy Loy (qoplama) miqdori — "Tayyor" bosilganda kiritiladi
     planned_loy_kg = Column(Float, nullable=True)  # Rejalashtirilgan Loy (qoplama) — buyurtma yaratilganda/tahrirlashda
+    # kech159 (zip 221): «Tayyor» oldidan «Foyda tahlili» ko'rsatgan TAXMINIY qoplama (reja loy bo'yicha) — `services.complete_order` yozadi;
+    # «Tayyor» dan keyin izohdagi pul farqi = haqiqiy qoplama − shu. NULL — eski buyurtma / taxmin bo'lmagan (izohda faqat kg).
+    reja_qoplama_tannarxi = Column(Float, nullable=True)
     # kech58 (K58-1 / K58-2 / K58-3, 43-band): buyurtmaning UMUMIY qoplama loyi qaysi retseptdan
     # yechilgan / yechiladi. FAQAT kech58 dan keyin YARATILGAN buyurtmaga yoziladi (foydalanuvchi
     # qarori: eski buyurtmalar foydasi o'zgarmaydi); eski (NULL) — avvalgi qoida AYNAN
