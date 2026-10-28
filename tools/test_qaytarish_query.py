@@ -1173,7 +1173,7 @@ def g_bolimi():
     check("G create_return_item: noma'lum sabab jimgina Brak EMAS",
           "reason_enum = ReturnReason.DEFECT" not in cr, "")
     check("G create_return_item: detal topilmasa rad (nom bo'yicha qidiruvdan KEYIN)",
-          tartibda(cr, "OrderItem.name == data.item_name", "if order_item is None:",
+          tartibda(cr, "_nom_kalit222(_x222.name) == _nom_kalit222(data.item_name)", "if order_item is None:",     # kech159 (zip 222)
                    "Buyurtma detali topilmadi", "item = ReturnItem("), "")
     check("G create_payment `_tolov_chegarasi` ni chaqiradi",
           "_tolov_chegarasi(" in manba(crud.create_payment), "")
