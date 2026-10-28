@@ -320,9 +320,11 @@ _yop = re.findall(r'<button data-yopish type="button" class="recp-modal-close"([
 check("C4 ikkala oynaning «×» tugmasi — `title` va `aria-label` «Yopish» (ilgari yorliqsiz)",
       len(_yop) == 2 and all('title="Yopish"' in x and 'aria-label="Yopish"' in x for x in _yop), _yop)
 _nom_chegara = (crud._val_rules().get("RecipeBody") or {}).get("name")
-check("C5 «Retsept nomi» maydonlari (yangi va tahrir) — `maxlength` = server chegarasi (RecipeBody «name» — 100)",
-      _nom_chegara == ("matn", True, 100) and re.search(r'<input type="text" id="f-name"[^>]*maxlength="100"', H) is not None
-      and re.search(r'<input type="text" id="edit-name"[^>]*maxlength="100"', H) is not None, _nom_chegara)
+# kech159 (zip 219): retsept nomi ko'pi bilan `crud.RETSEPT_NOMI_MAX` (87 — «Tayyor loy (<nom>)» 100 belgiga sig'sin); eski kodda — 100
+_nom_max = min(100, getattr(crud, "RETSEPT_NOMI_MAX", 100))
+check("C5 «Retsept nomi» maydonlari (yangi va tahrir) — `maxlength` = server chegarasi (RecipeBody «name» 100, zip 219 dan — 87)",
+      _nom_chegara == ("matn", True, 100) and re.search(r'<input type="text" id="f-name"[^>]*maxlength="%d"' % _nom_max, H) is not None
+      and re.search(r'<input type="text" id="edit-name"[^>]*maxlength="%d"' % _nom_max, H) is not None, (_nom_chegara, _nom_max))
 _skript = H[H.find("{% block scripts %}"):H.find("</script>")]
 _kod = "\n".join(x for x in _skript.splitlines() if not x.strip().startswith("//"))
 check("C6 JS kodida (izohsiz) bo'sh hajmni jimgina 100 qiladigan `|| 100` YO'Q; miqdorsiz qatorni tashlab yuboradigan "
