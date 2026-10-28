@@ -1484,6 +1484,28 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
             # READY` o'z joyida qoladi (avtomatik yuk DELIVERED qo'yishi mumkin).
             # kech101 (142-band): endi `commit` = `flush` (yuqoridagi `bitta_tranzaksiya`) — qulf bo'shamaydi, ikkinchi
             # «Tayyor» qulfni KUTADI va birinchisi saqlangach READY ni ko'rib rad etiladi (natija o'sha).
+            # kech159 (zip 221, review221 №1): «Foyda tahlili» hozir ko'rsatayotgan TAXMINIY qoplama (reja loy bo'yicha) — «Tayyor» dan keyin
+            # izohdagi pul farqi (haqiqiy − taxmin) shundan; taxmin yo'q (haqiqiy loy allaqachon bor / narxsiz) — NULL. Faqat o'qish.
+            # review221 2-1 (O'LCHANGAN — PG da SQL xatosi butun «Tayyor» tranzaksiyasini buzib 500 berardi): PG da — SAVEPOINT ichida o'qiladi
+            # va savepoint DOIM qaytariladi (xato bo'lsa ham tranzaksiya yaroqli, taxmin NULL — izohda faqat kg; «Tayyor» to'xtamaydi).
+            # SQLite — savepointsiz (pysqlite; `crud` dagi `_pg86` naqshi).
+            _taxmin221 = None
+            try:
+                if db.bind.dialect.name == "postgresql":
+                    _sp221 = db.begin_nested()
+                    try:
+                        _tf221 = calculate_order_profit(db, order.id)
+                    finally:
+                        _sp221.rollback()
+                else:
+                    _tf221 = calculate_order_profit(db, order.id)
+                if isinstance(_tf221, dict) and _tf221.get("taxminiy"):
+                    _tq221 = [float(b.get("summa") or 0) for b in (_tf221.get("breakdown") or []) if b.get("taxminiy")]
+                    _taxmin221 = sum(_tq221) if _tq221 else None
+            except Exception as _e221:          # noqa: BLE001 — taxmin bo'lmasa izohda faqat kg (yakunlash to'xtamaydi)
+                print(f"⚠ complete_order: taxminiy qoplama o'qilmadi — {type(_e221).__name__}: {_e221}")
+                _taxmin221 = None
+            order.reja_qoplama_tannarxi = _taxmin221
             order.status = OrderStatus.READY
             result = {
                 "success": True,
@@ -3173,6 +3195,24 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None, h
             except Exception:
                 pass
 
+    # kech159 (zip 221 — egasi 28.10, O'LCHANGAN `work/k221/probe221.py`): reja loy buyurtma YARATILGANDA ombordan yechiladi (xarajat bor), lekin
+    # «Tayyor» gacha foyda oynasi qoplamani 0 ko'rsatardi (300 kg reja — tan narxi 600 000 kam, foyda shuncha ko'p). Haqiqiy loy yozilmagan,
+    # «Tayyor» / bekor / o'chirilgan EMAS buyurtmada (holat so'ralmaganda) — REJA bo'yicha, «taxminiy». «Tayyor» buyurtmalar (hisobot, KPI) — AYNAN.
+    _haqiqiy_bor221 = loy_kg > 0 or order.actual_loy_kg is not None
+    try:
+        _reja_kg221 = float(_get_planned_loy(order) or 0)
+    except (TypeError, ValueError):
+        _reja_kg221 = 0.0
+    if not (_reja_kg221 > 0 and _reja_kg221 < float("inf")):
+        _reja_kg221 = 0.0
+    _holat221 = order.status.value if hasattr(order.status, "value") else str(order.status or "")
+    _loy_reja221 = bool(not _haqiqiy_bor221 and _reja_kg221 > 0 and holat_vaqti is None
+                        and not getattr(order, "is_deleted", False)
+                        and _holat221 not in (OrderStatus.READY.value, OrderStatus.CANCELLED.value))
+    if _loy_reja221:
+        loy_kg = _reja_kg221
+    _loy_holati221 = None
+
     if loy_kg > 0:
 
         # Retsept bo'yicha 1 kg loy narxi
@@ -3217,10 +3257,31 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None, h
                            + " so'm/kg)")
                 else:
                     _qn = f"Qoplama ({son_korinish(loy_kg, 1)} kg loy × {son_korinish(narx_per_kg, 0)} so'm/kg)"   # kech119 (G2-15)
-                breakdown.append({
+                _qator221 = {
                     "nomi": _qn,
                     "summa": qoplama_xarajat
-                })
+                }
+                # kech159 (zip 221): reja bo'yicha — «taxminiy» (nomi «Qoplama — reja bo'yicha (…, taxminiy)»); «Tayyor» da haqiqiy reja dan farq
+                # qilsa — izoh: reja → haqiqiy (kg va pul)
+                if _loy_reja221:
+                    _qator221["nomi"] = "Qoplama — reja bo'yicha (" + _qn[len("Qoplama ("):-1] + ", taxminiy)"
+                    _qator221["taxminiy"] = True
+                    _loy_holati221 = {"tur": "reja", "reja_kg": _reja_kg221, "haqiqiy_kg": None, "farq_kg": None, "farq_summa": None}
+                elif _reja_kg221 > 0 and abs(loy_kg - _reja_kg221) > 0.01:
+                    # pul farqi — «Tayyor» dagi haqiqiy qoplama − «Tayyor» oldidan ko'ringan TAXMIN (`complete_order` saqlaydi —
+                    # `orders.reja_qoplama_tannarxi`): «Tayyor» dagi qo'shimcha / qaytgan loy narxi AYNAN (review221 №1: o'rtacha narxdagi
+                    # farq egasi ko'rgan taxmin → haqiqiy o'zgarishiga mos kelmasdi — 600 000 → 750 000 da «+107 143»). Taxmin saqlanmagan
+                    # (eski «Tayyor», o'chirishda yakunlangan) — faqat kg. Chegara 0,01 kg — `complete_order` bilan bir («Reja bo'yicha ketdi»).
+                    _fk221 = loy_kg - _reja_kg221
+                    _snap221 = getattr(order, "reja_qoplama_tannarxi", None)
+                    _fs221 = (qoplama_xarajat - float(_snap221)) if _snap221 is not None else None
+                    _qator221["izoh"] = (f"Loy: reja {son_korinish(_reja_kg221, 2)} kg → haqiqiy {son_korinish(loy_kg, 2)} kg ("
+                                         f"{'+' if _fk221 > 0 else '−'}{son_korinish(abs(_fk221), 2)} kg"
+                                         + (f", {'+' if _fs221 >= 0 else '−'}{son_korinish(abs(_fs221), 0)} so'm" if _fs221 is not None else "")
+                                         + ")")
+                    _loy_holati221 = {"tur": "haqiqiy", "reja_kg": _reja_kg221, "haqiqiy_kg": loy_kg, "farq_kg": _fk221,
+                                      "farq_summa": _fs221}
+                breakdown.append(_qator221)
                 tan_narxi_jami += qoplama_xarajat
                 _tannarx_qismlari.append({"tur": "qoplama", "summa": qoplama_xarajat, "detal_id": None})
 
@@ -3277,6 +3338,9 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None, h
         "breakdown": breakdown,
         "volume_m3": round(sum(d["vol"] for d in penoplast_breakdown_by_item.values()), 3),
         "tannarx_qismlari": _tannarx_qismlari,     # kech117 (A2): yig'indisi = tan_narxi
+        # kech159 (zip 221): qoplama reja loy bo'yicha (hali «Tayyor» emas) — taxminiy; `loy_holati` — reja / haqiqiy va farqi
+        "taxminiy": bool(_loy_holati221 and _loy_holati221.get("tur") == "reja"),
+        "loy_holati": _loy_holati221,
     }
 
 
@@ -6707,6 +6771,9 @@ def add_loy_to_stock(db: Session, recipe, kg: float, order=None) -> str:
     stock = get_or_create_loy_stock(db, recipe)
     if not stock:
         return ""
+    # kech159 (zip 219, L8 — O'LCHANGAN PG): o'chirilgan (tarixi bor — YASHIRILGAN) zaxiraga qo'shilgan loy Omborxonada ko'rinmasdi
+    if stock.is_deleted:
+        stock.is_deleted = False
     stock.stock_quantity = float(stock.stock_quantity or 0) + kg
     import crud as _crud_al
     _nr = (getattr(order, 'order_number', None) or f"#{getattr(order, 'id', '?')}") if order is not None else None
@@ -7493,6 +7560,8 @@ def return_loy_ingredients(db: Session, order, loy_kg: float, recipe_id: int = N
     if _lm_zaxiraga > _LM_EPS:
         _zx = get_or_create_loy_stock(db, recipe, commit=False)
         if _zx is not None:
+            if _zx.is_deleted:                   # kech159 (zip 219, L8): yashirin zaxira — ko'rinadigan bo'ladi
+                _zx.is_deleted = False
             _zx.stock_quantity = float(_zx.stock_quantity or 0) + _lm_zaxiraga
             log.append(f"{_zx.item_name}: +{son_korinish(_lm_zaxiraga, 3)} kg tayyor loy zaxirasiga qaytarildi")
             import crud as _crud_lm

@@ -303,6 +303,9 @@ class OrderItemSubDetailCreate(BaseModel):
 
 
 class OrderItemCreate(BaseModel):
+    # kech159 (zip 220 — O'LCHANGAN `work/k220/ui220.py`): tahrirda forma detal RAQAMINI yuboradi — server eski detalni shu raqam bo'yicha
+    # moslaydi (nomdosh detallar almashmasin); yaratishda e'tiborsiz. PG integer chegarasi — 422.
+    id: Optional[int] = Field(default=None, ge=1, le=2_147_483_647)
     name: str = Field(..., min_length=2)
     category: Optional[str] = None
     # kech157 (zip 215b — review215b №4): NaN / cheksiz — 422 (HAQIQIY PG da `"width": "nan"` bilan buyurtma 200, penoplast qoldig'i NaN)
