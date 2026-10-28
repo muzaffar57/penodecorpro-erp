@@ -6898,6 +6898,9 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
         if (!row) return;
 
         row.querySelector('.i-name').value = item.name || '';
+        // kech159 (zip 220): faqat «Tahrirlash» rejimida — detal raqami (saqlashda server eski detalni shu raqam bilan topadi; nusxa / taklif —
+        // yangi detallar, raqamsiz)
+        if (mode === 'edit' && !isDup && !isTaklif && item.id) row.dataset.itemId = String(item.id);
         // kech108 (71): tahrir ochilgandagi SAQLANGAN narx — saqlashda 0 ga tushsa ogohlantiriladi (`_narxiNolgaTushgan`).
         // Nusxa olishda (yangi buyurtma) belgilanmaydi.
         if (!isDup) row.dataset.saqlanganNarx = String(parseFloat(item.unit_price || 0) || 0);
@@ -7081,7 +7084,12 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
 
         // Topshirilgan bo'lsa — belgilaymiz (faqat 'edit' rejimida — nusxa
         // olishda YANGI buyurtma hali hech narsa topshirmagan, toza boshlanadi)
-        const dlvInfo = isDup ? null : (window._dlvMap || {})[(item.name || '').trim().toLowerCase()];
+        // kech159 (zip 220): detal RAQAMI bo'yicha (nomdosh detallarning har biri o'z topshirilgani bilan); javobda raqam bo'lmasa — nom bo'yicha
+        const _dlvRoy220 = (_dlvHolat103 && Array.isArray(_dlvHolat103.items)) ? _dlvHolat103.items : [];
+        const _raqamli220 = _dlvRoy220.some(i => i && i.id);
+        const dlvInfo = isDup ? null : (_raqamli220
+          ? (_dlvRoy220.find(i => i && item.id && i.id === item.id && (i.delivered > 0 || i.ortiqcha > 0)) || null)
+          : (window._dlvMap || {})[(item.name || '').trim().toLowerCase()]);
         if (dlvInfo && (dlvInfo.delivered > 0 || dlvInfo.ortiqcha > 0)) {
           row.dataset.delivered = dlvInfo.delivered;
           row.dataset.ortiqcha = dlvInfo.ortiqcha || 0;       // kech103 (58 / 63-band)
@@ -7489,6 +7497,12 @@ function collectItems() {
                    penoplast_id: penoId, price_per_m3: (fpId ? null : m3price), finished_product_id: fpId,
                    sub_details: subDetails });
     }
+  });
+  // kech159 (zip 220): tahrirda yuklangan detal — o'z raqami bilan (yangi qo'shilgan qatorda raqam yo'q)
+  items.forEach(x => {
+    const _q220 = x && x._qator;
+    const _id220 = _q220 && _q220.dataset ? parseInt(_q220.dataset.itemId) : NaN;
+    if (Number.isFinite(_id220) && _id220 > 0) x.id = _id220;
   });
   return items;
 }
