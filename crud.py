@@ -6369,7 +6369,7 @@ def _clean_order_item_update(item_data) -> dict:
         if key == "name":
             if not isinstance(value, str) or len(value.strip()) < 2:
                 raise ValueError("Detal nomi kamida 2 belgi bo'lishi kerak")
-            toza[key] = value.strip()
+            toza[key] = _schemas222.detal_nomi_tartib(value.strip())     # kech159 (zip 222): nom tartibi (saqlashda)
         elif key == "category":
             if value is not None and not isinstance(value, str):
                 raise ValueError("'category' matn bo'lishi kerak")
@@ -7421,8 +7421,8 @@ def _buyurtma_audit_holati(order) -> dict:
     _detal = {}
     for _i in list(order.items or []):
         _olcham = "×".join(audit_son(v) for v in (_i.width, _i.thickness, _i.length) if v)
-        _kalit = ((_i.name or "").strip(), (_i.category or "").strip(), _olcham, _i.is_coated is not False)
-        _d = _detal.setdefault(_kalit, {"miqdor": 0.0, "summa": 0.0, "birlik": None, "manba": set()})
+        _kalit = (_nom_kalit222(_i.name), (_i.category or "").strip(), _olcham, _i.is_coated is not False)     # kech159 (zip 222)
+        _d = _detal.setdefault(_kalit, {"miqdor": 0.0, "summa": 0.0, "birlik": None, "manba": set(), "nom": (_i.name or "").strip()})
         _d["miqdor"] += float(_i.quantity or 0)
         _d["summa"] += float(_i.total_price or 0)
         _d["birlik"] = _d["birlik"] or (_i.gips_unit or None) or (
@@ -7437,8 +7437,8 @@ def _buyurtma_audit_farqi(db: Session, company_id: int, eski: dict, yangi: dict)
     """Ikki `_buyurtma_audit_holati` orasidagi o'zgarishlar (matnlar ro'yxati)."""
     _f = []
 
-    def _nom(k):
-        _s = k[0] or k[1] or "detal"
+    def _nom(k, d=None):
+        _s = ((d or {}).get("nom") if d else None) or k[0] or k[1] or "detal"     # kech159 (zip 222): saqlangan nom (kalit — kichik harf)
         if k[2]:
             _s += f" {k[2]}"
         if not k[3]:
@@ -7451,21 +7451,24 @@ def _buyurtma_audit_farqi(db: Session, company_id: int, eski: dict, yangi: dict)
     _e, _y = eski["detallar"], yangi["detallar"]
     for _k in _e:
         if _k not in _y:
-            _f.append(f"− {_nom(_k)} ({audit_son(_e[_k]['miqdor'])} {_bir(_e[_k])})")
+            _f.append(f"− {_nom(_k, _e[_k])} ({audit_son(_e[_k]['miqdor'])} {_bir(_e[_k])})")
     for _k in _y:
         if _k not in _e:
-            _f.append(f"+ {_nom(_k)} ({audit_son(_y[_k]['miqdor'])} {_bir(_y[_k])}, {audit_son(_y[_k]['summa'])} so'm)")
+            _f.append(f"+ {_nom(_k, _y[_k])} ({audit_son(_y[_k]['miqdor'])} {_bir(_y[_k])}, {audit_son(_y[_k]['summa'])} so'm)")
             continue
         _a, _b = _e[_k], _y[_k]
+        # kech159 (zip 222): faqat katta-kichik harf / bo'shliq farqi (nom tartibi) — «nomi: A → B»
+        if (_a.get("nom") or "") != (_b.get("nom") or ""):
+            _f.append(f"nomi: {_a.get('nom') or '—'} → {_b.get('nom') or '—'}")
         if abs(_a["miqdor"] - _b["miqdor"]) > 1e-9:
-            _f.append(f"{_nom(_k)}: {audit_son(_a['miqdor'])} → {audit_son(_b['miqdor'])} {_bir(_b)}")
+            _f.append(f"{_nom(_k, _b)}: {audit_son(_a['miqdor'])} → {audit_son(_b['miqdor'])} {_bir(_b)}")
         elif abs(_a["summa"] - _b["summa"]) > 0.004:
-            _f.append(f"{_nom(_k)}: {audit_son(_a['summa'])} → {audit_son(_b['summa'])} so'm")
+            _f.append(f"{_nom(_k, _b)}: {audit_son(_a['summa'])} → {audit_son(_b['summa'])} so'm")
         if _a["manba"] != _b["manba"]:
-            _f.append(f"{_nom(_k)}: xomashyo / mahsulot almashtirildi")
+            _f.append(f"{_nom(_k, _b)}: xomashyo / mahsulot almashtirildi")
         # kech155 (zip 211 — review211 №9): blok detal o'lchov birligi (m / dona / m²) o'zgardi
         if (_a.get("birlik") or None) != (_b.get("birlik") or None):
-            _f.append(f"{_nom(_k)}: birlik {_bir(_a)} → {_bir(_b)}")
+            _f.append(f"{_nom(_k, _b)}: birlik {_bir(_a)} → {_bir(_b)}")
     if abs(eski["jami"] - yangi["jami"]) > 0.004:
         _f.append(f"jami: {audit_son(eski['jami'])} → {audit_son(yangi['jami'])} so'm")
     if (eski["kelishilgan"] is None) != (yangi["kelishilgan"] is None) or (
@@ -8878,11 +8881,11 @@ def create_return_item(db: Session, data: ReturnItemCreate,
         # ulardan birini TAXMIN qilardi — omborga qaytarish, summa va endi
         # yig'indi boshqa detalga yozilib ketardi. `returns.html` doim
         # `order_item_id` yuboradi.
-        _nomdoshlar = db.query(OrderItem).filter(
+        # kech159 (zip 222, review222 №6): nom — katta-kichik harf / bo'shliqsiz (`_nom_kalit222`; tahrirda nom tartiblanadi)
+        _nomdoshlar = [_x222 for _x222 in db.query(OrderItem).filter(
             OrderItem.company_id == _o.company_id,
             OrderItem.order_id == data.order_id,
-            OrderItem.name == data.item_name
-        ).order_by(OrderItem.id).all()
+        ).order_by(OrderItem.id).all() if _nom_kalit222(_x222.name) == _nom_kalit222(data.item_name)]
         if len(_nomdoshlar) > 1:
             raise ValueError(f"Buyurtmada '{data.item_name}' nomli {len(_nomdoshlar)} ta detal bor — "
                              f"qaysi biri qaytayotganini tanlang (detal raqami kerak)")
@@ -11668,6 +11671,15 @@ def _retsept_nomi53(r) -> str:
     return str(getattr(n, 'value', n) or '')
 
 
+import schemas as _schemas222
+
+
+def _nom_kalit222(nom):
+    """kech159 (zip 222): eski ↔ yangi detal moslash kaliti — bo'shliqlar bittaga, kichik harf (eski «49  GA 3 LI USTUN» = tartiblangan
+    «49 ga 3 li ustun»; ilgari `strip().lower()` — ichki ikki bo'shliq «nomi o'zgargan» deb olinardi)."""
+    return " ".join((nom or "").split()).lower()
+
+
 def _tahrir_loy_oldindan(db: Session, order, order_data, tanlov_oldin, loy_oldin_retsept, loy_kg: float) -> list:
     """kech103 (5-bo'lim 69-band, O'LCHANGAN `work/probe69.py`): tahrir qoplama retseptini ALMASHTIRADIGAN bo'lsa —
     yangi retsept xomashyosi yetishmovchiligi qatorlari, OLDINDAN (detallar o'zgarishidan oldin, `update_order_full`
@@ -11688,11 +11700,11 @@ def _tahrir_loy_oldindan(db: Session, order, order_data, tanlov_oldin, loy_oldin
     _mos = {}
     _band = set()
     for _oi in _eski:
-        _k = ((_oi.name or '').strip().lower(), (_oi.category or '').lower())
+        _k = (_nom_kalit222(_oi.name), (_oi.category or '').lower())     # kech159 (zip 222)
         for _idx, _nd in enumerate(order_data.items):
             if _idx in _band:
                 continue
-            if _k == ((_nd.name or '').strip().lower(), (_nd.category or '').lower()):
+            if _k == (_nom_kalit222(_nd.name), (_nd.category or '').lower()):
                 _mos[_idx] = _oi.id
                 _band.add(_idx)
                 break
@@ -12006,7 +12018,7 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         _oi220 = _eski_id220.get(_nid220) if _nid220 else None
         if (_oi220 is None or _oi220.id in matched
                 or (_oi220.category or '').lower() != (nd.category or '').lower()
-                or (_oi220.name or '').strip().lower() != (nd.name or '').strip().lower()):
+                or _nom_kalit222(_oi220.name) != _nom_kalit222(nd.name)):      # kech159 (zip 222): bo'shliq / harf farqi — o'sha nom
             continue
         matched[_oi220.id] = nd
         used_new.add(idx)
@@ -12024,11 +12036,11 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         for oi in old_items:
             if oi.id in matched:
                 continue
-            key = ((oi.name or '').strip().lower(), (oi.category or '').lower())
+            key = (_nom_kalit222(oi.name), (oi.category or '').lower())      # kech159 (zip 222)
             for idx, nd in enumerate(order_data.items):
                 if idx in used_new:
                     continue
-                nkey = ((nd.name or '').strip().lower(), (nd.category or '').lower())
+                nkey = (_nom_kalit222(nd.name), (nd.category or '').lower())
                 if key != nkey:
                     continue
                 if _bosqich211 == "x":
@@ -12165,6 +12177,9 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         oi.length = nd.length
         oi.quantity = nd.quantity
         oi.is_coated = nd.is_coated
+        # kech159 (zip 222): moslangan detal (kalit — `_nom_kalit222` bir) nomi tartiblangan shaklga (eski «15 LI KARNIZ» → «15 li karniz»)
+        if nd.name and oi.name != nd.name and _nom_kalit222(oi.name) == _nom_kalit222(nd.name):
+            oi.name = nd.name
         # MUHIM TUZATISH: avval BARCHA detallarning recipe_id'si, ularning
         # O'Z tanlovidan qat'i nazar, buyurtma darajasidagi (order_data.
         # recipe_id) BITTA umumiy qiymat bilan ALMASHTIRILAR edi. Bu, "loy

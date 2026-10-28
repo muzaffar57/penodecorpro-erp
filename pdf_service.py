@@ -510,12 +510,15 @@ def generate_nakladnoy(order, db=None, taklif=None) -> bytes:
         # doim bir-biriga mos keladi.
         true_unit_price = (total_price / miqdor) if miqdor > 0 else unit_price
 
+        # kech159 (zip 222): detal nomi — tartibli ko'rinishda (bazadagi eski «PADAKOLNIK» ham «Padakolnik»)
+        from schemas import detal_nomi_tartib as _dnt222
+        _nom222 = _dnt222(item.name)
         if (item.category or '').lower() == 'gips':
-            item_label = f"{item.name} (GIPS)"
+            item_label = f"{_nom222} (GIPS)"
         elif item.is_coated:
-            item_label = f"{item.name} (qoplamali)"
+            item_label = f"{_nom222} (qoplamali)"
         else:
-            item_label = str(item.name)
+            item_label = str(_nom222)
 
         table_data.append([
             Paragraph(str(i+1), st["table_cell_c"]),

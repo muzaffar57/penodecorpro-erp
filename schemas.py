@@ -7,7 +7,42 @@ Ular API ga keladigan va chiqadigan ma'lumotlarni tekshiradi.
 
 from datetime import datetime
 from typing import Optional, List, Literal
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+import re as _re222
+
+# kech159 (zip 222 — egasi 28.10: yuk xatida «PADAKOLNIK» → «Padakolnik»; O'LCHANGAN `work/k222/nom_sinov222.py` — production 156 xil nomdan 99 tasi):
+# detal nomi — xodim qanday yozishidan qat'i nazar bir xil ko'rinish. Butun katta harfli so'z (o'zbek lotin digraflari Ch / Sh / Yu / Ya / Yo / Ye
+# ikkinchi harfi kichik bo'lsa ham — «NALIChNIK», «YuMALOK», «NAKSh»; kamida 2 bosh harf) — kichik, LEKIN faqat nomda oddiy yozilgan so'z bo'lmasa
+# (aralash nomdagi katta harfli so'z — qisqartma: «MDF panel», «AO Q4 Karniz»); shunda bo'shliqlar bittaga, birinchi harf — katta.
+# Boshqa nom («Karniz 15 sm», «Tekkiz Ustun», «karniz  q8», «BN_D1») — AYNAN xodim yozgandek (`base.html` `capitalizeFirst` brauzerda).
+# so'z — harflar, ichida o'zbek apostrofi bo'lsa ham bitta so'z («KO'K», «TO'G'RI», «O‘NG» — review222 №1: ilgari «Ko'K»)
+_SOZ222 = _re222.compile(r"[^\W\d_]+(?:['ʻʼ’‘`´][^\W\d_]+)*")
+_DIGRAF222 = _re222.compile(r"(?<=[CS])h|(?<=Y)[uaoe]")
+
+
+def detal_nomi_tartib(nom):
+    """Detal nomining tartibli ko'rinishi (saqlash va yuk xati / PDF / Telegram). `None` / matn emas — o'zgarishsiz."""
+    # «_» li nom — identifikator / kod («BN_D1»; production nomlarida yo'q) — tegilmaydi
+    if not isinstance(nom, str) or "_" in nom:
+        return nom
+
+    def _katta(w):
+        q = _DIGRAF222.sub("", w)
+        return sum(1 for c in q if c.isupper()) >= 2 and not any(c.islower() for c in q)
+
+    def _oddiy(w):
+        return len(w) >= 2 and any(c.islower() for c in _DIGRAF222.sub("", w))
+    _sozlar = _SOZ222.findall(nom)
+    # nomda ODDIY yozilgan so'z bo'lsa («MDF panel», «AO Q4 Karniz» — katta harfli so'z qisqartma) yoki katta harfli so'z yo'q bo'lsa — nom
+    # xodim yozgandek (o'zgarishsiz; birinchi harfni sahifa o'zi kattalashtiradi). Faqat BUTUN katta harfli nom («PADAKOLNIK», «15 LI NALIChNIK»):
+    # bo'shliqlar bittaga, katta harfli so'zlar kichik, birinchi harf katta (production 156 nomdan 97 tasi; aralash — 0 ta)
+    if any(_oddiy(w) for w in _sozlar) or not any(_katta(w) for w in _sozlar):
+        return nom
+    s = " ".join(nom.split())
+    s = _SOZ222.sub(lambda m: m.group(0).lower() if _katta(m.group(0)) else m.group(0), s)
+    if s and s[0].isalpha() and s[0].islower():
+        s = s[0].upper() + s[1:]
+    return s
 
 
 # ============================================================
@@ -308,6 +343,12 @@ class OrderItemCreate(BaseModel):
     id: Optional[int] = Field(default=None, ge=1, le=2_147_483_647)
     name: str = Field(..., min_length=2)
     category: Optional[str] = None
+
+    # kech159 (zip 222): nom tartibi — uzunlik (kamida 2) TARTIBLANGAN nomga tekshiriladi («  a » — 422)
+    @field_validator("name", mode="before")
+    @classmethod
+    def _nom_tartib222(cls, v):
+        return detal_nomi_tartib(v)
     # kech157 (zip 215b — review215b №4): NaN / cheksiz — 422 (HAQIQIY PG da `"width": "nan"` bilan buyurtma 200, penoplast qoldig'i NaN)
     width: Optional[float] = Field(default=None, allow_inf_nan=False)
     thickness: Optional[float] = Field(default=None, allow_inf_nan=False)
