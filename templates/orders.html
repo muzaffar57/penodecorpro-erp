@@ -4582,7 +4582,11 @@ function rasmXatolariMatni(xatolar) {
 // buyurtmada hali berilmagan bo'lsa qator ostida «ℹ️ Bu loyihada: ORD-064-4 — 72 m (hali berilmagan) · ORD-064-3 — 72 m berilgan
 // (19.10)» (bloklamaydi). Ma'lumot — `GET /api/projects/{id}/berilgan-detallar` (loyiha bo'yicha bir marta;
 // tahrirda tahrirlanayotgan buyurtma `istisno`). Kalit — server `crud.detal_nomi_kaliti` bilan AYNAN (Kirill — avval Lotinga).
-var TAKROR = window.TAKROR || {pid: null, istisno: null, data: null, va: null};
+// kech159 (zip 219 — egasi tanlovi 27.10 «Kichik qoldiqlar (Tavsiya)»; O'LCHANGAN `work/k219/probe219b.py`): forma OCHIQ turganda boshqa
+// xodim shu loyihaga yozgan buyurtma / yuk xati eslatmada ko'rinmasdi (ma'lumot forma ochilganda BIR marta olinardi). Endi ma'lumot
+// `TAKROR_MUDDAT_MS` (15 s) dan eski bo'lsa — keyingi nom yozilishida qayta so'raladi (javob farq qilsa HAMMA qatorlar qayta chiziladi),
+// sahifaga qaytilganda (boshqa oyna / ilova / yorliqdan) — forma ochiq bo'lsa darhol. `vaqt` — javob kelgan payt (0 — hali yo'q).
+var TAKROR = window.TAKROR || {pid: null, istisno: null, data: null, va: null, vaqt: 0};
 window.TAKROR = TAKROR;
 function takrorKalit(s) {
   let t = String(s == null ? '' : s);
@@ -4597,21 +4601,41 @@ function _takrorJoriy() {
 function takrorTarixi() {
   const j = _takrorJoriy();
   if (!j.pid) return Promise.resolve(null);
-  if (TAKROR.va && TAKROR.pid === j.pid && TAKROR.istisno === j.istisno) return TAKROR.va;
-  TAKROR.pid = j.pid; TAKROR.istisno = j.istisno; TAKROR.data = null;
+  const _shu219 = !!TAKROR.va && TAKROR.pid === j.pid && TAKROR.istisno === j.istisno;
+  if (_shu219 && !_takrorEskirdi()) return TAKROR.va;
+  // kech159 (zip 219): eskirgan — qayta; oldingi javob yangisi bilan solishtiriladi (undefined — yangi loyiha / birinchi so'rov)
+  const _eski219 = _shu219 ? TAKROR.data : undefined;
+  TAKROR.pid = j.pid; TAKROR.istisno = j.istisno; TAKROR.data = null; TAKROR.vaqt = 0;
+  // review219 №3: yangilash so'rovi yiqilsa (tarmoq / 500) — oldingi to'g'ri ma'lumot joyida qoladi (eslatmalar o'chmaydi), eskirgan
+  // hisoblanadi (keyingi harfda / qaytilganda yana so'raladi); birinchi so'rov yiqilsa — keshda qolmaydi (review213 №4)
+  const _xato219 = () => {
+    if (TAKROR.va !== va) return null;
+    if (Array.isArray(_eski219)) { TAKROR.data = _eski219; TAKROR.va = Promise.resolve(_eski219); TAKROR.vaqt = 1; return _eski219; }
+    TAKROR.va = null;
+    return null;
+  };
   const url = '/api/projects/' + j.pid + '/berilgan-detallar' + (j.istisno ? ('?istisno=' + j.istisno) : '');
   const va = fetch(url).then(r => (r.ok ? r.json() : null)).then(d => {
     const ro = (d && Array.isArray(d.detallar)) ? d.detallar : null;
     if (TAKROR.va === va) {
+      if (ro === null) return _xato219();      // xato (500 / tarmoq) — `_xato219` (review213 №4, review219 №3)
       TAKROR.data = ro;
-      if (ro === null) TAKROR.va = null;      // xato (500 / tarmoq) keshda qolmaydi — keyingi harfda qayta so'raladi (review213 №4)
+      TAKROR.vaqt = Date.now();
+      // kech159 (zip 219): yangilangan ma'lumot oldingisidan farq qilsa — boshqa qatorlar ham (ular qayta yozilmagan)
+      if (_eski219 !== undefined && JSON.stringify(_eski219) !== JSON.stringify(ro)) setTimeout(takrorHammasi, 0);
     }
     return ro;
-  }).catch(() => { if (TAKROR.va === va) TAKROR.va = null; return null; });
+  }).catch(() => _xato219());
   TAKROR.va = va;
   return va;
 }
-function takrorTozala() { TAKROR.va = null; TAKROR.data = null; TAKROR.pid = null; TAKROR.istisno = null; }
+function takrorTozala() { TAKROR.va = null; TAKROR.data = null; TAKROR.pid = null; TAKROR.istisno = null; TAKROR.vaqt = 0; }
+// kech159 (zip 219): eslatma ma'lumotining yashash muddati (ms; sinovda `window.TAKROR_MUDDAT_MS` bilan qisqartiriladi)
+function _takrorMuddat() {
+  const m = Number(window.TAKROR_MUDDAT_MS);
+  return Number.isFinite(m) && m >= 0 ? m : 15000;
+}
+function _takrorEskirdi() { return !!TAKROR.vaqt && (Date.now() - TAKROR.vaqt) > _takrorMuddat(); }
 async function takrorQatori(row) {
   if (!row) return;
   const el = row.querySelector('.i-takror');
@@ -4660,6 +4684,19 @@ function _takrorBelgi(row, bor) {
 }
 function takrorHammasi() {
   document.querySelectorAll('#items .detal').forEach(r => { takrorQatori(r); });
+}
+// kech159 (zip 219): boshqa oyna / ilova / yorliqdan qaytilganda — forma ochiq va ma'lumot eskirgan bo'lsa eslatmalar yangilanadi (nomsiz
+// qatorlar so'rov yubormaydi)
+function takrorQaytaKorinish() {
+  if (document.visibilityState === 'hidden' || !_takrorEskirdi()) return;
+  const f = document.getElementById('newOrderForm');
+  if (!f || getComputedStyle(f).display === 'none') return;
+  takrorHammasi();
+}
+if (!window.__takror219) {
+  window.__takror219 = true;
+  document.addEventListener('visibilitychange', takrorQaytaKorinish);
+  window.addEventListener('focus', takrorQaytaKorinish);
 }
 
 function addItem() {
@@ -6861,6 +6898,9 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
         if (!row) return;
 
         row.querySelector('.i-name').value = item.name || '';
+        // kech159 (zip 220): faqat «Tahrirlash» rejimida — detal raqami (saqlashda server eski detalni shu raqam bilan topadi; nusxa / taklif —
+        // yangi detallar, raqamsiz)
+        if (mode === 'edit' && !isDup && !isTaklif && item.id) row.dataset.itemId = String(item.id);
         // kech108 (71): tahrir ochilgandagi SAQLANGAN narx — saqlashda 0 ga tushsa ogohlantiriladi (`_narxiNolgaTushgan`).
         // Nusxa olishda (yangi buyurtma) belgilanmaydi.
         if (!isDup) row.dataset.saqlanganNarx = String(parseFloat(item.unit_price || 0) || 0);
@@ -7044,7 +7084,12 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
 
         // Topshirilgan bo'lsa — belgilaymiz (faqat 'edit' rejimida — nusxa
         // olishda YANGI buyurtma hali hech narsa topshirmagan, toza boshlanadi)
-        const dlvInfo = isDup ? null : (window._dlvMap || {})[(item.name || '').trim().toLowerCase()];
+        // kech159 (zip 220): detal RAQAMI bo'yicha (nomdosh detallarning har biri o'z topshirilgani bilan); javobda raqam bo'lmasa — nom bo'yicha
+        const _dlvRoy220 = (_dlvHolat103 && Array.isArray(_dlvHolat103.items)) ? _dlvHolat103.items : [];
+        const _raqamli220 = _dlvRoy220.some(i => i && i.id);
+        const dlvInfo = isDup ? null : (_raqamli220
+          ? (_dlvRoy220.find(i => i && item.id && i.id === item.id && (i.delivered > 0 || i.ortiqcha > 0)) || null)
+          : (window._dlvMap || {})[(item.name || '').trim().toLowerCase()]);
         if (dlvInfo && (dlvInfo.delivered > 0 || dlvInfo.ortiqcha > 0)) {
           row.dataset.delivered = dlvInfo.delivered;
           row.dataset.ortiqcha = dlvInfo.ortiqcha || 0;       // kech103 (58 / 63-band)
@@ -7452,6 +7497,12 @@ function collectItems() {
                    penoplast_id: penoId, price_per_m3: (fpId ? null : m3price), finished_product_id: fpId,
                    sub_details: subDetails });
     }
+  });
+  // kech159 (zip 220): tahrirda yuklangan detal — o'z raqami bilan (yangi qo'shilgan qatorda raqam yo'q)
+  items.forEach(x => {
+    const _q220 = x && x._qator;
+    const _id220 = _q220 && _q220.dataset ? parseInt(_q220.dataset.itemId) : NaN;
+    if (Number.isFinite(_id220) && _id220 > 0) x.id = _id220;
   });
   return items;
 }
@@ -7932,8 +7983,10 @@ async function loadProfit() {
   // «11 458,947»): pul — butun so'm (`formatNum`, sahifaning boshqa summalari bilan bir), foiz — vergul bilan (`foizKor`).
   const sTotalP = document.getElementById('s-total');
   if (sTotalP && d.sotuv_narxi !== null && d.sotuv_narxi !== undefined) sTotalP.textContent = formatNum(d.sotuv_narxi) + " so'm";
-  if (pR && sC) { pR.style.display='flex'; sC.textContent=formatNum(d.tan_narxi)+' so\'m'; }
-  if (pR2 && sP) { pR2.style.display='flex'; sP.textContent=formatNum(d.foyda)+' so\'m ('+foizKor(d.foyda_foiz)+')'; }
+  // kech159 (zip 221): qoplama hali reja loy bo'yicha («Tayyor» emas) — taxminiy
+  const _taxm221 = d.taxminiy === true;
+  if (pR && sC) { pR.style.display='flex'; sC.textContent=formatNum(d.tan_narxi)+' so\'m'+(_taxm221 ? ' (taxminiy)' : ''); }
+  if (pR2 && sP) { pR2.style.display='flex'; sP.textContent=formatNum(d.foyda)+' so\'m ('+foizKor(d.foyda_foiz)+')'+(_taxm221 ? ' · taxminiy' : ''); }
   if (sP) sP.style.color = d.foyda >= 0 ? 'var(--gold-dark)' : 'var(--m-dc2626)';
 
   // Tafsilot modali
@@ -7964,6 +8017,7 @@ async function loadProfit() {
         <div class="foyda-nom" style="flex:1 1 110px;min-width:0;overflow-wrap:anywhere">
           <div style="font-size:14px;font-weight:600;color:var(--m-222222)">${escapeHtml(mainName)}</div>
           ${subDetail ? `<div style="font-size:12px;color:var(--text3);margin-top:2px">${escapeHtml(subDetail)}</div>` : ''}
+          ${b.izoh ? `<div class="foyda-izoh" style="font-size:12px;color:var(--m-b45309);margin-top:3px;font-weight:600">${escapeHtml(String(b.izoh))}</div>` : ''}
         </div>
         ${Number(b.summa) < 0
           ? `<div class="foyda-summa" style="font-weight:700;color:var(--m-15803d);white-space:nowrap;font-size:14px">+${formatNum(-Number(b.summa))} so'm</div>`
@@ -7989,11 +8043,11 @@ async function loadProfit() {
           <div style="font-size:16px;font-weight:800;color:var(--gold-dark);line-height:1.3">${formatNum(d.sotuv_narxi)}<br><span style="font-size:12px;font-weight:600">so'm</span></div>
         </div>
         <div style="background:var(--f-fef2f2);border-radius:12px;padding:14px 10px;text-align:center">
-          <div style="font-size:12px;color:var(--m-b91c1c);margin-bottom:8px;font-weight:600">⊖ Tan narxi</div>
+          <div style="font-size:12px;color:var(--m-b91c1c);margin-bottom:8px;font-weight:600">⊖ Tan narxi${_taxm221 ? ' (taxminiy)' : ''}</div>
           <div style="font-size:16px;font-weight:800;color:var(--m-b91c1c);line-height:1.3">${formatNum(d.tan_narxi)}<br><span style="font-size:12px;font-weight:600">so'm</span></div>
         </div>
         <div style="background:${d.foyda>=0?'var(--f-f0fdf4)':'var(--f-fef2f2)'};border-radius:12px;padding:14px 10px;text-align:center">
-          <div style="font-size:12px;color:${d.foyda>=0?'var(--m-15803d)':'var(--m-b91c1c)'};margin-bottom:8px;font-weight:600">📈 Foyda</div>
+          <div style="font-size:12px;color:${d.foyda>=0?'var(--m-15803d)':'var(--m-b91c1c)'};margin-bottom:8px;font-weight:600">📈 Foyda${_taxm221 ? ' (taxminiy)' : ''}</div>
           <div style="font-size:16px;font-weight:800;color:${d.foyda>=0?'var(--m-15803d)':'var(--m-b91c1c)'};line-height:1.3">${formatNum(d.foyda)}<br><span style="font-size:12px;font-weight:600">so'm</span></div>
           <div style="font-size:12px;color:${d.foyda>=0?'var(--m-15803d)':'var(--m-b91c1c)'};font-weight:700;margin-top:4px">${foizKor(d.foyda_foiz)}</div>
         </div>
@@ -8009,16 +8063,17 @@ async function loadProfit() {
         </div>
         ${breakdownHTML}
         <div style="display:flex;justify-content:space-between;align-items:center;padding-top:14px;margin-top:2px;border-top:1.5px dashed var(--ch-e2e8f0)">
-          <span style="font-weight:700;color:var(--m-222222);font-size:14px">Jami tan narxi:</span>
+          <span style="font-weight:700;color:var(--m-222222);font-size:14px">Jami tan narxi${_taxm221 ? ' (taxminiy)' : ''}:</span>
           <span style="font-weight:800;color:var(--m-dc2626);font-size:16px">${formatNum(d.tan_narxi)} so'm</span>
         </div>
       </div>
+      ${_taxm221 ? `<div class="foyda-taxminiy" style="background:var(--gold-tint);border-radius:12px;padding:12px 14px;margin-top:12px;font-size:13px;color:var(--m-92400e);line-height:1.45">ℹ️ Qoplama hozircha buyurtmaga yozilgan <b>${escapeHtml(sonKor((d.loy_holati || {}).reja_kg, 1))} kg</b> loy bo'yicha — <b>taxminiy</b>. «Tayyor» qilinganda haqiqiy ketgan loy yoziladi va hisob o'shanga moslanadi.</div>` : ''}
 
       <div style="background:${d.foyda>=0?'var(--f-f0fdf4)':'var(--f-fef2f2)'};border:1.5px solid ${d.foyda>=0?'var(--ch-bbf7d0)':'var(--ch-fecaca)'};border-radius:14px;padding:16px 18px;margin-top:14px;display:flex;align-items:center;justify-content:space-between;gap:12px" class="foyda-pastki">
         <div style="display:flex;align-items:center;gap:12px;min-width:0">
           <div style="width:38px;height:38px;border-radius:10px;background:${d.foyda>=0?'var(--f-dcfce7)':'var(--f-fee2e2)'};display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">📈</div>
           <div style="min-width:0">
-            <div style="font-size:12px;font-weight:700;color:${d.foyda>=0?'var(--m-15803d)':'var(--m-b91c1c)'};text-transform:uppercase;letter-spacing:.3px">Foyda (Sotuv − Tan narxi)</div>
+            <div style="font-size:12px;font-weight:700;color:${d.foyda>=0?'var(--m-15803d)':'var(--m-b91c1c)'};text-transform:uppercase;letter-spacing:.3px">Foyda (Sotuv − Tan narxi)${_taxm221 ? ' — taxminiy' : ''}</div>
             <div style="font-size:18px;font-weight:800;color:${d.foyda>=0?'var(--m-15803d)':'var(--m-b91c1c)'}">${formatNum(d.foyda)} so'm</div>
           </div>
         </div>
