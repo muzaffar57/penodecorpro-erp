@@ -932,6 +932,7 @@ def close_employee_debt(db: Session, employee_id: int, year: int, month: int, am
     # kech140 (zip 168, A-P09): takror (8 s) — mavjud yozuv; qolgandan ko'p — `AvansOylikdanOrtiq` (marshrut → 409)
     # kech155 (zip 210, mustaqil tekshiruv review210 №1 — O'LCHANGAN): sana — hisobot oyi (o'tgan oy — 28-kun), pul esa HOZIR
     # beriladi — hisob qoldig'i uchun `pul_vaqti` (ilgari qoldiq kiritilgach o'tgan oy oyligini yopish hisobdan AYRILMASDI)
+    # kech160 (zip 223): «Pul oqimi» ham `pul_vaqti` bo'yicha (`_pul_vaqti_sharti`) — 29–31-kunda yopilgan oylik o'sha kunda
     adv = _crud.create_employee_advance(db, employee_id, amount, notes="Oy oxiri — qolgan oylik to'landi",
                                          given_by=paid_by, adv_date=adv_date, confirm_excess=confirm_excess,
                                          hisob=hisob,          # kech155 (zip 210): qaysi pul hisobidan
@@ -5229,6 +5230,22 @@ def calculate_split_profit_report(db: Session, year: int, month: int, company_id
     return natija
 
 
+def _pul_vaqti_sharti(ustun, pul_ustun, boshi=None, oxiri=None):
+    '''kech160 (zip 223 — egasi QARORI G1-03 «Pul oqimi — haqiqiy pul»; O'LCHANGAN `work/k223/probe223.py`): `[boshi, oxiri)` (UTC, naive)
+    davr sharti — `pul_vaqti` (pul HAQIQATDA berilgan payt) bor qatorda `pul_ustun` bo'yicha, yo'q bo'lsa `ustun` (sana) bo'yicha. «Oylikni
+    yopish» (sana 28-kun yoki o'tgan oy) va Qarzdorlar `pul_hozir` xarajati — sanasi hisobot oyi, pul esa hozir. «Pul oqimi»
+    (`_kassa_qismlari`) va hisoblar qoldig'i (`_pul_hisob_harakatlari`) — shu BITTA shartdan. Ikkala chegara `None` — `None` (shartsiz).'''
+    from sqlalchemy import and_ as _and223, or_ as _or223, true as _true223
+    if boshi is None and oxiri is None:
+        return None
+    _sana, _pul = _true223(), _true223()
+    if boshi is not None:
+        _sana, _pul = _and223(_sana, ustun >= boshi), _and223(_pul, pul_ustun >= boshi)
+    if oxiri is not None:
+        _sana, _pul = _and223(_sana, ustun < oxiri), _and223(_pul, pul_ustun < oxiri)
+    return _or223(_and223(pul_ustun.is_(None), _sana), _and223(pul_ustun.isnot(None), _pul))
+
+
 def _kassa_qismlari(db: Session, company_id: int = None, boshi=None, oxiri=None) -> dict:
     """kech116 (G1-03 — egasi QARORI kech114 «Pul oqimi — haqiqiy pul»): kassa harakatlarining qismlari — YAGONA manba.
     Kassa balansi (`get_cash_balance` — butun davr) va «Pul oqimi» (`get_pul_oqimi` — oy / kun) shu funksiyadan, shuning
@@ -5240,7 +5257,9 @@ def _kassa_qismlari(db: Session, company_id: int = None, boshi=None, oxiri=None)
     nasiya to'lanishi — ta'minotchiga to'lov), ta'minotchiga to'lov `paid_at`, xarajat `date`, kirish transporti
     `expense_date`, yetkazishning korxona ulushi `delivered_at`, hodimga avans / oylik (`EmployeeAdvance` — oylik qarzini
     yopish ham shu yozuv) `date`, kassaga qo'lda yozuv `created_at`. Eski oylik shakl (`MonthlyExpense` — shu oy / turkum
-    uchun tranzaksiya bo'lmasa) — oyning 1-kuniga (Toshkent) tegishli. Faqat o'qiydi."""
+    uchun tranzaksiya bo'lmasa) — oyning 1-kuniga (Toshkent) tegishli. Faqat o'qiydi.
+    kech160 (zip 223): xarajat va hodimga avans / oylik — `pul_vaqti` bor bo'lsa o'sha payt bo'yicha (`_pul_vaqti_sharti`; hisoblar
+    qoldig'i bilan bir qoida — 29–31-kun «oylikni yopish», o'tgan oy oyligi / majburiyati pul berilgan kunda)."""
     from models import (Payment, InventoryPurchase, SupplierPayment, MonthlyExpense,
                          ExpenseTransaction, TransportExpense, EmployeeAdvance, CashTransaction,
                          FinishedProductSale)
@@ -5259,6 +5278,11 @@ def _kassa_qismlari(db: Session, company_id: int = None, boshi=None, oxiri=None)
         if oxiri is not None:
             q = q.filter(ustun < oxiri)
         return q
+
+    def _davr_pul(q, ustun, pul_ustun):
+        """kech160 (zip 223): davr sharti — `pul_vaqti` bor qatorda pul vaqti bo'yicha (`_pul_vaqti_sharti`; butun davr — shartsiz)."""
+        _sh223 = _pul_vaqti_sharti(ustun, pul_ustun, boshi, oxiri)
+        return q if _sh223 is None else q.filter(_sh223)
 
     _pq = db.query(func.sum(Payment.amount))
     if company_id is not None:
@@ -5326,7 +5350,8 @@ def _kassa_qismlari(db: Session, company_id: int = None, boshi=None, oxiri=None)
     _etq = db.query(func.sum(ExpenseTransaction.amount))
     if company_id is not None:
         _etq = _etq.filter(ExpenseTransaction.company_id == company_id)
-    chiqim_qoshimcha = float(_davr(_etq, ExpenseTransaction.date).scalar() or 0)
+    # kech160 (zip 223): Qarzdorlar `pul_hozir` (sana — hisobot oyi) — pul to'langan kunda
+    chiqim_qoshimcha = float(_davr_pul(_etq, ExpenseTransaction.date, ExpenseTransaction.pul_vaqti).scalar() or 0)
 
     _teq = db.query(func.sum(TransportExpense.amount))
     if company_id is not None:
@@ -5351,7 +5376,8 @@ def _kassa_qismlari(db: Session, company_id: int = None, boshi=None, oxiri=None)
         from models import Employee as _Emp_cash
         _avq = _avq.join(_Emp_cash, _Emp_cash.id == EmployeeAdvance.employee_id
                          ).filter(_Emp_cash.company_id == company_id)
-    chiqim_avans = float(_davr(_avq, EmployeeAdvance.date).scalar() or 0)
+    # kech160 (zip 223): «oylikni yopish» (sana 28-kun / o'tgan oy) — pul berilgan kunda (`pul_vaqti`)
+    chiqim_avans = float(_davr_pul(_avq, EmployeeAdvance.date, EmployeeAdvance.pul_vaqti).scalar() or 0)
 
     _ctq = db.query(func.sum(CashTransaction.amount))
     if company_id is not None:
@@ -5401,7 +5427,6 @@ def _pul_hisob_harakatlari(db: Session, company_id: int, boshi, gacha=None) -> l
     (aniq payt, `faqat_sana` emas). `yozilgan` — dasturga kiritilgan payt (xarajat, avans — `created_at`; hodim so'rovidan avans —
     so'rov yuborilgan payt `AdvanceRequest.submitted_at`, review210 №2). Faqat o'qiydi.'''
     import crud as _crud210
-    from sqlalchemy import and_ as _and210, or_ as _or210
     from models import (Payment, FinishedProductSale, InventoryPurchase, SupplierPayment, Supplier, ExpenseTransaction,
                         TransportExpense, Delivery, EmployeeAdvance, Employee, CashTransaction, PulOtkazmasi, AdvanceRequest)
     hisoblar = _crud210.pul_hisoblari(db, company_id, faqat_faol=False)
@@ -5425,11 +5450,9 @@ def _pul_hisob_harakatlari(db: Session, company_id: int, boshi, gacha=None) -> l
         return q
 
     def _dv(q, ustun, pul_ustun):
-        '''`_d` — `pul_vaqti` bor qatorda pul vaqti bo'yicha (sanasi hisobot oyi), yo'q bo'lsa `ustun` (sana) bo'yicha.'''
-        _sana, _pul = ustun >= boshi, pul_ustun >= boshi
-        if gacha is not None:
-            _sana, _pul = _and210(_sana, ustun < gacha), _and210(_pul, pul_ustun < gacha)
-        return q.filter(_or210(_and210(pul_ustun.is_(None), _sana), _and210(pul_ustun.isnot(None), _pul)))
+        '''`_d` — `pul_vaqti` bor qatorda pul vaqti bo'yicha (sanasi hisobot oyi), yo'q bo'lsa `ustun` (sana) bo'yicha.
+        kech160 (zip 223): shart — `_pul_vaqti_sharti` («Pul oqimi» bilan BITTA qoida).'''
+        return q.filter(_pul_vaqti_sharti(ustun, pul_ustun, boshi, gacha))
 
     out = []
 
