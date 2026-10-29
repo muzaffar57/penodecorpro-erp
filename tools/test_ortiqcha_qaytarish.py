@@ -170,7 +170,8 @@ _sanoq = itertools.count(1)
 
 
 def nom(asos):
-    return f"OQ {asos} {next(_sanoq)}"
+    # kech159 (zip 222): butun katta harfli nom («OQ A 1») saqlashda tartiblanadi — sinov detalni NOM bo'yicha topadi, shuning uchun tartibli nom
+    return f"Oq {asos} {next(_sanoq)}"
 
 
 def peno():
