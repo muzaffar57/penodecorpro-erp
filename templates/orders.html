@@ -4545,22 +4545,77 @@ function previewPendingImage(input) {
   img.src = url;
 }
 
+// kech160 (zip 224, review220 №7 — O'LCHANGAN `work/k224/probe224.py`, haqiqiy Chromium): tahrirda qatorlar saqlangan tartibga TESKARI —
+// ilgari qatorlar raqam o'sish tartibidagi detallar bilan juftlanardi va rasm BOSHQA detalga tushardi. Detal nomi kaliti — server
+// `crud._nom_kalit222` bilan bir (bo'shliqlar bittaga, kichik harf; Kirill — Lotinga, `collectItems` kabi).
+function _nomKalit224(nom) {
+  const _s = (typeof sanitizeToLatin === 'function') ? sanitizeToLatin(String(nom || '')) : String(nom || '');
+  return _s.split(/\s+/).filter(Boolean).join(' ').toLowerCase();
+}
+
+// kech160 (zip 224): ZAXIRA qoida (server javobida `item_ids` bo'lmasa — eski server / yangi buyurtma): har forma qatoriga (`qatorlar` —
+// forma tartibida) saqlangan detal (`detallar`) yoki null: (1) qator raqami (`data-item-id`) — shu raqamli, nomi va TURI o'sha detal (server
+// ham nom + tur bilan moslaydi, review224 №2); (2) qolganlari forma tartibida — olinmagan, nomi va turi o'sha, eng kichik raqamli detal
+// (server yangi detallarni yuborilgan tartibda yaratadi); (3) yana qolganlari — olinmagan detallar raqam tartibida (avvalgi qoida).
+function rasmQatorDetallari224(qatorlar, detallar) {
+  const tartib = [...(detallar || [])].filter(d => d && d.id != null).sort((a, b) => a.id - b.id);
+  const olingan = new Set();
+  const natija = qatorlar.map(() => null);
+  const _tur = q => { const t = q.querySelector('.i-type'); return t ? String(t.value || '').toLowerCase() : null; };
+  const nomi = q => _nomKalit224(q.querySelector('.i-name')?.value) + '|' + (_tur(q) ?? '*');
+  const dKalit = (d, q) => _nomKalit224(d.name) + '|' + (_tur(q) === null ? '*' : String(d.category || '').toLowerCase());
+  qatorlar.forEach((q, i) => {
+    const _id = parseInt(q.dataset ? q.dataset.itemId : '');
+    if (!Number.isFinite(_id) || _id <= 0) return;
+    const d = tartib.find(x => x.id === _id);
+    if (d && !olingan.has(d.id) && dKalit(d, q) === nomi(q)) { natija[i] = d; olingan.add(d.id); }
+  });
+  qatorlar.forEach((q, i) => {
+    if (natija[i]) return;
+    const d = tartib.find(x => !olingan.has(x.id) && dKalit(x, q) === nomi(q));
+    if (d) { natija[i] = d; olingan.add(d.id); }
+  });
+  const qolgan = tartib.filter(x => !olingan.has(x.id));
+  qatorlar.forEach((q, i) => {
+    if (natija[i] || !qolgan.length) return;
+    natija[i] = qolgan.shift();
+  });
+  return natija;
+}
+
 // kech144 (zip 173, audit P2-11): natija — yuklanmagan rasmlar ro'yxati (`{nom, sabab}`); ilgari xato faqat konsolga yozilar,
 // foydalanuvchi rasm saqlandi deb o'ylardi.
-async function uploadPendingItemImages(savedItems) {
+// kech160 (zip 224, review224 №2 / №3): `yuborilgan` — serverga yuborilgan detallar (`collectItems`, har biri `_qator` bilan), `idlar` — server
+// javobidagi `item_ids` (o'sha tartibda); ikkalasi mos bo'lsa qator ↔ detal AYNAN shundan (taxmin yo'q), aks holda — `rasmQatorDetallari224`.
+async function uploadPendingItemImages(savedItems, yuborilgan, idlar) {
   const xatolar = [];
   const rows = Array.from(document.querySelectorAll('#items .detal'))
     .filter(row => row.querySelector('.i-name')?.value.trim());
-  const sortedItems = [...savedItems].sort((a, b) => a.id - b.id);
-  for (let i = 0; i < rows.length && i < sortedItems.length; i++) {
+  // kech160 (zip 224): qator ↔ detal — server aytgan raqam (`item_ids`) yoki raqam / nom / tur bilan (ilgari tartib bo'yicha — tahrirda rasm
+  // boshqa detalga tushardi)
+  let juft;
+  if (Array.isArray(yuborilgan) && Array.isArray(idlar) && idlar.length === yuborilgan.length) {
+    const _byId = new Map((savedItems || []).map(d => [d.id, d]));
+    const _qatordan = new Map();
+    yuborilgan.forEach((x, k) => { if (x && x._qator) _qatordan.set(x._qator, _byId.get(idlar[k]) || null); });
+    juft = rows.map(q => _qatordan.get(q) || null);
+  } else {
+    juft = rasmQatorDetallari224(rows, savedItems);
+  }
+  for (let i = 0; i < rows.length; i++) {
     const fileInput = rows[i].querySelector('.i-pending-image');
     const file = fileInput?.files?.[0];
     if (!file) continue;
+    const detal = juft[i];
+    if (!detal) {
+      xatolar.push({ nom: String(rows[i].querySelector('.i-name')?.value || '').trim(), sabab: 'detal topilmadi' });
+      continue;
+    }
     const fd = new FormData();
     fd.append('file', file);
-    const nom = String(sortedItems[i].name || rows[i].querySelector('.i-name')?.value || '').trim();
+    const nom = String(detal.name || rows[i].querySelector('.i-name')?.value || '').trim();
     try {
-      const r = await fetch(`/api/order-items/${sortedItems[i].id}/image`, { method: 'POST', body: fd });
+      const r = await fetch(`/api/order-items/${detal.id}/image`, { method: 'POST', body: fd });
       if (!r.ok) xatolar.push({ nom, sabab: await amalSababi(r) });
     } catch (e) {
       xatolar.push({ nom, sabab: await amalSababi(e) });
@@ -5591,22 +5646,22 @@ function addSubDetailRow(detalRow, prefill) {
         <option value="panel">🔲 Panel</option>
       </select>
     </div>
-    <div style="flex:1;min-width:70px"><label style="font-size:12px;color:var(--m-475569)">Eni (sm)</label>
+    <div style="flex:1;min-width:112px"><label style="font-size:12px;color:var(--m-475569);white-space:nowrap">Eni (sm)</label>
       <input type="number" class="sd-w maydon maydon-sm" step="0.1" style="width:100%;border:1px solid var(--ch-dddddd)" oninput="calculateItem(this.closest('.detal'))">
     </div>
-    <div style="flex:1;min-width:70px"><label style="font-size:12px;color:var(--m-475569)">Qalinligi (sm)</label>
+    <div style="flex:1;min-width:112px"><label style="font-size:12px;color:var(--m-475569);white-space:nowrap">Qalinligi (sm)</label>
       <input type="number" class="sd-t maydon maydon-sm" step="0.1" style="width:100%;border:1px solid var(--ch-dddddd)" oninput="calculateItem(this.closest('.detal'))">
     </div>
-    <div class="sd-l-wrap" style="flex:1;min-width:70px"><label style="font-size:12px;color:var(--m-475569)">Uzunlik (m)</label>
+    <div class="sd-l-wrap" style="flex:1;min-width:112px"><label style="font-size:12px;color:var(--m-475569);white-space:nowrap">Uzunlik (m)</label>
       <input type="number" class="sd-l maydon maydon-sm" step="0.1" style="width:100%;border:1px solid var(--ch-dddddd)" oninput="calculateItem(this.closest('.detal'))">
     </div>
-    <div class="sd-q-wrap" style="flex:1;min-width:70px;display:none"><label style="font-size:12px;color:var(--m-475569)">Miqdor</label>
+    <div class="sd-q-wrap" style="flex:1;min-width:112px;display:none"><label style="font-size:12px;color:var(--m-475569);white-space:nowrap">Miqdor</label>
       <input type="number" class="sd-q maydon maydon-sm" step="0.5" value="1" min="0" style="width:100%;border:1px solid var(--ch-dddddd)" oninput="calculateItem(this.closest('.detal'))">
     </div>
-    <div style="flex:1;min-width:100px"><label style="font-size:12px;color:var(--m-475569)">Qoplama</label>
+    <div style="flex:1;min-width:160px"><label style="font-size:12px;color:var(--m-475569);white-space:nowrap">Qoplama</label>
       <div class="sd-coat-toggle segment" role="group" aria-label="Qoplama">
-        <div class="sd-coat-opt sd-coat-no active" onclick="setSubDetailCoating(this, false)">Yo'q</div>
-        <div class="sd-coat-opt sd-coat-yes" onclick="setSubDetailCoating(this, true)">Bor (×2)</div>
+        <div class="sd-coat-opt sd-coat-no active" style="white-space:nowrap" onclick="setSubDetailCoating(this, false)">Yo'q</div>
+        <div class="sd-coat-opt sd-coat-yes" style="white-space:nowrap" onclick="setSubDetailCoating(this, true)">Bor (×2)</div>
       </div>
       <select class="sd-c" style="display:none">
         <option value="false" selected>Yo'q</option>
@@ -7682,7 +7737,8 @@ async function updateOrder(orderId) {
       if (rasmBor) {
         try {
           const fresh = await yukOl(`/api/orders/${orderId}`);
-          if (fresh.items && fresh.items.length) rasmOgoh = rasmXatolariMatni(await uploadPendingItemImages(fresh.items));
+          // kech160 (zip 224): server raqamlari (`item_ids`) bilan — qator ↔ detal aniq
+          if (fresh.items && fresh.items.length) rasmOgoh = rasmXatolariMatni(await uploadPendingItemImages(fresh.items, items, result.item_ids));
         } catch (e) {
           rasmOgoh = '⚠️ Yangi rasm(lar) yuklanmadi: ' + yukSabab(e) + ' — detal rasmini qayta yuklang.';
         }
@@ -7711,8 +7767,26 @@ async function updateOrder(orderId) {
           body: JSON.stringify(data)
         });
         if (res2.ok) {
-          showMsg('✓ Saqlandi (ombor manfiy bo\'ldi)!', 'success');
-          setTimeout(()=>location.reload(), 1500);
+          // kech160 (zip 224, review224 №1 — O'LCHANGAN): «Davom etish» dan keyin ham tanlangan rasmlar yuklanadi (ilgari jimgina yo'qolardi)
+          let result2 = {};
+          try { result2 = await res2.clone().json(); } catch (e) { result2 = {}; }
+          let rasmOgoh2 = '';
+          const rasmBor2 = Array.from(document.querySelectorAll('#items .detal .i-pending-image')).some(f => f.files && f.files.length);
+          if (rasmBor2) {
+            try {
+              const fresh2 = await yukOl(`/api/orders/${orderId}`);
+              if (fresh2.items && fresh2.items.length) rasmOgoh2 = rasmXatolariMatni(await uploadPendingItemImages(fresh2.items, items, result2.item_ids));
+            } catch (e) {
+              rasmOgoh2 = '⚠️ Yangi rasm(lar) yuklanmadi: ' + yukSabab(e) + ' — detal rasmini qayta yuklang.';
+            }
+          }
+          if (rasmOgoh2) {
+            showMsg('✓ Saqlandi (ombor manfiy bo\'ldi). ' + rasmOgoh2, 'error');
+            setTimeout(()=>location.reload(), 5000);
+          } else {
+            showMsg('✓ Saqlandi (ombor manfiy bo\'ldi)!', 'success');
+            setTimeout(()=>location.reload(), 1500);
+          }
         } else {
           showMsg("❌ O'zgarishlar saqlanmadi: " + await amalSababi(res2), 'error');
         }
