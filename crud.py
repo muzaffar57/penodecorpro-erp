@@ -12013,6 +12013,7 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
     # NOMDOSHLARNI ajratadi; nomi o'zgargan detal avvalgidek: o'chirib yangisi (topshirilgan bo'lsa 400, MRP bog'lami — 400), review220 №1 / №2), «x» — xususiyatlar (plotnost, qoplama, tayyor mahsulot, eni, qalinligi; blokda — birlik ham) bo'yicha (raqam yubormaydigan eski
     # ochiq sahifa uchun; blok birligi bosqichidan OLDIN — birligi bir xil nomdosh blok detallar ham almashmasin).
     _eski_id220 = {oi.id: oi for oi in old_items}
+    _idx_detal224 = {}      # kech160 (zip 224): yuborilgan detal tartibi (idx) → saqlangan detal (javobda `item_ids`)
     for idx, nd in enumerate(order_data.items):
         _nid220 = getattr(nd, 'id', None)
         _oi220 = _eski_id220.get(_nid220) if _nid220 else None
@@ -12022,6 +12023,7 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
             continue
         matched[_oi220.id] = nd
         used_new.add(idx)
+        _idx_detal224[idx] = _oi220
 
     def _xus220(o):
         def _s(v):
@@ -12055,6 +12057,7 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
                         continue
                 matched[oi.id] = nd
                 used_new.add(idx)
+                _idx_detal224[idx] = oi
                 break
 
     # Tekshiramiz
@@ -12270,6 +12273,7 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
                 volume_m3=sub_vol, total_price=sub_price
             ))
         db.add(_new_oi)
+        _idx_detal224[idx] = _new_oi
         if _new_oi.finished_product_id:
             _tm56.append({"detal": _new_oi, "eski_tm": None, "eski_miqdor": 0.0, "eski_birlik": None,
                           "yangi_tm": _new_oi.finished_product_id, "yangi_miqdor": _fp_item_qty(_new_oi)})
@@ -12490,6 +12494,8 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
     return {
         "success": True,
         "message": "Buyurtma yangilandi!",
+        # kech160 (zip 224): yuborilgan detallar tartibida saqlangan detal raqami (rasm yuklash — `orders.html` `uploadPendingItemImages`)
+        "item_ids": [getattr(_idx_detal224.get(_i224), 'id', None) for _i224 in range(len(order_data.items))],
         "inventory_log": inventory_log,
         "delivery_percent": order.delivery_percent,
         "total_amount": float(order.total_amount or 0),
