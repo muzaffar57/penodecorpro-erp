@@ -177,13 +177,19 @@ def get_top_finished_products_sold(db: Session, days: int = 30, limit: int = 5,
     if company_id is not None:
         returns = returns.filter(ReturnItem.company_id == company_id)
     returns = returns.group_by(ReturnItem.item_name, ReturnItem.order_id).all()
-    returned_map = {(r.item_name, r.order_id): float(r.ret_qty or 0) for r in returns}
+    # kech159 (zip 222, review222 №3): kalit — bo'shliqlar bittaga + kichik harf (qaytarish yozilgandagi «ROM KARNIZ» = tahrirdan keyingi
+    # «Rom karniz»)
+    import crud as _crud222
+    returned_map = {}
+    for r in returns:
+        _k222 = (_crud222._nom_kalit222(r.item_name), r.order_id)
+        returned_map[_k222] = returned_map.get(_k222, 0.0) + float(r.ret_qty or 0)
 
     totals = {}
     for r in sold_rows:
         qty = float(r.qty or 0)
         revenue = float(r.revenue or 0)
-        ret_qty = returned_map.get((r.name, r.order_id), 0)
+        ret_qty = returned_map.get((_crud222._nom_kalit222(r.name), r.order_id), 0)      # kech159 (zip 222)
         if ret_qty > 0 and qty > 0:
             # Qaytgan ulushga mos ravishda, daromadni ham proportsional kamaytiramiz
             keep_ratio = max(0, (qty - ret_qty) / qty)

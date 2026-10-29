@@ -755,7 +755,7 @@ def _send_delivery_pdf_to_customer(db, delivery_id: int):
         client = project.client_name if project else "—"
         lines = []
         for di in d.items:
-            nm = di.order_item.name if di.order_item else "—"
+            nm = schemas.detal_nomi_tartib(di.order_item.name) if di.order_item else "—"      # kech159 (zip 222)
             lines.append(f"• {nm}: {crud.xabar_son(di.quantity, 3)} {di.unit}")
 
         # PDF — BIR MARTA generatsiya qilinadi, ikkala qabul qiluvchiga ham
@@ -12861,7 +12861,7 @@ def api_create_delivery(data: dict = Body(...), db: Session = Depends(get_db), c
     if d and d.order:
         lines = []
         for di in d.items:
-            nm = di.order_item.name if di.order_item else "—"
+            nm = schemas.detal_nomi_tartib(di.order_item.name) if di.order_item else "—"      # kech159 (zip 222)
             lines.append(f"• {nm}: {crud.xabar_son(di.quantity, 3)} {di.unit}")
         client = d.order.project.client_name if d.order.project else "—"
         msg = (

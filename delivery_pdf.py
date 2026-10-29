@@ -5,6 +5,7 @@ Bosqichma-bosqich topshirish uchun isbot hujjati.
 """
 
 from company_brand import get_brand, company_id_of  # 2026-09-20: korxona brendi
+from schemas import detal_nomi_tartib as _detal_nomi_tartib  # kech159 (zip 222): detal nomi — tartibli ko'rinish
 
 import io
 import re as _re_dp
@@ -647,12 +648,14 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
         line_sum = unit_p * qty
         delivery_total += line_sum
 
+        # kech159 (zip 222): detal nomi — tartibli ko'rinishda (bazadagi eski «PADAKOLNIK» ham «Padakolnik»)
+        _nom222 = _detal_nomi_tartib(oi.name)
         if (oi.category or '').lower() == 'gips':
-            item_label = f"{oi.name} (GIPS)"
+            item_label = f"{_nom222} (GIPS)"
         elif oi.is_coated:
-            item_label = f"{oi.name or '—'} (qoplamali)"
+            item_label = f"{_nom222 or '—'} (qoplamali)"
         else:
-            item_label = oi.name or "—"
+            item_label = _nom222 or "—"
 
         data.append([
             str(i),
@@ -800,7 +803,8 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
                 unit_label = _birlik(it.delivery_unit)
                 it_ordered = it.order_qty_normalized
                 it_unit_p = (float(it.total_price or 0) / it_ordered) if it_ordered > 0 else float(it.unit_price or 0)
-                it_label = f"{it.name or '—'} (qoplamali)" if it.is_coated else (it.name or "—")
+                _it_nom222 = _detal_nomi_tartib(it.name)      # kech159 (zip 222)
+                it_label = f"{_it_nom222 or '—'} (qoplamali)" if it.is_coated else (_it_nom222 or "—")
                 pend_data.append([
                     it_label,
                     f"{_num(_holat136['detal'].get(it.id, (0, it.remaining_qty))[1])} {unit_label}",
@@ -1031,7 +1035,7 @@ def generate_summary_pdf(order, deliveries, db=None) -> bytes:
             dsum += line_sum
             u = _birlik(di.unit)
             data.append([
-                Paragraph(_x(oi.name), st_item),
+                Paragraph(_x(_detal_nomi_tartib(oi.name)), st_item),      # kech159 (zip 222)
                 f"{_num(qty)} {u}",
                 _fmt(unit_p) + " so'm",
                 _fmt(line_sum),
@@ -1158,7 +1162,7 @@ def _som_yaxlit(n):
 def _jamlanma_nomi(q):
     """Jamlangan qator nomi — yuk xatidagi kabi («(qoplamali)», «(GIPS)») + o'lcham («20×15 sm» — profil, panel, donali, blok:
     eni × qalinligi santimetrda; bir xil nomli, o'lchami boshqa detallar alohida qatorda — farqi ko'rinsin)."""
-    nom = q.get("nom") or "—"
+    nom = _detal_nomi_tartib(q.get("nom")) or "—"      # kech159 (zip 222): tartibli ko'rinish
     kat = q.get("kategoriya") or ""
     if kat == "gips":
         nom = f"{nom} (GIPS)"
