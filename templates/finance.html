@@ -395,6 +395,10 @@ html[data-theme="dark"]{
 .hb-qoldiq-q input{min-width:0;width:100%;box-sizing:border-box}
 .hb-qoldiq-q label{font-weight:600;font-size:13px;display:flex;align-items:center;gap:6px}
 .hb-qoldiq-q small{grid-column:1 / -1;color:var(--text3);font-size:12px}
+/* kech162 (zip 226 — egasi 30.10): kirim hujjati xarajatining materiallari — izoh ostida (izoh + materiallar BITTA blok: telefon kartasida
+   `td` flex qator — materiallar izoh yonida emas, ostida, review226 №1); uzun so'z / hujjat raqami katakdan toshmaydi */
+.tx-izoh{min-width:0;overflow-wrap:anywhere}
+.tx-kirim-mat{margin-top:2px;font-size:12px;color:var(--f-text3);overflow-wrap:anywhere}
 </style>
 {% endblock %}
 
@@ -2074,6 +2078,19 @@ const SOURCE_LABELS = {monthly_form:'Oylik forma', manual:'Qo\'lda kiritilgan', 
 const CAT_ICONS = {arenda:'🏠', elektr:'⚡', tushlik:'🍽️', soliqlar:'📋', reklama:'📢', kutilmagan:'⚠️', boshqa:'📦',
                    transport_kirim:'🚚', tushirish_kirim:'📦', yuklash_kirim:'⬆️', kirim_boshqa:'➕'};
 
+// kech162 (zip 226 — egasi 30.10 16:32: «Transport (kirim) — Kirim #80» — qaysi material uchunligi yo'q): kirim hujjati xarajatida server
+// `kirim_materiallar` ([{nomi, miqdor, birlik}]) — «📦 Penoplast 10P (12 dona)»; 3 tadan ko'pi — «… yana N ta»; bo'sh — hech narsa.
+function kirimMateriallarMatn(m) {
+  if (!Array.isArray(m) || !m.length) return '';
+  const bir = b => (typeof birlikKor === 'function' ? birlikKor(b) : b);
+  return m.slice(0, 3).map(x => `${x && x.nomi ? x.nomi : '—'} (${sonKor(x && x.miqdor, 3)}${x && x.birlik ? ' ' + bir(x.birlik) : ''})`).join(', ')
+    + (m.length > 3 ? ` … yana ${m.length - 3} ta` : '');
+}
+function kirimMateriallarHtml(t) {
+  const s = kirimMateriallarMatn(t && t.kirim_materiallar);
+  return s ? `<div class="tx-kirim-mat">📦 ${escapeHtml(s)}</div>` : '';
+}
+
 async function loadDailyTransactions(){
   const dateVal = document.getElementById('tx-date').value;
   if (!dateVal) return;
@@ -2117,7 +2134,7 @@ async function loadDailyTransactions(){
         <td data-label="Sana">${tkSana(t.date)}</td>
         <td data-label="Kategoriya"><span class="fin-cat-badge">${icon} ${escapeHtml(t.category_label || CAT_LABELS[t.category] || t.category)}</span></td>
         <td data-label="Summa" style="font-weight:700;color:${t.source === 'kirim_tannarx' ? 'var(--f-text3)' : 'var(--f-danger)'}">${fmtFull(t.amount)} so'm</td>
-        <td data-label="Izoh" style="color:var(--f-text3)">${t.notes ? escapeHtml(t.notes) : '—'}</td>
+        <td data-label="Izoh" style="color:var(--f-text3)"><div class="tx-izoh">${t.notes ? escapeHtml(t.notes) : '—'}${typeof kirimMateriallarHtml === 'function' ? kirimMateriallarHtml(t) : ''}</div></td>
         <td data-label="Kim" style="color:var(--f-text3)">${t.created_by ? escapeHtml(t.created_by) : '—'}</td>
         <td data-label="Manba" style="color:var(--f-text3);font-size:13px">${escapeHtml(SOURCE_LABELS[t.source] || t.source)}${t.hisob_turi ? ' · ' + escapeHtml(hisobNomi(t.hisob_turi)) : ''}</td>
         <td data-label="" class="no-print" style="text-align:right;white-space:nowrap">
