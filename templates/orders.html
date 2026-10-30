@@ -4271,10 +4271,19 @@ async function taklifniYubor(data) {
       return;
     }
     const t = d.taklif;
+    // kech163 (zip 228): taklif rasm saqlamaydi — formada tanlangan rasm jimgina yo'qolardi; endi natija oynasida aytiladi
+    const _rasm228 = Array.from(document.querySelectorAll('#items .detal .i-pending-image')).filter(f => f.files && f.files.length).length;
     taklifRejiminiTozala(true);
     hideNewForm();
     _tkYangiId = t.id;
     tkNatijaKorsat(t, d.ogohlantirishlar || [], tahrir);
+    if (_rasm228 > 0) {
+      const og = _tkEl('tkNatijaOgoh');
+      if (og) {
+        og.insertAdjacentHTML('afterbegin', `<div class="tk-rasm228" style="font-size:13px;font-weight:700;color:var(--m-b45309);margin-bottom:8px">📷 ${Number(_rasm228)} ta rasm taklifga saqlanmaydi — taklifni buyurtmaga rasmiylashtirishda rasmni tanlang.</div>`);
+        og.style.display = 'block';
+      }
+    }
     await takliflarOch();
   } catch (e) {
     showMsg("❌ Server bilan aloqa yo'q — taklif saqlanmadi", 'error');
@@ -4587,7 +4596,7 @@ function rasmQatorDetallari224(qatorlar, detallar) {
 // foydalanuvchi rasm saqlandi deb o'ylardi.
 // kech160 (zip 224, review224 №2 / №3): `yuborilgan` — serverga yuborilgan detallar (`collectItems`, har biri `_qator` bilan), `idlar` — server
 // javobidagi `item_ids` (o'sha tartibda); ikkalasi mos bo'lsa qator ↔ detal AYNAN shundan (taxmin yo'q), aks holda — `rasmQatorDetallari224`.
-async function uploadPendingItemImages(savedItems, yuborilgan, idlar) {
+async function uploadPendingItemImages(savedItems, yuborilgan, idlar, faqatRasmsiz) {
   const xatolar = [];
   const rows = Array.from(document.querySelectorAll('#items .detal'))
     .filter(row => row.querySelector('.i-name')?.value.trim());
@@ -4607,6 +4616,12 @@ async function uploadPendingItemImages(savedItems, yuborilgan, idlar) {
     const file = fileInput?.files?.[0];
     if (!file) continue;
     const detal = juft[i];
+    if (faqatRasmsiz && detal && _nomKalit224(detal.name) !== _nomKalit224(rows[i].querySelector('.i-name')?.value)) {
+      // kech163 (zip 228, review228 M1): takror javob — forma birinchi saqlashdan keyin o'zgargan (nomi mos detal yo'q): taxmin qilinmaydi
+      xatolar.push({ nom: String(rows[i].querySelector('.i-name')?.value || '').trim(), sabab: "detal topilmadi (forma birinchi saqlashdan keyin o'zgargan)" });
+      continue;
+    }
+    if (faqatRasmsiz && detal && detal.image_url) continue;     // kech163 (zip 228): takror javob — avval yuklangan rasm ustidan yozilmaydi
     if (!detal) {
       xatolar.push({ nom: String(rows[i].querySelector('.i-name')?.value || '').trim(), sabab: 'detal topilmadi' });
       continue;
@@ -6613,8 +6628,9 @@ async function submitOrderRequest(data, isDraft, zaklat, zaklatMethod, confirmSh
       // kech144 (zip 173): avval saqlangan (javobi yo'qolgan) buyurtma qaytdi — `X-Takror` (server, forma kaliti / 8 s)
       const takror = res.headers && typeof res.headers.get === 'function' && res.headers.get('X-Takror') === '1';
       let rasmOgoh = '';
-      if (saved.items && saved.items.length && !takror) {
-        rasmOgoh = rasmXatolariMatni(await uploadPendingItemImages(saved.items));
+      // kech163 (zip 228): `X-Takror` — birinchi javob kelmagan, rasmlar hali yuklanmagan (ilgari jimgina tashlab ketilardi)
+      if (saved.items && saved.items.length) {
+        rasmOgoh = rasmXatolariMatni(await uploadPendingItemImages(saved.items, undefined, undefined, takror));
       }
       const loyKg = parseFloat(document.getElementById('loy_kg')?.value || 0);
       if (loyKg > 0) {
@@ -6659,7 +6675,8 @@ async function submitOrderRequest(data, isDraft, zaklat, zaklatMethod, confirmSh
       if (rasmOgoh) {
         // kech144 (zip 173, audit P2-11 / P2-12): buyurtma saqlangan, rasm(lar) yuklanmadi / qoplamachiga xabar ketmadi — xabar
         // o'qilishi uchun sahifa kechroq o'tadi
-        showMsg((isDraft ? 'Qoralama saqlandi. ' : 'Buyurtma yaratildi. ') + rasmOgoh, 'error');
+        showMsg((takror ? 'ℹ️ Bu buyurtma avval saqlangan ekan (ikkinchisi yaratilmadi). ' : (isDraft ? 'Qoralama saqlandi. ' : 'Buyurtma yaratildi. '))
+                + rasmOgoh, 'error');
         setTimeout(() => { window.location.href = '/orders?order=' + Number(saved.id); }, 4000);
         return;
       }
