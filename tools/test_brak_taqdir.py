@@ -415,7 +415,7 @@ _s = SessionLocal()
 try:
     _sv = _s.query(FinishedProductSale).filter(FinishedProductSale.finished_product_id == T3).first()
     if _sv is not None:
-        _sv.sold_at = (_sv.sold_at or datetime.utcnow()) + timedelta(days=32)     # sotuv — keyingi oyda
+        _sv.sold_at = datetime(K_YIL, K_OY, 15, 6, 0)     # sotuv — keyingi oyda (kech160: 15-kun — «+32 kun» 30 / 31-kunlari oydan o'tardi)
         _s.commit()
 finally:
     _s.close()

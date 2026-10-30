@@ -917,6 +917,7 @@ if br:
     # Jurnal: yorliq manzilda, forma yuborilganda shu yorliq qoladi
     bor(PG, "/logs")
     bos(PG, ".log-tab[data-tab=activity]")
+    jsq(PG, "() => document.querySelectorAll('details.sht').forEach(d => { d.open = true; })")      # kech160 (zip 225): «🔍 Filtr» shtorkada — ochiladi (asl kodda shtorka yo'q)
     _url1 = PG.url
     try:
         PG.select_option("select[name=a_kim]", "Ali Usta", timeout=6000)

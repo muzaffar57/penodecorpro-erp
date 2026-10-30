@@ -1093,6 +1093,7 @@ else:
           # Sozlamalar sahifasi
           pg.goto(BASE + "/sozlamalar", wait_until="networkidle")
           pg.wait_for_timeout(600)
+          pg.evaluate("() => document.querySelectorAll('details.sht').forEach(d => { d.open = true; })")      # kech160 (zip 225): bo'limlar shtorkada — ochiladi
           _cb = pg.evaluate("() => [...document.querySelectorAll('.cat-cb')].map(c => [c.value, c.checked])")
           PUTLAR = []
           pg.on("request", lambda q: PUTLAR.append(q.post_data or "") if (q.method == "PUT" and "/api/settings/categories" in q.url) else None)
@@ -1369,11 +1370,13 @@ else:
           ctxl, pgl = kontekst("k211_a", 1440, 900)
           pgl.goto(BASE + "/sozlamalar", wait_until="networkidle")
           pgl.wait_for_timeout(500)
+          pgl.evaluate("() => document.querySelectorAll('details.sht').forEach(d => { d.open = true; })")      # kech160 (zip 225): bo'limlar shtorkada — ochiladi
           _sz1 = pgl.evaluate(_SZ_JS)
           ctxl.close()
           ctxl, pgl = kontekst("k211_c", 1440, 900)
           pgl.goto(BASE + "/sozlamalar", wait_until="networkidle")
           pgl.wait_for_timeout(500)
+          pgl.evaluate("() => document.querySelectorAll('details.sht').forEach(d => { d.open = true; })")      # kech160 (zip 225): bo'limlar shtorkada — ochiladi
           _sz3 = pgl.evaluate(_SZ_JS)
           ctxl.close()
           check("U30 Sozlamalar → «Korxona nomi» logotip ko'rinishi: platforma egasining yo'qolgan fayli o'rniga platforma logotipi (singan "
@@ -1404,6 +1407,7 @@ else:
           ctxl, pgl = kontekst("k211_a", 1440, 900)
           pgl.goto(BASE + "/sozlamalar", wait_until="networkidle")
           pgl.wait_for_timeout(500)
+          pgl.evaluate("() => document.querySelectorAll('details.sht').forEach(d => { d.open = true; })")      # kech160 (zip 225): bo'limlar shtorkada — ochiladi
           _tb = pgl.evaluate("""() => ['co-phone', 'co-phone2', 'co-phone3'].map(i => { const e = document.getElementById(i);
               return e ? {qiymat: e.value, korinadi: e.offsetParent !== null} : null; })""")
           pgl.fill("#co-phone2", "+998 90 123 45 67")
@@ -1417,6 +1421,7 @@ else:
           ctxl, pgl = kontekst("k211_a", 390, 844)
           pgl.goto(BASE + "/sozlamalar", wait_until="networkidle")
           pgl.wait_for_timeout(500)
+          pgl.evaluate("() => document.querySelectorAll('details.sht').forEach(d => { d.open = true; })")      # kech160 (zip 225): bo'limlar shtorkada — ochiladi
           _tm = pgl.evaluate("""() => ({kenglik: document.documentElement.scrollWidth, oyna: innerWidth,
               sigadi: ['co-phone', 'co-phone2', 'co-phone3'].every(i => { const r = document.getElementById(i).getBoundingClientRect();
                   return r.width > 100 && r.right <= innerWidth + 0.5; })})""")

@@ -214,6 +214,7 @@ if PW_BOR:
             ctx = br.new_context(viewport={"width": w, "height": h}, is_mobile=tel, has_touch=tel, timezone_id="Asia/Tashkent",
                                  locale="uz-UZ", screen={"width": w, "height": h})
             ctx.set_default_timeout(20000)
+            ctx.add_init_script("try { window.addEventListener('load', () => document.querySelectorAll('details.sht').forEach(d => { d.open = true; })); } catch (e) {}")      # kech160 (zip 225): Sozlamalar bo'limlari shtorkada — ochiq
             ctx.route(re.compile(r"^https://(fonts\.googleapis\.com|fonts\.gstatic\.com|cdnjs\.cloudflare\.com|api\.qrserver\.com|"
                                  r"cdn\.jsdelivr\.net|unpkg\.com)/.*"), yonalish)
             pg = ctx.new_page()
