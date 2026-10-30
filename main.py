@@ -297,7 +297,7 @@ def _send_telegram(text: str, company_id=None):
 
 # kech120 (zip 132 — G4-07): «Telegramga yuborish» tugmalarining javobi — yuborilmagan bo'lsa, sababi va qayerda sozlanadi
 TELEGRAM_YUBORILMADI_XABARI = ("Telegram xabari YUBORILMADI — korxonaning Telegram boti yoki chat manzili sozlanmagan (yoki Telegram "
-                               "javob bermadi). Sozlash: «Tizim jurnallari» → «⚙️ Sozlamalar» → «📱 Telegram bot».")
+                               "javob bermadi). Sozlash: «Sozlamalar» → «📱 Telegram bot».")      # kech160 (zip 225, review225 T2)
 
 
 def _send_telegram_to(chat_id: str, text: str, company_id=None):
