@@ -459,6 +459,9 @@ YANGI_MARSHRUTLAR = {
     # kech157 (zip 215c — etalon d222 topdi): zip 213 «Bu takror emasmi?» — loyihaning berilgan / ochiq detallari, «Buyurtmalar: Ko'rish»
     # (`GET /api/orders` bilan bir xil harflar)
     "GET /api/projects/{project_id}/berilgan-detallar": "AM",
+    # kech162 (zip 226 — egasi 30.10 «Kirim xarajati ko'rinsin», MOSLANDI): «📦 Kirim #N» oynasi — hujjat xarajatlari, «Xomashyo kirimi:
+    # Ko'rish» (`GET /api/inventory/purchases` bilan bir xil harflar)
+    "GET /api/inventory/receipts/{receipt_id}": "AWM",
 }
 # ATAYLAB o'zgarishlar (rol, marshrut) → yangi holat (True — ochiq). Sababi: tayyor rollar sahifa bo'yicha izchil.
 FARQLAR = {
