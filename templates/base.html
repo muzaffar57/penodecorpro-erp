@@ -421,6 +421,49 @@ function yukSabab(e) {
   return 'server javob bermadi, sahifani yangilang';
 }
 function yukXatoMatn(nima, e) { return '⚠️ ' + nima + ' yuklanmadi — ' + yukSabab(e); }
+// kech160 (zip 225 — egasi 29.10 «shtorkali bo'lsa — kerakligini ochib yopib»; tanlov «Muammolisi ochiq»): SHTORKA yordamchilari.
+// `shtorkaTayyor(ildiz)` — `details.sht[data-sht]`: `data-majburiy="1"` — ochiq (muammo / filtr qo'llangan), aks holda brauzer xotirasidagi
+// holat (`sht:<kalit>`; birinchi marta — yopiq). Foydalanuvchi ochgani / yopgani eslab qolinadi; dastur o'zi o'zgartirgani (`_shtDastur`) —
+// yozilmaydi. Xotira ishlamasa (yashirin oyna) — jim, hammasi yopiq (muammolisi ochiq).
+function shtorkaOch(d, ochiq) {
+  if (!d) return;
+  if (d.open !== !!ochiq) { d._shtDastur = !!ochiq; d.open = !!ochiq; }
+}
+function shtorkaTayyor(ildiz) {
+  const r = ildiz || document;
+  r.querySelectorAll('details.sht[data-sht]').forEach(d => {
+    if (d.dataset.shtTayyor === '1') return;
+    d.dataset.shtTayyor = '1';
+    let eslab = null;
+    try { eslab = localStorage.getItem('sht:' + d.dataset.sht); } catch (e) { eslab = null; }
+    shtorkaOch(d, d.dataset.majburiy === '1' || eslab === '1');
+    d.addEventListener('toggle', () => {
+      if (d._shtDastur !== undefined && d._shtDastur === d.open) { d._shtDastur = undefined; return; }
+      d._shtDastur = undefined;
+      try { localStorage.setItem('sht:' + d.dataset.sht, d.open ? '1' : '0'); } catch (e) { /* jim */ }
+    });
+  });
+}
+// sarlavhadagi holat (`matn` — matn sifatida); `yomon`: true — qizil va shtorka OCHILADI (muammo ko'rinsin), false — yashil,
+// berilmasa / null — neytral (oddiy ma'lumot: nom, «N ta») — `shtorkaHtml` bilan bir qoida (review225 T4)
+function shtorkaHolat(kalit, matn, yomon) {
+  const d = document.querySelector('details.sht[data-sht="' + String(kalit).replace(/["\\]/g, '') + '"]');
+  if (!d) return;
+  const h = d.querySelector('.sht-holat');
+  if (h) {
+    h.textContent = matn || '';
+    h.classList.toggle('yomon', !!yomon);
+    h.classList.toggle('yaxshi', yomon === false && !!matn);
+  }
+  if (yomon) { d.dataset.majburiy = '1'; shtorkaOch(d, true); }
+}
+// JS chizadigan shtorka (`ich` — tayyor HTML; sarlavha / holat — `escapeHtml`); `yomon`: true — qizil va ochiq, false — yashil, null — neytral
+function shtorkaHtml(kalit, sarlavha, holat, yomon, ich) {
+  return '<details class="sht" data-sht="' + escapeHtml(kalit) + '"' + (yomon ? ' data-majburiy="1"' : '') + '><summary>'
+    + '<span class="sht-str" aria-hidden="true">▶</span><span class="sht-sarl">' + escapeHtml(sarlavha) + '</span>'
+    + '<span class="sht-holat' + (yomon ? ' yomon' : (holat && yomon !== null ? ' yaxshi' : '')) + '">' + escapeHtml(holat || '') + '</span></summary>'
+    + '<div class="sht-ich">' + ich + '</div></details>';
+}
 function yukNavbat(nom) {
   const h = yukNavbat.h || (yukNavbat.h = {});
   const n = (h[nom] || 0) + 1;
@@ -1011,6 +1054,22 @@ function kichikRasm(url) {
   <link rel="stylesheet" href="/static/style.css?v={{ static_version }}">
   <link rel="stylesheet" href="/static/ranglar.css?v={{ static_version }}">
   <style>
+  /* kech160 (zip 225 — egasi 29.10): SHTORKA — bosganda ochilib-yopiladigan bo'lim (`<details class="sht">`; `shtorkaTayyor`). Sarlavha qatori
+     tugma balandligida (44 px), yozuv 14 / 13 px (U-13), holat — o'ngda (yaxshi — yashil, muammo — qizil). Tungi rejim — o'zgaruvchilar orqali. */
+  details.sht{border:1px solid var(--border2);border-radius:var(--r-btn);background:var(--white);margin:10px 0}
+  .card > details.sht{margin:10px 16px}
+  details.sht > summary{display:flex;align-items:center;gap:10px;min-height:44px;box-sizing:border-box;padding:10px 16px;cursor:pointer;
+    list-style:none;font-size:14px;font-weight:700;color:var(--text);border-radius:var(--r-btn)}
+  details.sht > summary::-webkit-details-marker{display:none}
+  details.sht > summary:hover{background:var(--gold-tint)}
+  details.sht > summary:focus-visible{outline:2px solid var(--gold);outline-offset:-2px}
+  .sht-str{flex:0 0 auto;font-size:12px;color:var(--text3);transition:transform .15s}
+  details.sht[open] > summary .sht-str{transform:rotate(90deg)}
+  .sht-sarl{min-width:0;overflow-wrap:anywhere}
+  .sht-holat{margin-left:auto;min-width:0;font-size:13px;font-weight:600;color:var(--text3);text-align:right;overflow-wrap:anywhere}
+  .sht-holat.yaxshi{color:var(--m-15803d)}
+  .sht-holat.yomon{color:var(--m-b91c1c)}
+  details.sht > .sht-ich{padding:12px 16px 16px;border-top:1px solid var(--border2)}
   /* kech155 (zip 210 «Naqd / Bank / Karta»): «Qaysi hisobdan» tanlovi (`hisobTanlovChiz`) — BO'LAKLI TANLOV (`.segment`, U-13 yagona
      ko'rinish: balandligi `.btn` dek — 40 / 44 px, burchak 8 px, yozuv 13 px; bo'laklar alohida tugma emas): Naqd pul / Bank / Karta,
      tanlangani ko'k; ostida — tanlangan hisob qoldig'i (faqat Moliya oynalarida, `balans` berilsa). Hamma pul formalarida bir xil.
@@ -1315,13 +1374,11 @@ function kichikRasm(url) {
       {% if m_jurnal %}
       {# kech120 (zip 137 — F bosqichi 5-qism, audit G6-22): korxona sozlamalari — alohida band (ilgari «Tizim jurnallari» ning
          4-yorlig'ida — egasi sozlamani jurnal ichida qidirmaydi) #}
-      <a href="/sozlamalar" class="nav-item {% if active_page == 'sozlamalar' %}active{% endif %}">
+      {# kech160 (zip 225 — egasi 29.10 18:24): «Tizim jurnallari» menyuda YO'Q — Sozlamalar sarlavhasidagi «📋 Tizim jurnallari» tugmasi
+         orqali; jurnalda ham «Sozlamalar» belgili (qayerdaligi ko'rinsin) #}
+      <a href="/sozlamalar" class="nav-item {% if active_page in ('sozlamalar', 'logs') %}active{% endif %}">
         <i class="ti ti-settings n-ico"></i>
         <span class="n-txt">Sozlamalar</span>
-      </a>
-      <a href="/logs" class="nav-item {% if active_page == 'logs' %}active{% endif %}">
-        <i class="ti ti-file-text n-ico"></i>
-        <span class="n-txt">Tizim jurnallari</span>
       </a>
       {% endif %}
       {# kech111 — platforma paneli (mijoz korxonalar, obuna, bloklash) — FAQAT platforma admini #}

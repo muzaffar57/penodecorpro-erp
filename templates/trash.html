@@ -106,7 +106,8 @@
   <div class="card">
     <div class="card-head">
       <h3>🕓 O'chirish va tiklash jurnali <span style="color:var(--text3);font-weight:400">(so'nggi {{ activity_log|length }} ta)</span></h3>
-      <a href="/logs" style="font-size:13px;color:var(--gold-dark);text-decoration:none;white-space:nowrap">Barcha amallar — Tizim jurnallari →</a>
+      {# kech160 (zip 225, review225 O1): havola — `jurnal: Ko'rish` bilan (ruxsatsiz rol 403 sahifaga tushmasin) #}
+      {% if current_user.ruxsat('jurnal', 'korish') %}<a href="/logs" style="font-size:13px;color:var(--gold-dark);text-decoration:none;white-space:nowrap">Barcha amallar — Tizim jurnallari →</a>{% endif %}
     </div>
     <div style="padding:4px 0;max-height:400px;overflow-y:auto">
       {% if not activity_log %}
