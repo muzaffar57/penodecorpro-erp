@@ -19542,18 +19542,18 @@ def _kirim_hujjati_qismlari(db: Session, receipt, xarid_qulf: bool = False) -> d
     manba "inventory_receipt" / "kirim_tannarx", tur `KIRIM_XARAJAT_TURLARI`, izohida AYNAN "Kirim #N" —
     `_migrate_kirim_tannarx_manba` bilan bir qoida; "#1" "#12" ni tutmaydi) va "Kirim to'lovi — #N" ta'minotchi
     to'lovi. Hammasi hujjat korxonasidan (xarid / to'lov — ota orqali).
+    kech162 (zip 226 — ESKI nuqson, O'LCHANGAN `work/k226/probe226b.py`): izohdagi BIRINCHI «Kirim #N» (`_kirim_izoh_raqami`) — ilgari
+    istalgani: hujjat raqami «Kirim #1 nusxa» bo'lgan Kirim #2 ning xarajati Kirim #1 bekor qilinganda o'chardi.
     kech146 (zip 180, review 1): `xarid_qulf=True` — xaridlar qulf ostida qayta o'qiladi (`_kirim_xaridlari`); to'lovlar — qulfsiz
     (ular material qulflaridan KEYIN qulflanadi — `_kirim_tolovlari(qulf=True)`)."""
-    import re as _re107
     from models import ExpenseTransaction as _ET107, KIRIM_TANNARX_MANBA as _KTM107
     xaridlar = _kirim_xaridlari(db, receipt, qulf=xarid_qulf)
-    _naqsh = _re107.compile(r"Kirim #(\d+)(?!\d)")
     xarajatlar = [t for t in db.query(_ET107).filter(
         _ET107.company_id == receipt.company_id,
         _ET107.source.in_(("inventory_receipt", _KTM107)),
         _ET107.category.in_(KIRIM_XARAJAT_TURLARI),
         _ET107.notes.like(f"%Kirim #{receipt.id}%"),
-    ).order_by(_ET107.id).all() if any(int(_m) == receipt.id for _m in _naqsh.findall(t.notes or ""))]
+    ).order_by(_ET107.id).all() if _kirim_izoh_raqami(t.notes) == receipt.id]
     tolovlar = _kirim_tolovlari(db, receipt)
     return {"xaridlar": xaridlar, "xarajatlar": xarajatlar, "tolovlar": tolovlar}
 
@@ -19563,6 +19563,94 @@ def _kirim_tolov_savoli(receipt_id, tolov_jami) -> str:
     (0.5 YUQORIGA; ilgari `:,.0f` — banker yaxlitlashi)."""
     return (f"Kirim #{receipt_id} bilan ta'minotchiga {_som(tolov_jami)} so'm to'langan. "
             "To'lovni ham o'chirasizmi yoki ta'minotchida avans bo'lib qolsinmi?")
+
+
+# kech162 (zip 226 — egasi 30.10 16:32: «kirimdagi transport 600 000 ni qayerdan ko'raman»; tanlov «Kirim xarajati ko'rinsin»): Moliya
+# «Xarajatlar ro'yxati» qatorida hujjat materiallari, Omborxona «📦 Kirim #N» oynasida hujjat xarajatlari. Bog' — `_kirim_hujjati_qismlari`
+# qoidasi (manba, tur, izohdagi «Kirim #N»); izohdagi BIRINCHI «Kirim #N» — hujjat (qavsdagi hujjat raqami ichida «Kirim #5» bo'lsa ham).
+import re as _re226                                  # noqa: E402
+_KIRIM226_NAQSH = _re226.compile(r"Kirim #(\d+)(?!\d)")
+_KIRIM226_YORLIQ = _re226.compile(r" — Kirim #(\d+)(?!\d)")
+
+
+def _kirim_izoh_raqami(notes) -> Optional[int]:
+    """Kirim xarajati izohidagi hujjat raqami: yozuvchi format «{tur} — Kirim #N (hujjat raqami)» — BIRINCHI « — Kirim #N»; u yo'q bo'lsa —
+    birinchi «Kirim #N» (review226: eski, qo'lda o'zgartirilgan izoh boshida boshqa hujjat raqami bo'lsa ham yorliqdagisi olinadi). Qavsdagi
+    foydalanuvchi yozgan hujjat raqami ichidagi «Kirim #M» — e'tiborsiz. Yo'q — None."""
+    m = _KIRIM226_YORLIQ.search(notes or "") or _KIRIM226_NAQSH.search(notes or "")
+    return int(m.group(1)) if m else None
+
+
+def kirim_xarajati_hujjati(tx) -> Optional[int]:
+    """Moliya xarajati kirim hujjatining qo'shimcha xarajati bo'lsa — hujjat raqami (izohdan), aks holda None (qo'lda kiritilgan
+    «transport_kirim» turi ham — None)."""
+    from models import KIRIM_TANNARX_MANBA as _KTM226
+    if tx is None or tx.source not in ("inventory_receipt", _KTM226) or tx.category not in KIRIM_XARAJAT_TURLARI:
+        return None
+    return _kirim_izoh_raqami(tx.notes)
+
+
+def kirim_hujjatlari_materiallari(db: Session, receipt_ids, company_id: int = None) -> dict:
+    """{hujjat_id: [{"nomi", "miqdor", "birlik"}]} — FAQAT shu korxona hujjatlari (begona / yo'q hujjat — kalit yo'q); materiallar xarid
+    tartibida, bir hujjatdagi bir xil nom + birlik (ikki partiya) — miqdori jamlanadi. Narx yo'q (Moliya ro'yxati uchun)."""
+    from models import InventoryReceipt as _IR226, InventoryPurchase as _IP226
+    ids = sorted({int(i) for i in (receipt_ids or []) if i is not None and 0 < int(i) <= 2_147_483_647})
+    if not ids:
+        return {}
+    _q = db.query(_IR226.id).filter(_IR226.id.in_(ids))
+    if company_id is not None:
+        _q = _q.filter(_IR226.company_id == company_id)
+    bor = sorted(r for (r,) in _q.all())
+    out = {r: [] for r in bor}
+    if not bor:
+        return out
+    _p = db.query(_IP226).join(Inventory, Inventory.id == _IP226.inventory_id).filter(_IP226.receipt_id.in_(bor))
+    if company_id is not None:
+        _p = _p.filter(Inventory.company_id == company_id)
+    for p in _p.order_by(_IP226.receipt_id, _IP226.id).all():
+        lst = out.setdefault(p.receipt_id, [])
+        for e in lst:
+            if e["nomi"] == p.item_name and e["birlik"] == p.unit:
+                e["miqdor"] = round(e["miqdor"] + float(p.quantity or 0), 6)
+                break
+        else:
+            lst.append({"nomi": p.item_name, "miqdor": round(float(p.quantity or 0), 6), "birlik": p.unit})
+    return out
+
+
+def kirim_hujjati_korinish(db: Session, receipt_id: int, company_id: int = None) -> Optional[dict]:
+    """«📦 Kirim #N» oynasi: hujjatning qo'shimcha xarajatlari — Moliyadagi yozuvlar (`_kirim_hujjati_qismlari`; `tannarxda` — manba
+    `kirim_tannarx`). Moliyada yozuv yo'q bo'lsa (boshlang'ich ombor — `create_inventory_receipt` yozmaydi; eski hujjat) — hujjat maydonlari
+    (`moliyada: false`; `tannarxda` — yaratishdagi shart: «tannarxga qo'shish» va materiallar qiymati > 0). Tartib — `KIRIM_XARAJAT_TURLARI`.
+    Hujjat shu korxonada yo'q — None. Faqat o'qish."""
+    from models import InventoryReceipt as _IR226, KIRIM_TANNARX_MANBA as _KTM226
+    _q = db.query(_IR226).filter(_IR226.id == receipt_id)
+    if company_id is not None:
+        _q = _q.filter(_IR226.company_id == company_id)
+    rc = _q.first()
+    if rc is None:
+        return None
+    qism = _kirim_hujjati_qismlari(db, rc)
+    xaridlar = qism["xaridlar"]
+    xarajatlar = [{"turi": t.category, "summa": float(t.amount or 0), "sana": t.date.isoformat() if t.date else None,
+                   "tannarxda": t.source == _KTM226, "moliyada": True} for t in qism["xarajatlar"]]
+    if not xarajatlar:
+        _qiymat = sum(float(p.quantity or 0) * float(p.price_per_unit or 0) for p in xaridlar)
+        _tann = bool(rc.add_to_cost) and _qiymat > 0
+        for _tur, _v in zip(KIRIM_XARAJAT_TURLARI, (rc.transport_cost, rc.tushirish_cost, rc.yuklash_cost, rc.boshqa_cost)):
+            if float(_v or 0) > 0:
+                xarajatlar.append({"turi": _tur, "summa": float(_v), "sana": rc.receipt_date.isoformat() if rc.receipt_date else None,
+                                   "tannarxda": _tann, "moliyada": False})
+    _tartib = {t: i for i, t in enumerate(KIRIM_XARAJAT_TURLARI)}
+    xarajatlar.sort(key=lambda x: _tartib.get(x["turi"], len(_tartib)))
+    _sup = None
+    if rc.supplier_id:
+        _s = db.query(Supplier).filter(Supplier.id == rc.supplier_id, Supplier.company_id == rc.company_id).first()
+        _sup = _s.name if _s else None
+    return {"id": rc.id, "sana": rc.receipt_date.isoformat() if rc.receipt_date else None,
+            "hujjat_raqami": rc.document_number or None, "taminotchi": _sup,
+            "boshlangich": bool(xaridlar) and all(bool(p.is_opening_stock) for p in xaridlar),
+            "xarajatlar": xarajatlar, "xarajatlar_jami": round(sum(x["summa"] for x in xarajatlar), 2)}
 
 
 def kirim_hujjatini_bekor_qilish(db: Session, receipt_id: int, company_id: int = None, tolov: str = None,

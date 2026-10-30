@@ -7519,8 +7519,20 @@ def api_delete_purchase(purchase_id: int, db: Session = Depends(get_db), current
     return {"status": "ok"}
 
 
+@app.get("/api/inventory/receipts/{receipt_id}")
+def api_receipt_korinish(receipt_id: int = _Path213(..., ge=1, le=2_147_483_647), db: Session = Depends(get_db),
+                         current_user=Depends(auth.ruxsat("kirim", "korish"))):
+    """kech162 (zip 226 — egasi 30.10 16:32): «📦 Kirim #N» oynasi — hujjatning qo'shimcha xarajatlari (transport, tushirish, yuklash,
+    boshqa: Moliyadagi yozuvlar; boshlang'ich ombor — hujjat maydonlari), tannarxga qo'shilganmi, hujjat raqami, ta'minotchi. Faqat
+    o'qish; ruxsat — «Xaridlar tarixi» bilan bir xil; summa «Xomashyo narxlari va ombor qiymati» ruxsatisiz — null (`NARX_YOLLAR`)."""
+    natija = crud.kirim_hujjati_korinish(db, receipt_id, company_id=auth.company_id_of(current_user))
+    if natija is None:
+        raise HTTPException(status_code=404, detail="Kirim hujjati topilmadi")
+    return natija
+
+
 @app.get("/api/inventory/receipts/{receipt_id}/cancel-plan")
-def api_receipt_cancel_plan(receipt_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kirim", "ochirish"))):
+def api_receipt_cancel_plan(receipt_id: int = _Path213(..., ge=1, le=2_147_483_647), db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kirim", "ochirish"))):
     """kech107 (10f): kirim hujjatini bekor qilish REJASI — hech narsa o'zgarmaydi (oynada ko'rsatiladi)."""
     natija = crud.kirim_hujjatini_bekor_qilish(db, receipt_id, company_id=auth.company_id_of(current_user),
                                                faqat_hisob=True)
@@ -7530,7 +7542,7 @@ def api_receipt_cancel_plan(receipt_id: int, db: Session = Depends(get_db), curr
 
 
 @app.post("/api/inventory/receipts/{receipt_id}/cancel")
-def api_receipt_cancel(receipt_id: int, tolov: Optional[str] = None, db: Session = Depends(get_db),
+def api_receipt_cancel(receipt_id: int = _Path213(..., ge=1, le=2_147_483_647), tolov: Optional[str] = None, db: Session = Depends(get_db),
                        current_user=Depends(auth.ruxsat("kirim", "ochirish"))):
     """kech107 (10f): kirim hujjatini butunlay bekor qilish — BITTA tranzaksiyada (`crud.kirim_hujjatini_bekor_qilish`).
     `tolov` — hujjat bilan to'langan pul: `ochirish` yoki `avans` (egasi qarori "Har safar so'rasin"; to'lov bor-u
@@ -9901,11 +9913,17 @@ def api_list_expense_transactions(year: Optional[int] = None, month: Optional[in
                    .filter(_RO131.company_id == auth.company_id_of(current_user)).all())
     # kech155 (zip 210): hisob turi (ro'yxatda nomi, tahrirda joriy tanlov); NULL (eski yozuv) — «Naqd pul»
     _turlar210 = {h.id: h.turi for h in crud.pul_hisoblari(db, auth.company_id_of(current_user), faqat_faol=False)}
+    # kech162 (zip 226 — egasi 30.10): kirim hujjati xarajati — qaysi hujjat va uning materiallari («qaysi material uchun» ko'rinsin)
+    _kh226 = {r.id: crud.kirim_xarajati_hujjati(r) for r in rows}
+    _mat226 = crud.kirim_hujjatlari_materiallari(db, [v for v in _kh226.values() if v], auth.company_id_of(current_user))
     natija = []
     for r in rows:
         _d = schemas.ExpenseTransactionRead.model_validate(r)
         _d.category_label = _nomlar.get(r.category)
         _d.hisob_turi = _turlar210.get(r.hisob_id) or "naqd"
+        if _kh226.get(r.id) in _mat226:
+            _d.kirim_id = _kh226[r.id]
+            _d.kirim_materiallar = _mat226[_kh226[r.id]]
         natija.append(_d)
     return natija
 
