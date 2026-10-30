@@ -1492,17 +1492,19 @@ function kichikRasm(url) {
       }
       window.toggleTheme = function() {
         const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        // kech163 (zip 227): brauzer xotirasi yopiq / to'la — yozib bo'lmasa rejim shu sahifada almashadi, qayta yuklanmaydi
+        let saqlandi = true;
         if (isDark) {
           document.documentElement.removeAttribute('data-theme');
-          localStorage.setItem('theme', 'light');
+          try { localStorage.setItem('theme', 'light'); } catch (e) { saqlandi = false; }
         } else {
           document.documentElement.setAttribute('data-theme', 'dark');
-          localStorage.setItem('theme', 'dark');
+          try { localStorage.setItem('theme', 'dark'); } catch (e) { saqlandi = false; }
         }
         applyThemeIcon();
         // kech118 (zip 122): sahifa JS i chizgan ranglar (holat yozuvlari — `matnRangi`, grafiklar) rejimga qarab tanlanadi —
         // almashtirilgach sahifa qayta yuklanadi (aks holda eski rejim ranglari qolardi)
-        location.reload();
+        if (saqlandi) location.reload();
       };
       applyThemeIcon();
 
@@ -1762,7 +1764,10 @@ function customConfirm(a, b, c) {
 // funksiyasi, o'zi yozadigan matn maydonlarini, sanitizeToLatin()
 // orqali, saqlashdan OLDIN, tozalashi kerak.
 // ════════════════════════════════════════════════════════════
-let currentScript = localStorage.getItem('erp_script') || 'lotin';
+// kech163 (zip 227 — O'LCHANGAN `work/k227/probe227b.py`): brauzer xotirasi yopiq / yo'q bo'lsa `localStorage` xato otadi — ilgari shu
+// qator try siz edi: blokning qolgani ishlamas, `typeof currentScript` (grafik o'rami) ham xato otib grafiklar chizilmasdi. Endi — Lotin.
+let currentScript = 'lotin';
+try { currentScript = localStorage.getItem('erp_script') || 'lotin'; } catch (e) { currentScript = 'lotin'; }
 const _origTextMap = new WeakMap();
 const _origPlaceholderMap = new WeakMap();
 const _origValueMap = new WeakMap();
@@ -1842,7 +1847,7 @@ function _applyScriptToNode(root) {
 
 function toggleScript() {
   currentScript = (currentScript === 'lotin') ? 'kirill' : 'lotin';
-  localStorage.setItem('erp_script', currentScript);
+  try { localStorage.setItem('erp_script', currentScript); } catch (e) { /* kech163 (zip 227): xotira yopiq — faqat shu sahifada */ }
   const btn = document.getElementById('script-toggle-btn');
   if (btn) btn.textContent = (currentScript === 'kirill') ? '🔤 Lotin' : '🔤 Кирилл';
   _applyScriptToNode(document.body);
