@@ -663,6 +663,9 @@ MENYU_KUT = {
     "W": ["/inventory", "/suppliers/receive", "/suppliers", "/recipes", "/production", "/finished", "/returns"],
     "U": ["/orders"],
 }
+# kech160 (zip 225 — egasi 29.10, MOSLANDI): «Tizim jurnallari» (/logs) menyuda yo'q — Sozlamalar sarlavhasidagi tugmadan (yangi base.html da)
+if 'href="/logs" class="nav-item' not in open(os.path.join(ROOT, "templates", "base.html"), encoding="utf-8").read():
+    MENYU_KUT["A"] = [x for x in MENYU_KUT["A"] if x != "/logs"]
 _sah = {"A": "/finance", "M": "/orders", "F": "/finance", "W": "/inventory", "U": "/orders"}
 _menyu = {}
 for h in "AMFWU":

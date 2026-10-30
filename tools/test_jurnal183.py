@@ -608,6 +608,7 @@ JS_XATO, SOROV = [], []
 
 def kontekst(user, en=1440, boy=900):
     ctx = br.new_context(viewport={"width": en, "height": boy}, timezone_id="Asia/Tashkent", locale="uz-UZ")
+    ctx.add_init_script("try { window.addEventListener('load', () => document.querySelectorAll('details.sht').forEach(d => { d.open = true; })); } catch (e) {}")      # kech160 (zip 225): Sozlamalar bo'limlari shtorkada — ochiq
     ctx.route(re.compile(r"^https?://(?!127\.0\.0\.1).*"), lambda route: route.fulfill(status=204, body=""))
     pg = ctx.new_page()
     pg.set_default_timeout(15000)

@@ -68,7 +68,8 @@ function jinjasiz(s) {
   return String(s).replace(/\{%\s*if[^%]*%\}([\s\S]*?)(\{%\s*else\s*%\}[\s\S]*?)?\{%\s*endif\s*%\}/g, '$1')
     .replace(/\{%[\s\S]*?%\}/g, '').replace(/\{\{[\s\S]*?\}\}/g, '');
 }
-const YORDAMCHI_NOMLAR = ['escapeHtml', 'tkMs', 'tkDate', 'tkSana', 'tkVaqt', 'tkSanaVaqt', 'tkToliq', 'xatoSababi', 'yukXato', 'yukOl',
+// kech160 (zip 225, MOSLANDI): bloklar shtorkada — `shtorkaHtml` (base.html; eski shablonda yo'q — o'tkaziladi)
+const YORDAMCHI_NOMLAR = ['shtorkaHtml', 'escapeHtml', 'tkMs', 'tkDate', 'tkSana', 'tkVaqt', 'tkSanaVaqt', 'tkToliq', 'xatoSababi', 'yukXato', 'yukOl',
   'yukSabab', 'yukXatoMatn', 'yukSessiyaKor'];
 const YORDAMCHI = YORDAMCHI_NOMLAR.map(n => olib(BASE, n)).filter(Boolean).join('\n');
 const SAHIFA = ['runHealthCheck', 'sxemaHtml'].map(n => olib(LOGS, n)).filter(Boolean).map(jinjasiz).join('\n');
