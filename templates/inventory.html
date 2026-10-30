@@ -89,6 +89,17 @@
 .mv-yana{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:12px 0 6px;font-size:13px;color:var(--text3)}
 .mv-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border2);font-size:14px}
 .mv-row:last-child{border-bottom:none}
+.mv-row > div:first-child{overflow-wrap:anywhere}
+/* kech162 (zip 226 — egasi 30.10): «📦 Kirim #N» oynasi — hujjatning qo'shimcha xarajatlari va hujjat jami */
+.ph-kx{margin-top:6px;padding-top:12px;border-top:1px solid var(--border2);font-size:14px}
+.ph-kx-sarl{font-size:13px;font-weight:700;color:var(--text2);margin-bottom:4px}
+.ph-kx-qator{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--border2)}
+.ph-kx-nom{min-width:0;font-weight:500;color:var(--text);overflow-wrap:anywhere}
+.ph-kx-holat{font-size:12px;font-weight:400;color:var(--text3);margin-top:2px}
+.ph-kx-summa{font-weight:700;color:var(--text);white-space:nowrap;flex-shrink:0}
+.ph-kx-jami{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:10px 0 2px;font-weight:700;color:var(--text)}
+.ph-kx-jami span:last-child{white-space:nowrap;flex-shrink:0}
+.ph-kx-bosh,.ph-kx-yuk,.ph-kx-izoh,.ph-kx-meta{font-size:13px;color:var(--text3);padding:4px 0;overflow-wrap:anywhere}
 .mv-badge{font-size:12px;font-weight:600;padding:4px 10px;border-radius:8px}
 .mv-badge.in{background:var(--f-dcfce7);color:var(--m-166534)}
 .mv-badge.out{background:var(--f-fee2e2);color:var(--m-991b1b)}
@@ -1069,8 +1080,46 @@ function openPhDrawer(receiptId) {
         </button>` : ''}
       </div>
     </div>`;
-  }).join('');
+  }).join('') + `<div id="phKirimXarajat" class="ph-kx"><div class="ph-kx-yuk">Qo'shimcha xarajatlar yuklanmoqda…</div></div>`;
   document.getElementById('phDrawerOverlay').style.display = 'flex';
+  // kech162 (zip 226): hujjatning qo'shimcha xarajatlari (transport va h.k.) — alohida so'rov
+  if (typeof phKirimXarajatYukla === 'function') phKirimXarajatYukla(receiptId, total);
+}
+
+// kech162 (zip 226 — egasi 30.10 16:32: «Kirim #80 oynasida transport 600 000 ko'rinmaydi»): `GET /api/inventory/receipts/{id}` —
+// Moliyadagi xarajatlar (boshlang'ich ombor — hujjat maydonlari), tannarxga qo'shilganmi; hujjat jami = materiallar + xarajatlar (birortasi
+// null — «Xomashyo narxlari» ruxsati yo'q — «—»). Oyna tez almashtirilsa eski javob tashlanadi (`yukBlok` navbati), xato — sabab bilan.
+function phKirimXarajatHtml(d, matJami) {
+  if (!d || typeof d !== 'object' || !Array.isArray(d.xarajatlar)) throw yukXato('server');
+  const nom = {transport_kirim: '🚚 Transport', tushirish_kirim: '📦 Tushirish (Grushchik)', yuklash_kirim: '⬆️ Yuklash',
+               kirim_boshqa: '➕ Boshqa xarajat'};
+  let h = `<div class="ph-kx-sarl">Qo'shimcha xarajatlar</div>`;
+  if (!d.xarajatlar.length) {
+    h += `<div class="ph-kx-bosh">Qo'shimcha xarajat yo'q</div>`;
+  } else {
+    h += d.xarajatlar.map(x => {
+      const holat = x.tannarxda ? (x.moliyada ? "tannarxga qo'shilgan" : "tannarxga qo'shilgan · Moliyada xarajat sifatida yo'q")
+                                : (x.moliyada ? 'Moliyada alohida xarajat' : 'Moliyaga yozilmagan');
+      return `<div class="ph-kx-qator" data-turi="${escapeHtml(x.turi)}"><div class="ph-kx-nom">${escapeHtml(nom[x.turi] || x.turi)}`
+        + `<div class="ph-kx-holat">${escapeHtml(holat)}</div></div><div class="ph-kx-summa">${phSom(x.summa)}</div></div>`;
+    }).join('');
+    if (d.boshlangich && d.xarajatlar.some(x => !x.moliyada)) {
+      h += `<div class="ph-kx-izoh">Boshlang'ich ombor — qo'shimcha xarajat Moliyaga yozilmaydi</div>`;
+    }
+    const xj = d.xarajatlar_jami;
+    const jami = (matJami === null || matJami === undefined || xj === null || xj === undefined) ? null : Number(matJami) + Number(xj);
+    h += `<div class="ph-kx-jami"><span>Hujjat jami (materiallar + xarajatlar)</span><span>${phSom(jami)}</span></div>`;
+  }
+  const meta = [d.taminotchi ? "Ta'minotchi: " + d.taminotchi : '', d.hujjat_raqami ? 'Hujjat №: ' + d.hujjat_raqami : ''].filter(Boolean).join(' · ');
+  if (meta) h += `<div class="ph-kx-meta">${escapeHtml(meta)}</div>`;
+  return h;
+}
+
+async function phKirimXarajatYukla(receiptId, matJami) {
+  const joy = () => document.getElementById('phKirimXarajat');
+  await yukBlok('phKirim', '/api/inventory/receipts/' + encodeURIComponent(String(receiptId)),
+    d => { const html = phKirimXarajatHtml(d, matJami); const x = joy(); if (x) x.innerHTML = html; },
+    e => { const x = joy(); if (x) x.innerHTML = '<div class="yuk-xato-qator">' + escapeHtml(yukXatoMatn("Qo'shimcha xarajatlar", e)) + '</div>'; });
 }
 
 function closePhDrawer() {
@@ -1086,11 +1135,15 @@ function kirimBekorRejaMatni(r) {
   (r.materiallar || []).forEach(m => {
     if (m.topilmadi) { qator.push(`• ${m.nomi}: material topilmadi — faqat xarid yozuvi o'chadi`); return; }
     let s = `• ${m.nomi}: −${m.miqdor} ${m.birlik || ''} (qoldiq ${m.joriy_qoldiq} → ${m.yangi_qoldiq})`;
-    s += m.narx_qaytdi ? `, narx ${fmt(m.joriy_narx)} → ${fmt(m.yangi_narx)} so'm`
-                       : `, narx o'zgarmaydi (${fmt(m.joriy_narx)} so'm)`;
+    // kech162 (zip 226 — review226 P1): «Xomashyo narxlari» ruxsati yo'q — server narxni null beradi: narx qismi yozilmaydi
+    if (m.joriy_narx !== null && m.joriy_narx !== undefined) {
+      s += m.narx_qaytdi ? `, narx ${fmt(m.joriy_narx)} → ${fmt(m.yangi_narx)} so'm`
+                         : `, narx o'zgarmaydi (${fmt(m.joriy_narx)} so'm)`;
+    }
     qator.push(s);
   });
-  if ((r.xarajatlar || []).length) qator.push(`• Moliyadagi qo'shimcha xarajatlar o'chadi: ${fmt(r.xarajatlar_jami)} so'm`);
+  if ((r.xarajatlar || []).length) qator.push(`• Moliyadagi qo'shimcha xarajatlar o'chadi` + ((r.xarajatlar_jami === null || r.xarajatlar_jami === undefined)
+    ? '' : `: ${fmt(r.xarajatlar_jami)} so'm`));
   if ((r.manfiy || []).length) qator.push(`⚠️ Qoldiq manfiyga tushadi: ${r.manfiy.join(', ')} — keyingi kirimda qoplanadi`);
   return qator.join('\n');
 }
