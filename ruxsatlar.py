@@ -535,6 +535,8 @@ def tannarx_tozala(data, marshrut: str = None):
 # `PENOS`). Ta'minotchilar bo'limi (`taminotchi`) — o'z ruxsati (ta'minotchi qarzi, undan olingan xaridlar) — bu yerga kirmaydi.
 # ════════════════════════════════════════════════════════════════════════════════════════════════════════════
 
+_KIRIM_BEKOR_NARX226 = ("materiallar[].joriy_narx", "materiallar[].yangi_narx", "materiallar[].xarid_narxi", "materiallar[].summa",
+                        "xarajatlar[].summa", "xarajatlar_jami")
 NARX_YOLLAR = {
     "/api/inventory": ("[].price_per_unit",),
     "/api/inventory/kpi": ("total_value",),
@@ -546,6 +548,11 @@ NARX_YOLLAR = {
     # kech144 (zip 180, audit C5): xarid / kirim javobidagi materialning o'rtacha narxi (sahifa ko'rsatmaydi — JSON da ham yashirin)
     "/api/inventory/{item_id}/purchase": ("old_price", "new_price"),
     "/api/inventory/receipt": ("results[].old_price", "results[].new_price"),
+    # kech162 (zip 226): «📦 Kirim #N» oynasidagi qo'shimcha xarajat summalari — xarid summasi bilan bir sir
+    "/api/inventory/receipts/{receipt_id}": ("xarajatlar[].summa", "xarajatlar_jami"),
+    # kech162 (zip 226 — review226 P1, ESKI): kirim hujjatini bekor qilish rejasi / natijasi — xarid narxi, summa, material narxi, xarajatlar
+    "/api/inventory/receipts/{receipt_id}/cancel-plan": _KIRIM_BEKOR_NARX226,
+    "/api/inventory/receipts/{receipt_id}/cancel": _KIRIM_BEKOR_NARX226,
     # kech144 (zip 181, audit C3): «Ishlab chiqarish» — retsept / reja qatorlaridagi xomashyo narxi va tarkib suratidagi «Narx (o'sha
     # kuni)» (ilgari «Menejer» va «Mahsulot tarkibi: Ko'rish» li rol «0,5 kg × 85 000» ko'rardi). Tannarx qismlari — TANNARX_YOLLAR.
     "/api/production/boms/preview": ("qatorlar[].narx",),

@@ -537,6 +537,9 @@ class ExpenseTransactionRead(BaseModel):
     # kech155 (zip 210): qaysi pul hisobidan (`hisob_turi` — naqd / bank / karta; eski yozuv — naqd)
     hisob_id: Optional[int] = None
     hisob_turi: Optional[str] = None
+    # kech162 (zip 226): kirim hujjatining qo'shimcha xarajati — hujjat raqami va materiallari ([{nomi, miqdor, birlik}]); boshqasida — None
+    kirim_id: Optional[int] = None
+    kirim_materiallar: Optional[List[dict]] = None
     model_config = {"from_attributes": True}
 
 
