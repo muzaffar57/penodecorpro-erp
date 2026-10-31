@@ -1300,12 +1300,12 @@ async function editPurchase(id, qty, price, isCredit) {
   }
 }
 
-async function deletePurchase(id, tolov) {
+async function deletePurchase(id, tolov, transport) {
   // 20-band (2026-09-21): ilgari bu oyna "ombordagi joriy miqdor AVTOMATIK
   // o'zgarmaydi" deb ogohlantirardi — bu NOTO'G'RI edi: server xarid
   // miqdorini ombordan AYIRADI (Omborxona sahifasidagi oyna to'g'ri
   // yozardi). Endi ikkala sahifa bir xil haqiqatni aytadi.
-  if (!tolov && !(await customConfirm(
+  if (!tolov && !transport && !(await customConfirm(
     "Bu xarid yozuvi o'chirilsinmi?\n\n" +
     "⚠️ Xarid miqdori OMBORDAN AYIRILADI va qarz hisobi qayta hisoblanadi. " +
     "Agar bu xomashyo allaqachon ishlatilgan bo'lsa, qoldiq manfiyga tushishi " +
@@ -1317,22 +1317,37 @@ async function deletePurchase(id, tolov) {
   deletePurchase.band = true;
   // kech144 (zip 180, egasi QARORI «Har safar so'rasin», audit B5): «hoziroq to'langan» to'lovi bor — server 409 `purchase_has_payment`:
   // «To'lovni ham o'chirish» / «Ta'minotchida avans qolsin» / «Bekor» (Kirim hujjatini bekor qilish oynasi bilan bir xil)
+  // kech165 (zip 230, egasi QARORI 31.10 «Har safar so'rasin»): «O'z hisobimdan» transporti bor — server 409 `purchase_has_transport`:
+  // «Transportni ham o'chirish» / «Transport Moliyada qolsin» / «Bekor»; to'lov savoli birinchi, keyin transport (ikkalasi ham — ketma-ket)
   let tanlov = null;
   try {
-    const res = await fetch(`/api/inventory/purchases/${id}` + (tolov ? `?tolov=${tolov}` : ''), { method: 'DELETE' });
+    const q = [];
+    if (tolov) q.push(`tolov=${tolov}`);
+    if (transport) q.push(`transport=${transport}`);
+    const res = await fetch(`/api/inventory/purchases/${id}` + (q.length ? '?' + q.join('&') : ''), { method: 'DELETE' });
     if (res.ok) {
-      showMsg(tolov === 'avans' ? "✓ O'chirildi — to'lov ta'minotchida avans bo'lib qoldi" : '✓ O\'chirildi', 'success');
+      // review230 №5: Omborxona bilan bir xil bo'laklar (to'lov o'chirilgani ham aytiladi)
+      const q2 = [];
+      if (tolov === 'avans') q2.push("to'lov ta'minotchida avans bo'lib qoldi");
+      else if (tolov === 'ochirish') q2.push("to'lovi ham o'chirildi");
+      if (transport === 'ochirish') q2.push("transport xarajati ham o'chirildi");
+      else if (transport === 'qoldirish') q2.push('transport xarajati Moliyada qoldi');
+      showMsg('✓ O\'chirildi' + (q2.length ? ' — ' + q2.join('; ') : ''), 'success');
       openHistory(currentSupplierId, true);
       loadSuppliers();
     } else {
       let det = null;
-      if (res.status === 409 && !tolov) {
+      if (res.status === 409) {
         try { const d = await (typeof res.clone === 'function' ? res.clone() : res).json(); det = d && d.detail; } catch (e) { det = null; }
       }
-      if (det && det.type === 'purchase_has_payment') {
+      if (det && det.type === 'purchase_has_payment' && !tolov) {
         const t = await customConfirm("Xaridni o'chirish", String(det.message || ''),
           {danger: true, okText: "To'lovni ham o'chirish", altText: "Ta'minotchida avans qolsin", cancelText: 'Bekor'});
-        tanlov = t === true ? 'ochirish' : (t === 'alt' ? 'avans' : null);
+        tanlov = t === true ? {tolov: 'ochirish', transport} : (t === 'alt' ? {tolov: 'avans', transport} : null);
+      } else if (det && det.type === 'purchase_has_transport' && !transport) {
+        const t = await customConfirm("Xaridni o'chirish", String(det.message || ''),
+          {danger: true, okText: "Transportni ham o'chirish", altText: 'Transport Moliyada qolsin', cancelText: 'Bekor'});
+        tanlov = t === true ? {tolov, transport: 'ochirish'} : (t === 'alt' ? {tolov, transport: 'qoldirish'} : null);
       } else {
         // 20-band: server sababini ko'rsatamiz (21-band da `serverSababi`
         // yordamchisiga ko'chirildi — xulq AYNAN bir xil).
@@ -1341,7 +1356,7 @@ async function deletePurchase(id, tolov) {
     }
   } catch(e) { showMsg("⚠️ O'chirish natijasi noma'lum: " + await amalSababi(e), 'error'); }   // kech144 (zip 180, D1)
   finally { deletePurchase.band = false; }
-  if (tanlov) await deletePurchase(id, tanlov);
+  if (tanlov) await deletePurchase(id, tanlov.tolov || null, tanlov.transport || null);
 }
 
 let isSavingSupplierPayment = false;

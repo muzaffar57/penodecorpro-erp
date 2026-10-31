@@ -1210,12 +1210,11 @@ async function deletePurchase(id, name, qty) {
       let d = null;
       try { d = await res.json(); } catch (e) { d = null; }
       const det = d && d.detail;
-      // kech144 (zip 180, egasi QARORI «Har safar so'rasin», audit B5): «hoziroq to'langan» to'lovi bor xarid
-      if (det && det.type === 'purchase_has_payment') {
-        const t = await customConfirm(`"${name}" xaridini bekor qilish`, String(det.message || ''),
-          {danger: true, okText: "To'lovni ham o'chirish", altText: "Ta'minotchida avans qolsin", cancelText: 'Bekor'});
-        const tanlov = t === true ? 'ochirish' : (t === 'alt' ? 'avans' : null);
-        if (tanlov) await xaridniTolovBilanBekorQil(id, tanlov);
+      // kech144 (zip 180, egasi QARORI «Har safar so'rasin», audit B5): «hoziroq to'langan» to'lovi bor xarid;
+      // kech165 (zip 230, egasi QARORI 31.10 «Har safar so'rasin»): «O'z hisobimdan» transporti bor xarid
+      if (det && (det.type === 'purchase_has_payment' || det.type === 'purchase_has_transport')) {
+        const tanlov = await xaridTanloviSora(det, `"${name}" xaridini bekor qilish`);
+        if (tanlov) await xaridniTolovBilanBekorQil(id, tanlov.tolov || null, tanlov.transport || null, name);
       } else if (det && det.type === 'receipt_line_locked' && det.receipt_id) {
         const ha = await customConfirm(String(det.message || ''), {okText: 'Kirim hujjatini bekor qilish', cancelText: 'Yopish'});
         if (ha && typeof kirimHujjatiniBekorQil === 'function') await kirimHujjatiniBekorQil(det.receipt_id);
@@ -1227,19 +1226,51 @@ async function deletePurchase(id, name, qty) {
     }
   } catch(e) { invToast('❌ Xarid bekor qilinmadi: ' + await amalSababi(e)); }
 }
-// kech144 (zip 180, egasi QARORI 14.10 «Har safar so'rasin»): to'lov tanlovi bilan xaridni bekor qilish (`?tolov=ochirish|avans`)
-async function xaridniTolovBilanBekorQil(id, tolov) {
+// kech165 (zip 230): server so'ragan tanlov (409 `purchase_has_payment` — to'lov, `purchase_has_transport` — transport) — egasidan;
+// natija {tolov} / {transport} yoki null («Bekor»)
+async function xaridTanloviSora(det, sarlavha) {
+  if (det && det.type === 'purchase_has_transport') {
+    const t = await customConfirm(sarlavha, String(det.message || ''),
+      {danger: true, okText: "Transportni ham o'chirish", altText: 'Transport Moliyada qolsin', cancelText: 'Bekor'});
+    return t === true ? {transport: 'ochirish'} : (t === 'alt' ? {transport: 'qoldirish'} : null);
+  }
+  const t = await customConfirm(sarlavha, String((det && det.message) || ''),
+    {danger: true, okText: "To'lovni ham o'chirish", altText: "Ta'minotchida avans qolsin", cancelText: 'Bekor'});
+  return t === true ? {tolov: 'ochirish'} : (t === 'alt' ? {tolov: 'avans'} : null);
+}
+// kech144 (zip 180, egasi QARORI 14.10 «Har safar so'rasin»): to'lov tanlovi bilan xaridni bekor qilish (`?tolov=ochirish|avans`);
+// kech165 (zip 230): transport tanlovi ham (`&transport=ochirish|qoldirish`) — server ikkinchi savolni bersa, yana so'raladi
+async function xaridniTolovBilanBekorQil(id, tolov, transport, name) {
+  let keyingi = null;
   try {
-    const res = await fetch(`/api/inventory/purchases/${id}?tolov=${encodeURIComponent(tolov)}`, { method: 'DELETE' });
+    const q = [];
+    if (tolov) q.push('tolov=' + encodeURIComponent(tolov));
+    if (transport) q.push('transport=' + encodeURIComponent(transport));
+    const res = await fetch(`/api/inventory/purchases/${id}` + (q.length ? '?' + q.join('&') : ''), { method: 'DELETE' });
     if (res.ok) {
-      invToast(tolov === 'avans' ? "✓ Xarid bekor qilindi — to'lov ta'minotchida avans bo'lib qoldi."
-                                 : "✓ Xarid bekor qilindi — to'lovi ham o'chirildi.");
+      // review230 №4: har tanlov o'z bo'lagi bilan (ilgari «avans …, transport xarajati ham» — transport ham qolgandek o'qilardi)
+      const q2 = [];
+      if (tolov === 'avans') q2.push("to'lov ta'minotchida avans bo'lib qoldi");
+      else if (tolov === 'ochirish') q2.push("to'lovi ham o'chirildi");
+      if (transport === 'ochirish') q2.push("transport xarajati ham o'chirildi");
+      else if (transport === 'qoldirish') q2.push('transport xarajati Moliyada qoldi');
+      invToast('✓ Xarid bekor qilindi' + (q2.length ? ' — ' + q2.join('; ') : '') + '.');
       openPurchaseHistory();
       setTimeout(() => location.reload(), 600);
     } else {
-      invToast('❌ Xarid bekor qilinmadi: ' + await amalSababi(res));
+      let det = null;
+      if (res.status === 409) {
+        try { const d = await (typeof res.clone === 'function' ? res.clone() : res).json(); det = d && d.detail; } catch (e) { det = null; }
+      }
+      if (det && ((det.type === 'purchase_has_transport' && !transport) || (det.type === 'purchase_has_payment' && !tolov))) {
+        const t = await xaridTanloviSora(det, `"${name || ''}" xaridini bekor qilish`);
+        if (t) keyingi = {tolov: t.tolov || tolov, transport: t.transport || transport};
+      } else {
+        invToast('❌ Xarid bekor qilinmadi: ' + await amalSababi(res));
+      }
     }
   } catch (e) { invToast("⚠️ Bekor qilish natijasi noma'lum: " + await amalSababi(e)); }
+  if (keyingi) await xaridniTolovBilanBekorQil(id, keyingi.tolov, keyingi.transport, name);
 }
 function closePurchaseHistory() { document.getElementById('historyModal').style.display = 'none'; }
 
