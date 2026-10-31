@@ -4165,6 +4165,13 @@ async def tenant_mismatch_handler(request: Request, exc: _TenantMismatchError):
     )
 
 
+# kech166 (zip 231c): so'rovdagi buzilgan Unicode («\\ud800») bazaga yozilayotganda `UnicodeError` — 400 (avval 500 + ErrorLog);
+# ulanish `database._unicode_ulanish_xatosi` bilan hovuzdan chiqarilgan — keyingi so'rovlar buzilmaydi.
+@app.exception_handler(UnicodeError)
+async def buzilgan_unicode_handler(request: Request, exc: UnicodeError):
+    return JSONResponse(status_code=400, content={"detail": "So'rovda buzilgan belgi bor — matnni qayta yozing"})
+
+
 from starlette.exceptions import HTTPException as _StarletteHTTPException
 # kech144 (zip 178, audit T1): `async` marshrut ichidagi sinxron ish (Telegram `urlopen`, baza) — ip ichida (butun server to'xtamaydi)
 from starlette.concurrency import run_in_threadpool as _ip_ichida
@@ -11668,6 +11675,9 @@ def _dokon_bajar(db, fn):
     except crud.DokonYopiq:
         db.rollback()
         raise HTTPException(status_code=404, detail=_DOKON_YOPIQ_MATN)
+    except UnicodeError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Matnda buzilgan belgi bor — qayta yozing")
     except ValueError as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))

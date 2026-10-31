@@ -275,6 +275,22 @@ try:
 except Exception:
     pass
 
+
+# kech166 (zip 231c — sinov saytida JONLI tasdiqlandi 31.10, review231 №6; ESKI — `/api/rollar` da ham): so'rov tanasidagi juft
+# bo'lmagan surrogat («\ud800») pg8000 da UTF-8 ga o'girilmaydi — xato bayonot YUBORILAYOTGAN paytda chiqadi, ulanish protokoli
+# yarim holatda qoladi va hovuzga qaytgan ulanishda KEYINGI so'rovlar (boshqa foydalanuvchi / korxonaniki ham) 500 berardi
+# (O'LCHANGAN `work/k231c/probe231c.py`, asl: [500, 500, 500, 200 …]). Yechim: bayonot paytidagi `UnicodeError` — ulanish
+# «uzilgan» deb belgilanadi, SQLAlchemy uni hovuzdan chiqarib tashlaydi (keyingi so'rov yangi ulanish oladi).
+def _unicode_ulanish_xatosi(ctx):
+    try:
+        if isinstance(ctx.original_exception, UnicodeError):
+            ctx.is_disconnect = True
+    except Exception:
+        pass
+
+
+_event_yv.listen(_Engine_yv, "handle_error", _unicode_ulanish_xatosi)
+
 # 2026-09-19 — Faza 1: avtomatik tenant filtri (TENANT_FILTER=1 bo'lsa).
 # Modul o'zi standart holatda O'CHIQ — yoqilmaguncha hech narsa o'zgarmaydi.
 try:

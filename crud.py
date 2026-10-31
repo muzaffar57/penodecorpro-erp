@@ -21773,6 +21773,12 @@ def _dokon_toza(qiymat):
     return qiymat.translate(_DOKON_KORINMAS)
 
 
+def _dokon_surrogatsiz(qiymat, nom):
+    """zip 231c: juft bo'lmagan surrogat (buzilgan Unicode, «\\ud800») — bazaga yozib bo'lmaydi: tushunarli 400."""
+    if any(0xD800 <= ord(ch) <= 0xDFFF for ch in qiymat):
+        raise ValueError(f"«{nom}» da buzilgan belgi bor — matnni qayta yozing")
+
+
 def _dokon_matn(qiymat, nom, max_len, bosh_mumkin=False):
     """Matn maydoni: satr, NUL / ko'rinmas belgilar, chetlari va ichidagi ortiqcha bo'shliqlar tozalanadi, uzunligi tekshiriladi."""
     if qiymat is None:
@@ -21781,6 +21787,7 @@ def _dokon_matn(qiymat, nom, max_len, bosh_mumkin=False):
         raise ValueError(f"«{nom}» kiritilmagan")
     if not isinstance(qiymat, str):
         raise ValueError(f"«{nom}» matn bo'lishi kerak")
+    _dokon_surrogatsiz(qiymat, nom)
     toza = " ".join(_dokon_toza(qiymat).split())
     if not toza:
         if bosh_mumkin:
@@ -21797,6 +21804,7 @@ def _dokon_izoh(qiymat):
         return None
     if not isinstance(qiymat, str):
         raise ValueError("«Tavsif» matn bo'lishi kerak")
+    _dokon_surrogatsiz(qiymat, "Tavsif")
     toza = "\n".join(" ".join(q.split()) for q in _dokon_toza(qiymat).replace("\r\n", "\n").replace("\r", "\n").split("\n")).strip()
     if not toza:
         return None

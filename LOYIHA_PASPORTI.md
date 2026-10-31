@@ -3364,6 +3364,12 @@ qaytarar edi (korxonasiz yozuv 1-korxonaga tushardi), `M1KOD` boshqa korxonalarg
 tugagan; eski bazani o'tkazish — faqat ishga tushishda, `saas_otish`). Sinov: `tools/test_saas_marshrut.py` (asl kodda SQ 10 / 13,
 PG 16 / 21 yiqiladi, qulamaydi). Marshrut ruxsat jadvalida (`tools/test_rollar.py`) ISTISNO YO'Q — har yangi marshrut jadvalga.
 
+BUZILGAN UNICODE (kech166, zip 231c — sinov saytida JONLI tasdiqlandi, review231 №6; ESKI xulq): so'rovdagi juft bo'lmagan surrogat
+  («\\ud800») pg8000 da UTF-8 ga o'girilmaydi — xato bayonot yuborilayotganda chiqib, ulanish hovuzga buzilgan holda qaytardi va
+  keyingi so'rovlar (boshqa korxonaniki ham) 500 berardi. Endi `database._unicode_ulanish_xatosi` (Engine `handle_error`) — ulanish
+  hovuzdan chiqariladi; `main.buzilgan_unicode_handler` — 400 «So'rovda buzilgan belgi bor»; sayt katalogi matnlari oldindan
+  (`crud._dokon_surrogatsiz`). Sinov: `tools/test_unicode231c.py` (asl zip 231b — PG da 8 / 10 yiqiladi).
+
 SAYT KATALOGI (kech166, zip 231 — onlayn do'kon poydevori; egasi QARORLARI «Onlayn do'kon rejasi» 30.10, 31.10 «Onlayn do'kon»):
   do'kon katalogi va narxlari ERP ichida (Google Sheets EMAS). Belgi `companies.dokon_yoqilgan` (NULL — o'chiq; `_migrate_dokon_ustuni`,
   zaxiraga kirmaydi) — FAQAT platforma egasining korxonasida (`obuna.platforma_korxonalari`; mijoz korxonaga — 400), faqat Platforma
@@ -4836,6 +4842,9 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   TO'G'RI chiqqanlar: tahrir, nusxa, taklif, qoralama — yig'ilgan qatorlar avvalgidek; ochish / yopish / boshqa buyurtma / o'lcham
   o'zgarishi — ustunlar to'g'ri almashadi; eski UI testlari (blok211 99, ui173 40, c_telefon 53, korinish203 28, sahifalar190 206) o'tadi.
 
+- (kech166, zip 231c) Buzilgan Unicode: `tools/test_unicode231c.py` (S — tinglovchi va xato ishlovchisi; A — `/api/rollar` 400, keyingi
+  so'rovlar va B korxona 200, sayt katalogi nomi / tavsifi 400 tushunarli matn, to'g'ri Unicode saqlanadi, ErrorLog bo'sh). SQ / TF1 / PG
+  10 / 0; asl (zip 231b) PG — 8 yiqiladi, qulamaydi.
 - (kech166, zip 231) Sayt katalogi: `tools/test_sayt_katalogi231.py` (S — ustun, jadvallar, `_TENANT_REFS`, zaxira tartibi, 13 marshrut,
   menyu sharti; A — o'chiq — 404, Platforma: oddiy Admin — 403, mijoz korxona — 400, o'z korxonasi — 9 bo'lim, takrorsiz qayta yoqish,
   ro'yxatda belgi, Menejer — 403, bo'lim / model / narx qatori tekshiruvlari, tizim bo'limi qoidalari, birlik, avto qoplamali, koeffitsient,
@@ -5482,10 +5491,6 @@ qarorlari 02.10»)**
   (sof foyda o'zgarmaydi — egasiga tushuntirildi 23.10 15:54).
 
 ## 7. Ochiq masalalar
-
-- **Buzilgan Unicode (review231 №6, PAST, ESKI — zip 231 dan oldin ham, `/api/rollar` da ham):** so'rov tanasida juft bo'lmagan surrogat
-  (`\ud800`) bo'lsa PG ulanishi buziladi — keyingi bir necha so'rov (boshqa korxonaniki ham) 500 berishi mumkin. Alohida ish:
-  tana tekshiruvida surrogatni rad etish (umumiy middleware).
 
 - **Kirim oynasi — qayd (review226, PAST) — YOPILDI (kech164, zip 229):** production ma'lumotida (zaxira 31.10 00:35) O'LCHANDI —
   (1) faqat boshlang'ich ombordan iborat hujjatlarda qo'shimcha xarajat 0; (2) xarajatli hujjatlarning hammasi Moliyada bor; (3) tiyinli
@@ -7863,6 +7868,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_transport_foyda.py` · PG — kech87 darvozasi (2026-09-26, 104-band).
 - `test_u13.py` · PG — kech123, U-13 YAGONA KO'RINISH (egasi QARORI 02.10 «Avval yagona ko'rinish», `main` keyin) — HAQIQIY brauzerda (Chromium, Playwright) O'LCHANADI.
 - `test_umumiy_rang208.py` · PG — kech155 (zip 208 «Umumiy rang — Toza ko'k»; EGASI 23.10: «2 oy ishlatib bildimki, rang tanlashda o'zim xato qilgan ekanman — dasturning umumiy rangi juda bo'g'iq, charchatadi…
+- `test_unicode231c.py` · PG — kech166 (zip 231c «Buzilgan Unicode — ulanish buzilmasin»; sinov saytida JONLI tasdiqlandi 31.10, review231 №6).
 - `test_usta_oxirgi_sana.py` · PG — kech91 darvozasi (2026-09-26, 115-band): Usta KPI hisobotidagi "Oxirgi buyurtma" sanasi (`crud.get_masters_kpi_report` → `last_order_date`, `/api/masters/kpi-report`, `/mas…
 - `test_xabar_miqdorlar193.py` · PG — kech152 (zip 193): server yozadigan MATNLARDAGI miqdorlar (kg, blok, metr, dona, MB, kasrli foiz) BITTA son qoidasida.
 - `test_xabar_summalar192.py` · PG — kech151 (zip 192): server yozadigan MATNLARDAGI pul summalari BITTA son qoidasida.
@@ -7915,5 +7921,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 315 (Python 277, JS 38).
+Jami test fayllari: 316 (Python 278, JS 38).
 <!-- AVTO:TESTLAR OXIRI -->
