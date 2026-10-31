@@ -35,6 +35,7 @@
 .sk-forma label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--text2);min-width:140px;flex:1 1 140px}
 .sk-forma label.keng{flex:2 1 260px}
 .sk-forma label.tor{flex:0 1 110px;min-width:110px}
+.sk-avto{font-size:12px;color:var(--text2);margin-top:2px;white-space:nowrap}
 .sk-forma label.belgi{flex-direction:row;align-items:center;gap:6px;min-width:0;flex:0 0 auto;font-size:13px;color:var(--text)}
 .sk-forma input[type=text],.sk-forma input[type=number],.sk-forma select,.sk-forma textarea{min-height:var(--h-sm);box-sizing:border-box;padding:0 10px;
   font-size:var(--fs-maydon-sm);border:1px solid var(--border);border-radius:var(--r-btn);background:var(--white);color:var(--text);font-family:inherit;width:100%}
@@ -65,6 +66,19 @@
 .sk-yangi.ko{display:block}
 @media (max-width: 900px){
   .sk-grid{grid-template-columns:1fr}
+}
+/* Telefon (≤ 700 px): narx qatorlari — kartochka (har katak o'z yorlig'i bilan; jadval gorizontal aylantirilmaydi) */
+@media (max-width: 700px){
+  .sk-jadval{min-width:0}
+  .sk-jadval thead{display:none}
+  .sk-jadval,.sk-jadval tbody,.sk-jadval tr,.sk-jadval td{display:block;width:100%;box-sizing:border-box}
+  .sk-jadval tr{border:1px solid var(--border2);border-radius:var(--r-btn);padding:8px 10px;margin-bottom:10px}
+  .sk-jadval td{border-bottom:none;padding:4px 0;display:grid;grid-template-columns:130px minmax(0,1fr);gap:8px;align-items:center}
+  .sk-jadval td::before{content:attr(data-label);font-size:12px;color:var(--text2)}
+  .sk-jadval td:not([data-label]){grid-template-columns:1fr}
+  .sk-jadval td:not([data-label])::before{content:none}
+  .sk-jadval td.sk-bosh-td{display:none}
+  .sk-jadval .sk-avto{grid-column:2}
 }
 </style>
 {% endblock %}
@@ -214,7 +228,7 @@ function skOngChiz() {
     return;
   }
   h += '<div class="sk-yangi" id="skYangiModel"><div class="sk-forma">' +
-    '<label class="tor">Model kodi<input type="text" id="skYmKod" maxlength="30" placeholder="R-18"></label>' +
+    '<label>Model kodi<input type="text" id="skYmKod" maxlength="30" placeholder="R-18"></label>' +
     '<label class="keng">Nomi (ixtiyoriy)<input type="text" id="skYmNom" maxlength="120" placeholder="Klassik"></label>' +
     '<label>Sotish qolipi<select id="skYmQolip">' + SK.k.qoliplar.map(function (q) {
       return '<option value="' + escapeHtml(q.kod) + '"' + (q.kod === b.qolip ? ' selected' : '') + '>' + escapeHtml(q.nom) + '</option>';
@@ -242,7 +256,7 @@ function skModelHtml(m) {
     '<span class="sk-belgi">' + escapeHtml(skQolipNomi(m.qolip)) + '</span>' +
     '<span class="sk-son">' + detallar.length + ' ta narx qatori' + (narxsiz ? ' · ' + narxsiz + ' tasida narx yo\'q' : '') + '</span></button>' +
     '<div class="sk-model-tana"><div class="sk-forma">' +
-    '<label class="tor">Kodi<input type="text" data-mf="kod" maxlength="30" value="' + escapeHtml(m.kod) + '"></label>' +
+    '<label>Kodi<input type="text" data-mf="kod" maxlength="30" value="' + escapeHtml(m.kod) + '"></label>' +
     '<label class="keng">Nomi<input type="text" data-mf="nom" maxlength="120" value="' + escapeHtml(m.nom || '') + '"></label>' +
     '<label>Bo\'limi<select data-mf="bolim_id">' + boshqaBolim.map(function (b) {
       return '<option value="' + b.id + '"' + (b.id === m.bolim_id ? ' selected' : '') + '>' + escapeHtml(b.nom) + '</option>';
@@ -259,17 +273,17 @@ function skModelHtml(m) {
     '<div class="sk-jadval-quti"><table class="sk-jadval"><thead><tr><th>Detal</th><th>O\'lcham</th><th>Eni, sm</th><th>Qalinligi, sm</th>' +
     '<th>Narx (qoplamasiz)</th><th>Narx (qoplamali)</th><th>Ulgurji (qoplamasiz)</th><th>Ulgurji (qoplamali)</th><th>Ko\'rinadi</th><th></th></tr></thead><tbody>' +
     detallar.map(skDetalQator).join('') +
-    '<tr data-yangi="' + m.id + '"><td><select data-yf="turi">' + turlar.map(function (t) {
+    '<tr data-yangi="' + m.id + '"><td data-label="Detal"><select data-yf="turi">' + turlar.map(function (t) {
       return '<option value="' + escapeHtml(t) + '">' + escapeHtml(skTuriNomi(t)) + '</option>';
     }).join('') + '</select></td>' +
-    '<td><input type="text" data-yf="olcham" maxlength="40" placeholder="O\'rta / 15 sm"></td>' +
-    '<td><input type="text" inputmode="decimal" data-yf="eni_sm"></td>' +
-    '<td><input type="text" inputmode="decimal" data-yf="qalinligi_sm"></td>' +
-    '<td><input type="text" inputmode="decimal" data-yf="narx"></td>' +
-    '<td><input type="text" inputmode="decimal" data-yf="narx_qoplamali" placeholder="avto"></td>' +
-    '<td><input type="text" inputmode="decimal" data-yf="ulgurji_narx"></td>' +
-    '<td><input type="text" inputmode="decimal" data-yf="ulgurji_qoplamali" placeholder="avto"></td>' +
-    '<td></td><td><button type="button" class="btn btn-dark" data-dyarat="' + m.id + '">+</button></td></tr>' +
+    '<td data-label="O\'lcham"><input type="text" data-yf="olcham" maxlength="40" placeholder="O\'rta / 15 sm"></td>' +
+    '<td data-label="Eni, sm"><input type="text" inputmode="decimal" data-yf="eni_sm"></td>' +
+    '<td data-label="Qalinligi, sm"><input type="text" inputmode="decimal" data-yf="qalinligi_sm"></td>' +
+    '<td data-label="Narx (qoplamasiz)"><input type="text" inputmode="decimal" data-yf="narx"></td>' +
+    '<td data-label="Narx (qoplamali)"><input type="text" inputmode="decimal" data-yf="narx_qoplamali" placeholder="avto"></td>' +
+    '<td data-label="Ulgurji (qoplamasiz)"><input type="text" inputmode="decimal" data-yf="ulgurji_narx"></td>' +
+    '<td data-label="Ulgurji (qoplamali)"><input type="text" inputmode="decimal" data-yf="ulgurji_qoplamali" placeholder="avto"></td>' +
+    '<td class="sk-bosh-td"></td><td><button type="button" class="btn btn-dark" data-dyarat="' + m.id + '">+</button></td></tr>' +
     '</tbody></table></div>' +
     '<p class="sk-matn" style="margin-top:8px">Narx — ' + (m.qolip === 'komplekt' ? 'karniz, podokonnik, nalichnik uchun 1 m, kapitel va baza uchun 1 dona' :
       (m.qolip === 'm2' ? '1 m²' : (m.qolip === 'dona' ? '1 dona' : '1 m (kapitel va baza — 1 dona)'))) +
@@ -278,21 +292,24 @@ function skModelHtml(m) {
   return h;
 }
 
+function skAvtoMatn(avto) { return (avto === null || avto === undefined) ? '' : escapeHtml('avto: ' + sonKor(avto, 0)); }
+
 function skDetalQator(d) {
   function narx(k, avto) {
     return '<input type="text" inputmode="decimal" data-df="' + k + '" value="' + escapeHtml(skPul(d[k])) + '"' +
-      (avto !== undefined ? ' placeholder="' + escapeHtml(avto === null ? 'avto' : 'avto: ' + sonKor(avto, 0)) + '"' : '') + '>';
+      (avto !== undefined ? ' placeholder="avto"' : '') + '>' +
+      (avto !== undefined ? '<div class="sk-avto" data-avto="' + k + '">' + skAvtoMatn(avto) + '</div>' : '');
   }
   return '<tr data-detal="' + d.id + '"' + (d.yoqilgan ? '' : ' class="yashirin"') + '>' +
-    '<td>' + escapeHtml(d.turi_nomi) + '<div class="sk-birlik">' + escapeHtml(skBirlikMatn(d.birlik)) + ' · ulgurji ' + escapeHtml(skUlgurjiMatn(d.birlik)) + '</div></td>' +
-    '<td><input type="text" data-df="olcham" maxlength="40" value="' + escapeHtml(d.olcham) + '"></td>' +
-    '<td><input type="text" inputmode="decimal" data-df="eni_sm" value="' + escapeHtml(skPul(d.eni_sm)) + '"></td>' +
-    '<td><input type="text" inputmode="decimal" data-df="qalinligi_sm" value="' + escapeHtml(skPul(d.qalinligi_sm)) + '"></td>' +
-    '<td>' + narx('narx') + '</td>' +
-    '<td>' + narx('narx_qoplamali', d.narx_qoplamali_avto) + '</td>' +
-    '<td>' + narx('ulgurji_narx') + '</td>' +
-    '<td>' + narx('ulgurji_qoplamali', d.ulgurji_qoplamali_avto) + '</td>' +
-    '<td><input type="checkbox" data-df="yoqilgan"' + (d.yoqilgan ? ' checked' : '') + ' aria-label="Saytda ko\'rinadi"></td>' +
+    '<td data-label="Detal"><div>' + escapeHtml(d.turi_nomi) + '<div class="sk-birlik">' + escapeHtml(skBirlikMatn(d.birlik)) + ' · ulgurji ' + escapeHtml(skUlgurjiMatn(d.birlik)) + '</div></div></td>' +
+    '<td data-label="O\'lcham"><input type="text" data-df="olcham" maxlength="40" value="' + escapeHtml(d.olcham) + '"></td>' +
+    '<td data-label="Eni, sm"><input type="text" inputmode="decimal" data-df="eni_sm" value="' + escapeHtml(skPul(d.eni_sm)) + '"></td>' +
+    '<td data-label="Qalinligi, sm"><input type="text" inputmode="decimal" data-df="qalinligi_sm" value="' + escapeHtml(skPul(d.qalinligi_sm)) + '"></td>' +
+    '<td data-label="Narx (qoplamasiz)">' + narx('narx') + '</td>' +
+    '<td data-label="Narx (qoplamali)">' + narx('narx_qoplamali', d.narx_qoplamali_avto) + '</td>' +
+    '<td data-label="Ulgurji (qoplamasiz)">' + narx('ulgurji_narx') + '</td>' +
+    '<td data-label="Ulgurji (qoplamali)">' + narx('ulgurji_qoplamali', d.ulgurji_qoplamali_avto) + '</td>' +
+    '<td data-label="Ko\'rinadi"><input type="checkbox" data-df="yoqilgan"' + (d.yoqilgan ? ' checked' : '') + ' aria-label="Saytda ko\'rinadi"></td>' +
     '<td><button type="button" class="sk-x" data-dochir="' + d.id + '" title="Qatorni o\'chirish" aria-label="Qatorni o\'chirish">✕</button></td></tr>';
 }
 
@@ -528,8 +545,8 @@ async function skDetalMaydon(inp) {
     else inp.value = skPul(d[k]);
   }
   [['narx_qoplamali', d.narx_qoplamali_avto], ['ulgurji_qoplamali', d.ulgurji_qoplamali_avto]].forEach(function (j) {
-    var x = tr.querySelector('[data-df="' + j[0] + '"]');
-    if (x) x.placeholder = j[1] === null || j[1] === undefined ? 'avto' : 'avto: ' + sonKor(j[1], 0);
+    var x = tr.querySelector('[data-avto="' + j[0] + '"]');
+    if (x) x.innerHTML = skAvtoMatn(j[1]);
   });
   tr.classList.toggle('yashirin', !d.yoqilgan);
   skModelSoniYangila(d.model_id);

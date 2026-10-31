@@ -718,12 +718,12 @@ else:
             check("U3 narx qatori qo'shildi — bazada 120 000 / 200 000, birlik metr, avto qoplamali 300 000 ko'rsatildi",
                   _y and _did and xavfsiz(lambda d: (float(d.get(DokonDetal, _did).narx), float(d.get(DokonDetal, _did).ulgurji_narx),
                                                     d.get(DokonDetal, _did).birlik)) == (120000.0, 200000.0, "metr")
-                  and "300" in (pg.get_attribute(f"tr[data-detal='{_did}'] [data-df=narx_qoplamali]", "placeholder") or ""),
+                  and "300" in (pg.text_content(f"tr[data-detal='{_did}'] [data-avto=narx_qoplamali]") or ""),
                   pg.evaluate("document.querySelector('.sk-model.ochiq') && document.querySelector('.sk-model.ochiq').innerText.slice(0,400)"))
             _bas = len(SOROV)
             pg.fill(f"tr[data-detal='{_did}'] [data-df=narx]", "125 500")
             pg.press(f"tr[data-detal='{_did}'] [data-df=narx]", "Tab")
-            _y = kut(pg, f"(document.querySelector(\"tr[data-detal='{_did}'] [data-df=narx_qoplamali]\").placeholder || '').indexOf('314') >= 0")
+            _y = kut(pg, f"(document.querySelector(\"tr[data-detal='{_did}'] [data-avto=narx_qoplamali]\").textContent || '').indexOf('314') >= 0")
             check("U4 katakni o'zgartirish — PUT, bazada 125 500, avto 313 750 → 314 000 ko'rsatildi",
                   _y and xavfsiz(lambda d: float(d.get(DokonDetal, _did).narx)) == 125500.0
                   and [x for x in SOROV[_bas:] if x[0] == "PUT"] == [("PUT", API + f"/detallar/{_did}")], SOROV[_bas:])
@@ -765,6 +765,12 @@ else:
             pg.set_viewport_size({"width": 390, "height": 844})
             pg.wait_for_timeout(300)
             _toshdi = pg.evaluate("document.documentElement.scrollWidth > window.innerWidth + 1")
+            _qt = f"tr[data-detal='{_did}']"
+            check("U12 telefon (390 px) — narx qatori kartochka: yorliqli kataklar, quti ichida ham gorizontal aylanmaydi, narx katagi ko'rinadi",
+                  pg.evaluate(f"getComputedStyle(document.querySelector(\"{_qt}\")).display") == "block"
+                  and pg.evaluate("[...document.querySelectorAll('.sk-jadval-quti')].every(q => q.scrollWidth <= q.clientWidth + 1)")
+                  and pg.evaluate(f"(() => {{ const r = document.querySelector(\"{_qt} [data-df=narx]\").getBoundingClientRect(); return r.width > 80 && r.right <= window.innerWidth; }})()"),
+                  pg.evaluate("[...document.querySelectorAll('.sk-jadval-quti')].map(q => [q.scrollWidth, q.clientWidth])"))
             check("U6 telefon (390 px) — sahifa gorizontal toshmaydi (jadval o'z qutisida aylanadi)", not _toshdi,
                   pg.evaluate("[document.documentElement.scrollWidth, window.innerWidth]"))
             ctx.close()

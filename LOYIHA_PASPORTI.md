@@ -3388,7 +3388,8 @@ SAYT KATALOGI (kech166, zip 231 — onlayn do'kon poydevori; egasi QARORLARI «O
   400. O'zgarishsiz saqlash — jurnalga yozilmaydi. Sahifa `templates/sayt_katalogi.html`: narx kataklari matn (`inputmode=decimal`,
   «125 500» / «2,5» yoziladi), o'zgarishi bilan saqlanadi — javobdan keyin FAQAT shu katak va qatordagi avto narx yozuvlari
   yangilanadi (qator qayta chizilmaydi: keyingi katakdagi matn va kursor saqlanadi); saqlanayotganda katak yana o'zgarsa — tugagach oxirgi
-  qiymat yuboriladi; rad etilsa katak qizil. O'chirish (Platforma) — istalgan korxonada, yoqish — faqat egasiniki.
+  qiymat yuboriladi; rad etilsa katak qizil; avto qoplamali narx katak ostida yoziladi; telefonda (≤ 700 px) narx qatorlari — kartochka
+  (`data-label`). O'chirish (Platforma) — istalgan korxonada, yoqish — faqat egasiniki.
 
 ## 5. Testlar va darvozalar
 
@@ -4840,7 +4841,7 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   ro'yxatda belgi, Menejer — 403, bo'lim / model / narx qatori tekshiruvlari, tizim bo'limi qoidalari, birlik, avto qoplamali, koeffitsient,
   o'zgarishsiz — jurnalsiz, ikki korxona — begona yozuvga 404 / 400, qo'riqchi, zaxira → tiklash, o'chirish — ma'lumot qoladi; P (PG) —
   bir xil model / qator / bo'lim parallel — bittasi, 500 yo'q; U — sahifa, model va qator qo'shish, katak tahriri, narx 0 rad, 390 px,
-  Platforma tugmasi). SQ 126/0, TF1 126/0, PG 119/0; asl (zip 230) — 108 ta yiqiladi, qulamaydi.
+  Platforma tugmasi, sekin saqlashda matn yo'qolmaydi, telefonda kartochka). SQ 127/0, TF1 127/0, PG 119/0; asl (zip 230) — 108 ta yiqiladi, qulamaydi.
 - (kech165, zip 230) Xarid o'chirilsa transport: `tools/test_transport230.py` (S — manba; A — bog'lanish, tanlovsiz 409 — xarid / ombor /
   transport / Kassa o'zgarmaydi, `ochirish` — Kassa xariddan oldingi holatda, `qoldirish` — transport qoladi + izoh, noto'g'ri — 400, to'lov
   + transport — ikki savol ketma-ket, transportsiz / «Ta'minotchi hisobidan» — savolsiz, savat — «yana N ta», eski yozuv: topiladi / vaqt
