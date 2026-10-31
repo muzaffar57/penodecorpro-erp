@@ -3040,6 +3040,33 @@ def _migrate_platforma_obuna():
 _migrate_platforma_obuna()
 
 
+def _migrate_dokon_ustuni():
+    """kech166 (zip 231) — IDEMPOTENT, PG va SQLite: `companies.dokon_yoqilgan` (sayt katalogi belgisi). Odatda
+    `database.sync_missing_columns()` qo'shadi (NULL, standart qiymatsiz); yo'q bo'lsa shu yerda. TO'LDIRISH YO'Q: NULL —
+    o'chiq (hamma mavjud korxona avvalgidek ishlaydi; egasi Platforma panelidan o'z korxonasida yoqadi)."""
+    from sqlalchemy import text, inspect as _insp
+    from database import engine
+    try:
+        _i = _insp(engine)
+        if "companies" not in set(_i.get_table_names()):
+            return
+        if "dokon_yoqilgan" in {c["name"] for c in _i.get_columns("companies")}:
+            return
+    except Exception as e:
+        print(f"⚠ companies.dokon_yoqilgan tekshiruvi o'tkazib yuborildi: {e}")
+        return
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE companies ADD COLUMN dokon_yoqilgan BOOLEAN"))
+            conn.commit()
+        print("✓ companies.dokon_yoqilgan qo'shildi")
+    except Exception as e:
+        print(f"⚠ companies.dokon_yoqilgan qo'shilmadi: {e}")
+
+
+_migrate_dokon_ustuni()
+
+
 _YONALISH_JADVALLARI = ("employees", "expense_transactions", "transport_expenses", "inventory_receipts",
                         "product_types")
 
@@ -11619,6 +11646,198 @@ def api_set_categories(codes: str = Form(""), bosh: str = Form(""), v: str = For
 # kech117 (A2) — YO'NALISHLAR (egasi QARORLARI kech114 00:08): ro'yxat — hamma xodim (tanlovlar uchun);
 # qo'shish / nomini o'zgartirish / yashirish / o'chirish — faqat admin (Sozlamalar sahifasi).
 # ============================================================
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# kech166 (zip 231) — SAYT KATALOGI (onlayn do'kon poydevori). FAQAT Admin; korxonada belgi yoqilmagan bo'lsa — 404
+# (boshqa korxonalarga hech narsa ko'rinmaydi). Mantiq — `crud.dokon_*`. Belgi — Platforma panelidan
+# (`POST /api/platform/companies/{id}/dokon`, faqat platforma egasining korxonasi).
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+_DOKON_YOPIQ_MATN = "Sayt katalogi bu korxonada yoqilmagan"
+
+
+def _dokon_kim(current_user):
+    return current_user.full_name or current_user.username
+
+
+def _dokon_bajar(db, fn):
+    """crud chaqiruvi: `DokonYopiq` — 404, `ValueError` — 400, son o'girish xatosi / korxona qo'riqchisi — 400 (review231 №2),
+    bir vaqtda ikki marta saqlash (yagona kalit) — 409."""
+    from sqlalchemy.exc import IntegrityError as _IE
+    from models import TenantMismatchError as _TME
+    try:
+        return fn()
+    except crud.DokonYopiq:
+        db.rollback()
+        raise HTTPException(status_code=404, detail=_DOKON_YOPIQ_MATN)
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    except (ArithmeticError, _TME):
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Qiymat noto'g'ri")
+    except _IE:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Shu yozuv hozirgina boshqa oynada saqlandi — sahifani yangilang")
+
+
+def _sayt_katalogi_bormi(user):
+    """Menyu uchun: foydalanuvchi korxonasida sayt katalogi yoqilganmi. Xato bo'lsa — False (sahifa buzilmaydi)."""
+    if not user:
+        return False
+    try:
+        from database import SessionLocal as _SL
+        _d = _SL()
+        try:
+            return crud.dokon_yoqilganmi(_d, auth.company_id_of(user))
+        finally:
+            _d.close()
+    except Exception:
+        return False
+
+
+templates.env.globals["sayt_katalogi_bormi"] = _sayt_katalogi_bormi
+
+
+@app.get("/sayt-katalogi", response_class=HTMLResponse)
+def sayt_katalogi_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Sayt katalogi — bo'limlar, modellar, narxlar (oddiy / qoplamali / ulgurji)."""
+    if not crud.dokon_yoqilganmi(db, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail=_DOKON_YOPIQ_MATN)
+    return templates.TemplateResponse(request, "sayt_katalogi.html",
+                                      {"current_user": current_user, "active_page": "sayt_katalogi"})
+
+
+@app.get("/api/sayt-katalogi")
+def api_sayt_katalogi(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Butun katalog: koeffitsient, bo'limlar, modellar, detallar (narx qatorlari)."""
+    return _dokon_bajar(db, lambda: crud.dokon_katalog(db, auth.company_id_of(current_user)))
+
+
+@app.post("/api/sayt-katalogi/bolimlar")
+def api_dokon_bolim_yarat(data: dict = Body(...), db: Session = Depends(get_db),
+                          current_user=Depends(auth.admin_only)):
+    """Yangi bo'lim: {"nom", "qolip"} (+ "yoqilgan")."""
+    b = _dokon_bajar(db, lambda: crud.dokon_bolim_yarat(db, auth.company_id_of(current_user), data,
+                                                       _dokon_kim(current_user)))
+    return crud.dokon_bolim_dict(b)
+
+
+@app.put("/api/sayt-katalogi/bolimlar/{bolim_id}")
+def api_dokon_bolim_yangila(data: dict = Body(...), bolim_id: int = _Path213(..., ge=1, le=2_147_483_647),
+                            db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Bo'limni tahrirlash: "nom", "qolip" (oddiy, bo'sh bo'lim), "tartib", "yoqilgan"."""
+    b = _dokon_bajar(db, lambda: crud.dokon_bolim_yangila(db, bolim_id, auth.company_id_of(current_user), data,
+                                                         _dokon_kim(current_user)))
+    if b is None:
+        raise HTTPException(status_code=404, detail="Bo'lim topilmadi")
+    return crud.dokon_bolim_dict(b)
+
+
+@app.delete("/api/sayt-katalogi/bolimlar/{bolim_id}")
+def api_dokon_bolim_ochir(bolim_id: int = _Path213(..., ge=1, le=2_147_483_647), db: Session = Depends(get_db),
+                          current_user=Depends(auth.admin_only)):
+    """Bo'sh oddiy bo'limni o'chiradi (tizim bo'limi / modellari bor — 400)."""
+    ok = _dokon_bajar(db, lambda: crud.dokon_bolim_ochir(db, bolim_id, auth.company_id_of(current_user),
+                                                        _dokon_kim(current_user)))
+    if ok is None:
+        raise HTTPException(status_code=404, detail="Bo'lim topilmadi")
+    return {"status": "ok"}
+
+
+@app.post("/api/sayt-katalogi/modellar")
+def api_dokon_model_yarat(data: dict = Body(...), db: Session = Depends(get_db),
+                          current_user=Depends(auth.admin_only)):
+    """Yangi model: {"bolim_id", "kod"} (+ "nom", "tavsif", "qolip", "kapitel_baza_bor", "yoqilgan")."""
+    m = _dokon_bajar(db, lambda: crud.dokon_model_yarat(db, auth.company_id_of(current_user), data,
+                                                       _dokon_kim(current_user)))
+    return crud.dokon_model_dict(m)
+
+
+@app.put("/api/sayt-katalogi/modellar/{model_id}")
+def api_dokon_model_yangila(data: dict = Body(...), model_id: int = _Path213(..., ge=1, le=2_147_483_647),
+                            db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Modelni tahrirlash (qolip o'zgarsa — detallar birligi ham)."""
+    m = _dokon_bajar(db, lambda: crud.dokon_model_yangila(db, model_id, auth.company_id_of(current_user), data,
+                                                         _dokon_kim(current_user)))
+    if m is None:
+        raise HTTPException(status_code=404, detail="Model topilmadi")
+    return crud.dokon_model_dict(m)
+
+
+@app.delete("/api/sayt-katalogi/modellar/{model_id}")
+def api_dokon_model_ochir(model_id: int = _Path213(..., ge=1, le=2_147_483_647), db: Session = Depends(get_db),
+                          current_user=Depends(auth.admin_only)):
+    """Modelni narx qatorlari bilan o'chiradi."""
+    ok = _dokon_bajar(db, lambda: crud.dokon_model_ochir(db, model_id, auth.company_id_of(current_user),
+                                                        _dokon_kim(current_user)))
+    if ok is None:
+        raise HTTPException(status_code=404, detail="Model topilmadi")
+    return {"status": "ok"}
+
+
+@app.post("/api/sayt-katalogi/detallar")
+def api_dokon_detal_yarat(data: dict = Body(...), db: Session = Depends(get_db),
+                          current_user=Depends(auth.admin_only)):
+    """Modelga narx qatori: {"model_id", "turi", "olcham"} + o'lcham sonlari va narxlar."""
+    cid = auth.company_id_of(current_user)
+    d = _dokon_bajar(db, lambda: crud.dokon_detal_yarat(db, cid, data, _dokon_kim(current_user)))
+    return crud.dokon_detal_dict(d, crud.dokon_koeff(db, cid))
+
+
+@app.put("/api/sayt-katalogi/detallar/{detal_id}")
+def api_dokon_detal_yangila(data: dict = Body(...), detal_id: int = _Path213(..., ge=1, le=2_147_483_647),
+                            db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Narx qatorini tahrirlash (o'lcham, eni / qalinligi, narxlar, tartib, yoqilgan)."""
+    cid = auth.company_id_of(current_user)
+    d = _dokon_bajar(db, lambda: crud.dokon_detal_yangila(db, detal_id, cid, data, _dokon_kim(current_user)))
+    if d is None:
+        raise HTTPException(status_code=404, detail="Narx qatori topilmadi")
+    return crud.dokon_detal_dict(d, crud.dokon_koeff(db, cid))
+
+
+@app.delete("/api/sayt-katalogi/detallar/{detal_id}")
+def api_dokon_detal_ochir(detal_id: int = _Path213(..., ge=1, le=2_147_483_647), db: Session = Depends(get_db),
+                          current_user=Depends(auth.admin_only)):
+    ok = _dokon_bajar(db, lambda: crud.dokon_detal_ochir(db, detal_id, auth.company_id_of(current_user),
+                                                        _dokon_kim(current_user)))
+    if ok is None:
+        raise HTTPException(status_code=404, detail="Narx qatori topilmadi")
+    return {"status": "ok"}
+
+
+@app.put("/api/sayt-katalogi/koeff")
+def api_dokon_koeff(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Qoplama koeffitsienti: {"koeff": 1 … 10}. Faqat qoplamali narxi bo'sh qatorlarga ta'sir qiladi."""
+    _dokon_bajar(db, lambda: crud.dokon_tekshir(db, auth.company_id_of(current_user)))    # o'chiq korxona — avval 404
+    if not isinstance(data, dict) or set(data) != {"koeff"}:
+        raise HTTPException(status_code=400, detail="Faqat 'koeff' yuboriladi")
+    k = _dokon_bajar(db, lambda: crud.dokon_koeff_saqla(db, auth.company_id_of(current_user), data.get("koeff"),
+                                                       _dokon_kim(current_user)))
+    return {"koeff": float(k)}
+
+
+@app.post("/api/platform/companies/{company_id}/dokon")
+def api_platform_dokon(company_id: int = _Path213(..., ge=1, le=2_147_483_647), yoqilgan: str = Form(...),
+                       db: Session = Depends(get_db), current_user=Depends(auth.platform_admin_only)):
+    """kech166 (zip 231): sayt katalogini (onlayn do'kon) yoqish — FAQAT platforma egasining korxonasida (mijoz korxonaga — 400),
+    o'chirish — istalgan korxonada (egasi platforma adminini yo'qotsa ham o'chirib bo'lsin). Birinchi yoqilganda standart 9 bo'lim
+    yaratiladi; o'chirishda ma'lumot o'chmaydi. Ikki oynadan bir vaqtda — korxona qulfi, yagona kalit — 409."""
+    if yoqilgan not in ("1", "0"):
+        raise HTTPException(status_code=400, detail="yoqilgan: 1 yoki 0")
+    from sqlalchemy.exc import IntegrityError as _IE
+    c = _platforma_korxonasi(db, company_id)
+    try:
+        natija = crud.dokon_belgila(db, c, yoqilgan == "1", _platforma_kim(current_user),
+                                    _obuna.platforma_korxonalari(db))
+        db.commit()
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    except _IE:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Hozirgina boshqa oynada saqlandi — sahifani yangilang")
+    return {"status": "ok", **natija}
+
+
 @app.get("/api/yonalishlar")
 def api_yonalishlar(hammasi: bool = False, db: Session = Depends(get_db),
                     current_user=Depends(auth.all_staff)):

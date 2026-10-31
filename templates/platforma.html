@@ -200,6 +200,8 @@
     ketadi; muddat tugagach 3 kun imtiyoz, so'ng kirish avtomatik yopiladi (ma'lumot o'chmaydi).
     <span id="plEgaIzoh"></span>
   </div>
+  {# kech166 (zip 231): sayt katalogi (onlayn do'kon) — FAQAT o'z korxonangizda (server ham faqat platforma egasining korxonasiga ruxsat beradi) #}
+  <div class="pl-izoh" id="plDokon" hidden></div>
 
   <div class="card" id="mpKarta">
     <div class="card-head" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
@@ -373,6 +375,49 @@ function plKorxonaXatoChiz(e) {             // korxonalar ro'yxati yuklanmadi �
   });
   yukRoyxatXato('plKartalar', yukXatoMatn('Mijoz korxonalar', e));
   document.getElementById('plEgaIzoh').textContent = '';
+  plDokonChiz([]);
+}
+
+// kech166 (zip 231): o'z korxonasida sayt katalogi (onlayn do'kon) — yoqish / o'chirish. Mijoz korxonalarda bu tugma yo'q.
+function plDokonChiz(ega) {
+  var el = document.getElementById('plDokon');
+  if (!el) return;
+  if (!ega || !ega.length) { el.hidden = true; el.innerHTML = ''; return; }
+  el.hidden = false;
+  el.innerHTML = ega.map(function (r) {
+    var yoq = !!r.dokon_yoqilgan;
+    return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px">🛒 Sayt katalogi (onlayn do\'kon) — ' +
+      escapeHtml(r.name || '') + ': <b>' + (yoq ? 'yoqilgan' : 'o\'chiq') + '</b>' +
+      '<button type="button" class="pl-btn' + (yoq ? ' shaffof' : ' yashil') + '" data-dokon="' + r.id + '" data-yoq="' + (yoq ? '0' : '1') + '">' +
+      (yoq ? 'O\'chirish' : 'Yoqish') + '</button></div>';
+  }).join('');
+  el.querySelectorAll('[data-dokon]').forEach(function (t) {
+    t.addEventListener('click', function () { plDokonBelgila(parseInt(t.dataset.dokon, 10), t.dataset.yoq); });
+  });
+}
+
+async function plDokonBelgila(id, yoq) {
+  var r = (PL.royxat || []).filter(function (x) { return x.id === id; })[0];
+  if (!r) return;
+  var izoh = yoq === '1'
+    ? 'Menyuda «Sayt katalogi» bo\'limi paydo bo\'ladi (faqat Admin uchun). Birinchi marta yoqilganda standart 9 ta bo\'lim yaratiladi.'
+    : 'Menyudan «Sayt katalogi» yo\'qoladi. Kiritilgan bo\'limlar, modellar va narxlar O\'CHMAYDI — qayta yoqilsa joyida turadi.';
+  var ok = await customConfirm('Sayt katalogi ' + (yoq === '1' ? 'yoqilsinmi?' : 'o\'chirilsinmi?'), izoh,
+                              {okText: yoq === '1' ? 'Yoqish' : 'O\'chirish'});
+  if (!ok || PL.band) return;
+  PL.band = true;
+  try {
+    var fd = new FormData();
+    fd.append('yoqilgan', yoq);
+    var res;
+    try { res = await fetch('/api/platform/companies/' + id + '/dokon', {method: 'POST', body: fd}); }
+    catch (e) { showMsg('Saqlanmadi: ' + await amalSababi(e), 'error'); return; }
+    if (!res.ok) { showMsg('Saqlanmadi: ' + await amalSababi(res), 'error'); return; }
+    var d = await res.json();
+    showMsg(d.dokon_yoqilgan ? 'Sayt katalogi yoqildi' + (d.yaratilgan_bolimlar ? ' — ' + d.yaratilgan_bolimlar + ' ta bo\'lim yaratildi' : '')
+                             : 'Sayt katalogi o\'chirildi', 'success');
+    plYukla();
+  } finally { PL.band = false; }
 }
 
 function plChizish() {
@@ -401,6 +446,7 @@ function plChizish() {
   document.getElementById('plEgaIzoh').textContent = ega.length
     ? 'O\'z korxonangiz (' + ega.map(function (r) { return r.name; }).join(', ') + ') bu ro\'yxatda ko\'rinmaydi — u muddatsiz va bloklanmaydi.'
     : '';
+  plDokonChiz(ega);
   var sel = document.getElementById('xtKorxona'), tanlangan = sel.value;
   var variantlar = [['', 'Hammasi'], ['platforma', 'Platforma (korxonasiz)']].concat(
     PL.royxat.map(function (r) { return [String(r.id), r.name || '']; }));

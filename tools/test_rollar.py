@@ -391,6 +391,13 @@ ESKI = {
 }
 # Rollar sahifasi va API (kech118) — FAQAT Admin (topshirilmaydi)
 YANGI_MARSHRUTLAR = {
+    # kech166 (zip 231): sayt katalogi — FAQAT Admin (korxonada belgi yoqilmagan bo'lsa 404); belgi — platforma admini
+    "GET /sayt-katalogi": "A", "GET /api/sayt-katalogi": "A", "POST /api/sayt-katalogi/bolimlar": "A",
+    "PUT /api/sayt-katalogi/bolimlar/{bolim_id}": "A", "DELETE /api/sayt-katalogi/bolimlar/{bolim_id}": "A",
+    "POST /api/sayt-katalogi/modellar": "A", "PUT /api/sayt-katalogi/modellar/{model_id}": "A",
+    "DELETE /api/sayt-katalogi/modellar/{model_id}": "A", "POST /api/sayt-katalogi/detallar": "A",
+    "PUT /api/sayt-katalogi/detallar/{detal_id}": "A", "DELETE /api/sayt-katalogi/detallar/{detal_id}": "A",
+    "PUT /api/sayt-katalogi/koeff": "A", "POST /api/platform/companies/{company_id}/dokon": "PLAT",
     "GET /rollar": "A", "GET /api/rollar": "A", "POST /api/rollar": "A", "PUT /api/rollar/{rol_id}": "A",
     "DELETE /api/rollar/{rol_id}": "A", "POST /api/rollar/{rol_id}/andoza": "A", "PUT /api/users/{user_id}/rol": "A",
     # kech118 (D-1, G5-11): TM «Kam» chegarasi — «Tayyor mahsulotlar: Tahrirlash» (PUT /api/finished/{fp_id} bilan bir xil)

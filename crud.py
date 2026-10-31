@@ -11238,6 +11238,7 @@ def _reset_table_order():
         ErrorLog, LoginHistory, CompanySetting, RecurringObligation, Inventory,
         Yonalish, BrakTaqdir, Taklif, HodimIshDavri, BuyurtmaTuzatish, AmalKaliti,
         PulHisobi, PulHisobiQoldiq, PulOtkazmasi,
+        DokonDetal, DokonModel, DokonBolim,
     )
     return [
         ProductionOrder,
@@ -11273,6 +11274,8 @@ def _reset_table_order():
         CompanySetting, RecurringObligation,
         # kech144 (zip 174): amal kalitlari — faqat korxonaga ishora qiladi, ularga hech kim ishora qilmaydi
         AmalKaliti,
+        # kech166 (zip 231): sayt katalogi — narx qatori modeldan, model bo'limdan OLDIN o'chiriladi (tiklashda teskari)
+        DokonDetal, DokonModel, DokonBolim,
     ]
 
 
@@ -21698,3 +21701,746 @@ def taklif_buyurtma_shakli(t) -> dict:
         "items": items,
         "_taklif": taklif_korinish(t),
     }
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# kech166 (zip 231) — SAYT KATALOGI (onlayn do'kon poydevori)
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# Egasi QARORLARI («Onlayn do'kon rejasi», 30.10; 31.10 — «Onlayn do'kon»): do'kon katalogi va narxlari ERP ichida turadi
+# (Google Sheets EMAS); do'kon FAQAT PenoDecorPro uchun — SaaS mijozlariga ta'sir qilmaydi. Texnik qarorlar (Claude, kech166):
+#   * belgi `companies.dokon_yoqilgan` — FAQAT platforma egasining korxonasida yoqiladi (`obuna.platforma_korxonalari`),
+#     faqat Platforma panelidan; o'chiq korxonada sahifa va API — 404 (boshqa korxonalarning ishi o'zgarmaydi);
+#   * sahifa va API — FAQAT Admin (ulgurji narxlar — maxfiy; rolga topshiriladigan band qo'shilmadi — Rollar sahifasi
+#     boshqa korxonalarda o'zgarmasin);
+#   * uch jadval (bo'lim → model → detal), har birida o'z `company_id`; narx — `Numeric(12, 2)`, NULL — «kiritilmagan»
+#     (0 — rad: saytda bepul ko'rinardi); qoplamali narx bo'sh bo'lsa — qoplamasiz × koeffitsient (1 000 so'mga yaxlitlab);
+#   * birlik serverda aniqlanadi (kapitel / baza — dona; qolgani — modelning sotish qolipidan).
+import math                                             # noqa: E402
+from decimal import Decimal, ROUND_HALF_UP              # noqa: E402
+
+DOKON_QOPLAMA_KOEFF_KALIT = "dokon_qoplama_koeff"
+DOKON_QOPLAMA_KOEFF_STANDART = Decimal("2")
+DOKON_NARX_MAX = Decimal("9999999999.99")
+DOKON_QOLIP_NOMI = {
+    "komplekt": "Komplekt (rom va eshik)",
+    "juft_metr": "Juft metr (2, 4, 6 m)",
+    "butun_metr": "Butun metr (1, 3, 5 m ham)",
+    "dona": "Dona",
+    "m2": "m² (butun panelga yaxlitlanadi)",
+}
+DOKON_TIZIM_NOMI = {
+    "tayyor": "Tayyor mahsulotlar (ombordan)",
+    "oz_olcham": "O'z o'lchamingiz bilan (rom modellaridan)",
+    "ulgurji": "Ulgurji (faqat magazinlar)",
+}
+DOKON_TURI_NOMI = {
+    "asosiy": "Asosiy",
+    "karniz": "Rom karnizi",
+    "podokonnik": "Podokonnik",
+    "nalichnik": "Nalichnik",
+    "kapitel": "Kapitel",
+    "baza": "Baza",
+}
+DOKON_KOMPLEKT_TURLARI = ("karniz", "podokonnik", "nalichnik", "kapitel", "baza")
+DOKON_ODDIY_TURLARI = ("asosiy", "kapitel", "baza")
+# Texnik qaror (Claude, review231 №5): kapitel / baza — faqat komplekt, pilyastr (juft metr) va dumaloq ustun (butun metr) da;
+# termopanel (m²) va dekor (dona) da yo'q (rejada ham yo'q).
+DOKON_KB_QOLIPLARI = ("komplekt", "juft_metr", "butun_metr")
+# Egasi tasdiqlagan tartib (rejadagi «Bo'limlar tartibi», 30.10): (nom, qolip, tizim kaliti)
+DOKON_STANDART_BOLIMLAR = (
+    ("Tayyor mahsulotlar", None, "tayyor"),
+    ("Rom va eshik dekorlari", "komplekt", None),
+    ("Karnizlar", "juft_metr", None),
+    ("Ustunlar va pilyastrlar", "juft_metr", None),
+    ("Termopanel", "m2", None),
+    ("Rustlar va burchak toshlari", "butun_metr", None),
+    ("Dekor elementlar", "dona", None),
+    ("O'z o'lchamingiz bilan", None, "oz_olcham"),
+    ("Ulgurji", None, "ulgurji"),
+)
+
+
+class DokonYopiq(Exception):
+    """Sayt katalogi shu korxonada yoqilmagan — marshrut 404 beradi."""
+
+
+_DOKON_KORINMAS = dict.fromkeys(map(ord, "\x00\u200b\u200c\u200d\u200e\u200f\u2060\ufeff\u202a\u202b\u202c\u202d\u202e"
+                                         "\u2066\u2067\u2068\u2069\u00ad"), None)
+
+
+def _dokon_toza(qiymat):
+    """review231 №3 / №5: NUL (PG da 500) va ko'rinmas belgilar (nol kenglikdagi bo'shliq, yo'nalish belgilari) olib tashlanadi."""
+    return qiymat.translate(_DOKON_KORINMAS)
+
+
+def _dokon_matn(qiymat, nom, max_len, bosh_mumkin=False):
+    """Matn maydoni: satr, NUL / ko'rinmas belgilar, chetlari va ichidagi ortiqcha bo'shliqlar tozalanadi, uzunligi tekshiriladi."""
+    if qiymat is None:
+        if bosh_mumkin:
+            return None
+        raise ValueError(f"«{nom}» kiritilmagan")
+    if not isinstance(qiymat, str):
+        raise ValueError(f"«{nom}» matn bo'lishi kerak")
+    toza = " ".join(_dokon_toza(qiymat).split())
+    if not toza:
+        if bosh_mumkin:
+            return None
+        raise ValueError(f"«{nom}» bo'sh bo'lmasin")
+    if len(toza) > max_len:
+        raise ValueError(f"«{nom}» {max_len} belgidan oshmasin")
+    return toza
+
+
+def _dokon_izoh(qiymat):
+    """Tavsif — ko'p qatorli matn (qatorlar saqlanadi), 2 000 belgigacha; bo'sh — None."""
+    if qiymat is None:
+        return None
+    if not isinstance(qiymat, str):
+        raise ValueError("«Tavsif» matn bo'lishi kerak")
+    toza = "\n".join(" ".join(q.split()) for q in _dokon_toza(qiymat).replace("\r\n", "\n").replace("\r", "\n").split("\n")).strip()
+    if not toza:
+        return None
+    if len(toza) > 2000:
+        raise ValueError("«Tavsif» 2 000 belgidan oshmasin")
+    return toza
+
+
+def _dokon_bool(qiymat, nom):
+    if not isinstance(qiymat, bool):
+        raise ValueError(f"«{nom}» true yoki false bo'lishi kerak")
+    return qiymat
+
+
+def _dokon_butun(qiymat, nom, kichik=0, katta=100000):
+    if isinstance(qiymat, bool) or not isinstance(qiymat, int):
+        raise ValueError(f"«{nom}» butun son bo'lishi kerak")
+    if qiymat < kichik or qiymat > katta:
+        raise ValueError(f"«{nom}» {kichik} … {katta} oralig'ida bo'lsin")
+    return qiymat
+
+
+def _dokon_narx(qiymat, nom):
+    """Narx: son yoki null (kiritilmagan). NaN / cheksiz / manfiy / 0 / juda katta — rad (kech157, zip 216 qoidasi).
+    2 xonaga HALF_UP (bazadagi `Numeric(12, 2)`)."""
+    if qiymat is None:
+        return None
+    if isinstance(qiymat, bool) or not isinstance(qiymat, (int, float)):
+        raise ValueError(f"«{nom}» son bo'lishi kerak")
+    if isinstance(qiymat, float) and not math.isfinite(qiymat):
+        raise ValueError(f"«{nom}» noto'g'ri son")
+    if abs(qiymat) > DOKON_NARX_MAX:                    # review231 №2: 1e26 / 10**400 — quantize / float dan OLDIN (500 emas)
+        raise ValueError(f"«{nom}» juda katta")
+    d = Decimal(str(qiymat)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    if d <= 0:
+        raise ValueError(f"«{nom}» 0 dan katta bo'lsin (narx hali bo'lmasa — bo'sh qoldiring)")
+    if d > DOKON_NARX_MAX:
+        raise ValueError(f"«{nom}» juda katta")
+    return d
+
+
+def _dokon_olcham_son(qiymat, nom):
+    """Eni / qalinligi (sm): son yoki null, 0 < x ≤ 1 000."""
+    if qiymat is None:
+        return None
+    if isinstance(qiymat, bool) or not isinstance(qiymat, (int, float)):
+        raise ValueError(f"«{nom}» son bo'lishi kerak")
+    if isinstance(qiymat, int) and abs(qiymat) > 1000:  # review231 №2: 10**400 — float() OverflowError bermasin
+        raise ValueError(f"«{nom}» 0 dan katta va 1 000 sm dan oshmasin")
+    x = float(qiymat)
+    if not math.isfinite(x) or x <= 0 or x > 1000:
+        raise ValueError(f"«{nom}» 0 dan katta va 1 000 sm dan oshmasin")
+    return round(x, 2)
+
+
+def _dokon_kalitlar(data, ruxsat):
+    if not isinstance(data, dict):
+        raise ValueError("Noto'g'ri so'rov")
+    notogri = sorted(str(k)[:40] for k in data if k not in ruxsat)
+    if notogri:
+        raise ValueError("Bu maydonni yuborib bo'lmaydi: " + ", ".join(notogri[:10]))
+
+
+def dokon_yoqilganmi(db: Session, company_id: int) -> bool:
+    """Korxonada sayt katalogi yoqilganmi (NULL / False — yo'q)."""
+    from production_models import Company as _Co
+    if not company_id:
+        return False
+    row = db.query(_Co.dokon_yoqilgan).filter(_Co.id == company_id).first()
+    return bool(row and row[0])
+
+
+def dokon_tekshir(db: Session, company_id: int):
+    if not dokon_yoqilganmi(db, company_id):
+        raise DokonYopiq()
+
+
+def dokon_koeff(db: Session, company_id: int) -> Decimal:
+    """Qoplama koeffitsienti (qoplamali narx bo'sh bo'lsa — qoplamasiz × shu). Noto'g'ri qiymat — standart 2."""
+    from models import CompanySetting
+    row = (db.query(CompanySetting.value)
+           .filter(CompanySetting.company_id == company_id, CompanySetting.key == DOKON_QOPLAMA_KOEFF_KALIT).first())
+    try:
+        k = Decimal(str(row[0])) if row and row[0] is not None else DOKON_QOPLAMA_KOEFF_STANDART
+    except Exception:                                    # noqa: BLE001
+        return DOKON_QOPLAMA_KOEFF_STANDART
+    if not k.is_finite() or k < 1 or k > 10:
+        return DOKON_QOPLAMA_KOEFF_STANDART
+    return k
+
+
+def dokon_avto_qoplamali(narx, koeff):
+    """Qoplamasiz narx × koeffitsient — 1 000 so'mga yaxlitlangan (egasi QARORI 30.10: formula narxlari 1 000 gacha)."""
+    if narx is None:
+        return None
+    asl = Decimal(str(narx)) * Decimal(str(koeff))
+    x = (asl / Decimal("1000")).quantize(Decimal("1"), rounding=ROUND_HALF_UP) * Decimal("1000")
+    if x <= 0:                                          # review231 №5: 100 × 2 = 200 → 0 — «bepul» bo'lib qolmasin
+        return asl.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    return x
+
+
+def _dokon_pul(x):
+    return None if x is None else float(x)
+
+
+def dokon_bolim_dict(b):
+    return {"id": b.id, "nom": b.nom, "qolip": b.qolip, "tizim_kaliti": b.tizim_kaliti, "tartib": b.tartib or 0,
+            "yoqilgan": bool(b.yoqilgan),
+            "qolip_nomi": DOKON_TIZIM_NOMI.get(b.tizim_kaliti) if b.tizim_kaliti else DOKON_QOLIP_NOMI.get(b.qolip)}
+
+
+def dokon_model_dict(m):
+    return {"id": m.id, "bolim_id": m.bolim_id, "kod": m.kod, "nom": m.nom, "tavsif": m.tavsif, "qolip": m.qolip,
+            "kapitel_baza_bor": bool(m.kapitel_baza_bor), "tartib": m.tartib or 0, "yoqilgan": bool(m.yoqilgan)}
+
+
+def dokon_detal_dict(d, koeff):
+    return {"id": d.id, "model_id": d.model_id, "turi": d.turi, "turi_nomi": DOKON_TURI_NOMI.get(d.turi, d.turi),
+            "olcham": d.olcham, "eni_sm": d.eni_sm, "qalinligi_sm": d.qalinligi_sm, "birlik": d.birlik,
+            "narx": _dokon_pul(d.narx), "narx_qoplamali": _dokon_pul(d.narx_qoplamali),
+            "narx_qoplamali_avto": _dokon_pul(dokon_avto_qoplamali(d.narx, koeff)) if d.narx_qoplamali is None else None,
+            "ulgurji_narx": _dokon_pul(d.ulgurji_narx), "ulgurji_qoplamali": _dokon_pul(d.ulgurji_qoplamali),
+            "ulgurji_qoplamali_avto": (_dokon_pul(dokon_avto_qoplamali(d.ulgurji_narx, koeff))
+                                       if d.ulgurji_qoplamali is None else None),
+            "tartib": d.tartib or 0, "yoqilgan": bool(d.yoqilgan)}
+
+
+def _dokon_bolim_of(db, bolim_id, company_id, lock=False):
+    from models import DokonBolim
+    if isinstance(bolim_id, bool) or not isinstance(bolim_id, int) or not (1 <= bolim_id <= 2_147_483_647):
+        return None
+    q = db.query(DokonBolim).filter(DokonBolim.id == bolim_id, DokonBolim.company_id == company_id)
+    if lock:
+        db.flush()
+        q = q.populate_existing().with_for_update()
+    return q.first()
+
+
+def _dokon_model_of(db, model_id, company_id, lock=False):
+    from models import DokonModel
+    if isinstance(model_id, bool) or not isinstance(model_id, int) or not (1 <= model_id <= 2_147_483_647):
+        return None
+    q = db.query(DokonModel).filter(DokonModel.id == model_id, DokonModel.company_id == company_id)
+    if lock:
+        db.flush()
+        q = q.populate_existing().with_for_update()
+    return q.first()
+
+
+def _dokon_detal_of(db, detal_id, company_id, lock=False):
+    from models import DokonDetal
+    if isinstance(detal_id, bool) or not isinstance(detal_id, int) or not (1 <= detal_id <= 2_147_483_647):
+        return None
+    q = db.query(DokonDetal).filter(DokonDetal.id == detal_id, DokonDetal.company_id == company_id)
+    if lock:
+        db.flush()
+        q = q.populate_existing().with_for_update()
+    return q.first()
+
+
+def _dokon_bolimlarni_yarat(db, company_id, kim):
+    """Standart 9 bo'lim — korxonada bo'lim umuman yo'q bo'lsa (birinchi yoqilganda). Qayta yoqishda tegilmaydi."""
+    from models import DokonBolim
+    bor = db.query(DokonBolim.id).filter(DokonBolim.company_id == company_id).first()
+    if bor:
+        return 0
+    for i, (nom, qolip, tizim) in enumerate(DOKON_STANDART_BOLIMLAR, start=1):
+        db.add(DokonBolim(company_id=company_id, nom=nom, qolip=qolip, tizim_kaliti=tizim, tartib=i, yoqilgan=True,
+                          updated_by=kim))
+    db.flush()
+    return len(DOKON_STANDART_BOLIMLAR)
+
+
+def dokon_belgila(db: Session, company, yoqilsin: bool, kim: str, egalar) -> dict:
+    """Platforma paneli: korxonada sayt katalogini yoqish / o'chirish. FAQAT platforma egasining korxonasi (`egalar`) —
+    boshqasi `ValueError`. O'chirishda ma'lumot O'CHMAYDI (qayta yoqilsa — o'sha holicha). Amal korxona jurnaliga
+    yoziladi (chaqiruvchi commit qiladi)."""
+    if not isinstance(yoqilsin, bool):
+        raise ValueError("Noto'g'ri qiymat")
+    _dokon_korxona_qulf(db, company.id)                 # review231 №5: ikki oynadan bir vaqtda yoqish — 500 emas
+    db.refresh(company)
+    if yoqilsin and company.id not in set(egalar or ()):
+        raise ValueError("Sayt katalogi faqat platforma egasining korxonasida yoqiladi — mijoz korxonalarga do'kon "
+                         "ulanmaydi")
+    eski = bool(company.dokon_yoqilgan)
+    yaratildi = 0
+    if yoqilsin:
+        yaratildi = _dokon_bolimlarni_yarat(db, company.id, kim)
+    if eski == yoqilsin:
+        return {"dokon_yoqilgan": eski, "ozgardi": False, "yaratilgan_bolimlar": yaratildi}
+    company.dokon_yoqilgan = yoqilsin
+    log_activity(db, "updated", "company", company.id, "Sayt katalogi (onlayn do'kon)", kim,
+                 old_value="Yoqilgan" if eski else "O'chiq", new_value="Yoqilgan" if yoqilsin else "O'chiq",
+                 company_id=company.id, commit=False)
+    return {"dokon_yoqilgan": yoqilsin, "ozgardi": True, "yaratilgan_bolimlar": yaratildi}
+
+
+def dokon_katalog(db: Session, company_id: int) -> dict:
+    """Sahifa uchun butun katalog: bo'limlar, modellar, detallar (tartib bo'yicha) va koeffitsient."""
+    from models import DokonBolim, DokonModel, DokonDetal
+    dokon_tekshir(db, company_id)
+    koeff = dokon_koeff(db, company_id)
+    bolimlar = (db.query(DokonBolim).filter(DokonBolim.company_id == company_id)
+                .order_by(DokonBolim.tartib, DokonBolim.id).all())
+    modellar = (db.query(DokonModel).filter(DokonModel.company_id == company_id)
+                .order_by(DokonModel.tartib, DokonModel.id).all())
+    detallar = (db.query(DokonDetal).filter(DokonDetal.company_id == company_id)
+                .order_by(DokonDetal.model_id, DokonDetal.tartib, DokonDetal.id).all())
+    return {"koeff": float(koeff), "koeff_standart": float(DOKON_QOPLAMA_KOEFF_STANDART),
+            "qoliplar": [{"kod": k, "nom": v} for k, v in DOKON_QOLIP_NOMI.items()],
+            "turlar": [{"kod": k, "nom": v} for k, v in DOKON_TURI_NOMI.items()],
+            "komplekt_turlari": list(DOKON_KOMPLEKT_TURLARI), "oddiy_turlari": list(DOKON_ODDIY_TURLARI),
+            "bolimlar": [dokon_bolim_dict(b) for b in bolimlar],
+            "modellar": [dokon_model_dict(m) for m in modellar],
+            "detallar": [dokon_detal_dict(d, koeff) for d in detallar]}
+
+
+def _dokon_oxirgi_tartib(db, ustun, *shartlar):
+    from sqlalchemy import func as _f
+    return int(db.query(_f.max(ustun)).filter(*shartlar).scalar() or 0)
+
+
+# ── Bo'limlar ──────────────────────────────────────────────────────────────────────────────────────────────────────────
+def _dokon_korxona_qulf(db, company_id):
+    """Bo'lim nomi tekshiruvi bir vaqtda ikki so'rovda o'tib ketmasin (nom — katta / kichik harfsiz yagona; bazada indeks yo'q):
+    korxona qatori qulflanadi (PG — FOR UPDATE; SQLite — yozish baribir ketma-ket)."""
+    from production_models import Company as _Co
+    db.flush()
+    db.query(_Co.id).filter(_Co.id == company_id).with_for_update().first()
+
+
+def _dokon_bolim_nomi_bandmi(db, company_id, nom, istisno_id=None):
+    """Katta / kichik harfsiz (Python `casefold` — SQLite `lower()` faqat lotin harflarini kichraytiradi, review231 №5)."""
+    from models import DokonBolim
+    k = nom.casefold()
+    rows = db.query(DokonBolim.id, DokonBolim.nom).filter(DokonBolim.company_id == company_id).all()
+    return any(r[1].casefold() == k and r[0] != istisno_id for r in rows)
+
+
+def dokon_bolim_yarat(db: Session, company_id: int, data: dict, kim: str):
+    """Yangi bo'lim: {"nom", "qolip"} (+ ixtiyoriy "yoqilgan"). Tizim bo'limi yaratilmaydi."""
+    from models import DokonBolim
+    dokon_tekshir(db, company_id)
+    _dokon_kalitlar(data, ("nom", "qolip", "yoqilgan"))
+    nom = _dokon_matn(data.get("nom"), "Bo'lim nomi", 80)
+    qolip = data.get("qolip")
+    if qolip not in DOKON_QOLIP_NOMI:
+        raise ValueError("Sotish qolipi tanlanmagan: " + ", ".join(DOKON_QOLIP_NOMI.values()))
+    yoqilgan = _dokon_bool(data.get("yoqilgan", True), "Yoqilgan")
+    _dokon_korxona_qulf(db, company_id)
+    if _dokon_bolim_nomi_bandmi(db, company_id, nom):
+        raise ValueError(f"«{nom}» nomli bo'lim allaqachon bor")
+    tartib = _dokon_oxirgi_tartib(db, DokonBolim.tartib, DokonBolim.company_id == company_id) + 1
+    b = DokonBolim(company_id=company_id, nom=nom, qolip=qolip, tizim_kaliti=None, tartib=tartib, yoqilgan=yoqilgan,
+                   updated_by=kim)
+    db.add(b)
+    db.flush()
+    log_activity(db, "created", "dokon_bolim", b.id, f"Sayt bo'limi «{b.nom}»", kim,
+                 new_value=DOKON_QOLIP_NOMI[qolip], company_id=company_id, commit=False)
+    db.commit()
+    db.refresh(b)
+    return b
+
+
+def dokon_bolim_yangila(db: Session, bolim_id: int, company_id: int, data: dict, kim: str):
+    """Nomi, qolipi (faqat oddiy bo'lim, modellari yo'q bo'lsa), tartibi, yoqilgan. Topilmasa — None."""
+    from models import DokonModel
+    dokon_tekshir(db, company_id)
+    _dokon_kalitlar(data, ("nom", "qolip", "tartib", "yoqilgan"))
+    b = _dokon_bolim_of(db, bolim_id, company_id, lock=True)
+    if b is None:
+        return None
+    eski = (b.nom, b.qolip, b.tartib, bool(b.yoqilgan))
+    if "nom" in data:
+        nom = _dokon_matn(data["nom"], "Bo'lim nomi", 80)
+        _dokon_korxona_qulf(db, company_id)
+        if _dokon_bolim_nomi_bandmi(db, company_id, nom, istisno_id=b.id):
+            raise ValueError(f"«{nom}» nomli bo'lim allaqachon bor")
+        b.nom = nom
+    if "qolip" in data:
+        if b.tizim_kaliti:
+            raise ValueError("Bu tizim bo'limi — uning sotish qolipi o'zgarmaydi (faqat nomi, tartibi va yoqilganligi)")
+        if data["qolip"] not in DOKON_QOLIP_NOMI:
+            raise ValueError("Sotish qolipi noto'g'ri")
+        if data["qolip"] != b.qolip:
+            bor = (db.query(DokonModel.id)
+                   .filter(DokonModel.company_id == company_id, DokonModel.bolim_id == b.id).first())
+            if bor:
+                raise ValueError("Bo'limda modellar bor — qolipni har bir modelning o'zida o'zgartiring")
+            b.qolip = data["qolip"]
+    if "tartib" in data:
+        b.tartib = _dokon_butun(data["tartib"], "Tartib", 0, 10000)
+    if "yoqilgan" in data:
+        b.yoqilgan = _dokon_bool(data["yoqilgan"], "Yoqilgan")
+    yangi = (b.nom, b.qolip, b.tartib, bool(b.yoqilgan))
+    if yangi == eski:
+        db.rollback()
+        return b
+    b.updated_by = kim
+    b.updated_at = datetime.utcnow()
+    log_activity(db, "updated", "dokon_bolim", b.id, f"Sayt bo'limi «{b.nom}»", kim,
+                 old_value=_dokon_bolim_matni(eski), new_value=_dokon_bolim_matni(yangi), company_id=company_id,
+                 commit=False)
+    db.commit()
+    db.refresh(b)
+    return b
+
+
+def _dokon_bolim_matni(t):
+    nom, qolip, tartib, yoq = t
+    return f"{nom}; {DOKON_QOLIP_NOMI.get(qolip, 'tizim')}; tartib {tartib}; {'yoqilgan' if yoq else 'yashirin'}"
+
+
+def dokon_bolim_ochir(db: Session, bolim_id: int, company_id: int, kim: str):
+    """Bo'sh oddiy bo'limni o'chiradi. Tizim bo'limi yoki modellari bor bo'lim — `ValueError`. Topilmasa — None."""
+    from models import DokonModel
+    dokon_tekshir(db, company_id)
+    b = _dokon_bolim_of(db, bolim_id, company_id, lock=True)
+    if b is None:
+        return None
+    if b.tizim_kaliti:
+        raise ValueError("Tizim bo'limi o'chirilmaydi — kerak bo'lmasa yashiring")
+    soni = (db.query(DokonModel.id).filter(DokonModel.company_id == company_id, DokonModel.bolim_id == b.id).count())
+    if soni:
+        raise ValueError(f"Bo'limda {soni} ta model bor — avval ularni boshqa bo'limga o'tkazing yoki o'chiring")
+    log_activity(db, "deleted", "dokon_bolim", b.id, f"Sayt bo'limi «{b.nom}»", kim, company_id=company_id,
+                 commit=False)
+    db.delete(b)
+    db.commit()
+    return True
+
+
+# ── Modellar ───────────────────────────────────────────────────────────────────────────────────────────────────────────
+def _dokon_kod(qiymat):
+    kod = _dokon_matn(qiymat, "Model kodi", 30).upper()
+    if len(kod) > 30:                                   # review231 №5: «ß» × 16 → katta harfda 32 belgi (PG 500 edi)
+        raise ValueError("«Model kodi» 30 belgidan oshmasin")
+    return kod
+
+
+def _dokon_kod_bandmi(db, company_id, kod, istisno_id=None):
+    """Kod katta harfda saqlanadi; solishtirish — Python `casefold` (SQLite da lotin bo'lmagan harflar ham)."""
+    from models import DokonModel
+    k = kod.casefold()
+    rows = db.query(DokonModel.id, DokonModel.kod).filter(DokonModel.company_id == company_id).all()
+    return any(r[1].casefold() == k and r[0] != istisno_id for r in rows)
+
+
+def _dokon_oddiy_bolim(db, bolim_id, company_id):
+    b = _dokon_bolim_of(db, bolim_id, company_id, lock=True)
+    if b is None:
+        raise ValueError("Bo'lim topilmadi")
+    if b.tizim_kaliti:
+        raise ValueError(f"«{b.nom}» — tizim bo'limi: u boshqa bo'limlardan o'zi yig'iladi, unga model qo'shilmaydi")
+    return b
+
+
+def _dokon_birlik(qolip, turi):
+    if turi in ("kapitel", "baza"):
+        return "dona"
+    return {"komplekt": "metr", "juft_metr": "metr", "butun_metr": "metr", "dona": "dona", "m2": "m2"}[qolip]
+
+
+def _dokon_turi_mosmi(qolip, turi):
+    if turi in ("kapitel", "baza") and qolip not in DOKON_KB_QOLIPLARI:
+        return False
+    return turi in (DOKON_KOMPLEKT_TURLARI if qolip == "komplekt" else DOKON_ODDIY_TURLARI)
+
+
+def _dokon_kb_tekshir(qolip, kb):
+    if kb and qolip not in DOKON_KB_QOLIPLARI:
+        raise ValueError(f"{DOKON_QOLIP_NOMI[qolip]} modelida kapitel va baza bo'lmaydi")
+
+
+def dokon_model_yarat(db: Session, company_id: int, data: dict, kim: str):
+    """Yangi model: {"bolim_id", "kod"} + ixtiyoriy "nom", "tavsif", "qolip" (standart — bo'limniki),
+    "kapitel_baza_bor", "yoqilgan"."""
+    from models import DokonModel
+    dokon_tekshir(db, company_id)
+    _dokon_kalitlar(data, ("bolim_id", "kod", "nom", "tavsif", "qolip", "kapitel_baza_bor", "yoqilgan"))
+    b = _dokon_oddiy_bolim(db, data.get("bolim_id"), company_id)
+    kod = _dokon_kod(data.get("kod"))
+    nom = _dokon_matn(data.get("nom"), "Model nomi", 120, bosh_mumkin=True)
+    tavsif = _dokon_izoh(data.get("tavsif"))
+    qolip = data.get("qolip", b.qolip)
+    if qolip not in DOKON_QOLIP_NOMI:
+        raise ValueError("Sotish qolipi noto'g'ri")
+    kb = _dokon_bool(data.get("kapitel_baza_bor", False), "Kapitel va baza bor")
+    _dokon_kb_tekshir(qolip, kb)
+    yoqilgan = _dokon_bool(data.get("yoqilgan", True), "Yoqilgan")
+    if _dokon_kod_bandmi(db, company_id, kod):
+        raise ValueError(f"«{kod}» kodli model allaqachon bor")
+    tartib = _dokon_oxirgi_tartib(db, DokonModel.tartib, DokonModel.company_id == company_id,
+                                  DokonModel.bolim_id == b.id) + 1
+    m = DokonModel(company_id=company_id, bolim_id=b.id, kod=kod, nom=nom, tavsif=tavsif, qolip=qolip,
+                   kapitel_baza_bor=kb, tartib=tartib, yoqilgan=yoqilgan, updated_by=kim)
+    db.add(m)
+    db.flush()
+    log_activity(db, "created", "dokon_model", m.id, f"Sayt modeli {m.kod}", kim,
+                 new_value=f"{b.nom}; {DOKON_QOLIP_NOMI[qolip]}", company_id=company_id, commit=False)
+    db.commit()
+    db.refresh(m)
+    return m
+
+
+def dokon_model_yangila(db: Session, model_id: int, company_id: int, data: dict, kim: str):
+    """Kodi, nomi, tavsifi, bo'limi, qolipi, kapitel / baza, tartibi, yoqilgan. Qolip o'zgarsa — detallar birligi
+    yangilanadi (detal turi yangi qolipga mos bo'lmasa — rad). Topilmasa — None."""
+    from models import DokonDetal
+    dokon_tekshir(db, company_id)
+    _dokon_kalitlar(data, ("bolim_id", "kod", "nom", "tavsif", "qolip", "kapitel_baza_bor", "tartib", "yoqilgan"))
+    m = _dokon_model_of(db, model_id, company_id, lock=True)
+    if m is None:
+        return None
+    eski = (m.bolim_id, m.kod, m.nom, m.tavsif, m.qolip, bool(m.kapitel_baza_bor), m.tartib, bool(m.yoqilgan))
+    if "bolim_id" in data and data["bolim_id"] != m.bolim_id:
+        m.bolim_id = _dokon_oddiy_bolim(db, data["bolim_id"], company_id).id
+    if "kod" in data:
+        kod = _dokon_kod(data["kod"])
+        if _dokon_kod_bandmi(db, company_id, kod, istisno_id=m.id):
+            raise ValueError(f"«{kod}» kodli model allaqachon bor")
+        m.kod = kod
+    if "nom" in data:
+        m.nom = _dokon_matn(data["nom"], "Model nomi", 120, bosh_mumkin=True)
+    if "tavsif" in data:
+        m.tavsif = _dokon_izoh(data["tavsif"])
+    detallar = (db.query(DokonDetal).filter(DokonDetal.company_id == company_id, DokonDetal.model_id == m.id).all())
+    if "qolip" in data and data["qolip"] != m.qolip:
+        if data["qolip"] not in DOKON_QOLIP_NOMI:
+            raise ValueError("Sotish qolipi noto'g'ri")
+        mos_emas = sorted({DOKON_TURI_NOMI[d.turi] for d in detallar if not _dokon_turi_mosmi(data["qolip"], d.turi)})
+        if mos_emas:
+            raise ValueError("Yangi qolipga mos kelmaydigan detallar bor: " + ", ".join(mos_emas) +
+                             " — avval ularni o'chiring")
+        m.qolip = data["qolip"]
+        for d in detallar:
+            d.birlik = _dokon_birlik(m.qolip, d.turi)
+    if "kapitel_baza_bor" in data:
+        kb = _dokon_bool(data["kapitel_baza_bor"], "Kapitel va baza bor")
+        if not kb and any(d.turi in ("kapitel", "baza") for d in detallar):
+            raise ValueError("Modelda kapitel / baza narxlari bor — avval ularni o'chiring")
+        m.kapitel_baza_bor = kb
+    _dokon_kb_tekshir(m.qolip, bool(m.kapitel_baza_bor))
+    if "tartib" in data:
+        m.tartib = _dokon_butun(data["tartib"], "Tartib", 0, 10000)
+    if "yoqilgan" in data:
+        m.yoqilgan = _dokon_bool(data["yoqilgan"], "Yoqilgan")
+    yangi = (m.bolim_id, m.kod, m.nom, m.tavsif, m.qolip, bool(m.kapitel_baza_bor), m.tartib, bool(m.yoqilgan))
+    if yangi == eski:
+        db.rollback()
+        return m
+    m.updated_by = kim
+    m.updated_at = datetime.utcnow()
+    farq = [n for n, a, y in zip(("bo'lim", "kod", "nom", "tavsif", "qolip", "kapitel/baza", "tartib", "yoqilgan"),
+                                 eski, yangi) if a != y]
+    log_activity(db, "updated", "dokon_model", m.id, f"Sayt modeli {m.kod}", kim,
+                 old_value=f"{eski[1]}; {DOKON_QOLIP_NOMI.get(eski[4])}",
+                 new_value=f"{m.kod}; {DOKON_QOLIP_NOMI.get(m.qolip)}; o'zgardi: {', '.join(farq)}",
+                 company_id=company_id, commit=False)
+    db.commit()
+    db.refresh(m)
+    return m
+
+
+def dokon_model_ochir(db: Session, model_id: int, company_id: int, kim: str):
+    """Modelni va uning detal (narx) qatorlarini o'chiradi. Topilmasa — None."""
+    from models import DokonDetal
+    dokon_tekshir(db, company_id)
+    m = _dokon_model_of(db, model_id, company_id, lock=True)
+    if m is None:
+        return None
+    detallar = (db.query(DokonDetal).filter(DokonDetal.company_id == company_id, DokonDetal.model_id == m.id).all())
+    log_activity(db, "deleted", "dokon_model", m.id, f"Sayt modeli {m.kod}", kim,
+                 old_value=f"{len(detallar)} ta narx qatori", company_id=company_id, commit=False)
+    for d in detallar:
+        db.delete(d)
+    db.flush()
+    db.delete(m)
+    db.commit()
+    return True
+
+
+# ── Detallar (narx qatorlari) ──────────────────────────────────────────────────────────────────────────────────────────
+_DOKON_DETAL_KALITLARI = ("turi", "olcham", "eni_sm", "qalinligi_sm", "narx", "narx_qoplamali", "ulgurji_narx",
+                          "ulgurji_qoplamali", "tartib", "yoqilgan")
+_DOKON_NARX_NOMI = {"narx": "Narx (qoplamasiz)", "narx_qoplamali": "Narx (qoplamali)",
+                    "ulgurji_narx": "Ulgurji narx (qoplamasiz)", "ulgurji_qoplamali": "Ulgurji narx (qoplamali)"}
+
+
+def _dokon_detal_band(db, company_id, model_id, turi, olcham, istisno_id=None):
+    """Modelda shu turi × o'lcham bormi (katta / kichik harfsiz, Python `casefold`)."""
+    from models import DokonDetal
+    k = olcham.casefold()
+    rows = (db.query(DokonDetal.id, DokonDetal.olcham)
+            .filter(DokonDetal.company_id == company_id, DokonDetal.model_id == model_id, DokonDetal.turi == turi).all())
+    return any(r[1].casefold() == k and r[0] != istisno_id for r in rows)
+
+
+def _dokon_detal_matni(d):
+    """Jurnal matni. ULGURJI narx raqamlari YOZILMAYDI (review231 №1 YUQORI): «Tizim jurnallari» rolga topshiriladigan `jurnal`
+    ruxsati bilan ochiladi — ulgurji narx esa faqat Admin uchun. Ulgurji narx bor / yo'qligi va o'zgargani — raqamsiz."""
+    qism = [DOKON_TURI_NOMI.get(d.turi, d.turi), d.olcham]
+    for k in ("narx", "narx_qoplamali"):
+        v = getattr(d, k)
+        qism.append(f"{_DOKON_NARX_NOMI[k]}: {audit_son(v, 0) if v is not None else '—'}")
+    ulg = [k for k in ("ulgurji_narx", "ulgurji_qoplamali") if getattr(d, k) is not None]
+    qism.append("ulgurji narx: " + ("kiritilgan" if ulg else "—"))
+    if not d.yoqilgan:
+        qism.append("yashirin")
+    return "; ".join(qism)
+
+
+def dokon_detal_yarat(db: Session, company_id: int, data: dict, kim: str):
+    """Modelga narx qatori: {"model_id", "turi", "olcham"} + o'lcham sonlari, narxlar (null — kiritilmagan)."""
+    from models import DokonDetal
+    dokon_tekshir(db, company_id)
+    _dokon_kalitlar(data, ("model_id",) + _DOKON_DETAL_KALITLARI)
+    m = _dokon_model_of(db, data.get("model_id"), company_id, lock=True)
+    if m is None:
+        raise ValueError("Model topilmadi")
+    turi = data.get("turi")
+    if turi not in DOKON_TURI_NOMI:
+        raise ValueError("Detal turi noto'g'ri")
+    if not _dokon_turi_mosmi(m.qolip, turi):
+        ruxsat = DOKON_KOMPLEKT_TURLARI if m.qolip == "komplekt" else DOKON_ODDIY_TURLARI
+        raise ValueError(f"{DOKON_QOLIP_NOMI[m.qolip]} modelida detal turi: " +
+                         ", ".join(DOKON_TURI_NOMI[t] for t in ruxsat))
+    if turi in ("kapitel", "baza") and not m.kapitel_baza_bor:
+        raise ValueError("Bu modelda kapitel va baza yo'q — avval modelda «Kapitel va baza bor» ni belgilang")
+    olcham = _dokon_matn(data.get("olcham"), "O'lcham", 40)
+    if _dokon_detal_band(db, company_id, m.id, turi, olcham):
+        raise ValueError(f"{m.kod}: «{DOKON_TURI_NOMI[turi]} — {olcham}» qatori allaqachon bor")
+    d = DokonDetal(company_id=company_id, model_id=m.id, turi=turi, olcham=olcham,
+                   eni_sm=_dokon_olcham_son(data.get("eni_sm"), "Eni"),
+                   qalinligi_sm=_dokon_olcham_son(data.get("qalinligi_sm"), "Qalinligi"),
+                   birlik=_dokon_birlik(m.qolip, turi),
+                   tartib=(_dokon_butun(data["tartib"], "Tartib", 0, 10000) if "tartib" in data else
+                           _dokon_oxirgi_tartib(db, DokonDetal.tartib, DokonDetal.company_id == company_id,
+                                                DokonDetal.model_id == m.id) + 1),
+                   yoqilgan=_dokon_bool(data.get("yoqilgan", True), "Yoqilgan"), updated_by=kim)
+    for k in _DOKON_NARX_NOMI:
+        setattr(d, k, _dokon_narx(data.get(k), _DOKON_NARX_NOMI[k]))
+    db.add(d)
+    db.flush()
+    log_activity(db, "created", "dokon_detal", d.id, f"Sayt narxi {m.kod}", kim, new_value=_dokon_detal_matni(d),
+                 company_id=company_id, commit=False)
+    db.commit()
+    db.refresh(d)
+    return d
+
+
+def dokon_detal_yangila(db: Session, detal_id: int, company_id: int, data: dict, kim: str):
+    """Narx qatorini tahrirlash (turi o'zgarmaydi — yangi qator qo'shiladi). Topilmasa — None."""
+    from models import DokonModel
+    dokon_tekshir(db, company_id)
+    _dokon_kalitlar(data, tuple(k for k in _DOKON_DETAL_KALITLARI if k != "turi"))
+    d = _dokon_detal_of(db, detal_id, company_id, lock=True)
+    if d is None:
+        return None
+    m = (db.query(DokonModel).filter(DokonModel.id == d.model_id, DokonModel.company_id == company_id).first())
+    eski = _dokon_detal_matni(d)
+    eski_q = (d.olcham, d.eni_sm, d.qalinligi_sm, d.narx, d.narx_qoplamali, d.ulgurji_narx, d.ulgurji_qoplamali,
+              d.tartib, bool(d.yoqilgan))
+    if "olcham" in data:
+        olcham = _dokon_matn(data["olcham"], "O'lcham", 40)
+        _dokon_model_of(db, d.model_id, company_id, lock=True)
+        if _dokon_detal_band(db, company_id, d.model_id, d.turi, olcham, istisno_id=d.id):
+            raise ValueError(f"«{DOKON_TURI_NOMI[d.turi]} — {olcham}» qatori allaqachon bor")
+        d.olcham = olcham
+    if "eni_sm" in data:
+        d.eni_sm = _dokon_olcham_son(data["eni_sm"], "Eni")
+    if "qalinligi_sm" in data:
+        d.qalinligi_sm = _dokon_olcham_son(data["qalinligi_sm"], "Qalinligi")
+    for k in _DOKON_NARX_NOMI:
+        if k in data:
+            setattr(d, k, _dokon_narx(data[k], _DOKON_NARX_NOMI[k]))
+    if "tartib" in data:
+        d.tartib = _dokon_butun(data["tartib"], "Tartib", 0, 10000)
+    if "yoqilgan" in data:
+        d.yoqilgan = _dokon_bool(data["yoqilgan"], "Yoqilgan")
+    yangi_q = (d.olcham, d.eni_sm, d.qalinligi_sm, d.narx, d.narx_qoplamali, d.ulgurji_narx, d.ulgurji_qoplamali,
+               d.tartib, bool(d.yoqilgan))
+    if _dokon_qiymatlar(yangi_q) == _dokon_qiymatlar(eski_q):
+        db.rollback()
+        return d
+    d.updated_by = kim
+    d.updated_at = datetime.utcnow()
+    _ulg = ("; ulgurji narx o'zgardi" if _dokon_qiymatlar(eski_q[5:7]) != _dokon_qiymatlar(yangi_q[5:7]) else "")
+    log_activity(db, "updated", "dokon_detal", d.id, f"Sayt narxi {m.kod if m else d.model_id}", kim,
+                 old_value=eski, new_value=_dokon_detal_matni(d) + _ulg, company_id=company_id, commit=False)
+    db.commit()
+    db.refresh(d)
+    return d
+
+
+def _dokon_qiymatlar(t):
+    """Solishtirish uchun: Decimal / float / None — bir xil ko'rinishda (bazadan o'qilgan Decimal('100.00') == 100)."""
+    out = []
+    for x in t:
+        if isinstance(x, (Decimal, float)) and not isinstance(x, bool):
+            out.append(Decimal(str(x)).quantize(Decimal("0.01")))
+        else:
+            out.append(x)
+    return tuple(out)
+
+
+def dokon_detal_ochir(db: Session, detal_id: int, company_id: int, kim: str):
+    from models import DokonModel
+    dokon_tekshir(db, company_id)
+    d = _dokon_detal_of(db, detal_id, company_id, lock=True)
+    if d is None:
+        return None
+    m = (db.query(DokonModel).filter(DokonModel.id == d.model_id, DokonModel.company_id == company_id).first())
+    log_activity(db, "deleted", "dokon_detal", d.id, f"Sayt narxi {m.kod if m else d.model_id}", kim,
+                 old_value=_dokon_detal_matni(d), company_id=company_id, commit=False)
+    db.delete(d)
+    db.commit()
+    return True
+
+
+def dokon_koeff_saqla(db: Session, company_id: int, qiymat, kim: str) -> Decimal:
+    """Qoplama koeffitsienti: 1 … 10, 2 xonagacha. Faqat bo'sh qoldirilgan qoplamali narxlarga ta'sir qiladi."""
+    from models import CompanySetting
+    dokon_tekshir(db, company_id)
+    if isinstance(qiymat, bool) or not isinstance(qiymat, (int, float)):
+        raise ValueError("Koeffitsient son bo'lishi kerak")
+    if isinstance(qiymat, float) and not math.isfinite(qiymat):
+        raise ValueError("Koeffitsient noto'g'ri")
+    if abs(qiymat) > 1000:                              # review231 №2
+        raise ValueError("Koeffitsient 1 dan 10 gacha bo'lsin")
+    k = Decimal(str(qiymat)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    if k < 1 or k > 10:
+        raise ValueError("Koeffitsient 1 dan 10 gacha bo'lsin")
+    eski = dokon_koeff(db, company_id)
+    if k == eski:
+        return eski
+    row = (db.query(CompanySetting)
+           .filter(CompanySetting.company_id == company_id, CompanySetting.key == DOKON_QOPLAMA_KOEFF_KALIT).first())
+    if row:
+        row.value = str(k)
+    else:
+        db.add(CompanySetting(company_id=company_id, key=DOKON_QOPLAMA_KOEFF_KALIT, value=str(k)))
+    log_activity(db, "updated", "company_setting", company_id, "Sayt katalogi — qoplama koeffitsienti", kim,
+                 old_value=audit_son(eski, 2), new_value=audit_son(k, 2), company_id=company_id, commit=False)
+    db.commit()
+    return k

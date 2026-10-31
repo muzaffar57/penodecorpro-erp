@@ -538,6 +538,7 @@ def korxonalar_royxati(db, kun=None):
             "buyurtma_jami": int(jami.get(c.id, 0) or 0),
             "oxirgi_kirish": oxirgi.isoformat() if oxirgi else None,
             "platforma_egasi": c.id in egalar,
+            "dokon_yoqilgan": bool(getattr(c, "dokon_yoqilgan", None)),       # kech166 (zip 231)
             "blok_izoh": getattr(c, "blok_izoh", None),
             "holat": holat_json(h),
         })

@@ -2852,6 +2852,88 @@ class MonthlyExpense(Base):
         return f"<MonthlyExpense {self.year}/{self.month}>"
 
 
+
+# ============================================================
+# kech166 (zip 231) — SAYT KATALOGI (onlayn do'kon poydevori)
+# ============================================================
+# Egasi QARORI («Onlayn do'kon rejasi», 30.10): do'kon katalogi va narxlari ERP ichida. Faqat platforma egasining
+# korxonasida, Platforma panelidan yoqilganda (`companies.dokon_yoqilgan`). Uch jadval, har birida o'z `company_id`
+# (ildiz jadvallar): bo'lim → model → detal (narx qatori); bog'lamlar `_TENANT_REFS` da (begona korxona bo'limi /
+# modeliga ulanmaydi). Mantiq — `crud.dokon_*`.
+
+class DokonBolim(Base):
+    """Sayt bo'limi (Karnizlar, Termopanel …). `tizim_kaliti` — tayyor / oz_olcham / ulgurji: boshqa bo'limlardan
+    yig'iladi (qolipi yo'q, o'chirilmaydi, model qo'shilmaydi). `qolip` — crud.DOKON_QOLIP_NOMI kalitlaridan."""
+    __tablename__ = "dokon_bolimlar"
+    __table_args__ = (UniqueConstraint("company_id", "tizim_kaliti", name="uq_dokon_bolim_tizim"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    nom = Column(String(80), nullable=False)
+    qolip = Column(String(20), nullable=True)
+    tizim_kaliti = Column(String(20), nullable=True)
+    tartib = Column(Integer, default=0, nullable=False)
+    yoqilgan = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+    updated_by = Column(String(100), nullable=True)
+
+    def __repr__(self):
+        return f"<DokonBolim {self.id} {self.nom}>"
+
+
+class DokonModel(Base):
+    """Sayt modeli (masalan «R-18 Klassik»). Kod korxonada yagona (katta harfda saqlanadi). `qolip` — sotish qolipi
+    (standart — bo'limniki; «Ustunlar va pilyastrlar» da pilyastr — juft metr, dumaloq ustun — butun metr)."""
+    __tablename__ = "dokon_modellar"
+    __table_args__ = (UniqueConstraint("company_id", "kod", name="uq_dokon_model_kod"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    bolim_id = Column(Integer, ForeignKey("dokon_bolimlar.id"), nullable=False, index=True)
+    kod = Column(String(30), nullable=False)
+    nom = Column(String(120), nullable=True)
+    tavsif = Column(Text, nullable=True)
+    qolip = Column(String(20), nullable=False)
+    kapitel_baza_bor = Column(Boolean, default=False, nullable=False)
+    tartib = Column(Integer, default=0, nullable=False)
+    yoqilgan = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+    updated_by = Column(String(100), nullable=True)
+
+    def __repr__(self):
+        return f"<DokonModel {self.id} {self.kod}>"
+
+
+class DokonDetal(Base):
+    """Model narx qatori: detal turi (asosiy / karniz / podokonnik / nalichnik / kapitel / baza) × o'lcham.
+    Narxlar — `Numeric(12, 2)`, NULL — kiritilmagan; qoplamali NULL — qoplamasiz × koeffitsient. `birlik` — serverda
+    (kapitel / baza — dona, qolgani — model qolipidan: metr / dona / m2). Ulgurji narx: metrli detal — 1 dona (2 m),
+    m² — 1 m², dona — 1 dona."""
+    __tablename__ = "dokon_detallar"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    model_id = Column(Integer, ForeignKey("dokon_modellar.id"), nullable=False, index=True)
+    turi = Column(String(20), nullable=False)
+    olcham = Column(String(40), nullable=False)
+    eni_sm = Column(Float, nullable=True)
+    qalinligi_sm = Column(Float, nullable=True)
+    birlik = Column(String(10), nullable=False)
+    narx = Column(Numeric(12, 2), nullable=True)
+    narx_qoplamali = Column(Numeric(12, 2), nullable=True)
+    ulgurji_narx = Column(Numeric(12, 2), nullable=True)
+    ulgurji_qoplamali = Column(Numeric(12, 2), nullable=True)
+    tartib = Column(Integer, default=0, nullable=False)
+    yoqilgan = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+    updated_by = Column(String(100), nullable=True)
+
+    def __repr__(self):
+        return f"<DokonDetal {self.id} {self.turi} {self.olcham}>"
+
 # ============================================================
 # Helper funksiyalar
 # ============================================================
@@ -3090,6 +3172,9 @@ _TENANT_REFS = {
     "ExpenseTransaction":          [("yonalish_id", "Yonalish"), ("hisob_id", "PulHisobi")],
     "TransportExpense":            [("yonalish_id", "Yonalish"), ("hisob_id", "PulHisobi")],
     "ProductType":                 [("yonalish_id", "Yonalish")],
+    # kech166 (zip 231): sayt katalogi — model FAQAT o'z korxonasining bo'limiga, narx qatori — o'z modeliga
+    "DokonModel":                  [("bolim_id", "DokonBolim")],
+    "DokonDetal":                  [("model_id", "DokonModel")],
 }
 
 

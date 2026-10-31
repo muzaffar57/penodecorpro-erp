@@ -1381,6 +1381,13 @@ function kichikRasm(url) {
         <span class="n-txt">Sozlamalar</span>
       </a>
       {% endif %}
+      {# kech166 (zip 231): sayt katalogi — FAQAT Admin va korxonada belgi yoqilgan bo'lsa (sahifa qorovuli bilan AYNAN) #}
+      {% if m_admin and sayt_katalogi_bormi(current_user) %}
+      <a href="/sayt-katalogi" class="nav-item {% if active_page == 'sayt_katalogi' %}active{% endif %}">
+        <i class="ti ti-shopping-cart n-ico"></i>
+        <span class="n-txt">Sayt katalogi</span>
+      </a>
+      {% endif %}
       {# kech111 — platforma paneli (mijoz korxonalar, obuna, bloklash) — FAQAT platforma admini #}
       {% if current_user.is_platform_admin %}
       {% set _mj_pl = murojaat_soni(current_user) %}
