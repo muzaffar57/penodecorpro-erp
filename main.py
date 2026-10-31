@@ -6243,7 +6243,8 @@ def api_purchase_stock(item_id: int, data: dict = Body(...), db: Session = Depen
                         notes=f"{item.item_name} xaridi bilan birga",
                         hisob=data.hisob,                   # kech155 (zip 210)
                     ),
-                    created_by=who, company_id=auth.company_id_of(current_user)
+                    created_by=who, company_id=auth.company_id_of(current_user),
+                    purchase_id=result["purchase"].id      # kech165 (zip 230): xarid o'chirilsa — egasidan so'raladi
                 )
 
             # Hoziroq to'langan summa bo'lsa — darhol to'lov sifatida yoziladi (qarzdan ayiriladi)
@@ -7462,7 +7463,7 @@ def api_update_purchase(purchase_id: int, data: dict = Body(...), db: Session = 
 
 @app.delete("/api/inventory/purchases/{purchase_id}")
 def api_delete_purchase(purchase_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kirim", "ochirish")),
-                        tolov: Optional[str] = None):
+                        tolov: Optional[str] = None, transport: Optional[str] = None):
     """Xarid yozuvini o'chirish — ham OMBORdan miqdorni qaytaradi, ham pul oqimidan olib tashlaydi (to'liq bekor qilish)."""
     # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.purchase_of_company(db, purchase_id, auth.company_id_of(current_user)):
@@ -7505,9 +7506,12 @@ def api_delete_purchase(purchase_id: int, db: Session = Depends(get_db), current
                         raise HTTPException(status_code=404, detail="Topilmadi")
                 return {"status": "ok", "receipt_cancelled": _r132.id}
     # kech144 (zip 180, egasi QARORI «Har safar so'rasin», audit B5): «hoziroq to'langan» to'lovi bor — 409 `purchase_has_payment`
-    # (hech narsa o'zgarmaydi), UI so'raydi va `?tolov=ochirish|avans` bilan qayta yuboradi
+    # (hech narsa o'zgarmaydi), UI so'raydi va `?tolov=ochirish|avans` bilan qayta yuboradi.
+    # kech165 (zip 230, egasi QARORI 31.10 «Har safar so'rasin»): «O'z hisobimdan» transporti bor — 409 `purchase_has_transport`,
+    # UI so'raydi va `?transport=ochirish|qoldirish` bilan qayta yuboradi (to'lov savoli birinchi)
     try:
-        _ochdi180 = crud.delete_purchase(db, purchase_id, company_id=auth.company_id_of(current_user), tolov=tolov)
+        _ochdi180 = crud.delete_purchase(db, purchase_id, company_id=auth.company_id_of(current_user), tolov=tolov,
+                                         transport=transport)
     except crud.XaridTolovTanloviKerak as e:
         db.rollback()
         raise HTTPException(status_code=409, detail={"type": e.tur, "message": e.xabar, "summa": e.summa})

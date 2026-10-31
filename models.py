@@ -2146,6 +2146,10 @@ class TransportExpense(Base):
     # daromad ulushiga qarab bo'linadi). `production_type` — ESKI matn belgisi, faqat migratsiya o'qiydi
     # (`main._migrate_yonalishlar`: 'penoplast' → asosiy yo'nalish); hisob `yonalish_id` dan.
     yonalish_id = Column(Integer, ForeignKey("yonalishlar.id"), nullable=True, index=True)
+    # kech165 (zip 230, egasi QARORI 31.10 «Har safar so'rasin»): yakka xarid bilan BIRGA yozilgan «O'z hisobimdan» transport — o'sha xarid
+    # (`inventory_purchases.id`). Xarid o'chirilsa — egasidan so'raladi (`crud.xarid_transportlari`). FK yo'q (mavjud bazaga
+    # `sync_missing_columns` oddiy ustun qo'shadi; `SupplierPayment.purchase_id` naqshi) — xarid o'chganda bog'lanish kodda uziladi.
+    purchase_id = Column(Integer, nullable=True)
 
     def __repr__(self):
         return f"<TransportExpense {self.amount}>"

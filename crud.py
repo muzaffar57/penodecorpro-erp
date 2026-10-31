@@ -16236,8 +16236,9 @@ from schemas import TransportExpenseCreate
 
 
 def create_transport_expense(db: Session, data: TransportExpenseCreate, created_by: str = None,
-                            company_id: int = None) -> TransportExpense:
-    """Kirish transporti xarajatini yozadi."""
+                            company_id: int = None, purchase_id: int = None) -> TransportExpense:
+    """Kirish transporti xarajatini yozadi.
+    kech165 (zip 230): `purchase_id` — yakka xarid bilan birga yozilgan «O'z hisobimdan» transport (xarid o'chirilsa so'raladi)."""
     # 17f (2026-09-22): ILDIZ — tana QAT'IY (summa musbat, chekli, sig'im
     # ichida va kamida 1 tiyin; `materials_note` ≤ 255; `production_type`
     # ro'yxatdan), bazaga tegishdan OLDIN. Marshrut ham tekshiradi; bu qatlam
@@ -16261,6 +16262,7 @@ def create_transport_expense(db: Session, data: TransportExpenseCreate, created_
         production_type=_pt,
         yonalish_id=_yid,
         hisob_id=_hid210,
+        purchase_id=purchase_id,             # kech165 (zip 230)
     )
     db.add(exp)
     db.commit()
@@ -16280,7 +16282,11 @@ def delete_transport_expense(db: Session, exp_id: int, company_id: int = None) -
     _q = db.query(TransportExpense).filter(TransportExpense.id == exp_id)
     if company_id is not None:      # M6: faqat shu korxonadan
         _q = _q.filter(TransportExpense.company_id == company_id)
-    exp = _q.first()
+    # kech165 (zip 230): qator QULF ostida, bazadan qayta o'qiladi — xarid o'chirish (`delete_purchase`, `?transport=ochirish`) shu
+    # transportni bir vaqtda o'chirsa, kutib, yo'qligini ko'radi (404). Ilgari qulfsiz o'qib, keyin DELETE 0 qator — SQLAlchemy faqat
+    # ogohlantiradi, javob yolg'on 200 edi (review230 №6 — O'LCHANGAN).
+    db.flush()
+    exp = _q.populate_existing().with_for_update().first()
     if not exp:
         return False
     db.delete(exp)
@@ -19030,6 +19036,90 @@ def xarid_tolovlari(db: Session, p, company_id: int = None, qulf: bool = False) 
     return [] if qoshni is not None else nomzod
 
 
+# kech165 (zip 230, egasi QARORI 31.10 «Har safar so'rasin»): yakka xarid bilan birga yozilgan «O'z hisobimdan» transport — xarid
+# o'chirilsa: `ochirish` — transport ham o'chadi, `qoldirish` — Moliyada qoladi (bog'lanish uziladi).
+XARID_TRANSPORT_TANLOV = ("ochirish", "qoldirish")
+XARID_TRANSPORT_IZOH = " xaridi bilan birga"                # `main.api_purchase_stock` transport izohi: «<material>…»
+XARID_SAVAT_IZOH = "Bir vaqtda ko'p material xaridi"         # `suppliers.html` savati (bir nechta qator) — har xarid izohi
+XARID_SAVAT_OYNA = 180                                       # s — savat qatorlari 1-qatordan KEYIN ketma-ket saqlanadi (har biri alohida so'rov)
+# review230 №2: transport xarid bilan BIR so'rovda, xariddan KEYIN yoziladi (`purchase_stock`, so'ng `create_transport_expense`) — eski
+# yozuvni topish oynasi: xarid vaqtidan … `XARID_TRANSPORT_OYNA` s keyin (to'lov oynasi 10 s edi: 5 s oldingi boshqa xaridga «o'tib» ketardi)
+XARID_TRANSPORT_OYNA = 2
+
+
+class XaridTransportTanloviKerak(XaridTolovTanloviKerak):
+    """kech165 (zip 230): xarid bilan birga yozilgan transport bor, tanlov (`ochirish` / `qoldirish`) berilmagan — marshrut 409
+    `purchase_has_transport` (`XaridTolovTanloviKerak` ushlovchisi bilan bir), UI egasidan so'raydi. Hech narsa o'zgarmagan bo'ladi."""
+
+    def __init__(self, summa: float, xabar: str):
+        super().__init__(summa, xabar, tur="purchase_has_transport")
+
+
+def xarid_transportlari(db: Session, p, company_id: int = None, qulf: bool = False) -> list:
+    """kech165 (zip 230): yakka xarid bilan BIRGA yozilgan «O'z hisobimdan» transport xarajatlari (Kirim hujjati qatori — [] : hujjat
+    xarajatlari `_kirim_hujjati_qismlari` da). Yangi — `TransportExpense.purchase_id`; eski (ustungacha) — shu korxona, izoh AYNAN
+    «<material> xaridi bilan birga», yaratgan — xaridni kiritgan, vaqti xarid vaqtidan … `XARID_TRANSPORT_OYNA` s keyin (transport xariddan
+    KEYIN yoziladi); faqat BIR ma'noli bo'lsa (nomzod — bitta va shu korxonada shu materialning boshqa xaridi transportdan oldingi
+    `XARID_TRANSPORT_OYNA` s ichida yo'q). Aks holda [] (avvalgidek — so'ralmaydi). `qulf=True` — `FOR UPDATE OF transport_expenses` + bazadan QAYTA o'qish
+    (`populate_existing`; avval `flush`). Yagona qulf tartibi: Kirim hujjati → xarid → material → to'lovlar → TRANSPORT."""
+    from datetime import timedelta as _td230
+    if p is None or getattr(p, "receipt_id", None):
+        return []
+    _cid = company_id
+    if _cid is None:
+        _cid = db.query(Inventory.company_id).filter(Inventory.id == p.inventory_id).scalar()
+    if _cid is None:
+        return []
+
+    def _qulfla(q):
+        if not qulf:
+            return q
+        db.flush()
+        return q.populate_existing().with_for_update(of=TransportExpense)
+    bog = _qulfla(db.query(TransportExpense).filter(TransportExpense.purchase_id == p.id, TransportExpense.company_id == _cid)
+                  .order_by(TransportExpense.id)).all()
+    if bog or p.purchased_at is None or not p.item_name:
+        return bog
+    _nq = db.query(TransportExpense).filter(
+        TransportExpense.company_id == _cid, TransportExpense.purchase_id.is_(None),
+        TransportExpense.notes == f"{p.item_name}{XARID_TRANSPORT_IZOH}",
+        TransportExpense.expense_date >= p.purchased_at,
+        TransportExpense.expense_date <= p.purchased_at + _td230(seconds=XARID_TRANSPORT_OYNA))
+    _nq = _nq.filter(TransportExpense.created_by.is_(None) if p.purchased_by is None else TransportExpense.created_by == p.purchased_by)
+    nomzod = _qulfla(_nq.order_by(TransportExpense.id)).all()
+    if len(nomzod) != 1:
+        return []
+    # shu transport boshqa xaridniki ham bo'lishi mumkinmi (o'sha xarid transportdan `XARID_TRANSPORT_OYNA` s oldin … transport paytida)
+    _tv = nomzod[0].expense_date
+    qoshni = db.query(InventoryPurchase.id).join(Inventory, Inventory.id == InventoryPurchase.inventory_id).filter(
+        Inventory.company_id == _cid, InventoryPurchase.item_name == p.item_name, InventoryPurchase.id != p.id,
+        InventoryPurchase.purchased_at >= _tv - _td230(seconds=XARID_TRANSPORT_OYNA),
+        InventoryPurchase.purchased_at <= _tv).first()
+    return [] if qoshni is not None else nomzod
+
+
+def _xarid_savatdoshlari(db: Session, p, company_id: int = None) -> int:
+    """kech165 (zip 230): `p` Ta'minotchilar savatidan (bir nechta qator — izoh `XARID_SAVAT_IZOH`) bo'lsa — o'sha savatning boshqa
+    qatorlari soni (shu korxona, ta'minotchi, kiritgan, izoh, `p` dan keyingi `XARID_SAVAT_OYNA` s ichida — transport 1-qatorga
+    yoziladi, qolganlari undan KEYIN saqlanadi; review230 №3: ± 600 s qo'shni savatni ham sanardi; Kirim hujjati qatorlari emas). Savat
+    transporti butun mashinaniki — xabarda aytiladi. Faqat ma'lumot (hech narsa o'zgarmaydi)."""
+    from datetime import timedelta as _td230
+    if p is None or (p.notes or "") != XARID_SAVAT_IZOH or p.purchased_at is None:
+        return 0
+    _cid = company_id
+    if _cid is None:
+        _cid = db.query(Inventory.company_id).filter(Inventory.id == p.inventory_id).scalar()
+    q = db.query(InventoryPurchase.id).join(Inventory, Inventory.id == InventoryPurchase.inventory_id).filter(
+        Inventory.company_id == _cid, InventoryPurchase.id != p.id, InventoryPurchase.receipt_id.is_(None),
+        InventoryPurchase.notes == XARID_SAVAT_IZOH,
+        InventoryPurchase.purchased_at >= p.purchased_at,
+        InventoryPurchase.purchased_at <= p.purchased_at + _td230(seconds=XARID_SAVAT_OYNA))
+    q = q.filter(InventoryPurchase.supplier_id.is_(None) if p.supplier_id is None else InventoryPurchase.supplier_id == p.supplier_id)
+    q = q.filter(InventoryPurchase.purchased_by.is_(None) if p.purchased_by is None
+                 else InventoryPurchase.purchased_by == p.purchased_by)
+    return q.count()
+
+
 def _tolovni_kamaytir(db: Session, tolovlar, kamaytirish: float) -> float:
     """To'lovlar yig'indisini `kamaytirish` qadar kamaytiradi — OXIRGI to'lovdan boshlab (0 ga tushgani o'chadi). Natija — haqiqatan
     ayirilgan summa (tiyinda)."""
@@ -19405,7 +19495,7 @@ def _xarid_hajmini_qaytar(joriy_hajm, p) -> tuple:
 
 
 def delete_purchase(db: Session, purchase_id: int, reverse_stock: bool = True,
-                   company_id: int = None, tolov: str = None) -> bool:
+                   company_id: int = None, tolov: str = None, transport: str = None) -> bool:
     """Xarid yozuvini o'chiradi.
     reverse_stock=True (standart) bo'lsa — bu xaridda qo'shilgan miqdorni
     ombordan ham QAYTARIB oladi (ya'ni to'liq bekor qiladi — ham pul oqimi,
@@ -19429,16 +19519,36 @@ def delete_purchase(db: Session, purchase_id: int, reverse_stock: bool = True,
     # jimgina qolib, ta'minotchining boshqa qarzi kamayardi (1 000 000 xarid, 400 000 to'langan → o'chirilsa qarz −1 000 000, Kassa −400 000).
     if tolov is not None and tolov not in XARID_TOLOV_TANLOV:
         raise ValueError("To'lov tanlovi noto'g'ri — 'ochirish' yoki 'avans'")
+    # kech165 (zip 230, egasi QARORI 31.10 «Har safar so'rasin»): «O'z hisobimdan» transporti bor xarid — tanlovsiz o'chirilmaydi
+    if transport is not None and transport not in XARID_TRANSPORT_TANLOV:
+        raise ValueError("Transport tanlovi noto'g'ri — 'ochirish' yoki 'qoldirish'")
     # kech146 (zip 180, review 1 — №3): material — to'lovlardan OLDIN qulflanadi (yagona tartib), to'lovlar — qulf ostida qayta o'qiladi
     _inv146 = inventory_qulf(db, p.inventory_id, company_id) if (reverse_stock and p.inventory_id and p.quantity) else None
     _tolovlar180 = xarid_tolovlari(db, p, company_id=company_id, qulf=True)
-    if _tolovlar180:
+    # kech165 (zip 230): transport — to'lovlardan KEYIN qulflanadi (yagona tartib), ikkala savol HECH NARSA o'zgartirilmasdan OLDIN.
+    # Ilgari transport Moliyada jimgina qolardi (xarid yo'q, Kassa transport summasicha kam) — Kirim hujjati bekori esa o'chirardi.
+    _transport230 = xarid_transportlari(db, p, company_id=company_id, qulf=True)
+    if _tolovlar180 and tolov is None:
         _summa180 = pul_tiyin_yigindi(float(t.amount or 0) for t in _tolovlar180)
-        if tolov is None:
-            raise XaridTolovTanloviKerak(
-                _summa180,
-                f"Bu xarid bilan ta'minotchiga {_som(_summa180)} so'm darhol to'langan. To'lovni ham o'chirasizmi yoki ta'minotchida "
-                f"avans bo'lib qolsinmi?")
+        raise XaridTolovTanloviKerak(
+            _summa180,
+            f"Bu xarid bilan ta'minotchiga {_som(_summa180)} so'm darhol to'langan. To'lovni ham o'chirasizmi yoki ta'minotchida "
+            f"avans bo'lib qolsinmi?")
+    if _transport230 and transport is None:
+        _summa230 = pul_tiyin_yigindi(float(t.amount or 0) for t in _transport230)
+        _sherik230 = _xarid_savatdoshlari(db, p, company_id=company_id)
+        raise XaridTransportTanloviKerak(
+            _summa230,
+            f"Bu xarid bilan birga {_som(_summa230)} so'm transport xarajati yozilgan (Moliya). Transportni ham o'chirasizmi yoki "
+            f"Moliyada qolsinmi?" + (f" Diqqat: shu mashinada yana {_sherik230} ta material xaridi kiritilgan — transport ularniki ham "
+                                    f"bo'lishi mumkin." if _sherik230 else ""))
+    for t in _transport230:
+        if transport == "ochirish":
+            db.delete(t)
+        else:
+            t.purchase_id = None
+            t.notes = f"{(t.notes or '').strip()} (xarid #{p.id} bekor qilingan)".strip()
+    if _tolovlar180:
         for t in _tolovlar180:
             if tolov == "ochirish":
                 db.delete(t)
