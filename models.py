@@ -2959,6 +2959,27 @@ class DokonRasm(Base):
     def __repr__(self):
         return f"<DokonRasm {self.id} model={self.model_id}>"
 
+
+class DokonTelefon(Base):
+    """kech168 (zip 233) — buyurtma tasdig'i uchun telefon raqami (egasi QARORI 30.10: admin panelda qo'shiladi, o'chiriladi, tartibi
+    o'zgaradi, izoh yoziladi; oxirgi raqam o'chirilmaydi). `raqam` — bitta shaklda `+998XXXXXXXXX` (korxonada yagona); `doim` — ish
+    vaqtidan tashqarida (kechasi, dam olish kuni) ham ko'rinadi — kamida bittasi doim. Mantiq — `crud.dokon_telefon_*`."""
+    __tablename__ = "dokon_telefonlar"
+    __table_args__ = (UniqueConstraint("company_id", "raqam", name="uq_dokon_telefon_raqam"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    raqam = Column(String(13), nullable=False)
+    izoh = Column(String(40), nullable=True)
+    doim = Column(Boolean, default=False, nullable=False)
+    tartib = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+    updated_by = Column(String(100), nullable=True)
+
+    def __repr__(self):
+        return f"<DokonTelefon {self.id} {self.raqam}>"
+
 # ============================================================
 # Helper funksiyalar
 # ============================================================

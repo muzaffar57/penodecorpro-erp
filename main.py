@@ -11932,6 +11932,72 @@ def api_dokon_rasm_ochir(rasm_id: int = _Path213(..., ge=1, le=2_147_483_647), d
     return {"status": "ok"}
 
 
+# ── kech168 (zip 233): do'kon sozlamalari — tasdiqlash telefonlari, ish vaqti, komplekt retsepti (FAQAT Admin; belgi o'chiq — 404) ──
+@app.post("/api/sayt-katalogi/telefonlar")
+def api_dokon_telefon_qosh(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Tasdiqlash raqami: {"raqam"} (+ "izoh", "doim"). Birinchi raqam — o'zi «doim» (ish vaqtidan tashqarida ham ko'rinadi)."""
+    t = _dokon_bajar(db, lambda: crud.dokon_telefon_qosh(db, auth.company_id_of(current_user), data, _dokon_kim(current_user)))
+    return crud.dokon_telefon_dict(t)
+
+
+@app.put("/api/sayt-katalogi/telefonlar")
+def api_dokon_telefon_tartib(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Raqamlar tartibi — {"tartib": [HAMMA raqam id lari, yangi tartibda]}."""
+    cid = auth.company_id_of(current_user)
+    _dokon_bajar(db, lambda: crud.dokon_tekshir(db, cid))
+    if not isinstance(data, dict) or set(data) != {"tartib"}:
+        raise HTTPException(status_code=400, detail="Faqat 'tartib' yuboriladi")
+    ts = _dokon_bajar(db, lambda: crud.dokon_telefon_tartib(db, cid, data.get("tartib"), _dokon_kim(current_user)))
+    return {"telefonlar": [crud.dokon_telefon_dict(t) for t in ts]}
+
+
+@app.put("/api/sayt-katalogi/telefonlar/{telefon_id}")
+def api_dokon_telefon_yangila(data: dict = Body(...), telefon_id: int = _Path213(..., ge=1, le=2_147_483_647),
+                              db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Izoh va «doim» belgisi."""
+    t = _dokon_bajar(db, lambda: crud.dokon_telefon_yangila(db, telefon_id, auth.company_id_of(current_user), data,
+                                                           _dokon_kim(current_user)))
+    if t is None:
+        raise HTTPException(status_code=404, detail="Raqam topilmadi")
+    return crud.dokon_telefon_dict(t)
+
+
+@app.delete("/api/sayt-katalogi/telefonlar/{telefon_id}")
+def api_dokon_telefon_ochir(telefon_id: int = _Path213(..., ge=1, le=2_147_483_647), db: Session = Depends(get_db),
+                            current_user=Depends(auth.admin_only)):
+    """Raqamni o'chiradi (oxirgi raqam va oxirgi «doim» raqam — 400)."""
+    ok = _dokon_bajar(db, lambda: crud.dokon_telefon_ochir(db, telefon_id, auth.company_id_of(current_user),
+                                                          _dokon_kim(current_user)))
+    if ok is None:
+        raise HTTPException(status_code=404, detail="Raqam topilmadi")
+    return {"status": "ok"}
+
+
+@app.put("/api/sayt-katalogi/ish-vaqti")
+def api_dokon_ish_vaqti(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Ish vaqti: {"kunlar": [1..7], "boshi": "08:00", "oxiri": "18:00"} (+ "izoh"). Vaqt — Toshkent."""
+    return _dokon_bajar(db, lambda: crud.dokon_ish_vaqti_saqla(db, auth.company_id_of(current_user), data,
+                                                              _dokon_kim(current_user)))
+
+
+@app.put("/api/sayt-katalogi/komplekt")
+def api_dokon_komplekt(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Komplekt retsepti va standart o'lcham: {"retsept": {"rom": {...}, "eshik": {...}}, "olcham": "O'rta"}."""
+    return _dokon_bajar(db, lambda: crud.dokon_komplekt_saqla(db, auth.company_id_of(current_user), data,
+                                                             _dokon_kim(current_user)))
+
+
+@app.get("/api/sayt-katalogi/modellar/{model_id}/komplekt")
+def api_dokon_model_komplekt(model_id: int = _Path213(..., ge=1, le=2_147_483_647), db: Session = Depends(get_db),
+                             current_user=Depends(auth.admin_only)):
+    """Bitta komplekt modelining narxlari (retsept bo'yicha; narx katagi o'zgargach sahifa shu blokni yangilaydi)."""
+    cid = auth.company_id_of(current_user)
+    _dokon_bajar(db, lambda: crud.dokon_tekshir(db, cid))
+    if crud._dokon_model_of(db, model_id, cid) is None:
+        raise HTTPException(status_code=404, detail="Model topilmadi")
+    return {"model_id": model_id, "komplekt": crud.dokon_komplekt_narxlari(db, cid, model_id).get(model_id, [])}
+
+
 @app.post("/api/platform/companies/{company_id}/dokon")
 def api_platform_dokon(company_id: int = _Path213(..., ge=1, le=2_147_483_647), yoqilgan: str = Form(...),
                        db: Session = Depends(get_db), current_user=Depends(auth.platform_admin_only)):

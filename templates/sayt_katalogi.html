@@ -12,7 +12,9 @@
    ERP ichida. Chapda bo'limlar, yonida tanlangan bo'limning modellari; model ochilsa — narx qatorlari (detal turi × o'lcham):
    oddiy narx (qoplamasiz), qoplamali (bo'sh — qoplamasiz × koeffitsient, 1 000 ga yaxlitlab), ulgurji (metrli detal — 1 dona = 2 m,
    m² — 1 m², dona — 1 dona). Katakdagi qiymat o'zgarishi bilan saqlanadi. Tizim bo'limlari (Tayyor mahsulotlar, O'z o'lchamingiz
-   bilan, Ulgurji) boshqa bo'limlardan yig'iladi — ularga model qo'shilmaydi. Ma'lumot — /api/sayt-katalogi (faqat Admin). #}
+   bilan, Ulgurji) boshqa bo'limlardan yig'iladi — ularga model qo'shilmaydi. Ma'lumot — /api/sayt-katalogi (faqat Admin).
+   kech168 (zip 233): «Do'kon sozlamalari» kartochkasi — buyurtmani tasdiqlash telefonlari, ish vaqti, komplekt retsepti (shtorkalar);
+   komplekt modelida — retsept bo'yicha komplekt narxlari (server hisobi). #}
 <style>
 .sk-grid{display:grid;grid-template-columns:280px minmax(0,1fr);gap:14px;align-items:start}
 .sk-grid > div{min-width:0}
@@ -126,10 +128,49 @@
   .sk-jadval td.sk-bosh-td{display:none}
   .sk-jadval .sk-avto{grid-column:2}
 }
+/* kech168 (zip 233): do'kon sozlamalari (telefonlar, ish vaqti, komplekt retsepti) va komplekt narxlari bloki */
+.sk-soz{display:flex;flex-direction:column;gap:8px}
+.sk-tel{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px;border:1px solid var(--border2);border-radius:var(--r-btn);background:var(--white)}
+.sk-tel .sk-tel-raqam{font-weight:600;white-space:nowrap;min-width:150px}
+.sk-tel input[type=text]{flex:1 1 180px;min-width:0;min-height:var(--h-sm);box-sizing:border-box;padding:0 10px;border:1px solid var(--border2);border-radius:var(--r-btn);font:inherit;font-size:14px}
+.sk-tel label.belgi{display:flex;align-items:center;gap:6px;font-size:13px}
+.sk-tel .btn{min-height:var(--h-sm)}
+.sk-tel input.xato,.sk-forma input.xato{border-color:var(--red)}
+.sk-kunlar{display:flex;flex-wrap:wrap;gap:6px}
+.sk-kunlar label{flex-direction:row !important;align-items:center;gap:4px;min-width:0 !important;flex:0 0 auto !important;font-size:13px !important;color:var(--text) !important;
+  padding:6px 10px;border:1px solid var(--border2);border-radius:20px;cursor:pointer}
+.sk-retsept{border-collapse:collapse;font-size:14px}
+.sk-retsept th,.sk-retsept td{padding:6px 10px;border-bottom:1px solid var(--border2);text-align:left}
+.sk-retsept input{width:80px;min-height:var(--h-sm);box-sizing:border-box;padding:0 8px;border:1px solid var(--border2);border-radius:var(--r-btn);font:inherit}
+.sk-komplekt{margin-top:12px}
+.sk-komplekt h4{margin:0 0 6px;font-size:14px}
+.sk-kjadval{width:100%;border-collapse:collapse;font-size:13px}
+.sk-kjadval th,.sk-kjadval td{padding:6px 8px;border-bottom:1px solid var(--border2);text-align:left;vertical-align:top}
+.sk-kjadval .sk-kn{white-space:nowrap}
+.sk-kjadval .sk-yoq{color:var(--red);font-size:12px}
+#skTelHozir{margin:6px 0 8px}
+@media (max-width: 700px){
+  .sk-kjadval,.sk-kjadval tbody{display:block}
+  .sk-kjadval thead{display:none}
+  .sk-kjadval tr{display:block;border:1px solid var(--border2);border-radius:var(--r-btn);margin-bottom:8px;padding:6px 8px}
+  .sk-kjadval td{display:flex;gap:8px;border:0;padding:4px 0}
+  .sk-kjadval td > div{min-width:0}
+  .sk-kjadval td[data-label]::before{content:attr(data-label);flex:0 0 84px;color:var(--text2);font-size:12px}
+  .sk-kjadval .sk-kn{white-space:normal}
+  .sk-tel .sk-tel-raqam{min-width:0;flex:1 1 100%}
+  .sk-tel input[type=text]{flex:1 1 100%}
+  .sk-tel label.belgi{flex:1 1 100%}
+  .sk-retsept th,.sk-retsept td{padding:6px 4px}
+  .sk-retsept input{width:60px}
+}
+@media (max-width: 420px){
+  .sk-retsept input{width:50px;padding:0 6px}
+}
 </style>
 {% endblock %}
 
 {% block content %}
+<div class="erp-content" id="skSahifa">
 <div class="card" style="margin-bottom:14px">
   <div class="sk-tana">
     <div class="sk-koeff sk-forma">
@@ -142,6 +183,10 @@
     </div>
     <div class="yuk-xato-qator" id="skXato" hidden></div>
   </div>
+</div>
+
+<div class="card" style="margin-bottom:14px" id="skSoz">
+  <div class="sk-tana" id="skSozIch"><div class="sk-bosh-holat">Do'kon sozlamalari yuklanmoqda…</div></div>
 </div>
 
 <div class="card sk-yangi" id="skYangiBolim">
@@ -164,6 +209,7 @@
   <div class="card" id="skOng">
     <div class="sk-bosh-holat">Yuklanmoqda…</div>
   </div>
+</div>
 </div>
 <div class="sk-korish" id="skKorish" hidden role="dialog" aria-modal="true" aria-label="Rasmni ko'rish">
   <img id="skKorRasm" alt="">
@@ -221,6 +267,7 @@ async function skYukla() {
       SK.bolim = (x && d.bolimlar.some(function (b) { return b.id === x; })) ? x : (d.bolimlar[0] ? d.bolimlar[0].id : null);
     }
     skChiz();
+    if (!SK.sozChizildi || SK.sozQayta) { SK.sozChizildi = true; SK.sozQayta = false; skSozChiz(); }   // zip 233
   }, function (e) {
     var matn = yukXatoMatn('Sayt katalogi', e);
     skXatoKor(matn);
@@ -330,6 +377,7 @@ function skModelHtml(m) {
     '<td data-label="Ulgurji (qoplamali)"><input type="text" inputmode="decimal" data-yf="ulgurji_qoplamali" placeholder="avto"></td>' +
     '<td class="sk-bosh-td"></td><td><button type="button" class="btn btn-dark" data-dyarat="' + m.id + '">+</button></td></tr>' +
     '</tbody></table></div>' +
+    (m.qolip === 'komplekt' ? '<div class="sk-komplekt" data-komplekt="' + escapeHtml(String(m.id)) + '">' + skKomplektHtml(m) + '</div>' : '') +
     '<p class="sk-matn" style="margin-top:8px">Narx — ' + (m.qolip === 'komplekt' ? 'karniz, podokonnik, nalichnik uchun 1 m, kapitel va baza uchun 1 dona' :
       (m.qolip === 'm2' ? '1 m²' : (m.qolip === 'dona' ? '1 dona' : '1 m (kapitel va baza — 1 dona)'))) +
     '. Ulgurji: metrli detal — 1 dona = 2 m, m² — 1 m², dona — 1 dona. Qoplamali narx bo\'sh — qoplamasiz × koeffitsient.</p>' +
@@ -393,7 +441,7 @@ function skModelTinglovchilar(el) {
 }
 
 async function skSorov(url, usul, tana) {
-  var sozlama = {method: usul, headers: {'Content-Type': 'application/json'}};
+  var sozlama = {method: usul, cache: 'no-store', headers: {'Content-Type': 'application/json'}};   // zip 233: keshdan javob olinmasin
   if (tana !== undefined) sozlama.body = JSON.stringify(tana);
   var r;
   try { r = await fetch(url, sozlama); } catch (e) { return {ok: false, sabab: await amalSababi(e)}; }
@@ -600,6 +648,8 @@ async function skDetalMaydon(inp) {
   });
   tr.classList.toggle('yashirin', !d.yoqilgan);
   skModelSoniYangila(d.model_id);
+  var m233 = SK.k.modellar.filter(function (x) { return x.id === d.model_id; })[0];
+  if (m233 && m233.qolip === 'komplekt') skKomplektYangila(d.model_id);   // zip 233: komplekt narxlari — server hisobi
 }
 
 function skModelSoniMatn(modelId) {
@@ -896,6 +946,353 @@ async function skDetalOchir(id) {
   if (!n.ok) { showMsg('❌ Qator o\'chirilmadi: ' + n.sabab, 'error'); return; }
   showMsg('✓ Qator o\'chirildi', 'success');
   skYukla();
+}
+
+
+// ── kech168 (zip 233): DO'KON SOZLAMALARI — tasdiqlash telefonlari, ish vaqti, komplekt retsepti; komplekt narxlari bloki ─────────
+// Kartochka (3 shtorka va ulardagi formalar) FAQAT birinchi yuklashda chiziladi. Keyin hech qachon butunlay qayta chizilmaydi
+// (review233 №1 / №2 / №7): telefon amalidan keyin — faqat «hozir saytda» qatori, sarlavha holati, korxona raqamlari tugmasi va
+// (qo'shish / o'chirish / tartibda) raqamlar ro'yxati; ro'yxat qayta chizilishidan OLDIN yozilgan izohlar saqlanadi va kutiladi
+// (`skTelKut`), fokus o'z joyiga qaytadi. Ish vaqti / retsept saqlangach — faqat sarlavha holati (formadagi qiymat o'zi saqlangan).
+// Komplekt narxlari — server hisobi (/api/sayt-katalogi → komplekt; narx katagi saqlangach shu modelning bloki
+// GET …/modellar/{id}/komplekt bilan yangilanadi, eski javob yangisini bosib ketmaydi — SK.knavbat).
+var SK_KUNLAR = [[1, 'Du'], [2, 'Se'], [3, 'Ch'], [4, 'Pa'], [5, 'Ju'], [6, 'Sh'], [7, 'Ya']];
+
+function skSoz() { return (SK.k && SK.k.sozlamalar) || null; }
+// review233 №3: o'lcham kaliti — tutuq belgisi variantlari («O'rta» / «O’rta» / «Oʻrta») bitta (server `dokon_olcham_kalit` bilan bir xil)
+function skOlchamKalit(x) { return String(x || '').replace(/[’‘ʻʼ`´′]/g, '\'').toLocaleLowerCase(); }
+
+function skSozChiz() {
+  var s = skSoz();
+  var el = document.getElementById('skSozIch');
+  if (!s || !el) return;
+  el.innerHTML = '<div class="sk-soz">' +
+    shtorkaHtml('sk-soz-tel', '📞 Buyurtmani tasdiqlash telefonlari', '', null, skTelHtml()) +
+    shtorkaHtml('sk-soz-ish', '🕗 Ish vaqti', s.ish_vaqti_matni, null, skIshHtml(s)) +
+    shtorkaHtml('sk-soz-retsept', '🧩 Komplekt retsepti', 'standart o\'lcham: ' + s.komplekt_olcham, null, skRetseptHtml(s)) +
+    '</div>';
+  shtorkaTayyor(el);
+  skSozTinglovchilar();
+  skTelYangila(true);
+}
+
+function skTelHtml() {
+  return '<p class="sk-matn">Saytdagi buyurtma tasdig\'i sahifasida, PDF va sayt pastida shu raqamlar chiqadi (bosilsa — qo\'ng\'iroq). ' +
+    'Ish vaqtida — hammasi; ish vaqtidan tashqarida va dam olish kunida — faqat «Ish vaqtidan tashqarida ham» belgilanganlari. ' +
+    'Oxirgi raqam o\'chirilmaydi.</p>' +
+    '<div class="sk-matn" id="skTelHozir"></div>' +
+    '<div class="sk-soz" id="skTelRoyxat"></div>' +
+    '<div class="sk-forma" id="skTelForma" style="margin-top:8px">' +
+      '<label>Yangi raqam<input type="text" inputmode="tel" id="skTelRaqam" maxlength="40" placeholder="+998 97 999 57 57"></label>' +
+      '<label class="keng">Izoh (ixtiyoriy)<input type="text" id="skTelIzoh" maxlength="40" placeholder="Menejer"></label>' +
+      '<label class="belgi"><input type="checkbox" id="skTelDoim"> Ish vaqtidan tashqarida ham</label>' +
+      '<button type="button" class="btn btn-dark" id="skTelQosh">Qo\'shish</button></div>' +
+    '<div id="skTelKx" style="margin-top:8px"></div>';
+}
+
+function skTelRoyxatHtml(tel) {
+  return tel.map((t, i) => '<div class="sk-tel" data-tel="' + escapeHtml(String(t.id)) + '">' +
+    '<span class="sk-tel-raqam">' + escapeHtml(t.korinish) + '</span>' +
+    '<input type="text" data-tf="izoh" maxlength="40" placeholder="Izoh (masalan: Menejer)" aria-label="' + escapeHtml('Izoh — ' + t.korinish) + '" value="' + escapeHtml(t.izoh || '') + '">' +
+    '<label class="belgi"><input type="checkbox" data-tf="doim"' + (t.doim ? ' checked' : '') + '> Ish vaqtidan tashqarida ham</label>' +
+    '<button type="button" class="btn btn-outline" data-tsur="-1" aria-label="Yuqoriga"' + (i === 0 ? ' disabled' : '') + '>▲</button>' +
+    '<button type="button" class="btn btn-outline" data-tsur="1" aria-label="Pastga"' + (i === tel.length - 1 ? ' disabled' : '') + '>▼</button>' +
+    '<button type="button" class="btn btn-outline" data-tochir="1">O\'chirish</button></div>').join('');
+}
+
+// Telefon bo'limining o'zgaruvchan qismlari. `royxatHam` — raqamlar ro'yxati ham (faqat qo'shish / o'chirish / tartibdan keyin).
+function skTelYangila(royxatHam, fokus) {
+  var s = skSoz();
+  if (!s || !document.getElementById('skTelRoyxat')) return;
+  var tel = s.telefonlar || [], kor = s.korinadigan_telefonlar || [], kx = s.korxona_telefonlari || [], max = s.telefon_max || 10;
+  shtorkaHolat('sk-soz-tel', tel.length ? tel.length + ' ta raqam' : 'raqam yo\'q', tel.length ? null : true);
+  document.getElementById('skTelHozir').textContent = (s.hozir_ish_vaqti ? 'Hozir ish vaqti (Toshkent)' : 'Hozir ish vaqtidan tashqari (Toshkent)') +
+    ' — saytda ' + (kor.length ? kor.map(t => t.korinish).join(', ') : 'raqam yo\'q');
+  document.getElementById('skTelForma').hidden = tel.length >= max;
+  var kxEl = document.getElementById('skTelKx');
+  kxEl.innerHTML = (kx.length && tel.length + kx.length <= max) ? '<button type="button" class="btn btn-outline" id="skTelKorxona">' +
+    escapeHtml('Korxona sozlamalaridagi raqamlarni qo\'shish: ' + kx.map(t => t.korinish).join(', ')) + '</button>' : '';
+  var kb = document.getElementById('skTelKorxona');
+  if (kb) kb.addEventListener('click', skTelKorxona);
+  if (!royxatHam) return;
+  var r = document.getElementById('skTelRoyxat');
+  r.innerHTML = skTelRoyxatHtml(tel);
+  r.querySelectorAll('.sk-tel[data-tel]').forEach(function (q) {
+    var id = parseInt(q.dataset.tel, 10);
+    q.querySelector('[data-tf="izoh"]').addEventListener('change', function (e) { skTelMaydon(id, 'izoh', e.target); });
+    q.querySelector('[data-tf="doim"]').addEventListener('change', function (e) { skTelMaydon(id, 'doim', e.target); });
+    q.querySelectorAll('[data-tsur]').forEach(function (b) {
+      b.addEventListener('click', function () { skTelSur(id, parseInt(b.dataset.tsur, 10), b); });
+    });
+    q.querySelector('[data-tochir]').addEventListener('click', function () { skTelOchir(id); });
+  });
+  if (fokus) { var f = document.querySelector(fokus); if (f) f.focus(); }
+}
+
+function skIshHtml(s) {
+  var ish = s.ish_vaqti || {kunlar: [], boshi: '08:00', oxiri: '18:00'};
+  return '<p class="sk-matn">«Buyurtma qabul qilindi» sahifasida va PDF da yoziladi; telefonlar shu vaqtga qarab ko\'rsatiladi. Vaqt — Toshkent.</p>' +
+    '<div class="sk-forma"><div class="sk-kunlar" role="group" aria-label="Ish kunlari">' + SK_KUNLAR.map(k => '<label><input type="checkbox" data-kun="' +
+      escapeHtml(String(k[0])) + '"' + (ish.kunlar.indexOf(k[0]) >= 0 ? ' checked' : '') + '> ' + escapeHtml(k[1]) + '</label>').join('') + '</div>' +
+    '<label class="tor">Boshlanishi<input type="time" id="skIshBoshi" step="60" value="' + escapeHtml(ish.boshi) + '"></label>' +
+    '<label class="tor">Tugashi<input type="time" id="skIshOxiri" step="60" value="' + escapeHtml(ish.oxiri) + '"></label>' +
+    '<label class="keng">Qo\'shimcha yozuv (ixtiyoriy)<input type="text" id="skIshIzoh" maxlength="200" placeholder="Telefon orqali ma\'lumot — 22:00 gacha" value="' +
+      escapeHtml(s.ish_izoh || '') + '"></label>' +
+    '<button type="button" class="btn btn-outline" id="skIshSaqla">Saqlash</button></div>';
+}
+
+function skRetseptHtml(s) {
+  var r = s.retsept, tr = s.retsept_turlari, metr = s.metrli_turlar || [];
+  var turlar = tr.rom;
+  return '<p class="sk-matn">1 komplektga qaysi detaldan qancha kiradi (uchala o\'lchamda bir xil). Komplekt narxi = detallar narxi × shu miqdor. ' +
+    'Rom metrlari juft bo\'ladi — ulgurjida rom komplekti donada (1 dona = 2 m). Eshikda podokonnik yo\'q.</p>' +
+    '<table class="sk-retsept"><thead><tr><th>Detal</th><th>Rom</th><th>Eshik</th></tr></thead><tbody>' +
+    turlar.map(t => '<tr><td>' + escapeHtml(skTuriNomi(t) + (metr.indexOf(t) >= 0 ? ', m' : ', dona')) + '</td>' +
+      '<td><input type="text" inputmode="numeric" data-rk="rom" data-rt="' + escapeHtml(t) + '" aria-label="' + escapeHtml('Rom — ' + skTuriNomi(t)) + '" value="' + escapeHtml(String(r.rom[t])) + '"></td>' +
+      '<td>' + (tr.eshik.indexOf(t) >= 0 ? '<input type="text" inputmode="numeric" data-rk="eshik" data-rt="' + escapeHtml(t) + '" aria-label="' + escapeHtml('Eshik — ' + skTuriNomi(t)) + '" value="' +
+        escapeHtml(String(r.eshik[t])) + '">' : '—') + '</td></tr>').join('') +
+    '</tbody></table>' +
+    '<div class="sk-forma" style="margin-top:8px"><label>Komplekt bo\'limining standart o\'lchami<input type="text" id="skKOlcham" maxlength="40" value="' +
+      escapeHtml(s.komplekt_olcham || '') + '"></label>' +
+    '<button type="button" class="btn btn-outline" id="skRetseptSaqla">Saqlash</button>' +
+    '<button type="button" class="btn btn-outline" id="skRetseptStandart">Egasi jadvali (2 · 2 · 4 / 2 · 5)</button></div>' +
+    '<p class="sk-matn">Saytda komplekt bo\'limi shu o\'lcham tanlangan holda ochiladi (o\'lcham nomi narx qatorlaridagi «O\'lcham» bilan bir xil yozilsin).</p>';
+}
+
+function skSozTinglovchilar() {
+  document.getElementById('skTelQosh').addEventListener('click', skTelQosh);
+  document.getElementById('skTelRaqam').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); skTelQosh(); } });
+  document.getElementById('skIshSaqla').addEventListener('click', skIshSaqla);
+  document.getElementById('skRetseptSaqla').addEventListener('click', function () { skRetseptSaqla(false); });
+  document.getElementById('skRetseptStandart').addEventListener('click', function () { skRetseptSaqla(true); });
+}
+
+async function skSozQaytaOl() {
+  // sozlama amalidan keyin: server holati — SK.k.sozlamalar yangilanadi (qaysi qism qayta chizilishini chaqiruvchi hal qiladi)
+  var n = await skSorov('/api/sayt-katalogi', 'GET');
+  if (n.ok && n.d && n.d.sozlamalar && SK.k) SK.k.sozlamalar = n.d.sozlamalar;
+  return n;
+}
+
+// review233 №2: ro'yxat qayta chizilishidan OLDIN — saqlanmagan izohlar yuboriladi va hamma telefon so'rovi tugashi kutiladi
+async function skTelKut() {
+  var s = skSoz();
+  if (!s) return;
+  document.querySelectorAll('#skTelRoyxat .sk-tel[data-tel]').forEach(function (q) {
+    var id = parseInt(q.dataset.tel, 10), inp = q.querySelector('[data-tf="izoh"]');
+    var t = s.telefonlar.filter(x => x.id === id)[0];
+    if (t && inp && inp.value !== (t.izoh || '') && !inp.classList.contains('xato')) skTelMaydon(id, 'izoh', inp);
+  });
+  for (var i = 0; i < 300 && Object.keys(SK.band).some(k => /^tel\d+:/.test(k)); i++) await new Promise(r => setTimeout(r, 50));
+}
+
+function skFokusKaliti() {
+  var a = document.activeElement, q = a && a.closest && a.closest('.sk-tel[data-tel]');
+  if (!q) return null;
+  var k = a.dataset.tf ? '[data-tf="' + a.dataset.tf + '"]' : (a.dataset.tsur ? '[data-tsur="' + a.dataset.tsur + '"]' : (a.dataset.tochir ? '[data-tochir]' : null));
+  return k ? '.sk-tel[data-tel="' + q.dataset.tel + '"] ' + k : null;
+}
+
+async function skTelQosh() {
+  var raqam = document.getElementById('skTelRaqam');
+  if (!raqam.value.trim()) { raqam.classList.add('xato'); showMsg('❌ Raqam kiriting', 'error'); return; }
+  if (!skBandla('telqosh')) return;
+  var b = document.getElementById('skTelQosh');
+  b.disabled = true;
+  var tana = {raqam: raqam.value, doim: document.getElementById('skTelDoim').checked};
+  var iz = document.getElementById('skTelIzoh').value;
+  if (iz.trim()) tana.izoh = iz;
+  var n = await skSorov('/api/sayt-katalogi/telefonlar', 'POST', tana);
+  b.disabled = false;
+  if (!n.ok) {
+    skBo('telqosh');
+    raqam.classList.add('xato');
+    showMsg('❌ Raqam qo\'shilmadi: ' + n.sabab, 'error');
+    return;
+  }
+  raqam.classList.remove('xato');
+  if (raqam.value === tana.raqam) raqam.value = '';
+  if (document.getElementById('skTelIzoh').value === iz) document.getElementById('skTelIzoh').value = '';
+  document.getElementById('skTelDoim').checked = false;
+  showMsg('✓ Raqam qo\'shildi: ' + n.d.korinish + (n.d.doim && !tana.doim ? ' (birinchi raqam — ish vaqtidan tashqarida ham ko\'rinadi)' : ''), 'success');
+  await skTelKut();
+  var fk = skFokusKaliti();
+  await skSozQaytaOl();
+  skBo('telqosh');
+  skTelYangila(true, fk);
+}
+
+async function skTelKorxona() {
+  var s = skSoz();
+  var kx = (s && s.korxona_telefonlari) || [];
+  if (!kx.length || !skBandla('telqosh')) return;
+  var b = document.getElementById('skTelKorxona');
+  if (b) b.disabled = true;
+  var qoshildi = 0, xato = [];
+  for (var i = 0; i < kx.length; i++) {
+    var n = await skSorov('/api/sayt-katalogi/telefonlar', 'POST', {raqam: kx[i].raqam});
+    if (n.ok) qoshildi++; else xato.push(kx[i].korinish + ' — ' + n.sabab);
+  }
+  if (qoshildi) showMsg('✓ ' + qoshildi + ' ta raqam qo\'shildi', 'success');
+  if (xato.length) showMsg('❌ Qo\'shilmadi: ' + xato.join('; '), 'error');
+  await skTelKut();
+  await skSozQaytaOl();
+  skBo('telqosh');
+  skTelYangila(true, '#skTelRaqam');
+}
+
+async function skTelMaydon(id, k, inp) {
+  var kalit = 'tel' + id + ':' + k;
+  if (SK.band[kalit]) { SK.navbat[kalit] = true; return; }
+  skBandla(kalit);
+  var tana = {};
+  tana[k] = k === 'doim' ? inp.checked : inp.value;
+  inp.classList.remove('xato');
+  var n = await skSorov('/api/sayt-katalogi/telefonlar/' + id, 'PUT', tana);
+  skBo(kalit);
+  if (SK.navbat[kalit]) { delete SK.navbat[kalit]; if (inp.isConnected) { skTelMaydon(id, k, inp); return; } }
+  if (!n.ok) {
+    if (k === 'doim') inp.checked = !inp.checked;
+    else inp.classList.add('xato');
+    showMsg('❌ Saqlanmadi: ' + n.sabab, 'error');
+    return;
+  }
+  var s = skSoz();
+  if (s) s.telefonlar = s.telefonlar.map(t => t.id === id ? n.d : t);
+  if (k === 'doim') {                            // «hozir saytda» qatori o'zgaradi — ro'yxat va formalar qayta chizilmaydi
+    await skSozQaytaOl();
+    skTelYangila(false);
+    return;
+  }
+  if (inp.isConnected && inp.value === tana.izoh && document.activeElement !== inp) inp.value = n.d.izoh || '';
+}
+
+async function skTelSur(id, qadam, tugma) {
+  var s = skSoz();
+  if (!s || !skBandla('teltartib')) return;
+  await skTelKut();
+  s = skSoz();
+  var ids = s.telefonlar.map(t => t.id);
+  var i = ids.indexOf(id), j = i + qadam;
+  if (i < 0 || j < 0 || j >= ids.length) { skBo('teltartib'); return; }
+  ids.splice(j, 0, ids.splice(i, 1)[0]);
+  if (tugma) tugma.disabled = true;
+  var n = await skSorov('/api/sayt-katalogi/telefonlar', 'PUT', {tartib: ids});
+  if (!n.ok) { skBo('teltartib'); if (tugma) tugma.disabled = false; showMsg('❌ Tartib saqlanmadi: ' + n.sabab, 'error'); return; }
+  await skSozQaytaOl();
+  skBo('teltartib');
+  var j2 = skSoz().telefonlar.map(t => t.id).indexOf(id);
+  var oxir = skSoz().telefonlar.length - 1;
+  // fokus — o'sha raqamning o'sha yo'nalishdagi tugmasi; chekkaga yetgan bo'lsa (o'chiq) — teskarisi
+  var yon = ((qadam < 0 && j2 === 0) || (qadam > 0 && j2 === oxir)) ? -qadam : qadam;
+  skTelYangila(true, '.sk-tel[data-tel="' + id + '"] [data-tsur="' + yon + '"]');
+}
+
+async function skTelOchir(id) {
+  var s = skSoz();
+  var t = s && s.telefonlar.filter(x => x.id === id)[0];
+  if (!t) return;
+  if (!(await customConfirm('Raqamni o\'chirish', t.korinish + ' raqami saytdan olib tashlansinmi?'))) return;
+  if (!skBandla('tel' + id)) return;
+  var n = await skSorov('/api/sayt-katalogi/telefonlar/' + id, 'DELETE');
+  skBo('tel' + id);
+  if (!n.ok) { showMsg('❌ Raqam o\'chirilmadi: ' + n.sabab, 'error'); return; }
+  showMsg('✓ Raqam o\'chirildi', 'success');
+  var ids = s.telefonlar.map(x => x.id), i = ids.indexOf(id);
+  var keyingi = ids[i + 1] || ids[i - 1];
+  await skTelKut();
+  await skSozQaytaOl();
+  skTelYangila(true, keyingi ? '.sk-tel[data-tel="' + keyingi + '"] [data-tochir]' : '#skTelRaqam');   // review233 №4: fokus yo'qolmasin
+}
+
+async function skIshSaqla() {
+  var kunlar = [];
+  document.querySelectorAll('#skSozIch [data-kun]').forEach(function (c) { if (c.checked) kunlar.push(parseInt(c.dataset.kun, 10)); });
+  var boshi = document.getElementById('skIshBoshi'), oxiri = document.getElementById('skIshOxiri');
+  var iz = document.getElementById('skIshIzoh').value;
+  if (!kunlar.length) { showMsg('❌ Kamida bitta ish kunini belgilang', 'error'); return; }
+  if (!skBandla('ish')) return;
+  var b = document.getElementById('skIshSaqla');
+  b.disabled = true;
+  var n = await skSorov('/api/sayt-katalogi/ish-vaqti', 'PUT', {kunlar: kunlar, boshi: boshi.value, oxiri: oxiri.value, izoh: iz.trim() ? iz : null});
+  skBo('ish');
+  b.disabled = false;
+  if (!n.ok) { showMsg('❌ Ish vaqti saqlanmadi: ' + n.sabab, 'error'); return; }
+  showMsg('✓ Ish vaqti saqlandi', 'success');
+  await skSozQaytaOl();
+  shtorkaHolat('sk-soz-ish', skSoz().ish_vaqti_matni, null);
+  skTelYangila(false);                           // hozir ko'rinadigan raqamlar ish vaqtiga bog'liq
+}
+
+async function skRetseptSaqla(standart) {
+  var s = skSoz();
+  if (!s) return;
+  var r = {rom: {}, eshik: {}}, xato = null;
+  if (standart) r = JSON.parse(JSON.stringify(s.retsept_standart));
+  else {
+    document.querySelectorAll('#skSozIch [data-rk]').forEach(function (inp) {
+      var t = inp.value.trim().replace(',', '.');
+      var x = /^\d{1,3}(\.0+)?$/.test(t) ? parseInt(t, 10) : NaN;
+      inp.classList.toggle('xato', isNaN(x));
+      if (isNaN(x)) xato = xato || (inp.getAttribute('aria-label') + ': butun son kiriting');
+      r[inp.dataset.rk][inp.dataset.rt] = x;
+    });
+  }
+  if (xato) { showMsg('❌ Retsept saqlanmadi: ' + xato, 'error'); return; }
+  var ol = document.getElementById('skKOlcham').value;
+  if (!skBandla('retsept')) return;
+  var b = document.getElementById(standart ? 'skRetseptStandart' : 'skRetseptSaqla');
+  b.disabled = true;
+  var n = await skSorov('/api/sayt-katalogi/komplekt', 'PUT', {retsept: r, olcham: ol});
+  skBo('retsept');
+  b.disabled = false;
+  if (!n.ok) { showMsg('❌ Retsept saqlanmadi: ' + n.sabab, 'error'); return; }
+  showMsg('✓ Komplekt retsepti saqlandi', 'success');
+  if (standart) {                                // jadval qiymatlari formaga (faqat «Egasi jadvali» tugmasida — forma serverdan)
+    document.querySelectorAll('#skSozIch [data-rk]').forEach(function (inp) { inp.value = String(n.d.retsept[inp.dataset.rk][inp.dataset.rt]); inp.classList.remove('xato'); });
+  }
+  shtorkaHolat('sk-soz-retsept', 'standart o\'lcham: ' + n.d.olcham, null);
+  skYukla();                                     // komplekt narxlari hamma modelda o'zgaradi (sozlamalar kartochkasi qayta chizilmaydi)
+}
+
+function skKomplektNarx(x) { return (x === null || x === undefined) ? '—' : sonKor(x, 0); }
+
+function skKomplektHtml(m) {
+  var s = skSoz();
+  var royxat = (SK.k.komplekt || {})[String(m.id)] || [];
+  if (!s) return '';
+  var standart = skOlchamKalit(s.komplekt_olcham);
+  var h = '<h4>Komplekt narxlari (retsept bo\'yicha, chegirmasiz)</h4>';
+  if (!royxat.length) return h + '<p class="sk-matn">Narx qatori yo\'q — karniz, podokonnik, nalichnik (va kapitel, baza) qatorlarini o\'lcham bilan qo\'shing.</p>';
+  function katak(v, kb) {
+    if (!v) return '—';
+    var q = '<div class="sk-kn">' + escapeHtml('qoplamasiz ' + skKomplektNarx(v.qoplamasiz) + ' · qoplamali ' + skKomplektNarx(v.qoplamali)) + '</div>';
+    if (kb) q += '<div class="sk-kn sk-matn">' + escapeHtml('kapitel / bazasiz: ' + skKomplektNarx(v.qoplamasiz_kbsiz) + ' · ' + skKomplektNarx(v.qoplamali_kbsiz)) + '</div>';
+    if (v.yetishmaydi && v.yetishmaydi.length) q += '<div class="sk-yoq">' + escapeHtml('Yetishmaydi: ' + v.yetishmaydi.join('; ')) + '</div>';
+    return q;
+  }
+  var kb = !!m.kapitel_baza_bor;
+  h += '<div class="sk-jadval-quti"><table class="sk-kjadval"><thead><tr><th>O\'lcham</th><th>Rom (1 komplekt)</th><th>Eshik (1 komplekt)</th><th>Ulgurji rom (1 komplekt)</th></tr></thead><tbody>' +
+    royxat.map(x => '<tr><td data-label="O\'lcham"><b>' + escapeHtml(x.olcham) + '</b>' + (skOlchamKalit(x.olcham) === standart ? ' <span class="sk-belgi oltin">standart</span>' : '') + '</td>' +
+      '<td data-label="Rom">' + katak(x.rom, kb) + '</td><td data-label="Eshik">' + katak(x.eshik, kb) + '</td>' +
+      '<td data-label="Ulgurji rom">' + katak(x.ulgurji_rom, kb) + '</td></tr>').join('') + '</tbody></table></div>';
+  if (!royxat.some(x => skOlchamKalit(x.olcham) === standart)) {
+    h += '<p class="sk-yoq">' + escapeHtml('Standart o\'lcham «' + s.komplekt_olcham + '» bu modelda yo\'q — saytda model birinchi o\'lchami bilan ochiladi') + '</p>';
+  }
+  return h;
+}
+
+async function skKomplektYangila(modelId) {
+  SK.knavbat = SK.knavbat || {};
+  var nomer = (SK.knavbat[modelId] || 0) + 1;
+  SK.knavbat[modelId] = nomer;
+  var n = await skSorov('/api/sayt-katalogi/modellar/' + modelId + '/komplekt', 'GET');
+  if (SK.knavbat[modelId] !== nomer || !n.ok || !n.d) return;     // eski javob yangisini bosib ketmasin
+  SK.k.komplekt = SK.k.komplekt || {};
+  SK.k.komplekt[String(modelId)] = n.d.komplekt;
+  var quti = document.querySelector('[data-komplekt="' + modelId + '"]');
+  var m = SK.k.modellar.filter(x => x.id === modelId)[0];
+  if (quti && m) quti.innerHTML = skKomplektHtml(m);
 }
 
 skYukla();

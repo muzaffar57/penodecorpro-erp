@@ -11238,7 +11238,7 @@ def _reset_table_order():
         ErrorLog, LoginHistory, CompanySetting, RecurringObligation, Inventory,
         Yonalish, BrakTaqdir, Taklif, HodimIshDavri, BuyurtmaTuzatish, AmalKaliti,
         PulHisobi, PulHisobiQoldiq, PulOtkazmasi,
-        DokonDetal, DokonModel, DokonBolim, DokonRasm,
+        DokonDetal, DokonModel, DokonBolim, DokonRasm, DokonTelefon,
     )
     return [
         ProductionOrder,
@@ -11277,6 +11277,8 @@ def _reset_table_order():
         # kech166 (zip 231): sayt katalogi — narx qatori modeldan, model bo'limdan OLDIN o'chiriladi (tiklashda teskari)
         # kech167 (zip 232): model rasmi ham modeldan OLDIN (fayllar diskda qoladi — yozuvi yo'q fayl ochiq berilmaydi)
         DokonDetal, DokonRasm, DokonModel, DokonBolim,
+        # kech168 (zip 233): tasdiqlash telefonlari — faqat korxonaga ishora qiladi, ularga hech kim ishora qilmaydi
+        DokonTelefon,
     ]
 
 
@@ -11433,6 +11435,10 @@ def import_full_backup(db: Session, data: dict, company_id: int,
 
     # kech167 (zip 232, review232 №3): sayt rasmlari manzillari — shakli, juftligi, boshqa korxonaniki emas
     _dokon_x = dokon_rasm_zaxira_xatosi(db, tables.get("dokon_rasmlar"), company_id)
+    if _dokon_x:
+        return {"success": False, "message": _dokon_x}
+    # kech168 (zip 233, review233 №5): tasdiqlash telefonlari — shakl, takror, 10 ta, kamida bitta «doim»
+    _dokon_x = dokon_telefon_zaxira_xatosi(tables.get("dokon_telefonlar"))
     if _dokon_x:
         return {"success": False, "message": _dokon_x}
 
@@ -22033,7 +22039,10 @@ def dokon_katalog(db: Session, company_id: int) -> dict:
             "bolimlar": [dokon_bolim_dict(b) for b in bolimlar],
             "modellar": [dokon_model_dict(m) for m in modellar],
             "detallar": [dokon_detal_dict(d, koeff) for d in detallar],
-            "rasmlar": [dokon_rasm_dict(r) for r in rasmlar], "rasm_max": DOKON_RASM_MAX}
+            "rasmlar": [dokon_rasm_dict(r) for r in rasmlar], "rasm_max": DOKON_RASM_MAX,
+            # kech168 (zip 233): do'kon sozlamalari (telefonlar, ish vaqti, retsept) va komplekt narxlari (server hisobi)
+            "sozlamalar": dokon_sozlamalar(db, company_id),
+            "komplekt": {str(k): v for k, v in dokon_komplekt_narxlari(db, company_id).items()}}
 
 
 def _dokon_oxirgi_tartib(db, ustun, *shartlar):
@@ -22318,10 +22327,10 @@ _DOKON_NARX_NOMI = {"narx": "Narx (qoplamasiz)", "narx_qoplamali": "Narx (qoplam
 def _dokon_detal_band(db, company_id, model_id, turi, olcham, istisno_id=None):
     """Modelda shu turi × o'lcham bormi (katta / kichik harfsiz, Python `casefold`)."""
     from models import DokonDetal
-    k = olcham.casefold()
+    k = dokon_olcham_kalit(olcham)              # kech168 (review233 №3): «O'rta» = «O’rta» = «Oʻrta»
     rows = (db.query(DokonDetal.id, DokonDetal.olcham)
             .filter(DokonDetal.company_id == company_id, DokonDetal.model_id == model_id, DokonDetal.turi == turi).all())
-    return any(r[1].casefold() == k and r[0] != istisno_id for r in rows)
+    return any(dokon_olcham_kalit(r[1]) == k and r[0] != istisno_id for r in rows)
 
 
 def _dokon_detal_matni(d):
@@ -22749,3 +22758,573 @@ def dokon_yetim_fayllar_tozala(db: Session, yosh_sekund: int = 3600) -> int:
     except Exception as e:                              # noqa: BLE001
         print(f"⚠ Sayt rasmlarining yetim fayllari tozalanmadi: {e}")
         return 0
+
+
+# ── Do'kon sozlamalari (kech168, zip 233): tasdiqlash telefonlari, ish vaqti, komplekt retsepti ─────────────────────────────
+# Egasi QARORLARI («Onlayn do'kon rejasi», 30.10):
+#   * buyurtma tasdig'i sahifasida «Shu raqamlardan biriga qo'ng'iroq qilib buyurtmani tasdiqlating» — raqamlar admin panelda
+#     qo'shiladi, o'chiriladi, tartibi o'zgaradi, yoniga izoh yoziladi; OXIRGI raqam o'chirilmaydi;
+#   * ish vaqti: dushanba–shanba 8:00–18:00 — uchala raqam; ish vaqtidan tashqari va yakshanba — faqat bitta raqam (+998 97 999 57 57);
+#     «Buyurtma qabul qilindi» sahifasida ish vaqti yoziladi;
+#   * komplekt retsepti (uchala o'lchamda bir xil): rom — karniz 2 m, podokonnik 2 m, nalichnik 4 m, kapitel 2, baza 2; eshik — karniz
+#     2 m, nalichnik 5 m, kapitel 2, baza 2; komplekt narxi = detallar narxi × miqdori yig'indisi (chegirmasiz); kapitel va baza
+#     o'chirilsa — aynan ularning narxi ayiriladi; ulgurjida — faqat rom komplekti, detal ulgurji narxi bilan (1 dona = 2 m);
+#   * komplekt bo'limi sahifasi standart o'lcham bilan ochiladi («O'rta», admin panelda o'zgartiriladi).
+# Texnik qarorlar (Claude, kech168):
+#   * telefonlar — alohida jadval `DokonTelefon` (sozlama qatori 255 belgi — 10 ta raqam izohi bilan sig'maydi); raqam bitta shaklda
+#     saqlanadi `+998XXXXXXXXX` (yozilishi har xil bo'lsa ham takror tutiladi); «doim» belgisi — ish vaqtidan tashqarida ham ko'rinadi;
+#     kamida BITTA «doim» raqam bo'ladi (aks holda kechasi sahifa raqamsiz qoladi): birinchi raqam o'zi «doim», oxirgi «doim» belgisi
+#     olinmaydi va o'sha raqam o'chirilmaydi; hamma amal korxona qatori qulfi ostida (ikki oynadan bir vaqtda — qoida buzilmaydi);
+#   * ish vaqti — sozlama `dokon_ish_vaqti` (JSON: kunlar 1–7 (dushanba = 1), boshi / oxiri «HH:MM», boshi < oxiri) va `dokon_ish_izoh`
+#     (ixtiyoriy matn, masalan «Telefon orqali ma'lumot — 22:00 gacha»); vaqt — TOSHKENT (UTC+5);
+#   * retsept — sozlama `dokon_komplekt_retsept` (JSON); rom metrlari JUFT butun son (ulgurjida 1 dona = 2 m — yarim dona
+#     bo'lmasin), eshik metrlari butun son, kapitel / baza — butun son; sozlama yo'q / buzilgan — egasining jadvali;
+#   * komplekt narxi SERVERDA hisoblanadi (`dokon_komplekt_narxlari`) — do'kon API va admin ko'rinishi bitta hisobdan; saytda
+#     ko'rinmaydigan (yashirin) yoki narxi kiritilmagan detal kerak bo'lsa — o'sha variant narxsiz va nima yetishmasligi yoziladi.
+import json as _json233                                 # noqa: E402
+from datetime import datetime as _dt233                  # noqa: E402
+
+DOKON_TELEFON_MAX = 10
+DOKON_ISH_KALIT = "dokon_ish_vaqti"
+DOKON_ISH_IZOH_KALIT = "dokon_ish_izoh"
+DOKON_RETSEPT_KALIT = "dokon_komplekt_retsept"
+DOKON_KOMPLEKT_OLCHAM_KALIT = "dokon_komplekt_olcham"
+DOKON_ISH_STANDART = {"kunlar": [1, 2, 3, 4, 5, 6], "boshi": "08:00", "oxiri": "18:00"}
+DOKON_KOMPLEKT_OLCHAM_STANDART = "O'rta"
+DOKON_RETSEPT_STANDART = {"rom": {"karniz": 2, "podokonnik": 2, "nalichnik": 4, "kapitel": 2, "baza": 2},
+                          "eshik": {"karniz": 2, "nalichnik": 5, "kapitel": 2, "baza": 2}}
+DOKON_RETSEPT_TURLARI = {"rom": ("karniz", "podokonnik", "nalichnik", "kapitel", "baza"),
+                         "eshik": ("karniz", "nalichnik", "kapitel", "baza")}
+DOKON_METRLI_TURLAR = ("karniz", "podokonnik", "nalichnik")
+# review233 №3: «O'rta» / «O’rta» (iPhone tutuq belgisi) / «Oʻrta» (o'zbek oʻ) — bitta o'lcham
+_DOKON_APOSTROF = dict.fromkeys(map(ord, "\u2019\u2018\u02bb\u02bc\u0060\u00b4\u2032"), "'")
+DOKON_KUN_NOMI = {1: "dushanba", 2: "seshanba", 3: "chorshanba", 4: "payshanba", 5: "juma", 6: "shanba", 7: "yakshanba"}
+_DOKON_VAQT = _re232.compile(r"([01][0-9]|2[0-3]):([0-5][0-9])")
+
+
+def _dokon_sozlama_ol(db, company_id, kalit):
+    from models import CompanySetting
+    row = (db.query(CompanySetting.value)
+           .filter(CompanySetting.company_id == company_id, CompanySetting.key == kalit).first())
+    return row[0] if row else None
+
+
+def _dokon_sozlama_yoz(db, company_id, kalit, qiymat):
+    """Sozlama qatori (yo'q bo'lsa — yaratiladi; None — o'chiriladi). Chaqiruvchi commit qiladi."""
+    from models import CompanySetting
+    row = (db.query(CompanySetting)
+           .filter(CompanySetting.company_id == company_id, CompanySetting.key == kalit).first())
+    if qiymat is None:
+        if row is not None:
+            db.delete(row)
+        return
+    if len(qiymat) > 255:                               # CompanySetting.value — VARCHAR(255) (PG da uzunroq — xato)
+        raise ValueError("Sozlama juda uzun")
+    if row is not None:
+        row.value = qiymat
+    else:
+        db.add(CompanySetting(company_id=company_id, key=kalit, value=qiymat))
+
+
+def dokon_olcham_kalit(olcham):
+    """O'lcham solishtirish kaliti: tutuq belgisi variantlari → «'», katta / kichik harfsiz (Python `casefold`)."""
+    return (olcham or "").translate(_DOKON_APOSTROF).casefold()
+
+
+# ── Telefonlar ──
+def dokon_telefon_norm(qiymat):
+    """Telefon raqam → `+998XXXXXXXXX`. Qabul qilinadi: «+998 97 999 57 57», «998979995757», «97 999 57 57», «(97) 999-57-57».
+    Raqamdan boshqa belgilar faqat bo'shliq, «+», «-», «(», «)», «.»; aks holda / raqamlar soni noto'g'ri — `ValueError`."""
+    if not isinstance(qiymat, str):
+        raise ValueError("Telefon raqam matn bo'lishi kerak")
+    _dokon_surrogatsiz(qiymat, "Telefon raqam")
+    t = _dokon_toza(qiymat).strip()
+    if not t:
+        raise ValueError("Telefon raqam kiritilmagan")
+    if len(t) > 40 or any(not (ch.isascii() and (ch.isdigit() or ch in " +-().")) for ch in t) or "+" in t[1:]:
+        raise ValueError("Telefon raqam noto'g'ri — masalan +998 97 999 57 57")
+    raqam = "".join(ch for ch in t if ch.isdigit())
+    if len(raqam) == 9 and not t.startswith("+"):
+        raqam = "998" + raqam
+    if len(raqam) != 12 or not raqam.startswith("998"):
+        raise ValueError("Telefon raqam noto'g'ri — O'zbekiston raqami 9 xonali bo'ladi (masalan +998 97 999 57 57)")
+    return "+" + raqam
+
+
+def dokon_telefon_korinish(raqam):
+    """`+998979995757` → «+998 97 999 57 57»."""
+    r = raqam or ""
+    if len(r) == 13 and r.startswith("+998"):
+        return f"{r[:4]} {r[4:6]} {r[6:9]} {r[9:11]} {r[11:13]}"
+    return r
+
+
+def dokon_telefon_dict(t):
+    return {"id": t.id, "raqam": t.raqam, "korinish": dokon_telefon_korinish(t.raqam), "izoh": t.izoh, "doim": bool(t.doim),
+            "tartib": t.tartib or 0}
+
+
+def _dokon_telefonlar(db, company_id):
+    from models import DokonTelefon
+    return (db.query(DokonTelefon).filter(DokonTelefon.company_id == company_id)
+            .order_by(DokonTelefon.tartib, DokonTelefon.id).all())
+
+
+def _dokon_telefon_of(db, telefon_id, company_id):
+    from models import DokonTelefon
+    if isinstance(telefon_id, bool) or not isinstance(telefon_id, int) or not (1 <= telefon_id <= 2_147_483_647):
+        return None
+    db.flush()
+    return (db.query(DokonTelefon).filter(DokonTelefon.id == telefon_id, DokonTelefon.company_id == company_id)
+            .populate_existing().with_for_update().first())
+
+
+def _dokon_telefon_matni(t):
+    return dokon_telefon_korinish(t.raqam) + (f" ({t.izoh})" if t.izoh else "") + ("; doim ko'rinadi" if t.doim else "")
+
+
+def dokon_telefon_qosh(db: Session, company_id: int, data: dict, kim: str):
+    """Yangi tasdiqlash raqami: {"raqam"} (+ "izoh", "doim"). Birinchi raqam — o'zi «doim». Ko'pi bilan `DOKON_TELEFON_MAX` ta."""
+    from models import DokonTelefon
+    dokon_tekshir(db, company_id)
+    _dokon_kalitlar(data, ("raqam", "izoh", "doim"))
+    raqam = dokon_telefon_norm(data.get("raqam"))
+    izoh = _dokon_matn(data.get("izoh"), "Izoh", 40, bosh_mumkin=True)
+    doim = _dokon_bool(data.get("doim", False), "Doim ko'rinadi")
+    _dokon_korxona_qulf(db, company_id)
+    bor = _dokon_telefonlar(db, company_id)
+    if len(bor) >= DOKON_TELEFON_MAX:
+        raise ValueError(f"Ko'pi bilan {DOKON_TELEFON_MAX} ta raqam qo'shiladi")
+    if any(t.raqam == raqam for t in bor):
+        raise ValueError(f"{dokon_telefon_korinish(raqam)} raqami allaqachon bor")
+    if not any(t.doim for t in bor):
+        doim = True                                     # kamida bitta raqam ish vaqtidan tashqarida ham ko'rinsin
+    t = DokonTelefon(company_id=company_id, raqam=raqam, izoh=izoh, doim=doim,
+                     tartib=max([x.tartib or 0 for x in bor] + [0]) + 1, updated_by=kim)
+    db.add(t)
+    db.flush()
+    log_activity(db, "created", "dokon_telefon", t.id, "Sayt — tasdiqlash raqami", kim, new_value=_dokon_telefon_matni(t),
+                 company_id=company_id, commit=False)
+    db.commit()
+    db.refresh(t)
+    return t
+
+
+def dokon_telefon_yangila(db: Session, telefon_id: int, company_id: int, data: dict, kim: str):
+    """Izoh va «doim» belgisi (raqamning o'zi o'zgarmaydi — o'chirib qayta qo'shiladi). Topilmasa — None."""
+    dokon_tekshir(db, company_id)
+    _dokon_kalitlar(data, ("izoh", "doim"))
+    if not data:
+        raise ValueError("O'zgartiriladigan maydon yuborilmadi")
+    yangi = {}
+    if "izoh" in data:
+        yangi["izoh"] = _dokon_matn(data.get("izoh"), "Izoh", 40, bosh_mumkin=True)
+    if "doim" in data:
+        yangi["doim"] = _dokon_bool(data.get("doim"), "Doim ko'rinadi")
+    _dokon_korxona_qulf(db, company_id)
+    t = _dokon_telefon_of(db, telefon_id, company_id)
+    if t is None:
+        db.rollback()
+        return None
+    if yangi.get("doim") is False and t.doim and not any(x.doim and x.id != t.id for x in _dokon_telefonlar(db, company_id)):
+        raise ValueError("Kamida bitta raqam ish vaqtidan tashqarida ham ko'rinishi kerak — avval boshqa raqamga «doim» belgisini "
+                         "qo'ying")
+    eski = _dokon_telefon_matni(t)
+    for k, v in yangi.items():
+        setattr(t, k, v)
+    yangi_matn = _dokon_telefon_matni(t)
+    if yangi_matn == eski:
+        db.rollback()
+        return t
+    t.updated_at = _dt233.utcnow()
+    t.updated_by = kim
+    log_activity(db, "updated", "dokon_telefon", t.id, "Sayt — tasdiqlash raqami", kim, old_value=eski, new_value=yangi_matn,
+                 company_id=company_id, commit=False)
+    db.commit()
+    db.refresh(t)
+    return t
+
+
+def dokon_telefon_ochir(db: Session, telefon_id: int, company_id: int, kim: str):
+    """Raqamni o'chiradi. OXIRGI raqam (egasi qarori) va oxirgi «doim» raqam o'chirilmaydi. Topilmasa — None."""
+    dokon_tekshir(db, company_id)
+    _dokon_korxona_qulf(db, company_id)
+    t = _dokon_telefon_of(db, telefon_id, company_id)
+    if t is None:
+        db.rollback()
+        return None
+    qolgan = [x for x in _dokon_telefonlar(db, company_id) if x.id != t.id]
+    if not qolgan:
+        raise ValueError("Oxirgi raqamni o'chirib bo'lmaydi — buyurtma tasdig'i sahifasi raqamsiz qoladi. Avval yangi raqam qo'shing")
+    if t.doim and not any(x.doim for x in qolgan):
+        raise ValueError("Bu raqam ish vaqtidan tashqarida ko'rinadigan yagona raqam — avval boshqa raqamga «doim» belgisini qo'ying")
+    log_activity(db, "deleted", "dokon_telefon", t.id, "Sayt — tasdiqlash raqami", kim, old_value=_dokon_telefon_matni(t),
+                 company_id=company_id, commit=False)
+    db.delete(t)
+    db.commit()
+    return True
+
+
+def dokon_telefon_tartib(db: Session, company_id: int, tartib, kim: str):
+    """Raqamlar tartibi: `tartib` — HAMMA raqam id lari yangi tartibda; bazadagidan farq qilsa — `ValueError`."""
+    dokon_tekshir(db, company_id)
+    if not isinstance(tartib, list) or len(tartib) > 1000:
+        raise ValueError("Raqamlar tartibi ro'yxat bo'lishi kerak")
+    if any(isinstance(x, bool) or not isinstance(x, int) for x in tartib):
+        raise ValueError("Raqamlar tartibi noto'g'ri")
+    if len(set(tartib)) != len(tartib):
+        raise ValueError("Raqamlar tartibida takror bor")
+    _dokon_korxona_qulf(db, company_id)
+    bor = _dokon_telefonlar(db, company_id)
+    if sorted(t.id for t in bor) != sorted(tartib):
+        raise ValueError("Raqamlar ro'yxati boshqa oynada o'zgargan — sahifani yangilang")
+    eski = [t.id for t in bor]
+    if eski == tartib:
+        db.rollback()
+        return bor
+    joy = {tid: i for i, tid in enumerate(tartib, start=1)}
+    for t in bor:
+        t.tartib = joy[t.id]
+    yangi = sorted(bor, key=lambda t: joy[t.id])
+    log_activity(db, "updated", "dokon_telefon", yangi[0].id, "Sayt — tasdiqlash raqamlari tartibi", kim,
+                 old_value=", ".join(dokon_telefon_korinish(t.raqam) for t in bor),
+                 new_value=", ".join(dokon_telefon_korinish(t.raqam) for t in yangi), company_id=company_id, commit=False)
+    db.commit()
+    return _dokon_telefonlar(db, company_id)
+
+
+def dokon_telefon_zaxira_xatosi(rows):
+    """review233 №5: zaxiradan tiklanadigan `dokon_telefonlar` qatorlari — xato matni yoki None: ko'pi bilan `DOKON_TELEFON_MAX` ta,
+    raqam — `+998XXXXXXXXX` shaklida va takrorsiz, izoh ≤ 40, qator bo'lsa — kamida bittasi «doim» (aks holda dam olish kuni sahifa
+    raqamsiz qoladi)."""
+    if not rows:
+        return None
+    if not isinstance(rows, list):
+        return "Fayl formati noto'g'ri: dokon_telefonlar ro'yxat emas"
+    if len(rows) > DOKON_TELEFON_MAX:
+        return f"Zaxira fayli buzilgan: dokon_telefonlar da {len(rows)} ta raqam (ko'pi bilan {DOKON_TELEFON_MAX}). Tiklash rad etildi."
+    raqamlar = []
+    for r in rows:
+        q = r.get("raqam") if isinstance(r, dict) else None
+        iz = r.get("izoh") if isinstance(r, dict) else None
+        if not isinstance(q, str) or not _re232.fullmatch(r"\+998[0-9]{9}", q) or (iz is not None and (not isinstance(iz, str) or len(iz) > 40)):
+            return f"Zaxira fayli buzilgan: dokon_telefonlar qatori noto'g'ri ({str(q)[:40]}). Tiklash rad etildi."
+        raqamlar.append(q)
+    if len(set(raqamlar)) != len(raqamlar):
+        return "Zaxira fayli buzilgan: dokon_telefonlar da bir raqam ikki marta. Tiklash rad etildi."
+    if not any(isinstance(r, dict) and r.get("doim") in (True, 1, "1", "true", "True") for r in rows):
+        return "Zaxira fayli buzilgan: dokon_telefonlar da ish vaqtidan tashqarida ko'rinadigan («doim») raqam yo'q. Tiklash rad etildi."
+    return None
+
+
+def dokon_korxona_telefonlari(db: Session, company_id: int):
+    """Korxona sozlamalaridagi telefonlar (companies.phone / phone2 / phone3) — do'kon ro'yxatida hali yo'q va to'g'ri
+    raqamlilari (`+998…`); sahifadagi «Korxona raqamlarini qo'shish» tugmasi uchun."""
+    from production_models import Company as _Co
+    co = db.get(_Co, company_id)
+    if co is None:
+        return []
+    bor = {t.raqam for t in _dokon_telefonlar(db, company_id)}
+    natija = []
+    for k in ("phone", "phone2", "phone3"):
+        v = getattr(co, k, None)
+        if not v:
+            continue
+        try:
+            r = dokon_telefon_norm(v)
+        except ValueError:
+            continue
+        if r not in bor and r not in natija:
+            natija.append(r)
+    return natija
+
+
+# ── Ish vaqti ──
+def _dokon_vaqt(qiymat, nom):
+    if not isinstance(qiymat, str) or not _DOKON_VAQT.fullmatch(qiymat.strip()):
+        raise ValueError(f"«{nom}» vaqti noto'g'ri — masalan 08:00")
+    return qiymat.strip()
+
+
+def dokon_ish_vaqti(db: Session, company_id: int) -> dict:
+    """Ish vaqti sozlamasi; yo'q yoki buzilgan bo'lsa — egasining qarori (dushanba–shanba, 08:00–18:00)."""
+    x = _dokon_sozlama_ol(db, company_id, DOKON_ISH_KALIT)
+    try:
+        d = _json233.loads(x) if x else None
+        kunlar = d["kunlar"]
+        if (not isinstance(kunlar, list) or not kunlar or len(set(kunlar)) != len(kunlar)
+                or any(isinstance(k, bool) or not isinstance(k, int) or not 1 <= k <= 7 for k in kunlar)):
+            raise ValueError
+        boshi, oxiri = _dokon_vaqt(d["boshi"], "boshi"), _dokon_vaqt(d["oxiri"], "oxiri")
+        if boshi >= oxiri:
+            raise ValueError
+        return {"kunlar": sorted(kunlar), "boshi": boshi, "oxiri": oxiri}
+    except Exception:                                    # noqa: BLE001
+        return {"kunlar": list(DOKON_ISH_STANDART["kunlar"]), "boshi": DOKON_ISH_STANDART["boshi"],
+                "oxiri": DOKON_ISH_STANDART["oxiri"]}
+
+
+def dokon_ish_vaqti_matni(ish: dict) -> str:
+    """{"kunlar": [1..6], "boshi": "08:00", "oxiri": "18:00"} → «Dushanba–shanba, 8:00–18:00». Ketma-ket kunlar (3 va ko'p) —
+    oraliq; hamma kun — «Har kuni»."""
+    kunlar = sorted(ish["kunlar"])
+    if kunlar == list(range(1, 8)):
+        kun = "har kuni"
+    else:
+        qism, i = [], 0
+        while i < len(kunlar):
+            j = i
+            while j + 1 < len(kunlar) and kunlar[j + 1] == kunlar[j] + 1:
+                j += 1
+            if j - i >= 2:
+                qism.append(f"{DOKON_KUN_NOMI[kunlar[i]]}–{DOKON_KUN_NOMI[kunlar[j]]}")
+            else:
+                qism.extend(DOKON_KUN_NOMI[k] for k in kunlar[i:j + 1])
+            i = j + 1
+        kun = ", ".join(qism)
+
+    def _v(s):
+        return s[1:] if s.startswith("0") else s
+    return f"{kun[0].upper()}{kun[1:]}, {_v(ish['boshi'])}–{_v(ish['oxiri'])}"
+
+
+def dokon_ish_vaqtimi(ish: dict, hozir_utc=None) -> bool:
+    """Hozir (TOSHKENT vaqti) ish vaqtimi: kun `kunlar` da va boshi ≤ HH:MM < oxiri."""
+    from database import TASHKENT_OFFSET as _TO233
+    t = (hozir_utc or _dt233.utcnow()) + _TO233
+    return t.isoweekday() in ish["kunlar"] and ish["boshi"] <= t.strftime("%H:%M") < ish["oxiri"]
+
+
+def dokon_korinadigan_telefonlar(db: Session, company_id: int, hozir_utc=None):
+    """Sayt hozir ko'rsatadigan raqamlar: ish vaqtida — hammasi, tashqarida — faqat «doim» belgililari (tartib bo'yicha)."""
+    tel = _dokon_telefonlar(db, company_id)
+    if dokon_ish_vaqtimi(dokon_ish_vaqti(db, company_id), hozir_utc):
+        return tel
+    return [t for t in tel if t.doim]
+
+
+def dokon_ish_vaqti_saqla(db: Session, company_id: int, data: dict, kim: str) -> dict:
+    """{"kunlar": [1..7], "boshi": "HH:MM", "oxiri": "HH:MM"} (+ "izoh" — ixtiyoriy, 200 belgigacha; null — o'chiriladi)."""
+    dokon_tekshir(db, company_id)
+    _dokon_kalitlar(data, ("kunlar", "boshi", "oxiri", "izoh"))
+    kunlar = data.get("kunlar")
+    if not isinstance(kunlar, list) or len(kunlar) > 7:
+        raise ValueError("Ish kunlari ro'yxat bo'lishi kerak")
+    if any(isinstance(k, bool) or not isinstance(k, int) or not 1 <= k <= 7 for k in kunlar):
+        raise ValueError("Ish kunlari noto'g'ri (1 — dushanba … 7 — yakshanba)")
+    if len(set(kunlar)) != len(kunlar):
+        raise ValueError("Ish kunlarida takror bor")
+    if not kunlar:
+        raise ValueError("Kamida bitta ish kunini belgilang")
+    boshi = _dokon_vaqt(data.get("boshi"), "Ish boshlanishi")
+    oxiri = _dokon_vaqt(data.get("oxiri"), "Ish tugashi")
+    if boshi >= oxiri:
+        raise ValueError("Ish tugash vaqti boshlanishidan keyin bo'lsin")
+    yangi_izoh = _dokon_matn(data.get("izoh"), "Izoh", 200, bosh_mumkin=True) if "izoh" in data else None
+    yangi = {"kunlar": sorted(kunlar), "boshi": boshi, "oxiri": oxiri}
+    _dokon_korxona_qulf(db, company_id)
+    # review233 №6: «izoh» yuborilmasa — eskisi QULFDAN KEYIN o'qiladi (aks holda bir vaqtdagi izoh saqlashini bosib ketardi)
+    izoh = yangi_izoh if "izoh" in data else _dokon_sozlama_ol(db, company_id, DOKON_ISH_IZOH_KALIT)
+    eski = dokon_ish_vaqti(db, company_id)
+    eski_izoh = _dokon_sozlama_ol(db, company_id, DOKON_ISH_IZOH_KALIT)
+    if yangi == eski and izoh == eski_izoh and _dokon_sozlama_ol(db, company_id, DOKON_ISH_KALIT):
+        db.rollback()
+        return {"ish_vaqti": yangi, "izoh": izoh}
+    _dokon_sozlama_yoz(db, company_id, DOKON_ISH_KALIT, _json233.dumps(yangi, separators=(",", ":")))
+    _dokon_sozlama_yoz(db, company_id, DOKON_ISH_IZOH_KALIT, izoh)
+    eski_m = dokon_ish_vaqti_matni(eski) + (f"; {eski_izoh}" if eski_izoh else "")
+    yangi_m = dokon_ish_vaqti_matni(yangi) + (f"; {izoh}" if izoh else "")
+    if eski_m != yangi_m:                               # standart qiymat birinchi marta yozilsa — jurnalga o'zgarish emas
+        log_activity(db, "updated", "company_setting", company_id, "Sayt — ish vaqti", kim, old_value=eski_m, new_value=yangi_m,
+                     company_id=company_id, commit=False)
+    db.commit()
+    return {"ish_vaqti": yangi, "izoh": izoh}
+
+
+# ── Komplekt retsepti va narxi ──
+def _dokon_retsept_tekshir(r):
+    """Retsept {"rom": {...}, "eshik": {...}} — kalitlar AYNAN `DOKON_RETSEPT_TURLARI`; butun sonlar; rom metrlari juft (0 … 40),
+    eshik metrlari 0 … 40, kapitel / baza 0 … 20; har komplektda kamida bitta metrli detal."""
+    if not isinstance(r, dict) or set(r) != set(DOKON_RETSEPT_TURLARI):
+        raise ValueError("Retseptda «rom» va «eshik» bo'lishi kerak")
+    toza = {}
+    for kom, turlar in DOKON_RETSEPT_TURLARI.items():
+        q = r[kom]
+        nom_k = "Rom" if kom == "rom" else "Eshik"
+        if not isinstance(q, dict) or set(q) != set(turlar):
+            raise ValueError(f"{nom_k} komplektida detallar: " + ", ".join(DOKON_TURI_NOMI[t] for t in turlar))
+        toza[kom] = {}
+        for t in turlar:
+            v = q[t]
+            nom = f"{nom_k} — {DOKON_TURI_NOMI[t]}"
+            if isinstance(v, float) and math.isfinite(v) and v == int(v) and abs(v) <= 1000:
+                v = int(v)
+            if isinstance(v, bool) or not isinstance(v, int):
+                raise ValueError(f"«{nom}» butun son bo'lishi kerak")
+            katta = 40 if t in DOKON_METRLI_TURLAR else 20
+            if v < 0 or v > katta:
+                raise ValueError(f"«{nom}» 0 … {katta} oralig'ida bo'lsin")
+            if kom == "rom" and t in DOKON_METRLI_TURLAR and v % 2:
+                raise ValueError(f"«{nom}» juft metr bo'lsin — rom komplekti ulgurjida ham sotiladi (1 dona = 2 m)")
+            toza[kom][t] = v
+        if not any(toza[kom][t] for t in turlar if t in DOKON_METRLI_TURLAR):
+            raise ValueError(f"{nom_k} komplektida kamida bitta metrli detal bo'lsin")
+    return toza
+
+
+def dokon_retsept(db: Session, company_id: int) -> dict:
+    """Komplekt retsepti; sozlama yo'q / buzilgan — egasining jadvali (`DOKON_RETSEPT_STANDART`)."""
+    x = _dokon_sozlama_ol(db, company_id, DOKON_RETSEPT_KALIT)
+    try:
+        return _dokon_retsept_tekshir(_json233.loads(x))
+    except Exception:                                    # noqa: BLE001
+        return {k: dict(v) for k, v in DOKON_RETSEPT_STANDART.items()}
+
+
+def dokon_komplekt_olcham(db: Session, company_id: int) -> str:
+    return _dokon_sozlama_ol(db, company_id, DOKON_KOMPLEKT_OLCHAM_KALIT) or DOKON_KOMPLEKT_OLCHAM_STANDART
+
+
+def dokon_retsept_matni(r: dict) -> str:
+    def _q(kom):
+        q = r[kom]
+        return ", ".join(f"{DOKON_TURI_NOMI[t].lower()} {q[t]} {'m' if t in DOKON_METRLI_TURLAR else 'dona'}"
+                         for t in DOKON_RETSEPT_TURLARI[kom] if q[t])
+    return f"rom: {_q('rom')}; eshik: {_q('eshik')}"
+
+
+def dokon_komplekt_saqla(db: Session, company_id: int, data: dict, kim: str) -> dict:
+    """{"retsept": {...}, "olcham": "O'rta"} — ikkalasi ixtiyoriy (kamida bittasi)."""
+    dokon_tekshir(db, company_id)
+    _dokon_kalitlar(data, ("retsept", "olcham"))
+    if not data:
+        raise ValueError("O'zgartiriladigan maydon yuborilmadi")
+    _dokon_korxona_qulf(db, company_id)
+    eski_r = dokon_retsept(db, company_id)
+    eski_o = dokon_komplekt_olcham(db, company_id)
+    r = _dokon_retsept_tekshir(data["retsept"]) if "retsept" in data else eski_r
+    o = _dokon_matn(data.get("olcham"), "Standart o'lcham", 40) if "olcham" in data else eski_o
+    ozgarish = []
+    if "retsept" in data and (r != eski_r or not _dokon_sozlama_ol(db, company_id, DOKON_RETSEPT_KALIT)):
+        _dokon_sozlama_yoz(db, company_id, DOKON_RETSEPT_KALIT, _json233.dumps(r, separators=(",", ":")))
+        if r != eski_r:
+            ozgarish.append(("Sayt — komplekt retsepti", dokon_retsept_matni(eski_r), dokon_retsept_matni(r)))
+    if "olcham" in data and o != eski_o:
+        _dokon_sozlama_yoz(db, company_id, DOKON_KOMPLEKT_OLCHAM_KALIT, o)
+        ozgarish.append(("Sayt — komplekt bo'limining standart o'lchami", eski_o, o))
+    for nom, eski, yangi in ozgarish:
+        log_activity(db, "updated", "company_setting", company_id, nom, kim, old_value=eski, new_value=yangi,
+                     company_id=company_id, commit=False)
+    db.commit()
+    return {"retsept": r, "olcham": o}
+
+
+def _dokon_jam(qatorlar):
+    """[(narx Decimal | None, miqdor)] → yig'indi (Decimal, 2 xona) yoki None (biror kerakli narx yo'q)."""
+    jami = Decimal("0")
+    for narx, miqdor in qatorlar:
+        if not miqdor:
+            continue
+        if narx is None:
+            return None
+        jami += Decimal(str(narx)) * Decimal(str(miqdor))
+    return jami.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def dokon_model_komplekti(m, detallar, retsept: dict, koeff) -> list:
+    """Bitta komplekt modelining narxlari — har o'lcham uchun (detal qatorlari tartibida birinchi uchragan yozilishi):
+    rom / eshik (oddiy narx, 1 m / 1 dona) va ulgurji rom (1 dona = 2 m; eshik ulgurjida yo'q), har biri qoplamasiz va qoplamali,
+    to'liq va (modelda kapitel / baza bo'lsa) kapitel va bazasiz. Saytda ko'rinmaydigan yoki narxi yo'q detal kerak bo'lsa —
+    o'sha narx None, `yetishmaydi` — nimasi yo'qligi."""
+    if m.qolip != "komplekt":
+        return []
+    olchamlar, guruh = [], {}
+    for d in detallar:
+        k = dokon_olcham_kalit(d.olcham)
+        if k not in guruh:
+            guruh[k] = {}
+            olchamlar.append((k, d.olcham))
+        if d.yoqilgan:
+            guruh[k][d.turi] = d
+    kb = bool(m.kapitel_baza_bor)
+    natija = []
+    for k, olcham in olchamlar:
+        g = guruh[k]
+
+        def narx(turi, tur, qoplamali):
+            d = g.get(turi)
+            if d is None:
+                return None
+            asos = d.narx if tur == "oddiy" else d.ulgurji_narx
+            if not qoplamali:
+                return asos
+            alohida = d.narx_qoplamali if tur == "oddiy" else d.ulgurji_qoplamali
+            return alohida if alohida is not None else dokon_avto_qoplamali(asos, koeff)
+
+        bolim = {}
+        for kom, tur in (("rom", "oddiy"), ("eshik", "oddiy"), ("ulgurji_rom", "ulgurji")):
+            q = retsept["rom" if kom != "eshik" else "eshik"]
+            turlar = [t for t in DOKON_RETSEPT_TURLARI["rom" if kom != "eshik" else "eshik"]
+                      if q[t] and (kb or t not in ("kapitel", "baza"))]
+
+            def miqdor(t):
+                if tur == "ulgurji" and t in DOKON_METRLI_TURLAR:
+                    return q[t] // 2                 # rom metrlari juft (retsept qoidasi)
+                return q[t]
+            yoq = []
+            for t in turlar:
+                d = g.get(t)
+                if d is None:
+                    yoq.append(f"{DOKON_TURI_NOMI[t]} — qator yo'q yoki saytda yashirin")
+                elif (d.narx if tur == "oddiy" else d.ulgurji_narx) is None:
+                    yoq.append(f"{DOKON_TURI_NOMI[t]} — {'ulgurji ' if tur == 'ulgurji' else ''}narx kiritilmagan")
+            yozuv = {"yetishmaydi": yoq}
+            for qop in (False, True):
+                nom = "qoplamali" if qop else "qoplamasiz"
+                yozuv[nom] = _dokon_pul(_dokon_jam([(narx(t, tur, qop), miqdor(t)) for t in turlar]))
+                if kb:
+                    yozuv[nom + "_kbsiz"] = _dokon_pul(_dokon_jam([(narx(t, tur, qop), miqdor(t)) for t in turlar
+                                                                   if t not in ("kapitel", "baza")]))
+            bolim[kom] = yozuv
+        natija.append({"olcham": olcham, **bolim})
+    return natija
+
+
+def dokon_komplekt_narxlari(db: Session, company_id: int, model_id=None) -> dict:
+    """{model_id: dokon_model_komplekti(...)} — korxonaning komplekt modellari (yoki bitta model)."""
+    from models import DokonModel, DokonDetal
+    koeff = dokon_koeff(db, company_id)
+    retsept = dokon_retsept(db, company_id)
+    q = db.query(DokonModel).filter(DokonModel.company_id == company_id, DokonModel.qolip == "komplekt")
+    if model_id is not None:
+        q = q.filter(DokonModel.id == model_id)
+    modellar = q.all()
+    if not modellar:
+        return {}
+    detallar = (db.query(DokonDetal)
+                .filter(DokonDetal.company_id == company_id, DokonDetal.model_id.in_([m.id for m in modellar]))
+                .order_by(DokonDetal.model_id, DokonDetal.tartib, DokonDetal.id).all())
+    natija = {}
+    for m in modellar:
+        natija[m.id] = dokon_model_komplekti(m, [d for d in detallar if d.model_id == m.id], retsept, koeff)
+    return natija
+
+
+def dokon_sozlamalar(db: Session, company_id: int, hozir_utc=None) -> dict:
+    """Sahifa uchun do'kon sozlamalari: telefonlar, hozir ko'rinadiganlari, ish vaqti, retsept, standart o'lcham."""
+    ish = dokon_ish_vaqti(db, company_id)
+    tel = _dokon_telefonlar(db, company_id)
+    ishda = dokon_ish_vaqtimi(ish, hozir_utc)
+    retsept = dokon_retsept(db, company_id)
+    return {"telefonlar": [dokon_telefon_dict(t) for t in tel], "telefon_max": DOKON_TELEFON_MAX,
+            "hozir_ish_vaqti": ishda,
+            "korinadigan_telefonlar": [dokon_telefon_dict(t) for t in (tel if ishda else [t for t in tel if t.doim])],
+            "korxona_telefonlari": [{"raqam": r, "korinish": dokon_telefon_korinish(r)}
+                                    for r in dokon_korxona_telefonlari(db, company_id)],
+            "ish_vaqti": ish, "ish_vaqti_matni": dokon_ish_vaqti_matni(ish),
+            "ish_izoh": _dokon_sozlama_ol(db, company_id, DOKON_ISH_IZOH_KALIT),
+            "ish_vaqti_kiritilgan": bool(_dokon_sozlama_ol(db, company_id, DOKON_ISH_KALIT)),
+            "retsept": retsept, "retsept_standart": DOKON_RETSEPT_STANDART,
+            "retsept_turlari": {k: list(v) for k, v in DOKON_RETSEPT_TURLARI.items()},
+            "metrli_turlar": list(DOKON_METRLI_TURLAR),
+            "komplekt_olcham": dokon_komplekt_olcham(db, company_id)}
