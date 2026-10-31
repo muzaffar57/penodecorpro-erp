@@ -157,6 +157,19 @@ req(A, "post", "/login", data={"username": "ha_admin", "password": "Parol123!"},
 def hodim(nom, tel, pin):
     r = req(A, "post", "/api/employees", json={"name": nom, "pay_type": "fixed", "fixed_amount": 3_000_000})
     eid = (js(r) or {}).get("id") if r.status_code == 200 else None
+    # kech164 (zip 229, MOSLANDI — review229; kech141 qoidasi, egasi QARORI 12.10 «Kirgan kundan»): kirgan oy oyligi kirgan kundan —
+    # oyning 31-kunida 3 000 000 lik hodimning shu oy oyligi 1 kunlik, C bo'limidagi tasdiqlar jimgina 409 berardi. Hodim joriy oyning
+    # 1-kuni (Toshkent 00:00) ishga kirgan deb yoziladi (eski kodda ta'sirsiz).
+    if eid:
+        import datetime as _dt229
+        import models as _m229
+        _d229 = SessionLocal()
+        _x229 = _d229.get(_m229.Employee, eid)
+        if _x229 is not None:
+            _b229 = tashkent_date()
+            _x229.hire_date = _dt229.datetime(_b229.year, _b229.month, 1) - _dt229.timedelta(hours=5)
+            _d229.commit()
+        _d229.close()
     req(A, "post", f"/api/employees/{eid}/set-login", data={"phone": tel, "pin": pin})
     h = TestClient(main.app, base_url="https://testserver", raise_server_exceptions=False)
     r = req(h, "post", "/hodim/login", data={"phone": tel, "pin": pin, "korxona": ""}, follow_redirects=False)

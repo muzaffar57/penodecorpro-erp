@@ -184,6 +184,18 @@ _e1 = C.post("/api/employees", json={"name": f"FH Hodim Bir {_n}", "pay_type": "
 _e2 = C.post("/api/employees", json={"name": f"FH Hodim Ikki {_n}", "pay_type": "fixed", "fixed_amount": 2000000})
 _eid1 = (_e1.json() or {}).get("id") if _e1.status_code == 200 else None
 _eid2 = (_e2.json() or {}).get("id") if _e2.status_code == 200 else None
+# kech164 (zip 229, MOSLANDI — kech141 qoidasi; egasi QARORI 12.10 «Kirgan kundan»): kirgan oy oyligi kirgan kundan — oyning 31-kunida
+# qo'shilgan 2 000 000 lik hodimning shu oy oyligi 1 kunlik (≈ 64 516) < avans 100 000 → server tasdiq so'raydi (409), D0 yiqilardi
+# (d235, 31.10). Bu sinov to'liq oylik bilan ishlaydi — hodimlar joriy oyning 1-kuni (Toshkent 00:00) ishga kirgan deb yoziladi (eski
+# kodda ta'sirsiz).
+import models as _m229                              # noqa: E402
+_d229 = SessionLocal()
+for _e229 in (_eid1, _eid2):
+    _x229 = _d229.get(_m229.Employee, _e229) if _e229 else None
+    if _x229 is not None:
+        _x229.hire_date = datetime(_tk.year, _tk.month, 1) - timedelta(hours=5)
+_d229.commit()
+_d229.close()
 _av = C.post(f"/api/employees/{_eid2}/advance?amount=100000") if _eid2 else None
 _bo = C.post(f"/api/employees/{_eid1}/monthly-adjustment?year={_tk.year}&month={_tk.month}&bonus_amount=50000&reduction_amount=80000") if _eid1 else None
 check("D0 kirdi; 3 buyurtma (chegirmasiz, chegirmali, ikki yukli), 2 hodim (birida bonus 50 000 va kamaytirish 80 000, birida avans "
