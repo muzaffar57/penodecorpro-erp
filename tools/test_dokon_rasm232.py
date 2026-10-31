@@ -892,10 +892,15 @@ if PG_URL:
 
     def _ochir():
         return _c2.delete(API + f"/rasmlar/{(_ids3 or [0])[0]}").status_code
+    crud._dokon_model_rasmlari = _sekin     # tartib ro'yxatni o'qib 0,4 s kutadi — shu payt o'chirish keladi (review232 №2)
     with ThreadPoolExecutor(max_workers=2) as ex:
-        _f1, _f2 = ex.submit(_tartib), ex.submit(_ochir)
+        _f1 = ex.submit(_tartib)
+        time.sleep(0.15)
+        _f2 = ex.submit(_ochir)
         _st = (_f1.result(), _f2.result())
-    check("P2 bir vaqtda tartib va o'chirish — 500 yo'q (biri 200, tartib 200 yoki 400)", 500 not in _st and _st[1] == 200, _st)
+    crud._dokon_model_rasmlari = _asl_rl
+    check("P2 bir vaqtda tartib va o'chirish — 500 / 409 yo'q (o'chirish 200, tartib 200 yoki 400 — qulf tartibi model → rasm)",
+      _st[0] in (200, 400) and _st[1] == 200, _st)
     check("P3 server xatosi yo'q", db_ishi(lambda d: d.query(ErrorLog).count()) == 0)
 else:
     print("  (faqat PG rejimida)")
