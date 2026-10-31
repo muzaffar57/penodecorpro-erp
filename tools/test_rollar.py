@@ -398,6 +398,9 @@ YANGI_MARSHRUTLAR = {
     "DELETE /api/sayt-katalogi/modellar/{model_id}": "A", "POST /api/sayt-katalogi/detallar": "A",
     "PUT /api/sayt-katalogi/detallar/{detal_id}": "A", "DELETE /api/sayt-katalogi/detallar/{detal_id}": "A",
     "PUT /api/sayt-katalogi/koeff": "A", "POST /api/platform/companies/{company_id}/dokon": "PLAT",
+    # kech167 (zip 232): sayt modeli rasmlari — FAQAT Admin
+    "POST /api/sayt-katalogi/modellar/{model_id}/rasmlar": "A", "PUT /api/sayt-katalogi/modellar/{model_id}/rasmlar": "A",
+    "DELETE /api/sayt-katalogi/rasmlar/{rasm_id}": "A",
     "GET /rollar": "A", "GET /api/rollar": "A", "POST /api/rollar": "A", "PUT /api/rollar/{rol_id}": "A",
     "DELETE /api/rollar/{rol_id}": "A", "POST /api/rollar/{rol_id}/andoza": "A", "PUT /api/users/{user_id}/rol": "A",
     # kech118 (D-1, G5-11): TM «Kam» chegarasi — «Tayyor mahsulotlar: Tahrirlash» (PUT /api/finished/{fp_id} bilan bir xil)

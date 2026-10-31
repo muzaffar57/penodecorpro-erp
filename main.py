@@ -4881,10 +4881,29 @@ def yuklama_korxonanikimi(db, papka, fayl, company_id):
     return False
 
 
+def _dokon_ochiq_rasm(fayl, db):
+    """kech167 (zip 232 — egasi QARORI: sayt katalogi rasmlari hammaga ochiq ALOHIDA papkada): `/static/uploads/dokon/<nom>`
+    LOGIN SIZ beriladi — faqat fayl nomi `crud._DOKON_RASM_URL` shaklida, sayt rasmi YOZUVIDA bor va o'sha korxonada sayt katalogi
+    yoqilgan bo'lsa (`crud.dokon_rasm_ochiqmi`); aks holda 404 (borligi oshkor qilinmaydi). Boshqa papkalar — avvalgidek
+    (kirgan xodim, o'z korxonasi). Kesh — 1 soat (review232 №9: o'chirilgan rasm / o'chirilgan do'kon keshda uzoq qolmasin;
+    ETag / Last-Modified bilan qayta tekshiruv arzon)."""
+    from fastapi.responses import FileResponse as _FR232
+    url = f"/static/uploads/{crud.DOKON_RASM_PAPKA}/{fayl}"
+    yol = crud.dokon_rasm_yoli(url)
+    if not yol or not os.path.isfile(yol) or not crud.dokon_rasm_ochiqmi(db, url):
+        raise HTTPException(status_code=404, detail="Rasm topilmadi")
+    turi = "image/png" if yol.endswith(".png") else "image/jpeg"
+    return _FR232(yol, media_type=turi, headers={"Cache-Control": "public, max-age=3600",
+                                                  "Content-Disposition": "inline"})
+
+
 @app.get("/static/uploads/{papka}/{fayl}")
 def yuklangan_fayl(papka: str, fayl: str, request: Request, o: Optional[str] = None, db: Session = Depends(get_db)):
     from fastapi.responses import FileResponse as _FileResp
     import mimetypes as _mt
+    # kech167 (zip 232): sayt katalogi rasmlari — OCHIQ (login siz, `_dokon_ochiq_rasm` shartlari bilan)
+    if papka == crud.DOKON_RASM_PAPKA:
+        return _dokon_ochiq_rasm(fayl, db)
     user = auth.get_current_user(request, db)          # bloklangan korxona — 403 belgi bilan (kirish sahifasiga)
     if not user:
         raise HTTPException(status_code=401, detail="Iltimos, tizimga kiring")
@@ -11669,6 +11688,7 @@ def _dokon_bajar(db, fn):
     """crud chaqiruvi: `DokonYopiq` — 404, `ValueError` — 400, son o'girish xatosi / korxona qo'riqchisi — 400 (review231 №2),
     bir vaqtda ikki marta saqlash (yagona kalit) — 409."""
     from sqlalchemy.exc import IntegrityError as _IE
+    from sqlalchemy.orm.exc import StaleDataError as _SDE232
     from models import TenantMismatchError as _TME
     try:
         return fn()
@@ -11687,6 +11707,9 @@ def _dokon_bajar(db, fn):
     except _IE:
         db.rollback()
         raise HTTPException(status_code=409, detail="Shu yozuv hozirgina boshqa oynada saqlandi — sahifani yangilang")
+    except _SDE232:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Shu yozuv hozirgina boshqa oynada o'zgardi — sahifani yangilang")
 
 
 def _sayt_katalogi_bormi(user):
@@ -11823,6 +11846,90 @@ def api_dokon_koeff(data: dict = Body(...), db: Session = Depends(get_db), curre
     k = _dokon_bajar(db, lambda: crud.dokon_koeff_saqla(db, auth.company_id_of(current_user), data.get("koeff"),
                                                        _dokon_kim(current_user)))
     return {"koeff": float(k)}
+
+
+@app.post("/api/sayt-katalogi/modellar/{model_id}/rasmlar")
+def api_dokon_rasm_qosh(model_id: int = _Path213(..., ge=1, le=2_147_483_647), fayl: UploadFile = File(...),
+                        db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """kech167 (zip 232): modelga BITTA rasm (sahifa bir nechtasini ketma-ket yuboradi). Rasm qayta yoziladi
+    (`dokon_rasm_tayyorla`), fayllar `static/uploads/dokon/` ga, keyin yozuv; yozuv saqlanmasa — fayllar o'chiriladi."""
+    import uuid as _uuid232
+    cid = auth.company_id_of(current_user)
+    _dokon_bajar(db, lambda: crud.dokon_tekshir(db, cid))
+    _m = crud._dokon_model_of(db, model_id, cid)
+    if _m is None:
+        raise HTTPException(status_code=404, detail="Model topilmadi")
+    # review232 №1: 10 ta rasm bo'lsa — rasm ishlanmasdan OLDIN rad (yakuniy tekshiruv — yozuvda, model qulfi ostida)
+    if len(crud._dokon_model_rasmlari(db, cid, _m.id)) >= crud.DOKON_RASM_MAX:
+        raise HTTPException(status_code=400, detail=crud.dokon_rasm_toliq_matni(_m.kod))
+    db.rollback()                                       # rasm ishlanayotganda bazada ochiq tranzaksiya turmasin
+    data = fayl.file.read(MAX_UPLOAD_SIZE + 1)
+    try:
+        t = dokon_rasm_tayyorla(data, fayl.filename or "")
+    except DokonRasmBand as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except DokonRasmXato as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    papka = crud.dokon_rasm_papkasi()
+    nom = _uuid232.uuid4().hex
+    url = f"/static/uploads/{crud.DOKON_RASM_PAPKA}/{nom}{t['ext']}"
+    url_k = f"/static/uploads/{crud.DOKON_RASM_PAPKA}/{nom}_k{t['ext']}"
+    yozilgan = []
+    try:
+        os.makedirs(papka, exist_ok=True)
+        for u, b in ((url, t["katta"]), (url_k, t["kichik"])):
+            yol = crud.dokon_rasm_yoli(u)
+            vaqtinchalik = f"{yol}.{_uuid232.uuid4().hex}.tmp"
+            try:
+                with open(vaqtinchalik, "wb") as f:
+                    f.write(b)
+                os.replace(vaqtinchalik, yol)
+            finally:
+                if os.path.exists(vaqtinchalik):        # review232 №4: yozishda xato — vaqtinchalik fayl qolmasin
+                    try:
+                        os.remove(vaqtinchalik)
+                    except OSError:
+                        pass
+            yozilgan.append(u)
+        r = _dokon_bajar(db, lambda: crud.dokon_rasm_qosh(db, cid, model_id, url, url_k, t["eni"], t["boyi"],
+                                                          len(t["katta"]), _dokon_kim(current_user)))
+    except OSError:
+        crud._dokon_rasm_fayllarini_ochir(yozilgan, db)
+        raise HTTPException(status_code=507, detail="Rasm faylini serverga yozib bo'lmadi (joy yetmadi yoki disk xatosi) — rasm "
+                                                    "saqlanmadi")
+    except BaseException:
+        crud._dokon_rasm_fayllarini_ochir(yozilgan, db)
+        raise
+    if r is None:
+        crud._dokon_rasm_fayllarini_ochir(yozilgan, db)
+        raise HTTPException(status_code=404, detail="Model topilmadi")
+    return crud.dokon_rasm_dict(r)
+
+
+@app.put("/api/sayt-katalogi/modellar/{model_id}/rasmlar")
+def api_dokon_rasm_tartib(data: dict = Body(...), model_id: int = _Path213(..., ge=1, le=2_147_483_647),
+                          db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """kech167 (zip 232): rasmlar tartibi — {"tartib": [rasm raqamlari, yangi tartibda]} (birinchisi — asosiy)."""
+    cid = auth.company_id_of(current_user)
+    _dokon_bajar(db, lambda: crud.dokon_tekshir(db, cid))
+    if not isinstance(data, dict) or set(data) != {"tartib"}:
+        raise HTTPException(status_code=400, detail="Faqat 'tartib' yuboriladi")
+    rs = _dokon_bajar(db, lambda: crud.dokon_rasm_tartib(db, model_id, cid, data.get("tartib"),
+                                                        _dokon_kim(current_user)))
+    if rs is None:
+        raise HTTPException(status_code=404, detail="Model topilmadi")
+    return {"rasmlar": [crud.dokon_rasm_dict(r) for r in rs]}
+
+
+@app.delete("/api/sayt-katalogi/rasmlar/{rasm_id}")
+def api_dokon_rasm_ochir(rasm_id: int = _Path213(..., ge=1, le=2_147_483_647), db: Session = Depends(get_db),
+                         current_user=Depends(auth.admin_only)):
+    """kech167 (zip 232): rasmni o'chiradi (yozuv, keyin fayllar)."""
+    ok = _dokon_bajar(db, lambda: crud.dokon_rasm_ochir(db, rasm_id, auth.company_id_of(current_user),
+                                                       _dokon_kim(current_user)))
+    if ok is None:
+        raise HTTPException(status_code=404, detail="Rasm topilmadi")
+    return {"status": "ok"}
 
 
 @app.post("/api/platform/companies/{company_id}/dokon")
@@ -13624,6 +13731,243 @@ def kichik_nusxa_yarat(asl_yol: str, papka: str):
         return yol
     except Exception:
         return None
+
+
+
+# ============================================================
+# kech167 (zip 232) — SAYT KATALOGI RASMLARI: ishlov (o'qish → burish → sRGB → kichraytirish → QAYTA yozish → tekshirish)
+# ============================================================
+# Egasi QARORLARI («Onlayn do'kon rejasi», 30.10): faqat JPG, PNG, WEBP; fayl rasm ekanligi ICHIDAN tekshiriladi va QAYTA
+# saqlanadi; joylashuv (GPS) va boshqa yashirin ma'lumot o'chiriladi; telefon rasmi burilgan bo'lsa — to'g'rilanadi; katta rasm
+# 1920 pikselgacha kichraytiriladi, ro'yxatlar uchun kichik nusxa yasaladi; rasm HECH QACHON qirqilmaydi.
+# O'LCHANGAN (`work/k232/probe232.py`, asl kod 2a00a12): ERP'ning umumiy yuklash yo'li (`rasmni_kichraytir`) kichik va burilmagan
+# rasmni ASLICHA saqlaydi — GPS, kamera, dastur, izoh, XMP faylda QOLADI; Pillow bo'lmasa ham ASLICHA. Ochiq sayt rasmi uchun bu
+# yaramaydi, shuning uchun alohida yo'l (texnik qarorlar — Claude, kech167):
+#   * HAR rasm qayta yoziladi (ASLICHA saqlash yo'q); Pillow bo'lmasa / o'qib bo'lmasa — rasm SAQLANMAYDI (xato bilan);
+#   * natija — JPEG (shaffof bo'lsa PNG); `info` tozalanadi; yozilgan baytlar TUZILMASI bo'yicha tekshiriladi (JPEG — faqat JFIF
+#     sarlavhasi, APP1…APP15 / izoh yo'q; PNG — faqat IHDR / PLTE / tRNS / IDAT / IEND) — biror metama'lumot qolsa, saqlanmaydi;
+#   * rangli profil (ICC — iPhone «Display P3» va h.k.) bo'lsa — sRGB ga O'TKAZILADI (aks holda rang xiralashadi), profil yozilmaydi;
+#   * MPO (telefonning ko'p rasmli JPEG i — chuqurlik / portret) — birinchi (asosiy) rasm olinadi; harakatli WEBP / PNG — rad;
+#     HEIC (iPhone) — tushunarli xabar bilan rad;
+#   * review232 №1 (YUQORI, O'LCHANGAN): progressive / CMYK JPEG «draft» bilan ham butun koeffitsient massivini xotirada saqlaydi
+#     (en × bo'y × kanal × 2 bayt; 701 baytli soxta sarlavhali fayl → +938 MB; 4 ta parallel → +1,9 GB) — shunday JPEG uchun xotira
+#     byudjeti (`DOKON_RASM_JPEG_XOTIRA`), oxirida EOI (FFD9) bo'lmasa — buzilgan (rad); PNG / WEBP ≤ 16 MP; bir vaqtda BITTA rasm
+#     ishlanadi (`_DOKON_RASM_NAVBAT`), navbat `DOKON_RASM_KUTISH` soniyada bo'shamasa — 503 «server band» (ish oqimlari to'lib, boshqa
+#     korxonalar so'rovlari kutib qolmasin); marshrut `def` — FastAPI uni alohida ish oqimida bajaradi;
+#   * kengaytma tekshirilMAYDI (review232 №10 — `.jfif` / `.jpe` haqiqiy JPEG rad etilardi): tur — faqat ichidan (imzo + Pillow formati);
+#     HEIC / AVIF — nomi yoki ichi bo'yicha tushunarli xabar.
+DOKON_RASM_KATTA = 1920          # katta nusxa — katta tomoni (ko'rish oynasi Full HD da ham to'liq)
+DOKON_RASM_KICHIK = 640          # kartochka: 2 ustunli telefon ro'yxatida ~175 × 140 CSS px, zichlik 3× → 525 × 420
+DOKON_RASM_SIFAT = 86
+DOKON_RASM_KICHIK_SIFAT = 82
+DOKON_RASM_ENG_KICHIK = 500      # katta tomoni bundan kichik — saytda xira ko'rinadi
+DOKON_RASM_NISBAT = 8            # tomonlar nisbati 8 : 1 dan oshsa — kartochkada ingichka chiziq
+DOKON_RASM_JPEG_PIKSEL = 120_000_000    # oddiy (baseline) JPEG «draft» bilan kichik masshtabda o'qiladi (108 MP — ~75 MB)
+DOKON_RASM_JPEG_XOTIRA = 200_000_000    # progressive / CMYK JPEG: en × bo'y × kanal × 2 bayt shundan oshmasin (RGB ~33 MP, CMYK 25 MP)
+DOKON_RASM_BOSHQA_PIKSEL = 16_000_000   # PNG / WEBP to'liq o'qiladi (O'LCHANGAN: 24 MP — 276…371 MB; logotip chegarasi bilan bir xil)
+DOKON_RASM_KUTISH = 20                  # soniya — navbat bo'shamasa 503
+_DOKON_RASM_NAVBAT = __import__("threading").BoundedSemaphore(1)
+_DOKON_HEIC_TURLARI = (b"ftypheic", b"ftypheix", b"ftyphevc", b"ftyphevx", b"ftypheim", b"ftypheis", b"ftypmif1",
+                       b"ftypmsf1", b"ftypavif")
+
+
+class DokonRasmXato(ValueError):
+    """Rasm qabul qilinmadi — matni foydalanuvchiga (400)."""
+
+
+class DokonRasmBand(DokonRasmXato):
+    """Server boshqa rasmni ishlayapti va navbat `DOKON_RASM_KUTISH` soniyada bo'shamadi — 503 (qayta urinish mumkin)."""
+
+
+def _dokon_rasm_metasiz(b: bytes, turi: str) -> bool:
+    """Yozilgan baytlarda metama'lumot YO'QLIGI (tuzilma bo'yicha, matn qidiruvi emas). JPEG: SOS gacha faqat JFIF APP0,
+    jadval va kadr segmentlari (APP1 … APP15 — EXIF / XMP / ICC / IPTC, COM — izoh — bo'lsa False). PNG: faqat IHDR, PLTE,
+    tRNS, IDAT, IEND (eXIf / iCCP / tEXt / zTXt / iTXt / tIME … bo'lsa False), IEND dan keyin hech narsa."""
+    if turi == "jpg":
+        if b[:2] != b"\xff\xd8":
+            return False
+        i = 2
+        while i + 4 <= len(b):
+            if b[i] != 0xFF:
+                return False
+            mk = b[i + 1]
+            if mk == 0xFF:
+                i += 1
+                continue
+            if mk == 0xDA:
+                return True
+            if mk == 0x01 or 0xD0 <= mk <= 0xD7:
+                i += 2
+                continue
+            ln = int.from_bytes(b[i + 2:i + 4], "big")
+            if ln < 2:
+                return False
+            if 0xE1 <= mk <= 0xEF or mk == 0xFE:
+                return False
+            if mk == 0xE0 and b[i + 4:i + 9] != b"JFIF\x00":
+                return False
+            i += 2 + ln
+        return False
+    if turi == "png":
+        if b[:8] != b"\x89PNG\r\n\x1a\n":
+            return False
+        i = 8
+        while i + 12 <= len(b):
+            ln = int.from_bytes(b[i:i + 4], "big")
+            t = b[i + 4:i + 8]
+            if t not in (b"IHDR", b"PLTE", b"tRNS", b"IDAT", b"IEND"):
+                return False
+            i += 12 + ln
+            if t == b"IEND":
+                return i == len(b)
+        return False
+    return False
+
+
+def _dokon_srgb(im, icc):
+    """Rangli profil bo'lsa — sRGB ga (RGB / RGBA / CMYK); o'tkazib bo'lmasa — profil tashlanadi (rang biroz farq qilishi mumkin,
+    lekin rasm saqlanadi). CMYK profilsiz — oddiy o'girish."""
+    if icc and im.mode in ("RGB", "RGBA", "CMYK"):
+        try:
+            import io as _io232
+            from PIL import ImageCms as _Cms232
+            kirish = _Cms232.ImageCmsProfile(_io232.BytesIO(icc))
+            chiqish = _Cms232.createProfile("sRGB")
+            return _Cms232.profileToProfile(im, kirish, chiqish, outputMode="RGBA" if im.mode == "RGBA" else "RGB")
+        except Exception:                               # noqa: BLE001
+            pass
+    if im.mode == "CMYK":
+        return im.convert("RGB")
+    return im
+
+
+def _dokon_rejim(im):
+    """Rejimni saqlanadigan ko'rinishga: RGB, RGBA yoki L. 16 bitli kulrang — 8 bitga (aks holda oq bo'lib ko'rinadi)."""
+    if im.mode in ("I;16", "I;16B", "I;16L", "I;16N", "I", "F"):
+        return im.convert("I").point(lambda v: v * (1 / 256)).convert("L")
+    if im.mode in ("RGBA", "LA", "PA", "RGBa", "La") or (im.mode in ("P", "RGB", "L", "1") and "transparency" in im.info):
+        return im.convert("RGBA")                       # review232 №6: RGB / L PNG dagi rang-kalit shaffofligi (tRNS) ham
+    if im.mode in ("P", "1", "YCbCr", "RGBX", "LAB", "HSV"):
+        return im.convert("RGB")
+    if im.mode in ("RGB", "L", "CMYK"):
+        return im
+    return im.convert("RGB")
+
+
+def _dokon_yoz(im, turi: str, sifat: int) -> bytes:
+    import io as _io232
+    buf = _io232.BytesIO()
+    if turi == "jpg":
+        im.save(buf, "JPEG", quality=sifat, optimize=True, progressive=True)
+    else:
+        im.save(buf, "PNG", optimize=True)
+    return buf.getvalue()
+
+
+def dokon_rasm_tayyorla(data: bytes, nom: str = "") -> dict:
+    """Yuklangan fayl → {"katta": bayt, "kichik": bayt, "ext": ".jpg" | ".png", "eni", "boyi"} (katta nusxa o'lchami).
+    Qabul qilinmasa — `DokonRasmXato` (matni foydalanuvchiga). Rasm QIRQILMAYDI — faqat kichraytiriladi (nisbat saqlanadi)."""
+    import io as _io232
+    import os as _os232
+    data = data or b""
+    ext = _os232.path.splitext(nom or "")[1].lower()
+    if ext in (".heic", ".heif", ".avif") or data[4:12] in _DOKON_HEIC_TURLARI:
+        raise DokonRasmXato("Bu fayl HEIC / AVIF formatida (iPhone) — u qabul qilinmaydi. Rasmni JPG qilib saqlang (iPhone: "
+                            "Sozlamalar → Kamera → Formatlar → «Eng mos») va qayta yuklang")
+    if not data:
+        raise DokonRasmXato("Fayl bo'sh — boshqa rasm tanlang")
+    if len(data) > MAX_UPLOAD_SIZE:
+        raise DokonRasmXato("Fayl hajmi 25 MB dan katta bo'lmasin")
+    imzo = rasm_imzosi(data)
+    if imzo is None:
+        raise DokonRasmXato(RASM_EMAS_XABARI)
+    buzilgan = "Rasmni o'qib bo'lmadi — fayl buzilgan yoki oxirigacha yuklanmagan. Boshqa rasm tanlang"
+    if imzo == "JPEG" and b"\xff\xd9" not in data:
+        raise DokonRasmXato(buzilgan)                   # JPEG oxiri (EOI) yo'q — kesilgan fayl (review232 №1)
+    _Im, _ImOps = _pillow()
+    if _Im is None:
+        raise DokonRasmXato("Serverda rasm bilan ishlash moduli yo'q — rasm saqlanmadi (administratorga xabar bering)")
+    if not _DOKON_RASM_NAVBAT.acquire(timeout=DOKON_RASM_KUTISH):
+        raise DokonRasmBand("Server hozir band — boshqa rasm ishlanmoqda. Bir ozdan keyin qayta urinib ko'ring")
+    try:
+        try:
+            im = _Im.open(_io232.BytesIO(data))
+            fmt = im.format
+        except _Im.DecompressionBombError:
+            raise DokonRasmXato("Rasm juda katta (piksel soni) — kichikroq rasm tanlang")
+        except Exception:                               # noqa: BLE001
+            raise DokonRasmXato(buzilgan)
+        if fmt not in ("JPEG", "MPO", "PNG", "WEBP") or ({"JPEG": "JPEG", "MPO": "JPEG"}.get(fmt, fmt) != imzo):
+            raise DokonRasmXato(RASM_EMAS_XABARI)
+        if fmt == "MPO":
+            im.seek(0)                                  # asosiy rasm (qolganlari — chuqurlik / kichik nusxa)
+        elif getattr(im, "is_animated", False):
+            raise DokonRasmXato("Harakatli (animatsiyali) rasm qabul qilinmaydi — oddiy rasm tanlang")
+        w, h = im.size
+        if not w or not h:
+            raise DokonRasmXato(buzilgan)
+        chegara = DOKON_RASM_JPEG_PIKSEL if fmt in ("JPEG", "MPO") else DOKON_RASM_BOSHQA_PIKSEL
+        if w * h > chegara:
+            raise DokonRasmXato(f"Rasm juda katta ({w} × {h} piksel) — {chegara // 1_000_000} megapikseldan kichik rasm "
+                                "tanlang")
+        if max(w, h) < DOKON_RASM_ENG_KICHIK:
+            raise DokonRasmXato(f"Rasm juda kichik ({w} × {h} piksel) — saytda xira ko'rinadi. Katta tomoni kamida "
+                                f"{DOKON_RASM_ENG_KICHIK} piksel bo'lsin (telefon kamerasidagi rasm yetadi)")
+        if max(w, h) > DOKON_RASM_NISBAT * min(w, h):
+            raise DokonRasmXato(f"Rasm juda cho'zinchoq ({w} × {h} piksel) — saytda ingichka chiziq bo'lib ko'rinadi. "
+                                f"Tomonlari nisbati {DOKON_RASM_NISBAT} : 1 dan oshmasin")
+        if fmt in ("JPEG", "MPO") and (im.info.get("progressive") or im.info.get("progression") or im.mode == "CMYK"):
+            kanal = len(im.getbands())
+            if w * h * kanal * 2 > DOKON_RASM_JPEG_XOTIRA:
+                raise DokonRasmXato(f"Rasm juda katta ({w} × {h} piksel) — bu turdagi JPEG (progressive / CMYK) "
+                                    f"{DOKON_RASM_JPEG_XOTIRA // (kanal * 2) // 1_000_000} megapikseldan oshmasin")
+        try:
+            if fmt in ("JPEG", "MPO") and max(w, h) > DOKON_RASM_KATTA:
+                k = DOKON_RASM_KATTA / float(max(w, h))
+                im.draft("RGB", (max(1, int(w * k)), max(1, int(h * k))))
+            im.load()
+            icc = im.info.get("icc_profile")
+            yonalish = 1
+            try:
+                yonalish = int(im.getexif().get(0x0112, 1) or 1)
+            except Exception:                           # noqa: BLE001
+                yonalish = 1
+            if yonalish != 1:
+                im = _ImOps.exif_transpose(im)
+            im = _dokon_rejim(im)
+            im = _dokon_srgb(im, icc)
+            if im.mode == "RGBA" and im.getchannel("A").getextrema()[0] == 255:
+                im = im.convert("RGB")                  # shaffof joyi yo'q PNG — JPEG (fayl ancha kichik)
+            turi = "png" if im.mode == "RGBA" else "jpg"
+            katta = im.copy()
+            if max(katta.size) > DOKON_RASM_KATTA:
+                katta.thumbnail((DOKON_RASM_KATTA, DOKON_RASM_KATTA), resample=_Im.Resampling.LANCZOS)
+            kichik = katta.copy()
+            if max(kichik.size) > DOKON_RASM_KICHIK:
+                kichik.thumbnail((DOKON_RASM_KICHIK, DOKON_RASM_KICHIK), resample=_Im.Resampling.LANCZOS)
+            katta.info = {}
+            kichik.info = {}
+            katta_b = _dokon_yoz(katta, turi, DOKON_RASM_SIFAT)
+            kichik_b = _dokon_yoz(kichik, turi, DOKON_RASM_KICHIK_SIFAT)
+        except DokonRasmXato:
+            raise
+        except _Im.DecompressionBombError:
+            raise DokonRasmXato("Rasm juda katta (piksel soni) — kichikroq rasm tanlang")
+        except Exception:                               # noqa: BLE001
+            raise DokonRasmXato(buzilgan)
+    finally:
+        _DOKON_RASM_NAVBAT.release()
+    for b, n in ((katta_b, katta), (kichik_b, kichik)):
+        if not _dokon_rasm_metasiz(b, turi):
+            raise DokonRasmXato("Rasmni xavfsiz qayta yozib bo'lmadi — rasm saqlanmadi. Boshqa rasm tanlang")
+        try:
+            with _Im.open(_io232.BytesIO(b)) as t:
+                t.load()
+                if t.size != n.size or len(t.getexif()):
+                    raise ValueError("o'lcham / exif")
+        except Exception:                               # noqa: BLE001
+            raise DokonRasmXato("Rasmni xavfsiz qayta yozib bo'lmadi — rasm saqlanmadi. Boshqa rasm tanlang")
+    return {"katta": katta_b, "kichik": kichik_b, "ext": "." + turi, "eni": katta.size[0], "boyi": katta.size[1]}
 
 
 def _save_upload(file: UploadFile, subfolder: str, allowed_ext: set) -> str:

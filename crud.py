@@ -11238,7 +11238,7 @@ def _reset_table_order():
         ErrorLog, LoginHistory, CompanySetting, RecurringObligation, Inventory,
         Yonalish, BrakTaqdir, Taklif, HodimIshDavri, BuyurtmaTuzatish, AmalKaliti,
         PulHisobi, PulHisobiQoldiq, PulOtkazmasi,
-        DokonDetal, DokonModel, DokonBolim,
+        DokonDetal, DokonModel, DokonBolim, DokonRasm,
     )
     return [
         ProductionOrder,
@@ -11275,7 +11275,8 @@ def _reset_table_order():
         # kech144 (zip 174): amal kalitlari — faqat korxonaga ishora qiladi, ularga hech kim ishora qilmaydi
         AmalKaliti,
         # kech166 (zip 231): sayt katalogi — narx qatori modeldan, model bo'limdan OLDIN o'chiriladi (tiklashda teskari)
-        DokonDetal, DokonModel, DokonBolim,
+        # kech167 (zip 232): model rasmi ham modeldan OLDIN (fayllar diskda qoladi — yozuvi yo'q fayl ochiq berilmaydi)
+        DokonDetal, DokonRasm, DokonModel, DokonBolim,
     ]
 
 
@@ -11430,6 +11431,11 @@ def import_full_backup(db: Session, data: dict, company_id: int,
                                 "message": (f"Zaxira fayli buzilgan: {tname}.{col.name} = {v} — shu faylda {_ota} jadvalida bunday "
                                             f"yozuv yo'q. Tiklash rad etildi (hech narsa o'zgarmadi).")}
 
+    # kech167 (zip 232, review232 №3): sayt rasmlari manzillari — shakli, juftligi, boshqa korxonaniki emas
+    _dokon_x = dokon_rasm_zaxira_xatosi(db, tables.get("dokon_rasmlar"), company_id)
+    if _dokon_x:
+        return {"success": False, "message": _dokon_x}
+
     try:
         # kech125 (zip 146): tozalash ham SHU tranzaksiyada — qo'shishda xato bo'lsa `rollback` uni ham qaytaradi.
         # kech139 (zip 167, A-T01): DOIM — bo'sh korxonada ham (startup yaratgan sozlama / yo'nalish qatorlari bilan to'qnashmasin).
@@ -11486,6 +11492,7 @@ def import_full_backup(db: Session, data: dict, company_id: int,
         ish_davrlarini_tola(db, company_id=company_id)
 
         db.commit()
+        dokon_yetim_fayllar_tozala(db)          # kech167 (zip 232, review232 №5): yozuvsiz eski sayt rasmi fayllari
         return {"success": True, "company_id": company_id,
                 "restored_tables": len(inserted),
                 "restored_rows": sum(inserted.values()),
@@ -11665,6 +11672,7 @@ def factory_reset_all_data(db: Session, keep_only_user_id: int = None,
     # chaqiruvchining tranzaksiyasida (faqat `flush`).
     if commit:
         db.commit()
+        dokon_yetim_fayllar_tozala(db)          # kech167 (zip 232, review232 №5): yozuvsiz eski sayt rasmi fayllari
     else:
         db.flush()
     return counts
@@ -22014,13 +22022,18 @@ def dokon_katalog(db: Session, company_id: int) -> dict:
                 .order_by(DokonModel.tartib, DokonModel.id).all())
     detallar = (db.query(DokonDetal).filter(DokonDetal.company_id == company_id)
                 .order_by(DokonDetal.model_id, DokonDetal.tartib, DokonDetal.id).all())
+    # kech167 (zip 232): model rasmlari (tartib bo'yicha — birinchisi asosiy)
+    from models import DokonRasm
+    rasmlar = (db.query(DokonRasm).filter(DokonRasm.company_id == company_id)
+               .order_by(DokonRasm.model_id, DokonRasm.tartib, DokonRasm.id).all())
     return {"koeff": float(koeff), "koeff_standart": float(DOKON_QOPLAMA_KOEFF_STANDART),
             "qoliplar": [{"kod": k, "nom": v} for k, v in DOKON_QOLIP_NOMI.items()],
             "turlar": [{"kod": k, "nom": v} for k, v in DOKON_TURI_NOMI.items()],
             "komplekt_turlari": list(DOKON_KOMPLEKT_TURLARI), "oddiy_turlari": list(DOKON_ODDIY_TURLARI),
             "bolimlar": [dokon_bolim_dict(b) for b in bolimlar],
             "modellar": [dokon_model_dict(m) for m in modellar],
-            "detallar": [dokon_detal_dict(d, koeff) for d in detallar]}
+            "detallar": [dokon_detal_dict(d, koeff) for d in detallar],
+            "rasmlar": [dokon_rasm_dict(r) for r in rasmlar], "rasm_max": DOKON_RASM_MAX}
 
 
 def _dokon_oxirgi_tartib(db, ustun, *shartlar):
@@ -22271,20 +22284,27 @@ def dokon_model_yangila(db: Session, model_id: int, company_id: int, data: dict,
 
 
 def dokon_model_ochir(db: Session, model_id: int, company_id: int, kim: str):
-    """Modelni va uning detal (narx) qatorlarini o'chiradi. Topilmasa — None."""
+    """Modelni, uning detal (narx) qatorlarini va rasmlarini o'chiradi (rasm fayllari — commit dan KEYIN, zip 232).
+    Topilmasa — None."""
     from models import DokonDetal
     dokon_tekshir(db, company_id)
     m = _dokon_model_of(db, model_id, company_id, lock=True)
     if m is None:
         return None
     detallar = (db.query(DokonDetal).filter(DokonDetal.company_id == company_id, DokonDetal.model_id == m.id).all())
+    rasmlar = _dokon_model_rasmlari(db, company_id, m.id)
     log_activity(db, "deleted", "dokon_model", m.id, f"Sayt modeli {m.kod}", kim,
-                 old_value=f"{len(detallar)} ta narx qatori", company_id=company_id, commit=False)
+                 old_value=f"{len(detallar)} ta narx qatori" + (f", {len(rasmlar)} ta rasm" if rasmlar else ""),
+                 company_id=company_id, commit=False)
+    urllar = [u for r in rasmlar for u in (r.fayl, r.kichik)]
     for d in detallar:
         db.delete(d)
+    for r in rasmlar:
+        db.delete(r)
     db.flush()
     db.delete(m)
     db.commit()
+    _dokon_rasm_fayllarini_ochir(urllar, db)
     return True
 
 
@@ -22452,3 +22472,280 @@ def dokon_koeff_saqla(db: Session, company_id: int, qiymat, kim: str) -> Decimal
                  old_value=audit_son(eski, 2), new_value=audit_son(k, 2), company_id=company_id, commit=False)
     db.commit()
     return k
+
+
+# ── Rasmlar (kech167, zip 232) ─────────────────────────────────────────────────────────────────────────────────────────
+# Egasi QARORLARI («Onlayn do'kon rejasi», 30.10): model ichida «Rasm qo'shish» — telefondan (kamera / galereya) yoki kompyuterdan,
+# bir nechtasi birdan; birinchi rasm — asosiy, tartib suriladi; rasm HECH QACHON qirqilmaydi; rasm yuklash xavfsiz — faqat JPG / PNG /
+# WEBP, ichidan tekshiriladi va QAYTA saqlanadi, joylashuv (GPS) va boshqa yashirin ma'lumot o'chiriladi; sayt katalogi rasmlari
+# hammaga ochiq ALOHIDA papkada, buyurtma chizmalari va boshqa ERP fayllari — avvalgidek faqat kirgan xodimga.
+# Texnik qarorlar (Claude, kech167):
+#   * rasm ishlovi (o'qish, burilish, sRGB, kichraytirish, qayta yozish, natijada metama'lumot YO'QLIGINI tekshirish) —
+#     `main.dokon_rasm_tayyorla`; bu yerda — faqat baza yozuvi va fayllarni o'chirish;
+#   * bir modelga ko'pi bilan `DOKON_RASM_MAX` ta rasm (sanoq va tartib — model qatori qulfi ostida, parallel yuklashda ham);
+#   * fayl nomi — tasodifiy 32 belgi (`uuid4().hex`), katta `<nom>.jpg|png`, kichik `<nom>_k.jpg|png`; boshqa shakldagi manzil
+#     yozilmaydi va o'chirilmaydi (`_DOKON_RASM_URL`);
+#   * rasm yozuvi o'chirilsa (o'zi yoki modeli bilan) — fayllar commit dan KEYIN o'chiriladi (bazada qolgan yozuv faylsiz qolmasin) va
+#     faqat HECH QAYSI yozuv (istalgan korxona) unga ishora qilmasa (review232 №3);
+#   * zaxiradan tiklashda `dokon_rasmlar` qatorlari tekshiriladi (`dokon_rasm_zaxira_xatosi` — manzil shakli, juftlik, takror, boshqa
+#     korxonaning fayli emas); tiklash / «Hammasini tozalash» dan keyin yozuvsiz va 1 soatdan eski fayllar o'chiriladi
+#     (`dokon_yetim_fayllar_tozala`, review232 №5; yosh sharti — hozir yuklanayotgan rasm fayli yozuvdan oldin diskda bo'ladi).
+import os as _os232                                     # noqa: E402
+import re as _re232                                     # noqa: E402
+
+DOKON_RASM_PAPKA = "dokon"
+DOKON_RASM_MAX = 10
+_DOKON_RASM_URL = _re232.compile(r"/static/uploads/dokon/([0-9a-f]{32})(_k)?\.(jpg|png)")
+_DOKON_RASM_TURI = {"jpg": "jpeg", "png": "png"}
+
+
+def dokon_rasm_dict(r):
+    return {"id": r.id, "model_id": r.model_id, "url": r.fayl, "kichik": r.kichik, "eni": r.eni, "boyi": r.boyi,
+            "hajm": r.hajm, "turi": r.turi, "tartib": r.tartib or 0}
+
+
+def _dokon_rasm_of(db, rasm_id, company_id, lock=False):
+    from models import DokonRasm
+    if isinstance(rasm_id, bool) or not isinstance(rasm_id, int) or not (1 <= rasm_id <= 2_147_483_647):
+        return None
+    q = db.query(DokonRasm).filter(DokonRasm.id == rasm_id, DokonRasm.company_id == company_id)
+    if lock:
+        db.flush()
+        q = q.populate_existing().with_for_update()
+    return q.first()
+
+
+def _dokon_model_rasmlari(db, company_id, model_id):
+    from models import DokonRasm
+    return (db.query(DokonRasm).filter(DokonRasm.company_id == company_id, DokonRasm.model_id == model_id)
+            .order_by(DokonRasm.tartib, DokonRasm.id).all())
+
+
+def dokon_rasm_papkasi():
+    """`static/uploads/dokon` — main.static_dir bilan bir joy (crud.py va main.py bir papkada)."""
+    return _os232.path.join(_os232.path.dirname(_os232.path.abspath(__file__)), "static", "uploads", DOKON_RASM_PAPKA)
+
+
+def dokon_rasm_yoli(url):
+    """Rasm manzili → diskdagi yo'l (faqat `_DOKON_RASM_URL` shaklidagi manzil, papka ichida) yoki None."""
+    if not isinstance(url, str) or not _DOKON_RASM_URL.fullmatch(url):
+        return None
+    ildiz = _os232.path.realpath(dokon_rasm_papkasi())
+    yol = _os232.path.realpath(_os232.path.join(ildiz, url.rsplit("/", 1)[1]))
+    if not yol.startswith(ildiz + _os232.sep):
+        return None
+    return yol
+
+
+def _dokon_ishlatilgan_manzillar(db, urllar):
+    """Berilgan manzillardan qaysilari hali biror sayt rasmi yozuvida bor (istalgan korxona — tizim so'rovi)."""
+    from models import DokonRasm
+    import tenant_context as _tc232
+    urllar = [u for u in urllar if isinstance(u, str)]
+    if not urllar:
+        return set()
+    with _tc232.system_context(db):
+        rows = (db.query(DokonRasm.fayl, DokonRasm.kichik)
+                .filter(DokonRasm.fayl.in_(urllar) | DokonRasm.kichik.in_(urllar)).all())
+    return {u for r in rows for u in r}
+
+
+def _dokon_rasm_fayllarini_ochir(urllar, db=None):
+    """Commit dan KEYIN: rasm fayllarini diskdan o'chiradi; `db` berilsa — hali biror yozuv ishora qilayotgan fayl QOLADI
+    (review232 №3). Xato — faqat konsolga (yozuv allaqachon o'chgan; fayl qolsa ham ochiq berilmaydi — `dokon_rasm_ochiqmi`
+    yozuvni talab qiladi)."""
+    urllar = list(urllar or ())
+    band = set()
+    if db is not None and urllar:
+        try:
+            band = _dokon_ishlatilgan_manzillar(db, urllar)
+        except Exception as e:                          # noqa: BLE001
+            print(f"⚠ Sayt rasmi fayllari tekshirilmadi — o'chirilmaydi: {e}")
+            return
+    for url in urllar:
+        if url in band:
+            continue
+        yol = dokon_rasm_yoli(url)
+        if not yol:
+            continue
+        try:
+            if _os232.path.isfile(yol):
+                _os232.remove(yol)
+        except OSError as e:
+            print(f"⚠ Sayt rasmi fayli o'chirilmadi ({url}): {e}")
+
+
+def _dokon_hajm_matni(hajm):
+    if hajm >= 1024 * 1024:
+        return f"{hajm / (1024 * 1024):.1f} MB".replace(".", ",")
+    return f"{max(1, round(hajm / 1024))} KB"
+
+
+def dokon_rasm_qosh(db: Session, company_id: int, model_id: int, fayl: str, kichik: str, eni: int, boyi: int,
+                    hajm: int, kim: str):
+    """Tayyor (qayta yozilgan) rasm fayllari uchun yozuv. Model topilmasa — None. Modelda `DOKON_RASM_MAX` ta rasm bo'lsa —
+    `ValueError` (chaqiruvchi yozilgan fayllarni o'chiradi). Yangi rasm — oxirida (birinchi rasm asosiy bo'lib qoladi)."""
+    from models import DokonRasm
+    dokon_tekshir(db, company_id)
+    m1 = _DOKON_RASM_URL.fullmatch(fayl or "")
+    m2 = _DOKON_RASM_URL.fullmatch(kichik or "")
+    if not m1 or not m2 or m1.group(2) or not m2.group(2) or m1.group(1) != m2.group(1) or m1.group(3) != m2.group(3):
+        raise ValueError("Rasm fayli noto'g'ri")
+    for v in (eni, boyi, hajm):
+        if isinstance(v, bool) or not isinstance(v, int) or v <= 0:
+            raise ValueError("Rasm o'lchami noto'g'ri")
+    m = _dokon_model_of(db, model_id, company_id, lock=True)
+    if m is None:
+        return None
+    rasmlar = _dokon_model_rasmlari(db, company_id, m.id)
+    if len(rasmlar) >= DOKON_RASM_MAX:
+        raise ValueError(dokon_rasm_toliq_matni(m.kod))
+    tartib = max([r.tartib or 0 for r in rasmlar] + [0]) + 1
+    r = DokonRasm(company_id=company_id, model_id=m.id, fayl=fayl, kichik=kichik, eni=eni, boyi=boyi, hajm=hajm,
+                  turi=_DOKON_RASM_TURI[m1.group(3)], tartib=tartib, created_by=kim)
+    db.add(r)
+    db.flush()
+    log_activity(db, "created", "dokon_rasm", r.id, f"Sayt modeli {m.kod} — rasm", kim,
+                 new_value=f"{len(rasmlar) + 1}-rasm, {eni} × {boyi} piksel, {_dokon_hajm_matni(hajm)}",
+                 company_id=company_id, commit=False)
+    db.commit()
+    db.refresh(r)
+    return r
+
+
+def dokon_rasm_ochir(db: Session, rasm_id: int, company_id: int, kim: str):
+    """Rasm yozuvini o'chiradi, commit dan keyin — fayllarini. Topilmasa — None."""
+    dokon_tekshir(db, company_id)
+    r = _dokon_rasm_of(db, rasm_id, company_id)
+    if r is None:
+        return None
+    # Qulf tartibi — boshqa rasm amallari bilan BIR XIL: avval MODEL, keyin rasm. O'LCHANGAN (PG, test P2): rasm qatori avval
+    # qulflansa, bir vaqtdagi «tartib» (model qulfi → rasmlarni yangilash) o'chirilgan qatorni yangilashga urinib 500 berardi.
+    m = _dokon_model_of(db, r.model_id, company_id, lock=True)
+    r = _dokon_rasm_of(db, rasm_id, company_id, lock=True)
+    if r is None:
+        db.rollback()
+        return None
+    urllar = [r.fayl, r.kichik]
+    log_activity(db, "deleted", "dokon_rasm", r.id, f"Sayt modeli {m.kod if m else r.model_id} — rasm", kim,
+                 old_value=f"{r.eni} × {r.boyi} piksel, {_dokon_hajm_matni(r.hajm)}", company_id=company_id, commit=False)
+    db.delete(r)
+    db.commit()
+    _dokon_rasm_fayllarini_ochir(urllar, db)
+    return True
+
+
+def dokon_rasm_tartib(db: Session, model_id: int, company_id: int, tartib, kim: str):
+    """Model rasmlarining yangi tartibi: `tartib` — shu modelning HAMMA rasm raqamlari, yangi tartibda (birinchisi — asosiy).
+    Ro'yxat bazadagidan farq qilsa (boshqa oynada qo'shilgan / o'chirilgan) — `ValueError`. Model topilmasa — None."""
+    dokon_tekshir(db, company_id)
+    if not isinstance(tartib, list) or len(tartib) > 1000:
+        raise ValueError("Rasmlar tartibi ro'yxat bo'lishi kerak")
+    for x in tartib:
+        if isinstance(x, bool) or not isinstance(x, int):
+            raise ValueError("Rasmlar tartibi noto'g'ri")
+    if len(set(tartib)) != len(tartib):
+        raise ValueError("Rasmlar tartibida takror bor")
+    m = _dokon_model_of(db, model_id, company_id, lock=True)
+    if m is None:
+        return None
+    rasmlar = _dokon_model_rasmlari(db, company_id, m.id)
+    if sorted(r.id for r in rasmlar) != sorted(tartib):
+        raise ValueError("Rasmlar ro'yxati boshqa oynada o'zgargan — sahifani yangilang va qayta suring")
+    eski = [r.id for r in rasmlar]
+    if eski == tartib:
+        db.rollback()
+        return rasmlar
+    joy = {rid: i for i, rid in enumerate(tartib, start=1)}
+    for r in rasmlar:
+        r.tartib = joy[r.id]
+    if eski[0] != tartib[0]:
+        matn = f"asosiy rasm almashdi: avvalgi {eski.index(tartib[0]) + 1}-rasm endi birinchi"
+    else:
+        matn = "asosiy rasm o'sha, qolganlari tartibi o'zgardi"
+    log_activity(db, "updated", "dokon_model", m.id, f"Sayt modeli {m.kod} — rasmlar tartibi", kim,
+                 old_value=f"{len(tartib)} ta rasm", new_value=matn, company_id=company_id, commit=False)
+    db.commit()
+    return _dokon_model_rasmlari(db, company_id, m.id)
+
+
+def dokon_rasm_ochiqmi(db: Session, url: str) -> bool:
+    """Ochiq manzil (login siz) uchun: shu fayl sayt rasmi yozuvida bormi va o'sha korxonada sayt katalogi yoqilganmi.
+    Korxona — rasm YOZUVIDAN (so'rovdan emas); tizim so'rovi (korxona filtri — yozuvning o'zida)."""
+    from models import DokonRasm
+    import tenant_context as _tc232
+    if not isinstance(url, str) or not _DOKON_RASM_URL.fullmatch(url):
+        return False
+    with _tc232.system_context(db):
+        row = (db.query(DokonRasm.company_id)
+               .filter((DokonRasm.fayl == url) | (DokonRasm.kichik == url)).first())
+        return bool(row) and dokon_yoqilganmi(db, row[0])
+
+
+def dokon_rasm_toliq_matni(kod):
+    return (f"{kod} modelida {DOKON_RASM_MAX} ta rasm bor — ko'pi shu. Yangisini qo'shish uchun avval keraksizini o'chiring")
+
+
+def dokon_rasm_zaxira_xatosi(db: Session, rows, company_id: int):
+    """review232 №3: zaxiradan tiklanadigan `dokon_rasmlar` qatorlari — xato matni yoki None. Har qator: `fayl` — katta nusxa
+    manzili, `kichik` — o'sha nomning `_k` nusxasi, bir xil kengaytma; faylda takror yo'q; manzil BOSHQA korxonaning yozuvida emas
+    (aks holda tiklangan yozuv o'chirilganda begona korxonaning fayli o'chardi)."""
+    from models import DokonRasm
+    import tenant_context as _tc232
+    if not rows:
+        return None
+    if not isinstance(rows, list):
+        return "Fayl formati noto'g'ri: dokon_rasmlar ro'yxat emas"
+    hammasi = []
+    for r in rows:
+        f = r.get("fayl") if isinstance(r, dict) else None
+        k = r.get("kichik") if isinstance(r, dict) else None
+        m1 = _DOKON_RASM_URL.fullmatch(f) if isinstance(f, str) else None
+        m2 = _DOKON_RASM_URL.fullmatch(k) if isinstance(k, str) else None
+        if (not m1 or not m2 or m1.group(2) or not m2.group(2) or m1.group(1) != m2.group(1)
+                or m1.group(3) != m2.group(3)):
+            return f"Zaxira fayli buzilgan: dokon_rasmlar qatorida rasm manzili noto'g'ri ({str(f)[:80]}). Tiklash rad etildi."
+        hammasi += [f, k]
+    if len(set(hammasi)) != len(hammasi):
+        return "Zaxira fayli buzilgan: dokon_rasmlar da bir rasm fayli ikki marta. Tiklash rad etildi."
+    with _tc232.system_context(db):
+        begona = (db.query(DokonRasm.id)
+                  .filter(DokonRasm.company_id != company_id,
+                          DokonRasm.fayl.in_(hammasi) | DokonRasm.kichik.in_(hammasi)).first())
+    if begona:
+        return "Zaxira fayli buzilgan: dokon_rasmlar dagi rasm boshqa korxonaga tegishli. Tiklash rad etildi."
+    return None
+
+
+_DOKON_YETIM_NOM = _re232.compile(r"[0-9a-f]{32}(_k)?\.(jpg|png)(\.[0-9a-f]{32}\.tmp)?")
+
+
+def dokon_yetim_fayllar_tozala(db: Session, yosh_sekund: int = 3600) -> int:
+    """review232 №5: `static/uploads/dokon/` dagi HECH QAYSI yozuv (istalgan korxona) ishora qilmaydigan va `yosh_sekund` dan eski
+    fayllarni (vaqtinchalik `.tmp` ham) o'chiradi; o'chirilganlar soni. Yosh sharti — yuklanayotgan rasm fayli yozuvdan OLDIN diskda
+    bo'ladi (bir necha soniya). Xato — 0 (tiklash / tozalash natijasiga ta'sir qilmaydi)."""
+    import time as _time232
+    papka = dokon_rasm_papkasi()
+    if not _os232.path.isdir(papka):
+        return 0
+    try:
+        from models import DokonRasm
+        import tenant_context as _tc232
+        with _tc232.system_context(db):
+            bor = {u.rsplit("/", 1)[1] for r in db.query(DokonRasm.fayl, DokonRasm.kichik).all() for u in r if u}
+        chegara = _time232.time() - yosh_sekund
+        soni = 0
+        for e in _os232.scandir(papka):
+            if not e.is_file(follow_symlinks=False) or not _DOKON_YETIM_NOM.fullmatch(e.name):
+                continue
+            if e.name in bor or e.stat(follow_symlinks=False).st_mtime > chegara:
+                continue
+            try:
+                _os232.remove(e.path)
+                soni += 1
+            except OSError:
+                pass
+        return soni
+    except Exception as e:                              # noqa: BLE001
+        print(f"⚠ Sayt rasmlarining yetim fayllari tozalanmadi: {e}")
+        return 0

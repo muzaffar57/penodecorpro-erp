@@ -2934,6 +2934,31 @@ class DokonDetal(Base):
     def __repr__(self):
         return f"<DokonDetal {self.id} {self.turi} {self.olcham}>"
 
+
+class DokonRasm(Base):
+    """kech167 (zip 232) — sayt modeli rasmi. Fayllar `static/uploads/dokon/` da (Railway Volume — deployda o'chmaydi):
+    `fayl` — katta nusxa (katta tomoni ≤ 1920 px), `kichik` — ro'yxat kartochkasi uchun (≤ 640 px). Ikkalasi ham yuklashda
+    QAYTA yozilgan: joylashuv (GPS), kamera / dastur ma'lumoti, izoh, XMP — yo'q; rang sRGB ga o'tkazilgan; rasm QIRQILMAGAN.
+    Ochiq manzil (`/static/uploads/dokon/<nom>`) — login siz, faqat shu jadvalda yozuvi bor va korxonada sayt katalogi
+    yoqilgan bo'lsa. `tartib` — 1 dan; eng kichigi — asosiy rasm. Mantiq — `crud.dokon_rasm_*`, ishlov — `main.dokon_rasm_tayyorla`."""
+    __tablename__ = "dokon_rasmlar"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    model_id = Column(Integer, ForeignKey("dokon_modellar.id"), nullable=False, index=True)
+    fayl = Column(String(120), nullable=False, unique=True)
+    kichik = Column(String(120), nullable=False, unique=True)
+    eni = Column(Integer, nullable=False)
+    boyi = Column(Integer, nullable=False)
+    hajm = Column(Integer, nullable=False)
+    turi = Column(String(10), nullable=False)
+    tartib = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    created_by = Column(String(100), nullable=True)
+
+    def __repr__(self):
+        return f"<DokonRasm {self.id} model={self.model_id}>"
+
 # ============================================================
 # Helper funksiyalar
 # ============================================================
@@ -3175,6 +3200,8 @@ _TENANT_REFS = {
     # kech166 (zip 231): sayt katalogi — model FAQAT o'z korxonasining bo'limiga, narx qatori — o'z modeliga
     "DokonModel":                  [("bolim_id", "DokonBolim")],
     "DokonDetal":                  [("model_id", "DokonModel")],
+    # kech167 (zip 232): sayt modeli rasmi — FAQAT o'z korxonasining modeliga
+    "DokonRasm":                   [("model_id", "DokonModel")],
 }
 
 

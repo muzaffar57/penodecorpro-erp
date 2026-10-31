@@ -299,9 +299,9 @@ _b1 = rasm(5300, 2981)
 _r1, _m1 = ortish(yukla, _b1, "katta.png", "image/png")
 _s1 = saqlangan()
 check("L1 katta PNG logotip (5300 × 2981, 15,8 MP, shaffof) — 200, saqlangani PNG, katta tomoni 1000 px, nisbati o'sha, shaffoflik "
-      "saqlangan (burchak alfa 0); yuklash xotirasi < 200 MB",
+      "saqlangan (burchak alfa 0); yuklash xotirasi < 240 MB (Pillow 12.3: ~194, 13.0: 143…204 — kech167 o'lchovi)",
       _r1 is not None and _r1.status_code == 200 and _s1 and _s1[0].endswith(".png") and max(_s1[2]) == 1000
-      and nisbat(_s1[2][0], _s1[2][1], 5300, 2981) and _s1[3] == "RGBA" and _s1[4][3] == 0 and 0 <= _m1 < 200,
+      and nisbat(_s1[2][0], _s1[2][1], 5300, 2981) and _s1[3] == "RGBA" and _s1[4][3] == 0 and 0 <= _m1 < 240,
       (getattr(_r1, "status_code", None), getattr(_r1, "text", "")[:150], _s1 and (_s1[0], _s1[2], _s1[3], _s1[4]), _m1))
 _b2 = rasm(10300, 5793)
 _r2, _m2 = ortish(yukla, _b2, "juda_katta.png", "image/png")
