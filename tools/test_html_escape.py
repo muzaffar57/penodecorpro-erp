@@ -688,6 +688,9 @@ RUXSAT = {
     # ── ENUM ustunlar (server nazoratida) ────────────────────────
     ("orders.html", "o.status"): "OrderStatus enum — erkin matn emas",
     ("production.html", "po.status"): "ProductionOrderStatus enum — erkin matn emas",
+    # kech166 (zip 231): `birlik` endi model MATN ustuni nomi ham (`DokonDetal.birlik`) — bu yerda u FUNKSIYA ARGUMENTI:
+    # `rejaOgohHtml` HTML ni o'zi quradi va `birlik` ni faqat `escapeHtml(birlikMatni(…, birlik))` ichida ishlatadi.
+    ("production.html", "rejaOgohHtml(reja, birlik, true)"): "funksiya o'zi escape qiladi (birlik — escapeHtml ichida)",
     ("inventory.html", "m.movement_type"): "InventoryMovement turi — enum",
     ("supplier_receive.html", "res.status"): "`fetch` javobining HTTP status RAQAMI",
     ("suppliers.html", "res.status"): "`fetch` javobining HTTP status RAQAMI",
