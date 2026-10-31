@@ -65,6 +65,13 @@ with contextlib.redirect_stdout(io.StringIO()):
     import auth                                    # noqa: E402
     import crud                                    # noqa: E402
     import models                                  # noqa: E402
+# kech167 (d240 dan keyin): sinov rasm papkasi — HAR yurishning o'z vaqtinchalik papkasida. Etalonda tf0 va tf1 BIR repoda PARALLEL
+# yuradi: A23 dagi yetim fayl tozalash ikkinchi yurishning «eski, lekin yozuvi bor» faylini o'chirardi (O'LCHANGAN: parallel SQ + TF1 —
+# U12 da 404), A11 dagi sobit nom va A16 dagi «papkadagi hamma fayl» ham bir-birini ko'rardi. Haqiqiy joy (Railway Volume ichida) — S6.
+_ASL_PAPKA = crud.dokon_rasm_papkasi() if hasattr(crud, "dokon_rasm_papkasi") else None
+DOKON_DISK = os.path.join(_T, "uploads", "dokon")
+if _ASL_PAPKA is not None:
+    crud.dokon_rasm_papkasi = lambda: DOKON_DISK
 from database import SessionLocal                  # noqa: E402
 from models import UserRole, User, ActivityLog, ErrorLog   # noqa: E402
 from production_models import Company              # noqa: E402
@@ -346,7 +353,14 @@ def yukla(model_id, data, nom="rasm.jpg", c=CA):
 def disk(url):
     if not url or "static/" not in url:
         return os.path.join(_T, "yoq", "fayl")
-    return os.path.join(ROOT, "static", url.lstrip("/").split("static/", 1)[1])
+    _rel = url.lstrip("/").split("static/", 1)[1]
+    if _ASL_PAPKA is not None and _rel.startswith("uploads/dokon/"):
+        return os.path.join(DOKON_DISK, _rel[len("uploads/dokon/"):])
+    return os.path.join(ROOT, "static", _rel)
+
+
+def dokon_glob(naqsh):
+    return glob.glob(os.path.join(os.path.dirname(disk("/static/uploads/dokon/x")), naqsh))
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
@@ -368,6 +382,10 @@ _req = open(os.path.join(ROOT, "requirements.txt"), encoding="utf-8").read().low
 _pin = re.search(r"^pillow==([0-9.]+)$", _req, re.M)
 check("S5 Pillow requirements da QOTIRILGAN va sinov o'sha versiyada", bool(_pin) and _pin.group(1) == PIL.__version__,
       (_pin.group(1) if _pin else None, PIL.__version__))
+check("S6 sayt rasmlari papkasi — umumiy `static` ichida `uploads/dokon` (Railway Volume `/app/static/uploads` ichida — qayta yuklashda "
+      "yo'qolmaydi)", _ASL_PAPKA is not None
+      and os.path.realpath(_ASL_PAPKA) == os.path.realpath(os.path.join(main.static_dir, "uploads", "dokon")),
+      (_ASL_PAPKA, getattr(main, "static_dir", None)))
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 section("I. Ishlov (dokon_rasm_tayyorla)")
@@ -665,7 +683,7 @@ try:
     _r = yukla(M1, jpeg(800, 600, meta=False), "11.jpg")
 finally:
     uuid.uuid4 = _asl_uuid
-_qoldi = [p for p in glob.glob(os.path.join(ROOT, "static", "uploads", "dokon", _sabit.hex + "*"))]
+_qoldi = [p for p in dokon_glob(_sabit.hex + "*")]
 check("A11 modelda 10 ta rasm — 11-si 400 (tushunarli matn), uning fayllari diskda QOLMADI",
       lambda: (len(rasmlar(M1)) == 10 and _r.status_code == 400 and "10 ta rasm" in det(_r) and not _qoldi), lambda: ((_r.status_code, det(_r)[:120], _qoldi)))
 
@@ -738,7 +756,7 @@ try:
 finally:
     uuid.uuid4 = _asl_uuid
     os.replace = _asl_replace
-_qoldi = glob.glob(os.path.join(ROOT, "static", "uploads", "dokon", _sabit.hex + "*"))
+_qoldi = dokon_glob(_sabit.hex + "*")
 check("A20 diskka yozishda xato (2-fayl) — 507 tushunarli matn, 1-fayl va vaqtinchalik fayllar QOLMADI, yozuv yo'q",
       lambda: (_r.status_code == 507 and "saqlanmadi" in det(_r) and not _qoldi and len(rasmlar(M1)) == 9),
       lambda: ((_r.status_code, det(_r)[:100], _qoldi)))
@@ -772,7 +790,7 @@ finally:
         crud.dokon_rasm_qosh = _asl_qosh
     else:
         del crud.dokon_rasm_qosh
-_qoldi = glob.glob(os.path.join(ROOT, "static", "uploads", "dokon", _sabit.hex + "*"))
+_qoldi = dokon_glob(_sabit.hex + "*")
 check("A15 model rasm ishlanayotganda o'chirilgan (yozuv — None) — 404, fayllar QOLMADI", lambda: (_r.status_code == 404 and not _qoldi),
       lambda: ((_r.status_code, _qoldi)))
 
@@ -881,7 +899,7 @@ if PG_URL:
         _st = sorted(x.result().status_code for x in _f)
     crud._dokon_model_rasmlari = _asl_rl
     _yoz = xavfsiz(lambda d: [r.fayl for r in d.query(DokonRasm).filter(DokonRasm.model_id == _m3)], [])
-    _disk = {os.path.basename(p) for p in glob.glob(os.path.join(ROOT, "static", "uploads", "dokon", "*"))}
+    _disk = {os.path.basename(p) for p in dokon_glob("*")}
     _yaratilgan = [u for u in YARATILGAN if u.rsplit("/", 1)[1] in _disk]
     check("P1 9 ta rasmli modelga bir vaqtda ikki rasm — bittasi 200, ikkinchisi 400, jami 10, rad etilganning fayli diskda yo'q",
           _st == [200, 400] and len(_yoz) == 10 and all(os.path.isfile(disk(u)) for u in _yoz), (_st, len(_yoz)))

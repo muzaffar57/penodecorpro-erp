@@ -3406,27 +3406,39 @@ SAYT KATALOGI RASMLARI (kech167, zip 232; egasi QARORLARI «Onlayn do'kon rejasi
   raqamlari]} — ro'yxat bazadagidan farq qilsa 400), `DELETE /api/sayt-katalogi/rasmlar/{rasm_id}`; katalog javobida `rasmlar`, `rasm_max`.
   ISHLOV — `main.dokon_rasm_tayyorla` (O'LCHANGAN `work/k232/probe232.py`: umumiy `rasmni_kichraytir` kichik burilmagan rasmni ASLICHA
   saqlaydi — GPS / kamera / izoh / XMP / ICC qoladi; qayta yozishda ham JPEG izohi `im.info` dan o'tib ketadi — sayt uchun yaramaydi):
-  HAR rasm qayta yoziladi (ASLICHA yo'q); fayl turi — IMZO va Pillow formati bo'yicha (kengaytma faqat birinchi elak; HEIC / AVIF — tushunarli
-  xabar); MPO (telefonning ko'p rasmli JPEG i) — asosiy rasm; harakatli WEBP / PNG — rad; JPEG ≤ 120 MP («draft» — 108 MP ~75 MB),
-  PNG / WEBP ≤ 24 MP (to'liq o'qiladi, ~280 MB — `work/k232/probe232_xotira.py`); katta tomoni < 500 px yoki nisbat > 8 : 1 — rad; EXIF
+  HAR rasm qayta yoziladi (ASLICHA yo'q); fayl turi — FAQAT ichidan: IMZO va Pillow formati (kengaytma tekshirilmaydi — review232 №10:
+  `.jfif` / `.jpe` haqiqiy JPEG; HEIC / AVIF — nomi yoki ichi bo'yicha tushunarli xabar); MPO (telefonning ko'p rasmli JPEG i) — asosiy
+  rasm; harakatli WEBP / PNG — rad; oddiy JPEG ≤ 120 MP («draft» — 108 MP ~75 MB); progressive / CMYK JPEG — en × bo'y × kanal × 2 ≤
+  `DOKON_RASM_JPEG_XOTIRA` (200 MB; review232 №1, O'LCHANGAN: «draft» bilan ham butun koeffitsient massivi — 701 baytli fayl +938 MB edi)
+  va oxirida EOI bo'lmasa — buzilgan; PNG / WEBP ≤ 16 MP (to'liq o'qiladi; 24 MP — 276…371 MB, `work/k232/probe232_xotira.py`); palitra /
+  RGB / L PNG dagi tRNS shaffofligi saqlanadi (review232 №6); katta tomoni < 500 px yoki nisbat > 8 : 1 — rad; EXIF
   burilishi qo'llanadi; rejim RGB / RGBA / L (16 bit → 8 bit, palitra, CMYK); ICC profil — sRGB ga O'TKAZILADI (`_dokon_srgb`), yozilmaydi;
   to'liq shaffof bo'lmagan RGBA — JPEG; katta ≤ `DOKON_RASM_KATTA` (1920), kichik ≤ `DOKON_RASM_KICHIK` (640) — `thumbnail` (nisbat
   saqlanadi, QIRQILMAYDI); `info = {}`; yozilgan baytlar TUZILMA bo'yicha tekshiriladi (`_dokon_rasm_metasiz`: JPEG — SOS gacha faqat JFIF
   APP0 va jadvallar, APP1…APP15 / COM — yo'q; PNG — faqat IHDR / PLTE / tRNS / IDAT / IEND) va qayta ochiladi (o'lcham, EXIF bo'sh) — biror
-  narsa qolsa yoki Pillow yo'q bo'lsa rasm SAQLANMAYDI (yopiq holatda xato). Bir vaqtda ≤ 2 ishlov (`_DOKON_RASM_NAVBAT`); marshrut `def`
-  (ish oqimida), rasm ishlanayotganda bazada tranzaksiya ochiq turmaydi. Fayllar `static/uploads/dokon/<32 hex>.jpg|png` va `<…>_k.…`
+  narsa qolsa yoki Pillow yo'q bo'lsa rasm SAQLANMAYDI (yopiq holatda xato). Bir vaqtda BITTA ishlov (`_DOKON_RASM_NAVBAT`; navbat
+  `DOKON_RASM_KUTISH` = 20 s da bo'shamasa — 503 «Server hozir band…»); 10 ta rasm bo'lsa — ishlovdan OLDIN 400; marshrut `def` (ish
+  oqimida), rasm ishlanayotganda bazada tranzaksiya ochiq turmaydi; diskka yozib bo'lmasa — 507, vaqtinchalik `.tmp` qolmaydi (№4).
+  Fayllar `static/uploads/dokon/<32 hex>.jpg|png` va `<…>_k.…`
   (Railway Volume `/app/static/uploads` ichida) — vaqtinchalik fayl + `os.replace`; yozuv saqlanmasa (chegara, model o'chgan) — fayllar
   o'chiriladi. OCHIQ MANZIL `/static/uploads/dokon/<nom>` — login SIZ (`main._dokon_ochiq_rasm`): nom `crud._DOKON_RASM_URL` shaklida,
   `DokonRasm` YOZUVI bor va o'sha korxonada sayt katalogi yoqilgan (`crud.dokon_rasm_ochiqmi`) — aks holda 404; `Cache-Control: public,
-  max-age=86400`. Boshqa yuklama papkalari — avvalgidek (kirgan xodim, o'z korxonasi). QULF TARTIBI (hamma rasm amali): MODEL qatori →
-  rasm (O'LCHANGAN PG: rasm avval qulflansa, bir vaqtdagi «tartib» o'chirilgan qatorni yangilab 500 berardi). Rasm / model o'chirilsa —
-  yozuv, commit dan KEYIN fayllar (`crud._dokon_rasm_fayllarini_ochir`); zaxiradan tiklash / tozalash fayllarga tegmaydi (yozuvsiz fayl
-  ochiq berilmaydi). Jurnal: `dokon_rasm` (qo'shildi / o'chirildi — o'lcham va hajm), `dokon_model` («rasmlar tartibi»). Sahifa
+  max-age=3600` (review232 №9: o'chirilgan rasm brauzer keshida ko'pi bilan 1 soat).
+  Boshqa yuklama papkalari — avvalgidek (kirgan xodim, o'z korxonasi). QULF TARTIBI (hamma rasm amali): MODEL qatori →
+  rasm (O'LCHANGAN PG: rasm avval qulflansa, bir vaqtdagi «tartib» o'chirilgan qatorni yangilab 500 berardi; himoya qatlami —
+  `_dokon_bajar` da StaleDataError → 409). Rasm / model o'chirilsa — yozuv, commit dan KEYIN fayllar
+  (`crud._dokon_rasm_fayllarini_ochir`; fayl hali biror yozuvda — istalgan korxona — bo'lsa QOLADI, review232 №3).
+  Zaxiradan tiklash — `dokon_rasmlar` qatorlari tekshiriladi (`crud.dokon_rasm_zaxira_xatosi`: manzil shakli, juftlik, takror, boshqa korxona fayli — rad); tiklash / tozalashdan keyin hech qaysi yozuv ishora qilmaydigan va 1 soatdan eski fayllar
+  o'chiriladi (`crud.dokon_yetim_fayllar_tozala`, №5). Fayllar BITTA umumiy papkada, shuning uchun «fayl yozuvda bormi» — butun tizim
+  bo'yicha (`system_context`, faqat fayl nomlari): `_dokon_ishlatilgan_manzillar` va `dokon_yetim_fayllar_tozala` —
+  `tools/tenant_lint.py` `ALLOW_FUNCTIONS` da (sabab bilan).
+  Jurnal: `dokon_rasm` (qo'shildi / o'chirildi — o'lcham va hajm), `dokon_model` («rasmlar tartibi»). Sahifa
   (`sayt_katalogi.html`, model ichida «Rasmlar» bloki): «📷 Rasm qo'shish» (`accept` JPG / PNG / WEBP, `multiple` — telefonda kamera yoki
   galereya), ketma-ket yuklash holati va har rad etilgan fayl nomi + sababi; kartochkalar `object-fit: contain` (och fon `--f-f3e8d8`),
   «Asosiy» belgisi, «⠿» ushlab surish (Pointer Events, `document` da — kartochka DOM da ko'chganda capture yo'qoladi) va ◀ ▶; namuna —
-  «ro'yxat kartochkasi» (174 × 140) va «mahsulot sahifasi» (chetlari xira nusxa); bosilsa — to'liq ekranda (‹ › Esc). Rasm amalidan keyin
-  FAQAT shu modelning rasm bloki qayta chiziladi (narx kataklariga yozilayotgan matn yo'qolmaydi). `requirements.txt` — `pillow==13.0.0`
+  «ro'yxat kartochkasi» (174 × 140) va «mahsulot sahifasi» (chetlari xira nusxa); bosilsa — to'liq ekranda
+  (‹ › Esc; ✕ — `data-yopish`, Tab oyna ichida, yopilganda fokus joyiga qaytadi — №11); surish — faqat asosiy (chap) tugma (№12). Rasm
+  amalidan keyin FAQAT shu modelning rasm bloki qayta chiziladi (narx kataklariga yozilayotgan matn yo'qolmaydi). `requirements.txt` — `pillow==13.0.0`
   QOTIRILGAN (rasm xavfsizligi unga tayanadi; 13.0.0 — JPEG dekoderidagi Critical tuzatish bilan).
 
 ## 5. Testlar va darvozalar
@@ -4883,7 +4895,8 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   himoyada, belgi o'chsa 404, 10 ta chegara (rad etilganning fayli qolmaydi), tartib (to'g'ri / 8 xil noto'g'ri), o'chirish (fayllar ham),
   model o'chirilsa rasmlari ham, yozuv saqlanmasa fayl qolmaydi, zaxira → tiklash, qo'riqchi; P (PG) — 9 → 10 parallel, tartib ↔ o'chirish
   500 siz; U — 2 fayl ketma-ket, namuna (contain), xato fayl nomi va sababi (HTML escape), ◀ ▶, surish, ko'rish oynasi, 375 px, o'chirish,
-  yuklash davomida narx katagidagi matn joyida). SQ 91/0, TF1 91/0, PG 78/0; asl (zip 231d) — 70 ta yiqiladi, qulamaydi.
+  yuklash davomida narx katagidagi matn joyida). Har yurish rasm papkasi — o'z vaqtinchalik papkasida (etalonda tf0 / tf1
+  parallel; haqiqiy joy — S6). SQ 92/0, TF1 92/0, PG 79/0; asl (zip 231d) — 71 ta yiqiladi, qulamaydi.
 - (kech166, zip 231c) Buzilgan Unicode: `tools/test_unicode231c.py` (S — tinglovchi va xato ishlovchisi; A — `/api/rollar` 400, keyingi
   so'rovlar va B korxona 200, sayt katalogi nomi / tavsifi 400 tushunarli matn, to'g'ri Unicode saqlanadi, ErrorLog bo'sh). SQ / TF1 / PG
   10 / 0; asl (zip 231b) PG — 8 yiqiladi, qulamaydi.
