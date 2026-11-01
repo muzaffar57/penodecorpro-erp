@@ -70,7 +70,7 @@ with contextlib.redirect_stdout(io.StringIO()):
     import crud                                    # noqa: E402
     import models                                  # noqa: E402
 from database import SessionLocal                  # noqa: E402
-from models import UserRole, User, ActivityLog, DokonDetal, DokonModel, DokonBolim, DokonRasm   # noqa: E402
+from models import UserRole, User, ActivityLog, DokonModel, DokonBolim, DokonRasm   # noqa: E402
 from production_models import Company              # noqa: E402
 from fastapi.testclient import TestClient          # noqa: E402
 
