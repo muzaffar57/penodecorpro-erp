@@ -8498,6 +8498,7 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
             "recipe_id": i.recipe_id,
             "finished_product_id": i.finished_product_id,
             "product_type_id": getattr(i, 'product_type_id', None),
+            **crud.kmp_dict(i),          # kech173 (zip 239): komplekt belgisi (sahifa guruhlaydi, tahrir formasi qaytaradi)
             "order_qty_normalized": i.order_qty_normalized,
             "delivery_unit": i.delivery_unit,
             "price_per_unit_final": round(float(i.total_price or 0) / i.order_qty_normalized) if i.order_qty_normalized else 0,
@@ -10221,7 +10222,8 @@ def api_tanlov_buyurtma_detallari(order_id: int, db: Session = Depends(get_db),
     items = []
     for i in order.items:
         q = {"id": i.id, "name": i.name, "is_coated": bool(i.is_coated),
-             "order_qty_normalized": i.order_qty_normalized, "delivery_unit": i.delivery_unit}
+             "order_qty_normalized": i.order_qty_normalized, "delivery_unit": i.delivery_unit,
+             **crud.kmp_dict(i)}         # kech173 (zip 239): qaytarish tanlovida komplekt guruhi
         if _narx:
             q["refund_price_per_unit"] = crud.qaytarish_birlik_narxi(db, order, i, koef=_qkoef)
         items.append(q)

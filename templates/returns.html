@@ -1015,8 +1015,12 @@ async function onOrderChange(){
       itemSel.innerHTML = '<option value="">Bu buyurtmada detal yo\'q</option>';
       return;
     }
+    // kech173 (zip 239): komplekt / «o'z o'lchami» detallari — o'z guruhi ostida (qaysi komplektdan ekani ko'rinadi)
+    const _opt239 = i => `<option value="${Number(i.id)}">${escapeHtml(i.name)} (${escapeHtml(sonKor(i.order_qty_normalized, 3))} ${escapeHtml(unitShortLabel(i.delivery_unit))})</option>`;
     itemSel.innerHTML = '<option value="">— Detal tanlang —</option>' +
-      currentOrderItems.map(i => `<option value="${Number(i.id)}">${escapeHtml(i.name)} (${escapeHtml(sonKor(i.order_qty_normalized, 3))} ${escapeHtml(unitShortLabel(i.delivery_unit))})</option>`).join('');
+      kmpBloklari(currentOrderItems).map(b => b.sarlavha
+        ? `<optgroup label="${escapeHtml(kmpBelgisi(b.turi) + ' ' + b.sarlavha)}">${b.qatorlar.map(_opt239).join('')}</optgroup>`
+        : b.qatorlar.map(_opt239).join('')).join('');
     itemSel.disabled = false;
   } catch(e) {
     if (!joriy()) return;

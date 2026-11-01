@@ -7,7 +7,7 @@ Ular API ga keladigan va chiqadigan ma'lumotlarni tekshiradi.
 
 from datetime import datetime
 from typing import Optional, List, Literal
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 import re as _re222
 
 # kech159 (zip 222 — egasi 28.10: yuk xatida «PADAKOLNIK» → «Padakolnik»; O'LCHANGAN `work/k222/nom_sinov222.py` — production 156 xil nomdan 99 tasi):
@@ -388,6 +388,42 @@ class OrderItemCreate(BaseModel):
     # Profil (karniz) turidagi detal ICHIDAGI qo'shimcha bo'laklar
     # (masalan rebristo detal) — bir nechtagacha bo'lishi mumkin
     sub_details: List[OrderItemSubDetailCreate] = Field(default_factory=list)
+    # kech173 (zip 239): komplekt belgisi (`models.OrderItem.kmp_*`) — saytdan kelgan komplekt / «o'z o'lchami» qatorlari; tahrir formasi
+    # o'qigan qiymatni QAYTARADI (guruhsiz qatorga — null). Kalit umuman yo'q (eski ochiq sahifa / API) — tahrirda saqlangani o'zgarmaydi.
+    # Hammasi birga (guruh + turi + nomi; komplektda — soni ham) yoki hech biri; nom — ko'rinmas belgilarsiz, bo'shliqlar bittaga.
+    kmp_guruh: Optional[int] = Field(default=None, ge=1, le=1000, strict=True)
+    kmp_turi: Optional[Literal["komplekt_rom", "komplekt_eshik", "oz_olcham"]] = None
+    kmp_nomi: Optional[str] = Field(default=None, max_length=200)
+    kmp_soni: Optional[int] = Field(default=None, ge=1, le=500, strict=True)
+
+    @field_validator("kmp_nomi", mode="before")
+    @classmethod
+    def _kmp_nomi239(cls, v):
+        return kmp_nomi_tozala(v)
+
+    @model_validator(mode="after")
+    def _kmp_birga239(self):
+        _b = (self.kmp_guruh, self.kmp_turi, self.kmp_nomi)
+        if all(x is None for x in _b) and self.kmp_soni is None:
+            return self
+        if any(x is None for x in _b):
+            raise ValueError("Komplekt belgisi to'liq emas: guruh raqami, turi va nomi birga bo'lsin")
+        if self.kmp_turi == "oz_olcham" and self.kmp_soni is not None:
+            raise ValueError("«O'z o'lchami» guruhida komplektlar soni bo'lmaydi")
+        if self.kmp_turi != "oz_olcham" and self.kmp_soni is None:
+            raise ValueError("Komplekt guruhida komplektlar soni kerak")
+        return self
+
+
+def kmp_nomi_tozala(v):
+    """kech173 (zip 239): komplekt sarlavhasi — boshqaruv / ko'rinmas belgilar (NUL, nol kenglikdagi, surrogat) olib tashlanadi, bo'shliqlar
+    bittaga; bo'sh — None. Matn emas — o'zgarishsiz (sxema rad etadi)."""
+    if not isinstance(v, str):
+        return v
+    import unicodedata as _ud239
+    s = "".join(c if not _ud239.category(c).startswith("C") else " " for c in v)
+    s = " ".join(s.split())
+    return s or None
 
 
 class GipsAdditiveInput(BaseModel):
@@ -429,6 +465,18 @@ class OrderCreate(BaseModel):
                                     allow_inf_nan=False, strict=True)
     # kech144 (zip 173): buyurtma formasi ochilishidagi tasodifiy kalit (takror yaratishdan himoya — `crud.create_order`)
     yaratish_kaliti: Optional[str] = Field(default=None, min_length=8, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+
+    # kech173 (zip 239): bir guruh raqamidagi qatorlarda belgi bir xil (turi, nomi, soni) — aks holda bitta komplekt ikki xil ko'rinardi
+    @model_validator(mode="after")
+    def _kmp_guruhlar239(self):
+        _g = {}
+        for it in (self.items or []):
+            if getattr(it, "kmp_guruh", None) is None:
+                continue
+            k = (it.kmp_turi, it.kmp_nomi, it.kmp_soni)
+            if _g.setdefault(it.kmp_guruh, k) != k:
+                raise ValueError(f"{it.kmp_guruh}-guruh qatorlarida komplekt belgisi har xil — bitta guruhda turi, nomi va soni bir xil bo'lsin")
+        return self
 
 
 class TaklifBuyurtma(OrderCreate):
@@ -500,6 +548,10 @@ class OrderItemRead(BaseModel):
     blok_koef: Optional[float] = None
     product_type_id: Optional[int] = None
     sub_details: List[OrderItemSubDetailRead] = Field(default_factory=list)
+    kmp_guruh: Optional[int] = None             # kech173 (zip 239): komplekt belgisi
+    kmp_turi: Optional[str] = None
+    kmp_nomi: Optional[str] = None
+    kmp_soni: Optional[int] = None
     model_config = {"from_attributes": True}
 
 

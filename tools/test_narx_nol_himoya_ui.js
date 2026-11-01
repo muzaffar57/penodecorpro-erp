@@ -60,7 +60,8 @@ function jinjasiz(kod) {
   return kod === null ? null : kod.replace(/\{%[\s\S]*?%\}/g, '').replace(/\{\{[\s\S]*?\}\}/g, 'null');
 }
 const NOL = olib(SRC, '_narxiNolgaTushgan');
-const COLLECT = olib(SRC, 'collectItems');
+// kech173 (zip 239, MOSLANDI): collectItems har detalga komplekt belgisini `kmpTanaga239` bilan qo'shadi — birga yuklanadi
+const COLLECT = [olib(SRC, 'kmpTanaga239'), olib(SRC, 'collectItems')].filter(Boolean).join('\n') || null;
 // kech115 (G2-07): `updateOrder` yangi narxsiz qatorni ham tasdiqlatadi — yordamchilar `UPDATE` bilan birga yuklanadi
 const UPDATE = [olib(SRC, '_narxsizDetallar'), olib(SRC, '_narxsizTasdiq'), olib(SRC, 'updateOrder')].every(Boolean)
   ? [olib(SRC, '_narxsizDetallar'), olib(SRC, '_narxsizTasdiq'), olib(SRC, 'updateOrder')].join('\n') : olib(SRC, 'updateOrder');

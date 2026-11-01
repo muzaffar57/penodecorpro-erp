@@ -211,6 +211,7 @@ RED    = colors.HexColor("#E74C3C")
 GREEN  = colors.HexColor("#27AE60")
 GRAY   = colors.HexColor("#7F8C8D")
 LGRAY  = colors.HexColor("#BDC3C7")
+KMP_BG239 = colors.HexColor("#E8F0FE")      # kech173 (zip 239): komplekt guruhi sarlavha qatori foni
 # kech120 (zip 136 — F bosqichi 5-qism, audit G6-12): shior, kontakt va «Imzo / Sana» — LGRAY (#BDC3C7, oq qog'ozda ~1,8:1) chop
 # etilganda deyarli ko'rinmasdi; endi to'qroq kulrang (~7,5:1)
 IZOH_RANG = colors.HexColor("#4B5563")
@@ -483,8 +484,17 @@ def generate_nakladnoy(order, db=None, taklif=None) -> bytes:
 
     items = order.items if order.items else []
     row_bg = [DARK]
+    # kech173 (zip 239): komplekt / «o'z o'lchami» guruhi — sarlavha qatori, tagida detallari (`models.kmp_bloklari`; raqam — detallar bo'yicha)
+    from models import kmp_pdf_bloklari as _kb239
+    _bl239 = _kb239(items)
+    _boshi239 = {id(qs[0]): s for s, _t, qs in _bl239 if s}
+    _sarlavha239 = []
 
-    for i, item in enumerate(items):
+    for i, item in enumerate([q for _s, _t, qs in _bl239 for q in qs]):
+        if id(item) in _boshi239:
+            row_bg.append(KMP_BG239)
+            _sarlavha239.append(len(table_data))
+            table_data.append([Paragraph(f"<b>{_x(_boshi239[id(item)])}</b>", st["table_cell"]), "", "", "", "", ""])
         unit_price  = float(item.unit_price  or 0)
         total_price = float(item.total_price or 0)
         unit = get_unit(item)
@@ -555,6 +565,9 @@ def generate_nakladnoy(order, db=None, taklif=None) -> bytes:
     ]
     for idx, bg in enumerate(row_bg):
         tbl_style.append(("BACKGROUND", (0,idx), (-1,idx), bg))
+    for _r239 in _sarlavha239:          # kech173 (zip 239)
+        tbl_style.append(("SPAN", (0, _r239), (-1, _r239)))
+        tbl_style.append(("ALIGN", (0, _r239), (-1, _r239), "LEFT"))
     items_tbl.setStyle(TableStyle(tbl_style))
     story.append(items_tbl)
     story.append(Spacer(1, 10*(1-cx*0.7)))
@@ -715,6 +728,8 @@ def generate_taklif(t, db=None) -> bytes:
             length=_d.get("length"), quantity=_d.get("quantity"), width=_d.get("width"), thickness=_d.get("thickness"),
             unit_price=_d.get("unit_price"), total_price=_d.get("total_price"), delivery_unit=None,
             gips_unit=_d.get("gips_unit"), blok_birlik=_d.get("blok_birlik"),      # kech155 (zip 211)
+            kmp_guruh=_d.get("kmp_guruh"), kmp_turi=_d.get("kmp_turi"), kmp_nomi=_d.get("kmp_nomi"),     # kech173 (zip 239)
+            kmp_soni=_d.get("kmp_soni"),
         ))
     _jami, _kel = float(_sh["total_amount"] or 0), float(_sh["kelishilgan"] or 0)
     # summa qatorlari — buyurtma hujjati qoidasi: to'lov 0, qarz = kelishilgan (qatorlari hujjatda ko'rsatilmaydi)

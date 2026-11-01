@@ -1068,6 +1068,17 @@ class OrderItem(Base):
     # chaqirilganda) alohida so'rov bilan olinadi.
     product_type = relationship("ProductType")
 
+    # kech173 (zip 239 — reja «Komplekt ERP'da qanday bilinadi» 4-band, «O'z o'lchamingiz bilan» 4-band): KOMPLEKT BELGISI — saytdan kelgan
+    # komplekt (yoki «o'z o'lchami») detallarga ajralib oddiy qatorlar bo'lib tushadi; shu qatorlar bitta guruh ekanini ERP biladi:
+    # `kmp_guruh` — buyurtma ichidagi guruh raqami (1 …), `kmp_turi` — «komplekt_rom» | «komplekt_eshik» | «oz_olcham», `kmp_nomi` —
+    # sarlavha («R-18 «Klassik» — rom komplekti, O'rta, qoplamali»), `kmp_soni` — komplektlar soni (o'z o'lchamida NULL). Hisob-kitobga
+    # (narx, ombor, tannarx, foyda) TA'SIR QILMAYDI — faqat ko'rinish (buyurtma sahifasi, yuk xati, PDF, qaytarish). NULL — guruhsiz qator.
+    # Ustun nomlari NOYOB (tools/test_html_escape.py har matn ustuni nomini «foydalanuvchi matni» deb oladi).
+    kmp_guruh = Column(Integer, nullable=True)
+    kmp_turi = Column(String(20), nullable=True)
+    kmp_nomi = Column(String(200), nullable=True)
+    kmp_soni = Column(Integer, nullable=True)
+
     order = relationship("Order", back_populates="items")
     deliveries = relationship("DeliveryItem", back_populates="order_item", cascade="all, delete-orphan",
                               order_by="DeliveryItem.id")     # kech97 (114-band)
@@ -3116,6 +3127,73 @@ class DokonBuyurtmaQator(Base):
 
     def __repr__(self):
         return f"<DokonBuyurtmaQator {self.id} b={self.buyurtma_id} {self.sbq_nom}>"
+
+# ============================================================
+# kech173 (zip 239): KOMPLEKT BELGISI — sarlavha va guruhlash (PDF lar, sahifa, API — bitta qoida; sahifadagi `kmpSarlavha` /
+# `kmpBloklari` (templates/base.html) bilan AYNAN)
+# ============================================================
+KMP_TURLARI = {"komplekt_rom": "rom komplekti", "komplekt_eshik": "eshik komplekti", "oz_olcham": "o'z o'lchami"}
+KMP_MAX_GURUH = 1000
+KMP_MAX_SONI = 500
+KMP_NOMI_MAX = 200
+
+
+def kmp_sarlavha(x):
+    """Guruh sarlavhasi: komplekt — «<nomi> — 3 komplekt», o'z o'lchami — «<nomi>»; belgisiz / to'liq bo'lmagan qator — None."""
+    g, t, n = getattr(x, "kmp_guruh", None), getattr(x, "kmp_turi", None), getattr(x, "kmp_nomi", None)
+    if not g or t not in KMP_TURLARI or not n:
+        return None
+    s = getattr(x, "kmp_soni", None)
+    return f"{n} — {int(s)} komplekt" if (t != "oz_olcham" and s) else str(n)
+
+
+def kmp_dict(x) -> dict:
+    """API javobi uchun 4 maydon (sahifa guruhlaydi)."""
+    return {"kmp_guruh": getattr(x, "kmp_guruh", None), "kmp_turi": getattr(x, "kmp_turi", None),
+            "kmp_nomi": getattr(x, "kmp_nomi", None), "kmp_soni": getattr(x, "kmp_soni", None)}
+
+
+def kmp_bloklari(qatorlar, kalit=None) -> list:
+    """Qatorlar → bloklar [(sarlavha | None, turi | None, [qatorlar])]: bir guruh qatorlari (guruh, turi, nomi, soni — bir xil) BIRINCHI
+    uchragan joyida yig'iladi (tahrirda keyin qo'shilgani ham o'z komplektining tagida), guruhsiz qator — o'z blokida (sarlavhasiz),
+    tartib o'zgarmaydi. `kalit` — qatordan belgili obyektni oladi (yuk xati qatori → buyurtma qatori)."""
+    bloklar, joy = [], {}
+    for q in (qatorlar or []):
+        x = kalit(q) if kalit else q
+        s = kmp_sarlavha(x) if x is not None else None
+        if not s:
+            bloklar.append((None, None, [q]))
+            continue
+        k = (x.kmp_guruh, x.kmp_turi, x.kmp_nomi, x.kmp_soni)
+        if k not in joy:
+            joy[k] = (s, x.kmp_turi, [])
+            bloklar.append(joy[k])
+        joy[k][2].append(q)
+    return bloklar
+
+
+def kmp_pdf_bloklari(qatorlar, kalit=None) -> list:
+    """PDF uchun bloklar (review239 H1): PDF jadvalida guruh faqat sarlavha qatori bilan ajraladi — guruhdan KEYIN kelgan guruhsiz qatorlar
+    (ketma-ketlari bitta blokka) «Alohida detallar» sarlavhasi oladi (aks holda yuk xatida oddiy detal oldingi komplektning bir qismidek
+    ko'rinardi). Guruhdan oldingi guruhsiz qatorlar — sarlavhasiz (ustida hech narsa yo'q)."""
+    natija, guruh_bor = [], False
+    for s, t, qs in kmp_bloklari(qatorlar, kalit):
+        if s:
+            guruh_bor = True
+            natija.append((s, t, qs))
+        elif natija and natija[-1][1] == "alohida":
+            natija[-1][2].extend(qs)
+        elif guruh_bor:
+            natija.append((KMP_ALOHIDA, "alohida", list(qs)))
+        elif natija and natija[-1][0] is None:
+            natija[-1][2].extend(qs)
+        else:
+            natija.append((None, None, list(qs)))
+    return natija
+
+
+KMP_ALOHIDA = "Alohida detallar"
+
 
 # ============================================================
 # Helper funksiyalar

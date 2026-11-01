@@ -287,6 +287,29 @@ function sonKor(x, kasr) {
   const s = n.toLocaleString('ru-RU', {maximumFractionDigits: k, minimumFractionDigits: 0});
   return (s === '-0' || s === '−0') ? '0' : s;
 }
+// kech173 (zip 239): KOMPLEKT BELGISI — buyurtma qatorining guruh sarlavhasi (komplekt — «<nomi> — 3 komplekt», «o'z o'lchami» —
+// «<nomi>»; belgisiz — '') va qatorlarni guruhlash (bir guruh qatorlari birinchi uchragan joyida, guruhsiz — o'z blokida, tartib saqlanadi).
+// Server qoidasi — `models.kmp_sarlavha` / `models.kmp_bloklari` (PDF lar). `kalit` — qatordan belgili obyekt (bo'lmasa — qatorning o'zi).
+function kmpSarlavha(x) {
+  const turlar = ['komplekt_rom', 'komplekt_eshik', 'oz_olcham'];       // `models.KMP_TURLARI`
+  if (!x || !x.kmp_guruh || turlar.indexOf(x.kmp_turi) < 0 || !x.kmp_nomi) return '';
+  return (x.kmp_turi !== 'oz_olcham' && x.kmp_soni) ? String(x.kmp_nomi) + ' — ' + Number(x.kmp_soni) + ' komplekt' : String(x.kmp_nomi);
+}
+function kmpBelgisi(turi) {
+  return turi === 'oz_olcham' ? '✂️' : '🧩';
+}
+function kmpBloklari(qatorlar, kalit) {
+  const bloklar = [], joy = new Map();
+  (qatorlar || []).forEach(q => {
+    const x = kalit ? kalit(q) : q;
+    const s = kmpSarlavha(x);
+    if (!s) { bloklar.push({sarlavha: '', turi: '', qatorlar: [q]}); return; }
+    const k = JSON.stringify([x.kmp_guruh, x.kmp_turi, x.kmp_nomi, x.kmp_soni || null]);
+    if (!joy.has(k)) { const b = {sarlavha: s, turi: x.kmp_turi, qatorlar: []}; joy.set(k, b); bloklar.push(b); }
+    joy.get(k).qatorlar.push(q);
+  });
+  return bloklar;
+}
 function foizKor(x, kasr) {
   const s = sonKor(x, (kasr === undefined || kasr === null) ? 1 : kasr);
   return s === '—' ? s : s + '%';

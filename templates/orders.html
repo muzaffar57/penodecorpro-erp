@@ -214,6 +214,12 @@
 .detal-summary b{color:var(--text);font-weight:600}
 .detal-summary .val{color:var(--m-15803d);font-weight:700;white-space:nowrap}
 .detal-badge{font-size:13px;font-weight:700;color:var(--gold-dark);background:var(--gold-tint);padding:6px 14px;border-radius:8px;border:1px solid var(--ch-dbeafe);flex-shrink:0}
+/* kech173 (zip 239): komplekt belgisi — buyurtma / yetkazish oynasida guruh sarlavhasi, tahrir formasida qator yorlig'i */
+.kmp-blok{border-left:3px solid var(--m-1d4ed8);padding-left:8px;margin:4px 0 12px;min-width:0}
+.kmp-sarlavha{font-size:13px;font-weight:600;color:var(--m-1d4ed8);background:var(--f-dbeafe);border-radius:8px;padding:6px 10px;margin:0 0 8px;overflow-wrap:anywhere}
+.kmp-qator{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:6px 0 2px;min-width:0}
+.kmp-belgi{font-size:12px;font-weight:600;color:var(--m-1d4ed8);background:var(--f-dbeafe);padding:4px 8px;border-radius:6px;min-width:0;max-width:100%;overflow-wrap:anywhere}
+.kmp-olib{font-size:12px;color:var(--m-b91c1c);background:none;border:1px solid var(--ch-dddddd);border-radius:6px;padding:3px 8px;cursor:pointer;flex-shrink:0;white-space:nowrap}
 .detal-rm{background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px;line-height:1;transition:color .15s, background .15s;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;width:var(--h-sm);height:var(--h-sm);border-radius:var(--r-btn)}
 .detal-rm:hover{background:var(--f-fee2e2)}
 .detal-rm:hover{color:var(--m-dc2626)}
@@ -2621,7 +2627,8 @@ async function loadOrderItems(id) {
       container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:16px;color:var(--text3);font-size:14px">Detallar yo'q</div>`;
       return;
     }
-    container.innerHTML = items.map(item => {
+    // kech173 (zip 239): komplekt / «o'z o'lchami» guruhi — sarlavha, tagida detallari (`kmpBloklari`)
+    const _odQator239 = item => {
       const icon = ITEM_TYPE_ICON[(item.category || '').toLowerCase()] || 'ti-box';
       const thumb = item.image_url
         ? `<img src="${escapeHtml(kichikRasm(item.image_url))}" alt="" onclick="event.stopPropagation();openItemImgLightbox('${jsAttrEscape(item.image_url)}')">
@@ -2639,7 +2646,10 @@ async function loadOrderItems(id) {
         </div>
         <div class="prod-total">${formatNum(item.total_price)} so'm</div>
       </div>`;
-    }).join('');
+    };
+    container.innerHTML = kmpBloklari(items).map(b => b.sarlavha
+      ? `<div class="kmp-blok"><div class="kmp-sarlavha">${escapeHtml(kmpBelgisi(b.turi) + ' ' + b.sarlavha)}</div>${b.qatorlar.map(_odQator239).join('')}</div>`
+      : b.qatorlar.map(_odQator239).join('')).join('');
   } catch (e) {
     if (!joriy()) return;
     container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:16px;color:var(--m-b91c1c);font-size:14px">${escapeHtml(yukXatoMatn('Detallar', yukXato('server')))}</div>`;
@@ -3013,7 +3023,8 @@ function openDeliveryModal() {
     }).catch(() => { if (qarzJoriy()) debtEl.textContent = ''; });
   }
 
-  document.getElementById('dlvForm').innerHTML = dlvData.items.map(it => {
+  // kech173 (zip 239): komplekt / «o'z o'lchami» guruhi — sarlavha (omborchi nima yuklashini ko'radi)
+  const _dlvQator239 = it => {
     const dis = it.is_done ? 'opacity:.45;pointer-events:none' : '';
     // kech103 (58-band): omborga ORTIQCHA qaytarilgan qism — "To'liq topshirilgan" emas (topshirilgan + ortiqcha).
     // kech103 (83-band): MRP detali — TAYYOR (ishlab chiqarilgan) miqdor ko'rsatiladi; undan ko'pi yuborilmaydi.
@@ -3038,7 +3049,10 @@ function openDeliveryModal() {
         <span style="font-size:13px;color:var(--text3);width:32px">${escapeHtml(it.unit === 'metr' ? 'm' : (it.unit === 'dona' ? 'ta' : (it.unit || '')))}</span>
       </div>
     </div>`;
-  }).join('');
+  };
+  document.getElementById('dlvForm').innerHTML = kmpBloklari(dlvData.items).map(b => b.sarlavha
+    ? `<div class="kmp-blok"><div class="kmp-sarlavha">${escapeHtml(kmpBelgisi(b.turi) + ' ' + b.sarlavha)}</div>${b.qatorlar.map(_dlvQator239).join('')}</div>`
+    : b.qatorlar.map(_dlvQator239).join('')).join('');
 
   document.getElementById('dlv-received-by').value = '';
   document.getElementById('dlv-notes').value = '';
@@ -7115,7 +7129,8 @@ function openDuplicatePickModal(order) {
   document.getElementById('dup-modal-sub').textContent =
     `${order.order_number} · ${order.client_name || order.project_name || '—'} · ${order.items.length} ta detal`;
 
-  document.getElementById('dupPickList').innerHTML = order.items.map((item, idx) => {
+  // kech173 (zip 239, review239 L5): nusxa tanlovida ham komplekt guruhi (bir nomli detallar qaysi komplektdan — ko'rinadi)
+  const _dupQator239 = ({item, idx}) => {
     const icon = ITEM_TYPE_ICON[(item.category || '').toLowerCase()] || 'ti-box';
     return `
     <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--ch-f5f5f5);cursor:pointer">
@@ -7127,7 +7142,10 @@ function openDuplicatePickModal(order) {
         <div style="font-size:13px;color:var(--text3);margin-top:2px">${itemParamsText(item)}</div>
       </div>
     </label>`;
-  }).join('');
+  };
+  document.getElementById('dupPickList').innerHTML = kmpBloklari(order.items.map((item, idx) => ({item, idx})), q => q.item).map(b => b.sarlavha
+    ? `<div class="kmp-blok"><div class="kmp-sarlavha">${escapeHtml(kmpBelgisi(b.turi) + ' ' + b.sarlavha)}</div>${b.qatorlar.map(_dupQator239).join('')}</div>`
+    : b.qatorlar.map(_dupQator239).join('')).join('');
 
   updateDupPickState();
   document.getElementById('dupPickModal').style.display = 'flex';
@@ -7336,6 +7354,8 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
         // kech108 (71): tahrir ochilgandagi SAQLANGAN narx — saqlashda 0 ga tushsa ogohlantiriladi (`_narxiNolgaTushgan`).
         // Nusxa olishda (yangi buyurtma) belgilanmaydi.
         if (!isDup) row.dataset.saqlanganNarx = String(parseFloat(item.unit_price || 0) || 0);
+        // kech173 (zip 239): komplekt belgisi (saqlashda qaytariladi); nusxada — faqat guruhi TO'LIQ ko'chirilgan bo'lsa (review239 L5)
+        kmpQatorgaYoz239(row, kmpTolikmi239(item, itemsToUse, order.items) ? item : null);
 
         const typeEl = row.querySelector('.i-type');
         const cat = item.category || 'profil';
@@ -7799,6 +7819,73 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
 }
 
 // ── Buyurtmani yangilash ──────────────────────────────────
+// kech173 (zip 239 — reja «Komplekt ERP'da qanday bilinadi» 4-band): tahrir formasida komplekt belgisi — qator sarlavhasida «🧩 …» yorlig'i;
+// saqlashda qatorning belgisi QAYTARILADI (guruhsiz qatorga — null: server shu qiymatni yozadi). Komplekt qatorida «✕ butun komplekt» —
+// shu komplektning hamma detali formadan olinadi (bekor qilish — butun komplekt yoki ✕ bilan alohida detal). Yorliq matni — textContent.
+function kmpQatorgaYoz239(row, item) {
+  const s = kmpSarlavha(item);
+  if (!row || !s) return;
+  row.dataset.kmpGuruh = String(Number(item.kmp_guruh));
+  row.dataset.kmpTuri = String(item.kmp_turi);
+  row.dataset.kmpNomi = String(item.kmp_nomi);
+  if (item.kmp_turi !== 'oz_olcham' && item.kmp_soni) row.dataset.kmpSoni = String(Number(item.kmp_soni));
+  // sarlavha qatori TAGIDA alohida qator (telefonda sarlavha siqilmaydi, matn o'raladi)
+  const top = row.querySelector('.detal-top');
+  if (!top) return;
+  const q = document.createElement('div');
+  q.className = 'kmp-qator';
+  const b = document.createElement('span');
+  b.className = 'kmp-belgi';
+  b.textContent = kmpBelgisi(item.kmp_turi) + ' ' + s;
+  q.appendChild(b);
+  top.insertAdjacentElement('afterend', q);
+  if (item.kmp_turi !== 'oz_olcham') {
+    const t = document.createElement('button');
+    t.type = 'button';
+    t.className = 'kmp-olib';
+    t.textContent = '✕ butun komplekt';
+    t.title = 'Shu komplektning hamma detalini formadan olib tashlash';
+    t.onclick = (e) => { e.stopPropagation(); kmpButunOlib239(row); };
+    b.insertAdjacentElement('afterend', t);
+  }
+}
+function kmpTolikmi239(item, tanlangan, hammasi) {
+  const s = kmpSarlavha(item);
+  if (!s) return false;
+  const k = x => JSON.stringify([x.kmp_guruh, x.kmp_turi, x.kmp_nomi, x.kmp_soni || null]);
+  const n = l => (l || []).filter(x => kmpSarlavha(x) && k(x) === k(item)).length;
+  return n(tanlangan) === n(hammasi);
+}
+function kmpQatorlari239(row) {
+  const k = ['kmpGuruh', 'kmpTuri', 'kmpNomi', 'kmpSoni'].map(n => row.dataset[n] || '').join('\u0001');
+  return Array.from(document.querySelectorAll('.detal')).filter(r =>
+    ['kmpGuruh', 'kmpTuri', 'kmpNomi', 'kmpSoni'].map(n => r.dataset[n] || '').join('\u0001') === k);
+}
+async function kmpButunOlib239(row) {
+  if (!row || !row.dataset.kmpGuruh) return;
+  const qatorlar = kmpQatorlari239(row);
+  const s = kmpSarlavha({kmp_guruh: row.dataset.kmpGuruh, kmp_turi: row.dataset.kmpTuri, kmp_nomi: row.dataset.kmpNomi,
+                         kmp_soni: row.dataset.kmpSoni});
+  const ok = await showConfirmModal(s + "\n\nShu komplektning " + qatorlar.length + " ta detali formadan olib tashlansinmi? "
+    + "O'zgarish «Saqlash» bosilgandan keyin kuchga kiradi.", {danger: true, okText: 'Ha, olib tashlash'});
+  if (!ok) return;
+  qatorlar.forEach(r => r.remove());
+  updateTotal();
+}
+function kmpTanaga239(x, row) {
+  if (!x || typeof x !== 'object') return;
+  const d = (row && row.dataset) || {};
+  const g = parseInt(d.kmpGuruh);
+  if (Number.isFinite(g) && g > 0 && d.kmpTuri && d.kmpNomi) {
+    x.kmp_guruh = g;
+    x.kmp_turi = d.kmpTuri;
+    x.kmp_nomi = d.kmpNomi;
+    x.kmp_soni = (d.kmpTuri !== 'oz_olcham' && parseInt(d.kmpSoni) > 0) ? parseInt(d.kmpSoni) : null;
+  } else {
+    x.kmp_guruh = null; x.kmp_turi = null; x.kmp_nomi = null; x.kmp_soni = null;
+  }
+}
+
 function collectItems() {
   const items = [];
   // kech108 (71): har yuboriladigan detalga uning qatori — sanalmaydigan `_qator` xossasi (JSON.stringify uni YUBORMAYDI);
@@ -7935,6 +8022,7 @@ function collectItems() {
     const _q220 = x && x._qator;
     const _id220 = _q220 && _q220.dataset ? parseInt(_q220.dataset.itemId) : NaN;
     if (Number.isFinite(_id220) && _id220 > 0) x.id = _id220;
+    kmpTanaga239(x, _q220);       // kech173 (zip 239)
   });
   return items;
 }

@@ -6,6 +6,7 @@ Bosqichma-bosqich topshirish uchun isbot hujjati.
 
 from company_brand import get_brand, company_id_of  # 2026-09-20: korxona brendi
 from schemas import detal_nomi_tartib as _detal_nomi_tartib  # kech159 (zip 222): detal nomi — tartibli ko'rinish
+from models import kmp_pdf_bloklari  # kech173 (zip 239): komplekt guruhi sarlavhasi (review239 H1 — «Alohida detallar» ham)
 
 import io
 import re as _re_dp
@@ -50,6 +51,7 @@ GREEN = colors.HexColor("#2E7D52")
 RED = colors.HexColor("#C0392B")
 GRAY = colors.HexColor("#8E8E93")
 LIGHT = colors.HexColor("#F6F4F0")
+KMP_BG239 = colors.HexColor("#E8F0FE")      # kech173 (zip 239): komplekt guruhi sarlavha qatori foni
 
 
 def _fmt(n):
@@ -524,6 +526,7 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
                               textColor=GRAY, leading=11)
     st_right = ParagraphStyle('r', fontName='Helvetica-Bold', fontSize=9,
                               textColor=DARK, alignment=TA_RIGHT)
+    st_kmp239 = ParagraphStyle('kmp239', fontName='Helvetica', fontSize=8, textColor=DARK, leading=10)   # kech173 (zip 239)
 
     el = []
 
@@ -625,10 +628,17 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
 
     delivery_total = 0.0
 
-    for i, di in enumerate(delivery.items, 1):
+    # kech173 (zip 239): komplekt / «o'z o'lchami» guruhi — sarlavha qatori (omborchi nima yuklashini ko'radi), tagida shu yukdagi detallari
+    _bl239 = kmp_pdf_bloklari(list(delivery.items or []), lambda _di: _di.order_item)
+    _boshi239 = {id(qs[0]): s for s, _t, qs in _bl239 if s}
+    _sarlavha239 = []
+    for i, di in enumerate([q for _s, _t, qs in _bl239 for q in qs], 1):
         oi = di.order_item
         if not oi:
             continue
+        if id(di) in _boshi239:
+            _sarlavha239.append(len(data))
+            data.append([Paragraph(f"<b>{_x(_boshi239[id(di)])}</b>", st_kmp239), "", "", "", "", "", ""])
 
         ordered = oi.order_qty_normalized
         # kech120 (zip 136 — G6-13): shu yukgacha topshirilgani (keyingi yuklar qo'shilmaydi)
@@ -704,6 +714,9 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
         ('SPAN', (0, -1), (2, -1)),
         ('ALIGN', (3, -1), (3, -1), 'RIGHT'),
     ]
+    for _r239 in _sarlavha239:          # kech173 (zip 239)
+        style += [('SPAN', (0, _r239), (-1, _r239)), ('BACKGROUND', (0, _r239), (-1, _r239), KMP_BG239),
+                  ('ALIGN', (0, _r239), (-1, _r239), 'LEFT')]
     tbl.setStyle(TableStyle(style))
     el.append(tbl)
 
@@ -798,8 +811,15 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
             el.append(Paragraph("<b>Keyingi yetkazishda kutilayotgan mahsulotlar</b>", st_norm))
             el.append(Spacer(1, sp(4)))
             pend_data = [["Mahsulot nomi", "Qoldi", "1 birlik narxi"]]
+            # kech173 (zip 239): kutilayotganlar ham komplekt guruhi bo'yicha (sarlavha qatori)
+            _pbl239 = kmp_pdf_bloklari(pending_items)
+            _pboshi239 = {id(qs[0]): s for s, _t, qs in _pbl239 if s}
+            _psarlavha239 = []
             # kech120 (zip 136 — G6-12): birlik — umumiy qoida (`_birlik`; ilgari dona — «ta», qop / litr — «ta»)
-            for it in pending_items:
+            for it in [q for _s, _t, qs in _pbl239 for q in qs]:
+                if id(it) in _pboshi239:
+                    _psarlavha239.append(len(pend_data))
+                    pend_data.append([Paragraph(f"<b>{_x(_pboshi239[id(it)])}</b>", st_kmp239), "", ""])
                 unit_label = _birlik(it.delivery_unit)
                 it_ordered = it.order_qty_normalized
                 it_unit_p = (float(it.total_price or 0) / it_ordered) if it_ordered > 0 else float(it.unit_price or 0)
@@ -823,7 +843,8 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
                 ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor("#E5E1D8")),
                 ('TOPPADDING', (0, 0), (-1, -1), lerp(4, 1)),
                 ('BOTTOMPADDING', (0, 0), (-1, -1), lerp(4, 1)),
-            ]))
+            ] + [_c for _r in _psarlavha239 for _c in (('SPAN', (0, _r), (-1, _r)),              # kech173 (zip 239)
+                                                        ('BACKGROUND', (0, _r), (-1, _r), KMP_BG239))]))
             el.append(pend_tbl)
 
     # ---- Transport ----
@@ -1012,6 +1033,7 @@ def generate_summary_pdf(order, deliveries, db=None) -> bytes:
     data = [["Mahsulot", "Miqdor", "Birlik narxi", "Summa"]]
     header_rows = [0]     # sarlavha (ustun nomlari) qatori
     section_rows = []     # har bir Yuk xati uchun bo'lim-sarlavha qatorlari
+    kmp_rows239 = []      # kech173 (zip 239): komplekt guruhi sarlavhalari
 
     grand_total = 0.0
     for idx, d in enumerate(deliveries, 1):
@@ -1023,10 +1045,16 @@ def generate_summary_pdf(order, deliveries, db=None) -> bytes:
         data.append([f"№{idx} · {date_s} · Yuk xati {yuk_no}", "", "", ""])
 
         dsum = 0.0
-        for di in d.items:
+        # kech173 (zip 239): har yuk ichida komplekt / «o'z o'lchami» guruhi — sarlavha qatori
+        _bl239 = kmp_pdf_bloklari(list(d.items or []), lambda _di: _di.order_item)
+        _boshi239 = {id(qs[0]): s for s, _t, qs in _bl239 if s}
+        for di in [q for _s, _t, qs in _bl239 for q in qs]:
             oi = di.order_item
             if not oi:
                 continue
+            if id(di) in _boshi239:
+                kmp_rows239.append(len(data))
+                data.append([Paragraph(f"<b>{_x(_boshi239[id(di)])}</b>", st_item), "", "", ""])
             ordered = oi.order_qty_normalized
             total_price = float(oi.total_price or 0)
             unit_p = (total_price / ordered) if ordered > 0 else 0.0
@@ -1071,6 +1099,9 @@ def generate_summary_pdf(order, deliveries, db=None) -> bytes:
     ]
     # Har bir Yuk xati bo'lim-sarlavhasi — to'liq kenglikka yoyiladi,
     # och fonda, qalin harf bilan ajratiladi
+    for r in kmp_rows239:               # kech173 (zip 239)
+        style.append(('SPAN', (0, r), (-1, r)))
+        style.append(('BACKGROUND', (0, r), (-1, r), KMP_BG239))
     for r in section_rows:
         style.append(('SPAN', (0, r), (-1, r)))
         style.append(('BACKGROUND', (0, r), (-1, r), colors.HexColor("#FAF7F0")))

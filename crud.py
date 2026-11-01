@@ -2423,6 +2423,16 @@ def _loyiha_tolangan_yangila(db: Session, project) -> None:
 # ORDER CRUD
 # ============================================================
 
+# kech173 (zip 239): komplekt belgisi — `models.kmp_*` (sxema tekshirgan); sahifa / PDF lar uchun bir joydan
+from models import kmp_dict, KMP_TURLARI      # noqa: E402
+_KMP_KALITLAR239 = frozenset(("kmp_guruh", "kmp_turi", "kmp_nomi", "kmp_soni"))
+
+
+def _kmp_ustunlari239(item_data) -> dict:
+    """Detal tanasidagi komplekt belgisi → `OrderItem` ustunlari (yo'q — None)."""
+    return {k: getattr(item_data, k, None) for k in ("kmp_guruh", "kmp_turi", "kmp_nomi", "kmp_soni")}
+
+
 def _blok_ustunlari(db: Session, item_data, company_id=None) -> dict:
     """kech155 (zip 211 — egasi QARORLARI 23.10 «Blok hisoblash»): detalning blok ustunlari (`OrderItem` ga yoziladi). Blok emas — hammasi
     None (boshqa turga o'tgan detalda eski blok qiymati qolmaydi). Blok — forma yuborgani; tayyor mahsulotdan olingan blok detal birligi
@@ -2668,7 +2678,7 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None,
             return (x.name, x.category, _s215b(x.quantity), _s215b(getattr(x, "width", None)), _s215b(getattr(x, "thickness", None)),
                     _s215b(getattr(x, "length", None)), bool(x.is_coated), getattr(x, "penoplast_id", None) or None,
                     getattr(x, "finished_product_id", None) or None, getattr(x, "product_type_id", None) or None, _ret, _s215b(_narx, 2),
-                    _ichki215b(x))
+                    _ichki215b(x), tuple(_kmp_ustunlari239(x).values()))      # kech173 (zip 239, review239 L2): guruh boshqa — boshqa buyurtma
         _new_sig = sorted([_imzo215b(i, True) for i in order_data.items], key=repr)
         _old_sig = sorted([_imzo215b(it, False) for it in _recent_order.items], key=repr)
         _qoralama_mos = bool(getattr(order_data, "is_draft", False)) == (_recent_order.status == OrderStatus.DRAFT)
@@ -2799,7 +2809,8 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None,
             product_type_id=getattr(item_data, 'product_type_id', None),
             total_price=item_total,
             notes=item_data.notes,
-            **_blok_ustunlari(db, item_data, _company_id)      # kech155 (zip 211)
+            **_blok_ustunlari(db, item_data, _company_id),     # kech155 (zip 211)
+            **_kmp_ustunlari239(item_data)                     # kech173 (zip 239)
         )
         db.add(db_item)
 
@@ -12172,6 +12183,25 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
             "shortages": _mrp_xato109
         }
 
+    # kech173 (zip 239, review239 L1): tahrirdan keyingi YAKUNIY belgilar (kalitli tana — shu, kalitsiz — saqlangani) bir guruh raqamida
+    # bir xil bo'lsin — aks holda (masalan API bir qatorni o'zgartirib, ikkinchisini kalitsiz yuborsa) buyurtma sahifadan saqlanmay qolardi
+    _kmp_yakun239 = {}
+    for _o239 in old_items:
+        _n239 = matched.get(_o239.id)
+        if _n239 is None:
+            continue
+        _f239 = (_kmp_ustunlari239(_n239) if _KMP_KALITLAR239 & (getattr(_n239, 'model_fields_set', None) or set())
+                 else _kmp_ustunlari239(_o239))
+        if _f239["kmp_guruh"] is not None:
+            _kmp_yakun239.setdefault(_f239["kmp_guruh"], set()).add((_f239["kmp_turi"], _f239["kmp_nomi"], _f239["kmp_soni"]))
+    for _i239, _n239 in enumerate(order_data.items):
+        if _i239 not in used_new and getattr(_n239, 'kmp_guruh', None) is not None:
+            _kmp_yakun239.setdefault(_n239.kmp_guruh, set()).add((_n239.kmp_turi, _n239.kmp_nomi, _n239.kmp_soni))
+    _kmp_xato239 = sorted(g for g, v in _kmp_yakun239.items() if len(v) > 1)
+    if _kmp_xato239:
+        return {"success": False, "message": f"{_kmp_xato239[0]}-guruh qatorlarida komplekt belgisi har xil bo'lib qoladi — hamma qatorini "
+                                             "bir xil yuboring (yoki belgisiz)"}
+
     # 4) Detallarni yangilaymiz — topshirilganlarini SAQLAB
     _jamilar = []
     keep_ids = set()
@@ -12237,6 +12267,11 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
                 and 'blok_birlik' not in (getattr(nd, 'model_fields_set', None) or set())):
             for _k211, _v211 in _blok_ustunlari(db, nd, getattr(order, 'company_id', None)).items():
                 setattr(oi, _k211, _v211)
+        # kech173 (zip 239): komplekt belgisi — tanada kalit bo'lsa (yangi forma har qatorga yuboradi, guruhsizga null) shu qiymat; kalit
+        # umuman yo'q (eski ochiq sahifa / API) — saqlangani qoladi
+        if _KMP_KALITLAR239 & (getattr(nd, 'model_fields_set', None) or set()):
+            for _k239, _v239 in _kmp_ustunlari239(nd).items():
+                setattr(oi, _k239, _v239)
         if _tm56_eski[0] or oi.finished_product_id:
             _tm56.append({"detal": oi, "eski_tm": _tm56_eski[0], "eski_miqdor": _tm56_eski[1],
                           "eski_birlik": _tm56_eski[2], "yangi_tm": oi.finished_product_id,
@@ -12288,7 +12323,8 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
             product_type_id=getattr(nd, 'product_type_id', None),
             total_price=item_total,
             notes=_new_item_notes,
-            **_blok_ustunlari(db, nd, getattr(order, 'company_id', None))      # kech155 (zip 211)
+            **_blok_ustunlari(db, nd, getattr(order, 'company_id', None)),     # kech155 (zip 211)
+            **_kmp_ustunlari239(nd)                                            # kech173 (zip 239)
         )
         import services as _svc_sub2
         _sub_bp2 = float(getattr(nd, 'price_per_m3', None) or getattr(order_data, 'base_price', None) or 0)
@@ -13713,7 +13749,8 @@ def get_delivery_status(db: Session, order_id: int) -> dict:
             "ortiqcha": round(it.ortiqcha_qty, 2),
             "mrp_tayyor": round(_mrp83["tayyor"], 2) if _mrp83 is not None else None,
             "percent": round(delivered / ordered * 100, 1) if ordered > 0 else 0,
-            "is_done": it.remaining_qty <= 0.001
+            "is_done": it.remaining_qty <= 0.001,
+            **kmp_dict(it),          # kech173 (zip 239): yetkazish oynasida komplekt sarlavhasi
         })
 
     return {
@@ -24981,6 +25018,19 @@ SAYT_VILOYATLAR = (
 )
 SAYT_VILOYAT_NOMI = dict(SAYT_VILOYATLAR)
 SAYT_KOMPLEKT_NOMI = {"rom": "rom komplekti", "eshik": "eshik komplekti"}
+SAYT_OZ_MAX_DETAL = 10               # kech173 (zip 239): bitta «o'z o'lchami» qatoridagi detallar
+
+
+def _sayt_gnomi239(m, dum: str) -> str:
+    """kech173 (zip 239, review239 L4): guruh nomi «<kod> «<nom>»<dum>» ≤ 200 — sig'masa MODEL NOMI qisqartiriladi («…»), o'lcham / qoplama /
+    « × N» (ERP komplekt sarlavhasi shulardan) kesilmaydi (kod ≤ 30, o'lcham ≤ 40 — dum doim sig'adi)."""
+    bosh = m.kod
+    if m.nom:
+        joy = 200 - len(m.kod) - len(dum) - 3
+        nom = m.nom if len(m.nom) <= joy else (m.nom[:max(joy - 1, 0)].rstrip() + "…")
+        if joy > 1:
+            bosh += f" «{nom}»"
+    return (bosh + dum)[:200]
 _SAYT_KALIT_RE = _re236.compile(r"[A-Za-z0-9_-]{8,64}")
 _DOKON_BUYURTMA_CHEKLOV = _DokonApiCheklov(SAYT_DAQIQA_MAX, DOKON_API_OYNA_SEKUND)
 
@@ -25189,9 +25239,9 @@ def sayt_buyurtma_hisobla(db: Session, company_id: int, qatorlar) -> dict:
             turlar = [t for t in DOKON_RETSEPT_TURLARI[kom]
                       if retsept[kom][t] and (t not in ("kapitel", "baza") or (kb_bor and kb))]
             c = chegirmalar.get(m.id)
-            gnomi = (f"{m.kod}" + (f" «{m.nom}»" if m.nom else "") + f" — {SAYT_KOMPLEKT_NOMI[kom]}, {next(iter(guruh.values())).olcham}, "
-                     + ("qoplamali" if qop else "qoplamasiz") + ("" if (kb or not kb_bor) else ", kapitel va bazasiz")
-                     + (", ombordan" if omb else "") + f" × {soni}")
+            gnomi = _sayt_gnomi239(m, f" — {SAYT_KOMPLEKT_NOMI[kom]}, {next(iter(guruh.values())).olcham}, "     # review239 L4
+                                   + ("qoplamali" if qop else "qoplamasiz") + ("" if (kb or not kb_bor) else ", kapitel va bazasiz")
+                                   + (", ombordan" if omb else "") + f" × {soni}")
             for t in turlar:
                 d = guruh.get(t)
                 if d is None:
@@ -25204,6 +25254,47 @@ def sayt_buyurtma_hisobla(db: Session, company_id: int, qatorlar) -> dict:
                 natija.append(_sayt_qator(n, gnomi[:200], f"komplekt_{kom}", soni, m, d, qop,
                                           Decimal(retsept[kom][t]) * soni, narx, asl, foiz, hajm,
                                           tm=dokon_tm_amaldagi(d) if omb else None))
+        elif "oz_olcham" in q:
+            # kech173 (zip 239 — reja «O'z o'lchamingiz bilan» 1–4-band): bitta rom / eshik modelining BIR o'lchamdagi detallari, miqdorni
+            # mijoz yozadi (karniz / podokonnik / nalichnik — juft metr, kapitel / baza — dona; sayt yaxlitlaydi, server tekshiradi); narx —
+            # alohida detal qatori qoidasi bilan AYNAN (`_sayt_detal_narxi`, chegirma ham); omborga qaralmaydi (faqat buyurtma asosida).
+            # ERP da bitta «o'z o'lchami» guruhi bo'lib tushadi.
+            _dokon_kalitlar(q, ("oz_olcham", "qoplamali"))
+            qop = _dokon_bool(q.get("qoplamali"), f"{joy} — qoplamali")
+            royxat = q.get("oz_olcham")
+            if not isinstance(royxat, list) or not royxat:
+                raise ValueError(f"{joy}: «o'z o'lchami» — kamida bitta detal va uning miqdori kerak")
+            if len(royxat) > SAYT_OZ_MAX_DETAL:
+                raise ValueError(f"{joy}: «o'z o'lchami» qatorida ko'pi bilan {SAYT_OZ_MAX_DETAL} ta detal bo'lsin")
+            m, k, korilgan, oz = None, None, set(), []
+            for j, x in enumerate(royxat, start=1):
+                jj = f"{joy}, {j}-detal"
+                if not isinstance(x, dict):
+                    raise ValueError(f"{jj}: noto'g'ri qator")
+                _dokon_kalitlar(x, ("detal_id", "miqdor"))
+                did = _dokon_butun(x.get("detal_id"), f"{jj} — mahsulot", 1, 2_147_483_647)
+                d = next((y for dl in detallar.values() for y in dl if y.id == did and y.yoqilgan), None)
+                if d is None:
+                    raise ValueError(f"{jj}: bu mahsulot saytda sotuvda yo'q — sahifani yangilang")
+                dm = modellar[d.model_id]
+                if dm.qolip != "komplekt":
+                    raise ValueError(f"{jj}: «o'z o'lchami» — faqat rom va eshik dekori modellarida")
+                if m is None:
+                    m, k = dm, dokon_olcham_kalit(d.olcham)
+                elif dm.id != m.id or dokon_olcham_kalit(d.olcham) != k:
+                    raise ValueError(f"{jj}: bitta «o'z o'lchami» qatorida — bitta model va bitta o'lcham")
+                if d.id in korilgan:
+                    raise ValueError(f"{jj}: bu detal shu qatorda ikki marta yozilgan")
+                korilgan.add(d.id)
+                _dn = f"{m.kod} {DOKON_TURI_NOMI.get(d.turi, d.turi).lower()}"
+                miqdor = _sayt_miqdor(x.get("miqdor"), d.birlik, m.qolip, d.turi, _dn)
+                narx, asl, foiz, hajm = _sayt_detal_narxi(d, koeff, qop, chegirmalar.get(m.id), bugun)
+                if narx is None:
+                    raise ValueError(f"{jj}: «{_dn}» narxi kiritilmagan — bu mahsulotni hozir sotib bo'lmaydi")
+                oz.append((d, miqdor, narx, asl, foiz, hajm))
+            gnomi = _sayt_gnomi239(m, f", {oz[0][0].olcham}, o'z o'lchami, " + ("qoplamali" if qop else "qoplamasiz"))
+            for d, miqdor, narx, asl, foiz, hajm in oz:
+                natija.append(_sayt_qator(n, gnomi[:200], "oz_olcham", None, m, d, qop, miqdor, narx, asl, foiz, hajm))
         else:
             _dokon_kalitlar(q, ("detal_id", "qoplamali", "miqdor", "ombordan"))
             did = _dokon_butun(q.get("detal_id"), f"{joy} — mahsulot", 1, 2_147_483_647)
@@ -25616,6 +25707,21 @@ def _sayt_m3_narxi(narx, eni_sm, qalinligi_sm, qoplamali):
     return float(m3) if Decimal("0") < m3 <= Decimal("9999999999.99") else None
 
 
+def _sayt_kmp239(q) -> dict:
+    """kech173 (zip 239): sayt qatori → ERP qatorining komplekt belgisi (komplekt / «o'z o'lchami» guruhi; alohida detal — bo'sh). Sarlavha
+    — sayt guruh nomi, oxiridagi « × N» siz (soni alohida ustunda: «… — 3 komplekt»)."""
+    tur = getattr(q, "sbq_tur", None)
+    if tur not in KMP_TURLARI:
+        return {}
+    nomi = getattr(q, "sbq_guruh_nomi", None) or ""
+    soni = getattr(q, "komplekt_soni", None) if tur != "oz_olcham" else None
+    if soni:
+        _s = f" × {int(soni)}"
+        if nomi.endswith(_s):
+            nomi = nomi[:-len(_s)]
+    return {"kmp_guruh": int(q.guruh), "kmp_turi": tur, "kmp_nomi": nomi[:200], "kmp_soni": int(soni) if soni else None}
+
+
 def sayt_buyurtma_tanasi(b, qatorlar, project_id: int, sana, recipe_id=None, tm=None) -> dict:
     """ERP buyurtma tanasi (`schemas.OrderCreate`) — xodim formada qo'lda yozgandek: metr → «profil» (Eni, Qalinlik, Uzunlik = metr,
     soni 1, narx = qator jami, qatorning O'Z «1 m³ narxi» — formada shu narx qayta hosil bo'ladi, review237 H1); dona → «dona» (soni, 1 dona
@@ -25624,6 +25730,7 @@ def sayt_buyurtma_tanasi(b, qatorlar, project_id: int, sana, recipe_id=None, tm=
     ochilmaydi). Topshirish — Toshkent kuni oxiri emas, kun boshi (forma kabi)."""
     items = []
     for q in qatorlar:
+        _k239, _n239 = _sayt_kmp239(q), len(items)        # kech173 (zip 239): komplekt belgisi — shu qatordan chiqqan hamma ERP qatoriga
         miqdor = float(q.miqdor)
         if tm and q.id in tm:
             # kech172 (zip 238): ombordan — partiyadan (`sayt_tm_taqsimla`; forma `pickFinished` shakli: nom / o'lcham — partiyaniki, profil —
@@ -25636,6 +25743,8 @@ def sayt_buyurtma_tanasi(b, qatorlar, project_id: int, sana, recipe_id=None, tm=
                 else:
                     items.append({"name": fp.name, "category": "dona", "quantity": float(ol), "unit_price": float(q.narx),
                                   "is_coated": True, "finished_product_id": fp.id})
+            for _x239 in items[_n239:]:
+                _x239.update(_k239)
             continue
         if q.sbq_birlik == "metr":
             items.append({"name": q.sbq_nom, "category": "profil", "width": q.eni_sm, "thickness": q.qalinligi_sm, "length": miqdor,
@@ -25648,6 +25757,8 @@ def sayt_buyurtma_tanasi(b, qatorlar, project_id: int, sana, recipe_id=None, tm=
             items.append({"name": q.sbq_nom, "category": "dona", "quantity": miqdor, "unit_price": float(q.narx),
                           "is_coated": bool(q.qoplamali),
                           "unit_price_for_volume": float(q.hajm_narxi) if q.hajm_narxi is not None else None})
+        for _x239 in items[_n239:]:
+            _x239.update(_k239)
     izoh = [f"Saytdan: {b.sb_raqam}", f"{SAYT_VILOYAT_NOMI.get(b.sb_viloyat, b.sb_viloyat)} — {sayt_yetkazish_matni(b.sb_viloyat).lower()}"]
     if b.sb_izoh:
         izoh.append(f"Mijoz izohi: {b.sb_izoh}")
