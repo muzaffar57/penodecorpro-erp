@@ -16,7 +16,9 @@
    kech168 (zip 233): «Do'kon sozlamalari» kartochkasi — buyurtmani tasdiqlash telefonlari, ish vaqti, komplekt retsepti (shtorkalar);
    komplekt modelida — retsept bo'yicha komplekt narxlari (server hisobi).
    kech169 (zip 234): model ichida «🏷 Chegirma» shtorkasi — foiz yoki «Yangi narx», o'lchamlar, tugash sanasi; natija (asl → chegirmali,
-   tannarx, «tannarxdan past» ogohlantirishi) — serverdan; model sarlavhasida «−15 %» belgisi. #}
+   tannarx, «tannarxdan past» ogohlantirishi) — serverdan; model sarlavhasida «−15 %» belgisi.
+   kech170 (zip 235): «📊 Narxlarni Excel orqali o'zgartirish» kartochkasi — butun narx jadvali .xlsx ga, qaytarishda hamma qator
+   tekshiriladi va saqlashdan oldin o'zgarishlar (eski → yangi), xatolar va ogohlantirishlar ko'rsatiladi; xato bo'lsa — saqlanmaydi. #}
 <style>
 .sk-grid{display:grid;grid-template-columns:280px minmax(0,1fr);gap:14px;align-items:start}
 .sk-grid > div{min-width:0}
@@ -191,6 +193,27 @@
 @media (max-width: 700px){
   .sk-chjadval input[type=text]{width:100%}
 }
+/* kech170 (zip 235): narxlarni Excel orqali o'zgartirish — yuklab olish / yuklash tugmalari, ko'rish natijasi (xatolar — qizil, saqlanmaydi;
+   ogohlantirishlar — oltin, saqlashni to'smaydi; o'zgarishlar jadvali — telefonda kartochka) */
+.sk-ex-tugmalar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.sk-ex-yukla{position:relative;overflow:hidden;cursor:pointer}
+.sk-ex-yukla input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.sk-ex-yukla.band,.sk-ex-tugmalar .btn:disabled{opacity:.6;pointer-events:none}
+.sk-ex-yukla:focus-within{outline:2px solid var(--gold);outline-offset:2px}
+.sk-ex-natija{margin-top:12px}
+.sk-ex-natija:empty{display:none}
+.sk-ex-blok{margin:0 0 10px;padding:8px 10px;border:1px solid var(--border2);border-radius:var(--r-btn);font-size:13px;line-height:1.5}
+.sk-ex-blok.xato{border-color:var(--red);color:var(--red)}
+.sk-ex-blok.ogoh{border-color:var(--gold);background:var(--gold-tint);color:var(--text)}
+.sk-ex-blok ul{margin:6px 0 0;padding-left:18px;max-height:260px;overflow-y:auto}
+.sk-ex-blok li{margin:2px 0;overflow-wrap:anywhere}
+.sk-ex-jadval-quti{max-height:420px;overflow:auto;border:1px solid var(--border2);border-radius:var(--r-btn)}
+.sk-ex-jadval .sk-ex-yangi{font-weight:600}
+.sk-ex-jadval .sk-ex-och{color:var(--red);font-weight:600}
+@media (max-width: 700px){
+  .sk-ex-jadval-quti{max-height:none;border:0}
+  .sk-ex-tugmalar .btn,.sk-ex-yukla{flex:1 1 100%;justify-content:center;text-align:center}
+}
 </style>
 {% endblock %}
 
@@ -207,6 +230,24 @@
         koeffitsient (1 000 so'mgacha yaxlitlanadi). Alohida yozilgan qoplamali narxlarga ta'sir qilmaydi.</div>
     </div>
     <div class="yuk-xato-qator" id="skXato" hidden></div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:14px" id="skExcel">
+  <div class="sk-tana">
+    <details class="sht" data-sht="sk-excel"><summary><span class="sht-str" aria-hidden="true">▶</span><span class="sht-sarl">📊 Narxlarni Excel orqali o'zgartirish</span><span class="sht-holat" id="skExHolat"></span></summary>
+      <div class="sht-ich">
+        <p class="sk-matn">Butun narx jadvalini Excel faylga yuklab oling, sariq ustunlardagi narxlarni o'zgartiring va faylni shu yerga qaytaring.
+          Hamma qator tekshiriladi va saqlashdan oldin nima o'zgarishi ko'rsatiladi; bitta xato bo'lsa ham hech narsa saqlanmaydi.
+          Faqat siz o'zgartirgan kataklar saqlanadi — shu orada ERP'da o'zgargan narxni eski fayl bosib ketmaydi.
+          Faylda ulgurji narxlar ham bor — uni begona odamga yubormang.</p>
+        <div class="sk-ex-tugmalar">
+          <button type="button" class="btn btn-outline" id="skExOl">⬇ Excel'ga yuklab olish</button>
+          <label class="btn btn-dark sk-ex-yukla" id="skExYuklaTugma">⬆ Excel'dan yuklash<input type="file" id="skExFayl" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" aria-label="Excel faylni tanlash"></label>
+        </div>
+        <div class="sk-ex-natija" id="skExNatija" aria-live="polite"></div>
+      </div>
+    </details>
   </div>
 </div>
 
@@ -1675,6 +1716,182 @@ async function skChDetaldan(mid, eskiOl, yangiOl) {
   var r = await skSorov('/api/sayt-katalogi/modellar/' + mid + '/chegirma/korish', 'POST', {foiz: c.foiz, olchamlar: c.olchamlar, tugash: c.tugash});
   if (r.ok && r.d && skCheg(mid) === c) skChOgohYangila(mid, (r.d.ogohlantirish || []).length);
 }
+
+
+// ── kech170 (zip 235): narxlarni Excel orqali o'zgartirish ──
+// «⬇ Excel'ga yuklab olish» — GET /api/sayt-katalogi/excel (fetch → fayl; xato bo'lsa sahifa almashmaydi, sababi ko'rsatiladi).
+// «⬆ Excel'dan yuklash» — POST …/excel/korish (fayl): server HAMMA qatorni tekshiradi va nima o'zgarishini qaytaradi (hech narsa
+// yozilmaydi); natija shu kartochkada: xatolar (bo'lsa — «Saqlash» yo'q), ogohlantirishlar, o'zgarishlar jadvali (har o'zgargan narx —
+// bitta qator). «Saqlash» — POST …/excel/saqla (ko'rilgan eski → yangi juftlari): oraliqda boshqa oynada o'zgargan narx bo'lsa — 409,
+// hech narsa yozilmaydi; natija noma'lum bo'lib qayta bosilsa — ikki marta yozilmaydi (server joriy = yangi qatorni o'tkazadi).
+// Saqlangach katalog qayta yuklanadi. SK.ex — oxirgi ko'rish javobi (saqlanmagan). Saqlash davomida yangi fayl yuklash va «Bekor qilish»
+// yopiq (review235 O2: aks holda saqlash baribir bajarilib, natijasi ko'rinmasdi, yangi ko'rish esa eski narx bilan 409 olardi).
+SK.ex = null;
+
+function skExNarx(x) { return (x === null || x === undefined) ? '—' : sonKor(x, 2); }
+function skExXatoLi(x) { return '<li>' + escapeHtml(x) + '</li>'; }
+
+function skExMaydonQatori(o, f) {
+  var yangiNarx = (f.yangi === null || f.yangi === undefined) ? '<span class="sk-ex-och">o\'chiriladi</span>'
+    : '<span class="sk-ex-yangi">' + escapeHtml(sonKor(f.yangi, 2)) + '</span>';
+  return '<tr><td data-label="Qator">' + escapeHtml(String(o.qator)) + '</td>' +
+    '<td data-label="Detal"><div>' + escapeHtml(o.kod + ' · ' + o.turi_nomi + ' · ' + o.olcham) +
+      (o.yoqilgan ? '' : ' <span class="sk-belgi">yashirin</span>') + '</div></td>' +
+    '<td data-label="Narx"><div>' + escapeHtml(f.nomi) + '</div></td>' +
+    '<td data-label="Eski" class="sk-kn">' + escapeHtml(skExNarx(f.eski)) + '</td>' +
+    '<td data-label="Yangi" class="sk-kn">' + yangiNarx + '</td></tr>';
+}
+function skExQatorlar(o) { return (o.maydonlar || []).map(f => skExMaydonQatori(o, f)).join(''); }
+
+function skExChiz() {
+  var d = SK.ex;
+  var nat = document.getElementById('skExNatija');
+  if (!nat) return;
+  if (!d) { nat.innerHTML = ''; shtorkaHolat('sk-excel', '', null); return; }
+  var oz = d.ozgarishlar || [];
+  var xt = d.xatolar || [];
+  var og = d.ogohlantirishlar || [];
+  var h = '<div class="sk-matn">«' + escapeHtml(d.varaq) + '» varag\'ida ' + escapeHtml(sonKor(d.qatorlar, 0)) + ' ta qator: ' +
+    escapeHtml(sonKor(oz.length, 0)) + ' tasida narx o\'zgaradi, ' + escapeHtml(sonKor(d.ozgarmagan, 0)) + ' tasi o\'zgarmaydi' +
+    (d.xatoli_qatorlar ? ', ' + escapeHtml(sonKor(d.xatoli_qatorlar, 0)) + ' tasida xato' : '') +
+    (d.faylda_yoq ? '; ERP\'dagi yana ' + escapeHtml(sonKor(d.faylda_yoq, 0)) + ' ta narx qatori faylda yo\'q — ular o\'zgarmaydi' : '') + '.</div>';
+  if (xt.length) {
+    h += '<div class="sk-ex-blok xato" style="margin-top:10px"><b>❌ Xatolar: ' + escapeHtml(sonKor(d.xatolar_soni, 0)) +
+      ' ta — hech narsa saqlanmaydi.</b> Xatolarni Excel\'da tuzatib, faylni qayta yuklang.<ul>' + xt.map(x => skExXatoLi(x)).join('') + '</ul>' +
+      (d.xatolar_soni > xt.length ? '<div>… va yana ' + escapeHtml(sonKor(d.xatolar_soni - xt.length, 0)) + ' ta</div>' : '') + '</div>';
+  }
+  if (og.length) {
+    h += '<div class="sk-ex-blok ogoh" style="margin-top:10px"><b>⚠ Tekshiring</b> (saqlashni to\'smaydi):<ul>' +
+      og.map(x => skExXatoLi(x)).join('') + '</ul></div>';
+  }
+  if (oz.length) {
+    h += '<div class="sk-ex-jadval-quti" style="margin-top:10px"><table class="sk-kjadval sk-ex-jadval"><thead><tr><th>Qator</th>' +
+      '<th>Model · detal · o\'lcham</th><th>Narx</th><th>Eski</th><th>Yangi</th></tr></thead><tbody>' +
+      oz.map(o => skExQatorlar(o)).join('') + '</tbody></table></div>';
+  }
+  h += '<div class="sk-ex-tugmalar">';
+  if (!xt.length && oz.length) h += '<button type="button" class="btn btn-dark" id="skExSaqla">✓ Saqlash (' + escapeHtml(sonKor(oz.length, 0)) + ' ta qator)</button>';
+  if (!xt.length && !oz.length) h += '<span class="sk-matn">Faylda o\'zgargan narx yo\'q — saqlanadigan narsa yo\'q.</span>';
+  h += '<button type="button" class="btn btn-outline" id="skExBekor">' + ((oz.length || xt.length) ? 'Bekor qilish' : 'Yopish') + '</button></div>';
+  nat.innerHTML = h;
+  if (xt.length) shtorkaHolat('sk-excel', sonKor(d.xatolar_soni, 0) + ' ta xato — saqlanmadi', true);
+  else shtorkaHolat('sk-excel', oz.length ? sonKor(oz.length, 0) + ' ta qator hali saqlanmagan' : '', null);
+  var s = document.getElementById('skExSaqla');
+  if (s) s.addEventListener('click', skExSaqla);
+  document.getElementById('skExBekor').addEventListener('click', function () { if (SK.band.ex_saqla) return; SK.ex = null; skExChiz(); });
+}
+
+async function skExOl() {
+  if (!skBandla('ex_ol')) return;
+  var t = document.getElementById('skExOl');
+  t.disabled = true;
+  var r = null;
+  var sabab = '';
+  var blob = null;
+  try { r = await fetch('/api/sayt-katalogi/excel', {cache: 'no-store'}); } catch (e) { sabab = await amalSababi(e); }
+  if (r && !r.ok) sabab = await amalSababi(r);
+  if (r && r.ok) { try { blob = await r.blob(); } catch (e) { sabab = await amalSababi(e); } }
+  t.disabled = false;
+  skBo('ex_ol');
+  if (!blob) { showMsg('❌ Excel fayl olinmadi: ' + sabab, 'error'); return; }
+  var faylNomi = 'sayt_narxlari.xlsx';
+  var m = /filename="([^"]+)"/.exec(r.headers.get('Content-Disposition') || '');
+  if (m) faylNomi = m[1];
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = faylNomi;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 1500);
+  showMsg('✓ Excel fayl yuklab olindi: ' + faylNomi, 'success');
+}
+
+async function skExYukla(fayl) {
+  var inp = document.getElementById('skExFayl');
+  if (!fayl) return;
+  if (SK.band.ex_saqla) { inp.value = ''; showMsg('⏳ Narxlar saqlanmoqda — tugashini kuting, keyin yangi fayl yuklang', 'error'); return; }
+  if (!skBandla('ex_yukla')) { inp.value = ''; return; }
+  var lb = document.getElementById('skExYuklaTugma');
+  var nat = document.getElementById('skExNatija');
+  lb.classList.add('band');
+  inp.disabled = true;
+  SK.ex = null;
+  shtorkaHolat('sk-excel', '', null);
+  nat.innerHTML = '<div class="sk-matn">Fayl tekshirilmoqda…</div>';
+  var fd = new FormData();
+  fd.append('fayl', fayl);
+  var r = null;
+  var d = null;
+  var sabab = '';
+  try { r = await fetch('/api/sayt-katalogi/excel/korish', {method: 'POST', body: fd, cache: 'no-store'}); } catch (e) { sabab = await amalSababi(e); }
+  if (r && !r.ok) sabab = await amalSababi(r);
+  if (r && r.ok) { try { d = await r.json(); } catch (e) { sabab = 'server javobi o\'qilmadi — qayta urinib ko\'ring'; } }
+  lb.classList.remove('band');
+  inp.disabled = false;
+  inp.value = '';
+  skBo('ex_yukla');
+  if (!d) {
+    nat.innerHTML = '<div class="sk-ex-blok xato">❌ Fayl qabul qilinmadi: ' + escapeHtml(sabab) + '</div>';
+    shtorkaHolat('sk-excel', 'fayl qabul qilinmadi', true);
+    return;
+  }
+  SK.ex = d;
+  skExChiz();
+}
+
+async function skExSaqla() {
+  var d = SK.ex;
+  if (!d || !(d.ozgarishlar || []).length || (d.xatolar || []).length) return;
+  if (!skBandla('ex_saqla')) return;
+  var t = document.getElementById('skExSaqla');
+  var bk = document.getElementById('skExBekor');
+  var lb = document.getElementById('skExYuklaTugma');
+  if (t) t.disabled = true;
+  if (bk) bk.disabled = true;
+  lb.classList.add('band');
+  document.getElementById('skExFayl').disabled = true;
+  var tana = {ozgarishlar: d.ozgarishlar.map(o => ({id: o.id, kimlik: o.kimlik, eski: o.eski, yangi: o.yangi}))};
+  var r = null;
+  var j = null;
+  var sabab = '';
+  try {
+    r = await fetch('/api/sayt-katalogi/excel/saqla', {method: 'POST', cache: 'no-store', headers: {'Content-Type': 'application/json'},
+                                                       body: JSON.stringify(tana)});
+  } catch (e) { sabab = await amalSababi(e); }
+  if (r && !r.ok) sabab = await amalSababi(r);
+  if (r && r.ok) { try { j = await r.json(); } catch (e) { j = {}; } }
+  skBo('ex_saqla');
+  if (bk) bk.disabled = false;
+  lb.classList.remove('band');
+  document.getElementById('skExFayl').disabled = false;
+  if (SK.ex !== d) { if (r && r.ok) skYukla(); return; }   // oraliqda boshqa fayl yuklandi / bekor qilindi — katalog baribir yangilanadi
+  if (!r || !r.ok) {
+    if (t) t.disabled = false;
+    if (!r || r.status >= 500) {
+      showMsg('⚠️ Saqlash natijasi noma\'lum: ' + sabab + '. Qayta bossangiz — ikki marta yozilmaydi.', 'error');
+      return;
+    }
+    if (t && r.status !== 401) t.remove();       // 409 / 400 — shu ko'rish bilan qayta saqlab bo'lmaydi: faylni qayta yuklash kerak
+    var nat = document.getElementById('skExNatija');
+    if (nat) nat.insertAdjacentHTML('afterbegin', '<div class="sk-ex-blok xato">❌ Saqlanmadi: ' + escapeHtml(sabab) + '</div>');
+    shtorkaHolat('sk-excel', 'saqlanmadi', true);
+    showMsg('❌ Narxlar saqlanmadi: ' + sabab, 'error');
+    return;
+  }
+  SK.ex = null;
+  skExChiz();
+  var soni = (j && j.saqlandi) || 0;
+  var avval = (j && j.avval_saqlangan) || 0;
+  showMsg('✓ ' + sonKor(soni, 0) + ' ta qator narxi saqlandi' + (avval ? ' (' + sonKor(avval, 0) + ' tasi avval saqlangan ekan)' : ''), 'success');
+  shtorkaHolat('sk-excel', sonKor(soni + avval, 0) + ' ta qator saqlandi', false);
+  skYukla();
+}
+
+document.getElementById('skExOl').addEventListener('click', skExOl);
+document.getElementById('skExFayl').addEventListener('change', function () { skExYukla(this.files && this.files[0]); });
+shtorkaTayyor(document.getElementById('skExcel'));
 
 skYukla();
 </script>

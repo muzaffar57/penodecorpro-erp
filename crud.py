@@ -23848,3 +23848,766 @@ def dokon_katalog_chegirmalari(db: Session, company_id: int, detallar, chegirmal
                                    if x["faol"] else 0)
         natija[str(mid)] = x
     return natija
+
+
+# ── Excel orqali narxlar (kech170, zip 235) ──────────────────────────────────────────────────────────────────────────────
+# Egasi QARORI («Onlayn do'kon rejasi», 30.10 «Narxlar qayerda turadi»): narxlar ERP jadvalida; jadvalni Excel faylga yuklab olib,
+# tahrirlab, qaytarib yuklash mumkin — qaytarishda HAMMA qator tekshiriladi va saqlashdan OLDIN nima o'zgarishi ko'rsatiladi; ulgurji
+# narx — faqat Admin (sahifa va marshrutlar `auth.admin_only`); chegirma — `dokon_chegirmalar` (foiz) dan.
+# Texnik qarorlar (Claude, kech170):
+#   * fayl — .xlsx (openpyxl, `requirements.txt` da qotirilgan); bitta «Narxlar» varag'i (har narx qatori — bitta qator) va «Yo'riqnoma»;
+#   * Excel orqali FAQAT 4 narx o'zgaradi (oddiy / qoplamali / ulgurji / ulgurji qoplamali); qator «Raqam» (narx qatori id) bilan
+#     bog'lanadi, «Model kodi», «Detal», «O'lcham» — bazadagi bilan solishtiriladi (faqat bitta ustun saralansa qatorlar aralashadi —
+#     narx BOSHQA detalga yozilmasin: farq — xato); qolgan ustunlar (bo'lim, nom, avto narx, chegirma, saytda) — faqat ma'lumot;
+#   * review235 Y1 / Y2: faylda yashirin «⚙» ustunlar — yuklab olingan paytdagi 4 narx va tekshiruv raqami. O'zgarish = fayldagi narx shu
+#     «asl» narxdan farq qiladi (o'zgartirilmagan katak ERP'da nima bo'lsa ham tegilmaydi); «asl» ≠ ERP dagi hozirgi narx — xato (eski fayl
+#     yangi narxni bosib ketmasin); «Raqam» ≠ tekshiruv raqami — xato (faqat ayrim ustunlar saralangan); bir ustunda ≥ 3 narx faqat joy
+#     almashgan — xato (narx ustuni alohida saralangan); yashirin ustunlarsiz fayl — qabul qilinmaydi;
+#   * faylda yo'q qator — o'zgarmaydi (o'chirilmaydi); raqamsiz qator — xato (yangi qator Excel orqali qo'shilmaydi);
+#   * HAR qanday xato — HECH NARSA saqlanmaydi; ko'rish (`dokon_excel_korish`) bazaga yozmaydi; saqlash (`dokon_excel_saqla`) ko'rishda
+#     ko'rsatilgan eski → yangi juftlari bilan, bitta tranzaksiyada: joriy qiymat eski bo'lsa — yoziladi, allaqachon yangi bo'lsa — o'tkaziladi
+#     (takror bosish / tarmoq qayta yuborishi), boshqa bo'lsa — 409 (oraliqda boshqa oynada o'zgargan), hech narsa yozilmaydi;
+#   * narx matni: «125500», «125 500», «125500,5» — qabul; «125.500» / «125,500» (ming ajratgichmi, kasrmi — aniq emas) — xato;
+#     formula — Excel saqlagan natijasi o'qiladi (natijasi yo'q formula — xato);
+#   * xavfsizlik: hajm (5 MB), zip ichidagi jami hajm va a'zolar soni (zip-bomba), XML da DOCTYPE / ENTITY — rad; eksportda matn
+#     katagi formula bo'lib qolmaydi («=» bilan boshlangan nom), XML ga sig'maydigan boshqaruv belgilari olib tashlanadi;
+#   * jurnal — panelda tahrirlagandagi kabi har qator uchun (`_dokon_detal_matni`, ulgurji raqami YOZILMAYDI) + «Excel'dan yuklandi»;
+#   * qulf tartibi — model → qator (id bo'yicha o'sish tartibida; `dokon_detal_yangila`, `dokon_model_ochir` bilan bir xil).
+import io as _io235                                     # noqa: E402
+import zipfile as _zip235                               # noqa: E402
+
+DOKON_EXCEL_VARAQ = "Narxlar"
+DOKON_EXCEL_YORIQ_VARAQ = "Yo'riqnoma"
+DOKON_EXCEL_MAX_BAYT = 5 * 1024 * 1024
+DOKON_EXCEL_MAX_OCHIQ = 24 * 1024 * 1024          # review235 P5 (O'LCHANGAN): 10 000 qatorli eksport (22 ustun, rangli) ~ 11 MB varaq XML
+DOKON_EXCEL_MAX_AZO = 300
+DOKON_EXCEL_MAX_QATOR = 10000                      # haqiqiy katalog ~ 3 000 qator (200 model × 15)
+DOKON_EXCEL_MAX_USTUN = 40
+DOKON_EXCEL_MAX_OZGARISH = 5000
+DOKON_EXCEL_MAX_XATO = 200
+DOKON_EXCEL_ALMASHUV_MIN = 3
+DOKON_EXCEL_KICHIK_NARX = Decimal("1000")
+DOKON_EXCEL_NARXLAR = ("narx", "narx_qoplamali", "ulgurji_narx", "ulgurji_qoplamali")
+DOKON_EXCEL_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+# (kalit, sarlavha, tur, kenglik): tur — «id» / «kimlik» (bazadagi bilan solishtiriladi) / «narx» (o'zgartiriladi) / «info» (o'qilmaydi) /
+# «asl» va «id2» — YASHIRIN ustunlar (review235 Y1 / Y2): yuklab olingan paytdagi narxlar (o'zgarish = fayldagi narx ≠ shu; ERP'da shu orada
+# o'zgargan bo'lsa — xato) va tekshiruv raqami («Raqam» qatorning qolgan qismidan ajralib ketsa — xato)
+DOKON_EXCEL_USTUNLAR = (
+    ("id", "Raqam", "id", 9),
+    ("bolim", "Bo'lim", "info", 22),
+    ("kod", "Model kodi", "kimlik", 14),
+    ("nom", "Model nomi", "info", 22),
+    ("turi", "Detal", "kimlik", 15),
+    ("olcham", "O'lcham", "kimlik", 14),
+    ("birlik", "Birlik", "info", 22),
+    ("narx", "Narx (qoplamasiz), so'm", "narx", 17),
+    ("narx_qoplamali", "Narx (qoplamali), so'm", "narx", 17),
+    ("narx_qoplamali_avto", "Qoplamali — avto (bo'sh bo'lsa)", "info", 19),
+    ("ulgurji_narx", "Ulgurji (qoplamasiz), so'm", "narx", 17),
+    ("ulgurji_qoplamali", "Ulgurji (qoplamali), so'm", "narx", 17),
+    ("ulgurji_qoplamali_avto", "Ulgurji qoplamali — avto", "info", 19),
+    ("chegirma", "Chegirma", "info", 24),
+    ("chegirmali", "Chegirmali narx (qoplamasiz)", "info", 17),
+    ("chegirmali_q", "Chegirmali narx (qoplamali)", "info", 17),
+    ("saytda", "Saytda", "info", 11),
+    ("asl_narx", "⚙ Asl narx (qoplamasiz) — o'zgartirmang", "asl", 12),
+    ("asl_narx_qoplamali", "⚙ Asl narx (qoplamali) — o'zgartirmang", "asl", 12),
+    ("asl_ulgurji_narx", "⚙ Asl ulgurji (qoplamasiz) — o'zgartirmang", "asl", 12),
+    ("asl_ulgurji_qoplamali", "⚙ Asl ulgurji (qoplamali) — o'zgartirmang", "asl", 12),
+    ("raqam2", "⚙ Raqam (tekshiruv) — o'zgartirmang", "id2", 10),
+)
+DOKON_EXCEL_YORIQNOMA = (
+    "Sayt katalogi narxlari — Excel orqali o'zgartirish",
+    "",
+    "1. Faqat SARIQ ustunlardagi narxlarni o'zgartiring: Narx (qoplamasiz), Narx (qoplamali), Ulgurji (qoplamasiz), Ulgurji (qoplamali).",
+    "2. Narx — so'mda, son bilan: 125500 yoki 125 500. Tiyin kerak bo'lsa — vergul yoki nuqtadan keyin 1–2 raqam: 125500,50.",
+    "   «125.500» yoki «125,500» kabi yozuv qabul qilinmaydi — ming ajratgichmi yoki kasrmi, aniq emas.",
+    "3. Katakni bo'shatsangiz — o'sha narx o'chiriladi. Qoplamali narx bo'sh bo'lsa — saytda qoplamasiz narx × koeffitsient (avto) bo'ladi.",
+    "4. Raqam, Model kodi, Detal va O'lcham ustunlarini o'zgartirmang — qator shular bilan bazadagi narx qatoriga bog'lanadi.",
+    "   Qatorlarni saralash va filtrlash mumkin — faqat BUTUN jadvalni saralang (bitta ustunni alohida emas: aks holda yuklashda xato chiqadi).",
+    "5. Qatorni o'chirsangiz — narx o'chmaydi (faylda yo'q qator o'zgarmaydi). Yangi narx qatori Excel orqali qo'shilmaydi — ERP'da qo'shing.",
+    "6. Kulrang ustunlar (bo'lim, model nomi, avto narx, chegirma, chegirmali narx, saytda) — faqat ma'lumot uchun, yuklashda o'qilmaydi.",
+    "   Chegirma ERP'da, model ichidagi «Chegirma» bo'limida o'zgartiriladi.",
+    "7. Faylni ERP «Sayt katalogi» sahifasida «Excel'dan yuklash» bilan qaytaring: hamma qator tekshiriladi va saqlashdan oldin nima",
+    "   o'zgarishi ko'rsatiladi. Bitta xato bo'lsa ham hech narsa saqlanmaydi — xatoni tuzatib, qayta yuklaysiz.",
+    "8. Ulgurji narxlar maxfiy — faylni begona odamga yubormang.",
+    "9. Oxirida yashirin «⚙» ustunlar bor — yuklab olingan paytdagi narxlar. Faqat siz o'zgartirgan kataklar saqlanadi; shu orada ERP'da",
+    "   o'zgargan narx eski fayl bilan bosib ketilmaydi (xato chiqadi — yangi fayl olasiz). Yashirin ustunlarni o'zgartirmang va o'chirmang;",
+    "   jadvalni boshqa faylga ko'chirmang — shu faylning o'zini tahrirlab qaytaring.",
+)
+_DOKON_EXCEL_TAQIQ = _re232.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\ufffe\uffff]")
+_DOKON_EXCEL_XML = _re232.compile(rb"<!\s*(DOCTYPE|ENTITY)", _re232.IGNORECASE)
+_DOKON_EXCEL_SON = _re232.compile(r"[0-9]+(?:[.,][0-9]{1,2})?")
+_DOKON_EXCEL_NOANIQ = _re232.compile(r"[0-9]{1,3}(?:[.,][0-9]{3})+")
+_DOKON_EXCEL_FORMULA_XATO = _re232.compile(r"#(?:NULL!|DIV/0!|VALUE!|REF!|NAME\?|NUM!|N/A|GETTING_DATA|SPILL!|CALC!|FIELD!|BLOCKED!|"
+                                           r"CONNECT!|BUSY!|UNKNOWN!)")
+_DOKON_EXCEL_BOSHLIQ = dict.fromkeys(map(ord, " \u00a0\u202f\u2009\u2007\t"), None)
+_DOKON_EXCEL_FORMULA_TEG = _re232.compile(rb"<(?:[A-Za-z_][\w.-]*:)?f[\s>/]")
+_DOKON_BOSH = "bo'sh"
+_DOKON_EXCEL_KASR = {ord(","): "."}                # kasr vergul → nuqta (son qoidasi linteri `.replace(','` ni taqiqlaydi)
+_DOKON_EXCEL_NOTOGRI_FAYL = ("Bu Excel (.xlsx) fayl emas — ERP'dan yuklab olingan faylni Excel'da ochib, «.xlsx» ko'rinishida saqlab "
+                             "qaytaring (.xls, .csv qabul qilinmaydi)")
+
+
+class DokonExcelZiddiyat(Exception):
+    """Ko'rishda ko'rsatilgan eski narx bazada endi boshqa (oraliqda boshqa oynada o'zgargan) — marshrut 409 beradi."""
+
+
+def _dokon_excel_matn(x):
+    """Excel katagi uchun matn: surrogat — «?», XML da taqiqlangan boshqaruv belgilari olib tashlanadi (openpyxl `IllegalCharacterError`
+    — 500 bo'lardi; tiklangan eski yozuvda bo'lishi mumkin)."""
+    if x is None:
+        return None
+    s = "".join("?" if 0xD800 <= ord(ch) <= 0xDFFF else ch for ch in str(x))
+    return _DOKON_EXCEL_TAQIQ.sub("", s)
+
+
+def _dokon_excel_birlik(b):
+    return {"metr": "1 m (ulgurji: 1 dona = 2 m)", "m2": "1 m²", "dona": "1 dona"}.get(b, b)
+
+
+def _dokon_excel_chegirma_matni(c, bugun):
+    """Eksportdagi «Chegirma» katagi: «−15 %, 5-noyabrgacha» / «−15 % (muddati tugagan)» / bo'sh."""
+    if c is None:
+        return None
+    m = f"−{audit_son(c.foiz, 2)} %"
+    if not dokon_chegirma_faolmi(c, bugun):
+        return m + " (muddati tugagan)"
+    muddat = dokon_chegirma_muddat_matni(c.tugash, bugun)
+    return m + (f", {muddat}" if muddat else "")
+
+
+def dokon_excel_qatorlari(db: Session, company_id: int) -> list:
+    """Eksport qatorlari — sahifadagi tartibda (bo'lim → model → narx qatori). Har qator — `DOKON_EXCEL_USTUNLAR` kalitlari bilan dict;
+    narxlar `Decimal` / None."""
+    from models import DokonBolim, DokonModel, DokonDetal
+    dokon_tekshir(db, company_id)
+    koeff = dokon_koeff(db, company_id)
+    bugun = dokon_bugun()
+    chegirmalar = dokon_chegirmalar(db, company_id)
+    bolimlar = {b.id: (i, b) for i, b in enumerate(db.query(DokonBolim).filter(DokonBolim.company_id == company_id)
+                                                     .order_by(DokonBolim.tartib, DokonBolim.id).all())}
+    modellar = {m.id: (i, m) for i, m in enumerate(db.query(DokonModel).filter(DokonModel.company_id == company_id)
+                                                     .order_by(DokonModel.tartib, DokonModel.id).all())}
+    detallar = (db.query(DokonDetal).filter(DokonDetal.company_id == company_id)
+                .order_by(DokonDetal.model_id, DokonDetal.tartib, DokonDetal.id).all())
+
+    def tartib(d):
+        mi, m = modellar.get(d.model_id, (10 ** 9, None))
+        bi = bolimlar.get(m.bolim_id, (10 ** 9, None))[0] if m is not None else 10 ** 9
+        return (bi, mi, d.tartib or 0, d.id)
+
+    natija = []
+    for d in sorted(detallar, key=tartib):
+        m = modellar.get(d.model_id, (0, None))[1]
+        b = bolimlar.get(m.bolim_id, (0, None))[1] if m is not None else None
+        c = chegirmalar.get(d.model_id)
+        ch = dokon_detal_chegirmasi(d, c, koeff, bugun) if c is not None else None
+        natija.append({
+            "id": d.id, "bolim": b.nom if b is not None else None, "kod": m.kod if m is not None else None,
+            "nom": m.nom if m is not None else None, "turi": DOKON_TURI_NOMI.get(d.turi, d.turi), "olcham": d.olcham,
+            "birlik": _dokon_excel_birlik(d.birlik),
+            "narx": d.narx, "narx_qoplamali": d.narx_qoplamali,
+            "narx_qoplamali_avto": dokon_avto_qoplamali(d.narx, koeff) if d.narx_qoplamali is None else None,
+            "ulgurji_narx": d.ulgurji_narx, "ulgurji_qoplamali": d.ulgurji_qoplamali,
+            "ulgurji_qoplamali_avto": dokon_avto_qoplamali(d.ulgurji_narx, koeff) if d.ulgurji_qoplamali is None else None,
+            # review235 O4: chegirma matni — faqat chegirma shu o'lchamga tegishli bo'lsa (aks holda sayt chegirmasiz narx ko'rsatadi)
+            "chegirma": _dokon_excel_chegirma_matni(c, bugun) if c is not None and dokon_chegirma_tegishlimi(c, d.olcham) else None,
+            "chegirmali": dokon_chegirma_narx(d.narx, c.foiz) if ch is not None else None,
+            "chegirmali_q": (dokon_chegirma_narx(d.narx_qoplamali if d.narx_qoplamali is not None
+                                                 else dokon_avto_qoplamali(d.narx, koeff), c.foiz) if ch is not None else None),
+            "saytda": "Ha" if (d.yoqilgan and (m is None or m.yoqilgan) and (b is None or b.yoqilgan)) else "Yashirin",
+            "asl_narx": d.narx, "asl_narx_qoplamali": d.narx_qoplamali, "asl_ulgurji_narx": d.ulgurji_narx,
+            "asl_ulgurji_qoplamali": d.ulgurji_qoplamali, "raqam2": d.id,
+        })
+    return natija
+
+
+def dokon_excel_yarat(db: Session, company_id: int) -> bytes:
+    """Butun narx jadvali — .xlsx fayl (bayt). Narx katagi — son (`#,##0` / tiyin bo'lsa `#,##0.00`), sariq; o'zgarmaydigan ustunlar —
+    kulrang; oxirida YASHIRIN «⚙» ustunlar (yuklab olingan paytdagi narxlar, tekshiruv raqami); birinchi qator va 3 ustun qotirilgan, filtr;
+    narx ustunlarida Excel tekshiruvi (0 dan katta son); «Yo'riqnoma» varag'i."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from openpyxl.utils import get_column_letter
+    from openpyxl.worksheet.datavalidation import DataValidation
+    qatorlar = dokon_excel_qatorlari(db, company_id)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = DOKON_EXCEL_VARAQ
+    sariq = PatternFill("solid", start_color="FFF4D6", end_color="FFF4D6")
+    sariq_bosh = PatternFill("solid", start_color="F2C14E", end_color="F2C14E")
+    kulrang = PatternFill("solid", start_color="EFEFEF", end_color="EFEFEF")
+    kulrang_bosh = PatternFill("solid", start_color="D0D5DD", end_color="D0D5DD")
+    qalin = Font(bold=True)
+    for j, (kalit, sarlavha, tur, kenglik) in enumerate(DOKON_EXCEL_USTUNLAR, start=1):
+        c = ws.cell(row=1, column=j, value=sarlavha)
+        c.data_type = "s"
+        c.font = qalin
+        c.fill = sariq_bosh if tur == "narx" else kulrang_bosh
+        c.alignment = Alignment(wrap_text=True, vertical="center")
+        ws.column_dimensions[get_column_letter(j)].width = kenglik
+        if tur in ("asl", "id2"):
+            ws.column_dimensions[get_column_letter(j)].hidden = True
+    ws.row_dimensions[1].height = 34
+    for i, q in enumerate(qatorlar, start=2):
+        for j, (kalit, sarlavha, tur, kenglik) in enumerate(DOKON_EXCEL_USTUNLAR, start=1):
+            v = q.get(kalit)
+            c = ws.cell(row=i, column=j)
+            if isinstance(v, Decimal):
+                c.value = int(v) if v == v.to_integral_value() else float(v)
+                c.number_format = "#,##0" if v == v.to_integral_value() else "#,##0.00"
+            elif isinstance(v, int) and not isinstance(v, bool):
+                c.value = v
+            elif v is not None:
+                c.value = _dokon_excel_matn(v)
+                c.data_type = "s"                       # «=…» bilan boshlangan nom formula bo'lib qolmasin
+            if tur == "narx":
+                c.fill = sariq
+                if c.value is None:
+                    c.number_format = "#,##0"
+            elif tur not in ("id", "asl", "id2"):
+                c.fill = kulrang
+    oxirgi = max(len(qatorlar) + 1, 2)
+    ws.freeze_panes = "D2"
+    ws.auto_filter.ref = f"A1:{get_column_letter(len(DOKON_EXCEL_USTUNLAR))}{oxirgi}"
+    dv = DataValidation(type="decimal", operator="greaterThan", formula1="0", allow_blank=True, showErrorMessage=True,
+                        errorTitle="Narx noto'g'ri", error="Narx — 0 dan katta son (so'm). Narxni o'chirish uchun katakni bo'sh qoldiring.")
+    for j, (kalit, sarlavha, tur, kenglik) in enumerate(DOKON_EXCEL_USTUNLAR, start=1):
+        if tur == "narx":
+            h = get_column_letter(j)
+            dv.add(f"{h}2:{h}{max(oxirgi, 2) + 500}")
+    ws.add_data_validation(dv)
+    yo = wb.create_sheet(DOKON_EXCEL_YORIQ_VARAQ)
+    yo.column_dimensions["A"].width = 140
+    for i, matn in enumerate(DOKON_EXCEL_YORIQNOMA, start=1):
+        c = yo.cell(row=i, column=1, value=matn or None)
+        if matn:
+            c.data_type = "s"
+        if i == 1:
+            c.font = Font(bold=True, size=13)
+    wb.properties.creator = "PenoDecorPro ERP"
+    chiq = _io235.BytesIO()
+    wb.save(chiq)
+    return chiq.getvalue()
+
+
+# ── Excel'dan yuklash: fayl → qatorlar ──
+def _dokon_excel_fayl_tekshir(bayt) -> bool:
+    """Fayl xlsx (zip) ekanini va hajmini openpyxl ga berishdan OLDIN tekshiradi: 5 MB, zip ichidagi jami hajm va a'zolar soni
+    (zip-bomba), «xl/workbook.xml» bor; HAR a'zoda DOCTYPE / ENTITY yo'q (XXE, «milliard kulgi»; varaq istalgan nomda bo'lishi mumkin —
+    review235 P6), XML qismlarida NUL yo'q. Qaytaradi: faylda formula bormi (yo'q bo'lsa — fayl BIR marta o'qiladi, review235 P5)."""
+    if not bayt:
+        raise ValueError("Fayl bo'sh — Excel faylni tanlang")
+    if len(bayt) > DOKON_EXCEL_MAX_BAYT:
+        raise ValueError("Fayl juda katta — 5 MB gacha bo'lsin")
+    if bayt[:4] != b"PK\x03\x04":
+        raise ValueError(_DOKON_EXCEL_NOTOGRI_FAYL)
+    try:
+        z = _zip235.ZipFile(_io235.BytesIO(bayt))
+        azolar = z.infolist()
+    except (_zip235.BadZipFile, ValueError, OSError, EOFError):
+        raise ValueError(_DOKON_EXCEL_NOTOGRI_FAYL)
+    if len(azolar) > DOKON_EXCEL_MAX_AZO or sum(i.file_size for i in azolar) > DOKON_EXCEL_MAX_OCHIQ:
+        raise ValueError("Fayl ichida juda ko'p ma'lumot — bu ERP'dan yuklab olingan narx jadvaliga o'xshamaydi")
+    if "xl/workbook.xml" not in {i.filename for i in azolar}:
+        raise ValueError(_DOKON_EXCEL_NOTOGRI_FAYL)
+    formula = False
+    for i in azolar:
+        try:
+            x = z.read(i)
+        except Exception as e:                           # noqa: BLE001 — buzilgan / shifrlangan a'zo (BadZipFile, zlib.error, RuntimeError)
+            raise ValueError(_DOKON_EXCEL_NOTOGRI_FAYL) from e
+        if _DOKON_EXCEL_XML.search(x) or (i.filename.lower().endswith((".xml", ".rels", ".vml")) and b"\x00" in x):
+            raise ValueError("Fayl tuzilmasi noto'g'ri — Excel'da ochib, «.xlsx» ko'rinishida qayta saqlang")
+        if not formula and _DOKON_EXCEL_FORMULA_TEG.search(x):
+            formula = True
+    return formula
+
+
+def _dokon_excel_sarlavha(v):
+    """Sarlavha solishtirish kaliti: bo'shliqlar bitta, tutuq belgisi variantlari bitta, katta / kichik harfsiz."""
+    if v is None:
+        return ""
+    return dokon_olcham_kalit(" ".join(_dokon_toza(str(v)).split()))
+
+
+def _dokon_excel_bosh(v) -> bool:
+    return v is None or (isinstance(v, str) and not _dokon_toza(v).strip())
+
+
+def _dokon_excel_matn_ol(v):
+    """Kimlik katagi (kod / detal / o'lcham) — taqqoslash uchun matn (son bo'lsa — «12» / «12,5» emas, str)."""
+    if v is None:
+        return ""
+    if isinstance(v, float) and v.is_integer():
+        v = int(v)
+    return " ".join(_dokon_toza(str(v)).split())
+
+
+def _dokon_excel_id(v):
+    """«Raqam» katagi → id (butun 1 … 2 147 483 647) yoki ValueError."""
+    if isinstance(v, bool):
+        raise ValueError
+    if isinstance(v, float):
+        if not math.isfinite(v) or not v.is_integer():
+            raise ValueError
+        v = int(v)
+    if isinstance(v, str):
+        s = _dokon_toza(v).strip()
+        if not s.isascii() or not s.isdigit() or len(s) > 10:
+            raise ValueError
+        v = int(s)
+    if not isinstance(v, int) or not (1 <= v <= 2_147_483_647):
+        raise ValueError
+    return v
+
+
+def _dokon_excel_narx(v, nom):
+    """Narx katagi → `Decimal` (2 xona) yoki None (bo'sh — narx o'chiriladi). Son (int / float) — `_dokon_narx` qoidasi (NaN, manfiy, 0,
+    juda katta — rad). Matn: bo'shliqlar (oddiy, bo'linmas) olib tashlanadi; «125500», «125500,5», «125500.50» — qabul; «125.500» /
+    «125,500» / «1.250.000» — ming ajratgichmi, kasrmi aniq emas — rad; formula xatosi («#DIV/0!»), sana, mantiqiy qiymat, boshqa matn — rad."""
+    if v is None:
+        return None
+    if isinstance(v, bool):
+        raise ValueError(f"«{nom}» — son yozing (katakda «{'TRUE' if v else 'FALSE'}» turibdi)")
+    if isinstance(v, (int, float)):
+        return _dokon_narx(v, nom)
+    if isinstance(v, Decimal):
+        return _dokon_narx(float(v), nom)
+    if not isinstance(v, str):
+        raise ValueError(f"«{nom}» — katakda sana yoki boshqa qiymat turibdi, son yozing")
+    s = _dokon_toza(v).translate(_DOKON_EXCEL_BOSHLIQ)
+    if not s:
+        return None
+    if _DOKON_EXCEL_FORMULA_XATO.fullmatch(s):
+        raise ValueError(f"«{nom}» — formulada xato ({s}). Formulani tuzating yoki narxni son bilan yozing")
+    if s.startswith("-") and _DOKON_EXCEL_SON.fullmatch(s[1:]):
+        raise ValueError(f"«{nom}» 0 dan katta bo'lsin (narx hali bo'lmasa — katakni bo'sh qoldiring)")
+    if _DOKON_EXCEL_NOANIQ.fullmatch(s) and not _DOKON_EXCEL_SON.fullmatch(s):
+        raise ValueError(f"«{nom}»: «{v.strip()[:20]}» — ming ajratgichmi yoki kasrmi, aniq emas. Narxni 125500 yoki 125 500 deb yozing")
+    if not s.isascii() or not _DOKON_EXCEL_SON.fullmatch(s):
+        raise ValueError(f"«{nom}»: «{v.strip()[:20]}» — son emas. Narxni raqam bilan yozing (masalan 125500)")
+    if len(s) > 16:
+        raise ValueError(f"«{nom}» juda katta")
+    return _dokon_narx(float(Decimal(s.translate(_DOKON_EXCEL_KASR))), nom)
+
+
+def dokon_excel_oqi(bayt) -> dict:
+    """Faylni o'qiydi (bazaga tegmaydi): {"varaq", "qatorlar": [{"qator", "id" (raqam noto'g'ri — None), "kod", "turi", "olcham",
+    "narxlar": {kalit: Decimal | None} (fayldagi), "asl": {kalit: Decimal | None} (yuklab olingan paytdagi — yashirin «⚙» ustunlar),
+    "xato": shu qatorda xato bormi}], "xatolar": [...]}. Bo'sh qator — o'tkaziladi. Fayl umuman yaroqsiz bo'lsa (xlsx emas, ERP nusxasi
+    emas, sarlavha yo'q) — ValueError. Formula bo'lmasa — fayl BIR marta o'qiladi (review235 P5)."""
+    formula = _dokon_excel_fayl_tekshir(bayt)
+    from openpyxl import load_workbook
+    wv = wf = None
+    try:
+        wv = load_workbook(_io235.BytesIO(bayt), read_only=True, data_only=True)
+        if formula:
+            wf = load_workbook(_io235.BytesIO(bayt), read_only=True, data_only=False)
+    except Exception as e:                               # noqa: BLE001 — buzilgan fayl: openpyxl istalgan xatoni berishi mumkin
+        raise ValueError(_DOKON_EXCEL_NOTOGRI_FAYL) from e
+    try:
+        return _dokon_excel_oqi_varaq(wv, wf)
+    finally:
+        for w in (wv, wf):
+            try:
+                if w is not None:
+                    w.close()
+            except Exception:                            # noqa: BLE001
+                pass
+
+
+def _dokon_excel_sarlavha_joyi(bosh_v) -> dict:
+    """Sarlavha qatori → {kalit: ustun indeksi}. Majburiy: Raqam, kimlik, 4 narx va yashirin «⚙» ustunlar (yuklab olingan paytdagi narxlar
+    va tekshiruv raqami); yo'q / ikki marta — ValueError (review235 P2: sarlavhasi o'zgargan narx ustuni jimgina o'qilmay qolmasin)."""
+    kerak = {_dokon_excel_sarlavha(s): k for k, s, t, w in DOKON_EXCEL_USTUNLAR if t != "info"}
+    joy, takror = {}, []
+    for j, v in enumerate(bosh_v):
+        k = kerak.get(_dokon_excel_sarlavha(v))
+        if k is None:
+            continue
+        if k in joy:
+            takror.append(str(v))
+        joy[k] = j
+    if takror:
+        raise ValueError("Sarlavhada bir ustun ikki marta: " + ", ".join(sorted(set(takror)))[:200])
+    yoq = [s for k, s, t, w in DOKON_EXCEL_USTUNLAR if t in ("id", "kimlik") and k not in joy]
+    if yoq:
+        raise ValueError("Bu fayl ERP'dan yuklab olingan narx jadvaliga o'xshamaydi — birinchi qatorda ustun yo'q: " + ", ".join(yoq)
+                         + ". «Excel'ga yuklab olish» bilan yangi fayl oling")
+    yoq = [s for k, s, t, w in DOKON_EXCEL_USTUNLAR if t == "narx" and k not in joy]
+    if yoq:
+        raise ValueError("Narx ustuni topilmadi: " + ", ".join(f"«{s}»" for s in yoq) + " — sarlavha o'zgartirilgan yoki ustun o'chirilgan. "
+                         "Sarlavhani asl holiga qaytaring yoki yangi fayl oling")
+    if any(k not in joy for k, s, t, w in DOKON_EXCEL_USTUNLAR if t in ("asl", "id2")):
+        raise ValueError("Bu fayl ERP'dan yuklab olingan nusxa emas — yashirin «⚙» ustunlar (yuklab olingan paytdagi narxlar) yo'q. "
+                         "«Excel'ga yuklab olish» bilan yangi fayl oling va o'shani tahrirlang (boshqa faylga ko'chirmang)")
+    return joy
+
+
+def _dokon_excel_oqi_varaq(wv, wf) -> dict:
+    nomlar = list(wv.sheetnames)
+    if not nomlar:
+        raise ValueError(_DOKON_EXCEL_NOTOGRI_FAYL)
+    varaq = next((n for n in nomlar if _dokon_excel_sarlavha(n) == _dokon_excel_sarlavha(DOKON_EXCEL_VARAQ)), nomlar[0])
+    if wf is not None and varaq not in wf.sheetnames:
+        raise ValueError(_DOKON_EXCEL_NOTOGRI_FAYL)
+    try:
+        qv = wv[varaq].iter_rows(min_row=1, max_col=DOKON_EXCEL_MAX_USTUN, values_only=True)
+        qf = wf[varaq].iter_rows(min_row=1, max_col=DOKON_EXCEL_MAX_USTUN, values_only=False) if wf is not None else None
+        bosh_v = next(qv, None)
+        if qf is not None:
+            next(qf, None)
+        if bosh_v is None:
+            raise ValueError("«" + varaq + "» varag'i bo'sh — ERP'dan yuklab olingan narx jadvalini yuklang")
+        joy = _dokon_excel_sarlavha_joyi(bosh_v)
+        qatorlar, xatolar = [], []
+        n, sanoq = 1, 0
+        for rv in qv:
+            rf = next(qf, None) if qf is not None else None
+            # qator raqami — katakning o'zidan (siyrak varaqda bo'sh qatorlar o'tkazib yuborilishi mumkin), bo'lmasa — oldingisi + 1
+            # (formula yo'q — bitta o'qish: openpyxl read_only siyrak varaqdagi bo'sh qatorlarni ham beradi, sanoq to'g'ri)
+            n = next((c.row for c in (rf or ()) if isinstance(getattr(c, "row", None), int)), None) or n + 1
+
+            def ol(k, _rv=rv):
+                j = joy.get(k)
+                return _rv[j] if j is not None and j < len(_rv) else None
+
+            def formula_qiymatsiz(k, _rv=rv, _rf=rf):
+                j = joy.get(k)
+                if _rf is None or j is None or j >= len(_rf) or j >= len(_rv):
+                    return False
+                return getattr(_rf[j], "data_type", None) == "f" and _rv[j] is None
+
+            kimlik = {k: ol(k) for k in ("id", "kod", "turi", "olcham", "raqam2")}
+            if all(_dokon_excel_bosh(v) for v in kimlik.values()) and all(_dokon_excel_bosh(ol(k)) for k in DOKON_EXCEL_NARXLAR):
+                continue                                 # bo'sh (formatlangan bo'lsa ham) qator — sanalmaydi (review235 O3)
+            sanoq += 1
+            if sanoq > DOKON_EXCEL_MAX_QATOR:
+                raise ValueError(f"Faylda juda ko'p qator — {xabar_son(DOKON_EXCEL_MAX_QATOR)} tagacha bo'lsin")
+            yorliq = " · ".join(x for x in (_dokon_excel_matn_ol(kimlik["kod"]), _dokon_excel_matn_ol(kimlik["turi"]),
+                                            _dokon_excel_matn_ol(kimlik["olcham"])) if x)[:120]
+            boshi = f"{n}-qator" + (f" ({yorliq})" if yorliq else "")
+            qator = {"qator": n, "id": None, "kod": _dokon_excel_matn_ol(kimlik["kod"]), "turi": _dokon_excel_matn_ol(kimlik["turi"]),
+                     "olcham": _dokon_excel_matn_ol(kimlik["olcham"]), "narxlar": {}, "asl": {}, "xato": False}
+            qatorlar.append(qator)
+            try:
+                qator["id"] = _dokon_excel_id(kimlik["id"])
+            except (ValueError, TypeError, OverflowError):
+                if _dokon_excel_bosh(kimlik["id"]):
+                    xatolar.append(f"{boshi}: «Raqam» bo'sh — yangi narx qatori Excel orqali qo'shilmaydi (ERP'da qo'shing), "
+                                   "qatorni butunlay o'chiring")
+                else:
+                    xatolar.append(f"{boshi}: «Raqam» noto'g'ri — bu ustunni o'zgartirmang")
+                qator["xato"] = True
+                continue
+            try:
+                r2 = _dokon_excel_id(kimlik["raqam2"])
+            except (ValueError, TypeError, OverflowError):
+                r2 = None
+            if r2 != qator["id"]:
+                # review235 Y2: faqat bir nechta ustun (masalan A:G) saralangan — «Raqam» narxlardan va yashirin ustunlardan ajralib ketdi
+                xatolar.append(f"{boshi}: «Raqam» {qator['id']} qatorning qolgan qismidan ajralib ketgan (yashirin tekshiruv raqami — "
+                               f"{r2 if r2 is not None else _DOKON_BOSH}). Faqat ayrim ustunlar saralangan yoki ko'chirilgan — narx boshqa "
+                               "detalga yozilib qolardi. Yangi fayl oling va faqat BUTUN jadvalni saralang")
+                qator["xato"] = True
+                continue
+            for k in DOKON_EXCEL_NARXLAR:
+                nom = _DOKON_NARX_NOMI[k]
+                if formula_qiymatsiz(k):
+                    xatolar.append(f"{boshi}: «{nom}» — formula natijasi bo'sh yoki saqlanmagan. Narxni o'chirish kerak bo'lsa — katakni "
+                                   "tozalang, aks holda son yozing (yoki faylni Excel'da ochib saqlang)")
+                    qator["xato"] = True
+                    continue
+                try:
+                    qator["narxlar"][k] = _dokon_excel_narx(ol(k), nom)
+                except ValueError as e:
+                    xatolar.append(f"{boshi}: {e}")
+                    qator["xato"] = True
+                try:
+                    qator["asl"][k] = _dokon_excel_narx(ol("asl_" + k), nom)
+                except ValueError:
+                    xatolar.append(f"{boshi}: yashirin «⚙» ustun (yuklab olingan paytdagi «{nom}») buzilgan — yangi fayl oling")
+                    qator["xato"] = True
+    except ValueError:
+        raise
+    except Exception as e:                               # noqa: BLE001 — buzilgan varaq XML i
+        raise ValueError("Faylni o'qib bo'lmadi — Excel'da ochib, «.xlsx» ko'rinishida qayta saqlang") from e
+    return {"varaq": varaq, "qatorlar": qatorlar, "xatolar": xatolar}
+
+
+# ── Ko'rish (saqlamasdan) ──
+def _dokon_excel_kalit(x) -> str:
+    """Kimlik solishtirish kaliti — fayl tomoni ham, baza tomoni ham BIR XIL tozalanadi (eksportdagi kabi boshqaruv belgilari olib
+    tashlanadi — bazada qolgan eski belgi tufayli o'zgarmagan fayl «aralashgan» bo'lib chiqmasin), bo'shliqlar bitta, tutuq belgisi
+    variantlari bitta, katta / kichik harfsiz."""
+    return dokon_olcham_kalit(" ".join(_dokon_toza(_dokon_excel_matn(x if x is not None else "")).split()))
+
+
+def _dokon_excel_kimlik_mosmi(q, d, m) -> bool:
+    """Fayldagi «Model kodi», «Detal», «O'lcham» — bazadagi narx qatoriniki bilan (`_dokon_excel_kalit`; detal — nomi yoki kodi)."""
+    if m is None:
+        return False
+    if _dokon_excel_kalit(q["kod"]) != _dokon_excel_kalit(m.kod):
+        return False
+    if _dokon_excel_kalit(q["turi"]) not in (_dokon_excel_kalit(DOKON_TURI_NOMI.get(d.turi, d.turi)), _dokon_excel_kalit(d.turi)):
+        return False
+    return _dokon_excel_kalit(q["olcham"]) == _dokon_excel_kalit(d.olcham)
+
+
+def dokon_excel_kimlik(d, m) -> str:
+    """Narx qatorining ko'rinadigan nomi «R-18 · Rom karnizi · O'rta» — ko'rish javobida va saqlashda (oraliqda o'lcham / kod qayta
+    nomlangan bo'lsa — saqlanmaydi, review235 O1)."""
+    return f"{m.kod if m is not None else '?'} · {DOKON_TURI_NOMI.get(d.turi, d.turi)} · {d.olcham}"
+
+
+def _dokon_excel_farq(eski, yangi) -> bool:
+    return _dokon_qiymatlar((eski,)) != _dokon_qiymatlar((yangi,))
+
+
+def _dokon_excel_sakrash(eski, yangi) -> bool:
+    """Narx 2 barobardan ko'p o'zgardimi (ortiqcha / tushib qolgan nol)."""
+    if eski is None or yangi is None:
+        return False
+    e, y = Decimal(str(eski)), Decimal(str(yangi))
+    return e > 0 and y > 0 and (y > e * 2 or y * 2 < e)
+
+
+def dokon_excel_korish(db: Session, company_id: int, bayt) -> dict:
+    """Yuklangan fayl → nima o'zgarishi (hech narsa yozilmaydi): {"varaq", "qatorlar" (bo'sh bo'lmagan qatorlar), "ozgarmagan",
+    "xatoli_qatorlar", "faylda_yoq" (ERP'dagi, faylda raqami yo'q narx qatorlari — o'zgarmaydi), "ozgarishlar": [{"id", "qator", "kod",
+    "turi_nomi", "olcham", "kimlik", "maydonlar": [{"maydon", "nomi", "eski", "yangi"}], "eski", "yangi"}], "xatolar", "xatolar_soni",
+    "ogohlantirishlar"}. O'zgarish — fayldagi narx yuklab olingan paytdagisidan (yashirin «⚙» ustun) farq qilsa; o'sha narx shu orada ERP'da
+    o'zgargan bo'lsa — xato (eski fayl yangi narxni bosib ketmasin, review235 Y1); o'zgartirilmagan katak — ERP'da nima bo'lsa ham tegilmaydi.
+    Xato bo'lsa — saqlab bo'lmaydi (sahifa «Saqlash» ni ko'rsatmaydi, server ham rad etadi)."""
+    from models import DokonModel, DokonDetal
+    o = dokon_excel_oqi(bayt)                            # avval fayl (bazaga ulanmasdan), keyin baza
+    dokon_tekshir(db, company_id)
+    xatolar = list(o["xatolar"])
+    detallar = {d.id: d for d in db.query(DokonDetal).filter(DokonDetal.company_id == company_id).all()}
+    modellar = {m.id: m for m in db.query(DokonModel).filter(DokonModel.company_id == company_id).all()}
+    korilgan, ozgarishlar, ozgarmagan = {}, [], 0
+    xatoli = {q["qator"] for q in o["qatorlar"] if q["xato"]}
+    for q in o["qatorlar"]:
+        if q["id"] is None:
+            continue
+        d = detallar.get(q["id"])
+        boshi = f"{q['qator']}-qator"
+        if q["id"] in korilgan:
+            xatolar.append(f"{boshi}: «Raqam» {q['id']} faylda ikki marta ({korilgan[q['id']]}-qatorda ham) — takror qatorni o'chiring")
+            xatoli.add(q["qator"])
+            continue
+        korilgan[q["id"]] = q["qator"]
+        if q["xato"]:
+            continue
+        if d is None:
+            xatolar.append(f"{boshi}: «Raqam» {q['id']} li narx qatori ERP'da yo'q (o'chirilgan bo'lishi mumkin) — «Excel'ga yuklab olish» "
+                           "bilan yangi fayl oling")
+            xatoli.add(q["qator"])
+            continue
+        m = modellar.get(d.model_id)
+        if not _dokon_excel_kimlik_mosmi(q, d, m):
+            fayl = " · ".join((q["kod"] or "—", q["turi"] or "—", q["olcham"] or "—"))
+            xatolar.append(f"{boshi}: «Raqam» {q['id']} — ERP'da «{dokon_excel_kimlik(d, m)}», faylda «{fayl[:120]}». Qatorlar aralashgan "
+                           "(masalan faqat bitta ustun saralangan) yoki o'lcham ERP'da o'zgargan — yangi fayl oling, faqat narx ustunlarini "
+                           "o'zgartiring")
+            xatoli.add(q["qator"])
+            continue
+        maydonlar, eski, yangi, eskirgan = [], {}, {}, []
+        for k in DOKON_EXCEL_NARXLAR:
+            f, a, joriy = q["narxlar"].get(k), q["asl"].get(k), getattr(d, k)
+            if not _dokon_excel_farq(f, a) or not _dokon_excel_farq(f, joriy):
+                continue                                 # katak o'zgartirilmagan yoki ERP'da allaqachon shu narx
+            if _dokon_excel_farq(joriy, a):
+                eskirgan.append(f"«{_DOKON_NARX_NOMI[k]}» (faylda {xabar_son(a) if a is not None else _DOKON_BOSH}, ERP'da hozir "
+                                f"{xabar_son(joriy) if joriy is not None else _DOKON_BOSH})")
+                continue
+            maydonlar.append({"maydon": k, "nomi": _DOKON_NARX_NOMI[k], "eski": _dokon_pul(joriy), "yangi": _dokon_pul(f)})
+            eski[k], yangi[k] = _dokon_pul(joriy), _dokon_pul(f)
+        if eskirgan:
+            xatolar.append(f"{boshi} ({dokon_excel_kimlik(d, m)}): siz faylni yuklab olgandan keyin ERP'da o'zgargan narx: " + ", ".join(eskirgan)
+                           + ". Eski fayl yangi narxni bosib ketmasligi uchun saqlanmaydi — yangi fayl oling va qayta tahrirlang")
+            xatoli.add(q["qator"])
+            continue
+        if not maydonlar:
+            ozgarmagan += 1
+            continue
+        ozgarishlar.append({"id": d.id, "qator": q["qator"], "model_id": d.model_id, "kod": m.kod, "turi_nomi": DOKON_TURI_NOMI.get(d.turi, d.turi),
+                            "olcham": d.olcham, "kimlik": dokon_excel_kimlik(d, m), "yoqilgan": bool(d.yoqilgan), "maydonlar": maydonlar,
+                            "eski": eski, "yangi": yangi})
+    xatolar.extend(_dokon_excel_almashuv(ozgarishlar))
+    if len(ozgarishlar) > DOKON_EXCEL_MAX_OZGARISH:
+        xatolar.append(f"Bir yuklashda ko'pi bilan {xabar_son(DOKON_EXCEL_MAX_OZGARISH)} ta qator o'zgaradi — faylni bo'lib yuklang")
+    ogoh = _dokon_excel_ogohlantirishlar(db, company_id, ozgarishlar, detallar, modellar) if ozgarishlar else []
+    return {"varaq": o["varaq"], "qatorlar": len(o["qatorlar"]), "ozgarmagan": ozgarmagan, "xatoli_qatorlar": len(xatoli),
+            "faylda_yoq": len(set(detallar) - set(korilgan)),
+            "ozgarishlar": ozgarishlar[:DOKON_EXCEL_MAX_OZGARISH],
+            "xatolar": xatolar[:DOKON_EXCEL_MAX_XATO], "xatolar_soni": len(xatolar), "ogohlantirishlar": ogoh}
+
+
+def _dokon_excel_almashuv(ozgarishlar) -> list:
+    """review235 Y2: bitta narx ustuni (yoki faqat narx ustunlari) alohida saralansa — narxlar qatorlar orasida faqat JOY ALMASHADI
+    (yashirin «⚙» ustunlar joyida qoladi). Bir ustunda kamida 3 ta o'zgarish bo'lib, yangi narxlar to'plami eski narxlar to'plamining
+    o'zi bo'lsa — xato (haqiqiy tahrirda bunday bo'lmaydi)."""
+    xato = []
+    for k in DOKON_EXCEL_NARXLAR:
+        juft = [(x["eski"][k], x["yangi"][k]) for x in ozgarishlar if k in x["yangi"]
+                and x["eski"][k] is not None and x["yangi"][k] is not None]
+        if len(juft) >= DOKON_EXCEL_ALMASHUV_MIN and sorted(e for e, _ in juft) == sorted(y for _, y in juft):
+            xato.append(f"«{_DOKON_NARX_NOMI[k]}» ustunida {xabar_son(len(juft))} ta narx faqat qatorlar orasida joy almashgan — ustun "
+                        "alohida saralanganga o'xshaydi (narxlar boshqa detallarga yozilib qolardi). Yangi fayl oling va faqat BUTUN jadvalni "
+                        "saralang")
+    return xato
+
+
+def _dokon_excel_ogohlantirishlar(db, company_id, ozgarishlar, detallar, modellar) -> list:
+    """Saqlashni to'smaydigan ogohlantirishlar: narx 2 barobardan ko'p o'zgargan (ortiqcha nol?); juda kichik yangi narx (1 000 so'mdan
+    kam — «125.500» raqam katakda 125,5 bo'lib qolgan bo'lishi mumkin, review235 P3); amaldagi chegirma bilan yangi narx tannarxdan past
+    (`dokon_chegirma_qatorlari` — panel bilan bir qoida); yashirin qator — ogohlantirishsiz."""
+    ogoh = []
+    for x in ozgarishlar:
+        for f in x["maydonlar"]:
+            if _dokon_excel_sakrash(f["eski"], f["yangi"]):
+                ogoh.append(f"{x['qator']}-qator ({x['kimlik']}): «{f['nomi']}» {xabar_son(f['eski'])} → {xabar_son(f['yangi'])} so'm — "
+                            "2 barobardan ko'p o'zgardi, nol ortiqcha yoki tushib qolmaganini tekshiring")
+            elif f["yangi"] is not None and Decimal(str(f["yangi"])) < DOKON_EXCEL_KICHIK_NARX:
+                ogoh.append(f"{x['qator']}-qator ({x['kimlik']}): «{f['nomi']}» {xabar_son(f['yangi'], 2)} so'm — juda kichik narx, "
+                            "to'g'ri yozilganini tekshiring (masalan «125.500» 125,5 bo'lib qolmaganmi)")
+    chegirmalar = dokon_chegirmalar(db, company_id)
+    bugun = dokon_bugun()
+    koeff = dokon_koeff(db, company_id)
+    model_oz = {}
+    for x in ozgarishlar:
+        if any(k in x["yangi"] for k in ("narx", "narx_qoplamali")):
+            model_oz.setdefault(x["model_id"], {})[x["id"]] = x
+    peno, peno_olindi = None, False
+    for mid, oz in model_oz.items():
+        c = chegirmalar.get(mid)
+        if not dokon_chegirma_faolmi(c, bugun):
+            continue
+        if not peno_olindi:
+            peno, peno_olindi = dokon_tannarx_penoplasti(db, company_id), True
+        nusxalar = []
+        for d in (dd for dd in detallar.values() if dd.model_id == mid and dd.id in oz):
+            yn = oz[d.id]["yangi"]
+            nusxalar.append(_SN234(id=d.id, model_id=d.model_id, turi=d.turi, olcham=d.olcham, birlik=d.birlik, eni_sm=d.eni_sm,
+                                   qalinligi_sm=d.qalinligi_sm, yoqilgan=d.yoqilgan,
+                                   narx=Decimal(str(yn["narx"])) if yn.get("narx") is not None else (None if "narx" in yn else d.narx),
+                                   narx_qoplamali=(Decimal(str(yn["narx_qoplamali"])) if yn.get("narx_qoplamali") is not None
+                                                   else (None if "narx_qoplamali" in yn else d.narx_qoplamali))))
+        m = modellar.get(mid)
+        for matn in dokon_chegirma_qatorlari(db, company_id, nusxalar, c, koeff, bugun, peno=peno, peno_olindi=True)[1]:
+            ogoh.append(f"{m.kod if m else mid} (chegirma −{audit_son(c.foiz, 2)} %): {matn}")
+    return ogoh[:DOKON_EXCEL_MAX_XATO]
+
+
+# ── Saqlash ──
+def _dokon_excel_modellarni_qulfla(db, company_id, model_ids):
+    """Modellar qatori qulfi (id o'sish tartibida) — panel tahriri / modelni o'chirish bilan bir xil tartib: AVVAL model, keyin qator."""
+    from models import DokonModel
+    db.flush()
+    return (db.query(DokonModel).filter(DokonModel.company_id == company_id, DokonModel.id.in_(model_ids))
+            .order_by(DokonModel.id).populate_existing().with_for_update().all())
+
+
+def _dokon_excel_qatorlarni_qulfla(db, company_id, ids):
+    """Narx qatorlari qulfi (id o'sish tartibida, qayta o'qiladi — boshqa oynadagi o'zgarish ko'rinadi)."""
+    from models import DokonDetal
+    db.flush()
+    return (db.query(DokonDetal).filter(DokonDetal.company_id == company_id, DokonDetal.id.in_(ids))
+            .order_by(DokonDetal.id).populate_existing().with_for_update().all())
+
+
+def _dokon_excel_eski(v):
+    """Ko'rishda ko'rsatilgan eski narx (bazadan olingan) — son yoki null; solishtirish uchun `Decimal` (2 xona)."""
+    if v is None:
+        return None
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or (isinstance(v, float) and not math.isfinite(v)) or abs(v) > DOKON_NARX_MAX:
+        raise ValueError("Noto'g'ri so'rov — faylni qayta yuklang")
+    return Decimal(str(v)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def dokon_excel_saqla(db: Session, company_id: int, data: dict, kim: str) -> dict:
+    """Ko'rishda tasdiqlangan o'zgarishlarni saqlaydi: {"ozgarishlar": [{"id", "kimlik", "eski": {kalit: narx | null}, "yangi": {…}}]}
+    (kalitlar — 4 narx; `kimlik` — ko'rishdagi «R-18 · Rom karnizi · O'rta»: oraliqda qator qayta nomlangan bo'lsa — 409, review235 O1). Hammasi BITTA tranzaksiyada: qatorlar topilmasa / qiymat noto'g'ri — ValueError; joriy narx eski ham, yangi ham emas —
+    `DokonExcelZiddiyat` (409); ikkala holda HECH NARSA yozilmaydi. Joriy = yangi — o'tkaziladi (takror yuborish). Javob: {"saqlandi",
+    "avval_saqlangan"}."""
+    from models import DokonModel, DokonDetal
+    dokon_tekshir(db, company_id)
+    _dokon_kalitlar(data, ("ozgarishlar",))
+    oz = data.get("ozgarishlar")
+    if not isinstance(oz, list) or not oz:
+        raise ValueError("Saqlanadigan o'zgarish yo'q")
+    if len(oz) > DOKON_EXCEL_MAX_OZGARISH:
+        raise ValueError(f"Bir yuklashda ko'pi bilan {xabar_son(DOKON_EXCEL_MAX_OZGARISH)} ta qator o'zgaradi — faylni bo'lib yuklang")
+    reja = {}
+    for x in oz:
+        _dokon_kalitlar(x, ("id", "kimlik", "eski", "yangi"))
+        did = x.get("id")
+        if isinstance(did, bool) or not isinstance(did, int) or not (1 <= did <= 2_147_483_647):
+            raise ValueError("Noto'g'ri so'rov — qator raqami noto'g'ri")
+        if did in reja:
+            raise ValueError("Noto'g'ri so'rov — bitta qator ikki marta")
+        if not isinstance(x.get("kimlik"), str) or not x["kimlik"].strip() or len(x["kimlik"]) > 300:
+            raise ValueError("Noto'g'ri so'rov — faylni qayta yuklang")
+        e, y = x.get("eski"), x.get("yangi")
+        if not isinstance(e, dict) or not isinstance(y, dict) or not y or set(e) != set(y) or not set(y) <= set(DOKON_EXCEL_NARXLAR):
+            raise ValueError("Noto'g'ri so'rov — faylni qayta yuklang")
+        ev = {k: _dokon_excel_eski(e[k]) for k in e}
+        yv = {k: _dokon_narx(y[k], _DOKON_NARX_NOMI[k]) for k in y}
+        farqli = [k for k in yv if _dokon_excel_farq(ev[k], yv[k])]       # eski = yangi maydon — o'zgarish emas
+        reja[did] = ({k: ev[k] for k in farqli}, {k: yv[k] for k in farqli}, x["kimlik"])
+    reja = {k: v for k, v in reja.items() if v[1]}
+    if not reja:
+        raise ValueError("Saqlanadigan o'zgarish yo'q")
+    ids = sorted(reja)
+    topildi = {r[0]: r[1] for r in db.query(DokonDetal.id, DokonDetal.model_id)
+               .filter(DokonDetal.company_id == company_id, DokonDetal.id.in_(ids)).all()}
+    yoq = [i for i in ids if i not in topildi]
+    if yoq:
+        raise ValueError(f"{xabar_son(len(yoq))} ta narx qatori topilmadi (o'chirilgan bo'lishi mumkin) — faylni qayta yuklang")
+    # qulf tartibi: model → qator (ikkalasi id bo'yicha o'sish tartibida)
+    _dokon_excel_modellarni_qulfla(db, company_id, sorted(set(topildi.values())))
+    qatorlar = _dokon_excel_qatorlarni_qulfla(db, company_id, ids)
+    if len(qatorlar) != len(ids):
+        db.rollback()
+        raise ValueError("Narx qatori hozirgina o'chirildi — faylni qayta yuklang")
+    modellar = {m.id: m for m in db.query(DokonModel).filter(DokonModel.company_id == company_id,
+                                                             DokonModel.id.in_(sorted({d.model_id for d in qatorlar}))).all()}
+    yoziladi, avval, ziddiyat = [], 0, []
+    for d in qatorlar:
+        e, y, kim_q = reja[d.id]
+        joriy = {k: getattr(d, k) for k in y}
+        m = modellar.get(d.model_id)
+        if _dokon_excel_kalit(kim_q) != _dokon_excel_kalit(dokon_excel_kimlik(d, m)):
+            ziddiyat.append(f"{kim_q[:80]} → endi «{dokon_excel_kimlik(d, m)}»")
+        elif all(not _dokon_excel_farq(joriy[k], e[k]) for k in y):
+            yoziladi.append(d)
+        elif all(not _dokon_excel_farq(joriy[k], y[k]) for k in y):
+            avval += 1
+        else:
+            ziddiyat.append(dokon_excel_kimlik(d, m))
+    if ziddiyat:
+        db.rollback()
+        raise DokonExcelZiddiyat(f"{xabar_son(len(ziddiyat))} ta narx qatori siz faylni yuklagandan keyin boshqa oynada o'zgardi: "
+                                 + ", ".join(ziddiyat[:5]) + (" …" if len(ziddiyat) > 5 else "")
+                                 + ". Hech narsa saqlanmadi — faylni qayta yuklang (yoki yangi fayl oling)")
+    if not yoziladi:
+        db.rollback()
+        return {"saqlandi": 0, "avval_saqlangan": avval}
+    hozir = datetime.utcnow()
+    for d in yoziladi:
+        e, y, _ = reja[d.id]
+        eski_matn = _dokon_detal_matni(d)
+        eski_ulg = _dokon_qiymatlar((d.ulgurji_narx, d.ulgurji_qoplamali))
+        for k, v in y.items():
+            setattr(d, k, v)
+        d.updated_by = kim
+        d.updated_at = hozir
+        _ulg = "; ulgurji narx o'zgardi" if _dokon_qiymatlar((d.ulgurji_narx, d.ulgurji_qoplamali)) != eski_ulg else ""
+        m = modellar.get(d.model_id)
+        log_activity(db, "updated", "dokon_detal", d.id, f"Sayt narxi {m.kod if m else d.model_id}", kim, old_value=eski_matn,
+                     new_value=_dokon_detal_matni(d) + _ulg + "; Excel'dan yuklandi", company_id=company_id, commit=False)
+    db.commit()
+    return {"saqlandi": len(yoziladi), "avval_saqlangan": avval}

@@ -12035,6 +12035,40 @@ def api_dokon_chegirma_ochir(model_id: int = _Path213(..., ge=1, le=2_147_483_64
     return {"status": "ok"}
 
 
+# ── kech170 (zip 235): Excel orqali narxlar — yuklab olish, yuklash (ko'rish — hech narsa yozilmaydi), saqlash (FAQAT Admin; belgi o'chiq — 404) ──
+@app.get("/api/sayt-katalogi/excel")
+def api_dokon_excel(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Butun narx jadvali — .xlsx (har narx qatori bitta qator; ulgurji narxlar ham — fayl maxfiy, keshlanmaydi)."""
+    cid = auth.company_id_of(current_user)
+    bayt = _dokon_bajar(db, lambda: crud.dokon_excel_yarat(db, cid))
+    nom = f"sayt_narxlari_{crud.dokon_bugun().isoformat()}.xlsx"
+    return Response(content=bayt, media_type=crud.DOKON_EXCEL_MIME,
+                    headers={"Content-Disposition": f'attachment; filename="{nom}"', "Cache-Control": "no-store",
+                             "X-Content-Type-Options": "nosniff"})
+
+
+@app.post("/api/sayt-katalogi/excel/korish")
+def api_dokon_excel_korish(fayl: UploadFile = File(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Excel'dan yuklash — 1-qadam: fayl tekshiriladi (HAMMA qator), nima o'zgarishi qaytariladi; bazaga HECH NARSA yozilmaydi."""
+    cid = auth.company_id_of(current_user)
+    _dokon_bajar(db, lambda: crud.dokon_tekshir(db, cid))                  # o'chiq korxona — avval 404
+    db.rollback()                         # review235 P5: fayl o'qilayotganda baza ulanishi band turmasin (crud avval faylni, keyin bazani o'qiydi)
+    bayt = fayl.file.read(crud.DOKON_EXCEL_MAX_BAYT + 1)
+    return _dokon_bajar(db, lambda: crud.dokon_excel_korish(db, cid, bayt))
+
+
+@app.post("/api/sayt-katalogi/excel/saqla")
+def api_dokon_excel_saqla(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Excel'dan yuklash — 2-qadam: ko'rishda ko'rsatilgan o'zgarishlar ({"ozgarishlar": [{"id", "kimlik", "eski", "yangi"}]}) BITTA
+    tranzaksiyada; oraliqda boshqa oynada o'zgargan (yoki qayta nomlangan) narx qatori bo'lsa — 409, hech narsa yozilmaydi."""
+    cid = auth.company_id_of(current_user)
+    try:
+        return _dokon_bajar(db, lambda: crud.dokon_excel_saqla(db, cid, data, _dokon_kim(current_user)))
+    except crud.DokonExcelZiddiyat as e:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(e))
+
+
 @app.post("/api/platform/companies/{company_id}/dokon")
 def api_platform_dokon(company_id: int = _Path213(..., ge=1, le=2_147_483_647), yoqilgan: str = Form(...),
                        db: Session = Depends(get_db), current_user=Depends(auth.platform_admin_only)):

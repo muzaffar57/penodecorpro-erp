@@ -409,6 +409,8 @@ YANGI_MARSHRUTLAR = {
     # kech169 (zip 234): model chegirmasi — FAQAT Admin
     "PUT /api/sayt-katalogi/modellar/{model_id}/chegirma": "A", "DELETE /api/sayt-katalogi/modellar/{model_id}/chegirma": "A",
     "POST /api/sayt-katalogi/modellar/{model_id}/chegirma/korish": "A",
+    # kech170 (zip 235): Excel orqali narxlar — FAQAT Admin (ulgurji narx bor)
+    "GET /api/sayt-katalogi/excel": "A", "POST /api/sayt-katalogi/excel/korish": "A", "POST /api/sayt-katalogi/excel/saqla": "A",
     "GET /rollar": "A", "GET /api/rollar": "A", "POST /api/rollar": "A", "PUT /api/rollar/{rol_id}": "A",
     "DELETE /api/rollar/{rol_id}": "A", "POST /api/rollar/{rol_id}/andoza": "A", "PUT /api/users/{user_id}/rol": "A",
     # kech118 (D-1, G5-11): TM «Kam» chegarasi — «Tayyor mahsulotlar: Tahrirlash» (PUT /api/finished/{fp_id} bilan bir xil)
