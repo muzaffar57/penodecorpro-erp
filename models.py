@@ -2930,6 +2930,9 @@ class DokonDetal(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
     updated_by = Column(String(100), nullable=True)
+    # kech172 (zip 238): ERP «Tayyor mahsulotlar» mahsuloti kaliti (`tm_kam_kaliti`, faqat qoplamali) — «Tayyor mahsulotlar» bo'limida
+    # shu detalning ombor qoldig'i ko'rinadi; NULL — bog'lanmagan (faqat buyurtmaga tayyorlanadi). Bitta mahsulot — bitta detalga.
+    tm_bogl_kaliti = Column(String(300), nullable=True)
 
     def __repr__(self):
         return f"<DokonDetal {self.id} {self.turi} {self.olcham}>"
@@ -3067,6 +3070,9 @@ class DokonBuyurtma(Base):
     bekor_vaqti = Column(DateTime, nullable=True)
     sb_bekor_qilgan = Column(String(100), nullable=True)
     sb_bekor_sababi = Column(String(200), nullable=True)
+    # kech172 (zip 238): ombordan («Tayyor mahsulotlar») qatori bo'lsa — band tugash vaqti (UTC, yaratilgandan 48 soat); «yangi» holatda
+    # va shu vaqtgacha qatorlarning `sbq_tm_kaliti` miqdori saytdagi qoldiqdan ayiriladi. NULL — band yo'q.
+    sb_band_tugash = Column(DateTime, nullable=True)
 
     def __repr__(self):
         return f"<DokonBuyurtma {self.sb_raqam} {self.sb_holat} c={self.company_id}>"
@@ -3105,6 +3111,8 @@ class DokonBuyurtmaQator(Base):
     sbq_nom = Column(String(150), nullable=False)
     # review237 M1: donali qatorning penoplast sarfi uchun narx — QOPLAMASIZ chakana narx (ERP qoidasi: qoplama hajmga ta'sir qilmaydi)
     hajm_narxi = Column(Numeric(12, 2), nullable=True)
+    # kech172 (zip 238): ombordan qator — ERP mahsuloti kaliti (katalog bog'lamining NUSXASI: bog'lam keyin o'zgarsa ham band o'z mahsulotida)
+    sbq_tm_kaliti = Column(String(300), nullable=True)
 
     def __repr__(self):
         return f"<DokonBuyurtmaQator {self.id} b={self.buyurtma_id} {self.sbq_nom}>"

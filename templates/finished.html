@@ -609,6 +609,7 @@ function onPPenoChange() {
 }
 
 let fpItems = [];
+let fpSaytBand = [];   // kech172 (zip 238): saytdan kelgan buyurtmalarning faol ombor bandi (`/api/sayt-bandlar`)
 let loyCostPerKg = 0;
 // kech118 (D-1): «Kam» chegarasini yozish — «Tayyor mahsulotlar: Tahrirlash» ruxsati bilan (server ham tekshiradi)
 const TM_TAHRIR = {{ 'true' if current_user.ruxsat('tayyor', 'tahrirlash') else 'false' }};
@@ -879,6 +880,7 @@ async function loadFp() {
   fpItems = Array.isArray(d) ? d : [];
   fpKategoriyaTugmalari();
   renderFp();
+  if (typeof fpSaytBandYukla === 'function') fpSaytBandYukla();   // kech172 (zip 238)
   loadStats();
   updateFpRangeBanner();
 }
@@ -1056,6 +1058,32 @@ function fpTugaganniKorsat() {
   if (cb) { cb.checked = true; renderFp(); }
 }
 
+// kech172 (zip 238): saytdan kelgan buyurtmaning 48 soatlik ombor bandi — ERP qoldig'idan AYIRILMAYDI (faqat saytdagi qoldiqdan); belgi
+// xodimga «tasdiqlanmaguncha boshqa mijozga sotmang» deydi. Do'kon o'chiq / band yo'q — belgi yo'q.
+function fpSaytBandHtml(partiyalar, bosh) {
+  // chaqiruvda faqat obyektlar (test_html_escape: matn ustunlari — shu funksiya ichida escapeHtml bilan)
+  const idlar = (partiyalar || []).map(x => x.id);
+  const unit = bosh ? bosh.unit : '';
+  const b = (fpSaytBand || []).find(x => (x.fp_idlar || []).some(id => idlar.indexOf(id) >= 0));
+  if (!b) return '';
+  const raqam = (b.raqamlar || []).join(', ');
+  return `<span class="fp-badge fp-sayt-band" style="background:var(--f-fef3c7);color:var(--m-92400e)" title="${escapeHtml(`Saytdan kelgan buyurtma (${raqam}) — `
+    + `ombordagi mahsulot band: tasdiqlanmaguncha boshqa mijozga sotmang. Miqdor — shu mahsulotning HAMMA partiyalari bo'yicha jami `
+    + `(ishlab chiqarilgan va qaytgan qatorlarda bir xil son)`)}">🛒 Saytda band (jami): ${escapeHtml(fpMiqdor(b.miqdor))} `
+    + `${escapeHtml(unitLabel(unit))}${raqam ? ` · ${escapeHtml(raqam)}` : ''}</span>`;
+}
+async function fpSaytBandYukla() {
+  try {
+    const r = await fetch('/api/sayt-bandlar', { cache: 'no-store' });
+    if (!r.ok) return;
+    const d = await r.json();
+    const yangi = Array.isArray(d && d.bandlar) ? d.bandlar : [];
+    if (JSON.stringify(yangi) === JSON.stringify(fpSaytBand)) return;
+    fpSaytBand = yangi;
+    renderFp();
+  } catch (e) { /* belgi — yordamchi ma'lumot; xato sahifani to'xtatmaydi */ }
+}
+
 function guruhHtml(g) {
   if (g.partiyalar.length === 1) return rowHtml(g.partiyalar[0], false);
   const i0 = g.bosh;
@@ -1090,6 +1118,7 @@ function guruhHtml(g) {
         <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
           <span class="fp-name">${escapeHtml(i0.name)}</span>
           ${g.band > 0 ? `<span class="fp-badge" style="background:var(--f-fee2e2);color:var(--m-b91c1c)">🔒 Band: ${escapeHtml(fpMiqdor(g.band))} ${escapeHtml(u)}</span>` : ''}
+          ${typeof fpSaytBandHtml === 'function' ? fpSaytBandHtml(g.partiyalar, g.bosh) : ''}
         </div>
         <div class="fp-meta">${meta.map(escapeHtml).join(' · ')}</div>
       </div>
@@ -1441,6 +1470,7 @@ function rowHtml(i, partiyami) {
         ${i.brak_taqdir === 'kesildi' ? '<span class="fp-badge" style="background:var(--gold-tint);color:var(--gold-dark)" title="Brak detaldan kesib olingan — ulush tannarx bilan">✂️ KESILGAN</span>' : ''}
         ${i.brak_taqdir === 'tuzatildi' ? '<span class="fp-badge" style="background:var(--f-dcfce7);color:var(--m-1e7e34)" title="Brak detal tuzatilgan — asl narxi bilan">🔧 TUZATILGAN</span>' : ''}
         ${i.reserved_quantity > 0 ? `<span class="fp-badge" style="background:var(--f-fee2e2);color:var(--m-b91c1c)" title="Bu miqdor umumiy sotuvdan ajratilgan — faqat shu buyurtma uchun">🔒 Band: ${i.reserved_quantity} ${escapeHtml(unitLabel(i.unit))}</span>` : ''}
+        ${(!partiyami && typeof fpSaytBandHtml === 'function') ? fpSaytBandHtml([i], i) : ''}
       </div>
       <div class="fp-meta">${meta.map(escapeHtml).join(' · ')}${profitPct !== null ? (cpu < 0 ? ` · <b style="color:var(--m-dc2626)">⚠️ tannarx xato</b>` : ` · Foyda: <b style="color:${profitPct>=0?'var(--m-15803d)':'var(--m-dc2626)'}">${profitPct}%</b>`) : ''}</div>
     </div>

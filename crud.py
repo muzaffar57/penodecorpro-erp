@@ -21958,7 +21958,9 @@ def dokon_detal_dict(d, koeff, chegirma=None, bugun=None):
             "ulgurji_qoplamali_avto": (_dokon_pul(dokon_avto_qoplamali(d.ulgurji_narx, koeff))
                                        if d.ulgurji_qoplamali is None else None),
             "tartib": d.tartib or 0, "yoqilgan": bool(d.yoqilgan),
-            "chegirma": dokon_detal_chegirmasi(d, chegirma, koeff, bugun) if chegirma is not None else None}
+            "chegirma": dokon_detal_chegirmasi(d, chegirma, koeff, bugun) if chegirma is not None else None,
+            "tm_kaliti": d.tm_bogl_kaliti,                  # kech172 (zip 238): ERP «Tayyor mahsulotlar» bog'lami
+            "tm_mos": dokon_tm_amaldagi(d) is not None}     # review238 M2: model qolipi o'zgarib birlik mos kelmay qolsa — False
 
 
 def _dokon_bolim_of(db, bolim_id, company_id, lock=False):
@@ -22060,6 +22062,8 @@ def dokon_katalog(db: Session, company_id: int) -> dict:
             "sozlamalar": dokon_sozlamalar(db, company_id),
             "komplekt": {str(k): v for k, v in dokon_komplekt_narxlari(db, company_id).items()},
             "chegirmalar": dokon_katalog_chegirmalari(db, company_id, detallar, _ch234, koeff, _bugun234),
+            # kech172 (zip 238): «Omborga bog'lash» uchun ERP mahsulotlari (qoplamali, brak emas, metr / dona) va saytdagi qoldig'i
+            "tm_mahsulotlar": dokon_tm_mahsulotlar(db, company_id), "band_soat": SAYT_BAND_SOAT,
             "bugun": _bugun234.isoformat(), "tannarx_izoh": DOKON_TANNARX_IZOH}
 
 
@@ -24664,7 +24668,8 @@ DOKON_API_SARLAVHA = "X-Dokon-Kalit"
 DOKON_API_DAQIQA_MAX = 120
 DOKON_API_OYNA_SEKUND = 60
 DOKON_API_MUROJAAT_QADAM = _td234(minutes=5)
-DOKON_API_YOLLAR = ("/api/dokon/v1/katalog", "/api/dokon/v1/sozlamalar", "/api/dokon/v1/buyurtmalar")   # kech171 (zip 237): buyurtma (POST)
+DOKON_API_YOLLAR = ("/api/dokon/v1/katalog", "/api/dokon/v1/sozlamalar", "/api/dokon/v1/buyurtmalar",   # kech171 (zip 237): buyurtma (POST)
+                    "/api/dokon/v1/tayyor")                                 # kech172 (zip 238): «Tayyor mahsulotlar» qoldig'i
 
 
 class DokonApiRad(Exception):
@@ -25111,14 +25116,14 @@ def _sayt_detal_narxi(d, koeff, qoplamali, chegirma, bugun, komplekt=False):
     return asl, asl, None, hajm
 
 
-def _sayt_qator(guruh, guruh_nomi, tur, soni, m, d, qoplamali, miqdor, narx, asl, foiz, hajm) -> dict:
+def _sayt_qator(guruh, guruh_nomi, tur, soni, m, d, qoplamali, miqdor, narx, asl, foiz, hajm, tm=None) -> dict:
     summa = (narx * miqdor).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     asl_summa = (asl * miqdor).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     return {"guruh": guruh, "guruh_nomi": guruh_nomi, "tur": tur, "komplekt_soni": soni,
             "model_id": m.id, "model_kod": m.kod, "model_nom": m.nom, "detal_id": d.id, "detal_turi": d.turi,
             "olcham": d.olcham, "eni_sm": d.eni_sm, "qalinligi_sm": d.qalinligi_sm, "birlik": d.birlik, "qoplamali": bool(qoplamali),
             "miqdor": miqdor, "narx": narx, "asl_narx": asl, "chegirma_foiz": foiz, "summa": summa, "asl_summa": asl_summa,
-            "nom": _sayt_nom(m, d), "hajm_narxi": hajm}
+            "nom": _sayt_nom(m, d), "hajm_narxi": hajm, "tm_kaliti": tm}
 
 
 def _sayt_koradigan(db, company_id):
@@ -25157,7 +25162,7 @@ def sayt_buyurtma_hisobla(db: Session, company_id: int, qatorlar) -> dict:
         if not isinstance(q, dict):
             raise ValueError(f"{joy}: noto'g'ri qator")
         if "komplekt" in q:
-            _dokon_kalitlar(q, ("komplekt", "model_id", "olcham", "qoplamali", "kapitel_baza", "soni"))
+            _dokon_kalitlar(q, ("komplekt", "model_id", "olcham", "qoplamali", "kapitel_baza", "soni", "ombordan"))
             kom = q.get("komplekt")
             if kom not in DOKON_RETSEPT_TURLARI:
                 raise ValueError(f"{joy}: komplekt turi «rom» yoki «eshik» bo'lishi kerak")
@@ -25169,6 +25174,10 @@ def sayt_buyurtma_hisobla(db: Session, company_id: int, qatorlar) -> dict:
             qop = _dokon_bool(q.get("qoplamali"), f"{joy} — qoplamali")
             kb = _dokon_bool(q.get("kapitel_baza", True), f"{joy} — kapitel va baza")
             soni = _dokon_butun(q.get("soni"), f"{joy} — komplektlar soni", 1, SAYT_MAX_KOMPLEKT)
+            # kech172 (zip 238): «Tayyor mahsulotlar» bo'limidan — omborda bor detallardan (faqat qoplamali — egasi qarori 30.10)
+            omb = _dokon_bool(q.get("ombordan", False), f"{joy} — ombordan")
+            if omb and not qop:
+                raise ValueError(f"{joy}: «Tayyor mahsulotlar» — faqat qoplamali")
             k = dokon_olcham_kalit(olcham)
             guruh = {}
             for d in detallar.get(m.id, []):
@@ -25181,7 +25190,8 @@ def sayt_buyurtma_hisobla(db: Session, company_id: int, qatorlar) -> dict:
                       if retsept[kom][t] and (t not in ("kapitel", "baza") or (kb_bor and kb))]
             c = chegirmalar.get(m.id)
             gnomi = (f"{m.kod}" + (f" «{m.nom}»" if m.nom else "") + f" — {SAYT_KOMPLEKT_NOMI[kom]}, {next(iter(guruh.values())).olcham}, "
-                     + ("qoplamali" if qop else "qoplamasiz") + ("" if (kb or not kb_bor) else ", kapitel va bazasiz") + f" × {soni}")
+                     + ("qoplamali" if qop else "qoplamasiz") + ("" if (kb or not kb_bor) else ", kapitel va bazasiz")
+                     + (", ombordan" if omb else "") + f" × {soni}")
             for t in turlar:
                 d = guruh.get(t)
                 if d is None:
@@ -25189,23 +25199,34 @@ def sayt_buyurtma_hisobla(db: Session, company_id: int, qatorlar) -> dict:
                 narx, asl, foiz, hajm = _sayt_detal_narxi(d, koeff, qop, c, bugun, komplekt=True)
                 if narx is None:
                     raise ValueError(f"{joy}: «{m.kod}» komplektida {DOKON_TURI_NOMI[t].lower()} narxi kiritilmagan")
+                if omb and not dokon_tm_amaldagi(d):
+                    raise ValueError(f"{joy}: «{m.kod}» komplektining {DOKON_TURI_NOMI[t].lower()} detali omborda yo'q — sahifani yangilang")
                 natija.append(_sayt_qator(n, gnomi[:200], f"komplekt_{kom}", soni, m, d, qop,
-                                          Decimal(retsept[kom][t]) * soni, narx, asl, foiz, hajm))
+                                          Decimal(retsept[kom][t]) * soni, narx, asl, foiz, hajm,
+                                          tm=dokon_tm_amaldagi(d) if omb else None))
         else:
-            _dokon_kalitlar(q, ("detal_id", "qoplamali", "miqdor"))
+            _dokon_kalitlar(q, ("detal_id", "qoplamali", "miqdor", "ombordan"))
             did = _dokon_butun(q.get("detal_id"), f"{joy} — mahsulot", 1, 2_147_483_647)
             qop = _dokon_bool(q.get("qoplamali"), f"{joy} — qoplamali")
+            omb = _dokon_bool(q.get("ombordan", False), f"{joy} — ombordan")     # kech172 (zip 238)
             d = next((x for dl in detallar.values() for x in dl if x.id == did and x.yoqilgan), None)
             if d is None:
                 raise ValueError(f"{joy}: bu mahsulot saytda sotuvda yo'q — sahifani yangilang")
+            if omb and not qop:
+                raise ValueError(f"{joy}: «Tayyor mahsulotlar» — faqat qoplamali")
+            if omb and not dokon_tm_amaldagi(d):          # review238 M2: bog'lam birligi hali mos bo'lsa
+                raise ValueError(f"{joy}: bu mahsulot omborda yo'q — sahifani yangilang")
             m = modellar[d.model_id]
-            miqdor = _sayt_miqdor(q.get("miqdor"), d.birlik, m.qolip, d.turi, f"{m.kod} {DOKON_TURI_NOMI.get(d.turi, d.turi).lower()}")
+            # ombordan — butun metr / dona (juft metr talabi yo'q: qoldiqdagisi sotiladi — egasi qarori «Miqdor (qoldiqdan ko'p emas)»)
+            miqdor = _sayt_miqdor(q.get("miqdor"), d.birlik, "ombor" if omb else m.qolip, d.turi,
+                                  f"{m.kod} {DOKON_TURI_NOMI.get(d.turi, d.turi).lower()}")
             narx, asl, foiz, hajm = _sayt_detal_narxi(d, koeff, qop, chegirmalar.get(m.id), bugun)
             if narx is None:
                 raise ValueError(f"{joy}: «{m.kod}» narxi kiritilmagan — bu mahsulotni hozir sotib bo'lmaydi")
             nom = _sayt_nom(m, d)
-            gnomi = f"{nom}, {d.olcham}, " + ("qoplamali" if qop else "qoplamasiz")
-            natija.append(_sayt_qator(n, gnomi[:200], "detal", None, m, d, qop, miqdor, narx, asl, foiz, hajm))
+            gnomi = f"{nom}, {d.olcham}, " + ("qoplamali" if qop else "qoplamasiz") + (", ombordan" if omb else "")
+            natija.append(_sayt_qator(n, gnomi[:200], "detal", None, m, d, qop, miqdor, narx, asl, foiz, hajm,
+                                      tm=dokon_tm_amaldagi(d) if omb else None))
         if len(natija) > SAYT_MAX_DETAL_QATOR:
             raise ValueError(f"Buyurtma juda katta — ko'pi bilan {SAYT_MAX_DETAL_QATOR} ta detal qatori")
     jami = sum((x["summa"] for x in natija), Decimal("0"))
@@ -25234,7 +25255,8 @@ def _sayt_qator_dict(x) -> dict:
             "olcham": g("sbq_olcham") if not isinstance(x, dict) else g("olcham"),
             "birlik": g("sbq_birlik") if not isinstance(x, dict) else g("birlik"),
             "qoplamali": bool(g("qoplamali")), "miqdor": _sayt_pul(g("miqdor")), "narx": _sayt_pul(g("narx")),
-            "asl_narx": _sayt_pul(g("asl_narx")), "chegirma_foiz": _sayt_pul(g("chegirma_foiz")), "summa": _sayt_pul(g("summa"))}
+            "asl_narx": _sayt_pul(g("asl_narx")), "chegirma_foiz": _sayt_pul(g("chegirma_foiz")), "summa": _sayt_pul(g("summa")),
+            "ombordan": bool(g("sbq_tm_kaliti") if not isinstance(x, dict) else g("tm_kaliti"))}      # kech172 (zip 238)
 
 
 def _sayt_guruhlar(qatorlar) -> list:
@@ -25289,7 +25311,9 @@ def sayt_dokon_javobi(db: Session, b, qatorlar=None, takror=False, hozir_utc=Non
             "yetkazish_bepul": b.sb_viloyat == SAYT_BEPUL_VILOYAT, "yetkazish_matni": sayt_yetkazish_matni(b.sb_viloyat),
             "guruhlar": _sayt_guruhlar(qatorlar), "telefonlar": tel,
             "tasdiq_matni": ("Shu raqamlardan biriga qo'ng'iroq qilib buyurtmani tasdiqlating: "
-                             + " · ".join(t["korinish"] for t in tel)) if tel else None}
+                             + " · ".join(t["korinish"] for t in tel)) if tel else None,
+            # kech172 (zip 238): ombordan qator bo'lsa — band tugash vaqti (UTC, «Z» bilan) va mijozga matn
+            "band_tugash": (b.sb_band_tugash.isoformat() + "Z") if b.sb_band_tugash else None, "band_matni": _sayt_band_matni(b)}
 
 
 def sayt_buyurtma_yarat(db: Session, company_id: int, kalit: str, data: dict, hozir_utc=None) -> tuple:
@@ -25338,11 +25362,34 @@ def sayt_buyurtma_yarat(db: Session, company_id: int, kalit: str, data: dict, ho
                     DokonBuyurtma.created_at > hozir - _td234(hours=1)).scalar())
     if int(soat or 0) >= SAYT_TELEFON_SOAT_MAX:
         raise SaytCheklov("Shu telefon raqamidan so'nggi soatda juda ko'p buyurtma berildi — keyinroq urining yoki qo'ng'iroq qiling")
+    # kech172 (zip 238): ombordan qatorlar — saytdagi qoldiq (ERP bo'sh − boshqa faol sayt bandlari) yetadimi; yetmasa — 409, hech narsa
+    # yozilmaydi. Shu korxona qulfi (237) ostida — ikki mijoz bir vaqtda oxirgi metrni ololmaydi.
+    _kerak238, _nom238 = {}, {}
+    for x in hisob["qatorlar"]:
+        if x.get("tm_kaliti"):
+            _kerak238[x["tm_kaliti"]] = _kerak238.get(x["tm_kaliti"], Decimal("0")) + Decimal(str(x["miqdor"]))
+            _n = _nom238.setdefault(x["tm_kaliti"], {"detal_idlar": [], "nom": x["nom"], "birlik": x["birlik"]})
+            if x["detal_id"] not in _n["detal_idlar"]:
+                _n["detal_idlar"].append(x["detal_id"])
+    band_tugash = None
+    if _kerak238:
+        _bor238 = dokon_tm_qoldiqlari(db, company_id, hozir)
+        yetmaydi = []
+        for k, v in _kerak238.items():
+            bor = _dokon_tm_pastga(_bor238.get(k, 0.0))
+            if v > Decimal(repr(bor)):
+                yetmaydi.append(dict(_nom238[k], kerak=float(v), bor=bor))
+        if yetmaydi:
+            raise SaytOmborYetmaydi("Omborda yetmaydi: " + "; ".join(
+                f"{y['nom']} — bor {xabar_son(y['bor'], 2)} {_DOKON_BIRLIK_NOMI238.get(y['birlik'], y['birlik'])}, so'ralgan "
+                f"{xabar_son(y['kerak'], 2)}" for y in yetmaydi) + ". Savatni yangilang", yetmaydi)
+        band_tugash = hozir + _td234(hours=SAYT_BAND_SOAT)
     _eng = db.query(_f237.max(DokonBuyurtma.sb_seq)).filter(DokonBuyurtma.company_id == company_id).scalar()
     seq = int(_eng or 0) + 1
     b = DokonBuyurtma(company_id=company_id, sb_seq=seq, sb_raqam=sayt_raqami(seq), sb_kalit=kalit, sb_tana_xesh=xesh,
                       sb_mijoz=mijoz, sb_telefon=telefon, sb_viloyat=viloyat, sb_manzil=manzil, sb_lokatsiya=lokatsiya, sb_izoh=izoh,
-                      sb_jami=hisob["jami"], sb_chegirmasiz=hisob["chegirmasiz"], sb_holat="yangi", created_at=hozir)
+                      sb_jami=hisob["jami"], sb_chegirmasiz=hisob["chegirmasiz"], sb_holat="yangi", created_at=hozir,
+                      sb_band_tugash=band_tugash)
     db.add(b)
     db.flush()
     qatorlar = []
@@ -25352,13 +25399,15 @@ def sayt_buyurtma_yarat(db: Session, company_id: int, kalit: str, data: dict, ho
                                sbq_model_nom=x["model_nom"], detal_id=x["detal_id"], sbq_detal_turi=x["detal_turi"],
                                sbq_olcham=x["olcham"], eni_sm=x["eni_sm"], qalinligi_sm=x["qalinligi_sm"], sbq_birlik=x["birlik"],
                                qoplamali=x["qoplamali"], miqdor=float(x["miqdor"]), narx=x["narx"], asl_narx=x["asl_narx"],
-                               chegirma_foiz=x["chegirma_foiz"], summa=x["summa"], sbq_nom=x["nom"], hajm_narxi=x["hajm_narxi"])
+                               chegirma_foiz=x["chegirma_foiz"], summa=x["summa"], sbq_nom=x["nom"], hajm_narxi=x["hajm_narxi"],
+                               sbq_tm_kaliti=x.get("tm_kaliti"))
         db.add(q)
         qatorlar.append(q)
     db.flush()
     log_activity(db, "created", "sayt_buyurtma", b.id, _sayt_yorligi(b), "Sayt (do'kon)",
                  new_value=f"Jami: {audit_son(b.sb_jami, 0)} so'm, {len(_sayt_guruhlar(qatorlar))} ta mahsulot; "
-                           f"{SAYT_VILOYAT_NOMI[viloyat]}", company_id=company_id, commit=False)
+                           f"{SAYT_VILOYAT_NOMI[viloyat]}" + (f"; ombordan — {SAYT_BAND_SOAT} soat band" if band_tugash else ""),
+                 company_id=company_id, commit=False)
     db.commit()
     db.refresh(b)
     return b, qatorlar, False
@@ -25388,6 +25437,8 @@ def sayt_telegram_matni(b, qatorlar) -> str:
         qism.append(f"… yana {len(gl) - 30} ta")
     tej = Decimal(str(b.sb_chegirmasiz)) - Decimal(str(b.sb_jami))
     qism.append(f"💰 *Jami: {xabar_son(b.sb_jami)} so'm*" + (f" (chegirma −{xabar_son(tej)} so'm)" if tej > 0 else ""))
+    if b.sb_band_tugash:            # kech172 (zip 238)
+        qism.append(f"🏭 Ombordan — {SAYT_BAND_SOAT} soat band: {(b.sb_band_tugash + _td234(hours=5)).strftime('%d.%m.%Y %H:%M')} gacha")
     if b.sb_izoh:
         qism.append(f"📝 {_tg237(b.sb_izoh[:300])}")
     qism.append("ERP → Buyurtmalar → «🛒 Saytdan» — mijozga qo'ng'iroq qilib tasdiqlang")
@@ -25406,18 +25457,31 @@ def sayt_korinish(b, buyurtma_bor: bool = None, qatorlar=None) -> dict:
          "tasdiqlangan": b.tasdiqlangan.isoformat() if b.tasdiqlangan else None, "tasdiqlagan": b.sb_tasdiqlagan,
          "bekor_vaqti": b.bekor_vaqti.isoformat() if b.bekor_vaqti else None, "bekor_qilgan": b.sb_bekor_qilgan,
          "bekor_sababi": b.sb_bekor_sababi, "order_id": b.order_id, "order_raqam": b.sb_order_raqam,
-         "buyurtma_bor": (b.order_id is not None) if buyurtma_bor is None else bool(buyurtma_bor)}
+         "buyurtma_bor": (b.order_id is not None) if buyurtma_bor is None else bool(buyurtma_bor),
+         # kech172 (zip 238): band (ombordan qator) — tugash vaqti (UTC), hozir faolmi
+         "band_tugash": b.sb_band_tugash.isoformat() if b.sb_band_tugash else None, "band_faol": sayt_band_faolmi(b)}
     if qatorlar is not None:
-        d["qoplamali_bor"] = any(q.qoplamali for q in qatorlar)
+        # kech172 (zip 238): ombordan qator — tayyor (qoplangan) mahsulot, qoplama retsepti shart emas
+        d["qoplamali_bor"] = any(q.qoplamali and not q.sbq_tm_kaliti for q in qatorlar)
+        d["ombordan_bor"] = any(q.sbq_tm_kaliti for q in qatorlar)
     if qatorlar is not None:
         d["guruhlar"] = _sayt_guruhlar(qatorlar)
-        d["ogohlantirishlar"] = sayt_ogohlantirishlari(qatorlar)
+        d["ogohlantirishlar"] = sayt_ogohlantirishlari(qatorlar, b)
     return d
 
 
-def sayt_ogohlantirishlari(qatorlar) -> list:
-    """Tasdiqlashdan oldin xodimga: ombordan penoplast qanday yechilishi (sayt katalogida ishlab chiqarish ma'lumoti yo'q joylar)."""
+def sayt_ogohlantirishlari(qatorlar, b=None) -> list:
+    """Tasdiqlashdan oldin xodimga: ombordan penoplast qanday yechilishi (sayt katalogida ishlab chiqarish ma'lumoti yo'q joylar).
+    kech172 (zip 238): «Tayyor mahsulotlar»dan qatorlar — partiyadan yechiladi (penoplast emas); band muddati o'tgan bo'lsa — ogohlantirish."""
     natija = []
+    tm = [q for q in qatorlar if getattr(q, "sbq_tm_kaliti", None)]
+    if tm:
+        natija.append("🏭 Ombordan (Tayyor mahsulotlar): " + ", ".join(sorted({q.sbq_nom for q in tm})[:10])
+                      + " — tasdiqlanganda tayyor partiyadan yechiladi (penoplast yechilmaydi, qoplama retsepti shart emas)")
+        if b is not None and b.sb_holat == "yangi" and b.sb_band_tugash is not None and not sayt_band_faolmi(b):
+            natija.append(f"Band muddati o'tgan ({SAYT_BAND_SOAT} soat) — ombordagi mahsulot boshqa mijozga sotilgan bo'lishi mumkin: "
+                          "tasdiqlashda yetmasa, ERP «davom etasizmi?» deb so'raydi")
+    qatorlar = [q for q in qatorlar if not getattr(q, "sbq_tm_kaliti", None)]
     olchamsiz = sorted({q.sbq_nom for q in qatorlar if q.sbq_birlik == "metr" and not (q.eni_sm and q.qalinligi_sm)})
     if olchamsiz:
         natija.append("Eni / qalinligi katalogda yozilmagan — ombordan penoplast yechilmaydi, buyurtma tahrirlansa narxi formada 0 ga "
@@ -25552,7 +25616,7 @@ def _sayt_m3_narxi(narx, eni_sm, qalinligi_sm, qoplamali):
     return float(m3) if Decimal("0") < m3 <= Decimal("9999999999.99") else None
 
 
-def sayt_buyurtma_tanasi(b, qatorlar, project_id: int, sana, recipe_id=None) -> dict:
+def sayt_buyurtma_tanasi(b, qatorlar, project_id: int, sana, recipe_id=None, tm=None) -> dict:
     """ERP buyurtma tanasi (`schemas.OrderCreate`) — xodim formada qo'lda yozgandek: metr → «profil» (Eni, Qalinlik, Uzunlik = metr,
     soni 1, narx = qator jami, qatorning O'Z «1 m³ narxi» — formada shu narx qayta hosil bo'ladi, review237 H1); dona → «dona» (soni, 1 dona
     narxi, hajm — qoplamasiz narxdan, review237 M1); m² → «blok» (birligi m², miqdor, 1 m² narxi). Narx — sayt buyurtmasida QOTGAN narx
@@ -25561,6 +25625,18 @@ def sayt_buyurtma_tanasi(b, qatorlar, project_id: int, sana, recipe_id=None) -> 
     items = []
     for q in qatorlar:
         miqdor = float(q.miqdor)
+        if tm and q.id in tm:
+            # kech172 (zip 238): ombordan — partiyadan (`sayt_tm_taqsimla`; forma `pickFinished` shakli: nom / o'lcham — partiyaniki, profil —
+            # uzunlik = metr, soni 1, narx = qism jami (forma `tmSaqlanganBirlikNarxi` — 1 m narxini AYNAN qaytaradi); dona — soni, 1 dona narxi)
+            for fp, ol, s in tm[q.id]:
+                if fp.category == "profil":
+                    items.append({"name": fp.name, "category": "profil", "width": fp.width, "thickness": fp.thickness,
+                                  "length": float(ol), "quantity": 1.0, "unit_price": float(s), "is_coated": True,
+                                  "finished_product_id": fp.id})
+                else:
+                    items.append({"name": fp.name, "category": "dona", "quantity": float(ol), "unit_price": float(q.narx),
+                                  "is_coated": True, "finished_product_id": fp.id})
+            continue
         if q.sbq_birlik == "metr":
             items.append({"name": q.sbq_nom, "category": "profil", "width": q.eni_sm, "thickness": q.qalinligi_sm, "length": miqdor,
                           "quantity": 1.0, "unit_price": float(q.summa), "is_coated": bool(q.qoplamali),
@@ -25599,3 +25675,371 @@ def sayt_buyurtmasini_uz(db: Session, order_id: int, company_id) -> None:
     if company_id is not None:
         q = q.filter(DokonBuyurtma.company_id == company_id)
     q.update({"order_id": None}, synchronize_session=False)
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# kech172 (zip 238) — «TAYYOR MAHSULOTLAR» SAYTDA: katalog detali ↔ ERP partiyalari, saytdagi qoldiq, 48 soat BAND (egasi QARORLARI
+# «Onlayn do'kon rejasi» 30.10: «Tayyor mahsulotlar» — omborda bor, faqat QOPLAMALI, katalog narxida; brak / 2-nav ko'rinmaydi; moslik —
+# ERP «Kam qoldiq» kaliti (`models.tm_kam_kaliti`); saytdan kelgan buyurtma ombordagi mahsulotni darhol band qiladi, tasdiqlanmasa 48 soatdan
+# keyin o'zi bo'shaydi; bekor qilinsa — darhol). Texnik tanlov (Claude): band — alohida jadval EMAS, sayt buyurtmasining o'zi
+# (`sb_band_tugash` + qatorning `sbq_tm_kaliti`): «yangi» holatdagi, muddati o'tmagan buyurtmaning ombordan qatorlari — faol band (tasdiq /
+# bekor / 48 soat — avtomatik tugaydi, fon vazifasi kerak emas). Band FAQAT saytdagi qoldiqdan ayiriladi (ikki mijoz oxirgi metrni olmaydi);
+# ERP dagi sotuv / buyurtma qoidalari O'ZGARMAYDI — «Tayyor mahsulotlar» sahifasida «🛒 Saytda band» belgisi ko'rinadi. Bog'lanadigan
+# partiya: qoplamali, brak taqdiri yo'q, turkumi «profil» (metr) yoki «dona» (dona) va birligi katalog detali birligiga mos.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+from decimal import ROUND_DOWN as _RD238                 # noqa: E402
+from models import blok_birlik_kodi as _bbk238         # noqa: E402
+SAYT_BAND_SOAT = 48
+DOKON_TM_TURKUMLAR = {"profil": "metr", "dona": "dona"}     # ERP turkumi → katalog detali birligi
+SAYT_TM_QULF_NS = 238                 # `_pul_qulfi` nomlar fazosi — korxona bo'yicha «bitta mahsulot — bitta detal» tekshiruvi
+DOKON_TM_KALIT_MAX = 300
+
+
+class SaytOmborYetmaydi(ValueError):
+    """Saytdan «Tayyor mahsulotlar» buyurtmasi — omborda (ERP bo'sh qoldig'i − boshqa faol sayt bandlari) yetmaydi (409, hech narsa
+    yozilmaydi). `yetmaydi` — [{"detal_idlar", "nom", "birlik", "kerak", "bor"}]."""
+
+    def __init__(self, matn, yetmaydi):
+        self.yetmaydi = list(yetmaydi)
+        super().__init__(matn)
+
+
+def _dokon_tm_mosmi(fp) -> bool:
+    """Saytdagi «Tayyor mahsulotlar»ga kiradigan partiya: qoplamali, brak / 2-nav emas, turkumi profil / dona, birligi turkumiga mos."""
+    t = getattr(fp, "category", None) or ""
+    return (bool(getattr(fp, "is_coated", False)) and not (getattr(fp, "brak_taqdir", None) or "")
+            and t in DOKON_TM_TURKUMLAR and _bbk238(getattr(fp, "unit", None)) == DOKON_TM_TURKUMLAR[t])
+
+
+def _dokon_tm_partiyalar(db: Session, company_id: int, qoldiqli: bool = False) -> list:
+    """Korxonaning saytga mos partiyalari (jarayondagisi ham — ro'yxat / nom uchun; qoldiqqa faqat tayyori), id tartibida. `qoldiqli` —
+    faqat qoldig'i 0 bo'lmaganlari (review238 L2: qoldiq hisobi — sotilib bo'lgan minglab eski partiyani o'qimaydi; 0 li partiya bo'sh
+    qoldiqqa ham, qarzga ham qo'shmaydi)."""
+    from models import FinishedProduct as _FP238
+    q = db.query(_FP238).filter(_FP238.company_id == company_id, _FP238.is_coated == True,          # noqa: E712
+                                _FP238.category.in_(list(DOKON_TM_TURKUMLAR)))
+    if qoldiqli:
+        q = q.filter(_FP238.quantity != 0)
+    return [x for x in q.order_by(_FP238.id).all() if _dokon_tm_mosmi(x)]
+
+
+def _dokon_tm_guruhlar(partiyalar) -> dict:
+    """{tm_kam_kaliti: [ERP guruhi]} — ERP guruhi (`tm_guruh_kaliti`: manba — ishlab chiqarilgan / qaytgan) = {"manba", "partiyalar" (TAYYOR,
+    id tartibida), "hammasi", "bosh"}. Bo'sh qoldiq — ERP qoidasi bilan AYNAN (`_tm_qoshni_boshlar` hovuzi): Σ max(0, qoldiq − band) − Σ qarz
+    (minus partiyalar), manfiy emas; jarayondagi partiya qoldiqqa kirmaydi (`_fp_tayyormi`)."""
+    from models import tm_kam_kaliti as _tkk238
+    xom = {}
+    for x in partiyalar:
+        g = xom.setdefault(_tkk238(x), {}).setdefault(tm_guruh_kaliti(x), {
+            "manba": str(getattr(x.source, "value", x.source) or ""), "partiyalar": [], "hammasi": []})
+        g["hammasi"].append(x)
+        if _fp_tayyormi(x):
+            g["partiyalar"].append(x)
+    natija = {}
+    for k, gl in xom.items():
+        for g in gl.values():
+            g["bosh"] = max(0.0, sum(_fp_bosh_qoldiq(x) for x in g["partiyalar"]) - sum(_tm_qarz(x) for x in g["partiyalar"]))
+        natija[k] = list(gl.values())
+    return natija
+
+
+def sayt_faol_bandlar(db: Session, company_id: int, hozir_utc=None) -> dict:
+    """{tm_kaliti: {"miqdor", "raqamlar", "tugash"}} — faol sayt bandlari: «yangi» holatdagi, band muddati (`sb_band_tugash`, UTC) hali
+    o'tmagan sayt buyurtmalarining ombordan qatorlari. Tasdiqlansa / bekor qilinsa / 48 soat o'tsa — o'zi tugaydi."""
+    from models import DokonBuyurtma, DokonBuyurtmaQator
+    hozir = hozir_utc or _dt233.utcnow()
+    rows = (db.query(DokonBuyurtmaQator.sbq_tm_kaliti, DokonBuyurtmaQator.miqdor, DokonBuyurtma.sb_raqam, DokonBuyurtma.sb_band_tugash)
+            .join(DokonBuyurtma, DokonBuyurtma.id == DokonBuyurtmaQator.buyurtma_id)
+            .filter(DokonBuyurtmaQator.company_id == company_id, DokonBuyurtma.company_id == company_id,
+                    DokonBuyurtma.sb_holat == "yangi", DokonBuyurtma.sb_band_tugash.isnot(None), DokonBuyurtma.sb_band_tugash > hozir,
+                    DokonBuyurtmaQator.sbq_tm_kaliti.isnot(None))
+            .order_by(DokonBuyurtma.id, DokonBuyurtmaQator.id).all())
+    natija = {}
+    for k, miqdor, raqam, tugash in rows:
+        x = natija.setdefault(k, {"miqdor": 0.0, "raqamlar": [], "tugash": tugash})
+        x["miqdor"] += float(miqdor or 0)
+        if raqam not in x["raqamlar"]:
+            x["raqamlar"].append(raqam)
+        if tugash is not None and (x["tugash"] is None or tugash < x["tugash"]):
+            x["tugash"] = tugash
+    return natija
+
+
+def _dokon_tm_pastga(x) -> float:
+    """Saytga ko'rsatiladigan qoldiq — 2 xonagacha PASTGA (7,999 m — 7,99; ko'p ko'rsatilsa buyurtma 409 bilan qaytardi)."""
+    return float((Decimal(repr(float(x))) + Decimal("0.000001")).quantize(Decimal("0.01"), rounding=_RD238))
+
+
+def dokon_tm_qoldiqlari(db: Session, company_id: int, hozir_utc=None) -> dict:
+    """{tm_kaliti: saytda sotsa bo'ladigan qoldiq} = ERP bo'sh qoldig'i (mahsulotning hamma guruhi: ishlab chiqarilgan + qaytgan) − faol sayt
+    bandlari; manfiy emas."""
+    # review238 M1 (PG da O'LCHANGAN): AVVAL bandlar, KEYIN partiyalar — orada sayt buyurtmasi tasdiqlanib commit qilsa (band tugadi,
+    # partiyadan yechildi) miqdor ikki marta AYIRILADI (kam ko'rsatiladi — xavfsiz tomon); teskari tartibda ikkala o'qishda ham yo'q bo'lib,
+    # oxirgi metr ikkinchi mijozga band qilinardi
+    band = sayt_faol_bandlar(db, company_id, hozir_utc)
+    guruhlar = _dokon_tm_guruhlar(_dokon_tm_partiyalar(db, company_id, qoldiqli=True))
+    natija = {k: max(0.0, sum(g["bosh"] for g in gl) - band.get(k, {}).get("miqdor", 0.0)) for k, gl in guruhlar.items()}
+    for k in band:
+        natija.setdefault(k, 0.0)
+    return natija
+
+
+def dokon_tm_mahsulotlar(db: Session, company_id: int, hozir_utc=None) -> list:
+    """«Omborga bog'lash» ro'yxati (Sayt katalogi, faqat Admin): mos partiyalar mahsulot (kalit) bo'yicha — nom (eng yangi partiyaniki),
+    turkum, birlik (katalog birligi), o'lcham, ERP bo'sh qoldig'i, faol sayt bandi, saytdagi qoldiq, partiyalar soni (jarayondagisi ham),
+    qaysi detalga bog'langan. Nom bo'yicha tartib."""
+    from models import DokonDetal
+    partiyalar = _dokon_tm_partiyalar(db, company_id)
+    guruhlar = _dokon_tm_guruhlar(partiyalar)
+    band = sayt_faol_bandlar(db, company_id, hozir_utc)
+    bogl = {}
+    for did, k in (db.query(DokonDetal.id, DokonDetal.tm_bogl_kaliti)
+                   .filter(DokonDetal.company_id == company_id, DokonDetal.tm_bogl_kaliti.isnot(None)).order_by(DokonDetal.id).all()):
+        bogl.setdefault(k, did)
+    natija = []
+    for k, gl in guruhlar.items():
+        hammasi = [x for g in gl for x in g["hammasi"]]
+        oxirgi = max(hammasi, key=lambda x: x.id)
+        erp = sum(g["bosh"] for g in gl)
+        b = band.get(k, {}).get("miqdor", 0.0)
+        natija.append({"kalit": k, "nom": oxirgi.name, "turkum": oxirgi.category, "birlik": DOKON_TM_TURKUMLAR[oxirgi.category],
+                       "eni": oxirgi.width, "qalinligi": oxirgi.thickness, "erp_qoldiq": _dokon_tm_pastga(erp),
+                       "sayt_band": _dokon_tm_pastga(b), "qoldiq": _dokon_tm_pastga(max(0.0, erp - b)),
+                       "partiyalar": len(hammasi), "detal_id": bogl.get(k)})
+    natija.sort(key=lambda x: (x["nom"].casefold(), x["kalit"]))
+    return natija
+
+
+def dokon_detal_tm_bogla(db: Session, detal_id: int, company_id: int, data: dict, kim: str):
+    """Katalog detalini ERP «Tayyor mahsulotlar» mahsulotiga bog'lash / uzish: {"tm_kaliti": "<kalit>" | null}. Kalit — `dokon_tm_mahsulotlar`
+    ro'yxatidan (qoplamali, brak emas, turkumi va birligi detal birligiga mos); bitta mahsulot — bitta detalga (korxona qulfi
+    `_pul_qulfi(238)` ostida). Qulf tartibi: korxona (238) → model → qator. Qaytaradi: detal | None (topilmadi). Faol sayt bandlari —
+    buyurtma qatorida kalit NUSXA, bog'lam o'zgarsa ham o'z mahsulotida qoladi."""
+    dokon_tekshir(db, company_id)
+    _dokon_kalitlar(data, ("tm_kaliti",))
+    k = data.get("tm_kaliti")
+    if k is not None:
+        if not isinstance(k, str) or not k or len(k) > DOKON_TM_KALIT_MAX:
+            raise ValueError("Mahsulot noto'g'ri tanlangan — ro'yxatni yangilang")
+        _dokon_surrogatsiz(k, "Mahsulot")
+    _pul_qulfi(db, SAYT_TM_QULF_NS, company_id)
+    _d238 = _dokon_detal_of(db, detal_id, company_id)
+    if _d238 is None:
+        db.rollback()
+        return None
+    m = _dokon_model_of(db, _d238.model_id, company_id, lock=True)
+    d = _dokon_detal_of(db, detal_id, company_id, lock=True)
+    if d is None:
+        db.rollback()
+        return None
+    nom = None
+    if k is not None:
+        mos = {x["kalit"]: x for x in dokon_tm_mahsulotlar(db, company_id)}
+        x = mos.get(k)
+        if x is None:
+            db.rollback()
+            raise ValueError("Bu mahsulot ERP «Tayyor mahsulotlar»da topilmadi (qoplamali, brak emas, metr yoki dona) — ro'yxatni yangilang")
+        if x["birlik"] != d.birlik:
+            db.rollback()
+            raise ValueError(f"Birlik mos emas: detal — {_DOKON_BIRLIK_NOMI238.get(d.birlik, d.birlik)}, ERP mahsuloti — "
+                             f"{_DOKON_BIRLIK_NOMI238.get(x['birlik'], x['birlik'])}")
+        if x["detal_id"] is not None and x["detal_id"] != d.id:
+            boshqa = _dokon_detal_of(db, x["detal_id"], company_id)
+            bm = _dokon_model_of(db, boshqa.model_id, company_id) if boshqa is not None else None
+            db.rollback()
+            raise ValueError("Bu ERP mahsuloti boshqa detalga bog'langan"
+                             + (f" ({bm.kod if bm else ''} — {DOKON_TURI_NOMI.get(boshqa.turi, boshqa.turi)}, {boshqa.olcham})"
+                                if boshqa is not None else "") + " — avval o'shanisini uzing")
+        nom = x["nom"]
+    if d.tm_bogl_kaliti == k:
+        db.rollback()
+        return d
+    eski = d.tm_bogl_kaliti
+    d.tm_bogl_kaliti = k
+    d.updated_by = kim
+    d.updated_at = datetime.utcnow()
+    _yorliq = f"Sayt narxi {m.kod if m else d.model_id}"
+    log_activity(db, "updated", "dokon_detal", d.id, _yorliq, kim,
+                 old_value=f"{DOKON_TURI_NOMI.get(d.turi, d.turi)} {d.olcham}: omborga " + ("bog'langan" if eski else "bog'lanmagan"),
+                 new_value=(f"omborga bog'landi: {nom}" if k is not None else "ombor bog'lami uzildi"),
+                 company_id=company_id, commit=False)
+    db.commit()
+    db.refresh(d)
+    return d
+
+
+_DOKON_BIRLIK_NOMI238 = {"metr": "metr", "dona": "dona", "m2": "m²"}
+
+
+def dokon_tm_amaldagi(d):
+    """Detalning AMALDAGI ombor kaliti: bog'langan va kalit turkumi detal birligiga hali mos bo'lsa — kalit, aks holda None (review238 M2:
+    model qolipi keyin «dona» / «m²» ga o'zgarsa, metrli mahsulot donada / m² da sotilib, partiyadan metr bo'lib yechilardi)."""
+    k = getattr(d, "tm_bogl_kaliti", None)
+    if not k:
+        return None
+    return k if DOKON_TM_TURKUMLAR.get(k.split("|", 1)[0]) == getattr(d, "birlik", None) else None
+
+
+def _dokon_tm_detallari(db: Session, company_id: int):
+    """Saytda ko'rinadigan (bo'lim va model yoqilgan, qator yoqilgan), omborga bog'langan detallar: (modellar {id: m}, [detal])."""
+    from models import DokonDetal
+    modellar = _sayt_koradigan(db, company_id)
+    if not modellar:
+        return modellar, []
+    rows = (db.query(DokonDetal).filter(DokonDetal.company_id == company_id, DokonDetal.model_id.in_(list(modellar)),
+                                        DokonDetal.yoqilgan == True, DokonDetal.tm_bogl_kaliti.isnot(None))     # noqa: E712
+            .order_by(DokonDetal.model_id, DokonDetal.tartib, DokonDetal.id).all())
+    return modellar, [d for d in rows if dokon_tm_amaldagi(d)]
+
+
+def dokon_api_tayyor(db: Session, company_id: int, hozir_utc=None) -> dict:
+    """Do'kon sayti «Tayyor mahsulotlar» bo'limi (kalit bilan): saytda ko'rinadigan, omborga bog'langan, QOPLAMALI narxi bor detallar va
+    ularning saytdagi qoldig'i (ERP bo'sh qoldig'i − faol sayt bandlari, 2 xonagacha pastga); komplekt modellar uchun — shu qoldiqdan
+    nechta komplekt yig'iladi (retsept bo'yicha; kapitel va baza bilan / ularsiz). Narx — katalog API dagi qoplamali narx (BITTA qoida,
+    bu yerda takrorlanmaydi). ERP nomi, partiyalar, ulgurji, tannarx — YO'Q."""
+    dokon_tekshir(db, company_id)
+    koeff = dokon_koeff(db, company_id)
+    modellar, detallar = _dokon_tm_detallari(db, company_id)
+    qoldiq = dokon_tm_qoldiqlari(db, company_id, hozir_utc)
+    sotuvda = [d for d in detallar if _sayt_detal_narxi(d, koeff, True, None, None)[0] is not None]
+    out_d = [{"detal_id": d.id, "model_id": d.model_id, "birlik": d.birlik, "qoldiq": _dokon_tm_pastga(qoldiq.get(d.tm_bogl_kaliti, 0.0))}
+             for d in sotuvda]
+    retsept = dokon_retsept(db, company_id)
+    by_model = {}
+    for d in sotuvda:
+        by_model.setdefault(d.model_id, []).append(d)
+    out_k = []
+    for mid, dl in by_model.items():
+        m = modellar[mid]
+        if m.qolip != "komplekt":
+            continue
+        olchamlar = []
+        for d in dl:
+            ok = dokon_olcham_kalit(d.olcham)
+            if ok not in [x[0] for x in olchamlar]:
+                olchamlar.append((ok, d.olcham))
+        for ok, olcham in olchamlar:
+            guruh = {}
+            for d in dl:
+                if dokon_olcham_kalit(d.olcham) == ok and d.turi not in guruh:
+                    guruh[d.turi] = d
+            for kom in DOKON_RETSEPT_TURLARI:
+                for kb in ((True, False) if m.kapitel_baza_bor else (True,)):
+                    turlar = [t for t in DOKON_RETSEPT_TURLARI[kom]
+                              if retsept[kom][t] and (t not in ("kapitel", "baza") or (m.kapitel_baza_bor and kb))]
+                    if not turlar or any(t not in guruh for t in turlar):
+                        continue
+                    kerak = {}
+                    for t in turlar:
+                        kerak[guruh[t].tm_bogl_kaliti] = kerak.get(guruh[t].tm_bogl_kaliti, Decimal("0")) + Decimal(retsept[kom][t])
+                    soni = min(int((Decimal(repr(qoldiq.get(k, 0.0))) + Decimal("0.000001")) // v) for k, v in kerak.items())
+                    out_k.append({"model_id": mid, "komplekt": kom, "olcham": olcham, "kapitel_baza": bool(kb and m.kapitel_baza_bor),
+                                  "soni": max(0, soni)})
+    return {"versiya": DOKON_API_VERSIYA, "band_soat": SAYT_BAND_SOAT, "detallar": out_d, "komplektlar": out_k}
+
+
+def _sayt_band_matni(b) -> str:
+    """«Ombordagi mahsulot band qilindi: 05.11.2026 12:00 gacha (Toshkent) …» — band yo'q — None."""
+    if not sayt_band_faolmi(b):                 # review238 L1: takror javobda — bekor / muddati o'tgan bo'lsa «band qilindi» demaydi
+        return None
+    t = b.sb_band_tugash + _td234(hours=5)
+    return (f"Ombordagi mahsulot {SAYT_BAND_SOAT} soat band qilindi — {t.strftime('%d.%m.%Y %H:%M')} gacha (Toshkent vaqti) qo'ng'iroq "
+            f"qilib tasdiqlating, aks holda band o'zi bekor bo'ladi")
+
+
+def sayt_band_faolmi(b, hozir_utc=None) -> bool:
+    return (b is not None and b.sb_holat == "yangi" and getattr(b, "sb_band_tugash", None) is not None
+            and b.sb_band_tugash > (hozir_utc or _dt233.utcnow()))
+
+
+def sayt_tm_taqsimla(db: Session, company_id: int, qatorlar) -> dict:
+    """Tasdiqlashda ombordan qatorlar → ERP partiyalari: {qator.id: [(partiya, miqdor (Decimal), summa (Decimal))]}. Mahsulotning har ERP
+    guruhidan (ishlab chiqarilgan / qaytgan) — eng ko'p bo'sh qoldiqlisidan boshlab, haqiqiy bo'sh qoldig'icha (3 xona) olinadi; guruh vakili — shu
+    guruhning eng ko'p bo'sh qoldiqli tayyor partiyasi (qolganini ERP muvozanati guruhdoshlaridan oladi — `_take_finished_for_order`).
+    Yetmasa — qolgani eng katta guruhga (ERP «davom etasizmi?» deb so'raydi — 409). Summa — qator summasi qismlarga (oxirgisi — qoldiq,
+    jami AYNAN). ERP da mahsulot umuman yo'q (nomi o'zgargan / o'chirilgan) — ValueError."""
+    guruhlar = _dokon_tm_guruhlar(_dokon_tm_partiyalar(db, company_id))
+    _MING = Decimal("0.001")
+    ishlatildi = {}
+    natija = {}
+    for q in qatorlar:
+        k = getattr(q, "sbq_tm_kaliti", None)
+        if not k:
+            continue
+        gl = [g for g in guruhlar.get(k, []) if g["partiyalar"]]
+        if not gl:
+            raise ValueError(f"«{q.sbq_nom}» — ERP «Tayyor mahsulotlar»da bu mahsulot topilmadi (nomi o'zgargan yoki o'chirilgan) — sayt "
+                             f"katalogida qayta bog'lang yoki sayt buyurtmasini bekor qiling")
+
+        def _bosh(g):
+            return max(0.0, g["bosh"] - ishlatildi.get(id(g), 0.0))
+        gl.sort(key=lambda g: (-_bosh(g), 0 if g["manba"] == "produced" else 1, g["partiyalar"][0].id))
+        kerak = Decimal(repr(float(q.miqdor)))
+        qism = []
+        for g in gl:
+            if kerak <= 0:
+                break
+            # review238 H1 (O'LCHANGAN): HAQIQIY bo'sh qoldiq (3 xonagacha pastga) — butun birlikka tushirilsa 2,5 + 2,5 m da 5 m «yetmaydi»
+            # (409) va tasdiqda ishlab chiqarilgan guruh −0,5 ga tushib qolardi (guruhlar orasida muvozanat YO'Q)
+            ol = min(kerak, Decimal(repr(_bosh(g))).quantize(_MING, rounding=_RD238))
+            if ol > 0:
+                qism.append([g, ol])
+                ishlatildi[id(g)] = ishlatildi.get(id(g), 0.0) + float(ol)
+                kerak -= ol
+        if kerak > 0:
+            if qism and qism[0][0] is gl[0]:
+                qism[0][1] += kerak
+            else:
+                qism.insert(0, [gl[0], kerak])
+            ishlatildi[id(gl[0])] = ishlatildi.get(id(gl[0]), 0.0) + float(kerak)
+        narx = Decimal(str(q.narx))
+        summa = Decimal(str(q.summa))
+        bolak = []
+        for i, (g, ol) in enumerate(qism):
+            vakil = max(g["partiyalar"], key=lambda x: (_fp_bosh_qoldiq(x), -x.id))
+            s = (summa - sum((b[2] for b in bolak), Decimal("0"))) if i == len(qism) - 1 else \
+                (narx * ol).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            bolak.append((vakil, ol, s))
+        natija[q.id] = bolak
+    return natija
+
+
+def sayt_band_tmlar(db: Session, company_id: int, hozir_utc=None) -> dict:
+    """ERP «Tayyor mahsulotlar» sahifasi uchun: faol sayt bandlari — {"bandlar": [{"fp_idlar", "miqdor", "raqamlar", "tugash"}]} (mahsulot
+    kaliti bo'yicha; `fp_idlar` — shu mahsulotning saytga mos HAMMA partiyalari). Do'kon o'chiq — bo'sh ro'yxat."""
+    from models import tm_kam_kaliti as _tkk238b
+    if not dokon_yoqilganmi(db, company_id):
+        return {"bandlar": []}
+    band = sayt_faol_bandlar(db, company_id, hozir_utc)
+    if not band:
+        return {"bandlar": []}
+    idlar = {}
+    for x in _dokon_tm_partiyalar(db, company_id):
+        idlar.setdefault(_tkk238b(x), []).append(x.id)
+    return {"bandlar": [{"fp_idlar": idlar.get(k, []), "miqdor": round(v["miqdor"], 3), "raqamlar": v["raqamlar"][:10],
+                         "tugash": v["tugash"].isoformat() if v["tugash"] else None}
+                        for k, v in band.items() if idlar.get(k)]}
+
+
+def sayt_band_tegadi(db: Session, company_id: int, b, qatorlar, hozir_utc=None) -> list:
+    """review238 M3: tasdiqlanayotgan sayt buyurtmasining bandi FAOL EMAS (muddati o'tgan) — ombordan qatorlari uchun saytdagi qoldiq
+    (ERP bo'sh − BOSHQA faol sayt bandlari) yetmasa, xodimga ogohlantirish matnlari (bo'sh ro'yxat — muammo yo'q). Bandi faol buyurtma —
+    o'z bandi bor, tekshirilmaydi (ERP o'zi yetmasa 409 so'raydi)."""
+    if sayt_band_faolmi(b, hozir_utc):
+        return []
+    kerak, nom = {}, {}
+    for q in qatorlar:
+        if getattr(q, "sbq_tm_kaliti", None):
+            kerak[q.sbq_tm_kaliti] = kerak.get(q.sbq_tm_kaliti, 0.0) + float(q.miqdor)
+            nom.setdefault(q.sbq_tm_kaliti, (q.sbq_nom, q.sbq_birlik))
+    if not kerak:
+        return []
+    bor = dokon_tm_qoldiqlari(db, company_id, hozir_utc)
+    natija = []
+    for k, v in kerak.items():
+        if v > bor.get(k, 0.0) + 1e-6:
+            n, br = nom[k]
+            natija.append(f"🏭 {n}: band muddati o'tgan — omborning bo'sh qismi (boshqa sayt buyurtmalariga band qilinganidan tashqari) "
+                          f"{xabar_son(_dokon_tm_pastga(bor.get(k, 0.0)), 2)} {_DOKON_BIRLIK_NOMI238.get(br, br)}, kerak {xabar_son(v, 2)} — "
+                          f"tasdiqlasangiz, boshqa mijozga band qilingan mahsulot olinadi")
+    return natija

@@ -418,6 +418,10 @@ YANGI_MARSHRUTLAR = {
     "POST /api/dokon/v1/buyurtmalar": "-",
     "GET /api/sayt-buyurtmalari": "AM", "GET /api/sayt-buyurtmalari/{sb_id}": "AM",
     "POST /api/sayt-buyurtmalari/{sb_id}/bekor": "AM", "POST /api/sayt-buyurtmalari/{sb_id}/tasdiqla": "AM",
+    # kech172 (zip 238): «Tayyor mahsulotlar» saytda — do'kon qoldig'i (kalit bilan), omborga bog'lash (FAQAT Admin), sahifa bandlari
+    # («Tayyor mahsulotlar: Ko'rish» — GET /api/finished bilan bir xil)
+    "GET /api/dokon/v1/tayyor": "-", "GET /api/sayt-katalogi/tm-mahsulotlar": "A", "PUT /api/sayt-katalogi/detallar/{detal_id}/tm": "A",
+    "GET /api/sayt-bandlar": "AWM",
     "GET /rollar": "A", "GET /api/rollar": "A", "POST /api/rollar": "A", "PUT /api/rollar/{rol_id}": "A",
     "DELETE /api/rollar/{rol_id}": "A", "POST /api/rollar/{rol_id}/andoza": "A", "PUT /api/users/{user_id}/rol": "A",
     # kech118 (D-1, G5-11): TM «Kam» chegarasi — «Tayyor mahsulotlar: Tahrirlash» (PUT /api/finished/{fp_id} bilan bir xil)

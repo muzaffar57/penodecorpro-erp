@@ -4220,7 +4220,8 @@ function _sbMiqdor(x) {
 }
 
 function _sbGuruhHtml(g) {
-  const det = (g.detallar || []).map(x => `<li>${escapeHtml(x.nom)} · ${escapeHtml(x.olcham || '')} — ${escapeHtml(_sbMiqdor(x))} × `
+  const det = (g.detallar || []).map(x => `<li>${escapeHtml(x.nom)}${x.ombordan ? ' <b style="color:var(--m-15803d)">🏭 ombordan</b>' : ''}`
+    + ` · ${escapeHtml(x.olcham || '')} — ${escapeHtml(_sbMiqdor(x))} × `
     + `${pulKor(x.narx)}${x.chegirma_foiz ? ` <span style="color:var(--m-15803d)">(−${escapeHtml(String(x.chegirma_foiz))} %)</span>` : ''}`
     + ` = <b>${pulKor(x.summa)}</b></li>`).join('');
   return `<div class="tk-meta" style="color:var(--text)"><b>${escapeHtml(g.guruh_nomi)}</b> — ${pulKor(g.summa)} so'm`
@@ -4259,6 +4260,10 @@ function saytChiz(d) {
       } else if (b.holat === 'bekor') {
         holat += ` · bekor qilindi: ${escapeHtml(tkSanaVaqt(b.bekor_vaqti))}${b.bekor_qilgan ? ' · ' + escapeHtml(b.bekor_qilgan) : ''}`
           + (b.bekor_sababi ? ` — ${escapeHtml(b.bekor_sababi)}` : '');
+      }
+      // kech172 (zip 238): ombordan qator bo'lsa — 48 soatlik band (faol / muddati o'tgan)
+      if (b.holat === 'yangi' && b.band_tugash) {
+        holat += b.band_faol ? ` · 🔒 ombor bandi: ${escapeHtml(tkSanaVaqt(b.band_tugash))} gacha` : ` · 🔓 ombor bandi muddati o'tgan`;
       }
       const tej = Number(b.chegirmasiz) - Number(b.jami);
       const chegirma = tej > 0.005 ? `<div class="tk-meta">chegirmasiz ${pulKor(b.chegirmasiz)}</div>` : '';

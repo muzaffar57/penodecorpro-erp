@@ -305,8 +305,9 @@ section("S. Statik")
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 _yollar = {(m, r.path): r for r in main.app.routes for m in (getattr(r, "methods", None) or ())}
 _dy = sorted((m, p) for (m, p) in _yollar if p.startswith("/api/dokon/"))
-check("S1 do'kon yo'llari: 2 GET (katalog, sozlamalar) + BITTA POST (buyurtmalar); o'chiruvchi / tahrirlovchi yo'l YO'Q",
-      _dy == [("GET", "/api/dokon/v1/katalog"), ("GET", "/api/dokon/v1/sozlamalar"), ("POST", BY)], _dy)
+# kech172 (zip 238, MOSLANDI): + «tayyor» GET (tools/test_dokon_tayyor238.py S1)
+check("S1 do'kon yo'llari: 3 GET (katalog, sozlamalar, tayyor) + BITTA POST (buyurtmalar); o'chiruvchi / tahrirlovchi yo'l YO'Q",
+      _dy == [("GET", "/api/dokon/v1/katalog"), ("GET", "/api/dokon/v1/sozlamalar"), ("GET", "/api/dokon/v1/tayyor"), ("POST", BY)], _dy)
 
 
 def _ruxsat(m, p):

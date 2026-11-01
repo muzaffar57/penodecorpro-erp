@@ -11842,6 +11842,31 @@ def api_dokon_detal_ochir(detal_id: int = _Path213(..., ge=1, le=2_147_483_647),
     return {"status": "ok"}
 
 
+# kech172 (zip 238): katalog detali ↔ ERP «Tayyor mahsulotlar» mahsuloti (FAQAT Admin; belgi o'chiq — 404)
+@app.get("/api/sayt-katalogi/tm-mahsulotlar")
+def api_dokon_tm_mahsulotlar(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """«Omborga bog'lash» ro'yxati: qoplamali, brak bo'lmagan, metr / dona ERP mahsulotlari — nom, o'lcham, ERP qoldig'i, sayt bandi."""
+    cid = auth.company_id_of(current_user)
+    return _dokon_bajar(db, lambda: (crud.dokon_tekshir(db, cid), {"mahsulotlar": crud.dokon_tm_mahsulotlar(db, cid)})[1])
+
+
+@app.put("/api/sayt-katalogi/detallar/{detal_id}/tm")
+def api_dokon_detal_tm(data: dict = Body(...), detal_id: int = _Path213(..., ge=1, le=2_147_483_647), db: Session = Depends(get_db),
+                       current_user=Depends(auth.admin_only)):
+    """Detalni ERP mahsulotiga bog'lash ({"tm_kaliti": "…"}) yoki uzish ({"tm_kaliti": null})."""
+    cid = auth.company_id_of(current_user)
+    d = _dokon_bajar(db, lambda: crud.dokon_detal_tm_bogla(db, detal_id, cid, data, _dokon_kim(current_user)))
+    if d is None:
+        raise HTTPException(status_code=404, detail="Narx qatori topilmadi")
+    return {"detal": crud.dokon_detal_javobi(db, cid, d), "mahsulotlar": crud.dokon_tm_mahsulotlar(db, cid)}
+
+
+@app.get("/api/sayt-bandlar")
+def api_sayt_bandlar(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("tayyor", "korish"))):
+    """«Tayyor mahsulotlar» sahifasi: saytdan kelgan buyurtmalarning faol (48 soatlik) bandlari — partiyalar, miqdor, sayt raqamlari."""
+    return _dokon_bajar(db, lambda: crud.sayt_band_tmlar(db, auth.company_id_of(current_user)))
+
+
 @app.put("/api/sayt-katalogi/koeff")
 def api_dokon_koeff(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     """Qoplama koeffitsienti: {"koeff": 1 … 10}. Faqat qoplamali narxi bo'sh qatorlarga ta'sir qiladi."""
@@ -12166,6 +12191,14 @@ def api_dokon_v1_sozlamalar(request: Request, db: Session = Depends(get_db)):
     return _dokon_api_javob(request, _dokon_bajar(db, lambda: crud.dokon_api_sozlamalar(db, cid)))
 
 
+@app.get("/api/dokon/v1/tayyor")
+def api_dokon_v1_tayyor(request: Request, db: Session = Depends(get_db)):
+    """kech172 (zip 238): do'kon «Tayyor mahsulotlar» bo'limi (kalit bilan) — omborga bog'langan detallarning saytdagi qoldig'i (ERP bo'sh
+    qoldig'i − faol sayt bandlari) va komplekt modellar uchun nechta komplekt yig'iladi. Narx — katalogdagi qoplamali narx."""
+    cid = _dokon_api_korxona(request, db)
+    return _dokon_api_javob(request, _dokon_bajar(db, lambda: crud.dokon_api_tayyor(db, cid)))
+
+
 # ══ kech171 (zip 237) — SAYTDAN KELGAN BUYURTMALAR ═══════════════════════════════════════════════════════════════════════════════════
 # Do'kon sayti (o'sha kalit bilan) buyurtma yuboradi; ERP da «🛒 Saytdan» ro'yxati (Buyurtmalar sahifasi): tasdiqlash — yangi loyiha +
 # oddiy ERP buyurtmasi (`api_create_order` ning O'ZI, bitta tranzaksiyada), bekor qilish. Mantiq — `crud.sayt_*`.
@@ -12175,6 +12208,8 @@ def _sayt_xato(e):
         h = e.natija
         return HTTPException(status_code=409, detail={"xato": str(e), "narx_ozgardi": True, "jami": float(h["jami"]),
                                                       "guruhlar": crud._sayt_guruhlar(h["qatorlar"])})
+    if isinstance(e, crud.SaytOmborYetmaydi):           # kech172 (zip 238): omborda yetmaydi — do'kon savatni yangilaydi
+        return HTTPException(status_code=409, detail={"xato": str(e), "ombor_yetmaydi": True, "yetmaydi": e.yetmaydi})
     if isinstance(e, (crud.SaytHolatXatosi, crud.SaytKalitBand)):
         return HTTPException(status_code=409, detail=str(e))
     if isinstance(e, crud.SaytCheklov):
@@ -12297,9 +12332,17 @@ def api_sayt_tasdiqla(data: dict = Body(...), sb_id: int = _Path213(..., ge=1, l
         raise HTTPException(status_code=403, detail="Tasdiqlash yangi loyiha ochadi — «Loyihalar: Yaratish» ruxsati kerak "
                                                     "(administratorga murojaat qiling)")
     try:
-        t = crud.sayt_tasdiq_tekshir(db, cid, data, qoplamali_bor=any(q.qoplamali for q in crud._sayt_qatorlari(db, cid, b0.id)))
+        # kech172 (zip 238): ombordan qator — tayyor (qoplangan) mahsulot, qoplama retsepti uning uchun shart emas
+        t = crud.sayt_tasdiq_tekshir(db, cid, data, qoplamali_bor=any(q.qoplamali and not q.sbq_tm_kaliti
+                                                                      for q in crud._sayt_qatorlari(db, cid, b0.id)))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    # review238 M3: bandi muddati o'tgan buyurtma boshqa mijozga band qilingan mahsulotni olsa — avval so'raladi (`confirm_shortage`)
+    _teg238 = crud.sayt_band_tegadi(db, cid, b0, crud._sayt_qatorlari(db, cid, b0.id))
+    if _teg238 and not confirm_shortage:
+        raise HTTPException(status_code=409, detail={"type": "stock_shortage_warning", "shortages": _teg238,
+                                                     "message": "Band muddati o'tgan — ombordagi mahsulot boshqa sayt buyurtmalariga band "
+                                                                "qilingan. Shunday ham davom etasizmi?"})
     try:
         _loyiha_tana = schemas.ProjectCreate(**crud._clean_create("Project", crud.sayt_loyiha_tanasi(b0, t["loyiha_nomi"])))
     except ValueError as e:
@@ -12311,9 +12354,10 @@ def api_sayt_tasdiqla(data: dict = Body(...), sb_id: int = _Path213(..., ge=1, l
                 raise _sayt_xato(crud.SaytHolatXatosi(
                     "Sayt buyurtmasi hozirgina boshqa foydalanuvchi tomonidan tasdiqlandi yoki bekor qilindi — ro'yxatni yangilang"))
             qatorlar = crud._sayt_qatorlari(db, cid, b.id)
+            _tm238 = crud.sayt_tm_taqsimla(db, cid, qatorlar)        # kech172 (zip 238): ombordan qatorlar → partiyalar
             _loyiha = crud.create_project(db, _loyiha_tana, company_id=cid)
             try:
-                order = schemas.OrderCreate(**crud.sayt_buyurtma_tanasi(b, qatorlar, _loyiha.id, t["sana"], t["recipe_id"]))
+                order = schemas.OrderCreate(**crud.sayt_buyurtma_tanasi(b, qatorlar, _loyiha.id, t["sana"], t["recipe_id"], tm=_tm238))
             except _PVE237 as e:                      # review237 L1: pydantic matni emas — qaysi qator va nima
                 _x = (e.errors() or [{}])[0]
                 raise HTTPException(status_code=400, detail="Buyurtma qatori qabul qilinmadi ("

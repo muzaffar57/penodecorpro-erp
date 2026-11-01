@@ -68,6 +68,17 @@
 .sk-jadval .sk-birlik{font-size:12px;color:var(--text2);white-space:nowrap}
 .sk-jadval tr.yashirin td{color:var(--text2)}
 .sk-x{background:none;border:1px solid var(--border2);border-radius:var(--r-btn);min-height:32px;min-width:32px;cursor:pointer;color:var(--m-dc2626);font-size:14px}
+/* kech172 (zip 238): detal ↔ ERP «Tayyor mahsulotlar» mahsuloti */
+.sk-tm{margin-top:4px;font-size:12px;color:var(--text2);display:flex;align-items:center;gap:6px;flex-wrap:wrap;white-space:normal}
+.sk-tm b{color:var(--text);font-weight:600}
+.sk-tm button{min-height:32px;padding:0 10px;border:1px solid var(--border2);border-radius:var(--r-btn);background:var(--white);cursor:pointer;font-size:12px;color:var(--text)}
+.sk-tm-oyna{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2000;display:none;align-items:center;justify-content:center;padding:16px}
+.sk-tm-oyna.ko{display:flex}
+.sk-tm-quti{background:var(--white);border-radius:14px;width:520px;max-width:100%;max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);display:flex;flex-direction:column;padding:16px;box-sizing:border-box}
+.sk-tm-quti input[type=search]{width:100%;min-height:var(--h-sm);box-sizing:border-box;padding:0 10px;margin-top:8px;border:1px solid var(--border);border-radius:var(--r-btn);background:var(--white);color:var(--text)}
+.sk-tm-royxat{overflow-y:auto;margin-top:10px;display:flex;flex-direction:column;gap:6px}
+.sk-tm-tanlov{display:flex;justify-content:space-between;gap:10px;align-items:center;width:100%;text-align:left;padding:10px;min-height:44px;border:1px solid var(--border2);border-radius:var(--r-btn);background:var(--white);cursor:pointer;color:var(--text);font-size:13px}
+.sk-tm-tanlov[disabled]{opacity:.55;cursor:not-allowed}
 .sk-bosh-holat{padding:28px 16px;text-align:center;color:var(--text2);font-size:14px}
 .sk-koeff{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap}
 .sk-yangi{display:none;margin-top:12px;padding:12px;border:1px dashed var(--border);border-radius:var(--r-btn)}
@@ -309,6 +320,16 @@
   <button type="button" class="ong" id="skKorOng" aria-label="Keyingi rasm">›</button>
   <div class="soni" id="skKorSoni"></div>
 </div>
+<!-- kech172 (zip 238): detalni ERP «Tayyor mahsulotlar» mahsulotiga bog'lash -->
+<div class="sk-tm-oyna" id="skTmOyna" role="dialog" aria-modal="true" aria-labelledby="skTmSarlavha">
+  <div class="sk-tm-quti">
+    <div style="display:flex;align-items:center;gap:8px"><b id="skTmSarlavha" style="flex:1;font-size:15px">Omborga bog'lash</b>
+      <button type="button" class="sk-x" id="skTmYop" data-yopish aria-label="Yopish" style="color:var(--text)">✕</button></div>
+    <div class="sk-matn" id="skTmIzoh" style="margin-top:6px"></div>
+    <input type="search" id="skTmQidir" placeholder="Qidirish: mahsulot nomi" maxlength="60" autocomplete="off" data-no-capitalize data-no-i18n>
+    <div class="sk-tm-royxat" id="skTmRoyxat"></div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -487,7 +508,8 @@ function skDetalQator(d) {
       (avto !== undefined ? '<div class="sk-avto" data-avto="' + k + '">' + skAvtoMatn(avto) + '</div>' : '');
   }
   return '<tr data-detal="' + d.id + '"' + (d.yoqilgan ? '' : ' class="yashirin"') + '>' +
-    '<td data-label="Detal"><div>' + escapeHtml(d.turi_nomi) + '<div class="sk-birlik">' + escapeHtml(skBirlikMatn(d.birlik)) + ' · ulgurji ' + escapeHtml(skUlgurjiMatn(d.birlik)) + '</div></div></td>' +
+    '<td data-label="Detal"><div>' + escapeHtml(d.turi_nomi) + '<div class="sk-birlik">' + escapeHtml(skBirlikMatn(d.birlik)) + ' · ulgurji ' + escapeHtml(skUlgurjiMatn(d.birlik)) + '</div>' +
+    '<div class="sk-tm" data-tm="' + d.id + '">' + skTmHtml(d) + '</div></div></td>' +   // zip 238
     '<td data-label="O\'lcham"><input type="text" data-df="olcham" maxlength="40" value="' + escapeHtml(d.olcham) + '"></td>' +
     '<td data-label="Eni, sm"><input type="text" inputmode="decimal" data-df="eni_sm" value="' + escapeHtml(skPul(d.eni_sm)) + '"></td>' +
     '<td data-label="Qalinligi, sm"><input type="text" inputmode="decimal" data-df="qalinligi_sm" value="' + escapeHtml(skPul(d.qalinligi_sm)) + '"></td>' +
@@ -497,6 +519,127 @@ function skDetalQator(d) {
     '<td data-label="Ulgurji (qoplamali)">' + narx('ulgurji_qoplamali', d.ulgurji_qoplamali_avto) + '</td>' +
     '<td data-label="Ko\'rinadi"><input type="checkbox" data-df="yoqilgan"' + (d.yoqilgan ? ' checked' : '') + ' aria-label="Saytda ko\'rinadi"></td>' +
     '<td><button type="button" class="sk-x" data-dochir="' + d.id + '" title="Qatorni o\'chirish" aria-label="Qatorni o\'chirish">✕</button></td></tr>';
+}
+
+// ── kech172 (zip 238): «TAYYOR MAHSULOTLAR» — katalog detali ↔ ERP «Tayyor mahsulotlar» mahsuloti (omborga bog'lash). Ro'yxat — server
+// (qoplamali, brak emas, metr / dona; saytdagi qoldiq = ERP bo'sh − sayt bandi). Bog'lash / uzishdan keyin FAQAT «🏭» qismlari qayta
+// chiziladi (narx kataklariga yozilayotgan matn yo'qolmaydi). Bitta mahsulot — bitta detalga (boshqasiga bog'langani — tanlab bo'lmaydi).
+function skBirlikQisqa(b) { return b === 'metr' ? 'm' : (b === 'm2' ? 'm²' : 'dona'); }
+function skTmTop(kalit) { return ((SK.k && SK.k.tm_mahsulotlar) || []).filter(function (x) { return x.kalit === kalit; })[0] || null; }
+function skTmHtml(d) {
+  if (!d || (d.birlik === 'm2' && !d.tm_kaliti)) return '';
+  if (d.tm_kaliti && !d.tm_mos) {
+    // review238 M2: model qolipi o'zgargan — bog'lam birligi mos emas (saytda omborda sotilmaydi); uzish tugmasi doim bor
+    return '<span>' + escapeHtml('⚠️ Ombor bog\'lami ishlamaydi — detal birligi o\'zgargan (mahsulot ' +
+      ((skTmTop(d.tm_kaliti) || {}).nom || 'ERP da topilmadi') + ')') + '</span><button type="button" data-tmuz="' + d.id + '">Uzish</button>';
+  }
+  if (d.tm_kaliti) {
+    var p = skTmTop(d.tm_kaliti);
+    var matn = p ? ('🏭 <b>' + escapeHtml(p.nom) + '</b> · saytda ' + escapeHtml(sonKor(p.qoldiq, 2) + ' ' + skBirlikQisqa(p.birlik)) +
+                    (p.sayt_band > 0 ? escapeHtml(' (band ' + sonKor(p.sayt_band, 2) + ')') : ''))
+                 : escapeHtml('🏭 ERP mahsuloti topilmadi (nomi o\'zgargan yoki o\'chirilgan) — qayta bog\'lang');
+    return '<span>' + matn + '</span><button type="button" data-tmbog="' + d.id + '">O\'zgartirish</button>' +
+      '<button type="button" data-tmuz="' + d.id + '">Uzish</button>';
+  }
+  return '<button type="button" data-tmbog="' + d.id + '">🏭 Omborga bog\'lash</button>';
+}
+function skTmYangila() {
+  document.querySelectorAll('[data-tm]').forEach(function (q) {
+    var id = parseInt(q.dataset.tm, 10);
+    var d = SK.k.detallar.filter(function (x) { return x.id === id; })[0];
+    if (d) q.innerHTML = skTmHtml(d);
+  });
+}
+function skTmTinglovchi(q) {
+  q.addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.tmbog) skTmOch(parseInt(b.dataset.tmbog, 10));
+    else if (b.dataset.tmuz) skTmUz(parseInt(b.dataset.tmuz, 10));
+  });
+}
+function skTmTanlovHtml(p, d) {
+  var band = p.detal_id !== null && p.detal_id !== undefined && p.detal_id !== d.id;
+  var tanlangan = p.kalit === d.tm_kaliti;
+  var olcham = (p.eni && p.qalinligi) ? (sonKor(p.eni, 2) + '×' + sonKor(p.qalinligi, 2) + ' sm · ') : '';
+  var izoh = olcham + p.partiyalar + ' partiya' + (band ? ' · boshqa detalga bog\'langan' : (tanlangan ? ' · hozir bog\'langan' : '')) +
+    (p.sayt_band > 0 ? ' · saytda band ' + sonKor(p.sayt_band, 2) : '');
+  return '<button type="button" class="sk-tm-tanlov" data-tmk="' + escapeHtml(p.kalit) + '"' + ((band || tanlangan) ? ' disabled' : '') + '>' +
+    '<span><b>' + escapeHtml(p.nom) + '</b><br><span class="sk-birlik">' + escapeHtml(izoh) + '</span></span>' +
+    '<span style="white-space:nowrap">' + escapeHtml(sonKor(p.qoldiq, 2) + ' ' + skBirlikQisqa(p.birlik)) + '</span></button>';
+}
+function skTmRoyxatHtml() {
+  var d = SK.k.detallar.filter(function (x) { return x.id === SK.tmDetal; })[0];
+  if (!d) return '';
+  var q = String(document.getElementById('skTmQidir').value || '').trim().toLocaleLowerCase();
+  var r = (SK.k.tm_mahsulotlar || []).filter(function (p) {
+    return p.birlik === d.birlik && (!q || String(p.nom || '').toLocaleLowerCase().indexOf(q) >= 0);
+  });
+  if (!r.length) {
+    return '<div class="sk-bosh-holat">' + escapeHtml(q ? 'Bu qidiruv bo\'yicha mahsulot yo\'q'
+      : 'ERP «Tayyor mahsulotlar»da mos mahsulot yo\'q (qoplamali, ' + (d.birlik === 'metr' ? 'metrli' : 'donali') + ')') + '</div>';
+  }
+  return r.map(p => skTmTanlovHtml(p, d)).join('');
+}
+function skTmTayyorla() {
+  if (SK.tmTayyor) return;
+  SK.tmTayyor = true;
+  document.getElementById('skTmYop').addEventListener('click', skTmYop);
+  document.getElementById('skTmQidir').addEventListener('input', function () {
+    document.getElementById('skTmRoyxat').innerHTML = skTmRoyxatHtml();
+  });
+  document.getElementById('skTmRoyxat').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-tmk]');
+    if (b && !b.disabled) skTmTanla(b.dataset.tmk);
+  });
+}
+async function skTmOch(id) {
+  var d = SK.k.detallar.filter(function (x) { return x.id === id; })[0];
+  if (!d) return;
+  skTmTayyorla();
+  SK.tmDetal = id;
+  var m = SK.k.modellar.filter(function (x) { return x.id === d.model_id; })[0];
+  document.getElementById('skTmSarlavha').textContent = 'Omborga bog\'lash — ' + (m ? m.kod + ' · ' : '') + d.turi_nomi + ', ' + d.olcham;
+  document.getElementById('skTmIzoh').textContent = '«Tayyor mahsulotlar» bo\'limida shu detalning ombor qoldig\'i ko\'rinadi: faqat qoplamali ' +
+    'partiyalar (brak va 2-nav — yo\'q). Saytdan kelgan buyurtma ombordagi mahsulotni ' + ((SK.k && SK.k.band_soat) || 48) + ' soat band qiladi.';
+  document.getElementById('skTmQidir').value = '';
+  document.getElementById('skTmRoyxat').innerHTML = skTmRoyxatHtml();
+  document.getElementById('skTmOyna').classList.add('ko');
+  setTimeout(function () { try { document.getElementById('skTmQidir').focus(); } catch (e) { /* oyna yopilgan */ } }, 30);
+  var n = await skSorov('/api/sayt-katalogi/tm-mahsulotlar', 'GET');
+  if (n.ok && n.d && SK.tmDetal === id) {
+    SK.k.tm_mahsulotlar = n.d.mahsulotlar || [];
+    document.getElementById('skTmRoyxat').innerHTML = skTmRoyxatHtml();
+    skTmYangila();
+  }
+}
+function skTmYop() {
+  SK.tmDetal = null;
+  document.getElementById('skTmOyna').classList.remove('ko');
+}
+async function skTmSaqla(id, kalit) {
+  if (!skBandla('tm' + id)) return false;
+  var n = await skSorov('/api/sayt-katalogi/detallar/' + id + '/tm', 'PUT', {tm_kaliti: kalit});
+  skBo('tm' + id);
+  if (!n.ok) { showMsg('❌ ' + (kalit === null ? 'Uzilmadi: ' : 'Bog\'lanmadi: ') + n.sabab, 'error'); return false; }
+  var j = n.d || {};
+  if (j.detal) SK.k.detallar = SK.k.detallar.map(function (x) { return x.id === j.detal.id ? j.detal : x; });
+  if (j.mahsulotlar) SK.k.tm_mahsulotlar = j.mahsulotlar;
+  skTmYangila();
+  showMsg(kalit === null ? '✓ Ombor bog\'lami uzildi' : '✓ Omborga bog\'landi', 'success');
+  return true;
+}
+async function skTmTanla(kalit) {
+  var id = SK.tmDetal;
+  if (!id) return;
+  if (await skTmSaqla(id, kalit)) skTmYop();
+}
+async function skTmUz(id) {
+  var d = SK.k.detallar.filter(function (x) { return x.id === id; })[0];
+  if (!d) return;
+  if (!(await customConfirm('Ombor bog\'lamini uzish', d.turi_nomi + ' — ' + d.olcham +
+      ': «Tayyor mahsulotlar» bo\'limida bu detal ko\'rinmay qoladi. Uzilsinmi?'))) return;
+  await skTmSaqla(id, null);
 }
 
 function skSonOl(v) {
@@ -534,6 +677,7 @@ function skModelTinglovchilar(el) {
   });
   el.querySelectorAll('[data-rasmlar]').forEach(function (b) { skRasmTinglovchilar(b); });
   el.querySelectorAll('[data-chegirma]').forEach(function (q) { shtorkaTayyor(q); skChTinglovchilar(q); });   // zip 234
+  el.querySelectorAll('[data-tm]').forEach(function (q) { skTmTinglovchi(q); });   // zip 238
 }
 
 async function skSorov(url, usul, tana) {
