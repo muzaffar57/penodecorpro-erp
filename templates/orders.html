@@ -4337,7 +4337,7 @@ function _sbOynaOch(b, tur) {
   _sbOynaXato('');
   if (tur === 'tasdiq') {
     const m = _sbEl('saytMuddat');
-    m.min = bugunToshkent();
+    m.min = tkISO();                 // kech172 (238b): Toshkent «bugun» — tk yordamchisi (ilgari o'z `new Date` / `toISOString`)
     m.value = '';
     _sbEl('saytLoyihaNomi').value = `Sayt ${b.raqam} — ${b.mijoz}`.slice(0, 200);
     const og = (b.ogohlantirishlar || []);
@@ -4356,11 +4356,6 @@ function _sbOynaOch(b, tur) {
   }
   _sbEl('saytOynaOverlay').style.display = 'flex';
   setTimeout(() => { try { (tur === 'tasdiq' ? _sbEl('saytMuddat') : _sbEl('saytSabab')).focus(); } catch (e) {} }, 30);
-}
-
-function bugunToshkent() {
-  const t = new Date(Date.now() + 5 * 3600 * 1000);
-  return t.toISOString().slice(0, 10);
 }
 
 async function saytTasdiqOch(id) {
