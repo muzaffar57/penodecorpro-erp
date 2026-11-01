@@ -184,9 +184,9 @@ for _fn in ast.walk(_tree):
                 _s4_yoq.append(f"{_fn.name}:{_c.lineno}")
         if isinstance(_c.func, ast.Attribute) and _c.func.attr == "add_task":
             _s4_yoq.append(f"{_fn.name}:{_c.lineno} add_task")
-check("S4 HAR `_fonda(background_tasks, …)` (24 ta) — `sessiya=db` bilan (fon vazifalaridan OLDIN so'rov sessiyasi yopiladi — ulanish "
+check("S4 HAR `_fonda(background_tasks, …)` (25 ta) — `sessiya=db` bilan (fon vazifalaridan OLDIN so'rov sessiyasi yopiladi — ulanish "
       "hovuzga qaytadi); `background_tasks.add_task` faqat `_fonda` ichida; `_tm_minus_xabari` matni so'rov ichida (`_fonda_tayyorla`)",
-      _s4_jami == 24 and not _s4_yoq and callable(getattr(main, "_tm_minus_xabari", None))
+      _s4_jami == 25 and not _s4_yoq   # kech171 (zip 237): + sayt buyurtmasi xabari and callable(getattr(main, "_tm_minus_xabari", None))
       and callable(getattr(main._tm_minus_xabari, "_fonda_tayyorla", None)) and callable(getattr(main, "_sessiyani_yop", None)),
       (_s4_jami, _s4_yoq[:10]))
 

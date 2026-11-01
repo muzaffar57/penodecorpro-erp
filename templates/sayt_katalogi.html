@@ -1980,7 +1980,8 @@ function skApiYollarHtml(a) {
   var yollar = (a && a.yollar) || [];
   if (!yollar.length) return '';
   return '<br>Do\'kon sayti so\'raydigan manzillar: ' + yollar.map(y => skApiYolHtml(y)).join(', ') +
-    (a.daqiqa_max ? ' · daqiqasiga ko\'pi bilan ' + escapeHtml(String(a.daqiqa_max)) + ' ta so\'rov' : '');
+    (a.daqiqa_max ? ' · daqiqasiga ko\'pi bilan ' + escapeHtml(String(a.daqiqa_max)) + ' ta so\'rov' : '') +
+    (a.buyurtma_daqiqa_max ? ' (buyurtma yuborish — ' + escapeHtml(String(a.buyurtma_daqiqa_max)) + ' ta)' : '');   // review237 L6
 }
 function skApiYolHtml(y) { return '<code data-no-i18n>' + escapeHtml(y) + '</code>'; }
 

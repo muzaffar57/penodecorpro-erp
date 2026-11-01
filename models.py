@@ -3031,6 +3031,84 @@ class DokonApiKalit(Base):
     def __repr__(self):
         return f"<DokonApiKalit {self.id} korxona={self.company_id}>"
 
+
+class DokonBuyurtma(Base):
+    """kech171 (zip 237) — saytdan kelgan buyurtma (egasi QARORLARI «Onlayn do'kon rejasi» 30.10, «Buyurtma jarayoni»: mijoz savatni yig'ib,
+    ism + telefon (+ viloyat, manzil / joylashuv) bilan buyurtma beradi → ERP da «Saytdan kelgan buyurtmalar» ro'yxati va Telegram xabari →
+    xodim mijozga qo'ng'iroq qilib TASDIQLAYDI (oddiy ERP buyurtmasiga aylanadi) yoki BEKOR qiladi; narx buyurtma paytida QOTADI). Holat:
+    «yangi» | «tasdiqlandi» | «bekor» (yozuv o'chirilmaydi). Raqam — korxona bo'yicha ketma-ket (`sb_seq`, «S-0001»). `sb_kalit` — do'kon
+    yuborgan `X-Amal-Kaliti` (takror yuborilsa ikkinchi buyurtma ochilmaydi), `sb_tana_xesh` — o'sha so'rov tanasi xeshi (bir xil kalit +
+    boshqa savat — 409). `order_id` — tasdiqlangan ERP buyurtmasi (u butunlay o'chirilsa NULL; `sb_order_raqam` qoladi). Mantiq —
+    `crud.sayt_*`. Ustun nomlari NOYOB (tools/test_html_escape.py har matn ustuni nomini «foydalanuvchi matni» deb oladi)."""
+    __tablename__ = "dokon_buyurtmalar"
+    __table_args__ = (UniqueConstraint("company_id", "sb_seq", name="uq_dokon_buyurtma_seq"),
+                      UniqueConstraint("company_id", "sb_kalit", name="uq_dokon_buyurtma_kalit"))
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    sb_seq = Column(Integer, nullable=False)
+    sb_raqam = Column(String(20), nullable=False)
+    sb_kalit = Column(String(64), nullable=False)
+    sb_tana_xesh = Column(String(64), nullable=False)
+    sb_mijoz = Column(String(100), nullable=False)
+    sb_telefon = Column(String(13), nullable=False)
+    sb_viloyat = Column(String(20), nullable=False)
+    sb_manzil = Column(Text, nullable=True)
+    sb_lokatsiya = Column(String(40), nullable=True)
+    sb_izoh = Column(Text, nullable=True)
+    sb_jami = Column(Numeric(12, 2), nullable=False)
+    sb_chegirmasiz = Column(Numeric(12, 2), nullable=False)
+    sb_holat = Column(String(20), nullable=False, default="yangi")
+    order_id = Column(Integer, ForeignKey("orders.id", ondelete="SET NULL"), nullable=True, index=True)
+    sb_order_raqam = Column(String(30), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    tasdiqlangan = Column(DateTime, nullable=True)
+    sb_tasdiqlagan = Column(String(100), nullable=True)
+    bekor_vaqti = Column(DateTime, nullable=True)
+    sb_bekor_qilgan = Column(String(100), nullable=True)
+    sb_bekor_sababi = Column(String(200), nullable=True)
+
+    def __repr__(self):
+        return f"<DokonBuyurtma {self.sb_raqam} {self.sb_holat} c={self.company_id}>"
+
+
+class DokonBuyurtmaQator(Base):
+    """kech171 (zip 237) — sayt buyurtmasi qatori: bitta katalog detali (komplekt — retsept bo'yicha detallarga AJRATILGAN; `guruh` — do'kon
+    yuborgan qator raqami, bir komplektning detallari bitta guruhda, `sbq_guruh_nomi` — «R-18 «Klassik» — rom komplekti, O'rta, qoplamali
+    × 3»). Katalog yozuvi o'chirilishi mumkin — model / detal ma'lumoti NUSXA (FK siz `model_id`, `detal_id`). Narx QOTGAN: `narx` — 1
+    birlik (chegirmali bo'lsa — chegirmali), `asl_narx` — chegirmasiz, `summa` = narx × miqdor (2 xona)."""
+    __tablename__ = "dokon_buyurtma_qatorlari"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    buyurtma_id = Column(Integer, ForeignKey("dokon_buyurtmalar.id", ondelete="CASCADE"), nullable=False, index=True)
+    tartib = Column(Integer, default=0, nullable=False)
+    guruh = Column(Integer, nullable=False)
+    sbq_guruh_nomi = Column(String(200), nullable=False)
+    sbq_tur = Column(String(20), nullable=False)
+    komplekt_soni = Column(Integer, nullable=True)
+    model_id = Column(Integer, nullable=True)
+    sbq_model_kod = Column(String(30), nullable=True)
+    sbq_model_nom = Column(String(120), nullable=True)
+    detal_id = Column(Integer, nullable=True)
+    sbq_detal_turi = Column(String(20), nullable=True)
+    sbq_olcham = Column(String(40), nullable=True)
+    eni_sm = Column(Float, nullable=True)
+    qalinligi_sm = Column(Float, nullable=True)
+    sbq_birlik = Column(String(10), nullable=False)
+    qoplamali = Column(Boolean, default=False, nullable=False)
+    miqdor = Column(Float, nullable=False)
+    narx = Column(Numeric(12, 2), nullable=False)
+    asl_narx = Column(Numeric(12, 2), nullable=False)
+    chegirma_foiz = Column(Numeric(5, 2), nullable=True)
+    summa = Column(Numeric(12, 2), nullable=False)
+    sbq_nom = Column(String(150), nullable=False)
+    # review237 M1: donali qatorning penoplast sarfi uchun narx — QOPLAMASIZ chakana narx (ERP qoidasi: qoplama hajmga ta'sir qilmaydi)
+    hajm_narxi = Column(Numeric(12, 2), nullable=True)
+
+    def __repr__(self):
+        return f"<DokonBuyurtmaQator {self.id} b={self.buyurtma_id} {self.sbq_nom}>"
+
 # ============================================================
 # Helper funksiyalar
 # ============================================================
@@ -3135,6 +3213,8 @@ _TENANT_RULES = {
     "HodimIshDavri":               [("employee_id", "Employee")],
     # kech141 (zip 169, A-P05): buyurtma tuzatishi — o'z buyurtmasining korxonasidan
     "BuyurtmaTuzatish":            [("order_id", "Order")],
+    # kech171 (zip 237): sayt buyurtmasi qatori — o'z sayt buyurtmasining korxonasidan
+    "DokonBuyurtmaQator":          [("buyurtma_id", "DokonBuyurtma")],
 }
 
 
@@ -3276,6 +3356,8 @@ _TENANT_REFS = {
     "DokonRasm":                   [("model_id", "DokonModel")],
     # kech169 (zip 234): model chegirmasi — FAQAT o'z korxonasining modeliga
     "DokonChegirma":               [("model_id", "DokonModel")],
+    # kech171 (zip 237): sayt buyurtmasi — tasdiqlangan buyurtmasi FAQAT o'z korxonasidan
+    "DokonBuyurtma":               [("order_id", "Order")],
 }
 
 

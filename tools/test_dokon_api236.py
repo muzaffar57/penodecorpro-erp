@@ -278,8 +278,9 @@ def _admin_only(m, p):
 check("S1 kalit boshqaruvi — 3 marshrut bor va FAQAT Admin (auth.admin_only): GET / POST / DELETE /api/sayt-katalogi/api-kalit",
       all(_admin_only(m, AK) for m in ("GET", "POST", "DELETE")), [(m, (m, AK) in _yollar) for m in ("GET", "POST", "DELETE")])
 _dy = sorted((m, p) for (m, p) in _yollar if p.startswith("/api/dokon/"))
-check("S2 do'kon yo'llari — FAQAT 2 ta GET (katalog, sozlamalar; yozuvchi / o'chiruvchi yo'l YO'Q)",
-      _dy == [("GET", SOZ), ("GET", KAT)] or _dy == [("GET", KAT), ("GET", SOZ)], _dy)
+# kech171 (zip 237): do'kon yo'llari — 2 GET + BITTA POST (buyurtma yuborish; tools/test_dokon_buyurtma237.py S1)
+check("S2 do'kon yo'llari — 2 ta GET (katalog, sozlamalar) + buyurtma POST (zip 237); o'chiruvchi / tahrirlovchi yo'l YO'Q",
+      sorted(_dy) == sorted([("GET", KAT), ("GET", SOZ), ("POST", "/api/dokon/v1/buyurtmalar")]), _dy)
 check("S3 jadval `dokon_api_kalitlar`: korxonaga bitta qator (yagona company_id), xesh — 64 belgi, yagona; xom kalit ustuni YO'Q",
       DokonApiKalit is not None and DokonApiKalit.__tablename__ == "dokon_api_kalitlar"
       and any(getattr(c, "name", "") == "uq_dokon_api_kalit_korxona" for c in DokonApiKalit.__table__.constraints)
@@ -376,7 +377,7 @@ r = CA.get(AK)
 H0 = js(r)
 check("Y1 holat — kalit yo'q: bor=false, boshi / yaratilgan / oxirgi — null; sarlavha X-Dokon-Kalit, 2 yo'l, daqiqasiga 120",
       r.status_code == 200 and H0.get("bor") is False and H0.get("boshi") is None and H0.get("oxirgi_murojaat") is None
-      and H0.get("sarlavha") == "X-Dokon-Kalit" and H0.get("yollar") == [KAT, SOZ] and H0.get("daqiqa_max") == 120, (r.status_code, H0))
+      and H0.get("sarlavha") == "X-Dokon-Kalit" and H0.get("yollar") == [KAT, SOZ, "/api/dokon/v1/buyurtmalar"] and H0.get("daqiqa_max") == 120, (r.status_code, H0))
 _j0 = len(jurnal())
 r = yarat()
 Y1 = js(r)
@@ -642,7 +643,7 @@ check("Z4 retsept — standart (rom 2/2/4/2/2, eshik 2/5/2/2), komplekt o'lchami
       and SZ.get("ish_vaqti") == {"kunlar": [1, 2, 3, 4, 5, 6], "boshi": "08:00", "oxiri": "18:00"}, SZ)
 check("Z5 sozlamalar kalitlari — FAQAT ruxsat etilganlar (korxona telefonlari, metrli turlar va boshqa ichki ma'lumot YO'Q)",
       set(SZ) == {"versiya", "hozir_ish_vaqti", "korinadigan_telefonlar", "telefonlar", "ish_vaqti", "ish_vaqti_matni", "ish_izoh", "retsept",
-                  "komplekt_olcham"}, sorted(SZ))
+                  "komplekt_olcham", "viloyatlar"}, sorted(SZ))           # kech171 (zip 237): viloyatlar — buyurtma formasi uchun
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 section("E. ETag")

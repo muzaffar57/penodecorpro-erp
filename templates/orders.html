@@ -666,6 +666,8 @@ input[type=number]{-moz-appearance:textfield}
       {% if current_user.ruxsat('buyurtma', 'yaratish') or current_user.ruxsat('buyurtma', 'korish') %}
       <div class="tk-tugmalar">
         {% if current_user.ruxsat('buyurtma', 'yaratish') %}<button type="button" id="tezHisobBtn" class="btn btn-outline btn-md" onclick="tezHisobOch()" title="Loyiha va buyurtma ochmasdan mijozga narx hisoblab, TAKLIF hujjatini berish">⚡ Tez hisob</button>{% endif %}
+        {# kech171 (zip 237): «🛒 Saytdan» — do'kon saytidan kelgan buyurtmalar (sayt katalogi yoqilgan korxonada, ko'rish ruxsati), son — tasdiqlanmaganlari #}
+        {% if sayt_bor %}<button type="button" id="saytBtn" class="btn btn-outline btn-md" onclick="saytOch()" title="Do'kon saytidan kelgan buyurtmalar: mijozga qo'ng'iroq qilib tasdiqlash yoki bekor qilish">🛒 Saytdan<span class="tk-soni" id="saytSoni"{% if not sayt_soni %} style="display:none"{% endif %}>{{ sayt_soni }}</span></button>{% endif %}
         {% if current_user.ruxsat('buyurtma', 'korish') %}<button type="button" id="takliflarBtn" class="btn btn-outline btn-md" onclick="takliflarOch()" title="Saqlangan takliflar: PDF, tahrirlash, rasmiylashtirish">📝 Takliflar<span class="tk-soni" id="tkSoni"{% if not takliflar_soni %} style="display:none"{% endif %}>{{ takliflar_soni }}</span></button>{% endif %}
       </div>
       {% endif %}
@@ -752,6 +754,67 @@ input[type=number]{-moz-appearance:textfield}
       <div id="tkRoyxat"><div class="tk-bosh-holat">Yuklanmoqda…</div></div>
       <div id="tkSahifa" class="tk-sahifa" style="display:none"></div>
     </div>
+
+    <!-- kech171 (zip 237): do'kon saytidan kelgan buyurtmalar — qidiruv (mijoz, telefon, raqam), holat filtri, tasdiqlash / bekor qilish -->
+    {% if sayt_bor %}
+    <div id="saytPanel" class="card" style="display:none" data-yaratish="{{ 1 if current_user.ruxsat('buyurtma', 'yaratish') else 0 }}"
+         data-loyiha="{{ 1 if current_user.ruxsat('loyiha', 'yaratish') else 0 }}">
+      <div class="card-head" style="flex-wrap:wrap;row-gap:8px">
+        <h3>🛒 Saytdan kelgan buyurtmalar</h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button type="button" class="btn btn-outline btn-md" onclick="saytYukla()">↻ Yangilash</button>
+          <button type="button" class="btn btn-outline btn-md" onclick="saytYop()">✕ Yopish</button>
+        </div>
+      </div>
+      <div style="padding:12px 14px 4px">
+        <div class="tk-izoh" style="margin:0 0 8px">Mijozga qo'ng'iroq qilib buyurtmani tasdiqlang — tasdiqlansa yangi loyiha va oddiy buyurtma ochiladi
+          (narx — mijoz buyurtma bergan paytdagi narx). Mijoz voz kechsa — bekor qiling.</div>
+        <input type="search" id="saytQidiruv" class="maydon" placeholder="Qidirish: mijoz ismi, telefon yoki S-raqam" aria-label="Sayt buyurtmalarini qidirish"
+               oninput="saytQidir()" style="width:100%">
+        <div class="tk-filtrlar" role="group" aria-label="Sayt buyurtmalari filtri">
+          <button type="button" class="chip sb-f active" data-f="hammasi" aria-pressed="true" onclick="saytFiltr('hammasi')">Hammasi <span class="f-son"></span></button>
+          <button type="button" class="chip sb-f" data-f="yangi" aria-pressed="false" onclick="saytFiltr('yangi')">Yangi <span class="f-son"></span></button>
+          <button type="button" class="chip sb-f" data-f="tasdiqlandi" aria-pressed="false" onclick="saytFiltr('tasdiqlandi')">Tasdiqlangan <span class="f-son"></span></button>
+          <button type="button" class="chip sb-f" data-f="bekor" aria-pressed="false" onclick="saytFiltr('bekor')">Bekor qilingan <span class="f-son"></span></button>
+        </div>
+      </div>
+      <div id="saytRoyxat"><div class="tk-bosh-holat">Yuklanmoqda…</div></div>
+      <div id="saytSahifaQator" class="tk-sahifa" style="display:none"></div>
+    </div>
+    <!-- kech171 (zip 237): tasdiqlash / bekor qilish oynasi -->
+    <div id="saytOynaOverlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;align-items:center;justify-content:center;padding:20px">
+      <div style="background:var(--white);border-radius:16px;max-width:480px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);display:flex;flex-direction:column">
+        <div style="padding:20px 22px 14px;border-bottom:1px solid var(--ch-f1f5f9)">
+          <div id="saytOynaSarlavha" style="font-size:16px;font-weight:700;color:var(--m-0f172a)"></div>
+          <div id="saytOynaMijoz" style="font-size:13px;color:var(--m-64748b);margin-top:3px;overflow-wrap:anywhere"></div>
+        </div>
+        <div style="padding:16px 22px;overflow-y:auto;min-height:0;display:flex;flex-direction:column;gap:12px">
+          <div id="saytOynaTasdiq" style="display:flex;flex-direction:column;gap:12px">
+            <label class="tk-meta" for="saytMuddat" style="margin:0">Topshirish sanasi <span style="color:var(--m-dc2626)">*</span>
+              <input type="date" id="saytMuddat" class="maydon" style="width:100%;margin-top:4px"></label>
+            <label class="tk-meta" for="saytLoyihaNomi" style="margin:0">Yangi loyiha nomi
+              <input type="text" id="saytLoyihaNomi" class="maydon" maxlength="200" style="width:100%;margin-top:4px"></label>
+            {# review237 L2: qoplamali mahsulot bo'lsa — qoplama retsepti SHART (buyurtma formasining «Majburiy tanlov» qoidasi) #}
+            <label class="tk-meta" for="saytRetsept" id="saytRetseptBlok" style="margin:0;display:none">Qoplama retsepti <span style="color:var(--m-dc2626)">*</span>
+              <select id="saytRetsept" class="maydon" style="width:100%;margin-top:4px">
+                <option value="">— Tanlang —</option>
+                {% for r in recipes %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}
+              </select></label>
+            <div id="saytOynaOgoh" class="tk-izoh" style="margin:0"></div>
+          </div>
+          <div id="saytOynaBekor" style="display:none">
+            <label class="tk-meta" for="saytSabab" style="margin:0">Sabab (ixtiyoriy)
+              <input type="text" id="saytSabab" class="maydon" maxlength="200" placeholder="Masalan: mijoz voz kechdi" style="width:100%;margin-top:4px"></label>
+          </div>
+          <div id="saytOynaXato" role="alert" style="display:none;padding:11px 13px;border-radius:10px;background:var(--f-fef2f2);border:1px solid var(--ch-fecaca);color:var(--m-b91c1c);font-size:13px;line-height:1.5;overflow-wrap:anywhere"></div>
+        </div>
+        <div style="padding:14px 22px 20px;display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--ch-f1f5f9)">
+          <button type="button" data-yopish class="btn btn-outline" onclick="saytOynaYop()" style="flex:1 1 140px">Yopish</button>
+          <button type="button" id="saytOynaOk" class="btn btn-green" onclick="saytOynaYubor(false)" style="flex:1 1 140px">✓ Tasdiqlash</button>
+        </div>
+      </div>
+    </div>
+    {% endif %}
 
     <!-- YANGI BUYURTMA FORMASI (boshlangʻichda yashirin) -->
     <div id="newOrderForm" style="display:none">
@@ -4068,12 +4131,309 @@ function hideNewForm() {
   // kech126 (zip 148): buyurtma tanlansa / forma yopilsa — «📝 Takliflar» ro'yxati ham yashiriladi (kerak bo'lsa qayta ochiladi)
   const _tkp126 = document.getElementById('takliflarPanel');
   if (_tkp126) _tkp126.style.display = 'none';
+  const _sbp237 = document.getElementById('saytPanel');          // kech171 (zip 237): «🛒 Saytdan» ro'yxati ham
+  if (_sbp237) _sbp237.style.display = 'none';
   if (typeof ordLayoutYangiForma === 'function') ordLayoutYangiForma(false);
   const livePanel = document.getElementById('liveTotal');
   if (livePanel) livePanel.style.display = 'none';
   statPanellari(false);
   // kech152 (zip 194): forma yopildi (boshqa buyurtma tanlandi va h.k.) — yuklanayotgan tahrir (`editSelected`) eskirdi
   if (typeof yukNavbat === 'function') yukNavbat('forma');
+}
+
+// ══ kech171 (zip 237 — EGASI QARORLARI 30.10 «Onlayn do'kon rejasi», «Buyurtma jarayoni») ═══════════════════════════════════════
+// «🛒 Saytdan»: do'kon saytidan kelgan buyurtmalar. Xodim mijozga qo'ng'iroq qiladi → «✅ Tasdiqlash» (topshirish sanasi; server BITTA
+// tranzaksiyada yangi loyiha + oddiy buyurtma ochadi, narx — sayt buyurtmasida qotgan narx) yoki «⛔ Bekor qilish» (sabab ixtiyoriy).
+// Omborda yetmasa — ro'yxat va «Ha, baribir tasdiqlash» (`confirm_shortage`). Hamma server matni — `escapeHtml`.
+let _sbFiltr = 'hammasi', _sbSahifa = 1, _sbQidTaymer = null, _sbOyna = null, _sbYuborilmoqda = false;
+
+function _sbEl(id) { return document.getElementById(id); }
+
+async function saytOch() {
+  if (typeof taklifRejim !== 'undefined' && taklifRejim) taklifRejiminiTozala(true);
+  hideNewForm();
+  ['orderDetail', 'emptyMid', 'sumCard'].forEach(id => { const e = _sbEl(id); if (e) e.style.display = 'none'; });
+  document.querySelectorAll('.ord-item').forEach(i => i.classList.remove('active'));
+  selectedOrderId = null;
+  const p = _sbEl('saytPanel');
+  if (p) p.style.display = 'block';
+  try { if (p && telefonKorinishimi()) p.scrollIntoView({ block: 'start' }); } catch (e) {}
+  await saytYukla();
+}
+
+function saytYop() {
+  const p = _sbEl('saytPanel');
+  if (p) p.style.display = 'none';
+  const em = _sbEl('emptyMid');
+  if (!selectedOrderId && em) em.style.display = '';
+}
+
+function saytQidir() {
+  clearTimeout(_sbQidTaymer);
+  _sbQidTaymer = setTimeout(() => { _sbSahifa = 1; saytYukla(); }, 300);
+}
+
+function saytFiltr(f) {
+  _sbFiltr = f;
+  _sbSahifa = 1;
+  document.querySelectorAll('#saytPanel .sb-f').forEach(b => {
+    const a = b.dataset.f === f;
+    b.classList.toggle('active', a);
+    b.setAttribute('aria-pressed', a ? 'true' : 'false');
+  });
+  saytYukla();
+}
+
+function saytSahifaga(n) { _sbSahifa = n; saytYukla(); }
+
+async function saytYukla() {
+  const joriy = yukNavbat('sayt237');
+  const q = ((_sbEl('saytQidiruv') || {}).value || '').trim();
+  const p = new URLSearchParams({ filtr: _sbFiltr, sahifa: String(_sbSahifa) });
+  if (q) p.set('q', q);
+  const box = _sbEl('saytRoyxat');
+  try {
+    const res = await fetch('/api/sayt-buyurtmalari?' + p.toString(), { cache: 'no-store' });
+    let d = null;
+    try { d = await res.json(); } catch (e) { d = null; }
+    if (!joriy()) return;
+    if (!res.ok || !d) {
+      if (box) box.innerHTML = `<div class="tk-bosh-holat">❌ ${escapeHtml(xatoSababi(d, "Sayt buyurtmalari yuklanmadi"))}</div>`;
+      return;
+    }
+    saytChiz(d);
+  } catch (e) {
+    if (!joriy()) return;
+    if (box) box.innerHTML = `<div class="tk-bosh-holat">❌ Server bilan aloqa yo'q — sayt buyurtmalari yuklanmadi</div>`;
+  }
+}
+
+function _sbBelgi(b) {
+  if (b.holat === 'tasdiqlandi') return `<span class="tk-belgi rasmiy">✅ Tasdiqlangan</span>`;
+  if (b.holat === 'bekor') return `<span class="tk-belgi bekor">⛔ Bekor qilingan</span>`;
+  return `<span class="tk-belgi otgan">🆕 Yangi — qo'ng'iroq qiling</span>`;
+}
+
+function _sbMiqdor(x) {
+  const b = x.birlik === 'm2' ? 'm²' : (x.birlik === 'metr' ? 'm' : 'dona');
+  return `${pulKor(x.miqdor)} ${b}`;
+}
+
+function _sbGuruhHtml(g) {
+  const det = (g.detallar || []).map(x => `<li>${escapeHtml(x.nom)} · ${escapeHtml(x.olcham || '')} — ${escapeHtml(_sbMiqdor(x))} × `
+    + `${pulKor(x.narx)}${x.chegirma_foiz ? ` <span style="color:var(--m-15803d)">(−${escapeHtml(String(x.chegirma_foiz))} %)</span>` : ''}`
+    + ` = <b>${pulKor(x.summa)}</b></li>`).join('');
+  return `<div class="tk-meta" style="color:var(--text)"><b>${escapeHtml(g.guruh_nomi)}</b> — ${pulKor(g.summa)} so'm`
+    + `<ul style="margin:3px 0 4px 18px;padding:0">${det}</ul></div>`;
+}
+
+function saytChiz(d) {
+  const box = _sbEl('saytRoyxat');
+  if (!box) return;
+  const son = d.sonlar || {};
+  document.querySelectorAll('#saytPanel .sb-f').forEach(b => {
+    const sp = b.querySelector('.f-son');
+    if (sp) sp.textContent = son[b.dataset.f] ? String(son[b.dataset.f]) : '';
+  });
+  const ss = _sbEl('saytSoni');
+  if (ss && !d.qidiruv) { const n = Number(son.yangi) || 0; ss.textContent = String(n); ss.style.display = n ? '' : 'none'; }
+  const pn = _sbEl('saytPanel') || { dataset: {} };
+  const yarat = pn.dataset.yaratish === '1';
+  const rs = d.royxat || [];
+  if (!rs.length) {
+    box.innerHTML = `<div class="tk-bosh-holat">${d.qidiruv || (d.filtr && d.filtr !== 'hammasi') ? "Bu qidiruv / filtr bo'yicha buyurtma yo'q"
+      : "Saytdan hali buyurtma kelmagan."}</div>`;
+  } else {
+    box.innerHTML = rs.map(b => {
+      const id = Number(b.id);
+      const tel = String(b.telefon || '').replace(/[^0-9+]/g, '');
+      const mij = escapeHtml(b.mijoz) + (tel ? ` · <a href="tel:${escapeHtml(tel)}">${escapeHtml(b.telefon_korinish || b.telefon)}</a>` : '');
+      const joy = `📍 ${escapeHtml(b.viloyat_nomi || '')} — ${escapeHtml(String(b.yetkazish_matni || '').toLowerCase())}`
+        + (b.manzil ? ` · ${escapeHtml(b.manzil)}` : '')
+        + (b.lokatsiya ? ` · <a href="https://maps.google.com/?q=${encodeURIComponent(b.lokatsiya)}" target="_blank" rel="noopener">🗺 xarita</a>` : '');
+      let holat = `Keldi: ${escapeHtml(tkSanaVaqt(b.yaratilgan))}`;
+      if (b.holat === 'tasdiqlandi') {
+        holat += ` · tasdiqlandi: ${escapeHtml(tkSanaVaqt(b.tasdiqlangan))}${b.tasdiqlagan ? ' · ' + escapeHtml(b.tasdiqlagan) : ''} — `
+          + (b.buyurtma_bor ? `<a href="/orders?order=${Number(b.order_id)}" style="color:var(--gold-dark);font-weight:600">${escapeHtml(b.order_raqam || '')}</a>`
+                            : `${escapeHtml(b.order_raqam || '')} (o'chirilgan)`);
+      } else if (b.holat === 'bekor') {
+        holat += ` · bekor qilindi: ${escapeHtml(tkSanaVaqt(b.bekor_vaqti))}${b.bekor_qilgan ? ' · ' + escapeHtml(b.bekor_qilgan) : ''}`
+          + (b.bekor_sababi ? ` — ${escapeHtml(b.bekor_sababi)}` : '');
+      }
+      const tej = Number(b.chegirmasiz) - Number(b.jami);
+      const chegirma = tej > 0.005 ? `<div class="tk-meta">chegirmasiz ${pulKor(b.chegirmasiz)}</div>` : '';
+      let amallar = '';
+      if (b.holat === 'yangi' && yarat) {
+        amallar += `<button type="button" class="btn btn-green btn-sm" onclick="saytTasdiqOch(${id})">✅ Tasdiqlash</button>`
+          + `<button type="button" class="btn btn-outline btn-sm" onclick="saytBekorOch(${id})">⛔ Bekor qilish</button>`;
+      }
+      if (b.holat === 'tasdiqlandi' && b.buyurtma_bor) {
+        amallar += `<a class="btn btn-outline btn-sm" href="/orders?order=${Number(b.order_id)}">📦 Buyurtmani ochish</a>`;
+      }
+      const ogoh = (b.holat === 'yangi' && (b.ogohlantirishlar || []).length)
+        ? `<div class="tk-meta" style="color:var(--m-b45309)">⚠️ ${(b.ogohlantirishlar || []).map(x => escapeHtml(x)).join('<br>⚠️ ')}</div>` : '';
+      return `<div class="tk-qator" data-id="${id}">
+        <div style="min-width:0">
+          <div class="tk-bosh"><span class="tk-raqam">${escapeHtml(b.raqam)}</span>${_sbBelgi(b)}</div>
+          <div class="tk-mijoz">${mij}</div>
+          <div class="tk-meta">${joy}</div>
+          ${(b.guruhlar || []).map(g => _sbGuruhHtml(g)).join('')}
+          ${b.izoh ? `<div class="tk-meta">📝 ${escapeHtml(b.izoh)}</div>` : ''}
+          ${ogoh}
+          <div class="tk-meta">${holat}</div>
+        </div>
+        <div class="tk-summa">${pulKor(b.jami)} so'm${chegirma}</div>
+        ${amallar ? `<div class="tk-amallar">${amallar}</div>` : ''}
+      </div>`;
+    }).join('');
+  }
+  const pg = _sbEl('saytSahifaQator');
+  if (pg) {
+    const ko = Number(d.sahifalar) > 1;
+    pg.style.display = ko ? 'flex' : 'none';
+    pg.innerHTML = ko ? `<button type="button" class="btn btn-outline btn-sm" ${d.sahifa <= 1 ? 'disabled' : ''} onclick="saytSahifaga(${Number(d.sahifa) - 1})">← Oldingi</button>`
+      + `<span>${Number(d.sahifa)} / ${Number(d.sahifalar)}</span>`
+      + `<button type="button" class="btn btn-outline btn-sm" ${d.sahifa >= d.sahifalar ? 'disabled' : ''} onclick="saytSahifaga(${Number(d.sahifa) + 1})">Keyingi →</button>` : '';
+  }
+}
+
+async function _sbOl(id) {
+  try {
+    const res = await fetch(`/api/sayt-buyurtmalari/${Number(id)}`, { cache: 'no-store' });
+    let d = null;
+    try { d = await res.json(); } catch (e) { d = null; }
+    if (!res.ok || !d) { showMsg('❌ ' + xatoSababi(d, 'Sayt buyurtmasi ochilmadi'), 'error'); saytYukla(); return null; }
+    if (d.holat !== 'yangi') { showMsg(`❌ ${d.raqam} — ${String(d.holat_nomi || '').toLowerCase()}`, 'error'); saytYukla(); return null; }
+    return d;
+  } catch (e) {
+    showMsg("❌ Server bilan aloqa yo'q", 'error');
+    return null;
+  }
+}
+
+function _sbOynaXato(html) {
+  const x = _sbEl('saytOynaXato');
+  if (!x) return;
+  x.innerHTML = html || '';
+  x.style.display = html ? 'block' : 'none';
+}
+
+function _sbOynaOch(b, tur) {
+  _sbOyna = { id: Number(b.id), tur, raqam: b.raqam, shortage: false };
+  _sbEl('saytOynaSarlavha').textContent = tur === 'tasdiq' ? `✅ ${b.raqam} — tasdiqlash` : `⛔ ${b.raqam} — bekor qilish`;
+  _sbEl('saytOynaMijoz').textContent = `${b.mijoz} · ${b.telefon_korinish || b.telefon} · ${pulKor(b.jami)} so'm`;
+  _sbEl('saytOynaTasdiq').style.display = tur === 'tasdiq' ? 'flex' : 'none';
+  _sbEl('saytOynaBekor').style.display = tur === 'bekor' ? 'block' : 'none';
+  const ok = _sbEl('saytOynaOk');
+  ok.textContent = tur === 'tasdiq' ? '✓ Tasdiqlash — buyurtma ochish' : '⛔ Bekor qilish';
+  ok.className = tur === 'tasdiq' ? 'btn btn-green' : 'btn btn-dark';
+  ok.disabled = false;
+  ok.onclick = () => saytOynaYubor(false);
+  _sbOynaXato('');
+  if (tur === 'tasdiq') {
+    const m = _sbEl('saytMuddat');
+    m.min = bugunToshkent();
+    m.value = '';
+    _sbEl('saytLoyihaNomi').value = `Sayt ${b.raqam} — ${b.mijoz}`.slice(0, 200);
+    const og = (b.ogohlantirishlar || []);
+    _sbEl('saytOynaOgoh').innerHTML = "Tasdiqlansa: mijoz uchun yangi loyiha va buyurtma ochiladi, ombordan xomashyo yechiladi, narxlar — mijoz buyurtma bergan "
+      + "paytdagi narx. Buyurtma keyin tahrirlansa — saqlashdan oldin narxlarni tekshiring." + (og.length ? '<br>⚠️ ' + og.map(x => escapeHtml(x)).join('<br>⚠️ ') : '');
+    const rb = _sbEl('saytRetseptBlok');
+    if (rb) rb.style.display = b.qoplamali_bor ? '' : 'none';
+    const rs = _sbEl('saytRetsept');
+    if (rs) rs.value = '';
+    if (_sbEl('saytPanel').dataset.loyiha !== '1') {
+      _sbOynaXato("Tasdiqlash yangi loyiha ochadi — sizda «Loyihalar: Yaratish» ruxsati yo'q (administratorga murojaat qiling).");
+      ok.disabled = true;
+    }
+  } else {
+    _sbEl('saytSabab').value = '';
+  }
+  _sbEl('saytOynaOverlay').style.display = 'flex';
+  setTimeout(() => { try { (tur === 'tasdiq' ? _sbEl('saytMuddat') : _sbEl('saytSabab')).focus(); } catch (e) {} }, 30);
+}
+
+function bugunToshkent() {
+  const t = new Date(Date.now() + 5 * 3600 * 1000);
+  return t.toISOString().slice(0, 10);
+}
+
+async function saytTasdiqOch(id) {
+  const b = await _sbOl(id);
+  if (b) _sbOynaOch(b, 'tasdiq');
+}
+
+async function saytBekorOch(id) {
+  const b = await _sbOl(id);
+  if (b) _sbOynaOch(b, 'bekor');
+}
+
+function saytOynaYop() {
+  if (_sbYuborilmoqda) return;
+  _sbEl('saytOynaOverlay').style.display = 'none';
+  _sbOyna = null;
+}
+
+async function saytOynaYubor(yetmasaHam) {
+  if (!_sbOyna || _sbYuborilmoqda) return;
+  const o = _sbOyna;
+  let url, tana;
+  if (o.tur === 'tasdiq') {
+    const sana = (_sbEl('saytMuddat').value || '').trim();
+    if (!sana) { _sbOynaXato('Topshirish sanasini kiriting'); _sbEl('saytMuddat').focus(); return; }
+    const nom = (_sbEl('saytLoyihaNomi').value || '').trim();
+    const rb = _sbEl('saytRetseptBlok');
+    const rid = parseInt((_sbEl('saytRetsept') || {}).value) || null;
+    if (rb && rb.style.display !== 'none' && !rid) { _sbOynaXato('Qoplamali mahsulot bor — qoplama retseptini tanlang'); _sbEl('saytRetsept').focus(); return; }
+    url = `/api/sayt-buyurtmalari/${o.id}/tasdiqla` + (yetmasaHam ? '?confirm_shortage=true' : '');
+    tana = { deadline: sana };
+    if (nom) tana.loyiha_nomi = nom;
+    if (rid && rb && rb.style.display !== 'none') tana.recipe_id = rid;
+  } else {
+    url = `/api/sayt-buyurtmalari/${o.id}/bekor`;
+    const sabab = (_sbEl('saytSabab').value || '').trim();
+    tana = sabab ? { sabab } : {};
+  }
+  const ok = _sbEl('saytOynaOk');
+  _sbYuborilmoqda = true;
+  ok.disabled = true;
+  _sbOynaXato('');
+  let res = null, d = null;
+  try {
+    res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(tana) });
+    try { d = await res.json(); } catch (e) { d = null; }
+  } catch (e) {
+    res = null;
+  }
+  _sbYuborilmoqda = false;
+  ok.disabled = false;
+  if (!res) {
+    _sbOynaXato("Server bilan aloqa yo'q — natija noma'lum. Ro'yxatni yangilab tekshiring (qayta bosilsa ikkinchi buyurtma ochilmaydi).");
+    return;
+  }
+  if (res.ok) {
+    _sbEl('saytOynaOverlay').style.display = 'none';
+    _sbOyna = null;
+    if (o.tur === 'tasdiq') {
+      showMsg(`✅ ${o.raqam} tasdiqlandi — buyurtma ${d && d.order_number ? d.order_number : ''} ochildi`, 'success');
+      // yangi buyurtma chap ro'yxatda ham ko'rinsin — sahifa shu buyurtma bilan qayta ochiladi
+      if (d && d.order_id) { setTimeout(() => { location.href = `/orders?order=${Number(d.order_id)}`; }, 900); return; }
+    } else {
+      showMsg(`⛔ ${o.raqam} bekor qilindi`, 'success');
+    }
+    saytYukla();
+    return;
+  }
+  const det = d && d.detail;
+  if (res.status === 409 && det && det.type === 'stock_shortage_warning') {
+    _sbOynaXato(`<b>${escapeHtml(det.message || 'Omborda yetishmayotgan xomashyo bor')}</b><ul style="margin:6px 0 0 18px;padding:0">`
+      + (det.shortages || []).map(s => `<li>${escapeHtml(s)}</li>`).join('') + '</ul>');
+    ok.textContent = '⚠️ Ha, baribir tasdiqlash';
+    ok.onclick = () => saytOynaYubor(true);
+    return;
+  }
+  _sbOynaXato(escapeHtml(xatoSababi(d, o.tur === 'tasdiq' ? 'Tasdiqlanmadi' : 'Bekor qilinmadi')));
+  if (res.status === 409 || res.status === 404) saytYukla();
 }
 
 // ══ kech126 (zip 148 — EGASI QARORLARI 07.10 «TEZ HISOB / TAKLIF», QAYTA SO'RALMAYDI) ══════════════════════════════════════

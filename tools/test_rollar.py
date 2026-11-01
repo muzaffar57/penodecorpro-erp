@@ -414,6 +414,10 @@ YANGI_MARSHRUTLAR = {
     # kech170 (zip 236): do'kon kaliti — FAQAT Admin; do'kon yo'llari — login siz, kalit ichida tekshiriladi (`crud.dokon_api_korxona`)
     "GET /api/sayt-katalogi/api-kalit": "A", "POST /api/sayt-katalogi/api-kalit": "A", "DELETE /api/sayt-katalogi/api-kalit": "A",
     "GET /api/dokon/v1/katalog": "-", "GET /api/dokon/v1/sozlamalar": "-",
+    # kech171 (zip 237): do'kon buyurtmasi — kalit bilan (sessiyasiz); ERP — «Buyurtmalar» ruxsati (ro'yxat — ko'rish, bekor / tasdiq — yaratish)
+    "POST /api/dokon/v1/buyurtmalar": "-",
+    "GET /api/sayt-buyurtmalari": "AM", "GET /api/sayt-buyurtmalari/{sb_id}": "AM",
+    "POST /api/sayt-buyurtmalari/{sb_id}/bekor": "AM", "POST /api/sayt-buyurtmalari/{sb_id}/tasdiqla": "AM",
     "GET /rollar": "A", "GET /api/rollar": "A", "POST /api/rollar": "A", "PUT /api/rollar/{rol_id}": "A",
     "DELETE /api/rollar/{rol_id}": "A", "POST /api/rollar/{rol_id}/andoza": "A", "PUT /api/users/{user_id}/rol": "A",
     # kech118 (D-1, G5-11): TM «Kam» chegarasi — «Tayyor mahsulotlar: Tahrirlash» (PUT /api/finished/{fp_id} bilan bir xil)

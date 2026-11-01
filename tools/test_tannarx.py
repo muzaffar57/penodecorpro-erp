@@ -443,7 +443,9 @@ ID = {"order_id": 999999, "project_id": 999999, "fp_id": IDS["fp_narxsiz"], "ite
       # kech155 (zip 210, MOSLANDI): pul hisobi tarixi (tannarx yo'q — «Hammasi» = «Tannarxsiz»)
       "hisob_id": _hisob210,
       # kech168 (zip 233, MOSLANDI): sayt modelining komplekt narxlari (sayt katalogi o'chiq — 404; tannarx yo'q)
-      "model_id": 999999}
+      "model_id": 999999,
+      # kech171 (zip 237, MOSLANDI): sayt buyurtmasi tafsiloti (sayt katalogi o'chiq — 404; tannarx yo'q)
+      "sb_id": 999999}
 SORAV = {"year": BUGUN.year, "month": BUGUN.month, "category": "arenda", "product_type_id": PT_ID, "bom_id": BOM_ID,
          "quantity": 4}
 TASHQARI = ("/cron", "/system", "/platform", "/hodim/", "telegram", "pdf", "/export", "backup")

@@ -3869,6 +3869,7 @@ _XOMASHYO_MARSHRUTLARI = frozenset({
     ("main", "api_restore_order"),
     ("main", "api_restore_project"),
     ("main", "api_return_brak_taqdir"),
+    ("main", "api_sayt_tasdiqla"),                 # kech171 (zip 237): sayt buyurtmasi → ERP buyurtmasi (ombordan yechadi)
     ("main", "api_sell_finished_product"),
     ("main", "api_sell_finished_products_batch"),
     ("main", "api_set_default_penoplast"),
@@ -5920,6 +5921,10 @@ async def orders_page(request: Request, show_all: bool = False, db: Session = De
         # kech126 (zip 148): «📝 Takliflar» tugmasidagi son — rasmiylashtirilmagan takliflar (ko'rish ruxsati bilan)
         "takliflar_soni": (crud.taklif_faol_soni(db, auth.company_id_of(current_user))
                            if current_user.ruxsat("buyurtma", "korish") else 0),
+        # kech171 (zip 237): «🛒 Saytdan» — faqat sayt katalogi yoqilgan korxonada (ko'rish ruxsati bilan), son — tasdiqlanmaganlari
+        "sayt_bor": bool(current_user.ruxsat("buyurtma", "korish") and crud.dokon_yoqilganmi(db, auth.company_id_of(current_user))),
+        "sayt_soni": (crud.sayt_yangi_soni(db, auth.company_id_of(current_user))
+                      if current_user.ruxsat("buyurtma", "korish") else 0),
     })
 
 
@@ -12110,11 +12115,12 @@ def _dokon_api_kalit_ol(request: Request):
     return None
 
 
-def _dokon_api_korxona(request: Request, db: Session) -> int:
-    """Kalit → korxona (401 / 404 / 429); korxona sessiyaga bog'lanadi (TENANT_FILTER rejimida faqat shu korxona qatorlari)."""
+def _dokon_api_korxona(request: Request, db: Session, cheklov=None) -> int:
+    """Kalit → korxona (401 / 404 / 429); korxona sessiyaga bog'lanadi (TENANT_FILTER rejimida faqat shu korxona qatorlari).
+    kech171 (zip 237): `cheklov` — buyurtma yo'lining o'z chegarasi."""
     import tenant_context as _tc236
     try:
-        cid = crud.dokon_api_korxona(db, _dokon_api_kalit_ol(request))
+        cid = crud.dokon_api_korxona(db, _dokon_api_kalit_ol(request), cheklov=cheklov)
     except crud.DokonApiRad as e:
         db.rollback()
         sarlavhalar = {"Cache-Control": "no-store"}
@@ -12158,6 +12164,167 @@ def api_dokon_v1_sozlamalar(request: Request, db: Session = Depends(get_db)):
     """Do'kon sayti uchun sozlamalar (kalit bilan): tasdiqlash raqamlari (hozir ko'rinadiganlari va hammasi), ish vaqti, komplekt retsepti."""
     cid = _dokon_api_korxona(request, db)
     return _dokon_api_javob(request, _dokon_bajar(db, lambda: crud.dokon_api_sozlamalar(db, cid)))
+
+
+# ══ kech171 (zip 237) — SAYTDAN KELGAN BUYURTMALAR ═══════════════════════════════════════════════════════════════════════════════════
+# Do'kon sayti (o'sha kalit bilan) buyurtma yuboradi; ERP da «🛒 Saytdan» ro'yxati (Buyurtmalar sahifasi): tasdiqlash — yangi loyiha +
+# oddiy ERP buyurtmasi (`api_create_order` ning O'ZI, bitta tranzaksiyada), bekor qilish. Mantiq — `crud.sayt_*`.
+def _sayt_xato(e):
+    """crud xatosi → HTTP: holat — 409, narx o'zgargan / kalit band — 409, telefon chegarasi — 429, qolgani — 400."""
+    if isinstance(e, crud.SaytNarxOzgardi):
+        h = e.natija
+        return HTTPException(status_code=409, detail={"xato": str(e), "narx_ozgardi": True, "jami": float(h["jami"]),
+                                                      "guruhlar": crud._sayt_guruhlar(h["qatorlar"])})
+    if isinstance(e, (crud.SaytHolatXatosi, crud.SaytKalitBand)):
+        return HTTPException(status_code=409, detail=str(e))
+    if isinstance(e, crud.SaytCheklov):
+        return HTTPException(status_code=429, detail=str(e), headers={"Retry-After": "600"})
+    return HTTPException(status_code=400, detail=str(e))
+
+
+SAYT_TANA_MAX = 200_000
+
+
+@app.post("/api/dokon/v1/buyurtmalar")
+async def api_dokon_v1_buyurtma(request: Request, db: Session = Depends(get_db), background_tasks: BackgroundTasks = None):
+    """Do'kon sayti — yangi buyurtma (kalit bilan; `X-Amal-Kaliti` — savat kaliti, SHART). Narx — ERP hisobi (do'kon yuborgan narxga
+    ishonilmaydi; `kutilgan_jami` farq qilsa — 409 + yangi hisob, hech narsa yozilmaydi). Takror (o'sha kalit, o'sha savat) — avvalgi
+    javob (`takror: true`, `X-Takror: 1`). Telegram — korxona botiga (javobdan keyin, takrorda — yo'q)."""
+    import json as _js237
+    from starlette.concurrency import run_in_threadpool as _thr237
+    # review237 L3: baza ishi — oqimlar hovuzida (asinxron marshrut voqealar siklini to'xtatmasin)
+    cid = await _thr237(_dokon_api_korxona, request, db, crud._DOKON_BUYURTMA_CHEKLOV)
+    # review237 L4: tana hajmi — o'qishdan OLDIN (Content-Length) va o'qish davomida
+    try:
+        _uz = int(request.headers.get("content-length") or 0)
+    except ValueError:
+        _uz = 0
+    if _uz > SAYT_TANA_MAX:
+        raise HTTPException(status_code=413, detail="So'rov juda katta")
+    _bol = []
+    _jami = 0
+    async for _b in request.stream():
+        _jami += len(_b)
+        if _jami > SAYT_TANA_MAX:
+            raise HTTPException(status_code=413, detail="So'rov juda katta")
+        _bol.append(_b)
+    xom = b"".join(_bol)
+    try:
+        data = _js237.loads(xom.decode("utf-8"), parse_constant=lambda c: (_ for _ in ()).throw(ValueError(c)))
+    except (UnicodeDecodeError, ValueError, RecursionError):
+        raise HTTPException(status_code=400, detail="So'rov tanasi JSON bo'lishi kerak")
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=400, detail="So'rov tanasi JSON obyekt bo'lishi kerak")
+    kalit = request.headers.get(crud.SAYT_KALIT_SARLAVHA.lower())
+
+    def _bajar():
+        try:
+            return crud.sayt_buyurtma_yarat(db, cid, kalit, data)
+        except ValueError as e:
+            db.rollback()
+            raise _sayt_xato(e)
+    def _ish():
+        b, qatorlar, takror = _dokon_bajar(db, _bajar)
+        return crud.sayt_dokon_javobi(db, b, qatorlar, takror=takror), (None if takror else crud.sayt_telegram_matni(b, qatorlar)), takror
+    javob, _matn, takror = await _thr237(_ish)
+    if _matn is not None:
+        _fonda(background_tasks, _send_telegram, _matn, company_id=cid, sessiya=db)
+    return JSONResponse(content=javob, headers={"Cache-Control": "no-store", **({"X-Takror": "1"} if takror else {})})
+
+
+def _sayt_yoqilgan(db, current_user):
+    cid = auth.company_id_of(current_user)
+    if not crud.dokon_yoqilganmi(db, cid):
+        raise HTTPException(status_code=404, detail=_DOKON_YOPIQ_MATN)
+    return cid
+
+
+@app.get("/api/sayt-buyurtmalari")
+def api_sayt_buyurtmalari(q: Optional[str] = None, filtr: Optional[str] = None, sahifa: int = Query(1, ge=1, le=100_000),
+                          db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "korish"))):
+    """«🛒 Saytdan» ro'yxati: holat filtri (hammasi / yangi / tasdiqlandi / bekor), qidiruv (mijoz, telefon, raqam), sahifa (20 tadan)."""
+    cid = _sayt_yoqilgan(db, current_user)
+    return _dokon_bajar(db, lambda: crud.sayt_royxati(db, cid, q, filtr, sahifa))
+
+
+@app.get("/api/sayt-buyurtmalari/{sb_id}")
+def api_sayt_buyurtma(sb_id: int = _Path213(..., ge=1, le=2_147_483_647), db: Session = Depends(get_db),
+                      current_user=Depends(auth.ruxsat("buyurtma", "korish"))):
+    cid = _sayt_yoqilgan(db, current_user)
+    b = crud.sayt_ol(db, cid, sb_id)
+    if b is None:
+        raise HTTPException(status_code=404, detail="Sayt buyurtmasi topilmadi")
+    return crud.sayt_korinish(b, qatorlar=crud._sayt_qatorlari(db, cid, b.id))
+
+
+@app.post("/api/sayt-buyurtmalari/{sb_id}/bekor")
+def api_sayt_bekor(data: dict = Body(default={}), sb_id: int = _Path213(..., ge=1, le=2_147_483_647), db: Session = Depends(get_db),
+                   current_user=Depends(auth.ruxsat("buyurtma", "yaratish"))):
+    """Bekor qilish (faqat «yangi»; sabab — ixtiyoriy). Yozuv ro'yxatda «Bekor qilingan» bo'lib qoladi."""
+    cid = _sayt_yoqilgan(db, current_user)
+
+    def _bajar():
+        try:
+            return crud.sayt_bekor(db, cid, sb_id, data, _dokon_kim(current_user))
+        except ValueError as e:
+            db.rollback()
+            raise _sayt_xato(e)
+    b = _dokon_bajar(db, _bajar)
+    if b is None:
+        raise HTTPException(status_code=404, detail="Sayt buyurtmasi topilmadi")
+    return crud.sayt_korinish(b, qatorlar=crud._sayt_qatorlari(db, cid, b.id))
+
+
+@app.post("/api/sayt-buyurtmalari/{sb_id}/tasdiqla")
+def api_sayt_tasdiqla(data: dict = Body(...), sb_id: int = _Path213(..., ge=1, le=2_147_483_647), confirm_shortage: bool = False,
+                      db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "yaratish")),
+                      background_tasks: BackgroundTasks = None):
+    """Mijoz bilan gaplashildi — sayt buyurtmasi BITTA tranzaksiyada ERP buyurtmasiga aylanadi: YANGI loyiha (mijoz ismi / telefoni /
+    manzili — sayt buyurtmasidan; «Loyihalar: Yaratish» ruxsati SHART) + buyurtma (`api_create_order` ning O'ZI — tekshiruvlar,
+    yetishmovchilik 409 (`confirm_shortage`), ombordan yechish, kam qoldiq xabari bir joyda). Narx — sayt buyurtmasida qotgan narx.
+    Istalgan rad — HECH NARSA yozilmaydi (yangi loyiha ham). Sayt buyurtmasi qulflanadi — ikki marta tasdiqlanmaydi (ikkinchisi 409)."""
+    from pydantic import ValidationError as _PVE237
+    cid = _sayt_yoqilgan(db, current_user)
+    kim = _dokon_kim(current_user)
+    b0 = crud.sayt_ol(db, cid, sb_id)
+    if b0 is None:
+        raise HTTPException(status_code=404, detail="Sayt buyurtmasi topilmadi")
+    if b0.sb_holat != "yangi":
+        raise _sayt_xato(crud.SaytHolatXatosi(
+            f"Sayt buyurtmasi {b0.sb_raqam} allaqachon {crud.SAYT_HOLATLARI.get(b0.sb_holat, b0.sb_holat).lower()}"
+            + (f" ({b0.sb_order_raqam})" if b0.sb_order_raqam else "")))
+    if not current_user.ruxsat("loyiha", "yaratish"):
+        raise HTTPException(status_code=403, detail="Tasdiqlash yangi loyiha ochadi — «Loyihalar: Yaratish» ruxsati kerak "
+                                                    "(administratorga murojaat qiling)")
+    try:
+        t = crud.sayt_tasdiq_tekshir(db, cid, data, qoplamali_bor=any(q.qoplamali for q in crud._sayt_qatorlari(db, cid, b0.id)))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    try:
+        _loyiha_tana = schemas.ProjectCreate(**crud._clean_create("Project", crud.sayt_loyiha_tanasi(b0, t["loyiha_nomi"])))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    try:
+        with crud.bitta_tranzaksiya(db):
+            b = crud.sayt_ol(db, cid, sb_id, lock=True)
+            if b is None or b.sb_holat != "yangi":
+                raise _sayt_xato(crud.SaytHolatXatosi(
+                    "Sayt buyurtmasi hozirgina boshqa foydalanuvchi tomonidan tasdiqlandi yoki bekor qilindi — ro'yxatni yangilang"))
+            qatorlar = crud._sayt_qatorlari(db, cid, b.id)
+            _loyiha = crud.create_project(db, _loyiha_tana, company_id=cid)
+            try:
+                order = schemas.OrderCreate(**crud.sayt_buyurtma_tanasi(b, qatorlar, _loyiha.id, t["sana"], t["recipe_id"]))
+            except _PVE237 as e:                      # review237 L1: pydantic matni emas — qaysi qator va nima
+                _x = (e.errors() or [{}])[0]
+                raise HTTPException(status_code=400, detail="Buyurtma qatori qabul qilinmadi ("
+                                    + ".".join(str(p) for p in _x.get("loc", ())) + "): " + str(_x.get("msg", "")))
+            new_order = api_create_order(order, None, confirm_shortage, db, current_user, background_tasks=background_tasks)
+            crud.sayt_tasdiqlandi(db, b, new_order, kim, loyiha=_loyiha)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    db.refresh(b)
+    return {"sayt": crud.sayt_korinish(b, qatorlar=crud._sayt_qatorlari(db, cid, b.id)),
+            "order_id": new_order.id, "order_number": new_order.order_number}
 
 
 @app.post("/api/platform/companies/{company_id}/dokon")
