@@ -11813,7 +11813,7 @@ def api_dokon_detal_yarat(data: dict = Body(...), db: Session = Depends(get_db),
     """Modelga narx qatori: {"model_id", "turi", "olcham"} + o'lcham sonlari va narxlar."""
     cid = auth.company_id_of(current_user)
     d = _dokon_bajar(db, lambda: crud.dokon_detal_yarat(db, cid, data, _dokon_kim(current_user)))
-    return crud.dokon_detal_dict(d, crud.dokon_koeff(db, cid))
+    return crud.dokon_detal_javobi(db, cid, d)                    # kech169 (zip 234): chegirmali narxlar bilan
 
 
 @app.put("/api/sayt-katalogi/detallar/{detal_id}")
@@ -11824,7 +11824,7 @@ def api_dokon_detal_yangila(data: dict = Body(...), detal_id: int = _Path213(...
     d = _dokon_bajar(db, lambda: crud.dokon_detal_yangila(db, detal_id, cid, data, _dokon_kim(current_user)))
     if d is None:
         raise HTTPException(status_code=404, detail="Narx qatori topilmadi")
-    return crud.dokon_detal_dict(d, crud.dokon_koeff(db, cid))
+    return crud.dokon_detal_javobi(db, cid, d)                    # kech169 (zip 234): chegirmali narxlar bilan
 
 
 @app.delete("/api/sayt-katalogi/detallar/{detal_id}")
@@ -11996,6 +11996,43 @@ def api_dokon_model_komplekt(model_id: int = _Path213(..., ge=1, le=2_147_483_64
     if crud._dokon_model_of(db, model_id, cid) is None:
         raise HTTPException(status_code=404, detail="Model topilmadi")
     return {"model_id": model_id, "komplekt": crud.dokon_komplekt_narxlari(db, cid, model_id).get(model_id, [])}
+
+
+# ── kech169 (zip 234): model chegirmasi — foiz, o'lchamlar, tugash sanasi; tannarx ogohlantirishi (FAQAT Admin; belgi o'chiq — 404) ──
+@app.put("/api/sayt-katalogi/modellar/{model_id}/chegirma")
+def api_dokon_chegirma_saqla(data: dict = Body(...), model_id: int = _Path213(..., ge=1, le=2_147_483_647),
+                             db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Chegirma qo'yish / o'zgartirish: {"foiz": 1 … 99} (+ "olchamlar": [...] | null — hamma o'lcham, "tugash": "YYYY-MM-DD" | null).
+    Faqat oddiy narxga (ulgurji o'zgarmaydi). Javobda narxlar, komplekt va «tannarxdan past» ogohlantirishlari (saqlash to'silmaydi)."""
+    r = _dokon_bajar(db, lambda: crud.dokon_chegirma_saqla(db, auth.company_id_of(current_user), model_id, data,
+                                                          _dokon_kim(current_user)))
+    if r is None:
+        raise HTTPException(status_code=404, detail="Model topilmadi")
+    return r
+
+
+@app.post("/api/sayt-katalogi/modellar/{model_id}/chegirma/korish")
+def api_dokon_chegirma_korish(data: dict = Body(...), model_id: int = _Path213(..., ge=1, le=2_147_483_647),
+                              db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Saqlamasdan ko'rish (hech narsa yozilmaydi): yuborilgan chegirma bilan narxlar, komplekt va tannarx ogohlantirishlari;
+    "foiz": null — asl narxlar va tannarx."""
+    r = _dokon_bajar(db, lambda: crud.dokon_chegirma_korish(db, auth.company_id_of(current_user), model_id, data))
+    if r is None:
+        raise HTTPException(status_code=404, detail="Model topilmadi")
+    return r
+
+
+@app.delete("/api/sayt-katalogi/modellar/{model_id}/chegirma")
+def api_dokon_chegirma_ochir(model_id: int = _Path213(..., ge=1, le=2_147_483_647), db: Session = Depends(get_db),
+                             current_user=Depends(auth.admin_only)):
+    """Chegirmani qo'lda o'chiradi (modelda chegirma yo'q — 404)."""
+    ok = _dokon_bajar(db, lambda: crud.dokon_chegirma_ochir(db, auth.company_id_of(current_user), model_id,
+                                                           _dokon_kim(current_user)))
+    if ok is None:
+        raise HTTPException(status_code=404, detail="Model topilmadi")
+    if ok is False:
+        raise HTTPException(status_code=404, detail="Bu modelda chegirma yo'q")
+    return {"status": "ok"}
 
 
 @app.post("/api/platform/companies/{company_id}/dokon")

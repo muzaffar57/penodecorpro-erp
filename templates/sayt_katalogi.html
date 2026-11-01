@@ -14,7 +14,9 @@
    m² — 1 m², dona — 1 dona). Katakdagi qiymat o'zgarishi bilan saqlanadi. Tizim bo'limlari (Tayyor mahsulotlar, O'z o'lchamingiz
    bilan, Ulgurji) boshqa bo'limlardan yig'iladi — ularga model qo'shilmaydi. Ma'lumot — /api/sayt-katalogi (faqat Admin).
    kech168 (zip 233): «Do'kon sozlamalari» kartochkasi — buyurtmani tasdiqlash telefonlari, ish vaqti, komplekt retsepti (shtorkalar);
-   komplekt modelida — retsept bo'yicha komplekt narxlari (server hisobi). #}
+   komplekt modelida — retsept bo'yicha komplekt narxlari (server hisobi).
+   kech169 (zip 234): model ichida «🏷 Chegirma» shtorkasi — foiz yoki «Yangi narx», o'lchamlar, tugash sanasi; natija (asl → chegirmali,
+   tannarx, «tannarxdan past» ogohlantirishi) — serverdan; model sarlavhasida «−15 %» belgisi. #}
 <style>
 .sk-grid{display:grid;grid-template-columns:280px minmax(0,1fr);gap:14px;align-items:start}
 .sk-grid > div{min-width:0}
@@ -165,6 +167,29 @@
 }
 @media (max-width: 420px){
   .sk-retsept input{width:50px;padding:0 6px}
+}
+/* kech169 (zip 234): model chegirmasi — shtorka ichida forma (foiz, tugash sanasi, o'lchamlar) va natija jadvali (asl → chegirmali,
+   tannarx, «Yangi narx»); tannarxdan past — qizil (faqat ogohlantirish) */
+.sk-chegirma{margin-top:12px}
+.sk-forma input[type=date]{min-height:var(--h-sm);box-sizing:border-box;padding:0 10px;font-size:var(--fs-maydon-sm);border:1px solid var(--border);
+  border-radius:var(--r-btn);background:var(--white);color:var(--text);font-family:inherit;width:100%}
+.sk-ch-olcham{display:flex;flex-wrap:wrap;gap:6px;flex:1 1 100%;align-items:center}
+.sk-ch-olcham label{flex-direction:row !important;align-items:center;gap:4px;min-width:0 !important;flex:0 0 auto !important;font-size:13px !important;
+  color:var(--text) !important;padding:6px 10px;border:1px solid var(--border2);border-radius:20px;cursor:pointer}
+.sk-ch-olcham label.xira{opacity:.55}
+.sk-ch-natija{margin-top:10px}
+.sk-ch-ogoh{margin:0 0 8px;padding:8px 10px;border:1px solid var(--red);border-radius:var(--r-btn);color:var(--red);font-size:13px;line-height:1.5}
+.sk-ch-ogoh .sk-matn{margin-top:4px}
+.sk-belgi.qizil{background:var(--f-fee2e2);color:var(--red)}
+.sk-eski{text-decoration:line-through;color:var(--text2)}
+.sk-chjadval tr.past td{color:var(--red)}
+.sk-chjadval tr.chetda td{color:var(--text2)}
+.sk-chjadval input[type=text]{width:120px;max-width:100%;min-height:var(--h-sm);box-sizing:border-box;padding:0 8px;border:1px solid var(--border2);
+  border-radius:var(--r-btn);font:inherit;font-size:14px}
+.sk-chjadval input.xato{border-color:var(--red)}
+.sk-kn.sk-ch-kn{color:var(--gold-dark)}
+@media (max-width: 700px){
+  .sk-chjadval input[type=text]{width:100%}
 }
 </style>
 {% endblock %}
@@ -351,6 +376,7 @@ function skModelHtml(m) {
     '<span class="sk-mnom">' + escapeHtml(m.nom || '') + '</span>' +
     (m.yoqilgan ? '' : '<span class="sk-belgi">yashirin</span>') +
     '<span class="sk-belgi">' + escapeHtml(skQolipNomi(m.qolip)) + '</span>' +
+    '<span data-chbelgi="' + escapeHtml(String(m.id)) + '">' + skChegirmaBelgiHtml(m.id) + '</span>' +   // zip 234
     '<span class="sk-son">' + escapeHtml(skModelSoniMatn(m.id)) + '</span></button>' +
     '<div class="sk-model-tana"><div class="sk-forma">' +
     '<label>Kodi<input type="text" data-mf="kod" maxlength="30" value="' + escapeHtml(m.kod) + '"></label>' +
@@ -378,6 +404,7 @@ function skModelHtml(m) {
     '<td class="sk-bosh-td"></td><td><button type="button" class="btn btn-dark" data-dyarat="' + m.id + '">+</button></td></tr>' +
     '</tbody></table></div>' +
     (m.qolip === 'komplekt' ? '<div class="sk-komplekt" data-komplekt="' + escapeHtml(String(m.id)) + '">' + skKomplektHtml(m) + '</div>' : '') +
+    '<div class="sk-chegirma" data-chegirma="' + escapeHtml(String(m.id)) + '">' + skChegirmaHtml(m) + '</div>' +   // zip 234
     '<p class="sk-matn" style="margin-top:8px">Narx — ' + (m.qolip === 'komplekt' ? 'karniz, podokonnik, nalichnik uchun 1 m, kapitel va baza uchun 1 dona' :
       (m.qolip === 'm2' ? '1 m²' : (m.qolip === 'dona' ? '1 dona' : '1 m (kapitel va baza — 1 dona)'))) +
     '. Ulgurji: metrli detal — 1 dona = 2 m, m² — 1 m², dona — 1 dona. Qoplamali narx bo\'sh — qoplamasiz × koeffitsient.</p>' +
@@ -420,6 +447,8 @@ function skModelTinglovchilar(el) {
       var id = parseInt(t.dataset.och, 10);
       SK.ochiq[id] = !SK.ochiq[id];
       t.closest('.sk-model').classList.toggle('ochiq', !!SK.ochiq[id]);
+      var cd = SK.ochiq[id] && document.querySelector('[data-chegirma="' + id + '"] details.sht');   // zip 234: ochiq chegirma — narxlar
+      if (cd && cd.open) skChKor(id);
     });
   });
   el.querySelectorAll('[data-msaqla]').forEach(function (t) {
@@ -438,6 +467,7 @@ function skModelTinglovchilar(el) {
     inp.addEventListener('change', function () { skDetalMaydon(inp); });
   });
   el.querySelectorAll('[data-rasmlar]').forEach(function (b) { skRasmTinglovchilar(b); });
+  el.querySelectorAll('[data-chegirma]').forEach(function (q) { shtorkaTayyor(q); skChTinglovchilar(q); });   // zip 234
 }
 
 async function skSorov(url, usul, tana) {
@@ -634,6 +664,7 @@ async function skDetalMaydon(inp) {
   }
   if (!n.ok) { inp.classList.add('xato'); showMsg('❌ Saqlanmadi: ' + n.sabab, 'error'); return; }
   var d = n.d;
+  var eskiOl234 = (SK.k.detallar.filter(function (x) { return x.id === id; })[0] || {}).olcham;   // zip 234
   SK.k.detallar = SK.k.detallar.map(function (x) { return x.id === id ? d : x; });
   if (!inp.isConnected) return;
   var hozir = k === 'yoqilgan' ? inp.checked : inp.value;
@@ -650,6 +681,7 @@ async function skDetalMaydon(inp) {
   skModelSoniYangila(d.model_id);
   var m233 = SK.k.modellar.filter(function (x) { return x.id === d.model_id; })[0];
   if (m233 && m233.qolip === 'komplekt') skKomplektYangila(d.model_id);   // zip 233: komplekt narxlari — server hisobi
+  skChDetaldan(d.model_id, k === 'olcham' ? eskiOl234 : null, d.olcham);   // zip 234: chegirma bloki (o'lchamlar, narxlar, belgi)
 }
 
 function skModelSoniMatn(modelId) {
@@ -1262,19 +1294,25 @@ function skKomplektHtml(m) {
   var royxat = (SK.k.komplekt || {})[String(m.id)] || [];
   if (!s) return '';
   var standart = skOlchamKalit(s.komplekt_olcham);
-  var h = '<h4>Komplekt narxlari (retsept bo\'yicha, chegirmasiz)</h4>';
+  var h = '<h4>Komplekt narxlari (retsept bo\'yicha)</h4>';
   if (!royxat.length) return h + '<p class="sk-matn">Narx qatori yo\'q — karniz, podokonnik, nalichnik (va kapitel, baza) qatorlarini o\'lcham bilan qo\'shing.</p>';
-  function katak(v, kb) {
+  function katak(v, kb, ch, foiz) {
     if (!v) return '—';
     var q = '<div class="sk-kn">' + escapeHtml('qoplamasiz ' + skKomplektNarx(v.qoplamasiz) + ' · qoplamali ' + skKomplektNarx(v.qoplamali)) + '</div>';
     if (kb) q += '<div class="sk-kn sk-matn">' + escapeHtml('kapitel / bazasiz: ' + skKomplektNarx(v.qoplamasiz_kbsiz) + ' · ' + skKomplektNarx(v.qoplamali_kbsiz)) + '</div>';
+    // zip 234: chegirma (amalda, shu o'lchamga) — chegirmali detallar yig'indisi
+    if (ch) {
+      q += '<div class="sk-kn sk-ch-kn">' + escapeHtml('chegirmali (−' + skFoizKor(foiz) + ' %): qoplamasiz ' + skKomplektNarx(ch.qoplamasiz) + ' · qoplamali ' + skKomplektNarx(ch.qoplamali)) + '</div>';
+      if (kb) q += '<div class="sk-kn sk-ch-kn">' + escapeHtml('chegirmali, kapitel / bazasiz: ' + skKomplektNarx(ch.qoplamasiz_kbsiz) + ' · ' + skKomplektNarx(ch.qoplamali_kbsiz)) + '</div>';
+    }
     if (v.yetishmaydi && v.yetishmaydi.length) q += '<div class="sk-yoq">' + escapeHtml('Yetishmaydi: ' + v.yetishmaydi.join('; ')) + '</div>';
-    return q;
+    return '<div>' + q + '</div>';            // zip 234 (review234 O3): telefonda qatorlar ustma-ust (bitta flex bola)
   }
   var kb = !!m.kapitel_baza_bor;
   h += '<div class="sk-jadval-quti"><table class="sk-kjadval"><thead><tr><th>O\'lcham</th><th>Rom (1 komplekt)</th><th>Eshik (1 komplekt)</th><th>Ulgurji rom (1 komplekt)</th></tr></thead><tbody>' +
     royxat.map(x => '<tr><td data-label="O\'lcham"><b>' + escapeHtml(x.olcham) + '</b>' + (skOlchamKalit(x.olcham) === standart ? ' <span class="sk-belgi oltin">standart</span>' : '') + '</td>' +
-      '<td data-label="Rom">' + katak(x.rom, kb) + '</td><td data-label="Eshik">' + katak(x.eshik, kb) + '</td>' +
+      '<td data-label="Rom">' + katak(x.rom, kb, x.chegirma && x.chegirma.rom, x.chegirma && x.chegirma.foiz) + '</td>' +
+      '<td data-label="Eshik">' + katak(x.eshik, kb, x.chegirma && x.chegirma.eshik, x.chegirma && x.chegirma.foiz) + '</td>' +
       '<td data-label="Ulgurji rom">' + katak(x.ulgurji_rom, kb) + '</td></tr>').join('') + '</tbody></table></div>';
   if (!royxat.some(x => skOlchamKalit(x.olcham) === standart)) {
     h += '<p class="sk-yoq">' + escapeHtml('Standart o\'lcham «' + s.komplekt_olcham + '» bu modelda yo\'q — saytda model birinchi o\'lchami bilan ochiladi') + '</p>';
@@ -1293,6 +1331,349 @@ async function skKomplektYangila(modelId) {
   var quti = document.querySelector('[data-komplekt="' + modelId + '"]');
   var m = SK.k.modellar.filter(x => x.id === modelId)[0];
   if (quti && m) quti.innerHTML = skKomplektHtml(m);
+}
+
+// ── kech169 (zip 234): MODEL CHEGIRMASI (egasi QARORLARI 30.10). SK.k.chegirmalar — {model_id: saqlangan chegirma}; SK.chNo — ko'rish
+// so'rovlari tartibi (eski javob yangisini bosib ketmasin). Chegirma amalidan keyin FAQAT shu modelning chegirma bloki, sarlavha belgisi
+// va komplekt bloki yangilanadi (narx kataklaridagi yozilayotgan matn yo'qolmaydi). Chegirmali narxlar, tannarx va ogohlantirishlar —
+// SERVERDAN (`/chegirma/korish` — saqlamasdan ko'rish); sahifa faqat «Yangi narx» ni foizga o'giradi.
+function skCheg(mid) { return ((SK.k && SK.k.chegirmalar) || {})[String(mid)] || null; }
+function skFoizKor(f) { return sonKor(f, 2); }
+
+function skChegirmaBelgiHtml(mid) {
+  var c = skCheg(mid);
+  if (!c) return '';
+  if (!c.faol) return '<span class="sk-belgi">chegirma tugagan</span>';
+  return '<span class="sk-belgi oltin">' + escapeHtml('−' + skFoizKor(c.foiz) + ' %' + (c.tugash_matni ? ' · ' + c.tugash_matni : '')) + '</span>' +
+    (c.ogohlantirish_soni ? ' <span class="sk-belgi qizil">⚠ tannarxdan past</span>' : '');
+}
+
+function skChHolatMatn(mid) {
+  var c = skCheg(mid);
+  if (!c) return 'yo\'q';
+  if (!c.faol) return 'muddati tugagan' + (c.tugash_matni ? ' (' + c.tugash_matni + ' edi)' : '');
+  return '−' + skFoizKor(c.foiz) + ' %' + (c.tugash_matni ? ', ' + c.tugash_matni : ', muddatsiz') +
+    (c.ogohlantirish_soni ? ' · tannarxdan past' : '');
+}
+
+function skChOlchamlar(mid) {
+  // modeldagi o'lchamlar (narx qatorlari tartibida, birinchi yozilishi; «O'rta» = «O’rta» — skOlchamKalit)
+  var bor = {}, r = [];
+  SK.k.detallar.filter(function (d) { return d.model_id === mid; }).forEach(function (d) {
+    var k = skOlchamKalit(d.olcham);
+    if (!bor[k]) { bor[k] = true; r.push({kalit: k, olcham: d.olcham}); }
+  });
+  return r;
+}
+
+function skChOlchamHolati(mid, saqlangan) {
+  // {hammasi, tanlangan: {kalit: true}} — `saqlangan` bo'lsa saqlangan chegirmadan, aks holda formadagi belgilardan
+  var c = skCheg(mid);
+  var q = document.querySelector('[data-cholcham="' + mid + '"]');
+  if (saqlangan || !q) {
+    var h = {hammasi: !c || c.olchamlar === null, tanlangan: {}};
+    if (c && c.olchamlar) c.olchamlar.forEach(function (o) { h.tanlangan[skOlchamKalit(o)] = true; });
+    return h;
+  }
+  var hm = q.querySelector('[data-chf="hammasi"]');
+  var h2 = {hammasi: !!(hm && hm.checked), tanlangan: {}};
+  q.querySelectorAll('[data-cho]').forEach(function (x) { if (x.checked) h2.tanlangan[skOlchamKalit(x.dataset.cho)] = true; });
+  return h2;
+}
+
+function skChOlchamYorliq(o, holat) {
+  var bel = holat.hammasi || !!holat.tanlangan[o.kalit];
+  return '<label' + (holat.hammasi ? ' class="xira"' : '') + '><input type="checkbox" data-cho="' + escapeHtml(o.olcham) + '"' +
+    (bel ? ' checked' : '') + (holat.hammasi ? ' disabled' : '') + '> ' + escapeHtml(o.olcham) + '</label>';
+}
+
+function skChOlchamHtml(mid, hl) {
+  var c = skCheg(mid);
+  var ol = skChOlchamlar(mid);
+  return '<label><input type="checkbox" data-chf="hammasi"' + (hl.hammasi ? ' checked' : '') + '> Hamma o\'lchamlar</label>' +
+    ol.map(o => skChOlchamYorliq(o, hl)).join('') +
+    ((c && c.olchamlar && !c.olchamlar.length) ? '<span class="sk-yoq">Saqlangan chegirma hech qaysi o\'lchamga tegishli emas — o\'lcham tanlab qayta saqlang</span>' : '') +
+    ((c && c.yoq_olchamlar && c.yoq_olchamlar.length) ? '<span class="sk-yoq">' + escapeHtml('Narx qatori qolmagan o\'lcham: ' + c.yoq_olchamlar.join(', ')) + '</span>' : '');
+}
+
+function skChegirmaHtml(m) {
+  var c = skCheg(m.id);
+  var ich = '<p class="sk-matn">Faqat oddiy narxga — qoplamasiz va qoplamali narxga bir xil foiz; ulgurji narx o\'zgarmaydi. Foiz o\'rniga ' +
+      'narxlar jadvalidagi «Yangi narx» katagiga narx yozsangiz — foiz o\'zi hisoblanadi. Chegirmali narx 100 so\'mgacha yaxlitlanadi. ' +
+      'Tugash sanasi o\'tgach chegirma o\'zi o\'chadi.</p>' +
+    '<div class="sk-forma">' +
+      '<label class="tor">Chegirma, %<input type="text" inputmode="decimal" data-chf="foiz" maxlength="8" placeholder="15" value="' +
+        escapeHtml(c ? String(c.foiz).replace('.', ',') : '') + '"></label>' +
+      '<label class="tor">Tugash sanasi (ixtiyoriy)<input type="date" data-chf="tugash" min="' + escapeHtml(SK.k.bugun || '') + '" value="' +
+        escapeHtml(c && c.tugash ? c.tugash : '') + '"></label>' +   // review234 P1: tugagani ham — jimgina muddatsiz bo'lmasin
+      '<div class="sk-ch-olcham" role="group" aria-label="Qaysi o\'lchamlarga" data-cholcham="' + escapeHtml(String(m.id)) + '">' +
+        skChOlchamHtml(m.id, skChOlchamHolati(m.id, true)) + '</div>' +
+      '<button type="button" class="btn btn-dark" data-chsaqla="' + escapeHtml(String(m.id)) + '">Chegirmani saqlash</button>' +
+      (c ? '<button type="button" class="btn btn-outline" data-chochir="' + escapeHtml(String(m.id)) + '">Chegirmani o\'chirish</button>' : '') +
+    '</div>' +
+    (c && !c.faol ? '<p class="sk-yoq">' + escapeHtml('Muddati tugagan' + (c.tugash_matni ? ' (' + c.tugash_matni + ' edi)' : '') +
+      ' — saytda chegirma ko\'rinmaydi. Yangi tugash sanasi bilan qayta saqlang yoki o\'chiring.') + '</p>' : '') +
+    '<div class="sk-ch-natija" data-chnatija="' + escapeHtml(String(m.id)) + '"><div class="sk-matn">Yuklanmoqda…</div></div>';
+  var c2 = skCheg(m.id);
+  return shtorkaHtml('sk-ch-' + m.id, '🏷 Chegirma', skChHolatMatn(m.id), (c2 && c2.faol && c2.ogohlantirish_soni) ? true : null, ich);
+}
+
+function skNarxJuft(asl, ch) {
+  if (asl === null || asl === undefined) return '—';
+  if (ch === null || ch === undefined) return escapeHtml(sonKor(asl, 0));
+  return '<span class="sk-eski">' + escapeHtml(sonKor(asl, 0)) + '</span> → <b>' + escapeHtml(sonKor(ch, 0)) + '</b>';
+}
+
+function skChQatorHtml(r, bor) {
+  var izoh = !r.yoqilgan ? 'saytda yashirin' : (r.narx === null ? 'narx kiritilmagan' : (bor && !r.tegishli ? 'bu o\'lchamga chegirma yo\'q' : ''));
+  var cls = (r.past && r.past.length ? 'past' : '') + ((!r.yoqilgan || (bor && !r.tegishli)) ? ' chetda' : '');
+  return '<tr class="' + cls.trim() + '"><td data-label="Detal"><div>' + escapeHtml(r.turi_nomi) +
+      (izoh ? '<div class="sk-matn">' + escapeHtml(izoh) + '</div>' : '') + '</div></td>' +
+    '<td data-label="O\'lcham">' + escapeHtml(r.olcham) + '</td>' +
+    '<td data-label="Qoplamasiz"><div>' + skNarxJuft(r.narx, r.chegirmali) + ((r.past || []).indexOf('qoplamasiz') >= 0 ? ' ⚠' : '') + '</div></td>' +
+    '<td data-label="Qoplamali"><div>' + skNarxJuft(r.qoplamali, r.qoplamali_chegirmali) + ((r.past || []).indexOf('qoplamali') >= 0 ? ' ⚠' : '') + '</div></td>' +
+    '<td data-label="Tannarx (1 m)"><div>' + (r.tannarx === null ? '<span class="sk-matn">' + escapeHtml(r.tannarx_sabab || '—') + '</span>' :
+      escapeHtml(sonKor(r.tannarx, 0))) + '</div></td>' +
+    '<td data-label="Yangi narx"><div>' + (r.narx !== null ? '<input type="text" inputmode="decimal" data-chyangi="' + escapeHtml(String(r.narx)) +
+      '" aria-label="' + escapeHtml('Yangi narx — ' + r.turi_nomi + ', ' + r.olcham) + '" placeholder="' + escapeHtml(sonKor(r.narx, 0)) + '">' : '') +
+    '</div></td></tr>';
+}
+
+function skChKomplektQator(x, bor) {
+  var ch = x.chegirma || {};
+  function katak(kom) {
+    var v = x[kom] || {}, c = ch[kom] || {};
+    return '<div><div class="sk-kn">qoplamasiz ' + skNarxJuft(v.qoplamasiz, ch[kom] ? c.qoplamasiz : null) + '</div>' +
+      '<div class="sk-kn">qoplamali ' + skNarxJuft(v.qoplamali, ch[kom] ? c.qoplamali : null) + '</div></div>';
+  }
+  var rom = (x.rom || {}).qoplamasiz;
+  return '<tr' + (bor && !x.chegirma ? ' class="chetda"' : '') + '><td data-label="O\'lcham"><b>' + escapeHtml(x.olcham) + '</b>' +
+      (bor && !x.chegirma ? '<div class="sk-matn">chegirma yo\'q</div>' : '') + '</td>' +
+    '<td data-label="Rom">' + katak('rom') + '</td><td data-label="Eshik">' + katak('eshik') + '</td>' +
+    '<td data-label="Yangi narx (rom)"><div>' + (rom !== null && rom !== undefined ? '<input type="text" inputmode="decimal" data-chyangi="' +
+      escapeHtml(String(rom)) + '" aria-label="' + escapeHtml('Yangi narx — rom komplekti, ' + x.olcham) + '" placeholder="' + escapeHtml(sonKor(rom, 0)) + '">' : '') +
+    '</div></td></tr>';
+}
+
+function skChNatijaHtml(mid, d) {
+  var q = d.qatorlar || [];
+  if (!q.length) return '<div class="sk-matn">Narx qatori yo\'q — avval narxlarni kiriting.</div>';
+  var bor = !!d.chegirma;
+  var h = '';
+  if (d.ogohlantirish && d.ogohlantirish.length) {
+    h += '<div class="sk-ch-ogoh">' + d.ogohlantirish.map(function (x) { return '⚠ ' + escapeHtml(x); }).join('<br>') +
+      '<div class="sk-matn">Faqat ogohlantirish — saqlash to\'silmaydi (masalan, eski qoldiqni arzonga chiqarish uchun).</div></div>';
+  }
+  h += '<div class="sk-jadval-quti"><table class="sk-kjadval sk-chjadval"><thead><tr><th>Detal</th><th>O\'lcham</th><th>Qoplamasiz</th>' +
+    '<th>Qoplamali</th><th>Tannarx (1 m)</th><th>Yangi narx</th></tr></thead><tbody>' +
+    q.map(r => skChQatorHtml(r, bor)).join('') + '</tbody></table></div>';
+  var k = d.komplekt || [];
+  if (k.length) {
+    h += '<h4 style="margin:12px 0 6px;font-size:14px">Komplekt (1 komplekt, retsept bo\'yicha)</h4>' +
+      '<div class="sk-jadval-quti"><table class="sk-kjadval sk-chjadval"><thead><tr><th>O\'lcham</th><th>Rom</th><th>Eshik</th><th>Yangi narx (rom)</th></tr></thead><tbody>' +
+      k.map(x => skChKomplektQator(x, bor)).join('') + '</tbody></table></div>' +
+      '<p class="sk-matn">Komplekt narxi — chegirmali detallar yig\'indisi, shuning uchun komplektga yozilgan yangi narxdan bir oz farq qilishi mumkin.</p>';
+  }
+  h += '<p class="sk-matn">' + escapeHtml(d.tannarx_izoh || '') + '</p>';
+  return h;
+}
+
+function skChForma(mid) {
+  var q = document.querySelector('[data-chegirma="' + mid + '"]');
+  if (!q || !q.querySelector('[data-chf="foiz"]')) return null;
+  var hm = q.querySelector('[data-chf="hammasi"]');
+  var ol = (hm && hm.checked) ? null : Array.prototype.slice.call(q.querySelectorAll('[data-cho]'))
+    .filter(function (x) { return x.checked; }).map(function (x) { return x.dataset.cho; });
+  return {quti: q, foiz: skSonOl(q.querySelector('[data-chf="foiz"]').value), olchamlar: ol,
+          tugash: q.querySelector('[data-chf="tugash"]').value || null};
+}
+
+function skChSaqlanganmi(mid, f) {
+  // forma = saqlangan chegirma (o'lchamlar — kalit bo'yicha)
+  var c = skCheg(mid);
+  if (!c || !c.faol || Number(c.foiz) !== f.foiz || (c.tugash || null) !== f.tugash) return false;
+  if ((c.olchamlar === null) !== (f.olchamlar === null)) return false;
+  if (c.olchamlar === null) return true;
+  var a = c.olchamlar.map(skOlchamKalit).sort().join('\n'), b = f.olchamlar.map(skOlchamKalit).sort().join('\n');
+  return a === b;
+}
+
+function skChOgohYangila(mid, soni) {
+  var c = skCheg(mid);
+  if (!c) return;
+  c.ogohlantirish_soni = soni;
+  var b = document.querySelector('[data-chbelgi="' + mid + '"]');
+  if (b) b.innerHTML = skChegirmaBelgiHtml(mid);
+  shtorkaHolat('sk-ch-' + mid, skChHolatMatn(mid), soni ? true : null);
+}
+
+function skChKorRejala(mid) {
+  SK.chT = SK.chT || {};
+  clearTimeout(SK.chT[mid]);
+  SK.chT[mid] = setTimeout(function () { skChKor(mid); }, 350);
+}
+
+async function skChKor(mid) {
+  var f = skChForma(mid);
+  if (!f) return;
+  var el = f.quti.querySelector('[data-chnatija]');
+  SK.chNo = SK.chNo || {};
+  var nomer = (SK.chNo[mid] || 0) + 1;
+  SK.chNo[mid] = nomer;
+  var foizInp = f.quti.querySelector('[data-chf="foiz"]');
+  if (isNaN(f.foiz)) { foizInp.classList.add('xato'); el.innerHTML = '<div class="sk-yoq">Foiz — son bo\'lsin (masalan 15 yoki 12,5)</div>'; return; }
+  foizInp.classList.remove('xato');
+  if (f.olchamlar && !f.olchamlar.length) { el.innerHTML = '<div class="sk-yoq">Kamida bitta o\'lchamni tanlang yoki «Hamma o\'lchamlar» ni belgilang</div>'; return; }
+  var n = await skSorov('/api/sayt-katalogi/modellar/' + mid + '/chegirma/korish', 'POST', {foiz: f.foiz, olchamlar: f.olchamlar, tugash: f.tugash});
+  if (SK.chNo[mid] !== nomer) return;              // eski javob yangisini bosib ketmasin
+  var q2 = document.querySelector('[data-chegirma="' + mid + '"] [data-chnatija]');
+  if (!q2) return;
+  if (!n.ok || !n.d) { q2.innerHTML = '<div class="sk-yoq">' + escapeHtml(n.sabab || 'javob yo\'q') + '</div>'; return; }
+  q2.innerHTML = skChNatijaHtml(mid, n.d);
+  skChNatijaTinglovchilar(mid, q2);
+  if (skChSaqlanganmi(mid, f)) skChOgohYangila(mid, (n.d.ogohlantirish || []).length);
+}
+
+function skChNatijaTinglovchilar(mid, el) {
+  el.querySelectorAll('[data-chyangi]').forEach(function (inp) {
+    inp.addEventListener('change', function () {
+      var asl = Number(inp.dataset.chyangi), y = skSonOl(inp.value);
+      if (y === null) { inp.classList.remove('xato'); return; }
+      if (isNaN(y) || y <= 0) { inp.classList.add('xato'); showMsg('❌ Yangi narx — son bo\'lsin', 'error'); return; }
+      if (!(asl > 0) || y >= asl) { inp.classList.add('xato'); showMsg('❌ Yangi narx hozirgi narxdan (' + sonKor(asl, 0) + ') kam bo\'lsin', 'error'); return; }
+      var f = Math.round((1 - y / asl) * 10000) / 100;
+      if (f < 1 || f > 99) { inp.classList.add('xato'); showMsg('❌ Chegirma ' + sonKor(f, 2) + ' % chiqadi — 1 % dan 99 % gacha bo\'lsin', 'error'); return; }
+      inp.classList.remove('xato');
+      var q = document.querySelector('[data-chegirma="' + mid + '"] [data-chf="foiz"]');
+      if (q) { q.value = String(f).replace('.', ','); q.classList.remove('xato'); }
+      showMsg('✓ Chegirma ' + sonKor(f, 2) + ' % — narxlar qayta hisoblandi (saqlash uchun «Chegirmani saqlash»)', 'success');
+      skChKor(mid);
+    });
+  });
+}
+
+function skChOlchamChiz(mid, saqlangan, holat) {
+  var q = document.querySelector('[data-cholcham="' + mid + '"]');
+  if (!q) return;
+  q.innerHTML = skChOlchamHtml(mid, holat || skChOlchamHolati(mid, saqlangan));
+  skChOlchamTinglovchilar(mid, q);
+}
+
+function skChOlchamTinglovchilar(mid, q) {
+  var hm = q.querySelector('[data-chf="hammasi"]');
+  if (hm) hm.addEventListener('change', function () { skChOlchamChiz(mid, false); skChKorRejala(mid); });
+  q.querySelectorAll('[data-cho]').forEach(function (x) { x.addEventListener('change', function () { skChKorRejala(mid); }); });
+}
+
+function skChTinglovchilar(q) {
+  var mid = parseInt(q.dataset.chegirma, 10);
+  var d = q.querySelector('details.sht');
+  if (d) d.addEventListener('toggle', function () { if (d.open && SK.ochiq[mid]) skChKor(mid); });
+  var foiz = q.querySelector('[data-chf="foiz"]');
+  if (foiz) {
+    foiz.addEventListener('input', function () { skChKorRejala(mid); });
+    foiz.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); var b = q.querySelector('[data-chsaqla]'); if (b) skChSaqla(mid, b); } });
+  }
+  var t = q.querySelector('[data-chf="tugash"]');
+  if (t) t.addEventListener('change', function () { skChKorRejala(mid); });
+  var ol = q.querySelector('[data-cholcham]');
+  if (ol) skChOlchamTinglovchilar(mid, ol);
+  var s = q.querySelector('[data-chsaqla]');
+  if (s) s.addEventListener('click', function () { skChSaqla(mid, s); });
+  var o = q.querySelector('[data-chochir]');
+  if (o) o.addEventListener('click', function () { skChOchir(mid); });
+}
+
+function skChBlokChiz(mid, d) {
+  var q = document.querySelector('[data-chegirma="' + mid + '"]');
+  var m = SK.k.modellar.filter(function (x) { return x.id === mid; })[0];
+  if (!q || !m) return;
+  var eski = q.querySelector('details.sht'), ochiq = !!(eski && eski.open);
+  q.innerHTML = skChegirmaHtml(m);
+  shtorkaTayyor(q);
+  var yangi = q.querySelector('details.sht');
+  if (ochiq && yangi && !yangi.open) shtorkaOch(yangi, true);
+  skChTinglovchilar(q);
+  var el = q.querySelector('[data-chnatija]');
+  if (d && el) { el.innerHTML = skChNatijaHtml(mid, d); skChNatijaTinglovchilar(mid, el); }
+  else if (yangi && yangi.open) skChKor(mid);
+}
+
+function skChJavob(mid, d) {
+  // saqlangan holat (PUT javobi yoki o'chirilgandan keyin null) → SK.k va shu modelning bloklari
+  SK.k.chegirmalar = SK.k.chegirmalar || {};
+  if (d && d.chegirma) SK.k.chegirmalar[String(mid)] = Object.assign({}, d.chegirma, {ogohlantirish_soni: (d.ogohlantirish || []).length});
+  else delete SK.k.chegirmalar[String(mid)];
+  var m = SK.k.modellar.filter(function (x) { return x.id === mid; })[0];
+  if (d && m && m.qolip === 'komplekt') { SK.k.komplekt = SK.k.komplekt || {}; SK.k.komplekt[String(mid)] = d.komplekt || []; }
+  skChBlokChiz(mid, d);
+  var b = document.querySelector('[data-chbelgi="' + mid + '"]');
+  if (b) b.innerHTML = skChegirmaBelgiHtml(mid);
+  var kq = document.querySelector('[data-komplekt="' + mid + '"]');
+  if (kq && m && d) kq.innerHTML = skKomplektHtml(m);
+}
+
+async function skChSaqla(mid, tugma) {
+  var f = skChForma(mid);
+  if (!f) return;
+  var foizInp = f.quti.querySelector('[data-chf="foiz"]');
+  if (f.foiz === null || isNaN(f.foiz)) {
+    foizInp.classList.add('xato');
+    showMsg('❌ Chegirma saqlanmadi: foizni yozing (masalan 15) yoki jadvaldagi «Yangi narx» katagiga narx', 'error');
+    return;
+  }
+  if (f.olchamlar && !f.olchamlar.length) { showMsg('❌ Chegirma saqlanmadi: kamida bitta o\'lchamni tanlang', 'error'); return; }
+  if (!skBandla('ch' + mid)) return;
+  tugma.disabled = true;
+  var n = await skSorov('/api/sayt-katalogi/modellar/' + mid + '/chegirma', 'PUT', {foiz: f.foiz, olchamlar: f.olchamlar, tugash: f.tugash});
+  tugma.disabled = false;
+  skBo('ch' + mid);
+  if (!n.ok || !n.d) { showMsg('❌ Chegirma saqlanmadi: ' + (n.sabab || 'javob yo\'q'), 'error'); return; }
+  var og = n.d.ogohlantirish || [];
+  skChJavob(mid, n.d);
+  showMsg(og.length ? '⚠ Chegirma saqlandi, lekin narx tannarxdan past:\n' + og.join('\n') : '✓ Chegirma saqlandi', og.length ? 'error' : 'success');
+  var s = document.querySelector('[data-chegirma="' + mid + '"] [data-chsaqla]');
+  if (s) s.focus();
+}
+
+async function skChOchir(mid) {
+  var m = SK.k.modellar.filter(function (x) { return x.id === mid; })[0];
+  if (!m || !skCheg(mid)) return;
+  if (!(await customConfirm('Chegirmani o\'chirish', m.kod + ' modelining chegirmasi o\'chirilsinmi? Saytda oddiy narx ko\'rinadi.'))) return;
+  if (!skBandla('ch' + mid)) return;
+  var n = await skSorov('/api/sayt-katalogi/modellar/' + mid + '/chegirma', 'DELETE');
+  skBo('ch' + mid);
+  if (!n.ok) { showMsg('❌ Chegirma o\'chirilmadi: ' + n.sabab, 'error'); return; }
+  showMsg('✓ Chegirma o\'chirildi', 'success');
+  skChJavob(mid, null);
+  if (m.qolip === 'komplekt') skKomplektYangila(mid);
+  var f = document.querySelector('[data-chegirma="' + mid + '"] [data-chf="foiz"]');
+  if (f) f.focus();
+}
+
+async function skChDetaldan(mid, eskiOl, yangiOl) {
+  // narx qatori saqlangach. O'lcham qayta nomlangan bo'lsa (`eskiOl`) — o'lchamlar guruhi FORMA holatidan (saqlanmagan belgilar
+  // yo'qolmaydi; eski nom belgilangan bo'lsa — yangisi ham; review234 P3), saqlangan chegirma — serverdan (o'lcham ro'yxati ko'chgan
+  // bo'lishi mumkin). Ochiq blok — narxlar qayta (forma qiymatlari bilan); yopiq bo'lsa ham saqlangan amaldagi chegirmaning «⚠ tannarxdan
+  // past» belgisi yangilanadi (review234 P2).
+  var q = document.querySelector('[data-chegirma="' + mid + '"]');
+  if (!q) return;
+  var c = skCheg(mid);
+  if (eskiOl !== null && eskiOl !== undefined) {
+    var h = skChOlchamHolati(mid, false);
+    if (h.tanlangan[skOlchamKalit(eskiOl)]) h.tanlangan[skOlchamKalit(yangiOl)] = true;
+    if (c && c.olchamlar) {
+      var n = await skSorov('/api/sayt-katalogi', 'GET');
+      if (n.ok && n.d && n.d.chegirmalar) SK.k.chegirmalar = n.d.chegirmalar;
+      c = skCheg(mid);
+    }
+    skChOlchamChiz(mid, false, h);
+  }
+  var d = q.querySelector('details.sht');
+  if (d && d.open) { skChKorRejala(mid); return; }
+  if (!c || !c.faol) return;
+  var r = await skSorov('/api/sayt-katalogi/modellar/' + mid + '/chegirma/korish', 'POST', {foiz: c.foiz, olchamlar: c.olchamlar, tugash: c.tugash});
+  if (r.ok && r.d && skCheg(mid) === c) skChOgohYangila(mid, (r.d.ogohlantirish || []).length);
 }
 
 skYukla();

@@ -2980,6 +2980,30 @@ class DokonTelefon(Base):
     def __repr__(self):
         return f"<DokonTelefon {self.id} {self.raqam}>"
 
+
+class DokonChegirma(Base):
+    """kech169 (zip 234) — sayt modeli chegirmasi (egasi QARORLARI «Onlayn do'kon rejasi» 30.10: admin modelni tanlab foiz yoki yangi narx
+    yozadi, xohlasa faqat ayrim o'lchamlariga; tugash sanasi ixtiyoriy — o'tsa o'zi o'chadi; qo'lda ham o'chiriladi; FAQAT oddiy narxga —
+    ulgurji o'zgarmaydi; komplektga o'zi o'tadi; tannarxdan past — faqat ogohlantirish). Modelga BITTA chegirma (yagona kalit).
+    `foiz` — 1 … 99 (2 xona); `olchamlar` — JSON ro'yxat (o'lcham yozilishlari), NULL — hamma o'lcham; `tugash` — Toshkent kuni (shu kun
+    oxirigacha amalda), NULL — muddatsiz. Mantiq — `crud.dokon_chegirma_*`."""
+    __tablename__ = "dokon_chegirmalar"
+    __table_args__ = (UniqueConstraint("company_id", "model_id", name="uq_dokon_chegirma_model"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    model_id = Column(Integer, ForeignKey("dokon_modellar.id"), nullable=False, index=True)
+    foiz = Column(Numeric(5, 2), nullable=False)
+    olchamlar = Column(Text, nullable=True)
+    tugash = Column(Date, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    created_by = Column(String(100), nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+    updated_by = Column(String(100), nullable=True)
+
+    def __repr__(self):
+        return f"<DokonChegirma {self.id} model={self.model_id} {self.foiz}%>"
+
 # ============================================================
 # Helper funksiyalar
 # ============================================================
@@ -3223,6 +3247,8 @@ _TENANT_REFS = {
     "DokonDetal":                  [("model_id", "DokonModel")],
     # kech167 (zip 232): sayt modeli rasmi — FAQAT o'z korxonasining modeliga
     "DokonRasm":                   [("model_id", "DokonModel")],
+    # kech169 (zip 234): model chegirmasi — FAQAT o'z korxonasining modeliga
+    "DokonChegirma":               [("model_id", "DokonModel")],
 }
 
 

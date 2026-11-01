@@ -11238,7 +11238,7 @@ def _reset_table_order():
         ErrorLog, LoginHistory, CompanySetting, RecurringObligation, Inventory,
         Yonalish, BrakTaqdir, Taklif, HodimIshDavri, BuyurtmaTuzatish, AmalKaliti,
         PulHisobi, PulHisobiQoldiq, PulOtkazmasi,
-        DokonDetal, DokonModel, DokonBolim, DokonRasm, DokonTelefon,
+        DokonDetal, DokonModel, DokonBolim, DokonRasm, DokonTelefon, DokonChegirma,
     )
     return [
         ProductionOrder,
@@ -11276,7 +11276,8 @@ def _reset_table_order():
         AmalKaliti,
         # kech166 (zip 231): sayt katalogi — narx qatori modeldan, model bo'limdan OLDIN o'chiriladi (tiklashda teskari)
         # kech167 (zip 232): model rasmi ham modeldan OLDIN (fayllar diskda qoladi — yozuvi yo'q fayl ochiq berilmaydi)
-        DokonDetal, DokonRasm, DokonModel, DokonBolim,
+        # kech169 (zip 234): model chegirmasi ham modeldan OLDIN o'chiriladi (tiklashda — keyin)
+        DokonDetal, DokonRasm, DokonChegirma, DokonModel, DokonBolim,
         # kech168 (zip 233): tasdiqlash telefonlari — faqat korxonaga ishora qiladi, ularga hech kim ishora qilmaydi
         DokonTelefon,
     ]
@@ -11439,6 +11440,10 @@ def import_full_backup(db: Session, data: dict, company_id: int,
         return {"success": False, "message": _dokon_x}
     # kech168 (zip 233, review233 №5): tasdiqlash telefonlari — shakl, takror, 10 ta, kamida bitta «doim»
     _dokon_x = dokon_telefon_zaxira_xatosi(tables.get("dokon_telefonlar"))
+    if _dokon_x:
+        return {"success": False, "message": _dokon_x}
+    # kech169 (zip 234): model chegirmalari — foiz 1 … 99, o'lchamlar ro'yxati, tugash kuni, bir modelga bitta
+    _dokon_x = dokon_chegirma_zaxira_xatosi(tables.get("dokon_chegirmalar"))
     if _dokon_x:
         return {"success": False, "message": _dokon_x}
 
@@ -21936,7 +21941,8 @@ def dokon_model_dict(m):
             "kapitel_baza_bor": bool(m.kapitel_baza_bor), "tartib": m.tartib or 0, "yoqilgan": bool(m.yoqilgan)}
 
 
-def dokon_detal_dict(d, koeff):
+def dokon_detal_dict(d, koeff, chegirma=None, bugun=None):
+    # kech169 (zip 234): `chegirma` — modelning chegirmasi (DokonChegirma | None); javobda «chegirma» — shu qatorning chegirmali narxlari
     return {"id": d.id, "model_id": d.model_id, "turi": d.turi, "turi_nomi": DOKON_TURI_NOMI.get(d.turi, d.turi),
             "olcham": d.olcham, "eni_sm": d.eni_sm, "qalinligi_sm": d.qalinligi_sm, "birlik": d.birlik,
             "narx": _dokon_pul(d.narx), "narx_qoplamali": _dokon_pul(d.narx_qoplamali),
@@ -21944,7 +21950,8 @@ def dokon_detal_dict(d, koeff):
             "ulgurji_narx": _dokon_pul(d.ulgurji_narx), "ulgurji_qoplamali": _dokon_pul(d.ulgurji_qoplamali),
             "ulgurji_qoplamali_avto": (_dokon_pul(dokon_avto_qoplamali(d.ulgurji_narx, koeff))
                                        if d.ulgurji_qoplamali is None else None),
-            "tartib": d.tartib or 0, "yoqilgan": bool(d.yoqilgan)}
+            "tartib": d.tartib or 0, "yoqilgan": bool(d.yoqilgan),
+            "chegirma": dokon_detal_chegirmasi(d, chegirma, koeff, bugun) if chegirma is not None else None}
 
 
 def _dokon_bolim_of(db, bolim_id, company_id, lock=False):
@@ -22032,17 +22039,21 @@ def dokon_katalog(db: Session, company_id: int) -> dict:
     from models import DokonRasm
     rasmlar = (db.query(DokonRasm).filter(DokonRasm.company_id == company_id)
                .order_by(DokonRasm.model_id, DokonRasm.tartib, DokonRasm.id).all())
+    # kech169 (zip 234): model chegirmalari (amaldagisi ham, muddati tugagani ham) va bugungi kun (Toshkent)
+    _ch234, _bugun234 = dokon_chegirmalar(db, company_id), dokon_bugun()
     return {"koeff": float(koeff), "koeff_standart": float(DOKON_QOPLAMA_KOEFF_STANDART),
             "qoliplar": [{"kod": k, "nom": v} for k, v in DOKON_QOLIP_NOMI.items()],
             "turlar": [{"kod": k, "nom": v} for k, v in DOKON_TURI_NOMI.items()],
             "komplekt_turlari": list(DOKON_KOMPLEKT_TURLARI), "oddiy_turlari": list(DOKON_ODDIY_TURLARI),
             "bolimlar": [dokon_bolim_dict(b) for b in bolimlar],
             "modellar": [dokon_model_dict(m) for m in modellar],
-            "detallar": [dokon_detal_dict(d, koeff) for d in detallar],
+            "detallar": [dokon_detal_dict(d, koeff, _ch234.get(d.model_id), _bugun234) for d in detallar],
             "rasmlar": [dokon_rasm_dict(r) for r in rasmlar], "rasm_max": DOKON_RASM_MAX,
             # kech168 (zip 233): do'kon sozlamalari (telefonlar, ish vaqti, retsept) va komplekt narxlari (server hisobi)
             "sozlamalar": dokon_sozlamalar(db, company_id),
-            "komplekt": {str(k): v for k, v in dokon_komplekt_narxlari(db, company_id).items()}}
+            "komplekt": {str(k): v for k, v in dokon_komplekt_narxlari(db, company_id).items()},
+            "chegirmalar": dokon_katalog_chegirmalari(db, company_id, detallar, _ch234, koeff, _bugun234),
+            "bugun": _bugun234.isoformat(), "tannarx_izoh": DOKON_TANNARX_IZOH}
 
 
 def _dokon_oxirgi_tartib(db, ustun, *shartlar):
@@ -22302,14 +22313,18 @@ def dokon_model_ochir(db: Session, model_id: int, company_id: int, kim: str):
         return None
     detallar = (db.query(DokonDetal).filter(DokonDetal.company_id == company_id, DokonDetal.model_id == m.id).all())
     rasmlar = _dokon_model_rasmlari(db, company_id, m.id)
+    _ch234 = _dokon_chegirma_of(db, company_id, m.id, lock=True)       # kech169 (zip 234): chegirmasi ham (qulf: model → chegirma)
     log_activity(db, "deleted", "dokon_model", m.id, f"Sayt modeli {m.kod}", kim,
-                 old_value=f"{len(detallar)} ta narx qatori" + (f", {len(rasmlar)} ta rasm" if rasmlar else ""),
+                 old_value=f"{len(detallar)} ta narx qatori" + (f", {len(rasmlar)} ta rasm" if rasmlar else "")
+                 + (f", chegirma {dokon_chegirma_matni(_ch234)}" if _ch234 is not None else ""),
                  company_id=company_id, commit=False)
     urllar = [u for r in rasmlar for u in (r.fayl, r.kichik)]
     for d in detallar:
         db.delete(d)
     for r in rasmlar:
         db.delete(r)
+    if _ch234 is not None:
+        db.delete(_ch234)
     db.flush()
     db.delete(m)
     db.commit()
@@ -22391,19 +22406,29 @@ def dokon_detal_yangila(db: Session, detal_id: int, company_id: int, data: dict,
     from models import DokonModel
     dokon_tekshir(db, company_id)
     _dokon_kalitlar(data, tuple(k for k in _DOKON_DETAL_KALITLARI if k != "turi"))
+    # kech169 (zip 234, review234 P6): qulf tartibi — model → qator (modelni o'chirish bilan bir xil; ilgari qator → model — deadlock)
+    _d234 = _dokon_detal_of(db, detal_id, company_id)
+    if _d234 is None:
+        return None
+    _dokon_model_of(db, _d234.model_id, company_id, lock=True)
     d = _dokon_detal_of(db, detal_id, company_id, lock=True)
     if d is None:
+        db.rollback()
         return None
     m = (db.query(DokonModel).filter(DokonModel.id == d.model_id, DokonModel.company_id == company_id).first())
     eski = _dokon_detal_matni(d)
     eski_q = (d.olcham, d.eni_sm, d.qalinligi_sm, d.narx, d.narx_qoplamali, d.ulgurji_narx, d.ulgurji_qoplamali,
               d.tartib, bool(d.yoqilgan))
+    _ch234 = False
     if "olcham" in data:
         olcham = _dokon_matn(data["olcham"], "O'lcham", 40)
         _dokon_model_of(db, d.model_id, company_id, lock=True)
         if _dokon_detal_band(db, company_id, d.model_id, d.turi, olcham, istisno_id=d.id):
             raise ValueError(f"«{DOKON_TURI_NOMI[d.turi]} — {olcham}» qatori allaqachon bor")
+        _ol234 = d.olcham
         d.olcham = olcham
+        # kech169 (zip 234): o'lcham qayta nomlandi — chegirma o'lchamlari ro'yxatida ham (qulf: model → chegirma; review234 Y1)
+        _ch234 = _dokon_chegirma_olcham_kochir(db, company_id, d, _ol234, kim, m.kod if m else d.model_id)
     if "eni_sm" in data:
         d.eni_sm = _dokon_olcham_son(data["eni_sm"], "Eni")
     if "qalinligi_sm" in data:
@@ -22424,7 +22449,8 @@ def dokon_detal_yangila(db: Session, detal_id: int, company_id: int, data: dict,
     d.updated_at = datetime.utcnow()
     _ulg = ("; ulgurji narx o'zgardi" if _dokon_qiymatlar(eski_q[5:7]) != _dokon_qiymatlar(yangi_q[5:7]) else "")
     log_activity(db, "updated", "dokon_detal", d.id, f"Sayt narxi {m.kod if m else d.model_id}", kim,
-                 old_value=eski, new_value=_dokon_detal_matni(d) + _ulg, company_id=company_id, commit=False)
+                 old_value=eski, new_value=_dokon_detal_matni(d) + _ulg + ("; chegirma o'lchami ham yangilandi" if _ch234 else ""),
+                 company_id=company_id, commit=False)
     db.commit()
     db.refresh(d)
     return d
@@ -23235,7 +23261,8 @@ def _dokon_jam(qatorlar):
     return jami.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
-def dokon_model_komplekti(m, detallar, retsept: dict, koeff) -> list:
+def dokon_model_komplekti(m, detallar, retsept: dict, koeff, chegirma=None, bugun=None) -> list:
+    # kech169 (zip 234): `chegirma` — modelning chegirmasi; amalda va shu o'lchamga bo'lsa — har o'lchamda «chegirma» (rom / eshik)
     """Bitta komplekt modelining narxlari — har o'lcham uchun (detal qatorlari tartibida birinchi uchragan yozilishi):
     rom / eshik (oddiy narx, 1 m / 1 dona) va ulgurji rom (1 dona = 2 m; eshik ulgurjida yo'q), har biri qoplamasiz va qoplamali,
     to'liq va (modelda kapitel / baza bo'lsa) kapitel va bazasiz. Saytda ko'rinmaydigan yoki narxi yo'q detal kerak bo'lsa —
@@ -23290,7 +23317,23 @@ def dokon_model_komplekti(m, detallar, retsept: dict, koeff) -> list:
                     yozuv[nom + "_kbsiz"] = _dokon_pul(_dokon_jam([(narx(t, tur, qop), miqdor(t)) for t in turlar
                                                                    if t not in ("kapitel", "baza")]))
             bolim[kom] = yozuv
-        natija.append({"olcham": olcham, **bolim})
+        # kech169 (zip 234): chegirma (amalda va shu o'lchamga) — rom / eshik (oddiy narx): chegirmali detallar yig'indisi (komplekt = detallar
+        # yig'indisi qoidasi buzilmaydi); ulgurji rom — o'zgarmaydi (egasi qarori: faqat oddiy narxga)
+        ch = None
+        if chegirma is not None and dokon_chegirma_faolmi(chegirma, bugun) and dokon_chegirma_tegishlimi(chegirma, olcham):
+            ch = {"foiz": float(chegirma.foiz)}
+            for kom in ("rom", "eshik"):
+                q = retsept[kom]
+                turlar = [t for t in DOKON_RETSEPT_TURLARI[kom] if q[t] and (kb or t not in ("kapitel", "baza"))]
+                y = {}
+                for qop in (False, True):
+                    nom = "qoplamali" if qop else "qoplamasiz"
+                    y[nom] = _dokon_pul(_dokon_jam([(dokon_chegirma_narx(narx(t, "oddiy", qop), chegirma.foiz), q[t]) for t in turlar]))
+                    if kb:
+                        y[nom + "_kbsiz"] = _dokon_pul(_dokon_jam([(dokon_chegirma_narx(narx(t, "oddiy", qop), chegirma.foiz), q[t])
+                                                                   for t in turlar if t not in ("kapitel", "baza")]))
+                ch[kom] = y
+        natija.append({"olcham": olcham, **bolim, "chegirma": ch})
     return natija
 
 
@@ -23308,9 +23351,14 @@ def dokon_komplekt_narxlari(db: Session, company_id: int, model_id=None) -> dict
     detallar = (db.query(DokonDetal)
                 .filter(DokonDetal.company_id == company_id, DokonDetal.model_id.in_([m.id for m in modellar]))
                 .order_by(DokonDetal.model_id, DokonDetal.tartib, DokonDetal.id).all())
+    from models import DokonChegirma
+    _ch234 = {c.model_id: c for c in db.query(DokonChegirma).filter(DokonChegirma.company_id == company_id,
+                                                                    DokonChegirma.model_id.in_([m.id for m in modellar])).all()}
+    _bugun234 = dokon_bugun()
     natija = {}
     for m in modellar:
-        natija[m.id] = dokon_model_komplekti(m, [d for d in detallar if d.model_id == m.id], retsept, koeff)
+        natija[m.id] = dokon_model_komplekti(m, [d for d in detallar if d.model_id == m.id], retsept, koeff,
+                                             chegirma=_ch234.get(m.id), bugun=_bugun234)
     return natija
 
 
@@ -23332,3 +23380,471 @@ def dokon_sozlamalar(db: Session, company_id: int, hozir_utc=None) -> dict:
             "retsept_turlari": {k: list(v) for k, v in DOKON_RETSEPT_TURLARI.items()},
             "metrli_turlar": list(DOKON_METRLI_TURLAR),
             "komplekt_olcham": dokon_komplekt_olcham(db, company_id)}
+
+
+# ── Chegirmalar (kech169, zip 234) ─────────────────────────────────────────────────────────────────────────────────────
+# Egasi QARORLARI («Onlayn do'kon rejasi», 30.10): admin panelda modelni tanlab chegirma qo'yiladi — foiz yoki yangi narx yoziladi
+# (ikkinchisi o'zi hisoblanadi), xohlasa faqat ayrim o'lchamlariga; tugash sanasi ixtiyoriy — o'tsa chegirma o'zi o'chadi (saytda
+# «5-noyabrgacha»); xohlagan paytda qo'lda o'chiriladi. FAQAT oddiy narxga — ulgurji narx o'zgarmaydi (magazinlar chegirma belgisini
+# ko'rmaydi); komplektga o'zi o'tadi (komplekt = chegirmali detallar yig'indisi); foiz qoplamali va qoplamasiz narxga bir xil;
+# chegirmali narx tannarxdan past tushsa — faqat admin ko'radigan ogohlantirish, saqlash to'silmaydi. Telegram «Xabar yuborish» —
+# do'kon boti bilan keyingi bosqichda (bu zipda YO'Q). Narx buyurtma paytida qotadi — «Saytdan kelgan buyurtmalar» (zip 237) da.
+# Texnik qarorlar (Claude, kech169):
+#   * modelga BITTA chegirma (`DokonChegirma`, yagona kalit) — FOIZ saqlanadi (1 … 99 %, 2 xona); «yangi narx» sahifada foizga
+#     o'giriladi, chegirmali narxlar har doim SERVERDA shu foizdan hisoblanadi (sayt, komplekt, API — bitta funksiya
+#     `dokon_chegirma_narx`);
+#   * chegirmali narx 100 so'mgacha yaxlitlanadi (review234 O1, O'LCHANGAN: 1 000 gacha yaxlitlash kiritilgan foizni buzardi — 10 000 × 1 %
+#     → 9 000, ya'ni 10 %; yozilgan «yangi narx» 9 500 → 9 000; egasi qarori «ikkinchisi o'zi hisoblanadi» — yozilgani saqlansin); 100 gacha
+#     yaxlitlangach asl narxdan kam bo'lmasa — 10 so'mgacha, u ham bo'lmasa — so'mning o'zi (chegirma hech qachon «yo'qolmaydi» va
+#     foizdan oshmaydi);
+#   * o'lchamlar — narx qatorlaridagi o'lcham yozilishi (tutuq belgisi / katta-kichik harfsiz — `dokon_olcham_kalit`); NULL — hamma
+#     o'lcham (keyin qo'shilganlari ham); o'lcham qatori qayta nomlansa — yangi nom (modelda yangi bo'lsa) ro'yxatga qo'shiladi, eski nom
+#     uning oxirgi qatori ketgandagina olinadi (review234 Y1: komplekt o'lchami 5 qator — bittalab nomlanadi);
+#   * tugash sanasi — Toshkent kuni, shu kun oxirigacha amalda; o'tgan kun / bir yildan uzoq — rad;
+#   * tannarx — ERP ning o'z hisobi (`services.get_order_item_unit_cost` bilan AYNAN): 1 m profil penoplasti = eni × qalinlik ÷ 2 ÷ blok
+#     hajmi × asosiy penoplast bloki narxi; qoplama loyi buyurtmada tortiladi — oldindan ma'lum emas, shuning uchun tannarxga KIRMAYDI;
+#     kapitel, baza, dona va m² detallarda tannarx hisoblanmaydi (ogohlantirish yo'q). Tannarx raqami jurnalga YOZILMAYDI;
+#   * hamma yozish — model qatori qulfi ostida (qulf tartibi: model → chegirma); zaxiradan tiklashda chegirma qatorlari tekshiriladi.
+import math as _math234                                 # noqa: E402
+from types import SimpleNamespace as _SN234             # noqa: E402
+from datetime import date as _date234, timedelta as _td234   # noqa: E402
+
+DOKON_CHEGIRMA_FOIZ_MIN = Decimal("1")
+DOKON_CHEGIRMA_FOIZ_MAX = Decimal("99")
+DOKON_CHEGIRMA_MAX_KUN = 366
+DOKON_CHEGIRMA_OLCHAM_MAX = 50
+DOKON_CHEGIRMA_QADAMLAR = (Decimal("100"), Decimal("10"))
+DOKON_TANNARX_IZOH = ("Tannarx — ERP hisobi bo'yicha penoplast: 1 m = eni × qalinlik ÷ 2 ÷ blok hajmi × asosiy penoplast bloki narxi. "
+                      "Qoplama loyi buyurtmada tortiladi — tannarxga kirmagan. Kapitel, baza, dona va m² detallarda tannarx hisoblanmaydi.")
+
+
+def dokon_bugun(hozir_utc=None) -> _date234:
+    """Toshkent bo'yicha bugungi kun (chegirma muddati shu kun bilan solishtiriladi)."""
+    from database import TASHKENT_OFFSET as _TO234
+    return ((hozir_utc or _dt233.utcnow()) + _TO234).date()
+
+
+def _dokon_foiz(qiymat):
+    """Chegirma foizi: son, 1 … 99, 2 xonaga HALF_UP. NaN / cheksiz / juda katta — `Decimal` dan OLDIN rad (zip 231 qoidasi)."""
+    if isinstance(qiymat, bool) or not isinstance(qiymat, (int, float)):
+        raise ValueError("«Chegirma foizi» son bo'lishi kerak")
+    if isinstance(qiymat, float) and not _math234.isfinite(qiymat):
+        raise ValueError("«Chegirma foizi» noto'g'ri son")
+    if abs(qiymat) > 1000:
+        raise ValueError("Chegirma 1 % dan 99 % gacha bo'lsin")
+    f = Decimal(str(qiymat)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    if f < DOKON_CHEGIRMA_FOIZ_MIN or f > DOKON_CHEGIRMA_FOIZ_MAX:
+        raise ValueError("Chegirma 1 % dan 99 % gacha bo'lsin")
+    return f
+
+
+def dokon_chegirma_narx(narx, foiz):
+    """Chegirmali narx = narx × (100 − foiz) / 100, 100 so'mgacha HALF_UP (review234 O1); natija asl narxdan kam va 0 dan katta bo'lmasa —
+    10 so'mgacha, u ham bo'lmasa — so'mning o'zi (2 xona, kamida 0,01). Shunda yozilgan «yangi narx» (100 ga karrali) AYNAN saqlanadi va
+    haqiqiy chegirma foizdan ko'pi bilan 50 so'm farq qiladi."""
+    if narx is None or foiz is None:
+        return None
+    n = Decimal(str(narx))
+    asl = n * (Decimal("100") - Decimal(str(foiz))) / Decimal("100")
+    for qadam in DOKON_CHEGIRMA_QADAMLAR:
+        x = (asl / qadam).quantize(Decimal("1"), rounding=ROUND_HALF_UP) * qadam
+        if 0 < x < n:
+            return x
+    return max(asl.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP), Decimal("0.01"))
+
+
+def dokon_chegirma_olchamlari(c):
+    """Saqlangan o'lchamlar: None — hamma o'lcham; buzilgan qiymat — [] (hech qaysi o'lchamga — xavfsiz tomoni)."""
+    if c is None or c.olchamlar is None:
+        return None
+    try:
+        x = _json233.loads(c.olchamlar)
+    except Exception:                                    # noqa: BLE001
+        return []
+    if not isinstance(x, list):
+        return []
+    return [o for o in x if _dokon_olcham_tozami(o)]
+
+
+def _dokon_olcham_tozami(o) -> bool:
+    """review234 O2: o'lcham matni API dagi bilan AYNAN toza (surrogat, NUL / ko'rinmas belgi, ortiqcha bo'shliq yo'q, ≤ 40)."""
+    if not isinstance(o, str):
+        return False
+    try:
+        return _dokon_matn(o, "O'lcham", 40) == o
+    except ValueError:
+        return False
+
+
+def dokon_chegirma_faolmi(c, bugun=None) -> bool:
+    """Chegirma amaldami: bor va (muddatsiz yoki bugun (Toshkent) ≤ tugash kuni)."""
+    if c is None:
+        return False
+    return c.tugash is None or (bugun or dokon_bugun()) <= c.tugash
+
+
+def dokon_chegirma_tegishlimi(c, olcham) -> bool:
+    """Chegirma shu o'lchamga tegishlimi (o'lchamlar NULL — hammasiga)."""
+    ol = dokon_chegirma_olchamlari(c)
+    if ol is None:
+        return True
+    k = dokon_olcham_kalit(olcham)
+    return any(dokon_olcham_kalit(x) == k for x in ol)
+
+
+def dokon_chegirma_muddat_matni(tugash, bugun=None):
+    """2026-11-05 → «5-noyabrgacha» (boshqa yil — «2027-yil 5-yanvargacha»); muddatsiz — None."""
+    if tugash is None:
+        return None
+    import services as _sv234
+    oy = _sv234._OY_KICHIK[tugash.month - 1]
+    yil = (bugun or dokon_bugun()).year
+    return f"{tugash.day}-{oy}gacha" if tugash.year == yil else f"{tugash.year}-yil {tugash.day}-{oy}gacha"
+
+
+def _dokon_chegirma_olcham_matni(ol):
+    return "hamma o'lchamlar" if ol is None else ("o'lcham tanlanmagan" if not ol else ", ".join(ol))
+
+
+def dokon_chegirma_matni(c) -> str:
+    """Jurnal matni: «−15 %; o'lchamlar: hamma o'lchamlar; 5-noyabrgacha» (tannarx / ulgurji raqami YO'Q)."""
+    muddat = dokon_chegirma_muddat_matni(c.tugash)
+    return (f"−{audit_son(c.foiz, 2)} %; o'lchamlar: {_dokon_chegirma_olcham_matni(dokon_chegirma_olchamlari(c))}; "
+            + (muddat if muddat else "muddatsiz"))
+
+
+def dokon_chegirma_dict(c, detallar=None, bugun=None):
+    """Sahifa uchun chegirma: foiz, o'lchamlar (None — hammasi), tugash (ISO) va matni, amaldami, narx qatori qolmagan o'lchamlar."""
+    if c is None:
+        return None
+    ol = dokon_chegirma_olchamlari(c)
+    mavjud = None if detallar is None else {dokon_olcham_kalit(d.olcham) for d in detallar}
+    return {"model_id": c.model_id, "foiz": float(c.foiz), "olchamlar": ol,
+            "tugash": c.tugash.isoformat() if c.tugash else None, "tugash_matni": dokon_chegirma_muddat_matni(c.tugash, bugun),
+            "faol": dokon_chegirma_faolmi(c, bugun),
+            "yoq_olchamlar": [o for o in (ol or []) if mavjud is not None and dokon_olcham_kalit(o) not in mavjud]}
+
+
+def dokon_detal_chegirmasi(d, c, koeff, bugun=None):
+    """Narx qatorining chegirmali narxlari {"foiz", "narx", "narx_qoplamali"} — chegirma amalda, shu o'lchamga va qatorda oddiy narx
+    bor bo'lsa; aks holda None. Qoplamali — alohida yozilgani yoki avto (qoplamasiz × koeffitsient) dan; ulgurji — TEGILMAYDI."""
+    if d.narx is None or not dokon_chegirma_faolmi(c, bugun) or not dokon_chegirma_tegishlimi(c, d.olcham):
+        return None
+    qop = d.narx_qoplamali if d.narx_qoplamali is not None else dokon_avto_qoplamali(d.narx, koeff)
+    return {"foiz": float(c.foiz), "narx": _dokon_pul(dokon_chegirma_narx(d.narx, c.foiz)),
+            "narx_qoplamali": _dokon_pul(dokon_chegirma_narx(qop, c.foiz))}
+
+
+def _dokon_chegirma_of(db, company_id, model_id, lock=False):
+    from models import DokonChegirma
+    q = db.query(DokonChegirma).filter(DokonChegirma.company_id == company_id, DokonChegirma.model_id == model_id)
+    if lock:
+        db.flush()
+        q = q.populate_existing().with_for_update()
+    return q.first()
+
+
+def dokon_chegirmalar(db: Session, company_id: int) -> dict:
+    """{model_id: DokonChegirma} — korxonaning hamma chegirmalari (amaldagisi ham, muddati tugagani ham)."""
+    from models import DokonChegirma
+    return {c.model_id: c for c in db.query(DokonChegirma).filter(DokonChegirma.company_id == company_id).all()}
+
+
+def _dokon_model_detallari(db, company_id, model_id):
+    from models import DokonDetal
+    return (db.query(DokonDetal).filter(DokonDetal.company_id == company_id, DokonDetal.model_id == model_id)
+            .order_by(DokonDetal.tartib, DokonDetal.id).all())
+
+
+def dokon_detal_javobi(db: Session, company_id: int, d) -> dict:
+    """Narx qatori saqlangach javob: koeffitsient va modelning chegirmasi bilan (katalogdagi bilan bir xil ko'rinish)."""
+    return dokon_detal_dict(d, dokon_koeff(db, company_id), _dokon_chegirma_of(db, company_id, d.model_id))
+
+
+# ── Tannarx (faqat ogohlantirish uchun; admin ko'radi, jurnalga yozilmaydi) ──
+def dokon_tannarx_penoplasti(db: Session, company_id: int):
+    """Korxonaning asosiy penoplasti (narxi va blok hajmi bilan) yoki None."""
+    import services as _sv234
+    p = _sv234.get_default_penoplast(db, company_id=company_id)
+    if p is None or not p.volume_per_unit or not p.price_per_unit:
+        return None
+    return p
+
+
+def dokon_detal_tannarxi(d, peno):
+    """(tannarx | None, sabab | None) — 1 m metrli detalning penoplast tannarxi, ERP hisobi bilan AYNAN (`services.
+    get_order_item_unit_cost`, profil, qoplamasiz: hajm `_calc_dim_volume_price` — eni × qalinlik ÷ 2; blok soni × blok narxi; `round`)."""
+    if d.birlik != "metr":
+        return None, "metrli detal emas — tannarx hisoblanmaydi"
+    if not d.eni_sm or not d.qalinligi_sm:
+        return None, "eni va qalinligi kiritilmagan"
+    if peno is None:
+        return None, "asosiy penoplast (narxi, blok hajmi) omborda kiritilmagan"
+    import services as _sv234
+    hajm, _ = _sv234._calc_dim_volume_price("profil", d.eni_sm, d.qalinligi_sm, 1, 1, 0)
+    if hajm <= 0:
+        return None, "eni va qalinligi kiritilmagan"
+    bloklar = hajm / float(peno.volume_per_unit)
+    jami = bloklar * float(peno.price_per_unit or 0)
+    return round(jami / 1.0 + 0.0), None
+
+
+def dokon_chegirma_qatorlari(db: Session, company_id: int, detallar, c, koeff, bugun=None, peno=None, peno_olindi=False):
+    """Har narx qatori: asl va chegirmali narxlar (qoplamasiz / qoplamali), tannarx va «tannarxdan past» belgisi; ogohlantirishlar —
+    saytda ko'rinadigan qatorlar uchun (xabar sonlari — `xabar_son`)."""
+    if not peno_olindi:
+        peno = dokon_tannarx_penoplasti(db, company_id)
+    faol = dokon_chegirma_faolmi(c, bugun)
+    qatorlar, ogoh = [], []
+    for d in detallar:
+        tegishli = faol and dokon_chegirma_tegishlimi(c, d.olcham)
+        qop = d.narx_qoplamali if d.narx_qoplamali is not None else dokon_avto_qoplamali(d.narx, koeff)
+        ch_n = dokon_chegirma_narx(d.narx, c.foiz) if tegishli and d.narx is not None else None
+        ch_q = dokon_chegirma_narx(qop, c.foiz) if tegishli and d.narx is not None and qop is not None else None
+        tn, sabab = dokon_detal_tannarxi(d, peno)
+        past = [nom for nom, v in (("qoplamasiz", ch_n), ("qoplamali", ch_q)) if tn is not None and v is not None and v < tn]
+        nom = DOKON_TURI_NOMI.get(d.turi, d.turi)
+        qatorlar.append({"detal_id": d.id, "turi": d.turi, "turi_nomi": nom, "olcham": d.olcham, "birlik": d.birlik,
+                         "yoqilgan": bool(d.yoqilgan), "tegishli": bool(tegishli),
+                         "narx": _dokon_pul(d.narx), "chegirmali": _dokon_pul(ch_n),
+                         "qoplamali": _dokon_pul(qop), "qoplamali_chegirmali": _dokon_pul(ch_q),
+                         "tannarx": tn, "tannarx_sabab": sabab, "past": past})
+        if past and d.yoqilgan:
+            qism = [f"{nom} — {d.olcham}: chegirmali narx"]
+            if "qoplamasiz" in past:
+                qism.append(f" {xabar_son(ch_n)} so'm (qoplamasiz)")
+            if "qoplamali" in past:
+                qism.append((" va" if "qoplamasiz" in past else "") + f" {xabar_son(ch_q)} so'm (qoplamali)")
+            qism.append(f" tannarxdan ({xabar_son(tn)} so'm, penoplast) past")
+            ogoh.append("".join(qism))
+    return qatorlar, ogoh
+
+
+def dokon_chegirma_holati(db: Session, company_id: int, m, c, bugun=None) -> dict:
+    """Bitta modelning chegirma ko'rinishi: chegirma, narx qatorlari (asl / chegirmali / tannarx), ogohlantirishlar va (komplekt
+    modelida) komplekt narxlari — `c` saqlangan yoki hali saqlanmagan (`dokon_chegirma_korish`) chegirma."""
+    bugun = bugun or dokon_bugun()
+    koeff = dokon_koeff(db, company_id)
+    detallar = _dokon_model_detallari(db, company_id, m.id)
+    qatorlar, ogoh = dokon_chegirma_qatorlari(db, company_id, detallar, c, koeff, bugun)
+    komplekt = (dokon_model_komplekti(m, detallar, dokon_retsept(db, company_id), koeff, chegirma=c, bugun=bugun)
+                if m.qolip == "komplekt" else [])
+    return {"model_id": m.id, "chegirma": dokon_chegirma_dict(c, detallar, bugun), "qatorlar": qatorlar,
+            "ogohlantirish": ogoh, "komplekt": komplekt, "tannarx_izoh": DOKON_TANNARX_IZOH, "bugun": bugun.isoformat()}
+
+
+# ── Chegirma kiritish ──
+def _dokon_chegirma_olcham_tayyorla(qiymat, detallar):
+    """O'lchamlar: None — hamma o'lcham; aks holda modeldagi o'lchamlar ro'yxati (takrorsiz, model tartibida, birinchi yozilishi)."""
+    if qiymat is None:
+        return None
+    if not isinstance(qiymat, list):
+        raise ValueError("«O'lchamlar» ro'yxat bo'lishi kerak (hamma o'lchamga — null)")
+    if not qiymat:
+        raise ValueError("Kamida bitta o'lchamni tanlang yoki «Hamma o'lchamlar» ni belgilang")
+    if len(qiymat) > DOKON_CHEGIRMA_OLCHAM_MAX:
+        raise ValueError(f"Ko'pi bilan {DOKON_CHEGIRMA_OLCHAM_MAX} ta o'lcham")
+    mavjud = {}
+    for d in detallar:
+        mavjud.setdefault(dokon_olcham_kalit(d.olcham), d.olcham)
+    tanlangan = set()
+    for o in qiymat:
+        ol = _dokon_matn(o, "O'lcham", 40)
+        k = dokon_olcham_kalit(ol)
+        if k not in mavjud:
+            raise ValueError(f"Bu modelda «{ol}» o'lchami yo'q")
+        tanlangan.add(k)
+    return [v for k, v in mavjud.items() if k in tanlangan]
+
+
+def _dokon_chegirma_sana(qiymat, bugun):
+    """Tugash kuni: None — muddatsiz; «YYYY-MM-DD», bugundan (Toshkent) oldin emas va bir yildan (366 kun) uzoq emas."""
+    if qiymat is None:
+        return None
+    if not isinstance(qiymat, str) or not _re232.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", qiymat.strip()):
+        raise ValueError("Tugash sanasi noto'g'ri — masalan 2026-11-05")
+    try:
+        t = _date234.fromisoformat(qiymat.strip())
+    except ValueError:
+        raise ValueError("Tugash sanasi noto'g'ri — bunday kun yo'q")
+    if t < bugun:
+        raise ValueError("Tugash sanasi o'tib ketgan — bugun yoki keyingi kunni tanlang")
+    if t > bugun + _td234(days=DOKON_CHEGIRMA_MAX_KUN):
+        raise ValueError("Tugash sanasi bir yildan uzoq bo'lmasin")
+    return t
+
+
+def _dokon_chegirma_tayyorla(db, company_id, m, data, bugun, foizsiz=False):
+    """{"foiz"} (+ "olchamlar", "tugash") → (foiz, olchamlar JSON | None, tugash | None). `foizsiz` — faqat ko'rishda: foiz null."""
+    _dokon_kalitlar(data, ("foiz", "olchamlar", "tugash"))
+    if "foiz" not in data:
+        raise ValueError("Chegirma foizini yozing")
+    foiz = None if (foizsiz and data.get("foiz") is None) else _dokon_foiz(data.get("foiz"))
+    detallar = _dokon_model_detallari(db, company_id, m.id)
+    if not detallar:
+        raise ValueError("Modelda narx qatori yo'q — avval narxlarni kiriting")
+    ol = _dokon_chegirma_olcham_tayyorla(data.get("olchamlar"), detallar)
+    tugash = _dokon_chegirma_sana(data.get("tugash"), bugun)
+    return foiz, (None if ol is None else _json233.dumps(ol, ensure_ascii=False, separators=(",", ":"))), tugash
+
+
+def dokon_chegirma_korish(db: Session, company_id: int, model_id: int, data: dict):
+    """Saqlamasdan oldin ko'rish: yuborilgan chegirma bilan narxlar, tannarx ogohlantirishi va komplekt (hech narsa yozilmaydi).
+    `"foiz": null` — chegirmasiz (asl narxlar va tannarx — «yangi narx» yozish uchun). Model topilmasa — None."""
+    dokon_tekshir(db, company_id)
+    m = _dokon_model_of(db, model_id, company_id)
+    if m is None:
+        return None
+    bugun = dokon_bugun()
+    foiz, ol, tugash = _dokon_chegirma_tayyorla(db, company_id, m, data, bugun, foizsiz=True)
+    c = None if foiz is None else _SN234(model_id=m.id, foiz=foiz, olchamlar=ol, tugash=tugash)
+    return dokon_chegirma_holati(db, company_id, m, c, bugun)
+
+
+def dokon_chegirma_saqla(db: Session, company_id: int, model_id: int, data: dict, kim: str):
+    """Modelga chegirma qo'yadi yoki o'zgartiradi: {"foiz": 1 … 99} (+ "olchamlar": [...] | null, "tugash": "YYYY-MM-DD" | null).
+    Javob — `dokon_chegirma_holati` (ogohlantirishlar bilan; tannarxdan past bo'lsa ham SAQLANADI). Model topilmasa — None."""
+    from models import DokonChegirma
+    dokon_tekshir(db, company_id)
+    m = _dokon_model_of(db, model_id, company_id, lock=True)
+    if m is None:
+        _dokon_kalitlar(data, ("foiz", "olchamlar", "tugash"))
+        db.rollback()
+        return None
+    bugun = dokon_bugun()
+    foiz, ol, tugash = _dokon_chegirma_tayyorla(db, company_id, m, data, bugun)
+    c = _dokon_chegirma_of(db, company_id, m.id, lock=True)
+    if c is None:
+        c = DokonChegirma(company_id=company_id, model_id=m.id, foiz=foiz, olchamlar=ol, tugash=tugash, created_by=kim,
+                          updated_by=kim)
+        db.add(c)
+        db.flush()
+        log_activity(db, "created", "dokon_chegirma", c.id, f"Sayt chegirmasi {m.kod}", kim, new_value=dokon_chegirma_matni(c),
+                     company_id=company_id, commit=False)
+    else:
+        eski = (_dokon_qiymatlar((c.foiz,)), c.olchamlar, c.tugash)
+        if eski == (_dokon_qiymatlar((foiz,)), ol, tugash):
+            db.rollback()
+            c = _dokon_chegirma_of(db, company_id, model_id)
+            return dokon_chegirma_holati(db, company_id, _dokon_model_of(db, model_id, company_id), c, bugun)
+        eski_matn = dokon_chegirma_matni(c)
+        c.foiz, c.olchamlar, c.tugash = foiz, ol, tugash
+        c.updated_at = _dt233.utcnow()
+        c.updated_by = kim
+        log_activity(db, "updated", "dokon_chegirma", c.id, f"Sayt chegirmasi {m.kod}", kim, old_value=eski_matn,
+                     new_value=dokon_chegirma_matni(c), company_id=company_id, commit=False)
+    db.commit()
+    m = _dokon_model_of(db, model_id, company_id)
+    return dokon_chegirma_holati(db, company_id, m, _dokon_chegirma_of(db, company_id, model_id), bugun)
+
+
+def dokon_chegirma_ochir(db: Session, company_id: int, model_id: int, kim: str):
+    """Chegirmani qo'lda o'chiradi. Model topilmasa — None, modelda chegirma yo'q — False."""
+    dokon_tekshir(db, company_id)
+    m = _dokon_model_of(db, model_id, company_id, lock=True)
+    if m is None:
+        db.rollback()
+        return None
+    c = _dokon_chegirma_of(db, company_id, m.id, lock=True)
+    if c is None:
+        db.rollback()
+        return False
+    log_activity(db, "deleted", "dokon_chegirma", c.id, f"Sayt chegirmasi {m.kod}", kim, old_value=dokon_chegirma_matni(c),
+                 company_id=company_id, commit=False)
+    db.delete(c)
+    db.commit()
+    return True
+
+
+def _dokon_chegirma_olcham_kochir(db, company_id, d, eski_olcham, kim, kod) -> bool:
+    """Narx qatori o'lchami qayta nomlandi (eski o'lcham chegirma ro'yxatida bo'lsa): yangi nom modelda YANGI bo'lsa — ro'yxatga eski nom
+    yoniga qo'shiladi (komplekt o'lchami 5 qator — bittalab nomlanadi, review234 Y1); eski nom — shu o'lchamning oxirgi qatori ketgandagina
+    olinadi; yangi nom modelda boshqa (chegirmasiz) qatorlarda bor bo'lsa — qo'shilmaydi (chegirma kengaymaydi). Chegirma jurnaliga yoziladi
+    (review234 P4). Chaqiruvchi model qatorini qulflagan; commit — chaqiruvchida. O'zgargan bo'lsa — True."""
+    from models import DokonDetal
+    ek, yk = dokon_olcham_kalit(eski_olcham), dokon_olcham_kalit(d.olcham)
+    if ek == yk:
+        return False
+    c = _dokon_chegirma_of(db, company_id, d.model_id, lock=True)
+    ol = dokon_chegirma_olchamlari(c)
+    if not ol or not any(dokon_olcham_kalit(x) == ek for x in ol):
+        return False
+    qolgan = {dokon_olcham_kalit(r[0]) for r in db.query(DokonDetal.olcham)
+              .filter(DokonDetal.company_id == company_id, DokonDetal.model_id == d.model_id, DokonDetal.id != d.id).all()}
+    qoshilsin = yk not in qolgan and not any(dokon_olcham_kalit(x) == yk for x in ol)
+    yangi = []
+    for x in ol:
+        if dokon_olcham_kalit(x) != ek:
+            yangi.append(x)
+            continue
+        if ek in qolgan:
+            yangi.append(x)
+        if qoshilsin:
+            yangi.append(d.olcham)
+    if yangi == ol:
+        return False
+    eski_matn = dokon_chegirma_matni(c)
+    c.olchamlar = _json233.dumps(yangi, ensure_ascii=False, separators=(",", ":"))
+    c.updated_at = _dt233.utcnow()
+    c.updated_by = kim
+    log_activity(db, "updated", "dokon_chegirma", c.id, f"Sayt chegirmasi {kod}", kim, old_value=eski_matn,
+                 new_value=dokon_chegirma_matni(c) + f" (o'lcham «{eski_olcham}» → «{d.olcham}»)", company_id=company_id, commit=False)
+    return True
+
+
+def dokon_chegirma_zaxira_xatosi(rows):
+    """Zaxiradan tiklanadigan `dokon_chegirmalar` qatorlari — xato matni yoki None: foiz 1 … 99, o'lchamlar — NULL yoki JSON ro'yxat
+    (matnlar, ≤ 40 belgi, ≤ 50 ta), tugash — NULL yoki ISO kun, bir modelga bitta chegirma (bog'lanish — umumiy FK tekshiruvida)."""
+    if not rows:
+        return None
+    if not isinstance(rows, list):
+        return "Fayl formati noto'g'ri: dokon_chegirmalar ro'yxat emas"
+    modellar = []
+    for r in rows:
+        if not isinstance(r, dict):
+            return "Zaxira fayli buzilgan: dokon_chegirmalar qatori noto'g'ri. Tiklash rad etildi."
+        f = r.get("foiz")
+        try:
+            fd = None if isinstance(f, bool) or f is None else Decimal(str(f))
+        except Exception:                                # noqa: BLE001
+            fd = None
+        if fd is None or not fd.is_finite() or fd < DOKON_CHEGIRMA_FOIZ_MIN or fd > DOKON_CHEGIRMA_FOIZ_MAX:
+            return f"Zaxira fayli buzilgan: dokon_chegirmalar da foiz noto'g'ri ({str(f)[:20]}). Tiklash rad etildi."
+        ol = r.get("olchamlar")
+        if ol is not None:
+            try:
+                x = _json233.loads(ol) if isinstance(ol, str) else None
+            except Exception:                            # noqa: BLE001
+                x = None
+            if (not isinstance(x, list) or len(x) > DOKON_CHEGIRMA_OLCHAM_MAX
+                    or any(not _dokon_olcham_tozami(o) for o in x)):           # review234 O2: surrogat / NUL — sahifa qulflanardi
+                return "Zaxira fayli buzilgan: dokon_chegirmalar da o'lchamlar noto'g'ri. Tiklash rad etildi."
+        t = r.get("tugash")
+        if t is not None:
+            try:
+                if not isinstance(t, str):
+                    raise ValueError
+                _date234.fromisoformat(t)
+            except ValueError:
+                return f"Zaxira fayli buzilgan: dokon_chegirmalar da tugash sanasi noto'g'ri ({str(t)[:20]}). Tiklash rad etildi."
+        if isinstance(r.get("model_id"), bool) or not isinstance(r.get("model_id"), int):
+            return "Zaxira fayli buzilgan: dokon_chegirmalar da model_id noto'g'ri. Tiklash rad etildi."
+        modellar.append(r.get("model_id"))
+    if len(set(modellar)) != len(modellar):
+        return "Zaxira fayli buzilgan: dokon_chegirmalar da bir modelga ikki chegirma. Tiklash rad etildi."
+    return None
+
+
+def dokon_katalog_chegirmalari(db: Session, company_id: int, detallar, chegirmalar: dict, koeff, bugun) -> dict:
+    """Katalog javobi uchun {str(model_id): chegirma + "ogohlantirish_soni"} (tannarxdan past qatorlar — faqat amaldagi chegirmada;
+    asosiy penoplast BIR marta o'qiladi)."""
+    faollar = [c for c in chegirmalar.values() if dokon_chegirma_faolmi(c, bugun)]
+    peno = dokon_tannarx_penoplasti(db, company_id) if faollar else None
+    natija = {}
+    for mid, c in chegirmalar.items():
+        dl = [d for d in detallar if d.model_id == mid]
+        x = dokon_chegirma_dict(c, dl, bugun)
+        x["ogohlantirish_soni"] = (len(dokon_chegirma_qatorlari(db, company_id, dl, c, koeff, bugun, peno=peno, peno_olindi=True)[1])
+                                   if x["faol"] else 0)
+        natija[str(mid)] = x
+    return natija
