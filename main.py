@@ -12069,6 +12069,97 @@ def api_dokon_excel_saqla(data: dict = Body(...), db: Session = Depends(get_db),
         raise HTTPException(status_code=409, detail=str(e))
 
 
+# ── kech170 (zip 236): do'kon API — do'kon sayti (alohida server) ERP dan katalog va sozlamalarni maxfiy kalit bilan o'qiydi ──
+# Kalitni boshqarish — FAQAT Admin (sayt katalogi sahifasi; belgi o'chiq — 404). Do'kon yo'llari (`/api/dokon/v1/*`) — login siz, lekin
+# HAR so'rovda kalit tekshiriladi (`crud.dokon_api_korxona`): korxona KALITDAN olinadi va sessiyaga bog'lanadi; faqat GET (o'qish).
+@app.get("/api/sayt-katalogi/api-kalit")
+def api_dokon_api_kalit(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Do'kon kaliti holati: bormi, boshi, kim / qachon yaratgan, oxirgi murojaat (xom kalit va xeshi — YO'Q)."""
+    return _dokon_bajar(db, lambda: crud.dokon_api_kalit_holati(db, auth.company_id_of(current_user)))
+
+
+@app.post("/api/sayt-katalogi/api-kalit")
+def api_dokon_api_kalit_yarat(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Yangi do'kon kaliti ({"almashtir": true, "eski_boshi": "…"} — amaldagisi bo'lsa shart, sahifa ko'rgan kalit boshi bilan; eskisi darhol
+    ishlamay qoladi). Xom kalit — FAQAT shu javobda."""
+    cid = auth.company_id_of(current_user)
+    try:
+        natija = _dokon_bajar(db, lambda: crud.dokon_api_kalit_yarat(db, cid, data, _dokon_kim(current_user)))
+    except crud.DokonApiKalitBor as e:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(e))
+    return JSONResponse(natija, headers={"Cache-Control": "no-store"})
+
+
+@app.delete("/api/sayt-katalogi/api-kalit")
+def api_dokon_api_kalit_ochir(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Do'kon kalitini o'chirish — do'kon sayti darhol ERP dan o'qiy olmay qoladi."""
+    if not _dokon_bajar(db, lambda: crud.dokon_api_kalit_ochir(db, auth.company_id_of(current_user), _dokon_kim(current_user))):
+        raise HTTPException(status_code=404, detail="Do'kon kaliti yo'q")
+    return {"status": "ok"}
+
+
+def _dokon_api_kalit_ol(request: Request):
+    """So'rovdagi kalit: `X-Dokon-Kalit` sarlavhasi, u yo'q bo'lsa — `Authorization: Bearer …`. Yo'q — None."""
+    x = request.headers.get(crud.DOKON_API_SARLAVHA.lower())
+    if x is not None:
+        return x.strip()
+    a = request.headers.get("authorization") or ""
+    if a[:7].lower() == "bearer ":
+        return a[7:].strip()
+    return None
+
+
+def _dokon_api_korxona(request: Request, db: Session) -> int:
+    """Kalit → korxona (401 / 404 / 429); korxona sessiyaga bog'lanadi (TENANT_FILTER rejimida faqat shu korxona qatorlari)."""
+    import tenant_context as _tc236
+    try:
+        cid = crud.dokon_api_korxona(db, _dokon_api_kalit_ol(request))
+    except crud.DokonApiRad as e:
+        db.rollback()
+        sarlavhalar = {"Cache-Control": "no-store"}
+        if e.holat == 401:
+            sarlavhalar["WWW-Authenticate"] = "Bearer"
+        if e.kutish is not None:
+            sarlavhalar["Retry-After"] = str(e.kutish)
+        raise HTTPException(status_code=e.holat, detail=str(e), headers=sarlavhalar)
+    except crud.DokonYopiq:
+        db.rollback()
+        raise HTTPException(status_code=404, detail=_DOKON_YOPIQ_MATN, headers={"Cache-Control": "no-store"})
+    _tc236.set_current_company(db, cid)
+    return cid
+
+
+def _dokon_api_javob(request: Request, ob: dict):
+    """JSON javob + ETag (tananing SHA-256 i): do'kon `If-None-Match` da shu ETag ni yuborsa — 304 (tana yo'q)."""
+    import json as _js236
+    import hashlib as _hl236m
+    tana = _js236.dumps(ob, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode("utf-8")
+    etag = '"' + _hl236m.sha256(tana).hexdigest()[:32] + '"'
+    sarlavhalar = {"ETag": etag, "Cache-Control": "private, no-cache"}
+    inm = request.headers.get("if-none-match")
+    if inm is not None:
+        berilgan = [x.strip() for x in inm.split(",")]
+        if etag in berilgan or ("W/" + etag) in berilgan or "*" in berilgan:
+            return Response(status_code=304, headers=sarlavhalar)
+    return Response(content=tana, media_type="application/json", headers=sarlavhalar)
+
+
+@app.get("/api/dokon/v1/katalog")
+def api_dokon_v1_katalog(request: Request, db: Session = Depends(get_db)):
+    """Do'kon sayti uchun katalog (kalit bilan): saytda ko'rinadigan bo'limlar, modellar, rasmlar, chakana narxlar (qoplamasiz / qoplamali),
+    amaldagi chegirma, komplekt narxlari. Ulgurji narx va tannarx — YO'Q."""
+    cid = _dokon_api_korxona(request, db)
+    return _dokon_api_javob(request, _dokon_bajar(db, lambda: crud.dokon_api_katalog(db, cid)))
+
+
+@app.get("/api/dokon/v1/sozlamalar")
+def api_dokon_v1_sozlamalar(request: Request, db: Session = Depends(get_db)):
+    """Do'kon sayti uchun sozlamalar (kalit bilan): tasdiqlash raqamlari (hozir ko'rinadiganlari va hammasi), ish vaqti, komplekt retsepti."""
+    cid = _dokon_api_korxona(request, db)
+    return _dokon_api_javob(request, _dokon_bajar(db, lambda: crud.dokon_api_sozlamalar(db, cid)))
+
+
 @app.post("/api/platform/companies/{company_id}/dokon")
 def api_platform_dokon(company_id: int = _Path213(..., ge=1, le=2_147_483_647), yoqilgan: str = Form(...),
                        db: Session = Depends(get_db), current_user=Depends(auth.platform_admin_only)):

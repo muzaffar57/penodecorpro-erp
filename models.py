@@ -3004,6 +3004,33 @@ class DokonChegirma(Base):
     def __repr__(self):
         return f"<DokonChegirma {self.id} model={self.model_id} {self.foiz}%>"
 
+
+class DokonApiKalit(Base):
+    """kech170 (zip 236) — do'kon sayti (ERP dan alohida server) katalog va sozlamalarni o'qiydigan maxfiy kalit (egasi QARORLARI «Onlayn
+    do'kon rejasi» 30.10: do'kon ↔ ERP faqat server ↔ server, maxfiy kalit bilan, faqat PenoDecorPro korxonasi doirasida; korxona KALITDAN
+    aniqlanadi, so'rovdan emas; do'kon API'si eng kam huquqli — ulgurji narx, tannarx, moliya do'konga berilmaydi). Korxonaga BITTA qator
+    (yagona kalit): `api_kalit_xesh` — kalitning SHA-256 xeshi (xom kalit bazada YO'Q — faqat yaratilganda bir marta ko'rsatiladi), NULL —
+    kalit o'chirilgan; `api_kalit_boshi` — tanish uchun boshi (sahifada «pdk_AbC123…»); `oxirgi_murojaat` — oxirgi muvaffaqiyatli so'rov
+    (5 daqiqa aniqlikda). Zaxiraga KIRMAYDI (`crud._NON_TENANT_TABLES` — tiklash o'chirilgan / almashtirilgan kalitni qayta tiriltirmasin;
+    sessiya jadvallari kabi), «Barcha ma'lumotlarni o'chirish» unga tegmaydi. Mantiq — `crud.dokon_api_*`. Ustun nomlari NOYOB
+    (tools/test_html_escape.py har matn ustuni nomini «foydalanuvchi matni» deb oladi)."""
+    __tablename__ = "dokon_api_kalitlar"
+    __table_args__ = (UniqueConstraint("company_id", name="uq_dokon_api_kalit_korxona"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    api_kalit_xesh = Column(String(64), nullable=True, unique=True)
+    api_kalit_boshi = Column(String(16), nullable=True)
+    api_yaratilgan = Column(DateTime, nullable=True)
+    api_yaratgan = Column(String(100), nullable=True)
+    oxirgi_murojaat = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+    updated_by = Column(String(100), nullable=True)
+
+    def __repr__(self):
+        return f"<DokonApiKalit {self.id} korxona={self.company_id}>"
+
 # ============================================================
 # Helper funksiyalar
 # ============================================================

@@ -11097,7 +11097,9 @@ _TENANT_PARENTS = {
 #   murojaatlar / murojaat_xabarlari  — kech127 (zip 151): mijozning PLATFORMA egasi bilan yozishmasi (xat kabi) —
 #       korxona JSON zaxirasiga kirmaydi (tiklash platforma javoblarini eski holatga qaytarmasin); `_reset_table_order` da
 #       ham yo'q — korxonaning «Barcha ma'lumotlarni o'chirish» amali yozishmani o'chirmaydi (`models.Murojaat` izohi).
-_NON_TENANT_TABLES = {"user_sessions", "employee_sessions", "error_logs", "murojaatlar", "murojaat_xabarlari"}
+# kech170 (zip 236): + do'kon API kaliti (`dokon_api_kalitlar` — kalit xeshi; tiklash o'chirilgan / almashtirilgan kalitni qayta
+# tiriltirmasin; «Barcha ma'lumotlarni o'chirish» unga tegmaydi — `_reset_table_order` da yo'q)
+_NON_TENANT_TABLES = {"user_sessions", "employee_sessions", "error_logs", "murojaatlar", "murojaat_xabarlari", "dokon_api_kalitlar"}
 
 # Zahira nusxaga HECH QACHON kiritilmaydigan ustunlar.
 # kech133 (zip 159): + hodim telefon kalitlari xeshi (ruxsat berilgan va kutayotgan) — tiklashdan keyin telefonlar qayta tasdiqlanadi
@@ -24611,3 +24613,314 @@ def dokon_excel_saqla(db: Session, company_id: int, data: dict, kim: str) -> dic
                      new_value=_dokon_detal_matni(d) + _ulg + "; Excel'dan yuklandi", company_id=company_id, commit=False)
     db.commit()
     return {"saqlandi": len(yoziladi), "avval_saqlangan": avval}
+
+
+# ── Do'kon API (kech170, zip 236) ────────────────────────────────────────────────────────────────────────────────────────
+# Egasi QARORLARI («Onlayn do'kon rejasi», 30.10 — «Kod bosqichi uchun texnik qoidalar», «Xavfsizlik — birinchi o'rinda», «Do'kon faqat
+# PenoDecorPro uchun»): do'kon sayti — ERP dan alohida server; ERP bilan faqat server ↔ server, maxfiy kalit bilan gaplashadi (kalit Railway
+# o'zgaruvchisida, kodda emas); korxona KALITDAN aniqlanadi — so'rov ichida boshqa korxona raqami yuborilsa ham e'tiborga olinmaydi; API eng
+# kam huquqli: katalog (chakana narx, chegirma, komplekt, rasmlar) va sozlamalarni (telefonlar, ish vaqti) O'QISH; ulgurji narx, tannarx,
+# moliya, o'chirish, sozlamalarni o'zgartirish — do'konga YOPIQ; kalitga so'rovlar soni cheklanadi. Buyurtma yuborish — zip 237 da.
+# Texnik qarorlar (Claude, kech170):
+#   * kalit — «pdk_» + 32 tasodifiy bayt (`secrets.token_urlsafe`, 43 belgi); bazada FAQAT SHA-256 xeshi (`DokonApiKalit`, korxonaga bitta
+#     qator) — xom kalit yaratilganda BIR marta ko'rsatiladi, jurnalga faqat boshi (10 belgi) yoziladi; yangi kalit eskisini darhol bekor
+#     qiladi; mavjud kalitni almashtirish — `{"almashtir": true, "eski_boshi": "<sahifa ko'rgan kalit boshi>"}` bilan (ikki marta bosish /
+#     ikki oyna jimgina kalitni almashtirib yubormasin — 409; review236 L2: ikki oyna bir vaqtda «Yangi kalit» bossa, birinchisining kaliti
+#     jimgina o'lik bo'lib qolardi); o'chirish — xesh NULL; sayt katalogi belgisi o'chirilsa kalit saqlanadi (do'kon yo'li baribir 404),
+#     qayta yoqilsa — ishlayveradi;
+#   * kalit `X-Dokon-Kalit` sarlavhasida (yoki `Authorization: Bearer …`); shakli noto'g'ri — bazaga borilmaydi; noto'g'ri / o'chirilgan —
+#     401; korxonada sayt katalogi o'chiq — 404 (sahifa / API kabi); so'rovlar — kalitga daqiqasiga `DOKON_API_DAQIQA_MAX` (oshsa — 429 va
+#     `Retry-After`; jarayon ichidagi hisob — Railway'da bitta jarayon); muvaffaqiyatli so'rovda korxona sessiyaga bog'lanadi
+#     (`tenant_context.set_current_company`) — TENANT_FILTER rejimida ham faqat shu korxona qatorlari o'qiladi;
+#   * javob — faqat saytda ko'rinadiganlar: yoqilgan bo'lim → yoqilgan model → yoqilgan narx qatori (komplektda — ko'rinadigan qatori bor
+#     o'lchamlar; model chegirmasi — kamida bitta ko'rinadigan qator / komplekt o'lchamiga tegsa, o'lchamlar ro'yxati — faqat ko'rinadiganlari:
+#     review236 M1 — yashirin o'lcham nomi va chegirmali narxi yo'q «−10 %» belgisi do'konga chiqardi); narx — oddiy (qoplamasiz) va qoplamali
+#     (yozilgani yoki avto — koeffitsient bilan, sahifadagi bilan AYNAN `dokon_avto_qoplamali`); chegirmali narx — FAQAT
+#     `dokon_detal_chegirmasi` / `dokon_chegirma_narx` (amaldagi va shu o'lchamga); komplekt — FAQAT `dokon_model_komplekti` (rom / eshik;
+#     ulgurji komplekt va «nimasi yetishmaydi» izohi — do'konga berilmaydi); muddati tugagan chegirma — yo'q;
+#   * ulgurji narx, tannarx, `updated_by` va boshqa ichki maydonlar javobga UMUMAN kirmaydi (kalitlar ro'yxati qat'iy — `tools/test_dokon_api236`
+#     javobning hamma kalitini va qiymatini tekshiradi);
+#   * javobga ETag (tananing SHA-256 i) — do'kon `If-None-Match` bilan so'rasa va o'zgarish bo'lmasa — 304 (tana yo'q; javob baribir
+#     to'liq yig'iladi — O'LCHANGAN review236 L4: 150 modelda ~0,1 s, shuning uchun kalitga daqiqasiga 120 ta; do'kon katalogni o'zida keshlaydi);
+#   * noto'g'ri kalit — bazada bitta indeksli qidiruv (kirish sahifasidagi kabi ochiq yo'l); jarayon ichidagi hisob deployda nolga tushadi;
+#   * oxirgi murojaat vaqti — 5 daqiqada bir marta yoziladi (har so'rovda bazaga yozilmasin), yozib bo'lmasa — so'rov baribir javob oladi.
+import hashlib as _hl236                                 # noqa: E402
+import secrets as _sec236                                # noqa: E402
+import threading as _th236                               # noqa: E402
+import time as _time236                                  # noqa: E402
+from collections import deque as _deque236               # noqa: E402
+import re as _re236                                      # noqa: E402
+
+DOKON_API_VERSIYA = 1
+DOKON_API_OLDI = "pdk_"
+DOKON_API_KALIT_RE = _re236.compile(r"pdk_[A-Za-z0-9_-]{43}")
+DOKON_API_BOSHI_UZUNLIK = 10
+DOKON_API_SARLAVHA = "X-Dokon-Kalit"
+DOKON_API_DAQIQA_MAX = 120
+DOKON_API_OYNA_SEKUND = 60
+DOKON_API_MUROJAAT_QADAM = _td234(minutes=5)
+DOKON_API_YOLLAR = ("/api/dokon/v1/katalog", "/api/dokon/v1/sozlamalar")
+
+
+class DokonApiRad(Exception):
+    """Do'kon API so'rovi rad etildi: `holat` — HTTP kodi (401 / 429), `kutish` — 429 da necha soniyadan keyin."""
+
+    def __init__(self, holat: int, matn: str, kutish=None):
+        super().__init__(matn)
+        self.holat = holat
+        self.kutish = kutish
+
+
+class DokonApiKalitBor(Exception):
+    """Korxonada amaldagi kalit bor, almashtirish tasdiqlanmagan (`{"almashtir": true}` yo'q) — 409."""
+
+
+class _DokonApiCheklov:
+    """Kalitga so'rovlar soni: so'nggi `oyna` soniyada ko'pi bilan `ko_pi` ta (sirpanuvchi oyna; oqimlar orasida qulf bilan). Xotira —
+    kalitlar soni bilan cheklangan (korxonaga bitta kalit)."""
+
+    def __init__(self, ko_pi: int, oyna: int):
+        self.ko_pi = ko_pi
+        self.oyna = oyna
+        self._q = {}
+        self._qulf = _th236.Lock()
+
+    def ol(self, kalit_id, hozir=None):
+        """Ruxsat bo'lsa — None (so'rov sanaladi); chegara to'lgan bo'lsa — necha soniya kutish kerak (butun, ≥ 1)."""
+        t = _time236.monotonic() if hozir is None else hozir
+        with self._qulf:
+            q = self._q.setdefault(kalit_id, _deque236())
+            while q and q[0] <= t - self.oyna:
+                q.popleft()
+            if len(q) >= self.ko_pi:
+                return max(1, int(_math234.ceil(q[0] + self.oyna - t)))
+            q.append(t)
+            return None
+
+    def tozala(self):
+        with self._qulf:
+            self._q.clear()
+
+
+_DOKON_API_CHEKLOV = _DokonApiCheklov(DOKON_API_DAQIQA_MAX, DOKON_API_OYNA_SEKUND)
+
+
+def dokon_api_kalit_xesh(kalit: str) -> str:
+    """Kalitning bazadagi ko'rinishi (SHA-256, 64 ta o'n oltilik belgi)."""
+    return _hl236.sha256(str(kalit).encode("utf-8")).hexdigest()
+
+
+def _dokon_api_vaqt_matni(t):
+    """UTC vaqt → Toshkent «01.11.2026 14:20» (yo'q — None)."""
+    if t is None:
+        return None
+    from database import TASHKENT_OFFSET as _TO236
+    return (t + _TO236).strftime("%d.%m.%Y %H:%M")
+
+
+def _dokon_api_qator(db, company_id, lock=False):
+    from models import DokonApiKalit
+    q = db.query(DokonApiKalit).filter(DokonApiKalit.company_id == company_id)
+    if lock:
+        q = q.populate_existing().with_for_update()
+    return q.first()
+
+
+def dokon_api_kalit_holati(db: Session, company_id: int) -> dict:
+    """Sahifa uchun kalit holati — xom kalit ham, xeshi ham YO'Q: bormi, boshi, kim / qachon yaratgan, oxirgi murojaat."""
+    dokon_tekshir(db, company_id)
+    k = _dokon_api_qator(db, company_id)
+    bor = bool(k is not None and k.api_kalit_xesh)
+    return {"bor": bor, "boshi": k.api_kalit_boshi if bor else None,
+            "yaratilgan": _dokon_api_vaqt_matni(k.api_yaratilgan) if bor else None,
+            "yaratgan": k.api_yaratgan if bor else None,
+            "oxirgi_murojaat": _dokon_api_vaqt_matni(k.oxirgi_murojaat) if bor else None,
+            "sarlavha": DOKON_API_SARLAVHA, "yollar": list(DOKON_API_YOLLAR), "daqiqa_max": DOKON_API_DAQIQA_MAX}
+
+
+def dokon_api_kalit_yarat(db: Session, company_id: int, data: dict, kim: str) -> dict:
+    """Yangi kalit ({"almashtir": true} — amaldagisi bo'lsa shart): eskisi darhol bekor bo'ladi. Qaytaradi: holat + "kalit" (xom — FAQAT
+    shu javobda). Korxona qatori qulfi ostida (ikki oynadan bir vaqtda — ketma-ket; ikkinchisi almashtirishsiz bo'lsa — 409)."""
+    from models import DokonApiKalit
+    dokon_tekshir(db, company_id)
+    _dokon_kalitlar(data, ("almashtir", "eski_boshi"))
+    almashtir = _dokon_bool(data.get("almashtir", False), "almashtir")
+    korilgan = data.get("eski_boshi")
+    if korilgan is not None and not isinstance(korilgan, str):
+        raise ValueError("«eski_boshi» matn bo'lishi kerak")
+    _dokon_korxona_qulf(db, company_id)
+    k = _dokon_api_qator(db, company_id, lock=True)
+    eski_boshi = k.api_kalit_boshi if (k is not None and k.api_kalit_xesh) else None
+    if eski_boshi is not None and not almashtir:
+        raise DokonApiKalitBor("Do'kon kaliti allaqachon bor — yangisini yaratish eskisini o'chiradi (sahifani yangilab, qayta urining)")
+    if eski_boshi is not None and korilgan != eski_boshi:
+        raise DokonApiKalitBor("Kalit shu orada boshqa oynada o'zgargan — sahifani yangilab, qayta urining")
+    kalit = DOKON_API_OLDI + _sec236.token_urlsafe(32)
+    if not DOKON_API_KALIT_RE.fullmatch(kalit):            # token_urlsafe(32) — doim 43 belgi; shakl buzilsa — kalit berilmaydi
+        raise ValueError("Kalit yaratilmadi — qayta urining")
+    hozir = datetime.utcnow()
+    if k is None:
+        k = DokonApiKalit(company_id=company_id, created_at=hozir)
+        db.add(k)
+    k.api_kalit_xesh = dokon_api_kalit_xesh(kalit)
+    k.api_kalit_boshi = kalit[:DOKON_API_BOSHI_UZUNLIK]
+    k.api_yaratilgan = hozir
+    k.api_yaratgan = kim
+    k.oxirgi_murojaat = None
+    k.updated_at = hozir
+    k.updated_by = kim
+    db.flush()
+    log_activity(db, "updated" if eski_boshi else "created", "dokon_api_kalit", k.id, "Sayt — do'kon API kaliti", kim,
+                 old_value=f"kalit {eski_boshi}…" if eski_boshi else None,
+                 new_value=f"kalit {k.api_kalit_boshi}…" + ("; eski kalit o'chirildi" if eski_boshi else ""),
+                 company_id=company_id, commit=False)
+    db.commit()
+    natija = dokon_api_kalit_holati(db, company_id)
+    natija["kalit"] = kalit
+    return natija
+
+
+def dokon_api_kalit_ochir(db: Session, company_id: int, kim: str) -> bool:
+    """Kalitni o'chirish (do'kon sayti darhol ERP dan o'qiy olmay qoladi). Amaldagi kalit yo'q — False."""
+    dokon_tekshir(db, company_id)
+    _dokon_korxona_qulf(db, company_id)
+    k = _dokon_api_qator(db, company_id, lock=True)
+    if k is None or not k.api_kalit_xesh:
+        return False
+    eski_boshi = k.api_kalit_boshi
+    k.api_kalit_xesh = None
+    k.api_kalit_boshi = None
+    k.oxirgi_murojaat = None
+    k.updated_at = datetime.utcnow()
+    k.updated_by = kim
+    log_activity(db, "deleted", "dokon_api_kalit", k.id, "Sayt — do'kon API kaliti", kim, old_value=f"kalit {eski_boshi}…",
+                 company_id=company_id, commit=False)
+    db.commit()
+    return True
+
+
+def dokon_api_korxona(db: Session, kalit) -> int:
+    """So'rovdagi kalit → korxona raqami. Shakli noto'g'ri / bazada yo'q / o'chirilgan — `DokonApiRad(401)`; korxonada sayt katalogi
+    o'chiq — `DokonYopiq`; daqiqalik chegara to'lgan — `DokonApiRad(429, kutish=…)`. Oxirgi murojaat vaqti — 5 daqiqada bir marta."""
+    from models import DokonApiKalit
+    if not isinstance(kalit, str) or not DOKON_API_KALIT_RE.fullmatch(kalit):
+        raise DokonApiRad(401, "Do'kon kaliti yo'q yoki noto'g'ri")
+    xesh = dokon_api_kalit_xesh(kalit)
+    row = (db.query(DokonApiKalit.id, DokonApiKalit.company_id, DokonApiKalit.oxirgi_murojaat)
+           .filter(DokonApiKalit.api_kalit_xesh == xesh).first())
+    if row is None:
+        raise DokonApiRad(401, "Do'kon kaliti yo'q yoki noto'g'ri")
+    kid, cid, oxirgi = row
+    dokon_tekshir(db, cid)
+    kutish = _DOKON_API_CHEKLOV.ol(kid)
+    if kutish is not None:
+        raise DokonApiRad(429, f"So'rovlar juda ko'p (daqiqasiga ko'pi bilan {DOKON_API_DAQIQA_MAX} ta) — {kutish} soniyadan keyin urining",
+                          kutish=kutish)
+    hozir = datetime.utcnow()
+    if oxirgi is None or hozir - oxirgi >= DOKON_API_MUROJAAT_QADAM:
+        try:
+            from sqlalchemy import or_ as _or236
+            (db.query(DokonApiKalit)
+             .filter(DokonApiKalit.id == kid, DokonApiKalit.company_id == cid, DokonApiKalit.api_kalit_xesh == xesh,
+                     _or236(DokonApiKalit.oxirgi_murojaat.is_(None), DokonApiKalit.oxirgi_murojaat <= hozir - DOKON_API_MUROJAAT_QADAM))
+             .update({DokonApiKalit.oxirgi_murojaat: hozir}, synchronize_session=False))
+            db.commit()
+        except Exception:                                # noqa: BLE001 — vaqtni yozib bo'lmasa ham do'kon javob olsin
+            db.rollback()
+    return cid
+
+
+def _dokon_api_detal(d, koeff, chegirma, bugun):
+    """Narx qatori — do'kon uchun (ulgurji / ichki maydonlar YO'Q)."""
+    qop = d.narx_qoplamali if d.narx_qoplamali is not None else dokon_avto_qoplamali(d.narx, koeff)
+    return {"id": d.id, "turi": d.turi, "turi_nomi": DOKON_TURI_NOMI.get(d.turi, d.turi), "olcham": d.olcham,
+            "eni_sm": d.eni_sm, "qalinligi_sm": d.qalinligi_sm, "birlik": d.birlik,
+            "narx": _dokon_pul(d.narx), "narx_qoplamali": _dokon_pul(qop),
+            "chegirma": dokon_detal_chegirmasi(d, chegirma, koeff, bugun) if chegirma is not None else None}
+
+
+def _dokon_api_komplekt(qatorlar: list) -> list:
+    """`dokon_model_komplekti` natijasi — do'kon uchun: rom / eshik va chegirmasi; ulgurji komplekt va «yetishmaydi» izohi — YO'Q."""
+    natija = []
+    for q in qatorlar:
+        x = {"olcham": q["olcham"]}
+        for kom in ("rom", "eshik"):
+            x[kom] = {k: v for k, v in q[kom].items() if k != "yetishmaydi"}
+        ch = q.get("chegirma")
+        x["chegirma"] = None if ch is None else {"foiz": ch["foiz"], "rom": dict(ch["rom"]), "eshik": dict(ch["eshik"])}
+        natija.append(x)
+    return natija
+
+
+def dokon_api_katalog(db: Session, company_id: int) -> dict:
+    """Do'kon sayti uchun katalog: saytda ko'rinadigan bo'limlar, ularning modellari (rasmlari, narx qatorlari, komplekt narxlari,
+    amaldagi chegirmasi bilan). Tartib — sahifadagidek (tartib, id)."""
+    from models import DokonBolim, DokonModel, DokonDetal, DokonRasm
+    dokon_tekshir(db, company_id)
+    koeff = dokon_koeff(db, company_id)
+    retsept = dokon_retsept(db, company_id)
+    bugun = dokon_bugun()
+    bolimlar = (db.query(DokonBolim).filter(DokonBolim.company_id == company_id, DokonBolim.yoqilgan == True)   # noqa: E712
+                .order_by(DokonBolim.tartib, DokonBolim.id).all())
+    bolim_orni = {b.id: i for i, b in enumerate(bolimlar)}
+    # tartib — sahifadagidek: bo'lim tartibi → bo'lim ichida model tartibi → id
+    modellar = sorted((m for m in db.query(DokonModel).filter(DokonModel.company_id == company_id, DokonModel.yoqilgan == True).all()   # noqa: E712
+                       if m.bolim_id in bolim_orni), key=lambda m: (bolim_orni[m.bolim_id], m.tartib or 0, m.id))
+    mid = [m.id for m in modellar]
+    detallar, rasmlar = {}, {}
+    if mid:
+        for d in (db.query(DokonDetal).filter(DokonDetal.company_id == company_id, DokonDetal.model_id.in_(mid))
+                  .order_by(DokonDetal.model_id, DokonDetal.tartib, DokonDetal.id).all()):
+            detallar.setdefault(d.model_id, []).append(d)
+        for r in (db.query(DokonRasm).filter(DokonRasm.company_id == company_id, DokonRasm.model_id.in_(mid))
+                  .order_by(DokonRasm.model_id, DokonRasm.tartib, DokonRasm.id).all()):
+            rasmlar.setdefault(r.model_id, []).append(r)
+    chegirmalar = dokon_chegirmalar(db, company_id)
+    m_royxat = []
+    for m in modellar:
+        c = chegirmalar.get(m.id)
+        faol = c if (c is not None and dokon_chegirma_faolmi(c, bugun)) else None
+        dl = detallar.get(m.id, [])
+        korinadigan = {dokon_olcham_kalit(d.olcham) for d in dl if d.yoqilgan}
+        d_royxat = [_dokon_api_detal(d, koeff, faol, bugun) for d in dl if d.yoqilgan]
+        k_royxat = None
+        if m.qolip == "komplekt":           # review236 M1: faqat ko'rinadigan qatori bor o'lchamlar
+            k_royxat = [x for x in _dokon_api_komplekt(dokon_model_komplekti(m, dl, retsept, koeff, chegirma=faol, bugun=bugun))
+                        if dokon_olcham_kalit(x["olcham"]) in korinadigan]
+        if faol is not None and not (any(x["chegirma"] is not None for x in d_royxat)
+                                     or any(x["chegirma"] is not None for x in (k_royxat or []))):
+            faol = None                     # review236 M1: chegirma faqat yashirin / narxsiz o'lchamlarga — do'konga belgi chiqmasin
+        ol = dokon_chegirma_olchamlari(faol) if faol is not None else None
+        m_royxat.append({
+            "id": m.id, "bolim_id": m.bolim_id, "kod": m.kod, "nom": m.nom, "tavsif": m.tavsif, "qolip": m.qolip,
+            "qolip_nomi": DOKON_QOLIP_NOMI.get(m.qolip), "kapitel_baza_bor": bool(m.kapitel_baza_bor), "tartib": m.tartib or 0,
+            "rasmlar": [{"url": r.fayl, "kichik": r.kichik, "eni": r.eni, "boyi": r.boyi} for r in rasmlar.get(m.id, [])],
+            "detallar": d_royxat,
+            "komplekt": k_royxat,
+            "chegirma": (None if faol is None else
+                         {"foiz": float(faol.foiz),
+                          "olchamlar": None if ol is None else [o for o in ol if dokon_olcham_kalit(o) in korinadigan],
+                          "tugash": faol.tugash.isoformat() if faol.tugash else None,
+                          "tugash_matni": dokon_chegirma_muddat_matni(faol.tugash, bugun)}),
+        })
+    return {"versiya": DOKON_API_VERSIYA, "bugun": bugun.isoformat(),
+            "bolimlar": [{"id": b.id, "nom": b.nom, "qolip": b.qolip, "tizim_kaliti": b.tizim_kaliti, "tartib": b.tartib or 0,
+                          "qolip_nomi": DOKON_TIZIM_NOMI.get(b.tizim_kaliti) if b.tizim_kaliti else DOKON_QOLIP_NOMI.get(b.qolip)}
+                         for b in bolimlar],
+            "modellar": m_royxat}
+
+
+def dokon_api_sozlamalar(db: Session, company_id: int, hozir_utc=None) -> dict:
+    """Do'kon sayti uchun sozlamalar: hozir ko'rinadigan tasdiqlash raqamlari (`dokon_korinadigan_telefonlar`), hamma raqamlar («doim»
+    belgisi bilan — sayt keshlasa, o'zi almashtira olsin), ish vaqti, komplekt retsepti va standart o'lchami."""
+    dokon_tekshir(db, company_id)
+    ish = dokon_ish_vaqti(db, company_id)
+
+    def tel(t):
+        return {"raqam": t.raqam, "korinish": dokon_telefon_korinish(t.raqam), "izoh": t.izoh, "doim": bool(t.doim)}
+    return {"versiya": DOKON_API_VERSIYA, "hozir_ish_vaqti": dokon_ish_vaqtimi(ish, hozir_utc),
+            "korinadigan_telefonlar": [tel(t) for t in dokon_korinadigan_telefonlar(db, company_id, hozir_utc)],
+            "telefonlar": [tel(t) for t in _dokon_telefonlar(db, company_id)],
+            "ish_vaqti": ish, "ish_vaqti_matni": dokon_ish_vaqti_matni(ish),
+            "ish_izoh": _dokon_sozlama_ol(db, company_id, DOKON_ISH_IZOH_KALIT),
+            "retsept": dokon_retsept(db, company_id), "komplekt_olcham": dokon_komplekt_olcham(db, company_id)}

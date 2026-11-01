@@ -18,7 +18,9 @@
    kech169 (zip 234): model ichida «🏷 Chegirma» shtorkasi — foiz yoki «Yangi narx», o'lchamlar, tugash sanasi; natija (asl → chegirmali,
    tannarx, «tannarxdan past» ogohlantirishi) — serverdan; model sarlavhasida «−15 %» belgisi.
    kech170 (zip 235): «📊 Narxlarni Excel orqali o'zgartirish» kartochkasi — butun narx jadvali .xlsx ga, qaytarishda hamma qator
-   tekshiriladi va saqlashdan oldin o'zgarishlar (eski → yangi), xatolar va ogohlantirishlar ko'rsatiladi; xato bo'lsa — saqlanmaydi. #}
+   tekshiriladi va saqlashdan oldin o'zgarishlar (eski → yangi), xatolar va ogohlantirishlar ko'rsatiladi; xato bo'lsa — saqlanmaydi.
+   kech170 (zip 236): «🔑 Do'kon sayti uchun kalit (API)» kartochkasi — kalit holati (boshi, kim / qachon yaratgan, oxirgi murojaat),
+   yaratish, almashtirish va o'chirish (tasdiq bilan); yangi kalit faqat bir marta ko'rsatiladi (nusxa olish tugmasi bilan). #}
 <style>
 .sk-grid{display:grid;grid-template-columns:280px minmax(0,1fr);gap:14px;align-items:start}
 .sk-grid > div{min-width:0}
@@ -214,6 +216,15 @@
   .sk-ex-jadval-quti{max-height:none;border:0}
   .sk-ex-tugmalar .btn,.sk-ex-yukla{flex:1 1 100%;justify-content:center;text-align:center}
 }
+/* kech170 (zip 236): do'kon sayti kaliti (API) — holat, yangi kalit (faqat bir marta ko'rsatiladi) bloki */
+.sk-api-holat{margin-top:8px;font-size:13px;line-height:1.6}
+.sk-api-holat b{font-family:var(--mono, monospace)}
+.sk-api-yangi{margin-top:10px;padding:10px;border:1px solid var(--gold);background:var(--gold-tint);border-radius:var(--r-btn);font-size:13px;line-height:1.5}
+.sk-api-kalit-qator{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
+.sk-api-kalit-qator input{flex:1 1 280px;min-width:0;font-family:var(--mono, monospace);font-size:13px}
+@media (max-width: 700px){
+  .sk-api-kalit-qator .btn{flex:1 1 100%;justify-content:center}
+}
 </style>
 {% endblock %}
 
@@ -251,6 +262,20 @@
   </div>
 </div>
 
+<div class="card" style="margin-bottom:14px" id="skApi">
+  <div class="sk-tana">
+    <details class="sht" data-sht="sk-api"><summary><span class="sht-str" aria-hidden="true">▶</span><span class="sht-sarl">🔑 Do'kon sayti uchun kalit (API)</span><span class="sht-holat" id="skApiHolatQisqa"></span></summary>
+      <div class="sht-ich">
+        <p class="sk-matn">Do'kon sayti ERP'dan katalogni shu maxfiy kalit bilan o'qiydi: saytda ko'rinadigan bo'limlar, modellar, rasmlar,
+          chakana narxlar, chegirmalar, komplekt narxlari, telefon raqamlari va ish vaqti. Ulgurji narx, tannarx va moliya ma'lumotlari
+          do'konga berilmaydi. Kalitni faqat do'kon sayti serverining sozlamalariga yozing — hech kimga yubormang.</p>
+        <div class="sk-api-holat" id="skApiHolat" aria-live="polite">Yuklanmoqda…</div>
+        <div class="sk-ex-tugmalar" id="skApiTugmalar"></div>
+        <div id="skApiYangi"></div>
+      </div>
+    </details>
+  </div>
+</div>
 <div class="card" style="margin-bottom:14px" id="skSoz">
   <div class="sk-tana" id="skSozIch"><div class="sk-bosh-holat">Do'kon sozlamalari yuklanmoqda…</div></div>
 </div>
@@ -1892,6 +1917,129 @@ async function skExSaqla() {
 document.getElementById('skExOl').addEventListener('click', skExOl);
 document.getElementById('skExFayl').addEventListener('change', function () { skExYukla(this.files && this.files[0]); });
 shtorkaTayyor(document.getElementById('skExcel'));
+
+
+// ── kech170 (zip 236): do'kon sayti kaliti (API) ──
+// Holat — GET /api/sayt-katalogi/api-kalit (xom kalit ham, xeshi ham kelmaydi). «Kalit yaratish» — POST (birinchi kalit); «Yangi kalit» —
+// tasdiqdan keyin POST {"almashtir": true} (eskisi darhol ishlamay qoladi); «O'chirish» — tasdiqdan keyin DELETE. Xom kalit FAQAT yaratish
+// javobida keladi va shu kartochkada (SK.apiKalit) «Yopish» bosilguncha turadi — sahifa yangilansa qayta ko'rsatilmaydi. Natija noma'lum
+// (tarmoq uzildi) — holat qayta o'qiladi: kalit yaratilgan bo'lsa ham u ko'rsatilmaydi, egasi yangisini yaratadi.
+// review236 M2: sariq blok faqat holatdagi kalit boshi ko'rsatilayotgan kalitga mos bo'lsa chiziladi (almashtirish / o'chirish javobi
+// yo'qolsa yoki boshqa oynada o'zgarsa — o'lik kalit «yangi» deb ko'rsatilmasin). Almashtirishda sahifa ko'rgan kalit boshi yuboriladi
+// (`eski_boshi`; boshqa oynada o'zgargan bo'lsa — 409, review236 L2).
+// Kalit maydoni va boshi — `data-no-capitalize` (umumiy «birinchi harf katta» qoidasi maydondan chiqqanda «Pdk_…» qilib qo'yardi — O'LCHANGAN,
+// U5) va `data-no-i18n` (Kirill ko'rinishida kalit harflari o'girilmasin).
+SK.api = null;
+SK.apiKalit = null;
+
+function skApiChiz() {
+  var h = document.getElementById('skApiHolat');
+  var t = document.getElementById('skApiTugmalar');
+  var y = document.getElementById('skApiYangi');
+  if (!h || !t || !y) return;
+  var a = SK.api;
+  if (SK.apiKalit && !(a && a.bor && a.boshi === SK.apiKalit.slice(0, 10))) SK.apiKalit = null;
+  if (!a) {
+    h.textContent = 'Kalit holati olinmadi — sahifani yangilang.';
+    t.innerHTML = '';
+    shtorkaHolat('sk-api', '', null);
+  } else if (a.bor) {
+    h.innerHTML = 'Kalit bor: <b data-no-i18n>' + escapeHtml(a.boshi + '…') + '</b> · yaratilgan ' + escapeHtml(a.yaratilgan || '—') +
+      (a.yaratgan ? ' (' + escapeHtml(a.yaratgan) + ')' : '') + '<br>Do\'kon sayti oxirgi marta murojaat qilgan: ' +
+      escapeHtml(a.oxirgi_murojaat || 'hali murojaat qilmagan') + skApiYollarHtml(a);
+    t.innerHTML = '<button type="button" class="btn btn-outline" id="skApiAlmashtir">♻ Yangi kalit (eskisi o\'chadi)</button>' +
+      '<button type="button" class="btn btn-outline" id="skApiOchir">O\'chirish</button>';
+    shtorkaHolat('sk-api', 'kalit bor', null);
+  } else {
+    h.innerHTML = escapeHtml('Kalit yo\'q — do\'kon sayti ERP\'dan katalogni o\'qiy olmaydi.') + skApiYollarHtml(a);
+    t.innerHTML = '<button type="button" class="btn btn-dark" id="skApiYarat">🔑 Kalit yaratish</button>';
+    shtorkaHolat('sk-api', 'kalit yo\'q', null);
+  }
+  if (SK.apiKalit) {
+    y.innerHTML = '<div class="sk-api-yangi"><b>Yangi kalit — faqat hozir ko\'rsatiladi.</b> Uni nusxalab, do\'kon sayti serverining ' +
+      'sozlamalariga yozing (sarlavha: <b data-no-i18n>' + escapeHtml((a && a.sarlavha) || 'X-Dokon-Kalit') + '</b>). Sahifa yopilsa yoki yangilansa, ' +
+      'kalitni qayta ko\'rib bo\'lmaydi — faqat yangisini yaratish mumkin.' +
+      '<div class="sk-api-kalit-qator"><input type="text" id="skApiKalit" readonly data-no-capitalize data-no-i18n spellcheck="false" ' +
+      'autocomplete="off" aria-label="Yangi do\'kon kaliti" value="' +
+      escapeHtml(SK.apiKalit) + '"><button type="button" class="btn btn-dark" id="skApiNusxa">📋 Nusxa olish</button>' +
+      '<button type="button" class="btn btn-outline" id="skApiYop">Yopish</button></div></div>';
+    document.getElementById('skApiNusxa').addEventListener('click', skApiNusxa);
+    document.getElementById('skApiYop').addEventListener('click', function () { SK.apiKalit = null; skApiChiz(); });
+  } else {
+    y.innerHTML = '';
+  }
+  var b = document.getElementById('skApiYarat');
+  if (b) b.addEventListener('click', function () { skApiYarat(false); });
+  b = document.getElementById('skApiAlmashtir');
+  if (b) b.addEventListener('click', function () { skApiYarat(true); });
+  b = document.getElementById('skApiOchir');
+  if (b) b.addEventListener('click', skApiOchir);
+}
+
+function skApiYollarHtml(a) {
+  var yollar = (a && a.yollar) || [];
+  if (!yollar.length) return '';
+  return '<br>Do\'kon sayti so\'raydigan manzillar: ' + yollar.map(y => skApiYolHtml(y)).join(', ') +
+    (a.daqiqa_max ? ' · daqiqasiga ko\'pi bilan ' + escapeHtml(String(a.daqiqa_max)) + ' ta so\'rov' : '');
+}
+function skApiYolHtml(y) { return '<code data-no-i18n>' + escapeHtml(y) + '</code>'; }
+
+async function skApiYukla() {
+  var n = await skSorov('/api/sayt-katalogi/api-kalit', 'GET');
+  SK.api = n.ok ? n.d : null;
+  skApiChiz();
+}
+
+function skApiTugmalarYop(yop) {
+  document.querySelectorAll('#skApiTugmalar .btn').forEach(function (x) { x.disabled = yop; });
+}
+
+async function skApiYarat(almashtir) {
+  if (almashtir && !(await customConfirm('Yangi kalit', 'Yangi kalit yaratilsinmi? Eski kalit darhol ishlamay qoladi — do\'kon sayti ' +
+      'serveriga yangi kalitni yozmaguningizcha sayt ERP\'dan katalogni o\'qiy olmaydi.'))) return;
+  if (!skBandla('api')) return;
+  skApiTugmalarYop(true);
+  var n = await skSorov('/api/sayt-katalogi/api-kalit', 'POST', almashtir ? {almashtir: true, eski_boshi: (SK.api && SK.api.boshi) || null} : {});
+  skBo('api');
+  if (n.ok && n.d && n.d.kalit) {
+    SK.apiKalit = n.d.kalit;
+    delete n.d.kalit;
+    SK.api = n.d;
+    skApiChiz();
+    showMsg('✓ Kalit yaratildi — nusxalab oling', 'success');
+    var k = document.getElementById('skApiKalit');
+    if (k) { k.focus(); k.select(); }
+    return;
+  }
+  showMsg('❌ Kalit yaratilmadi: ' + (n.ok ? 'server kalitni qaytarmadi' : n.sabab), 'error');
+  await skApiYukla();
+}
+
+async function skApiOchir() {
+  if (!(await customConfirm('Kalitni o\'chirish', 'Do\'kon kaliti o\'chirilsinmi? Do\'kon sayti darhol ERP\'dan katalogni o\'qiy olmay qoladi.'))) return;
+  if (!skBandla('api')) return;
+  skApiTugmalarYop(true);
+  var n = await skSorov('/api/sayt-katalogi/api-kalit', 'DELETE');
+  skBo('api');
+  if (n.ok) { SK.apiKalit = null; showMsg('✓ Kalit o\'chirildi', 'success'); }
+  else showMsg('❌ Kalit o\'chirilmadi: ' + n.sabab, 'error');
+  await skApiYukla();
+}
+
+async function skApiNusxa() {
+  var k = document.getElementById('skApiKalit');
+  if (!k) return;
+  var ok = false;
+  try { await navigator.clipboard.writeText(k.value); ok = true; } catch (e) { ok = false; }
+  if (!ok) {
+    k.focus();
+    k.select();
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+  }
+  showMsg(ok ? '✓ Kalit nusxalandi' : 'Kalit belgilandi — Ctrl+C (telefonda — «Nusxa olish») bilan nusxalang', ok ? 'success' : 'info');
+}
+
+skApiYukla();
 
 skYukla();
 </script>
