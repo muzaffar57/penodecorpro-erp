@@ -10,7 +10,7 @@ NIMA UCHUN KERAK
   O'LCHANGAN (work/k232/probe232.py, asl kod 2a00a12): ERP'ning umumiy yuklash yo'li kichik, burilmagan rasmni ASLICHA saqlaydi —
   GPS, kamera, dastur, izoh, XMP, ICC faylda QOLADI; qayta yozilganda ham JPEG izohi o'tib ketadi; telefonning MPO fayli rad.
 BO'LIMLAR
-  S — statik: jadval, `_TENANT_REFS`, zaxira tartibi, marshrutlar, Pillow versiyasi qotirilgan.
+  S — statik: jadval, `_TENANT_REFS`, zaxira tartibi, marshrutlar, Pillow versiyasi qotirilgan, jurnaldagi hajm matni (S7, zip 233b).
   I — ishlov (`main.dokon_rasm_tayyorla`): metama'lumot TUZILMA bo'yicha yo'q (JPEG / PNG / WEBP / MPO), burilish, sRGB (P3
       profil), qirqilmaydi (nisbat), shaffof PNG, CMYK, 16 bit, palitra, harakatli / HEIC / rasm emas / buzilgan / juda katta /
       juda kichik / cho'zinchoq — rad, Pillow yo'q / tekshiruv o'tmasa — SAQLANMAYDI (yopiq holatda xato).
@@ -386,6 +386,13 @@ check("S6 sayt rasmlari papkasi — umumiy `static` ichida `uploads/dokon` (Rail
       "yo'qolmaydi)", _ASL_PAPKA is not None
       and os.path.realpath(_ASL_PAPKA) == os.path.realpath(os.path.join(main.static_dir, "uploads", "dokon")),
       (_ASL_PAPKA, getattr(main, "static_dir", None)))
+_HAJM = [(100, "1 KB"), (512 * 1024, "512 KB"), (1024 * 1024 - 1, "1024 KB"), (1024 * 1024, "1 MB"), (int(1.5 * 1024 * 1024), "1,5 MB"),
+         (2 * 1024 * 1024, "2 MB"), (int(24.99 * 1024 * 1024), "25 MB"), (int(1234.56 * 1024 * 1024), "1 234,6 MB")]
+_hf = getattr(crud, "_dokon_hajm_matni", None)
+_hb = [(h, k, _hf(h) if _hf else None) for h, k in _HAJM]
+check("S7 jurnaldagi rasm hajmi — zip 193 qoidasi (`audit_son`): «1,5 MB», «2 MB» (ortiqcha nolsiz), «1 234,6 MB» (ODDIY bo'shliq), "
+      "1 MB dan kichigi — butun KB (zip 233b; etalon d241)", _hf is not None and all(b == k for h, k, b in _hb),
+      [x for x in _hb if x[1] != x[2]])
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 section("I. Ishlov (dokon_rasm_tayyorla)")

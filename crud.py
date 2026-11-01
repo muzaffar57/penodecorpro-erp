@@ -22585,8 +22585,12 @@ def _dokon_rasm_fayllarini_ochir(urllar, db=None):
 
 
 def _dokon_hajm_matni(hajm):
+    """«Faoliyat jurnali» dagi rasm hajmi: 1 MB dan kichigi — butun KB (kamida 1), kattasi — MB, `audit_son(…, 1)` (zip 193 qoidasi:
+    kasr — vergul, ortiqcha nolsiz, ming ajratgich — oddiy bo'shliq): «1,5 MB», «2 MB», «512 KB».
+    kech168 (zip 233b): ilgari `f"{x:.1f}"` + nuqtani vergulga almashtirish edi — «2,0 MB»; etalon d241 da `test_xabar_miqdorlar193` S1
+    (jurnal f-stringida `:.Nf` miqdor taqiqlangan) yiqildi."""
     if hajm >= 1024 * 1024:
-        return f"{hajm / (1024 * 1024):.1f} MB".replace(".", ",")
+        return f"{audit_son(hajm / (1024 * 1024), 1)} MB"
     return f"{max(1, round(hajm / 1024))} KB"
 
 
