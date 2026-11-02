@@ -13537,6 +13537,13 @@ def api_get_finished_sales(year: Optional[int] = None, month: Optional[int] = No
     } for s in sales]
 
 
+@app.get("/api/finished/katalog-detallar")
+def api_finished_katalog_detallar(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("tayyor", "yaratish"))):
+    """kech177 (zip 242 «Katalogdan tanlash»): ishlab chiqarish oynasidagi «📖 Katalogdan tanlash» ro'yxati — sayt katalogining omborga bog'lanadigan detallari (narxsiz;
+    `crud.dokon_tm_katalog`). Katalog o'chiq korxonada — 404."""
+    return {"detallar": _dokon_bajar(db, lambda: crud.dokon_tm_katalog(db, auth.company_id_of(current_user)))}
+
+
 @app.post("/api/finished/produce")
 def api_produce(request: Request, response: Response, data: dict = Body(...), db: Session = Depends(get_db),
                 current_user=Depends(auth.ruxsat("tayyor", "yaratish")), background_tasks: BackgroundTasks = None):
@@ -13554,6 +13561,17 @@ def api_produce(request: Request, response: Response, data: dict = Body(...), db
                                                   company_id=auth.company_id_of(current_user))
             if not result["success"]:
                 raise HTTPException(status_code=400, detail=result)
+            # kech177 (zip 242 «Katalogdan tanlash»): «Katalogdan tanlash» — partiya sayt katalogi detaliga (o'sha tranzaksiyada; detal topilmasa / katalog o'chiq —
+            # 400, partiya ham yozilmaydi; mos kelmasa — partiya yoziladi, bog'lam o'zgarmaydi, sababi `katalog.matn` da)
+            if getattr(data, "dokon_detal_id", None) is not None:
+                try:
+                    result["katalog"] = crud.dokon_partiya_katalogga(db, result["product_id"], data.dokon_detal_id,
+                                                                     auth.company_id_of(current_user), who)
+                except crud.DokonYopiq:
+                    raise HTTPException(status_code=400, detail={"success": False, "message": "Sayt katalogi bu korxonada yoqilmagan — "
+                                                                                              "«Katalogdan tanlash»ni olib tashlang"})
+                except ValueError as _e242:
+                    raise HTTPException(status_code=400, detail={"success": False, "message": str(_e242)})
         return result
     result, takror = _amal_bajar(db, current_user, response, "ishlab_chiqarish", kalit, _bajar)
     if takror:

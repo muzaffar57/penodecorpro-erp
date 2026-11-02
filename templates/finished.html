@@ -15,6 +15,24 @@
 
 {% block head %}
 <style>
+/* kech177 (zip 242 «Katalogdan tanlash»): «Katalogdan tanlash» — tugma qatori, belgi (chip), ro'yxat oynasi */
+.pk242-qator{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px}
+.pk242-chip{display:flex;align-items:center;gap:6px;min-width:0;flex:1 1 220px;padding:4px 4px 4px 10px;border-radius:8px;
+  background:var(--white);border:1px solid var(--border);font-size:12px;color:var(--text2);line-height:1.4}
+.pk242-chip span{flex:1;min-width:0;overflow-wrap:anywhere}
+.pk242-chip.ogoh{border-color:var(--f-f59e0b);color:var(--m-92400e)}
+.pk242-oyna{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1100;align-items:center;justify-content:center;padding:20px}
+.pk242-quti{background:var(--white);border-radius:14px;width:560px;max-width:100%;max-height:90vh;max-height:calc(100dvh - 40px);display:flex;
+  flex-direction:column;box-sizing:border-box}
+.pk242-bosh{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:18px 22px 12px;border-bottom:1px solid var(--border)}
+.pk242-sarlavha{font-size:16px;font-weight:600;color:var(--text)}
+.pk242-izoh{font-size:12px;color:var(--text3);margin-top:2px}
+.pk242-qidir{padding:12px 22px 4px}
+.pk242-qidir input{width:100%;box-sizing:border-box}
+.pk242-royxat{padding:8px 22px 18px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:6px}
+.pk242-guruh{font-size:12px;font-weight:700;color:var(--text3);margin-top:8px;text-transform:uppercase;letter-spacing:.3px}
+.pk242-band{font-size:12px;color:var(--gold-dark)}
+.pk242-bosh-xabar{font-size:13px;color:var(--text3);padding:12px 0}
 /* MUHIM: bu qoida FAQAT #prodModal ichidagi maydonlarga tegishli —
    umumiy .form-group'ga tegilmadi, chunki u boshqa 11 sahifada ham
    ishlatiladi va u yerlarga bu ta'sir qilishi kerak emas. */
@@ -370,6 +388,23 @@ input[type=number]{-moz-appearance:textfield}
     </div>
   </div>
 </div>
+{% if sayt_katalogi_bormi(current_user) %}
+<!-- ══ kech177 (zip 242 «Katalogdan tanlash»): «Katalogdan tanlash» oynasi (ishlab chiqarish oynasi ustida) ══ -->
+<div id="katalog242" class="pk242-oyna" style="display:none">
+  <div class="pk242-quti" role="dialog" aria-modal="true" aria-labelledby="pk242-sarlavha">
+    <div class="pk242-bosh">
+      <div>
+        <div class="pk242-sarlavha" id="pk242-sarlavha">📖 Katalogdan tanlash</div>
+        <div class="pk242-izoh">Sayt katalogidagi detal — nomi, o'lchami va qoplamasi o'zi to'ladi, partiya saytdagi detalga bog'lanadi</div>
+      </div>
+      <button data-yopish class="btn btn-soft btn-icon btn-sm" onclick="pKatalogYop()" title="Yopish" aria-label="Yopish">✕</button>
+    </div>
+    <div class="pk242-qidir"><input type="search" id="pk242-q" placeholder="Qidirish: model kodi, nomi yoki detal" oninput="pKatalogChiz()"
+                                    aria-label="Katalogdan qidirish"></div>
+    <div id="pk242-royxat" class="pk242-royxat"></div>
+  </div>
+</div>
+{% endif %}
 <!-- ══ ISHLAB CHIQARISH MODALI ══ -->
 <div id="prodModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
   <div style="background:var(--white);border-radius:14px;width:560px;max-width:100%;max-height:90vh;display:flex;flex-direction:column">
@@ -385,6 +420,17 @@ input[type=number]{-moz-appearance:textfield}
       <div class="form-group" style="background:var(--f-dbeafe);border:2px solid var(--gold)">
         <label style="color:var(--gold-dark)">Mahsulot nomi</label>
         <input type="text" id="p-name" placeholder="Masalan: Karniz 20 sm M-06">
+        {# kech177 (zip 242 «Katalogdan tanlash»): sayt katalogidan — nomi, eni, qalinligi, qoplama o'zi to'ladi, partiya saytdagi detalga bog'lanadi #}
+        {% if sayt_katalogi_bormi(current_user) %}
+        <div class="pk242-qator">
+          <button type="button" class="btn btn-soft btn-sm" id="p-katalog-btn" onclick="pKatalogOch()">📖 Katalogdan tanlash</button>
+          <div id="p-katalog-chip" class="pk242-chip" style="display:none">
+            <span id="p-katalog-matn"></span>
+            <button type="button" class="btn btn-soft btn-icon btn-sm" onclick="pKatalogTozala()" title="Katalog tanlovini olib tashlash"
+                    aria-label="Katalog tanlovini olib tashlash">✕</button>
+          </div>
+        </div>
+        {% endif %}
       </div>
 
       <div class="form-row">
@@ -2035,6 +2081,7 @@ function syncPCoatingUI(isCoated) {
 function setPCoating(el, isCoated) {
   document.getElementById('p-coated').value = isCoated ? 'true' : 'false';
   syncPCoatingUI(isCoated);
+  if (typeof pKatalogChip === 'function') pKatalogChip();      // kech177 (zip 242 «Katalogdan tanlash»): qoplamasiz — saytga bog'lanmaydi (ogohlantirish)
   // kech155 (zip 211): blokda «1 blok narxi» — QOPLAMASIZ; qoplama «Bor» bo'lsa koeffitsient `pCalc` da qo'llanadi (ilgari maydon
   // qoplamali narxni ko'rsatar, asos `window._blokBase` da edi — K96-1 tuzatishi shu yangi qoidada keraksiz)
   pCalc();
@@ -2076,10 +2123,177 @@ function openProduceModal() {
   document.getElementById('p-error').style.display = 'none';
   window._pDonaVolLocked = false;
   window._pDonaVolPerUnit = 0;
+  pKatalogTozala();                  // kech177 (zip 242 «Katalogdan tanlash»)
   pToggle();
   onPPenoChange();
   pCalc();
   document.getElementById('p-name').focus();
+}
+
+// ── kech177 (zip 242 «Katalogdan tanlash») ──────────────────────────────────────────────
+// Sayt katalogi detali tanlanadi → nomi (`crud._sayt_nom`), turi (metr — Profil, dona — Donali), o'lchami (profil: Eni = detal eni,
+// Kengligi = detal qalinligi; donali: Eni / Qalinlik), qoplama «Bor». Detal allaqachon bog'langan bo'lsa — o'sha ERP mahsulotining nomi /
+// o'lchami (yangi partiya o'sha mahsulotga qo'shiladi). Saqlashda `dokon_detal_id` — server partiyani detalga bog'laydi (yoki sababini
+// aytadi). Ro'yxat narxsiz. Server matni — faqat `textContent` / `escapeHtml`.
+window._pKat242 = null;
+let _pk242Royxat = null;
+document.addEventListener('DOMContentLoaded', () => {
+  const m = document.getElementById('prodModal');
+  if (m) { m.addEventListener('input', () => pKatalogChip()); m.addEventListener('click', () => setTimeout(pKatalogChip, 0)); }
+});
+let _pk242Yuk = 0;
+function pKatalogTozala() {
+  window._pKat242 = null;
+  pKatalogChip();
+}
+function pKatalogChip() {
+  const chip = document.getElementById('p-katalog-chip');
+  if (!chip) return;
+  const k = window._pKat242;
+  if (!k) { chip.style.display = 'none'; chip.classList.remove('ogoh'); return; }
+  const qoplamali = (document.getElementById('p-coated') || {}).value === 'true';
+  const sabab = pKatalogMos();
+  let t = `📖 ${k.nom} — partiya saytdagi detalga ${k.bog ? "qo'shiladi" : "bog'lanadi"}`;
+  if (!k.saytda) t += ' (detal hozir saytda yashirin)';
+  if (sabab) t = `⚠ ${k.nom}: ${sabab} — partiya saytga bog'lanmaydi`;
+  if (!qoplamali) t = `⚠ ${k.nom}: qoplama «Yo'q» — saytda faqat qoplamali mahsulot sotiladi, partiya saytga bog'lanmaydi`;
+  document.getElementById('p-katalog-matn').textContent = t;
+  chip.classList.toggle('ogoh', !qoplamali || !!sabab);
+  chip.style.display = 'flex';
+}
+// review242 H1 / M2: forma hozir yuboradigan nom / tur / o'lcham (saveProduce qoidasi) tanlangan qiymatlarga mosmi — null (mos) yoki sabab.
+// Server ham AYNAN shuni tekshiradi (`crud._katalog_mosmi242`; bog'langanda — kalit tengligi).
+function pKatalogMos() {
+  const k = window._pKat242;
+  if (!k) return null;
+  const n = v => String(v || '').split(/\s+/).filter(Boolean).join(' ').toLowerCase();
+  const son = id => { const v = parseFloat((document.getElementById(id) || {}).value); return v > 0 ? v : null; };
+  const tur = (document.getElementById('p-type') || {}).value;
+  if (tur !== k.turkum) return `tur o'zgartirildi (katalogda — ${k.turkum === 'dona' ? 'Donali' : 'Profil'})`;
+  if (n(document.getElementById('p-name').value) !== n(k.kutNom)) return "nomi o'zgartirildi";
+  let w, t;
+  if (tur === 'profil') { w = son('p-h'); t = son('p-w'); }
+  else {
+    const y = son('p-donayield'), h = son('p-h'), q = son('p-t');
+    if (h && q && y) { w = h; t = q; } else { w = null; t = null; }
+  }
+  const teng = (a, b) => (a === null || a === undefined) ? (b === null || b === undefined) : (b !== null && b !== undefined && Math.abs(a - b) < 1e-9);
+  if (k.bog || tur === 'profil') {
+    if (!teng(w, k.kutEni) || !teng(t, k.kutQal)) {
+      if (tur === 'dona' && k.kutEni && !w) return "«1 metrdan nechta» kiritilmagan (bu mahsulot o'lcham bilan qilingan)";
+      if (tur === 'dona' && !k.kutEni && w) return "bu mahsulot «1 metrdan nechta»siz qilingan — o'lcham kiritilsa boshqa mahsulot bo'ladi";
+      return "o'lchami o'zgartirildi";
+    }
+  } else if (w !== null && (!teng(w, k.kutEni) || !teng(t, k.kutQal))) return "o'lchami o'zgartirildi";
+  return null;
+}
+function pKatalogYop() {
+  const o = document.getElementById('katalog242');
+  if (o) o.style.display = 'none';
+  _pk242Yuk++;                       // ochiq qolgan yuklash javobi endi chizilmaydi
+}
+async function pKatalogOch() {
+  const o = document.getElementById('katalog242');
+  if (!o) return;
+  o.style.display = 'flex';
+  const q = document.getElementById('pk242-q');
+  q.value = '';
+  const box = document.getElementById('pk242-royxat');
+  box.innerHTML = '<div class="pk242-bosh-xabar">Yuklanmoqda...</div>';
+  const n = ++_pk242Yuk;
+  _pk242Royxat = null;               // review242 L3: qayta yuklanayotganda eski ro'yxat chizilmaydi
+  let j = null, xato = null;
+  try {
+    const r = await fetch('/api/finished/katalog-detallar');
+    if (r.ok) j = await r.json();
+    else xato = (r.status === 404) ? "Sayt katalogi yoqilmagan" : `Ro'yxat yuklanmadi (${r.status})`;
+  } catch (e) { xato = "Server bilan aloqa yo'q — qayta urinib ko'ring"; }
+  if (n !== _pk242Yuk) return;       // oyna yopilgan / qayta ochilgan
+  if (xato || !j || !Array.isArray(j.detallar)) {
+    box.innerHTML = '';
+    const d = document.createElement('div');
+    d.className = 'pk242-bosh-xabar';
+    d.textContent = '❌ ' + (xato || "Ro'yxat yuklanmadi");
+    box.appendChild(d);
+    return;
+  }
+  _pk242Royxat = j.detallar;
+  pKatalogChiz();
+  try { q.focus(); } catch (e) {}
+}
+function _pk242Son(x) {
+  return (x === null || x === undefined || x === '') ? '' : sonKor(x, 3);
+}
+function pKatalogChiz() {
+  const box = document.getElementById('pk242-royxat');
+  if (!box || !_pk242Royxat) return;
+  const q = (document.getElementById('pk242-q').value || '').trim().toLowerCase();
+  const tur = new Set(Array.from(document.querySelectorAll('#p-type option')).map(o => o.value));
+  const royxat = _pk242Royxat.filter(x => tur.has(x.turkum) && (!q ||
+    [x.nom, x.model_kod, x.model_nom, x.bolim, x.turi, x.olcham].some(v => String(v || '').toLowerCase().includes(q))));
+  box.innerHTML = '';
+  if (!royxat.length) {
+    const d = document.createElement('div');
+    d.className = 'pk242-bosh-xabar';
+    const _turMos = _pk242Royxat.some(x => tur.has(x.turkum));
+    d.textContent = !_pk242Royxat.length ? "Sayt katalogida metr yoki donada sotiladigan detal yo'q"
+      : (!_turMos ? "Katalogdagi detallar turi (Profil / Donali) korxonada o'chiq — Sozlamalar → Mahsulot turlari" : 'Hech narsa topilmadi');
+    box.appendChild(d);
+    return;
+  }
+  let oldingi = null;
+  royxat.forEach(x => {
+    const g = `${x.bolim} · ${x.model_kod}${x.model_nom ? ' ' + x.model_nom : ''}`;
+    if (g !== oldingi) {
+      const h = document.createElement('div');
+      h.className = 'pk242-guruh';
+      h.textContent = g;
+      box.appendChild(h);
+      oldingi = g;
+    }
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'btn btn-outline btn-tanlov';
+    b.dataset.detal = String(x.detal_id);
+    const t1 = document.createElement('div');
+    t1.style.cssText = 'font-weight:600;color:var(--text)';
+    t1.textContent = x.nom;
+    const t2 = document.createElement('div');
+    t2.style.cssText = 'font-size:12px;color:var(--text3);margin-top:2px';
+    const ol = [x.eni ? `eni ${_pk242Son(x.eni)} sm` : '', x.qalinligi ? `qalinligi ${_pk242Son(x.qalinligi)} sm` : ''].filter(Boolean).join(' / ');
+    t2.textContent = [x.turi, x.olcham, ol, x.birlik === 'dona' ? 'dona' : 'metr', x.saytda ? '' : 'saytda yashirin'].filter(Boolean).join(' · ');
+    b.appendChild(t1);
+    b.appendChild(t2);
+    if (x.bog) {
+      const t3 = document.createElement('div');
+      t3.className = 'pk242-band';
+      t3.textContent = '🔗 Omborga bog\'langan' + (x.bog.nom && x.bog.nom !== x.nom ? `: ${x.bog.nom}` : '') + ' — yangi partiya shu mahsulotga qo\'shiladi';
+      b.appendChild(t3);
+    }
+    b.onclick = () => pKatalogTanla(x);
+    box.appendChild(b);
+  });
+}
+function pKatalogTanla(x) {
+  const btn = document.querySelector(`#p-type-toggle .type-opt[data-value="${x.turkum}"]`);
+  if (!btn) { showMsg("Bu mahsulot turi korxonada o'chiq (Sozlamalar → Mahsulot turlari)", 'error'); return; }
+  selectPType(btn, x.turkum);
+  const bog = x.bog || null;
+  const eni = bog ? bog.eni : x.eni, qal = bog ? bog.qalinligi : x.qalinligi;
+  const qiy = v => (v === null || v === undefined) ? '' : String(v);
+  document.getElementById('p-name').value = (bog && bog.nom) ? bog.nom : x.nom;
+  document.getElementById('p-h').value = qiy(eni);
+  if (x.turkum === 'profil') document.getElementById('p-w').value = qiy(qal);
+  else document.getElementById('p-t').value = qiy(qal);
+  setPCoating(null, true);
+  window._pDonaVolLocked = false;     // review242 L2: donali hajm qulfi — yangi mahsulot (eski hajm bilan yechilmasin)
+  window._pDonaVolPerUnit = 0;
+  window._pKat242 = {detal_id: x.detal_id, nom: x.nom, bog: !!bog, saytda: !!x.saytda, turkum: x.turkum,
+    kutNom: (bog && bog.nom) ? bog.nom : x.nom, kutEni: (eni === null || eni === undefined) ? null : +eni,
+    kutQal: (qal === null || qal === undefined) ? null : +qal};
+  pKatalogChip();
+  pKatalogYop();
+  pCalc();
 }
 
 function closeProduceModal() {
@@ -2449,6 +2663,9 @@ async function saveProduce() {
     data.quantity = 1;
   }
 
+  // kech177 (zip 242 «Katalogdan tanlash»): katalogdan tanlangan detal — server partiyani shu detalga bog'laydi
+  if (window._pKat242 && window._pKat242.detal_id) data.dokon_detal_id = window._pKat242.detal_id;
+
   // MUHIM: agar RETSEPT tanlangan bo'lsa-yu, LOY MIQDORI 0 (yoki bo'sh)
   // bo'lsa — bu, deyarli har doim XATO (foydalanuvchi loy yozishni
   // unutgan yoki maydon tozalanib qolgan). Bunday holatda, xomashyo
@@ -2494,6 +2711,7 @@ async function saveProduce() {
       msg += `\n📈 Foyda: ${fmt(r.profit)} so'm (${r.margin}%)`;
       {% endif %}
       msg += '\n\n✓ Tayyor bo\'lganda "Sotuvga tayyor" tugmasini bosing';
+      if (r.katalog && r.katalog.matn) msg += '\n\n' + r.katalog.matn;      // kech177 (zip 242 «Katalogdan tanlash») (showMsg — textContent)
       showMsg(msg + amalTakrorIzoh(n.takror), 'success');
     } else if (n.nomalum) {
       err.style.display = 'block';

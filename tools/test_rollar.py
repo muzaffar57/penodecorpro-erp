@@ -422,6 +422,8 @@ YANGI_MARSHRUTLAR = {
     # kech172 (zip 238): «Tayyor mahsulotlar» saytda — do'kon qoldig'i (kalit bilan), omborga bog'lash (FAQAT Admin), sahifa bandlari
     # («Tayyor mahsulotlar: Ko'rish» — GET /api/finished bilan bir xil)
     "GET /api/dokon/v1/tayyor": "-", "GET /api/sayt-katalogi/tm-mahsulotlar": "A", "PUT /api/sayt-katalogi/detallar/{detal_id}/tm": "A",
+    # kech177 (zip 242 «Katalogdan tanlash»): ishlab chiqarish oynasidagi katalog ro'yxati — ishlab chiqarish ruxsati bilan (narxsiz; katalog o'chiq — 404)
+    "GET /api/finished/katalog-detallar": "AWM",
     "GET /api/sayt-bandlar": "AWM",
     "GET /rollar": "A", "GET /api/rollar": "A", "POST /api/rollar": "A", "PUT /api/rollar/{rol_id}": "A",
     "DELETE /api/rollar/{rol_id}": "A", "POST /api/rollar/{rol_id}/andoza": "A", "PUT /api/users/{user_id}/rol": "A",

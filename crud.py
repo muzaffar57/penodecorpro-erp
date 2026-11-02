@@ -5728,6 +5728,8 @@ def _val_rules():
             "notes": ("matn", False, matn),
             # kech155 (zip 211): blok mahsuloti birligi
             "blok_birlik": ("tanlov", True, {"metr": "metr", "dona": "dona", "m2": "m2"}),
+            # kech177 (zip 242 «Katalogdan tanlash»): sayt katalogi detali (bog'lash — marshrutda, partiya bilan bitta tranzaksiyada)
+            "dokon_detal_id": ("id", True),
         },
         "StockAdjust": {
             "quantity": ("son", False, True, son),
@@ -26483,3 +26485,139 @@ def sayt_band_tegadi(db: Session, company_id: int, b, qatorlar, hozir_utc=None) 
                           f"{xabar_son(_dokon_tm_pastga(bor.get(k, 0.0)), 2)} {_DOKON_BIRLIK_NOMI238.get(br, br)}, kerak {xabar_son(v, 2)} — "
                           f"tasdiqlasangiz, boshqa mijozga band qilingan mahsulot olinadi")
     return natija
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# kech177 (zip 242 «Katalogdan tanlash») — onlayn do'kon rejasi (Komplekt 6-band, egasi rejasi 30.10): ishlab chiqarishda nom qo'lda yozilmaydi — sayt
+# katalogidan tanlanadi (nomi `_sayt_nom`, eni, qalinligi, qoplama), yangi partiya katalog detaliga O'ZI bog'lanadi. O'LCHOV — `work/k242/
+# probe242.py` (qo'lda yozilgan «K-12 Tekis 12 sm» / «12sm» — boshqa mahsulot, saytga qo'shilmasdi). Bog'lam qoidasi — zip 238
+# `dokon_detal_tm_bogla` bilan bir xil (bitta mahsulot — bitta detal, qulf tartibi korxona (238) → model → qator), lekin ishlab chiqarish
+# tranzaksiyasi ICHIDA (commit / rollback YO'Q — marshrutning `bitta_tranzaksiya` si) va mos kelmasa — bog'lam o'zgarmaydi, sababi qaytadi.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+DOKON_KATALOG_TURKUM242 = {v: k for k, v in DOKON_TM_TURKUMLAR.items()}       # detal birligi → ERP turkumi (metr → profil, dona → dona)
+
+
+def _son242(v):
+    """Kalit qismidagi o'lcham matni → son yoki None («12» → 12.0, «» → None)."""
+    try:
+        return float(v) if v not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
+
+
+def dokon_tm_katalog(db: Session, company_id: int) -> list:
+    """«Tayyor mahsulotlar» → ishlab chiqarish oynasidagi «📖 Katalogdan tanlash» ro'yxati: sayt katalogining omborga bog'lanadigan
+    detallari (birligi metr / dona — `DOKON_TM_TURKUMLAR`; m² — yo'q). NARX berilmaydi. Har yozuv: detal_id, bo'lim, model (kod, nom),
+    turi, o'lcham, birlik, turkum (profil / dona), nom (`_sayt_nom` — saytdan kelgan buyurtma ERP ga shu nom bilan tushadi), eni,
+    qalinligi, saytda ko'rinadimi, bog'lam (bog'langan bo'lsa — o'sha ERP mahsulotining eng yangi partiyasi nomi / o'lchami, partiyasi
+    qolmagan bo'lsa — kalitdagi o'lcham: yangi partiya AYNAN o'sha mahsulotga qo'shilsin). Katalog o'chiq — `DokonYopiq`."""
+    from models import DokonBolim, DokonModel, DokonDetal
+    dokon_tekshir(db, company_id)
+    bolimlar = {b.id: b for b in db.query(DokonBolim).filter(DokonBolim.company_id == company_id).all()}
+    modellar = {m.id: m for m in db.query(DokonModel).filter(DokonModel.company_id == company_id).all()}
+    tm = {x["kalit"]: x for x in dokon_tm_mahsulotlar(db, company_id)}
+    out = []
+    for d in (db.query(DokonDetal).filter(DokonDetal.company_id == company_id,
+                                          DokonDetal.birlik.in_(list(DOKON_KATALOG_TURKUM242))).all()):
+        m = modellar.get(d.model_id)
+        if m is None:
+            continue
+        b = bolimlar.get(m.bolim_id)
+        bog = None
+        if d.tm_bogl_kaliti:
+            x = tm.get(d.tm_bogl_kaliti)
+            q = d.tm_bogl_kaliti.split("|")
+            # review242 L1: partiyasi qolmagan — nom kalitdan (kichik harf; katalog nomi bilan kichik harfda teng bo'lsa — katalog nomi)
+            _kn242 = q[2] if len(q) > 6 else None
+            if _kn242 is not None and " ".join(_sayt_nom(m, d).split()).lower() == _kn242:
+                _kn242 = _sayt_nom(m, d)
+            bog = {"nom": x["nom"] if x else _kn242,
+                   "eni": x["eni"] if x else (_son242(q[5]) if len(q) > 6 else None),
+                   "qalinligi": x["qalinligi"] if x else (_son242(q[6]) if len(q) > 6 else None),
+                   "partiya_bor": x is not None}
+        out.append({"detal_id": d.id, "bolim": b.nom if b else "", "model_kod": m.kod, "model_nom": m.nom or "",
+                    "turi": DOKON_TURI_NOMI.get(d.turi, d.turi), "olcham": d.olcham, "birlik": d.birlik,
+                    "turkum": DOKON_KATALOG_TURKUM242[d.birlik], "nom": _sayt_nom(m, d), "eni": d.eni_sm, "qalinligi": d.qalinligi_sm,
+                    "saytda": bool((b is None or b.yoqilgan) and m.yoqilgan and d.yoqilgan), "bog": bog,
+                    "_t": ((b.tartib if b else 0), (b.id if b else 0), m.tartib or 0, (m.kod or "").casefold(), d.tartib or 0, d.id)})
+    out.sort(key=lambda x: x["_t"])
+    for x in out:
+        x.pop("_t", None)
+    return out
+
+
+def _katalog_mosmi242(fp, d, nom) -> bool:
+    """review242 H1: bog'lanmagan detal FAQAT katalogning o'z nomi / o'lchami bilan qilingan partiyaga bog'lanadi (tanlovdan keyin nom /
+    o'lcham qo'lda o'zgartirilsa — butunlay boshqa mahsulot saytda shu detal nomi bilan sotilardi). Nom — bo'shliqlar / harf farqisiz
+    (`tm_kam_kaliti` kabi); profil — eni = detal eni, qalinligi = detal qalinligi; donali — o'lcham yo'q («1 metrdan nechta»siz) yoki
+    katalognikiga teng."""
+    def _n(x):
+        return " ".join(str(x or "").split()).lower()
+
+    def _teng(a, b):
+        if a is None or b is None:
+            return a is None and b is None
+        try:
+            return abs(float(a) - float(b)) < 1e-9
+        except (TypeError, ValueError):
+            return False
+    if _n(fp.name) != _n(nom):
+        return False
+    if fp.category == "profil":
+        return _teng(fp.width, d.eni_sm) and _teng(fp.thickness, d.qalinligi_sm)
+    return ((fp.width is None and fp.thickness is None)
+            or (_teng(fp.width, d.eni_sm) and _teng(fp.thickness, d.qalinligi_sm)))
+
+
+def dokon_partiya_katalogga(db: Session, fp_id: int, detal_id: int, company_id: int, kim: str) -> dict:
+    """Ishlab chiqarilgan partiya (`fp_id`) ↔ «Katalogdan tanlash» detali (`detal_id`) — ishlab chiqarish tranzaksiyasi ICHIDA (commit /
+    rollback qilinmaydi). Qaytaradi: {"holat", "matn"} — `boglandi` (detal bog'lanmagan edi — endi shu mahsulotga), `qoshildi` (detal shu
+    mahsulotga allaqachon bog'langan), `qoplamasiz` / `birlik` / `boshqa` (detal boshqa mahsulotga bog'langan) / `band` (mahsulot boshqa
+    detalga bog'langan) / `farq` (nom / o'lcham katalogdagidan farq qiladi — review242 H1) — bog'lam O'ZGARMAYDI. Detal / partiya topilmasa — ValueError, katalog o'chiq — `DokonYopiq` (marshrut — 400,
+    partiya ham yozilmaydi). Qulf tartibi: korxona (`_pul_qulfi(238)`) → model → qator (zip 238 `dokon_detal_tm_bogla` bilan bir xil)."""
+    from models import DokonDetal, FinishedProduct as _FP242
+    from models import tm_kam_kaliti as _tkk242
+    dokon_tekshir(db, company_id)
+    _yoq = "Katalog detali topilmadi (o'chirilgan bo'lishi mumkin) — «Katalogdan tanlash»ni qayta oching"
+    _pul_qulfi(db, SAYT_TM_QULF_NS, company_id)
+    _d0 = _dokon_detal_of(db, detal_id, company_id)
+    if _d0 is None:
+        raise ValueError(_yoq)
+    m = _dokon_model_of(db, _d0.model_id, company_id, lock=True)
+    d = _dokon_detal_of(db, detal_id, company_id, lock=True)
+    if d is None or m is None:
+        raise ValueError(_yoq)
+    fp = db.query(_FP242).filter(_FP242.id == fp_id, _FP242.company_id == company_id).first()
+    if fp is None:
+        raise ValueError("Partiya topilmadi")
+    nom = _sayt_nom(m, d)
+    if not fp.is_coated:
+        return {"holat": "qoplamasiz", "matn": f"Saytga bog'lanmadi: saytda faqat qoplamali mahsulot sotiladi («{nom}»)"}
+    k = _tkk242(fp)
+    if not _dokon_tm_mosmi(fp) or DOKON_TM_TURKUMLAR.get(fp.category) != d.birlik or len(k) > DOKON_TM_KALIT_MAX:
+        return {"holat": "birlik", "matn": f"Saytga bog'lanmadi: «{nom}» detali — "
+                                           f"{_DOKON_BIRLIK_NOMI238.get(d.birlik, d.birlik)}, partiya — {fp.unit or '?'}"}
+    if d.tm_bogl_kaliti == k:
+        return {"holat": "qoshildi", "matn": f"🔗 Saytdagi «{nom}» detaliga qo'shildi — «Sotuvga tayyor» bo'lgach saytda ko'rinadi"}
+    if d.tm_bogl_kaliti:
+        return {"holat": "boshqa", "matn": f"Saytga bog'lanmadi: «{nom}» detali boshqa ERP mahsulotiga bog'langan (nomi yoki o'lchami "
+                                           f"farq qiladi) — kerak bo'lsa «Sayt katalogi»da «Omborga bog'lash»dan almashtiring"}
+    boshqa = (db.query(DokonDetal).filter(DokonDetal.company_id == company_id, DokonDetal.tm_bogl_kaliti == k, DokonDetal.id != d.id)
+              .order_by(DokonDetal.id).first())
+    if boshqa is not None:
+        bm = _dokon_model_of(db, boshqa.model_id, company_id)
+        return {"holat": "band", "matn": "Saytga bog'lanmadi: bu ERP mahsuloti saytdagi boshqa detalga bog'langan ("
+                                         + (_sayt_nom(bm, boshqa) if bm is not None else str(boshqa.id)) + ")"}
+    if not _katalog_mosmi242(fp, d, nom):
+        _ol = " / ".join(x for x in ((f"eni {xabar_son(d.eni_sm, 2)} sm" if d.eni_sm else ""),
+                                     (f"qalinligi {xabar_son(d.qalinligi_sm, 2)} sm" if d.qalinligi_sm else "")) if x)
+        return {"holat": "farq", "matn": f"Saytga bog'lanmadi: nomi yoki o'lchami katalogdagidan farq qiladi (katalogda: «{nom}»"
+                                         + (f", {_ol}" if _ol else "") + ") — partiya saytda ko'rinmaydi"}
+    d.tm_bogl_kaliti = k
+    d.updated_by = kim
+    d.updated_at = datetime.utcnow()
+    log_activity(db, "updated", "dokon_detal", d.id, f"Sayt narxi {m.kod}", kim,
+                 old_value=f"{DOKON_TURI_NOMI.get(d.turi, d.turi)} {d.olcham}: omborga bog'lanmagan",
+                 new_value=f"omborga bog'landi: {fp.name} (ishlab chiqarishda «Katalogdan tanlash»)",
+                 company_id=company_id, commit=False)
+    return {"holat": "boglandi", "matn": f"🔗 Saytdagi «{nom}» detaliga bog'landi — «Sotuvga tayyor» bo'lgach saytda ko'rinadi"}

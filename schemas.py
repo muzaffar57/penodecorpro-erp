@@ -741,6 +741,8 @@ class ProduceCreate(BaseModel):
     notes: Optional[str] = None
     # kech155 (zip 211): «Blok» mahsuloti birligi (metr / dona / m2) — tayyor mahsulot shu birlikda saqlanadi (boshqa turda e'tiborsiz)
     blok_birlik: Optional[Literal["metr", "dona", "m2"]] = None
+    # kech177 (zip 242 «Katalogdan tanlash»): «📖 Katalogdan tanlash» — sayt katalogi detali; partiya shu detalga bog'lanadi (`crud.dokon_partiya_katalogga`)
+    dokon_detal_id: Optional[int] = Field(default=None, ge=1, le=2_147_483_647)
 
 
 class FinishedProductRead(BaseModel):
