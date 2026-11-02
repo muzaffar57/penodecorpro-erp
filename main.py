@@ -3919,7 +3919,8 @@ def _xomashyo_navbati_marshrut(request: Request, db: Session = Depends(get_db)):
         crud.xomashyo_navbati(db, _cid)
 
 
-app = FastAPI(title="PenoDecorPro ERP", description="Ishlab chiqarish boshqaruv tizimi", version="1.0.0", debug=False,
+app = FastAPI(title="epserp", description="Ishlab chiqarish boshqaruv tizimi",   # kech176 (zip 241 — egasi QARORI 02.11): platforma nomi
+              version="1.0.0", debug=False,
               dependencies=[Depends(_xomashyo_navbati_marshrut)],
               docs_url=None, redoc_url=None, openapi_url=None)
 
@@ -10133,7 +10134,7 @@ def api_order_pdf(order_id: int, db: Session = Depends(get_db), current_user=Dep
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "message": "PenoDecorPro ERP ishlamoqda!"}
+    return {"status": "ok", "message": "epserp ishlamoqda!"}   # kech176 (zip 241 — egasi QARORI 02.11): platforma nomi
 
 
 @app.get("/returns", response_class=HTMLResponse)
@@ -12636,8 +12637,12 @@ async def api_upload_company_logo(file: UploadFile = File(...),
     _os.makedirs(papka, exist_ok=True)
     # kech154 (zip 202, mustaqil tekshiruv F2): kengaytma — haqiqiy rasm formatidan (`_logo_saqlashga`), brauzer aytgan turdan emas
     nom = f"company_{cid}{kengaytma}"
-    with open(_os.path.join(papka, nom), "wb") as f:
+    # kech176 (zip 241 — egasi QARORI 02.11), review241 M1: ATOMAR — vaqtinchalik fayl + `os.replace` (ilgari joyida qayta yozilardi: shu payt chizilayotgan PDF
+    # yarim yozilgan faylni o'qib 500 berardi — O'LCHANGAN, 480 so'rovdan 5 tasi)
+    _vaqt241 = _os.path.join(papka, f".{nom}.{_os.getpid()}.vaqt")
+    with open(_vaqt241, "wb") as f:
         f.write(data)
+    _os.replace(_vaqt241, _os.path.join(papka, nom))
 
     from production_models import Company as _Co
     row = db.query(_Co).filter(_Co.id == cid).first()
@@ -12868,7 +12873,7 @@ _TIKLASH_SOZ = "TIKLASHNI-TASDIQLAYMAN"
 def _tiklash_html(tana: str) -> str:
     return f"""<!doctype html><html lang="uz"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Zaxiradan tiklash</title><style>
+<title>Zaxiradan tiklash — epserp</title><link rel="icon" type="image/svg+xml" href="/static/epserp_belgi.svg"><style>
  body{{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
    background:#f6f7f9;color:#1a1d21;margin:0;padding:24px;line-height:1.55}}
  .w{{max-width:640px;margin:0 auto;background:#fff;border:1px solid #e3e6ea;
@@ -14156,7 +14161,8 @@ def _logo_saqlashga(data: bytes):
     _im, _burildi = _ochildi
     _katta = max(_ol or _im.size) > LOGO_TOMON
     _fmt = _imzo if _imzo in _LOGO_KENGAYTMA else "PNG"
-    if not (_burildi or _katta):
+    _kulrang241 = _im.mode in ("I;16", "I;16B", "I;16L", "I;16N", "I", "F")   # kech176 (zip 241 — egasi QARORI 02.11), review241 M2: kichigi ham (PDF da OQ edi)
+    if not (_burildi or _katta or _kulrang241):
         return data, _LOGO_KENGAYTMA[_fmt]
     _shaffof = _im.mode in ("RGBA", "LA", "PA") or "transparency" in _im.info
     if _im.mode in ("I;16", "I;16B", "I;16L", "I;16N", "I", "F"):

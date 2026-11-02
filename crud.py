@@ -24463,7 +24463,7 @@ def dokon_excel_yarat(db: Session, company_id: int) -> bytes:
             c.data_type = "s"
         if i == 1:
             c.font = Font(bold=True, size=13)
-    wb.properties.creator = "PenoDecorPro ERP"
+    wb.properties.creator = "epserp"   # kech176 (zip 241 — egasi QARORI 02.11): platforma nomi
     chiq = _io235.BytesIO()
     wb.save(chiq)
     return chiq.getvalue()

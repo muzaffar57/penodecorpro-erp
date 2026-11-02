@@ -351,9 +351,11 @@ if br:
         _hk = pg.evaluate("""() => { const k = document.querySelector('input[name=korxona]'); const c = document.createElement('canvas').getContext('2d');
             c.font = getComputedStyle(k).font; const cs = getComputedStyle(k);
             return {ph: k.placeholder, sigadi: c.measureText(k.placeholder).width <= k.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight),
-                    brend: getComputedStyle(document.querySelector('.h-logo .name span')).color}; }""")
-        check("B5 hodim kirishi 390 px: korxona kodi namunasi to'liq sig'adi (ilgari «… bo'sh qo…» kesilardi); brend rangi oltin (ko'k emas)",
-              _hk["sigadi"] and _hk["brend"] != "rgb(37, 99, 235)", _hk)
+                    brend: (() => { const i = document.querySelector('.h-logo img'); return i ? {tabiiy: i.naturalWidth, alt: i.alt,
+                        src: i.getAttribute('src')} : null; })()}; }""")
+        check("B5 hodim kirishi 390 px: korxona kodi namunasi to'liq sig'adi (ilgari «… bo'sh qo…» kesilardi); brend — epserp logotipi "
+              "(kech176, zip 241: rang SVG faylda, yuklangan)", _hk["sigadi"] and _hk["brend"] and _hk["brend"]["tabiiy"] > 0
+              and _hk["brend"]["alt"] == "epserp" and _hk["brend"]["src"].startswith("/static/epserp_logo.svg"), _hk)
     except Exception as _e:                # noqa: BLE001
         check("B! kirish sahifalari", False, f"{type(_e).__name__}: {_e}")
     finally:

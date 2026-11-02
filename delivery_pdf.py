@@ -6,6 +6,7 @@ Bosqichma-bosqich topshirish uchun isbot hujjati.
 
 from company_brand import get_brand, company_id_of  # 2026-09-20: korxona brendi
 from schemas import detal_nomi_tartib as _detal_nomi_tartib  # kech159 (zip 222): detal nomi — tartibli ko'rinish
+from pdf_service import pdf_logo_katagi as _logo_katagi241, logoli_sarlavha as _logoli_sarlavha241, sarlavha_uslubi as _sarlavha_uslubi241  # kech176 (zip 241 — egasi QARORI 02.11): sarlavhada O'Z logotipi
 from models import kmp_pdf_bloklari  # kech173 (zip 239): komplekt guruhi sarlavhasi (review239 H1 — «Alohida detallar» ham)
 
 import io
@@ -166,16 +167,21 @@ def generate_finished_sale_batch_pdf(sales: list, group_id: str, db=None) -> byt
 
     el = []
 
+    _lk241 = _logo_katagi241(_brand)   # kech176 (zip 241 — egasi QARORI 02.11): O'Z logotipi chapda (oq katakda); yo'q — avvalgidek
+    _lk241e = _lk241[1] if _lk241 else 0
+    _st241t = _sarlavha_uslubi241(st_title, [_brand["name"].upper()], 18*cm - _lk241e - 12, 18*cm - 12)   # review241 H1: tor ustunda ham bir qator
+    _st241s = _sarlavha_uslubi241(st_sub, _brand.get("subtitle_qatorlar") or [_brand.get("subtitle") or ""], 18*cm - _lk241e - 12, 18*cm - 12)
     header = Table([[
-        Paragraph(_x(_brand["name"].upper()), st_title),   # kech106 (K106-4): ilgari qattiq "PENODECORPRO" — boshqa korxonada ham
+        Paragraph(_x(_brand["name"].upper()), _st241t),   # kech106 (K106-4): ilgari qattiq "PENODECORPRO" — boshqa korxonada ham
     ], [
-        Paragraph(_sarlavha_osti(_brand), st_sub),
-    ]], colWidths=[18*cm])
+        Paragraph(_sarlavha_osti(_brand), _st241s),
+    ]], colWidths=[18*cm - _lk241e])
     header.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), DARK),
         ('TOPPADDING', (0, 0), (-1, 0), 10),
         ('BOTTOMPADDING', (0, -1), (-1, -1), 8),
     ]))
+    header = _logoli_sarlavha241(header, _lk241, 18*cm, DARK)
     el.append(header)
     el.append(Spacer(1, 6))
 
@@ -341,16 +347,21 @@ def generate_finished_sale_pdf(sale, db=None) -> bytes:
 
     el = []
 
+    _lk241 = _logo_katagi241(_brand)   # kech176 (zip 241 — egasi QARORI 02.11): O'Z logotipi chapda (oq katakda); yo'q — avvalgidek
+    _lk241e = _lk241[1] if _lk241 else 0
+    _st241t = _sarlavha_uslubi241(st_title, [_brand["name"].upper()], 18*cm - _lk241e - 12, 18*cm - 12)   # review241 H1: tor ustunda ham bir qator
+    _st241s = _sarlavha_uslubi241(st_sub, _brand.get("subtitle_qatorlar") or [_brand.get("subtitle") or ""], 18*cm - _lk241e - 12, 18*cm - 12)
     header = Table([[
-        Paragraph(_x(_brand["name"].upper()), st_title),   # kech106 (K106-4): ilgari qattiq "PENODECORPRO" — boshqa korxonada ham
+        Paragraph(_x(_brand["name"].upper()), _st241t),   # kech106 (K106-4): ilgari qattiq "PENODECORPRO" — boshqa korxonada ham
     ], [
-        Paragraph(_sarlavha_osti(_brand), st_sub),
-    ]], colWidths=[18*cm])
+        Paragraph(_sarlavha_osti(_brand), _st241s),
+    ]], colWidths=[18*cm - _lk241e])
     header.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), DARK),
         ('TOPPADDING', (0, 0), (-1, 0), 10),
         ('BOTTOMPADDING', (0, -1), (-1, -1), 8),
     ]))
+    header = _logoli_sarlavha241(header, _lk241, 18*cm, DARK)
     el.append(header)
     el.append(Spacer(1, 6))
 
@@ -531,16 +542,21 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
     el = []
 
     # ---- Sarlavha ----
+    _lk241 = _logo_katagi241(_brand)   # kech176 (zip 241 — egasi QARORI 02.11): O'Z logotipi chapda (oq katakda); yo'q — avvalgidek
+    _lk241e = _lk241[1] if _lk241 else 0
+    _st241t = _sarlavha_uslubi241(st_title, [_brand["name"].upper()], 18*cm - _lk241e - 12, 18*cm - 12)   # review241 H1: tor ustunda ham bir qator
+    _st241s = _sarlavha_uslubi241(st_sub, _brand.get("subtitle_qatorlar") or [_brand.get("subtitle") or ""], 18*cm - _lk241e - 12, 18*cm - 12)
     header = Table([[
-        Paragraph(_x(_brand["name"].upper()), st_title),   # kech106 (K106-4): ilgari qattiq "PENODECORPRO" — boshqa korxonada ham
+        Paragraph(_x(_brand["name"].upper()), _st241t),   # kech106 (K106-4): ilgari qattiq "PENODECORPRO" — boshqa korxonada ham
     ], [
-        Paragraph(_sarlavha_osti(_brand), st_sub),
-    ]], colWidths=[18*cm])
+        Paragraph(_sarlavha_osti(_brand), _st241s),
+    ]], colWidths=[18*cm - _lk241e])
     header.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), DARK),
         ('TOPPADDING', (0, 0), (-1, 0), 10),
         ('BOTTOMPADDING', (0, -1), (-1, -1), 8),
     ]))
+    header = _logoli_sarlavha241(header, _lk241, 18*cm, DARK)
     el.append(header)
     el.append(Spacer(1, sp(6)))
 
@@ -959,15 +975,20 @@ def generate_summary_pdf(order, deliveries, db=None) -> bytes:
     el = []
 
     # ---- Sarlavha ----
+    _lk241 = _logo_katagi241(_brand)   # kech176 (zip 241 — egasi QARORI 02.11): O'Z logotipi chapda (oq katakda); yo'q — avvalgidek
+    _lk241e = _lk241[1] if _lk241 else 0
+    _st241t = _sarlavha_uslubi241(st_title, [_brand["name"].upper()], 18.2*cm - _lk241e - 12, 18.2*cm - 12)   # review241 H1: tor ustunda ham bir qator
+    _st241s = _sarlavha_uslubi241(st_sub, _brand.get("subtitle_qatorlar") or [_brand.get("subtitle") or ""], 18.2*cm - _lk241e - 12, 18.2*cm - 12)
     header = Table([
-        [Paragraph(_x(_brand["name"].upper()), st_title)],   # kech106 (K106-4): ilgari qattiq "PENODECORPRO"
-        [Paragraph(_sarlavha_osti(_brand), st_sub)],
-    ], colWidths=[18.2*cm])
+        [Paragraph(_x(_brand["name"].upper()), _st241t)],   # kech106 (K106-4): ilgari qattiq "PENODECORPRO"
+        [Paragraph(_sarlavha_osti(_brand), _st241s)],
+    ], colWidths=[18.2*cm - _lk241e])
     header.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), DARK),
         ('TOPPADDING', (0, 0), (-1, 0), 10),
         ('BOTTOMPADDING', (0, -1), (-1, -1), 8),
     ]))
+    header = _logoli_sarlavha241(header, _lk241, 18.2*cm, DARK)
     el.append(header)
     el.append(Spacer(1, 6))
 
@@ -1237,15 +1258,20 @@ def generate_yuk_jamlanma_pdf(project, jamlanma, db=None) -> bytes:
     el = []
 
     # ---- Sarlavha (korxona) ----
+    _lk241 = _logo_katagi241(_brand)   # kech176 (zip 241 — egasi QARORI 02.11): O'Z logotipi chapda (oq katakda); yo'q — avvalgidek
+    _lk241e = _lk241[1] if _lk241 else 0
+    _st241t = _sarlavha_uslubi241(st_title, [_brand["name"].upper()], 18.2*cm - _lk241e - 12, 18.2*cm - 12)   # review241 H1: tor ustunda ham bir qator
+    _st241s = _sarlavha_uslubi241(st_sub, _brand.get("subtitle_qatorlar") or [_brand.get("subtitle") or ""], 18.2*cm - _lk241e - 12, 18.2*cm - 12)
     header = Table([
-        [Paragraph(_x(_brand["name"].upper()), st_title)],
-        [Paragraph(_sarlavha_osti(_brand), st_sub)],
-    ], colWidths=[18.2*cm])
+        [Paragraph(_x(_brand["name"].upper()), _st241t)],
+        [Paragraph(_sarlavha_osti(_brand), _st241s)],
+    ], colWidths=[18.2*cm - _lk241e])
     header.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), DARK),
         ('TOPPADDING', (0, 0), (-1, 0), 10),
         ('BOTTOMPADDING', (0, -1), (-1, -1), 8),
     ]))
+    header = _logoli_sarlavha241(header, _lk241, 18.2*cm, DARK)
     el.append(header)
     el.append(Spacer(1, 6))
 

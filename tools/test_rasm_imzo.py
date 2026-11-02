@@ -202,7 +202,7 @@ check("S2 `_save_upload`: kengaytmasi rasm bo'lsa — imzo tekshiruvi (kichrayti
       < MAIN.find('with open(os.path.join(folder, fname), "wb") as f:'))
 _lg = MAIN[MAIN.find("async def api_upload_company_logo"):]
 check("S3 logotip: imzo tekshiruvi diskka yozishdan OLDIN", "if rasm_imzosi(data) is None:" in _lg
-      and 0 < _lg.find("if rasm_imzosi(data) is None:") < _lg.find('with open(_os.path.join(papka, nom), "wb") as f:'))
+      and 0 < _lg.find("if rasm_imzosi(data) is None:") < _lg.find('with open(_vaqt241, "wb") as f:'))
 check("S4 `murojaat.matn_tekshir` — qator oxirlari «\\n» ga (uzunlik tekshiruvidan OLDIN)",
       't = t.replace("\\r\\n", "\\n").replace("\\r", "\\n").strip()' in MJPY
       and MJPY.find('t = t.replace("\\r\\n", "\\n")') < MJPY.find("if len(t) > MATN_MAX:"))

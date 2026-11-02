@@ -165,6 +165,106 @@ def _logo_tayyorla(yol):
     return natija
 
 
+# kech176 (zip 241 — egasi QARORI 02.11) «7 hujjatga ham logo»): yuk xati, hisob-kitob varaqasi, sotuv cheki (yakka /
+# savat), yuk xatlari jamlanmasi, moliya hisobotlari (oylik, yo'nalishlar) — to'q sarlavha CHAPIDA korxonaning O'Z logotipi, OQ katakda
+# (logotiplar odatda oq fon uchun chiziladi — to'q fonda ko'rinmay qolardi). Quti 34 × 12 mm. Logotip — FAQAT `company_brand.get_brand`
+# bergani (o'z korxonasi; begona — hech qachon); yo'q / o'qilmaydi — sarlavha AYNAN avvalgidek (faqat nom).
+# review241 (mustaqil tekshiruv): H1 — katak sarlavha ustunini toraytiradi: uzun nom (~40 harf) keng logotip yonida 2 qatorga o'tib, yuk
+# xati 2 sahifa bo'lardi (O'LCHANGAN) → `sarlavha_uslubi`: tor ustunga sig'magan matn shrifti tor / keng nisbatida kichrayadi (qatorlar
+# logotipsizdagidek bo'linadi, balandlik OSHMAYDI); M1 — logotip almashtirilayotganda PDF faylni ikkinchi marta o'qib 500 berardi →
+# `_logo_baytlari`: baytlar BIR marta o'qiladi, PDF ga baytlar beriladi; M2 — 16 bitli kulrang PNG ReportLab da OQ quti → 8 bitga.
+SARLAVHA_LOGO_QUTI_MM = (34, 12)
+SARLAVHA_LOGO_CHET = 5          # katak ichidagi chap / o'ng bo'sh joy (nuqta)
+
+
+def _logo_baytlari(yol):
+    """(eni_px, bo'yi_px, PNG / asl baytlar) yoki None — PDF ga chiziladigan logotip, fayl BIR marta o'qiladi (o'lcham ham shu baytlardan;
+    o'qish paytida fayl almashtirilsa ham PDF yiqilmaydi). Katta (eski) fayl — `_logo_tayyorla` keshidagi kichraytirilgan nusxa; 16 bitli /
+    butun sonli / kasr kulrang — 8 bitli kulrangga (ReportLab ularni OQ chizadi)."""
+    _t = _logo_tayyorla(yol)
+    if not _t or not _t[0] or not _t[1]:
+        return None
+    if _t[2] is not None:
+        return _t
+    try:
+        from PIL import Image as _PilImage241
+        with open(yol, "rb") as _f:
+            data = _f.read()
+        with _PilImage241.open(io.BytesIO(data)) as _im:
+            _im.load()
+            w, h = _im.size
+            if _im.mode in ("I;16", "I;16B", "I;16L", "I;16N", "I", "F"):
+                _b = io.BytesIO()
+                _im.convert("I").point(lambda v: v * (1 / 256)).convert("L").save(_b, "PNG")
+                data = _b.getvalue()
+    except Exception:
+        return None
+    if not w or not h:
+        return None
+    return w, h, data
+
+
+def sarlavha_uslubi(uslub, satrlar, tor, keng):
+    """Logotip katagi sarlavha ustunini toraytirganda (`tor` < `keng` — matn uchun eni, nuqta): eng uzun satr tor ustunga sig'sa — uslub
+    o'zi; sig'masa — shrift va qator oralig'i tor / keng nisbatida kichraytirilgan nusxa (Helvetica o'lchami chiziqli: matn AYNAN logotipsiz
+    sarlavhadagidek bo'linadi — bir qatorli nom bir qatorda qoladi, balandlik oshmaydi)."""
+    if not tor or not keng or tor >= keng:
+        return uslub
+    try:
+        from reportlab.pdfbase.pdfmetrics import stringWidth as _sw241
+        eng = max([_sw241(str(x or ""), uslub.fontName, uslub.fontSize) for x in satrlar] or [0])
+    except Exception:
+        return uslub
+    if eng <= tor:
+        return uslub
+    k = tor / float(keng)
+    return ParagraphStyle(f"{uslub.name}_241", parent=uslub, fontSize=uslub.fontSize * k, leading=uslub.leading * k)
+
+
+def pdf_logo_katagi(brand, quti_mm=SARLAVHA_LOGO_QUTI_MM):
+    """(RLImage, katak_eni_nuqta) yoki None. `brand` — `company_brand.get_brand` natijasi (`logo` — mutlaq yo'l yoki None)."""
+    import os as _os
+    yol = (brand or {}).get("logo")
+    if not yol or not _os.path.exists(yol):
+        return None
+    _t = _logo_baytlari(yol)
+    if not _t:
+        return None
+    w, h = _t[0], _t[1]
+    qe, qb = quti_mm[0] * mm, quti_mm[1] * mm
+    nisbat = w / float(h)
+    if nisbat > qe / qb:
+        e, b = qe, qe / nisbat
+    else:
+        e, b = qb * nisbat, qb
+    try:
+        from reportlab.platypus import Image as _RLImage241
+        rasm = _RLImage241(io.BytesIO(_t[2]), width=e, height=b)
+    except Exception:
+        return None
+    return rasm, e + 2 * SARLAVHA_LOGO_CHET
+
+
+def logoli_sarlavha(ichki, katak, eni, fon, ost_chiziq=None):
+    """Sarlavha jadvali `ichki` (eni = `eni` − katak eni) chapiga OQ katakda logotip; `katak` None — `ichki` o'zi (o'zgarishsiz).
+    `ost_chiziq` — sarlavha ostidagi chiziq rangi (ichki jadvalniki bo'lsa — butun eniga, logotip katagi ostidan ham; review241 L1)."""
+    if not katak:
+        return ichki
+    rasm, ke = katak
+    t = Table([[rasm, ichki]], colWidths=[ke, eni - ke])
+    t.setStyle(TableStyle(([("LINEBELOW", (0, 0), (-1, 0), 2, ost_chiziq)] if ost_chiziq is not None else []) + [
+        ("BACKGROUND", (0, 0), (0, 0), colors.white),
+        ("BACKGROUND", (1, 0), (1, 0), fon),
+        ("BOX", (0, 0), (0, 0), 1, fon),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("ALIGN", (0, 0), (0, 0), "CENTER"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (0, 0), 3), ("BOTTOMPADDING", (0, 0), (0, 0), 3),
+        ("TOPPADDING", (1, 0), (1, 0), 0), ("BOTTOMPADDING", (1, 0), (1, 0), 0),
+    ]))
+    return t
+
+
 def _logo_kichik(yol):
     """Katta logotipning kichraytirilgan PNG baytlari (keshdan) yoki None — logotip o'z holicha chiziladi."""
     _t = _logo_tayyorla(yol)
@@ -330,15 +430,16 @@ def generate_nakladnoy(order, db=None, taklif=None) -> bytes:
     logo_path = _brand["logo"]
     # kech129 (zip 153): o'lcham — fayl nisbatidan (`_logo_olcham`); fayl o'qilmasa — logotipsiz sarlavha (korxona nomi)
     _lo = _logo_olcham(logo_path) if logo_path and os.path.exists(logo_path) else None
+    # kech176 (zip 241 — egasi QARORI 02.11), review241 M1 / M2: chiziladigan baytlar — BIR marta o'qilgan (`_logo_baytlari`); fayl shu orada almashtirilsa /
+    # o'qilmasa — logotipsiz sarlavha (nom), PDF yiqilmaydi; 16 bitli kulrang — 8 bitga (ReportLab OQ chizardi)
+    _lb241 = _logo_baytlari(logo_path) if _lo else None
 
-    if _lo:
+    if _lo and _lb241:
         # MUHIM (2026-08-29): endi haqiqiy shaffof fonli PNG ishlatiladi
         # (nisbati 1.779) — shu nisbatga mos o'lcham berilmasa, logotip
         # cho'zilib/torayib, buzilib ko'rinardi.
         # kech154 (zip 202, N5): avval yuklangan katta logotip — kichraytirilgan nusxa (keshdan; fayl o'zgarmaydi)
-        _kichik202 = _logo_kichik(logo_path)
-        if _kichik202 is not None:
-            logo_path = io.BytesIO(_kichik202)
+        logo_path = io.BytesIO(_lb241[2])
         logo_img = RLImage(logo_path, width=_lo[0], height=_lo[1])
         logo_img.hAlign = 'LEFT'
         header_left = [

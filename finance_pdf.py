@@ -7,6 +7,7 @@ foydani — bitta, tartibli hujjatga birlashtiradi.
 """
 
 from company_brand import get_brand  # 2026-09-20: korxona brendi
+from pdf_service import pdf_logo_katagi as _logo_katagi241, logoli_sarlavha as _logoli_sarlavha241, sarlavha_uslubi as _sarlavha_uslubi241  # kech176 (zip 241 — egasi QARORI 02.11): sarlavhada O'Z logotipi
 
 import io
 # kech106 (9 + 50-band B qismi): "Yaratildi" vaqti — `database.tashkent_vaqt` (yagona manba; ilgari alohida `UZB_TZ`).
@@ -177,13 +178,18 @@ def generate_split_profit_pdf(split: dict, year: int, month: int,
     st_warn = ParagraphStyle('warn', fontName='Helvetica-Bold', fontSize=8.5, textColor=RED, leading=11)
 
     el = []
-    header = Table([[Paragraph(_x(_brand["name"].upper()), st_title)],   # kech106 (K106-4): korxona nomi
-                    [Paragraph("Yo'nalishlar bo'yicha moliyaviy natija", st_sub)]], colWidths=[W])
+    _lk241 = _logo_katagi241(_brand)   # kech176 (zip 241 — egasi QARORI 02.11): O'Z logotipi chapda (oq katakda); yo'q — avvalgidek
+    _lk241e = _lk241[1] if _lk241 else 0
+    _st241t = _sarlavha_uslubi241(st_title, [_brand["name"].upper()], W - _lk241e - 12, W - 12)   # review241 H1
+    _st241s = _sarlavha_uslubi241(st_sub, ["Yo'nalishlar bo'yicha moliyaviy natija"], W - _lk241e - 12, W - 12)
+    header = Table([[Paragraph(_x(_brand["name"].upper()), _st241t)],   # kech106 (K106-4): korxona nomi
+                    [Paragraph("Yo'nalishlar bo'yicha moliyaviy natija", _st241s)]], colWidths=[W - _lk241e])
     header.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), DARK),
         ('TOPPADDING', (0, 0), (-1, 0), 10),
         ('BOTTOMPADDING', (0, -1), (-1, -1), 8),
     ]))
+    header = _logoli_sarlavha241(header, _lk241, W, DARK)
     el.append(header)
     el.append(Spacer(1, 4))
     el.append(Paragraph(f"<b>{_x(davr_nomi)}</b>", ParagraphStyle('m', fontName='Helvetica-Bold', fontSize=12,
@@ -770,18 +776,22 @@ def generate_finance_report_pdf(report: dict, expense_transactions: list,
     el = []
 
     # ── SARLAVHA ──
-    header = Table([[Paragraph(_x(_brand["name"].upper()), _ps('t', fontName='Helvetica-Bold', fontSize=15, textColor=colors.white,
-                                                               leading=18)),
+    _lk241 = _logo_katagi241(_brand)   # kech176 (zip 241 — egasi QARORI 02.11): O'Z logotipi chapda (oq katakda); yo'q — avvalgidek
+    _lk241e = _lk241[1] if _lk241 else 0
+    _tor241, _keng241 = (W - _lk241e) * 0.62 - 24, W * 0.62 - 24   # review241 H1: nom / osti — tor ustunda ham bir qator
+    header = Table([[Paragraph(_x(_brand["name"].upper()), _sarlavha_uslubi241(_ps('t', fontName='Helvetica-Bold', fontSize=15, textColor=colors.white,
+                                                               leading=18), [_brand["name"].upper()], _tor241, _keng241)),
                      Paragraph(f"OYLIK MOLIYAVIY HISOBOT<br/><font size=12 color='#FFFFFF'><b>{_x(oy_nomi)}</b></font>",
                                _ps('t2', fontSize=8, textColor=GOLD, alignment=TA_RIGHT, leading=13))],
-                    [Paragraph(_sarlavha_osti(_brand), _ps('s', fontSize=8, textColor=GOLD)), ""]],
-                   colWidths=[W * 0.62, W * 0.38])
+                    [Paragraph(_sarlavha_osti(_brand), _sarlavha_uslubi241(_ps('s', fontSize=8, textColor=GOLD), _brand.get("subtitle_qatorlar") or [_brand.get("subtitle") or ""], _tor241, _keng241)), ""]],
+                   colWidths=[(W - _lk241e) * 0.62, (W - _lk241e) * 0.38])
     header.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), DARK), ('SPAN', (1, 0), (1, 1)), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('TOPPADDING', (0, 0), (-1, 0), 9), ('BOTTOMPADDING', (0, -1), (-1, -1), 8),
         ('LEFTPADDING', (0, 0), (-1, -1), 12), ('RIGHTPADDING', (0, 0), (-1, -1), 12),
         ('LINEBELOW', (0, -1), (-1, -1), 2, GOLD),
     ]))
+    header = _logoli_sarlavha241(header, _lk241, W, DARK, ost_chiziq=GOLD)
     el.append(header)
     el.append(Spacer(1, 10))
 

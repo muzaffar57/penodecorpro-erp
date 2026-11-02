@@ -1,4 +1,4 @@
-{# PenoDecorPro ERP — Asosiy layout shabloni #}
+{# epserp (ilgari «PenoDecorPro ERP») — Asosiy layout shabloni. kech176 (zip 241 — egasi QARORI 02.11): platforma nomi «epserp»; korxona nomi — har korxonaniki #}
 {# Barcha sahifalar shu shablonni extends qiladi #}
 
 <!DOCTYPE html>
@@ -1069,7 +1069,9 @@ function kichikRasm(url) {
 </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}PenoDecorPro ERP{% endblock %}</title>
+  <title>{% block title %}epserp{% endblock %}</title>
+  <link rel="icon" type="image/svg+xml" href="/static/epserp_belgi.svg?v={{ static_version }}">
+  <link rel="apple-touch-icon" href="/static/epserp_belgi_180.png?v={{ static_version }}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
@@ -1161,15 +1163,15 @@ function kichikRasm(url) {
       {% set _kn = company_name_of(current_user.company_id) if current_user else None %}
       {% set _lm = company_logo_menyu(_logo) if _logo else None %}
       {% if _lm %}
-      <div class="s-logo-plita" title="{{ _kn or 'PenodecorPro' }}">
+      <div class="s-logo-plita" title="{{ _kn or 'epserp' }}">
         {% if _lm.eni %}
         <div class="s-logo-kesim" style="width:{{ _lm.eni }}px">
           <div style="padding-top:{{ _lm.nisbat }}%"></div>
-          <img class="s-logo-rasm" src="{{ _lm.src }}" alt="{{ _kn or 'PenodecorPro' }}"
+          <img class="s-logo-rasm" src="{{ _lm.src }}" alt="{{ _kn or 'epserp' }}"
                style="width:{{ _lm.rasm }}%;left:-{{ _lm.chap }}%;top:-{{ _lm.tepa }}%">
         </div>
         {% else %}
-        <img class="s-logo-oddiy" src="{{ _lm.src }}" alt="{{ _kn or 'PenodecorPro' }}">
+        <img class="s-logo-oddiy" src="{{ _lm.src }}" alt="{{ _kn or 'epserp' }}">
         {% endif %}
       </div>
       {% else %}
@@ -1183,7 +1185,7 @@ function kichikRasm(url) {
           {# Faza 5: korxona nomi bazadan olinadi. Ilgari "PenoDecorPro ·
              Andijon" qattiq yozilgan edi — ikkinchi mijoz o'z ERP sida
              boshqa korxonaning nomini ko'rib turardi. #}
-          <div class="logo-name">{{ _kn or 'PenodecorPro' }}</div>
+          <div class="logo-name">{{ _kn or 'epserp' }}</div>
           <div class="logo-ver">ERP</div>
         </div>
       </div>

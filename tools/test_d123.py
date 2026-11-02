@@ -224,7 +224,7 @@ check("N4 menyu: «Loy retseptlari» (eski «Retseptlar» YO'Q)",
 _krc, REC = sahifa(CA, "/recipes")
 check("N5 Loy retseptlari sahifasi: sarlavha, «Yangi loy retsepti», oyna «+ Yangi loy retsepti» / «Loy retseptini tahrirlash»; "
       "mahsulot tarkibi — «Ishlab chiqarish» bo'limida (izoh)",
-      _krc == 200 and "<title>Loy retseptlari — PenoDecorPro ERP</title>" in REC and "> Yangi loy retsepti</button>" in REC
+      _krc == 200 and "<title>Loy retseptlari — epserp</title>" in REC and "> Yangi loy retsepti</button>" in REC
       and '<div class="page-title">Loy retseptlari</div>' in REC
       and "+ Yangi loy retsepti</div>" in REC and "Loy retseptini tahrirlash</div>" in REC
       and "tarkibi — «Ishlab chiqarish» bo'limida" in REC, _krc)

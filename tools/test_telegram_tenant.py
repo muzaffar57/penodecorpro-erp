@@ -627,8 +627,7 @@ check("[wh] noma'lum chat /bonus — bot egasi imzosi (eski matn)",
              "bilan bog'laning.\n\n📞 PenoDecorPro — Andijon"], str(_t))
 
 # 6.7 STATIK: main.py dagi satrlarda qattiq brend qolmagan
-_ALLOWED = {"PenoDecorProBoundary1234567890", "PenoDecorPro ERP",
-            "PenoDecorPro ERP ishlamoqda!"}
+_ALLOWED = {"PenoDecorProBoundary1234567890"}   # kech176 (zip 241): platforma nomi «epserp» — «PenoDecorPro ERP» satrlari yo'q
 _doc_ids = set()
 for _n in ast.walk(_tree):
     if isinstance(_n, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):

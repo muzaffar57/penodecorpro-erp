@@ -238,7 +238,7 @@ _lh = _mn[_mn.find("def _logo_saqlashga("):]
 _lh = _lh[:_lh.find("\ndef ")]
 check("S2 logotip yuklashda to'liq o'qish (`_rasm_ochish`) — diskka yozishdan OLDIN; burilgan bo'lsa to'g'rilab saqlanadi",
       "_rasm_ochish(data" in _lh and "_burildi" in _lh and "_logo_saqlashga, data)" in _lg
-      and -1 < _lg.find("_logo_saqlashga, data)") < _lg.find("with open(_os.path.join(papka, nom), \"wb\")"))
+      and -1 < _lg.find("_logo_saqlashga, data)") < _lg.find("with open(_vaqt241, \"wb\")"))
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 section("N. Nisbat — PDF dagi logotip")
