@@ -10320,7 +10320,10 @@ def api_create_return(request: Request, response: Response, data: dict = Body(..
     # yoki mavjud bo'lmagan buyurtma 500 berardi, begona detal esa A
     # omborini kamaytirardi (o'lchangan).
     _cid = auth.company_id_of(current_user)
-    if not auth.order_of_company(db, data.order_id, _cid):
+    # kech175 (zip 240c): qoralama / bekor qilingan buyurtma — tanlov ro'yxatlari va komplekt qaytarish (zip 240) qoidasi bilan BIR xil — 404
+    # (ilgari qaytarish / brak yozilardi — O'LCHANGAN). O'chirilgan buyurtma — `crud.create_return_item` o'z qoidasi (ATAYLAB).
+    _o240c = auth.order_of_company(db, data.order_id, _cid)
+    if not _o240c or _o240c.status in (OrderStatus.DRAFT, OrderStatus.CANCELLED):
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     if data.order_item_id:
         from models import OrderItem as _OI_r

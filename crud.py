@@ -8847,6 +8847,12 @@ def create_return_item(db: Session, data: ReturnItemCreate,
     _o = _oq.first()
     if not _o:
         raise ValueError("Buyurtma topilmadi")
+    # kech175 (zip 240c — review240 M2 izohi, O'LCHANGAN `work/k240c/probe240c.py`, asl kod = zip 240b): QORALAMA / BEKOR QILINGAN
+    # buyurtmaga qaytarish ham, brak ham yozilmaydi — ilgari qoralamadan «Ortiqcha» omborga hech qachon ishlab chiqarilmagan mahsulot
+    # qo'shardi (keyin jarayonga olinsa ham qolardi), hisob-kitob kelishilgan summani kamaytirardi, brak penoplast yechardi. «Yangi
+    # qaytarish» / «Brak yozish» tanlovlari va komplekt qaytarish qoidasi bilan BIR xil. O'chirilgan buyurtma — o'z qoidasi (pastda, ATAYLAB).
+    if _o.status in (OrderStatus.DRAFT, OrderStatus.CANCELLED):
+        raise ValueError("Qoralama yoki bekor qilingan buyurtmaga qaytarish / brak yozilmaydi")
 
     # 17g: sabab — faqat `models.ReturnReason` qiymatlari (yuqorida tekshirilgan).
     # Ilgari noma'lum sabab JIMGINA "Brak" ga aylanardi (O'LCHANGAN): ombordan
@@ -9558,6 +9564,11 @@ def mark_refunded(db: Session, return_id: int, refunded_by: str = None,
     if item.order_id is not None:
         order = db.query(Order).filter(Order.id == item.order_id,
                                        Order.company_id == _cid).first()
+    # kech175 (zip 240c, review240c M1 — O'LCHANGAN): qoralama / bekor qilingan buyurtmadagi qaytarish (240c dan OLDIN yozilib qolgan)
+    # hisob-kitob qilinmaydi — kelishilgan summa ishlab chiqarilmagan mahsulot uchun kamayardi. Hech narsa o'zgarishidan OLDIN (qulf
+    # ostida qayta o'qilgan buyurtma); o'chirish yo'li ochiq (`delete_return_item` — hammasi orqaga).
+    if order is not None and order.status in (OrderStatus.DRAFT, OrderStatus.CANCELLED):
+        raise ValueError("Qoralama yoki bekor qilingan buyurtmadagi qaytarish hisob-kitob qilinmaydi — bu yozuvni o'chiring")
     _kamaydi = 0.0
 
     _naqd = 0.0
@@ -21414,6 +21425,11 @@ def brak_taqdir_belgila(db: Session, turi: str, yozuv_id: int, tana, company_id:
     yozuv = _taqdir_brak_yozuvi(db, turi, yozuv_id, _cid, lock=True)
     if yozuv is None:
         return None
+    # kech175 (zip 240c, review240c M1 — O'LCHANGAN): qoralama / bekor qilingan buyurtmadagi brak (240c dan OLDIN yozilib qolgan) —
+    # taqdir belgilanmaydi («Tuzatildi → Omborga» yo'qdan tayyor mahsulot qo'shardi); o'chirish yo'li ochiq.
+    if turi == "qaytarish" and yozuv.order_id is not None and db.query(Order.status).filter(
+            Order.id == yozuv.order_id, Order.company_id == _cid).scalar() in (OrderStatus.DRAFT, OrderStatus.CANCELLED):
+        raise ValueError("Qoralama yoki bekor qilingan buyurtmadagi brakka taqdir belgilanmaydi — bu yozuvni o'chiring")
     return _taqdir_almashtir(db, turi, yozuv, tana, _cid, performed_by)
 
 
