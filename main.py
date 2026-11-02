@@ -10448,7 +10448,7 @@ def api_return_stats(db: Session = Depends(get_db), current_user=Depends(auth.ru
 
 
 @app.post("/api/returns/{return_id}/refund")
-def api_mark_refunded(return_id: int, payment_method: Optional[str] = None, komplekt: Optional[int] = None,
+def api_mark_refunded(return_id: int, payment_method: Optional[str] = None, komplekt: Optional[str] = None,
                       db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("qaytarish", "tahrirlash"))):
     # kech155 (zip 210): `payment_method` — pul qanday qaytarildi (naqd / plastik / o'tkazma → «Naqd pul» / «Karta» / «Bank»);
     # berilmasa — naqd (avvalgidek). Noto'g'ri — 400.
@@ -10460,9 +10460,10 @@ def api_mark_refunded(return_id: int, payment_method: Optional[str] = None, komp
     who = current_user.full_name or current_user.username
     # kech174 (zip 240): `komplekt=1` — komplekt qaytarishi to'plamining hisob-kitob qilinmagan HAMMA yozuvi, BITTA tranzaksiyada (yozuv
     # to'plamda bo'lmasa — faqat o'zi). Berilmasa — avvalgidek bitta yozuv.
-    if komplekt is not None and komplekt != 1:
+    # kech174 (zip 240b, etalon d248 — test_loy_query K): so'rov parametri MATN, qat'iy «1» (son turi «1.0» / «01» ni ham 1 deb olardi)
+    if komplekt is not None and komplekt != "1":
         raise HTTPException(status_code=400, detail="'komplekt' — faqat 1")
-    if komplekt == 1:
+    if komplekt == "1":
         try:
             with crud.bitta_tranzaksiya(db):
                 _kn = crud.refund_komplekt(db, return_id, auth.company_id_of(current_user), refunded_by=who, usul=payment_method)
@@ -10497,7 +10498,7 @@ def api_mark_refunded(return_id: int, payment_method: Optional[str] = None, komp
 
 
 @app.delete("/api/returns/{return_id}")
-def api_delete_return(return_id: int, komplekt: Optional[int] = None, db: Session = Depends(get_db),
+def api_delete_return(return_id: int, komplekt: Optional[str] = None, db: Session = Depends(get_db),
                       current_user=Depends(auth.ruxsat("qaytarish", "ochirish"))):
     # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.return_of_company(db, return_id, auth.company_id_of(current_user)):
@@ -10505,11 +10506,12 @@ def api_delete_return(return_id: int, komplekt: Optional[int] = None, db: Sessio
     # kech174 (zip 240): komplekt qaytarishi (bir amalda yozilgan bir necha detal) — faqat BUTUNLIGICHA, `komplekt=1` bilan, BITTA
     # tranzaksiyada (`crud.delete_komplekt_return`). Kalitsiz (eski ochiq sahifa — «bitta yozuv» deb so'ragan) — 409, hech narsa
     # o'zgarmaydi: komplektning bir detalini jim o'chirib «yarim komplekt» qoldirmaymiz.
-    if komplekt is not None and komplekt != 1:
+    # kech174 (zip 240b, etalon d248 — test_loy_query K): so'rov parametri MATN, qat'iy «1» (son turi «1.0» / «01» ni ham 1 deb olardi)
+    if komplekt is not None and komplekt != "1":
         raise HTTPException(status_code=400, detail="'komplekt' — faqat 1")
     _kqt, _kqt_n = crud.kqt_sanogi(db, return_id, auth.company_id_of(current_user))
     if _kqt and _kqt_n > 1:
-        if komplekt != 1:
+        if komplekt != "1":
             raise HTTPException(status_code=409, detail={
                 "message": f"Bu yozuv — komplekt qaytarishining bir qismi ({_kqt_n} ta detal): faqat butunligicha o'chiriladi. Sahifani "
                            f"yangilab qayta bosing.", "komplekt": _kqt_n})

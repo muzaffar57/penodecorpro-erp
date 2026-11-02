@@ -9336,6 +9336,9 @@ def kqt_tekshir(db: Session, order, guruh: int, soni: int) -> dict:
         mx = kmp_qaytar_max(db, order, guruh)
         if mx >= soni or not isinstance(soni, int) or isinstance(soni, bool) or soni < 1:
             raise
+        # kech174 (zip 240b): ichki sabab o'sha komplekt nomi bilan boshlansa — nom bir marta (jonli: ««X» — ko'pi bilan 3 («X» — …)»)
+        _bosh = f"«{nomi}» — "
+        e = ValueError(str(e)[len(_bosh):] if str(e).startswith(_bosh) else str(e))
         if mx == 0:
             raise ValueError(f"«{nomi}» — qaytariladigan butun komplekt qolmagan ({e}) — qolganini detal bo'yicha qaytaring")
         raise ValueError(f"«{nomi}» — ko'pi bilan {mx} komplekt qaytarish mumkin ({e})")

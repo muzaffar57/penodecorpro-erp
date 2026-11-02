@@ -606,7 +606,9 @@ r = CA.delete(f"/api/returns/{yid(_qd, 0, 0)}")
 check("E1 to'plamning bitta yozuvi kalitsiz — 409 (ichida «komplekt»: 2), hech narsa o'zgarmadi",
       r.status_code == 409 and (js(r).get("detail") or {}).get("komplekt") == 2 and "butunligicha" in det(r)
       and qaytishlar(OD) == _qd and pul_holat(OD) == _pd and tm_holat() == _tmd, (r.status_code, r.text[:200]))
-check("E2 `komplekt=2` — 400", CA.delete(f"/api/returns/{yid(_qd, 0, 0)}?komplekt=2").status_code == 400)
+_e2 = [CA.delete(f"/api/returns/{yid(_qd, 0, 0)}?komplekt={_v}").status_code for _v in ("2", "1.0", "01", "inf", "abc", "")]
+check("E2 `komplekt` — faqat «1» (matn): 2 / 1.0 / 01 / inf / abc / bo'sh — 400 (zip 240b, test_loy_query K)", _e2 == [400] * 6
+      and qaytishlar(OD) == _qd, _e2)
 # birinchi detal (karniz) sotilgan — o'chirish oxirgisidan boshlanadi: kapitel o'chib bo'lgach karnizda rad etiladi → hammasi orqaga
 _tmp = xavfsiz(lambda d: d.query(FinishedProduct.id).filter(FinishedProduct.company_id == 1, FinishedProduct.name == "Karniz D").scalar())
 xavfsiz(lambda d: setattr(d.get(FinishedProduct, _tmp), "quantity", 0.0))
@@ -640,8 +642,9 @@ check("F2 qayta — 0 ta (ikki marta chegirilmaydi), xabar «avval hisob-kitob q
       r.status_code == 200 and js(r).get("komplekt") == 0 and pul_holat(OD3)[0] == _pf[0] - 60000
       and "avval hisob-kitob qilingan" in (js(r).get("xabar") or ""),
       (r.status_code, r.text[:200]))
-check("F3 `komplekt=3` — 400; ruxsatsiz («Omborchi») — 403",
+check("F3 `komplekt=3` / `1.0` — 400; ruxsatsiz («Omborchi») — 403",
       CA.post(f"/api/returns/{yid(_qf, 0, 0)}/refund?komplekt=3").status_code == 400
+      and CA.post(f"/api/returns/{yid(_qf, 0, 0)}/refund?komplekt=1.0").status_code == 400
       and CO.post(f"/api/returns/{yid(_qf, 0, 0)}/refund?komplekt=1").status_code == 403)
 _oc1 = buyurtma(OC)["items"][1]
 _rs1 = CA.post("/api/returns", json={"order_id": OC, "order_item_id": _oc1["id"], "item_name": _oc1["name"], "quantity": 1,
@@ -672,8 +675,9 @@ J = js(r)
 check("H1 reja (2 komplekt): 5 qator 4 / 4 / 8 / 4 / 4, summalar va jami 456 000; ko'pi bilan 2",
       r.status_code == 200 and [q["quantity"] for q in J.get("qatorlar", [])] == [4.0, 4.0, 8.0, 4.0, 4.0] and J.get("jami") == 456000.0
       and J.get("qaytar_max") == 2 and J.get("sarlavha") == ROMN + " — 3 komplekt", (r.status_code, r.text[:300]))
-check("H2 reja 3 komplekt (2 qolgan) — 400 «ko'pi bilan 2»; «o'z o'lchami» — 400; soni kasr — 422",
+check("H2 reja 3 komplekt (2 qolgan) — 400 «ko'pi bilan 2» (komplekt nomi matnda BIR marta — zip 240b); «o'z o'lchami» — 400; soni kasr — 422",
       "ko'pi bilan 2" in det(CA.get(f"{KQ}/reja?order_id={OID}&kmp_guruh=1&soni=3"))
+      and det(CA.get(f"{KQ}/reja?order_id={OID}&kmp_guruh=1&soni=3")).count("«" + ROMN + "»") == 1
       and CA.get(f"{KQ}/reja?order_id={OOZ}&kmp_guruh=1&soni=1").status_code == 400
       and CA.get(f"{KQ}/reja?order_id={OID}&kmp_guruh=1&soni=1.5").status_code == 422)
 r = CO.get(f"{KQ}/reja?order_id={OID}&kmp_guruh=1&soni=1")
