@@ -175,6 +175,47 @@ def _logo_tayyorla(yol):
 # `_logo_baytlari`: baytlar BIR marta o'qiladi, PDF ga baytlar beriladi; M2 — 16 bitli kulrang PNG ReportLab da OQ quti → 8 bitga.
 SARLAVHA_LOGO_QUTI_MM = (34, 12)
 SARLAVHA_LOGO_CHET = 5          # katak ichidagi chap / o'ng bo'sh joy (nuqta)
+# JONLI sinov (staging, kech176): platforma logotipi (1000 × 798, shaffof) asl o'lchamda — yuk xati / moliya PDF i ~900 KB (ilgari bir
+# necha KB; yuk xati Telegram ga ham boradi). Sarlavhadagi logotip chizilgan o'lchamining 300 dpi siga kichraytiriladi (bosmada farqsiz).
+SARLAVHA_LOGO_DPI = 300
+_SARLAVHA_LOGO_KESH = _OrderedDict202()
+
+
+def _sarlavha_logo_kichik(data, eni_nuqta):
+    """Logotip baytlari → chizilgan eni (nuqta) ning `SARLAVHA_LOGO_DPI` siga kichraytirilgan PNG (shaffoflik saqlanadi); kichik bo'lsa /
+    o'qilmasa — asl baytlar. Natija jarayon keshida (md5 + eni)."""
+    import math as _math241
+    import hashlib as _hashlib241
+    tw = max(1, int(_math241.ceil(eni_nuqta / 72.0 * SARLAVHA_LOGO_DPI)))
+    kalit = (_hashlib241.md5(data).hexdigest(), tw)
+    with _LOGO_QULF:
+        if kalit in _SARLAVHA_LOGO_KESH:
+            _SARLAVHA_LOGO_KESH.move_to_end(kalit)
+            return _SARLAVHA_LOGO_KESH[kalit]
+    natija = data
+    try:
+        from PIL import Image as _PilImage241k
+        with _PilImage241k.open(io.BytesIO(data)) as _im:
+            _im.load()
+            if _im.width > tw * 1.1:
+                th = max(1, int(round(_im.height * tw / float(_im.width))))
+                if _im.mode in ("RGBA", "LA", "PA") or "transparency" in _im.info:
+                    _rej = "RGBA"
+                elif _im.mode == "L":
+                    _rej = "L"
+                else:
+                    _rej = "RGB"
+                _n = _im.convert(_rej).resize((tw, th), resample=_PilImage241k.LANCZOS)
+                _b = io.BytesIO()
+                _n.save(_b, "PNG", optimize=True)
+                natija = _b.getvalue()
+    except Exception:
+        natija = data
+    with _LOGO_QULF:
+        _SARLAVHA_LOGO_KESH[kalit] = natija
+        while len(_SARLAVHA_LOGO_KESH) > _LOGO_KESH_CHEGARA:
+            _SARLAVHA_LOGO_KESH.popitem(last=False)
+    return natija
 
 
 def _logo_baytlari(yol):
@@ -239,7 +280,7 @@ def pdf_logo_katagi(brand, quti_mm=SARLAVHA_LOGO_QUTI_MM):
         e, b = qb * nisbat, qb
     try:
         from reportlab.platypus import Image as _RLImage241
-        rasm = _RLImage241(io.BytesIO(_t[2]), width=e, height=b)
+        rasm = _RLImage241(io.BytesIO(_sarlavha_logo_kichik(_t[2], e)), width=e, height=b)
     except Exception:
         return None
     return rasm, e + 2 * SARLAVHA_LOGO_CHET

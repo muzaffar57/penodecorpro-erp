@@ -647,8 +647,14 @@ faqat nom (platforma egasida ham). Endi logotip yuklagan korxonada bu 7 hujjatda
 (`pdf_service.pdf_logo_katagi` — `SARLAVHA_LOGO_QUTI_MM` 34 × 12 mm qutiga nisbati bilan, katak chetlari 5 nuqta; `logoli_sarlavha` —
 sarlavha jadvali eni katakka kamaytiriladi, umumiy quti va balandlik — logotipsizdagi bilan AYNAN, sahifalar soni o'zgarmaydi). Logotip —
 FAQAT `get_brand` bergani (o'z korxonasi; eng eski korxona — fayli yo'q bo'lsa platforma logotipi, zip 211); katta (eski) fayl —
-`_logo_tayyorla` keshidagi kichraytirilgan nusxa; o'qilmasa / yo'q — sarlavha AYNAN avvalgidek (faqat nom). «Buyurtma hisobi» / «Taklif» —
-o'zgarmagan.
+`_logo_tayyorla` keshidagi kichraytirilgan nusxa; o'qilmasa / yo'q — sarlavha AYNAN avvalgidek (faqat nom). Mustaqil tekshiruv (review241)
+tuzatishlari: uzun nom (≈ 40 belgi) keng logotip yonida 2 qatorga o'tib yuk xatini 2 sahifa qilardi → `sarlavha_uslubi` (tor ustunga
+sig'magan nom / osti shrifti tor / keng nisbatida — qatorlar logotipsizdagidek, balandlik oshmaydi); logotip baytlari BIR marta o'qiladi
+(`_logo_baytlari`; 16 bitli kulrang — 8 bitga, ReportLab OQ chizardi), yuklash — ATOMAR (`.vaqt` + `os.replace`; almashtirish paytida PDF
+500 berardi), oylik hisobotda oltin chiziq butun eniga. JONLI sinov tuzatishi: sarlavha logotipi chizilgan o'lchamining 300 dpi siga
+kichraytiriladi (`_sarlavha_logo_kichik`, `SARLAVHA_LOGO_DPI`; platforma logotipi bilan yuk xati / moliya PDF i ~900 KB edi → ~40 KB).
+«Buyurtma hisobi» / «Taklif» — logotip joyi o'zgarmagan (baytlar `_logo_baytlari` dan). Kirish oynasi past ekranda (telefon yotiq) —
+`.form-wrap{margin:auto}` (tepasi kesilmaydi).
 **Telegram: bot manzili, holati va har korxonaga o'z boti (kech130, zip 154 — kech129 da O'LCHANGAN; egasi QARORLARI 08.10 17:3x–17:42).**
 (1) MANZIL HIMOYASI: «🔐 Telegram xavfsizligini yoqish» (`telegram-setup-webhook-security`) qaysi saytda bosilsa, umumiy bot (@Penoustabot,
 `TELEGRAM_BOT_TOKEN`) o'sha saytga ulanadi (`request.base_url`) — kech129 da bot sinov saytiga ulanib qolgan edi (ustalar sinov bazasini
@@ -5221,10 +5227,12 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   admini HAR sahifa sarlavhasi «… — epserp», platforma paneli, menyu (o'z logotipi / nomi); H — 9 PDF × 3 korxona (platforma paneli API si
   bilan yaratilgan): logotipli A — HAR hujjatda AYNAN o'z logotipi (piksel md5), PenoDecorPro nomi / telefoni / manzili / shiori /
   logotipi yo'q; logotipsiz B — rasm yo'q; platforma egasi — 9 hujjatda o'z logotipi; 24 × 12 mm; hujjat nomi joyi, sahifalar soni va
-  sarlavha geometriyasi (oq katak, bo'sh joylar, quti chegaralari) A = B; N — tik / juda keng / eski katta logotip; B — diskdagi buzilgan
-  logotip (7 hujjat 200, nom bilan); J — HAQIQIY Chromium: kirish oynasi kompyuter / telefon, hodim kirishi, favicon). A / B id lari
-  jarayonga xos (logotip fayli `company_<id>` — parallel nusxalar bir-birini buzmaydi). Mutatsiya — `work/k241/mut241.py` (25). SQ
-  47/0, TF1 47/0, PG 47/0; asl (zip 240c) — 31 ta yiqiladi, qulamaydi.
+  sarlavha geometriyasi (oq katak, bo'sh joylar, quti chegaralari) A = B; 300 dpi o'lcham va hajm (H10); N — tik / juda keng / eski katta
+  logotip; B — diskdagi buzilgan logotip (7 hujjat 200, nom bilan); U — uzun nom + keng logotip + 20 detal (sahifalar, sarlavha, nom qatori,
+  oltin chiziq); G — 16 bitli kulrang (yuklangan va diskdagi eski); R — almashtirish poygasi; J — HAQIQIY Chromium: kirish oynasi kompyuter /
+  telefon / past ekran, hodim kirishi, favicon). Rasm solishtirish — «imzo» (oq fonda 32 × 32 + nisbat). A / B id lari
+  jarayonga xos (logotip fayli `company_<id>` — parallel nusxalar bir-birini buzmaydi). Mutatsiya — `work/k241/mut241.py` (27). SQ
+  49/0, TF1 49/0, PG 49/0; asl (zip 240c) — 32 ta yiqiladi, qulamaydi.
 - (kech175, zip 240c) Qoralama / bekor qilingan buyurtmaga qaytarish yo'q: `tools/test_qaytarish_qoralama240c.py` (S — tekshiruv
   joyi (buyurtma topilgandan keyin, sabab / qulf / taqdir / yozuvdan oldin; marshrutda `_amal_bajar` dan oldin); A — qoralama: «Ortiqcha»,
   `to_stock=false`, «Brak», brakdan boshqa hamma sabab, takror kalit, begona detal — 404 va qaytarish / TM / penoplast / to'lov / ombor

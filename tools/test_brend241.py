@@ -18,7 +18,8 @@ TALAB (har biri o'lchanadi):
      /api/health — «epserp ishlamoqda!»
   T  kirgan foydalanuvchi sahifalari (yangi korxona admini): har HTML sahifa sarlavhasi «… — epserp», sarlavhada «PenoDecorPro» yo'q;
      menyuda korxonaning O'Z logotipi / nomi (begona emas)
-  H  hujjatlar (9 PDF × 3 korxona): A (logotip yuklangan) — HAR hujjatda AYNAN o'z logotipi (piksel md5), PenoDecorPro logotipi /
+  H  hujjatlar (9 PDF × 3 korxona): A (logotip yuklangan) — HAR hujjatda o'z logotipi (ko'rinish imzosi; sarlavhada 300 dpi ga
+     kichraytirilgan — H10: hujjat hajmi), PenoDecorPro logotipi /
      nomi / telefoni / manzili / shiori YO'Q, o'z nomi bor, logotip 34 × 12 mm qutida nisbati bilan; B (logotipsiz) — rasm YO'Q, o'z
      nomi bor, taqiqlilar yo'q; 1 (platforma egasi) — 9 hujjatda o'z logotipi va nomi; sarlavha balandligi o'zgarmagan (hujjat nomi
      A da B dagidek joyda); sahifalar soni A = B; sarlavha geometriyasi (oq katak, bo'sh joylar, quti chegaralari — A = B)
@@ -153,13 +154,33 @@ def rgb_md5(im):
         return None
 
 
+def imzo(im):
+    """Rasm «imzosi» — oq fonga qo'yilgan (shaffoflik hisobga olinadi), 32 × 32 kulrang piksellar va eni / bo'yi nisbati. PDF sarlavhasidagi
+    logotip 300 dpi ga kichraytiriladi (zip 241) — piksel md5 emas, ko'rinish solishtiriladi."""
+    try:
+        rgba = im.convert("RGBA")
+        oq = Image.new("RGBA", rgba.size, (255, 255, 255, 255))
+        k = Image.alpha_composite(oq, rgba).convert("L").resize((32, 32), resample=Image.BILINEAR)
+        return list(k.getdata()), im.size[0] / float(im.size[1])
+    except Exception:                      # noqa: BLE001
+        return None
+
+
+def bir_xil(x, asl):
+    """PDF dagi rasm (`pdf_rasmlari` elementi) asl rasmga (`imzo`) ko'rinishda tengmi: o'rtacha farq < 8 (0–255) va nisbat ±3 %."""
+    if not x or not asl or not x[2]:
+        return False
+    a, b = x[2], asl
+    return abs(a[1] / b[1] - 1) < 0.03 and sum(abs(p - q) for p, q in zip(a[0], b[0])) / 1024.0 < 8
+
+
 def pdf_rasmlari(b):
-    """[(rgb_md5, (px_eni, px_boyi))] — HAMMA sahifadagi rasmlar; o'qib bo'lmasa — None."""
+    """[(rgb_md5, (px_eni, px_boyi), imzo)] — HAMMA sahifadagi rasmlar; o'qib bo'lmasa — None."""
     try:
         out = []
         for p in PdfReader(io.BytesIO(b)).pages:
             for im in p.images:
-                out.append((rgb_md5(im.image), im.image.size))
+                out.append((rgb_md5(im.image), im.image.size, imzo(im.image)))
         return out
     except Exception:                      # noqa: BLE001
         return None
@@ -343,6 +364,7 @@ check("S9 7 generator: delivery_pdf 5, finance_pdf 2 — `_logo_katagi241(_brand
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 PLAT_LOGO = getattr(main, "PLATFORMA_LOGOTIPI", "static/logo_transparent.png")
 PLAT_MD5 = rgb_md5(Image.open(os.path.join(ROOT, PLAT_LOGO)))
+PLAT_IMZO = imzo(Image.open(os.path.join(ROOT, PLAT_LOGO)))
 s = SessionLocal()
 c1 = s.query(Company).filter(Company.id == 1).first()
 if c1 is None:
@@ -390,6 +412,7 @@ if not all(KX[k]["C"] is not None for k in ("1", "A", "B")):
     sys.exit(1)
 CA = KX["A"]["C"]
 LOGO_A, LOGO_A_MD5 = rasm_bayt(600, 300)
+LOGO_A_IMZO = imzo(Image.open(io.BytesIO(LOGO_A)))
 _rl = req(CA, "post", "/api/settings/company/logo", files={"file": ("namuna.png", LOGO_A, "image/png")})
 LOGO_A_YOL = os.path.join(ROOT, (js(_rl) or {}).get("logo_path") or "x")
 check("0.2 A korxonasi logotipi yuklandi (600 × 300 PNG; diskdagi piksellar AYNAN)", _rl.status_code == 200 and os.path.exists(LOGO_A_YOL)
@@ -535,9 +558,9 @@ _hA = {}
 for _n, _b in P["A"].items():
     _r = pdf_rasmlari(_b) if _b else None
     _m = pdf_matni(_b) if _b else ""
-    _hA[_n] = (bool(_r) and all(x[0] == LOGO_A_MD5 for x in _r), _r and any(x[0] == PLAT_MD5 for x in _r), taqiqlar(_m),
+    _hA[_n] = (bool(_r) and all(bir_xil(x, LOGO_A_IMZO) for x in _r), _r and any(bir_xil(x, PLAT_IMZO) for x in _r), taqiqlar(_m),
                "NAMUNA PENOPLAST" in _m.upper())
-check("H1 A (logotip yuklangan): HAR 9 hujjatda AYNAN o'z logotipi (piksel md5) — boshqa rasm yo'q",
+check("H1 A (logotip yuklangan): HAR 9 hujjatda o'z logotipi (ko'rinish imzosi — oq fonda 32 × 32, nisbat) — boshqa rasm yo'q",
       all(v[0] for v in _hA.values()), {n: v[0] for n, v in _hA.items()})
 check("H2 A: PenoDecorPro logotipi / nomi / telefoni / manzili / shiori — hech bir hujjatda YO'Q; o'z nomi — hammasida",
       all(not v[1] and not v[2] and v[3] for v in _hA.values()), {n: v[1:] for n, v in _hA.items()})
@@ -547,7 +570,8 @@ check("H3 B (logotipsiz): 9 hujjatda rasm YO'Q (begona logotip ham), taqiqlilar 
       all(v[0] == [] and not v[1] and v[2] for v in _hB.values()), _hB)
 _h1 = {n: (pdf_rasmlari(b) if b else None, "PENODECORPRO" in pdf_matni(b).upper() if b else False) for n, b in P["1"].items()}
 check("H4 korxona 1 (platforma egasi): 9 hujjatda o'z logotipi (platforma logotipi) va nomi",
-      all(v[0] and all(x[0] == PLAT_MD5 for x in v[0]) and v[1] for v in _h1.values()), {n: (v[0], v[1]) for n, v in _h1.items()})
+      all(v[0] and all(bir_xil(x, PLAT_IMZO) for x in v[0]) and v[1] for v in _h1.values()),
+      {n: ([x[:2] for x in (v[0] or [])], v[1]) for n, v in _h1.items()})
 _mmA = {n: pdf_rasm_mm(P["A"][n]) for n in YETTI if P["A"][n]}
 check("H5 A: 7 hujjat sarlavhasidagi logotip — 34 × 12 mm qutida, nisbati (2 : 1) saqlangan: 24 × 12 mm (±0,1)",
       len(_mmA) == 7 and all(v and len(v) == 1 and abs(v[0][0] - 24) <= 0.1 and abs(v[0][1] - 12) <= 0.1 for v in _mmA.values()), _mmA)
@@ -579,18 +603,27 @@ check("H9 7 hujjat sarlavhasi: logotip OQ katakda (chap / o'ng ≥ 5 nuqta, tepa
       "boshlanadi; sarlavha qutisi (chegaralari) — logotipsiz korxonadagi bilan AYNAN (±0,6 nuqta; sahifadan chiqmaydi)",
       len(_geo) == 7 and all(_geo_ok(a, b) for a, b in _geo.values()), {n: v for n, v in _geo.items() if not _geo_ok(*v)})
 
+_px = {n: [x[1] for x in (pdf_rasmlari(P["A"][n]) or [])] for n in YETTI if P["A"][n]}
+_kb1 = {n: round(len(P["1"][n]) / 1024) for n in YETTI if P["1"][n]}
+_px1 = [x[1] for x in (pdf_rasmlari(P["1"]["yuk_xati"]) or [])] if P["1"]["yuk_xati"] else None
+check("H10 sarlavha logotipi 300 dpi ga kichraytirilgan: A (24 mm) — 284 × 142 px; platforma logotipi (1000 × 798, 15 × 12 mm) — 178 × 142 px; "
+      "korxona 1 ning 7 hujjati < 150 KB (jonli sinov: asl o'lchamda ~900 KB edi)",
+      len(_px) == 7 and all(v == [(284, 142)] for v in _px.values()) and _px1 == [(178, 142)] and len(_kb1) == 7
+      and all(v < 150 for v in _kb1.values()), (_px, _px1, _kb1))
+
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 section("N. Logotip nisbati (tik / juda keng)")
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 for _w, _h, _kut in ((300, 600, (6.0, 12.0)), (1000, 100, (34.0, 3.4))):
     _b, _md = rasm_bayt(_w, _h, (120, 30, 60))
+    _iz = imzo(Image.open(io.BytesIO(_b)))
     _ru = req(CA, "post", "/api/settings/company/logo", files={"file": ("n.png", _b, "image/png")})
     _rp = req(CA, "get", KX["A"]["URL"]["yuk_xati"][0])
     _mm = pdf_rasm_mm(_rp.content) if _rp.status_code == 200 else None
     _rr = pdf_rasmlari(_rp.content) if _rp.status_code == 200 else None
     check(f"N {_w} × {_h}: yuk xatida {_kut[0]} × {_kut[1]} mm (±0,1), rasm — yangi logotip",
           _ru.status_code == 200 and _mm and len(_mm) == 1 and abs(_mm[0][0] - _kut[0]) <= 0.1 and abs(_mm[0][1] - _kut[1]) <= 0.1
-          and _rr and _rr[0][0] == _md, (_ru.status_code, _mm))
+          and _rr and bir_xil(_rr[0], _iz), (_ru.status_code, _mm, [x[:2] for x in (_rr or [])]))
 
 # eski (zip 202 dan oldin yuklangan) katta logotip — diskda 3000 × 1500; PDF ga kichraytirilgan nusxa (`_logo_tayyorla`) chiziladi
 s = SessionLocal()
@@ -599,6 +632,7 @@ try:
 finally:
     s.close()
 _kat, _ = rasm_bayt(3000, 1500, (40, 60, 160))
+_kat_iz = imzo(Image.open(io.BytesIO(_kat)))
 try:
     with open(os.path.join(ROOT, _ly3 or "x"), "wb") as f:
         f.write(_kat)
@@ -607,9 +641,14 @@ except Exception:                          # noqa: BLE001
 _rk = req(CA, "get", KX["A"]["URL"]["yuk_xati"][0])
 _rkr = pdf_rasmlari(_rk.content) if _rk.status_code == 200 else None
 _rkm = pdf_rasm_mm(_rk.content) if _rk.status_code == 200 else None
-check("N3 eski katta logotip (diskda 3000 × 1500): yuk xati 200, PDF dagi rasm kichraytirilgan (1000 × 500 px), 24 × 12 mm",
-      _rk.status_code == 200 and _rkr and len(_rkr) == 1 and _rkr[0][1] == (1000, 500) and _rkm
-      and abs(_rkm[0][0] - 24) <= 0.1 and abs(_rkm[0][1] - 12) <= 0.1, (_rk.status_code, _rkr, _rkm))
+check("N3 eski katta logotip (diskda 3000 × 1500): yuk xati 200, PDF dagi rasm kichraytirilgan (300 dpi — 284 × 142 px), o'sha rasm, 24 × 12 mm",
+      _rk.status_code == 200 and _rkr and len(_rkr) == 1 and _rkr[0][1] == (284, 142) and bir_xil(_rkr[0], _kat_iz) and _rkm
+      and abs(_rkm[0][0] - 24) <= 0.1 and abs(_rkm[0][1] - 12) <= 0.1, (_rk.status_code, [x[:2] for x in (_rkr or [])], _rkm))
+_rkn = req(CA, "get", KX["A"]["URL"]["buyurtma_hisobi"][0])
+_rknr = pdf_rasmlari(_rkn.content) if _rkn.status_code == 200 else None
+check("N3b o'sha eski katta logotip «Buyurtma hisobi» da: 200, rasm — keshdagi kichraytirilgan nusxa (1000 × 500 px; asl 3000 × 1500 emas)",
+      _rkn.status_code == 200 and _rknr and len(_rknr) == 1 and _rknr[0][1] == (1000, 500) and bir_xil(_rknr[0], _kat_iz),
+      (_rkn.status_code, [x[:2] for x in (_rknr or [])]))
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 section("B. Buzilgan logotip fayli (diskda)")
@@ -780,7 +819,7 @@ def _almashtir():
         i += 1
 
 
-_rq = [_R1M, _R2M]
+_rq = [imzo(Image.open(io.BytesIO(_R1))), imzo(Image.open(io.BytesIO(_R2)))]
 req(CA, "post", "/api/settings/company/logo", files={"file": ("r.png", _R1, "image/png")})
 _th = threading.Thread(target=_almashtir, daemon=True)
 _th.start()
@@ -790,8 +829,8 @@ for _i in range(12):
         url, par = KX["A"]["URL"][_n]
         _r = req(CA, "get", url, params=par)
         _im = pdf_rasmlari(_r.content) if _r.status_code == 200 else None
-        if _r.status_code != 200 or not _im or not all(x[0] in _rq for x in _im):
-            _rx.append((_n, _r.status_code, (_im or [None])[0]))
+        if _r.status_code != 200 or not _im or not all(bir_xil(x, _rq[0]) or bir_xil(x, _rq[1]) for x in _im):
+            _rx.append((_n, _r.status_code, [x[:2] for x in (_im or [])]))
 _tugadi.set()
 _th.join(timeout=60)
 check("R1 logotip ketma-ket almashtirilayotganda 48 PDF (yuk xati, hisob-kitob, oylik, «Buyurtma hisobi») — hammasi 200, rasm — eski yoki "
