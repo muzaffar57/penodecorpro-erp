@@ -372,7 +372,8 @@ async function minusBolimi() {
 async function qaytarishBolimi() {
   bolim("returns.html «Yangi qaytarish» — FAQAT butun mahsulot");
   // kech120 (zip 133 — G5-05, MOSLANDI): «Qiymati» endi umumiy pul qoidasi bilan o'qiladi (`parseNum`) — funksiya ham olinadi
-  const kod = ['saveReturn', 'updateReasonHint', 'parseNum'].map((n) => olib(RETURNS, n));
+  // kech174 (zip 240, MOSLANDI): `saveReturn` — `kmpTanlov240` bilan (u ham yuklanadi)
+  const kod = ['saveReturn', 'updateReasonHint', 'parseNum', 'kmpTanlov240'].map((n) => olib(RETURNS, n));
   tekshir('Q0 saveReturn, updateReasonHint topildi', kod.every(Boolean));
   if (!kod.every(Boolean)) return;
   const el = {};

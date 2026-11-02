@@ -9148,6 +9148,316 @@ def create_return_item(db: Session, data: ReturnItemCreate,
     return item
 
 
+# ══ kech174 (zip 240 — reja «Komplekt ERP'da qanday bilinadi» 4-band: «Qaytarish yoki bekor qilishda butun komplekt yoki alohida detal
+# tanlanadi»): KOMPLEKT BO'YICHA QAYTARISH ══
+# O'LCHANGAN (`work/k240/probe240.py`, asl kod = zip 239): sayt komplekti (rom × 3 — 5 detal) qaytarilsa har detal ALOHIDA so'rov (5 ta +
+# pul hisob-kitobi yana 5 ta); 3-detal rad etilsa (miqdor katta) qolgan 4 tasi saqlanib qoladi — omborda «yarim komplekt»; komplekt
+# kaliti — 400 «Noma'lum maydon», ro'yxatda komplekt ko'rinmaydi. Endi: bitta so'rov — komplektning har detali o'z qatori bilan (narx —
+# o'z kelishilgan narxi, ombor — o'z mahsuloti; `create_return_item` — AYNAN oddiy qaytarish qoidalari), hammasi BITTA tranzaksiyada (bir
+# detal rad etilsa — hech biri yozilmaydi), to'plam belgisi bilan (`kqt_*`). Texnik qarorlar (Claude): faqat brakdan boshqa sabab (brak —
+# detal bo'yicha, taqdiri bilan); «o'z o'lchami» guruhi — komplekt emas (detal bo'yicha); N komplekt = har qatorning N / K ulushi
+# (K — sotib olingandagi komplekt soni, `kmp_soni`); bir nomli (bir mahsulot) qatorlar — bitta to'plam: jami ulush dona bo'lsa BUTUN
+# bo'lishi shart (aks holda — komplekt tahrirlangan, detal bo'yicha), qatorlarga eng katta qoldiq usulida (dona — 1, qolgani — 0,001).
+from models import KMP_MAX_GURUH as _KMP_MAX_GURUH240, KMP_MAX_SONI as _KMP_MAX_SONI240, kmp_sarlavha as _kmp_sarlavha240  # noqa: E402
+KQT_SABABLAR = ("Ortiqcha", "Notog'ri o'lcham", "Mijoz iltimosi")
+_KQT_KALITLAR = frozenset(("order_id", "kmp_guruh", "soni", "reason", "notes", "hisob", "payment_method"))
+KQT_KOMPLEKT_TURLARI = ("komplekt_rom", "komplekt_eshik")
+
+
+def _kqt_butun(v, nom, eng_kam, eng_kop):
+    if isinstance(v, bool) or not isinstance(v, int) or not (eng_kam <= v <= eng_kop):
+        raise ValueError(f"'{nom}' — {eng_kam} … {eng_kop} oralig'idagi butun son bo'lsin")
+    return v
+
+
+def kqt_tana(data) -> dict:
+    """`POST /api/returns/komplekt` tanasi — QAT'IY: noma'lum kalit, bool / kasr / matn son, chegaradan tashqari, noma'lum sabab / hisob /
+    usul — ValueError (marshrut → 400, hech narsa yozilmaydi). Izoh — har qator tanasida `_clean_val("Return")` (oddiy qaytarish qoidasi)."""
+    if not isinstance(data, dict):
+        raise ValueError("So'rov tanasi obyekt bo'lsin")
+    ortiq = sorted(str(k) for k in set(data) - _KQT_KALITLAR)
+    if ortiq:
+        raise ValueError("Noma'lum maydon: " + ", ".join(ortiq))
+    for k in ("order_id", "kmp_guruh", "soni"):
+        if k not in data:
+            raise ValueError(f"'{k}' — majburiy")
+    t = {"order_id": _kqt_butun(data["order_id"], "order_id", 1, 2_147_483_647),
+         "guruh": _kqt_butun(data["kmp_guruh"], "kmp_guruh", 1, _KMP_MAX_GURUH240),
+         "soni": _kqt_butun(data["soni"], "soni", 1, _KMP_MAX_SONI240)}
+    sabab = data.get("reason")
+    if sabab is None:
+        sabab = "Ortiqcha"
+    if sabab == "Brak":
+        raise ValueError("Brak komplekt bo'yicha yozilmaydi — «Brak yozish» oynasida detal bo'yicha")
+    if sabab not in KQT_SABABLAR:
+        raise ValueError("'reason' — " + " / ".join(KQT_SABABLAR))
+    t["reason"] = sabab
+    izoh = data.get("notes")
+    if izoh is not None and not isinstance(izoh, str):
+        raise ValueError("'notes' — matn bo'lsin")
+    t["notes"] = izoh if (izoh is not None and izoh.strip()) else None
+    hisob = data.get("hisob")
+    if hisob is None:
+        hisob = "keyin"
+    if hisob not in ("hozir", "keyin"):
+        raise ValueError("'hisob' — «hozir» yoki «keyin»")
+    usul = data.get("payment_method")
+    if usul is not None and usul not in ("naqd", "plastik", "o'tkazma"):
+        raise ValueError("'payment_method' — naqd, plastik yoki o'tkazma")
+    if usul is not None and hisob != "hozir":
+        raise ValueError("'payment_method' faqat «hisob»: «hozir» bilan beriladi")
+    t["hisob"], t["usul"] = hisob, usul
+    return t
+
+
+def _kqt_guruh_qatorlari(order, guruh):
+    """Buyurtmaning `guruh` komplekt qatorlari (id tartibida), turi, nomi, K. Komplekt emas / topilmadi / belgi har xil — ValueError."""
+    qs = sorted((i for i in (order.items or []) if i.kmp_guruh == guruh), key=lambda i: i.id)
+    if not qs:
+        raise ValueError(f"Buyurtmada {guruh}-guruh (komplekt) topilmadi — sahifani yangilang")
+    belgilar = {(i.kmp_turi, i.kmp_nomi, i.kmp_soni) for i in qs}
+    if len(belgilar) != 1:
+        raise ValueError("Bu komplekt qatorlarida belgi har xil — detal bo'yicha qaytaring")
+    turi, nomi, k = next(iter(belgilar))
+    if turi == "oz_olcham":
+        raise ValueError("«O'z o'lchami» guruhi komplekt emas — detal bo'yicha qaytariladi")
+    if turi not in KQT_KOMPLEKT_TURLARI or not nomi or not k:
+        raise ValueError("Bu guruh komplekt emas — detal bo'yicha qaytaring")
+    return qs, turi, nomi, int(k)
+
+
+def _kqt_holat(db: Session, company_id, qs):
+    """Guruh qatorlari bo'yicha avval qaytarilgani (brakdan boshqa — `create_return_item` yig'indi qoidasi; brak kirmaydi): (S — komplekt
+    to'plamlari bilan qaytgan komplektlar soni, {qator: to'plamlar bilan qaytgan miqdor}, {qator: jami qaytgan miqdor})."""
+    ids = [i.id for i in qs]
+    qaytgan, toplamda, toplamlar = {}, {}, {}
+    if ids:
+        for oi_id, miq, kal, son in db.query(ReturnItem.order_item_id, ReturnItem.quantity, ReturnItem.kqt_kalit, ReturnItem.kqt_soni)                 .filter(ReturnItem.company_id == company_id, ReturnItem.order_item_id.in_(ids),
+                        ReturnItem.reason != ReturnReason.DEFECT).all():
+            qaytgan[oi_id] = qaytgan.get(oi_id, 0.0) + float(miq or 0)
+            if kal:
+                toplamda[oi_id] = toplamda.get(oi_id, 0.0) + float(miq or 0)
+                toplamlar[kal] = int(son or 0)
+    return sum(toplamlar.values()), toplamda, qaytgan
+
+
+def kmp_qaytarish_reja(db: Session, order, guruh: int, soni: int) -> dict:
+    """N (`soni`) komplektni qaytarish — har qatorga qancha (hech narsa yozilmaydi): {"turi", "nomi", "sarlavha", "kmp_soni" (K), "soni",
+    "oldin" (S — avval to'plamlar bilan qaytgan komplektlar), "qatorlar": [(buyurtma qatori, miqdor)]}; bajarib bo'lmasa — ValueError.
+    Qoida (review240 H1 / M1 — bittalab qaytarishda oxirgi komplekt rad etilmasin, qoldiq qolmasin): bir mahsulot (nom — katta / kichik
+    harf, bo'shliqsiz, birlik bir xil) qatorlari — bitta to'plam; to'plam ulushi JAMLANIB hisoblanadi: S + N komplektgacha jami
+    (miqdori × (S + N) / K, dona — BUTUN bo'lishi shart, aks holda «komplekt tahrirlangan»; boshqasi 0,001 gacha) minus to'plamlar bilan
+    avval qaytgani; OXIRGI komplektda (S + N = K) — qolgani AYNAN (yaxlitlashsiz). Qatorlarga — har qatorning «ideal» ulushiga eng yaqin
+    (qadam bilan, eng katta qoldiq), har qatorning QAYTMAGAN qoldig'idan oshmaydi (alohida qaytarilgani ham hisobga olinadi); sig'masa —
+    ValueError. Ko'rish va saqlash — shu bitta funksiya (`kqt_tekshir`)."""
+    from decimal import Decimal, ROUND_HALF_UP, ROUND_FLOOR
+    qs, turi, nomi, k = _kqt_guruh_qatorlari(order, guruh)
+    if isinstance(soni, bool) or not isinstance(soni, int) or soni < 1:
+        raise ValueError("Komplektlar soni — 1 dan katta butun son bo'lsin")
+    oldin, toplamda, qaytgan = _kqt_holat(db, order.company_id, qs)
+    if soni > k - oldin:
+        raise ValueError(f"«{nomi}» — buyurtmada {k} komplekt" + (f", {oldin} tasi avval qaytarilgan" if oldin else "")
+                         + f" — {soni} komplekt qaytarib bo'lmaydi")
+    yakun = (oldin + soni == k)
+    _d = (lambda v: Decimal(repr(float(v or 0))))
+    _eps = Decimal("0.000001")
+    toplam = {}
+    for i in qs:
+        toplam.setdefault((_nom_kalit222(i.name), " ".join((i.delivery_unit or "").split()).lower()), []).append(i)
+    reja = {}
+    for (_n240, birlik), gq in toplam.items():
+        qadam = Decimal("1") if birlik == "dona" else Decimal("0.001")
+        bor = [_d(i.order_qty_normalized) for i in gq]
+        tp = [_d(toplamda.get(i.id)) for i in gq]
+        qol = [max(Decimal(0), b - _d(qaytgan.get(i.id))) for b, i in zip(bor, gq)]
+        if yakun:
+            ideal = [b - t for b, t in zip(bor, tp)]
+            jami = sum(ideal, Decimal(0))
+        else:
+            kum = sum(bor, Decimal(0)) * (oldin + soni) / k
+            kumq = kum.quantize(qadam, rounding=ROUND_HALF_UP)
+            if birlik == "dona" and abs(kum - kumq) > _eps:
+                raise ValueError(f"«{gq[0].name}»: buyurtmada {_miqdor_matn(float(sum(bor, Decimal(0))))} dona ({k} komplektga) — "
+                                 f"{oldin + soni} komplektga butun dona to'g'ri kelmaydi (komplekt tahrirlangan) — detal bo'yicha qaytaring")
+            jami = kumq - sum(tp, Decimal(0))
+            ideal = [b * (oldin + soni) / k - t for b, t in zip(bor, tp)]
+        if jami > sum(qol, Decimal(0)) + _eps:
+            raise ValueError(f"«{gq[0].name}»: {_miqdor_matn(float(jami))} {gq[0].delivery_unit} kerak, qaytmagan qoldig'i "
+                             f"{_miqdor_matn(float(sum(qol, Decimal(0))))} {gq[0].delivery_unit} (bir qismi avval alohida qaytarilgan) — "
+                             f"detal bo'yicha qaytaring")
+        if jami <= 0:
+            continue
+        if yakun and all(x <= q + _eps for x, q in zip(ideal, qol)):
+            ulush = [max(Decimal(0), x) for x in ideal]          # oxirgi komplekt — qolgani AYNAN (yaxlitlashsiz)
+        else:
+            ulush = [min(max(Decimal(0), (x / qadam).to_integral_value(rounding=ROUND_FLOOR) * qadam),
+                         (q / qadam).to_integral_value(rounding=ROUND_FLOOR) * qadam) for x, q in zip(ideal, qol)]
+            farq = int(((jami - sum(ulush, Decimal(0))) / qadam).to_integral_value(rounding=ROUND_HALF_UP))
+            while farq:
+                if farq > 0:
+                    nomzod = [j for j in range(len(gq)) if ulush[j] + qadam <= qol[j] + _eps]
+                    if not nomzod:
+                        raise ValueError(f"«{gq[0].name}»: qaytmagan qoldig'i yetmaydi — detal bo'yicha qaytaring")
+                    j = max(nomzod, key=lambda j: (ideal[j] - ulush[j], -j))
+                    ulush[j] += qadam
+                    farq -= 1
+                else:
+                    nomzod = [j for j in range(len(gq)) if ulush[j] - qadam >= 0]
+                    j = min(nomzod, key=lambda j: (ideal[j] - ulush[j], j))
+                    ulush[j] -= qadam
+                    farq += 1
+        for i, a in zip(gq, ulush):
+            if a > 0:
+                reja[i.id] = float(a)
+    return {"turi": turi, "nomi": nomi, "sarlavha": _kmp_sarlavha240(qs[0]), "kmp_soni": k, "soni": soni, "oldin": oldin,
+            "qatorlar": [(i, reja[i.id]) for i in qs if i.id in reja]}
+
+
+def kmp_qaytar_max(db: Session, order, guruh: int) -> int:
+    """Bu komplektdan hozir eng ko'pi bilan nechta BUTUN komplekt qaytarish mumkin — `kmp_qaytarish_reja` bajariladigan eng katta N (saqlash
+    bilan BIR qoida; review240 M1); 0 — qolmagan. Komplekt emas — ValueError."""
+    qs, _t, _n, k = _kqt_guruh_qatorlari(order, guruh)
+    oldin = _kqt_holat(db, order.company_id, qs)[0]
+    for n in range(k - oldin, 0, -1):
+        try:
+            kmp_qaytarish_reja(db, order, guruh, n)
+            return n
+        except ValueError:
+            continue
+    return 0
+
+
+def kqt_tekshir(db: Session, order, guruh: int, soni: int) -> dict:
+    """Reja (yaratish va oldindan ko'rish — BITTA qoida): {**reja, "qaytar_max"}; bajarib bo'lmasa — ValueError (eng ko'p son bilan)."""
+    try:
+        reja = kmp_qaytarish_reja(db, order, guruh, soni)
+    except ValueError as e:
+        qs, _t, nomi, _k = _kqt_guruh_qatorlari(order, guruh)
+        mx = kmp_qaytar_max(db, order, guruh)
+        if mx >= soni or not isinstance(soni, int) or isinstance(soni, bool) or soni < 1:
+            raise
+        if mx == 0:
+            raise ValueError(f"«{nomi}» — qaytariladigan butun komplekt qolmagan ({e}) — qolganini detal bo'yicha qaytaring")
+        raise ValueError(f"«{nomi}» — ko'pi bilan {mx} komplekt qaytarish mumkin ({e})")
+    return dict(reja, qaytar_max=kmp_qaytar_max(db, order, guruh))
+
+
+def create_komplekt_return(db: Session, order_id: int, guruh: int, soni: int, reason: str = "Ortiqcha", notes: str = None,
+                           hisob: str = "keyin", usul: str = None, company_id: int = None, performed_by: str = None) -> dict:
+    """N komplektni qaytarish — har detal o'z qaytarish yozuvi bilan (`create_return_item` — oddiy qaytarish qoidalari AYNAN: miqdor,
+    yig'indi, ortiqcha qism, omborga, MRP bandi, summa — kelishilgan narx), bitta to'plam (`kqt_*`); `hisob="hozir"` — har yozuv
+    `mark_refunded` (ro'yxatdagi tugma bilan bir yo'l). Chaqiruvchi — `bitta_tranzaksiya` ichida (bir detal rad etilsa — hech biri)."""
+    import uuid as _uuid240
+    _oq = db.query(Order).filter(Order.id == order_id)
+    if company_id is not None:
+        _oq = _oq.filter(Order.company_id == company_id)
+    o = _oq.first()
+    if not o:
+        raise ValueError("Buyurtma topilmadi")
+    # review240 M2: qoralama / bekor qilingan / o'chirilgan buyurtmaga — yo'q (tanlov va reja marshrutlari qoidasi; aks holda hech qachon
+    # ishlab chiqarilmagan mahsulot omborga qo'shilardi — O'LCHANGAN)
+    if o.is_deleted or o.status in (OrderStatus.DRAFT, OrderStatus.CANCELLED):
+        raise ValueError("Qoralama, bekor qilingan yoki o'chirilgan buyurtmadan komplekt qaytarilmaydi")
+    # Qulf (101, buyurtma) — oddiy qaytarish, yetkazish va to'lov bilan bir xil: ikki bir vaqtli komplekt qaytarishi ikkalasi ham «sig'adi»
+    # deb o'tmasin (qoldiq qulf OLINGANDAN KEYIN o'qiladi; `create_return_item` ham o'sha qulfni oladi — ikkinchi to'siq)
+    _pul_qulfi(db, 101, o.id)
+    db.expire(o, ["items"])
+    reja = kqt_tekshir(db, o, guruh, soni)
+    kalit = _uuid240.uuid4().hex
+    yozuvlar = []
+    for oi, miqdor in reja["qatorlar"]:
+        tana = {"order_id": o.id, "order_item_id": oi.id, "item_name": oi.name, "quantity": miqdor, "unit": oi.delivery_unit or "dona",
+                "reason": reason, "refund_amount": 0, "to_stock": True}
+        if notes:
+            tana["notes"] = notes
+        toza = _clean_val("Return", tana)
+        data = ReturnItemCreate(**{k: v for k, v in toza.items() if v is not None})
+        r = create_return_item(db, data, company_id=o.company_id, performed_by=performed_by)
+        r.kqt_kalit, r.kqt_soni, r.kqt_nomi = kalit, soni, str(reja["nomi"])[:200]
+        db.flush()
+        yozuvlar.append(r.id)
+    naqd = kam = 0.0
+    if hisob == "hozir":
+        for rid in yozuvlar:
+            x = mark_refunded(db, rid, refunded_by=performed_by, company_id=o.company_id, usul=usul)
+            if x is None:
+                raise ValueError("Qaytarish yozuvi topilmadi — sahifani yangilang")
+            naqd += float(getattr(x, "naqd_qaytarildi", 0) or 0)
+            kam += float(x.refund_agreed_delta or 0)
+    qatorlar = db.query(ReturnItem).filter(ReturnItem.company_id == o.company_id, ReturnItem.kqt_kalit == kalit) \
+        .order_by(ReturnItem.id).all()
+    return {"kalit": kalit, "nomi": reja["nomi"], "soni": soni, "kmp_soni": reja["kmp_soni"], "hisob": hisob,
+            "qaytarishlar": [{"id": r.id, "item_name": r.item_name, "quantity": float(r.quantity or 0), "unit": r.unit,
+                              "refund_amount": float(r.refund_amount or 0), "is_refunded": bool(r.is_refunded)} for r in qatorlar],
+            "jami": _pul2(sum(float(r.refund_amount or 0) for r in qatorlar)), "naqd_qaytarildi": _pul2(naqd),
+            "kelishilgan_kamaydi": _pul2(kam)}
+
+
+def kqt_qatorlari(db: Session, kalit: str, company_id) -> list:
+    """Komplekt qaytarishi to'plamining hamma yozuvi (id tartibida)."""
+    return db.query(ReturnItem).filter(ReturnItem.company_id == company_id, ReturnItem.kqt_kalit == kalit).order_by(ReturnItem.id).all()
+
+
+def kqt_sanogi(db: Session, return_id: int, company_id):
+    """(to'plam kaliti, yozuvlar soni) — yozuv komplekt qaytarishi bo'lmasa (None, 1); topilmasa (None, 0)."""
+    from sqlalchemy import func as _fn240s
+    r = db.query(ReturnItem.kqt_kalit).filter(ReturnItem.id == return_id, ReturnItem.company_id == company_id).first()
+    if not r:
+        return None, 0
+    if not r[0]:
+        return None, 1
+    return r[0], int(db.query(_fn240s.count(ReturnItem.id)).filter(ReturnItem.company_id == company_id,
+                                                                   ReturnItem.kqt_kalit == r[0]).scalar() or 0)
+
+
+def delete_komplekt_return(db: Session, return_id: int, company_id, performed_by: str = None):
+    """Komplekt qaytarishini BUTUNLIGICHA o'chirish (har yozuv — `delete_return_item`: ombor, pul, MRP bandi orqaga). Chaqiruvchi —
+    `bitta_tranzaksiya` ichida: bir yozuvni orqaga qaytarib bo'lmasa (mahsulot sotilgan / band) — HECH BIRI o'chmaydi. Topilmasa — False."""
+    r = db.query(ReturnItem).filter(ReturnItem.id == return_id, ReturnItem.company_id == company_id).first()
+    if not r:
+        return False
+    if not r.kqt_kalit:
+        return delete_return_item(db, return_id, company_id=company_id, performed_by=performed_by)
+    kalit = r.kqt_kalit
+    if r.order_id is not None:
+        _pul_qulfi(db, 101, r.order_id)
+    db.expire_all()
+    qs = kqt_qatorlari(db, kalit, company_id)
+    if not qs:
+        return False
+    idlar = [q.id for q in qs]
+    for rid in reversed(idlar):
+        if not delete_return_item(db, rid, company_id=company_id, performed_by=performed_by):
+            raise ValueError("Komplekt qaytarishining bir qismi topilmadi (parallel o'chirilgan) — sahifani yangilang")
+    return {"komplekt": len(idlar), "ochirilgan": idlar}
+
+
+def refund_komplekt(db: Session, return_id: int, company_id, refunded_by: str = None, usul: str = None):
+    """Komplekt qaytarishi to'plamining hisob-kitob qilinmagan HAMMA yozuvi — `mark_refunded` (bitta tranzaksiyada; chaqiruvchi —
+    `bitta_tranzaksiya`). Natija: {"soni", "naqd_qaytarildi", "kelishilgan_kamaydi"}; topilmasa — None."""
+    r = db.query(ReturnItem).filter(ReturnItem.id == return_id, ReturnItem.company_id == company_id).first()
+    if not r:
+        return None
+    kalit = r.kqt_kalit
+    if r.order_id is not None:
+        _pul_qulfi(db, 101, r.order_id)
+    db.expire_all()
+    idlar = [q.id for q in kqt_qatorlari(db, kalit, company_id)] if kalit else [return_id]
+    naqd = kam = 0.0
+    soni = 0
+    for rid in idlar:
+        q = db.query(ReturnItem).filter(ReturnItem.id == rid, ReturnItem.company_id == company_id).first()
+        if q is None or q.is_refunded:
+            continue
+        x = mark_refunded(db, rid, refunded_by=refunded_by, company_id=company_id, usul=usul)
+        if x is None:
+            continue
+        soni += 1
+        naqd += float(getattr(x, "naqd_qaytarildi", 0) or 0)
+        kam += float(x.refund_agreed_delta or 0)
+    return {"soni": soni, "naqd_qaytarildi": _pul2(naqd), "kelishilgan_kamaydi": _pul2(kam)}
+
+
 # MUHIM (2026-09 — Fasa 3, brak-yozish konsolidatsiyasi): bu yerda avval
 # create_finished_product_brak() funksiyasi bo'lgan — Qaytarishlar sahifasi
 # ("Ishlab chiqarishdan brak") uchun. U record_finished_product_production_brak()

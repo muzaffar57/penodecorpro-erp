@@ -692,7 +692,8 @@ else:
             pg.wait_for_function("document.querySelector('#f-item optgroup') !== null", timeout=20000)
             _og = pg.evaluate("Array.from(document.querySelectorAll('#f-item optgroup')).map(g => [g.label, g.children.length])")
             check("U7 qaytarish: detal tanlovida «🧩 X-1 <b>rom</b> & «komplekt» — 1 komplekt» guruhi (2 detal), guruhsiz — tashqarida",
-                  _og == [["🧩 X-1 <b>rom</b> & «komplekt» — 1 komplekt", 2]]
+                  # kech174 (zip 240, MOSLANDI): guruhda birinchi — «🧩 Butun komplekt» tanlovi (+ 2 detal)
+                  _og == [["🧩 X-1 <b>rom</b> & «komplekt» — 1 komplekt", 3]]
                   and pg.evaluate("document.querySelectorAll('#f-item > option').length") == 2, _og)
             pg.set_viewport_size({"width": 375, "height": 800})
             pg.goto(BASE + "/orders")

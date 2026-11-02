@@ -3849,6 +3849,7 @@ _XOMASHYO_MARSHRUTLARI = frozenset({
     ("main", "api_create_item"),
     ("main", "api_create_order"),
     ("main", "api_create_return"),
+    ("main", "api_create_komplekt_return"),          # kech174 (zip 240): har detal — `create_return_item`
     ("main", "api_delete_delivery"),
     ("main", "api_delete_finished"),
     ("main", "api_delete_finished_loss"),
@@ -10227,7 +10228,15 @@ def api_tanlov_buyurtma_detallari(order_id: int, db: Session = Depends(get_db),
         if _narx:
             q["refund_price_per_unit"] = crud.qaytarish_birlik_narxi(db, order, i, koef=_qkoef)
         items.append(q)
-    return {"id": order.id, "raqam": order.order_number, "items": items}
+    # kech174 (zip 240): komplekt guruhlari — eng ko'pi bilan nechta BUTUN komplekt qaytarish mumkin (oyna «🧩 Butun komplekt» tanlovi)
+    komplektlar = []
+    for _g240 in sorted({i.kmp_guruh for i in order.items if i.kmp_guruh and i.kmp_turi in crud.KQT_KOMPLEKT_TURLARI}):
+        try:
+            _m240 = crud.kmp_qaytar_max(db, order, _g240)
+        except ValueError:
+            _m240 = 0
+        komplektlar.append({"kmp_guruh": _g240, "qaytar_max": _m240})
+    return {"id": order.id, "raqam": order.order_number, "items": items, "komplektlar": komplektlar}
 
 
 @app.get("/api/tanlov/loyihalar/{project_id}/detallar")
@@ -10336,6 +10345,98 @@ def api_create_return(request: Request, response: Response, data: dict = Body(..
     return javob
 
 
+# ════ kech174 (zip 240 — reja «Komplekt ERP'da qanday bilinadi» 4-band): KOMPLEKT BO'YICHA QAYTARISH ════
+# `POST /api/returns/komplekt` — {order_id, kmp_guruh, soni, reason?, notes?, hisob?: «hozir» | «keyin», payment_method?}: komplektning har
+# detali o'z qaytarish yozuvi bilan, BITTA tranzaksiyada (`crud.create_komplekt_return`); `X-Amal-Kaliti` — takror so'rov ikkinchi to'plam
+# yozmaydi. «hozir» — «Qaytarishlar: Tahrirlash» ruxsati SHART (ro'yxatdagi «💰 Hisob-kitob qilish» bilan bir qoida). Pul raqamlari javobda
+# — faqat «Tannarx va foyda: Ko'rish» ruxsati borga (oyna qoidasi). `GET /api/returns/komplekt/reja` — oldindan ko'rish (hech narsa yozmaydi;
+# o'sha qoida — `crud.kqt_tekshir`).
+def _kqt_pulsiz(javob: dict) -> dict:
+    """Tannarx ruxsatisiz foydalanuvchiga — pul raqamlarisiz javob."""
+    j = {k: v for k, v in javob.items() if k not in ("jami", "naqd_qaytarildi", "kelishilgan_kamaydi")}
+    j["qaytarishlar"] = [{k: v for k, v in x.items() if k != "refund_amount"} for x in javob.get("qaytarishlar", [])]
+    return j
+
+
+def _qaytarish_hisob_xabari(naqd: float, kam: float) -> str:
+    """Hisob-kitob natijasi matni (bitta qaytarish va komplekt — BIR xil): sonlar alohida (minglik ajratgich — bo'shliq)."""
+    def _som(v):
+        return services.son_korinish(v, 0)        # kech151 (zip 192): ilgari oddiy bo'shliq
+    if naqd >= 0.01:
+        return (f"Kelishilgan summa {_som(kam)} so'mga kamaydi; mijozga {_som(naqd)} so'm naqd "
+                f"qaytarilgan deb yozildi (u ortiqcha to'lagan qism).")
+    return (f"Kelishilgan summa {_som(kam)} so'mga kamaydi — qarzdan chegirildi, naqd pul "
+            f"qaytarilmadi (mijoz ortiqcha to'lamagan).")
+
+
+@app.post("/api/returns/komplekt")
+def api_create_komplekt_return(request: Request, response: Response, data: dict = Body(...), db: Session = Depends(get_db),
+                               current_user=Depends(auth.ruxsat("qaytarish", "yaratish"))):
+    kalit = _amal_kaliti(request)
+    try:
+        t = crud.kqt_tana(data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if t["hisob"] == "hozir" and not current_user.ruxsat("qaytarish", "tahrirlash"):
+        raise HTTPException(status_code=403, detail="Hisob-kitob uchun «Qaytarishlar: Tahrirlash» ruxsati kerak — «keyin» tanlang")
+    _cid = auth.company_id_of(current_user)
+    # review240 M2: buyurtma — tanlov / reja marshrutlari qoidasi (shu korxona, o'chirilmagan, qoralama / bekor qilingan emas), aks holda 404
+    from models import Order as _O240, OrderStatus as _OS240
+    if not db.query(_O240.id).filter(_O240.id == t["order_id"], _O240.company_id == _cid, _O240.is_deleted.isnot(True),
+                                     _O240.status.notin_([_OS240.DRAFT, _OS240.CANCELLED])).first():
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+    who = current_user.full_name or current_user.username
+    _narx = bool(current_user.ruxsat("tannarx", "korish"))
+
+    def _bajar():
+        try:
+            with crud.bitta_tranzaksiya(db):
+                natija = crud.create_komplekt_return(db, t["order_id"], t["guruh"], t["soni"], reason=t["reason"], notes=t["notes"],
+                                                     hisob=t["hisob"], usul=t["usul"], company_id=_cid, performed_by=who)
+        except ValueError as e:
+            db.rollback()
+            raise HTTPException(status_code=400, detail=str(e))
+        xabar = (f"«{natija['nomi']}» — {natija['soni']} komplekt qaytarildi ({len(natija['qaytarishlar'])} ta detal tayyor mahsulotlar "
+                 f"omboriga).")
+        if natija["hisob"] == "hozir":
+            # review240 L2: tannarx ruxsatisiz — summasiz matn (javobdagi pul raqamlari kabi)
+            xabar += " " + (_qaytarish_hisob_xabari(natija["naqd_qaytarildi"], natija["kelishilgan_kamaydi"]) if _narx
+                            else "Hisob-kitob qilindi (summa buyurtmaning kelishilgan summasidan chegirildi).")
+        natija["xabar"] = xabar
+        return natija if _narx else _kqt_pulsiz(natija)
+    javob, _ = _amal_bajar(db, current_user, response, "qaytarish_komplekt", kalit, _bajar)
+    return javob
+
+
+@app.get("/api/returns/komplekt/reja")
+def api_komplekt_qaytarish_reja(order_id: int, kmp_guruh: int, soni: int, db: Session = Depends(get_db),
+                                current_user=Depends(auth.ruxsat("qaytarish", "yaratish"))):
+    """«Yangi qaytarish» → «🧩 Butun komplekt»: N komplektda qaysi detaldan qancha qaytadi (narx — faqat tannarx ruxsati bilan)."""
+    from models import Order as _O, OrderStatus as _OS
+    _cid = auth.company_id_of(current_user)
+    order = db.query(_O).filter(_O.id == order_id, _O.company_id == _cid, _O.is_deleted.isnot(True),
+                                _O.status.notin_([_OS.DRAFT, _OS.CANCELLED])).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+    try:
+        reja = crud.kqt_tekshir(db, order, kmp_guruh, soni)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    _narx = bool(current_user.ruxsat("tannarx", "korish"))
+    _qkoef = crud.qaytarish_narx_koeffitsienti(db, order) if _narx else None
+    qatorlar = []
+    for i, m in reja["qatorlar"]:
+        q = {"order_item_id": i.id, "name": i.name, "quantity": m, "unit": i.delivery_unit}
+        if _narx:
+            q["summa"] = crud._som_butun(crud.qaytarish_birlik_narxi(db, order, i, koef=_qkoef) * m)
+        qatorlar.append(q)
+    javob = {"nomi": reja["nomi"], "sarlavha": reja["sarlavha"], "kmp_soni": reja["kmp_soni"], "soni": reja["soni"],
+             "qaytar_max": reja["qaytar_max"], "qatorlar": qatorlar}
+    if _narx:
+        javob["jami"] = crud._pul2(sum(q["summa"] for q in qatorlar))
+    return javob
+
+
 @app.get("/api/returns")
 def api_get_returns(order_id: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("qaytarish", "korish"))):
     return crud.get_return_items(db, order_id=order_id, company_id=auth.company_id_of(current_user))
@@ -10347,8 +10448,8 @@ def api_return_stats(db: Session = Depends(get_db), current_user=Depends(auth.ru
 
 
 @app.post("/api/returns/{return_id}/refund")
-def api_mark_refunded(return_id: int, payment_method: Optional[str] = None, db: Session = Depends(get_db),
-                      current_user=Depends(auth.ruxsat("qaytarish", "tahrirlash"))):
+def api_mark_refunded(return_id: int, payment_method: Optional[str] = None, komplekt: Optional[int] = None,
+                      db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("qaytarish", "tahrirlash"))):
     # kech155 (zip 210): `payment_method` — pul qanday qaytarildi (naqd / plastik / o'tkazma → «Naqd pul» / «Karta» / «Bank»);
     # berilmasa — naqd (avvalgidek). Noto'g'ri — 400.
     if payment_method is not None and payment_method not in ("naqd", "plastik", "o'tkazma"):
@@ -10357,6 +10458,24 @@ def api_mark_refunded(return_id: int, payment_method: Optional[str] = None, db: 
     if not auth.return_of_company(db, return_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Qaytarish topilmadi")
     who = current_user.full_name or current_user.username
+    # kech174 (zip 240): `komplekt=1` — komplekt qaytarishi to'plamining hisob-kitob qilinmagan HAMMA yozuvi, BITTA tranzaksiyada (yozuv
+    # to'plamda bo'lmasa — faqat o'zi). Berilmasa — avvalgidek bitta yozuv.
+    if komplekt is not None and komplekt != 1:
+        raise HTTPException(status_code=400, detail="'komplekt' — faqat 1")
+    if komplekt == 1:
+        try:
+            with crud.bitta_tranzaksiya(db):
+                _kn = crud.refund_komplekt(db, return_id, auth.company_id_of(current_user), refunded_by=who, usul=payment_method)
+        except ValueError as e:
+            db.rollback()
+            raise HTTPException(status_code=400, detail=str(e))
+        if not _kn:
+            raise HTTPException(status_code=404, detail="Qaytarish topilmadi")
+        # review240 L1: hammasi avval hisob-kitob qilingan (ikki marta bosish) — hech narsa o'zgarmadi, shuni aytamiz
+        return {"status": "ok", "is_refunded": True, "komplekt": _kn["soni"], "naqd_qaytarildi": _kn["naqd_qaytarildi"],
+                "kelishilgan_kamaydi": _kn["kelishilgan_kamaydi"],
+                "xabar": (_qaytarish_hisob_xabari(_kn["naqd_qaytarildi"], _kn["kelishilgan_kamaydi"]) if _kn["soni"]
+                          else "Bu komplekt qaytarishi avval hisob-kitob qilingan — hech narsa o'zgarmadi.")}
     # kech42: brak — 400 (mijozga pul qaytarilmaydi); javobda nima bo'lgani
     # (qarzdan chegirildimi, naqd qancha) — UI shuni ko'rsatadi.
     try:
@@ -10371,23 +10490,39 @@ def api_mark_refunded(return_id: int, payment_method: Optional[str] = None, db: 
     kam = float(item.refund_agreed_delta or 0)
     # Sonlar alohida (minglik ajratgich — bo'shliq); ilgari butun matnga `.replace(",", " ")`
     # qo'llanib, gapdagi vergul ham yo'qolardi (JONLI kech42: "chegirildi  naqd").
-    def _som(v):
-        return services.son_korinish(v, 0)        # kech151 (zip 192): ilgari oddiy bo'shliq
-    if naqd >= 0.01:
-        xabar = (f"Kelishilgan summa {_som(kam)} so'mga kamaydi; mijozga {_som(naqd)} so'm naqd "
-                 f"qaytarilgan deb yozildi (u ortiqcha to'lagan qism).")
-    else:
-        xabar = (f"Kelishilgan summa {_som(kam)} so'mga kamaydi — qarzdan chegirildi, naqd pul "
-                 f"qaytarilmadi (mijoz ortiqcha to'lamagan).")
+    # kech174 (zip 240): matn — `_qaytarish_hisob_xabari` (komplekt hisob-kitobi bilan bir xil)
+    xabar = _qaytarish_hisob_xabari(naqd, kam)
     return {"status": "ok", "is_refunded": item.is_refunded, "naqd_qaytarildi": naqd,
             "kelishilgan_kamaydi": kam, "xabar": xabar}
 
 
 @app.delete("/api/returns/{return_id}")
-def api_delete_return(return_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("qaytarish", "ochirish"))):
+def api_delete_return(return_id: int, komplekt: Optional[int] = None, db: Session = Depends(get_db),
+                      current_user=Depends(auth.ruxsat("qaytarish", "ochirish"))):
     # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.return_of_company(db, return_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Qaytarish topilmadi")
+    # kech174 (zip 240): komplekt qaytarishi (bir amalda yozilgan bir necha detal) — faqat BUTUNLIGICHA, `komplekt=1` bilan, BITTA
+    # tranzaksiyada (`crud.delete_komplekt_return`). Kalitsiz (eski ochiq sahifa — «bitta yozuv» deb so'ragan) — 409, hech narsa
+    # o'zgarmaydi: komplektning bir detalini jim o'chirib «yarim komplekt» qoldirmaymiz.
+    if komplekt is not None and komplekt != 1:
+        raise HTTPException(status_code=400, detail="'komplekt' — faqat 1")
+    _kqt, _kqt_n = crud.kqt_sanogi(db, return_id, auth.company_id_of(current_user))
+    if _kqt and _kqt_n > 1:
+        if komplekt != 1:
+            raise HTTPException(status_code=409, detail={
+                "message": f"Bu yozuv — komplekt qaytarishining bir qismi ({_kqt_n} ta detal): faqat butunligicha o'chiriladi. Sahifani "
+                           f"yangilab qayta bosing.", "komplekt": _kqt_n})
+        try:
+            with crud.bitta_tranzaksiya(db):
+                natija = crud.delete_komplekt_return(db, return_id, auth.company_id_of(current_user),
+                                                     performed_by=current_user.full_name or current_user.username)
+        except ValueError as e:
+            db.rollback()
+            raise HTTPException(status_code=400, detail=str(e))
+        if not natija:
+            raise HTTPException(status_code=404, detail="Qaytarish topilmadi")
+        return {"status": "ok", **natija}
     # kech40 (22-band): o'chirish hammasini orqaga qaytaradi (ombor, pul — foydalanuvchi
     # qarori B); orqaga qaytarib bo'lmasa `ValueError` → 400 aniq sabab bilan, hech narsa
     # o'zgarmaydi (qulf ham bo'shatiladi).

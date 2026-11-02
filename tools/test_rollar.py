@@ -313,6 +313,7 @@ ESKI = {
     "GET /api/reports/top-suppliers": "AF",
     "GET /api/returns": "AMW",
     "POST /api/returns": "AMW",
+    "POST /api/returns/komplekt": "AMW", "GET /api/returns/komplekt/reja": "AMW",     # kech174 (zip 240, MOSLANDI): komplekt qaytarish
     "GET /api/returns/stats": "AMW",
     "DELETE /api/returns/{return_id}": "AMW",
     "POST /api/returns/{return_id}/image": "AMW",

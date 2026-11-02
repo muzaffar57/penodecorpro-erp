@@ -137,6 +137,10 @@
   }
   .ret-money{ text-align:right !important; margin-left:auto; }
 }
+  /* kech174 (zip 240): komplekt qaytarishi belgisi va oynadagi reja */
+  .ret-kqt{ font-size:12px; color:var(--m-166534); margin-top:3px; overflow-wrap:anywhere; }
+  .kmp-reja{ font-size:12px; line-height:1.55; background:var(--f-f0fdf4); border-radius:8px; padding:8px 12px; margin:-4px 0 12px; overflow-wrap:anywhere; }
+  .kmp-reja .kmp-reja-sar{ font-weight:600; margin-bottom:2px; }
 </style>
 {% endblock %}
 
@@ -241,7 +245,7 @@
     <div class="ret-row{% if loop.index0 >= 20 %} anim-yoq{% endif %}" id="row-{{ r.id }}" data-reason="{{ r.reason.value }}" data-refund="{{ 'yes' if r.is_refunded else 'no' }}" data-stock="{{ (r.stock_qty|son(3) ~ ' ' ~ (r.unit|birlik)) if r.stock_qty else '' }}" data-mrp="{{ (r.mrp_ozod_miqdor|son(3) ~ ' ' ~ (r.unit|birlik)) if r.mrp_ozod_miqdor else '' }}"
          data-order="{{ r.order.order_number if r.order else '' }}"
          data-mijoz="{{ r.order.project.client_name if r.order and r.order.project else '' }}" data-sana="{{ r.returned_at|toshkent('%d.%m.%Y') }}"{% if current_user.ruxsat('tannarx', 'korish') %} data-summa="{{ (r.refund_amount or 0)|float }}"{% endif %}
-         data-search="{{ (r.order.order_number if r.order else '') ~ ' ' ~ (r.order.project.client_name if r.order and r.order.project else '') ~ ' ' ~ r.item_name }}" data-nom="{{ r.item_name }}"
+         data-search="{{ (r.order.order_number if r.order else '') ~ ' ' ~ (r.order.project.client_name if r.order and r.order.project else '') ~ ' ' ~ r.item_name ~ ' ' ~ (r.kqt_nomi or '') }}" data-nom="{{ r.item_name }}" data-kqt="{{ r.kqt_kalit or '' }}"
          {% if loop.index0 < 20 %}style="animation-delay:{{ loop.index0 * 0.02 }}s"{% endif %}>
       <label class="ret-icon {{ 'defect' if is_defect else 'whole' }}" style="background:{{ 'var(--f-fee2e2)' if is_defect else 'var(--f-dcfce7)' }};color:{{ 'var(--m-991b1b)' if is_defect else 'var(--m-166534)' }}">
         {% if r.image_url %}
@@ -263,6 +267,8 @@
           {{ r.order.order_number if r.order else '—' }} · {{ r.order.project.client_name if r.order and r.order.project else '—' }}
           {% if r.notes %} · {{ r.notes }}{% endif %}
         </div>
+        {# kech174 (zip 240): komplekt bo'yicha qaytarish — to'plamning har detalida komplekt nomi va soni (o'chirish / hisob-kitob — butunligicha) #}
+        {% if r.kqt_kalit %}<div class="ret-kqt">🧩 {{ r.kqt_nomi or 'Komplekt' }} — {{ r.kqt_soni or '?' }} komplekt qaytdi</div>{% endif %}
         {# kech154 (zip 204): brak bosqichi / sababi / javobgari — nom ostida bir satrda (ilgari holat ustunida 3–4 qator — qator balandlashardi) #}
         {% if is_defect and (r.brak_bosqich or r.brak_sabab or r.brak_javobgar_id) %}<div class="ret-brak-satr">
           {%- if r.brak_bosqich %}<div class="brak-bosqich">{{ (brak_bosqichlari or {}).get(r.brak_bosqich, r.brak_bosqich) }}</div>{% endif -%}
@@ -361,6 +367,9 @@
       </div>
       {% endif %}
     </div>
+
+    {# kech174 (zip 240): «🧩 Butun komplekt» tanlanganda — N komplektda qaysi detaldan qancha qaytadi (server hisobi, `kmpReja240`) #}
+    <div id="f-kmp-reja" class="kmp-reja" style="display:none"></div>
 
     <!-- kech118 (D-3, egasi QARORI G5-04): «Yangi qaytarish» — FAQAT mijozdan qaytgan BUTUN mahsulot (omborga qaytadi). Brak —
          «Brak yozish» oynasida («Buyurtma detalida»). Ilgari shu yerda «Brak» varianti ham bor edi (uchinchi yo'l). -->
@@ -844,6 +853,8 @@ async function uploadReturnImage(id, input) {
 }
 
 let currentOrderItems = [];
+// kech174 (zip 240): tanlangan buyurtmaning komplektlari — [{kmp_guruh, qaytar_max}] (detallar javobining «komplektlar» kaliti)
+let currentKomplektlar = [];
 
 // kech120 (zip 130 — G5-19, O'LCHANGAN — audit kech114): ilgari korxonaning HAMMA buyurtmasi sahifa bilan birga, qidiruvsiz
 // ro'yxatda edi. Endi tanlagich BIRINCHI ochilganda yuklanadi (`data-qidiruv-yukla`; qoralama / bekor qilinganlarsiz, yangisi
@@ -876,6 +887,7 @@ function showAddModal(){
   document.getElementById('f-value').value = '';
   document.getElementById('f-notes').value = '';
   document.getElementById('f-unit-label').textContent = '—';
+  kmpRejimi240(null);        // kech174 (zip 240): oldingi «🧩 Butun komplekt» holati qolmasin
   // kech119 (C — telefon, G5-16): oldingi ochilishda tanlangan (saqlanmagan) rasm yangi qaytarishga tushmasin
   const rsmEl = document.getElementById('f-rasm'); if (rsmEl) rsmEl.value = '';
   document.getElementById('add-error').style.display = 'none';
@@ -1001,6 +1013,8 @@ async function onOrderChange(){
   itemSel.innerHTML = '<option value="">Yuklanmoqda...</option>';
   itemSel.disabled = true;
   currentOrderItems = [];
+  currentKomplektlar = [];
+  kmpRejimi240(null);
 
   if (!orderId) {
     itemSel.innerHTML = '<option value="">— Avval buyurtma tanlang —</option>';
@@ -1011,6 +1025,7 @@ async function onOrderChange(){
     const order = await yukOl(`/api/tanlov/buyurtmalar/${encodeURIComponent(orderId)}/detallar`);
     if (!joriy()) return;
     currentOrderItems = (order && Array.isArray(order.items)) ? order.items : [];
+    currentKomplektlar = (order && Array.isArray(order.komplektlar)) ? order.komplektlar : [];
     if (!currentOrderItems.length) {
       itemSel.innerHTML = '<option value="">Bu buyurtmada detal yo\'q</option>';
       return;
@@ -1019,7 +1034,7 @@ async function onOrderChange(){
     const _opt239 = i => `<option value="${Number(i.id)}">${escapeHtml(i.name)} (${escapeHtml(sonKor(i.order_qty_normalized, 3))} ${escapeHtml(unitShortLabel(i.delivery_unit))})</option>`;
     itemSel.innerHTML = '<option value="">— Detal tanlang —</option>' +
       kmpBloklari(currentOrderItems).map(b => b.sarlavha
-        ? `<optgroup label="${escapeHtml(kmpBelgisi(b.turi) + ' ' + b.sarlavha)}">${b.qatorlar.map(_opt239).join('')}</optgroup>`
+        ? `<optgroup label="${escapeHtml(kmpBelgisi(b.turi) + ' ' + b.sarlavha)}">${kmpOption240(b)}${b.qatorlar.map(_opt239).join('')}</optgroup>`
         : b.qatorlar.map(_opt239).join('')).join('');
     itemSel.disabled = false;
   } catch(e) {
@@ -1040,7 +1055,83 @@ function currentUnitPrice(item){
   return item.refund_price_per_unit ?? item.price_per_unit_final ?? 0;
 }
 
+// kech174 (zip 240 — reja «Komplekt ERP'da qanday bilinadi» 4-band): KOMPLEKT BO'YICHA QAYTARISH. Komplekt guruhida birinchi tanlov —
+// «🧩 Butun komplekt» (qiymati `k:<guruh>`): miqdor — komplektlar soni (butun, ko'pi bilan `qaytar_max`), qaysi detaldan qancha qaytishi va
+// summasi — serverdan (`/api/returns/komplekt/reja`, saqlash bilan BIR qoida), saqlash — `POST /api/returns/komplekt` (hammasi bitta
+// tranzaksiyada). «O'z o'lchami» guruhi — komplekt emas (detal bo'yicha).
+function kmpMax240(g) {
+  const k = currentKomplektlar.find(x => Number(x.kmp_guruh) === Number(g));
+  return k ? (Number(k.qaytar_max) || 0) : 0;
+}
+function kmpOption240(b) {
+  if (!b || !b.qatorlar || !b.qatorlar.length || b.turi === 'oz_olcham') return '';
+  const g = Number(b.qatorlar[0].kmp_guruh);
+  if (!currentKomplektlar.some(x => Number(x.kmp_guruh) === g)) return '';
+  const m = kmpMax240(g);
+  return m > 0 ? `<option value="k:${g}">🧩 Butun komplekt (ko'pi bilan ${escapeHtml(sonKor(m, 0))} ta)</option>`
+               : `<option value="" disabled>🧩 Butun komplekt — qaytariladigani qolmagan</option>`;
+}
+function kmpTanlov240() {
+  const v = String(document.getElementById('f-item').value || '');
+  return v.indexOf('k:') === 0 ? Number(v.slice(2)) : null;
+}
+function kmpRejimi240(g) {
+  const qty = document.getElementById('f-qty');
+  const box = document.getElementById('f-kmp-reja');
+  const valEl = document.getElementById('f-value');
+  const rasm = document.getElementById('f-rasm');
+  const rasmGuruh = rasm ? rasm.closest('.form-group') : null;
+  if (g === null || g === undefined) {
+    qty.min = '0.1'; qty.step = '0.1';
+    // review240 L4: komplektlar soni detal miqdori bo'lib qolmasin (2 komplekt → 2 m)
+    if (qty.dataset.kmp240 === '1') { qty.value = ''; delete qty.dataset.kmp240; }
+    if (box) { box.style.display = 'none'; box.textContent = ''; }
+    if (valEl && valEl.type !== 'hidden') valEl.readOnly = false;
+    if (rasmGuruh) rasmGuruh.style.display = '';
+    return;
+  }
+  qty.min = '1'; qty.step = '1'; qty.max = String(kmpMax240(g)); qty.dataset.kmp240 = '1';
+  if (!qty.value || !Number.isInteger(Number(qty.value))) qty.value = '1';
+  document.getElementById('f-unit-label').textContent = 'komplekt';
+  const upEl = document.getElementById('f-unit-price'); if (upEl) upEl.value = '—';
+  if (valEl && valEl.type !== 'hidden') valEl.readOnly = true;      // summa — har detal o'z narxidan (server)
+  if (rasmGuruh) rasmGuruh.style.display = 'none';                  // rasm — saqlangach ro'yxatdagi detal qatoriga
+  if (box) box.style.display = 'block';
+}
+let _kmpRejaT240 = null;
+function kmpRejaYukla240(g) {
+  clearTimeout(_kmpRejaT240);
+  const box = document.getElementById('f-kmp-reja');
+  if (box) box.textContent = 'Hisoblanmoqda…';
+  _kmpRejaT240 = setTimeout(() => kmpReja240(g), 250);
+}
+async function kmpReja240(g) {
+  const box = document.getElementById('f-kmp-reja');
+  const valEl = document.getElementById('f-value');
+  const orderId = document.getElementById('f-order').value;
+  const soni = Number(document.getElementById('f-qty').value);
+  const joriy = yukNavbat('qaytKmp240');
+  if (valEl) valEl.value = '';
+  if (!Number.isInteger(soni) || soni < 1) { box.textContent = 'Komplektlar sonini kiriting (butun son)'; return; }
+  try {
+    const r = await yukOl(`/api/returns/komplekt/reja?order_id=${encodeURIComponent(orderId)}&kmp_guruh=${encodeURIComponent(g)}&soni=${encodeURIComponent(soni)}`);
+    if (!joriy() || kmpTanlov240() !== g) return;
+    const qs = Array.isArray(r.qatorlar) ? r.qatorlar : [];
+    box.innerHTML = `<div class="kmp-reja-sar">Qaytadigan detallar — ${escapeHtml(sonKor(soni, 0))} komplekt (omborga):</div>` +
+      qs.map(q => `<div>${escapeHtml(q.name)} — ${escapeHtml(sonKor(q.quantity, 3))} ${escapeHtml(unitShortLabel(q.unit))}` +
+        (q.summa !== undefined ? ` · ${escapeHtml(fmt(q.summa))} so'm` : '') + '</div>').join('');
+    if (valEl && r.jami !== undefined) valEl.value = narxKorinishi(r.jami);
+  } catch (e) {
+    if (!joriy() || kmpTanlov240() !== g) return;
+    box.textContent = (e && e.tur === 'rad' && e.matn) ? '❌ ' + e.matn : yukXatoMatn('Komplekt hisobi', (e && e.yukXato) ? e : yukXato('server'));
+  }
+}
+
 function onItemChange(){
+  // kech174 (zip 240): «🧩 Butun komplekt»
+  const kg240 = kmpTanlov240();
+  kmpRejimi240(kg240);
+  if (kg240 !== null) { kmpRejaYukla240(kg240); return; }
   const itemId = parseInt(document.getElementById('f-item').value);
   const item = currentOrderItems.find(i => i.id === itemId);
   if (!item) {
@@ -1061,6 +1152,8 @@ function updateReasonHint(){
 
 function calcValue(){
   updateReasonHint();
+  const kg240 = kmpTanlov240();          // kech174 (zip 240): komplektlar soni o'zgardi — reja qayta
+  if (kg240 !== null) { kmpRejaYukla240(kg240); return; }
   const itemId = parseInt(document.getElementById('f-item').value);
   const item = currentOrderItems.find(i => i.id === itemId);
   const reason = document.querySelector('input[name="f-reason"]:checked')?.value;
@@ -1115,6 +1208,13 @@ async function deleteReturn(id){
   // kech45 (13-band): brak uchun ombordan yechilgan xomashyo omborga qaytadi
   // (tizim yangilanishidan OLDIN yozilgan brakda bog'lam yo'q — qaytmaydi).
   if (row && row.dataset.reason === 'Brak') matn += "\n\n🧱 Brak uchun ombordan yechilgan xomashyo (penoplast, loy) omborga qaytariladi. Tizim yangilanishidan oldin yozilgan brakda xomashyo qaytmaydi.";
+  // kech174 (zip 240): komplekt qaytarishi — faqat butunligicha (server `?komplekt=1` siz 409 beradi)
+  const kqt = (row && row.dataset.kqt) || '';
+  const kqtQator = kqt ? Array.from(document.querySelectorAll('#retList .ret-row')).filter(x => x.dataset.kqt === kqt) : [];
+  if (kqtQator.length > 1) {
+    matn = "Bu — komplekt qaytarishi (" + kqtQator.length + " ta detal). Hammasi birga o'chiriladi.\n\n📦 Omborga qo'shilgan detallar Tayyor mahsulotlardan olib tashlanadi.";
+    if (kqtQator.some(x => x.dataset.refund === 'yes')) matn += "\n\n💰 Mijozga qaytarilgan pul ham bekor qilinadi: kelishilgan summa qayta tiklanadi, manfiy to'lov yozuvi o'chadi.";
+  }
   if (!(await customConfirm(matn, {danger:true, okText:"Ha, o'chirish"}))) return;
   if (inFlightDeleteReturn.has(id)) return; // Ikki marta bosishdan himoya
   inFlightDeleteReturn.add(id);
@@ -1122,7 +1222,7 @@ async function deleteReturn(id){
     let res;
     // kech144 (zip 177, audit D): sabab — `amalSababi` (ilgari 502 da «❌ Xato»); natija noma'lum (tarmoq / 5xx) — tekshirish so'raladi
     try {
-      res = await fetch(`/api/returns/${id}`, {method:'DELETE'});
+      res = await fetch(`/api/returns/${id}` + (kqtQator.length > 1 ? '?komplekt=1' : ''), {method:'DELETE'});
     } catch (e) {
       alert("⚠️ O'chirish natijasi noma'lum: " + await amalSababi(e));
       return;
@@ -1145,9 +1245,13 @@ async function toggleRefund(id, current){
   // kech120 (zip 133 — G5-05): tasdiqda QAYSI buyurtma va QANCHA summa
   const row = document.getElementById('row-' + id);
   const buyurtma = (row && row.dataset.order) || '';
-  const summa = row && row.dataset.summa !== undefined ? Number(row.dataset.summa) || 0 : 0;
+  // kech174 (zip 240): komplekt qaytarishi — to'plamning hisob-kitob qilinmagan hamma detali birga (`?komplekt=1`), summa — ularning jami
+  const kqt = (row && row.dataset.kqt) || '';
+  const kqtQator = kqt ? Array.from(document.querySelectorAll('#retList .ret-row')).filter(x => x.dataset.kqt === kqt && x.dataset.refund !== 'yes') : [];
+  const summa = kqtQator.length > 1 ? kqtQator.reduce((s, x) => s + (Number(x.dataset.summa) || 0), 0)
+    : (row && row.dataset.summa !== undefined ? Number(row.dataset.summa) || 0 : 0);
   // kech155 (zip 210): tasdiq bilan birga — mijozga pul qaytarilsa (ortiqcha to'lagan qismi) qaysi hisobdan
-  const _hisob210 = await hisobSora((buyurtma ? buyurtma + ': ' : '') + (summa > 0 ? fmt(summa) + " so'm — q" : 'Q') +
+  const _hisob210 = await hisobSora((buyurtma ? buyurtma + ': ' : '') + (kqtQator.length > 1 ? 'komplekt qaytarishi (' + kqtQator.length + ' ta detal), ' : '') + (summa > 0 ? fmt(summa) + " so'm — q" : 'Q') +
       "aytgan mahsulot summasi buyurtmaning kelishilgan summasidan chegiriladi.\n" +
       "Mijoz ortiqcha to'lagan bo'lsa — faqat o'sha qismi naqd qaytarilgan deb yoziladi.\n\nDavom etasizmi?",
       {okText: 'Ha, hisob-kitob qilinsin', cancelText: 'Yopish', hisobYorliq: 'Mijozga pul qaytarilsa — qaysi hisobdan'});
@@ -1158,7 +1262,7 @@ async function toggleRefund(id, current){
     // kech144 (zip 177, audit C#17): tarmoq uzilsa ham xabar (ilgari hech narsa), 5xx — natija noma'lum (server takrorni o'zi
     // to'xtatadi — qayta bosish ikki marta hisoblamaydi), rad — `amalSababi`
     let res;
-    try { res = await fetch(`/api/returns/${encodeURIComponent(id)}/refund?payment_method=${encodeURIComponent(qaytarishUsuli(_hisob210))}`, {method:'POST'}); }
+    try { res = await fetch(`/api/returns/${encodeURIComponent(id)}/refund?payment_method=${encodeURIComponent(qaytarishUsuli(_hisob210))}` + (kqtQator.length > 1 ? '&komplekt=1' : ''), {method:'POST'}); }
     catch (e) { alert(amalNomalumMatn('Hisob-kitob', await amalSababi(e))); return; }
     if (res.ok) {
       let j = {};
@@ -1179,7 +1283,53 @@ async function toggleRefund(id, current){
 }
 
 let isSavingReturn = false;
+// kech174 (zip 240): «🧩 Butun komplekt» — bitta so'rov (hamma detal bitta tranzaksiyada; «Hozir hisob-kitob» — serverda o'sha tranzaksiyada)
+async function saveKomplektReturn240(g) {
+  const err = document.getElementById('add-error');
+  const xato = m => { err.style.display = 'block'; err.textContent = m; };
+  const orderId = document.getElementById('f-order').value;
+  const soni = Number(document.getElementById('f-qty').value);
+  const mx = kmpMax240(g);
+  if (!orderId) return xato('❌ Buyurtma tanlang');
+  if (!Number.isInteger(soni) || soni < 1) return xato('❌ Komplektlar sonini kiriting (butun son)');
+  if (soni > mx) return xato(`❌ Ko'pi bilan ${sonKor(mx, 0)} komplekt qaytarish mumkin`);
+  const pulBolim = document.getElementById('f-pul-bolim');
+  const pulTanlov = pulBolim ? (document.querySelector('input[name="f-pul"]:checked') || {}).value : 'keyin';
+  if (pulBolim && !pulTanlov) {
+    xato("❌ Pul masalasini tanlang: «Hozir hisob-kitob qilinsin» yoki «Keyinroq»");
+    pulBolim.scrollIntoView({block: 'center'});
+    return;
+  }
+  err.style.display = 'none';
+  if (isSavingReturn) return;
+  isSavingReturn = true;
+  const btn = document.getElementById('return-save-btn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
+  try {
+    const tana = {order_id: parseInt(orderId), kmp_guruh: g, soni, reason: 'Ortiqcha',
+                  notes: document.getElementById('f-notes').value || null, hisob: pulTanlov === 'hozir' ? 'hozir' : 'keyin'};
+    if (pulTanlov === 'hozir') tana.payment_method = qaytarishUsuli(hisobQiymat('f-pul-hisob'));
+    const n = await amalYubor('/api/returns/komplekt', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                                       body: JSON.stringify(tana)}, 'qaytarishk_' + parseInt(orderId) + '_' + g);
+    if (n.ok) {
+      if (n.takror) await xabarOyna(amalTakrorIzoh(true).trim(), { tur: 'ogoh' });
+      const j = (n.javob && typeof n.javob === 'object') ? n.javob : {};
+      if (typeof j.xabar === 'string' && j.xabar) await xabarOyna('✓ ' + j.xabar);
+      location.reload();
+      return;
+    }
+    xato(n.nomalum ? amalNomalumMatn('Komplekt qaytarish', n.xato) : '❌ Komplekt qaytarish saqlanmadi: ' + n.xato);
+  } catch (e) {
+    xato("❌ Kutilmagan xato — sahifani yangilab tekshiring");
+    console.error(e);
+  } finally {
+    isSavingReturn = false;
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
+  }
+}
 async function saveReturn(){
+  const kg240 = kmpTanlov240();
+  if (kg240 !== null) return saveKomplektReturn240(kg240);
   const err = document.getElementById('add-error');
   const orderId = document.getElementById('f-order').value;
   const itemId = parseInt(document.getElementById('f-item').value);

@@ -1278,6 +1278,14 @@ class ReturnItem(Base):
     # O'chirishda AYNAN shu TM larga band qaytadi. Boshqa yozuvlar — NULL (`default=` BERILMAGAN —
     # `sync_missing_columns` eski qatorlarga yozmasin, kech52 saboqi).
     mrp_ozod = Column(Text, nullable=True)
+    # kech174 (zip 240 — reja «Komplekt ERP'da qanday bilinadi» 4-band): KOMPLEKT BO'YICHA QAYTARISH — bir amalda yozilgan qaytarishlar
+    # (komplektning har detali — o'z qatori, o'z narxi / ombori bilan) bitta to'plam: `kqt_kalit` — to'plam kaliti (uuid hex, 32), `kqt_soni`
+    # — nechta komplekt qaytdi, `kqt_nomi` — komplekt nomi (buyurtma qatoridagi `kmp_nomi` nusxasi — keyin buyurtma tahrirlansa ham qoladi).
+    # O'chirish / hisob-kitob — to'plam bo'yicha (`crud.delete_komplekt_return`, `refund_komplekt`). Oddiy (detal) qaytarish — NULL.
+    # `default=` BERILMAGAN (`sync_missing_columns` eski qatorlarga yozmasin). Ustun nomlari NOYOB (tools/test_html_escape.py).
+    kqt_kalit = Column(String(40), nullable=True, index=True)
+    kqt_soni = Column(Integer, nullable=True)
+    kqt_nomi = Column(String(200), nullable=True)
 
     @property
     def mrp_ozod_miqdor(self) -> float:

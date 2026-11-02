@@ -344,7 +344,8 @@ async function sotishBolimi() {
 async function qaytarishBolimi() {
   bolim('returns.html — G5-20 «Yangi qaytarish» → «Brak»: sabab majburiy');
   // kech120 (zip 133 — G5-05, MOSLANDI): «Qiymati» endi umumiy pul qoidasi bilan o'qiladi (`parseNum`) — funksiya ham olinadi
-  const k = funks(RETURNS, ['saveReturn', 'parseNum']);
+  // kech174 (zip 240, MOSLANDI): `saveReturn` «🧩 Butun komplekt» tanlovini `kmpTanlov240` bilan tekshiradi — u ham yuklanadi
+  const k = funks(RETURNS, ['saveReturn', 'parseNum', 'kmpTanlov240']);
   tekshir('R0 saveReturn topildi', !k.yoq.length);
   async function sina(sabab, cause, stage, worker) {
     const el = { 'f-order': element('7'), 'f-item': element('11'), 'f-qty': element('2'), 'add-error': element(''),
@@ -374,7 +375,8 @@ async function qaytarishBolimi() {
   tekshir("R6 maslahat: «Butun mahsulot — … omboriga qaytadi», brak — «Brak yozish» tugmasi",
           !rh.xato && hint.textContent.includes('Butun mahsulot') && hint.textContent.includes('«Brak yozish»'), rh.xato || hint.textContent);
   // showAddModal — maydonlar tozalanadi, «Ortiqcha» tanlanadi
-  const ks = funks(RETURNS, ['showAddModal']);
+  // kech174 (zip 240, MOSLANDI): `showAddModal` komplekt holatini `kmpRejimi240(null)` bilan tozalaydi — u ham yuklanadi
+  const ks = funks(RETURNS, ['showAddModal', 'kmpRejimi240']);
   const e = {};
   for (const id of ['addModal', 'f-order', 'f-item', 'f-qty', 'f-unit-price', 'f-value', 'f-notes', 'f-unit-label', 'add-error']) e[id] = element('eski');
   const radio = { checked: false };
