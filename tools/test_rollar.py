@@ -424,6 +424,11 @@ YANGI_MARSHRUTLAR = {
     "GET /api/dokon/v1/tayyor": "-", "GET /api/sayt-katalogi/tm-mahsulotlar": "A", "PUT /api/sayt-katalogi/detallar/{detal_id}/tm": "A",
     # kech177 (zip 242 «Katalogdan tanlash»): ishlab chiqarish oynasidagi katalog ro'yxati — ishlab chiqarish ruxsati bilan (narxsiz; katalog o'chiq — 404)
     "GET /api/finished/katalog-detallar": "AWM",
+    # kech178 (zip 243): «Bajarilgan ishlar» galereyasi — FAQAT Admin; do'kon yo'li — kalit bilan (sessiyasiz)
+    "GET /api/sayt-katalogi/galereya": "A", "POST /api/sayt-katalogi/galereya": "A",
+    "PUT /api/sayt-katalogi/galereya/{galereya_id}": "A", "DELETE /api/sayt-katalogi/galereya/{galereya_id}": "A",
+    "POST /api/sayt-katalogi/galereya/{galereya_id}/rasmlar": "A", "PUT /api/sayt-katalogi/galereya/{galereya_id}/rasmlar": "A",
+    "DELETE /api/sayt-katalogi/galereya-rasmlari/{rasm_id}": "A", "GET /api/dokon/v1/galereya": "-",
     "GET /api/sayt-bandlar": "AWM",
     "GET /rollar": "A", "GET /api/rollar": "A", "POST /api/rollar": "A", "PUT /api/rollar/{rol_id}": "A",
     "DELETE /api/rollar/{rol_id}": "A", "POST /api/rollar/{rol_id}/andoza": "A", "PUT /api/users/{user_id}/rol": "A",

@@ -3136,6 +3136,73 @@ class DokonBuyurtmaQator(Base):
     def __repr__(self):
         return f"<DokonBuyurtmaQator {self.id} b={self.buyurtma_id} {self.sbq_nom}>"
 
+
+class DokonGalereya(Base):
+    """kech178 (zip 243) — «Bajarilgan ishlar» galereyasining bitta ishi (egasi QARORLARI «Onlayn do'kon rejasi» 30.10: galereya — ishlar
+    ro'yxati va ish sahifasi; har ishning rasmlari, joyi, sanasi va modellari; ish sahifasida har model narxi (chegirma bo'lsa —
+    chegirmali) va shu uydagi miqdor; ishni admin panelda egasi o'zi qo'shadi — rasmlar, joyi, sana va katalogdan modellar tanlanadi,
+    shuning uchun narx va chegirma saytda o'zi yangilanadi). `gl_oy` — ish oyi (oyning 1-kuni; saytda «2026, sentyabr»), NULL — ko'rsatilmaydi. Saytda tartib — yangisi
+    birinchi (`gl_oy` kamayib, keyin raqam kamayib).
+    Qatorlari — `DokonGalereyaQator`, rasmlari — `DokonGalereyaRasm`. Mantiq — `crud.dokon_galereya_*`. Ustun nomlari NOYOB
+    (tools/test_html_escape.py har matn ustuni nomini «foydalanuvchi matni» deb oladi)."""
+    __tablename__ = "dokon_galereya"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    gl_nomi = Column(String(120), nullable=False)
+    gl_joyi = Column(String(120), nullable=True)
+    gl_oy = Column(Date, nullable=True)
+    yoqilgan = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+    updated_by = Column(String(100), nullable=True)
+
+    def __repr__(self):
+        return f"<DokonGalereya {self.id} {self.gl_nomi}>"
+
+
+class DokonGalereyaQator(Base):
+    """kech178 (zip 243) — galereya ishida ishlatilgan katalog mahsuloti: DETAL (model + o'lcham, `detal_id`) yoki KOMPLEKT (komplekt
+    modeli + `glq_kmp_turi` rom / eshik + `glq_kmp_olcham` + `glq_kmp_toliq` — kapitel / baza bilan) va shu uydagi miqdor (detal birligida:
+    metr / dona / m²; komplekt — dona). Narx YO'Q — sayt katalogdan oladi. Model / detal o'chirilsa — qator ham o'chiriladi."""
+    __tablename__ = "dokon_galereya_qatorlari"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    galereya_id = Column(Integer, ForeignKey("dokon_galereya.id"), nullable=False, index=True)
+    model_id = Column(Integer, ForeignKey("dokon_modellar.id"), nullable=False, index=True)
+    detal_id = Column(Integer, ForeignKey("dokon_detallar.id"), nullable=True, index=True)
+    glq_kmp_turi = Column(String(10), nullable=True)
+    glq_kmp_olcham = Column(String(40), nullable=True)
+    glq_kmp_toliq = Column(Boolean, nullable=True)
+    glq_miqdor = Column(Numeric(12, 3), nullable=False)
+    tartib = Column(Integer, default=0, nullable=False)
+
+    def __repr__(self):
+        return f"<DokonGalereyaQator {self.id} g={self.galereya_id} m={self.model_id} d={self.detal_id}>"
+
+
+class DokonGalereyaRasm(Base):
+    """kech178 (zip 243) — galereya ishining rasmi. Fayllar, ishlov va ochiq berish — sayt modeli rasmi (`DokonRasm`, zip 232) bilan
+    BIR XIL (o'sha papka, o'sha manzil shakli, `main.dokon_rasm_tayyorla`; `crud._dokon_rasm_jadvallari` — ikkala jadval)."""
+    __tablename__ = "dokon_galereya_rasmlari"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    galereya_id = Column(Integer, ForeignKey("dokon_galereya.id"), nullable=False, index=True)
+    fayl = Column(String(120), nullable=False, unique=True)
+    kichik = Column(String(120), nullable=False, unique=True)
+    eni = Column(Integer, nullable=False)
+    boyi = Column(Integer, nullable=False)
+    hajm = Column(Integer, nullable=False)
+    turi = Column(String(10), nullable=False)
+    tartib = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    created_by = Column(String(100), nullable=True)
+
+    def __repr__(self):
+        return f"<DokonGalereyaRasm {self.id} g={self.galereya_id}>"
+
 # ============================================================
 # kech173 (zip 239): KOMPLEKT BELGISI — sarlavha va guruhlash (PDF lar, sahifa, API — bitta qoida; sahifadagi `kmpSarlavha` /
 # `kmpBloklari` (templates/base.html) bilan AYNAN)
@@ -3309,6 +3376,9 @@ _TENANT_RULES = {
     "BuyurtmaTuzatish":            [("order_id", "Order")],
     # kech171 (zip 237): sayt buyurtmasi qatori — o'z sayt buyurtmasining korxonasidan
     "DokonBuyurtmaQator":          [("buyurtma_id", "DokonBuyurtma")],
+    # kech178 (zip 243): galereya ishi qatori va rasmi — o'z ishining korxonasidan
+    "DokonGalereyaQator":          [("galereya_id", "DokonGalereya")],
+    "DokonGalereyaRasm":           [("galereya_id", "DokonGalereya")],
 }
 
 
@@ -3450,6 +3520,8 @@ _TENANT_REFS = {
     "DokonRasm":                   [("model_id", "DokonModel")],
     # kech169 (zip 234): model chegirmasi — FAQAT o'z korxonasining modeliga
     "DokonChegirma":               [("model_id", "DokonModel")],
+    # kech178 (zip 243): galereya qatori — FAQAT o'z korxonasining modeli / detaliga
+    "DokonGalereyaQator":          [("model_id", "DokonModel"), ("detal_id", "DokonDetal")],
     # kech171 (zip 237): sayt buyurtmasi — tasdiqlangan buyurtmasi FAQAT o'z korxonasidan
     "DokonBuyurtma":               [("order_id", "Order")],
 }

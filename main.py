@@ -12021,20 +12021,11 @@ def api_dokon_koeff(data: dict = Body(...), db: Session = Depends(get_db), curre
     return {"koeff": float(k)}
 
 
-@app.post("/api/sayt-katalogi/modellar/{model_id}/rasmlar")
-def api_dokon_rasm_qosh(model_id: int = _Path213(..., ge=1, le=2_147_483_647), fayl: UploadFile = File(...),
-                        db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    """kech167 (zip 232): modelga BITTA rasm (sahifa bir nechtasini ketma-ket yuboradi). Rasm qayta yoziladi
-    (`dokon_rasm_tayyorla`), fayllar `static/uploads/dokon/` ga, keyin yozuv; yozuv saqlanmasa — fayllar o'chiriladi."""
+def _dokon_rasm_fayl_yukla(db, fayl, yozuv, topilmadi_matni):
+    """kech178 (zip 243): sayt rasmi yuklash ketma-ketligi (zip 232 — model rasmi; zip 243 — galereya rasmi; BITTA yo'l): bazadagi
+    tranzaksiya yopiladi, rasm qayta yoziladi (`dokon_rasm_tayyorla`), fayllar `static/uploads/dokon/` ga (vaqtinchalik nom + `os.replace`),
+    keyin `yozuv(url, url_k, t)` — crud yozuvi; yozuv saqlanmasa (xato / None — ota topilmadi, 404) — fayllar o'chiriladi."""
     import uuid as _uuid232
-    cid = auth.company_id_of(current_user)
-    _dokon_bajar(db, lambda: crud.dokon_tekshir(db, cid))
-    _m = crud._dokon_model_of(db, model_id, cid)
-    if _m is None:
-        raise HTTPException(status_code=404, detail="Model topilmadi")
-    # review232 №1: 10 ta rasm bo'lsa — rasm ishlanmasdan OLDIN rad (yakuniy tekshiruv — yozuvda, model qulfi ostida)
-    if len(crud._dokon_model_rasmlari(db, cid, _m.id)) >= crud.DOKON_RASM_MAX:
-        raise HTTPException(status_code=400, detail=crud.dokon_rasm_toliq_matni(_m.kod))
     db.rollback()                                       # rasm ishlanayotganda bazada ochiq tranzaksiya turmasin
     data = fayl.file.read(MAX_UPLOAD_SIZE + 1)
     try:
@@ -12064,8 +12055,7 @@ def api_dokon_rasm_qosh(model_id: int = _Path213(..., ge=1, le=2_147_483_647), f
                     except OSError:
                         pass
             yozilgan.append(u)
-        r = _dokon_bajar(db, lambda: crud.dokon_rasm_qosh(db, cid, model_id, url, url_k, t["eni"], t["boyi"],
-                                                          len(t["katta"]), _dokon_kim(current_user)))
+        r = _dokon_bajar(db, lambda: yozuv(url, url_k, t))
     except OSError:
         crud._dokon_rasm_fayllarini_ochir(yozilgan, db)
         raise HTTPException(status_code=507, detail="Rasm faylini serverga yozib bo'lmadi (joy yetmadi yoki disk xatosi) — rasm "
@@ -12075,7 +12065,26 @@ def api_dokon_rasm_qosh(model_id: int = _Path213(..., ge=1, le=2_147_483_647), f
         raise
     if r is None:
         crud._dokon_rasm_fayllarini_ochir(yozilgan, db)
+        raise HTTPException(status_code=404, detail=topilmadi_matni)
+    return r
+
+
+@app.post("/api/sayt-katalogi/modellar/{model_id}/rasmlar")
+def api_dokon_rasm_qosh(model_id: int = _Path213(..., ge=1, le=2_147_483_647), fayl: UploadFile = File(...),
+                        db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """kech167 (zip 232): modelga BITTA rasm (sahifa bir nechtasini ketma-ket yuboradi). Rasm qayta yoziladi
+    (`dokon_rasm_tayyorla`), fayllar `static/uploads/dokon/` ga, keyin yozuv; yozuv saqlanmasa — fayllar o'chiriladi
+    (kech178, zip 243: ketma-ketlik — `_dokon_rasm_fayl_yukla`)."""
+    cid = auth.company_id_of(current_user)
+    _dokon_bajar(db, lambda: crud.dokon_tekshir(db, cid))
+    _m = crud._dokon_model_of(db, model_id, cid)
+    if _m is None:
         raise HTTPException(status_code=404, detail="Model topilmadi")
+    # review232 №1: 10 ta rasm bo'lsa — rasm ishlanmasdan OLDIN rad (yakuniy tekshiruv — yozuvda, model qulfi ostida)
+    if len(crud._dokon_model_rasmlari(db, cid, _m.id)) >= crud.DOKON_RASM_MAX:
+        raise HTTPException(status_code=400, detail=crud.dokon_rasm_toliq_matni(_m.kod))
+    r = _dokon_rasm_fayl_yukla(db, fayl, lambda url, url_k, t: crud.dokon_rasm_qosh(
+        db, cid, model_id, url, url_k, t["eni"], t["boyi"], len(t["katta"]), _dokon_kim(current_user)), "Model topilmadi")
     return crud.dokon_rasm_dict(r)
 
 
@@ -12100,6 +12109,87 @@ def api_dokon_rasm_ochir(rasm_id: int = _Path213(..., ge=1, le=2_147_483_647), d
     """kech167 (zip 232): rasmni o'chiradi (yozuv, keyin fayllar)."""
     ok = _dokon_bajar(db, lambda: crud.dokon_rasm_ochir(db, rasm_id, auth.company_id_of(current_user),
                                                        _dokon_kim(current_user)))
+    if ok is None:
+        raise HTTPException(status_code=404, detail="Rasm topilmadi")
+    return {"status": "ok"}
+
+
+# ── kech178 (zip 243): «Bajarilgan ishlar» galereyasi (FAQAT Admin; belgi o'chiq — 404). Mantiq — `crud.dokon_galereya_*` ──
+@app.get("/api/sayt-katalogi/galereya")
+def api_dokon_galereya(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Galereya ishlari (yangisi birinchi) — qatorlari (saytda ko'rinmaydiganlari sababi bilan) va rasmlari."""
+    cid = auth.company_id_of(current_user)
+    return _dokon_bajar(db, lambda: crud.dokon_galereya_royxat(db, cid))
+
+
+@app.post("/api/sayt-katalogi/galereya")
+def api_dokon_galereya_yarat(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Yangi ish: {"nomi", "joyi", "oy" («YYYY-MM»), "yoqilgan", "qatorlar": [{"detal_id", "miqdor"} | {"model_id", "komplekt_turi",
+    "komplekt_olcham", "komplekt_toliq", "miqdor"}]}. Rasmlar — keyin (`…/galereya/{id}/rasmlar`)."""
+    cid = auth.company_id_of(current_user)
+    g = _dokon_bajar(db, lambda: crud.dokon_galereya_yarat(db, cid, data, _dokon_kim(current_user)))
+    return {"id": g.id}
+
+
+@app.put("/api/sayt-katalogi/galereya/{galereya_id}")
+def api_dokon_galereya_saqla(data: dict = Body(...), galereya_id: int = _Path213(..., ge=1, le=2_147_483_647),
+                             db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Ish maydonlari va (yuborilsa) mahsulotlari — to'liq ro'yxat."""
+    cid = auth.company_id_of(current_user)
+    g = _dokon_bajar(db, lambda: crud.dokon_galereya_yangila(db, galereya_id, cid, data, _dokon_kim(current_user)))
+    if g is None:
+        raise HTTPException(status_code=404, detail="Ish topilmadi")
+    return {"id": g.id}
+
+
+@app.delete("/api/sayt-katalogi/galereya/{galereya_id}")
+def api_dokon_galereya_ochir(galereya_id: int = _Path213(..., ge=1, le=2_147_483_647), db: Session = Depends(get_db),
+                             current_user=Depends(auth.admin_only)):
+    """Ishni, mahsulotlarini va rasmlarini o'chiradi (fayllar — commit dan keyin)."""
+    ok = _dokon_bajar(db, lambda: crud.dokon_galereya_ochir(db, galereya_id, auth.company_id_of(current_user),
+                                                           _dokon_kim(current_user)))
+    if ok is None:
+        raise HTTPException(status_code=404, detail="Ish topilmadi")
+    return {"status": "ok"}
+
+
+@app.post("/api/sayt-katalogi/galereya/{galereya_id}/rasmlar")
+def api_dokon_galereya_rasm_qosh(galereya_id: int = _Path213(..., ge=1, le=2_147_483_647), fayl: UploadFile = File(...),
+                                 db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Ishga BITTA rasm (sahifa bir nechtasini ketma-ket yuboradi) — model rasmi bilan bir xil ishlov (`_dokon_rasm_fayl_yukla`)."""
+    cid = auth.company_id_of(current_user)
+    _dokon_bajar(db, lambda: crud.dokon_tekshir(db, cid))
+    _g = crud._dokon_galereya_of(db, galereya_id, cid)
+    if _g is None:
+        raise HTTPException(status_code=404, detail="Ish topilmadi")
+    if len(crud._dokon_gl_rasmlari(db, cid, [_g.id]).get(_g.id, [])) >= crud.DOKON_RASM_MAX:
+        raise HTTPException(status_code=400, detail=crud.dokon_galereya_rasm_toliq_matni(_g.gl_nomi))
+    r = _dokon_rasm_fayl_yukla(db, fayl, lambda url, url_k, t: crud.dokon_galereya_rasm_qosh(
+        db, cid, galereya_id, url, url_k, t["eni"], t["boyi"], len(t["katta"]), _dokon_kim(current_user)), "Ish topilmadi")
+    return crud.dokon_galereya_rasm_dict(r)
+
+
+@app.put("/api/sayt-katalogi/galereya/{galereya_id}/rasmlar")
+def api_dokon_galereya_rasm_tartib(data: dict = Body(...), galereya_id: int = _Path213(..., ge=1, le=2_147_483_647),
+                                   db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Ish rasmlari tartibi — {"tartib": [rasm raqamlari, yangi tartibda]} (birinchisi — asosiy)."""
+    cid = auth.company_id_of(current_user)
+    _dokon_bajar(db, lambda: crud.dokon_tekshir(db, cid))
+    if not isinstance(data, dict) or set(data) != {"tartib"}:
+        raise HTTPException(status_code=400, detail="Faqat 'tartib' yuboriladi")
+    rs = _dokon_bajar(db, lambda: crud.dokon_galereya_rasm_tartib(db, galereya_id, cid, data.get("tartib"),
+                                                                 _dokon_kim(current_user)))
+    if rs is None:
+        raise HTTPException(status_code=404, detail="Ish topilmadi")
+    return {"rasmlar": [crud.dokon_galereya_rasm_dict(r) for r in rs]}
+
+
+@app.delete("/api/sayt-katalogi/galereya-rasmlari/{rasm_id}")
+def api_dokon_galereya_rasm_ochir(rasm_id: int = _Path213(..., ge=1, le=2_147_483_647), db: Session = Depends(get_db),
+                                  current_user=Depends(auth.admin_only)):
+    """Ish rasmini o'chiradi (yozuv, keyin fayllar)."""
+    ok = _dokon_bajar(db, lambda: crud.dokon_galereya_rasm_ochir(db, rasm_id, auth.company_id_of(current_user),
+                                                                _dokon_kim(current_user)))
     if ok is None:
         raise HTTPException(status_code=404, detail="Rasm topilmadi")
     return {"status": "ok"}
@@ -12340,6 +12430,14 @@ def api_dokon_v1_tayyor(request: Request, db: Session = Depends(get_db)):
     qoldig'i − faol sayt bandlari) va komplekt modellar uchun nechta komplekt yig'iladi. Narx — katalogdagi qoplamali narx."""
     cid = _dokon_api_korxona(request, db)
     return _dokon_api_javob(request, _dokon_bajar(db, lambda: crud.dokon_api_tayyor(db, cid)))
+
+
+@app.get("/api/dokon/v1/galereya")
+def api_dokon_v1_galereya(request: Request, db: Session = Depends(get_db)):
+    """kech178 (zip 243): do'kon «Bajarilgan ishlar» bo'limi (kalit bilan) — yoqilgan, rasmi bor ishlar (yangisi birinchi): rasmlar, joyi,
+    oyi, saytda ko'rinadigan mahsulotlar va shu uydagi miqdori. Narx YO'Q — katalog API sidan (detal / komplekt)."""
+    cid = _dokon_api_korxona(request, db)
+    return _dokon_api_javob(request, _dokon_bajar(db, lambda: crud.dokon_api_galereya(db, cid)))
 
 
 # ══ kech171 (zip 237) — SAYTDAN KELGAN BUYURTMALAR ═══════════════════════════════════════════════════════════════════════════════════

@@ -11581,6 +11581,7 @@ def _reset_table_order():
         PulHisobi, PulHisobiQoldiq, PulOtkazmasi,
         DokonDetal, DokonModel, DokonBolim, DokonRasm, DokonTelefon, DokonChegirma,
         DokonBuyurtma, DokonBuyurtmaQator,
+        DokonGalereya, DokonGalereyaQator, DokonGalereyaRasm,
     )
     return [
         ProductionOrder,
@@ -11621,6 +11622,8 @@ def _reset_table_order():
         # kech166 (zip 231): sayt katalogi — narx qatori modeldan, model bo'limdan OLDIN o'chiriladi (tiklashda teskari)
         # kech167 (zip 232): model rasmi ham modeldan OLDIN (fayllar diskda qoladi — yozuvi yo'q fayl ochiq berilmaydi)
         # kech169 (zip 234): model chegirmasi ham modeldan OLDIN o'chiriladi (tiklashda — keyin)
+        # kech178 (zip 243): galereya qatori modelga / detalga, rasmi va qatori ishga ishora qiladi — hammasidan OLDIN o'chiriladi
+        DokonGalereyaQator, DokonGalereyaRasm, DokonGalereya,
         DokonDetal, DokonRasm, DokonChegirma, DokonModel, DokonBolim,
         # kech168 (zip 233): tasdiqlash telefonlari — faqat korxonaga ishora qiladi, ularga hech kim ishora qilmaydi
         DokonTelefon,
@@ -11779,7 +11782,9 @@ def import_full_backup(db: Session, data: dict, company_id: int,
                                             f"yozuv yo'q. Tiklash rad etildi (hech narsa o'zgarmadi).")}
 
     # kech167 (zip 232, review232 №3): sayt rasmlari manzillari — shakli, juftligi, boshqa korxonaniki emas
-    _dokon_x = dokon_rasm_zaxira_xatosi(db, tables.get("dokon_rasmlar"), company_id)
+    # kech178 (zip 243): galereya rasmlari ham — o'sha qoidalar, ikki jadval birga (bir fayl ikkalasida ham bo'lmasin)
+    _dokon_x = dokon_rasm_zaxira_xatosi(db, tables.get("dokon_rasmlar"), company_id,
+                                        galereya_rows=tables.get("dokon_galereya_rasmlari"))
     if _dokon_x:
         return {"success": False, "message": _dokon_x}
     # kech168 (zip 233, review233 №5): tasdiqlash telefonlari — shakl, takror, 10 ta, kamida bitta «doim»
@@ -22659,6 +22664,8 @@ def dokon_model_yangila(db: Session, model_id: int, company_id: int, data: dict,
         kb = _dokon_bool(data["kapitel_baza_bor"], "Kapitel va baza bor")
         if not kb and any(d.turi in ("kapitel", "baza") for d in detallar):
             raise ValueError("Modelda kapitel / baza narxlari bor — avval ularni o'chiring")
+        if bool(m.kapitel_baza_bor) and not kb:         # kech178 (zip 243, review243 M4): galereya komplekt qatorlari (model qulfi ostida)
+            _dokon_gl_komplekt_birlashtir(db, company_id, m.id, lambda q: (q.glq_kmp_olcham, False))
         m.kapitel_baza_bor = kb
     _dokon_kb_tekshir(m.qolip, bool(m.kapitel_baza_bor))
     if "tartib" in data:
@@ -22693,9 +22700,11 @@ def dokon_model_ochir(db: Session, model_id: int, company_id: int, kim: str):
     detallar = (db.query(DokonDetal).filter(DokonDetal.company_id == company_id, DokonDetal.model_id == m.id).all())
     rasmlar = _dokon_model_rasmlari(db, company_id, m.id)
     _ch234 = _dokon_chegirma_of(db, company_id, m.id, lock=True)       # kech169 (zip 234): chegirmasi ham (qulf: model → chegirma)
+    _gl243 = _dokon_gl_bogliq_ochir(db, company_id, model_id=m.id)      # kech178 (zip 243): galereya ishlaridagi qatorlari (ish qoladi)
     log_activity(db, "deleted", "dokon_model", m.id, f"Sayt modeli {m.kod}", kim,
                  old_value=f"{len(detallar)} ta narx qatori" + (f", {len(rasmlar)} ta rasm" if rasmlar else "")
-                 + (f", chegirma {dokon_chegirma_matni(_ch234)}" if _ch234 is not None else ""),
+                 + (f", chegirma {dokon_chegirma_matni(_ch234)}" if _ch234 is not None else "")
+                 + (f", galereyadan {_gl243} ta qator" if _gl243 else ""),
                  company_id=company_id, commit=False)
     urllar = [u for r in rasmlar for u in (r.fayl, r.kichik)]
     for d in detallar:
@@ -22799,6 +22808,7 @@ def dokon_detal_yangila(db: Session, detal_id: int, company_id: int, data: dict,
     eski_q = (d.olcham, d.eni_sm, d.qalinligi_sm, d.narx, d.narx_qoplamali, d.ulgurji_narx, d.ulgurji_qoplamali,
               d.tartib, bool(d.yoqilgan))
     _ch234 = False
+    _gl243 = 0
     if "olcham" in data:
         olcham = _dokon_matn(data["olcham"], "O'lcham", 40)
         _dokon_model_of(db, d.model_id, company_id, lock=True)
@@ -22808,6 +22818,7 @@ def dokon_detal_yangila(db: Session, detal_id: int, company_id: int, data: dict,
         d.olcham = olcham
         # kech169 (zip 234): o'lcham qayta nomlandi — chegirma o'lchamlari ro'yxatida ham (qulf: model → chegirma; review234 Y1)
         _ch234 = _dokon_chegirma_olcham_kochir(db, company_id, d, _ol234, kim, m.kod if m else d.model_id)
+        _gl243 = _dokon_gl_olcham_kochir(db, company_id, d, _ol234)      # kech178 (zip 243, review243 M3): galereya komplekt qatorlari
     if "eni_sm" in data:
         d.eni_sm = _dokon_olcham_son(data["eni_sm"], "Eni")
     if "qalinligi_sm" in data:
@@ -22828,7 +22839,8 @@ def dokon_detal_yangila(db: Session, detal_id: int, company_id: int, data: dict,
     d.updated_at = datetime.utcnow()
     _ulg = ("; ulgurji narx o'zgardi" if _dokon_qiymatlar(eski_q[5:7]) != _dokon_qiymatlar(yangi_q[5:7]) else "")
     log_activity(db, "updated", "dokon_detal", d.id, f"Sayt narxi {m.kod if m else d.model_id}", kim,
-                 old_value=eski, new_value=_dokon_detal_matni(d) + _ulg + ("; chegirma o'lchami ham yangilandi" if _ch234 else ""),
+                 old_value=eski, new_value=_dokon_detal_matni(d) + _ulg + ("; chegirma o'lchami ham yangilandi" if _ch234 else "")
+                 + (f"; galereyada {_gl243} ta komplekt qatori yangilandi" if _gl243 else ""),
                  company_id=company_id, commit=False)
     db.commit()
     db.refresh(d)
@@ -22853,8 +22865,11 @@ def dokon_detal_ochir(db: Session, detal_id: int, company_id: int, kim: str):
     if d is None:
         return None
     m = (db.query(DokonModel).filter(DokonModel.id == d.model_id, DokonModel.company_id == company_id).first())
+    _gl243 = _dokon_gl_bogliq_ochir(db, company_id, detal_id=d.id)      # kech178 (zip 243): galereya ishlaridagi qatorlari (ish qoladi)
     log_activity(db, "deleted", "dokon_detal", d.id, f"Sayt narxi {m.kod if m else d.model_id}", kim,
-                 old_value=_dokon_detal_matni(d), company_id=company_id, commit=False)
+                 old_value=_dokon_detal_matni(d) + (f"; galereyadan {_gl243} ta qator" if _gl243 else ""),
+                 company_id=company_id, commit=False)
+    db.flush()
     db.delete(d)
     db.commit()
     return True
@@ -22953,14 +22968,14 @@ def dokon_rasm_yoli(url):
 
 def _dokon_ishlatilgan_manzillar(db, urllar):
     """Berilgan manzillardan qaysilari hali biror sayt rasmi yozuvida bor (istalgan korxona — tizim so'rovi)."""
-    from models import DokonRasm
     import tenant_context as _tc232
     urllar = [u for u in urllar if isinstance(u, str)]
     if not urllar:
         return set()
+    rows = []
     with _tc232.system_context(db):
-        rows = (db.query(DokonRasm.fayl, DokonRasm.kichik)
-                .filter(DokonRasm.fayl.in_(urllar) | DokonRasm.kichik.in_(urllar)).all())
+        for J in _dokon_rasm_jadvallari():          # kech178 (zip 243): galereya rasmlari ham
+            rows += (db.query(J.fayl, J.kichik).filter(J.fayl.in_(urllar) | J.kichik.in_(urllar)).all())
     return {u for r in rows for u in r}
 
 
@@ -23090,48 +23105,59 @@ def dokon_rasm_tartib(db: Session, model_id: int, company_id: int, tartib, kim: 
 def dokon_rasm_ochiqmi(db: Session, url: str) -> bool:
     """Ochiq manzil (login siz) uchun: shu fayl sayt rasmi yozuvida bormi va o'sha korxonada sayt katalogi yoqilganmi.
     Korxona — rasm YOZUVIDAN (so'rovdan emas); tizim so'rovi (korxona filtri — yozuvning o'zida)."""
-    from models import DokonRasm
     import tenant_context as _tc232
     if not isinstance(url, str) or not _DOKON_RASM_URL.fullmatch(url):
         return False
     with _tc232.system_context(db):
-        row = (db.query(DokonRasm.company_id)
-               .filter((DokonRasm.fayl == url) | (DokonRasm.kichik == url)).first())
-        return bool(row) and dokon_yoqilganmi(db, row[0])
+        for J in _dokon_rasm_jadvallari():          # kech178 (zip 243): galereya rasmlari ham
+            row = db.query(J.company_id).filter((J.fayl == url) | (J.kichik == url)).first()
+            if row:
+                return dokon_yoqilganmi(db, row[0])
+        return False
 
 
 def dokon_rasm_toliq_matni(kod):
     return (f"{kod} modelida {DOKON_RASM_MAX} ta rasm bor — ko'pi shu. Yangisini qo'shish uchun avval keraksizini o'chiring")
 
 
-def dokon_rasm_zaxira_xatosi(db: Session, rows, company_id: int):
+def dokon_rasm_zaxira_xatosi(db: Session, rows, company_id: int, galereya_rows=None):
     """review232 №3: zaxiradan tiklanadigan `dokon_rasmlar` qatorlari — xato matni yoki None. Har qator: `fayl` — katta nusxa
     manzili, `kichik` — o'sha nomning `_k` nusxasi, bir xil kengaytma; faylda takror yo'q; manzil BOSHQA korxonaning yozuvida emas
-    (aks holda tiklangan yozuv o'chirilganda begona korxonaning fayli o'chardi)."""
-    from models import DokonRasm
+    (aks holda tiklangan yozuv o'chirilganda begona korxonaning fayli o'chardi).
+    kech178 (zip 243): `galereya_rows` — `dokon_galereya_rasmlari` qatorlari, o'sha qoidalar; takror va «boshqa korxonaniki» — ikkala
+    jadval birga (`_dokon_rasm_jadvallari`)."""
     import tenant_context as _tc232
-    if not rows:
+    if not rows and not galereya_rows:
         return None
-    if not isinstance(rows, list):
-        return "Fayl formati noto'g'ri: dokon_rasmlar ro'yxat emas"
     hammasi = []
-    for r in rows:
-        f = r.get("fayl") if isinstance(r, dict) else None
-        k = r.get("kichik") if isinstance(r, dict) else None
-        m1 = _DOKON_RASM_URL.fullmatch(f) if isinstance(f, str) else None
-        m2 = _DOKON_RASM_URL.fullmatch(k) if isinstance(k, str) else None
-        if (not m1 or not m2 or m1.group(2) or not m2.group(2) or m1.group(1) != m2.group(1)
-                or m1.group(3) != m2.group(3)):
-            return f"Zaxira fayli buzilgan: dokon_rasmlar qatorida rasm manzili noto'g'ri ({str(f)[:80]}). Tiklash rad etildi."
-        hammasi += [f, k]
-    if len(set(hammasi)) != len(hammasi):
-        return "Zaxira fayli buzilgan: dokon_rasmlar da bir rasm fayli ikki marta. Tiklash rad etildi."
+    for jadval, rr in (("dokon_rasmlar", rows), ("dokon_galereya_rasmlari", galereya_rows)):
+        if not rr:
+            continue
+        if not isinstance(rr, list):
+            return f"Fayl formati noto'g'ri: {jadval} ro'yxat emas"
+        bu = []
+        for r in rr:
+            f = r.get("fayl") if isinstance(r, dict) else None
+            k = r.get("kichik") if isinstance(r, dict) else None
+            m1 = _DOKON_RASM_URL.fullmatch(f) if isinstance(f, str) else None
+            m2 = _DOKON_RASM_URL.fullmatch(k) if isinstance(k, str) else None
+            if (not m1 or not m2 or m1.group(2) or not m2.group(2) or m1.group(1) != m2.group(1)
+                    or m1.group(3) != m2.group(3)):
+                return f"Zaxira fayli buzilgan: {jadval} qatorida rasm manzili noto'g'ri ({str(f)[:80]}). Tiklash rad etildi."
+            bu += [f, k]
+        if len(set(bu)) != len(bu) or set(bu) & set(hammasi):
+            return f"Zaxira fayli buzilgan: {jadval} da bir rasm fayli ikki marta. Tiklash rad etildi."
+        hammasi += bu
     with _tc232.system_context(db):
-        begona = (db.query(DokonRasm.id)
-                  .filter(DokonRasm.company_id != company_id,
-                          DokonRasm.fayl.in_(hammasi) | DokonRasm.kichik.in_(hammasi)).first())
-    if begona:
-        return "Zaxira fayli buzilgan: dokon_rasmlar dagi rasm boshqa korxonaga tegishli. Tiklash rad etildi."
+        for jadval, rr in (("dokon_rasmlar", rows), ("dokon_galereya_rasmlari", galereya_rows)):
+            if not rr:
+                continue
+            bu = [u for r in rr for u in (r["fayl"], r["kichik"])]
+            for J in _dokon_rasm_jadvallari():
+                begona = (db.query(J.id)
+                          .filter(J.company_id != company_id, J.fayl.in_(bu) | J.kichik.in_(bu)).first())
+                if begona:
+                    return f"Zaxira fayli buzilgan: {jadval} dagi rasm boshqa korxonaga tegishli. Tiklash rad etildi."
     return None
 
 
@@ -23147,10 +23173,10 @@ def dokon_yetim_fayllar_tozala(db: Session, yosh_sekund: int = 3600) -> int:
     if not _os232.path.isdir(papka):
         return 0
     try:
-        from models import DokonRasm
         import tenant_context as _tc232
         with _tc232.system_context(db):
-            bor = {u.rsplit("/", 1)[1] for r in db.query(DokonRasm.fayl, DokonRasm.kichik).all() for u in r if u}
+            bor = {u.rsplit("/", 1)[1] for J in _dokon_rasm_jadvallari()     # kech178 (zip 243): galereya rasmlari ham
+                   for r in db.query(J.fayl, J.kichik).all() for u in r if u}
         chegara = _time232.time() - yosh_sekund
         soni = 0
         for e in _os232.scandir(papka):
@@ -25037,7 +25063,8 @@ DOKON_API_DAQIQA_MAX = 120
 DOKON_API_OYNA_SEKUND = 60
 DOKON_API_MUROJAAT_QADAM = _td234(minutes=5)
 DOKON_API_YOLLAR = ("/api/dokon/v1/katalog", "/api/dokon/v1/sozlamalar", "/api/dokon/v1/buyurtmalar",   # kech171 (zip 237): buyurtma (POST)
-                    "/api/dokon/v1/tayyor")                                 # kech172 (zip 238): «Tayyor mahsulotlar» qoldig'i
+                    "/api/dokon/v1/tayyor",                                 # kech172 (zip 238): «Tayyor mahsulotlar» qoldig'i
+                    "/api/dokon/v1/galereya")                               # kech178 (zip 243): «Bajarilgan ishlar»
 
 
 class DokonApiRad(Exception):
@@ -26621,3 +26648,680 @@ def dokon_partiya_katalogga(db: Session, fp_id: int, detal_id: int, company_id: 
                  new_value=f"omborga bog'landi: {fp.name} (ishlab chiqarishda «Katalogdan tanlash»)",
                  company_id=company_id, commit=False)
     return {"holat": "boglandi", "matn": f"🔗 Saytdagi «{nom}» detaliga bog'landi — «Sotuvga tayyor» bo'lgach saytda ko'rinadi"}
+
+
+
+# ══ kech178 (zip 243) — «BAJARILGAN ISHLAR» GALEREYASI ═════════════════════════════════════════════════════════════════════════════
+# Egasi QARORLARI («Onlayn do'kon rejasi», 30.10 — «Qo'shimcha imkoniyatlar» 1-bosqich, «Galereya bo'yicha tanlovlar»): galereya — ishlar
+# ro'yxati va ish sahifasi; ro'yxatda har ishning rasmi, joyi, sanasi va modellari, ishlatilgan mahsulot bo'yicha saralanadi; ish
+# sahifasida har model narxi (chegirma bo'lsa — chegirmali) va shu uydagi miqdor, mijoz miqdorni o'zgartirib «Shu modellarni savatga»
+# bosadi; ishni admin panelda egasi o'zi qo'shadi — rasmlar, joyi, sana va KATALOGDAN modellar tanlanadi (narx va chegirma saytda o'zi
+# yangilanadi); rasm hech qachon qirqilmaydi, yuklash xavfsiz (zip 232 qoidalari).
+# Texnik qarorlar (Claude, kech178):
+#   * qator — katalog DETALI (model + o'lcham; miqdor detal birligida) yoki KOMPLEKT (komplekt modeli + rom / eshik + o'lcham + kapitel /
+#     baza bilanmi; miqdor — dona); narx saqlanmaydi (sayt katalog API sidan oladi — bitta narx qoidasi);
+#   * saqlash — ishning HAMMA maydonlari va qatorlari birga (to'liq holat); qulf tartibi: ish → modellar → detallar (id o'sish
+#     tartibida) — model / detal o'chirish (model → detal) bilan to'qnashmaydi, o'chirilgan detalga qator yozilmaydi (PG FK);
+#   * model / detal o'chirilsa — unga ishora qilgan galereya qatorlari ham o'chiriladi (ish qoladi); model / bo'lim / detal o'chirilmay
+#     YASHIRILSA yoki komplekt o'lchami yo'qolsa — qator saqlanadi, saytga BERILMAYDI (admin sahifasida «saytda ko'rinmaydi» sababi);
+#   * rasmlar — sayt modeli rasmi bilan BIR XIL papka / ishlov / ochiq berish (`_dokon_rasm_jadvallari` — ikkala jadval: fayl o'chirish,
+#     ochiq berish, yetim fayllar, zaxira tekshiruvi);
+#   * do'kon API — `GET /api/dokon/v1/galereya` (o'sha kalit): faqat yoqilgan, kamida bitta rasmi bor ishlar; yangisi birinchi.
+from types import SimpleNamespace as _SN243          # noqa: E402
+
+DOKON_GALEREYA_MAX = 200
+DOKON_GALEREYA_QATOR_MAX = 30
+DOKON_GALEREYA_MIQDOR_MAX = 100000
+_DOKON_GL_OY = _re232.compile(r"([0-9]{4})-([0-9]{2})")      # review243 L7: `\d` — arabcha-hindcha raqamlar ham
+DOKON_OY_NOMI = {1: "yanvar", 2: "fevral", 3: "mart", 4: "aprel", 5: "may", 6: "iyun", 7: "iyul", 8: "avgust", 9: "sentyabr",
+                 10: "oktyabr", 11: "noyabr", 12: "dekabr"}
+DOKON_KOMPLEKT_NOMI = {"rom": "Rom komplekti", "eshik": "Eshik komplekti"}
+_DOKON_GL_KALITLARI = ("nomi", "joyi", "oy", "yoqilgan", "qatorlar")
+_DOKON_GL_QATOR_KALITLARI = ("detal_id", "model_id", "komplekt_turi", "komplekt_olcham", "komplekt_toliq", "miqdor")
+
+
+def _dokon_rasm_jadvallari():
+    """Sayt rasmi yozuvlari turadigan jadvallar — model rasmi (zip 232) va galereya ishi rasmi (zip 243). Fayl o'chirish, ochiq berish,
+    yetim fayllar va zaxira tekshiruvi IKKALASIGA qaraydi."""
+    from models import DokonRasm, DokonGalereyaRasm
+    return (DokonRasm, DokonGalereyaRasm)
+
+
+def dokon_gl_oy_matni(oy):
+    """`date(2026, 9, 1)` → «2026, sentyabr» (dizayn namunasidagidek); None — None."""
+    if oy is None:
+        return None
+    return f"{oy.year}, {DOKON_OY_NOMI[oy.month]}"
+
+
+def _dokon_gl_oy(qiymat):
+    """«YYYY-MM» (brauzer `<input type="month">`) yoki null → oyning 1-kuni / None. Yil 2000 … 2100."""
+    if qiymat is None or qiymat == "":
+        return None
+    if not isinstance(qiymat, str):
+        raise ValueError("«Sana» «YYYY-MM» ko'rinishida bo'lsin")
+    m = _DOKON_GL_OY.fullmatch(qiymat.strip())
+    if not m:
+        raise ValueError("«Sana» «YYYY-MM» ko'rinishida bo'lsin")
+    yil, oy = int(m.group(1)), int(m.group(2))
+    if not (2000 <= yil <= 2100) or not (1 <= oy <= 12):
+        raise ValueError("«Sana» noto'g'ri (yil 2000 … 2100, oy 1 … 12)")
+    return _date234(yil, oy, 1)
+
+
+def _dokon_gl_komplekt_soni(qiymat, nom):
+    """Komplekt soni — butun 1 … `SAYT_MAX_KOMPLEKT` (do'kon buyurtmasi qoidasi bilan bir xil — review243 M1)."""
+    if isinstance(qiymat, bool) or not isinstance(qiymat, (int, float)):
+        raise ValueError(f"«{nom}» — miqdor son bo'lishi kerak")
+    if isinstance(qiymat, float) and not math.isfinite(qiymat):
+        raise ValueError(f"«{nom}» — miqdor noto'g'ri")
+    if abs(qiymat) > SAYT_MAX_KOMPLEKT:
+        raise ValueError(f"«{nom}» — komplekt soni {SAYT_MAX_KOMPLEKT} dan oshmasin")
+    d = Decimal(str(qiymat))
+    if d != d.to_integral_value() or d < 1:
+        raise ValueError(f"«{nom}» — komplekt soni butun son bo'lishi kerak (kamida 1)")
+    return d.quantize(Decimal("1"))
+
+
+def _dokon_gl_miqdor(qiymat, m, d, nom):
+    """review243 M1: shu uydagi miqdor — do'kon BUYURTMASI qabul qiladigan miqdor (aks holda saytda «Shu modellarni savatga» rad etiladi):
+    detal — `_sayt_miqdor` (dona / butun metr — butun, juft metr — juft, m² — 2 xonagacha, ≤ `SAYT_MAX_MIQDOR`), komplekt — butun
+    1 … `SAYT_MAX_KOMPLEKT`. `d` — None bo'lsa komplekt."""
+    if d is None:
+        return _dokon_gl_komplekt_soni(qiymat, nom)
+    return _sayt_miqdor(qiymat, d.birlik, m.qolip, d.turi, nom)
+
+
+def _dokon_galereya_of(db, galereya_id, company_id, lock=False):
+    from models import DokonGalereya
+    if isinstance(galereya_id, bool) or not isinstance(galereya_id, int) or not (1 <= galereya_id <= 2_147_483_647):
+        return None
+    q = db.query(DokonGalereya).filter(DokonGalereya.id == galereya_id, DokonGalereya.company_id == company_id)
+    if lock:
+        db.flush()
+        q = q.populate_existing().with_for_update()
+    return q.first()
+
+
+def _dokon_gl_qatorlari(db, company_id, galereya_ids):
+    from models import DokonGalereyaQator
+    if not galereya_ids:
+        return {}
+    natija = {}
+    for q in (db.query(DokonGalereyaQator).filter(DokonGalereyaQator.company_id == company_id,
+                                                  DokonGalereyaQator.galereya_id.in_(list(galereya_ids)))
+              .order_by(DokonGalereyaQator.galereya_id, DokonGalereyaQator.tartib, DokonGalereyaQator.id).all()):
+        natija.setdefault(q.galereya_id, []).append(q)
+    return natija
+
+
+def _dokon_gl_rasmlari(db, company_id, galereya_ids):
+    from models import DokonGalereyaRasm
+    if not galereya_ids:
+        return {}
+    natija = {}
+    for r in (db.query(DokonGalereyaRasm).filter(DokonGalereyaRasm.company_id == company_id,
+                                                 DokonGalereyaRasm.galereya_id.in_(list(galereya_ids)))
+              .order_by(DokonGalereyaRasm.galereya_id, DokonGalereyaRasm.tartib, DokonGalereyaRasm.id).all()):
+        natija.setdefault(r.galereya_id, []).append(r)
+    return natija
+
+
+def _dokon_gl_katalog(db, company_id):
+    """(bo'limlar, modellar, detallar — {id: obyekt}, model → detallar ro'yxati) — qator nomi va holati uchun."""
+    from models import DokonBolim, DokonModel, DokonDetal
+    bolimlar = {b.id: b for b in db.query(DokonBolim).filter(DokonBolim.company_id == company_id).all()}
+    modellar = {m.id: m for m in db.query(DokonModel).filter(DokonModel.company_id == company_id).all()}
+    detallar, m_detal = {}, {}
+    for d in (db.query(DokonDetal).filter(DokonDetal.company_id == company_id)
+              .order_by(DokonDetal.model_id, DokonDetal.tartib, DokonDetal.id).all()):
+        detallar[d.id] = d
+        m_detal.setdefault(d.model_id, []).append(d)
+    return bolimlar, modellar, detallar, m_detal
+
+
+def _dokon_gl_detal_nomi(m, d):
+    """review243 L4: galereya qatori nomi (admin sahifasi va sayt — BIR XIL; sahifada `skGlQatorNomi`): «K-3 Tekis · 15 sm», «Rom karnizi
+    R-12 · O'rta» — o'lcham HAR DOIM (eni yo'q detallar ham bir-biridan ajraladi)."""
+    asos = m.kod + (f" {m.nom}" if (d.turi == "asosiy" and m.nom) else "")
+    return (asos if d.turi == "asosiy" else f"{DOKON_TURI_NOMI.get(d.turi, d.turi)} {asos}") + f" · {d.olcham}"
+
+
+def _dokon_gl_qator_nomi(q, m, d):
+    """Saytdagi / sahifadagi qator nomi: detal — `_dokon_gl_detal_nomi` («Rom karnizi R-18 · O'rta»); komplekt — «R-18 Klassik — Rom komplekti,
+    O'rta» (+ «, kapitel / bazasiz»)."""
+    if m is None:
+        return "Model topilmadi"
+    if q.detal_id is not None:
+        return _dokon_gl_detal_nomi(m, d) if d is not None else f"{m.kod} — o'lcham topilmadi"
+    nom = m.kod + (f" {m.nom}" if m.nom else "")
+    nom += f" — {DOKON_KOMPLEKT_NOMI.get(q.glq_kmp_turi, 'Komplekt')}, {q.glq_kmp_olcham or '?'}"
+    if m.kapitel_baza_bor and q.glq_kmp_toliq is False:
+        nom += ", kapitel / bazasiz"
+    return nom
+
+
+def _dokon_gl_qator_sababi(q, kat):
+    """Qator saytda ko'rinmasa — sababi (matn), ko'rinsa — None. Faqat o'qiydi (hech narsa o'zgartirmaydi)."""
+    bolimlar, modellar, detallar, m_detal = kat
+    m = modellar.get(q.model_id)
+    if m is None:
+        return "model o'chirilgan"
+    b = bolimlar.get(m.bolim_id)
+    if not m.yoqilgan:
+        return f"{m.kod} modeli yashirilgan"
+    if b is None or not b.yoqilgan:
+        return f"{m.kod} modelining bo'limi yashirilgan"
+    if q.detal_id is not None:
+        d = detallar.get(q.detal_id)
+        if d is None or d.model_id != m.id:
+            return "o'lcham o'chirilgan"
+        if not d.yoqilgan:
+            return f"{d.olcham} o'lchami yashirilgan"
+        return _dokon_gl_miqdor_sababi(q, m, d)
+    if m.qolip != "komplekt":
+        return f"{m.kod} endi komplekt modeli emas"
+    if q.glq_kmp_turi not in DOKON_RETSEPT_TURLARI:
+        return "komplekt turi noto'g'ri"
+    k = dokon_olcham_kalit(q.glq_kmp_olcham)
+    if not any(dokon_olcham_kalit(d.olcham) == k and d.yoqilgan for d in m_detal.get(m.id, [])):
+        return f"«{q.glq_kmp_olcham}» o'lchami modelda yo'q yoki yashirilgan"
+    return _dokon_gl_miqdor_sababi(q, m, None)
+
+
+def _dokon_gl_miqdor_sababi(q, m, d):
+    """review243 M4: saqlangandan keyin model qolipi / detal birligi o'zgarsa — miqdor do'kon buyurtmasiga yaroqsiz bo'lib qolishi mumkin
+    (36,5 m → «36,5 dona»): qator saytga berilmaydi, sababi admin sahifasida."""
+    try:
+        _dokon_gl_miqdor(float(q.glq_miqdor), m, d, "miqdor")
+    except ValueError:
+        return "miqdor endi bu mahsulot birligiga mos emas — tuzating"
+    return None
+
+
+def _dokon_gl_birlik(q, kat):
+    _, modellar, detallar, _ = kat
+    if q.detal_id is None:
+        return "komplekt"
+    d = detallar.get(q.detal_id)
+    return d.birlik if d is not None else None
+
+
+def dokon_galereya_dict(g, qatorlar, rasmlar, kat):
+    """Admin sahifasi uchun ish (hamma qatorlari — saytda ko'rinmaydiganlari sababi bilan)."""
+    _, modellar, detallar, _ = kat
+    q_royxat = []
+    for q in qatorlar:
+        m = modellar.get(q.model_id)
+        d = detallar.get(q.detal_id) if q.detal_id is not None else None
+        q_royxat.append({
+            "id": q.id, "model_id": q.model_id, "detal_id": q.detal_id, "komplekt_turi": q.glq_kmp_turi,
+            "komplekt_olcham": q.glq_kmp_olcham, "komplekt_toliq": q.glq_kmp_toliq, "miqdor": float(q.glq_miqdor),
+            "birlik": _dokon_gl_birlik(q, kat), "nom": _dokon_gl_qator_nomi(q, m, d), "sabab": _dokon_gl_qator_sababi(q, kat),
+        })
+    korinmaydi = []
+    if not g.yoqilgan:
+        korinmaydi.append("yashirilgan")
+    if not rasmlar:
+        korinmaydi.append("rasm yo'q")
+    if not any(x["sabab"] is None for x in q_royxat):
+        korinmaydi.append("saytda ko'rinadigan mahsulot yo'q")
+    return {"id": g.id, "nomi": g.gl_nomi, "joyi": g.gl_joyi, "oy": g.gl_oy.strftime("%Y-%m") if g.gl_oy else None,
+            "oy_matni": dokon_gl_oy_matni(g.gl_oy), "yoqilgan": bool(g.yoqilgan),
+            "rasmlar": [dokon_galereya_rasm_dict(r) for r in rasmlar], "qatorlar": q_royxat,
+            # «rasm yo'q» / «yashirilgan» — sayt bu ishni umuman ko'rsatmaydi; faqat mahsulotsiz ish — ko'rsatiladi (rasmlari bilan)
+            "saytda": g.yoqilgan and bool(rasmlar), "eslatma": korinmaydi}
+
+
+def dokon_galereya_rasm_dict(r):
+    return {"id": r.id, "galereya_id": r.galereya_id, "url": r.fayl, "kichik": r.kichik, "eni": r.eni, "boyi": r.boyi,
+            "hajm": r.hajm, "turi": r.turi, "tartib": r.tartib or 0}
+
+
+def _dokon_gl_tartibi(ishlar):
+    """Yangisi birinchi: oyi kamayib (oysizlar — oxirida), keyin raqam kamayib."""
+    return sorted(ishlar, key=lambda g: (g.gl_oy is None, -(g.gl_oy.toordinal() if g.gl_oy else 0), -g.id))
+
+
+def dokon_galereya_royxat(db: Session, company_id: int) -> dict:
+    from models import DokonGalereya
+    dokon_tekshir(db, company_id)
+    ishlar = _dokon_gl_tartibi(db.query(DokonGalereya).filter(DokonGalereya.company_id == company_id).all())
+    ids = [g.id for g in ishlar]
+    qatorlar = _dokon_gl_qatorlari(db, company_id, ids)
+    rasmlar = _dokon_gl_rasmlari(db, company_id, ids)
+    kat = _dokon_gl_katalog(db, company_id)
+    return {"galereya": [dokon_galereya_dict(g, qatorlar.get(g.id, []), rasmlar.get(g.id, []), kat) for g in ishlar],
+            "galereya_max": DOKON_GALEREYA_MAX, "qator_max": DOKON_GALEREYA_QATOR_MAX, "rasm_max": DOKON_RASM_MAX}
+
+
+def _dokon_gl_qatorlar_tekshir(db, company_id, xom):
+    """Kelgan qatorlar ro'yxati → tekshirilgan qatorlar (dict lar). Modellar, keyin detallar QULFLANADI (id o'sish tartibida) —
+    model / detal o'chirish bilan bir vaqtda o'chirilgan yozuvga ishora qilinmasin. Xato — `ValueError` (qator raqami bilan)."""
+    from models import DokonDetal
+    if not isinstance(xom, list):
+        raise ValueError("«Mahsulotlar» ro'yxat bo'lishi kerak")
+    if len(xom) > DOKON_GALEREYA_QATOR_MAX:
+        raise ValueError(f"Bitta ishga ko'pi bilan {DOKON_GALEREYA_QATOR_MAX} ta mahsulot")
+    oldin = []
+    for i, x in enumerate(xom, start=1):
+        if not isinstance(x, dict):
+            raise ValueError(f"{i}-mahsulot noto'g'ri")
+        notogri = sorted(str(k)[:40] for k in x if k not in _DOKON_GL_QATOR_KALITLARI)
+        if notogri:
+            raise ValueError(f"{i}-mahsulot: bu maydonni yuborib bo'lmaydi: " + ", ".join(notogri[:10]))
+        did = x.get("detal_id")
+        if did is not None:
+            if isinstance(did, bool) or not isinstance(did, int) or not (1 <= did <= 2_147_483_647):
+                raise ValueError(f"{i}-mahsulot: o'lcham noto'g'ri")
+            for k in ("model_id", "komplekt_turi", "komplekt_olcham", "komplekt_toliq"):
+                if x.get(k) is not None:
+                    raise ValueError(f"{i}-mahsulot: o'lcham tanlangan qatorda komplekt maydonlari bo'lmaydi")
+        else:
+            mid = x.get("model_id")
+            if isinstance(mid, bool) or not isinstance(mid, int) or not (1 <= mid <= 2_147_483_647):
+                raise ValueError(f"{i}-mahsulot: o'lcham yoki komplekt tanlanmagan")
+        oldin.append(x)
+    # 1) detallarning modellarini aniqlash (qulfsiz o'qish — keyin qulf ostida QAYTA tekshiriladi)
+    did_lar = sorted({x["detal_id"] for x in oldin if x.get("detal_id") is not None})
+    d_model = {}
+    if did_lar:
+        d_model = {r[0]: r[1] for r in db.query(DokonDetal.id, DokonDetal.model_id)
+                   .filter(DokonDetal.company_id == company_id, DokonDetal.id.in_(did_lar)).all()}
+    mid_lar = sorted({x["model_id"] for x in oldin if x.get("detal_id") is None} | set(d_model.values()))
+    # 2) qulflar: modellar → detallar (id o'sish tartibida)
+    modellar = {}
+    for mid in mid_lar:
+        m = _dokon_model_of(db, mid, company_id, lock=True)
+        if m is not None:
+            modellar[mid] = m
+    detallar = {}
+    for did in did_lar:
+        d = _dokon_detal_of(db, did, company_id, lock=True)
+        if d is not None:
+            detallar[did] = d
+    m_detal = {}
+    if modellar:
+        for d in (db.query(DokonDetal).filter(DokonDetal.company_id == company_id, DokonDetal.model_id.in_(list(modellar)))
+                  .order_by(DokonDetal.model_id, DokonDetal.tartib, DokonDetal.id).all()):
+            m_detal.setdefault(d.model_id, []).append(d)
+    natija, korilgan = [], set()
+    for i, x in enumerate(oldin, start=1):
+        did = x.get("detal_id")
+        if did is not None:
+            d = detallar.get(did)
+            m = modellar.get(d.model_id) if d is not None else None
+            if d is None or m is None:
+                raise ValueError(f"{i}-mahsulot: katalogda bunday o'lcham yo'q (o'chirilgan bo'lishi mumkin) — sahifani yangilang")
+            nom = _dokon_gl_detal_nomi(m, d)
+            miqdor = _dokon_gl_miqdor(x.get("miqdor"), m, d, f"{i}-mahsulot {nom}")
+            kalit = ("d", d.id)
+            yozuv = {"model_id": m.id, "detal_id": d.id, "glq_kmp_turi": None, "glq_kmp_olcham": None, "glq_kmp_toliq": None,
+                     "glq_miqdor": miqdor, "_nom": nom}
+        else:
+            m = modellar.get(x["model_id"])
+            if m is None:
+                raise ValueError(f"{i}-mahsulot: katalogda bunday model yo'q (o'chirilgan bo'lishi mumkin) — sahifani yangilang")
+            if m.qolip != "komplekt":
+                raise ValueError(f"{i}-mahsulot: {m.kod} — komplekt modeli emas, o'lchamini tanlang")
+            turi = x.get("komplekt_turi")
+            if turi not in DOKON_RETSEPT_TURLARI:
+                raise ValueError(f"{i}-mahsulot: komplekt turi — rom yoki eshik")
+            ol = _dokon_matn(x.get("komplekt_olcham"), "Komplekt o'lchami", 40)
+            mos = [d.olcham for d in m_detal.get(m.id, []) if dokon_olcham_kalit(d.olcham) == dokon_olcham_kalit(ol)]
+            if not mos:
+                raise ValueError(f"{i}-mahsulot: {m.kod} modelida «{ol}» o'lchami yo'q")
+            ol = mos[0]                                 # katalogdagi yozilishi («O’rta» → «O'rta»)
+            toliq = x.get("komplekt_toliq")
+            if not isinstance(toliq, bool):
+                raise ValueError(f"{i}-mahsulot: «kapitel / baza bilan» true yoki false bo'lsin")
+            if not m.kapitel_baza_bor:
+                toliq = False
+            nom = _dokon_gl_qator_nomi(_SN243(detal_id=None, glq_kmp_turi=turi, glq_kmp_olcham=ol, glq_kmp_toliq=toliq), m, None)
+            miqdor = _dokon_gl_miqdor(x.get("miqdor"), m, None, f"{i}-mahsulot {nom}")
+            kalit = ("k", m.id, turi, dokon_olcham_kalit(ol), toliq)
+            yozuv = {"model_id": m.id, "detal_id": None, "glq_kmp_turi": turi, "glq_kmp_olcham": ol, "glq_kmp_toliq": toliq,
+                     "glq_miqdor": miqdor, "_nom": nom}
+        if kalit in korilgan:
+            raise ValueError(f"{i}-mahsulot ro'yxatda ikki marta: {yozuv['_nom']}")
+        korilgan.add(kalit)
+        natija.append(yozuv)
+    return natija
+
+
+def _dokon_gl_maydonlar(data, yangi):
+    """Ish maydonlari (yaratishda — hammasi, tahrirda — kelganlari): {"gl_nomi", "gl_joyi", "gl_oy", "yoqilgan"}."""
+    _dokon_kalitlar(data, _DOKON_GL_KALITLARI)
+    natija = {}
+    if yangi or "nomi" in data:
+        natija["gl_nomi"] = _dokon_matn(data.get("nomi"), "Ish nomi", 120)
+    if yangi or "joyi" in data:
+        natija["gl_joyi"] = _dokon_matn(data.get("joyi"), "Joyi", 120, bosh_mumkin=True)
+    if yangi or "oy" in data:
+        natija["gl_oy"] = _dokon_gl_oy(data.get("oy"))
+    if "yoqilgan" in data or yangi:
+        natija["yoqilgan"] = _dokon_bool(data.get("yoqilgan", True), "Saytda ko'rinadi")
+    return natija
+
+
+def _dokon_gl_qator_matni(qatorlar):
+    """Jurnal uchun: «K-12 Tekis · 12 sm — 36; R-18 … — 8» (12 tadan keyin «… yana N ta»); miqdor — `audit_son` (zip 193)."""
+    q = [f"{x['_nom']} — {audit_son(x['glq_miqdor'], 3)}" for x in qatorlar]
+    if len(q) > 12:
+        q = q[:12] + [f"… yana {len(qatorlar) - 12} ta"]
+    return "; ".join(q) if q else "mahsulotsiz"
+
+
+def _dokon_gl_jurnal(joyi, oy, yoqilgan):
+    """Jurnal uchun ish maydonlari: «Asaka tumani; 2026, avgust; saytda»."""
+    return "; ".join((joyi or "joyi yo'q", dokon_gl_oy_matni(oy) or "sanasiz", "saytda" if yoqilgan else "yashirin"))
+
+
+def _dokon_gl_qatorlarni_yoz(db, company_id, g, qatorlar):
+    from models import DokonGalereyaQator
+    db.query(DokonGalereyaQator).filter(DokonGalereyaQator.company_id == company_id,
+                                        DokonGalereyaQator.galereya_id == g.id).delete(synchronize_session=False)
+    for i, x in enumerate(qatorlar, start=1):
+        db.add(DokonGalereyaQator(company_id=company_id, galereya_id=g.id, tartib=i,
+                                  **{k: v for k, v in x.items() if not k.startswith("_")}))
+
+
+def _dokon_gl_hozirgi_qatorlar(db, company_id, g):
+    """Bazadagi qatorlar — `_dokon_gl_qatorlar_tekshir` natijasi shaklida (o'zgarish bormi — solishtirish uchun)."""
+    kat = None
+    natija = []
+    for q in _dokon_gl_qatorlari(db, company_id, [g.id]).get(g.id, []):
+        if kat is None:
+            kat = _dokon_gl_katalog(db, company_id)
+        m = kat[1].get(q.model_id)
+        d = kat[2].get(q.detal_id) if q.detal_id is not None else None
+        natija.append({"model_id": q.model_id, "detal_id": q.detal_id, "glq_kmp_turi": q.glq_kmp_turi,
+                       "glq_kmp_olcham": q.glq_kmp_olcham, "glq_kmp_toliq": q.glq_kmp_toliq,
+                       "glq_miqdor": Decimal(str(q.glq_miqdor)), "_nom": _dokon_gl_qator_nomi(q, m, d)})
+    return natija
+
+
+def _dokon_gl_solishtir(a):
+    return [tuple((k, (Decimal(str(v)).normalize() if k == "glq_miqdor" else v)) for k, v in sorted(x.items()) if not k.startswith("_"))
+            for x in a]
+
+
+def dokon_galereya_yarat(db: Session, company_id: int, data: dict, kim: str):
+    """Yangi ish: {"nomi", "joyi", "oy" («YYYY-MM»), "yoqilgan", "qatorlar"}. Rasmlar — keyin (alohida yo'l)."""
+    from models import DokonGalereya
+    dokon_tekshir(db, company_id)
+    if not isinstance(data, dict):
+        raise ValueError("Noto'g'ri so'rov")
+    maydon = _dokon_gl_maydonlar(data, True)
+    # chegara — taxminiy (parallel yaratishda 1–2 taga oshishi zararsiz; korxona qatori qulflanmaydi — boshqa qulf tartiblariga tegmasin)
+    soni = db.query(DokonGalereya.id).filter(DokonGalereya.company_id == company_id).count()
+    if soni >= DOKON_GALEREYA_MAX:
+        raise ValueError(f"Galereyada {DOKON_GALEREYA_MAX} ta ish bor — ko'pi shu. Yangisini qo'shish uchun avval keraksizini o'chiring")
+    qatorlar = _dokon_gl_qatorlar_tekshir(db, company_id, data.get("qatorlar", []))
+    g = DokonGalereya(company_id=company_id, updated_by=kim, **maydon)
+    db.add(g)
+    db.flush()
+    _dokon_gl_qatorlarni_yoz(db, company_id, g, qatorlar)
+    log_activity(db, "created", "dokon_galereya", g.id, f"Galereya ishi «{g.gl_nomi}»", kim,
+                 new_value=f"{_dokon_gl_jurnal(g.gl_joyi, g.gl_oy, g.yoqilgan)}; {_dokon_gl_qator_matni(qatorlar)}",
+                 company_id=company_id, commit=False)
+    db.commit()
+    db.refresh(g)
+    return g
+
+
+def dokon_galereya_yangila(db: Session, galereya_id: int, company_id: int, data: dict, kim: str):
+    """Ish maydonlari va (yuborilsa) qatorlari — to'liq ro'yxat. O'zgarish yo'q — hech narsa yozilmaydi. Topilmasa — None."""
+    dokon_tekshir(db, company_id)
+    if not isinstance(data, dict):
+        raise ValueError("Noto'g'ri so'rov")
+    maydon = _dokon_gl_maydonlar(data, False)
+    g = _dokon_galereya_of(db, galereya_id, company_id, lock=True)
+    if g is None:
+        return None
+    eski_q = _dokon_gl_hozirgi_qatorlar(db, company_id, g)
+    yangi_q = _dokon_gl_qatorlar_tekshir(db, company_id, data["qatorlar"]) if "qatorlar" in data else None
+    eski = (g.gl_nomi, g.gl_joyi, g.gl_oy, bool(g.yoqilgan))
+    for k, v in maydon.items():
+        setattr(g, k, v)
+    yangi = (g.gl_nomi, g.gl_joyi, g.gl_oy, bool(g.yoqilgan))
+    q_ozgardi = yangi_q is not None and _dokon_gl_solishtir(yangi_q) != _dokon_gl_solishtir(eski_q)
+    if yangi == eski and not q_ozgardi:
+        db.rollback()
+        return g
+    if q_ozgardi:
+        _dokon_gl_qatorlarni_yoz(db, company_id, g, yangi_q)
+    g.updated_by = kim
+    g.updated_at = datetime.utcnow()
+    farq = [n for n, a, y in zip(("nomi", "joyi", "sana", "saytda ko'rinishi"), eski, yangi) if a != y]
+    if q_ozgardi:
+        farq.append("mahsulotlar")
+    log_activity(db, "updated", "dokon_galereya", g.id, f"Galereya ishi «{g.gl_nomi}»", kim,
+                 old_value=(f"{eski[0]}; {_dokon_gl_jurnal(eski[1], eski[2], eski[3])}"
+                            + (f"; {_dokon_gl_qator_matni(eski_q)}" if q_ozgardi else "")),
+                 new_value=(f"o'zgardi: {', '.join(farq)}" + (f"; {_dokon_gl_qator_matni(yangi_q)}" if q_ozgardi else "")),
+                 company_id=company_id, commit=False)
+    db.commit()
+    db.refresh(g)
+    return g
+
+
+def dokon_galereya_ochir(db: Session, galereya_id: int, company_id: int, kim: str):
+    """Ishni, qatorlarini va rasmlarini o'chiradi (rasm fayllari — commit dan KEYIN). Topilmasa — None."""
+    from models import DokonGalereyaQator, DokonGalereyaRasm
+    dokon_tekshir(db, company_id)
+    g = _dokon_galereya_of(db, galereya_id, company_id, lock=True)
+    if g is None:
+        return None
+    rasmlar = _dokon_gl_rasmlari(db, company_id, [g.id]).get(g.id, [])
+    q_soni = (db.query(DokonGalereyaQator.id).filter(DokonGalereyaQator.company_id == company_id,
+                                                     DokonGalereyaQator.galereya_id == g.id).count())
+    log_activity(db, "deleted", "dokon_galereya", g.id, f"Galereya ishi «{g.gl_nomi}»", kim,
+                 old_value=f"{q_soni} ta mahsulot, {len(rasmlar)} ta rasm", company_id=company_id, commit=False)
+    urllar = [u for r in rasmlar for u in (r.fayl, r.kichik)]
+    db.query(DokonGalereyaQator).filter(DokonGalereyaQator.company_id == company_id,
+                                        DokonGalereyaQator.galereya_id == g.id).delete(synchronize_session=False)
+    db.query(DokonGalereyaRasm).filter(DokonGalereyaRasm.company_id == company_id,
+                                       DokonGalereyaRasm.galereya_id == g.id).delete(synchronize_session=False)
+    db.flush()
+    db.delete(g)
+    db.commit()
+    _dokon_rasm_fayllarini_ochir(urllar, db)
+    return True
+
+
+def dokon_galereya_rasm_qosh(db: Session, company_id: int, galereya_id: int, fayl: str, kichik: str, eni: int, boyi: int,
+                             hajm: int, kim: str):
+    """Tayyor (qayta yozilgan) rasm fayllari uchun yozuv — `dokon_rasm_qosh` (zip 232) qoidasi bilan. Ish topilmasa — None; ishda
+    `DOKON_RASM_MAX` ta rasm bo'lsa — `ValueError`."""
+    from models import DokonGalereyaRasm
+    dokon_tekshir(db, company_id)
+    m1 = _DOKON_RASM_URL.fullmatch(fayl or "")
+    m2 = _DOKON_RASM_URL.fullmatch(kichik or "")
+    if not m1 or not m2 or m1.group(2) or not m2.group(2) or m1.group(1) != m2.group(1) or m1.group(3) != m2.group(3):
+        raise ValueError("Rasm fayli noto'g'ri")
+    for v in (eni, boyi, hajm):
+        if isinstance(v, bool) or not isinstance(v, int) or v <= 0:
+            raise ValueError("Rasm o'lchami noto'g'ri")
+    g = _dokon_galereya_of(db, galereya_id, company_id, lock=True)
+    if g is None:
+        return None
+    rasmlar = _dokon_gl_rasmlari(db, company_id, [g.id]).get(g.id, [])
+    if len(rasmlar) >= DOKON_RASM_MAX:
+        raise ValueError(dokon_galereya_rasm_toliq_matni(g.gl_nomi))
+    tartib = max([r.tartib or 0 for r in rasmlar] + [0]) + 1
+    r = DokonGalereyaRasm(company_id=company_id, galereya_id=g.id, fayl=fayl, kichik=kichik, eni=eni, boyi=boyi, hajm=hajm,
+                          turi=_DOKON_RASM_TURI[m1.group(3)], tartib=tartib, created_by=kim)
+    db.add(r)
+    db.flush()
+    log_activity(db, "created", "dokon_galereya_rasm", r.id, f"Galereya ishi «{g.gl_nomi}» — rasm", kim,
+                 new_value=f"{len(rasmlar) + 1}-rasm, {eni} × {boyi} piksel, {_dokon_hajm_matni(hajm)}",
+                 company_id=company_id, commit=False)
+    db.commit()
+    db.refresh(r)
+    return r
+
+
+def dokon_galereya_rasm_toliq_matni(nomi):
+    return (f"«{nomi}» ishida {DOKON_RASM_MAX} ta rasm bor — ko'pi shu. Yangisini qo'shish uchun avval keraksizini o'chiring")
+
+
+def _dokon_galereya_rasm_of(db, rasm_id, company_id, lock=False):
+    from models import DokonGalereyaRasm
+    if isinstance(rasm_id, bool) or not isinstance(rasm_id, int) or not (1 <= rasm_id <= 2_147_483_647):
+        return None
+    q = db.query(DokonGalereyaRasm).filter(DokonGalereyaRasm.id == rasm_id, DokonGalereyaRasm.company_id == company_id)
+    if lock:
+        db.flush()
+        q = q.populate_existing().with_for_update()
+    return q.first()
+
+
+def dokon_galereya_rasm_ochir(db: Session, rasm_id: int, company_id: int, kim: str):
+    """Rasm yozuvini o'chiradi, commit dan keyin — fayllarini. Qulf tartibi — ish → rasm (zip 232 model → rasm naqshi). Topilmasa —
+    None."""
+    dokon_tekshir(db, company_id)
+    r = _dokon_galereya_rasm_of(db, rasm_id, company_id)
+    if r is None:
+        return None
+    g = _dokon_galereya_of(db, r.galereya_id, company_id, lock=True)
+    r = _dokon_galereya_rasm_of(db, rasm_id, company_id, lock=True)
+    if r is None:
+        db.rollback()
+        return None
+    urllar = [r.fayl, r.kichik]
+    log_activity(db, "deleted", "dokon_galereya_rasm", r.id, f"Galereya ishi «{g.gl_nomi if g else r.galereya_id}» — rasm", kim,
+                 old_value=f"{r.eni} × {r.boyi} piksel, {_dokon_hajm_matni(r.hajm)}", company_id=company_id, commit=False)
+    db.delete(r)
+    db.commit()
+    _dokon_rasm_fayllarini_ochir(urllar, db)
+    return True
+
+
+def dokon_galereya_rasm_tartib(db: Session, galereya_id: int, company_id: int, tartib, kim: str):
+    """Ish rasmlarining yangi tartibi (HAMMA rasm raqamlari, birinchisi — asosiy). `dokon_rasm_tartib` (zip 232) qoidasi. Ish
+    topilmasa — None."""
+    dokon_tekshir(db, company_id)
+    if not isinstance(tartib, list) or len(tartib) > 1000:
+        raise ValueError("Rasmlar tartibi ro'yxat bo'lishi kerak")
+    for x in tartib:
+        if isinstance(x, bool) or not isinstance(x, int):
+            raise ValueError("Rasmlar tartibi noto'g'ri")
+    if len(set(tartib)) != len(tartib):
+        raise ValueError("Rasmlar tartibida takror bor")
+    g = _dokon_galereya_of(db, galereya_id, company_id, lock=True)
+    if g is None:
+        return None
+    rasmlar = _dokon_gl_rasmlari(db, company_id, [g.id]).get(g.id, [])
+    if sorted(r.id for r in rasmlar) != sorted(tartib):
+        raise ValueError("Rasmlar ro'yxati boshqa oynada o'zgargan — sahifani yangilang va qayta suring")
+    eski = [r.id for r in rasmlar]
+    if eski == tartib:
+        db.rollback()
+        return rasmlar
+    joy = {rid: i for i, rid in enumerate(tartib, start=1)}
+    for r in rasmlar:
+        r.tartib = joy[r.id]
+    matn = (f"asosiy rasm almashdi: avvalgi {eski.index(tartib[0]) + 1}-rasm endi birinchi" if eski[0] != tartib[0]
+            else "asosiy rasm o'sha, qolganlari tartibi o'zgardi")
+    log_activity(db, "updated", "dokon_galereya", g.id, f"Galereya ishi «{g.gl_nomi}» — rasmlar tartibi", kim,
+                 old_value=f"{len(tartib)} ta rasm", new_value=matn, company_id=company_id, commit=False)
+    db.commit()
+    return _dokon_gl_rasmlari(db, company_id, [g.id]).get(g.id, [])
+
+
+def _dokon_gl_bogliq_ochir(db, company_id, model_id=None, detal_id=None) -> int:
+    """Model / detal o'chirilayotganda unga ishora qilgan galereya qatorlari (o'sha tranzaksiyada; commit — chaqiruvchida). Soni."""
+    from models import DokonGalereyaQator
+    from models import DokonDetal
+    q = db.query(DokonGalereyaQator).filter(DokonGalereyaQator.company_id == company_id)
+    if model_id is not None:
+        # review243 L5: qo'lda tahrirlangan zaxiradan kelgan nomuvofiq qator (detali shu modelniki, model_id boshqa) ham — aks holda PG FK 500
+        _d = db.query(DokonDetal.id).filter(DokonDetal.company_id == company_id, DokonDetal.model_id == model_id)
+        q = q.filter((DokonGalereyaQator.model_id == model_id) | DokonGalereyaQator.detal_id.in_(_d))
+    elif detal_id is not None:
+        q = q.filter(DokonGalereyaQator.detal_id == detal_id)
+    else:
+        return 0
+    return q.delete(synchronize_session=False)
+
+
+def _dokon_gl_komplekt_birlashtir(db, company_id, model_id, yangi_fn) -> int:
+    """Komplekt qatorlarini (`detal_id` NULL, shu model) `yangi_fn(q)` → (o'lcham, toliq) | None ga o'tkazadi; o'tkazilgan qator o'sha
+    ishda allaqachon bor kalitga tushsa — ikkinchisi o'chiriladi (ish ichida takror qolmasin). Chaqiruvchi model qatorini qulflagan
+    (galereya saqlash: ish → model — bu yo'l ishni qulflamaydi, galereya qatorlariga model qulfi OSTIDA tegadi). Soni (o'zgargan)."""
+    from models import DokonGalereyaQator
+    rows = (db.query(DokonGalereyaQator).filter(DokonGalereyaQator.company_id == company_id, DokonGalereyaQator.model_id == model_id,
+                                                DokonGalereyaQator.detal_id.is_(None))
+            .order_by(DokonGalereyaQator.galereya_id, DokonGalereyaQator.tartib, DokonGalereyaQator.id).all())
+    bor, soni = {}, 0
+    for q in rows:
+        y = yangi_fn(q)
+        ol, toliq = (q.glq_kmp_olcham, q.glq_kmp_toliq) if y is None else y
+        kalit = (q.galereya_id, q.glq_kmp_turi, dokon_olcham_kalit(ol), bool(toliq))
+        if kalit in bor:
+            db.delete(q)
+            soni += 1
+            continue
+        bor[kalit] = q
+        if y is not None and (ol, toliq) != (q.glq_kmp_olcham, q.glq_kmp_toliq):
+            q.glq_kmp_olcham, q.glq_kmp_toliq = ol, toliq
+            soni += 1
+    return soni
+
+
+def _dokon_gl_olcham_kochir(db, company_id, d, eski_olcham) -> int:
+    """review243 M3: komplekt o'lchami qayta nomlandi — galereyadagi komplekt qatorlari (o'lcham MATNI bilan bog'langan) yangi nomga
+    o'tadi; eski nom shu modelda boshqa qatorlarda qolsa (komplekt o'lchami 5 qator — bittalab nomlanadi) — hali o'tmaydi (chegirma
+    `_dokon_chegirma_olcham_kochir` qoidasi). Chaqiruvchi model qatorini qulflagan."""
+    from models import DokonDetal
+    ek = dokon_olcham_kalit(eski_olcham)
+    if ek == dokon_olcham_kalit(d.olcham):
+        return 0
+    qolgan = {dokon_olcham_kalit(r[0]) for r in db.query(DokonDetal.olcham)
+              .filter(DokonDetal.company_id == company_id, DokonDetal.model_id == d.model_id, DokonDetal.id != d.id).all()}
+    if ek in qolgan:
+        return 0
+    return _dokon_gl_komplekt_birlashtir(db, company_id, d.model_id, lambda q: (d.olcham, q.glq_kmp_toliq)
+                                         if dokon_olcham_kalit(q.glq_kmp_olcham) == ek else None)
+
+
+def dokon_api_galereya(db: Session, company_id: int) -> dict:
+    """Do'kon sayti uchun galereya (kalit bilan): yoqilgan va kamida bitta rasmi bor ishlar (yangisi birinchi), har ishda rasmlar va
+    saytda ko'rinadigan mahsulotlar (narxsiz — narx katalog API sidan: detal — `detal_id`, komplekt — model + tur + o'lcham).
+    `bolimlar` — ishda ishlatilgan bo'limlar (saralash tugmalari uchun)."""
+    from models import DokonGalereya
+    dokon_tekshir(db, company_id)
+    ishlar = _dokon_gl_tartibi(db.query(DokonGalereya).filter(DokonGalereya.company_id == company_id,
+                                                              DokonGalereya.yoqilgan == True).all())   # noqa: E712
+    ids = [g.id for g in ishlar]
+    rasmlar = _dokon_gl_rasmlari(db, company_id, ids)
+    qatorlar = _dokon_gl_qatorlari(db, company_id, ids)
+    kat = _dokon_gl_katalog(db, company_id)
+    _, modellar, detallar, _ = kat
+    royxat = []
+    for g in ishlar:
+        rs = rasmlar.get(g.id, [])
+        if not rs:
+            continue
+        q_royxat, bolim_ids = [], []
+        for q in qatorlar.get(g.id, []):
+            if _dokon_gl_qator_sababi(q, kat) is not None:
+                continue
+            m = modellar[q.model_id]
+            d = detallar.get(q.detal_id) if q.detal_id is not None else None
+            if m.bolim_id not in bolim_ids:
+                bolim_ids.append(m.bolim_id)
+            q_royxat.append({
+                "model_id": m.id, "model_kod": m.kod, "model_nom": m.nom, "bolim_id": m.bolim_id,
+                "detal_id": d.id if d is not None else None, "turi": d.turi if d is not None else None,
+                "olcham": d.olcham if d is not None else q.glq_kmp_olcham, "birlik": d.birlik if d is not None else "komplekt",
+                "komplekt": (None if d is not None else
+                             {"turi": q.glq_kmp_turi, "olcham": q.glq_kmp_olcham, "toliq": bool(q.glq_kmp_toliq)}),
+                "nom": _dokon_gl_qator_nomi(q, m, d), "miqdor": float(q.glq_miqdor),
+            })
+        royxat.append({"id": g.id, "nomi": g.gl_nomi, "joyi": g.gl_joyi,
+                       "oy": g.gl_oy.strftime("%Y-%m") if g.gl_oy else None, "oy_matni": dokon_gl_oy_matni(g.gl_oy),
+                       "rasmlar": [{"url": r.fayl, "kichik": r.kichik, "eni": r.eni, "boyi": r.boyi} for r in rs],
+                       "bolimlar": bolim_ids, "qatorlar": q_royxat})
+    return {"versiya": DOKON_API_VERSIYA, "galereya": royxat}
